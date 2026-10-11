@@ -1,5 +1,5 @@
 {
-  "about": "守りのファイル（works 自身の試験・柵・受け付けの口）。run の差分がどれかに当たれば、最後の人の関所を開き方（core の gatepolicy）に関わらず必ず開き、文の冒頭 3 行で名指して 3 行の直後の最初の節に並べる。通すのは人の continue だけ（ASF の .factory/locks/floor.json に倣う: 工場は自分の床を下げない・自分の検査を緩めない）。パスはリポジトリの根からの相対。glob は git の :(glob) と同じ読み（** は 0 個以上のフォルダ）。行を足す・消すのは人だけ（この一覧も守りのファイル）。tests/test_protect.py がどの行も追跡ファイルに当たるか（古い行は赤）を見る",
+  "about": "守りのファイル（works 自身の試験・柵・受け付けの口）。run の差分がどれかに当たれば、最後の人の関所を開き方（core の gatepolicy）に関わらず必ず開き、文の冒頭 3 行で名指して 3 行の直後の最初の節に並べる。通すのは人の continue だけ（ASF の .factory/locks/floor.json に倣う: 工場は自分の床を下げない・自分の検査を緩めない）。パスはリポジトリの根からの相対。glob は git の :(glob) と同じ読み（** は 0 個以上のフォルダ）。行を足す・消すのは人だけ（この一覧も守りのファイル）。lib/tests/test_protect.py がどの行も追跡ファイルに当たるか（古い行は赤）を見る",
   "rules": [
     {"id": "manifest", "glob": "lib/protected.json",
      "why": "この一覧そのもの。行を消せば守りが黙って外れる"},
@@ -15,6 +15,14 @@
      "why": "試験の入口。段の選び方・discover の型を変えれば回る試験が減る"},
     {"id": "accept", "glob": "lib/accept.py",
      "why": "受け付けの口（役の返答を写しの規則と検証器に通す・作業ツリーの柵 tree_state・tree_moved・差分の切り方）"},
+    {"id": "baseline-red", "glob": "lib/baseline_red.py",
+     "why": "元の結末と赤の見分け（元でも落ちていたか）。緩めれば直しが落とした試験を元からの赤と読む"},
+    {"id": "baseline-red-test", "glob": "lib/tests/test_baseline_red.py",
+     "why": "元の結末と赤の見分けの試験"},
+    {"id": "green-cert", "glob": "lib/green_cert.py",
+     "why": "緑の認証（指紋の一致と緑の時だけ認証する）。緩めれば赤か確かめていない木が緑と認証される"},
+    {"id": "green-cert-test", "glob": "lib/tests/test_green_cert.py",
+     "why": "緑の認証の試験"},
     {"id": "rules-copy", "glob": "lib/graphloops/**",
      "why": "写した graphloops（graph の schema・rules・engine）。受け付けと盤面の規則の正本"},
     {"id": "copy-ledger", "glob": "bin/_lib/**/[Cc][Oo][Pp]*",

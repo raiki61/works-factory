@@ -1,10 +1,10 @@
-"""守りのファイルの一覧（works/.shared/core/protected.json）と、その確かめ（works/.shared/core/protect.py）の検査。
+"""守りのファイルの一覧（lib/protected.json）と、その確かめ（lib/protect.py）の検査。
 
 ASF の .factory/locks/floor.json に倣う: 工場（darkfactory の自分食い）は自分の試験・柵・受け付けの口を緩めない。一覧に当たる
 ファイルを run が触ったら、最後の人の関所を必ず開いて冒頭 3 行で名指し、直後の最初の節に並べる（関所そのものは test_edge の ProtectedGateCase）。
 - 一覧の行はどれも、このリポジトリで追跡しているファイルに 1 本以上当たる（当たらない行は古い行で赤。KNOWN の表と同じ扱い）
 - 一覧の読み（match）は git の :(glob) と同じ当たり方をする（行ごとに git ls-files と突き合わせる）
-- 一覧そのもの・確かめのモジュール・この試験は一覧に入っている
+- 一覧そのもの・確かめのモジュール・この試験と、赤と緑の判定（baseline_red・green_cert とその試験）は一覧に入っている
 - 形の崩れた一覧（id の重なり・理由の無い行・絶対パス・.. ・空）は読み込みで拒む
 - 差分の確かめ（touched）は数える版からの変更・消した物・未追跡を拾い、行数と当たった行を返す。触っていなければ空
 """
@@ -66,9 +66,16 @@ class ManifestCase(unittest.TestCase):
             with self.subTest(path=p.name):
                 self.assertTrue(protect.hits([self.rel(p)], self.doc), f"{self.rel(p)} が一覧に当たらない")
 
+    def test_red_and_green_judges_are_protected(self):
+        for name in ("baseline_red.py", "green_cert.py", "tests/test_baseline_red.py", "tests/test_green_cert.py"):
+            with self.subTest(name=name):
+                self.assertTrue(protect.hits([self.rel(LIB / name)], self.doc), f"lib/{name} が一覧に当たらない")
+
     def test_ordinary_files_are_not_protected(self):
-        for rel in ("works/README.md", "works/blk-fix/commands/fix.md", "works/tests/test_blk_plan.py"):
+        """守らない追跡ファイルは当たらない。lib/ の物でも照らす（一覧の外のパスだけで照らすと、lib/** のような広すぎる行を足しても緑のまま）"""
+        for rel in ("README.md", "lib/impact.py", "lib/tests/test_blk_plan.py"):
             with self.subTest(rel=rel):
+                self.assertIn(rel, self.files)
                 self.assertEqual(protect.hits([rel], self.doc), [])
 
 
