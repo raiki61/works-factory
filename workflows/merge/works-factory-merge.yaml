@@ -1,0 +1,73 @@
+name: works-factory-merge
+description: 取り込み。seal は run の差分を封じて守りのパスの当たりを返し、apply は封じた hash を今の差分と照らして run の置き場に置く（対象のリポジトリへ当てるのは人）
+inputs:
+  mode:
+    required: true
+    description: seal（merge-seal）か apply（merge-apply）
+  start:
+    required: true
+    description: 始めの記録の指し札（base_rev を読む）
+  diff:
+    required: true
+    description: fix の累積差分の指し札。受けるが読まない（封じるのは今の木から組み直した差分）
+  fingerprint:
+    default: ""
+    description: test-gate final の緑の認証の指紋 {head, diff_hash}
+  green_ok:
+    default: ""
+    description: test-gate final の ok
+  eyes_ok:
+    default: ""
+    description: eyes の ok
+  sealed_hash:
+    default: ""
+    description: merge-seal の hash（apply だけ）
+  answer:
+    default: ""
+    description: 最後の関所の答え {decision, text}。関所が開かなければ null（apply だけ）
+  r2:
+    default: ""
+    description: eyes の R2 の {status, reason}。省いた・走らなければ null（apply だけ）
+returns: merge
+outcome_field: ok
+nodes:
+  - id: merge
+    script: merge
+    runtime: uv
+    mutates_checkout: false
+    timeout: 1728000000
+    with:
+      mode: $INPUTS.mode
+      start: $INPUTS.start
+      diff: $INPUTS.diff
+      fingerprint: $INPUTS.fingerprint
+      green_ok: $INPUTS.green_ok
+      eyes_ok: $INPUTS.eyes_ok
+      sealed_hash: $INPUTS.sealed_hash
+      answer: $INPUTS.answer
+      r2: $INPUTS.r2
+    output_format:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [seal, apply]
+        ok:
+          type: boolean
+        hash:
+          type: string
+        diff:
+          type: [object, "null"]
+          properties:
+            type: { type: string, enum: [archon_artifact] }
+            run_id: { type: string }
+            path: { type: string, enum: [merge/sealed.diff, merge/apply.diff, merge/refused.diff] }
+          required: [type, run_id, path]
+        protected_hits:
+          type: [array, "null"]
+          items:
+            type: string
+        reason:
+          type: string
+      required: [mode, ok, hash, diff, protected_hits, reason]
+      additionalProperties: false
