@@ -38,6 +38,7 @@ nodes:
       nodes:
         - id: spec
           command: spec
+          with: {reject_reason: "$LOOP_PREV.spec-accept.output.reason"}
           model: opus
           effort: medium
           settingSources: [user]
@@ -101,6 +102,7 @@ nodes:
       nodes:
         - id: spec-review
           command: spec-review
+          with: {reject_reason: "$LOOP_PREV.spec-review-accept.output.reason"}
           model: opus
           effort: high
           settingSources: [user]
@@ -154,6 +156,7 @@ nodes:
       nodes:
         - id: spec-revise
           command: spec-revise
+          with: {reject_reason: "$LOOP_PREV.spec-revise-accept.output.reason"}
           model: opus
           effort: medium
           settingSources: [user]
@@ -292,6 +295,7 @@ nodes:
       nodes:
         - id: pr-check
           command: pr-check
+          with: {reject_reason: "$LOOP_PREV.pr-check-accept.output.reason"}
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -376,6 +380,7 @@ nodes:
       nodes:
         - id: premises
           command: premises
+          with: {reject_reason: "$LOOP_PREV.premises-accept.output.reason"}
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -439,6 +444,7 @@ nodes:
       nodes:
         - id: purpose
           command: purpose
+          with: {reject_reason: "$LOOP_PREV.purpose-accept.output.reason"}
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -503,6 +509,7 @@ nodes:
       nodes:
         - id: world-classes
           command: world-classes
+          with: {reject_reason: "$LOOP_PREV.world-classes-accept.output.reason"}
           model: opus
           effort: high
           settingSources: [user]
@@ -569,6 +576,7 @@ nodes:
       nodes:
         - id: world-judge
           command: world-judge
+          with: {reject_reason: "$LOOP_PREV.world-judge-accept.output.reason"}
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -690,6 +698,7 @@ nodes:
               repo_review_md: {type: string}
         - id: prior-decisions
           command: material-prior-decisions
+          with: {reject_reason: "$LOOP_PREV.prior-decisions-accept.output.reason"}
           depends_on: [prior-decisions-prep]
           model: sonnet
           effort: medium
@@ -776,6 +785,7 @@ nodes:
               repo_review_md: {type: string}
         - id: purpose-review
           command: material-purpose-review
+          with: {reject_reason: "$LOOP_PREV.purpose-review-accept.output.reason"}
           depends_on: [purpose-review-prep]
           model: sonnet
           effort: medium
@@ -842,6 +852,7 @@ nodes:
               repo_review_md: {type: string}
         - id: local-review
           command: material-local-review
+          with: {reject_reason: "$LOOP_PREV.local-review-accept.output.reason"}
           depends_on: [local-review-prep]
           model: sonnet
           effort: medium
@@ -935,6 +946,7 @@ nodes:
               repo_review_md: {type: string}
         - id: consistency-bypass
           command: material-consistency-bypass
+          with: {reject_reason: "$LOOP_PREV.consistency-bypass-accept.output.reason"}
           depends_on: [consistency-bypass-prep]
           model: sonnet
           effort: medium
@@ -1039,6 +1051,7 @@ nodes:
               repo_review_md: {type: string}
         - id: hygiene
           command: material-hygiene
+          with: {reject_reason: "$LOOP_PREV.hygiene-accept.output.reason"}
           depends_on: [hygiene-prep]
           model: sonnet
           effort: medium
@@ -1104,6 +1117,7 @@ nodes:
               repo_review_md: {type: string}
         - id: external-standards
           command: material-external-standards
+          with: {reject_reason: "$LOOP_PREV.external-standards-accept.output.reason"}
           depends_on: [external-standards-prep]
           model: sonnet
           effort: medium
@@ -1205,6 +1219,7 @@ nodes:
               repo_review_md: {type: string}
         - id: procedure-trace
           command: material-procedure-trace
+          with: {reject_reason: "$LOOP_PREV.procedure-trace-accept.output.reason"}
           depends_on: [procedure-trace-prep]
           model: sonnet
           effort: medium
@@ -1290,6 +1305,7 @@ nodes:
               repo_review_md: {type: string}
         - id: gate-efficacy
           command: material-gate-efficacy
+          with: {reject_reason: "$LOOP_PREV.gate-efficacy-accept.output.reason"}
           depends_on: [gate-efficacy-prep]
           model: sonnet
           effort: medium
@@ -1376,6 +1392,7 @@ nodes:
               repo_review_md: {type: string}
         - id: test-double-fidelity
           command: material-test-double-fidelity
+          with: {reject_reason: "$LOOP_PREV.test-double-fidelity-accept.output.reason"}
           depends_on: [test-double-fidelity-prep]
           model: sonnet
           effort: medium
@@ -1461,6 +1478,7 @@ nodes:
               repo_review_md: {type: string}
         - id: main-path-observation
           command: material-main-path-observation
+          with: {reject_reason: "$LOOP_PREV.main-path-observation-accept.output.reason"}
           depends_on: [main-path-observation-prep]
           model: sonnet
           effort: medium
@@ -1543,6 +1561,7 @@ nodes:
               repo_review_md: {type: string}
         - id: provenance
           command: material-provenance
+          with: {reject_reason: "$LOOP_PREV.provenance-accept.output.reason"}
           depends_on: [provenance-prep]
           model: sonnet
           effort: medium
@@ -1631,6 +1650,7 @@ nodes:
       nodes:
         - id: diagnose
           command: diagnose
+          with: {reject_reason: "$LOOP_PREV.diagnose-accept.output.reason"}
           model: opus
           effort: high
           settingSources: [user]
@@ -1900,6 +1920,7 @@ nodes:
       nodes:
         - id: rejudge
           command: rejudge
+          with: {reject_reason: "$LOOP_PREV.rejudge-accept.output.reason"}
           model: opus
           effort: high
           context: fresh

@@ -3,7 +3,7 @@
 前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。下の理由が空なら、これは 1 回目の返答である。
 
 ```text
-$LOOP_PREV.world-judge-accept.output.reason
+$INPUTS.reject_reason
 ```
 
 ---

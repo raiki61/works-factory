@@ -22,6 +22,7 @@ from tests.bin.gitkit import committed_copy, git
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
 import judge_accept as ja  # noqa: E402
+import rolekit  # noqa: E402
 
 BLOCK = ROOT / "workflows" / "judge"
 YAML_FILE = BLOCK / "works-factory-judge.yaml"
@@ -146,6 +147,21 @@ class LoopTest(unittest.TestCase):
                 self.assertEqual(body["until_bash"], f'done=${accept}.output.done; test "$done" = true')
                 self.assertEqual(loop["timeout"], NO_DEADLINE)
                 self.assertIs(body["fresh_context"], lid in FRESH)
+
+    def test_roles_receive_the_reject_reason_through_with(self):
+        """拒否の理由は役の節の with: に $LOOP_PREV で結び、指示書は $INPUTS.reject_reason で受け、rolekit.with_reject の見出しと
+        文で出す（1 周目の $LOOP_PREV は空の字）"""
+        lead = rolekit.with_reject("", "").split("\n\n")[1].removesuffix(":")
+        for loop in loops().values():
+            body = loop["loop_group"]["nodes"]
+            for role in (n for n in body if "command" in n):
+                with self.subTest(role=role["id"]):
+                    self.assertEqual(role["with"], {"reject_reason": f"$LOOP_PREV.{body[-1]['id']}.output.reason"})
+                    text = (COMMANDS / f"{role['command']}.md").read_text(encoding="utf-8")
+                    self.assertNotIn("$LOOP_PREV", text)
+                    section = text.partition(f"{rolekit.REJECT_HEADING}\n\n")[2]
+                    self.assertTrue(section.startswith(lead), section[:80])
+                    self.assertIn("```text\n$INPUTS.reject_reason\n```", section)
 
     def test_materials_are_eleven_loops_one_per_command(self):
         material_loops = sorted(lid.removesuffix("-loop") for lid in loops() if lid.removesuffix("-loop") in MATERIALS)
