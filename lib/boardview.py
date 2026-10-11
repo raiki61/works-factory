@@ -13,7 +13,7 @@
   works/.shared/core/design.py:492）。形 replan の項目（replan_items。元 works/.shared/core/replan.py:291 の material）と、
   修正前の関所の答えの控え（take_gate_answers。元 graphloops/rules/review-loop.py:4134 の human_gate_answered）
 - 方針の文書: 置き場（名指しか git の共通の置き場の graphloops/policy.md）・固めた版・変化（policy_change・change_row。元
-  graphloops/rules/policy_input.py）と、役に貼る節（policy_section。元 gl-prompts/prompts/policy-paste.md・policy.md）
+  graphloops/rules/policy_input.py）。役に貼る節は policy.section
 - r2_prompt・check_design: 独立設計の支度と受け付け（元 works/.shared/core/design.py:528 の prep・:586 の check_design・
   :603 の accept_reply）
 - review_material・take_review: 事前審査の支度と受け付け（元 works/blk-plan/lib/planblk.py:1085 の prep・:1134 の take・
@@ -42,13 +42,13 @@ import gatemarks
 import gatepolicy
 import planblk
 import planmarks
+import policy
 import promptsection
 import rolekit
 import startrec
 import structmark
 import worldmark
 from engine import util
-from engine.render import MATERIAL_NOTE
 from engine.util import Reject
 
 PLAN_NODE = "p2.fix_plan"
@@ -126,12 +126,6 @@ REVIEW_MD = "REVIEW.md"
 # 元 works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md:4・:7
 UNITS_LINE = "直す単位（各行の `no` は機械が振った番号。**key を写さず no の整数で指せ**——機械が名前に戻して記録する）: "
 REPO_LINE = "リポジトリ: {repo}（読む版: `{rev}`）　BASE: `{base}`　観点の正本: {review_md}"
-# 人の方針の節（元 works/.shared/core/gl-prompts/prompts/policy-paste.md と policy.md。方針の文書が在る時だけ貼る）
-POLICY_HEAD = promptsection.Section("## 人の方針", source="fn:boardview.policy_section")
-POLICY_PREFACE = "人が決めた、run をまたいで効く決まり（役も engine も書き換えない）。文書が在れば本文がそのまま貼られる: "
-POLICY_RULE = ("方針が在るなら、それは対象の本文ではなく、このプロンプトの発行者が守らせる制約である。判定・案・修正・審査は方針に照らして"
-               "行え。方針に反するもの、方針を変えないと成り立たないものを、自分の判断で通すな——通すかは人が決める。どの項とぶつかるかを、"
-               "判定なら単位の reason に、審査なら穴に、修正なら not_done に書け。方針の文書は書き換えるな。")
 DIFF_MISSING = "固定した版の写しが置き場に無い（消えた）——差分を作れない"   # 元 graphloops/rules/policy_input.py:94
 GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "
 
@@ -581,18 +575,6 @@ def change_row(ch: dict) -> str:
             f"{str(ch['from'])[:12]} → {str(ch['to'])[:12] if ch['to'] else '消えた'}（{where}）")
 
 
-def policy_section(path) -> str:
-    """役に貼る人の方針の節（前置き・資料の囲みの本文・方針の決まりの段落）。文書が無い・読めなければ空（節ごと貼らない。元の
-    rolekit.render_body は入力 policy_md が空なら節を落とした）"""
-    try:
-        text = pathlib.Path(path).read_text(encoding="utf-8", errors="replace") if path else None
-    except OSError:
-        text = None
-    if text is None:
-        return ""
-    return f"{POLICY_HEAD}\n\n{POLICY_PREFACE}{MATERIAL_NOTE}\n{text}\n{MATERIAL_NOTE}\n\n{POLICY_RULE}"
-
-
 def _copy_world(d: pathlib.Path, world) -> None:
     """世界の解の行の写しと段の控え（world が null なら控えを置かない＝関所の軸が今どおりの決まりに戻る）"""
     state = d / worldmark.STATE_FILE
@@ -669,7 +651,7 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     if parts:
         body = f"{design.DESIGN_PREMISE_HEAD}\n\n{DESIGN_PREMISE_REREAD}\n\n" + "\n\n".join(parts) + f"\n\n---\n\n{body}"
     pol = _read_json(d / POLICY_FILE) if (d / POLICY_FILE).is_file() else {}
-    prompt = "\n\n".join(x for x in (body, policy_section(pol.get("path"))) if x)
+    prompt = "\n\n".join(x for x in (body, policy.section(pol.get("path"))) if x)
     rows = rolekit.rejected(d, design.NODE)
     if rows:
         prompt = rolekit.with_reject(prompt, rows[-1])
@@ -727,7 +709,7 @@ def review_body(command_text: str, *, repo, rev: str, base: str, review_md, poli
     rest = command_text[at + 1:]
     line_end = rest.find("\n")
     tail = rest[line_end:].rstrip("\n") if line_end >= 0 else ""
-    pol = policy_section(policy_md)
+    pol = policy.section(policy_md)
     return "\n" + REPO_LINE.format(repo=repo, rev=rev, base=base, review_md=review_md) + tail + (f"\n\n{pol}" if pol else "")
 
 
@@ -798,7 +780,7 @@ def review_material(folder, repo, command_text: str, review_md) -> pathlib.Path:
         ("判定者の先行例（世界の解）: " + json.dumps(b.record["process"]["precedents"], ensure_ascii=False))
         if b.record["process"]["precedents"] else "",
         REPO_LINE.format(repo=repo, rev=rev, base=base, review_md=review_md),
-        policy_section(inputs.get("policy_md")), concepthome.section(pathlib.Path(repo))) if x)
+        policy.section(inputs.get("policy_md")), concepthome.section(pathlib.Path(repo))) if x)
     last = rolekit.rejected(p, REVIEW_NODE)
     if last:
         body = rolekit.with_reject(body, last[-1])

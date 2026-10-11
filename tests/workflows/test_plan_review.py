@@ -44,6 +44,7 @@ import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
 import planblk  # noqa: E402
 import planmarks  # noqa: E402
+import policy  # noqa: E402
 import startrec  # noqa: E402
 import structmark  # noqa: E402
 import worldmark  # noqa: E402
@@ -1552,17 +1553,17 @@ class PortedMaterialCase(RunCase):
         r.start(features_off=["review_tree"], policy_md=str(self.policy()), base_rev="HEAD")
         r.open()
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
-        for want in (boardview.UNITS_LINE, f"BASE: `HEAD`", boardview.POLICY_HEAD, boardview.POLICY_PREFACE, "POLICY-MARK-8080",
-                     boardview.POLICY_RULE, "## 考えの住処の地図"):
+        for want in (boardview.UNITS_LINE, f"BASE: `HEAD`", policy.HEAD, policy.PREFACE, "POLICY-MARK-8080",
+                     policy.RULE, "## 考えの住処の地図"):
             self.assertIn(want, text)
-        self.assertLess(text.index(boardview.POLICY_RULE), text.index("## 考えの住処の地図"))
+        self.assertLess(text.index(policy.RULE), text.index("## 考えの住処の地図"))
 
     def test_no_policy_no_section(self):
         r = self.run_
         r.open()
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
-        self.assertNotIn(boardview.POLICY_HEAD + "\n", text)
-        self.assertNotIn(boardview.POLICY_RULE, text)
+        self.assertNotIn(policy.HEAD + "\n", text)
+        self.assertNotIn(policy.RULE, text)
 
     def test_item_subagents_get_the_policy(self):
         """下請けの決まりは指示書の『リポジトリ: 』の行から末尾までに人の方針の節を足した物（元の下請けは描いた指示書の末尾の
@@ -1577,7 +1578,7 @@ class PortedMaterialCase(RunCase):
         for path in briefs:
             text = path.read_text(encoding="utf-8")
             self.assertIn("POLICY-MARK-8080", text)
-            self.assertIn(boardview.POLICY_RULE, text)
+            self.assertIn(policy.RULE, text)
 
     def test_design_prompt_gets_the_policy(self):
         r = self.run_
@@ -1585,7 +1586,7 @@ class PortedMaterialCase(RunCase):
         self.assertTrue(r.open()["r2_go"])
         prompt = r.out("r2_prep")["prompt"]
         self.assertIn("POLICY-MARK-8080", prompt)
-        self.assertIn(boardview.POLICY_RULE, prompt)
+        self.assertIn(policy.RULE, prompt)
 
     def test_reply_out_of_the_role_format_is_rejected(self):
         r = self.run_

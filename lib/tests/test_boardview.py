@@ -19,10 +19,10 @@ import converge  # noqa: E402
 import gatemarks  # noqa: E402
 import marks  # noqa: E402
 import planmarks  # noqa: E402
+import policy  # noqa: E402
 import startrec  # noqa: E402
 import structmark  # noqa: E402
 import worldmark  # noqa: E402
-from engine.render import MATERIAL_NOTE  # noqa: E402
 from engine.util import Reject  # noqa: E402
 
 UNIT = "stats.py mean: 分母が len(xs) - 1 になっている"
@@ -242,11 +242,11 @@ class RulesCase(Base):
         self.assertTrue(got.startswith("\nリポジトリ: /r（読む版: `abc`）　BASE: `b0`　観点の正本: /lib/REVIEW.md\n"), got)
         self.assertIn("## 見ること", got)
         self.assertNotIn("頭", got)
-        self.assertNotIn(boardview.POLICY_HEAD, got)
+        self.assertNotIn(policy.HEAD, got)
         pol = self.tmp / "policy.md"
         pol.write_text("- 公開の口を減らさない\n", encoding="utf-8")
         got = boardview.review_body(text, repo="/r", rev="abc", base="b0", review_md="m", policy_md=str(pol))
-        self.assertTrue(got.endswith(boardview.policy_section(pol)), got)
+        self.assertTrue(got.endswith(policy.section(pol)), got)
         self.assertEqual(boardview.review_body("リポジトリの行が無い", repo="/r", rev="a", base="a", review_md="m"), "")
 
 
@@ -261,8 +261,8 @@ class GateCase(Base):
 
 
 class PolicyCase(Base):
-    """人の方針の文書の置き場（名指しか git の共通の置き場の graphloops/policy.md）・固めた版の写しの守り・役に貼る節
-    （元 works/.shared/core/graphloops/rules/policy_input.py と gl-prompts/prompts/policy-paste.md・policy.md）"""
+    """人の方針の文書の置き場（名指しか git の共通の置き場の graphloops/policy.md）・固めた版の写しの守り
+    （元 works/.shared/core/graphloops/rules/policy_input.py）"""
 
     def default_doc(self) -> pathlib.Path:
         subprocess.run(["git", "init", "-q", str(self.tmp)], check=True)
@@ -300,17 +300,6 @@ class PolicyCase(Base):
         ch = boardview.policy_change(self.folder, self.tmp)
         self.assertEqual((ch["diff_missing"], ch["diff_file"]), (boardview.DIFF_MISSING, None))
         self.assertIn(boardview.DIFF_MISSING, boardview.change_row(ch))
-
-    def test_section_carries_preface_material_and_rule_only_when_present(self):
-        pol = self.tmp / "policy.md"
-        pol.write_text("- 公開の口を減らさない\n", encoding="utf-8")
-        got = boardview.policy_section(pol)
-        self.assertTrue(got.startswith(f"{boardview.POLICY_HEAD}\n\n{boardview.POLICY_PREFACE}{MATERIAL_NOTE}\n"), got)
-        self.assertIn("- 公開の口を減らさない", got)
-        self.assertTrue(got.endswith(boardview.POLICY_RULE))
-        self.assertIn("自分の判断で通すな", boardview.POLICY_RULE)
-        self.assertEqual(boardview.policy_section(""), "")
-        self.assertEqual(boardview.policy_section(self.tmp / "無い.md"), "")
 
 
 class GateAnswersCase(Base):
