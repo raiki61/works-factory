@@ -1,0 +1,18 @@
+# apply が置かなかった時: run は終わり（completed）、仕事の結末は ok: false。照らした差分を merge/refused.diff で指す
+merge:
+  mode: apply
+  ok: false
+  hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  diff: { type: archon_artifact, run_id: fixture-run, path: merge/refused.diff }
+  protected_hits: null
+  reason: 封じた差分と今の差分が違う
+fixture:
+  expect: completed
+  reached: [merge]
+  inputs:
+    mode: apply
+    start: '{"type":"archon_artifact","run_id":"fixture-run","path":"start.json"}'
+    diff: '{"type":"archon_artifact","run_id":"fixture-run","path":"fix/diff.patch"}'
+    sealed_hash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    answer: "null"
+    r2: '{"status":"redesign-needed","reason":"別の設計"}'

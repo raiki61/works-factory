@@ -1,0 +1,18 @@
+# apply の配線: 封じた hash・最後の関所の答え・R2 を受け、置いた先を指して返る
+merge:
+  mode: apply
+  ok: true
+  hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  diff: { type: archon_artifact, run_id: fixture-run, path: merge/apply.diff }
+  protected_hits: null
+  reason: ""
+fixture:
+  expect: completed
+  reached: [merge]
+  inputs:
+    mode: apply
+    start: '{"type":"archon_artifact","run_id":"fixture-run","path":"start.json"}'
+    diff: '{"type":"archon_artifact","run_id":"fixture-run","path":"fix/diff.patch"}'
+    sealed_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    answer: '{"decision":"approve","text":""}'
+    r2: '{"status":"pass","reason":""}'
