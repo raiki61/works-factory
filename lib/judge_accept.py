@@ -2005,7 +2005,7 @@ def _fill_one(view: DueView, jdir, nid: str, why: str) -> dict:
 def material_route(jdir, repo) -> dict:
     """元 works/blk-material/lib/material.py:290 の route の書き直し。素材ごとの要否を元の条件で決める。返り {<route_key(役)>: bool…,
     reason}。止めの控えが在れば全部偽。対象差分と読む版を material-view.json（と diff.patch・changed-files.txt）に、要否と
-    回さない素材の埋めを material-route.json に、役を起こす前の作業ツリーの姿を material-tree.json に置く（1 度だけ。Archon の再開で
+    回さない素材の埋めを material-route.json に、役を起こす前の作業ツリーの姿を material-tree.json に置く（1 度だけ。run の再開で
     走り直しても最初の姿を残す）"""
     j = pathlib.Path(jdir)
     off = {route_key(r): False for r in MATERIAL_ROLES}
