@@ -191,19 +191,15 @@ class WorkflowSourceTest(unittest.TestCase):
         write(self.root / "workflows/line/works-factory-line.yaml", b"name: works-factory-line\r\n")
         write(self.root / "workflows/.shared/boundary.py", b"\x00\xff bytes\n")
 
-    def read_by_archon(self, shim):
-        """Archon が名前の script と .shared/ を探す pack の形の所（<置き場>/.archon/workflows/<pack>/）"""
-        return shim / place.WORKFLOW_FOLDER / self.pack["ours"]["pack"]
-
     def test_archon_reads_the_repo_workflows_as_one_pack(self):
         shim = place.workflow_source(self.pack, self.root, self.cache)
-        self.assertEqual(files(self.read_by_archon(shim)), files(self.root / "workflows"))
+        self.assertEqual(files(place.pack_folder(self.pack, shim)), files(self.root / "workflows"))
         self.assertEqual([p.name for p in (shim / place.WORKFLOW_FOLDER).iterdir()], [self.pack["ours"]["pack"]])
 
     def test_edits_in_the_repo_show_without_placing_again(self):
         shim = place.workflow_source(self.pack, self.root, self.cache)
         write(self.root / "workflows/line/added.yaml", b"added")
-        self.assertEqual((self.read_by_archon(shim) / "line/added.yaml").read_bytes(), b"added")
+        self.assertEqual((place.pack_folder(self.pack, shim) / "line/added.yaml").read_bytes(), b"added")
 
     def test_same_root_same_place_and_other_root_other_place(self):
         first = place.workflow_source(self.pack, self.root, self.cache)
@@ -213,7 +209,7 @@ class WorkflowSourceTest(unittest.TestCase):
         self.assertNotEqual(place.workflow_source(self.pack, other, self.cache), first)
 
     def test_foreign_entry_is_not_used(self):
-        link = self.read_by_archon(place.workflow_source(self.pack, self.root, self.cache))
+        link = place.pack_folder(self.pack, place.workflow_source(self.pack, self.root, self.cache))
         link.unlink()
         write(link / "x.yaml", b"foreign")
         with self.assertRaisesRegex(RuntimeError, str(link)):

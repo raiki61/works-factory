@@ -69,6 +69,11 @@ def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: In
     return dest
 
 
+def pack_folder(pack: dict, base: Path) -> Path:
+    """base の中で Archon が自分の工程を pack として読む所 <base>/.archon/workflows/<pack>"""
+    return base / WORKFLOW_FOLDER / pack["ours"]["pack"]
+
+
 def workflow_source(pack: dict, root: Path, cache: Path) -> Path:
     """--workflow-source に渡す置き場を返す。その中の .archon/workflows/<pack> は root の自分の工程のフォルダを指す。
 
@@ -77,10 +82,10 @@ def workflow_source(pack: dict, root: Path, cache: Path) -> Path:
     """
     target = (root / pack["ours"]["folder"]).resolve()
     shim = cache / "workflow-source" / hashlib.sha256(str(target).encode()).hexdigest()[:16]
-    folder = shim / WORKFLOW_FOLDER
+    link = pack_folder(pack, shim)
+    folder = link.parent
     if folder.is_symlink():
         raise RuntimeError(f"{folder} は前の形の置き場（{folder.readlink()} を指す symlink）。消して回し直せば作り直す（rm \"{folder}\"）")
-    link = folder / pack["ours"]["pack"]
     folder.mkdir(parents=True, exist_ok=True)
     try:
         link.symlink_to(target, target_is_directory=True)

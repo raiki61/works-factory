@@ -47,7 +47,7 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS) -> Iterator[
     """workflows の names のフォルダとこのリポジトリの .shared/ を pack の形で置いて commit した使い捨ての git の木"""
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp) / "tree"
-        placed = root / place.WORKFLOW_FOLDER / PACK["ours"]["pack"]
+        placed = place.pack_folder(PACK, root)
         no_cache = shutil.ignore_patterns("__pycache__")
         for name in names:
             shutil.copytree(workflows / name, placed / name, ignore=no_cache)
