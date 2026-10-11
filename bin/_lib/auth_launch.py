@@ -6,11 +6,14 @@
 2. 真ん中: claude_auth の auth_env を丸ごと呼ぶ（受け継いだ認証 → CLAUDE_KEYCHAIN_SERVICE で名指した項目）。
    claude_auth の部品をここで並べ直さない
 3. 後ろの段: 真ん中が足せなかった時だけ、macOS で Claude Code 自身の keychain の項目を読む
+4. ホストのログイン: どれも無ければ止めずに、子を利用者の保存済みのログイン（隔離の前の CLAUDE_CONFIG_DIR の
+   .credentials.json。claude_auth の段 3）に任せる。そのために子の CLAUDE_CONFIG_DIR だけを利用者の物に戻す（資格は写さない。
+   OAuth の更新で写しの元が無効になるため）。keychain の無い OS で claude /login しただけの人はここで動く
 
 keychain は利用者の HOME で読む（security はログイン keychain を $HOME 基準で探す）。値は標準出力・引数に出さない。
 
   auth_launch.py check --user-home <path> --user-config <path か空> [--for <殻の名>]
-      値を読んで捨て、出どころの名だけを標準出力に 1 行。無ければ標準エラーに案内を 1 行出して 2
+      値を読んで捨て、出どころの名だけを標準出力に 1 行。名指しの項目を読めなければ標準エラーに案内を 1 行出して 2
   auth_launch.py exec --user-home <path> --user-config <path か空> -- <実行ファイル> <引数…>
       同じ順で子の環境を組み、今のプロセスを実行ファイルに置き換える（WORKS_FACTORY_NO_AUTH=1 なら読まずに置き換える）
   auth_launch.py howto
@@ -38,6 +41,7 @@ HOWTO = ("認証が無い。keychain にトークンの項目が既に在るな�
 # 名指しで決めた時に子から外す名。Claude Code は CLAUDE_CODE_OAUTH_TOKEN より上の資格を先に使う
 # （code.claude.com/docs/en/authentication の Authentication precedence）。claude_auth の INHERITED に無い FOUNDRY の旗もここで外す
 ABOVE_TOKEN = tuple(claude_auth.INHERITED) + ("CLAUDE_CODE_USE_FOUNDRY",)
+HOST_LOGIN = "host-login"
 
 
 def user_runner(user_home):
@@ -73,7 +77,8 @@ def login_json_runner(runner):
 
 
 def resolve(env, user_home, user_config, platform=sys.platform, runner=None):
-    """(子に足す認証の変数, 出どころの名, 止まる理由)。取れた時は止まる理由が None、取れない時は変数が None"""
+    """(子に足す変数, 出どころの名, 止まる理由)。止まるのは名指しの項目を読めない時だけで、その時は変数が None。
+    トークンの出どころが無ければ、子の CLAUDE_CONFIG_DIR を利用者の物に戻す変数を返す（ホストのログイン）"""
     runner = runner or user_runner(user_home)
     named = env.get("WORKS_FACTORY_KEYCHAIN_ITEM")
     if named:
@@ -94,12 +99,12 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None):
             tok, _ = claude_auth.read_keychain(service, login_json_runner(runner))
             if tok:
                 return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "Claude Code の keychain の項目 " + service, None
-    return None, None, "%s、Claude Code の keychain の項目 %s にも無い" % (note, " ".join(claude_code_items(user_config)))
+    return {"CLAUDE_CONFIG_DIR": menv["CLAUDE_CONFIG_DIR"]}, "%s（%s）" % (HOST_LOGIN, menv["CLAUDE_CONFIG_DIR"]), None
 
 
 def child_env(env, got, named):
-    """子の環境: 受けた環境（隔離した HOME・CLAUDE_CONFIG_DIR のまま）に認証の変数だけを足す。名指しで決めた時は、
-    それより上に効く資格を外す（外さないと名指しが効かない）"""
+    """子の環境: 受けた環境（隔離した HOME・CLAUDE_CONFIG_DIR）に resolve の変数だけを上書きする（ホストのログインの時だけ
+    CLAUDE_CONFIG_DIR が利用者の物に戻る）。名指しで決めた時は、それより上に効く資格を外す（外さないと名指しが効かない）"""
     out = {k: v for k, v in env.items() if not (named and k in ABOVE_TOKEN)}
     out.update(got)
     return out
@@ -130,6 +135,8 @@ def main(argv):
     if got is None:
         print("%s: %s（%s）" % (a.caller, HOWTO, why), file=sys.stderr)
         return 2
+    if name.startswith(HOST_LOGIN):
+        print("%s: %s" % (a.caller, claude_auth.QUIET_FAILURE_NOTE), file=sys.stderr)
     if a.cmd == "check":
         print(name)
         return 0

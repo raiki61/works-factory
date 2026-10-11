@@ -3,6 +3,8 @@
 - 順の真ん中は claude_auth.auth_env を丸ごと呼ぶ（部品を並べ直すと claude_auth の試験は緑のままなので、ここで縛る）
 - 名指し（WORKS_FACTORY_KEYCHAIN_ITEM）は受け継いだ認証より先に効き、取れなければ次へ進まない
 - 項目の名を設定の置き場から導かない。名指しが無ければ Claude Code 自身の項目だけを読む（E14）
+- トークンの出どころが無ければ止めずにホストのログインへ進み、子の CLAUDE_CONFIG_DIR だけを利用者の物に戻す（keychain の無い OS で
+  claude /login しただけの人が動く。E14）。トークンが在る時は隔離した CLAUDE_CONFIG_DIR のまま
 - python3 -I で起こした check は起こし役のフォルダ（試験の持つ写し）に __pycache__ を作らない（-I は PYTHONDONTWRITEBYTECODE を
   見ず、__pycache__ は .gitignore に隠れて git status に出ない）。共有の bin/_lib/ はどの試験も見ない（別の実行の残り物で揺れる）。
   試験自身の import の分は各試験の頭の sys.dont_write_bytecode に任せ、試験では縛らない
@@ -84,10 +86,22 @@ class ResolveOrder(unittest.TestCase):
         for cfg in ("", "/u/.claude-p3"):
             with self.subTest(cfg=cfg):
                 run = keychain({})
-                got, _name, why = auth_launch.resolve({}, "/u", cfg, platform="darwin", runner=run)
-                self.assertIsNone(got)
-                self.assertIn("keychain-unnamed", why)
+                auth_launch.resolve({}, "/u", cfg, platform="darwin", runner=run)
                 self.assertEqual(run.calls, auth_launch.claude_code_items(cfg))
+
+    def test_no_token_source_goes_on_with_the_host_login(self):
+        """トークンの出どころが無ければ止めずに、子を利用者の保存済みのログイン（隔離の前の CLAUDE_CONFIG_DIR、無ければ
+        <HOME>/.claude）に任せる。macOS 以外は keychain を読まない"""
+        for platform in ("linux", "win32", "darwin"):
+            for cfg, want in (("", "/u/.claude"), ("/u/cfg", "/u/cfg")):
+                with self.subTest(platform=platform, cfg=cfg):
+                    run = keychain({})
+                    got, name, why = auth_launch.resolve({}, "/u", cfg, platform=platform, runner=run)
+                    self.assertIsNone(why)
+                    self.assertEqual(got, {"CLAUDE_CONFIG_DIR": want})
+                    self.assertEqual(name, "host-login（%s）" % want)
+                    if platform != "darwin":
+                        self.assertEqual(run.calls, [])
 
     def test_named_item_beats_inherited_auth(self):
         """WORKS_FACTORY_KEYCHAIN_ITEM は受け継いだ CLAUDE_CODE_OAUTH_TOKEN・ANTHROPIC_API_KEY より先に効く"""
@@ -119,6 +133,20 @@ class ResolveOrder(unittest.TestCase):
 
 
 class ChildEnv(unittest.TestCase):
+    ISOLATED = {"HOME": "/run/home", "CLAUDE_CONFIG_DIR": "/run/claude-config"}
+
+    def test_host_login_hands_the_child_the_users_config_dir(self):
+        """ホストのログインの時だけ、子の CLAUDE_CONFIG_DIR は利用者の元の置き場（保存済みのログインが在る所）。HOME は隔離のまま"""
+        got, _name, _why = auth_launch.resolve({}, "/u", "/u/cfg", platform="linux", runner=keychain({}))
+        self.assertEqual(auth_launch.child_env(self.ISOLATED, got, False), {"HOME": "/run/home", "CLAUDE_CONFIG_DIR": "/u/cfg"})
+
+    def test_a_token_keeps_the_isolated_config_dir(self):
+        for env in ({"CLAUDE_CODE_OAUTH_TOKEN": TOKEN}, {"ANTHROPIC_API_KEY": "k"}):
+            with self.subTest(env=list(env)):
+                got, _name, why = auth_launch.resolve(env, "/u", "/u/cfg", platform="linux", runner=keychain({}))
+                self.assertIsNone(why)
+                self.assertEqual(auth_launch.child_env(self.ISOLATED, got, False)["CLAUDE_CONFIG_DIR"], "/run/claude-config")
+
     def test_named_drops_credentials_that_outrank_the_token(self):
         """名指しで決めた時は、Claude Code が CLAUDE_CODE_OAUTH_TOKEN より先に使う資格（claude_auth の INHERITED と FOUNDRY の旗）を外す"""
         env = {"HOME": "/iso", "ANTHROPIC_API_KEY": "k", "ANTHROPIC_AUTH_TOKEN": "t", "CLAUDE_CODE_USE_FOUNDRY": "1",
@@ -158,10 +186,11 @@ class IsolatedLaunch(unittest.TestCase):
         self.assertEqual((bin_dir / "security.home").read_text().strip(), str(tmp / "user"))
 
     def test_exec_stops_with_howto_and_does_not_start_the_child(self):
-        """認証が無ければ、子を起こさず 1 行の案内（呼び手の名つき）で 2"""
+        """名指しの項目を読めなければ、子を起こさず 1 行の案内（呼び手の名つき）で 2"""
         tmp = hermetic.tmpdir(self)
         bin_dir = self.fake_security(tmp, "nothing-here")
-        env = hermetic.child_env(HOME=str(tmp), PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""))
+        env = hermetic.child_env(HOME=str(tmp), PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""),
+                                 WORKS_FACTORY_KEYCHAIN_ITEM="named")
         r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--for", "bin/start",
                             "--user-home", str(tmp), "--", sys.executable, "-c", "print('started')"],
                            env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
@@ -169,6 +198,20 @@ class IsolatedLaunch(unittest.TestCase):
         self.assertEqual(r.stdout, "")
         self.assertEqual(len(r.stderr.strip().splitlines()), 1, r.stderr)
         self.assertTrue(r.stderr.startswith("bin/start: " + auth_launch.HOWTO), r.stderr)
+
+    def test_exec_without_a_token_starts_the_child_on_the_host_login(self):
+        """トークンの出どころが無ければ子を起こし、子の CLAUDE_CONFIG_DIR は --user-config。静かな落ち方の注意を標準エラーに出す"""
+        tmp = hermetic.tmpdir(self)
+        bin_dir = self.fake_security(tmp, "nothing-here")
+        env = hermetic.child_env(HOME=str(tmp / "iso"), CLAUDE_CONFIG_DIR=str(tmp / "iso-config"),
+                                 PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""))
+        r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--for", "bin/start",
+                            "--user-home", str(tmp / "user"), "--user-config", str(tmp / "user-config"), "--",
+                            sys.executable, "-I", "-c", "import os; print(os.environ['CLAUDE_CONFIG_DIR'], os.environ['HOME'])"],
+                           env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.split(), [str(tmp / "user-config"), str(tmp / "iso")])
+        self.assertEqual(r.stderr.strip(), "bin/start: " + claude_auth.QUIET_FAILURE_NOTE)
 
     def test_shells_do_not_read_the_keychain_themselves(self):
         """認証の順と keychain の読み出しは起こし役だけが持つ。入口と隔離に書き戻したら赤（語で見る）"""
