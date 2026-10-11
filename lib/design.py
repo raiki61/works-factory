@@ -1,5 +1,5 @@
-"""修正の前に作る独立設計（写しの graph の節 r2.design）の先行。役を起こす支度・受け付け・控え・盤面への渡しを 1 か所に置く。
-実行基盤を知らない関数だけを出す。
+"""修正の前に作る独立設計（写しの graph の節 r2.design）の先行。役に貼る前提と、起こすかの決めと、控えの読みと照らしを 1 か所に置く。
+実行基盤を知らない関数だけを出す。役を起こす支度・受け付け・盤面への渡しは、ブロックの script が持つ。
 
 写しの graph の r2.design は deps に p4.assemble を持つので、盤面では修正と最後のテストの後にしか待たない。周を重ねない線では、
 そこで出た作り直しの要否（R2 の redesign-needed）を拾う周が無い。graph は写しのまま（graph_sha を固めた手本と実物の盤面が
@@ -10,10 +10,6 @@
 - unusable(b):   目的の出典が R2 に使えない理由（目的不明・狭めている。無ければ None）。式は写しの rules の purpose_unusable
                  （p4.assemble と同じ 1 本）を呼ぶ
 - due(b):        設計の役を今起こすか（表に役として在り・控えが無く・諦めていず・盤面で済んでいず・再発火の周で・目的が使える）と理由
-- snap:          起こす前の作業ツリーの写し（今の周の design-snapshot.json）。起こさないなら写しを置かずに go: false
-- prep:          r2.design の指示書を engine と同じ描き方で描き（節はまだ待っていない。rolekit.render_body の ahead）、役の定義を
-                 頭に置く。人が決めた前提（premises）と前の拒否の文は頭に貼る（役は道具を持たないのでファイルを読めない）。
-                 貼った入力の控えを盤面の根の design-premises.json に書く
 - premises:      R2 の 2 つの役（r2.design・r2.compare）に共通して貼る節の並び（人の答え → 名指しの節 → 地図）と、貼った入力の控え {given, withheld, seen}（kind は PREMISE_KINDS の中だけ）。
                  human_answers（人の関所の答え。asked は写さず、answer の無い機械の行は withheld。seen は貼った答えの数と
                  最後の round の印で、突き合わせの側が独立設計の後に来た答えを分けて並べる）と named_sections（依頼が
@@ -26,14 +22,12 @@
 - claims_unpassed: R2 の返答のうち『渡されていない』『渡っていない』と書いた文（独立の目の出口が控えと並べる）
 - anchors・anchor_misses・anchor_note: 問いが立たない根拠の文の名指し（パス:行。拡張子が ANCHOR_EXT の物）を拾い、固めた版で検算し、
                  無ければ名指しなしと添える
-- accept:        返答を型（写しの schema）と作業ツリーの比べと根拠の名指しの検算に通し、通れば design.json。拒否は盤面の根の控えに積み、
-                 GIVE_UP_AFTER 回目で done（輪を抜ける。諦めても線は止めない——事前審査は設計なしで進み、最後の R2 が言う）
-- read_design:   design.json（無ければ None。壊れていれば Reject）。made は (中身 か None, 壊れている理由) で拒まない
+- read_design(board_dir, schema): design.json（無ければ None。読めない・型 schema に合わなければ Reject）。made は (中身 か None,
+                 壊れている理由) で拒まない。schema は r2.design の役の型で、ブロックが渡す（盤面 b を取る関数は b.design_schema を読む）
 - missing(b):    設計が無い理由の 1 文（諦めた・目的が使えない・控えが無い）。事前審査の指示書と独立の目の出口が使う
 - DRIFT_HEAD・UNPAIRED_HEAD: 事前審査の穴の why の頭の 2 語（構造の食い違い・対の無い仕組み）。指示書の決まり・照らし・試験が同じ名を読む
-- stands(board_dir): 設計が在り問いが立つ時のその返答（無い・壊れている・問いが立たないなら None）
-- quote_gaps(board_dir, faces, rows, design_map=None): 2 つの頭の穴の引用と、項目の答えの design_map の誤りの行（設計が立たなければ空）
-- hand(b, …):    盤面が r2.design を待っていて控えが在れば渡す（渡しの手順は line_edge と同じ entry.hand の 1 か所）
+- stands(board_dir, schema): 設計が在り問いが立つ時のその返答（無い・壊れている・問いが立たないなら None）
+- quote_gaps(board_dir, schema, faces, rows, design_map=None): 2 つの頭の穴の引用と、項目の答えの design_map の誤りの行（設計が立たなければ空）
 """
 import pathlib
 import re
@@ -465,15 +459,18 @@ def unusable(b):
     return b.rules.purpose_unusable(b)
 
 
-def read_design(board_dir):
-    """盤面の根の design.json（無ければ None）。読めなければ Reject"""
-    return accept.read_board(board_dir, DESIGN_FILE)
+def read_design(board_dir, schema):
+    """盤面の根の design.json（無ければ None）。読めない・型 schema（r2.design の役の型。ブロックが渡す）に合わなければ Reject"""
+    obj = accept.read_board(board_dir, DESIGN_FILE)
+    if obj is not None:
+        accept.type_errors(obj, schema, f"盤面の {DESIGN_FILE} ")
+    return obj
 
 
-def made(board_dir) -> tuple:
+def made(board_dir, schema) -> tuple:
     """(控えの中身 か None, 控えが壊れている時の理由)"""
     try:
-        return read_design(board_dir), ""
+        return read_design(board_dir, schema), ""
     except Reject as e:
         return None, f"{MISSING}: {e}"
 
@@ -483,7 +480,7 @@ def due(b) -> tuple:
     row = b.table.nodes.get(NODE) if b.table is not None else None
     if row is None or row.by != "role":
         return False, f"節の表に {NODE} の役が無い"
-    got, broken = made(b.dir)
+    got, broken = made(b.dir, b.design_schema)
     if got is not None or broken:
         return False, broken or f"独立設計はもう {DESIGN_FILE} に在る"   # 壊れた控えも作り直さない（設計を 2 度作らない）
     gave = rolekit.given_up_reason(b.dir, NODE, give_up_after=GIVE_UP_AFTER)
@@ -539,7 +536,7 @@ def anchor_note(text) -> str:
 
 def missing(b) -> str:
     """設計が無い理由の 1 文（控えが在れば空）"""
-    got, broken = made(b.dir)
+    got, broken = made(b.dir, b.design_schema)
     if got is not None or broken:
         return broken
     gave = rolekit.given_up_reason(b.dir, NODE, give_up_after=GIVE_UP_AFTER)
@@ -551,9 +548,9 @@ def missing(b) -> str:
     return f"{MISSING}: 修正の前に設計の役を起こしていない（{DESIGN_FILE} が無い）"
 
 
-def stands(board_dir):
+def stands(board_dir, schema):
     """設計が在り問いが立つ時のその返答（設計が無い・控えが壊れている・問いが立たないなら None）"""
-    got, _ = made(board_dir)
+    got, _ = made(board_dir, schema)
     return got if got is not None and got.get("question_stands") else None
 
 
@@ -598,13 +595,13 @@ def _map_gaps(source, rows, design_map) -> list:
     return out
 
 
-def quote_gaps(board_dir, faces, rows, design_map=None) -> list:
+def quote_gaps(board_dir, schema, faces, rows, design_map=None) -> list:
     """事前審査の穴の引用の誤りの行（設計が無い・問いが立たない run では空）。faces は unit_keys を単位の名にした穴、rows は案の行
     （unit_keys は単位の名・item は項目の番号）。why が DRIFT_HEAD か UNPAIRED_HEAD で始まる穴ごとに、why の引用「…」が
     独立設計の文に字のまま在る物と、穴の unit_keys が重なる案の行（どれにも重ならなければ rows の全部）の approach・adds・
     allowed_paths・shrink_first に字のまま在る物が 1 つ以上ずつ要り、どちらにも無い引用は誤り。design_map を渡した時（None は
     求めない）は rows の adds の name ごとに 1 行を求め、design_quote の実在を照らす"""
-    got = stands(board_dir)
+    got = stands(board_dir, schema)
     if got is None:
         return []
     source = got.get("design") or ""

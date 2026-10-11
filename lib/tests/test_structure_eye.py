@@ -64,6 +64,25 @@ class EyeAcceptCase(unittest.TestCase):
                 self.assertTrue(got, name)
         self.assertTrue(any("undecided_because" in g for g in eye.problems(DOC, {"rows": [{**up, "undecided_because": ""}]})))
 
+    def test_route_up_row_written(self):
+        """受け付けた人に上げる行は、行き先とその訳（route_reason＝決まらない訳）を design.jsonl に残す。自分で決める行は既定の訳"""
+        up = {**DIRTY, "route": "人に上げる", "rejected": [{"option": "2 か所に置く", "cost": "読み直しが割れる"}],
+              "undecided_because": "人の前の決定が 2 つの置き場を別々に推していて、どちらにも決まらない"}
+        with tempfile.TemporaryDirectory() as d:
+            s = pathlib.Path(d) / "structure.json"
+            s.write_text(json.dumps(DOC, ensure_ascii=False), encoding="utf-8")
+            design = pathlib.Path(d) / "design.jsonl"
+            design.write_bytes(b"")
+            eye.prep(s)
+            self.assertTrue(eye.accept(s, design, {"rows": [up]})["ok"])
+            row = json.loads(design.read_text(encoding="utf-8"))
+        self.assertEqual((row["route"], row["route_reason"], row["undecided_because"]),
+                         ("人に上げる", up["undecided_because"], up["undecided_because"]))
+        schema = json.loads((LIB / "design-row.schema.json").read_text(encoding="utf-8"))
+        import accept  # noqa: F401  （写しの engine を sys.path に足す）
+        from engine.schema import validate_schema
+        self.assertEqual(validate_schema(row, schema), [])
+
     def test_prompt_carries_concepts_and_rules(self):
         """目に見せる物に、単位に当たる考えの地図の行・知る場所の数と、方針と根の地図の文書が載る（段 A が structure.json に置いた物）"""
         doc = {**DOC, "rules": {"policy": {"path": "POLICY.md", "text": "置き場は 1 つにする", "reason": ""},

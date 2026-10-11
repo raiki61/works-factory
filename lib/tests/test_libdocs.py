@@ -1,12 +1,13 @@
-"""ライブラリの文書（.shared/core/libdocs.py。手元の版・公式の 2 つの出どころを機械が引いて指示書に貼る）の検査。
+"""ライブラリの文書（lib/libdocs.py。手元の版・公式の 2 つの出どころを機械が引いて指示書に貼る）の検査。
 
 網には出ない（HTTP の口は偽物を渡す）。盤面は周の置き場（dir・work）だけを持つ偽物。
 - 見つけ方: 単位のファイルの import（Python・JS/TS）から標準ライブラリとリポジトリの中の物を除き、依存の宣言
   （pyproject.toml・requirements*.txt・package.json）から版を引く。宣言のファイル自体が単位なら宣言の全部が対象
-- 盤面の控え: 公式の取れた物と見つからない物はライブラリ＋版の鍵で周の置き場に書き、次は網に出ない（前の周の控えも読む）
+- 控え: 公式の取れた物と見つからない物はライブラリ＋版の鍵で渡された控えの置き場に書き、同じ置き場を渡す間は網に出ない
+  （前の周の置き場は読まない。周をまたぐのは家の控え）
 - 数で言う: 取れなかった・見つからない・上限で取らない物は節の頭に数と名前で出す（黙って落とさない）
 - 標準ライブラリだけの対象は何も取らず、取らないことを書く。WORKS_LIBDOCS_WEB=off も網に出ないことを書く
-- 組み立て: 修正役の指示書（fixrules.fix_prompt）と修正案の役の頭（planblk.head）に節が入る
+- 組み立て: 修正案の役の頭（planblk.head）に節が入る（ComposerCase）
 - 出どころ（SourcesCase。設計 works/docs/plans/2026-10-08-libdocs-sources.md）: 手元の版 → 公式の順に並べる。手元で読んだ版で
   公式に問う。どこからも取れなかった物は名指して役に自分で引けと言う。off でも手元は読む。公式の取れた物と見つからない物は
   盤面と家に控える（取れなかった物は控えない）
@@ -277,7 +278,7 @@ class SourcesCase(Base):
         self.board.round = 2
         http = FakeHttp()
         text = libdocs.section(self.board.work(""), self.repo, [f], get=http, env=env, now=1_800_000_060.0)
-        self.assertEqual(http.calls, [], "次の周は盤面の控えを読む")
+        self.assertEqual(http.calls, [], "次の周は前の周の置き場を読まず、家の控えを読む")
         self.assertIn("Use `requests.Session` to keep cookies", self.saved("official-1-readme.md", rnd=2))
         other = FakeBoard(self.tmp / "board2")
         http = FakeHttp()
@@ -361,6 +362,33 @@ class FilesCase(Base):
         files = sorted((self.board.dir / "r1" / libdocs.CACHE_DIR / "requests@2.32.3").glob("local-*.md"))
         self.assertEqual(len(files), 2, files)
         self.assertTrue(all(str(p) in a or str(p) in b for p in files))
+
+
+class ComposerCase(Base):
+    def test_plan_head_carries_the_section(self):
+        import planblk
+        f = self.write("app.py", "import requests\n")
+        sec = libdocs.section(self.board.work(""), self.repo, [f], get=ok_http(), env={})
+        for role in planblk.ROLES:
+            with self.subTest(role):
+                self.assertIn(libdocs.TITLE, planblk.head(role, "", sec))
+                self.assertNotIn(libdocs.TITLE, planblk.head(role, ""))
+
+    def test_plan_prep_section_reads_the_judgment_on_the_board(self):
+        import planblk
+        from unittest import mock
+        self.write("app.py", "import requests\n")
+        self.write("requirements.txt", "requests==2.32.3\n")
+        (self.board.dir / "out").mkdir(parents=True)
+        (self.board.dir / "out" / "diagnose.json").write_text(json.dumps({"units": []}), encoding="utf-8")
+        self.board.state = {"outputs": {"p2.diagnose": {"file": "out/diagnose.json"}}}
+        with mock.patch.object(libdocs, "unit_files", return_value=(["app.py"], "")) as uf, \
+                mock.patch.object(libdocs, "http_get", ok_http()):
+            text = planblk.lib_section(self.board, self.repo)
+        self.assertEqual(uf.call_args.args[1], str(self.board.dir / "out" / "diagnose.json"))
+        self.assertIn("取れた 1 本", text)
+        self.board.state = {"outputs": {}}
+        self.assertIn("判定の出力が盤面に無い", planblk.lib_section(self.board, self.repo))
 
 
 class HomeBase(Base):

@@ -7,51 +7,27 @@
 p2.fix_plan）が案を直す。直しの役が起きるかは壁打ちの控えの事実（converge.held）だけで決める。どの節の分かれも、直しの役と
 独立設計の役を関数の頭に置く。
 
-- snap:     役を起こす前の作業ツリーの写し（accept.tree_state。R47）を今の周の <役>-snapshot.json に置き、節が待っているか
-            （go）を返す。待っていなければ（判定が直す物を出さなかった・修正案が諦めた）輪を飛ばす。修正案は、必ず入れるのに
-            開いていない単位が在れば（stuck_reason。案の形では閉じない）盤面を止めて（by works:plan）輪を飛ばす
-- prep:     rolekit.render_prompt で本線の指示書を描き（頭に役の定義と、並行 PR の外した範囲のパスと、修正案の役なら前の run で
-            最後まで通らなかった物の節 prior_part）、番号の控え（pointer_rows）を
-            付けて起こした印（mark_launched）を置く。拒否の後の出し直しは、頭の 1 行が前の拒否の理由のファイルを名指す（R44）
-- accept:   rolekit.main_accept（take が狭めない案の欄を欠く narrows の行を拒み、関所の項目の決め手の欄を外して盤面に置き（gatemarks）、entry.take・読むだけの役の作業ツリーの比べ・3 回目の拒否で done・give_up。R50）。
-            修正案は、項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope）の欠けを
-            盤面へ渡す前に拒み、欄を外した案を渡して、
-            盤面が受けた時だけ欄を盤面の plan-fields.json に控える（with_plan_fields。planmarks）。事前審査の指示書の頭にはその欄も貼る。
-            事前審査はどの往復も盤面が settle なしで受けて往復を記録し（with_converge。core の converge）、新しい block が在れば
-            役の節 2 つを同じ周の待ちに戻す（rewind_roles）。2 往復目からの指示書の頭には前の往復の block と答えを貼る
-            直しの役は block への答え（converge の block_answers）の欠けと誤りを盤面へ渡す前に拒み、答えを外した案を修正案と同じ口
-            （with_plan_fields。比べる作業ツリーの写しは直しの役の snap が置いた物）に渡し、盤面が受けたら答えを控えに置く（revise_take）
-- converge-check: 壁打ちの出口 {ok, done, outcome, record_file}。抜け方が again でない・今の往復の役が諦めた・盤面が止まった時に
-            done（converge_check。輪を max_iterations で落とさない。R50）。replan では壁打ちを回さない（直しの役の snap は
-            go: false、converge-check はいつも 1 往復で done）
-- ripple:   波及の一覧の節（線の木の段 1。設計 docs/plans/2026-10-06-tree-line.md の 2.3）。stage units は修正案の役の前に
-            単位の key の名を引いて今の周の ripple/units.json に、stage items は往復ごとの事前審査の前に盤面の plan-fields.json の
-            項目ごとに引いて ripple/pass-<k>.json と最新の写し ripple.json に置く（lib の ripple）。修正案の役・直しの役・事前審査の
-            下請けの指示書がそれを貼り、修正の段は線が ripple.json を受け取る。replan では節では作らず、出口の collect が直した
-            項目で作り直して ripple/replan.json に置く（replan_ripple。周ごとに書き手は 1 つなので ripple.json は上書きしない）
-- 事前審査の木: 事前審査の役は束ね役。支度が開いた項目（converge.open_items）ごとの下請けのファイルと、項目が 2 つ以上なら相乗りの
+ブロックの script が役を起こす支度・受け付け・出口を持ち、ここはその部品を出す（盤面 b は引数で受ける）。
+
+- 頭: head（役の定義・並行 PR の外した範囲・ライブラリの文書の節・事前審査なら独立設計の節）と、修正案の役の頭に貼る節
+            plan_slots_section（入れてよい no）・prescription_section（判定の処方）・world_part（世界の解）・prior_part（前の run で
+            最後まで通らなかった物）・verify_part（裏取りの申し送り）・units_ripple_part（波及の一覧）・lib_section（ライブラリの文書）。
+            事前審査の役の頭の design_section は独立設計の節（design_only）と項目の works の欄の節（planmarks.review_section）
+- 役の名: role_node・known_role（独立設計の役 DESIGN_ROLE・直しの役 REVISE_ROLE も写しの graph の節に引く）・snapshot_name
+- 受け付けの照らし: not_allowed（案に入れてはいけない単位）・stuck_reason・halt_if_stuck（必ず入れるのに開いていない単位。
+            案の形では閉じないので盤面を止める）
+- 事前審査の木: 事前審査の役は束ね役。tree_part が開いた項目（converge.open_items）ごとの下請けのファイルと、項目が 2 つ以上なら相乗りの
             審査のファイルを今の周の plan-review-items/pass-<k>/ に書き、束ね役の頼み（AGG_HEAD）でそれを Agent で並べて起こさせる。
             下請けは答えを盤面の外の run ごとの置き場（answers_dir。盤面は守る場所で役が書けない）の機械が決めたファイルに Write で
-            書く。受け付け（tree_merge）がそのファイルを項目ごとに確かめ（型・覆っていない当たりの全部の答え・自分の項目の単位だけ・
+            書く。受け付け（tree_merge）がそのファイルを項目ごとに確かめ（check_item。型・覆っていない当たりの全部の答え・自分の項目の単位だけ・
             前の block の行き先・独立設計が立つ時は穴の引用と対応表 design_map。design_gaps）、faces・shrink・resolved・当たりの答え・
             相乗りを審査の返答にまとめる（相乗りの審査の答えは穴の引用だけを照らす）。束ね役の返答は項目ごとの判定の
-            要約（converge.ITEMS）だけで、答えのファイルと食い違えば拒む。確かめを通らない項目は、出し直しの支度がその項目の下請けの
+            要約（converge.ITEMS）だけで、答えのファイルと食い違えば拒む。確かめを通らない項目は、出し直しの tree_part がその項目の下請けの
             ファイルにだけ機械の読める誤りの一覧（ERRORS_HEAD）を貼って起こし直させ、通った項目は起こし直さない。
-            修正案と直しを受けたら項目を壁打ちの控えに置き（converge.note_plan）、直しの役が返した開いた項目の行に閉じた・保留の項目の前の往復の行を差し込んで全体にし（converge.splice）、閉じた項目を変えた
-            行・開いた項目の行の欠けは拒む（CLOSED_REJECT）。
-            入力 review_tree が off（script_io.switch_auto）なら支度は木の節（tree_part）を書かず、今の往復の下請けの置き場
-            （ITEMS_DIR）が無いので受け付けは木のまとめを飛ばす（_tree_off。審査役 1 つの返答をそのまま受ける）。auto なら
-            往復ごとに開いた項目が TREE_AUTO_MIN（2）以上の時だけ木にし、1 つ以下の往復は off と同じ道
-- 裏取りの申し送り: 入力 verify_file（判定の単位ごとの裏取りと単位どうしの相乗りの JSON。形は verify_part）が在れば、修正案の役の
-            頭に貼る（verify_part）。単位は直す義務で申し送りでは減らないので、根本でないと出た単位も案から外させない
-- reads:    役の読んだ証拠（reads.collect）を今の周の reads-<役>.json に書き、その一覧を reads-plan-block.json に
-- collect:  出口 {ok, plan_file, review_file, asks_human, gate_kinds, reads_file, gave_up, reason_file, ripple_file}。役の節がこの周に
-            待ったまま（3 回とも拒まれた）なら、最後の拒否の理由で盤面を止めて（by works:plan）ok: false・gave_up: true。
-            独立設計が 3 回とも拒まれたのは止めず、盤面の trace に設計が無いことを書く（最後の R2 が目の層で言う）
-- replan:   入力 replan が空でなく文字列 null でもなければ（ラインが同じブロックを 2 度目に include した、同じ run の中の案の直し。
-            依頼 226）、snap・prep・main_accept・collect を core の replan の同名の口へ回す（prep は head と、事前審査なら独立設計の節
-            design_only を組んで渡す）。独立設計の輪は今どおり design.due で飛ぶ。collect_reads は役の名 replan-<役> で読んだ証拠を
-            reads-replan-<役>.json に、索引を replan.READS_INDEX に書く（1 回目の reads-<役>.json・reads-plan-block.json を上書きしない）
+            支度（ブロックの script）が tree_part を呼ばなかった往復は下請けの置き場（ITEMS_DIR）が無いので、受け付けは木のまとめを飛ばす
+            （_tree_off。審査役 1 つの返答をそのまま受ける）
+- 壁打ちの again: rewind_roles が役の節 2 つを同じ周の待ちに戻す。replanning は入力 replan が同じ run の中の案の直しを指すか
+- RECEIVES: 役ごとに貼る節の見出しの表（promptsection）
 """
 import copy
 import difflib
@@ -376,10 +352,10 @@ def world_part(b) -> str:
 
 def design_section(b) -> str:
     """事前審査の指示書の頭に貼る節: 独立設計の節（design_only）と、修正案の項目の works の欄の節（planmarks.review_section。
-    控えが無ければ無し）。欄の控えが凍結の印と食い違えば盤面を止めて（by works:plan）控えを名指す理由の BoardGap"""
+    控えが無ければ無し）。欄の控えが凍結の印と食い違えば控えを名指す理由の BoardGap（盤面を止めるのは呼ぶブロックの script）"""
     try:
         fields = planmarks.review_section(b, worldmark.challenges(worldmark.stage_rows(b.dir) or []))
-    except planmarks.FieldsBroken as e:   # 受け付けの後に欄の控えを書き換えた: 書き換えた欄を審査に見せず、盤面を止める
+    except planmarks.FieldsBroken as e:   # 受け付けの後に欄の控えを書き換えた: 書き換えた欄を審査に見せない
         why = f"修正案の項目の works の欄の控え {planmarks.FIELDS_FILE} が凍結と食い違う: {' '.join(str(e).split())}"
         raise BoardGap(why) from None
     return design_only(b) + fields
@@ -388,7 +364,7 @@ def design_section(b) -> str:
 def design_only(b) -> str:
     """独立設計の節だけ（項目の works の欄の節は入れない）。設計が問いは立たないと返した・設計が無い時は、突き合わせない旨と理由。
     同じ run の中の案の直しの事前審査の指示書にも貼る"""
-    got, _ = design.made(b.dir)
+    got, _ = design.made(b.dir, b.design_schema)
     if got is None:
         return f"{DESIGN_HEAD}\n\n" + DESIGN_NONE.format(why=design.missing(b))
     if not got["question_stands"]:
@@ -691,7 +667,7 @@ def design_gaps(b, faces, items: list, design_map=None) -> list[str]:
     plan = converge.read(b).get("plan") or []
     rows = [{**plan[n - 1].get("row", {}), "item": n} for n in items if 1 <= n <= len(plan)]
     named = [{**f, "unit_keys": [_unit_name(names, k) for k in f.get("unit_keys") or []]} for f in faces if isinstance(f, dict)]
-    return design.quote_gaps(b.dir, named, rows, design_map)
+    return design.quote_gaps(b.dir, b.design_schema, named, rows, design_map)
 
 
 def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
@@ -745,8 +721,8 @@ def check_item(b, k: int, n: int, rip: dict, pre: list | None = None) -> tuple:
 
 
 def _tree_off(b, k: int, rip: dict) -> bool:
-    """項目の控えが無い・支度がこの往復の下請けのファイルを書いていない（入力 review_tree が off か、auto で開いた項目が
-    TREE_AUTO_MIN 未満の往復。tree_part が置き場 ITEMS_DIR を作らない）・1 項目で覆っていない当たりが無く答えのファイルも
+    """項目の控えが無い・支度がこの往復の下請けのファイルを書いていない（tree_part を呼ばなかった往復は置き場 ITEMS_DIR が
+    無い）・1 項目で覆っていない当たりが無く答えのファイルも
     無い案は木にしない（返答の全体が審査役 1 つの答え）"""
     plan = converge.read(b).get("plan")
     return (not plan or not b.work(ITEMS_DIR.format(k=k)).is_dir()

@@ -289,15 +289,12 @@ def _work(cache, name: str) -> pathlib.Path:
 
 
 def _cached(cache, name: str, statuses=("ok", "not_found")):
-    """控えの置き場 cache の控え"""
-    for p in [pathlib.Path(cache) / f"{CACHE_DIR}/{name}"]:
-        try:
-            doc = json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        if isinstance(doc, dict) and doc.get("schema") == SCHEMA and doc.get("status") in statuses:
-            return doc
-    return None
+    """控えの置き場 cache の控え（無い・読めない・形が違えば None）"""
+    try:
+        doc = json.loads((pathlib.Path(cache) / f"{CACHE_DIR}/{name}").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return doc if isinstance(doc, dict) and doc.get("schema") == SCHEMA and doc.get("status") in statuses else None
 
 
 def _official_name(lib: dict) -> str:

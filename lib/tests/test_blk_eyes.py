@@ -46,5 +46,22 @@ class AnchorCase(unittest.TestCase):
         self.assertEqual(design.anchor_note("https://example.com:443/a"), f"（{design.UNANCHORED}）")
 
 
+
+class PathCase(unittest.TestCase):
+    def test_named_section_claim_matches_only_by_path_or_number(self):
+        """貼った設計書の節には、『渡されていない』の文がそのパスか節番号を含む時だけ当てる。「設計書」の一般語だけの文
+        （別の設計書の節のことかもしれない）や、番号の違う節の文は当てない"""
+        given = [{"kind": "named_section", "what": "docs/spec.md#2-上限"},
+                 {"kind": "named_section", "what": "docs/spec.md 3 節"}]
+        hit = ["docs/spec.md の本文が渡されていない", "§3 の撤収が渡っていない", "2 節の上限が渡されていない"]
+        miss = ["別の設計書の節が渡されていない", "設計書が渡っていない", "12 節が渡されていない", "§3.1 が渡っていない"]
+        got = {c for c in hit + miss if design.claims_given([c], given)}
+        self.assertEqual(got, set(hit))
+
+    def test_unpassed_map_claim_matches_repo_map(self):
+        """『地図が渡されていない』の文は、貼った地図（kind repo_map）の行に当たる"""
+        self.assertEqual(len(design.claims_given(["地図が渡されていない"], [{"kind": "repo_map", "what": "ARCHITECTURE.md:1-3"}])), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
