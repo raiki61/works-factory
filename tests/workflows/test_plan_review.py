@@ -146,13 +146,14 @@ class Run:
         p.write_text(doc if raw else json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         return json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": rel})
 
-    def judgment(self, questions=(), materials=None, precedents=(), constraints=None, **extra):
+    def judgment(self, questions=(), materials=None, precedents=(), constraints=None, purpose_review=None, **extra):
         self.inputs["judgment"] = self.put("judge/judgment.json", {
             "units": self.units, "questions": list(questions), "framing": f"{FRAMING_MARK} 分母と上限の 2 つの誤り",
             "one_shot": f"{ONE_SHOT_MARK} 2 か所を直す", "precedents": list(precedents), **extra})
         self.put("judge/premises.json", {"constraints": constraints if constraints is not None else [
             {"text": f"{CONSTRAINT_MARK} 空の列は例外", "measured_how": "読んだ", "kind": "実測", "measured_output": "x"}]})
         self.put("judge/materials.json", materials or {})
+        self.put("judge/purpose-review.json", purpose_review or {})
 
     def purpose(self, **extra):
         self.inputs["purpose"] = self.put("judge/purpose.json", {"purpose_text": f"{PURPOSE_MARK} 統計の関数が正しい値を返す",
@@ -612,11 +613,34 @@ class DesignCase(RunCase):
         self.assertFalse(r.open()["r2_go"])
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
         self.assertIn(design.UNUSABLE["目的不明"], text)
-        r.purpose()
-        r.judgment(purpose_review={"verdict": "狭めている", "findings": [{"text": "t", "cite": "c", "hits": 1}]})
+
+    def test_skipped_when_purpose_review_sibling_narrows(self):
+        """judge が判定の隣に置く purpose-review.json の裏取りを通った『狭めている』では回さない。cite の無い行なら回す"""
+        r = self.run_
+        sibling = r.art / "judge" / "purpose-review.json"
+        sibling.write_text(json.dumps({"verdict": "狭めている", "reason": "r", "findings": [{"text": "t", "cite": "c", "hits": 1}]},
+                                      ensure_ascii=False), encoding="utf-8")
+        self.assertNotIn("purpose_review", json.loads((r.art / "judge" / "judgment.json").read_text(encoding="utf-8")))
         self.assertFalse(r.open()["r2_go"])
-        r.judgment(purpose_review={"verdict": "狭めている", "findings": ["素の文字列"]})
+        sibling.write_text(json.dumps({"verdict": "狭めている", "reason": "r", "findings": [{"text": "t", "hits": 1}]},
+                                      ensure_ascii=False), encoding="utf-8")
         self.assertTrue(r.open()["r2_go"])
+
+    def test_unreadable_purpose_review_sibling_is_named(self):
+        """判定の隣の purpose-review.json が無い・壊れている時は監査無しとして読み、その訳を事前審査の材料の頭に残す
+        （持ち主の決め no-silent-loosen）"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        sibling = r.art / "judge" / "purpose-review.json"
+        for label, why in (("無い", "FileNotFoundError"), ("壊れている", "JSONDecodeError")):
+            with self.subTest(label):
+                if label == "無い":
+                    sibling.unlink()
+                else:
+                    sibling.write_text("{broken", encoding="utf-8")
+                self.assertTrue(r.open()["r2_go"])
+                text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+                self.assertIn(boardview.PURPOSE_REVIEW_UNREAD.format(why=why), text.splitlines()[0])
 
     def test_not_stands_is_not_a_face(self):
         """元 test_design_not_stands_is_not_a_face: 問いが立たないと返した設計は突き合わせず、穴にも挙げさせない"""

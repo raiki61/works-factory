@@ -14,7 +14,7 @@ inputs:
     description: 単位の目録（配列）。判定の単位は judgment の指し札の先から読む
   judgment:
     required: true
-    description: 判定の指し札（judgment.json。隣の premises.json・materials.json を名で開く）
+    description: 判定の指し札（judgment.json。隣の premises.json・materials.json・purpose-review.json を名で開く）
   purpose:
     required: true
     description: 目的の固定の指し札（purpose.json）

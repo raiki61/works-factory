@@ -48,12 +48,13 @@ class Base(unittest.TestCase):
         return p
 
     def open(self, *, plan_rows=None, fields=None, rnd=2, world=None, start=None, answers=None, ruling=(), structure=None,
-             purpose=None, judgment=None, conflicts=None, gate_answers=None):
+             purpose=None, judgment=None, conflicts=None, gate_answers=None, purpose_review=None):
         rows = plan_rows or [{"unit_keys": [UNIT], "approach": "分母を直す", "adds": [], "removes": [], "shrink_first": "要らない",
                               "narrows": [{**TP.NARROW, **TP.DECIDED}]}]
         self.put("judge/judgment.json", judgment or {"units": [{"key": UNIT, "label": "block"}], "questions": [],
                                                      "framing": "見立て", "one_shot": "一撃", "precedents": []})
         self.put("judge/materials.json", {"parallel_pr": {"status": "not_run", "reason": "網に出られない"}})
+        self.put("judge/purpose-review.json", purpose_review or {})
         self.put(f"plan/r{rnd}/p2.fix_plan.json", {"plan": rows})
         self.put(f"plan/r{rnd}/plan-fields.json", {"round": rnd, "fields": fields or [{"route": "direct", "structure": []}]})
         self.put("plan/structure-state.json", structure or {"status": "ok", "reason": "", "design_file": "x", "wall_s": 3})
@@ -167,8 +168,7 @@ class OpenCase(Base):
         self.assertFalse(self.open()["r2_go"])
         (self.folder / "design.json").unlink()
         self.assertFalse(self.open(purpose={"purpose_text": "", "source_files": [], "source": "目的不明"})["r2_go"])
-        narrowed = {"units": [], "questions": [], "purpose_review": {"verdict": "狭めている", "findings": [{"cite": "a.md:1"}]}}
-        self.assertFalse(self.open(judgment=narrowed)["r2_go"])
+        self.assertFalse(self.open(purpose_review={"verdict": "狭めている", "findings": [{"cite": "a.md:1"}]})["r2_go"])
         for _ in range(3):
             boardview.rolekit.with_done(self.folder, "r2.design", {"ok": False, "reason": "拒んだ"})
         self.assertFalse(self.open()["r2_go"])
