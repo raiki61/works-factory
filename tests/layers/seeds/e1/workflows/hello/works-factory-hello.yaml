@@ -1,0 +1,7 @@
+name: works-factory-hello
+description: pack の形の置き場で、工程のフォルダの scripts/ の名前の script と .shared/ の境の口が読めることを確かめる種
+nodes:
+  - id: hello
+    script: hello
+    runtime: uv
+    timeout: 1728000000

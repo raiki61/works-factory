@@ -20,7 +20,7 @@
 - 工程の名は `works-factory-<フォルダの名>`、線は `works-factory-line`。
 - ブロックの間で渡す物の型の正本は、返す節の `output_format` と線の `with:` だけ。型の写しを作らない（持ち主の決め `io-in-output-format`）。
 - 期限を置かない（E12）。Archon の既定の期限を外すため、期限を持つ節には `1728000000` を書く。
-- 試験はリポジトリの根から `uv run --isolated python3 -m unittest discover -s . -t .` の 1 つで走る（CI も ASF の `harness/harness.config.json` の `unit` も同じ命令）。`tests/`・`tests/bin/`・`lib/tests/` など試験を置くフォルダには、全部 `__init__.py` を置く（無いと Python 3.12 は黙って見つけない）。Archon の源が要る試験は、無ければ名前つきで見送る（`skipTest("Archon の源が無い: ...")`）。CI は Task 3b で止めた Archon の源と bun を取るので、CI では見送らない。
+- 試験はリポジトリの根から `uv run --isolated python3 -m unittest discover -s . -t .` の 1 つで走る（CI も ASF の `harness/harness.config.json` の `unit` も同じ命令）。`tests/`・`tests/bin/`・`lib/tests/` など試験を置くフォルダには、全部 `__init__.py` を置く（無いと Python 3.12 は黙って見つけない）。Archon の源が要る試験は、無ければ名前つきで見送る（`skipTest("Archon の源が無い: ...")`）。CI（`.github/workflows/tests.yml`）は止めた Archon の源と bun を取る（Task 3b）ので、CI では見送らない。
 
 ## 見るべき所（Task の試験が当たる物）
 

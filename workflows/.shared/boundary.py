@@ -35,8 +35,10 @@ def resolve(ptr: dict) -> Path:
 
 
 def lib_root() -> Path:
-    """lib/ の置き場。Archon が run の始めに写し取った所から走る時の決め方は docs/design.md の U5（段 1 で決める）。段 0 はリポジトリの中"""
-    return Path(__file__).resolve().parents[2] / "lib"
+    """lib/ の置き場。入口が環境変数 WORKS_FACTORY_ROOT にリポジトリの根を渡していればその lib/、無ければこのファイルから辿った lib/。
+    Archon は run の始めに工程のフォルダを写し取り、script はその写しから走るので、run の中ではこのファイルから辿っても届かない（docs/design.md の U5）"""
+    root = os.environ.get("WORKS_FACTORY_ROOT")
+    return Path(root) / "lib" if root else Path(__file__).resolve().parents[2] / "lib"
 
 
 def _run_id() -> str:

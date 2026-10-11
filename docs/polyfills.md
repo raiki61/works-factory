@@ -46,7 +46,7 @@
 
 - 穴: `--workflow-source <dir>` は `<dir>/.archon/workflows/` しか読まない。自分の工程のフォルダ（リポジトリの `workflows/`）を直に渡せない。
 - 証拠: 止めた Archon の `packages/cli/src/cli.ts` 805-825 行と `packages/paths/src/archon-paths.ts` 378 行。
-- 埋め: `bin/_lib/place.py` の `workflow_source`。キャッシュの中に置き場を作り、その `.archon/workflows` からリポジトリの `workflows/` へ symlink を張る。
+- 埋め: `bin/_lib/place.py` の `workflow_source`。キャッシュの中に置き場を作り、その `.archon/workflows/works-factory`（pack の形。名は `pack.json` の `ours.pack`）からリポジトリの `workflows/` へ symlink を張る。
 - 使うブロック: 線（入口）
 - 外す条件: `--workflow-source` に任意のフォルダを渡して、その中の工程を読める版が出たら
 

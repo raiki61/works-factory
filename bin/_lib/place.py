@@ -3,8 +3,10 @@
 - Archon の本体: 源の packages/cli/src/cli.ts を bun で起こす（ASF の factory/consumer.py の cli() と同じ形）。
 - ASF の工程: 源の中の asf.folder（factory/pack.json の source_directory）。ASF の工程を回す時は --workflow-source に源を渡す。
 - 自分の工程: Archon の家に写さない。Archon は --workflow-source <dir> の <dir>/.archon/workflows/ を読み、run の始めに
-  その中身を run の物として写し取る（Archon の packages/workflows/src/workflow-source.ts）。だからその場所がリポジトリの
-  workflows/ を指す小さな置き場を作り、そこを --workflow-source に渡す。
+  その中身を run の物として写し取る（Archon の packages/workflows/src/workflow-source.ts）。だからその中の
+  .archon/workflows/<pack>/ がリポジトリの workflows/ を指す小さな置き場を作り、そこを --workflow-source に渡す。
+  pack の形にするのは、Archon が名前の script を pack の工程の時だけ工程のフォルダの scripts/ から探し、
+  pack の部品を <pack>/.shared/ から読むため（Archon の packages/workflows/src/script-discovery.ts）。
 
 Archon の家（$ARCHON_HOME/workflows など）には何も置かない。
 """
@@ -12,7 +14,7 @@ import hashlib
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 ENTRY = "packages/cli/src/cli.ts"
@@ -20,6 +22,11 @@ WORKFLOW_FOLDER = ".archon/workflows"
 
 Fetch = Callable[[str, str, Path], None]
 Install = Callable[[Path], None]
+
+
+def cache_dir(env: Mapping[str, str]) -> Path:
+    """取り置きの置き場 ${XDG_CACHE_HOME:-$HOME/.cache}/works-factory"""
+    return Path(env.get("XDG_CACHE_HOME") or Path(env["HOME"]) / ".cache") / "works-factory"
 
 
 def git_fetch(repo: str, commit: str, dest: Path) -> None:
@@ -63,14 +70,18 @@ def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: In
 
 
 def workflow_source(pack: dict, root: Path, cache: Path) -> Path:
-    """--workflow-source に渡す置き場を返す。その中の .archon/workflows は root の自分の工程のフォルダを指す。
+    """--workflow-source に渡す置き場を返す。その中の .archon/workflows/<pack> は root の自分の工程のフォルダを指す。
 
-    置き場の名は指す先のパスの hash なので、同じ root からは同じ置き場になる。
+    置き場の名は指す先のパスの hash なので、同じ root からは同じ置き場になる。前の形の置き場（.archon/workflows が
+    直に工程のフォルダを指す symlink）は、そのまま使うと pack の symlink を工程のフォルダの中に作るので、消す案内で止まる。
     """
     target = (root / pack["ours"]["folder"]).resolve()
     shim = cache / "workflow-source" / hashlib.sha256(str(target).encode()).hexdigest()[:16]
-    link = shim / WORKFLOW_FOLDER
-    link.parent.mkdir(parents=True, exist_ok=True)
+    folder = shim / WORKFLOW_FOLDER
+    if folder.is_symlink():
+        raise RuntimeError(f"{folder} は前の形の置き場（{folder.readlink()} を指す symlink）。消して回し直せば作り直す（rm \"{folder}\"）")
+    link = folder / pack["ours"]["pack"]
+    folder.mkdir(parents=True, exist_ok=True)
     try:
         link.symlink_to(target, target_is_directory=True)
     except FileExistsError:

@@ -52,8 +52,8 @@ class PackTest(unittest.TestCase):
 
     def test_load_rejects_missing_keys(self):
         self.change("factory/pack.json", lambda data: data.pop("integration_revision_required"))
-        self.change("pack.json", lambda data: data["ours"].pop("folder"))
-        with self.assertRaisesRegex(ValueError, r"ours\.folder.*integration_revision_required"):
+        self.change("pack.json", lambda data: data.update(ours={}))
+        with self.assertRaisesRegex(ValueError, r"ours\.folder.*ours\.pack.*integration_revision_required"):
             pack.load(self.tmp)
 
     def test_load_rejects_commit_that_is_not_a_full_sha(self):
@@ -191,14 +191,19 @@ class WorkflowSourceTest(unittest.TestCase):
         write(self.root / "workflows/line/works-factory-line.yaml", b"name: works-factory-line\r\n")
         write(self.root / "workflows/.shared/boundary.py", b"\x00\xff bytes\n")
 
-    def test_archon_reads_the_repo_workflows_through_it(self):
+    def read_by_archon(self, shim):
+        """Archon が名前の script と .shared/ を探す pack の形の所（<置き場>/.archon/workflows/<pack>/）"""
+        return shim / place.WORKFLOW_FOLDER / self.pack["ours"]["pack"]
+
+    def test_archon_reads_the_repo_workflows_as_one_pack(self):
         shim = place.workflow_source(self.pack, self.root, self.cache)
-        self.assertEqual(files(shim / place.WORKFLOW_FOLDER), files(self.root / "workflows"))
+        self.assertEqual(files(self.read_by_archon(shim)), files(self.root / "workflows"))
+        self.assertEqual([p.name for p in (shim / place.WORKFLOW_FOLDER).iterdir()], [self.pack["ours"]["pack"]])
 
     def test_edits_in_the_repo_show_without_placing_again(self):
         shim = place.workflow_source(self.pack, self.root, self.cache)
         write(self.root / "workflows/line/added.yaml", b"added")
-        self.assertEqual((shim / place.WORKFLOW_FOLDER / "line/added.yaml").read_bytes(), b"added")
+        self.assertEqual((self.read_by_archon(shim) / "line/added.yaml").read_bytes(), b"added")
 
     def test_same_root_same_place_and_other_root_other_place(self):
         first = place.workflow_source(self.pack, self.root, self.cache)
@@ -208,12 +213,23 @@ class WorkflowSourceTest(unittest.TestCase):
         self.assertNotEqual(place.workflow_source(self.pack, other, self.cache), first)
 
     def test_foreign_entry_is_not_used(self):
-        shim = place.workflow_source(self.pack, self.root, self.cache)
-        link = shim / place.WORKFLOW_FOLDER
+        link = self.read_by_archon(place.workflow_source(self.pack, self.root, self.cache))
         link.unlink()
         write(link / "x.yaml", b"foreign")
         with self.assertRaisesRegex(RuntimeError, str(link)):
             place.workflow_source(self.pack, self.root, self.cache)
+
+    def test_place_of_the_flat_shape_stops_with_the_way_back(self):
+        """前の形は .archon/workflows が直に workflows/ を指す symlink。そのまま使うと pack の symlink をリポジトリの中に作る"""
+        folder = place.workflow_source(self.pack, self.root, self.cache) / place.WORKFLOW_FOLDER
+        shutil.rmtree(folder)
+        folder.symlink_to((self.root / "workflows").resolve(), target_is_directory=True)
+        before = files(self.root)
+        with self.assertRaisesRegex(RuntimeError, f'前の形.*rm "{folder}"') as caught:
+            place.workflow_source(self.pack, self.root, self.cache)
+        self.assertNotIn("\n", str(caught.exception))
+        self.assertEqual(files(self.root), before)
+        self.assertEqual(sorted(p.name for p in (self.root / "workflows").iterdir()), [".shared", "line"])
 
     def test_symlink_refusal_names_the_place(self):
         with mock.patch.object(pathlib.Path, "symlink_to", side_effect=OSError(1, "Operation not permitted")):
@@ -226,6 +242,16 @@ class WorkflowSourceTest(unittest.TestCase):
         before = files(self.root), files(home)
         place.workflow_source(self.pack, self.root, self.cache)
         self.assertEqual((files(self.root), files(home)), before)
+
+
+class CacheDirTest(unittest.TestCase):
+    def test_xdg_cache_home_wins_over_home(self):
+        self.assertEqual(place.cache_dir({"XDG_CACHE_HOME": "/xdg", "HOME": "/h"}), pathlib.Path("/xdg/works-factory"))
+
+    def test_home_cache_when_xdg_is_unset_or_empty(self):
+        for env in ({"HOME": "/h"}, {"XDG_CACHE_HOME": "", "HOME": "/h"}):
+            with self.subTest(env=env):
+                self.assertEqual(place.cache_dir(env), pathlib.Path("/h/.cache/works-factory"))
 
 
 class WorkflowRunTest(unittest.TestCase):

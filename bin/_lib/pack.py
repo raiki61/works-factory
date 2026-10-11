@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 REQUIRED = {
-    "pack.json": ("ours.folder",),
+    "pack.json": ("ours.folder", "ours.pack"),
     "factory/pack.json": ("repository", "integration_revision_required", "source_directory"),
 }
 FULL_SHA = re.compile(r"[0-9a-f]{40}")

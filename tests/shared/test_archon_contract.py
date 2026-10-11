@@ -4,8 +4,7 @@
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
 
 - ASF の消費者 factory/consumer.py は木に在るので常に照らす。
-- 止めた Archon の源は、環境変数 WORKS_FACTORY_ARCHON_CACHE の置き場に <cache>/archon/<commit> が在る時だけ照らす。
-  在れば place._verify を当て、壊れていれば赤にする。環境変数か置き場が無い時だけ見送る。試験の中では取りに行かない。
+- 止めた Archon の源は、tests/archon.py の決まりで見つかる時だけ照らす（壊れていれば赤、無ければ名前つきで見送る）。
 """
 import os
 import pathlib
@@ -18,11 +17,12 @@ from typing import Any, NamedTuple
 from unittest import mock
 
 from bin._lib import pack, place
+from tests import archon
+from tests.archon import CACHE_ENV, pinned_source
 from tests.bin.gitkit import git
 from tests.shared.test_boundary import boundary
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-CACHE_ENV = "WORKS_FACTORY_ARCHON_CACHE"
 
 
 class Row(NamedTuple):
@@ -88,22 +88,10 @@ def _asf_folder_key() -> str:
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp)
         (root / "factory").mkdir()
-        (root / "pack.json").write_text(json.dumps({"ours": {"folder": "ours"}}), encoding="utf-8")
+        (root / "pack.json").write_text(json.dumps({"ours": {"folder": "ours", "pack": "ours"}}), encoding="utf-8")
         asf = {key: key for key in pack.REQUIRED["factory/pack.json"]} | {"integration_revision_required": "0" * 40}
         (root / "factory/pack.json").write_text(json.dumps(asf), encoding="utf-8")
         return pack.load(root)["asf"]["folder"]
-
-
-def pinned_source(cache: str | None, commit: str) -> pathlib.Path:
-    """取り置いた Archon の源 <cache>/archon/<commit> を照らして返す。cache が無いか置き場が無ければ名前つきで見送る。
-    源の字を読むだけなので bun は要らず、archon_source を通さない（無い置き場を作らない）"""
-    if not cache:
-        raise unittest.SkipTest(f"Archon の源が無い: 置き場の環境変数 {CACHE_ENV} が無い")
-    source = pathlib.Path(cache) / "archon" / commit
-    if not source.is_dir():
-        raise unittest.SkipTest(f"Archon の源が無い: {source} が無い")
-    place._verify(source, commit)
-    return source
 
 
 def _workflow_run_shape() -> list[str]:
@@ -200,8 +188,7 @@ class ConsumerContractTest(ContractTest):
 
 class ArchonContractTest(ContractTest):
     def test_copies_match_pinned_archon_source(self):
-        source = pinned_source(os.environ.get(CACHE_ENV), pack.load(ROOT)["archon"]["commit"])
-        self.check(source, ARCHON_ROWS)
+        self.check(archon.source(), ARCHON_ROWS)
 
 
 class PinnedSourceTest(unittest.TestCase):

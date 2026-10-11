@@ -1,4 +1,4 @@
-"""境の口（workflows/.shared/boundary.py）を、偽の環境と偽の run の置き場で確かめる。"""
+"""境の口（workflows/.shared/boundary.py）を、偽の環境と偽の run の置き場で確かめる。lib_root は止めた Archon の run の中でも確かめる（tests/archon.py）。"""
 import contextlib
 import importlib.util
 import io
@@ -10,7 +10,11 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests import archon
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+SEEDS = ROOT / "tests" / "layers" / "seeds"
+ROOT_ENV = "WORKS_FACTORY_ROOT"
 
 
 def load_boundary():
@@ -96,7 +100,21 @@ class ReturnsTest(unittest.TestCase):
 
 class LibRootTest(unittest.TestCase):
     def test_lib_root_is_repository_lib(self):
-        self.assertEqual(boundary.lib_root(), ROOT / "lib")
+        with mock.patch.dict(os.environ):
+            os.environ.pop(ROOT_ENV, None)
+            self.assertEqual(boundary.lib_root(), ROOT / "lib")
+
+    def test_lib_root_follows_works_factory_root(self):
+        with mock.patch.dict(os.environ, {ROOT_ENV: "/elsewhere"}):
+            self.assertEqual(boundary.lib_root(), pathlib.Path("/elsewhere/lib"))
+
+    def test_script_run_by_archon_finds_repository_lib(self):
+        """Archon は run の始めに工程のフォルダを写し取り、script はその写しから走る。写しからは自分の置き場を辿っても lib/ に届かない"""
+        with archon.tree(["hello"], SEEDS / "e1" / "workflows") as tree:
+            done = archon.archon(tree, "workflow", "run", "works-factory-hello", "--no-worktree", "--cwd", str(tree))
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        returned = [json.loads(line) for line in done.stdout.splitlines() if line.startswith('{"lib"')]
+        self.assertEqual(returned, [{"lib": str(ROOT / "lib")}], done.stdout)
 
 
 if __name__ == "__main__":

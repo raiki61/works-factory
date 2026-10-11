@@ -7,4 +7,4 @@
 - 試験を置くフォルダには全部 `__init__.py` を置く。無いと Python 3.12 の unittest は黙って見つけない。1 件も走らない時は終了の値 5 で落ちる。試験の無い木を緑にしない。
 - 置き場: 層の決まりの試験は `tests/layers/`（各決まりの「機械」の行）、入口は `tests/bin/`、境は `tests/shared/`、ブロックの YAML の形と筋書きの試験は `tests/workflows/`、通しの試験と小さな対象のリポジトリの種は `tests/e2e/`。`lib/` の試験は `lib/tests/`。
 - `lib/tests/` の試験は、`lib/` を `sys.path` の後ろに足す（`append`。頭に入れると `lib/tests` が根の `tests` を隠す）。試験の助け（`gitkit`・`hermetic` など）の置き場は `tests/bin/` の 1 か所で、`from tests.bin.<名> import ...` で読む。
-- Archon の源（`bin/_lib/place.archon_source` で取る物）が要る試験は、無ければ名前つきで見送る（`skipTest("Archon の源が無い: ...")`）。源の置き場は環境変数 `WORKS_FACTORY_ARCHON_CACHE`（`archon_source` に渡す `cache`）で渡す。試験の中では取りに行かない。
+- Archon の源（`bin/_lib/place.archon_source` で取る物）か bun が要る試験は、`tests/archon.py` の助けで源を見つけ、Archon を起こし、使い捨ての木を組む。無ければ名前つきで見送る（`skipTest("Archon の源が無い: ...")`）。源の置き場は環境変数 `WORKS_FACTORY_ARCHON_CACHE`（`archon_source` に渡す `cache`）で渡す。試験の中では取りに行かない。CI は源と bun を取るので見送らない。
