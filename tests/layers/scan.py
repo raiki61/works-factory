@@ -71,6 +71,8 @@ ALLOWED = {
         "lib/tests/",
         "lib/impact.py",
         "lib/changemap.py",
+        "lib/tddloop.py",
+        "lib/fixrules.py",
         "lib/libdocs.py",
         "lib/libdocs_local.py",
     ),

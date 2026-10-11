@@ -1,0 +1,1436 @@
+name: works-factory-fix
+description: |
+  修正のブロック。判定と承認済みの修正案の単位を組に分け、組ごとに子の run で直し（TDD の輪と修正役）、直しを親の作業ツリーへ
+  戻し、食い違いの申し出を裁き、後始末と変更の確かめの後に、修正だけの差分を審査役とレンズに見せて手直しを 2 往復まで回す。
+  1 つの YAML が 2 つの形で走る。入力 mode が空（既定）は線が include するブロックの形で、組ごとに自分（works-factory-fix）を
+  workflow: と fan_out: で子の run として起こす。子の run の名が先祖の run に在ると Archon が循環として拒むので、
+  この形は線の include の中でだけ回す。mode が group は組 1 つを直す子の run の形で、単独の run でも回る。
+  返す節はどちらの形でも fix（docs/design.md の「ブロックの返りの約束」の fix の返り）。
+
+inputs:
+  start:
+    required: true
+    description: 始めの記録の指し札（線の $start.output.record）
+  baseline:
+    default: ""
+    description: 直す前の結末の指し札（$test-gate-base.output.baseline）。空・null は実行器の無い run
+  units:
+    required: true
+    description: 単位の目録の JSON（$judge.output.units）
+  judgment:
+    required: true
+    description: 判定の指し札（$judge.output.judgment）
+  world:
+    default: ""
+    description: 定石の行の指し札（$judge.output.world）
+  plan:
+    default: ""
+    description: 修正案の指し札（$plan.output.plan。plan-fields.json）。空は修正案の無い run
+  ripple:
+    default: ""
+    description: 波及の一覧の指し札（$plan.output.ripple）
+  depth:
+    default: ""
+    description: 単位ごとの深さの JSON の配列（$plan.output.depth）
+  answers:
+    default: ""
+    description: 修正前の関所の答え（$gate-before-fix.output。飛ばされれば null）
+  only_items:
+    default: ""
+    description: 案の直しの後の 2 回目の修正（線の include refix）で直す計画の項目の id の JSON の配列。空は直す義務の単位の全部
+  mode:
+    default: ""
+    description: 空はブロックの形（線の include の中だけ）、group は組ごとの子の run
+  group:
+    default: ""
+    description: 組 1 つの JSON（{group_id, unit_ids, items}。形 group の時に親の fan_out が渡す）
+  from_tree:
+    default: ""
+    description: 親の作業ツリーの姿の木の sha。空なら親の作業ツリーをそのまま使う子
+  out_dir:
+    default: ""
+    description: 子が組の結果を書く、親の run の置き場の中の絶対パス。空なら自分の置き場に書く
+
+returns: fix
+outcome_field: done
+
+nodes:
+  # 形の振り分け。include の中の when: は $INPUTS を左に置けないので、入力 mode を script が読んで返す
+  - id: route
+    script: route
+    runtime: uv
+    mutates_checkout: false
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [group]
+      properties:
+        group: {type: boolean}
+
+  # ---- 形 ""（ブロック。線の include の中だけ） ----
+
+  # 入力を置き場に写し、git が無視するファイルを控え（p1.worktree_before）、始めの木を取り、組を作る（lanekit.groups）
+  - id: prep
+    script: prep
+    runtime: uv
+    depends_on: [route]
+    when: "$route.output.group == false"
+    mutates_checkout: false
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [groups, count, par, start_tree, out_dir]
+      properties:
+        groups:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [group_id, unit_ids, items]
+            properties:
+              group_id: {type: string, minLength: 1}
+              unit_ids: {type: array, items: {type: string}}
+              items: {type: array, items: {type: integer}}
+        count: {type: integer, minimum: 0}
+        par: {type: boolean}
+        start_tree: {type: string}
+        out_dir: {type: string, minLength: 1}
+
+  # 組ごとに子の run を起こし、子ごとに Archon が作業ツリーを切る。親の姿は木の sha で渡して子が写す（docs/design.md の U8）。
+  # max_parallel は Archon の既定の 5 を見えるように書く（並べの数の上限。列ではない）
+  - id: groups-par
+    workflow: works-factory-fix
+    depends_on: [prep]
+    when: "$prep.output.par == true"
+    isolation: worktree
+    fan_out:
+      items: $prep.output.groups
+      as: group
+      max_parallel: 5
+      join: all_done
+    with:
+      start: $INPUTS.start
+      baseline: $INPUTS.baseline
+      units: $INPUTS.units
+      judgment: $INPUTS.judgment
+      world: $INPUTS.world
+      plan: $INPUTS.plan
+      ripple: $INPUTS.ripple
+      depth: $INPUTS.depth
+      answers: $INPUTS.answers
+      only_items: $INPUTS.only_items
+      mode: group
+      from_tree: $prep.output.start_tree
+      out_dir: $prep.output.out_dir
+
+  # 並べない run は、子を親の作業ツリーで 1 つずつ回す（Archon の作業ツリーの錠は先祖と子孫を除く）
+  - id: groups-seq
+    workflow: works-factory-fix
+    depends_on: [prep]
+    when: "$prep.output.par == false"
+    fan_out:
+      items: $prep.output.groups
+      as: group
+      max_parallel: 1
+      join: all_done
+    with:
+      start: $INPUTS.start
+      baseline: $INPUTS.baseline
+      units: $INPUTS.units
+      judgment: $INPUTS.judgment
+      world: $INPUTS.world
+      plan: $INPUTS.plan
+      ripple: $INPUTS.ripple
+      depth: $INPUTS.depth
+      answers: $INPUTS.answers
+      only_items: $INPUTS.only_items
+      mode: group
+      from_tree: ""
+      out_dir: $prep.output.out_dir
+
+  # 子の返りを with: で受けない（落ちた子への束ねは投げる）。子が out_dir/<group_id>/result.json に書いた結果を組の順に読み、
+  # 並べた run は子の差分を決めた順に親の作業ツリーへ当てて確かめ直す（p3.lane_merge）
+  - id: join
+    script: join
+    runtime: uv
+    depends_on: [route, groups-par, groups-seq]
+    trigger_rule: all_done
+    when: "$route.output.group == false"
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [groups, returned]
+      properties:
+        groups: {type: integer, minimum: 0}
+        returned: {type: integer, minimum: 0}
+
+  # 組ごとの TDD の輪の結果を 1 つの型つきの成果物にする（子の run の成果物は親の一覧に載らない）
+  - id: tdd-unit
+    script: tdd_unit
+    runtime: uv
+    depends_on: [join]
+    output_type: tdd-unit
+    mutates_checkout: false
+    timeout: 1728000000
+
+  # 子と join が集めた食い違いの申し出の名指し（<パス>:<行>）を現物で照らし、在る申し出を置き場の conflicts.json に残す
+  - id: conflict-check
+    script: conflict_check
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [join]
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, count]
+      properties:
+        go: {type: boolean}
+        count: {type: integer, minimum: 0}
+
+  # 裁定の輪。役 ruler は読むだけで、持ち主の決まり（fix-rules/principles.md）で裁く。3 回目の拒否で裁かれていない申し出を人へ回して抜ける
+  - id: rule-loop
+    depends_on: [conflict-check]
+    when: "$conflict-check.output.go == true"
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$rule-accept.output.done; test "$done" = true
+      nodes:
+        - id: rule-prep
+          script: rule_prep
+          runtime: uv
+          mutates_checkout: false
+          timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt_file, iteration]
+            properties:
+              prompt_file: {type: string}
+              iteration: {type: integer, minimum: 1}
+
+        - id: ruler
+          description: '裁定役: 食い違いを持ち主の決まりで裁く（読むだけ）'
+          model: opus
+          effort: high
+          prompt: 指示書 `$rule-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
+          depends_on: [rule-prep]
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [rulings]
+            properties:
+              rulings:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, decision, text, limits]
+                  properties:
+                    id: {type: string, minLength: 1}
+                    decision:
+                      type: string
+                      enum: [fix_test_scope, fix_code_as, ask_human, replace_query, fix_plan_item]
+                    text: {type: string, minLength: 10}
+                    limits:
+                      type: array
+                      items: {type: string, minLength: 1}
+                    grounds:
+                      type: array
+                      items: {type: string, minLength: 3}
+                    request_searched: {type: string, minLength: 10}
+                    query:
+                      type: object
+                      additionalProperties: false
+                      required: [how, counts, hits, misses]
+                      properties:
+                        how: {type: object}
+                        counts:
+                          type: string
+                          enum: [defects, population]
+                        hits:
+                          type: array
+                          maxItems: 20
+                          items: {type: string, minLength: 1}
+                          minItems: 1
+                        misses:
+                          type: array
+                          maxItems: 20
+                          items: {type: string, minLength: 1}
+
+        - id: rule-accept
+          script: rule_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [ruler]
+          timeout: 1728000000
+          with:
+            reply: $ruler.output
+            iteration: $rule-prep.output.iteration
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason, reason_file]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+              reason_file: {type: string}
+
+  # 裁定の後の修正の輪。直す裁定（fix_test_scope・fix_code_as）が無ければ支度が go: false を返し、役を起こさずに抜ける。
+  # 役 fix-ruled は修正役の返答と裁定を機械が保存したファイルを読む新しい会話（Archon の context: resume は loop_group の体で使えない）
+  - id: fix-ruled-loop
+    depends_on: [conflict-check, rule-loop]
+    when: "$conflict-check.output.go == true"
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 12
+      fresh_context: false
+      until_bash: done=$fix-ruled-accept.output.done; test "$done" = true
+      nodes:
+        - id: fix-ruled-prep
+          script: fix_ruled_prep
+          runtime: uv
+          mutates_checkout: false
+          timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt_file, go, iteration]
+            properties:
+              prompt_file: {type: string}
+              go: {type: boolean}
+              iteration: {type: integer, minimum: 1}
+
+        - id: fix-ruled
+          description: '裁定の文を読んで直す'
+          model: sonnet
+          effort: high
+          prompt: 指示書 `$fix-ruled-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書が名指す欄の JSON だけ。
+          depends_on: [fix-ruled-prep]
+          when: "$fix-ruled-prep.output.go == true"
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format: &fix_reply
+            type: object
+            required: [changes, fix_closure, gates_changed, interactions, mechanism_changed, not_done, path_changed, plan_faces, premise_drift, seams_changed, security_surface_changed, wrote_refs]
+            additionalProperties: false
+            properties:
+              changes:
+                type: array
+                items:
+                  type: object
+                  required: [breaks, bypass_tried, closure, files, root_or_symptom, unit_key, what, precedent]
+                  additionalProperties: false
+                  properties:
+                    unit_key: {type: string}
+                    what: {type: string}
+                    closure:
+                      type: object
+                      required: [mechanism, fix_mechanism, verified_how, sites]
+                      additionalProperties: false
+                      properties:
+                        mechanism: {type: string}
+                        fix_mechanism: {type: string}
+                        verified_how: {type: string}
+                        sites:
+                          type: array
+                          items:
+                            type: object
+                            required: [site, red_seen]
+                            additionalProperties: false
+                            properties:
+                              site: {type: string}
+                              red_seen: {type: boolean}
+                              path: {type: string}
+                    files:
+                      type: array
+                      minItems: 1
+                      items: {type: string}
+                    coverage:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        how:
+                          type: object
+                          required: [patterns, paths, count]
+                          additionalProperties: false
+                          properties:
+                            patterns:
+                              type: array
+                              minItems: 1
+                              maxItems: 20
+                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                            fixed: {type: boolean}
+                            paths:
+                              type: array
+                              minItems: 1
+                              maxItems: 50
+                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                            count:
+                              type: string
+                              enum: [lines, files]
+                            untracked: {type: boolean}
+                            ignore_case: {type: boolean}
+                            word: {type: boolean}
+                        counts:
+                          type: string
+                          enum: [defects, population]
+                        remaining: {type: string}
+                    root_or_symptom:
+                      type: object
+                      required: [kind, why]
+                      additionalProperties: false
+                      properties:
+                        kind:
+                          type: string
+                          enum: [root, symptom]
+                        why: {type: string, minLength: 1}
+                    bypass_tried: {type: string, minLength: 1}
+                    breaks:
+                      type: object
+                      required: [how, result]
+                      additionalProperties: false
+                      properties:
+                        how: {type: string, minLength: 1}
+                        result: {type: string, minLength: 1}
+                        accepted: {type: string}
+                    precedent:
+                      type: object
+                      required: [verdict, reason]
+                      additionalProperties: false
+                      properties:
+                        problem: {type: string}
+                        source: {type: string}
+                        verdict:
+                          type: string
+                          enum: [adopt, adapt, does_not_apply, not_found]
+                        reason: {type: string, minLength: 4}
+                        searched: {type: string}
+                        from_judge_row: {type: boolean}
+                      allOf:
+                      - if:
+                          not:
+                            required: [from_judge_row]
+                            properties:
+                              from_judge_row: {const: true}
+                        then:
+                          required: [problem]
+                          properties:
+                            problem: {type: string, minLength: 4}
+                      - if:
+                          allOf:
+                          - not:
+                              required: [from_judge_row]
+                              properties:
+                                from_judge_row: {const: true}
+                          - required: [verdict]
+                            properties:
+                              verdict: {const: not_found}
+                        then:
+                          required: [searched]
+                          properties:
+                            searched: {type: string, minLength: 4}
+                      - if:
+                          allOf:
+                          - not:
+                              required: [from_judge_row]
+                              properties:
+                                from_judge_row: {const: true}
+                          - required: [verdict]
+                            properties:
+                              verdict:
+                                not: {const: not_found}
+                        then:
+                          required: [source]
+                          properties:
+                            source: {type: string, minLength: 4}
+              not_done:
+                type: array
+                items:
+                  type: object
+                  required: [unit_key, why]
+                  additionalProperties: false
+                  properties:
+                    unit_key: {type: string}
+                    why: {type: string}
+              fix_closure:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              mechanism_changed: {type: boolean}
+              premise_drift: {type: boolean}
+              premise_drift_note: {type: string}
+              gates_changed: {type: boolean}
+              seams_changed: {type: boolean}
+              security_surface_changed: {type: boolean}
+              path_changed: {type: boolean}
+              decision_records_changed: {type: boolean}
+              rejudge_requested: {type: string}
+              interactions:
+                type: array
+                items:
+                  type: object
+                  required: [surface, checked]
+                  additionalProperties: false
+                  properties:
+                    surface: {type: string, minLength: 1}
+                    checked: {type: string, minLength: 1}
+                    combined_effect: {type: string}
+              wrote_refs:
+                type: array
+                maxItems: 50
+                items:
+                  type: object
+                  required: [kind, target, where]
+                  additionalProperties: false
+                  properties:
+                    kind:
+                      type: string
+                      enum: [file, text]
+                    cite: {type: string, minLength: 1, maxLength: 500}
+                    target: {type: string, minLength: 1, maxLength: 300}
+                    where: {type: string, minLength: 1, maxLength: 300}
+              plan_faces:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, handled, how]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    handled:
+                      type: string
+                      enum: [absorbed, declared]
+                    how: {type: string, minLength: 20}
+              x_scalars:
+                type: object
+                additionalProperties: false
+                patternProperties:
+                  ^x_[a-z0-9_]+$: {type: number}
+              conflicts:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [unit_key, between, why_both_cannot_hold, which_is_right, kind]
+                  properties:
+                    unit_key: {type: string, minLength: 1}
+                    between:
+                      type: array
+                      minItems: 2
+                      items: {type: string, minLength: 3}
+                    why_both_cannot_hold: {type: string, minLength: 10}
+                    which_is_right:
+                      type: string
+                      enum: [request, test, code, unknown, query]
+                    correct_lines:
+                      type: array
+                      minItems: 1
+                      maxItems: 20
+                      items: {type: string, minLength: 1}
+                    kind:
+                      type: string
+                      enum: [brief_vs_judgment, unnamed_test_broke, not_red, scope_needed, query_hits_fixed, needs_context]
+              consult:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [item, paths, tests, why]
+                  properties:
+                    item: {type: integer, minimum: 1}
+                    paths:
+                      type: array
+                      items: {type: string, minLength: 1}
+                    tests:
+                      type: array
+                      items: {type: string, minLength: 1}
+                    new_tests:
+                      type: array
+                      items: {type: string, minLength: 1}
+                    why: {type: string, minLength: 10}
+              bash_writes:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, why]
+                  properties:
+                    path: {type: string, minLength: 1}
+                    why: {type: string, minLength: 10}
+
+        - id: ruled-consult-check
+          script: consult_check
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [fix-ruled]
+          timeout: 1728000000
+          with:
+            reply: $fix-ruled.output
+            pass: ruled
+          output_format: &consult_check_out
+            type: object
+            additionalProperties: false
+            required: [consulted, go, prompt_file]
+            properties:
+              consulted: {type: boolean}
+              go: {type: boolean}
+              prompt_file: {type: string}
+
+        - id: ruled-consult-answer
+          description: '範囲の相談に答える（修正案と波及を読む新しい会話。読むだけ）'
+          model: opus
+          effort: medium
+          prompt: 指示書 `$ruled-consult-check.output.prompt_file` を Read で全部読み、その相談に答えよ。返すのは指示書の JSON だけ。
+          depends_on: [ruled-consult-check]
+          when: "$ruled-consult-check.output.go == true"
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format: &consult_answer
+            type: object
+            additionalProperties: false
+            required: [answers]
+            properties:
+              answers:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [ask, decision, paths, tests, spec, reason]
+                  properties:
+                    ask: {type: integer, minimum: 1}
+                    decision:
+                      type: string
+                      enum: [allow, deny, defer]
+                    new_tests:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required: [id, red_kind]
+                        properties:
+                          id: {type: string, minLength: 1}
+                          red_kind:
+                            type: string
+                            enum: [red, guard]
+                    paths:
+                      type: array
+                      items: {type: string, minLength: 1}
+                    tests:
+                      type: array
+                      items: {type: string, minLength: 1}
+                    spec: {type: string}
+                    reason: {type: string, minLength: 10}
+
+        - id: ruled-consult-accept
+          script: consult_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [ruled-consult-check, ruled-consult-answer]
+          trigger_rule: none_failed_min_one_success
+          timeout: 1728000000
+          with:
+            answer: {from: "$ruled-consult-answer.output", if_skipped: null}
+            pass: ruled
+          output_format: &consult_accept_out
+            type: object
+            additionalProperties: false
+            required: [consulted, answer_file]
+            properties:
+              consulted: {type: boolean}
+              answer_file: {type: string}
+
+        - id: fix-ruled-accept
+          script: fix_ruled_accept
+          runtime: uv
+          depends_on: [fix-ruled-prep, ruled-consult-accept]
+          trigger_rule: none_failed_min_one_success
+          timeout: 1728000000
+          with:
+            reply: {from: "$fix-ruled.output", if_skipped: null}
+            consulted: {from: "$ruled-consult-accept.output.consulted", if_skipped: false}
+            iteration: $fix-ruled-prep.output.iteration
+          output_format: &accept_out
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason, reason_file]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+              reason_file: {type: string}
+
+  # 控えに無かった git が無視するファイルだけを消す（Archon の工程の置き場 .archon/ は消さない）
+  - id: clean
+    script: clean
+    runtime: uv
+    depends_on: [route, conflict-check, rule-loop, fix-ruled-loop]
+    trigger_rule: all_done
+    when: "$route.output.group == false"
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, count]
+      properties:
+        ok: {type: boolean}
+        count: {type: integer, minimum: 0}
+
+  # 申告したファイルが run の始めの版から本当に変わったか（p1.worktree_after）。通らない時も落ちずに ok: false と理由を置き場に残す
+  - id: assert-changed
+    script: assert_changed
+    runtime: uv
+    depends_on: [route, clean]
+    trigger_rule: all_done
+    when: "$route.output.group == false"
+    mutates_checkout: false
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, reason]
+      properties:
+        ok: {type: boolean}
+        reason: {type: string}
+
+  # 差分の審査（p3.fix_delta・p3.delta_review・p3.delta_owed・p3.delta_fix とその 2 回目）。全部の単位が軽量の run・変更の確かめが
+  # 通らなかった run は go: false で飛ばす（持ち主の決め dynamic-depth）
+  - id: delta-cut
+    script: delta_cut
+    runtime: uv
+    depends_on: [route, assert-changed]
+    trigger_rule: all_done
+    when: "$route.output.group == false"
+    mutates_checkout: false
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, files, diff_file, brief_file]
+      properties:
+        go: {type: boolean}
+        files: {type: array, items: {type: string}}
+        diff_file: {type: string}
+        brief_file: {type: string}
+
+  # レンズ（silent-failure-hunter）。利用者が入れた役の定義の本文から指示書を組み、引けなければ go: false で起こさない
+  - id: lens-prep
+    script: lens_prep
+    runtime: uv
+    depends_on: [delta-cut]
+    when: "$delta-cut.output.go == true"
+    mutates_checkout: false
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, prompt_file]
+      properties:
+        go: {type: boolean}
+        prompt_file: {type: string}
+
+  - id: lens
+    description: 'レンズ silent-failure-hunter: 修正の差分の黙った失敗を探す（読むだけ）'
+    model: sonnet
+    effort: medium
+    command: lens-silent-failure-hunter
+    depends_on: [lens-prep]
+    when: "$lens-prep.output.go == true"
+    context: fresh
+    settingSources: [user]
+    allowed_tools: [Read, Grep, Glob]
+    mutates_checkout: false
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    idle_timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [findings]
+      properties:
+        findings:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [where, cite, why]
+            properties:
+              where: {type: string, minLength: 1}
+              cite: {type: string, minLength: 4}
+              why: {type: string, minLength: 20}
+        findings_none: {type: string}
+
+  # レンズの行を置き場の控えに集め、審査役の材料に足す。レンズが落ちた・起きなかった時は理由の行を残す
+  - id: lens-collect
+    script: lens_collect
+    runtime: uv
+    depends_on: [route, delta-cut, lens-prep, lens]
+    trigger_rule: all_done
+    when: "$route.output.group == false && $delta-cut.output.go == true"
+    mutates_checkout: false
+    timeout: 1728000000
+    with:
+      reply: {from: "$lens.output", if_skipped: null}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [state, count]
+      properties:
+        state: {type: string}
+        count: {type: integer, minimum: 0}
+
+  - id: delta-loop
+    depends_on: [route, delta-cut, lens-collect]
+    trigger_rule: all_done
+    when: "$route.output.group == false && $delta-cut.output.go == true"
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$delta-accept.output.done; test "$done" = true
+      nodes:
+        - id: delta-review
+          description: '差分の審査役: この周の修正の差分だけを読み、修正が新しく作った穴を返す（読むだけ）'
+          model: sonnet
+          effort: medium
+          command: delta-review
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [faces, checks, compliance, quality]
+            properties:
+              faces:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, kind, where, cite, why]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    kind:
+                      type: string
+                      enum: [copy, entrance, contract_drift, dead_path, scope_creep]
+                    where: {type: string, minLength: 1}
+                    cite: {type: string, minLength: 4}
+                    why: {type: string, minLength: 20}
+                    lens: {type: string}
+              faces_none: {type: string}
+              checks:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, closed, why]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    closed: {type: boolean}
+                    why: {type: string, minLength: 20}
+              compliance:
+                type: object
+                additionalProperties: false
+                required: [verdict, items, read]
+                properties:
+                  verdict:
+                    type: string
+                    enum: [pass, fail, unverifiable, not_applicable]
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [item, kind, face_key, why]
+                      properties:
+                        item: {type: integer, minimum: 1}
+                        kind:
+                          type: string
+                          enum: [missing, extra, misunderstood, unverifiable]
+                        face_key: {type: string}
+                        why: {type: string, minLength: 20}
+                  read: {type: string, minLength: 20}
+              quality:
+                type: object
+                additionalProperties: false
+                required: [verdict, why]
+                properties:
+                  verdict:
+                    type: string
+                    enum: [pass, fail]
+                  why: {type: string, minLength: 20}
+
+        - id: delta-accept
+          script: delta_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [delta-review]
+          timeout: 1728000000
+          with:
+            reply: $delta-review.output
+          output_format: *accept_out
+
+  # 審査が直す義務を出した時だけ手直しの役を起こす（義務が無ければ支度が go: false）
+  - id: refix-loop
+    depends_on: [delta-loop]
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$refix-accept.output.done; test "$done" = true
+      nodes:
+        - id: refix-prep
+          script: refix_prep
+          runtime: uv
+          mutates_checkout: false
+          timeout: 1728000000
+          output_format: &refix_prep_out
+            type: object
+            additionalProperties: false
+            required: [prompt_file, go, iteration]
+            properties:
+              prompt_file: {type: string}
+              go: {type: boolean}
+              iteration: {type: integer, minimum: 1}
+
+        - id: refix
+          description: '手直しの役: 審査が挙げた穴に答える'
+          model: sonnet
+          effort: high
+          prompt: 指示書 `$refix-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
+          depends_on: [refix-prep]
+          when: "$refix-prep.output.go == true"
+          settingSources: [user]
+          skills: [receiving-code-review]
+          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [handled]
+            properties:
+              handled:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, handled, how]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    handled:
+                      type: string
+                      enum: [fixed, declared]
+                    how: {type: string, minLength: 20}
+                    files:
+                      type: array
+                      items: {type: string, minLength: 1}
+              bash_writes:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, why]
+                  properties:
+                    path: {type: string, minLength: 1}
+                    why: {type: string, minLength: 10}
+
+        - id: refix-accept
+          script: refix_accept
+          runtime: uv
+          depends_on: [refix-prep, refix]
+          trigger_rule: none_failed_min_one_success
+          timeout: 1728000000
+          with:
+            reply: {from: "$refix.output", if_skipped: null}
+            iteration: $refix-prep.output.iteration
+          output_format: *accept_out
+
+  # 2 回目の審査（1 回目の手直しが走った時だけ。走らなければ切りの節が go: false）
+  - id: review2-loop
+    depends_on: [refix-loop]
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$review2-accept.output.done; test "$done" = true
+      nodes:
+        - id: cut2
+          script: cut2
+          runtime: uv
+          mutates_checkout: false
+          timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [go, files, diff_file, brief_file]
+            properties:
+              go: {type: boolean}
+              files: {type: array, items: {type: string}}
+              diff_file: {type: string}
+              brief_file: {type: string}
+
+        - id: review2
+          description: '手直しの差分の審査役（2 回目。読むだけ）'
+          model: sonnet
+          effort: medium
+          command: review2
+          depends_on: [cut2]
+          when: "$cut2.output.go == true"
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [faces, checks]
+            properties:
+              faces:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, kind, where, cite, why]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    kind:
+                      type: string
+                      enum: [copy, entrance, contract_drift, dead_path, scope_creep]
+                    where: {type: string, minLength: 1}
+                    cite: {type: string, minLength: 4}
+                    why: {type: string, minLength: 20}
+                    lens: {type: string}
+              faces_none: {type: string}
+              checks:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, closed, why]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    closed: {type: boolean}
+                    why: {type: string, minLength: 20}
+
+        - id: review2-accept
+          script: review2_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [cut2, review2]
+          trigger_rule: none_failed_min_one_success
+          timeout: 1728000000
+          with:
+            reply: {from: "$review2.output", if_skipped: null}
+          output_format: *accept_out
+
+  - id: refix2-loop
+    depends_on: [review2-loop]
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$refix2-accept.output.done; test "$done" = true
+      nodes:
+        - id: refix2-prep
+          script: refix2_prep
+          runtime: uv
+          mutates_checkout: false
+          timeout: 1728000000
+          output_format: *refix_prep_out
+
+        - id: refix2
+          description: '2 回目の手直しの役'
+          model: sonnet
+          effort: high
+          prompt: 指示書 `$refix2-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
+          depends_on: [refix2-prep]
+          when: "$refix2-prep.output.go == true"
+          settingSources: [user]
+          skills: [receiving-code-review]
+          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [handled]
+            properties:
+              handled:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, handled, how]
+                  properties:
+                    key: {type: string, minLength: 8}
+                    handled:
+                      type: string
+                      enum: [fixed, declared]
+                    how: {type: string, minLength: 20}
+                    files:
+                      type: array
+                      items: {type: string, minLength: 1}
+              bash_writes:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, why]
+                  properties:
+                    path: {type: string, minLength: 1}
+                    why: {type: string, minLength: 10}
+
+        - id: refix2-accept
+          script: refix2_accept
+          runtime: uv
+          depends_on: [refix2-prep, refix2]
+          trigger_rule: none_failed_min_one_success
+          timeout: 1728000000
+          with:
+            reply: {from: "$refix2.output", if_skipped: null}
+            iteration: $refix2-prep.output.iteration
+          output_format: *accept_out
+
+  # ---- 形 group（組ごとの子の run。単独の run でも回る） ----
+
+  # 親の姿の木を自分の作業ツリーに写し（from_tree が在る時）、控えと始めの木を取り、TDD の輪の状態を置く
+  - id: group-start
+    script: group_start
+    runtime: uv
+    depends_on: [route]
+    when: "$route.output.group == true"
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [tdd, units, reason]
+      properties:
+        tdd: {type: boolean}
+        units: {type: integer, minimum: 0}
+        reason: {type: string}
+
+  # 単位ごとの TDD の輪（route → 単位ごとに test（赤）→ fix（緑）→ refactor）。赤・緑は tdd-step が JUnit XML で機械が決める。
+  # 単位が替わる周だけ新しい会話にする口が Archon に無いので、周ごとに新しい会話にし、前の周の引き継ぎは指示書が渡す
+  - id: tdd-loop
+    depends_on: [group-start]
+    when: "$group-start.output.tdd == true"
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 40
+      fresh_context: true
+      until_bash: done=$tdd-step.output.done; test "$done" = true
+      nodes:
+        - id: tdd-prep
+          script: tdd_prep
+          runtime: uv
+          mutates_checkout: false
+          timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt_file, go]
+            properties:
+              prompt_file: {type: string}
+              go: {type: boolean}
+
+        - id: tdd
+          description: 'TDD の役（今の単位を直す）'
+          model: sonnet
+          effort: high
+          prompt: 指示書 `$tdd-prep.output.prompt_file` を Read で毎回全部読み（回ごとに中身が替わる）、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
+          depends_on: [tdd-prep]
+          when: "$tdd-prep.output.go == true"
+          settingSources: [user]
+          skills: [test-driven-development]
+          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [phase]
+            properties:
+              phase:
+                type: string
+                enum: [route, test, fix, refactor, conflict]
+              units:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [unit_key, route]
+                  properties:
+                    unit_key: {type: string, minLength: 1}
+                    route:
+                      type: string
+                      enum: [tdd, direct]
+                    why: {type: string}
+              unit_key: {type: string}
+              test_files:
+                type: array
+                items: {type: string}
+              tests:
+                type: array
+                items: {type: string}
+              direct_why: {type: string}
+              files:
+                type: array
+                items: {type: string}
+              what: {type: string}
+              refactor:
+                type: object
+                additionalProperties: false
+                required: [declared, why]
+                properties:
+                  declared: {type: boolean}
+                  why: {type: string}
+              between:
+                type: array
+                items: {type: string}
+              why_both_cannot_hold: {type: string}
+              which_is_right:
+                type: string
+                enum: [request, test, code, unknown, query]
+              correct_lines:
+                type: array
+                items: {type: string}
+              kind:
+                type: string
+                enum: [brief_vs_judgment, unnamed_test_broke, not_red, scope_needed, query_hits_fixed, needs_context]
+              bash_writes:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, why]
+                  properties:
+                    path: {type: string, minLength: 1}
+                    why: {type: string, minLength: 10}
+
+        - id: tdd-step
+          script: tdd_step
+          runtime: uv
+          depends_on: [tdd-prep, tdd]
+          trigger_rule: none_failed_min_one_success
+          timeout: 1728000000
+          with:
+            reply: {from: "$tdd.output", if_skipped: null}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason, reason_file, phase]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+              reason_file: {type: string}
+              phase: {type: string}
+
+  # 修正役の輪。範囲の外が要る時は返答の欄 consult で頼み、相談の 3 節が答える（その周は受け付けを回さない）。
+  # 3 回目の拒否で、名指しの単位だけを段の頭の木に戻して諦め、ほかは先へ
+  - id: fix-loop
+    depends_on: [group-start, tdd-loop]
+    trigger_rule: none_failed_min_one_success
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 12
+      fresh_context: false
+      until_bash: done=$fix-accept.output.done; test "$done" = true
+      nodes:
+        - id: fix-prep
+          script: fix_prep
+          runtime: uv
+          mutates_checkout: false
+          timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt_file, go, iteration]
+            properties:
+              prompt_file: {type: string}
+              go: {type: boolean}
+              iteration: {type: integer, minimum: 1}
+
+        - id: fixer
+          description: '修正役: TDD の輪で直していない単位を直す'
+          model: sonnet
+          effort: high
+          prompt: 指示書 `$fix-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書が名指す欄の JSON だけ。
+          depends_on: [fix-prep]
+          when: "$fix-prep.output.go == true"
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Agent]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format: *fix_reply
+
+        - id: consult-check
+          script: consult_check
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [fixer]
+          timeout: 1728000000
+          with:
+            reply: $fixer.output
+            pass: first
+          output_format: *consult_check_out
+
+        - id: consult-answer
+          description: '範囲の相談に答える（修正案と波及を読む新しい会話。読むだけ）'
+          model: opus
+          effort: medium
+          prompt: 指示書 `$consult-check.output.prompt_file` を Read で全部読み、その相談に答えよ。返すのは指示書の JSON だけ。
+          depends_on: [consult-check]
+          when: "$consult-check.output.go == true"
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format: *consult_answer
+
+        - id: consult-accept
+          script: consult_accept
+          runtime: uv
+          mutates_checkout: false
+          depends_on: [consult-check, consult-answer]
+          trigger_rule: none_failed_min_one_success
+          timeout: 1728000000
+          with:
+            answer: {from: "$consult-answer.output", if_skipped: null}
+            pass: first
+          output_format: *consult_accept_out
+
+        - id: fix-accept
+          script: fix_accept
+          runtime: uv
+          depends_on: [fix-prep, consult-accept]
+          trigger_rule: none_failed_min_one_success
+          timeout: 1728000000
+          with:
+            reply: {from: "$fixer.output", if_skipped: null}
+            consulted: {from: "$consult-accept.output.consulted", if_skipped: false}
+            iteration: $fix-prep.output.iteration
+          output_format: *accept_out
+
+  # 終わりの木・単位ごとの結末・TDD の輪の結果・申し出・異議・修正役の印・許したテストの変更を out_dir/<group_id>/result.json に書く
+  - id: group-end
+    script: group_end
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [group-start, tdd-loop, fix-loop]
+    trigger_rule: none_failed_min_one_success
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [result_file]
+      properties:
+        result_file: {type: string}
+
+  # ---- 返す節（両方の形） ----
+
+  # 前の節の返りを with: で束ねず、各節が置き場に書いたファイルを読んで返りの約束の欄を組む。前の節が落ちても飛ばされても走り、
+  # この節は落ちない（中の誤りは done: false と理由で返す）
+  - id: fix
+    script: collect
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [route, prep, join, tdd-unit, conflict-check, rule-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end]
+    trigger_rule: all_done
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [done, units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, delta_review]
+      properties:
+        done: {type: boolean}
+        units:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [unit_id, group_id, status, reason]
+            properties:
+              unit_id: {type: string}
+              group_id: {type: string}
+              status: {type: string, enum: [fixed, given_up, not_done]}
+              reason: {type: string}
+        groups:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [group_id, unit_ids, returned, reason]
+            properties:
+              group_id: {type: string}
+              unit_ids: {type: array, items: {type: string}}
+              returned: {type: boolean}
+              reason: {type: string}
+        conflicts:
+          type: [object, "null"]
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties: &pointer_fields
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        replan_items: {type: array, items: {type: string}}
+        objection: {type: string}
+        diff:
+          type: object
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties: *pointer_fields
+        allowed_test_changes: {type: array, items: {type: string}}
+        changed:
+          type: object
+          additionalProperties: false
+          required: [mechanism_changed, premise_drift, gates_changed, seams_changed, security_surface_changed, path_changed]
+          properties:
+            mechanism_changed: {type: boolean}
+            premise_drift: {type: boolean}
+            gates_changed: {type: boolean}
+            seams_changed: {type: boolean}
+            security_surface_changed: {type: boolean}
+            path_changed: {type: boolean}
+        delta_review:
+          type: object
+          additionalProperties: false
+          required: [rounds, pass]
+          properties:
+            rounds: {type: integer, minimum: 0, maximum: 2}
+            pass: {type: boolean}

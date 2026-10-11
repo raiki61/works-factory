@@ -54,8 +54,8 @@ class ArchonValidateTest(unittest.TestCase):
         with archon.tree(["hello"], SEEDS / "e1" / "workflows") as tree:
             self.assertEqual(validate(tree), {"works-factory-hello": []})
 
-    def test_only_builtin_skill_warnings_go_uncounted(self):
-        """名指した skill のうち、同梱の名の「ディスクに無い」の警告だけを数えない。一覧に無い名の警告と、
+    def test_only_builtin_and_borrowed_skill_warnings_go_uncounted(self):
+        """名指した skill のうち、同梱の名と借りる superpowers の名の「ディスクに無い」の警告だけを数えない。一覧に無い名の警告と、
         別の置き場に入っていて節から届かない時の誤り（同梱の名でも）は数える"""
         with archon.tree(["skills"], SEEDS / "e1" / "workflows") as tree:
             elsewhere = tree / ".claude" / "skills" / "security-review" / "SKILL.md"
