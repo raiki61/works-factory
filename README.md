@@ -51,7 +51,7 @@ flowchart TB
 - 境 `workflows/.shared/`: Archon との出入りの口と、Archon に無い物を補う小さな部品だけ（`docs/archon-polyfills.md` に全部載る）。
 - 助け手 `lib/`: script の節が呼ぶ Python のモジュール（引用の照らし・TDD の赤の判定・元から赤の見分け・範囲の照らしなど）。Archon を知らない。
 
-工程を回すのは、ASF と同じ開発中の Archon（`factory/pack.json` の `integration_revision_required` の源）。ASF の工程はその源の `.archon/workflows/sdlc/` に在り、工程の名で選び分けて見比べられる。別の実行の道具へ移る時は、グラフをその道具の書き方で `docs/design.md` から書き直す。役の指示書と `lib/` はそのまま持っていける。
+工程を回すのは止めた Archon（ASF と同じ開発中の源。`docs/design.md` の「語」）。ASF の工程はその源の `.archon/workflows/sdlc/` に在り、工程の名で選び分けて見比べられる。別の実行の道具へ移る時は、グラフをその道具の書き方で `docs/design.md` から書き直す。役の指示書と `lib/` はそのまま持っていける。
 
 AI 向けの決まりは各階層の `AGENTS.md`（根の物から辿る）、設計は `docs/design.md`。
 

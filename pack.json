@@ -2,7 +2,6 @@
   "name": "works-factory",
   "doc": "置き場と版の止め（pin）の正本。ただし Archon の版は ASF の止め factory/pack.json が正本。中身の説明は docs/design.md の「pack.json」の節。",
   "asf": {
-    "doc": "ASF の止めた Archon の源（factory/pack.json の repository・integration_revision_required）が、Archon の本体と ASF の工程の両方の版。ここには Archon の版を書かない（持ち主の決め archon-same-as-asf）",
     "committed_here": false,
     "why_not_committed": "ASF の工程（sdlc）はこのリポジトリに入れず、bin/ が取った Archon の源の中の物を読む。ASF の取り付け命令が置いた物（factory/・harness/ など）は別で、このリポジトリに入れる（持ち主の決め asf-installer-in-repo）"
   },

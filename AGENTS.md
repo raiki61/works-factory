@@ -100,7 +100,7 @@ works-factory/
 
 ## E11 仕組みを足す前に 3 つを確かめる
 
-1. Archon が持っているか（`factory/pack.json` の `integration_revision_required` の Archon の源の文書と、`docs/design.md` の「Archon の分かっていること」）。
+1. Archon が持っているか（止めた Archon（`docs/design.md` の「語」）の文書と、`docs/design.md` の「Archon の分かっていること」）。
 2. ASF が持っているか（`docs/asf-notes.md` と、取った Archon の源の `.archon/workflows/sdlc/`）。
 3. 本当に要るか（今の works の能力の一覧 `docs/design.md` の「能力の棚卸し」のどれに当たるか）。
 

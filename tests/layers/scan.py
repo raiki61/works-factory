@@ -30,7 +30,7 @@ OURS_PREFIX = OURS["name_prefix"]
 CALL_KEYS = ("include", "workflow")
 
 NO_DEADLINE = "1728000000"
-# Archon（factory/pack.json の integration_revision_required の源）の節の種類の鍵の全部と、その種類の節に Archon が既定の期限を当てる鍵（workflows/AGENTS.md の E12）。
+# 止めた Archon（docs/design.md の「語」）の節の種類の鍵の全部と、その種類の節に Archon が既定の期限を当てる鍵（workflows/AGENTS.md の E12）。
 # ここに無い種類の節は赤にする。Archon が種類を足したら、期限を持つかを確かめてからここに足す。
 NODE_KINDS = {
     "script": ("timeout",),

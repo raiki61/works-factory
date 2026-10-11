@@ -5,8 +5,9 @@
 
 ## 語
 
-- Archon: AI の工程を YAML で書き、機械が順に回す道具。土台は ASF と同じ開発中の源（`factory/pack.json` の `integration_revision_required`。今は `d97d00ef`）で、`bun` で源から起こす（持ち主の決め `archon-same-as-asf`）。
-- ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までの工程の束（`coleam00/Archon` の枝 `factory/sdlc-on-dev` の `.archon/workflows/sdlc/`）。見る版は Archon の本体と同じ `factory/pack.json` の `integration_revision_required`（`d97d00ef`）。
+- Archon: AI の工程を YAML で書き、機械が順に回す道具。土台は止めた Archon（下）。
+- ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までの工程の束（`coleam00/Archon` の枝 `factory/sdlc-on-dev` の `.archon/workflows/sdlc/`）。見る版は止めた Archon と同じ。
+- 止めた Archon: ASF の取り付け命令が置いた `factory/pack.json` の `repository` を、`integration_revision_required` の commit（今は `d97d00ef`）で取った Archon の源。ASF と同じ開発中の源で、Archon の本体と ASF の工程の両方をここから取り、`bun` で起こす（持ち主の決め `archon-same-as-asf`。読み方は「pack.json」の節）。
 - 今の works: raiki61/claude-plugins の `works/`。工場 darkfactory を持つ。棚卸しは origin/main の 2026-10-11 の姿（commit `ab9b9f17` まで）。
 - review-graph: graphloops プラグインのレビューと修正の輪（`works/.shared/core/graphloops/graphs/review-loop.json`）。今の works の元。
 - 線: ブロックを順に並べた 1 本の工程（`workflows/line/`）。
@@ -52,7 +53,7 @@ flowchart TB
 
 | 層 | 置き場 | 持つ物 | 知ってよい物 |
 | --- | --- | --- | --- |
-| 入口 | `bin/` | 人の打つ口・Archon の源の取り寄せと起こし方・埋めの一部 | `pack.json`・Archon の CLI |
+| 入口 | `bin/` | 人の打つ口・Archon の源の取り寄せと起こし方・埋めの一部 | `pack.json`・`factory/pack.json`・Archon の CLI |
 | グラフ（エッセンス） | `workflows/` | 線とブロックの YAML・役の指示書・節の script・ブロックの間で渡す物の型（`output_format`） | 境の口・lib |
 | 境 | `workflows/.shared/` | Archon の入出力の口 1 つ・埋め | Archon の変数と型 |
 | 助け手 | `lib/` | Archon を知らない Python のモジュール | Python のパッケージ（標準と外の物） |
@@ -520,7 +521,7 @@ flowchart TB
 
 ## Archon の分かっていること
 
-2026-10-11 に公開版 v0.11.1 の binary とソースを読み、手元で確かめた事実。同じ日に、どの項目も `factory/pack.json` の `integration_revision_required`（`d97d00ef`）の源で読み直し、在り処を書いた（パスは源の `packages/workflows/src/` からの相対。`cli.ts` は `packages/cli/src/`、文書は `packages/docs-web/src/content/docs/` から）。
+2026-10-11 に公開版 v0.11.1 の binary とソースを読み、手元で確かめた事実。同じ日に、どの項目も止めた Archon（`d97d00ef`）で読み直し、在り処を書いた（パスは源の `packages/workflows/src/` からの相対。`cli.ts` は `packages/cli/src/`、文書は `packages/docs-web/src/content/docs/` から）。
 
 - `include:` は読み込みの時に展開され、子の節の id は `<include の id>__<子の id>` になる（`include-expander.ts` 1-9 行）。
 - `returns:` は 1 つの節の出力を `$<include の id>.output` として見せる。書かなければ定義の順で最初の終わりの節（`include-expander.ts` 14-19 行・857 行）。

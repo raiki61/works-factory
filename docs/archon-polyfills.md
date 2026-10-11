@@ -1,7 +1,7 @@
 <!-- coldwrite:skip 埋めの名簿。語は docs/design.md の「語」の節で定義 -->
 # Archon の埋め（polyfill）の名簿
 
-- 埋め（polyfill）: Archon（`factory/pack.json` の `integration_revision_required` の源）に無い物を、このリポジトリの側で補う小さな部品。Archon の中は直さない。
+- 埋め（polyfill）: Archon（止めた Archon（`docs/design.md` の「語」））に無い物を、このリポジトリの側で補う小さな部品。Archon の中は直さない。
 - `workflows/.shared/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、この名簿の行のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。
 - 埋めの一部は入口 `bin/` に置く物もある。置き場の欄に書く。
 - Archon の新しい版で穴が塞がったら、外す条件を確かめて埋めを消し、行を「外した」の節へ移す。
@@ -41,6 +41,14 @@
 - 埋め: 線の YAML の形の決まり（予定）。include の前に、飛ばされうる値を `if_skipped` で受けて明示の値（`null` など）で返す小さな `script:` の節を線の中に置き、ブロックにはその節の返りを渡す。script は `workflows/.shared/skip_value`（予定）。
 - 使うブロック: 線
 - 外す条件: include の `with:` に書いた `if_skipped` が子の中まで効く版が出たら
+
+### P3 --workflow-source が任意のフォルダを読まない
+
+- 穴: `--workflow-source <dir>` は `<dir>/.archon/workflows/` しか読まない。自分の工程のフォルダ（リポジトリの `workflows/`）を直に渡せない。
+- 証拠: 止めた Archon の `packages/cli/src/cli.ts` 805-825 行と `packages/paths/src/archon-paths.ts` 378 行。
+- 埋め: `bin/_lib/place.py` の `workflow_source`。キャッシュの中に置き場を作り、その `.archon/workflows` からリポジトリの `workflows/` へ symlink を張る。
+- 使うブロック: 線（入口）
+- 外す条件: `--workflow-source` に任意のフォルダを渡して、その中の工程を読める版が出たら
 
 ## 外した
 
