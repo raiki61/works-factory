@@ -400,7 +400,7 @@ nodes:
       replan_items: "$fix.output.replan_items"
       objection: "$fix.output.objection"
 
-  - id: rejudge
+  - id: rejudge-run
     include: works-factory-judge
     depends_on: [after-fix]
     when: "$after-fix.output.rejudge == true"
@@ -410,7 +410,7 @@ nodes:
       objection: "$fix.output.objection"
       prior_failures: "$start.output.prior_failures"
 
-  - id: rejudge-out
+  - id: rejudge-run-out
     script: returned
     runtime: uv
     timeout: 1728000000
@@ -421,18 +421,18 @@ nodes:
         stop_reason: { type: string }
       required: [got, stop_reason]
     mutates_checkout: false
-    depends_on: [rejudge]
+    depends_on: [rejudge-run]
     with:
       block: judge
-      ready: "$rejudge.output.ready"
-      stop_reason: "$rejudge.output.stop_reason"
-      units: "$rejudge.output.units"
-      judgment: "$rejudge.output.judgment"
-      purpose: "$rejudge.output.purpose"
-      world: "$rejudge.output.world"
-      spec: "$rejudge.output.spec"
-      out_of_purpose: "$rejudge.output.out_of_purpose"
-      rejudge_verdict: "$rejudge.output.rejudge_verdict"
+      ready: "$rejudge-run.output.ready"
+      stop_reason: "$rejudge-run.output.stop_reason"
+      units: "$rejudge-run.output.units"
+      judgment: "$rejudge-run.output.judgment"
+      purpose: "$rejudge-run.output.purpose"
+      world: "$rejudge-run.output.world"
+      spec: "$rejudge-run.output.spec"
+      out_of_purpose: "$rejudge-run.output.out_of_purpose"
+      rejudge_verdict: "$rejudge-run.output.rejudge_verdict"
 
   - id: judged
     script: judged
@@ -455,7 +455,7 @@ nodes:
       required: [units, judgment, purpose, world, rejudge_verdict, rejudged, new_open_units, lowered, unnamed_changed, unread,
                  stop_reason]
     mutates_checkout: false
-    depends_on: [after-fix, rejudge]
+    depends_on: [after-fix, rejudge-run]
     trigger_rule: none_failed_min_one_success
     with:
       judge_units: "$judge.output.units"
@@ -463,11 +463,11 @@ nodes:
       judge_purpose: "$judge.output.purpose"
       judge_world: "$judge.output.world"
       judge_rejudge_verdict: "$judge.output.rejudge_verdict"
-      rejudge_units: { from: "$rejudge.output.units", if_skipped: null }
-      rejudge_judgment: { from: "$rejudge.output.judgment", if_skipped: null }
-      rejudge_purpose: { from: "$rejudge.output.purpose", if_skipped: null }
-      rejudge_world: { from: "$rejudge.output.world", if_skipped: null }
-      rejudge_rejudge_verdict: { from: "$rejudge.output.rejudge_verdict", if_skipped: null }
+      rejudge_units: { from: "$rejudge-run.output.units", if_skipped: null }
+      rejudge_judgment: { from: "$rejudge-run.output.judgment", if_skipped: null }
+      rejudge_purpose: { from: "$rejudge-run.output.purpose", if_skipped: null }
+      rejudge_world: { from: "$rejudge-run.output.world", if_skipped: null }
+      rejudge_rejudge_verdict: { from: "$rejudge-run.output.rejudge_verdict", if_skipped: null }
       objection: "$fix.output.objection"
 
   - id: replan
@@ -597,7 +597,7 @@ nodes:
       place: gate-replan
       before_fix: "$answer-before-fix.output.answer"
 
-  - id: refix
+  - id: refix-run
     include: works-factory-fix
     depends_on: [answer-replan]
     when: "$answer-replan.output.go == true"
@@ -635,7 +635,7 @@ nodes:
       required: [units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, delta_review, done, refixed,
                  stop_reason]
     mutates_checkout: false
-    depends_on: [after-fix, judged, refix]
+    depends_on: [after-fix, judged, refix-run]
     trigger_rule: none_failed_min_one_success
     with:
       fix_done: "$fix.output.done"
@@ -648,16 +648,16 @@ nodes:
       fix_allowed_test_changes: "$fix.output.allowed_test_changes"
       fix_changed: "$fix.output.changed"
       fix_delta_review: "$fix.output.delta_review"
-      refix_done: { from: "$refix.output.done", if_skipped: null }
-      refix_units: { from: "$refix.output.units", if_skipped: null }
-      refix_groups: { from: "$refix.output.groups", if_skipped: null }
-      refix_conflicts: { from: "$refix.output.conflicts", if_skipped: null }
-      refix_replan_items: { from: "$refix.output.replan_items", if_skipped: null }
-      refix_objection: { from: "$refix.output.objection", if_skipped: null }
-      refix_diff: { from: "$refix.output.diff", if_skipped: null }
-      refix_allowed_test_changes: { from: "$refix.output.allowed_test_changes", if_skipped: null }
-      refix_changed: { from: "$refix.output.changed", if_skipped: null }
-      refix_delta_review: { from: "$refix.output.delta_review", if_skipped: null }
+      refix_done: { from: "$refix-run.output.done", if_skipped: null }
+      refix_units: { from: "$refix-run.output.units", if_skipped: null }
+      refix_groups: { from: "$refix-run.output.groups", if_skipped: null }
+      refix_conflicts: { from: "$refix-run.output.conflicts", if_skipped: null }
+      refix_replan_items: { from: "$refix-run.output.replan_items", if_skipped: null }
+      refix_objection: { from: "$refix-run.output.objection", if_skipped: null }
+      refix_diff: { from: "$refix-run.output.diff", if_skipped: null }
+      refix_allowed_test_changes: { from: "$refix-run.output.allowed_test_changes", if_skipped: null }
+      refix_changed: { from: "$refix-run.output.changed", if_skipped: null }
+      refix_delta_review: { from: "$refix-run.output.delta_review", if_skipped: null }
       replan: "$after-fix.output.replan"
       stop_after_fix: "$after-fix.output.stop_reason"
       stop_judged: "$judged.output.stop_reason"
@@ -931,7 +931,7 @@ nodes:
         gate_final: {}
       required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final]
     mutates_checkout: false
-    depends_on: [start, answer-start, test-gate-base-out, judge-out, plan-rounds-out, answer-before-fix, fix-out, rejudge-out,
+    depends_on: [start, answer-start, test-gate-base-out, judge-out, plan-rounds-out, answer-before-fix, fix-out, rejudge-run-out,
                  replan-out, replan-review-out, answer-replan, fixed, test-gate-final-out, eyes-out, merge-seal-out, answer-final,
                  merge-apply-out]
     trigger_rule: all_done
@@ -944,7 +944,7 @@ nodes:
       gate_final: { from: "$answer-final.output.answer", if_skipped: null }
       test_gate_base: { from: "$test-gate-base-out.output", if_skipped: null }
       judge: { from: "$judge-out.output", if_skipped: null }
-      rejudge: { from: "$rejudge-out.output", if_skipped: null }
+      rejudge: { from: "$rejudge-run-out.output", if_skipped: null }
       plan_rounds: { from: "$plan-rounds-out.output", if_skipped: null }
       replan: { from: "$replan-out.output", if_skipped: null }
       replan_review: { from: "$replan-review-out.output", if_skipped: null }

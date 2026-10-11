@@ -2,7 +2,7 @@
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
-  reached: ["rejudge__verdict", "judged", "eyes__verdict"]
+  reached: ["rejudge-run__verdict", "judged", "eyes__verdict"]
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}
@@ -31,6 +31,6 @@ merge-seal__merge: {"mode": "seal", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaaaa
 merge-apply__merge: {"mode": "apply", "ok": true, "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "merge/apply.diff"}, "protected_hits": null, "reason": ""}
 report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": ""}
 report__report: {"ok": true, "outcome": "fixed", "stop_reason": "", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}
-rejudge__intake: {"go": false, "mode": "rejudge", "spec": false, "world": false, "verify": false, "reason": ""}
-rejudge__verify-merge: {"ok": true, "reason": ""}
-rejudge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u2", "paths": ["stats.py"], "summary": "本当の穴"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": "採る"}
+rejudge-run__intake: {"go": false, "mode": "rejudge", "spec": false, "world": false, "verify": false, "reason": ""}
+rejudge-run__verify-merge: {"ok": true, "reason": ""}
+rejudge-run__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u2", "paths": ["stats.py"], "summary": "本当の穴"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": "採る"}

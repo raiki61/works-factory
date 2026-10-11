@@ -5,7 +5,7 @@
 筋書きは exec-code: true で、stub の無い線の script は本当に走る。dry-run は include の入力をブロックの名前の script に渡さない
 （止めた Archon の dry-run.ts）ので、通るブロックの script の節は全部 stub にする。fix は組の子の形（route の group: true）を
 通して、届く fan_out: を避ける（dry-run は workflow: の fan_out: を模擬できない）。輪の中の節の id は差し込まれても頭が付かないので、
-fix-loop の中の stub（fix-prep・fix-accept）は fix と refix の両方に効く。Archon の源か bun が無ければ名前つきで見送る。
+fix-loop の中の stub（fix-prep・fix-accept）は fix と refix-run の両方に効く。Archon の源か bun が無ければ名前つきで見送る。
 """
 import json
 import pathlib

@@ -701,13 +701,13 @@ class LineWiringCase(unittest.TestCase):
                 self.assertEqual(env.read, {f"INPUTS_{name.upper()}" for name in nodes[key]["with"]})
 
     def test_every_include_and_the_plan_rounds_have_a_receiver_that_collect_reads(self):
-        """ブロックの返す節が落ちても報告が出るように、collect は返りを受け皿 <id>-out からだけ読む。2 度目の修正 refix は、
-        1 回目と合わせた節 fixed を通して読む（fixed は refix が落ちると飛ばされ、collect は 1 回目の返りに戻る）"""
+        """ブロックの返す節が落ちても報告が出るように、collect は返りを受け皿 <id>-out からだけ読む。2 度目の修正 refix-run は、
+        1 回目と合わせた節 fixed を通して読む（fixed は refix-run が落ちると飛ばされ、collect は 1 回目の返りに戻る）"""
         nodes = line_nodes()
         inside = {node["id"] for node in nodes["plan-rounds"]["loop_group"]["nodes"]}
-        received = [key for key, node in nodes.items() if "include" in node and key not in ("report", "refix") and key not in inside]
+        received = [key for key, node in nodes.items() if "include" in node and key not in ("report", "refix-run") and key not in inside]
         self.assertEqual(nodes["collect"]["with"]["fixed"], {"from": "$fixed.output", "if_skipped": None})
-        self.assertIn("refix", nodes["fixed"]["depends_on"])
+        self.assertIn("refix-run", nodes["fixed"]["depends_on"])
         self.assertEqual(nodes["fixed"]["trigger_rule"], "none_failed_min_one_success")
         received.append("plan-rounds")
         reads = {v["from"] for v in nodes["collect"]["with"].values() if isinstance(v, dict)}
@@ -755,7 +755,7 @@ class LineWiringCase(unittest.TestCase):
                          {"plan": "$plan-rounds.output.plan", "ripple": "$plan-rounds.output.ripple",
                           "depth": "$plan-rounds.output.depth", "answers": "$answer-before-fix.output.answer"})
         self.assertNotIn("only_items", nodes["fix"]["with"])
-        self.assertEqual({k: nodes["refix"]["with"][k] for k in ("plan", "ripple", "depth", "answers", "only_items")},
+        self.assertEqual({k: nodes["refix-run"]["with"][k] for k in ("plan", "ripple", "depth", "answers", "only_items")},
                          {"plan": "$replan.output.plan", "ripple": "$replan.output.ripple", "depth": "$replan.output.depth",
                           "answers": "$answer-replan.output.fix_answers", "only_items": "$fix.output.replan_items"})
 
