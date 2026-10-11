@@ -27,6 +27,7 @@ ROLES = {i: n for i, n in NODES.items() if "command" in n}
 EYE_NODES = ("r1-minimality", "r2-compare", "premise-check", "r3-coherence", "r4-scope")
 VERDICT_NODES = {f"{n}-verdict": eye for n, eye in zip(EYE_NODES, ("r1", "r2", "premise-check", "r3", "r4"))}
 sys.path.append(str(ROOT / "lib"))
+import concepthome  # noqa: E402
 import eyeverdict  # noqa: E402
 import seal  # noqa: E402
 
@@ -234,6 +235,21 @@ class ShapeCase(unittest.TestCase):
             with self.subTest(name):
                 self.assertIn("Read・Grep・Glob で cwd のファイルをそのまま読め",
                               (BLOCK / "commands" / f"{name}.md").read_text(encoding="utf-8"))
+
+    def test_restored_command_sentences_stay(self):
+        """元の指示書から戻した文と差し込み。消すと前提の検算・R4・R1/R3 の頭が元の読みを落とす"""
+        check = (BLOCK / "commands" / "premise-check.md").read_text(encoding="utf-8")
+        self.assertIn("実測を制約に足して R2 を回し直すのは次の run で", check)
+        self.assertLessEqual({"design_reply", "constraints_text"}, prep_reads(check))
+        self.assertIn("前の周と同じ能力なら同じ文で書け", (BLOCK / "commands" / "r4-scope.md").read_text(encoding="utf-8"))
+
+    def test_concept_map_is_pasted_after_the_concept_head(self):
+        """concepthome の R1_HEAD・R3_HEAD は『考えの住処の地図』の節を「機械がこの節の後ろに貼った」と読ませる"""
+        for name, field, head in (("r1-minimality", "r1_head", concepthome.R1_HEAD), ("r3-coherence", "r3_head", concepthome.R3_HEAD)):
+            with self.subTest(name):
+                self.assertIn("機械がこの節の後ろに貼った", head)
+                text = (BLOCK / "commands" / f"{name}.md").read_text(encoding="utf-8")
+                self.assertLess(text.index(f"$prep.output.{field}"), text.index("$prep.output.concept_map"))
 
     def test_commands_read_only_declared_prep_fields(self):
         declared = set(NODES["prep"]["output_format"]["properties"])
