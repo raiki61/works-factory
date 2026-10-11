@@ -1,0 +1,24 @@
+# 同じ run に設計の控えが在る・目的が使えない → r2-design-loop は飛び、事前審査は走る
+open: { ok: true, r2_go: false, tree: false, k: 1, form: review, reason: "" }
+review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md" }
+plan-review: { faces: [], shrink: [], reason: "stub: 写し・入口・契約のずれを確かめた", faces_none: "stub: 穴が無いことを全部の見ることで確かめた" }
+review-accept: { ok: true, done: true, give_up: false, reason: "" }
+review:
+  pass: true
+  stalled: false
+  review: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/pass-1/review.json" }
+  design: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/design.json" }
+  gate_axes: { obvious: { ok: true, note: "" }, world: { ok: true, note: "" }, clean: { ok: true, note: "" }, not_overkill: { ok: true, note: "" } }
+  ask_human: false
+  questions: []
+fixture:
+  inputs:
+    units: "[]"
+    judgment: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/judgment.json\"}"
+    purpose: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/purpose.json\"}"
+    world: "null"
+    plan: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/r1/plan-fields.json\"}"
+    structure: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/structure/structure-state.json\"}"
+    ripple: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/ripple.json\"}"
+  expect: completed
+  reached: [plan-review, review]

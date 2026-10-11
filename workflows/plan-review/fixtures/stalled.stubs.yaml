@@ -1,0 +1,28 @@
+# 前の往復と同じ block が残った → pass: false・stalled: true・ask_human: true（関所に止まりの行）
+open: { ok: true, r2_go: false, tree: false, k: 1, form: review, reason: "" }
+review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md" }
+plan-review:
+  faces:
+    - { key: "stub-block-001", unit_keys: [1], kind: contract_drift, where: "stats.py mean", why: "stub: 読み手が追従しないまま残る契約のずれ", severity: block }
+  shrink: []
+  reason: "stub: 契約のずれを 1 つ挙げ、ほかの見ることは穴が無い"
+review-accept: { ok: true, done: true, give_up: false, reason: "" }
+review:
+  pass: false
+  stalled: true
+  review: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/pass-1/review.json" }
+  design: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/design.json" }
+  gate_axes: { obvious: { ok: true, note: "" }, world: { ok: true, note: "" }, clean: { ok: true, note: "" }, not_overkill: { ok: true, note: "" } }
+  ask_human: true
+  questions: ["事前審査の壁打ちが止まった案: 修正に進まない。理由: stub-block-001 が続いた"]
+fixture:
+  inputs:
+    units: "[]"
+    judgment: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/judgment.json\"}"
+    purpose: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/purpose.json\"}"
+    world: "null"
+    plan: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/r1/plan-fields.json\"}"
+    structure: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/structure/structure-state.json\"}"
+    ripple: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/ripple.json\"}"
+  expect: completed
+  reached: [plan-review, review]

@@ -1,0 +1,86 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
+"""差し込みの頭（boardview.open_pass）: 入力の指し札の先を run の置き場の plan-review/ に写し、見え方の材料を置き、独立設計を
+回すかと事前審査を木にするかを返す。役の節の型（output_format）はブロックの YAML から読んで渡す。
+落ちない: 始めに前の差し込みの材料 open.json を消し（後の節が前の差し込みの結末を今回の物として読まない）、境の口と lib の import
+から先の誤りは全部捕まえて、落ちた訳 open-error.txt を置き ok: false と訳を返す（後の節は返す節の偽の結末に進む）"""
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+YAML = Path(__file__).resolve().parents[1] / "works-factory-plan-review.yaml"
+# boardview.FOLDER・OPEN_FILE・OPEN_ERROR（境の口と lib を読めない時にも消して書けるよう字で持つ。試験が一致を縛る）
+FOLDER = "plan-review"
+OPEN_FILE = "open.json"
+OPEN_ERROR = "open-error.txt"
+
+
+def node_schema(yaml_text: str, node_id: str) -> dict:
+    """ブロックの YAML の節 node_id の output_format。script は外のパッケージ無しで走るので、役の節の output_format は JSON の形
+    （YAML の flow の書き方。JSON は YAML の部分集合）で書き、ここは節の行の後の最初の output_format: の値を JSON として読む"""
+    head = re.search(rf"^\s*- id: {re.escape(node_id)}\s*$", yaml_text, re.M)
+    if head is None:
+        raise ValueError(f"YAML に節 {node_id} が無い")
+    key = re.compile(r"^\s*output_format:\s*", re.M).search(yaml_text, head.end())
+    nxt = re.compile(r"^\s*- id: ", re.M).search(yaml_text, head.end())
+    if key is None or (nxt is not None and nxt.start() < key.start()):
+        raise ValueError(f"節 {node_id} に output_format が無い")
+    try:
+        got, _ = json.JSONDecoder().raw_decode(yaml_text, key.end())
+    except ValueError as e:
+        raise ValueError(f"節 {node_id} の output_format が JSON の形でない: {e}") from None
+    if not isinstance(got, dict):
+        raise ValueError(f"節 {node_id} の output_format が object でない")
+    return got
+
+
+def opened() -> tuple:
+    """（境の口, 返り）"""
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+    import boundary
+    sys.path.append(str(boundary.lib_root()))
+    import boardview
+
+    def pointed(text: str):
+        """指し札の JSON の字を置き場の中のパスに（null は None）"""
+        value = json.loads(text)
+        return None if value is None else boundary.resolve(value)
+
+    text = YAML.read_text(encoding="utf-8")
+    got = boardview.open_pass(
+        Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER, cwd=Path.cwd(), judgment=pointed(os.environ["INPUTS_JUDGMENT"]),
+        purpose=pointed(os.environ["INPUTS_PURPOSE"]), plan=pointed(os.environ["INPUTS_PLAN"]),
+        structure=pointed(os.environ["INPUTS_STRUCTURE"]), ripple=pointed(os.environ["INPUTS_RIPPLE"]),
+        world=pointed(os.environ["INPUTS_WORLD"]), start=pointed(os.environ["INPUTS_START"]),
+        answers=json.loads(os.environ["INPUTS_ANSWERS"]), ruling=json.loads(os.environ["INPUTS_RULING"]) or [],
+        conflicts=pointed(os.environ["INPUTS_CONFLICTS"]), gate_answers=json.loads(os.environ["INPUTS_GATE_ANSWERS"]),
+        review_schema=node_schema(text, "plan-review"), design_schema=node_schema(text, "r2-design"))
+    return boundary, {"ok": True, **got, "reason": ""}
+
+
+def main() -> int:
+    folder = Path(os.environ.get("ARTIFACTS_DIR", ".")) / FOLDER
+    try:
+        (folder / OPEN_FILE).unlink(missing_ok=True)
+        (folder / OPEN_ERROR).unlink(missing_ok=True)
+        boundary, out = opened()
+        boundary.returns(out)
+    except Exception as e:
+        why = f"{type(e).__name__}: {' '.join(str(e).split())}"
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / OPEN_ERROR).write_text(why, encoding="utf-8")
+        except OSError:
+            pass
+        print(json.dumps({"ok": False, "r2_go": False, "tree": False, "k": 0, "form": "", "reason": why}, ensure_ascii=False),
+              flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

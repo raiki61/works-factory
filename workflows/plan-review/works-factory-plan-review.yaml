@@ -1,0 +1,356 @@
+name: works-factory-plan-review
+description: >-
+  事前審査のブロック。書く前に修正案を叩く。目的の文だけから作る独立設計（R2）を 1 度だけ作り、修正案と構造で突き合わせ、
+  写し・塞がない入口・契約のずれ・死んだ道・範囲の膨張・後退・方針とのぶつかり・先行例の出典の当たりを、書かれる前に予測する。
+  1 回の差し込みが線の計画の往復（plan → plan-review）の 1 往復で、block（直しへ進めない穴）が無ければ通し、同じ所で 2 度続けて
+  止めたら止めた（stalled）と返す。修正前の関所（線 6）の 4 つの軸と人への問いを返す。盤面は持たず、入力の指し札の先を run の
+  置き場の plan-review/ に写して lib/boardview.py の見え方で今の works の部品に渡す。
+
+# 値は線の with: が渡す JSON の字（指し札と配列は JSON の字）。start・answers・ruling・conflicts・gate_answers は約束に足した入力で、
+# 線が渡す前も既定で動く
+inputs:
+  units:
+    required: true
+    description: 単位の目録（配列）。判定の単位は judgment の指し札の先から読む
+  judgment:
+    required: true
+    description: 判定の指し札（judgment.json。隣の premises.json・materials.json を名で開く）
+  purpose:
+    required: true
+    description: 目的の固定の指し札（purpose.json）
+  world:
+    required: true
+    description: 世界の解の行の指し札か null
+  plan:
+    required: true
+    description: 修正案の指し札（plan-fields.json。隣の p2.fix_plan.json を名で開く）
+  structure:
+    required: true
+    description: 構造の目の控えの指し札（structure-state.json。隣の design.jsonl を名で開く）
+  ripple:
+    required: true
+    description: 波及の一覧の指し札（ripple.json）
+  start:
+    default: "null"
+    description: 始めの記録の指し札（無人の印・設計だけ・依頼のファイル・方針の文書・事前審査の木・固めた版）
+  answers:
+    default: "null"
+    description: 始めの人の関所の答え（独立設計に貼る）
+  ruling:
+    default: "[]"
+    description: 裁かれた計画の項目の id の配列（案の直しの事前審査の時だけ空でない）
+  conflicts:
+    default: "null"
+    description: 修正の段の申し出と裁定の指し札（conflicts.json。案の直しの事前審査の時だけ。項目ごとの申し出と裁定の文を貼る）か null
+  gate_answers:
+    default: "null"
+    description: >-
+      修正前の関所の答え {decision, text, asked: [通した行の文…]} か、その並びか null（通した行を聞き直さず、方針の変化を通したら
+      その版を固め直す）
+
+returns: review
+outcome_field: pass
+
+nodes:
+  # 入力の指し札の先を置き場に写し、見え方の材料を置く。独立設計を回すか（同じ run に設計の控えが無く、目的が使える時だけ）と、
+  # 事前審査を木にするか（始めの記録の review_tree。auto は開いた項目が 2 つ以上）を決める。落ちずに ok で答える
+  - id: open
+    script: pass_open
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, r2_go, tree, k, form, reason]
+      properties:
+        ok: {type: boolean}
+        r2_go: {type: boolean}
+        tree: {type: boolean}
+        k: {type: integer}
+        form: {type: string, enum: [review, replan, ""]}
+        reason: {type: string}
+
+  # 独立設計（道具ゼロの役。目的の文と実測した制約と人が決めた前提だけを受ける）。3 回とも拒まれても止めない
+  - id: r2-design-loop
+    depends_on: [open]
+    when: "$open.output.r2_go == true"
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$r2-accept.output.done; test "$done" = true
+      nodes:
+        - id: r2-prep
+          script: r2_prep
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: {type: string}
+        - id: r2-design
+          command: r2-design
+          depends_on: [r2-prep]
+          model: opus
+          effort: high
+          allowed_tools: []
+          settingSources: [user]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          mutates_checkout: false
+          idle_timeout: 1728000000
+          # 既定の system prompt（claude_code）は作業ツリーの git の様子（枝・最近の commit）を入れるので、役の前付けだけに替える
+          # （r2.design の禁: リポジトリ・履歴。今の works の包みは道具ゼロの役を Git の外の置き場で起こしていた）
+          systemPrompt: |-
+            お前は blind-judge。渡されたものだけから独立に導出する、または渡された 2 つを突き合わせる役である。
+
+            - お前は道具を一切持たない。実装・文書・履歴・web のどれも開けない。渡されたものが世界の全部である。道具を呼ぼうとするな。
+            - 渡されていないものを推測で再構成するな。「現状はこうなっているはずだ」と補った瞬間、独立導出は追認になる。
+            - 導出に入る前に、問いそのものの実在を疑え。問いが立っていないと判断したら、導出に進まずその旨を返せ。
+            - 突合を任されたときは構造を比べろ。表現の違いは差ではない。
+            - 返答に無言の省略を作るな。判定は指示された語彙だけで書き、理由を必ず添えろ。
+          # 差し込みの頭の script（scripts/pass_open.py の node_schema）が読むので JSON の形で書く
+          output_format: {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["question_stands", "reason", "design"],
+                "properties": {
+                  "question_stands": {"type": "boolean"},
+                  "reason": {"type": "string", "minLength": 1},
+                  "premise_invalid_reason": {"type": "string"},
+                  "design": {"type": "string"}
+                }
+              }
+        - id: r2-accept
+          script: r2_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [r2-design]
+          mutates_checkout: false
+          with:
+            reply: $r2-design.output
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, give_up, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              give_up: {type: boolean}
+              reason: {type: string}
+
+  # 事前審査（役 1 つか、項目ごとの下請けを並べる束ね役）。輪の中の節は輪の前の節の出力に結ばず、plan-review/ のファイルを読む
+  - id: review-loop
+    depends_on: [open, r2-design-loop]
+    trigger_rule: all_done
+    when: "$open.output.ok == true"
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: true
+      until_bash: done=$review-accept.output.done; test "$done" = true
+      nodes:
+        - id: review-prep
+          script: review_prep
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [prompt_file]
+            properties:
+              prompt_file: {type: string}
+        - id: plan-review
+          command: plan-review
+          depends_on: [review-prep]
+          model: opus
+          effort: high
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]
+          settingSources: [user]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          context: fresh
+          mutates_checkout: false
+          idle_timeout: 1728000000
+          # 差し込みの頭の script（scripts/pass_open.py の node_schema）が読むので JSON の形で書く。faces の行の決め手の欄は gatemarks.MARK_SCHEMA、
+          # resolved・items・design_map は converge の壁打ちと束ね役の欄
+          output_format: {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["faces", "shrink", "reason"],
+                "properties": {
+                  "faces": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["key", "unit_keys", "kind", "where", "why", "severity"],
+                      "properties": {
+                        "key": {"type": "string", "minLength": 8},
+                        "unit_keys": {"type": "array", "minItems": 1, "items": {"type": ["integer", "string"], "minLength": 1, "minimum": 1}},
+                        "kind": {"type": "string", "enum": ["copy", "entrance", "contract_drift", "dead_path", "scope_creep", "regression", "policy", "precedent"]},
+                        "where": {"type": "string", "minLength": 4},
+                        "why": {"type": "string", "minLength": 20},
+                        "severity": {"type": "string", "enum": ["block", "suggest"]},
+                        "no_add": {"type": "string"},
+                        "decided_by": {"type": "string"},
+                        "undecided_because": {"type": "string"},
+                        "fences": {"type": "array", "uniqueItems": true, "items": {"type": "string", "enum": ["external_write", "irreversible", "policy_doc", "widen_protection", "web_doubt"]}},
+                        "world": {"type": "string"},
+                        "recommend": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["answer", "note", "why"],
+                          "properties": {
+                            "answer": {"type": "string", "enum": ["continue", "stop"]},
+                            "note": {"type": "string", "minLength": 4},
+                            "why": {"type": "string", "minLength": 4}
+                          }
+                        },
+                        "no_narrow": {"type": "string", "minLength": 20}
+                      }
+                    }
+                  },
+                  "shrink": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["key", "unit_keys", "alternative", "why"],
+                      "properties": {
+                        "key": {"type": "string", "minLength": 8},
+                        "unit_keys": {"type": "array", "minItems": 1, "items": {"type": ["integer", "string"], "minLength": 1, "minimum": 1}},
+                        "alternative": {"type": "string", "minLength": 20},
+                        "why": {"type": "string", "minLength": 20}
+                      }
+                    }
+                  },
+                  "faces_none": {"type": "string"},
+                  "reason": {"type": "string", "minLength": 20},
+                  "resolved": {"type": "array", "items": {"type": "string"}},
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "verdict", "blocks"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "verdict": {"type": "string", "enum": ["clean", "block"]},
+                        "blocks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["key", "why"],
+                            "properties": {"key": {"type": "string"}, "why": {"type": "string"}}
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "design_map": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "name", "design_quote", "why"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "name": {"type": "string", "minLength": 1},
+                        "design_quote": {"type": ["string", "null"]},
+                        "why": {"type": "string", "minLength": 10}
+                      }
+                    }
+                  }
+                }
+              }
+        - id: review-accept
+          script: review_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [plan-review]
+          mutates_checkout: false
+          with:
+            reply: $plan-review.output
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, give_up, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              give_up: {type: boolean}
+              reason: {type: string}
+
+  # 返す節。往復の控え・受けた返答・設計の控え・拒みの控えだけを読む。落ちない（中の誤りは偽の結末と訳で返す）
+  - id: review
+    script: result
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [review-loop]
+    trigger_rule: all_done
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [pass, stalled, review, design, gate_axes, ask_human, questions]
+      properties:
+        pass: {type: boolean}
+        stalled: {type: boolean}
+        review:
+          type: object
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        design:
+          type: object
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        gate_axes:
+          type: object
+          additionalProperties: false
+          required: [obvious, world, clean, not_overkill]
+          properties:
+            obvious:
+              type: object
+              additionalProperties: false
+              required: [ok, note]
+              properties:
+                ok: {type: boolean}
+                note: {type: string}
+            world:
+              type: object
+              additionalProperties: false
+              required: [ok, note]
+              properties:
+                ok: {type: boolean}
+                note: {type: string}
+            clean:
+              type: object
+              additionalProperties: false
+              required: [ok, note]
+              properties:
+                ok: {type: boolean}
+                note: {type: string}
+            not_overkill:
+              type: object
+              additionalProperties: false
+              required: [ok, note]
+              properties:
+                ok: {type: boolean}
+                note: {type: string}
+        ask_human: {type: boolean}
+        questions:
+          type: array
+          items: {type: string}
