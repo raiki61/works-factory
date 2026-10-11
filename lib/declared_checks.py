@@ -325,13 +325,12 @@ def _skipped_note(skipped: list, material: dict) -> dict:
     return {**material, key: f"{material[key]} ／ {checkscope.skipped_text(skipped)}"}
 
 
-def _junit_reports(root: pathlib.Path, steps: list, runs: list, existed: dict, report_dir) -> tuple:
+def _junit_reports(root: pathlib.Path, steps: list, runs: list, report_dir) -> tuple:
     """JUnit の報告を宣言して走った段の報告を読み ——（1 件ごとの結末, 段の名, 試験を走らせなかった段の名）。読んだ報告は
-    report_dir/<段の名>.xml に写し、走らせる前に無かった報告（existed が偽）は対象の木から消す（未追跡のファイルが増えて
-    作業ツリーの指紋が変わり、修正の差分にも紛れるため。前から在った報告は消さない）"""
+    report_dir/<段の番号>.xml に写す（段の名は対象が書く字で、パスの区切りを含みうる。番号はログの名と同じ）"""
     decl = {s["name"]: s for s in steps}
     cases, names, unran = [], [], []
-    for r in runs:
+    for i, r in enumerate(runs, 1):
         step = decl.get(r["name"]) or {}
         if not step.get("junit") or r.get("exit") is None:
             continue
@@ -346,9 +345,7 @@ def _junit_reports(root: pathlib.Path, steps: list, runs: list, existed: dict, r
             cases += baseline_red.parse_junit(path.read_text(encoding="utf-8", errors="replace"))
         if report_dir is not None:
             pathlib.Path(report_dir).mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(path, pathlib.Path(report_dir) / f"{r['name']}.xml")
-        if not existed.get(r["name"]):
-            path.unlink()
+            shutil.copyfile(path, pathlib.Path(report_dir) / f"{i}.xml")
     return cases, names, unran
 
 
@@ -359,18 +356,18 @@ def _row(r: dict) -> dict:
 
 
 def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_dir=None) -> dict:
-    """CI の節を走らせる。返り {by, material, runs, skipped_steps, same_as, log, cases, junit_steps, junit_unran}。
+    """CI の節を走らせる。返り {by, material, runs, skipped_steps, same_as, test_cmd_how, log, cases, junit_steps, junit_unran}。
     - 範囲の宣言（checkscope.SCOPE_DECL）が在るのに対象の宣言（DECL_NAME）が無い・範囲の宣言の誤り・宣言に無い段の名は、
       走らせる前に CiRefused（範囲の宣言が黙って効かない形にしない）
     - 宣言が在れば by engine: 範囲の宣言の paths_ignore を changed（変更のパスを返す口。範囲を持つ段が在る時だけ呼ぶ）と照らし、
       変更が全部その下に在る段は回さず skipped_steps に名と範囲で残す。宣言の段の後に test_cmd の段を足し（宣言の段と同じ
       コマンドなら足さず same_as にその段の名）、素材は全部の段から組む——宣言の一式と test_cmd の両方が緑の時だけ clean。
       宣言の書式の誤りは走らせずに走らせられない素材（判定の前は awaiting_human・後は not_run）
-    - 宣言が無く test_cmd が在れば by role: test_cmd だけを走らせた素材
+    - 宣言が無く test_cmd が在れば by role: test_cmd だけを走らせた素材と、起こす前に決めた起こし方 test_cmd_how（direct・shell）
     - どちらも無ければ by role_needed: 素材は None（任せ先の CI の役が渡す。前の結果を使ってよい、ではない）
     runs は走った段ごとの {name, exit, how, launch?}。cases は JUnit の報告を宣言して走った段の 1 件ごとの結末（baseline_red.parse_junit
     の形）、junit_steps はその段の名、junit_unran はそのうち試験を走らせなかった段の名。段が対象の木の中に書いた報告は report_dir に
-    写し、走らせる前に無かった報告は対象の木から消す。止められたら（tree_run.Stopped）捕まえない
+    段の番号で写し、走らせる前に無かった報告は対象の木から消す（止められた時も）。止められたら（tree_run.Stopped）捕まえない
     （元 works/.shared/core/entry.py:858-904 の盤面の外の決まりを、盤面の run_engine の代わりに checks_plan・checkscope・tree_runner・
     checks_reply で組んだ物。scope_changed が足していた依頼の where が名指すパスは持たない——変更は changed だけで受ける）"""
     root = pathlib.Path(root)
@@ -378,17 +375,19 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
     if (root / checkscope.SCOPE_DECL).is_file() and not (root / DECL_NAME).is_file():
         raise CiRefused(f"範囲の宣言 {checkscope.SCOPE_DECL} が在るのに、それが段を名指す対象の宣言 {DECL_NAME} が無い"
                         "——範囲の宣言が効かない（宣言を置くか、範囲の宣言を消す）")
-    out = {"material": None, "runs": [], "skipped_steps": [], "same_as": None, "log": "", "cases": [], "junit_steps": [],
-           "junit_unran": []}
+    out = {"material": None, "runs": [], "skipped_steps": [], "same_as": None, "test_cmd_how": None, "log": "", "cases": [],
+           "junit_steps": [], "junit_unran": []}
     plan = checks_plan(root)
     if "fallback" in plan:
         if not (test_cmd or "").strip():
             return {**out, "by": "role_needed"}
         log = log_dir / f"{TEST_CMD_STEP}.log"
-        return {**out, "by": "role", "material": local_checks_material(root, test_cmd, log)["material"], "log": str(log)}
+        launched = {}
+        material = local_checks_material(root, test_cmd, log, launched=launched)["material"]
+        return {**out, "by": "role", "material": material, "log": str(log), "test_cmd_how": launched.get("how")}
     steps = plan.get("steps") or []
     launch = {"steps": steps, "sha": plan.get("sha"), "blocked": plan.get("blocked")}
-    runs, skipped, note, existed = [], [], {}, {}
+    runs, skipped, note, todo = [], [], {}, []
     if not launch["blocked"]:
         ignores, why = checkscope.read_scope(root, steps)
         if why:
@@ -396,10 +395,17 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
         skipped = checkscope.skipped_steps(steps, ignores, changed)
         off = {s["name"] for s in skipped}
         todo = [s for s in steps if s["name"] not in off]
-        existed = {s["name"]: (root / s["junit"]).exists() for s in todo if s.get("junit")}
-        runs = _with_test_cmd(None, test_cmd, note)(todo, root, log_dir)
-    material = _skipped_note(skipped, checks_reply(launch, runs, root, after_judge=after_judge))
-    cases, junit_steps, junit_unran = _junit_reports(root, steps, runs, existed, report_dir)
+    # 走らせる前に無かった報告は、読み終えたら（止められても）対象の木から消す: 未追跡のファイルが増えて作業ツリーの指紋が変わり、
+    # 修正の差分にも紛れ、次の回には「前から在った」と読まれて残り続けるため。前から在った報告は消さない
+    new_reports = [root / s["junit"] for s in todo if s.get("junit") and not (root / s["junit"]).exists()]
+    try:
+        if not launch["blocked"]:
+            runs = _with_test_cmd(None, test_cmd, note)(todo, root, log_dir)
+        material = _skipped_note(skipped, checks_reply(launch, runs, root, after_judge=after_judge))
+        cases, junit_steps, junit_unran = _junit_reports(root, steps, runs, report_dir)
+    finally:
+        for path in new_reports:
+            path.unlink(missing_ok=True)
     log = _engine_log(log_dir / "checks.log", runs, material.get("reason") or "")
     return {**out, "by": "engine", "material": material, "runs": [_row(r) for r in runs], "skipped_steps": skipped,
             "same_as": note.get("same_as"), "log": str(log), "cases": cases, "junit_steps": junit_steps,

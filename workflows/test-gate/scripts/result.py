@@ -60,7 +60,8 @@ def suite_exit(run: dict):
 
 
 def evidence(mode: str, out: dict, run: dict, material, summary: str, why: str, role_status) -> str:
-    tests = {"by": run["by"], "suites": run["runs"], "test_cmd_same_as": run["same_as"], "skipped_steps": run["skipped_steps"]}
+    tests = {"by": run["by"], "suites": run["runs"], "test_cmd_same_as": run["same_as"], "test_cmd_how": run["test_cmd_how"],
+             "skipped_steps": run["skipped_steps"]}
     lines = [f"# test-gate（{mode}）",
              "",
              f"- ok: {str(out['ok']).lower()}{'（' + why + '）' if why else ''}",

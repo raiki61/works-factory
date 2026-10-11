@@ -153,8 +153,10 @@ class LaunchHowRecordedCase(RepoCase):
         """元 test_fallback_material_reads_how_from_ran_row_not_from_rule（宣言の無い run の test_cmd の素材）"""
         with self.rule(), mock.patch.object(tree_run, "run", return_value=1):
             got = self.run_ci("a | b")
-        self.assertEqual(got["by"], "role")
+        self.assertEqual((got["by"], got["test_cmd_how"]), ("role", "shell"))
         self.assertIn("bash -c 'a | b'（起こし方 shell）", got["material"]["detail"])
+        line = dc.suites_line({"by": got["by"], "suites": got["runs"], "test_cmd_how": got["test_cmd_how"]})
+        self.assertIn(f"走らせた: {dc.TEST_CMD_STEP}（shell）", line)
 
 
 class SuitesLineCase(unittest.TestCase):
@@ -516,7 +518,7 @@ class JunitReportCase(RepoCase):
         before = green_cert.fingerprint(self.repo)
         got = self.run_ci()
         self.assertFalse((self.repo / "out" / "report.xml").exists())
-        self.assertEqual((self.work / "junit" / "suite.xml").read_text(encoding="utf-8"), self.REPORT)
+        self.assertEqual((self.work / "junit" / "1.xml").read_text(encoding="utf-8"), self.REPORT)
         self.assertEqual(green_cert.fingerprint(self.repo), before)
         self.assertEqual(got["junit_steps"], ["suite"])
         self.assertEqual(got["junit_unran"], [])
@@ -527,7 +529,27 @@ class JunitReportCase(RepoCase):
         (self.repo / "report.xml").write_text("<testsuite/>", encoding="utf-8")
         self.run_ci()
         self.assertEqual((self.repo / "report.xml").read_text(encoding="utf-8"), self.REPORT)
-        self.assertTrue((self.work / "junit" / "suite.xml").is_file())
+        self.assertTrue((self.work / "junit" / "1.xml").is_file())
+
+    def test_step_name_with_path_separator_is_copied_by_step_number(self):
+        """段の名は対象が書く字で、パスの区切りを含みうる。写しの名にしない（落ちて報告が木に残らない）"""
+        self.decl([{**self.step(), "name": "tests/unit"}])
+        got = self.run_ci()
+        self.assertEqual((got["junit_steps"], got["material"]["status"]), (["tests/unit"], "clean"))
+        self.assertEqual((self.work / "junit" / "1.xml").read_text(encoding="utf-8"), self.REPORT)
+        self.assertFalse((self.repo / "out" / "report.xml").exists())
+
+    def test_stopped_run_removes_new_report(self):
+        """段が報告を書いた後に止められても（tree_run.Stopped）、走らせる前に無かった報告は対象の木に残らない"""
+        self.decl([self.step()])
+
+        def stopped(steps, cwd, log_dir):
+            (self.repo / "out").mkdir()
+            (self.repo / "out" / "report.xml").write_text(self.REPORT, encoding="utf-8")
+            raise tree_run.Stopped(15)
+        with mock.patch.object(dc, "tree_runner", stopped), self.assertRaises(tree_run.Stopped):
+            self.run_ci()
+        self.assertFalse((self.repo / "out" / "report.xml").exists())
 
     def test_unran_report_is_named_and_gives_no_cases(self):
         self.decl([{"name": "suite", "argv": [PY, "-c", "open('r.xml','w').write('<testsuite/>')"], "junit": "r.xml"}])
@@ -579,6 +601,11 @@ class MaterialProblemsCase(unittest.TestCase):
                         ({"status": "clean", "checked": "x", "from_round": 1}, "from_round")):
             with self.subTest(m):
                 self.assertIn(word, " ".join(self.problems(m)))
+
+    def test_statuses_are_the_ones_green_cert_classifies(self):
+        """受け付けが通す status は全部 green_cert が読み分ける（知らない status が認証の既定の分けに黙って落ちない）"""
+        self.assertEqual(set(dc.STATUSES), set(green_cert.NOT_DONE) | set(green_cert.BASE_OK) | {"clean", "found"})
+        self.assertLessEqual(set(green_cert.BASE_OK), set(dc.STATUSES))
 
     def test_unknown_mode_raises(self):
         with self.assertRaises(ValueError):

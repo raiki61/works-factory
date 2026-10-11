@@ -124,6 +124,11 @@ class YamlCase(unittest.TestCase):
                                          "filesystem": {"allowWrite": ["/"]}})
         self.assertEqual(ci["output_format"]["properties"]["material"], declared_checks.MATERIAL_SCHEMA)
 
+    def test_run_material_is_the_material_schema_or_null(self):
+        material = node("run")["output_format"]["properties"]["material"]
+        self.assertEqual(material["type"], ["object", "null"])
+        self.assertEqual({**material, "type": "object"}, declared_checks.MATERIAL_SCHEMA)
+
     def test_loop_matches_give_up(self):
         loop = node("ci-loop")
         self.assertEqual(loop["when"], "$run.output.by == 'role_needed'")
@@ -211,8 +216,10 @@ class RunScriptCase(ScriptCase):
         """元 test_blk_tests_delta.py の test_stopped_run_exits_without_output: 止められたら孫まで木ごと止め、返りを出さずに 128+信号"""
         pidfile = self.tmp / "grandchild.pid"
         body = ("import subprocess, sys, time; p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)']); "
+                "open('r.xml', 'w').write('<testsuite/>'); "
                 f"open({str(pidfile)!r}, 'w').write(str(p.pid)); time.sleep(120)")
-        self.decl([{"name": "suite", "argv": [PY, "-c", body]}])
+        self.decl([{"name": "suite", "argv": [PY, "-c", body], "junit": "r.xml"}])
+        before = green_cert.fingerprint(self.repo)
         proc = subprocess.Popen([PY, str(SCRIPTS / "run.py")], cwd=self.repo, env=self.env({"mode": "final", "start": self.start}),
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
         self.addCleanup(lambda: proc.poll() is None and proc.kill())
@@ -224,6 +231,8 @@ class RunScriptCase(ScriptCase):
         out, err = proc.communicate(timeout=WAIT)
         self.assertEqual((proc.returncode, out), (128 + signal.SIGTERM, ""), err)
         self.assertIn("止められた", err)
+        self.assertFalse((self.repo / "r.xml").exists(), "止められた段が書いた JUnit の報告が対象の木に残った")
+        self.assertEqual(green_cert.fingerprint(self.repo), before)
         end = time.monotonic() + WAIT
         while time.monotonic() < end:
             try:
@@ -243,7 +252,7 @@ class RunScriptCase(ScriptCase):
         before = green_cert.fingerprint(self.repo)
         out = self.ok("run", mode="base", start=self.start)
         self.assertFalse((self.repo / "out" / "r.xml").exists())
-        self.assertEqual((self.artifacts / "test-gate" / "base" / "junit" / "suite.xml").read_text(encoding="utf-8"), report)
+        self.assertEqual((self.artifacts / "test-gate" / "base" / "junit" / "1.xml").read_text(encoding="utf-8"), report)
         self.assertEqual((out["fingerprint_before"], out["fingerprint_after"]), (before, before))
         self.assertEqual(green_cert.fingerprint(self.repo), before)
         self.assertEqual((out["by"], out["material"]["status"], out["junit_steps"]), ("engine", "clean", ["suite"]))
@@ -315,7 +324,34 @@ class CiRoleCase(ScriptCase):
         saved = json.loads((self.artifacts / "test-gate" / "base" / "ci-material.json").read_text(encoding="utf-8"))
         self.assertEqual(saved, json.loads(self.GOOD))
 
-    def test_branch_switch_rejected(self):
+    def test_retry_keeps_the_first_snapshot(self):
+        """出し直しの回の ci-prep は役を起こす前の姿を置き換えない: 1 回目の役が変えた作業ツリーは 2 回目も拒む"""
+        self.prep()
+        (self.repo / "new.txt").write_text("x\n", encoding="utf-8")
+        self.assertFalse(self.ok("ci_accept", mode="base", reply=self.GOOD)["ok"])
+        self.prep()
+        got = self.ok("ci_accept", mode="base", reply=self.GOOD)
+        self.assertFalse(got["ok"])
+        self.assertIn("new.txt", got["reason"])
+
+    def test_done_removes_only_its_own_copy_folder(self):
+        """終わった時に消すのは一時の置き場の直下の写しの頭のフォルダだけ（symlink は辿らない）。役が書ける snapshot の top が
+        別の所を指しても消さない"""
+        top = pathlib.Path(self.prep()["copy_dir"]).parent
+        elsewhere = self.tmp / top.name                                   # 写しと同じ名で、一時の置き場の直下でない
+        elsewhere.mkdir()
+        (elsewhere / "keep.txt").write_text("x\n", encoding="utf-8")
+        link = pathlib.Path(tempfile.gettempdir()) / f"{top.name}-link"  # 一時の置き場の直下の、写しを指す symlink
+        link.symlink_to(top)
+        self.addCleanup(link.unlink)
+        snap_path = self.artifacts / "test-gate" / "base" / "ci-snapshot.json"
+        for pointed, kept in ((elsewhere, elsewhere / "keep.txt"), (link, top / "work")):
+            with self.subTest(str(pointed)):
+                snap = json.loads(snap_path.read_text(encoding="utf-8"))
+                snap_path.write_text(json.dumps({**snap, "top": str(pointed)}), encoding="utf-8")
+                self.assertTrue(self.ok("ci_accept", mode="base", reply=self.GOOD)["done"])
+                self.assertTrue(kept.exists())
+
         """元 test_branch_switch_rejected"""
         self.prep()
         git(self.repo, "checkout", "-q", "--detach", "HEAD")
@@ -415,6 +451,47 @@ class ResultScriptCase(ScriptCase):
                                                encoding="utf-8")
         out = self.result("final")
         self.assertEqual((out["ok"], out["red_cause"]), (False, "incomplete"))
+
+    def test_suite_without_cases_leaves_no_baseline_exit(self):
+        """tdd_suite が JUnit を書かずに落ちた base は元の結末の exit を残さない。final はそれを「元の結末が無い」と読み、今の赤を
+        今回入れた物に数えない"""
+        suite = self.tmp / "suite.py"
+        suite.write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
+        self.write_start(tdd_suite=str(suite), test_cmd="false")
+        self.ok("run", mode="base", start=self.start)
+        out = self.result("base")
+        self.assertIsNone(baseline_red.read_baseline(self.pointed(out["baseline"]))["exit"])
+        suite.write_text("import sys\nopen(sys.argv[1], 'w').write(\"<testsuite><testcase classname='s' name='x'>"
+                         "<failure/></testcase></testsuite>\")\nsys.exit(1)\n", encoding="utf-8")
+        out = self.final(json.dumps(out["baseline"]))
+        self.assertEqual((out["ok"], out["red_cause"]), (False, ""))
+
+    def test_role_clean_material_written_by_ci_accept_is_read(self):
+        """任せ先の役の素材は ci-accept が書いた所から result が読む: 受け付けた clean の base は ok"""
+        self.assertEqual(self.ok("run", mode="base", start=self.start)["by"], "role_needed")
+        prep = self.ok("ci_prep", mode="base", start=self.start, reject="")
+        self.addCleanup(__import__("shutil").rmtree, pathlib.Path(prep["copy_dir"]).parent, True)
+        clean = json.dumps({"material": {"status": "clean", "checked": "make test: exit 0"}})
+        self.assertTrue(self.ok("ci_accept", mode="base", reply=clean)["ok"])
+        out = self.result("base")
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (True, True, ""))
+
+    def test_rerun_in_the_same_run_does_not_read_the_earlier_material(self):
+        """同じ run で同じ形をもう 1 度差し込んだ時、前の回の任せ先の素材で今の木を認証しない"""
+        self.ok("run", mode="final", start=self.start)
+        gate = self.artifacts / "test-gate" / "final"
+        (gate / "ci-material.json").write_text(json.dumps({"material": {"status": "clean", "checked": "x"}}), encoding="utf-8")
+        (self.repo / "later.txt").write_text("x\n", encoding="utf-8")
+        self.ok("run", mode="final", start=self.start)
+        out = self.result("final")
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, "incomplete"))
+
+    def test_shell_test_cmd_names_how_it_was_launched(self):
+        """宣言が無く test_cmd だけを走らせた回の証拠は、test_cmd の起こし方（shell）を書く"""
+        self.write_start(test_cmd="echo a | cat")
+        self.assertEqual(self.ok("run", mode="base", start=self.start)["by"], "role")
+        out = self.result("base")
+        self.assertIn("走らせた: test_cmd（shell）", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
 
     def test_broken_inputs_return_incomplete_without_failing(self):
         """返す節は落ちない: 壊れた入力でも終了の値 0 で、output_format に合う ok: false・red_cause: incomplete を 1 つ出す"""
