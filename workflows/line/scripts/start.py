@@ -146,7 +146,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
                 "unattended": False, "design_only": False, "final_gate": ""}
     parts = asked["parts"]
     record.update({
-        "input": shape, "base_rev": shape["base"]["rev"], "test_cmd": raw["test_cmd"], "tdd_suite": raw["tdd_suite"],
+        "input": shape, "base_rev": shape["head_rev"], "test_cmd": raw["test_cmd"], "tdd_suite": raw["tdd_suite"],
         gatepolicy.FINAL_KEY: checked[gatepolicy.FINAL_KEY], gatepolicy.UNATTENDED_KEY: checked[gatepolicy.UNATTENDED_KEY],
         "design_only": checked["design_only"], "thickness": checked["thickness"], "spec": checked["spec"],
         "policy_md": raw["policy_md"], "fix_fixture": raw["fix_fixture"], "lang": raw["lang"],

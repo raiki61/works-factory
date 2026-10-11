@@ -174,7 +174,7 @@ flowchart TB
   - 同じブロックを 2 度差し込む所の返りは include の id ごとに分かれる（U2）。`rejudge`・`replan`・`replan-review`・`refix` の返りは差し込んだブロックと同じ形。後の段が fix の返りを読む所は `$fixed.output.<欄>`、judge の単位と判定を読む所は `$judged.output.<欄>`、plan と plan-review の返りを往復の外から読む所は `$plan-rounds.output.<欄>` を読む。
 - 線の始めの節 `start` の返りのうち、ブロックが読むのは 2 つ:
   - `prior_failures`（指し札・null 可）: 前の run の持ち越しの前の失敗の行（始めの節が依頼から `lib/carry` で置く、今の works の `prior-failures-in.json`）。無ければ null → judge・plan
-  - `record`（指し札）: 始めの記録。今の works の `start.json` の欄（`run_id`・`base_rev`・`test_cmd`・`tdd_suite`（TDD の輪と 1 件ごとの結末に使う実行ファイルのパス。入口の入力から。無ければ `""`）・`final_gate`・`unattended`・`policy`（人の方針の文書を run の始めに 1 度だけ固めた版 `{named, path, sha256, copy}`。`named` は入口の名指し `policy_md`、`path` は名指しの文書か、対象のリポジトリの git の共通の置き場の `graphloops/policy.md`。文書が無ければ `path` は `""`、`sha256` と `copy` は null。役に貼る本文は `copy` から読み、`policy_md` を生で読まない）・`spec` ほか）→ 全ブロック
+  - `record`（指し札）: 始めの記録。今の works の `start.json` の欄（`run_id`・`base_rev`（修正の前の HEAD。差分の根 `input.base.rev` とは別）・`test_cmd`・`tdd_suite`（TDD の輪と 1 件ごとの結末に使う実行ファイルのパス。入口の入力から。無ければ `""`）・`final_gate`・`unattended`・`policy`（人の方針の文書を run の始めに 1 度だけ固めた版 `{named, path, sha256, copy}`。`named` は入口の名指し `policy_md`、`path` は名指しの文書か、対象のリポジトリの git の共通の置き場の `graphloops/policy.md`。文書が無ければ `path` は `""`、`sha256` と `copy` は null。役に貼る本文は `copy` から読み、`policy_md` を生で読まない）・`spec` ほか）→ 全ブロック
 
 ### judge の返り
 

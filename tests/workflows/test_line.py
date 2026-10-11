@@ -106,7 +106,8 @@ class StartCase(Artifacts):
         doc = self.record(got)
         self.assertEqual(doc["input"]["base"]["rev"], self.fork)
         self.assertGreaterEqual(doc["input"]["diff"]["files"], 1)
-        self.assertEqual(doc["base_rev"], self.fork)
+        self.assertEqual(doc["base_rev"], git(self.repo, "rev-parse", "HEAD"),
+                         "base_rev は修正の前の HEAD（今の works の entry.py 1203 行。merge と test-gate が差分の起点に読む）")
 
     def test_unattended_does_not_open_the_start_gate(self):
         got = self.start(request="request_ok.json", unattended="true")
