@@ -1,4 +1,5 @@
-"""書き手の返答と初見の読み手の判定を受け付ける（輪の until_bash が done を読む）。受け取った物は run の置き場の report/ に書く。"""
+"""書き手の返答と初見の読み手の判定を受け付ける（輪の until_bash が done を読む）。受け取った物は run の置き場の report/ に書く。
+拒否の訳のファイル reason_file は、機械の事実のファイル（facts の facts_file）と同じく run の置き場からの相対で返す。"""
 import os
 import sys
 from pathlib import Path
@@ -8,8 +9,8 @@ import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
 import runreport  # noqa: E402
-from place import out_dir  # noqa: E402
+from place import out_dir, rel_path  # noqa: E402
 
 if __name__ == "__main__":
-    boundary.returns(runreport.accept(os.environ.get("INPUTS_REPLY", ""), os.environ.get("INPUTS_COLD", ""),
-                                      out_dir=out_dir()))
+    got = runreport.accept(os.environ.get("INPUTS_REPLY", ""), os.environ.get("INPUTS_COLD", ""), out_dir=out_dir())
+    boundary.returns({**got, "reason_file": rel_path(got["reason_file"]) if got["reason_file"] else ""})

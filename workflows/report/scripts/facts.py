@@ -1,5 +1,6 @@
 """報告のブロックの最初の節: 入力・型つきの成果物の一覧・run の記録を読み、結末を決め、機械の報告と持ち越しを run の置き場の
-report/ に書く。0 以外で終わらない（落ちると線は報告の返りを受けられない）: 思わぬ誤りも捕まえて record_invalid で返す。"""
+report/ に書く。0 以外で終わらない（落ちると線は報告の返りを受けられない）: lib/ を読めない時も含めて思わぬ誤りを捕まえ、
+record_invalid で返す。lib/ は main の中で読む（読めない時の受け皿は place.unwritten）。"""
 import json
 import os
 import sys
@@ -8,11 +9,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
-sys.path.append(str(boundary.lib_root()))
-import outcome  # noqa: E402
-import runreport  # noqa: E402
 import typed  # noqa: E402
-from place import out_dir, rel  # noqa: E402
+from place import failed_line, out_dir, rel, unwritten  # noqa: E402
 
 RETURNS = {
     "test-gate-base": os.environ.get("INPUTS_TEST_GATE_BASE", ""),
@@ -50,30 +48,23 @@ def parse(name: str, raw: str) -> tuple:
     return value, ""
 
 
-def opened(value, notes: list):
-    """返りの中の指し札を、開けたファイルのパスの字に替える（開けなければ None と注意。lib/ は指し札の形を知らない）"""
+def opened(value, unopened: list, rid: str, field: str = ""):
+    """返りの中の指し札を、開けたファイルのパスの字に替える（開けなければ None にし、(段, 返りの欄, 訳) を unopened に積む）"""
     if isinstance(value, dict) and value.get("type") == boundary.POINTER_TYPE:
         try:
             path = boundary.resolve(value)
         except (KeyError, ValueError) as e:
-            notes.append(f"指し札 {value.get('path')} を開けない: {e}")
+            unopened.append((rid, field, f"指し札 {value.get('path')} を開けない: {e}"))
             return None
         if not path.is_file():
-            notes.append(f"指し札の先 {path} が無い")
+            unopened.append((rid, field, f"指し札の先 {path} が無い"))
             return None
         return str(path)
     if isinstance(value, dict):
-        return {k: opened(v, notes) for k, v in value.items()}
+        return {k: opened(v, unopened, rid, field or k) for k, v in value.items()}
     if isinstance(value, list):
-        return [opened(v, notes) for v in value]
+        return [opened(v, unopened, rid, field) for v in value]
     return value
-
-
-def open_return(rid: str, value, notes: list, problems: list):
-    """返りの指し札を開ける。fix の conflicts の先が開けないのは結果を名乗れない訳（人に回した申し出が見えなくなる）"""
-    if rid != "fix" or not isinstance(value, dict) or "conflicts" not in value:
-        return opened(value, notes)
-    return {**opened({k: v for k, v in value.items() if k != "conflicts"}, notes), "conflicts": opened(value["conflicts"], problems)}
 
 
 def start_record(problems: list) -> dict:
@@ -118,16 +109,19 @@ def own_prefix() -> str:
 
 
 def main() -> dict:
-    problems, notes = [], []
-    returns, gates = {}, {}
+    sys.path.append(str(boundary.lib_root()))
+    import outcome
+    import runreport
+
+    unread, unopened, returns, gates = [], [], {}, {}
     for rid, raw in RETURNS.items():
         value, why = parse(rid, raw)
-        returns[rid] = open_return(rid, value, notes, problems)
-        problems += [why] if why else []
+        returns[rid] = opened(value, unopened, rid)
+        unread += [why] if why else []
     for gid, raw in GATES.items():
         gates[gid], why = parse(gid, raw)
-        problems += [why] if why else []
-    problems += outcome.conflict_rows(returns)[1] + outcome.unknown_answers(gates)
+        unread += [why] if why else []
+    problems, notes = outcome.record_problems(returns, gates, unread=unread, unopened=unopened)
     start = start_record(problems)
     rows, transcript_why = transcript()
     listing = typed.read_listing()
@@ -135,8 +129,8 @@ def main() -> dict:
     facts = runreport.transcript_facts(rows, exclude_prefix=own_prefix())
     decided = outcome.decide_outcome(returns, gates, {"start_ok": bool(start), "record_problems": problems,
                                                       "failed": facts["failed"] if facts["ok"] else None})
-    built = runreport.build(returns, gates, listing, facts, *decided, out_dir=out_dir(),
-                            start=start, problems=problems, run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why)
+    built = runreport.build(returns, gates, listing, facts, *decided, out_dir=out_dir(), start=start, problems=problems,
+                            run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd())
     report = rel(built["report"])
     return {"outcome": decided[0], "ok": decided[0] in outcome.OK_OUTCOMES, "stop_reason": decided[1],
             "report": report, "next_request": rel(built["next_request"]),
@@ -144,15 +138,16 @@ def main() -> dict:
 
 
 def fallen(error: BaseException) -> dict:
-    """思わぬ誤りでも返る形（結末 record_invalid と誤りの 1 行を載せた機械の報告。それも書けなければ訳だけの 1 ファイル）"""
-    why = runreport.failed_line("報告の事実", error)
+    """思わぬ誤りでも返る形（結末 record_invalid と誤りの 1 行を載せた機械の報告。lib/ を読めない・それも書けなければ訳だけの 1 ファイル）"""
+    why = failed_line("報告の事実", error)
     out = {"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "report": None,
            "next_request": None, "prior_failures": None, "ai_go": False, "facts_file": ""}
     try:
+        import runreport
         out["report"] = rel(runreport.fallback_report(out_dir(), why))
-        out["facts_file"] = out["report"]["path"]
-    except Exception:  # noqa: BLE001 — 置き場に書けなくても返る
-        pass
+    except Exception:  # noqa: BLE001 — lib/ を読めなくても、置き場に書けなくても返る
+        out["report"] = unwritten(why)
+    out["facts_file"] = out["report"]["path"]
     return out
 
 

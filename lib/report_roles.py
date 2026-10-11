@@ -53,13 +53,14 @@ TEXT_SCHEMA = {"type": "object", "required": ["text"], "additionalProperties": F
 # 後ろへ渡す（裁定 R50）。tests/test_blk_report.py が YAML の max_iterations と同じかを見る
 GIVE_UP_AFTER = 3
 REJECT_HEADING = promptsection.Section("## 前の回の受け付けが拒んだ理由", source="fn:report_roles.prep")
-MACHINE_HEADING = promptsection.Section("## 機械が盤面から組んだ事実（AI は書き換えていない）", human=report.FOR_READERS)
+MACHINE_HEADING = promptsection.Section("## 機械が各段の返りと run の記録から組んだ事実（AI は書き換えていない）", human=report.FOR_READERS)
 CELL_LIMIT = 50   # 表のセルの字数の上限（`コード` の部分を除く）。持ち主の決まり「セルには数語だけ」
 # 拒否の種類: cold＝書き手の頭を読んだ初見の読み手が pass でない（redesign-needed・読めない返答）／format＝表のセル／
 # answer＝返答の型・take の拒否
 REJECT_KINDS = ("cold", "format", "answer")
 # 読むときだけの種類: kind の無い行（kind が入る前の run）・知らない kind の行を捨てずに数える先。_reject は書かない
 UNKNOWN_KIND = "unknown"
+COLD_REJECTS_LINE = "- 初見の読み手の拒否（この周）:"
 FAILED_TITLE = promptsection.Section("# 報告（AI の報告を最後まで作れなかった）", human=report.FOR_READERS)
 GLOSSARY_HEADING = promptsection.Section("## 語の定義（機械が付けた。本文の外）", human=report.FOR_READERS)
 CELL_REASON = ("表のセルに説明の文を入れない（書式の決まり: 表は状態・件数・日付など数語の値の一覧だけ。端末の表は列ごとに"

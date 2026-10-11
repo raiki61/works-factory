@@ -53,6 +53,7 @@ judge-verify.json）は書き手のモジュール（ライン・ブロック）
 import datetime
 import os
 import pathlib
+import re
 import sys
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように
@@ -62,6 +63,7 @@ if str(CORE) not in sys.path:
     sys.path.insert(0, str(CORE))
 
 import carry  # noqa: E402  （L1。次の run への持ち越しの形の住処: ファイルの名・欄の名・約束の Schema）
+import marks  # noqa: E402
 import promptsection  # noqa: E402
 
 OUTCOMES = ("fixed", "fixed_needs_check", "no_fix_needed", "round_limit", "stopped_by_request", "stopped_by_human", "stopped_by_line",
@@ -92,6 +94,15 @@ HEADINGS = (DECISIONS_HEADING, ENTRY_HEADING, STOP_HEADING, READS_HEADING, WHERE
 TITLE_HEADING = promptsection.Section("# 報告（run {run}）", human=FOR_READERS)
 INTERRUPTED_HEAD = "run が途中で終わった"
 RETRIED_HEAD = "前の試みで落ち、続きで済んだ節"
+PR_EXCLUDED = marks.KINDS["pr"].file           # 並行 PR の外した hunk {node, head, excluded}（周ごとに全部読むので置き場でなく名だけを引く）
+VERIFY_NOTES = "judge-verify.json"             # 判定の単位の裏取りの申し送り（線の木の段 3。単位ごとの state・verdict と相乗り）
+REJUDGE_WHERE = "判定（再審の結果）"           # 次の run の依頼の再審の結果の行の where
+# 直しが対象に書く文に混じってはいけない works の内側の語と run の中の事情の言い方（修正役の共通の決まり writerules/common.md の
+# 「対象に書く文」。利用者の run 8cb2ee00 の差分が Terraform のコメントに「この単位」「作業ツリー」を書いた）。拒まず報告に並べる
+INNER_WORDS = ("この単位", "単位の key", "作業ツリー", "盤面", "この周", "この run", "判定役", "修正役", "独立の目", "関所")
+INNER_WORD = re.compile("|".join(re.escape(w) + ("(?!辺)" if w == "この周" else "") for w in INNER_WORDS))   # 「この周辺」は除く
+INNER_WORDS_HEAD = "直しが対象に足した行に works の内側の語（対象の読み手に通じない。当てる前に言い換えるかを決める）"
+HUNK_NEW = re.compile(r"^@@ -\S+ \+(\d+)")
 
 
 # ---------------------------------------------------------------- 小道具
@@ -103,6 +114,11 @@ def _write_text(path: pathlib.Path, text: str) -> None:
 
 def _one_line(text) -> str:
     return " ".join(str(text).split())
+
+
+def _first_error(x: dict) -> str:
+    """落ちた節の行 {node, error} の誤りの文の 1 行目（無ければその旨）"""
+    return (str(x.get("error") or "").strip().splitlines() or ["（誤りの文が無い）"])[0]
 
 
 # ---------------------------------------------------------------- 次の run に渡す依頼
@@ -206,5 +222,6 @@ def freeze_lines(stages) -> list:
 
 MODEL_HEADING = promptsection.Section("## 模型", human=FOR_READERS)
 COST_HEADING = promptsection.Section("## 費用", human=FOR_READERS)
+STRUCTURE_HEADING = promptsection.Section("## 構造の目", human=FOR_READERS)
 
 

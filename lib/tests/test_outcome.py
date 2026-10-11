@@ -94,6 +94,27 @@ class TableCase(unittest.TestCase):
     def test_8_fixed(self):
         self.assertEqual(decide(), ("fixed", ""))
 
+    def test_nothing_fixed_is_not_fixed(self):
+        """判定と計画が ready なのに修正も最後のテストも無い run は直したと名乗らない"""
+        returns = fixed_run(fix=None, **{"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None})
+        self.assertEqual(decide(returns, facts={**OK_FACTS, "failed": None}), ("interrupted", "fix:chain-cut"))
+        self.assertIn("計画が修正案を出したのに修正の返りが無い", outcome.chain_notes(returns))
+
+    def test_fix_without_final_test_or_seal_is_not_fixed(self):
+        self.assertEqual(decide(fixed_run(**{"test-gate-final": None})), ("interrupted", "test-gate-final:chain-cut"))
+        self.assertEqual(decide(fixed_run(**{"merge-seal": None, "merge-apply": None})), ("interrupted", "merge-seal:chain-cut"))
+
+    def test_eyes_not_ok_without_counted_eyes_is_left(self):
+        """独立の目のブロックが ok: false で、数えた目（r1〜r4）が全部 null でも、残りに 1 行入れて fixed にしない"""
+        eyes = {**fixed_run()["eyes"], "ok": False, "r1": None}
+        self.assertEqual(decide(fixed_run(eyes=eyes)), ("round_limit", ""))
+        self.assertEqual([r["where"] for r in outcome.residue(fixed_run(eyes=eyes))], [report.EYES_WHERE])
+        eyes = {**eyes, "r3": {"status": "redesign-needed", "reason": "崩れる"}}
+        self.assertEqual([r["where"] for r in outcome.residue(fixed_run(eyes=eyes))], [f"{report.EYES_WHERE} R3"], "目の行が在れば重ねない")
+
+    def test_seal_without_ok_is_left(self):
+        self.assertEqual(decide(fixed_run(**{"merge-seal": {"mode": "seal"}})), ("round_limit", ""))
+
 
 class OrderCase(unittest.TestCase):
     def test_request_before_line_stop(self):
@@ -195,6 +216,27 @@ class ReadingCase(unittest.TestCase):
         """再審・案の直しの返りは後の段で先に読む（線と同じ）"""
         self.assertEqual(decide(fixed_run(rejudge={"ready": False, "stop_reason": "", "units": []}))[0], "no_fix_needed")
         self.assertEqual(decide(fixed_run(replan={"ready": False}))[0], "stopped_by_line")
+
+    def test_record_problems_split_must_open_from_notes(self):
+        """開けないと結果を名乗れない指し札（fix の conflicts）だけを訳に、ほかの開けなかった指し札は注意に"""
+        unopened = [("fix", "conflicts", "指し札の先 a が無い"), ("judge", "world", "指し札の先 b が無い")]
+        gates = {"gate-final": {"decision": "maybe", "text": ""}}
+        problems, notes = outcome.record_problems({}, gates, unread=["入力 plan が JSON でない"], unopened=unopened)
+        self.assertEqual(problems[:2], ["入力 plan が JSON でない", "指し札の先 a が無い"])
+        self.assertIn("'maybe'", problems[2])
+        self.assertEqual(notes, ["指し札の先 b が無い"])
+
+    def test_conflict_counts_and_asked_units(self):
+        rows = [{"unit_key": "u1", "kind": "not_red", "ruling": {"decision": "ask_human", "text": "人に"}},
+                {"unit_key": "u2", "kind": "scope_needed", "ruling": {"decision": "fix_plan_item", "text": "案を", "plan_units": ["u2", "u3"]},
+                 "replan": "gave_up", "replan_why": "案を直せなかった"},
+                {"unit_key": "u4", "ruling": {"decision": "fix_code_as", "text": "こう"}},
+                {"unit_key": "u5", "kind": "not_red", "ruling": None}]
+        returns = fixed_run(fix={**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": rows})})
+        rulings, kinds = outcome.conflict_counts(returns)
+        self.assertEqual(rulings, {"parked": 4, "unruled": 1, "fix_test_scope": 0, "fix_code_as": 1, "ask_human": 1, "fix_plan_item": 1})
+        self.assertEqual((kinds["not_red"], kinds["scope_needed"], kinds[outcome.UNSET]), (2, 1, 1))
+        self.assertEqual([k for k, _ in outcome.asked_units(returns)], ["u1", "u2", "u3"])
 
     def test_ok_outcomes(self):
         self.assertEqual(outcome.OK_OUTCOMES, ("fixed", "fixed_needs_check", "no_fix_needed"))

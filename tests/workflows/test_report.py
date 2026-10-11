@@ -124,6 +124,11 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(NODES["report"]["trigger_rule"], "all_done")
         self.assertEqual(NODES["report"]["depends_on"], ["facts", "write-loop"])
 
+    def test_cold_reader_is_told_the_machine_heading(self):
+        """初見の読み手の決まりが名指す機械の事実の見出しは、AI の報告が付ける見出しの字そのまま"""
+        text = (BLOCK / "commands" / "cold-check.md").read_text(encoding="utf-8")
+        self.assertIn(f"「{report_roles.MACHINE_HEADING.removeprefix('## ')}」", text)
+
     def test_loop_gives_up_with_the_roles_count(self):
         self.assertEqual(NODES["write-loop"]["loop_group"]["max_iterations"], report_roles.GIVE_UP_AFTER)
         self.assertIs(NODES["write-loop"]["loop_group"]["fresh_context"], False)
@@ -306,7 +311,8 @@ class AcceptScriptCase(Run):
         self.assertIs(self.accept(self.REPLY, self.REDESIGN)["done"], False)
         second = self.accept(self.REPLY, self.REDESIGN)
         self.assertIs(second["done"], False)
-        self.assertIn("2 行目", pathlib.Path(second["reason_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(second["reason_file"], "report/reject-2.md", "機械の事実のファイルと同じく run の置き場からの相対")
+        self.assertIn("2 行目", (self.artifacts / second["reason_file"]).read_text(encoding="utf-8"))
         third = self.accept(self.REPLY, self.REDESIGN)
         self.assertIs(third["done"], True)
         ai = json.loads((self.artifacts / "report" / runreport.AI_FILE).read_text(encoding="utf-8"))
@@ -348,7 +354,7 @@ class CollectScriptCase(Run):
         runreport.accept(AcceptScriptCase.REPLY, AcceptScriptCase.PASS, out_dir=self.artifacts / "report")
         out = self.collect(json.dumps(facts))
         text = (self.artifacts / out["report_ai"]["path"]).read_text(encoding="utf-8")
-        self.assertTrue(text.startswith(f"works-factory report / run {RUN}"))
+        self.assertTrue(text.startswith(f"works-factory-report / run {RUN} / 工程の版 "))
         self.assertIn(report_roles.MACHINE_HEADING, text)
 
     def test_ok_is_passed_through_from_facts(self):
@@ -366,6 +372,35 @@ class CollectScriptCase(Run):
                 out = self.collect(facts)
                 self.assertEqual((out["outcome"], out["ok"]), ("record_invalid", False))
                 self.assertTrue(out["stop_reason"].startswith("report:報告を組めなかった（"))
+
+    def test_fallen_keeps_facts_report_and_carries(self):
+        """facts の機械の報告と持ち越しの指し札が在れば、それを指して返る（facts の report.md を上書きしない）"""
+        good = self.facts()
+        machine = (self.artifacts / good["report"]["path"]).read_text(encoding="utf-8")
+        carried = json.loads(self.pointer("report/next-request.json", {"findings": []}))
+        broken = {**{k: v for k, v in good.items() if k != "stop_reason"}, "next_request": carried}
+        out = self.collect(json.dumps(broken))
+        self.assertEqual(out["outcome"], "record_invalid")
+        self.assertEqual((out["report"], out["next_request"]), (good["report"], carried))
+        self.assertEqual((self.artifacts / good["report"]["path"]).read_text(encoding="utf-8"), machine)
+
+    def test_fallen_without_facts_report_writes_another_name(self):
+        good = self.facts()
+        machine = (self.artifacts / good["report"]["path"]).read_text(encoding="utf-8")
+        out = self.collect("{壊れた")
+        self.assertEqual(out["report"]["path"], f"report/{runreport.FALLBACK_FILE}")
+        self.assertIn("報告を組めなかった", (self.artifacts / out["report"]["path"]).read_text(encoding="utf-8"))
+        self.assertEqual((self.artifacts / good["report"]["path"]).read_text(encoding="utf-8"), machine)
+
+    def test_without_lib_still_returns(self):
+        """lib/ を読めない（入口が渡した根に lib/ が無い）時も、返す節と facts は訳だけのファイルを指して 0 で返る"""
+        empty = self.dir / "empty-root"
+        empty.mkdir()
+        code, out = self.run_script("facts", WORKS_FACTORY_ROOT=str(empty))
+        self.assertEqual((code, out["outcome"], out["facts_file"]), (0, "record_invalid", f"report/{runreport.FALLBACK_FILE}"))
+        self.assertIn("ModuleNotFoundError", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
+        out = self.collect("", WORKS_FACTORY_ROOT=str(empty))
+        self.assertEqual((out["outcome"], out["report"]["path"]), ("record_invalid", f"report/{runreport.FALLBACK_FILE}"))
 
     def test_unwritable_place_is_record_invalid(self):
         good = self.facts()
