@@ -645,6 +645,19 @@ class LedgerCase(Base):
         state = runreport.ledger_state(returns, {}, {"answers": [{"question": FORK_UNIT, "text": "例外"}]})
         self.assertEqual(len(state["held"]), 2)
 
+    def test_answers_that_answer_nothing_are_named(self):
+        """元 gatemarks.unmatched_answer_lines: 当たる問いが無い・複数に当たる・決着済みの問いに当たった依頼の答えは、答えた扱いに
+        せず黙って捨てもしない"""
+        done = {**FORK, "key": "q-done", "origin": "z", "status": "resolved"}
+        twin = {**FORK, "key": "q-twin", "status": "escalate"}
+        answers = [{"question": "q-none", "text": "a"}, {"question": FORK_UNIT, "text": "b"}, {"question": "q-done", "text": "c"}]
+        state = runreport.ledger_state(self.returns(FORK, twin, done), {}, {"answers": answers})
+        self.assertEqual(state["answered"], [])
+        self.assertEqual(state["unmatched"], [
+            "依頼の答えに当たる問いが台帳に無い（判定が問いを立てなかったか、字が違う）: q-none——依頼者の答え: a",
+            f"依頼の答えが複数の問いに当たった: {FORK_UNIT} → q-empty-mean・q-twin（どれにも答えた扱いにしない。question に問いの key を書く）——依頼者の答え: b",
+            "決着済みの問いに当たった答え: q-done → q-done（resolved）（答えは直しに使わない）——依頼者の答え: c"])
+
     def test_answered_but_unit_gone_is_held(self):
         returns = self.returns(FORK, units=[], review=[gatemarks.ask_text(FORK)])
         state = runreport.ledger_state(returns, {"gate-before-fix": {"decision": "continue", "text": ""}}, {"run_id": RUN})

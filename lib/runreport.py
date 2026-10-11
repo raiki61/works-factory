@@ -225,11 +225,13 @@ def _gate_asked(returns: dict, q: dict) -> bool:
 
 def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
     """問いの台帳の読み（元 gatemarks の held_lines・answered_lines・withheld・returned を返りと始めの記録で書き直した物）:
-    {held: [(問い（直す単位に入れられなかった行は None）, 行)], answered: [行], drafts: [(保留の問い, answer_key)]}。関所に載る問いは fork と escalate だけで、答えたのは依頼の answers が
+    {held: [(問い（直す単位に入れられなかった行は None）, 行)], answered: [行], unmatched: [行], drafts: [(保留の問い, answer_key)]}。関所に載る問いは fork と escalate だけで、答えたのは依頼の answers が
     この問いだけに当たるか、修正前の関所が通す語を受けてこの問いの行を聞き、一言が「保留: <key>」と名指していない物。保留の行は
     答えが無いと直さない単位と、答える時の answers の question（answer_key）を後ろに持ち、関所で答えたが今の判定の単位に無い出どころ
-    （直す義務に戻せなかった単位）の行も並べる。答えた行は答えの出どころ（依頼者の答えか関所の continue）を名乗る"""
-    qs = oc.ledger(returns)
+    （直す義務に戻せなかった単位）の行も並べる。答えた行は答えの出どころ（依頼者の答えか関所の continue）を名乗り、どの問いにも
+    答えなかった依頼の答え（元 gatemarks.unmatched_answer_lines。判定の answer_ties の結びは返りに無いので字の一致だけ）も並べる"""
+    every = oc.questions(returns)
+    qs = [q for q in every if q.get("status") in oc.ASKING]
     missing = oc.unmeasured(returns)
     answers = _request_answers(start)
     units = {u.get("id") for u in _list(_ret(returns, "judge").get("units")) if isinstance(u, dict)}
@@ -237,7 +239,7 @@ def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
     held_keys = gatemarks.hold_keys(str(gate.get("text") or ""), {str(q.get("key")) for q in qs if q.get("key")})
 
     def request_answer(q):
-        return next((a for a in answers if (h := oc.answer_binds(qs, a, missing)) and len(h) == 1 and h[0] is q), None)
+        return next((a for a in answers if (h := oc.answer_binds(every, a, missing)) and len(h) == 1 and h[0] is q), None)
 
     def asked(q):
         return q.get("kind") == "fork" or q.get("status") == "escalate"
@@ -248,7 +250,7 @@ def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
 
     def answer_key(q):
         name = oc.origin_of(q, missing)
-        return name if name in missing and oc.answer_binds(qs, {"question": name}, missing) == [q] else str(q.get("key") or "")
+        return name if name in missing and oc.answer_binds(every, {"question": name}, missing) == [q] else str(q.get("key") or "")
     pending = [q for q in qs if asked(q) and not answered(q)]
     back = {k for q in qs if asked(q) and answered(q) for k in gatemarks._skips(q) if k in units}
     withheld = {k for q in pending for k in gatemarks._skips(q) if k not in back}
@@ -265,7 +267,20 @@ def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
             how = (f"{gatemarks.HAND_CHECKED}。残りに数えない" if gatemarks._measured(a)
                    else "command と output が無いので測りの代わりにせず、測れていないまま残りに数える")
             done.append(f"素材 {n}（{st}）: {how}——{gatemarks.answer_note(a)}")
-    return {"held": held, "answered": done,
+    unmatched = []
+    for a in answers:
+        hits, note = oc.answer_binds(every, a, missing), gatemarks.answer_note(a)
+        if not hits and a.get("question") in missing:
+            continue
+        if not hits:
+            unmatched.append(f"依頼の答えに当たる問いが台帳に無い（判定が問いを立てなかったか、字が違う）: {a.get('question')}——{note}")
+        elif len(hits) > 1:
+            unmatched.append(f"依頼の答えが複数の問いに当たった: {a.get('question')} → {'・'.join(str(q.get('key')) for q in hits)}"
+                        f"（どれにも答えた扱いにしない。question に問いの key を書く）——{note}")
+        elif hits[0] not in qs:
+            unmatched.append(f"決着済みの問いに当たった答え: {a.get('question')} → {hits[0].get('key')}（{hits[0].get('status')}）"
+                        f"（答えは直しに使わない）——{note}")
+    return {"held": held, "answered": done, "unmatched": unmatched,
             "drafts": [(q, answer_key(q)) for q in qs if not answered(q)]}
 
 
@@ -712,6 +727,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     if done:
         lines.append(f"{gatemarks.ANSWERED_HEAD}（問いの台帳・{len(done)} 件。保留の件数には数えない）:")
         lines += [f"  - {x}" for x in done]
+    lines += ledger["unmatched"]
     counted = [(w, len(i)) for w, i in parts if i]
     decide = (f"{sum(n for _, n in counted)} 件——" + "・".join(f"{w} {n} 件" for w, n in counted) + f"（下の「{report.DECISIONS_HEADING.lstrip('# ')}」）"
               if counted else "")

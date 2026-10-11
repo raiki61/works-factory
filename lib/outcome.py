@@ -19,7 +19,8 @@
   人に回した行・案の直しを待つ行・裁定と種類の内訳
 - materials(returns)・unmeasured(returns)・measured_materials(returns, answers): 判定の隣の素材の状態と、今の周に測れていない素材
   {名: status}と、そのうち依頼の答えが命令と出力つきで答えた素材
-- ledger(returns)・answer_binds(questions, answer, missing)・origin_of(question, missing): 問いの台帳で人に聞く状態の問いと、依頼の答えの当て方
+- questions(returns)・ledger(returns)・answer_binds(questions, answer, missing)・origin_of(question, missing): 問いの台帳の全部と
+  人に聞く状態の問いと、依頼の答えの当て方
 - unknown_answers(gates) -> 通しにも止めにも数えない答えの語の行
 """
 from __future__ import annotations
@@ -232,15 +233,20 @@ def unmeasured(returns: dict) -> dict:
     return {n: m["status"] for n, m in doc.items() if isinstance(m, dict) and m.get("status") in UNMEASURED}
 
 
-def ledger(returns: dict) -> list:
-    """判定の judgment の問いの台帳のうち人に聞く状態の問い（読めない・無ければ空）"""
+def questions(returns: dict) -> list:
+    """判定の judgment の問いの台帳の全部（読めない・無ければ空。依頼の答えはこの全部に当てる）"""
     jf = as_dict(judged(returns)).get("judgment")
     try:
         doc = read_json(jf) if isinstance(jf, str) and jf else {}
     except (OSError, ValueError):
         return []
     qs = as_dict(doc).get("questions")
-    return [q for q in qs if isinstance(q, dict) and q.get("status") in ASKING] if isinstance(qs, list) else []
+    return [q for q in qs if isinstance(q, dict)] if isinstance(qs, list) else []
+
+
+def ledger(returns: dict) -> list:
+    """問いの台帳のうち人に聞く状態の問い"""
+    return [q for q in questions(returns) if q.get("status") in ASKING]
 
 
 def origin_of(q: dict, missing: dict) -> str:
@@ -266,7 +272,7 @@ def material_answer(returns: dict, answers: list, name: str) -> dict | None:
     missing = unmeasured(returns)
     if name not in missing:
         return None
-    qs = ledger(returns)
+    qs = questions(returns)
     return next((a for a in answers if isinstance(a, dict) and a.get("question") == name and len(answer_binds(qs, a, missing)) <= 1),
                 None)
 
