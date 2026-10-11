@@ -865,13 +865,31 @@ def take(jdir, reply, repo, base_rev: str = "", *, prev_deletions=None, prev_que
     return core_accept.guard(run, open_units=[], judgment_file="")
 
 
-def accept(jdir, raw: str, repo, base_rev: str = "") -> dict:
-    """元 works/blk-judge/lib/judgetake.py:106。役の返答の字 raw を読んで take に通す（元 rolekit.accept_role の読み）。
-    返り {ok, reason, open_units, judgment_file}。done（3 回目の拒否で輪を抜ける旗）は呼び手が rolekit.with_done で足す"""
+def accept_round(board, name: str, raw, take, *, reject=None, on_give_up=None) -> dict:
+    """受け付けの輪の 1 回（元 rolekit.main_accept）。役の返答の字 raw を読み（rolekit.parse_reply）、take(reply) に通す。読めない
+    返答と take の中の例外は reject(理由) で拒否にする（既定は {ok: False, reason}。受け付けは落ちない）。拒否は
+    board/rejects-<name>.json に積み（rolekit.with_done）、3 回目で done。諦めた時は on_give_up() を呼ぶ。
+    返り take の返りに done を足した物。拒否の控えが扱えなければ done 真の拒否"""
+    reject = reject or (lambda why: {"ok": False, "reason": why})
     reply, why = rolekit.parse_reply(raw)
-    if reply is None:
-        return {"ok": False, "reason": why, "open_units": [], "judgment_file": ""}
-    return take(jdir, reply, repo, base_rev)
+    try:
+        got = take(reply) if reply is not None else reject(why)
+    except Exception as e:  # noqa: BLE001
+        got = reject(f"受け付けの中で例外（{type(e).__name__}: {e}）")
+    try:
+        out = {**got, **rolekit.with_done(board, name, {"ok": got.get("ok") is True, "reason": str(got.get("reason") or "")})}
+        if out["done"] and not out["ok"] and on_give_up:
+            on_give_up()
+    except Exception as e:  # noqa: BLE001
+        out = {**got, "ok": False, "done": True, "reason": f"拒否の控えが扱えない（{type(e).__name__}: {e}）"}
+    return out
+
+
+def accept(jdir, raw: str, repo, base_rev: str = "") -> dict:
+    """元 works/blk-judge/lib/judgetake.py:106。節 diagnose-accept の中身: 判定役の返答を take に通す（accept_round）。返り
+    {ok, done, reason, open_units, judgment_file}。諦めたら止めの控えを置く（_give_up）"""
+    return accept_round(jdir, DIAGNOSE_ROLE, raw, lambda reply: take(jdir, reply, repo, base_rev),
+                        on_give_up=lambda: _give_up(jdir))
 
 
 def _give_up(jdir) -> dict:
@@ -3525,12 +3543,8 @@ def pr_accept(jdir, raw, repo) -> dict:
     works/blk-pr/scripts/collect.py:20 の gave_up（3 回とも拒まれたら止める。by は stopby.PR）の書き直し。返り {ok, done, reason}。
     拒否は judge/rejects-pr-check.json に積み（rolekit.with_done）、諦めた時は止めの控えを置く（write_stop）"""
     jdir = pathlib.Path(jdir)
-    reply, why = rolekit.parse_reply(raw)
-    out = prcheck_take(jdir, reply, repo) if reply is not None else {"ok": False, "reason": why}
-    out = rolekit.with_done(jdir, prcheck.ROLE, {"ok": out["ok"], "reason": out["reason"]})
-    if out["done"] and not out["ok"]:
-        write_stop(jdir, stopby.PR, rolekit.given_up_reason(jdir, prcheck.ROLE) or out["reason"])
-    return out
+    return accept_round(jdir, prcheck.ROLE, raw, lambda reply: prcheck_take(jdir, reply, repo),
+                        on_give_up=lambda: write_stop(jdir, stopby.PR, rolekit.given_up_reason(jdir, prcheck.ROLE)))
 
 
 # ---------------------------------------------------------------- 世界の解
@@ -3583,17 +3597,15 @@ def world_accept(jdir, role: str, raw, *, get=None) -> dict:
     の両方に積む。get は web の役の抜き書きを取り直す口（既定は worldblk.fetch。試験が差し替える）。諦めても run は止めない"""
     jdir = pathlib.Path(jdir)
     out, inner = world_dir(jdir), WORLD_ROLES[role]
-    reply, why = rolekit.parse_reply(raw)
-    try:
-        if reply is None:
-            got = worldblk._close_round(out, inner, [why])
-        elif role == "world-classes":
-            got = worldblk.classes_accept(out, reply)
-        else:
-            got = worldblk.judge_accept(out, reply, get or worldblk.fetch)
-    except (ValueError, OSError) as e:
-        got = worldblk._close_round(out, inner, [f"置き場の控えが読めない: {e}"])
-    return rolekit.with_done(jdir, role, {"ok": got["ok"], "reason": got["reason"]})
+
+    def take(reply):
+        try:
+            if role == "world-classes":
+                return worldblk.classes_accept(out, reply)
+            return worldblk.judge_accept(out, reply, get or worldblk.fetch)
+        except (ValueError, OSError) as e:
+            return worldblk._close_round(out, inner, [f"置き場の控えが読めない: {e}"])
+    return accept_round(jdir, role, raw, take, reject=lambda why: worldblk._close_round(out, inner, [why]))
 
 
 def world_plan(jdir) -> dict:

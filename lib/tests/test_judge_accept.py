@@ -1588,6 +1588,15 @@ class WPrAcceptCase(_WPrBase):
         self.assertEqual(len(json.loads((self.jdir / "rejects-pr-check.json").read_text(encoding="utf-8"))), 3)
         self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], stopby.PR)
 
+    def test_third_rejection_by_exception_also_stops(self):
+        """受け付けの中の例外（conflicts[].note が字でない）も拒否として数え、3 回目で止めの控えを置く"""
+        bad = dict(_W_PR_OK, conflicts=[dict(_W_PR_OK["conflicts"][0], note=5)])
+        for n in range(1, rolekit.GIVE_UP_AFTER + 1):
+            got = self.accept(bad)
+            self.assertEqual((got["ok"], got["done"]), (False, n == rolekit.GIVE_UP_AFTER), n)
+        self.assertIn("例外", got["reason"])
+        self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], stopby.PR)
+
 
 # 元 works/tests/test_blk_world.py の見本
 _W_URL = "https://example.org/guide/tdd"

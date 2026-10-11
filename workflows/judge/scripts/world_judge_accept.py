@@ -11,10 +11,4 @@ import judge_accept as ja  # noqa: E402
 
 jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
 jdir.mkdir(parents=True, exist_ok=True)
-raw = os.environ.get("INPUTS_REPLY", "")
-try:
-    out = ja.world_accept(jdir, "world-judge", raw)
-except Exception as e:  # noqa: BLE001  （受け付けは落ちない）
-    import rolekit  # noqa: E402
-    out = rolekit.with_done(jdir, "world-judge", {"ok": False, "reason": f"受け付けが落ちた（{type(e).__name__}: {e}）"})
-boundary.returns({"ok": out["ok"], "done": out["done"], "reason": out["reason"]})
+out = ja.world_accept(jdir, "world-judge", os.environ.get("INPUTS_REPLY", ""))
