@@ -4,8 +4,8 @@
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
 
 - ASF の消費者 factory/consumer.py は木に在るので常に照らす。
-- 止めた Archon の源は、place.archon_source に渡した置き場（環境変数 WORKS_FACTORY_ARCHON_CACHE）の
-  <置き場>/archon/<factory/pack.json の integration_revision_required>/ に取り置き済みの時だけ照らす。試験の中では取りに行かない。
+- 止めた Archon の源は、環境変数 WORKS_FACTORY_ARCHON_CACHE を cache にして place.archon_source が取り置き済みと
+  照らした時だけ照らす。試験の中では取りに行かない。
 """
 import os
 import pathlib
@@ -78,6 +78,10 @@ def _min_path_length() -> int:
 def _ts_chars(literal: str) -> set[str]:
     """TS の字の並び（'\\\\'・'\\0' などのエスケープ）を字の集まりに戻す"""
     return set(literal.encode().decode("unicode_escape"))
+
+
+def _no_fetch(*_: Any) -> None:
+    raise FileNotFoundError("取り置かれていない（試験の中では取りに行かない）")
 
 
 def _workflow_run_shape() -> list[str]:
@@ -164,9 +168,10 @@ class ArchonContractTest(ContractTest):
         cache = os.environ.get(CACHE_ENV)
         if not cache:
             self.skipTest(f"Archon の源が無い: 置き場の環境変数 {CACHE_ENV} が無い")
-        source = pathlib.Path(cache) / "archon" / pack.load(ROOT)["archon"]["commit"]
-        if not source.is_dir():
-            self.skipTest(f"Archon の源が無い: {source}")
+        try:
+            source = place.archon_source(pack.load(ROOT), pathlib.Path(cache), fetch=_no_fetch, install=_no_fetch)
+        except RuntimeError as error:
+            self.skipTest(f"Archon の源が無い: {error}")
         self.check(source, ARCHON_ROWS)
 
 
