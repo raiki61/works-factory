@@ -23,8 +23,7 @@ try:
     protected = read(eyes / "protected.json")
     prep = read(eyes / "prep.json")
     if prep is None:
-        hits = (protected or {}).get("hits") or [eyeverdict.PROTECTED_UNKNOWN_ROW + "守りのパスの節が落ちた"]
-        out = eyeverdict.unverified("支度の節（prep か、その前の直しの後の実測）が落ちた", hits)
+        out = eyeverdict.unverified("支度の節（prep か、その前の直しの後の実測）が落ちた", protected)
     else:
         design_ptr = json.loads(os.environ["INPUTS_DESIGN"])
         answer = json.loads(os.environ["INPUTS_ANSWERS"])
@@ -35,6 +34,5 @@ try:
             protected=protected,
             passed=eyeverdict._human_passed(json.loads(os.environ["INPUTS_PLAN_QUESTIONS"]), answer))
 except Exception as e:  # noqa: BLE001  返す節は落ちない（落ちると線が先へ進めない）
-    hits = protected.get("hits") if isinstance(protected, dict) and isinstance(protected.get("hits"), list) else []
-    out = eyeverdict.unverified(f"出口が落ちた: {type(e).__name__}: {e}", hits)
+    out = eyeverdict.unverified(f"出口が落ちた: {type(e).__name__}: {e}", protected)
 boundary.returns(out)

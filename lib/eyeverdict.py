@@ -8,7 +8,8 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
   それを外す照らし
 - prompt_texts(...): 目の指示書に差し込む文
 - read_design(path): 独立設計の控え（無ければ {"missing": 訳}）
-- fell_text(fell, ran)・collect(...)・unverified(reason, protected_hits): ブロックの返り
+- premise_reason(design): 独立設計が問いが立たないとした訳
+- fell_text(fell, ran)・collect(...)・unverified(reason, protected): ブロックの返り
 """
 from __future__ import annotations
 
@@ -48,6 +49,10 @@ def r2_compare_due(design_doc: dict, purpose_text: str) -> bool:
 def r2_premise_invalid(design_doc: dict) -> bool:
     """元 同 :1248（記録の reviews.R2.status == premise-invalid。立てたのは独立設計の question_stands: false）"""
     return "missing" not in design_doc and design_doc.get("question_stands") is False
+
+
+def premise_reason(design_doc: dict) -> str:
+    return design_doc.get("premise_invalid_reason") or design_doc.get("reason") or ""
 
 
 def changed_files(diff_text: str) -> list[str]:
@@ -178,11 +183,18 @@ def _read_eye(eyes_dir: pathlib.Path, eye: str) -> tuple[dict | None, str]:
     return (doc, "") if isinstance(doc, dict) else (None, "返りのファイルが JSON の object でない")
 
 
-def unverified(reason: str, protected_hits: list) -> dict:
-    """目を数えられない時の返り（r1〜r4 は unverifiable、ok は false）"""
+def _protected(protected: dict | None) -> tuple[list, bool]:
+    """守りのパスの節の返り（節が落ちていれば None）から (protected_hits, 確かめられたか)。約束の形でない返りも落ちたと数える"""
+    if not isinstance(protected, dict) or not isinstance(protected.get("hits"), list):
+        return [PROTECTED_UNKNOWN_ROW + "守りのパスの節が落ちた"], False
+    return list(protected["hits"]), not protected.get("broken")
+
+
+def unverified(reason: str, protected: dict | None) -> dict:
+    """目を数えられない時の返り（r1〜r4 は unverifiable、ok は false）。protected は collect と同じ"""
     row = {"status": "unverifiable", "reason": reason}
     return {"ok": False, **{e: dict(row) for e in EYES}, "questions": [], "premise_check": None, "structure_after": None,
-            "protected_hits": list(protected_hits)}
+            "protected_hits": _protected(protected)[0]}
 
 
 def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, design: dict, after_ptr,
@@ -191,10 +203,7 @@ def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, d
     protected は守りのパスの節の返り（節が落ちていれば None）。ok は省いていない目が全部 pass で、前提の検算の道でなく、
     守りのパスを確かめられた時だけ true"""
     eyes_dir = pathlib.Path(eyes_dir)
-    if protected is None:
-        hits, guarded = [PROTECTED_UNKNOWN_ROW + "守りのパスの節が落ちた"], False
-    else:
-        hits, guarded = list(protected.get("hits") or []), not protected.get("broken")
+    hits, guarded = _protected(protected)
     out = {"ok": False, **{e: None for e in EYES}, "questions": [], "premise_check": None, "structure_after": after_ptr,
            "protected_hits": hits}
     if not run_eyes:
@@ -214,7 +223,7 @@ def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, d
         out["r2"] = {"status": "unverifiable", "reason": R2_MISSING_HEAD + str(design["missing"])}
     elif premise_due:
         out["r2"] = {"status": "unverifiable",
-                     "reason": R2_PREMISE_HEAD + (design.get("premise_invalid_reason") or design.get("reason") or "")}
+                     "reason": R2_PREMISE_HEAD + premise_reason(design)}
         check = docs.get(PREMISE)
         out["premise_check"] = ({"verdict": check["verdict"], "reason": str(check.get("reason"))}
                                 if check and check.get("verdict") in VERDICTS

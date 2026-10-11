@@ -57,6 +57,11 @@ class DueCase(unittest.TestCase):
         self.assertFalse(eyeverdict.r2_premise_invalid(MISSING))
         self.assertFalse(eyeverdict.r2_premise_invalid({"missing": "x", "question_stands": False}))
 
+    def test_premise_reason_prefers_the_named_field_then_the_reason(self):
+        self.assertEqual(eyeverdict.premise_reason(FALLS), FALLS["premise_invalid_reason"])
+        self.assertEqual(eyeverdict.premise_reason({"question_stands": False, "reason": "立たない"}), "立たない")
+        self.assertEqual(eyeverdict.premise_reason({}), "")
+
 
 class ScalarsCase(unittest.TestCase):
     def test_counts_lines_and_files_from_the_diff(self):
@@ -239,12 +244,21 @@ class CollectCase(unittest.TestCase):
         self.assertTrue(got["ok"])
 
     def test_unverified_fills_the_contract_shape(self):
-        got = eyeverdict.unverified("支度の節が落ちた", ["x"])
+        got = eyeverdict.unverified("支度の節が落ちた", {"hits": ["x"], "lines": [], "broken": ""})
         self.assertEqual(set(got), set(eyeverdict.RETURN_FIELDS))
         self.assertFalse(got["ok"])
         self.assertEqual([got[k]["status"] for k in ("r1", "r2", "r3", "r4")], ["unverifiable"] * 4)
         self.assertEqual((got["questions"], got["premise_check"], got["structure_after"], got["protected_hits"]),
                          ([], None, None, ["x"]))
+
+    def test_unverified_keeps_a_clean_protected_check_empty(self):
+        self.assertEqual(eyeverdict.unverified("支度の節が落ちた", OK_PROTECTED)["protected_hits"], [])
+
+    def test_unverified_fallen_or_malformed_protected_is_a_hit(self):
+        for protected in (None, [], {"hits": "pack.json"}):
+            with self.subTest(protected=protected):
+                hits = eyeverdict.unverified("出口が落ちた", protected)["protected_hits"]
+                self.assertTrue(hits[0].startswith(eyeverdict.PROTECTED_UNKNOWN_ROW), hits)
 
 
 class DesignReadCase(unittest.TestCase):

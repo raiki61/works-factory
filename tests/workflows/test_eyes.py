@@ -347,6 +347,13 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(got["protected_hits"], ["pack.json"])
         self.assertTrue(got["ok"])
 
+    def test_verdict_without_prep_keeps_a_clean_protected_check_empty(self):
+        self.eye_file("protected", {"hits": [], "lines": [], "broken": ""})
+        got = self.run_script("verdict")
+        self.assertEqual(got["protected_hits"], [])
+        self.assertEqual(got["r1"]["status"], "unverifiable")
+        self.assertFalse(got["ok"])
+
     def test_protected_broken_is_a_hit(self):
         self.start(base_rev="0" * 40)
         got = self.run_script("protected")

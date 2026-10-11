@@ -43,7 +43,7 @@ out = {
     "premise_due": eyeverdict.r2_premise_invalid(design),
     "purpose_text": purpose_text,
     "design_text": design.get("design") or "",
-    "premise_invalid_reason": design.get("premise_invalid_reason") or design.get("reason") or "",
+    "premise_invalid_reason": eyeverdict.premise_reason(design),
     "diff_file": str(diff_file),
     "diff_lines": len(diff_text.splitlines()),
     "changed_files": "、".join(eyeverdict.changed_files(diff_text)),
