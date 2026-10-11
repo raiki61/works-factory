@@ -5,7 +5,8 @@
     "repo": "coleam00/Archon",
     "release": "v0.11.1",
     "assets": {
-      "archon-darwin-arm64": "b9338474fd3151d5d5402d76ae278105e65835f2e3506a93f0e5e4a378d10ede"
+      "archon-darwin-arm64": "b9338474fd3151d5d5402d76ae278105e65835f2e3506a93f0e5e4a378d10ede",
+      "archon-linux-x64": "81ee5feaf4e6c8de19903a6c1252743228d235bbedb818dbee045b21df49d59d"
     }
   },
   "asf": {
