@@ -15,12 +15,13 @@ inputs:
   depth: {required: true, description: "$redepth.output.depth（単位ごとの深さ。JSON の配列）"}
   design: {required: true, description: "$plan-review.output.design（design.json の指し札）"}
   diff: {required: true, description: "$fix.output.diff（累積差分の指し札）"}
-  changed: {required: true, description: "$fix.output.changed（修正の印。JSON の object）"}
+  changed: {required: true, description: "$fix.output.changed（修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む）"}
   fix_units: {required: true, description: "$fix.output.units（単位ごとの結末。JSON の配列）"}
   green_ok: {required: true, description: "$test-gate-final.output.ok"}
   start: {default: "null", description: "$start.output.record（始めの記録の指し札）"}
   plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の関所で聞いた行）"}
   answers: {default: "null", description: "{ from: $gate-before-fix.output, if_skipped: null }（修正前の関所の答え）"}
+  x_scalars: {default: "null", description: "$fix.output.x_scalars（修正役が足した x_ の規模の数値。JSON の object）"}
 
 returns: verdict
 outcome_field: ok
@@ -56,16 +57,17 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [run_eyes, compare_due, premise_due, purpose_text, design_text, premise_invalid_reason, diff_file, diff_lines,
-                 changed_files, scalars, cwd, base_rev, review_md, policy_path, r1_head, r3_head, concept_map, candidates_file,
-                 judgment_file, units_text, fixes_text, premises_text, carried, r4_context, green_line]
+      required: [run_eyes, compare_due, premise_due, purpose_text, design_text, design_reply, diff_file, diff_lines,
+                 changed_files, scalars, cwd, base_rev, review_md, repo_review_md, policy_path, lang_line, r1_head, r3_head,
+                 concept_map, candidates_file, judgment_file, units_text, fixes_text, constraints_text, premises_text, carried,
+                 r4_context, green_line]
       properties:
         run_eyes: {type: boolean}
         compare_due: {type: boolean}
         premise_due: {type: boolean}
         purpose_text: {type: string}
         design_text: {type: string}
-        premise_invalid_reason: {type: string}
+        design_reply: {type: string}
         diff_file: {type: string}
         diff_lines: {type: integer}
         changed_files: {type: string}
@@ -73,7 +75,9 @@ nodes:
         cwd: {type: string}
         base_rev: {type: string}
         review_md: {type: string}
+        repo_review_md: {type: string}
         policy_path: {type: string}
+        lang_line: {type: string}
         r1_head: {type: string}
         r3_head: {type: string}
         concept_map: {type: string}
@@ -81,6 +85,7 @@ nodes:
         judgment_file: {type: string}
         units_text: {type: string}
         fixes_text: {type: string}
+        constraints_text: {type: string}
         premises_text: {type: string}
         carried: {type: string}
         r4_context: {type: string}
@@ -190,6 +195,8 @@ nodes:
     settingSources: [user]
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
     allowed_tools: [Read]
+    # 元の旗 isolated（Git の外で起こし、git status の写しを system prompt に入れない）。既定の claude_code の system prompt を替える
+    systemPrompt: お前は独立の目の 1 つ（R2 の比較役）。指示は依頼の本文に全部在る。道具は Read だけで、開いてよいのは本文が名指す累積差分のファイルだけ。
     mutates_checkout: false
     idle_timeout: 1728000000
     retry: {max_attempts: 2, on_error: all}

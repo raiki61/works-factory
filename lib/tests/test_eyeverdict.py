@@ -2,7 +2,8 @@
 
 場の出どころ（今の works 2aa7c66c の works/tests/）:
 - R4 の問いから人が通した行を外す: test_plan_gate.py の R4GateCase・test_gate_drafts.py の R4PushTailCase（盤面でなく値で写す）
-- 落ちた筋の文: test_blk_eyes_lanes.py の fell_text の場
+- 落ちた筋: test_blk_eyes_lanes.py の FallenLaneCase（R1・R2 の筋が落ちても R4 を回し、落ちた筋を名指す）と fell_text の場
+- 『渡されていない』の照らし: test_blk_eyes.py の claims_given の場（design の試験）を、出口が控えに並べる所で写す
 """
 import json
 import pathlib
@@ -17,6 +18,8 @@ if str(LIB) not in sys.path:
 
 import eyeverdict  # noqa: E402
 import gatemarks  # noqa: E402
+import seal  # noqa: E402
+from tests.bin.gitkit import git  # noqa: E402
 
 STANDS = {"question_stands": True, "reason": "問いは立つ", "design": "設計の本文"}
 FALLS = {"question_stands": False, "reason": "問いが立たない", "premise_invalid_reason": "既存の機構で満たされている"}
@@ -88,6 +91,29 @@ class ScalarsCase(unittest.TestCase):
         self.assertIn("unmeasured", got)
         self.assertIn("測れなかった", eyeverdict.scalars_text(got))
 
+    def test_fix_x_scalars_are_added(self):
+        got = eyeverdict.scalars(DIFF, {"x_endpoints": 2})
+        self.assertEqual(got["x_endpoints"], 2)
+        self.assertEqual(got["added_lines"], 3)
+        self.assertIn("x_endpoints 2", eyeverdict.scalars_text(got))
+
+    def test_part_measured_returns_the_measured_part(self):
+        """元の scalars と同じく、測れた値は返し、測れなかった訳を並べる（全部を捨てない）"""
+        got = eyeverdict.scalars("これは差分でない", {"x_endpoints": 2})
+        self.assertEqual(got["x_endpoints"], 2)
+        self.assertEqual(got["unmeasured"], ["累積差分が git の差分の形でない"])
+        text = eyeverdict.scalars_text(got)
+        self.assertIn("x_endpoints 2", text)
+        self.assertIn("測れなかった: 累積差分が git の差分の形でない", text)
+
+    def test_x_scalars_outside_the_graph_shape_are_named(self):
+        got = eyeverdict.scalars(DIFF, {"x_ok": 1, "endpoints": 2, "x_flag": True})
+        self.assertEqual(got["x_ok"], 1)
+        self.assertNotIn("endpoints", got)
+        self.assertNotIn("x_flag", got)
+        self.assertIn("endpoints・x_flag", got["unmeasured"][0])
+        self.assertIn("object でない", eyeverdict.scalars(DIFF, [1])["unmeasured"][0])
+
 
 class HumanPassedCase(unittest.TestCase):
     QUESTIONS = [NARROW, "事前審査の穴 [policy] k: 方針の第 2 項とぶつかる", "問いの台帳の問い q1: どちらにするか"]
@@ -103,24 +129,47 @@ class HumanPassedCase(unittest.TestCase):
             with self.subTest(answer):
                 self.assertEqual(eyeverdict._human_passed(self.QUESTIONS, answer), {})
 
-    def test_push_tail_is_dropped(self):
-        """R4PushTailCase: 推しの尾の付いた問いでも、尾の無い本文で照らす"""
-        got = eyeverdict._human_passed([NARROW + "／推し: continue（使う人がいない）"], {"decision": "continue", "text": ""})
-        self.assertEqual(got, PASSED)
+
+
+class R4PushTailCase(unittest.TestCase):
+    """修正前の関所で人が通した狭まりの本文は、推しの尾を外して照らす。R4 が推しの尾の無い本文を写しても聞き直さない"""
+    REC = {"answer": "continue", "note": "古い入口だけを消す範囲で通す", "why": "使う人がいないと測った"}
+
+    def test_r4_does_not_reask_when_the_asked_row_had_a_push_tail(self):
+        asked = NARROW + gatemarks._push({gatemarks.RECOMMEND: self.REC})   # 関所の項目の尾と同じ作り
+        self.assertIn("／推し", asked)
+        passed = eyeverdict._human_passed([asked], {"decision": "continue", "text": ""})
+        self.assertNotIn("推し", eyeverdict.carried_section(passed))
+        r4 = {"capability_inventory": {"fired": True, "lost": [BODY]}, "policy_conflicts": []}
+        self.assertEqual(eyeverdict.r4_gate_items(r4, passed), [])
 
 
 class R4GateCase(unittest.TestCase):
+    """修正の後の関所の問い（R4 の行）が、修正前の関所で人が通した狭まりと種類も本文も同じ行を聞き直さない。
+    元と同じく、修正前の関所の答えから _human_passed を通して照らす"""
+
+    def r4_gate(self, answer="continue", lost=(), policy=()):
+        passed = eyeverdict._human_passed([NARROW], {"decision": answer, "text": ""})
+        r4 = {"capability_inventory": {"fired": True, "lost": list(lost)}, "policy_conflicts": list(policy)}
+        return eyeverdict.r4_gate_items(r4, passed), eyeverdict.gate_passes(r4, passed)
+
     def test_r4_does_not_reask_narrow_the_human_passed(self):
-        r4 = {"capability_inventory": {"fired": True, "lost": [BODY]}, "policy_conflicts": []}
-        self.assertEqual(eyeverdict.r4_gate_items(r4, PASSED), [])
+        for word in ("continue", "approve"):
+            with self.subTest(word):
+                asked, kept = self.r4_gate(word, lost=[BODY])
+                self.assertEqual(asked, [])
+                self.assertEqual(kept, [{"node": "r4.human_gate", "round": 1, "by": "human",
+                                         "item": "R4 が BASE から消えたと見た能力: " + BODY,
+                                         "passed_at": {"node": "p2.human_gate", "round": 1}}])
 
     def test_r4_reasks_other_kind_or_unpassed(self):
-        for label, r4, passed in (
-                ("種類が違う", {"capability_inventory": {"fired": True, "lost": []}, "policy_conflicts": [BODY]}, PASSED),
-                ("通していない", {"capability_inventory": {"fired": True, "lost": [BODY]}, "policy_conflicts": []}, {}),
-                ("本文が違う", {"capability_inventory": {"fired": True, "lost": ["古い入口——別の理由"]}, "policy_conflicts": []}, PASSED)):
+        for label, kw in (("種類が違う", {"policy": [BODY]}), ("stop で答えた", {"answer": "stop", "lost": [BODY]}),
+                          ("reject で答えた", {"answer": "reject", "lost": [BODY]}),
+                          ("本文が違う", {"lost": ["古い入口——別の理由"]})):
             with self.subTest(label):
-                self.assertEqual(len(eyeverdict.r4_gate_items(r4, passed)), 1)
+                asked, kept = self.r4_gate(**kw)
+                self.assertEqual(len(asked), 1)
+                self.assertEqual(kept, [])
 
     def test_rows_carry_the_r4_heads(self):
         r4 = {"capability_inventory": {"fired": True, "lost": ["a"]}, "policy_conflicts": ["b"]}
@@ -193,16 +242,20 @@ class CollectCase(unittest.TestCase):
         self.assertTrue(got["ok"])
 
     def test_light_run_with_an_unconfirmed_protected_check_is_not_ok(self):
-        for protected in (None, {"hits": [eyeverdict.PROTECTED_UNKNOWN_ROW + "一覧が読めない"], "lines": [],
+        for protected in (None, {"hits": [seal.unknown_row("一覧が読めない")], "lines": [],
                                  "broken": "一覧が読めない"}):
             with self.subTest(protected=protected):
                 self.assertFalse(self.collect(run_eyes=False, compare_due=False, protected=protected)["ok"])
 
-    def test_r2_not_compared_is_unverifiable_and_not_ok(self):
+    def test_r2_not_compared_names_which_input_was_missing(self):
         self.all_pass(r2=False)
-        got = self.collect(compare_due=False, premise_due=False)
-        self.assertEqual(got["r2"]["status"], "unverifiable")
-        self.assertFalse(got["ok"])
+        for label, design, why in (("目的の文が空", STANDS, eyeverdict.R2_NO_PURPOSE),
+                                   ("問いが立つかの欄が無い", {"reason": "書いていない", "design": "設計"}, eyeverdict.R2_NO_STANDS),
+                                   ("問いが立つかの欄が真偽でない", {"question_stands": "yes"}, eyeverdict.R2_NO_STANDS)):
+            with self.subTest(label):
+                got = self.collect(design=design, compare_due=False, premise_due=False)
+                self.assertEqual(got["r2"], {"status": "unverifiable", "reason": why})
+                self.assertFalse(got["ok"])
 
     def test_any_redesign_eye_is_not_ok(self):
         for eye in eyeverdict.EYES:
@@ -218,6 +271,16 @@ class CollectCase(unittest.TestCase):
         self.assertEqual(got["r1"]["status"], "unverifiable")
         self.assertTrue(got["r1"]["reason"].startswith("R1 " + eyeverdict.FELL_MARK), got["r1"]["reason"])
         self.assertIn("R4 を回した", got["r1"]["reason"])
+        self.assertFalse(got["ok"])
+
+    def test_fallen_r2_lane_still_runs_r4_and_is_named(self):
+        """FallenLaneCase: R2 の筋（比較役）が落ちても R4 は回り、r2 が落ちた筋を名指す"""
+        self.all_pass()
+        (self.dir / "r2.json").unlink()
+        got = self.collect()
+        self.assertEqual(got["r2"]["status"], "unverifiable")
+        self.assertTrue(got["r2"]["reason"].startswith("R2 " + eyeverdict.FELL_MARK + "まま R4 を回した"), got["r2"]["reason"])
+        self.assertEqual(got["r4"]["status"], "pass")
         self.assertFalse(got["ok"])
 
     def test_unreadable_eye_file_is_unverifiable(self):
@@ -246,7 +309,8 @@ class CollectCase(unittest.TestCase):
         self.all_pass(r2=False)
         got = self.collect(design=FALLS, compare_due=False, premise_due=True)
         self.assertEqual(got["premise_check"]["verdict"], "escalate")
-        self.assertIn(eyeverdict.FELL_MARK, got["premise_check"]["reason"])
+        self.assertTrue(got["premise_check"]["reason"].startswith("R2 " + eyeverdict.FELL_MARK + "まま R4 を回した"),
+                        got["premise_check"]["reason"])
 
     def test_questions_drop_the_rows_the_human_passed(self):
         self.all_pass(lost=(BODY, "別の能力"))
@@ -255,7 +319,7 @@ class CollectCase(unittest.TestCase):
 
     def test_unverified_protected_is_a_hit_and_not_ok(self):
         self.all_pass()
-        row = eyeverdict.PROTECTED_UNKNOWN_ROW + "一覧が読めない"
+        row = seal.unknown_row("一覧が読めない")
         got = self.collect(protected={"hits": [row], "lines": [], "broken": "一覧が読めない"})
         self.assertEqual(got["protected_hits"], [row])
         self.assertFalse(got["ok"])
@@ -264,7 +328,7 @@ class CollectCase(unittest.TestCase):
     def test_fallen_protected_node_is_a_hit(self):
         self.all_pass()
         got = self.collect(protected=None)
-        self.assertTrue(got["protected_hits"][0].startswith(eyeverdict.PROTECTED_UNKNOWN_ROW))
+        self.assertTrue(got["protected_hits"][0].startswith(seal.UNKNOWN_HEAD))
         self.assertFalse(got["ok"])
 
     def test_protected_hits_are_carried_without_failing_the_eyes(self):
@@ -288,7 +352,7 @@ class CollectCase(unittest.TestCase):
         for protected in (None, [], {"hits": "pack.json"}):
             with self.subTest(protected=protected):
                 hits = eyeverdict.unverified("出口が落ちた", protected)["protected_hits"]
-                self.assertTrue(hits[0].startswith(eyeverdict.PROTECTED_UNKNOWN_ROW), hits)
+                self.assertTrue(hits[0].startswith(seal.UNKNOWN_HEAD), hits)
 
 
 class DesignReadCase(unittest.TestCase):
@@ -306,7 +370,7 @@ class PromptTextsCase(unittest.TestCase):
     def texts(self, **kw):
         args = {"units": [{"id": "u1", "paths": ["a.py"], "summary": "入口が古い"}],
                 "fix_units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": "直した"}],
-                "changed": {"premise_drift": False, "mechanism_changed": True}, "answer": None, "constraints": None,
+                "changed": {"premise_drift": False, "mechanism_changed": True}, "constraints": None,
                 "green_ok": True, "ripple_file": "/r/ripple.json", "world_file": "", "passed": {}, **kw}
         return eyeverdict.prompt_texts(**args)
 
@@ -324,17 +388,116 @@ class PromptTextsCase(unittest.TestCase):
             with self.subTest(green):
                 self.assertIn("認証が通っていない", self.texts(green_ok=green)["green_line"])
 
-    def test_premises_name_the_late_answer_drift_and_constraints(self):
-        got = self.texts(answer={"decision": "continue", "text": "古い入口は消してよい"}, changed={"premise_drift": True},
-                         constraints=[{"kind": "measured", "text": "1 デプロイは 2 リポジトリ"}])["premises_text"]
-        self.assertIn("古い入口は消してよい", got)
-        self.assertIn("前提のずれの申告が在る", got)
-        self.assertIn("1 デプロイは 2 リポジトリ", got)
+    def test_constraints_text_says_when_not_passed(self):
+        self.assertIn("渡っていない", self.texts()["constraints_text"])
+        self.assertIn("1 デプロイは 2 リポジトリ",
+                      self.texts(constraints=[{"kind": "measured", "text": "1 デプロイは 2 リポジトリ"}])["constraints_text"])
 
-    def test_premises_say_what_was_not_passed(self):
-        got = self.texts()["premises_text"]
-        self.assertIn("渡っていない", got)
-        self.assertIn("前提のずれの申告は無い", got)
+    def test_lang_line_keeps_keys_untranslated(self):
+        self.assertIn("依頼文の言語", eyeverdict.lang_line(""))
+        self.assertIn("English で書け", eyeverdict.lang_line("English"))
+        self.assertIn("key・enum の値", eyeverdict.lang_line(None))
+
+
+class PremiseSectionCase(unittest.TestCase):
+    """元 blk-eyes/lib/eyes.py の premise_section: 比較役の頭に、人の答え・依頼が名指した設計書の節・地図・独立設計の後の答え・
+    前提のずれの申告の本文・記録の制約を貼り、貼った物を控える"""
+    NAMED = ("### 依頼が名指した設計書の節\n\n#### docs/d.md 2 節（docs/d.md:3-4）\n\n## 2 節", [{"kind": "named_section", "what": "docs/d.md 2 節"}], [])
+    MAPPED = ("### 対象のリポジトリの地図\n\n- 地図なし", [], [{"kind": "repo_map", "what": "AGENTS.md", "why": "無い"}])
+
+    def section(self, **kw):
+        args = {"answer": {"decision": "continue", "text": "古い入口は消してよい"},
+                "changed": {"premise_drift": True, "premise_drift_note": "入口は 2 つあった"},
+                "constraints": [{"kind": "measured", "text": "1 デプロイは 2 リポジトリ"}],
+                "named": self.NAMED, "mapped": self.MAPPED, "design_seen": {"count": 0}, **kw}
+        return eyeverdict.premise_section(**args)
+
+    def test_pastes_every_premise_in_the_original_order(self):
+        text, _ = self.section()
+        heads = ["### 人の関所の答え", "### 依頼が名指した設計書の節", "### 対象のリポジトリの地図", eyeverdict.LATE_HEAD,
+                 eyeverdict.DRIFT_HEAD, eyeverdict.CONSTRAINT_HEAD]
+        self.assertEqual(sorted(heads, key=text.index), heads)
+        for want in ("古い入口は消してよい", "## 2 節", "地図なし", eyeverdict.LATE_ASK, "入口は 2 つあった", "1 デプロイは 2 リポジトリ"):
+            self.assertIn(want, text)
+
+    def test_ledger_lists_what_was_given_and_withheld(self):
+        _, ledger = self.section()
+        self.assertEqual(ledger["node"], "r2.compare")
+        self.assertEqual([g["kind"] for g in ledger["given"]], ["human_answer", "named_section", "drift", "constraint"])
+        self.assertEqual(ledger["withheld"], self.MAPPED[2])
+        self.assertEqual(len(ledger["after_design"]), 1)
+
+    def test_answers_the_design_saw_are_not_late(self):
+        text, ledger = self.section(design_seen={"count": 1})
+        self.assertEqual(ledger["after_design"], [])
+        self.assertNotIn(eyeverdict.LATE_HEAD, text)
+        text, ledger = self.section(design_seen=None)
+        self.assertNotIn("after_design", ledger)
+        self.assertNotIn(eyeverdict.LATE_HEAD, text)
+
+    def test_says_what_was_not_passed(self):
+        text, ledger = self.section(answer=None, changed=None, constraints=None)
+        self.assertNotIn("### 人の関所の答え", text)
+        self.assertIn("（修正の印が渡っていない）", text)
+        self.assertIn("premises.json が渡っていない", text)
+        text, _ = self.section(changed={"premise_drift": False})
+        self.assertIn(f"{eyeverdict.DRIFT_HEAD}\n\n（無い）", text)
+        text, _ = self.section(changed={"premise_drift": True})
+        self.assertIn("（申告の文なし）", text)
+
+
+class NamedSectionsCase(unittest.TestCase):
+    def test_request_naming_a_design_section_pastes_its_body(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = pathlib.Path(tmp)
+            git(repo, "init", "-q")
+            (repo / "docs").mkdir()
+            (repo / "docs" / "d.md").write_text("# 設計\n\n## 2 入口\n\n入口は 1 つ\n\n## 3 出口\n\n出口\n", encoding="utf-8")
+            git(repo, "add", "-A")
+            git(repo, "commit", "-q", "-m", "base")
+            text, given, withheld = eyeverdict.named_sections("`docs/d.md` の 2 節のとおりに直す", repo)
+        self.assertIn("入口は 1 つ", text)
+        self.assertNotIn("出口\n", text.split("入口は 1 つ")[1])
+        self.assertEqual(given, [{"kind": "named_section", "what": "docs/d.md 2 節"}])
+        self.assertEqual(withheld, [])
+
+    def test_no_request_file_is_named_not_empty(self):
+        text, given, withheld = eyeverdict.named_sections(None, ".")
+        self.assertIn("依頼のファイルが渡っていない", text)
+        self.assertEqual(given, [])
+        self.assertEqual(withheld[0]["why"], "依頼のファイルが渡っていない")
+
+
+class WriteNotesCase(unittest.TestCase):
+    """最後の関所に出す材料: R2 の 2 つの役に渡した前提の控え・比較役の『渡されていない』の文とその照らし・人が通した行"""
+
+    def test_writes_premise_inputs_and_gate_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            eyes = pathlib.Path(tmp)
+            ledger = {"node": "r2.compare", "given": [{"kind": "repo_map", "what": "AGENTS.md:1-3"}], "withheld": []}
+            (eyes / eyeverdict.R2_PREMISES).write_text(json.dumps(ledger, ensure_ascii=False), encoding="utf-8")
+            (eyes / "r2.json").write_text(json.dumps({"status": "pass", "reason": "地図が渡されていない。構造は同じ",
+                                                      "differences": [{"kind": "表現", "text": "名が違う"}]}, ensure_ascii=False),
+                                          encoding="utf-8")
+            (eyes / "r4.json").write_text(json.dumps({"capability_inventory": {"fired": True, "lost": [BODY]}}, ensure_ascii=False),
+                                          encoding="utf-8")
+            design_ledger = {"given": [], "withheld": [], "seen": {"count": 0}}
+            eyeverdict.write_notes(eyes, design_ledger=design_ledger, passed=PASSED)
+            notes = json.loads((eyes / eyeverdict.PREMISE_INPUTS).read_text(encoding="utf-8"))
+            passes = json.loads((eyes / eyeverdict.GATE_PASSES).read_text(encoding="utf-8"))
+        self.assertEqual(notes["design"], design_ledger)
+        self.assertEqual(notes["claims"], ["地図が渡されていない"])
+        self.assertEqual(notes["compare"]["claims_given"],
+                         [{"claim": "地図が渡されていない", "kind": "repo_map", "what": "AGENTS.md:1-3"}])
+        self.assertEqual([p["item"] for p in passes], ["R4 が BASE から消えたと見た能力: " + BODY])
+
+    def test_missing_files_leave_empty_notes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            eyes = pathlib.Path(tmp)
+            eyeverdict.write_notes(eyes, design_ledger=None, passed={})
+            notes = json.loads((eyes / eyeverdict.PREMISE_INPUTS).read_text(encoding="utf-8"))
+            self.assertEqual(notes, {"design": None, "compare": None, "claims": []})
+            self.assertEqual(json.loads((eyes / eyeverdict.GATE_PASSES).read_text(encoding="utf-8")), [])
 
 
 if __name__ == "__main__":

@@ -28,10 +28,21 @@ EYE_NODES = ("r1-minimality", "r2-compare", "premise-check", "r3-coherence", "r4
 VERDICT_NODES = {f"{n}-verdict": eye for n, eye in zip(EYE_NODES, ("r1", "r2", "premise-check", "r3", "r4"))}
 sys.path.append(str(ROOT / "lib"))
 import eyeverdict  # noqa: E402
+import seal  # noqa: E402
 
 RETURN_FIELDS = ["ok", "r1", "r2", "r3", "r4", "questions", "premise_check", "structure_after", "protected_hits"]
 RUN_ID = "run-eyes-test"
-PROTECTED_UNKNOWN = "?: 守りのファイルを確かめられなかった"
+# pr-review-toolkit:comment-analyzer の定義の本文（anthropics/claude-plugins-official の ce721c1f1d5da2c281588818e072ae01a05d2e73 の
+# plugins/pr-review-toolkit/agents/comment-analyzer.md。Apache-2.0。今の works の run が読んだ物と同じ版）の sha256
+COMMENT_ANALYZER_SHA256 = "4a9c1f2eb8234a4b9231983e75739663d512e1aed242388964a165a719b84698"
+COMMENT_ANALYZER_FRONT = """---
+name: comment-analyzer
+description: Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainability. This includes (1) after generating large documentation comments or docstrings, (2) before finalizing a pull request that adds or modifies comments, (3) when reviewing existing comments for potential technical debt or comment rot, and (4) when you need to verify that comments accurately reflect the code they describe. See "When to invoke" in the agent body for worked scenarios.
+model: inherit
+color: green
+---
+
+"""
 
 # 役の返りの型の正本: 今の works（raiki61/claude-plugins の 2aa7c66cf7abe1fe09699ac2942d107123214168）の
 # works/.shared/core/graphloops/graphs/review-loop.json の各節の schema を字のまま写した物（graph はリポジトリに入れない）
@@ -149,10 +160,34 @@ class ShapeCase(unittest.TestCase):
         """持ち主の決め independent-verdict: 比較役には目的・独立設計・後で分かった前提・累積差分だけが届く"""
         self.assertNotIn("with", NODES["r2-compare"])
         text = (BLOCK / "commands" / "r2-compare.md").read_text(encoding="utf-8")
-        self.assertEqual(prep_reads(text), {"purpose_text", "design_text", "premises_text", "diff_file", "diff_lines", "changed_files"})
+        self.assertEqual(prep_reads(text), {"purpose_text", "design_text", "premises_text", "diff_file", "diff_lines", "changed_files",
+                                            "lang_line"})
         self.assertEqual(re.findall(r"\$([A-Za-z0-9_-]+)\.output", text), ["prep"] * len(re.findall(r"\$prep\.output", text)))
         self.assertNotIn("$INPUTS", text)
         self.assertNotIn("$ARTIFACTS_DIR", text)
+
+    def test_r2_compare_runs_without_the_default_system_prompt(self):
+        """元の旗 isolated: 比較役だけ、既定の claude_code の system prompt（cwd と git status の写しを持つ）を替える"""
+        self.assertTrue(ROLES["r2-compare"].get("systemPrompt", "").strip())
+        self.assertEqual([i for i, n in ROLES.items() if "systemPrompt" in n], ["r2-compare"])
+        self.assertNotIn("$", ROLES["r2-compare"]["systemPrompt"])
+
+    def test_r1_comments_carries_the_comment_analyzer_definition_verbatim(self):
+        import hashlib
+        text = (BLOCK / "commands" / "r1-comments.md").read_text(encoding="utf-8")
+        head = "## お前の役の定義（pr-review-toolkit:comment-analyzer）\n\n"
+        body = text[text.index(head) + len(head):text.index("\n\n---\n\n", text.index(head))]
+        self.assertEqual(hashlib.sha256((COMMENT_ANALYZER_FRONT + body + "\n").encode("utf-8")).hexdigest(), COMMENT_ANALYZER_SHA256)
+
+    def test_every_command_binds_the_language_and_returns_json(self):
+        for path in sorted((BLOCK / "commands").glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path.name):
+                self.assertTrue(text.rstrip().endswith("$prep.output.lang_line\n\n返すのは、この節の返りの型（JSON Schema）に合う JSON だけ。"))
+
+    def test_r3_names_the_target_repo_review_md(self):
+        self.assertIn("（対象リポジトリ側: $prep.output.repo_review_md）",
+                      (BLOCK / "commands" / "r3-coherence.md").read_text(encoding="utf-8"))
 
     def test_r4_waits_for_r1_and_r2_lanes(self):
         node = NODES["r4-scope"]
@@ -381,7 +416,7 @@ class ScriptCase(unittest.TestCase):
     def test_protected_broken_is_a_hit(self):
         self.start(base_rev="0" * 40)
         got = self.run_script("protected")
-        self.assertTrue(got["hits"][0].startswith(PROTECTED_UNKNOWN), got)
+        self.assertTrue(got["hits"][0].startswith(seal.UNKNOWN_HEAD), got)
         self.assertTrue(got["broken"])
         self.prep_file()
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
@@ -409,6 +444,38 @@ class ScriptCase(unittest.TestCase):
                 setup()
                 got = self.run_script("verdict", artifacts=artifacts)
                 self.assertFalse(got["ok"])
+
+    def test_verdict_never_fails_when_lib_cannot_be_read(self):
+        env_root = self.tmp / "no-root"
+        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
+        env.update({"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN_ID, "WORKS_FACTORY_ROOT": str(env_root)})
+        done = subprocess.run([sys.executable, str(BLOCK / "scripts" / "verdict.py")], cwd=self.repo, env=env,
+                              capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        got = json.loads(done.stdout.strip().splitlines()[-1])
+        self.assertEqual(conforms(got, NODES["verdict"]["output_format"]), [])
+        self.assertFalse(got["ok"])
+        self.assertIn("出口が落ちた", got["r1"]["reason"])
+        self.assertTrue(got["protected_hits"])
+
+    def test_verdict_writes_the_notes_for_the_final_gate(self):
+        self.prep_file()
+        self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
+        (self.artifacts / "plan-review" / eyeverdict.DESIGN_PREMISES).write_text(
+            json.dumps({"given": [], "withheld": [], "seen": {"count": 0}}), encoding="utf-8")
+        self.passing_eyes(r4_lost=("古い入口——使う人がいない",))
+        self.eye_file("r2", {"status": "pass", "reason": "人の答えが渡されていない", "differences": []})
+        self.eye_file(eyeverdict.R2_PREMISES.removesuffix(".json"), {"node": "r2.compare", "given": [{"kind": "human_answer", "what": "修正前の関所: continue"}]})
+        self.inputs["answers"] = json.dumps({"decision": "continue", "text": ""})
+        self.inputs["plan_questions"] = json.dumps(["修正案 1 が狭める能力: 古い入口——使う人がいない"], ensure_ascii=False)
+        got = self.run_script("verdict")
+        self.assertEqual(got["questions"], [])
+        notes = json.loads((self.artifacts / "eyes" / eyeverdict.PREMISE_INPUTS).read_text(encoding="utf-8"))
+        self.assertEqual(notes["design"], {"given": [], "withheld": [], "seen": {"count": 0}})
+        self.assertEqual(notes["claims"], ["人の答えが渡されていない"])
+        self.assertEqual([c["kind"] for c in notes["compare"]["claims_given"]], ["human_answer"])
+        passes = json.loads((self.artifacts / "eyes" / eyeverdict.GATE_PASSES).read_text(encoding="utf-8"))
+        self.assertEqual([p["by"] for p in passes], ["human"])
 
     def test_eye_verdict_writes_file_and_returns_row(self):
         out = {"key": "k", "assumption": "a", "assumption_false": False, "evidence": "e", "verdict": "escalate", "reason": "実測で反証できない"}
@@ -444,6 +511,28 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual((got["run_eyes"], got["compare_due"], got["premise_due"]), (True, True, False))
         self.assertEqual(got["diff_lines"], 6)
         self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), got)
+
+    def test_prep_pastes_the_premises_and_names_the_target_review_md(self):
+        self.prep_inputs()
+        (self.repo / "REVIEW.md").write_text("# 観点\n", encoding="utf-8")
+        request = self.tmp / "request.md"
+        request.write_text("`docs/d.md` の 2 節のとおりに入口を直す", encoding="utf-8")
+        self.start(policy_md="", request_file=str(request), lang="English")
+        self.inputs["answers"] = json.dumps({"decision": "continue", "text": "古い入口は消してよい"}, ensure_ascii=False)
+        self.inputs["changed"] = json.dumps({"premise_drift": True, "premise_drift_note": "入口は 2 つあった"}, ensure_ascii=False)
+        self.inputs["x_scalars"] = json.dumps({"x_endpoints": 2})
+        got = self.run_script("prep")
+        self.assertEqual(pathlib.Path(got["repo_review_md"]).resolve(), (self.repo / "REVIEW.md").resolve())
+        for want in ("古い入口は消してよい", "入口は 2 つあった", "### 対象のリポジトリの地図", "### 依頼が名指した設計書の節",
+                     "依頼が名指したが引けなかった: docs/d.md 2 節"):
+            self.assertIn(want, got["premises_text"])
+        self.assertIn("English", got["lang_line"])
+        self.assertIn("x_endpoints 2", got["scalars"])
+        self.assertEqual(json.loads(got["design_reply"])["design"], "設計の本文")
+        ledger = json.loads((self.artifacts / "eyes" / eyeverdict.R2_PREMISES).read_text(encoding="utf-8"))
+        self.assertIn("human_answer", [g["kind"] for g in ledger["given"]])
+        (self.repo / "REVIEW.md").unlink()
+        self.assertIn("無い", self.run_script("prep")["repo_review_md"])
 
     def test_prep_names_the_file_r1_comments_save_writes(self):
         self.prep_inputs()

@@ -9,8 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
-import eyeverdict  # noqa: E402
 import protect  # noqa: E402
+import seal  # noqa: E402
 
 try:
     start_ptr = json.loads(os.environ["INPUTS_START"])
@@ -19,7 +19,7 @@ try:
     out = {"hits": [r["path"] for r in rows], "lines": protect.lines(rows), "broken": ""}
 except Exception as e:  # noqa: BLE001  protect.Broken と、始めの記録が読めない時
     why = str(e) or type(e).__name__
-    out = {"hits": [eyeverdict.PROTECTED_UNKNOWN_ROW + why], "lines": [], "broken": why}
+    out = {"hits": [seal.unknown_row(why)], "lines": [], "broken": why}
 eyes = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
 eyes.mkdir(parents=True, exist_ok=True)
 (eyes / "protected.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")

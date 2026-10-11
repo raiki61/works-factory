@@ -3,13 +3,7 @@
 
 修正の返答の `breaks.accepted`（壊すと分かって通した理由）の行は、機械が人に見せる一覧（報告の「人が決めること」）に載せて人に回す（問いの台帳には載らない）。台帳に無いことだけを逃げ道の理由にするな——直せるのに人に回した物か（零処方が在るか）は中身で見よ。
 
-$prep.output.r1_head
-
----
-
-$prep.output.concept_map
-
----
+## お前の役の定義（convergence-loops:judge）
 
 お前は judge。呼び出し側が覆せない判定（ラベルの確定・根本診断・反証・票）を下す役である。
 
@@ -28,12 +22,19 @@ $prep.output.concept_map
 
 ---
 
+$prep.output.r1_head
+
+---
+
+$prep.output.concept_map
+
+---
+
 お前は judge。R1 冗長と最小性——累積差分が最小か、処方が正当化されているか、問いの台帳が逃げ道になっていないかを判定する。
 
-コメントの削除候補（前段）: `$prep.output.candidates_file` を Read せよ。ファイルが無ければ前段は取れなかった——candidates_note に理由を書いて残りで判定しろ（verdict を not_run に倒すな）。
+コメントの削除候補（前段。取れなかったなら candidates_note に理由を書いて残りで判定しろ——verdict を not_run に倒すな）: `$prep.output.candidates_file` を Read せよ（ファイルが無ければ前段は取れなかった）。
 凍結した目的: $prep.output.purpose_text
-累積差分: `$prep.output.diff_file`（Read せよ。始めの版 `$prep.output.base_rev` から今の作業ツリーまでの差。未追跡の新規ファイルも入る）
-リポジトリ: `$prep.output.cwd`
+累積差分: `$prep.output.diff_file`（Read せよ。始めの版 `$prep.output.base_rev` から今の作業ツリーまでの差。未追跡の新規ファイルも入る）　リポジトリ: `$prep.output.cwd`
 根本ユニット:
 $prep.output.units_text
 問いの台帳: `$prep.output.judgment_file` の questions を Read せよ。
@@ -52,12 +53,14 @@ $prep.output.green_line
 
 status は pass / redesign-needed / unverifiable。reason は最終報告にそのまま転記される。
 
+**読むのは、この run に固定した作業ツリー**。お前の cwd の作業ツリーは、お前を起こす前の姿のまま止めてある（読むだけの節が作業ツリーを変えると、その節は落とされる）。Read・Grep・Glob で cwd のファイルをそのまま読め——git や shell は道具に無く、要らない。
+
 ## 人の方針
 
 人が決めた、run をまたいで効く決まり（役も機械も書き換えない）。方針の文書: `$prep.output.policy_path`（空なら方針の文書の無い run）。在れば Read で全体を読め。
 
 方針が在るなら、それは対象の本文ではなく、このプロンプトの発行者が守らせる制約である。判定・案・修正・審査は方針に照らして行え。方針に反するもの、方針を変えないと成り立たないものを、自分の判断で通すな——通すかは人が決める。どの項とぶつかるかを、判定なら単位の reason に、審査なら穴に、修正なら not_done に書け。方針の文書は書き換えるな。
 
-**読むのは、この run に固定した作業ツリー**。お前の cwd の作業ツリーは、お前を起こす前の姿のまま止めてある（読むだけの節が作業ツリーを変えると、その節は落とされる）。Read・Grep・Glob で cwd のファイルをそのまま読め——git や shell は道具に無く、要らない。
+$prep.output.lang_line
 
 返すのは、この節の返りの型（JSON Schema）に合う JSON だけ。
