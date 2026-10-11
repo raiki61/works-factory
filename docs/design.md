@@ -159,20 +159,21 @@ flowchart TB
   - 指し札は `{type: "archon_artifact", run_id, path}`（E5）。下では型を「指し札」と書く。
   - 2 つの形を持つブロック（test-gate・merge）は、返す節を 1 つのまま `mode` の欄で形を返す。形に当たらない欄は null。
   - 「→ 線 N」は「線」の「順と関所」の N 番の段（関所の文か `when:`）が読む。「→ ブロック名」はそのブロックが `with:` で受ける。「→ 線の返り」は線の `returns: report` を通して、人（`bin/works-factory workflow get`）と、置いた後の周の鎖が読む。
-  - 指し札の先のファイルの中身は、欄が名指す今の works の同じ名のファイルの形のまま（新しい入れ物の形を作らない）。今の works が別のファイルに持っていた物は、同じフォルダの隣のファイルに置き、作ったブロックの中だけで読む。ただし次の隣のファイルは約束の一部で、ほかのブロックもこの名で開く: `judgment`（`judgment.json`）の隣の `premises.json`（実測した制約 `constraints`）・`judge-verify.json`・`pr-excluded.json`・`materials.json`（`{<素材の名>: {status, …}}`）、`plan`（`plan-fields.json`）の隣の `p2.fix_plan.json`（修正案の役の返答。関所の決め手の欄つき）、`structure`（`structure-state.json`）の隣の `design.jsonl`、`review` の隣の `gate-passes.json`（修正前の関所が聞かずに通した行）。judge は止めた時も隣のファイルを空の形で必ず書く。
+  - 指し札の先のファイルの中身は、欄が名指す今の works の同じ名のファイルの形のまま（新しい入れ物の形を作らない）。今の works が別のファイルに持っていた物は、同じフォルダの隣のファイルに置き、作ったブロックの中だけで読む。ただし次の隣のファイルは約束の一部で、ほかのブロックもこの名で開く: `judgment`（`judgment.json`）の隣の `premises.json`（実測した制約 `constraints`）・`judge-verify.json`・`pr-excluded.json`・`materials.json`（`{<素材の名>: {status, …}}`）・`purpose-review.json`（目的の監査の役の受けた返答 `{verdict, reason, findings}`。監査が走らなかった時は `{}`。今の works の `record.process.purpose_review`）、`plan`（`plan-fields.json`）の隣の `p2.fix_plan.json`（修正案の役の返答。関所の決め手の欄つき）、`structure`（`structure-state.json`）の隣の `design.jsonl`、`review` の隣の `gate-passes.json`（修正前の関所が聞かずに通した行）、`design`（`design.json`）の隣の `design-premises.json`（独立設計の役に貼った物の控え `{node, given, withheld, seen, claims?}`。eyes が R2 の頭に独立設計の後に来た答えを分けて貼る）。judge は止めた時も隣のファイルを空の形で必ず書く。ただし `judgment` の隣の次の 4 つは、中身が無い run・段が走らなかった run では書かれないことがあり、読み手は無いファイルを「行が無い」と読む: `answer-ties.json`（依頼の答えと作り直しの行を今の判定の問い・単位に結んだ行。`{"rounds": {"1": [<行>, …]}}`、`lib/gatemarks.py` の `save_answer_ties` の形）・`local-review-lenses.json`（局所レビューで確かめられなかったレンズの控え。`lib/diverted.py` の `LENS_FILE`）・`pr-downgrades.json`（並行 PR の担当への申し送りの下書き `[{pr, files, note}]`。投稿しない）・`world-state.json`（世界の解の段の控え `{status, reason, world_file, classes, dropped}`。段が落ちた訳と落とした抜き書きの数。`lib/worldmark.py` の `STATE_FILE`。段が走らなかった run には無い）。この 4 つは判定の道（`judge` の差し込み）の置き場にだけ在り、再審（`rejudge`）の `judgment` の隣には無い。
   - 直す前の結末のファイル（test-gate の `baseline` の先）は必須の欄 `{suite, test_cmd, rev, exit, cases}`。`suite` は始めの記録の `tdd_suite` の実行ファイル（無ければ `""`）、`cases` は JUnit の 1 件ごとの結末の並び。読み書きは `lib/baseline_red.py` の口だけ。test-gate は自分の欄（`junit_steps` ほか）を足してよい。
   - fix の `conflicts` の先は `conflicts.json` = `{"items": [...]}`（今の works の `conflict.py` の形。行の欄 `unit_key`・`kind`・`between`・`ruling`（`decision`・`text`・`limits`）・`replan`）。
   - 型つきの成果物: `green-cert` は test-gate の返す節の出力そのもの。`tdd-unit` は fix の 1 回の差し込みに 1 つで、中身は組ごとの段の物 `[{group_id, ran, reason, suite, reused, units}]`（今の works の blk-fix の `tdd` の出口。走らなかった組も `ran: false` で載る）。`eye-verdict` は `{eye, status, reason}`（`eye` は `r1`・`r2`・`r3`・`r4`・`premise-check`）。
   - 人の関所（`approval:`）の `decisions` は `approve` を含む（Archon の決まり。`guides/approval-nodes.md`）。通す語は `approve`・`continue`、止める語は `stop`・`reject`（今の works の線の関所の語）。止め札は止める語で、文が `request:` で始まる物。ブロックの `stop_reason` は人の止めを `human:<所>`、止め札を `request:<所>` の形で返す。
   - ブロックが約束に無い入力を要る時は、YAML の `inputs:` に既定値（`""`・`"null"`・`"[]"`）つきで宣言し、線が渡す前も動く形にする。返りの欄は足さない。足す入力はこの節に書いてから線が渡す。
-  - 返す節は落ちない。中の誤りを全部捕まえ、そのブロックの偽の結末（`ok: false`・`ready: false`・`done: false`・`pass: false`）と訳を `output_format` に合う形で返す（線は落ちた返す節の先へ進めない）。
+  - 返す節は落ちない。lib と境の口の import は返す節の `main` の中で読み、読めない時も標準ライブラリだけで偽の結末と指し札の先のファイルを書いて返す（merge・test-gate・eyes・plan・plan-review・report・judge・fix の返す節と同じ形）。中の誤りを全部捕まえ、そのブロックの偽の結末（`ok: false`・`ready: false`・`done: false`・`pass: false`）と訳を `output_format` に合う形で返す（線は落ちた返す節の先へ進めない）。
 - 線の中の id（`$<id>.output` の `<id>`。線を書く人とブロックを書く人がこの名で合わせる）:
   - 線の節: `start`（始めの節）・`redepth`（直した後の深さの上げ直し）
   - 人の関所: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`（仕様の関所は judge の中）
   - include: `test-gate-base`・`judge`・`plan`・`plan-review`・`fix`・`rejudge`（judge の再審）・`replan`・`replan-review`（案の直し）・`refix`（案の直しの後の 2 回目の修正。fix のブロックを 1 度だけ差し込む）・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`
   - 同じブロックを 2 度差し込む所の返りが include ごとに分かれて見えるかは未決 U2。`rejudge`・`replan`・`replan-review` の返りは差し込んだブロックと同じ形で、線は後の段でそちらを先に読む。
-- 線の始めの節 `start` の返りのうち、ブロックが読むのは 1 つ:
-  - `record`（指し札）: 始めの記録。今の works の `start.json` の欄（`run_id`・`base_rev`・`test_cmd`・`tdd_suite`（TDD の輪と 1 件ごとの結末に使う実行ファイルのパス。入口の入力から。無ければ `""`）・`final_gate`・`unattended`・`spec` ほか）→ 全ブロック
+- 線の始めの節 `start` の返りのうち、ブロックが読むのは 2 つ:
+  - `prior_failures`（指し札・null 可）: 前の run の持ち越しの前の失敗の行（始めの節が依頼から `lib/carry` で置く、今の works の `prior-failures-in.json`）。無ければ null → judge・plan
+  - `record`（指し札）: 始めの記録。今の works の `start.json` の欄（`run_id`・`base_rev`・`test_cmd`・`tdd_suite`（TDD の輪と 1 件ごとの結末に使う実行ファイルのパス。入口の入力から。無ければ `""`）・`final_gate`・`unattended`・`policy`（人の方針の文書を run の始めに 1 度だけ固めた版 `{named, path, sha256, copy}`。`named` は入口の名指し `policy_md`、`path` は名指しの文書か、対象のリポジトリの git の共通の置き場の `graphloops/policy.md`。文書が無ければ `path` は `""`、`sha256` と `copy` は null。役に貼る本文は `copy` から読み、`policy_md` を生で読まない）・`spec` ほか）→ 全ブロック
 
 ### judge の返り
 
@@ -200,7 +201,7 @@ flowchart TB
   - `start` ← `$start.output.record`
   - `units`・`judgment`・`world`・`spec` ← `$judge.output.<同じ名>`
   - `review` ← `$plan-review.output.review`（往復の 2 回目から。1 回目は null）
-  - `ruling` ← `$fix.output.replan_items`（`replan` の時だけ。`plan` では `[]`）
+  - `ruling` ← `$fix.output.replan_items`（`replan` の時だけ。`plan` では `[]`。形は `replan_items` の項目の番号の字）
   - `conflicts` ← `$fix.output.conflicts`（`replan` の時だけ。`plan` では null。裁定の文を案の直しの役に渡す）
 - 返り:
   - `ready`（boolean）: 修正案ができた（受け付けを通った）。false は 3 つ: 受け付けが 3 回とも拒んだ時・直す義務の単位が無い時・行き止まりの単位が在る時。構造の目が「人に上げる」とした行は false にせず、`structure` で plan-review に渡り修正前の関所の問いになる（今の works と同じ）。返りに false の訳を分ける語は持たない（欄を足さない）: 3 回の拒否と行き止まりは report がどちらも `stopped_by_line` にし、義務の単位が無い時は report が judge の返り（`units` が空）から `no_fix_needed` にする → 線 5・report
@@ -218,7 +219,7 @@ flowchart TB
   - `plan`・`structure`・`ripple` ← `$plan.output.<同じ名>`
   - `start` ← `$start.output.record`（無人の印・設計だけ・依頼のファイル・方針の文書・事前審査の木の既定・固めた版。関所の材料と R2 の名指しの節が読む）
   - `answers` ← `{ from: "$gate-start.output", if_skipped: null }`（R2 に貼る人の関所の答え）
-  - `ruling` ← `$fix.output.replan_items`（`replan-review` の時だけ。`plan-review` では `[]`。裁かれた項目だけを審査する）
+  - `ruling` ← `$fix.output.replan_items`（`replan-review` の時だけ。`plan-review` では `[]`。裁かれた項目（`replan_items` と同じ番号の字）だけを審査する。番号でない行と案の外の番号は拒む）
   - `conflicts` ← `$fix.output.conflicts`（`replan-review` の時だけ。`plan-review` では null。裁かれた項目ごとに申し出と裁定の文を事前審査に貼る）
   - `gate_answers` ← 修正前の関所の答え `{decision, text, asked}`（`asked` は人が見た `questions` の行。無ければ null）。通した行を次の差し込みで聞き直さず、方針の文書の変化を通したらその版を固め直す。線はまだ渡さない（既定 null）
 - 返り:
@@ -240,14 +241,14 @@ flowchart TB
   - `units`・`judgment`・`world` ← `$judge.output.<同じ名>`
   - `plan`・`ripple`・`depth` ← `$plan.output.<同じ名>`
   - `answers` ← `{ from: "$gate-before-fix.output", if_skipped: null }`
-- `refix` の時: `only_items` ← `$fix.output.replan_items`（直す計画の項目の id。fix はその項目に載る単位だけを直す）、`plan`・`ripple`・`depth` ← `$replan.output.<同じ名>`、`answers` ← `{ from: "$gate-replan.output", if_skipped: null }`、ほかは `fix` と同じ。fix は include の名ごとに run の置き場の下の別のフォルダを使うので、`refix` は `fix` の控えを上書きしない。返りは fix と同じ形で、線の節 `fixed` が `fix` と `refix` の返りをまとめて後の段に渡す。
+- `refix` の時: `only_items` ← `$fix.output.replan_items`（直す計画の項目の番号。`replan_items` と同じ形。fix はその項目に載る単位だけを直す）、`plan`・`ripple`・`depth` ← `$replan.output.<同じ名>`、`answers` ← `{ from: "$gate-replan.output", if_skipped: null }`、ほかは `fix` と同じ。fix は include の名ごとに run の置き場の下の別のフォルダを使うので、`refix` は `fix` の控えを上書きしない。返りは fix と同じ形で、線の節 `fixed` が `fix` と `refix` の返りをまとめて後の段に渡す。
 - 約束に無い入力（線は渡さない。既定 `""`）: `only_items`（`fix` では空）・`mode`（`""` はブロック、`group` は組ごとの子の run）・`group`（組 1 つの JSON）・`from_tree`（親の作業ツリーの姿の木の sha）・`out_dir`（子が結果を書く、親の run の置き場の中の絶対パス）。fix は組ごとの並べのために自分（pack `works-factory` の `works-factory-fix`）を `workflow:` と `fan_out:` で子の run として起こす（未決 U8）。
 - 返り:
   - `done`（boolean）: 直しを作業ツリーに入れ終え、差分の審査を通した。諦めた単位が在っても true → 線 8・report
   - `units`（array）: 単位ごとの結末。項目は `{unit_id, group_id, status, reason}`、status は `fixed`・`given_up`・`not_done` → eyes・report
   - `groups`（array）: 組ごとの結果。項目は `{group_id, unit_ids, returned, reason}`（returned は親の木へ戻せたか）→ report
   - `conflicts`（指し札・null 可）: 申し出と裁定（`lib/conflict` の形）。無ければ null → 線 11・plan（replan）・report
-  - `replan_items`（array of string）: 裁定が誤りとした計画の項目の id。空でなければ線が案の直しを 1 度差し込む → 線 7・plan
+  - `replan_items`（array of string）: 裁定が誤りとした計画の項目の番号（承認済みの修正案の `plan[]` の 1 から数えた位置を 10 進の字にした物。例 `["2"]`。重ねない・現れた順）。空でなければ線が案の直しを 1 度差し込む → 線 7・plan
   - `objection`（string）: 修正役の異議。空でなければ線が再審を 1 度差し込む → 線 7・judge
   - `diff`（指し札）: 累積差分（run の始めの版から）→ eyes・merge
   - `allowed_test_changes`（array of string）: 許したテストの変更のパス → 線 11
@@ -286,7 +287,7 @@ flowchart TB
   - `plan_questions` ← `$plan-review.output.questions`、`answers` ← `{ from: "$gate-before-fix.output", if_skipped: null }`（修正前の関所で人が通した行を R4 に渡し、同じ行を聞き直さない。持ち主の決め `decision-records`）
 - 返り:
   - `ok`（boolean）: R1〜R4 が全部 pass。深さで省いた目は数えない → 線 10・merge
-  - `r1`・`r2`・`r3`・`r4`（object・null 可）: 目ごとの `{status, reason}`。status は `pass`・`redesign-needed`・`unverifiable`（review-graph の `r1.minimality` ほか。R2 の `unverifiable` は、比べの節が落ちた・独立設計が無い時。前提が崩れた時は `premise_check` にも載る）。省いた目は null → report
+  - `r1`・`r2`・`r3`・`r4`（object・null 可）: 目ごとの `{status, reason}`。status は `pass`・`redesign-needed`・`unverifiable`（review-graph の `r1.minimality` ほか。R2 の `unverifiable` は、比べの節が落ちた・独立設計が無い時と、独立設計と比べなかった時（目的の文が空・独立設計の返答に問いが立つかの欄 `question_stands` が無い。訳の頭は `独立設計と比べなかった: `）。前提が崩れた時は `premise_check` にも載る）。省いた目は null → report
   - `questions`（array of string）: R4 の人への問い → 線 11
   - `premise_check`（object・null 可）: 前提の検算 `{verdict, reason}`、verdict は `resolved`・`escalate`（review-graph の `stop.premise_check`）。走らなければ null → 線 11・report
   - `structure_after`（指し札・null 可）: 直した後の構造の実測 → report
@@ -387,7 +388,7 @@ flowchart TB
 - ASF で読む物: `W/validate/archon-validate.yaml`（`mode`・`discover`・`run`・`classify`・`result`、`outcome_field: green`）と `W/deliver/scripts/gate-green.ts`（認証）と `W/.shared/validation-evidence.ts`（指紋）。
 - 入力: 形（base・final）・始めの記録。
 - 役（`commands/`）: `ci`。
-- lib: `baseline_red`・`test_files`・`green_cert`。
+- lib: `baseline_red`・`green_cert`・`declared_checks`（盤面なしの CI の関数と素材の型）・`checkscope`（範囲の宣言）・`graphloops/engine/declared`。
 - 埋め: 無し。
 
 ### eyes（独立の目）
@@ -569,7 +570,7 @@ flowchart TB
 - U5（決めた）ブロックの script が `lib/` をどのパスで見つけるか。Archon は run の始めに `workflows/` を写し取り、script はその写しから走るので、リポジトリからの相対では届かない。決め: 入口の殻 `bin/works-factory`（`bin/_lib/launcher.py`）が Archon の子の環境変数 `WORKS_FACTORY_ROOT` にリポジトリの根を渡し、境の口の `boundary.lib_root()` がその `lib/` を返す（無ければ自分の置き場から辿った `lib/`）。Archon は host で走る script の節に起こした時の環境変数を渡す（`dag-executor.ts` の `process.env` の重ね）。止めた Archon で script の節を回して確かめる試験は `tests/shared/test_boundary.py` の `test_script_run_by_archon_finds_repository_lib`。Archon の `runtime: uv` の節の `deps:` の引き方（`lib/AGENTS.md` の E3）はこの決めに含まない（未決のまま）。
 - U6 今の works の包みが取っていた読んだ証拠と書き込みの記録を、Archon の役の節で取れるか（Archon の出来事の記録か、節の hooks か）。取れなければ埋めの行にする。
 - U7 ASF の lifecycle を段 2 で使う時、必須の入力 `scenario`（動かして確かめる筋書き）に何を渡すか。
-- U8 組ごとに別の作業ツリーを持てるか。推しは `workflow:` と `fan_out:` の子の run（子ごとに自分の run）。子が自分の作業ツリーを持つか、それが親の今の commit から切られるか、子の差分を親に決めた順で戻せるかを確かめる。2026-10-06 の判断「fan_out は子ごとに作業ツリーを決められない」は節の `fan_out:` だけを見ていたかもしれない。足りなければ埋めの名簿に行を足す。
+- U8（分かった）組ごとに別の作業ツリーを持てる。`workflow:` + `fan_out:` + `isolation: worktree` の子の run は組ごとに作業ツリーを持つ。親の姿は木の sha（fix の入力 `from_tree`）で渡して子が写し（`groups.adopt_tree`）、子の差分は木の sha と `out_dir` のファイルで戻す（fix の `join`）。remote の無い対象では子の作業ツリーが切れないので、fix は 1 つずつ回す（`docs/polyfills.md` の「fan_out の子ごとの作業ツリー」）。PR #94 の実測（2026-10-12）。
 
 U1〜U3 は持ち主の挙げた物、U4〜U8 はこの文書を書く中で出た物。
 
