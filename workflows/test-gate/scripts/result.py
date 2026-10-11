@@ -50,11 +50,12 @@ def baseline_doc(raw: str):
 
 
 def suite_exit(run: dict):
-    """1 件ごとの結末を取った一式の終了コード: tdd_suite が走ればその値、JUnit の報告を宣言した段だけなら最初の赤の段の値か 0。
-    1 件ごとの結末の出どころが無ければ None"""
-    if run.get("suite") and run["suite"].get("exit") is not None:
-        return run["suite"]["exit"]
-    junit = [r for r in run["runs"] if r["name"] in run["junit_steps"]]
+    """1 件ごとの結末を取った一式の終了コード: tdd_suite が結末を返せばその値、JUnit の報告で試験を走らせた段だけなら最初の赤の段の
+    値か 0。1 件ごとの結末を取れていなければ None（final はそれを「元の結末が無い」と読む）"""
+    suite = run.get("suite")
+    if suite and suite.get("exit") is not None and not suite.get("problems"):
+        return suite["exit"]
+    junit = [r for r in run["runs"] if r["name"] in run["junit_steps"] and r["name"] not in run["junit_unran"]]
     return next((r["exit"] for r in junit if r["exit"]), 0) if junit else None
 
 
@@ -93,7 +94,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> dict:
         red_cause, summary = "incomplete", "任せ先の CI の役が素材を渡さなかった（受け付けが拒み続けた・輪が回らなかった）"
     else:
         base = baseline_doc(baseline_raw) if mode == "final" else None
-        source = run["junit_steps"] or (run.get("suite") or {}).get("exit") is not None
+        source = suite_exit(run) is not None
         cases = base["cases"] if base and base["exit"] is not None and source else None
         red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=run["cases"], baseline_cases=cases,
                                                  junit_steps=run["junit_steps"], junit_unran=run["junit_unran"])

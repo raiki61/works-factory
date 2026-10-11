@@ -394,6 +394,18 @@ class ResultScriptCase(ScriptCase):
         self.assertEqual((out["ok"], out["green"]), (False, True))
         self.assertIn("指紋が before と違う", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
 
+    def test_tdd_suite_cases_go_into_the_baseline(self):
+        """始めの記録の tdd_suite は一式を 1 回走らせ、その 1 件ごとの結末と終了コードを元の結末に置く（suite は実行ファイルのパス）"""
+        suite = self.tmp / "suite.py"
+        suite.write_text("import sys\nopen(sys.argv[1], 'w').write(\"<testsuite><testcase classname='s' name='x'>"
+                         "<failure/></testcase></testsuite>\")\nsys.exit(1)\n", encoding="utf-8")
+        self.write_start(tdd_suite=str(suite), test_cmd="true")
+        self.ok("run", mode="base", start=self.start)
+        out = self.result("base")
+        doc = baseline_red.read_baseline(self.pointed(out["baseline"]))
+        self.assertEqual((doc["suite"], doc["test_cmd"], doc["exit"]), (str(suite), "true", 1))
+        self.assertEqual(baseline_red.outcomes(doc["cases"]), {"s::x": "failure"})
+
     def test_base_that_cannot_run_is_not_ok(self):
         """宣言も test_cmd も無い base: 任せ先の役が走らせられず awaiting_human を返した・素材を渡さなかった、どちらも緑を仮定しない"""
         self.assertEqual(self.ok("run", mode="base", start=self.start)["by"], "role_needed")
