@@ -3,7 +3,8 @@
 # 各分けはモジュールごとの秒数を artifact の shard-seconds-<i> に上げる（表の直し方は tests/shard.py）。
 # check の名は tests（harness/harness.config.json の required_checks と main の保護が名指す。ASF の merge queue が読む）。
 # 集めの job の tests は 4 つが全部緑の時だけ緑。if: always() で、分けが落ちた時も見送られず赤になる（見送られた必須の確かめを通さない）。
-# 外のパッケージは uv run --isolated が pyproject.toml の宣言から入れる（宣言を CI に写さない）。命令は harness/harness.config.json の unit を分けた物。
+# 外のパッケージは uv run --isolated が pyproject.toml の宣言から入れる（宣言を CI に写さない）。全部の試験はここだけが回す（harness/harness.config.json の unit は
+# 変更に直に当たる試験だけを回す tests/changed.py）。
 # 1 件も走らない分けは終了の値 5 で落ちる。試験の無い木を緑にしない。
 # Archon を要る試験（tests/archon.py）を見送らないように、止めた Archon の源（factory/pack.json の commit）を bin/_lib/place.py で取り、
 # WORKS_FACTORY_ARCHON_CACHE で渡す。源は commit を鍵に actions のキャッシュに置く。bun の版は源の package.json の engines.bun から読む。
