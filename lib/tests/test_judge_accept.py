@@ -871,6 +871,25 @@ class BriefCase(_BCase):
         self.assertIn(str(self.jdir / "diff.patch"), text)
         self.assertNotIn("{{", text, "穴を残さない")
 
+    def test_brief_carries_the_human_policy_cut_at_the_paste_cap(self):
+        """元 diagnose.md の付録「人の方針」（start の policy_paste。policy.brief が PASTE_CAP バイトで切った物）。文書の無い run は節を
+        置かない。再審の材料も同じ本文を貼る"""
+        start = self.start()
+        ja.write_json(self.jdir / ja.START_FILE, start)
+        ja.material_route(self.jdir, self.repo)
+        text = pathlib.Path(ja.brief(self.jdir, self.repo, start, str(self.tmp / "REVIEW.md"))).read_text(encoding="utf-8")
+        self.assertNotIn(ja.POLICY_HEAD, text)
+        pmd = self.tmp / "policy.md"
+        for body, whole in (("方針の印: 既定の道を狭めない\n", True), ("方" * 20000, False)):
+            with self.subTest(whole=whole):
+                pmd.write_text(body, encoding="utf-8")
+                start = self.start(policy_md=str(pmd))
+                text = pathlib.Path(ja.brief(self.jdir, self.repo, start, str(self.tmp / "REVIEW.md"))).read_text(encoding="utf-8")
+                tail = text[text.index(ja.POLICY_HEAD) + len(ja.POLICY_HEAD):].strip()
+                self.assertLessEqual(len(tail.encode("utf-8")), ja.policy.PASTE_CAP)
+                self.assertEqual(tail == body.strip(), whole)
+                self.assertEqual(ja._rejudge_brief(self.jdir, "異議", {}, start).split(ja.POLICY_HEAD)[1].strip(), tail)
+
     def test_diagnose_prep_stops_after_material_give_up(self):
         """元 blk-material の collect（素材の役が 3 回とも拒まれたら盤面を止めた）。残りの素材で材料は組む"""
         ja.write_json(self.jdir / ja.START_FILE, self.start())

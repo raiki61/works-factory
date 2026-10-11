@@ -28,6 +28,7 @@ import re  # noqa: E402
 import shutil  # noqa: E402
 import subprocess  # noqa: E402
 import tempfile  # noqa: E402
+import types  # noqa: E402
 
 import accept as core_accept  # noqa: E402  （lib/accept。このモジュールに受け付けの関数 accept が在るので別名で読む）
 import carry  # noqa: E402
@@ -42,6 +43,7 @@ import marks  # noqa: E402
 import outpurpose  # noqa: E402
 import prcheck  # noqa: E402
 import premises as _premises  # noqa: E402
+import policy  # noqa: E402
 import promptsection  # noqa: E402
 import purpose as _purpose  # noqa: E402
 import querytest  # noqa: E402
@@ -2667,6 +2669,18 @@ BRIEF_HEAD = promptsection.Section("# 判定の材料（盤面から描いた物
 DIAGNOSE_EXCERPT = '## 入力（素材は観点名でなく欄名で並べてある。起動しなかった欄は status がそう言っている。所見が空欄なら、その節はこの周に走っていない——素材の status と reason を見よ）\n素材（15 欄）: {{record.materials}}\n局所の findings: {{?record.process.local_findings}}\n隔離フレームからの観察——整合性: {{?record.process.consistency_findings}} ／ 標準機構の迂回: {{?record.process.bypass_findings}} ／ 外部標準: {{?record.process.external_findings}} ／ 手順トレース: {{?record.process.procedure_findings}}\n修正依頼の入口（この周に積まれた分。バッチごとに origin が出どころ、round が積まれた周。多くは人の依頼で役の観察ではないが、仕様の道の受け入れ条件と並行の線の見逃しも同じ入口で届き、その 2 つは 1 件ごとの本文の頭に出どころを書いてある。どれもほかの findings と同じく反証の対象——依頼の頼み方のずれも殺しにいけ）: {{?record.process.request_findings}}\nゲートの実効性確認: {{?record.process.gate_arms}} ／ 代役の忠実性: {{?out.p1.test_double_fidelity}} ／ 主経路の実行観測: {{?out.p1.main_path_observation}} ／ 根拠の出所検査: {{?out.p1.provenance}}\n先行議論の突合（決着済み論点）: {{?out.p0.prior_decisions}}\n凍結した元の目的: {{out.p0.purpose.purpose_text}}\u3000実測した制約: {{record.process.constraints}}\n目的の監査（writer が目的を自書したときの inspector の判定。「狭めている」なら目的の内側／外側の線をそのまま信用するな）: {{?record.process.purpose_review}}\n対象差分: {{loop.diff_file}}（Read せよ。`git diff {{record.base}} {{inputs.review_rev}}`——周に固めた版との差。未追跡の新規ファイルも入る）\u3000変更ファイル: {{loop.changed_files}}\u3000リポジトリ: {{inputs.cwd}}（読む版: `{{inputs.review_rev}}`）\n観点の正本: {{inputs.review_md}}（対象リポジトリ側: {{?inputs.repo_review_md}}）。ラベルと「対応の判断」「処方の最小性」「導線を作る手段の優先順位」はここが正本。\n前の周の独立の目が返したもの（この周が初めてなら「無い」と出る）——R1 最小性: {{?prev.r1.minimality | pick status,reason,ledger_audit,increments,candidates_note}}（削除候補 deletions は各行に no を振って別に貼る: {{?prev.r1.minimality.deletions}}） ／ R3 全体整合: {{?prev.r3.coherence | pick status,reason}} ／ R4 見えていない範囲: {{?prev.r4.hidden_scope | pick status,reason,capability_inventory,policy_conflicts}}（capability_inventory.lost は BASE から消えたと R4 が見た能力、policy_conflicts は人の方針とのぶつかり。どちらも人が関所で決める——答えは process.human_items）\ndefer 台帳（前の周までに受容したキー。今ラウンドの判定に使うのは「同じ欠陥なら同じキー文字列を使う」ためだけ）: {{?loop.defer_ledger}}\n\n素材のどれかが明示返答（有無・または「対象外」）を欠いているなら、1〜9 に入らず materials_missing にその欄名を返せ（無言のスキップを「なし」と誤認すると見逃しが構造完備の見た目で再発する）。\n## 手順（ここから下は役を起こした指示書。材料には貼らない）\n問いの台帳（questions）: kind は——{{validator.question_kinds}}\n\n{{validator.no_open_origin}}。素材が awaiting_human なら awaiting を必ず載せろ。status は——{{validator.question_status}}。この周に立てるなら held。**問いは阻害要因を消さない**——当のユニットは [block] のまま。**書けるのは** {{validator.question_fields}} だけ。\n\n**前の周の R1 最小性（ここから下は役を起こした指示書）\n'
 
 
+POLICY_HEAD = promptsection.Section("## 人の方針", source="fn:judge_accept.policy_text")
+
+
+def policy_text(start) -> str:
+    """人の方針の文書（始めの記録の policy_md）の役に貼る本文。元 policy.brief のとおり PASTE_CAP バイトで先頭を切り、続きの置き場を
+    末尾に書く。文書が無ければ空（policy.brief は盤面の record.process.policy.copy を読むので、その形で渡す）"""
+    pmd = (start or {}).get("policy_md") or ""
+    if not pmd or not pathlib.Path(pmd).is_file():
+        return ""
+    return policy.brief(types.SimpleNamespace(record={"process": {"policy": {"copy": pmd}}}))["paste"]
+
+
 def section(text: str, start_at: str = START, end_at: str = END) -> str:
     """元 works/blk-judge/lib/judgebrief.py:60。指示書の本文から start_at で始まる行から end_at で始まる行の前まで。
     どちらかの行が無ければ ValueError（写しが替わった。元は BoardGap）"""
@@ -2743,7 +2757,7 @@ def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "", pri
     1 頭 BRIEF_HEAD・2 世界の解の行（worldmark.section。置き場の world-state.json が行を指す時）・3 p2.diagnose の「## 入力」の節を
     置き場の値で埋めた物・4 問いの台帳の段（LEDGER_HEAD。{{validator.*}} は PROMPT_TABLES）・5 依頼と PR の題と本文（始めの記録に
     input.pr が在る時。request_text と pr_file_text）・6 依頼の answers（answers_section）・7 前の run の行（prior_rows。
-    carry.prior_section が PRIOR_HEAD の節と REDESIGN_HEAD の節に分ける）。素材の状態は materials.json（無ければ fill_materials）。
+    carry.prior_section が PRIOR_HEAD の節と REDESIGN_HEAD の節に分ける）・8 人の方針（POLICY_HEAD。文書が在る時。policy_text）。素材の状態は materials.json（無ければ fill_materials）。
     対象差分は material-view.json（無ければ取る）"""
     j = pathlib.Path(jdir)
     doc = _material_view(j, repo, start)
@@ -2761,10 +2775,12 @@ def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "", pri
     if prior_rows:
         carry.place_prior(j, list(prior_rows))
         prior = carry.prior_section(j)
+    pol = policy_text(start)
     p = j / DIAGNOSE_BRIEF_FILE
     tmp = p.with_name(p.name + ".tmp")
     tmp.write_text(BRIEF_HEAD + "\n\n" + (f"{world}\n" if world else "") + body + (f"\n\n{req.rstrip()}\n" if req else "")
-                   + (f"\n\n{answers}\n" if answers else "") + (f"\n\n{prior}\n" if prior else ""), encoding="utf-8")
+                   + (f"\n\n{answers}\n" if answers else "") + (f"\n\n{prior}\n" if prior else "")
+                   + (f"\n\n{POLICY_HEAD}\n\n{pol.strip()}\n" if pol.strip() else ""), encoding="utf-8")
     os.replace(tmp, p)
     return str(p)
 
@@ -3218,10 +3234,6 @@ def _rejudge_brief(jdir, objection, judgment, start) -> str:
         return "```json\n" + json.dumps(v, ensure_ascii=False, indent=1) + "\n```"
     questions = pick(judgment.get("questions") or [], ["key", "kind", "status"])
     diagnosis = {k: judgment[k] for k in ("framing", "one_shot") if k in judgment}
-    policy = ""
-    pmd = (start or {}).get("policy_md") or ""
-    if pmd and pathlib.Path(pmd).is_file():
-        policy = pathlib.Path(pmd).read_text(encoding="utf-8", errors="replace")
     mats = [f"- {what}: `{pathlib.Path(jdir) / name}`" for what, name in REJUDGE_MATERIALS if (pathlib.Path(jdir) / name).is_file()]
     lines = ["# 再審の材料（同じ run の 1 回目の判定と、修正役の異議）", "",
              "## 回す側の異議", "", objection.strip(), "",
@@ -3229,7 +3241,7 @@ def _rejudge_brief(jdir, objection, judgment, start) -> str:
              "## 今の周の台帳", "", block(questions) if questions else "無い", "",
              "## 自分の見立て（P2 で書いたもの）", "", block(diagnosis) if diagnosis else "無い", "",
              "## 1 回目の判定と材料（Read して読む）", "", *(mats or ["- 無い"]), "",
-             "## 人の方針", "", policy.strip() or "無い", ""]
+             POLICY_HEAD, "", policy_text(start).strip() or "無い", ""]
     return "\n".join(lines)
 
 
