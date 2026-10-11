@@ -6,7 +6,8 @@
                  （snapshot_tree に HEAD・枝を足した物）と、その違いの文（R47。check_judge の突き合わせも tree_change で言う）。
                  bytecode=False はバイトコード（_is_bytecode）を姿から除く（測るためにコマンドを走らせる実測役の見張り。premises）
 - guard・in_repo・resolve_rev・read_board・write_board・type_errors: 受け付けの部品の公開の名（ブロックのモジュールの受け付けが使う）
-- touched_files: 修正が触ったファイル（バイトコードは除く。protect が数える）
+- touched_files: 修正が触ったファイル（バイトコードは除く。index の印に隠れた物も入れる。protect が数える）
+- flag_free_env: 本物の index の assume-unchanged・skip-worktree の印を外して git に作業ツリーを見せる env（protect も使う）
 
 git は全部 repo を cwd にして呼ぶ。HEAD をその場で読むのは base_rev が空のときだけ（空なら repo の HEAD を版にする）。
 """
@@ -15,8 +16,10 @@ import hashlib
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 # pack の中に __pycache__ を作らない。ここで立てて止まるのは下で import する engine・rules・検証器の分だけ。
@@ -42,10 +45,12 @@ SNAPSHOT_SCHEMA = {"type": "object", "required": list(SNAPSHOT_KEYS), "propertie
 
 
 # ---------------------------------------------------------------- git と盤面のファイル
-def _git(repo, *args, binary=False):
-    """repo を cwd にして git を呼ぶ。失敗は Reject（受け付けは『分からない』を合格に倒さない）"""
+def _git(repo, *args, binary=False, env=None, stdin=None):
+    """repo を cwd にして git を呼ぶ。env は今の環境の上に重ね、stdin（バイト）は標準入力に渡す。
+    失敗は Reject（受け付けは『分からない』を合格に倒さない）"""
+    feed = {"input": stdin} if stdin is not None else {"stdin": subprocess.DEVNULL}
     try:
-        r = subprocess.run(["git", *args], cwd=str(repo), capture_output=True, stdin=subprocess.DEVNULL)
+        r = subprocess.run(["git", *args], cwd=str(repo), capture_output=True, env={**os.environ, **(env or {})}, **feed)
     except OSError as e:
         raise Reject(f"git {' '.join(args)} を呼べない（{type(e).__name__}: {e}）")
     if r.returncode != 0:
@@ -305,9 +310,28 @@ def tree_moved(before: dict, repo: pathlib.Path, *, bytecode: bool = True) -> li
     return tree_change(before, now)
 
 
-def _names(repo, cmd, *args) -> list:
+def _names(repo, cmd, *args, env=None) -> list:
     """git <cmd> -z <args> が出すパスの一覧（NUL 区切り。日本語などの名前も引用符や \\ の書き換え無しでそのまま）"""
-    return [os.fsdecode(n) for n in _git(repo, cmd, "-z", *args, binary=True).split(b"\0") if n]
+    return [os.fsdecode(n) for n in _git(repo, cmd, "-z", *args, binary=True, env=env).split(b"\0") if n]
+
+
+@contextlib.contextmanager
+def flag_free_env(repo):
+    """git に渡す env の差分。本物の index の assume-unchanged・skip-worktree の印を外して作業ツリーを見せる
+    （印の付いた物が在る時だけ、本物の index の写しの一時の index を指す。本物の index は触らない）"""
+    marked = [rec[2:] for rec in _git(repo, "ls-files", "-v", "-z", binary=True).split(b"\0")
+              if rec and (rec[:1].islower() or rec[:1] == b"S")]
+    if not marked:
+        yield {}
+        return
+    with tempfile.TemporaryDirectory(prefix="works-touched-") as tmp:
+        index = os.path.join(tmp, "index")
+        shutil.copy2(_git(repo, "rev-parse", "--path-format=absolute", "--git-path", "index").strip(), index)
+        env = {"GIT_INDEX_FILE": index}
+        # 1 回の update-index に 2 つの旗を渡すと片方しか効かない。--stdin は最後の引数
+        for flag in ("--no-assume-unchanged", "--no-skip-worktree"):
+            _git(repo, "update-index", "-z", flag, "--stdin", env=env, stdin=b"\0".join(marked) + b"\0")
+        yield env
 
 
 def _is_bytecode(name: str) -> bool:
@@ -317,7 +341,8 @@ def _is_bytecode(name: str) -> bool:
 
 def _touched(repo, rev) -> tuple:
     """(追跡しているファイルで rev から変わった物, 未追跡のファイル)。どちらもバイトコードを除き、名前の順"""
-    tracked = _names(repo, "diff", "--name-only", "--no-renames", rev)
+    with flag_free_env(repo) as env:
+        tracked = _names(repo, "diff", "--name-only", "--no-renames", rev, env=env)
     untracked = _names(repo, "ls-files", "--others", "--exclude-standard", "--full-name", "--", ":/")
     return (sorted(n for n in set(tracked) if not _is_bytecode(n)),
             sorted(n for n in set(untracked) if not _is_bytecode(n)))
@@ -325,6 +350,7 @@ def _touched(repo, rev) -> tuple:
 
 def touched_files(repo: pathlib.Path, rev: str) -> list:
     """修正が触ったファイル（repo の根からのパス、名前の順）。git diff --name-only <rev> と未追跡のファイル
-    （入れ子の git リポジトリは `sub/` の 1 本）。__pycache__/ と .pyc は除く"""
+    （入れ子の git リポジトリは `sub/` の 1 本）。本物の index の assume-unchanged・skip-worktree の印を付けた物も挙げる
+    （flag_free_env）。__pycache__/ と .pyc は除く"""
     tracked, untracked = _touched(repo, rev)
     return sorted(set(tracked) | set(untracked))

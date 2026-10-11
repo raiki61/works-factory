@@ -16,7 +16,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import accept  # noqa: E402
-from accept import _ignored_entries, snapshot_tree, tree_change, tree_state  # noqa: E402
+from accept import _ignored_entries, snapshot_tree, touched_files, tree_change, tree_state  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 
 class AcceptCase(unittest.TestCase):
@@ -115,6 +115,21 @@ class TestSnapshot(AcceptCase):
         before = snapshot_tree(self.repo, bytecode=False)["diff_sha256"]
         (self.repo / "__pycache__").write_text("2\n", encoding="utf-8")
         self.assertEqual(snapshot_tree(self.repo, bytecode=False)["diff_sha256"], before)
+
+
+class TestTouchedFiles(AcceptCase):
+    def test_touched_files_sees_files_hidden_by_index_marks(self):
+        """本物の index の assume-unchanged・skip-worktree の印を付けた変更済みのファイルも挙げ、印は消さない"""
+        for name in ("f", "g"):
+            (self.repo / name).write_text("1\n", encoding="utf-8")
+        git(self.repo, "add", "f", "g")
+        git(self.repo, "commit", "-q", "-m", "fg")
+        git(self.repo, "update-index", "--assume-unchanged", "f")
+        git(self.repo, "update-index", "--skip-worktree", "g")
+        for name in ("f", "g"):
+            (self.repo / name).write_text("2\n", encoding="utf-8")
+        self.assertEqual(touched_files(self.repo, "HEAD"), ["f", "g"])
+        self.assertEqual(git(self.repo, "ls-files", "-v", "f", "g").splitlines(), ["h f", "S g"])
 
 
 class TestTreeState(AcceptCase):

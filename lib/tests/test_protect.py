@@ -157,6 +157,14 @@ class TouchedCase(unittest.TestCase):
         again = {r["path"]: (r["id"], r["added"], r["deleted"]) for r in protect.touched(self.repo, self.rev, self.doc)}
         self.assertEqual(again, got)
 
+    def test_marked_protected_file_is_still_counted(self):
+        """本物の index で assume-unchanged の印を付けた一覧のファイルも、挙げて行数を数える"""
+        git(self.repo, "update-index", "--assume-unchanged", "stats.py")
+        src = (self.repo / "stats.py").read_text(encoding="utf-8")
+        (self.repo / "stats.py").write_text(src + "# a\n", encoding="utf-8")
+        rows = protect.touched(self.repo, self.rev, self.doc)
+        self.assertEqual([(r["path"], r["added"], r["deleted"]) for r in rows], [("stats.py", 1, 0)])
+
     def test_lines_name_file_stat_and_rule(self):
         (self.repo / "stats.py").write_text("x\n", encoding="utf-8")
         rows = protect.touched(self.repo, self.rev, self.doc)
