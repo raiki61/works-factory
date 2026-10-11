@@ -78,24 +78,35 @@ def host_archon(binary: Path) -> Archon:
     return archon
 
 
+def _run_start(args: argparse.Namespace, archon: Archon) -> None:
+    print(start(args.target.resolve(), args.request, archon))
+
+
+def _run_answer(args: argparse.Namespace, archon: Archon) -> None:
+    answer(args.run_id, args.text, archon)
+
+
+def _run_show(args: argparse.Namespace, archon: Archon) -> None:
+    print(show(args.run_id, archon), end="")
+
+
+RUN_ID = ("run_id", str, "run の id")
+
+COMMANDS: dict[str, tuple[tuple[tuple[str, type, str], ...], Callable[[argparse.Namespace, Archon], None]]] = {
+    "start": ((("target", Path, "対象のリポジトリ"), ("request", str, "依頼の文か issue の番号")), _run_start),
+    "answer": ((RUN_ID, ("text", str, "関所への答え")), _run_answer),
+    "show": ((RUN_ID,), _run_show),
+}
+
+
 def main(command: str, argv: list[str]) -> int:
+    params, run = COMMANDS[command]
     parser = argparse.ArgumentParser(prog=f"bin/{command}")
-    if command == "start":
-        parser.add_argument("target", type=Path, help="対象のリポジトリ")
-        parser.add_argument("request", help="依頼の文か issue の番号")
-    else:
-        parser.add_argument("run_id", help="run の id")
-        if command == "answer":
-            parser.add_argument("text", help="関所への答え")
+    for name, kind, meaning in params:
+        parser.add_argument(name, type=kind, help=meaning)
     args = parser.parse_args(argv)
     try:
-        archon = host_archon(place.archon_binary(packs.load(ROOT), default_cache()))
-        if command == "start":
-            print(start(args.target.resolve(), args.request, archon))
-        elif command == "answer":
-            answer(args.run_id, args.text, archon)
-        else:
-            print(show(args.run_id, archon), end="")
+        run(args, host_archon(place.archon_binary(packs.load(ROOT), default_cache())))
     except (RuntimeError, ValueError, OSError, subprocess.CalledProcessError) as error:
         print(f"bin/{command}: {error}", file=sys.stderr)
         return 1

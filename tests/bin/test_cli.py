@@ -88,6 +88,10 @@ class CliTest(unittest.TestCase):
         self.assertEqual(cli.show("run-1", archon), "Run run-1\nStatus: paused\n")
         self.assertEqual(archon.calls, [["workflow", "get", "run-1", "--verbose"]])
 
+    def test_main_refuses_unknown_command(self):
+        with self.assertRaises(KeyError):
+            cli.main("apply", ["run-1"])
+
 
 if __name__ == "__main__":
     unittest.main()
