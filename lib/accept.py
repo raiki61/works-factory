@@ -215,7 +215,10 @@ def _porcelain_path(line: str) -> str:
     return path[1:-1] if len(path) >= 2 and path[0] == path[-1] == '"' else path
 
 
-_NO_BYTECODE = (":(top)", ":(top,exclude,glob)**/*.pyc", ":(top,exclude,glob)**/__pycache__/**")   # git の pathspec で _is_bytecode と同じ物を除く
+# git の pathspec で _is_bytecode と同じ物を除く（試験で縛る）。__pycache__ という名のファイルは /** の形では除けず、
+# 中身は /** の無い形では除けないので両方要る
+_NO_BYTECODE = (":(top)", ":(top,exclude,glob)**/*.pyc", ":(top,exclude,glob)**/__pycache__",
+                ":(top,exclude,glob)**/__pycache__/**")
 
 
 def snapshot_tree(repo: pathlib.Path, *, bytecode: bool = True) -> dict:
