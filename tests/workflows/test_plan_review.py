@@ -62,6 +62,9 @@ LABEL_MARK = "block"
 RIPPLE_MARK = "RIPPLE-MARK-9902"
 PLAN_MARK = "PLAN-MARK-6060"
 CONTRACT_INPUTS = ("units", "judgment", "purpose", "world", "plan", "structure", "ripple")
+# 元 works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md:4（sha256 4f400ecf39c7347e5c45c62cdf2446278816202653b5c6f132b56d16eade5068）
+ORIGINAL_UNITS_LINE = ("直す単位（各行の `no` は engine が振った番号。**key を写さず no の整数で指せ**——engine が名前に戻して記録する）: "
+                       "{{record.units | pick key,label,disposition,reason}}")
 ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts": "null", "gate_answers": "null"}
 RETURN_FIELDS = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
 RUN_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
@@ -337,6 +340,15 @@ class YamlCase(unittest.TestCase):
         self.assertIn("blind-judge", got["r2-design"]["systemPrompt"])
         self.assertNotIn("systemPrompt", got["plan-review"])
         self.assertEqual(got["plan-review"]["allowed_tools"], ["Read", "Grep", "Glob", "WebSearch", "WebFetch", "Agent", "Write"])
+
+    def test_role_prefaces_are_the_ported_role_bodies(self):
+        """事前審査の指示書の頭は役 judge の本文、独立設計の systemPrompt は役 blind-judge の本文と字が同じ（今の works の
+        engine が役の定義 agents/<役>.md の本文を前付けした形。写しは lib/agents/）"""
+        def body(role: str) -> str:
+            return (LIB / "agents" / f"{role}.md").read_text(encoding="utf-8").split("---", 2)[2].strip()
+        text = (BLOCK / "commands" / "plan-review.md").read_text(encoding="utf-8")
+        self.assertEqual(text[:text.index("\n\n# 修正案の事前審査")], body("judge"))
+        self.assertEqual(nodes()["r2-design"]["systemPrompt"], body("blind-judge"))
 
     def test_loops_are_three_and_end_on_accept_done(self):
         """出し直しの輪は 3 回（諦めの数 rolekit.GIVE_UP_AFTER と同じ）で、until_bash は同じ輪の受け付けの done"""
@@ -1557,6 +1569,30 @@ class PortedMaterialCase(RunCase):
                      policy.RULE, "## 考えの住処の地図"):
             self.assertIn(want, text)
         self.assertLess(text.index(policy.RULE), text.index("## 考えの住処の地図"))
+
+    def test_units_line_is_the_original_instruction_line(self):
+        """材料の直す単位の行は元の指示書 p2.plan_review.md:4 の行（engine を機械に読み替え、雛形を番号つきの単位に置き換えた物）。
+        元の字は単位を key のまま書かせた行を持たず、外した行も戻っていない"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        head = ORIGINAL_UNITS_LINE[:ORIGINAL_UNITS_LINE.index("{{")].replace(" engine ", "機械").replace("——engine ", "——機械")
+        line = next(x for x in text.splitlines() if x.startswith("直す単位"))
+        self.assertEqual(line, head + "[")
+        self.assertIn(f'"no": 2,\n  "key": "{UNIT_CLAMP}"', text)
+        command = (BLOCK / "commands" / "plan-review.md").read_text(encoding="utf-8")
+        for where in (text, command):
+            self.assertNotIn("key を字のまま", where)
+
+    def test_gate_answers_reach_the_lib_through_the_open_script(self):
+        """入力 gate_answers は差し込みの頭の script から lib の控えに届く（通すの言葉は continue に揃う）"""
+        r = self.run_
+        r.inputs["gate_answers"] = json.dumps({"decision": "approve", "text": "GATE-MARK-5151 通す", "asked": ["問いの行"]},
+                                              ensure_ascii=False)
+        r.open()
+        rows = json.loads((r.folder / boardview.GATE_ANSWERS_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([(x["answer"], x["note"], x["asked"]) for x in rows], [("continue", "GATE-MARK-5151 通す", ["問いの行"])])
 
     def test_no_policy_no_section(self):
         r = self.run_
