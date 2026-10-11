@@ -95,8 +95,9 @@ def workflow_run(source: Path, workflow_dir: Path, cwd: Path, name: str, *args: 
 
 
 def _verify(source: Path, commit: str) -> None:
-    """取り置いた源が commit のままで、書き換わっておらず、依存が入っているかを照らす（ASF の factory/consumer.py の
-    verify_source と同じ不変条件）。依存（node_modules）は源の .gitignore に入るので status には出ない"""
+    """取り置いた源の 3 つを照らす: HEAD が commit・git status --porcelain --untracked-files=all が空・node_modules が在る。
+    依存（node_modules）は源の .gitignore に入るので status には出ない。
+    ASF の factory/consumer.py の verify_source の照らしの一部で、無視・未追跡の工程ファイル・symlink・必須のファイルの欠けは見ない"""
     def git(*args: str) -> str:
         done = subprocess.run(["git", "-C", str(source), *args], capture_output=True, text=True)
         return done.stdout.rstrip("\n") if done.returncode == 0 else f"git {args[0]} が失敗: {done.stderr.strip()}"

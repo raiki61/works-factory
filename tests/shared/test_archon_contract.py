@@ -4,8 +4,8 @@
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
 
 - ASF の消費者 factory/consumer.py は木に在るので常に照らす。
-- 止めた Archon の源は、環境変数 WORKS_FACTORY_ARCHON_CACHE を cache にして place.archon_source が取り置き済みと
-  照らした時だけ照らす。試験の中では取りに行かない。
+- 止めた Archon の源は、環境変数 WORKS_FACTORY_ARCHON_CACHE の置き場に <cache>/archon/<commit> が在る時だけ照らす。
+  在れば place._verify を当て、壊れていれば赤にする。環境変数か置き場が無い時だけ見送る。試験の中では取りに行かない。
 """
 import os
 import pathlib
@@ -18,6 +18,7 @@ from typing import Any, NamedTuple
 from unittest import mock
 
 from bin._lib import pack, place
+from tests.bin.gitkit import git
 from tests.shared.test_boundary import boundary
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -93,8 +94,16 @@ def _asf_folder_key() -> str:
         return pack.load(root)["asf"]["folder"]
 
 
-def _no_fetch(*_: Any) -> None:
-    raise FileNotFoundError("取り置かれていない（試験の中では取りに行かない）")
+def pinned_source(cache: str | None, commit: str) -> pathlib.Path:
+    """取り置いた Archon の源 <cache>/archon/<commit> を照らして返す。cache が無いか置き場が無ければ名前つきで見送る。
+    源の字を読むだけなので bun は要らず、archon_source を通さない（無い置き場を作らない）"""
+    if not cache:
+        raise unittest.SkipTest(f"Archon の源が無い: 置き場の環境変数 {CACHE_ENV} が無い")
+    source = pathlib.Path(cache) / "archon" / commit
+    if not source.is_dir():
+        raise unittest.SkipTest(f"Archon の源が無い: {source} が無い")
+    place._verify(source, commit)
+    return source
 
 
 def _workflow_run_shape() -> list[str]:
@@ -191,14 +200,67 @@ class ConsumerContractTest(ContractTest):
 
 class ArchonContractTest(ContractTest):
     def test_copies_match_pinned_archon_source(self):
-        cache = os.environ.get(CACHE_ENV)
-        if not cache:
-            self.skipTest(f"Archon の源が無い: 置き場の環境変数 {CACHE_ENV} が無い")
-        try:
-            source = place.archon_source(pack.load(ROOT), pathlib.Path(cache), fetch=_no_fetch, install=_no_fetch)
-        except RuntimeError as error:
-            self.skipTest(f"Archon の源が無い: {error}")
+        source = pinned_source(os.environ.get(CACHE_ENV), pack.load(ROOT)["archon"]["commit"])
         self.check(source, ARCHON_ROWS)
+
+
+class PinnedSourceTest(unittest.TestCase):
+    """置き場は使い捨ての git リポジトリ。commit はその HEAD"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.cache = pathlib.Path(tmp.name)
+
+    def held(self) -> tuple[pathlib.Path, str]:
+        source = self.cache / "archon" / "pending"
+        (source / "node_modules").mkdir(parents=True)
+        (source / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
+        git(source, "init", "-q")
+        git(source, "add", "-A")
+        git(source, "commit", "-q", "-m", "seed")
+        commit = git(source, "rev-parse", "HEAD")
+        return source.rename(source.with_name(commit)), commit
+
+    def assert_red(self, commit: str, said: str):
+        """assertRaises(RuntimeError) は SkipTest を素通しして見送りに数えるので、見送りもここで落とす"""
+        with self.assertRaises(Exception) as caught:
+            pinned_source(str(self.cache), commit)
+        self.assertIsInstance(caught.exception, RuntimeError)
+        self.assertRegex(str(caught.exception), said)
+
+    def test_held_source_is_returned(self):
+        source, commit = self.held()
+        self.assertEqual(pinned_source(str(self.cache), commit), source)
+
+    def test_looks_where_archon_source_keeps_it(self):
+        """置き場の形の持ち主は archon_source。形が動けば、pinned_source が黙って見送る前にここで赤になる"""
+        source, commit = self.held()
+
+        def unreachable(*_):
+            self.fail("在る源を取り直した")
+
+        with mock.patch.object(place.shutil, "which", return_value="/bin/bun"):
+            kept = place.archon_source({"archon": {"repo": "unused", "commit": commit}}, self.cache, unreachable, unreachable)
+        self.assertEqual(pinned_source(str(self.cache), commit), kept)
+
+    def test_other_head_is_red_not_skipped(self):
+        source, _ = self.held()
+        other = "0" * 40
+        source.rename(source.with_name(other))
+        self.assert_red(other, "HEAD")
+
+    def test_dirty_source_is_red_not_skipped(self):
+        source, commit = self.held()
+        (source / "edited").write_text("x", encoding="utf-8")
+        self.assert_red(commit, "変更が在る")
+
+    def test_skips_with_the_reason_and_creates_nothing(self):
+        for name, cache, said in (("環境変数が無い", None, CACHE_ENV), ("置き場が無い", str(self.cache), "archon")):
+            with self.subTest(name):
+                with self.assertRaisesRegex(unittest.SkipTest, f"Archon の源が無い: .*{said}"):
+                    pinned_source(cache, "0" * 40)
+        self.assertEqual(list(self.cache.iterdir()), [])
 
 
 if __name__ == "__main__":
