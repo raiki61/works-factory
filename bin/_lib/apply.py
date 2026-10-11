@@ -54,12 +54,9 @@ def main(argv: list[str], here: Path | None = None, get: Get = ask_launcher) -> 
         if sha256(data) != sealed_hash:
             raise Refuse(f"封じた hash と合わない（記録 {sealed_hash}・置き場のファイル {sha256(data)}: {diff}）。当てない")
         files = put(target, diff, args.allow_delete)
-    except launcher.Stop as stop:
+    except (launcher.Stop, Refuse) as stop:
         print(f"{NAME}: {stop}", file=sys.stderr)
         return stop.code
-    except Refuse as refuse:
-        print(f"{NAME}: {refuse}", file=sys.stderr)
-        return refuse.code
     print(f"run {record['run_id']} の封じた差分を {target} に当てた: {' '.join(files)}")
     print("commit はしていない。試験を回してから commit する")
     return 0
@@ -88,13 +85,13 @@ def choose(record: dict, allow_stopped: bool) -> tuple[Path, str]:
     """当てる差分のファイルと、記録の封じた hash"""
     value = record["returns"]["value"]
     placed, sealed = value.get("apply"), value.get("sealed")
-    if is_obj(placed) and placed.get("ok") is True:
-        if not is_obj(sealed) or placed.get("hash") != sealed.get("hash"):
+    if isinstance(placed, dict) and placed.get("ok") is True:
+        if not isinstance(sealed, dict) or placed.get("hash") != sealed.get("hash"):
             raise Refuse(f"置いた差分の hash が封じた hash と合わない（apply {placed.get('hash')}・"
-                         f"sealed {sealed.get('hash') if is_obj(sealed) else None}）。当てない")
+                         f"sealed {sealed.get('hash') if isinstance(sealed, dict) else None}）。当てない")
         return pointed(record, placed.get("diff")), placed["hash"]
     nothing = f"置いた差分が無い（結末 {value.get('outcome')}）"
-    if not (is_obj(sealed) and sealed.get("ok") is True):
+    if not (isinstance(sealed, dict) and sealed.get("ok") is True):
         raise Refuse(f"{nothing}。封じていない差分は当てない")
     if not allow_stopped:
         raise Refuse(f"{nothing}。最後の関所で止めた run の封じた差分を当てるなら --allow-stopped を付けて打ち直す")
@@ -103,13 +100,9 @@ def choose(record: dict, allow_stopped: bool) -> tuple[Path, str]:
     return pointed(record, sealed.get("diff")), sealed["hash"]
 
 
-def is_obj(value) -> bool:
-    return isinstance(value, dict)
-
-
 def pointed(record: dict, ptr) -> Path:
     """指し札の先の実のパス。指し札がこの run の物で、置き場の根の実のパスの下の在る普通のファイルでなければ止まる"""
-    if not is_obj(ptr) or ptr.get("type") != "archon_artifact" or not isinstance(ptr.get("path"), str):
+    if not isinstance(ptr, dict) or ptr.get("type") != "archon_artifact" or not isinstance(ptr.get("path"), str):
         raise Refuse(f"差分の指し札が読めない: {json.dumps(ptr, ensure_ascii=False)}")
     if ptr.get("run_id") != record["run_id"]:
         raise Refuse(f"差分の指し札が別の run {ptr.get('run_id')} を指す（記録の run は {record['run_id']}）")
@@ -120,7 +113,7 @@ def pointed(record: dict, ptr) -> Path:
         raise Refuse(f"差分の指し札のパスが相対でない: {ptr['path']}")
     real_root = os.path.realpath(root)
     real = os.path.realpath(os.path.join(root, ptr["path"]))
-    if os.path.commonpath([real_root, real]) != real_root or real == real_root:
+    if os.path.commonpath([real_root, real]) != real_root:
         raise Refuse(f"差分の指し札が run の置き場の外を指す: {ptr['path']}（{real}）")
     if not os.path.isfile(real):
         raise Refuse(f"差分の指し札の先に普通のファイルが無い: {real}")
