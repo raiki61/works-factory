@@ -759,6 +759,29 @@ class LineWiringCase(unittest.TestCase):
                          {"plan": "$replan.output.plan", "ripple": "$replan.output.ripple", "depth": "$replan.output.depth",
                           "answers": "$answer-replan.output.fix_answers", "only_items": "$fix.output.replan_items"})
 
+    def test_include_ids_are_not_loop_body_ids(self):
+        """展開した後の節の id が重ならない: Archon は差し込んだブロックの頭の段の節にだけ `<include の id>__` を付け、輪の中の節の id は
+        そのまま残す。線の差し込みの名（頭の段と線の輪の中）は、輪の中の `$<名>.output` までブロックの返す節へ書き換わる
+        （include-expander.ts の renameIncludeRef）ので、線と差し込む全ブロック（入れ子も）の輪の中の節の名と重なると、ブロックの
+        輪の中の節が線の節を読む"""
+        def block(name):
+            return yaml.safe_load((SCRIPTS.parents[1] / name.removeprefix("works-factory-") / f"{name}.yaml").read_text(encoding="utf-8"))
+
+        def body_ids(nodes, inside=False):
+            got = set()
+            for node in nodes:
+                if "include" in node:
+                    got |= body_ids(block(node["include"])["nodes"])
+                elif inside:
+                    got.add(node["id"])
+                if "loop_group" in node:
+                    got |= body_ids(node["loop_group"]["nodes"], inside=True)
+            return got
+
+        includes = {key for key, node in line_nodes().items() if "include" in node}
+        self.assertEqual(len(includes), 14)
+        self.assertEqual(includes & body_ids(LINE["nodes"]), set())
+
     def test_round_limit_is_the_loop_limit(self):
         self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], plan_out.ROUND_LIMIT)
 
