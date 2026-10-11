@@ -72,18 +72,18 @@ def teardown() -> list[str]:
     if not book.exists():
         return []
     lines = [line for line in book.read_text(encoding="utf-8").splitlines() if line]
-    kept = [line for line in lines if not stop_runs(Path(line.split("\t")[0]))]
+    kept = [line for line in lines if not stop_runs(*map(Path, line.split("\t")))]
     tmp = book.with_name(book.name + ".tmp")
     tmp.write_text("".join(f"{line}\n" for line in kept), encoding="utf-8")
     os.replace(tmp, book)
     return kept
 
 
-def stop_runs(home: Path) -> bool:
-    """home の家の終わっていない run を全部止める。全部止まった（か家がもう無い）なら真"""
+def stop_runs(home: Path, target: Path) -> bool:
+    """home の家で target に走った終わっていない run を全部止める。全部止まった（か家がもう無い）なら真"""
     if not home.is_dir():
         return True
-    status = launch(home, "status", "--all", "--json")
+    status = launch(home, target, "status", "--all", "--json")
     try:
         runs = json.loads(status.stdout)["runs"] if status.returncode == 0 else None
     except (json.JSONDecodeError, KeyError, TypeError):
@@ -93,19 +93,20 @@ def stop_runs(home: Path) -> bool:
         return False
     stopped = True
     for run in runs:
-        if launch(home, "cancel", run["id"], "--json").returncode == 0:
+        if launch(home, target, "cancel", run["id"], "--json").returncode == 0:
             continue
-        if launch(home, "abandon", run["id"], "--json").returncode != 0:
+        if launch(home, target, "abandon", run["id"], "--json").returncode != 0:
             print(f"make_target: {home} の run {run['id']} を止められない（cancel も abandon も落ちた）", file=sys.stderr)
             stopped = False
     return stopped
 
 
-def launch(home: Path, *args: str) -> subprocess.CompletedProcess:
-    """殻で home の家の Archon を起こす。止める命令は工程を回さないので、認証を要らなくする"""
+def launch(home: Path, target: Path, *args: str) -> subprocess.CompletedProcess:
+    """殻で home の家の Archon を起こす。Archon は git のリポジトリの中でしか命令を受けないので、対象を --cwd で渡す。
+    止める命令は工程を回さないので、認証を要らなくする"""
     env = {**os.environ, "WORKS_FACTORY_HOME": str(home), "WORKS_FACTORY_NO_AUTH": "1"}
-    return subprocess.run([sys.executable, str(SHELL), "workflow", *args], cwd=home, env=env, stdin=subprocess.DEVNULL,
-                          capture_output=True, text=True, encoding="utf-8")
+    return subprocess.run([sys.executable, str(SHELL), "workflow", *args, "--cwd", str(target)], cwd=home, env=env,
+                          stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8")
 
 
 def main(argv: list[str]) -> int:
