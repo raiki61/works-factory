@@ -23,7 +23,6 @@ import green_cert  # noqa: E402
 import tree_run  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
 
-MODES = ("base", "final")
 WORKSPACE_PREFIX = ".archon/"   # Archon が run の作業ツリーに置く物。修正の変更でない
 OUTPUT = ("by", "material", "runs", "skipped_steps", "same_as", "log", "junit_steps", "fingerprint_before", "fingerprint_after")
 
@@ -42,8 +41,8 @@ def changed(root: Path, base_rev: str):
 
 def main() -> int:
     mode = os.environ["INPUTS_MODE"]
-    if mode not in MODES:
-        print(f"mode は {'・'.join(MODES)} のどれか: {mode!r}", file=sys.stderr)
+    if mode not in declared_checks.MODES:
+        print(f"mode は {'・'.join(declared_checks.MODES)} のどれか: {mode!r}", file=sys.stderr)
         return 1
     start = json.loads(boundary.resolve(json.loads(os.environ["INPUTS_START"])).read_text(encoding="utf-8"))
     root = Path(util.repo_root() or os.getcwd())

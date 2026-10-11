@@ -4,13 +4,11 @@
 # ///
 """節 ci-accept: 任せ先の CI の役の返答を受け付ける。役の前後の作業ツリーの姿（ci-prep の ci-snapshot.json と今。accept.tree_moved。
 HEAD・枝・git が無視するパスも見る）を比べ、素材の欄の決まり（declared_checks.material_problems）を照らす。通れば素材を
-test-gate/<mode>/ci-material.json に書く。拒めば理由を返し（拒否は rolekit の控えに積む）、rolekit.GIVE_UP_AFTER 回目の拒否で done・give_up
-（輪を max_iterations で落とさない）。終わる時（通った・諦めた）に写しを消す"""
+test-gate/<mode>/ci-material.json に書く。拒めば理由を返し（拒否は rolekit の控えに積む）、役が自分で置きうる ci-material.json を消し、
+rolekit.GIVE_UP_AFTER 回目の拒否で done・give_up（輪を max_iterations で落とさない）。終わる時（通った・諦めた）に写しを消す"""
 import json
 import os
-import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -22,16 +20,6 @@ import accept  # noqa: E402
 import declared_checks  # noqa: E402
 import rolekit  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
-from ci_prep import COPY_PREFIX, ROLE  # noqa: E402  写しの置き場の頭と拒否の控えの鍵は作る側が持つ
-
-
-def drop_copy(top) -> None:
-    """写しの置き場を消す（一時の置き場の直下の COPY_PREFIX で始まるフォルダだけ。symlink は辿らない）"""
-    if not top or os.path.islink(top):
-        return
-    real = os.path.realpath(top)
-    if os.path.dirname(real) == os.path.realpath(tempfile.gettempdir()) and os.path.basename(real).startswith(COPY_PREFIX):
-        shutil.rmtree(real, ignore_errors=True)
 
 
 def judge(gate: Path, root: Path, snap: dict, raw: str, mode: str) -> dict:
@@ -56,9 +44,11 @@ def main() -> int:
     root = Path(util.repo_root() or os.getcwd())
     gate = Path(os.environ["ARTIFACTS_DIR"]) / "test-gate" / mode
     snap = json.loads((gate / "ci-snapshot.json").read_text(encoding="utf-8"))
-    out = rolekit.with_done(gate, ROLE, judge(gate, root, snap, os.environ["INPUTS_REPLY"], mode))
+    out = rolekit.with_done(gate, declared_checks.CI_ROLE, judge(gate, root, snap, os.environ["INPUTS_REPLY"], mode))
+    if not out["ok"]:
+        (gate / "ci-material.json").unlink(missing_ok=True)
     if out["done"]:
-        drop_copy(snap.get("top"))
+        declared_checks.drop_copy(snap.get("top"))
     boundary.returns({"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"]})
     return 0
 

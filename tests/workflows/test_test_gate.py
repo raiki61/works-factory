@@ -352,6 +352,14 @@ class CiRoleCase(ScriptCase):
                 self.assertTrue(self.ok("ci_accept", mode="base", reply=self.GOOD)["done"])
                 self.assertTrue(kept.exists())
 
+    def test_rejected_reply_leaves_no_material_the_role_wrote(self):
+        """拒んだ回は、役が run の置き場に自分で置いた ci-material.json を消す（返す節が受け付けていない素材を読まない）"""
+        self.prep()
+        material = self.artifacts / "test-gate" / "base" / "ci-material.json"
+        material.write_text(json.dumps({"material": {"status": "clean", "checked": "x"}}), encoding="utf-8")
+        self.assertFalse(self.ok("ci_accept", mode="base", reply=self.BAD)["ok"])
+        self.assertFalse(material.exists())
+
     def test_branch_switch_rejected(self):
         """元 test_branch_switch_rejected"""
         self.prep()
@@ -402,6 +410,17 @@ class ResultScriptCase(ScriptCase):
         self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, "inherited"))
         self.assertIn("inherited", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
         self.assertEqual(out["fingerprint"], green_cert.fingerprint(self.repo))
+
+    def test_final_evidence_names_the_tests_before_the_fix(self):
+        """final の証拠は修正前のテストの行（元 entry.baseline_line）を出す: 修正前は赤で、段ごとの終了コードと、最後の赤は修正前から
+        在りうること。元の結末が無い final は記録が無いと書く"""
+        text = self.pointed(self.final(self.base())["evidence"]).read_text(encoding="utf-8")
+        line = next(l for l in text.splitlines() if "修正前のテスト" in l)
+        self.assertIn("修正前のテスト: 赤", line)
+        self.assertIn('{"suite": 1}', line)
+        self.assertIn("最後のテストの赤は修正前から在りうる", line)
+        text = self.pointed(self.result("final")["evidence"]).read_text(encoding="utf-8")
+        self.assertIn("修正前のテスト: 記録が無い", text)
 
     def test_final_introduced_red_is_not_certified(self):
         baseline = self.base()
@@ -477,6 +496,25 @@ class ResultScriptCase(ScriptCase):
         out = self.result("base")
         self.assertEqual((out["ok"], out["green"], out["red_cause"]), (True, True, ""))
 
+    def test_final_role_green_is_self_reported_and_not_certified(self):
+        """final で任せ先の役が書いた緑は、機械が走らせていない自己申告として認証しない（元 run_tests.run_final の role_needed・
+        review-loop.py の ci_unverified）"""
+        self.assertEqual(self.ok("run", mode="final", start=self.start)["by"], "role_needed")
+        gate = self.artifacts / "test-gate" / "final"
+        (gate / "ci-material.json").write_text(json.dumps({"material": {"status": "clean", "checked": "make test: exit 0"}}),
+                                               encoding="utf-8")
+        out = self.result("final")
+        self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, True, ""))
+        self.assertIn(green_cert.SELF_REPORTED, self.pointed(out["evidence"]).read_text(encoding="utf-8"))
+
+    def test_copy_left_by_a_fallen_role_is_removed(self):
+        """役の節が落ちて ci-accept が回らなくても、返す節が ci-snapshot.json の写しの置き場を消す"""
+        self.ok("run", mode="final", start=self.start)
+        top = pathlib.Path(self.ok("ci_prep", mode="final", start=self.start, reject="")["copy_dir"]).parent
+        self.addCleanup(__import__("shutil").rmtree, top, True)
+        self.result("final")
+        self.assertFalse(top.exists())
+
     def test_rerun_in_the_same_run_does_not_read_the_earlier_material(self):
         """同じ run で同じ形をもう 1 度差し込んだ時、前の回の任せ先の素材で今の木を認証しない"""
         self.ok("run", mode="final", start=self.start)
@@ -518,6 +556,18 @@ class ResultScriptCase(ScriptCase):
         out = self.result("final")
         self.assertEqual((out["ok"], out["red_cause"]), (False, "incomplete"))
         self.assertIn("run.json", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
+
+    def test_lib_that_cannot_be_imported_returns_incomplete_without_failing(self):
+        """lib の import が落ちても、返す節は終了の値 0 で約束の形の偽の結末と、誤りを名指した証拠を返す"""
+        nowhere = self.tmp / "no-root"
+        done = subprocess.run([PY, str(SCRIPTS / "result.py")], cwd=self.repo, timeout=WAIT,
+                              env={**self.env({"mode": "base", "start": self.start, "baseline": ""}), "WORKS_FACTORY_ROOT": str(nowhere)},
+                              capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        out = json.loads(done.stdout)
+        self.assertEqual(schema_problems(out, self.output_format), [], out)
+        self.assertEqual((out["mode"], out["ok"], out["green"], out["red_cause"]), ("base", False, False, "incomplete"))
+        self.assertIn("ModuleNotFoundError", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
 
 
 class FixtureCase(unittest.TestCase):

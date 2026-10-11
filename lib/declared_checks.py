@@ -5,8 +5,8 @@
 盤面の引数 b・記録への控え（process.checks）・試験の枠と控え（tree_run.slotted_run・同じ run の中の使い回し）・台帳の人待ちは外した。
 - 字のまま（継ぎ目の直しだけ）: TEST_CMD_STEP・local_checks_material・_nice19・_launched・_cmd_material・_same_step・env_only_red・
   _suite_kind・suites_line・CiRefused（InputRefused ごと）・_with_test_cmd・_junit_unran・_tail（TAIL_LINES・TAIL_BYTES ごと）
-- 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci
-- 新しい関数: material_problems
+- 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci・baseline_line
+- 新しい関数: material_problems・drop_copy
 """
 import json
 import os
@@ -15,6 +15,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 import baseline_red
@@ -45,6 +46,7 @@ MATERIAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": 
                    "properties": {"status": {"type": "string", "enum": list(STATUSES)},
                                   **{k: {"type": "integer", "minimum": 0} if k in NUMERIC_FIELDS else {"type": "string"}
                                      for k in FIELDS}}}
+MODES = ("base", "final")   # 形: 判定の前・修正の後
 CANT = {False: "awaiting_human", True: "not_run"}   # 走らせられない時の status（判定の前・後。after_judge か mode == "final" で引く）
 
 
@@ -413,6 +415,20 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
 
 
 # ---------------------------------------------------------------- 任せ先の役の素材
+CI_ROLE = "ci"                       # 任せ先の CI の役の拒否の控えの名（rolekit.with_done・rolekit.rejected）
+COPY_PREFIX = "works-factory-ci-"    # 任せ先の役がテストを走らせる写しの置き場（一時の置き場の直下）の頭
+
+
+def drop_copy(top) -> None:
+    """写しの置き場を消す（一時の置き場の直下の COPY_PREFIX で始まるフォルダだけ。symlink は辿らない）。top は役が書ける
+    控えから読むので、ほかの所を指していても消さない"""
+    if not top or os.path.islink(top):
+        return
+    real = os.path.realpath(top)
+    if os.path.dirname(real) == os.path.realpath(tempfile.gettempdir()) and os.path.basename(real).startswith(COPY_PREFIX):
+        shutil.rmtree(real, ignore_errors=True)
+
+
 def material_problems(material, *, mode: str) -> list:
     """任せ先の CI の役が返した素材の欄の決まりに外れた所（人に向けた文の並び。無ければ空）。今の works の受け付け（ci_role.take）が
     写しの graph の schema と post_check に任せていた決まりを書いた物（新しい関数）:
@@ -423,8 +439,8 @@ def material_problems(material, *, mode: str) -> list:
     - 形（mode）ごとの走らせられない時の status（写しの指示書 p0.local_checks.md・p4.ci.md と、判定の後の工程は人待ちを新しく
       立てない規則 review-loop.py の check_record）: base は awaiting_human（not_run は拒む）、final は not_run（awaiting_human は拒む）
     mode が base・final でなければ ValueError"""
-    if mode not in ("base", "final"):
-        raise ValueError(f"mode は base か final: {mode!r}")
+    if mode not in MODES:
+        raise ValueError(f"mode は {'・'.join(MODES)} のどれか: {mode!r}")
     probs = validate_schema(material, MATERIAL_SCHEMA, "素材")
     status = material.get("status") if isinstance(material, dict) else None
     if status not in STATUSES:
@@ -439,3 +455,37 @@ def material_problems(material, *, mode: str) -> list:
         probs.append(f"{mode} の形は走らせられなければ {cant} で書け（{status} は使わない。修正前は緑を仮定せず人待ち、"
                      "修正後は人待ちを新しく立てない）")
     return probs
+
+
+# ---------------------------------------------------------------- 修正前のテストの行
+def baseline_line(base) -> str:
+    """修正前のテスト（base の元の結末。baseline_red.read_baseline の返りの、呼び手の欄 material・exit_codes・skipped_steps）の 1 行。
+    final の証拠が最後のテストの行と並べて出す——最後の赤が修正の後に出た赤か、基の版からの赤かを人が見分ける手がかり。修正前の CI と
+    最後のテスト（test_cmd の段なども走る）は同じ一式とは限らないので、どちらとも言い切らない。base が None なら記録が無い
+    （元 works/.shared/core/entry.py:792-816。盤面の記録 process.baseline_checks と process.checks の skipped_steps の代わりに元の結末を受け、
+    段ごとの終了コードを足した）"""
+    named = "元の結末（入力 baseline）"
+    if base is None:
+        return f"修正前のテスト: 記録が無い（{named}）"
+    material = base.get("material")
+    if material is None:
+        return f"修正前のテスト: 素材が無い（{named}。任せ先の CI の役が渡さなかった）——{gatemarks.BASELINE_NOT_RUN}"
+    if not isinstance(material, dict) or not isinstance(material.get("status"), str) or not material["status"]:
+        return (f"修正前のテスト: 記録が壊れている（{named} の material に文字列の status が無い: "
+                f"{json.dumps(material, ensure_ascii=False)[:80]}）")
+    status = material["status"]
+    word = gatemarks.MATERIAL_WORDS.get(status, "表に無い状態")
+    codes = base.get("exit_codes") or {}
+    told = (f"{named} の status {status}" + (f"・走らせた物 {material['checked']}" if material.get("checked") else "")
+            + (f"・段ごとの終了コード {json.dumps(codes, ensure_ascii=False)}" if codes else ""))
+    if status in ("not_run", "awaiting_human"):
+        return f"修正前のテスト: {word}（{told}・{material.get('reason') or '理由なし'}）——{gatemarks.BASELINE_NOT_RUN}"
+    if status == "clean":
+        return (f"修正前のテスト: {word}（{told}）——最後のテストの赤は修正の後に出た赤でありうる"
+                "（同じ一式とは限らない。最後のテストの一式と照らして決める）")
+    if status == "found":
+        skipped = base.get("skipped_steps") or []
+        scoped = f"・{checkscope.skipped_text(skipped)}" if skipped else ""
+        return (f"修正前のテスト: {word}（{told}{scoped}）——最後のテストの赤は修正前から在りうる"
+                "（同じ一式とは限らない。最後のテストの一式と照らして決める）")
+    return f"修正前のテスト: {word}（{told}・{material.get('reason') or '理由なし'}）"

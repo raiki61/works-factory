@@ -612,5 +612,53 @@ class MaterialProblemsCase(unittest.TestCase):
             self.problems({"status": "clean", "checked": "x"}, "middle")
 
 
+class BaselineLineCase(unittest.TestCase):
+    """修正前のテストの行（元 entry.baseline_line。元 test_report_head.py の HeadBaselineCase・test_baseline_*、test_ci_test_cmd.py の
+    BaselineScopeLineCase）。盤面の記録の代わりに元の結末（material・exit_codes・skipped_steps）を受ける"""
+    SKIPPED = [{"name": "far", "paths_ignore": ["works/"]}]
+
+    def line(self, material, **extra) -> str:
+        return dc.baseline_line({"material": material, **extra})
+
+    def test_baseline_missing_is_said_missing(self):
+        self.assertTrue(dc.baseline_line(None).startswith("修正前のテスト: 記録が無い"))
+
+    def test_baseline_found_says_known_red(self):
+        line = self.line({"status": "found", "count": 1, "detail": "d"}, exit_codes={"suite": 1})
+        self.assertIn("修正前から在りうる", line)
+        self.assertIn('段ごとの終了コード {"suite": 1}', line)
+        self.assertNotIn(gatemarks.BASELINE_NOT_RUN, line)
+
+    def test_baseline_clean_does_not_blame_the_fix(self):
+        line = self.line({"status": "clean", "checked": "unit"})
+        self.assertIn("修正の後に出た赤でありうる", line)
+        self.assertIn("同じ一式とは限らない", line)
+        self.assertIn("走らせた物 unit", line)
+
+    def test_baseline_not_run_is_not_said_known_red(self):
+        for material in ({"status": "not_run", "reason": "x"}, None):
+            with self.subTest(material):
+                line = self.line(material)
+                self.assertIn(gatemarks.BASELINE_NOT_RUN, line)
+                self.assertNotIn("修正前から在りうる", line)
+
+    def test_baseline_other_status_named_plainly(self):
+        for status in ("awaiting_human", "not_run", "not_applicable"):
+            with self.subTest(status):
+                line = self.line({"status": status, "reason": "r"})
+                self.assertTrue(line.startswith(f"修正前のテスト: {gatemarks.MATERIAL_WORDS[status]}（"), line)
+                self.assertIn(f"status {status}", line)
+
+    def test_baseline_broken_record_not_said_missing(self):
+        for broken in ("clean", {"count": 1}, {"status": ["clean"]}, {"status": 1}):
+            with self.subTest(broken):
+                self.assertTrue(self.line(broken).startswith("修正前のテスト: 記録が壊れている"))
+
+    def test_baseline_line_names_skipped_steps(self):
+        word = checkscope.skipped_text(self.SKIPPED)
+        self.assertIn(word, self.line({"status": "found", "count": 1, "detail": "near: exit 1"}, skipped_steps=self.SKIPPED))
+        self.assertNotIn("範囲の外で回さなかった段", self.line({"status": "found", "count": 1, "detail": f"末尾: {word}"}))
+
+
 if __name__ == "__main__":
     unittest.main()

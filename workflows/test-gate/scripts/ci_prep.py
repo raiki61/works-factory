@@ -17,11 +17,9 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
 import accept  # noqa: E402
+import declared_checks  # noqa: E402
 import rolekit  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
-
-ROLE = "ci"
-COPY_PREFIX = "works-factory-ci-"   # 写しの置き場（一時の置き場の直下）の頭。ci-accept はこの形の物だけ消す
 
 
 def main() -> int:
@@ -35,13 +33,13 @@ def main() -> int:
     if not set(accept.TREE_KEYS) <= set(snap):
         snap = accept.tree_state(root)
     if not (snap.get("copy_dir") and Path(snap["copy_dir"]).is_dir()):
-        top = Path(tempfile.mkdtemp(prefix=COPY_PREFIX))
+        top = Path(tempfile.mkdtemp(prefix=declared_checks.COPY_PREFIX))
         snap.update(top=str(top), copy_dir=util.copy_worktree(top / "work"), tmp_dir=str(top / "tmp"))
         (top / "tmp").mkdir()
     snap_path.write_text(json.dumps(snap, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     boundary.returns({"copy_dir": snap["copy_dir"], "tmp_dir": snap["tmp_dir"], "root": str(root),
                       "base_rev": start.get("base_rev") or "", "mode": mode, "reject": os.environ["INPUTS_REJECT"],
-                      "attempt": len(rolekit.rejected(gate, ROLE)) + 1})
+                      "attempt": len(rolekit.rejected(gate, declared_checks.CI_ROLE)) + 1})
     return 0
 
 
