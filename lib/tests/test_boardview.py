@@ -134,11 +134,14 @@ class OpenCase(Base):
         self.assertEqual(structmark.read(self.folder)["status"], "failed")
         self.assertEqual(structmark.dirty(self.folder), {})
 
-    def test_replan_form_does_not_touch_the_record(self):
-        """裁かれた項目が在れば形 replan で、往復の控えに案を置かない。裁かれた項目は番号か項目の id で引く"""
+    def test_replan_form_records_no_pass(self):
+        """裁かれた項目が在れば形 replan で、往復を控えに積まない（案の項目の控えは審査する直した案に置き換える）。裁かれた項目は
+        番号か項目の id で引く"""
         got = self.open(ruling=[converge.item_id([UNIT])])
         self.assertEqual(got["form"], "replan")
-        self.assertNotIn("plan", converge.read(self.view()))
+        record = converge.read(self.view())
+        self.assertEqual((record["passes"], record["open"]), ([], {}))
+        self.assertEqual([it["unit_keys"] for it in record["plan"]], [[UNIT]])
         self.assertEqual(boardview.read_open(self.folder)["ruled"], [1])
         self.open(ruling=["1"])
         self.assertEqual(boardview.read_open(self.folder)["ruled"], [1])

@@ -94,6 +94,7 @@ DEFAULTS_HEAD = "線が渡していない入力を既定で読んだ: "
 DEFAULT_START = ("start（始めの記録）が null——無人でない・設計だけでない・依頼のファイル無し（依頼の引用の決め手は照らせないので"
                  "人に回る）・方針の文書無し・事前審査の木は auto として読んだ")
 DEFAULT_ANSWERS = "answers（人の関所の答え）が null——独立設計に貼る人の答えは無い"
+REQUEST_UNREAD = "依頼のファイル {path} を読めない（{why}）——依頼の本文は空として読み、依頼が名指した設計書の節は渡っていない"
 REPLAN_ASK = ("下は修正の段の申し出と裁定を受けて修正案の役が直した案。審査するのは『審査する項目』に並んだ項目だけ（ほかの項目は"
               "承認済みで、審査しない）。直した項目が裁定の指摘を直したか、新しい後退（regression）や方針とのぶつかり（policy）を"
               "作らないかを見よ。前の形に在った穴を挙げ直さない。穴は faces に挙げよ。")   # 元 works/.shared/core/replan.py:121
@@ -337,12 +338,16 @@ def tree_word(start: dict | None) -> str:
     return "auto"
 
 
-def _request_text(start: dict | None) -> str:
+def _request(start: dict | None) -> tuple:
+    """始めの記録が名指す依頼のファイルの (パス, 本文, 読めない訳)。名指しが無ければ ("", "", "")、読めなければ本文は空で
+    訳は REQUEST_UNREAD の行"""
     req = (start or {}).get("request_file") or ((start or {}).get("input") or {}).get("request_file") or ""
+    if not req:
+        return "", "", ""
     try:
-        return pathlib.Path(req).read_text(encoding="utf-8") if req else ""
-    except (OSError, UnicodeDecodeError):
-        return ""
+        return req, pathlib.Path(req).read_text(encoding="utf-8"), ""
+    except (OSError, UnicodeDecodeError) as e:
+        return req, "", REQUEST_UNREAD.format(path=req, why=type(e).__name__)
 
 
 def _ruled(ruling, plan_rows: list) -> list:
@@ -384,16 +389,17 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     gatemarks.save(out, PLAN_NODE, out.round, plan_marks)
     rows = [r for r in bare.get("plan") or [] if isinstance(r, dict)]
     form = "replan" if ruling else "review"
-    if form == "review":
-        converge.note_plan(out, rows)
-        if answered:
-            converge.note_answers(out, answered)
+    converge.note_plan(out, rows)
+    if form == "review" and answered:
+        converge.note_answers(out, answered)
     policy_md = (start_doc or {}).get("policy_md") or ""
     frozen = _frozen_policy(d, policy_md)
     units = [u for u in judged.get("units") or [] if isinstance(u, dict)]
+    _, request, unread = _request(start_doc)
+    defaults = [x for x, given in ((DEFAULT_START, start is not None), (DEFAULT_ANSWERS, answers is not None)) if not given]
     inputs = {
         "k": k, "form": form, "ruled": _ruled(ruling, rows), "cwd": str(cwd),
-        "rev": (start_doc or {}).get("base_rev") or "HEAD", "request": _request_text(start_doc), "policy_md": policy_md,
+        "rev": (start_doc or {}).get("base_rev") or "HEAD", "request": request, "policy_md": policy_md,
         "policy_copy": frozen.get("copy") or "", "excluded_file": str(d / EXCLUDED_FILE) if excluded is not None else "",
         "units": units, "names": [u["key"] for u in units if isinstance(u.get("key"), str)],
         "questions": judged.get("questions") or [], "materials": _read_json(mats) if mats else {},
@@ -403,7 +409,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
         "human_items": human_items(answers), "tree_word": tree_word(start_doc),
         "faces_schema": {x: node_schema(yaml_text, "plan-review")["properties"][x] for x in ("faces", "shrink")},
         "design_schema": node_schema(yaml_text, "r2-design"),
-        "defaults": [x for x, given in ((DEFAULT_START, start is not None), (DEFAULT_ANSWERS, answers is not None)) if not given],
+        "defaults": defaults + ([unread] if unread else []),
     }
     b = view(d, inputs)
     inputs["tree"] = form == "review" and _tree_on(b, inputs["tree_word"])
@@ -506,10 +512,10 @@ def r2_due(b) -> bool:
 
 
 # ---------------------------------------------------------------- 独立設計
-def r2_view(start: dict | None, answers) -> types.SimpleNamespace:
+def r2_view(request: str, answers) -> types.SimpleNamespace:
     """独立設計の前提を組むだけの見え方（人の関所の答え・依頼の本文・rules だけ。修正案・判定・波及は持たない）"""
     return types.SimpleNamespace(record={"process": {"human_items": human_items(answers)}},
-                                 state={"inputs": {"request": _request_text(start)}}, rules=rules)
+                                 state={"inputs": {"request": request}}, rules=rules)
 
 
 def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> str:
@@ -522,10 +528,14 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     text = _read_json(purpose).get("purpose_text") or ""
     premises = _sibling(judgment, "premises.json")
     constraints = (_read_json(premises).get("constraints") or []) if premises else []
-    parts, ledger = design.premises(r2_view(start_doc, answers), cwd)
+    req, request, unread = _request(start_doc)
+    parts, ledger = design.premises(r2_view(request, answers), cwd)
     if start_doc is None:
         parts.insert(0, f"{design.NAMED_HEAD}\n\n- {NOT_GIVEN_START}")
         ledger["withheld"].append({"kind": "named_section", "what": "start", "why": NOT_GIVEN_START})
+    elif unread:
+        parts.insert(0, f"{design.NAMED_HEAD}\n\n- {unread}")
+        ledger["withheld"].append({"kind": "named_section", "what": req, "why": unread})
     if answers is None:
         ledger["withheld"].append({"kind": "human_answer", "what": "answers", "why": DEFAULT_ANSWERS})
     if premises is None:

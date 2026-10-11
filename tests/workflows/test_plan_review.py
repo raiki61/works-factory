@@ -462,6 +462,25 @@ class IsolationCase(RunCase):
         whats = {(w["kind"], w["what"]) for w in ledger["withheld"]}
         self.assertLessEqual({("named_section", "start"), ("human_answer", "answers")}, whats)
 
+    def test_unreadable_request_file_is_named(self):
+        """始めの記録が名指す依頼のファイルが無い・UTF-8 でない時は、名指しが無い時と同じ空にせず、独立設計の本文と控えの
+        withheld と事前審査の材料の頭に読めない訳を残す（持ち主の決め no-silent-loosen）"""
+        r = self.run_
+        broken = r.tmp / "request-utf16.md"
+        broken.write_bytes("依頼".encode("utf-16"))
+        for label, req, why in (("無い", r.tmp / "no-such-request.md", "FileNotFoundError"),
+                                ("UTF-8 でない", broken, "UnicodeDecodeError")):
+            with self.subTest(label):
+                r.start(request_file=str(req), features_off=["review_tree"])
+                line = boardview.REQUEST_UNREAD.format(path=req, why=why)
+                self.assertIn(line, r.out("r2_prep")["prompt"])
+                ledger = json.loads((r.folder / boardview.PREMISES_FILE).read_text(encoding="utf-8"))
+                self.assertIn({"kind": "named_section", "what": str(req), "why": line}, ledger["withheld"])
+                r.open()
+                text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+                self.assertTrue(text.startswith(boardview.DEFAULTS_HEAD), text[:200])
+                self.assertIn(line, text.splitlines()[0])
+
     def test_human_answers_and_named_sections_are_pasted(self):
         """人の関所の答えと、依頼が名指した設計書の節（固めた版のファイルから）を前提として貼る"""
         r = self.run_
@@ -1231,6 +1250,27 @@ class ReplanCase(RunCase):
         self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, False, True))
         self.assertTrue(any(CLAMP_BLOCK["key"] in q for q in got["questions"]), got["questions"])
         self.assertEqual(converge.read(r.view())["passes"], [])
+
+    def test_replan_after_review_reads_the_revised_plan(self):
+        """設計が立った review の形の往復の後の replan は、審査している直した案の行と照らす: 直した案で変わった add の名の
+        design_map を受け、前の往復の案の名だけの対応表は拒む"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        DesignCase.designed(self)
+        r.out("review_prep")
+        self.assertTrue(r.accept(review(design_map=ReviewAcceptCase.full_map()))["ok"])
+        r.out("result")
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, adds=[{"name": "clamp_entry", "canonical": "stats.py の入口"}])], rnd=2)
+        r.inputs["ruling"] = json.dumps(["2"])
+        self.assertEqual(r.open()["form"], "replan")
+        r.out("review_prep")
+        stale = [{"item": 2, "name": "helper_2", "design_quote": None, "why": "設計に対の無い助け手の名だけを足す"}]
+        got = r.accept(review(design_map=stale))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(boardview.DESIGN_QUOTE_REJECT), got["reason"])
+        fresh = [{"item": 2, "name": "clamp_entry", "design_quote": "上限は入口 1 箇所で掛け", "why": "設計の入口の上限に案の名が当たる"}]
+        self.assertTrue(r.accept(review(design_map=fresh))["ok"])
 
     def test_replan_without_block_passes(self):
         r = self.run_
