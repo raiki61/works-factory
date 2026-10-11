@@ -394,6 +394,23 @@ class YamlCase(unittest.TestCase):
                 reads = {x for x in env_names(text) if x.startswith("INPUTS_")}
                 self.assertLessEqual(reads, declared | bound)
 
+    def test_no_loop_prev_reaches_a_role(self):
+        """元 YamlCase.test_no_loop_prev_reaches_a_prompt: 役に届く文に $LOOP_PREV が無い（前の拒みは支度が本文か材料の頭に貼る）"""
+        texts = [YAML.read_text(encoding="utf-8"), *(p.read_text(encoding="utf-8") for p in (BLOCK / "commands").glob("*.md"))]
+        self.assertFalse([t for t in texts if "$LOOP_PREV" in t])
+
+    def test_loop_ids_unique_across_blocks(self):
+        """元 YamlCase.test_loop_ids_unique_across_blocks: 輪の中の id は差し込まれても頭が付かないので、木に在るほかのブロックと
+        線の輪の中の id と重ならない"""
+        def body_ids(doc):
+            return {n["id"] for n, inside in walk(doc.get("nodes")) if inside is not None}
+        mine = body_ids(workflow())
+        for other in sorted((ROOT / "workflows").glob("*/works-factory-*.yaml")):
+            if other.parent == BLOCK:
+                continue
+            with self.subTest(other.parent.name):
+                self.assertEqual(mine & body_ids(yaml.safe_load(other.read_text(encoding="utf-8"))), set())
+
 
 class IsolationCase(RunCase):
     """独立設計に禁じた入力が届かない（持ち主の決め independent-verdict・premises-purpose。元 tests/test_blk_plan.py の
@@ -685,6 +702,19 @@ class ReviewAcceptCase(RunCase):
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
         self.assertIn(planblk.EXCLUDED_HEAD, text)
         self.assertIn(str(r.folder / boardview.EXCLUDED_FILE), text)
+
+    def test_tampered_fields_stop_the_prep(self):
+        """元 PlanReviewFrozenFieldsCase.test_tampered_fields_halt_plan_review_prep: 置き場の修正案の欄の控えが凍結の印と食い違えば、
+        支度は控えを名指して落ちる（書き換えた欄を審査に見せない）"""
+        r = self.run_
+        r.open()
+        p = r.folder / planmarks.FIELDS_FILE
+        doc = json.loads(p.read_text(encoding="utf-8"))
+        doc["fields"][0]["route"] = "tdd"
+        p.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        done = r.script("review_prep")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn(planmarks.FIELDS_FILE, done.stderr)
 
     def test_policy_change_asks(self):
         """元 ScriptCase.test_policy_change_asks: 固めた後に方針の文書を書き換えると、関所の問いに方針の文書が変わった行が載る"""
