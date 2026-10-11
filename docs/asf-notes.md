@@ -54,7 +54,7 @@ ASF の版を進めた時は、各節の行を新しい版で読み直し、変�
 
 - ASF: d97d00ef の `W/README.md`:82-93（「Public writes belong to a script」「fails unless the result reads back」）。実例 `W/review/archon-review.yaml`:264-270 の `publish`（コメント「this node owns the one public write」）、`W/merge-queue/scripts/merge-action.ts`:337-369（merge の後に `gh pr view` で `MERGED` を確かめる）。
 - なぜその形か: 書き込みの場所が 1 つなら、監査も再試行もそこだけ見ればよい。forge は書き込みを受けて黙って当てないことがあるので、終了の値 0 を証拠にしない。
-- 採った先: merge（main への取り込みと PR）・report（人に見える報告）。`workflows/AGENTS.md` の E6。
+- 採った先: merge（run の置き場への差分の書き込みと読み戻し。`lib/seal.py` の `write_readback`。対象のリポジトリへ当てるのは人で、E17）・report（人に見える報告）。`workflows/AGENTS.md` の E6。
 - 違い: 無し。
 
 ### A6 merge の計画の封印
