@@ -240,7 +240,7 @@ def _now() -> str:
 
 def _tracer(folder: pathlib.Path):
     def trace(op, **row):
-        with open(folder / "trace.jsonl", "a", encoding="utf-8") as f:
+        with open(folder / planmarks.TRACE_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps({"t": _now(), "op": op, **row}, ensure_ascii=False) + "\n")
     return trace
 
