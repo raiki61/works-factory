@@ -9,14 +9,15 @@ import unittest
 
 import yaml
 
+from tests.layers.scan import NODE_KINDS
 from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TABLE = "docs/nodes.json"
 DESIGN = "docs/design.md"
+WORKS = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))["works"]
 
-# 出典: raiki61/claude-plugins@2aa7c66cf7abe1fe09699ac2942d107123214168 の works/.shared/core/graphloops/graphs/review-loop.json
-# （pack.json の works.commit）。節の並びもその nodes の順。
+# 出典: pack.json の works.repo・works.commit の版の works/.shared/core/graphloops/graphs/review-loop.json。節の並びもその nodes の順。
 GRAPH_SHA = "2eb140b879e5"
 SIXTY = (
     "p0.base", "p0.local_checks", "p0.premises", "p0.purpose", "p0.purpose_review", "p0.parallel_pr", "p0.prior_decisions",
@@ -43,8 +44,6 @@ KEEP_NAMES = {
     "10": "守りのファイルに触れたら最後の関所を開く", "11": "直す単位ごとの記録が報告に届く", "12": "世界の解に照らす",
 }
 
-# Archon の節の種類の鍵。節の入れ子は loop_group.nodes だけを辿る（output_format・with: の中の同じ名の鍵を節と取り違えない）
-KINDS = ("command", "prompt", "script", "bash", "approval", "loop_group", "loop", "workflow", "include", "wait", "cancel")
 BY_KINDS = {
     "role": {"command", "prompt"},
     "machine": {"script", "bash"},
@@ -72,7 +71,8 @@ def _no_duplicate_keys(pairs):
 
 
 def block_nodes(root) -> tuple[dict[str, dict[str, str]], dict[str, set[str]]]:
-    """木のブロックの節（{ブロック: {節の鍵: 種類}}）と、ブロックごとの include: の値"""
+    """木のブロックの節（{ブロック: {節の鍵: 種類}}）と、ブロックごとの include: の値。
+    節の入れ子は loop_group.nodes だけを辿る（output_format・with: の中の同じ名の鍵を節と取り違えない）"""
     nodes, includes = {}, {}
     for path in sorted((root / "workflows").glob("*/works-factory-*.yaml")):
         block = path.parent.name
@@ -82,7 +82,7 @@ def block_nodes(root) -> tuple[dict[str, dict[str, str]], dict[str, set[str]]]:
 
         def walk(items):
             for node in items or []:
-                kind = next((k for k in KINDS if k in node), None)
+                kind = next((k for k in NODE_KINDS if k in node), None)
                 found[f"{block}/{node['id']}"] = kind
                 if kind == "include":
                     inc.add(node["include"])
@@ -135,7 +135,8 @@ class _Check:
         self.covered: set[str] = set()
         self.where_keys: set[str] = set()
         self._pending()
-        self._graph(table.get("graph") or {}, (table.get("source") or {}).get("graph_sha"))
+        self._source(table.get("source") or {})
+        self._graph(table.get("graph") or {})
         self._keep(table.get("keep") or {})
         self._support(table.get("support") or {})
         self._downgrades(table.get("downgrades") or [], table.get("graph") or {})
@@ -159,18 +160,18 @@ class _Check:
             return True
         return False
 
-    def _where(self, label, keys) -> list[str]:
-        """在る節の種類を返し、無い節を名指す（保留のブロックの節は数えるだけ）"""
-        kinds = []
+    def _where(self, label, keys) -> tuple[set[str], bool]:
+        """在る節の種類と保留のブロックの節を含むかを返し、無い節を名指す（保留のブロックの節は数えるだけ）"""
+        kinds, held = set(), False
         for key in keys:
             self.covered.add(key)
             if self._held(key):
-                continue
-            if key not in self.kinds:
+                held = True
+            elif key not in self.kinds:
                 self.out.append(f"{label}: 節 {key} が木の YAML に無い")
             else:
-                kinds.append(self.kinds[key])
-        return kinds
+                kinds.add(self.kinds[key])
+        return kinds, held
 
     def _proofs(self, label, refs):
         if not _strings(refs) or not refs:
@@ -203,9 +204,14 @@ class _Check:
             return f"メソッド {method} が無い"
         return None
 
-    def _graph(self, graph, sha):
-        if sha != GRAPH_SHA:
-            self.out.append(f"source.graph_sha: {sha!r} は固めた {GRAPH_SHA} と違う")
+    def _source(self, source):
+        if source.get("graph_sha") != GRAPH_SHA:
+            self.out.append(f"source.graph_sha: {source.get('graph_sha')!r} は固めた {GRAPH_SHA} と違う")
+        for field in ("repo", "commit"):
+            if source.get(field) != WORKS[field]:
+                self.out.append(f"source.{field}: {source.get(field)!r} は pack.json の works.{field} {WORKS[field]!r} と違う")
+
+    def _graph(self, graph):
         for name in SIXTY:
             if name not in graph:
                 self.out.append(f"graph.{name}: review-graph の節が表に無い")
@@ -242,9 +248,8 @@ class _Check:
             self.out.append(f"{label}: where が無い")
             where = []
         self.where_keys.update(where)
-        kinds = self._where(label, where)
-        held = any(self._held(k) for k in where)
-        if not BY_KINDS[by] & set(kinds) and not held:
+        kinds, held = self._where(label, where)
+        if not BY_KINDS[by] & kinds and not held:
             self.out.append(f"{label}: by {by} なのに where に {'・'.join(sorted(BY_KINDS[by]))} の節が無い")
         self._fallback(label, by, row)
         self._proofs(label, row.get("proof"))
@@ -265,9 +270,8 @@ class _Check:
             return
         fb_where = fb_where if _strings(fb_where) else []
         self.where_keys.update(fb_where)
-        kinds = self._where(label, fb_where)
-        held = any(self._held(k) for k in fb_where)
-        if not BY_KINDS["role"] & set(kinds) and not held:
+        kinds, held = self._where(label, fb_where)
+        if not BY_KINDS["role"] & kinds and not held:
             self.out.append(f"{label}: fallback role なのに fallback_where に役の節が無い")
 
     def _keep(self, keep):
@@ -371,7 +375,7 @@ LINE_YAML = "name: works-factory-line\nnodes:\n  - id: start\n    script: start\
 
 def base_table() -> dict:
     return {
-        "source": {"graph_sha": GRAPH_SHA},
+        "source": {"repo": WORKS["repo"], "commit": WORKS["commit"], "graph_sha": GRAPH_SHA},
         "graph": {n: {"by": "absent", "reason": "無し"} for n in SIXTY},
         "keep": {k: {"name": v, "by": "absent", "reason": "無し"} for k, v in KEEP_NAMES.items()},
         "support": {k: "種" for k in ("a/x", "a/r", "a/g", "a/lp", "a/inner")},
@@ -425,6 +429,10 @@ class NodeTableTest(unittest.TestCase):
         t = base_table()
         t["source"]["graph_sha"] = "000000000000"
         self.one("source.graph_sha", t)
+        for field in ("repo", "commit"):
+            t = base_table()
+            t["source"][field] = "old"
+            self.one(f"source.{field}: 'old' は pack.json の works.{field}", t)
         real = json.loads((ROOT / TABLE).read_text(encoding="utf-8"))
         self.assertEqual(list(real["graph"]), list(SIXTY))
 
