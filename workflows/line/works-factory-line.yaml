@@ -35,7 +35,7 @@ inputs:
     description: 最後の関所の開き方。always（空の既定）・when_needed・protected_only（lib/gatepolicy.py）。守りのパスの当たりと申し出はどれでも開く
   unattended:
     default: ""
-    description: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは関所でなく報告へ回し、関所を開くはずの時は開かずに止める（needs-human）
+    description: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは関所に載せず、関所を開くはずの時は開かずに止める（needs-human）
   design_only:
     default: ""
     description: 設計だけの run か（空か true）。true は修正前の関所を必ず開く
@@ -613,31 +613,6 @@ nodes:
       answers: "$answer-replan.output.fix_answers"
       only_items: "$fix.output.replan_items"
 
-  - id: refix-out
-    script: returned
-    runtime: uv
-    timeout: 1728000000
-    output_format:
-      type: object
-      properties:
-        got: { type: [object, "null"] }
-        stop_reason: { type: string }
-      required: [got, stop_reason]
-    mutates_checkout: false
-    depends_on: [refix]
-    with:
-      block: fix
-      done: "$refix.output.done"
-      units: "$refix.output.units"
-      groups: "$refix.output.groups"
-      conflicts: "$refix.output.conflicts"
-      replan_items: "$refix.output.replan_items"
-      objection: "$refix.output.objection"
-      diff: "$refix.output.diff"
-      allowed_test_changes: "$refix.output.allowed_test_changes"
-      changed: "$refix.output.changed"
-      delta_review: "$refix.output.delta_review"
-
   - id: fixed
     script: fixed
     runtime: uv
@@ -938,7 +913,6 @@ nodes:
       type: object
       properties:
         start: {}
-        prior_failures: {}
         test_gate_base: {}
         judge: {}
         rejudge: {}
@@ -947,8 +921,6 @@ nodes:
         replan: {}
         replan_review: {}
         fix: {}
-        refix: {}
-        fixed: {}
         test_gate_final: {}
         eyes: {}
         merge_seal: {}
@@ -957,47 +929,19 @@ nodes:
         gate_before_fix: {}
         gate_replan: {}
         gate_final: {}
-        stop_reason: {}
-        deferred_questions: {}
-        widened: {}
-        final_reasons: {}
-        judged: {}
-        redepth: {}
-      required: [start, prior_failures, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, refix, fixed, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final, stop_reason, deferred_questions, widened, final_reasons, judged, redepth]
+      required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final]
     mutates_checkout: false
-    depends_on: [start, answer-start, test-gate-base-out, judge-out, plan-rounds-out, ask-before-fix, answer-before-fix, fix-out,
-                 after-fix, rejudge-out, judged, replan-out, replan-review-out, ask-replan, answer-replan, refix-out, fixed, redepth,
-                 test-gate-final-out, eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
+    depends_on: [start, answer-start, test-gate-base-out, judge-out, plan-rounds-out, answer-before-fix, fix-out, rejudge-out,
+                 replan-out, replan-review-out, answer-replan, fixed, test-gate-final-out, eyes-out, merge-seal-out, answer-final,
+                 merge-apply-out]
     trigger_rule: all_done
     with:
-      start_record: { from: "$start.output.record", if_skipped: null }
-      start_prior_failures: { from: "$start.output.prior_failures", if_skipped: null }
-      stop_start: { from: "$start.output.stop_reason", if_skipped: null }
-      stop_answer_start: { from: "$answer-start.output.stop_reason", if_skipped: null }
-      stop_before_fix: { from: "$answer-before-fix.output.stop_reason", if_skipped: null }
-      stop_after_fix: { from: "$after-fix.output.stop_reason", if_skipped: null }
-      stop_judged: { from: "$judged.output.stop_reason", if_skipped: null }
-      stop_replan: { from: "$answer-replan.output.stop_reason", if_skipped: null }
-      stop_fixed: { from: "$fixed.output.stop_reason", if_skipped: null }
-      stop_redepth: { from: "$redepth.output.stop_reason", if_skipped: null }
-      stop_final: { from: "$answer-final.output.stop_reason", if_skipped: null }
+      start: { from: "$start.output.record", if_skipped: null }
+      fixed: { from: "$fixed.output", if_skipped: null }
       gate_start: { from: "$answer-start.output.answer", if_skipped: null }
       gate_before_fix: { from: "$answer-before-fix.output.answer", if_skipped: null }
       gate_replan: { from: "$answer-replan.output.answer", if_skipped: null }
       gate_final: { from: "$answer-final.output.answer", if_skipped: null }
-      deferred_questions: { from: "$ask-before-fix.output.deferred", if_skipped: null }
-      widened: { from: "$ask-replan.output.widened", if_skipped: null }
-      final_reasons: { from: "$ask-final.output.reasons", if_skipped: null }
-      judged_rejudged: { from: "$judged.output.rejudged", if_skipped: null }
-      judged_new_open_units: { from: "$judged.output.new_open_units", if_skipped: null }
-      judged_lowered: { from: "$judged.output.lowered", if_skipped: null }
-      judged_unnamed_changed: { from: "$judged.output.unnamed_changed", if_skipped: null }
-      judged_unread: { from: "$judged.output.unread", if_skipped: null }
-      fixed_conflicts: { from: "$fixed.output.conflicts", if_skipped: null }
-      fixed_refixed: { from: "$fixed.output.refixed", if_skipped: null }
-      redepth_depth: { from: "$redepth.output.depth", if_skipped: null }
-      redepth_skip_optional: { from: "$redepth.output.skip_optional", if_skipped: null }
-      redepth_raised: { from: "$redepth.output.raised", if_skipped: null }
       test_gate_base: { from: "$test-gate-base-out.output", if_skipped: null }
       judge: { from: "$judge-out.output", if_skipped: null }
       rejudge: { from: "$rejudge-out.output", if_skipped: null }
@@ -1005,7 +949,6 @@ nodes:
       replan: { from: "$replan-out.output", if_skipped: null }
       replan_review: { from: "$replan-review-out.output", if_skipped: null }
       fix: { from: "$fix-out.output", if_skipped: null }
-      refix: { from: "$refix-out.output", if_skipped: null }
       test_gate_final: { from: "$test-gate-final-out.output", if_skipped: null }
       eyes: { from: "$eyes-out.output", if_skipped: null }
       merge_seal: { from: "$merge-seal-out.output", if_skipped: null }
@@ -1017,31 +960,22 @@ nodes:
     trigger_rule: all_done
     with:
       start: "$collect.output.start"
-      prior_failures: "$collect.output.prior_failures"
-      test_gate_base: "$collect.output.test_gate_base"
+      test-gate-base: "$collect.output.test_gate_base"
       judge: "$collect.output.judge"
       rejudge: "$collect.output.rejudge"
       plan: "$collect.output.plan"
-      plan_review: "$collect.output.plan_review"
+      plan-review: "$collect.output.plan_review"
       replan: "$collect.output.replan"
-      replan_review: "$collect.output.replan_review"
+      replan-review: "$collect.output.replan_review"
       fix: "$collect.output.fix"
-      refix: "$collect.output.refix"
-      fixed: "$collect.output.fixed"
-      test_gate_final: "$collect.output.test_gate_final"
+      test-gate-final: "$collect.output.test_gate_final"
       eyes: "$collect.output.eyes"
-      merge_seal: "$collect.output.merge_seal"
-      merge_apply: "$collect.output.merge_apply"
-      gate_start: "$collect.output.gate_start"
-      gate_before_fix: "$collect.output.gate_before_fix"
-      gate_replan: "$collect.output.gate_replan"
-      gate_final: "$collect.output.gate_final"
-      stop_reason: "$collect.output.stop_reason"
-      deferred_questions: "$collect.output.deferred_questions"
-      widened: "$collect.output.widened"
-      final_reasons: "$collect.output.final_reasons"
-      judged: "$collect.output.judged"
-      redepth: "$collect.output.redepth"
+      merge-seal: "$collect.output.merge_seal"
+      merge-apply: "$collect.output.merge_apply"
+      gate-start: "$collect.output.gate_start"
+      gate-before-fix: "$collect.output.gate_before_fix"
+      gate-replan: "$collect.output.gate_replan"
+      gate-final: "$collect.output.gate_final"
 
   # 線の返す節
   - id: result

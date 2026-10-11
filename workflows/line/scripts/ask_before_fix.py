@@ -9,7 +9,8 @@ unattended・design_only。
 - 計画ができていない（ready が false）: 関所を開かず、修正へも進まない（go: false。結末は report が計画と判定の返りから決める）
 - 必ず開く: 事前審査の壁打ちが止まった（stalled）・往復が 3 周で決着しなかった・設計だけの run（design_only）
 - 開く: 4 つの軸のどれかが ok でない・事前審査が人に聞くと言った（ask_human）・人への問いが在る
-- 無人の run: 人への問い（台帳の問い）は関所に載せず、報告へ回す（deferred）。それでも開くはずの時は開かずに止める
+- 無人の run: 人への問い（台帳の問い）は関所に載せず、deferred で返す（report に受ける入力が無く、まだ報告には届かない。
+  docs/design.md の「report の返り」）。それでも開くはずの時は開かずに止める
   （needs-human。今の works で無人の殻が関所に stop を返したのと同じ結末）
 """
 import os

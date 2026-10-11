@@ -3,7 +3,6 @@ fixture:
   expect: "completed"
   inputs: {"request": ""}
   reached: ["start", "answer-start", "collect", "report__report", "result"]
-  resolved-text-contains: {"report__inner": "stop_reason=works:start-refused"}
 exec-code: true
-report__inner: "stub"
+report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": ""}
 report__report: {"ok": false, "outcome": "stopped_by_line", "stop_reason": "works:start-refused", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}

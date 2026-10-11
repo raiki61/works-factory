@@ -6,7 +6,7 @@
 
 直した項目ごとに、承認済みの項目（計画の往復の plan）と直した項目（replan の plan）の約束の欄を比べる（lib/planmarks.py の
 contract_diff）。約束の欄が変わった項目と、事前審査（replan-review）が人に聞くと言った時は聞く。無人の run では、範囲を広げるだけの
-直し（planmarks.widened）は聞かずに通し、通したことを返す（widened。報告に届く）。読めない計画は聞く側に倒す。
+直し（planmarks.widened）は聞かずに通し、通したことを返す（widened。report に受ける入力が無く、まだ報告には届かない）。読めない計画は聞く側に倒す。
 無人の run で聞くはずの時は開かずに止める（needs-human）。
 
 入力（with:）: old_plan・new_plan（指し札）・items（直す計画の項目の id。1 から数える番号）・ask_human・questions・unattended

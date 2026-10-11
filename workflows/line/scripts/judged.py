@@ -5,7 +5,7 @@
 """判定の単位と判定を後の段へ渡す節 judged。
 
 再審（rejudge）が走ればその返りから、走らなければ判定（judge）の返りから返す。後の段は単位と判定をここから読む。
-再審が走った時は、判定と再審の 2 つの judgment の指し札の先（judgment.json の units）を key で比べ、報告へ渡す
+再審が走った時は、判定と再審の 2 つの judgment の指し札の先（judgment.json の units）を key で比べて返す（report に受ける入力が無く、まだ報告には届かない）
 （今の works の works/.shared/core/rejudge.py の collect 552-563 行と diff_units 474-509 行）:
 - new_open_units: 再審の後に開いた単位（再審の前は無いか開いていなかった）
 - lowered: 再審の前は block で、後は block でない単位
