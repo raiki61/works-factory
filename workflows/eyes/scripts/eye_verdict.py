@@ -1,0 +1,15 @@
+"""目の返りの全体を置き場の eyes/<eye>.json に書き、型つきの成果物の行 {eye, status, reason} を返す"""
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
+
+eye = os.environ["INPUTS_EYE"]
+out = json.loads(os.environ["INPUTS_OUT"])
+eyes = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
+eyes.mkdir(parents=True, exist_ok=True)
+(eyes / f"{eye}.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+boundary.returns({"eye": eye, "status": out["verdict"] if "verdict" in out else out["status"], "reason": out["reason"]})
