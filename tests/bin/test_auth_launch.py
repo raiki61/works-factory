@@ -213,6 +213,18 @@ class IsolatedLaunch(unittest.TestCase):
         self.assertEqual(r.stdout.split(), [str(tmp / "user-config"), str(tmp / "iso")])
         self.assertEqual(r.stderr.strip(), "bin/start: " + claude_auth.QUIET_FAILURE_NOTE)
 
+    def test_exec_with_no_auth_starts_the_child_without_reading_the_keychain(self):
+        """WORKS_FACTORY_NO_AUTH=1 なら認証を読まずに子を起こす（security を起こせば $0.home が残る）"""
+        tmp = hermetic.tmpdir(self)
+        bin_dir = self.fake_security(tmp, "named")
+        env = hermetic.child_env(HOME=str(tmp), PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""),
+                                 WORKS_FACTORY_NO_AUTH="1", WORKS_FACTORY_KEYCHAIN_ITEM="named")
+        r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--user-home", str(tmp), "--",
+                            sys.executable, "-I", "-c", "import os; print('started', os.environ.get('CLAUDE_CODE_OAUTH_TOKEN'))"],
+                           env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "started None"), r.stderr)
+        self.assertFalse((bin_dir / "security.home").exists())
+
     def test_shells_do_not_read_the_keychain_themselves(self):
         """認証の順と keychain の読み出しは起こし役だけが持つ。入口と隔離に書き戻したら赤（語で見る）"""
         shells = [p for p in (ROOT / "bin").iterdir() if p.is_file()] + [CORE / "isolate.py"]

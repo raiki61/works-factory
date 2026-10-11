@@ -264,6 +264,13 @@ class BorrowListCase(unittest.TestCase):
                 for k in COLDWRITE_ENV:
                     self.assertIn(k, skipped[0])
 
+    def test_toolset_and_spseam_agree_on_where_the_vendored_copy_lives(self):
+        """写しと pin を書く側（toolset の vendor・load_borrow）と写しを読む側（spseam.BORROW_DIR・vendored_dir）が同じ置き場を指す。
+        どちらも置き場を自分で組むので、片側だけ動かすと vendor が書いた所と install が照らす所が分かれる"""
+        self.assertEqual(pathlib.Path(toolset.__file__).resolve().parent / "borrow", spseam.BORROW_DIR)
+        item = toolset.load_borrow(LIB)[toolset.VENDORED]
+        self.assertEqual(spseam.vendored_dir(item), spseam.BORROW_DIR / toolset.VENDORED / item["pin"]["version"])
+
     def test_no_vendored_copies(self):
         """works は coldwrite・pr-review-toolkit の写しを持たない（利用者が入れた版に従う）。superpowers の写しは VendorCase と
         test_sp_skills の VendoredCopyCase が縛る"""
