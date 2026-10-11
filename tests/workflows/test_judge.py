@@ -49,30 +49,35 @@ READ = ["Read", "Grep", "Glob"]
 WEB = ["WebSearch", "WebFetch"]
 INVESTIGATE = [*READ, "Bash", *WEB]
 WRITE_TESTS = [*READ, "Edit", "Write", "Bash", *WEB]
-# 節の id → (model, effort, allowed_tools, sandbox, mutates_checkout が false か, context)
+# 局所レビューの役が読む Claude Code 同梱の skill と、必須のレンズを持つプラグイン（手元の marketplace の名は bin/_lib/toolset.py の MARKETPLACE）。
+# 止めた Archon は節が名指さないプラグインを切る（packages/providers/src/claude/plugins.ts の buildClaudePluginSettings）
+LOCAL_REVIEW_SKILLS = ["code-review", "simplify", "security-review"]
+LOCAL_REVIEW_PLUGINS = ["pr-review-toolkit@works-local"]
+# 節の id → (model, effort, allowed_tools, sandbox, mutates_checkout が false か, context, skills, plugins)
 ROLES = {
-    "spec": ("opus", "medium", WRITE_TESTS, BASE, False, None),
-    "spec-review": ("opus", "high", [*READ, *WEB], BASE, True, None),
-    "spec-revise": ("opus", "medium", WRITE_TESTS, BASE, False, None),
-    "pr-check": ("sonnet", "medium", INVESTIGATE, CLOSED, False, None),
-    "premises": ("sonnet", "medium", INVESTIGATE, BASE, False, None),
-    "purpose": ("sonnet", "medium", [*READ, *WEB], BASE, True, None),
-    "world-classes": ("opus", "high", [], BASE, True, None),
-    "world-judge": ("sonnet", "medium", WEB, BASE, True, None),
-    "prior-decisions": ("sonnet", "medium", INVESTIGATE, CLOSED, False, None),
-    "purpose-review": ("sonnet", "medium", READ, BASE, True, None),
-    "local-review": ("sonnet", "medium", [*INVESTIGATE, "Skill", "Agent"], CLOSED, False, None),
-    "consistency-bypass": ("sonnet", "medium", READ, BASE, True, None),
-    "hygiene": ("sonnet", "medium", [], BASE, True, None),
-    "external-standards": ("sonnet", "medium", INVESTIGATE, CLOSED, False, None),
-    "procedure-trace": ("sonnet", "medium", INVESTIGATE, CLOSED, False, None),
-    "gate-efficacy": ("sonnet", "medium", INVESTIGATE, DELEGATE, False, None),
-    "test-double-fidelity": ("sonnet", "medium", INVESTIGATE, DELEGATE, False, None),
-    "main-path-observation": ("sonnet", "medium", INVESTIGATE, DELEGATE, False, None),
-    "provenance": ("sonnet", "medium", INVESTIGATE, DELEGATE, False, None),
-    "diagnose": ("opus", "high", [*READ, *WEB], BASE, True, None),
-    "judge-verify": ("opus", "high", [*READ, *WEB, "Agent", "Write"], BASE, True, "fresh"),
-    "rejudge": ("opus", "high", [*READ, *WEB], BASE, True, "fresh"),
+    "spec": ("opus", "medium", WRITE_TESTS, BASE, False, None, None, None),
+    "spec-review": ("opus", "high", [*READ, *WEB], BASE, True, None, None, None),
+    "spec-revise": ("opus", "medium", WRITE_TESTS, BASE, False, None, None, None),
+    "pr-check": ("sonnet", "medium", INVESTIGATE, CLOSED, False, None, None, None),
+    "premises": ("sonnet", "medium", INVESTIGATE, BASE, False, None, None, None),
+    "purpose": ("sonnet", "medium", [*READ, *WEB], BASE, True, None, None, None),
+    "world-classes": ("opus", "high", [], BASE, True, None, None, None),
+    "world-judge": ("sonnet", "medium", WEB, BASE, True, None, None, None),
+    "prior-decisions": ("sonnet", "medium", INVESTIGATE, CLOSED, False, None, None, None),
+    "purpose-review": ("sonnet", "medium", READ, BASE, True, None, None, None),
+    "local-review": ("sonnet", "medium", [*INVESTIGATE, "Skill", "Agent"], CLOSED, False, None,
+                     LOCAL_REVIEW_SKILLS, LOCAL_REVIEW_PLUGINS),
+    "consistency-bypass": ("sonnet", "medium", READ, BASE, True, None, None, None),
+    "hygiene": ("sonnet", "medium", [], BASE, True, None, None, None),
+    "external-standards": ("sonnet", "medium", INVESTIGATE, CLOSED, False, None, None, None),
+    "procedure-trace": ("sonnet", "medium", INVESTIGATE, CLOSED, False, None, None, None),
+    "gate-efficacy": ("sonnet", "medium", INVESTIGATE, DELEGATE, False, None, None, None),
+    "test-double-fidelity": ("sonnet", "medium", INVESTIGATE, DELEGATE, False, None, None, None),
+    "main-path-observation": ("sonnet", "medium", INVESTIGATE, DELEGATE, False, None, None, None),
+    "provenance": ("sonnet", "medium", INVESTIGATE, DELEGATE, False, None, None, None),
+    "diagnose": ("opus", "high", [*READ, *WEB], BASE, True, None, None, None),
+    "judge-verify": ("opus", "high", [*READ, *WEB, "Agent", "Write"], BASE, True, "fresh", None, None),
+    "rejudge": ("opus", "high", [*READ, *WEB], BASE, True, "fresh", None, None),
 }
 # 輪の id → 受け付けの節と fresh_context（旧 YAML: 仕様の 3 つの輪と再審の輪は true、ほかは false）
 FRESH = {"spec-loop", "spec-review-loop", "spec-revise-loop", "rejudge-loop"}
@@ -200,7 +205,7 @@ class RoleSettingsTest(unittest.TestCase):
         by = nodes()
         roles = {nid for nid, n in by.items() if "command" in n or "prompt" in n}
         self.assertEqual(sorted(roles), sorted(ROLES))
-        for nid, (model, effort, tools, sandbox, read_only, context) in ROLES.items():
+        for nid, (model, effort, tools, sandbox, read_only, context, skills, plugins) in ROLES.items():
             n = by[nid]
             with self.subTest(role=nid):
                 self.assertEqual((n["model"], n["effort"]), (model, effort))
@@ -208,6 +213,7 @@ class RoleSettingsTest(unittest.TestCase):
                 self.assertEqual(n["allowed_tools"], tools)
                 self.assertEqual(n["sandbox"], sandbox)
                 self.assertEqual(n.get("context"), context)
+                self.assertEqual((n.get("skills"), n.get("plugins")), (skills, plugins))
                 self.assertEqual(n.get("mutates_checkout"), False if read_only else None)
                 self.assertEqual(n["idle_timeout"], NO_DEADLINE)
                 self.assertTrue((COMMANDS / f"{n['command']}.md").is_file(), n["command"])
@@ -264,7 +270,7 @@ class FixtureTest(unittest.TestCase):
         cls.results = {pathlib.PurePosixPath(r["fixture"]).name.removesuffix(".stubs.yaml"): r
                        for r in json.JSONDecoder().raw_decode(text[text.index("{"):])[0]["results"]}
         validated = json.loads(checked.stdout)["results"]
-        cls.issues = {r["workflowName"]: r["issues"] for r in validated}
+        cls.issues = {r["workflowName"]: [issue for issue in r["issues"] if archon.counted(issue)] for r in validated}
 
     def check(self, name):
         if self.skipped:

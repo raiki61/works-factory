@@ -858,6 +858,8 @@ nodes:
           effort: medium
           settingSources: [user]
           allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill, Agent]
+          skills: [code-review, simplify, security-review]
+          plugins: [pr-review-toolkit@works-local]
           sandbox:
             enabled: true
             allowUnsandboxedCommands: false
