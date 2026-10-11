@@ -1299,6 +1299,18 @@ class ResultCase(RunCase):
                 self.assertTrue(any(word in q for q in got["questions"]), got["questions"])
                 self.assertFalse(any(a["ok"] for a in got["gate_axes"].values()))
 
+    def test_failed_open_drops_the_previous_material(self):
+        """同じ run の前の差し込みが通っていても、後の差し込みの open が落ちたら、返す節は前の結末でなく落ちた訳を返す"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        self.assertTrue(r.pass_(review())["pass"])
+        r.inputs.update(ruling=json.dumps(["1"]), judgment="{壊れた")
+        self.assertFalse(r.out("pass_open")["ok"])
+        got = r.out("result")
+        self.check(got)
+        self.assertEqual((got["pass"], got["ask_human"]), (False, True))
+        self.assertTrue(any("JSONDecodeError" in q for q in got["questions"]), got["questions"])
+
     def test_empty_folder_never_fails_the_return_node(self):
         """open も受け付けも走らず plan-review/ が空でも、返す節は偽の結末を返す"""
         done = self.run_.script("result")
