@@ -1253,9 +1253,13 @@ class DeltaSeamCase(TempCase):
                                            "refix-tail-1", "refix-tail-2")), encoding="utf-8")
         canon.write_text("<!-- 節 core-fix -->\n直し方\n<!-- 節 core-conflict -->\n申し出\n", encoding="utf-8")
         with mock.patch.object(refixrules, "RULES", rules), mock.patch.object(rulebook, "CANON", canon):
-            text = fixboard.refix_prompt(2, {"brief_file": "/b.json", "diff_file": "/d.patch", "policy_path": ""},
+            text = fixboard.refix_prompt(2, {"brief_file": "/b.json", "diff_file": "/d.patch", "policy_path": "",
+                                             "request_file": "/req.md"},
                                          reject_file="/r.md", iteration=2, lang="言語の 1 行")
         self.assertIn(fixboard.REJECT_LINE.format(path="/r.md"), text)
+        import fixrules
+        for line in fixrules.start_lines({"policy_path": "", "request_file": "/req.md"}):
+            self.assertLess(text.index(line), text.index("refix-head-2 の本文"), "始めの記録の 2 行は役の頭の前（修正役と同じ）")
         for w in ("refix-head-2 の本文 `/b.json`", "直し方", "refix-tail-2 の本文", "言語の 1 行"):
             self.assertIn(w, text)
         self.assertNotIn("core-conflict", text)

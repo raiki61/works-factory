@@ -40,13 +40,14 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
 
 帳面（LEDGER。置き場の作業ファイル）: {"rows": [{pass, attempt, gate, id, detail, unit_keys}], "skipped": [{pass, attempt, why}]}。
 受け付けの回の印は (pass, attempt)（裁定の後の輪は回を 1 から数え直す）。2 回目の修正の段（依頼 226。同じブロックの 2 度目の
-差し込み）の帳面と一式のログは、呼び手がその段の置き場を渡せば 1 回目の段の物と分かれる。2 回目の修正の段（conflict.second_pass）の test_edits は、base からの
-差分に 1 回目の段で裁定 fix_test_scope の範囲として直したテストが在るので、裁定の範囲をいつも許す（受け付けの凍結の検査の前の輪と同じ）。最後の回の通し直し（accept_fix が自分を呼び直す）で
+差し込み。線の include refix）の帳面と一式のログは、その段の置き場（fix/refix/）に分かれる。conflict.second_pass（置き場の裁定の行に
+案を直した行が在る段）の test_edits は、base からの差分に 1 回目の段で裁定 fix_test_scope の範囲として直したテストが在るので、裁定の範囲を
+いつも許す（受け付けの凍結の検査の前の輪と同じ）。include refix の置き場は 1 回目の段の裁定の行を写さないので、そこでは偽になる。最後の回の通し直し（accept_fix が自分を呼び直す）で
 束が同じ回に 2 度走っても、同じ行・同じ skipped は 1 度だけ積む（preflight F23）。積む物が無ければ書かない。
 飛ばした理由は拒まない（受け付けの回数を使わない）が、見えなくしない: 受け付けが受けた時に unchecked(…)（skipped から
 OUT_OF_DUTY を除いた物。義務の外の項目は確かめる物でなく、ほかの項目は確かめた）を置き場の trace の SKIPPED_OP の行に載せ
 （呼び手が fixboard.trace で書く）、報告と最後の人の関所の文が「確かめずに通した」回を数える。OUT_OF_DUTY は帳面にだけ残る。
-期限は持たない（実行器の枠と nice は tddloop.run_suite が付ける）。
+期限は持たない（実行器は baseline_red.run_suite が tree_run.run で走らせる。元の枠と nice は外れた）。
 """
 from __future__ import annotations
 

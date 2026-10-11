@@ -49,7 +49,8 @@ def main() -> None:
                             fix_reply=fix_reply if fix_reply.is_file() else None, policy=fixboard.policy_brief(policy_md))
     if not got["ok"]:
         raise ValueError(got["reason"])
-    text = fixboard.refix_prompt(N, {"brief_file": got["brief_file"], "diff_file": got["diff_file"], "policy_path": policy_md},
+    text = fixboard.refix_prompt(N, {"brief_file": got["brief_file"], "diff_file": got["diff_file"], "policy_path": policy_md,
+                                     "request_file": str(start.get("request_file") or "")},
                                  reject_file=fixboard.last_reject_file(place, ACCEPT), iteration=iteration,
                                  lang=fixboard.lang_line(start))
     prompt = fixboard.write_text(place / fixboard.REFIX_PROMPT.format(refix.passes()[N]["fix"]), text)

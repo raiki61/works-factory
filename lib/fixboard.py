@@ -26,7 +26,7 @@
 - _owed_rows・_read_value・_brief・_plan_items・_fix_report・tie_items・hole_ties: 差分の審査と手直しの材料（元
   works/.shared/core/refix.py:189・197・219・340・362・291・308。盤面の読みを置き場のファイルと引数の値で受ける）
 
-標準ライブラリだけ。
+外のパッケージは使わない（startrec のほかの lib の部品は、使う関数の中で import する）。
 """
 import json
 import os
@@ -1112,12 +1112,14 @@ def prep_fix(place, n: int, *, items=None, plan_review=None, fix_reply=None, pol
 
 
 def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int = 1, lang: str = "") -> str:
-    """n 回目の手直しの役の指示書（純粋）: 役の頭（refix-head-<n>。values の brief_file・diff_file・policy_path で穴を埋める）→
+    """n 回目の手直しの役の指示書（純粋）: 始めの記録の 2 行（fixrules.start_lines。values の policy_path と request_file。修正役と
+    TDD の役の指示書と同じ）→ 役の頭（refix-head-<n>。values の brief_file・diff_file・policy_path で穴を埋める）→
     書く役の決まりの正本（rulebook.CANON の NOT_HERE の外）→ 読み替え → 手直しだけの決まり → 返答 → 返答の後に当たる物
     （refix-tail-<n>）を rulebook.render で繋ぐ。手直しだけの決まりの後に借りたスキルの座（seat.section。receiving-code-review と
     読み替え）を置く。reject_file（前の拒否の理由のファイル）が在れば 1 行目で名指す。決まりのファイルの置き場は refixrules.RULES と
     rulebook.CANON（呼び手が置き替える）。写しが固定と違えば seat の ValueError。
     元 works/blk-refix/lib/refixrules.py:36・52 の parts・build"""
+    import fixrules
     import refixrules
     import rulebook
     import seat
@@ -1134,7 +1136,8 @@ def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int 
              ("seat", seat.section(refixrules.ROLES[n]), always + "（座）"),
              ("refix-reply", r["refix-reply"], always + "（返答の欄）"),
              ("refix-tail", r[f"refix-tail-{n}"], always + "（返答の後に当たる物）")]
-    return rulebook.render(refixrules.ROLES[n], iteration, parts, reject_file=reject_file, lang=lang)["text"]
+    return rulebook.render(refixrules.ROLES[n], iteration, parts, before=fixrules.start_lines(values), reject_file=reject_file,
+                           lang=lang)["text"]
 
 
 def last_reject_file(place, name: str) -> str:
