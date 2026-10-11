@@ -1,0 +1,23 @@
+{
+  "assertions": [
+    {
+      "id": "request-to-report",
+      "description": "小さな種のリポジトリに修正依頼を 1 つ渡し、works-factory を通しで回して報告まで届くかを見る。前提: この checkout に bin/start・bin/answer・bin/show が在り（段 0 の Task 5 で作る）、tests/e2e/ に種のリポジトリとその依頼の文が在る（段 1 で作る）。どれかが無い間は、まだ作られていない物は確かめられないので outcome を inconclusive にし、reason に無いパスを書く。failed にはしない。手順: (1) この試みの置き場（attempt directory）の下に、tests/e2e/ の種を写して git を初期化した対象のリポジトリと、空の Archon の家（ARCHON_HOME に渡す新しいフォルダ）を作る。前の試みの物は使わない。(2) この checkout の ./bin/start を相対パスで呼び、写した対象のリポジトリと種の依頼の文を渡す。ほかに入っている works-factory や Archon の家は使わない。(3) 人の関所（人に答えを聞いて止まる所）で止まるたびに ./bin/show で止まった所を見て、./bin/answer で通す答えを返す。(4) run が終わるまで ./bin/show で見る。期待: ./bin/start が run の id をちょうど 1 つ返す。./bin/show が、run が終わったこと、結末の語（workflows/report の返す節の output_format の enum の 1 つ）、報告の本文（空でない）を出す。./bin/apply を呼ぶ前は、対象のリポジトリの git status が空（写した直後のまま）。"
+    },
+    {
+      "id": "sealed-diff-fixes-seed",
+      "description": "最後の関所で封じた差分を当てると、種の落ちていた試験が通るかを見る。前提: request-to-report の前提に加え、ブロックが全部本物になっている（workflows/ の下に scripts/stub.py が 1 つも無い。段 2 の終わり）。stub.py が在る間は直しの中身がまだ仮なので outcome を inconclusive にし、reason に在った stub.py のパスを書く。failed にはしない。手順: (1) request-to-report の run が終わった後、当てる前に、種が名指す試験の命令を対象のリポジトリで走らせ、結末を控える。(2) ./bin/apply <run> で差分を対象のリポジトリに当てる。(3) 同じ試験の命令をもう一度走らせる。期待: 当てる前は、種が直してほしいとした試験が 1 件以上落ちる。当てた後は、その試験が全部通り、当てる前に通っていた試験は 1 件も落ちない。対象のリポジトリの git diff は空でなく、変わったファイルは報告が挙げたファイルの中だけ。"
+    },
+    {
+      "id": "changed-diff-refused",
+      "description": "封じた後に差分が変わると、./bin/apply が当てずに止まるかを見る。前提: request-to-report の前提に加え、run が封じた差分のファイル（merge の seal の返りの指し札が指す、run の置き場の中のファイル）を残す。残さない間は outcome を inconclusive にし、reason にそう書く。failed にはしない。手順: (1) request-to-report と同じ手順で、新しい対象のリポジトリと新しい run を作り、最後の関所まで通す。(2) ./bin/apply を呼ぶ前に、封じた差分のファイルの中身を 1 バイト変える。(3) ./bin/apply <run> を呼ぶ。期待: ./bin/apply が 0 以外の終了の値で終わり、封じた hash と合わないことを言う。対象のリポジトリの git status は空のまま（何も当たっていない）。"
+    }
+  ],
+  "environment": {
+    "ownership": "external",
+    "setup": "",
+    "start": "",
+    "teardown": "",
+    "candidate_command": "test -z \"$(git status --porcelain --untracked-files=no)\" && git rev-parse HEAD"
+  }
+}

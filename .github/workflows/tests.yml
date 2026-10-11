@@ -1,0 +1,23 @@
+# リポジトリの根から unittest で試験を全部見つけて走らせる（tests/ と lib/tests/。どちらも __init__.py を置く）。
+# check の名は tests（harness/harness.config.json の required_checks が名指す。ASF の merge queue が読む）。
+# 1 件も走らない時、unittest は終了の値 5 で落ちる。試験の無い木を緑にしない。
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: unittest
+        run: python3 -m unittest discover -s . -t .

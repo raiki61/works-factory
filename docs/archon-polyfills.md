@@ -2,7 +2,7 @@
 # Archon の埋め（polyfill）の名簿
 
 - 埋め（polyfill）: Archon v0.11.1 に無い物を、このリポジトリの側で補う小さな部品。Archon の中は直さない。
-- `workflows/.shared/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、この名簿の行のどれかに当たる（`engineering.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。
+- `workflows/.shared/` のファイルは、境の口（Archon との出入りのモジュール 1 つ）か、この名簿の行のどれかに当たる（`workflows/AGENTS.md` の E2。試験 `tests/layers/test_polyfills_listed.py` が照らす）。
 - 埋めの一部は入口 `bin/` に置く物もある。置き場の欄に書く。
 - Archon の新しい版で穴が塞がったら、外す条件を確かめて埋めを消し、行を「外した」の節へ移す。
 

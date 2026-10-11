@@ -15,12 +15,18 @@
     "folder": ".archon/workflows/sdlc",
     "placed_at": "workflows/asf",
     "committed_here": false,
-    "why_not_committed": "ASF には LICENSE のファイルが無い。bin/ が run の時に取って Archon の家に置くだけで、このリポジトリには入れない"
+    "why_not_committed": "ASF の工程（sdlc）はこのリポジトリに入れず、bin/ が run の時に取って Archon の家に置く。ASF の取り付け命令が置いた物（factory/・harness/ など）は別で、このリポジトリに入れる（持ち主の決め asf-installer-in-repo）"
   },
   "ours": {
     "folder": "workflows",
     "placed_at": "workflows/works-factory",
     "name_prefix": "works-factory-",
     "line": "works-factory-line"
+  },
+  "works": {
+    "repo": "raiki61/claude-plugins",
+    "folder": "works",
+    "commit": "2aa7c66cf7abe1fe09699ac2942d107123214168",
+    "doc": "移す元の今の works。中身を移す時はこの版を読む"
   }
 }
