@@ -53,16 +53,16 @@ flowchart TB
 
 工程を回すのは Archon の公開版（v0.11.1）。最新の ASF を同じ Archon の家の横（`workflows/asf/`）に置き、工程の名で選び分けて見比べられるようにする。別の実行の道具へ移る時は、グラフをその道具の書き方で `docs/design.md` から書き直す。役の指示書と `lib/` はそのまま持っていける。
 
-決まりは `engineering.md`、設計は `docs/design.md`。
+AI 向けの決まりは各階層の `AGENTS.md`（根の物から辿る）、設計は `docs/design.md`。
 
 ## リポジトリの中の見方
 
 根には、この工場の物と、ASF の取り付け命令が置いた物が並ぶ。名前で見分けられる。
 
-- この工場の物: `bin/`・`workflows/`・`lib/`・`tests/`・`docs/`・`pack.json`・`MISSION.md`・`engineering.md`・`README.md`・`.github/`。工程の名は `works-factory-` で始まる。
+- この工場の物: `bin/`・`workflows/`・`lib/`・`tests/`・`docs/`・`pack.json`・`MISSION.md`・`AGENTS.md`（各階層）・`engineering.md`（ASF の役が読む入口。`AGENTS.md` を指すだけ）・`README.md`・`.github/`。工程の名は `works-factory-` で始まる。
 - ASF の物: 名前が `factory`・`FACTORY`・`harness`・`.factory` で始まる物（`factory/`・`FACTORY.md`・`FACTORY_RULES.md`・`harness/`・`.factory/`）。ASF がこのリポジトリを作る時に使う。ASF の命令がこの場所と名前を決め打ちで読むので、動かさず名前も変えない。中身も手を加えず、ASF が書けと言うファイル（`harness/END-TO-END.md` など）だけを書く。
 - Archon の家に置く工程: この工場の物は `workflows/works-factory/`、ASF の物は `workflows/asf/`（名前は `archon-` で始まる）。
-- 置き場の木の全部と、名前の決まりは `engineering.md` の「リポジトリの形」と E18。
+- 置き場の木の全部と、名前の決まりは根の `AGENTS.md` の「リポジトリの形」と E18。
 
 ## 関係
 
@@ -73,7 +73,7 @@ flowchart TB
 ## 文書
 
 - `MISSION.md`: 目的と範囲の外
-- `engineering.md`: 作りの決まり（コードを書く前と審査の前に読む）
+- `AGENTS.md`（各階層）: AI 向けの作りの決まり（コードを書く前と審査の前に読む）。`engineering.md` は ASF の役のためにそこを指すだけ
 - `docs/design.md`: 層・線・ブロック・能力の棚卸し・作りの順
 - `docs/owner-decisions.md`: 持ち主の決め（言葉のまま）
 - `docs/archon-polyfills.md`: Archon に無い物を補う部品の名簿

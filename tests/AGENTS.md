@@ -1,0 +1,9 @@
+<!-- coldwrite:skip AI 向けの決まり。語は docs/design.md の「語」の節で定義 -->
+# 試験（`tests/`）の決まり
+
+`tests/` に試験を書く時に読む。リポジトリ全体の決まりは根の `AGENTS.md`。
+
+- 試験はリポジトリの根から `python3 -m unittest discover -s . -t .` の 1 つで走る。CI（`.github/workflows/tests.yml`）と ASF の `harness/harness.config.json` の `unit` も同じ命令。
+- 試験を置くフォルダには全部 `__init__.py` を置く。無いと Python 3.12 の unittest は黙って見つけない。1 件も走らない時は終了の値 5 で落ちる。試験の無い木を緑にしない。
+- 置き場: 層の決まりの試験は `tests/layers/`（各決まりの「機械」の行）、入口は `tests/bin/`、境は `tests/shared/`、通しの試験と小さな対象のリポジトリの種は `tests/e2e/`。`lib/` の試験は `lib/tests/`。
+- Archon の実行ファイルが要る試験は、無ければ名前つきで見送る（`skipTest("archon の実行ファイルが無い: ...")`）。

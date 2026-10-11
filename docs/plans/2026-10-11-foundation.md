@@ -9,7 +9,7 @@
 
 **道具:** Python 3.12 以上・unittest・git・`gh`・Archon v0.11.1 の実行ファイル。
 
-**仕様:** `docs/design.md`（層・線・ブロック・Archon の分かっていること）と `engineering.md`（E1〜E18）。
+**仕様:** `docs/design.md`（層・線・ブロック・Archon の分かっていること）と 各階層の `AGENTS.md`（E1〜E18）。
 
 ## 全体の決まり
 
@@ -71,7 +71,7 @@
 
 **Interfaces:**
 - Produces: `scan.problems(rule: str, root: Path) -> list[str]`（`rule` は `"E2"`・`"E3"`・`"E4"`・`"E8"`・`"E9"`・`"E12"`・`"E13"`・`"E14"`。1 行に 1 つ、`<パス>:<行>: <何が>`）。各試験は本物の木で `[]`、種の木で 1 つ以上を確かめる。
-- 決まりの中身は `engineering.md` の各 E の「機械」の行。E2 の名簿の読みは `docs/archon-polyfills.md` の `- 埋め:` の行の `workflows/.shared/<名>` の字。境の口は `workflows/.shared/boundary.py` の 1 つ。
+- 決まりの中身は 各階層の `AGENTS.md` の各 E の「機械」の行。E2 の名簿の読みは `docs/archon-polyfills.md` の `- 埋め:` の行の `workflows/.shared/<名>` の字。境の口は `workflows/.shared/boundary.py` の 1 つ。
 
 - [ ] **Step 1: 種の木を作る**: `seeds/e2`（名簿に無い `.shared/extra.py`）・`seeds/e3`（`lib/x.py` に `TYPED_ARTIFACTS_FILE`）・`seeds/e4`（`workflows/judge/scripts/a.py` に `../plan/`）・`seeds/e8`（`include: archon-triage`）・`seeds/e9`（名 `archon-x`）・`seeds/e12`（`timeout: 10`）・`seeds/e13`（`workflows/judge/commands/a.md` に `pytest`）
 - [ ] **Step 2: 試験を書く**: 各試験に `test_real_tree_clean`（`problems(rule, リポジトリの根) == []`）と `test_seed_caught`（種で `len(...) >= 1`、文に種のパスが在る）。E2 は加えて `test_listed_but_missing_is_red`（名簿に在って木に無い行も赤）
@@ -105,7 +105,6 @@
 ### Task 4: 線の骨組み
 
 **Files:**
-- Create: `workflows/README.md`（pack の決まり。`engineering.md` を指すだけ）
 - Create: `workflows/line/works-factory-line.yaml`・`workflows/line/fixtures/`
 - Create: 8 つのブロックの各々 `workflows/<名>/works-factory-<名>.yaml`・`scripts/stub.py`・`fixtures/`
 - Test: `tests/layers/test_block_returns.py`・`test_outward_write.py`・`test_readonly_nodes.py`・`test_no_conversion.py`・`test_archon_validate.py`
@@ -117,7 +116,7 @@
   - 各ブロックは `returns:` に 1 つの節と `outcome_field:` を持つ。その節の `output_format` に、`docs/design.md` の「線が運ぶ物」の欄を書く（段 2 の issue と線の約束。段 2 は狭めずに中身を入れる）。指し札の欄は `{type: archon_artifact, run_id, path}` の形。結末の 10 語は report の返す節の `output_format` の enum（今の works の `.shared/core/report.py` の `OUTCOMES` を字のまま）。
   - 仮の `stub.py` は `boundary.returns(<output_format に合う最小の物>)` だけを行う。
   - test-gate と merge は入力 `mode`（`base`・`final`、`seal`・`apply`）を持つ。
-- 試験の中身は `engineering.md` の E1・E5・E6・E7 の「機械」の行。`test_archon_validate.py` は Task 1 で置いた家で `archon validate workflows` を走らせ、`works-factory-` の名の行に誤りも警告も無いことを見る。
+- 試験の中身は `workflows/AGENTS.md` の E1・E5・E6・E7 の「機械」の行。`test_archon_validate.py` は Task 1 で置いた家で `archon validate workflows` を走らせ、`works-factory-` の名の行に誤りも警告も無いことを見る。
 
 - [ ] **Step 1: 試験を書く**（E5・E6・E7 は YAML の字の行を読む）
   - `test_block_returns.py`: `test_every_block_returns_one_node`・`test_outcome_field_in_required`・`test_line_reads_only_declared_fields`（線の `$<include の id>.output.<欄>` がそのブロックの `output_format` に在る）・`test_no_unread_return_field`（読み手の無い返りの欄が赤）
