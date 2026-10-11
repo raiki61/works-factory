@@ -12,7 +12,6 @@ import pathlib
 import subprocess
 from dataclasses import dataclass, field
 
-CORE = pathlib.Path(__file__).resolve().parent
 MARK = "! "
 
 
@@ -74,8 +73,3 @@ def show(repo, rev: str, path: str):
     """git show <rev>:<path> のバイト（無ければ None）"""
     r = subprocess.run(["git", "-C", str(repo), "show", f"{rev}:{path}"], capture_output=True)
     return r.stdout if r.returncode == 0 else None
-
-
-def core_commit() -> str:
-    """写しの graphloops の commit（.shared/core/COPIED_FROM の 1 行目）"""
-    return read(CORE / "COPIED_FROM").commit

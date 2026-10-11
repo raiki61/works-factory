@@ -1,8 +1,8 @@
-"""選んだ物だけの隔離した Claude の設定（dev/toolset.py。P1 計画 Task 20 の R61 の範囲）の検査。
+"""選んだ物だけの隔離した Claude の設定（bin/_lib/toolset.py）の検査。
 
-AI の節は全部 settingSources: [user] で、開発の殻（dev/archon.sh）が隔離した CLAUDE_CONFIG_DIR を読む。そこに置くのは
-許す一覧（.shared/borrow/borrow.json）の物だけ。借りる物の取り元は 2 つに分かれる:
-- superpowers: works に写した固定の版（.shared/borrow/superpowers/<版>/。VENDORED）だけから入れる。利用者の
+AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CLAUDE_CONFIG_DIR（bin/_lib/isolate.py）を読む。そこに置くのは
+許す一覧（bin/_lib/borrow/borrow.json）の物だけ。借りる物の取り元は 2 つに分かれる:
+- superpowers: works に写した固定の版（bin/_lib/borrow/superpowers/<版>/。VENDORED）だけから入れる。利用者の
   installed_plugins.json の superpowers の行は読まない（入っていなくても、別の版でも同じに組む）。写しが borrow.json の pin の
   sha256 と合わなければ、違うファイルを名指して何も写さずに止まる。5 つのスキルを skills/<名>/ へ、部品（parts）を
   works-parts/superpowers/<相対パス> へバイトのまま写す（プラグインとしては入れない。有効にすると SessionStart の hook が
@@ -33,12 +33,11 @@ import tempfile
 import unittest
 from unittest import mock
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-DEV = ROOT / "dev"
-TOOLSET = DEV / "toolset.py"
+LIB = pathlib.Path(__file__).resolve().parents[2] / "bin" / "_lib"
+TOOLSET = LIB / "toolset.py"
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(DEV))
-sys.path.insert(0, str(ROOT / ".shared" / "core"))
+sys.path.insert(0, str(LIB))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import toolset  # noqa: E402
 import gitkit  # noqa: E402
 import hermetic  # noqa: E402
@@ -48,7 +47,7 @@ import copyledger  # noqa: E402
 BORROW_SKILLS = ["test-driven-development", "systematic-debugging", "verification-before-completion",
                  "receiving-code-review", "requesting-code-review"]
 # 隔離した設定の superpowers の取り元（works に写した固定の版。本物の写しを読む）
-VENDORED = spseam.vendored_dir(toolset.load_borrow(ROOT)["superpowers"])
+VENDORED = spseam.vendored_dir(toolset.load_borrow(LIB)["superpowers"])
 LENSES = ["code-reviewer", "silent-failure-hunter", "type-design-analyzer", "pr-test-analyzer", "comment-analyzer"]
 MP = "works-local"
 # 偽の利用者の設定に入れる偽のプラグイン: 名 → (marketplace, キャッシュの版の置き場の名・installed_plugins.json の version)
@@ -183,7 +182,7 @@ class Base(unittest.TestCase):
         self.log = self.tmp / "claude-calls.jsonl"
         self._env = mock.patch.dict(os.environ, {"FAKE_CLAUDE_LOG": str(self.log)})
         self._env.start()
-        self.borrow = toolset.load_borrow(ROOT)
+        self.borrow = toolset.load_borrow(LIB)
         self.user = make_user_config(self.tmp / "user")
 
     def tearDown(self):
@@ -223,7 +222,7 @@ class BorrowListCase(unittest.TestCase):
     def test_borrow_json_names_installed_plugins(self):
         """借りる物は利用者が入れたプラグインの <名>@<marketplace> で名指し、入れるコマンドの marketplace の元（GitHub）を持つ。
         works が名前で頼る物（スキル・agent・hook）だけを並べる。写しを示す印（pinned）は無い"""
-        b = toolset.load_borrow(ROOT)
+        b = toolset.load_borrow(LIB)
         self.assertEqual(sorted(b), ["coldwrite", "pr-review-toolkit", "superpowers"])
         self.assertEqual(sorted(b["superpowers"]["skills"]), sorted(BORROW_SKILLS))
         want = {"superpowers": ("superpowers-marketplace", "obra/superpowers-marketplace"),
@@ -238,40 +237,32 @@ class BorrowListCase(unittest.TestCase):
                                           "hooks": {"PreToolUse": ["Write"]}})
         self.assertEqual(b["pr-review-toolkit"]["agents"], LENSES)
 
-    def test_lens_names_cover_what_the_graph_calls(self):
-        """局所レビューと独立の目が名指しで起こす pr-review-toolkit の agent（写しの graph の skill・agent_type）は、全部
-        borrow.json の agents に在る（まとめ役 review-pr は起こさない）"""
-        g = (ROOT / ".shared" / "core" / "graphloops" / "graphs" / "review-loop.json").read_text(encoding="utf-8")
-        used = set(re.findall(r'"(?:skill|agent_type)": "pr-review-toolkit:([a-z-]+)"', g))
-        self.assertTrue(used)
-        self.assertEqual(sorted(used - set(toolset.load_borrow(ROOT)["pr-review-toolkit"]["agents"])), [])
-
     def test_no_vendored_copies(self):
         """works は coldwrite・pr-review-toolkit の写しを持たない（利用者が入れた版に従う）。superpowers の写しは VendorCase と
         test_sp_skills の VendoredCopyCase が縛る"""
         for name in ("pr-review-toolkit", "coldwrite"):
-            self.assertFalse((ROOT / ".shared" / name).exists(), name)
-        self.assertFalse((ROOT / "NOTICE").exists())
+            self.assertFalse((LIB / name).exists(), name)
+        self.assertFalse((LIB / "NOTICE").exists())
 
 
 SHA = "a" * 40   # 偽の superpowers の commit（vendor は commit の分からない写しを拒む）
 
 
 class VendorCase(Base):
-    """vendor: 利用者のキャッシュの superpowers の 1 つの版から、包むファイルだけを .shared/borrow/superpowers/<版>/ へ写し、
+    """vendor: 利用者のキャッシュの superpowers の 1 つの版から、包むファイルだけを bin/_lib/borrow/superpowers/<版>/ へ写し、
     写しの台帳（COPIED_FROM）と borrow.json の pin を書き直す。偽の pack（borrow.json だけ）と偽の superpowers 9.9.0 で回す"""
 
     def setUp(self):
         super().setUp()
         self.pack = self.tmp / "pack"
-        (self.pack / ".shared" / "borrow").mkdir(parents=True)
-        shutil.copy2(ROOT / ".shared" / "borrow" / "borrow.json", self.pack / ".shared" / "borrow" / "borrow.json")
+        (self.pack / "borrow").mkdir(parents=True)
+        shutil.copy2(LIB / "borrow" / "borrow.json", self.pack / "borrow" / "borrow.json")
 
     def test_vendor_writes_copy_ledger_and_pin(self):
         src = installed_dir(self.user, "superpowers")
         pin = toolset.vendor(self.pack, src, "9.9.0", SHA, "2026-10-02")
-        base = self.pack / ".shared" / "borrow" / "superpowers"
-        item = json.loads((self.pack / ".shared/borrow/borrow.json").read_text())["superpowers"]
+        base = self.pack / "borrow" / "superpowers"
+        item = json.loads((self.pack / "borrow/borrow.json").read_text())["superpowers"]
         self.assertEqual(item["pin"], pin)
         self.assertEqual(spseam.pin_problems(base / "9.9.0", item), [])
         self.assertIn("LICENSE", pin["files"])
@@ -287,7 +278,7 @@ class VendorCase(Base):
         newer = installed_dir(self.user, "superpowers").parent / "9.10.0"
         shutil.copytree(installed_dir(self.user, "superpowers"), newer)
         toolset.vendor(self.pack, newer, "9.10.0", "f" * 40, "2026-10-03")
-        self.assertEqual(sorted(p.name for p in (self.pack / ".shared/borrow/superpowers").iterdir()), ["9.10.0", "COPIED_FROM"])
+        self.assertEqual(sorted(p.name for p in (self.pack / "borrow/superpowers").iterdir()), ["9.10.0", "COPIED_FROM"])
 
     def test_vendor_skips_markers(self):
         """Claude Code の印（.in_use/）と .DS_Store が借りるスキルの中に在っても、写さず固定にも数えない"""
@@ -296,16 +287,16 @@ class VendorCase(Base):
         _put(src / "skills" / "test-driven-development" / ".DS_Store", "x")
         pin = toolset.vendor(self.pack, src, "9.9.0", SHA, "2026-10-02")
         self.assertFalse(any(".in_use" in f or f.endswith(".DS_Store") for f in pin["files"]))
-        copied = self.pack / ".shared/borrow/superpowers/9.9.0/skills/test-driven-development"
+        copied = self.pack / "borrow/superpowers/9.9.0/skills/test-driven-development"
         self.assertEqual(sorted(p.name for p in copied.iterdir()), ["SKILL.md"])
 
     def test_vendor_refuses_without_mit_licence(self):
         (installed_dir(self.user, "superpowers") / "LICENSE").write_text("Proprietary\n", encoding="utf-8")
-        before = (self.pack / ".shared/borrow/borrow.json").read_bytes()
+        before = (self.pack / "borrow/borrow.json").read_bytes()
         with self.assertRaises(toolset.ToolsetError):
             toolset.vendor(self.pack, installed_dir(self.user, "superpowers"), "9.9.0", SHA, "2026-10-02")
-        self.assertEqual((self.pack / ".shared/borrow/borrow.json").read_bytes(), before)
-        self.assertFalse((self.pack / ".shared/borrow/superpowers").exists())
+        self.assertEqual((self.pack / "borrow/borrow.json").read_bytes(), before)
+        self.assertFalse((self.pack / "borrow/superpowers").exists())
 
     def test_cli_vendor_missing_version_is_2(self):
         r = self.cli("vendor", "0.0.1")
@@ -314,31 +305,31 @@ class VendorCase(Base):
 
     def test_vendor_refuses_unknown_commit_and_writes_nothing(self):
         """固定は写し元の commit を名指す。分からない（None・空・40 桁の 16 進でない）なら何も書かずに止まる"""
-        before = (self.pack / ".shared/borrow/borrow.json").read_bytes()
+        before = (self.pack / "borrow/borrow.json").read_bytes()
         for commit in (None, "", "unknown", "abc"):
             with self.subTest(commit):
                 with self.assertRaises(toolset.ToolsetError) as cm:
                     toolset.vendor(self.pack, installed_dir(self.user, "superpowers"), "9.9.0", commit, "2026-10-02")
                 self.assertIn("commit", str(cm.exception))
-                self.assertEqual((self.pack / ".shared/borrow/borrow.json").read_bytes(), before)
-                self.assertFalse((self.pack / ".shared/borrow/superpowers").exists())
+                self.assertEqual((self.pack / "borrow/borrow.json").read_bytes(), before)
+                self.assertFalse((self.pack / "borrow/superpowers").exists())
 
     def test_vendor_failure_leaves_no_empty_folder(self):
         """写している途中で落ちたら、初めての写しなら superpowers/ を残さず、borrow.json も変えない"""
-        before = (self.pack / ".shared/borrow/borrow.json").read_bytes()
+        before = (self.pack / "borrow/borrow.json").read_bytes()
         with mock.patch.object(toolset.shutil, "copy2", side_effect=OSError("disk full")):
             with self.assertRaises(OSError):
                 toolset.vendor(self.pack, installed_dir(self.user, "superpowers"), "9.9.0", SHA, "2026-10-02")
-        self.assertEqual((self.pack / ".shared/borrow/borrow.json").read_bytes(), before)
-        self.assertFalse((self.pack / ".shared/borrow/superpowers").exists())
+        self.assertEqual((self.pack / "borrow/borrow.json").read_bytes(), before)
+        self.assertFalse((self.pack / "borrow/superpowers").exists())
 
     def test_vendor_failure_keeps_the_old_version(self):
         """入れ替えの途中（borrow.json を書く所）で落ちても、前の版の写し・台帳・borrow.json はそのまま残る"""
         src = installed_dir(self.user, "superpowers")
         toolset.vendor(self.pack, src, "9.9.0", SHA, "2026-10-02")
-        base = self.pack / ".shared/borrow/superpowers"
+        base = self.pack / "borrow/superpowers"
         snap = {p.relative_to(base).as_posix(): p.read_bytes() for p in base.rglob("*") if p.is_file()}
-        before = (self.pack / ".shared/borrow/borrow.json").read_bytes()
+        before = (self.pack / "borrow/borrow.json").read_bytes()
         newer = src.parent / "9.10.0"
         shutil.copytree(src, newer)
         real = os.replace
@@ -350,14 +341,14 @@ class VendorCase(Base):
         with mock.patch.object(toolset.os, "replace", side_effect=fail_on_borrow):
             with self.assertRaises(OSError):
                 toolset.vendor(self.pack, newer, "9.10.0", "f" * 40, "2026-10-03")
-        self.assertEqual((self.pack / ".shared/borrow/borrow.json").read_bytes(), before)
+        self.assertEqual((self.pack / "borrow/borrow.json").read_bytes(), before)
         self.assertEqual({p.relative_to(base).as_posix(): p.read_bytes() for p in base.rglob("*") if p.is_file()}, snap)
         self.assertEqual(sorted(p.name for p in base.iterdir()), ["9.9.0", "COPIED_FROM"])
 
     @unittest.skipIf(os.name == "nt", "SKIP posix-mode: 実行の権限は POSIX だけ")
     def test_vendor_keeps_exec_bit(self):
         toolset.vendor(self.pack, installed_dir(self.user, "superpowers"), "9.9.0", SHA, "2026-10-02")
-        sh = self.pack / ".shared/borrow/superpowers/9.9.0/skills/systematic-debugging/find-polluter.sh"
+        sh = self.pack / "borrow/superpowers/9.9.0/skills/systematic-debugging/find-polluter.sh"
         self.assertTrue(os.access(sh, os.X_OK))
         self.assertFalse(os.access(sh.parent / "SKILL.md", os.X_OK))
 
@@ -380,12 +371,12 @@ class VendorCase(Base):
                 with self.assertRaises(toolset.ToolsetError) as cm:
                     toolset.vendor(self.pack, installed_dir(self.user, "superpowers"), bad, SHA, "2026-10-02")
                 self.assertIn("版の名", str(cm.exception))
-                self.assertFalse((self.pack / ".shared/borrow/superpowers").exists())
+                self.assertFalse((self.pack / "borrow/superpowers").exists())
 
     def test_vendor_refuses_missing_part_or_symlink_and_writes_nothing(self):
         """部品が無い・包むファイルが symlink、のどちらでも名指して止まり、borrow.json も写しも書かない"""
         src = installed_dir(self.user, "superpowers")
-        before = (self.pack / ".shared/borrow/borrow.json").read_bytes()
+        before = (self.pack / "borrow/borrow.json").read_bytes()
         part = src / "skills" / "subagent-driven-development" / "task-reviewer-prompt.md"
         cases = {"task-reviewer-prompt.md": lambda: part.unlink(),
                  "symlink": lambda: (src / "skills" / "test-driven-development" / "x.md").symlink_to(src / "LICENSE")}
@@ -395,23 +386,23 @@ class VendorCase(Base):
                 with self.assertRaises(toolset.ToolsetError) as cm:
                     toolset.vendor(self.pack, src, "9.9.0", SHA, "2026-10-02")
                 self.assertIn(said, str(cm.exception))
-                self.assertEqual((self.pack / ".shared/borrow/borrow.json").read_bytes(), before)
-                self.assertFalse((self.pack / ".shared/borrow/superpowers").exists())
+                self.assertEqual((self.pack / "borrow/borrow.json").read_bytes(), before)
+                self.assertFalse((self.pack / "borrow/superpowers").exists())
                 part.write_text("偽\n", encoding="utf-8")
 
     def test_vendor_names_absent_listed_file_without_suggesting_vendor(self):
         """写し元に借りる一覧の部品が無い時の拒みは『写し元の版のフォルダに無い』と言い、vendor を打ち直せとも pin.files とも言わない"""
         src = installed_dir(self.user, "superpowers")
-        before = (self.pack / ".shared/borrow/borrow.json").read_bytes()
+        before = (self.pack / "borrow/borrow.json").read_bytes()
         (src / "skills" / "subagent-driven-development" / "task-reviewer-prompt.md").unlink()
         with self.assertRaises(toolset.ToolsetError) as cm:
             toolset.vendor(self.pack, src, "9.9.0", SHA, "2026-10-02")
         msg = str(cm.exception)
         self.assertIn("task-reviewer-prompt.md: 写し元の版のフォルダに無い", msg)
-        self.assertNotIn("dev/toolset.py vendor で写し直す", msg)
+        self.assertNotIn("bin/_lib/toolset.py vendor で写し直す", msg)
         self.assertNotIn("pin.files", msg)
-        self.assertEqual((self.pack / ".shared/borrow/borrow.json").read_bytes(), before)
-        self.assertFalse((self.pack / ".shared/borrow/superpowers").exists())
+        self.assertEqual((self.pack / "borrow/borrow.json").read_bytes(), before)
+        self.assertFalse((self.pack / "borrow/superpowers").exists())
 
 
 class ResolveCase(unittest.TestCase):
@@ -420,7 +411,7 @@ class ResolveCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = pathlib.Path(self._tmp.name)
-        self.borrow = toolset.load_borrow(ROOT)
+        self.borrow = toolset.load_borrow(LIB)
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -519,7 +510,7 @@ class ScopeCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = pathlib.Path(self._tmp.name)
-        self.borrow = toolset.load_borrow(ROOT)
+        self.borrow = toolset.load_borrow(LIB)
         self.target = self.tmp / "target"
         self.target.mkdir()
         self.user = make_user_config(self.tmp / "user")
@@ -577,7 +568,7 @@ class InstalledShapeCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = pathlib.Path(self._tmp.name)
-        self.borrow = toolset.load_borrow(ROOT)
+        self.borrow = toolset.load_borrow(LIB)
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -735,7 +726,7 @@ class InstallCase(Base):
 
         cases = {
             "skills/verification-before-completion/SKILL.md: 固定に在るのに手元に無い": no_skill_dir,
-            "skills/brainstorming/SKILL.md: 借りる一覧（borrow.json の skills・parts）が名指すのに、固定（pin.files）にその sha256 が無い（dev/toolset.py vendor で写し直す）": listed_but_not_pinned,
+            "skills/brainstorming/SKILL.md: 借りる一覧（borrow.json の skills・parts）が名指すのに、固定（pin.files）にその sha256 が無い（bin/_lib/toolset.py vendor で写し直す）": listed_but_not_pinned,
             "borrow.json の superpowers に pin が無い": no_pin,
             "写しのフォルダが無い": no_copy_dir,
         }
@@ -751,7 +742,7 @@ class InstallCase(Base):
                 group = msg[msg.index("- superpowers の写し"):]
                 self.assertIn("が borrow.json の pin と合わない:\n", group)
                 self.assertTrue(any(ln.startswith("  - ") and want in ln for ln in group.splitlines()), msg)
-                self.assertIn("claude plugin install works@raiki61", group)
+                self.assertIn("git checkout -- :/bin/_lib/borrow", group)
                 self.assertEqual(files_under(self.cfg), [])
 
     def test_vendored_copy_break_and_missing_plugins_join_in_one_error(self):
@@ -1021,99 +1012,22 @@ class CliCase(Base):
         """borrow.json に superpowers の pin が無ければ、写しの版が決まらない。版を名指しても名指さなくても、トレースバックで
         なく 1 行で 2（偽の pack を一時の置き場に組む）"""
         pack = self.tmp / "pack"
-        shutil.copytree(ROOT / ".shared" / "borrow", pack / ".shared" / "borrow")
-        (pack / ".shared" / "core").mkdir()
-        shutil.copy2(ROOT / ".shared" / "core" / "spseam.py", pack / ".shared" / "core" / "spseam.py")   # toolset が import するのはこれだけ
-        (pack / "dev").mkdir()
-        shutil.copy2(TOOLSET, pack / "dev" / "toolset.py")
-        bj = pack / ".shared" / "borrow" / "borrow.json"
+        shutil.copytree(LIB / "borrow", pack / "borrow")
+        shutil.copy2(LIB / "spseam.py", pack / "spseam.py")   # toolset が import するのはこれだけ
+        shutil.copy2(TOOLSET, pack / "toolset.py")
+        bj = pack / "borrow" / "borrow.json"
         borrow = json.loads(bj.read_text(encoding="utf-8"))
         del borrow["superpowers"]["pin"]
         bj.write_text(json.dumps(borrow, ensure_ascii=False), encoding="utf-8")
         for args in ([], ["9.9.0"]):
             with self.subTest(args):
-                r = subprocess.run([sys.executable, str(pack / "dev" / "toolset.py"), "contract", *args],
+                r = subprocess.run([sys.executable, str(pack / "toolset.py"), "contract", *args],
                                    capture_output=True, text=True, encoding="utf-8",
                                    env=hermetic.child_env(CLAUDE_CONFIG_DIR=str(self.user)))
                 self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
                 self.assertIn("toolset.py: borrow.json の superpowers に pin が無い（写しの版が決まらない。"
-                              "dev/toolset.py vendor で写す）", r.stderr)
+                              "bin/_lib/toolset.py vendor で写す）", r.stderr)
                 self.assertNotIn("Traceback", r.stderr)
-
-class RepoDenyCase(unittest.TestCase):
-    """対象の持ち主の禁止: 役は settingSources: [user] とこの隔離した設定で起きるので、対象リポジトリの .claude/settings.json・
-    settings.local.json を読まない。包み（.shared/core/adapter.plan）は印のある起動で、役の cwd の worktree の根の 2 つの
-    ファイルの permissions.deny だけを --settings の permissions.deny に足す（本流 role_run.repo_deny と同じ読み方）。
-    読めない・形が違えば claude を起こさず、ファイルを名指しする（fail closed）"""
-
-    SANDBOX = '{"sandbox":{"enabled":true,"allowUnsandboxedCommands":false,"failIfUnavailable":true}}'
-
-    def setUp(self):
-        sys.path.insert(0, str(ROOT / ".shared" / "core"))
-        self.addCleanup(sys.path.remove, str(ROOT / ".shared" / "core"))
-        import adapter
-        self.adapter = adapter
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.tmp = pathlib.Path(tmp.name).resolve()
-        self.wt = self.tmp / "wt"
-        self.wt.mkdir()
-        subprocess.run(["git", "-C", str(self.wt), "init", "-q"], check=True)
-        (self.wt / ".claude").mkdir()
-        self.guarded = str(self.tmp / "board")
-
-    def write(self, name, doc):
-        (self.wt / ".claude" / name).write_text(doc if isinstance(doc, str) else json.dumps(doc), encoding="utf-8")
-
-    def plan(self, cwd=None):
-        schema = json.dumps({"type": "object", "description": "works-node: fix", "properties": {}})
-        argv = ["--output-format", "stream-json", "--json-schema", schema, "--tools", "Read,Edit,Bash",
-                "--setting-sources=project,user", "--settings", self.SANDBOX]
-        return self.adapter.plan(argv, cwd or self.wt, self.tmp / "home", "true", protected=lambda: [self.guarded],
-                                 env={"PATH": "/usr/bin:/bin"})
-
-    @staticmethod
-    def deny(p):
-        vals = [p.argv[i + 1] for i, a in enumerate(p.argv) if a == "--settings"]
-        return json.loads(vals[0])["permissions"]["deny"]
-
-    def test_both_files_deny_copied_beside_own_fences(self):
-        self.write("settings.json", {"permissions": {"deny": ["Bash(bash tests/run.sh:*)"], "allow": ["Bash(ls:*)"]}})
-        self.write("settings.local.json", {"permissions": {"deny": ["Bash(./tests/run.sh:*)"]}})
-        p = self.plan()
-        self.assertEqual(p.mode, "merged", p.why)
-        deny = self.deny(p)
-        self.assertIn("Bash(bash tests/run.sh:*)", deny)
-        self.assertIn("Bash(./tests/run.sh:*)", deny)
-        self.assertNotIn("Bash(ls:*)", deny)
-        for r in self.adapter.deny_rules([self.guarded]):
-            self.assertIn(r, deny, "包み自身の柵と並ぶ")
-
-    def test_read_from_worktree_root_when_cwd_is_below(self):
-        self.write("settings.json", {"permissions": {"deny": ["Bash(sh tests/run.sh:*)"]}})
-        (self.wt / "sub").mkdir()
-        p = self.plan(self.wt / "sub")
-        self.assertEqual(p.mode, "merged", p.why)
-        self.assertIn("Bash(sh tests/run.sh:*)", self.deny(p))
-
-    def test_broken_json_refused_naming_the_file(self):
-        for name in ("settings.json", "settings.local.json"):
-            with self.subTest(name):
-                for n in ("settings.json", "settings.local.json"):
-                    (self.wt / ".claude" / n).unlink(missing_ok=True)
-                self.write(name, "{")
-                p = self.plan()
-                self.assertEqual(p.mode, "refused")
-                self.assertIn(name, p.why or "")
-
-    def test_deny_not_a_string_list_refused(self):
-        for doc in ({"permissions": {"deny": "Bash(x)"}}, {"permissions": {"deny": [1]}}, {"permissions": []}, []):
-            with self.subTest(doc=doc):
-                self.write("settings.json", doc)
-                p = self.plan()
-                self.assertEqual(p.mode, "refused")
-                self.assertIn("settings.json", p.why or "")
-
 
 if __name__ == "__main__":
     unittest.main()
@@ -1144,7 +1058,7 @@ class McpCase(Base):
         self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
 
 
-PIN_V = toolset.load_borrow(ROOT)["superpowers"]["pin"]["version"]
+PIN_V = toolset.load_borrow(LIB)["superpowers"]["pin"]["version"]
 
 
 def _bumped(pin):
@@ -1184,13 +1098,13 @@ class NewerCase(Base):
         super().setUp()
         shutil.rmtree(self.tmp / "user")   # Base の偽の superpowers 9.9.0 のフォルダも消す（版のフォルダは候補に数える）
         self.user = make_user_config(self.tmp / "user", only={"coldwrite", "pr-review-toolkit"})
-        self.item = toolset.load_borrow(ROOT)["superpowers"]
+        self.item = toolset.load_borrow(LIB)["superpowers"]
         # newer が読む pack は偽の物（写しの固定の commit を試験が書き換えても本物の borrow.json に触れない）
         self.pack = self.tmp / "pack"
-        shutil.copytree(ROOT / ".shared" / "borrow", self.pack / ".shared" / "borrow")
-        (self.pack / ".shared" / "core").symlink_to(ROOT / ".shared" / "core")
-        (self.pack / "dev").mkdir()
-        shutil.copy2(TOOLSET, self.pack / "dev" / "toolset.py")
+        shutil.copytree(LIB / "borrow", self.pack / "borrow")
+        for name in ("spseam.py", "changemap.py"):
+            (self.pack / name).symlink_to(LIB / name)
+        shutil.copy2(TOOLSET, self.pack / "toolset.py")
         self.upstream = self.make_upstream(PIN_V)
 
     def make_upstream(self, *versions, name="upstream", light=False):
@@ -1210,7 +1124,7 @@ class NewerCase(Base):
         gitkit.git(repo, "tag", "-f", f"v{v}", *(() if light else ("-a", "-m", f"v{v}")))
 
     def set_pin_commit(self, commit):
-        p = self.pack / ".shared" / "borrow" / "borrow.json"
+        p = self.pack / "borrow" / "borrow.json"
         doc = json.loads(p.read_text(encoding="utf-8"))
         doc["superpowers"]["pin"]["commit"] = commit
         p.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -1223,7 +1137,7 @@ class NewerCase(Base):
 
     def cli(self, *args, **env):
         """偽の pack の toolset.py を、上流の URL を self.upstream（リポジトリのパス。無いパスなら届かない上流）へ向け替えて起こす"""
-        return subprocess.run([sys.executable, str(self.pack / "dev" / "toolset.py"), *args], capture_output=True, text=True,
+        return subprocess.run([sys.executable, str(self.pack / "toolset.py"), *args], capture_output=True, text=True,
                               encoding="utf-8", env=hermetic.child_env(
                                   **{"CLAUDE_CONFIG_DIR": str(self.user), **upstream_redirect(self.upstream), **env}))
 
@@ -1395,24 +1309,13 @@ class NewerCase(Base):
         self.add_version(newer)
         moved = self.repoint(PIN_V)   # 上流の固定の tag が別の commit を指しても、写しの pin を取り直さない
         before = {p: p.read_bytes() for p in self.user.rglob("*") if p.is_file()}
-        pack = {p: p.read_bytes() for p in (self.pack / ".shared" / "borrow").rglob("*") if p.is_file()}
+        pack = {p: p.read_bytes() for p in (self.pack / "borrow").rglob("*") if p.is_file()}
         r = self.cli("newer")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(f"superpowers {newer}", r.stdout)
         self.assertIn(f"と違う（{moved}）", r.stdout)
         self.assertEqual({p: p.read_bytes() for p in self.user.rglob("*") if p.is_file()}, before)
-        self.assertEqual({p: p.read_bytes() for p in (self.pack / ".shared" / "borrow").rglob("*") if p.is_file()}, pack)
-
-    def test_dogfood_start_runs_newer_once(self):
-        rows = (DEV / "dogfood.sh").read_text(encoding="utf-8").splitlines()
-        hits = [i for i, ln in enumerate(rows) if 'toolset.py" newer' in ln]
-        self.assertEqual(len(hits), 1)
-        run = next(i for i, ln in enumerate(rows) if ln.startswith('sh "$ARCHON"'))                      # workflow run の行
-        synced = max(i for i, ln in enumerate(rows) if "works_dev_show_synced dogfood.sh" in ln)         # 続きの行（--show の分岐の物は先）
-        exit_run = next(i for i, ln in enumerate(rows) if ln.startswith('[ "$run_status" -ne 0 ]'))      # run の終了コードを返す行
-        self.assertTrue(run < synced < hits[0] < exit_run)   # 網を待つ読みは、起動の仕事が全部済んだ最後（終了コードを返す前）
-        self.assertIn("上流の tag を読む", rows[hits[0] - 1])   # 読む前に待つことを言う
-        self.assertIn("|| echo", rows[hits[0]])   # 落ちても起動を止めない
+        self.assertEqual({p: p.read_bytes() for p in (self.pack / "borrow").rglob("*") if p.is_file()}, pack)
 
     def test_newer_takes_no_version(self):
         """newer は版を名指さない（比べる元は写し）。版を渡すのは使い方の誤りで 2"""

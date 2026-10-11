@@ -2,7 +2,7 @@
 の契約を確かめ、部品の型を埋める部品。
 
 言葉:
-- 版のフォルダ: superpowers の 1 つの版の中身（.shared/borrow/superpowers/<版> の写し、または利用者のキャッシュの版の置き場）
+- 版のフォルダ: superpowers の 1 つの版の中身（bin/_lib/borrow/superpowers/<版> の写し、または利用者のキャッシュの版の置き場）
 - 包むファイル: 版のフォルダのうち works が使う物。借りるスキルの skills/<名>/ の下の全ファイル・部品（parts）・LICENSE
 - 固定（pin）: borrow.json の superpowers.pin。{version, commit, checked, files: {相対パス: sha256}}
 - 錨（anchor）: 読み替えの決まりの根拠になる原文の引用。引用を含む行がちょうど 1 行で、その段落の sha256 が固定の時と同じこと
@@ -23,7 +23,7 @@
 
 Claude Code が版のフォルダに置く印（MARKERS）と .DS_Store（IGNORED）は数えない。版のフォルダの外を指すパス（絶対のパス・..）と
 symlink は読まずに 1 行で名指す（たどらない）。標準ライブラリだけを使い、works のほかのモジュールを
-import しない。層は L3（盤面と受け付けの層。rolekit と同じく .shared/borrow を読む）。
+import しない。読むのは隣の borrow/ だけ。
 """
 import hashlib
 import json
@@ -32,7 +32,7 @@ import pathlib
 import re
 import textwrap
 
-BORROW_DIR = pathlib.Path(__file__).resolve().parent.parent / "borrow"
+BORROW_DIR = pathlib.Path(__file__).resolve().parent / "borrow"
 SEAMS_FILE = "seams.json"          # 節の契約（BORROW_DIR の下）
 OVERLAY_FILE = "unattended.md"     # 無人の読み替え（BORROW_DIR の下）
 MARKERS = frozenset({".in_use", ".orphaned_at"})   # Claude Code がプラグインのキャッシュの版の置き場に置く印（使っている pid・捨てた時刻）
@@ -149,7 +149,7 @@ def pin_problems(src: pathlib.Path, item: dict) -> list[str]:
             out.append(f"{rel}: {bad[rel]}")
         elif rel in unpinned:
             out.append(f"{rel}: 借りる一覧（borrow.json の skills・parts）が名指すのに、固定（pin.files）にその sha256 が無い"
-                       "（dev/toolset.py vendor で写し直す）")
+                       "（bin/_lib/toolset.py vendor で写し直す）")
         elif rel not in have:
             out.append(f"{rel}: 固定に在るのに手元に無い")
         elif rel not in want:

@@ -1,13 +1,11 @@
-"""殻の認証の起こし役（.shared/core/auth_launch.py）の柵。
+"""起動の認証の起こし役（bin/_lib/auth_launch.py）の柵。
 
-- 順の真ん中は本流の写し claude_auth.auth_env を丸ごと呼ぶ（部品を並べ直すと写しの柵はバイト同一のまま緑なので、ここで縛る）
-- 名指し（WORKS_KEYCHAIN_ITEM）は受け継いだ認証より先に効き、取れなければ次へ進まない（設計 2.6 順の形 1）
+- 順の真ん中は claude_auth.auth_env を丸ごと呼ぶ（部品を並べ直すと claude_auth の試験は緑のままなので、ここで縛る）
+- 名指し（WORKS_FACTORY_KEYCHAIN_ITEM）は受け継いだ認証より先に効き、取れなければ次へ進まない
+- 項目の名を設定の置き場から導かない。名指しが無ければ Claude Code 自身の項目だけを読む（E14）
 - python3 -I で起こした check は起こし役のフォルダ（試験の持つ写し）に __pycache__ を作らない（-I は PYTHONDONTWRITEBYTECODE を
-  見ず、__pycache__ は .gitignore に隠れて git status に出ない）。tree_run.py の CLI の分は
-  test_tree_run.py が写しで見る。共有の works/ はどの試験も見ない（別の実行の残り物で揺れる）。
+  見ず、__pycache__ は .gitignore に隠れて git status に出ない）。共有の bin/_lib/ はどの試験も見ない（別の実行の残り物で揺れる）。
   試験自身の import の分は各試験の頭の sys.dont_write_bytecode に任せ、試験では縛らない
-- Context7 はやめた（持ち主 2026-10-09）: 前の版が読んだ鍵の項目の名（WORKS_CONTEXT7_KEYCHAIN_ITEM）が env に残っていても、
-  その項目を読まず、子の環境に CONTEXT7_API_KEY を置かない
 security は偽の runner に差し替え、本物の keychain には触らない。
 """
 import os
@@ -20,8 +18,8 @@ import unittest
 from unittest import mock
 
 TESTS = pathlib.Path(__file__).resolve().parent
-ROOT = TESTS.parent
-CORE = ROOT / ".shared" / "core"
+ROOT = TESTS.parents[1]
+CORE = ROOT / "bin" / "_lib"
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように
 sys.path.insert(0, str(CORE))
 sys.path.insert(0, str(TESTS))
@@ -72,33 +70,42 @@ class ResolveOrder(unittest.TestCase):
             auth_launch.resolve({}, "/u", "", platform="darwin", runner=run2)
         self.assertEqual(run2.calls, [])
 
-    def test_middle_stage_derives_item_from_users_config(self):
-        """利用者の設定の置き場（隔離前）から本流の規則で項目を導く: 無ければ ~/.claude → default、~/.claude-p3 → p3"""
-        for cfg, service in (("", "claude-code-oauth-default"), ("/u/.claude-p3", "claude-code-oauth-p3")):
+    def test_middle_stage_reads_the_item_named_by_claude_keychain_service(self):
+        """真ん中は CLAUDE_KEYCHAIN_SERVICE で名指した項目を読む"""
+        run = keychain({"svc": TOKEN})
+        got, name, why = auth_launch.resolve({"CLAUDE_KEYCHAIN_SERVICE": "svc"}, "/u", "", platform="darwin", runner=run)
+        self.assertIsNone(why)
+        self.assertEqual(got, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN})
+        self.assertIn("svc", name)
+        self.assertEqual(run.calls, ["svc"])
+
+    def test_without_a_named_item_only_claude_codes_own_items_are_read(self):
+        """名指しが無ければ設定の置き場から項目の名を導かず、Claude Code 自身の項目だけを読む（E14）"""
+        for cfg in ("", "/u/.claude-p3"):
             with self.subTest(cfg=cfg):
-                run = keychain({service: TOKEN})
-                got, name, why = auth_launch.resolve({}, "/u", cfg, platform="darwin", runner=run)
-                self.assertIsNone(why)
-                self.assertEqual(got, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN})
-                self.assertIn(service, name)
-                self.assertEqual(run.calls, [service])
+                run = keychain({})
+                got, _name, why = auth_launch.resolve({}, "/u", cfg, platform="darwin", runner=run)
+                self.assertIsNone(got)
+                self.assertIn("keychain-unnamed", why)
+                self.assertEqual(run.calls, auth_launch.claude_code_items(cfg))
 
     def test_named_item_beats_inherited_auth(self):
-        """WORKS_KEYCHAIN_ITEM は受け継いだ CLAUDE_CODE_OAUTH_TOKEN・ANTHROPIC_API_KEY より先に効く"""
-        env = {"WORKS_KEYCHAIN_ITEM": "named", "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-env", "ANTHROPIC_API_KEY": "k"}
+        """WORKS_FACTORY_KEYCHAIN_ITEM は受け継いだ CLAUDE_CODE_OAUTH_TOKEN・ANTHROPIC_API_KEY より先に効く"""
+        env = {"WORKS_FACTORY_KEYCHAIN_ITEM": "named", "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-env", "ANTHROPIC_API_KEY": "k"}
         run = keychain({"named": TOKEN})
         got, name, why = auth_launch.resolve(env, "/u", "", platform="darwin", runner=run)
         self.assertIsNone(why)
         self.assertEqual(got, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN})
-        self.assertIn("WORKS_KEYCHAIN_ITEM", name)
+        self.assertIn("WORKS_FACTORY_KEYCHAIN_ITEM", name)
         self.assertEqual(run.calls, ["named"])
 
     def test_named_item_empty_or_malformed_stops(self):
-        """名指しの項目が空・壊れた値なら次の段（受け継いだ認証・導く項目・Claude Code の項目）へ進まずに止まる"""
+        """名指しの項目が空・壊れた値なら次の段（受け継いだ認証・CLAUDE_KEYCHAIN_SERVICE の項目・Claude Code の項目）へ進まずに止まる"""
         for value in ("", "not-a-token"):
             with self.subTest(value=value):
-                run = keychain({"named": value, "claude-code-oauth-default": TOKEN, "Claude Code-credentials": TOKEN})
-                got, _name, why = auth_launch.resolve({"WORKS_KEYCHAIN_ITEM": "named", "CLAUDE_CODE_OAUTH_TOKEN": TOKEN},
+                run = keychain({"named": value, "svc": TOKEN, "Claude Code-credentials": TOKEN})
+                got, _name, why = auth_launch.resolve({"WORKS_FACTORY_KEYCHAIN_ITEM": "named", "CLAUDE_CODE_OAUTH_TOKEN": TOKEN,
+                                                       "CLAUDE_KEYCHAIN_SERVICE": "svc"},
                                                       "/u", "", platform="darwin", runner=run)
                 self.assertIsNone(got)
                 self.assertIn("named", why)
@@ -113,7 +120,7 @@ class ResolveOrder(unittest.TestCase):
 
 class ChildEnv(unittest.TestCase):
     def test_named_drops_credentials_that_outrank_the_token(self):
-        """名指しで決めた時は、Claude Code が CLAUDE_CODE_OAUTH_TOKEN より先に使う資格（写しの INHERITED と FOUNDRY の旗）を外す"""
+        """名指しで決めた時は、Claude Code が CLAUDE_CODE_OAUTH_TOKEN より先に使う資格（claude_auth の INHERITED と FOUNDRY の旗）を外す"""
         env = {"HOME": "/iso", "ANTHROPIC_API_KEY": "k", "ANTHROPIC_AUTH_TOKEN": "t", "CLAUDE_CODE_USE_FOUNDRY": "1",
                "CLAUDE_CODE_USE_BEDROCK": "1", "CLAUDE_CODE_OAUTH_TOKEN": "old"}
         self.assertEqual(auth_launch.child_env(env, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN}, True),
@@ -141,7 +148,7 @@ class IsolatedLaunch(unittest.TestCase):
         probe = ("import os, json; print(json.dumps({k: os.environ.get(k) == %r if k == 'CLAUDE_CODE_OAUTH_TOKEN' "
                  "else os.environ.get(k) for k in ('CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'HOME')}))" % TOKEN)
         env = hermetic.child_env(HOME=str(tmp / "iso"), PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""),
-                                 WORKS_KEYCHAIN_ITEM="named", ANTHROPIC_API_KEY="k", CLAUDE_CODE_OAUTH_TOKEN="inherited")
+                                 WORKS_FACTORY_KEYCHAIN_ITEM="named", ANTHROPIC_API_KEY="k", CLAUDE_CODE_OAUTH_TOKEN="inherited")
         r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--user-home", str(tmp / "user"),
                             "--", sys.executable, "-I", "-c", probe], env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -150,48 +157,25 @@ class IsolatedLaunch(unittest.TestCase):
                          % (tmp / "iso"))
         self.assertEqual((bin_dir / "security.home").read_text().strip(), str(tmp / "user"))
 
-    @unittest.skipUnless(sys.platform == "darwin", "SKIP macos: keychain の段は macOS だけ")
-    def test_exec_does_not_read_a_leftover_context7_item(self):
-        """Context7 はやめた: 前の版の鍵の項目の名（WORKS_CONTEXT7_KEYCHAIN_ITEM）が env に残っていても、exec はその項目を
-        security で読まず、子の環境に CONTEXT7_API_KEY を置かず、その項目の 1 行も出さない"""
-        tmp = hermetic.tmpdir(self)
-        bin_dir = tmp / "bin"
-        bin_dir.mkdir()
-        (bin_dir / "security").write_text(
-            '#!/bin/sh\necho "$@" >> "$0.calls"\nprev=\nfor a in "$@"; do\n'
-            f'  if [ "$prev" = -s ] && [ "$a" = named ]; then echo {TOKEN}; exit 0; fi\n'
-            '  if [ "$prev" = -s ] && [ "$a" = c7-item ]; then echo ctx7sk-fake; exit 0; fi\n'
-            '  prev=$a\ndone\nexit 44\n')
-        (bin_dir / "security").chmod(0o755)
-        probe = "import os; print(os.environ.get('CONTEXT7_API_KEY'))"
-        env = hermetic.child_env(HOME=str(tmp / "iso"), PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""),
-                                 WORKS_KEYCHAIN_ITEM="named", WORKS_CONTEXT7_KEYCHAIN_ITEM="c7-item")
-        r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--for", "archon.sh",
-                            "--user-home", str(tmp / "user"), "--", sys.executable, "-I", "-c", probe],
-                           env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stdout.strip(), "None")
-        self.assertNotIn("c7-item", (bin_dir / "security.calls").read_text() + r.stderr)
-        self.assertFalse(hasattr(auth_launch, "context7_env"))
-
     def test_exec_stops_with_howto_and_does_not_start_the_child(self):
         """認証が無ければ、子を起こさず 1 行の案内（呼び手の名つき）で 2"""
         tmp = hermetic.tmpdir(self)
         bin_dir = self.fake_security(tmp, "nothing-here")
         env = hermetic.child_env(HOME=str(tmp), PATH=str(bin_dir) + os.pathsep + os.environ.get("PATH", ""))
-        r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--for", "archon.sh",
+        r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--for", "bin/start",
                             "--user-home", str(tmp), "--", sys.executable, "-c", "print('started')"],
                            env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual(r.returncode, 2)
         self.assertEqual(r.stdout, "")
         self.assertEqual(len(r.stderr.strip().splitlines()), 1, r.stderr)
-        self.assertTrue(r.stderr.startswith("archon.sh: " + auth_launch.HOWTO), r.stderr)
+        self.assertTrue(r.stderr.startswith("bin/start: " + auth_launch.HOWTO), r.stderr)
 
     def test_shells_do_not_read_the_keychain_themselves(self):
-        """認証の順と keychain の読み出しは起こし役だけが持つ。殻に書き戻したら赤（語で見る）"""
-        for sh in sorted((ROOT / "dev").glob("*.sh")):
+        """認証の順と keychain の読み出しは起こし役だけが持つ。入口と隔離に書き戻したら赤（語で見る）"""
+        shells = [p for p in (ROOT / "bin").iterdir() if p.is_file()] + [CORE / "isolate.py"]
+        for sh in sorted(shells):
             body = sh.read_text(encoding="utf-8")
-            for word in ("security find-generic-password", "works_dev_auth_candidates", 'CLAUDE_CODE_OAUTH_TOKEN="$('):
+            for word in ("security find-generic-password", 'CLAUDE_CODE_OAUTH_TOKEN="$('):
                 with self.subTest(sh=sh.name, word=word):
                     self.assertNotIn(word, body)
 

@@ -1,20 +1,20 @@
-"""works/dev/toolset.py — AI の役が読む、選んだ物だけの隔離した Claude の設定を組み、柵で確かめる（開発の殻。標準ライブラリだけ）。
+"""bin/_lib/toolset.py — AI の役が読む、選んだ物だけの隔離した Claude の設定を組み、柵で確かめる（起動の部品。標準ライブラリだけ）。
 
   python3 toolset.py install [--no-plugins] [--claude <claude の実行ファイル>] [--user-config <利用者の設定の置き場>] <Claude の設定の置き場>
   python3 toolset.py guard <Claude の設定の置き場>
   python3 toolset.py vendor [--user-config <利用者の設定の置き場>] <superpowers の版>
   python3 toolset.py contract [--user-config <利用者の設定の置き場>] [<superpowers の版>]
 
-AI の節は全部 settingSources: [user] で、dev/archon.sh が隔離した CLAUDE_CONFIG_DIR を読む（P1 計画 Task 20・裁定 P1-R8）。
-そこに置くのは許す一覧 .shared/borrow/borrow.json の物だけ。借りる物の取り元は 2 つに分かれる:
-- superpowers（kind "skills"）: works に写した固定の版（.shared/borrow/superpowers/<版>/。下の vendor が作る）から入れる。
+AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CLAUDE_CONFIG_DIR（isolate.py）を読む。
+そこに置くのは許す一覧 bin/_lib/borrow/borrow.json の物だけ。借りる物の取り元は 2 つに分かれる:
+- superpowers（kind "skills"）: works に写した固定の版（bin/_lib/borrow/superpowers/<版>/。下の vendor が作る）から入れる。
   利用者の installed_plugins.json の superpowers の行は読まない（入れた版は run に使わず、開発の再開の確かめが比べるだけ）。
   写しの包むファイルが borrow.json の superpowers.pin の sha256 と合わなければ（spseam.pin_problems）、違うファイルを 1 行ずつ
   名指して、何も写さずに止まる。
 - coldwrite・pr-review-toolkit（kind "plugin"）: 利用者が Claude Code に入れたプラグインから取る（本線の graphloops と同じ。版は
   Claude Code が今に保ち、入れた版をそのまま使う）。
 - 探す所（kind "plugin"）: 利用者の設定の置き場（--user-config。無ければ env の CLAUDE_CONFIG_DIR、無ければ ~/.claude。隔離した設定ではない。
-  archon.sh は隔離の前の値を渡す。絶対パスだけを受け、隔離した設定の置き場と同じなら名指しして止まる）の plugins/installed_plugins.json の <名>@<borrow の marketplace> の行。Claude Code と同じく
+  起動は隔離の前の値を渡す。絶対パスだけを受け、隔離した設定の置き場と同じなら名指しして止まる）の plugins/installed_plugins.json の <名>@<borrow の marketplace> の行。Claude Code と同じく
   local > project > user の scope の行を取る（local・project は projectPath が今の cwd（対象リポジトリ）の行だけ。勝った行の
   installPath が無ければ下の scope へ落ちずに入っていないとする）。enabledPlugins で無効でも借りる（記録に残すだけ）。
   installed_plugins.json が知らない形（version が INSTALLED_VERSIONS の外など）なら、入っていないとは言わずに形を名指しして止まる。
@@ -48,16 +48,16 @@ AI の節は全部 settingSources: [user] で、dev/archon.sh が隔離した CL
 - 写し（vendor）: 版を上げる道は newer の最後の行の案内（上流の tag の木から toolset.vendor を呼ぶ）。CLI の vendor は
   利用者のキャッシュの superpowers の 1 つの版（<利用者の設定の置き場>/plugins/cache/<marketplace>/superpowers/<版>。
   網からは取らない。版は人が名指す）を写す口で、キャッシュの版は上流の tag と同じ中身とは限らない。
-  そこから、包むファイル（.shared/core/spseam.py の wrapped_files。借りるスキルの全ファイル・部品 parts・LICENSE）だけを .shared/borrow/superpowers/<版>/ へバイトのまま・権限つきで写し、ほかの版の写しを消し、写しの台帳
-  .shared/borrow/superpowers/COPIED_FROM と borrow.json の superpowers.pin（版・commit・確かめた日・ファイルごとの sha256）を
+  そこから、包むファイル（bin/_lib/spseam.py の wrapped_files。借りるスキルの全ファイル・部品 parts・LICENSE）だけを bin/_lib/borrow/superpowers/<版>/ へバイトのまま・権限つきで写し、ほかの版の写しを消し、写しの台帳
+  bin/_lib/borrow/superpowers/COPIED_FROM と borrow.json の superpowers.pin（版・commit・確かめた日・ファイルごとの sha256）を
   書き直す。commit は installed_plugins.json の行のうち installPath がその版の置き場の行の gitCommitSha（無ければ写さずに止まる）。
   使用許諾のファイルが MIT License で borrow.json の licence と合う時だけ写す（外れなら何も書かずに止まる）。写しは直さない。
   写しを変えるのはこの口だけで、写し・台帳・pin を同じ 1 つの commit に入れる。
-- 契約の確かめ（contract）: 版のフォルダに、固定との食い違い（spseam.pin_problems）と、包む節の表 .shared/borrow/seams.json の
+- 契約の確かめ（contract）: 版のフォルダに、固定との食い違い（spseam.pin_problems）と、包む節の表 bin/_lib/borrow/seams.json の
   契約の破れ（spseam.contract_problems。錨・読み替えの決まり・穴・出口の語）を当てて 1 行ずつ出す。版を名指さなければ写しに、
   名指せば利用者のキャッシュのその版の置き場（vendor と同じ所。版を上げる前に、新しい版で何が崩れるかを見る）に当てる。
   破れが無ければ 1 行で終了コード 0、在れば 1、版のフォルダが無い・borrow.json に pin が無ければ 2。何も書かない。
-- 開発の再開の確かめ（newer。dev/dogfood.sh が起動の仕事が済んだ最後に 1 回呼ぶ。上流の tag は網で読み、止まった通信を切る期限は
+- 開発の再開の確かめ（newer。今の works では dev/dogfood.sh が起動の仕事が済んだ最後に 1 回呼んだ。上流の tag は網で読み、止まった通信を切る期限は
   持たないので、起動の成果を塞がない最後に置く）:利用者のキャッシュの superpowers の版のフォルダ・
   installed_plugins.json の行の版・marketplace の一覧（plugins/known_marketplaces.json の installLocation の
   .claude-plugin/marketplace.json）の版を、写した固定の版と数の組（6.10.0 → (6, 10, 0)）で比べる。決まりは 1 つで、数で読めて
@@ -83,7 +83,7 @@ import subprocess
 import sys
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / ".shared" / "core"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import spseam  # noqa: E402
 
 MARKETPLACE = "works-local"                 # 隔離した設定の中の手元の marketplace の名
@@ -113,16 +113,15 @@ USAGE = ("toolset.py: 使い方: python3 toolset.py install [--no-plugins] [--cl
          " | python3 toolset.py contract [--user-config <利用者の設定の置き場>] [<superpowers の版>]"
          " | python3 toolset.py newer [--user-config <利用者の設定の置き場>]"
          "（install は --no-plugins か --claude のどちらか 1 つ）")
-VENDORED = "superpowers"                    # 写しを持つ借りる物（.shared/borrow/<この名>/<版>/）
-LEDGER = "COPIED_FROM"                      # 写しの台帳の名（.shared/borrow/superpowers/ の下。形は .shared/core/copyledger.py）
+VENDORED = "superpowers"                    # 写しを持つ借りる物（bin/_lib/borrow/<この名>/<版>/）
+LEDGER = "COPIED_FROM"                      # 写しの台帳の名（bin/_lib/borrow/superpowers/ の下。形は bin/_lib/copyledger.py）
 LICENCE_HEADS = {"MIT": "MIT License"}      # borrow.json の licence → 使用許諾のファイルの頭の行（写してよい物だけ）
 UPSTREAM = "github.com/obra/superpowers"    # 写し元の系統（台帳の 1 行目に書く）
 UPSTREAM_URL = f"https://{UPSTREAM}.git"    # newer が tag を読む上流の URL
 OLD_MARK = ".works-old."                    # 入れ替えの間、前の版の写しと台帳を脇へ退ける名の印
 COMMIT_SHA = re.compile(r"[0-9a-f]{40}")    # 固定に書く写し元の commit（installed_plugins.json の gitCommitSha）
-# 写しが pin と合わない時の直し方（写しは works の置き場の一部なので、works の置き場が壊れている）
-VENDORED_FIX = ("  直す: works を入れ直す（claude plugin install works@raiki61）か、開発中なら git で写しを戻す"
-                "（git checkout -- :/works/.shared/borrow）")
+# 写しが pin と合わない時の直し方（写しはこのリポジトリの一部なので、作業ツリーが壊れている）
+VENDORED_FIX = "  直す: git で写しを戻す（git checkout -- :/bin/_lib/borrow）"
 VERSION_NAME = re.compile(r"[0-9A-Za-z][0-9A-Za-z._+-]*")   # 写す版の名（フォルダの名になる。/ や .. で外を指させない）
 VERSION_NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)*")   # newer が数の組で比べられる版の名（6.10.0 → (6, 10, 0)）
 HUMAN_ASK = "human partner"                 # 原文の役が人に聞く文の印（小文字で比べる。newer が増えた行を名指す。読み替えで覆うかは人が決める）
@@ -136,7 +135,7 @@ class ToolsetError(Exception):
 
 
 def load_borrow(pack: pathlib.Path) -> dict:
-    return json.loads((pathlib.Path(pack) / ".shared" / "borrow" / "borrow.json").read_text(encoding="utf-8"))
+    return json.loads((pathlib.Path(pack) / "borrow" / "borrow.json").read_text(encoding="utf-8"))
 
 
 SCOPES = ("local", "project", "user")      # 勝つ順（Claude Code の discover-plugins の Which scope wins。managed は読まない）
@@ -444,8 +443,8 @@ def _foreign_parts(cfg: pathlib.Path, borrow: dict) -> list:
 
 
 def _refusal(cfg: pathlib.Path, bad: list) -> str:
-    return (f"Claude の設定の置き場（{cfg}）に、選んだ物（.shared/borrow/borrow.json）の外が在る: {', '.join(bad)}。"
-            "settingSources: [user] の役に読ませないため止める。消すか、別の WORKS_DEV_HOME を使う")
+    return (f"Claude の設定の置き場（{cfg}）に、選んだ物（bin/_lib/borrow/borrow.json）の外が在る: {', '.join(bad)}。"
+            "settingSources: [user] の役に読ませないため止める。消すか、別の run の置き場を使う")
 
 
 def _claude(claude_bin: str, cfg: pathlib.Path, *args: str) -> None:
@@ -581,7 +580,7 @@ def _licence_notice(src: pathlib.Path, item: dict) -> str:
 
 def vendor(pack: pathlib.Path, src: pathlib.Path, version: str, commit: str, checked: str) -> dict:
     """利用者のキャッシュの superpowers の版のフォルダ src の包むファイル（spseam.wrapped_files）を
-    pack/.shared/borrow/superpowers/<version>/ へバイトのまま・権限つきで写し、ほかの版のフォルダを消し、台帳 COPIED_FROM と
+    pack/borrow/superpowers/<version>/ へバイトのまま・権限つきで写し、ほかの版のフォルダを消し、台帳 COPIED_FROM と
     borrow.json の superpowers.pin を書き直して、新しい pin を返す。commit が分からない（40 桁の 16 進でない。固定は写し元を
     名指す）・使用許諾が合わない・借りるスキルの SKILL.md か部品が無い・symlink か外を指すパスが在る・パスに空白か # が在る
     （台帳に書けない）、のどれかなら何も書かずに ToolsetError。
@@ -594,7 +593,7 @@ def vendor(pack: pathlib.Path, src: pathlib.Path, version: str, commit: str, che
     if not isinstance(commit, str) or not COMMIT_SHA.fullmatch(commit):
         raise ToolsetError(f"写し元の commit が分からない（{commit!r}。40 桁の 16 進が要る）。固定は写し元を名指すので写さない"
                            "（installed_plugins.json の行に gitCommitSha が在る版を入れ直す）")
-    bj = pack / ".shared" / "borrow" / "borrow.json"
+    bj = pack / "borrow" / "borrow.json"
     borrow = json.loads(bj.read_text(encoding="utf-8"))
     item = borrow[VENDORED]
     if not src.is_dir():
@@ -607,9 +606,9 @@ def vendor(pack: pathlib.Path, src: pathlib.Path, version: str, commit: str, che
     if bad:
         raise ToolsetError(f"{src} を写せない: " + " / ".join(bad))
     head = (f"{commit}  {VENDORED} {version}（{UPSTREAM}。{LICENCE_HEADS[item['licence']]}・{notice}。"
-            f"直さない写し。取り直しは dev/toolset.py vendor）")
+            f"直さない写し。取り直しは bin/_lib/toolset.py vendor）")
     ledger = "\n".join([head, *(f"{version}/{rel}  {rel}" for rel in files)]) + "\n"
-    base = pack / ".shared" / "borrow" / VENDORED
+    base = pack / "borrow" / VENDORED
     pid = os.getpid()
     tmp = base / f".{version}{TMP_MARK}{pid}"
     led_tmp = base / f".{LEDGER}{TMP_MARK}{pid}"
@@ -688,7 +687,7 @@ def _vendor_cli(pack: pathlib.Path, user_cfg: "pathlib.Path | None", version: st
               file=sys.stderr)
         return 2
     pin = vendor(pack, src, version, _commit_of(user_cfg, src), datetime.date.today().isoformat())
-    print(f"toolset.py: {VENDORED} {pin['version']} の {len(pin['files'])} 本を .shared/borrow/{VENDORED}/{pin['version']}/ に写した"
+    print(f"toolset.py: {VENDORED} {pin['version']} の {len(pin['files'])} 本を bin/_lib/borrow/{VENDORED}/{pin['version']}/ に写した"
           f"（commit {pin['commit']}）")
     return 0
 
@@ -696,11 +695,11 @@ def _vendor_cli(pack: pathlib.Path, user_cfg: "pathlib.Path | None", version: st
 def _contract_cli(pack: pathlib.Path, user_cfg: "pathlib.Path | None", version: "str | None") -> int:
     """版のフォルダ（version が無ければ写し、在れば利用者のキャッシュのその版）に固定と節の契約を当てて行を出す。
     破れが無ければ 0、在れば 1、版のフォルダが無い・borrow.json に pin が無ければ 2"""
-    borrow_dir = pack / ".shared" / "borrow"
+    borrow_dir = pack / "borrow"
     item = load_borrow(pack)[VENDORED]
     pin = item.get("pin")
     if not pin:
-        raise ToolsetError(f"borrow.json の {VENDORED} に pin が無い（写しの版が決まらない。dev/toolset.py vendor で写す）")
+        raise ToolsetError(f"borrow.json の {VENDORED} に pin が無い（写しの版が決まらない。bin/_lib/toolset.py vendor で写す）")
     if version is None:
         src, version = spseam.vendored_dir(item, borrow_dir), pin["version"]
     else:
@@ -826,7 +825,7 @@ def _newer_cli(pack: pathlib.Path, user_cfg: "pathlib.Path | None") -> int:
     指す commit を pin の commit と照らして行を出す。何も書かず、確かめられなかった所は 1 行で名指して続け
     （1 つでも在れば『無い』と締めない）、いつも 0"""
     user_cfg = user_cfg or user_config_dir()
-    borrow_dir = pack / ".shared" / "borrow"
+    borrow_dir = pack / "borrow"
     item = load_borrow(pack)[VENDORED]
     mp, pin = item["marketplace"], item.get("pin") or {}
     pin_v = pin.get("version")
@@ -918,7 +917,7 @@ def _check_user_config(user_cfg: pathlib.Path, cfg: pathlib.Path, src: str) -> N
     """利用者の設定の置き場は絶対パスで、隔離した設定の置き場と別であること（どちらも何も写す前に名指しで止める）"""
     if not user_cfg.is_absolute():
         raise ToolsetError(f"利用者の設定の置き場（{src}）が相対パス（{user_cfg}）。絶対パスで渡す"
-                           "（殻は guard.sh の works_dev_abs_claude_config で cd の前に直す）")
+                           "（起動が cd の前に絶対パスに直して渡す）")
     if os.path.realpath(user_cfg) == os.path.realpath(cfg):
         raise ToolsetError(f"利用者の設定の置き場（{src}: {user_cfg}）が隔離した設定の置き場そのもの（殻の中から入れ子で"
                            "打った？）。CLAUDE_CONFIG_DIR を利用者の物にして回す")
@@ -948,7 +947,7 @@ def main(argv: list) -> int:
             or (cmd == "install" and no_plugins == bool(claude_bin))):
         print(USAGE, file=sys.stderr)
         return 2
-    pack = pathlib.Path(__file__).resolve().parents[1]
+    pack = pathlib.Path(__file__).resolve().parent
     if cmd == "newer":
         try:
             return _newer_cli(pack, user_cfg)

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""works の殻が Claude Code の認証を拾い、Archon を起こす起こし役（標準ライブラリだけ・3.9）。
+"""bin/ の起動が Claude Code の認証を拾い、Archon を起こす起こし役（標準ライブラリだけ・3.9）。
 
-順（設計 works/docs/specs/2026-09-29-launch-core-design.md 2.6『順の形』）:
-1. 前の段: WORKS_KEYCHAIN_ITEM を名指していれば、その項目を写しの read_keychain で読む。取れなければ次へ進まず止まる
-2. 真ん中: 本流 claude_auth.py の写しの auth_env を丸ごと呼ぶ（受け継いだ認証 → CLAUDE_KEYCHAIN_SERVICE か設定の置き場から
-   導いた項目）。本流の部品を並べ直さない——本流の順が変われば、写しの同期でそのまま従う
+順:
+1. 前の段: WORKS_FACTORY_KEYCHAIN_ITEM を名指していれば、その項目を claude_auth の read_keychain で読む。取れなければ次へ進まず止まる
+2. 真ん中: claude_auth の auth_env を丸ごと呼ぶ（受け継いだ認証 → CLAUDE_KEYCHAIN_SERVICE で名指した項目）。
+   claude_auth の部品をここで並べ直さない
 3. 後ろの段: 真ん中が足せなかった時だけ、macOS で Claude Code 自身の keychain の項目を読む
 
 keychain は利用者の HOME で読む（security はログイン keychain を $HOME 基準で探す）。値は標準出力・引数に出さない。
@@ -12,7 +12,7 @@ keychain は利用者の HOME で読む（security はログイン keychain を 
   auth_launch.py check --user-home <path> --user-config <path か空> [--for <殻の名>]
       値を読んで捨て、出どころの名だけを標準出力に 1 行。無ければ標準エラーに案内を 1 行出して 2
   auth_launch.py exec --user-home <path> --user-config <path か空> -- <実行ファイル> <引数…>
-      同じ順で子の環境を組み、今のプロセスを実行ファイルに置き換える（WORKS_DEV_NO_AUTH=1 なら読まずに置き換える）
+      同じ順で子の環境を組み、今のプロセスを実行ファイルに置き換える（WORKS_FACTORY_NO_AUTH=1 なら読まずに置き換える）
   auth_launch.py howto
       認証が無い時の案内の 1 行（殻が自分の言葉で止まる時に使う）
 """
@@ -31,17 +31,17 @@ import unicodedata  # noqa: E402
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))   # -I はスクリプトのフォルダを sys.path に入れない
 import claude_auth  # noqa: E402
 
-HOWTO = ("認証が無い。keychain にトークンの項目が既に在るなら、その項目名を WORKS_KEYCHAIN_ITEM か CLAUDE_KEYCHAIN_SERVICE に"
-         "設定する（どちらも無ければ設定の置き場から導く claude-code-oauth-<名> を見る）。無ければ claude にログインするか、"
+HOWTO = ("認証が無い。keychain にトークンの項目が既に在るなら、その項目名を WORKS_FACTORY_KEYCHAIN_ITEM か CLAUDE_KEYCHAIN_SERVICE に"
+         "設定する。無ければ claude にログインするか、"
          "claude setup-token で作ったトークンを CLAUDE_CODE_OAUTH_TOKEN に置く")
 
 # 名指しで決めた時に子から外す名。Claude Code は CLAUDE_CODE_OAUTH_TOKEN より上の資格を先に使う
-# （code.claude.com/docs/en/authentication の Authentication precedence）。写しの INHERITED に無い FOUNDRY の旗もここで外す
+# （code.claude.com/docs/en/authentication の Authentication precedence）。claude_auth の INHERITED に無い FOUNDRY の旗もここで外す
 ABOVE_TOKEN = tuple(claude_auth.INHERITED) + ("CLAUDE_CODE_USE_FOUNDRY",)
 
 
 def user_runner(user_home):
-    """security を利用者の HOME で起こす runner（写しの read_keychain に渡す）"""
+    """security を利用者の HOME で起こす runner（claude_auth の read_keychain に渡す）"""
     def run(args, **kw):
         return subprocess.run(args, env={**os.environ, "HOME": user_home}, **kw)
     return run
@@ -60,7 +60,7 @@ def claude_code_items(user_config):
 
 def login_json_runner(runner):
     """Claude Code の項目の値は JSON（claudeAiOauth.accessToken）かトークンそのもの。JSON ならトークンだけに替えて返す runner
-    （時間切れ・例外・sk-ant-oat01- の検査は写しの read_keychain に任せる）"""
+    （時間切れ・例外・sk-ant-oat01- の検査は claude_auth の read_keychain に任せる）"""
     def run(args, **kw):
         p = runner(args, **kw)
         raw = (p.stdout or "").strip()
@@ -75,12 +75,12 @@ def login_json_runner(runner):
 def resolve(env, user_home, user_config, platform=sys.platform, runner=None):
     """(子に足す認証の変数, 出どころの名, 止まる理由)。取れた時は止まる理由が None、取れない時は変数が None"""
     runner = runner or user_runner(user_home)
-    named = env.get("WORKS_KEYCHAIN_ITEM")
+    named = env.get("WORKS_FACTORY_KEYCHAIN_ITEM")
     if named:
         tok, note = claude_auth.read_keychain(named, runner)
         if not tok:
             return None, "keychain の項目 " + named, "keychain の項目 %s を読めない: %s" % (named, note)
-        return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "keychain の項目 %s（WORKS_KEYCHAIN_ITEM）" % named, None
+        return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "keychain の項目 %s（WORKS_FACTORY_KEYCHAIN_ITEM）" % named, None
     menv = dict(env, HOME=user_home, CLAUDE_CONFIG_DIR=user_config or str(pathlib.Path(user_home) / ".claude"))
     out, note = claude_auth.auth_env(menv, platform=platform, runner=runner)
     if claude_auth.added(note):
@@ -88,7 +88,7 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None):
         name = claude_auth.inherited(env)
         if name:
             return got, name, None
-        return got, "keychain の項目 %s（CLAUDE_KEYCHAIN_SERVICE か設定の置き場から導いた名）" % note[len("keychain("):-1], None
+        return got, "keychain の項目 %s（CLAUDE_KEYCHAIN_SERVICE）" % note[len("keychain("):-1], None
     if platform == "darwin":
         for service in claude_code_items(user_config):
             tok, _ = claude_auth.read_keychain(service, login_json_runner(runner))
@@ -124,7 +124,7 @@ def main(argv):
         target = a.argv[1:] if a.argv[:1] == ["--"] else a.argv
         if not target:
             ap.error("exec には -- の後に実行ファイルが要る")
-        if os.environ.get("WORKS_DEV_NO_AUTH") == "1":
+        if os.environ.get("WORKS_FACTORY_NO_AUTH") == "1":
             os.execve(target[0], target, dict(os.environ))
     got, name, why = resolve(os.environ, a.user_home, a.user_config)
     if got is None:
@@ -133,7 +133,7 @@ def main(argv):
     if a.cmd == "check":
         print(name)
         return 0
-    os.execve(target[0], target, child_env(os.environ, got, bool(os.environ.get("WORKS_KEYCHAIN_ITEM"))))
+    os.execve(target[0], target, child_env(os.environ, got, bool(os.environ.get("WORKS_FACTORY_KEYCHAIN_ITEM"))))
 
 
 if __name__ == "__main__":

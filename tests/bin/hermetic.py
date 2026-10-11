@@ -1,26 +1,20 @@
 """試験を走らせた場に左右されない子の環境と一時フォルダ（test_* でないので unittest の発見に拾われない）。
 
-試験の子へ親の環境を丸ごと渡すと、dogfood の run の中（Archon・Claude Code・engine の子）で親が立てた名が漏れて、
-その場でだけ赤くなる（実測: test_dev の版の '(unset)' に本物の claude の版・test_adapter の子の出力に WORKS_DEV_ADAPTER）。
-tox の pass_env と同じ向きで、外す名はここの 1 か所に置き、試験が意図して渡す名は child_env の overrides で名指しする
-（test_tiers.HermeticCase は、tests/*.py の直下で dict(os.environ・{**os.environ・os.environ.copy() の 3 つの字面だけを拒む。
-os.environ.items() から組む内包・env を渡さない subprocess の継ぎ・tests の下のフォルダは見ないので、そこからは今も漏れうる）。
+試験の子へ親の環境を丸ごと渡すと、run の中（Archon・Claude Code の子）で親が立てた名が漏れて、その場でだけ赤くなる。
+tox の pass_env と同じ向きで、外す名はここの 1 か所に置き、試験が意図して渡す名は child_env の overrides で名指しする。
 macOS の一時フォルダは /var→/private/var の symlink の下にあり、pathlib の relative_to は字面で比べるので、比べる試験は
-tmpdir の実体のパスを使う（test_adapter の Env）。
+tmpdir の実体のパスを使う。
 """
 import os
 import pathlib
-import re
 import shutil
 import tempfile
 
-# dogfood の run が立てる名（works の開発の殻 dev/archon.sh・Archon・Claude Code・graphloops の engine の子の目印）。
-# WORKS_ADAPTER_HOME は試験が mock.patch.dict で os.environ に立てて子へ継がせるので外さない。
-# ANTHROPIC_ は起こし役（.shared/core/auth_launch.py）が受け継いだ認証として先に拾い、keychain の段の試験を素通りさせる。
+# run が立てる名（bin/ の起動・Archon・Claude Code・graphloops の engine の子の目印）。
+# ANTHROPIC_ は起こし役（bin/_lib/auth_launch.py）が受け継いだ認証として先に拾い、keychain の段の試験を素通りさせる。
 # HERDR_ は herdr の枠の中で試験を回すと、殻が控えに本物の枠とサーバを残して本物の herdr へ送る（枠の試験は名指しで渡す）
-DROPPED_PREFIXES = ("WORKS_DEV_", "CLAUDE_", "ARCHON_", "ANTHROPIC_", "HERDR_")
-DROPPED = frozenset({"CLAUDECODE", "GRAPHLOOPS_ENGINE_CHILD", "WORKS_CLAUDE_VERSION", "WORKS_ARCHON_VERSION",
-                     "WORKS_REAL_CLAUDE", "WORKS_ANSWER_CMD", "WORKS_KEYCHAIN_ITEM"})
+DROPPED_PREFIXES = ("WORKS_FACTORY_", "CLAUDE_", "ARCHON_", "ANTHROPIC_", "HERDR_")
+DROPPED = frozenset({"CLAUDECODE", "GRAPHLOOPS_ENGINE_CHILD"})
 
 
 def dropped(name: str) -> bool:
@@ -32,21 +26,6 @@ def child_env(**overrides) -> dict:
     env = {k: v for k, v in os.environ.items() if not dropped(k)}
     env.update(overrides)
     return env
-
-
-def dev_model_default() -> str:
-    """dev/guard.sh の全体の模型の既定（WORKS_DEV_MODEL_DEFAULT）。試験に値を写さない——写すと既定を替えた時に、
-    既定と違うはずの探りの値が既定と重なって試験が空振りする"""
-    guard = pathlib.Path(__file__).resolve().parents[1] / "dev" / "guard.sh"
-    m = re.search(r"^WORKS_DEV_MODEL_DEFAULT=(\S+)$", guard.read_text(encoding="utf-8"), re.M)
-    if not m:
-        raise AssertionError(f"{guard} に WORKS_DEV_MODEL_DEFAULT= の行が無い")
-    return m.group(1)
-
-
-def other_model(*avoid) -> str:
-    """探りの値: 既定とも avoid とも違う模型名（既定を替えても探りが既定と重ならない）"""
-    return next(m for m in ("opus", "haiku", "sonnet") if m != dev_model_default() and m not in avoid)
 
 
 def alias(case, path) -> str:

@@ -1,6 +1,6 @@
-"""run の中で利用者の gh のログインを継ぐ口（dev/hostgh.py）の検査。
+"""run の中で利用者の gh のログインを継ぐ口（bin/_lib/hostgh.py）の検査。
 
-実の利用者の run 97fd532f の事実: 開発の殻（dev/archon.sh）は HOME・XDG_* を隔離して Archon を起こすので、run の中の gh は
+実の利用者の run 97fd532f の事実: 今の works の開発の殻（dev/archon.sh）は HOME・XDG_* を隔離して Archon を起こすので、run の中の gh は
 利用者のログインが見えず、並行 PR の確かめ（写しの parallel-pr.py）が毎回 gh の失敗で人待ちになり、1 周の run が単位を
 閉じ最後の試験も緑なのに round_limit で終わった。持ち主の決定（2026-10-08）: run の中の gh は利用者の gh を継ぐ（本流の
 review-graph は利用者の環境のまま gh を打つ）。gh の設定の置き場は隔離の前に解き（GH_CONFIG_DIR、無ければ
@@ -19,7 +19,7 @@ import tempfile
 import unittest
 
 TESTS = pathlib.Path(__file__).resolve().parent
-DEV = TESTS.parent / "dev"
+DEV = TESTS.parents[1] / "bin" / "_lib"
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(DEV))
 sys.path.insert(0, str(TESTS))
@@ -27,7 +27,7 @@ sys.path.insert(0, str(TESTS))
 import hostgh  # noqa: E402
 import hermetic  # noqa: E402
 
-NO_POST_BIN = TESTS.parent / ".shared" / "core" / "no-post-bin"
+NO_POST_BIN = DEV / "no-post-bin"
 
 
 def fake_gh(bindir: pathlib.Path, log: pathlib.Path) -> pathlib.Path:

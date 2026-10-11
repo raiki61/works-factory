@@ -1,22 +1,21 @@
-"""run の中で利用者の gh のログインを継ぐ口を書く（開発の殻 dev/archon.sh が、HOME・XDG_* を隔離する前の値で呼ぶ）。
+"""run の中で利用者の gh のログインを継ぐ口を書く（bin/ の起動が、HOME・XDG_* を隔離する前の値で呼ぶ）。
 
 隔離した HOME・XDG_CONFIG_HOME の下の gh は、利用者の gh の設定（hosts.yml）も macOS の keychain のトークン（gh の既定の置き場。
 keychain は HOME から探すので、隔離した HOME では login の keychain が探す先に無い。2026-10-08 に security list-keychains で確かめた）
 も見えない。run の中の並行 PR の確かめ（写しの parallel-pr.py）はそれで毎回 gh の失敗になり、1 周の run が round_limit で終わった
 （実の利用者の run 97fd532f）。持ち主の決定（2026-10-08）: run の中の gh は利用者の gh を継ぐ（本流の review-graph は利用者の環境の
 まま gh を打つ）。そこで <dir>/gh に、PATH の上の本物の gh を利用者の HOME と gh の設定の置き場（config_dir）で起こすだけの sh の口を
-書き、殻が PATH の頭に <dir> を置く。口が持つのはパスだけで、トークンは写さない・出さない・置かない（gh 自身の置き場のまま）。
+書き、起動が PATH の頭に <dir> を置く。口が持つのはパスだけで、トークンは写さない・出さない・置かない（gh 自身の置き場のまま）。
 GH_TOKEN も立てない。利用者の gh がログインしていなければ gh の言葉と終了コードのまま（run の中は今どおり人待ち）。
 
-AI の役は包み（.shared/core/adapter.py の 5）が gh を丸ごと拒み、読むだけの口 works-gh だけを通す（口の先の本物の gh がこの口）。
+AI の役は包み（今の works の .shared/core/adapter.py の 5）が gh を丸ごと拒み、読むだけの口 works-gh（no-post-bin/）だけを通す（口の先の本物の gh がこの口）。
 これは事故の柵で、堅い境ではない（役は利用者と同じ人で同じ keychain を持つ）。
 
 - config_dir(env) -> str: gh の設定の置き場（GH_CONFIG_DIR、無ければ $XDG_CONFIG_HOME/gh、無ければ $HOME/.config/gh。gh 自身の決め方）
 - find_gh(path, skip) -> str|None: PATH の上の最初の gh（skip の置き場——口自身と読むだけの口——は飛ばす）
 - write(dir, path, home, config) -> str|None: 口を <dir>/<中身の sha256 の頭 16 桁>/gh に書いてそのパスを返す。中身ごとに置き場を
   分けるので、同じ家から並べた起動・入れ子の起動（隔離した HOME を継いだ殻）が、走っている run の口を書き換えない。gh が無ければ
-  何も書かずに None（前の口は消さない。別の run が使っているかもしれない）。開発の殻は包みを通す run では包みの家（切符が役の
-  書き込みから守る所）の下を <dir> にする
+  何も書かずに None（前の口は消さない。別の run が使っているかもしれない）
 - CLI: `python3 -I hostgh.py write --dir <口の置き場> --path "$PATH" --home "$HOME" --gh-config-dir "${GH_CONFIG_DIR:-}"
   --xdg-config-home "${XDG_CONFIG_HOME:-}"`（隔離の前の値）。書いた口のパスか空を 1 行
 """
@@ -27,7 +26,7 @@ import pathlib
 import shlex
 import sys
 
-NO_POST_BIN = pathlib.Path(__file__).resolve().parent.parent / ".shared" / "core" / "no-post-bin"
+NO_POST_BIN = pathlib.Path(__file__).resolve().parent / "no-post-bin"
 SHIM = "gh"
 
 
@@ -64,7 +63,7 @@ def write(dir_, path: str, home: str, config: str):
     if real is None:
         return None
     body = ("#!/bin/sh\n"
-            "# works の開発の殻（dev/archon.sh。dev/hostgh.py）が書いた口: 利用者の gh を、利用者の HOME（macOS の keychain は HOME から\n"
+            "# works-factory の起動（bin/_lib/hostgh.py）が書いた口: 利用者の gh を、利用者の HOME（macOS の keychain は HOME から\n"
             "# 探す）と gh の設定の置き場で起こす。持つのはパスだけ（トークンは gh 自身の置き場のまま）\n"
             f"HOME={shlex.quote(home)}\n"
             f"GH_CONFIG_DIR={shlex.quote(config)}\n"
