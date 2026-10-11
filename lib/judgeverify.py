@@ -8,7 +8,8 @@
   と裏取りを回す単位の数の下限 MIN_UNITS
 - 下請けと束ね役の指示書の文（TITLE・SUB_HEAD・RULES・UNIT_HEAD・UNIT_ASK・VIEW_HEAD・SYNERGY_HEAD・SYNERGY_ASK・AGG・AGG_REPLY）
 - output_format・unit_schema・synergy_schema: 束ね役の返答と答えのファイルの型
-- answer_in・open_units・_head・_unit_row・_initial・_load: 支度と束ねの口
+- answer_in・_head・_unit_row・_initial・_load: 支度と束ねの口（開いた単位を選ぶ open_units は is_open の持ち主 judge_accept に在る。
+  ここから judge_accept を読むと、ここを先に読んだ時に循環で読み込めない）
 """
 import copy
 import json
@@ -23,7 +24,6 @@ if str(_CORE) not in sys.path:
 
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
-import judge_accept  # noqa: E402
 import promptsection  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （board が写しの engine を sys.path に足した後）
 
@@ -132,12 +132,6 @@ def _write_json(path: pathlib.Path, doc) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     tmp.replace(path)
-
-
-def open_units(judgment) -> list:
-    """判定の開いた単位（直す義務の残る物。検証器の is_open）"""
-    units = judgment.get("units") if isinstance(judgment, dict) else None
-    return [u for u in units or [] if isinstance(u, dict) and isinstance(u.get("key"), str) and judge_accept.is_open(u)]
 
 
 def _unit_row(u: dict) -> dict:

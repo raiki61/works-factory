@@ -214,6 +214,12 @@ def is_open(u):
     )
 
 
+def open_units(judgment) -> list:
+    """元 works/blk-judge/lib/judgeverify.py:168。判定の開いた単位（直す義務の残る物）"""
+    units = judgment.get("units") if isinstance(judgment, dict) else None
+    return [u for u in units or [] if isinstance(u, dict) and isinstance(u.get("key"), str) and is_open(u)]
+
+
 def settled_state_errors(q, units):
     """元 works/.shared/core/scripts/review-record.py:634。決着した問いの状態が、出どころのユニットがまだ開いているかと食い違っていないか"""
     k = QUESTION_KINDS.get(q.get("kind"))
@@ -319,8 +325,7 @@ SPEC_FILE = specblk.SPEC_FILE
 WORLD_FILE = worldmark.WORLD_FILE
 MEANS_FILE = marks.KINDS[worldmark.MEANS].file
 MATERIAL_GLOB = "material-*.json"            # 素材の役が書く {role, reply, materials}
-# 裏取りの置き場は judgeverify.BRIEF_DIR（verify/）の下。judgeverify がこのモジュールを読むので、読み込みの時に jv の名を引かない
-VERIFY_ANSWERS_DIR = "verify/answers"          # 裏取りの下請けの答えの置き場（元 judgeverify.answers_dir の run ごとの置き場の代わり）
+VERIFY_ANSWERS_DIR = f"{jv.BRIEF_DIR}/answers"   # 裏取りの下請けの答えの置き場（元 judgeverify.answers_dir の run ごとの置き場の代わり）
 VERIFY_TREE_FILE = f"{jv.BRIEF_DIR}/{jv.TREE_FILE}"   # 束ね役を起こす前の作業ツリーの姿
 GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER        # 元 judgetake.py:42（輪 diagnose-loop の max_iterations と同じ）
 
@@ -1149,7 +1154,7 @@ def prep_on(jdir, judgment, repo, verify: bool = True) -> dict:
     束ね役の指示書（verify/prompt.md）・番号の控え（PLAN_FILE）・作業ツリーの姿（verify/verify-tree.json）を書き、前の起動の答えを消し、
     申し送りの初めの形（全部が UNVERIFIED）を置く。答えの置き場は置き場の verify/answers/（元は盤面の外の run ごとの置き場）"""
     jdir = pathlib.Path(jdir)
-    units = jv.open_units(judgment)
+    units = open_units(judgment)
     if not verify:
         return _verify_off(jdir, "判定の裏取りは機能の切り替えで切（始めの記録の features_cut に judge_verify）")
     stop = read_stop(jdir)

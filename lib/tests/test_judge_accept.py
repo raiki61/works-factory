@@ -9,6 +9,7 @@ import hashlib
 import json
 import pathlib
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -384,9 +385,15 @@ class _VerifyBase(_JudgeBase):
 
 class VerifyPrepCase(_VerifyBase):
     def test_places_are_under_the_brief_dir(self):
-        """置き場の名が judgeverify の BRIEF_DIR・TREE_FILE と合う（judgeverify から先に読んでも読み込める）"""
+        """置き場の名が judgeverify の BRIEF_DIR・TREE_FILE と合う"""
         self.assertEqual(ja.VERIFY_ANSWERS_DIR, f"{jv.BRIEF_DIR}/answers")
         self.assertEqual(ja.VERIFY_TREE_FILE, f"{jv.BRIEF_DIR}/{jv.TREE_FILE}")
+
+    def test_judgeverify_loads_before_judge_accept(self):
+        """judgeverify を先に読んでも judge_accept が読み込める（読み込みの順で落ちる循環が無い）"""
+        done = subprocess.run([sys.executable, "-c", "import judgeverify, judge_accept"], cwd=LIB,
+                              capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, done.stderr)
 
     def test_one_open_unit_or_off_does_not_go_and_writes_not_run(self):
         """元 test_judge_verify.PrepCase.test_no_judgment_or_one_open_unit_does_not_go・test_verify_off_does_not_go_and_clears"""
