@@ -33,6 +33,7 @@ VIEWS = ("tests", "review")
 FACTORIES = ("works", "works-factory")
 UNREACHED = ("record_invalid", "interrupted", "stopped_by_request", "stopped_by_human", "stopped_by_line")
 MIN_AIMS = 6
+HEAD_FIELDS = {"about": str, "seed": str, "run_inputs": dict, "rows": list, "dropped": list}
 ROW_FIELDS = {"id": str, "kind": str, "entry": str, "visible": str, "edits": list, "red": list,
               "witness": (str, type(None)), "request": list, "catcher": (str, type(None)), "outcome": str, "why": str}
 OBSERVED_FIELDS = ("id", "factory", "run_id", "outcome", "flagged")
@@ -66,14 +67,13 @@ def _acceptance_ids() -> set:
 def _problems(data, folder) -> list:
     if not isinstance(data, dict):
         return ["頭が dict でない"]
-    out = [f"頭の欄 {k} が無い" for k in ("about", "seed", "run_inputs", "rows", "dropped") if k not in data]
+    out = [f"頭の欄 {k} が無い" for k in HEAD_FIELDS if k not in data]
+    out += [f"頭の欄 {k} の型が違う" for k, t in HEAD_FIELDS.items() if k in data and not isinstance(data[k], t)]
     if out:
         return out
     seed = folder / data["seed"]
     if not seed.is_dir():
         out.append(f"種のフォルダ {data['seed']} が無い")
-    if not isinstance(data["run_inputs"], dict):
-        out.append("run_inputs が dict でない")
     for i, gone in enumerate(data["dropped"]):
         if not (isinstance(gone, dict) and set(gone) == {"id", "why"}):
             out.append(f"dropped[{i}] が {{id, why}} でない")
@@ -84,12 +84,13 @@ def _problems(data, folder) -> list:
         if not isinstance(row, dict):
             out.append(f"{name}: dict でない")
             continue
-        ids.append(row.get("id"))
+        if isinstance(row.get("id"), str):
+            ids.append(row["id"])
         out += [f"{name}: {p}" for p in _row_problems(row, seed, known)]
-    out += [f"id {x} が 2 つ以上在る" for x in sorted({x for x in ids if ids.count(x) > 1}, key=str)]
+    out += [f"id {x} が 2 つ以上在る" for x in sorted({x for x in ids if ids.count(x) > 1})]
     rows = [r for r in data["rows"] if isinstance(r, dict)]
     for field, words in (("entry", ENTRIES), ("visible", VIEWS)):
-        missing = set(words) - {r.get(field) for r in rows}
+        missing = set(words) - {r.get(field) for r in rows if isinstance(r.get(field), str)}
         if missing:
             out.append(f"{field} が {sorted(missing)} の行が無い")
     if not any(r.get("kind") == "none" for r in rows):
@@ -127,8 +128,8 @@ def _row_problems(row, seed, known) -> list:
     if not row["request"]:
         out.append("request が空")
     for j, line in enumerate(row["request"]):
-        if not (isinstance(line, dict) and set(line) == {"where", "text"}):
-            out.append(f"request[{j}] が {{where, text}} でない")
+        if not (isinstance(line, dict) and set(line) == {"where", "text"} and isinstance(line["where"], str)):
+            out.append(f"request[{j}] が {{where, text}} でないか where が字でない")
         elif not (seed / line["where"]).exists():
             out.append(f"request[{j}] の where {line['where']} が種に無い")
     control = row["kind"] == "none"
@@ -136,13 +137,18 @@ def _row_problems(row, seed, known) -> list:
         out.append("catcher が null なのは対照（kind none）だけ")
     also = row.get("also", [])
     if not (isinstance(also, list) and all(isinstance(x, str) for x in also)):
-        out.append("also が字の並びでない")
-        also = []
-    aims = [row["catcher"], *also] if row["catcher"] else also
+        return out + ["also が字の並びでない"]
+    if control and also:
+        out.append("also は対照（kind none）に置かない（score は対照の also を数えない）")
+    aims = _aims(row)
     out += [f"当てる先 {a} が docs/design.md の受け入れの一覧に無い" for a in aims if a not in known]
     if any(a.startswith("p1.") for a in aims) and row["entry"] != "change":
         out.append("p1. の素材の役を当てる行は entry が change（依頼だけの run では起きない）")
     return out
+
+
+def _aims(row) -> list:
+    return [row["catcher"], *row.get("also", [])] if row["catcher"] else []
 
 
 def _row(data, row_id) -> dict:
@@ -157,7 +163,10 @@ def _injected(seed: pathlib.Path, edits) -> dict:
     for e in edits:
         text = texts.get(e["file"])
         if text is None:
-            text = (seed / e["file"]).read_text(encoding="utf-8")
+            target = seed / e["file"]
+            if not target.is_file():
+                raise NotInjected(f"{e['file']} が種に無いので old が 0 か所（ちょうど 1 か所が要る）: {e['old']!r}")
+            text = target.read_text(encoding="utf-8")
         count = text.count(e["old"])
         if count != 1:
             raise NotInjected(f"{e['file']} に old が {count} か所（ちょうど 1 か所が要る）: {e['old']!r}")
@@ -202,15 +211,15 @@ print(json.dumps({"ran": result.testsRun, "failures": sorted(t.id() for t, _ in 
                   "errors": sorted(t.id() for t, _ in result.errors)}))
 """
 
-WITNESS_RUNNER = """
+WITNESS_ASSERT = 3
+WITNESS_RUNNER = f"""
 import sys
 sys.path.insert(0, sys.argv[1])
 try:
-    exec(compile(sys.stdin.read(), "<witness>", "exec"), {"__name__": "__witness__"})
+    exec(compile(sys.stdin.read(), "<witness>", "exec"), {{"__name__": "__witness__"}})
 except AssertionError:
-    sys.exit(3)
+    sys.exit({WITNESS_ASSERT})
 """
-WITNESS_ASSERT = 3
 
 
 def seed_results(tree) -> dict:
@@ -244,7 +253,7 @@ def _observed_problem(row, observed):
 
 
 def score(row, observed) -> dict:
-    aims = [row["catcher"], *row.get("also", [])] if row["catcher"] else []
+    aims = _aims(row)
     problem = _observed_problem(row, observed)
     if problem:
         return {"id": row["id"], "verdict": "INCONCLUSIVE", "aimed_hit": False, "caught_by": [], "missed_by": aims,

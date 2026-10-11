@@ -32,7 +32,7 @@ def _seed_copy(dest):
 def _corpus_dir(parent, data):
     """data を corpus.json に書き、種の写しを横に置いた一時の束のフォルダを作って corpus.json のパスを返す"""
     folder = pathlib.Path(parent) / "corpus"
-    _seed_copy(folder / data["seed"])
+    _seed_copy(folder / _raw()["seed"])
     path = folder / "corpus.json"
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return path
@@ -84,24 +84,34 @@ class TestCorpusShape(unittest.TestCase):
         self.assertReported(lines, f"id {rows[9]['id']} が 2 つ以上")
         self.assertReported(lines, "dropped[0]")
 
+    def test_load_refuses_wrong_types_without_crashing(self):
+        rows = _raw()["rows"]
+        for field, value in (("rows", 5), ("dropped", None), ("seed", 5), ("run_inputs", [])):
+            with self.subTest(field=field):
+                self.assertReported(self.refusal(lambda d, r: d.update({field: value})), f"頭の欄 {field}")
+        self.assertReported(self.refusal(lambda d, r: d.pop("about")), "頭の欄 about が無い")
+        lines = self.refusal(lambda d, r: r[0]["request"][0].update(where=5),
+                             lambda d, r: r[1].update(id=["unhashable"]),
+                             lambda d, r: r[2].update(entry=["unhashable"]))
+        self.assertReported(lines, rows[0]["id"], "request[0]")
+        self.assertReported(lines, "rows[1]", "id")
+        self.assertReported(lines, rows[2]["id"], "entry")
+
     def test_load_reports_every_problem(self):
-        broken = copy.deepcopy(_raw())
-        del broken["rows"][0]["why"]
-        del broken["rows"][1]["outcome"]
-        with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaises(corpus.CorpusError) as caught:
-                corpus.load(_corpus_dir(tmp, broken))
-        message = str(caught.exception)
-        self.assertIn(broken["rows"][0]["id"], message)
-        self.assertIn("why", message)
-        self.assertIn(broken["rows"][1]["id"], message)
-        self.assertIn("outcome", message)
+        rows = _raw()["rows"]
+        lines = self.refusal(lambda d, r: r[0].pop("why"), lambda d, r: r[1].pop("outcome"))
+        self.assertReported(lines, rows[0]["id"], "why")
+        self.assertReported(lines, rows[1]["id"], "outcome")
 
     def test_catchers_are_rows_of_the_acceptance_list(self):
         lines = self.refusal(lambda d, r: r[0].update(catcher="p9.nowhere"),
                              lambda d, r: r[2].update(also=["p9.elsewhere"]))
         self.assertReported(lines, _raw()["rows"][0]["id"], "p9.nowhere")
         self.assertReported(lines, _raw()["rows"][2]["id"], "p9.elsewhere")
+        control = _raw()["rows"][10]
+        self.assertEqual(control["kind"], "none")
+        lines = self.refusal(lambda d, r: r[10].update(also=["p1.gate_efficacy"]))
+        self.assertReported(lines, control["id"], "also")
 
     def test_review_materials_need_change_entry(self):
         row = _raw()["rows"][3]
@@ -112,6 +122,7 @@ class TestCorpusShape(unittest.TestCase):
     def test_outcomes_are_report_words(self):
         lines = self.refusal(lambda d, r: r[0].update(outcome="made_up"))
         self.assertReported(lines, _raw()["rows"][0]["id"], "outcome made_up")
+        self.assertLessEqual(set(corpus.UNREACHED), set(corpus.OUTCOMES))
 
     def test_corpus_spans_entries_and_views(self):
         def only(field, word):
@@ -184,6 +195,10 @@ class TestInjection(unittest.TestCase):
             with self.subTest(row=row["id"]):
                 self.assertEqual(corpus.witness_result(self.seed_tree, row["witness"]), "pass")
                 self.assertEqual(corpus.witness_result(self.made[row["id"]]["head"], row["witness"]), "assert")
+        for source, want in (("raise ValueError('x')", "error"), ("import no_such_module", "error"),
+                             ("assert False", "assert")):
+            with self.subTest(source=source):
+                self.assertEqual(corpus.witness_result(self.seed_tree, source), want)
 
 
 class TestMaterialize(unittest.TestCase):
@@ -215,17 +230,18 @@ class TestMaterialize(unittest.TestCase):
 
     def test_materialize_reports_stale_anchor(self):
         stats = (SEED / "stats.py").read_text(encoding="utf-8")
-        for old in ("この字は種に無い", "    if not xs:\n"):
-            count = stats.count(old)
-            with self.subTest(count=count), tempfile.TemporaryDirectory() as tmp:
+        for name, old, count in (("stats.py", "この字は種に無い", 0), ("stats.py", "    if not xs:\n", None),
+                                 ("renamed.py", "def mean", 0)):
+            count = stats.count(old) if count is None else count
+            with self.subTest(file=name, count=count), tempfile.TemporaryDirectory() as tmp:
                 data = copy.deepcopy(_raw())
-                data["rows"][0]["edits"] = [{"file": "stats.py", "old": old, "new": "pass\n"}]
+                data["rows"][0]["edits"] = [{"file": name, "old": old, "new": "pass\n"}]
                 path = _corpus_dir(tmp, data)
                 dest = pathlib.Path(tmp) / "out"
                 dest.mkdir()
                 with self.assertRaises(corpus.NotInjected) as caught:
                     corpus.materialize(data["rows"][0]["id"], dest, corpus=path)
-                self.assertIn("stats.py", str(caught.exception))
+                self.assertIn(name, str(caught.exception))
                 self.assertIn(str(count), str(caught.exception))
                 self.assertEqual(list(dest.iterdir()), [])
 

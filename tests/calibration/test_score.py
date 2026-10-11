@@ -63,6 +63,9 @@ class TestScore(unittest.TestCase):
         self.assertEqual(got["verdict"], "FALSE_ALARM")
         self.assertFalse(got["outcome_as_expected"])
         self.assertIn("r1.minimality", got["detail"])
+        quiet = score(CONTROL, observed(CONTROL, "fixed", []))
+        self.assertEqual(quiet["verdict"], "FALSE_ALARM")
+        self.assertFalse(quiet["outcome_as_expected"])
 
     def test_score_reports_outcome_mismatch_separately(self):
         got = score(DEFECT, observed(DEFECT, "needs_human", ["p1.test_double_fidelity"]))
