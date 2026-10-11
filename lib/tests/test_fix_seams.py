@@ -1707,6 +1707,43 @@ class FixAcceptSeamCase(TempCase):
         self.assertTrue(got["ok"], got["reason"])
 
 
+class OverflowTraceSeamCase(TempCase):
+    """受けた回の impact.ACCEPT_OVERFLOW_OP の行（fixboard.overflow_trace。元 works/blk-fix/scripts/accept.py:715）が、守りのテストと
+    関所の条件の相談で認めた新しいテストを元と同じ字で名指す"""
+
+    GATE_ID = "test_stats.py::TestStats::test_mean_of_three"   # 種の今の木に在る
+    GONE_ID = "test_stats.py::TestStats::test_not_written"
+
+    def overflow_rows(self, attempt=1):
+        import impact
+        fixboard.overflow_trace(self.place, {"reverted": []}, self.repo, pass_="first", attempt=attempt)
+        return [r for r in _traced(self.place) if r["op"] == impact.ACCEPT_OVERFLOW_OP]
+
+    def test_nothing_to_name_writes_no_row(self):
+        self.assertEqual(self.overflow_rows(), [])
+
+    def test_accepted_guard_test_is_named_in_the_overflow_trace(self):
+        import fixgates
+        (self.place / fixgates.LEDGER).write_text(json.dumps({"rows": [], "skipped": [], "guards": [
+            {"pass": "first", "attempt": 1, "id": self.GATE_ID, "base": "passed"},
+            {"pass": "first", "attempt": 2, "id": self.GONE_ID, "base": "passed"}]}), encoding="utf-8")
+        (row,) = self.overflow_rows()
+        self.assertEqual(row["guards"], [f"{self.GATE_ID}: 守りのテスト（base で passed）"])
+        self.assertEqual((row["agreed"], row["reverted"], row["gate_tests"]), ([], [], []))
+
+    def test_gate_agreed_new_test_is_named_in_the_overflow_trace(self):
+        import conflict
+        import consult
+        for i, (origin, tid) in enumerate([(consult.ORIGIN_GATE, self.GATE_ID), (consult.ORIGIN_GATE, self.GONE_ID),
+                                           (consult.ORIGIN_ACCEPT, self.GATE_ID)], 1):
+            fixboard.trace(self.place, conflict.ASKED_OP, id=i, item="1", status="answered", decision="allow", origin=origin,
+                           granted_paths=[], granted_tests=[], granted_new_tests=[{"id": tid, "red_kind": "assertion"}],
+                           reason="足してよい")
+        (row,) = self.overflow_rows()
+        self.assertEqual(row["gate_tests"], [f"{self.GATE_ID}（assertion）"], "今の木に無いテストは名指さない")
+        self.assertEqual((row["agreed"], row["guards"]), ([3], []))
+
+
 class GateItemsSeamCase(unittest.TestCase):
     """直す前の人の関所の答え {decision, text} が、範囲の相談の人の条件（consult.gate_notes）に届く"""
 
