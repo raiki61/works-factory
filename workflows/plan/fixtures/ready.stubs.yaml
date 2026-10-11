@@ -1,0 +1,40 @@
+# 筋書き: 案が受け付けを通った周。全部の節を差し替え、返す節が ready: true（配線だけを見る。輪の拒否・諦め・行き止まりは
+# tests/workflows/test_plan.py が script を子のプロセスで回して見る）
+round: {round: 1, mode: plan, dir: plan/r1, go: true}
+structure-measure: {structure_file: plan/structure/k/structure.json, design_file: plan/structure/k/design.jsonl, eye: true, reused: false}
+structure-eye-prep: {prompt: "stub: 指示書", prompt_file: plan/structure/k/eye-prompt-1.md, attempt: 1}
+structure-eye:
+  rows:
+    - {unit_id: u1, verdict: 汚れない, faces: [], evidence: [/units/0/id], reason: "stub: 足す形が増えない"}
+structure-eye-accept: {ok: true, done: true, give_up: false, reason: "", attempt: 1}
+structure-state: {state_file: plan/structure/k/structure-state.json}
+ripple-units: {ripple_file: plan/r1/ripple-units.json}
+plan-prep: {brief: plan/r1/brief-1.md, attempt: 1}
+plan-writer:
+  plan:
+    - unit_keys: [1]
+      approach: "stub: mean の分母を len(xs) に直す"
+      adds: []
+      removes: []
+      shrink_first: "stub: 足す物は無い。式を 1 か所直すだけで足りる"
+      narrows: []
+      route: direct
+      route_why: "stub: 式を 1 か所直すだけ"
+      tests: []
+      rewrite_tests: []
+      refactor: {declared: false, why: ""}
+      allowed_paths: [stats.py]
+      out_of_scope: []
+plan-accept: {ok: true, done: true, give_up: false, reason: "", attempt: 1}
+ripple-items: {ripple_file: plan/r1/ripple.json}
+plan:
+  ready: true
+  plan: {type: archon_artifact, run_id: fixture-run, path: plan/r1/plan-fields.json}
+  structure: {type: archon_artifact, run_id: fixture-run, path: plan/structure/k/structure-state.json}
+  ripple: {type: archon_artifact, run_id: fixture-run, path: plan/r1/ripple.json}
+  depth:
+    - {unit_id: u1, depth: 標準, why: "stub: 機械の確かめが無い"}
+  round: 1
+fixture:
+  expect: completed
+  reached: [round, structure-eye, plan-writer, plan]
