@@ -12,6 +12,7 @@ sys.path.append(str(boundary.lib_root()))
 import outcome  # noqa: E402
 import runreport  # noqa: E402
 import typed  # noqa: E402
+from place import rel  # noqa: E402
 
 OUT = "report"
 RETURNS = {
@@ -110,12 +111,6 @@ def own_prefix() -> str:
     return f"{head}__" if head else ""
 
 
-def rel(path) -> dict | None:
-    if path is None:
-        return None
-    return boundary.pointer(Path(path).relative_to(Path(os.environ["ARTIFACTS_DIR"])).as_posix())
-
-
 def main() -> dict:
     problems, notes = [], []
     returns, gates = {}, {}
@@ -135,25 +130,20 @@ def main() -> dict:
                                                       "failed": facts["failed"] if facts["ok"] else None})
     built = runreport.build(returns, gates, listing, facts, *decided, out_dir=Path(os.environ["ARTIFACTS_DIR"]) / OUT,
                             start=start, problems=problems, run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why)
+    report = rel(built["report"])
     return {"outcome": decided[0], "ok": decided[0] in outcome.OK_OUTCOMES, "stop_reason": decided[1],
-            "report": rel(built["report"]), "next_request": rel(built["next_request"]),
-            "prior_failures": rel(built["prior_failures"]), "ai_go": built["ai_go"],
-            "facts_file": Path(built["facts_file"]).relative_to(Path(os.environ["ARTIFACTS_DIR"])).as_posix()}
+            "report": report, "next_request": rel(built["next_request"]),
+            "prior_failures": rel(built["prior_failures"]), "ai_go": built["ai_go"], "facts_file": report["path"]}
 
 
 def fallen(error: BaseException) -> dict:
     """思わぬ誤りでも返る形（結末 record_invalid と誤りの 1 行を載せた機械の報告。それも書けなければ訳だけの 1 ファイル）"""
-    why = f"報告の事実を組めなかった（{type(error).__name__}: {' '.join(str(error).split())}）"
+    why = runreport.failed_line("報告の事実", error)
     out = {"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "report": None,
            "next_request": None, "prior_failures": None, "ai_go": False, "facts_file": ""}
     try:
-        out_dir = Path(os.environ["ARTIFACTS_DIR"]) / OUT
-        try:
-            built = runreport.build({}, {}, {}, None, "record_invalid", out["stop_reason"], out_dir=out_dir, problems=[why])["report"]
-        except Exception:  # noqa: BLE001 — 機械の報告も組めない時は訳だけを書く
-            built = runreport.unwritten(out_dir, why)
-        out["report"] = rel(built)
-        out["facts_file"] = Path(built).relative_to(Path(os.environ["ARTIFACTS_DIR"])).as_posix()
+        out["report"] = rel(runreport.fallback_report(Path(os.environ["ARTIFACTS_DIR"]) / OUT, why))
+        out["facts_file"] = out["report"]["path"]
     except Exception:  # noqa: BLE001 — 置き場に書けなくても返る
         pass
     return out

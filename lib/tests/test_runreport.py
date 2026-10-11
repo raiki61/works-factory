@@ -78,7 +78,6 @@ class BuildCase(Base):
         self.assertTrue(text.startswith(report.TITLE_HEADING.format(run=RUN)))
         self.assertIsNone(got["next_request"])
         self.assertIsNone(got["prior_failures"])
-        self.assertEqual(got["facts_file"], got["report"])
         self.assertTrue(got["ai_go"])
         for h in report.HEADINGS:
             self.assertIn(h, text)

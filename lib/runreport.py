@@ -429,7 +429,7 @@ def _where_lines(returns: dict) -> list:
 def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: str, stop_reason: str, *, out_dir,
           start: dict | None = None, problems=(), run_id: str = "", transcript_why: str = "") -> dict:
     """機械の報告（report.md）・次の依頼（next-request.json。空なら書かない）・前の失敗（prior-failures.json。空なら書かない）を
-    out_dir に書き、{report, next_request, prior_failures, facts_file, ai_go} のパスを返す（元 report.py:2000。元は盤面を読み、
+    out_dir に書き、{report, next_request, prior_failures, ai_go} のパスを返す（元 report.py:2000。元は盤面を読み、
     検証器の関所を踏んだ）。書き手に渡す事実のファイルは機械の報告そのもの（元の facts_text が線 A の機械の報告を字のまま使った形）。
     transcript は transcript_facts の返り、typed は型つきの成果物の読み {by_type, warnings}"""
     out_dir = pathlib.Path(out_dir)
@@ -482,12 +482,25 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
             raise ValueError(f"前の失敗が約束の Schema に合わない: {errs}")
         paths["prior_failures"] = out_dir / carry.PRIOR_FAILURES_FILE
         carry.write(paths["prior_failures"], prior)
-    return {**paths, "facts_file": paths["report"], "ai_go": outcome != "record_invalid"}
+    return {**paths, "ai_go": outcome != "record_invalid"}
 
 
 def unwritten(out_dir, why: str) -> pathlib.Path:
     """機械の報告も書けない時の、訳だけの 1 ファイル（黙らない）"""
     return _write_text(pathlib.Path(out_dir) / FALLBACK_FILE, f"{report.TITLE_HEADING.format(run='—')}\n\n報告を組めなかった: {why}\n")
+
+
+def failed_line(what: str, error: BaseException) -> str:
+    """思わぬ誤りの 1 行（返す節は stop_reason に report: を付けて載せる）"""
+    return f"{what}を組めなかった（{type(error).__name__}: {' '.join(str(error).split())}）"
+
+
+def fallback_report(out_dir, why: str) -> pathlib.Path:
+    """思わぬ誤りの時の機械の報告（結末 record_invalid と訳の 1 行）。それも組めなければ訳だけの 1 ファイル"""
+    try:
+        return build({}, {}, {}, None, "record_invalid", f"report:{why}", out_dir=out_dir, problems=[why])["report"]
+    except Exception:  # noqa: BLE001 — 機械の報告も組めない時は訳だけを書く
+        return unwritten(out_dir, why)
 
 
 # ---------------------------------------------------------------- 書き手の返答の受け付けと AI の報告

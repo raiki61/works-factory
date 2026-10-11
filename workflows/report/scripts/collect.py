@@ -10,14 +10,11 @@ import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
 import runreport  # noqa: E402
+from place import rel  # noqa: E402
 
 OUT = "report"
 FACTS = os.environ.get("INPUTS_FACTS", "")
 CARRIED = ("next_request", "prior_failures")
-
-
-def rel(path: Path) -> dict:
-    return boundary.pointer(path.relative_to(Path(os.environ["ARTIFACTS_DIR"])).as_posix())
 
 
 def main() -> dict:
@@ -44,16 +41,11 @@ def facts_report() -> dict | None:
 def fallen(error: BaseException) -> dict:
     """訳と読めた分を書いた機械の報告を指して返る。置き場に書けなければ facts の機械の報告を、それも無ければ訳だけの
     ファイルの置き場を指す（指し札の形は output_format に合う。先が無い札は実行基盤が節の終わりに拒む）"""
-    why = f"report:{type(error).__name__}: {' '.join(str(error).split())}"
-    out = {"outcome": "record_invalid", "ok": False, "stop_reason": why, "report": None, "report_ai": None,
+    why = runreport.failed_line("報告", error)
+    out = {"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "report": None, "report_ai": None,
            "next_request": None, "prior_failures": None}
     try:
-        out_dir = Path(os.environ["ARTIFACTS_DIR"]) / OUT
-        try:
-            path = runreport.build({}, {}, {}, None, "record_invalid", why, out_dir=out_dir, problems=[why])["report"]
-        except Exception:  # noqa: BLE001 — 機械の報告も組めない時は訳だけを書く
-            path = runreport.unwritten(out_dir, why)
-        out["report"] = rel(path)
+        out["report"] = rel(runreport.fallback_report(Path(os.environ["ARTIFACTS_DIR"]) / OUT, why))
     except Exception:  # noqa: BLE001 — 置き場に書けなくても返る
         out["report"] = facts_report() or {"type": boundary.POINTER_TYPE, "run_id": os.environ.get("WORKFLOW_ID", ""),
                                            "path": f"{OUT}/{runreport.FALLBACK_FILE}"}

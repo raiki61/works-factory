@@ -313,7 +313,7 @@ class CollectScriptCase(Run):
             with self.subTest(name):
                 out = self.collect(facts)
                 self.assertEqual((out["outcome"], out["ok"]), ("record_invalid", False))
-                self.assertTrue(out["stop_reason"].startswith("report:"))
+                self.assertTrue(out["stop_reason"].startswith("report:報告を組めなかった（"))
 
     def test_unwritable_place_is_record_invalid(self):
         good = self.facts()
