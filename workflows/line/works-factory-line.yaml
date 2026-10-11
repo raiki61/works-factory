@@ -323,7 +323,7 @@ nodes:
     when: "$ask-before-fix.output.open == true"
 
   - id: answer-before-fix
-    script: gate_answer
+    script: before_fix_answer
     runtime: uv
     timeout: 1728000000
     output_format:

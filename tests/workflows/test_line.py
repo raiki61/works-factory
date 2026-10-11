@@ -21,6 +21,7 @@ from tests.workflows.test_gate_head import final_got
 linekit = load("linekit")
 start = load("start")
 gate_answer = load("gate_answer")
+before_fix_answer = load("before_fix_answer")
 replan_answer = load("replan_answer")
 ask_before_fix = load("ask_before_fix")
 ask_replan = load("ask_replan")
@@ -220,14 +221,20 @@ class FixGateAnswersCase(Artifacts):
 
     def test_before_fix_answer_returns_the_asked_unit(self):
         asked = json.dumps([gatemarks.ask_text(self.FORK)], ensure_ascii=False)
-        before_fix = gate_answer.answer(json.dumps({"decision": "approve", "text": "q1 は a"}), "true", "", "gate-before-fix",
-                                        self.artifacts, asked)["answer"]
+        before_fix = gate_answer.answer(**self.before_fix_inputs(asked), artifacts=self.artifacts)["answer"]
         replan = gate_answer.answer(json.dumps({"decision": "approve", "text": "直した案でよい"}), "true", "", "gate-replan",
                                     self.artifacts)["answer"]
         for name, answers in (("fix", before_fix), ("refix-run", replan_answer.fix_answers(before_fix, replan)),
                               ("refix-run の関所なし", replan_answer.fix_answers(before_fix, None))):
             with self.subTest(include=name):
                 self.assertEqual(self.gate_asks(name, answers), ({}, {"u1"}))
+
+    def before_fix_inputs(self, asked) -> dict:
+        """answer-before-fix の script が環境から読む引数"""
+        env = {"INPUTS_GATE": json.dumps({"decision": "approve", "text": "q1 は a"}), "INPUTS_GO": "true", "INPUTS_STOP_REASON": "",
+               "INPUTS_PLACE": "gate-before-fix", "INPUTS_ASKED": asked}
+        with mock.patch.dict(os.environ, env):
+            return before_fix_answer.from_env()
 
     def test_line_passes_the_shown_questions(self):
         self.assertEqual(line_nodes()["answer-before-fix"]["with"]["asked"], "$plan-rounds.output.questions")
@@ -769,6 +776,7 @@ class LineWiringCase(unittest.TestCase):
         "fixed": lambda: fixed.from_env(),
         "collect": lambda: (collect.received_of_env(), collect.line_of_env()),
         "ask-final": lambda: ask_final.from_env(),
+        "answer-before-fix": lambda: before_fix_answer.from_env(),
     }
 
     def test_with_keys_are_what_the_script_reads(self):

@@ -2,18 +2,17 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""人の関所の答えを受ける返しの節（answer-start・answer-before-fix・answer-final と、replan_answer を通して answer-replan。埋め P2）。
+"""人の関所の答えを受ける返しの節（answer-start・answer-final と、before_fix_answer を通して answer-before-fix、replan_answer を通して
+answer-replan。埋め P2）。
 
 関所が方針で飛ばされても走る（trigger_rule: none_failed_min_one_success）。関所の出力は `{from, if_skipped: null}` で受ける。
 返り {go, answer, stop_reason}: 関所が飛ばされたら前の節が決めた go と止めの理由をそのまま返し、answer は null。
 関所が開いたら答え {decision, text} を返し、通す語なら go、止める語なら go: false と止めの理由 human:<関所>。
-asked を受ける節（answer-before-fix）は、答えに関所で見せた問いの行 asked を足す。fix の置き場の読み（lib/fixboard.py の gate_items）は
-asked の行が問いの頭で始まる時だけ、その問いを人が答えたと読み、問いの単位を直す義務に戻す。
+asked_raw（関所で見せた問いの行。before_fix_answer だけが渡す）が在れば、答えに asked を足す。
 答えは run の置き場の gates/<関所>.json に書く（同じ関所の答えは書き直す。人が読む控えで、関所の文が名指す）。
 報告へは返りの answer が collect を通って届く。
 
-入力（with:）: gate（関所の出力）・go・stop_reason（関所の前の節の決め）・place（関所の節の id）・asked（関所で見せた問いの行。
-answer-before-fix だけ）
+入力（with:）: gate（関所の出力）・go・stop_reason（関所の前の節の決め）・place（関所の節の id）
 """
 import json
 import os
@@ -53,5 +52,5 @@ def fallback(reason: str) -> dict:
 
 if __name__ == "__main__":
     linekit.run(lambda: answer(os.environ.get("INPUTS_GATE"), os.environ.get("INPUTS_GO"), os.environ.get("INPUTS_STOP_REASON"),
-                               os.environ["INPUTS_PLACE"], Path(os.environ["ARTIFACTS_DIR"]), os.environ.get("INPUTS_ASKED")),
+                               os.environ["INPUTS_PLACE"], Path(os.environ["ARTIFACTS_DIR"])),
                 fallback)
