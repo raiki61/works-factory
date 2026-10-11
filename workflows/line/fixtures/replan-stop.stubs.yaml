@@ -1,11 +1,11 @@
-# 案の直しの関所で stop。2 度目の修正が飛び、fixed は 1 回目の修正を done にせず、試験の関門から merge-apply までが飛ぶ（stub が無いので、走れば代わりのブロックの中の節が落ちて筋書きが赤になる）。止めの理由 human:gate-replan が報告へ届く。
+# 案の直しの関所で stop。2 度目の修正が飛び、fixed は 1 回目の修正を done にせず、試験の関門から merge-apply までが飛ぶ（stub が無いので、走れば代わりのブロックの中の節か、入力を受けない本物のブロックの節が落ちて筋書きが赤になる）。止めの理由 human:gate-replan が報告へ届く。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
   reached: ["answer-replan", "fixed", "redepth", "collect", "report__report", "result"]
   resolved-text-contains: {"report__inner": "stop_reason=human:gate-replan"}
 exec-code: true
-test-gate-base__inner: "stub"
+test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}
 judge__inner: "stub"
 judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths": ["stats.py"], "summary": "空の列の mean が 0 割りで落ちる"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null}
