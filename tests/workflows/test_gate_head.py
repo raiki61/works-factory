@@ -4,7 +4,8 @@
 - 修正前の関所（ask_before_fix.gate_text）は 1〜3 行目が 起きたこと・決めてほしいこと・推し
 - 最後の関所の冒頭（ask_final.final_head）は開けた理由（ask_final.final_needs）を 1 行目に並べ、守りのパスはそこで名指す
 - 推しは判定の役が問いの理由に書いた物だけ（機械は作らない）。3 行を足しても中身は 1 つも落ちない
-盤面に届く物（保留にしたままの問い・残りの行・報告の冒頭 report.head3・仕様の関所）を読む元の試験は持ってこない。
+盤面に届く物（残りの行・報告の冒頭 report.head3・仕様の関所）を読む元の試験は持ってこない。保留にしたままの問いは判定の指し札の
+先から読む（ask_final.held_questions）。
 """
 import re
 import unittest
@@ -16,6 +17,7 @@ ask_final = load("ask_final")
 
 import answer  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
 import gatemarks  # noqa: E402
+import seal  # noqa: E402
 
 HEADS = [gatemarks.HAPPENED, gatemarks.DECIDE, gatemarks.PUSH]
 NARROW_ITEM = "修正案 1 が狭める能力: 空の列の mean——0 割りの例外のまま"
@@ -106,7 +108,7 @@ def final_got(**kw) -> dict:
     eye = {"status": "pass", "reason": ""}
     got = {"tests_ok": True, "green": True, "red_cause": "", "protected_hits": [], "conflicts": [], "allowed_test_changes": [],
            "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [], "objection": "",
-           "rejudge_verdict": "", "sealed": True, "seal_reason": "", "hash": "a" * 64}
+           "rejudge_verdict": "", "sealed": True, "seal_reason": "", "hash": "a" * 64, "fenced": [], "held": [], "unread": ""}
     got.update(kw)
     return got
 
@@ -130,6 +132,9 @@ class FinalHeadCase(unittest.TestCase):
         self.assertIn(ask_final.PROTECTED_HEAD, got[0])
         self.assertIn("人の確かめが要る", got[0])
         self.assertIn("守りのパス", got[1])
+        unknown = self.head(final_got(protected_hits=[seal.unknown_row("一覧が読めない")]))
+        self.assertIn(ask_final.PROTECTED_UNKNOWN, unknown[0])
+        self.assertNotIn(ask_final.PROTECTED_HEAD, unknown[0])
         self.assertNotIn("守りのパス", "".join(self.head(final_got())[:2]))
 
     def test_final_edge_puts_the_head_before_the_sections(self):
@@ -153,9 +158,25 @@ class FinalHeadCase(unittest.TestCase):
         got = final_got(eyes={**final_got()["eyes"], "r3": odd})
         self.assertEqual(ask_final.final_needs(got), ["独立の目が阻害を返した（R3）"])
 
+    def test_held_questions_shown_but_not_a_reason(self):
+        """保留にしたままの問いは 1 行目に出るが、開けた理由には数えない（when_needed で関所を開けない）"""
+        got = final_got(held=[gatemarks.ask_text(FORK)])
+        self.assertEqual(ask_final.final_needs(got), [])
+        first = self.head(got)[0]
+        self.assertIn("保留にしたままの問いも在る（1 件。関所を開ける理由には数えない）", first)
+        self.assertNotIn("開けた理由: ", first)
+        self.assertFalse(ask_final.ask(got, mode="when_needed", unattended=False, run_id="run-1")["open"])
+
     def test_push_from_held_questions(self):
+        got = self.head(final_got(held=[gatemarks.ask_text(FORK)]))
+        self.assertEqual(got[2], gatemarks.PUSH + "例外——呼び手が既に例外を捕まえている")
         got = self.head(final_got(questions=[gatemarks.ask_text(FORK)]))
         self.assertEqual(got[2], gatemarks.PUSH + "例外——呼び手が既に例外を捕まえている")
+
+    def test_fence_rise_is_a_reason(self):
+        row = {"where": "a.py", "text": "考えの住処: 止め（語）を知る場所が a.py で増えた"}
+        self.assertEqual(ask_final.final_needs(final_got(fenced=[row])),
+                         ["考えの住処の柵の数が増えた（1 件。住処へ寄せるか、増やすなら地図と柵の表を直す）"])
 
 
 if __name__ == "__main__":

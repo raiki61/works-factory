@@ -296,6 +296,37 @@ class AskFinalCase(unittest.TestCase):
         self.assertEqual(ask_final.final_needs(self.got(objection="異議", rejudge_verdict="採る")), [])
 
 
+class AskFinalReadsCase(Artifacts):
+    """最後の関所が指し札の先から読む物: 判定の保留の問い（judgment.json）と直した後の実測（structure-after.json）"""
+
+    def place(self, rel, doc):
+        path = self.artifacts / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        return {"type": "archon_artifact", "run_id": RUN, "path": rel}
+
+    def test_held_questions_come_from_the_judgment(self):
+        fork = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "割れる"}
+        ptr = self.place("judge/judgment.json", {"units": [], "questions": [
+            fork, {**fork, "key": "q2", "status": "answered"}, {**fork, "key": "q3", "kind": "awaiting", "status": "escalate"}]})
+        held, unread = ask_final.held_questions(ptr, answered=False)
+        self.assertEqual(([q.split("（")[0] for q in held], unread), ([f"{gatemarks.ASK_HEAD} q1", f"{gatemarks.ASK_HEAD} q3"], ""))
+        self.assertEqual(ask_final.held_questions(ptr, answered=True), ([], ""))
+        self.assertEqual(ask_final.held_questions(None, answered=False), ([], ""))
+
+    def test_unreadable_judgment_is_said(self):
+        held, unread = ask_final.held_questions({"type": "archon_artifact", "run_id": "another", "path": "x.json"}, answered=False)
+        self.assertEqual(held, [])
+        self.assertIn("判定の問いの控えを読めない", unread)
+
+    def test_fence_rows_come_from_the_structure_after(self):
+        rise = {"concept": "止め", "what": "語", "path": "a.py", "before": 1, "after": 2}
+        ptr = self.place("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
+                                                       "after": {"tables": ["t"], "fence_up": [rise]}})
+        self.assertEqual([row["where"] for row in ask_final.fenced_rows(ptr)], ["a.py"])
+        self.assertEqual(ask_final.fenced_rows(None), [])
+
+
 class PlanOutCase(unittest.TestCase):
     def got(self, **kw):
         base = {key: None for key in plan_out.PLAN + plan_out.REVIEW}

@@ -115,7 +115,7 @@ flowchart TB
 8. test-gate（final）: テスト一式と CI。緑を作業ツリーの指紋つきで認証する。
 9. eyes: 独立の目 R1〜R4 と、直した後の構造の実測、守りのパスの当たり。
 10. merge（seal）: 人に見せる差分を封じる（hash）。
-11. 最後の関所（人）: 封じた差分の hash・R4 の問い・守りのパスの当たり・許したテストの変更・人に回した申し出を並べる。開くかは無人の方針（`final_gate`: always・when_needed・protected_only と `unattended`）で決まる。
+11. 最後の関所（人）: 封じた差分の hash・R4 の問い・守りのパスの当たり（確かめられなかった時も）・許したテストの変更・人に回した申し出・考えの住処の柵の増え・判定の役が保留にしたままの問い（見せるが開ける理由に数えない）を並べる。申し出は人に回した行だけで数える絞り（行の `ruling`）をまだ持たず、申し出の控えが在れば開く（`lib/conflict` が fix のブロックで置かれた後に戻す）。開くかは無人の方針（`final_gate`: always・when_needed・protected_only と `unattended`）で決まる。
 12. merge（apply）: 封じた hash を照らしてから、外へ 1 度だけ書く（既定は差分を run の置き場に置き、人が `bin/apply` で当てる。今の works と同じ）。
 13. report: いつも走る（前の段が落ちても。ただしブロックの返す節そのものが落ちた時は collect が読めず走らない。ブロックは返す節を落とさない）。結末の語・報告・次の run への持ち越し。
 
@@ -188,7 +188,7 @@ flowchart TB
   - `ready`（boolean）: 判定を受け付け、直す単位が 1 つ以上在る。false も正しい終わり → 線 5・report
   - `stop_reason`（string）: ready が false の訳（止めの理由の語 `lib/stop_reasons`）。ready なら `""` → report
   - `units`（array）: 単位の目録。項目は `{id, paths, summary}`（今の works の `structure-units`）→ plan・plan-review・fix・eyes
-  - `judgment`（指し札）: 受け付けた判定の全体（今の works の `judgment.json`。review-graph の `p2.diagnose` の `units`・`questions`・`framing`・`one_shot`・`precedents` ほか）→ plan・plan-review・fix・eyes
+  - `judgment`（指し札）: 受け付けた判定の全体（今の works の `judgment.json`。review-graph の `p2.diagnose` の `units`・`questions`・`framing`・`one_shot`・`precedents` ほか）→ plan・plan-review・fix・eyes・線 7（再審の前後の単位の比べ）・線 11（保留にしたままの問い）
   - `purpose`（指し札）: 目的の固定（今の works の `purpose.json` と `purpose-means.json`）→ plan-review（R2 は目的の文だけから設計する）・eyes
   - `world`（指し札・null 可）: 定石の行（今の works の `world-row` の行の並び）。取れなかった時は null → plan・plan-review・eyes
   - `spec`（指し札・null 可）: 仕様（要件と受け入れテスト。review-graph の `spec.write`）。`--spec` でない時は null → plan
@@ -291,7 +291,7 @@ flowchart TB
   - `r1`・`r2`・`r3`・`r4`（object・null 可）: 目ごとの `{status, reason}`。status は `pass`・`redesign-needed`・`unverifiable`（review-graph の `r1.minimality` ほか。R2 の `unverifiable` は、比べの節が落ちた・独立設計が無い時と、独立設計と比べなかった時（目的の文が空・独立設計の返答に問いが立つかの欄 `question_stands` が無い。訳の頭は `独立設計と比べなかった: `）。前提が崩れた時は `premise_check` にも載る）。省いた目は null → report
   - `questions`（array of string）: R4 の人への問い → 線 11
   - `premise_check`（object・null 可）: 前提の検算 `{verdict, reason}`、verdict は `resolved`・`escalate`（review-graph の `stop.premise_check`）。走らなければ null → 線 11・report
-  - `structure_after`（指し札・null 可）: 直した後の構造の実測 → report
+  - `structure_after`（指し札・null 可）: 直した後の構造の実測（今の works の `structure-after.json`）→ 線 11（考えの住処の柵の数が増えた）・report
   - `protected_hits`（array of string）: 差分が当たった守りのパス → report
 - 型つきの成果物: 目ごとに `output_type: eye-verdict`
 

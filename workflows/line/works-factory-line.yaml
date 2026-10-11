@@ -629,6 +629,9 @@ nodes:
       sealed: "$merge-seal.output.ok"
       seal_reason: "$merge-seal.output.reason"
       hash: "$merge-seal.output.hash"
+      structure_after: "$eyes.output.structure_after"
+      judgment: "$judged.output.judgment"
+      before_fix_answer: "$answer-before-fix.output.answer"
 
   - id: gate-final
     approval:
