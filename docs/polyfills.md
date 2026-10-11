@@ -30,7 +30,7 @@
 - 穴: Archon を動かしていた process が落ちると、run は `running` のまま残り、`resume` できない。
 - 証拠: `packages/core/src/operations/workflow-operations.ts` 948 行の文「Cannot resume run with status 'running'. Only failed or paused runs can be resumed.」（再開できるのは `failed`・`paused` だけ。`schemas/workflow-run.ts` 164-167 行）。cancel は、走らせている process が答えない時（`no_owner_answered`）に「If its process is gone, abandon the run to release it.」と abandon を案内する（同じファイル 1250-1251 行）。
 - 範囲: 長い待ち（CI・人の答え）は Archon の `wait:` の節と承認の節で書く。Archon 0.10.0 から待ちは持ちこたえる（CHANGELOG [0.10.0]「The database owns suspension and resume claims, so process restarts … cannot reset a wait」。server が期限の来た run を再開する）。だからこの穴に当たるのは、節を走らせている途中で process が落ちた run だけ。
-- 埋め: `bin/show`・`bin/start`（予定）。持ち主の居ない `running` を見つけたら人に知らせ、abandon してから、終わった段の成果を持ち越して新しい run を起こす。持ち越しの形は歩く骨組み（`docs/design.md` の作りの順の段 1）で決める。
+- 埋め: 置き場は未定（入口に Archon の命令の別名を作らない。持ち主の決め `one-launcher`）。止めた Archon の `workflow cancel`・`abandon` は持ち主の居ない run に abandon を案内し（`reference/cli.md` 921-1028 行）、`workflow run --adopt <run>` で続きを起こせる。それで足りるかを段 1 で確かめる。
 - 使うブロック: 線（入口）
 - 外す条件: 持ち主の居ない `running` を Archon が自分で `failed` にするか、`resume` を受け付ける版が出たら
 

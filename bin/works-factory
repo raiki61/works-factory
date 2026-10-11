@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""works-factory の入口: bin/works-factory <Archon の CLI の引数…>。中身は bin/_lib/launcher.py"""
+import sys
+from pathlib import Path
+
+if sys.version_info < (3, 12):   # pyproject.toml の requires-python。古い Python は下の部品の読み込みで落ちる
+    print("works-factory: Python 3.12 以上が要る", file=sys.stderr)
+    sys.exit(2)
+
+sys.dont_write_bytecode = True   # 入口の部品のフォルダに __pycache__ を作らない
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from bin._lib import launcher  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(launcher.main(sys.argv[1:]))

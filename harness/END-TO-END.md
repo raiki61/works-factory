@@ -1,6 +1,6 @@
 # 通しの筋書き（runtime の確かめ）
 
-works-factory を人が使う時の道筋を、動かして確かめる形で書く。works-factory は修正の工場で、人は入口のコマンド `bin/start`（依頼を渡して run を始める）・`bin/answer`（止まった所で答える）・`bin/show`（今どこか・報告を見る）・`bin/apply`（封じた差分を当てる）を打つ。run は、工場が 1 つの依頼を受けてから報告を出すまでの 1 回の実行。工場の工程は、判定・計画・修正・報告などの部品（ブロック。各々が `workflows/<名>/` のフォルダ）を順に並べた物。
+works-factory を人が使う時の道筋を、動かして確かめる形で書く。works-factory は修正の工場で、人は入口の殻 `bin/works-factory` で Archon の命令をそのまま打ち（`workflow run works-factory-line` で依頼を渡して run を始め、`workflow respond` で止まった所で答え、`workflow status`・`workflow get` で今どこか・報告を見る）、`bin/apply` で封じた差分を当てる。run は、工場が 1 つの依頼を受けてから報告を出すまでの 1 回の実行。工場の工程は、判定・計画・修正・報告などの部品（ブロック。各々が `workflows/<名>/` のフォルダ）を順に並べた物。
 
 ASF（Archon という AI の工程を回す道具の作者が作った、issue から merge までの工程の束）の `archon-lifecycle` は、取り込む前にこの道筋を実際に動かして確かめる。機械が読む形は `harness/runtime.scenario.json` で、中身はこの文書と同じ。
 
@@ -8,18 +8,18 @@ ASF（Archon という AI の工程を回す道具の作者が作った、issue 
 
 works-factory は段に分けて作る（`docs/design.md` の「作りの順」）。段 0 は土台（入口のコマンドと工程の骨組み）、段 1 は中身の薄いブロックを並べて小さな種のリポジトリに通しで回す形、段 2 はブロックの中身を 1 つずつ本物にする所。その後の段は、全部を合わせた確かめと切り替え。
 
-- 入口のコマンドは段 0 の最後の作業で、確かめに使う小さな種のリポジトリ（`tests/e2e/`）は段 1 で作る。それまでは 3 つとも回せない。
+- 線 `works-factory-line` と、確かめに使う小さな種のリポジトリ（`tests/e2e/`。段 1 で作る）が在るまでは、3 つとも回せない。
 - 直しの中身が入るのは段 2 の終わり（全部のブロックの仮の script `workflows/*/scripts/stub.py` が本物に替わった時）。それまで 2 つ目は回せない。
 - 回せない間の確かめの結果は「判定できない」（inconclusive）で、「落ちた」（failed）ではない。だから lifecycle は、この間に届いた PR を取り込まずに止める。
 
 ## 1. 依頼を渡して報告まで届く
 
-1. 種のリポジトリを新しい置き場に写し、空の Archon の家（Archon が run の記録を置くフォルダ）を用意する。
-2. 確かめる checkout の `./bin/start` で、写したリポジトリと種の依頼の文を渡す。
-3. 人の関所（人に答えを聞いて止まる所）で止まるたびに `./bin/show` で止まった所を見て、`./bin/answer` で通す。
-4. run が終わるまで `./bin/show` で見る。
+1. 種のリポジトリを新しい置き場に写し、空の家（`WORKS_FACTORY_HOME` に絶対パスで渡すフォルダ。殻はその下に Archon が run の記録を置く家を作る）を用意する。
+2. 確かめる checkout で `./bin/works-factory workflow run works-factory-line --cwd <対象> --input request=<依頼>` と打ち、写したリポジトリと種の依頼の文を渡す。
+3. 人の関所（人に答えを聞いて止まる所）で止まるたびに `workflow status --cwd <対象>`・`workflow get <run> --cwd <対象>` で止まった所を見て、`./bin/works-factory workflow respond <run> approve --cwd <対象>` で通す。
+4. run が終わるまで `workflow status`・`workflow get` で見る。
 
-期待: run の id がちょうど 1 つ返る。`./bin/show` が、run が終わったこと・結末の語（報告のブロックが決める 10 語の 1 つ）・空でない報告の本文を出す。当てる前は、写したリポジトリの作業ツリーは写した直後のまま。
+期待: run の id がちょうど 1 つ返る。`workflow get` が、run が終わったこと・結末の語（報告のブロックが決める 10 語の 1 つ）・空でない報告の本文を出す。当てる前は、写したリポジトリの作業ツリーは写した直後のまま。
 
 **落ちたと言える物:** run の id が返らない・関所で答えても先へ進まない・報告が空・当てる前に対象のリポジトリが変わっている。
 

@@ -25,15 +25,20 @@ GitHub の About: A dev factory on Archon that turns a fix request into a verifi
 
 人の関所は、始める時・直す前（聞く必要がある時）・最後の 3 か所が基本。無人で回す方針も選べる。
 
-## 使い方（予定）
+## 使い方
 
-ここに書くコマンドはまだ無い。作りの順は `docs/design.md`。
+入口は殻 1 本 `bin/works-factory` で、人は Archon の命令をそのまま打つ（`bin/works-factory <Archon の CLI の引数>`。旗は命令の後ろに置く）。殻は認証と置き場の隔離を整え、ASF の止め（`factory/pack.json`）の版の Archon の源を取り、そこから `bun` で起こす。工程は Archon の家に置かない。線 `works-factory-line` はまだ無い（作りの順は `docs/design.md`）。
 
-1. 入れる: このリポジトリを clone し、`bun` を入れる。`bin/` が ASF の止め（`factory/pack.json`）の版の Archon の源を取り、そこから起こす。工程は Archon の家に置かない。
-2. 始める: `bin/start <対象のリポジトリ> <依頼の文か issue の番号>`。
-3. 答える: 関所で止まったら `bin/answer <run>` で答える。
-4. 見る: `bin/show <run>` で今どこか・報告・人への問いを見る。
-5. 当てる: `bin/apply <run>` で、最後の関所で封じた差分を対象のリポジトリに当てる。
+1. 入れる: Python 3.12 以上と git の在る機械で、このリポジトリを clone して `bun` を入れ、借りるプラグイン（`bin/_lib/borrow/borrow.json` の物）を Claude Code に入れる。足りなければ、殻が入れる命令を 1 行ずつ出して止まる。
+2. 始める: `bin/works-factory workflow run works-factory-line --cwd <対象> --input request=<依頼>`。
+3. 答える: `bin/works-factory workflow respond <run> approve|stop [一言] --cwd <対象>`。家（Archon の DB）は対象ごとなので、対象の外から打つ時は `--cwd` が要る。
+4. 見る: `bin/works-factory workflow status --cwd <対象>`・`workflow get <run> --cwd <対象>`。
+5. 当てる: `bin/apply`（まだ無い）。
+
+- 止める: 関所で `workflow respond <run> stop <一言>` と打つと、線が後ろを飛ばして報告を出す。関所の間で走っている run は `workflow cancel <run>` で止まるが、報告は出ない。
+- 自分の工程（`workflows/`）を Archon に渡すのは `workflow run` の時だけ。`trigger`・`chat` には渡らない。
+- run は始めに `workflows/` だけを写し取るので、走っている間にこのリポジトリの `lib/` を変えると、その run に効く。
+- 選べる道は環境変数で渡す（どれも無ければ Claude Code と gh のログインのまま動く）: `WORKS_FACTORY_HOME`（家の置き場。絶対パス）・`WORKS_FACTORY_KEYCHAIN_ITEM`（Claude のアカウントを keychain の項目の名で選ぶ）・`WORKS_FACTORY_NO_AUTH=1`（認証の要らない道）・`CLAUDE_BIN_PATH`（隔離した設定にプラグインを入れる本物の claude の絶対パス。無ければ `PATH` の絶対の置き場から探す）・`WORKS_FACTORY_COLDWRITE_MARKETPLACE`・`WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`（coldwrite を借りる時）。
 
 Claude Code からは `/works`（raiki61/claude-plugins の works プラグイン）で同じ事ができるようになる。
 

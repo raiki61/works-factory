@@ -37,7 +37,7 @@
 
 ```mermaid
 flowchart TB
-  entry["入口 bin/<br/>start・answer・show・apply"]
+  entry["入口 bin/<br/>起動の殻 works-factory・apply"]
   subgraph ours["workflows/（置かずに --workflow-source で読ませる。グラフ＝エッセンス）"]
     line["線 line/"]
     blocks["ブロック judge … merge"]
@@ -53,7 +53,7 @@ flowchart TB
 
 | 層 | 置き場 | 持つ物 | 知ってよい物 |
 | --- | --- | --- | --- |
-| 入口 | `bin/` | 人の打つ口・Archon の源の取り寄せと起こし方・埋めの一部 | `pack.json`・`factory/pack.json`・Archon の CLI |
+| 入口 | `bin/` | 起動の殻（認証と隔離を整えて Archon を起こす。人は Archon の命令をそのまま打つ）・Archon の源の取り寄せと起こし方・`apply`・埋めの一部 | `pack.json`・`factory/pack.json`・Archon の CLI |
 | グラフ（エッセンス） | `workflows/` | 線とブロックの YAML・役の指示書・節の script・ブロックの間で渡す物の型（`output_format`） | 境の口・lib |
 | 境 | `workflows/.shared/` | Archon の入出力の口 1 つ・埋め | Archon の変数と型 |
 | 助け手 | `lib/` | Archon を知らない Python のモジュール | Python のパッケージ（標準と外の物） |
@@ -121,7 +121,7 @@ flowchart TB
 
 - どの段でも、外から止める札（止め札）を線の節が見て、後ろを飛ばして report へ進む。
 - 単位がどれも軽量なら（深さの決め）、差分の審査と R1〜R4 を省く。直した後に標準へ上げ直す決めも線が持つ。
-- 周の鎖（頼まれたら run を何周もつなぐ）は run の外で `bin/start --rounds` が持つ。
+- 周の鎖（頼まれたら run を何周もつなぐ）の置き先は「能力の棚卸し」の「線と入口」の「周の鎖」の行。
 
 ### 線が運ぶ物
 
@@ -136,7 +136,7 @@ flowchart TB
 - 緑の認証（緑・赤の原因・作業ツリーの指紋）: test-gate（final）→ eyes・merge
 - 独立の目と型つきの成果物 `eye-verdict`: eyes → merge・report
 - 封じた差分（hash・守りのパスの当たり）: merge（seal）→ 最後の関所・merge（apply）
-- 報告（結末の語・報告の指し札・持ち越しの指し札）: report → `bin/show`
+- 報告（結末の語・報告の指し札・持ち越しの指し札）: report → 線の返り（人は `bin/works-factory workflow get <run>` で見る）
 
 受け渡しの決まりは `workflows/AGENTS.md` の E4・E5。
 
@@ -158,7 +158,7 @@ flowchart TB
   - 欄は全部 `required` に入れる。値が無い時は欄を落とさず `null`・`[]`・`""` で表す。null を取るのは「null 可」と書いた欄だけ。
   - 指し札は `{type: "archon_artifact", run_id, path}`（E5）。下では型を「指し札」と書く。
   - 2 つの形を持つブロック（test-gate・merge）は、返す節を 1 つのまま `mode` の欄で形を返す。形に当たらない欄は null。
-  - 「→ 線 N」は「線」の「順と関所」の N 番の段（関所の文か `when:`）が読む。「→ ブロック名」はそのブロックが `with:` で受ける。「→ 線の返り」は線の `returns: report` を通して `bin/show`・`bin/start --rounds` が読む。
+  - 「→ 線 N」は「線」の「順と関所」の N 番の段（関所の文か `when:`）が読む。「→ ブロック名」はそのブロックが `with:` で受ける。「→ 線の返り」は線の `returns: report` を通して、人（`bin/works-factory workflow get`）と、置いた後の周の鎖が読む。
   - 指し札の先のファイルの中身は、欄が名指す今の works の同じ名のファイルの形のまま（新しい入れ物の形を作らない）。今の works が別のファイルに持っていた物は、同じフォルダの隣のファイルに置き、作ったブロックの中だけで読む。ただし次の隣のファイルは約束の一部で、ほかのブロックもこの名で開く: `judgment`（`judgment.json`）の隣の `premises.json`（実測した制約 `constraints`）・`judge-verify.json`・`pr-excluded.json`・`materials.json`（`{<素材の名>: {status, …}}`）、`plan`（`plan-fields.json`）の隣の `p2.fix_plan.json`（修正案の役の返答。関所の決め手の欄つき）、`structure`（`structure-state.json`）の隣の `design.jsonl`、`review` の隣の `gate-passes.json`（修正前の関所が聞かずに通した行）。judge は止めた時も隣のファイルを空の形で必ず書く。
   - 直す前の結末のファイル（test-gate の `baseline` の先）は必須の欄 `{suite, test_cmd, rev, exit, cases}`。`suite` は始めの記録の `tdd_suite` の実行ファイル（無ければ `""`）、`cases` は JUnit の 1 件ごとの結末の並び。読み書きは `lib/baseline_red.py` の口だけ。test-gate は自分の欄（`junit_steps` ほか）を足してよい。
   - fix の `conflicts` の先は `conflicts.json` = `{"items": [...]}`（今の works の `conflict.py` の形。行の欄 `unit_key`・`kind`・`between`・`ruling`（`decision`・`text`・`limits`）・`replan`）。
@@ -322,7 +322,7 @@ flowchart TB
   - 型つきの成果物の一覧（`tdd-unit`・`green-cert`・`eye-verdict`）は `with:` でなく report の中で `$TYPED_ARTIFACTS_FILE` から読む（E5）
 - 返り:
   - `ok`（boolean）: `outcome` が `fixed`・`fixed_needs_check`・`no_fix_needed` の時 true → 線の返り
-  - `outcome`（string）: 結末の語。enum は今の works の `report.py` の `OUTCOMES` の 10 語 `fixed`・`fixed_needs_check`・`no_fix_needed`・`round_limit`・`stopped_by_request`・`stopped_by_human`・`stopped_by_line`・`needs_human`・`record_invalid`・`interrupted` → 線の返り（`bin/start --rounds` の周の鎖が種を引く）
+  - `outcome`（string）: 結末の語。enum は今の works の `report.py` の `OUTCOMES` の 10 語 `fixed`・`fixed_needs_check`・`no_fix_needed`・`round_limit`・`stopped_by_request`・`stopped_by_human`・`stopped_by_line`・`needs_human`・`record_invalid`・`interrupted` → 線の返り（周の鎖を置いたら、それが種を引く）
   - `stop_reason`（string）: 止めた段と理由の語（`lib/stop_reasons`）。止まらなければ `""` → 線の返り
   - `report`（指し札）: 機械の報告（今の works の `report.md`）→ 線の返り
   - `report_ai`（指し札・null 可）: AI の報告（今の works の `report-ai.md`）→ 線の返り
@@ -423,10 +423,10 @@ flowchart TB
 - 入口の入力の形（差分の根・差分・依頼の行・PR。空なら止める）: `blk-entry`・`.shared/core/entryshape.py`・`startrec.py` → line・`lib/entry_shape`
 - 単位ごとの深さと上げ直し: `darkfactory/lib/depth.py` → line・`lib/depth`
 - 機能の切り替え: `.shared/core/entry.py` の `FEATURES` → line・`lib/features`
-- 止め札: `.shared/core/halt.py` → line・`lib/halt`。札を置く口は `bin/`
+- 止め札: `.shared/core/halt.py` → line・`lib/halt`。人は関所で `bin/works-factory workflow respond <run> stop <一言>` と打つ（Archon の命令のまま。殻は何も足さない）。関所の間で走っている run を報告つきで止める口は Archon に無く、持ち主の答えを待つ（今は `workflow cancel` で止まり、報告は出ない）
 - 人の関所と無人の方針: `.shared/core/gatepolicy.py` → line・`lib/gate_policy`
 - 止めの理由の語: `.shared/core/stopby.py` → `lib/stop_reasons`
-- 周の鎖: `.shared/core/chain.py`・`dev/use.sh` → 置き先は未決（入口の殻 1 本 `one-launcher` の issue で決める）
+- 周の鎖: `.shared/core/chain.py`・`dev/use.sh` → 線の後ろ（推し。`workflow:` の節で次の周の線を起こせるかを段 3 で確かめ、起こせなければ置き先を決め直す）。殻には置かない（持ち主の言葉「自作部分はその認証の切り替えだけ」）。作るまでは Archon の `--adopt`・`--supersedes`
 - 固定材料から始める・版の控え: `.shared/core/fixture.py`・`versions.py` → line（始め）
 - 部品の宣言と書き込みの照らし（manifest）: `.shared/core/scopes.py` → manifest は落とす。入出力の宣言は YAML の `with:`・`returns:` と型が持つ（E4・E5）。宣言の外の書き込みは、読むだけの節は `mutates_checkout: false`（E7。Archon が落とす）、書く役は書き込みの出どころの突き合わせ（fix）で落とす。読み手の無い返りの欄は層の試験で赤（持ち主の決め `declared-io`）
 - 境の節（`h-*`）: `darkfactory/lib/line_edge.py` → line の `when:` と小さな script の節
@@ -564,7 +564,7 @@ flowchart TB
 - U2 型つきの成果物と `returns:` が、include ごとに分かれて見えるか（同じブロックを 2 度差し込む test-gate・merge・plan で要る）。
 - U3 `archon workflow test` の筋書き（fixture）が使えるか。`d97d00ef` の文書 `reference/cli.md` 407 行と `--help`（「Run declared dry-run fixtures (fixtures/*.stubs.yaml)」）は名指すが、まだ走らせていない。
 - U4 `loop_group` の中に `include:` の節を置けるか（計画の往復）。
-- U5（決めた）ブロックの script が `lib/` をどのパスで見つけるか。Archon は run の始めに `workflows/` を写し取り、script はその写しから走るので、リポジトリからの相対では届かない。決め: 入口が環境変数 `WORKS_FACTORY_ROOT` にリポジトリの根を渡し、境の口の `boundary.lib_root()` がその `lib/` を返す（無ければ自分の置き場から辿った `lib/`）。Archon は host で走る script の節に起こした時の環境変数を渡す（`dag-executor.ts` の `process.env` の重ね）。止めた Archon で script の節を回して確かめる試験は `tests/shared/test_boundary.py` の `test_script_run_by_archon_finds_repository_lib`。Archon の `runtime: uv` の節の `deps:` の引き方（`lib/AGENTS.md` の E3）はこの決めに含まない（未決のまま）。
+- U5（決めた）ブロックの script が `lib/` をどのパスで見つけるか。Archon は run の始めに `workflows/` を写し取り、script はその写しから走るので、リポジトリからの相対では届かない。決め: 入口の殻 `bin/works-factory`（`bin/_lib/launcher.py`）が Archon の子の環境変数 `WORKS_FACTORY_ROOT` にリポジトリの根を渡し、境の口の `boundary.lib_root()` がその `lib/` を返す（無ければ自分の置き場から辿った `lib/`）。Archon は host で走る script の節に起こした時の環境変数を渡す（`dag-executor.ts` の `process.env` の重ね）。止めた Archon で script の節を回して確かめる試験は `tests/shared/test_boundary.py` の `test_script_run_by_archon_finds_repository_lib`。Archon の `runtime: uv` の節の `deps:` の引き方（`lib/AGENTS.md` の E3）はこの決めに含まない（未決のまま）。
 - U6 今の works の包みが取っていた読んだ証拠と書き込みの記録を、Archon の役の節で取れるか（Archon の出来事の記録か、節の hooks か）。取れなければ埋めの行にする。
 - U7 ASF の lifecycle を段 2 で使う時、必須の入力 `scenario`（動かして確かめる筋書き）に何を渡すか。
 - U8 組ごとに別の作業ツリーを持てるか。推しは `workflow:` と `fan_out:` の子の run（子ごとに自分の run）。子が自分の作業ツリーを持つか、それが親の今の commit から切られるか、子の差分を親に決めた順で戻せるかを確かめる。2026-10-06 の判断「fan_out は子ごとに作業ツリーを決められない」は節の `fan_out:` だけを見ていたかもしれない。足りなければ埋めの名簿に行を足す。
@@ -579,7 +579,7 @@ U1〜U3 は持ち主の挙げた物、U4〜U8 はこの文書を書く中で出�
 
 ### 段 1 歩く骨組み
 
-全部のブロックを中身の薄い形（型に合う返りを返すだけ）で線に並べ、小さな対象のリポジトリ（`tests/e2e/` の種）に 1 つの依頼を通しで回す。人の関所は `bin/answer` で答える。U1〜U7 を決め、結果を この文書と `docs/polyfills.md` に書く。
+全部のブロックを中身の薄い形（型に合う返りを返すだけ）で線に並べ、小さな対象のリポジトリ（`tests/e2e/` の種）に 1 つの依頼を通しで回す。人の関所は `bin/works-factory workflow respond` で答える。U1〜U7 を決め、結果を この文書と `docs/polyfills.md` に書く。
 
 ### 段 2 ブロックごとの issue を並べて回す
 
