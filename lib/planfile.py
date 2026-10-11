@@ -115,7 +115,6 @@ POLICY_PART = ("## 人の方針\n\n人が決めた、run をまたいで効く�
 UNREAD_INPUTS_HEAD = promptsection.Section("## 読めなかった入力（機械が書いた。その節は材料に無い）", source="fn:planfile.write_brief")
 FILLED_DUTY = "機械が差し込む（閉じた・保留の項目。書かなくてよい）"
 REPLAN_DECISION = "fix_plan_item"   # 案の項目そのものが誤りと裁く裁定（元 works/.shared/core/conflict.py:103 の REPLAN）
-DROPPED_OP = "plan_converge_dropped"   # 閉じた項目の行を返答から捨てた trace の行 {round, pass_, id}（元 converge.py:58）
 NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に、この項目を名指す行が無い）"
 
 
@@ -917,7 +916,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     """修正案の役の返答（形 plan）を受け付ける。拒否は理由を全部 1 回で並べて {ok: False, reason}。通れば no を id に戻した返答を
     planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}。
     2 往復目からは block_answers を外して前の往復の block への答えを照らし、閉じた・保留の項目の行を差し込んだ案の全体を照らす。
-    返答から捨てた閉じた項目の行は trace に DROPPED_OP で残す（元 planblk.revise_take）"""
+    返答から捨てた閉じた項目の行は trace に converge.DROPPED_OP で残す（元 planblk.revise_take）"""
     round_dir = pathlib.Path(round_dir)
     if replan._malformed(reply):
         return {"ok": False, "reason": MALFORMED_REJECT}
@@ -953,7 +952,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     k = round_no(round_dir)
     _save(round_dir, k, {**plan, **extra}, fields, {**out, **extra})
     for item_id in dropped:
-        _trace(round_dir, DROPPED_OP, round=k, pass_=len(record["passes"]) + 1, id=item_id)
+        _trace(round_dir, converge.DROPPED_OP, round=k, pass_=len(record["passes"]) + 1, id=item_id)
     return {"ok": True, "reason": ""}
 
 
