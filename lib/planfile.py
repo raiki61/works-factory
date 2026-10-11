@@ -18,8 +18,8 @@
   replan_section（元 replan.py の _section）
 - 判定の処方: prescriptions（元 works/.shared/core/planmarks.py:804）・prescription_section（元 planblk.py:356）
 - 修正前の版のテスト: base_test_texts（元 works/.shared/core/writes.py:93）
-- 壁打ち: converge_record（元 works/.shared/core/converge.py:214 の read と :373 の record_pass。往復の行は converge.add_pass）・
-  answer_gaps（元 :437）・splice（元 :333）・revise_section・filled_units（どれも converge の控えを取る本体 *_doc を指す名）
+- 壁打ち: converge_record（元 works/.shared/core/converge.py:214 の read と :373 の record_pass。往復の行は converge.add_pass）。
+  この控えを converge の answer_gaps・splice・revise_section・filled_units に渡す
 - 材料と受け付け: write_brief・prior_section・take_plan・take_replan（元 planblk の prep・prior_part・take・with_plan_fields・revise_take と
   replan の prep・_take）
 - 構造の実測: structure_dir・measure（元 works/blk-structure/scripts/stage_a.py の main）・write_state（元 blk-structure/scripts/collect.py）
@@ -474,14 +474,6 @@ def converge_record(plan_dir) -> dict:
     return doc
 
 
-# 盤面の代わりに converge_record の控えを受ける往復の本体（元 works/.shared/core/converge.py の answer_gaps（:437）・
-# splice（:333）・revise_section・filled_units。converge の *_doc が持ち主）
-answer_gaps = converge.answer_gaps_doc
-splice = converge.splice_doc
-revise_section = converge.revise_section_doc
-filled_units = converge.filled_units_doc
-
-
 # ---------------------------------------------------------------- 周
 def next_round(plan_dir) -> int:
     """この置き場の次の周の番号（plan/r*/ の数 + 1。往復と案の直しを通して数える）"""
@@ -745,7 +737,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
         world = worldmark.section(world_rows or [])
         doc = _read_json(round_dir / RIPPLE_UNITS_FILE)
         record = converge_record(plan_dir)
-        parts = [*common, units_section(judgment, units, skipped, filled_units(record)),
+        parts = [*common, units_section(judgment, units, skipped, converge.filled_units(record)),
                  REPO_LINE.format(repo=repo, rev=rev, review_md=review_md),
                  prescription_section([k for k in slots(judgment) if k in owed | opened], prescriptions(judgment)),
                  structmark.plan_section(structure_dir_),
@@ -772,7 +764,7 @@ def _prior_section(round_dir, plan_dir, record: dict) -> str:
              f"- 前の周の案: {prev / FIX_PLAN_FILE} と {prev / planmarks.FIELDS_FILE}（Read で読め。閉じた項目はこの形のまま変えない）",
              f"- 事前審査の指摘: {review}" if review.is_file() else "- 事前審査の指摘: 受けていない（読めなかったか、渡されなかった）"]
     rip = _read_json(prev / RIPPLE_FILE)
-    return "\n\n".join(x for x in ("\n".join(lines), revise_section(record) if review.is_file() else "",
+    return "\n\n".join(x for x in ("\n".join(lines), converge.revise_section(record) if review.is_file() else "",
                                     ripple.section(rip) if isinstance(rip, dict) else "") if x)
 
 
@@ -810,13 +802,13 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     bare, answers = converge.split("plan-revise", reply)
     slot_list = _read_json(round_dir / SLOTS_FILE)
     got = named(bare, slot_list if isinstance(slot_list, list) else slots(judgment))
-    whole, closed, dropped = splice(record, got["plan"])
+    whole, closed, dropped = converge.splice(record, got["plan"])
     plan = {**got, "plan": whole}
     owed, opened, _ = plan_slots(judgment)
     shut = set(_shut(judgment, plan))
     allowed = list(range(1, len(slots(judgment)) + 1))
     reasons = [
-        _section(ANSWERS_REJECT, answer_gaps(record, answers)),
+        _section(ANSWERS_REJECT, converge.answer_gaps(record, answers)),
         _section(CLOSED_REJECT, closed),
         _section(NO_NARROW_REJECT, gatemarks.narrow_gaps(planmarks.NODE, plan)),
         _section(RECOMMEND_REJECT, gatemarks.recommend_gaps(planmarks.NODE, plan)),
