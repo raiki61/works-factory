@@ -7,19 +7,19 @@
 
 **作り:** 4 つの層（入口 `bin/`・グラフ `workflows/`・境 `workflows/.shared/`・助け手 `lib/`）の器と、器を縛る試験を先に置く。ブロックの中身は `output_format` に合う返りを返すだけの仮の物で、段 2 の issue が本物に替える。
 
-**道具:** Python 3.12 以上の標準ライブラリ・unittest・git・`gh`・Archon v0.11.1 の実行ファイル。
+**道具:** Python 3.12 以上・unittest・git・`gh`・Archon v0.11.1 の実行ファイル。
 
-**仕様:** `docs/design.md`（層・線・ブロック・Archon の分かっていること）と `engineering.md`（E1〜E13）。
+**仕様:** `docs/design.md`（層・線・ブロック・Archon の分かっていること）と `engineering.md`（E1〜E14）。
 
 ## 全体の決まり
 
-- 言語: Python 3.12 以上の標準ライブラリだけ。外のパッケージを入れない。
+- 言語: Python 3.12 以上。外のパッケージは使ってよい（持ち主の決め `outside-packages-ok`）。自前で書く前に既製の物を当たり、版を止め、依存の宣言は 1 か所に置く（Task 2 で決める）。
 - 版の止め: `pack.json` の値だけを使う（Archon `v0.11.1`・実行ファイル `archon-darwin-arm64` の sha256 `b9338474fd3151d5d5402d76ae278105e65835f2e3506a93f0e5e4a378d10ede`・ASF の commit `d97d00ef15cce4b15d39e42635e4e86996ec1351`・フォルダ `.archon/workflows/sdlc`）。
 - 置き場: 自分の工程は `$ARCHON_HOME/workflows/works-factory/`、ASF は `$ARCHON_HOME/workflows/asf/`。ほかの置き場に触らない。
 - ASF のファイルをこのリポジトリに入れない（試験の種にも入れない）。
 - 工程の名は `works-factory-<フォルダの名>`、線は `works-factory-line`。
 - ブロックの間で渡す物の型の正本は、返す節の `output_format` と線の `with:` だけ。型の写しを作らない（持ち主の決め `io-in-output-format`）。
-- 期限（timeout）を置かない（E12）。
+- 期限を置かない（E12）。Archon の既定の期限を外すため、期限を持つ節には `1728000000` を書く。
 - 試験は `python3 -m unittest discover -s tests -t .` と `python3 -m unittest discover -s lib/tests -t .` で走る。Archon の実行ファイルが要る試験は、無ければ名前つきで見送る（`skipTest("archon の実行ファイルが無い: ...")`）。CI は実行ファイルを取ってから走るので見送らない。
 
 ## 見るべき所（Task の試験が当たる物）
@@ -63,19 +63,20 @@
 
 **Files:**
 - Create: `lib/__init__.py`・`lib/tests/__init__.py`
-- Create: `tests/layers/scan.py`・`tests/layers/test_polyfills_listed.py`・`test_lib_blind.py`・`test_block_paths.py`・`test_no_asf.py`・`test_names.py`・`test_no_timeouts.py`・`test_lang_neutral.py`
+- Create: `tests/layers/scan.py`・`tests/layers/test_polyfills_listed.py`・`test_lib_blind.py`・`test_block_paths.py`・`test_no_asf.py`・`test_names.py`・`test_no_timeouts.py`・`test_lang_neutral.py`・`test_no_owner_env.py`
+- Create: 依存の宣言の置き場 1 か所（`pyproject.toml` か、節の `deps:` から引ける形。Step 0 で決める）
 - Create: `tests/layers/seeds/`（決まりを破った小さな木。試験が赤を出すことの確かめ用）
 
 **Interfaces:**
-- Produces: `scan.problems(rule: str, root: Path) -> list[str]`（`rule` は `"E2"`・`"E3"`・`"E4"`・`"E8"`・`"E9"`・`"E12"`・`"E13"`。1 行に 1 つ、`<パス>:<行>: <何が>`）。各試験は本物の木で `[]`、種の木で 1 つ以上を確かめる。
+- Produces: `scan.problems(rule: str, root: Path) -> list[str]`（`rule` は `"E2"`・`"E3"`・`"E4"`・`"E8"`・`"E9"`・`"E12"`・`"E13"`・`"E14"`。1 行に 1 つ、`<パス>:<行>: <何が>`）。各試験は本物の木で `[]`、種の木で 1 つ以上を確かめる。
 - 決まりの中身は `engineering.md` の各 E の「機械」の行。E2 の名簿の読みは `docs/archon-polyfills.md` の `- 埋め:` の行の `workflows/.shared/<名>` の字。境の口は `workflows/.shared/boundary.py` の 1 つ。
 
 - [ ] **Step 1: 種の木を作る**: `seeds/e2`（名簿に無い `.shared/extra.py`）・`seeds/e3`（`lib/x.py` に `TYPED_ARTIFACTS_FILE`）・`seeds/e4`（`workflows/judge/scripts/a.py` に `../plan/`）・`seeds/e8`（`include: archon-triage`）・`seeds/e9`（名 `archon-x`）・`seeds/e12`（`timeout: 10`）・`seeds/e13`（`workflows/judge/commands/a.md` に `pytest`）
 - [ ] **Step 2: 試験を書く**: 各試験に `test_real_tree_clean`（`problems(rule, リポジトリの根) == []`）と `test_seed_caught`（種で `len(...) >= 1`、文に種のパスが在る）。E2 は加えて `test_listed_but_missing_is_red`（名簿に在って木に無い行も赤）
 - [ ] **Step 3: 走らせて赤**: `python3 -m unittest discover -s tests/layers -t . -v` → `ModuleNotFoundError: scan`
-- [ ] **Step 4: `scan.problems` を実装する**: 字の形の照らしは正規表現、YAML は字の行で読む（外のパッケージを使わない。読むのは `include:`・`workflow:`・`name:`・`timeout` の鍵の行だけ）
+- [ ] **Step 4: `scan.problems` を実装する**: 字の形の照らしは正規表現、YAML は既製の YAML の読み手で読む（字の行で読む自前の読み手を作らない）
 - [ ] **Step 5: 走らせて緑**
-- [ ] **Step 6: commit**: `git commit -m "test(layers): 層の境の試験（E2・E3・E4・E8・E9・E12・E13）と lib/ の器"`
+- [ ] **Step 6: commit**: `git commit -m "test(layers): 層の境の試験（E2・E3・E4・E8・E9・E12・E13・E14）と lib/ の器"`
 
 ### Task 3: 境の口
 
@@ -138,7 +139,9 @@
 - Produces:
   - `cli.start(target: Path, request: str, archon: Callable[[list[str]], str]) -> str`（配置してから `archon workflow run works-factory-line` を起こし、run の id を返す）
   - `cli.answer(run_id: str, text: str, archon) -> None`・`cli.show(run_id: str, archon) -> str`・`cli.apply(run_id: str, target: Path) -> None`（merge の返りの指し札の差分を、封じた hash を照らしてから `git apply` する。違えば止まる）
-  - 認証はホストの `gh` と Claude のログインをそのまま引き継ぐ。資格を環境変数で役に渡さない。
+  - 認証の既定: ホストの `gh` と Claude のログインをそのまま引き継ぐ（Archon は既定で `claude /login` の認証を使う。Archon の `.env.example` の `CLAUDE_USE_GLOBAL_AUTH`）。呼んだ側の環境の API キー・ゲートウェイの資格もそのまま渡す。資格を環境変数で役に渡さない。
+  - 選べる道（持ち主の決め `others-may-use`・E14）: Claude のアカウントを名で選ぶ（macOS の keychain の項目の名か `CLAUDE_CODE_OAUTH_TOKEN`。選んだ時はそれより上に効く資格を子に渡さない）。GitHub のアカウントを名で選ぶ（`gh auth token -u <名>`）。Archon の家の置き場を選ぶ。値は利用者の設定（リポジトリの外）か引数で渡す。どの出どころの認証で起こしたかを 1 行出す（認証の落ちと役の返事の不良を見分けるため）。
+  - これが入ったら、ASF もこの入口から起こす（工程の名で選び分ける）。今の仮の殻 `~/.local/state/works-factory/bin/asf-env` は捨てる。
 - 持ち主の居ない `running` の扱い（埋め P1）は段 1 で足す。段 0 の `show` は Archon の状態をそのまま出す。
 
 - [ ] **Step 1: 試験を書く**（偽の `archon` 関数で引数を記録）

@@ -24,7 +24,8 @@
 
 - `lib/` は script の節が呼ぶ Python の助け手だけを持つ（引用の照らし・TDD の赤の判定・元から赤の見分け・範囲の照らしなど）。流れ（どの確かめを・どの順で・どこで人に聞くか）・役の指示書・ブロックの間で渡す物の型は持たない。それはグラフ（`workflows/`）と `docs/design.md` だけが持つ。
 - `lib/` は Archon の名（`archon`・`$ARTIFACTS_DIR`・`$TYPED_ARTIFACTS_FILE`・`ARCHON_` で始まる環境変数・節の id・`output_type` の語）を書かない。入力は引数とファイルのパス、出力は返り値と JSON。
-- 機械: `tests/layers/test_lib_blind.py`（上の語の字の形が `lib/` に 1 つも無い。`import` は標準ライブラリと `lib` の中だけ）。
+- 機械: `tests/layers/test_lib_blind.py`（上の語の字の形が `lib/` に 1 つも無い。`import` に `workflows` と `bin` の中の物が無い）。
+- 外のパッケージは使ってよい（持ち主の決め `outside-packages-ok`）。版を止め、依存の宣言は 1 か所に置く。どこに置くか（`pyproject.toml` と節の `deps:` をどう 1 つにするか）は土台の計画の Task 2 で決める。
 
 ## E4 ブロックはほかのブロックのファイルを指さない
 
@@ -76,10 +77,18 @@
 
 ## E12 期限・タイムアウトを置かない
 
-- YAML の節にも script にも期限（`timeout` など）を置かない。止める時は止め札で止める。持ち主の決め `no-timeouts`。
-- 機械: `tests/layers/test_no_timeouts.py`（`workflows/` の YAML に `timeout` の鍵が無い）。
+- YAML の節にも script にも期限を置かない。止める時は止め札で止める。持ち主の決め `no-timeouts`。
+- Archon は鍵を書かない節にも既定の期限を当てる（`script:` の節は 2 分で打ち切る。Archon の文書 `guides/script-nodes.md` の `timeout`「Default: `120000`」）。だから期限を外すには、期限を持つ節（`script:`・`bash:` の `timeout` と AI の節の `idle_timeout`）に、実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値）を書く。
+- 機械: `tests/layers/test_no_timeouts.py`（`workflows/` の YAML で、期限を持つ節の `timeout`・`idle_timeout` が全部 `1728000000`）。
 
 ## E13 対象の言語を知らない
 
 - 役の指示書（`workflows/*/commands/`）と `lib/` に、特定の言語・テストの実行器の名を書かない。事実上の標準の形式（JUnit XML など）は名指してよい。持ち主の決め `lang-neutral`。
 - 機械: `tests/layers/test_lang_neutral.py`（言語と実行器の名の語の表に当たる字が無い。表は試験の中）。
+
+## E14 既定の道は普通の利用者の環境でそのまま動く
+
+- 普通の利用者とは、Claude Code に `claude /login` しただけの人・macOS 以外の人・API キーや会社のゲートウェイを使う人など。持ち主の決め `others-may-use`。
+- 持ち主の環境（Claude のアカウントの名・keychain の項目の名・GitHub のアカウントの名・置き場のパス）はリポジトリに書かない。選べる道として置き、値は利用者の設定（リポジトリの外）か起動の引数で渡す。
+- 何かを削る・落とす直しは、持ち主の環境で要らないかだけでなく、普通の利用者の環境で要らないかを書く。人が見る。
+- 機械: `tests/layers/test_no_owner_env.py`（`bin/`・`workflows/`・`lib/` に、持ち主の環境の字（`raiki61`・`claude-code-oauth-`・`/Users/`）が無い）。

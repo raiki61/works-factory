@@ -57,9 +57,9 @@ flowchart TB
 | 入口 | `bin/` | 人の打つ口・版の取り寄せと配置・埋めの一部 | `pack.json`・Archon の CLI |
 | グラフ（エッセンス） | `workflows/` | 線とブロックの YAML・役の指示書・節の script・ブロックの間で渡す物の型（`output_format`） | 境の口・lib |
 | 境 | `workflows/.shared/` | Archon の入出力の口 1 つ・埋め | Archon の変数と型 |
-| 助け手 | `lib/` | Archon を知らない Python のモジュール | 標準ライブラリだけ |
+| 助け手 | `lib/` | Archon を知らない Python のモジュール | Python のパッケージ（標準と外の物） |
 
-- 言語は Python 3.12 以上の標準ライブラリ（`lib/`・境・ブロックの script・`bin/`・試験）。訳: 今の works の確かめが Python の標準ライブラリで書かれていて、移すだけで済む。下限は持ち主の決め `py-floor`。Archon v0.11.1 は `script:` の節を `runtime: uv` で Python として走らせる。ASF は TypeScript だが、コードを写さないので言語を揃える訳が無い。
+- 言語は Python 3.12 以上（`lib/`・境・ブロックの script・`bin/`・試験）。訳: 今の works の確かめが Python で書かれていて、移すだけで済む。下限は持ち主の決め `py-floor`。外のパッケージは使ってよい（持ち主の決め `outside-packages-ok`）。自前で書く前に既製の物を当たり、版を止める。Archon v0.11.1 は `script:` の節を `runtime: uv` で Python として走らせる。ASF は TypeScript だが、コードを写さないので言語を揃える訳が無い。
 - 層を足す時は `engineering.md` の E10。
 - 別の実行の道具へ移る時（Archon の競合に移る危うさへの備え）: グラフをその道具の書き方で `docs/design.md` から書き直す。役の指示書（指示書の中の Archon の変数だけ書き換える）と `lib/` はそのまま持っていける。ブロックの間の入出力は、その時に `output_format` から取り出す（持ち主の決め `io-in-output-format`）。
 
