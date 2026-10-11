@@ -1,21 +1,32 @@
-# Holdout scenarios
+# 別の組み合わせの筋書き（holdout）
 
-Example task-service data. Replace with independent composed scenarios.
-The producer must establish isolation and start a fresh environment for this pass.
-No factory Python helper enforces a private holdout boundary.
+works-factory を、通しの筋書き（`harness/END-TO-END.md`）とは別の組み合わせと端の場合で確かめる筋書き。works-factory は修正の工場で、人は入口のコマンド `bin/start`（依頼を渡して run を始める）・`bin/answer`（止まった所で答える）・`bin/show`（今どこか・報告を見る）・`bin/apply`（封じた差分を当てる）を打つ。run は、工場が 1 つの依頼を受けてから報告を出すまでの 1 回の実行。人の関所は、人に答えを聞いて止まる所。works-factory は Archon（AI の工程を YAML で書き、順に回す道具）の上で動く。
 
-## Three lists, one restart, and a rename in the middle
+## 読む前に
 
-1. Create tasks `quarry-lantern`, `sable-ferry` and `nine-of-cups`.
-2. Complete `sable-ferry`.
-3. Rename `nine-of-cups` to `nine-of-swords`.
-4. Restart the app.
-5. Exactly three tasks exist. Exactly one is done, and it is `sable-ferry`.
-   `nine-of-cups` does not appear anywhere. The open count is 2.
+- このリポジトリを作っているのは ASF（Archon の作者が作った、issue から merge までの工程の束）の AI で、このファイルはその AI も読める。だから隠しの確かめ（holdout）にはならない。隠すなら、機械が読む形の JSON をリポジトリの外に置き、確かめる側にだけ渡す。
+- 今は回せない。入口のコマンドと、確かめに使う小さな種のリポジトリ（`tests/e2e/` に置く予定で、まだ無い）が無いから。どちらも作りの順の早い段（`docs/design.md` の「作りの順」の段 0 と段 1）で作る。
+- ASF の工程 `archon-lifecycle` は、入力 `holdout` が空ならこの確かめを飛ばす。回せるようになるまで空で渡す。
 
-## Deleting the completed one does not resurrect it
+## 2 つの依頼を同じ対象に続けて回す
 
-1. Starting from the state above, delete `sable-ferry`.
-2. The list has two tasks, both open, open count 2.
-3. Restart the app.
-4. Still two tasks, both open. `sable-ferry` is gone and the completed count is 0.
+1. 種のリポジトリを新しい置き場に写し、依頼 A を回して最後の関所まで通し、`./bin/apply` で当てる。
+2. 同じリポジトリに、A で直したファイルに触る依頼 B を回し、同じく当てる。
+3. 種の試験を走らせる。
+
+期待: B の差分は A の直しの上に乗る（A の前の中身に戻さない）。A と B が直してほしいとした試験が両方とも通り、前から通っていた試験は 1 件も落ちない。
+
+## 関所で待っている間に Archon を起こし直す
+
+1. 依頼を回し、最初の人の関所で止まったら、Archon の process を止めて起こし直す。
+2. `./bin/show` で、その run が同じ関所で待っていることを見る。
+3. `./bin/answer` で通す。
+
+期待: run は始めからやり直さず、関所の後から続いて報告まで届く。報告に、関所での答えが載る。
+
+## 最後の関所で拒むと何も当たらない
+
+1. 依頼を回し、最後の関所で拒む答えを返す。
+2. `./bin/apply` を呼ぶ。
+
+期待: `./bin/apply` は当てずに 0 以外で終わる。対象のリポジトリの作業ツリーは変わらない。`./bin/show` の結末の語は、人が拒んだことを表す語。
