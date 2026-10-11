@@ -338,7 +338,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 - 1 の試験が先に赤で入り、後で緑。
 - 全部の試験が緑。層の試験の E14（`bin/` に持ち主の環境の字が無い）・E18 も緑。
 - `bin/_lib/` の持ってきた部品に差分が無い（`git diff main -- bin/_lib/auth_launch.py bin/_lib/claude_auth.py bin/_lib/isolate.py bin/_lib/toolset.py bin/_lib/hostgh.py bin/_lib/place.py bin/_lib/pack.py` が空）。
-- 手で 1 度: 持ち主の手元で `bin/works-factory workflow list --cwd <小さな git の木>` が `works-factory-*` の工程を並べる（線の issue が入る前なら、並ぶのは在る工程だけ）。結果を PR に書く。
+- 手で 1 度: 持ち主の手元で `bin/works-factory workflow list --cwd <小さな git の木>` が 0 で終わり、Archon の工程を並べる（止めた Archon は `--workflow-source` を `workflow run` でしか読まず、殻も新しい run にだけ足すので、`workflow list` に `works-factory-*` は並ばない）。結果を PR に書く。
 
 ### 範囲（触らない物）
 
