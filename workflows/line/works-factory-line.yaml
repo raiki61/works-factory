@@ -538,6 +538,7 @@ nodes:
         raised: { type: array }
         stop_reason: { type: string }
       required: [depth, skip_optional, raised, stop_reason]
+    mutates_checkout: false
     depends_on: [fixed]
     with:
       depth: "$plan-rounds.output.depth"

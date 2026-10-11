@@ -1,6 +1,6 @@
 """作業ツリーを変えない節が `mutates_checkout: false` を書く（workflows/AGENTS.md の E7 の機械の行）。
 
-ブロック judge・plan・plan-review・eyes・report の役の節（`prompt:`・`command:`・`loop:`）は全部。ただし judge の役のうち
+ブロック judge・plan・plan-review・eyes・report の役の節（`prompt:`・`command:`。`loop:` の節は Archon が mutates_checkout を無視するので数えない）は全部。ただし judge の役のうち
 作業ツリーに書く役と対象のリポジトリでコマンドを走らせる役（scan.JUDGE_WRITERS）は除く。ほかのブロックと線は表
 scan.READONLY_NODES で名指した節。
 """
@@ -52,6 +52,10 @@ class ReadonlyNodesTest(unittest.TestCase):
         yaml = "name: works-factory-plan\nnodes:\n  - id: plan\n    prompt: x\n    mutates_checkout: true\n"
         got = self.problems({"workflows/plan/works-factory-plan.yaml": yaml})
         self.assertEqual(len(got), 1, got)
+
+    def test_loop_node_is_not_asked_for_the_mark(self):
+        yaml = "name: works-factory-judge\nnodes:\n  - id: again\n    loop:\n      prompt: x\n"
+        self.assertEqual(self.problems({JUDGE: yaml}), [])
 
     def test_role_nodes_of_other_blocks_are_free(self):
         yaml = "name: works-factory-fix\nnodes:\n  - id: fixer\n    prompt: x\n"

@@ -489,7 +489,8 @@ def _outward_write(root: Path) -> list[str]:
 
 # 読むだけの節（E7）。ROLE_BLOCKS の役の節は全部、ほかは READONLY_NODES で名指した節が mutates_checkout: false を書く。
 ROLE_BLOCKS = ("judge", "plan", "plan-review", "eyes", "report")
-ROLE_KINDS = ("prompt", "command", "loop")
+# loop: の節は数えない（Archon は loop: の節の mutates_checkout を無視して警告を出す。止めた Archon の schemas/dag-node.ts 1025-1030 行）
+ROLE_KINDS = ("prompt", "command")
 # judge の役のうち、作業ツリーに書く役（spec・spec-revise）と、対象のリポジトリでコマンドを走らせる役（受け付けの script が作業ツリーの姿を比べる）
 JUDGE_WRITERS = (
     "spec", "spec-revise", "pr-check", "premises", "prior-decisions", "local-review", "external-standards",
@@ -497,8 +498,8 @@ JUDGE_WRITERS = (
 )
 READONLY_NODES = {
     "line": (
-        "answer-start", "plan-out", "ask-before-fix", "answer-before-fix", "after-fix", "judged", "ask-replan",
-        "answer-replan", "fixed", "ask-final", "answer-final", "collect", "result",
+        "answer-start", "plan-out", "planned", "ask-before-fix", "answer-before-fix", "after-fix", "judged", "ask-replan",
+        "answer-replan", "fixed", "redepth", "ask-final", "answer-final", "collect", "result",
     ),
 }
 YAML_BOOL = "tag:yaml.org,2002:bool"
