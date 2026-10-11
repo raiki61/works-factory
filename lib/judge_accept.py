@@ -846,6 +846,336 @@ def rejudge_verdict(rdir):
 
 # ================================================================ 並行 PR と世界の解（W）
 # （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
+import re  # noqa: E402
+import shutil as _w_shutil  # noqa: E402
+
+from accept import touched_files as _w_touched_files, tree_moved as _w_tree_moved  # noqa: E402
+import forge  # noqa: E402
+import ghreads  # noqa: E402
+import prcheck  # noqa: E402
+import rolekit  # noqa: E402
+import worldblk  # noqa: E402
+import worldmark  # noqa: E402
+
+PR_DOWNGRADES_FILE = "pr-downgrades.json"        # 申し送りの下書き [{pr, files, note}]（GitHub に投稿しない。報告が人に渡す）
+MATERIAL_PR_FILE = f"material-{prcheck.ROLE}.json"   # 並行 PR の素材 {role, reply, materials: {parallel_pr}}
+PR_LIMIT = 100   # 元 works/.shared/core/graphloops/scripts/parallel-pr.py:16 の LIMIT（gh pr list の --limit）
+# 元 works/.shared/core/graphloops/rules/review-loop.py:2278
+GITHUB_REMOTE = re.compile(r"^(?:https?://github\.com/|ssh://git@github\.com[^/]*/|git@github\.com[^:]*:)([^/\s]+)/([^/\s]+?)(?:\.git)?/?$")
+# 元 works/blk-pr/scripts/accept.py:21
+NO_POST = "このラインは申し送りを投稿しない（持ち主の決定 2026-09-27）。下書きを note に書き handed_over を false にせよ: "
+WORLD_FEATURE = "world"   # 元 works/.shared/core/entry.py:420 の WORLD_FEATURE（始めの記録の features_cut の世界の解の語）
+WORLD_PURPOSE_FILE = "world-purpose.json"   # 元 works/darkfactory/lib/line_edge.py:141（世界の解の段の入力の目的の文 {purpose_text, means}）
+WORLD_ROLES = {"world-classes": worldblk.CLASSES_ROLE, "world-judge": worldblk.JUDGE_ROLE}   # 役の名 → worldblk の控えの名
+
+
+# ---------------------------------------------------------------- 並行 PR（機械の道）
+def _github_repo(repo):
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2280 の _github_repo（と works/.shared/core/entry.py の
+    github_repo_redacted の、理由の文から URL の userinfo を落とす包み）。並行 PR を引く owner/repo ——（値, 引けない理由）。
+    upstream の remote を先に、無ければ origin。git は lib/forge の読みで、対象の根 repo で引く"""
+    up = forge._git(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+    remote = up.strip().split("/", 1)[0] if up and up.strip() else "origin"
+    url = forge._git(repo, "remote", "get-url", remote)
+    if url is None:
+        return None, f"remote '{remote}' の URL が引けない"
+    m = GITHUB_REMOTE.match(url.strip())
+    if not m:
+        return None, forge.redact(f"remote '{remote}' が GitHub でない（{url.strip()[:80]}）——同等のコマンドへの読み替えは役")
+    return f"{m.group(1)}/{m.group(2)}", None
+
+
+def request_wheres(rows) -> list:
+    """元 works/.shared/core/graphloops/rules/review-loop.py:203 の request_wheres。依頼の行（judge/request.json の
+    [{where, text, …}]）の where の一覧。元は判定から入る run の周（差分が空）だけ返したが、ここでは呼び手の _pr_files が
+    差分の空の時だけ使うので同じ所に落ちる"""
+    return [r["where"] for r in rows if isinstance(r, dict) and isinstance(r.get("where"), str)] if isinstance(rows, list) else []
+
+
+def _pr_files(repo, diff_base: str, wheres) -> list:
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2293 の _pr_files。交差を取る変更ファイルの集合。差分の根 diff_base
+    から今の作業ツリーまでの変更ファイル（lib/accept.touched_files）が空（判定から入る run）なら、依頼の where の文字列に
+    含まれる、追跡中のパス"""
+    files = []
+    if diff_base:
+        try:
+            files = _w_touched_files(pathlib.Path(repo), diff_base)
+        except Reject:
+            files = []
+    if files:
+        return files
+    tracked = (forge._git(repo, "ls-files", "-z") or "").split("\0")
+    return sorted({t for t in tracked if t and any(t in w for w in wheres)})
+
+
+def parallel_pr_plan(repo, diff_base: str, wheres, *, which=None) -> dict:
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2304 の parallel_pr_plan。返り {fallback: 理由}（役に任せる）・
+    {blocked: 理由}（走らせずに not_run）・{repo, head, files}（数えを走らせる）。which は gh を探す口（試験が差し替える）"""
+    slug, why = _github_repo(repo)
+    if not slug:
+        return {"fallback": why}
+    if not (which or _w_shutil.which)("gh"):
+        return {"fallback": "gh がこの環境に無い"}
+    files = _pr_files(repo, diff_base, wheres)
+    if not files:
+        return {"blocked": "交差を取る変更ファイルの集合が空（差分も、依頼の where が名指す追跡中のパスも無い）——空の集合との交差は何も確かめない"}
+    head = (forge._git(repo, "rev-parse", "HEAD") or "").strip()
+    return {"repo": slug, "head": head, "files": files}
+
+
+def parallel_pr_scan(repo, slug: str, head: str, files, *, gh=None) -> tuple:
+    """元 works/.shared/core/graphloops/scripts/parallel-pr.py:31 の main。開いている PR を gh -R で引き、自分の PR（headRefOid が
+    head）を外して、残った PR の変更ファイルと files の交差を取る。gh は lib/ghreads の読む口（gh(*args) -> (値, 読めない理由,
+    no_host)。試験が差し替える）で、読むだけ。返り ({repo, listed, truncated, conflicts: [{pr, files}]}, "") か
+    (None, gh が読めなかった理由)"""
+    gh = gh or (lambda *args: ghreads._gh(pathlib.Path(repo), *args))
+    mine = {f.strip() for f in files if f.strip()}
+    prs, why, _ = gh("pr", "list", "-R", slug, "--limit", str(PR_LIMIT), "--json", "number,headRefName,headRefOid")
+    if not isinstance(prs, list):
+        return None, why or "gh pr list の返りが配列でない"
+    others = [pr for pr in prs if isinstance(pr, dict) and pr.get("headRefOid") != head]
+    conflicts = []
+    for pr in others:
+        doc, why, _ = gh("pr", "view", str(pr.get("number")), "-R", slug, "--json", "files")
+        if not isinstance(doc, dict):
+            return None, why or f"gh pr view {pr.get('number')} の返りが object でない"
+        got = {str(f.get("path")).strip() for f in doc.get("files") or [] if isinstance(f, dict) and f.get("path")}
+        hit = sorted(got & mine)
+        if hit:
+            conflicts.append({"pr": str(pr.get("number")), "files": hit})
+    return {"repo": slug, "listed": len(prs), "truncated": len(prs) >= PR_LIMIT, "conflicts": conflicts}, ""
+
+
+def parallel_pr_reply(launch: dict, got, why: str = "") -> dict:
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2320 の parallel_pr_reply。数えの結果から返答を組む。交差が在れば
+    6 段（hunk を読んで担当の PR に申し送る）が要るので任せ先に回す（{fallback: 理由}）。ほかは {reply: 役の返答の形}。
+    元の parallel-pr.py の exit と印字の代わりに、parallel_pr_scan の返り（got, why）を受ける"""
+    empty = {"repo": "", "listed": 0, "truncated": False, "conflicts": []}
+    if launch.get("blocked"):
+        return {"reply": {"material": {"status": "not_run", "reason": launch["blocked"]}, **empty}}
+    if got is None:
+        return {"reply": {"material": {"status": "awaiting_human", "reason": f"並行 PR の数え（parallel-pr.py の書き直し）が gh を読めない（確かめられなかった）: {str(why)[-600:]}"}, **empty}}
+    rest = {k: got.get(k) for k in ("repo", "listed", "truncated")}
+    if got.get("conflicts"):
+        return {"fallback": f"並行 PR と {len(got['conflicts'])} 件交差した（{[c['pr'] for c in got['conflicts']][:10]}）——交差した hunk を読んで担当の PR に申し送る 6 段は役"}
+    if got.get("truncated"):
+        return {"reply": {"material": {"status": "awaiting_human", "reason": f"gh pr list が上限 {got.get('listed')} 件で打ち切られた——打ち切られた一覧で衝突なしと書かない"}, **rest, "conflicts": []}}
+    return {"reply": {"material": {"status": "clean", "checked": (f"engine が gh -R {got['repo']} で open な PR {got['listed']} 件を引き、自分の PR（headRefOid が HEAD）を除いて、"
+                                                            f"変更ファイルの集合と交差 0 件（打ち切りなし）")}, **rest, "conflicts": []}}
+
+
+def _pr_material(jdir, reply: dict) -> None:
+    """並行 PR の素材のファイル（judge/material-pr-check.json）を置く。reply は役の返答の形（excluded を外した物）"""
+    write_json(pathlib.Path(jdir) / MATERIAL_PR_FILE,
+               {"role": prcheck.ROLE, "reply": reply, "materials": {"parallel_pr": reply["material"]}})
+
+
+def pr_scan(jdir, repo, *, gh=None, which=None) -> dict:
+    """節 pr-scan の中身。元 works/.shared/core/prcheck.py:104 の run_helper（engine の 1〜5 段を走らせ、済んだか役が要るか）と、
+    元 works/.shared/core/entry.py:170-193 の forge の組み手（remote が forge でない run は素材を not_applicable（no_forge: …）で埋め、
+    役を起こさない）の書き直し。返り {go, go_role, reason}: go は後の段へ進むか（仕様の段が止めた run は偽）、go_role は
+    機械で決められず役 pr-check が要るか。機械が決めた時は素材のファイルと外す hunk の空の一覧（judge/pr-excluded.json）を書き、
+    役に任せる時は渡し物（judge/pr-brief.json。元 prcheck.snapshot の brief の形）を書く"""
+    jdir, repo = pathlib.Path(jdir), pathlib.Path(repo)
+    stop = read_stop(jdir)
+    if stop:
+        return {"go": False, "go_role": False, "reason": f"止めの控えが在る（{stop['stop_reason']}: {stop.get('reason', '')}）"}
+    start = start_view(read_json(jdir / START_FILE, {}))
+    rows = read_json(jdir / REQUEST_FILE, [])
+    head = (forge._git(repo, "rev-parse", "HEAD") or "").strip()
+    no_forge = forge.reason(forge.detect(repo))
+    if no_forge:
+        result = {"reply": {"material": {"status": "not_applicable", "reason": no_forge},
+                            "repo": "", "listed": 0, "truncated": False, "conflicts": []}}
+    else:
+        wheres = request_wheres(rows)
+        launch = parallel_pr_plan(repo, start["diff_base"], wheres, which=which)
+        if "fallback" in launch:
+            result = launch
+        elif launch.get("blocked"):
+            result = parallel_pr_reply(launch, None)
+        else:
+            got, why = parallel_pr_scan(repo, launch["repo"], launch["head"], launch["files"], gh=gh)
+            result = parallel_pr_reply(launch, got, why)
+    if "fallback" in result:
+        write_json(jdir / prcheck.BRIEF, {"node": prcheck.NODE, "cwd": str(repo), "base": start["diff_base"],
+                                          "changed_files": _pr_files(repo, start["diff_base"], request_wheres(rows)),
+                                          "request_wheres": request_wheres(rows), "fallback": result["fallback"]})
+        return {"go": True, "go_role": True, "reason": result["fallback"]}
+    reply = result["reply"]
+    write_json(jdir / prcheck.BRIEF, {"node": prcheck.NODE, "cwd": str(repo), "base": start["diff_base"],
+                                      "changed_files": _pr_files(repo, start["diff_base"], request_wheres(rows)),
+                                      "request_wheres": request_wheres(rows), "fallback": ""})
+    _pr_material(jdir, reply)
+    write_json(jdir / prcheck.EXCLUDED, {"node": prcheck.NODE, "head": head, "excluded": []})
+    m = reply["material"]
+    return {"go": True, "go_role": False, "reason": f"機械が決めた: {m['status']}（{m.get('reason') or m.get('checked') or ''}）"}
+
+
+# ---------------------------------------------------------------- 並行 PR（役の受け付け）
+def check_no_post(reply) -> list:
+    """元 works/blk-pr/scripts/accept.py:24 の check_no_post。conflicts[].handed_over が真の行の pr の一覧（空なら通す）"""
+    rows = reply.get("conflicts") if isinstance(reply, dict) else None
+    if not isinstance(rows, list):
+        return []
+    return [str(c.get("pr")) for c in rows if isinstance(c, dict) and c.get("handed_over")]
+
+
+def prcheck_drafts(reply) -> list:
+    """元 works/.shared/core/prcheck.py:249 の drafts。受け付けた返答の申し送りの下書き [{pr, files, note}]（note を持つ交差だけ。
+    報告の冒頭が人に渡す）。盤面から読む代わりに返答を受ける"""
+    return [{"pr": c["pr"], "files": c["files"], "note": c["note"]}
+            for c in (reply or {}).get("conflicts", []) if isinstance(c, dict) and c.get("note")]
+
+
+def prcheck_take(jdir, reply, repo) -> dict:
+    """元 works/.shared/core/prcheck.py:199 の take と works/blk-pr/scripts/accept.py:34 の take の書き直し。返り {ok, reason}。
+    順: 投稿していない（check_no_post）→ 読むだけの役が作業ツリーを変えていない（入口の写し judge/judge-tree.json と比べる）→
+    素材の形 → 外す hunk（prcheck.check_excluded）。通れば外す hunk を中身の印つきで judge/pr-excluded.json に、申し送りの
+    下書きを judge/pr-downgrades.json に、素材を judge/material-pr-check.json に書く。拒めば何も書かない。
+    写しの schema は実行基盤が役の節の型で照らすので、ここでは素材の status だけを見る"""
+    jdir, repo = pathlib.Path(jdir), pathlib.Path(repo)
+    if not isinstance(reply, dict):
+        return {"ok": False, "reason": "返答が JSON のオブジェクトでない"}
+    posted = check_no_post(reply)
+    if posted:
+        return {"ok": False, "reason": NO_POST + ", ".join(posted)}
+    before = read_json(jdir / TREE_FILE)
+    if not isinstance(before, dict):
+        return {"ok": False, "reason": f"{jdir / TREE_FILE} が無い——役を起こす前の作業ツリーの写しと比べられない"}
+    moved = _w_tree_moved(before, repo)
+    if moved:
+        return {"ok": False, "reason": "読むだけの役が作業ツリーを変えた: 並行 PR の任せ先は読むだけの役で、作業ツリー・HEAD・枝・"
+                "git が無視するファイルを変えてはいけない（checkout・switch・stash・reset・gh pr checkout を打つな）（"
+                + "・".join(moved) + "）"}
+    m = reply.get("material")
+    if not isinstance(m, dict) or m.get("status") not in STATUS:
+        return {"ok": False, "reason": f"返答が型に合わない（直して返し直す）: material.status は {'・'.join(STATUS)} のどれか"}
+    errs = prcheck.check_excluded(reply, repo)
+    if errs:
+        return {"ok": False, "reason": "外す hunk（excluded）が合わない: " + "; ".join(errs)}
+    excluded = prcheck._anchored(reply[prcheck.EXCLUDED_FIELD], repo)
+    bare = {k: v for k, v in reply.items() if k != prcheck.EXCLUDED_FIELD}
+    prcheck._write(jdir / prcheck.EXCLUDED, {"node": prcheck.NODE, "head": before.get("head", ""), "excluded": excluded})
+    write_json(jdir / PR_DOWNGRADES_FILE, prcheck_drafts(bare))
+    _pr_material(jdir, bare)
+    return {"ok": True, "reason": ""}
+
+
+def pr_accept(jdir, raw, repo) -> dict:
+    """節 pr-check-accept の中身。元 works/blk-pr/scripts/accept.py:38 の main（rolekit.main_accept に take を渡す）と
+    works/blk-pr/scripts/collect.py:20 の gave_up（3 回とも拒まれたら止める。by は stopby.PR）の書き直し。返り {ok, done, reason}。
+    拒否は judge/rejects-pr-check.json に積み（rolekit.with_done）、諦めた時は止めの控えを置く（write_stop）"""
+    jdir = pathlib.Path(jdir)
+    reply, why = rolekit.parse_reply(raw)
+    out = prcheck_take(jdir, reply, repo) if reply is not None else {"ok": False, "reason": why}
+    out = rolekit.with_done(jdir, prcheck.ROLE, {"ok": out["ok"], "reason": out["reason"]})
+    if out["done"] and not out["ok"]:
+        write_stop(jdir, stopby.PR, rolekit.given_up_reason(jdir, prcheck.ROLE) or out["reason"])
+    return out
+
+
+# ---------------------------------------------------------------- 世界の解
+def world_dir(jdir) -> pathlib.Path:
+    """元 works/blk-world/lib/worldblk.py:75 の place の書き直し。worldblk の作業の置き場（judge/world/）"""
+    return pathlib.Path(jdir) / worldblk.OUT_DIR
+
+
+def _world_due(jdir) -> dict:
+    """元 works/darkfactory/lib/line_edge.py:1026 の _world_due の書き直し。{world_go, world_purpose_file, reason}: 凍った目的の文
+    （judge/purpose.json）が読めれば、目的の文と目的の役が分けた依頼の解き方（worldmark.means_of。judge/purpose-means.json）を
+    段の入力の形 {purpose_text, means} にして judge/world-purpose.json に書く。読めなければ回さない（理由を返す）。
+    機能の切り替え（features_cut の world）は入口が見るので、ここでは見ない"""
+    jdir = pathlib.Path(jdir)
+    try:
+        doc = read_json(jdir / "purpose.json")
+    except ValueError as e:
+        doc, why = None, str(e)
+    else:
+        why = f"{jdir / 'purpose.json'} が無い" if doc is None else ""
+    if not isinstance(doc, dict) or not isinstance(doc.get("purpose_text"), str):
+        return {"world_go": False, "world_purpose_file": "", "reason": f"目的の文が読めない: {why or '形が違う'}"}
+    p = write_json(jdir / WORLD_PURPOSE_FILE, {"purpose_text": doc["purpose_text"], "means": worldmark.means_of(jdir)})
+    return {"world_go": True, "world_purpose_file": str(p), "reason": ""}
+
+
+def world_intake(jdir, repo) -> dict:
+    """節 world-intake の中身（元 works/blk-world/scripts/intake.py と classes_prep.py を 1 つにした物。中身は worldblk.intake・
+    classes_prep）。返り {due, prompt, reason}: due は言い直す役を起こすか、prompt はその役の指示書の本文（役は道具を持たない）。
+    依頼の行は judge/request.json、web は始めの記録の features_cut に world が在れば off（入口が段ごと切るので、実際は on）。
+    止めの控えが在れば何もしない"""
+    jdir = pathlib.Path(jdir)
+    stop = read_stop(jdir)
+    if stop:
+        return {"due": False, "prompt": "", "reason": f"止めの控えが在る（{stop['stop_reason']}）"}
+    start = start_view(read_json(jdir / START_FILE, {}))
+    web = "off" if WORLD_FEATURE in start["features_cut"] else "on"
+    due = _world_due(jdir)
+    purpose_file = due["world_purpose_file"] or str(jdir / WORLD_PURPOSE_FILE)   # 無いファイルを渡し、intake が理由を残す
+    got = worldblk.intake(world_dir(jdir), request=str(jdir / REQUEST_FILE), purpose_file=purpose_file, web=web, cwd=repo)
+    if not got["due"]:
+        return {"due": False, "prompt": "", "reason": got["reason"] or due["reason"] or "依頼の行が無い"}
+    return {"due": True, "prompt": worldblk.classes_prep(world_dir(jdir))["prompt"], "reason": ""}
+
+
+def world_accept(jdir, role: str, raw, *, get=None) -> dict:
+    """節 world-classes-accept・world-judge-accept の中身（元 works/blk-world/scripts/classes_accept.py・judge_accept.py。中身は
+    worldblk.classes_accept・judge_accept）。返り {ok, done, reason}。返答が JSON でない・置き場の控えが無い時も拒否として返す。
+    拒否は worldblk の控え（judge/world/rejects-<classes|judge>.json。出口の理由が読む）と judge/rejects-<役>.json（rolekit.with_done）
+    の両方に積む。get は web の役の抜き書きを取り直す口（既定は worldblk.fetch。試験が差し替える）。諦めても run は止めない"""
+    jdir = pathlib.Path(jdir)
+    out, inner = world_dir(jdir), WORLD_ROLES[role]
+    reply, why = rolekit.parse_reply(raw)
+    try:
+        if reply is None:
+            got = worldblk._close_round(out, inner, [why])
+        elif role == "world-classes":
+            got = worldblk.classes_accept(out, reply)
+        else:
+            got = worldblk.judge_accept(out, reply, get or worldblk.fetch)
+    except (ValueError, OSError) as e:
+        got = worldblk._close_round(out, inner, [f"置き場の控えが読めない: {e}"])
+    return rolekit.with_done(jdir, role, {"ok": got["ok"], "reason": got["reason"]})
+
+
+def world_plan(jdir) -> dict:
+    """節 world-plan の中身（元 works/blk-world/scripts/plan.py と judge_prep.py を 1 つにした物。中身は worldblk.plan・judge_prep）。
+    返り {due, prompt, reason}: due は web の役を起こすか、prompt はその役の指示書の本文（役は Read を持たない）"""
+    jdir = pathlib.Path(jdir)
+    stop = read_stop(jdir)
+    if stop:
+        return {"due": False, "prompt": "", "reason": f"止めの控えが在る（{stop['stop_reason']}）"}
+    out = world_dir(jdir)
+    try:
+        got = worldblk.plan(out)
+    except ValueError as e:
+        return {"due": False, "prompt": "", "reason": str(e)}
+    if not got["judge_due"]:
+        why = worldblk._why_failed(out, worldblk.CLASSES_ROLE) if not (out / worldblk.CLASSES).is_file() else "取る類が無い"
+        return {"due": False, "prompt": "", "reason": why}
+    return {"due": True, "prompt": worldblk.judge_prep(out)["prompt"], "reason": ""}
+
+
+def world_finish(jdir) -> dict:
+    """節 world-finish の中身（元 works/blk-world/scripts/collect.py の worldblk.finish と、線の境 h-world が出口を盤面の根に写した
+    worldmark.write の書き直し）。行を judge/world.jsonl に、段の控えを judge/world-state.json に書く。返り {ok, status, reason}。
+    落ちた段・網に出られなかった段も run を止めない（持ち主の決め world。status: failed と reason）"""
+    jdir = pathlib.Path(jdir)
+    stop = read_stop(jdir)
+    try:
+        got = worldblk.finish(world_dir(jdir))
+    except (ValueError, OSError, KeyError, TypeError) as e:
+        got = {"status": "failed", "reason": f"出口を組めない: {type(e).__name__}: {e}", "world_file": "", "classes": 0, "dropped": 0}
+    status, reason = got["status"], got["reason"]
+    if stop and status == "ok":
+        status, reason = "failed", f"止めの控えが在る（{stop['stop_reason']}）" + (f"／{reason}" if reason else "")
+    dest = jdir / worldmark.WORLD_FILE
+    src = pathlib.Path(got["world_file"]) if got.get("world_file") else None
+    rows = src.read_text(encoding="utf-8") if status == "ok" and src and src.is_file() else ""
+    dest.write_text(rows, encoding="utf-8")
+    worldmark.write(jdir, status=status, reason=reason, world_file=str(dest), classes=got.get("classes", 0),
+                    dropped=got.get("dropped", 0))
+    return {"ok": True, "status": status, "reason": reason}
 # ================================================================ 並行 PR と世界の解（W）の終わり
 
 

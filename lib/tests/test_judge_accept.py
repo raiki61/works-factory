@@ -487,6 +487,417 @@ class SpecblkCase(unittest.TestCase):
 
 # ================================================================ 並行 PR と世界の解（W）
 # （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
+import hashlib as _w_hashlib  # noqa: E402
+import json as _w_json  # noqa: E402
+import shutil as _w_shutil  # noqa: E402
+import subprocess as _w_subprocess  # noqa: E402
+import tempfile as _w_tempfile  # noqa: E402
+
+import rolekit as _w_rolekit  # noqa: E402
+import stopby as _w_stopby  # noqa: E402
+import webget as _w_webget  # noqa: E402
+import worldblk as _w_worldblk  # noqa: E402
+import worldmark as _w_worldmark  # noqa: E402
+from accept import tree_state as _w_tree_state  # noqa: E402
+
+_W_GITHUB = "git@github.com:o/r.git"
+_W_SEED = "def mean(xs):\n    return sum(xs)\n"
+# 元 works/tests/replies/pr_ok.json・pr_no_conflicts.json・pr_handed_over.json
+_W_PR_OK = {
+    "material": {"status": "found", "count": 1, "detail": "PR #7 が stats.py の mean を同じく書き換えている（gh pr diff 7 -R o/r の hunk @@ -1,3 +1,4 @@）。申し送りの下書きを conflicts[0].note に書いた（投稿していない）"},
+    "repo": "o/r", "listed": 2, "truncated": False,
+    "conflicts": [{"pr": "7", "files": ["stats.py"], "handed_over": False,
+                   "note": "PR #7 の担当へ: この run（判定から入る run）も stats.py の mean を直します。#7 の hunk @@ -1,3 +1,4 @@ と同じ行です。どちらを先に入れるか決めてください。"}],
+    "excluded": [{"pr": "7", "file": "stats.py", "start": 1, "end": 2,
+                  "why": "PR #7 の hunk @@ -1,3 +1,4 @@ が mean の同じ行を書き換える（この run の依頼 1 件目と同じ所）"}],
+}
+_W_PR_NO_CONFLICTS = {
+    "material": {"status": "clean", "checked": "gh -R o/r で open な PR 2 件を引き、自分の PR（headRefOid が HEAD）を除いて、変更ファイルの集合と交差した PR #7 の差分を読んだ。同じファイルの hunk はこの run の変更とぶつからない（衝突 0 件・打ち切りなし）"},
+    "repo": "o/r", "listed": 2, "truncated": False, "conflicts": [], "excluded": [],
+}
+_W_PR_HANDED_OVER = {
+    "material": {"status": "found", "count": 1, "detail": "PR #7 が stats.py の mean を同じく書き換えている。担当の PR に申し送った"},
+    "repo": "o/r", "listed": 2, "truncated": False,
+    "conflicts": [{"pr": "7", "files": ["stats.py"], "handed_over": True, "note": "gh pr comment 7 -R o/r で申し送った"}],
+    "excluded": [],
+}
+
+
+def _w_git(repo, *args):
+    return _w_subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],
+                             check=True, capture_output=True, text=True, encoding="utf-8").stdout
+
+
+def _w_fake_gh(prs, files):
+    """lib/ghreads._gh の代わりの読む口（本物の gh・GitHub に触らない）。prs は pr list の返り、files は番号 → 変更ファイル"""
+    calls = []
+
+    def gh(*args):
+        calls.append(args)
+        if args[:2] == ("pr", "list"):
+            return prs, None, False
+        if args[:2] == ("pr", "view"):
+            return {"files": [{"path": p} for p in files.get(args[2], [])]}, None, False
+        return None, f"知らない語 {args}", False
+    gh.calls = calls
+    return gh
+
+
+def _w_never(*args):
+    raise AssertionError(f"gh を呼んではいけない: {args}")
+
+
+class _WPrBase(unittest.TestCase):
+    """並行 PR の場面（元 test_blk_pr の PrCase）: 判定から入る run の対象（stats.py を持つ git の木）と judge/ の置き場"""
+
+    def setUp(self):
+        self.tmp = pathlib.Path(_w_tempfile.mkdtemp(prefix="judge-w-"))
+        self.addCleanup(_w_shutil.rmtree, self.tmp, ignore_errors=True)
+        self.repo, self.jdir = self.tmp / "repo", self.tmp / "art" / ja.JUDGE_DIR
+        self.repo.mkdir()
+        self.jdir.mkdir(parents=True)
+        _w_git(self.repo, "init", "-q")
+        (self.repo / "stats.py").write_text(_W_SEED, encoding="utf-8")
+        _w_git(self.repo, "add", "-A")
+        _w_git(self.repo, "commit", "-q", "-m", "seed")
+        _w_git(self.repo, "remote", "add", "origin", _W_GITHUB)
+        self.head = _w_git(self.repo, "rev-parse", "HEAD").strip()
+        ja.write_json(self.jdir / ja.START_FILE, ja.start_view({"base_rev": self.head, "input": {"base": {"rev": self.head}}}))
+        ja.write_json(self.jdir / ja.REQUEST_FILE, [{"where": "stats.py:2", "text": "mean が数で割っていない"}])
+
+    def scan(self, gh=None, which=lambda name: "/bin/gh"):
+        return ja.pr_scan(self.jdir, self.repo, gh=gh or _w_never, which=which)
+
+    def material(self):
+        return _w_json.loads((self.jdir / ja.MATERIAL_PR_FILE).read_text(encoding="utf-8"))
+
+    def snap(self):
+        """入口が置く作業ツリーの写し（judge/judge-tree.json。元 prcheck.snapshot の pr-snapshot.json）"""
+        ja.write_json(self.jdir / ja.TREE_FILE, _w_tree_state(self.repo))
+
+
+class WPrScanCase(_WPrBase):
+    def test_no_crossing_is_decided_by_machine(self):
+        """元 test_blk_pr の test_helper_by_engine_when_no_crossing: 交差 0 → 機械で済む（役は要らない）。素材は clean、
+        自分の PR（headRefOid が HEAD）は外す。外す hunk の一覧は空で置く"""
+        gh = _w_fake_gh([{"number": 3, "headRefName": "me", "headRefOid": self.head},
+                         {"number": 7, "headRefName": "x", "headRefOid": "f" * 40}], {"7": ["other.py"], "3": ["stats.py"]})
+        got = self.scan(gh)
+        self.assertEqual((got["go"], got["go_role"]), (True, False), got)
+        self.assertEqual(self.material()["materials"]["parallel_pr"]["status"], "clean")
+        self.assertEqual(self.material()["role"], "pr-check")
+        self.assertNotIn(("pr", "view", "3", "-R", "o/r", "--json", "files"), gh.calls, "自分の PR は見ない")
+        doc = _w_json.loads((self.jdir / "pr-excluded.json").read_text(encoding="utf-8"))
+        self.assertEqual((doc["node"], doc["excluded"]), ("p0.parallel_pr", []))
+        self.assertTrue(all("-R" in c for c in gh.calls), "gh は必ず -R で呼ぶ")
+
+    def test_crossing_falls_back_to_role(self):
+        """元 test_blk_pr の test_fallback_on_crossing_sets_role_needed: 交差 1 件 → 役へ（go_role）。渡し物に理由と
+        交差を取る集合（差分が空なので依頼の where が名指す追跡中のパス）。素材は役が返すまで書かない"""
+        got = self.scan(_w_fake_gh([{"number": 7, "headRefOid": "f" * 40}], {"7": ["stats.py"]}))
+        self.assertEqual((got["go"], got["go_role"]), (True, True))
+        self.assertIn("交差", got["reason"])
+        brief = _w_json.loads((self.jdir / "pr-brief.json").read_text(encoding="utf-8"))
+        self.assertEqual((brief["node"], brief["changed_files"], brief["fallback"]), ("p0.parallel_pr", ["stats.py"], got["reason"]))
+        self.assertEqual(brief["request_wheres"], ["stats.py:2"])
+        self.assertFalse((self.jdir / ja.MATERIAL_PR_FILE).exists())
+
+    def test_diff_files_win_over_request_wheres(self):
+        """元 review-loop.py の _pr_files: 差分の根から変わったファイルが在れば、それが交差を取る集合（依頼の where は使わない）"""
+        (self.repo / "new.py").write_text("x = 1\n", encoding="utf-8")
+        got = self.scan(_w_fake_gh([{"number": 7, "headRefOid": "f" * 40}], {"7": ["stats.py"]}))
+        self.assertEqual(got["go_role"], False, got)
+        self.assertEqual(self.material()["materials"]["parallel_pr"]["status"], "clean")
+
+    def test_gh_missing_falls_back(self):
+        """元 test_blk_pr の test_fallback_when_gh_missing: gh が無い → 何も走らせずに役へ"""
+        got = self.scan(which=lambda name: None)
+        self.assertTrue(got["go_role"])
+        self.assertIn("gh", got["reason"])
+
+    def test_no_forge_is_not_applicable(self):
+        """元 test_forge の forge の無い run（entry の parallel_pr_due・fill_materials の組み手）: remote が GitHub でない
+        （ローカルのパス）→ 役を起こさず、素材は not_applicable（no_forge: …）"""
+        _w_git(self.repo, "remote", "set-url", "origin", str(self.tmp / "elsewhere"))
+        got = self.scan()
+        self.assertEqual((got["go"], got["go_role"]), (True, False))
+        m = self.material()["materials"]["parallel_pr"]
+        self.assertEqual(m["status"], "not_applicable")
+        self.assertTrue(m["reason"].startswith("no_forge: local_path"), m)
+
+    def test_empty_set_is_not_run(self):
+        """元 test_blk_pr の test_blocked_is_engine_with_reason: 交差を取る集合が空 → 機械が not_run で済ませ、理由に「空」"""
+        ja.write_json(self.jdir / ja.REQUEST_FILE, [{"where": "nowhere.py", "text": "x"}])
+        got = self.scan()
+        self.assertFalse(got["go_role"])
+        m = self.material()["materials"]["parallel_pr"]
+        self.assertEqual(m["status"], "not_run")
+        self.assertIn("空", m["reason"])
+
+    def test_truncated_and_unreadable_wait_for_human(self):
+        """元 review-loop.py の parallel_pr_reply: 一覧が上限で打ち切られた・gh が読めない → awaiting_human（衝突なしと書かない）"""
+        many = [{"number": n, "headRefOid": "f" * 40} for n in range(ja.PR_LIMIT)]
+        self.scan(_w_fake_gh(many, {}))
+        self.assertIn("打ち切られた", self.material()["materials"]["parallel_pr"]["reason"])
+        self.scan(lambda *a: (None, "gh pr が exit 1: HTTP 401", False))
+        m = self.material()["materials"]["parallel_pr"]
+        self.assertEqual(m["status"], "awaiting_human")
+        self.assertIn("HTTP 401", m["reason"])
+
+    def test_stopped_run_does_not_go(self):
+        """仕様の段が止めた run は先へ進めない（go 偽）"""
+        ja.write_stop(self.jdir, "human:spec-gate", "要らない")
+        got = self.scan()
+        self.assertEqual((got["go"], got["go_role"]), (False, False))
+
+    def test_github_repo_redacts_token(self):
+        """元 entry.py の github_repo_redacted: GitHub でない remote の理由の文に URL の userinfo（トークン）を載せない"""
+        _w_git(self.repo, "remote", "set-url", "origin", "https://user:SECRET@git.example.com/o/r.git")
+        slug, why = ja._github_repo(self.repo)
+        self.assertIsNone(slug)
+        self.assertNotIn("SECRET", why)
+        _w_git(self.repo, "remote", "set-url", "origin", "https://github.com/o/r.git")
+        self.assertEqual(ja._github_repo(self.repo), ("o/r", None))
+
+
+class WPrAcceptCase(_WPrBase):
+    def setUp(self):
+        super().setUp()
+        self.snap()
+
+    def accept(self, reply):
+        return ja.pr_accept(self.jdir, _w_json.dumps(reply, ensure_ascii=False), self.repo)
+
+    def test_check_no_post(self):
+        """元 test_blk_pr の test_check_no_post"""
+        self.assertEqual(ja.check_no_post(_W_PR_HANDED_OVER), ["7"])
+        self.assertEqual(ja.check_no_post(_W_PR_OK), [])
+        self.assertEqual(ja.check_no_post(_W_PR_NO_CONFLICTS), [])
+        two = _w_json.loads(_w_json.dumps(_W_PR_OK))
+        two["conflicts"] += [{"pr": "9", "files": ["a"], "handed_over": True}, {"pr": "11", "files": ["b"], "handed_over": True}]
+        self.assertEqual(ja.check_no_post(two), ["9", "11"])
+        self.assertEqual(ja.check_no_post({"conflicts": "x"}), [])
+
+    def test_handed_over_true_rejected(self):
+        """元 test_blk_pr の test_handed_over_true_rejected: handed_over true が 1 件 → ok false、文に pr と「投稿しない」。何も書かない"""
+        got = self.accept(_W_PR_HANDED_OVER)
+        self.assertEqual((got["ok"], got["done"]), (False, False))
+        self.assertIn("投稿しない", got["reason"])
+        self.assertTrue(got["reason"].endswith(": 7"), got["reason"])
+        self.assertFalse((self.jdir / "pr-excluded.json").exists())
+
+    def test_handover_draft_accepted_with_anchor(self):
+        """元 test_blk_pr の test_handover_draft_accepted・test_excluded_hunks_leave_scope・test_excluded_carries_content_anchor:
+        通れば外す hunk が中身と sha256 と写しの HEAD つきで pr-excluded.json に、申し送りの下書きが pr-downgrades.json に、
+        素材（excluded を外した返答）が material-pr-check.json に置かれる"""
+        got = self.accept(_W_PR_OK)
+        self.assertEqual(got, {"ok": True, "done": True, "reason": ""})
+        doc = _w_json.loads((self.jdir / "pr-excluded.json").read_text(encoding="utf-8"))
+        self.assertEqual((doc["node"], doc["head"]), ("p0.parallel_pr", self.head))
+        h = doc["excluded"][0]
+        self.assertEqual({k: h[k] for k in ("pr", "file", "start", "end", "why")}, _W_PR_OK["excluded"][0])
+        self.assertEqual(h["text"], _W_SEED)
+        self.assertEqual(h["sha256"], _w_hashlib.sha256(_W_SEED.encode("utf-8")).hexdigest())
+        drafts = _w_json.loads((self.jdir / ja.PR_DOWNGRADES_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(drafts, [{"pr": "7", "files": ["stats.py"], "note": _W_PR_OK["conflicts"][0]["note"]}])
+        mat = self.material()
+        self.assertEqual(mat["materials"]["parallel_pr"]["status"], "found")
+        self.assertNotIn("excluded", mat["reply"])
+
+    def test_no_conflicts_reply_accepted(self):
+        """元 test_blk_pr の test_no_conflicts_reply_accepted"""
+        self.assertTrue(self.accept(_W_PR_NO_CONFLICTS)["ok"])
+        doc = _w_json.loads((self.jdir / "pr-excluded.json").read_text(encoding="utf-8"))
+        self.assertEqual(doc["excluded"], [])
+
+    def test_excluded_checked(self):
+        """元 test_blk_pr の test_excluded_checked: 外す hunk の誤り → ok false。何も書かない"""
+        hunk = _W_PR_OK["excluded"][0]
+        cases = {"excluded が無い": {k: v for k, v in _W_PR_OK.items() if k != "excluded"},
+                 "conflicts に無い": dict(_W_PR_OK, excluded=[dict(hunk, pr="99")]),
+                 "交差したファイル": dict(_W_PR_OK, excluded=[dict(hunk, file="other.py")]),
+                 "より大きい": dict(_W_PR_OK, excluded=[dict(hunk, start=2, end=1)]),
+                 "行の数 2 を超える": dict(_W_PR_OK, excluded=[dict(hunk, end=3)]),
+                 "note": dict(_W_PR_OK, conflicts=[{k: v for k, v in _W_PR_OK["conflicts"][0].items() if k != "note"}]),
+                 "型": dict(_W_PR_OK, excluded=[dict(hunk, start=0)])}
+        for word, bad in cases.items():
+            got = ja.prcheck_take(self.jdir, bad, self.repo)
+            self.assertFalse(got["ok"], word)
+            self.assertIn(word, got["reason"], word)
+            self.assertFalse((self.jdir / "pr-excluded.json").exists(), word)
+
+    def test_fallback_role_reads_only(self):
+        """元 test_blk_pr の test_fallback_role_reads_only・test_head_move_rejected: 入口の写しの後に作業ツリーや HEAD を
+        変えて受け付け → ok false、文に「作業ツリーを変えた」"""
+        (self.repo / "stats.py").write_text("changed\n", encoding="utf-8")
+        got = ja.prcheck_take(self.jdir, _W_PR_OK, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn("作業ツリーを変えた", got["reason"])
+        (self.repo / "stats.py").write_text(_W_SEED, encoding="utf-8")
+        _w_git(self.repo, "checkout", "-q", "-b", "other")
+        self.assertIn("ref", ja.prcheck_take(self.jdir, _W_PR_OK, self.repo)["reason"])
+
+    def test_malformed_reply_bounced_not_crashed(self):
+        """元 test_blk_pr の test_malformed_reply_bounced_not_crashed・test_accept_script_unreadable_reply: JSON でない・
+        素材の形が違う返答 → 例外でなく ok false"""
+        got = ja.pr_accept(self.jdir, "not json", self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn("JSON", got["reason"])
+        self.assertIn("型", ja.prcheck_take(self.jdir, dict(_W_PR_OK, material={"status": "maybe"}), self.repo)["reason"])
+
+    def test_third_rejection_gives_up_and_stops(self):
+        """元 blk-pr/scripts/collect.py の gave_up（rolekit.gave_up。by は stopby.PR）: 3 回目の拒否で done、止めの控えを置く"""
+        for n in range(1, _w_rolekit.GIVE_UP_AFTER + 1):
+            got = self.accept(_W_PR_HANDED_OVER)
+            self.assertEqual(got["done"], n == _w_rolekit.GIVE_UP_AFTER, n)
+        self.assertEqual(len(_w_json.loads((self.jdir / "rejects-pr-check.json").read_text(encoding="utf-8"))), 3)
+        self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], _w_stopby.PR)
+
+
+# 元 works/tests/test_blk_world.py の見本
+_W_URL = "https://example.org/guide/tdd"
+_W_PAGE = ("<html><body><p>Write a failing test first. A compile error is not a red test: add the smallest stub so the test runs"
+           " and fails on the expected assertion.</p></body></html>").encode()
+_W_GOOD = "A compile error is not a red test: add the smallest stub so the test runs and fails on the expected assertion."
+_W_FINDINGS = [
+    {"where": "src/red_check.py:40", "text": "赤の判定がコンパイルの要る対象で読み込みの失敗を赤に数える。読むだけの役を足して生のログから判じさせる"},
+    {"where": "docs/guide.md", "text": "手引きの誤字（赤を緑と書いている）"},
+]
+_W_PROBLEM = "テストを先に書く開発で、まだ無い機能を呼ぶテストを、コンパイルの要る対象でどう赤にするか"
+_W_CLASSES = {"classes": [
+    {"finding": 1, "problem": _W_PROBLEM, "activity": "テストを先に書く開発", "proposed": "読むだけの役を足して生のログから判じさせる",
+     "queries": ["test-first red phase compile error stub"]},
+    {"finding": 2, "problem": "文書の誤字を直す", "activity": "文書の校正", "proposed": "", "queries": ["proofreading documentation typos practice"]},
+]}
+
+
+def _w_judged(finding=1, **kw):
+    row = {"finding": finding, "practice": "読み込みの失敗は赤に数えず、最小の仮の実装で走らせてから期待違いの失敗を赤とする",
+           "sources": [], "applies": "赤の判定の直し", "not_applies": "", "verdict": "differs",
+           "challenge": "依頼は読む役を足す、定石は仮の実装で走らせる。読み込みの失敗が赤でない訳が無い限り定石を選ぶ"}
+    row.update(kw)
+    return row
+
+
+class WWorldCase(unittest.TestCase):
+    """世界の解の段を judge/ の置き場で回す（元 test_blk_world の Scripts.test_web_off_run_reaches_exit と Verify・Judge の場面を、
+    節の中身の関数で。網に出ない: 取り直しの口 get を差し替える）"""
+
+    def setUp(self):
+        self.tmp = pathlib.Path(_w_tempfile.mkdtemp(prefix="judge-w-world-"))
+        self.addCleanup(_w_shutil.rmtree, self.tmp, ignore_errors=True)
+        self.jdir = self.tmp / ja.JUDGE_DIR
+        self.jdir.mkdir()
+        ja.write_json(self.jdir / ja.START_FILE, ja.start_view({}))
+        ja.write_json(self.jdir / ja.REQUEST_FILE, _W_FINDINGS)
+        ja.write_json(self.jdir / "purpose.json", {"purpose_text": "赤を言語に依らず判じる", "source": "request",
+                                                   "known_weaknesses": [], "source_files": []})
+        ja.write_json(self.jdir / "purpose-means.json", {"means": ["読むだけの役を足す"]})
+
+    def intake(self):
+        return ja.world_intake(self.jdir, self.tmp)
+
+    def through_classes(self):
+        self.assertTrue(self.intake()["due"])
+        self.assertTrue(ja.world_accept(self.jdir, "world-classes", _w_json.dumps(_W_CLASSES, ensure_ascii=False))["ok"])
+
+    def test_intake_shows_request_purpose_and_means(self):
+        """元 test_blk_world の test_purpose_means_are_shown: 言い直す役の指示書の本文に依頼の行・目的の文・依頼の解き方が載る。
+        段の入力の目的の文は judge/world-purpose.json（元 line_edge._world_due）、worldblk の控えは judge/world/ の下"""
+        got = self.intake()
+        self.assertEqual((got["due"], got["reason"]), (True, ""))
+        for want in ("赤を言語に依らず判じる", "読むだけの役を足す", _W_FINDINGS[0]["where"]):
+            self.assertIn(want, got["prompt"])
+        doc = _w_json.loads((self.jdir / ja.WORLD_PURPOSE_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(doc, {"purpose_text": "赤を言語に依らず判じる", "means": ["読むだけの役を足す"]})
+        self.assertTrue((self.jdir / "world" / _w_worldblk.INTAKE).is_file())
+        self.assertTrue(_w_json.loads((self.jdir / "world" / _w_worldblk.INTAKE).read_text(encoding="utf-8"))["web"])
+
+    def test_world_cut_turns_web_off(self):
+        """始めの記録の features_cut に world が在れば web は off（元 entry.py の WORLD_FEATURE）"""
+        ja.write_json(self.jdir / ja.START_FILE, ja.start_view({"features_cut": ["world"]}))
+        self.intake()
+        self.assertFalse(_w_json.loads((self.jdir / "world" / _w_worldblk.INTAKE).read_text(encoding="utf-8"))["web"])
+
+    def test_missing_purpose_is_not_due_and_finish_says_why(self):
+        """元 line_edge._world_due: 目的の文が読めなければ回さない。出口は status failed で理由に目的の文のファイル"""
+        (self.jdir / "purpose.json").unlink()
+        got = self.intake()
+        self.assertFalse(got["due"])
+        fin = ja.world_finish(self.jdir)
+        self.assertEqual((fin["ok"], fin["status"]), (True, "failed"))
+        self.assertIn(ja.WORLD_PURPOSE_FILE, fin["reason"])
+
+    def test_stopped_run_is_not_due(self):
+        ja.write_stop(self.jdir, _w_stopby.PURPOSE, "目的が決まらない")
+        self.assertEqual(self.intake()["due"], False)
+        self.assertEqual(ja.world_plan(self.jdir)["due"], False)
+
+    def test_full_stage_writes_world_rows_and_state(self):
+        """元 test_blk_world の test_web_row_carries_kept_sources・test_verify_keeps_fetched_excerpt_and_caps_total: 言い直し →
+        類を決める → web の役（指示書の本文に excerpts の返し方）→ 抜き書きを取り直した本文で照らす（字のまま無い抜き書きは落ち、
+        それを指す根拠も外れる）→ judge/world.jsonl と judge/world-state.json（worldmark.stage_rows が読む）"""
+        self.through_classes()
+        plan = ja.world_plan(self.jdir)
+        self.assertTrue(plan["due"], plan)
+        self.assertIn("excerpts に", plan["prompt"])
+        self.assertNotIn(_W_FINDINGS[0]["text"], plan["prompt"])
+        made_up = {"id": "x2", "url": _W_URL, "excerpt": "Nothing like this sentence is on that page at all."}
+        reply = {"rows": [_w_judged(sources=["x1", "x2"]), _w_judged(2, verdict="none", challenge="")],
+                 "excerpts": [{"id": "x1", "url": _W_URL, "excerpt": _W_GOOD}, made_up]}
+        got = ja.world_accept(self.jdir, "world-judge", _w_json.dumps(reply, ensure_ascii=False), get=lambda u: (200, _W_PAGE))
+        self.assertEqual(got, {"ok": True, "done": True, "reason": ""})
+        fin = ja.world_finish(self.jdir)
+        self.assertEqual((fin["ok"], fin["status"]), (True, "ok"), fin)
+        rows = _w_worldmark.rows(self.jdir / _w_worldmark.WORLD_FILE)
+        self.assertEqual([(r["basis"], [s["id"] for s in r["sources"]]) for r in rows], [("web", ["x1"]), ("knowledge", [])])
+        self.assertEqual(rows[0]["where"], _W_FINDINGS[0]["where"])
+        state = _w_worldmark.read(self.jdir)
+        self.assertEqual((state["status"], state["classes"], state["dropped"]), ("ok", 2, 1))
+        self.assertEqual(_w_worldmark.stage_rows(self.jdir), rows)
+
+    def test_offline_run_still_finishes(self):
+        """元 test_blk_world の test_verified_fields_offline_and_web_off: 網に届かない run は止めず、行は知識だけ（NOT_WEB）"""
+        self.through_classes()
+        ja.world_plan(self.jdir)
+
+        def down(url):
+            raise _w_webget.FetchError("網に届かない")
+        reply = {"rows": [_w_judged(sources=["x1"]), _w_judged(2, verdict="none", challenge="")],
+                 "excerpts": [{"id": "x1", "url": _W_URL, "excerpt": _W_GOOD}]}
+        self.assertTrue(ja.world_accept(self.jdir, "world-judge", _w_json.dumps(reply), get=down)["ok"])
+        fin = ja.world_finish(self.jdir)
+        self.assertEqual(fin["status"], "ok")
+        self.assertIn(_w_worldmark.NOT_WEB, fin["reason"])
+        self.assertEqual({r["basis"] for r in _w_worldmark.rows(self.jdir / _w_worldmark.WORLD_FILE)}, {"knowledge"})
+
+    def test_rejections_counted_and_give_up_does_not_stop(self):
+        """元 test_blk_world の test_rejections_counted_by_rolekit・test_classes_given_up_skips_everything: JSON でない返答も
+        拒否として数え、3 回目で done。web の役は起こさず、出口は status failed（言い直す役）で、run は止めない"""
+        self.intake()
+        for n in range(1, _w_rolekit.GIVE_UP_AFTER + 1):
+            got = ja.world_accept(self.jdir, "world-classes", "not json" if n == 1 else '{"classes": []}')
+            self.assertEqual((got["ok"], got["done"]), (False, n == _w_rolekit.GIVE_UP_AFTER), n)
+        self.assertEqual(len(_w_rolekit.rejected(self.jdir, "world-classes")), 3)
+        self.assertEqual(len(_w_rolekit.rejected(self.jdir / "world", _w_worldblk.CLASSES_ROLE)), 3)
+        plan = ja.world_plan(self.jdir)
+        self.assertFalse(plan["due"])
+        self.assertIn("3 回とも", plan["reason"])
+        fin = ja.world_finish(self.jdir)
+        self.assertEqual((fin["ok"], fin["status"]), (True, "failed"))
+        self.assertIn("言い直す役", fin["reason"])
+        self.assertIsNone(ja.read_stop(self.jdir))
+        self.assertEqual(_w_worldmark.read(self.jdir)["status"], "failed")
+        self.assertIsNone(_w_worldmark.stage_rows(self.jdir))
+
+    def test_judge_reject_names_the_problem(self):
+        """元 test_blk_world の Judge.test_differs_needs_challenge・test_practice_with_target_identifier_is_refused"""
+        self.through_classes()
+        ja.world_plan(self.jdir)
+        bad = {"rows": [_w_judged(challenge="短い"), _w_judged(2, verdict="none", challenge="")], "excerpts": []}
+        self.assertIn("challenge", ja.world_accept(self.jdir, "world-judge", _w_json.dumps(bad))["reason"])
+        bad = {"rows": [_w_judged(practice="src/red_check.py を直す"), _w_judged(2, verdict="none", challenge="")], "excerpts": []}
+        self.assertIn("src/red_check.py", ja.world_accept(self.jdir, "world-judge", _w_json.dumps(bad))["reason"])
 # ================================================================ 並行 PR と世界の解（W）の終わり
 
 
