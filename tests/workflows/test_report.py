@@ -118,7 +118,7 @@ class ShapeCase(unittest.TestCase):
             self.assertEqual(node["sandbox"], SANDBOX)
             self.assertEqual((node["model"], node["effort"]), ("sonnet", "medium"))
         self.assertEqual(write["output_format"], {k: v for k, v in report_roles.TEXT_SCHEMA.items()})
-        self.assertEqual(cold["output_format"], report_roles.COLD_SCHEMA)
+        self.assertEqual(cold["output_format"], runreport.COLD_SCHEMA)
 
     def test_return_node_runs_whatever_came_before(self):
         self.assertEqual(NODES["report"]["trigger_rule"], "all_done")

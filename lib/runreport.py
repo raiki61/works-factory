@@ -40,6 +40,12 @@ REJECTS_FILE = "report-rejects.json"    # 拒否の行の控え（元 report_rol
 REJECT_TEXT = "reject-{n}.md"           # 拒否の訳の本文（書き手が次の回に Read する）
 FALLBACK_FILE = "report-unwritten.md"   # 機械の報告も書けない時の、訳だけの 1 ファイル
 REPORT_NODE = report_roles.REPORT_NODES[-1]   # 拒否の行の node（count_rejects が数える節の名）
+# 初見の読み手（report.cold_check）の返答の型。verdict の enum が受け付けの読む判定の語の正本
+COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "decidable"], "additionalProperties": False,
+               "properties": {"verdict": {"type": "string", "enum": ["pass", "redesign-needed"]},
+                              "stops": {"type": "array", "items": {"type": "string"}},
+                              "guessed": {"type": "array", "items": {"type": "string"}},
+                              "decidable": {"type": "boolean"}}}
 
 COST_ROWS = ("node_complete", "node_error")   # 自分の費用を報告しうる行
 DONE_ROWS = ("node_complete", "node_skipped")
@@ -516,7 +522,7 @@ def _parse(raw) -> tuple[dict | None, str]:
 def _cold_of(cold) -> dict:
     got, _ = _parse(cold)
     got = got or {}
-    verdict = got.get("verdict") if got.get("verdict") in report_roles.COLD_SCHEMA["properties"]["verdict"]["enum"] else ""
+    verdict = got.get("verdict") if got.get("verdict") in COLD_SCHEMA["properties"]["verdict"]["enum"] else ""
     return {"verdict": verdict, "stops": [str(s) for s in _list(got.get("stops"))],
             "guessed": [str(g) for g in _list(got.get("guessed"))], "decidable": got.get("decidable") is True}
 
