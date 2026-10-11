@@ -5,7 +5,7 @@
 """節 group-end（形 group の子の run の終わり）: 組の結果を out_dir/<group_id>/result.json に書く（fixboard.group_result）。
 
 読む物（無ければ空で読む）: 組の置き場（fixboard.group_dir）の group-start.json（始めの木）と、自分の置き場の
-tdd-start.json（TDD の輪の頭の返り。輪の結果は tddloop.exit_fields）・fix-units.json（修正の輪の単位ごとの結末
+tdd-start.json（TDD の輪の頭の返り。輪の結果は tddloop.exit_fields、輪の状態のパスは tdd_state として結果に載せる）・fix-units.json（修正の輪の単位ごとの結末
 {unit_key: {status, reason}}）・fix-reply.json（最後に受け付けた修正役の返答。異議 rejudge_requested と 6 つの印）・
 allowed-tests.json（許したテストの変更のパス）・conflicts.json（申し出。conflict.items）。終わりの木は作業ツリーの今の姿
 （groups.end_tree）。
@@ -55,7 +55,7 @@ def main() -> dict:
     reply_path = place / fixboard.FIX_REPLY_FILE
     result = fixboard.group_result(
         group, start_tree=str(began.get("start_tree") or fixboard.start_tree(place)), end_tree=groups.end_tree(repo),
-        tdd=tdd_exit(fixboard.read_json(place / fixboard.TDD_START_FILE)),
+        tdd=tdd_exit(fixboard.read_json(place / fixboard.TDD_START_FILE)), tdd_state=fixboard.loop_files(place)[0],
         fix_units=fixboard.read_json(place / fixboard.FIX_UNITS_FILE, {}), reply=fixboard.read_json(reply_path),
         reply_file=str(reply_path) if reply_path.is_file() else "",
         allowed=fixboard.read_json(place / fixboard.ALLOWED_TESTS_FILE, []) or [], conflicts=conflict.items(place))

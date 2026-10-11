@@ -12,7 +12,8 @@
 並べない run は子が親の木で直したので当てない。結果のファイルが在れば returned: true、無い組は、その子が親の木に残した変更を
 子の始めの木に戻して（fixboard.drop_unreturned。次の組の group-start が先に戻した組はその控え）returned: false と理由。
 置き場に join.json = {par, groups: [{group_id, unit_ids, returned, reason}], units: [{unit_id, group_id, status, reason}]} を書き、
-組の差分は join/<group_id>.diff に控える。返り {groups: 組の数, returned: 戻せた組の数}。
+組の差分は join/<group_id>.diff に控える。戻せた組の子の TDD の輪の状態（結果の tdd_state）は親の置き場の tdd-<k>/ に写す
+（fixboard.adopt_tdd_states。裁定の後の修正の受け付けが読む）。返り {groups: 組の数, returned: 戻せた組の数}。
 置き場の groups.json が無い・読めない・git が効かない: 標準エラーに 1 行で 1。
 """
 import sys
@@ -82,6 +83,7 @@ def main() -> dict:
                 fixboard.DROPPED.format(paths="・".join(dropped)[:300]) if dropped else ""))
     for g in plan["groups"]:
         outcomes.setdefault(g["group_id"], (None, False, fixboard.NO_RESULT))
+    fixboard.adopt_tdd_states(place, [outcomes[g["group_id"]][0] for g in plan["groups"] if outcomes[g["group_id"]][1]])
     rows, units = fixboard.join_rows(plan["groups"], outcomes)
     fixboard.write_json(place / fixboard.JOIN_FILE, {"par": bool(plan["par"]), "groups": rows, "units": units})
     return {"groups": len(rows), "returned": sum(1 for r in rows if r["returned"])}

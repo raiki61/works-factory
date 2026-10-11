@@ -3,7 +3,8 @@
 # dependencies = []
 # ///
 """節 fix-ruled-accept（形 "" の裁定の後の修正の輪の終わり）: 裁定の後の修正役の返答を受け付ける（fixboard.accept_reply の ruled。
-裁定 fix_test_scope の limits のテストの変更はここで初めて許す。新しい申し出は機械が ask_human に裁いて積む）。
+裁定 fix_test_scope の limits のテストの変更はここで初めて許す。新しい申し出は機械が ask_human に裁いて積む）。TDD の輪の状態は
+join が組の子から写した物（fixboard.ruled_states。凍結したテスト・範囲・変更に当たる試験の確かめに使う）。
 
 - 範囲の相談の周（入力 consulted が true）は受け付けを回さず done: false
 - 役を起こさなかった（入力 reply が null。直す裁定が無い）周は done: true
@@ -48,10 +49,11 @@ def main() -> dict:
     start = startrec.read(place)
     judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
     head = fixboard.stage_head(place, fixboard.RULED_HEAD_FILE)
+    state, tests_state = fixboard.ruled_states(place)
     fixio.drop_runner_env()   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
     got = fixboard.accept_reply(reply, place, repo, pass_="ruled", iteration=iteration, owed=owed,
-                                judged=judgment.get("units"), suite=str(start.get("tdd_suite") or ""), head=head,
-                                skip=fixio.SKIP)
+                                judged=judgment.get("units"), suite=str(start.get("tdd_suite") or ""), state=state,
+                                tests_state=tests_state, head=head, skip=fixio.SKIP)
     fixboard.write_json(place / fixboard.FIX_UNITS_FILE, got["units"])
     if got["ok"]:
         path = place / fixboard.RULED_REPLY_FILE

@@ -745,6 +745,7 @@ GROUPS_FILE = "groups.json"            # {groups: [{group_id, …}], out_dir, st
 ASSERT_FILE = "assert-changed.json"    # 変更の確かめの結果 {ok, reason}（assert-changed が書き、delta-cut・collect が読む）
 RESULT_FILE = "result.json"            # 組の子の結果 <out_dir>/<group_id>/result.json（reply_file に受け付けた修正役の返答の写し）
 DEPTH_FILE = "depth.json"              # 単位ごとの深さ [{unit_id, depth, why}]（plan の返り depth の写し）
+DEPTH_RAISED_FILE = "depth-raised.json"   # 修正の後の信号で上げた深さの控え（depth.raise_doc の形。redepth が書く）
 PLAN_REPLY_FILE = "p2.fix_plan.json"   # 修正案の役の返答の写し（{"plan": [...]}。承認済みの項目の unit_keys の出どころ）
 JUDGMENT_FILE = "judgment.json"        # 判定の写し
 RIPPLE_FILE = "ripple.json"            # 波及の一覧の写し
@@ -797,10 +798,9 @@ def policy_brief(policy_md) -> dict:
         raise ValueError(f"人の方針の文書 {policy_md} が読めない: {e}") from None
 
 
-def depth_skip(place) -> str:
-    """置き場の depth.json（[{unit_id, depth, why}]。depth.write の形 {units: {…}} も読む）の単位が全部軽量なら、差分の審査を
-    省く理由の文（depth.skip_reason）。標準の単位が在る・単位が無い・控えが無ければ空。読めない・形が違えば ValueError。
-    元 works/darkfactory/lib/depth.py の skip_reason を線の h-redepth が盤面の控えで読んだ所を、置き場の写しで受ける"""
+def depth_doc(place):
+    """置き場の深さの控え（depth.json の [{unit_id, depth, why}]。depth.write の形 {units: {…}} も読む）を depth の控えの形
+    {units: {key: {depth, why: [...]}}, …} にした物。控えが無ければ None。読めない・形が違えば ValueError"""
     import depth
     path = pathlib.Path(place) / DEPTH_FILE
     doc = read_json(path)
@@ -810,7 +810,7 @@ def depth_skip(place) -> str:
         except ValueError as e:
             raise ValueError(f"深さの控え {path} の中の字が JSON でない: {e}") from None
     if doc is None:
-        return ""
+        return None
     if isinstance(doc, list):
         units = {}
         for r in doc:
@@ -821,6 +821,82 @@ def depth_skip(place) -> str:
         doc = {"units": units}
     if not isinstance(doc, dict) or not isinstance(doc.get("units"), dict):
         raise ValueError(f"深さの控え {path} の形が違う（行の配列か units が要る）")
+    return doc
+
+
+def _trace_rows(place, op: str) -> list:
+    """置き場の trace.jsonl の op の行（読めない行は飛ばす。無ければ空）"""
+    try:
+        lines = (pathlib.Path(place) / TRACE_FILE).read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return []
+    out = []
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict) and row.get("op") == op:
+            out.append(row)
+    return out
+
+
+def depth_signals(place) -> tuple:
+    """修正の後の深さを標準へ上げる信号 ({単位: 理由}, [run の理由])。単位ごと: 食い違いの申し出の在る単位（conflict.items）・
+    受け付けが最後の回に止めた単位（置き場の trace の conflict.ACCEPT_PARKED_OP と、戻せた組の結末 given_up）。run: 答えていない
+    修正前の関所の問い（gatemarks.pending）・同じ run の案の直しが走った（置き場の only-items.json が空でない 2 回目の修正）・
+    修正役が判定に異議を出した（組の子の結果と裁定の後の返答の objection）。控えが読めなければ上げる側へ倒す。
+    元 works/darkfactory/lib/depth.py:262 の signals と、線の h-redepth が渡した replanned・rejudged"""
+    import conflict
+    import gatemarks
+    place = pathlib.Path(place)
+    units, run = {}, []
+    try:
+        rows = conflict.items(place)
+    except ValueError:
+        rows = []
+        run.append("食い違いの控えが読めない")
+    for r in rows:
+        if isinstance(r, dict) and isinstance(r.get("unit_key"), str):
+            units.setdefault(r["unit_key"], "食い違いの申し出が在る")
+    parked = [k for row in _trace_rows(place, conflict.ACCEPT_PARKED_OP) for k in row.get("unit_keys") or []]
+    joined = read_json(place / JOIN_FILE, {}) or {}
+    parked += [u.get("unit_id") for u in joined.get("units") or [] if isinstance(u, dict) and u.get("status") == "given_up"]
+    for k in parked:
+        if isinstance(k, str):
+            units.setdefault(k, "修正の受け付けが最後の回に止めた")
+    run += [f"答えていない問い {q.get('key')}" for q in gatemarks.pending(gate_view(place)) if isinstance(q, dict)]
+    if read_json(place / ONLY_ITEMS_FILE, []):
+        run.append("同じ run の案の直しが走った")
+    plan = read_json(place / GROUPS_FILE, {}) or {}
+    back = [g.get("group_id") for g in joined.get("groups") or [] if isinstance(g, dict) and g.get("returned")]
+    results = [read_json(pathlib.Path(plan["out_dir"]) / gid / RESULT_FILE) for gid in back if plan.get("out_dir")]
+    if objection([r for r in results if isinstance(r, dict)] + [read_json(place / RULED_REPLY_FILE)]):
+        run.append("修正役が判定に異議を出した")
+    return units, run
+
+
+def redepth(place, repo, skip=()) -> str:
+    """修正の後の信号で深さを標準へ上げ（depth.raise_doc）、上げた控えを置き場の DEPTH_RAISED_FILE に書き、全部の単位が軽量のまま
+    なら差分の審査を省く理由の文（depth.skip_reason）を返す。控えが無い・標準の単位が在る・単位が無ければ空。信号は
+    depth_signals、run 全体の広さ（depth.run_wide）は修正の実際の差分（run の始めの木 start_tree から今の作業ツリーへの変更。
+    除くパスの頭 skip の下は数えない）と承認済みの修正案の欄で数え直し、数えたファイルの数と起点を控えの counted に 1 行残す。
+    控えが読めない・形が違えば ValueError。元 works/darkfactory/lib/depth.py:302 の raise_（線の h-redepth）"""
+    import depth
+    import planmarks
+    import writes
+    doc = depth_doc(place)
+    if doc is None:
+        return ""
+    units, run = depth_signals(place)
+    items = planmarks.read(marks_view(place))
+    tree = start_tree(place)
+    touched = [f for f in writes.changed_from(repo, tree) if not f.startswith(tuple(skip))] if tree else []
+    origin = f"修正の差分 {tree[:12]}" if tree else "計画の allowed_paths（修正の差分の起点が無い）"
+    run += depth.run_wide(items, doc["units"], touched)
+    doc["counted"] = f"触るファイル {len(depth._wide(items, doc['units'], touched)[0])} 個（起点: {origin}）"
+    doc = depth.raise_doc(doc, units=units, run=run)
+    write_json(pathlib.Path(place) / DEPTH_RAISED_FILE, doc)
     return depth.skip_reason(doc)
 
 
@@ -1122,6 +1198,7 @@ FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 修正の輪が許したテストの変更のパス [str]（fix-accept が書く）
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
 DROPPED_FILE = "dropped.json"           # 落ちた子の変更を戻した控え {start_tree, paths}（drop_unreturned が組の置き場に書く）
+ADOPTED_FROM = "adopted_from"           # 親の置き場に写した TDD の輪の状態の、写し元の子の状態のパスの欄（adopt_tdd_states）
 UNIT_STATUSES = ("fixed", "given_up", "not_done")
 NO_UNIT_RESULT = "修正の輪がこの単位の結末を残さなかった"
 
@@ -1193,11 +1270,12 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
     return {"unit_id": key, "status": "not_done", "reason": NO_UNIT_RESULT}
 
 
-def group_result(group, *, start_tree: str, end_tree: str, tdd, fix_units=None, reply=None, reply_file: str = "",
-                 allowed=(), conflicts=()) -> dict:
+def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
+                 reply_file: str = "", allowed=(), conflicts=()) -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed,
-    allowed_test_changes, verified, reply_file}。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、fix_units は
+    allowed_test_changes, verified, reply_file, tdd_state}。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
+    tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
     を持つ。無ければ None）、allowed は許したテストの変更のパス、conflicts は置き場の申し出の行（conflict.items）。新しい"""
     gid = str(group["group_id"])
@@ -1211,7 +1289,44 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, fix_units=None, 
             "objection": objection([reply] if reply else []),
             "changed": changed_marks([{"changed": reply}] if reply else []),
             "allowed_test_changes": sorted({p for p in allowed or [] if isinstance(p, str) and p}),
-            "verified": verified_tests(tdd), "reply_file": str(reply_file or "")}
+            "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or "")}
+
+
+def adopt_tdd_states(place, results) -> list:
+    """戻せた組の子の結果 results（組の順）が名指す TDD の輪の状態（tdd_state）を、親の置き場 place の次の tdd-<k>/ に写す
+    （state.json の work を写した先に替え、輪の要約 summary.md も写す）。写した状態は tddloop.states(place) に run の全部の輪として
+    載り、裁定の後の修正の受け付けが凍結・範囲・変更に当たる試験に使う（ruled_states）。もう写した子の状態（状態の
+    ADOPTED_FROM）は写し直さない。写した状態のパスを返す。新しい（元は 1 つの盤面に輪の状態が在った）"""
+    import tddloop
+    place = pathlib.Path(place)
+    have = {str(read_json(p, {}).get(ADOPTED_FROM) or "") for p in tddloop.states(place)}
+    out = []
+    for r in results:
+        src = str((r or {}).get("tdd_state") or "")
+        if not src or src in have or not pathlib.Path(src).is_file():
+            continue
+        k = 1
+        while (place / f"tdd-{k}").exists():
+            k += 1
+        dst = place / f"tdd-{k}"
+        st = read_json(pathlib.Path(src))
+        write_json(dst / tddloop.STATE, {**st, "work": str(dst), ADOPTED_FROM: src})
+        summary = pathlib.Path(src).parent / tddloop.SUMMARY
+        if summary.is_file():
+            write_text(dst / tddloop.SUMMARY, summary.read_text(encoding="utf-8"))
+        out.append(str(dst / tddloop.STATE))
+    return out
+
+
+def ruled_states(place) -> tuple:
+    """裁定の後の修正の受け付けに渡す (今の輪の状態, 変更に当たる試験の輪の状態)。置き場の輪（adopt_tdd_states が写した組ごとの輪）が
+    1 つならそれを今の輪に（元の 1 つの輪の run と同じ）。幾つも在れば今の輪は無し（どの輪も同じ段に並んで走ったので、凍結は全部の輪を
+    輪の後の木で見る。factchecks.check_frozen）、試験は最後の輪の実行器で走らせる。無ければ ("", "")"""
+    import tddloop
+    loops = [str(p) for p in tddloop.states(place)]
+    if len(loops) == 1:
+        return loops[0], loops[0]
+    return "", loops[-1] if loops else ""
 
 
 def group_dir(place, out_dir: str, gid: str) -> pathlib.Path:
@@ -1488,11 +1603,13 @@ def revert_units(place, repo, files, head: str) -> str:
 def last_settle(texts: list, rows: list, place, repo, rev: str, state: str, owed, excused: dict, parked=frozenset(), *,
                 declared=None, skip=()):
     """輪の最後の回の拒否の文 texts を単位に結ぶ（parking.settle）。返り (Settlement, 義務の外の単位の集合, 足跡)。足跡は返答の行 rows と
-    今の段の輪の状態 state、届く試験は単位ごとの impact の地図（置き場の impact/ に控える）、義務の外は外れた単位 excused と
+    今の段の輪の状態 state（空なら置き場の全部の輪 tddloop.states。裁定の後の段は組ごとの輪を join が写した物）、届く試験は単位ごとの impact の地図（置き場の impact/ に控える）、義務の外は外れた単位 excused と
     もう止めた単位 parked。元 works/blk-fix/scripts/accept.py:378（盤面の代わりに置き場と値 owed・excused で受ける）"""
     import parking
+    import tddloop
     import writes
-    feet = parking.footprint(rows, [state] if state else [], repo, skip=tuple(skip))
+    loops = [state] if state else [str(p) for p in tddloop.states(place)]
+    feet = parking.footprint(rows, loops, repo, skip=tuple(skip))
     cache = pathlib.Path(place) / "impact"
     reached = {k: parking.reach(repo, rev, f, cache) for k, f in feet.items()}
     out = set(excused) | set(parked)
@@ -1533,8 +1650,8 @@ def _without_units(reply: dict, drop: set) -> dict:
 
 
 def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, judged=None, suite: str = "",
-                 state: str = "", base_rev: str = "", head: str = "", skip=(), parked=None, reverted=frozenset(),
-                 trail=None) -> dict:
+                 state: str = "", tests_state: str = "", base_rev: str = "", head: str = "", skip=(), parked=None,
+                 reverted=frozenset(), trail=None) -> dict:
     """修正役の返答の受け付け（fix-accept は pass_ first・fix-ruled-accept は ruled）。確かめは返さずに FIX_CHECKS の id で積み、
     最後に 1 回だけ拒む。順は 範囲の相談の枠 → 凍ったテスト（factchecks.check_frozen）→ 書き込みの出どころ（factchecks.check_writes。
     記録の無い run は undeclared_writes で段の頭の木 head からの変更を申告に縛る）→ 食い違いの申し出（take_conflicts。first で
@@ -1546,7 +1663,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     iteration が GIVE_UP_AFTER 以上の拒否は、行を単位に結んで（last_settle）結んだ単位だけを head に戻して諦め（park_units）、残りの
     単位で頭から通し直す。止める単位が残らないのに拒否が残れば、義務の残りを全部止めて通し直す（parking.park_owed）。それでも
     残れば受けずに諦める。owed は直す義務の値（fixboard.fix_duty に渡す）、judged は判定の units、suite は実行器、state は今の段の
-    TDD の輪の状態のファイル（無ければ空）、base_rev は修正前の版（空なら base_rev_of）、skip は除くパスの頭。
+    TDD の輪の状態のファイル（無ければ空）、tests_state は state が空の時に変更に当たる試験を走らせる輪の状態（実行器と名指し。
+    裁定の後の段で組の輪が幾つも在る時。ruled_states）、base_rev は修正前の版（空なら base_rev_of）、skip は除くパスの頭。
     返り {ok, reason, rejects: [{check, text}], reply（受けた返答。bash_writes と conflicts を外した物）, units（unit_outcomes）,
     parked {key: 理由}, conflicted}。元 works/blk-fix/scripts/accept.py:611（盤面の代わりに置き場と値）"""
     import conflict
@@ -1601,7 +1719,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         note("scope", scope)
     else:
         duty, excused = fix_duty(place, owed)
-    red, _ = tddloop.selected_problems(state, repo, rev)
+    red, _ = tddloop.selected_problems(state or tests_state, repo, rev)
     note("tests", red)
     gates = fixgates.problems(place, repo, rev, suite, iteration, pass_=pass_, owed=set(duty))
     note("gates", fixgates.reject_lines(gates) if gates else [])
@@ -1611,8 +1729,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     asks = gather_overflow(scope_note, frozen_over, gates, place, rev, repo)
     over, rest = split_rows(found, asks)
     if over and not rest:   # はみ出しの行だけ（写しの照らしは上で乾いた形に当ててある）: 拒まずに相談に積むか、戻して通し直す
-        kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, state=state, base_rev=base_rev,
-                  head=head, skip=skip, parked=parked)
+        kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, state=state,
+                  tests_state=tests_state, base_rev=base_rev, head=head, skip=skip, parked=parked)
         got = settle_overflow(asks, found, whole, place, repo, head=head or rev, reverted=reverted, trail=trail,
                               pass_=pass_, ask=not parked, again=lambda r, gone: accept_reply(r, place, repo, **kw,
                                                                                                reverted=gone, trail=trail))
@@ -1644,8 +1762,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         return rejected
     now, _ = park_units(place, repo, settled, head or rev, iteration=iteration)
     return accept_reply(_without_units(whole, set(now)), place, repo, pass_=pass_, iteration=iteration, owed=owed,
-                        judged=judged, suite=suite, state=state, base_rev=base_rev, head=head, skip=skip,
-                        parked={**parked, **now}, reverted=reverted, trail=trail)
+                        judged=judged, suite=suite, state=state, tests_state=tests_state, base_rev=base_rev, head=head,
+                        skip=skip, parked={**parked, **now}, reverted=reverted, trail=trail)
 
 
 def loop_done(got: dict, iteration: int) -> bool:

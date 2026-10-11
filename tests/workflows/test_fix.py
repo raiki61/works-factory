@@ -1000,6 +1000,38 @@ class GroupChildScriptsCase(unittest.TestCase):
         out = self._grp_run("collect", "fix")
         self.assertEqual(out["diff"]["path"], "fix/fix/fix-diff-none.txt", out["diff"])
 
+    def test_ruled_accept_runs_the_tests_of_the_tdd_state_the_join_copied(self):
+        """子の TDD の輪の状態は組の結果の tdd_state に載り、join が親の置き場の tdd-<k>/ に写す（2 度回しても写し直さない）。
+        親の裁定の後の修正の受け付けは、写した状態の実行器で変更に当たる試験を走らせ、元で緑だった試験を赤にする直しを拒む"""
+        import fixboard
+        import leftovers
+        parent_art = self.tmp / "parent-art"
+        self._grp_parent_inputs(str(self.suite))
+        self._grp_run("group_start", "group-start")
+        result = json.loads(pathlib.Path(self._grp_run("group_end", "group-end")["result_file"]).read_text(encoding="utf-8"))
+        self.assertTrue(pathlib.Path(result["tdd_state"]).is_file(), result["tdd_state"])
+        fixboard.write_json(self.parent / "groups.json", {"groups": [_GRP_GROUP], "count": 1, "par": False,
+                                                          "start_tree": result["start_tree"], "out_dir": str(self.out_dir)})
+        leftovers.record_ignored(self.parent, self.repo)
+        for _ in range(2):
+            code, _, err = _blk_run("join", self.repo, parent_art, node_path="fix__join")
+            self.assertEqual(code, 0, err)
+        copied = fixboard.ruled_states(self.parent)
+        self.assertEqual(copied, (str(self.parent / "tdd-1" / "state.json"),) * 2)
+        self.assertFalse((self.parent / "tdd-2").exists())
+        self.assertEqual(json.loads((self.parent / "tdd-1" / "state.json").read_text(encoding="utf-8"))["work"],
+                         str(self.parent / "tdd-1"))
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)")
+                         .replace("    return x\n", "    return lo\n"), encoding="utf-8")
+        reply = {"changes": [_fx_change(_GRP_MEAN, ["stats.py"])]}
+        code, out, err = _blk_run("fix_ruled_accept", self.repo, parent_art,
+                                  {"reply": json.dumps(reply, ensure_ascii=False), "consulted": "false", "iteration": "1"},
+                                  node_path="fix__fix-ruled-accept")
+        self.assertEqual(code, 0, err)
+        self.assertFalse(out["ok"], out)
+        self.assertIn("test_clamp_within_range", out["reason"])
+
     def test_group_start_in_order_drops_what_the_failed_child_before_left(self):
         """親の作業ツリーで 1 つずつ回る子は、前の組の子が結果を書かずに落ちて残した変更を戻してから始める"""
         import leftovers
@@ -1072,7 +1104,9 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(out["result_file"], str(self.out_dir / "g1" / "result.json"))
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
-                                       "objection", "changed", "allowed_test_changes", "verified", "reply_file"})
+                                       "objection", "changed", "allowed_test_changes", "verified", "reply_file",
+                                       "tdd_state"})
+        self.assertEqual(result["tdd_state"], "", "輪の無い組")
         self.assertEqual(result["units"], [{"unit_id": _GRP_MEAN, "status": "fixed", "reason": ""}])
         self.assertEqual(result["end_tree"], leftovers.snapshot(self.repo))
         self.assertNotEqual(result["end_tree"], result["start_tree"])
@@ -1226,20 +1260,30 @@ class FixLoopScriptsCase(unittest.TestCase):
         self.assertEqual((code, out["ok"], out["done"]), (0, True, True), err)
 
     def test_ruled_pass_allows_ruled_test_scope_and_first_does_not(self):
-        """裁定 fix_test_scope の limits のテストの変更を、裁定の後の受け付け（ruled）は通し、1 回目（first）は通さない"""
+        """裁定 fix_test_scope の limits のテストの変更を、親の置き場の裁定の後の受け付け（ruled）は通し、組の子の置き場の 1 回目
+        （first）は通さない"""
         import conflict
+        import leftovers
+        child_art = self.tmp / "child-art"
+        child = child_art / "fix" / "fix"
+        child.mkdir(parents=True)
+        for name in ("judgment.json", "r1/start.json"):
+            (child / name).parent.mkdir(parents=True, exist_ok=True)
+            (child / name).write_bytes((self.place / name).read_bytes())
+        leftovers.record_ignored(child, self.repo)
+        self._fx_fix_mean()
+        path = self.repo / "test_stats.py"
+        path.write_text(path.read_text(encoding="utf-8").replace("mean([1, 2, 3]), 2", "mean([2, 4]), 3"), encoding="utf-8")
+        reply = {"changes": [_fx_change(_FX_MEAN, ["stats.py", "test_stats.py"])]}
+        code, out, err = _fx_run("fix_accept", self.repo, child_art, reply=json.dumps(reply, ensure_ascii=False),
+                                 consulted="false", iteration="1", group=self._fx_group([_FX_MEAN]))
+        self.assertEqual((code, out["ok"]), (0, False), err or out)
+        self.assertIn("test_stats.py", out["reason"])
         conflict.park(self.place, [{"unit_key": _FX_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
                                     "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
                                     "which_is_right": "request", "kind": "unnamed_test_broke"}],
                       source=conflict.FIX_SOURCE, ruling={"decision": "fix_test_scope", "text": "テストの期待を直してよい",
                                                           "limits": ["test_stats.py"]})
-        self._fx_fix_mean()
-        path = self.repo / "test_stats.py"
-        path.write_text(path.read_text(encoding="utf-8").replace("mean([1, 2, 3]), 2", "mean([2, 4]), 3"), encoding="utf-8")
-        reply = {"changes": [_fx_change(_FX_MEAN, ["stats.py", "test_stats.py"])]}
-        out = self._fx_accept("fix_accept", reply, 1, group=self._fx_group([_FX_MEAN]))
-        self.assertEqual(out["ok"], False, out)
-        self.assertIn("test_stats.py", out["reason"])
         self._fx_json("join.json", {"groups": [{"group_id": "g1", "unit_ids": [_FX_MEAN, _FX_BOUND], "returned": True,
                                                 "reason": ""}],
                                     "units": [{"unit_id": _FX_MEAN, "group_id": "g1", "status": "not_done", "reason": ""},

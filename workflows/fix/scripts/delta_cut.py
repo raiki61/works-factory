@@ -5,8 +5,9 @@
 """差分の審査の支度（節 delta-cut）: 修正だけの差分（run の始めの木 → 今の作業ツリー）を切り、審査役の材料を置き場に書く（refix.cut）。
 
 変更の確かめ（置き場の assert-changed.json）が ok でない run は go: false で審査を回さない（審査は走らなかったので collect は
-{rounds: 0, pass: false} を返す）。全部の単位が軽量の run（置き場の depth.json。fixboard.depth_skip。持ち主の決め dynamic-depth）は、
-置き場の delta/skipped.json に {reason} を書いて go: false で審査を飛ばす。
+{rounds: 0, pass: false} を返す）。先に修正の後の信号（申し出・止めた単位・答えていない問い・案の直し・修正役の異議・実際の差分の
+広さ）で深さを標準へ上げ（fixboard.redepth。元の線の h-redepth。上げた控えは置き場の depth-raised.json）、それでも全部の単位が
+軽量の run（持ち主の決め dynamic-depth）は、置き場の delta/skipped.json に {reason} を書いて go: false で審査を飛ばす。
 返り {go, files, diff_file, brief_file}。回す側の誤り（差分の起点が無い・差分を切れない・修正案の欄の控えが壊れた）は標準エラーに
 1 行で非 0。
 """
@@ -34,12 +35,12 @@ def main() -> None:
     if not isinstance(checked, dict) or checked.get("ok") is not True:
         boundary.returns(NO_GO)
         return
-    light = fixboard.depth_skip(place)
+    repo = fixio.repo()
+    light = fixboard.redepth(place, repo, fixio.SKIP)
     if light:
         fixboard.write_json(skipped, {"reason": light})
         boundary.returns(NO_GO)
         return
-    repo = fixio.repo()
     start = startrec.read(place)
     got = refix.cut(place, 1, repo, fixboard.start_tree(place), plan_review=None,
                     fix_reply=fixboard.group_fix_reply(place), items=functools.partial(fixboard.place_items, place),

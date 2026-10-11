@@ -1092,19 +1092,53 @@ class DeltaSeamCase(TempCase):
     KEY = "stats.py mean: 分母が len(xs) - 1 になっている"
     FACE = "stats.py mean: docstring が無い"
 
-    def test_depth_skip_reads_the_rows_of_the_place(self):
+    def test_redepth_reads_the_rows_of_the_place(self):
         import depth
-        self.assertEqual(fixboard.depth_skip(self.place), "")
+        self.assertEqual(fixboard.redepth(self.place, self.repo), "")
         fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}])
-        self.assertTrue(fixboard.depth_skip(self.place).startswith("軽量で省いた"))
+        self.assertTrue(fixboard.redepth(self.place, self.repo).startswith("軽量で省いた"))
+        raised = fixboard.read_json(self.place / fixboard.DEPTH_RAISED_FILE)
+        self.assertEqual(raised["units"]["a"]["depth"], depth.LIGHT)
+        self.assertIn("触るファイル", raised["counted"])
         fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"},
                                                                {"unit_id": "b", "depth": depth.STANDARD, "why": "y"}])
-        self.assertEqual(fixboard.depth_skip(self.place), "")
+        self.assertEqual(fixboard.redepth(self.place, self.repo), "")
         fixboard.write_json(self.place / fixboard.DEPTH_FILE, [])
-        self.assertEqual(fixboard.depth_skip(self.place), "")
+        self.assertEqual(fixboard.redepth(self.place, self.repo), "")
         fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "a", "depth": "中くらい"}])
         with self.assertRaises(ValueError):
-            fixboard.depth_skip(self.place)
+            fixboard.redepth(self.place, self.repo)
+
+    def test_redepth_raises_on_the_signals_after_the_fix(self):
+        """修正の後の信号（申し出の在る単位・2 回目の修正・修正役の異議・広い実際の差分）で軽量の単位を標準へ上げ、審査を省かない
+        （元 depth.raise_）"""
+        import conflict
+        import depth
+        light = [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}]
+        fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "out_dir": str(self.place / "groups"),
+                                                                "start_tree": leftovers.snapshot(self.repo)})
+
+        def raised(why_part):
+            fixboard.write_json(self.place / fixboard.DEPTH_FILE, light)
+            self.assertEqual(fixboard.redepth(self.place, self.repo), "")
+            doc = fixboard.read_json(self.place / fixboard.DEPTH_RAISED_FILE)
+            self.assertEqual(doc["units"]["a"]["depth"], depth.STANDARD)
+            self.assertTrue(any(why_part in w for w in doc["units"]["a"]["why"]), doc)
+        fixboard.write_json(self.place / fixboard.ONLY_ITEMS_FILE, ["1"])
+        raised("案の直し")
+        fixboard.write_json(self.place / fixboard.ONLY_ITEMS_FILE, [])
+        fixboard.write_json(self.place / fixboard.RULED_REPLY_FILE, {"rejudge_requested": "単位の見立てが違う"})
+        raised("異議")
+        (self.place / fixboard.RULED_REPLY_FILE).unlink()
+        for n in range(depth.MAX_PATHS + 1):
+            (self.repo / f"wide{n}.py").write_text("X = 1\n", encoding="utf-8")
+        raised("触るファイル")
+        for n in range(depth.MAX_PATHS + 1):
+            (self.repo / f"wide{n}.py").unlink()
+        conflict.park(self.place, [{"unit_key": "a", "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}], source=conflict.FIX_SOURCE)
+        raised("食い違い")
 
     def test_accept_out_writes_reasons_and_gives_up_on_the_third(self):
         self.assertEqual(fixboard.accept_out(self.place, "x-accept", {"ok": True}),
@@ -1431,7 +1465,7 @@ class GroupChildSeamCase(TempCase):
                                     end_tree="t1", tdd=tdd, fix_units={"a": {"status": "fixed", "reason": ""}},
                                     reply=reply, reply_file="/r.json", allowed=["t.py", "t.py"], conflicts=[{"id": 1}])
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
-                                    "objection", "changed", "allowed_test_changes", "verified", "reply_file"})
+                                    "objection", "changed", "allowed_test_changes", "verified", "reply_file", "tdd_state"})
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
         self.assertEqual(got["units"][2]["reason"], fixboard.NO_UNIT_RESULT)
