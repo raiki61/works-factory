@@ -18,6 +18,7 @@ import carry  # noqa: E402
 import gatemarks  # noqa: E402
 import worldmark  # noqa: E402
 import outcome  # noqa: E402
+import querytest  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
 import runreport  # noqa: E402
@@ -576,6 +577,44 @@ class CarryCase(Base):
         fix = {**fix, "units": [*fix["units"], {"unit_id": "c", "status": "fixed", "reason": ""}]}
         self.assertEqual(runreport.rejudge_opened(fixed_run(judge=judge, rejudge=rejudge, fix=fix)), [], "修正の段が受けた単位は運ばない")
         self.assertEqual(runreport.rejudge_changes(fixed_run(judge=judge)), [])
+
+    def test_rejudge_lowered_block_units_are_shown_and_carried(self):
+        """元 rejudge.diff_units の lowered と report.rejudge_lines・_rejudge_next: 再審が block から下げた単位を拒まずに見せ、
+        次の依頼に運ぶ。judgment の label・disposition の変化は再審の変化の行にも出る"""
+        before = self.put("judge/judgment.json", {"units": [{"key": "a", "label": "block"}, {"key": "b", "label": "block"},
+                                                            {"key": "c", "label": "suggest", "disposition": "defer"}]})
+        after = self.put("rejudge/judgment.json", {"units": [{"key": "a", "label": "suggest", "disposition": "defer"},
+                                                             {"key": "b", "label": "block"},
+                                                             {"key": "c", "label": "suggest", "disposition": "do-now"}]})
+        judge = {**fixed_run()["judge"], "judgment": before}
+        returns = fixed_run(judge=judge, rejudge={**judge, "judgment": after, "rejudge_verdict": "一部採る"})
+        self.assertEqual(runreport.rejudge_lowered(returns), [("a", "suggest")])
+        self.assertEqual(runreport.rejudge_changes(returns), [
+            '再審で争点でない単位が変わった: a の label: "block" → "suggest"',
+            '再審で争点でない単位が変わった: a の disposition: null → "defer"',
+            '再審で争点でない単位が変わった: c の disposition: "defer" → "do-now"'])
+        got, text, _ = self.build(returns)
+        self.assertIn("  - 再審が block から suggest に下げた（拒まずに見せる——人が確かめる）: a",
+                      self.section(text, report.DECISIONS_HEADING))
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        self.assertIn({"where": "a", "text": "a（再審が block から suggest に下げた——人が確かめる）"}, doc["findings"])
+        self.assertEqual(runreport.rejudge_lowered(fixed_run(judge=judge)), [], "再審が無ければ下げた単位も無い")
+
+    def test_unproven_queries_are_listed_from_the_current_judgment(self):
+        """元 querytest.unproven_lines: 今の判定の開いた単位（block か do-now の suggest）のうち class_query に例の無い物を、
+        例を出せない理由か NO_EXAMPLES つきで並べる。再審が在れば再審の judgment を読む"""
+        units = [{"key": "a", "label": "block", "class_query": {"pattern": "x", "examples_unavailable": "生成物なので行が無い"}},
+                 {"key": "b", "label": "suggest", "disposition": "do-now", "class_query": {"pattern": "y"}},
+                 {"key": "c", "label": "suggest", "disposition": "defer", "class_query": {"pattern": "z"}},
+                 {"key": "d", "label": "block", "class_query": {"pattern": "w", "hits": ["w"]}}]
+        judgment = self.put("rejudge/judgment.json", {"units": units})
+        judge = {**fixed_run()["judge"], "judgment": self.put("judge/judgment.json", {})}
+        returns = fixed_run(judge=judge, rejudge={**judge, "judgment": judgment})
+        self.assertEqual(runreport.unproven_lines(returns), [
+            f"{querytest.UNPROVEN_HEAD}: 2 件", "  - a: 生成物なので行が無い", f"  - b: {querytest.NO_EXAMPLES}"])
+        _, text, _ = self.build(returns)
+        self.assertIn(f"{querytest.UNPROVEN_HEAD}: 2 件", self.section(text, report.DECISIONS_HEADING))
+        self.assertEqual(runreport.unproven_lines(fixed_run(judge=judge)), [])
 
     def test_waiting_replan_rows_are_carried_only_when_interrupted(self):
         """元 next_request の conflict.waiting の行: 途中で落ちた run は案の直しを待つ行を未完了で運び、終わった run は諦めた行として
