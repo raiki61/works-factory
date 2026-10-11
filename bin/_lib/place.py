@@ -3,8 +3,10 @@
 - Archon の本体: 源の packages/cli/src/cli.ts を bun で起こす（ASF の factory/consumer.py の cli() と同じ形）。
 - ASF の工程: 源の中の asf.folder（factory/pack.json の source_directory）。ASF の工程を回す時は --workflow-source に源を渡す。
 - 自分の工程: Archon の家に写さない。Archon は --workflow-source <dir> の <dir>/.archon/workflows/ を読み、run の始めに
-  その中身を run の物として写し取る（Archon の packages/workflows/src/workflow-source.ts）。だからその場所がリポジトリの
-  workflows/ を指す小さな置き場を作り、そこを --workflow-source に渡す。
+  その中身を run の物として写し取る（Archon の packages/workflows/src/workflow-source.ts）。だからその中の
+  .archon/workflows/<pack>/ がリポジトリの workflows/ を指す小さな置き場を作り、そこを --workflow-source に渡す。
+  pack の形にするのは、Archon が名前の script を pack の工程の時だけ工程のフォルダの scripts/ から探し、
+  pack の部品を <pack>/.shared/ から読むため（Archon の packages/workflows/src/script-discovery.ts）。
 
 Archon の家（$ARCHON_HOME/workflows など）には何も置かない。
 """
@@ -12,7 +14,7 @@ import hashlib
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 ENTRY = "packages/cli/src/cli.ts"
@@ -20,6 +22,16 @@ WORKFLOW_FOLDER = ".archon/workflows"
 
 Fetch = Callable[[str, str, Path], None]
 Install = Callable[[Path], None]
+
+
+def cache_dir(env: Mapping[str, str]) -> Path:
+    """取り置きの置き場 ${XDG_CACHE_HOME:-$HOME/.cache}/works-factory"""
+    return Path(env.get("XDG_CACHE_HOME") or Path(env["HOME"]) / ".cache") / "works-factory"
+
+
+def archon_folder(cache: Path, commit: str) -> Path:
+    """cache の中で Archon の源 commit を取り置く所 <cache>/archon/<commit>"""
+    return cache / "archon" / commit
 
 
 def git_fetch(repo: str, commit: str, dest: Path) -> None:
@@ -34,7 +46,7 @@ def bun_install(source: Path) -> None:
 
 
 def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: Install = bun_install) -> Path:
-    """Archon の源を <cache>/archon/<commit>/ に取り、依存を入れて返す。在れば照らしてから使い、取らない。
+    """Archon の源を archon_folder(cache, commit) に取り、依存を入れて返す。在れば照らしてから使い、取らない。
 
     bun が無い・取れない・依存が入らない・本体か ASF の工程が源に無ければ、途中まで取った物を残さず（前に取った物は残す）、
     何が取れなかったかを 1 行の RuntimeError で言う。在った物が照らしに合わなければ、消して取り直す案内つきの RuntimeError。
@@ -42,7 +54,7 @@ def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: In
     if shutil.which("bun") is None:
         raise RuntimeError("bun が無い。Archon の源は bun で起こす。入れ方は https://bun.sh")
     archon = pack["archon"]
-    dest = cache / "archon" / archon["commit"]
+    dest = archon_folder(cache, archon["commit"])
     if dest.is_dir():
         _verify(dest, archon["commit"])
         return dest
@@ -62,15 +74,24 @@ def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: In
     return dest
 
 
-def workflow_source(pack: dict, root: Path, cache: Path) -> Path:
-    """--workflow-source に渡す置き場を返す。その中の .archon/workflows は root の自分の工程のフォルダを指す。
+def pack_folder(pack: dict, base: Path) -> Path:
+    """base の中で Archon が自分の工程を pack として読む所 <base>/.archon/workflows/<pack>"""
+    return base / WORKFLOW_FOLDER / pack["ours"]["pack"]
 
-    置き場の名は指す先のパスの hash なので、同じ root からは同じ置き場になる。
+
+def workflow_source(pack: dict, root: Path, cache: Path) -> Path:
+    """--workflow-source に渡す置き場を返す。その中の .archon/workflows/<pack> は root の自分の工程のフォルダを指す。
+
+    置き場の名は指す先のパスの hash なので、同じ root からは同じ置き場になる。前の形の置き場（.archon/workflows が
+    直に工程のフォルダを指す symlink）は、そのまま使うと pack の symlink を工程のフォルダの中に作るので、消す案内で止まる。
     """
     target = (root / pack["ours"]["folder"]).resolve()
     shim = cache / "workflow-source" / hashlib.sha256(str(target).encode()).hexdigest()[:16]
-    link = shim / WORKFLOW_FOLDER
-    link.parent.mkdir(parents=True, exist_ok=True)
+    link = pack_folder(pack, shim)
+    folder = link.parent
+    if folder.is_symlink():
+        raise RuntimeError(f"{folder} は前の形の置き場（{folder.readlink()} を指す symlink）。消して回し直せば作り直す（rm \"{folder}\"）")
+    folder.mkdir(parents=True, exist_ok=True)
     try:
         link.symlink_to(target, target_is_directory=True)
     except FileExistsError:

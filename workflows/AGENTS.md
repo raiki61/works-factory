@@ -5,9 +5,9 @@
 
 ## E1 YAML は変換せずに Archon に渡す
 
-- `workflows/` の YAML は手で書き、`bin/` は写さずに Archon に読ませる（`--workflow-source` に渡す置き場の `.archon/workflows` がこのフォルダを指す。`bin/_lib/place.py`）。Archon は run の始めにその中身をバイトのまま写し取る。生成・前処理・鍵の削りをしない。
+- `workflows/` の YAML は手で書き、`bin/` は写さずに Archon に読ませる（`--workflow-source` に渡す置き場の `.archon/workflows/works-factory` がこのフォルダを指す pack の形。名前の script と `.shared/` は pack の形の時だけ効く。`bin/_lib/place.py`）。Archon は run の始めにその中身をバイトのまま写し取る。生成・前処理・鍵の削りをしない。
 - 作りの規則は Archon の `workflow-language-constitution.md`（Archon の源の `.archon/workflow-language-constitution.md`。要点「YAML coordinates. Code computes. Agents judge.」）。YAML は節の順・関所・繰り返し・入出力の配線だけを持つ。値の計算は `script:` の節か役の指示書に置く。
-- Archon の確かめ（`archon validate workflows`）が警告なしで通る。`validate` は `--workflow-source` を受けず黙って捨て、`--cwd` は git の木しか受けないので、`.archon/workflows` がこのフォルダを指す使い捨ての git の木を `--cwd` に渡す。
+- Archon の確かめ（`archon validate workflows`）が警告なしで通る。`validate` は `--workflow-source` を受けず黙って捨て、`--cwd` は git の木しか受けないので、`.archon/workflows/works-factory/` に工程のフォルダと `.shared/` を写した使い捨ての git の木（`tests/archon.py`）を `--cwd` に渡す。
 - 機械: `tests/layers/test_no_conversion.py`（Archon が読む所と `workflows/` のバイト一致）・`tests/layers/test_archon_validate.py`（確かめの結果に誤りも警告も無い）。
 
 ## E2 境の中身は全部、名簿に載せる

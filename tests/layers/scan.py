@@ -27,6 +27,8 @@ RELATIVE_PATH = re.compile(r"(?:\.\./)+[^\s'\"`)]*")
 
 OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
 OURS_PREFIX = OURS["name_prefix"]
+OURS_PACK = OURS["pack"]
+LINE_YAML = f"workflows/{OURS['line'].removeprefix(OURS_PREFIX)}/{OURS['line']}.yaml"
 CALL_KEYS = ("include", "workflow")
 
 NO_DEADLINE = "1728000000"
@@ -196,6 +198,19 @@ def _line(node) -> int:
     return node.start_mark.line + 1
 
 
+def includes(root: Path, rel: str) -> list[str]:
+    """root/rel の工程の `include:` の先の工程の名（`loop_group` の中も）。読めない YAML は ValueError"""
+    documents, broken = _documents(root, root / rel)
+    if broken:
+        raise ValueError(broken[0])
+    return [
+        value.value
+        for document in documents
+        for node in _nodes(document)
+        if isinstance(value := _top(node, "include"), yaml.ScalarNode)
+    ]
+
+
 def _polyfills_listed(root: Path) -> list[str]:
     registry = root / "docs" / "polyfills.md"
     listed = {}
@@ -236,7 +251,7 @@ def _block_paths(root: Path) -> list[str]:
     for own in blocks:
         others = sorted((set(BLOCKS) | set(blocks)) - {own})
         named = re.compile(
-            r"workflows/(" + "|".join(re.escape(b) for b in others) + r")/"
+            rf"workflows/(?:{re.escape(OURS_PACK)}/)?(" + "|".join(re.escape(b) for b in others) + r")/"
         )
         allowed = (f"workflows/{own}/", "lib/", "workflows/.shared/")
         folder = root / "workflows" / own
@@ -262,9 +277,9 @@ def _block_paths(root: Path) -> list[str]:
 
 
 def _pointed_block(target: str) -> str:
-    """相対パスの `..` の後の最初の名。`workflows/` と Archon が読む所（`.archon/workflows/`）の頭は飛ばす"""
+    """相対パスの `..` の後の最初の名。`workflows/` と Archon が読む所（`.archon/workflows/<pack>/`）の頭は飛ばす"""
     parts = [part for part in target.split("/") if part not in ("..", ".", "")]
-    for head in WORKFLOW_FOLDER.split("/"):
+    for head in (*WORKFLOW_FOLDER.split("/"), OURS_PACK):
         if parts and parts[0] == head:
             parts.pop(0)
     return parts[0] if parts else ""
