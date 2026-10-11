@@ -634,10 +634,11 @@ nodes:
         changed: {}
         delta_review: {}
         done: { type: boolean }
+        go: { type: boolean }
         refixed: { type: boolean }
         stop_reason: { type: string }
       required: [units, groups, conflicts, replan_items, objection, refix_objection, diff, allowed_test_changes, changed, delta_review,
-                 done, refixed, stop_reason]
+                 done, go, refixed, stop_reason]
     mutates_checkout: false
     depends_on: [after-fix, judged, refix-run]
     trigger_rule: none_failed_min_one_success
@@ -694,7 +695,7 @@ nodes:
   - id: test-gate-final
     include: works-factory-test-gate
     depends_on: [redepth]
-    when: "$fixed.output.done == true && $redepth.output.stop_reason == ''"
+    when: "$fixed.output.go == true && $redepth.output.stop_reason == ''"
     with:
       mode: final
       start: "$start.output.record"
