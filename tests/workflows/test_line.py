@@ -533,21 +533,23 @@ class ReturnedCase(unittest.TestCase):
 
 class CollectAndResultCase(unittest.TestCase):
     def line(self, **kw):
-        got = {"start": "null", "prior_failures": "null",
-               "stops": {place: "" for place in collect.STOPS if place != "plan"},
-               "gates": {"gate_start": "null", "gate_before_fix": "null", "gate_replan": "null", "gate_final": "null"},
-               "deferred_questions": "null", "widened": "null", "final_reasons": "null",
-               "nodes": {"judged": {"rejudged": "null"}, "fixed": {"conflicts": "[]"}, "redepth": {"depth": "null"}}}
+        got = {"start": "null", "fixed": None,
+               "gates": {"gate_start": "null", "gate_before_fix": "null", "gate_replan": "null", "gate_final": "null"}}
         got.update(kw)
         return got
+
+    def test_fields_are_the_inputs_report_declares(self):
+        declared = yaml.safe_load((SCRIPTS.parents[1] / "report" / "works-factory-report.yaml").read_text(encoding="utf-8"))["inputs"]
+        got = collect.collect({}, self.line())
+        self.assertEqual(set(got), {name.replace("-", "_") for name in declared})
+        self.assertEqual(collect.fallback("x").keys(), got.keys())
 
     def test_skipped_receiver_is_null(self):
         seal = {"got": {"mode": "seal", "ok": True, "hash": "123"}, "stop_reason": ""}
         got = collect.collect({"judge": "null", "merge_seal": json.dumps(seal), "plan_rounds": None}, self.line())
         self.assertIsNone(got["judge"])
         self.assertEqual(got["merge_seal"], seal["got"])
-        self.assertEqual((got["plan"], got["plan_review"]), (None, None))
-        self.assertEqual((got["judged"], got["fixed"]), (None, {"conflicts": []}))
+        self.assertEqual((got["plan"], got["plan_review"], got["fix"]), (None, None, None))
 
     def test_plan_rounds_are_split_into_plan_and_review(self):
         rounds = {key: None for key in returned.SHAPES["plan_rounds"]}
@@ -556,14 +558,22 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertEqual(got["plan"], {key: rounds[key] for key in plan_out.PLAN})
         self.assertIsNone(got["plan_review"])
 
-    def test_first_stop_reason_wins(self):
-        stops = {place: "" for place in collect.STOPS if place != "plan"}
-        stops.update({"final": "human:gate-final", "redepth": "null"})
-        rounds = json.dumps({"got": {"stop_reason": ""}, "stop_reason": ""})
-        self.assertEqual(collect.collect({"plan_rounds": rounds}, self.line(stops=stops))["stop_reason"], "human:gate-final")
-        broken = json.dumps({"got": None, "stop_reason": linekit.LINE_SCRIPT})
-        self.assertEqual(collect.collect({"eyes": broken}, self.line(stops=stops))["stop_reason"], "human:gate-final")
-        self.assertEqual(collect.collect({"eyes": broken}, self.line())["stop_reason"], linekit.LINE_SCRIPT)
+    def test_fix_is_the_first_and_second_fix_merged(self):
+        """report の入力 fix は 1 回目と 2 度目の修正を合わせた物（申し出 conflicts は段ごとの指し札の配列）。合わせる節 fixed が
+        飛ばされた（2 度目の修正の中が落ちた）時は 1 回目の返り。修正が走らなければ null"""
+        first = {"got": {"done": True, "conflicts": "c1"}, "stop_reason": ""}
+        merged = {"done": True, "conflicts": ["c1", "c2"], "refixed": True, "stop_reason": ""}
+        got = collect.collect({"fix": json.dumps(first)}, self.line(fixed=json.dumps(merged)))
+        self.assertEqual(got["fix"], merged)
+        self.assertEqual(collect.collect({"fix": json.dumps(first)}, self.line())["fix"], first["got"])
+        self.assertIsNone(collect.collect({"fix": "null"}, self.line(fixed=json.dumps(merged)))["fix"])
+
+    def test_gate_answers_and_the_start_pass_through(self):
+        stop = {"decision": "stop", "text": "範囲が違う"}
+        ptr = {"type": "archon_artifact", "run_id": "r", "path": "start.json"}
+        gates = {"gate_start": "null", "gate_before_fix": "null", "gate_replan": "null", "gate_final": json.dumps(stop)}
+        got = collect.collect({}, self.line(start=json.dumps(ptr), gates=gates))
+        self.assertEqual((got["start"], got["gate_final"], got["gate_start"]), (ptr, stop, None))
 
     def test_result_fixed(self):
         for outcome, want in (("fixed", True), ("fixed_needs_check", True), ("no_fix_needed", False), ("", False)):
@@ -714,6 +724,21 @@ class LineWiringCase(unittest.TestCase):
             for name in from_the_start.keys() & declared.keys():
                 with self.subTest(node=key, input=name):
                     self.assertEqual(node["with"].get(name), from_the_start[name])
+
+    def test_includes_pass_only_what_the_real_block_declares(self):
+        """在るブロックへの with: の鍵は、そのブロックの inputs: の宣言の中で、required の入力は全部渡す。report には宣言の全部を
+        渡す（報告は全部の段の返りと関所の答えを読む）"""
+        for key, node in line_nodes().items():
+            block = SCRIPTS.parents[1] / node.get("include", "").removeprefix("works-factory-")
+            if "include" not in node or not block.is_dir():
+                continue
+            declared = yaml.safe_load((block / f"{node['include']}.yaml").read_text(encoding="utf-8"))["inputs"]
+            passed = set(node.get("with") or {})
+            with self.subTest(node=key):
+                self.assertLessEqual(passed, set(declared))
+                self.assertLessEqual({name for name, spec in declared.items() if spec.get("required")}, passed)
+                if key == "report":
+                    self.assertEqual(passed, set(declared))
 
     def test_round_limit_is_the_loop_limit(self):
         self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], plan_out.ROUND_LIMIT)
