@@ -65,6 +65,7 @@ works-factory/
 │   └── plans/                   実装の計画
 ├── .github/workflows/tests.yml  CI。check の名は tests
 ├── pack.json                    版の止め（Archon・ASF）
+├── pyproject.toml               Python の依存の宣言（1 か所。持ち主の決め overnight-speed）
 ├── .gitignore
 ├── AGENTS.md                    AI 向けの決まり（この文書）。下のフォルダの AGENTS.md と自動で合わさる
 ├── MISSION.md・README.md
