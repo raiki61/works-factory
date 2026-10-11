@@ -352,6 +352,7 @@ class CiRoleCase(ScriptCase):
                 self.assertTrue(self.ok("ci_accept", mode="base", reply=self.GOOD)["done"])
                 self.assertTrue(kept.exists())
 
+    def test_branch_switch_rejected(self):
         """元 test_branch_switch_rejected"""
         self.prep()
         git(self.repo, "checkout", "-q", "--detach", "HEAD")
