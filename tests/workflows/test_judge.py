@@ -486,6 +486,22 @@ class AcceptLoopTest(unittest.TestCase):
         out = r.returned("diagnose_accept", reply=empty_reply())
         self.assertFalse(out["ok"], out)
 
+    def test_cache_left_by_a_material_role_is_not_the_judges(self):
+        """素材の役が残したキャッシュ（git が無視するファイル）は、判定役を起こす前の写しに入り、判定役が変えた物と数えない。
+        判定役を起こした後に増えた物は拒む"""
+        r = Run(self)
+        r.returned("intake")
+        premises_and_purpose(r)
+        r.returned("material_route")
+        (r.repo / "__pycache__").mkdir()
+        (r.repo / "__pycache__" / "stats.cpython-312.pyc").write_bytes(b"cache")
+        self.assertTrue(r.returned("diagnose_prep")["go"])
+        out = r.returned("diagnose_accept", reply=empty_reply())
+        self.assertTrue(out["ok"], out)
+        (r.repo / "__pycache__" / "test_stats.cpython-312.pyc").write_bytes(b"cache")
+        out = r.returned("diagnose_accept", reply=empty_reply())
+        self.assertFalse(out["ok"], out)
+
 
 SPEC = {"requirements": [{"key": "R1", "text": "mean は要素の数で割る"}],
         "acceptance": [{"key": "A1", "requirement": "R1", "file": "test_spec_mean.txt", "name": "test_mean_divides_by_count",
@@ -527,6 +543,15 @@ class SpecFreezeTest(unittest.TestCase):
         out = r.returned("spec_freeze", answer={"decision": "reject", "text": "request: 札"})
         self.assertFalse(out["go"])
         self.assertEqual(r.returned("verdict")["stop_reason"], "request:spec-gate")
+
+    def test_roles_after_approval_take_the_spec_tests_as_given(self):
+        """仕様の役が書いた受け入れテストは承認の後の写しに入り、後ろの読むだけの役（前提の実測）が変えた物と数えない"""
+        r = self.spec_run()
+        self.assertTrue(r.returned("spec_freeze", answer={"decision": "approve", "text": ""})["go"])
+        where = "test_spec_mean.txt: test_mean_divides_by_count"
+        reply = {"constraints": [{"text": f"{where} は承認の時点で exit 0", "kind": "仮説", "measured_output": ""}]}
+        out = r.returned("premises_accept", reply=reply)
+        self.assertTrue(out["ok"], out)
 
     def test_approval_freezes_hashes_and_exit_codes(self):
         r = self.spec_run()

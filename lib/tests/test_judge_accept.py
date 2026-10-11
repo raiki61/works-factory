@@ -77,7 +77,7 @@ def _a_judge_ok():
 
 
 class _AJudgeBase(unittest.TestCase):
-    """種（tests/e2e/target-seed）を写して commit した使い捨ての対象リポジトリと、判定の置き場 J（入口が judge-tree.json と
+    """種（tests/e2e/target-seed）を写して commit した使い捨ての対象リポジトリと、判定の置き場 J（判定の支度が diagnose-tree.json を、入口が
     request.json と start.json を置いた後の姿）"""
 
     def setUp(self):
@@ -88,7 +88,7 @@ class _AJudgeBase(unittest.TestCase):
         self.base = gitkit.committed_copy(self.repo, _A_SEED)
         self.jdir = tmp / "art" / "judge"
         self.jdir.mkdir(parents=True)
-        ja.write_json(self.jdir / ja.TREE_FILE, core_accept.tree_state(self.repo))
+        ja.snap_tree(self.jdir, ja.DIAGNOSE_TREE_FILE, self.repo)
         ja.write_json(self.jdir / ja.REQUEST_FILE, _A_REQUEST)
         ja.write_json(self.jdir / ja.START_FILE, ja.start_view({}))
 
@@ -226,7 +226,7 @@ class JudgeTakeCase(_AJudgeBase):
 
     def test_without_tree_record_the_tree_must_be_clean(self):
         """元 test_blk_judge.ScriptCase.test_check_judge_without_snapshot_needs_clean_tree"""
-        (self.jdir / ja.TREE_FILE).unlink()
+        (self.jdir / ja.DIAGNOSE_TREE_FILE).unlink()
         self.assertIs(self.take(_a_judge_ok())["ok"], True)
         (self.repo / "extra.txt").write_text("x\n", encoding="utf-8")
         got = self.take(_a_judge_ok())
@@ -536,8 +536,8 @@ class _BCase(unittest.TestCase):
         self.jdir = self.tmp / "artifacts" / ja.JUDGE_DIR
         self.jdir.mkdir(parents=True)
 
-    def snap_tree(self):
-        ja.write_json(self.jdir / ja.TREE_FILE, core_accept.tree_state(self.repo))
+    def snap_tree(self, name=ja.TREE_FILE):
+        ja.snap_tree(self.jdir, name, self.repo)
 
     def start(self, **over):
         doc = {"base_rev": self.head, "input": {"base": {"rev": self.head}, "diff": {"empty": False}, "requests": 1}}
@@ -608,7 +608,7 @@ class PurposeCase(_BCase):
 
     def test_good_reply_writes_purpose_and_means(self):
         """元 test_blk_purpose の test_accept_good_and_bad_reply・test_purpose_means_split_to_mark"""
-        self.snap_tree()
+        self.snap_tree(ja.PURPOSE_TREE_FILE)
         got = ja.check_purpose(dict(self.GOOD), self.jdir, self.repo)
         self.assertTrue(got["ok"], got)
         doc = ja.read_json(self.jdir / "purpose.json")
@@ -618,7 +618,7 @@ class PurposeCase(_BCase):
 
     def test_purpose_role_changed_the_tree_rejected(self):
         """元 test_blk_purpose の test_accept_rejects_tree_change_after_intake"""
-        self.snap_tree()
+        self.snap_tree(ja.PURPOSE_TREE_FILE)
         (self.repo / "note.txt").write_text("書いた\n", encoding="utf-8")
         got = ja.check_purpose(dict(self.GOOD), self.jdir, self.repo)
         self.assertFalse(got["ok"])
@@ -627,7 +627,7 @@ class PurposeCase(_BCase):
 
     def test_source_files_outside_or_missing_rejected(self):
         """元 test_blk_purpose の test_accept_rejects_source_files_outside_tree・test_accept_rejects_missing_source_file_sample"""
-        self.snap_tree()
+        self.snap_tree(ja.PURPOSE_TREE_FILE)
         for bad in (["/etc/hosts"], ["./README.md"], ["nothing.md"]):
             with self.subTest(bad):
                 got = ja.check_purpose({**self.GOOD, "source_files": bad}, self.jdir, self.repo)
@@ -636,7 +636,7 @@ class PurposeCase(_BCase):
 
     def test_frozen_purpose_is_not_overwritten(self):
         """元 test_blk_purpose の test_accept_refuses_to_overwrite_frozen_purpose（p0.purpose の once）"""
-        self.snap_tree()
+        self.snap_tree(ja.PURPOSE_TREE_FILE)
         self.assertTrue(ja.check_purpose(dict(self.GOOD), self.jdir, self.repo)["ok"])
         got = ja.check_purpose({**self.GOOD, "purpose_text": "別の目的"}, self.jdir, self.repo)
         self.assertFalse(got["ok"])
@@ -719,7 +719,6 @@ class DueCase(unittest.TestCase):
 # ================================================================ 素材の受け付けと素材の状態
 class MaterialCase(_BCase):
     def view(self):
-        self.snap_tree()
         start = self.start()
         ja.write_json(self.jdir / ja.START_FILE, start)
         return ja.material_route(self.jdir, self.repo)
@@ -827,7 +826,6 @@ class MaterialCase(_BCase):
 
     def test_materials_of_an_entry_run_are_not_applicable(self):
         """元 写しの rules の fill_materials（判定から入る run の周の P1 の素材は not_applicable と入口の理由）"""
-        self.snap_tree()
         ja.write_json(self.jdir / ja.START_FILE, self.start(input={"base": {"rev": self.head}, "diff": {"empty": True},
                                                                    "requests": 2}))
         got = ja.material_route(self.jdir, self.repo)
@@ -842,7 +840,6 @@ class MaterialCase(_BCase):
 class BriefCase(_BCase):
     def test_brief_emits_the_seven_sections_in_order(self):
         """元 test_blk_judge（judgebrief.brief の節の並び・answers_section・carry.prior_section）"""
-        self.snap_tree()
         (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
         req = self.repo / "request.json"
         req.write_text(json.dumps([{"where": "app.txt:2", "text": "依頼の本文"}], ensure_ascii=False), encoding="utf-8")
@@ -876,7 +873,6 @@ class BriefCase(_BCase):
 
     def test_diagnose_prep_stops_after_material_give_up(self):
         """元 blk-material の collect（素材の役が 3 回とも拒まれたら盤面を止めた）。残りの素材で材料は組む"""
-        self.snap_tree()
         ja.write_json(self.jdir / ja.START_FILE, self.start())
         route = ja.material_route(self.jdir, self.repo)
         self.assertTrue(route["hygiene"])
