@@ -25,8 +25,9 @@ def inputs(names: list[str]) -> dict[str, str]:
 
 
 def returns(obj: dict) -> None:
-    """節の返りを JSON 1 つで標準出力に書く。型は Archon が節の output_format で照らす"""
-    print(json.dumps(obj, ensure_ascii=False), flush=True)
+    """節の返りを JSON 1 つで標準出力に書く。型は Archon が節の output_format で照らす。
+    Archon は JSON.parse で読むので、NaN・Infinity は ValueError で止める"""
+    print(json.dumps(obj, ensure_ascii=False, allow_nan=False), flush=True)
 
 
 def pointer(rel: str) -> dict:
@@ -58,7 +59,13 @@ def _run_id() -> str:
 
 
 def _inside_artifacts(rel: str) -> Path:
-    # Archon は / と \ の両方で区切って .. を拒む
-    if not rel or "\0" in rel or rel.startswith(("/", "\\")) or ".." in re.split(r"[\\/]", rel):
-        raise ValueError(f"指し札のパスは run の置き場からの相対で、.. を持たない: {rel}")
+    # Archon は / と \ の両方で区切って .. を拒む。末尾の / は pathlib が落とすが、Archon の stat は ENOTDIR で拒む
+    if (
+        not rel
+        or "\0" in rel
+        or rel.startswith(("/", "\\"))
+        or rel.endswith("/")
+        or ".." in re.split(r"[\\/]", rel)
+    ):
+        raise ValueError(f"指し札のパスは run の置き場からの相対で、.. を持たず、/ で終わらない: {rel}")
     return Path(os.environ["ARTIFACTS_DIR"]) / rel

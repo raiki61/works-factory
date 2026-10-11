@@ -73,9 +73,21 @@ class PointerTest(FakeRunTest):
     def test_pointer_refuses_outside(self):
         outside = self.base / "outside.md"
         outside.write_text("x", encoding="utf-8")
-        for rel in ("../../outside.md", str(outside), "a/../../../outside.md", "..\\..\\outside.md"):
-            with self.subTest(rel=rel), self.assertRaisesRegex(ValueError, "outside.md"):
+        for rel in ("../../outside.md", str(outside), "a/../../../outside.md"):
+            with self.subTest(rel=rel), self.assertRaisesRegex(ValueError, "相対"):
                 boundary.pointer(rel)
+
+    def test_pointer_refuses_backslash_outside(self):
+        # POSIX では \ はただの文字なので、在るファイルの名にして、在る無しではなくパスの決まりで止まるのを見る
+        for rel in ("..\\x", "\\x"):
+            self.write(rel, "x")
+            with self.subTest(rel=rel), self.assertRaisesRegex(ValueError, "相対"):
+                boundary.pointer(rel)
+
+    def test_pointer_refuses_trailing_slash(self):
+        self.write("plan.md", "# plan\n")
+        with self.assertRaisesRegex(ValueError, "相対"):
+            boundary.pointer("plan.md/")
 
 
 class ResolveTest(FakeRunTest):
@@ -120,9 +132,18 @@ class ReturnsTest(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             boundary.returns(obj)
         text = out.getvalue()
-        value, end = json.JSONDecoder().raw_decode(text)
+        value, end = json.JSONDecoder(parse_constant=self.refuse_constant).raw_decode(text)
         self.assertEqual(value, obj)
         self.assertEqual(text[end:].strip(), "")
+
+    def test_returns_refuses_nan(self):
+        for number in (float("nan"), float("inf")):
+            with self.subTest(number=number), self.assertRaises(ValueError):
+                boundary.returns({"x": number})
+
+    @staticmethod
+    def refuse_constant(name):
+        raise ValueError(f"JSON でない値: {name}")
 
 
 class LibRootTest(unittest.TestCase):
