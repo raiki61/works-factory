@@ -1,0 +1,24 @@
+# 事前審査の受け付けが 3 回とも拒んだ後の姿 → pass: false・stalled: true・諦めた訳が questions に載る
+open: { ok: true, r2_go: false, tree: false, k: 1, form: review, reason: "" }
+review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md" }
+plan-review: { faces: [], shrink: [], reason: "stub: 写し・入口・契約のずれを確かめた", faces_none: "stub: 穴が無いことを全部の見ることで確かめた" }
+review-accept: { ok: false, done: true, give_up: true, reason: "stub: 前の往復の block の行き先が無い" }
+review:
+  pass: false
+  stalled: true
+  review: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/pass-1/review.json" }
+  design: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/design.json" }
+  gate_axes: { obvious: { ok: true, note: "" }, world: { ok: true, note: "" }, clean: { ok: true, note: "" }, not_overkill: { ok: true, note: "" } }
+  ask_human: true
+  questions: ["事前審査の受け付けが諦めた: stub"]
+fixture:
+  inputs:
+    units: "[]"
+    judgment: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/judgment.json\"}"
+    purpose: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/purpose.json\"}"
+    world: "null"
+    plan: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/r1/plan-fields.json\"}"
+    structure: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/structure/structure-state.json\"}"
+    ripple: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/ripple.json\"}"
+  expect: completed
+  reached: [plan-review, review]
