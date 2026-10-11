@@ -77,7 +77,7 @@ works-factory/
     └── .factory/holdout/HOLDOUT.md                書く
 ```
 
-- 試験を置くフォルダには全部 `__init__.py` を置く（無いと Python 3.12 の unittest は黙って見つけない）。試験は根から `python3 -m unittest discover -s . -t .` の 1 つで走る。
+- 試験を置くフォルダには全部 `__init__.py` を置く（無いと Python 3.12 の unittest は黙って見つけない）。試験は根から 1 つの命令で走る（命令と外のパッケージの入れ方は `tests/AGENTS.md`）。
 - 機械: `tests/layers/test_layout.py`（根の直下のファイルとフォルダが上の木に在る物だけ。`workflows/` の直下が `line/`・8 つのブロック・`.shared/` だけ。各ブロックが `works-factory-<ブロック>.yaml` を持つ。試験のフォルダに `__init__.py` が在る）。
 
 ## E8 ASF は横に並べて見るだけ

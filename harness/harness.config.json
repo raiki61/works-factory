@@ -1,6 +1,6 @@
 {
   "static": "",
-  "unit": "python3 -m unittest discover -s . -t .",
+  "unit": "uv run --isolated python3 -m unittest discover -s . -t .",
   "unit_count_pattern": "Ran (\\d+) tests?",
   "required_checks": "tests",
   "protected_paths": "MISSION.md,FACTORY.md,FACTORY_RULES.md,harness/**,.factory/**,factory/**,engineering.md,AGENTS.md,**/AGENTS.md,pack.json,README.md,docs/design.md,docs/owner-decisions.md,workflows/.shared/**,workflows/line/**,.github/**",
