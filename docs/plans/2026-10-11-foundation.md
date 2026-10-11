@@ -105,7 +105,7 @@
 
 **Files:**
 - Create: `workflows/line/works-factory-line.yaml`・`workflows/line/fixtures/`
-- Create: 8 つのブロックの各々 `workflows/<名>/works-factory-<名>.yaml`・`scripts/stub.py`・`fixtures/`
+- ブロック 8 つのフォルダは、この Task では作らない。段 2 のブロックの issue が各々中身ごと作る（持ち主の決め `overnight-speed`）。線は `docs/design.md` の「ブロックの返りの約束」の欄だけを読む。
 - Test: `tests/layers/test_block_returns.py`・`test_outward_write.py`・`test_readonly_nodes.py`・`test_no_conversion.py`・`test_archon_validate.py`
 
 **Interfaces:**
