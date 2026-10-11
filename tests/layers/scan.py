@@ -536,7 +536,8 @@ def _readonly_nodes(root: Path) -> list[str]:
     return out
 
 
-# 差し込まれるブロックが工程の頭に書かない鍵（E16）。run の形は差し込む一番上の工程が決める
+# 差し込まれるブロックが工程の頭に書かない鍵（E16）。run の形は差し込む一番上の工程が決める。ただし自分の節に approval: を持つ
+# ブロックの interactive: true だけは許す: 外すと止めた Archon の単独の validate が警告を出す（運び役の判断）
 BLOCK_HEAD_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 
 
@@ -548,19 +549,22 @@ def _gates(root: Path) -> list[str]:
         if document is not None:
             docs[f"{OURS_PREFIX}{folder.name}"] = (path, document)
 
+    def own_gate(name: str) -> bool:
+        return any(_top(n, "approval") is not None for n in _nodes(docs[name][1]))
+
     def gated(name: str, trail: frozenset = frozenset()) -> bool:
         if name not in docs or name in trail:
             return False
-        nodes = list(_nodes(docs[name][1]))
-        return any(_top(n, "approval") is not None for n in nodes) or any(
-            gated(value.value, trail | {name}) for n in nodes if isinstance(value := _top(n, "include"), yaml.ScalarNode)
+        return own_gate(name) or any(
+            gated(value.value, trail | {name})
+            for n in _nodes(docs[name][1]) if isinstance(value := _top(n, "include"), yaml.ScalarNode)
         )
 
     for name, (path, document) in docs.items():
         rel = _rel(root, path)
         if name != OURS["line"]:
             for key, value in _pairs(document):
-                if key in BLOCK_HEAD_KEYS:
+                if key in BLOCK_HEAD_KEYS and not (key == "interactive" and _is_bool(value, "true") and own_gate(name)):
                     out.append(f"{rel}:{_line(value)}: 差し込まれるブロックが工程の頭に {key} を書く")
         elif gated(name):
             if not _is_bool(_top(document, "interactive"), "true"):
