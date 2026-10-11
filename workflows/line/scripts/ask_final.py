@@ -67,7 +67,7 @@ def final_needs(got: dict) -> list:
         why.append(f"考えの住処の柵の数が増えた（{len(got['fenced'])} 件。住処へ寄せるか、増やすなら地図と柵の表を直す）")
     if got["questions"]:
         why.append(f"人に聞いている問いが在る（{len(got['questions'])} 件）")
-    if got["objection"] and got["rejudge_verdict"] != "採る":
+    if (got["objection"] and got["rejudge_verdict"] != "採る") or got["refix_objection"]:
         why.append("止めずに残った異議が在る")
     if not got["sealed"]:
         why.append(f"差分を封じられなかった（{got['seal_reason'] or '訳が無い'}）")
@@ -211,6 +211,7 @@ def got_of_env() -> dict:
         },
         "questions": linekit.items(os.environ.get("INPUTS_QUESTIONS")),
         "objection": linekit.text(os.environ.get("INPUTS_OBJECTION")),
+        "refix_objection": linekit.text(os.environ.get("INPUTS_REFIX_OBJECTION")),
         "rejudge_verdict": linekit.text(os.environ.get("INPUTS_REJUDGE_VERDICT")),
         "sealed": linekit.flag(os.environ.get("INPUTS_SEALED")),
         "seal_reason": linekit.text(os.environ.get("INPUTS_SEAL_REASON")),

@@ -111,7 +111,7 @@ flowchart TB
 4. judge: 前提・目的・定石・素材・判定。`--spec` の時は中に仕様の関所（人）を持つ。
 5. 計画の往復: plan → plan-review を 3 往復まで。同じ所で 2 度続けて止められたら止める。
 6. 修正前の関所（人）: 事前審査の 4 つの軸（自明・世界の解・汚くない・やりすぎでない）で人に聞く物がある時だけ開く。
-7. fix: 組ごとの並べ（`fan_out:`）・TDD の輪・修正役・裁定・差分の審査と手直し。裁定が計画の項目の誤りとした時は、1 run に 1 度だけ plan と plan-review をもう一度差し込み、案の直しの関所（人）を通る。2 度目の修正が走らなかった時（関所の stop・無人の止め・直した案ができなかった）は、1 回目の修正の差分も試験の関門から先へ進めない。修正役の異議は judge を再審の入力でもう一度差し込む（1 度）。
+7. fix: 組ごとの並べ（`fan_out:`）・TDD の輪・修正役・裁定・差分の審査と手直し。裁定が計画の項目の誤りとした時は、1 run に 1 度だけ plan と plan-review をもう一度差し込み、案の直しの関所（人）を通る。2 度目の修正が走らなかった時（関所の stop・無人の止め・直した案ができなかった）は、1 回目の修正の差分も試験の関門から先へ進めない。1 回目の修正の修正役の異議は judge を再審の入力でもう一度差し込む（1 度。2 度目の修正の前）。2 度目の修正の異議は再審せず、再審されずに残った異議として最後の関所を開け（11）、報告と次の依頼に載る（今の works は再審を 2 度目の修正の後に置き、両方の異議を再審に渡した。線は再審を先に置くので狭めた）。
 8. test-gate（final）: テスト一式と CI。緑を作業ツリーの指紋つきで認証する。
 9. eyes: 独立の目 R1〜R4 と、直した後の構造の実測、守りのパスの当たり。
 10. merge（seal）: 人に見せる差分を封じる（hash）。
@@ -324,7 +324,7 @@ flowchart TB
 - 返す節 `report`・`outcome_field: ok`（Archon の `outcome_field` は `required` の boolean だけを受けるので、結末の語 `outcome` とは別の欄にする。線は自分の返す節 `result` で report の返りを受けて返す）
 - 入力（`with:`）: report の YAML の `inputs:` の 17 個（名は下の id の字のまま）。値は全部 `$collect.output.<名の - を _ に>`（線の返しの節 `collect` が、飛ばされうる全部の返りを `{from, if_skipped: null}` で受けて組み直した物。飛ばされた段は null）:
   - `start`（始めの記録の指し札）
-  - ブロックの返り（返りの欄の object か null）: `test-gate-base`・`judge`・`rejudge`・`plan`・`plan-review`・`replan`・`replan-review`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`。`plan`・`plan-review` は計画の往復の受け皿 `plan-rounds-out` の欄を分けた物。`fix` は 1 回目と 2 度目の修正を合わせた線の節 `fixed` の返り（申し出 `conflicts` は段ごとの指し札の配列）で、`fixed` が飛ばされた時は 1 回目の返り
+  - ブロックの返り（返りの欄の object か null）: `test-gate-base`・`judge`・`rejudge`・`plan`・`plan-review`・`replan`・`replan-review`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`。`plan`・`plan-review` は計画の往復の受け皿 `plan-rounds-out` の欄を分けた物。`fix` は 1 回目と 2 度目の修正を合わせた線の節 `fixed` の返り（申し出 `conflicts` は段ごとの指し札の配列。`objection` は 1 回目の異議で、2 度目の修正の異議は `refix_objection`。report は `refix_objection` をいつも再審されずに残った異議として読む）で、`fixed` が飛ばされた時は 1 回目の返り
   - 人の関所の答え `{decision, text}` か null: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`
   - 線が持つが report に入力が無い物（約束を変える頼みとして PR #74 に書いた）: 線の止めの語（入口の拒み `works:start-refused`・無人の run の `works:needs-human`・線の script の例外 `works:line-script`）・依頼の前の失敗の指し札・無人の run で報告へ回した問い（`ask-before-fix` の `deferred`）と聞かずに通した直し（`ask-replan` の `widened`）・最後の関所を開ける理由（`ask-final` の `reasons`）・再審の前後の比べ（`judged` の `rejudged`・`new_open_units`・`lowered`・`unnamed_changed`・`unread`）・深さの上げ直し（`redepth` の `skip_optional`・`raised`）
   - 型つきの成果物の一覧（`tdd-unit`・`green-cert`・`eye-verdict`）は `with:` でなく report の中で `$TYPED_ARTIFACTS_FILE` から読む（E5）

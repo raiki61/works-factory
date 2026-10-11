@@ -6,7 +6,8 @@
 
 done・diff・changed・delta_review は refix が走ればその物（diff はどちらも run の始めからの累積）。units は unit_id ごとに後の物、
 groups・allowed_test_changes は和。申し出 conflicts は走った方の指し札を全部並べた配列にし、1 回目の申し出と許したテストの変更が
-最後の関所と報告から消えないようにする。replan_items・objection は 1 回目の物（差し込みを決めたのは 1 回目）。
+最後の関所と報告から消えないようにする。replan_items・objection は 1 回目の物（差し込みを決めたのは 1 回目。再審が受けるのも
+1 回目の異議）。refix の異議は refix_objection に置く（再審は refix の前に走るので、再審されずに残った異議として最後の関所と報告が読む）。
 done は、案の直しが要ったのに 2 度目の修正が走らなかった時（案の直しの関所の stop・無人の止め・案ができなかった・refix の中が
 落ちた）と、前の線の script（after-fix・judged）が止めた時は偽。1 回目の修正の差分を試験の関門から先へ進めない。
 
@@ -46,6 +47,7 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple) -> dict:
         "conflicts": [c for c in (fix.get("conflicts"), (refix or {}).get("conflicts")) if c],
         "replan_items": fix.get("replan_items") or [],
         "objection": fix.get("objection") or "",
+        "refix_objection": (refix or {}).get("objection") or "",
         "diff": last.get("diff"),
         "allowed_test_changes": union(fix.get("allowed_test_changes"), (refix or {}).get("allowed_test_changes")),
         "changed": last.get("changed"),
@@ -68,7 +70,7 @@ def from_env() -> dict:
 
 def fallback(reason: str) -> dict:
     return {**{key: None for key in FIELDS}, "done": False, "units": [], "groups": [], "conflicts": [], "replan_items": [],
-            "objection": "", "allowed_test_changes": [], "refixed": False, "stop_reason": linekit.LINE_SCRIPT}
+            "objection": "", "refix_objection": "", "allowed_test_changes": [], "refixed": False, "stop_reason": linekit.LINE_SCRIPT}
 
 
 if __name__ == "__main__":

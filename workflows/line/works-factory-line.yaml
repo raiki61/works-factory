@@ -628,6 +628,7 @@ nodes:
         conflicts: { type: array }
         replan_items: {}
         objection: {}
+        refix_objection: { type: string }
         diff: {}
         allowed_test_changes: {}
         changed: {}
@@ -635,8 +636,8 @@ nodes:
         done: { type: boolean }
         refixed: { type: boolean }
         stop_reason: { type: string }
-      required: [units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, delta_review, done, refixed,
-                 stop_reason]
+      required: [units, groups, conflicts, replan_items, objection, refix_objection, diff, allowed_test_changes, changed, delta_review,
+                 done, refixed, stop_reason]
     mutates_checkout: false
     depends_on: [after-fix, judged, refix-run]
     trigger_rule: none_failed_min_one_success
@@ -832,6 +833,7 @@ nodes:
       premise_check: "$eyes.output.premise_check"
       questions: "$eyes.output.questions"
       objection: "$fixed.output.objection"
+      refix_objection: "$fixed.output.refix_objection"
       rejudge_verdict: "$judged.output.rejudge_verdict"
       sealed: "$merge-seal.output.ok"
       seal_reason: "$merge-seal.output.reason"

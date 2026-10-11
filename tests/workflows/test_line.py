@@ -351,6 +351,8 @@ class AskFinalCase(unittest.TestCase):
     def test_objection_left_after_the_rejudge_is_a_reason(self):
         self.assertIn("止めずに残った異議が在る", ask_final.final_needs(self.got(objection="異議", rejudge_verdict="退ける")))
         self.assertEqual(ask_final.final_needs(self.got(objection="異議", rejudge_verdict="採る")), [])
+        self.assertIn("止めずに残った異議が在る",
+                      ask_final.final_needs(self.got(objection="異議", rejudge_verdict="採る", refix_objection="2 度目の異議")))
 
 
 class AskFinalReadsCase(Artifacts):
@@ -530,6 +532,12 @@ class FixedCase(unittest.TestCase):
         self.assertEqual(got["conflicts"], [{"path": "fix/conflicts.json"}])
         self.assertEqual(got["allowed_test_changes"], ["tests/a.py", "tests/b.py"])
         self.assertEqual((got["diff"], got["replan_items"], got["refixed"]), ({"path": "refix/diff"}, ["1"], True))
+
+    def test_refix_objection_is_kept_beside_the_first(self):
+        """再審が受けるのは 1 回目の異議。2 度目の修正の異議は捨てず、再審されずに残った異議として refix_objection で運ぶ"""
+        got = fixed.fixed(self.fix(objection="u1 は誤り"), self.fix(objection="u2 も誤り"), replan=True, stops=("", ""))
+        self.assertEqual((got["objection"], got["refix_objection"]), ("u1 は誤り", "u2 も誤り"))
+        self.assertEqual(fixed.fixed(self.fix(), None, replan=False, stops=("", ""))["refix_objection"], "")
 
 
 class RedepthCase(unittest.TestCase):
