@@ -1,5 +1,5 @@
 """目的の役の材料を置く（lib/judge_accept.purpose_prep）。依頼から前の run の判断を外した写し judge/purpose-request.json と、
-それ・PR の説明・前提の実測を並べた judge/purpose-brief.md。止めの控えが在れば go 偽。{go, brief_file, reason}"""
+それ・PR の説明・前提の実測を並べた judge/purpose-brief.md。止めの控えが在れば go 偽。支度が落ちたら止めの控え（stopby.PURPOSE）を置く。{go, brief_file, reason}"""
 import sys
 from pathlib import Path
 
@@ -19,5 +19,7 @@ try:
         start = ja.read_json(jdir / ja.START_FILE) or ja.start_view({})
         out = ja.purpose_prep(jdir, Path.cwd(), start)
 except Exception as e:  # noqa: BLE001  落ちずに理由を返す
-    out = {"go": False, "brief_file": "", "reason": f"目的の役の支度が落ちた（{type(e).__name__}: {e}）"}
+    why = f"目的の役の支度が落ちた（{type(e).__name__}: {e}）"
+    ja.write_stop(jdir, ja.stopby.PURPOSE, why)
+    out = {"go": False, "brief_file": "", "reason": why}
 boundary.returns({"go": bool(out["go"]), "brief_file": str(out["brief_file"]), "reason": str(out["reason"])})

@@ -3783,15 +3783,17 @@ def _fill(path: pathlib.Path, empty) -> pathlib.Path:
     return path
 
 
-def _first_missing_stage(jdir: pathlib.Path):
-    """止めの控えが無いのに受けた判定が無い時、どの段で落ちたか（段が落ちた run は控えを書く前に終わる）"""
-    if not (jdir / INTAKE_FILE).is_file():
-        return REQUEST_STOP, "入口の節が走っていない（始めの記録を読めないまま返る）"
-    if not (jdir / PREMISES_FILE).is_file():
-        return stopby.PREMISES, "前提の実測を受け付けた控えが無い（前提の段が落ちた）"
-    if not (jdir / PURPOSE_FILE).is_file():
-        return stopby.PURPOSE, "目的の文を受け付けた控えが無い（目的の段が落ちた）"
-    return JUDGE_STOP, "受け付けを通った判定が無い（判定の段が落ちた）"
+def _missing_stage(jdir: pathlib.Path, judgment) -> dict | None:
+    """止めの控えが無いのに、判定の前の段の控えか受けた判定が無い時、どの段で落ちたか（段が落ちた run は控えを書く前に終わる。
+    判定が在っても、前提か目的が無ければ判定の材料が欠けている）"""
+    for name, by, why in ((INTAKE_FILE, REQUEST_STOP, "入口の節が走っていない（始めの記録を読めないまま返る）"),
+                          (PREMISES_FILE, stopby.PREMISES, "前提の実測を受け付けた控えが無い（前提の段が落ちた）"),
+                          (PURPOSE_FILE, stopby.PURPOSE, "目的の文を受け付けた控えが無い（目的の段が落ちた）")):
+        if not (jdir / name).is_file():
+            return {"stop_reason": by, "reason": why}
+    if judgment is None:
+        return {"stop_reason": JUDGE_STOP, "reason": "受け付けを通った判定が無い（判定の段が落ちた）"}
+    return None
 
 
 def _accepted_judgment(path: pathlib.Path):
@@ -3820,9 +3822,10 @@ def verdict(jdir, rdir, repo, objection: str, ptr) -> dict:
         judgment = _accepted_judgment(here / JUDGMENT_FILE)
     except ValueError as e:
         stop = stop or {"stop_reason": stopby.REJUDGE if rejudging else JUDGE_STOP, "reason": str(e)}
-    if judgment is None and stop is None:
-        stop = dict(zip(("stop_reason", "reason"), (stopby.REJUDGE, "受け付けを通った再審が無い") if rejudging
-                        else _first_missing_stage(jdir)))
+    if stop is None and rejudging and judgment is None:
+        stop = {"stop_reason": stopby.REJUDGE, "reason": "受け付けを通った再審が無い"}
+    elif stop is None and not rejudging:
+        stop = _missing_stage(jdir, judgment)
     _fill(here / JUDGMENT_FILE, EMPTY_JUDGMENT)
 
     reason = stop["reason"] if stop else ""

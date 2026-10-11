@@ -260,6 +260,19 @@ def empty_reply(**over) -> dict:
             "materials_missing": [], "carried_r1": [], "one_shot_closes": [], "precedents": [], **over}
 
 
+def open_reply(**over) -> dict:
+    """開いた単位 1 つ（KEY）の判定役の返答（judge_output の規則を通る形）"""
+    unit = {"key": KEY, "label": "block", "disposition": "do-now",
+            "reason": f"事実: {KEY}。反証: 意図の取り違えを当たったが、関数名とテストが逆を期待する",
+            "origin_analysis": "写し間違いの形", "why_chain": ["テストが境界の値を試していない"],
+            "class_query": {"how": {"patterns": ["(len(xs) - 1)"], "fixed": True, "paths": ["stats.py"], "count": "lines"},
+                            "counts": "defects", "total": 1}}
+    precedent = {"key": KEY, "problem": "数列の算術平均を求める", "source": "Python の statistics.mean の文書の節",
+                 "verdict": "adopt", "reason": "分母はデータ点の数 len(xs)"}
+    return empty_reply(units=[unit], framing="依頼の行は stats.py の mean の分母の取り違え", one_shot="mean の分母を len(xs) に直す",
+                       one_shot_closes=[KEY], precedents=[precedent], **over)
+
+
 class Run:
     """1 run の置き場と作業ツリー。script を子のプロセスで走らせる"""
 
@@ -508,6 +521,7 @@ class StopPathTest(StopPathFilesMixin, unittest.TestCase):
     def test_no_open_units_is_not_a_stop(self):
         r = Run(self)
         r.returned("intake")
+        premises_and_purpose(r)
         r.returned("diagnose_accept", reply=empty_reply())
         returned = r.returned("verdict")
         self.assertEqual((returned["ready"], returned["stop_reason"], returned["units"]), (False, "", []))
@@ -535,6 +549,85 @@ class RejudgeTest(unittest.TestCase):
         self.assertTrue(prep["go"], prep)
         self.assertEqual(pathlib.Path(prep["brief_file"]), r.artifacts / "rejudge" / "brief.md")
         self.assertIn(self.OBJECTION, (r.artifacts / "rejudge" / "brief.md").read_text(encoding="utf-8"))
+
+
+def premises_and_purpose(r: Run) -> None:
+    """前提と目的の段が受け付けた控えを置く（判定の前の段が通った姿）"""
+    (r.judge / "premises.json").write_text(json.dumps({"constraints": []}), encoding="utf-8")
+    write_purpose(r)
+
+
+HYGIENE = {"role": "hygiene", "materials": {"hygiene": {"status": "found", "count": 1, "detail": "1 件"}},
+           "reply": {"findings": [{"where": "test_stats.py", "text": "使わない import が残る"}]}}
+OUTSIDE = [{"source": "衛生", "where": "test_stats.py", "why_outside": "凍結した目的の外の衛生の所見"}]
+
+
+class JudgedVerdictTest(StopPathFilesMixin, unittest.TestCase):
+    def judged(self) -> Run:
+        r = Run(self)
+        r.returned("intake")
+        premises_and_purpose(r)
+        (r.judge / "material-hygiene.json").write_text(json.dumps(HYGIENE, ensure_ascii=False), encoding="utf-8")
+        out = r.returned("diagnose_accept", reply=open_reply(out_of_purpose=OUTSIDE))
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)
+        return r
+
+    def test_open_unit_is_ready_with_its_out_of_purpose_rows(self):
+        r = self.judged()
+        out = r.returned("verdict")
+        self.assertEqual((out["ready"], out["stop_reason"]), (True, ""), out)
+        self.assertEqual([u["id"] for u in out["units"]], [KEY])
+        self.assertEqual(out["units"][0]["paths"], ["stats.py"])
+        self.assertEqual(out["units"][0]["summary"], open_reply()["units"][0]["reason"])
+        self.assertIsNone(out["rejudge_verdict"])
+        self.assertEqual(r.resolve(out["out_of_purpose"]), r.judge / "out-of-purpose.json")
+        carried = json.loads((r.judge / "out-of-purpose.json").read_text(encoding="utf-8"))
+        self.assertEqual(carried["rounds"]["1"][0]["found"][0]["from"], "p1.hygiene")
+        self.assert_pointers_filled(r, out)
+
+    def test_missing_premises_or_purpose_stops_even_with_an_accepted_judgment(self):
+        """前提・目的の段が落ちた run（控えを書く前に終わる）は、受けた判定が在っても ready にしない"""
+        for name, word in (("premises.json", "works:premises"), ("purpose.json", "works:purpose")):
+            with self.subTest(missing=name):
+                r = self.judged()
+                (r.judge / name).unlink()
+                out = r.returned("verdict")
+                self.assertEqual((out["ready"], out["stop_reason"], out["units"]), (False, word, []), out)
+                self.assert_pointers_filled(r, out)
+
+    def test_purpose_prep_failure_writes_a_stop(self):
+        r = Run(self)
+        r.returned("intake")
+        (r.judge / "premises.json").write_text(json.dumps({"constraints": []}), encoding="utf-8")
+        (r.judge / "start.json").write_text("{broken", encoding="utf-8")
+        self.assertFalse(r.returned("purpose_prep")["go"])
+        self.assertEqual(json.loads((r.judge / "stop.json").read_text(encoding="utf-8"))["stop_reason"], "works:purpose")
+
+
+class RejudgedVerdictTest(unittest.TestCase):
+    OBJECTION = f"{KEY} は分母でなく呼び手の渡す並びの誤り"
+    UNITS = [{"key": KEY, "label": "block", "reason": "異議を当たったが、呼び手の並びは正しく、分母の取り違えが残る"}]
+
+    def test_rejudge_returns_its_own_units_and_keeps_the_first_judgment(self):
+        r = Run(self)
+        r.returned("intake")
+        premises_and_purpose(r)
+        self.assertTrue(r.returned("diagnose_accept", reply=open_reply())["ok"])
+        self.assertTrue(r.returned("verdict")["ready"])
+        first = (r.judge / "judgment.json").read_bytes()
+        self.assertTrue(r.returned("rejudge_prep", objection=self.OBJECTION)["go"])
+        reply = {"verdict": "退ける", "new_facts": "test_stats.py の呼び手を読み、並び [1, 2, 3] を渡していることを確かめた",
+                 "units": self.UNITS, "reason": "異議は呼び手の誤りと言うが、呼び手は正しい"}
+        out = r.returned("rejudge_accept", reply=reply)
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)
+        returned = r.returned("verdict", objection=self.OBJECTION)
+        verdict_shape(self, returned)
+        self.assertEqual(r.resolve(returned["judgment"]), r.artifacts / "rejudge" / "judgment.json")
+        self.assertEqual((returned["ready"], returned["stop_reason"], returned["rejudge_verdict"]), (True, "", "退ける"), returned)
+        self.assertEqual([(u["id"], u["summary"]) for u in returned["units"]], [(KEY, self.UNITS[0]["reason"])])
+        self.assertEqual((r.judge / "judgment.json").read_bytes(), first, "再審は 1 回目の判定を上書きしない")
+        self.assertEqual(json.loads((r.artifacts / "rejudge" / "premises.json").read_text(encoding="utf-8")),
+                         json.loads((r.judge / "premises.json").read_text(encoding="utf-8")))
 
 
 class MaterialGiveUpTest(unittest.TestCase):
