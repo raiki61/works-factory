@@ -1,0 +1,8 @@
+name: works-factory-merge
+nodes:
+  - id: comment
+    bash: gh pr comment 1 --body done
+    timeout: 1728000000
+  - id: push
+    bash: git push origin HEAD
+    timeout: 1728000000

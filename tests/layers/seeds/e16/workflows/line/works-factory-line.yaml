@@ -1,0 +1,4 @@
+name: works-factory-line
+nodes:
+  - id: judge
+    include: works-factory-judge
