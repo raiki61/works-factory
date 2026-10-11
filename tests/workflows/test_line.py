@@ -1,0 +1,385 @@
+"""線の script（workflows/line/scripts/）の決めを、関数を直に呼んで照らす。
+
+筋書き（tests/e2e/test_line_scenarios.py）は関所の答えを stub で差し、往復を 1 周で終えるので、関所の答えの読み・往復の抜け方・
+入口の拒み・返りの合わせ方はここで照らす。種の git は gitkit の型の写し。
+"""
+import json
+import os
+import pathlib
+import tempfile
+import unittest
+from unittest import mock
+
+from tests.bin.gitkit import committed_copy, git
+from tests.bin.linescripts import SCRIPTS, load
+from tests.workflows.test_gate_head import final_got
+
+linekit = load("linekit")
+start = load("start")
+gate_answer = load("gate_answer")
+ask_before_fix = load("ask_before_fix")
+ask_replan = load("ask_replan")
+ask_final = load("ask_final")
+plan_out = load("plan_out")
+after_fix = load("after_fix")
+judged = load("judged")
+fixed = load("fixed")
+redepth = load("redepth")
+collect = load("collect")
+result = load("result")
+
+import gatemarks  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
+
+SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
+RUN = "run-1"
+
+
+class Artifacts(unittest.TestCase):
+    """run の置き場（ARTIFACTS_DIR）と run の id（WORKFLOW_ID）を一時の物にする"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        self.artifacts = self.tmp / "artifacts"
+        self.artifacts.mkdir()
+        env = mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN})
+        env.start()
+        self.addCleanup(env.stop)
+
+
+def raw(**kw) -> dict:
+    got = {key: "" for key in ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_only",
+                               "thickness", "features_off", "features_on", "policy_md", "fix_fixture", "lang")}
+    got.update(kw)
+    return got
+
+
+class StartCase(Artifacts):
+    def setUp(self):
+        super().setUp()
+        self.repo = self.tmp / "repo"
+        self.fork = committed_copy(self.repo, SEED)
+        git(self.repo, "branch", "base")
+        with (self.repo / "stats.py").open("a", encoding="utf-8") as f:
+            f.write("\n# 変更\n")
+        git(self.repo, "commit", "-q", "-am", "change")
+
+    def start(self, **kw):
+        return start.start(raw(**kw), self.repo, self.artifacts, RUN)
+
+    def record(self, got):
+        self.assertEqual(got["record"]["run_id"], RUN)
+        return json.loads((self.artifacts / got["record"]["path"]).read_text(encoding="utf-8"))
+
+    def test_request_builds_the_entry_shape_and_the_record(self):
+        got = self.start(request="request_ok.json", final_gate="when_needed", features_off="tdd_lanes")
+        self.assertTrue(got["ok"], got)
+        self.assertEqual((got["ask"], got["unattended"], got["design_only"], got["final_gate"]), (True, False, False, "when_needed"))
+        doc = self.record(got)
+        head = git(self.repo, "rev-parse", "HEAD")
+        self.assertEqual(doc["input"]["base"], {"rev": head, "from": "head", "name": "", "label": "HEAD"})
+        self.assertEqual((doc["input"]["requests"], doc["input"]["diff"]["empty"]), (2, True))
+        self.assertEqual(doc["features_off"], ["tdd_lanes"])
+        self.assertEqual(doc["features"]["tdd_lanes"], "off")
+        self.assertEqual(doc["final_gate"], "when_needed")
+        self.assertIn("archon", doc["versions"])
+        self.assertTrue(got["gate_text"].startswith("起きたこと: "), got["gate_text"])
+
+    def test_base_alone_is_a_change_entry(self):
+        got = self.start(base="base")
+        self.assertTrue(got["ok"], got)
+        doc = self.record(got)
+        self.assertEqual(doc["input"]["base"]["rev"], self.fork)
+        self.assertGreaterEqual(doc["input"]["diff"]["files"], 1)
+        self.assertEqual(doc["base_rev"], self.fork)
+
+    def test_unattended_does_not_open_the_start_gate(self):
+        got = self.start(request="request_ok.json", unattended="true")
+        self.assertEqual((got["ok"], got["ask"], got["unattended"]), (True, False, True))
+
+    def test_prior_failures_of_the_request_are_placed(self):
+        (self.repo / "next.json").write_text(json.dumps({"findings": [{"where": "a", "text": "b"}],
+                                                         "prior_failures": [{"where": "判定", "text": "拒まれた"}]}),
+                                             encoding="utf-8")
+        got = self.start(request="next.json")
+        self.assertEqual(got["prior_failures"]["path"], "prior-failures-in.json")
+        self.assertEqual(json.loads((self.artifacts / "prior-failures-in.json").read_text(encoding="utf-8")),
+                         [{"where": "判定", "text": "拒まれた"}])
+
+    def test_refusals_stop_before_any_role(self):
+        for kw, words in (({}, "直す物も審査する物も無い"),
+                          ({"request": "request_ok.json", "base": "base", "pr": "1"}, "両方"),
+                          ({"request": "request_ok.json", "spec": "on", "unattended": "true"}, "組めない"),
+                          ({"request": "request_ok.json", "thickness": "重厚"}, "重厚"),
+                          ({"request": "request_ok.json", "features_off": "nope"}, "nope"),
+                          ({"request": "request_ok.json", "features_off": "judge_verify", "features_on": "judge_verify"}, "両方"),
+                          ({"request": "no-such.json"}, "no-such.json"),
+                          ({"request": "request_ok.json", "design_only": "yes"}, "design_only")):
+            with self.subTest(kw=kw):
+                got = self.start(**kw)
+                self.assertEqual((got["ok"], got["stop_reason"], got["ask"]), (False, linekit.START_REFUSED, False), got)
+                self.assertIn(words, got["reason"])
+                self.assertEqual(self.record(got)["refused"], got["reason"])
+
+
+class GateAnswerCase(Artifacts):
+    def test_skipped_gate_passes_the_decision_before_it(self):
+        self.assertEqual(gate_answer.answer("null", "true", "", "gate-final", self.artifacts),
+                         {"go": True, "answer": None, "stop_reason": ""})
+        self.assertEqual(gate_answer.answer(None, "false", linekit.NEEDS_HUMAN, "gate-final", self.artifacts),
+                         {"go": False, "answer": None, "stop_reason": linekit.NEEDS_HUMAN})
+        self.assertFalse((self.artifacts / gate_answer.ANSWERS).exists())
+
+    def test_go_words_continue_and_are_recorded(self):
+        for word in linekit.GO_WORDS:
+            with self.subTest(word=word):
+                got = gate_answer.answer(json.dumps({"decision": word, "text": "a.py だけ"}), "true", "", "gate-before-fix",
+                                         self.artifacts)
+                self.assertEqual(got, {"go": True, "answer": {"decision": word, "text": "a.py だけ"}, "stop_reason": ""})
+                kept = json.loads((self.artifacts / "gates" / "gate-before-fix.json").read_text(encoding="utf-8"))
+                self.assertEqual(kept, got["answer"])
+
+    def test_stop_word_stops_with_the_gate_named(self):
+        got = gate_answer.answer(json.dumps({"decision": "stop", "text": "やめる"}), "true", "", "gate-final", self.artifacts)
+        self.assertEqual((got["go"], got["stop_reason"]), (False, "human:gate-final"))
+        self.assertEqual(json.loads((self.artifacts / "gates" / "gate-final.json").read_text(encoding="utf-8"))["decision"], "stop")
+
+    def test_dry_run_approval_reads_as_approve(self):
+        got = gate_answer.answer(linekit.DRY_RUN_APPROVED, "true", "", "gate-start", self.artifacts)
+        self.assertEqual(got, {"go": True, "answer": {"decision": "approve", "text": ""}, "stop_reason": ""})
+
+
+def planned(**kw) -> dict:
+    got = {"ready": True, "pass": True, "stalled": False, "round": 1, "ask_human": False,
+           "gate_axes": {key: {"ok": True, "note": ""} for key in ask_before_fix.AXES}, "questions": []}
+    got.update(kw)
+    return got
+
+
+class AskBeforeFixCase(unittest.TestCase):
+    def ask(self, plan, unattended=False, design_only=False):
+        return ask_before_fix.ask(plan, unattended=unattended, design_only=design_only, run_id=RUN)
+
+    def test_no_plan_goes_nowhere(self):
+        self.assertEqual(self.ask(planned(ready=False)), {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": []})
+
+    def test_clean_plan_goes_to_fix_without_the_gate(self):
+        self.assertEqual(self.ask(planned()), {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": []})
+
+    def test_reasons_that_open_the_gate(self):
+        failing = {**planned()["gate_axes"], "clean": {"ok": False, "note": "名前が合わない"}}
+        for plan, words in ((planned(gate_axes=failing), "汚くない（clean）の軸が通らない: 名前が合わない"),
+                            (planned(questions=["0 を返すか"]), "0 を返すか"),
+                            (planned(ask_human=True), "直す前の関所"),
+                            (planned(**{"pass": False, "stalled": True}), gatemarks.STUCK_ITEM),
+                            (planned(**{"pass": False, "round": 3}), ask_before_fix.UNSETTLED_ITEM)):
+            with self.subTest(words=words):
+                got = self.ask(plan)
+                self.assertEqual((got["open"], got["go"]), (True, True))
+                self.assertIn(words, got["text"])
+
+    def test_design_only_always_opens(self):
+        got = self.ask(planned(), design_only=True)
+        self.assertTrue(got["open"])
+        self.assertIn("設計だけの run", got["text"])
+
+    def test_unattended_moves_questions_to_the_report(self):
+        got = self.ask(planned(questions=["0 を返すか"], ask_human=True), unattended=True)
+        self.assertEqual(got, {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": ["0 を返すか"]})
+
+    def test_unattended_stops_where_the_gate_would_open(self):
+        got = self.ask(planned(**{"pass": False, "stalled": True}), unattended=True)
+        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
+
+
+class AskReplanCase(Artifacts):
+    ITEM = {"unit_keys": ["u1"], "narrows": [], "removes": [], "allowed_paths": ["stats.py"], "out_of_scope": [], "rewrite_tests": [],
+            "tests": [{"id": "t1", "behavior": "空の列で例外"}]}
+
+    def plan(self, name, item):
+        (self.artifacts / name).write_text(json.dumps({"round": 1, "fields": [item]}), encoding="utf-8")
+        return {"type": "archon_artifact", "run_id": RUN, "path": name}
+
+    def ask(self, new_item, *, ask_human=False, unattended=False, old=None):
+        return ask_replan.ask(old or self.plan("old.json", self.ITEM), self.plan("new.json", new_item), ["1"],
+                              ask_human=ask_human, questions=[], unattended=unattended, run_id=RUN)
+
+    def test_same_contract_passes_without_asking(self):
+        got = self.ask({**self.ITEM, "approach": "別の手段"})
+        self.assertEqual((got["open"], got["go"]), (False, True))
+
+    def test_changed_contract_asks(self):
+        got = self.ask({**self.ITEM, "out_of_scope": ["cli.py"]})
+        self.assertTrue(got["open"])
+        self.assertIn("out_of_scope", got["text"])
+
+    def test_unreadable_plan_asks(self):
+        got = self.ask(self.ITEM, old={"type": "archon_artifact", "run_id": "another", "path": "old.json"})
+        self.assertTrue(got["open"])
+        self.assertIn("読めない", got["text"])
+
+    def test_unattended_passes_widening_only_and_records_it(self):
+        got = self.ask({**self.ITEM, "allowed_paths": ["stats.py", "util.py"]}, unattended=True)
+        self.assertEqual((got["open"], got["go"]), (False, True))
+        self.assertIn("util.py", got["widened"][0])
+
+    def test_unattended_stops_on_a_contract_change(self):
+        got = self.ask({**self.ITEM, "out_of_scope": ["cli.py"]}, unattended=True)
+        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
+
+    def test_review_asking_human_asks(self):
+        self.assertTrue(self.ask(self.ITEM, ask_human=True)["open"])
+
+
+class AskFinalCase(unittest.TestCase):
+    def got(self, **kw):
+        return final_got(**kw)
+
+    def ask(self, got, mode="", unattended=False):
+        return ask_final.ask(got, mode=mode, unattended=unattended, run_id=RUN)
+
+    def test_always_is_the_default(self):
+        got = self.ask(self.got())
+        self.assertEqual((got["open"], got["go"], got["reasons"]), (True, True, []))
+
+    def test_protected_hits_and_conflicts_open_in_every_mode(self):
+        for mode in ("when_needed", "protected_only"):
+            for got in (self.got(protected_hits=["tests/x.py"]), self.got(conflicts=[{"path": "fix/conflicts.json"}])):
+                with self.subTest(mode=mode, got=got["protected_hits"] or got["conflicts"]):
+                    self.assertTrue(self.ask(got, mode)["open"])
+
+    def test_protected_only_ignores_other_reasons(self):
+        self.assertFalse(self.ask(self.got(green=False), "protected_only")["open"])
+
+    def test_unattended_stops_instead_of_opening(self):
+        got = self.ask(self.got(), unattended=True)
+        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
+        self.assertTrue(self.ask(self.got(), "when_needed", unattended=True)["go"])
+
+    def test_objection_left_after_the_rejudge_is_a_reason(self):
+        self.assertIn("止めずに残った異議が在る", ask_final.final_needs(self.got(objection="異議", rejudge_verdict="退ける")))
+        self.assertEqual(ask_final.final_needs(self.got(objection="異議", rejudge_verdict="採る")), [])
+
+
+class PlanOutCase(unittest.TestCase):
+    def got(self, **kw):
+        base = {key: None for key in plan_out.PLAN + plan_out.REVIEW}
+        base.update({"ready": True, "round": 1, "pass": False, "stalled": False})
+        base.update(kw)
+        return plan_out.plan_out(base)
+
+    def test_done_rules(self):
+        self.assertFalse(self.got()["done"])
+        for kw in ({"ready": False}, {"pass": True}, {"stalled": True}, {"round": 3}):
+            with self.subTest(kw=kw):
+                self.assertTrue(self.got(**kw)["done"])
+
+    def test_every_field_is_returned(self):
+        self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"done"})
+
+
+class AfterFixAndJudgedCase(unittest.TestCase):
+    def test_after_fix_counts(self):
+        self.assertEqual(after_fix.decide([], ""), {"replan": False, "rejudge": False})
+        self.assertEqual(after_fix.decide(["1"], " 異議 "), {"replan": True, "rejudge": True})
+
+    def test_judged_prefers_the_rejudge_and_names_changed_units(self):
+        judge = {"units": [{"id": "u1"}, {"id": "u2"}], "judgment": "j", "purpose": "p", "world": None, "rejudge_verdict": None}
+        again = {"units": [{"id": "u2"}, {"id": "u3"}], "judgment": "j2", "purpose": "p", "world": None, "rejudge_verdict": "一部採る"}
+        got = judged.judged(judge, again)
+        self.assertEqual((got["judgment"], got["rejudged"], got["new_open_units"], got["lowered"]), ("j2", True, ["u3"], ["u1"]))
+        self.assertEqual(judged.judged(judge, None)["units"], judge["units"])
+
+
+class FixedCase(unittest.TestCase):
+    def fix(self, **kw):
+        got = {"done": True, "units": [{"unit_id": "u1", "status": "given_up"}], "groups": [{"group_id": "g1"}],
+               "conflicts": {"path": "fix/conflicts.json"}, "replan_items": ["1"], "objection": "", "diff": {"path": "fix/diff"},
+               "allowed_test_changes": ["tests/a.py"], "changed": {"path_changed": False}, "delta_review": {"rounds": 1, "pass": True}}
+        got.update(kw)
+        return got
+
+    def test_first_fix_alone(self):
+        got = fixed.fixed(self.fix(), None)
+        self.assertEqual((got["conflicts"], got["refixed"], got["diff"]), ([{"path": "fix/conflicts.json"}], False, {"path": "fix/diff"}))
+
+    def test_refix_is_merged_without_losing_the_first(self):
+        refix = self.fix(units=[{"unit_id": "u1", "status": "fixed"}, {"unit_id": "u2", "status": "fixed"}], groups=[{"group_id": "g2"}],
+                         conflicts=None, replan_items=[], diff={"path": "refix/diff"}, allowed_test_changes=["tests/b.py"])
+        got = fixed.fixed(self.fix(), refix)
+        self.assertEqual(got["units"], [{"unit_id": "u1", "status": "fixed"}, {"unit_id": "u2", "status": "fixed"}])
+        self.assertEqual(got["groups"], [{"group_id": "g1"}, {"group_id": "g2"}])
+        self.assertEqual(got["conflicts"], [{"path": "fix/conflicts.json"}])
+        self.assertEqual(got["allowed_test_changes"], ["tests/a.py", "tests/b.py"])
+        self.assertEqual((got["diff"], got["replan_items"], got["refixed"]), ({"path": "refix/diff"}, ["1"], True))
+
+
+class RedepthCase(unittest.TestCase):
+    LIGHT = [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}]
+
+    def redepth(self, *, units=(), conflicts=(), questions=(), answer=None, replanned=False, rejudged=False, replanned_depth=None):
+        return redepth.redepth(self.LIGHT, replanned_depth, list(units), list(conflicts), list(questions), answer,
+                               replanned=replanned, rejudged=rejudged)
+
+    def test_quiet_run_stays_light_and_names_what_it_skips(self):
+        got = self.redepth(units=[{"unit_id": "u1", "status": "fixed"}])
+        self.assertEqual(got["depth"][0]["depth"], "軽量")
+        self.assertTrue(got["skip_optional"])
+
+    def test_signals_raise_to_standard(self):
+        for kw in ({"units": [{"unit_id": "u1", "status": "given_up"}]}, {"conflicts": [{"path": "c"}]}, {"questions": ["q"]},
+                   {"replanned": True}, {"rejudged": True}):
+            with self.subTest(kw=kw):
+                got = self.redepth(**kw)
+                self.assertEqual((got["depth"][0]["depth"], got["skip_optional"]), ("標準", ""))
+
+    def test_answered_questions_do_not_raise(self):
+        self.assertEqual(self.redepth(questions=["q"], answer={"decision": "approve", "text": ""})["depth"][0]["depth"], "軽量")
+
+    def test_replanned_depth_wins(self):
+        got = self.redepth(replanned_depth=[{"unit_id": "u9", "depth": "標準", "why": "直した案"}], replanned=True)
+        self.assertEqual([row["unit_id"] for row in got["depth"]], ["u9"])
+
+
+class CollectAndResultCase(unittest.TestCase):
+    def line(self, **kw):
+        got = {"start": "null", "prior_failures": "null", "stops": ["", "", "null", "human:gate-final", "works:needs-human"],
+               "gates": {"gate_start": "null", "gate_before_fix": "null", "gate_replan": "null", "gate_final": "null"},
+               "deferred_questions": "null", "widened": "null", "final_reasons": "null",
+               "judged": {"rejudged": "null"}, "fixed": {"conflicts": "[]"}, "redepth": {"depth": "null"}}
+        got.update(kw)
+        return got
+
+    def test_skipped_include_is_null_and_strings_stay_strings(self):
+        got = collect.collect({"judge": {"ready": "null", "stop_reason": "null"}, "merge_seal": {"ok": "true", "hash": "123"}},
+                              self.line())
+        self.assertIsNone(got["judge"])
+        self.assertEqual(got["merge_seal"], {"ok": True, "hash": "123"})
+        self.assertEqual((got["judged"], got["fixed"]), (None, {"conflicts": []}))
+
+    def test_first_stop_reason_wins(self):
+        self.assertEqual(collect.collect({}, self.line())["stop_reason"], "human:gate-final")
+
+    def test_result_fixed(self):
+        for outcome, want in (("fixed", True), ("fixed_needs_check", True), ("no_fix_needed", False), ("", False)):
+            with self.subTest(outcome=outcome):
+                self.assertEqual(result.result({"outcome": outcome})["fixed"], want)
+
+
+class LinekitCase(unittest.TestCase):
+    def test_script_failure_is_returned_not_raised(self):
+        def boom():
+            raise ValueError("壊れた\n入力")
+
+        with mock.patch.object(linekit.boundary, "returns") as returns, mock.patch("sys.stderr"):
+            linekit.run(boom, lambda reason: {"stop_reason": linekit.LINE_SCRIPT, "reason": reason})
+        returns.assert_called_once_with({"stop_reason": linekit.LINE_SCRIPT, "reason": "ValueError: 壊れた 入力"})
+
+    def test_skipped_values(self):
+        self.assertEqual((linekit.value("null"), linekit.text("null"), linekit.flag("true"), linekit.items("[1]")), (None, "", True, [1]))
+        self.assertEqual((linekit.value("abc"), linekit.text("abc"), linekit.items("null")), ("abc", "abc", []))
+
+
+if __name__ == "__main__":
+    unittest.main()

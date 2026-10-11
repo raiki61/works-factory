@@ -46,8 +46,12 @@ def ask(plan: dict, *, unattended: bool, design_only: bool, run_id: str) -> dict
         return {"open": False, "go": False, "stop_reason": linekit.NEEDS_HUMAN, "text": "", "deferred": deferred}
     asking = {"node": gatemarks.GATE_NODE, "kinds": list(dict.fromkeys(kind for kind, _ in rows)) or [AXIS_KIND],
               "question": QUESTION, "items": [item for _, item in rows]}
-    text = gatemarks.gate_text(asking, run_id=run_id, node=gatemarks.GATE_NODE, record_name=RECORD)
-    return {"open": True, "go": True, "stop_reason": "", "text": text, "deferred": deferred}
+    return {"open": True, "go": True, "stop_reason": "", "text": gate_text(asking, run_id=run_id), "deferred": deferred}
+
+
+def gate_text(asking: dict, *, run_id: str) -> str:
+    """問い {node, kinds, question, items} を修正前の関所の文にする（冒頭 3 行と答え方の行つき。組み立ては gatemarks.gate_text）"""
+    return gatemarks.gate_text(asking, run_id=run_id, node=gatemarks.GATE_NODE, record_name=RECORD)
 
 
 def plan_of_env() -> dict:
