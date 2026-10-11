@@ -3,9 +3,10 @@
 
 並べた run: 組ごとに子の終わりの木と始めの木の差分（groups.diff_since）を 3 方向で当て（unittrees.apply。lanekit.merge_in_order の順）、
 当てた後に、前の組とも重なったファイルの名指しのテストの中身が子の終わりの木と同じかを照らし（fixboard.tests_moved）、その組で
-赤 → 緑を確かめた名指しを親の木で走らせ直す（tddloop.selected_problems。その前に Archon の変数を環境から落とす）。結果のファイルが無い（子が落ちた）・
-当たらない・確かめ直しが赤の組は、その組の差分を戻して returned: false と理由。並べない run は子が親の木で直したので当てない
-（結果のファイルが在れば returned: true）。
+赤 → 緑を確かめた名指しを親の木で走らせ直す（fixboard.rerun_problem。その前に Archon の変数を環境から落とす）。結果のファイルが
+無い（子が落ちた）組は当てず、当たらない・確かめ直しが赤・確かめ直しが落ちた組は当てたパスを戻して、returned: false と理由。
+並べない run は子が親の木で直したので当てない。結果のファイルが在れば returned: true、無い組は、その子が親の木に残した変更を
+子の始めの木に戻して（fixboard.drop_unreturned。次の組の group-start が先に戻した組はその控え）returned: false と理由。
 置き場に join.json = {par, groups: [{group_id, unit_ids, returned, reason}], units: [{unit_id, group_id, status, reason}]} を書き、
 組の差分は join/<group_id>.diff に控える。返り {groups: 組の数, returned: 戻せた組の数}。
 置き場の groups.json が無い・読めない・git が効かない: 標準エラーに 1 行で 1。
@@ -66,9 +67,15 @@ def main() -> dict:
         for g, got in lanekit.merge_in_order(with_result, merge_one):
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)
     else:
+        repo = fixio.repo()
         for g in plan["groups"]:
             r = results[g["group_id"]]
-            outcomes[g["group_id"]] = (r, r is not None, "" if r is not None else fixboard.NO_RESULT)
+            if r is not None:
+                outcomes[g["group_id"]] = (r, True, "")
+                continue
+            dropped = fixboard.drop_unreturned(repo, out_dir / g["group_id"], fixio.SKIP)
+            outcomes[g["group_id"]] = (None, False, fixboard.NO_RESULT + (
+                fixboard.DROPPED.format(paths="・".join(dropped)[:300]) if dropped else ""))
     for g in plan["groups"]:
         outcomes.setdefault(g["group_id"], (None, False, fixboard.NO_RESULT))
     rows, units = fixboard.join_rows(plan["groups"], outcomes)

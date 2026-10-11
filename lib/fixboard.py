@@ -429,6 +429,7 @@ def hole_ties(place, n: int, *, items=None, plan_review=None, fix_reply=None) ->
 ASKING = ("held", "escalate")             # 人に諮っている問いの状態（元 works/.shared/core/scripts/review-record.py:343）
 LANE_SWITCHES = ("fix_lanes", "tdd_lanes")   # 機能の切り替えの語。どちらかが off なら組を並べない（元 works/.shared/core/entry.py:421-440）
 NO_RESULT = "組の子の run が結果のファイルを書かなかった（子が落ちたか、結果が読めない）"
+DROPPED = "。子が親の作業ツリーに残した変更を子の始めの木に戻した: {paths}"
 DELTA_DIR = "delta"                       # 差分の審査の控えの置き場（置き場の下）
 DELTA_REVIEW = "review-{}.json"           # n 回目の審査の控え {pass: bool}（delta-accept・review2-accept が書く）
 DELTA_SKIPPED = "skipped.json"            # 全部の単位が軽量で審査を飛ばした印 {reason}（delta-cut が書く）
@@ -490,9 +491,12 @@ def parallel(groups, features_cut, repo) -> bool:
 
 def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun", rev: str = "HEAD") -> str:
     """組で赤 → 緑を確かめた名指しのテスト named を、親の作業ツリー repo で走らせ直した問題の文（空なら通った。実行器 suite の
-    無い run・名指しの無い組も空）。当たる試験の選びと元から赤の外しは tddloop.selected_problems（名指しのファイルと変えたファイルに
-    当たる試験だけ。元の結末 cases に無い赤は版 rev の写しで確かめる）。走らせ直しの状態は置き場の <name>/state.json に置く。
-    元 works/blk-fix/lib/tddlanes.py の join の「当てた後の木で緑をもう 1 度確かめる」所（盤面の輪の状態を読んだ所を値で受ける）"""
+    無い run・名指しの無い組も空）。先に名指しだけを走らせ、実行器が走らない・名指しが結末に居ない（0 件を含む）・緑でなければ
+    その文（元 works/blk-fix/lib/tddlanes.py:688-703 の _green_after。_RunnerDown を戻す理由にした所）。名指しが緑なら、変えた
+    ファイルに当たる試験の新しい赤を tddloop.selected_problems で見る（元の結末 cases に無い赤は版 rev の写しで確かめる）。
+    走らせ直しの状態とログは置き場の <name>/ に置く。元 works/blk-fix/lib/tddlanes.py の join の「当てた後の木で緑をもう 1 度
+    確かめる」所（盤面の輪の状態を読んだ所を値で受ける）"""
+    import baseline_red
     import tddloop
     suite = (suite or "").strip()
     named = sorted({t for t in named or [] if isinstance(t, str) and t.strip()})
@@ -501,6 +505,13 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
     exe = pathlib.Path(suite) if pathlib.Path(suite).is_absolute() else pathlib.Path(repo) / suite
     work = pathlib.Path(place) / name
     work.mkdir(parents=True, exist_ok=True)
+    ran, _, why = baseline_red.run_suite(str(exe), repo, work, "named", tddloop._abs_ids(repo, named), only=True)
+    if ran is None:
+        return f"当てた後の木で名指しのテストを走らせられない（{'; '.join(why)}）"
+    hit = [c for t in named if (c := baseline_red.match_case(t, ran)) is not None]
+    probs = baseline_red.green_problems(named, hit, 0)
+    if probs:
+        return "当てた後の木で名指しのテストが緑でない: " + "；".join(probs)
     st = {"exe": str(exe), "work": str(work), "suite_made": [], "contract": {},
           "baseline": {tddloop._key(c): c.get("outcome") for c in cases or [] if isinstance(c, dict)},
           "units": {name: {"tests": named, "test_files": []}}}
@@ -529,7 +540,11 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     if not ok:
         return lanekit.Merge(f"差分が親の作業ツリーに当たらない（{' '.join(why.split())[:300]}）", str(kept), [], [], True)
     names = unitlanes._names(patch)
-    why = (check(names) if check else "") if names else ""
+    try:
+        why = (check(names) if check else "") if names else ""
+    except BaseException:
+        tddloop.restore_paths(repo, before, names)
+        raise
     if why:
         tddloop.restore_paths(repo, before, names)
         return lanekit.Merge(why, str(kept), [], [], False)
@@ -720,6 +735,7 @@ def run_diff(repo, base: str = "HEAD", skip=()) -> str:
 # ---------------------------------------------------------------- 差分の審査・レンズ・手直しの節の口（delta・lens・refix の scripts が呼ぶ）
 # 置き場の決まった名（prep が写し、ここが読む）
 GROUPS_FILE = "groups.json"            # {groups: [{group_id, …}], out_dir, start_tree, …}（prep の返りと同じ）
+ASSERT_FILE = "assert-changed.json"    # 変更の確かめの結果 {ok, reason}（assert-changed が書き、delta-cut・collect が読む）
 RESULT_FILE = "result.json"            # 組の子の結果 <out_dir>/<group_id>/result.json（reply_file に受け付けた修正役の返答の写し）
 DEPTH_FILE = "depth.json"              # 単位ごとの深さ [{unit_id, depth, why}]（plan の返り depth の写し）
 PLAN_REPLY_FILE = "p2.fix_plan.json"   # 修正案の役の返答の写し（{"plan": [...]}。承認済みの項目の unit_keys の出どころ）
@@ -1089,6 +1105,8 @@ ADOPTED = ("r1/start.json", "judgment.json", PLAN_REPLY_FILE, "ripple.json", "wo
            "units.json", "only-items.json", "baseline.json")
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 修正の輪が許したテストの変更のパス [str]（fix-accept が書く）
+GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
+DROPPED_FILE = "dropped.json"           # 落ちた子の変更を戻した控え {start_tree, paths}（drop_unreturned が組の置き場に書く）
 UNIT_STATUSES = ("fixed", "given_up", "not_done")
 NO_UNIT_RESULT = "修正の輪がこの単位の結末を残さなかった"
 
@@ -1179,6 +1197,33 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, fix_units=None, 
             "changed": changed_marks([{"changed": reply}] if reply else []),
             "allowed_test_changes": sorted({p for p in allowed or [] if isinstance(p, str) and p}),
             "verified": verified_tests(tdd), "reply_file": str(reply_file or "")}
+
+
+def group_dir(place, out_dir: str, gid: str) -> pathlib.Path:
+    """組の子の結果と始めの記録の置き場 <out_dir>/<group_id>/（out_dir が空の単独の run は自分の置き場の groups/ の下）"""
+    return pathlib.Path(out_dir or pathlib.Path(place) / "groups") / str(gid)
+
+
+def drop_unreturned(repo, gdir, skip=()) -> list:
+    """並べない run（組の子が親の作業ツリーで直す）で、子が結果（RESULT_FILE）を書かずに落ちた組の変更を、子の始めの木
+    （gdir の GROUP_START_FILE の start_tree）に戻す。戻したパス（除くパスの頭 skip の下は数えない）を返し、gdir の DROPPED_FILE
+    に控える。結果の在る組・始めの記録の無い組は何もしない（[]）。もう戻した組は控えのパスを返す（次の組の頭と join が同じ組を
+    見ても 2 度戻さない）。新しい（元は枝ごとの worktree で直したので、落ちた枝の直しは親の木に届かなかった）"""
+    import tddloop
+    gdir = pathlib.Path(gdir)
+    if (gdir / RESULT_FILE).is_file():
+        return []
+    done = read_json(gdir / DROPPED_FILE)
+    if isinstance(done, dict):
+        return list(done.get("paths") or [])
+    began = read_json(gdir / GROUP_START_FILE)
+    tree = began.get("start_tree") if isinstance(began, dict) else None
+    if not isinstance(tree, str) or not tree:
+        return []
+    paths = touched_since(repo, tree, skip)
+    tddloop.restore_paths(repo, tree, paths)
+    write_json(gdir / DROPPED_FILE, {"start_tree": tree, "paths": paths})
+    return paths
 
 
 # ---------------------------------------------------------------- 修正役の受け付けと範囲の相談（fix-accept・fix-ruled-accept・

@@ -5,12 +5,14 @@
 - 入力の写し: 入力 out_dir が在る（親が起こした子）なら、親の置き場（out_dir の 1 つ上）の写しを自分の置き場に写す
   （fixboard.adopt_inputs。親の指し札は親の run の物で、この run では引けない）。out_dir が空の単独の run は、指し札を自分で
   引いて節 prep と同じ写しを置く（prep.main）
+- 親の作業ツリーで 1 つずつ回る子（out_dir が在り from_tree が空）は、前の組の子が結果を書かずに落ちて残した変更を、その子の
+  始めの木に戻してから始める（fixboard.drop_unreturned。最後の組の分は join が戻す）
 - 控え（leftovers.record_ignored）と始めの木（groups.end_tree）。自分の組だけの groups.json（{groups: [組], count: 1, par: false,
   start_tree, out_dir}）
 - TDD の輪（tddloop.start）: 実行器は始めの記録の tdd_suite（空は実行器の無い run）。輪の頭で一式を 1 回走らせて元の結末を取る
   （今の works のまま。親の baseline.json は写して受け付けと join の確かめ直しが読む）。返りを置き場の tdd-start.json に控える
-置き場に書く物: 上の写し・fix-ignored-before.json・groups.json・tdd-start.json・group-start.json（{group, from_tree, out_dir,
-start_tree}。group-end が読む）・tdd-<k>/（輪の状態）。
+置き場に書く物: 上の写し・fix-ignored-before.json・groups.json・tdd-start.json・tdd-<k>/（輪の状態）。組の置き場
+（fixboard.group_dir）に group-start.json（{group, from_tree, out_dir, start_tree}。group-end と drop_unreturned が読む）。
 返り {tdd: 輪を回すか, units: 組の単位の数, reason: 回さない理由}。入力が読めない・git が効かない・輪の頭が壊れた: 標準エラーに
 1 行で 1。
 """
@@ -31,8 +33,6 @@ import leftovers  # noqa: E402
 import startrec  # noqa: E402
 import tddloop  # noqa: E402
 
-TDD_START = "tdd-start.json"     # tddloop.start の返り（tdd-prep・tdd-step・group-end が読む）
-GROUP_START = "group-start.json"
 NO_UNITS = "組に単位が無い——TDD の輪を回さない"
 
 
@@ -54,16 +54,19 @@ def main() -> dict:
         groups.adopt_tree(repo, from_tree)
     if out_dir:
         fixboard.adopt_inputs(Path(out_dir).parent, place)
+        if not from_tree:
+            for gdir in sorted(p for p in Path(out_dir).glob("*") if p.is_dir()):
+                fixboard.drop_unreturned(repo, gdir, fixio.SKIP)
     else:
         import prep   # 単独の run: 指し札は自分の run の物なので、ブロックの形と同じ写しを置く
         prep.main()
     leftovers.record_ignored(place, repo)
     start_tree = groups.end_tree(repo)
     fixboard.write_json(place / fixboard.GROUPS_FILE,
-                     {"groups": [group], "count": 1, "par": False, "start_tree": start_tree,
-                      "out_dir": out_dir or str(place / "groups")})
-    fixboard.write_json(place / GROUP_START, {"group": group, "from_tree": from_tree, "out_dir": out_dir,
-                                           "start_tree": start_tree})
+                        {"groups": [group], "count": 1, "par": False, "start_tree": start_tree,
+                         "out_dir": out_dir or str(place / "groups")})
+    fixboard.write_json(fixboard.group_dir(place, out_dir, group["group_id"]) / fixboard.GROUP_START_FILE,
+                        {"group": group, "from_tree": from_tree, "out_dir": out_dir, "start_tree": start_tree})
     start = startrec.read(place)
     keys = [str(k) for k in group["unit_ids"]]
     suite = str(start.get("tdd_suite") or "")
@@ -74,7 +77,7 @@ def main() -> dict:
         fixio.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
         out = tddloop.start(place, repo, suite, json.dumps(keys, ensure_ascii=False),
                             test_cmd=str(start.get("test_cmd") or ""), unit_depths=depths, owed=set(keys))
-    fixboard.write_json(place / TDD_START, out)
+    fixboard.write_json(place / fixboard.TDD_START_FILE, out)
     return {"tdd": bool(out["go"]), "units": len(keys), "reason": str(out.get("reason") or "")}
 
 

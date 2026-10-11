@@ -1,7 +1,8 @@
 """差分の審査の支度（節 delta-cut）: 修正だけの差分（run の始めの木 → 今の作業ツリー）を切り、審査役の材料を置き場に書く（refix.cut）。
 
-全部の単位が軽量の run（置き場の depth.json。fixboard.depth_skip。持ち主の決め dynamic-depth）と、変更の確かめ（置き場の
-assert-changed.json）が ok でない run は、置き場の delta/skipped.json に {reason} を書いて go: false で審査を飛ばす。
+変更の確かめ（置き場の assert-changed.json）が ok でない run は go: false で審査を回さない（審査は走らなかったので collect は
+{rounds: 0, pass: false} を返す）。全部の単位が軽量の run（置き場の depth.json。fixboard.depth_skip。持ち主の決め dynamic-depth）は、
+置き場の delta/skipped.json に {reason} を書いて go: false で審査を飛ばす。
 返り {go, files, diff_file, brief_file}。回す側の誤り（差分の起点が無い・差分を切れない・修正案の欄の控えが壊れた）は標準エラーに
 1 行で非 0。
 """
@@ -18,27 +19,22 @@ import fixboard  # noqa: E402
 import refix  # noqa: E402
 import startrec  # noqa: E402
 
-ASSERT_FILE = "assert-changed.json"   # 変更の確かめの節が書く {ok, reason}
-
-
-def skip_reason(place) -> str:
-    got = fixboard.read_json(place / ASSERT_FILE)
-    if not isinstance(got, dict):
-        return f"変更の確かめの控え {ASSERT_FILE} が無い（assert-changed が落ちたか走らなかった）"
-    if got.get("ok") is not True:
-        return f"変更の確かめが通らなかった（{got.get('reason') or '理由の記録が無い'}）"
-    return fixboard.depth_skip(place)
+NO_GO = {"go": False, "files": [], "diff_file": "", "brief_file": ""}
 
 
 def main() -> None:
     place = fixio.place()
     skipped = place / fixboard.DELTA_DIR / fixboard.DELTA_SKIPPED
-    why = skip_reason(place)
-    if why:
-        fixboard.write_json(skipped, {"reason": why})
-        boundary.returns({"go": False, "files": [], "diff_file": "", "brief_file": ""})
-        return
     skipped.unlink(missing_ok=True)
+    checked = fixboard.read_json(place / fixboard.ASSERT_FILE)
+    if not isinstance(checked, dict) or checked.get("ok") is not True:
+        boundary.returns(NO_GO)
+        return
+    light = fixboard.depth_skip(place)
+    if light:
+        fixboard.write_json(skipped, {"reason": light})
+        boundary.returns(NO_GO)
+        return
     repo = fixio.repo()
     start = startrec.read(place)
     got = refix.cut(place, 1, repo, fixboard.start_tree(place), plan_review=None,

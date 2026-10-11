@@ -1316,9 +1316,36 @@ class GroupScriptsSeamCase(TempCase):
         self.assertIn("test_mean_of_three", fixboard.tests_moved(self.repo, end, [unit], {"test_stats.py"}))
         self.assertEqual(fixboard.tests_moved(self.repo, end, [unit], set()), "")
 
+    def test_join_group_reverts_when_the_check_raises(self):
+        start = leftovers.snapshot(self.repo)
+        (self.repo / "extra.py").write_text("X = 1\n", encoding="utf-8")
+        end = leftovers.snapshot(self.repo)
+        git(self.repo, "clean", "-qfd")
+
+        def broken(names):
+            raise RuntimeError("地図が引けない")
+        with self.assertRaises(RuntimeError):
+            fixboard.join_group(self.repo, start, end, self.place / "g1.diff", check=broken)
+        self.assertFalse((self.repo / "extra.py").exists())
+
     def test_rerun_problem_is_empty_without_suite_or_names(self):
         self.assertEqual(fixboard.rerun_problem(self.place, self.repo, "", [], ["t.py::x"]), "")
         self.assertEqual(fixboard.rerun_problem(self.place, self.repo, "run.sh", [], []), "")
+
+    def test_rerun_problem_names_red_unrunnable_and_unreported_tests(self):
+        from lib.tests.test_blk_fix_tdd import SUITE
+        suite = self.tmp / "suite.py"
+        suite.write_text(SUITE, encoding="utf-8")
+        named = ["test_stats.py::TestStats::test_mean_of_three"]
+        self.assertIn("test_mean_of_three", fixboard.rerun_problem(self.place, self.repo, str(suite), [], named))
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        self.assertEqual(fixboard.rerun_problem(self.place, self.repo, str(suite), [], named), "")
+        self.assertIn("走らせられない", fixboard.rerun_problem(self.place, self.repo, str(self.tmp / "no-such.py"), [], named))
+        empty = self.tmp / "empty.py"
+        empty.write_text("import sys\nopen(sys.argv[1], 'w').write('<testsuite/>')\n", encoding="utf-8")
+        self.assertIn("test_mean_of_three", fixboard.rerun_problem(self.place, self.repo, str(empty), [], named),
+                      "0 件の結末は通ったと数えない")
 
 
 class SmallGapsSeamCase(unittest.TestCase):

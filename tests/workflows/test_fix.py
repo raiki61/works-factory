@@ -310,12 +310,13 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertTrue(got["reason"].startswith("軽量で省いた"), got)
         self.assertFalse((self.place / "loop-fix_delta.json").exists())
 
-    def test_delta_cut_skips_when_assert_changed_did_not_pass(self):
+    def test_delta_cut_does_not_mark_a_failed_change_check_as_light(self):
+        """変更の確かめが通らない run は審査を回さないが、全部が軽量の印 skipped.json は書かない（審査が通ったと読まれる）"""
+        self._json("delta/skipped.json", {"reason": "前の回の印"})
         self._json("assert-changed.json", {"ok": False, "reason": "申告したファイルが変わっていない"})
         out = self._run("delta_cut", "delta-cut")
         self.assertFalse(out["go"])
-        self.assertIn("申告したファイルが変わっていない",
-                      json.loads((self.place / "delta" / "skipped.json").read_text(encoding="utf-8"))["reason"])
+        self.assertFalse((self.place / "delta" / "skipped.json").exists())
 
     def test_cut_review_refix_rejects_outside_the_range_then_accepts(self):
         """標準の run: 差分を切って材料を書き、審査を受けて delta/review-1.json に pass: false、手直しの支度が指示書を書き、
@@ -618,6 +619,28 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(validate_schema(joined["groups"], group_items), [])
         self.assertEqual(validate_schema(joined["units"], unit_items), [])
 
+    def test_join_in_order_drops_what_a_failed_child_left(self):
+        """並べない run で結果を書かずに落ちた子の変更は、その子の始めの木に戻す（前の組の直しは残す）"""
+        start = self.snapshot(self.repo)
+        src = (self.repo / "stats.py").read_text(encoding="utf-8")
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": []},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": []}], start, par=False)
+        (self.repo / "stats.py").write_text(src.replace("len(xs) - 1", "len(xs)"), encoding="utf-8")
+        t1 = self.snapshot(self.repo)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+        _blk_write(out_dir / "g2" / "group-start.json", {"start_tree": t1})
+        (self.repo / "stats.py").write_text(src.replace("len(xs) - 1", "0"), encoding="utf-8")
+        (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out, {"groups": 2, "returned": 1})
+        self.assertEqual(self.snapshot(self.repo), t1)
+        g2 = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["groups"][1]
+        self.assertFalse(g2["returned"])
+        self.assertIn("half.py", g2["reason"])
+        self.assertEqual(json.loads((out_dir / "g2" / "dropped.json").read_text(encoding="utf-8"))["paths"],
+                         ["half.py", "stats.py"])
+
     # ---- tdd_unit.py
     def test_tdd_unit_writes_one_body_for_all_groups(self):
         start = self.snapshot(self.repo)
@@ -671,6 +694,27 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertEqual(out["delta_review"], {"rounds": 2, "pass": True})
         self.assertTrue(out["done"])
+
+    def test_collect_failed_or_missing_review_is_not_done(self):
+        self.collect_place(skipped=False)
+        _blk_write(self.place / "delta" / "review-1.json", {"pass": False})
+        _blk_write(self.place / "delta" / "review-2.json", {"pass": False})
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assertEqual((out["delta_review"], out["done"]), ({"rounds": 2, "pass": False}, False))
+        with self.subTest("審査の控えが無い"):
+            __import__("shutil").rmtree(self.place / "delta")
+            code, out, err = _blk_run("collect", self.repo, self.art)
+            self.assertEqual(code, 0, err)
+            self.assertEqual((out["delta_review"], out["done"]), ({"rounds": 0, "pass": False}, False))
+
+    def test_collect_after_a_failed_change_check_reports_no_review(self):
+        self.collect_place(ok=False, skipped=False)
+        code, out, err = _blk_run("delta_cut", self.repo, self.art, node_path="fix__delta-cut")
+        self.assertEqual((code, out["go"]), (0, False), err)
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assertEqual((out["delta_review"], out["done"]), ({"rounds": 0, "pass": False}, False))
 
     def test_collect_refused_change_is_not_done(self):
         self.collect_place(ok=False)
@@ -873,6 +917,20 @@ class GroupChildScriptsCase(unittest.TestCase):
                          ([_GRP_GROUP], False, str(self.out_dir), tree))
         self.assertEqual(self._grp_run("tdd_prep", "tdd-prep"), {"prompt_file": "", "go": False})
         self.assertIn("入力 group", self._grp_run("group_start", "group-start", ok=False, group="{}"))
+
+    def test_group_start_in_order_drops_what_the_failed_child_before_left(self):
+        """親の作業ツリーで 1 つずつ回る子は、前の組の子が結果を書かずに落ちて残した変更を戻してから始める"""
+        import leftovers
+        before = leftovers.snapshot(self.repo)
+        (self.out_dir / "g0").mkdir()
+        (self.out_dir / "g0" / "group-start.json").write_text(json.dumps({"start_tree": before}), encoding="utf-8")
+        (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
+        self._grp_run("group_start", "group-start")
+        self.assertFalse((self.repo / "half.py").exists())
+        self.assertEqual(json.loads((self.out_dir / "g0" / "dropped.json").read_text(encoding="utf-8"))["paths"],
+                         ["half.py"])
+        began = json.loads((self.out_dir / "g1" / "group-start.json").read_text(encoding="utf-8"))
+        self.assertEqual(began["start_tree"], before)
 
     def test_tdd_step_takes_the_red_and_gives_up_on_the_third_refusal(self):
         """実行器が在る run: 振り分け → 名指しが failure で落ちる赤を受け → 直しの段で 3 回拒まれた単位は、単位の頭の木に戻して
