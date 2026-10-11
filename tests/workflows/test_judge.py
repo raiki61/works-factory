@@ -20,6 +20,9 @@ from tests import archon
 from tests.bin.gitkit import committed_copy, git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.append(str(ROOT / "lib"))
+import judge_accept as ja  # noqa: E402
+
 BLOCK = ROOT / "workflows" / "judge"
 YAML_FILE = BLOCK / "works-factory-judge.yaml"
 SCRIPTS = BLOCK / "scripts"
@@ -33,8 +36,7 @@ RUN_ID = "run-judge"
 RETURNS = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spec", "out_of_purpose", "rejudge_verdict")
 INPUTS = {"start": "null", "baseline": "null", "objection": "", "prior_failures": "null"}
 RUN_OWNED = ("worktree", "container", "evidence_policy", "mutates_checkout")
-MATERIALS = ("prior-decisions", "purpose-review", "local-review", "consistency-bypass", "hygiene", "external-standards",
-             "procedure-trace", "gate-efficacy", "test-double-fidelity", "main-path-observation", "provenance")
+MATERIALS = tuple(ja.MATERIAL_ROLES)
 PUBLIC = ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.json")
 
 # 役の節の設定（今の works の旧 YAML の値。works/blk-*/blk-*.yaml と darkfactory/darkfactory.yaml の 174〜400 行・866 行）
@@ -154,7 +156,19 @@ class LoopTest(unittest.TestCase):
         for name in MATERIALS:
             with self.subTest(material=name):
                 self.assertEqual(by[name]["command"], f"material-{name}")
-                self.assertEqual(by[f"{name}-loop"]["when"], f"$material-route.output.{name.replace('-', '_')} == true")
+                self.assertEqual(by[f"{name}-loop"]["when"], f"$material-route.output.{ja.route_key(name)} == true")
+
+    def test_role_names_are_the_libs(self):
+        """役の名の持ち主は lib（MATERIAL_ROLES・SPEC_ROLES）。YAML の route の欄と with: の role がそれに合う"""
+        by = nodes()
+        route = by["material-route"]["output_format"]
+        keys = {ja.route_key(r) for r in ja.MATERIAL_ROLES} | {"reason"}
+        self.assertEqual((set(route["required"]), set(route["properties"])), (keys, keys))
+        for script, table in (("material_prep", ja.MATERIAL_ROLES), ("material_accept", ja.MATERIAL_ROLES),
+                              ("spec_accept", ja.SPEC_ROLES)):
+            with self.subTest(script=script):
+                roles = [n["with"]["role"] for n in by.values() if n.get("script") == script]
+                self.assertEqual(sorted(roles), sorted(table))
 
 
 class RoleSettingsTest(unittest.TestCase):
