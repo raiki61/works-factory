@@ -38,7 +38,8 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
   含む関数の全体に広げ、`<行>-<行>` は書いたとおり（base との差分の塊の旧い側の行が範囲の外なら、その塊に掛かる関数は
   許さない。tddloop.hunks_outside）。ファイルだけの範囲はそのファイルの全部
 
-帳面（LEDGER。置き場の作業ファイル）: {"rows": [{pass, attempt, gate, id, detail, unit_keys}], "skipped": [{pass, attempt, why}]}。
+帳面（LEDGER。置き場の作業ファイル）: {"rows": [{pass, attempt, gate, id, detail, unit_keys}], "skipped": [{pass, attempt, why}],
+"guards": [{pass, attempt, id, base}]}。
 受け付けの回の印は (pass, attempt)（裁定の後の輪は回を 1 から数え直す）。2 回目の修正の段（依頼 226。同じブロックの 2 度目の
 差し込み。線の include refix）の帳面と一式のログは、その段の置き場（fix/refix/）に分かれる。conflict.second_pass（置き場の裁定の行に
 案を直した行が在る段）の test_edits は、base からの差分に 1 回目の段で裁定 fix_test_scope の範囲として直したテストが在るので、裁定の範囲を

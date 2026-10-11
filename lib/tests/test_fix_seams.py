@@ -1731,17 +1731,25 @@ class OverflowTraceSeamCase(TempCase):
         self.assertEqual(row["guards"], [f"{self.GATE_ID}: 守りのテスト（base で passed）"])
         self.assertEqual((row["agreed"], row["reverted"], row["gate_tests"]), ([], [], []))
 
-    def test_gate_agreed_new_test_is_named_in_the_overflow_trace(self):
+    def asked(self, *grants):
         import conflict
-        import consult
-        for i, (origin, tid) in enumerate([(consult.ORIGIN_GATE, self.GATE_ID), (consult.ORIGIN_GATE, self.GONE_ID),
-                                           (consult.ORIGIN_ACCEPT, self.GATE_ID)], 1):
+        for i, (origin, tid) in enumerate(grants, 1):
             fixboard.trace(self.place, conflict.ASKED_OP, id=i, item="1", status="answered", decision="allow", origin=origin,
                            granted_paths=[], granted_tests=[], granted_new_tests=[{"id": tid, "red_kind": "assertion"}],
                            reason="足してよい")
+
+    def test_gate_agreed_new_test_is_named_in_the_overflow_trace(self):
+        import consult
+        self.asked((consult.ORIGIN_GATE, self.GATE_ID), (consult.ORIGIN_GATE, self.GONE_ID))
         (row,) = self.overflow_rows()
         self.assertEqual(row["gate_tests"], [f"{self.GATE_ID}（assertion）"], "今の木に無いテストは名指さない")
-        self.assertEqual((row["agreed"], row["guards"]), ([3], []))
+        self.assertEqual((row["agreed"], row["reverted"], row["guards"]), ([], [], []))
+
+    def test_accept_agreed_test_is_not_a_gate_test(self):
+        import consult
+        self.asked((consult.ORIGIN_ACCEPT, self.GATE_ID))
+        (row,) = self.overflow_rows()
+        self.assertEqual((row["agreed"], row["gate_tests"]), ([1], []))
 
 
 class GateItemsSeamCase(unittest.TestCase):
