@@ -1657,7 +1657,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     記録の無い run は undeclared_writes で段の頭の木 head からの変更を申告に縛る）→ 食い違いの申し出（take_conflicts。first で
     裁かれていない申し出が在れば輪を抜ける {ok: True, conflicted: True}）→ 単位の行（check_unique_units・check_opened_units・
     check_excused_units）→ 承認済みの修正案の範囲（factchecks.check_plan_scope）→ 変更に当たる試験（tddloop.selected_problems）→
-    事後の関門の束（fixgates.problems）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
+    事後の関門の束（fixgates.problems）→ 閉鎖の数え直し（closure_reply。通れば表を querytest.save_closure）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
     拒まずに settle_overflow を通す（相談に積んだ回は {ok: False, queued: True}。戻した回は戻した返答で頭から通し直す。reverted・
     trail はその通し直しが渡す）。最後の回の単位への結びは、はみ出しでない行にだけ当てる（止めた後の通し直しのはみ出しは聞かずに戻す）。
     iteration が GIVE_UP_AFTER 以上の拒否は、行を単位に結んで（last_settle）結んだ単位だけを head に戻して諦め（park_units）、残りの
@@ -1723,9 +1723,15 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     note("tests", red)
     gates = fixgates.problems(place, repo, rev, suite, iteration, pass_=pass_, owed=set(duty))
     note("gates", fixgates.reject_lines(gates) if gates else [])
-    out = recount.accept_fix(reply, place, rev, repo, judged=judged, owed=set(duty), commit=not found)
+    shaped, closure, zero = closure_reply(reply, place, repo, rev, judged)
+    precedents = (read_json(pathlib.Path(place) / JUDGMENT_FILE, {}) or {}).get("precedents") or []
+    out = recount.accept_fix(shaped, place, rev, repo, judged=judged, owed=set(duty), zero_keys=zero,
+                             precedents=precedents, commit=not found)
     if out.get("ok") is not True:
         note("copy", out.get("problems") or [str(out.get("reason") or "")])
+    elif closure and not found:
+        import querytest
+        querytest.save_closure(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), closure)
     asks = gather_overflow(scope_note, frozen_over, gates, place, rev, repo)
     over, rest = split_rows(found, asks)
     if over and not rest:   # はみ出しの行だけ（写しの照らしは上で乾いた形に当ててある）: 拒まずに相談に積むか、戻して通し直す
@@ -1764,6 +1770,42 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     return accept_reply(_without_units(whole, set(now)), place, repo, pass_=pass_, iteration=iteration, owed=owed,
                         judged=judged, suite=suite, state=state, tests_state=tests_state, base_rev=base_rev, head=head,
                         skip=skip, parked={**parked, **now}, reverted=reverted, trail=trail)
+
+
+def closure_reply(reply: dict, place, repo, rev: str, judged) -> tuple:
+    """閉鎖の数え直し（unitrows.build）を当てた返答と単位ごとの表 (返答, 表の行, 判定の時に engine が 0 件と数えた単位)。判定者の
+    class_query（裁定 replace_query を受けた単位は置き換えた問い。conflict.replaced_queries）を修正前の版 rev と今の作業ツリーで
+    recount._run_query が数え、覆いは修正前の版からの変更（writes.changed。読めなければ何も覆わない）で数える。0 件の単位は、判定者の
+    問いを同じ版で数えて 0 件なのに判定者の total が 0 でない単位（元は判定の受け付けが盤面の engine_zero に置いた物。判定は同じ固めた
+    版で数える）。元 works/blk-fix/lib/unitrows.py:218 の take（盤面の代わりに置き場と値）"""
+    import conflict
+    import recount
+    import unitrows
+    import writes
+    changes = reply.get("changes") or []
+    queries = {u.get("key"): u.get("class_query") or {} for u in judged or [] if isinstance(u, dict)}
+    if not any(isinstance(c, dict) and ((queries.get(c.get("unit_key")) or {}).get("how")
+                                        or (c.get("coverage") or {}).get("how")) for c in changes):
+        return ({**reply, "changes": [unitrows._unpathed(c) for c in changes]} if changes else reply), [], set()
+
+    def count(how, at_rev):
+        if at_rev:
+            return recount._run_query(place, "閉鎖の数え直し（修正前）", how, str(repo), rev=rev)
+        return recount._run_query(place, "閉鎖の数え直し（修正後）", {**how, "untracked": True}, str(repo), probe=False)
+
+    def per_file(how, at_rev):
+        return unitrows.file_counts(how, repo, rev) if at_rev else unitrows.file_counts({**how, "untracked": True}, repo)
+    zero = set()
+    for key, q in queries.items():
+        if q.get("how") and isinstance(q.get("total"), int) and q["total"] != 0 and count(q["how"], True)[0] == 0:
+            zero.add(key)
+    try:
+        touched = writes.changed(repo, rev)
+    except Exception:   # 読めなければ何も覆わない（site の path も変わったと確かめられない）
+        touched = None
+    out, rows = unitrows.build(changes, queries, count=count, blank=recount.blank, zero_keys=zero,
+                               replaced=conflict.replaced_queries(place), per_file=per_file, touched=touched)
+    return {**reply, "changes": out}, rows, zero
 
 
 def loop_done(got: dict, iteration: int) -> bool:

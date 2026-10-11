@@ -1155,8 +1155,9 @@ def _fx_run(script, repo, art, **inputs):
 
 
 def _fx_change(unit, files, **extra):
-    """修正役の返答の changes の 1 行（closure の site は 1 つ）"""
-    return {"unit_key": unit, "files": files, "what": "直した", **extra,
+    """修正役の返答の changes の 1 行（closure の site は 1 つ。自己申告の欄は lib/tests/test_fix_seams.py の SELF_REPORT）"""
+    from lib.tests.test_fix_seams import SELF_REPORT
+    return {"unit_key": unit, "files": files, "what": "直した", **SELF_REPORT, **extra,
             "closure": {"mechanism": "分母", "fix_mechanism": "len(xs)", "verified_how": "読んだ",
                         "sites": [{"site": f"{files[0]}:9", "red_seen": True}]}}
 

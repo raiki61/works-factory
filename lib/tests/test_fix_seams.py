@@ -411,14 +411,23 @@ R_RESIDUE = {"sum(xs) / (len(xs) - 1)": "sum(xs) / len(xs)  # 前は sum(xs) / (
              "    if x > hi:\n        return lo": "    if x > hi:\n        return hi"}
 
 
+# 修正役の返答の changes の行の自己申告の欄（recount._reply_shape_problems が照らす。数え直しの試験の外の欄）
+SELF_REPORT = {"bypass_tried": "修正を残したまま空の並びを渡して破りに行き、例外で止まるのを見た",
+                "breaks": {"how": "git grep -n mean", "result": "呼び手は 1 か所で、戻り値の型は変わらない"},
+                "precedent": {"problem": "平均の分母の誤り", "verdict": "adopt", "reason": "標準の定義に合わせる",
+                              "source": "https://docs.python.org/3/library/statistics.html"},
+                "root_or_symptom": {"kind": "root", "why": "分母の式そのものを直した"}}
+
+
 def _fix_row(key, sites, **cov):
-    return {"unit_key": key, "what": "直した", "files": ["stats.py"], "coverage": cov,
+    return {"unit_key": key, "what": "直した", "files": ["stats.py"], "coverage": cov, **SELF_REPORT,
             "closure": {"sites": [{"site": f"s{i}", "red_seen": True} for i in range(sites)]}}
 
 
 def _fix_ok() -> dict:
     """元 works/tests/replies/fix2_ok.json の数え直しに効く欄（mean の site 1・clamp の site 2）"""
-    return {"changes": [_fix_row(R_MEAN, 1), _fix_row(R_CLAMP, 2)], "not_done": []}
+    return {"changes": [_fix_row(R_MEAN, 1), _fix_row(R_CLAMP, 2)], "not_done": [],
+            "interactions": [{"surface": "stats.py", "checked": "mean と clamp は別の関数で、順序を入れ替えても結果が同じ"}]}
 
 
 class RecountSeamCase(TempCase):
@@ -443,6 +452,46 @@ class RecountSeamCase(TempCase):
         kw.setdefault("judged", R_JUDGED)
         kw.setdefault("owed", {R_MEAN, R_CLAMP})
         return self.recount.accept_fix(reply, self.place, self.rev, self.repo, **kw)
+
+    def test_rejects_self_reports_the_machine_can_check(self):
+        """元の写しの fix_covers_open_units の照らし: 黙って通る閉鎖の状態・赤を見ない clean・同じファイルの interactions・
+        bypass_tried・breaks.result・判定者の行の無い from_judge_row・理由の短い symptom。1 誤り 1 行で全部並べる"""
+        self.edit_tree(R_FIXED)
+        bad = _fix_ok()
+        bad["fix_closure"] = {"status": "not_applicable"}
+        bad["interactions"] = []
+        bad["changes"][0].update({"bypass_tried": "なし", "breaks": {"how": "x", "result": ""},
+                                  "precedent": {"from_judge_row": True, "verdict": "adopt", "reason": "判定者の行"}})
+        bad["changes"][1]["root_or_symptom"] = {"kind": "symptom", "why": "後で"}
+        got = self.accept(bad)
+        self.assertFalse(got["ok"], got)
+        for word in ("fix_closure が not_applicable", "interactions に無い", "bypass_tried が空同然", "breaks.result が空同然",
+                     "from_judge_row", "症状を塞ぐ"):
+            self.assertIn(word, got["reason"])
+        self.assertTrue(self.accept(bad, precedents=[{"key": R_MEAN}])["problems"])
+        self.assertFalse(any("from_judge_row" in e for e in self.accept(bad, precedents=[{"key": R_MEAN}])["problems"]))
+        clean = _fix_ok()
+        clean["fix_closure"] = {"status": "clean"}
+        for c in clean["changes"]:
+            for site in c["closure"]["sites"]:
+                site["red_seen"] = False
+        self.assertIn("赤を一度も見ていない", self.accept(clean)["reason"])
+
+    def test_rejects_wrote_refs_and_added_links_that_do_not_resolve(self):
+        """修正が書いた指し（wrote_refs）は指し先の中で数え直し、差分が足した Markdown のリンクは申告に依らず指し先を引く"""
+        self.edit_tree(R_FIXED)
+        (self.repo / "NOTES.md").write_text("# 覚え\n\n[式](stats.py) と [無い](gone.md) と [節](NOTES.md#無い見出し)\n",
+                                            encoding="utf-8")
+        reply = {**_fix_ok(), "wrote_refs": [{"kind": "text", "cite": "def median", "target": "stats.py", "where": "NOTES.md"}]}
+        got = self.accept(reply)
+        self.assertFalse(got["ok"], got)
+        self.assertIn("'def median' は指し先 'stats.py' の中に無い", got["reason"])
+        self.assertIn("gone.md", got["reason"])
+        self.assertIn("#無い見出し", got["reason"])
+        self.assertNotIn("(stats.py)", got["reason"])
+        (self.repo / "NOTES.md").write_text("# 覚え\n\n[式](stats.py)\n", encoding="utf-8")
+        reply["wrote_refs"] = [{"kind": "text", "cite": "def mean", "target": "stats.py", "where": "NOTES.md"}]
+        self.assertTrue(self.accept(reply)["ok"])
 
     def calls(self) -> int:
         p = self.place / self.recount.COUNT_BUDGET_FILE
@@ -1489,6 +1538,24 @@ class FixAcceptSeamCase(TempCase):
         self.assertEqual(fixboard.check_opened_units(keys, {"a", "b", "c"}), ["x"])
         self.assertEqual(fixboard.check_excused_units(keys, {"a", "b"}, {"c": "人が決める"}), {"c": "人が決める"})
 
+    def test_closure_reply_takes_the_replaced_query_and_the_zero_units(self):
+        """閉鎖の数え直しは、裁定 replace_query を受けた単位を置き換えた問いで数え（conflict.replaced_queries）、判定者の問いが
+        修正前の版で 0 件なのに total が 0 でない単位を 0 件の単位にする（元 unitrows.take の engine_zero）"""
+        import conflict
+        how = {"patterns": ["return lo"], "fixed": True, "paths": ["stats.py"], "count": "lines"}
+        judged = [*R_JUDGED, {"key": "zero-unit", "class_query": {
+            "how": {"patterns": ["zzz-none"], "fixed": True, "paths": ["stats.py"], "count": "lines"},
+            "counts": "defects", "total": 3}}]
+        conflict.park(self.place, [{"unit_key": R_MEAN, "between": ["stats.py:9", "stats.py:9"],
+                                    "why_both_cannot_hold": "判定者の問いが直した後の正しい形にも当たる",
+                                    "which_is_right": "query", "kind": "query_hits_fixed"}], source=conflict.FIX_SOURCE,
+                      ruling={"decision": "replace_query", "text": "問いを置き換える", "limits": [],
+                              "query": {"how": how, "counts": "population", "hits": ["return lo"], "misses": []}})
+        shaped, rows, zero = fixboard.closure_reply({"changes": [_fix_row(R_MEAN, 1)]}, self.place, self.repo, self.rev, judged)
+        self.assertEqual(zero, {"zero-unit"})
+        self.assertTrue(rows[0]["how_from"].startswith("裁定"), rows)
+        self.assertNotIn("path", shaped["changes"][0]["closure"]["sites"][0])
+
     def test_reject_text_follows_the_check_order(self):
         found = [("copy", "数えが合わない"), ("writes", "記録が無い"), ("writes", "記録が無い"), ("duplicate", "a")]
         text = fixboard.fix_reject_text(found)
@@ -1587,8 +1654,8 @@ class FixAcceptSeamCase(TempCase):
         (self.repo / "b.txt").write_text("b\n", encoding="utf-8")
         how = {"patterns": ["zzz-none"], "fixed": True, "paths": ["stats.py"], "count": "lines"}
         reply = {"changes": [{"unit_key": "alpha-unit", "what": "足した", "files": ["a.txt"], "coverage": {"how": how, "counts": "population"},
-                              "closure": {"sites": []}},
-                             {"unit_key": "beta-unit", "what": "足した", "files": ["b.txt"]}]}
+                              "closure": {"sites": []}, **SELF_REPORT},
+                             {"unit_key": "beta-unit", "what": "足した", "files": ["b.txt"], **SELF_REPORT}]}
         kw = dict(pass_="first", owed=["alpha-unit", "beta-unit"], judged=[], head=head, skip=SKIP)
         got = fixboard.accept_reply(reply, self.place, self.repo, iteration=2, **kw)
         self.assertFalse(got["ok"])
