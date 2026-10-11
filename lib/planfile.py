@@ -61,6 +61,7 @@ import structmark  # noqa: E402
 import worldmark  # noqa: E402
 
 ROLE = "plan"                      # 修正案の役の受け付けの拒否の控えの名（rolekit.rejects_path）
+PLAN_DIR = "plan"                  # run の置き場の中の、このブロックの置き場
 ROUND_FILE = "round.json"
 SLOTS_FILE = "slots.json"
 REPLY_FILE = "reply.json"
@@ -189,9 +190,9 @@ def world_rows(raw: str, resolve) -> tuple:
 
 
 def round_dir_of(plan_dir, rel: str) -> pathlib.Path:
-    """返す節が受けた周のフォルダの字 plan/r<k> を置き場の中のパスに。形が違えば一番新しい周（無ければ r1）"""
-    name = rel.removeprefix("plan/") if isinstance(rel, str) else ""
-    if rel.startswith("plan/r") and name[1:].isdigit() and int(name[1:]) >= 1:
+    """返す節が受けた周のフォルダの字（open_round の dir）を置き場の中のパスに。形が違えば一番新しい周（無ければ r1）"""
+    name = rel.removeprefix(f"{PLAN_DIR}/") if isinstance(rel, str) else ""
+    if rel.startswith(f"{PLAN_DIR}/r") and name[1:].isdigit() and int(name[1:]) >= 1:
         return pathlib.Path(plan_dir) / name
     got = _rounds(plan_dir)
     return got[-1] if got else pathlib.Path(plan_dir) / "r1"
@@ -217,6 +218,8 @@ def read_round(round_dir) -> dict:
         doc["mode"] = "plan"
     if not isinstance(doc["structure"], str):
         doc["structure"] = UNREAD_STRUCTURE
+    if not isinstance(doc["items"], list):
+        doc["items"] = []
     return doc
 
 
@@ -613,7 +616,8 @@ def open_round(plan_dir, *, ruling, judgment, review, units, repo, why: str = ""
     """周のフォルダ r<k> を作り、round.json に周の事実を置く。形は ruling が空でなければ replan。周の中の節が読む構造の置き場
     （structure_dir。置き場からの相対のパス）をここで 1 度だけ決める。受けた review（事前審査の返答。
     形 plan の時だけ）を review/p2.plan_review.json に写す。役を起こすか（go）: plan は判定が読めて直す義務の単位が在り行き止まりが
-    無い時、replan は直す元の案と渡す項目が在る時。why は呼び手が読めなかった入力の訳（在れば go は偽）"""
+    無い時、replan は直す元の案と渡す項目が在る時。why は呼び手が読めなかった入力の訳（在れば go は偽）。
+    返りは round.json の中身と、周のフォルダの run の置き場からの相対のパス dir"""
     k = next_round(plan_dir)
     d = pathlib.Path(plan_dir) / f"r{k}"
     d.mkdir(parents=True)
@@ -635,7 +639,7 @@ def open_round(plan_dir, *, ruling, judgment, review, units, repo, why: str = ""
     structure = structure_dir(plan_dir, units, repo, mode).relative_to(plan_dir).as_posix()
     doc = {"round": k, "mode": mode, "go": not why, "why": why, "items": items, "structure": structure}
     _write_json(d / ROUND_FILE, doc)
-    return doc
+    return {**doc, "dir": f"{PLAN_DIR}/{d.name}"}
 
 
 # ---------------------------------------------------------------- 構造の実測（段 A）と構造の目の控え
@@ -811,7 +815,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
     if mode == "replan":
         prev = latest(plan_dir, before=round_dir)
         rows = _rows(_read_json(prev / REPLY_FILE), "plan") if prev else []
-        items = [i for i in _read_json(round_dir / ROUND_FILE, {}).get("items") or [] if 1 <= i <= len(rows)]
+        items = [i for i in read_round(round_dir)["items"] if 1 <= i <= len(rows)]
         parts = [head, replan.REPLAN_ASK,
                  *(replan_section(i, rows[i - 1], conflict_rows(conflicts, i, rows[i - 1])) for i in items)]
     else:
@@ -950,9 +954,9 @@ def ripple_units(round_dir, judgment, repo, *, skip_dirs) -> pathlib.Path:
 
 def why_not_ready(round_dir) -> str:
     """この周に案が無い訳（役を起こさなかった訳・3 回の拒否の最後の理由・輪が回らなかった）"""
-    got = _read_json(pathlib.Path(round_dir) / ROUND_FILE, {})
-    if isinstance(got, dict) and got.get("why"):
-        return str(got["why"])
+    why = read_round(round_dir)["why"]
+    if why:
+        return str(why)
     return rolekit.given_up_reason(pathlib.Path(round_dir), ROLE) or NO_PLAN
 
 

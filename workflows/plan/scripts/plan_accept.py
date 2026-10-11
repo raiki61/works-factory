@@ -14,7 +14,7 @@ import rolekit  # noqa: E402
 
 def main() -> None:
     art = Path(os.environ["ARTIFACTS_DIR"])
-    plan_dir, round_dir, repo = art / "plan", art / os.environ["INPUTS_DIR"], Path.cwd()
+    plan_dir, round_dir, repo = art / planfile.PLAN_DIR, art / os.environ["INPUTS_DIR"], Path.cwd()
     rnd = planfile.read_round(round_dir)
     start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
     base_rev = (start.get("base_rev") if isinstance(start, dict) else "") or ""

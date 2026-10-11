@@ -14,7 +14,7 @@ import planfile  # noqa: E402
 
 def main() -> None:
     art = Path(os.environ["ARTIFACTS_DIR"])
-    plan_dir = art / "plan"
+    plan_dir = art / planfile.PLAN_DIR
     round_dir = planfile.round_dir_of(plan_dir, os.environ["INPUTS_DIR"])
     reason = ""
     rnd = planfile.read_round(round_dir)
