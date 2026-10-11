@@ -198,6 +198,7 @@ nodes:
             review: "$LOOP_PREV.plan-out.output.review"
             ruling: []
             conflicts: null
+            prior_failures: "$start.output.prior_failures"
 
         - id: plan-review
           include: works-factory-plan-review
@@ -482,6 +483,7 @@ nodes:
       review: ""
       ruling: "$fix.output.replan_items"
       conflicts: "$fix.output.conflicts"
+      prior_failures: "$start.output.prior_failures"
 
   - id: replan-out
     script: returned
@@ -761,6 +763,7 @@ nodes:
       green_ok: "$test-gate-final.output.ok"
       plan_questions: "$plan-rounds.output.questions"
       answers: "$answer-before-fix.output.answer"
+      start_answers: "$answer-start.output.answer"
 
   - id: eyes-out
     script: returned

@@ -205,6 +205,7 @@ flowchart TB
   - `review` ← `$LOOP_PREV.plan-out.output.review`（往復の 2 回目から、前の周の plan-review の指摘。1 回目は空の字 `''`。Archon の `$LOOP_PREV` は 1 回目に空の字を渡す。`replan` では `''`）
   - `ruling` ← `$fix.output.replan_items`（`replan` の時だけ。`plan` では `[]`。形は `replan_items` の項目の番号の字）
   - `conflicts` ← `$fix.output.conflicts`（`replan` の時だけ。`plan` では null。裁定の文を案の直しの役に渡す）
+  - `prior_failures` ← `$start.output.prior_failures`（judge と同じ前の失敗の行の指し札。`plan`・`replan` の両方）
 - 返り:
   - `ready`（boolean）: 修正案ができた（受け付けを通った）。false は 3 つ: 受け付けが 3 回とも拒んだ時・直す義務の単位が無い時・行き止まりの単位が在る時。構造の目が「人に上げる」とした行は false にせず、`structure` で plan-review に渡り修正前の関所の問いになる（今の works と同じ）。返りに false の訳を分ける語は持たない（欄を足さない）: 3 回の拒否と行き止まりは report がどちらも `stopped_by_line` にし、義務の単位が無い時は report が judge の返り（`units` が空）から `no_fix_needed` にする → 線 5・report
   - `plan`（指し札）: 修正案。項目ごとの書いてよい範囲・受け入れテスト・定石と構造の行ごとの従うか外れの訳（今の works の `plan-fields.json`）→ plan-review・fix・eyes
@@ -287,6 +288,7 @@ flowchart TB
   - `green_ok` ← `$test-gate-final.output.ok`
   - `start` ← `$start.output.record`（直した後の実測の数える版・守りのパスの当たり・方針の文書の置き場）
   - `plan_questions` ← `$plan-rounds.output.questions`、`answers` ← `$answer-before-fix.output.answer`（修正前の関所で人が通した行を R4 に渡し、同じ行を聞き直さない。持ち主の決め `decision-records`）
+  - `start_answers` ← `$answer-start.output.answer`（始めの関所の答え `{decision, text}`。開かなかった run は null。前提の検算に貼る人の答えの頭。plan-review の `answers` と同じ源）
 - 返り:
   - `ok`（boolean）: R1〜R4 が全部 pass。深さで省いた目は数えない → 線 10・merge
   - `r1`・`r2`・`r3`・`r4`（object・null 可）: 目ごとの `{status, reason}`。status は `pass`・`redesign-needed`・`unverifiable`（review-graph の `r1.minimality` ほか。R2 の `unverifiable` は、比べの節が落ちた・独立設計が無い時と、独立設計と比べなかった時（目的の文が空・独立設計の返答に問いが立つかの欄 `question_stands` が無い。訳の頭は `独立設計と比べなかった: `）。前提が崩れた時は `premise_check` にも載る）。省いた目は null → report
