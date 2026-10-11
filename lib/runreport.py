@@ -5,15 +5,16 @@
 開けたファイルのパスの字にして渡す（開けなければ None）。指し札の隣のファイル（docs/design.md の「書き方の決め」の名指しの
 隣のファイル）は指し札の先と同じフォルダから読む。
 
-- transcript_facts(rows, *, exclude_prefix) -> {ok, failed, errors, retried, cost, uncosted, minutes, models}（run の記録の行の読み）
+- transcript_facts(rows, *, exclude_prefix) -> {ok, failed, absorbed, errors, retried, cost, uncosted, minutes, models}（run の記録の行の読み）
 - cost_rows(facts)・head_cost(facts, why): 節ごとの費用と時間の行と、費用の節の行（元 report.py:1769・1806）
-- next_request(returns, gates, left)・prior_failures(returns, left): 次の依頼の findings と前の失敗の行（元 report.py:784・720）
+- next_request(returns, left, closed)・prior_failures(returns, left): 次の依頼の findings と前の失敗の行（元 report.py:784・720）
+- ledger_state(returns, gates, start): 問いの台帳の保留の行と答えた行（元 gatemarks.held_lines・answered_lines）
 - answer_drafts(returns, gates, start): 人の判断を待つ項目への答えの下書き（元 gatemarks.answer_drafts）
 - glossary_section(text, terms, pack)・pack_terms(): 本文と機械の事実に現れる語だけの定義の節（元 report_roles.py の glossary_section）
 - build(returns, gates, typed, transcript, outcome, stop_reason, *, out_dir, start, problems, run_id, transcript_why, repo,
   report_name) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000）
-- fallback_report(out_dir, why)・unwritten(out_dir, why): 思わぬ誤りの時の機械の報告と訳だけのファイル
-- cold_body(raw)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file): 書き手の
+- fallback_report(out_dir, why, name): 思わぬ誤りの時の機械の報告（名は呼び手が渡す。facts の報告を上書きしない名）
+- cold_body(raw)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd): 書き手の
   返答の受け付けと AI の報告（元 report_roles.py の write_cold_prep・accept・collect・stamp）
 """
 from __future__ import annotations
@@ -39,6 +40,7 @@ import promptsection  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
 import startrec  # noqa: E402
+import stopby  # noqa: E402
 import structmark  # noqa: E402
 import worldmark  # noqa: E402
 
@@ -48,7 +50,6 @@ AI_FILE = "ai.json"                     # 受け付けた書き手の返答と�
 AI_REPORT_FILE = "report-ai.md"         # AI の報告（元 report_roles.REPORT_NAME）
 REJECTS_FILE = "report-rejects.json"    # 拒否の行の控え（元 report_roles.REJECTS_NAME）
 REJECT_TEXT = "reject-{n}.md"           # 拒否の訳の本文（書き手が次の回に Read する）
-FALLBACK_FILE = "report-unwritten.md"   # 思わぬ誤りの時の機械の報告（facts の report.md を上書きしない）
 REPORT_NODE = report_roles.REPORT_NODES[-1]   # 拒否の行の node（count_rejects が数える節の名）
 # 初見の読み手（report.cold_check）の返答の型。型の正本は工程の cold の節の output_format で、これと同じかを試験が縛る
 COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "decidable"], "additionalProperties": False,
@@ -70,11 +71,11 @@ RED_KEPT = ("inherited", "environment")       # 認証が通した赤（元か�
 EYE_KEYS = ("eye", "status", "reason")
 GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
 PLAN_GAVE_UP_WHERE = "受け付け 計画"          # 元 report.ACCEPT_WHERE（受け付け <名>）の計画の行
+STOPPED_WHERE = "止めた段"                     # 前の失敗の、止めの語で止めた段の行（元 accept-last.json の ok でない行の代わり）
 GATE_PASSES = "gate-passes.json"
 FIX_PLAN = "p2.fix_plan.json"                 # 計画の隣の修正案の役の返答（関所の決め手の欄つき）
 PREMISES = "premises.json"                    # 判定の隣の実測した制約 {constraints}
 HYPOTHESIS = "仮説"                           # 前提の役が実測でなく仮説で書いた制約の kind
-ASKING = ("held", "escalate")                 # 問いの台帳で人に聞く状態（元の写しの検証器 review-record.py:343 の ASKING）
 HUMAN_FACE_KINDS = ("regression", "policy")   # 事前審査の穴のうち人に回す種類（元の写しの規則 review-loop.py:4084）
 GROUP_WHERE = "組"
 REJUDGE_LEFT_WHERE = "判定（再審されずに残った異議）"
@@ -124,24 +125,32 @@ def _read_beside(returns: dict, rid: str, field: str, name: str):
 # ---------------------------------------------------------------- run の記録
 def transcript_facts(rows, *, exclude_prefix: str = "") -> dict:
     """run の記録の行（実行基盤の logger の JSONL を 1 行ずつ読んだ dict）から、節ごとの事実。rows が None なら ok: False。
-    failed は最後の行が node_error の節、errors はその節の最後の誤りの文、retried は node_error の後に済んだ節。exclude_prefix で
-    始まる節（報告のブロック自身）は failed・retried に入れない。費用は自分の費用を言う行（execution.accounting が node か無い）の
+    最後の行が node_error の節は、その誤りの後にほかの節が始まっていれば線が受け止めて先へ進んだ落ち（absorbed。元
+    report.split_fallen の受け止めた落ち）、始まっていなければ run を終わらせた落ち（failed）。errors は落ちた節の最後の誤りの文、
+    retried は node_error の後に済んだ節 [{node, failures, error}]（落ちた回と最後の誤り。元 reads.retried_nodes）。
+    exclude_prefix で始まる節（報告のブロック自身）は数えない。費用は自分の費用を言う行（execution.accounting が node か無い）の
     cost_usd の和。cost_usd の無い行は 0 と数えず uncosted に件数を積む。時間は node_start から最後の node_complete・node_error まで（分）"""
     if rows is None:
-        return {"ok": False, "failed": [], "errors": {}, "retried": [], "cost": {}, "uncosted": {}, "minutes": {}, "models": {}}
-    last, erred, errors, began, ended = {}, set(), {}, {}, {}
-    cost, uncosted, models = {}, {}, {}
-    for r in rows:
+        return {"ok": False, "failed": [], "absorbed": [], "errors": {}, "retried": [], "cost": {}, "uncosted": {}, "minutes": {},
+                "models": {}}
+
+    def ours(step):
+        return bool(exclude_prefix) and step.startswith(exclude_prefix)
+    last, falls, errors, began, ended, erred_at = {}, {}, {}, {}, {}, {}
+    cost, uncosted, models, started = {}, {}, {}, []
+    for i, r in enumerate(rows):
         if not isinstance(r, dict) or not isinstance(r.get("step"), str):
             continue
         step, kind = r["step"], r.get("type")
         if kind == "node_start":
             began.setdefault(step, report._time(r.get("ts")))
+            started.append((i, step))
         if kind in (*COST_ROWS, "node_skipped"):
             last[step] = kind
         if kind == "node_error":
-            erred.add(step)
+            falls[step] = falls.get(step, 0) + 1
             errors[step] = str(r.get("error") or "")
+            erred_at[step] = i
         if kind in COST_ROWS:
             ended[step] = report._time(r.get("ts"))
             execution = as_dict(r.get("execution"))
@@ -156,13 +165,15 @@ def transcript_facts(rows, *, exclude_prefix: str = "") -> dict:
             if isinstance(model, str) and model and model not in models.setdefault(step, []):
                 models[step].append(model)
 
-    def ours(step):
-        return bool(exclude_prefix) and step.startswith(exclude_prefix)
     minutes = {s: round((ended[s] - began[s]).total_seconds() / 60, 1) for s in ended
                if began.get(s) is not None and ended[s] is not None}
-    failed = [s for s, k in last.items() if k == "node_error" and not ours(s)]
-    return {"ok": True, "failed": failed, "errors": {s: errors.get(s, "") for s in failed},
-            "retried": [s for s in erred if last.get(s) in DONE_ROWS and not ours(s)],
+    fell = [s for s, k in last.items() if k == "node_error" and not ours(s)]
+    went_on = {s for s in fell if any(i > erred_at[s] and t != s and not ours(t) for i, t in started)}
+    return {"ok": True, "failed": [s for s in fell if s not in went_on],
+            "absorbed": [{"node": s, "error": errors.get(s, "")} for s in fell if s in went_on],
+            "errors": {s: errors.get(s, "") for s in fell},
+            "retried": [{"node": s, "failures": n, "error": errors.get(s, "")} for s, n in falls.items()
+                        if last.get(s) in DONE_ROWS and not ours(s)],
             "cost": cost, "uncosted": uncosted, "minutes": minutes, "models": models}
 
 
@@ -202,54 +213,60 @@ def _model_lines(facts: dict) -> list:
 
 
 # ---------------------------------------------------------------- 問いの台帳（判定の judgment.json の questions）
-def _ledger(returns: dict) -> list:
-    """台帳で人に聞く状態の問い（読めない・無ければ空）"""
-    jf = _ret(returns, "judge").get("judgment")
-    try:
-        doc = oc.read_json(jf) if isinstance(jf, str) and jf else {}
-    except (OSError, ValueError):
-        return []
-    return [q for q in _list(as_dict(doc).get("questions")) if isinstance(q, dict) and q.get("status") in ASKING]
-
-
 def _request_answers(start: dict) -> list:
     """依頼の answers（始めの記録の欄。元 gatemarks.request_answers）"""
     return [a for a in _list(as_dict(start).get("answers")) if isinstance(a, dict)]
 
 
-def _origin(q: dict, unmeasured: dict) -> str:
-    """問いの出どころ（元 gatemarks.origin_of: 台帳の origin。空なら key が測れていない素材の名で始まる時のその名）"""
-    got = q.get("origin")
-    if isinstance(got, str) and got:
-        return got
-    key = str(q.get("key") or "")
-    return next((n for n in unmeasured if key.startswith(n) and not gatemarks.KEY_CHAR.match(key[len(n):len(n) + 1])), "")
+def _gate_asked(returns: dict, q: dict) -> bool:
+    """修正前の関所がこの問いの行を聞いたか（事前審査の questions に問いの行の頭が在る。元 gatemarks._asked_in）"""
+    return any(isinstance(x, str) and x.startswith(gatemarks._prefix(q)) for x in _list(_ret(returns, "plan-review").get("questions")))
 
 
-def _gate_answered(q: dict, gates: dict, start: dict, keys: set, unmeasured: dict) -> bool:
-    """依頼の answers が当たるか、修正前の関所で通す語を受け、一言が「保留: <key>」と名指していない（元 gatemarks._gate_answered。
-    関所に載る問いは fork と escalate だけ）"""
-    key = str(q.get("key") or "")
-    if any(a.get("question") in (key, _origin(q, unmeasured)) for a in _request_answers(start)):
-        return True
-    gate = as_dict(gates.get("gate-before-fix"))
-    asked = q.get("kind") == "fork" or q.get("status") == "escalate"
-    return asked and gate.get("decision") in oc.PASS_WORDS and key not in gatemarks.hold_keys(str(gate.get("text") or ""), keys)
-
-
-def held(returns: dict, gates: dict, start: dict) -> tuple[list, list]:
-    """(保留にしたままの問い, 答えた問い)（元 gatemarks.held_lines・answered_lines の台帳の側）"""
-    qs = _ledger(returns)
-    keys = {str(q.get("key")) for q in qs if q.get("key")}
+def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
+    """問いの台帳の読み（元 gatemarks の held_lines・answered_lines・withheld・returned を返りと始めの記録で書き直した物）:
+    {held: [(問い（直す単位に入れられなかった行は None）, 行)], answered: [行], drafts: [(保留の問い, answer_key)]}。関所に載る問いは fork と escalate だけで、答えたのは依頼の answers が
+    この問いだけに当たるか、修正前の関所が通す語を受けてこの問いの行を聞き、一言が「保留: <key>」と名指していない物。保留の行は
+    答えが無いと直さない単位と、答える時の answers の question（answer_key）を後ろに持ち、関所で答えたが今の判定の単位に無い出どころ
+    （直す義務に戻せなかった単位）の行も並べる。答えた行は答えの出どころ（依頼者の答えか関所の continue）を名乗る"""
+    qs = oc.ledger(returns)
     missing = oc.unmeasured(returns)
-    held_, done = [], []
-    for q in qs:
-        (done if _gate_answered(q, gates, start, keys, missing) else held_).append(q)
-    return held_, done
+    answers = _request_answers(start)
+    units = {u.get("id") for u in _list(_ret(returns, "judge").get("units")) if isinstance(u, dict)}
+    gate = as_dict(gates.get("gate-before-fix"))
+    held_keys = gatemarks.hold_keys(str(gate.get("text") or ""), {str(q.get("key")) for q in qs if q.get("key")})
 
+    def request_answer(q):
+        return next((a for a in answers if (h := oc.answer_binds(qs, a, missing)) and len(h) == 1 and h[0] is q), None)
 
-def _ledger_line(q: dict, mark: str = "") -> str:
-    return f"{gatemarks.ASK_HEAD} {q.get('key')}（{q.get('kind')}・{q.get('status')}{mark}）: {report._one_line(q.get('reason') or '')}"
+    def asked(q):
+        return q.get("kind") == "fork" or q.get("status") == "escalate"
+
+    def answered(q):
+        return request_answer(q) is not None or (asked(q) and gate.get("decision") in oc.PASS_WORDS and _gate_asked(returns, q)
+                                                 and str(q.get("key") or "") not in held_keys)
+
+    def answer_key(q):
+        name = oc.origin_of(q, missing)
+        return name if name in missing and oc.answer_binds(qs, {"question": name}, missing) == [q] else str(q.get("key") or "")
+    pending = [q for q in qs if asked(q) and not answered(q)]
+    back = {k for q in qs if asked(q) and answered(q) for k in gatemarks._skips(q) if k in units}
+    withheld = {k for q in pending for k in gatemarks._skips(q) if k not in back}
+    held = [(q, gatemarks._ledger_line(q, skip=[k for k in gatemarks._skips(q) if k in withheld] if q in pending else [])
+             + f"／{gatemarks.ANSWER_KEY_HEAD}: {json.dumps(answer_key(q), ensure_ascii=False)}")
+            for q in qs if not answered(q)]
+    held += [(None, f"関所で答えたが直す単位に入れられなかった: {q.get('key')}・{k}（理由: 今の周の判定に無い）")
+             for q in qs if asked(q) and answered(q) for k in gatemarks._skips(q) if k not in units]
+    done = [gatemarks._ledger_line(q, "・" + gatemarks.answer_note(a) if (a := request_answer(q)) is not None else "・関所で continue を受けた")
+            for q in qs if answered(q)]
+    for n, st in missing.items() if answers else ():
+        a = oc.material_answer(returns, answers, n)
+        if a is not None:
+            how = (f"{gatemarks.HAND_CHECKED}。残りに数えない" if gatemarks._measured(a)
+                   else "command と output が無いので測りの代わりにせず、測れていないまま残りに数える")
+            done.append(f"素材 {n}（{st}）: {how}——{gatemarks.answer_note(a)}")
+    return {"held": held, "answered": done,
+            "drafts": [(q, answer_key(q)) for q in qs if not answered(q)]}
 
 
 # ---------------------------------------------------------------- 答えの下書き
@@ -309,12 +326,9 @@ def _gate_draft(question: str, rows: list) -> dict:
     return gatemarks._gate_draft(question, {}, gatemarks.GATE_NODE)
 
 
-def _ask_draft(q: dict, unmeasured: dict, qs: list) -> dict:
+def _ask_draft(q: dict, key: str) -> dict:
     """台帳の問い 1 つの下書き（元 gatemarks._ask_draft。question は answer_key: 出どころが測れていない素材の名でこの問いだけに
     当たればその名、ほかは問いの key）"""
-    origin = _origin(q, unmeasured)
-    only = origin in unmeasured and [x for x in qs if _origin(x, unmeasured) == origin] == [q]
-    key = origin if only else str(q.get("key") or "")
     got = [m.strip() for m in gatemarks.PUSH_IN.findall(str(q.get("reason") or "")) if m.strip() and m.strip() != gatemarks.NO_PUSH]
     if got:
         return gatemarks._draft(key, got[0], f"{gatemarks.ASK_HEAD} {key} の理由の推し（判定の役）")
@@ -327,7 +341,7 @@ def answer_drafts(returns: dict, gates: dict, start: dict) -> list:
     ①無人の run で修正前の関所が通さなかった事前審査の問い（と最後の関所が通さなかった R4 の問い）ごとに 1 行。項目の文が修正案の
     狭める行・事前審査の穴・定石の外れに当たれば、その行の決め手（推し recommend・狭めない案 no_narrow・世界の解 world）を使う
     ②人の居る run でも無人の run でも、保留のままの台帳の問いごとに 1 行（理由の推しか選択肢）
-    ③問いの立っていない測れていない素材ごとに 1 行（materials.json の reason つき。依頼の answers が命令と出力つきで答えた素材は除く）
+    ③問いの立っていない測れていない素材ごとに 1 行（materials.json の reason つき。依頼の answers が当たった素材は除く）
     同じ question の行は 1 度だけ。機械は関所にも問いにも答えない——下書きは依頼の入口が拒むので、人が見直してから使う"""
     out = []
     if _unattended(start):
@@ -337,13 +351,12 @@ def answer_drafts(returns: dict, gates: dict, start: dict) -> list:
                 continue
             out += [_gate_draft(q, rows) for q in _list(_ret(returns, rid).get("questions")) if isinstance(q, str) and q.strip()]
     missing = oc.unmeasured(returns)
-    held_, _ = held(returns, gates, start)
-    out += [_ask_draft(q, missing, held_) for q in held_]
+    out += [_ask_draft(q, key) for q, key in ledger_state(returns, gates, start)["drafts"]]
     mats, _ = oc.materials(returns)
-    asked = {_origin(q, missing) for q in _ledger(returns)}
-    measured = {a.get("question") for a in _request_answers(start) if a.get("command") and a.get("output")}
+    asked = {oc.origin_of(q, missing) for q in oc.ledger(returns)}
+    answers = _request_answers(start)
     out += [gatemarks._material_draft(n, st, as_dict(mats.get(n)).get("reason")) for n, st in missing.items()
-            if n not in asked and n not in measured]
+            if n not in asked and oc.material_answer(returns, answers, n) is None]
     seen, kept = set(), []
     for d in out:
         if d["question"] not in seen:
@@ -388,20 +401,59 @@ def _rejudge(returns: dict) -> tuple[str, str]:
     return (verdict if isinstance(verdict, str) else "", report._one_line(objection) if isinstance(objection, str) else "")
 
 
+def _unit_map(ret) -> dict:
+    return {u["id"]: u for u in _list(as_dict(ret).get("units")) if isinstance(u, dict) and isinstance(u.get("id"), str)}
+
+
+def rejudge_opened(returns: dict) -> list:
+    """再審が足した単位のうち修正の段が受けていない物（元 rejudge-exit.json の new_open_units。この run では直していない）"""
+    if not isinstance(returns.get("rejudge"), dict):
+        return []
+    before, fixed = _unit_map(returns.get("judge")), {u.get("unit_id") for u in _list(as_dict(returns.get("fix")).get("units"))
+                                                       if isinstance(u, dict)}
+    return [k for k in _unit_map(returns.get("rejudge")) if k not in before and k not in fixed]
+
+
+def rejudge_changes(returns: dict) -> list:
+    """再審で単位が変わった行（元 report._rejudge_changes。元は rejudge-diff.json の changed を読んだ。ここは判定と再審の返りの
+    units を単位の id で比べる。異議の文が key を含む単位は「異議に名指された単位」、ほかは「争点でない単位」）"""
+    if not isinstance(returns.get("rejudge"), dict):
+        return []
+    before, after = _unit_map(returns.get("judge")), _unit_map(returns.get("rejudge"))
+    _, objection = _rejudge(returns)
+    lines = []
+    for key in dict.fromkeys([*before, *after]):
+        who = "異議に名指された単位" if key in objection else "争点でない単位"
+        if key not in before or key not in after:
+            lines.append(f"再審で{who}が{'足された' if key not in before else '消えた'}: {key}")
+            continue
+        for field in dict.fromkeys([*before[key], *after[key]]):
+            if before[key].get(field) != after[key].get(field):
+                lines.append(f"再審で{who}が変わった: {key} の {field}: {json.dumps(before[key].get(field), ensure_ascii=False)} → "
+                             f"{json.dumps(after[key].get(field), ensure_ascii=False)}")
+    return lines
+
+
 def rejudge_lines(returns: dict) -> list:
-    """決着した再審の結果の行（元 report.rejudge_lines）と、再審されずに残った異議"""
+    """決着した再審の結果の行（元 report.rejudge_lines。再審が直す単位にした単位を下に並べる）と、再審されずに残った異議"""
     verdict, objection = _rejudge(returns)
     if verdict:
-        return [f"再審の結果: {verdict}" + (f"（異議: {objection}）" if objection else "")]
+        return [f"再審の結果: {verdict}" + (f"（異議: {objection}）" if objection else ""),
+                *[f"  - 再審が直す単位にした（この run では直していない——次の run に渡す）: {k}" for k in rejudge_opened(returns)]]
     if objection:
         return [f"再審されずに残った異議: {objection}"]
     return []
 
 
-def _asked_rows(returns: dict) -> list:
-    """人に回した申し出を外した単位ごとの次の依頼の行（元 next_request の conflict.asked の行）"""
+def _asked_rows(returns: dict, closed: bool) -> list:
+    """人に回した申し出を外した単位ごとの次の依頼の行（元 next_request の conflict.asked の行）と、途中で落ちた run の案の直しを
+    待つ行（元 next_request の conflict.waiting の行。案の直しの欄に PENDING_WHY）"""
     out = []
-    for k, r in oc.asked_units(returns):
+    if not closed:
+        for k, r in oc.asked_units(returns, rows=oc.waiting_conflicts(returns)):
+            out.append({"where": k, "text": f"{k}（{oc.PENDING_WHY}。裁定の文: {as_dict(r.get(oc.CONFLICT_RULING)).get('text') or ''}。"
+                                            f"名指し {', '.join(str(x) for x in _list(r.get('between')))}。{oc.HELD_WORK_KEPT}）"})
+    for k, r in oc.asked_units(returns, closed):
         ruling = as_dict(r.get(oc.CONFLICT_RULING))
         why = r.get(oc.REPLAN_WHY)
         out.append({"where": k,
@@ -411,10 +463,11 @@ def _asked_rows(returns: dict) -> list:
     return out
 
 
-def next_request(returns: dict, left: list) -> list:
+def next_request(returns: dict, left: list, closed: bool = True) -> list:
     """次の依頼の findings（元 report.py:784）: 残りの行（R2 の作り直しの行は前の失敗にだけ載せる。人に回した単位の修正の行は
-    その単位の行が持つ）・判定が目的の外とした所見・親の木へ戻せなかった組・再審の結果と再審されずに残った異議・人に回した申し出の単位"""
-    asked = _asked_rows(returns)
+    その単位の行が持つ）・判定が目的の外とした所見・親の木へ戻せなかった組・再審の結果と再審されずに残った異議・再審が直す単位にした
+    単位・人に回した申し出の単位・途中で落ちた run（closed が偽）の案の直しを待つ単位"""
+    asked = _asked_rows(returns, closed)
     owned = {f"修正 {r['where']}" for r in asked}
     items = [r for r in left if not report._r2_redesign(r) and r["where"] not in owned]
     items += _outside(returns)[0]
@@ -426,6 +479,7 @@ def next_request(returns: dict, left: list) -> list:
         items.append({"where": report.REJUDGE_WHERE, "text": f"再審: {verdict}" + (f"（異議: {objection}）" if objection else "")})
     elif objection:
         items.append({"where": REJUDGE_LEFT_WHERE, "text": objection})
+    items += [{"where": k, "text": f"{k}（再審が直す単位にした——この run では直していない）"} for k in rejudge_opened(returns)]
     items += asked
     seen, out = set(), []
     for it in items:
@@ -438,14 +492,19 @@ def next_request(returns: dict, left: list) -> list:
 
 def prior_failures(returns: dict, left: list) -> list:
     """前の失敗 [{where, text}]（元 report.py:720）: 受け付けを最後まで通らなかった物（修正の諦めた単位の理由と、計画が修正案を
-    出せなかった訳）と R2 の作り直しの訳"""
+    出せなかった訳と、止めの語で止めた段の語とその意味）と R2 の作り直しの訳"""
     rows = [{"where": f"{GAVE_UP_WHERE} {u.get('unit_id')}", "text": report._one_line(u.get("reason") or "理由の記録が無い")}
             for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict) and u.get("status") == "given_up"]
-    if oc.plan_gave_up(returns):
+    gave_up = oc.plan_gave_up(returns)
+    if gave_up:
         sr = oc.planned(returns).get("stop_reason")
         rows.append({"where": PLAN_GAVE_UP_WHERE,
                      "text": "計画が直す単位を受けたのに修正案を出せなかった（受け付けが 3 回とも拒んだか、行き止まりの単位が在る）"
                              + (f": {sr}" if isinstance(sr, str) and sr else "")})
+    rows += [{"where": f"{STOPPED_WHERE} {rid}",
+              "text": f"{sr}（{stopby.REASONS.get(sr.removeprefix(stopby.HEAD), '語の意味の記録が無い')}）。受け付けの最後の拒否の本文は返りに無い"}
+             for rid, sr in oc.stop_reasons(returns)
+             if stopby.is_line(sr) and sr not in oc.WAIT_WORDS and not (gave_up and rid in ("plan", "replan"))]
     r2 = [r for r in left if report._r2_redesign(r)]
     if r2:
         rows.append({"where": carry.REDESIGN_WHERE, "text": report._one_line(r2[0]["text"])})
@@ -622,14 +681,15 @@ def _hits(returns: dict) -> list:
     return list(dict.fromkeys(got))
 
 
-def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, repo=None) -> tuple[list, str]:
+def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, repo=None) -> tuple[list, str]:
     """人が決めることの行と、冒頭の 2 行目（件数）。数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは
-    直す義務に戻せなかった単位の行を重ねて数えない"""
+    直す義務に戻せなかった単位の行を重ねて数えない。closed は途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
     plan_qs = [q for q in _list(_ret(returns, "plan-review").get("questions")) if isinstance(q, str)]
     eye_qs = [q for q in _list(as_dict(returns.get("eyes")).get("questions")) if isinstance(q, str)]
-    held_, done = held(returns, gates, start)
-    held_ = [q for q in held_ if not any(q2.startswith(f"{gatemarks.ASK_HEAD} {q.get('key')}（") for q2 in plan_qs)]
-    asked = oc.asked_conflicts(returns)
+    ledger = ledger_state(returns, gates, start)
+    held_ = [line for q, line in ledger["held"] if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_qs)]
+    done = ledger["answered"]
+    asked = oc.asked_conflicts(returns, closed)
     tests = [t for t in _list(as_dict(returns.get("fix")).get("allowed_test_changes")) if isinstance(t, str)]
     unreturned = [u for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict) and u.get("status") == "not_done"]
     premise = as_dict(as_dict(returns.get("eyes")).get("premise_check"))
@@ -637,7 +697,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     checks = left if outcome == "fixed_needs_check" else []
     counted_units = {f"修正 {u.get('unit_id')}" for u in unreturned}
     rest = [r for r in left if r["where"] not in counted_units] if outcome == "round_limit" else []
-    parts = [("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", [_ledger_line(q) for q in held_]),
+    parts = [("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_),
              ("人に回した食い違いの申し出", asked), ("守りのパスに当たった差分", _hits(returns)), ("許したテストの変更", tests),
              ("直す義務に戻せなかった単位", unreturned), ("前提の検算が人に上げた物", escalate), (report.CHECKS_LEFT, checks),
              ("直しきれずに残った物", rest), ("記録が通らないこと", [outcome] if outcome == "record_invalid" else [])]
@@ -651,13 +711,14 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
         lines.append(f"  {gatemarks.ANSWER_HOW}")
     if done:
         lines.append(f"{gatemarks.ANSWERED_HEAD}（問いの台帳・{len(done)} 件。保留の件数には数えない）:")
-        lines += [f"  - {_ledger_line(q)}" for q in done]
+        lines += [f"  - {x}" for x in done]
     counted = [(w, len(i)) for w, i in parts if i]
     decide = (f"{sum(n for _, n in counted)} 件——" + "・".join(f"{w} {n} 件" for w, n in counted) + f"（下の「{report.DECISIONS_HEADING.lstrip('# ')}」）"
               if counted else "")
     rev = as_dict(start).get("base_rev")
     lines.append(_conflict_line(returns))
     lines += rejudge_lines(returns)
+    lines += rejudge_changes(returns)
     lines += verify_lines(returns)
     lines += pr_lines(returns)
     lines += premise_lines(returns, start)
@@ -732,15 +793,18 @@ def _eye_lines(returns: dict, typed: dict) -> tuple[list, list]:
 
 
 def _world_lines(returns: dict) -> list:
-    """依頼の行ごとの定石と、定石を web で確かめたかの印と、依頼の解き方との比べ（元 worldmark.report_lines の行）"""
-    p = _ret(returns, "judge").get("world")
+    """依頼の行ごとの定石と、定石を web で確かめたかの印と、依頼の解き方との比べと、類の数のまとめ（元 worldmark.report_lines の行）。
+    判定が返ったのに world が null なら、段が落ちたか行を取れなかった 1 行"""
+    judge = _ret(returns, "judge")
+    p = judge.get("world")
     if not (isinstance(p, str) and p):
-        return []
+        return ["世界の解の行が無い（判定の返りの world が null: 世界の解の段が落ちたか、行を取れなかった。行なしで進んだ）"] if judge else []
     try:
         rows = worldmark.rows(p)
     except ValueError as e:
         return [f"世界の解の行が読めない: {report._one_line(e)}"]
-    return [f"類 {r['class_id']}（依頼の行 {r['finding']}）: {r['practice']}{worldmark._mark(r)}（{worldmark._versus(r)}）" for r in rows]
+    return [*(f"類 {r['class_id']}（依頼の行 {r['finding']}）: {r['practice']}{worldmark._mark(r)}（{worldmark._versus(r)}）" for r in rows),
+            f"類 {len(rows)}"]
 
 
 def _structure_lines(returns: dict) -> list:
@@ -789,8 +853,9 @@ def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, retur
     if tfacts.get("ok"):
         out += [f"{report.INTERRUPTED_HEAD}: 節 {s} が落ちた（誤り: {report._first_error({'error': (tfacts.get('errors') or {}).get(s)})}）"
                 for s in tfacts.get("failed") or []]
-        if tfacts.get("retried"):
-            out.append(f"{report.RETRIED_HEAD}: {'・'.join(tfacts['retried'])}")
+        out += [f"{report.RETRIED_HEAD}: {r['node']}（落ちた回 {r['failures']}。最後の誤り: {r['error'] or '（誤りの文が無い）'}）"
+                for r in tfacts.get("retried") or []]
+        out += [f"{report.ABSORBED_HEAD}: {a['node']}（誤り: {report._first_error(a)}）" for a in tfacts.get("absorbed") or []]
     out += [f"返りの続きが切れている: {x}" for x in oc.chain_notes(returns)]
     out += [f"結果を名乗れない訳: {report._one_line(p)}" for p in problems]
     return out
@@ -821,11 +886,12 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     out_dir.mkdir(parents=True, exist_ok=True)
     returns, gates, typed, start = returns or {}, gates or {}, typed or {}, start or {}
     tfacts = transcript or transcript_facts(None)
-    left = oc.residue(returns)
-    findings = next_request(returns, left)
+    closed = not oc.cut_at(returns, tfacts.get("failed") if tfacts.get("ok") else None)
+    left = oc.residue(returns, {"answers": _request_answers(start), "absorbed": tfacts.get("absorbed")})
+    findings = next_request(returns, left, closed)
     prior = prior_failures(returns, left)
     drafts = answer_drafts(returns, gates, start)
-    decisions, decide = _decisions(returns, gates, start, outcome, left, repo=repo)
+    decisions, decide = _decisions(returns, gates, start, outcome, left, closed=closed, repo=repo)
     tdd, freeze, tdd_notes = _tdd_lines(typed, returns)
     eye_lines, eye_notes = _eye_lines(returns, typed)
     outside = _outside(returns)[1]
@@ -874,19 +940,10 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     return {**paths, "ai_go": outcome != "record_invalid"}
 
 
-def unwritten(out_dir, why: str) -> pathlib.Path:
-    """機械の報告も組めない時の、訳だけの 1 ファイル（黙らない）"""
-    return _write_text(pathlib.Path(out_dir) / FALLBACK_FILE, f"{report.TITLE_HEADING.format(run='—')}\n\n報告を組めなかった: {why}\n")
-
-
-def fallback_report(out_dir, why: str) -> pathlib.Path:
-    """思わぬ誤りの時の機械の報告（結末 record_invalid と訳の 1 行）を FALLBACK_FILE に書く（facts の report.md は上書きしない）。
-    それも組めなければ訳だけの FALLBACK_FILE"""
-    try:
-        return build({}, {}, {}, None, "record_invalid", f"report:{why}", out_dir=out_dir, problems=[why],
-                     report_name=FALLBACK_FILE)["report"]
-    except Exception:  # noqa: BLE001 — 機械の報告も組めない時は訳だけを書く
-        return unwritten(out_dir, why)
+def fallback_report(out_dir, why: str, name: str) -> pathlib.Path:
+    """思わぬ誤りの時の機械の報告（結末 record_invalid と訳の 1 行）を name に書く（呼び手は facts の report.md と別の名を渡す）。
+    組めなければ誤りが上がり、呼び手が lib/ に頼らない訳だけのファイルに落ちる"""
+    return build({}, {}, {}, None, "record_invalid", f"report:{why}", out_dir=out_dir, problems=[why], report_name=name)["report"]
 
 
 # ---------------------------------------------------------------- 書き手の返答の受け付けと AI の報告
@@ -977,14 +1034,15 @@ def accept(reply, cold, *, out_dir) -> dict:
     return {"done": True, "ok": True, "reason": reason, "kind": "", "reason_file": ""}
 
 
-def stamp(run_id: str, workflow_file) -> str:
-    """報告の頭の来歴の 1 行（機械が刻む。元 report_roles.stamp の works の線・run・graph の版を、工程の名（ファイルの名）・run・
-    工程のファイルの sha256 の頭 12 字で）。工程のファイルが読めなければ版の所にその旨"""
+def stamp(run_id: str, workflow_file, rnd=None) -> str:
+    """報告の頭の来歴の 1 行（機械が刻む。元 report_roles.stamp の works の線・run・周・graph の版を、工程の名（ファイルの名）・run・
+    周（計画の round。何回目の案か。無ければ —）・工程のファイルの sha256 の頭 12 字で。元の table の版は規則の表が無いので無い）。
+    工程のファイルが読めなければ版の所にその旨"""
     try:
         sha = hashlib.sha256(pathlib.Path(workflow_file).read_bytes()).hexdigest()[:12]
     except OSError as e:
         sha = f"読めない（{type(e).__name__}）"
-    return " / ".join([pathlib.Path(workflow_file).stem, f"run {run_id or '—'}", f"工程の版 {sha}"])
+    return " / ".join([pathlib.Path(workflow_file).stem, f"run {run_id or '—'}", f"周 {rnd if rnd is not None else '—'}", f"工程の版 {sha}"])
 
 
 def embedded(machine_text: str) -> str:

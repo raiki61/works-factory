@@ -4,6 +4,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
@@ -113,7 +114,9 @@ class TableCase(unittest.TestCase):
         self.assertEqual([r["where"] for r in outcome.residue(fixed_run(eyes=eyes))], [f"{report.EYES_WHERE} R3"], "目の行が在れば重ねない")
 
     def test_seal_without_ok_is_left(self):
+        """封じの ok を見るのは _proved だけ（ok: false は線の止めが先に拾う）。残りの行には重ねない"""
         self.assertEqual(decide(fixed_run(**{"merge-seal": {"mode": "seal"}})), ("round_limit", ""))
+        self.assertEqual(outcome.residue(fixed_run(**{"merge-seal": {"mode": "seal"}})), [])
 
 
 class OrderCase(unittest.TestCase):
@@ -168,12 +171,23 @@ class ReadingCase(unittest.TestCase):
         ruled = {"unit_key": "u2", "ruling": {"decision": "fix_code_as"}}
         waiting = {"unit_key": "u3", "ruling": {"decision": "fix_plan_item"}, "replan": "waiting"}
         one = self.put("fix/conflicts.json", {"items": [asked]})
-        quiet = self.put("fix/r1/conflicts.json", {"items": [ruled, waiting]})
+        quiet = self.put("fix/r1/conflicts.json", {"items": [ruled]})
         later = self.put("refix/conflicts.json", {"items": [asked]})
         for conflicts, word in ((one, "needs_human"), ([quiet, later], "needs_human"), ([quiet], "fixed"), (None, "fixed")):
             with self.subTest(conflicts=conflicts):
                 fix = {**fixed_run()["fix"], "conflicts": conflicts}
                 self.assertEqual(decide(fixed_run(fix=fix))[0], word)
+
+    def test_waiting_replan_is_closed_unless_interrupted(self):
+        """案の直しを待つ行は、終わった run では諦めた行として人に回し（元 report.build の replan.close_at）、途中で落ちた run では
+        締めない"""
+        waiting = {"unit_key": "u3", "ruling": {"decision": "fix_plan_item", "text": "案を", "plan_units": ["u3"]}, "replan": "waiting"}
+        fix = {**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": [waiting]})}
+        self.assertEqual(decide(fixed_run(fix=fix)), ("needs_human", f"fix:{stopby.CONFLICT}"))
+        self.assertEqual(outcome.asked_conflicts(fixed_run(fix=fix))[0][outcome.REPLAN_WHY], outcome.CLOSE_WHY)
+        self.assertEqual(decide(fixed_run(fix=fix), facts={**OK_FACTS, "failed": ["refix__write"]})[0], "interrupted")
+        self.assertEqual(outcome.asked_conflicts(fixed_run(fix=fix), closed=False), [])
+        self.assertEqual(outcome.waiting_conflicts(fixed_run(fix=fix)), [waiting])
 
     def test_unreadable_conflicts_are_record_problems(self):
         """読めない申し出と裁定のファイルは人に回した申し出を隠すので、訳を record_problems に入れて結果を名乗らせない"""
@@ -198,6 +212,46 @@ class ReadingCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(judge=judge)), ("fixed_needs_check", ""))
         red = {"ok": False, "green": False, "red_cause": "introduced"}
         self.assertEqual(decide(fixed_run(judge=judge, **{"test-gate-final": red}))[0], "round_limit")
+
+    def test_material_answered_with_command_and_output_is_not_left(self):
+        """依頼が命令と出力つきで答えた素材は次の run の残りに数えない（元 report.residue の gatemarks.measured_materials）。
+        命令か出力の欠けた答え・2 つの問いに当たる答えは測りの代わりにしない"""
+        judgment = self.put("judge/judgment.json", {"questions": [
+            {"key": "q1", "origin": "ci", "status": "held"}, {"key": "q2", "origin": "ci", "status": "escalate"}]})
+        self.put("judge/materials.json", {"parallel_pr": {"status": "not_run"}, "ci": {"status": "awaiting_human"}})
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment})
+        measured = {"question": "parallel_pr", "text": "重ならない", "command": "gh pr list", "output": "0 件"}
+        facts = {**OK_FACTS, "answers": [measured, {"question": "ci", "text": "緑", "command": "make ci", "output": "ok"}]}
+        self.assertEqual([r["where"] for r in outcome.residue(returns, facts)], [f"{outcome.MATERIAL_WHERE} ci"])
+        self.assertEqual(outcome.measured_materials(returns, facts["answers"]), {"parallel_pr"})
+        self.assertEqual(decide(returns, facts=facts), ("fixed_needs_check", ""))
+        self.assertEqual(outcome.measured_materials(returns, [{**measured, "output": ""}]), set())
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": self.put("judge/judgment.json", {})})
+        self.put("judge/materials.json", {"parallel_pr": {"status": "not_run"}})
+        self.assertEqual(decide(returns, facts={**OK_FACTS, "answers": [measured]}), ("fixed", ""))
+
+    def test_after_rows_are_left(self):
+        """直した後の実測が住処の外の知る場所の増えを見たら残りに数える（元 rest_outside_validator の structmark.after_rows）"""
+        after = self.put("eyes/structure-after.json", {})
+        row = {"where": "考えの住処: x", "text": "増えた"}
+        with mock.patch.object(outcome.structmark, "after_rows", return_value=[row]) as got:
+            returns = fixed_run(eyes={**fixed_run()["eyes"], "structure_after": after})
+            self.assertEqual(outcome.residue(returns), [row])
+            self.assertEqual(decide(returns), ("round_limit", ""))
+        got.assert_called_with(pathlib.Path(after).parent)
+
+    def test_absorbed_fall_is_left_unless_its_block_returned(self):
+        """落ちたが線が受け止めた節は途中で終わった run でなく残り（元 report.absorbed_rows）。返りの在るブロックの中の落ちは
+        そのブロックの返りが言うので重ねない"""
+        top = {"node": "redepth", "error": "boom\n2 行目"}
+        facts = {**OK_FACTS, "absorbed": [top, {"node": "eyes__r2", "error": "落ちた"}]}
+        self.assertEqual(decide(facts=facts), ("round_limit", ""))
+        rows = outcome.residue(fixed_run(), facts)
+        self.assertEqual([r["where"] for r in rows], [f"{report.ABSORBED_WHERE} redepth"])
+        self.assertIn("boom", rows[0]["text"])
+        self.assertNotIn("2 行目", rows[0]["text"])
+        self.assertEqual(decide(fixed_run(eyes=None), facts={**OK_FACTS, "absorbed": [{"node": "eyes__r2", "error": "x"}]})[0],
+                         "round_limit")
 
     def test_empty_or_missing_materials_count_zero(self):
         judgment = self.put("judge/judgment.json", {})

@@ -11,6 +11,7 @@ facts:
   prior_failures: null
   ai_go: false
   facts_file: report/report.md
+  stamp: ""
 report:
   outcome: record_invalid
   stop_reason: "start:record-invalid"

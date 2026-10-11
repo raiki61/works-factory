@@ -3,6 +3,7 @@
 報告の頭と答えの下書きの場面は、元の works/tests/test_gate_head.py の ReportHeadCase と works/tests/test_gate_drafts.py の
 DraftsCase のうち報告の側の物を、盤面と関所の節の代わりにブロックの返りの入力で書き直した（各試験の docstring に元の名）。
 """
+import hashlib
 import json
 import pathlib
 import sys
@@ -20,10 +21,13 @@ import outcome  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
 import runreport  # noqa: E402
+import stopby  # noqa: E402
 from lib.tests.test_outcome import fixed_run  # noqa: E402
-from lib.tests.test_plan_gate import DECIDED, FORK, NARROW, WORLD_ROW  # noqa: E402
+from lib.tests.test_plan_gate import DECIDED, FACE, FORK, FORK_UNIT, NARROW, WORLD_ROW  # noqa: E402
 
 UNATTENDED = {"run_id": "run-1", "unattended": "true"}
+UNIT_A, UNIT_B, UNIT_C = ({"id": "a", "paths": ["a.py"], "summary": "狭く直す"}, {"id": "b", "paths": ["b.py"], "summary": "b"},
+                          {"id": "c", "paths": ["c.py"], "summary": "c"})
 RUN = "run-1"
 
 
@@ -193,7 +197,8 @@ class TranscriptCase(Base):
         )
         facts = runreport.transcript_facts(rows, exclude_prefix="report__")
         self.assertEqual(facts["failed"], ["eyes__r1"])
-        self.assertEqual(facts["retried"], ["fix__write"])
+        self.assertEqual(facts["absorbed"], [], "後に始まった節が自分の節だけなら、線は受け止めていない")
+        self.assertEqual(facts["retried"], [{"node": "fix__write", "failures": 1, "error": ""}])
         self.assertEqual(facts["cost"], {"judge__diagnose": 0.5, "fix__write": 0.5})
         self.assertNotIn("fix", facts["cost"], "言い直しの行は数えない")
         self.assertEqual(facts["minutes"]["judge__diagnose"], 3.0)
@@ -203,9 +208,37 @@ class TranscriptCase(Base):
         self.assertEqual(decided[0], "interrupted")
         self.assertIn("- 費用の合計: $1.0000（途中。", text)
         self.assertIn(f"{report.INTERRUPTED_HEAD}: 節 eyes__r1 が落ちた（誤り: 目が落ちた）", text)
-        self.assertIn(f"{report.RETRIED_HEAD}: fix__write", text)
+        self.assertIn(f"{report.RETRIED_HEAD}: fix__write（落ちた回 1。最後の誤り: （誤りの文が無い））", text)
         self.assertIn("費用の欄が無い行 1 件", text)
         self.assertIn("- judge__diagnose: sonnet", self.section(text, report.MODEL_HEADING))
+
+
+    def test_fall_the_line_went_past_is_absorbed_not_interrupted(self):
+        """元 report.split_fallen・head_stop: 落ちた後にほかの節が始まった節は受け止めた落ち（止めたかの節に名と誤り、残りに 1 行）で、
+        run を途中で終わらせた落ちと分ける。再試行の回と最後の誤りの文も出す"""
+        rows = rows_of(
+            start("redepth", "2026-10-12T00:00:00Z"),
+            {**done("redepth", "2026-10-12T00:01:00Z", kind="node_error"), "error": "深さが読めない\n詳しい行"},
+            start("eyes__r1", "2026-10-12T00:02:00Z"),
+            done("eyes__r1", "2026-10-12T00:03:00Z"),
+            start("fix__write", "2026-10-12T00:04:00Z"),
+            {**done("fix__write", "2026-10-12T00:05:00Z", kind="node_error"), "error": "1 回目"},
+            {**done("fix__write", "2026-10-12T00:06:00Z", kind="node_error"), "error": "2 回目"},
+            done("fix__write", "2026-10-12T00:07:00Z"),
+        )
+        facts = runreport.transcript_facts(rows)
+        self.assertEqual((facts["failed"], facts["absorbed"]), ([], [{"node": "redepth", "error": "深さが読めない\n詳しい行"}]))
+        self.assertEqual(facts["retried"], [{"node": "fix__write", "failures": 2, "error": "2 回目"}])
+        got = outcome.decide_outcome(fixed_run(), {}, {**{"start_ok": True, "record_problems": []}, "failed": facts["failed"],
+                                                       "absorbed": facts["absorbed"]})
+        self.assertEqual(got, ("round_limit", ""))
+        got = runreport.build(fixed_run(), {}, {}, facts, *got, out_dir=self.out, start={"run_id": RUN}, run_id=RUN)
+        text = pathlib.Path(got["report"]).read_text(encoding="utf-8")
+        stop = self.section(text, report.STOP_HEADING)
+        self.assertIn(f"{report.ABSORBED_HEAD}: redepth（誤り: 深さが読めない）", stop)
+        self.assertIn(f"{report.RETRIED_HEAD}: fix__write（落ちた回 2。最後の誤り: 2 回目）", stop)
+        self.assertNotIn(report.INTERRUPTED_HEAD, stop)
+        self.assertIn(f"{report.ABSORBED_WHERE} redepth: redepth が落ちた", self.section(text, report.DECISIONS_HEADING))
 
 
 class DecisionsCase(Base):
@@ -319,9 +352,12 @@ class DraftsCase(Base):
         drafts = runreport.answer_drafts(returns, {}, {"run_id": RUN})
         self.assertEqual([(d["question"], d["text"]) for d in drafts], [(FORK["key"], "例外——呼び手が既に例外を捕まえている")])
         passed = {"gate-before-fix": {"decision": "continue", "text": ""}}
+        self.assertEqual(len(runreport.answer_drafts(returns, passed, {"run_id": RUN})), 1, "関所が聞いていない問いは答えていない")
+        returns = fixed_run(judge=returns["judge"], **{"plan-review": {**fixed_run()["plan-review"], "questions": [gatemarks.ask_text(FORK)]}})
         self.assertEqual(runreport.answer_drafts(returns, passed, {"run_id": RUN}), [])
         held = {"gate-before-fix": {"decision": "continue", "text": f"保留: {FORK['key']}"}}
         self.assertEqual(len(runreport.answer_drafts(returns, held, {"run_id": RUN})), 1)
+        returns = fixed_run(judge=returns["judge"])
         _, text, _ = self.build(returns)
         self.assertIn("保留にしたままの問い 1 件", text.splitlines()[3])
 
@@ -334,6 +370,8 @@ class DraftsCase(Base):
         self.assertIn("forge が無い", drafts[0]["note"])
         answered = {"run_id": RUN, "answers": [{"question": "parallel_pr", "text": "無い", "command": "gh pr list", "output": "[]"}]}
         self.assertEqual(runreport.answer_drafts(returns, {}, answered), [])
+        unmeasured = {"run_id": RUN, "answers": [{"question": "parallel_pr", "text": "無いはず"}]}
+        self.assertEqual(runreport.answer_drafts(returns, {}, unmeasured), [], "依頼の答えが当たった素材は下書きにしない（命令と出力が無くても）")
 
     def test_row_with_nothing_still_gets_a_draft_saying_so(self):
         """元 DraftsCase.test_row_with_nothing_still_gets_a_draft_saying_so"""
@@ -347,6 +385,32 @@ class DraftsCase(Base):
         self.assertEqual(runreport.answer_drafts(returns, {"gate-before-fix": {"decision": "approve", "text": ""}},
                                                  {"run_id": RUN}), [])
         self.assertEqual(runreport.answer_drafts(returns, {"gate-before-fix": {"decision": "continue", "text": ""}}, UNATTENDED), [])
+
+    def test_no_narrow_and_face_rows_give_their_marks(self):
+        """元 gatemarks._gate_draft: 推しの無い修正案の狭める行は狭めない案（no_narrow）を、事前審査の人に回す種類の穴は穴の行の
+        決め手を、材料として note に置く"""
+        plan = self.put("plan/plan-fields.json", {"round": 1, "fields": []})
+        self.put("plan/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "narrows": [{**NARROW, "no_narrow": "例外にそろえて呼び手を直す"}]}]})
+        review = self.put("plan-review/review.json", {"faces": [{**FACE, "no_narrow": "上限を変えずに足す"},
+                                                               {**FACE, "key": "見た目", "kind": "style"}]})
+        narrow = f"修正案 1 が狭める能力: {NARROW['what']}——{NARROW['why']}"
+        face = f"事前審査の穴 [regression] {FACE['key']}: {FACE['why']}"
+        returns = fixed_run(plan={**fixed_run()["plan"], "plan": plan},
+                            **{"plan-review": {"review": review, "questions": [narrow, face, f"事前審査の穴 [style] 見た目: {FACE['why']}"]}})
+        drafts = runreport.answer_drafts(returns, {}, UNATTENDED)
+        self.assertEqual([d["text"] for d in drafts], ["", "", ""])
+        self.assertIn("狭めない案: 例外にそろえて呼び手を直す", drafts[0]["note"])
+        self.assertIn(gatemarks.NO_NARROW, drafts[0]["source"])
+        self.assertIn("狭めない案: 上限を変えずに足す", drafts[1]["note"])
+        self.assertIn("決め手の欄が無い", drafts[2]["source"], "人に回さない種類の穴は事前審査の行に結ばない")
+
+    def test_final_gate_r4_questions_are_drafted_unless_passed(self):
+        """最後の関所が通さなかった無人の run は、独立の目 R4 の問いごとに下書き。関所が通した run は作らない"""
+        eyes = {**fixed_run()["eyes"], "questions": ["守りを触ってよいか／推し: 通す（continue）——触らない（理由: 守りは別の PR）"]}
+        returns = fixed_run(eyes=eyes)
+        drafts = runreport.answer_drafts(returns, {}, UNATTENDED)
+        self.assertEqual([(d["question"], d["text"]) for d in drafts], [("守りを触ってよいか", "通す（continue）——触らない（理由: 守りは別の PR）")])
+        self.assertEqual(runreport.answer_drafts(returns, {"gate-final": {"decision": "approve", "text": ""}}, UNATTENDED), [])
 
     def test_drafts_reach_next_request(self):
         returns = fixed_run(**{"plan-review": {"questions": ["どうするか"]}})
@@ -492,6 +556,113 @@ class CarryCase(Base):
         self.assertEqual([r["where"] for r in rows], [runreport.PLAN_GAVE_UP_WHERE])
 
 
+    def test_rejudge_changes_and_opened_units(self):
+        """元 report._rejudge_changes・_rejudge_next: 再審で足された・消えた・変わった単位を、異議に名指されたかで分けて並べ、
+        再審が足して修正の段が受けていない単位は次の依頼に運ぶ"""
+        judge = {**fixed_run()["judge"], "units": [UNIT_A, UNIT_B]}
+        rejudge = {**judge, "units": [{**UNIT_A, "summary": "広く直す"}, UNIT_C], "rejudge_verdict": "一部採る"}
+        fix = {**fixed_run()["fix"], "objection": "a の範囲が狭い"}
+        returns = fixed_run(judge=judge, rejudge=rejudge, fix=fix)
+        self.assertEqual(runreport.rejudge_changes(returns), [
+            '再審で異議に名指された単位が変わった: a の summary: "狭く直す" → "広く直す"',
+            "再審で争点でない単位が消えた: b", "再審で争点でない単位が足された: c"])
+        self.assertEqual(runreport.rejudge_opened(returns), ["c"])
+        got, text, _ = self.build(returns)
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("  - 再審が直す単位にした（この run では直していない——次の run に渡す）: c", body)
+        self.assertIn("再審で争点でない単位が消えた: b", body)
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        self.assertIn({"where": "c", "text": "c（再審が直す単位にした——この run では直していない）"}, doc["findings"])
+        fix = {**fix, "units": [*fix["units"], {"unit_id": "c", "status": "fixed", "reason": ""}]}
+        self.assertEqual(runreport.rejudge_opened(fixed_run(judge=judge, rejudge=rejudge, fix=fix)), [], "修正の段が受けた単位は運ばない")
+        self.assertEqual(runreport.rejudge_changes(fixed_run(judge=judge)), [])
+
+    def test_waiting_replan_rows_are_carried_only_when_interrupted(self):
+        """元 next_request の conflict.waiting の行: 途中で落ちた run は案の直しを待つ行を未完了で運び、終わった run は諦めた行として
+        人に回す"""
+        rows = [{"unit_key": "u2", "between": ["案"], "ruling": {"decision": "fix_plan_item", "text": "案を直す", "plan_units": ["u2"]},
+                 "replan": "waiting"}]
+        fix = {**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": rows})}
+        cut = runreport.next_request(fixed_run(fix=fix), [], closed=False)
+        self.assertEqual(cut, [{"where": "u2", "text": f"u2（{outcome.PENDING_WHY}。裁定の文: 案を直す。名指し 案。{outcome.HELD_WORK_KEPT}）"}])
+        closed = runreport.next_request(fixed_run(fix=fix), [])
+        self.assertIn(f"案の直し: {outcome.CLOSE_WHY}", closed[0]["text"])
+        facts = runreport.transcript_facts([start("fix__write", "2026-10-12T00:00:00Z"),
+                                            done("fix__write", "2026-10-12T00:01:00Z", kind="node_error")])
+        got, text, decided = self.build(fixed_run(fix=fix), transcript=facts)
+        self.assertEqual(decided[0], "interrupted")
+        self.assertIn("人に回した食い違いの申し出 0 件", self.section(text, report.DECISIONS_HEADING).replace(": ", " "))
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        self.assertIn(outcome.PENDING_WHY, doc["findings"][-1]["text"])
+
+    def test_line_stop_words_are_prior_failures(self):
+        """元 prior_failures の受け付けの最後の拒否の行の代わり: 止めの語で止めた段の語と意味（計画の諦めは計画の行が持つ）"""
+        returns = fixed_run(judge={**fixed_run()["judge"], "ready": False, "stop_reason": stopby.PURPOSE})
+        rows = runreport.prior_failures(returns, [])
+        self.assertEqual(rows, [{"where": f"{runreport.STOPPED_WHERE} judge",
+                                 "text": f"{stopby.PURPOSE}（{stopby.REASONS['purpose']}）。受け付けの最後の拒否の本文は返りに無い"}])
+        returns = fixed_run(plan={"ready": False, "stop_reason": stopby.FIX, "depth": []}, fix=None)
+        self.assertEqual([r["where"] for r in runreport.prior_failures(returns, [])], [runreport.PLAN_GAVE_UP_WHERE])
+        returns = fixed_run(fix={**fixed_run()["fix"], "stop_reason": stopby.CONFLICT})
+        self.assertEqual(runreport.prior_failures(returns, []), [], "人待ちの語は前の失敗でない")
+
+
+class LedgerCase(Base):
+    """問いの台帳の保留の行と答えた行（元 gatemarks.held_lines・answered_lines）"""
+
+    def returns(self, *questions, units=None, materials=None, review=()):
+        judgment = self.put("judge/judgment.json", {"questions": list(questions)})
+        if materials is not None:
+            self.put("judge/materials.json", materials)
+        judge = {**fixed_run()["judge"], "judgment": judgment, "units": units if units is not None else [{"id": FORK_UNIT}]}
+        return fixed_run(judge=judge, **{"plan-review": {**fixed_run()["plan-review"], "questions": list(review)}})
+
+    def test_held_line_names_units_left_and_answer_key(self):
+        state = runreport.ledger_state(self.returns(FORK), {}, {"run_id": RUN})
+        self.assertEqual([line for _, line in state["held"]],
+                         [gatemarks._ledger_line(FORK, skip=[FORK_UNIT]) + f'／{gatemarks.ANSWER_KEY_HEAD}: "{FORK["key"]}"'])
+        self.assertIn(f"／答えが無いと直さない単位: {FORK_UNIT}", state["held"][0][1])
+
+    def test_answer_key_is_the_material_name_when_it_binds_only_this(self):
+        q = {**FORK, "origin": "", "key": "parallel_pr: 重なりを確かめる"}
+        state = runreport.ledger_state(self.returns(q, materials={"parallel_pr": {"status": "not_run"}}), {}, {"run_id": RUN})
+        self.assertTrue(state["held"][0][1].endswith(f'{gatemarks.ANSWER_KEY_HEAD}: "parallel_pr"'), state["held"][0][1])
+
+    def test_answered_lines_name_where_the_answer_came_from(self):
+        other = {**FORK, "key": "q-other", "origin": "x"}
+        returns = self.returns(FORK, other, units=[{"id": FORK_UNIT}, {"id": "x"}], review=[gatemarks.ask_text(other)])
+        answers = [{"question": FORK["key"], "text": "例外", "command": "pytest -k mean", "output": "1 passed"}]
+        state = runreport.ledger_state(returns, {"gate-before-fix": {"decision": "continue", "text": ""}}, {"answers": answers})
+        self.assertEqual(state["held"], [])
+        self.assertEqual(state["answered"], [
+            gatemarks._ledger_line(FORK, "・" + gatemarks.answer_note(answers[0])),
+            gatemarks._ledger_line(other, "・関所で continue を受けた")])
+        self.assertIn("人が手元で実行: `pytest -k mean`", state["answered"][0])
+
+    def test_answer_hitting_two_questions_answers_neither(self):
+        twin = {**FORK, "key": "q-twin", "status": "escalate"}
+        returns = self.returns(FORK, twin)
+        state = runreport.ledger_state(returns, {}, {"answers": [{"question": FORK_UNIT, "text": "例外"}]})
+        self.assertEqual(len(state["held"]), 2)
+
+    def test_answered_but_unit_gone_is_held(self):
+        returns = self.returns(FORK, units=[], review=[gatemarks.ask_text(FORK)])
+        state = runreport.ledger_state(returns, {"gate-before-fix": {"decision": "continue", "text": ""}}, {"run_id": RUN})
+        self.assertEqual(state["held"], [(None, f"関所で答えたが直す単位に入れられなかった: {FORK['key']}・{FORK_UNIT}（理由: 今の周の判定に無い）")])
+
+    def test_material_answer_lines(self):
+        materials = {"ci": {"status": "awaiting_human"}, "lint": {"status": "not_run"}}
+        answers = [{"question": "ci", "text": "緑", "command": "make ci", "output": "ok"}, {"question": "lint", "text": "通るはず"}]
+        state = runreport.ledger_state(self.returns(materials=materials), {}, {"answers": answers})
+        self.assertEqual(state["answered"], [
+            f"素材 ci（awaiting_human）: {gatemarks.HAND_CHECKED}。残りに数えない——{gatemarks.answer_note(answers[0])}",
+            f"素材 lint（not_run）: command と output が無いので測りの代わりにせず、測れていないまま残りに数える——{gatemarks.answer_note(answers[1])}"])
+        got, text, decided = self.build(self.returns(materials=materials), start={"run_id": RUN, "answers": answers})
+        self.assertEqual(decided[0], "fixed_needs_check")
+        self.assertIn(f"{outcome.MATERIAL_WHERE} lint", self.section(text, report.DECISIONS_HEADING))
+        self.assertNotIn(f"{outcome.MATERIAL_WHERE} ci:", self.section(text, report.DECISIONS_HEADING))
+
+
 class LinesCase(Base):
     """機械の報告の節に取り戻した行（判定・計画・目・封じの返りと、その隣のファイルから）"""
 
@@ -542,12 +713,35 @@ class LinesCase(Base):
         self.assertIn("守りのパスに当たった差分 1 件", text.splitlines()[3])
         self.assertIn("merge-apply が ok でない: hash が封じた物と違う", self.section(text, report.STOP_HEADING))
 
+    def test_protected_hits_from_eyes_only(self):
+        """封じの返りが当たりを持たない（封じが走らない・欄が無い）run も、独立の目の当たりだけで人が決めることに数える"""
+        eyes = {**fixed_run()["eyes"], "protected_hits": ["ci/deploy.yml", "ci/deploy.yml"]}
+        _, text, _ = self.build(fixed_run(eyes=eyes))
+        self.assertIn("守りのパスに当たった差分 1 件", text.splitlines()[3])
+        self.assertIn("ci/deploy.yml", self.section(text, report.DECISIONS_HEADING))
+
+    def test_seal_not_ok_says_why(self):
+        seal = {"mode": "seal", "ok": False, "reason": "指紋が今の作業ツリーと違う"}
+        _, text, decided = self.build(fixed_run(**{"merge-seal": seal, "merge-apply": None}))
+        self.assertEqual(decided, ("stopped_by_line", "merge-seal:not-ok"))
+        self.assertIn("merge-seal が ok でない: 指紋が今の作業ツリーと違う", self.section(text, report.STOP_HEADING))
+        _, text, _ = self.build(fixed_run(**{"merge-seal": {"mode": "seal", "ok": False}, "merge-apply": None}))
+        self.assertIn("merge-seal が ok でない: 訳の記録が無い", self.section(text, report.STOP_HEADING))
+
     def test_world_rows_keep_mark_and_versus(self):
         world = self.put("judge/world.jsonl", json.dumps({**WORLD_ROW, "basis": "knowledge"}, ensure_ascii=False))
         _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "world": world}))
         body = self.section(text, report.WORLD_HEADING)
         self.assertIn(f"（{worldmark.NOT_WEB}）", body)
         self.assertIn("依頼の解き方「空の並びは 0 を返す」は定石と違う", body)
+        self.assertIn("- 類 1", body)
+
+    def test_world_null_says_the_stage_gave_nothing(self):
+        """元 worldmark.report_lines の「世界の解の段が落ちた（行なしで進んだ）」: 判定が返ったのに world が null"""
+        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "world": None}))
+        self.assertIn("世界の解の行が無い（判定の返りの world が null", self.section(text, report.WORLD_HEADING))
+        _, text, _ = self.build(fixed_run(judge=None), )
+        self.assertNotIn(report.WORLD_HEADING, text)
 
     def test_structure_rows_and_after(self):
         design = self.put("plan/design.jsonl", json.dumps({"unit_id": "u1", "verdict": "汚れる", "faces": [], "evidence": [],
@@ -578,9 +772,10 @@ class LinesCase(Base):
 class StampCase(Base):
     def test_stamp_names_workflow_run_and_version(self):
         wf = self.put("works-factory-report.yaml", "name: x\n")
-        got = runreport.stamp("run-9", wf)
-        self.assertTrue(got.startswith("works-factory-report / run run-9 / 工程の版 "))
-        self.assertIn("読めない", runreport.stamp("run-9", self.dir / "none.yaml"))
+        sha = hashlib.sha256(b"name: x\n").hexdigest()[:12]
+        self.assertEqual(runreport.stamp("run-9", wf, 2), f"works-factory-report / run run-9 / 周 2 / 工程の版 {sha}")
+        self.assertEqual(runreport.stamp("", wf), f"works-factory-report / run — / 周 — / 工程の版 {sha}")
+        self.assertIn("工程の版 読めない（FileNotFoundError）", runreport.stamp("run-9", self.dir / "none.yaml"))
 
     def test_pack_terms_raise_when_unreadable(self):
         broken = self.dir / "glossary.json"

@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
 import typed  # noqa: E402
-from place import failed_line, out_dir, rel, unwritten  # noqa: E402
+from place import UNWRITTEN, failed_line, out_dir, rel, unwritten  # noqa: E402
 
 RETURNS = {
     "test-gate-base": os.environ.get("INPUTS_TEST_GATE_BASE", ""),
@@ -33,6 +33,7 @@ GATES = {
     "gate-final": os.environ.get("INPUTS_GATE_FINAL", ""),
 }
 START = os.environ.get("INPUTS_START", "")
+WORKFLOW_FILE = Path(__file__).resolve().parents[1] / "works-factory-report.yaml"   # 来歴の行の版を測る自分の工程
 
 
 def parse(name: str, raw: str) -> tuple:
@@ -128,23 +129,26 @@ def main() -> dict:
     listing["warnings"] = [*notes, *listing["warnings"], *([transcript_why] if transcript_why else [])]
     facts = runreport.transcript_facts(rows, exclude_prefix=own_prefix())
     decided = outcome.decide_outcome(returns, gates, {"start_ok": bool(start), "record_problems": problems,
-                                                      "failed": facts["failed"] if facts["ok"] else None})
+                                                      "failed": facts["failed"] if facts["ok"] else None,
+                                                      "absorbed": facts["absorbed"], "answers": start.get("answers") or []})
     built = runreport.build(returns, gates, listing, facts, *decided, out_dir=out_dir(), start=start, problems=problems,
                             run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd())
     report = rel(built["report"])
+    run_id = os.environ.get("WORKFLOW_ID", "")
     return {"outcome": decided[0], "ok": decided[0] in outcome.OK_OUTCOMES, "stop_reason": decided[1],
             "report": report, "next_request": rel(built["next_request"]),
-            "prior_failures": rel(built["prior_failures"]), "ai_go": built["ai_go"], "facts_file": report["path"]}
+            "prior_failures": rel(built["prior_failures"]), "ai_go": built["ai_go"], "facts_file": report["path"],
+            "stamp": runreport.stamp(run_id, WORKFLOW_FILE, outcome.as_dict(outcome.planned(returns)).get("round"))}
 
 
 def fallen(error: BaseException) -> dict:
     """思わぬ誤りでも返る形（結末 record_invalid と誤りの 1 行を載せた機械の報告。lib/ を読めない・それも書けなければ訳だけの 1 ファイル）"""
     why = failed_line("報告の事実", error)
     out = {"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "report": None,
-           "next_request": None, "prior_failures": None, "ai_go": False, "facts_file": ""}
+           "next_request": None, "prior_failures": None, "ai_go": False, "facts_file": "", "stamp": ""}
     try:
         import runreport
-        out["report"] = rel(runreport.fallback_report(out_dir(), why))
+        out["report"] = rel(runreport.fallback_report(out_dir(), why, UNWRITTEN))
     except Exception:  # noqa: BLE001 — lib/ を読めなくても、置き場に書けなくても返る
         out["report"] = unwritten(why)
     out["facts_file"] = out["report"]["path"]

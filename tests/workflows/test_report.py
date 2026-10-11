@@ -71,6 +71,9 @@ def env_reads(script: str) -> dict:
 
 
 typed = load_script("typed")
+if str(ROOT / "workflows" / ".shared") not in sys.path:
+    sys.path.append(str(ROOT / "workflows" / ".shared"))
+place = load_script("place")
 
 
 class ShapeCase(unittest.TestCase):
@@ -287,6 +290,22 @@ class FactsCase(Run):
                 text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
                 self.assertIn(f"結果を名乗れない訳: {word}", text)
 
+    def test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome(self):
+        """来歴の行の周は計画（案の直しが在ればそちら）の round。依頼が命令と出力つきで答えた素材は残りに数えない（始めの記録の
+        answers が結末の決め方に届く）"""
+        start = self.pointer("start/start.json", {"run_id": RUN, "answers": [
+            {"question": "ci", "text": "緑", "command": "make ci", "output": "ok"}]})
+        judgment = self.pointer("judge/judgment.json", {})
+        self.pointer("judge/materials.json", {"ci": {"status": "awaiting_human"}})
+        judge = {"ready": True, "stop_reason": "", "units": [{"id": "u1"}], "judgment": json.loads(judgment)}
+        env = {"INPUTS_START": start, "INPUTS_JUDGE": json.dumps(judge), "INPUTS_PLAN": '{"ready": true, "round": 1}',
+               "INPUTS_REPLAN": '{"ready": true, "round": 2}', "INPUTS_FIX": json.dumps({"done": True, "units": []}),
+               "INPUTS_TEST_GATE_FINAL": '{"ok": true, "green": true}', "INPUTS_MERGE_SEAL": '{"ok": true}'}
+        code, out = self.run_script("facts", **env)
+        self.assertEqual(code, 0)
+        self.assertEqual(out["outcome"], "fixed", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
+        self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / 工程の版 [0-9a-f]{{12}}$")
+
     def test_returns_with_pointers_reach_the_report(self):
         judgment = self.pointer("judge/judgment.json", {})
         judge = json.dumps({"ready": True, "stop_reason": "", "units": [{"id": "u1"}], "judgment": json.loads(judgment)})
@@ -354,7 +373,7 @@ class CollectScriptCase(Run):
         runreport.accept(AcceptScriptCase.REPLY, AcceptScriptCase.PASS, out_dir=self.artifacts / "report")
         out = self.collect(json.dumps(facts))
         text = (self.artifacts / out["report_ai"]["path"]).read_text(encoding="utf-8")
-        self.assertTrue(text.startswith(f"works-factory-report / run {RUN} / 工程の版 "))
+        self.assertTrue(text.startswith(f"works-factory-report / run {RUN} / 周 — / 工程の版 "))
         self.assertIn(report_roles.MACHINE_HEADING, text)
 
     def test_ok_is_passed_through_from_facts(self):
@@ -388,7 +407,7 @@ class CollectScriptCase(Run):
         good = self.facts()
         machine = (self.artifacts / good["report"]["path"]).read_text(encoding="utf-8")
         out = self.collect("{壊れた")
-        self.assertEqual(out["report"]["path"], f"report/{runreport.FALLBACK_FILE}")
+        self.assertEqual(out["report"]["path"], f"report/{place.UNWRITTEN}")
         self.assertIn("報告を組めなかった", (self.artifacts / out["report"]["path"]).read_text(encoding="utf-8"))
         self.assertEqual((self.artifacts / good["report"]["path"]).read_text(encoding="utf-8"), machine)
 
@@ -397,10 +416,10 @@ class CollectScriptCase(Run):
         empty = self.dir / "empty-root"
         empty.mkdir()
         code, out = self.run_script("facts", WORKS_FACTORY_ROOT=str(empty))
-        self.assertEqual((code, out["outcome"], out["facts_file"]), (0, "record_invalid", f"report/{runreport.FALLBACK_FILE}"))
+        self.assertEqual((code, out["outcome"], out["facts_file"]), (0, "record_invalid", f"report/{place.UNWRITTEN}"))
         self.assertIn("ModuleNotFoundError", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
         out = self.collect("", WORKS_FACTORY_ROOT=str(empty))
-        self.assertEqual((out["outcome"], out["report"]["path"]), ("record_invalid", f"report/{runreport.FALLBACK_FILE}"))
+        self.assertEqual((out["outcome"], out["report"]["path"]), ("record_invalid", f"report/{place.UNWRITTEN}"))
 
     def test_unwritable_place_is_record_invalid(self):
         good = self.facts()

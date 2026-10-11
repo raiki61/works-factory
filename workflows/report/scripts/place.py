@@ -7,7 +7,7 @@ from pathlib import Path
 import boundary
 
 OUT = "report"
-UNWRITTEN = "report-unwritten.md"   # 報告を組めない時の訳だけのファイル（lib の runreport.FALLBACK_FILE と同じ名）
+UNWRITTEN = "report-unwritten.md"   # 報告を組めない時の報告か訳だけのファイル（facts の report.md を上書きしない名）
 
 
 def out_dir() -> Path:

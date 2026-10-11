@@ -9,11 +9,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
-from place import failed_line, out_dir, rel, unwritten  # noqa: E402
+from place import UNWRITTEN, failed_line, out_dir, rel, unwritten  # noqa: E402
 
 FACTS = os.environ.get("INPUTS_FACTS", "")
 CARRIED = ("next_request", "prior_failures")
-WORKFLOW_FILE = Path(__file__).resolve().parents[1] / "works-factory-report.yaml"   # 来歴の行の版を測る自分の工程
 
 
 def main() -> dict:
@@ -24,8 +23,7 @@ def main() -> dict:
     if not isinstance(facts, dict) or not isinstance(facts.get("report"), dict):
         raise ValueError("facts の返りが無いか、機械の報告の指し札を持たない")
     machine = boundary.resolve(facts["report"])
-    ai = runreport.collect(machine.read_text(encoding="utf-8"), out_dir=out_dir(),
-                           stamp=runreport.stamp(os.environ.get("WORKFLOW_ID", ""), WORKFLOW_FILE))
+    ai = runreport.collect(machine.read_text(encoding="utf-8"), out_dir=out_dir(), stamp=facts["stamp"])
     return {"outcome": facts["outcome"], "ok": facts["ok"], "stop_reason": facts["stop_reason"], "report": rel(machine),
             "report_ai": rel(ai) if ai else None, **{k: facts[k] for k in CARRIED}}
 
@@ -53,7 +51,7 @@ def fallen(error: BaseException) -> dict:
         return {**out, **got}
     try:
         import runreport
-        out["report"] = rel(runreport.fallback_report(out_dir(), why))
+        out["report"] = rel(runreport.fallback_report(out_dir(), why, UNWRITTEN))
     except Exception:  # noqa: BLE001 — lib/ を読めなくても、置き場に書けなくても返る
         out["report"] = unwritten(why)
     return out

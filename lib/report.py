@@ -73,6 +73,7 @@ OUTCOMES = ("fixed", "fixed_needs_check", "no_fix_needed", "round_limit", "stopp
 EYES = ("R1", "R2", "R3", "R4")
 CHECKS_LEFT = "人が確かめる物"   # fixed_needs_check の残り（冒頭 3 行の件数と冒頭 1 の見出し）
 EYES_WHERE = "独立の目"
+ABSORBED_WHERE = "受け止めた落ち"
 REPORT_FILE = "report.md"
 FOR_READERS = "人が読む報告の本文の見出し。役の指示書には貼らない"
 PRIOR_HEADING = promptsection.Section("## 次の run に引き継ぐ落ちた理由", human=FOR_READERS)
@@ -94,6 +95,7 @@ HEADINGS = (DECISIONS_HEADING, ENTRY_HEADING, STOP_HEADING, READS_HEADING, WHERE
 TITLE_HEADING = promptsection.Section("# 報告（run {run}）", human=FOR_READERS)
 INTERRUPTED_HEAD = "run が途中で終わった"
 RETRIED_HEAD = "前の試みで落ち、続きで済んだ節"
+ABSORBED_HEAD = "落ちたが、線が宣言のとおり受け止めた節"
 PR_EXCLUDED = marks.KINDS["pr"].file           # 並行 PR の外した hunk {node, head, excluded}（周ごとに全部読むので置き場でなく名だけを引く）
 VERIFY_NOTES = "judge-verify.json"             # 判定の単位の裏取りの申し送り（線の木の段 3。単位ごとの state・verdict と相乗り）
 REJUDGE_WHERE = "判定（再審の結果）"           # 次の run の依頼の再審の結果の行の where
