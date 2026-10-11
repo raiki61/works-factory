@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """ブロックの返す節。返った節が置き場の eyes/ に書いたファイルを読み、lib の eyeverdict.collect でまとめる。返りの欄の外で
 最後の関所に出す材料（eyeverdict.write_notes）も置き場に書く。
 決して落ちない: 境の口と lib を読む所から中の誤りを全部捕まえ、ok: false と r1〜r4 の unverifiable（理由に誤りの 1 行）を返す"""

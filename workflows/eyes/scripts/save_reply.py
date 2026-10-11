@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """役の返りを置き場の eyes/<name>.json に書く（後ろの役が Read で読む）"""
 import os
 import sys
