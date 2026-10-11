@@ -13,3 +13,4 @@ import judge_accept as ja  # noqa: E402
 jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
 jdir.mkdir(parents=True, exist_ok=True)
 out = ja.pr_accept(jdir, os.environ.get("INPUTS_REPLY", ""), Path.cwd())
+boundary.returns({"ok": bool(out["ok"]), "done": bool(out["done"]), "reason": str(out["reason"])})

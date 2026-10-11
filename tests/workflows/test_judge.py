@@ -323,6 +323,52 @@ def verdict_shape(case: unittest.TestCase, out: dict) -> None:
     case.assertIn(out["rejudge_verdict"], (None, "採る", "退ける", "一部採る"))
 
 
+JSON_TYPES = {"boolean": bool, "string": str, "array": list, "object": dict, "null": type(None), "integer": int}
+
+
+def node_inputs(node: dict) -> dict:
+    """節の with: を子のプロセスの入力にする。上流の出力を指す値は空の字、指図（from/if_skipped）は if_skipped の値"""
+    inputs = {}
+    for key, value in node.get("with", {}).items():
+        if isinstance(value, dict):
+            inputs[key] = json.dumps(value.get("if_skipped"))
+        elif isinstance(value, str) and value.startswith("$"):
+            inputs[key] = ""
+        else:
+            inputs[key] = value
+    return inputs
+
+
+def write_purpose(r: Run) -> None:
+    (r.judge / "purpose.json").write_text(json.dumps({"purpose_text": "平均が正しい値を返す", "source": "①PR 説明",
+                                                      "known_weaknesses": [], "source_files": []}, ensure_ascii=False), encoding="utf-8")
+
+
+class ScriptReturnsTest(unittest.TestCase):
+    def test_every_script_node_prints_one_line_of_its_output_format(self):
+        """output_format を持つ script の節は、それに合う JSON を 1 行出す（出さないと Archon は節を落とし、輪の中なら輪ごと落ちる）。
+        YAML の並びで 1 つの置き場に走らせ、上流の出力は空の字で渡す。世界の解の段からは、輪が回る形（止めの控えが無く目的の文が在る）の
+        新しい置き場で走らせる"""
+        r = Run(self)
+        for nid, node in nodes().items():
+            if "script" not in node or "output_format" not in node:
+                continue
+            if nid == "world-intake":
+                r = Run(self)
+                r.returned("intake")
+                write_purpose(r)
+            with self.subTest(node=nid):
+                fmt = node["output_format"]
+                out = r.returned(node["script"], **node_inputs(node))
+                self.assertEqual(sorted(set(fmt["required"]) - set(out)), [], out)
+                self.assertEqual(sorted(set(out) - set(fmt["properties"])), [], out)
+                for key, value in out.items():
+                    kinds = fmt["properties"][key].get("type")
+                    if kinds is not None:
+                        kinds = [kinds] if isinstance(kinds, str) else kinds
+                        self.assertIsInstance(value, tuple(JSON_TYPES[k] for k in kinds), key)
+
+
 class StopPathFilesMixin:
     def assert_pointers_filled(self, r: Run, out: dict):
         """指し札の先と公開の隣のファイルが在り、空でない（Archon は節の終わりに先が在って空でないかを照らす）"""
@@ -496,8 +542,7 @@ class MaterialGiveUpTest(unittest.TestCase):
         """素材の 1 本の受け付けが諦めても、支度は残りの素材のファイルで材料を組む（諦めた素材が在るので判定役は起こさない）"""
         r = Run(self)
         r.returned("intake")
-        (r.judge / "purpose.json").write_text(json.dumps({"purpose_text": "平均が正しい値を返す", "source": "①PR 説明",
-                                                          "known_weaknesses": [], "source_files": []}, ensure_ascii=False), encoding="utf-8")
+        write_purpose(r)
         r.returned("material_route")
         for _ in range(3):
             out = r.returned("material_accept", role="provenance", reply={"not": "a provenance reply"})
