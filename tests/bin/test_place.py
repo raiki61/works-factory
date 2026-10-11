@@ -2,9 +2,12 @@
 import copy
 import hashlib
 import json
+import os
 import pathlib
+import re
 import tempfile
 import unittest
+from unittest import mock
 
 from bin._lib import pack, place
 
@@ -49,6 +52,24 @@ class PlaceTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r"asf\.commit"):
             pack.load(self.tmp)
 
+    def write_pack(self, ours_placed_at, asf_placed_at):
+        data = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))
+        data["ours"]["placed_at"] = ours_placed_at
+        data["asf"]["placed_at"] = asf_placed_at
+        (self.tmp / "pack.json").write_text(json.dumps(data), encoding="utf-8")
+
+    def test_load_rejects_placed_at_outside_own_folder(self):
+        for value in ("workflows", "workflows/", "", "..", "/tmp/asf", "workflows/..", "workflows/asf/sub", None):
+            with self.subTest(value=value):
+                self.write_pack("workflows/works-factory", value)
+                with self.assertRaisesRegex(ValueError, r"asf\.placed_at"):
+                    pack.load(self.tmp)
+
+    def test_load_rejects_equal_placed_at(self):
+        self.write_pack("workflows/same", "workflows/same")
+        with self.assertRaisesRegex(ValueError, r"ours\.placed_at と asf\.placed_at"):
+            pack.load(self.tmp)
+
     def test_binary_sha_mismatch_names_path(self):
         def download(repo, release, dest_dir):
             path = dest_dir / place.asset_name()
@@ -69,6 +90,42 @@ class PlaceTest(unittest.TestCase):
 
         self.assertEqual(place.archon_binary(self.pack, self.cache, download), cached)
 
+    def test_binary_cached_sha_mismatch_keeps_file(self):
+        cached = self.cache / "archon" / self.pack["archon"]["release"] / place.asset_name()
+        write(cached, b"truncated")
+
+        def download(repo, release, dest_dir):
+            self.fail("キャッシュに在るのに download を呼んだ")
+
+        with self.assertRaisesRegex(RuntimeError, re.escape(str(cached))):
+            place.archon_binary(self.pack, self.cache, download)
+        self.assertEqual(cached.read_bytes(), b"truncated")
+
+    def test_binary_is_executable(self):
+        def download(repo, release, dest_dir):
+            path = dest_dir / place.asset_name()
+            write(path, BINARY)
+            path.chmod(0o644)
+            return path
+
+        self.assertTrue(os.access(place.archon_binary(self.pack, self.cache, download), os.X_OK))
+
+    def test_asf_cached_no_fetch(self):
+        first = place.asf_tree(self.pack, self.cache, self.fake_fetch({"archon-a.yaml": b"a"}))
+
+        def fetch(repo, commit, folder, dest):
+            self.fail("同じ commit の ASF が在るのに fetch を呼んだ")
+
+        self.assertEqual(place.asf_tree(self.pack, self.cache, fetch), first)
+        self.assertEqual(files(first), {"archon-a.yaml": b"a"})
+
+    def test_asf_refetches_when_folder_changes(self):
+        place.asf_tree(self.pack, self.cache, self.fake_fetch({"old.yaml": b"old"}))
+        moved = copy.deepcopy(self.pack)
+        moved["asf"]["folder"] = ".archon/workflows/other"
+        asf_dir = place.asf_tree(moved, self.cache, self.fake_fetch({"new.yaml": b"new"}))
+        self.assertEqual(files(asf_dir), {"new.yaml": b"new"})
+
     def test_place_is_byte_identical(self):
         asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"archon-a.yaml": b"a"}))
         place.place(self.pack, self.root, self.home, asf_dir)
@@ -87,6 +144,22 @@ class PlaceTest(unittest.TestCase):
             sorted(p.name for p in (self.home / "workflows").iterdir()),
             ["archon-foo.yaml", "asf", "other", "works-factory"],
         )
+        self.assertEqual(files(self.home / "workflows/works-factory"), files(self.root / "workflows"))
+
+    def test_place_copy_failure_leaves_previous_placement(self):
+        asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"archon-a.yaml": b"a"}))
+        place.place(self.pack, self.root, self.home, asf_dir)
+        before = files(self.home / "workflows")
+        write(self.root / "workflows/line/added.yaml", b"added")
+
+        def broken_copy(src, dest, **kwargs):
+            write(dest / "half.yaml", b"half")
+            raise OSError("disk full")
+
+        with mock.patch.object(place.shutil, "copytree", broken_copy), self.assertRaisesRegex(OSError, "disk full"):
+            place.place(self.pack, self.root, self.home, asf_dir)
+        self.assertEqual(files(self.home / "workflows"), before)
+        self.assertEqual(sorted(p.name for p in (self.home / "workflows").iterdir()), ["asf", "works-factory"])
 
     def test_fetch_failure_leaves_previous_placement(self):
         asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"archon-a.yaml": b"before"}))
@@ -104,7 +177,8 @@ class PlaceTest(unittest.TestCase):
             place.asf_tree(newer, self.cache, fetch)
         self.assertNotIn("\n", str(caught.exception))
         self.assertEqual(files(self.home / "workflows/asf"), before)
-        self.assertEqual(sorted(p.name for p in (self.cache / "asf").iterdir()), [self.pack["asf"]["commit"]])
+        commit = self.pack["asf"]["commit"]
+        self.assertEqual(sorted(p.name for p in (self.cache / "asf").iterdir()), [commit, f"{commit}.json"])
 
     def test_repo_never_gets_asf_files(self):
         before = files(self.root)

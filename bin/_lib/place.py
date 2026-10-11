@@ -5,6 +5,7 @@
 works/dev/archon.sh から持ってきた（E15）。
 """
 import hashlib
+import json
 import platform
 import shutil
 import subprocess
@@ -15,14 +16,13 @@ from pathlib import Path
 Download = Callable[[str, str, Path], Path]
 Fetch = Callable[[str, str, str, Path], None]
 
-_SYSTEMS = {"Darwin": "darwin", "Linux": "linux"}
-_MACHINES = {"arm64": "arm64", "aarch64": "arm64", "x86_64": "x64", "AMD64": "x64"}
+_MACHINES = {"aarch64": "arm64", "x86_64": "x64", "AMD64": "x64"}
 
 
 def asset_name() -> str:
     """この機械で走る Archon の実行ファイルの名（公開版の asset の名。例 archon-darwin-arm64）"""
     system, machine = platform.system(), platform.machine()
-    return f"archon-{_SYSTEMS.get(system, system.lower())}-{_MACHINES.get(machine, machine.lower())}"
+    return f"archon-{system.lower()}-{_MACHINES.get(machine, machine.lower())}"
 
 
 def gh_release_download(repo: str, release: str, dest_dir: Path) -> Path:
@@ -73,22 +73,34 @@ def archon_binary(pack: dict, cache: Path, download: Download = gh_release_downl
 def asf_tree(pack: dict, cache: Path, fetch: Fetch = git_sparse_fetch) -> Path:
     """ASF の工程のフォルダを <cache>/asf/<commit>/ に取って返す。在れば取らない。
 
-    取れなければ途中まで取った物を残さず、何が取れなかったかを 1 行の RuntimeError で言う。
+    何から取ったか（repo・folder）を横の <commit>.json に残し、pack.json と違えば取り直す。
+    取れなければ途中まで取った物を残さず（前に取った物は残す）、何が取れなかったかを 1 行の RuntimeError で言う。
     """
     asf = pack["asf"]
     dest = cache / "asf" / asf["commit"]
-    if dest.is_dir():
+    record = dest.with_name(f"{dest.name}.json")
+    source = {"repo": asf["repo"], "folder": asf["folder"]}
+    if dest.is_dir() and _read_record(record) == source:
         return dest
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=dest.parent, prefix=f".{asf['commit']}.") as tmp:
-        staging = Path(tmp) / "tree"
+
+    def fill(staging: Path) -> None:
         try:
             fetch(asf["repo"], asf["commit"], asf["folder"], staging)
         except Exception as error:
             reason = " ".join(str(error).split()) or type(error).__name__
             raise RuntimeError(f"ASF の {asf['repo']} {asf['commit']} の {asf['folder']} が取れない: {reason}") from error
-        staging.rename(dest)
+
+    record.unlink(missing_ok=True)
+    _replace(dest, fill)
+    record.write_text(json.dumps(source), encoding="utf-8")
     return dest
+
+
+def _read_record(record: Path) -> dict | None:
+    try:
+        return json.loads(record.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
 
 
 def place(pack: dict, root: Path, archon_home: Path, asf_dir: Path) -> None:
@@ -98,11 +110,15 @@ def place(pack: dict, root: Path, archon_home: Path, asf_dir: Path) -> None:
 
 
 def _swap_in(src: Path, target: Path) -> None:
-    """src を target の横の一時の置き場に写し切ってから入れ替える。写す途中で止まっても前の target は残る"""
+    _replace(target, lambda staging: shutil.copytree(src, staging, symlinks=True))
+
+
+def _replace(target: Path, fill: Callable[[Path], None]) -> None:
+    """target の横の一時の置き場を fill で作り切ってから入れ替える。fill の途中で止まっても前の target は残る"""
     target.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=target.parent, prefix=f".{target.name}.") as tmp:
         staging = Path(tmp) / "new"
-        shutil.copytree(src, staging, symlinks=True)
+        fill(staging)
         if target.exists():
             target.rename(Path(tmp) / "old")
         staging.rename(target)
