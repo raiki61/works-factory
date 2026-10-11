@@ -29,6 +29,11 @@ def cache_dir(env: Mapping[str, str]) -> Path:
     return Path(env.get("XDG_CACHE_HOME") or Path(env["HOME"]) / ".cache") / "works-factory"
 
 
+def archon_folder(cache: Path, commit: str) -> Path:
+    """cache の中で Archon の源 commit を取り置く所 <cache>/archon/<commit>"""
+    return cache / "archon" / commit
+
+
 def git_fetch(repo: str, commit: str, dest: Path) -> None:
     """repo（clone できる URL）の commit を dest に取り出す（dest は作る）"""
     subprocess.run(["git", "clone", "--quiet", "--filter=blob:none", "--no-checkout", repo, str(dest)], check=True)
@@ -41,7 +46,7 @@ def bun_install(source: Path) -> None:
 
 
 def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: Install = bun_install) -> Path:
-    """Archon の源を <cache>/archon/<commit>/ に取り、依存を入れて返す。在れば照らしてから使い、取らない。
+    """Archon の源を archon_folder(cache, commit) に取り、依存を入れて返す。在れば照らしてから使い、取らない。
 
     bun が無い・取れない・依存が入らない・本体か ASF の工程が源に無ければ、途中まで取った物を残さず（前に取った物は残す）、
     何が取れなかったかを 1 行の RuntimeError で言う。在った物が照らしに合わなければ、消して取り直す案内つきの RuntimeError。
@@ -49,7 +54,7 @@ def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: In
     if shutil.which("bun") is None:
         raise RuntimeError("bun が無い。Archon の源は bun で起こす。入れ方は https://bun.sh")
     archon = pack["archon"]
-    dest = cache / "archon" / archon["commit"]
+    dest = archon_folder(cache, archon["commit"])
     if dest.is_dir():
         _verify(dest, archon["commit"])
         return dest

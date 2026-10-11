@@ -88,7 +88,8 @@ def _asf_folder_key() -> str:
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp)
         (root / "factory").mkdir()
-        (root / "pack.json").write_text(json.dumps({"ours": {"folder": "ours", "pack": "ours"}}), encoding="utf-8")
+        ours = {key.removeprefix("ours."): key for key in pack.REQUIRED["pack.json"]}
+        (root / "pack.json").write_text(json.dumps({"ours": ours}), encoding="utf-8")
         asf = {key: key for key in pack.REQUIRED["factory/pack.json"]} | {"integration_revision_required": "0" * 40}
         (root / "factory/pack.json").write_text(json.dumps(asf), encoding="utf-8")
         return pack.load(root)["asf"]["folder"]
@@ -242,12 +243,23 @@ class PinnedSourceTest(unittest.TestCase):
         (source / "edited").write_text("x", encoding="utf-8")
         self.assert_red(commit, "変更が在る")
 
-    def test_skips_with_the_reason_and_creates_nothing(self):
+    def assert_absent_raises(self, required: dict[str, str], raised: type[BaseException]):
         for name, cache, said in (("環境変数が無い", None, CACHE_ENV), ("置き場が無い", str(self.cache), "archon")):
-            with self.subTest(name):
-                with self.assertRaisesRegex(unittest.SkipTest, f"Archon の源が無い: .*{said}"):
+            with self.subTest(name), mock.patch.dict(os.environ, required):
+                if not required:
+                    os.environ.pop(archon.REQUIRED_ENV, None)
+                with self.assertRaises(BaseException) as caught:
                     pinned_source(cache, "0" * 40)
+                self.assertIs(type(caught.exception), raised)
+                self.assertRegex(str(caught.exception), f"Archon の源が無い: .*{said}")
         self.assertEqual(list(self.cache.iterdir()), [])
+
+    def test_skips_with_the_reason_and_creates_nothing(self):
+        self.assert_absent_raises({}, unittest.SkipTest)
+
+    def test_required_fails_with_the_reason_instead_of_skipping(self):
+        """CI は REQUIRED_ENV を立てる。用意が崩れても Archon の要る試験が黙って見送られない"""
+        self.assert_absent_raises({archon.REQUIRED_ENV: "1"}, AssertionError)
 
 
 if __name__ == "__main__":

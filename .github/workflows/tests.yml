@@ -34,7 +34,7 @@ jobs:
           commit = pack.load(pathlib.Path("."))["archon"]["commit"]
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               print(f"commit={commit}", file=out)
-              print(f"source={cache / 'archon' / commit}", file=out)
+              print(f"source={place.archon_folder(cache, commit)}", file=out)
           with open(os.environ["GITHUB_ENV"], "a") as env:
               print(f"WORKS_FACTORY_ARCHON_CACHE={cache}", file=env)
           EOF
@@ -75,4 +75,6 @@ jobs:
           place.archon_source(pack.load(pathlib.Path(".")), pathlib.Path(os.environ["WORKS_FACTORY_ARCHON_CACHE"]), fetched)
           EOF
       - name: unittest
+        env:
+          WORKS_FACTORY_ARCHON_REQUIRED: "1"
         run: uv run --isolated python3 -m unittest discover -s . -t .
