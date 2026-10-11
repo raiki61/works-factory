@@ -1,4 +1,4 @@
-"""Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py）を、写した元の字に照らす。
+"""Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py）を、写した元の字に照らす。
 
 行ごとに「写しの値」と「元の中のその値の在り処（ファイルと正規表現）」を持ち、正規表現で引いた値と写しの値を比べる。
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
@@ -16,7 +16,7 @@ from collections.abc import Callable
 from typing import Any, NamedTuple
 from unittest import mock
 
-from bin._lib import pack, place
+from bin._lib import launcher, pack, place
 from tests import archon
 from tests.archon import CACHE_ENV, pinned_source
 from tests.bin.gitkit import git
@@ -169,6 +169,11 @@ ARCHON_ROWS = (
         r"export function inputEnvKey\(name: string\): string \{\n\s*return `(\w+)\$\{name\.replace\(/-/g, '_'\)\.toUpperCase\(\)\}`;"),
     Row("工程の置き場 WORKFLOW_FOLDER", lambda: place.WORKFLOW_FOLDER, "packages/paths/src/archon-paths.ts",
         r"export function getWorkflowFolderSearchPaths\(\): string\[\] \{\n\s*return \['([^']+)'\];"),
+    Row("工程を走らせる命令", lambda: sorted(launcher.EXECUTING - launcher.CONTINUING), "packages/cli/src/cli.ts",
+        r"const executesWorkflow = \[([^\]]+)\]\.includes\(", lambda m: sorted(re.findall(r"'(\w+)'", m[1]))),
+    Row("工程を続ける命令", lambda: sorted(launcher.CONTINUING), "packages/cli/src/cli.ts",
+        r"if \(command === 'workflow' && \(subcommand === '(\w+)' \|\| subcommand === '(\w+)'\)\) \{\n"
+        r"\s*const schedule", lambda m: sorted(m.groups())),
 )
 
 
