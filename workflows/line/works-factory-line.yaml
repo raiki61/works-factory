@@ -200,7 +200,7 @@ nodes:
             conflicts: null
             prior_failures: "$start.output.prior_failures"
 
-        - id: plan-review
+        - id: plan-review-run
           include: works-factory-plan-review
           depends_on: [plan]
           when: "$plan.output.ready == true"
@@ -241,7 +241,7 @@ nodes:
             required: [ready, plan, structure, ripple, depth, round, pass, stalled, review, design, gate_axes, ask_human, questions, done,
                        stop_reason]
           mutates_checkout: false
-          depends_on: [plan, plan-review]
+          depends_on: [plan, plan-review-run]
           trigger_rule: none_failed_min_one_success
           with:
             ready: "$plan.output.ready"
@@ -250,13 +250,13 @@ nodes:
             ripple: "$plan.output.ripple"
             depth: "$plan.output.depth"
             round: "$plan.output.round"
-            pass: { from: "$plan-review.output.pass", if_skipped: null }
-            stalled: { from: "$plan-review.output.stalled", if_skipped: null }
-            review: { from: "$plan-review.output.review", if_skipped: null }
-            design: { from: "$plan-review.output.design", if_skipped: null }
-            gate_axes: { from: "$plan-review.output.gate_axes", if_skipped: null }
-            ask_human: { from: "$plan-review.output.ask_human", if_skipped: null }
-            questions: { from: "$plan-review.output.questions", if_skipped: null }
+            pass: { from: "$plan-review-run.output.pass", if_skipped: null }
+            stalled: { from: "$plan-review-run.output.stalled", if_skipped: null }
+            review: { from: "$plan-review-run.output.review", if_skipped: null }
+            design: { from: "$plan-review-run.output.design", if_skipped: null }
+            gate_axes: { from: "$plan-review-run.output.gate_axes", if_skipped: null }
+            ask_human: { from: "$plan-review-run.output.ask_human", if_skipped: null }
+            questions: { from: "$plan-review-run.output.questions", if_skipped: null }
 
   - id: plan-rounds-out
     script: returned

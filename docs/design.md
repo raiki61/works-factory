@@ -143,7 +143,7 @@ flowchart TB
 ### 繰り返し
 
 - 判定の受け付けが拒めば、判定役に 3 回まで出し直させる（judge の中の `loop:`）。
-- 計画の往復は線の `loop_group` の `plan-rounds`（plan と plan-review の 2 つの include と、終わりの返しの節 `plan-out`）で 3 回まで。`loop_group` の中の節は外から見えないので、外の節は `plan-out` が返し直した `$plan-rounds.output.<欄>` を読む（U4）。ただし `collect` は往復の後ろの受け皿 `plan-rounds-out` から読む（往復の中の節が落ちると `$plan-rounds.output` は読めず、`collect` も落ちるため）。`plan-out` の `done` が 3 周目の終わりで必ず真になるので、往復は上限に当たって落ちずに修正前の関所へ回る。
+- 計画の往復は線の `loop_group` の `plan-rounds`（plan と plan-review の 2 つの include（id は `plan`・`plan-review-run`。輪の中の id は差し込まれても頭が付かず、plan-review のブロックの輪の中の節 `plan-review` とぶつかるので、線の側を替える）と、終わりの返しの節 `plan-out`）で 3 回まで。`loop_group` の中の節は外から見えないので、外の節は `plan-out` が返し直した `$plan-rounds.output.<欄>` を読む（U4）。ただし `collect` は往復の後ろの受け皿 `plan-rounds-out` から読む（往復の中の節が落ちると `$plan-rounds.output` は読めず、`collect` も落ちるため）。`plan-out` の `done` が 3 周目の終わりで必ず真になるので、往復は上限に当たって落ちずに修正前の関所へ回る。
 - 並べ: 単位を組にし（組は分けない）、fix は組ごとに `fan_out:` で並べる。幅は計画の組の数から run の時に決まり、並べの数の上限だけを持つ。固定の枝の数・待ちの列・錠は持たない（持ち主の決め `no-queue`。今の works の固定の 3 本と待ちの列（commit `ab9b9f17`）は持ち込まない）。結果は `fan_out:` が入力の順に集める。組の差分は決めた順に親の木へ戻し、戻せなかった組は理由つきで報告と次の run に回す。組ごとの作業ツリーの持ち方は未決 U8。
 - 修正役が 3 回拒まれた単位は、その単位を始めた時の版に戻し、理由を残して裁定に回し、ほかの単位は先へ進む。
 - 差分の審査 → 手直しは 2 往復まで。
