@@ -544,6 +544,22 @@ class FixedCase(unittest.TestCase):
             with self.subTest(stops=stops):
                 self.assertFalse(fixed.fixed(self.fix(), None, replan=False, stops=stops)["done"])
 
+    def test_review_not_passed_still_goes_to_the_final_test(self):
+        """今の works の最後のテスト p4.ci は手直しの段（p3.delta_fix・p3.delta_fix2）が済むのを待つだけで、差分の審査が通ったかを
+        待たない。審査が回って通らなかった run も最後のテスト・独立の目・最後の関所へ進め（go）、done は偽のまま報告の残りに載る。
+        審査が回らなかった（変更の確かめが通らなかった）run と、線の止めは進めない"""
+        failed = self.fix(done=False, delta_review={"rounds": 2, "pass": False})
+        got = fixed.fixed(failed, None, replan=False, stops=("", ""))
+        self.assertEqual((got["done"], got["go"]), (False, True))
+        self.assertTrue(fixed.fixed(self.fix(), None, replan=False, stops=("", ""))["go"])
+        for fix, replan, stops in ((self.fix(done=False, delta_review={"rounds": 0, "pass": False}), False, ("", "")),
+                                   (failed, True, ("", "")), (failed, False, (linekit.LINE_SCRIPT, ""))):
+            with self.subTest(review=fix["delta_review"], replan=replan, stops=stops):
+                self.assertFalse(fixed.fixed(fix, None, replan=replan, stops=stops)["go"])
+
+    def test_final_test_waits_on_go(self):
+        self.assertIn("$fixed.output.go == true", line_nodes()["test-gate-final"]["when"])
+
     def test_refix_is_merged_without_losing_the_first(self):
         refix = self.fix(units=[{"unit_id": "u1", "status": "fixed"}, {"unit_id": "u2", "status": "fixed"}], groups=[{"group_id": "g2"}],
                          conflicts=None, replan_items=[], diff={"path": "refix/diff"}, allowed_test_changes=["tests/b.py"])
