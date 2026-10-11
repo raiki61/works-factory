@@ -237,6 +237,12 @@ class FilesCase(unittest.TestCase):
             self.assertTrue((BLOCK / "commands" / "fix-rules" / f"{name}.md").is_file(), name)
 
 
+    def test_delta_review_reads_the_seat_file(self):
+        """1 回目の審査役は材料の seat_file（delta-cut が brief と must に名指す座。refix.cut）を読み、その型で審査する
+        （元 works/blk-delta/commands/delta-review.md:15）"""
+        lines = (BLOCK / "commands" / "delta-review.md").read_text(encoding="utf-8").splitlines()
+        self.assertTrue(any(ln.startswith("  - `seat_file`: 空でなければ Read で全部読み、その型の手順で審査せよ。") for ln in lines))
+
 class ScenarioCase(unittest.TestCase):
     """筋書き（fixtures/）を止めた Archon の workflow test で回す。道のつながりだけを確かめる"""
 
@@ -332,6 +338,16 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertEqual(list(got), ["reason"])
         self.assertTrue(got["reason"].startswith("軽量で省いた"), got)
         self.assertFalse((self.place / "loop-fix_delta.json").exists())
+
+    def test_delta_cut_raises_the_depth_before_skipping(self):
+        """全部が軽量の run でも、修正の後の信号（修正役の異議）で標準へ上げてから決め、審査を回す（fixboard.redepth。元の h-redepth）"""
+        import depth
+        self._json("depth.json", [{"unit_id": _RV_KEY, "depth": depth.LIGHT, "why": "触るファイル 1 個"}])
+        self._json("fix-ruled-reply.json", {"rejudge_requested": "単位の見立てが違う"})
+        self.assertTrue(self._cut()["go"])
+        raised = json.loads((self.place / "depth-raised.json").read_text(encoding="utf-8"))
+        self.assertEqual(raised["units"][_RV_KEY]["depth"], depth.STANDARD)
+        self.assertFalse((self.place / "delta" / "skipped.json").exists())
 
     def test_delta_cut_does_not_mark_a_failed_change_check_as_light(self):
         """変更の確かめが通らない run は審査を回さないが、全部が軽量の印 skipped.json は書かない（審査が通ったと読まれる）"""
@@ -1078,6 +1094,26 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertFalse(out["ok"], out)
         self.assertIn("test_clamp_within_range", out["reason"])
+
+    def _grp_notes(self):
+        """親の置き場に修正前の関所の一言（prep が書く human-notes.md）を置き、子の置き場に写ったパスを返す"""
+        (self.parent / "human-notes.md").write_text("平均の直しは分母だけに留める\n", encoding="utf-8")
+        return str(self.place / "human-notes.md")
+
+    def test_fix_prep_names_the_gate_notes(self):
+        """修正役の指示書は、親から写した修正前の関所の一言のファイルを notes_file に名指す（fixboard.fix_values）"""
+        notes = self._grp_notes()
+        self._grp_run("group_start", "group-start")
+        prep = self._grp_run("fix_prep", "fix-prep")
+        self.assertTrue(prep["go"], prep)
+        self.assertIn(notes, pathlib.Path(prep["prompt_file"]).read_text(encoding="utf-8"))
+
+    def test_tdd_prep_names_the_gate_notes(self):
+        """TDD の役の指示書は、親から写した修正前の関所の一言のファイルを notes_file に名指す"""
+        notes = self._grp_notes()
+        self._grp_parent_inputs(str(self.suite))
+        self._grp_run("group_start", "group-start")
+        self.assertIn(notes, self._grp_prompt())
 
     def test_group_start_in_order_drops_what_the_failed_child_before_left(self):
         """親の作業ツリーで 1 つずつ回る子は、前の組の子が結果を書かずに落ちて残した変更を戻してから始める"""

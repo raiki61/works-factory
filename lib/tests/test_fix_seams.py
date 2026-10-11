@@ -1677,6 +1677,35 @@ class FixAcceptSeamCase(TempCase):
         self.assertEqual([r["op"] for r in _traced(self.place) if r["op"] == conflict.ACCEPT_PARKED_OP], [conflict.ACCEPT_PARKED_OP])
 
 
+    def _accept_fixed(self, reply, precedents=()):
+        """判定の写し（R_JUDGED と precedents）を置き、R_FIXED で直した木で 1 回目の受け付けを回す"""
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED, "precedents": list(precedents)},
+                                                             ensure_ascii=False), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        path = self.repo / "stats.py"
+        text = path.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        path.write_text(text, encoding="utf-8")
+        return fixboard.accept_reply(reply, self.place, self.repo, pass_="first", iteration=1, owed=[R_MEAN, R_CLAMP],
+                                     judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+
+    def test_accept_reply_saves_the_closure_table_it_recounted(self):
+        """受けた返答は閉鎖の数え直し（closure_reply）を通り、単位ごとの表を置き場に置く（querytest.save_closure）"""
+        import querytest
+        got = self._accept_fixed(_fix_ok())
+        self.assertTrue(got["ok"], got["reason"])
+        rows = json.loads((self.place / querytest.CLOSURE_FILE).read_text(encoding="utf-8"))["rows"]
+        self.assertEqual({r["unit_key"]: r["how_from"] for r in rows}, {R_MEAN: "判定者", R_CLAMP: "判定者"})
+
+    def test_accept_reply_passes_the_judged_precedents_to_the_recount(self):
+        """判定の写しの precedents に在る単位の from_judge_row は通る（判定の写しを数え直しに渡す。元 review-loop.py の
+        precedent.from_judge_row の照らし）"""
+        reply = _fix_ok()
+        reply["changes"][0]["precedent"] = {"from_judge_row": True, "verdict": "adopt", "reason": "判定者の行"}
+        got = self._accept_fixed(reply, precedents=[{"key": R_MEAN}])
+        self.assertTrue(got["ok"], got["reason"])
+
 class GateItemsSeamCase(unittest.TestCase):
     """直す前の人の関所の答え {decision, text} が、範囲の相談の人の条件（consult.gate_notes）に届く"""
 
