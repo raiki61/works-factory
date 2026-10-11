@@ -27,7 +27,7 @@ import gatemarks  # noqa: E402
 import planmarks  # noqa: E402
 import promptsection  # noqa: E402
 
-TRIP_FILE = "replan.json"          # 今の周の作業ファイル {"round": n, "items": [行], "answered"?: answer の返り}
+TRIP_FILE = "replan.json"
 TRIP_KEYS = ("item", "units", "rows", "old", "brief", "new", "new_marks", "review", "contract_changed", "human_faces", "widened",
              "ask", "answer", "result", "why")
 REPLAN_ASK = ("承認済みの修正案の項目のうち、下に貼った項目だけを直せ。修正の段で修正役がこの項目の誤りを申し出て、裁定役が"

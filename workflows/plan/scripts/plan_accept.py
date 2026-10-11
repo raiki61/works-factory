@@ -1,9 +1,14 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """修正案の役の返答の受け付け（lib/planfile.take_plan・take_replan）。拒否は rolekit.with_done の控えに積み、3 回目の拒否で
 done・give_up（輪を max_iterations で落とさずに抜ける）。返り {ok, done, give_up, reason, attempt}"""
 import os
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 

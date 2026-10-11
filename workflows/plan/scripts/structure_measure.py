@@ -1,9 +1,14 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """段 A の実測（lib/planfile.measure）。単位の目録のうち paths の在る単位を plan/structure/<鍵>/ で測る。同じ鍵の控えが在れば
 測らない。返り {structure_file, design_file, eye, reused}"""
 import os
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 

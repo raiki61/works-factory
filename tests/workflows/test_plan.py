@@ -8,6 +8,7 @@
 - 筋書き: Archon の `workflow test` で fixtures/*.stubs.yaml を回す（配線だけ。止めた Archon の源が無ければ見送る。tests/archon.py）。
 """
 import copy
+import importlib.util
 import json
 import os
 import pathlib
@@ -32,19 +33,22 @@ SEED = ROOT / "tests" / "e2e" / "target-seed"
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import carry  # noqa: E402
 import converge  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
 import planblk  # noqa: E402
 import planmarks  # noqa: E402
 import planfile  # noqa: E402  （lib/graphloops を sys.path に足す。engine より先に）
+import ripple  # noqa: E402
 import rolekit  # noqa: E402
+import structmark  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 
 RUN_ID = "run-plan"
 NO_DEADLINE = 1728000000
 INPUTS = {"start": "", "units": "[]", "judgment": "", "world": "null", "spec": "null", "review": "", "ruling": "[]",
-          "conflicts": "null"}
+          "conflicts": "null", "prior_failures": "null"}
 RETURNED = ["ready", "plan", "structure", "ripple", "depth", "round"]
 AI_KEYS = ("command", "prompt")
 MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
@@ -137,16 +141,16 @@ class Run:
         p.write_text(text, encoding="utf-8")
         return json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": rel})
 
-    def env(self, bound):
+    def env(self, bound, root):
         env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
         env.update({f"INPUTS_{k.upper()}": v for k, v in {**self.inputs, **bound}.items()})
-        env.update(ARTIFACTS_DIR=str(self.art), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(ROOT),
+        env.update(ARTIFACTS_DIR=str(self.art), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(root),
                    PYTHONDONTWRITEBYTECODE="1", WORKS_LIBDOCS_WEB="off")
         return env
 
-    def script(self, name, bound=None):
-        """script を子で回す。終了の値 0 と、標準出力の JSON 1 つを確かめて返す"""
-        p = subprocess.run([sys.executable, str(SCRIPTS / f"{name}.py")], cwd=str(self.repo), env=self.env(bound or {}),
+    def script(self, name, bound=None, *, root=ROOT):
+        """script を子で回す。終了の値 0 と、標準出力の JSON 1 つを確かめて返す。root は lib/ を探す根（WORKS_FACTORY_ROOT）"""
+        p = subprocess.run([sys.executable, str(SCRIPTS / f"{name}.py")], cwd=str(self.repo), env=self.env(bound or {}, root),
                            capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL)
         self.case.assertEqual(p.returncode, 0, f"{name}.py が落ちた: {p.stderr[-2000:]}")
         return json.loads(p.stdout)
@@ -368,6 +372,31 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(rows["required"], [k for k in owner["required"] if k not in added | unrequired])
         self.assertIs(rows["additionalProperties"], owner["additionalProperties"])
 
+    def test_scripts_are_read_only_uv_scripts(self):
+        """E7: 読むだけの script の節も mutates_checkout: false。script は uv の宣言を頭に持ち、.pyc を書かない（test-gate と同じ）"""
+        for n in nodes(load()):
+            if "script" in n:
+                self.assertIs(n.get("mutates_checkout"), False, n["id"])
+                text = (SCRIPTS / f"{n['script']}.py").read_text(encoding="utf-8")
+                self.assertTrue(text.startswith("# /// script\n"), n["script"])
+                self.assertIn("sys.dont_write_bytecode = True", text, n["script"])
+
+    def test_fallback_names_match_lib(self):
+        """落ちない 2 つの節（round・plan）は lib を読めない時に標準ライブラリだけで同じ置き場に書く。その字が lib と同じ"""
+        def loaded(name):
+            spec = importlib.util.spec_from_file_location(f"plan_script_{name}", SCRIPTS / f"{name}.py")
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+
+        rnd, col = loaded("round"), loaded("plan_collect")
+        self.assertEqual((rnd.PLAN_DIR, rnd.ROUND_FILE, rnd.STRUCTURE_DIR),
+                         (planfile.PLAN_DIR, planfile.ROUND_FILE, planfile.STRUCTURE_DIR))
+        self.assertEqual((col.PLAN_DIR, col.ROUND_FILE, col.RIPPLE_FILE, col.DESIGN_FILE, col.UNREAD_STRUCTURE, col.FIELDS_FILE,
+                          col.STATE_FILE),
+                         (planfile.PLAN_DIR, planfile.ROUND_FILE, planfile.RIPPLE_FILE, planfile.DESIGN_FILE,
+                          planfile.UNREAD_STRUCTURE, planmarks.FIELDS_FILE, structmark.STATE_FILE))
+
     def test_script_names_differ_from_lib_modules(self):
         """script のフォルダが sys.path の頭に来るので、lib のモジュールと同じ名の script は import で自分を読む"""
         lib = {p.stem for p in LIB.glob("*.py")}
@@ -557,7 +586,10 @@ class ReplanCase(unittest.TestCase):
             {"id": "c1", "unit_key": CLAMP, "kind": "scope", "between": ["stats.py", "test_stats.py"],
              "why_both_cannot_hold": "試験を直さないと上限の枝を直した証が立たない", "which_is_right": "plan",
              "ruling": {"decision": "fix_plan_item", "text": "項目 1 の allowed_paths に request_ok.json を足せ", "limits": [],
-                        "plan_items": [1]}}]})
+                        "plan_items": [1]}},
+            {"id": "c2", "unit_key": MEAN, "kind": "scope", "between": ["stats.py"],
+             "why_both_cannot_hold": "人が決める", "which_is_right": "human",
+             "ruling": {"decision": "ask_human", "text": "人に聞く裁定の文", "limits": []}}]})
 
     def fixed(self):
         return item(MEAN, CLAMP, allowed_paths=["stats.py", "test_stats.py", "request_ok.json"])
@@ -576,6 +608,10 @@ class ReplanCase(unittest.TestCase):
         brief = (rnd / "brief-1.md").read_text(encoding="utf-8")
         self.assertIn("項目 1 の allowed_paths に request_ok.json を足せ", brief)
         self.assertIn("## 直す項目 1", brief)
+        self.assertNotIn("人に聞く裁定の文", brief, "fix_plan_item でない裁定の行は渡さない")
+        self.assertIn("## 考えの住処の地図", brief)
+        trace = [json.loads(x) for x in (rnd / planfile.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([r["items"] for r in trace if r["op"] == planmarks.AMEND_OP], [[1]])
         fields = run.json(out["plan"])
         self.assertEqual(fields["round"], 2)
         self.assertEqual(sorted(fields["amended"]["1"]), sorted(["unit_keys", "approach", "adds", "removes", "shrink_first",
@@ -667,7 +703,7 @@ class CollectCase(unittest.TestCase):
         review = run.pointer("review/p2.plan_review.json", {"faces": [
             {"key": "key-a1-mean", "kind": "regression", "where": "stats.py", "why": "空の列が落ちる", "severity": "block",
              "unit_keys": [MEAN]}]})
-        second = writer_of({"plan": [item(1)]}, {"plan": [item(1, approach="空の列も直す形にした案の手順をここに書いた")],
+        second = writer_of({"plan": [item(1)]}, {"plan": [item(1, approach="空の列も直す形にした案の手順をここに書いた"), item(2)],
                                                   "block_answers": [{"key": "key-a1-mean", "handled": "fixed",
                                                                      "how": "空の列を先に返す枝を足した"}]})
         out = run.include(review=review, writer=second)
@@ -677,10 +713,16 @@ class CollectCase(unittest.TestCase):
         brief = (rnd / "brief-1.md").read_text(encoding="utf-8")
         self.assertIn(planfile.PRIOR_HEAD, brief)
         self.assertIn("### key-a1-mean", brief)
+        self.assertIn(f"- no 2 `{CLAMP}`: label=block・disposition=do-now・{planfile.FILLED_DUTY}", brief)
+        self.assertIn("- 機械が差し込む no（閉じた・保留の項目。書かなくてよい）: [2]", brief)
+        self.assertIn(ripple.HEAD, brief, "前の周の項目ごとの波及の一覧")
         self.assertIn("block の key key-a1-mean への答えが無い", rolekit.rejected(rnd, "plan")[0])
         side = json.loads((rnd / "p2.fix_plan.json").read_text(encoding="utf-8"))
         self.assertEqual([p["unit_keys"] for p in side["plan"]], [[MEAN], [CLAMP]], "閉じた項目 2 を機械が差し込む")
         self.assertEqual(side["block_answers"][0]["key"], "key-a1-mean")
+        trace = [json.loads(x) for x in (rnd / planfile.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([(r["op"], r.get("id")) for r in trace if r["op"] == planfile.DROPPED_OP],
+                         [(planfile.DROPPED_OP, converge.item_id([CLAMP]))], "前のまま書いた閉じた項目の行は捨てて trace に残す")
 
     def test_route_up_row_keeps_ready(self):
         run = Run(self)
@@ -707,6 +749,11 @@ class CollectCase(unittest.TestCase):
         self.assertIn(planfile.NOTHING_OWED, run.json(out["ripple"])["error"])
         for key in ("plan", "structure", "ripple"):
             run.file(out[key])
+        self.assertEqual((run.status["structure-measure"], run.status["structure-eye-loop"]), ("skipped", "skipped"))
+        self.assertEqual(out["structure"]["path"], "plan/r1/structure/structure-state.json", "使い回す実測の控えに書かない")
+        state = run.json(out["structure"])
+        self.assertEqual(state["status"], "failed")
+        self.assertIn(planfile.NOTHING_OWED, state["reason"])
 
     def test_stuck_unit_skips_the_role(self):
         """同じ key の単位が開いた行と開いていない行で来た判定は行き止まり（必ず入れるのに案に入れられない）"""
@@ -734,6 +781,73 @@ class CollectCase(unittest.TestCase):
         out = run.include(start="{壊れた", writer=lambda n, brief: self.fail("役を起こした"))
         self.assertIs(out["ready"], False)
         self.assertIn("start が読めない", run.json(out["ripple"])["error"])
+
+
+class SurvivesCase(unittest.TestCase):
+    """周を開く節と返す節は落ちない（返す節が周の dir を束ねる。線は落ちた返す節の先へ進めない）"""
+
+    def test_round_and_return_node_survive_a_lib_that_does_not_load(self):
+        run = Run(self)
+        broken = run.tmp / "no-lib"
+        broken.mkdir()
+        rnd = run.script("round", root=broken)
+        self.assertEqual(validate_schema(rnd, node(load(), "round")["output_format"]), [])
+        self.assertEqual((rnd["round"], rnd["dir"], rnd["go"]), (1, "plan/r1", False))
+        why = json.loads((run.art / "plan" / "r1" / "round.json").read_text(encoding="utf-8"))["why"]
+        self.assertIn("周を開く節の中で誤りが起きた: ModuleNotFoundError", why)
+        out = run.script("plan_collect", {"dir": rnd["dir"]}, root=broken)
+        self.assertEqual(validate_schema(out, node(load(), "plan")["output_format"]), [])
+        self.assertEqual((out["ready"], out["round"], out["depth"]), (False, 1, []))
+        for key in ("plan", "structure", "ripple"):
+            run.file(out[key])
+        self.assertEqual(run.json(out["structure"])["status"], "failed")
+        self.assertIn("ModuleNotFoundError", (run.art / "plan" / "r1" / "collect-error.txt").read_text(encoding="utf-8"))
+        self.assertEqual(run.script("round")["dir"], "plan/r2", "lib が読める次の周は数え続ける")
+
+    def test_round_takes_over_a_folder_left_half_open(self):
+        run = Run(self)
+        (run.art / "plan" / "r1").mkdir(parents=True)
+        rnd = run.script("round", root=run.tmp / "no-lib")
+        self.assertEqual(rnd["dir"], "plan/r1")
+
+    def test_question_with_depends_that_is_not_a_list(self):
+        """判定の問いの depends が数でも周を開け、深さは直す義務の単位だけ"""
+        judge = judgment()
+        judge["questions"] = [{"key": "q", "kind": "fork", "status": "held", "origin": CLAMP, "depends": 3}]
+        run = Run(self, judge=judge)
+        out = run.include(writer=writer_of({"plan": [item(1)]}))
+        self.assertIs(out["ready"], True, out)
+        self.assertEqual([d["unit_id"] for d in out["depth"]], [MEAN])
+
+
+class BriefCase(unittest.TestCase):
+    """修正案の材料に元の works が渡していた節（方針の文書・考えの住処の地図・前の run で通らなかった物）"""
+
+    def test_brief_carries_policy_concept_map_and_prior_failures(self):
+        run = Run(self, start={"policy_md": "POLICY.md"})
+        run.inputs["prior_failures"] = run.pointer("start/prior-failures-in.json",
+                                                   [{"where": "修正案の受け付け", "text": "単位の網羅が 3 回とも欠けた"}])
+        self.assertIs(run.include()["ready"], True)
+        brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
+        self.assertIn("## 人の方針\n\n人が決めた、run をまたいで効く決まり（役も engine も書き換えない）。文書の置き場: POLICY.md", brief)
+        self.assertIn(carry.PRIOR_HEAD, brief)
+        self.assertIn("- 修正案の受け付け: 単位の網羅が 3 回とも欠けた", brief)
+        self.assertIn("## 考えの住処の地図", brief)
+
+    def test_without_policy_or_prior_failures_neither_section(self):
+        run = Run(self)
+        run.include()
+        brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
+        self.assertNotIn("## 人の方針", brief)
+        self.assertNotIn(carry.PRIOR_HEAD, brief)
+
+    def test_prior_failures_of_wrong_shape_are_named_unread(self):
+        run = Run(self)
+        run.inputs["prior_failures"] = run.pointer("start/prior-failures-in.json", {"where": "x"})
+        self.assertIs(run.include()["ready"], True)
+        brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
+        self.assertIn(planfile.UNREAD_INPUTS_HEAD, brief)
+        self.assertIn("- prior_failures: ", brief)
 
 
 class FixtureCase(unittest.TestCase):

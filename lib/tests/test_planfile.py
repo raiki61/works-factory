@@ -19,6 +19,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
+import carry  # noqa: E402
 import converge  # noqa: E402
 import planblk  # noqa: E402
 import planfile  # noqa: E402
@@ -86,8 +87,8 @@ class TmpCase(unittest.TestCase):
 
 
 class OwedCase(unittest.TestCase):
-    """元 rules/review-loop.py:2645 の _owed_units（開いた単位から、人に諮っている fork の出どころ・depends を除く）と
-    元 review-record.py:624 の is_open"""
+    """元 conflict.py:676 の owed_units_but_asked（開いた単位から、答えていない関所の問い——人に聞く状態の fork と status が escalate の
+    問い——の出どころ・depends を除く）と元 review-record.py:624 の is_open"""
 
     def test_owed_is_open_units_minus_asking_fork_origin_and_depends(self):
         self.assertEqual(planfile._owed_units(judgment()), {MEAN, CLAMP})
@@ -106,8 +107,24 @@ class OwedCase(unittest.TestCase):
         doc["questions"][0]["status"] = "escalate"
         self.assertEqual(planfile._owed_units(doc), {MEAN, CLAMP})
 
+    def test_escalated_non_fork_excuses_origin_and_depends(self):
+        """元の差し替えは写しの RL が外さない escalate の問い（fork でない）の出どころ・depends も外す（gatemarks.asks・withheld）"""
+        doc = judgment(questions=[{"key": "r", "kind": "scope", "status": "escalate", "origin": CLAMP, "depends": [MEAN]}])
+        self.assertEqual(planfile._owed_units(doc), set())
+
     def test_broken_rows_are_not_read(self):
         self.assertEqual(planfile._owed_units({"units": ["x", {"label": "block"}], "questions": "q"}), set())
+
+    def test_depends_that_is_not_a_list_is_not_read(self):
+        """depends が並びでない（数）問いでも落ちない。出どころは外し、depends は読まない"""
+        doc = judgment()
+        doc["questions"][0]["depends"] = 3
+        self.assertEqual(planfile._owed_units(doc), {MEAN, CLAMP, DEP})
+
+    def test_owed_order_follows_the_judgment(self):
+        doc = judgment(questions=[{"key": "r", "kind": "scope", "status": "escalate", "origin": MEAN}])
+        self.assertEqual(planfile.owed_order(doc), [CLAMP])
+        self.assertEqual(planfile.owed_order(judgment()), [MEAN, CLAMP])
 
 
 class SlotsCase(unittest.TestCase):
@@ -356,6 +373,72 @@ class ConvergeCase(TmpCase):
         self.assertIn(converge.CLOSED_ASK, sec)
         self.assertIn("項目 2（u2）", sec)
         self.assertEqual(planfile.revise_section(planfile.converge_record(self.tmp / "none")), "")
+
+
+class UnitsSectionCase(TmpCase):
+    """材料の単位の節: 閉じた・保留の項目の単位は『必ず案に入れる』でなく、機械が差し込む行に分ける（元 planblk.plan_slots_section の
+    filled）"""
+
+    def test_filled_units_are_not_owed_in_the_brief(self):
+        self.write("r1/round.json", {"round": 1, "mode": "plan"})
+        self.write(f"r1/{planfile.REPLY_FILE}", {"plan": [item(MEAN), item(CLAMP)]})
+        self.write("r2/round.json", {"round": 2, "mode": "plan"})
+        self.write(f"r2/{planfile.REVIEW_FILE}", {"faces": [face("key-a1", [MEAN])]})
+        filled = planfile.filled_units(planfile.converge_record(self.tmp))
+        self.assertEqual(filled, [CLAMP])
+        text = planfile.units_section(judgment(), [], [], filled)
+        self.assertIn(f"- no 1 `{MEAN}`: label=block・disposition=do-now・必ず案に入れる", text)
+        self.assertIn(f"- no 2 `{CLAMP}`: label=block・disposition=do-now・{planfile.FILLED_DUTY}", text)
+        self.assertIn("- 機械が差し込む no（閉じた・保留の項目。書かなくてよい）: [2]", text)
+        self.assertNotIn("機械が差し込む no", planfile.units_section(judgment(), [], []))
+
+
+class ReplanInputsCase(TmpCase):
+    """案の直しの材料と置き場: 裁定の種類で絞った申し出の行・直す元の周の構造の置き場"""
+
+    def test_conflict_rows_are_fix_plan_item_rulings_only(self):
+        rows = [{"id": "c1", "unit_key": MEAN, "ruling": {"decision": "fix_plan_item", "plan_items": [1]}},
+                {"id": "c2", "unit_key": MEAN, "ruling": {"decision": "ask_human"}},
+                {"id": "c3", "unit_key": "ほかの単位", "ruling": {"decision": "fix_plan_item", "plan_items": [2]}},
+                {"id": "c4", "unit_key": MEAN, "ruling": "壊れた"}]
+        got = planfile.conflict_rows({"items": rows}, 1, item(MEAN))
+        self.assertEqual([c["id"] for c in got], ["c1"])
+
+    def test_replan_structure_is_the_source_rounds(self):
+        """直す元の周の round.json の structure を使う（後から書いたほかの鍵の控えに倒れない）"""
+        plan = self.tmp / "plan"
+        self.write("plan/r1/round.json", {"round": 1, "mode": "plan", "structure": "structure/aaa"})
+        self.write("plan/structure/aaa/structure-state.json", {"status": "ok"})
+        self.write("plan/structure/bbb/structure-state.json", {"status": "ok"})
+        self.assertEqual(planfile.structure_dir(plan, [], self.tmp, plan / "r1"), plan / "structure" / "aaa")
+
+    def test_round_without_role_gets_its_own_structure_folder(self):
+        plan = self.tmp / "plan"
+        got = planfile.open_round(plan, ruling=[], judgment=None, review=None, units=[], repo=self.tmp)
+        self.assertEqual((got["go"], got["structure"]), (False, "r1/structure"))
+        state = planfile.write_state(plan / got["structure"], skipped=got["why"])
+        doc = json.loads(state.read_text(encoding="utf-8"))
+        self.assertEqual(doc["status"], "failed")
+        self.assertIn("判定が読めない", doc["reason"])
+        self.assertEqual((plan / "r1" / "structure" / planfile.DESIGN_FILE).stat().st_size, 0)
+        self.assertFalse((plan / planfile.STRUCTURE_DIR / "unread").exists())
+
+
+class PriorFailuresCase(TmpCase):
+    """前の run で最後まで通らなかった物の節（元 planblk.prior_part の carry.prior_section）"""
+
+    def test_rows_become_the_section_and_are_kept_in_the_round(self):
+        rows = [{"where": "修正案の受け付け", "text": "単位の網羅が 3 回とも欠けた"}]
+        text = planfile.prior_section(self.tmp, rows)
+        self.assertIn(carry.PRIOR_HEAD, text)
+        self.assertIn("修正案の受け付け: 単位の網羅が 3 回とも欠けた", text)
+        self.assertEqual(json.loads((self.tmp / carry.PRIOR_IN_FILE).read_text(encoding="utf-8")), rows)
+        self.assertEqual(planfile.prior_section(self.tmp, None), "")
+
+    def test_wrong_shape_is_an_error(self):
+        for bad in ({"where": "x"}, [{"where": "x"}], ["x"]):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                planfile.prior_section(self.tmp, bad)
 
 
 class RevisedFieldsCase(TmpCase):

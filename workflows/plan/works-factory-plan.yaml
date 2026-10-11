@@ -34,16 +34,21 @@ inputs:
   conflicts:
     default: "null"
     description: 申し出と裁定の行の指し札（fix の conflicts。conflicts.json）。案の直しの時だけ
+  prior_failures:
+    default: "null"
+    description: 前の run で最後まで通らなかった物の行の指し札（[{where, text}]。lib/carry の prior-failures-in.json の形）。無ければ null
 
 returns: plan
 outcome_field: ready
 
 nodes:
   # この差し込みの周の番号 k（plan/r*/ の数 + 1。往復と案の直しを通して数える）と形を決め、置き場 plan/r<k>/ を作る。
-  # go は役を起こすか（形 plan は直す義務の単位が在り行き止まりが無い時、形 replan は直す元の案と渡す項目が在る時）
+  # go は役を起こすか（形 plan は直す義務の単位が在り行き止まりが無い時、形 replan は直す元の案と渡す項目が在る時）。
+  # 返す節が dir を束ねるので落ちない（中の誤りは go: false と round.json の why に残す）
   - id: round
     script: round
     runtime: uv
+    mutates_checkout: false
     timeout: 1728000000
     output_format:
       type: object
@@ -56,12 +61,14 @@ nodes:
         go: {type: boolean}
 
   # 段 A の実測。paths の在る単位だけを plan/structure/<鍵>/ で測る（鍵は単位の目録と HEAD）。同じ鍵の控えが在れば測らず目も
-  # 起こさない（reused）。案の直しは 1 回目の実測と目の行をそのまま使う
+  # 起こさない（reused）。案の直しは直す元の周の実測と目の行をそのまま使う。役を起こさない周（go: false）は測らず、目も起こさない
   - id: structure-measure
     script: structure_measure
     runtime: uv
+    mutates_checkout: false
     timeout: 1728000000
     depends_on: [round]
+    when: "$round.output.go == true"
     with:
       dir: $round.output.dir
     output_format:
@@ -88,6 +95,7 @@ nodes:
         - id: structure-eye-prep
           script: eye_prep
           runtime: uv
+          mutates_checkout: false
           timeout: 1728000000
           with:
             structure_file: $structure-measure.output.structure_file
@@ -144,6 +152,7 @@ nodes:
         - id: structure-eye-accept
           script: eye_accept
           runtime: uv
+          mutates_checkout: false
           timeout: 1728000000
           depends_on: [structure-eye]
           with:
@@ -162,10 +171,11 @@ nodes:
               attempt: {type: integer}
 
   # 構造の目の控え structure-state.json（返り structure の指し札の先）。目が飛んだ・落ちた・3 回拒まれた周も書く
-  # （実測が落ちた・目を起こす周なのに目の受け付けが済んでいない周は status: failed）。使い回しの周は書き直さない
+  # （実測が落ちた・目を起こす周なのに目の受け付けが済んでいない周・役を起こさない周は status: failed）。使い回しの周は書き直さない
   - id: structure-state
     script: structure_state
     runtime: uv
+    mutates_checkout: false
     timeout: 1728000000
     depends_on: [round, structure-measure, structure-eye-loop]
     trigger_rule: all_done
@@ -182,6 +192,7 @@ nodes:
   - id: ripple-units
     script: ripple_units
     runtime: uv
+    mutates_checkout: false
     timeout: 1728000000
     depends_on: [round]
     when: "$round.output.mode == 'plan' && $round.output.go == true"
@@ -209,6 +220,7 @@ nodes:
         - id: plan-prep
           script: plan_prep
           runtime: uv
+          mutates_checkout: false
           timeout: 1728000000
           with:
             dir: $round.output.dir
@@ -483,6 +495,7 @@ nodes:
         - id: plan-accept
           script: plan_accept
           runtime: uv
+          mutates_checkout: false
           timeout: 1728000000
           depends_on: [plan-writer]
           with:
@@ -503,6 +516,7 @@ nodes:
   - id: ripple-items
     script: ripple_items
     runtime: uv
+    mutates_checkout: false
     timeout: 1728000000
     depends_on: [round, plan-loop]
     trigger_rule: all_done
@@ -515,10 +529,11 @@ nodes:
       properties:
         ripple_file: {type: string}
 
-  # 返す節。落ちない（中の誤りを捕まえて ready: false と、在って空でない指し札の先を返す。訳は plan/r<k>/collect-error.txt）
+  # 返す節。落ちない（中の誤りを捕まえて ready: false と、在って空でない指し札の先を返す。誤りの訳は plan/r<k>/collect-error.txt）
   - id: plan
     script: plan_collect
     runtime: uv
+    mutates_checkout: false
     timeout: 1728000000
     depends_on: [round, structure-state, ripple-items]
     trigger_rule: all_done
