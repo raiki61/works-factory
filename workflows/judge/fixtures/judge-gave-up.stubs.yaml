@@ -6,6 +6,7 @@ intake: {go: true, mode: judge, spec: false, world: false, verify: false, reason
 pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
 premises:
   constraints: []
+premises-reject: {reason: ''}
 premises-accept: &id001 {ok: true, done: true, reason: ''}
 purpose-prep: {go: true, brief_file: /tmp/judge/purpose-brief.md, reason: ''}
 purpose:
@@ -14,6 +15,7 @@ purpose:
   known_weaknesses: []
   source_files: []
   means: []
+purpose-reject: {reason: ''}
 purpose-accept: *id001
 material-route: {prior_decisions: false, purpose_review: false, local_review: false, consistency_bypass: false, hygiene: false, external_standards: false, procedure_trace: false, gate_efficacy: false, test_double_fidelity: false, main_path_observation: false, provenance: false, reason: 差分の空の run}
 diagnose-prep: {go: true, brief_file: /tmp/judge/diagnose-brief.md, review_md: /tmp/lib/REVIEW.md, repo_review_md: '', reason: ''}
@@ -39,4 +41,5 @@ verdict:
   spec: null
   out_of_purpose: null
   rejudge_verdict: null
+diagnose-reject: {reason: ''}
 diagnose-accept: {ok: false, done: true, reason: 'units[0] の label が不正: bogus'}
