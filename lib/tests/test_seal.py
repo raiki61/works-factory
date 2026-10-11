@@ -2,7 +2,7 @@
 
 - digest: sha256 の 16 進 64 字
 - write_readback: 書いた物の hash を返す。読み戻しが書いた物と違えば SealError（書けたと言わない）
-- seal_refusal: 緑の認証の指紋が今の木と同じ・違う・取れなかった・認証の指紋が無い
+- seal_refusal: 緑の認証の指紋が今の木と合う・合わない・認証の指紋が無い
 - unknown_row: 守りのパスを確かめられない時の 1 行の頭
 - apply_refusal: 置くかの決まりの 1〜5 を上から順に。通しの答え（approve・continue）なら赤でも・R2 の作り直しのほかの目の阻害でも置く
 """
@@ -60,18 +60,14 @@ class WriteReadbackCase(unittest.TestCase):
 class SealRefusalCase(unittest.TestCase):
     FP = {"head": "a" * 40, "diff_hash": HASH}
 
-    def test_same_fingerprint_seals(self):
-        self.assertEqual(seal.seal_refusal(fingerprint=self.FP, current_fingerprint=dict(self.FP)), "")
+    def test_matching_fingerprint_seals(self):
+        self.assertEqual(seal.seal_refusal(fingerprint=self.FP, fingerprint_ok=True), "")
 
-    def test_changed_tree_refuses(self):
-        changed = {**self.FP, "diff_hash": OTHER}
-        self.assertIn("緑の認証の指紋が今の木と違う", seal.seal_refusal(fingerprint=self.FP, current_fingerprint=changed))
-
-    def test_unreadable_current_fingerprint_refuses(self):
-        self.assertIn("緑の認証の指紋が今の木と違う", seal.seal_refusal(fingerprint=self.FP, current_fingerprint=None))
+    def test_unmatched_fingerprint_refuses(self):
+        self.assertIn("緑の認証の指紋が今の木と違う", seal.seal_refusal(fingerprint=self.FP, fingerprint_ok=False))
 
     def test_no_certificate_is_not_compared(self):
-        self.assertEqual(seal.seal_refusal(fingerprint=None, current_fingerprint=self.FP), "")
+        self.assertEqual(seal.seal_refusal(fingerprint=None, fingerprint_ok=False), "")
 
 
 class UnknownRowCase(unittest.TestCase):

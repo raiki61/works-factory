@@ -6,7 +6,7 @@
 - SealError: 書けない・読み戻しが書いた物と違う
 - digest(data) -> str: sha256 の 16 進 64 字
 - write_readback(path, data) -> str: 書いて読み戻し、読み戻した物の digest を返す。違えば SealError（書けたと言わない）
-- seal_refusal(*, fingerprint, current_fingerprint) -> str: 封じてよいかの理由（空なら封じてよい）
+- seal_refusal(*, fingerprint, fingerprint_ok) -> str: 封じてよいかの理由（空なら封じてよい）
 - unknown_row(reason) -> str: 守りのパスを確かめられない時に、当たりとして数える 1 行
 - apply_refusal(*, ...) -> str: 置いてよいかの理由（空なら置く）。決まりは関数の doc
 """
@@ -43,10 +43,10 @@ def write_readback(path, data: bytes) -> str:
     return digest(back)
 
 
-def seal_refusal(*, fingerprint, current_fingerprint) -> str:
-    """緑の認証の指紋 fingerprint が在り、今の木の指紋 current_fingerprint（取れなければ None）と違えば理由。
+def seal_refusal(*, fingerprint, fingerprint_ok) -> str:
+    """緑の認証の指紋 fingerprint が在り、今の木と合わなければ（fingerprint_ok が偽。照らすのは green_cert.matches）理由。
     fingerprint が無ければ照らさない"""
-    if fingerprint is None or fingerprint == current_fingerprint:
+    if fingerprint is None or fingerprint_ok:
         return ""
     return "緑の認証の指紋が今の木と違う（test-gate の後に作業ツリーが変わった）"
 

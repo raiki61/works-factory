@@ -26,6 +26,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import green_cert  # noqa: E402
+from graphloops.engine.schema import validate_schema  # noqa: E402
 import protect  # noqa: E402
 import seal  # noqa: E402
 
@@ -46,30 +47,6 @@ def load() -> dict:
 
 def output_format() -> dict:
     return load()["nodes"][0]["output_format"]
-
-
-def conforms(value, schema, where="返り") -> list:
-    """value が JSON Schema の部分（type・enum・properties・required・additionalProperties・items）に合わない所"""
-    kinds = schema.get("type")
-    kinds = [kinds] if isinstance(kinds, str) else kinds or []
-    checks = {"object": dict, "array": list, "string": str, "null": type(None), "boolean": bool}
-    if kinds and not any(isinstance(value, checks[k]) and not (k != "boolean" and isinstance(value, bool)) for k in kinds):
-        return [f"{where} の型が {kinds} でない: {value!r}"]
-    if "enum" in schema and value not in schema["enum"]:
-        return [f"{where} が {schema['enum']} のどれでもない: {value!r}"]
-    out = []
-    if isinstance(value, dict):
-        props = schema.get("properties", {})
-        out += [f"{where} に {k} が無い" for k in schema.get("required", []) if k not in value]
-        if schema.get("additionalProperties") is False:
-            out += [f"{where} に約束に無い {k}" for k in value if k not in props]
-        for k, v in value.items():
-            if k in props:
-                out += conforms(v, props[k], f"{where}.{k}")
-    if isinstance(value, list) and "items" in schema:
-        for i, v in enumerate(value):
-            out += conforms(v, schema["items"], f"{where}[{i}]")
-    return out
 
 
 class ShapeTest(unittest.TestCase):
@@ -156,7 +133,7 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(self.status(cwd), status, "作業ツリーを変えた")
         got = json.loads(done.stdout)
-        self.assertEqual(conforms(got, output_format()), [], got)
+        self.assertEqual(validate_schema(got, output_format()), [], got)
         return got
 
     @staticmethod

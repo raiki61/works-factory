@@ -65,14 +65,10 @@ def main() -> None:
         return ptr, seal.write_readback(boundary.resolve(ptr), data)
 
     if mode == "seal":
-        try:
-            current, unread = green_cert.fingerprint(repo), ""
-        except ValueError as e:
-            current, unread = None, f"（今の木の指紋が取れない: {e}）"
-        reason = seal.seal_refusal(fingerprint=fingerprint, current_fingerprint=current)
+        reason = seal.seal_refusal(fingerprint=fingerprint, fingerprint_ok=green_cert.matches(fingerprint, repo))
         ptr, digest = place("merge/sealed.diff")
         boundary.returns({"mode": mode, "ok": not reason, "hash": digest, "diff": ptr, "protected_hits": protected,
-                          "reason": reason + unread if reason else ""})
+                          "reason": reason})
         return
 
     sealed_hash = os.environ["INPUTS_SEALED_HASH"]
