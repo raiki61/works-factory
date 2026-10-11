@@ -443,6 +443,9 @@ class Intake(Base):
         self.assertEqual(got["due"], False)
         self.assertEqual(worldblk.finish(self.out)["status"], "ok")
 
+    def test_bad_web_word_is_reported(self):
+        self.assertIn("web", self.intake(web="maybe")["reason"])
+
     def test_intake_has_no_cache_root(self):
         """控えの置き場は無い: 入口の控えに cache_root も控えの類も書かない"""
         worldblk.intake(self.out, request=str(self.req), purpose_file="", web="on", cwd=self.dir)

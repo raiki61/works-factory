@@ -53,7 +53,6 @@ import rolekit  # noqa: E402
 APPROVE = "spec.approve"
 SPEC_FILE = "spec.json"                 # 出口が書く record.process.spec の写し（b.work）
 NULL = "null"                           # 飛ばされた節の出力（if_skipped: null）が届く字
-RUN_ID_ENV = "WORKFLOW_ID"              # 関所の文の run の id（ラインの境の節と同じ）
 # 線 A の境の節の写し（darkfactory/lib/line_edge.py・plan.py。層の決まりでブロックからは import できない。統合の計画 Task 10 で
 # core の関所のモジュールへ 1 つにまとめる）
 GATE_GO = ("approve", "continue")       # approve は continue と、reject は stop と同じ（台帳 R32）

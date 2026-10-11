@@ -113,6 +113,10 @@ class ReturnsShapeTest(unittest.TestCase):
         self.assertEqual(by["verdict"]["trigger_rule"], "all_done")
         self.assertNotIn("output_type", by["verdict"])
 
+    def test_diagnose_reply_type_is_the_acceptance_schema(self):
+        """判定役の節の output_format と受け付けが照らす型（元 accept.role_schema("p2.diagnose")）は同じ物"""
+        self.assertEqual(nodes()["diagnose"]["output_format"], ja.DIAGNOSE_SCHEMA)
+
     def test_inputs_are_the_contract_and_prior_failures(self):
         inputs = load()["inputs"]
         self.assertEqual({k: v["default"] for k, v in inputs.items()}, INPUTS)

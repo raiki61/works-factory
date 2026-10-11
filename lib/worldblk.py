@@ -124,13 +124,24 @@ def intake(out, *, request: str, purpose_file: str, web, cwd) -> dict:
             p.unlink()
     doc = {"findings": [], "purpose_text": "", "means": [], "web": True, "reason": ""}
     try:
-        doc["web"] = not webget.is_off({"web": web}, "web")
+        doc["web"] = _switch(web)
         doc["findings"] = _findings(request, cwd)
         doc["purpose_text"], doc["means"] = _purpose(purpose_file, cwd)
     except ValueError as e:
         doc["reason"] = " ".join(str(e).split())
     _write(out / INTAKE, doc)
     return {"due": bool(doc["findings"]) and not doc["reason"], "findings": len(doc["findings"]), "reason": doc["reason"]}
+
+
+def _switch(web) -> bool:
+    """元 works/.shared/core/script_io.py:108 の switch_on（web の切り替えの入力。on か off。空・None・文字列 null は on＝今どおり）。
+    ほかの語は名を言って ValueError（黙って on にも off にも倒さない）"""
+    word = "" if web is None else str(web).strip()
+    if word in ("", "null", "on"):
+        return True
+    if word == "off":
+        return False
+    raise ValueError(f"入力 web={word!r} は on か off（空は on）")
 
 
 # ---------------------------------------------------------------- 輪の控え（拒否は rolekit の控えに積む）

@@ -340,39 +340,193 @@ NUMBER_HINTS = (
 )
 # 元 review-loop.py:2357
 ONE_LINE_FIELDS = ("key", "reason")
-# 元 accept.check_judge の型の照らし（role_schema("p2.diagnose")）。写しの graph の p2.diagnose の schema の、この受け付けが
-# 読む欄の型（class_query の how の中は engine の run_count が照らす）。out_of_purpose・answer_ties は受け付けが先に外す
-_TEXTS = {"type": "array", "items": {"type": "string"}}
+# 元 accept.check_judge の型の照らし: accept.role_schema("p2.diagnose")（写しの graph の p2.diagnose の schema の $ref を開き、注記を
+# 落とし、足し欄 out_of_purpose・answer_ties を足した物）を字のまま。判定役の節の output_format と同じ（tests/workflows/test_judge.py）。
+# 足し欄は受け付け（take）が型の前に外す
 DIAGNOSE_SCHEMA = {
-    "type": "object", "additionalProperties": False,
-    "required": ["units", "questions", "framing", "one_shot", "materials_missing", "carried_r1", "one_shot_closes", "precedents"],
+    "type": "object",
+    "required": [
+        "units",
+        "questions",
+        "framing",
+        "one_shot",
+        "materials_missing",
+        "carried_r1",
+        "one_shot_closes",
+        "precedents",
+    ],
+    "additionalProperties": False,
     "properties": {
-        "units": {"type": "array", "items": {
-            "type": "object", "required": ["key", "label"], "properties": {
-                "key": {"type": "string", "minLength": 1},
-                "label": {"type": "string", "enum": list(LABELS)},
-                "disposition": {"type": "string", "enum": ["do-now", "defer"]},
-                "reason": {"type": "string"}, "reopen_evidence": {"type": "string"}, "origin_analysis": {"type": "string"},
-                "why_chain": _TEXTS, "prescriptions": _TEXTS, "closed_note": {"type": "string"},
-                "class_query": {"type": "object", "required": ["how", "counts", "total"], "properties": {
-                    "how": {"type": "object"}, "counts": {"type": "string", "enum": ["defects", "population"]},
-                    "total": {"type": "integer", "minimum": 0}, "note": {"type": "string"}}}}}},
-        "questions": {"type": "array", "items": {"type": "object", "required": ["key", "kind", "status", "reason"],
-                                                 "properties": {"key": {"type": "string", "minLength": 1}}}},
-        "framing": {"type": "string"}, "one_shot": {"type": "string"},
-        "materials_missing": _TEXTS,
-        "carried_r1": {"type": "array", "items": {
-            "type": "object", "required": ["where", "disposition"], "additionalProperties": False, "properties": {
-                "where": {"type": "string", "minLength": 1}, "disposition": {"type": "string", "enum": ["promote", "decline"]},
-                "unit_key": {"type": "string"}, "why": {"type": "string"}}}},
-        "router": {"type": "array", "items": {"type": "object"}},
-        "reburn_causes": {"type": "array", "items": {"type": "object"}},
-        "one_shot_closes": _TEXTS,
-        "precedents": {"type": "array", "items": {
-            "type": "object", "required": ["key", "problem", "source", "verdict", "reason"], "properties": {
-                "key": {"type": "string", "minLength": 1}, "problem": {"type": "string"}, "source": {"type": "string"},
-                "verdict": {"type": "string", "enum": ["adopt", "adapt", "does_not_apply", "not_found"]},
-                "reason": {"type": "string"}, "searched": {"type": "string"}, "undecided_because": {"type": "string"}}}},
+        "units": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["key", "label"],
+                "additionalProperties": True,
+                "properties": {
+                    "key": {"type": "string", "minLength": 1},
+                    "label": {"type": "string", "enum": ["block", "suggest", "nit", "question", "info"]},
+                    "disposition": {"type": "string", "enum": ["do-now", "defer"]},
+                    "reason": {"type": "string"},
+                    "reopen_evidence": {"type": "string"},
+                    "origin_analysis": {"type": "string"},
+                    "why_chain": {"type": "array", "items": {"type": "string"}},
+                    "prescriptions": {"type": "array", "items": {"type": "string"}},
+                    "closed_note": {"type": "string"},
+                    "class_query": {
+                        "type": "object",
+                        "required": ["how", "counts", "total"],
+                        "additionalProperties": False,
+                        "properties": {
+                            "how": {
+                                "type": "object",
+                                "required": ["patterns", "paths", "count"],
+                                "additionalProperties": False,
+                                "properties": {
+                                    "patterns": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "maxItems": 20,
+                                        "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
+                                    },
+                                    "fixed": {"type": "boolean"},
+                                    "paths": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "maxItems": 50,
+                                        "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
+                                    },
+                                    "count": {"type": "string", "enum": ["lines", "files"]},
+                                    "untracked": {"type": "boolean"},
+                                    "ignore_case": {"type": "boolean"},
+                                    "word": {"type": "boolean"},
+                                },
+                            },
+                            "counts": {"type": "string", "enum": ["defects", "population"]},
+                            "total": {"type": "integer", "minimum": 0},
+                            "note": {"type": "string"},
+                            "hits": {
+                                "type": "array",
+                                "maxItems": 20,
+                                "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
+                            },
+                            "misses": {
+                                "type": "array",
+                                "maxItems": 20,
+                                "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
+                            },
+                            "examples_unavailable": {"type": "string", "minLength": 10},
+                            "misses_omitted_why": {"type": "string", "minLength": 10},
+                        },
+                    },
+                },
+            },
+        },
+        "questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["key", "kind", "status", "reason"],
+                "additionalProperties": False,
+                "properties": {
+                    "key": {"type": "string", "minLength": 1},
+                    "kind": {
+                        "type": "string",
+                        "enum": ["fork", "split", "rule", "stuck", "thrash", "premise", "unverifiable", "awaiting", "field"],
+                    },
+                    "status": {"type": "string", "enum": ["held", "decided", "resolved", "escalate"]},
+                    "reason": {"type": "string"},
+                    "resolution": {"type": "string"},
+                    "options": {"type": "array", "items": {"type": "string"}},
+                    "depends": {"type": "array", "items": {"type": "string"}},
+                    "origin": {"type": "string"},
+                },
+            },
+        },
+        "framing": {"type": "string"},
+        "one_shot": {"type": "string"},
+        "materials_missing": {"type": "array", "items": {"type": "string"}},
+        "carried_r1": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["where", "disposition"],
+                "additionalProperties": False,
+                "properties": {
+                    "where": {"type": "string", "minLength": 1},
+                    "disposition": {"type": "string", "enum": ["promote", "decline"]},
+                    "unit_key": {"type": "string"},
+                    "why": {"type": "string"},
+                },
+            },
+        },
+        "router": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["key", "route", "note"],
+                "additionalProperties": False,
+                "properties": {"key": {"type": "string"}, "route": {"type": "string"}, "note": {"type": "string"}},
+            },
+        },
+        "reburn_causes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["key", "cause"],
+                "additionalProperties": False,
+                "properties": {
+                    "key": {"type": "string"},
+                    "cause": {"type": "string", "enum": ["コード", "レビュアー", "規約", "前の周の修正"]},
+                    "note": {"type": "string"},
+                },
+            },
+        },
+        "one_shot_closes": {"type": "array", "items": {"type": "string"}},
+        "precedents": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["key", "problem", "source", "verdict", "reason"],
+                "additionalProperties": False,
+                "properties": {
+                    "key": {"type": "string", "minLength": 1},
+                    "problem": {"type": "string", "minLength": 4},
+                    "source": {"type": "string"},
+                    "verdict": {"type": "string", "enum": ["adopt", "adapt", "does_not_apply", "not_found"]},
+                    "reason": {"type": "string", "minLength": 4},
+                    "searched": {"type": "string"},
+                    "undecided_because": {"type": "string"},
+                },
+            },
+        },
+        "out_of_purpose": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["source", "where", "why_outside"],
+                "properties": {
+                    "source": {"type": "string", "minLength": 1},
+                    "where": {"type": "string", "minLength": 1},
+                    "why_outside": {"type": "string", "minLength": 10},
+                    "text": {"type": "string", "minLength": 1},
+                },
+            },
+        },
+        "answer_ties": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "answer": {"type": "string", "minLength": 1},
+                    "redesign": {"type": "string", "minLength": 1},
+                    "to": {"type": "string", "minLength": 1},
+                    "none": {"type": "string", "minLength": 20},
+                },
+            },
+        },
     },
 }
 
