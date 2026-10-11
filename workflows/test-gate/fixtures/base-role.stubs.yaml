@@ -1,0 +1,41 @@
+# 筋書き base-role: 宣言も test_cmd も無い（by role_needed）ので、任せ先の CI の役の輪（ci-prep → ci → ci-accept）を回してから
+# 返す節に届く。走らせられなかった役の awaiting_human は base では受け付け、返す節は緑を仮定しない（ok: false）
+run:
+  by: role_needed
+  material: null
+  runs: []
+  skipped_steps: []
+  same_as: null
+  log: ""
+  junit_steps: []
+  fingerprint_before: {head: "1111111111111111111111111111111111111111", diff_hash: "aa"}
+  fingerprint_after: {head: "1111111111111111111111111111111111111111", diff_hash: "aa"}
+ci-prep:
+  copy_dir: /tmp/works-factory-ci-stub/work
+  tmp_dir: /tmp/works-factory-ci-stub/tmp
+  root: /tmp/target
+  base_rev: ""
+  mode: base
+  reject: ""
+  attempt: 1
+ci:
+  material: {status: awaiting_human, reason: "CI の定義が実機を要る"}
+ci-accept:
+  ok: true
+  done: true
+  give_up: false
+  reason: ""
+result:
+  mode: base
+  ok: false
+  green: false
+  red_cause: incomplete
+  baseline: {type: archon_artifact, run_id: stub-run, path: test-gate/base/baseline.json}
+  fingerprint: null
+  evidence: {type: archon_artifact, run_id: stub-run, path: test-gate/base/evidence.md}
+fixture:
+  inputs:
+    mode: base
+    start: '{"type": "archon_artifact", "run_id": "stub-run", "path": "start/record.json"}'
+  expect: completed
+  reached: [ci-prep, ci, ci-accept, result]
