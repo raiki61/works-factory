@@ -3,7 +3,8 @@
 関所が方針で飛ばされても走る（trigger_rule: none_failed_min_one_success）。関所の出力は `{from, if_skipped: null}` で受ける。
 返り {go, answer, stop_reason}: 関所が飛ばされたら前の節が決めた go と止めの理由をそのまま返し、answer は null。
 関所が開いたら答え {decision, text} を返し、通す語なら go、止める語なら go: false と止めの理由 human:<関所>。
-答えは run の置き場の gates/<関所>.json に {decision, text} で書く（同じ関所の答えは書き直す。報告が読む）。
+答えは run の置き場の gates/<関所>.json に {decision, text} で書く（同じ関所の答えは書き直す。人が読む控えで、関所の文が名指す）。
+報告へは返りの answer が collect を通って届く。
 
 入力（with:）: gate（関所の出力）・go・stop_reason（関所の前の節の決め）・place（関所の節の id）
 """

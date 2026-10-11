@@ -17,6 +17,7 @@ from linekit import boundary
 
 import answer
 import carry
+import depth
 import entry
 import entryshape
 import gatemarks
@@ -27,7 +28,7 @@ import startrec
 SPEC_ON = "on"
 SPEC_WORDS = ("", SPEC_ON)
 DESIGN_ONLY_WORDS = ("", gatemarks.DESIGN_ONLY)
-THICKNESS = ("", "自動", "軽量", "標準")
+THICKNESS = ("", "自動", depth.LIGHT, depth.STANDARD)
 HEAVY = "重厚"
 GATE = "gate-start"
 
