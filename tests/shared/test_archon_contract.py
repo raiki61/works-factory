@@ -9,7 +9,9 @@
 """
 import os
 import pathlib
+import json
 import re
+import tempfile
 import unittest
 from collections.abc import Callable
 from typing import Any, NamedTuple
@@ -80,6 +82,17 @@ def _ts_chars(literal: str) -> set[str]:
     return set(literal.encode().decode("unicode_escape"))
 
 
+def _asf_folder_key() -> str:
+    """pack.load が asf.folder に入れる factory/pack.json の鍵（鍵ごとに自分の名を値にして読ませる）"""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        (root / "factory").mkdir()
+        (root / "pack.json").write_text(json.dumps({"ours": {"folder": "ours"}}), encoding="utf-8")
+        asf = {key: key for key in pack.REQUIRED["factory/pack.json"]} | {"integration_revision_required": "0" * 40}
+        (root / "factory/pack.json").write_text(json.dumps(asf), encoding="utf-8")
+        return pack.load(root)["asf"]["folder"]
+
+
 def _no_fetch(*_: Any) -> None:
     raise FileNotFoundError("取り置かれていない（試験の中では取りに行かない）")
 
@@ -95,20 +108,33 @@ def _workflow_run_shape() -> list[str]:
 
 SEPARATOR_CANDIDATES = "/\\:"
 
+# consumer にあって写し（place.workflow_run は bun を固定し、いつも --workflow-source を付ける）に無い分かれ道。
+# 食い違いは直さず名前をつけて置き（#36）、元の字が変われば赤にする。
+CONSUMER_ONLY = {
+    "起こす bun を設定で差し替える": 'settings.get("bun", "bun")',
+    "resume の時は --workflow-source を付けない": "if not resuming:",
+    "工程の既定の入力を引数に差し込む": "args = with_default_inputs(name, args, options, root)",
+}
+
 CONSUMER = "factory/consumer.py"
 CONSUMER_ROWS = (
     Row("本体の入口 ENTRY", lambda: place.ENTRY, CONSUMER, r'^ENTRY = "([^"]+)"$'),
     Row("工程の置き場 WORKFLOW_FOLDER", lambda: place.WORKFLOW_FOLDER, CONSUMER,
         r'source / "([^"]+)"\)\.rglob\("\*"\):\n\s+if path\.suffix not in \(".yaml", ".yml"\) or path in found'),
-    Row("工程を起こす引数の並び", _workflow_run_shape, CONSUMER,
+    Row("工程を起こす引数の並び（bun の設定も resume も無い時）", _workflow_run_shape, CONSUMER,
         r'return \[settings\.get\("bun", "([^"]+)"\), str\(source / ENTRY\)\]'
         r'.*native = \["(workflow)", action, "(--cwd)", str\(root\)\]'
         r'.*native \+= \["(--workflow-source)", str\(source\)\]'
         r'.*native \+= args\n',
         lambda m: [m[1], "<source>/ENTRY", m[2], "run", m[3], "<cwd>", m[4], "<workflow-source>", "<args>"]),
+    Row("写しに無い consumer の分かれ道", lambda: list(CONSUMER_ONLY.values()), CONSUMER,
+        r'return \[([^\n]+?), str\(source / ENTRY\)\]'
+        r'.*\n\s+(if [^\n]+:)\n\s+native \+= \["--workflow-source", str\(source\)\]'
+        r'\n\s+(args = [^\n]+)\n\s+native \+= args\n',
+        lambda m: list(m.groups())),
     Row("commit は 40 字の小文字の hash", lambda: pack.FULL_SHA.pattern, CONSUMER,
         r'not re\.fullmatch\(r"([^"]+)", revision\)'),
-    Row("ASF の工程の置き場の鍵", lambda: pack.REQUIRED["factory/pack.json"][2], CONSUMER,
+    Row("ASF の工程の置き場の鍵", _asf_folder_key, CONSUMER,
         r'\(ENTRY, "package\.json", "bun\.lock", MANIFEST\["(\w+)"\]\)'),
 )
 
