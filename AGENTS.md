@@ -39,8 +39,8 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 ```text
 works-factory/
 ├── bin/                         入口（AGENTS.md が E15）。人が打つ口（start・answer・show・apply）と起動の殻
-│   └── _lib/                    入口の中身。版の取り寄せと配置・起動の認証と隔離・プラグインの選び（E15）
-├── workflows/                   グラフ（エッセンス。AGENTS.md がグラフの決まり）。バイトのまま Archon の家の workflows/works-factory/ に置く（E1）
+│   └── _lib/                    入口の中身。Archon の源の取り寄せと起こし方・起動の認証と隔離・プラグインの選び（E15）
+├── workflows/                   グラフ（エッセンス。AGENTS.md がグラフの決まり）。置かずに --workflow-source で Archon に読ませる（E1）
 │   ├── line/
 │   │   ├── works-factory-line.yaml   線。ブロックを並べ、人の関所を置く
 │   │   └── fixtures/                 線の筋書きの試験
@@ -90,7 +90,7 @@ works-factory/
 
 ## E9 工程の名は archon- で始めない
 
-- 工程の名は `works-factory-<フォルダの名>`。線は `works-factory-line`。Archon の家で ASF（`archon-*`）と並んでも名前で選び分けられる。
+- 工程の名は `works-factory-<フォルダの名>`。線は `works-factory-line`。ASF（`archon-*`）と並べて見比べても名前で選び分けられる。
 - 機械: `tests/layers/test_names.py`（E18 と同じ試験）。
 
 ## E10 4 つの層の外に仕組みを足す前に、持ち主の決めを書く
@@ -100,8 +100,8 @@ works-factory/
 
 ## E11 仕組みを足す前に 3 つを確かめる
 
-1. Archon が持っているか（v0.11.1 の文書と、`docs/design.md` の「Archon の分かっていること」）。
-2. ASF が持っているか（`docs/asf-notes.md` と、置いた `workflows/asf/`）。
+1. Archon が持っているか（`pack.json` の `archon.commit` の Archon の源の文書と、`docs/design.md` の「Archon の分かっていること」）。
+2. ASF が持っているか（`docs/asf-notes.md` と、取った Archon の源の `.archon/workflows/sdlc/`）。
 3. 本当に要るか（今の works の能力の一覧 `docs/design.md` の「能力の棚卸し」のどれに当たるか）。
 
 - 計画の文書に 3 つの答えを書く。人が見る。
@@ -121,7 +121,7 @@ works-factory/
 
 ## E18 取ってきた物と自分の物を名前で見分けられるようにする
 
-- 取ってきた物は元の名前と場所のまま置き、名前を変えない。ASF の物は `factory`・`FACTORY`・`harness`・`.factory`・`archon-` で始まる。Archon の家では、ASF の工程は `workflows/asf/`、自分の工程は `workflows/works-factory/` に分けて置く。持ち主の決め `name-by-origin`。
+- 取ってきた物は元の名前と場所のまま置き、名前を変えない。ASF の物は `factory`・`FACTORY`・`harness`・`.factory`・`archon-` で始まる。ASF の工程は Archon の源の `.archon/workflows/sdlc/` に、自分の工程はこのリポジトリの `workflows/` に在り、混ぜて置かない。持ち主の決め `name-by-origin`。
 - 自分の物には、それらで始まる名前を付けない（ファイル・フォルダ・工程・型の名）。自分の工程は `works-factory-` で始める（E9）。
 - 今の works から持ってきた物（E15）は、元と同じファイル名で置く。元と見比べられるようにするため。どこから持ってきたかは commit に書く。
 - 機械: `tests/layers/test_names.py`（`bin/`・`workflows/`・`lib/`・`tests/`・`docs/` の下のパスの部分に、`factory`・`harness`・`archon-` で始まる物が無い。ASF の物が「リポジトリの形」の木の場所の外に無い）。

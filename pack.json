@@ -3,24 +3,17 @@
   "doc": "置き場と版の止め（pin）の正本。中身の説明は docs/design.md の「pack.json」の節。",
   "archon": {
     "repo": "coleam00/Archon",
-    "release": "v0.11.1",
-    "assets": {
-      "archon-darwin-arm64": "b9338474fd3151d5d5402d76ae278105e65835f2e3506a93f0e5e4a378d10ede",
-      "archon-linux-x64": "81ee5feaf4e6c8de19903a6c1252743228d235bbedb818dbee045b21df49d59d"
-    }
-  },
-  "asf": {
-    "repo": "coleam00/Archon",
     "branch": "factory/sdlc-on-dev",
     "commit": "d97d00ef15cce4b15d39e42635e4e86996ec1351",
+    "doc": "Archon の源の版。Archon の本体（bun で起こす）と ASF の工程の両方をこの 1 つの源から取る（持ち主の決め archon-same-as-asf）"
+  },
+  "asf": {
     "folder": ".archon/workflows/sdlc",
-    "placed_at": "workflows/asf",
     "committed_here": false,
-    "why_not_committed": "ASF の工程（sdlc）はこのリポジトリに入れず、bin/ が run の時に取って Archon の家に置く。ASF の取り付け命令が置いた物（factory/・harness/ など）は別で、このリポジトリに入れる（持ち主の決め asf-installer-in-repo）"
+    "why_not_committed": "ASF の工程（sdlc）はこのリポジトリに入れず、bin/ が取った Archon の源の中の物を読む。ASF の取り付け命令が置いた物（factory/・harness/ など）は別で、このリポジトリに入れる（持ち主の決め asf-installer-in-repo）"
   },
   "ours": {
     "folder": "workflows",
-    "placed_at": "workflows/works-factory",
     "name_prefix": "works-factory-",
     "line": "works-factory-line"
   },

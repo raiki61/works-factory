@@ -5,8 +5,8 @@
 
 ## 語
 
-- Archon: AI の工程を YAML で書き、機械が順に回す道具。土台は公開版 v0.11.1。
-- ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までの工程の束（`coleam00/Archon` の枝 `factory/sdlc-on-dev` の `.archon/workflows/sdlc/`）。見る版は `pack.json` の `asf.commit`（`d97d00ef`）。
+- Archon: AI の工程を YAML で書き、機械が順に回す道具。土台は ASF と同じ開発中の源（`pack.json` の `archon.commit`。今は `d97d00ef`）で、`bun` で源から起こす（持ち主の決め `archon-same-as-asf`）。
+- ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までの工程の束（`coleam00/Archon` の枝 `factory/sdlc-on-dev` の `.archon/workflows/sdlc/`）。見る版は Archon の本体と同じ `pack.json` の `archon.commit`（`d97d00ef`）。
 - 今の works: raiki61/claude-plugins の `works/`。工場 darkfactory を持つ。棚卸しは origin/main の 2026-10-11 の姿（commit `ab9b9f17` まで）。
 - review-graph: graphloops プラグインのレビューと修正の輪（`works/.shared/core/graphloops/graphs/review-loop.json`）。今の works の元。
 - 線: ブロックを順に並べた 1 本の工程（`workflows/line/`）。
@@ -37,14 +37,12 @@
 ```mermaid
 flowchart TB
   entry["入口 bin/<br/>start・answer・show・apply"]
-  subgraph home["Archon の家 $ARCHON_HOME/workflows/"]
-    subgraph ours["works-factory/（workflows/ をそのまま置く。グラフ＝エッセンス）"]
-      line["線 line/"]
-      blocks["ブロック judge … merge"]
-      shared["境 .shared/<br/>出入りの口・埋め"]
-    end
-    asf["asf/（ASF を run の時に置く。見るだけ）"]
+  subgraph ours["workflows/（置かずに --workflow-source で読ませる。グラフ＝エッセンス）"]
+    line["線 line/"]
+    blocks["ブロック judge … merge"]
+    shared["境 .shared/<br/>出入りの口・埋め"]
   end
+  asf["Archon の源の .archon/workflows/sdlc/（ASF。見るだけ）"]
   lib["助け手 lib/<br/>Archon を知らない Python"]
   entry --> line
   line --> blocks
@@ -54,30 +52,34 @@ flowchart TB
 
 | 層 | 置き場 | 持つ物 | 知ってよい物 |
 | --- | --- | --- | --- |
-| 入口 | `bin/` | 人の打つ口・版の取り寄せと配置・埋めの一部 | `pack.json`・Archon の CLI |
+| 入口 | `bin/` | 人の打つ口・Archon の源の取り寄せと起こし方・埋めの一部 | `pack.json`・Archon の CLI |
 | グラフ（エッセンス） | `workflows/` | 線とブロックの YAML・役の指示書・節の script・ブロックの間で渡す物の型（`output_format`） | 境の口・lib |
 | 境 | `workflows/.shared/` | Archon の入出力の口 1 つ・埋め | Archon の変数と型 |
 | 助け手 | `lib/` | Archon を知らない Python のモジュール | Python のパッケージ（標準と外の物） |
 
-- 言語は Python 3.12 以上（`lib/`・境・ブロックの script・`bin/`・試験）。訳: 今の works の確かめが Python で書かれていて、移すだけで済む。下限は持ち主の決め `py-floor`。外のパッケージは使ってよい（持ち主の決め `outside-packages-ok`）。自前で書く前に既製の物を当たり、版を止める。Archon v0.11.1 は `script:` の節を `runtime: uv` で Python として走らせる。ASF は TypeScript だが、コードを写さないので言語を揃える訳が無い。
+- 言語は Python 3.12 以上（`lib/`・境・ブロックの script・`bin/`・試験）。訳: 今の works の確かめが Python で書かれていて、移すだけで済む。下限は持ち主の決め `py-floor`。外のパッケージは使ってよい（持ち主の決め `outside-packages-ok`）。自前で書く前に既製の物を当たり、版を止める。Archon は `script:` の節を `runtime: uv` で Python として走らせる（`guides/script-nodes.md`「`runtime` | `'bun'` \| `'uv'`」）。ASF は TypeScript だが、コードを写さないので言語を揃える訳が無い。
 - 層を足す時は `AGENTS.md` の E10。
 - 別の実行の道具へ移る時（Archon の競合に移る危うさへの備え）: グラフをその道具の書き方で `docs/design.md` から書き直す。役の指示書（指示書の中の Archon の変数だけ書き換える）と `lib/` はそのまま持っていける。ブロックの間の入出力は、その時に `output_format` から取り出す（持ち主の決め `io-in-output-format`）。
 
 ## Archon・ASF・今の works との関係
 
 - Archon: 土台。中は直さない。足りない所は埋め（`docs/archon-polyfills.md`）。開発元には連絡しない。
-- ASF: 横に並べて見るだけ。`bin/` が同じ Archon の家の `workflows/asf/` に置き、工程の名（`archon-*` と `works-factory-*`）で選び分ける。v0.11.1 は家に置いた ASF の束を読む（40 本が並び、同じ名の同梱の工程を上書きする）。ASF の工程を走らせたことはまだ無い。採った型は `docs/asf-notes.md`。
+- ASF: 横に並べて見るだけ。ASF の工程は `bin/` が取った Archon の源の `.archon/workflows/sdlc/` に在り、工程の名（`archon-*` と `works-factory-*`）で選び分ける。ASF の工程を回す時は `--workflow-source` に源を渡す（ASF の `factory/consumer.py` と同じ）。採った型は `docs/asf-notes.md`。
 - 今の works: 能力の正本。置き換えるまでは今の works が本番。能力を 1 つずつブロックと `lib/` へ移し、「能力の棚卸し」の表で追う。置き換えた後、claude-plugins の `works/` は `/works` の薄いスキルだけを残し、`bin/` を呼ぶ。
 
 ## pack.json
 
 版の止めの正本。
 
-- `archon`: 使う Archon の公開版（`v0.11.1`）と、取る実行ファイルの名ごとの sha256（今の works の `dev/archon.sh` と同じ値）。合わなければ止まる。
-- `asf`: ASF の repo・枝・commit・フォルダ。`placed_at`（`workflows/asf`）は Archon の家の中の置き場。`committed_here: false` は、このリポジトリに入れないこと（LICENSE が無い）。
-- `ours`: 自分の工程のフォルダ・置き場・名の頭（`works-factory-`）・線の名。
+- `archon`: Archon の源の repo・枝・commit（40 字の hash）。Archon の版はここ 1 か所だけに書く。Archon の本体と ASF の工程の両方をこの源から取る（持ち主の決め `archon-same-as-asf`）。
+- `asf`: 源の中の ASF の工程のフォルダ。`committed_here: false` は、このリポジトリに入れないこと（LICENSE が無い）。
+- `ours`: 自分の工程のフォルダ・名の頭（`works-factory-`）・線の名。
 
-`bin/` は run の時に、`pack.json` の版の Archon と ASF を取り、`$ARCHON_HOME/workflows/asf/` と `$ARCHON_HOME/workflows/works-factory/` に置く。ほかの置き場には触らない。
+`bin/`（`bin/_lib/place.py`）は run の時に次を行う。Archon の家（`$ARCHON_HOME/workflows` など）には何も置かない。
+
+1. Archon の源をその commit で 1 度だけ `<キャッシュ>/archon/<commit>/` に取り、`bun install --frozen-lockfile` で依存を入れる。
+2. Archon は `bun <源>/packages/cli/src/cli.ts` で起こす（ASF の `factory/consumer.py` の `cli()` と同じ形）。
+3. 自分の工程は `archon workflow run --cwd <対象> --workflow-source <置き場>` で起こす。Archon は `--workflow-source` の `<置き場>/.archon/workflows/` を読むので、その場所がリポジトリの `workflows/` を指す小さな置き場をキャッシュに作る。Archon は run の始めにその中身を run の物として写し取り、その run は写しだけを走らせる（Archon の `packages/workflows/src/workflow-source.ts`）。
 
 ## 線
 
@@ -518,7 +520,7 @@ flowchart TB
 
 ## Archon の分かっていること
 
-2026-10-11 に v0.11.1 の binary とソースを読み、手元で確かめた事実。
+2026-10-11 に公開版 v0.11.1 の binary とソースを読み、手元で確かめた事実。同じ日に `pack.json` の `archon.commit`（`d97d00ef`）の源で読み直した物は、その旨と在り処を書く。
 
 - `include:` は読み込みの時に展開され、子の節の id は `<include の id>__<子の id>` になる。
 - `returns:` は 1 つの節の出力を `$<include の id>.output` として見せる。
@@ -526,22 +528,23 @@ flowchart TB
 - `loop:` の出力は最後の回の出力。
 - `if_skipped` は include の入力を通して運べない（埋め P2）。
 - 指し札は同じ run の中だけ。パスは相対で、在って空でない普通のファイルだけ。
-- `script:` の節の `output_format` は標準出力の約束で、Archon が照らす（v0.11.1 の文書 `guides/script-nodes.md`「JSON Schema the node's stdout must satisfy」）。だからブロックの返りの型を自前で照らす口は要らない。
+- `script:` の節の `output_format` は標準出力の約束で、Archon が照らす（`d97d00ef` の文書 `guides/script-nodes.md` 124 行「JSON Schema the node's stdout must satisfy」）。だからブロックの返りの型を自前で照らす口は要らない。
 - `fan_out:` の子が承認の関所で止まると、その子は取り消される。関所は fan_out の前か後に置く。
 - 持ち主の居ない `running` の run は `resume` できない（埋め P1）。
 - 待ちは持ちこたえる（0.10.0 から）。`wait:` の節と承認の節の待ちは DB が持ち、process が再起動しても消えない（CHANGELOG [0.10.0]「The database owns suspension and resume claims, so process restarts … cannot reset a wait」）。server は期限の来た run を再開する。だから CI と人の長い待ちは `wait:` の節と承認の節で書く。
 - `include:` の節に `fan_out:` を書ける（0.10.0、PR #2512・#2795）。「Load time resolves and validates the full static block…; runtime decides only its width」。並べの数に上限を付けられ、結果は入力の順に `$<id>.output` に集まる。
 - `workflow:` の節に `fan_out:` を書くと、項目ごとに自分の run（「its own row, artifacts, cost line and gates」）を持つ子が起きる。
-- v0.11.1 は `$ARCHON_HOME/workflows` に置いた最新の ASF の束を読む。40 本が並び、同じ名の同梱の工程を上書きする。`archon-merge-queue` は script のパスの警告を 2 つ出した。ASF の工程を走らせたことはまだ無い。
-- 作りの規則は v0.11.1 の `.archon/workflow-language-constitution.md`（「YAML coordinates. Code computes. Agents judge.」）。
+- `$ARCHON_HOME/workflows` の工程は同じ名の同梱の工程を上書きし、`--workflow-source`（か `--cwd`）の `.archon/workflows/` の工程は両方を上書きする（`d97d00ef` の `workflow-discovery.ts` 1158-1186 行）。v0.11.1 で家に置いた ASF の束は 40 本が並び、`archon-merge-queue` は script のパスの警告を 2 つ出した。ASF の工程を走らせたことはまだ無い。
+- `--workflow-source <置き場>` は `<置き場>/.archon/workflows/` を読む。その場所が symlink でも辿り、1 段下のフォルダまで探し、`fixtures/` は飛ばす（`d97d00ef` の `cli.ts` 805-825 行・`workflow-source.ts` 500-507 行・`command-validation.ts` 23 行・`workflow-discovery.ts` 216 行）。`--resume`・`--container` とは一緒に使えない。`archon validate workflows` は `--workflow-source` を受けず黙って捨て、`--cwd` は git の木しか受けない（`cli.ts` 500-575 行）。だから確かめる時は `.archon/workflows` が `workflows/` を指す使い捨ての git の木を `--cwd` に渡す（2026-10-11 に手元で通した）。`workflow run --dry-run` は git の木でなくても `--workflow-source` で読む。
+- 作りの規則は Archon の源の `.archon/workflow-language-constitution.md`（「YAML coordinates. Code computes. Agents judge.」。`d97d00ef` でも同じ）。
 
 ### 未決（歩く骨組みで決める）
 
 - U1 `resume` の後の run の id は同じか。持ち越しと指し札（同じ run の中だけ）に効く。
 - U2 型つきの成果物と `returns:` が、include ごとに分かれて見えるか（同じブロックを 2 度差し込む test-gate・merge・plan で要る）。
-- U3 `archon workflow test` の筋書き（fixture）が v0.11.1 で使えるか。v0.11.1 の文書 `reference/cli.md` は `workflow test` の fixture を名指すが、手元の binary では走らせていない。
+- U3 `archon workflow test` の筋書き（fixture）が使えるか。`d97d00ef` の文書 `reference/cli.md` 407 行と `--help`（「Run declared dry-run fixtures (fixtures/*.stubs.yaml)」）は名指すが、まだ走らせていない。
 - U4 `loop_group` の中に `include:` の節を置けるか（計画の往復）。
-- U5 ブロックの script が、置いた `lib/` をどのパスで見つけるか（E1 で YAML を変えないので、置き場の決めは `bin/` と境の口が持つ）。
+- U5 ブロックの script が `lib/` をどのパスで見つけるか。Archon は run の始めに `workflows/` を写し取り、script はその写しから走るので、リポジトリからの相対では届かない（E1 で YAML を変えないので、決めは `bin/` と境の口が持つ）。
 - U6 今の works の包みが取っていた読んだ証拠と書き込みの記録を、Archon の役の節で取れるか（Archon の出来事の記録か、節の hooks か）。取れなければ埋めの行にする。
 - U7 ASF の lifecycle を段 2 で使う時、必須の入力 `scenario`（動かして確かめる筋書き）に何を渡すか。
 - U8 組ごとに別の作業ツリーを持てるか。推しは `workflow:` と `fan_out:` の子の run（子ごとに自分の run）。子が自分の作業ツリーを持つか、それが親の今の commit から切られるか、子の差分を親に決めた順で戻せるかを確かめる。2026-10-06 の判断「fan_out は子ごとに作業ツリーを決められない」は節の `fan_out:` だけを見ていたかもしれない。足りなければ埋めの名簿に行を足す。
