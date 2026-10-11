@@ -35,8 +35,10 @@ collect = load("collect")
 result = load("result")
 
 import answer  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
+import conflict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
+import startrec  # noqa: E402
 import stopby  # noqa: E402
 
 SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
@@ -118,6 +120,26 @@ class StartCase(Artifacts):
         self.assertGreaterEqual(doc["input"]["diff"]["files"], 1)
         self.assertEqual(doc["base_rev"], git(self.repo, "rev-parse", "HEAD"),
                          "base_rev は修正の前の HEAD（今の works の entry.py 1203 行。merge と test-gate が差分の起点に読む）")
+
+    def test_request_file_is_on_the_top_of_the_record(self):
+        """issue #89: 始めの記録の上の欄 request_file は input.request_file と同じ絶対パス（今の works の entry.py 605 行）。
+        依頼の無い入口では両方 \"\""""
+        doc = self.record(self.start(request="request_ok.json"))
+        self.assertEqual(doc["request_file"], str(self.repo / "request_ok.json"))
+        self.assertEqual(doc["request_file"], doc["input"]["request_file"])
+        doc = self.record(self.start(base="base"))
+        self.assertEqual((doc["request_file"], doc["input"]["request_file"]), ("", ""))
+
+    def test_blocks_read_the_request_file_from_the_line_record(self):
+        """issue #89: 線の始めの記録を fix の prep と同じ重ね方で置き場の r1/start.json に写すと、上の欄だけを読む fix の読み手
+        （conflict.request_file・fixboard.fix_values）が依頼のファイルを返す"""
+        doc = self.record(self.start(request="request_ok.json"))
+        place = self.tmp / "fix"
+        defaults = {"tdd_suite": "", "test_cmd": "", "policy_md": "", "request_file": "", "features_cut": []}   # fix の prep の START_DEFAULTS
+        fixboard.write_json(startrec.path(place), {**defaults, **{k: v for k, v in doc.items() if v is not None}})
+        want = str(self.repo / "request_ok.json")
+        self.assertEqual(conflict.request_file(place), want)
+        self.assertEqual(fixboard.fix_values(place, [], start=startrec.read(place))["request_file"], want)
 
     def test_unattended_does_not_open_the_start_gate(self):
         got = self.start(request="request_ok.json", unattended="true")
