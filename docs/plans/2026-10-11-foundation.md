@@ -3,29 +3,29 @@
 
 > **実装する者へ:** superpowers:subagent-driven-development（推し）か superpowers:executing-plans で Task ごとに進める。手順は `- [ ]` で追う。
 
-**目的:** 段 1 の歩く骨組みが乗る土台を作る。版の取り寄せと配置・層の試験・境の口・線の骨組み（ブロックの返す節の `output_format` を含む）・人の打つ口。
+**目的:** 段 1 の歩く骨組みが乗る土台を作る。版の取り寄せと起こし方・層の試験・境の口・線の骨組み（ブロックの返す節の `output_format` を含む）・人の打つ口。
 
 **作り:** 4 つの層（入口 `bin/`・グラフ `workflows/`・境 `workflows/.shared/`・助け手 `lib/`）の器と、器を縛る試験を先に置く。ブロックの中身は `output_format` に合う返りを返すだけの仮の物で、段 2 の issue が本物に替える。
 
-**道具:** Python 3.12 以上・unittest・git・`gh`・Archon v0.11.1 の実行ファイル。
+**道具:** Python 3.12 以上・unittest・git・`gh`・`bun`・止めた Archon の源（`docs/design.md` の「語」。持ち主の決め `archon-same-as-asf`）。
 
 **仕様:** `docs/design.md`（層・線・ブロック・Archon の分かっていること）と 各階層の `AGENTS.md`（E1〜E18）。
 
 ## 全体の決まり
 
 - 言語: Python 3.12 以上。外のパッケージは使ってよい（持ち主の決め `outside-packages-ok`）。自前で書く前に既製の物を当たり、版を止め、依存の宣言は 1 か所に置く（Task 2 で決める）。
-- 版の止め: `pack.json` の値だけを使う（Archon `v0.11.1`・実行ファイル `archon-darwin-arm64` の sha256 `b9338474fd3151d5d5402d76ae278105e65835f2e3506a93f0e5e4a378d10ede`・ASF の commit `d97d00ef15cce4b15d39e42635e4e86996ec1351`・フォルダ `.archon/workflows/sdlc`）。
-- 置き場: 自分の工程は `$ARCHON_HOME/workflows/works-factory/`、ASF は `$ARCHON_HOME/workflows/asf/`。ほかの置き場に触らない。
+- 版の止め: `pack.load` の値だけを使う。Archon の源の commit は ASF の止め `factory/pack.json` の `integration_revision_required`（今は `d97d00ef15cce4b15d39e42635e4e86996ec1351`）1 つで、根の `pack.json` には書かない。Archon の本体と ASF の工程（`source_directory`。`.archon/workflows/sdlc`）の両方をここから取る。
+- 置き場: Archon の家には何も置かない。自分の工程は `--workflow-source` で置かずに読ませ、ASF はその源の中の物を読む（issue #25）。
 - ASF のファイルをこのリポジトリに入れない（試験の種にも入れない）。
 - 工程の名は `works-factory-<フォルダの名>`、線は `works-factory-line`。
 - ブロックの間で渡す物の型の正本は、返す節の `output_format` と線の `with:` だけ。型の写しを作らない（持ち主の決め `io-in-output-format`）。
 - 期限を置かない（E12）。Archon の既定の期限を外すため、期限を持つ節には `1728000000` を書く。
-- 試験はリポジトリの根から `uv run --isolated python3 -m unittest discover -s . -t .` の 1 つで走る（CI も ASF の `harness/harness.config.json` の `unit` も同じ命令）。`tests/`・`tests/bin/`・`lib/tests/` など試験を置くフォルダには、全部 `__init__.py` を置く（無いと Python 3.12 は黙って見つけない）。Archon の実行ファイルが要る試験は、無ければ名前つきで見送る（`skipTest("archon の実行ファイルが無い: ...")`）。CI は実行ファイルを取ってから走るので見送らない。
+- 試験はリポジトリの根から `uv run --isolated python3 -m unittest discover -s . -t .` の 1 つで走る（CI も ASF の `harness/harness.config.json` の `unit` も同じ命令）。`tests/`・`tests/bin/`・`lib/tests/` など試験を置くフォルダには、全部 `__init__.py` を置く（無いと Python 3.12 は黙って見つけない）。Archon の源が要る試験は、無ければ名前つきで見送る（`skipTest("Archon の源が無い: ...")`）。今の CI（`.github/workflows/tests.yml`）は源を取らないので見送る。段 1 で CI が源を取るようにする予定。
 
 ## 見るべき所（Task の試験が当たる物）
 
-1. ASF の commit が取れない（網が無い・commit が消えた）: 途中まで置いた物を残さず、何が取れなかったかを 1 行で言って止まる。前に置いた `workflows/asf/` は残る。→ Task 1 の `test_fetch_failure_leaves_previous_placement`
-2. Archon の家にほかの工程（同梱・ほかの pack）が在る: 消さない・上書きしない。→ Task 1 の `test_place_touches_only_own_folders`
+1. Archon の源が取れない（網が無い・commit が消えた・依存が入らない）: 途中まで取った物を残さず、何が取れなかったかを 1 行で言って止まる。前に取った源は残る。→ `tests/bin/test_place.py` の `test_failure_leaves_previous_source`
+2. Archon の家にほかの工程（同梱・ほかの pack）が在る: 何も置かないので触らない。→ `tests/bin/test_place.py` の `test_repo_and_archon_home_are_untouched`
 3. 型つきの成果物の一覧に `errors` が在る: 読めた分と一緒に返し、捨てない。→ 段 2 の report ブロックの issue（型つきの成果物の一覧を読むのは report だけ。E5）
 4. 空のファイルへの指し札: 返りに入った札は Archon が節の終わりに照らし、名前つきの誤りで止める。境の口は札の形を組むだけで、先を照らさない。→ Archon の節の終わりの照らし（このリポジトリに試験は無い。持ち主の決め `asf-way-gates-fanout`）
 5. `archon validate workflows` の警告: 自分の工程の警告は赤。ASF の警告（今は `archon-merge-queue` の script のパスの 2 つ）は数えない。→ Task 4 の `test_validate_has_no_warnings_for_ours`
@@ -33,6 +33,8 @@
 ---
 
 ### Task 1: 版の取り寄せと配置
+
+> PR #6 で入った後、issue #25（持ち主の決め `archon-same-as-asf`）で形を変えた。今の口は `pack.load`（Archon の版は ASF の `factory/pack.json` から読む）・`place.archon_source`（源を 1 度だけ取って依存を入れる）・`place.workflow_source`（`--workflow-source` に渡す置き場）・`place.workflow_run`（起こす命令）。実行ファイルの取り寄せ（`archon_binary`）と家への配置（`asf_tree`・`place`）は消した。下はその時の記録。
 
 **Files:**
 - Create: `bin/_lib/pack.py`・`bin/_lib/place.py`
@@ -115,14 +117,14 @@
   - 各ブロックは `returns:` に 1 つの節と `outcome_field:` を持つ。その節の `output_format` に、`docs/design.md` の「線が運ぶ物」の欄を書く（段 2 の issue と線の約束。段 2 は狭めずに中身を入れる）。指し札の欄は `{type: archon_artifact, run_id, path}` の形。結末の 10 語は report の返す節の `output_format` の enum（今の works の `.shared/core/report.py` の `OUTCOMES` を字のまま）。
   - 仮の `stub.py` は `boundary.returns(<output_format に合う最小の物>)` だけを行う。入力を読む時は `os.environ["INPUTS_<名>"]` を字のまま読む（名前を組まない。issue #11）。
   - test-gate と merge は入力 `mode`（`base`・`final`、`seal`・`apply`）を持つ。
-- 試験の中身は `workflows/AGENTS.md` の E1・E5・E6・E7 の「機械」の行。`test_archon_validate.py` は Task 1 で置いた家で `archon validate workflows` を走らせ、`works-factory-` の名の行に誤りも警告も無いことを見る。
+- 試験の中身は `workflows/AGENTS.md` の E1・E5・E6・E7 の「機械」の行。`test_archon_validate.py` は、`.archon/workflows` が `workflows/` を指す使い捨ての git の木を `--cwd` に渡して `archon validate workflows` を走らせ（`validate` は `--workflow-source` を受けず、`--cwd` は git の木しか受けない）、`works-factory-` の名の行に誤りも警告も無いことを見る。
 
 - [ ] **Step 1: 試験を書く**（YAML は既製の YAML の読み手で読む。依存の置き場は Task 2 で決めた物）
   - `test_block_returns.py`: `test_every_block_returns_one_node`・`test_outcome_field_in_required`・`test_line_reads_only_declared_fields`（線の `$<include の id>.output.<欄>` がそのブロックの `output_format` に在る）・`test_no_unread_return_field`（読み手の無い返りの欄が赤）
   - `test_archon_validate.py`: `test_validate_has_no_warnings_for_ours`
 - [ ] **Step 2: 赤**: `python3 -m unittest discover -s tests/layers -t . -v`
 - [ ] **Step 3: YAML と仮の script を書く**。往復の `loop_group` に include を置けるかは未決 U4。置けなければ往復は段 1 の課題として、段 0 は 1 回だけ回す形にし、その旨を YAML のコメントと `docs/design.md` の U4 に書く
-- [ ] **Step 4: 緑**。加えて `archon workflow run works-factory-line --dry-run`（v0.11.1 の筋書きの試し）が通るかを見て、結果を `docs/design.md` の U3 に書く
+- [ ] **Step 4: 緑**。加えて `archon workflow run works-factory-line --dry-run`（筋書きの試し）が通るかを見て、結果を `docs/design.md` の U3 に書く
 - [ ] **Step 5: commit**: `git commit -m "feat(workflows): 線の骨組みと仮のブロック"`
 
 ### Task 5: 人の打つ口
@@ -133,15 +135,15 @@
 - Test: `tests/bin/test_cli.py`
 
 **Interfaces:**
-- Consumes: Task 1 の `pack.load`・`place.*`
+- Consumes: Task 1 の `pack.load`・`place.archon_source`・`place.workflow_source`・`place.workflow_run`
 - Produces:
-  - `cli.start(target: Path, request: str, archon: Callable[[list[str]], str]) -> str`（配置してから `archon workflow run works-factory-line` を起こし、run の id を返す）
+  - `cli.start(target: Path, request: str, archon: Callable[[list[str]], str]) -> str`（`place.workflow_run` の命令で `works-factory-line` を置かずに起こし、run の id を返す）
   - `cli.answer(run_id: str, text: str, archon) -> None`・`cli.show(run_id: str, archon) -> str`
   - Archon は引数の `archon` 関数で呼ぶ（試験は偽の関数を渡す）。本物の起こし方（認証の切り替えと置き場の隔離）は Task 6 の物で、Task 5 と Task 6 をつなぐのは段 1。
 - 持ち主の居ない `running` の扱い（埋め P1）は段 1 で足す。段 0 の `show` は Archon の状態をそのまま出す。
 
 - [ ] **Step 1: 試験を書く**（偽の `archon` 関数で引数を記録）
-  - `test_start_places_then_runs`: 配置が先、次に `workflow run works-factory-line`
+  - `test_start_runs_from_workflow_source`: `workflow run` に `--cwd` と `--workflow-source` が利用者の引数より前に付く
 - [ ] **Step 2: 赤**: `python3 -m unittest tests.bin.test_cli -v`
 - [ ] **Step 3: 実装**
 - [ ] **Step 4: 緑**。全部の試験 `uv run --isolated python3 -m unittest discover -s . -t .` が緑
@@ -159,7 +161,7 @@
 **Interfaces:**
 - 根の `AGENTS.md` の E14・E18 と `bin/AGENTS.md` の E15 のとおり。作り直さない。直すのは今の works だけの事情（写しの同期の説明・works の置き場の名・`WORKS_` で始まる環境変数の名・持ち主の環境の字 `raiki61` など。E14）だけで、直した所を commit に書く。
 - 既定はホストのログインのまま（`claude /login` の人・API キー・会社のゲートウェイの人がそのまま動く）。選べる道: Claude のアカウントを keychain の項目の名で選ぶ（選んだ時はそれより上に効く資格を子に渡さない）・GitHub のアカウントを名で選ぶ（`hostgh.py`）・Archon の家の置き場を選ぶ。値は利用者の設定（リポジトリの外）か引数で渡す。どの出どころの認証で起こしたかを 1 行出す。
-- Archon の実行ファイルは Task 1 の `place.archon_binary` で取る（`archon.sh` の取り寄せは持ってこない。E15）。
+- Archon は Task 1 の `place.archon_source` で取った源から起こす（`archon.sh` の実行ファイルの取り寄せは持ってこない。E15）。
 - Task 5 の `bin/_lib/cli.py`・`bin/start` などには触らない。これが入って Task 5 とつながったら（段 1）、ASF もこの入口から起こし、今の仮の殻 `~/.local/state/works-factory/bin/asf-env` は捨てる。
 
 - [ ] **Step 1: 元の試験と試験の助けを持ってきて、直した名に合わせる**（赤）
@@ -183,6 +185,6 @@
 
 ## 段 0 の終わりの確かめ
 
-- [ ] 全部の試験が緑。見送りは Archon の実行ファイルが無い時だけ。
+- [ ] 全部の試験が緑。見送りは Archon の源が無い時だけ。
 - [ ] `docs/design.md` の U3・U4 に分かった事を書いた。
 - [ ] `docs/archon-polyfills.md` の行と `workflows/.shared/` が揃う（`test_polyfills_listed`）。

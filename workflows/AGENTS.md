@@ -5,10 +5,10 @@
 
 ## E1 YAML は変換せずに Archon に渡す
 
-- `workflows/` の YAML は手で書き、`bin/` はバイトを変えずに Archon の家（`$ARCHON_HOME/workflows/works-factory/`）に置く。生成・前処理・鍵の削りをしない。
-- 作りの規則は Archon の `workflow-language-constitution.md`（v0.11.1 に在る。要点「YAML coordinates. Code computes. Agents judge.」）。YAML は節の順・関所・繰り返し・入出力の配線だけを持つ。値の計算は `script:` の節か役の指示書に置く。
-- Archon の確かめ（`archon validate workflows`）が警告なしで通る。
-- 機械: `tests/layers/test_no_conversion.py`（置いた物と `workflows/` のバイト一致）・`tests/layers/test_archon_validate.py`（確かめの結果に誤りも警告も無い）。
+- `workflows/` の YAML は手で書き、`bin/` は写さずに Archon に読ませる（`--workflow-source` に渡す置き場の `.archon/workflows` がこのフォルダを指す。`bin/_lib/place.py`）。Archon は run の始めにその中身をバイトのまま写し取る。生成・前処理・鍵の削りをしない。
+- 作りの規則は Archon の `workflow-language-constitution.md`（Archon の源の `.archon/workflow-language-constitution.md`。要点「YAML coordinates. Code computes. Agents judge.」）。YAML は節の順・関所・繰り返し・入出力の配線だけを持つ。値の計算は `script:` の節か役の指示書に置く。
+- Archon の確かめ（`archon validate workflows`）が警告なしで通る。`validate` は `--workflow-source` を受けず黙って捨て、`--cwd` は git の木しか受けないので、`.archon/workflows` がこのフォルダを指す使い捨ての git の木を `--cwd` に渡す。
+- 機械: `tests/layers/test_no_conversion.py`（Archon が読む所と `workflows/` のバイト一致）・`tests/layers/test_archon_validate.py`（確かめの結果に誤りも警告も無い）。
 
 ## E2 境の中身は全部、名簿に載せる
 
@@ -20,7 +20,7 @@
 
 - ブロック（`workflows/<名>/`）の script は、ほかのブロックのフォルダへのパスを組まない。受け取りは `with:` の入力・前の節の返り・指し札（`archon_artifact`）・型つきの成果物（`output_type`）だけ。
 - ブロックの script は `lib/` と境の口を呼ぶだけで、確かめの中身を持たない。
-- 機械: `tests/layers/test_block_paths.py`（ブロックの `scripts/` とブロックの YAML（直に書いた script）の字に、ほかのブロックを指すパス（`workflows/<名>/`・置いた先の `workflows/works-factory/<名>/`・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のブロックの外への相対パスも無い）。
+- 機械: `tests/layers/test_block_paths.py`（ブロックの `scripts/` とブロックの YAML（直に書いた script）の字に、ほかのブロックを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/<名>/`・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のブロックの外への相対パスも無い）。
 
 ## E5 ブロックの返りは 1 つの節の構造体
 
@@ -44,7 +44,7 @@
 ## E12 期限・タイムアウトを置かない
 
 - YAML の節にも script にも期限を置かない。止める時は止め札で止める。持ち主の決め `no-timeouts`。
-- Archon は鍵を書かない節にも既定の期限を当てる（`script:` の節は 2 分で打ち切る。Archon の文書 `guides/script-nodes.md` の `timeout`「Default: `120000`」）。だから期限を外すには、期限を持つ節に実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値）を書く。期限を持つ節と鍵は次のとおり（v0.11.1 の実行ファイルで確かめた）。
+- Archon は鍵を書かない節にも既定の期限を当てる（`script:` の節は 2 分で打ち切る。Archon の文書 `packages/docs-web/src/content/docs/guides/script-nodes.md` の `timeout`「Default: `120000` (2 min)」）。だから期限を外すには、期限を持つ節に実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値）を書く。期限を持つ節と鍵は次のとおり（止めた Archon（`docs/design.md` の「語」）の `packages/workflows/src/schemas/dag-node.ts`・`dag-executor.ts` で確かめた）。
   - `script:`・`bash:` の `timeout`
   - `prompt:`・`command:` の `idle_timeout`
   - `loop:` の `idle_timeout`（1 周ごと）と `timeout`（`until_bash` の確かめ。無いと 120000 ms で打ち切る）

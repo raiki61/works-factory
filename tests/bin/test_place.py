@@ -1,18 +1,17 @@
-"""版の取り寄せと Archon の家への配置（bin/_lib/pack.py・place.py）の試験。網には出ない（偽の download・fetch を渡す）。"""
+"""版の取り寄せと置かずに起こす形（bin/_lib/pack.py・place.py）の試験。網には出ない（偽の fetch・install を渡す）。"""
 import copy
-import hashlib
 import json
-import os
 import pathlib
-import re
+import shutil
 import tempfile
 import unittest
 from unittest import mock
 
 from bin._lib import pack, place
+from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-BINARY = b"fake archon binary"
+ASF_YAML = ".archon/workflows/sdlc/archon-a.yaml"
 
 
 def files(root):
@@ -25,193 +24,221 @@ def write(path, data):
     path.write_bytes(data)
 
 
-class PlaceTest(unittest.TestCase):
+class PackTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        for rel in ("pack.json", "factory/pack.json"):
+            write(self.tmp / rel, (ROOT / rel).read_bytes())
+
+    def change(self, rel, edit):
+        path = self.tmp / rel
+        data = json.loads(path.read_text(encoding="utf-8"))
+        edit(data)
+        path.write_text(json.dumps(data), encoding="utf-8")
+
+    def test_archon_version_comes_from_the_asf_pin_only(self):
+        asf_pin = json.loads((ROOT / "factory/pack.json").read_text(encoding="utf-8"))
+        loaded = pack.load(ROOT)
+        self.assertEqual(loaded["archon"]["commit"], asf_pin["integration_revision_required"])
+        self.assertEqual(loaded["archon"]["repo"], asf_pin["repository"])
+        self.assertEqual(loaded["asf"]["folder"], asf_pin["source_directory"])
+        self.assertNotIn(asf_pin["integration_revision_required"], (ROOT / "pack.json").read_text(encoding="utf-8"))
+
+    def test_asf_moving_its_pin_moves_ours(self):
+        self.change("factory/pack.json", lambda data: data.update(integration_revision_required="0" * 40))
+        self.assertEqual(pack.load(self.tmp)["archon"]["commit"], "0" * 40)
+
+    def test_load_rejects_missing_keys(self):
+        self.change("factory/pack.json", lambda data: data.pop("integration_revision_required"))
+        self.change("pack.json", lambda data: data["ours"].pop("folder"))
+        with self.assertRaisesRegex(ValueError, r"ours\.folder.*integration_revision_required"):
+            pack.load(self.tmp)
+
+    def test_load_rejects_commit_that_is_not_a_full_sha(self):
+        for value in ("factory/sdlc-on-dev", "d97d00ef", "D97D00EF15CCE4B15D39E42635E4E86996EC1351", 1, None):
+            with self.subTest(value=value):
+                self.change("factory/pack.json", lambda data: data.update(integration_revision_required=value))
+                with self.assertRaisesRegex(ValueError, "integration_revision_required"):
+                    pack.load(self.tmp)
+
+
+class ArchonSourceTest(unittest.TestCase):
+    """源は手元の使い捨ての git リポジトリから本物の git_fetch で取る。install（bun）は偽"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        self.cache = self.tmp / "cache"
+        self.installed = []
+        which = mock.patch.object(place.shutil, "which", return_value="/bin/bun")
+        self.which = which.start()
+        self.addCleanup(which.stop)
+        self.pack = self.upstream("up", {place.ENTRY: b"cli", ASF_YAML: b"a"})
+
+    def upstream(self, name, files_by_path):
+        """files_by_path を 1 本の commit にした git リポジトリを作り、それを指す pack を返す"""
+        repo = self.tmp / name
+        for rel, data in {".gitignore": b"node_modules/\n", **files_by_path}.items():
+            write(repo / rel, data)
+        git(repo, "init", "-q")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "seed")
+        loaded = pack.load(ROOT)
+        loaded["archon"] = {"repo": repo.as_uri(), "commit": git(repo, "rev-parse", "HEAD")}
+        return loaded
+
+    def install(self, source):
+        self.installed.append(source.name)
+        write(source / "node_modules/.installed", b"")
+
+    def source(self, pack_=None, fetch=place.git_fetch):
+        return place.archon_source(pack_ or self.pack, self.cache, fetch, self.install)
+
+    def test_fetches_installs_and_holds_entry_and_asf(self):
+        source = self.source()
+        self.assertEqual(source, self.cache / "archon" / self.pack["archon"]["commit"])
+        self.assertTrue((source / place.ENTRY).is_file())
+        self.assertTrue((source / self.pack["asf"]["folder"] / "archon-a.yaml").is_file())
+        self.assertTrue((source / "node_modules/.installed").is_file())
+
+    def test_cached_no_fetch(self):
+        first = self.source()
+
+        def fetch(repo, commit, dest):
+            self.fail("同じ commit の源が在るのに fetch を呼んだ")
+
+        self.assertEqual(self.source(fetch=fetch), first)
+        self.assertEqual(len(self.installed), 1)
+
+    def test_broken_cache_is_refused_with_the_way_back(self):
+        def edit(source):
+            (source / place.ENTRY).write_bytes(b"edited")
+
+        def move_head(source):
+            write(source / "extra", b"x")
+            git(source, "add", "extra")
+            git(source, "commit", "-q", "-m", "moved")
+
+        def drop_deps(source):
+            (source / "node_modules/.installed").unlink()
+            (source / "node_modules").rmdir()
+
+        for name, breaks, said in (("edited", edit, place.ENTRY), ("moved", move_head, "HEAD"),
+                                   ("no deps", drop_deps, "node_modules")):
+            with self.subTest(name):
+                shutil.rmtree(self.cache, ignore_errors=True)
+                source = self.source()
+                breaks(source)
+                with self.assertRaisesRegex(RuntimeError, said) as caught:
+                    self.source()
+                self.assertIn(f'rm -rf "{source}"', str(caught.exception))
+
+    def test_without_bun_stops_before_fetching(self):
+        self.which.return_value = None
+
+        def fetch(repo, commit, dest):
+            self.fail("bun が無いのに fetch を呼んだ")
+
+        with self.assertRaisesRegex(RuntimeError, r"bun が無い.*https://bun\.sh"):
+            self.source(fetch=fetch)
+        self.assertFalse(self.cache.exists())
+
+    def test_incomplete_source_is_refused(self):
+        for missing in (place.ENTRY, ASF_YAML):
+            with self.subTest(missing=missing):
+                partial = {place.ENTRY: b"cli", ASF_YAML: b"a"}
+                del partial[missing]
+                partial_pack = self.upstream(f"partial-{len(missing)}", partial)
+                with self.assertRaisesRegex(RuntimeError, missing.rsplit("/", 1)[0]):
+                    self.source(partial_pack)
+                self.assertFalse((self.cache / "archon" / partial_pack["archon"]["commit"]).exists())
+
+    def test_failure_leaves_previous_source(self):
+        before = files(self.source())
+        newer = copy.deepcopy(self.pack)
+        newer["archon"]["commit"] = "0" * 40
+
+        def broken_fetch(repo, commit, dest):
+            write(dest / "half", b"half")
+            raise OSError("network is unreachable")
+
+        def broken_install(source):
+            raise OSError("bun: command not found")
+
+        commit = self.pack["archon"]["commit"]
+        newest = self.upstream("newest", {place.ENTRY: b"cli2", ASF_YAML: b"a"})
+        for name, pack_, fetch, install in (("fetch", newer, broken_fetch, self.install),
+                                            ("install", newest, place.git_fetch, broken_install)):
+            with self.subTest(step=name):
+                with self.assertRaisesRegex(RuntimeError, pack_["archon"]["commit"]) as caught:
+                    place.archon_source(pack_, self.cache, fetch, install)
+                self.assertNotIn("\n", str(caught.exception))
+                self.assertEqual(files(self.cache / "archon" / commit), before)
+                self.assertEqual(sorted(p.name for p in (self.cache / "archon").iterdir()), [commit])
+
+
+class WorkflowSourceTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.tmp = pathlib.Path(tmp.name)
         self.pack = pack.load(ROOT)
-        self.pack["archon"]["assets"] = {place.asset_name(): hashlib.sha256(BINARY).hexdigest()}
         self.cache = self.tmp / "cache"
-        self.home = self.tmp / "archon-home"
         self.root = self.tmp / "repo"
         write(self.root / "workflows/line/works-factory-line.yaml", b"name: works-factory-line\r\n")
         write(self.root / "workflows/.shared/boundary.py", b"\x00\xff bytes\n")
-        write(self.root / "pack.json", b"{}")
 
-    def fake_fetch(self, files_by_path):
-        def fetch(repo, commit, folder, dest):
-            for rel, data in files_by_path.items():
-                write(dest / rel, data)
-        return fetch
+    def test_archon_reads_the_repo_workflows_through_it(self):
+        shim = place.workflow_source(self.pack, self.root, self.cache)
+        self.assertEqual(files(shim / place.WORKFLOW_FOLDER), files(self.root / "workflows"))
 
-    def test_load_rejects_missing_keys(self):
-        data = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))
-        del data["asf"]["commit"]
-        (self.tmp / "pack.json").write_text(json.dumps(data), encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, r"asf\.commit"):
-            pack.load(self.tmp)
-
-    def write_pack(self, ours_placed_at, asf_placed_at):
-        data = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))
-        data["ours"]["placed_at"] = ours_placed_at
-        data["asf"]["placed_at"] = asf_placed_at
-        (self.tmp / "pack.json").write_text(json.dumps(data), encoding="utf-8")
-
-    def test_load_rejects_placed_at_outside_own_folder(self):
-        for value in ("workflows", "workflows/", "", "..", "/tmp/asf", "workflows/..", "workflows/asf/sub", None):
-            with self.subTest(value=value):
-                self.write_pack("workflows/works-factory", value)
-                with self.assertRaisesRegex(ValueError, r"asf\.placed_at"):
-                    pack.load(self.tmp)
-
-    def test_load_rejects_equal_placed_at(self):
-        self.write_pack("workflows/same", "workflows/same")
-        with self.assertRaisesRegex(ValueError, r"ours\.placed_at と asf\.placed_at"):
-            pack.load(self.tmp)
-
-    def test_binary_sha_mismatch_names_path(self):
-        def download(repo, release, dest_dir):
-            path = dest_dir / place.asset_name()
-            write(path, b"something else")
-            return path
-
-        with self.assertRaises(RuntimeError) as caught:
-            place.archon_binary(self.pack, self.cache, download)
-        expected = self.cache / "archon" / self.pack["archon"]["release"] / place.asset_name()
-        self.assertIn(str(expected), str(caught.exception))
-
-    def test_binary_cached_no_download(self):
-        cached = self.cache / "archon" / self.pack["archon"]["release"] / place.asset_name()
-        write(cached, BINARY)
-
-        def download(repo, release, dest_dir):
-            self.fail("キャッシュに正しい中身が在るのに download を呼んだ")
-
-        self.assertEqual(place.archon_binary(self.pack, self.cache, download), cached)
-
-    def test_binary_cached_sha_mismatch_keeps_file(self):
-        cached = self.cache / "archon" / self.pack["archon"]["release"] / place.asset_name()
-        write(cached, b"truncated")
-
-        def download(repo, release, dest_dir):
-            self.fail("キャッシュに在るのに download を呼んだ")
-
-        with self.assertRaisesRegex(RuntimeError, re.escape(str(cached))):
-            place.archon_binary(self.pack, self.cache, download)
-        self.assertEqual(cached.read_bytes(), b"truncated")
-
-    def test_binary_is_executable(self):
-        def download(repo, release, dest_dir):
-            path = dest_dir / place.asset_name()
-            write(path, BINARY)
-            path.chmod(0o644)
-            return path
-
-        self.assertTrue(os.access(place.archon_binary(self.pack, self.cache, download), os.X_OK))
-
-    def test_asf_cached_no_fetch(self):
-        first = place.asf_tree(self.pack, self.cache, self.fake_fetch({"archon-a.yaml": b"a"}))
-
-        def fetch(repo, commit, folder, dest):
-            self.fail("同じ commit の ASF が在るのに fetch を呼んだ")
-
-        self.assertEqual(place.asf_tree(self.pack, self.cache, fetch), first)
-        self.assertEqual(files(first), {"archon-a.yaml": b"a"})
-
-    def test_asf_refetches_when_folder_changes(self):
-        place.asf_tree(self.pack, self.cache, self.fake_fetch({"old.yaml": b"old"}))
-        moved = copy.deepcopy(self.pack)
-        moved["asf"]["folder"] = ".archon/workflows/other"
-        asf_dir = place.asf_tree(moved, self.cache, self.fake_fetch({"new.yaml": b"new"}))
-        self.assertEqual(files(asf_dir), {"new.yaml": b"new"})
-
-    def test_asf_refetches_when_repo_changes(self):
-        place.asf_tree(self.pack, self.cache, self.fake_fetch({"old.yaml": b"old"}))
-        forked = copy.deepcopy(self.pack)
-        forked["asf"]["repo"] = "someone/fork"
-        asf_dir = place.asf_tree(forked, self.cache, self.fake_fetch({"new.yaml": b"new"}))
-        self.assertEqual(files(asf_dir), {"new.yaml": b"new"})
-
-    def test_asf_refetches_when_record_missing_or_broken(self):
-        record = self.cache / "asf" / f"{self.pack['asf']['commit']}.json"
-        damages = {"missing": record.unlink, "broken": lambda: record.write_text("{", encoding="utf-8")}
-        for name, damage in damages.items():
-            with self.subTest(record=name):
-                place.asf_tree(self.pack, self.cache, self.fake_fetch({"old.yaml": b"old"}))
-                damage()
-                asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"new.yaml": b"new"}))
-                self.assertEqual(files(asf_dir), {"new.yaml": b"new"})
-
-    def test_asf_record_write_failure_does_not_vouch_for_new_tree(self):
-        place.asf_tree(self.pack, self.cache, self.fake_fetch({"old.yaml": b"old"}))
-        moved = copy.deepcopy(self.pack)
-        moved["asf"]["folder"] = ".archon/workflows/other"
-        with mock.patch.object(pathlib.Path, "write_text", side_effect=OSError("disk full")), \
-                self.assertRaisesRegex(OSError, "disk full"):
-            place.asf_tree(moved, self.cache, self.fake_fetch({"moved.yaml": b"moved"}))
-        asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"old.yaml": b"old"}))
-        self.assertEqual(files(asf_dir), {"old.yaml": b"old"})
-
-    def test_place_is_byte_identical(self):
-        asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"archon-a.yaml": b"a"}))
-        place.place(self.pack, self.root, self.home, asf_dir)
-        self.assertEqual(files(self.home / "workflows/works-factory"), files(self.root / "workflows"))
-        self.assertEqual(files(self.home / "workflows/asf"), {"archon-a.yaml": b"a"})
-
-    def test_place_touches_only_own_folders(self):
-        write(self.home / "workflows/other/x.yaml", b"other")
-        write(self.home / "workflows/archon-foo.yaml", b"foo")
-        write(self.home / "workflows/works-factory/stale.yaml", b"stale")
-        asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"archon-a.yaml": b"a"}))
-        place.place(self.pack, self.root, self.home, asf_dir)
-        self.assertEqual((self.home / "workflows/other/x.yaml").read_bytes(), b"other")
-        self.assertEqual((self.home / "workflows/archon-foo.yaml").read_bytes(), b"foo")
-        self.assertEqual(
-            sorted(p.name for p in (self.home / "workflows").iterdir()),
-            ["archon-foo.yaml", "asf", "other", "works-factory"],
-        )
-        self.assertEqual(files(self.home / "workflows/works-factory"), files(self.root / "workflows"))
-
-    def test_place_copy_failure_leaves_previous_placement(self):
-        asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"archon-a.yaml": b"a"}))
-        place.place(self.pack, self.root, self.home, asf_dir)
-        before = files(self.home / "workflows")
+    def test_edits_in_the_repo_show_without_placing_again(self):
+        shim = place.workflow_source(self.pack, self.root, self.cache)
         write(self.root / "workflows/line/added.yaml", b"added")
+        self.assertEqual((shim / place.WORKFLOW_FOLDER / "line/added.yaml").read_bytes(), b"added")
 
-        def broken_copy(src, dest, **kwargs):
-            write(dest / "half.yaml", b"half")
-            raise OSError("disk full")
+    def test_same_root_same_place_and_other_root_other_place(self):
+        first = place.workflow_source(self.pack, self.root, self.cache)
+        self.assertEqual(place.workflow_source(self.pack, self.root / "workflows" / "..", self.cache), first)
+        other = self.tmp / "other"
+        write(other / "workflows/x.yaml", b"x")
+        self.assertNotEqual(place.workflow_source(self.pack, other, self.cache), first)
 
-        with mock.patch.object(place.shutil, "copytree", broken_copy), self.assertRaisesRegex(OSError, "disk full"):
-            place.place(self.pack, self.root, self.home, asf_dir)
-        self.assertEqual(files(self.home / "workflows"), before)
-        self.assertEqual(sorted(p.name for p in (self.home / "workflows").iterdir()), ["asf", "works-factory"])
+    def test_foreign_entry_is_not_used(self):
+        shim = place.workflow_source(self.pack, self.root, self.cache)
+        link = shim / place.WORKFLOW_FOLDER
+        link.unlink()
+        write(link / "x.yaml", b"foreign")
+        with self.assertRaisesRegex(RuntimeError, str(link)):
+            place.workflow_source(self.pack, self.root, self.cache)
 
-    def test_fetch_failure_leaves_previous_placement(self):
-        asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"archon-a.yaml": b"before"}))
-        place.place(self.pack, self.root, self.home, asf_dir)
-        before = files(self.home / "workflows/asf")
+    def test_symlink_refusal_names_the_place(self):
+        with mock.patch.object(pathlib.Path, "symlink_to", side_effect=OSError(1, "Operation not permitted")):
+            with self.assertRaisesRegex(RuntimeError, r"workflow-source.*Operation not permitted"):
+                place.workflow_source(self.pack, self.root, self.cache)
 
-        newer = copy.deepcopy(self.pack)
-        newer["asf"]["commit"] = "0" * 40
+    def test_repo_and_archon_home_are_untouched(self):
+        home = self.tmp / "archon-home"
+        write(home / "workflows/archon-foo.yaml", b"foo")
+        before = files(self.root), files(home)
+        place.workflow_source(self.pack, self.root, self.cache)
+        self.assertEqual((files(self.root), files(home)), before)
 
-        def fetch(repo, commit, folder, dest):
-            write(dest / "half.yaml", b"half")
-            raise OSError("network is unreachable")
 
-        with self.assertRaisesRegex(RuntimeError, "0{40}") as caught:
-            place.asf_tree(newer, self.cache, fetch)
-        self.assertNotIn("\n", str(caught.exception))
-        self.assertEqual(files(self.home / "workflows/asf"), before)
-        commit = self.pack["asf"]["commit"]
-        self.assertEqual(sorted(p.name for p in (self.cache / "asf").iterdir()), [commit, f"{commit}.json"])
-
-    def test_repo_never_gets_asf_files(self):
-        before = files(self.root)
-        asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"archon-a.yaml": b"a"}))
-        place.place(self.pack, self.root, self.home, asf_dir)
-        self.assertEqual(files(self.root), before)
+class WorkflowRunTest(unittest.TestCase):
+    def test_source_flags_come_before_caller_arguments(self):
+        source, shim, cwd = pathlib.Path("/src"), pathlib.Path("/shim"), pathlib.Path("/target")
+        self.assertEqual(
+            place.workflow_run(source, shim, cwd, "works-factory-line", "--", "--workflow-source", "x"),
+            [
+                "bun", str(source / place.ENTRY),
+                "workflow", "run", "--cwd", str(cwd), "--workflow-source", str(shim),
+                "works-factory-line", "--", "--workflow-source", "x",
+            ],
+        )
 
 
 if __name__ == "__main__":
