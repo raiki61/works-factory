@@ -1,13 +1,17 @@
-"""人が関所に答える行（answer.head・answer.line）の検査。env を直に渡す純な関数だけ。"""
+"""関所の答えの行（lib/answer.py）。起動の殻が置く頭で打てる行になる事と、殻の外の穴の字（FAST）"""
 import pathlib
+import shlex
 import sys
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
+sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
-
 import answer  # noqa: E402
+
+SHELL = "/opt/works factory/bin/works-factory"
+TARGET = "/home/me/my repo"
 
 
 class HeadCase(unittest.TestCase):
@@ -33,6 +37,17 @@ class LineCase(unittest.TestCase):
     def test_unknown_verb_raises(self):
         with self.assertRaises(ValueError):
             answer.line("r", "maybe", "n", env={answer.ENV: "H"})
+
+    def test_shell_head_makes_a_typeable_respond(self):
+        env = {answer.ENV: shlex.join([SHELL, "workflow", "respond", "--cwd", TARGET])}
+        self.assertEqual(shlex.split(answer.line("run-1", "continue", "x", env=env)),
+                         [SHELL, "workflow", "respond", "--cwd", TARGET, "run-1", "continue", "x"])
+
+    def test_outside_the_shell_the_head_is_the_hole(self):
+        self.assertEqual(answer.head(env={}), answer.HOLE)
+        self.assertTrue(answer.line("run-1", "stop", "x", env={}).startswith(answer.HOLE + " "))
+        self.assertIn("bin/works-factory workflow respond --cwd", answer.HOLE)
+        self.assertNotIn("use.sh", answer.HOLE)
 
 
 if __name__ == "__main__":

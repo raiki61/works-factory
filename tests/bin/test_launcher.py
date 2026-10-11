@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import pathlib
+import shlex
 import shutil
 import subprocess
 import sys
@@ -174,6 +175,16 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(env["ARCHON_TELEMETRY_DISABLED"], "1")
         self.assertEqual(env["DO_NOT_TRACK"], "1")
         self.assertEqual(env["WORKS_FACTORY_ROOT"], str(self.repo))
+
+    def test_child_env_carries_answer_head(self):
+        """関所の答えの行の頭は殻を通す respond（答えた者の欄は Archon に無いので置かない）。利用者の値より殻の値"""
+        for user_value in ({}, {"WORKS_ANSWER_CMD": "sh use.sh answer x", "WORKS_ANSWER_WHO": "someone"}):
+            with self.subTest(user=user_value):
+                env = self.reached(self.launch("workflow", "status", cwd=self.target / "sub", **user_value))["env"]
+                self.assertEqual(shlex.split(env["WORKS_ANSWER_CMD"]),
+                                 [str(self.repo / "bin" / "works-factory"), "workflow", "respond", "--cwd",
+                                  os.path.realpath(self.target)])
+                self.assertNotIn("WORKS_ANSWER_WHO", env)
 
     def test_user_values_are_taken_before_isolation(self):
         """利用者の HOME と生の CLAUDE_CONFIG_DIR（相対なら打った場所から絶対に直した物）で認証を引き、埋めた値でプラグインを探す"""

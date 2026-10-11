@@ -6,6 +6,7 @@ B の「約束」1〜11）。止まる時は Archon を起こさない。トー�
 """
 import hashlib
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -75,6 +76,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     heads = [str(hostgh.NO_POST_BIN), str(Path(shim).parent)] if shim else []
     child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
     child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", WORKS_FACTORY_ROOT=str(ROOT))
+    # 関所の文の答えの行の頭（lib/answer.py の ENV・WHO_ENV）。respond に答えた者の引数は無い
+    child["WORKS_ANSWER_CMD"] = shlex.join([str(ROOT / "bin" / NAME), "workflow", "respond", "--cwd", str(target)])
+    child.pop("WORKS_ANSWER_WHO", None)
     if not no_auth and mise_trusts(user, target):
         workspaces = Path(child["ARCHON_HOME"]) / "workspaces"
         workspaces.mkdir(parents=True, exist_ok=True)
