@@ -326,26 +326,80 @@ class AskFinalReadsCase(Artifacts):
         path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         return {"type": "archon_artifact", "run_id": RUN, "path": rel}
 
-    def test_held_questions_come_from_the_judgment(self):
-        fork = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "割れる"}
-        ptr = self.place("judge/judgment.json", {"units": [], "questions": [
-            fork, {**fork, "key": "q2", "status": "answered"}, {**fork, "key": "q3", "kind": "awaiting", "status": "escalate"}]})
-        held, unread = ask_final.held_questions(ptr, answered=False)
-        self.assertEqual(([q.split("（")[0] for q in held], unread), ([f"{gatemarks.ASK_HEAD} q1", f"{gatemarks.ASK_HEAD} q3"], ""))
-        self.assertEqual(ask_final.held_questions(ptr, answered=True), ([], ""))
-        self.assertEqual(ask_final.held_questions(None, answered=False), ([], ""))
+    def judgment(self, questions, units=("u1",)):
+        return self.place("judge/judgment.json", {"units": [{"key": k} for k in units], "questions": questions})
+
+    def held(self, questions, *, answers=(), before_fix=None, asked=(), units=("u1",)):
+        start_ptr = self.place("start.json", {"answers": list(answers)})
+        held, unread = ask_final.held_questions(self.judgment(questions, units), start_ptr, before_fix, list(asked))
+        self.assertEqual(unread, "")
+        return held
+
+    FORK = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "割れる"}
+
+    def test_held_questions_are_every_asking_question_not_answered(self):
+        """元 gatemarks.held_lines: 人に聞く状態（held・escalate）の問いは kind を問わず並べ、答えた（answered）問いは並べない"""
+        other = {**self.FORK, "key": "q3", "kind": "field", "status": "held"}
+        got = self.held([self.FORK, {**self.FORK, "key": "q2", "status": "answered"}, other,
+                         {**self.FORK, "key": "q4", "kind": "awaiting", "status": "escalate"}])
+        self.assertEqual([q.split("（")[0] for q in got], [f"{gatemarks.ASK_HEAD} {k}" for k in ("q1", "q3", "q4")])
+        self.assertIn(f"／{gatemarks.ANSWER_KEY_HEAD}: \"q1\"", got[0])
+        self.assertIn("答えが無いと直さない単位: u1", got[0])
+
+    def test_before_fix_answer_answers_only_the_questions_it_was_asked(self):
+        q2 = {**self.FORK, "key": "q2", "origin": "u2"}
+        passed = {"decision": "continue", "text": "a を選ぶ"}
+        got = self.held([self.FORK, q2], before_fix=passed, asked=[gatemarks.ask_text(self.FORK)], units=("u1", "u2"))
+        self.assertEqual([q.split("（")[0] for q in got], [f"{gatemarks.ASK_HEAD} q2"])
+
+    def test_hold_names_keep_each_question_held(self):
+        """一言の「保留: <key>」で名指した問いは、関所に載せて continue で通しても保留のまま（問いごと）"""
+        q2 = {**self.FORK, "key": "q2", "origin": "u2"}
+        asked = [gatemarks.ask_text(self.FORK), gatemarks.ask_text(q2)]
+        got = self.held([self.FORK, q2], before_fix={"decision": "approve", "text": "q1 は a。保留: q2"}, asked=asked,
+                        units=("u1", "u2"))
+        self.assertEqual([q.split("（")[0] for q in got], [f"{gatemarks.ASK_HEAD} q2"])
+
+    def test_stopped_or_absent_gate_answers_nothing(self):
+        for before_fix in (None, {"decision": "stop", "text": "やめる"}):
+            with self.subTest(before_fix=before_fix):
+                self.assertEqual(len(self.held([self.FORK], before_fix=before_fix, asked=[gatemarks.ask_text(self.FORK)])), 1)
+
+    def test_request_answers_answer_by_key_or_origin(self):
+        self.assertEqual(self.held([self.FORK], answers=[{"question": "q1", "text": "a"}]), [])
+        self.assertEqual(self.held([self.FORK], answers=[{"question": "u1", "text": "a"}]), [])
+        both = [self.FORK, {**self.FORK, "key": "q2"}]
+        self.assertEqual(len(self.held(both, answers=[{"question": "u1", "text": "a"}])), 2, "2 つの問いに当たる答えはどれにも答えない")
+
+    def test_answered_unit_missing_from_the_judgment_is_said(self):
+        got = self.held([self.FORK], answers=[{"question": "q1", "text": "a"}], units=())
+        self.assertEqual(got, ["関所で答えたが直す単位に入れられなかった: q1・u1（理由: 今の周の判定に無い）"])
 
     def test_unreadable_judgment_is_said(self):
-        held, unread = ask_final.held_questions({"type": "archon_artifact", "run_id": "another", "path": "x.json"}, answered=False)
+        held, unread = ask_final.held_questions({"type": "archon_artifact", "run_id": "another", "path": "x.json"}, None, None, [])
         self.assertEqual(held, [])
-        self.assertIn("判定の問いの控えを読めない", unread)
+        self.assertIn("判定の問いの控えか始めの記録を読めない", unread)
+        self.assertEqual(ask_final.held_questions(None, None, None, []), ([], ""))
 
     def test_fence_rows_come_from_the_structure_after(self):
         rise = {"concept": "止め", "what": "語", "path": "a.py", "before": 1, "after": 2}
         ptr = self.place("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
                                                        "after": {"tables": ["t"], "fence_up": [rise]}})
-        self.assertEqual([row["where"] for row in ask_final.fenced_rows(ptr)], ["a.py"])
-        self.assertEqual(ask_final.fenced_rows(None), [])
+        rows, unread = ask_final.fenced_rows(ptr)
+        self.assertEqual(([row["where"] for row in rows], unread), (["a.py"], ""))
+        self.assertEqual(ask_final.fenced_rows(None), ([], ""))
+
+    def test_unreadable_structure_after_is_said(self):
+        rows, unread = ask_final.fenced_rows({"type": "archon_artifact", "run_id": "another", "path": "eyes/structure-after.json"})
+        self.assertEqual(rows, [])
+        self.assertIn("指し札を読めない", unread)
+        rows, unread = ask_final.fenced_rows(self.place("eyes/structure-after.json", {"status": "?"}))
+        self.assertEqual(rows, [])
+        self.assertIn("控え structure-after.json を読めない", unread)
+
+    def test_unread_is_shown_in_the_gate_text(self):
+        text = ask_final.final_text(final_got(unread=["読めない訳"]), [], RUN)
+        self.assertIn("- 読めない訳", text)
 
 
 class PlanOutCase(unittest.TestCase):
@@ -601,8 +655,8 @@ class GateDecisionsCase(unittest.TestCase):
 class Recorded(dict):
     """読まれた環境変数の名を控える os.environ の代わり"""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kw):
+        super().__init__(**kw)
         self.read = set()
 
     def get(self, key, default=None):
@@ -618,6 +672,7 @@ class LineWiringCase(unittest.TestCase):
         "judged": lambda: judged.from_env(),
         "fixed": lambda: fixed.from_env(),
         "collect": lambda: (collect.received_of_env(), collect.line_of_env()),
+        "ask-final": lambda: ask_final.from_env(),
     }
 
     def test_with_keys_are_what_the_script_reads(self):
@@ -625,7 +680,7 @@ class LineWiringCase(unittest.TestCase):
         readers = {**self.READERS, **{key: returned.from_env for key, node in nodes.items() if node.get("script") == "returned"}}
         for key, read in readers.items():
             with self.subTest(node=key):
-                env = Recorded()
+                env = Recorded(WORKFLOW_ID=RUN)
                 if nodes[key].get("script") == "returned":
                     env["INPUTS_BLOCK"] = nodes[key]["with"]["block"]
                 with mock.patch.object(os, "environ", env):

@@ -5,7 +5,7 @@
 - 最後の関所の冒頭（ask_final.final_head）は開けた理由（ask_final.final_needs）を 1 行目に並べ、守りのパスはそこで名指す
 - 推しは判定の役が問いの理由に書いた物だけ（機械は作らない）。3 行を足しても中身は 1 つも落ちない
 盤面に届く物（残りの行・報告の冒頭 report.head3・仕様の関所）を読む元の試験は持ってこない。保留にしたままの問いは判定の指し札の
-先から読む（ask_final.held_questions）。
+先から読む（ask_final.held_questions。tests/workflows/test_line.py の AskFinalReadsCase）。
 """
 import re
 import unittest
@@ -108,7 +108,7 @@ def final_got(**kw) -> dict:
     eye = {"status": "pass", "reason": ""}
     got = {"tests_ok": True, "green": True, "red_cause": "", "protected_hits": [], "conflicts": [], "allowed_test_changes": [],
            "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [], "objection": "",
-           "rejudge_verdict": "", "sealed": True, "seal_reason": "", "hash": "a" * 64, "fenced": [], "held": [], "unread": ""}
+           "rejudge_verdict": "", "sealed": True, "seal_reason": "", "hash": "a" * 64, "fenced": [], "held": [], "unread": []}
     got.update(kw)
     return got
 

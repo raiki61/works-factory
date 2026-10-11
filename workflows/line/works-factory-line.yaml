@@ -857,7 +857,9 @@ nodes:
       hash: "$merge-seal.output.hash"
       structure_after: "$eyes.output.structure_after"
       judgment: "$judged.output.judgment"
+      start: "$start.output.record"
       before_fix_answer: "$answer-before-fix.output.answer"
+      before_fix_asked: "$plan-rounds.output.questions"
 
   - id: gate-final
     approval:

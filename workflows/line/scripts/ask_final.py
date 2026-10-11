@@ -8,8 +8,8 @@
 test-gate（final）・fixed・eyes・merge（seal）・judged の返りから並べ、開き方（final_gate）で開くかを決める（lib/gatepolicy.py の
 opens）。守りのパスの当たり（確かめられなかった時も）と食い違いの申し出は、開き方に依らず開く（通すのは人の答えだけ。1 回目の修正の
 申し出も fixed が運ぶ）。無人の run で開くはずの時は開かずに止め（needs-human）、merge（apply）を飛ばす。
-判定の役が人に聞くと保留にしたままの問い（判定の指し札の先の questions のうち、修正前の関所で答えていない物）は冒頭と本文に見せるが、
-開ける理由には数えない（元の _final_head・_final_text と同じ）。
+判定の役が人に聞くと保留にしたままの問い（held_questions。元 gatemarks.held_lines）は冒頭と本文に見せるが、開ける理由には数えない
+（元の _final_head・_final_text と同じ）。保留の問いと柵の増えの控えを読めなければ、読めなかった訳を本文に並べる。
 
 文は冒頭 3 行（final_head。lib/gatemarks.py の head3）で始め、守りのパス・申し出・許したテストの変更・独立の目の行・保留の問い・
 封じた差分を並べる。
@@ -112,7 +112,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
         lines += [f"## 判定の役が人に聞くと保留にしたままの問い（{len(got['held'])} 件。この関所の答えは問いに答えない。問いは報告の冒頭に並ぶ）",
                   *[f"- {q}" for q in got["held"]], gatemarks.ANSWER_HOW, ""]
     if got["unread"]:
-        lines += [f"- {got['unread']}", ""]
+        lines += [*[f"- {why}" for why in got["unread"]], ""]
     lines += [f"封じた差分の hash: {got['hash'] or '（無い）'}", "", "答え方:",
               f"- 報告へ進める: {answer.line(run_id, 'continue', '<一言>')}（一言は {RECORD} に残る）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]
@@ -130,36 +130,71 @@ def ask(got: dict, *, mode: str, unattended: bool, run_id: str) -> dict:
     return {"open": True, "go": True, "stop_reason": "", "text": final_text(got, why, run_id), "reasons": why}
 
 
-def held_questions(judgment, answered: bool) -> tuple:
-    """(判定の役が人に聞くと保留にしたままの問いの行, 読めなかった訳)。問いは判定の指し札の先（judgment.json）の questions のうち、
-    人に聞く状態の fork と escalate の問い（元 gatemarks.asks）。修正前の関所で答えた run は保留が無い。判定が無い（null）・
-    読めない時は問いの行は空で、読めなければ訳を返す（黙って空にしない）"""
-    if answered or judgment is None:
+def held_questions(judgment, start, before_fix, before_fix_asked: list) -> tuple:
+    """(判定の役が人に聞くと保留にしたままの問いの行, 読めなかった訳)。元 gatemarks.held_lines を、盤面の代わりに判定の指し札の先
+    （judgment.json の questions・units）・始めの記録の answers（依頼の答え）・修正前の関所の答えと関所に載せた項目で当てる。
+    依頼の答えは問いの key か出どころ（origin）の字の一致で結ぶ（判定の結び answer_ties と、測れていない素材の名から出どころを
+    読む道は判定のブロックの中に在り、線は読まない）。判定が無い（null）時は空、読めなければ訳を返す（黙って空にしない）"""
+    if judgment is None:
         return [], ""
     try:
         doc = json.loads(boundary.resolve(judgment).read_text(encoding="utf-8"))
         questions = [q for q in doc.get("questions") or [] if isinstance(q, dict)]
+        units = {u.get("key") for u in doc.get("units") or [] if isinstance(u, dict)}
+        rows = json.loads(boundary.resolve(start).read_text(encoding="utf-8")).get("answers") if start is not None else []
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
-        return [], f"判定の問いの控えを読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"
-    asks = [q for q in questions if (q.get("kind") == "fork" and q.get("status") in ASKING) or q.get("status") == ESCALATE]
-    return [gatemarks.ask_text(q) for q in asks], ""
+        return [], f"判定の問いの控えか始めの記録を読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"
+    answers = [a for a in rows if isinstance(a, dict)] if isinstance(rows, list) else []
+    passed = isinstance(before_fix, dict) and before_fix.get("decision") in linekit.GO_WORDS
+    note = str(before_fix.get("text") or "") if passed else ""
+    holds = gatemarks.hold_keys(note, {str(q.get("key")) for q in questions if q.get("key")})
+
+    def binds(a) -> list:
+        name = a.get("question")
+        by_key = [q for q in questions if isinstance(q.get("key"), str) and q.get("key") and q.get("key") == name]
+        return by_key or [q for q in questions if name and q.get("origin") == name]
+
+    def by_request(q) -> bool:
+        return any((hit := binds(a)) and len(hit) == 1 and hit[0] is q for a in answers)
+
+    def answered(q) -> bool:
+        asked = any(isinstance(a, str) and a.startswith(gatemarks._prefix(q)) for a in before_fix_asked)
+        return by_request(q) or (passed and asked and str(q.get("key") or "") not in holds)
+
+    asking = [q for q in questions if q.get("status") in ASKING]
+    asks = [q for q in asking if q.get("kind") == "fork" or q.get("status") == ESCALATE]
+    pending = [q for q in asks if not answered(q)]
+    done = [q for q in asks if answered(q)]
+    back = {k for q in done for k in gatemarks._skips(q) if k in units}
+    kept = {k for q in pending for k in gatemarks._skips(q) if k not in back}
+    lines = [gatemarks._ledger_line(q, skip=[k for k in gatemarks._skips(q) if k in kept] if q in pending else [])
+             + f"／{gatemarks.ANSWER_KEY_HEAD}: {json.dumps(str(q.get('key') or ''), ensure_ascii=False)}"
+             for q in asking if q in pending or (q not in asks and not by_request(q))]
+    return lines + [f"関所で答えたが直す単位に入れられなかった: {q.get('key')}・{k}（理由: 今の周の判定に無い）"
+                    for q in done for k in gatemarks._skips(q) if k not in units], ""
 
 
-def fenced_rows(structure_after) -> list:
-    """直した後の実測（eyes の structure_after の指し札の先の structure-after.json）で、考えの住処の外の知る場所が増えた所の行。
-    実測が無い（null）・この run の物でない時は空（元 structmark.after_rows も控えが無い run は空）"""
+def fenced_rows(structure_after) -> tuple:
+    """(直した後の実測（eyes の structure_after の指し札の先の structure-after.json）で考えの住処の外の知る場所が増えた所の行,
+    読めなかった訳)。実測が無い（null）時は空（元 structmark.after_rows も控えが無い run は空）。指し札が読めない・先の控えが
+    読めなければ訳を返す（黙って空にしない）"""
     if structure_after is None:
-        return []
+        return [], ""
     try:
         folder = boundary.resolve(structure_after).parent
-    except (ValueError, TypeError, AttributeError, KeyError):
-        return []
-    return structmark.after_rows(folder)
+    except (ValueError, TypeError, AttributeError, KeyError) as error:
+        return [], f"直した後の実測の指し札を読めない（柵の増えを数えていない。{type(error).__name__}: {error}）"
+    if structmark.read_after(folder) is None:
+        return [], f"直した後の実測の控え {structmark.AFTER_FILE} を読めない（柵の増えを数えていない）"
+    return structmark.after_rows(folder), ""
 
 
 def got_of_env() -> dict:
-    held, unread = held_questions(linekit.value(os.environ.get("INPUTS_JUDGMENT")),
-                                  linekit.value(os.environ.get("INPUTS_BEFORE_FIX_ANSWER")) is not None)
+    held, held_unread = held_questions(linekit.value(os.environ.get("INPUTS_JUDGMENT")),
+                                       linekit.value(os.environ.get("INPUTS_START")),
+                                       linekit.value(os.environ.get("INPUTS_BEFORE_FIX_ANSWER")),
+                                       [str(q) for q in linekit.items(os.environ.get("INPUTS_BEFORE_FIX_ASKED"))])
+    fenced, fenced_unread = fenced_rows(linekit.value(os.environ.get("INPUTS_STRUCTURE_AFTER")))
     return {
         "tests_ok": linekit.flag(os.environ.get("INPUTS_TESTS_OK")),
         "green": linekit.flag(os.environ.get("INPUTS_GREEN")),
@@ -180,10 +215,16 @@ def got_of_env() -> dict:
         "sealed": linekit.flag(os.environ.get("INPUTS_SEALED")),
         "seal_reason": linekit.text(os.environ.get("INPUTS_SEAL_REASON")),
         "hash": linekit.text(os.environ.get("INPUTS_HASH")),
-        "fenced": fenced_rows(linekit.value(os.environ.get("INPUTS_STRUCTURE_AFTER"))),
+        "fenced": fenced,
         "held": held,
-        "unread": unread,
+        "unread": [why for why in (held_unread, fenced_unread) if why],
     }
+
+
+def from_env() -> dict:
+    """ask の引数（with: の欄の全部を読む）"""
+    return {"got": got_of_env(), "mode": linekit.text(os.environ.get("INPUTS_FINAL_GATE")),
+            "unattended": linekit.flag(os.environ.get("INPUTS_UNATTENDED")), "run_id": os.environ["WORKFLOW_ID"]}
 
 
 def fallback(reason: str) -> dict:
@@ -191,6 +232,4 @@ def fallback(reason: str) -> dict:
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: ask(got_of_env(), mode=linekit.text(os.environ.get("INPUTS_FINAL_GATE")),
-                            unattended=linekit.flag(os.environ.get("INPUTS_UNATTENDED")), run_id=os.environ["WORKFLOW_ID"]),
-                fallback)
+    linekit.run(lambda: ask(**from_env()), fallback)
