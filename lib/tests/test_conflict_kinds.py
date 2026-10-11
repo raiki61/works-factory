@@ -31,6 +31,14 @@ if str(LIB) not in sys.path:
 
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
+import fixrules  # noqa: E402
+import rulebook  # noqa: E402
+
+# 決まりの文の本体の置き場（scripts が import の後にする置き替えと同じ。lib/ の字にパスを書かない）
+FR = LIB.parent / "workflows" / "fix" / "commands" / "fix-rules"
+rulebook.CANON = FR / "common.md"
+fixrules.SHARED = rulebook.CANON
+fixrules.RULES_DIR = FR
 
 KEY = "stats.py clamp: 上限を超えた値に lo を返す"
 ITEM = {"unit_key": KEY, "between": ["stats.py:3", "test_stats.py:2"],
@@ -100,6 +108,12 @@ class KindCase(unittest.TestCase):
 
     def test_word_names_the_outlet(self):
         self.assertEqual(conflict.WORD, "divergence")
+
+    def test_rules_name_the_kinds(self):
+        sec = fixrules.sections(fixrules.SHARED)["core-conflict"]
+        for k in conflict.DIV_KINDS:
+            self.assertIn(f"`{k}`", sec)
+        self.assertIn('"kind"', fixrules.sections(fixrules.TDD)["tdd-remap"])
 
 
 class FakeBoard:
@@ -201,10 +215,21 @@ class BriefKindCase(unittest.TestCase):
             self.assertEqual(planbrief.by_unit_at(self.dir), {})
         self.assertEqual(planbrief.by_unit_at(self.dir / "no-board"), {})
 
+    def test_brief_rules_name_the_kinds(self):
+        # 節 brief-canon の申し出の道（範囲の外・query・brief の誤り・人が答えた条件）がそれぞれ種類の名を言う
+        sec = fixrules.sections(fixrules.BRIEF)["brief-canon"]
+        for k in ("scope_needed", "query_hits_fixed", "brief_vs_judgment"):
+            self.assertIn(f"`kind` は `{k}`", sec)
+
 
 class RulingLimitsTextCase(KindRowsCase):
     """裁定の limits が広げるのは案の項目の範囲に足すパスだけ（planscope の継ぎ目の決まり）を、裁定役の決まり・裁定の文・
     修正役の brief の決まりが同じく言う"""
+
+    def test_ruler_says_limits_only_add_paths(self):
+        sec = fixrules.sections(fixrules.RULER)["ruler-reply"]
+        for w in ("空なら足すパスは無い", "新しいファイル", "`out_of_scope`", "`tests`・`adds`・`removes`"):
+            self.assertIn(w, sec)
 
     def test_rulings_file_says_only_ruled_paths_widen(self):
         rows = [{"id": f"c1-{i}", "round": 1, "source": "fix", **ITEM, "status": "ruled",
@@ -213,6 +238,13 @@ class RulingLimitsTextCase(KindRowsCase):
         self.write_items(rows)
         text = conflict.write_rulings(self.b).read_text(encoding="utf-8")
         self.assertEqual(text.count("「範囲」に並べたパスだけ"), 2, text)
+
+    def test_ruler_opens_brief_for_limits_too(self):
+        # 範囲（limits）を書く時も fix_plan_item を考える時も、その単位の brief を開く
+        self.assertIn("`limits` を書く時と `fix_plan_item` を考える時は", fixrules.sections(fixrules.RULER)["ruler-head"])
+
+    def test_brief_rule_names_ruling_limits(self):
+        self.assertIn("裁定の「範囲」", fixrules.sections(fixrules.BRIEF)["brief-canon"])
 
 
 def fake_with_rows(rows):
@@ -436,6 +468,9 @@ class TestReplanWords(unittest.TestCase):
     def flat(p):
         return re.sub(r'[\s"]', "", p.read_text(encoding="utf-8"))
 
+    def test_ruler_says_same_run(self):
+        self.assertIn("同じ run の中で修正案の役", fixrules.sections(fixrules.RULER)["ruler-reply"])
+
     def test_replan_promise_says_same_run(self):
         b = fake_with_rows([row("c1-1", MEAN, "fix_plan_item", state="waiting", plan_units=[MEAN, CLAMP])])
         text = conflict.write_rulings(b).read_text(encoding="utf-8")
@@ -497,6 +532,14 @@ class TestReplanWords(unittest.TestCase):
         self.assertIn("当て直すな", mine)
         self.assertIn("changes に書くな", mine)
         self.assertNotIn(conflict.HELD_WORK_KEPT, mine)
+
+    def test_held_ask_points_at_the_owed_keys_above(self):
+        """控えの節の『直す義務』の名指しは、指示書でその節より前（上）に在る読む物の行を指す"""
+        self.assertNotIn("下の『直す義務の単位』", fixrules.HELD_ASK)
+        self.assertIn("上の「読む物」の「直す義務の単位の key」", fixrules.HELD_ASK)
+        parts = [i for i, _, _ in fixrules.fix_parts({k: "" for k in fixrules.FIX_VALUES}, held="x")]
+        self.assertLess(parts.index("fix-head"), parts.index("held"))
+        self.assertIn("直す義務の単位の key", fixrules.sections(fixrules.DIRECT)["fix-head"])
 
 
 if __name__ == "__main__":

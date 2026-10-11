@@ -1,0 +1,450 @@
+"""TDD の輪の赤緑と受け付けが、実行器の段の一覧の外（heavy）に在る試験を一式の結末に載せるかの検査。
+
+小さな実行器（試験の中の RUNNER）は今の works の dev/tdd-suite.sh と同じ約束で動く: 第 1 引数に JUnit の書き先、既定の一覧（TIER）は
+集め（TDD_SUITE_ONLY=1 で後ろに位置引数が在れば集めない）、後ろの位置引数（ファイルか node id）は集める先に足し、-k は集めた
+中を名前で絞る。段の外の試験は、輪か受け付けが後ろの引数で足さない限り走らない。
+- 輪の回の選び: 赤は名指しだけ、緑は名指しと単位の変更が届く元の一式のモジュールのファイルを TDD_SUITE_ONLY=1 で走らせる
+  （元の一式・受け付けは合図なし）。地図が引けなければ緑は一式
+- 赤緑: 段の外のファイルに書いた名指しのテストが、赤（failure）として受かり、直した後に緑として受かる
+- 受け付け: 段の外の変えた試験が走り、版で通っていた試験の新しい赤を赤にする。選んだ試験が 0 件なら「新しい赤なし」にしない
+種の git は gitkit の型の写し（盤面なし。実行器は python を子で起こすだけ）。
+"""
+import json
+import pathlib
+import sys
+import tempfile
+import unittest
+
+LIB = pathlib.Path(__file__).resolve().parents[1]
+SEED = LIB.parent / "tests" / "e2e" / "target-seed"
+sys.dont_write_bytecode = True
+if str(LIB) not in sys.path:
+    sys.path.append(str(LIB))
+
+from tests.bin.gitkit import committed_copy, git  # noqa: E402
+import tddloop  # noqa: E402
+from unittest import mock  # noqa: E402
+
+MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
+OUTSIDE = "heavy/test_outside.py"   # 実行器の既定の一覧（TIER）に無い置き場
+NAMED = f"{OUTSIDE}::TestOutside::test_mean_of_two"
+
+RUNNER = '''
+import importlib.util, os, pathlib, sys, unittest, xml.etree.ElementTree as ET
+sys.dont_write_bytecode = True
+sys.path.insert(0, ".")
+TIER = ["test_stats.py"]
+out, rest = sys.argv[1], sys.argv[2:]
+words, extra, i = None, [], 0
+while i < len(rest):
+    if rest[i] == "-k":
+        words = [w.strip() for w in rest[i + 1].split(" or ") if w.strip()]
+        i += 2
+        continue
+    extra.append(rest[i])
+    i += 1
+targets = ([] if os.environ.get("TDD_SUITE_ONLY") == "1" and extra else list(TIER)) + extra
+rows, seen = [], set()
+for target in targets:
+    path, _, sel = target.partition("::")
+    p = pathlib.Path(path)
+    spec = importlib.util.spec_from_file_location(p.stem, str(p))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    def flat(s):
+        for t in s:
+            yield from (flat(t) if isinstance(t, unittest.TestSuite) else [t])
+    for t in flat(unittest.defaultTestLoader.loadTestsFromModule(mod)):
+        tid = t.id()
+        if sel and not tid.endswith("." + sel.replace("::", ".")):
+            continue
+        if words is not None and not any(w in tid for w in words):
+            continue
+        if tid in seen:
+            continue
+        seen.add(tid)
+        r = unittest.TestResult()
+        t.run(r)
+        kind = "error" if r.errors else "failure" if r.failures else "skipped" if r.skipped else None
+        rows.append((tid, kind))
+root = ET.Element("testsuite")
+for tid, kind in rows:
+    cls, name = tid.rsplit(".", 1)
+    tc = ET.SubElement(root, "testcase", classname=cls, name=name)
+    if kind:
+        ET.SubElement(tc, kind)
+ET.ElementTree(root).write(out)
+sys.exit(0 if all(k in (None, "skipped") for _, k in rows) else 1)
+'''
+
+EMPTY_RUNNER = '''
+import sys
+open(sys.argv[1], "w").write("<testsuite></testsuite>")
+'''
+
+OUTSIDE_TEST = '''import unittest
+
+from stats import mean
+
+
+class TestOutside(unittest.TestCase):
+    def test_mean_of_two(self):
+        self.assertEqual(mean([2, 4]), 3)
+'''
+
+OUTSIDE_PASSING = '''import unittest
+
+
+class TestOutside(unittest.TestCase):
+    def test_sum(self):
+        self.assertEqual(1 + 1, 2)
+'''
+
+
+class OutsideCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = pathlib.Path(self._tmp.name)
+        self.repo = self.tmp / "repo"
+        committed_copy(self.repo, SEED)
+
+    def begin(self, runner=RUNNER):
+        suite = self.tmp / "suite.py"
+        suite.write_text(runner, encoding="utf-8")
+        got = tddloop.start(self.tmp / "art" / "board", self.repo, str(suite), json.dumps([MEAN], ensure_ascii=False))
+        self.assertTrue(got["go"], got)
+        return got["state_file"]
+
+    def write(self, rel, text):
+        p = self.repo / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding="utf-8")
+
+
+class TestLoopOutsideTier(OutsideCase):
+    def test_named_test_outside_tier_goes_red_then_green(self):
+        state = self.begin()
+        got = tddloop.step(state, {"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]}, self.repo)
+        self.assertTrue(got["ok"], got)
+        self.write(OUTSIDE, OUTSIDE_TEST)
+        got = tddloop.step(state, {"phase": "test", "unit_key": MEAN, "test_files": [OUTSIDE], "tests": [NAMED]}, self.repo)
+        self.assertTrue(got["ok"], f"段の外のファイルの名指しが赤として受からない: {got['reason']}")
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        got = tddloop.step(state, {"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母を len(xs) にした"},
+                           self.repo)
+        self.assertTrue(got["ok"], f"段の外のファイルの名指しが緑として受からない: {got['reason']}")
+
+
+NEW_TEST = """
+    def test_mean_of_two(self):
+        self.assertEqual(mean([2, 4]), 3)
+"""
+NAMED_IN_TIER = "test_stats.py::TestStats::test_mean_of_two"
+
+
+class TestLoopRunsOnlyWhatItChecks(OutsideCase):
+    """輪の赤・緑の回は一式を回さない: 赤は名指しだけ、緑は名指しと単位の変更（単位の頭から）が届く試験のうち元の一式に
+    載ったモジュールのファイルだけを TDD_SUITE_ONLY=1 で走らせる（届いただけで元の一式の外の試験は受け付け・最後のテストの段へ）"""
+
+    def setUp(self):
+        super().setUp()
+        self.write(OUTSIDE, OUTSIDE_TEST)   # stats に届くが、元の一式（TIER）の外
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "段の外の試験（stats に届く）")
+        self.log = self.tmp / "runs.jsonl"
+        self.state = self.begin("import json, os, sys\nopen(%r, 'a').write(json.dumps([os.environ.get('TDD_SUITE_ONLY'), "
+                                "sys.argv[2:]]) + '\\n')\n" % str(self.log) + RUNNER)
+
+    def runs(self):
+        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+
+    def step(self, reply):
+        return tddloop.step(self.state, reply, self.repo)
+
+    def red(self):
+        self.assertTrue(self.step({"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]})["ok"])
+        p = self.repo / "test_stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("\n\nif __name__", NEW_TEST + "\n\nif __name__"), encoding="utf-8")
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"], "tests": [NAMED_IN_TIER]})
+        self.assertTrue(got["ok"], got)
+
+    def fix(self, also=None):
+        p = self.repo / "stats.py"
+        text = p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)")
+        p.write_text(also(text) if also else text, encoding="utf-8")
+        return self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母を len(xs) にした"})
+
+    def test_baseline_is_the_whole_suite(self):
+        self.assertEqual(self.runs(), [[None, []]], "元の結末は合図なしの一式")
+
+    def test_red_runs_only_the_named_tests(self):
+        self.red()
+        self.assertEqual(self.runs()[1], ["1", [str(self.repo.absolute() / NAMED_IN_TIER)]])
+
+    def test_green_runs_named_and_reached_files_of_the_baseline(self):
+        self.red()
+        got = self.fix()
+        self.assertTrue(got["ok"], got)
+        only, args = self.runs()[2]
+        self.assertEqual(only, "1")
+        self.assertEqual(sorted(args), sorted([str(self.repo.absolute() / NAMED_IN_TIER),
+                                               str(self.repo.absolute() / "test_stats.py")]))
+        self.assertFalse([a for a in args if OUTSIDE in a], "届いただけで元の一式の外の試験は輪で回さない")
+
+    def test_regression_in_reached_test_is_caught_at_green(self):
+        self.red()
+        got = self.fix(lambda t: t.replace("    return x\n", "    return lo\n"))
+        self.assertFalse(got["ok"])
+        self.assertIn("test_clamp_within_range", got["reason"])
+
+    def test_map_failure_runs_the_whole_suite(self):
+        self.red()
+        with mock.patch.object(tddloop.impact, "map", side_effect=RuntimeError("地図が引けない")):
+            got = self.fix()
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(self.runs()[2], [None, [str(self.repo.absolute() / NAMED_IN_TIER)]], "地図が引けなければ一式と名指し")
+
+
+class TestAcceptOutsideTier(OutsideCase):
+    def test_changed_test_outside_tier_is_run_and_new_red_is_caught(self):
+        self.write(OUTSIDE, OUTSIDE_PASSING)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "段の外の試験")
+        state = self.begin()
+        self.write(OUTSIDE, OUTSIDE_PASSING.replace("1 + 1, 2", "1 + 1, 3"))
+        probs, note = tddloop.selected_problems(state, self.repo, "HEAD")
+        self.assertTrue(probs, f"版で通っていた段の外の試験の赤を受け付けが拾わない（知らせ: {note}）")
+        self.assertEqual(len(probs), 1, "行はテストのファイルごと")
+        self.assertIn("test_sum", probs[0])
+        self.assertIn(f"（ファイル {OUTSIDE}）", probs[0], "行は段の外のテストのファイルのパスを名指す")
+        self.assertEqual(git(self.repo, "diff", "--name-only"), OUTSIDE, "比べた後も作業ツリーは直した後の姿のまま")
+
+    def test_base_copy_runs_once_per_rev_and_args(self):
+        """元の結末に無い赤を版の写しで比べる回（_base_reds）は、版と実行器と後ろの引数が同じなら run に 1 回だけ走らせ、
+        受け付けの回をまたいで結末を使い回す（版は run の中で動かない。195g は回ごとに一式を版の写しで 3 分半走らせ直した）。
+        版が変われば走らせ直す"""
+        self.write(OUTSIDE, OUTSIDE_PASSING)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "段の外の試験")
+        cwd_log = self.tmp / "cwd.txt"
+        state = self.begin("import os\nopen(%r, 'a').write(os.getcwd() + '\\n')\n" % str(cwd_log) + RUNNER)
+        self.write(OUTSIDE, OUTSIDE_PASSING.replace("1 + 1, 2", "1 + 1, 3"))
+
+        def copies():
+            return [d for d in cwd_log.read_text(encoding="utf-8").splitlines()
+                    if pathlib.Path(d).resolve() != self.repo.resolve()]
+        first = tddloop.selected_problems(state, self.repo, "HEAD")
+        self.assertTrue(first[0], first)
+        self.assertEqual(len(copies()), 1, "版の写しで 1 回走る")
+        again = tddloop.selected_problems(state, self.repo, "HEAD")
+        self.assertEqual(again, first, "使い回しても判定は同じ")
+        self.assertEqual(len(copies()), 1, "同じ版・同じ引数の 2 回目は版の写しを走らせない")
+        (self.repo / "note.txt").write_text("x", encoding="utf-8")
+        git(self.repo, "add", "note.txt")
+        git(self.repo, "commit", "-q", "-m", "版を進める")
+        self.write(OUTSIDE, OUTSIDE_PASSING.replace("1 + 1, 2", "1 + 1, 3"))
+        tddloop.selected_problems(state, self.repo, "HEAD~0")
+        self.assertEqual(len(copies()), 2, "版が変われば走らせ直す")
+
+    def test_base_copy_args_lie_under_real_cwd(self):
+        """版の写しの回で実行器に渡す絶対パスの引数は、実行器の起こし場所（os.getcwd() が返す実のパス）の下に在る。
+        一時の置き場の根が symlink を経ても、名指しの絶対パスの綴りと、実行器が起こし場所から解く相対の段のファイルの綴りが
+        分かれると、引数どうしの共通の祖先が「/」に落ち、pytest の rootdir が変わって写しの結末の鍵が今の木の鍵と合わなくなる"""
+        self.write(OUTSIDE, OUTSIDE_PASSING)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "段の外の試験")
+        log = self.tmp / "runs.jsonl"
+        state = self.begin("import json, os, sys\nopen(%r, 'a').write(json.dumps([os.getcwd(), sys.argv[2:]]) + '\\n')\n"
+                           % str(log) + RUNNER)
+        self.write(OUTSIDE, OUTSIDE_PASSING.replace("1 + 1, 2", "1 + 1, 3"))
+        real, link = self.tmp / "real-tmp", self.tmp / "link-tmp"
+        real.mkdir()
+        link.symlink_to(real)
+        with mock.patch.object(tempfile, "tempdir", str(link)):
+            first = tddloop.selected_problems(state, self.repo, "HEAD")
+        self.assertTrue(first[0], first)
+        rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+        copies = [(cwd, args) for cwd, args in rows if pathlib.Path(cwd) != self.repo.resolve()]
+        self.assertEqual(len(copies), 1, "版の写しで 1 回走る")
+        cwd, args = copies[0]
+        paths = [a.partition("::")[0] for a in args if a.startswith("/")]
+        self.assertTrue(paths, f"版の写しの回に絶対パスの引数が無い: {args}")
+        self.assertTrue(pathlib.Path(cwd).is_relative_to(real.resolve()), f"版の写しが実の置き場の下に無い: {cwd}")
+        for p in paths:
+            self.assertTrue(pathlib.Path(p).is_relative_to(cwd), f"引数 {p} が起こし場所 {cwd} の下に無い（symlink の綴りのまま）")
+
+    def test_base_copy_lets_tests_read_git(self):
+        """版の写しは git の保管庫を持つので、git を読む試験は版で緑になり、今の木で壊した時に新しい赤として拾われる。
+        比べた後に一時の木は残らず、作業ツリーと枝は元のまま"""
+        reads_git = (
+            "import subprocess\nimport unittest\n\n\n"
+            "class TestOutside(unittest.TestCase):\n"
+            "    def test_lists_itself(self):\n"
+            "        got = subprocess.run([\"git\", \"ls-files\", \"heavy\"], capture_output=True, text=True).stdout\n"
+            f"        self.assertIn(\"{OUTSIDE}\", got)\n")
+        self.write(OUTSIDE, reads_git)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "git を読む段の外の試験")
+        state = self.begin()
+        self.write(OUTSIDE, reads_git.replace(f'assertIn("{OUTSIDE}"', 'assertIn("heavy/nothing.py"'))
+        branch = git(self.repo, "rev-parse", "--abbrev-ref", "HEAD")
+        probs, note = tddloop.selected_problems(state, self.repo, "HEAD")
+        self.assertTrue(probs, f"版の写しで git を読めず、版でも赤と数えて新しい赤から外した（知らせ: {note}）")
+        self.assertIn("test_lists_itself", probs[0])
+        self.assertEqual(len(git(self.repo, "worktree", "list").splitlines()), 1, "比べた後に一時の木が残る")
+        self.assertEqual(git(self.repo, "diff", "--name-only"), OUTSIDE, "比べた後も作業ツリーは直した後の姿のまま")
+        self.assertEqual(git(self.repo, "rev-parse", "--abbrev-ref", "HEAD"), branch, "枝が動いた")
+
+    def test_base_reds_left_out_are_named_in_note(self):
+        """版の写しでも赤だったので新しい赤から外した試験は、黙って外さず、件数と名を知らせに出す。外した物が無い時は足さない"""
+        failing = OUTSIDE_PASSING.replace("1 + 1, 2", "1 + 1, 3")
+        self.write(OUTSIDE, failing)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "版でも赤の段の外の試験")
+        state = self.begin()
+        self.write(OUTSIDE, failing + "\n# 版と同じく赤のまま\n")
+        probs, note = tddloop.selected_problems(state, self.repo, "HEAD")
+        self.assertEqual(probs, [], "版でも赤の試験は新しい赤に数えない")
+        self.assertIn("新しい赤なし", note)
+        self.assertIn("版の写しでも赤だったので外した 1 件", note)
+        self.assertIn("test_sum", note, "外した試験の名を出す")
+
+        self.write(OUTSIDE, OUTSIDE_PASSING)
+        _, quiet = tddloop.selected_problems(state, self.repo, "HEAD")
+        self.assertNotIn("外した", quiet, "外した物が 0 件なら何も足さない")
+
+    def test_zero_selected_cases_are_not_reported_as_no_new_red(self):
+        state = self.begin(EMPTY_RUNNER)
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        probs, note = tddloop.selected_problems(state, self.repo, "HEAD")
+        self.assertNotIn("新しい赤なし", note, "選んだ試験が 1 件も走らないのを緑に見せる（fail-open）")
+        self.assertIn("0 件", " ".join(probs) + note)
+
+    def test_unchanged_test_outside_tier_is_left_out_of_local_run(self):
+        # ADR 0071 の 3 の 1: 手元は速い段と変えた・足した試験だけ。届いただけで変えていない段の外の試験は走らせない
+        self.write(OUTSIDE, OUTSIDE_TEST)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "段の外の試験（stats に届く）")
+        argv_log = self.tmp / "argv.jsonl"
+        state = self.begin("import json, sys\nopen(%r, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\n" % str(argv_log)
+                           + RUNNER)
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        tddloop.selected_problems(state, self.repo, "HEAD")
+        runs = [json.loads(line) for line in argv_log.read_text(encoding="utf-8").splitlines()][1:]   # 頭は元の結末の回
+        self.assertTrue(runs, "受け付けが実行器を走らせていない")
+        for argv in runs:
+            self.assertFalse([a for a in argv if a.endswith(OUTSIDE)],
+                             f"変えていない段の外の試験のファイルを受け付けが実行器の後ろに足した: {argv}")
+
+    def test_tests_left_out_are_named_as_left_to_ci(self):
+        # 手元で回さなかった試験は黙って減らさず、知らせと状態のファイルに『手元で回さなかった』として名前で残す
+        self.write(OUTSIDE, OUTSIDE_TEST)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "段の外の試験（stats に届く）")
+        state = self.begin()
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        probs, note = tddloop.selected_problems(state, self.repo, "HEAD")
+        self.assertEqual(probs, [], note)
+        self.assertIn("手元で回さなかった", note)
+        self.assertIn(OUTSIDE, note)
+        self.assertNotIn("test_stats.py", note.split("手元で回さなかった", 1)[1], "手元で走った試験を回さなかったと言う")
+        self.assertEqual(tddloop.load_state(state).get("ci_left"), [OUTSIDE])
+
+    def test_accept_args_name_only_pytest_modules(self):
+        # impact がテストと呼ぶ物のうち、pytest の試験のモジュールでない物（conftest・実行器の台本・シェルの試験）は足さない
+        names = ["t/test_a.py", "t/b_test.py", "t/conftest.py", "t/run-suite.py", "t/x-case.py", "t/y.bats", "t/gone_test.py"]
+        for n in names[:-1]:
+            self.write(n, "")
+        self.assertEqual(tddloop._args(self.repo, names, "a or b"),
+                         [str(self.repo.absolute() / "t/test_a.py"), str(self.repo.absolute() / "t/b_test.py"), "-k", "a or b"])
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+WRAP = "from stats import mean\n\n\ndef mean_twice(xs):\n    return 2 * mean(xs)\n"
+FAR = "test_far.py"   # stats を wrap 越しに読む（深さ 2。変更に直には関わらない）
+FAR_TEST = '''import unittest
+
+from wrap import mean_twice
+
+
+class TestFar(unittest.TestCase):
+    def test_twice(self):
+        self.assertEqual(mean_twice([2, 4]), 6)
+'''
+
+
+class TestDirectOnly(OutsideCase):
+    """受け付けと輪の緑は、変更に直に関わる試験（変えた試験・変えた file を直に読む・言及する試験・修正案が名指す試験）だけを
+    回す。届いただけの先の試験は回さず、受け付けは『最後のテストの段に任せた』として名前で残す（一式は線の最後のテストの段で 1 回）"""
+
+    def setUp(self):
+        super().setUp()
+        self.write("wrap.py", WRAP)
+        self.write(FAR, FAR_TEST)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "stats に深さ 2 で届く試験")
+        self.log = self.tmp / "runs.jsonl"
+        self.state = self.begin("import json, os, sys\nopen(%r, 'a').write(json.dumps([os.environ.get('TDD_SUITE_ONLY'), "
+                                "sys.argv[2:]]) + '\\n')\n" % str(self.log)
+                                + RUNNER.replace('TIER = ["test_stats.py"]', f'TIER = ["test_stats.py", "{FAR}"]'))
+
+    def runs(self):
+        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+
+    def fix_stats(self):
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+
+    def test_accept_runs_only_direct_tests_and_leaves_far_ones_to_final_stage(self):
+        self.fix_stats()
+        probs, note = tddloop.selected_problems(self.state, self.repo, "HEAD")
+        self.assertEqual(probs, [], note)
+        self.assertEqual(self.runs()[-1], [None, ["-k", "test_stats"]], "先の試験を -k に入れた")
+        self.assertEqual(tddloop.final_left(self.state), [FAR])
+        self.assertIn("最後のテストの段に任せた", note)
+        self.assertIn(FAR, note.split("最後のテストの段に任せた", 1)[1])
+
+    def test_far_unanalysable_does_not_force_the_whole_suite(self):
+        self.write("far_loader.py", "import importlib\nimport wrap\n\n\ndef load(name):\n"
+                                    "    return importlib.import_module(name)\n")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "深さ 2 の動的 import")
+        self.fix_stats()
+        probs, note = tddloop.selected_problems(self.state, self.repo, "HEAD")
+        self.assertEqual(probs, [], note)
+        self.assertEqual(self.runs()[-1], [None, ["-k", "test_stats"]], "遠くの分からない物で一式を回した")
+        self.assertEqual(tddloop.final_far(self.state), ["dynamic-import: far_loader.py:6"])
+        self.assertIn("far_loader.py", note.split("最後のテストの段に任せた", 1)[1])
+
+    def test_accept_runs_tests_named_by_the_plan(self):
+        st = tddloop.load_state(self.state)
+        st["contract"] = {MEAN: {"route": "tdd", "tests": [{"id": f"{FAR}::TestFar::test_twice"}], "rewrites": []}}
+        pathlib.Path(self.state).write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+        self.fix_stats()
+        tddloop.selected_problems(self.state, self.repo, "HEAD")
+        self.assertEqual(self.runs()[-1], [None, ["-k", "test_far or test_stats"]], "修正案が名指す試験を回さない")
+        self.assertEqual(tddloop.final_left(self.state), [])
+
+    def test_green_adds_only_direct_files_of_the_baseline(self):
+        self.assertTrue(tddloop.step(self.state, {"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]},
+                                     self.repo)["ok"])
+        p = self.repo / "test_stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("\n\nif __name__", NEW_TEST + "\n\nif __name__"), encoding="utf-8")
+        got = tddloop.step(self.state, {"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
+                                        "tests": [NAMED_IN_TIER]}, self.repo)
+        self.assertTrue(got["ok"], got)
+        self.fix_stats()
+        got = tddloop.step(self.state, {"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母を len(xs) にした"},
+                           self.repo)
+        self.assertTrue(got["ok"], got)
+        only, args = self.runs()[-1]
+        self.assertEqual(only, "1")
+        self.assertFalse([a for a in args if a.endswith(FAR)], f"深さ 2 の試験を緑の回に足した: {args}")
