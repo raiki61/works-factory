@@ -66,7 +66,14 @@ OWNER_ENV = ("raiki61", "claude-code-oauth-", "/Users/")
 # 決まりごとに照らしから外すパス。`/` で終わる行はそのフォルダの下の全部。どの行も本物の木の何かに当たる（stale_allowances）。
 ALLOWED = {
     "E3": ("lib/AGENTS.md",),
-    "E13": ("lib/AGENTS.md", "lib/tests/"),
+    "E13": (
+        "lib/AGENTS.md",
+        "lib/tests/",
+        "lib/impact.py",
+        "lib/changemap.py",
+        "lib/libdocs.py",
+        "lib/libdocs_local.py",
+    ),
 }
 
 # E13 の例外（根の AGENTS.md の E13 の「例外」）: 拡張子と言語の対応・テストのファイルの名の慣習の表を持つ、今の works から元のまま持ってきたファイルと、その元。

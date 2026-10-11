@@ -45,6 +45,16 @@ class BlockPathsTest(unittest.TestCase):
                 got = scan.problems("E4", root)
                 self.assertTrue(any("a.py:1" in line and "plan" in line for line in got), got)
 
+    def test_archon_pack_path_of_own_block_is_clean(self):
+        with tree({"workflows/judge/scripts/a.py": 'X = "$SRC/.archon/workflows/works-factory/judge/out.json"\n'}) as root:
+            self.assertEqual(scan.problems("E4", root), [])
+
+    def test_inline_script_in_yaml_pointing_at_other_block_through_pack_is_red(self):
+        yaml = "name: works-factory-judge\nnodes:\n  - id: a\n    script: cat ../works-factory/plan/out.json\n"
+        with tree({"workflows/judge/works-factory-judge.yaml": yaml}) as root:
+            got = scan.problems("E4", root)
+        self.assertTrue(any("works-factory-judge.yaml:4" in line and "plan" in line for line in got), got)
+
     def test_inline_script_in_yaml_pointing_at_other_block_is_red(self):
         yaml = "name: works-factory-judge\nnodes:\n  - id: a\n    script: cat ../../plan/out.json\n"
         with tree({"workflows/judge/works-factory-judge.yaml": yaml}) as root:
