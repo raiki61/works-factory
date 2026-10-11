@@ -26,10 +26,10 @@
 
 - ブロックの YAML は `returns:` で 1 つの節を名指す。ブロックの間で渡す物の型の正本は、その節の `output_format`（素の JSON Schema）と、線の `with:` だけ。写しの型は持たない（持ち主の決め `io-in-output-format`）。
 - 大きい中身はファイルに置き、返りには指し札 `{type: archon_artifact, run_id, path}` を入れる。
-- ブロックの間は `with:` と返りの構造体だけで渡す。飛ばされうる段の返りは、受ける側の `with:` に `{ from: "$<id>.output.<欄>", if_skipped: null }` を書く（ASF の `W/ship/archon-ship.yaml`:148）。並べた物の集まりは `fan_out:` の返り（入力の順の配列）で受ける。
+- ブロックの間は `with:` と返りの構造体だけで渡す。飛ばされうる段の返りは、受ける側の `with:` に `{ from: "$<id>.output.<欄>", if_skipped: null }` を書く（ASF の `W/ship/archon-ship.yaml`:148）。受け手が include の時は、線の返しの節（`script:` の節）で受けてから渡す（埋め P2。Archon は include の `with:` に書いた束ねを黙って JSON の値として渡すので、書けたように見えて効かない）。並べた物の集まりは `fan_out:` の返り（入力の順の配列）で受ける。
 - 型つきの成果物の一覧（`$TYPED_ARTIFACTS_FILE`）を読むのは report ブロックだけ。輪の返りは最後の 1 周しか残らないので、全部の周の記録（試験の関門の認証・認めた元からの赤・範囲の外の所見）を拾うのに使う（ASF の `W/.shared/report.ts`:130-140 と同じ）。引く時は include の頭（`<include の id>__`）と `loopGroupPath` で自分の分だけに絞り、一覧の `errors` を捨てない（読めた分と一緒に返す）。読む部品は report ブロックの中に置く。
 - 仕事の結末を表す欄は `outcome_field:` で名指す。run が終わったことと仕事がうまくいったことは別の事実。
-- 機械: `tests/layers/test_block_returns.py`（全ブロックに `returns:` と `outcome_field:` が在り、返す節が `output_format` を持ち、`outcome_field` の欄がその `required` に在る。線の `with:` が読む `$<include の id>.output.<欄>` は、そのブロックの返す節の `output_format` の欄に在る。読み手の無い返りの欄も赤）。
+- 機械: `tests/layers/test_block_returns.py`（全ブロックに `returns:` と `outcome_field:` が在り、返す節が `output_format` を持ち、`outcome_field` の欄がその `required` に在る。線が `$<include の id>.output.<欄>` で読まない返りの欄は赤）。線が読む欄が返す節の `output_format` に在るかは Archon の `validate`（`tests/layers/test_archon_validate.py`。E1）が照らす。
 
 ## E6 外への書き込みは 1 つの script の節で、書いた後に読み戻す
 

@@ -77,3 +77,24 @@ ASF の版を進めた時は、各節の行を新しい版で読み直し、変�
 - なぜその形か: 審査の指摘を、書いてある決まりに縛る。書いてない好みは指摘しない。
 - 採った先: (1) このリポジトリの `engineering.md`（ASF の lifecycle でこのリポジトリを作る時に、ASF の役が読む）。(2) works-factory の計画・修正・独立の目の役も、対象のリポジトリに `engineering.md` か方向の文書が在れば読み、引いて書く。
 - 違い: 決まりに番号（`E1` など）を振り、指摘は番号で引く。
+
+### A9 どの道でも自分の 1 つの返りを返す節（if_skipped で飛ばされた子を null で受ける）
+
+- ASF: d97d00ef の `W/ship/archon-ship.yaml`:58-59（`returns: outcome` / `outcome_field: delivered`）と 139-148（`trigger_rule: none_failed_min_one_success`、`delivered: { from: "$deliver.output.pr_url", if_skipped: null }`）。
+- なぜその形か: 子を飛ばす正しい道（止め・直す物が無い）でも、工程の返りは 1 つの型で人と呼び手に届く。飛ばされた子は null で受け、落ちた子は受けない（落ちた節の名が run の記録に残る）。
+- 採った先: 線（`workflows/line/works-factory-line.yaml`）の返す節 `result` と、返しの節 `answer-*`・`plan-out`・`judged`・`fixed`・`collect`（埋め P2）。
+- 違い: 線の報告はどの道でも出すので、集める節 `collect`・`report`・`result` は `trigger_rule: all_done`（前の段が落ちても走る）。include の `with:` に束ねが書けないので、ブロックへ渡す前に線の `script:` の節で受け直す（ship は返す節だけで受ける）。
+
+### A10 人の関所は決めの語（decisions）と when: で道を分ける
+
+- ASF: d97d00ef の `W/merge-queue/archon-merge-queue.yaml`:176-187（`approval:` の `decisions` に `approve`・`hold`、`when:` で関所を開くかを決める）と 225 行（後ろの節が `{ from: "$approval.output", if_skipped: null }` で答えを受ける）。
+- なぜその形か: 決めの語はどれも関所を終えるだけで、どこへ進むかは工程の配線が決める（Archon の `cancel` に頼ると後ろの節が走らない）。
+- 採った先: 線の 4 つの関所（`gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`）。`decisions` は `approve`・`continue`・`stop`。
+- 違い: 関所を開くかと見せる文は線の script（`ask-*`）が決め、答えは返しの節（`answer-*`）が `{go, answer, stop_reason}` にして後ろの `when:` に渡す。`stop` は後ろを飛ばして報告へ進む（結末 `stopped_by_human`）。
+
+### A11 include を展開した id に stub を置き、自分の script を走らせる筋書き
+
+- ASF: d97d00ef の `W/ship/fixtures/planned-delivered.stubs.yaml`（`deliver__impl__implement` のように include を展開した id に stub を置き、`exec-code: true` で stub の無い `outcome` の script を本当に走らせる）。
+- なぜその形か: 役（AI）を起こさずに、工程の道筋と自分の script の決めを確かめる。stub は返す節の形を守らされる（`dry-run.ts` の `assertAuthoredStubSatisfiesSchema`）。
+- 採った先: 線の筋書き `workflows/line/fixtures/*.stubs.yaml`（15 本）。
+- 違い: 本物のブロックが揃う前に回すため、試験だけで使う代わりのブロック（`workflows/line/fixtures/stub-blocks/`。返す節に `output_format` を持たない）を本物の置き場に写して回す（`tests/e2e/test_line_scenarios.py`）。関所の答えは筋書きで置けない（いつも `approved`）ので、返しの節 `answer-*` の stub で差す。
