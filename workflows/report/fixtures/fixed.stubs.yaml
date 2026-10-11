@@ -1,7 +1,7 @@
 # 全部の節を差し替え、書き手が 1 回で初見の確かめを通る。返す節は約束の欄を全部持つ
 fixture:
   expect: completed
-  reached: [facts, write, cold, accept, report]
+  reached: [facts, write, cold-prep, cold, accept, report]
 facts:
   outcome: fixed
   ok: true
