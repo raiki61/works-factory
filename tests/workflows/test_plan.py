@@ -8,6 +8,7 @@
 - 筋書き: Archon の `workflow test` で fixtures/*.stubs.yaml を回す（配線だけ。止めた Archon の源が無ければ見送る。tests/archon.py）。
 """
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -55,6 +56,26 @@ MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 NIT = "stats.py mean: 変数名が短い"
 LOOSE = "stats.py: 全体の書き方"
+# 修正案の役の指示書の元: 今の works（raiki61/claude-plugins の 2aa7c66cf7abe1fe09699ac2942d107123214168）の
+# works/.shared/core/gl-prompts/prompts/review-loop/p2.fix_plan.md の sha256 と、持ち主が許した直し（元の字, 写しの字）の 3 つ
+FIX_PLAN_SHA256 = "381674c83992c9b0955f961e1e7ff2b5fd451458902f60842e36b547eeb26b95"
+FIX_PLAN_TITLE = "# P2-10 修正案（writer の仕事。書く前に出す）\n"
+FIX_PLAN_EDITS = [
+    (FIX_PLAN_TITLE,   # 頭の 1 行（材料のファイルを読め）
+     "お前は修正案の役で、新しい会話で起きている。役の定義・直す単位と番号・判定の処方・構造の目の行・世界の解の行・波及の一覧・"
+     "前の回の拒否の理由（在れば）は、機械が材料のファイルに書いた。先に材料のファイル `$plan-prep.output.brief` を Read で読み、"
+     "その指示に従え。\n\n" + FIX_PLAN_TITLE),
+    (FIX_PLAN_TITLE + "\n"   # engine の雛形の 5 行を外す（材料のファイルが同じ物を持つ）
+     "今の周に直す単位（各行の `no` は engine が振った番号。**key を写さず no の整数で指せ**——engine が名前に戻して記録する）: "
+     "{{record.units | pick key,label,disposition}}\n"
+     "問いの台帳（fork の出どころ・depends に挙がった単位は待ってよい——案に入れなくてよい）: "
+     "{{?record.questions | pick key,kind,status,origin,depends}}\n"
+     "判定者の見立て: {{record.process.diagnosis | pick framing,one_shot,one_shot_closes}}\n"
+     "判定者の先行例（世界の解）: {{?record.process.precedents}}\n"
+     "リポジトリ: {{inputs.cwd}}（読む版: `{{inputs.review_rev}}`）\u3000BASE: `{{record.base}}`\u3000観点の正本: {{inputs.review_md}}\n\n",
+     FIX_PLAN_TITLE + "\n"),
+    ("の no（上の一覧の番号。", "の no（材料の一覧の番号。"),   # no は材料の一覧で指す
+]
 DIRTY_ROW = {"verdict": "汚れる", "faces": [5], "evidence": ["/units/0/id"], "reason": "骨組みの無い口が増える",
              "chosen": "既存の関数の中で直す", "chosen_reason": "骨組みが在る"}
 WORLD_ROW = {"finding": 1, "where": "stats.py", "class_id": "mean-denominator", "problem": "平均の分母の取り違え",
@@ -314,6 +335,14 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(set(re.findall(r"\$[A-Za-z][\w.-]*", text)), {"$structure-eye-prep.output.prompt"})
         refs = set(re.findall(r"\$[A-Za-z][\w.-]*", (COMMANDS / "fix-plan.md").read_text(encoding="utf-8")))
         self.assertEqual(refs, {"$plan-prep.output.brief"})
+
+    def test_fix_plan_command_is_the_original_with_only_the_allowed_edits(self):
+        """修正案の役の指示書は元の p2.fix_plan.md の文のまま: 許した直しを逆に当てると元のバイトに戻る"""
+        text = (COMMANDS / "fix-plan.md").read_text(encoding="utf-8")
+        for original, copied in reversed(FIX_PLAN_EDITS):
+            self.assertEqual(text.count(copied), 1, copied)
+            text = text.replace(copied, original)
+        self.assertEqual(hashlib.sha256(text.encode("utf-8")).hexdigest(), FIX_PLAN_SHA256)
 
     def test_deadlines_are_all_twenty_days(self):
         keys = ("timeout", "idle_timeout")
@@ -721,8 +750,8 @@ class CollectCase(unittest.TestCase):
         self.assertEqual([p["unit_keys"] for p in side["plan"]], [[MEAN], [CLAMP]], "閉じた項目 2 を機械が差し込む")
         self.assertEqual(side["block_answers"][0]["key"], "key-a1-mean")
         trace = [json.loads(x) for x in (rnd / planfile.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
-        self.assertEqual([(r["op"], r.get("id")) for r in trace if r["op"] == planfile.DROPPED_OP],
-                         [(planfile.DROPPED_OP, converge.item_id([CLAMP]))], "前のまま書いた閉じた項目の行は捨てて trace に残す")
+        self.assertEqual([(r["op"], r.get("id")) for r in trace if r["op"] == converge.DROPPED_OP],
+                         [(converge.DROPPED_OP, converge.item_id([CLAMP]))], "前のまま書いた閉じた項目の行は捨てて trace に残す")
 
     def test_route_up_row_keeps_ready(self):
         run = Run(self)
