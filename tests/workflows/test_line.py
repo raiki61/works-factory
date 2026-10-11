@@ -703,6 +703,18 @@ class LineWiringCase(unittest.TestCase):
                 self.assertIn(f"${key}-out.output", reads)
                 self.assertFalse(any(f"${key}.output" in v for v in reads), "collect がブロックの返りを直に読む")
 
+    def test_blocks_get_the_start_answers_and_prior_failures(self):
+        """在るブロックが宣言する、線の頭が決める入力は渡す（既定値 null のまま黙って落ちない）"""
+        from_the_start = {"prior_failures": "$start.output.prior_failures", "start_answers": "$answer-start.output.answer"}
+        for key, node in line_nodes().items():
+            block = SCRIPTS.parents[1] / node.get("include", "").removeprefix("works-factory-")
+            if "include" not in node or not block.is_dir():
+                continue
+            declared = yaml.safe_load((block / f"{node['include']}.yaml").read_text(encoding="utf-8"))["inputs"]
+            for name in from_the_start.keys() & declared.keys():
+                with self.subTest(node=key, input=name):
+                    self.assertEqual(node["with"].get(name), from_the_start[name])
+
     def test_round_limit_is_the_loop_limit(self):
         self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], plan_out.ROUND_LIMIT)
 
