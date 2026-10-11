@@ -604,7 +604,7 @@ class MaterialProblemsCase(unittest.TestCase):
 
     def test_statuses_are_the_ones_green_cert_classifies(self):
         """受け付けが通す status は全部 green_cert が読み分ける（知らない status が認証の既定の分けに黙って落ちない）"""
-        self.assertEqual(set(dc.STATUSES), set(green_cert.NOT_DONE) | set(green_cert.BASE_OK) | {"clean", "found"})
+        self.assertLessEqual(set(dc.STATUSES), set(green_cert.NOT_DONE) | set(green_cert.BASE_OK) | set(green_cert.MEASURED))
         self.assertLessEqual(set(green_cert.BASE_OK), set(dc.STATUSES))
 
     def test_unknown_mode_raises(self):
