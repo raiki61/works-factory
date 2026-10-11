@@ -141,7 +141,7 @@ lib-port の「移し方」1〜6 のとおり。外す物は機械で出した�
   - `start`（始めの記録の指し札）・`prior_failures`（依頼の前の失敗の行の指し札）
   - ブロックの返り（include の id の `-` を `_` にした名。返りの欄の object か null）: `test_gate_base`・`judge`・`rejudge`・`plan`・`plan_review`・`replan`・`replan_review`・`fix`・`refix`・`test_gate_final`・`eyes`・`merge_seal`・`merge_apply`
   - 人の関所の答え `{decision, text}` か null: `gate_start`・`gate_before_fix`・`gate_replan`・`gate_final`
-  - 線の節の物: `stop_reason`（線が止めた理由の語。入口の拒み `works:start-refused`・人の止め `human:<関所>`・無人の run の `works:needs-human`・線の script の例外 `works:line-script`。止まらなければ `""`）・`deferred_questions`（無人の run で関所に載せず報告へ回した問い）・`widened`（無人の run で聞かずに通した範囲を広げるだけの直し）・`final_reasons`（最後の関所を開ける理由）・`judged`（`rejudged`・`new_open_units`・`lowered`）・`fixed`（`conflicts`・`refixed`）・`redepth`（`depth`・`skip_optional`・`raised`）
+  - 線の節の物: `stop_reason`（線が止めた理由の語。入口の拒み `works:start-refused`・人の止め `human:<関所>`・無人の run の `works:needs-human`・線の script の例外 `works:line-script`。止まらなければ `""`）・`deferred_questions`（無人の run で関所に載せず報告へ回した問い）・`widened`（無人の run で聞かずに通した範囲を広げるだけの直し）・`final_reasons`（最後の関所を開ける理由）・`judged`（`rejudged`・`new_open_units`（再審の後に開いた単位）・`lowered`（block から下げた単位）・`unnamed_changed`（異議が名指さずに変わった単位）・`unread`（再審の前後の判定を読めなかった訳。読めれば `""`））・`fixed`（`conflicts`・`refixed`）・`redepth`（`depth`・`skip_optional`・`raised`）
   - 型つきの成果物の一覧（`tdd-unit`・`green-cert`・`eye-verdict`）は `with:` でなく report の中で `$TYPED_ARTIFACTS_FILE` から読む（E5）
 - 返り:
   - `outcome`（string）: 結末の語。enum は今の works の `report.py` の `OUTCOMES` の 10 語 `fixed`・`fixed_needs_check`・`no_fix_needed`・`round_limit`・`stopped_by_request`・`stopped_by_human`・`stopped_by_line`・`needs_human`・`record_invalid`・`interrupted` → 線の返り

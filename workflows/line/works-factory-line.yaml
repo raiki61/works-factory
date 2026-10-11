@@ -363,8 +363,11 @@ nodes:
         rejudged: { type: boolean }
         new_open_units: { type: array }
         lowered: { type: array }
+        unnamed_changed: { type: array }
+        unread: { type: string }
         stop_reason: { type: string }
-      required: [units, judgment, purpose, world, rejudge_verdict, rejudged, new_open_units, lowered, stop_reason]
+      required: [units, judgment, purpose, world, rejudge_verdict, rejudged, new_open_units, lowered, unnamed_changed, unread,
+                 stop_reason]
     mutates_checkout: false
     depends_on: [after-fix, rejudge]
     trigger_rule: none_failed_min_one_success
@@ -379,6 +382,7 @@ nodes:
       rejudge_purpose: { from: "$rejudge.output.purpose", if_skipped: null }
       rejudge_world: { from: "$rejudge.output.world", if_skipped: null }
       rejudge_rejudge_verdict: { from: "$rejudge.output.rejudge_verdict", if_skipped: null }
+      objection: "$fix.output.objection"
 
   - id: replan
     include: works-factory-plan
@@ -740,6 +744,8 @@ nodes:
       judged_rejudged: { from: "$judged.output.rejudged", if_skipped: null }
       judged_new_open_units: { from: "$judged.output.new_open_units", if_skipped: null }
       judged_lowered: { from: "$judged.output.lowered", if_skipped: null }
+      judged_unnamed_changed: { from: "$judged.output.unnamed_changed", if_skipped: null }
+      judged_unread: { from: "$judged.output.unread", if_skipped: null }
       fixed_conflicts: { from: "$fixed.output.conflicts", if_skipped: null }
       fixed_refixed: { from: "$fixed.output.refixed", if_skipped: null }
       redepth_depth: { from: "$redepth.output.depth", if_skipped: null }

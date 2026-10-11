@@ -344,17 +344,47 @@ class PlanOutCase(unittest.TestCase):
         self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"done", "stop_reason"})
 
 
-class AfterFixAndJudgedCase(unittest.TestCase):
+class AfterFixAndJudgedCase(Artifacts):
     def test_after_fix_counts(self):
         self.assertEqual(after_fix.decide([], ""), {"replan": False, "rejudge": False, "stop_reason": ""})
         self.assertEqual(after_fix.decide(["1"], " 異議 "), {"replan": True, "rejudge": True, "stop_reason": ""})
 
-    def test_judged_prefers_the_rejudge_and_names_changed_units(self):
-        judge = {"units": [{"id": "u1"}, {"id": "u2"}], "judgment": "j", "purpose": "p", "world": None, "rejudge_verdict": None}
-        again = {"units": [{"id": "u2"}, {"id": "u3"}], "judgment": "j2", "purpose": "p", "world": None, "rejudge_verdict": "一部採る"}
-        got = judged.judged(judge, again)
-        self.assertEqual((got["judgment"], got["rejudged"], got["new_open_units"], got["lowered"]), ("j2", True, ["u3"], ["u1"]))
-        self.assertEqual(judged.judged(judge, None)["units"], judge["units"])
+    def judgment(self, rel, units):
+        (self.artifacts / rel).parent.mkdir(parents=True, exist_ok=True)
+        (self.artifacts / rel).write_text(json.dumps({"units": units, "questions": []}), encoding="utf-8")
+        return {"type": "archon_artifact", "run_id": RUN, "path": rel}
+
+    def returned(self, ptr, verdict=None):
+        return {"units": [{"id": "x"}], "judgment": ptr, "purpose": "p", "world": None, "rejudge_verdict": verdict}
+
+    def test_judged_without_the_rejudge_is_the_judge(self):
+        judge = self.returned(self.judgment("judge/judgment.json", []))
+        got = judged.judged(judge, None, "")
+        self.assertEqual((got["judgment"], got["rejudged"], got["new_open_units"], got["lowered"], got["unnamed_changed"]),
+                         (judge["judgment"], False, [], [], []))
+
+    def test_judged_compares_the_two_judgments_like_the_original(self):
+        """元 rejudge.collect と diff_units の意味: 開いた単位は再審の後に開いた物、下げた単位は block から下げた物、
+        名指していない変化は異議の文が key も番号も名指さない変わった単位"""
+        before = [{"key": "a", "label": "block", "disposition": "fix"}, {"key": "b", "label": "suggest", "disposition": "later"},
+                  {"key": "c", "label": "block", "disposition": "fix"}, {"key": "d", "label": "nit", "disposition": "later"}]
+        after = [{"key": "a", "label": "suggest", "disposition": "later"}, {"key": "b", "label": "suggest", "disposition": "do-now"},
+                 {"key": "c", "label": "block", "disposition": "fix"}, {"key": "d", "label": "nit", "disposition": "drop"},
+                 {"key": "e", "label": "block", "disposition": "fix"}]
+        judge = self.returned(self.judgment("judge/judgment.json", before))
+        again = self.returned(self.judgment("rejudge/judgment.json", after), "一部採る")
+        got = judged.judged(judge, again, "a は直さなくてよい。no 2 も")
+        self.assertEqual((got["judgment"], got["rejudged"], got["rejudge_verdict"]), (again["judgment"], True, "一部採る"))
+        self.assertEqual(got["new_open_units"], ["b", "e"])
+        self.assertEqual(got["lowered"], ["a"])
+        self.assertEqual(got["unnamed_changed"], ["d", "e"])
+        self.assertEqual(got["unread"], "")
+
+    def test_unreadable_judgments_are_said(self):
+        judge = self.returned({"type": "archon_artifact", "run_id": "another", "path": "judge/judgment.json"})
+        got = judged.judged(judge, self.returned(judge["judgment"]), "")
+        self.assertEqual((got["new_open_units"], got["lowered"], got["unnamed_changed"], got["stop_reason"]), ([], [], [], ""))
+        self.assertIn("比べられない", got["unread"])
 
 
 class FixedCase(unittest.TestCase):

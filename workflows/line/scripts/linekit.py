@@ -23,7 +23,7 @@ HUMAN = "human:"   # 人が関所で止めた時の止めの理由の頭（docs/
 GO_WORDS = ("approve", "continue")
 REJECT = "reject"   # 今の works の関所の語で、stop と同じ。decisions に無い語の答えを Archon は run の取り消しとして扱う
 DRY_RUN_APPROVED = "approved"   # 筋書き（workflow test）の関所がいつも返す字。決めの語の approve と読む
-STRINGS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason")   # JSON として読まない欄
+STRINGS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason", "unread")   # JSON として読まない欄
 
 
 def run(compute, fallback) -> None:

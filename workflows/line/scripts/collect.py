@@ -84,6 +84,8 @@ def line_of_env() -> dict:
             "rejudged": os.environ.get("INPUTS_JUDGED_REJUDGED"),
             "new_open_units": os.environ.get("INPUTS_JUDGED_NEW_OPEN_UNITS"),
             "lowered": os.environ.get("INPUTS_JUDGED_LOWERED"),
+            "unnamed_changed": os.environ.get("INPUTS_JUDGED_UNNAMED_CHANGED"),
+            "unread": os.environ.get("INPUTS_JUDGED_UNREAD"),
         },
         "fixed": {
             "conflicts": os.environ.get("INPUTS_FIXED_CONFLICTS"),
