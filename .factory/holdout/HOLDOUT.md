@@ -1,11 +1,11 @@
 # 別の組み合わせの筋書き（holdout）
 
-works-factory を、通しの筋書き（`harness/END-TO-END.md`）とは別の組み合わせと端の場合で確かめる筋書き。works-factory は修正の工場で、人は入口のコマンド `bin/start`（依頼を渡して run を始める）・`bin/answer`（止まった所で答える）・`bin/show`（今どこか・報告を見る）・`bin/apply`（封じた差分を当てる）を打つ。run は、工場が 1 つの依頼を受けてから報告を出すまでの 1 回の実行。人の関所は、人に答えを聞いて止まる所。works-factory は Archon（AI の工程を YAML で書き、順に回す道具）の上で動く。
+works-factory を、通しの筋書き（`harness/END-TO-END.md`）とは別の組み合わせと端の場合で確かめる筋書き。works-factory は修正の工場で、人は入口の殻 `bin/works-factory` で Archon の命令をそのまま打ち（`workflow run works-factory-line` で依頼を渡して run を始め、`workflow respond` で止まった所で答え、`workflow status`・`workflow get` で今どこか・報告を見る）、`bin/apply` で封じた差分を当てる。run は、工場が 1 つの依頼を受けてから報告を出すまでの 1 回の実行。人の関所は、人に答えを聞いて止まる所。works-factory は Archon（AI の工程を YAML で書き、順に回す道具）の上で動く。
 
 ## 読む前に
 
 - このリポジトリを作っているのは ASF（Archon の作者が作った、issue から merge までの工程の束）の AI で、このファイルはその AI も読める。だから隠しの確かめ（holdout）にはならない。隠すなら、機械が読む形の JSON をリポジトリの外に置き、確かめる側にだけ渡す。
-- 今は回せない。入口のコマンドと、確かめに使う小さな種のリポジトリ（`tests/e2e/` に置く予定で、まだ無い）が無いから。どちらも作りの順の早い段（`docs/design.md` の「作りの順」の段 0 と段 1）で作る。
+- 今は回せない。線 `works-factory-line` と、確かめに使う小さな種のリポジトリ（`tests/e2e/` に置く予定で、まだ無い）が無いから。種は作りの順の段 1（`docs/design.md` の「作りの順」）で作る。
 - ASF の工程 `archon-lifecycle` は、入力 `holdout` が空ならこの確かめを飛ばす。回せるようになるまで空で渡す。
 
 ## 2 つの依頼を同じ対象に続けて回す
@@ -19,8 +19,8 @@ works-factory を、通しの筋書き（`harness/END-TO-END.md`）とは別の�
 ## 関所で待っている間に Archon を起こし直す
 
 1. 依頼を回し、最初の人の関所で止まったら、Archon の process を止めて起こし直す。
-2. `./bin/show` で、その run が同じ関所で待っていることを見る。
-3. `./bin/answer` で通す。
+2. `./bin/works-factory workflow get <run> --cwd <対象>` で、その run が同じ関所で待っていることを見る。
+3. `./bin/works-factory workflow respond <run> approve --cwd <対象>` で通す。
 
 期待: run は始めからやり直さず、関所の後から続いて報告まで届く。報告に、関所での答えが載る。
 
@@ -29,4 +29,4 @@ works-factory を、通しの筋書き（`harness/END-TO-END.md`）とは別の�
 1. 依頼を回し、最後の関所で拒む答えを返す。
 2. `./bin/apply` を呼ぶ。
 
-期待: `./bin/apply` は当てずに 0 以外で終わる。対象のリポジトリの作業ツリーは変わらない。`./bin/show` の結末の語は、人が拒んだことを表す語。
+期待: `./bin/apply` は当てずに 0 以外で終わる。対象のリポジトリの作業ツリーは変わらない。`workflow get` が出す結末の語は、人が拒んだことを表す語。
