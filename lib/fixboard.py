@@ -1114,11 +1114,13 @@ def prep_fix(place, n: int, *, items=None, plan_review=None, fix_reply=None, pol
 def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int = 1, lang: str = "") -> str:
     """n 回目の手直しの役の指示書（純粋）: 役の頭（refix-head-<n>。values の brief_file・diff_file・policy_path で穴を埋める）→
     書く役の決まりの正本（rulebook.CANON の NOT_HERE の外）→ 読み替え → 手直しだけの決まり → 返答 → 返答の後に当たる物
-    （refix-tail-<n>）を rulebook.render で繋ぐ。reject_file（前の拒否の理由のファイル）が在れば 1 行目で名指す。決まりの
-    ファイルの置き場は refixrules.RULES と rulebook.CANON（呼び手が置き替える）。
-    元 works/blk-refix/lib/refixrules.py:36・52 の parts・build（借りたスキルの座は持ってこない）"""
+    （refix-tail-<n>）を rulebook.render で繋ぐ。手直しだけの決まりの後に借りたスキルの座（seat.section。receiving-code-review と
+    読み替え）を置く。reject_file（前の拒否の理由のファイル）が在れば 1 行目で名指す。決まりのファイルの置き場は refixrules.RULES と
+    rulebook.CANON（呼び手が置き替える）。写しが固定と違えば seat の ValueError。
+    元 works/blk-refix/lib/refixrules.py:36・52 の parts・build"""
     import refixrules
     import rulebook
+    import seat
     if n not in refixrules.ROLES:
         raise rulebook.Unfilled(f"手直しの往復 {n!r} は {sorted(refixrules.ROLES)} のどれでもない")
     r = rulebook.sections(refixrules.RULES)
@@ -1129,6 +1131,7 @@ def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int 
              *canon,
              ("refix-remap", r["refix-remap"], always + "（この役での読み替え）"),
              ("refix-keep", r["refix-keep"], always + "（手直しだけの決まり）"),
+             ("seat", seat.section(refixrules.ROLES[n]), always + "（座）"),
              ("refix-reply", r["refix-reply"], always + "（返答の欄）"),
              ("refix-tail", r[f"refix-tail-{n}"], always + "（返答の後に当たる物）")]
     return rulebook.render(refixrules.ROLES[n], iteration, parts, reject_file=reject_file, lang=lang)["text"]
@@ -1815,7 +1818,7 @@ def loop_done(got: dict, iteration: int) -> bool:
 
 
 def record_base_rev(place, repo) -> str:
-    """修正前の版（repo の HEAD の sha）を置き場 place の BASE_REV_FILE に控えて返す。並べた組の子の worktree は Archon が
+    """修正前の版（repo の HEAD の sha）を置き場 place の BASE_REV_FILE に控えて返す。並べた組の子の worktree は実行基盤が
     origin の枝から切るので、子の HEAD は親の HEAD と違う。だから親の prep が控え、子は写した物を読む（base_rev_of）"""
     import leftovers
     rev = leftovers.git(repo, "rev-parse", "HEAD").strip()

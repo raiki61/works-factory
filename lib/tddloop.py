@@ -119,6 +119,7 @@ import planbrief  # noqa: E402  （同じブロックの lib。承認済みの�
 import planmarks  # noqa: E402  （.shared/core。修正案の項目の works の欄。単位の約束）
 from planmarks import test_functions  # noqa: E402,F401  （.shared/core。テストの関数の id（pytest の node id の形）→ 源の引き。tddlanes が tddloop.test_functions の名で読む）
 import rolekit  # noqa: E402  （lib。諦めの回数 GIVE_UP_AFTER）
+import seat  # noqa: E402  （lib。借りたスキルの座）
 import tree_run  # noqa: E402
 import writes  # noqa: E402  （.shared/core。書き込みの出どころの突き合わせ）
 import leftovers  # noqa: E402
@@ -787,7 +788,8 @@ def prep(state_file, values: dict | None = None, repo=None, *, lang: str = "", s
     確かめの節が状態にそれを保存した後、実行基盤が輪の済みを記録する前に止まった run を、実行基盤の resume は輪の 1 周目から
     回し直す（役の節は when: で飛び、確かめ step は返答 None で何も動かさずに輪を抜ける）。
     役は周ごとに新しい会話で起きるので、前の単位の物と今の単位のこれまで（段・前の段の結果）は引き継ぎの節（handoff_lines）だけで
-    渡る。元の借りたスキルの座（seat.section）と、包みが単位の切れ目で会話を切る鍵（adapter.session_key_path）は外した"""
+    渡る。借りたスキルの座（seat.section。test-driven-development と読み替え）を載せる。写しが壊れていれば Broken。包みが単位の
+    切れ目で会話を切る鍵（元の adapter.session_key_path）は外した"""
     st = _load(state_file)
     if _over(st):   # resume で 1 周目から回し直された済んだ輪: 役を起こさない（YAML の役の when: が go を読む）
         return {"prompt_file": "", "go": False}
@@ -826,11 +828,15 @@ def prep(state_file, values: dict | None = None, repo=None, *, lang: str = "", s
     vals = {**{k: "" for k in fixrules.TDD_VALUES}, **(values or {}),
             "open_units": json.dumps(_owed(st), ensure_ascii=False)}
     n = st["iterations"] + 1
+    try:
+        seat_text = seat.section("tdd")
+    except ValueError as e:
+        raise Broken(f"TDD の輪の座を組めない: {e}") from None
 
     def build(kinds):
         try:
             return fixrules.tdd_render(vals, phase, "\n".join(lines), title=title, reason=st["reason"], kinds=kinds,
-                                       iteration=n, brief=brief, lang=lang)
+                                       iteration=n, brief=brief, seat=seat_text, lang=lang)
         except fixrules.Unfilled as e:
             raise Broken(f"TDD の輪の指示書を組めない: {e}")
     fixrules.write_prompt(path, repo, vals, build, n)

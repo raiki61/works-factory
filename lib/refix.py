@@ -48,6 +48,7 @@ import lens  # noqa: E402
 import planrange  # noqa: E402
 import protect  # noqa: E402
 import recount  # noqa: E402
+import seat  # noqa: E402  （借りたスキルの座。1 回目の審査役の task-review）
 import stopby  # noqa: E402  （L1。止めの理由の住処）
 import writes  # noqa: E402
 
@@ -136,8 +137,11 @@ def cut(board: pathlib.Path, n: int, repo: pathlib.Path, base_rev: str = "", *, 
     （_cut_delta）、役に見せる材料を review<n>-brief.json に書き、作業ツリーの写し（review<n>-snapshot.json）を撮って
     {ok: True, files, diff_file, rev, brief_file, must} を返す。材料の値は呼び手が渡す（値か、置き場に置いた JSON のパス）:
     plan_review（事前審査の返答）・fix_reply（修正役の返答）・items（承認済みの修正案の項目。planmarks.approved_items の形か、それを
-    返す口）・policy（人の方針 {paste, path}。無ければ両方空）。1 回目は修正案の欄の控えが凍結の印と食い違えば、差分の審査の段の印
-    stopby.DELTA の文で控えを名指す ValueError（conflict.fields_broken）"""
+    返す口）・policy（人の方針 {paste, path}。無ければ両方空）。審査役の座が載る（seat.carries。1 回目の審査役）なら、task-review の
+    型を埋めた座（seat.section。穴は brief・人の方針の文書・修正役の返答のファイル・差分の起点と修正後の姿・差分のファイル。無い物は
+    seat.NONE）を review<n>-seat.md に書いて brief の seat_file と must に名指す（載らなければ seat_file は空。写しが固定と違えば
+    ValueError）。1 回目は修正案の欄の控えが凍結の印と食い違えば、差分の審査の段の印 stopby.DELTA の文で控えを名指す ValueError
+    （conflict.fields_broken）"""
     p = _pass(n)
     if n == 1:
         rev = base_rev
@@ -147,8 +151,8 @@ def cut(board: pathlib.Path, n: int, repo: pathlib.Path, base_rev: str = "", *, 
         rev = (fixboard.loop_value(board, _pass(n - 1)["state_key"]) or {}).get("rev")
         if not rev:
             return {"ok": False, "reason": f"置き場に loop.{_pass(n - 1)['state_key']} が無い（{n - 1} 回目の差分を切っていない）"}
-    brief_name = f"review{n}-brief.json"
-    _drop_stale(board, brief_name, fixboard.out_file(board, p["review"]).name)
+    brief_name, seat_name = f"review{n}-brief.json", f"review{n}-seat.md"
+    _drop_stale(board, brief_name, seat_name, fixboard.out_file(board, p["review"]).name)
     if n == 1:
         (pathlib.Path(board) / deltamarks.VERDICTS_FILE).unlink(missing_ok=True)
     try:
@@ -160,8 +164,15 @@ def cut(board: pathlib.Path, n: int, repo: pathlib.Path, base_rev: str = "", *, 
     if n > 1:
         values[f"out.{_pass(n - 1)['fix']}"] = fixboard.output(board, _pass(n - 1)["fix"])
     pol = fixboard._given(policy) or {"paste": "", "path": ""}
+    seat_text = ""
+    if seat.carries(REVIEW_ROLE[n]):   # 座は 1 回目の審査役だけ（2 回目の review2 には座が無い。seat の頭）
+        seat_text = seat.section(REVIEW_ROLE[n], {
+            "[BRIEF_FILE]": str(pathlib.Path(board) / brief_name), "[GLOBAL_CONSTRAINTS]": pol["path"] or seat.NONE,
+            "[REPORT_FILE]": str(fix_reply) if isinstance(fix_reply, (str, pathlib.Path)) and str(fix_reply) else seat.NONE,
+            "[BASE_SHA]": rev or seat.NONE, "[HEAD_SHA]": d.get("rev") or seat.NONE, "[DIFF_FILE]": d["file"]})
+    seat_file = str(fixboard.write_text(pathlib.Path(board) / seat_name, seat_text)) if seat_text else ""
     doc = {"node": p["review"], "diff_file": d["file"], "files": d.get("files") or [], "rev": d.get("rev"),
-           "reads": fixboard._brief(p["review"], values), "policy": pol}
+           "reads": fixboard._brief(p["review"], values), "policy": pol, "seat_file": seat_file}
     try:   # 変わったファイルのうち守りのファイル（protect）。審査役が検査を緩める変更を見る材料（最後の人の関所にも必ず出る）
         doc["protected_files"] = protect.hits(doc["files"])
     except protect.Broken as e:
@@ -177,7 +188,7 @@ def cut(board: pathlib.Path, n: int, repo: pathlib.Path, base_rev: str = "", *, 
     brief = _write_json(pathlib.Path(board) / brief_name, doc)
     fixboard.snapshot(board, snapshot_name(n), repo)
     return {"ok": True, "files": list(d.get("files") or []), "diff_file": d["file"], "rev": d.get("rev") or "",
-            "brief_file": str(brief), "must": [str(brief), d["file"]]}
+            "brief_file": str(brief), "must": [str(brief), d["file"]] + ([seat_file] if seat_file else [])}
 
 
 def brief_ties(ties: list) -> list[dict]:

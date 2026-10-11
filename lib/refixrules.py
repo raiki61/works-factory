@@ -2,8 +2,7 @@
 当たる節（NOT_HERE の外）を字のまま載せ、手直しの決まり（rules/refix.md）と run の値を繋ぐ。同じ入力からはバイト単位で同じ。
 
 並び: 役の頭（refix-head-<n>）→ 正本の節（NOT_HERE を除いた全部。ファイルの順）→ 読み替え（refix-remap。正本より勝つ）→ 手直しだけの決まり
-（refix-keep）→ 借りたスキルの座（seat。receiving-code-review。呼び手の支度 scripts/prep.py が
-seat.section で組んで渡す。空なら載せない）→ 返答（refix-reply。どの回も同じ）→ 返答の後に当たる物（refix-tail-<n>）。支度は輪の外で 1 度だけ組むので、形は full だけ（拒否の理由のファイルは役の節の
+（refix-keep）→ 借りたスキルの座（seat。receiving-code-review。fixboard.refix_prompt が seat.section で組む）→ 返答（refix-reply。どの回も同じ）→ 返答の後に当たる物（refix-tail-<n>）。支度は輪の外で 1 度だけ組むので、形は full だけ（拒否の理由のファイルは役の節の
 prompt が $LOOP_PREV で名指す）。並べて組むのは呼び手の script の節（fixrules と同じ形。rulebook.sections・fill・pick・render を
 呼ぶ）で、ここは決まりのファイルの置き場と節の表だけを持つ。
 """

@@ -930,6 +930,7 @@ nodes:
           depends_on: [refix-prep]
           when: "$refix-prep.output.go == true"
           settingSources: [user]
+          skills: [receiving-code-review]
           allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
@@ -1077,6 +1078,7 @@ nodes:
           depends_on: [refix2-prep]
           when: "$refix2-prep.output.go == true"
           settingSources: [user]
+          skills: [receiving-code-review]
           allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
@@ -1172,6 +1174,7 @@ nodes:
           depends_on: [tdd-prep]
           when: "$tdd-prep.output.go == true"
           settingSources: [user]
+          skills: [test-driven-development]
           allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
           sandbox: {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000

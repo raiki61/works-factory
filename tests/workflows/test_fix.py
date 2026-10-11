@@ -200,6 +200,18 @@ class RolesCase(unittest.TestCase):
             self.assertEqual((node.get("model"), node.get("effort"), node.get("context"), node.get("settingSources"),
                               node.get("sandbox")), (model, effort, context, sources, sandbox), nid)
 
+    def test_borrowed_skills_sit_on_the_seat_roles(self):
+        """借りた superpowers の技: TDD の役に test-driven-development、手直しの役に receiving-code-review（元 blk-fix.yaml:188・
+        blk-refix.yaml:64,332。seat.SKILL_NODES と同じ役）。下請けを起こす修正役は Agent を持つ（seat.AGENT_NODES）"""
+        import seat
+        got = {nid: n["skills"] for nid, n in self.nodes.items() if "skills" in n}
+        want = {nid: [seat.skill_of(seat.load_seams()[seat.SEATS[nid]])] for nid in seat.SKILL_NODES}
+        self.assertEqual(got, want)
+        for nid in got:
+            self.assertIn("Skill", self.nodes[nid]["allowed_tools"], nid)
+        for nid in ("fixer", "fix-ruled"):
+            self.assertIn("Agent", self.nodes[nid]["allowed_tools"], nid)
+
     def test_loops_keep_the_original_bounds(self):
         for nid, bound in ORIGINAL_LOOPS.items():
             self.assertEqual(self.nodes[nid]["loop_group"]["max_iterations"], bound, nid)
@@ -345,6 +357,9 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertEqual((prep["go"], prep["iteration"]), (True, 1))
         text = pathlib.Path(prep["prompt_file"]).read_text(encoding="utf-8")
         self.assertIn(str(self.place / "refix1-brief.json"), text)
+        self.assertIn("`receiving-code-review`", text, "手直しの役に借りたスキルの座")
+        seat_file = json.loads((self.place / "review1-brief.json").read_text(encoding="utf-8"))["seat_file"]
+        self.assertIn("task-reviewer-prompt.md", pathlib.Path(seat_file).read_text(encoding="utf-8"), "1 回目の審査役の座")
         p = self.repo / "stats.py"
         p.write_text(p.read_text(encoding="utf-8").replace("def mean(xs):\n", 'def mean(xs):\n    """算術平均"""\n'),
                      encoding="utf-8")
@@ -1372,8 +1387,15 @@ class FixLoopScriptsCase(unittest.TestCase):
         code, out, err = _fx_run("fix_prep", self.repo, self.art, group=self._fx_group([_FX_MEAN]))
         self.assertEqual(code, 0, err)
         self.assertEqual((out["go"], out["iteration"]), (True, 1), out)
-        self.assertIn(_FX_MEAN, pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8"))
+        text = pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(_FX_MEAN, text)
         self.assertFalse((self.place / consult.CONFIG).exists(), "修正案の無い run は相談の控えを書かない")
+        # TDD の輪が緑にしていない単位は、修正役が項目ごとに下請け（実装役・審査役）を Agent で起こす（元の g1）
+        self.assertIn("## 下請けを回す", text)
+        impl = (self.place / "g1-impl-1.md").read_text(encoding="utf-8")
+        self.assertIn(_FX_MEAN, impl)
+        self.assertIn("## works の決まり（下請け", impl)
+        self.assertIn(str(self.place / "g1-1.patch"), (self.place / "g1-review-1.md").read_text(encoding="utf-8"))
         code, out, err = _fx_run("fix_prep", self.repo, self.art, group=self._fx_group(["not-owed"]))
         self.assertEqual((code, out["go"]), (0, False), err)
 

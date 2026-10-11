@@ -8,7 +8,9 @@
 直さない裁定で外れた）時は go: false（修正役を起こさない）。前の回の拒否の理由のファイル（fix-accept が書いた
 reject-fix-accept-<k>.md）を指示書の頭で名指す。段の頭の木（TDD の輪の後の姿）を 1 回目に置き場の fix-head.json に控える
 （受け付けの書き込みの出どころと、諦めた単位の戻し先。TDD の輪が書いた物を修正役の物に数えない）。範囲の相談の答えがまだ渡っていない周は、答えのファイルを名指す続きの指示書だけを
-書く（fixrules.prep の中の consult の引き）。相談の控え（consult.json）には除くパスの頭 fixio.SKIP を足す。
+書く（fixrules.prep の中の consult の引き）。TDD の輪が緑にした単位（tddloop.green_units）の外の単位には、修正役が項目ごとに
+Agent の新しい会話で下請け（実装役・審査役）を起こす節と下請けのファイルを置く（fixrules.g1_values・seat.g1_section）。輪が全部を
+緑にした周は借りたスキルの座（seat.section）。相談の控え（consult.json）には除くパスの頭 fixio.SKIP を足す。
 返り {prompt_file, go, iteration}。回す側の誤り（判定の写しが無い・brief の控えが壊れた）は標準エラーに 1 行で非 0。
 """
 import json
@@ -28,6 +30,7 @@ import fixrules  # noqa: E402
 import groups  # noqa: E402
 import rulebook  # noqa: E402
 import startrec  # noqa: E402
+import tddloop  # noqa: E402
 
 RULES = Path(__file__).resolve().parents[1] / "commands" / "fix-rules"
 rulebook.CANON = RULES / "common.md"
@@ -54,7 +57,8 @@ def main() -> dict:
     got = fixrules.prep(place, repo, fixboard.fix_values(place, owed, start=start, state=state, summary=summary,
                                                          answer_node=ANSWER_NODE),
                         "first", owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
-                        reject_file=str(reject) if n > 1 and reject.is_file() else "", lang=fixboard.lang_line(start))
+                        reject_file=str(reject) if n > 1 and reject.is_file() else "", lang=fixboard.lang_line(start),
+                        green=tddloop.green_units(summary))
     fixboard.consult_skip(place, fixio.SKIP)
     return {"prompt_file": got["prompt_file"], "go": True, "iteration": got["iteration"]}
 

@@ -1258,8 +1258,11 @@ class DeltaSeamCase(TempCase):
         self.assertIn(fixboard.REJECT_LINE.format(path="/r.md"), text)
         for w in ("refix-head-2 の本文 `/b.json`", "直し方", "refix-tail-2 の本文", "言語の 1 行"):
             self.assertIn(w, text)
-        self.assertNotIn("申し出", text)
+        self.assertNotIn("core-conflict", text)
+        self.assertNotIn("\n申し出\n", text)
         self.assertNotIn("refix-tail-1", text)
+        self.assertLess(text.index("refix-keep の本文"), text.index("`receiving-code-review`"), "座は手直しだけの決まりの後")
+        self.assertLess(text.index("`receiving-code-review`"), text.index("refix-reply の本文"))
 
     def test_start_tree_prefers_groups_then_the_ignored_record(self):
         self.assertEqual(fixboard.start_tree(self.place), "")

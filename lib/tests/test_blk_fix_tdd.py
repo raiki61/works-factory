@@ -211,6 +211,14 @@ class TestStart(LoopCase):
             self.assertIn(w, prompt)
         self.assertEqual(git(self.repo, "status", "--porcelain"), "", "元の結末を取っても作業ツリーは変わらない")
 
+    def test_prompt_carries_the_borrowed_skill_seat(self):
+        """TDD の役の指示書に借りたスキルの座（Skill で test-driven-development を読む 1 文と読み替えの全文）が載る（元 tddloop の seat.section）"""
+        import seat
+        full = pathlib.Path(tddloop.prep(self.state)["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(str(seat.HEAD), full)
+        self.assertIn("`test-driven-development`", full)
+        self.assertIn((seat.BORROW_DIR / seat.OVERLAY_FILE).read_text(encoding="utf-8").strip(), full)
+
     def test_prompt_is_composed_from_the_shared_rules(self):
         """tdd-prep の指示書: 修正の決まりの正本の核・TDD の読み替え・今の段の約束（今の段だけ）・今の段の指示。next.md は毎回
         決まりを全部載せる（全文版・差分版の控えは書かない）"""
@@ -230,6 +238,7 @@ class TestStart(LoopCase):
         self.assertIn(core, full2, "2 回目も決まりを全部")
         for s in ("- **test**:", "## この段ですること", "段 test"):
             self.assertIn(s, full2)
+
         self.assertEqual(fixrules.iteration_next(prompt), 3)
 
     def test_owed_units_are_conflict_fix_duty_not_the_is_open_list(self):
@@ -1973,8 +1982,8 @@ class TestResume(LoopCase):
 
 class TddloopSeamsGoneCase(unittest.TestCase):
     def test_board_and_wrapper_seams_are_gone(self):
-        """盤面・包み・借りた座に届く名は持たない（元の rules の写しの読み・会話の鍵の書き・座の節）"""
-        for name in ("RULES_GRAPH", "write_key", "RECEIVES", "adapter", "board", "entry", "seat", "script_io"):
+        """盤面・包みに届く名は持たない（元の rules の写しの読み・会話の鍵の書き）"""
+        for name in ("RULES_GRAPH", "write_key", "RECEIVES", "adapter", "board", "entry", "script_io"):
             self.assertFalse(hasattr(tddloop, name), name)
 
 
