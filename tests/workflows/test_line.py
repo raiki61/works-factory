@@ -44,6 +44,11 @@ RUN = "run-1"
 LINE = yaml.safe_load((SCRIPTS.parent / "works-factory-line.yaml").read_text(encoding="utf-8"))
 
 
+def block_doc(include: str) -> dict:
+    """差し込むブロックの YAML（include の名の works-factory- の後ろがフォルダ）"""
+    return yaml.safe_load((SCRIPTS.parents[1] / include.removeprefix("works-factory-") / f"{include}.yaml").read_text(encoding="utf-8"))
+
+
 def line_nodes(nodes=None) -> dict:
     """線の節（loop_group の中の節も）を id ごとに"""
     got = {}
@@ -778,6 +783,24 @@ class LineWiringCase(unittest.TestCase):
                 if key == "report":
                     self.assertEqual(passed, set(declared))
 
+    UNPASSED = {
+        "plan-review-run": {"conflicts", "gate_answers"},   # 計画の往復は修正の前。申し出も修正前の関所の答えもまだ無い
+        "fix": {"only_items", "mode", "group", "from_tree", "out_dir"},   # docs/design.md の「約束に無い入力（線は渡さない）」
+        "refix-run": {"mode", "group", "from_tree", "out_dir"},
+        "merge-seal": {"answer", "r2", "sealed_hash"},   # apply の時だけ
+        "eyes": {"x_scalars"},   # issue #110
+    }
+
+    def test_includes_pass_every_input_but_the_named(self):
+        """差し込むブロックが宣言する入力は、UNPASSED に名指した物のほかは全部渡す（既定値のまま黙って落ちない。約束の「← $…」の入力は
+        宣言の中に在る）"""
+        for key, node in line_nodes().items():
+            if "include" not in node:
+                continue
+            with self.subTest(node=key):
+                declared = set(block_doc(node["include"])["inputs"])
+                self.assertEqual(declared - set(node.get("with") or {}), self.UNPASSED.get(key, set()))
+
     def test_fix_and_refix_get_their_plan_and_gate_answers(self):
         """筋書きは include の入力をブロックの script に渡さない（dry-run）ので、修正の段に届く物はここで照らす: 1 回目は計画の往復の
         案と修正前の関所の答え、2 度目は案の直しの案と両方の関所を合わせた答え、直すのは 1 回目が返した計画の項目だけ"""
@@ -795,14 +818,11 @@ class LineWiringCase(unittest.TestCase):
         そのまま残す。線の差し込みの名（頭の段と線の輪の中）は、輪の中の `$<名>.output` までブロックの返す節へ書き換わる
         （include-expander.ts の renameIncludeRef）ので、線と差し込む全ブロック（入れ子も）の輪の中の節の名と重なると、ブロックの
         輪の中の節が線の節を読む"""
-        def block(name):
-            return yaml.safe_load((SCRIPTS.parents[1] / name.removeprefix("works-factory-") / f"{name}.yaml").read_text(encoding="utf-8"))
-
         def body_ids(nodes, inside=False):
             got = set()
             for node in nodes:
                 if "include" in node:
-                    got |= body_ids(block(node["include"])["nodes"])
+                    got |= body_ids(block_doc(node["include"])["nodes"])
                 elif inside:
                     got.add(node["id"])
                 if "loop_group" in node:
