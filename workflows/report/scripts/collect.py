@@ -10,9 +10,8 @@ import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
 import runreport  # noqa: E402
-from place import rel  # noqa: E402
+from place import OUT, out_dir, rel  # noqa: E402
 
-OUT = "report"
 FACTS = os.environ.get("INPUTS_FACTS", "")
 CARRIED = ("next_request", "prior_failures")
 
@@ -22,8 +21,7 @@ def main() -> dict:
     if not isinstance(facts, dict) or not isinstance(facts.get("report"), dict):
         raise ValueError("facts の返りが無いか、機械の報告の指し札を持たない")
     machine = boundary.resolve(facts["report"])
-    out_dir = Path(os.environ["ARTIFACTS_DIR"]) / OUT
-    ai = runreport.collect(machine.read_text(encoding="utf-8"), out_dir=out_dir,
+    ai = runreport.collect(machine.read_text(encoding="utf-8"), out_dir=out_dir(),
                            stamp=f"works-factory report / run {os.environ.get('WORKFLOW_ID', '')}")
     return {"outcome": facts["outcome"], "ok": facts["ok"], "stop_reason": facts["stop_reason"], "report": rel(machine),
             "report_ai": rel(ai) if ai else None, **{k: facts[k] for k in CARRIED}}
@@ -45,7 +43,7 @@ def fallen(error: BaseException) -> dict:
     out = {"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "report": None, "report_ai": None,
            "next_request": None, "prior_failures": None}
     try:
-        out["report"] = rel(runreport.fallback_report(Path(os.environ["ARTIFACTS_DIR"]) / OUT, why))
+        out["report"] = rel(runreport.fallback_report(out_dir(), why))
     except Exception:  # noqa: BLE001 — 置き場に書けなくても返る
         out["report"] = facts_report() or {"type": boundary.POINTER_TYPE, "run_id": os.environ.get("WORKFLOW_ID", ""),
                                            "path": f"{OUT}/{runreport.FALLBACK_FILE}"}

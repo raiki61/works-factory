@@ -8,9 +8,8 @@ import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
 import runreport  # noqa: E402
-
-OUT = "report"
+from place import out_dir  # noqa: E402
 
 if __name__ == "__main__":
     boundary.returns(runreport.accept(os.environ.get("INPUTS_REPLY", ""), os.environ.get("INPUTS_COLD", ""),
-                                      out_dir=Path(os.environ["ARTIFACTS_DIR"]) / OUT))
+                                      out_dir=out_dir()))

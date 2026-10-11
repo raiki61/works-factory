@@ -12,9 +12,8 @@ sys.path.append(str(boundary.lib_root()))
 import outcome  # noqa: E402
 import runreport  # noqa: E402
 import typed  # noqa: E402
-from place import rel  # noqa: E402
+from place import out_dir, rel  # noqa: E402
 
-OUT = "report"
 RETURNS = {
     "test-gate-base": os.environ.get("INPUTS_TEST_GATE_BASE", ""),
     "judge": os.environ.get("INPUTS_JUDGE", ""),
@@ -136,7 +135,7 @@ def main() -> dict:
     facts = runreport.transcript_facts(rows, exclude_prefix=own_prefix())
     decided = outcome.decide_outcome(returns, gates, {"start_ok": bool(start), "record_problems": problems,
                                                       "failed": facts["failed"] if facts["ok"] else None})
-    built = runreport.build(returns, gates, listing, facts, *decided, out_dir=Path(os.environ["ARTIFACTS_DIR"]) / OUT,
+    built = runreport.build(returns, gates, listing, facts, *decided, out_dir=out_dir(),
                             start=start, problems=problems, run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why)
     report = rel(built["report"])
     return {"outcome": decided[0], "ok": decided[0] in outcome.OK_OUTCOMES, "stop_reason": decided[1],
@@ -150,7 +149,7 @@ def fallen(error: BaseException) -> dict:
     out = {"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "report": None,
            "next_request": None, "prior_failures": None, "ai_go": False, "facts_file": ""}
     try:
-        out["report"] = rel(runreport.fallback_report(Path(os.environ["ARTIFACTS_DIR"]) / OUT, why))
+        out["report"] = rel(runreport.fallback_report(out_dir(), why))
         out["facts_file"] = out["report"]["path"]
     except Exception:  # noqa: BLE001 — 置き場に書けなくても返る
         pass
