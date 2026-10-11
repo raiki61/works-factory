@@ -782,6 +782,22 @@ class MaterialCase(_BCase):
                 self.assertFalse(got["ok"], got)
                 self.assertFalse((self.jdir / f"material-{role}.json").exists())
 
+    def test_gate_role_may_judge_a_gate_free_diff_not_applicable(self):
+        """元 test_gate_na.PolicyCase（entry.role_judged_na_works。canary の run e91112dd）: 機械は touches_gates を真へ倒すが、
+        差分にゲートの印が無ければゲートの検算の役の『条件外』を受ける。印が在れば拒む（測らせる）"""
+        na = {"material": {"status": "not_applicable", "reason": "差分は文書の行だけで、検証ゲートを足しも変えもしない"}, "arms": []}
+        for extra, ok in ((None, True), ("test_app.txt", False)):
+            with self.subTest(extra=extra):
+                self.setUp()
+                (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
+                if extra:
+                    (self.repo / extra).write_text("x\n", encoding="utf-8")
+                self.view()
+                brief = ja.material_prep(self.jdir, "gate-efficacy", self.repo, "")["brief"]
+                self.assertEqual("役の判定を受ける" in brief, ok)
+                got = ja.material_take(self.jdir, "gate-efficacy", na, self.repo)
+                self.assertEqual(got["ok"], ok, got)
+
     def test_material_role_changed_the_tree_rejected(self):
         """元 test_blk_material.test_tree_change_rejects_and_names_peers"""
         self.view()
@@ -834,6 +850,52 @@ class MaterialCase(_BCase):
         self.assertEqual(mats["local_review"]["status"], "not_applicable")
         self.assertIn("判定から入る run", mats["local_review"]["reason"])
         self.assertEqual(mats["prior_decisions"]["status"], "not_run")
+
+
+class GateSignalsCase(unittest.TestCase):
+    """元 test_gate_na.SignalsCase: 差分に機械が見るゲートの印（テスト・CI・pre-commit・変異の腕の一覧などの定義のファイルと、
+    assert を足す・消す行）"""
+    DOCSTRING_DIFF = ('diff --git a/calc.py b/calc.py\n--- a/calc.py\n+++ b/calc.py\n@@ -9,7 +9,7 @@ def mean(xs):\n def median(xs):\n'
+                      '-    """中央値"""\n+    """中央値（並べた真ん中）"""\n     if not xs:\n')
+
+    @staticmethod
+    def assert_diff(sign):
+        return ("diff --git a/calc.py b/calc.py\n--- a/calc.py\n+++ b/calc.py\n@@ -1,3 +1,3 @@\n def clamp(x, lo, hi):\n"
+                f"{sign}    assert lo <= hi, 'lo > hi'\n     return min(max(x, lo), hi)\n")
+
+    def test_docstring_only_diff_has_no_signal(self):
+        self.assertEqual(ja.gate_signals(["calc.py"], self.DOCSTRING_DIFF), [])
+
+    def test_gate_files_are_signals(self):
+        for f in ("tests/test_calc.py", "test_calc.py", "calc_test.go", "src/calc.test.ts", "conftest.py",
+                  ".github/workflows/ci.yml", ".gitlab-ci.yml", ".pre-commit-config.yaml", ".husky/pre-commit",
+                  ".review-checks.json", ".works-checks.json", "pyproject.toml", "Makefile", "package.json", ".eslintrc.json",
+                  "tox.ini", "pytest.ini", "mypy.ini", "setup.cfg"):
+            with self.subTest(f):
+                got = ja.gate_signals(["calc.py", f], "")
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(f, got[0])
+
+    def test_added_or_removed_assert_is_a_signal(self):
+        for sign in "+-":
+            with self.subTest(sign):
+                got = ja.gate_signals(["calc.py"], self.assert_diff(sign))
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("assert", got[0])
+
+    def test_context_assert_is_not_a_signal(self):
+        """変えていない行（頭が空白）の assert は差分がゲートを変えた印にならない"""
+        self.assertEqual(ja.gate_signals(["calc.py"], self.assert_diff(" ")), [])
+
+    def test_only_the_gate_node_lets_the_role_judge(self):
+        """元 test_gate_na.PolicyCase.test_other_node_keeps_the_copy_rule: ほかの節（代役の忠実性）は写しのまま拒む"""
+        with tempfile.TemporaryDirectory() as tmp:
+            diff = pathlib.Path(tmp) / "diff.patch"
+            diff.write_text(self.DOCSTRING_DIFF, encoding="utf-8")
+            view = ja.due_view({}, None, ["calc.py"])
+            self.assertTrue(ja.role_judged_na(view, ja.GATE_NODE, diff))
+            self.assertFalse(ja.role_judged_na(view, "p1.test_double_fidelity", diff))
+            self.assertFalse(ja.role_judged_na(view, ja.GATE_NODE, pathlib.Path(tmp) / "nowhere.patch"))
 
 
 # ================================================================ 判定役の材料

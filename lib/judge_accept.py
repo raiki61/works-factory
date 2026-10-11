@@ -33,6 +33,7 @@ import types  # noqa: E402
 import accept as core_accept  # noqa: E402  （lib/accept。このモジュールに受け付けの関数 accept が在るので別名で読む）
 import baseline_red  # noqa: E402
 import carry  # noqa: E402
+import checkscope  # noqa: E402
 import cite  # noqa: E402
 import diverted  # noqa: E402
 import engine.util as _util  # noqa: E402
@@ -2051,9 +2052,59 @@ def _skills(view: DueView, role: str) -> list:
     return out
 
 
-def _na_note(view: DueView, nid: str) -> str:
-    """元 material.py:350。節 nid の役が素材に not_applicable を書けるかの段。applies_cond が在ればこの周の真偽、無ければ
-    graph の na_self_ok の宣言。役の判定を受ける差し替え（元 entry.role_judged_na_works）は持たない（role_judged_na は偽）"""
+# 元 works/.shared/core/entry.py:206-229。ゲートの検算の役（p1.gate_efficacy）の『条件に当たらない』（canary の run e91112dd）。
+# p0.base は機械が組み（due_view）、touches_gates を判定せずに真へ倒す——機械には差分の柵（分岐）がゲートかを決められないので、
+# 役を起こす側に倒す。check_record はその値を機械の事実として読み、ゲートに触れない差分でも役の not_applicable を拒むので、
+# 0 腕の役は not_run（検証器の阻害）しか名乗れない。差分を読むゲートの検算の役の判定を受けるのは、機械が持つ事実がどれも
+# 『ゲートに触れる』と言わない時だけ: 前の周の修正がゲートを変えたと申告していない（倒した p0.base の値を外して評価する）、差分に
+# 機械が見るゲートの印（GATE_FILE_PATTERNS のファイル・assert を足す・消す行）が無い。印が 1 つでも在れば拒む（測らせる）
+GATE_NODE = "p1.gate_efficacy"
+GATES_COND = "gates_touched"
+# 検証ゲートの定義のファイル（テスト・CI・pre-commit・フック・lint・試験の設定・変異の腕の一覧）。広めに当てる——当たり過ぎは
+# 役に測らせる（今まで通り）だけで、当たり漏れが役の『条件外』を通す。元の試験の実行器の名の 2 つの設定ファイル（.ini）は E13 の
+# 語の表に当たるので、*.ini と *.cfg を全部当てる形に広げた
+GATE_FILE_PATTERNS = (
+    r"(^|/)tests?/", r"(^|/)__tests__/", r"(^|/)spec/", r"(^|/)test_[^/]*$", r"_test\.[^/]+$", r"\.(test|spec)\.[^/]+$",
+    r"(^|/)conftest\.py$", r"^\.github/", r"(^|/)\.gitlab-ci\.ya?ml$", r"^\.circleci/", r"(^|/)Jenkinsfile$",
+    r"(^|/)\.travis\.ya?ml$", r"(^|/)azure-pipelines\.ya?ml$", r"^\.buildkite/", r"(^|/)\.pre-commit-config\.ya?ml$",
+    r"^\.husky/", r"(^|/)lefthook\.ya?ml$", r"(^|/)\.?githooks/", r"(^|/)hooks/", r"(^|/)\.review-checks\.json$",
+    r"(^|/)[^/]+\.(ini|cfg)$", r"(^|/)(noxfile\.py|pyproject\.toml|Makefile|justfile|package\.json)$",
+    r"(^|/)(\.flake8|\.?ruff\.toml|\.pylintrc|\.eslintrc[^/]*|eslint\.config\.[^/]+|\.shellcheckrc|\.golangci\.ya?ml)$",
+    rf"(^|/){re.escape(checkscope.SCOPE_DECL)}$",   # works の範囲の宣言（宣言の段を外す所を決める）
+)
+_GATE_FILES = tuple(re.compile(p) for p in GATE_FILE_PATTERNS)
+_ASSERT_LINE = re.compile(r"^[+-](?![+-]{2} ).*\bassert", re.M)   # 足す・消す行（ファイルの頭の +++ / --- を除く）
+
+
+def gate_signals(changed_files, diff_text: str) -> list:
+    """元 works/.shared/core/entry.py:231。差分に機械が見るゲートの印の一覧（空なら印が無い）: ゲートの定義のファイルと、assert を
+    足す・消す行"""
+    hits = [f"ゲートの定義のファイル {f}" for f in changed_files if any(p.search(f) for p in _GATE_FILES)]
+    hits += [f"assert の行 {m.group(0)[:80]!r}" for m in _ASSERT_LINE.finditer(diff_text or "")]
+    return hits
+
+
+def role_judged_na(view: DueView, nid: str, diff_file) -> bool:
+    """元 works/.shared/core/entry.py:238 の role_judged_na_works。走ったゲートの検算の役の『条件外』を、機械が持つ事実がどれも
+    『ゲートに触れる』と言わない時だけ受ける（上の注記）。p0.base はいつも機械の節（due_view）。ほかの節・変更ファイルの一覧の
+    無い見方・読めない差分は受けない"""
+    if MATERIAL_NODES[nid].get("applies_cond") != GATES_COND:
+        return False
+    if CONDS[GATES_COND](DueView({**view.values, "out.p0.base.touches_gates": False}))[0]:
+        return False
+    files = view("loop.changed_files")
+    if not isinstance(files, list):
+        return False
+    try:
+        diff = pathlib.Path(diff_file).read_text(encoding="utf-8", errors="replace")
+    except (TypeError, OSError):
+        return False
+    return not gate_signals(files, diff)
+
+
+def _na_note(view: DueView, nid: str, diff_file) -> str:
+    """元 material.py:350。節 nid の役が素材に not_applicable を書けるかの段。check_record と同じ決め: applies_cond が在れば
+    この周の真偽と役の判定を受ける差し替え（role_judged_na）、無ければ graph の na_self_ok の宣言"""
     n = MATERIAL_NODES[nid]
     ap = n.get("applies_cond")
     if ap is None:
@@ -2067,6 +2118,10 @@ def _na_note(view: DueView, nid: str) -> str:
         ok, why = CONDS[ap](view)
         if not ok:
             body = f"この節の条件 `{ap}` はこの周に偽（{why}）なので、`not_applicable`（理由を reason に）を書いてよい。"
+        elif role_judged_na(view, nid, diff_file):
+            body = (f"この節の条件 `{ap}` はこの周に真（{why}）だが、機械が持つ事実はどれも条件を立てていない（works の受け付けは"
+                    "この節の役の判定を受ける）。差分を読んで条件に当たらないと判じたら `not_applicable`（理由を reason に）を"
+                    "書いてよい。")
         else:
             body = f"この節の条件 `{ap}` はこの周に真（{why}）なので、{NA_REFUSED}"
     return f"{NA_HEADING}\n\n{body}"
@@ -2108,7 +2163,7 @@ def material_prep(jdir, role: str, repo, review_md: str, repo_review_md: str = "
              "パス（対象差分・変更ファイルの一覧・観点の正本など）は Read で読め（道具の無い役には本文を貼ってある）。"]
     for hole in MATERIAL_HOLES[role]:
         parts.append(f"## 材料: {hole.lstrip('?')}\n\n{r.render('{{' + hole + '}}')}")
-    parts.append(_na_note(view, nid))
+    parts.append(_na_note(view, nid, doc["diff_file"]))
     text = "\n\n".join(parts) + "\n"
     p = j / f"material-{role}-brief.md"
     p.write_text(text, encoding="utf-8")
@@ -2506,9 +2561,10 @@ def _written_materials(nid, reply) -> dict:
     return out
 
 
-def check_record(view: DueView, nid, mats: dict) -> list:
+def check_record(view: DueView, nid, mats: dict, diff_file=None) -> list:
     """元 rules:3665 の check_record のうち、今 done する節の素材の欄（status × 機械が持つ事実と、status ごとの要る欄）。
-    走った節に流用（黙って通る値）は書けない・applies_cond が真で走った節の not_applicable は拒む（role_judged_na は偽）・
+    走った節に流用（黙って通る値）は書けない・applies_cond が真で走った節の not_applicable は拒む（役の判定を受ける role_judged_na
+    の時を除く。diff_file は対象差分）・
     applies_cond の無い節の not_applicable は graph が na_self_ok を宣言した時だけ"""
     errs = []
     n = MATERIAL_NODES[nid]
@@ -2522,7 +2578,7 @@ def check_record(view: DueView, nid, mats: dict) -> list:
         if st in SILENT_STATUS and st != "not_applicable":
             errs.append(f"素材 '{mat}'（節 {nid}）は今の周に走ったのに {st}——自分で見たと主張しない値は走らなかった節に機械が書く。今の周の判定を書け")
         if st == "not_applicable":
-            if ap is not None and CONDS[ap](view)[0]:
+            if ap is not None and CONDS[ap](view)[0] and not role_judged_na(view, nid, diff_file):
                 errs.append(f"素材 '{mat}'（節 {nid}）は applies_cond が真で走ったのに not_applicable——機械が持つ事実と食い違う")
             elif ap is None and not n.get("na_self_ok"):
                 errs.append(f"素材 '{mat}'（節 {nid}）は走ったのに not_applicable——この節は正当に名乗れる節として graph が"
@@ -2580,7 +2636,7 @@ def material_take(jdir, role: str, reply: dict, repo) -> dict:
             elif post == "purpose_findings_cited":
                 purpose_findings_cited(j, nid, got, doc["review_rev"])
         mats = _written_materials(nid, got)
-        errs = check_record(view, nid, mats)
+        errs = check_record(view, nid, mats, doc["diff_file"])
         if errs:
             raise Reject("素材の欄が記録の決まりに合わない: " + "; ".join(errs))
         write_json(j / f"material-{role}.json", {"role": role, "reply": got, "materials": mats})
