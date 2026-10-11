@@ -17,7 +17,7 @@ from bin._lib import hostgh, isolate, pack, place
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
 NAME = "works-factory"
-# 止めた Archon が工程を走らせる命令（packages/cli/src/cli.ts の executesWorkflow）
+# 止めた Archon が工程を走らせる命令（packages/cli/src/cli.ts の executesWorkflow。tests/shared/test_archon_contract.py が照らす）
 EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"})
 
 
@@ -43,6 +43,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     flags = before_double_dash(argv)
     if any(a == "--workflow-source" or a.startswith("--workflow-source=") for a in flags):
         raise Stop("--workflow-source は渡さない。自分の工程の置き場は殻が渡す")
+    require_command_first(argv)
     workflow = fresh_run_workflow(argv, flags)
     no_auth = user.get("WORKS_FACTORY_NO_AUTH") == "1"
     user_home = user["HOME"]
@@ -92,6 +93,13 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     if bun is None:
         raise Stop("bun が隔離した PATH に無い")
     os.execve(sys.executable, [*auth, "exec", *auth_user, "--", bun, *archon], child)
+
+
+def require_command_first(argv: list[str]) -> None:
+    """殻は命令を引数の位置で見分ける。旗が命令の前に在ると、Archon（旗を抜いた残りで見分ける）と食い違う"""
+    command, subcommand = (argv + ["", ""])[:2]
+    if command.startswith("-") or (command == "workflow" and subcommand.startswith("-")):
+        raise Stop("使い方: works-factory <命令> [<下の命令>] [旗…]（旗は命令の後ろに置く。版は version、手引きは help）")
 
 
 def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
@@ -157,13 +165,20 @@ def run_home(user: Mapping[str, str], target: Path) -> Path:
 
 
 def mise_trusts(user: Mapping[str, str], target: Path) -> bool:
-    """利用者の mise が対象の根を信頼済みか（run の worktree は家の下の新しいパスで、対象の根の信頼が効かない）"""
+    """利用者の mise が対象の根を信頼済みか（run の worktree は家の下の新しいパスで、対象の根の信頼が効かない）。
+    mise は HOME の下のパスを ~/… と出す"""
     mise = shutil.which("mise", path=user.get("PATH"))
     if mise is None:
         return False
     shown = subprocess.run([mise, "trust", "--show"], cwd=target, env=user, stdin=subprocess.DEVNULL,
                            capture_output=True, text=True, encoding="utf-8")
-    return f"{target}: trusted" in shown.stdout.splitlines()
+    for line in shown.stdout.splitlines():
+        path, _, state = line.rpartition(": ")
+        if path == "~" or path.startswith("~/"):
+            path = user["HOME"] + path[1:]
+        if state == "trusted" and path and os.path.realpath(path) == str(target):
+            return True
+    return False
 
 
 def install_toolset(user: Mapping[str, str], child: dict[str, str], target: Path, user_config: str, plugins: bool) -> None:

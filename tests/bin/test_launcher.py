@@ -44,8 +44,13 @@ if service and service == os.environ.get("FAKE_SECURITY_SERVICE") and os.environ
     sys.exit(0)
 sys.exit(44)
 """
+# 本物の mise と同じく、HOME の下のパスは ~/… と出す
 FAKE_MISE = """#!/bin/sh
-[ "$1 $2" = "trust --show" ] && echo "$FAKE_MISE_TRUSTED: trusted"
+case "$FAKE_MISE_TRUSTED" in
+  "$HOME"/*) shown="~${FAKE_MISE_TRUSTED#"$HOME"}" ;;
+  *) shown="$FAKE_MISE_TRUSTED" ;;
+esac
+[ "$1 $2" = "trust --show" ] && echo "$shown: trusted"
 exit 0
 """
 
@@ -158,6 +163,16 @@ class LauncherTest(unittest.TestCase):
         err = self.stopped(self.launch("workflow", "run", "--input", "request=x"))
         self.assertEqual(len(err.strip().splitlines()), 1, err)
 
+    def test_option_before_command_stops(self):
+        """殻は命令を位置で見分ける。旗が前に在ると --workflow-source も認証の確かめも抜けるので、起こさずに止まる"""
+        for args in (["--cwd", str(self.target), "workflow", "run", "works-factory-line"],
+                     ["workflow", "--cwd", str(self.target), "run", "works-factory-line"],
+                     ["workflow", "--cwd", str(self.target), "approve", "run-1"]):
+            with self.subTest(args=args):
+                err = self.stopped(self.launch(*args))
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertIn("使い方", err)
+
     def test_resume_and_approve_pass_through_unchanged(self):
         for args in (["workflow", "approve", "run-1", "--cwd", str(self.target)],
                      ["workflow", "run", "works-factory-line", "--resume", "--cwd", str(self.target)],
@@ -252,6 +267,14 @@ class LauncherTest(unittest.TestCase):
         env = self.reached(self.launch("workflow", "status", FAKE_MISE_TRUSTED=str(self.target),
                                        WORKS_FACTORY_NO_AUTH="1"))["env"]
         self.assertNotIn("MISE_TRUSTED_CONFIG_PATHS", list(env))
+        with self.subTest("HOME の下の対象（mise は ~/… と出す）"):
+            under_home = self.home / "proj"
+            under_home.mkdir()
+            git(under_home, "init", "-q")
+            workspaces = os.path.realpath(self.default_home(under_home) / "archon-home" / "workspaces")
+            env = self.reached(self.launch("workflow", "status", cwd=under_home,
+                                           FAKE_MISE_TRUSTED=str(under_home)))["env"]
+            self.assertEqual(env.get("MISE_TRUSTED_CONFIG_PATHS"), workspaces)
 
     def test_toolset_failure_stops_before_archon(self):
         shutil.rmtree(self.home / ".claude")
@@ -262,6 +285,13 @@ class LauncherTest(unittest.TestCase):
     def test_missing_auth_stops_before_archon(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None))
         self.assertIn("認証が無い", err)
+
+    def test_no_auth_runs_without_auth_check_or_plugins(self):
+        done = self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None, WORKS_FACTORY_NO_AUTH="1")
+        env = self.reached(done)["env"]
+        self.assertNotIn("認証は", done.stderr)
+        self.assertTrue((pathlib.Path(env["CLAUDE_CONFIG_DIR"]) / ".works-toolset.json").is_file())
+        self.assertFalse((self.tmp / "claude.jsonl").exists(), "NO_AUTH で claude の plugin の CLI を呼んだ")
 
     @unittest.skipIf(sys.platform == "darwin", "macOS 以外の道: macOS は Claude Code のログインを keychain から読む")
     def test_claude_login_only_user_reaches_archon(self):
