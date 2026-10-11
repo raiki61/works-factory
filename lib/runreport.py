@@ -62,7 +62,6 @@ POINTERS = (("judge", "judgment", "判定"), ("judge", "purpose", "目的"), ("j
             ("test-gate-base", "baseline", "直す前の結末"), ("test-gate-base", "evidence", "試験の記録（直す前）"),
             ("test-gate-final", "evidence", "試験の記録（最後）"), ("eyes", "structure_after", "直した後の構造"),
             ("merge-seal", "diff", "封じた差分"), ("merge-apply", "diff", "置いた差分"))
-LATER = {"judge": "rejudge", "plan": "replan", "plan-review": "replan-review"}   # 後の段の返り（線と同じく先に読む）
 
 
 def _dict(v) -> dict:
@@ -84,8 +83,7 @@ def _write_text(path: pathlib.Path, text: str) -> pathlib.Path:
 
 
 def _ret(returns: dict, rid: str) -> dict:
-    later = returns.get(LATER.get(rid, ""))
-    return later if isinstance(later, dict) else _dict(returns.get(rid))
+    return _dict(oc.latest(returns, rid))
 
 
 # ---------------------------------------------------------------- run の記録
@@ -422,7 +420,7 @@ def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, retur
 def _where_lines(returns: dict) -> list:
     out = []
     for rid, field, label in POINTERS:
-        v = _ret(returns, rid).get(field) if rid in LATER else _dict(returns.get(rid)).get(field)
+        v = _ret(returns, rid).get(field)
         for p in oc._paths(v):
             out.append(f"- {label}（{rid}.{field}）: {p}")
     return out or ["- 返りに指し札が無い"]

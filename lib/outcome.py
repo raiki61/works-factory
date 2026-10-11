@@ -66,20 +66,26 @@ def _dict(v) -> dict:
     return v if isinstance(v, dict) else {}
 
 
-def judged(returns: dict) -> dict | None:
-    """判定の返り（再審が在ればそちら。線は後の段で再審を先に読む）"""
-    got = returns.get("rejudge") if isinstance(returns.get("rejudge"), dict) else returns.get("judge")
+LATER = {"judge": "rejudge", "plan": "replan", "plan-review": "replan-review"}   # 後の段の返り（線は後の段で先に読む）
+
+
+def latest(returns: dict, rid: str) -> dict | None:
+    """段の返り（後の段の返りが在ればそちら）"""
+    got = returns.get(LATER.get(rid, ""))
+    got = got if isinstance(got, dict) else returns.get(rid)
     return got if isinstance(got, dict) else None
+
+
+def judged(returns: dict) -> dict | None:
+    return latest(returns, "judge")
 
 
 def planned(returns: dict) -> dict | None:
-    got = returns.get("replan") if isinstance(returns.get("replan"), dict) else returns.get("plan")
-    return got if isinstance(got, dict) else None
+    return latest(returns, "plan")
 
 
 def plan_reviewed(returns: dict) -> dict | None:
-    got = returns.get("replan-review") if isinstance(returns.get("replan-review"), dict) else returns.get("plan-review")
-    return got if isinstance(got, dict) else None
+    return latest(returns, "plan-review")
 
 
 def _units(returns: dict) -> list:
@@ -242,6 +248,16 @@ def _waits(returns: dict, gates: dict) -> str:
     return ""
 
 
+def _chain_cuts(returns: dict) -> list:
+    """返りの続きが切れている所 [(後の段, 文)]"""
+    out = []
+    for before, flag, after, text in CHAIN:
+        got = latest(returns, before)
+        if got and got.get(flag) is True and latest(returns, after) is None:
+            out.append((after, text))
+    return out
+
+
 def _cut(returns: dict, facts: dict) -> str:
     """5. 途中で終わった: 記録で最後が誤りの節が在るか、返りの続きが切れている"""
     failed = facts.get("failed")
@@ -249,21 +265,13 @@ def _cut(returns: dict, facts: dict) -> str:
         return f"{failed[0]}:{NODE_ERROR}"
     if judged(returns) is None:
         return f"judge:{CHAIN_CUT}"
-    for before, flag, after, _ in CHAIN:
-        got = judged(returns) if before == "judge" else returns.get(before)
-        if isinstance(got, dict) and got.get(flag) is True and returns.get(after) is None and not (after == "plan" and planned(returns)):
-            return f"{after}:{CHAIN_CUT}"
-    return ""
+    cuts = _chain_cuts(returns)
+    return f"{cuts[0][0]}:{CHAIN_CUT}" if cuts else ""
 
 
 def chain_notes(returns: dict) -> list:
     """返りの続きが切れている所の文（報告の「止めたか」の行）"""
-    out = []
-    for before, flag, after, text in CHAIN:
-        got = judged(returns) if before == "judge" else returns.get(before)
-        if isinstance(got, dict) and got.get(flag) is True and returns.get(after) is None and not (after == "plan" and planned(returns)):
-            out.append(text)
-    return out
+    return [text for _, text in _chain_cuts(returns)]
 
 
 def _no_fix(returns: dict) -> bool:
