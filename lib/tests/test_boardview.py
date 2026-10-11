@@ -239,6 +239,7 @@ class RulesCase(Base):
         self.assertEqual(boardview.rules.validator_module(None).ASKING, ("held", "escalate"))
         self.assertTrue(boardview.rules.validator_module(None).STATUS["not_run"].blocks)
         self.assertFalse(boardview.rules.validator_module(None).STATUS["clean"].blocks)
+        self.assertLessEqual(set(boardview.BLOCKING), set(gatemarks.MATERIAL_WORDS))
 
     def test_md_slugs_and_lines(self):
         text = "# 見出し A\n```\n# 囲いの中\n```\n## 見出し A\n"

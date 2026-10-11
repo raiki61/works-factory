@@ -192,9 +192,9 @@ def plan_review_output(b, nid, out, item):
 
 
 # 元 works/.shared/core/scripts/review-record.py:135・:140・:343（検証器の素材の状態の表と、人に聞く状態の問い）。表の列は
-# このブロックの部品が読む blocks（gatemarks.unmeasured）だけ
-STATUS = {s: types.SimpleNamespace(blocks=s in ("awaiting_human", "not_run"))
-          for s in ("found", "clean", "carried_over", "not_applicable", "awaiting_human", "not_run")}
+# このブロックの部品が読む blocks（gatemarks.unmeasured）だけ。状態の語の持ち主は gatemarks.MATERIAL_WORDS
+BLOCKING = ("awaiting_human", "not_run")
+STATUS = {s: types.SimpleNamespace(blocks=s in BLOCKING) for s in gatemarks.MATERIAL_WORDS}
 ASKING = ("held", "escalate")
 VALIDATOR = types.SimpleNamespace(STATUS=STATUS, ASKING=ASKING)
 
@@ -204,9 +204,8 @@ def validator_module(b):
 
 
 rules = types.SimpleNamespace(
-    MD_LINK=MD_LINK, MD_FENCE=MD_FENCE, _md_lines=_md_lines, _md_slugs=_md_slugs, EMPTY=EMPTY, blank=blank,
-    purpose_findings_vetted=purpose_findings_vetted, purpose_unusable=purpose_unusable, HUMAN_FACE_KINDS=HUMAN_FACE_KINDS,
-    plan_review_output=plan_review_output, validator_module=validator_module)
+    MD_LINK=MD_LINK, _md_lines=_md_lines, _md_slugs=_md_slugs, purpose_unusable=purpose_unusable,
+    HUMAN_FACE_KINDS=HUMAN_FACE_KINDS, plan_review_output=plan_review_output, validator_module=validator_module)
 
 
 # ---------------------------------------------------------------- 見え方と書き先

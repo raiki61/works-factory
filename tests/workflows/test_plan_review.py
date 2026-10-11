@@ -354,6 +354,7 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(fmt["properties"]["items"], converge.ITEMS_SCHEMA)
         self.assertEqual(fmt["properties"]["design_map"], converge.DESIGN_MAP_SCHEMA)
         self.assertEqual(sorted(fmt["required"]), ["faces", "reason", "shrink"])
+        self.assertLessEqual(set(boardview.HUMAN_FACE_KINDS), set(row["kind"]["enum"]), "人の関所に回す穴の種類が役の返りの kind に無い")
 
     def test_scripts_read_role_formats_from_the_yaml(self):
         """script は外のパッケージ無しで走るので、役の節の型は JSON の形で書き、boardview.node_schema で読む"""
