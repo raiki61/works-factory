@@ -474,6 +474,16 @@ class ScriptCase(unittest.TestCase):
         self.assertIn("出口が落ちた", got["r1"]["reason"])
         self.assertTrue(got["protected_hits"])
 
+    def test_verdict_returns_strict_json(self):
+        """Archon は JSON.parse で読むので、NaN が混じった返りは出さず落ちた返りにする（boundary.returns と同じ allow_nan=False）"""
+        self.prep_file()
+        self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
+        self.passing_eyes()
+        (self.artifacts / "eyes" / "protected.json").write_text('{"hits": [NaN], "lines": [], "broken": ""}', encoding="utf-8")
+        got = self.run_script("verdict")
+        self.assertFalse(got["ok"])
+        self.assertIn("JSON に書けない", got["r1"]["reason"])
+
     def test_verdict_writes_the_notes_for_the_final_gate(self):
         self.prep_file()
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})

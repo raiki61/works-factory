@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 def fallen(reason: str) -> dict:
-    """lib を読めなかった時の約束の形。守りのパスも確かめていないので、理由の行を当たりに数えさせる"""
+    """lib を読めなかった時と、返りを JSON に書けない時の約束の形。守りのパスも確かめていないので、理由の行を当たりに数えさせる"""
     row = {"status": "unverifiable", "reason": reason}
     return {"ok": False, "r1": row, "r2": row, "r3": row, "r4": row, "questions": [], "premise_check": None,
             "structure_after": None, "protected_hits": [reason]}
@@ -44,4 +44,8 @@ try:
 except Exception as e:  # noqa: BLE001  返す節は落ちない（落ちると線が先へ進めない）
     why = f"出口が落ちた: {type(e).__name__}: {e}"
     out = eyeverdict.unverified(why, protected) if eyeverdict else fallen(why)
-print(json.dumps(out, ensure_ascii=False), flush=True)   # boundary.returns と同じ形（境の口を読めなかった時も返す）
+try:   # boundary.returns と同じ形（境の口を読めなかった時も返す）。Archon の JSON.parse が読めない NaN・Infinity は落ちた返りにする
+    text = json.dumps(out, ensure_ascii=False, allow_nan=False)
+except ValueError as e:
+    text = json.dumps(fallen(f"出口が落ちた: 返りが JSON に書けない: {e}"), ensure_ascii=False)
+print(text, flush=True)
