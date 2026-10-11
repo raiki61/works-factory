@@ -18,7 +18,7 @@ import fixboard  # noqa: E402
 
 def result_of(out_dir: Path, gid: str):
     try:
-        doc = fixboard.read_json(out_dir / gid / "result.json")
+        doc = fixboard.read_json(out_dir / gid / fixboard.RESULT_FILE)
     except (OSError, ValueError):
         return None
     return doc if isinstance(doc, dict) else None
@@ -26,7 +26,7 @@ def result_of(out_dir: Path, gid: str):
 
 def main() -> list:
     place = fixio.place()
-    plan = fixboard.read_json(place / "groups.json")
+    plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
     if not isinstance(plan, dict) or not isinstance(plan.get("groups"), list):
         raise ValueError(f"置き場に groups.json が無いか形が違う（{place}）")
     out_dir = Path(plan["out_dir"])

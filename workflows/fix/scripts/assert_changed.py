@@ -18,25 +18,22 @@ import fixio  # noqa: E402
 
 import fixboard  # noqa: E402
 
-ASSERT_FILE = "assert-changed.json"
-RULED_REPLY = "fix-ruled-reply.json"   # 裁定の後の修正役の受け付けた返答の写し（fix-ruled-accept が書く）
-
 
 def replies(place: Path, plan: dict) -> list:
     """申告を読む返答の並び（戻せた組の reply_file と、裁定の後の返答）"""
-    joined = fixboard.read_json(place / "join.json", {}) or {}
+    joined = fixboard.read_json(place / fixboard.JOIN_FILE, {}) or {}
     back = [g["group_id"] for g in joined.get("groups") or [] if g.get("returned")]
     out = []
     for gid in back:
-        r = fixboard.read_json(Path(plan["out_dir"]) / gid / "result.json", {}) or {}
+        r = fixboard.read_json(Path(plan["out_dir"]) / gid / fixboard.RESULT_FILE, {}) or {}
         if r.get("reply_file"):
             out.append(fixboard.read_json(r["reply_file"]))
-    ruled = fixboard.read_json(place / RULED_REPLY)
+    ruled = fixboard.read_json(place / fixboard.RULED_REPLY_FILE)
     return out + ([ruled] if ruled is not None else [])
 
 
 def main(place: Path) -> dict:
-    plan = fixboard.read_json(place / "groups.json")
+    plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
     if not isinstance(plan, dict) or not plan.get("start_tree"):
         raise ValueError(f"置き場に groups.json（start_tree）が無い（{place}）")
     declared = fixboard.declared_files(replies(place, plan))
@@ -53,8 +50,8 @@ if __name__ == "__main__":
         result = main(here)
     except Exception as e:
         why = f"{type(e).__name__}: {' '.join(str(e).split())}"
-        fixboard.write_json(here / ASSERT_FILE, {"ok": False, "reason": f"変更の確かめが回せない（{why}）"})
+        fixboard.write_json(here / fixboard.ASSERT_FILE, {"ok": False, "reason": f"変更の確かめが回せない（{why}）"})
         print(f"assert-changed: {why}", file=sys.stderr)
         sys.exit(1)
-    fixboard.write_json(here / ASSERT_FILE, result)
+    fixboard.write_json(here / fixboard.ASSERT_FILE, result)
     boundary.returns(result)

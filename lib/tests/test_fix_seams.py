@@ -1349,14 +1349,22 @@ class GroupScriptsSeamCase(TempCase):
 
 
 class SmallGapsSeamCase(unittest.TestCase):
-    """小さな抜け 2 つ: tddloop の申し出の頼みの文が種類を全部言う（元 tests/test_conflict_kinds.py の
-    KindCase.test_return_conflict_lists_every_kind）と、parking の除くパスの頭（引数 skip。既定 () では除かない）"""
+    """小さな抜け 3 つ: tddloop の申し出の頼みの文が種類を全部言う（元 tests/test_conflict_kinds.py の
+    KindCase.test_return_conflict_lists_every_kind）、tddloop の実行器と failure の文の読みが baseline_red の物で諦めが 3 回目、
+    parking の除くパスの頭（引数 skip。既定 () では除かない）"""
 
     def test_return_conflict_lists_every_kind(self):
         import conflict
         import tddloop
         for k in conflict.DIV_KINDS:
             self.assertIn(k, tddloop.RETURN_CONFLICT)
+
+    def test_tdd_loop_takes_the_runner_from_baseline_red_and_gives_up_on_the_third(self):
+        import baseline_red
+        import tddloop
+        self.assertIs(tddloop.run_suite, baseline_red.run_suite)
+        self.assertIs(tddloop._failure_attrs, baseline_red._failure_attrs)
+        self.assertEqual(tddloop.retry_max(), 3)
 
     def test_parking_ours_skips_only_the_given_heads(self):
         import parking

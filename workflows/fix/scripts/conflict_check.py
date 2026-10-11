@@ -20,15 +20,15 @@ import fixboard  # noqa: E402
 
 def main() -> dict:
     place = fixio.place()
-    plan = fixboard.read_json(place / "groups.json")
-    joined = fixboard.read_json(place / "join.json")
+    plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
+    joined = fixboard.read_json(place / fixboard.JOIN_FILE)
     if not isinstance(plan, dict) or not isinstance(joined, dict):
         raise ValueError(f"置き場に groups.json か join.json が無い（{place}）")
     out_dir = Path(plan["out_dir"])
     back = [g["group_id"] for g in joined.get("groups") or [] if g.get("returned")]
     rows = []
     for gid in back:
-        doc = fixboard.read_json(out_dir / gid / "result.json", {}) or {}
+        doc = fixboard.read_json(out_dir / gid / fixboard.RESULT_FILE, {}) or {}
         rows += [r for r in doc.get("conflicts") or [] if isinstance(r, dict)]
     repo = fixio.repo()
     ok, dropped = fixboard.cited_rows(rows, repo, [conflict.request_file(place), str(place)])

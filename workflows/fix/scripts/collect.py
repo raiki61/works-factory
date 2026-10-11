@@ -19,7 +19,6 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import fixio  # noqa: E402
 
-RULED_REPLY = "fix-ruled-reply.json"   # 裁定の後の修正役の受け付けた返答の写し（fix-ruled-accept が書く）
 NO_REVIEW = {"rounds": 0, "pass": False}
 
 
@@ -56,10 +55,10 @@ def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review,
 
 def block(fixboard, conflict) -> dict:
     place = fixio.place()
-    plan = fixboard.read_json(place / "groups.json")
+    plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
     if not isinstance(plan, dict) or not isinstance(plan.get("groups"), list):
         raise ValueError(f"置き場に groups.json が無い（prep が走らなかった。{place}）")
-    joined = fixboard.read_json(place / "join.json")
+    joined = fixboard.read_json(place / fixboard.JOIN_FILE)
     if isinstance(joined, dict):
         rows_groups = (joined["groups"], joined["units"])
     else:
@@ -67,10 +66,10 @@ def block(fixboard, conflict) -> dict:
                                                           for g in plan["groups"]})
     rows_groups = (rows_groups[0], fixboard.with_ruled(rows_groups[1], fixboard.read_json(place / fixboard.FIX_UNITS_FILE)))
     back = [g["group_id"] for g in rows_groups[0] if g["returned"]]
-    results = [fixboard.read_json(Path(plan["out_dir"]) / gid / "result.json") for gid in back]
-    extras = [r for r in results if isinstance(r, dict)] + [fixboard.read_json(place / RULED_REPLY)]
+    results = [fixboard.read_json(Path(plan["out_dir"]) / gid / fixboard.RESULT_FILE) for gid in back]
+    extras = [r for r in results if isinstance(r, dict)] + [fixboard.read_json(place / fixboard.RULED_REPLY_FILE)]
     review, _ = fixboard.delta_review(place)
-    checked = fixboard.read_json(place / "assert-changed.json") or {}
+    checked = fixboard.read_json(place / fixboard.ASSERT_FILE) or {}
     done = isinstance(joined, dict) and checked.get("ok") is True and review["pass"]
     return fields(fixboard, conflict, place, rows_groups, plan["groups"], [r for r in extras if r is not None], review, done)
 
@@ -94,7 +93,7 @@ def fallback(why: str) -> dict:
     try:
         import fixboard
         place = fixio.place()
-        plan = fixboard.read_json(place / "groups.json")
+        plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
         gs = plan["groups"] if isinstance(plan, dict) and isinstance(plan.get("groups"), list) else []
         if not gs and os.environ.get("INPUTS_GROUP", "").strip():
             gs = [json.loads(os.environ["INPUTS_GROUP"])]
@@ -125,7 +124,7 @@ def main() -> dict:
     import conflict
     import fixboard
     mode = os.environ.get("INPUTS_MODE", "")
-    if mode not in ("", "group"):
+    if mode not in fixio.MODES:
         raise ValueError(f"入力 mode は空か group: {mode!r}")
     return group(fixboard, conflict) if mode == "group" else block(fixboard, conflict)
 

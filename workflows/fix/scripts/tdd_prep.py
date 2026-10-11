@@ -28,15 +28,14 @@ RULES = Path(__file__).resolve().parents[1] / "commands" / "fix-rules"
 rulebook.CANON = RULES / "common.md"
 fixrules.SHARED = rulebook.CANON
 fixrules.RULES_DIR = RULES
-TDD_START = "tdd-start.json"   # group-start が書いた tddloop.start の返り
 
 
 def main() -> dict:
     place = fixio.place()
     repo = fixio.repo()
-    started = fixboard.read_json(place / TDD_START)
+    started = fixboard.read_json(place / fixboard.TDD_START_FILE)
     if not isinstance(started, dict):
-        raise ValueError(f"置き場に {TDD_START} が無い（group-start が走らなかった。{place}）")
+        raise ValueError(f"置き場に {fixboard.TDD_START_FILE} が無い（group-start が走らなかった。{place}）")
     if not started.get("go"):
         return {"prompt_file": "", "go": False}
     start = startrec.read(place)

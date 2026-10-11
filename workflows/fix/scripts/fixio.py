@@ -11,6 +11,7 @@ import subprocess
 # Archon が run の作業ツリーに写す工程の置き場。後始末・変更の確かめ・書き込みの出どころの照らしで数えない・消さないパスの頭
 SKIP = (".archon/",)
 BLOCK_NAME = "fix"
+MODES = {"": False, "group": True}   # 入力 mode の語 → 組の子の run か（route が振り分け、collect が返りの形を選ぶ）
 
 
 def include_name() -> str:

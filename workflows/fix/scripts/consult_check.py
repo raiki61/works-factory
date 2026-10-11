@@ -36,9 +36,9 @@ def main() -> dict:
         items = []
     plan = next((str(place / n) for n in (fixboard.PLAN_REPLY_FILE, fixboard.marks_path(place).name)
                  if (place / n).is_file()), "")
-    ripple = place / "ripple.json"
+    ripple = place / fixboard.RIPPLE_FILE
     got = fixboard.consult_ask(place, reply, pass_, items, node=NODES[pass_], plan_file=plan,
-                               human_items=fixboard.gate_items(fixboard.read_json(place / "answers.json")),
+                               human_items=fixboard.gate_items(fixboard.read_json(place / fixboard.ANSWERS_FILE)),
                                ripple_file=str(ripple) if ripple.is_file() else "")
     return {"consulted": got["consulted"], "go": got["go"], "prompt_file": got["prompt_file"]}
 

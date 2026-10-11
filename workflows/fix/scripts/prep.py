@@ -25,7 +25,6 @@ import planmarks  # noqa: E402
 import startrec  # noqa: E402
 
 START_DEFAULTS = {"tdd_suite": "", "test_cmd": "", "policy_md": "", "request_file": "", "features_cut": []}
-PLAN_REPLY = "p2.fix_plan.json"
 
 
 def value(raw: str, name: str):
@@ -57,7 +56,7 @@ def main() -> dict:
     start = {**START_DEFAULTS, **{k: v for k, v in start.items() if v is not None}}
     fixboard.write_json(startrec.path(place), start)
     judgment = read_json(pointed(os.environ["INPUTS_JUDGMENT"], "judgment"))
-    fixboard.write_json(place / "judgment.json", judgment)
+    fixboard.write_json(place / fixboard.JUDGMENT_FILE, judgment)
 
     plan_file = pointed(os.environ.get("INPUTS_PLAN", ""), "plan")
     plan = None
@@ -67,26 +66,26 @@ def main() -> dict:
             raise ValueError(f"修正案の欄 {plan_file.name} の形が違う（{{round, fields}}）")
         amended = doc.get(planmarks.AMENDED_KEY)
         planmarks.save(place, 1, doc["fields"], {int(n): c for n, c in amended.items()} if isinstance(amended, dict) else None)
-        reply = plan_file.parent / PLAN_REPLY
+        reply = plan_file.parent / fixboard.PLAN_REPLY_FILE
         if reply.is_file():
             plan = read_json(reply)
-            fixboard.write_json(place / PLAN_REPLY, plan)
-    for name, env in (("ripple", "INPUTS_RIPPLE"), ("world", "INPUTS_WORLD")):
-        src = pointed(os.environ.get(env, ""), name)
+            fixboard.write_json(place / fixboard.PLAN_REPLY_FILE, plan)
+    for name, file in (("ripple", fixboard.RIPPLE_FILE), ("world", fixboard.WORLD_FILE)):
+        src = pointed(os.environ.get(f"INPUTS_{name.upper()}", ""), name)
         if src is not None:
-            fixboard.write_json(place / f"{name}.json", read_json(src))
-    for name, env in (("depth", "INPUTS_DEPTH"), ("answers", "INPUTS_ANSWERS"), ("units", "INPUTS_UNITS")):
-        got = value(os.environ.get(env, ""), name)
+            fixboard.write_json(place / file, read_json(src))
+    for name, file in (("depth", fixboard.DEPTH_FILE), ("answers", fixboard.ANSWERS_FILE), ("units", fixboard.UNITS_FILE)):
+        got = value(os.environ.get(f"INPUTS_{name.upper()}", ""), name)
         if got not in (None, "", [], {}) or name == "units":
-            fixboard.write_json(place / f"{name}.json", got if got is not None else [])
+            fixboard.write_json(place / file, got if got is not None else [])
     only = value(os.environ.get("INPUTS_ONLY_ITEMS", ""), "only_items") or []
     if not isinstance(only, list):
         raise ValueError("入力 only_items が配列でない")
-    fixboard.write_json(place / "only-items.json", only)
+    fixboard.write_json(place / fixboard.ONLY_ITEMS_FILE, only)
     base = pointed(os.environ.get("INPUTS_BASELINE", ""), "baseline")
     if base is not None:
         got = baseline_red.read_baseline(base)
-        fixboard.write_json(place / "baseline.json", {"cases": got["cases"], "exit": got["exit"]})
+        fixboard.write_json(place / fixboard.BASELINE_FILE, {"cases": got["cases"], "exit": got["exit"]})
 
     leftovers.record_ignored(place, repo)
     start_tree = groups.end_tree(repo)
@@ -96,7 +95,7 @@ def main() -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     out = {"groups": grps, "count": len(grps), "par": fixboard.parallel(grps, start.get("features_cut"), repo),
            "start_tree": start_tree, "out_dir": str(out_dir)}
-    fixboard.write_json(place / "groups.json", out)
+    fixboard.write_json(place / fixboard.GROUPS_FILE, out)
     return out
 
 

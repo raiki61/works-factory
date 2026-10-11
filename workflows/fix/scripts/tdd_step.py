@@ -26,7 +26,6 @@ import fixboard  # noqa: E402
 import querytest  # noqa: E402
 import tddloop  # noqa: E402
 
-TDD_START = "tdd-start.json"   # group-start が書いた tddloop.start の返り
 REJECT = "tdd-step-reject-{}.md"
 
 
@@ -44,9 +43,9 @@ def main() -> dict:
     reply = read_reply()
     place = fixio.place()
     repo = fixio.repo()
-    started = fixboard.read_json(place / TDD_START)
+    started = fixboard.read_json(place / fixboard.TDD_START_FILE)
     if not isinstance(started, dict):
-        raise ValueError(f"置き場に {TDD_START} が無い（group-start が走らなかった。{place}）")
+        raise ValueError(f"置き場に {fixboard.TDD_START_FILE} が無い（group-start が走らなかった。{place}）")
     if not started.get("go"):
         return {"ok": True, "done": True, "reason": "", "reason_file": "", "phase": "done"}
     state = started["state_file"]

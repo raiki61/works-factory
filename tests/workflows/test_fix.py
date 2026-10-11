@@ -538,6 +538,23 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(json.loads((self.place / "groups.json").read_text(encoding="utf-8")), out)
         self.assertEqual(json.loads((self.place / "r1" / "start.json").read_text(encoding="utf-8"))["request_file"], "")
 
+    def test_prep_writes_only_copies_the_children_adopt(self):
+        """prep が置き場に書く入力の写しは、組の子が親から写す一覧 fixboard.ADOPTED に全部載る（載らない写しは子で黙って空になる）"""
+        import fixboard
+        import planmarks
+        _blk_write(self.art / "in" / "ripple.json", [{"path": "stats.py"}])
+        _blk_write(self.art / "in" / "world.json", {"facts": []})
+        _blk_write(self.art / "in" / "baseline.json", {"cases": [], "exit": 0, "suite": "", "test_cmd": "", "rev": "HEAD"})
+        inputs = {**self.prep_inputs(), "ripple": _blk_ptr("in/ripple.json"), "world": _blk_ptr("in/world.json"),
+                  "baseline": _blk_ptr("in/baseline.json"), "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]',
+                  "answers": '{"decision": "approve", "text": ""}', "units": '["A"]', "only_items": '["1"]'}
+        code, out, err = _blk_run("prep", self.repo, self.art, inputs, "fix__prep")
+        self.assertEqual(code, 0, err)
+        written = {p.relative_to(self.place).as_posix() for p in self.place.rglob("*") if p.is_file()}
+        own = {fixboard.GROUPS_FILE, "fix-ignored-before.json", fixboard.marks_path(self.place).name,
+               fixboard.TRACE_FILE, planmarks.FIELDS_FILE}
+        self.assertEqual(written - own, set(fixboard.ADOPTED))
+
     def test_prep_without_remote_runs_in_order(self):
         """子ごとの作業ツリーは remote の既定の枝から切られる（U8 の実測: remote の無いリポジトリでは子を 1 つも起こせない）"""
         code, out, err = _blk_run("prep", self.repo, self.art, self.prep_inputs(), "fix__prep")

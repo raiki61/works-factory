@@ -28,7 +28,7 @@ import startrec  # noqa: E402
 def result_of(out_dir: Path, gid: str):
     """子の結果（無い・読めない・形が違えば None）"""
     try:
-        doc = fixboard.read_json(out_dir / gid / "result.json")
+        doc = fixboard.read_json(out_dir / gid / fixboard.RESULT_FILE)
     except (OSError, ValueError):
         return None
     return doc if isinstance(doc, dict) and isinstance(doc.get("end_tree"), str) else None
@@ -36,7 +36,7 @@ def result_of(out_dir: Path, gid: str):
 
 def main() -> dict:
     place = fixio.place()
-    plan = fixboard.read_json(place / "groups.json")
+    plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
     if not isinstance(plan, dict) or not isinstance(plan.get("groups"), list):
         raise ValueError(f"置き場に groups.json が無いか形が違う（{place}）")
     out_dir = Path(plan["out_dir"])
@@ -45,7 +45,7 @@ def main() -> dict:
     if plan["par"]:
         repo = fixio.repo()
         start = startrec.read(place)
-        cases = (fixboard.read_json(place / "baseline.json", {}) or {}).get("cases") or []
+        cases = (fixboard.read_json(place / fixboard.BASELINE_FILE, {}) or {}).get("cases") or []
         with_result = [g for g in plan["groups"] if results[g["group_id"]] is not None]
         fixio.drop_runner_env()   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
 
@@ -79,7 +79,7 @@ def main() -> dict:
     for g in plan["groups"]:
         outcomes.setdefault(g["group_id"], (None, False, fixboard.NO_RESULT))
     rows, units = fixboard.join_rows(plan["groups"], outcomes)
-    fixboard.write_json(place / "join.json", {"par": bool(plan["par"]), "groups": rows, "units": units})
+    fixboard.write_json(place / fixboard.JOIN_FILE, {"par": bool(plan["par"]), "groups": rows, "units": units})
     return {"groups": len(rows), "returned": sum(1 for r in rows if r["returned"])}
 
 

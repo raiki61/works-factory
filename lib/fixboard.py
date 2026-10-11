@@ -29,6 +29,8 @@ import os
 import pathlib
 import types
 
+import startrec
+
 TRACE_FILE = "trace.jsonl"
 
 
@@ -740,6 +742,12 @@ RESULT_FILE = "result.json"            # 組の子の結果 <out_dir>/<group_id>
 DEPTH_FILE = "depth.json"              # 単位ごとの深さ [{unit_id, depth, why}]（plan の返り depth の写し）
 PLAN_REPLY_FILE = "p2.fix_plan.json"   # 修正案の役の返答の写し（{"plan": [...]}。承認済みの項目の unit_keys の出どころ）
 JUDGMENT_FILE = "judgment.json"        # 判定の写し
+RIPPLE_FILE = "ripple.json"            # 波及の一覧の写し
+WORLD_FILE = "world.json"              # 周りの事実の写し
+ANSWERS_FILE = "answers.json"          # 人の関所の答えの写し（承認の節の出力 {decision, text}）
+UNITS_FILE = "units.json"              # 入力 units の写し
+ONLY_ITEMS_FILE = "only-items.json"    # 直す項目の絞り（入力 only_items。空は全部）
+BASELINE_FILE = "baseline.json"        # 直す前の結末 {cases, exit}（baseline_red.read_baseline の欄だけ）
 FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまとめた物（差分の審査の材料 fix_report と plan_faces）
 REJECT_NAME = "reject-{name}-{k}.md"   # 受け付けの k 回目の拒否の理由（役が Read で読む）
 REFIX_PROMPT = "prompt-{}.md"          # 手直しの役の指示書（節の名 p3.delta_fix・p3.delta_fix2）
@@ -1101,8 +1109,8 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 
 # ---------------------------------------------------------------- 形 group の子の run（group-start・tdd-loop・group-end の scripts が呼ぶ）
 # 子が親の置き場から自分の置き場に写す入力の写し（prep が書く物。plan-fields.json と凍結の印は adopt_inputs が別に置き直す）
-ADOPTED = ("r1/start.json", "judgment.json", PLAN_REPLY_FILE, "ripple.json", "world.json", DEPTH_FILE, "answers.json",
-           "units.json", "only-items.json", "baseline.json")
+ADOPTED = (startrec.REL, JUDGMENT_FILE, PLAN_REPLY_FILE, RIPPLE_FILE, WORLD_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
+           ONLY_ITEMS_FILE, BASELINE_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 修正の輪が許したテストの変更のパス [str]（fix-accept が書く）
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
@@ -1770,9 +1778,9 @@ def fix_values(place, owed, *, start, state: str = "", summary: str = "", answer
     start = start if isinstance(start, dict) else {}
     return {"judgment_file": there(JUDGMENT_FILE), "open_units": json.dumps(list(owed), ensure_ascii=False),
             "plan_file": there(PLAN_REPLY_FILE), "policy_path": str(start.get("policy_md") or ""),
-            "notes_file": there("answers.json"), "summary_file": summary or "",
+            "notes_file": there(ANSWERS_FILE), "summary_file": summary or "",
             "request_file": str(start.get("request_file") or ""), "plan_session": answer_node, "tdd_state": state or "",
-            "ripple_file": there("ripple.json"), "base_rev": ""}
+            "ripple_file": there(RIPPLE_FILE), "base_rev": ""}
 
 
 def consult_skip(place, skip) -> None:
