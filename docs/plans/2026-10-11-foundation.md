@@ -112,13 +112,13 @@
 **Interfaces:**
 - Consumes: Task 3 の `boundary.returns`
 - Produces:
-  - 線の順・関所・往復は `docs/design.md` の「線」の 1〜13 のとおり。関所は Archon の承認の節で、`when:` は線の節の返りで決める（段 0 は既定で開く）。
+  - 線の順・関所・往復は `docs/design.md` の「線」の 1〜13 のとおり。関所は最新の ASF の形（`workflows/AGENTS.md` の E16）: 線の工程に `interactive: true`、関所の節は `approval:`（`message` と `decisions`）、後ろの節は答えを `{ from: "$<関所>.output", if_skipped: null }` で受ける。`when:` は線の節の返りで決める（段 0 は既定で開く）。
   - 各ブロックは `returns:` に 1 つの節と `outcome_field:` を持つ。その節の `output_format` に、`docs/design.md` の「線が運ぶ物」の欄を書く（段 2 の issue と線の約束。段 2 は狭めずに中身を入れる）。指し札の欄は `{type: archon_artifact, run_id, path}` の形。結末の 10 語は report の返す節の `output_format` の enum（今の works の `.shared/core/report.py` の `OUTCOMES` を字のまま）。
-  - 仮の `stub.py` は `boundary.returns(<output_format に合う最小の物>)` だけを行う。
+  - 仮の `stub.py` は `boundary.returns(<output_format に合う最小の物>)` だけを行う。入力を読む時は `os.environ["INPUTS_<名>"]` を字のまま読む（名前を組まない。issue #11）。
   - test-gate と merge は入力 `mode`（`base`・`final`、`seal`・`apply`）を持つ。
 - 試験の中身は `workflows/AGENTS.md` の E1・E5・E6・E7 の「機械」の行。`test_archon_validate.py` は Task 1 で置いた家で `archon validate workflows` を走らせ、`works-factory-` の名の行に誤りも警告も無いことを見る。
 
-- [ ] **Step 1: 試験を書く**（E5・E6・E7 は YAML の字の行を読む）
+- [ ] **Step 1: 試験を書く**（YAML は既製の YAML の読み手で読む。依存の置き場は Task 2 で決めた物）
   - `test_block_returns.py`: `test_every_block_returns_one_node`・`test_outcome_field_in_required`・`test_line_reads_only_declared_fields`（線の `$<include の id>.output.<欄>` がそのブロックの `output_format` に在る）・`test_no_unread_return_field`（読み手の無い返りの欄が赤）
   - `test_archon_validate.py`: `test_validate_has_no_warnings_for_ours`
 - [ ] **Step 2: 赤**: `python3 -m unittest discover -s tests/layers -t . -v`
@@ -137,9 +137,7 @@
 - Produces:
   - `cli.start(target: Path, request: str, archon: Callable[[list[str]], str]) -> str`（配置してから `archon workflow run works-factory-line` を起こし、run の id を返す）
   - `cli.answer(run_id: str, text: str, archon) -> None`・`cli.show(run_id: str, archon) -> str`・`cli.apply(run_id: str, target: Path) -> None`（merge の返りの指し札の差分を、封じた hash を照らしてから `git apply` する。違えば止まる）
-  - 認証の既定: ホストの `gh` と Claude のログインをそのまま引き継ぐ（Archon は既定で `claude /login` の認証を使う。Archon の `.env.example` の `CLAUDE_USE_GLOBAL_AUTH`）。呼んだ側の環境の API キー・ゲートウェイの資格もそのまま渡す。資格を環境変数で役に渡さない。
-  - 選べる道（持ち主の決め `others-may-use`・E14）: Claude のアカウントを名で選ぶ（macOS の keychain の項目の名か `CLAUDE_CODE_OAUTH_TOKEN`。選んだ時はそれより上に効く資格を子に渡さない）。GitHub のアカウントを名で選ぶ（`gh auth token -u <名>`）。Archon の家の置き場を選ぶ。値は利用者の設定（リポジトリの外）か引数で渡す。どの出どころの認証で起こしたかを 1 行出す（認証の落ちと役の返事の不良を見分けるため）。
-  - これが入ったら、ASF もこの入口から起こす（工程の名で選び分ける）。今の仮の殻 `~/.local/state/works-factory/bin/asf-env` は捨てる。
+  - Archon は引数の `archon` 関数で呼ぶ（試験は偽の関数を渡す）。本物の起こし方（認証の切り替えと置き場の隔離）は Task 6 の物で、Task 5 と Task 6 をつなぐのは段 1。
 - 持ち主の居ない `running` の扱い（埋め P1）は段 1 で足す。段 0 の `show` は Archon の状態をそのまま出す。
 
 - [ ] **Step 1: 試験を書く**（偽の `archon` 関数で引数を記録）
@@ -150,6 +148,23 @@
 - [ ] **Step 3: 実装**
 - [ ] **Step 4: 緑**。全部の試験 `python3 -m unittest discover -s . -t .` が緑
 - [ ] **Step 5: commit**: `git commit -m "feat(bin): start・answer・show・apply"`
+
+### Task 6: 起動の認証と置き場の隔離を今の works から持ってくる
+
+**Files:**
+- Create: `bin/_lib/auth_launch.py`・`bin/_lib/claude_auth.py`・`bin/_lib/toolset.py`（今の works の同じ名のファイルを持ってくる。移す元は `pack.json` の `works.commit` の `works/.shared/core/auth_launch.py`・`works/.shared/core/claude_auth.py`・`works/dev/toolset.py`）・`bin/_lib/isolate.py`（`works/dev/archon.sh` の置き場の隔離の所を Python に移した物）
+- Test: 元の試験（`works/tests/test_auth_launch.py` と、`toolset.py`・`archon.sh` の隔離を縛る試験）を `tests/bin/` に持ってくる
+
+**Interfaces:**
+- 根の `AGENTS.md` の E14・E18 と `bin/AGENTS.md` の E15 のとおり。作り直さない。中の、今の works だけの事情（写しの同期の説明・works の置き場の名・`WORKS_` で始まる環境変数の名）は works-factory の言葉に直し、直した所を commit に書く。
+- 既定はホストのログインのまま（`claude /login` の人・API キー・会社のゲートウェイの人がそのまま動く）。選べる道: Claude のアカウントを keychain の項目の名で選ぶ（選んだ時はそれより上に効く資格を子に渡さない）・GitHub のアカウントを名で選ぶ（`gh auth token -u <名>`）・Archon の家の置き場を選ぶ。値は利用者の設定（リポジトリの外）か引数で渡す。どの出どころの認証で起こしたかを 1 行出す。
+- Archon の実行ファイルは Task 1 の `place.archon_binary` で取る。
+- これが入って Task 5 とつながったら（段 1）、ASF もこの入口から起こし、今の仮の殻 `~/.local/state/works-factory/bin/asf-env` は捨てる。
+
+- [ ] **Step 1: 元の試験を持ってきて、直した名に合わせる**（赤）
+- [ ] **Step 2: 元のファイルを持ってきて直す**（緑）
+- [ ] **Step 3: 全部の試験** `python3 -m unittest discover -s . -t .` が緑
+- [ ] **Step 4: commit**: `git commit -m "feat(bin): 起動の認証と置き場の隔離を今の works から持ってくる"`
 
 ## 段 0 の終わりの確かめ
 
