@@ -185,7 +185,7 @@ def _line(node) -> int:
 
 
 def _polyfills_listed(root: Path) -> list[str]:
-    registry = root / "docs" / "archon-polyfills.md"
+    registry = root / "docs" / "polyfills.md"
     listed = {}
     rows, out = _lines(root, registry) if registry.is_file() else ([], [])
     for number, line in enumerate(rows, 1):
@@ -330,6 +330,21 @@ def _no_owner_env(root: Path) -> list[str]:
     return _grep(root, paths, (pattern, lambda m: f"持ち主の環境の字 {m[0]}"))
 
 
+ORIGIN_NAME = re.compile(r"^(factory|FACTORY|harness|\.factory|archon-)")
+OWN_LAYERS = ("bin", "workflows", "lib", "tests", "docs")
+
+
+def _origin_names(root: Path) -> list[str]:
+    out = []
+    for layer in OWN_LAYERS:
+        for path in _files(root, layer):
+            rel = path.relative_to(root)
+            hit = next((part for part in rel.parts[1:] if ORIGIN_NAME.match(part)), None)
+            if hit:
+                out.append(f"{rel.as_posix()}:1: パスの部分 {hit} が ASF の物の名で始まる")
+    return out
+
+
 RULES = {
     "E2": _polyfills_listed,
     "E3": _lib_blind,
@@ -339,4 +354,5 @@ RULES = {
     "E12": _no_timeouts,
     "E13": _lang_neutral,
     "E14": _no_owner_env,
+    "E18": _origin_names,
 }

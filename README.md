@@ -48,7 +48,7 @@ flowchart TB
 
 - 入口 `bin/`: 人が打つ口。止めた版の Archon の源を取り寄せ、そこから Archon を起こす。
 - グラフ `workflows/`: この工場のエッセンス。どの確かめと役が在り、各々が何をし、どの順でつながり、どこで人に聞くかを、Archon の書き方で書く。線（ブロックを並べた 1 本の流れ）と、判定・計画・事前審査・修正・試験の関門・独立の目・報告・取り込みのブロック。各ブロックは YAML・役の指示書・節の script を持ち、ブロックの間で渡す物の型は Archon の `output_format` で表す。YAML は手で書き、変換せずに Archon に渡す。
-- 境 `workflows/.shared/`: Archon との出入りの口と、Archon に無い物を補う小さな部品だけ（`docs/archon-polyfills.md` に全部載る）。
+- 境 `workflows/.shared/`: Archon との出入りの口と、Archon に無い物を補う小さな部品だけ（`docs/polyfills.md` に全部載る）。
 - 助け手 `lib/`: script の節が呼ぶ Python のモジュール（引用の照らし・TDD の赤の判定・元から赤の見分け・範囲の照らしなど）。Archon を知らない。
 
 工程を回すのは止めた Archon（ASF と同じ開発中の源。`docs/design.md` の「語」）。ASF の工程はその源の `.archon/workflows/sdlc/` に在り、工程の名で選び分けて見比べられる。別の実行の道具へ移る時は、グラフをその道具の書き方で `docs/design.md` から書き直す。役の指示書と `lib/` はそのまま持っていける。
@@ -76,7 +76,7 @@ AI 向けの決まりは各階層の `AGENTS.md`（根の物から辿る）、�
 - `AGENTS.md`（各階層）: AI 向けの作りの決まり（コードを書く前と審査の前に読む）。`engineering.md` は ASF の役のためにそこを指すだけ
 - `docs/design.md`: 層・線・ブロック・能力の棚卸し・作りの順
 - `docs/owner-decisions.md`: 持ち主の決め（言葉のまま）
-- `docs/archon-polyfills.md`: Archon に無い物を補う部品の名簿
+- `docs/polyfills.md`: Archon に無い物を補う部品の名簿
 - `docs/asf-notes.md`: ASF から学んだ型
 - `docs/plans/`: 実装の計画
 

@@ -20,7 +20,7 @@ class PolyfillsListedTest(unittest.TestCase):
 
     def test_listed_but_missing_is_red(self):
         got = scan.problems("E2", SEEDS / "e2")
-        self.assertTrue(any("docs/archon-polyfills.md" in line and "gone.py" in line for line in got), got)
+        self.assertTrue(any("docs/polyfills.md" in line and "gone.py" in line for line in got), got)
 
     def test_planned_row_may_be_missing(self):
         got = scan.problems("E2", SEEDS / "e2")
@@ -32,9 +32,9 @@ class PolyfillsListedTest(unittest.TestCase):
 
     def test_required_mention_wins_over_planned(self):
         registry = "- 埋め: `workflows/.shared/later.py`（予定）\n- 埋め: `workflows/.shared/later.py`\n"
-        with tree({"docs/archon-polyfills.md": registry}) as root:
+        with tree({"docs/polyfills.md": registry}) as root:
             got = scan.problems("E2", root)
-        self.assertTrue(any("docs/archon-polyfills.md:2" in line and "later.py" in line for line in got), got)
+        self.assertTrue(any("docs/polyfills.md:2" in line and "later.py" in line for line in got), got)
 
 
 if __name__ == "__main__":
