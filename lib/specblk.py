@@ -26,8 +26,6 @@ import gatemarks  # noqa: E402
 APPROVE = "spec.approve"
 SPEC_FILE = "spec.json"                 # 出口が書く record.process.spec の写し（b.work）
 NULL = "null"                           # 飛ばされた節の出力（if_skipped: null）が届く字
-# 線 A の境の節の写し（darkfactory/lib/line_edge.py・plan.py。層の決まりでブロックからは import できない。統合の計画 Task 10 で
-# core の関所のモジュールへ 1 つにまとめる）
 GATE_GO = ("approve", "continue")       # approve は continue と、reject は stop と同じ（台帳 R32）
 GATE_STOP = ("stop", "reject")
 GATE_STOP_NOTE = "関所で止めた"          # stop・reject に一言が無い時の理由

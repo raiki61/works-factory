@@ -239,13 +239,15 @@ class RoleSettingsTest(unittest.TestCase):
                     self.assertIn(rule, (COMMANDS / f"{by[nid]['command']}.md").read_text(encoding="utf-8"))
 
     def test_dropped_sentences_are_back(self):
-        """元の役の指示書から落ちていた文: 仕様の審査役の前付け（judge）・仕様の役の実装に触れない決まり・局所レビューの無人の読み替え"""
+        """元の役の指示書から落ちていた文: 仕様の審査役の前付け（judge）・仕様の役の実装に触れない決まり・局所レビューの無人の読み替え
+        （元 rolekit.skill_overlay が末尾に載せた全文）"""
         judge = (ROOT / "lib" / "agents" / "judge.md").read_text(encoding="utf-8").split("---\n", 2)[2].strip()
         self.assertIn(judge, (COMMANDS / "spec-review.md").read_text(encoding="utf-8"))
         for name in ("spec", "spec-revise"):
             self.assertIn("実装のファイルは 1 文字も変えるな", (COMMANDS / f"{name}.md").read_text(encoding="utf-8"))
-        self.assertIn("# 借りた superpowers のスキルを無人の役で読むときの読み替え",
-                      (COMMANDS / "material-local-review.md").read_text(encoding="utf-8"))
+        unattended = (ROOT / "bin" / "_lib" / "borrow" / "unattended.md").read_text(encoding="utf-8")
+        self.assertTrue((COMMANDS / "material-local-review.md").read_text(encoding="utf-8").endswith(unattended),
+                        "局所レビューの指示書の末尾に bin/_lib/borrow/unattended.md の全文")
 
     def test_viewpoint_readers_read_review_md(self):
         for name in REVIEW_READERS:

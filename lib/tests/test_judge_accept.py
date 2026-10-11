@@ -659,6 +659,15 @@ class PurposeCase(_RepoCase):
         self.assertFalse(got["ok"])
         self.assertEqual(ja.read_json(self.jdir / "purpose.json")["purpose_text"], "件数を正しく数える")
 
+    def test_prep_snapshots_the_tree_the_accept_compares(self):
+        """支度が役を起こす前の作業ツリーの姿を purpose-tree.json に置き、受け付けはそれと比べる"""
+        self.assertTrue(ja.purpose_prep(self.jdir, self.repo, self.start())["go"])
+        self.assertEqual(ja.read_json(self.jdir / ja.PURPOSE_TREE_FILE), core_accept.tree_state(self.repo))
+        (self.repo / "note.txt").write_text("書いた\n", encoding="utf-8")
+        got = ja.check_purpose(dict(self.GOOD), self.jdir, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn("作業ツリー", got["reason"])
+
     def test_purpose_material_has_no_prior_failures(self):
         """元 test_blk_purpose.test_purpose_never_sees_prior_failures（目的の役に前の run の判断を見せない。carry.without_prior）"""
         req = self.repo / "request.json"
