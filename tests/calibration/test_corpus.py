@@ -5,7 +5,6 @@
 import copy
 import json
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
@@ -20,19 +19,13 @@ HERE = pathlib.Path(__file__).resolve().parent
 SEED = HERE / "seed"
 CLI = HERE / "corpus.py"
 
-KINDS = {"boundary", "error-path-succeeds", "test-blesses-bug", "comment-lies", "dead-code", "hidden-scope",
-         "swallowed-error", "stand-in-diverges", "main-path-broken", "none"}
-WITNESSLESS = {"comment-lies", "dead-code", "none"}
-ROW_FIELDS = {"id": str, "kind": str, "entry": str, "visible": str, "edits": list, "red": list, "request": list,
-              "outcome": str, "why": str}
-
 
 def _raw():
     return json.loads((HERE / "corpus.json").read_text(encoding="utf-8"))
 
 
 def _seed_copy(dest):
-    shutil.copytree(SEED, dest, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    shutil.copytree(SEED, dest, ignore=corpus.COPY_IGNORE)
     return dest
 
 
@@ -50,51 +43,46 @@ def _files(tree):
     return {p.relative_to(tree).as_posix(): p.read_bytes() for p in sorted(tree.rglob("*")) if p.is_file()}
 
 
-def _acceptance_ids():
-    text = (ROOT / "docs" / "design.md").read_text(encoding="utf-8")
-    section = text[text.index("### 受け入れの一覧"):]
-    end = section.find("\n## ")
-    return set(re.findall(r"`([^`]+)`", section if end < 0 else section[:end]))
-
-
 class TestCorpusShape(unittest.TestCase):
-    def setUp(self):
-        self.data = corpus.load()
+    """同梱の束が通ることと、崩した束を load が CorpusError で断り、崩れを全部挙げることを縛る"""
+
+    def refusal(self, *breaks):
+        data = copy.deepcopy(_raw())
+        rows = data["rows"]
+        for brk in breaks:
+            brk(data, rows)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(corpus.CorpusError) as caught:
+                corpus.load(_corpus_dir(tmp, data))
+        return str(caught.exception).splitlines()
+
+    def assertReported(self, lines, *parts):
+        self.assertTrue(any(all(part in line for part in parts) for line in lines), (parts, lines))
 
     def test_corpus_rows_are_well_formed(self):
-        data = self.data
-        self.assertEqual(data["seed"], "seed")
-        self.assertEqual(data["run_inputs"], {"unattended": "true"})
-        self.assertIsInstance(data["about"], str)
-        for gone in data["dropped"]:
-            self.assertEqual(set(gone), {"id", "why"})
-        ids = [row["id"] for row in data["rows"]]
-        self.assertEqual(len(ids), len(set(ids)))
-        for row in data["rows"]:
-            with self.subTest(row=row["id"]):
-                for field, kind in ROW_FIELDS.items():
-                    self.assertIsInstance(row[field], kind, field)
-                self.assertIn(row["kind"], KINDS)
-                self.assertIn(row["entry"], {"change", "request"})
-                self.assertIn(row["visible"], {"tests", "review"})
-                self.assertTrue(row["edits"])
-                for edit in row["edits"]:
-                    self.assertEqual(set(edit), {"file", "old", "new"})
-                    self.assertNotEqual(edit["old"], edit["new"])
-                self.assertEqual(bool(row["red"]), row["visible"] == "tests")
-                self.assertTrue(row["request"])
-                for line in row["request"]:
-                    self.assertEqual(set(line), {"where", "text"})
-                control = row["kind"] == "none"
-                self.assertEqual(row["catcher"] is None, control)
-                if not control:
-                    self.assertIsInstance(row["catcher"], str)
-                self.assertTrue(all(isinstance(x, str) for x in row.get("also", [])))
-                if row["visible"] == "review" and row["kind"] not in WITNESSLESS:
-                    self.assertIsInstance(row["witness"], str)
-                else:
-                    self.assertIsNone(row["witness"])
-                self.assertTrue(row["why"].strip())
+        rows = corpus.load()["rows"]
+        lines = self.refusal(
+            lambda d, r: r[0].update(kind="unknown"),
+            lambda d, r: r[1].update(entry="elsewhere"),
+            lambda d, r: r[4].update(visible="nowhere"),
+            lambda d, r: r[5]["edits"][0].update(new=r[5]["edits"][0]["old"]),
+            lambda d, r: r[3].update(witness=None),
+            lambda d, r: r[6].update(red=["test_stats.TestMean.test_mean"]),
+            lambda d, r: r[10].update(catcher="p0.local_checks"),
+            lambda d, r: r[8].update(why="  "),
+            lambda d, r: r[7].update(id=r[9]["id"]),
+            lambda d, r: d.update(dropped=[{"id": "gone"}]),
+        )
+        self.assertReported(lines, rows[0]["id"], "kind unknown")
+        self.assertReported(lines, rows[1]["id"], "entry elsewhere")
+        self.assertReported(lines, rows[4]["id"], "visible nowhere")
+        self.assertReported(lines, rows[5]["id"], "edits[0]", "old と new")
+        self.assertReported(lines, rows[3]["id"], "witness")
+        self.assertReported(lines, rows[6]["id"], "red")
+        self.assertReported(lines, rows[10]["id"], "catcher")
+        self.assertReported(lines, rows[8]["id"], "why")
+        self.assertReported(lines, f"id {rows[9]['id']} が 2 つ以上")
+        self.assertReported(lines, "dropped[0]")
 
     def test_load_reports_every_problem(self):
         broken = copy.deepcopy(_raw())
@@ -110,31 +98,35 @@ class TestCorpusShape(unittest.TestCase):
         self.assertIn("outcome", message)
 
     def test_catchers_are_rows_of_the_acceptance_list(self):
-        known = _acceptance_ids()
-        for row in self.data["rows"]:
-            for aim in [row["catcher"], *row.get("also", [])]:
-                if aim is not None:
-                    self.assertIn(aim, known, row["id"])
+        lines = self.refusal(lambda d, r: r[0].update(catcher="p9.nowhere"),
+                             lambda d, r: r[2].update(also=["p9.elsewhere"]))
+        self.assertReported(lines, _raw()["rows"][0]["id"], "p9.nowhere")
+        self.assertReported(lines, _raw()["rows"][2]["id"], "p9.elsewhere")
 
     def test_review_materials_need_change_entry(self):
-        for row in self.data["rows"]:
-            aims = [row["catcher"] or "", *row.get("also", [])]
-            if any(aim.startswith("p1.") for aim in aims):
-                self.assertEqual(row["entry"], "change", row["id"])
+        row = _raw()["rows"][3]
+        self.assertTrue(row["catcher"].startswith("p1."))
+        lines = self.refusal(lambda d, r: r[3].update(entry="request"))
+        self.assertReported(lines, row["id"], "p1.")
 
     def test_outcomes_are_report_words(self):
-        if str(ROOT / "lib") not in sys.path:
-            sys.path.append(str(ROOT / "lib"))
-        from report import OUTCOMES
-        for row in self.data["rows"]:
-            self.assertIn(row["outcome"], OUTCOMES, row["id"])
+        lines = self.refusal(lambda d, r: r[0].update(outcome="made_up"))
+        self.assertReported(lines, _raw()["rows"][0]["id"], "outcome made_up")
 
     def test_corpus_spans_entries_and_views(self):
-        rows = self.data["rows"]
-        self.assertEqual({row["entry"] for row in rows}, {"change", "request"})
-        self.assertEqual({row["visible"] for row in rows}, {"tests", "review"})
-        self.assertGreaterEqual(sum(row["kind"] == "none" for row in rows), 1)
-        self.assertGreaterEqual(len({row["catcher"] for row in rows if row["catcher"]}), 6)
+        def only(field, word):
+            return lambda d, r: [row.update({field: word}) for row in r]
+
+        def five_aims(d, r):
+            for row in r[6:10]:
+                row["catcher"] = "p1.gate_efficacy"
+
+        for name, brk, part in (("entry", only("entry", "change"), "entry が ['request']"),
+                                ("visible", only("visible", "review"), "visible が ['tests']"),
+                                ("control", lambda d, r: r.pop(), "対照"),
+                                ("aims", five_aims, "狙いの id が 5 種")):
+            with self.subTest(name):
+                self.assertReported(self.refusal(brk), part)
 
 
 class TestInjection(unittest.TestCase):
