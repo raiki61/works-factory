@@ -107,12 +107,6 @@ def transcript() -> tuple:
     return rows, ""
 
 
-def own_prefix() -> str:
-    """自分の include の頭（自分の節を落ちた節に数えない）"""
-    head = typed.own_include(os.environ.get("ARCHON_NODE_EXECUTION", ""))
-    return f"{head}__" if head else ""
-
-
 def main() -> dict:
     sys.path.append(str(boundary.lib_root()))
     import outcome
@@ -131,7 +125,7 @@ def main() -> dict:
     rows, transcript_why = transcript()
     listing = typed.read_listing()
     listing["warnings"] = [*notes, *listing["warnings"], *([transcript_why] if transcript_why else [])]
-    facts = runreport.transcript_facts(rows, exclude_prefix=own_prefix())
+    facts = runreport.transcript_facts(rows, exclude_prefix=typed.own_prefix(os.environ.get("ARCHON_NODE_EXECUTION", "")))
     decided = outcome.decide_outcome(returns, gates, {"start_ok": bool(start), "record_problems": problems,
                                                       "failed": facts["failed"],
                                                       "absorbed": facts["absorbed"], "answers": start.get("answers") or []})

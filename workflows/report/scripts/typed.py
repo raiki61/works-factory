@@ -32,6 +32,12 @@ def own_include(execution: str) -> str:
     return path.rsplit(".", 1)[-1].rpartition("__")[0] if isinstance(path, str) else ""
 
 
+def own_prefix(execution: str) -> str:
+    """自分の include の名前空間の節の id の頭（own_include + "__"。include の外の節なら空）"""
+    head = own_include(execution)
+    return f"{head}__" if head else ""
+
+
 def listing(listing_file: str, artifacts_dir: str, run_id: str, execution: str = "") -> dict:
     """{by_type: {型: [{include, loop, node, path, produced_at, body}]}, warnings: [文]}。body は中身の JSON（読めなければ None と
     注意）。ほかの run の行と自分の include の名前空間の行は数えない。一覧の errors は 1 件ずつ warnings に入れる"""
@@ -63,7 +69,7 @@ def listing(listing_file: str, artifacts_dir: str, run_id: str, execution: str =
     if not isinstance(by_type, dict):
         warn(f"型つきの成果物の一覧 {listing_file} の artifactsByType がオブジェクトでない")
         return out
-    own = own_include(execution)
+    own = own_prefix(execution)
     for kind, entries in by_type.items():
         if not isinstance(entries, list):
             warn(f"型つきの成果物の一覧の artifactsByType['{kind}'] が配列でない")
@@ -74,7 +80,7 @@ def listing(listing_file: str, artifacts_dir: str, run_id: str, execution: str =
                 continue
             if a.get("runId") not in (None, run_id):
                 continue
-            if own and a["nodeId"].startswith(own + "__"):
+            if own and a["nodeId"].startswith(own):
                 continue
             include = _include(a["nodeId"])
             body = None
