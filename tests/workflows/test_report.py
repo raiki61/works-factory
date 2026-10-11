@@ -236,6 +236,29 @@ class FactsCase(Run):
         self.assertEqual(code, 0)
         self.assertEqual((out["outcome"], out["stop_reason"], out["ok"]), ("stopped_by_request", "gate-final:stop", False))
 
+    def test_unknown_answer_word_is_record_invalid_with_its_reason(self):
+        start = self.pointer("start/start.json", {"run_id": RUN})
+        code, out = self.run_script("facts", INPUTS_START=start, INPUTS_GATE_FINAL='{"decision":"maybe","text":""}')
+        self.assertEqual(code, 0)
+        self.assertEqual((out["outcome"], out["stop_reason"], out["ok"]), ("record_invalid", "report:record-invalid", False))
+        text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
+        self.assertIn("結果を名乗れない訳: 関所 gate-final の知らない答えの語 'maybe'", text)
+
+    def test_unreadable_or_missing_conflicts_are_record_invalid(self):
+        """人に回した申し出が読めない run は結果を名乗らない（読めなければ人に聞いた申し出が無いと数えて fixed に落ちる）"""
+        start = self.pointer("start/start.json", {"run_id": RUN})
+        broken = self.pointer("fix/conflicts.json", {})
+        (self.artifacts / "fix/conflicts.json").write_text("{not json", encoding="utf-8")
+        missing = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "fix/none.json"})
+        for name, conflicts, word in (("JSON でない", broken, "申し出と裁定のファイル"), ("先が無い", missing, "指し札の先")):
+            with self.subTest(name):
+                fix = json.dumps({"done": True, "units": [], "conflicts": json.loads(conflicts)})
+                code, out = self.run_script("facts", INPUTS_START=start, INPUTS_FIX=fix)
+                self.assertEqual(code, 0)
+                self.assertEqual((out["outcome"], out["stop_reason"]), ("record_invalid", "report:record-invalid"))
+                text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
+                self.assertIn(f"結果を名乗れない訳: {word}", text)
+
     def test_returns_with_pointers_reach_the_report(self):
         judgment = self.pointer("judge/judgment.json", {})
         judge = json.dumps({"ready": True, "stop_reason": "", "units": [{"id": "u1"}], "judgment": json.loads(judgment)})

@@ -70,6 +70,13 @@ def opened(value, notes: list):
     return value
 
 
+def open_return(rid: str, value, notes: list, problems: list):
+    """返りの指し札を開ける。fix の conflicts の先が開けないのは結果を名乗れない訳（人に回した申し出が見えなくなる）"""
+    if rid != "fix" or not isinstance(value, dict) or "conflicts" not in value:
+        return opened(value, notes)
+    return {**opened({k: v for k, v in value.items() if k != "conflicts"}, notes), "conflicts": opened(value["conflicts"], problems)}
+
+
 def start_record(problems: list) -> dict:
     ptr, why = parse("start", START)
     if ptr is None:
@@ -116,11 +123,12 @@ def main() -> dict:
     returns, gates = {}, {}
     for rid, raw in RETURNS.items():
         value, why = parse(rid, raw)
-        returns[rid] = opened(value, notes)
+        returns[rid] = open_return(rid, value, notes, problems)
         problems += [why] if why else []
     for gid, raw in GATES.items():
         gates[gid], why = parse(gid, raw)
         problems += [why] if why else []
+    problems += outcome.conflict_rows(returns)[1] + outcome.unknown_answers(gates)
     start = start_record(problems)
     rows, transcript_why = transcript()
     listing = typed.read_listing()

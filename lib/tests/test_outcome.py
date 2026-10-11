@@ -73,6 +73,7 @@ class TableCase(unittest.TestCase):
         self.assertEqual(decide(facts={**OK_FACTS, "failed": ["fix__write"]}), ("interrupted", "fix__write:node-error"))
         self.assertEqual(decide(fixed_run(plan=None))[0], "interrupted")
         self.assertEqual(decide(fixed_run(**{"test-gate-final": None}), facts={**OK_FACTS, "failed": None})[0], "interrupted")
+        self.assertEqual(decide(fixed_run(judge=None, rejudge=None), facts={**OK_FACTS, "failed": None}), ("interrupted", "judge:chain-cut"))
 
     def test_6_no_fix_needed(self):
         self.assertEqual(decide(fixed_run(judge={"ready": False, "stop_reason": "", "units": []}, plan=None, fix=None)),
@@ -107,10 +108,17 @@ class OrderCase(unittest.TestCase):
         got = decide(facts={"start_ok": False, "record_problems": [], "failed": ["plan__write"]})
         self.assertEqual(got[0], "record_invalid")
 
-    def test_unknown_answer_word_is_record_invalid(self):
-        self.assertEqual(decide(gates={"gate-final": {"decision": "maybe", "text": ""}})[0], "record_invalid")
-        self.assertEqual(decide(gates={"gate-final": {"decision": "approve", "text": ""}})[0], "fixed")
-        self.assertEqual(decide(gates={"gate-final": {"decision": "continue", "text": ""}})[0], "fixed")
+    def test_unknown_answer_word_is_a_record_problem(self):
+        gates = {"gate-final": {"decision": "maybe", "text": ""}}
+        problems = outcome.unknown_answers(gates)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("'maybe'", problems[0])
+        self.assertEqual(decide(gates=gates, facts={**OK_FACTS, "record_problems": problems}), ("record_invalid", "report:record-invalid"))
+        for word in ("approve", "continue"):
+            with self.subTest(word):
+                gates = {"gate-final": {"decision": word, "text": ""}}
+                self.assertEqual(outcome.unknown_answers(gates), [])
+                self.assertEqual(decide(gates=gates)[0], "fixed")
 
 
 class ReadingCase(unittest.TestCase):
@@ -145,6 +153,21 @@ class ReadingCase(unittest.TestCase):
             with self.subTest(conflicts=conflicts):
                 fix = {**fixed_run()["fix"], "conflicts": conflicts}
                 self.assertEqual(decide(fixed_run(fix=fix))[0], word)
+
+    def test_unreadable_conflicts_are_record_problems(self):
+        """読めない申し出と裁定のファイルは人に回した申し出を隠すので、訳を record_problems に入れて結果を名乗らせない"""
+        broken = self.dir / "fix/broken.json"
+        broken.parent.mkdir(parents=True, exist_ok=True)
+        broken.write_text("{not json", encoding="utf-8")
+        shapes = {"JSON でない": str(broken), "items が無い": self.put("fix/no-items.json", {"rows": []}),
+                  "オブジェクトでない": self.put("fix/list.json", []), "無いファイル": str(self.dir / "fix/none.json")}
+        for name, path in shapes.items():
+            with self.subTest(name):
+                returns = fixed_run(fix={**fixed_run()["fix"], "conflicts": path})
+                rows, notes = outcome.conflict_rows(returns)
+                self.assertEqual((rows, len(notes)), ([], 1))
+                self.assertIn(path, notes[0])
+                self.assertEqual(decide(returns, facts={**OK_FACTS, "record_problems": notes}), ("record_invalid", "report:record-invalid"))
 
     def test_unmeasured_materials_only_is_fixed_needs_check(self):
         judgment = self.put("judge/judgment.json", {})

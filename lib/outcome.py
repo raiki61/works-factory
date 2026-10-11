@@ -8,12 +8,14 @@
 - returns: 差し込んだブロックの id → 返りの dict か None（飛ばされた・落ちた・読めない）。指し札の欄は開けたファイルのパスの字
   （開けなければ None）。conflicts だけは段ごとのパスの配列もよい
 - gates: 関所の id → {decision, text} か None（開かなかった）
-- facts: {start_ok, record_problems, failed, transcript_ok}。failed は run の記録で最後が誤りの節の id の並び（記録が読めなければ None）
+- facts: {start_ok, record_problems, failed, transcript_ok}。failed は run の記録で最後が誤りの節の id の並び（記録が読めなければ None）。
+  record_problems は呼び手が集める結果を名乗れない訳で、conflict_rows の読めなかった訳と unknown_answers の行もここに入れる
 - decide_outcome(returns, gates, facts) -> (結末の語, stop_reason)。stop_reason は「<段の id>:<語>」、止まらなければ ""
 - residue(returns) -> fixed を名乗らせない残りの行 [{where, text}]（報告と次の依頼が同じ行を読む）
+- conflict_rows(returns) -> (申し出と裁定の行, 読めなかった訳の行)。読めない先は人に回した申し出を隠すので、訳は record_problems に入れる
 - asked_conflicts(returns) -> 人に回した申し出の行の並び
 - unmeasured(returns) -> {素材の名: status}（今の周に測れていない素材）
-- unknown_answers(gates) -> 通しにも止めにも数えない答えの語の行（facts の record_problems と同じ扱い）
+- unknown_answers(gates) -> 通しにも止めにも数えない答えの語の行（record_problems に入れる）
 """
 from __future__ import annotations
 
@@ -289,7 +291,7 @@ def decide_outcome(returns: dict, gates: dict, facts: dict) -> tuple[str, str]:
     3. 人に聞いたまま（pending_human）か食い違いの申し出を人に回した（conflict.asked）→ needs_human（元は盤面の pending_human。
        ここは返りの人待ちの語・前提の検算の escalate・関所が開かなかった修正前の問い）
     4. 関所が通らない（accepted か round_closed が偽）→ record_invalid（元は検証器の関所。ここは始めの記録が読めない・
-       record_problems が在る）
+       record_problems が在る。申し出と裁定のファイルが読めない・知らない答えの語は呼び手が record_problems に入れる）
     5. 元に無い: 途中で終わった → interrupted（記録の落ちた節か、返りの続きの切れ目）
     6. 直す物が無い周 → no_fix_needed
     7. 残りが測れていない素材の行だけで最後のテストが緑 → fixed_needs_check、ほかの残り → round_limit
@@ -306,7 +308,7 @@ def decide_outcome(returns: dict, gates: dict, facts: dict) -> tuple[str, str]:
     wait = _waits(returns, gates)
     if wait:
         return "needs_human", wait
-    if not facts.get("start_ok") or facts.get("record_problems") or unknown_answers(gates):
+    if not facts.get("start_ok") or facts.get("record_problems"):
         return "record_invalid", f"{'start' if not facts.get('start_ok') else 'report'}:{RECORD_INVALID}"
     cut = _cut(returns, facts)
     if cut:

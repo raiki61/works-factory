@@ -445,8 +445,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     eye_lines, eye_notes = _eye_lines(returns, typed)
     outside = _outside(returns)[1]
     _, material_note = oc.materials(returns)
-    _, conflict_notes = oc.conflict_rows(returns)
-    notes = [*_list(typed.get("warnings")), *tdd_notes, *eye_notes, *conflict_notes, *([material_note] if material_note else [])]
+    notes = [*_list(typed.get("warnings")), *tdd_notes, *eye_notes, *([material_note] if material_note else [])]
     next_count = len(findings) + len(drafts)
     head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", decide,
                            gatemarks.pushes([q for _, q in _questions(returns)]), other=f"次の run に渡す物: {next_count} 件")
