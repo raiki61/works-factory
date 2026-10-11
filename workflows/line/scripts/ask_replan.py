@@ -13,9 +13,10 @@ import os
 import linekit
 from linekit import boundary
 
-import answer
-import gatemarks
-import planmarks
+with linekit.guarded_imports():
+    import answer
+    import gatemarks
+    import planmarks
 
 HEAD = "案の直しの関所"
 RECORD = "run の置き場の gates/gate-replan.json"

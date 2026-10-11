@@ -6,6 +6,8 @@
 import json
 import os
 import pathlib
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -33,6 +35,7 @@ result = load("result")
 
 import answer  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
 import gatemarks  # noqa: E402
+import stopby  # noqa: E402
 
 SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 RUN = "run-1"
@@ -483,6 +486,11 @@ class LinekitCase(unittest.TestCase):
             linekit.run(boom, lambda reason: {"stop_reason": linekit.LINE_SCRIPT, "reason": reason})
         returns.assert_called_once_with({"stop_reason": linekit.LINE_SCRIPT, "reason": "ValueError: 壊れた 入力"})
 
+    def test_line_stop_words_are_what_stopby_declares(self):
+        for word, meaning in linekit.DECLARED.items():
+            with self.subTest(word=word):
+                self.assertEqual(stopby.declare(word.removeprefix(stopby.HEAD), meaning), word)
+
     def test_skipped_values(self):
         self.assertEqual((linekit.value("null"), linekit.text("null"), linekit.flag("true"), linekit.items("[1]")), (None, "", True, [1]))
         self.assertEqual((linekit.value("abc"), linekit.text("abc"), linekit.items("null")), ("abc", "abc", []))
@@ -513,6 +521,25 @@ class FallbackCase(unittest.TestCase):
                 self.assertIsNot(got.get("go"), True)
                 if key != "plan-out":   # plan-out の done は往復を抜けるか（例外の時は抜ける）で、修正へ進むかではない
                     self.assertIsNot(got.get("done"), True)
+
+
+class BrokenLibCase(unittest.TestCase):
+    """lib/ が読めなくても、線の script は節として落ちず、fallback の返り（止めの理由 works:line-script）を返す。
+    lib/ を import する script を、空の lib/ を指す WORKS_FACTORY_ROOT で本当に走らせる"""
+
+    def test_lib_import_failure_is_returned_not_raised(self):
+        guarded = [node for node in script_nodes().values() if "guarded_imports" in (SCRIPTS / f"{node['script']}.py").read_text()]
+        self.assertGreaterEqual(len(guarded), 5)
+        with tempfile.TemporaryDirectory() as tmp:
+            (pathlib.Path(tmp) / "lib").mkdir()
+            env = {**os.environ, "WORKS_FACTORY_ROOT": tmp, "WORKFLOW_ID": RUN, "ARTIFACTS_DIR": tmp, "INPUTS_PLACE": "gate"}
+            for node in guarded:
+                with self.subTest(script=node["script"]):
+                    done = subprocess.run([sys.executable, str(SCRIPTS / f"{node['script']}.py")], cwd=tmp, env=env,
+                                          capture_output=True, text=True)
+                    self.assertEqual(done.returncode, 0, done.stderr)
+                    self.assertEqual(json.loads(done.stdout)["stop_reason"], linekit.LINE_SCRIPT)
+                    self.assertIn("ModuleNotFoundError", done.stderr)
 
 
 class GateDecisionsCase(unittest.TestCase):

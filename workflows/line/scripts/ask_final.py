@@ -16,11 +16,12 @@ import os
 import linekit
 from linekit import boundary
 
-import answer
-import gatemarks
-import gatepolicy
-import seal
-import structmark
+with linekit.guarded_imports():
+    import answer
+    import gatemarks
+    import gatepolicy
+    import seal
+    import structmark
 
 EYES = ("r1", "r2", "r3", "r4")
 PASS = "pass"

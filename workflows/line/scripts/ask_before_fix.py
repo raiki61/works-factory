@@ -13,7 +13,8 @@ import os
 import linekit
 from plan_out import ROUND_LIMIT
 
-import gatemarks
+with linekit.guarded_imports():
+    import gatemarks
 
 AXES = {"obvious": "自明", "world": "世界の解", "clean": "汚くない", "not_overkill": "やりすぎでない"}
 AXIS_KIND = "plan_review"

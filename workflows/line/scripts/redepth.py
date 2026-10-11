@@ -12,7 +12,8 @@ import os
 
 import linekit
 
-import depth as depthlib
+with linekit.guarded_imports():
+    import depth as depthlib
 
 
 def redepth(planned, replanned_depth, units, conflicts, questions, answer, *, replanned: bool, rejudged: bool) -> dict:

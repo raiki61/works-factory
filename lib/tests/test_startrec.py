@@ -1,4 +1,4 @@
-"""始めの記録の住処 startrec（.shared/core/startrec.py）の読み口と入口の文。一時の置き場のファイルだけ（FAST。git・子のプロセスなし）"""
+"""始めの記録の住処 startrec（.shared/core/startrec.py）の読み口と入口の文と版の控え。一時の置き場のファイルだけ（FAST。git なし。子のプロセスは版の控えの試験の 1 つだけ）"""
 import json
 import pathlib
 import sys
@@ -45,6 +45,10 @@ class StartRecCase(unittest.TestCase):
             with self.subTest(old):
                 self.assertIsNone(startrec.diff_empty(old))
                 self.assertIsNone(startrec.requests(old))
+
+    def test_cli_version_reads_the_first_line_or_nothing(self):
+        self.assertTrue(startrec.cli_version(sys.executable).startswith("Python "))
+        self.assertEqual(startrec.cli_version("no-such-command-for-works-factory"), "")
 
     def test_words_shapes(self):
         """入口の文の 3 形（差分なし・差分あり・仕様の段あり）。出どころは base.label のまま"""

@@ -8,27 +8,26 @@ when: で飛び、collect・report・result だけが走る（AI を起こす前
 """
 import json
 import os
-import shutil
-import subprocess
 from pathlib import Path
 
 import linekit
 from linekit import boundary
 
-import answer
-import carry
-import depth
-import entry
-import entryshape
-import gatemarks
-import gatepolicy
-import ghreads
-import startrec
+with linekit.guarded_imports():
+    import answer
+    import carry
+    import depth
+    import entry
+    import entryshape
+    import gatemarks
+    import gatepolicy
+    import ghreads
+    import startrec
 
+    DESIGN_ONLY_WORDS = ("", gatemarks.DESIGN_ONLY)
+    THICKNESS = ("", "自動", depth.LIGHT, depth.STANDARD)
 SPEC_ON = "on"
 SPEC_WORDS = ("", SPEC_ON)
-DESIGN_ONLY_WORDS = ("", gatemarks.DESIGN_ONLY)
-THICKNESS = ("", "自動", depth.LIGHT, depth.STANDARD)
 HEAVY = "重厚"
 GATE = "gate-start"
 
@@ -120,9 +119,7 @@ def versions(root: Path) -> dict:
         pinned = json.loads((root / "factory" / "pack.json").read_text(encoding="utf-8"))["integration_revision_required"]
     except (OSError, ValueError, KeyError):
         pinned = ""
-    claude = shutil.which("claude")
-    said = subprocess.run([claude, "--version"], capture_output=True, text=True) if claude else None
-    return {"archon": pinned, "claude_code": said.stdout.strip() if said and said.returncode == 0 else ""}
+    return {"archon": pinned, "claude_code": startrec.cli_version("claude")}
 
 
 def gate_text(shape: dict, record: dict, run_id: str) -> str:
