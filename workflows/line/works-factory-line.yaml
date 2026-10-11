@@ -522,6 +522,8 @@ nodes:
       ripple: "$replan.output.ripple"
       answers: "$answer-start.output.answer"
       ruling: "$fix.output.replan_items"
+      conflicts: "$fix.output.conflicts"
+      gate_answers: "$answer-before-fix.output.answer"
 
   - id: replan-review-out
     script: returned
