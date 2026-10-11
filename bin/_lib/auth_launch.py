@@ -5,15 +5,15 @@
 1. 前の段: WORKS_FACTORY_KEYCHAIN_ITEM を名指していれば、その項目を claude_auth の read_keychain で読む。取れなければ次へ進まず止まる
 2. 真ん中: claude_auth の auth_env を丸ごと呼ぶ（受け継いだ認証 → CLAUDE_KEYCHAIN_SERVICE で名指した項目）。
    claude_auth の部品をここで並べ直さない
-3. 後ろの段: 真ん中が足せなかった時だけ、macOS で Claude Code 自身の keychain の項目を読む
-4. ホストのログイン: どれも無ければ止めずに、子を利用者の保存済みのログイン（隔離の前の CLAUDE_CONFIG_DIR の
-   .credentials.json。claude_auth の段 3）に任せる。そのために子の CLAUDE_CONFIG_DIR だけを利用者の物に戻す（資格は写さない。
-   OAuth の更新で写しの元が無効になるため）。keychain の無い OS で claude /login しただけの人はここで動く
+3. 後ろの段: 真ん中が足せなかった時だけ、Claude Code 自身の保存済みのログインを読む。macOS では keychain の項目、
+   ほかの OS では利用者の <CLAUDE_CONFIG_DIR>/.credentials.json（隔離の前の値。無ければ <HOME>/.claude）。
+   子の CLAUDE_CONFIG_DIR は隔離した置き場のままなので（claude_auth の段 3 は隔離の下では効かない）、トークンを
+   CLAUDE_CODE_OAUTH_TOKEN として子に渡す。keychain の無い OS で claude /login しただけの人はここで動く
 
 keychain は利用者の HOME で読む（security はログイン keychain を $HOME 基準で探す）。値は標準出力・引数に出さない。
 
   auth_launch.py check --user-home <path> --user-config <path か空> [--for <殻の名>]
-      値を読んで捨て、出どころの名だけを標準出力に 1 行。名指しの項目を読めなければ標準エラーに案内を 1 行出して 2
+      値を読んで捨て、出どころの名だけを標準出力に 1 行。無ければ標準エラーに案内を 1 行出して 2
   auth_launch.py exec --user-home <path> --user-config <path か空> -- <実行ファイル> <引数…>
       同じ順で子の環境を組み、今のプロセスを実行ファイルに置き換える（WORKS_FACTORY_NO_AUTH=1 なら読まずに置き換える）
   auth_launch.py howto
@@ -41,7 +41,7 @@ HOWTO = ("認証が無い。keychain にトークンの項目が既に在るな�
 # 名指しで決めた時に子から外す名。Claude Code は CLAUDE_CODE_OAUTH_TOKEN より上の資格を先に使う
 # （code.claude.com/docs/en/authentication の Authentication precedence）。claude_auth の INHERITED に無い FOUNDRY の旗もここで外す
 ABOVE_TOKEN = tuple(claude_auth.INHERITED) + ("CLAUDE_CODE_USE_FOUNDRY",)
-HOST_LOGIN = "host-login"
+CREDENTIALS = ".credentials.json"   # keychain の無い OS で Claude Code が保存済みのログインを置くファイル（CLAUDE_CONFIG_DIR の下）
 
 
 def user_runner(user_home):
@@ -62,23 +62,41 @@ def claude_code_items(user_config):
     return items
 
 
+def login_token(raw):
+    """Claude Code の保存済みのログインの値は JSON（claudeAiOauth.accessToken）かトークンそのもの。トークンの字を返す
+    （JSON でなければ受けた値のまま。sk-ant-oat01- の検査は呼ぶ側）"""
+    raw = raw.strip()
+    try:
+        tok = ((json.loads(raw) or {}).get("claudeAiOauth") or {}).get("accessToken") or ""
+    except (ValueError, AttributeError):
+        return raw
+    return tok if isinstance(tok, str) else ""
+
+
 def login_json_runner(runner):
-    """Claude Code の項目の値は JSON（claudeAiOauth.accessToken）かトークンそのもの。JSON ならトークンだけに替えて返す runner
-    （時間切れ・例外・sk-ant-oat01- の検査は claude_auth の read_keychain に任せる）"""
+    """keychain の項目の値をトークンだけに替えて返す runner（時間切れ・例外・sk-ant-oat01- の検査は claude_auth の read_keychain に任せる）"""
     def run(args, **kw):
         p = runner(args, **kw)
-        raw = (p.stdout or "").strip()
-        try:
-            tok = ((json.loads(raw) or {}).get("claudeAiOauth") or {}).get("accessToken") or ""
-        except (ValueError, AttributeError):
-            return p
-        return subprocess.CompletedProcess(args, getattr(p, "returncode", 0), stdout=tok if isinstance(tok, str) else "")
+        return subprocess.CompletedProcess(args, getattr(p, "returncode", 0), stdout=login_token(p.stdout or ""))
     return run
 
 
+def read_credentials(path):
+    """(トークン, 空振りの理由)。read_keychain と同じく例外は投げず、sk-ant-oat01- で始まらない値は渡さない"""
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None, "無い"
+    except (OSError, UnicodeDecodeError) as e:
+        return None, "読めない(%s)" % type(e).__name__
+    tok = login_token(raw)
+    if not tok.startswith(claude_auth.TOKEN_PREFIX):
+        return None, "トークンが無い"
+    return tok, None
+
+
 def resolve(env, user_home, user_config, platform=sys.platform, runner=None):
-    """(子に足す変数, 出どころの名, 止まる理由)。止まるのは名指しの項目を読めない時だけで、その時は変数が None。
-    トークンの出どころが無ければ、子の CLAUDE_CONFIG_DIR を利用者の物に戻す変数を返す（ホストのログイン）"""
+    """(子に足す認証の変数, 出どころの名, 止まる理由)。取れた時は止まる理由が None、取れない時は変数が None"""
     runner = runner or user_runner(user_home)
     named = env.get("WORKS_FACTORY_KEYCHAIN_ITEM")
     if named:
@@ -99,12 +117,17 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None):
             tok, _ = claude_auth.read_keychain(service, login_json_runner(runner))
             if tok:
                 return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "Claude Code の keychain の項目 " + service, None
-    return {"CLAUDE_CONFIG_DIR": menv["CLAUDE_CONFIG_DIR"]}, "%s（%s）" % (HOST_LOGIN, menv["CLAUDE_CONFIG_DIR"]), None
+        return None, None, "%s、Claude Code の keychain の項目 %s にも無い" % (note, " ".join(claude_code_items(user_config)))
+    path = pathlib.Path(menv["CLAUDE_CONFIG_DIR"]) / CREDENTIALS
+    tok, miss = read_credentials(path)
+    if tok:
+        return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "Claude Code の保存済みのログイン %s" % path, None
+    return None, None, "%s、Claude Code の保存済みのログイン %s は%s" % (note, path, miss)
 
 
 def child_env(env, got, named):
-    """子の環境: 受けた環境（隔離した HOME・CLAUDE_CONFIG_DIR）に resolve の変数だけを上書きする（ホストのログインの時だけ
-    CLAUDE_CONFIG_DIR が利用者の物に戻る）。名指しで決めた時は、それより上に効く資格を外す（外さないと名指しが効かない）"""
+    """子の環境: 受けた環境（隔離した HOME・CLAUDE_CONFIG_DIR のまま）に認証の変数だけを足す。名指しで決めた時は、
+    それより上に効く資格を外す（外さないと名指しが効かない）"""
     out = {k: v for k, v in env.items() if not (named and k in ABOVE_TOKEN)}
     out.update(got)
     return out
@@ -135,8 +158,6 @@ def main(argv):
     if got is None:
         print("%s: %s（%s）" % (a.caller, HOWTO, why), file=sys.stderr)
         return 2
-    if name.startswith(HOST_LOGIN):
-        print("%s: %s" % (a.caller, claude_auth.QUIET_FAILURE_NOTE), file=sys.stderr)
     if a.cmd == "check":
         print(name)
         return 0
