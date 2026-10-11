@@ -20,7 +20,6 @@
 """
 from __future__ import annotations
 
-import collections
 import copy
 import datetime
 import difflib
@@ -192,16 +191,10 @@ def plan_review_output(b, nid, out, item):
         raise Reject(f"{nid}: " + "; ".join(errs))
 
 
-# 元 works/.shared/core/scripts/review-record.py:135・:140・:343（検証器の素材の状態の表と、人に聞く状態の問い）
-Rule = collections.namedtuple("Rule", "fields blocks carryable observed")
-STATUS = {
-    "found": Rule(("count", "detail"), False, True, True),
-    "clean": Rule(("checked",), False, True, True),
-    "carried_over": Rule(("from_round", "reason"), False, True, False),
-    "not_applicable": Rule(("reason",), False, False, False),
-    "awaiting_human": Rule(("reason",), True, False, False),
-    "not_run": Rule(("reason",), True, False, False),
-}
+# 元 works/.shared/core/scripts/review-record.py:135・:140・:343（検証器の素材の状態の表と、人に聞く状態の問い）。表の列は
+# このブロックの部品が読む blocks（gatemarks.unmeasured）だけ
+STATUS = {s: types.SimpleNamespace(blocks=s in ("awaiting_human", "not_run"))
+          for s in ("found", "clean", "carried_over", "not_applicable", "awaiting_human", "not_run")}
 ASKING = ("held", "escalate")
 VALIDATOR = types.SimpleNamespace(STATUS=STATUS, ASKING=ASKING)
 
