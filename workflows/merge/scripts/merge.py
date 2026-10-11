@@ -1,10 +1,12 @@
 """merge の返す節。seal は今の差分を封じて守りのパスの当たりを返し、apply は封じた hash を今の差分と照らして置く。
 
-差分は作業ツリー（節の cwd）と始めの記録の base_rev の間で green_cert.diff_bytes が組む。書くのは run の置き場だけ。
+差分は作業ツリー（節の cwd）と始めの記録の base_rev の間で green_cert.diff_bytes が組み、守りのパスの当たりもその差分から数える。
+書くのは run の置き場だけ。
 落ちない: どの誤りも終了の値 0 で ok: false と理由を返す（線は落ちた返す節の先へ進めない）。
 """
 import json
 import os
+import subprocess
 
 NO_VALUE = ("", "null")
 
@@ -26,6 +28,20 @@ def object_or_none(raw: str, name: str):
     if got is not None and not isinstance(got, dict):
         raise ValueError(f"{name} は object か null: {raw}")
     return got
+
+
+def numstat(repo, data: bytes) -> dict:
+    """封じる差分のバイトそのものに載るファイルごとの (足した行, 消した行)。バイナリは (None, None)。
+    本物の index を通して数え直すと assume-unchanged・skip-worktree の印の付いたファイルが見えないので、差分から読む"""
+    done = subprocess.run(["git", "apply", "--numstat", "-z", "-"], input=data, cwd=repo, capture_output=True)
+    if done.returncode != 0:
+        raise ValueError(f"差分のファイルを数えられない: {done.stderr.decode('utf-8', 'replace').strip()[-300:]}")
+    out = {}
+    for rec in done.stdout.decode("utf-8", "replace").split("\0"):
+        if rec:
+            added, deleted, name = rec.split("\t", 2)
+            out[name] = (None, None) if added == "-" else (int(added), int(deleted))
+    return out
 
 
 def main() -> None:
@@ -56,8 +72,10 @@ def main() -> None:
         return
 
     try:
-        protected = protect.lines(protect.touched(repo, base_rev))
-    except protect.Broken as e:
+        stats = numstat(repo, data)
+        protected = protect.lines([{**r, "added": stats[r["path"]][0], "deleted": stats[r["path"]][1]}
+                                   for r in protect.hits(stats)])
+    except (protect.Broken, ValueError) as e:
         protected = [seal.unknown_row(str(e))]
 
     def place(rel: str) -> tuple:

@@ -154,6 +154,22 @@ class ScriptCase(unittest.TestCase):
     def artifact(self, rel: str) -> pathlib.Path:
         return self.artifacts / rel
 
+    def touch_protected(self, *marks: str) -> str:
+        """一覧の glob の無い行のファイルを書く。marks があれば先にそれを commit して base_rev にし、git update-index の印 marks を付けてから書き換える"""
+        rule = next(r for r in protect.rules(protect.load()) if not any(c in r["glob"] for c in "*?["))
+        path = self.repo / rule["glob"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if marks:
+            path.write_text("x\n", encoding="utf-8")
+            git(self.repo, "add", rule["glob"])
+            git(self.repo, "commit", "-q", "-m", "protected")
+            self.base = git(self.repo, "rev-parse", "HEAD")
+            self.start = self.place("start.json", json.dumps({"base_rev": self.base}))
+            for mark in marks:
+                git(self.repo, "update-index", mark, rule["glob"])
+        path.write_text("y\n", encoding="utf-8")
+        return rule["glob"]
+
 
 class SealTest(ScriptCase):
     def test_seal_hashes_the_written_diff(self):
@@ -173,13 +189,23 @@ class SealTest(ScriptCase):
         self.assertTrue(self.artifact("merge/sealed.diff").is_file())
 
     def test_protected_hit_is_named(self):
-        rule = next(r for r in protect.rules(protect.load()) if not any(c in r["glob"] for c in "*?["))
-        path = self.repo / rule["glob"]
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("x\n", encoding="utf-8")
+        glob = self.touch_protected()
         got = self.seal()
         self.assertEqual(len(got["protected_hits"]), 1, got)
-        self.assertTrue(got["protected_hits"][0].startswith(rule["glob"]))
+        self.assertTrue(got["protected_hits"][0].startswith(glob))
+
+    def test_index_marks_do_not_hide_a_protected_hit(self):
+        for mark in ("--assume-unchanged", "--skip-worktree"):
+            with self.subTest(mark=mark):
+                self.setUp()
+                glob = self.touch_protected(mark)
+                got = self.seal()
+                self.assertEqual(len(got["protected_hits"]), 1, got)
+                self.assertTrue(got["protected_hits"][0].startswith(f"{glob}（+1 −1）"), got)
+                refused = self.apply(got["hash"], answer="null")
+                self.assertIs(refused["ok"], False, refused)
+                self.assertIn("守りのパス", refused["reason"])
+                self.assertFalse(self.artifact("merge/apply.diff").exists())
 
     def test_broken_manifest_is_an_unknown_hit_and_blocks_apply_without_answer(self):
         root = self.tmp / "root"
@@ -233,11 +259,18 @@ class ApplyTest(ScriptCase):
     def test_no_answer_and_red_refuses(self):
         self.assertRefused(self.apply(self.sealed, answer="null", green_ok="false"), "人の通しの答えが無いのに")
 
+    def test_no_answer_and_clean_run_applies_only_when_every_check_passed(self):
+        moved = json.dumps({**green_cert.fingerprint(self.repo), "diff_hash": "0" * 64})
+        for over, words in (({}, ""), ({"eyes_ok": "false"}, "目が通していない"), ({"fingerprint": moved}, "指紋")):
+            with self.subTest(over=over):
+                shutil.rmtree(self.artifact("merge"))
+                got = self.apply(self.sealed, answer="null", **over)
+                self.assertEqual(got["ok"], not words, got)
+                self.assertIn(words, got["reason"])
+                self.assertEqual(self.artifact("merge/apply.diff").exists(), not words)
+
     def test_no_answer_and_protected_hit_refuses(self):
-        rule = next(r for r in protect.rules(protect.load()) if not any(c in r["glob"] for c in "*?["))
-        path = self.repo / rule["glob"]
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("x\n", encoding="utf-8")
+        self.touch_protected()
         sealed = self.seal(fingerprint=self.fingerprint())["hash"]
         self.assertRefused(self.apply(sealed, answer="", fingerprint=self.fingerprint()), "守りのパス")
 
@@ -283,6 +316,11 @@ class NeverFailsTest(ScriptCase):
 
     def test_r2_not_json(self):
         self.assertBroken(self.apply("0" * 64, r2="{"), "apply")
+
+    def test_lib_missing(self):
+        nowhere = self.tmp / "no-lib"
+        nowhere.mkdir()
+        self.assertBroken(self.seal(root=nowhere), "seal")
 
     def test_checkout_not_git(self):
         plain = self.tmp / "plain"
