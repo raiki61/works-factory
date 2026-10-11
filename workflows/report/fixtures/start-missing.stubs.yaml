@@ -1,0 +1,5 @@
+# 全部の入力が空（前の段が全部落ちた・飛ばされた）。facts は record_invalid を返し、書き手の輪は飛ばされ、返す節が返る
+fixture:
+  expect: completed
+  reached: [facts, report]
+exec-code: true
