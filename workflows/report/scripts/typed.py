@@ -22,18 +22,19 @@ def _include(node_id: str) -> str:
 
 
 def own_include(execution: str) -> str:
-    """自分の節の実行の記録（ARCHON_NODE_EXECUTION の JSON）の path から、自分の include の頭"""
+    """自分の節の実行の記録（ARCHON_NODE_EXECUTION の JSON）の path から、自分の include の名前空間（節の id の最後の __ より前。
+    入れ子の include の節の id は outer__inner__node なので outer__inner。include の外の節なら空）"""
     try:
         doc = json.loads(execution) if execution else {}
     except ValueError:
         return ""
     path = doc.get("path") if isinstance(doc, dict) else None
-    return _include(path.rsplit(".", 1)[-1]) if isinstance(path, str) else ""
+    return path.rsplit(".", 1)[-1].rpartition("__")[0] if isinstance(path, str) else ""
 
 
 def listing(listing_file: str, artifacts_dir: str, run_id: str, execution: str = "") -> dict:
     """{by_type: {型: [{include, loop, node, path, produced_at, body}]}, warnings: [文]}。body は中身の JSON（読めなければ None と
-    注意）。ほかの run の行と自分の include の行は数えない。一覧の errors は 1 件ずつ warnings に入れる"""
+    注意）。ほかの run の行と自分の include の名前空間の行は数えない。一覧の errors は 1 件ずつ warnings に入れる"""
     out = {"by_type": {}, "warnings": []}
     warn = out["warnings"].append
     if not listing_file:
@@ -73,9 +74,9 @@ def listing(listing_file: str, artifacts_dir: str, run_id: str, execution: str =
                 continue
             if a.get("runId") not in (None, run_id):
                 continue
-            include = _include(a["nodeId"])
-            if own and include == own:
+            if own and a["nodeId"].startswith(own + "__"):
                 continue
+            include = _include(a["nodeId"])
             body = None
             try:
                 body = json.loads((Path(artifacts_dir) / a["path"]).read_text(encoding="utf-8"))

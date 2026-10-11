@@ -187,6 +187,17 @@ class TypedCase(unittest.TestCase):
         self.assertEqual(units[0]["body"], [{"group_id": "g1"}])
         self.assertEqual(got["warnings"], [])
 
+    def test_nested_include_drops_only_its_own_rows(self):
+        """入れ子の include の節の id は outer__inner__node（Archon の include-expander の名前空間）"""
+        rows = [self.entry("outer__fix__tdd", "nodes/a.md", {}), self.entry("outer__report__x", "nodes/b.md", {})]
+        got = self.read(self.listing({"k": rows}), json.dumps({"path": "outer__report__facts"}))
+        self.assertEqual([u["node"] for u in got["by_type"]["k"]], ["outer__fix__tdd"])
+
+    def test_own_include_is_the_full_namespace(self):
+        self.assertEqual(typed.own_include(json.dumps({"path": "outer__report__facts"})), "outer__report")
+        self.assertEqual(typed.own_include(json.dumps({"path": "report__facts"})), "report")
+        self.assertEqual(typed.own_include(json.dumps({"path": "facts"})), "")
+
     def test_errors_each_become_a_warning(self):
         errors = [{"path": "nodes/x.meta.json", "kind": "invalid_metadata"}, {"path": "nodes", "kind": "unreadable_directory", "code": "EACCES"}]
         got = self.read(self.listing({}, errors))
