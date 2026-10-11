@@ -5,6 +5,7 @@
   （一時の ARTIFACTS_DIR と環境変数。Archon を起こさない）
 - 筋書き: tests/archon.py の使い捨ての木で fixtures/ を archon workflow test で回す。Archon の源か bun が無ければ名前つきで見送る
 """
+import ast
 import importlib.util
 import json
 import os
@@ -27,6 +28,7 @@ if str(LIB) not in sys.path:
 if str(LIB / "graphloops") not in sys.path:
     sys.path.append(str(LIB / "graphloops"))
 
+import outcome  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
 import runreport  # noqa: E402
@@ -54,6 +56,20 @@ def load_script(name: str):
     return module
 
 
+def env_reads(script: str) -> dict:
+    """script の頭の、入力の名 → 読む環境変数の名（RETURNS・GATES の dict と START の os.environ.get の字）"""
+    reads = {}
+    for node in ast.parse((SCRIPTS / f"{script}.py").read_text(encoding="utf-8")).body:
+        if not (isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)):
+            continue
+        name, value = node.targets[0].id, node.value
+        pairs = (zip(value.keys, value.values) if isinstance(value, ast.Dict) and name in ("RETURNS", "GATES")
+                 else [(ast.Constant("start"), value)] if name == "START" else [])
+        for key, call in pairs:
+            reads[key.value] = call.args[0].value
+    return reads
+
+
 typed = load_script("typed")
 
 
@@ -74,6 +90,12 @@ class ShapeCase(unittest.TestCase):
     def test_inputs_are_the_contract(self):
         self.assertEqual(tuple(WORKFLOW["inputs"]), INPUTS)
         self.assertTrue(all(v == {"default": ""} for v in WORKFLOW["inputs"].values()))
+
+    def test_facts_reads_every_input_by_its_own_name(self):
+        """facts の読む入力が YAML の inputs と同じで、どれも自分の名の環境変数から読む。outcome の関所の並びは inputs の gate-*"""
+        reads = env_reads("facts")
+        self.assertEqual(reads, {name: f"INPUTS_{name.upper().replace('-', '_')}" for name in WORKFLOW["inputs"]})
+        self.assertEqual(outcome.GATES, tuple(name for name in WORKFLOW["inputs"] if name.startswith("gate-")))
 
     def test_no_top_keys_dropped_on_include(self):
         for key in TOP_KEYS_DROPPED_ON_INCLUDE:
@@ -96,6 +118,7 @@ class ShapeCase(unittest.TestCase):
             self.assertEqual(node["sandbox"], SANDBOX)
             self.assertEqual((node["model"], node["effort"]), ("sonnet", "medium"))
         self.assertEqual(write["output_format"], {k: v for k, v in report_roles.TEXT_SCHEMA.items()})
+        self.assertEqual(cold["output_format"], report_roles.COLD_SCHEMA)
 
     def test_return_node_runs_whatever_came_before(self):
         self.assertEqual(NODES["report"]["trigger_rule"], "all_done")
@@ -316,7 +339,7 @@ class CollectScriptCase(Run):
         """書き手の輪が落ちた・飛ばされた置き場（report/ai.json が無い）でも機械の報告を返す"""
         facts = self.facts()
         out = self.collect(json.dumps(facts))
-        self.assertEqual(out["outcome"], "stopped_by_human")
+        self.assertEqual((out["outcome"], out["ok"]), ("stopped_by_human", False))
         self.assertIsNone(out["report_ai"])
         self.assertEqual(out["report"], facts["report"])
 
@@ -327,6 +350,12 @@ class CollectScriptCase(Run):
         text = (self.artifacts / out["report_ai"]["path"]).read_text(encoding="utf-8")
         self.assertTrue(text.startswith(f"works-factory report / run {RUN}"))
         self.assertIn(report_roles.MACHINE_HEADING, text)
+
+    def test_ok_is_passed_through_from_facts(self):
+        facts = self.facts()
+        for ok in (True, False):
+            with self.subTest(ok=ok):
+                self.assertIs(self.collect(json.dumps({**facts, "ok": ok}))["ok"], ok)
 
     def test_broken_inputs_are_record_invalid(self):
         good = self.facts()

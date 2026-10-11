@@ -51,6 +51,12 @@ TERM_SCHEMA = {"type": "object", "required": ["term", "definition"], "additional
 TEXT_SCHEMA = {"type": "object", "required": ["text"], "additionalProperties": False,
                "properties": {"text": {"type": "string", "minLength": 1},
                               "terms": {"type": "array", "items": TERM_SCHEMA}}}
+# 初見の読み手（report.cold_check）の返答の型。verdict の enum が受け付けの読む判定の語の正本
+COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "decidable"], "additionalProperties": False,
+               "properties": {"verdict": {"type": "string", "enum": ["pass", "redesign-needed"]},
+                              "stops": {"type": "array", "items": {"type": "string"}},
+                              "guessed": {"type": "array", "items": {"type": "string"}},
+                              "decidable": {"type": "boolean"}}}
 # 輪（loop_group）の max_iterations と同じ数。受け付けがこの数だけ拒んだら諦めの印（done）を出し、輪を失敗で抜けさせずに
 # 後ろへ渡す（裁定 R50）。tests/test_blk_report.py が YAML の max_iterations と同じかを見る
 GIVE_UP_AFTER = 3

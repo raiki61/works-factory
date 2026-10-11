@@ -516,7 +516,7 @@ def _parse(raw) -> tuple[dict | None, str]:
 def _cold_of(cold) -> dict:
     got, _ = _parse(cold)
     got = got or {}
-    verdict = got.get("verdict") if got.get("verdict") in ("pass", "redesign-needed") else ""
+    verdict = got.get("verdict") if got.get("verdict") in report_roles.COLD_SCHEMA["properties"]["verdict"]["enum"] else ""
     return {"verdict": verdict, "stops": [str(s) for s in _list(got.get("stops"))],
             "guessed": [str(g) for g in _list(got.get("guessed"))], "decidable": got.get("decidable") is True}
 
