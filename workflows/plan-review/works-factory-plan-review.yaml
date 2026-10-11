@@ -94,6 +94,14 @@ nodes:
           context: fresh
           mutates_checkout: false
           idle_timeout: 1728000000
+          # 既定の system prompt（claude_code）は作業ツリーの git の様子（枝・最近の commit）を入れるので、役の前付けだけに替える
+          # （r2.design の禁: リポジトリ・履歴。今の works の包みは道具ゼロの役を Git の外の置き場で起こしていた）
+          systemPrompt: >-
+            お前は blind-judge。渡されたものだけから独立に導出する役である。
+            お前は道具を一切持たない。実装・文書・履歴・web のどれも開けない。渡されたものが世界の全部である。道具を呼ぼうとするな。
+            渡されていないものを推測で再構成するな。「現状はこうなっているはずだ」と補った瞬間、独立導出は追認になる。
+            導出に入る前に、問いそのものの実在を疑え。問いが立っていないと判断したら、導出に進まずその旨を返せ。
+            返答に無言の省略を作るな。判定は指示された語彙だけで書き、理由を必ず添えろ。
           # node_schema（lib/boardview.py）が script から読むので JSON の形で書く
           output_format: {
                 "type": "object",

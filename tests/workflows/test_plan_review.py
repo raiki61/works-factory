@@ -318,6 +318,10 @@ class YamlCase(unittest.TestCase):
                 self.assertEqual(n["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False})
                 self.assertEqual(n["idle_timeout"], DEADLINE)
         self.assertEqual(got["r2-design"]["allowed_tools"], [])
+        # 節の systemPrompt（字）は Archon の Claude の既定 {preset: claude_code}（作業ツリーの git の様子を入れる）を置き換える
+        # （止めた Archon の packages/providers/src/claude/provider.ts の systemPrompt の既定と節の上書き）
+        self.assertIn("blind-judge", got["r2-design"]["systemPrompt"])
+        self.assertNotIn("systemPrompt", got["plan-review"])
         self.assertEqual(got["plan-review"]["allowed_tools"], ["Read", "Grep", "Glob", "WebSearch", "WebFetch", "Agent", "Write"])
 
     def test_loops_are_three_and_end_on_accept_done(self):
