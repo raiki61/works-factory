@@ -122,7 +122,7 @@ class FinalHeadCase(unittest.TestCase):
         got = self.head(final_got(green=False, red_cause="introduced", conflicts=[{"path": "fix/conflicts.json"}],
                                   eyes={**final_got()["eyes"], "r3": blocked}))
         self.assertEqual(heads("\n".join(got)), HEADS)
-        for want in ("テストは赤", "食い違いの申し出を人に回した（1 件）", "独立の目が阻害を返した（R3）"):
+        for want in ("テストは赤", "申し出の控えが在る（1 件）", "独立の目が阻害を返した（R3）"):
             self.assertIn(want, got[0])
         self.assertEqual(got[2], gatemarks.PUSH + gatemarks.NO_PUSH)
         self.assertEqual(internal_subjects("\n".join(got)), [])

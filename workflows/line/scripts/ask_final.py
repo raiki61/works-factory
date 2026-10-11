@@ -6,10 +6,13 @@
 
 開ける理由（final_needs。今の works の works/darkfactory/lib/line_edge.py の _final_needs の理由のうち、線が返りから読める物）を
 test-gate（final）・fixed・eyes・merge（seal）・judged の返りから並べ、開き方（final_gate）で開くかを決める（lib/gatepolicy.py の
-opens）。守りのパスの当たり（確かめられなかった時も）と食い違いの申し出は、開き方に依らず開く（通すのは人の答えだけ。1 回目の修正の
-申し出も fixed が運ぶ）。無人の run で開くはずの時は開かずに止め（needs-human）、merge（apply）を飛ばす。
+opens）。守りのパスの当たり（確かめられなかった時も）と申し出の控えは、開き方に依らず開く（通すのは人の答えだけ。1 回目の修正の
+申し出も fixed が運ぶ。今の works は人に回した申し出の行だけを数えた。その数え方は issue #110）。無人の run で開くはずの時は開かずに止め（needs-human）、merge（apply）を飛ばす。
 判定の役が人に聞くと保留にしたままの問い（held_questions。元 gatemarks.held_lines）は冒頭と本文に見せるが、開ける理由には数えない
 （元の _final_head・_final_text と同じ）。保留の問いと柵の増えの控えを読めなければ、読めなかった訳を本文に並べる。
+元の理由のうち「修正役が人に回した物が在る」（report.handoff_lines。返答の changes[].breaks.accepted）と「直したという申告と
+機械の数え直しが合わない単位が在る」（querytest.closure_lines の mismatched_only）は、fix の返りの約束に欄が無く読めないので
+持たない（今の works からの狭め）。
 
 文は冒頭 3 行（final_head。lib/gatemarks.py の head3）で始め、守りのパス・申し出・許したテストの変更・独立の目の行・保留の問い・
 封じた差分を並べる。
@@ -56,7 +59,7 @@ def final_needs(got: dict) -> list:
     if word != "緑":
         why.append(f"最後のテストが{word}")
     if got["conflicts"]:
-        why.append(f"食い違いの申し出を人に回した（{len(got['conflicts'])} 件）")
+        why.append(f"申し出の控えが在る（{len(got['conflicts'])} 件）")
     blocked = [name.upper() for name in EYES if isinstance(got["eyes"].get(name), dict) and got["eyes"][name].get("status") != PASS]
     if blocked:
         why.append(f"独立の目が阻害を返した（{'・'.join(blocked)}）")
@@ -98,7 +101,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     if got["protected_hits"]:
         lines += [f"## {PROTECTED_HEAD}（{len(got['protected_hits'])} 件。通すのは人の答えだけ）", *[f"- {p}" for p in got["protected_hits"]], ""]
     if got["conflicts"]:
-        lines += [f"## 食い違いの申し出（{len(got['conflicts'])} 件。修正の段が人に回した。通すのは人の答えだけ）",
+        lines += [f"## 申し出の控え（{len(got['conflicts'])} 件。人に回した物かは数えていない。通すのは人の答えだけ）",
                   *[f"- {c.get('path') if isinstance(c, dict) else c}" for c in got["conflicts"]], ""]
     if got["allowed_test_changes"]:
         lines += [f"## 許したテストの変更（{len(got['allowed_test_changes'])} 件）", *[f"- {p}" for p in got["allowed_test_changes"]], ""]
