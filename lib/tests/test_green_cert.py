@@ -234,6 +234,12 @@ class CertifyCase(unittest.TestCase):
     def test_final_red_is_never_certified(self):
         self.assertEqual(self.final(green=False), (False, "緑でない"), "inherited・environment の赤も認証しない")
 
+    def test_truthy_non_bool_green_is_not_certified(self):
+        """green は bool の True だけ。JSON から来た文字列 "false"・"true" や 1 は緑と読まない"""
+        for green in ("false", "true", 1):
+            with self.subTest(green=green):
+                self.assertEqual(self.final(green=green), (False, "緑でない"))
+
     def test_base(self):
         for status, want in (("clean", True), ("found", True), ("not_applicable", True),
                              ("not_run", False), ("awaiting_human", False), (None, False)):

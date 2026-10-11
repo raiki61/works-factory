@@ -71,6 +71,15 @@ class ChangeCase(unittest.TestCase):
         self.put("sub/old.py", "x = 1\n")   # 既知の漏れが減っただけは増えに数えない
         self.assertEqual(cf.scan_change(self.repo, self.base, table, "sub", skip_prefix=SKIP), [])
 
+    def test_changed_skips_the_prefix_and_refuses_an_empty_one(self):
+        """skip_prefix の下は変わっても数えない。空の skip_prefix はどのパスの頭にも当たり全部が黙って外れるので ValueError"""
+        (self.repo / SKIP).mkdir()
+        self.put(SKIP + "x.txt", "x\n")
+        self.put("a.txt", "WORD\nWORD\n")
+        self.assertEqual(cf.changed(self.repo, self.base, skip_prefix=SKIP), ["a.txt"])
+        with self.assertRaises(ValueError):
+            cf.changed(self.repo, self.base, skip_prefix="")
+
     def test_scan_change_counts_new_file_outside_base_not(self):
         table = cf.tables(self.repo)[0][0][1]
         self.put("sub/new.py", "WORD\n")

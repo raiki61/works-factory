@@ -22,7 +22,8 @@ HEAD_LIMIT = 10   # summary に並べる鍵の数
 
 def diff_bytes(repo, rev) -> bytes:
     """unittrees.fresh_tree(repo)（追跡のファイルと .gitignore に当たらない未追跡のファイルの中身・実行ビット・シンボリックリンクの木。
-    本物の index・HEAD は動かさない）と rev の間の `git diff --binary --no-renames --no-ext-diff <rev> <その木>` のバイト。
+    本物の index・HEAD は動かさない）と rev の間の `git diff <unittrees._DIFF の旗> <rev> <その木>` のバイト（--binary・--no-renames・--no-ext-diff・--no-textconv・
+    --no-color と、a/・b/ の頭を固める旗。利用者の git の設定で字が変わらない）。
     git の木でない・rev が引けなければ ValueError。fingerprint・合わせの封印・累積差分が同じこの関数を使う"""
     try:
         tree = unittrees.fresh_tree(repo)
@@ -106,7 +107,7 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
 def certify(*, mode, material_status, green, before, after, now) -> tuple:
     """認証してよいか ——（ok, reason）。
     - base: material_status が clean・found・not_applicable なら (True, "")。not_run・awaiting_human・素材が無いなら偽（緑を仮定しない）
-    - final: before・after・now の指紋が揃わなければ偽（どれが違ったかを reason に）→ green でなければ (False, "緑でない")
+    - final: before・after・now の指紋が揃わなければ偽（どれが違ったかを reason に）→ green が True（bool）でなければ (False, "緑でない")
       （原因は呼び手が red_cause と証拠で別に返す）→ ほかは (True, "")。赤は原因が何でも認証しない"""
     if mode == "base":
         if material_status in BASE_OK:
@@ -121,6 +122,6 @@ def certify(*, mode, material_status, green, before, after, now) -> tuple:
     differ = [k for k in ("after", "now") if fps[k] != fps["before"]]
     if differ:
         return False, f"指紋が before と違う: {'・'.join(differ)}"
-    if not green:
+    if green is not True:
         return False, "緑でない"
     return True, ""

@@ -16,7 +16,7 @@
 - check_table(doc): 表の形の確かめ（concepts の表・pattern と bound の lines が正規表現・allowed と bound の paths が配列。外れは ValueError か re.error）
 - tables(repo, rev=None) -> ([(持ち主のフォルダ, 表)], [読めない表の訳]): 対象の表を探して読む（投げない）。rev を渡せば
   その版の木の表を読む（直しが表を広げても、直しの前の表で数える）
-- changed(repo, base_rev, *, skip_prefix) -> [パス]: base_rev と今の作業ツリーで変わった・足したファイル（実行基盤の写しの置き場 skip_prefix の下と入れ子のリポジトリは除く）
+- changed(repo, base_rev, *, skip_prefix) -> [パス]: base_rev と今の作業ツリーで変わった・足したファイル（実行基盤の写しの置き場 skip_prefix の下と入れ子のリポジトリは除く。skip_prefix が空なら ValueError）
 - places(repo, base, table, paths) -> [{concept, what, path, lines, home, known_places}]: 単位のファイル（repo からの相対）に
   当たる柵ごとの行の数・住処（allowed）か・その考えを知る場所の数（持ち主のフォルダの中で exclude の外の全部。住処を含む）
 - scan_change(repo, base_rev, table, base="", *, skip_prefix) -> [{concept, what, path, before, after}]: base_rev と今の作業ツリーの間で変わった
@@ -280,7 +280,11 @@ def places(repo, base: str, table: dict, paths) -> list[dict]:
 
 def changed(repo, base_rev: str, *, skip_prefix: str) -> list[str]:
     """base_rev と今の作業ツリー（まだ追跡されていない物を含む）の間で変わった・足したファイル（repo からの相対）。流れの道具の
-    写し（skip_prefix の下）と、入れ子のリポジトリ（ls-files が / で終わる名で出す）は除く。git が落ちれば CalledProcessError"""
+    写し（skip_prefix の下）と、入れ子のリポジトリ（ls-files が / で終わる名で出す）は除く。git が落ちれば CalledProcessError。
+    skip_prefix が空なら ValueError（"" はどのパスの頭にも当たり、全部のファイルが黙って外れる）"""
+    if not skip_prefix:
+        raise ValueError("skip_prefix が空（全部のファイルが外れる）")
+
     def git(*args):
         return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, check=True,
                               stdin=subprocess.DEVNULL).stdout.decode("utf-8", "surrogateescape")
