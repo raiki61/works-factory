@@ -519,6 +519,9 @@ class ScriptCase(unittest.TestCase):
         request.write_text("`docs/d.md` の 2 節のとおりに入口を直す", encoding="utf-8")
         self.start(policy_md="", request_file=str(request), lang="English")
         self.inputs["answers"] = json.dumps({"decision": "continue", "text": "古い入口は消してよい"}, ensure_ascii=False)
+        self.inputs["start_answers"] = json.dumps({"decision": "continue", "text": "入口は 1 つに絞る"}, ensure_ascii=False)
+        (self.artifacts / "plan-review" / eyeverdict.DESIGN_PREMISES).write_text(
+            json.dumps({"given": [], "withheld": [], "seen": {"count": 1, "last_round": 1}}), encoding="utf-8")
         self.inputs["changed"] = json.dumps({"premise_drift": True, "premise_drift_note": "入口は 2 つあった"}, ensure_ascii=False)
         self.inputs["x_scalars"] = json.dumps({"x_endpoints": 2})
         got = self.run_script("prep")
@@ -530,7 +533,9 @@ class ScriptCase(unittest.TestCase):
         self.assertIn("x_endpoints 2", got["scalars"])
         self.assertEqual(json.loads(got["design_reply"])["design"], "設計の本文")
         ledger = json.loads((self.artifacts / "eyes" / eyeverdict.R2_PREMISES).read_text(encoding="utf-8"))
-        self.assertIn("human_answer", [g["kind"] for g in ledger["given"]])
+        self.assertEqual(len([g for g in ledger["given"] if g["kind"] == "human_answer"]), 2)
+        self.assertEqual(len(ledger["after_design"]), 1)
+        self.assertIn("古い入口は消してよい", ledger["after_design"][0])
         (self.repo / "REVIEW.md").unlink()
         self.assertIn("無い", self.run_script("prep")["repo_review_md"])
 

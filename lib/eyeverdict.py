@@ -6,7 +6,7 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
 - scalars(diff_text, x_scalars)・scalars_text(s): 規模の数値と、その 1 文
 - _human_passed(questions, answer)・carried_section(passed)・r4_gate_items(r4, passed)・gate_passes(r4, passed): 修正前の関所で
   人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え
-- named_sections(request_text, repo)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
+- human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
 - prompt_texts(...)・lang_line(lang): 目の指示書に差し込む文
 - read_design(path)・read_json(path): 独立設計の控え（無ければ {"missing": 訳}）と、置き場の JSON（無い・読めなければ None）
 - premise_reason(design): 独立設計が問いが立たないとした訳
@@ -38,6 +38,9 @@ LATE_ASK = ("上の人の関所の答えのうち、次の物は独立設計を�
             "答えに照らした目的で突き合わせよ。")
 DRIFT_HEAD = "### 前提のずれ（修正の中の申告）"     # 元 同 :118
 CONSTRAINT_HEAD = "### 記録の制約"                 # 元 同 :119
+NO_CONSTRAINTS = "（記録の制約 premises.json が渡っていない）"
+NO_REQUEST = "依頼のファイルが渡っていない"
+START_GATE_NODE = "gate-start"   # 線の始めの関所（plan-review が独立設計に貼る人の答えの源）
 # 元 .shared/core/rolekit.py:67 の LANG_RULE と board.py:96 の LANG_DEFAULT
 LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、関所と報告に載る文）は {lang} で書け。"
              "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
@@ -175,10 +178,10 @@ def _md_slugs(text):
     """見出しのアンカー（GitHub の書き方: 小文字にし、語の文字・- ・空白以外を落とし、空白を - に。重複は -1, -2 …）"""
     seen, out = {}, set()
     for _, line in _md_lines(text):
-        m = re.match(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$", line)
+        m = design.MD_HEAD.match(line)
         if not m:
             continue
-        h = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", m.group(1).strip())   # 見出しの中のリンクは文字だけが残る
+        h = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", m.group(2).strip())   # 見出しの中のリンクは文字だけが残る
         s = re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-")
         n = seen.get(s, 0)
         seen[s] = n + 1
@@ -191,41 +194,48 @@ _MD_RULES = types.SimpleNamespace(
     _md_lines=_md_lines, _md_slugs=_md_slugs)
 
 
-def named_sections(request_text: str | None, repo) -> tuple:
-    """design.named_sections（依頼が名指した設計書の節。盤面の inputs.request と写しの rules を読む）に依頼の文を渡す。
-    依頼の文が無ければ（始めの記録か依頼のファイルが無い）「渡っていない」の 1 行と控えの withheld"""
-    if request_text is None:
-        why = "依頼のファイルが渡っていない"
-        return (f"{design.NAMED_HEAD}\n\n- {why}", [], [{"kind": "named_section", "what": "依頼", "why": why}])
-    board = types.SimpleNamespace(state={"inputs": {"request": request_text}}, rules=_MD_RULES)
-    return design.named_sections(board, repo)
+def human_items(start_answer, answer) -> list:
+    """関所の答え（{decision, text}。答えの無い関所は None）を record.process.human_items の行の形にし、答えた順に並べる。
+    独立設計の控えの seen.count は、plan-review が始めの関所の答えから design.human_answers で数えた数なので、この並びの頭を数える"""
+    return [{"round": 1, "node": node, "answer": a.get("decision"), "note": (a.get("text") or "").strip() or None}
+            for node, a in ((START_GATE_NODE, start_answer), (gatemarks.GATE_NODE, answer)) if isinstance(a, dict)]
 
 
-def premise_section(*, answer, changed, constraints, named: tuple, mapped: tuple, design_seen) -> tuple[str, dict]:
+def _constraint_rows(constraints) -> list[str]:
+    return [f"（{c.get('kind')}）{c.get('text')}" if isinstance(c, dict) else str(c) for c in constraints or []]
+
+
+def constraints_text(constraints) -> str:
+    """記録の制約（premises.json の constraints。読めなければ None）の行の並び"""
+    return _lines(_constraint_rows(constraints)) if constraints is not None else NO_CONSTRAINTS
+
+
+def premise_section(*, human_items, request_text, repo, changed, constraints, design_seen) -> tuple[str, dict]:
     """元 blk-eyes/lib/eyes.py:389 の premise_section。(比較役の頭に貼る、独立設計を作った後に分かった前提の節の並び,
-    貼った物の控え {node, given, withheld, seen, after_design?})。節は人の関所の答え・依頼が名指した設計書の節（named）・
-    対象のリポジトリの地図（mapped。どちらも design の (本文, given, withheld)）・独立設計の後に来た答え・前提のずれの申告
-    （changed の premise_drift と premise_drift_note）・記録の制約。after_design は独立設計の控えの seen の数より後の答えで、
-    控えが無ければ数えない（元と同じ）。値が渡っていない物は「渡っていない」と書く"""
-    rows = []
-    if isinstance(answer, dict):
-        rows.append(f"修正前の関所: {answer.get('decision')}（一言: {(answer.get('text') or '').strip() or '（一言なし）'}）")
-    human = f"{design.HUMAN_HEAD}\n\n{design.HUMAN_ASK}\n\n{_lines(rows)}" if rows else ""
+    貼った物の控え {node, given, withheld, seen, after_design?})。人の関所の答え・依頼が名指した設計書の節・地図は design.premises
+    （盤面の口は record.process.human_items・inputs.request・写しの rules の Markdown の読み）の 1 回の呼び出しで組む。依頼の文が
+    無ければ（始めの記録か依頼のファイルが無い）名指しの節に「渡っていない」の 1 行を置く。after_design は独立設計の控えの seen の
+    数より後の答えで、控えが無ければ数えない（元と同じ）。続けて前提のずれの申告（changed の premise_drift と
+    premise_drift_note）と記録の制約を貼る"""
+    board = types.SimpleNamespace(record={"process": {"human_items": human_items}},
+                                  state={"inputs": {"request": request_text or ""}}, rules=_MD_RULES)
+    parts, ledger = design.premises(board, repo)
+    if request_text is None:
+        parts.insert(len(parts) - 1, f"{design.NAMED_HEAD}\n\n- {NO_REQUEST}")
+        ledger["withheld"].append({"kind": "named_section", "what": "依頼", "why": NO_REQUEST})
+    if isinstance(design_seen, dict):
+        answers = [g["what"] for g in ledger["given"] if g.get("kind") == "human_answer"]
+        ledger["after_design"] = answers[design_seen.get("count") or 0:]
+        if ledger["after_design"]:
+            parts.append(f"{LATE_HEAD}\n\n{LATE_ASK}\n\n{_lines(ledger['after_design'])}")
     changed = changed if isinstance(changed, dict) else None
     drift_flag = changed.get("premise_drift") if changed else None
     drift = [str(changed.get("premise_drift_note") or "").strip() or "（申告の文なし）"] if drift_flag is True else []
-    cons = [f"（{c.get('kind')}）{c.get('text')}" if isinstance(c, dict) else str(c) for c in constraints or []]
-    given = ([{"kind": "human_answer", "what": r} for r in rows] + named[1] + mapped[1]
-             + [{"kind": "drift", "what": d} for d in drift] + [{"kind": "constraint", "what": c} for c in cons])
-    ledger = {"node": "r2.compare", "given": given, "withheld": named[2] + mapped[2], "seen": {"count": len(rows)}}
-    parts = [s for s in (human, named[0], mapped[0]) if s]
-    if isinstance(design_seen, dict):
-        ledger["after_design"] = rows[design_seen.get("count") or 0:]
-        if ledger["after_design"]:
-            parts.append(f"{LATE_HEAD}\n\n{LATE_ASK}\n\n{_lines(ledger['after_design'])}")
+    ledger["given"] += [{"kind": "drift", "what": d} for d in drift] + [{"kind": "constraint", "what": c}
+                                                                         for c in _constraint_rows(constraints)]
     parts.append(f"{DRIFT_HEAD}\n\n" + (_lines(drift) if drift_flag is not None else "（修正の印が渡っていない）"))
-    parts.append(f"{CONSTRAINT_HEAD}\n\n" + (_lines(cons) if constraints is not None else "（記録の制約 premises.json が渡っていない）"))
-    return "\n\n".join(parts), ledger
+    parts.append(f"{CONSTRAINT_HEAD}\n\n{constraints_text(constraints)}")
+    return "\n\n".join(parts), {"node": "r2.compare", **ledger}
 
 
 def lang_line(lang) -> str:
@@ -240,11 +250,10 @@ def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_fil
                 for u in fix_units or [] if isinstance(u, dict)]
     changed = changed if isinstance(changed, dict) else {}
     marks = [f"{k}={str(v).lower()}" for k, v in changed.items() if isinstance(v, bool)]
-    cons = [f"（{c.get('kind')}）{c.get('text')}" if isinstance(c, dict) else str(c) for c in constraints or []]
     return {
         "units_text": _lines(unit_rows, "（単位の目録が渡っていない）"),
         "fixes_text": _lines(fix_rows, "（修正の単位の結末が渡っていない）"),
-        "constraints_text": _lines(cons) if constraints is not None else "（記録の制約 premises.json が渡っていない）",
+        "constraints_text": constraints_text(constraints),
         "carried": carried_section(passed),
         "r4_context": "\n".join([
             f"- 波及の一覧: {ripple_file or '（渡っていない）'}",

@@ -9,13 +9,16 @@ import json
 import pathlib
 import sys
 import tempfile
+import types
 import unittest
+from unittest import mock
 
 sys.dont_write_bytecode = True
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import design  # noqa: E402
 import eyeverdict  # noqa: E402
 import gatemarks  # noqa: E402
 import seal  # noqa: E402
@@ -400,72 +403,101 @@ class PromptTextsCase(unittest.TestCase):
 
 
 class PremiseSectionCase(unittest.TestCase):
-    """元 blk-eyes/lib/eyes.py の premise_section: 比較役の頭に、人の答え・依頼が名指した設計書の節・地図・独立設計の後の答え・
-    前提のずれの申告の本文・記録の制約を貼り、貼った物を控える"""
-    NAMED = ("### 依頼が名指した設計書の節\n\n#### docs/d.md 2 節（docs/d.md:3-4）\n\n## 2 節", [{"kind": "named_section", "what": "docs/d.md 2 節"}], [])
-    MAPPED = ("### 対象のリポジトリの地図\n\n- 地図なし", [], [{"kind": "repo_map", "what": "AGENTS.md", "why": "無い"}])
+    """元 blk-eyes/lib/eyes.py の premise_section: 比較役の頭に、design.premises の人の答え・依頼が名指した設計書の節・地図と、
+    独立設計の後の答え・前提のずれの申告の本文・記録の制約を貼り、貼った物を控える"""
+    START = {"decision": "continue", "text": "入口は 1 つに絞る"}
+    BEFORE_FIX = {"decision": "continue", "text": "古い入口は消してよい"}
+    REQUEST = "`docs/d.md` の 2 節のとおりに直す"
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.repo = pathlib.Path(tmp.name)
+        git(self.repo, "init", "-q")
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs" / "d.md").write_text("# 設計\n\n## 2 入口\n\n入口は 1 つ\n\n## 3 出口\n\n出口\n", encoding="utf-8")
+        (self.repo / "AGENTS.md").write_text("# 地図\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "base")
 
     def section(self, **kw):
-        args = {"answer": {"decision": "continue", "text": "古い入口は消してよい"},
-                "changed": {"premise_drift": True, "premise_drift_note": "入口は 2 つあった"},
-                "constraints": [{"kind": "measured", "text": "1 デプロイは 2 リポジトリ"}],
-                "named": self.NAMED, "mapped": self.MAPPED, "design_seen": {"count": 0}, **kw}
+        args = {"human_items": eyeverdict.human_items(self.START, self.BEFORE_FIX), "request_text": self.REQUEST,
+                "repo": self.repo, "changed": {"premise_drift": True, "premise_drift_note": "入口は 2 つあった"},
+                "constraints": [{"kind": "measured", "text": "1 デプロイは 2 リポジトリ"}], "design_seen": {"count": 1}, **kw}
         return eyeverdict.premise_section(**args)
 
     def test_pastes_every_premise_in_the_original_order(self):
         text, _ = self.section()
-        heads = ["### 人の関所の答え", "### 依頼が名指した設計書の節", "### 対象のリポジトリの地図", eyeverdict.LATE_HEAD,
-                 eyeverdict.DRIFT_HEAD, eyeverdict.CONSTRAINT_HEAD]
+        heads = [design.HUMAN_HEAD, design.NAMED_HEAD, design.MAP_HEAD, eyeverdict.LATE_HEAD, eyeverdict.DRIFT_HEAD,
+                 eyeverdict.CONSTRAINT_HEAD]
         self.assertEqual(sorted(heads, key=text.index), heads)
-        for want in ("古い入口は消してよい", "## 2 節", "地図なし", eyeverdict.LATE_ASK, "入口は 2 つあった", "1 デプロイは 2 リポジトリ"):
+        for want in ("入口は 1 つに絞る", "古い入口は消してよい", "入口は 1 つ\n", "AGENTS.md:1-1", eyeverdict.LATE_ASK,
+                     "入口は 2 つあった", "1 デプロイは 2 リポジトリ"):
             self.assertIn(want, text)
+        self.assertNotIn("出口\n", text.split("入口は 1 つ\n")[1])
+
+    def test_human_answer_rows_are_design_human_answers_rows(self):
+        """独立設計の控えと同じ行の形（design.human_answers）で貼り、比較役の控えもその行を持つ"""
+        items = eyeverdict.human_items(self.START, self.BEFORE_FIX)
+        _, rows, _, seen = design.human_answers(types.SimpleNamespace(record={"process": {"human_items": items}}))
+        _, ledger = self.section()
+        self.assertEqual([g["what"] for g in ledger["given"] if g["kind"] == "human_answer"], rows)
+        self.assertEqual(seen["count"], 2)
+        self.assertEqual([i["node"] for i in items], [eyeverdict.START_GATE_NODE, gatemarks.GATE_NODE])
 
     def test_ledger_lists_what_was_given_and_withheld(self):
         _, ledger = self.section()
         self.assertEqual(ledger["node"], "r2.compare")
-        self.assertEqual([g["kind"] for g in ledger["given"]], ["human_answer", "named_section", "drift", "constraint"])
-        self.assertEqual(ledger["withheld"], self.MAPPED[2])
-        self.assertEqual(len(ledger["after_design"]), 1)
+        self.assertEqual([g["kind"] for g in ledger["given"]],
+                         ["human_answer", "human_answer", "named_section", "repo_map", "drift", "constraint"])
+        self.assertEqual(ledger["withheld"], [])
+        self.assertEqual(ledger["seen"], {"count": 2, "last_round": 1})
 
-    def test_answers_the_design_saw_are_not_late(self):
-        text, ledger = self.section(design_seen={"count": 1})
+    def test_only_answers_after_the_design_are_late(self):
+        """独立設計の控えの seen.count は始めの関所の答えを数えた物なので、後の修正前の関所の答えだけが後に来た答え"""
+        _, ledger = self.section()
+        self.assertEqual(len(ledger["after_design"]), 1)
+        self.assertIn("古い入口は消してよい", ledger["after_design"][0])
+        text, ledger = self.section(human_items=eyeverdict.human_items(None, self.BEFORE_FIX), design_seen={"count": 0})
+        self.assertIn("古い入口は消してよい", ledger["after_design"][0])
+        text, ledger = self.section(design_seen={"count": 2})
         self.assertEqual(ledger["after_design"], [])
         self.assertNotIn(eyeverdict.LATE_HEAD, text)
         text, ledger = self.section(design_seen=None)
         self.assertNotIn("after_design", ledger)
         self.assertNotIn(eyeverdict.LATE_HEAD, text)
 
+    def test_link_anchor_finds_the_heading_by_its_slug(self):
+        _, ledger = self.section(request_text="[入口](docs/d.md#2-入口) のとおりに直す")
+        self.assertIn({"kind": "named_section", "what": "docs/d.md#2-入口"}, ledger["given"])
+
+    def test_premise_kinds_fence_is_design_premises(self):
+        with mock.patch.object(design, "PREMISE_KINDS", ("named_section", "repo_map")):
+            with self.assertRaises(design.BoardGap):
+                self.section()
+
     def test_says_what_was_not_passed(self):
-        text, ledger = self.section(answer=None, changed=None, constraints=None)
-        self.assertNotIn("### 人の関所の答え", text)
+        text, ledger = self.section(human_items=[], request_text=None, changed=None, constraints=None)
+        self.assertNotIn(design.HUMAN_HEAD, text)
+        self.assertIn(f"{design.NAMED_HEAD}\n\n- {eyeverdict.NO_REQUEST}", text)
+        self.assertLess(text.index(eyeverdict.NO_REQUEST), text.index(design.MAP_HEAD))
+        self.assertIn({"kind": "named_section", "what": "依頼", "why": eyeverdict.NO_REQUEST}, ledger["withheld"])
         self.assertIn("（修正の印が渡っていない）", text)
-        self.assertIn("premises.json が渡っていない", text)
+        self.assertIn(eyeverdict.NO_CONSTRAINTS, text)
         text, _ = self.section(changed={"premise_drift": False})
         self.assertIn(f"{eyeverdict.DRIFT_HEAD}\n\n（無い）", text)
         text, _ = self.section(changed={"premise_drift": True})
         self.assertIn("（申告の文なし）", text)
 
-
-class NamedSectionsCase(unittest.TestCase):
-    def test_request_naming_a_design_section_pastes_its_body(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = pathlib.Path(tmp)
-            git(repo, "init", "-q")
-            (repo / "docs").mkdir()
-            (repo / "docs" / "d.md").write_text("# 設計\n\n## 2 入口\n\n入口は 1 つ\n\n## 3 出口\n\n出口\n", encoding="utf-8")
-            git(repo, "add", "-A")
-            git(repo, "commit", "-q", "-m", "base")
-            text, given, withheld = eyeverdict.named_sections("`docs/d.md` の 2 節のとおりに直す", repo)
-        self.assertIn("入口は 1 つ", text)
-        self.assertNotIn("出口\n", text.split("入口は 1 つ")[1])
-        self.assertEqual(given, [{"kind": "named_section", "what": "docs/d.md 2 節"}])
-        self.assertEqual(withheld, [])
-
-    def test_no_request_file_is_named_not_empty(self):
-        text, given, withheld = eyeverdict.named_sections(None, ".")
-        self.assertIn("依頼のファイルが渡っていない", text)
-        self.assertEqual(given, [])
-        self.assertEqual(withheld[0]["why"], "依頼のファイルが渡っていない")
+    def test_constraints_read_the_same_in_the_compare_head_and_the_premise_check(self):
+        cons = [{"kind": "measured", "text": "1 デプロイは 2 リポジトリ"}, "素の行"]
+        text, _ = self.section(constraints=cons)
+        texts = eyeverdict.prompt_texts(units=None, fix_units=None, changed=None, constraints=cons, green_ok=True,
+                                        ripple_file="", world_file="", passed={})
+        self.assertIn(f"{eyeverdict.CONSTRAINT_HEAD}\n\n{texts['constraints_text']}", text)
+        self.assertEqual(eyeverdict.prompt_texts(units=None, fix_units=None, changed=None, constraints=None, green_ok=True,
+                                                 ripple_file="", world_file="", passed={})["constraints_text"],
+                         eyeverdict.NO_CONSTRAINTS)
 
 
 class WriteNotesCase(unittest.TestCase):

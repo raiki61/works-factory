@@ -21,6 +21,7 @@ inputs:
   start: {default: "null", description: "$start.output.record（始めの記録の指し札）"}
   plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の関所で聞いた行）"}
   answers: {default: "null", description: "{ from: $gate-before-fix.output, if_skipped: null }（修正前の関所の答え）"}
+  start_answers: {default: "null", description: "{ from: $gate-start.output, if_skipped: null }（始めの関所の答え。plan-review が独立設計に貼った人の答えと同じ源）"}
   x_scalars: {default: "null", description: "$fix.output.x_scalars（修正役が足した x_ の規模の数値。JSON の object）"}
 
 returns: verdict

@@ -11,7 +11,6 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import concepthome  # noqa: E402
 import depth  # noqa: E402
-import design as r2design  # noqa: E402
 import eyeverdict  # noqa: E402
 import structmark  # noqa: E402
 
@@ -44,9 +43,9 @@ depth_rows = json.loads(os.environ["INPUTS_DEPTH"]) or []
 purpose_text = purpose.get("purpose_text") or ""
 after = structmark.after_counts(EYES) or eyeverdict.NO_AFTER
 premises_text, r2_ledger = eyeverdict.premise_section(
-    answer=answer, changed=changed, constraints=constraints,
-    named=eyeverdict.named_sections(request.read_text(encoding="utf-8") if request and request.is_file() else None, Path.cwd()),
-    mapped=r2design.repo_map(Path.cwd()),
+    human_items=eyeverdict.human_items(json.loads(os.environ["INPUTS_START_ANSWERS"]), answer),
+    request_text=request.read_text(encoding="utf-8") if request and request.is_file() else None, repo=Path.cwd(),
+    changed=changed, constraints=constraints,
     design_seen=(eyeverdict.read_json(design_file.with_name(eyeverdict.DESIGN_PREMISES)) or {}).get("seen") if design_file else None)
 
 out = {
