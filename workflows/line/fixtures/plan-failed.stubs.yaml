@@ -1,4 +1,4 @@
-# 計画の往復の中の節が落ちた（plan__inner に stub を置かず、代わりのブロックの中の節が本当に走って落ちる）。往復が落ち、planned から後ろが飛び、collect・report・result は走る。
+# 計画の往復の中の節が落ちた（plan__inner に stub を置かず、代わりのブロックの中の節が本当に走って落ちる）。往復が落ち、受け皿 plan-rounds-out から後ろが飛び、collect・report・result は走る。
 fixture:
   expect: "failed"
   fail-node: ["plan-rounds", "plan__inner"]

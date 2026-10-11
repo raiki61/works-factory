@@ -117,7 +117,7 @@ flowchart TB
 10. merge（seal）: 人に見せる差分を封じる（hash）。
 11. 最後の関所（人）: 封じた差分の hash・R4 の問い・守りのパスの当たり（確かめられなかった時も）・許したテストの変更・人に回した申し出・考えの住処の柵の増え・判定の役が保留にしたままの問い（見せるが開ける理由に数えない）を並べる。申し出は人に回した行だけで数える絞り（行の `ruling`）をまだ持たず、申し出の控えが在れば開く（`lib/conflict` が fix のブロックで置かれた後に戻す）。開くかは無人の方針（`final_gate`: always・when_needed・protected_only と `unattended`）で決まる。
 12. merge（apply）: 封じた hash を照らしてから、外へ 1 度だけ書く（既定は差分を run の置き場に置き、人が `bin/apply` で当てる。今の works と同じ）。
-13. report: いつも走る（前の段が落ちても。ただしブロックの返す節そのものが落ちた時は collect が読めず走らない。ブロックは返す節を落とさない）。結末の語・報告・次の run への持ち越し。
+13. report: いつも走る（前の段が落ちても。ブロックの返す節そのものが落ちた時も、受け皿 `<include の id>-out` が飛ばされ、collect はその返りを null で受ける）。結末の語・報告・次の run への持ち越し。
 
 - 止めは人の関所の `stop`（後ろを `when:` で飛ばして report へ進む。結末は `stopped_by_human`）。関所の間で走っている run を外から止める札（止め札）は持ち主の答え待ち（Archon に報告つきで止める口が無い。「能力の棚卸し」の「止め札」の行）。
 - 単位がどれも軽量なら（深さの決め）、差分の審査と R1〜R4 を省く。直した後に標準へ上げ直す決めも線が持つ。
@@ -143,7 +143,7 @@ flowchart TB
 ### 繰り返し
 
 - 判定の受け付けが拒めば、判定役に 3 回まで出し直させる（judge の中の `loop:`）。
-- 計画の往復は線の `loop_group` の `plan-rounds`（plan と plan-review の 2 つの include と、終わりの返しの節 `plan-out`）で 3 回まで。`loop_group` の中の節は外から見えないので、外の節は `plan-out` が返し直した `$plan-rounds.output.<欄>` を読む（U4）。ただし `collect` は往復の後ろの返しの節 `planned` から読む（往復の中の節が落ちると `$plan-rounds.output` は読めず、`collect` も落ちるため）。`plan-out` の `done` が 3 周目の終わりで必ず真になるので、往復は上限に当たって落ちずに修正前の関所へ回る。
+- 計画の往復は線の `loop_group` の `plan-rounds`（plan と plan-review の 2 つの include と、終わりの返しの節 `plan-out`）で 3 回まで。`loop_group` の中の節は外から見えないので、外の節は `plan-out` が返し直した `$plan-rounds.output.<欄>` を読む（U4）。ただし `collect` は往復の後ろの受け皿 `plan-rounds-out` から読む（往復の中の節が落ちると `$plan-rounds.output` は読めず、`collect` も落ちるため）。`plan-out` の `done` が 3 周目の終わりで必ず真になるので、往復は上限に当たって落ちずに修正前の関所へ回る。
 - 並べ: 単位を組にし（組は分けない）、fix は組ごとに `fan_out:` で並べる。幅は計画の組の数から run の時に決まり、並べの数の上限だけを持つ。固定の枝の数・待ちの列・錠は持たない（持ち主の決め `no-queue`。今の works の固定の 3 本と待ちの列（commit `ab9b9f17`）は持ち込まない）。結果は `fan_out:` が入力の順に集める。組の差分は決めた順に親の木へ戻し、戻せなかった組は理由つきで報告と次の run に回す。組ごとの作業ツリーの持ち方は未決 U8。
 - 修正役が 3 回拒まれた単位は、その単位を始めた時の版に戻し、理由を残して裁定に回し、ほかの単位は先へ進む。
 - 差分の審査 → 手直しは 2 往復まで。
@@ -164,11 +164,12 @@ flowchart TB
   - fix の `conflicts` の先は `conflicts.json` = `{"items": [...]}`（今の works の `conflict.py` の形。行の欄 `unit_key`・`kind`・`between`・`ruling`（`decision`・`text`・`limits`）・`replan`）。
   - 型つきの成果物: `green-cert` は test-gate の返す節の出力そのもの。`tdd-unit` は fix の 1 回の差し込みに 1 つで、中身は組ごとの段の物 `[{group_id, ran, reason, suite, reused, units}]`（今の works の blk-fix の `tdd` の出口。走らなかった組も `ran: false` で載る）。`eye-verdict` は `{eye, status, reason}`（`eye` は `r1`・`r2`・`r3`・`r4`・`premise-check`）。
   - 人の関所（`approval:`）の `decisions` は `approve` を含む（Archon の決まり。`guides/approval-nodes.md`）。通す語は `approve`・`continue`、止める語は `stop`・`reject`（今の works の線の関所の語）。止め札は止める語で、文が `request:` で始まる物。ブロックの `stop_reason` は人の止めを `human:<所>`、止め札を `request:<所>` の形で返す。
-  - 線が include に渡す値（`with:`）は、飛ばされうる節の返りを直に書かない。include の `with:` には `{from, if_skipped}` の束ねが書けない（埋め P2）ので、線の返しの節（`answer-*`・`plan-out`・`planned`・`judged`・`fixed`・`collect`）が `{from, if_skipped: null}` で受けて返し直した欄を渡す。返しの節の `output_format` は受けた欄の名だけを書き、型は受けた元（ブロックの返す節の `output_format`）を正本とする（返しの節の `from` が読む欄は Archon の `validate` が照らす）。
+  - 線が include に渡す値（`with:`）は、飛ばされうる節の返りを直に書かない。include の `with:` には `{from, if_skipped}` の束ねが書けない（埋め P2）ので、線の返しの節（`answer-*`・`collect`）が `{from, if_skipped: null}` で受けて返し直した欄を渡す。返しの節の `output_format` は受けた欄の名だけを書き、型は受けた元（ブロックの返す節の `output_format`）を正本とする（返しの節の `from` が読む欄は Archon の `validate` が照らす）。
   - ブロックが約束に無い入力を要る時は、YAML の `inputs:` に既定値（`""`・`"null"`・`"[]"`）つきで宣言し、線が渡す前も動く形にする。返りの欄は足さない。足す入力はこの節に書いてから線が渡す。
-  - 返す節は落ちない。lib と境の口の import は返す節の `main` の中で読み、読めない時も標準ライブラリだけで偽の結末と指し札の先のファイルを書いて返す（merge・test-gate・eyes・plan・plan-review・report・judge・fix の返す節と同じ形）。中の誤りを全部捕まえ、そのブロックの偽の結末（`ok: false`・`ready: false`・`done: false`・`pass: false`）と訳を `output_format` に合う形で返す（線は落ちた返す節の先へ進めない）。
+  - 返す節は落ちない。lib と境の口の import は返す節の `main` の中で読み、読めない時も標準ライブラリだけで偽の結末と指し札の先のファイルを書いて返す（merge・test-gate・eyes・plan・plan-review・report・judge・fix の返す節と同じ形）。中の誤りを全部捕まえ、そのブロックの偽の結末（`ok: false`・`ready: false`・`done: false`・`pass: false`）と訳を `output_format` に合う形で返す（線は落ちた返す節の先へ進めない。報告は受け皿を通して出るが、そのブロックの返りは null になる）。
+  - 線はブロックごとに受け皿の節 `<include の id>-out`（`workflows/line/scripts/returned.py`）をブロックの後ろに既定の `trigger_rule` で置き、`collect` はブロックの返りを受け皿の出力 `{got, stop_reason}` からだけ読む。落ちた節の出力は `{from, if_skipped}` でも読めず（止めた Archon の `packages/workflows/src/dag-executor.ts` の `resolveBindingDirective`）、直に読むと `collect` も落ちて報告が出ない。受け皿は受ける節が落ちても飛ばされても飛ばされ、`collect` の `if_skipped: null` に落ちる。計画の往復も同じ形の `plan-rounds-out` で受ける。
 - 線の中の id（`$<id>.output` の `<id>`。線を書く人とブロックを書く人がこの名で合わせる）:
-  - 線の節: `start`（始めの節）・`answer-start`・`answer-before-fix`・`answer-replan`・`answer-final`（関所の答えの返しの節。`{go, answer, stop_reason}`）・`ask-before-fix`・`ask-replan`・`ask-final`（関所を開くかと文を決める）・`plan-rounds`（計画の往復の `loop_group`）・`plan-out`（往復の終わりの返しの節）・`planned`（往復の返りを往復の外で返し直す。`collect` が読む）・`after-fix`（案の直しと再審を差し込むか）・`judged`（judge か rejudge の単位と判定）・`fixed`（fix と refix の返りを合わせた物）・`redepth`（直した後の深さの上げ直し）・`collect`（報告へ渡す物を集める返しの節）・`result`（線の返す節）
+  - 線の節: `start`（始めの節）・`answer-start`・`answer-before-fix`・`answer-replan`・`answer-final`（関所の答えの返しの節。`{go, answer, stop_reason}`）・`ask-before-fix`・`ask-replan`・`ask-final`（関所を開くかと文を決める）・`plan-rounds`（計画の往復の `loop_group`）・`plan-out`（往復の終わりの返しの節）・`<include の id>-out` と `plan-rounds-out`（受け皿。ブロックと往復の返りを `{got, stop_reason}` に受け直す。`collect` だけが読む）・`after-fix`（案の直しと再審を差し込むか）・`judged`（judge か rejudge の単位と判定）・`fixed`（fix と refix の返りを合わせた物）・`redepth`（直した後の深さの上げ直し）・`collect`（報告へ渡す物を集める返しの節）・`result`（線の返す節）
   - 人の関所: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`（仕様の関所は judge の中）。`decisions` は `approve`・`continue`・`stop`・`reject`（`reject` は `stop` と同じ。`decisions` に無いと、Archon は `reject` の答えを run の取り消しとして扱い、報告が出ない。止めた Archon の `packages/core/src/operations/workflow-operations.ts` 1633-1641 行）
   - include: `test-gate-base`・`judge`・`plan`・`plan-review`・`fix`・`rejudge`（judge の再審）・`replan`・`replan-review`（案の直し）・`refix`（案の直しの後の 2 回目の修正。fix のブロックを 1 度だけ差し込む）・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`
   - 同じブロックを 2 度差し込む所の返りは include の id ごとに分かれる（U2）。`rejudge`・`replan`・`replan-review`・`refix` の返りは差し込んだブロックと同じ形。後の段が fix の返りを読む所は `$fixed.output.<欄>`、judge の単位と判定を読む所は `$judged.output.<欄>`、plan と plan-review の返りを往復の外から読む所は `$plan-rounds.output.<欄>` を読む。
@@ -567,7 +568,7 @@ flowchart TB
 
 - U1 `resume` の後の run の id は同じか。持ち越しと指し札（同じ run の中だけ）に効く。
 - U2（分かった）同じブロックを 2 度差し込んだ返りは include の id ごとに分かれる（子の節の id が `<include の id>__<子の id>` になり、`$<include の id>.output` はその include の返す節。`include-expander.ts` 1-19 行）。型つきの成果物の分かれは report ブロックの issue に残す。
-- U3（分かった）`archon workflow test` の筋書きは使える（線の 17 本を `tests/e2e/test_line_scenarios.py` が回す）。制約: 関所はいつも `approved` の字で通り stub も答えも置けない（`dry-run.ts` 1179-1204 行。関所の答えは返しの節の stub で差す）。`loop_group` は 1 周で終わったものとされ `until_bash` は走らない（`dry-run.ts` 849-890 行）。include の入力は名前の script には渡らない（`dry-run.ts` の `executeCodeNode`）。
+- U3（分かった）`archon workflow test` の筋書きは使える（線の 18 本を `tests/e2e/test_line_scenarios.py` が回す）。制約: 関所はいつも `approved` の字で通り stub も答えも置けない（`dry-run.ts` 1179-1204 行。関所の答えは返しの節の stub で差す）。`loop_group` は 1 周で終わったものとされ `until_bash` は走らない（`dry-run.ts` 849-890 行）。include の入力は名前の script には渡らない（`dry-run.ts` の `executeCodeNode`）。
 - U4（分かった）`loop_group` の中に `include:` は書ける（`schemas/dag-node.ts` 513-529 行・文書 `guides/loop-nodes.md`「`include:` is valid in a `loop_group` body」）が、中の節は外から見えない（外から見えるのは `$<loop_group>.output` だけ）ので、本体の終わりに返しの節を置く（線の `plan-out`）。`include:` の id を `$LOOP_PREV` に書いても返す節に書き換わらない（`include-expander.ts` 1244-1247 行）ので、前の周の値も返しの節から読む。
 - U5（決めた）ブロックの script が `lib/` をどのパスで見つけるか。Archon は run の始めに `workflows/` を写し取り、script はその写しから走るので、リポジトリからの相対では届かない。決め: 入口の殻 `bin/works-factory`（`bin/_lib/launcher.py`）が Archon の子の環境変数 `WORKS_FACTORY_ROOT` にリポジトリの根を渡し、境の口の `boundary.lib_root()` がその `lib/` を返す（無ければ自分の置き場から辿った `lib/`）。Archon は host で走る script の節に起こした時の環境変数を渡す（`dag-executor.ts` の `process.env` の重ね）。止めた Archon で script の節を回して確かめる試験は `tests/shared/test_boundary.py` の `test_script_run_by_archon_finds_repository_lib`。Archon の `runtime: uv` の節の `deps:` の引き方（`lib/AGENTS.md` の E3）はこの決めに含まない（未決のまま）。
 - U6 今の works の包みが取っていた読んだ証拠と書き込みの記録を、Archon の役の節で取れるか（Archon の出来事の記録か、節の hooks か）。取れなければ埋めの行にする。

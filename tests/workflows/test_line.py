@@ -29,7 +29,7 @@ after_fix = load("after_fix")
 judged = load("judged")
 fixed = load("fixed")
 redepth = load("redepth")
-planned_node = load("planned")
+returned = load("returned")
 collect = load("collect")
 result = load("result")
 
@@ -451,25 +451,47 @@ class RedepthCase(unittest.TestCase):
         self.assertEqual([row["unit_id"] for row in got["depth"]], ["u9"])
 
 
+class ReturnedCase(unittest.TestCase):
+    def test_fields_are_gathered_and_strings_stay_strings(self):
+        env = {"ok": "true", "hash": "123", "mode": "seal", "diff": "null", "protected_hits": "[]", "reason": ""}
+        self.assertEqual(returned.returned("merge", env.get),
+                         {"got": {"mode": "seal", "ok": True, "hash": "123", "diff": None, "protected_hits": [], "reason": ""},
+                          "stop_reason": ""})
+
+
 class CollectAndResultCase(unittest.TestCase):
     def line(self, **kw):
         got = {"start": "null", "prior_failures": "null",
-               "stops": ["", "", "null", "", "", "", "null", "", "", "human:gate-final", "works:needs-human"],
+               "stops": {place: "" for place in collect.STOPS if place != "plan"},
                "gates": {"gate_start": "null", "gate_before_fix": "null", "gate_replan": "null", "gate_final": "null"},
                "deferred_questions": "null", "widened": "null", "final_reasons": "null",
-               "judged": {"rejudged": "null"}, "fixed": {"conflicts": "[]"}, "redepth": {"depth": "null"}}
+               "nodes": {"judged": {"rejudged": "null"}, "fixed": {"conflicts": "[]"}, "redepth": {"depth": "null"}}}
         got.update(kw)
         return got
 
-    def test_skipped_include_is_null_and_strings_stay_strings(self):
-        got = collect.collect({"judge": {"ready": "null", "stop_reason": "null"}, "merge_seal": {"ok": "true", "hash": "123"}},
-                              self.line())
+    def test_skipped_receiver_is_null(self):
+        seal = {"got": {"mode": "seal", "ok": True, "hash": "123"}, "stop_reason": ""}
+        got = collect.collect({"judge": "null", "merge_seal": json.dumps(seal), "plan_rounds": None}, self.line())
         self.assertIsNone(got["judge"])
-        self.assertEqual(got["merge_seal"], {"ok": True, "hash": "123"})
+        self.assertEqual(got["merge_seal"], seal["got"])
+        self.assertEqual((got["plan"], got["plan_review"]), (None, None))
         self.assertEqual((got["judged"], got["fixed"]), (None, {"conflicts": []}))
 
+    def test_plan_rounds_are_split_into_plan_and_review(self):
+        rounds = {key: None for key in returned.SHAPES["plan_rounds"]}
+        rounds.update({"ready": False, "round": 1, "stop_reason": ""})
+        got = collect.collect({"plan_rounds": json.dumps({"got": rounds, "stop_reason": ""})}, self.line())
+        self.assertEqual(got["plan"], {key: rounds[key] for key in plan_out.PLAN})
+        self.assertIsNone(got["plan_review"])
+
     def test_first_stop_reason_wins(self):
-        self.assertEqual(collect.collect({}, self.line())["stop_reason"], "human:gate-final")
+        stops = {place: "" for place in collect.STOPS if place != "plan"}
+        stops.update({"final": "human:gate-final", "redepth": "null"})
+        rounds = json.dumps({"got": {"stop_reason": ""}, "stop_reason": ""})
+        self.assertEqual(collect.collect({"plan_rounds": rounds}, self.line(stops=stops))["stop_reason"], "human:gate-final")
+        broken = json.dumps({"got": None, "stop_reason": linekit.LINE_SCRIPT})
+        self.assertEqual(collect.collect({"eyes": broken}, self.line(stops=stops))["stop_reason"], "human:gate-final")
+        self.assertEqual(collect.collect({"eyes": broken}, self.line())["stop_reason"], linekit.LINE_SCRIPT)
 
     def test_result_fixed(self):
         for outcome, want in (("fixed", True), ("fixed_needs_check", True), ("no_fix_needed", False), ("", False)):
@@ -567,7 +589,7 @@ class Recorded(dict):
 
     def get(self, key, default=None):
         self.read.add(key)
-        return default
+        return super().get(key, default)
 
 
 class LineWiringCase(unittest.TestCase):
@@ -575,20 +597,38 @@ class LineWiringCase(unittest.TestCase):
 
     READERS = {
         "plan-out": lambda: plan_out.from_env(),
-        "planned": lambda: planned_node.from_env(),
         "judged": lambda: judged.from_env(),
         "fixed": lambda: fixed.from_env(),
-        "collect": lambda: (collect.blocks_of_env(), collect.line_of_env()),
+        "collect": lambda: (collect.received_of_env(), collect.line_of_env()),
     }
 
     def test_with_keys_are_what_the_script_reads(self):
         nodes = line_nodes()
-        for key, read in self.READERS.items():
+        readers = {**self.READERS, **{key: returned.from_env for key, node in nodes.items() if node.get("script") == "returned"}}
+        for key, read in readers.items():
             with self.subTest(node=key):
                 env = Recorded()
+                if nodes[key].get("script") == "returned":
+                    env["INPUTS_BLOCK"] = nodes[key]["with"]["block"]
                 with mock.patch.object(os, "environ", env):
                     read()
                 self.assertEqual(env.read, {f"INPUTS_{name.upper()}" for name in nodes[key]["with"]})
+
+    def test_every_include_and_the_plan_rounds_have_a_receiver_that_collect_reads(self):
+        """ブロックの返す節が落ちても報告が出るように、collect は返りを受け皿 <id>-out からだけ読む"""
+        nodes = line_nodes()
+        inside = {node["id"] for node in nodes["plan-rounds"]["loop_group"]["nodes"]}
+        received = [key for key, node in nodes.items() if "include" in node and key != "report" and key not in inside]
+        received.append("plan-rounds")
+        reads = {v["from"] for v in nodes["collect"]["with"].values() if isinstance(v, dict)}
+        for key in received:
+            with self.subTest(node=key):
+                receiver = nodes.get(f"{key}-out")
+                self.assertIsNotNone(receiver)
+                self.assertEqual((receiver["script"], receiver["depends_on"], receiver.get("trigger_rule")), ("returned", [key], None))
+                self.assertIn(f"{key}-out", nodes["collect"]["depends_on"])
+                self.assertIn(f"${key}-out.output", reads)
+                self.assertFalse(any(f"${key}.output" in v for v in reads), "collect がブロックの返りを直に読む")
 
     def test_round_limit_is_the_loop_limit(self):
         self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], plan_out.ROUND_LIMIT)

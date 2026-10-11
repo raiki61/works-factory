@@ -498,8 +498,11 @@ JUDGE_WRITERS = (
 )
 READONLY_NODES = {
     "line": (
-        "answer-start", "plan-out", "planned", "ask-before-fix", "answer-before-fix", "after-fix", "judged", "ask-replan",
+        "answer-start", "plan-out", "ask-before-fix", "answer-before-fix", "after-fix", "judged", "ask-replan",
         "answer-replan", "fixed", "redepth", "ask-final", "answer-final", "collect", "result",
+        # 受け皿（workflows/line/scripts/returned.py）
+        "test-gate-base-out", "judge-out", "plan-rounds-out", "fix-out", "rejudge-out", "replan-out", "replan-review-out",
+        "refix-out", "test-gate-final-out", "eyes-out", "merge-seal-out", "merge-apply-out",
     ),
 }
 YAML_BOOL = "tag:yaml.org,2002:bool"

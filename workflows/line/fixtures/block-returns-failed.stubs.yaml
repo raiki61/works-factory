@@ -1,0 +1,14 @@
+# judge の返す節そのものが落ちた（judge__verdict に stub を置かず、代わりのブロックの返す節が本当に走って落ちる）。受け皿 judge-out は
+# 飛ばされ、collect は judge の返りを null で受けて、report・result まで走る（collect がブロックの返りを直に読むと collect も落ちる）。
+fixture:
+  expect: "failed"
+  fail-node: "judge__verdict"
+  inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
+  reached: ["collect", "report__report", "result"]
+  resolved-text-contains: {"report__inner": "# judge=null"}
+exec-code: true
+test-gate-base__inner: "stub"
+test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}
+report__inner: "stub"
+report__report: {"ok": false, "outcome": "stopped_by_line", "stop_reason": "", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}
+judge__inner: "stub"
