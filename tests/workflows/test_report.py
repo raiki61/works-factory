@@ -123,6 +123,21 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(write["output_format"], {k: v for k, v in report_roles.TEXT_SCHEMA.items()})
         self.assertEqual(cold["output_format"], runreport.COLD_SCHEMA)
 
+    def test_writer_receives_the_reject_file_through_the_reject_node(self):
+        """前の周の拒否の訳のファイルは、輪の頭の節 write-reject（script reject）の with: に $LOOP_PREV で結び、書き手の指示書は今の周の
+        その節の返り $write-reject.output.reason で受ける。書き手の節に with: を書かない（線が include すると、止めた Archon は輪の中の
+        節の with: の名を楯にせず「入力が無い」で止める。packages/workflows/src/include-expander.ts:566・627）"""
+        reject, write = BODY["write-reject"], BODY["write"]
+        self.assertEqual((reject["script"], reject["runtime"], reject["with"]),
+                         ("reject", "uv", {"reason": "$LOOP_PREV.accept.output.reason_file"}))
+        self.assertEqual(reject["output_format"]["required"], ["reason"])
+        self.assertNotIn("with", write)
+        self.assertEqual(write["depends_on"], ["write-reject"])
+        text = (BLOCK / "commands" / "report.md").read_text(encoding="utf-8")
+        self.assertIn("`$write-reject.output.reason`", text)
+        self.assertNotIn("$INPUTS", text)
+        self.assertNotIn("$LOOP_PREV", text)
+
     def test_return_node_runs_whatever_came_before(self):
         self.assertEqual(NODES["report"]["trigger_rule"], "all_done")
         self.assertEqual(NODES["report"]["depends_on"], ["facts", "write-loop"])

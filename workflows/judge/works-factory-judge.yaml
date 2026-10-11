@@ -36,9 +36,20 @@ nodes:
       fresh_context: true
       until_bash: done=$spec-accept.output.done; test "$done" = true
       nodes:
+        - id: spec-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.spec-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: spec
           command: spec
-          with: {reject_reason: "$LOOP_PREV.spec-accept.output.reason"}
+          depends_on: [spec-reject]
           model: opus
           effort: medium
           settingSources: [user]
@@ -100,9 +111,20 @@ nodes:
       fresh_context: true
       until_bash: done=$spec-review-accept.output.done; test "$done" = true
       nodes:
+        - id: spec-review-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.spec-review-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: spec-review
           command: spec-review
-          with: {reject_reason: "$LOOP_PREV.spec-review-accept.output.reason"}
+          depends_on: [spec-review-reject]
           model: opus
           effort: high
           settingSources: [user]
@@ -154,9 +176,20 @@ nodes:
       fresh_context: true
       until_bash: done=$spec-revise-accept.output.done; test "$done" = true
       nodes:
+        - id: spec-revise-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.spec-revise-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: spec-revise
           command: spec-revise
-          with: {reject_reason: "$LOOP_PREV.spec-revise-accept.output.reason"}
+          depends_on: [spec-revise-reject]
           model: opus
           effort: medium
           settingSources: [user]
@@ -293,9 +326,20 @@ nodes:
       fresh_context: false
       until_bash: done=$pr-check-accept.output.done; test "$done" = true
       nodes:
+        - id: pr-check-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.pr-check-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: pr-check
           command: pr-check
-          with: {reject_reason: "$LOOP_PREV.pr-check-accept.output.reason"}
+          depends_on: [pr-check-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -378,9 +422,20 @@ nodes:
       fresh_context: false
       until_bash: done=$premises-accept.output.done; test "$done" = true
       nodes:
+        - id: premises-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.premises-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: premises
           command: premises
-          with: {reject_reason: "$LOOP_PREV.premises-accept.output.reason"}
+          depends_on: [premises-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -442,9 +497,20 @@ nodes:
       fresh_context: false
       until_bash: done=$purpose-accept.output.done; test "$done" = true
       nodes:
+        - id: purpose-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.purpose-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: purpose
           command: purpose
-          with: {reject_reason: "$LOOP_PREV.purpose-accept.output.reason"}
+          depends_on: [purpose-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -507,9 +573,20 @@ nodes:
       fresh_context: false
       until_bash: done=$world-classes-accept.output.done; test "$done" = true
       nodes:
+        - id: world-classes-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.world-classes-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: world-classes
           command: world-classes
-          with: {reject_reason: "$LOOP_PREV.world-classes-accept.output.reason"}
+          depends_on: [world-classes-reject]
           model: opus
           effort: high
           settingSources: [user]
@@ -574,9 +651,20 @@ nodes:
       fresh_context: false
       until_bash: done=$world-judge-accept.output.done; test "$done" = true
       nodes:
+        - id: world-judge-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.world-judge-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: world-judge
           command: world-judge
-          with: {reject_reason: "$LOOP_PREV.world-judge-accept.output.reason"}
+          depends_on: [world-judge-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -696,10 +784,20 @@ nodes:
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
+        - id: prior-decisions-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.prior-decisions-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: prior-decisions
           command: material-prior-decisions
-          with: {reject_reason: "$LOOP_PREV.prior-decisions-accept.output.reason"}
-          depends_on: [prior-decisions-prep]
+          depends_on: [prior-decisions-prep, prior-decisions-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -783,10 +881,20 @@ nodes:
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
+        - id: purpose-review-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.purpose-review-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: purpose-review
           command: material-purpose-review
-          with: {reject_reason: "$LOOP_PREV.purpose-review-accept.output.reason"}
-          depends_on: [purpose-review-prep]
+          depends_on: [purpose-review-prep, purpose-review-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -850,10 +958,20 @@ nodes:
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
+        - id: local-review-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.local-review-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: local-review
           command: material-local-review
-          with: {reject_reason: "$LOOP_PREV.local-review-accept.output.reason"}
-          depends_on: [local-review-prep]
+          depends_on: [local-review-prep, local-review-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -946,10 +1064,20 @@ nodes:
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
+        - id: consistency-bypass-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.consistency-bypass-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: consistency-bypass
           command: material-consistency-bypass
-          with: {reject_reason: "$LOOP_PREV.consistency-bypass-accept.output.reason"}
-          depends_on: [consistency-bypass-prep]
+          depends_on: [consistency-bypass-prep, consistency-bypass-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -1051,10 +1179,20 @@ nodes:
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
+        - id: hygiene-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.hygiene-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: hygiene
           command: material-hygiene
-          with: {reject_reason: "$LOOP_PREV.hygiene-accept.output.reason"}
-          depends_on: [hygiene-prep]
+          depends_on: [hygiene-prep, hygiene-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -1117,10 +1255,20 @@ nodes:
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
+        - id: external-standards-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.external-standards-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: external-standards
           command: material-external-standards
-          with: {reject_reason: "$LOOP_PREV.external-standards-accept.output.reason"}
-          depends_on: [external-standards-prep]
+          depends_on: [external-standards-prep, external-standards-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -1219,10 +1367,20 @@ nodes:
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
+        - id: procedure-trace-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.procedure-trace-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: procedure-trace
           command: material-procedure-trace
-          with: {reject_reason: "$LOOP_PREV.procedure-trace-accept.output.reason"}
-          depends_on: [procedure-trace-prep]
+          depends_on: [procedure-trace-prep, procedure-trace-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -1305,10 +1463,20 @@ nodes:
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
+        - id: gate-efficacy-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.gate-efficacy-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: gate-efficacy
           command: material-gate-efficacy
-          with: {reject_reason: "$LOOP_PREV.gate-efficacy-accept.output.reason"}
-          depends_on: [gate-efficacy-prep]
+          depends_on: [gate-efficacy-prep, gate-efficacy-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -1392,10 +1560,20 @@ nodes:
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
+        - id: test-double-fidelity-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.test-double-fidelity-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: test-double-fidelity
           command: material-test-double-fidelity
-          with: {reject_reason: "$LOOP_PREV.test-double-fidelity-accept.output.reason"}
-          depends_on: [test-double-fidelity-prep]
+          depends_on: [test-double-fidelity-prep, test-double-fidelity-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -1478,10 +1656,20 @@ nodes:
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
+        - id: main-path-observation-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.main-path-observation-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: main-path-observation
           command: material-main-path-observation
-          with: {reject_reason: "$LOOP_PREV.main-path-observation-accept.output.reason"}
-          depends_on: [main-path-observation-prep]
+          depends_on: [main-path-observation-prep, main-path-observation-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -1561,10 +1749,20 @@ nodes:
               brief: {type: string}
               review_md: {type: string}
               repo_review_md: {type: string}
+        - id: provenance-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.provenance-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: provenance
           command: material-provenance
-          with: {reject_reason: "$LOOP_PREV.provenance-accept.output.reason"}
-          depends_on: [provenance-prep]
+          depends_on: [provenance-prep, provenance-reject]
           model: sonnet
           effort: medium
           settingSources: [user]
@@ -1650,9 +1848,20 @@ nodes:
       fresh_context: false
       until_bash: done=$diagnose-accept.output.done; test "$done" = true
       nodes:
+        - id: diagnose-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.diagnose-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: diagnose
           command: diagnose
-          with: {reject_reason: "$LOOP_PREV.diagnose-accept.output.reason"}
+          depends_on: [diagnose-reject]
           model: opus
           effort: high
           settingSources: [user]
@@ -1920,9 +2129,20 @@ nodes:
       fresh_context: true
       until_bash: done=$rejudge-accept.output.done; test "$done" = true
       nodes:
+        - id: rejudge-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.rejudge-accept.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
         - id: rejudge
           command: rejudge
-          with: {reject_reason: "$LOOP_PREV.rejudge-accept.output.reason"}
+          depends_on: [rejudge-reject]
           model: opus
           effort: high
           context: fresh
