@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -206,6 +207,14 @@ class SealTest(ScriptCase):
                 self.assertIs(refused["ok"], False, refused)
                 self.assertIn("守りのパス", refused["reason"])
                 self.assertFalse(self.artifact("merge/apply.diff").exists())
+
+    def test_user_whitespace_setting_does_not_make_a_hit(self):
+        (self.repo / "a.txt").write_text("two \n", encoding="utf-8")
+        strict = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "apply.whitespace", "GIT_CONFIG_VALUE_0": "error"}
+        with mock.patch.dict(os.environ, strict):
+            got = self.seal()
+            self.assertEqual(got["protected_hits"], [], got)
+            self.assertIs(self.apply(got["hash"], answer="null")["ok"], True)
 
     def test_broken_manifest_is_an_unknown_hit_and_blocks_apply_without_answer(self):
         root = self.tmp / "root"

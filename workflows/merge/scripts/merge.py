@@ -33,7 +33,8 @@ def object_or_none(raw: str, name: str):
 def numstat(repo, data: bytes) -> dict:
     """封じる差分のバイトそのものに載るファイルごとの (足した行, 消した行)。バイナリは (None, None)。
     本物の index を通して数え直すと assume-unchanged・skip-worktree の印の付いたファイルが見えないので、差分から読む"""
-    done = subprocess.run(["git", "apply", "--numstat", "-z", "-"], input=data, cwd=repo, capture_output=True)
+    done = subprocess.run(["git", "apply", "--numstat", "--whitespace=nowarn", "-z", "-"], input=data, cwd=repo,
+                          capture_output=True)
     if done.returncode != 0:
         raise ValueError(f"差分のファイルを数えられない: {done.stderr.decode('utf-8', 'replace').strip()[-300:]}")
     out = {}
