@@ -1,0 +1,190 @@
+name: works-factory-report
+description: |
+  報告のブロック。線の最後で、前の段が落ちても飛ばされても走る。結末の 10 語と止めの語を決め、機械の報告・次の run の依頼の
+  下書き・前の失敗の行を run の置き場の report/ に書く（facts）。結果を名乗れる run では、書き手が平易な冒頭・人が決めること・
+  本文を書き、道具を持たない初見の読み手が頭だけを読んで確かめる（write-loop。3 回目は通らなくても受け取って印を付ける）。
+  返す節 report は落ちない: AI の報告が無くても機械の報告を返す。型つきの成果物の一覧（tdd-unit・green-cert・eye-verdict）は
+  with: でなく facts が $TYPED_ARTIFACTS_FILE から読む（workflows/AGENTS.md の E5）。
+
+inputs:
+  start: {default: ""}
+  test-gate-base: {default: ""}
+  judge: {default: ""}
+  rejudge: {default: ""}
+  plan: {default: ""}
+  plan-review: {default: ""}
+  replan: {default: ""}
+  replan-review: {default: ""}
+  fix: {default: ""}
+  test-gate-final: {default: ""}
+  eyes: {default: ""}
+  merge-seal: {default: ""}
+  merge-apply: {default: ""}
+  gate-start: {default: ""}
+  gate-before-fix: {default: ""}
+  gate-replan: {default: ""}
+  gate-final: {default: ""}
+
+returns: report
+outcome_field: ok
+
+nodes:
+  - id: facts
+    script: facts
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [outcome, ok, stop_reason, report, next_request, prior_failures, ai_go, facts_file]
+      properties:
+        outcome: {type: string}
+        ok: {type: boolean}
+        stop_reason: {type: string}
+        report: {type: [object, "null"]}
+        next_request: {type: [object, "null"]}
+        prior_failures: {type: [object, "null"]}
+        ai_go: {type: boolean}
+        facts_file: {type: string}
+
+  - id: write-loop
+    depends_on: [facts]
+    when: "$facts.output.ai_go == 'true'"
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$accept.output.done; test "$done" = true
+      nodes:
+        - id: write
+          command: report
+          with:
+            rejected: $LOOP_PREV.accept.output.reason_file
+          model: sonnet
+          effort: medium
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          settingSources: [user]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          mutates_checkout: false
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [text]
+            additionalProperties: false
+            properties:
+              text: {type: string, minLength: 1}
+              terms:
+                type: array
+                items:
+                  type: object
+                  required: [term, definition]
+                  additionalProperties: false
+                  properties:
+                    term: {type: string, minLength: 1}
+                    definition: {type: string, minLength: 1}
+
+        - id: cold-prep
+          script: cold_prep
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          depends_on: [write]
+          with:
+            writer: $write.output
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [body]
+            properties:
+              body: {type: string}
+
+        - id: cold
+          command: cold-check
+          depends_on: [cold-prep]
+          context: fresh
+          model: sonnet
+          effort: medium
+          allowed_tools: []
+          settingSources: [user]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          mutates_checkout: false
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [verdict, stops, guessed, decidable]
+            additionalProperties: false
+            properties:
+              verdict: {type: string, enum: [pass, redesign-needed]}
+              stops: {type: array, items: {type: string}}
+              guessed: {type: array, items: {type: string}}
+              decidable: {type: boolean}
+
+        - id: accept
+          script: report_accept
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          depends_on: [write, cold]
+          with:
+            reply: $write.output
+            cold: $cold.output
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [done, ok, reason, kind, reason_file]
+            properties:
+              done: {type: boolean}
+              ok: {type: boolean}
+              reason: {type: string}
+              kind: {type: string}
+              reason_file: {type: string}
+
+  - id: report
+    script: collect
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [facts, write-loop]
+    trigger_rule: all_done
+    with:
+      facts: $facts.output
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [outcome, stop_reason, report, report_ai, next_request, prior_failures, ok]
+      properties:
+        outcome:
+          type: string
+          enum: [fixed, fixed_needs_check, no_fix_needed, round_limit, stopped_by_request, stopped_by_human, stopped_by_line,
+                 needs_human, record_invalid, interrupted]
+        stop_reason: {type: string}
+        report:
+          type: object
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        report_ai:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        next_request:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        prior_failures:
+          type: [object, "null"]
+          required: [type, run_id, path]
+          properties:
+            type: {const: archon_artifact}
+            run_id: {type: string}
+            path: {type: string}
+        ok: {type: boolean}
