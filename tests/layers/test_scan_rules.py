@@ -8,8 +8,8 @@ from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 HERE = pathlib.Path(__file__).resolve().parent
-# 土台の計画 docs/plans/2026-10-11-foundation.md の Task 2 の Produces が名指す決まり。
-REQUIRED = {"E2", "E3", "E4", "E8", "E9", "E12", "E13", "E14"}
+# 土台の計画 docs/plans/2026-10-11-foundation.md の Task 2 の Produces が名指す決まりと、根の AGENTS.md の E18 の機械の行。
+REQUIRED = {"E2", "E3", "E4", "E8", "E9", "E12", "E13", "E14", "E18"}
 CALL = re.compile(r'scan\.problems\("(E\d+)"')
 
 

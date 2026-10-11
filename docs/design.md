@@ -20,7 +20,7 @@
 - エッセンス: 持ち主のグラフ（`workflows/`）。どの確かめと役が在り、各々が何をし、どの順でどうつながり、どこで人に聞くか。Archon の書き方（線とブロックの YAML・役の指示書 `commands/`・節の script `scripts/`）で書く。持ち主の言葉「で、私がエッセンスって呼んでるのはグラフの内容やグラフ全体の形かな。」（2026-10-11）
 - lib: Archon を知らない Python の助け手（`lib/`）。script の節が呼ぶ（引用の照らし・TDD の赤の判定・元から赤の見分け・範囲の照らしなど）。エッセンスそのものではない。
 - 境: Archon との出入りの口と、Archon に無い物を補う埋め（`workflows/.shared/`）。
-- 埋め（polyfill）: Archon に無い物を外から補う部品。名簿は `docs/archon-polyfills.md`。
+- 埋め（polyfill）: Archon に無い物を外から補う部品。名簿は `docs/polyfills.md`。
 - 指し札: Archon の `{type: archon_artifact, run_id, path}`。run の置き場の中のファイルを指す。
 - 型つきの成果物: 節の `output_type` で型の名を付けた出力。受け手は `$TYPED_ARTIFACTS_FILE` の一覧から型で引く。
 
@@ -64,7 +64,7 @@ flowchart TB
 
 ## Archon・ASF・今の works との関係
 
-- Archon: 土台。中は直さない。足りない所は埋め（`docs/archon-polyfills.md`）。開発元には連絡しない。
+- Archon: 土台。中は直さない。足りない所は埋め（`docs/polyfills.md`）。開発元には連絡しない。
 - ASF: 横に並べて見るだけ。ASF の工程は `bin/` が取った Archon の源の `.archon/workflows/sdlc/` に在り、工程の名（`archon-*` と `works-factory-*`）で選び分ける。ASF の工程を回す時は `--workflow-source` に源を渡す（ASF の `factory/consumer.py` と同じ）。採った型は `docs/asf-notes.md`。
 - 今の works: 能力の正本。置き換えるまでは今の works が本番。能力を 1 つずつブロックと `lib/` へ移し、「能力の棚卸し」の表で追う。置き換えた後、claude-plugins の `works/` は `/works` の薄いスキルだけを残し、`bin/` を呼ぶ。
 
@@ -560,7 +560,7 @@ U1〜U3 は持ち主の挙げた物、U4〜U8 はこの文書を書く中で出�
 
 ### 段 1 歩く骨組み
 
-全部のブロックを中身の薄い形（型に合う返りを返すだけ）で線に並べ、小さな対象のリポジトリ（`tests/e2e/` の種）に 1 つの依頼を通しで回す。人の関所は `bin/answer` で答える。U1〜U7 を決め、結果を この文書と `docs/archon-polyfills.md` に書く。
+全部のブロックを中身の薄い形（型に合う返りを返すだけ）で線に並べ、小さな対象のリポジトリ（`tests/e2e/` の種）に 1 つの依頼を通しで回す。人の関所は `bin/answer` で答える。U1〜U7 を決め、結果を この文書と `docs/polyfills.md` に書く。
 
 ### 段 2 ブロックごとの issue を並べて回す
 
@@ -574,7 +574,7 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 1. 筋書き（`workflows/<名>/fixtures/`）と `lib/` の試験（`lib/tests/`）が先に赤で入り、後で緑。
 2. 返す節の `output_format` を段 0 の骨組みの欄から狭めずに中身を入れ、線の `with:` が読む欄が全部在る（`tests/layers/test_block_returns.py`）。欄を足す・変えるのは線との約束を変えることなので、土台の持ち主に issue で頼む。
 3. 層の試験（`tests/layers/`）と `archon validate workflows` が緑。
-4. 採った ASF の型を `docs/asf-notes.md` に、使った埋めを `docs/archon-polyfills.md` に書いた。
+4. 採った ASF の型を `docs/asf-notes.md` に、使った埋めを `docs/polyfills.md` に書いた。
 5. 「能力の棚卸し」と「受け入れの一覧」のこのブロックの行に、証の試験か筋書きの名を書いた。
 
 個別:

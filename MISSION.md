@@ -13,7 +13,7 @@
 
 ## 範囲の外
 
-- Archon・ASF の中身を直すこと。Archon に足りない所は、このリポジトリの `workflows/.shared/` に置く埋め（polyfill。Archon に無い物を外から補う小さな部品）で塞ぎ、`docs/archon-polyfills.md` に書く。Archon の開発元には連絡しない。
+- Archon・ASF の中身を直すこと。Archon に足りない所は、このリポジトリの `workflows/.shared/` に置く埋め（polyfill。Archon に無い物を外から補う小さな部品）で塞ぎ、`docs/polyfills.md` に書く。Archon の開発元には連絡しない。
 - ASF のコードを写すこと。型（作りの考え）だけを採り、`docs/asf-notes.md` に書く。
 - ASF や Archon 同梱の工程を `include`（別の工程を取り込む Archon の書き方）すること。横に並べて見比べるだけ。
 - 工程の YAML を別の形から変換して作ること。YAML は手で書き、そのまま Archon に渡す。

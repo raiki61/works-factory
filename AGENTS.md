@@ -62,7 +62,7 @@ works-factory/
 │   ├── design.md                設計（線・ブロック・能力の棚卸し・未決）
 │   ├── owner-decisions.md       持ち主の決めの正本
 │   ├── asf-notes.md             ASF から採った型
-│   ├── archon-polyfills.md      埋めの名簿
+│   ├── polyfills.md      埋めの名簿
 │   └── plans/                   実装の計画
 ├── .github/workflows/tests.yml  CI。check の名は tests
 ├── pack.json                    版の止め（Archon の版は factory/pack.json）
@@ -124,4 +124,4 @@ works-factory/
 - 取ってきた物は元の名前と場所のまま置き、名前を変えない。ASF の物は `factory`・`FACTORY`・`harness`・`.factory`・`archon-` で始まる。ASF の工程は Archon の源の `.archon/workflows/sdlc/` に、自分の工程はこのリポジトリの `workflows/` に在り、混ぜて置かない。持ち主の決め `name-by-origin`。
 - 自分の物には、それらで始まる名前を付けない（ファイル・フォルダ・工程・型の名）。自分の工程は `works-factory-` で始める（E9）。
 - 今の works から持ってきた物（E15）は、元と同じファイル名で置く。元と見比べられるようにするため。どこから持ってきたかは commit に書く。
-- 機械: `tests/layers/test_names.py`（`bin/`・`workflows/`・`lib/`・`tests/`・`docs/` の下のパスの部分に、`factory`・`harness`・`archon-` で始まる物が無い。ASF の物が「リポジトリの形」の木の場所の外に無い）。
+- 機械: `tests/layers/test_names.py`（`bin/`・`workflows/`・`lib/`・`tests/`・`docs/` の下のパスの部分に、`factory`・`FACTORY`・`harness`・`.factory`・`archon-` で始まる物が無い）。ASF の物が「リポジトリの形」の木の場所の外に無いことは人が見る。

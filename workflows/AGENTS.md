@@ -13,7 +13,7 @@
 ## E2 境の中身は全部、名簿に載せる
 
 - `workflows/.shared/` のファイルは 2 種類だけ。Archon との出入りの口（境の入出力のモジュール。1 つ）と、埋め（polyfill。Archon に無い物を外から補う部品）。
-- 埋めは `docs/archon-polyfills.md` に 1 行ずつ載せる。載せる欄は、穴・Archon の証拠の引用・外す条件。
+- 埋めは `docs/polyfills.md` に 1 行ずつ載せる。載せる欄は、穴・Archon の証拠の引用・外す条件。
 - 機械: `tests/layers/test_polyfills_listed.py`（`workflows/.shared/` のファイルが、境の口か名簿の行のどれかにちょうど当たる。名簿に在って木に無い行も赤。ただし置き場のパスの直後に「（予定）」と書いた行は、木に無くてよい）。
 
 ## E4 ブロックはほかのブロックのファイルを指さない
