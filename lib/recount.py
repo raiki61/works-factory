@@ -121,14 +121,6 @@ def _run_query(place, where, how, root, rev=None, probe=True, round_: int = 1) -
     return got, ""
 
 
-def precedent_gap(r) -> str:
-    """先行例の 1 行に足りない物（無ければ空文字）: 見つからないなら何を探したか、それ以外は一次情報の出典。
-    元 works/.shared/core/graphloops/rules/review-loop.py:2437"""
-    if r.get("verdict") == "not_found":
-        return "searched（何をどう探したか）が無い" if blank(r.get("searched"), 4) else ""
-    return "source（一次情報の出典）が無い" if blank(r.get("source"), 4) else ""
-
-
 def _reply_shape_problems(reply: dict, precedents) -> list:
     """返答の自己申告の形の照らし（数え直しの前）: 修正が在るのに黙って通る閉鎖の状態（judge_accept.SILENT_STATUS）・同じファイルを
     触った修正どうしの interactions・破りに行った形跡（bypass_tried）・壊しうる面の結果（breaks.result）・先行例（from_judge_row
@@ -168,7 +160,7 @@ def _reply_shape_problems(reply: dict, precedents) -> list:
             if c.get("unit_key") not in judge_rows:
                 errs.append(f"{head}: precedent が from_judge_row なのに、判定者の先行例の行（process.precedents）にこの単位の行が無い"
                             "——自分で先行例を当たって problem と source を書け")
-        elif blank(pr.get("problem"), 4) or precedent_gap(pr):
+        elif blank(pr.get("problem"), 4) or judge_accept._precedent_gap(pr):
             errs.append(f"{head}: precedent に problem と source（not_found なら searched）が要る——機構を足す・形を変える修正は、"
                         "同じ問題を世の中がどう解いているかを一次情報で確かめてから書け（REVIEW.md『処方の最小性』の世界の解を採る）")
         ros = c.get("root_or_symptom") or {}

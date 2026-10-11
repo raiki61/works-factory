@@ -794,8 +794,8 @@ def frozen_fields(b, round_: int = 1) -> list | None:
         raise fields_broken(b, e) from None
 
 
-def plan_asks(b) -> list[dict]:
-    """盤面の trace の範囲の相談の行（ASKED_OP。古い順。読めない・壊れた行は飛ばす）"""
+def plan_asks(b, op: str = ASKED_OP) -> list[dict]:
+    """置き場の trace の範囲の相談の行（既定は ASKED_OP。ほかの語の行も op で引く。古い順。読めない・壊れた行は飛ばす）"""
     try:
         lines = (pathlib.Path(b) / "trace.jsonl").read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError):
@@ -806,7 +806,7 @@ def plan_asks(b) -> list[dict]:
             row = json.loads(line)
         except ValueError:
             continue
-        if isinstance(row, dict) and row.get("op") == ASKED_OP:
+        if isinstance(row, dict) and row.get("op") == op:
             out.append(row)
     return out
 

@@ -824,23 +824,6 @@ def depth_doc(place):
     return doc
 
 
-def _trace_rows(place, op: str) -> list:
-    """置き場の trace.jsonl の op の行（読めない行は飛ばす。無ければ空）"""
-    try:
-        lines = (pathlib.Path(place) / TRACE_FILE).read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError):
-        return []
-    out = []
-    for line in lines:
-        try:
-            row = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(row, dict) and row.get("op") == op:
-            out.append(row)
-    return out
-
-
 def depth_signals(place) -> tuple:
     """修正の後の深さを標準へ上げる信号 ({単位: 理由}, [run の理由])。単位ごと: 食い違いの申し出の在る単位（conflict.items）・
     受け付けが最後の回に止めた単位（置き場の trace の conflict.ACCEPT_PARKED_OP と、戻せた組の結末 given_up）。run: 答えていない
@@ -859,7 +842,7 @@ def depth_signals(place) -> tuple:
     for r in rows:
         if isinstance(r, dict) and isinstance(r.get("unit_key"), str):
             units.setdefault(r["unit_key"], "食い違いの申し出が在る")
-    parked = [k for row in _trace_rows(place, conflict.ACCEPT_PARKED_OP) for k in row.get("unit_keys") or []]
+    parked = [k for row in conflict.plan_asks(place, conflict.ACCEPT_PARKED_OP) for k in row.get("unit_keys") or []]
     joined = read_json(place / JOIN_FILE, {}) or {}
     parked += [u.get("unit_id") for u in joined.get("units") or [] if isinstance(u, dict) and u.get("status") == "given_up"]
     for k in parked:
@@ -1843,19 +1826,13 @@ GATE_PASS = ("approve", "continue")   # 人の関所の通す語（docs/design.m
 def gate_view(place):
     """gatemarks の問いの口（asks・answered・pending・withheld_by・returned・returned_lines）に渡す読むだけの形: record は置き場の
     判定の写しの questions・units と、関所の答え answers.json（{decision, text, asked}。asked は人が見た関所の行）を通す語の時だけ
-    gatemarks.GATE_NODE の continue の行にした human_items。dir は置き場（依頼の answers は始めの記録の写しから読む）。
+    gatemarks.GATE_NODE の continue の行にした human_items（gate_items）。dir は置き場（依頼の answers は始めの記録の写しから読む）。
     人に聞く状態の語は ASKING。元は盤面の b.record と写しの検証器を読んだ"""
-    import gatemarks
     p = pathlib.Path(place)
     judgment = read_json(p / JUDGMENT_FILE)
     judgment = judgment if isinstance(judgment, dict) else {}
-    answers = read_json(p / ANSWERS_FILE)
-    items = []
-    if isinstance(answers, dict) and answers.get("decision") in GATE_PASS:
-        items.append({"round": 1, "node": gatemarks.GATE_NODE, "answer": "continue", "note": str(answers.get("text") or ""),
-                      "asked": [a for a in answers.get("asked") or [] if isinstance(a, str)]})
     record = {"questions": list(judgment.get("questions") or []), "units": list(judgment.get("units") or []),
-              "materials": {}, "process": {"human_items": items}}
+              "materials": {}, "process": {"human_items": gate_items(read_json(p / ANSWERS_FILE))}}
     validator = types.SimpleNamespace(ASKING=ASKING, STATUS={})
     return types.SimpleNamespace(dir=p, round=1, record=record,
                                  rules=types.SimpleNamespace(validator_module=lambda b: validator))
@@ -1882,17 +1859,15 @@ def write_notes(place) -> str:
 
 
 def gate_items(answers) -> list:
-    """直す前の人の関所の答え answers（関所の節の出力 {decision, text}。飛ばされた時は None）を、consult.gate_notes が読む
-    human_items の行 [{round, node, answer, note}] にする。通す語で文が在る時だけ 1 行（周は 1。fix の 1 回の差し込みが 1 周）。
-    新しい（元は盤面の record.process.human_items を読んだ）"""
+    """直す前の人の関所の答え answers（関所の節の出力 {decision, text, asked}。飛ばされた時は None）を、human_items の行
+    [{round, node, answer, note, asked}] にする。通す語の時だけ 1 行（周は 1。fix の 1 回の差し込みが 1 周。asked は人が見た関所の行）。
+    gate_view と consult.gate_notes（文の無い行は読まない）が読む。新しい（元は盤面の record.process.human_items を読んだ）"""
     import consult
     import gatemarks
     if not isinstance(answers, dict) or answers.get("decision") not in GATE_PASS:
         return []
-    text = answers.get("text")
-    if not isinstance(text, str) or not text.strip():
-        return []
-    return [{"round": 1, "node": gatemarks.GATE_NODE, "answer": consult.CONTINUE, "note": text}]
+    return [{"round": 1, "node": gatemarks.GATE_NODE, "answer": consult.CONTINUE, "note": str(answers.get("text") or ""),
+             "asked": [a for a in answers.get("asked") or [] if isinstance(a, str)]}]
 
 
 def consult_ask(place, reply, pass_: str, items, *, node: str, human_items=(), round_: int = 1, plan_file: str = "",

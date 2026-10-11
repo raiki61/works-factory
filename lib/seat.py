@@ -7,8 +7,9 @@
 - 読み替え: skill_overlay（bin/_lib/borrow/unattended.md の頭の 1 行と全文）。座の末尾にいつも載る
 
 口:
-- carries(node)・SKILL_NODES・AGENT_NODES: 座が載る役・座が skill の役（YAML の skills: と一致）・下請けを Agent で起こす修正役
-- pinned(): 写しが固定（borrow.json の superpowers.pin）と合うかを照らし (借りる物, 写しの置き場) を返す（合わなければ ValueError）
+- carries(node)・SKILL_NODES: 座が載る役・座が skill の役（YAML の skills: と一致）
+- pin_problems(src, item)・pinned(): 写しが固定（borrow.json の superpowers.pin）と合うかを照らし (借りる物, 写しの置き場) を返す
+  （合わなければ ValueError。照らしは bin/_lib/spseam.pin_problems の写し）
 - fill(seam_id, values): 部品の型の穴を埋めた本文（bin/_lib/spseam.py の fill と同じ決まり。試験が同じ文を返すことを縛る）
 - section(node, values): 座の文。載らなければ空。頭 → 節の種類ごとの本文 → 読み替え。1 回目の差分の審査役（review）の型の後ろには
   判定の語の欄の表（words_table）、語に conflict.WORD を持つ節（implementer）の後ろには申し出の種類の手引き DIVERGENCE_HINT
@@ -21,6 +22,7 @@ lib/ は bin/ を import しない（lib/AGENTS.md の E3）ので、写しと�
 """
 import hashlib
 import json
+import os
 import pathlib
 import re
 import shlex
@@ -45,7 +47,6 @@ QUERY_RULE_HEAD = "- **検索語に対象の名前を載せるな。**"
 SEATS = {"tdd": "tdd", "fix": "implementer", "fix-ruled": "implementer", "review": "task-review",   # 役の名 → 節の名
          "refix": "receiving-review", "refix2": "receiving-review"}
 SKILL_NODES = frozenset({"tdd", "refix", "refix2"})   # 座が skill の役（YAML の skills: を持つ節。試験が一致を縛る）
-AGENT_NODES = frozenset({"fix", "fix-ruled"})          # 下請けを Agent で起こす修正役（YAML で Agent を持つ節）
 NONE = "（無し）"   # 型の穴に入れる物が無い時の値（人の方針の文書が無い run の [GLOBAL_CONSTRAINTS] など）
 # 差分の審査役の型（task-review）の出口の語（216 の works の語）→ 差分の審査の返答の 2 判定の欄（deltamarks.KEYS）と欄の語
 # （deltamarks.COMPLIANCE・QUALITY）。審査役の座の型の後ろに words_table の表で載り、役は型の語をこの欄に書く
@@ -189,20 +190,92 @@ def _sha(p: pathlib.Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+OUTSIDE = "版のフォルダの外を指す（絶対のパスか ..）"   # 以下 pin_problems まで bin/_lib/spseam.py の写し（試験が同じ行を返すことを縛る）
+LINKED = "symlink が在る（たどらない）"
+MARKERS = frozenset({".in_use", ".orphaned_at"})   # Claude Code がプラグインのキャッシュの版の置き場に置く印
+IGNORED = frozenset({".DS_Store"})
+
+
+def _bad_path(src: pathlib.Path, rel: str) -> str | None:
+    """rel が版のフォルダの外を指す・途中か先が symlink なら理由（OUTSIDE・LINKED）。読んでよければ None"""
+    pure = pathlib.PurePosixPath(rel)
+    if not rel or pure.is_absolute() or pathlib.PureWindowsPath(rel).is_absolute() or ".." in pure.parts:
+        return OUTSIDE
+    at = src
+    for part in pure.parts:
+        at = at / part
+        if at.is_symlink():
+            return LINKED
+    return None
+
+
+def _scan(src: pathlib.Path, item: dict) -> tuple[dict[str, str], dict[str, str]]:
+    """包むファイルの ({相対パス: sha256}, {読まなかったパス: 理由})。symlink はたどらず、外を指すパスは読まない"""
+    files, bad = {}, {}
+    for name in item["skills"]:
+        rel = f"skills/{name}"
+        why = _bad_path(src, rel)
+        if why:
+            bad[rel] = why
+            continue
+        root = src / rel
+        if not root.is_dir():
+            continue
+        for here, dirs, names in os.walk(root, followlinks=False):
+            for n in [*dirs, *names]:
+                p = pathlib.Path(here) / n
+                r = p.relative_to(src)
+                if MARKERS & set(r.parts) or n in IGNORED:
+                    continue
+                if p.is_symlink():
+                    bad[r.as_posix()] = LINKED
+                elif n in names and p.is_file():
+                    files[r.as_posix()] = _sha(p)
+            dirs[:] = [d for d in dirs if not (pathlib.Path(here) / d).is_symlink() and d not in MARKERS]
+    for rel in [*item.get("parts", []), *([item["licence_file"]] if item.get("licence_file") else [])]:
+        why = _bad_path(src, rel)
+        if why:
+            bad[rel] = why
+        elif (src / rel).is_file():
+            files[rel] = _sha(src / rel)
+    return dict(sorted(files.items())), bad
+
+
+def pin_problems(src: pathlib.Path, item: dict) -> list[str]:
+    """固定の files と版のフォルダ src の包むファイルの食い違いの行（パスの順）。借りる一覧と部品が固定に無ければ、それも名指す。
+    空なら写しは固定と同じ"""
+    pin = item.get("pin")
+    if not pin:
+        return ["borrow.json の superpowers に pin が無い"]
+    want = pin.get("files", {})
+    have, bad = _scan(src, item)
+    for rel in want:
+        why = rel not in bad and _bad_path(src, rel)
+        if why:
+            bad[rel] = why
+    unpinned = {rel for rel in [*(f"skills/{s}/SKILL.md" for s in item["skills"]), *item.get("parts", [])] if rel not in want}
+    out = []
+    for rel in sorted(set(want) | set(have) | set(bad) | unpinned):
+        if rel in bad:
+            out.append(f"{rel}: {bad[rel]}")
+        elif rel in unpinned:
+            out.append(f"{rel}: 借りる一覧（borrow.json の skills・parts）が名指すのに、固定（pin.files）にその sha256 が無い"
+                       "（bin/_lib/toolset.py vendor で写し直す）")
+        elif rel not in have:
+            out.append(f"{rel}: 固定に在るのに手元に無い")
+        elif rel not in want:
+            out.append(f"{rel}: 固定に無いファイルが手元に在る")
+        elif want[rel] != have[rel]:
+            out.append(f"{rel}: 中身が固定と違う（固定 {want[rel][:12]} / 手元 {have[rel][:12]}）")
+    return out
+
+
 def pinned() -> tuple[dict, pathlib.Path]:
-    """借りる物（borrow.json の superpowers）と写しの置き場（superpowers/<pin の版>）。節の表が名指すファイルが固定の sha256 と
-    合わなければ ValueError（名指す）。支度は書き込みの前にこれを呼ぶ"""
+    """借りる物（borrow.json の superpowers）と写しの置き場（superpowers/<pin の版>）。写しが固定と合わなければ ValueError
+    （pin_problems を名指す）。支度は書き込みの前にこれを呼ぶ"""
     item = json.loads((BORROW_DIR / "borrow.json").read_text(encoding="utf-8"))[ITEM]
-    pin = item.get("pin") or {}
-    src = BORROW_DIR / ITEM / str(pin.get("version") or "")
-    bad = []
-    for rel in sorted({f for sec in load_seams().values() for f in sec.get("files") or []}):
-        p = src / rel
-        want = (pin.get("files") or {}).get(rel)
-        if not p.is_file() or p.is_symlink():
-            bad.append(f"{rel} が無い")
-        elif want != _sha(p):
-            bad.append(f"{rel} の sha256 が固定と違う")
+    src = BORROW_DIR / ITEM / str((item.get("pin") or {}).get("version") or "")
+    bad = pin_problems(src, item)
     if bad:
         raise ValueError(f"借りた写し {src} が固定（borrow.json の pin）と合わない: {'; '.join(bad)}")
     return item, src

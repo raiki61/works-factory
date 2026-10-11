@@ -202,7 +202,7 @@ class RolesCase(unittest.TestCase):
 
     def test_borrowed_skills_sit_on_the_seat_roles(self):
         """借りた superpowers の技: TDD の役に test-driven-development、手直しの役に receiving-code-review（元 blk-fix.yaml:188・
-        blk-refix.yaml:64,332。seat.SKILL_NODES と同じ役）。下請けを起こす修正役は Agent を持つ（seat.AGENT_NODES）"""
+        blk-refix.yaml:64,332。seat.SKILL_NODES と同じ役）。下請けを起こす修正役は Agent を持つ"""
         import seat
         got = {nid: n["skills"] for nid, n in self.nodes.items() if "skills" in n}
         want = {nid: [seat.skill_of(seat.load_seams()[seat.SEATS[nid]])] for nid in seat.SKILL_NODES}

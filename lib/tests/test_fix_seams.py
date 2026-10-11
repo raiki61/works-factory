@@ -1706,6 +1706,7 @@ class FixAcceptSeamCase(TempCase):
         got = self._accept_fixed(reply, precedents=[{"key": R_MEAN}])
         self.assertTrue(got["ok"], got["reason"])
 
+
 class GateItemsSeamCase(unittest.TestCase):
     """直す前の人の関所の答え {decision, text} が、範囲の相談の人の条件（consult.gate_notes）に届く"""
 
@@ -1717,10 +1718,12 @@ class GateItemsSeamCase(unittest.TestCase):
             self.assertEqual(consult.gate_notes("unused", rows), "テストの名は変えないこと")
 
     def test_no_note_without_text_or_on_stop(self):
+        import consult
         import fixboard
-        for answers in (None, "", {"decision": "approve", "text": ""}, {"decision": "stop", "text": "止める"},
-                        {"decision": "approve"}):
+        for answers in (None, "", {"decision": "stop", "text": "止める"}):
             self.assertEqual(fixboard.gate_items(answers), [])
+        for answers in ({"decision": "approve", "text": ""}, {"decision": "approve"}):
+            self.assertEqual(consult.gate_notes("unused", fixboard.gate_items(answers)), "")
 
 
 class SettleOverflowSeamCase(TempCase):

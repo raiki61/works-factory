@@ -99,7 +99,6 @@ PATH_TOKEN = re.compile(r"[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.[A-Za-z][A-Za-z0-9]*")
 DELIVERED = ".delivered.json"   # この輪で渡した証拠の種類と回の番号の控え（<名>.md の隣）
 G1_IMPL, G1_REVIEW = "g1-impl-{n}.md", "g1-review-{n}.md"   # 修正役が起こす下請けのファイル（置き場のファイル。n は項目の番号）
 G1_PATCH_FILE = "g1-{n}.patch"   # 下請けの審査役の差分のファイル（置き場のファイル。修正役が seat.G1_PATCH で書く）
-G1_NO_POLICY = seatkit.NONE      # 下請けの審査役の型の [GLOBAL_CONSTRAINTS]（人の方針の文書が無い run）
 G1_REST = "修正案のどの項目にも無い直す義務の単位 {keys}（判定のファイルが要求の正本）"   # 下請けの残りの項目の実装役の型の題
 SEAT_BRIEFS = "seat-briefs.md"   # 修正役の座の型の [BRIEF_FILE]（置き場のファイル。直す義務の単位の brief を名指す節）
 LANES_RECORD = "fix-lanes-out.json"   # 修正役の並べの枝の結末（今の scope の周の作業ファイル。締めの節 fix-join が書く。fixlanes）
@@ -611,7 +610,7 @@ def g1_values(b, values: dict, repo, owed: list[str], briefs: list, ask: str = "
 def review_text(brief: str, values: dict, base: str, patch: str) -> str:
     """審査役の下請けのファイルの中身（節 task-review の型。[BASE_SHA] は base、[DIFF_FILE] は patch）"""
     return seatkit.g1_prompt("task-review", {
-        "[BRIEF_FILE]": brief, "[GLOBAL_CONSTRAINTS]": values.get("policy_path") or G1_NO_POLICY,
+        "[BRIEF_FILE]": brief, "[GLOBAL_CONSTRAINTS]": values.get("policy_path") or seatkit.NONE,
         "[REPORT_FILE]": seatkit.G1_REPORT, "[BASE_SHA]": base, "[HEAD_SHA]": seatkit.G1_HEAD_SHA, "[DIFF_FILE]": patch})
 
 
