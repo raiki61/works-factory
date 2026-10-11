@@ -7,8 +7,8 @@
 
 - `workflows/` の YAML は手で書き、`bin/` は写さずに Archon に読ませる（`--workflow-source` に渡す置き場の `.archon/workflows/works-factory` がこのフォルダを指す pack の形。名前の script と `.shared/` は pack の形の時だけ効く。`bin/_lib/place.py`）。Archon は run の始めにその中身をバイトのまま写し取る。生成・前処理・鍵の削りをしない。
 - 作りの規則は Archon の `workflow-language-constitution.md`（Archon の源の `.archon/workflow-language-constitution.md`。要点「YAML coordinates. Code computes. Agents judge.」）。YAML は節の順・関所・繰り返し・入出力の配線だけを持つ。値の計算は `script:` の節か役の指示書に置く。
-- Archon の確かめ（`archon validate workflows`）が警告なしで通る。`validate` は `--workflow-source` を受けず黙って捨て、`--cwd` は git の木しか受けないので、`.archon/workflows/works-factory/` に工程のフォルダと `.shared/` を写した使い捨ての git の木（`tests/archon.py`）を `--cwd` に渡す。
-- 機械: `tests/layers/test_no_conversion.py`（Archon が読む所と `workflows/` のバイト一致）・`tests/layers/test_archon_validate.py`（確かめの結果に誤りも警告も無い）。
+- Archon の確かめ（`archon validate workflows`）が警告なしで通る。数えない警告は 1 つの形だけ: Claude Code に同梱の skill（`tests/archon.py` の `BUILTIN_SKILLS`。`code-review`・`simplify`・`security-review`）と、借りる superpowers の skill（`tests/archon.py` の `BORROWED_SKILLS`。`bin/_lib/borrow/borrow.json` の `superpowers.skills`）を節の `skills:` に名指した時の「Claude skill '<名>' not found on disk — expected for built-in…」の警告（level が warning・field が `skills`・文がこの形・名が 2 つの一覧のどちらかに在る、の全部が当たる物。照らしは `tests/archon.py` の `counted` の 1 か所）。同梱の skill はディスクに `SKILL.md` が無く、借りる skill は起動の時に run の隔離した設定へ入るので確かめの使い捨ての木には無い。止めた Archon の `packages/workflows/src/validator.ts` 698-768 行は名指すたびにこの警告を出す。一方で止めた Archon は節の `skills:` に名指した skill しか役に渡さない（`packages/providers/src/claude/provider.ts` 631 行）ので、名指さないと judge の局所レビューの役がレンズを起こせない。2 つの一覧に無い名の警告と、同梱の名でも別の置き場に入っていて届かない時の誤り（installed elsewhere）は今までどおり数える。`validate` は `--workflow-source` を受けず黙って捨て、`--cwd` は git の木しか受けないので、`.archon/workflows/works-factory/` に工程のフォルダと `.shared/` を写した使い捨ての git の木（`tests/archon.py`）を `--cwd` に渡す。
+- 機械: `tests/layers/test_no_conversion.py`（Archon が読む所と `workflows/` のバイト一致）・`tests/layers/test_archon_validate.py`（確かめの結果に誤りも警告も無い。上の同梱の skill と借りる skill の警告だけは `tests/archon.py` の `counted` で数えない。種 `tests/layers/seeds/e1/workflows/skills/` で、一覧に無い名の警告と installed elsewhere の誤りが数えられることを縛る）。
 
 ## E2 境の中身は全部、名簿に載せる
 
@@ -40,6 +40,7 @@
 
 - 作業ツリーを変えない節（判定・計画・事前審査・独立の目・報告の役と、読むだけの script）は `mutates_checkout: false` を書く。Archon は書いた節が作業ツリーを変えたら、その節を落とす。
 - 機械: `tests/layers/test_readonly_nodes.py`（ブロック `judge`・`plan`・`plan-review`・`eyes`・`report` の役の節に全部在る。ただし judge の役のうち、作業ツリーに書く役（受け入れテストのファイルを書く `spec`・`spec-revise`）と、対象のリポジトリでコマンドを走らせる役（`pr-check`・`premises`・`prior-decisions`・`local-review`・`external-standards`・`procedure-trace`・`gate-efficacy`・`test-double-fidelity`・`main-path-observation`・`provenance`）は書かない。後の 10 は、今の works と同じく受け付けの script が作業ツリーの姿を比べ、変えた返答を拒む。ほかのブロックは試験の中の表で名指した節）。
+- `runtime: uv` の script は頭に uv の script の宣言（PEP 723 の 4 行 `# /// script`・`# requires-python = ">=3.12"`・`# dependencies = []`・`# ///`）を置く。Archon は script の節を対象の作業ツリーを cwd にして `uv run <ファイル>` で起こすので、宣言が無いと対象に `pyproject.toml` が在る時に uv が作業ツリーに `.venv`・`uv.lock` を作り、読むだけの節が落ちる（issue #92）。機械: `tests/workflows/test_uv_scripts.py`（`workflows/*/scripts/*.py` の頭の 4 行と、`pyproject.toml` の在る種で走らせても作業ツリーが変わらないこと。`scripts/` の 1 段下のフォルダはまだ見ない。issue #96）。
 
 ## E12 期限・タイムアウトを置かない
 
@@ -57,8 +58,9 @@
 ## E16 人の関所と並べは最新の ASF の形で書く
 
 - 人の関所: 工程に `interactive: true` を書き、関所の節は `approval:`（見せる文 `message` と選び肢 `decisions`）で書く。後ろの節はその答えを `{ from: "$<関所>.output", if_skipped: null }` で受ける（ASF の `W/merge-queue/archon-merge-queue.yaml`:8・179-225）。持ち主の決め `asf-way-gates-fanout`。
+- 自分の節に `approval:` を持つブロック（judge の仕様の関所）は、工程の頭に `interactive: true` を残す。止めた Archon の単独の `archon validate` は、`approval:` の節を持つ工程の頭に `interactive: true` が無いと警告を出す（`packages/workflows/src/loader.ts` 1389-1427 行の `validateWorkflowClassPlacement` が誤りの文を返し、1666-1675 行が猶予の警告にする）。線から差し込まれた時は線の `interactive: true` が効き、ブロックの頭のこの鍵には何も言わない。
 - 並べ: `fan_out:`（`items`・`as`・`max_parallel`・`join`）で書く（ASF の `W/verify-runtime-suite/archon-verify-runtime-suite.yaml`:27-34）。作業ツリーに書く並べ（fix の組）は、組ごとに子の run を起こして作業ツリーを分ける。子の run が自分の作業ツリーを持つかは段 1 で実測する（`docs/design.md` の U8）。待ちの列・固定の枝の数・錠は持たない（持ち主の決め `no-queue`）。
-- 機械: `tests/layers/test_gates.py`（`approval:` の節を持つ工程を差し込む一番上の工程（線）に `interactive: true` が在る。差し込まれるブロックは工程の頭に `interactive`・`worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない）。並べの形は人が見る。
+- 機械: `tests/layers/test_gates.py`（`approval:` の節を持つ工程を差し込む一番上の工程（線）に `interactive: true` が在る。差し込まれるブロックは工程の頭に `worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない。`interactive` は、自分の節に `approval:` を持つブロックが `true` で書く時だけ許し、ほかのブロックが書いた時と `true` 以外の値は赤）。並べの形は人が見る。
 
 ## E17 対象のリポジトリには差分を置くだけ
 
