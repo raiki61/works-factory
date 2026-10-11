@@ -20,7 +20,7 @@
 
 - ブロック（`workflows/<名>/`）の script は、ほかのブロックのフォルダへのパスを組まない。受け取りは `with:` の入力・前の節の返り・指し札（`archon_artifact`）・型つきの成果物（`output_type`）だけ。
 - ブロックの script は `lib/` と境の口を呼ぶだけで、確かめの中身を持たない。
-- 機械: `tests/layers/test_block_paths.py`（ブロックの `scripts/` とブロックの YAML（直に書いた script）の字に、ほかのブロックを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/<名>/`・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のブロックの外への相対パスも無い）。
+- 機械: `tests/layers/test_block_paths.py`（ブロックの `scripts/` とブロックの YAML（直に書いた script）の字に、ほかのブロックを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/works-factory/<名>/`（pack の形。pack の段 `works-factory` は飛ばして見る）・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のブロックの外への相対パスも無い）。
 
 ## E5 ブロックの返りは 1 つの節の構造体
 
@@ -39,7 +39,7 @@
 ## E7 読むだけの節は mutates_checkout: false を書く
 
 - 作業ツリーを変えない節（判定・計画・事前審査・独立の目・報告の役と、読むだけの script）は `mutates_checkout: false` を書く。Archon は書いた節が作業ツリーを変えたら、その節を落とす。
-- 機械: `tests/layers/test_readonly_nodes.py`（ブロック `judge`・`plan`・`plan-review`・`eyes`・`report` の役の節に全部在る。ほかのブロックは試験の中の表で名指した節）。
+- 機械: `tests/layers/test_readonly_nodes.py`（ブロック `judge`・`plan`・`plan-review`・`eyes`・`report` の役の節に全部在る。ただし judge の役のうち、作業ツリーに書く役（受け入れテストのファイルを書く `spec`・`spec-revise`）と、対象のリポジトリでコマンドを走らせる役（`pr-check`・`premises`・`prior-decisions`・`local-review`・`external-standards`・`procedure-trace`・`gate-efficacy`・`test-double-fidelity`・`main-path-observation`・`provenance`）は書かない。後の 10 は、今の works と同じく受け付けの script が作業ツリーの姿を比べ、変えた返答を拒む。ほかのブロックは試験の中の表で名指した節）。
 
 ## E12 期限・タイムアウトを置かない
 
@@ -58,7 +58,7 @@
 
 - 人の関所: 工程に `interactive: true` を書き、関所の節は `approval:`（見せる文 `message` と選び肢 `decisions`）で書く。後ろの節はその答えを `{ from: "$<関所>.output", if_skipped: null }` で受ける（ASF の `W/merge-queue/archon-merge-queue.yaml`:8・179-225）。持ち主の決め `asf-way-gates-fanout`。
 - 並べ: `fan_out:`（`items`・`as`・`max_parallel`・`join`）で書く（ASF の `W/verify-runtime-suite/archon-verify-runtime-suite.yaml`:27-34）。作業ツリーに書く並べ（fix の組）は、組ごとに子の run を起こして作業ツリーを分ける。子の run が自分の作業ツリーを持つかは段 1 で実測する（`docs/design.md` の U8）。待ちの列・固定の枝の数・錠は持たない（持ち主の決め `no-queue`）。
-- 機械: `tests/layers/test_gates.py`（`approval:` の節を持つ YAML に `interactive: true` が在る）。並べの形は人が見る。
+- 機械: `tests/layers/test_gates.py`（`approval:` の節を持つ工程を差し込む一番上の工程（線）に `interactive: true` が在る。差し込まれるブロックは工程の頭に `interactive`・`worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない）。並べの形は人が見る。
 
 ## E17 対象のリポジトリには差分を置くだけ
 

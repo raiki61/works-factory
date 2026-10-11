@@ -22,6 +22,18 @@ class ScanRulesTest(unittest.TestCase):
     def test_every_allowance_hits_the_real_tree(self):
         self.assertEqual(scan.stale_allowances(ROOT), [])
 
+    def test_e13_allowances_are_only_the_named_tables(self):
+        """E13 の外しは lib/ 自身の決まりの物と、根の AGENTS.md の E13 の「例外」が名指すファイル（scan.E13_TABLES）だけ"""
+        extra = set(scan.ALLOWED["E13"]) - {"lib/AGENTS.md", "lib/tests/"}
+        self.assertEqual(sorted(extra - set(scan.E13_TABLES)), [])
+
+    def test_e13_tables_match_the_root_rule(self):
+        """scan.E13_TABLES の名と、根の AGENTS.md の E13 の「例外」の行が名指すファイルが同じ"""
+        rule = next(
+            line for line in (ROOT / "AGENTS.md").read_text(encoding="utf-8").splitlines() if line.startswith("- 例外:")
+        )
+        self.assertEqual(sorted(re.findall(r"`(lib/[^`]+\.py)`", rule)), sorted(scan.E13_TABLES))
+
     def test_allowance_hitting_nothing_is_red(self):
         with tree({"lib/x.py": ""}) as root:
             got = scan.stale_allowances(root)
