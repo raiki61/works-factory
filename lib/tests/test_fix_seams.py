@@ -11,6 +11,8 @@ tests/bin/gitkit.py と tests/e2e/target-seed/ の写しで小さなリポジト
 - lens の控えは置き場の lens.json。summary は差分の審査の出力をファイルのパスで受ける
 - refix・lenses・rulebook: refix.cut・accept_review・accept_fix は置き場のファイルと引数の値で回り、範囲の外の手直しを
   planrange.check_paths の行で拒む。lenses.render は役の定義の本文から、rulebook.render は fixboard.compose で指示書を組む
+- ruling.prep・accept_rule: 置き場のファイルで回り、作業ツリーの控えは fixboard.snapshot、拒否の理由のファイル・言語の行・輪の回は
+  引数、配線の誤りは ValueError
 """
 import json
 import pathlib
@@ -683,6 +685,924 @@ class RulebookSeamCase(unittest.TestCase):
                          fixboard.REJECT_LINE.format(path="/home/x/r.md") + "\n\n頭\n\n- 決まり A\n- 決まり B\n\n尻\n\n言語\n")
         self.assertEqual(rulebook.render("refix", 1, parts), rulebook.render("refix", 1, parts))
         self.assertNotIn("拒まれた", rulebook.render("refix", 1, parts)["text"])
+
+
+class LanekitSeamCase(TempCase):
+    """lanekit.groups: 項目を共にする単位は同じ組（推移的）・組の順と組の中の順は入力の順。待ちの列と固定の枝の数は持たない
+    （持ち主の決め no-queue）。lanekit.merge: 除くパスの頭 skip の下は書き込みの記録と突き合わせない（既定 () は突き合わせる）"""
+
+    def test_groups_units_sharing_items_transitively_in_input_order(self):
+        import lanekit
+        rows = [("u3", ["i1"]), ("u1", ["i2"]), ("u2", ["i1", "i3"]), ("u5", []), ("u4", ["i3"]), ("u6", ["i2"])]
+        self.assertEqual(lanekit.groups(rows), [["u3", "u2", "u4"], ["u1", "u6"], ["u5"]])
+
+    def test_no_queue_and_no_fixed_lane_count(self):
+        import lanekit
+        for name in ("MAX_LANES", "queue_put", "take"):
+            self.assertFalse(hasattr(lanekit, name), name)
+
+    def test_merge_skip_prefix_is_not_matched_with_write_records(self):
+        import lanekit
+        tree = self.tmp / "lane"
+        git(self.repo, "worktree", "add", "--detach", "--quiet", str(tree), "HEAD")
+        since = leftovers.snapshot(tree)
+        (tree / "vendored").mkdir()
+        (tree / "vendored" / "x.txt").write_text("写し\n", encoding="utf-8")
+        log = self.place / "writes.jsonl"
+        log.write_text("", encoding="utf-8")
+        args = dict(since=since, base=since, log=log, kept=self.place / "lane.patch")
+        got = lanekit.merge(self.repo, tree, **args)
+        self.assertTrue(got.why.startswith(writes.REJECT), got.why)
+        got = lanekit.merge(self.repo, tree, skip=("vendored/",), **args)
+        self.assertEqual((got.why, got.names), ("", ["vendored/x.txt"]))
+        self.assertEqual((self.repo / "vendored" / "x.txt").read_text(encoding="utf-8"), "写し\n")
+
+
+class RulingSeamCase(TempCase):
+    """ruling の継ぎ目: prep・accept_rule は置き場（pathlib.Path(board)）の conflicts.json・rule-tree.json・rule-prep.json・
+    prompt-rule.md で回る。作業ツリーの控えは fixboard.snapshot、前の拒否の理由のファイルと言語の行と輪の回は引数、
+    配線の誤りは ValueError"""
+
+    def setUp(self):
+        super().setUp()
+        import conflict
+        import fixrules
+        import rulebook
+        import ruling
+        self.conflict, self.ruling = conflict, ruling
+        fr = LIB.parent / "workflows" / "fix" / "commands" / "fix-rules"
+        for obj, name, value in ((rulebook, "CANON", fr / "common.md"), (fixrules, "SHARED", fr / "common.md"),
+                                 (fixrules, "RULES_DIR", fr)):
+            p = mock.patch.object(obj, name, value)
+            p.start()
+            self.addCleanup(p.stop)
+        conflict.park(self.place, [CLAIM], source=conflict.FIX_SOURCE)
+
+    VALUES = {"judgment_file": "/home/x/j.json", "policy_path": ""}
+
+    def reply(self, **extra):
+        return {"rulings": [{"id": "c1-1", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": [], **extra}]}
+
+    def test_prep_writes_prompt_and_tree_in_the_place(self):
+        r = self.ruling
+        got = r.prep(self.place, self.repo, self.VALUES, lang="日本語で書け")
+        self.assertEqual(got, {"prompt_file": str(self.place / r.PROMPT), "iteration": 1})
+        text = (self.place / r.PROMPT).read_text(encoding="utf-8")
+        for w in ("`c1-1`", f"`{self.place / self.conflict.FILE}`", "日本語で書け"):
+            self.assertIn(w, text)
+        self.assertFalse(text.split("\n")[1].startswith(fixboard.REJECT_LINE[:10]), "1 回目は拒否の理由を名指さない")
+        self.assertTrue((self.place / r.TREE).is_file(), "作業ツリーの姿の控えは置き場")
+        again = r.prep(self.place, self.repo, self.VALUES, reject_file="/home/x/reject.md")
+        self.assertEqual(again["iteration"], 2)
+        self.assertEqual((self.place / r.PROMPT).read_text(encoding="utf-8").split("\n")[1],
+                         fixboard.REJECT_LINE.format(path="/home/x/reject.md"), "2 回目は 1 行目の後に拒否の理由のファイルを名指す")
+
+    def test_accept_rule_applies_rulings_to_the_place(self):
+        r = self.ruling
+        r.prep(self.place, self.repo, self.VALUES)
+        got = r.accept_rule(self.reply(), self.place, self.rev, self.repo)
+        self.assertEqual((got["ok"], got["done"], got["reason"]), (True, True, ""), got)
+        self.assertEqual(got["rulings_file"], str(self.place / self.conflict.RULINGS_FILE))
+        self.assertEqual(self.conflict.unruled(self.place), [])
+        row, = self.conflict.items(self.place)
+        self.assertEqual(row["ruling"]["decision"], self.conflict.ASK)
+        self.assertIn(self.conflict.RULE_OP, [x["op"] for x in _traced(self.place)])
+
+    def test_accept_rule_rejects_then_gives_up_to_the_human(self):
+        r = self.ruling
+        r.prep(self.place, self.repo, self.VALUES)
+        bad = {"rulings": [{"id": "c9-9", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": []}]}
+        got = r.accept_rule(bad, self.place, self.rev, self.repo, iteration=1)
+        self.assertEqual((got["ok"], got["done"]), (False, False))
+        self.assertIn("c9-9", got["reason"])
+        self.assertEqual(len(self.conflict.unruled(self.place)), 1, "拒んだ回は積まない")
+        (self.repo / "stats.py").write_text("# 変えた\n", encoding="utf-8")
+        got = r.accept_rule(self.reply(), self.place, self.rev, self.repo, iteration=r.GIVE_UP_AFTER)
+        self.assertTrue(got["reason"].startswith(r.READONLY), got)
+        self.assertEqual((got["ok"], got["done"]), (False, True))
+        row, = self.conflict.items(self.place)
+        self.assertEqual((row["ruling"]["decision"], row["ruling"]["text"]), (self.conflict.ASK, r.GIVE_UP_TEXT))
+
+    def test_wiring_errors_are_value_errors(self):
+        r = self.ruling
+        with self.assertRaises(ValueError):
+            r.accept_rule(self.reply(), self.place, self.rev, self.repo)   # rule-prep が走っていない
+        self.conflict.apply_rulings(self.place, {"c1-1": {"decision": "ask_human", "text": "方針の変更で人が決める",
+                                                          "limits": []}}, by="t")
+        with self.assertRaises(ValueError):
+            r.prep(self.place, self.repo, self.VALUES)   # 裁く申し出が無い
+
+
+class FactchecksSeamCase(TempCase):
+    """factchecks の継ぎ目: 事前の確かめと受け付けの事実の確かめは、置き場（board）のファイルと引数の値で回り、置き場を書かない
+    （元 works/tests/test_fix_precheck.py の PrecheckCase の場合を写した。盤面の代わりに承認済みの修正案の項目 items を値で渡し、
+    合意は置き場の trace.jsonl に置く）。直す義務は fixboard.fix_duty、書き込みの記録は引数 log、除くパスの頭は skip"""
+
+    ITEM = {"item": 1, "unit_keys": [R_MEAN], "adds": [], "removes": [], "route": "direct", "tests": [], "rewrite_tests": [],
+            "allowed_paths": ["docs/**"], "out_of_scope": []}
+
+    def setUp(self):
+        super().setUp()
+        import factchecks
+        self.fc = factchecks
+        path = self.repo / "stats.py"
+        text = path.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        path.write_text(text, encoding="utf-8")
+        self.reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py"]}]}
+        self.cfg = {"board": str(self.place), "repo": str(self.repo), "base_rev": self.rev, "tdd_state": "", "pass": "first"}
+
+    def shas(self) -> dict:
+        import hashlib
+        return {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(self.place.rglob("*")) if p.is_file()}
+
+    def agree(self, paths):
+        """確かめの節が書く合意の行（allow）を置き場の trace に直に置く"""
+        import conflict
+        fixboard.trace(self.place, conflict.ASKED_OP, id=1, item="1", status="answered", decision="allow",
+                       granted_paths=paths, granted_tests=[], reason="直しに伴うので足してよい")
+
+    def test_scope_reject_listed_and_place_untouched(self):
+        import planscope
+        before = self.shas()
+        got = self.fc.precheck(self.cfg, self.reply, items=[self.ITEM])
+        self.assertFalse(got["ok"])
+        scope = [r["text"] for r in got["rejects"] if r["check"] == "scope"]
+        self.assertTrue(any("stats.py" in t for t in scope), got)
+        self.assertTrue(scope[0].startswith(planscope.REJECT_ASK), "事前の確かめは相談の節の道具なので、拒否の頭は相談を先の道に言う")
+        self.assertEqual(self.shas(), before, "置き場を書かない")
+
+    def test_place_agreement_counts(self):
+        self.agree(["stats.py"])
+        self.assertEqual(self.fc.precheck(self.cfg, self.reply, items=[self.ITEM]), {"ok": True, "rejects": []})
+
+    def test_other_place_rows_do_not_count(self):
+        """置き場の trace の allow の行だけが合意（前の形の記録 exchanges.jsonl を偽っても範囲は広がらない）"""
+        (self.place / "exchanges.jsonl").write_text(json.dumps(
+            {"id": 1, "item": "1", "status": "answered", "decision": "allow", "granted_paths": ["stats.py"],
+             "granted_tests": [], "reason": "偽の合意の行"}) + "\n", encoding="utf-8")
+        self.assertFalse(self.fc.precheck(self.cfg, self.reply, items=[self.ITEM])["ok"])
+
+    def test_no_plan_items_is_not_scoped(self):
+        self.assertEqual(self.fc.precheck(self.cfg, self.reply)["rejects"], [])
+        self.assertTrue(self.fc.precheck(self.cfg, self.reply, items=[{**self.ITEM, "allowed_paths": ["stats.py"]}])["ok"])
+
+    def test_scope_head_follows_the_consult_place(self):
+        import consult
+        import planscope
+        args = (self.reply, [R_MEAN], self.place, self.rev, self.repo, "", "first")
+        lines, _ = self.fc.check_plan_scope(*args, items=[self.ITEM])
+        self.assertTrue(lines[0].startswith(planscope.REJECT), "相談の控えが無ければ申し出の道")
+        consult.write_config(self.place, {"board": str(self.place), "repo": str(self.repo), "pass": "first",
+                                          "items": {"1": {"unit_keys": [R_MEAN]}}})
+        lines, _ = self.fc.check_plan_scope(*args, items=[self.ITEM], consult_place=self.place)
+        self.assertTrue(lines[0].startswith(planscope.REJECT_ASK), lines)
+
+    def test_writes_use_the_log_and_skip(self):
+        log = self.place / self.fc.WRITES_LOG
+        log.write_text("", encoding="utf-8")   # 記録の在る run（Edit・Write の行は無い）
+        (self.repo / "vendored").mkdir()
+        (self.repo / "vendored" / "x.py").write_text("x = 1\n", encoding="utf-8")
+        got = self.fc.check_writes(self.reply, self.place, self.rev, self.repo, "")
+        self.assertTrue(any("stats.py" in p for p in got["problems"]), got)
+        self.assertTrue(any("vendored/x.py" in p for p in got["problems"]), got)
+        got = self.fc.check_writes(self.reply, self.place, self.rev, self.repo, "", skip=SKIP)
+        self.assertFalse(any("vendored/x.py" in p for p in got["problems"]), got)
+        declared = {**self.reply, writes.FIELD: [{"path": "stats.py", "why": WHY}]}
+        got = self.fc.check_writes(declared, self.place, self.rev, self.repo, "", log=log, skip=SKIP)
+        self.assertEqual(got["problems"], [], got)
+        self.assertNotIn(writes.FIELD, got["reply"])
+
+    def test_held_writes_join_the_declaration(self):
+        import conflict
+        log = self.place / self.fc.WRITES_LOG
+        log.write_text("", encoding="utf-8")
+        held = {"changes": [], "not_done": [], "bash_writes": [{"path": "stats.py", "why": WHY}], conflict.HANDED: []}
+        (self.place / conflict.HELD_REPLY).write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(self.fc.check_writes(self.reply, self.place, self.rev, self.repo, "")["problems"], [])
+
+    def test_fix_unit_keys_and_duty(self):
+        import conflict
+        got = self.fc.fix_unit_keys(self.reply, self.place, {R_MEAN, R_CLAMP})
+        self.assertEqual(got, ([R_MEAN], {R_MEAN, R_CLAMP}, {}))
+        held = {"changes": [{"unit_key": R_CLAMP}], "not_done": [], "bash_writes": [], conflict.HANDED: []}
+        (self.place / conflict.HELD_REPLY).write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
+        keys, owed, excused = self.fc.fix_unit_keys(self.reply, self.place, {R_MEAN, R_CLAMP})
+        self.assertEqual((keys, owed, set(excused)), ([R_MEAN], {R_MEAN}, {R_CLAMP}))
+        self.assertIsNone(self.fc.fix_unit_keys({"changes": "x"}, self.place, set()))
+        self.assertIsNone(self.fc.fix_unit_keys({"changes": [{"unit_key": 1}]}, self.place, set()))
+
+    def test_no_loop_has_no_frozen_rejects(self):
+        self.assertEqual(self.fc.check_frozen(self.place, "", self.repo, "first", base_rev=self.rev), [])
+
+    def test_declared_files_and_split_overflow(self):
+        rows = [{"files": [str(self.repo / "a" / ".." / "stats.py"), " docs/x.md ", "", 3]}]
+        self.assertEqual(self.fc.declared_files(rows, self.repo), {"stats.py", "docs/x.md"})
+        over = [{"line": "L1"}, {"line": "L2"}]
+        self.assertEqual(self.fc.split_overflow(["頭 L1 の文", "ほかの文"], over), (["ほかの文"], [{"line": "L1"}]))
+
+    def run_main(self, allowed):
+        """置き場に修正案の控え（planmarks.save の欄・p2.fix_plan.json・judgment.json）と相談の控えを置き、下書きの返答で main を
+        子のプロセスで回す（修正役の指示書に書くコマンド `<python> factchecks.py <相談の控え> --reply <下書き>` の形）"""
+        import subprocess
+        import consult
+        import planmarks
+        planmarks.save(self.place, 1, [{"route": "direct", "tests": [], "rewrite_tests": [], "allowed_paths": allowed,
+                                         "out_of_scope": []}])
+        (self.place / f"{planmarks.NODE}.json").write_text(json.dumps(
+            {"plan": [{"unit_keys": [R_MEAN], "approach": "分母を直す", "adds": [], "removes": []}]}, ensure_ascii=False),
+            encoding="utf-8")
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        cfg = consult.write_config(self.place, {**self.cfg, "items": {"1": {"unit_keys": [R_MEAN]}}})
+        draft = self.tmp / "draft.json"
+        draft.write_text(json.dumps(self.reply, ensure_ascii=False), encoding="utf-8")
+        r = subprocess.run([sys.executable, str(LIB / "factchecks.py"), str(cfg), "--reply", str(draft)], cwd=str(self.repo),
+                           capture_output=True, text=True, encoding="utf-8")
+        return r.returncode, r.stdout, r.stderr
+
+    def test_main_reads_the_plan_in_the_place(self):
+        import planscope
+        code, out, err = self.run_main(["docs/**"])
+        self.assertEqual(code, 1, out + err)
+        got = json.loads(out)
+        self.assertTrue(any(r["check"] == "scope" and "stats.py" in r["text"] and r["text"].startswith(planscope.REJECT_ASK)
+                            for r in got["rejects"]), got)
+
+    def test_main_passes_inside_the_plan(self):
+        code, out, err = self.run_main(["stats.py"])
+        self.assertEqual((code, json.loads(out)), (0, {"ok": True, "rejects": []}), out + err)
+
+    def test_main_wiring_error_is_two(self):
+        import subprocess
+        r = subprocess.run([sys.executable, str(LIB / "factchecks.py"), str(self.place / "none.json")],
+                           capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+
+
+
+class FixgatesSeamCase(TempCase):
+    """fixgates の継ぎ目: 盤面の b.work・b.dir/r<周> を置き場のパスに、writes.base_rev を fixboard.base_rev に、
+    conflict.owed_units_but_asked を fixboard.owed_units_but_asked（値で受ける）に、entry.open_board を置き場のパスに替えた所"""
+
+    MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
+    ID = "test_stats.py::TestStats::test_mean_of_three"   # 種で赤（len-1 で割る）の既存のテスト
+    FIELDS = [{"unit_keys": [MEAN], "route": "tdd", "route_why": "", "rewrite_tests": [], "refactor": {"declared": False, "why": ""},
+               "tests": [{"id": ID, "behavior": "3 つの平均", "path": "p", "red_kind": "assertion", "red_why": "len-1"}]}]
+
+    def setUp(self):
+        super().setUp()
+        import planmarks
+        from lib.tests.test_blk_fix_tdd import PYTEST_LIKE
+        planmarks.save(self.place, 1, self.FIELDS)
+        self.suite = self.tmp / "suite.py"
+        self.suite.write_text(PYTEST_LIKE, encoding="utf-8")
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+
+    def test_ledger_cache_and_logs_live_in_the_place(self):
+        """帳面・base の木の控え・一式のログは置き場の中だけに書き、skipped・guards・unchecked は置き場の帳面を読む"""
+        import fixgates
+        self.assertEqual(fixgates.problems(self.place, self.repo, self.rev, str(self.suite), 1), [])
+        self.assertTrue((self.place / fixgates.BASE_CACHE).is_file())
+        self.assertTrue((self.place / f"{fixgates.RUN}-first-1").is_dir())
+        self.assertFalse((self.place / "r1").exists(), "盤面の周のフォルダは作らない")
+        self.assertEqual(fixgates.problems(self.place, self.repo, self.rev, "", 2), [])
+        self.assertEqual(json.loads((self.place / fixgates.LEDGER).read_text(encoding="utf-8"))["skipped"],
+                         [{"pass": "first", "attempt": 2, "why": fixgates.NO_SUITE}])
+        self.assertEqual(fixgates.skipped(self.place, pass_="first", attempt=2), [fixgates.NO_SUITE])
+        self.assertEqual(fixgates.unchecked(self.place, pass_="first", attempt=2), [fixgates.NO_SUITE])
+        self.assertEqual(git(self.repo, "status", "--porcelain"), "M stats.py", "作業ツリーに走らせた跡を残さない")
+
+    def test_base_rev_and_duty_come_from_arguments(self):
+        """修正前の版は fixboard.base_rev(state, base_rev) の順、直す義務は owed・withheld・returned の値で受ける"""
+        import fixgates
+        with mock.patch.object(fixgates.fixboard, "base_rev", wraps=fixboard.base_rev) as rev, \
+                mock.patch.object(fixgates.fixboard, "owed_units_but_asked", wraps=fixboard.owed_units_but_asked) as duty:
+            fixgates.problems(self.place, self.repo, "HEAD", "", 1, state={"inputs": {"review_rev": self.rev}},
+                              owed=[self.MEAN], withheld=[self.MEAN], returned=())
+        rev.assert_called_once_with({"inputs": {"review_rev": self.rev}}, "HEAD")
+        duty.assert_called_once_with(self.place, [self.MEAN], withheld=[self.MEAN], returned=())
+        why = fixgates.skipped(self.place, pass_="first", attempt=1)
+        self.assertTrue(why and why[0].startswith(fixgates.OUT_OF_DUTY), why)
+
+    def test_broken_fields_are_a_value_error(self):
+        """凍結の印と食い違う欄の控えは、盤面を止める BoardGap でなく ValueError（止めるのは呼び手）"""
+        import fixgates
+        import marks
+        marks.path_of("plan", self.place).write_text("{}", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            fixgates.problems(self.place, self.repo, self.rev, "", 1)
+        self.assertFalse((self.place / fixgates.LEDGER).exists())
+
+
+class LaneChecksSeamCase(TempCase):
+    """元 tddlanes.py・fixlanes.py の枝の中の確かめのうち、ほかの lib/tests に同じ場合が無い物を、残る lib の関数で縛る
+    （tddlanes・fixlanes は枝の輪・待ちの列・盤面の口だけになり lib/ に置かない。組ごとの子の run の 1 本の輪がこの口を読む）。
+    - tddloop.step の log: 作業ツリーと書き込みの記録を別に受け、記録も申告も無い変更は段を拒み、記録が在れば通す
+      （元 works/tests/test_tdd_lanes.py の TestLaneCommand.test_unrecorded_write_in_lane_is_rejected を写した）
+    - factchecks.check_plan_scope・check_writes の since: 見る変更は since の木からの物だけで、その前の変更を範囲と出どころで
+      照らさない。since の後に自分の out_of_scope を触れば今どおり拒む（元 works/tests/test_fix_lanes.py の TestItemStartPoint の
+      test_second_item_is_checked_from_its_own_start・test_second_item_touching_its_own_out_of_scope_is_still_rejected を写した）"""
+
+    def record(self, log, path):
+        import os
+        with open(log, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"tool_name": "Write", "path": os.path.realpath(path),
+                                "file_sha": writes._sha(os.path.realpath(path))}) + "\n")
+
+    def test_tdd_step_matches_writes_with_the_given_log(self):
+        import tddloop
+        from lib.tests.test_blk_fix_tdd import CLAMP, MEAN, NEW_TEST, OPEN, SUITE
+        suite = self.tmp / "suite.py"
+        suite.write_text(SUITE, encoding="utf-8")
+        start = tddloop.start(self.place, self.repo, str(suite), OPEN)
+        self.assertTrue(start["go"], start)
+        state = start["state_file"]
+        log = self.tmp / "run-writes.jsonl"   # 置き場の外の記録（既定の置き場の記録は使わない）
+        log.write_text("", encoding="utf-8")
+        got = tddloop.step(state, {"phase": "route", "units": [
+            {"unit_key": MEAN, "route": "tdd"},
+            {"unit_key": CLAMP, "route": "direct", "why": "文書の直しと同じで、先にテストを書けない単位"}]}, self.repo, log=log)
+        self.assertTrue(got["ok"], got)
+        tests = self.repo / "test_stats.py"
+        tests.write_text(tests.read_text(encoding="utf-8").replace("\n\nif __name__", NEW_TEST + "\n\nif __name__"),
+                         encoding="utf-8")
+        reply = {"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
+                 "tests": ["test_stats.py::TestStats::test_mean_of_two"]}
+        got = tddloop.step(state, dict(reply), self.repo, log=log)
+        self.assertEqual((got["ok"], got["phase"]), (False, "test"), got)
+        self.assertIn(writes.REJECT, got["reason"])
+        self.assertIn("test_stats.py", got["reason"])
+        self.record(log, tests)
+        got = tddloop.step(state, dict(reply), self.repo, log=log)
+        self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
+
+    def since_case(self):
+        """1 つ目の項目の直し（test_stats.py に行を足し、新しい NOTES.md を作る。記録は無い）の後の木を since に取り、
+        2 つ目の項目の直し（stats.py）を足す。2 つ目の項目は NOTES.md と test_stats.py を out_of_scope に持つ"""
+        import factchecks
+        tests = self.repo / "test_stats.py"
+        tests.write_text(tests.read_text(encoding="utf-8") + "# 項目 1 の注記\n", encoding="utf-8")
+        (self.repo / "NOTES.md").write_text("項目 1 の記録\n", encoding="utf-8")
+        since = leftovers.snapshot(self.repo)
+        stats = self.repo / "stats.py"
+        text = stats.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        stats.write_text(text, encoding="utf-8")
+        item = {"item": 2, "unit_keys": [R_MEAN], "adds": [], "removes": [], "route": "direct", "tests": [],
+                "rewrite_tests": [], "allowed_paths": ["stats.py"],
+                "out_of_scope": [{"glob": "NOTES.md", "why": "記録は項目 2 では触らない"},
+                                 {"glob": "test_stats.py", "why": "試験は項目 2 では触らない"}]}
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py"]}]}
+        return factchecks, since, item, reply
+
+    def test_plan_scope_looks_only_after_since(self):
+        fc, since, item, reply = self.since_case()
+        args = (reply, [R_MEAN], self.place, self.rev, self.repo, "", "first")
+        lines, _ = fc.check_plan_scope(*args, items=[item])
+        self.assertTrue(any("NOTES.md" in t for t in lines), "since が無ければ版からの変更を全部照らす")
+        lines, _ = fc.check_plan_scope(*args, since=since, items=[item])
+        self.assertEqual(lines, [], "since の前の変更は照らさない")
+        (self.repo / "NOTES.md").write_text("項目 2 が書き足した\n", encoding="utf-8")
+        lines, _ = fc.check_plan_scope(*args, since=since, items=[item])
+        self.assertTrue(any("NOTES.md" in t for t in lines), lines)
+        self.assertFalse(any("test_stats.py" in t for t in lines), "since の前に変えたファイルは照らさない")
+
+    def test_writes_look_only_after_since(self):
+        fc, since, _, reply = self.since_case()
+        log = self.place / fc.WRITES_LOG
+        log.write_text("", encoding="utf-8")
+        got = fc.check_writes(reply, self.place, self.rev, self.repo, "")
+        self.assertTrue(any("NOTES.md" in p for p in got["problems"]), got)
+        got = fc.check_writes(reply, self.place, self.rev, self.repo, "", since=since)
+        self.assertTrue(any("stats.py" in p for p in got["problems"]), got)
+        self.assertFalse(any("NOTES.md" in p or "test_stats.py" in p for p in got["problems"]), got)
+        self.record(log, self.repo / "stats.py")
+        self.assertEqual(fc.check_writes(reply, self.place, self.rev, self.repo, "", since=since)["problems"], [])
+
+
+class DeltaSeamCase(TempCase):
+    """差分の審査・レンズ・手直しの scripts が呼ぶ fixboard の口: 深さの控えから審査を省く理由、受け付けの返りと 3 回目の諦め、
+    手直しと審査の返答の照らし（元 review-loop.py の delta_fix_output・delta_review_output）、組ごとの修正役の返答のまとめ、
+    手直しの指示書の組み立て、始めの木の選び"""
+
+    KEY = "stats.py mean: 分母が len(xs) - 1 になっている"
+    FACE = "stats.py mean: docstring が無い"
+
+    def test_depth_skip_reads_the_rows_of_the_place(self):
+        import depth
+        self.assertEqual(fixboard.depth_skip(self.place), "")
+        fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}])
+        self.assertTrue(fixboard.depth_skip(self.place).startswith("軽量で省いた"))
+        fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"},
+                                                               {"unit_id": "b", "depth": depth.STANDARD, "why": "y"}])
+        self.assertEqual(fixboard.depth_skip(self.place), "")
+        fixboard.write_json(self.place / fixboard.DEPTH_FILE, [])
+        self.assertEqual(fixboard.depth_skip(self.place), "")
+        fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "a", "depth": "中くらい"}])
+        with self.assertRaises(ValueError):
+            fixboard.depth_skip(self.place)
+
+    def test_accept_out_writes_reasons_and_gives_up_on_the_third(self):
+        self.assertEqual(fixboard.accept_out(self.place, "x-accept", {"ok": True}),
+                         {"ok": True, "done": True, "reason": "", "reason_file": ""})
+        self.assertEqual(fixboard.last_reject_file(self.place, "x-accept"), "")
+        for k in (1, 2, 3):
+            out = fixboard.accept_out(self.place, "x-accept", {"ok": False, "reason": f"理由 {k}"})
+            self.assertEqual((out["ok"], out["done"]), (False, k == 3))
+            self.assertEqual(pathlib.Path(out["reason_file"]).read_text(encoding="utf-8"), f"理由 {k}\n")
+            self.assertEqual(fixboard.last_reject_file(self.place, "x-accept"), out["reason_file"])
+
+    def _reviewed(self):
+        fixboard.write_json(fixboard.out_file(self.place, "p3.delta_review"), {"faces": [
+            {"key": self.FACE, "kind": "contract_drift", "where": "stats.py", "cite": "return sum(xs)", "why": "w" * 20}],
+            "checks": [{"key": "plan-face-1", "closed": False, "why": "w" * 20}]})
+
+    def test_delta_fix_problems_answer_every_owed_key_once(self):
+        self._reviewed()
+        ok = {"handled": [{"key": self.FACE, "handled": "fixed", "how": "h", "files": ["stats.py"]},
+                          {"key": "plan-face-1", "handled": "declared", "how": "h"}]}
+        self.assertEqual(fixboard.delta_fix_problems(self.place, 1, ok), [])
+        bad = {"handled": [{"key": self.FACE, "handled": "fixed", "how": "h", "files": []},
+                           {"key": "知らない穴の key", "handled": "declared", "how": "h"}]}
+        got = fixboard.delta_fix_problems(self.place, 1, bad)
+        self.assertEqual(len(got), 3, got)
+        self.assertTrue(any("plan-face-1" in x and "応答が無い" in x for x in got), got)
+        self.assertTrue(any("files が空" in x for x in got), got)
+
+    def test_delta_review_problems_check_where_cite_and_checks(self):
+        fixboard.write_json(fixboard.loop_file(self.place, "fix_delta"), {"file": "", "files": ["stats.py"]})
+        face = {"key": self.FACE, "kind": "contract_drift", "where": "stats.py", "cite": "def mean(xs):", "why": "w" * 20}
+        fix_reply = {"plan_faces": [{"key": "pf-1", "handled": "absorbed"}, {"key": "pf-2", "handled": "declared"}]}
+        ok = {"faces": [face], "checks": [{"key": "pf-1", "closed": True, "why": "w" * 20}]}
+        self.assertEqual(fixboard.delta_review_problems(self.place, 1, ok, self.repo, fix_reply=fix_reply), [])
+        bad = {"faces": [{**face, "where": "other.py"}, {**face, "key": "k2-------", "cite": "無い字列の引用"},
+                         {**face, "key": "k3-------", "kind": "policy"}], "checks": []}
+        got = fixboard.delta_review_problems(self.place, 1, bad, self.repo, fix_reply=fix_reply)
+        self.assertEqual(len(got), 4, got)
+        self.assertTrue(any("pf-1" in x and "検算が無い" in x for x in got), got)
+        self.assertIn("faces_none", fixboard.delta_review_problems(self.place, 1, {"faces": [], "checks": []}, self.repo)[0])
+
+    def test_group_fix_reply_merges_the_groups_in_order(self):
+        out_dir = self.place / "groups"
+        for gid, key in (("g1", "a"), ("g2", "b")):
+            reply = fixboard.write_json(self.tmp / f"{gid}-reply.json", {"changes": [{"unit_key": key}], "not_done": [],
+                                                                      "plan_faces": [{"key": f"pf-{key}"}]})
+            fixboard.write_json(out_dir / gid / fixboard.RESULT_FILE, {"group_id": gid, "reply_file": str(reply)})
+        fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [{"group_id": "g1"}, {"group_id": "g3"},
+                                                                          {"group_id": "g2"}], "out_dir": str(out_dir)})
+        got = json.loads(fixboard.group_fix_reply(self.place).read_text(encoding="utf-8"))
+        self.assertEqual(([c["unit_key"] for c in got["changes"]], [f["key"] for f in got["plan_faces"]]),
+                         (["a", "b"], ["pf-a", "pf-b"]))
+        fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [{"group_id": "g3"}], "out_dir": str(out_dir)})
+        self.assertIsNone(fixboard.group_fix_reply(self.place))
+
+    def test_refix_prompt_fills_the_head_and_names_the_reject_file(self):
+        import refixrules
+        import rulebook
+        rules, canon = self.tmp / "refix.md", self.tmp / "common.md"
+        rules.write_text("".join(f"<!-- 節 {s} -->\n{s} の本文 <<brief_file>>\n" if s.startswith("refix-head") else
+                                 f"<!-- 節 {s} -->\n{s} の本文\n"
+                                 for s in ("refix-head-1", "refix-head-2", "refix-remap", "refix-keep", "refix-reply",
+                                           "refix-tail-1", "refix-tail-2")), encoding="utf-8")
+        canon.write_text("<!-- 節 core-fix -->\n直し方\n<!-- 節 core-conflict -->\n申し出\n", encoding="utf-8")
+        with mock.patch.object(refixrules, "RULES", rules), mock.patch.object(rulebook, "CANON", canon):
+            text = fixboard.refix_prompt(2, {"brief_file": "/b.json", "diff_file": "/d.patch", "policy_path": ""},
+                                         reject_file="/r.md", iteration=2, lang="言語の 1 行")
+        self.assertIn(fixboard.REJECT_LINE.format(path="/r.md"), text)
+        for w in ("refix-head-2 の本文 `/b.json`", "直し方", "refix-tail-2 の本文", "言語の 1 行"):
+            self.assertIn(w, text)
+        self.assertNotIn("申し出", text)
+        self.assertNotIn("refix-tail-1", text)
+
+    def test_start_tree_prefers_groups_then_the_ignored_record(self):
+        self.assertEqual(fixboard.start_tree(self.place), "")
+        leftovers.record_ignored(self.place, self.repo)
+        self.assertEqual(fixboard.start_tree(self.place), leftovers.head_tree(self.place))
+        fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "start_tree": "abc"})
+        self.assertEqual(fixboard.start_tree(self.place), "abc")
+        self.assertIn("日本語", fixboard.lang_line({"lang": "日本語"}))
+        self.assertIn(fixboard.LANG_DEFAULT, fixboard.lang_line({}))
+
+
+
+
+class GroupScriptsSeamCase(TempCase):
+    """fixboard の組の分けと戻し・返す節の欄（fix の prep・join・tdd-unit・conflict-check・assert-changed・collect が呼ぶ口）"""
+
+    def test_owed_keys_are_open_units_without_forks(self):
+        judgment = {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "suggest", "disposition": "do-now"},
+                              {"key": "C", "label": "suggest"}, {"key": "D", "label": "block"}, {"key": "E", "label": "block"}],
+                    "questions": [{"kind": "fork", "status": "held", "origin": "D", "depends": ["E"]},
+                                  {"kind": "fork", "status": "decided", "origin": "A"}]}
+        self.assertEqual(fixboard.owed_keys(judgment), ["A", "B"])
+        self.assertEqual(fixboard.owed_keys(None), [])
+
+    def test_fix_groups_join_units_through_items(self):
+        items = [{"item": 1, "unit_keys": ["A", "C"]}, {"item": 2, "unit_keys": ["C", "D"]}, {"item": 3, "unit_keys": ["B"]}]
+        got = fixboard.fix_groups(["A", "B", "C", "D", "E"], items)
+        self.assertEqual([(g["group_id"], g["unit_ids"], g["items"]) for g in got],
+                         [("g1", ["A", "C", "D"], [1, 2]), ("g2", ["B"], [3]), ("g3", ["E"], [])])
+        self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B", "C"], items, ["3"])], [["B"]])
+        self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B"], None)], [["A"], ["B"]])
+
+    def test_parallel_needs_two_groups_and_no_lane_switch(self):
+        two = [{"group_id": "g1"}, {"group_id": "g2"}]
+        self.assertTrue(fixboard.parallel(two, []))
+        self.assertFalse(fixboard.parallel(two, ["tdd_lanes"]))
+        self.assertFalse(fixboard.parallel(two[:1], None))
+
+    def test_join_rows_keep_child_status_only_for_returned_groups(self):
+        gs = [{"group_id": "g1", "unit_ids": ["A", "B"]}, {"group_id": "g2", "unit_ids": ["C"]}]
+        result = {"units": [{"unit_id": "A", "status": "given_up", "reason": "3 回拒まれた"}]}
+        rows, units = fixboard.join_rows(gs, {"g1": (result, True, ""), "g2": (result, False, "当たらない")})
+        self.assertEqual([r["returned"] for r in rows], [True, False])
+        self.assertEqual([(u["unit_id"], u["status"]) for u in units], [("A", "given_up"), ("B", "not_done"), ("C", "not_done")])
+        self.assertEqual(units[2]["reason"], "当たらない")
+        rows, _ = fixboard.join_rows(gs[:1], {})
+        self.assertEqual(rows[0]["reason"], fixboard.NO_RESULT)
+
+    def test_tdd_units_fill_groups_without_a_loop(self):
+        row = {"unit_key": "A"}
+        got = fixboard.tdd_units([{"group_id": "g1"}, {"group_id": "g2"}],
+                                 {"g1": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": [row]}}, "g2": None})
+        self.assertEqual(got[0], {"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "units": [row]})
+        self.assertEqual((got[1]["ran"], got[1]["units"], got[1]["reason"]), (False, [], fixboard.NO_RESULT))
+
+    def test_cited_rows_drop_claims_whose_lines_are_gone(self):
+        row = {"unit_key": "A", "between": ["stats.py:9", "test_stats.py:1"], "why_both_cannot_hold": "x" * 12,
+               "which_is_right": "code"}
+        gone = {**row, "between": ["stats.py:900", "test_stats.py:1"]}
+        ok, dropped = fixboard.cited_rows([row, gone, {"unit_key": "B"}], self.repo)
+        self.assertEqual(ok, [row])
+        self.assertEqual(len(dropped), 2)
+
+    def test_changed_problem_and_declared_files(self):
+        self.assertEqual(fixboard.declared_files([{"changes": [{"files": ["./a.py", "b/c.py"]}]}, {"changes": []}]),
+                         ["a.py", "b/c.py"])
+        with self.assertRaises(ValueError):
+            fixboard.declared_files([{"changes": [{"files": [""]}]}])
+        self.assertEqual(fixboard.changed_problem(["a.py"], ["a.py", "b.py"]), (True, ""))
+        ok, why = fixboard.changed_problem(["a.py", "c.py"], ["a.py"])
+        self.assertFalse(ok)
+        self.assertIn("c.py", why)
+        self.assertEqual(fixboard.changed_problem([], ["a.py"]), (False, fixboard.NOT_DECLARED))
+        ok, why = fixboard.changed_problem([], [], {"A": "人の答え待ち"})
+        self.assertTrue(ok)
+        self.assertIn("A（人の答え待ち）", why)
+
+    def test_touched_since_and_run_diff_skip_the_given_head(self):
+        start = leftovers.snapshot(self.repo)
+        (self.repo / "stats.py").write_text("X = 1\n", encoding="utf-8")
+        (self.repo / "vendored").mkdir()
+        (self.repo / "vendored" / "w.txt").write_text("w\n", encoding="utf-8")
+        self.assertEqual(fixboard.touched_since(self.repo, start, SKIP), ["stats.py"])
+        self.assertEqual(fixboard.touched_since(self.repo, start), ["stats.py", "vendored/w.txt"])
+        diff = fixboard.run_diff(self.repo, "HEAD", SKIP)
+        self.assertIn("b/stats.py", diff)
+        self.assertNotIn("vendored", diff)
+        self.assertIn("vendored/w.txt", fixboard.run_diff(self.repo))
+
+    def test_collect_fields(self):
+        rows = [{"unit_key": "A", "ruling": {"decision": "fix_plan_item"}, "plan_items": [2]},
+                {"unit_key": "B", "ruling": {"decision": "fix_plan_item"}},
+                {"unit_key": "C", "ruling": {"decision": "ask_human"}}]
+        self.assertEqual(fixboard.replan_items(rows, [{"unit_ids": ["B"], "items": [3]}]), ["2", "3"])
+        marks = fixboard.changed_marks([{"changed": {"gates_changed": True}}, None, {"changed": {}}])
+        self.assertEqual(set(marks), set(fixboard.CHANGED_MARKS))
+        self.assertEqual([k for k, v in marks.items() if v], ["gates_changed"])
+        self.assertEqual(fixboard.objection([{"objection": "前提が違う"}, {"rejudge_requested": "前提が違う"}, {}]), "前提が違う")
+        self.assertEqual(fixboard.allowed_tests(self.place, [{"allowed_test_changes": ["t/a.py"]}]), ["t/a.py"])
+
+    def test_delta_review_counts_rounds(self):
+        d = self.place / fixboard.DELTA_DIR
+        self.assertEqual(fixboard.delta_review(self.place), ({"rounds": 0, "pass": False}, False))
+        d.mkdir()
+        (d / "review-1.json").write_text('{"pass": false}', encoding="utf-8")
+        self.assertEqual(fixboard.delta_review(self.place), ({"rounds": 1, "pass": False}, False))
+        (d / "review-2.json").write_text('{"pass": true}', encoding="utf-8")
+        self.assertEqual(fixboard.delta_review(self.place), ({"rounds": 2, "pass": True}, False))
+        (d / "skipped.json").write_text('{"reason": "軽量"}', encoding="utf-8")
+        self.assertEqual(fixboard.delta_review(self.place), ({"rounds": 0, "pass": True}, True))
+
+    def test_join_group_applies_and_check_reverts(self):
+        start = leftovers.snapshot(self.repo)
+        (self.repo / "extra.py").write_text("X = 1\n", encoding="utf-8")
+        end = leftovers.snapshot(self.repo)
+        git(self.repo, "clean", "-qfd")
+        got = fixboard.join_group(self.repo, start, end, self.place / "g1.diff")
+        self.assertEqual((got.why, got.names), ("", ["extra.py"]))
+        self.assertTrue((self.repo / "extra.py").is_file())
+        git(self.repo, "clean", "-qfd")
+        got = fixboard.join_group(self.repo, start, end, self.place / "g1.diff", check=lambda names: "確かめ直しが赤")
+        self.assertEqual(got.why, "確かめ直しが赤")
+        self.assertFalse((self.repo / "extra.py").exists())
+        self.assertIn("extra.py", (self.place / "g1.diff").read_text(encoding="utf-8"))
+
+    def test_tests_moved_names_named_tests_that_differ_from_the_child(self):
+        src = (self.repo / "test_stats.py").read_text(encoding="utf-8")
+        end = leftovers.snapshot(self.repo)
+        unit = {"tests": ["test_stats.py::TestStats::test_mean_of_three"], "test_files": ["test_stats.py"]}
+        self.assertEqual(fixboard.tests_moved(self.repo, end, [unit], {"test_stats.py"}), "")
+        (self.repo / "test_stats.py").write_text(src.replace("mean([1, 2, 3]), 2", "mean([2, 4]), 3"), encoding="utf-8")
+        self.assertIn("test_mean_of_three", fixboard.tests_moved(self.repo, end, [unit], {"test_stats.py"}))
+        self.assertEqual(fixboard.tests_moved(self.repo, end, [unit], set()), "")
+
+    def test_rerun_problem_is_empty_without_suite_or_names(self):
+        self.assertEqual(fixboard.rerun_problem(self.place, self.repo, "", [], ["t.py::x"]), "")
+        self.assertEqual(fixboard.rerun_problem(self.place, self.repo, "run.sh", [], []), "")
+
+
+class SmallGapsSeamCase(unittest.TestCase):
+    """小さな抜け 2 つ: tddloop の申し出の頼みの文が種類を全部言う（元 tests/test_conflict_kinds.py の
+    KindCase.test_return_conflict_lists_every_kind）と、parking の除くパスの頭（引数 skip。既定 () では除かない）"""
+
+    def test_return_conflict_lists_every_kind(self):
+        import conflict
+        import tddloop
+        for k in conflict.DIV_KINDS:
+            self.assertIn(k, tddloop.RETURN_CONFLICT)
+
+    def test_parking_ours_skips_only_the_given_heads(self):
+        import parking
+        self.assertTrue(parking._ours("vendored/x.py"), "既定の () では除かない")
+        self.assertFalse(parking._ours("vendored/x.py", SKIP))
+        self.assertFalse(parking._ours("vendored", SKIP), "頭のフォルダそのものも除く")
+        self.assertTrue(parking._ours("vendoredx/x.py", SKIP), "頭の字で始まるだけの別のフォルダは除かない")
+        self.assertTrue(parking._ours("stats.py", SKIP))
+
+    def test_parking_footprint_and_settle_pass_the_skip(self):
+        import parking
+        rows = [{"unit_key": "a", "files": ["stats.py", "vendored/copy.py"]}]
+        self.assertEqual(parking.footprint(rows, [], "/home/x/repo"), {"a": {"stats.py", "vendored/copy.py"}})
+        feet = parking.footprint(rows, [], "/home/x/repo", SKIP)
+        self.assertEqual(feet, {"a": {"stats.py"}})
+        both = {"a": {"stats.py", "vendored/copy.py"}}
+        args = dict(keys={"a"}, feet=both, reached={}, owed={"a"}, out_of_duty=set(), changed=set())
+        self.assertEqual(parking.settle(["a: 落ちた"], **args).files, {"stats.py", "vendored/copy.py"})
+        got = parking.settle(["a: 落ちた"], **args, skip=SKIP)
+        self.assertEqual((set(got.park), got.files), ({"a"}, {"stats.py"}))
+        owed = parking.park_owed(["写しの行"], feet=both, owed={"a"}, out_of_duty=set(), skip=SKIP)
+        self.assertEqual((set(owed.park), owed.files), ({"a"}, {"stats.py"}))
+
+
+class GroupChildSeamCase(TempCase):
+    """形 group の子の run の口: fixboard.adopt_inputs（親の置き場の写しと凍結の印の置き直し）・unit_depths・verified_tests・
+    group_result（組の結果の形と単位の結末の選び）"""
+
+    def test_adopt_inputs_copies_the_parent_and_refreezes_the_fields(self):
+        import conflict
+        import planmarks
+        parent = self.tmp / "parent"
+        (parent / "r1").mkdir(parents=True)
+        (parent / "r1" / "start.json").write_text('{"tdd_suite": ""}\n', encoding="utf-8")
+        (parent / "judgment.json").write_text('{"units": []}\n', encoding="utf-8")
+        fields = [{"route": "direct", "tests": [], "rewrite_tests": [], "refactor": "", "allowed_paths": ["stats.py"],
+                   "out_of_scope": []}]
+        planmarks.save(parent, 1, fields)
+        got = fixboard.adopt_inputs(parent, self.place)
+        self.assertEqual(got, ["r1/start.json", "judgment.json", "plan-fields.json"])
+        self.assertEqual((self.place / "judgment.json").read_text(encoding="utf-8"), '{"units": []}\n')
+        self.assertEqual(conflict.frozen_fields(self.place, 1), fields, "子の trace に凍結の印が在る")
+        bare = self.tmp / "bare"
+        bare.mkdir()
+        self.assertEqual(fixboard.adopt_inputs(bare, self.tmp / "child2"), [], "欄の控えの無い親は何も置かない")
+        with self.assertRaises(ValueError):
+            fixboard.adopt_inputs(self.tmp / "no-such", self.place)
+
+    def test_unit_depths_and_verified_tests(self):
+        self.assertEqual(fixboard.unit_depths(self.place), "")
+        (self.place / "depth.json").write_text(json.dumps([{"unit_id": "a", "depth": "軽量", "why": "1 個"}]),
+                                               encoding="utf-8")
+        self.assertEqual(json.loads(fixboard.unit_depths(self.place)), {"a": "軽量"})
+        tdd = {"ran": True, "units": [{"unit_key": "a", "route": "tdd", "green": "ok", "tests": ["t.py::x", "t.py::y"]},
+                                      {"unit_key": "b", "route": "tdd", "green": "", "tests": ["t.py::z"]},
+                                      {"unit_key": "c", "route": "direct", "green": "", "tests": []}]}
+        self.assertEqual(fixboard.verified_tests(tdd), ["t.py::x", "t.py::y"])
+
+    def test_group_result_shape(self):
+        tdd = {"ran": True, "suite": "s", "reason": "", "units": [
+            {"unit_key": "b", "route": "parked", "gave_up": "red", "why": "赤が 3 回とも通らなかった", "tests": []}]}
+        reply = {"mechanism_changed": True, "rejudge_requested": "判定の単位 a は誤り"}
+        got = fixboard.group_result({"group_id": "g1", "unit_ids": ["a", "b", "c"], "items": [1]}, start_tree="t0",
+                                    end_tree="t1", tdd=tdd, fix_units={"a": {"status": "fixed", "reason": ""}},
+                                    reply=reply, reply_file="/r.json", allowed=["t.py", "t.py"], conflicts=[{"id": 1}])
+        self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
+                                    "objection", "changed", "allowed_test_changes", "verified", "reply_file"})
+        self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
+                         [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
+        self.assertEqual(got["units"][2]["reason"], fixboard.NO_UNIT_RESULT)
+        self.assertEqual(got["objection"], "判定の単位 a は誤り")
+        self.assertEqual(got["changed"], {k: k == "mechanism_changed" for k in fixboard.CHANGED_MARKS})
+        self.assertEqual(got["allowed_test_changes"], ["t.py"])
+        empty = fixboard.group_result({"group_id": "g2", "unit_ids": []}, start_tree="", end_tree="", tdd=None)
+        self.assertEqual((empty["tdd"]["ran"], empty["objection"], empty["reply_file"]), (False, "", ""))
+        self.assertFalse(any(empty["changed"].values()))
+
+
+class FixAcceptSeamCase(TempCase):
+    """修正役の受け付けと範囲の相談の部品（fixboard の check_*_units・fix_reject_text・undeclared_writes・reply_marks・unit_outcomes・
+    granted_tests・ruled_owed・ruled_reply_line・consult_ask・accept_reply）。元 works/blk-fix/scripts/accept.py の単位の行の照らしと
+    元 works/blk-fix/lib/consult.py:522 の頼みの節を、置き場と値で回す"""
+
+    def test_unit_row_checks(self):
+        """同じ unit_key の 2 行・義務にも外れにも無い key・外れた単位の行（元 accept.py:258・268・297）"""
+        keys = ["a", "b", "a", "x", "c", "x"]
+        self.assertEqual(fixboard.check_unique_units(keys), ["a", "x"])
+        self.assertEqual(fixboard.check_opened_units(keys, {"a", "b", "c"}), ["x"])
+        self.assertEqual(fixboard.check_excused_units(keys, {"a", "b"}, {"c": "人が決める"}), {"c": "人が決める"})
+
+    def test_reject_text_follows_the_check_order(self):
+        found = [("copy", "数えが合わない"), ("writes", "記録が無い"), ("writes", "記録が無い"), ("duplicate", "a")]
+        text = fixboard.fix_reject_text(found)
+        self.assertTrue(text.startswith(fixboard.FIX_REJECT_HEAD))
+        self.assertLess(text.index("確かめ writes・1 件"), text.index("確かめ duplicate"))
+        self.assertLess(text.index("確かめ duplicate"), text.index("確かめ copy"))
+        self.assertEqual(fixboard.fix_reject_rows(found), [("writes", "記録が無い"), ("duplicate", "a"), ("copy", "数えが合わない")])
+
+    def test_undeclared_writes_bind_to_changes_and_bash_writes(self):
+        tree = leftovers.snapshot(self.repo)
+        (self.repo / "stats.py").write_text("x = 1\n", encoding="utf-8")
+        (self.repo / "gen.txt").write_text("生成\n", encoding="utf-8")
+        (self.repo / "vendored").mkdir()
+        (self.repo / "vendored" / "w.txt").write_text("工程の写し\n", encoding="utf-8")
+        reply = {"changes": [{"unit_key": "a", "files": ["stats.py"]}]}
+        got = fixboard.undeclared_writes(reply, self.repo, tree, skip=SKIP)
+        self.assertEqual(got, [fixboard.UNDECLARED + "gen.txt"])
+        self.assertEqual(fixboard.undeclared_writes(reply, self.repo, tree, made={"gen.txt"}, skip=SKIP), [])
+        told = {**reply, "bash_writes": [{"path": "gen.txt", "why": WHY}]}
+        self.assertEqual(fixboard.undeclared_writes(told, self.repo, tree, skip=SKIP), [])
+        self.assertEqual(len(fixboard.undeclared_writes(reply, self.repo, tree)), 1, "既定の () では除かない")
+        self.assertIn("vendored/w.txt", fixboard.undeclared_writes(reply, self.repo, tree)[0])
+
+    def test_reply_marks_or_over_the_previous(self):
+        before = fixboard.reply_marks({"gates_changed": True, "rejudge_requested": "前の異議"})
+        got = fixboard.reply_marks({"changes": [], "path_changed": True, "rejudge_requested": "今の異議"}, before)
+        self.assertEqual(got["changed"], {k: k in ("gates_changed", "path_changed") for k in fixboard.CHANGED_MARKS})
+        self.assertEqual(got["rejudge_requested"], "前の異議\n今の異議")
+        self.assertTrue(got["gates_changed"])
+
+    def test_unit_outcomes(self):
+        reply = {"changes": [{"unit_key": "a"}], "not_done": [{"unit_key": "b", "why": "答え待ち"}]}
+        got = fixboard.unit_outcomes(["a", "b", "c"], reply, excused={"d": "人が決める"}, parked={"c": "諦めた"})
+        self.assertEqual(got, {"a": {"status": "fixed", "reason": ""}, "b": {"status": "not_done", "reason": "答え待ち"},
+                               "c": {"status": "given_up", "reason": "諦めた"},
+                               "d": {"status": "not_done", "reason": "人が決める"}})
+        got = fixboard.unit_outcomes(["a"], {}, conflicted=["a"])
+        self.assertEqual(got["a"], {"status": "not_done", "reason": fixboard.PARKED_FOR_RULING})
+
+    def test_granted_tests_take_rulings_and_agreements(self):
+        import conflict
+        conflict.park(self.place, [{"unit_key": "a", "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤っている", "which_is_right": "request",
+                                    "kind": "unnamed_test_broke"}], source=conflict.FIX_SOURCE,
+                      ruling={"decision": "fix_test_scope", "text": "直してよい", "limits": ["test_stats.py:8"]})
+        fixboard.trace(self.place, conflict.ASKED_OP, id=1, item="1", status="answered", decision="allow", granted_paths=[],
+                       granted_tests=["tests/test_b.py:3"], granted_new_tests=[{"id": "tests/test_c.py::T::t", "red_kind": "red"}],
+                       reason="足してよい")
+        self.assertEqual(fixboard.granted_tests(self.place), ["test_stats.py", "tests/test_b.py", "tests/test_c.py"])
+
+    def test_ruled_owed_reads_the_join(self):
+        (self.place / "judgment.json").write_text(json.dumps({"units": [{"key": k, "label": "block"} for k in "abc"]}),
+                                                  encoding="utf-8")
+        self.assertEqual(fixboard.ruled_owed(self.place), ["a", "b", "c"])
+        (self.place / "join.json").write_text(json.dumps({
+            "groups": [{"group_id": "g1", "returned": True}, {"group_id": "g2", "returned": False}],
+            "units": [{"unit_id": "a", "group_id": "g1", "status": "fixed"}, {"unit_id": "b", "group_id": "g1", "status": "not_done"},
+                      {"unit_id": "c", "group_id": "g2", "status": "not_done"}]}), encoding="utf-8")
+        self.assertEqual(fixboard.ruled_owed(self.place), ["b"])
+        self.assertEqual(fixboard.group_owed(self.place, ["c", "z"]), ["c"])
+
+    def test_ruled_reply_line_once_after_the_title(self):
+        p = self.place / "prompt.md"
+        p.write_text("# 題\n本文\n", encoding="utf-8")
+        fixboard.ruled_reply_line(p, "/x/fix-reply.json")
+        fixboard.ruled_reply_line(p, "/x/fix-reply.json")
+        lines = p.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(lines[0], "# 題")
+        self.assertEqual(sum("/x/fix-reply.json" in ln for ln in lines), 1)
+        self.assertIn("/x/fix-reply.json", lines[2])
+
+    def test_consult_ask_screens_and_writes_the_question(self):
+        import consult
+        items = [{"item": 1, "unit_keys": ["a"], "allowed_paths": ["stats.py"], "out_of_scope": [], "tests": []}]
+        reply = {consult.conflict.CONSULT_FIELD: [
+            {"item": 1, "paths": ["docs/n.md"], "tests": [], "why": "直しに伴う記録を残す要が在る（範囲の外）"},
+            {"item": 9, "paths": ["x.py"], "tests": [], "why": "知らない項目への頼みの理由の文"}]}
+        got = fixboard.consult_ask(self.place, reply, "first", items, node="consult-answer", plan_file="/p/plan.json")
+        self.assertEqual((got["consulted"], got["go"], got["turn"]), (True, True, 1))
+        text = pathlib.Path(got["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn("/p/plan.json", text)
+        self.assertNotIn("x.py", text, "断った頼みは聞かない")
+        st = consult.state(self.place, "first")
+        self.assertEqual([r["status"] for r in st["rows"]], [consult.ASKED, consult.REFUSED])
+        self.assertEqual(fixboard.consult_ask(self.place, {"changes": []}, "first", items, node="x")["consulted"], False)
+        consult._write_json(consult.state_path(self.place, "first"), {"turns": consult.BUDGET})
+        self.assertTrue(fixboard.consult_ask(self.place, reply, "first", items, node="x")["spent"])
+
+    def test_accept_reply_parks_the_bound_unit_on_the_last_turn(self):
+        """3 回目の拒否は名指しの単位だけを段の頭の木に戻して諦め、残りを受ける（元 accept.py の last_settle・park_units）"""
+        import conflict
+        (self.place / "judgment.json").write_text(json.dumps({"units": [{"key": "alpha-unit", "label": "block"},
+                                                                        {"key": "beta-unit", "label": "block"}]}), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        (self.repo / "a.txt").write_text("a\n", encoding="utf-8")
+        (self.repo / "b.txt").write_text("b\n", encoding="utf-8")
+        how = {"patterns": ["zzz-none"], "fixed": True, "paths": ["stats.py"], "count": "lines"}
+        reply = {"changes": [{"unit_key": "alpha-unit", "what": "足した", "files": ["a.txt"], "coverage": {"how": how, "counts": "population"},
+                              "closure": {"sites": []}},
+                             {"unit_key": "beta-unit", "what": "足した", "files": ["b.txt"]}]}
+        kw = dict(pass_="first", owed=["alpha-unit", "beta-unit"], judged=[], head=head, skip=SKIP)
+        got = fixboard.accept_reply(reply, self.place, self.repo, iteration=2, **kw)
+        self.assertFalse(got["ok"])
+        self.assertTrue(any(r["check"] == "copy" and r["text"].startswith("beta-unit:") for r in got["rejects"]), got["rejects"])
+        self.assertTrue((self.repo / "b.txt").exists(), "最後の回でなければ戻さない")
+        got = fixboard.accept_reply(reply, self.place, self.repo, iteration=3, **kw)
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {"alpha-unit": "fixed", "beta-unit": "given_up"}, got["units"])
+        self.assertFalse((self.repo / "b.txt").exists())
+        self.assertTrue((self.repo / "a.txt").exists())
+        self.assertEqual([r["unit_key"] for r in conflict.items(self.place)], ["beta-unit"])
+        self.assertEqual([r["op"] for r in _traced(self.place) if r["op"] == conflict.ACCEPT_PARKED_OP], [conflict.ACCEPT_PARKED_OP])
+
+
+class GateItemsSeamCase(unittest.TestCase):
+    """直す前の人の関所の答え {decision, text} が、範囲の相談の人の条件（consult.gate_notes）に届く"""
+
+    def test_pass_word_with_text_becomes_a_note(self):
+        import consult
+        import fixboard
+        for word in ("approve", "continue"):
+            rows = fixboard.gate_items({"decision": word, "text": "テストの名は変えないこと"})
+            self.assertEqual(consult.gate_notes("unused", rows), "テストの名は変えないこと")
+
+    def test_no_note_without_text_or_on_stop(self):
+        import fixboard
+        for answers in (None, "", {"decision": "approve", "text": ""}, {"decision": "stop", "text": "止める"},
+                        {"decision": "approve"}):
+            self.assertEqual(fixboard.gate_items(answers), [])
+
+
+class SettleOverflowSeamCase(TempCase):
+    """はみ出しの行だけの回の道筋（fixboard.settle_overflow。元 works/blk-fix/scripts/accept.py:549）: 承認済みの項目の範囲の外に
+    触れた返答は、まだ聞いていなければ拒まずに範囲の相談に積み（次の consult_ask が頼みにする）、聞いて deny された同じはみ出しは
+    機械が段の頭の木に戻して受け付ける"""
+
+    DENY = {"answers": [{"ask": 1, "decision": "deny", "reason": "見本の入力は直しに要らないので範囲に足さない"}]}
+
+    def setUp(self):
+        super().setUp()
+        import planmarks
+        planmarks.save(self.place, 1, [{"route": "direct", "tests": [], "rewrite_tests": [], "allowed_paths": ["stats.py"],
+                                         "out_of_scope": []}])
+        (self.place / f"{planmarks.NODE}.json").write_text(json.dumps(
+            {"plan": [{"unit_keys": [R_MEAN], "approach": "分母を直す", "adds": [], "removes": []}]}, ensure_ascii=False),
+            encoding="utf-8")
+        (self.place / "judgment.json").write_text(json.dumps({"units": [R_JUDGED[0]]}, ensure_ascii=False), encoding="utf-8")
+        self.head = leftovers.snapshot(self.repo)
+        self.extra = self.repo / "request_ok.json"
+        self.before = self.extra.read_bytes()
+        path = self.repo / "stats.py"
+        path.write_text(path.read_text(encoding="utf-8").replace("sum(xs) / (len(xs) - 1)", "sum(xs) / len(xs)"),
+                        encoding="utf-8")
+        self.extra.write_bytes(self.before + b"\n")
+        self.reply = {"changes": [{**_fix_row(R_MEAN, 1), "files": ["stats.py", "request_ok.json"]}], "not_done": []}
+        self.kw = dict(pass_="first", owed=[R_MEAN], judged=[R_JUDGED[0]], head=self.head, skip=SKIP, base_rev=self.rev)
+
+    def items(self):
+        import factchecks
+        return factchecks.place_items(self.place)()
+
+    def test_unasked_overflow_is_queued_not_rejected(self):
+        import consult
+        got = fixboard.accept_reply(self.reply, self.place, self.repo, iteration=1, **self.kw)
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got.get("queued"), got["reason"])
+        self.assertTrue(got["reason"].startswith(fixboard.QUEUED), got["reason"])
+        self.assertEqual(self.extra.read_bytes(), self.before + b"\n", "積んだ回は作業ツリーを変えない")
+        rows = consult.queued(self.place, "first")
+        self.assertEqual([(r["paths"], r["origin"]) for r in rows], [(["request_ok.json"], consult.ORIGIN_ACCEPT)])
+        ask = fixboard.consult_ask(self.place, self.reply, "first", self.items(), node="consult-answer")
+        self.assertEqual((ask["consulted"], ask["go"]), (True, True), ask)
+        self.assertIn("request_ok.json", pathlib.Path(ask["prompt_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(consult.queued(self.place, "first"), [], "頼みにした後は積んだ物を空にする")
+
+    def test_denied_overflow_is_reverted_and_accepted(self):
+        import consult
+        import impact
+        self.assertTrue(fixboard.accept_reply(self.reply, self.place, self.repo, iteration=1, **self.kw).get("queued"))
+        fixboard.consult_ask(self.place, self.reply, "first", self.items(), node="consult-answer")
+        consult.settle(self.place, self.DENY, "first", "consult-answer")
+        got = fixboard.accept_reply(self.reply, self.place, self.repo, iteration=2, **self.kw)
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual(self.extra.read_bytes(), self.before, "deny されたはみ出しは段の頭の姿に戻す")
+        self.assertIn("sum(xs) / len(xs)", (self.repo / "stats.py").read_text(encoding="utf-8"))
+        self.assertEqual([c["files"] for c in got["reply"]["changes"]], [["stats.py"]])
+        rows = [r for r in _traced(self.place) if r["op"] == impact.ACCEPT_OVERFLOW_OP]
+        self.assertEqual([r["reverted"][0]["paths"] for r in rows], [["request_ok.json"]], rows)
+        self.assertTrue(pathlib.Path(rows[0]["reverted"][0]["patch"]).is_file())
 
 
 if __name__ == "__main__":
