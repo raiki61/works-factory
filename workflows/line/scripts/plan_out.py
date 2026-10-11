@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """計画の往復（loop_group の plan-rounds）の終わりの返しの節 plan-out（docs/design.md の U4）。
 
 loop_group の中の節は外から見えず、外から見えるのは $plan-rounds.output（本体の終わりの節の出力）だけなので、ここで plan と

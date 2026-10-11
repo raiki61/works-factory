@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """線の script が共に使う口（名前の script ではない。同じフォルダの script が import する）。
 
 - 境の口（boundary）と、Archon が渡した字を値に戻す部品（skip_value）と lib/ を読めるようにする

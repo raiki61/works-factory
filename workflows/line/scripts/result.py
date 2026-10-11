@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """線の返す節 result（線の returns: result・outcome_field: fixed）。
 
 report の返りを受けて返し、結末の語が fixed・fixed_needs_check の時に fixed を真にする。report が届かなければ（report の中の節が

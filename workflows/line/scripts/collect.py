@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """全部のブロックと関所と返しの節の返りを報告へ渡す形に集める返しの節 collect（埋め P2。trigger_rule: all_done）。
 
 ブロックと計画の往復の返りは受け皿の節（returned.py。<include の id>-out・plan-rounds-out）の出力を

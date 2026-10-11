@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """ブロックと計画の往復の返りを受け直す受け皿の節（<include の id>-out と plan-rounds-out）。collect は返りをここから読む。
 
 ブロックの返す節（や往復の中の節）が落ちると、その出力は `{from, if_skipped}` でも読めない（止めた Archon の dag-executor.ts の

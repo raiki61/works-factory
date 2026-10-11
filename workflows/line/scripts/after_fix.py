@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """修正の後に、案の直しと再審を差し込むかを決める節 after-fix（docs/design.md の「線」の「順と関所」の 7）。
 
 when: は配列が空かを比べられないので、ここで数える。fix の返りの replan_items（裁定が誤りとした計画の項目）が空でなければ案の直し、

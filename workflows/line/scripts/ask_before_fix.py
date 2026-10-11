@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """修正前の関所を開くかと、見せる文を決める節 ask-before-fix（docs/design.md の「線」の「順と関所」の 6）。
 
 入力（with:）は計画の往復の返り（plan-rounds の ready・pass・stalled・round・ask_human・gate_axes・questions）と、始めの節の

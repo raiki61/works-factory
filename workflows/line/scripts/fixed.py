@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """1 回目の修正（fix）と 2 度目の修正（refix）の返りを合わせて後の段へ渡す節 fixed。
 
 done・diff・changed・delta_review は refix が走ればその物（diff はどちらも run の始めからの累積）。units は unit_id ごとに後の物、

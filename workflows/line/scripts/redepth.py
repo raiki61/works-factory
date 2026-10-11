@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """直した後に深さを上げ直す節 redepth（docs/design.md の「線」の「順と関所」の 7 の後）。
 
 計画の深さ（案の直しが走ればその深さ）を、修正の後の信号で標準へ上げる（lib/depth.py の raise_doc。下げない）。信号は、

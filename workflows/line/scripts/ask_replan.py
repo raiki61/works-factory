@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """案の直しの関所を開くかと、見せる文を決める節 ask-replan（docs/design.md の「線」の「順と関所」の 7）。
 
 直した項目ごとに、承認済みの項目（計画の往復の plan）と直した項目（replan の plan）の約束の欄を比べる（lib/planmarks.py の

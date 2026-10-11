@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """線の始めの節 start（docs/design.md の「線」の「順と関所」の 1）。
 
 入口の入力を 1 つの形にそろえ（lib/entryshape.py）、始めの記録（lib/startrec.py の start.json の形）を run の置き場に書き、
