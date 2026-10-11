@@ -564,7 +564,7 @@ flowchart TB
 - U2 型つきの成果物と `returns:` が、include ごとに分かれて見えるか（同じブロックを 2 度差し込む test-gate・merge・plan で要る）。
 - U3 `archon workflow test` の筋書き（fixture）が使えるか。`d97d00ef` の文書 `reference/cli.md` 407 行と `--help`（「Run declared dry-run fixtures (fixtures/*.stubs.yaml)」）は名指すが、まだ走らせていない。
 - U4 `loop_group` の中に `include:` の節を置けるか（計画の往復）。
-- U5（決めた）ブロックの script が `lib/` をどのパスで見つけるか。Archon は run の始めに `workflows/` を写し取り、script はその写しから走るので、リポジトリからの相対では届かない。決め: 入口が環境変数 `WORKS_FACTORY_ROOT` にリポジトリの根を渡し、境の口の `boundary.lib_root()` がその `lib/` を返す（無ければ自分の置き場から辿った `lib/`）。Archon は host で走る script の節に起こした時の環境変数を渡す（`dag-executor.ts` の `process.env` の重ね）。止めた Archon で script の節を回して確かめる試験は `tests/shared/test_boundary.py` の `test_script_run_by_archon_finds_repository_lib`。
+- U5（決めた）ブロックの script が `lib/` をどのパスで見つけるか。Archon は run の始めに `workflows/` を写し取り、script はその写しから走るので、リポジトリからの相対では届かない。決め: 入口が環境変数 `WORKS_FACTORY_ROOT` にリポジトリの根を渡し、境の口の `boundary.lib_root()` がその `lib/` を返す（無ければ自分の置き場から辿った `lib/`）。Archon は host で走る script の節に起こした時の環境変数を渡す（`dag-executor.ts` の `process.env` の重ね）。止めた Archon で script の節を回して確かめる試験は `tests/shared/test_boundary.py` の `test_script_run_by_archon_finds_repository_lib`。Archon の `runtime: uv` の節の `deps:` の引き方（`lib/AGENTS.md` の E3）はこの決めに含まない（未決のまま）。
 - U6 今の works の包みが取っていた読んだ証拠と書き込みの記録を、Archon の役の節で取れるか（Archon の出来事の記録か、節の hooks か）。取れなければ埋めの行にする。
 - U7 ASF の lifecycle を段 2 で使う時、必須の入力 `scenario`（動かして確かめる筋書き）に何を渡すか。
 - U8 組ごとに別の作業ツリーを持てるか。推しは `workflow:` と `fan_out:` の子の run（子ごとに自分の run）。子が自分の作業ツリーを持つか、それが親の今の commit から切られるか、子の差分を親に決めた順で戻せるかを確かめる。2026-10-06 の判断「fan_out は子ごとに作業ツリーを決められない」は節の `fan_out:` だけを見ていたかもしれない。足りなければ埋めの名簿に行を足す。

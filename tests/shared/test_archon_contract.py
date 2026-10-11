@@ -4,7 +4,7 @@
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
 
 - ASF の消費者 factory/consumer.py は木に在るので常に照らす。
-- 止めた Archon の源は、tests/archon.py の決まりで見つかる時だけ照らす（壊れていれば赤、無ければ名前つきで見送る）。
+- 止めた Archon の源は、tests/archon.py の決まりで見つかる時だけ照らす（壊れていれば赤）。
 """
 import os
 import pathlib
@@ -222,7 +222,7 @@ class PinnedSourceTest(unittest.TestCase):
         self.assertEqual(pinned_source(str(self.cache), commit), source)
 
     def test_looks_where_archon_source_keeps_it(self):
-        """置き場の形の持ち主は archon_source。形が動けば、pinned_source が黙って見送る前にここで赤になる"""
+        """置き場の形の持ち主は place.archon_folder。形が動けば、pinned_source が黙って見送る前にここで赤になる"""
         source, commit = self.held()
 
         def unreachable(*_):
