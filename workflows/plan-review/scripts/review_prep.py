@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """事前審査の支度（boardview.review_material）: 材料のファイル pass-<k>/prompt.md と役を起こす前の作業ツリーの姿を置く"""
 import os
 import sys

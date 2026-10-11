@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """事前審査の受け付け（boardview.take_review）。拒みは控えに積み、3 回目で done・give_up"""
 import os
 import sys
