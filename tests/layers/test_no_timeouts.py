@@ -48,6 +48,14 @@ class NoTimeoutsTest(unittest.TestCase):
         got = self.problems("  - id: retry\n    loop: {prompt: judge, until: DONE, max_iterations: 3}\n")
         self.assertTrue(any(BLOCK in line and "idle_timeout" in line for line in got), got)
 
+    def test_nested_node_with_short_timeout_is_red(self):
+        nodes = (
+            "  - id: g\n    loop_group:\n      nodes:\n"
+            "        - id: run\n          script: stub\n          timeout: 10\n"
+        )
+        got = self.problems(nodes)
+        self.assertTrue(any(f"{BLOCK}:8" in line and "timeout" in line for line in got), got)
+
     def test_schema_field_named_timeout_is_clean(self):
         nodes = (
             "  - id: result\n    script: stub\n    timeout: 1728000000\n"
