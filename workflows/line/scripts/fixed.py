@@ -1,4 +1,4 @@
-"""1 回目の修正（fix）と 2 度目の修正（refix）の返りを合わせて後の段へ渡す返しの節 fixed（埋め P2）。
+"""1 回目の修正（fix）と 2 度目の修正（refix）の返りを合わせて後の段へ渡す節 fixed。
 
 done・diff・changed・delta_review は refix が走ればその物（diff はどちらも run の始めからの累積）。units は unit_id ごとに後の物、
 groups・allowed_test_changes は和。申し出 conflicts は走った方の指し札を全部並べた配列にし、1 回目の申し出と許したテストの変更が

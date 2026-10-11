@@ -82,7 +82,7 @@ ASF の版を進めた時は、各節の行を新しい版で読み直し、変�
 
 - ASF: d97d00ef の `W/ship/archon-ship.yaml`:58-59（`returns: outcome` / `outcome_field: delivered`）と 139-148（`trigger_rule: none_failed_min_one_success`、`delivered: { from: "$deliver.output.pr_url", if_skipped: null }`）。
 - なぜその形か: 子を飛ばす正しい道（止め・直す物が無い）でも、工程の返りは 1 つの型で人と呼び手に届く。飛ばされた子は null で受け、落ちた子は受けない（落ちた節の名が run の記録に残る）。
-- 採った先: 線（`workflows/line/works-factory-line.yaml`）の返す節 `result` と、返しの節 `answer-*`・`plan-out`・`judged`・`fixed`・`collect`（埋め P2）。
+- 採った先: 線（`workflows/line/works-factory-line.yaml`）の返す節 `result` と、返しの節 `answer-*`・`collect`（埋め P2）と、`judged`・`fixed`（飛ばされうる再審・2 度目の修正の返りを `if_skipped: null` で受けて合わせる）。
 - 違い: 線の報告はどの道でも出すので、集める節 `collect`・`report`・`result` は `trigger_rule: all_done`（前の段が落ちても走る）。include の `with:` に束ねが書けないので、ブロックへ渡す前に線の `script:` の節で受け直す（ship は返す節だけで受ける）。
 
 ### A10 人の関所は決めの語（decisions）と when: で道を分ける
