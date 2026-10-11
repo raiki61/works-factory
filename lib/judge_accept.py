@@ -1050,6 +1050,1724 @@ def merge_on(jdir, repo) -> dict:
 
 # ================================================================ 材料・前提・目的・素材（B）
 # （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
+# 持ち主 B の部品。元: works/blk-judge/lib/judgebrief.py・works/.shared/core/entryshape.py:134-200・premises.py・purpose.py・
+# works/blk-material/lib/material.py・works/blk-premises/scripts/accept.py・works/blk-purpose/scripts/intake.py と、
+# 写しの rules（works/.shared/core/graphloops/rules/review-loop.py）の素材の要否・受け付け・素材の埋め（版 2aa7c66）。
+# 盤面（b）を読んでいた所は、置き場 jdir のファイル・始めの記録の見方（start_view）・対象の根 repo を引数で受ける形に替えた。
+import copy as _copy  # noqa: E402
+import re as _re  # noqa: E402
+import shutil as _shutil  # noqa: E402
+import tempfile as _tempfile  # noqa: E402
+
+import accept as _accept  # noqa: E402
+import carry  # noqa: E402
+import cite  # noqa: E402
+import diverted  # noqa: E402
+import gatemarks  # noqa: E402
+import premises as _premises  # noqa: E402
+import promptsection  # noqa: E402
+import purpose as _purpose  # noqa: E402
+import rolekit  # noqa: E402
+import worldmark  # noqa: E402
+from engine.render import Renderer  # noqa: E402
+from engine.schema import validate_schema  # noqa: E402
+from engine.util import READ_CAP, _grep as grep, git, hook_evidence, read_capped, repo_root, sum_counts  # noqa: E402
+
+PREMISES_ROLE = "premises"          # 拒否の控え rejects-premises.json の名
+PURPOSE_ROLE = "purpose"            # 拒否の控え rejects-purpose.json の名
+PURPOSE_BRIEF_FILE = "purpose-brief.md"
+DIAGNOSE_BRIEF_FILE = "diagnose-brief.md"
+DIFF_FILE = "diff.patch"
+CHANGED_FILE = "changed-files.txt"
+MATERIAL_VIEW_FILE = "material-view.json"     # 素材の役が読む版と差分（material_route が 1 度置く）
+MATERIAL_ROUTE_FILE = "material-route.json"   # 素材ごとの要否と回さない素材の埋め（material_route）
+MATERIALS_FILE = "materials.json"             # 公開の隣のファイル（素材の名 → {status, …}）
+DECL_NAME = ".review-checks.json"             # 元 engine/declared.py の DECL_NAME（対象リポジトリの宣言の名）
+
+
+# ---------------------------------------------------------------- 依頼と PR の題と本文（元 works/.shared/core/entryshape.py:134-200）
+REQUEST_HEAD = promptsection.Section("## 依頼", source="fn:entryshape.request_text")
+PR_TEXT_HEAD = promptsection.Section("## PR #{number} の題と本文", source="fn:entryshape.request_text")
+PR_TITLE = promptsection.Section("# PR #{number}", source="fn:entryshape.write_pr_file")
+PR_SUBJECT_HEAD = promptsection.Section("## 題", source="fn:entryshape.write_pr_file")
+PR_BODY_HEAD = promptsection.Section("## 本文", source="fn:entryshape.write_pr_file")
+
+
+def request_text(inp: dict) -> str:
+    """元 works/.shared/core/entryshape.py:141。依頼の文: 依頼のファイルの文と PR の題・本文の在る物を並べる: 両方なら見出し
+    「## 依頼」「## PR #N の題と本文」つき、片方だけならその文のまま、どちらも無ければ差分の審査の 1 行"""
+    pr = inp.get("pr")
+    pr_text = "\n\n".join(x for x in (pr["title"], pr["body"]) if x) if pr else ""
+    req = inp["request_text"]
+    if req and pr_text:
+        return f"{REQUEST_HEAD}\n\n{req.strip()}\n\n{PR_TEXT_HEAD.format(number=pr['number'])}\n\n{pr_text}\n"
+    if req or pr_text:
+        return req or pr_text
+    base = inp.get("base") or {"label": "HEAD"}
+    return f"変更（{base.get('label', 'HEAD')}）の審査"
+
+
+def pr_file_text(pr) -> str:
+    """元 works/.shared/core/entryshape.py:186 の write_pr_file が書いた本文（PR の番号・題・本文）。PR の無い run は ""。
+    盤面の根の PR_FILE に置いていた所を、文を返す形にした（置くのは呼び手）"""
+    if not pr:
+        return ""
+    return (f"{PR_TITLE.format(number=pr.get('number'))}\n\n{PR_SUBJECT_HEAD}\n\n{pr.get('title') or '（空）'}\n\n"
+            f"{PR_BODY_HEAD}\n\n{pr.get('body') or '（空）'}\n")
+
+
+def _pr_of(start: dict):
+    """始めの記録の input.pr を {number, title, body} の形で（無い・形が違えば None）"""
+    pr = start.get("pr")
+    return pr if isinstance(pr, dict) and "number" in pr else None
+
+
+def _request_doc(repo, start: dict):
+    """始めの記録の依頼のファイル（対象の根からの相対か絶対）の (文, JSON)。無い・読めなければ ("", None)"""
+    rel = start.get("request_file") or ""
+    if not rel:
+        return "", None
+    p = pathlib.Path(rel) if pathlib.Path(rel).is_absolute() else pathlib.Path(repo) / rel
+    try:
+        text = p.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return "", None
+    try:
+        return text, json.loads(text)
+    except ValueError:
+        return text, None
+
+
+# ---------------------------------------------------------------- 作業ツリーの見張り（読むだけの役の受け付け）
+def _judge_tree(jdir):
+    """入口の時の作業ツリーの姿（F の intake が置く judge-tree.json）。無ければ None、形が違えば Reject"""
+    snap = read_json(pathlib.Path(jdir) / TREE_FILE)
+    if snap is None:
+        return None
+    _accept.type_errors(snap, _accept.TREE_SCHEMA, f"置き場の {TREE_FILE} ")
+    return {k: snap[k] for k in _accept.TREE_KEYS}
+
+
+def _bytecode_in(snap: dict) -> bool:
+    return any(_accept._is_bytecode(_accept._porcelain_path(ln)) for ln in snap["porcelain"].splitlines()) \
+        or any(_accept._is_bytecode(n) for n in snap["ignored"])
+
+
+def _tree_unchanged(jdir, repo, rule: str, *, bytecode: bool = True, rev: str = "") -> None:
+    """元 works/.shared/core/premises.py:44 と purpose.py:57 の _tree_unchanged。役が作業ツリーと履歴を変えていないか。
+    置き場に入口の時の姿（judge-tree.json）が在れば今と比べ（accept.tree_moved。HEAD・枝・git が無視するパスも見る）、
+    無ければ作業ツリーが綺麗で、rev を渡せば HEAD が rev のままであることを求める。違えば Reject。
+    bytecode=False（前提の実測役）はバイトコードを数えない。ただし入口の姿がバイトコードを含む時は含めて比べる
+    （入口の姿は bytecode=True で取られるので、外した姿と比べると変わっていなくても違って見える）"""
+    snap = _judge_tree(jdir)
+    if snap is None:
+        now = _accept.tree_state(repo, bytecode=bytecode)
+        dirty = now["porcelain"].splitlines() + [f"!! {n}" for n in now["ignored"]]
+        if dirty:
+            raise Reject(f"作業ツリーに変更が在る——{rule}"
+                         f"（git status --porcelain --ignored: {dirty[:5]}{' ほか' if len(dirty) > 5 else ''}）")
+        if rev and now["head"] != rev:
+            raise Reject(f"HEAD が数える版から動いた（版 {rev[:12]} / 今 {now['head'][:12]}）——{rule}。commit・reset・checkout で"
+                         "履歴を動かしてはいけない")
+        return
+    moved = _accept.tree_moved(snap, repo, bytecode=bytecode or _bytecode_in(snap))
+    if moved:
+        raise Reject(f"入口の後から作業ツリーが変わった——{rule}（HEAD・枝・git が無視するファイルも）。作った物"
+                     "（出力のファイル・キャッシュ）は rm で消し、書き換えた追跡中のファイルは git restore -- <path> で戻してから"
+                     f"出し直せ（出力は $TMPDIR に置く）（{'・'.join(moved)}）")
+
+
+# ---------------------------------------------------------------- 前提の実測
+def check_claims(reply: dict, items: list) -> list:
+    """元 works/blk-premises/scripts/accept.py:24。依頼の実測（measured を持つ行）のうち、where を text にそのまま含む制約が返答に
+    無い物の where の一覧（空なら通る）。測り直せずに kind 仮説へ落とした制約も、where を text に含めば通る"""
+    cs = reply.get("constraints") if isinstance(reply, dict) else None
+    texts = [c["text"] for c in cs if isinstance(c, dict) and isinstance(c.get("text"), str)] if isinstance(cs, list) else []
+    return [c["where"] for c in _premises.claims(items) if not any(c["where"] in t for t in texts)]
+
+
+def measured_needs_output(nid, out):
+    """元 works/.shared/core/graphloops/rules/review-loop.py:3010。kind=実測 の制約は、実行したコマンドと出力（measured_output）を持て。
+
+    『実測』の札だけが検算なしで信頼値に昇格し、誤った事実がゼロベースで疑う役に所与として渡る
+    （実測 2026-09-12: 『CI の定義はリポジトリに無い』が実測として凍結され、R2 の独立設計がそれを前提に書いた。
+    .github/workflows/test.yml は実在する）。再現の形を持たないものは仮説へ落とさせる。
+    """
+    bad = [c["text"][:60] for c in out.get("constraints", []) if c.get("kind") == "実測" and not (c.get("measured_output") or "").strip()]
+    if bad:
+        raise Reject(f"{nid}: kind=実測 なのに measured_output（実行したコマンドと出力）が無い制約がある: {bad}"
+                     "——コマンドと出力を示せないものは kind=仮説 に落とせ")
+
+
+PREMISES_RULE = "実測役は作業ツリーを変えてはいけない"   # 元 premises.py:41 の RULE
+
+
+def check_premises(reply: dict, jdir, repo, items: list) -> dict:
+    """元 works/.shared/core/premises.py:125（と blk-premises/scripts/accept.py:32 の accept_premises）。実測役の返答を受け付ける:
+    依頼の実測を測り直したか（check_claims）→ 作業ツリーか HEAD が変わっていれば拒む（_tree_unchanged。バイトコードは数えない）→
+    post_check（measured_needs_output）。型は役の節の output_format が照らす。通れば置き場の premises.json に返答を書く。
+    items は依頼の行（judge/request.json）。{ok, reason}"""
+    def run():
+        if not isinstance(reply, dict) or not isinstance(reply.get("constraints"), list):
+            raise Reject("前提の実測の返答の型が合わない: constraints の配列が要る")
+        missing = check_claims(reply, items)
+        if missing:
+            raise Reject(f"依頼の実測を測り直した制約が無い: {'・'.join(missing)}。text に where をそのまま入れよ"
+                         "（この作業ツリーで測り直せなければ kind: 仮説 に落とし、text に where と測れない理由を書く）")
+        repo_p = pathlib.Path(repo)
+        with _accept.in_repo(repo_p):
+            rev = _accept.resolve_rev(repo_p, "")
+            # 実測役は測るために Bash を持つが、作業ツリーは変えない約束（後ろの判定はこの後の作業ツリーを写し、
+            # 修正の差分は版からの差分で数える——ここで残った物は修正役の差分に混じる）
+            _tree_unchanged(jdir, repo_p, PREMISES_RULE, bytecode=False, rev=rev)
+            measured_needs_output(_purpose.PREMISES_NODE, _copy.deepcopy(reply))
+        write_json(pathlib.Path(jdir) / _premises.PREMISES_FILE, reply)
+        return {"ok": True, "reason": ""}
+    return _accept.guard(run)
+
+
+# ---------------------------------------------------------------- 目的
+PURPOSE_RULE = "目的の役は読むだけの役で、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない"
+PURPOSE_FIELDS = ("purpose_text", "source", "known_weaknesses", "source_files")
+PURPOSE_SOURCES = ("①PR 説明", "②計画・タスク記述", "③writer の要約", "目的不明")
+PURPOSE_MISSING = ("（目的の文はこの run に無い——目的の節 p0.purpose がこのラインに無く、目的のファイルも渡されていない。"
+                   "目的を推し量って補うな）")   # 元 works/blk-material/lib/material.py:176
+
+
+def refuse_if_frozen(jdir):
+    """元 works/.shared/core/purpose.py:42。置き場に目的の文が既に在れば Reject。graph の p0.purpose は once——最初の修正の前に
+    1 度だけ固め、以降変えない（事前登録。後から書き直せると、実装に合わせて目的を狭める道が開く）"""
+    p = pathlib.Path(jdir) / _purpose.PURPOSE_FILE
+    if p.exists():
+        raise Reject(f"置き場に目的の文 {_purpose.PURPOSE_FILE} が既に在る（{p}）——目的は最初の修正の前に 1 度だけ固め、"
+                     "以降は変えない（graph の p0.purpose の once）")
+
+
+def check_purpose(reply: dict, jdir, repo) -> dict:
+    """元 works/.shared/core/purpose.py:102。目的の役の返答を受け付ける。凍結（once）→ 作業ツリー（役は読むだけ。judge-tree.json と
+    比べる）→ 足し欄 means を外す（worldmark.split_means）→ source_files（_source_files_errors）。型は役の節の output_format が
+    照らす（写しの graph の p0.purpose は post_check を持たない）。通れば置き場の purpose.json に書き、外した依頼の解き方を
+    purpose-means.json に置く。{ok, reason}"""
+    def run():
+        repo_p = pathlib.Path(repo)
+        if not isinstance(reply, dict) or any(k not in reply for k in PURPOSE_FIELDS):
+            raise Reject(f"目的の返答の型が合わない: {'・'.join(PURPOSE_FIELDS)} が要る")
+        if reply["source"] not in PURPOSE_SOURCES or not str(reply["purpose_text"]).strip():
+            raise Reject(f"目的の返答の型が合わない: source は {'・'.join(PURPOSE_SOURCES)} のどれか、purpose_text は空でない文")
+        with _accept.in_repo(repo_p):
+            refuse_if_frozen(jdir)
+            _tree_unchanged(jdir, repo_p, PURPOSE_RULE)
+            out, means = worldmark.split_means(reply)   # 写しの型の外の欄を外した写し
+            bad = _purpose._source_files_errors(out["source_files"], repo_p)
+            if bad:
+                raise Reject(f"source_files に作業ツリーの根からの相対の正規形で版に在るファイルでない物が在る: {bad}"
+                             "——出典にしたリポジトリの中のファイルを、作業ツリーの根からの相対（サブディレクトリで回していても根から・"
+                             "`./` や末尾の `/`・重ねた `/`・`.` や `..` の段・symlink 経由なし・大小文字もリポジトリのまま）で書け"
+                             "（依頼のファイルなどリポジトリの外の物・git が無視するファイルは書かない）")
+        write_json(pathlib.Path(jdir) / _purpose.PURPOSE_FILE, out)
+        worldmark.write_means(jdir, means)
+        if not means:
+            write_json(pathlib.Path(jdir) / "purpose-means.json", {"means": []})
+        return {"ok": True, "reason": ""}
+    return _accept.guard(run)
+
+
+def purpose_prep(jdir, repo, start: dict) -> dict:
+    """元 works/blk-purpose/scripts/intake.py の書き直し。目的の役の材料を置く: 依頼から前の run の判断（prior_failures）を外した
+    写しを purpose-request.json に（carry.without_prior。目的の文は前の run の判断を知らない別の目の入力になるので、指示書の頼みで
+    なく機械で外す）、それと PR の説明・前提の実測（premises.json）を purpose-brief.md に。前の run の判定・前の失敗の行は書かない。
+    凍った目的が在れば go 偽。{go, brief_file, reason}"""
+    j = pathlib.Path(jdir)
+    try:
+        refuse_if_frozen(j)
+    except Reject as e:
+        return {"go": False, "brief_file": "", "reason": str(e)}
+    text, doc = _request_doc(repo, start)
+    if doc is None:   # 依頼のファイルが無い・JSON でない run は、入口が型を確かめた依頼の行を写す
+        doc = read_json(j / REQUEST_FILE, []) or []
+    bare = carry.without_prior(doc)
+    copy_ = bare if bare is not None else doc
+    req_path = write_json(j / _purpose.REQUEST_COPY, copy_)
+    cons = (read_json(j / _premises.PREMISES_FILE, {}) or {}).get("constraints") or []
+    pr = _pr_of(start)
+    parts = ["# 目的の役の材料（機械が組んだ物。前の run の判断は外してある）",
+             f"## 依頼（{req_path}）\n\n```json\n{json.dumps(copy_, ensure_ascii=False, indent=1)}\n```",
+             "## PR の説明\n\n" + (pr_file_text(pr) if pr else "（PR の無い run）"),
+             "## 前提の実測（premises.json の constraints）\n\n"
+             + (f"```json\n{json.dumps(cons, ensure_ascii=False, indent=1)}\n```" if cons else "（前提の実測は無い）")]
+    p = j / PURPOSE_BRIEF_FILE
+    p.write_text("\n\n".join(parts) + "\n", encoding="utf-8")
+    return {"go": True, "brief_file": str(p), "reason": ""}
+
+
+# ---------------------------------------------------------------- 素材の要否（元 rules の節の条件。見方 v(鍵, 既定) を受ける）
+def cond_reads(*paths):
+    """元 works/.shared/core/graphloops/engine/rules.py:17。条件の関数が読む欄の宣言"""
+    def deco(fn):
+        fn.reads = tuple(paths)
+        return fn
+    return deco
+
+
+# 元 rules:97
+ENTRY_SCHEMA = {"type": "object", "required": ["origin"], "additionalProperties": False,
+                "properties": {"origin": {"type": "string", "minLength": 1}}}
+ENTRY_BUILTIN = "request_entry"
+# 元 rules:689
+GATES_MERGE = "merge"
+GATES_MERGE_WHY = "変異の検算は合流した版でまとめて 1 回撃つ（init --input gates=merge）"
+# 元 rules:367
+PROCEDURE_PATTERNS = (r"README", r"\.md$", r"\.sh$", r"^scripts/", r"^\.github/workflows/", r"Makefile", r"Dockerfile",
+                      r"\.ya?ml$", r"^commands/", r"^hooks/")
+_NO_DEFAULT = object()
+
+
+class DueView:
+    """元 graphloops の engine が条件の関数に渡した見方（CondView）の値を、1 run = 1 周の値で組んだ物（due_view が作る）。
+    v(鍵, 既定) で読み、無い鍵は既定（無ければ None）。unevaluable は測れなかった条件の痕跡を notes に残す"""
+
+    def __init__(self, values: dict):
+        self.values = values
+        self.notes = []
+
+    def __call__(self, key, default=_NO_DEFAULT):
+        fallback = None if default is _NO_DEFAULT else default
+        if key in self.values:
+            got = self.values[key]
+            return fallback if got is None and default is not _NO_DEFAULT else got
+        for cut in range(key.count("."), 0, -1):   # 入れ子の値（out.p0.purpose.source は out.p0.purpose の dict の source）
+            parts = key.split(".")
+            stem, tail = ".".join(parts[:cut]), parts[cut:]
+            if stem in self.values and isinstance(self.values[stem], dict):
+                cur = self.values[stem]
+                for t in tail:
+                    if not isinstance(cur, dict) or t not in cur:
+                        return fallback
+                    cur = cur[t]
+                return cur
+        return fallback
+
+    def unevaluable(self, name, why):
+        self.notes.append(f"{name}: {why}")
+
+
+def due_view(start: dict, purpose, changed_files: list) -> DueView:
+    """素材の要否の条件が読む見方（計画の「lib/ に持ってくる部品」の due_view）。1 run は 1 周（持ち主の決め carry）:
+    round 1・prev.* は全部 None・loop.escalated は偽・入口の印 record.process.request_entry は始めの記録の input.diff.empty が真で
+    input.requests が 1 以上の時だけ（今の works の入口と同じ。差分の空の run で印が立つ）・loop.request_fixed_at は None・
+    out.p0.base.touches_* は全部真（元 works/.shared/core/board.py:550 の base_output と同じ。機械は差分の柵を決められないので
+    役を起こす側に倒す）・loop.changed_files は対象差分の変更ファイル・loop.gates は始めの記録の gates・out.p0.purpose は
+    purpose.json・loop.last_material.* は None"""
+    inp = start.get("input") if isinstance(start.get("input"), dict) else {}
+    diff = inp.get("diff") if isinstance(inp.get("diff"), dict) else {}
+    reqs = inp.get("requests")
+    entry = None
+    if diff.get("empty") is True and isinstance(reqs, int) and not isinstance(reqs, bool) and reqs >= 1:
+        entry = {"origin": f"人の依頼（{start.get('request_file') or '依頼の行'}）"}
+    return DueView({
+        "round": 1,
+        "loop.escalated": False,
+        "record.process.request_entry": entry,
+        "loop.request_fixed_at": None,
+        "out.p0.base.touches_gates": True,
+        "out.p0.base.touches_external_seams": True,
+        "out.p0.base.touches_user_path": True,
+        "out.p0.base.touches_security_surface": True,
+        "loop.changed_files": list(changed_files or []),
+        "loop.gates": start.get("gates") or "",
+        "out.p0.purpose": purpose if isinstance(purpose, dict) else None,
+        "loop.prev_fix_files": None,
+        "record.process.purpose_review": None,
+        "record.process.fixes": [],
+    })
+
+
+def _entry_marked(v):
+    """元 rules:167。入口の印（process.request_entry）が型どおりに在るか"""
+    return not validate_schema(v("record.process.request_entry", None), ENTRY_SCHEMA)
+
+
+@cond_reads("record.process.request_entry", "loop.request_fixed_at")
+def request_entry(v):
+    """元 rules:178。判定から入る run の周か。入口の印が型どおりに在り、前の周までの P3 がまだ 1 ファイルも触っていない間だけ真"""
+    if not _entry_marked(v):
+        return False, "入口の印（process.request_entry）が無い——通常の run"
+    at = v("loop.request_fixed_at", None)
+    if at:
+        return False, f"入口の印は在るが、{at} 周目の P3 が修正を入れた——入口の周は終わった"
+    return True, "判定から入る run の周（入口の印が在り、修正がまだ 1 ファイルも入っていない）"
+
+
+@cond_reads("record.process.request_entry", "loop.request_fixed_at", "round")
+def entry_first_fix(v):
+    """元 rules:194。判定から入る run で、最初に修正が入った次の周か"""
+    if not _entry_marked(v):
+        return False, "入口の印（process.request_entry）が無い——通常の run"
+    at, rnd = v("loop.request_fixed_at", None), v("round")
+    return at == rnd - 1, f"判定から入る run で、最初に修正が入った周は {at}（今は {rnd} 周目）"
+
+
+@cond_reads("loop.changed_files")
+def touches_procedures(v):
+    """元 rules:372"""
+    files = v("loop.changed_files", [])
+    hit = sorted({f for f in files for p in PROCEDURE_PATTERNS if _re.search(p, f)})
+    return bool(hit), (f"差分に手順書・スクリプト・CI 定義が {len(hit)} 件" if hit else "差分に手順書・スクリプト・CI 定義が無い")
+
+
+@cond_reads("loop.prev_fix_files")
+def prev_fix_touched(v):
+    """元 rules:379。前の周の P3 が 1 ファイルでも触ったか（1 run = 1 周なので、いつも 0 件）"""
+    n = len(v("loop.prev_fix_files", None) or [])
+    return bool(n), f"前の周の P3 が触ったファイルは {n} 件"
+
+
+def _findings_vetted(rows):
+    """元 rules:391。目的監査の findings が裏取りの柵を通った形か（cite を持つか）。空は偽"""
+    return all(isinstance(r, dict) and r.get("cite") for r in rows) if rows else False
+
+
+@cond_reads("record.process.purpose_review")
+def purpose_review_unvetted(v):
+    """元 rules:413。記録の目的監査が、裏取りの柵より前の形で凍っているか"""
+    pr = v("record.process.purpose_review", None) or {}
+    if not pr.get("verdict"):
+        return False, "目的監査はまだ一度も走っていない"
+    rows = pr.get("findings") or []
+    if not rows:
+        return False, "目的監査の指摘が 0 件（根拠を連れて来る物が無い）"
+    if _findings_vetted(rows):
+        return False, "目的監査の指摘は裏取りの柵を通った形"
+    return True, "目的監査の指摘が裏取りの柵より前の形で凍っている"
+
+
+@cond_reads("out.p0.purpose", "loop.prev_fix_files")
+def purpose_sources_changed(v):
+    """元 rules:439。目的テキストの出典文書を、前の周の P3 が触ったか"""
+    out = v("out.p0.purpose", None) or {}
+    if "source_files" not in out:
+        why = "p0.purpose の出力に source_files が無い（once で凍った周の schema には無かった欄）"
+        v.unevaluable("purpose_sources_changed", why)
+        return False, why
+    srcs = out.get("source_files") or []
+    if not srcs:
+        return False, "目的テキストが出典ファイルを持たない"
+    hit = sorted(set(v("loop.prev_fix_files", None) or []) & set(srcs))
+    return bool(hit), (f"前の周の P3 が目的の出典 {hit} を触った" if hit else "前の周の P3 は目的の出典を触っていない")
+
+
+@cond_reads("loop.gates")
+def gates_merge(v):
+    """元 rules:771。変異の検算を合流でまとめる run か"""
+    got = v("loop.gates", None)
+    return got == GATES_MERGE, (GATES_MERGE_WHY if got == GATES_MERGE else "変異の検算をこの run で撃つ（init --input gates=merge が無い）")
+
+
+def _first(v):
+    """元 rules:1028"""
+    return v("round") == 1
+
+
+def _eq_true(x):
+    """元 rules:1032。1 も真として数え、真理値として真になるだけの値（空でない文字列など）は数えない"""
+    return x == True  # noqa: E712
+
+
+def _fix_says(v, field):
+    """元 rules:1042"""
+    return _eq_true(v(f"prev.p3.fix.{field}", False))
+
+
+def _escalated(v):
+    """元 rules:1046"""
+    return bool(v("loop.escalated", None))
+
+
+def _because(ok, when, facts):
+    """元 rules:1050。理由の文: 条件の名乗り（when）と、評価に使った事実"""
+    return ok, f"{when}——{'成り立つ' if ok else '成り立たない'}（{facts}）"
+
+
+def _touched(field, fix_field, what):
+    """元 rules:1055。差分が〜に触れるか: 差分の形の申告（p0.base の field）か、前の周の修正の申告（p3.fix の fix_field）"""
+    @cond_reads(f"out.p0.base.{field}", f"prev.p3.fix.{fix_field}")
+    def fn(v):
+        ok = _eq_true(v(f"out.p0.base.{field}")) or _fix_says(v, fix_field)
+        return ok, f"差分が{what}に触れる" if ok else f"差分も前の周の修正も{what}に触れない（p0.base.{field}・p3.fix.{fix_field}）"
+    fn.__name__ = f"{field.removeprefix('touches_')}_touched"
+    return fn
+
+
+gates_touched = _touched("touches_gates", "gates_changed", "検証ゲート")
+seams_touched = _touched("touches_external_seams", "seams_changed", "外部との継ぎ目")
+user_path_touched = _touched("touches_user_path", "path_changed", "利用者から見える経路")
+_security_declared = _touched("touches_security_surface", "security_surface_changed", "認証・データの取り扱い・外部との入出力")
+
+
+@cond_reads(*dict.fromkeys((*_security_declared.reads, *seams_touched.reads, "record.process.fixes")))
+def security_surface_touched(v):
+    """元 rules:1072。認証・データの取り扱い・外部との入出力に触れるか（局所レビューの条件付きレンズ /security-review の条件）"""
+    if v("out.p0.base.touches_security_surface", None) is None:
+        v.unevaluable("security_surface_touched", "p0.base に touches_security_surface の欄が無い盤面——当てる側に倒した")
+        return True, "p0.base に touches_security_surface の欄が無い盤面なので、当てる側に倒した（申告されていない）"
+    for part in (_security_declared, seams_touched):
+        ok, why = part(v)
+        if ok:
+            return True, why
+    past = [f.get("round") for f in v("record.process.fixes", []) or []
+            if isinstance(f, dict) and (f.get("security_surface_changed") is True or f.get("seams_changed") is True)]
+    if past:
+        return True, f"前の周（{past}）の修正が認証・データの取り扱い・外部との入出力か継ぎ目に触れた（累積の差分に残る）"
+    return False, ("差分も前のどの周の修正も認証・データの取り扱い・外部との入出力・継ぎ目に触れない"
+                   "（p0.base.touches_security_surface・touches_external_seams・process.fixes）")
+
+
+_TOUCH = ("round", *prev_fix_touched.reads)   # 深さの節が共通して読む欄
+
+
+@cond_reads(*request_entry.reads)
+def not_request_entry(v):
+    """元 rules:1094。判定から入る run の周でない（修正が入るまで P1 の役を起こさない）"""
+    entry, why = request_entry(v)
+    return (not entry), (f"{why}のため、P1 の役を起こさない" if entry else why)
+
+
+@cond_reads(*request_entry.reads, *_TOUCH, "prev.p3.fix.mechanism_changed")
+def external_standards_due(v):
+    """元 rules:1101。判定から入る run の周でなく、初回か、機構を足した／変えた周か、前の周の P3 が何かを直した周"""
+    entry, why = request_entry(v)
+    if entry:
+        return False, f"{why}のため、外部標準の照合を起こさない"
+    ok = _first(v) or _fix_says(v, "mechanism_changed") or prev_fix_touched(v)[0]
+    return _because(ok, "初回か、機構を足した／変えた周か、前の周の P3 が何かを直した周",
+                    f"round={v('round')}・{prev_fix_touched(v)[1]}")
+
+
+@cond_reads(*request_entry.reads, *_TOUCH)
+def provenance_due(v):
+    """元 rules:1112。判定から入る run の周でなく、初回か、前の周の P3 が何かを直した周"""
+    entry, why = request_entry(v)
+    if entry:
+        return False, f"{why}のため、出典の確かめを起こさない"
+    ok = _first(v) or prev_fix_touched(v)[0]
+    return _because(ok, "初回か、前の周の P3 が何かを直した周", f"round={v('round')}・{prev_fix_touched(v)[1]}")
+
+
+def _deep(v, touched, when, extra=None):
+    """元 rules:1121。P1 の深さの節の、入口を見た後の残り: (touched and (初回[ or extra が人待ち])) or 前の周の P3 が触った"""
+    t, twhy = touched(v)
+    ok = (t and (_first(v) or (extra is not None and v(extra, None) == "awaiting_human"))) or prev_fix_touched(v)[0]
+    return _because(ok, when, f"round={v('round')}・{twhy}・{prev_fix_touched(v)[1]}")
+
+
+def _deep_due(name, touched, when, noun, merge_off=False):
+    """元 rules:1129。P1 の深さの節（手順の追跡・ゲートの検算・代役の忠実さ）の条件の工場"""
+    extra = gates_merge.reads if merge_off else ()
+
+    @cond_reads(*dict.fromkeys((*extra, *request_entry.reads, *_TOUCH, *touched.reads, "loop.escalated")))
+    def fn(v):
+        if merge_off:
+            merged, mwhy = gates_merge(v)
+            if merged:
+                return False, mwhy
+        entry, why = request_entry(v)
+        if not entry:
+            ok, rwhy = _deep(v, touched, when)
+            return (True, f"{rwhy}・昇格した周") if not ok and _escalated(v) else (ok, rwhy)
+        if _escalated(v):
+            return True, f"判定から入る run の周だが、昇格した周なので{noun}を起こす"
+        return False, f"{why}のため、{noun}を起こさない"
+    fn.__name__ = fn.__qualname__ = name
+    fn.__doc__ = f"{when}。判定から入る run の周は外すが、昇格した周は入口より勝つ"
+    return fn
+
+
+procedure_trace_due = _deep_due("procedure_trace_due", touches_procedures,
+                                "差分に手順書・スクリプト・CI 定義があって初回の周、または前の周の P3 が何かを直した周", "手順の追跡")
+gate_efficacy_due = _deep_due("gate_efficacy_due", gates_touched,
+                              "差分がゲートを新設・変更していて初回の周、または前の周の P3 が何かを直した周", "ゲートの検算",
+                              merge_off=True)
+test_double_fidelity_due = _deep_due("test_double_fidelity_due", seams_touched,
+                                     "差分が外部との継ぎ目に触れていて初回の周、または前の周の P3 が何かを直した周", "代役の忠実さの確かめ")
+
+
+@cond_reads(*request_entry.reads, *_TOUCH, *user_path_touched.reads, "loop.last_material.main_path_observation.status")
+def main_path_observation_due(v):
+    """元 rules:1162。判定から入る run の周でなく、差分が利用者から見える経路を変え、初回か前の周に人待ちだった周、
+    または前の周の P3 が何かを直した周"""
+    entry, why = request_entry(v)
+    if entry:
+        return False, f"{why}のため、主経路の観察を起こさない"
+    return _deep(v, user_path_touched, "差分が利用者から見える経路を変え、初回か前の周に人待ちだった周、"
+                 "または前の周の P3 が何かを直した周", extra="loop.last_material.main_path_observation.status")
+
+
+@cond_reads("round", "prev.p3.fix.decision_records_changed", "loop.escalated", *prev_fix_touched.reads)
+def prior_decisions_due(v):
+    """元 rules:1173。初回か、前の周の P3 がリポジトリの外に決定記録を書き足した周、または前の周の P3 が何かを直した周（昇格した周も）"""
+    ok = _first(v) or _fix_says(v, "decision_records_changed") or prev_fix_touched(v)[0] or _escalated(v)
+    return _because(ok, "初回か、前の周の P3 がリポジトリの外に決定記録を書き足した周、または前の周の P3 が何かを直した周（昇格した周も）",
+                    f"round={v('round')}・{prev_fix_touched(v)[1]}")
+
+
+@cond_reads("out.p0.purpose.source", "round", *purpose_sources_changed.reads, *purpose_review_unvetted.reads)
+def purpose_review_due(v):
+    """元 rules:1183。目的テキストを writer が要約した（出典③）周"""
+    src = v("out.p0.purpose.source")
+    if src != "③writer の要約":
+        return False, f"目的テキストの出典が {src}——監査するのは writer が要約した目的（③）だけ"
+    if _first(v):
+        return True, "writer が要約した目的の 1 周目"
+    for f in (purpose_sources_changed, purpose_review_unvetted):
+        ok, why = f(v)
+        if ok:
+            return True, why
+    return False, "writer が要約した目的だが、1 周目でなく、出典も監査の形も変わっていない"
+
+
+@cond_reads("round", *entry_first_fix.reads)
+def parallel_pr_due(v):
+    """元 rules:1198。1 周目か、判定から入る run で最初に修正が入った次の周"""
+    if _first(v):
+        return True, "1 周目"
+    return entry_first_fix(v)
+
+
+# 元 rules:1273 の CONDS のうち、このブロックの素材の節が名指す物
+CONDS = {
+    ENTRY_BUILTIN: request_entry, "not_request_entry": not_request_entry,
+    "purpose_review_due": purpose_review_due, "prior_decisions_due": prior_decisions_due,
+    "external_standards_due": external_standards_due, "procedure_trace_due": procedure_trace_due,
+    "gate_efficacy_due": gate_efficacy_due, "test_double_fidelity_due": test_double_fidelity_due,
+    "main_path_observation_due": main_path_observation_due, "provenance_due": provenance_due,
+    "parallel_pr_due": parallel_pr_due, "gates_merge": gates_merge,
+    "touches_procedures": touches_procedures, "gates_touched": gates_touched, "seams_touched": seams_touched,
+    "user_path_touched": user_path_touched, "security_surface_touched": security_surface_touched,
+}
+
+
+# 元 works/.shared/core/graphloops/graphs/review-loop.json の素材の節（cond・applies_cond・na_reason・na_self_ok・materials・post_check・writes）
+MATERIAL_NODES = {'p0.prior_decisions': {'cond': 'prior_decisions_due',
+                        'na_self_ok': False,
+                        'materials': ['prior_decisions'],
+                        'writes': [{'op': 'set', 'to': 'materials.prior_decisions', 'from': 'material'},
+                                   {'op': 'set',
+                                    'to': 'process.prior_decisions',
+                                    'from': '$',
+                                    'pick': ['checked', 'searched', 'settled']}]},
+ 'p0.purpose_review': {'cond': 'purpose_review_due',
+                       'post_check': 'purpose_findings_cited',
+                       'writes': [{'op': 'set', 'to': 'process.purpose_review', 'from': '$'}]},
+ 'p1.local_review': {'cond': 'not_request_entry',
+                     'na_self_ok': False,
+                     'materials': ['local_review'],
+                     'post_check': 'local_review_covers_lenses',
+                     'writes': [{'op': 'set', 'to': 'materials.local_review', 'from': 'material'},
+                                {'op': 'set', 'to': 'process.local_findings', 'from': 'findings'}]},
+ 'p1.consistency_bypass': {'cond': 'not_request_entry',
+                           'na_self_ok': False,
+                           'materials': ['consistency', 'bypass'],
+                           'writes': [{'op': 'set', 'to': 'materials.consistency', 'from': 'consistency'},
+                                      {'op': 'set', 'to': 'materials.bypass', 'from': 'bypass'},
+                                      {'op': 'set', 'to': 'process.consistency_findings', 'from': 'findings'},
+                                      {'op': 'set', 'to': 'process.bypass_findings', 'from': 'bypass_findings'}]},
+ 'p1.hygiene': {'cond': 'not_request_entry',
+                'na_self_ok': False,
+                'materials': ['hygiene'],
+                'writes': [{'op': 'material_from_findings', 'to': 'hygiene', 'from': '$'}]},
+ 'p1.external_standards': {'cond': 'external_standards_due',
+                           'na_self_ok': False,
+                           'materials': ['external_standards'],
+                           'post_check': 'external_rankings',
+                           'writes': [{'op': 'set', 'to': 'materials.external_standards', 'from': 'material'},
+                                      {'op': 'set', 'to': 'process.external_findings', 'from': 'findings'},
+                                      {'op': 'set', 'to': 'process.external_rankings', 'from': 'rankings'}]},
+ 'p1.procedure_trace': {'cond': 'procedure_trace_due',
+                        'applies_cond': 'touches_procedures',
+                        'na_reason': '対象差分に手順書・スクリプト・CI 定義の変更が無い',
+                        'materials': ['procedure_trace'],
+                        'writes': [{'op': 'set', 'to': 'materials.procedure_trace', 'from': 'material'},
+                                   {'op': 'set', 'to': 'process.procedure_findings', 'from': 'findings'}]},
+ 'p1.gate_efficacy': {'cond': 'gate_efficacy_due',
+                      'applies_cond': 'gates_touched',
+                      'na_reason': '対象差分は検証ゲート（CI ジョブ・assert・テスト・pre-commit）を新設・変更していない',
+                      'materials': ['gate_efficacy'],
+                      'post_check': 'gate_arms_all_red',
+                      'writes': [{'op': 'set', 'to': 'materials.gate_efficacy', 'from': 'material'},
+                                 {'op': 'set', 'to': 'process.gate_arms', 'from': 'arms'}]},
+ 'p1.test_double_fidelity': {'cond': 'test_double_fidelity_due',
+                             'applies_cond': 'seams_touched',
+                             'na_reason': '対象差分は外部との継ぎ目（別プロセス・別サービス・ブラウザ・外部 API・プロトコル）に触れていない',
+                             'materials': ['test_double_fidelity'],
+                             'writes': [{'op': 'set', 'to': 'materials.test_double_fidelity', 'from': 'material'}]},
+ 'p1.main_path_observation': {'cond': 'main_path_observation_due',
+                              'applies_cond': 'user_path_touched',
+                              'na_reason': '対象差分は利用者から見える経路・外部との継ぎ目を変えていない',
+                              'materials': ['main_path_observation'],
+                              'post_check': 'main_path_observed',
+                              'writes': [{'op': 'set', 'to': 'materials.main_path_observation', 'from': 'material'}]},
+ 'p1.provenance': {'cond': 'provenance_due',
+                   'na_self_ok': False,
+                   'materials': ['provenance'],
+                   'writes': [{'op': 'set', 'to': 'materials.provenance', 'from': 'material'}]}}
+# 元 review-loop.json の p1.local_review の skills（レンズの正本）
+LOCAL_REVIEW_SKILLS = [{'skill': '/code-review',
+  'args': 'high',
+  'required': True,
+  'note': '組み込み（同名のプラグインが別に在る）。対象は changed_files_file に並ぶ**ファイルのパス**で渡す——ref 範囲は作業ツリーを含まない。--comment も --fix も付けるな。'},
+ {'skill': 'pr-review-toolkit:code-reviewer', 'required': True, 'note': '準拠とバグ検出の両方を担う汎用レンズ。**落とすな。**'},
+ {'skill': '/simplify', 'required': True, 'note': '**修正を禁じた形でだけ呼べ**（実物は既定で作業ツリーを書き換える）。4 観点（再利用・単純化・効率・高度）をそれぞれ起こし、指摘だけ返させる。'},
+ {'skill': '/security-review', 'required': False, 'applies_cond': 'security_surface_touched'},
+ {'skill': 'pr-review-toolkit:silent-failure-hunter', 'required': True, 'note': '黙って無力化される検査・握り潰される失敗を見る。'},
+ {'skill': 'pr-review-toolkit:type-design-analyzer', 'required': True, 'note': '不変条件を平坦な値で持つ設計を見る。散文の振り分けでは当たらないクラス。'},
+ {'skill': 'pr-review-toolkit:pr-test-analyzer', 'required': True, 'note': '振る舞い網羅のレンズ。他のどの節も見ていない。'}]
+# 役の名（YAML の節 id・with: の role）→ 写しの graph の節。元 works/blk-material/lib/material.py:62 の ROLES（並びは graph の順）
+MATERIAL_ROLES = {
+    "prior-decisions": "p0.prior_decisions",
+    "purpose-review": "p0.purpose_review",
+    "local-review": "p1.local_review",
+    "consistency-bypass": "p1.consistency_bypass",
+    "hygiene": "p1.hygiene",
+    "external-standards": "p1.external_standards",
+    "procedure-trace": "p1.procedure_trace",
+    "gate-efficacy": "p1.gate_efficacy",
+    "test-double-fidelity": "p1.test_double_fidelity",
+    "main-path-observation": "p1.main_path_observation",
+    "provenance": "p1.provenance",
+}
+# 役の指示書（commands/material-<役>.md。元の p0.*・p1.* の指示書）の穴。prep が値を描いて材料のファイルに置く
+MATERIAL_HOLES = {
+    "prior-decisions": ("inputs.cwd", "record.base", "loop.changed_files", "loop.request_wheres"),
+    "purpose-review": ("out.p0.purpose.purpose_text", "inputs.review_rev", "inputs.cwd"),
+    "local-review": ("loop.diff_file", "record.base", "loop.changed_files_file", "inputs.review_md", "?inputs.repo_review_md",
+                     "node.skills"),
+    "consistency-bypass": ("loop.diff_file", "loop.changed_files", "record.base", "inputs.review_md", "?inputs.repo_review_md",
+                           "inputs.review_rev", "inputs.cwd"),
+    "hygiene": ("section:inputs.review_md#コード衛生観点", "file:loop.diff_file"),
+    "external-standards": ("loop.diff_file", "loop.changed_files", "inputs.review_md", "out.p0.purpose.purpose_text",
+                           "out.p0.purpose.known_weaknesses", "inputs.cwd"),
+    "procedure-trace": ("loop.diff_file", "loop.changed_files", "inputs.review_md", "inputs.cwd"),
+    "gate-efficacy": ("loop.diff_file", "loop.changed_files_file", "record.base", "inputs.cwd", "loop.mutation_decl.text"),
+    "test-double-fidelity": ("loop.diff_file", "loop.changed_files_file", "inputs.cwd"),
+    "main-path-observation": ("loop.diff_file", "loop.changed_files_file", "inputs.cwd"),
+    "provenance": ("loop.diff_file", "record.base", "inputs.cwd"),
+}
+SIMPLIFY_LENS = "/simplify"   # 元 material.py:124
+READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "   # 元 material.py:175
+LOCATION_HEAD = "所見の場所の行がファイルに無い（差分の行番号を書いていないか。作業ツリーのファイルの行で書き直せ）"   # 元 material.py:164
+LOCATION_MARK = "（works の受け付け: この行はファイルに無い——差分の行番号の疑い）"   # 元 material.py:165
+NA_HEADING = promptsection.Section("## 『条件に当たらない』（not_applicable）を書けるか（works の受け付けより。上の指示書の読み替え）",
+                                   source="fn:judge_accept._na_note")   # 元 material.py:154
+NA_REFUSED = ("`not_applicable` は受け付けが拒む——見た結果を found・clean で、確かめられなかったなら not_run（理由つき）で"
+              "書け。")   # 元 material.py:155
+MUTATION_UNDECLARED = ("対象リポジトリの宣言（{decl}）に mutation の段が無い——在りかと呼び方は対象リポジトリの側（README・CONTRIBUTING・"
+                       "CI 定義・対象リポジトリの REVIEW.md など）が名指しする物を探せ（このプロンプトは道具の名前と引数の綴りを持たない）")   # 元 rules:730
+MATERIAL_BRIEF_HEAD = promptsection.Section("# 素材集めの役の材料（機械が描いた物）", source="fn:judge_accept.material_prep")
+SNAPSHOT_FALLBACK_IDENT = {"GIT_AUTHOR_NAME": "graphloops", "GIT_AUTHOR_EMAIL": "graphloops@localhost",
+                           "GIT_COMMITTER_NAME": "graphloops", "GIT_COMMITTER_EMAIL": "graphloops@localhost"}   # 元 rules:1546
+
+
+def route_key(role: str) -> str:
+    """元 material.py:185。route の返りの欄の名（YAML の when: が $material-route.output.<欄> で読む）"""
+    return role.replace("-", "_")
+
+
+def _material_node(role: str) -> str:
+    """元 material.py:199 の _node。役の名から写しの graph の節。素材集めの役でなければ Reject"""
+    if role not in MATERIAL_ROLES:
+        raise Reject(f"役 {role!r} は素材集めの役（{' / '.join(MATERIAL_ROLES)}）でない——YAML の with: を確かめる")
+    return MATERIAL_ROLES[role]
+
+
+def review_md_paths(lib_dir, repo) -> tuple:
+    """元 rules:35 の review_md_path（観点の正本の置き場）。(lib の REVIEW.md の絶対パス, 対象の根の REVIEW.md の絶対パスか "")"""
+    own = pathlib.Path(lib_dir).resolve() / "REVIEW.md"
+    theirs = pathlib.Path(repo).resolve() / "REVIEW.md"
+    return str(own), (str(theirs) if theirs.is_file() else "")
+
+
+# ---------------------------------------------------------------- 対象差分と読む版（元 rules:1356-1570）
+def numstat_totals(text):
+    """元 rules:1356。`git diff --numstat` の出力から（ファイル名の並び・追加行・削除行・行の数）を取る"""
+    if "\0" in text:
+        rows, i = [], 0
+        parts = text.split("\0")
+        while i < len(parts):
+            head = parts[i]
+            if not head.strip():
+                i += 1
+                continue
+            cols = head.split("\t")
+            if len(cols) == 3 and cols[2] == "":      # 改名: ins \t dels \t "" \0 old \0 new
+                if i + 2 >= len(parts):
+                    break
+                rows.append([cols[0], cols[1], parts[i + 2]])
+                i += 3
+            else:
+                rows.append(cols)
+                i += 1
+    else:
+        rows = [ln.split("\t") for ln in text.splitlines() if ln.strip()]
+    full = [r for r in rows if len(r) == 3]
+    names = "\n".join(r[2] for r in full)
+    ins = sum(int(r[0]) for r in full if r[0].isdigit())
+    dels = sum(int(r[1]) for r in full if r[1].isdigit())
+    return names, ins, dels, len(rows)
+
+
+def _unfrozen(what, why, hint=None):
+    """元 rules:1535。版を固定できない回の Reject（git が言った理由を必ず添える）"""
+    said = " / ".join(w for w in why if w) or "git は理由を返さなかった"
+    return Reject(f"この周に採点する版を固定できない（{what}。git の言い分: {said}）" + (f"——{hint}" if hint else ""))
+
+
+def _worktree_tree():
+    """元 rules:1501。作業ツリーの今の姿の木の id（未追跡の新規ファイルも含め、追跡していない .gitignore の対象は除く）。
+    本物の index を一時 index に写してから add -A する（本物の index は読むだけで書かない）。固められなければ Reject"""
+    tmp = _tempfile.mkdtemp(prefix="graphloops-index-")
+    idx = pathlib.Path(tmp) / "index"
+    env = {"GIT_INDEX_FILE": str(idx)}
+    why = []
+    try:
+        real = git("rev-parse", "--path-format=absolute", "--git-path", "index", why=why)
+        if real is None or not real.strip():
+            raise _unfrozen("本物の index の場所を git rev-parse --git-path で引けない", why,
+                            "git 2.31 以上か、リポジトリの中で呼んでいるかを確かめよ")
+        try:
+            _shutil.copy2(real.strip(), idx)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            raise Reject(f"この周に採点する版を固定できない（本物の index を写せない: {e}）")
+        if git("update-index", "-q", "--really-refresh", env=env, why=why) is None or git("add", "-A", env=env, why=why) is None:
+            raise _unfrozen("一時 index への git update-index / add -A が失敗した", why)
+        tree = git("write-tree", env=env, why=why)
+        if tree is None or not tree.strip():
+            raise _unfrozen("git write-tree が木を返さない", why)
+        return tree.strip()
+    finally:
+        _shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _snapshot(msg):
+    """元 rules:1550。作業ツリーの今の姿を commit 1 つに固めて返す（枝も index も動かさない）。固められなければ Reject"""
+    tree = _worktree_tree()
+    head = git("rev-parse", "HEAD")
+    parent = ["-p", head.strip()] if head and head.strip() else []
+    why, snap = [], None
+    for ident in (None, SNAPSHOT_FALLBACK_IDENT):
+        snap = git("commit-tree", tree, *parent, "-m", msg, env=ident, why=why)
+        if snap is not None:
+            break
+    if snap is None or not snap.strip():
+        raise _unfrozen("git commit-tree が版を返さない", why)
+    return snap.strip()
+
+
+def _take_diff(jdir, repo, start: dict) -> dict:
+    """元 rules:1399 の _take_diff（と _freeze_revision 1468）。差分の根（始めの記録の diff_base。空なら HEAD）から、作業ツリーの今の姿を
+    固めた版（_snapshot。未追跡の新規ファイルも入る）までの差分を置き場の diff.patch に生バイトで書き、変更ファイル（accept.touched_files）を
+    changed-files.txt に書く。返り {base, review_rev, diff_file, changed_files, changed_files_file, stat, commits}。
+    空の差分は止めない（判定から入る run は差分が空なのが普通。盤面の空差分の柵は 1 run = 1 周の形では入口が見る）"""
+    j, repo_p = pathlib.Path(jdir), pathlib.Path(repo)
+    with _accept.in_repo(repo_p):
+        base = _accept.resolve_rev(repo_p, start.get("diff_base") or "")
+        snap = _snapshot("works-factory judge")
+        raw = _accept._git(repo_p, "diff", "--binary", base, snap, binary=True)
+        numstat = _accept._git(repo_p, "diff", "--numstat", "-z", base, snap)
+        commits = _accept._git(repo_p, "rev-list", "--count", f"{base}..HEAD").strip()
+    _, ins, dels, nfiles = numstat_totals(numstat)
+    changed = _accept.touched_files(repo_p, base)
+    j.mkdir(parents=True, exist_ok=True)
+    f = j / DIFF_FILE
+    tmp = f.with_name(f"{f.name}.{os.getpid()}.tmp")
+    tmp.write_bytes(raw)
+    os.replace(tmp, f)
+    cf = j / CHANGED_FILE
+    tmp = cf.with_name(f"{cf.name}.{os.getpid()}.tmp")
+    tmp.write_text("\n".join(changed) + "\n", encoding="utf-8")
+    os.replace(tmp, cf)
+    return {"base": base, "review_rev": snap, "diff_file": str(f), "changed_files": changed, "changed_files_file": str(cf),
+            "stat": f"{nfiles} files changed, {ins} insertions(+), {dels} deletions(-)", "commits": int(commits or 0)}
+
+
+def _material_view(jdir, repo, start: dict, *, retake: bool = False) -> dict:
+    """素材の役と判定役が読む版と差分（material-view.json）。在れば読み、無いか retake なら _take_diff で取り直して置く"""
+    p = pathlib.Path(jdir) / MATERIAL_VIEW_FILE
+    doc = None if retake else read_json(p)
+    if not isinstance(doc, dict) or "review_rev" not in doc:
+        doc = _take_diff(jdir, repo, start)
+        write_json(p, doc)
+    return doc
+
+
+def _start_of(jdir) -> dict:
+    doc = read_json(pathlib.Path(jdir) / START_FILE, {}) or {}
+    return start_view(doc) if "input" not in doc else doc
+
+
+def _purpose_of(jdir):
+    """置き場の目的の文（purpose.json）。無い・読めなければ None"""
+    try:
+        doc = read_json(pathlib.Path(jdir) / _purpose.PURPOSE_FILE)
+    except ValueError:
+        return None
+    return doc if isinstance(doc, dict) and isinstance(doc.get("purpose_text"), str) else None
+
+
+def _requests(jdir) -> list:
+    rows = read_json(pathlib.Path(jdir) / REQUEST_FILE, []) or []
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+
+
+def request_wheres(view: DueView, jdir) -> list:
+    """元 rules:203。判定から入る run の周に、判定に届く依頼の where の一覧。そうでない周は []"""
+    if not request_entry(view)[0]:
+        return []
+    return [r["where"] for r in _requests(jdir) if isinstance(r.get("where"), str)]
+
+
+# ---------------------------------------------------------------- 素材の要否を決める（元 material.py:290 の route の書き直し）
+def due_roles(view: DueView) -> dict:
+    """素材集めの役ごとの (回すか, 理由)。条件は写しの graph の節の cond（元 rules の CONDS）"""
+    return {role: CONDS[MATERIAL_NODES[nid]["cond"]](view) for role, nid in MATERIAL_ROLES.items()}
+
+
+def _entry_skipped(view: DueView, nid: str) -> bool:
+    """元 rules:213。節が入口のせいで外れたか——入口の周で、同じ条件が入口の印を外した文脈（ENTRY_OFF）なら真"""
+    if not request_entry(view)[0]:
+        return False
+    off = DueView({**view.values, "record.process.request_entry": None})
+    return CONDS[MATERIAL_NODES[nid]["cond"]](off)[0]
+
+
+def _fill_one(view: DueView, jdir, nid: str, why: str) -> dict:
+    """元 rules:1705 の fill_materials のうち、走らせなかった節の素材 1 つの埋め（1 周目の値。前の周の持ち越しは無い）"""
+    n = MATERIAL_NODES[nid]
+    if _entry_skipped(view, nid):
+        origin = (view("record.process.request_entry", None) or {}).get("origin", "")
+        return {"status": "not_applicable",
+                "reason": f"判定から入る run（出どころ: {origin}。この周の判定に届く人の依頼 {len(_requests(jdir))} 件）のため、"
+                          "P1 の役を起こしていない——依頼の外を見る目はこの周に無い（判定役と修正前後の審査だけが見る）"}
+    ap = n.get("applies_cond")
+    ap_ok, ap_why = CONDS[ap](view) if ap is not None else (True, "")
+    if not ap_ok:
+        return {"status": "not_applicable", "reason": f"{n.get('na_reason', '条件に当たらない')}（{ap_why}）"}
+    if n.get("cond") == "gate_efficacy_due" and view("loop.gates", None) == GATES_MERGE:
+        return {"status": "not_applicable",
+                "reason": f"{GATES_MERGE_WHY}——差分はゲートに触れているが、この run では撃たない。"
+                          "合流した版を gates=merge 無しの run で回し、そこの P1 のゲートの検算が撃つ"}
+    return {"status": "not_run", "reason": f"走らせる条件に当たらず、流用できる前の判定も無い（節 {nid}。{why}）"}
+
+
+def material_route(jdir, repo) -> dict:
+    """元 works/blk-material/lib/material.py:290 の route の書き直し。素材ごとの要否を元の条件で決める。返り {<route_key(役)>: bool…,
+    reason}。止めの控えが在れば全部偽。対象差分と読む版を material-view.json（と diff.patch・changed-files.txt）に、要否と
+    回さない素材の埋めを material-route.json に置く"""
+    j = pathlib.Path(jdir)
+    off = {route_key(r): False for r in MATERIAL_ROLES}
+    stop = read_stop(j)
+    if stop:
+        reason = f"止まっている（{stop['stop_reason']}: {stop.get('reason', '')}）——素材集めの役を起こさない"
+        write_json(j / MATERIAL_ROUTE_FILE, {"roles": {}, "fill": {}, "reason": reason})
+        return {**off, "reason": reason}
+    start = _start_of(j)
+    try:
+        doc = _material_view(j, repo, start, retake=True)
+    except Reject as e:
+        reason = f"対象差分が取れない（{e}）——素材集めの役を起こさない"
+        write_json(j / MATERIAL_ROUTE_FILE, {"roles": {}, "fill": {}, "reason": reason})
+        return {**off, "reason": reason}
+    view = due_view(start, _purpose_of(j), doc["changed_files"])
+    got = due_roles(view)
+    fill = {}
+    for role, (ok, why) in got.items():
+        if not ok:
+            nid = MATERIAL_ROLES[role]
+            for mat in MATERIAL_NODES[nid].get("materials", []):
+                fill[mat] = _fill_one(view, j, nid, why)
+    reason = "・".join(f"{MATERIAL_ROLES[r]}: {'回す' if ok else why}" for r, (ok, why) in got.items())
+    write_json(j / MATERIAL_ROUTE_FILE, {"roles": {r: {"run": ok, "why": why} for r, (ok, why) in got.items()},
+                                         "fill": fill, "reason": reason, "notes": view.notes})
+    return {**{route_key(r): ok for r, (ok, _) in got.items()}, "reason": reason}
+
+
+# ---------------------------------------------------------------- 支度（元 material.py:376 の prep と render の値の埋め方）
+def _skills(view: DueView, role: str) -> list:
+    """元 material.py:442。この周の節の宣言のレンズ（graph の skills）に、engine が節を出す時に置いた条件の評価 applies・applies_why を
+    足した物（applies_cond を持つ要素だけ）。局所レビューでない役は []"""
+    if MATERIAL_ROLES.get(role) != "p1.local_review":
+        return []
+    out = []
+    for e in LOCAL_REVIEW_SKILLS:
+        e = dict(e)
+        if "applies_cond" in e:
+            e["applies"], e["applies_why"] = CONDS[e["applies_cond"]](view)
+        out.append(e)
+    return out
+
+
+def _na_note(view: DueView, nid: str) -> str:
+    """元 material.py:350。節 nid の役が素材に not_applicable を書けるかの段。applies_cond が在ればこの周の真偽、無ければ
+    graph の na_self_ok の宣言。役の判定を受ける差し替え（元 entry.role_judged_na_works）は持たない（role_judged_na は偽）"""
+    n = MATERIAL_NODES[nid]
+    ap = n.get("applies_cond")
+    if ap is None:
+        if n.get("na_self_ok"):
+            body = (f"この節は条件（applies_cond）を持たず、graph が『条件に当たらない』を名乗れる節と宣言している（na_self_ok: "
+                    f"{n['na_self_ok']}）。当たらない時は `not_applicable`（理由を reason に）を書いてよい。")
+        else:
+            body = ("この節は条件（applies_cond）を持たず、graph も『条件に当たらない』を名乗れる節と宣言していない（na_self_ok が"
+                    f"無い）ので、{NA_REFUSED}")
+    else:
+        ok, why = CONDS[ap](view)
+        if not ok:
+            body = f"この節の条件 `{ap}` はこの周に偽（{why}）なので、`not_applicable`（理由を reason に）を書いてよい。"
+        else:
+            body = f"この節の条件 `{ap}` はこの周に真（{why}）なので、{NA_REFUSED}"
+    return f"{NA_HEADING}\n\n{body}"
+
+
+def _purpose_or_missing(jdir) -> dict:
+    """元 material.py:320 の _purpose。目的の文が無い run は PURPOSE_MISSING（目的を作らない）"""
+    return _purpose_of(jdir) or {"purpose_text": PURPOSE_MISSING, "source": "目的不明", "known_weaknesses": [], "source_files": []}
+
+
+def _material_ctx(jdir, repo, start, doc, view, review_md, repo_review_md, role="") -> dict:
+    """元 material.py:332 の render が engine に渡した値の入れ物（穴の名 → 値）。盤面の記録・周の値を、置き場のファイルと
+    1 run = 1 周の値で埋めた物"""
+    inputs = {"cwd": str(pathlib.Path(repo).resolve()), "review_md": review_md, "review_rev": doc["review_rev"]}
+    if repo_review_md:
+        inputs["repo_review_md"] = repo_review_md
+    return {
+        "inputs": inputs,
+        "record": {"base": doc["base"]},
+        "loop": {"diff_file": doc["diff_file"], "changed_files": doc["changed_files"],
+                 "changed_files_file": doc["changed_files_file"], "request_wheres": request_wheres(view, jdir),
+                 "mutation_decl": {"declared": False, "text": MUTATION_UNDECLARED.format(decl=DECL_NAME)}},
+        "out": {"p0.purpose": _purpose_or_missing(jdir)},
+        "node": {"skills": _skills(view, role)},
+    }
+
+
+def material_prep(jdir, role: str, repo, review_md: str, repo_review_md: str = "") -> dict:
+    """元 works/blk-material/lib/material.py:376 の prep（と render の値の埋め方）の書き直し。役の指示書の穴（MATERIAL_HOLES）を
+    engine と同じ描き方（engine.render.Renderer。切らない）で描き、『条件に当たらない』を書けるかの段（_na_note）を足して
+    material-<役>-brief.md に置く。返り {brief_file, brief（同じ本文。道具の無い役に貼る）, review_md, repo_review_md}"""
+    nid = _material_node(role)
+    j = pathlib.Path(jdir)
+    start = _start_of(j)
+    doc = _material_view(j, repo, start)
+    view = due_view(start, _purpose_of(j), doc["changed_files"])
+    r = Renderer(_material_ctx(j, repo, start, doc, view, review_md, repo_review_md, role), cap=None)
+    parts = [f"{MATERIAL_BRIEF_HEAD}\n\n素材集めの役 {role}（graphloops の節 {nid}）の指示書の「［材料: 〜］」は、この下の同じ名の節の値。"
+             "パス（対象差分・変更ファイルの一覧・観点の正本など）は Read で読め（道具の無い役には本文を貼ってある）。"]
+    for hole in MATERIAL_HOLES[role]:
+        parts.append(f"## 材料: {hole.lstrip('?')}\n\n{r.render('{{' + hole + '}}')}")
+    parts.append(_na_note(view, nid))
+    text = "\n\n".join(parts) + "\n"
+    p = j / f"material-{role}-brief.md"
+    p.write_text(text, encoding="utf-8")
+    return {"brief_file": str(p), "brief": text, "review_md": review_md, "repo_review_md": repo_review_md}
+
+
+# ---------------------------------------------------------------- 素材の受け付けの規則（元 rules の post_check と数え直し）
+def main_path_observed(nid, out):
+    """元 rules:2962。主経路の観測: 見たと言う状態（found / clean）は、観測した値（observed）を 1 つ以上持つ"""
+    st = (out.get("material") or {}).get("status")
+    if st in OBSERVED_STATUS and not out.get("observed"):
+        raise Reject(f"{nid}: status={st} なのに観測した値（observed）が 1 つも無い——動かして観測した経路と値を observed に書け。"
+                     "動かせなかったなら awaiting_human（何を待つか）か not_run（なぜ飛ばしたか）")
+
+
+def external_rankings(nid, out):
+    """元 rules:2973。外部標準照合の順位の行: 差分が乗る選択肢（diff_at）は ranked のどれかで、最上位でないなら上位を採れない理由が要る"""
+    errs = []
+    if not out.get("rankings") and blank(out.get("rankings_none"), 10):
+        errs.append("rankings が空なのに rankings_none（順位を付けられる一般化した問題が無い理由）が無い——空の順位で clean を名乗らせない")
+    for i, r in enumerate(out.get("rankings") or []):
+        if r["diff_at"] not in r["ranked"]:
+            errs.append(f"rankings[{i}] の diff_at '{r['diff_at'][:40]}' が ranked に無い——一次情報が推す選択肢のどれに乗るかを、ranked の綴りのまま書け")
+        elif r["diff_at"] != r["ranked"][0] and blank(r.get("why_not_higher"), 10):
+            errs.append(f"rankings[{i}]: 差分は最上位（{r['ranked'][0][:40]}）でなく '{r['diff_at'][:40]}' に乗るのに、上位を採れない理由（why_not_higher）が無い")
+    if errs:
+        raise Reject(f"{nid}: " + "; ".join(errs))
+
+
+def _unproven(arms):
+    """元 rules:693。覆いの証拠にならない腕——赤・対照の緑・当たりの証拠のどれかが欠けた腕の名前"""
+    return [a["arm"] for a in arms if not (a.get("red_confirmed") and a.get("control_green") and not blank(a.get("hit_evidence"), 10))]
+
+
+def gate_arms_all_red(nid, out):
+    """元 rules:3023。赤を見ていない腕が 1 つでも在れば clean を名乗らせない（赤は覆いの証拠にならない、の裏側）"""
+    arms = out.get("arms", [])
+    st = out.get("material", {}).get("status")
+    if not arms and st in OBSERVED_STATUS:
+        raise Reject(f"{nid}: status={st} なのに腕が 0 行——撃った腕を行にするか、撃てた腕が無いなら not_run（理由つき）で書け")
+    unred = [a["arm"] for a in arms if not a.get("red_confirmed")]
+    nocontrol = [a["arm"] for a in arms if not a.get("control_green")]
+    nohit = [a["arm"] for a in arms if blank(a.get("hit_evidence"), 10)]
+    if st != "found" and _unproven(arms) and st != "awaiting_human":
+        raise Reject(f"{nid}: 赤を見ていない腕 {unred} / 壊していない写しで緑を確かめていない腕 {nocontrol} / "
+                     f"守る行を通ったことを測っていない腕 {nohit} が在るのに status=clean"
+                     "——未達は found（count と detail に腕を書く）、人の起動待ちなら awaiting_human（reason に何を待つか）")
+    proven = [a["arm"] for a in arms if a.get("red_confirmed") and a.get("control_green") and blank(a.get("hit_evidence"), 10)]
+    if proven:
+        nohit = proven
+        raise Reject(f"{nid}: 腕 {nohit} は赤も control の緑も見ているが、**その腕が守る行を通ったこと**を測っていない"
+                     "（hit_evidence）——赤は柵の不在の検知であって、この腕がその柵に当たった証拠にならない。"
+                     "分岐が書く値を一意の印に替え、その印が出力か記録に現れることを確かめて hit_evidence に書け")
+
+
+def local_review_covers_lenses(nid, out, skills):
+    """元 rules:3214。宣言したレンズ 1 本につき findings の行を 1 本、例外なく要求する。skills は _skills の宣言（applies つき）"""
+    if not skills:
+        raise Reject(f"{nid} の skills が空——数える対象が無い柵は全件合格になる。graph に宣言を書け")
+    declared = [e["skill"] for e in skills]
+    rows = out.get("findings") or []
+    seen, errs = {}, []
+    for i, row in enumerate(rows):
+        name = row.get("skill", "")
+        if name in seen:
+            errs.append(f"findings に同じ skill の行が 2 本: {name}（1 本のレンズは 1 行にまとめろ）")
+        seen[name] = row
+        if name not in declared:
+            errs.append(f"findings[{i}] の skill '{name}' は宣言に無い——正本は graph の skills（{declared}）。"
+                        "名指しを増やしたいなら graph を直せ（役が勝手に増やした名前は数えられない）")
+    for name in declared:
+        row = seen.get(name)
+        if row is None:
+            errs.append(f"宣言した '{name}' の行が findings に無い——起こしたなら items を、起こしていない・"
+                        "非該当なら items を空にして failed に理由を書け。**行を省くな**（省けるなら、"
+                        "未起動が所見ゼロと同じ形で通っていた元の穴に戻る）")
+        elif not row.get("items") and not (row.get("failed") or "").strip():
+            errs.append(f"'{name}' の行が items も failed も持たない——『起こして 0 件』なら failed に"
+                        "『起こしたが所見なし』と何を見たかを書け。空の行は『起こしていない』と区別できない")
+    awaiting = (out.get("material") or {}).get("status") == "awaiting_human"
+    for e in skills:
+        row = seen.get(e["skill"])
+        if row is None or "applies_cond" not in e or not e.get("applies", True) or awaiting:
+            continue
+        if row.get("invoked") is not True:
+            errs.append(f"'{e['skill']}' は条件 {e['applies_cond']} が真の周（{e.get('applies_why', '評価の値が無いので当てる側に倒した')}）"
+                        "なのに invoked が true でない——起こして invoked: true を書け。呼び出しが落ちたなら failed に理由を書き、"
+                        "material を awaiting_human にせよ")
+    if errs:
+        raise Reject("宣言したレンズと findings の行が合わない:\n" + "\n".join("  - " + e for e in errs))
+
+
+def _repo_root():
+    """元 rules:3297。対象リポジトリのルート（engine.util の git の向き先。accept.in_repo で向ける）"""
+    return repo_root(git)
+
+
+def _grep_count(cite_, rev):
+    """元 rules:3372。固めた版に対する `git grep -F -cI`（字面として数える）。（`…:数` の文字列, ""）か（None, 理由）"""
+    root = _repo_root()
+    if root is None:
+        return None, "git が動かない"
+    return grep(["git", "grep", "-F", "-cI", "-e", cite_, rev, "--", ":(top)"], root, 60)
+
+
+def _in_version(rels):
+    """元 rules:3395。指し先の候補を版の一覧で引く——{rel: "text" | "binary"}（無い rel は入らない）。git が動かなければ None"""
+    got = git("ls-files", "-z", "--full-name", "--cached", "--others", "--exclude-standard", "--eol",
+              "--", *[f":(top,literal){r}" for r in rels])
+    if got is None:
+        return None
+    want, found = set(rels), {}
+    for ent in got.split("\0"):
+        meta, sep, path = ent.partition("\t")
+        if sep and path in want:
+            found[path] = "binary" if "w/-text" in meta.split() else "text"
+    return found
+
+
+def _resolve_target(tgt, root):
+    """元 rules:3422。役が書いたパス 1 つを、リポジトリ相対の正規形 1 つに解く ——（rel, 理由）。綴りが正規形と違えば拒む"""
+    rootp = pathlib.Path(root).resolve()
+    try:
+        real = (rootp / tgt).resolve()
+        rel = real.relative_to(rootp).as_posix()
+    except (ValueError, OSError, RuntimeError):
+        return None, "リポジトリの外を指している（リポジトリ相対のパスで書け。絶対パスや '..' で外へ出る指しは受け取らない）"
+    if rel != tgt:
+        return None, f"正規形で書け: '{rel}'（'./' 付き・'..' で戻る綴り・symlink 経由は、指し先が 1 つに決まらない）"
+    return rel, ""
+
+
+def _not_in_version(full):
+    """元 rules:3447。版に無いパスの、事実どおりの理由（拒否文の後半）"""
+    if full.is_dir():
+        return "通常のファイルでない（ディレクトリなど）——ファイルを 1 つ指せ"
+    if full.exists() and not full.is_file():
+        return "通常のファイルでない（FIFO・ソケットなど）——ファイルを 1 つ指せ"
+    if full.exists() or full.is_symlink():
+        return ("在るが版の一覧に出ない（.gitignore に当たる・綴りの大文字小文字が違う・サブモジュールの中、など）——次の周に"
+                "指摘側が数える版にもコミットにも入らない指し先は、他の人の手元に存在しない。リポジトリの一覧に在る綴りの、版に入るファイルを指せ")
+    return "いまの作業ツリーに無い——ファイルを 1 つ指せ（綴りを確かめるか、先に作れ）"
+
+
+# 元 rules:3467
+CITE_LABELS = {"findings": {"what": "指摘の根拠", "target": False},
+               "wrote_refs": {"what": "修正が書いた指し", "target": True}}
+
+
+def _cite_errors(jdir, nid, rows, rev, label):
+    """元 rules:3471。申告された字列を、現物で数え直す ——（errs, reads）。盤面の b.dir（読了の記録の置き場）は置き場 jdir に読み替えた。
+    findings（指し先を持たない）は版 rev 全体を数えて件数の申告（hits）と突き合わせ、wrote_refs（指し先を持つ）は作業ツリーの
+    指し先のファイルの中だけを数える。git の向き先は呼び手が accept.in_repo で決める"""
+    kind = CITE_LABELS[label]
+    what = kind["what"]
+    if kind["target"] and rev:
+        raise ValueError(f"{label}: 指し先を持つ呼び元は作業ツリーを数える（版 {rev[:12]} を渡された）")
+    if not kind["target"] and not rev:
+        raise Reject(f"{nid}: {what}を数え直せない（採点する版が固まっていない）——確かめられないものを合格にはしない")
+    probed = {}
+    errs, reads, pend = [], [], []
+    for i, row in enumerate(rows):
+        if not isinstance(row, dict):
+            errs.append((i, f"{label}[{i}]: 素の文字列は受け取らない（cite を持つ形で出せ）——"
+                            "裏取りの柵が入る前の形が、数え直されないまま毎周の判定材料に載り続けていた"))
+            continue
+        rk = row.get("kind") if kind["target"] else "text"
+        if rk not in ("file", "text"):
+            errs.append((i, f"{label}[{i}]: kind が {rk!r}——file（ファイルそのものを指した）か text（ファイルの中の"
+                            "節名・見出し・引用を指した）で書け"))
+            continue
+        cite_ = (row.get("cite") or "").strip()
+        if rk == "text" and not cite_:
+            errs.append((i, f"{label}[{i}]: cite（作業ツリーで引ける字列）が空"))
+            continue
+        if "\n" in cite_ or "\r" in cite_:
+            errs.append((i, f"{label}[{i}]: cite に改行が入っている——" + (
+                "1 行 1 件で書け（書いた指しの 1 か所を、指し先の 1 行から写す）" if kind["target"] else
+                "数えは行単位の git grep なので『どれか 1 行が在れば合格』に化ける（空行を混ぜれば必ず通る。-F でも同じ）。"
+                "1 行 1 件に割って出せ")))
+            continue
+        if "\0" in cite_ or "\0" in (row.get("target") or "") or "\0" in (row.get("where") or ""):
+            errs.append((i, f"{label}[{i}]: cite / target / where に NUL が入っている"
+                            "——検索語にもパスにも使えない（現物から写し直せ）"))
+            continue
+        if not kind["target"]:
+            _count_in_version(nid, what, label, i, row, cite_, rev, probed, errs)
+            continue
+        tgt = (row.get("target") or "").strip()
+        if not tgt:
+            errs.append((i, f"{label}[{i}]: target（この指しが指しているファイル）が空"
+                            "——どこを見れば在ると言えるのかを書け（柵はそのファイルの中だけを数える）"))
+            continue
+        if "root" not in probed:
+            probed["root"] = _repo_root()
+        if not probed["root"]:
+            raise Reject(f"{nid}: {what}の指し先を確かめられない（リポジトリのルートを引けない——git が動かないか、"
+                         "リポジトリの外で打った）——確かめられないものを合格にはしない")
+        rel, why = _resolve_target(tgt, probed["root"])
+        if rel is None:
+            errs.append((i, f"{label}[{i}]: 指し先 '{tgt}' は{why}"))
+            continue
+        where = (row.get("where") or "").strip()
+        if not where:
+            errs.append((i, f"{label}[{i}]: where（この指しを書き込んだファイル）が空"
+                            "——書いた場所が分からないと、指し先と同じファイルかを誰も見られない"))
+            continue
+        wrel, why = _resolve_target(where, probed["root"])
+        if wrel is None:
+            errs.append((i, f"{label}[{i}]: 書いた場所 '{where}' は{why}"))
+            continue
+        pend.append((i, rk, cite_, rel, wrel))
+    if pend:
+        seen = _in_version(sorted({p for _, _, _, rel, wrel in pend for p in (rel, wrel)}))
+        if seen is None:
+            raise Reject(f"{nid}: {what}を数え直せない（git が動かない）——確かめられないものを合格にはしない")
+        cache = {}
+        for i, rk, cite_, rel, wrel in pend:
+            full = pathlib.Path(probed["root"]) / rel
+            if rel not in seen or not full.is_file():
+                errs.append((i, f"{label}[{i}]: 指し先 '{rel}' は{_not_in_version(full)}"))
+                continue
+            wfull = pathlib.Path(probed["root"]) / wrel
+            if wrel not in seen or not wfull.is_file():
+                errs.append((i, f"{label}[{i}]: 書いた場所 '{wrel}' は{_not_in_version(wfull)}"))
+                continue
+            data = None
+            if rk == "text":
+                if seen[rel] == "binary":
+                    errs.append((i, f"{label}[{i}]: 指し先 '{rel}' はバイナリなので中を数えられない"
+                                    "——字列で確かめられる指し先（テキスト）を指すか、ファイルそのものの指しなら kind を file にせよ"))
+                    continue
+                data, why = read_capped(full, READ_CAP)
+                if data is None:
+                    errs.append((i, f"{label}[{i}]: 指し先 '{rel}' は版には在るが、作業ツリーで数えられない（{why}）"
+                                    "——消した・置き換えた指し先なら、書いた指しの方を直せ"))
+                    continue
+            state, hwhy = hook_evidence(pathlib.Path(jdir), str(full), cache=cache, data=data)
+            reads.append({"kind": rk, "cite": cite_[:60] or None, "target": rel, "where": wrel,
+                          "self": wrel == rel, "state": state, "why": hwhy})
+            if rk == "text" and cite_.encode("utf-8") not in data:
+                hint = "（このファイルをこの run で読んだ記録が無い——記憶で書いていないか）" if state == "absent" else ""
+                errs.append((i, f"{label}[{i}]: '{cite_[:40]}' は指し先 '{rel}' の中に無い{hint}"
+                                "——文書に書いた指しを指し先に在る綴りへ直し、その字列で申告し直せ（申告だけ差し替えても文書の誤りは残る）"))
+    return [m for _, m in sorted(errs, key=lambda e: e[0])], reads
+
+
+def _count_in_version(nid, what, label, i, row, cite_, rev, probed, errs):
+    """元 rules:3612。指摘の根拠の字列を版 rev で数え、0 件・件数の申告（hits）の違いを errs に積む。数えられなければ Reject"""
+    got, why = _grep_count(cite_, rev)
+    if why:
+        if "alive" not in probed:
+            probed["alive"] = git("rev-parse", "--is-inside-work-tree") is not None
+            probed["rev"] = git("rev-parse", "--verify", f"{rev}^{{commit}}") is not None
+        if not probed["alive"]:
+            raise Reject(f"{nid}: {what}を数え直せない（git が動かない）——確かめられないものを合格にはしない")
+        if not probed["rev"]:
+            raise Reject(f"{nid}: {what}を数え直せない（採点する版 {rev[:12]} を解決できない）"
+                         "——版が消えた run では、数えた結果も『現物に無い』も言えない")
+        raise Reject(f"{nid}: {what}を数え直せない（{why}）——確かめられないものを合格にはしない")
+    hits = sum_counts(got)
+    if hits is None:
+        raise Reject(f"{nid}: {what}を数え直せない（git grep -c の出力が `…:数` の形でない: {got.splitlines()[:1]}）")
+    if hits == 0:
+        errs.append((i, f"{label}[{i}]: '{cite_[:40]}' が現物に 1 件も無い"
+                        "——現物に無い字列は受け取らない（現物を開いて、在る字列で出し直せ）"))
+    elif row.get("hits") != hits:
+        errs.append((i, f"{label}[{i}]: '{cite_[:40]}' の件数の申告 {row.get('hits')} が数え直し {hits} と違う"))
+
+
+def purpose_findings_cited(jdir, nid, out, rev):
+    """元 rules:3274。指摘は、作業ツリーで引ける根拠を連れて来る（数えるのは git。数えられなければ拒む）。
+    rev は周に固めた版（盤面の loop.reviewed_revision。ここは material-view.json の review_rev）"""
+    rows = out.get("findings") or []
+    if out.get("verdict") == "狭めている" and not rows:
+        raise Reject(f"{nid}: 『狭めている』のに findings が空——**判定には作業ツリーで引ける根拠を 1 件以上付けろ**"
+                     "（欠落を指摘したいなら、欠けている場所の周辺に実在する字列を cite にして、"
+                     "そこに在るべき物が無いことを text に書く）")
+    errs, _ = _cite_errors(jdir, nid, rows, rev, "findings")
+    if errs:
+        raise Reject(f"{nid}: 指摘の根拠が作業ツリーで裏取りできない: " + "; ".join(errs))
+
+
+# ---------------------------------------------------------------- 受け付け（元 material.py:544 の take の書き直し）
+def _status(reply) -> str:
+    """元 material.py:536"""
+    for k in ("material", "consistency"):
+        v = reply.get(k) if isinstance(reply, dict) else None
+        if isinstance(v, dict) and isinstance(v.get("status"), str):
+            return v["status"]
+    return ""
+
+
+def _installed_plugins() -> set | None:
+    """元 material.py:434。役が読む隔離した設定（env の CLAUDE_CONFIG_DIR）に入っているプラグインの名。読めなければ None"""
+    cfg = os.environ.get("CLAUDE_CONFIG_DIR")
+    try:
+        doc = read_json(pathlib.Path(cfg) / "plugins" / "installed_plugins.json") if cfg else None
+    except ValueError:
+        doc = None
+    plugins = doc.get("plugins") if isinstance(doc, dict) else None
+    return {k.split("@", 1)[0] for k in plugins} if isinstance(plugins, dict) else None
+
+
+def _lens_gap(skills: list, reply: dict) -> tuple | None:
+    """元 material.py:455。局所レビューの返答が必須のレンズを起こしていない・material を awaiting_human にした時の (拒みの文, 出し直さないか)。
+    1 run は 1 周なので /simplify の持ち越し（元 _simplify_carry_ok。2 周目からだけ当たる）は受けない"""
+    rows = {r.get("skill"): r for r in reply.get("findings") or [] if isinstance(r, dict)}
+    carry_ok = False
+    carried = reply.get("simplify_carried") is True and carry_ok
+    missing = [e["skill"] for e in skills if e.get("required", True) and (rows.get(e["skill"]) or {}).get("invoked") is not True
+               and not (e["skill"] == SIMPLIFY_LENS and carried)]
+    if not missing:
+        return None
+    errs = [f"'{s}' は必須のレンズなのに invoked が true でない——必須のレンズを起こした行だけを受け付ける。/ で始まるレンズは Skill で、"
+            "<plugin>:<役> は定義の置き場を Read で読ませた汎用の子（Agent）で起こし直せ"
+            + ("（simplify_carried: true の持ち越しは、この周の頭の版が前の周の頭の版と 1 ファイルも違わない周だけ受ける。"
+               + ("この周は当たる——持ち越すなら simplify_carried: true を書け）" if carry_ok else "この周は当たらない）")
+               if s == SIMPLIFY_LENS else "")
+            for s in missing]
+    if _status(reply) == "awaiting_human":
+        errs.append("必須のレンズが起きていない返答は material を awaiting_human にできない——起こし直して invoked: true を書け"
+                    "（拒みが上限に届けば人に渡る）")
+    installed = _installed_plugins()
+    absent = sorted({s.split(":", 1)[0] for s in missing if ":" in s and not s.startswith("/")} - installed) \
+        if installed is not None else []
+    if absent:
+        errs.append(f"隔離した設定（{os.environ.get('CLAUDE_CONFIG_DIR')}）にプラグイン {'・'.join(absent)} が入っていない——"
+                    "起こし直しても毎回落ちるので出し直さずに人に渡す（dev/toolset.py で入れ直してから続ける）")
+    return "宣言したレンズと findings の行が合わない:\n" + "\n".join("  - " + e for e in errs), bool(absent)
+
+
+def _where_rows(node) -> list:
+    """元 material.py:486。返答の中の where（文字列）と text を持つ行の全部（入れ子を辿る）"""
+    if isinstance(node, list):
+        return [r for x in node for r in _where_rows(x)]
+    if not isinstance(node, dict):
+        return []
+    if isinstance(node.get("where"), str) and isinstance(node.get("text"), str):
+        return [node]
+    return [r for v in node.values() for r in _where_rows(v)]
+
+
+def _location_problems(reply, repo) -> dict:
+    """元 material.py:497。{where: [外れの文]}: 行の where の <パス>:<行> のうち、作業ツリーに在るファイルを指し、行がそのファイルに無い物"""
+    root, out = pathlib.Path(repo).resolve(), {}
+    for row in _where_rows(reply):
+        for path, a, b in cite.where_cites(row["where"]):
+            p = pathlib.Path(path)
+            full = (p if p.is_absolute() else root / p).resolve() if path else root
+            if not path or not full.is_file() or root not in full.parents:
+                continue
+            ref = f"{path}:{a}" + (f"-{b}" if b else "")
+            why = cite.problem(ref, root)
+            if why:
+                out.setdefault(row["where"], []).append(why)
+    return out
+
+
+def _location_gap(jdir, role, reply, repo):
+    """元 material.py:514。(拒む文か None, 受ける返答)。外れが在り、この役の拒み（rejects-<役>.json）が上限の 1 つ手前に届いて
+    いなければ拒む文。届いていれば外れた行の where に LOCATION_MARK を付けて受ける（場所の言い方だけで止めない）"""
+    bad = _location_problems(reply, repo)
+    if not bad:
+        return None, reply
+    if len(rolekit.rejected(pathlib.Path(jdir), role)) < rolekit.GIVE_UP_AFTER - 1:
+        return LOCATION_HEAD + ":\n" + "\n".join(f"  - {w}: {'; '.join(e)}" for w, e in bad.items()), reply
+    marked = json.loads(json.dumps(reply))
+    for row in _where_rows(marked):
+        if row["where"] in bad:
+            row["where"] += LOCATION_MARK
+    return None, marked
+
+
+def material_from_findings(src) -> dict:
+    """元 rules:1296。役の返答（findings と seen）を素材 1 つに写す（衛生の目の writes）"""
+    findings = src.get("findings", [])
+    m = {"status": "found" if findings else "clean", "checked": src.get("seen", "")}
+    if findings:
+        m["count"] = len(findings)
+        m["detail"] = " / ".join(f"{f.get('where', '')}: {f.get('text', '')}" for f in findings)
+    return m
+
+
+def _written_materials(nid, reply) -> dict:
+    """写しの graph の節の writes のうち素材（materials.<名>・op material_from_findings）を返答から写した {素材の名: 状態}"""
+    out = {}
+    for w in MATERIAL_NODES[nid].get("writes", []):
+        if w.get("op") == "material_from_findings":
+            out[w["to"]] = material_from_findings(reply)
+        elif w.get("op") == "set" and w["to"].startswith("materials."):
+            got = reply.get(w["from"]) if w["from"] != "$" else reply
+            if isinstance(got, dict):
+                out[w["to"].split(".", 1)[1]] = got
+    return out
+
+
+def check_record(view: DueView, nid, mats: dict) -> list:
+    """元 rules:3665 の check_record のうち、今 done する節の素材の欄（status × 機械が持つ事実と、status ごとの要る欄）。
+    走った節に流用（黙って通る値）は書けない・applies_cond が真で走った節の not_applicable は拒む（role_judged_na は偽）・
+    applies_cond の無い節の not_applicable は graph が na_self_ok を宣言した時だけ"""
+    errs = []
+    n = MATERIAL_NODES[nid]
+    ap = n.get("applies_cond")
+    for mat in n.get("materials", []):
+        m = mats.get(mat)
+        if not m:
+            errs.append(f"節 {nid} は走ったが素材 '{mat}' が返答に無い")
+            continue
+        st = m.get("status")
+        if st in SILENT_STATUS and st != "not_applicable":
+            errs.append(f"素材 '{mat}'（節 {nid}）は今の周に走ったのに {st}——自分で見たと主張しない値は走らなかった節に機械が書く。今の周の判定を書け")
+        if st == "not_applicable":
+            if ap is not None and CONDS[ap](view)[0]:
+                errs.append(f"素材 '{mat}'（節 {nid}）は applies_cond が真で走ったのに not_applicable——機械が持つ事実と食い違う")
+            elif ap is None and not n.get("na_self_ok"):
+                errs.append(f"素材 '{mat}'（節 {nid}）は走ったのに not_applicable——この節は正当に名乗れる節として graph が"
+                            "宣言していない（na_self_ok）。今の周の判定を書くか、名乗れる理由を graph に宣言しろ")
+        if st not in STATUS:
+            errs.append(f"素材 '{mat}' の status が不正: {st!r}")
+            continue
+        for f in STATUS[st].fields:
+            v = m.get(f)
+            if f in ("count", "from_round"):   # 元 review-record.py:351 の NUMERIC_FIELDS
+                if not (isinstance(v, int) and not isinstance(v, bool)):
+                    errs.append(f"素材 '{mat}'（{st}）の '{f}' は数で書け")
+            elif not isinstance(v, (str, list)) or not v:
+                errs.append(f"素材 '{mat}'（{st}）に '{f}' が要る（何を見たかを書け）")
+    return errs
+
+
+def material_take(jdir, role: str, reply: dict, repo) -> dict:
+    """元 works/blk-material/lib/material.py:544 の take の書き直し。作業ツリーを入口の姿（judge-tree.json）と比べる →（局所レビューだけ）
+    fork のレンズの所見が届かなかった空の行に『見ていない』の印（diverted.mark_unseen）→ 必須のレンズの起動（_lens_gap）→ 所見の場所の
+    行（_location_gap）→ 写しの graph の節の post_check → 素材の欄（check_record）。通れば material-<役>.json に
+    {role, reply, materials} を書く（局所レビューは見ていないレンズの控えも）。{ok, reason}。拒否の数えは呼び手（rolekit.with_done）"""
+    def run():
+        nid = _material_node(role)
+        if not isinstance(reply, dict):
+            raise Reject("返答が JSON のオブジェクトでない")
+        j, repo_p = pathlib.Path(jdir), pathlib.Path(repo)
+        snap = _judge_tree(j)
+        if snap is None:
+            raise Reject(f"置き場に {TREE_FILE}（入口の時の作業ツリーの姿）が無い——入口が先に走る")
+        moved = _accept.tree_moved(snap, repo_p)
+        if moved:
+            raise Reject(f"{READONLY_MOVED}素材集めの役は対象の作業ツリー・HEAD・枝・git が無視するファイルを"
+                         f"変えてはいけない（{'・'.join(moved)}）。同じ時に別の素材集めの役も走っている——変えたのがこの役とは限らない")
+        start = _start_of(j)
+        doc = _material_view(j, repo_p, start)
+        view = due_view(start, _purpose_of(j), doc["changed_files"])
+        got, lens_note = reply, None
+        if nid == "p1.local_review":
+            got, notes = diverted.mark_unseen(reply, _skills(view, role))
+            lens_note = {"round": 1, **notes}
+            gap = _lens_gap(_skills(view, role), got)
+            if gap:
+                raise Reject(gap[0])
+        where_gap, got = _location_gap(j, role, got, repo_p)
+        if where_gap:
+            raise Reject(where_gap)
+        post = MATERIAL_NODES[nid].get("post_check")
+        with _accept.in_repo(repo_p):
+            if post == "main_path_observed":
+                main_path_observed(nid, got)
+            elif post == "external_rankings":
+                external_rankings(nid, got)
+            elif post == "gate_arms_all_red":
+                gate_arms_all_red(nid, got)
+            elif post == "local_review_covers_lenses":
+                local_review_covers_lenses(nid, got, _skills(view, role))
+            elif post == "purpose_findings_cited":
+                purpose_findings_cited(j, nid, got, doc["review_rev"])
+        mats = _written_materials(nid, got)
+        errs = check_record(view, nid, mats)
+        if errs:
+            raise Reject("素材の欄が記録の決まりに合わない: " + "; ".join(errs))
+        write_json(j / f"material-{role}.json", {"role": role, "reply": got, "materials": mats})
+        if lens_note is not None:   # 受け付けが通った返答の分だけ
+            write_json(j / diverted.LENS_FILE, lens_note)
+        return {"ok": True, "reason": ""}
+    return _accept.guard(run)
+
+
+# ---------------------------------------------------------------- 素材の 15 欄（元 rules:1705 の fill_materials の書き直し）
+def _accepted(jdir) -> dict:
+    """置き場の material-<役>.json（受けた返答と素材。並行 PR の material-pr-check.json も）を 役 → 中身 で"""
+    out = {}
+    for p in sorted(pathlib.Path(jdir).glob("material-*.json")):
+        if p.name in (MATERIAL_VIEW_FILE, MATERIAL_ROUTE_FILE):
+            continue
+        try:
+            doc = read_json(p)
+        except ValueError:
+            continue
+        if isinstance(doc, dict) and isinstance(doc.get("materials"), dict):
+            out[str(doc.get("role") or p.stem.removeprefix("material-"))] = doc
+    return out
+
+
+def fill_materials(jdir) -> dict:
+    """元 rules:1705 の fill_materials の書き直し。素材の 15 欄（MATERIALS）を全部そろえて materials.json に書いて返す:
+    受けた役の素材（material-<役>.json の materials）→ 回さないと決めた役は material-route.json の埋め（入口なら not_applicable と
+    入口の理由・条件外なら not_applicable・ほかは not_run）→ 回すと決めたのに受けた返答が無い役は not_run（受け付けが 3 回とも
+    拒んだならその理由、ほかは走っていない）→ base_determination は基準点の決め（元 board.py:536 の base_output と同じ形）→
+    fix_closure は P1 時点の not_applicable → 残りは not_run（走っていない）"""
+    j = pathlib.Path(jdir)
+    mats = {}
+    for doc in _accepted(j).values():
+        mats.update({k: v for k, v in doc["materials"].items() if isinstance(v, dict)})
+    route = read_json(j / MATERIAL_ROUTE_FILE, {}) or {}
+    roles, fill = route.get("roles") or {}, route.get("fill") or {}
+    for role, nid in MATERIAL_ROLES.items():
+        for mat in MATERIAL_NODES[nid].get("materials", []):
+            if mat in mats:
+                continue
+            rd = roles.get(role)
+            if rd is None:
+                mats[mat] = {"status": "not_run", "reason": f"素材集めの節 {nid} は走っていない（素材の要否を決める節が回していない: "
+                                                            f"{route.get('reason') or '控えが無い'}）"}
+            elif not rd.get("run"):
+                mats[mat] = fill.get(mat) or {"status": "not_run", "reason": f"走らせる条件に当たらない（{rd.get('why', '')}）"}
+            else:
+                gave = rolekit.given_up_reason(j, role)
+                mats[mat] = ({"status": "not_run", "reason": f"{gave}——素材集めの役の返答を受けられなかった"} if gave else
+                             {"status": "not_run", "reason": f"節 {nid} は走っていない（受け付けを通った返答が無い）"})
+    view = read_json(j / MATERIAL_VIEW_FILE, {}) or {}
+    if "base_determination" not in mats and view.get("base"):
+        mats["base_determination"] = {"status": "found", "count": int(view.get("commits") or 0),
+                                      "detail": f"{view['base']}（始めの記録の差分の根。空なら HEAD）"}
+    if "fix_closure" not in mats:
+        mats["fix_closure"] = {"status": "not_applicable", "reason": "P1 時点。修正は P3 でこれから行う"}
+    for name in MATERIALS:
+        if name not in mats:
+            mats[name] = {"status": "not_run", "reason": "走っていない（どの節も返していない）"}
+    mats = {name: mats[name] for name in MATERIALS}
+    write_json(j / MATERIALS_FILE, mats)
+    return mats
+
+
+def materials_given_up(jdir) -> list:
+    """素材集めの役のうち、受け付けが 3 回とも拒んで受けた返答が無い物の諦めの理由（元 material.py:605 の collect の名指し）"""
+    acc = _accepted(jdir)
+    return [why for role in MATERIAL_ROLES if role not in acc for why in [rolekit.given_up_reason(pathlib.Path(jdir), role)] if why]
+
+
+# ---------------------------------------------------------------- 判定役の材料（元 works/blk-judge/lib/judgebrief.py の書き直し）
+START = promptsection.Section("## 入力", human="本線の判定の指示書から節を切り出す探し字（役の指示書には貼らない）")
+END = promptsection.Section("## 手順", human="本線の判定の指示書から節を切り出す探し字（役の指示書には貼らない）")
+LEDGER_START, LEDGER_END = "問いの台帳（questions）", "**前の周の R1 最小性"   # 問いの台帳の決まりの段
+ANSWERS_HEAD = promptsection.Section("## 依頼の answers（全部。依頼者が前の run の問いに答えた物。字が問いの key か出どころに当たらない答えは、"
+                                     "返答の answer_ties で問いか単位に結ぶ）", source="fn:judge_accept.answers_section")
+LEDGER_HEAD = promptsection.Section("## 問いの台帳（本線の判定の指示書の同じ段。kind・status・書ける欄はここが正本）\n\n",
+                                    source="fn:judge_accept.template")
+BRIEF_HEAD = promptsection.Section("# 判定の材料（盤面から描いた物）\n\n"
+                                   "本線の判定の指示書（graphloops の p2.diagnose.md）の「入力」の節と問いの台帳の段を、この run の置き場から engine と同じ描き方で描いた物。"
+                                   "値が貼ってある欄はそのまま読め。パス（対象差分・観点の正本など）は Read で読め。手順と返す JSON の形は、お前を起こした"
+                                   "指示書のとおり。", source="fn:judge_accept.brief")
+# 元 works/.shared/core/gl-prompts/prompts/review-loop/p2.diagnose.md の 3〜17 行（「## 入力」の節）と 35〜38 行（問いの台帳の段）を字のまま
+# 写した物（間の手順と後ろの段は判定役の指示書 commands/diagnose.md が持つ）。区切りの行（「## 手順」「**前の周の R1 最小性」で
+# 始まる行）は section が切る所を示すためだけに置く。元は盤面の graph の指示書のファイルを読んだ（rolekit.prompt_graph_path）
+DIAGNOSE_EXCERPT = '## 入力（素材は観点名でなく欄名で並べてある。起動しなかった欄は status がそう言っている。所見が空欄なら、その節はこの周に走っていない——素材の status と reason を見よ）\n素材（15 欄）: {{record.materials}}\n局所の findings: {{?record.process.local_findings}}\n隔離フレームからの観察——整合性: {{?record.process.consistency_findings}} ／ 標準機構の迂回: {{?record.process.bypass_findings}} ／ 外部標準: {{?record.process.external_findings}} ／ 手順トレース: {{?record.process.procedure_findings}}\n修正依頼の入口（この周に積まれた分。バッチごとに origin が出どころ、round が積まれた周。多くは人の依頼で役の観察ではないが、仕様の道の受け入れ条件と並行の線の見逃しも同じ入口で届き、その 2 つは 1 件ごとの本文の頭に出どころを書いてある。どれもほかの findings と同じく反証の対象——依頼の頼み方のずれも殺しにいけ）: {{?record.process.request_findings}}\nゲートの実効性確認: {{?record.process.gate_arms}} ／ 代役の忠実性: {{?out.p1.test_double_fidelity}} ／ 主経路の実行観測: {{?out.p1.main_path_observation}} ／ 根拠の出所検査: {{?out.p1.provenance}}\n先行議論の突合（決着済み論点）: {{?out.p0.prior_decisions}}\n凍結した元の目的: {{out.p0.purpose.purpose_text}}\u3000実測した制約: {{record.process.constraints}}\n目的の監査（writer が目的を自書したときの inspector の判定。「狭めている」なら目的の内側／外側の線をそのまま信用するな）: {{?record.process.purpose_review}}\n対象差分: {{loop.diff_file}}（Read せよ。`git diff {{record.base}} {{inputs.review_rev}}`——周に固めた版との差。未追跡の新規ファイルも入る）\u3000変更ファイル: {{loop.changed_files}}\u3000リポジトリ: {{inputs.cwd}}（読む版: `{{inputs.review_rev}}`）\n観点の正本: {{inputs.review_md}}（対象リポジトリ側: {{?inputs.repo_review_md}}）。ラベルと「対応の判断」「処方の最小性」「導線を作る手段の優先順位」はここが正本。\n前の周の独立の目が返したもの（この周が初めてなら「無い」と出る）——R1 最小性: {{?prev.r1.minimality | pick status,reason,ledger_audit,increments,candidates_note}}（削除候補 deletions は各行に no を振って別に貼る: {{?prev.r1.minimality.deletions}}） ／ R3 全体整合: {{?prev.r3.coherence | pick status,reason}} ／ R4 見えていない範囲: {{?prev.r4.hidden_scope | pick status,reason,capability_inventory,policy_conflicts}}（capability_inventory.lost は BASE から消えたと R4 が見た能力、policy_conflicts は人の方針とのぶつかり。どちらも人が関所で決める——答えは process.human_items）\ndefer 台帳（前の周までに受容したキー。今ラウンドの判定に使うのは「同じ欠陥なら同じキー文字列を使う」ためだけ）: {{?loop.defer_ledger}}\n\n素材のどれかが明示返答（有無・または「対象外」）を欠いているなら、1〜9 に入らず materials_missing にその欄名を返せ（無言のスキップを「なし」と誤認すると見逃しが構造完備の見た目で再発する）。\n## 手順（ここから下は役を起こした指示書。材料には貼らない）\n問いの台帳（questions）: kind は——{{validator.question_kinds}}\n\n{{validator.no_open_origin}}。素材が awaiting_human なら awaiting を必ず載せろ。status は——{{validator.question_status}}。この周に立てるなら held。**問いは阻害要因を消さない**——当のユニットは [block] のまま。**書けるのは** {{validator.question_fields}} だけ。\n\n**前の周の R1 最小性（ここから下は役を起こした指示書）\n'
+
+
+def section(text: str, start_at: str = START, end_at: str = END) -> str:
+    """元 works/blk-judge/lib/judgebrief.py:60。指示書の本文から start_at で始まる行から end_at で始まる行の前まで。
+    どちらかの行が無ければ ValueError（写しが替わった。元は BoardGap）"""
+    lines = text.splitlines(keepends=True)
+    start = next((i for i, ln in enumerate(lines) if ln.startswith(start_at)), None)
+    end = next((i for i, ln in enumerate(lines) if ln.startswith(end_at)), None)
+    if start is None or end is None or end <= start:
+        raise ValueError(f"p2.diagnose の指示書に「{start_at}」と「{end_at}」で始まる行がこの順に無い（写しが替わった）")
+    return "".join(lines[start:end]).rstrip("\n") + "\n"
+
+
+def template(text: str = DIAGNOSE_EXCERPT) -> str:
+    """元 works/blk-judge/lib/judgebrief.py:70。p2.diagnose の指示書の「入力」の節と問いの台帳の段（盤面の graph から引いた指示書の
+    本文を引数で受ける。既定は写した DIAGNOSE_EXCERPT）"""
+    return section(text) + "\n" + LEDGER_HEAD + section(text, LEDGER_START, LEDGER_END)
+
+
+def answers_section(answers) -> str:
+    """元 works/blk-judge/lib/judgebrief.py:77。依頼の answers（始めの記録の answers。元は gatemarks.request_answers で盤面の
+    start の控えから）の全部を並べる節（無ければ ""）"""
+    rows = [a for a in answers if isinstance(a, dict)] if isinstance(answers, list) else []
+    if not rows:
+        return ""
+    return ANSWERS_HEAD + "\n\n" + "\n".join(f"- question: {json.dumps(a.get('question'), ensure_ascii=False)} → {gatemarks.answer_note(a)}"
+                                             for a in rows)
+
+
+def _reply_of(acc: dict, role: str):
+    doc = acc.get(role)
+    return doc.get("reply") if isinstance(doc, dict) else None
+
+
+def _diagnose_ctx(jdir, repo, start, doc, mats, review_md, repo_review_md) -> dict:
+    """判定役の「入力」の節の穴を埋める値の入れ物。元は盤面の記録（record）・節の出力（out）・周の値（loop）・入力（inputs）・
+    検証器の表（validator）から engine が埋めた。無い値は入れない（省略可の穴は engine.render.ABSENT の語になる）"""
+    j = pathlib.Path(jdir)
+    acc = _accepted(j)
+    local, cb = _reply_of(acc, "local-review") or {}, _reply_of(acc, "consistency-bypass") or {}
+    ext, proc = _reply_of(acc, "external-standards") or {}, _reply_of(acc, "procedure-trace") or {}
+    gate = _reply_of(acc, "gate-efficacy") or {}
+    reqs = _requests(j)
+    entry = (due_view(start, None, []).values.get("record.process.request_entry") or {}).get("origin")
+    process = {
+        "local_findings": local.get("findings"),
+        "consistency_findings": cb.get("findings"),
+        "bypass_findings": cb.get("bypass_findings"),
+        "external_findings": ext.get("findings"),
+        "procedure_findings": proc.get("findings"),
+        "request_findings": [{"round": 1, "origin": entry or f"人の依頼（{start.get('request_file') or '依頼の行'}）",
+                              "findings": reqs}] if reqs else None,
+        "gate_arms": gate.get("arms"),
+        "purpose_review": _reply_of(acc, "purpose-review"),
+        "constraints": (read_json(j / _premises.PREMISES_FILE, {}) or {}).get("constraints") or [],
+    }
+    out = {"p0.purpose": _purpose_or_missing(j),
+           "p1.test_double_fidelity": _reply_of(acc, "test-double-fidelity"),
+           "p1.main_path_observation": _reply_of(acc, "main-path-observation"),
+           "p1.provenance": _reply_of(acc, "provenance"),
+           "p0.prior_decisions": _reply_of(acc, "prior-decisions")}
+    inputs = {"cwd": str(pathlib.Path(repo).resolve()), "review_md": review_md, "review_rev": doc["review_rev"]}
+    if repo_review_md:
+        inputs["repo_review_md"] = repo_review_md
+    return {
+        "record": {"materials": mats, "base": doc["base"], "process": {k: v for k, v in process.items() if v is not None}},
+        "out": {k: v for k, v in out.items() if v is not None},
+        "loop": {"diff_file": doc["diff_file"], "changed_files": doc["changed_files"]},
+        "inputs": inputs,
+        "validator": dict(PROMPT_TABLES),
+    }
+
+
+def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "", prior_rows=None) -> str:
+    """元 works/blk-judge/lib/judgebrief.py:86 の brief の書き直し。判定役の材料を diagnose-brief.md に組み、パスを返す。節の並び:
+    1 頭 BRIEF_HEAD・2 世界の解の行（worldmark.section。置き場の world-state.json が行を指す時）・3 p2.diagnose の「## 入力」の節を
+    置き場の値で埋めた物・4 問いの台帳の段（LEDGER_HEAD。{{validator.*}} は PROMPT_TABLES）・5 依頼と PR の題と本文（始めの記録に
+    input.pr が在る時。request_text と pr_file_text）・6 依頼の answers（answers_section）・7 前の run の行（prior_rows。
+    carry.prior_section が PRIOR_HEAD の節と REDESIGN_HEAD の節に分ける）。素材の状態は materials.json（無ければ fill_materials）。
+    対象差分は material-view.json（無ければ取る）"""
+    j = pathlib.Path(jdir)
+    doc = _material_view(j, repo, start)
+    mats = read_json(j / MATERIALS_FILE) or fill_materials(j)
+    body = Renderer(_diagnose_ctx(j, repo, start, doc, mats, review_md, repo_review_md), cap=None).render(template())
+    world = worldmark.section(worldmark.stage_rows(j) or [])
+    pr = _pr_of(start)
+    req = ""
+    if pr:
+        text, _ = _request_doc(repo, start)
+        req = request_text({"request_text": text, "pr": {"number": pr.get("number"), "title": pr.get("title") or "",
+                                                          "body": pr.get("body") or ""}}).rstrip("\n") + "\n\n" + pr_file_text(pr)
+    answers = answers_section(start.get("answers"))
+    prior = ""
+    if prior_rows:
+        carry.place_prior(j, list(prior_rows))
+        prior = carry.prior_section(j)
+    p = j / DIAGNOSE_BRIEF_FILE
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(BRIEF_HEAD + "\n\n" + (f"{world}\n" if world else "") + body + (f"\n\n{req.rstrip()}\n" if req else "")
+                   + (f"\n\n{answers}\n" if answers else "") + (f"\n\n{prior}\n" if prior else ""), encoding="utf-8")
+    os.replace(tmp, p)
+    return str(p)
+
+
+def prior_rows(path, repo, start: dict) -> list:
+    """前の run で最後まで通らなかった物の行 [{where, text}]。path（入力 prior_failures の指し札の先。今の works の
+    prior-failures-in.json の形の配列か、依頼の容器の形）が在ればそこから、無ければ始めの記録の依頼のファイルの prior_failures から
+    （元は entry が依頼の欄を盤面の根の prior-failures-in.json に写した。carry.place_prior）。読めない・形が違えば ValueError"""
+    if path:
+        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+        return list(doc) if isinstance(doc, list) else carry.parts(doc)[carry.PRIOR]
+    _, doc = _request_doc(repo, start)
+    if doc is None:
+        return []
+    return carry.parts(doc)[carry.PRIOR]
+
+
+def diagnose_prep(jdir, repo, start: dict, objection: str, prior_rows, review_md: str, repo_review_md: str = "") -> dict:
+    """判定役を起こす前の支度（元 judgebrief.brief の入口と、元 blk-material の collect の止め）。返り
+    {go, brief_file, review_md, repo_review_md, reason}。入力 objection が空でない（再審の道）・止めの控えが在れば組まずに go 偽。
+    対象差分を取り直して diff.patch に、素材の 15 欄を materials.json に書き、材料を組む。素材の役が 1 本でも諦めていれば、
+    残りの素材で材料を組んだ上で止めの控え（MATERIAL_STOP）を置いて go 偽（今の works の素材集めの諦めが判定の前で線を止めたのと同じ）"""
+    j = pathlib.Path(jdir)
+    out = {"go": False, "brief_file": "", "review_md": review_md, "repo_review_md": repo_review_md, "reason": ""}
+    if (objection or "").strip():
+        return {**out, "reason": "再審の道（入力 objection が在る）——判定の材料は組まない"}
+    stop = read_stop(j)
+    if stop:
+        return {**out, "reason": f"止まっている（{stop['stop_reason']}: {stop.get('reason', '')}）——判定役を起こさない"}
+    try:
+        _material_view(j, repo, start, retake=True)
+    except Reject as e:
+        return {**out, "reason": f"対象差分が取れない（{e}）——判定役を起こさない"}
+    fill_materials(j)
+    path = brief(j, repo, start, review_md, repo_review_md, prior_rows)
+    gave = materials_given_up(j)
+    if gave:
+        reason = "／".join(gave)
+        write_stop(j, MATERIAL_STOP, reason)
+        return {**out, "brief_file": path, "reason": reason}
+    return {**out, "go": True, "brief_file": path}
 # ================================================================ 材料・前提・目的・素材（B）の終わり
 
 

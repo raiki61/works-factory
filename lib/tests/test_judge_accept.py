@@ -509,6 +509,403 @@ class StructureUnitsCase(unittest.TestCase):
 
 # ================================================================ 材料・前提・目的・素材（B）
 # （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
+# ---------------------------------------------------------------- 試験の助け（B）
+import json as _bjson  # noqa: E402
+import os as _bos  # noqa: E402
+import subprocess as _bsub  # noqa: E402
+import tempfile as _btemp  # noqa: E402
+
+import accept as _bacc  # noqa: E402
+import carry as _bcarry  # noqa: E402
+import diverted as _bdiv  # noqa: E402
+import worldmark as _bworld  # noqa: E402
+
+_BENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid", "GIT_COMMITTER_NAME": "t",
+         "GIT_COMMITTER_EMAIL": "t@example.invalid", "GIT_CONFIG_GLOBAL": _bos.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+
+
+def _bgit(repo, *args):
+    return _bsub.run(["git", *args], cwd=str(repo), check=True, capture_output=True, text=True,
+                     env={**_bos.environ, **_BENV}).stdout
+
+
+class _BCase(unittest.TestCase):
+    """対象のリポジトリ（commit 1 つ）と run の置き場 judge/ を一時の場所に組む"""
+
+    def setUp(self):
+        td = _btemp.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.tmp = pathlib.Path(td.name)
+        self.repo = self.tmp / "repo"
+        self.repo.mkdir()
+        _bgit(self.repo, "init", "-q", "-b", "main")
+        (self.repo / "README.md").write_text("# 対象\n\n件数は 3 件\n", encoding="utf-8")
+        (self.repo / "app.txt").write_text("一行目\n二行目\n", encoding="utf-8")
+        _bgit(self.repo, "add", "-A")
+        _bgit(self.repo, "commit", "-q", "-m", "seed")
+        self.head = _bgit(self.repo, "rev-parse", "HEAD").strip()
+        self.jdir = self.tmp / "artifacts" / ja.JUDGE_DIR
+        self.jdir.mkdir(parents=True)
+
+    def snap_tree(self):
+        ja.write_json(self.jdir / ja.TREE_FILE, _bacc.tree_state(self.repo))
+
+    def start(self, **over):
+        doc = {"base_rev": self.head, "input": {"base": {"rev": self.head}, "diff": {"empty": False}, "requests": 1}}
+        doc.update(over)
+        return ja.start_view(doc)
+
+
+# ================================================================ 前提の実測
+class PremisesCase(_BCase):
+    GOOD = {"constraints": [{"text": "README.md の件数は 3 件", "measured_how": "grep", "kind": "実測",
+                             "measured_output": "$ grep -c 件 README.md\n1"}]}
+
+    def test_measured_without_output_rejected(self):
+        """元 test_blk_premises.PremisesAcceptCase.test_measured_without_output_rejected_by_copied_rule と test_blank_output_rejected"""
+        self.snap_tree()
+        for bad in ({"text": "a", "measured_how": "b", "kind": "実測"},
+                    {"text": "a", "measured_how": "b", "kind": "実測", "measured_output": "  "}):
+            with self.subTest(bad):
+                got = ja.check_premises({"constraints": [bad]}, self.jdir, self.repo, [])
+                self.assertFalse(got["ok"])
+                self.assertIn("measured_output", got["reason"])
+        self.assertFalse((self.jdir / "premises.json").exists(), "拒んだ返答は書かない")
+
+    def test_hypothesis_needs_no_output_and_good_reply_is_written(self):
+        """元 test_blk_premises の test_hypothesis_needs_no_output_and_empty_is_ok・test_accepts_good_reply"""
+        self.snap_tree()
+        got = ja.check_premises({"constraints": [{"text": "a", "measured_how": "b", "kind": "仮説"}]}, self.jdir, self.repo, [])
+        self.assertTrue(got["ok"], got)
+        got = ja.check_premises(self.GOOD, self.jdir, self.repo, [])
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(ja.read_json(self.jdir / "premises.json"), self.GOOD)
+
+    def test_request_claim_must_be_measured_again(self):
+        """元 test_blk_premises の test_request_claim_missing_rejected・test_request_claim_hypothesis_passes（check_claims）"""
+        self.snap_tree()
+        items = [{"where": "README.md:3", "text": "件数", "measured": "3 件"}]
+        got = ja.check_premises(self.GOOD, self.jdir, self.repo, items)
+        self.assertFalse(got["ok"])
+        self.assertIn("README.md:3", got["reason"])
+        hyp = {"constraints": [{"text": "README.md:3 は本番の値で測れない", "measured_how": "読んだ", "kind": "仮説"}]}
+        self.assertTrue(ja.check_premises(hyp, self.jdir, self.repo, items)["ok"])
+
+    def test_premises_role_changed_the_tree_rejected(self):
+        """元 test_blk_premises の test_rejects_tree_changed_after_intake・test_rejects_commit_after_intake"""
+        self.snap_tree()
+        (self.repo / "out.txt").write_text("測った出力\n", encoding="utf-8")
+        got = ja.check_premises(self.GOOD, self.jdir, self.repo, [])
+        self.assertFalse(got["ok"])
+        self.assertIn("作業ツリー", got["reason"])
+        (self.repo / "out.txt").unlink()
+        self.assertTrue(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"])
+        (self.repo / "app.txt").write_text("書き換えた\n", encoding="utf-8")
+        _bgit(self.repo, "commit", "-qam", "x")
+        self.assertFalse(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"], "commit しても HEAD で見える")
+
+    def test_bytecode_made_by_measuring_is_not_counted(self):
+        """元 test_blk_premises の test_bytecode_not_counted_without_gitignore（測るために試験を走らせて出来る物）"""
+        self.snap_tree()
+        (self.repo / "__pycache__").mkdir()
+        (self.repo / "__pycache__" / "m.cpython-312.pyc").write_bytes(b"\0")
+        self.assertTrue(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"])
+
+
+# ================================================================ 目的
+class PurposeCase(_BCase):
+    GOOD = {"purpose_text": "件数を正しく数える", "source": "②計画・タスク記述", "known_weaknesses": [],
+            "source_files": ["README.md"], "means": ["数え直す関数を足す"]}
+
+    def test_good_reply_writes_purpose_and_means(self):
+        """元 test_blk_purpose の test_accept_good_and_bad_reply・test_purpose_means_split_to_mark"""
+        self.snap_tree()
+        got = ja.check_purpose(dict(self.GOOD), self.jdir, self.repo)
+        self.assertTrue(got["ok"], got)
+        doc = ja.read_json(self.jdir / "purpose.json")
+        self.assertNotIn("means", doc, "purpose.json は写しの型のまま（足し欄を外す）")
+        self.assertEqual(doc["source_files"], ["README.md"])
+        self.assertEqual(ja.read_json(self.jdir / "purpose-means.json"), {"means": ["数え直す関数を足す"]})
+
+    def test_purpose_role_changed_the_tree_rejected(self):
+        """元 test_blk_purpose の test_accept_rejects_tree_change_after_intake"""
+        self.snap_tree()
+        (self.repo / "note.txt").write_text("書いた\n", encoding="utf-8")
+        got = ja.check_purpose(dict(self.GOOD), self.jdir, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn("作業ツリー", got["reason"])
+        self.assertFalse((self.jdir / "purpose.json").exists())
+
+    def test_source_files_outside_or_missing_rejected(self):
+        """元 test_blk_purpose の test_accept_rejects_source_files_outside_tree・test_accept_rejects_missing_source_file_sample"""
+        self.snap_tree()
+        for bad in (["/etc/hosts"], ["./README.md"], ["nothing.md"]):
+            with self.subTest(bad):
+                got = ja.check_purpose({**self.GOOD, "source_files": bad}, self.jdir, self.repo)
+                self.assertFalse(got["ok"], got)
+                self.assertIn("source_files", got["reason"])
+
+    def test_frozen_purpose_is_not_overwritten(self):
+        """元 test_blk_purpose の test_accept_refuses_to_overwrite_frozen_purpose（p0.purpose の once）"""
+        self.snap_tree()
+        self.assertTrue(ja.check_purpose(dict(self.GOOD), self.jdir, self.repo)["ok"])
+        got = ja.check_purpose({**self.GOOD, "purpose_text": "別の目的"}, self.jdir, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertEqual(ja.read_json(self.jdir / "purpose.json")["purpose_text"], "件数を正しく数える")
+
+    def test_purpose_material_has_no_prior_failures(self):
+        """元 test_blk_purpose.test_purpose_never_sees_prior_failures（目的の役に前の run の判断を見せない。carry.without_prior）"""
+        req = self.repo / "request.json"
+        req.write_text(_bjson.dumps({"findings": [{"where": "app.txt:1", "text": "数え違い"}],
+                                     "prior_failures": [{"where": "受け付け", "text": "前の run で拒まれた行の印XYZ"}]},
+                                    ensure_ascii=False), encoding="utf-8")
+        ja.write_json(self.jdir / "premises.json", {"constraints": [{"text": "制約の印ABC", "measured_how": "m", "kind": "仮説"}]})
+        start = self.start(request_file="request.json", input={"pr": {"number": 7, "title": "題", "body": "本文"}})
+        got = ja.purpose_prep(self.jdir, self.repo, start)
+        self.assertTrue(got["go"], got)
+        copy = ja.read_json(self.jdir / "purpose-request.json")
+        self.assertNotIn("prior_failures", copy)
+        self.assertEqual(copy["findings"][0]["where"], "app.txt:1")
+        text = pathlib.Path(got["brief_file"]).read_text(encoding="utf-8")
+        self.assertNotIn("印XYZ", text)
+        self.assertNotIn(_bcarry.PRIOR_HEAD, text)
+        self.assertNotIn(_bcarry.REDESIGN_HEAD, text)
+        self.assertIn("制約の印ABC", text)
+        self.assertIn("app.txt:1", text)
+        self.assertIn("本文", text, "PR の説明は目的の出典①")
+
+
+# ================================================================ 素材の要否
+class DueCase(unittest.TestCase):
+    """元 test_blk_material の test_normal_run_routes_every_due_lens・test_entry_round_prior_decisions_only・
+    test_purpose_review_runs_its_path（盤面の settle の ready を、値を渡す見方 due_view で写した）"""
+    P1 = ("local-review", "consistency-bypass", "hygiene", "external-standards", "provenance", "procedure-trace",
+          "gate-efficacy", "test-double-fidelity", "main-path-observation")
+
+    def view(self, empty, requests, source="②計画・タスク記述", files=("README.md", "src/a.txt")):
+        start = ja.start_view({"input": {"diff": {"empty": empty}, "requests": requests}, "gates": ""})
+        purpose = {"purpose_text": "p", "source": source, "known_weaknesses": [], "source_files": []}
+        return ja.due_view(start, purpose, list(files))
+
+    def test_view_values(self):
+        v = self.view(True, 2)
+        self.assertEqual(v("round"), 1)
+        self.assertIsNone(v("prev.p3.fix.mechanism_changed"))
+        self.assertFalse(v("loop.escalated"))
+        self.assertIsNone(v("loop.request_fixed_at"))
+        self.assertTrue(v("out.p0.base.touches_gates"))
+        self.assertIsNone(v("loop.last_material.main_path_observation.status", None))
+        self.assertEqual(v("out.p0.purpose.source"), "②計画・タスク記述")
+        self.assertEqual(v("loop.changed_files"), ["README.md", "src/a.txt"])
+        self.assertTrue(ja.request_entry(v)[0], "差分が空で依頼の在る run は入口の印が立つ")
+        self.assertFalse(ja.request_entry(self.view(True, 0))[0])
+        self.assertFalse(ja.request_entry(self.view(False, 2))[0])
+
+    def test_empty_diff_run_with_requests_runs_only_prior_decisions(self):
+        got = ja.due_roles(self.view(True, 1, files=()))
+        for role in self.P1:
+            self.assertFalse(got[role][0], role)
+            self.assertTrue(got[role][1], "回さない訳を言う")
+        self.assertTrue(got["prior-decisions"][0])
+        self.assertFalse(got["purpose-review"][0])
+
+    def test_purpose_review_only_for_writer_summary(self):
+        self.assertTrue(ja.due_roles(self.view(True, 1, source="③writer の要約"))["purpose-review"][0])
+        self.assertFalse(ja.due_roles(self.view(False, 1, source="①PR 説明"))["purpose-review"][0])
+
+    def test_run_with_a_diff_runs_them(self):
+        got = ja.due_roles(self.view(False, 1))
+        for role in self.P1 + ("prior-decisions",):
+            self.assertTrue(got[role][0], (role, got[role]))
+
+    def test_procedure_trace_needs_procedure_files(self):
+        got = ja.due_roles(self.view(False, 1, files=("src/a.txt",)))
+        self.assertFalse(got["procedure-trace"][0])
+
+    def test_gates_merge_turns_gate_efficacy_off(self):
+        start = ja.start_view({"input": {"diff": {"empty": False}, "requests": 0}, "gates": "merge"})
+        self.assertFalse(ja.due_roles(ja.due_view(start, {"source": "①PR 説明"}, ["a.yml"]))["gate-efficacy"][0])
+
+
+# ================================================================ 素材の受け付けと素材の状態
+class MaterialCase(_BCase):
+    def view(self):
+        self.snap_tree()
+        start = self.start()
+        ja.write_json(self.jdir / ja.START_FILE, start)
+        return ja.material_route(self.jdir, self.repo)
+
+    def test_route_writes_view_and_decisions(self):
+        """元 test_blk_material の test_normal_run_routes_every_due_lens（差分の在る run）"""
+        (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
+        got = self.view()
+        self.assertEqual(set(got), {ja.route_key(r) for r in ja.MATERIAL_ROLES} | {"reason"})
+        self.assertTrue(got["local_review"])
+        self.assertTrue((self.jdir / "diff.patch").read_text(encoding="utf-8").strip())
+        self.assertIn("app.txt", ja.read_json(self.jdir / ja.MATERIAL_VIEW_FILE)["changed_files"])
+
+    def test_stop_turns_every_role_off(self):
+        ja.write_stop(self.jdir, ja.MATERIAL_STOP, "止めた")
+        got = self.view()
+        self.assertFalse(any(v for k, v in got.items() if k != "reason"))
+
+    def test_prep_renders_role_inputs(self):
+        """元 test_blk_material の test_prompt_is_mainline_prompt_rendered_from_board・test_isolated_role_gets_pasted_prompt・
+        test_local_review_prompt_carries_declared_lenses"""
+        (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
+        self.view()
+        review = self.tmp / "REVIEW.md"
+        review.write_text("# 観点\n\n## コード衛生観点\n\n衛生の本文\n\n## 次\n", encoding="utf-8")
+        got = ja.material_prep(self.jdir, "hygiene", self.repo, str(review), "")
+        self.assertEqual(pathlib.Path(got["brief_file"]).read_text(encoding="utf-8"), got["brief"])
+        self.assertIn("衛生の本文", got["brief"])
+        self.assertIn("直した", got["brief"], "差分の本文を貼る")
+        got = ja.material_prep(self.jdir, "local-review", self.repo, str(review), "")
+        self.assertIn("/code-review", got["brief"])
+        self.assertIn('"applies": true', got["brief"])
+        self.assertEqual(got["review_md"], str(review))
+
+    def test_accept_writes_material_file(self):
+        self.view()
+        reply = {"material": {"status": "clean", "checked": "README を見た"}, "observed": [{"path": "p", "value": "v"}]}
+        got = ja.material_take(self.jdir, "main-path-observation", reply, self.repo)
+        self.assertTrue(got["ok"], got)
+        doc = ja.read_json(self.jdir / "material-main-path-observation.json")
+        self.assertEqual(doc["role"], "main-path-observation")
+        self.assertEqual(doc["materials"], {"main_path_observation": {"status": "clean", "checked": "README を見た"}})
+
+    def test_accept_rules(self):
+        """元 test_blk_material の test_rejected_reply_retries_then_gives_up と写しの rules の post_check
+        （main_path_observed・external_rankings・gate_arms_all_red）"""
+        self.view()
+        cases = {
+            "main-path-observation": {"material": {"status": "clean", "checked": "x"}, "observed": []},
+            "external-standards": {"material": {"status": "clean", "checked": "x"}, "findings": [], "seen": "s", "unseen": "u",
+                                   "web_refetched": True, "rankings": [{"problem": "問題の名", "source": "https://x",
+                                                                        "ranked": ["上", "下"], "diff_at": "下"}]},
+            "gate-efficacy": {"material": {"status": "clean", "checked": "x"},
+                              "arms": [{"gate": "g", "arm": "a", "red_confirmed": False, "control_green": True,
+                                        "hit_evidence": "印を出力で見た（十分に長い）"}]},
+            "provenance": {"material": {"status": "carried_over", "from_round": 1, "reason": "前の周"}, "claims": []},
+        }
+        for role, reply in cases.items():
+            with self.subTest(role):
+                got = ja.material_take(self.jdir, role, reply, self.repo)
+                self.assertFalse(got["ok"], got)
+                self.assertFalse((self.jdir / f"material-{role}.json").exists())
+
+    def test_material_role_changed_the_tree_rejected(self):
+        """元 test_blk_material.test_tree_change_rejects_and_names_peers"""
+        self.view()
+        (self.repo / "tmp.out").write_text("x\n", encoding="utf-8")
+        got = ja.material_take(self.jdir, "provenance", {"material": {"status": "clean", "checked": "x"}, "claims": []}, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn("作業ツリー", got["reason"])
+
+    def test_local_review_unseen_lens_is_marked(self):
+        """元 test_diverted.TakeCase.test_unrecovered_loss_is_taken_but_said_unseen（受け付けは拒まず、見ていないと書く）"""
+        self.view()
+        rows = [{"skill": e["skill"], "items": [], "invoked": True, "failed": "起こしたが所見なし（差分を見た）"}
+                for e in ja._skills(ja.due_view(self.start(), {}, []), "local-review")]
+        rows[0]["failed"] = "本文が届かなかった"
+        reply = {"material": {"status": "clean", "checked": "差分を見た"}, "simplify_carried": False, "findings": rows}
+        got = ja.material_take(self.jdir, "local-review", reply, self.repo)
+        self.assertTrue(got["ok"], got)
+        doc = ja.read_json(self.jdir / "material-local-review.json")
+        self.assertTrue(doc["reply"]["findings"][0]["failed"].startswith(_bdiv.UNSEEN_TAG))
+        self.assertEqual(ja.read_json(self.jdir / _bdiv.LENS_FILE)["unseen"], ["/code-review"])
+
+    def test_materials_mark_not_run_and_given_up(self):
+        """元 test_blk_material.test_collect_names_every_waiting_node と写しの rules の fill_materials"""
+        got = self.view()
+        self.assertTrue(got["provenance"])
+        ja.write_json(self.jdir / "material-hygiene.json",
+                      {"role": "hygiene", "reply": {}, "materials": {"hygiene": {"status": "clean", "checked": "差分"}}})
+        ja.write_json(self.jdir / "material-pr-check.json",
+                      {"role": "pr-check", "reply": {}, "materials": {"parallel_pr": {"status": "clean", "checked": "PR"}}})
+        for _ in range(3):
+            ja.rolekit.with_done(self.jdir, "provenance", {"ok": False, "reason": "出典が違う"})
+        mats = ja.fill_materials(self.jdir)
+        self.assertEqual(set(mats), set(ja.MATERIALS))
+        self.assertEqual(mats["hygiene"]["status"], "clean")
+        self.assertEqual(mats["parallel_pr"]["status"], "clean")
+        self.assertEqual(mats["provenance"]["status"], "not_run")
+        self.assertIn("出典が違う", mats["provenance"]["reason"])
+        self.assertEqual(mats["local_review"]["status"], "not_run")
+        self.assertIn("走っていない", mats["local_review"]["reason"])
+        self.assertEqual(mats["fix_closure"]["status"], "not_applicable")
+        self.assertEqual(ja.read_json(self.jdir / "materials.json"), mats)
+
+    def test_materials_of_an_entry_run_are_not_applicable(self):
+        """元 写しの rules の fill_materials（判定から入る run の周の P1 の素材は not_applicable と入口の理由）"""
+        self.snap_tree()
+        ja.write_json(self.jdir / ja.START_FILE, self.start(input={"base": {"rev": self.head}, "diff": {"empty": True},
+                                                                   "requests": 2}))
+        got = ja.material_route(self.jdir, self.repo)
+        self.assertFalse(got["local_review"])
+        mats = ja.fill_materials(self.jdir)
+        self.assertEqual(mats["local_review"]["status"], "not_applicable")
+        self.assertIn("判定から入る run", mats["local_review"]["reason"])
+        self.assertEqual(mats["prior_decisions"]["status"], "not_run")
+
+
+# ================================================================ 判定役の材料
+class BriefCase(_BCase):
+    def test_brief_emits_the_seven_sections_in_order(self):
+        """元 test_blk_judge（judgebrief.brief の節の並び・answers_section・carry.prior_section）"""
+        self.snap_tree()
+        (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
+        req = self.repo / "request.json"
+        req.write_text(_bjson.dumps([{"where": "app.txt:2", "text": "依頼の本文"}], ensure_ascii=False), encoding="utf-8")
+        row = {"finding": 1, "where": "app.txt:2", "class_id": "w1", "problem": "問題", "activity": "作業", "practice": "定石",
+               "sources": [], "applies": "", "not_applies": "", "basis": "knowledge",
+               "versus": {"proposed": "", "verdict": "none", "challenge": ""}}
+        (self.jdir / "world.jsonl").write_text(_bjson.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+        _bworld.write(self.jdir, status="ok", reason="", world_file=str(self.jdir / "world.jsonl"), classes=[], dropped=[])
+        ja.write_json(self.jdir / ja.REQUEST_FILE, [{"where": "app.txt:2", "text": "依頼の本文"}])
+        ja.write_json(self.jdir / "purpose.json", {"purpose_text": "凍った目的の印", "source": "①PR 説明",
+                                                   "known_weaknesses": [], "source_files": []})
+        ja.write_json(self.jdir / "premises.json", {"constraints": []})
+        start = self.start(request_file="request.json",
+                           answers=[{"question": "q1", "text": "答えの印"}],
+                           input={"base": {"rev": self.head}, "pr": {"number": 9, "title": "PR の題", "body": "PR の本文"}})
+        ja.write_json(self.jdir / ja.START_FILE, start)
+        ja.material_route(self.jdir, self.repo)
+        prior = [{"where": "受け付け", "text": "前の拒否"}, {"where": _bcarry.REDESIGN_WHERE, "text": "作り直し"}]
+        path = ja.brief(self.jdir, self.repo, start, str(self.tmp / "REVIEW.md"), "", prior)
+        text = pathlib.Path(path).read_text(encoding="utf-8")
+        heads = [ja.BRIEF_HEAD, _bworld.HEAD, "## 入力", ja.LEDGER_HEAD.strip(), ja.REQUEST_HEAD, ja.ANSWERS_HEAD,
+                 _bcarry.PRIOR_HEAD, _bcarry.REDESIGN_HEAD]
+        at = [text.find(h) for h in heads]
+        self.assertNotIn(-1, at, list(zip(heads, at)))
+        self.assertEqual(at, sorted(at), "節の並び")
+        self.assertIn("凍った目的の印", text)
+        self.assertIn("答えの印", text)
+        self.assertIn("PR の本文", text)
+        self.assertIn(str(self.jdir / "diff.patch"), text)
+        self.assertNotIn("{{", text, "穴を残さない")
+
+    def test_diagnose_prep_stops_after_material_give_up(self):
+        """元 blk-material の collect（素材の役が 3 回とも拒まれたら盤面を止めた）。残りの素材で材料は組む"""
+        self.snap_tree()
+        ja.write_json(self.jdir / ja.START_FILE, self.start())
+        route = ja.material_route(self.jdir, self.repo)
+        self.assertTrue(route["hygiene"])
+        for _ in range(3):
+            ja.rolekit.with_done(self.jdir, "hygiene", {"ok": False, "reason": "形が違う"})
+        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "", [], str(self.tmp / "REVIEW.md"), "")
+        self.assertFalse(got["go"])
+        self.assertTrue(pathlib.Path(got["brief_file"]).is_file())
+        self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], ja.MATERIAL_STOP)
+        self.assertEqual(ja.read_json(self.jdir / "materials.json")["hygiene"]["status"], "not_run")
+
+    def test_diagnose_prep_skips_on_objection_or_stop(self):
+        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "異議", [], "", "")
+        self.assertFalse(got["go"])
+        ja.write_stop(self.jdir, ja.JUDGE_STOP, "前で止めた")
+        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "", [], "", "")
+        self.assertFalse(got["go"])
+        self.assertIn("前で止めた", got["reason"])
 # ================================================================ 材料・前提・目的・素材（B）の終わり
 
 
