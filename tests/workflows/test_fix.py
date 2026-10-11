@@ -558,13 +558,34 @@ class BlockScriptsCase(unittest.TestCase):
         _blk_write(self.art / "in" / "baseline.json", {"cases": [], "exit": 0, "suite": "", "test_cmd": "", "rev": "HEAD"})
         inputs = {**self.prep_inputs(), "ripple": _blk_ptr("in/ripple.json"), "world": _blk_ptr("in/world.json"),
                   "baseline": _blk_ptr("in/baseline.json"), "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]',
-                  "answers": '{"decision": "approve", "text": ""}', "units": '["A"]', "only_items": '["1"]'}
+                  "answers": '{"decision": "approve", "text": "stats.py の外は触らない"}', "units": '["A"]',
+                  "only_items": '["1"]'}
         code, out, err = _blk_run("prep", self.repo, self.art, inputs, "fix__prep")
         self.assertEqual(code, 0, err)
         written = {p.relative_to(self.place).as_posix() for p in self.place.rglob("*") if p.is_file()}
         own = {fixboard.GROUPS_FILE, "fix-ignored-before.json", fixboard.marks_path(self.place).name,
                fixboard.TRACE_FILE, planmarks.FIELDS_FILE}
         self.assertEqual(written - own, set(fixboard.ADOPTED))
+
+    def test_prep_takes_the_gate_answers_into_the_duty(self):
+        """修正前の関所で答えた問いの単位は直す義務に戻り、答えていない問いの単位は外れる（gatemarks.returned・withheld_by）。
+        関所の一言と戻った単位の行は修正役と TDD の役が読む human-notes.md に載る"""
+        import gatemarks
+        fork = {"key": "q-fork", "kind": "fork", "status": "held", "origin": "B", "reason": "分母はどちらか"}
+        held = {"key": "q-esc", "kind": "decision", "status": "escalate", "origin": "C", "reason": "人に上げる"}
+        inputs = self.prep_inputs()
+        _blk_write(self.art / "in" / "judgment.json", {"units": [
+            {"key": "A", "label": "block"}, {"key": "B", "label": "block"},
+            {"key": "C", "label": "suggest", "disposition": "do-now"}, {"key": "D", "label": "suggest"}],
+            "questions": [fork, held]})
+        answer = {"decision": "continue", "text": "分母は len(xs)", "asked": [gatemarks.ask_text(fork)]}
+        code, out, err = _blk_run("prep", self.repo, self.art, {**inputs, "answers": json.dumps(answer, ensure_ascii=False)},
+                                  "fix__prep")
+        self.assertEqual(code, 0, err)
+        self.assertEqual([g["unit_ids"] for g in out["groups"]], [["A", "B"]])
+        notes = (self.place / "human-notes.md").read_text(encoding="utf-8")
+        self.assertIn("分母は len(xs)", notes)
+        self.assertIn("q-fork", notes)
 
     def test_prep_without_remote_runs_in_order(self):
         """子ごとの作業ツリーは remote の既定の枝から切られる（U8 の実測: remote の無いリポジトリでは子を 1 つも起こせない）"""

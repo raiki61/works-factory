@@ -4,6 +4,8 @@
 
 - trace(place, op, **kw): 置き場の trace.jsonl に {"op": op, **kw} を 1 行足す（元の盤面の b.trace の代わり）
 - base_rev(state, given=""): 突き合わせの起点の版（元 works/.shared/core/writes.py:88 の base_rev）
+- gate_view(place)・gate_asks(place)・write_notes(place): 修正前の関所の答え（answers.json）と判定の写しを gatemarks の問いの口に
+  渡す形と、答え待ちで外す単位・答えで戻る単位、修正役と TDD の役が読む一言のファイル（元は盤面の record と line_edge の h-fix）
 - record_base_rev(place, repo)・base_rev_of(place, given=""): 修正前の版の控えと読み（並べた組の子の HEAD は親の HEAD と
   違うので、親の prep が控えて子が写す。新しい）
 - marks_view(place, round_=1): planmarks の凍結した欄の読み口（frozen・rewrites・removes_permits）に渡す読むだけの形
@@ -94,9 +96,10 @@ def fix_duty(place, owed, *, withheld_by=None, returned=()) -> tuple:
     受けた単位（conflict.held_by_rulings。理由はその裁定）。1 単位が withheld と裁定の両方に当たれば裁定の理由。控えが読めなければ
     裁定の単位を外さない。1 回目に受け付けた返答の控え（conflict.held_reply）が在れば、その単位を直す義務から引き、理由
     conflict.ACCEPTED_WHY で外れた単位に足す（ほかの理由より先）。控えが壊れていれば held_reply の ValueError。
+    withheld_by が None なら置き場の判定の写しと関所の答えから引く（gate_asks）。
     元 works/.shared/core/conflict.py:696（盤面の記録と問いの台帳を読んだ）"""
     import conflict
-    withheld_by = withheld_by or {}
+    withheld_by = gate_asks(place)[0] if withheld_by is None else withheld_by
     owed = owed_units_but_asked(place, owed, withheld=set(withheld_by), returned=returned)
     out = {k: f"答え待ちの問い {q.get('key')}（{q.get('kind')}・{q.get('status')}）" for k, q in withheld_by.items()}
     try:
@@ -750,6 +753,7 @@ ANSWERS_FILE = "answers.json"          # 人の関所の答えの写し（承認
 UNITS_FILE = "units.json"              # 入力 units の写し
 ONLY_ITEMS_FILE = "only-items.json"    # 直す項目の絞り（入力 only_items。空は全部）
 BASELINE_FILE = "baseline.json"        # 直す前の結末 {cases, exit}（baseline_red.read_baseline の欄だけ）
+NOTES_FILE = "human-notes.md"          # 修正前の関所の一言と答えで直す義務に戻った単位の行（修正役と TDD の役の notes_file）
 BASE_REV_FILE = "base-rev.json"        # 修正前の版 {rev}（prep が親の作業ツリーの HEAD の sha を控え、組の子が写す）
 FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまとめた物（差分の審査の材料 fix_report と plan_faces）
 REJECT_NAME = "reject-{name}-{k}.md"   # 受け付けの k 回目の拒否の理由（役が Read で読む）
@@ -1113,7 +1117,7 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 # ---------------------------------------------------------------- 形 group の子の run（group-start・tdd-loop・group-end の scripts が呼ぶ）
 # 子が親の置き場から自分の置き場に写す入力の写し（prep が書く物。plan-fields.json と凍結の印は adopt_inputs が別に置き直す）
 ADOPTED = (startrec.REL, JUDGMENT_FILE, PLAN_REPLY_FILE, RIPPLE_FILE, WORLD_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
-           ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE)
+           ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 修正の輪が許したテストの変更のパス [str]（fix-accept が書く）
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
@@ -1292,12 +1296,17 @@ RIPPLE_READ = "波及の一覧 {path} も読め（範囲に入っていない当
 
 
 def group_owed(place, unit_ids=None) -> list:
-    """直す義務の単位の key の並び（置き場の判定の写し judgment.json の owed_keys。判定の順）。unit_ids（組の単位）を渡せばその中だけ。
-    判定の写しが無ければ ValueError。新しい（元は盤面の写しの規則の _owed_units が run の全部を読んだ）"""
+    """直す義務の単位の key の並び（判定の順）: 置き場の判定の写し judgment.json の owed_keys から、修正前の関所で答えていない問いの
+    出どころ・depends を除き、答えた問いの出どころ・depends を戻した物（gate_asks。owed_units_but_asked と同じ足し引き）。
+    unit_ids（組の単位）を渡せばその中だけ。判定の写しが無ければ ValueError。
+    新しい（元は盤面の写しの規則の _owed_units と gatemarks の盤面の読みが run の全部を読んだ）"""
     judgment = read_json(pathlib.Path(place) / JUDGMENT_FILE)
     if not isinstance(judgment, dict):
         raise ValueError(f"置き場に判定の写し {JUDGMENT_FILE} が無い（{place}）")
-    keys = owed_keys(judgment)
+    withheld, back = gate_asks(place)
+    owed = set(owed_keys(judgment))
+    order = [u.get("key") for u in judgment.get("units") or [] if isinstance(u, dict) and isinstance(u.get("key"), str)]
+    keys = [k for k in dict.fromkeys(order) if (k in owed or k in back) and k not in withheld]
     return keys if unit_ids is None else [k for k in keys if k in {str(u) for u in unit_ids}]
 
 
@@ -1663,6 +1672,47 @@ def base_rev_of(place, given: str = "") -> str:
 GATE_PASS = ("approve", "continue")   # 人の関所の通す語（docs/design.md の「書き方の決め」）
 
 
+def gate_view(place):
+    """gatemarks の問いの口（asks・answered・pending・withheld_by・returned・returned_lines）に渡す読むだけの形: record は置き場の
+    判定の写しの questions・units と、関所の答え answers.json（{decision, text, asked}。asked は人が見た関所の行）を通す語の時だけ
+    gatemarks.GATE_NODE の continue の行にした human_items。dir は置き場（依頼の answers は始めの記録の写しから読む）。
+    人に聞く状態の語は ASKING。元は盤面の b.record と写しの検証器を読んだ"""
+    import gatemarks
+    p = pathlib.Path(place)
+    judgment = read_json(p / JUDGMENT_FILE)
+    judgment = judgment if isinstance(judgment, dict) else {}
+    answers = read_json(p / ANSWERS_FILE)
+    items = []
+    if isinstance(answers, dict) and answers.get("decision") in GATE_PASS:
+        items.append({"round": 1, "node": gatemarks.GATE_NODE, "answer": "continue", "note": str(answers.get("text") or ""),
+                      "asked": [a for a in answers.get("asked") or [] if isinstance(a, str)]})
+    record = {"questions": list(judgment.get("questions") or []), "units": list(judgment.get("units") or []),
+              "materials": {}, "process": {"human_items": items}}
+    validator = types.SimpleNamespace(ASKING=ASKING, STATUS={})
+    return types.SimpleNamespace(dir=p, round=1, record=record,
+                                 rules=types.SimpleNamespace(validator_module=lambda b: validator))
+
+
+def gate_asks(place) -> tuple:
+    """(答えが無いので直す義務から外す単位 {key: 問い}, 答えで直す義務に戻る単位 set)。gatemarks.withheld_by・returned を
+    gate_view で引いた物"""
+    import gatemarks
+    view = gate_view(place)
+    return gatemarks.withheld_by(view), gatemarks.returned(view)
+
+
+def write_notes(place) -> str:
+    """修正前の関所の一言と、答えで直す義務に戻った単位の行（gatemarks.returned_lines）を置き場の NOTES_FILE に書き、パスを返す。
+    どちらも無ければ書かずに ""。元 works/darkfactory/lib/line_edge.py:1218 の h-fix の notes_file"""
+    import gatemarks
+    view = gate_view(place)
+    said = [h["note"] for h in view.record["process"]["human_items"] if h["note"]]
+    notes = "\n".join([*said, *gatemarks.returned_lines(view)])
+    if not notes:
+        return ""
+    return str(write_text(pathlib.Path(place) / NOTES_FILE, notes))
+
+
 def gate_items(answers) -> list:
     """直す前の人の関所の答え answers（関所の節の出力 {decision, text}。飛ばされた時は None）を、consult.gate_notes が読む
     human_items の行 [{round, node, answer, note}] にする。通す語で文が在る時だけ 1 行（周は 1。fix の 1 回の差し込みが 1 周）。
@@ -1791,7 +1841,7 @@ def fix_values(place, owed, *, start, state: str = "", summary: str = "", answer
     start = start if isinstance(start, dict) else {}
     return {"judgment_file": there(JUDGMENT_FILE), "open_units": json.dumps(list(owed), ensure_ascii=False),
             "plan_file": there(PLAN_REPLY_FILE), "policy_path": str(start.get("policy_md") or ""),
-            "notes_file": there(ANSWERS_FILE), "summary_file": summary or "",
+            "notes_file": there(NOTES_FILE), "summary_file": summary or "",
             "request_file": str(start.get("request_file") or ""), "plan_session": answer_node, "tdd_state": state or "",
             "ripple_file": there(RIPPLE_FILE), "base_rev": base_rev_of(place)}
 

@@ -6,7 +6,8 @@
 
 置き場（fixio.place() = $ARTIFACTS_DIR/fix/<include の名>/）に書く物: r1/start.json（始めの記録の写し。欠けた欄は既定）・
 judgment.json・plan-fields.json と凍結の印（planmarks.save）・p2.fix_plan.json（修正案の隣に在れば）・ripple.json・world.json・
-depth.json・answers.json・units.json・only-items.json・baseline.json（{cases, exit}）・fix-ignored-before.json・base-rev.json
+depth.json・answers.json・units.json・only-items.json・baseline.json（{cases, exit}）・fix-ignored-before.json・human-notes.md（関所の一言と答えで戻った単位の行。
+無ければ書かない）・base-rev.json
 （修正前の版。親の HEAD の sha。組の子が写して受け付けの起点にする）・groups.json
 （返りと同じ物）。組の子が結果を書く out_dir（置き場の groups/）も作る。
 返り {groups: [{group_id, unit_ids, items}], count, par, start_tree, out_dir}。入力が読めない・git が効かない: 標準エラーに 1 行で 1。
@@ -96,7 +97,8 @@ def main() -> dict:
     fixboard.record_base_rev(place, repo)
     start_tree = groups.end_tree(repo)
     items = planmarks.approved_items(fixboard.plan_view(place, plan, judgment)) if plan is not None else None
-    grps = fixboard.fix_groups(fixboard.owed_keys(judgment), items, only)
+    fixboard.write_notes(place)
+    grps = fixboard.fix_groups(fixboard.group_owed(place), items, only)
     out_dir = place / "groups"
     out_dir.mkdir(parents=True, exist_ok=True)
     out = {"groups": grps, "count": len(grps), "par": fixboard.parallel(grps, start.get("features_cut"), repo),
