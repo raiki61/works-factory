@@ -1,6 +1,6 @@
 # 修正前の関所と案の直しの関所が開き、どちらも通す。answer-replan の script が、修正前の関所の条件（answer-before-fix の stub）と
 # 案の直しの関所の答え（筋書きの関所はいつも approved の字）を本当に組み、2 度目の修正まで進む（今の works の replan._notes）。
-# 組んだ値が refix の answers に届くことは tests/workflows/test_line.py が照らす（dry-run は include の入力を名前の script に渡さない）。
+# 組んだ値が refix-run の answers に届くことは tests/workflows/test_line.py が照らす（dry-run の制約は docs/design.md の U3）。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}

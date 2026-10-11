@@ -121,10 +121,10 @@
 
 ### Task 4: 線
 
-> 持ち主の決め `overnight-speed` で、ブロック 8 つは各々の issue が自分のフォルダを中身ごと作る。この Task は線だけを作り、ブロックの代わり（試験だけで使う同じ名の小さな工程。`workflows/line/fixtures/stub-blocks/`）で Archon の筋書きの試験を `exec-code: true` で回す。中身の正本は `docs/plans/2026-10-12-groundwork-line-launcher.md` の A の節。下は要点。
+> 持ち主の決め `overnight-speed` で、ブロック 8 つは各々の issue が自分のフォルダを中身ごと作る。この Task は線だけを作り、Archon の筋書きの試験を `exec-code: true` で回す。ブロックの代わり（試験だけで使う同じ名の小さな工程）を置く予定だったが、線の PR #74 の間に 8 つのブロックが全部 main に入ったので、筋書きは本物のブロックと組んで回し、代わりは置かない。中身の正本は `docs/plans/2026-10-12-groundwork-line-launcher.md` の A の節。下は要点。
 
 **Files:**
-- Create: `workflows/line/works-factory-line.yaml`・`workflows/line/scripts/`・`workflows/line/fixtures/`（筋書きと代わりのブロック）・`workflows/.shared/skip_value.py`（埋め P2）
+- Create: `workflows/line/works-factory-line.yaml`・`workflows/line/scripts/`・`workflows/line/fixtures/`（筋書き）・`workflows/.shared/skip_value.py`（埋め P2）
 - Create: `lib/entryshape.py`・`lib/entry.py`（機能の切り替えの塊だけ）とその試験（持ち主の決め `lib-port-as-is`）
 - Test: `tests/layers/test_block_returns.py`・`test_outward_write.py`・`test_readonly_nodes.py`・`test_gates.py`・`tests/e2e/test_line_scenarios.py`・`tests/workflows/test_line.py`（線の script の決め）・`tests/workflows/test_gate_head.py`（関所の文の頭。今の works の試験を戻した物）
 - Modify: `docs/design.md`（線の中の id・U2〜U4・P2 の受け手の書き方・線の止め札の行）・`docs/polyfills.md`（P2）・`docs/asf-notes.md`（A9〜A11）・`workflows/AGENTS.md` の E5

@@ -44,6 +44,7 @@ import stopby  # noqa: E402
 SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 RUN = "run-1"
 LINE = yaml.safe_load((SCRIPTS.parent / "works-factory-line.yaml").read_text(encoding="utf-8"))
+BLOCKS = ("judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
 
 
 def block_doc(include: str) -> dict:
@@ -802,32 +803,23 @@ class LineWiringCase(unittest.TestCase):
                 self.assertIn(f"${key}-out.output", reads)
                 self.assertFalse(any(f"${key}.output" in v for v in reads), "collect がブロックの返りを直に読む")
 
+    def test_line_includes_the_eight_blocks(self):
+        """線が差し込むのは 8 つのブロックで、どれも workflows/ に在る（無ければ block_doc が落ちて赤）"""
+        includes = {node["include"] for node in line_nodes().values() if "include" in node}
+        self.assertEqual(includes, {f"works-factory-{name}" for name in BLOCKS})
+        for name in sorted(includes):
+            with self.subTest(block=name):
+                self.assertIn("inputs", block_doc(name))
+
     def test_blocks_get_the_start_answers_and_prior_failures(self):
-        """在るブロックが宣言する、線の頭が決める入力は渡す（既定値 null のまま黙って落ちない）"""
+        """ブロックが宣言する、線の頭が決める入力は渡す（既定値 null のまま黙って落ちない）"""
         from_the_start = {"prior_failures": "$start.output.prior_failures", "start_answers": "$answer-start.output.answer"}
         for key, node in line_nodes().items():
-            block = SCRIPTS.parents[1] / node.get("include", "").removeprefix("works-factory-")
-            if "include" not in node or not block.is_dir():
+            if "include" not in node:
                 continue
-            declared = yaml.safe_load((block / f"{node['include']}.yaml").read_text(encoding="utf-8"))["inputs"]
-            for name in from_the_start.keys() & declared.keys():
+            for name in from_the_start.keys() & block_doc(node["include"])["inputs"].keys():
                 with self.subTest(node=key, input=name):
                     self.assertEqual(node["with"].get(name), from_the_start[name])
-
-    def test_includes_pass_only_what_the_real_block_declares(self):
-        """在るブロックへの with: の鍵は、そのブロックの inputs: の宣言の中で、required の入力は全部渡す。report には宣言の全部を
-        渡す（報告は全部の段の返りと関所の答えを読む）"""
-        for key, node in line_nodes().items():
-            block = SCRIPTS.parents[1] / node.get("include", "").removeprefix("works-factory-")
-            if "include" not in node or not block.is_dir():
-                continue
-            declared = yaml.safe_load((block / f"{node['include']}.yaml").read_text(encoding="utf-8"))["inputs"]
-            passed = set(node.get("with") or {})
-            with self.subTest(node=key):
-                self.assertLessEqual(passed, set(declared))
-                self.assertLessEqual({name for name, spec in declared.items() if spec.get("required")}, passed)
-                if key == "report":
-                    self.assertEqual(passed, set(declared))
 
     UNPASSED = {
         "plan-review-run": {"conflicts", "gate_answers"},   # 計画の往復は修正の前。申し出も修正前の関所の答えもまだ無い
@@ -837,18 +829,22 @@ class LineWiringCase(unittest.TestCase):
         "eyes": {"x_scalars"},   # issue #110
     }
 
-    def test_includes_pass_every_input_but_the_named(self):
-        """差し込むブロックが宣言する入力は、UNPASSED に名指した物のほかは全部渡す（既定値のまま黙って落ちない。約束の「← $…」の入力は
-        宣言の中に在る）"""
+    def test_includes_pass_every_declared_input_but_the_named(self):
+        """ブロックへの with: の鍵はそのブロックの inputs: の宣言の中に在り、宣言する入力は UNPASSED に名指した物のほかは全部渡す
+        （既定値のまま黙って落ちない。約束の「← $…」の入力は宣言の中に在る）。名指した物に required は無い。report には宣言の全部を
+        渡す（報告は全部の段の返りと関所の答えを読む）"""
         for key, node in line_nodes().items():
             if "include" not in node:
                 continue
+            declared = block_doc(node["include"])["inputs"]
+            passed = set(node.get("with") or {})
             with self.subTest(node=key):
-                declared = set(block_doc(node["include"])["inputs"])
-                self.assertEqual(declared - set(node.get("with") or {}), self.UNPASSED.get(key, set()))
+                self.assertLessEqual(passed, set(declared))
+                self.assertEqual(set(declared) - passed, self.UNPASSED.get(key, set()))
+                self.assertFalse([name for name in self.UNPASSED.get(key, ()) if declared[name].get("required")])
 
     def test_fix_and_refix_get_their_plan_and_gate_answers(self):
-        """筋書きは include の入力をブロックの script に渡さない（dry-run）ので、修正の段に届く物はここで照らす: 1 回目は計画の往復の
+        """筋書きはブロックの script に include の入力を渡さない（docs/design.md の U3）ので、修正の段に届く物はここで照らす: 1 回目は計画の往復の
         案と修正前の関所の答え、2 度目は案の直しの案と両方の関所を合わせた答え、直すのは 1 回目が返した計画の項目だけ"""
         nodes = line_nodes()
         self.assertEqual({k: nodes["fix"]["with"][k] for k in ("plan", "ripple", "depth", "answers")},
