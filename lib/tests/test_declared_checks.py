@@ -572,10 +572,10 @@ class MaterialProblemsCase(unittest.TestCase):
                 self.assertIn(field, " ".join(got))
 
     def test_shape_errors(self):
-        for m, word in (([], "オブジェクトでない"), ({"status": "carried_over", "from_round": 1, "reason": "r"}, "carried_over"),
-                        ({"status": "found", "count": -1, "detail": "d"}, "0 以上の整数"),
-                        ({"status": "found", "count": True, "detail": "d"}, "0 以上の整数"),
-                        ({"status": "clean", "checked": 3}, "文字列"),
+        for m, word in (([], "object でない"), ({"status": "carried_over", "from_round": 1, "reason": "r"}, "carried_over"),
+                        ({"status": "found", "count": -1, "detail": "d"}, "count: 0 未満"),
+                        ({"status": "found", "count": True, "detail": "d"}, "count: 型が integer でない"),
+                        ({"status": "clean", "checked": 3}, "checked: 型が string でない"),
                         ({"status": "clean", "checked": "x", "from_round": 1}, "from_round")):
             with self.subTest(m):
                 self.assertIn(word, " ".join(self.problems(m)))

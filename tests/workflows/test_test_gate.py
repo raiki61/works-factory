@@ -33,6 +33,7 @@ if str(ROOT / "lib") not in sys.path:
 import baseline_red  # noqa: E402
 import declared_checks  # noqa: E402
 import green_cert  # noqa: E402
+import rolekit  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （declared_checks が lib/graphloops を sys.path に足す）
 
 DEADLINE = 1728000000
@@ -121,24 +122,14 @@ class YamlCase(unittest.TestCase):
                                          "enableWeakerNetworkIsolation": True,
                                          "network": {"allowedDomains": ["*"], "allowLocalBinding": True},
                                          "filesystem": {"allowWrite": ["/"]}})
-        material = ci["output_format"]["properties"]["material"]
-        self.assertEqual(material["properties"]["status"]["enum"], list(declared_checks.STATUSES))
-        self.assertEqual(sorted(material["properties"]), sorted(("status",) + declared_checks.FIELDS))
+        self.assertEqual(ci["output_format"]["properties"]["material"], declared_checks.MATERIAL_SCHEMA)
 
     def test_loop_matches_give_up(self):
         loop = node("ci-loop")
         self.assertEqual(loop["when"], "$run.output.by == 'role_needed'")
         self.assertIs(loop["loop_group"]["fresh_context"], True)
         self.assertIn("$ci-accept.output.done", loop["loop_group"]["until_bash"])
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("ci_accept", SCRIPTS / "ci_accept.py")
-        accept = importlib.util.module_from_spec(spec)
-        saved = sys.dont_write_bytecode
-        try:
-            spec.loader.exec_module(accept)
-        finally:
-            sys.dont_write_bytecode = saved
-        self.assertEqual(loop["loop_group"]["max_iterations"], accept.GIVE_UP_AFTER)
+        self.assertEqual(loop["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
 
     def test_prep_takes_previous_reject(self):
         self.assertEqual(node("ci-prep")["with"]["reject"], "$LOOP_PREV.ci-accept.output.reason")

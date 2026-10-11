@@ -4,7 +4,7 @@
 # ///
 """節 ci-accept: 任せ先の CI の役の返答を受け付ける。役の前後の作業ツリーの姿（ci-prep の ci-snapshot.json と今。accept.tree_moved。
 HEAD・枝・git が無視するパスも見る）を比べ、素材の欄の決まり（declared_checks.material_problems）を照らす。通れば素材を
-test-gate/<mode>/ci-material.json に書く。拒めば理由を返し（拒否は rolekit の控えに積む）、GIVE_UP_AFTER 回目の拒否で done・give_up
+test-gate/<mode>/ci-material.json に書く。拒めば理由を返し（拒否は rolekit の控えに積む）、rolekit.GIVE_UP_AFTER 回目の拒否で done・give_up
 （輪を max_iterations で落とさない）。終わる時（通った・諦めた）に写しを消す"""
 import json
 import os
@@ -22,10 +22,7 @@ import accept  # noqa: E402
 import declared_checks  # noqa: E402
 import rolekit  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
-
-ROLE = "ci"
-GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER   # YAML の ci-loop の max_iterations と同じ数
-COPY_PREFIX = "works-factory-ci-"
+from ci_prep import COPY_PREFIX, ROLE  # noqa: E402  写しの置き場の頭と拒否の控えの鍵は作る側が持つ
 
 
 def drop_copy(top) -> None:
@@ -59,7 +56,7 @@ def main() -> int:
     root = Path(util.repo_root() or os.getcwd())
     gate = Path(os.environ["ARTIFACTS_DIR"]) / "test-gate" / mode
     snap = json.loads((gate / "ci-snapshot.json").read_text(encoding="utf-8"))
-    out = rolekit.with_done(gate, ROLE, judge(gate, root, snap, os.environ["INPUTS_REPLY"], mode), give_up_after=GIVE_UP_AFTER)
+    out = rolekit.with_done(gate, ROLE, judge(gate, root, snap, os.environ["INPUTS_REPLY"], mode))
     if out["done"]:
         drop_copy(snap.get("top"))
     boundary.returns({"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"]})

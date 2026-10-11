@@ -27,6 +27,7 @@ if str(_GL) not in sys.path:
     sys.path.insert(0, str(_GL))
 
 from engine import declared  # noqa: E402
+from engine.schema import validate_schema  # noqa: E402
 
 DECL_NAME = declared.DECL_NAME
 TEST_CMD_STEP = "test_cmd"
@@ -40,7 +41,11 @@ FIELDS = ("count", "detail", "checked", "reason")
 STATUS_FIELDS = {"found": ("count", "detail"), "clean": ("checked",), "not_applicable": ("reason",),
                  "awaiting_human": ("reason",), "not_run": ("reason",)}
 NUMERIC_FIELDS = ("count",)
-CANT = {False: "awaiting_human", True: "not_run"}   # 走らせられない時の status（判定の前・後。after_judge で引く）
+MATERIAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["status"],
+                   "properties": {"status": {"type": "string", "enum": list(STATUSES)},
+                                  **{k: {"type": "integer", "minimum": 0} if k in NUMERIC_FIELDS else {"type": "string"}
+                                     for k in FIELDS}}}
+CANT = {False: "awaiting_human", True: "not_run"}   # 走らせられない時の status（判定の前・後。after_judge か mode == "final" で引く）
 
 
 class InputRefused(Exception):
@@ -405,37 +410,26 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
 def material_problems(material, *, mode: str) -> list:
     """任せ先の CI の役が返した素材の欄の決まりに外れた所（人に向けた文の並び。無ければ空）。今の works の受け付け（ci_role.take）が
     写しの graph の schema と post_check に任せていた決まりを書いた物（新しい関数）:
-    - 形（写しの graph の review-loop.json の p0.local_checks・p4.ci の schema。盤面の欄の carried_over・from_round は外した）:
-      object・status は STATUSES のどれか・欄は status と FIELDS だけ・count は 0 以上の整数・detail・checked・reason は文字列
+    - 形（MATERIAL_SCHEMA。写しの graph の review-loop.json の p0.local_checks・p4.ci の schema から盤面の欄の carried_over・
+      from_round を外した物。YAML の役の節 ci の output_format と同じ物であることは試験が縛る）
     - status ごとに要る欄（検証器の素材の表 review-record.py:140-151 の STATUS）: found は count と detail、clean は checked、
-      ほかは reason。数の欄（NUMERIC_FIELDS）は整数、文の欄は空でない
+      ほかは reason。要る文の欄は空でない
     - 形（mode）ごとの走らせられない時の status（写しの指示書 p0.local_checks.md・p4.ci.md と、判定の後の工程は人待ちを新しく
       立てない規則 review-loop.py の check_record）: base は awaiting_human（not_run は拒む）、final は not_run（awaiting_human は拒む）
     mode が base・final でなければ ValueError"""
     if mode not in ("base", "final"):
         raise ValueError(f"mode は base か final: {mode!r}")
-    if not isinstance(material, dict):
-        return [f"素材が JSON のオブジェクトでない（{type(material).__name__}）"]
-    probs = [f"素材に知らない欄 {k}（{'・'.join(('status',) + FIELDS)} だけ）" for k in material if k not in ("status",) + FIELDS]
-    status = material.get("status")
+    probs = validate_schema(material, MATERIAL_SCHEMA, "素材")
+    status = material.get("status") if isinstance(material, dict) else None
     if status not in STATUSES:
-        return probs + [f"素材の status {status!r} は {'・'.join(STATUSES)} のどれでもない"]
-    for k in FIELDS:
-        if k not in material:
-            continue
-        v = material[k]
-        if k in NUMERIC_FIELDS:
-            if isinstance(v, bool) or not isinstance(v, int) or v < 0:
-                probs.append(f"素材の {k} は 0 以上の整数で書け: {v!r}")
-        elif not isinstance(v, str):
-            probs.append(f"素材の {k} は文字列で書け: {v!r}")
+        return probs
     for k in STATUS_FIELDS[status]:
         if k not in material:
             probs.append(f"素材は {status} なので '{k}' が要る")
         elif k not in NUMERIC_FIELDS and isinstance(material[k], str) and not material[k].strip():
             probs.append(f"素材は {status} なので '{k}' に何を見たかを書け（空）")
-    if mode == "base" and status == "not_run":
-        probs.append("修正前（base）は走らせられなければ awaiting_human で書け（緑を仮定しない。not_run は修正後の語）")
-    if mode == "final" and status == "awaiting_human":
-        probs.append("修正後（final）は人待ちを新しく立てない——走らせられなければ not_run で書け（理由つき）")
+    cant = CANT[mode == "final"]
+    if status in CANT.values() and status != cant:
+        probs.append(f"{mode} の形は走らせられなければ {cant} で書け（{status} は使わない。修正前は緑を仮定せず人待ち、"
+                     "修正後は人待ちを新しく立てない）")
     return probs
