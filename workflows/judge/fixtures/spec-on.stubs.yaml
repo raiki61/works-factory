@@ -1,0 +1,65 @@
+# 筋書き spec-on: 始めの記録が仕様の段を選んだ run。仕様を書き・審査し・穴を直し、関所の承認（筋書きでは自ずと済む）の後に
+# 受け入れテストを固めてから判定の道へ進む
+fixture:
+  expect: completed
+  reached: [spec-accept, spec-review-accept, spec-revise-accept, spec-ask, spec-gate, spec-freeze, pr-scan, diagnose-accept, verdict]
+intake: {go: true, mode: judge, spec: true, world: false, verify: false, reason: ''}
+pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
+premises:
+  constraints: []
+premises-accept: &id001 {ok: true, done: true, reason: ''}
+purpose-prep: {go: true, brief_file: /tmp/judge/purpose-brief.md, reason: ''}
+purpose:
+  purpose_text: 平均と範囲の関数が正しい値を返す
+  source: ①PR 説明
+  known_weaknesses: []
+  source_files: []
+  means: []
+purpose-accept: *id001
+spec: &id002
+  requirements:
+  - {key: R1, text: mean は要素の数で割る}
+  acceptance:
+  - {key: A1, requirement: R1, file: test_spec.py, name: test_mean_divides_by_count, run: make test-mean}
+  out_of_scope: []
+spec-accept: {ok: true, done: true, reason: '', revise: false}
+spec-review:
+  faces:
+  - {key: F1, kind: ambiguous, where: R1, why: 空の並びの時に何を返すかが書かれていない}
+  reason: 要件 R1 は空の並びを渡した時に何を返すかが曖昧で、受け入れ条件 A1 もそこを試していない
+spec-review-accept: {ok: true, done: true, reason: '', revise: true}
+spec-revise:
+  spec: *id002
+  handled:
+  - {key: F1, handled: declared, how: 空の並びは範囲の外と out_of_scope に宣言した}
+spec-revise-accept: {ok: true, done: true, reason: '', revise: false}
+spec-ask: {ask: true, message: '仕様の関所: 要件 R1・受け入れ条件 A1'}
+spec-freeze: {go: true, reason: ''}
+material-route: {prior_decisions: false, purpose_review: false, local_review: false, consistency_bypass: false, hygiene: false, external_standards: false, procedure_trace: false, gate_efficacy: false, test_double_fidelity: false, main_path_observation: false, provenance: false, reason: 差分の空の run}
+diagnose-prep: {go: true, brief_file: /tmp/judge/diagnose-brief.md, review_md: /tmp/lib/REVIEW.md, repo_review_md: '', reason: ''}
+diagnose:
+  units:
+  - {key: 'stats.py mean: 分母が len(xs) - 1', label: block}
+  questions: []
+  framing: 分母の取り違え
+  one_shot: 分母を len(xs) にする
+  materials_missing: []
+  carried_r1: []
+  one_shot_closes: ['stats.py mean: 分母が len(xs) - 1']
+  precedents: []
+diagnose-accept: *id001
+verify-prep: {go: false, prompt_file: '', reason: 開いた単位が 2 つ未満}
+verify-merge: {ok: true, reason: ''}
+verdict:
+  ready: true
+  stop_reason: ''
+  units:
+  - id: 'stats.py mean: 分母が len(xs) - 1'
+    paths: [stats.py]
+    summary: 分母の取り違え
+  judgment: {type: archon_artifact, run_id: fixture, path: judge/judgment.json}
+  purpose: {type: archon_artifact, run_id: fixture, path: judge/purpose.json}
+  world: null
+  spec: {type: archon_artifact, run_id: fixture, path: judge/spec.json}
+  out_of_purpose: null
+  rejudge_verdict: null

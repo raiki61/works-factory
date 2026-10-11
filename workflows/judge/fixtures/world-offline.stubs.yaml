@@ -1,0 +1,67 @@
+# 筋書き world-offline: 世界の解の段が網なしで終わった後の状態（定石は知識だけの行）。段は run を止めず、判定まで進む
+fixture:
+  expect: completed
+  reached: [world-intake, world-classes-accept, world-plan, world-judge-accept, world-finish, diagnose-accept, verdict]
+intake: {go: true, mode: judge, spec: false, world: true, verify: false, reason: ''}
+pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
+premises:
+  constraints: []
+premises-accept: &id001 {ok: true, done: true, reason: ''}
+purpose-prep: {go: true, brief_file: /tmp/judge/purpose-brief.md, reason: ''}
+purpose:
+  purpose_text: 平均と範囲の関数が正しい値を返す
+  source: ①PR 説明
+  known_weaknesses: []
+  source_files: []
+  means: []
+purpose-accept: *id001
+world-intake: {due: true, prompt: 依頼の行を問題の類に言い直せ, reason: ''}
+world-classes:
+  classes:
+  - finding: 1
+    problem: 平均の分母
+    activity: 集計
+    proposed: 分母を件数にする
+    queries: [mean denominator]
+world-classes-accept: *id001
+world-plan: {due: true, prompt: 類ごとに定石を集めよ, reason: ''}
+world-judge:
+  rows:
+  - finding: 1
+    practice: 平均は件数で割る
+    sources: []
+    applies: 集計
+    not_applies: ''
+    verdict: same
+    challenge: ''
+  excerpts: []
+world-judge-accept: *id001
+world-finish: {ok: true, status: ok, reason: 網に出られなかった。行は知識だけで書いた}
+material-route: {prior_decisions: false, purpose_review: false, local_review: false, consistency_bypass: false, hygiene: false, external_standards: false, procedure_trace: false, gate_efficacy: false, test_double_fidelity: false, main_path_observation: false, provenance: false, reason: 差分の空の run}
+diagnose-prep: {go: true, brief_file: /tmp/judge/diagnose-brief.md, review_md: /tmp/lib/REVIEW.md, repo_review_md: '', reason: ''}
+diagnose:
+  units:
+  - {key: 'stats.py mean: 分母が len(xs) - 1', label: block}
+  questions: []
+  framing: 分母の取り違え
+  one_shot: 分母を len(xs) にする
+  materials_missing: []
+  carried_r1: []
+  one_shot_closes: ['stats.py mean: 分母が len(xs) - 1']
+  precedents: []
+diagnose-accept: *id001
+verify-prep: {go: false, prompt_file: '', reason: 開いた単位が 2 つ未満}
+verify-merge: {ok: true, reason: ''}
+verdict:
+  ready: true
+  stop_reason: ''
+  units:
+  - id: 'stats.py mean: 分母が len(xs) - 1'
+    paths: [stats.py]
+    summary: 分母の取り違え
+  judgment: {type: archon_artifact, run_id: fixture, path: judge/judgment.json}
+  purpose: {type: archon_artifact, run_id: fixture, path: judge/purpose.json}
+  world: {type: archon_artifact, run_id: fixture, path: judge/world.jsonl}
+  spec: null
+  out_of_purpose: null
+  rejudge_verdict: null

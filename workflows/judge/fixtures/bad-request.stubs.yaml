@@ -1,0 +1,16 @@
+# 筋書き bad-request: 入口が依頼の型を通さず go: false。役の節を 1 つも起こさずに返す節へ届く
+fixture:
+  expect: completed
+  reached: [intake, verdict]
+intake: {go: false, mode: judge, spec: false, world: false, verify: false, reason: 依頼の行 0 に text が無い}
+verify-merge: {ok: true, reason: ''}
+verdict:
+  ready: false
+  stop_reason: works:request
+  units: []
+  judgment: {type: archon_artifact, run_id: fixture, path: judge/judgment.json}
+  purpose: {type: archon_artifact, run_id: fixture, path: judge/purpose.json}
+  world: null
+  spec: null
+  out_of_purpose: null
+  rejudge_verdict: null
