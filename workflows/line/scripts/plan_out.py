@@ -24,21 +24,7 @@ def plan_out(got: dict) -> dict:
 
 
 def from_env() -> dict:
-    return {
-        "ready": linekit.value(os.environ.get("INPUTS_READY")),
-        "plan": linekit.value(os.environ.get("INPUTS_PLAN")),
-        "structure": linekit.value(os.environ.get("INPUTS_STRUCTURE")),
-        "ripple": linekit.value(os.environ.get("INPUTS_RIPPLE")),
-        "depth": linekit.value(os.environ.get("INPUTS_DEPTH")),
-        "round": linekit.value(os.environ.get("INPUTS_ROUND")),
-        "pass": linekit.value(os.environ.get("INPUTS_PASS")),
-        "stalled": linekit.value(os.environ.get("INPUTS_STALLED")),
-        "review": linekit.value(os.environ.get("INPUTS_REVIEW")),
-        "design": linekit.value(os.environ.get("INPUTS_DESIGN")),
-        "gate_axes": linekit.value(os.environ.get("INPUTS_GATE_AXES")),
-        "ask_human": linekit.value(os.environ.get("INPUTS_ASK_HUMAN")),
-        "questions": linekit.value(os.environ.get("INPUTS_QUESTIONS")),
-    }
+    return {key: linekit.value(os.environ.get(f"INPUTS_{key.upper()}")) for key in PLAN + REVIEW}
 
 
 def fallback(reason: str) -> dict:

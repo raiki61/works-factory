@@ -46,32 +46,14 @@ def fixed(fix: dict, refix: dict | None) -> dict:
     }
 
 
+def of_env(prefix: str) -> dict:
+    return {key: (linekit.text if key == "objection" else linekit.value)(os.environ.get(f"INPUTS_{prefix}_{key.upper()}"))
+            for key in FIELDS}
+
+
 def from_env() -> tuple:
-    fix = {
-        "done": linekit.value(os.environ.get("INPUTS_FIX_DONE")),
-        "units": linekit.value(os.environ.get("INPUTS_FIX_UNITS")),
-        "groups": linekit.value(os.environ.get("INPUTS_FIX_GROUPS")),
-        "conflicts": linekit.value(os.environ.get("INPUTS_FIX_CONFLICTS")),
-        "replan_items": linekit.value(os.environ.get("INPUTS_FIX_REPLAN_ITEMS")),
-        "objection": linekit.text(os.environ.get("INPUTS_FIX_OBJECTION")),
-        "diff": linekit.value(os.environ.get("INPUTS_FIX_DIFF")),
-        "allowed_test_changes": linekit.value(os.environ.get("INPUTS_FIX_ALLOWED_TEST_CHANGES")),
-        "changed": linekit.value(os.environ.get("INPUTS_FIX_CHANGED")),
-        "delta_review": linekit.value(os.environ.get("INPUTS_FIX_DELTA_REVIEW")),
-    }
-    refix = {
-        "done": linekit.value(os.environ.get("INPUTS_REFIX_DONE")),
-        "units": linekit.value(os.environ.get("INPUTS_REFIX_UNITS")),
-        "groups": linekit.value(os.environ.get("INPUTS_REFIX_GROUPS")),
-        "conflicts": linekit.value(os.environ.get("INPUTS_REFIX_CONFLICTS")),
-        "replan_items": linekit.value(os.environ.get("INPUTS_REFIX_REPLAN_ITEMS")),
-        "objection": linekit.text(os.environ.get("INPUTS_REFIX_OBJECTION")),
-        "diff": linekit.value(os.environ.get("INPUTS_REFIX_DIFF")),
-        "allowed_test_changes": linekit.value(os.environ.get("INPUTS_REFIX_ALLOWED_TEST_CHANGES")),
-        "changed": linekit.value(os.environ.get("INPUTS_REFIX_CHANGED")),
-        "delta_review": linekit.value(os.environ.get("INPUTS_REFIX_DELTA_REVIEW")),
-    }
-    return fix, (None if refix["done"] is None else refix)
+    refix = of_env("REFIX")
+    return of_env("FIX"), (None if refix["done"] is None else refix)
 
 
 def fallback(reason: str) -> dict:

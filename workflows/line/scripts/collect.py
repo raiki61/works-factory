@@ -6,11 +6,13 @@
 止めの理由は、始めの節と関所の答えの返しの節（関所の前の止め needs-human も運ぶ）の最初の空でない物。
 report の with: は $collect.output.<欄> だけを読む。
 
-入力（with:）: <include の id>_<欄>・start_<欄>・gate_<関所>・stop_<所>・線の節の欄（下の from_env）
+入力（with:）: <include の id>_<欄>・start_<欄>・gate_<関所>・stop_<所>・線の節の欄（下の SHAPES・line_of_env）
 """
 import os
 
+import fixed
 import linekit
+import plan_out
 
 STRINGS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason")
 
@@ -38,133 +40,26 @@ def collect(blocks: dict, line: dict) -> dict:
     return out
 
 
-BLOCKS = {
-    "test_gate_base": {
-        "mode": os.environ.get("INPUTS_TEST_GATE_BASE_MODE"),
-        "ok": os.environ.get("INPUTS_TEST_GATE_BASE_OK"),
-        "green": os.environ.get("INPUTS_TEST_GATE_BASE_GREEN"),
-        "red_cause": os.environ.get("INPUTS_TEST_GATE_BASE_RED_CAUSE"),
-        "baseline": os.environ.get("INPUTS_TEST_GATE_BASE_BASELINE"),
-        "fingerprint": os.environ.get("INPUTS_TEST_GATE_BASE_FINGERPRINT"),
-        "evidence": os.environ.get("INPUTS_TEST_GATE_BASE_EVIDENCE"),
-    },
-    "judge": {
-        "ready": os.environ.get("INPUTS_JUDGE_READY"),
-        "stop_reason": os.environ.get("INPUTS_JUDGE_STOP_REASON"),
-        "units": os.environ.get("INPUTS_JUDGE_UNITS"),
-        "judgment": os.environ.get("INPUTS_JUDGE_JUDGMENT"),
-        "purpose": os.environ.get("INPUTS_JUDGE_PURPOSE"),
-        "world": os.environ.get("INPUTS_JUDGE_WORLD"),
-        "spec": os.environ.get("INPUTS_JUDGE_SPEC"),
-        "out_of_purpose": os.environ.get("INPUTS_JUDGE_OUT_OF_PURPOSE"),
-        "rejudge_verdict": os.environ.get("INPUTS_JUDGE_REJUDGE_VERDICT"),
-    },
-    "plan": {
-        "ready": os.environ.get("INPUTS_PLAN_READY"),
-        "plan": os.environ.get("INPUTS_PLAN_PLAN"),
-        "structure": os.environ.get("INPUTS_PLAN_STRUCTURE"),
-        "ripple": os.environ.get("INPUTS_PLAN_RIPPLE"),
-        "depth": os.environ.get("INPUTS_PLAN_DEPTH"),
-        "round": os.environ.get("INPUTS_PLAN_ROUND"),
-    },
-    "plan_review": {
-        "pass": os.environ.get("INPUTS_PLAN_REVIEW_PASS"),
-        "stalled": os.environ.get("INPUTS_PLAN_REVIEW_STALLED"),
-        "review": os.environ.get("INPUTS_PLAN_REVIEW_REVIEW"),
-        "design": os.environ.get("INPUTS_PLAN_REVIEW_DESIGN"),
-        "gate_axes": os.environ.get("INPUTS_PLAN_REVIEW_GATE_AXES"),
-        "ask_human": os.environ.get("INPUTS_PLAN_REVIEW_ASK_HUMAN"),
-        "questions": os.environ.get("INPUTS_PLAN_REVIEW_QUESTIONS"),
-    },
-    "fix": {
-        "done": os.environ.get("INPUTS_FIX_DONE"),
-        "units": os.environ.get("INPUTS_FIX_UNITS"),
-        "groups": os.environ.get("INPUTS_FIX_GROUPS"),
-        "conflicts": os.environ.get("INPUTS_FIX_CONFLICTS"),
-        "replan_items": os.environ.get("INPUTS_FIX_REPLAN_ITEMS"),
-        "objection": os.environ.get("INPUTS_FIX_OBJECTION"),
-        "diff": os.environ.get("INPUTS_FIX_DIFF"),
-        "allowed_test_changes": os.environ.get("INPUTS_FIX_ALLOWED_TEST_CHANGES"),
-        "changed": os.environ.get("INPUTS_FIX_CHANGED"),
-        "delta_review": os.environ.get("INPUTS_FIX_DELTA_REVIEW"),
-    },
-    "rejudge": {
-        "ready": os.environ.get("INPUTS_REJUDGE_READY"),
-        "stop_reason": os.environ.get("INPUTS_REJUDGE_STOP_REASON"),
-        "units": os.environ.get("INPUTS_REJUDGE_UNITS"),
-        "judgment": os.environ.get("INPUTS_REJUDGE_JUDGMENT"),
-        "purpose": os.environ.get("INPUTS_REJUDGE_PURPOSE"),
-        "world": os.environ.get("INPUTS_REJUDGE_WORLD"),
-        "spec": os.environ.get("INPUTS_REJUDGE_SPEC"),
-        "out_of_purpose": os.environ.get("INPUTS_REJUDGE_OUT_OF_PURPOSE"),
-        "rejudge_verdict": os.environ.get("INPUTS_REJUDGE_REJUDGE_VERDICT"),
-    },
-    "replan": {
-        "ready": os.environ.get("INPUTS_REPLAN_READY"),
-        "plan": os.environ.get("INPUTS_REPLAN_PLAN"),
-        "structure": os.environ.get("INPUTS_REPLAN_STRUCTURE"),
-        "ripple": os.environ.get("INPUTS_REPLAN_RIPPLE"),
-        "depth": os.environ.get("INPUTS_REPLAN_DEPTH"),
-        "round": os.environ.get("INPUTS_REPLAN_ROUND"),
-    },
-    "replan_review": {
-        "pass": os.environ.get("INPUTS_REPLAN_REVIEW_PASS"),
-        "stalled": os.environ.get("INPUTS_REPLAN_REVIEW_STALLED"),
-        "review": os.environ.get("INPUTS_REPLAN_REVIEW_REVIEW"),
-        "design": os.environ.get("INPUTS_REPLAN_REVIEW_DESIGN"),
-        "gate_axes": os.environ.get("INPUTS_REPLAN_REVIEW_GATE_AXES"),
-        "ask_human": os.environ.get("INPUTS_REPLAN_REVIEW_ASK_HUMAN"),
-        "questions": os.environ.get("INPUTS_REPLAN_REVIEW_QUESTIONS"),
-    },
-    "refix": {
-        "done": os.environ.get("INPUTS_REFIX_DONE"),
-        "units": os.environ.get("INPUTS_REFIX_UNITS"),
-        "groups": os.environ.get("INPUTS_REFIX_GROUPS"),
-        "conflicts": os.environ.get("INPUTS_REFIX_CONFLICTS"),
-        "replan_items": os.environ.get("INPUTS_REFIX_REPLAN_ITEMS"),
-        "objection": os.environ.get("INPUTS_REFIX_OBJECTION"),
-        "diff": os.environ.get("INPUTS_REFIX_DIFF"),
-        "allowed_test_changes": os.environ.get("INPUTS_REFIX_ALLOWED_TEST_CHANGES"),
-        "changed": os.environ.get("INPUTS_REFIX_CHANGED"),
-        "delta_review": os.environ.get("INPUTS_REFIX_DELTA_REVIEW"),
-    },
-    "test_gate_final": {
-        "mode": os.environ.get("INPUTS_TEST_GATE_FINAL_MODE"),
-        "ok": os.environ.get("INPUTS_TEST_GATE_FINAL_OK"),
-        "green": os.environ.get("INPUTS_TEST_GATE_FINAL_GREEN"),
-        "red_cause": os.environ.get("INPUTS_TEST_GATE_FINAL_RED_CAUSE"),
-        "baseline": os.environ.get("INPUTS_TEST_GATE_FINAL_BASELINE"),
-        "fingerprint": os.environ.get("INPUTS_TEST_GATE_FINAL_FINGERPRINT"),
-        "evidence": os.environ.get("INPUTS_TEST_GATE_FINAL_EVIDENCE"),
-    },
-    "eyes": {
-        "ok": os.environ.get("INPUTS_EYES_OK"),
-        "r1": os.environ.get("INPUTS_EYES_R1"),
-        "r2": os.environ.get("INPUTS_EYES_R2"),
-        "r3": os.environ.get("INPUTS_EYES_R3"),
-        "r4": os.environ.get("INPUTS_EYES_R4"),
-        "questions": os.environ.get("INPUTS_EYES_QUESTIONS"),
-        "premise_check": os.environ.get("INPUTS_EYES_PREMISE_CHECK"),
-        "structure_after": os.environ.get("INPUTS_EYES_STRUCTURE_AFTER"),
-        "protected_hits": os.environ.get("INPUTS_EYES_PROTECTED_HITS"),
-    },
-    "merge_seal": {
-        "mode": os.environ.get("INPUTS_MERGE_SEAL_MODE"),
-        "ok": os.environ.get("INPUTS_MERGE_SEAL_OK"),
-        "hash": os.environ.get("INPUTS_MERGE_SEAL_HASH"),
-        "diff": os.environ.get("INPUTS_MERGE_SEAL_DIFF"),
-        "protected_hits": os.environ.get("INPUTS_MERGE_SEAL_PROTECTED_HITS"),
-        "reason": os.environ.get("INPUTS_MERGE_SEAL_REASON"),
-    },
-    "merge_apply": {
-        "mode": os.environ.get("INPUTS_MERGE_APPLY_MODE"),
-        "ok": os.environ.get("INPUTS_MERGE_APPLY_OK"),
-        "hash": os.environ.get("INPUTS_MERGE_APPLY_HASH"),
-        "diff": os.environ.get("INPUTS_MERGE_APPLY_DIFF"),
-        "protected_hits": os.environ.get("INPUTS_MERGE_APPLY_PROTECTED_HITS"),
-        "reason": os.environ.get("INPUTS_MERGE_APPLY_REASON"),
-    },
+TEST_GATE = ("mode", "ok", "green", "red_cause", "baseline", "fingerprint", "evidence")
+JUDGE = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spec", "out_of_purpose", "rejudge_verdict")
+EYES = ("ok", "r1", "r2", "r3", "r4", "questions", "premise_check", "structure_after", "protected_hits")
+MERGE = ("mode", "ok", "hash", "diff", "protected_hits", "reason")
+SHAPES = {
+    "test_gate_base": TEST_GATE,
+    "judge": JUDGE,
+    "plan": plan_out.PLAN,
+    "plan_review": plan_out.REVIEW,
+    "fix": fixed.FIELDS,
+    "rejudge": JUDGE,
+    "replan": plan_out.PLAN,
+    "replan_review": plan_out.REVIEW,
+    "refix": fixed.FIELDS,
+    "test_gate_final": TEST_GATE,
+    "eyes": EYES,
+    "merge_seal": MERGE,
+    "merge_apply": MERGE,
 }
+BLOCKS = {name: {key: os.environ.get(f"INPUTS_{name}_{key}".upper()) for key in keys} for name, keys in SHAPES.items()}
 
 
 def line_of_env() -> dict:

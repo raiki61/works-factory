@@ -11,10 +11,10 @@ unattended・design_only。
 import os
 
 import linekit
+from plan_out import ROUND_LIMIT
 
 import gatemarks
 
-ROUND_LIMIT = 3
 AXES = {"obvious": "自明", "world": "世界の解", "clean": "汚くない", "not_overkill": "やりすぎでない"}
 AXIS_KIND = "plan_review"
 UNSETTLED_ITEM = "事前審査が 3 往復で決着しなかった案: 修正に進まない（continue で修正へ進む・stop で報告へ）"

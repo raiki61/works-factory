@@ -21,7 +21,6 @@ NEEDS_HUMAN = stopby.declare("needs-human", "無人の run で人の関所を開
 LINE_SCRIPT = stopby.declare("line-script", "線の script の中で例外が起きた（後ろを飛ばして報告へ進めた）")
 HUMAN = "human:"   # 人が関所で止めた時の止めの理由の頭（docs/design.md の「ブロックの返りの約束」。後ろは関所の節の id）
 GO_WORDS = ("approve", "continue")
-STOP_WORDS = ("stop", "reject")
 DRY_RUN_APPROVED = "approved"   # 筋書き（workflow test）の関所がいつも返す字。決めの語の approve と読む
 
 

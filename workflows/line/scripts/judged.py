@@ -24,22 +24,13 @@ def judged(judge: dict, rejudge: dict | None) -> dict:
             "new_open_units": [u for u in after if u not in before], "lowered": [u for u in before if u not in after]}
 
 
+def of_env(prefix: str) -> dict:
+    return {key: linekit.value(os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
+
+
 def from_env() -> tuple:
-    judge = {
-        "units": linekit.value(os.environ.get("INPUTS_JUDGE_UNITS")),
-        "judgment": linekit.value(os.environ.get("INPUTS_JUDGE_JUDGMENT")),
-        "purpose": linekit.value(os.environ.get("INPUTS_JUDGE_PURPOSE")),
-        "world": linekit.value(os.environ.get("INPUTS_JUDGE_WORLD")),
-        "rejudge_verdict": linekit.value(os.environ.get("INPUTS_JUDGE_REJUDGE_VERDICT")),
-    }
-    rejudge = {
-        "units": linekit.value(os.environ.get("INPUTS_REJUDGE_UNITS")),
-        "judgment": linekit.value(os.environ.get("INPUTS_REJUDGE_JUDGMENT")),
-        "purpose": linekit.value(os.environ.get("INPUTS_REJUDGE_PURPOSE")),
-        "world": linekit.value(os.environ.get("INPUTS_REJUDGE_WORLD")),
-        "rejudge_verdict": linekit.value(os.environ.get("INPUTS_REJUDGE_REJUDGE_VERDICT")),
-    }
-    return judge, (None if rejudge["units"] is None else rejudge)
+    rejudge = of_env("REJUDGE")
+    return of_env("JUDGE"), (None if rejudge["units"] is None else rejudge)
 
 
 def fallback(reason: str) -> dict:
