@@ -1,0 +1,11 @@
+<!-- coldwrite:skip AI 向けの決まり。語は docs/design.md の「語」の節で定義 -->
+# 助け手（`lib/`）の決まり
+
+`lib/` を書く時に読む。リポジトリ全体の決まりは根の `AGENTS.md`。
+
+## E3 lib/ は Archon を知らない
+
+- `lib/` は script の節が呼ぶ Python の助け手だけを持つ（引用の照らし・TDD の赤の判定・元から赤の見分け・範囲の照らしなど）。流れ（どの確かめを・どの順で・どこで人に聞くか）・役の指示書・ブロックの間で渡す物の型は持たない。それはグラフ（`workflows/`）と `docs/design.md` だけが持つ。
+- `lib/` は Archon の名（`archon`・`$ARTIFACTS_DIR`・`$TYPED_ARTIFACTS_FILE`・`ARCHON_` で始まる環境変数・節の id・`output_type` の語）を書かない。入力は引数とファイルのパス、出力は返り値と JSON。
+- 機械: `tests/layers/test_lib_blind.py`（上の語の字の形が `lib/` に 1 つも無い。`import` に `workflows` と `bin` の中の物が無い）。
+- 外のパッケージは使ってよい（持ち主の決め `outside-packages-ok`）。版を止め、依存の宣言は 1 か所に置く。どこに置くか（`pyproject.toml` と節の `deps:` をどう 1 つにするか）は土台の計画の Task 2 で決める。

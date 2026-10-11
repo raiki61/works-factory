@@ -2,7 +2,7 @@
 # ASF から採った型の控え
 
 - ASF（AI software factory）: Archon の作者が `coleam00/Archon` の枝 `factory/sdlc-on-dev` の `.archon/workflows/sdlc/` に置く、SDLC（作業の受け付けから merge まで）の工程の束。
-- ASF には LICENSE のファイルが無い。だからコードは写さず、型（なぜその形か）だけを採る（`engineering.md` の E8）。
+- ASF には LICENSE のファイルが無い。だからコードは写さず、型（なぜその形か）だけを採る（`AGENTS.md` の E8）。
 - 見る版は `pack.json` の `asf.commit` で止める。今は `d97d00ef15cce4b15d39e42635e4e86996ec1351`。`bin/` が run の時にその版を Archon の家の `workflows/asf/` に置くので、横に並べて読める。
 - 下のパスは ASF のリポジトリの根からの相対。`W` は `.archon/workflows/sdlc` の略。
 
@@ -26,7 +26,7 @@ ASF の版を進めた時は、各節の行を新しい版で読み直し、変�
 
 - ASF: d97d00ef の `W/triage/archon-triage.yaml`:41-43（`returns: verdict`）。呼び手は `$triage.output.route` の形で読む（`W/ship/archon-ship.yaml`:79）。
 - なぜその形か: 呼び手が子の中の節の名を知らずに、決まった 1 つの型だけを読める。
-- 採った先: 全ブロック（`engineering.md` の E5）。型の正本は返す節の `output_format`。
+- 採った先: 全ブロック（`workflows/AGENTS.md` の E5）。型の正本は返す節の `output_format`。
 - 違い: 無し（写しの型を別に持たない。持ち主の決め `io-in-output-format`）。
 
 ### A2 仕事の結末の欄（outcome_field）
@@ -48,13 +48,13 @@ ASF の版を進めた時は、各節の行を新しい版で読み直し、変�
 - ASF: d97d00ef の `W/.shared/report.ts`:141-206（`artifactsByType['green-gate']` を読み、`envelope.errors` を 1 件ずつ注意として出す）。役の側は `W/review/commands/review-synthesize.md`:18（「Match the artifacts' node identities to that mode node's include prefix (`path`) and their `loopGroupPath` to its `invocation.loopPath`; never count another include, iteration or run.」）。
 - なぜその形か: 置き場の名前の決まりを知らずに、型の名だけで集まりを引ける。ほかの include・ほかの周の物を数えない。
 - 採った先: 境の口 `workflows/.shared/`（型で引く口 1 つ）。使うのは eyes（R1〜R4 の結果）・report・fix（組ごとの TDD の行）。
-- 違い: 絞りと `errors` の扱いを境の口 1 か所に置き、ブロックの script は口を呼ぶだけにする（`engineering.md` の E5）。
+- 違い: 絞りと `errors` の扱いを境の口 1 か所に置き、ブロックの script は口を呼ぶだけにする（`workflows/AGENTS.md` の E5）。
 
 ### A5 外への書き込みは 1 つの script の節
 
 - ASF: d97d00ef の `W/README.md`:82-93（「Public writes belong to a script」「fails unless the result reads back」）。実例 `W/review/archon-review.yaml`:264-270 の `publish`（コメント「this node owns the one public write」）、`W/merge-queue/scripts/merge-action.ts`:337-369（merge の後に `gh pr view` で `MERGED` を確かめる）。
 - なぜその形か: 書き込みの場所が 1 つなら、監査も再試行もそこだけ見ればよい。forge は書き込みを受けて黙って当てないことがあるので、終了の値 0 を証拠にしない。
-- 採った先: merge（main への取り込みと PR）・report（人に見える報告）。`engineering.md` の E6。
+- 採った先: merge（main への取り込みと PR）・report（人に見える報告）。`workflows/AGENTS.md` の E6。
 - 違い: 無し。
 
 ### A6 merge の計画の封印

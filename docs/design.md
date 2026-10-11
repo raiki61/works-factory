@@ -28,7 +28,7 @@
 持ち主の自分版の工場を持つ。今の works の能力を 1 つも落とさず、作りは Archon と ASF に寄せて簡単にする。
 
 - 持ち主の言葉（2026-10-11）: 「作りをASF参考にArchonに寄せたほうがいいのでは。確かめの中身とかはようはその上に載るエッセンスってことでしょ」
-- 簡単にする訳: 「じゃないと後続がこうやって変換すればいいやって思っちゃうかもしれないでしょ」。だから YAML は変換しない（`engineering.md` の E1）。
+- 簡単にする訳: 「じゃないと後続がこうやって変換すればいいやって思っちゃうかもしれないでしょ」。だから YAML は変換しない（`workflows/AGENTS.md` の E1）。
 - 今の works を直して寄せるのでなく、横に新しく作る（「横に自分のグラフつくりはじめるかんじでいいのではって思ってた」）。
 - 最新の ASF を横に並べて見られる形にする（「その最新のソフト自動出荷工場を横目に見れる形じゃないとダメなのではという気がしてる」）。
 
@@ -60,7 +60,7 @@ flowchart TB
 | 助け手 | `lib/` | Archon を知らない Python のモジュール | Python のパッケージ（標準と外の物） |
 
 - 言語は Python 3.12 以上（`lib/`・境・ブロックの script・`bin/`・試験）。訳: 今の works の確かめが Python で書かれていて、移すだけで済む。下限は持ち主の決め `py-floor`。外のパッケージは使ってよい（持ち主の決め `outside-packages-ok`）。自前で書く前に既製の物を当たり、版を止める。Archon v0.11.1 は `script:` の節を `runtime: uv` で Python として走らせる。ASF は TypeScript だが、コードを写さないので言語を揃える訳が無い。
-- 層を足す時は `engineering.md` の E10。
+- 層を足す時は `AGENTS.md` の E10。
 - 別の実行の道具へ移る時（Archon の競合に移る危うさへの備え）: グラフをその道具の書き方で `docs/design.md` から書き直す。役の指示書（指示書の中の Archon の変数だけ書き換える）と `lib/` はそのまま持っていける。ブロックの間の入出力は、その時に `output_format` から取り出す（持ち主の決め `io-in-output-format`）。
 
 ## Archon・ASF・今の works との関係
@@ -135,7 +135,7 @@ flowchart TB
 - 封じた差分（hash・守りのパスの当たり）: merge（seal）→ 最後の関所・merge（apply）
 - 報告（結末の語・報告の指し札・持ち越しの指し札）: report → `bin/show`
 
-受け渡しの決まりは `engineering.md` の E4・E5。
+受け渡しの決まりは `workflows/AGENTS.md` の E4・E5。
 
 ### 繰り返し
 
@@ -147,7 +147,7 @@ flowchart TB
 
 ## ブロック
 
-各ブロックのフォルダは `<名>.yaml`（工程の名は `works-factory-<名>`）・`commands/`（役の指示書の本文）・`scripts/`（`lib/` と境の口を呼ぶだけ）・`fixtures/`（Archon の筋書きの試験）を持つ。返りの型は `returns:` が名指す節の `output_format`。
+各ブロックのフォルダは `works-factory-<名>.yaml`（工程の名も同じ。ASF の `archon-<名>.yaml` と同じ形）・`commands/`（役の指示書の本文）・`scripts/`（`lib/` と境の口を呼ぶだけ）・`fixtures/`（Archon の筋書きの試験）を持つ。返りの型は `returns:` が名指す節の `output_format`。
 
 ### line（線）
 
@@ -399,7 +399,7 @@ U1〜U3 は持ち主の挙げた物、U4〜U8 はこの文書を書く中で出�
 
 - 1 つのフォルダに 1 つの issue。中身は「グラフのブロック 1 つ（YAML・役の指示書・script）と、それが呼ぶ `lib/` のモジュールを移す。筋書き（fixture）と `lib/` の試験を先に書く」。
 - 回すのは最新の ASF の lifecycle（`archon-lifecycle`。1 run で 1 issue）。並べは issue ごとに run を起こして作る（lifecycle は自分では並べない）。
-- 共有のファイル（`workflows/.shared/`・`workflows/line/`・`engineering.md`・`MISSION.md`・`pack.json`）は土台の持ち主だけが変える。lifecycle の入力 `protected_paths` にこれらを渡し、ASF の merge が人の手に残す（ASF の型 A7）。issue の中で共有のファイルの変更が要ると分かったら、止めて土台の持ち主に issue で頼む。
+- 共有のファイル（`workflows/.shared/`・`workflows/line/`・各階層の `AGENTS.md`・`engineering.md`・`MISSION.md`・`pack.json`）は土台の持ち主だけが変える。lifecycle の入力 `protected_paths` にこれらを渡し、ASF の merge が人の手に残す（ASF の型 A7）。issue の中で共有のファイルの変更が要ると分かったら、止めて土台の持ち主に issue で頼む。
 
 issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 

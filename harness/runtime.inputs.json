@@ -1,8 +1,8 @@
 {
-  "description": "Project scenario/environment data for shared runtime verification. Producer input flags require final integration mapping; this file executes nothing.",
+  "description": "works-factory の動かしての確かめ（runtime）の入力の控え。このファイルは何も実行しない。works-factory は HTTP の server ではなく、入口 bin/（start・answer・show・apply）を人が打つ CLI なので driver は cli。archon-lifecycle の入力 scenario に渡す JSON は harness/runtime.scenario.json（筋書きの文は harness/END-TO-END.md）。bin/start は段 0 の Task 5 で、確かめに使う小さな種のリポジトリ（tests/e2e/）は段 1 で作るので、それまで cli.invoke は空のまま。ASF の runtime host（factory/RUNTIME_HOST.md）は使わない。host は子に Claude の資格を渡さず、cli の形の実行を 300 秒で打ち切るが、works-factory を通しで回すには Claude の資格が要り、期限を置かない決まり（workflows/AGENTS.md の E12）もある。",
   "scenarios": "harness/END-TO-END.md",
   "holdout": ".factory/holdout/HOLDOUT.md",
-  "driver": "http",
+  "driver": "cli",
   "http": {
     "start": "",
     "health_path": "/health",
@@ -12,7 +12,7 @@
   },
   "cli": {
     "invoke": "",
-    "smoke_args": "--version",
+    "smoke_args": "",
     "smoke_contains": ""
   },
   "library": {

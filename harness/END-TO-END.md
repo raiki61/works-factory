@@ -1,24 +1,44 @@
-# Runtime scenarios
+# 通しの筋書き（runtime の確かめ）
 
-Example task-service data. Replace these with the observable journeys for your app.
-Shared runtime verification owns execution and evidence.
+works-factory を人が使う時の道筋を、動かして確かめる形で書く。works-factory は修正の工場で、人は入口のコマンド `bin/start`（依頼を渡して run を始める）・`bin/answer`（止まった所で答える）・`bin/show`（今どこか・報告を見る）・`bin/apply`（封じた差分を当てる）を打つ。run は、工場が 1 つの依頼を受けてから報告を出すまでの 1 回の実行。工場の工程は、判定・計画・修正・報告などの部品（ブロック。各々が `workflows/<名>/` のフォルダ）を順に並べた物。
 
-## A person captures a task and finishes it
+ASF（Archon という AI の工程を回す道具の作者が作った、issue から merge までの工程の束）の `archon-lifecycle` は、取り込む前にこの道筋を実際に動かして確かめる。機械が読む形は `harness/runtime.scenario.json` で、中身はこの文書と同じ。
 
-1. Add a task called `refill the kalimba humidifier`.
-2. Check it shows up on the list, still open.
-3. Mark it done.
-4. Reload the list. It is still marked done, and the open count went down by one.
+## 今の状態: まだ回せない
 
-**What would make this fail:** the task does not come back after the reload, the
-count is stale, or completing one task changes the state of another.
+works-factory は段に分けて作る（`docs/design.md` の「作りの順」）。段 0 は土台（入口のコマンドと工程の骨組み）、段 1 は中身の薄いブロックを並べて小さな種のリポジトリに通しで回す形、段 2 はブロックの中身を 1 つずつ本物にする所。その後の段は、全部を合わせた確かめと切り替え。
 
-## The list survives a restart
+- 入口のコマンドは段 0 の最後の作業で、確かめに使う小さな種のリポジトリ（`tests/e2e/`）は段 1 で作る。それまでは 3 つとも回せない。
+- 直しの中身が入るのは段 2 の終わり（全部のブロックの仮の script `workflows/*/scripts/stub.py` が本物に替わった時）。それまで 2 つ目は回せない。
+- 回せない間の確かめの結果は「判定できない」（inconclusive）で、「落ちた」（failed）ではない。だから lifecycle は、この間に届いた PR を取り込まずに止める。
 
-1. Add two tasks with distinct names.
-2. Complete one of them.
-3. Restart the app.
-4. Both tasks are still there, and exactly the one you completed is done.
+## 1. 依頼を渡して報告まで届く
 
-**What would make this fail:** anything held only in memory, or a write that is
-acknowledged before it is persisted.
+1. 種のリポジトリを新しい置き場に写し、空の Archon の家（Archon が run の記録を置くフォルダ）を用意する。
+2. 確かめる checkout の `./bin/start` で、写したリポジトリと種の依頼の文を渡す。
+3. 人の関所（人に答えを聞いて止まる所）で止まるたびに `./bin/show` で止まった所を見て、`./bin/answer` で通す。
+4. run が終わるまで `./bin/show` で見る。
+
+期待: run の id がちょうど 1 つ返る。`./bin/show` が、run が終わったこと・結末の語（報告のブロックが決める 10 語の 1 つ）・空でない報告の本文を出す。当てる前は、写したリポジトリの作業ツリーは写した直後のまま。
+
+**落ちたと言える物:** run の id が返らない・関所で答えても先へ進まない・報告が空・当てる前に対象のリポジトリが変わっている。
+
+## 2. 封じた差分を当てると、種の落ちていた試験が通る
+
+1. 1 の run が終わった後、当てる前に、種が名指す試験の命令を走らせて結末を控える。
+2. `./bin/apply` で差分を当てる。
+3. 同じ試験の命令をもう一度走らせる。
+
+期待: 当てる前は、種が直してほしいとした試験が 1 件以上落ちる。当てた後はその試験が全部通り、前から通っていた試験は 1 件も落ちない。差分は空でなく、変わったファイルは報告が挙げたファイルの中だけ。
+
+**落ちたと言える物:** 差分が空・当てても落ちた試験が通らない・前から通っていた試験が落ちる・報告に無いファイルが変わる。
+
+## 3. 封じた後に差分が変わると当てない
+
+1. 1 と同じ手順で、新しいリポジトリと新しい run を最後の関所まで通す。
+2. 当てる前に、封じた差分のファイル（run の置き場の中）を 1 バイト変える。
+3. `./bin/apply` を呼ぶ。
+
+期待: `./bin/apply` が 0 以外で終わり、封じた hash（差分の指紋）と合わないことを言う。対象のリポジトリには何も当たらない。
+
+**落ちたと言える物:** 変えた差分が当たる・終了の値が 0・対象のリポジトリが変わる。
