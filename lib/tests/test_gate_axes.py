@@ -38,12 +38,16 @@ class AxesBase(unittest.TestCase):
         structmark.write(self.tmp, status="ok", reason="", design_file=str(design), wall_s=0)
 
     def check(self, mark, units=("u",), **view):
-        """(軸ごとの {ok, note}, gatemarks.axes の訳)。2 か所が食い違えば赤"""
+        """(軸ごとの {ok, note}, gatemarks.axes の訳)。2 か所が食い違えば赤。決め手の欄が揃う行では、axes の訳が
+        axis_reasons（軸の決まりの持ち主）を軸の順に並べた物と同じ"""
         b = self.view(**view)
         got = gate_axes.split(b, mark, list(units))
         old = gatemarks.axes(b, mark, list(units))
         self.assertEqual(set(got), set(gate_axes.AXES))
         self.assertEqual(all(a["ok"] for a in got.values()), not old, (got, old))
+        if gatemarks.decided(mark):
+            reasons = gatemarks.axis_reasons(b, mark, list(units))
+            self.assertEqual(old, [w for a in gatemarks.AXES for w in reasons[a]])
         return got, old
 
     def bad(self, got) -> list:
