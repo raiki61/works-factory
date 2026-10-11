@@ -58,10 +58,21 @@ nodes:
       fresh_context: false
       until_bash: done=$accept.output.done; test "$done" = true
       nodes:
+        - id: write-reject
+          script: reject
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.accept.output.reason_file"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
+
         - id: write
           command: report
-          with:
-            rejected: $LOOP_PREV.accept.output.reason_file
+          depends_on: [write-reject]
           model: sonnet
           effort: medium
           allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]

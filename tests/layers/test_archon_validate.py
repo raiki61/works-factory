@@ -10,7 +10,10 @@ import pathlib
 import re
 import unittest
 
+import yaml
+
 from tests import archon
+from tests.bin.gitkit import git
 from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -47,6 +50,29 @@ class ArchonValidateTest(unittest.TestCase):
         self.assertEqual({name: issues for name, issues in found.items() if issues}, {})
         if missing:
             self.skipTest(f"ブロックがまだ無い: {', '.join(name.removeprefix(scan.OURS_PREFIX) for name in missing)}")
+
+    def test_every_block_loads_when_included(self):
+        """どのブロックも、線のように include された形で読み込める。ブロック 1 つを include するだけの親の工程を木に足し、必須の
+        入力には仮の字を渡して validate する。ブロックを単独で照らすだけでは見えない、include の時だけの誤り（輪の中の節の with: の名を
+        $INPUTS で読む指示書が「入力が無い」で止まる。止めた Archon の packages/workflows/src/include-expander.ts:566・627）を捕まえる"""
+        names = [folder.name for folder in scan._blocks(ROOT) if f"{scan.OURS_PREFIX}{folder.name}" != scan.OURS["line"]]
+        with archon.tree(names) as tree:
+            placed = tree / ".archon" / "workflows" / archon.PACK["ours"]["pack"]
+            for name in names:
+                block = yaml.safe_load((placed / name / f"{scan.OURS_PREFIX}{name}.yaml").read_text(encoding="utf-8"))
+                needed = {key: "x" for key, spec in (block.get("inputs") or {}).items()
+                          if not (isinstance(spec, dict) and "default" in spec)}
+                probe = {"name": f"{scan.OURS_PREFIX}probe-{name}", "description": "include の確かめ", "interactive": True,
+                         "nodes": [{"id": "block", "include": f"{scan.OURS_PREFIX}{name}", **({"with": needed} if needed else {})}]}
+                folder = placed / f"probe-{name}"
+                folder.mkdir()
+                (folder / f"{scan.OURS_PREFIX}probe-{name}.yaml").write_text(yaml.safe_dump(probe, allow_unicode=True), encoding="utf-8")
+            git(tree, "add", "-A")
+            git(tree, "commit", "-q", "-m", "probes")
+            found = validate(tree)
+        probes = {f"{scan.OURS_PREFIX}probe-{name}" for name in names}
+        self.assertEqual({name: issues for name, issues in found.items() if name in probes and issues}, {})
+        self.assertEqual(sorted(probes - set(found)), [])
 
     def test_named_script_and_shared_resolve_in_the_pack(self):
         """名前の script は pack の形の工程の時だけ工程のフォルダの scripts/ から探される（止めた Archon の
