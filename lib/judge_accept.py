@@ -332,4 +332,182 @@ def read_stop(jdir):
     except ValueError:
         return None
     return doc if isinstance(doc, dict) and isinstance(doc.get("stop_reason"), str) else None
+
+
+import accept  # noqa: E402
+import carry  # noqa: E402
+import prcheck  # noqa: E402
+import worldmark  # noqa: E402
+
+WORLD_FEATURE = "world"            # 世界の解の段の機能の語（元 works/.shared/core/entry.py:420 の WORLD_FEATURE）
+VERIFY_FEATURE = "judge_verify"    # 判定の裏取りの機能の語（元 entry.py:425）
+
+
+def _intake_out(go, mode="judge", *, spec=False, world=False, verify=False, reason="") -> dict:
+    return {"go": go, "mode": mode, "spec": spec, "world": world, "verify": verify, "reason": reason}
+
+
+def request_rows(view: dict, repo) -> list:
+    """始めの記録が名指す依頼のファイルの findings の行（lib/carry.parts で容器を解く）。依頼のファイルが無い run は、始めの記録の
+    依頼の数が 0 の時だけ空の行。解けなければ ValueError（1 行）"""
+    name = view["request_file"]
+    if not name:
+        if view["input"].get("requests"):
+            raise ValueError(f"始めの記録は依頼の行が {view['input']['requests']} 件と言うのに依頼のファイルを名指していない")
+        return []
+    path = pathlib.Path(name)
+    path = path if path.is_absolute() else pathlib.Path(repo) / path
+    doc = read_json(path)
+    if doc is None:
+        raise ValueError(f"依頼のファイル {path} が無い")
+    return carry.parts(doc)["findings"]
+
+
+def intake(start, start_error: str, jdir, rdir, repo, objection: str) -> dict:
+    """入口の節（intake）。再審の道（objection が空でない）は判定の置き場に触らずに mode: rejudge を返す。判定の道は、始めの記録を
+    既定の値で読んで置き（START_FILE）、依頼の行を型に通して置き（REQUEST_FILE）、作業ツリーの姿を置く（TREE_FILE）。
+    通らなければ止めの控えに依頼の語を書き go: false（AI を 1 つも起こさない）。機能の切り替えは始めの記録の features_cut、
+    仕様の段は始めの記録の input.spec。返りは INTAKE_FILE にも書く（後ろの節は with: で結ばずにここを読む）"""
+    jdir, rdir = pathlib.Path(jdir), pathlib.Path(rdir)
+    if objection.strip():
+        out = _intake_out(True, "rejudge")
+        write_json(rdir / INTAKE_FILE, out)
+        return out
+    jdir.mkdir(parents=True, exist_ok=True)
+    try:
+        if start_error:
+            raise ValueError(start_error)
+        view = start_view(start)
+        write_json(jdir / START_FILE, view)
+        rows = request_rows(view, repo)
+        checked = check_request(rows)
+        if checked.get("ok") is not True:
+            raise ValueError(checked.get("reason") or "依頼の行が型に通らない")
+        write_json(jdir / REQUEST_FILE, rows)
+        write_json(jdir / TREE_FILE, accept.tree_state(pathlib.Path(repo)))
+    except (ValueError, OSError, Reject) as e:
+        reason = " ".join(str(e).split())
+        write_stop(jdir, REQUEST_STOP, reason)
+        out = _intake_out(False, reason=reason)
+    else:
+        cut = set(view["features_cut"])
+        out = _intake_out(True, spec=view["spec"], world=WORLD_FEATURE not in cut, verify=VERIFY_FEATURE not in cut)
+    write_json(jdir / INTAKE_FILE, out)
+    return out
+
+
+EMPTY_JUDGMENT = {"units": [], "questions": [], "framing": "", "one_shot": "", "materials_missing": [], "carried_r1": [],
+                  "one_shot_closes": [], "precedents": []}
+EMPTY_PURPOSE = {"purpose_text": "", "source": "", "known_weaknesses": [], "source_files": []}
+JUDGMENT_FILE = "judgment.json"
+PURPOSE_FILE = "purpose.json"
+PREMISES_FILE = "premises.json"
+VERIFY_FILE = "judge-verify.json"
+PR_EXCLUDED_FILE = "pr-excluded.json"
+MATERIALS_FILE = "materials.json"
+SPEC_FILE = "spec.json"
+WORLD_FILE = "world.jsonl"
+OUT_OF_PURPOSE_FILE = "out-of-purpose.json"
+PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE)   # 判定の指し札の隣に必ず置く（ほかのブロックが名で開く）
+
+
+def _empty_public(name: str, reason: str):
+    """公開の隣のファイルの空の形（その段が走らなかった・止めの道）"""
+    return {PREMISES_FILE: lambda: {"constraints": []},
+            VERIFY_FILE: lambda: verify_not_run(reason),
+            PR_EXCLUDED_FILE: lambda: {"node": prcheck.NODE, "excluded": []},
+            MATERIALS_FILE: lambda: {}}[name]()
+
+
+def _fill(path: pathlib.Path, empty) -> pathlib.Path:
+    """path が無ければ空の形で置く（在る物は書き換えない）"""
+    if not path.is_file():
+        write_json(path, empty)
+    return path
+
+
+def _first_missing_stage(jdir: pathlib.Path):
+    """止めの控えが無いのに受けた判定が無い時、どの段で落ちたか（段が落ちた run は控えを書く前に終わる）"""
+    if not (jdir / INTAKE_FILE).is_file():
+        return REQUEST_STOP, "入口の節が走っていない（始めの記録を読めないまま返る）"
+    if not (jdir / PREMISES_FILE).is_file():
+        return stopby.PREMISES, "前提の実測を受け付けた控えが無い（前提の段が落ちた）"
+    if not (jdir / PURPOSE_FILE).is_file():
+        return stopby.PURPOSE, "目的の文を受け付けた控えが無い（目的の段が落ちた）"
+    return JUDGE_STOP, "受け付けを通った判定が無い（判定の段が落ちた）"
+
+
+def _accepted_judgment(path: pathlib.Path):
+    """受けた判定の dict。無ければ None、形が崩れていれば ValueError"""
+    doc = read_json(path)
+    if doc is None:
+        return None
+    if not (isinstance(doc, dict) and isinstance(doc.get("units"), list)
+            and all(isinstance(u, dict) and isinstance(u.get("key"), str) and "label" in u for u in doc["units"])):
+        raise ValueError(f"{path} の形が崩れている（units[].key・label が要る）")
+    return doc
+
+
+def verdict(jdir, rdir, repo, objection: str, ptr) -> dict:
+    """返す節（verdict）。docs/design.md の「judge の返り」の欄をちょうど返す。止めの道でも判定と目的の指し札の先と公開の隣のファイルを
+    空の形で置いてから返す。ptr(rel) は置き場からの相対パスを指し札にする口（呼び手が渡す）"""
+    jdir, rdir = pathlib.Path(jdir), pathlib.Path(rdir)
+    rejudging = bool(objection.strip())
+    here = rdir if rejudging else jdir
+    here.mkdir(parents=True, exist_ok=True)
+    base = here.name
+
+    stop = read_stop(here)
+    judgment = None
+    try:
+        judgment = _accepted_judgment(here / JUDGMENT_FILE)
+    except ValueError as e:
+        stop = stop or {"stop_reason": stopby.REJUDGE if rejudging else JUDGE_STOP, "reason": str(e)}
+    if judgment is None and stop is None:
+        stop = dict(zip(("stop_reason", "reason"), (stopby.REJUDGE, "受け付けを通った再審が無い") if rejudging
+                        else _first_missing_stage(jdir)))
+    _fill(here / JUDGMENT_FILE, EMPTY_JUDGMENT)
+
+    reason = stop["reason"] if stop else ""
+    for name in PUBLIC_FILES:
+        first = jdir / name
+        if rejudging and first.is_file() and not (rdir / name).is_file():
+            write_json(rdir / name, read_json(first))
+        _fill(here / name, _empty_public(name, reason or "判定の裏取りを回さなかった"))
+
+    purpose = jdir / PURPOSE_FILE
+    if not purpose.is_file():
+        purpose = _fill(here / PURPOSE_FILE, EMPTY_PURPOSE)
+    world = jdir / WORLD_FILE if (jdir / WORLD_FILE).is_file() and worldmark.stage_rows(jdir) is not None else None
+    spec = jdir / SPEC_FILE if (jdir / SPEC_FILE).is_file() else None
+    outside = jdir / OUT_OF_PURPOSE_FILE if (jdir / OUT_OF_PURPOSE_FILE).is_file() else None
+
+    units = structure_units(judgment, repo) if stop is None else []
+    rel = lambda p: None if p is None else ptr(f"{p.parent.name}/{p.name}")   # noqa: E731
+    return {
+        "ready": stop is None and bool(units),
+        "stop_reason": stop["stop_reason"] if stop else "",
+        "units": units,
+        "judgment": ptr(f"{base}/{JUDGMENT_FILE}"),
+        "purpose": rel(purpose),
+        "world": rel(world),
+        "spec": rel(spec),
+        "out_of_purpose": rel(outside),
+        "rejudge_verdict": rejudge_verdict(rdir) if rejudging and stop is None else None,
+    }
+
+
+def verdict_fallback(jdir, rdir, objection: str, ptr) -> dict:
+    """verdict の中で思わぬ誤りが起きた時の返り（返す節は落ちない。誤りの文は呼び手が標準エラーに書く）。判定と目的の指し札の先だけは
+    空の形で置く"""
+    here = pathlib.Path(rdir if objection.strip() else jdir)
+    try:
+        here.mkdir(parents=True, exist_ok=True)
+        _fill(here / JUDGMENT_FILE, EMPTY_JUDGMENT)
+        _fill(here / PURPOSE_FILE, EMPTY_PURPOSE)
+    except OSError:
+        pass
+    return {"ready": False, "stop_reason": stopby.REJUDGE if objection.strip() else JUDGE_STOP, "units": [],
+            "judgment": ptr(f"{here.name}/{JUDGMENT_FILE}"), "purpose": ptr(f"{here.name}/{PURPOSE_FILE}"),
+            "world": None, "spec": None, "out_of_purpose": None, "rejudge_verdict": None}
 # ================================================================ 入口と返り（F）の終わり

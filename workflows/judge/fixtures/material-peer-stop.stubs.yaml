@@ -1,0 +1,42 @@
+# 筋書き material-peer-stop: 並べた素材の 2 本のうち根拠の出所検査の受け付けが 3 回目の拒否で done にした後の状態。
+# ほかの素材の輪（ゲートの実効性）は落ちずに回り、判定の支度に届く（元 works/blk-material/fixtures/peer-stop.stubs.yaml の訳）。
+# 支度は残りの素材で材料を組み、諦めた素材が在るので判定役を起こさずに止める
+fixture:
+  expect: completed
+  reached: [gate-efficacy-accept, provenance-accept, diagnose-prep, verdict]
+intake: {go: true, mode: judge, spec: false, world: false, verify: false, reason: ''}
+pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
+premises:
+  constraints: []
+premises-accept: &id001 {ok: true, done: true, reason: ''}
+purpose-prep: {go: true, brief_file: /tmp/judge/purpose-brief.md, reason: ''}
+purpose:
+  purpose_text: 平均と範囲の関数が正しい値を返す
+  source: ①PR 説明
+  known_weaknesses: []
+  source_files: []
+  means: []
+purpose-accept: *id001
+material-route: {prior_decisions: false, purpose_review: false, local_review: false, consistency_bypass: false, hygiene: false, external_standards: false, procedure_trace: false, gate_efficacy: true, test_double_fidelity: false, main_path_observation: false, provenance: true, reason: 差分の在る run}
+gate-efficacy-prep: {brief_file: /tmp/judge/material-gate-efficacy-brief.md, brief: '', review_md: '', repo_review_md: ''}
+gate-efficacy:
+  material: {status: not_applicable, reason: 新設のゲートが無い}
+  arms: []
+gate-efficacy-accept: *id001
+provenance-prep: {brief_file: /tmp/judge/material-provenance-brief.md, brief: '', review_md: '', repo_review_md: ''}
+provenance:
+  material: {status: clean, checked: 差分に『正本は X』の主張は無い}
+  claims: []
+provenance-accept: {ok: false, done: true, reason: claims の主張に根拠の出所が無い}
+diagnose-prep: {go: false, brief_file: /tmp/judge/diagnose-brief.md, review_md: '', repo_review_md: '', reason: 素材 provenance の受け付けが 3 回とも拒んだ}
+verify-merge: {ok: true, reason: ''}
+verdict:
+  ready: false
+  stop_reason: works:material
+  units: []
+  judgment: {type: archon_artifact, run_id: fixture, path: judge/judgment.json}
+  purpose: {type: archon_artifact, run_id: fixture, path: judge/purpose.json}
+  world: null
+  spec: null
+  out_of_purpose: null
+  rejudge_verdict: null
