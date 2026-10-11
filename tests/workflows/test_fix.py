@@ -523,6 +523,7 @@ class BlockScriptsCase(unittest.TestCase):
 
     # ---- prep.py
     def test_prep_two_groups_run_side_by_side(self):
+        subprocess.run(["git", "remote", "add", "origin", str(self.tmp / "origin.git")], cwd=self.repo, check=True)
         code, out, err = _blk_run("prep", self.repo, self.art, self.prep_inputs(), "fix__prep")
         self.assertEqual(code, 0, err)
         self.assertEqual([(g["unit_ids"], g["items"]) for g in out["groups"]], [(["A", "B"], [1]), (["C"], [2])])
@@ -535,6 +536,13 @@ class BlockScriptsCase(unittest.TestCase):
             self.assertTrue((self.place / name).is_file(), name)
         self.assertEqual(json.loads((self.place / "groups.json").read_text(encoding="utf-8")), out)
         self.assertEqual(json.loads((self.place / "r1" / "start.json").read_text(encoding="utf-8"))["request_file"], "")
+
+    def test_prep_without_remote_runs_in_order(self):
+        """子ごとの作業ツリーは remote の既定の枝から切られる（U8 の実測: remote の無いリポジトリでは子を 1 つも起こせない）"""
+        code, out, err = _blk_run("prep", self.repo, self.art, self.prep_inputs(), "fix__prep")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out["count"], 2)
+        self.assertFalse(out["par"])
 
     def test_prep_lane_switch_off_runs_in_order(self):
         code, out, err = _blk_run("prep", self.repo, self.art, self.prep_inputs(cut=["fix_lanes"]), "fix__prep")

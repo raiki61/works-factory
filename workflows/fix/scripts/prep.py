@@ -94,7 +94,7 @@ def main() -> dict:
     grps = fixboard.fix_groups(fixboard.owed_keys(judgment), items, only)
     out_dir = place / "groups"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out = {"groups": grps, "count": len(grps), "par": fixboard.parallel(grps, start.get("features_cut")),
+    out = {"groups": grps, "count": len(grps), "par": fixboard.parallel(grps, start.get("features_cut"), repo),
            "start_tree": start_tree, "out_dir": str(out_dir)}
     fixio.write_json(place / "groups.json", out)
     return out

@@ -16,6 +16,7 @@ tests/bin/gitkit.py と tests/e2e/target-seed/ の写しで小さなリポジト
 """
 import json
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -1208,11 +1209,16 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B", "C"], items, ["3"])], [["B"]])
         self.assertEqual([g["unit_ids"] for g in fixboard.fix_groups(["A", "B"], None)], [["A"], ["B"]])
 
-    def test_parallel_needs_two_groups_and_no_lane_switch(self):
+    def test_parallel_needs_two_groups_no_lane_switch_and_a_remote(self):
         two = [{"group_id": "g1"}, {"group_id": "g2"}]
-        self.assertTrue(fixboard.parallel(two, []))
-        self.assertFalse(fixboard.parallel(two, ["tdd_lanes"]))
-        self.assertFalse(fixboard.parallel(two[:1], None))
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = pathlib.Path(tmp)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            self.assertFalse(fixboard.parallel(two, [], repo))
+            subprocess.run(["git", "remote", "add", "origin", str(repo / "origin.git")], cwd=repo, check=True)
+            self.assertTrue(fixboard.parallel(two, [], repo))
+            self.assertFalse(fixboard.parallel(two, ["tdd_lanes"], repo))
+            self.assertFalse(fixboard.parallel(two[:1], None, repo))
 
     def test_join_rows_keep_child_status_only_for_returned_groups(self):
         gs = [{"group_id": "g1", "unit_ids": ["A", "B"]}, {"group_id": "g2", "unit_ids": ["C"]}]

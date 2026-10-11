@@ -482,11 +482,13 @@ def fix_groups(owed, items, only_items=()) -> list:
             for i, g in enumerate(lanekit.groups([(k, by.get(k)) for k in keys]), 1)]
 
 
-def parallel(groups, features_cut) -> bool:
-    """組を並べるか: 組が 2 つ以上で、始めの記録の features_cut（off の語）に LANE_SWITCHES のどちらも無い時だけ真
-    （今の works は TDD の輪の並べと修正役の並べを別々に切れたが、組の子の run は両方を回すので、どちらかが在れば並べない）"""
+def parallel(groups, features_cut, repo) -> bool:
+    """組を並べるか: 組が 2 つ以上で、始めの記録の features_cut（off の語）に LANE_SWITCHES のどちらも無く、対象のリポジトリ repo に
+    git の remote が在る時だけ真（今の works は TDD の輪の並べと修正役の並べを別々に切れたが、組の子の run は両方を回すので、
+    どちらかが在れば並べない。子ごとの作業ツリーは remote の既定の枝から切られ、remote の無いリポジトリでは子を 1 つも起こせない）"""
+    import leftovers
     cut = set(features_cut) if isinstance(features_cut, list) else set()
-    return len(groups) >= 2 and not cut & set(LANE_SWITCHES)
+    return len(groups) >= 2 and not cut & set(LANE_SWITCHES) and bool(leftovers.git(repo, "remote").strip())
 
 
 def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun", rev: str = "HEAD") -> str:
