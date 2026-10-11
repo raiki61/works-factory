@@ -5,11 +5,12 @@ keychain は HOME から探すので、隔離した HOME では login の keycha
 も見えない。run の中の並行 PR の確かめ（写しの parallel-pr.py）はそれで毎回 gh の失敗になり、1 周の run が round_limit で終わった
 （実の利用者の run 97fd532f）。持ち主の決定（2026-10-08）: run の中の gh は利用者の gh を継ぐ（本流の review-graph は利用者の環境の
 まま gh を打つ）。そこで <dir>/gh に、PATH の上の本物の gh を利用者の HOME と gh の設定の置き場（config_dir）で起こすだけの sh の口を
-書き、起動が PATH の頭に <dir> を置く。口が持つのはパスだけで、トークンは写さない・出さない・置かない（gh 自身の置き場のまま）。
+書き、起動が PATH の頭（読むだけの口 no-post-bin/ のすぐ後ろ）に <dir> を置く。口が持つのはパスだけで、トークンは写さない・出さない・置かない（gh 自身の置き場のまま）。
 GH_TOKEN も立てない。利用者の gh がログインしていなければ gh の言葉と終了コードのまま（run の中は今どおり人待ち）。
 
-AI の役は包み（今の works の .shared/core/adapter.py の 5）が gh を丸ごと拒み、読むだけの口 works-gh（no-post-bin/）だけを通す（口の先の本物の gh がこの口）。
-これは事故の柵で、堅い境ではない（役は利用者と同じ人で同じ keychain を持つ）。
+AI の役が打つ gh は、起動（launcher.py）がこの口の前に置く読むだけの口 works-gh（no-post-bin/。今の works では包み
+.shared/core/adapter.py の 5 が置いた）で、口の先の本物の gh がこの口。これは事故の柵で、堅い境ではない（役は利用者と同じ人で同じ
+keychain を持つ）。
 
 - config_dir(env) -> str: gh の設定の置き場（GH_CONFIG_DIR、無ければ $XDG_CONFIG_HOME/gh、無ければ $HOME/.config/gh。gh 自身の決め方）
 - find_gh(path, skip) -> str|None: PATH の上の最初の gh（skip の置き場——口自身と読むだけの口——は飛ばす）
