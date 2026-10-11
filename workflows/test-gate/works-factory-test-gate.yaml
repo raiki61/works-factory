@@ -21,8 +21,6 @@ returns: result
 outcome_field: ok
 
 nodes:
-  # 走らせる前と後の指紋を取り、走らせ方を機械で決めて走らせる。テストは自分のプロセスグループで走り、止められたら孫まで木ごと
-  # 止めて返りを出さずに 128+信号で抜ける。結果の全部は test-gate/<mode>/run.json に書く（このブロックの中だけが読む）
   - id: run
     script: run
     runtime: uv
@@ -84,8 +82,7 @@ nodes:
             head: {type: string}
             diff_hash: {type: string}
 
-  # 任せ先の CI の役の出し直しの輪（今の works の blk-ci）。前の回の拒否の理由は $LOOP_PREV で ci-prep が受け、役の指示書の頭に載る。
-  # 3 回目の拒否で ci-accept が done・give_up を出して輪を抜ける（max_iterations で落とさない）
+  # 任せ先の CI の役の出し直しの輪（今の works の blk-ci）。諦めは ci-accept の done・give_up で抜け、max_iterations で落とさない
   - id: ci-loop
     depends_on: [run]
     when: "$run.output.by == 'role_needed'"
@@ -125,7 +122,7 @@ nodes:
           context: fresh
           mutates_checkout: false
           settingSources: [user]
-          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash はテストを走らせるため。Edit・Write は無い
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash はテストを走らせるため
           # 依存の導入（~/.cache・網）と localhost のテストを通す（今の works の blk-ci と同じ形）。本物の作業ツリーの守りは
           # mutates_checkout: false と ci-accept の作業ツリーの比べ
           sandbox:
@@ -171,8 +168,7 @@ nodes:
               reason: {type: string}
 
   # 返す節。前の節の結果はファイル（run.json・ci-material.json）で読み、$run.output・$ci-accept.output を束ねない
-  # （落ちた節への束ねは if_skipped が在っても誤りになる）。run が落ちても届くように all_done。中の誤りは全部捕まえ、
-  # 終了の値 0 で ok: false・red_cause: incomplete を返す（返す節が落ちると線が先へ進めない）
+  # （落ちた節への束ねは if_skipped が在っても誤りになる）。run が落ちても届くように all_done
   - id: result
     script: result
     runtime: uv
