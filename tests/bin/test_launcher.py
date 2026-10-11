@@ -257,6 +257,12 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(gh_log.read_text(encoding="utf-8").splitlines(), ["pr view 1 -R o/r"])
 
+    def test_no_gh_without_a_real_gh(self):
+        """gh の無い利用者の子に読むだけの口も置かない（並行 PR の確かめの「gh が無い → 役に任せる」を、口の拒否の人待ちに変えない）"""
+        self.gh.unlink()
+        env = self.reached(self.launch("workflow", "status"))["env"]
+        self.assertIsNone(shutil.which("gh", path=env["PATH"]))
+
     def test_child_env_has_no_github_tokens(self):
         tokens = dict.fromkeys(("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"),
                                "ghp_fake-for-launcher")

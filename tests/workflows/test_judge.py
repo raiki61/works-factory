@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -103,6 +104,33 @@ def nodes() -> dict:
 
 def loops() -> dict:
     return {n["id"]: n for n in walk(load()["nodes"]) if "loop_group" in n}
+
+
+class ParallelPrThroughReadOnlyGhTest(unittest.TestCase):
+    """run の中の素の gh は起動が PATH の頭に置く読むだけの口（bin/_lib/no-post-bin/）。並行 PR の数えの gh の打ち方が口の許可の表に
+    合うことを縛る（片側だけ変えると、試験は緑のまま run の中だけで口が拒み、人待ちになる）"""
+
+    def test_parallel_pr_scan_passes_the_read_only_gh(self):
+        with tempfile.TemporaryDirectory(prefix="works-judge-gh-") as tmp:
+            real = pathlib.Path(tmp)
+            log = real / "gh.txt"
+            (real / "python3").symlink_to(sys.executable)
+            gh = real / "gh"
+            gh.write_text(f'''#!/bin/sh
+printf '%s\\n' "$*" >> "{log}"
+case "$1 $2" in
+  "pr list") echo '[{{"number": 7, "headRefName": "x", "headRefOid": "theirs"}}]' ;;
+  "pr view") echo '{{"files": [{{"path": "a.py"}}]}}' ;;
+esac
+''', encoding="utf-8")
+            gh.chmod(0o755)
+            with mock.patch.dict(os.environ, PATH=os.pathsep.join([str(ROOT / "bin" / "_lib" / "no-post-bin"), str(real)])):
+                os.environ.pop("WORKS_FACTORY_GH_ACTIVE", None)
+                got, why = ja.parallel_pr_scan(real, "o/r", "mine", ["a.py"])
+            self.assertEqual(why, "")
+            self.assertEqual(got["conflicts"], [{"pr": "7", "files": ["a.py"]}])
+            self.assertEqual([line.split()[:2] for line in log.read_text(encoding="utf-8").splitlines()],
+                             [["pr", "list"], ["pr", "view"]])
 
 
 class ReturnsShapeTest(unittest.TestCase):

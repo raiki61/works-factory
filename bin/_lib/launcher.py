@@ -71,8 +71,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     for name in GITHUB_TOKENS:
         child.pop(name, None)
     shim = hostgh.write(home / "host-gh", user.get("PATH", ""), user_home, hostgh.config_dir(user))
-    child["PATH"] = os.pathsep.join(filter(None, [str(hostgh.NO_POST_BIN), shim and str(Path(shim).parent),
-                                                  user.get("PATH")]))
+    # gh の無い利用者には口も置かない（並行 PR の確かめが「gh が無い → 役に任せる」の道を通る）
+    heads = [str(hostgh.NO_POST_BIN), str(Path(shim).parent)] if shim else []
+    child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
     child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", WORKS_FACTORY_ROOT=str(ROOT))
     if not no_auth and mise_trusts(user, target):
         workspaces = Path(child["ARCHON_HOME"]) / "workspaces"
