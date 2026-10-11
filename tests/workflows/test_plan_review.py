@@ -617,13 +617,10 @@ class DesignCase(RunCase):
     def test_skipped_when_purpose_review_sibling_narrows(self):
         """judge が判定の隣に置く purpose-review.json の裏取りを通った『狭めている』では回さない。cite の無い行なら回す"""
         r = self.run_
-        sibling = r.art / "judge" / "purpose-review.json"
-        sibling.write_text(json.dumps({"verdict": "狭めている", "reason": "r", "findings": [{"text": "t", "cite": "c", "hits": 1}]},
-                                      ensure_ascii=False), encoding="utf-8")
+        r.judgment(purpose_review={"verdict": "狭めている", "reason": "r", "findings": [{"text": "t", "cite": "c", "hits": 1}]})
         self.assertNotIn("purpose_review", json.loads((r.art / "judge" / "judgment.json").read_text(encoding="utf-8")))
         self.assertFalse(r.open()["r2_go"])
-        sibling.write_text(json.dumps({"verdict": "狭めている", "reason": "r", "findings": [{"text": "t", "hits": 1}]},
-                                      ensure_ascii=False), encoding="utf-8")
+        r.judgment(purpose_review={"verdict": "狭めている", "reason": "r", "findings": [{"text": "t", "hits": 1}]})
         self.assertTrue(r.open()["r2_go"])
 
     def test_unreadable_purpose_review_sibling_is_named(self):
