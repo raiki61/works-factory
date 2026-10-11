@@ -24,8 +24,6 @@ class AcceptCase(unittest.TestCase):
         tmp = pathlib.Path(self._tmp.name)
         self.repo = tmp / "repo"
         self.base = committed_copy(self.repo, SEED)   # 種を写して commit した git（型の写し。gitkit）
-        self.board = tmp / "board"
-        self.board.mkdir()
 
     def tearDown(self):
         self._tmp.cleanup()
