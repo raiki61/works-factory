@@ -230,14 +230,40 @@ class LauncherTest(unittest.TestCase):
         self.assertTrue(pathlib.Path(env["CLAUDE_CONFIG_DIR"]).is_relative_to(self.default_home(self.target)))
         self.assertTrue((pathlib.Path(env["CLAUDE_CONFIG_DIR"]) / ".works-toolset.json").is_file())
 
-    def test_gh_shim_heads_child_path(self):
+    def test_gh_shim_follows_read_only_gh(self):
         env = self.reached(self.launch("workflow", "status"))["env"]
-        head = pathlib.Path(env["PATH"].split(os.pathsep)[0])
+        head = pathlib.Path(env["PATH"].split(os.pathsep)[1])
         self.assertTrue(head.is_relative_to(self.default_home(self.target)), head)
         shim = (head / "gh").read_text(encoding="utf-8")
         self.assertIn(str(self.gh), shim)
         self.assertIn(str(self.home), shim)
-        self.assertNotIn("GH_TOKEN", list(env))
+
+    def test_child_path_starts_with_read_only_gh(self):
+        """役が打つ gh は読むだけの口 works-gh: 書く命令とトークンの読み出しを拒み、読む命令は利用者の gh を継ぐ口へ渡す"""
+        gh_log = self.tmp / "gh.txt"
+        put(self.gh, f'#!/bin/sh\nprintf \'%s\\n\' "$*" >> "{gh_log}"\n')
+        env = self.reached(self.launch("workflow", "status"))["env"]
+        first = shutil.which("gh", path=env["PATH"])
+        self.assertEqual(pathlib.Path(first).parent, self.repo / "bin" / "_lib" / "no-post-bin")
+        for args in (["pr", "create", "-R", "o/r"], ["api", "-X", "POST", "repos/o/r/issues"], ["auth", "token"]):
+            with self.subTest(args=args):
+                done = subprocess.run([first, *args], env=env, capture_output=True, text=True, encoding="utf-8",
+                                      timeout=60)
+                self.assertEqual(done.returncode, 2, done.stderr)
+                self.assertTrue(done.stderr.startswith("works-gh: 通さない"), done.stderr)
+        self.assertFalse(gh_log.exists(), "拒むはずの命令が利用者の gh に届いた")
+        done = subprocess.run([first, "pr", "view", "1", "-R", "o/r"], env=env, capture_output=True, text=True,
+                              encoding="utf-8", timeout=60)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(gh_log.read_text(encoding="utf-8").splitlines(), ["pr view 1 -R o/r"])
+
+    def test_child_env_has_no_github_tokens(self):
+        tokens = dict.fromkeys(("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"),
+                               "ghp_fake-for-launcher")
+        for args in (["workflow", "status"], ["workflow", "run", "works-factory-line"]):
+            with self.subTest(args=args):
+                env = self.reached(self.launch(*args, **tokens))["env"]
+                self.assertEqual([n for n in tokens if n in env], [])
 
     def test_toolset_and_auth_check_only_for_workflow_executing_commands(self):
         def config_of(env):

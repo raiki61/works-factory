@@ -21,6 +21,9 @@ NAME = "works-factory"
 # tests/shared/test_archon_contract.py が照らす）
 CONTINUING = frozenset({"wake", "signal"})
 EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"}) | CONTINUING
+# GitHub の資格は AI の役に渡さない（持ち主の決め auth-middleware）。run の中の gh は、利用者の gh 自身の置き場のログインを
+# hostgh の口が継ぎ、役にはその前に置く読むだけの口 works-gh（no-post-bin/）だけが見える（持ち主の決め roles-read-only-gh）
+GITHUB_TOKENS = ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")
 
 
 class Stop(Exception):
@@ -65,9 +68,11 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         raise Stop(str(error)) from None
 
     child = isolate.isolate(user, home)
+    for name in GITHUB_TOKENS:
+        child.pop(name, None)
     shim = hostgh.write(home / "host-gh", user.get("PATH", ""), user_home, hostgh.config_dir(user))
-    if shim:
-        child["PATH"] = os.pathsep.join(filter(None, [str(Path(shim).parent), user.get("PATH")]))
+    child["PATH"] = os.pathsep.join(filter(None, [str(hostgh.NO_POST_BIN), shim and str(Path(shim).parent),
+                                                  user.get("PATH")]))
     child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", WORKS_FACTORY_ROOT=str(ROOT))
     if not no_auth and mise_trusts(user, target):
         workspaces = Path(child["ARCHON_HOME"]) / "workspaces"
