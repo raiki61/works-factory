@@ -7,10 +7,8 @@ test_judge_verify・test_structure_units・test_accept の TestJudge・TestIntak
 import copy
 import hashlib
 import json
-import os
 import pathlib
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -221,7 +219,7 @@ class JudgeTakeCase(_AJudgeBase):
         """元 test_blk_judge.ScriptCase.test_accept_rejects_commit_after_intake"""
         (self.repo / "extra.txt").write_text("x\n", encoding="utf-8")
         gitkit.git(self.repo, "add", "extra.txt")
-        gitkit.git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "役が commit した")
+        gitkit.git(self.repo, "commit", "-qm", "役が commit した")
         got = self.take(_a_judge_ok())
         self.assertIs(got["ok"], False)
         self.assertIn("作業ツリー", got["reason"])
@@ -520,15 +518,6 @@ class StructureUnitsCase(unittest.TestCase):
 # ---------------------------------------------------------------- 試験の助け
 
 
-_BENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid", "GIT_COMMITTER_NAME": "t",
-         "GIT_COMMITTER_EMAIL": "t@example.invalid", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
-
-
-def _bgit(repo, *args):
-    return subprocess.run(["git", *args], cwd=str(repo), check=True, capture_output=True, text=True,
-                     env={**os.environ, **_BENV}).stdout
-
-
 class _BCase(unittest.TestCase):
     """対象のリポジトリ（commit 1 つ）と run の置き場 judge/ を一時の場所に組む"""
 
@@ -538,12 +527,12 @@ class _BCase(unittest.TestCase):
         self.tmp = pathlib.Path(td.name)
         self.repo = self.tmp / "repo"
         self.repo.mkdir()
-        _bgit(self.repo, "init", "-q", "-b", "main")
+        gitkit.git(self.repo, "init", "-q", "-b", "main")
         (self.repo / "README.md").write_text("# 対象\n\n件数は 3 件\n", encoding="utf-8")
         (self.repo / "app.txt").write_text("一行目\n二行目\n", encoding="utf-8")
-        _bgit(self.repo, "add", "-A")
-        _bgit(self.repo, "commit", "-q", "-m", "seed")
-        self.head = _bgit(self.repo, "rev-parse", "HEAD").strip()
+        gitkit.git(self.repo, "add", "-A")
+        gitkit.git(self.repo, "commit", "-q", "-m", "seed")
+        self.head = gitkit.git(self.repo, "rev-parse", "HEAD").strip()
         self.jdir = self.tmp / "artifacts" / ja.JUDGE_DIR
         self.jdir.mkdir(parents=True)
 
@@ -601,7 +590,7 @@ class PremisesCase(_BCase):
         (self.repo / "out.txt").unlink()
         self.assertTrue(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"])
         (self.repo / "app.txt").write_text("書き換えた\n", encoding="utf-8")
-        _bgit(self.repo, "commit", "-qam", "x")
+        gitkit.git(self.repo, "commit", "-qam", "x")
         self.assertFalse(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"], "commit しても HEAD で見える")
 
     def test_bytecode_made_by_measuring_is_not_counted(self):
@@ -1374,11 +1363,6 @@ _W_PR_HANDED_OVER = {
 }
 
 
-def _w_git(repo, *args):
-    return subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],
-                             check=True, capture_output=True, text=True, encoding="utf-8").stdout
-
-
 def _w_fake_gh(prs, files):
     """lib/ghreads._gh の代わりの読む口（本物の gh・GitHub に触らない）。prs は pr list の返り、files は番号 → 変更ファイル"""
     calls = []
@@ -1407,12 +1391,12 @@ class _WPrBase(unittest.TestCase):
         self.repo, self.jdir = self.tmp / "repo", self.tmp / "art" / ja.JUDGE_DIR
         self.repo.mkdir()
         self.jdir.mkdir(parents=True)
-        _w_git(self.repo, "init", "-q")
+        gitkit.git(self.repo, "init", "-q")
         (self.repo / "stats.py").write_text(_W_SEED, encoding="utf-8")
-        _w_git(self.repo, "add", "-A")
-        _w_git(self.repo, "commit", "-q", "-m", "seed")
-        _w_git(self.repo, "remote", "add", "origin", _W_GITHUB)
-        self.head = _w_git(self.repo, "rev-parse", "HEAD").strip()
+        gitkit.git(self.repo, "add", "-A")
+        gitkit.git(self.repo, "commit", "-q", "-m", "seed")
+        gitkit.git(self.repo, "remote", "add", "origin", _W_GITHUB)
+        self.head = gitkit.git(self.repo, "rev-parse", "HEAD").strip()
         ja.write_json(self.jdir / ja.START_FILE, ja.start_view({"base_rev": self.head, "input": {"base": {"rev": self.head}}}))
         ja.write_json(self.jdir / ja.REQUEST_FILE, [{"where": "stats.py:2", "text": "mean が数で割っていない"}])
 
@@ -1469,7 +1453,7 @@ class WPrScanCase(_WPrBase):
     def test_no_forge_is_not_applicable(self):
         """元 test_forge の forge の無い run（entry の parallel_pr_due・fill_materials の組み手）: remote が GitHub でない
         （ローカルのパス）→ 役を起こさず、素材は not_applicable（no_forge: …）"""
-        _w_git(self.repo, "remote", "set-url", "origin", str(self.tmp / "elsewhere"))
+        gitkit.git(self.repo, "remote", "set-url", "origin", str(self.tmp / "elsewhere"))
         got = self.scan()
         self.assertEqual((got["go"], got["go_role"]), (True, False))
         m = self.material()["materials"]["parallel_pr"]
@@ -1503,11 +1487,11 @@ class WPrScanCase(_WPrBase):
 
     def test_github_repo_redacts_token(self):
         """元 entry.py の github_repo_redacted: GitHub でない remote の理由の文に URL の userinfo（トークン）を載せない"""
-        _w_git(self.repo, "remote", "set-url", "origin", "https://user:SECRET@git.example.com/o/r.git")
+        gitkit.git(self.repo, "remote", "set-url", "origin", "https://user:SECRET@git.example.com/o/r.git")
         slug, why = ja._github_repo(self.repo)
         self.assertIsNone(slug)
         self.assertNotIn("SECRET", why)
-        _w_git(self.repo, "remote", "set-url", "origin", "https://github.com/o/r.git")
+        gitkit.git(self.repo, "remote", "set-url", "origin", "https://github.com/o/r.git")
         self.assertEqual(ja._github_repo(self.repo), ("o/r", None))
 
 
@@ -1585,7 +1569,7 @@ class WPrAcceptCase(_WPrBase):
         self.assertFalse(got["ok"])
         self.assertIn("作業ツリーを変えた", got["reason"])
         (self.repo / "stats.py").write_text(_W_SEED, encoding="utf-8")
-        _w_git(self.repo, "checkout", "-q", "-b", "other")
+        gitkit.git(self.repo, "checkout", "-q", "-b", "other")
         self.assertIn("ref", ja.prcheck_take(self.jdir, _W_PR_OK, self.repo)["reason"])
 
     def test_malformed_reply_bounced_not_crashed(self):
