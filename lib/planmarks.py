@@ -17,6 +17,7 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
 - IDENT・search_word(name)・word_re(name)・test_functions(src, path): adds・removes の名を差分や本体で探す語の決まり・テストの関数の源の引き
   （blk-fix の planscope・tddloop と split が同じ物を呼ぶ）
 - unit_contract(fields, key): 1 つの単位の約束（その単位を名指す項目の道・受け入れのテスト・書き換えの id・整えの申告を合わせた物。TDD の輪が読む）
+- append_trace(folder, op, **row): 開いた盤面の書き口の無い時に trace.jsonl（TRACE_FILE）へ足す行 {t, op, …}（save と planfile が書く）
 - 凍結（SAVED_OP・frozen(b)・FieldsBroken）: save は控えを置いた後、盤面の trace に印 {round, sha256（控えのバイトの sha256）} を
   1 行書く。テストの変更の許しの元（rewrites）と brief の切り出しは frozen で読み、今の周の印と控えが食い違えば（受け付けの後に
   書き換えた・消した）FieldsBroken。読む側が盤面を止める（黙って許しを広げない・黙って捨てない）。印の無い控えは無い物（None）
@@ -70,6 +71,7 @@ NODES = marks.nodes("plan")
 NODE = NODES[0]
 FIELDS_FILE = marks.KINDS["plan"].file   # 盤面の根の控え {"round": 周, "fields": [項目ごとの欄], "amended"?: {番号: 核の欄}}
 SAVED_OP = "plan_fields_saved"     # save が盤面の trace に書く凍結の印 {round, sha256}
+TRACE_FILE = "trace.jsonl"
 KEYS = ("route", "route_why", "tests", "rewrite_tests", "refactor", "allowed_paths", "out_of_scope", "structure")
 # 写しの graph の修正案の項目の欄（核）。差し替えた項目のこの欄を控えの AMENDED_KEY に置く（approved_items が足す鍵 item は外す）
 CORE_KEYS = ("unit_keys", "approach", "adds", "removes", "shrink_first", "narrows")
@@ -846,7 +848,7 @@ class FieldsBroken(ValueError):
 def save(board, rnd: int, fields: list, amended: dict | None = None, *, trace=None) -> None:
     """盤面の plan-fields.json を今の周の欄で置き換え（一時のファイルから os.replace。リンクの先へ書かない）、盤面の trace に
     凍結の印 SAVED_OP {round, sha256（置いたバイトの sha256）} を 1 行足す。trace は開いた盤面の書き口（DiskBoard.trace。行に
-    部品の scope が載る）で、渡さなければ同じ行の形 {t, op, …} で trace.jsonl に直に足す。
+    部品の scope が載る）で、渡さなければ同じ行の形 {t, op, …} で trace.jsonl に直に足す（append_trace）。
     amended（{番号: 核の欄}）が在れば鍵 AMENDED_KEY に番号を字にして置く（無ければ鍵を書かない）"""
     d = pathlib.Path(board)
     doc = {"round": rnd, "fields": fields}
@@ -857,8 +859,13 @@ def save(board, rnd: int, fields: list, amended: dict | None = None, *, trace=No
     if trace is not None:
         trace(SAVED_OP, **row)
         return
-    with open(d / "trace.jsonl", "a", encoding="utf-8") as f:
-        f.write(json.dumps({"t": now(), "op": SAVED_OP, **row}, ensure_ascii=False) + "\n")
+    append_trace(d, SAVED_OP, **row)
+
+
+def append_trace(folder, op: str, **row) -> None:
+    """folder の trace.jsonl（TRACE_FILE）に行 {t, op, …} を 1 行足す（開いた盤面の書き口が無い時の trace の行の形の持ち主）"""
+    with open(pathlib.Path(folder) / TRACE_FILE, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"t": now(), "op": op, **row}, ensure_ascii=False) + "\n")
 
 
 def _doc(b) -> dict | None:
@@ -878,7 +885,7 @@ def read(b) -> list | None:
 def _saved_mark(b) -> dict | None:
     """今の周（b.round）の凍結の印（trace の SAVED_OP の行の最後の物）。無ければ None"""
     try:
-        lines = (pathlib.Path(b.dir) / "trace.jsonl").read_text(encoding="utf-8").splitlines()
+        lines = (pathlib.Path(b.dir) / TRACE_FILE).read_text(encoding="utf-8").splitlines()
     except OSError:
         return None
     mark = None

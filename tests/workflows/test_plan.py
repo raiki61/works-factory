@@ -639,7 +639,7 @@ class ReplanCase(unittest.TestCase):
         self.assertIn("## 直す項目 1", brief)
         self.assertNotIn("人に聞く裁定の文", brief, "fix_plan_item でない裁定の行は渡さない")
         self.assertIn("## 考えの住処の地図", brief)
-        trace = [json.loads(x) for x in (rnd / planfile.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        trace = [json.loads(x) for x in (rnd / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
         self.assertEqual([r["items"] for r in trace if r["op"] == planmarks.AMEND_OP], [[1]])
         fields = run.json(out["plan"])
         self.assertEqual(fields["round"], 2)
@@ -749,7 +749,7 @@ class CollectCase(unittest.TestCase):
         side = json.loads((rnd / "p2.fix_plan.json").read_text(encoding="utf-8"))
         self.assertEqual([p["unit_keys"] for p in side["plan"]], [[MEAN], [CLAMP]], "閉じた項目 2 を機械が差し込む")
         self.assertEqual(side["block_answers"][0]["key"], "key-a1-mean")
-        trace = [json.loads(x) for x in (rnd / planfile.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        trace = [json.loads(x) for x in (rnd / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
         self.assertEqual([(r["op"], r.get("id")) for r in trace if r["op"] == converge.DROPPED_OP],
                          [(converge.DROPPED_OP, converge.item_id([CLAMP]))], "前のまま書いた閉じた項目の行は捨てて trace に残す")
 

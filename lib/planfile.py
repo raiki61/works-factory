@@ -44,7 +44,6 @@ if str(_CORE) not in sys.path:
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 
-from engine.util import now  # noqa: E402
 import carry  # noqa: E402
 import concepthome  # noqa: E402
 import context  # noqa: E402
@@ -75,7 +74,6 @@ BRIEF_FILE = "brief-{n}.md"
 REJECT_FILE = "reject-{n}.txt"
 RIPPLE_UNITS_FILE = "ripple-units.json"
 RIPPLE_FILE = "ripple.json"
-TRACE_FILE = "trace.jsonl"
 STRUCTURE_DIR = "structure"
 UNREAD_STRUCTURE = f"{STRUCTURE_DIR}/unread"
 UNITS_FILE = "units.json"
@@ -133,12 +131,6 @@ def _write_json(path, doc) -> pathlib.Path:
     tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     os.replace(tmp, path)
     return path
-
-
-def _trace(round_dir, op: str, **row) -> None:
-    """周のフォルダの trace.jsonl に 1 行足す（planmarks.save が trace を受けない時に書く行と同じ形 {t, op, …}）"""
-    with open(pathlib.Path(round_dir) / TRACE_FILE, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"t": now(), "op": op, **row}, ensure_ascii=False) + "\n")
 
 
 class _Unreadable(Exception):
@@ -840,13 +832,13 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
         return {"ok": False, "reason": reason}
     texts, unread = base_test_texts(repo, base_rev or "HEAD")
     if unread:
-        _trace(round_dir, BASE_TESTS_UNREAD_OP, rev=base_rev or "HEAD", unread=unread)
+        planmarks.append_trace(round_dir, BASE_TESTS_UNREAD_OP, rev=base_rev or "HEAD", unread=unread)
     out, fields = planmarks.split(plan, pathlib.Path(repo), base_tests=texts)
     extra = {converge.ANSWERS: answers} if record["passes"] else {}
     k = round_no(round_dir)
     _save(round_dir, k, {**plan, **extra}, fields, {**out, **extra})
     for item_id in dropped:
-        _trace(round_dir, converge.DROPPED_OP, round=k, pass_=len(record["passes"]) + 1, id=item_id)
+        planmarks.append_trace(round_dir, converge.DROPPED_OP, round=k, pass_=len(record["passes"]) + 1, id=item_id)
     return {"ok": True, "reason": ""}
 
 
@@ -876,7 +868,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
         row["widened"] = planmarks.widened(before, after) if row["contract_changed"] else None
     texts, unread = base_test_texts(repo, rev)
     if unread:
-        _trace(round_dir, BASE_TESTS_UNREAD_OP, rev=rev, unread=unread)
+        planmarks.append_trace(round_dir, BASE_TESTS_UNREAD_OP, rev=rev, unread=unread)
     kept = _read_json(prev / planmarks.FIELDS_FILE, {})
     fields = revised_fields(kept.get("fields") or [], rows, repo, base_tests=texts)
     amended = {int(n): core for n, core in (kept.get(planmarks.AMENDED_KEY) or {}).items()}
@@ -888,7 +880,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
     out, _ = planmarks.split({"plan": whole}, pathlib.Path(repo))
     k = round_no(round_dir)
     _save(round_dir, k, {"plan": whole}, fields, out, amended=dict(sorted(amended.items())))
-    _trace(round_dir, planmarks.AMEND_OP, round=k, items=sorted(row["item"] for row in rows))
+    planmarks.append_trace(round_dir, planmarks.AMEND_OP, round=k, items=sorted(row["item"] for row in rows))
     _write_json(round_dir / replan.TRIP_FILE, {"round": k, "items": rows})
     return {"ok": True, "reason": ""}
 
