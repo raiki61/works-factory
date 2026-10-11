@@ -145,6 +145,169 @@ flowchart TB
 - 修正役が 3 回拒まれた単位は、その単位を始めた時の版に戻し、理由を残して裁定に回し、ほかの単位は先へ進む。
 - 差分の審査 → 手直しは 2 往復まで。
 
+## ブロックの返りの約束
+
+8 つのブロックを並べて移すための、線との約束。ブロックごとに、返す節（`returns:`）・`outcome_field`・返りの欄・受ける入力（`with:`）を先に決める。欄の名は今の works（`blk-*/schemas/`・review-graph の節の schema・`report.py`）から採り、E5・E17 と持ち主の決めが求める所だけ変えた。
+
+- 正本: YAML が書けたら、型の正本は返す節の `output_format` と線の `with:`（持ち主の決め `io-in-output-format`）。この節は並べて書く間に名・型・読み手を揃えるための約束。YAML と食い違ったら、どちらが正しいかを決めて両方を合わせる。
+- 機械: 線の `with:` が読む `$<include の id>.output.<欄>` が、そのブロックの返す節の `output_format` に在るか。`outcome_field` が `required` に在るか。読み手の無い欄が無いか。この 3 つは E5 の機械（`tests/layers/test_block_returns.py`。2026-10-11 の時点でまだ無い）が見る。下の「→」の読み手は、その試験を赤にしないための目録。
+- 書き方の決め:
+  - 欄は全部 `required` に入れる。値が無い時は欄を落とさず `null`・`[]`・`""` で表す。null を取るのは「null 可」と書いた欄だけ。
+  - 指し札は `{type: "archon_artifact", run_id, path}`（E5）。下では型を「指し札」と書く。
+  - 2 つの形を持つブロック（test-gate・merge）は、返す節を 1 つのまま `mode` の欄で形を返す。形に当たらない欄は null。
+  - 「→ 線 N」は「線」の「順と関所」の N 番の段（関所の文か `when:`）が読む。「→ ブロック名」はそのブロックが `with:` で受ける。「→ 線の返り」は線の `returns: report` を通して `bin/show`・`bin/start --rounds` が読む。
+- 線の中の id（`$<id>.output` の `<id>`。線を書く人とブロックを書く人がこの名で合わせる）:
+  - 線の節: `start`（始めの節）・`redepth`（直した後の深さの上げ直し）
+  - 人の関所: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`（仕様の関所は judge の中）
+  - include: `test-gate-base`・`judge`・`plan`・`plan-review`・`fix`・`rejudge`（judge の再審）・`replan`・`replan-review`（案の直し）・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`
+  - 同じブロックを 2 度差し込む所の返りが include ごとに分かれて見えるかは未決 U2。`rejudge`・`replan`・`replan-review` の返りは差し込んだブロックと同じ形で、線は後の段でそちらを先に読む。
+- 線の始めの節 `start` の返りのうち、ブロックが読むのは 1 つ:
+  - `record`（指し札）: 始めの記録。今の works の `start.json` の欄（`run_id`・`base_rev`・`test_cmd`・`final_gate`・`unattended`・`spec` ほか）→ 全ブロック
+
+### judge の返り
+
+- 返す節 `verdict`・`outcome_field: ready`（ASF の `W/triage/archon-triage.yaml` の形）
+- 入力（`with:`）:
+  - `start` ← `$start.output.record`
+  - `baseline` ← `$test-gate-base.output.baseline`
+  - `objection` ← `$fix.output.objection`（`rejudge` の時だけ。`judge` では `""`）
+- 返り:
+  - `ready`（boolean）: 判定を受け付け、直す単位が 1 つ以上在る。false も正しい終わり → 線 5・report
+  - `stop_reason`（string）: ready が false の訳（止めの理由の語 `lib/stop_reasons`）。ready なら `""` → report
+  - `units`（array）: 単位の目録。項目は `{id, paths, summary}`（今の works の `structure-units`）→ plan・plan-review・fix・eyes
+  - `judgment`（指し札）: 受け付けた判定の全体（今の works の `judgment.json`。review-graph の `p2.diagnose` の `units`・`questions`・`framing`・`one_shot`・`precedents` ほか）→ plan・plan-review・fix・eyes
+  - `purpose`（指し札）: 目的の固定（今の works の `purpose.json` と `purpose-means.json`）→ plan-review（R2 は目的の文だけから設計する）・eyes
+  - `world`（指し札・null 可）: 定石の行（今の works の `world-row` の行の並び）。取れなかった時は null → plan・plan-review・eyes
+  - `spec`（指し札・null 可）: 仕様（要件と受け入れテスト。review-graph の `spec.write`）。`--spec` でない時は null → plan
+  - `out_of_purpose`（指し札・null 可）: 目的の外の所見 → report（次の run への持ち越し）
+  - `rejudge_verdict`（string・null 可）: 再審の答え `採る`・`退ける`・`一部採る`（review-graph の `p2.rejudge`）。再審でない時は null → 線 7・report
+
+### plan の返り
+
+- 返す節 `plan`・`outcome_field: ready`（ASF の `W/plan/archon-plan.yaml`。ready が false も正しい終わり）
+- 入力（`with:`）:
+  - `start` ← `$start.output.record`
+  - `units`・`judgment`・`world`・`spec` ← `$judge.output.<同じ名>`
+  - `review` ← `$plan-review.output.review`（往復の 2 回目から。1 回目は null）
+  - `ruling` ← `$fix.output.replan_items`（`replan` の時だけ。`plan` では `[]`）
+- 返り:
+  - `ready`（boolean）: 修正案ができた。構造の目が人に上げると決めた時などは false → 線 5・report
+  - `plan`（指し札）: 修正案。項目ごとの書いてよい範囲・受け入れテスト・定石と構造の行ごとの従うか外れの訳（今の works の `plan-fields.json`）→ plan-review・fix・eyes
+  - `structure`（指し札）: 構造の目の行（今の works の `design-row` の形）→ plan-review
+  - `ripple`（指し札）: 波及の一覧（今の works の `ripple.json`）→ plan-review・fix・eyes
+  - `depth`（array）: 単位ごとの深さ。項目は `{unit_id, depth, why}`、depth は `軽量`・`標準`（今の works の `lib/depth`）→ 線（深さの決め）・fix
+  - `round`（integer）: 何回目の案か（往復と案の直しを通して数える）→ report
+
+### plan-review の返り
+
+- 返す節 `review`・`outcome_field: pass`
+- 入力（`with:`）:
+  - `units`・`judgment`・`purpose`・`world` ← `$judge.output.<同じ名>`
+  - `plan`・`structure`・`ripple` ← `$plan.output.<同じ名>`
+- 返り:
+  - `pass`（boolean）: 止める指摘が無い（通し）→ 線 5（往復を抜ける）
+  - `stalled`（boolean）: 同じ所で 2 度続けて止めた（`lib/converge`）→ 線 5（往復を止める）・report
+  - `review`（指し札）: 項目ごとの指摘（review-graph の `p2.plan_review` の `faces`・`shrink`・`reason`）→ plan（次の周）・report
+  - `design`（指し札）: 独立設計 R2（review-graph の `r2.design` の `question_stands`・`design`。今の works の `design.json`）→ eyes（R2 の比較）
+  - `gate_axes`（object）: 4 つの軸。鍵は `obvious`（自明）・`world`（世界の解）・`clean`（汚くない）・`not_overkill`（やりすぎでない）、各 `{ok: boolean, note: string}` → 線 6
+  - `ask_human`（boolean）: 修正前の関所を開くか → 線 6
+  - `questions`（array of string）: 人への問い → 線 6
+
+### fix の返り
+
+- 返す節 `fix`・`outcome_field: done`
+- 組ごとの並べ（`fan_out:`）は fix の中に置く。組は `lib/groups` が単位と計画から作り、返りは組を集めた後の 1 つ。
+- 入力（`with:`）:
+  - `start` ← `$start.output.record`
+  - `baseline` ← `$test-gate-base.output.baseline`
+  - `units`・`judgment`・`world` ← `$judge.output.<同じ名>`
+  - `plan`・`ripple`・`depth` ← `$plan.output.<同じ名>`
+  - `answers` ← `{ from: "$gate-before-fix.output", if_skipped: null }`
+- 返り:
+  - `done`（boolean）: 直しを作業ツリーに入れ終え、差分の審査を通した。諦めた単位が在っても true → 線 8・report
+  - `units`（array）: 単位ごとの結末。項目は `{unit_id, group_id, status, reason}`、status は `fixed`・`given_up`・`not_done` → eyes・report
+  - `groups`（array）: 組ごとの結果。項目は `{group_id, unit_ids, returned, reason}`（returned は親の木へ戻せたか）→ report
+  - `conflicts`（指し札・null 可）: 申し出と裁定（`lib/conflict` の形）。無ければ null → 線 11・report
+  - `replan_items`（array of string）: 裁定が誤りとした計画の項目の id。空でなければ線が案の直しを 1 度差し込む → 線 7・plan
+  - `objection`（string）: 修正役の異議。空でなければ線が再審を 1 度差し込む → 線 7・judge
+  - `diff`（指し札）: 累積差分（run の始めの版から）→ eyes・merge
+  - `allowed_test_changes`（array of string）: 許したテストの変更のパス → 線 11
+  - `changed`（object）: review-graph の `p3.fix` の印。`mechanism_changed`・`premise_drift`・`gates_changed`・`seams_changed`・`security_surface_changed`・`path_changed`（どれも boolean）→ eyes（R4・前提の検算）
+  - `delta_review`（object）: 差分の審査 `{rounds: integer, pass: boolean}`。軽量で省いた時は `{rounds: 0, pass: true}` → report
+- 型つきの成果物: 単位ごとに `output_type: tdd-unit`（返りではない。report だけが一覧から読む。E5）
+
+### test-gate の返り
+
+- 返す節 `result`・`outcome_field: ok`（ASF の `W/validate/archon-validate.yaml` の `result` の形）
+- 入力（`with:`）:
+  - `mode`: `base`（`test-gate-base`）・`final`（`test-gate-final`）
+  - `start` ← `$start.output.record`
+  - `baseline` ← `$test-gate-base.output.baseline`（final だけ。base は null）
+- 返り:
+  - `mode`（string）: `base`・`final` → report
+  - `ok`（boolean）: base は直す前の結末を控えられた。final は緑を認証した（`green` で、指紋が今の作業ツリーと合う）→ 線 4（base）・線 9（final）・merge
+  - `green`（boolean）: テスト一式（final は CI も）が緑。base で赤でも `ok` は true になりうる → report
+  - `red_cause`（string）: 赤の原因 `introduced`・`inherited`・`environment`・`interaction`・`incomplete`・`""`（ASF の enum。緑なら `""`）→ report
+  - `baseline`（指し札・null 可）: 直す前の結末（テストの走らせ方と元から赤のテスト）。base だけ → judge・fix・test-gate（final）
+  - `fingerprint`（object・null 可）: 作業ツリーの指紋 `{head, diff_hash}`。final だけ → merge（seal が照らす）
+  - `evidence`（指し札）: 走らせた記録 → report
+- 型つきの成果物: 返す節に `output_type: green-cert`（report が全部の周の認証を一覧から拾う。E5）
+
+### eyes の返り
+
+- 返す節 `verdict`・`outcome_field: ok`（今の works の `eyes-exit.ok`）
+- 入力（`with:`）:
+  - `units`・`judgment`・`purpose`・`world` ← `$judge.output.<同じ名>`
+  - `plan`・`ripple` ← `$plan.output.<同じ名>`
+  - `depth` ← `$redepth.output.depth`（plan の深さを直した後に上げ直した物）
+  - `design` ← `$plan-review.output.design`
+  - `diff`・`changed` ← `$fix.output.<同じ名>`、`fix_units` ← `$fix.output.units`
+  - `green_ok` ← `$test-gate-final.output.ok`
+- 返り:
+  - `ok`（boolean）: R1〜R4 が全部 pass。深さで省いた目は数えない → 線 10・merge
+  - `r1`・`r2`・`r3`・`r4`（object・null 可）: 目ごとの `{status, reason}`。status は `pass`・`redesign-needed`・`unverifiable`（review-graph の `r1.minimality` ほか。R2 は `unverifiable` を持たない）。省いた目は null → report
+  - `questions`（array of string）: R4 の人への問い → 線 11
+  - `premise_check`（object・null 可）: 前提の検算 `{verdict, reason}`、verdict は `resolved`・`escalate`（review-graph の `stop.premise_check`）。走らなければ null → 線 11・report
+  - `structure_after`（指し札・null 可）: 直した後の構造の実測 → report
+  - `protected_hits`（array of string）: 差分が当たった守りのパス → report
+- 型つきの成果物: 目ごとに `output_type: eye-verdict`
+
+### merge の返り
+
+- 返す節 `merge`・`outcome_field: ok`（ASF の `W/merge-queue/archon-merge-queue.yaml` の封印と読み戻し）
+- 既定は E17: apply は封じた差分を run の置き場に置くだけ。対象のリポジトリへ当てるのは人（`bin/apply`）。
+- 入力（`with:`）:
+  - `mode`: `seal`（`merge-seal`）・`apply`（`merge-apply`）
+  - `start` ← `$start.output.record`
+  - `diff` ← `$fix.output.diff`
+  - `fingerprint` ← `$test-gate-final.output.fingerprint`、`green_ok` ← `$test-gate-final.output.ok`
+  - `eyes_ok` ← `$eyes.output.ok`
+  - `sealed_hash` ← `$merge-seal.output.hash`（apply だけ。seal は null）
+  - `answer` ← `{ from: "$gate-final.output", if_skipped: null }`（apply だけ）
+- 返り:
+  - `mode`（string）: `seal`・`apply` → report
+  - `ok`（boolean）: seal は差分を封じた。apply は封じた hash と今の差分が合い、置いて読み戻せた → 線 11（seal）・report
+  - `hash`（string）: seal は封じた差分の sha256。apply は読み戻した差分の sha256 → 線 11・merge（apply が照らす）
+  - `diff`（指し札）: seal は封じた差分。apply は置いた先（人が `bin/apply` で当てる物）→ report
+  - `protected_hits`（array of string・null 可）: 守りのパスの当たり。seal だけ → 線 11
+  - `reason`（string）: ok が false の訳（hash の食い違いなど）。ok なら `""` → report
+
+### report の返り
+
+- 返す節 `report`・`outcome_field: outcome`（線の `returns: report` もこの節を返す）
+- 入力（`with:`）:
+  - `start` ← `$start.output.record`
+  - 全ブロックの返り。飛ばされうるので全部 `{ from: "$<id>.output", if_skipped: null }`: `test-gate-base`・`judge`・`rejudge`・`plan`・`plan-review`・`replan`・`replan-review`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`
+  - 人の関所の答え。同じく `if_skipped: null`: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`
+  - 型つきの成果物の一覧（`tdd-unit`・`green-cert`・`eye-verdict`）は `with:` でなく report の中で `$TYPED_ARTIFACTS_FILE` から読む（E5）
+- 返り:
+  - `outcome`（string）: 結末の語。enum は今の works の `report.py` の `OUTCOMES` の 10 語 `fixed`・`fixed_needs_check`・`no_fix_needed`・`round_limit`・`stopped_by_request`・`stopped_by_human`・`stopped_by_line`・`needs_human`・`record_invalid`・`interrupted` → 線の返り（`bin/start --rounds` の周の鎖が種を引く）
+  - `stop_reason`（string）: 止めた段と理由の語（`lib/stop_reasons`）。止まらなければ `""` → 線の返り
+  - `report`（指し札）: 機械の報告（今の works の `report.md`）→ 線の返り
+  - `report_ai`（指し札・null 可）: AI の報告（今の works の `report-ai.md`）→ 線の返り
+  - `next_request`（指し札・null 可）: 次の依頼（`lib/carry`。今の works の `next-request.json`）→ 線の返り
+  - `prior_failures`（指し札・null 可）: 前の失敗の行（`lib/carry`。今の works の `prior-failures.json`）→ 線の返り
+
 ## ブロック
 
 各ブロックのフォルダは `works-factory-<名>.yaml`（工程の名も同じ。ASF の `archon-<名>.yaml` と同じ形）・`commands/`（役の指示書の本文）・`scripts/`（`lib/` と境の口を呼ぶだけ）・`fixtures/`（Archon の筋書きの試験）を持つ。返りの型は `returns:` が名指す節の `output_format`。
