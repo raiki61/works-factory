@@ -53,7 +53,8 @@
 
 ## E8 ASF は横に並べて見るだけ
 
-- ASF と Archon 同梱の工程を `include:`・`workflow:` で呼ばない。ASF のコードを写さない（ASF には LICENSE が無い）。
+- ASF と Archon 同梱の工程を `include:`・`workflow:` で呼ばない。ASF のコードを自分の層（`bin/`・`workflows/`・`lib/`）に写さない。採るのは型（なぜその形か）だけ。
+- ASF の取り付け命令が置いた物（`factory/`・`harness/`・`FACTORY.md`・`FACTORY_RULES.md`・`.factory/`）は、ASF がこのリポジトリを作るための物で、4 つの層の外に置いたまま手を加えない。ASF の共有の工程への決まりは `factory/WORKFLOW_POLICY.md`。持ち主の決め `asf-installer-in-repo`。
 - ASF の型を採ったら、`docs/asf-notes.md` に 1 行足す（ASF の commit・ファイル・採った先のブロック・違いと訳）。
 - 機械: `tests/layers/test_no_asf.py`（`include:`・`workflow:` の値が `works-factory-` で始まる）。写していないことと名簿の行は人が見る。
 
