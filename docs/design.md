@@ -119,7 +119,7 @@ flowchart TB
 12. merge（apply）: 封じた hash を照らしてから、外へ 1 度だけ書く（既定は差分を run の置き場に置き、人が `bin/apply` で当てる。今の works と同じ）。
 13. report: いつも走る（前の段が落ちても。ブロックの返す節そのものが落ちた時も、受け皿 `<include の id>-out` が飛ばされ、collect はその返りを null で受ける）。結末の語・報告・次の run への持ち越し。
 
-- 止めは人の関所の `stop`（後ろを `when:` で飛ばして report へ進む。結末は `stopped_by_human`）。関所の間で走っている run を外から止める札（止め札）は持ち主の答え待ち（Archon に報告つきで止める口が無い。「能力の棚卸し」の「止め札」の行）。
+- 報告つきの止めは人の関所の `stop`・`reject` だけ（後ろを `when:` で飛ばして report へ進む。結末は `stopped_by_human`）。関所の間で走っている run は報告の無い Archon の `workflow cancel` で止め、これを狭めとして認めた（持ち主の決め `stop-at-gates`。Archon に報告つきで止める口が無い。「能力の棚卸し」の「止め札」の行）。
 - 単位がどれも軽量なら（深さの決め）、差分の審査と R1〜R4 を省く。直した後に標準へ上げ直す決めも線が持つ。
 - 周の鎖（頼まれたら run を何周もつなぐ）の置き先は「能力の棚卸し」の「線と入口」の「周の鎖」の行。
 
@@ -431,7 +431,7 @@ flowchart TB
 - 入口の入力の形（差分の根・差分・依頼の行・PR。空なら止める）: `blk-entry`・`.shared/core/entryshape.py`・`startrec.py` → line・`lib/entry_shape`
 - 単位ごとの深さと上げ直し: `darkfactory/lib/depth.py` → line・`lib/depth`
 - 機能の切り替え: `.shared/core/entry.py` の `FEATURES` → line・`lib/features`
-- 止め札: `.shared/core/halt.py` → line・`lib/halt`。人は関所で `bin/works-factory workflow respond <run> stop <一言>` と打つ（Archon の命令のまま。殻は何も足さない）。関所の間で走っている run を報告つきで止める口は Archon に無く、持ち主の答えを待つ（今は `workflow cancel` で止まり、報告は出ない）
+- 止め札: `.shared/core/halt.py` → line・`lib/halt`。人は関所で `bin/works-factory workflow respond <run> stop <一言>` と打つ（Archon の命令のまま。殻は何も足さない）。関所の間で走っている run を報告つきで止める口は Archon に無く、報告の無い `workflow cancel` で止めるのを狭めとして認めた（持ち主の決め `stop-at-gates`）
 - 人の関所と無人の方針: `.shared/core/gatepolicy.py` → line・`lib/gate_policy`
 - 止めの理由の語: `.shared/core/stopby.py` → `lib/stop_reasons`
 - 周の鎖: `.shared/core/chain.py`・`dev/use.sh` → 線の後ろ（推し。`workflow:` の節で次の周の線を起こせるかを段 3 で確かめ、起こせなければ置き先を決め直す）。殻には置かない（持ち主の言葉「自作部分はその認証の切り替えだけ」）。作るまでは Archon の `--adopt`・`--supersedes`

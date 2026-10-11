@@ -132,7 +132,7 @@
 **Interfaces:**
 - Consumes: Task 3 の境の口・Task 3b・#30 の `lib/`（`startrec`・`gatepolicy`・`stopby`・`converge`・`gatemarks`・`answer`・`planmarks` ほか）・`docs/design.md` の「ブロックの返りの約束」
 - Produces:
-  - 線の順・関所・往復は `docs/design.md` の「線」の 1〜13。関所は E16 の形で、どの関所も `decisions` に `approve`・`continue`・`stop` を持つ（`continue` は lib/answer.py の答えの行の語）。`stop` は後ろを飛ばして report へ流す（持ち主の決め `report-on-stop`）。関所の間の止めは持ち主の答え待ち。
+  - 線の順・関所・往復は `docs/design.md` の「線」の 1〜13。関所は E16 の形で、どの関所も `decisions` に `approve`・`continue`・`stop` を持つ（`continue` は lib/answer.py の答えの行の語）。`stop` は後ろを飛ばして report へ流す（持ち主の決め `report-on-stop`）。報告つきの止めは関所の `stop`・`reject` だけ。関所の間は報告の無い `cancel` を狭めとして認めた（持ち主の決め `stop-at-gates`）。
   - include の受け手に `if_skipped` を書けない（P2）ので、関所の答えと飛ばされうる返りは線の返しの節（`answer-*`・`judged`・`fixed`・`plan-out`・`collect`）で受け直してから渡す。
   - 計画の往復は `loop_group` の中の 2 つの `include:` と、終わりの返しの節 `plan-out`（中の節は外から見えないため。抜けるのは通し・止め・3 周目のどれか）。`report` は `trigger_rule: all_done`。線の返す節は線の `result`（`outcome_field: fixed`）。
   - 線とブロックの欄の照らしは Archon の `validate`（Task 3b の `test_archon_validate`）。
