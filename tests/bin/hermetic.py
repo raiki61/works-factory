@@ -1,0 +1,74 @@
+"""試験を走らせた場に左右されない子の環境と一時フォルダ（test_* でないので unittest の発見に拾われない）。
+
+試験の子へ親の環境を丸ごと渡すと、run の中（Archon・Claude Code の子）で親が立てた名が漏れて、その場でだけ赤くなる。
+tox の pass_env と同じ向きで、外す名はここの 1 か所に置き、試験が意図して渡す名は child_env の overrides で名指しする。
+macOS の一時フォルダは /var→/private/var の symlink の下にあり、pathlib の relative_to は字面で比べるので、比べる試験は
+tmpdir の実体のパスを使う。
+"""
+import os
+import pathlib
+import shutil
+import tempfile
+
+# run が立てる名（bin/ の起動・Archon・Claude Code・graphloops の engine の子の目印）。
+# ANTHROPIC_ は起こし役（bin/_lib/auth_launch.py）が受け継いだ認証として先に拾い、keychain の段の試験を素通りさせる。
+# HERDR_ は herdr の枠の中で試験を回すと、殻が控えに本物の枠とサーバを残して本物の herdr へ送る（枠の試験は名指しで渡す）
+DROPPED_PREFIXES = ("WORKS_FACTORY_", "CLAUDE_", "ARCHON_", "ANTHROPIC_", "HERDR_")
+DROPPED = frozenset({"CLAUDECODE", "GRAPHLOOPS_ENGINE_CHILD"})
+
+
+def dropped(name: str) -> bool:
+    return name in DROPPED or name.startswith(DROPPED_PREFIXES)
+
+
+def child_env(**overrides) -> dict:
+    """os.environ から dropped の名を外し、overrides を上に置いた子の環境"""
+    env = {k: v for k, v in os.environ.items() if not dropped(k)}
+    env.update(overrides)
+    return env
+
+
+def alias(case, path) -> str:
+    """/private の下の実体のパスの、/ の直下の symlink を通した別名の綴り（macOS の /var・/tmp・/etc）。別名はファイルの仕組み
+    から引く（/<頂> が /private/<頂> を指す symlink か）——包みの綴りの表（adapter._ALIASES）を写さないので、表の抜けを試験が
+    捕まえる。別名が無い場（一時フォルダが /private の外・macOS でない機械）では skip する。呼ぶのは case.subTest の中だけ
+    （skip はその subTest に留まり、同じ試験の元の綴りの主張は検査され続ける。外で呼ぶと試験を丸ごと黙らせるので拒む）"""
+    if getattr(case, "_subtest", None) is None:
+        raise AssertionError("hermetic.alias は case.subTest の中で呼ぶ（別名が無い場の skip が試験の残りを黙らせないように）")
+    p = str(path)
+    top = "/" + p.split("/")[2] if p.startswith("/private/") else ""
+    if top and os.path.islink(top) and os.path.realpath(top) == "/private" + top:
+        return p[len("/private"):]
+    case.skipTest(f"SKIP private-symlink: {p} に /private の別名の綴りが無い")
+
+
+def fake_herdr(tmp, fail=False):
+    """偽の herdr を置く。(PATH の頭に足すフォルダ, 控えのファイル)。偽の herdr を作る所はここだけ。
+    実物の CLI の形（pane の下の report-agent・release-agent）だけを受けて引数を控えに 1 行ずつ書き、ほかは実物と同じ文言で
+    rc=2。形は lib.sh の呼び方でなく実物の --help と公式文書から写す（lib.sh を写すと呼び方の誤りを緑で通す）。
+    fail=True なら受ける形を控えた後、サーバの居ない時の実物と同じく server_not_running を標準エラーに出して rc=1。
+    受けた形ごとに、送り先のサーバ（HERDR_SOCKET_PATH。無ければ (unset)）と引数を herdr_sockets が読む別の控えにも書く"""
+    bin_dir = pathlib.Path(tmp) / "herdr-bin"
+    bin_dir.mkdir()
+    log = pathlib.Path(tmp) / "herdr.txt"
+    accepted = 'echo "error: server_not_running" >&2\n    exit 1' if fail else "exit 0"
+    (bin_dir / "herdr").write_text(f'#!/bin/sh\ncase "$1 $2" in\n  "pane report-agent"|"pane release-agent")\n'
+                                   f'    echo "$*" >> "{log}"\n'
+                                   f'    printf \'%s\\t%s\\n\' "${{HERDR_SOCKET_PATH-(unset)}}" "$*" >> "{log}.socket"\n'
+                                   f'    {accepted} ;;\nesac\n'
+                                   'echo "unknown command: $1" >&2\nexit 2\n')
+    (bin_dir / "herdr").chmod(0o755)
+    return bin_dir, log
+
+
+def herdr_sockets(log):
+    """fake_herdr の控えに対応する (送り先のサーバ, 引数) の並び（呼ばれていなければ空）"""
+    p = pathlib.Path(f"{log}.socket")
+    return [tuple(l.split("\t", 1)) for l in p.read_text().splitlines()] if p.exists() else []
+
+
+def tmpdir(case, **kw) -> pathlib.Path:
+    """実体のパス（realpath）の一時フォルダ。case（unittest.TestCase）の後始末で消す"""
+    d = pathlib.Path(os.path.realpath(tempfile.mkdtemp(**kw)))
+    case.addCleanup(shutil.rmtree, d, ignore_errors=True)
+    return d
