@@ -57,8 +57,8 @@ def raw_inputs() -> dict:
     }
 
 
-def words(raw: dict) -> dict:
-    """入力の語を確かめる。受けない組み合わせは Refused"""
+def words(raw: dict, repo: Path) -> dict:
+    """入力の語と名指したファイルを確かめる。受けない組み合わせ・無いファイルは Refused"""
     spec = raw["spec"].strip()
     if spec not in SPEC_WORDS:
         raise Refused(f"spec={raw['spec']!r} は知らない値（空か {SPEC_ON}）")
@@ -78,9 +78,22 @@ def words(raw: dict) -> dict:
         raise Refused(f"thickness={HEAVY} で足す工程がまだ無い（{' / '.join(t for t in THICKNESS if t)}）")
     if thickness not in THICKNESS:
         raise Refused(f"thickness={raw['thickness']!r} は知らない値（{' / '.join(t for t in THICKNESS if t)}）")
-    if spec and raw["fix_fixture"].strip():
-        raise Refused("spec=on と固定材料（fix_fixture）は組めない——固定材料は判定と修正案を作り直さずに修正から始める")
-    return {**gate, "spec": spec, "design_only": design_only, "thickness": thickness, "features_off": off, "features_on": on}
+    if raw["fix_fixture"].strip():
+        raise Refused("固定材料（fix_fixture）から修正を始める道はまだ無い（判定と修正案を作り直さずに修正から始めるには、"
+                      "fix のブロックが固定材料を受ける形が要る）。fix_fixture を空にして回す")
+    return {**gate, "spec": spec, "design_only": design_only, "thickness": thickness, "features_off": off, "features_on": on,
+            "policy_md": policy_md(raw["policy_md"], repo)}
+
+
+def policy_md(rel: str, repo: Path) -> str:
+    """方針の文書の絶対パス（名指しが無ければ空）。名指した文書が無ければ Refused。元 works/.shared/core/entry.py 588-593 行"""
+    rel = rel.strip()
+    if not rel:
+        return ""
+    path = Path(rel) if Path(rel).is_absolute() else repo / rel
+    if not path.is_file():
+        raise Refused(f"名指した方針の文書 {rel} が無い（policy_md。人の方針の文書を名指すなら先に置く）")
+    return str(path)
 
 
 def request(raw: dict, repo: Path) -> dict:
@@ -94,6 +107,10 @@ def request(raw: dict, repo: Path) -> dict:
         parts = carry.parts(json.loads(body))
     except (OSError, UnicodeDecodeError, ValueError) as error:
         raise Refused(f"依頼 {rel} を読めない（{type(error).__name__}: {error}）") from None
+    problems = entry.request_problems(parts[carry.FINDINGS])
+    if problems:
+        raise Refused(f"依頼のファイル {rel} の形: findings の配列か {{findings, pr, issue, answers}} の形で、findings は "
+                      "[{where, text, mechanism?, measured?, false_positive_if?}] の配列（空でない）: " + "; ".join(problems))
     return {"items": parts[carry.FINDINGS], "request_file": str(path.resolve()), "request_text": body, "parts": parts}
 
 
@@ -126,7 +143,7 @@ def write(artifacts: Path, name: str, doc) -> dict:
 def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
     record = {"run_id": run_id, "inputs": raw, "versions": versions(boundary.lib_root().parent)}
     try:
-        checked = words(raw)
+        checked = words(raw, repo)
         asked = request(raw, repo)
         reads = entryshape.github_reads(artifacts, repo, raw)
         if reads is not None:
@@ -149,7 +166,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         "input": shape, "base_rev": shape["head_rev"], "test_cmd": raw["test_cmd"], "tdd_suite": raw["tdd_suite"],
         gatepolicy.FINAL_KEY: checked[gatepolicy.FINAL_KEY], gatepolicy.UNATTENDED_KEY: checked[gatepolicy.UNATTENDED_KEY],
         "design_only": checked["design_only"], "thickness": checked["thickness"], "spec": checked["spec"],
-        "policy_md": raw["policy_md"], "fix_fixture": raw["fix_fixture"], "lang": raw["lang"],
+        "policy_md": checked["policy_md"], "lang": raw["lang"],
         entry.FEATURES_KEY: checked["features_off"], entry.FEATURES_ON_KEY: checked["features_on"],
         entry.FEATURES_CUT_KEY: entry.features_cut(checked["features_off"], checked["features_on"]),
         "features": entry.feature_words(checked["features_off"], checked["features_on"]),

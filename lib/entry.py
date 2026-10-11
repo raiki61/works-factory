@@ -1,10 +1,19 @@
 """機能の切り替え（入力 features_off・features_on）の語と読み。元は今の works の works/.shared/core/entry.py の 420-514 行の塊。
 
 線の入口の節（workflows/line/scripts/start.py）が入力の語を確かめ、始めの記録に置き、ブロックへ渡す機能ごとの on・off・auto を作る。
-元のファイルのほかの物（入口の確かめ・盤面の口・CI の節）は盤面に届くので持ってこない（docs/plans/2026-10-12-lib-port.md の
+依頼の行の型（REQUEST_SCHEMA・request_problems）も入口の節が依頼のファイルを読む時に当てる。
+元のファイルのほかの物（盤面の口・CI の節）は盤面に届くので持ってこない（docs/plans/2026-10-12-lib-port.md の
 移し方 2・3）。
 """
+import pathlib
 import re
+import sys
+
+_HERE = pathlib.Path(__file__).resolve().parent
+if str(_HERE / "graphloops") not in sys.path:
+    sys.path.insert(0, str(_HERE / "graphloops"))   # 写しの engine（carry と同じ足し方）
+
+from engine.schema import validate_schema  # noqa: E402
 
 # 元 works/.shared/core/script_io.py 83-84 行（script_io は持ってこないので、塊が読む語だけを元の字のまま写す）
 SWITCH_ON, SWITCH_OFF = "on", "off"   # 部品の切り替えの入力の語（線が run ごとに機能を切る口。空は on）
@@ -97,3 +106,19 @@ def features_part(off, on=()) -> str:
     """頭の行と報告の冒頭 2 の機能の語: on でない機能を語の順に「<機能> <off|auto>」で並べる（全部 on なら「機能: 全部 on」）"""
     rest = [f"{k} {v}" for k, v in feature_words(off, on).items() if v != SWITCH_ON]
     return f"機能: {'・'.join(rest)}" if rest else "機能: 全部 on"
+
+
+# 元 works/.shared/core/graphloops/rules/review-loop.py 90-96 行（依頼の周ごとのバッチの一覧の型。字は元のまま）
+REQUEST_SCHEMA = {"type": "array", "items": {
+    "type": "object", "required": ["round", "origin", "findings"], "additionalProperties": False, "properties": {
+        "round": {"type": "integer", "minimum": 1},
+        "origin": {"type": "string", "minLength": 1},
+        "findings": {"type": "array", "minItems": 1, "items": {
+            "type": "object", "required": ["where", "text"], "additionalProperties": False,
+            "properties": {k: {"type": "string"} for k in ("where", "text", "mechanism", "measured", "false_positive_if")}}}}}}
+ORIGIN = "works-factory"   # 依頼の出どころ（型が空でない字を求めるだけ。元は works/darkfactory）
+
+
+def request_problems(items: list) -> list:
+    """依頼の行 items が依頼の型（REQUEST_SCHEMA の findings）に合わない訳の並び。合えば空。元 works/.shared/core/entry.py 634 行"""
+    return validate_schema([{"round": 1, "origin": ORIGIN, "findings": items}], REQUEST_SCHEMA)

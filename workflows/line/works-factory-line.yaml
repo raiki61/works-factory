@@ -49,10 +49,10 @@ inputs:
     description: 入れる機能（features_off と同じ語）。features_off と同じ語を名指せば start が止める
   policy_md:
     default: ""
-    description: 人の方針の文書のパス（空なら既定の置き場）
+    description: 人の方針の文書のパス（空なら既定の置き場）。相対なら対象の根から。名指した文書が無ければ start が止める
   fix_fixture:
     default: ""
-    description: 固定材料のフォルダ（前の run の修正の前の写し）。在れば判定と修正案を作り直さずに修正から始める
+    description: 固定材料のフォルダ（前の run の修正の前の写し）。その道はまだ無く、空でなければ start が止める
   lang:
     default: ""
     description: 報告と、関所・報告に載る役の文の言語。空は依頼文の言語

@@ -432,7 +432,7 @@ flowchart TB
 - 人の関所と無人の方針: `.shared/core/gatepolicy.py` → line・`lib/gate_policy`
 - 止めの理由の語: `.shared/core/stopby.py` → `lib/stop_reasons`
 - 周の鎖: `.shared/core/chain.py`・`dev/use.sh` → 線の後ろ（推し。`workflow:` の節で次の周の線を起こせるかを段 3 で確かめ、起こせなければ置き先を決め直す）。殻には置かない（持ち主の言葉「自作部分はその認証の切り替えだけ」）。作るまでは Archon の `--adopt`・`--supersedes`
-- 固定材料から始める・版の控え: `.shared/core/fixture.py`・`versions.py` → line（始め）
+- 固定材料から始める・版の控え: `.shared/core/fixture.py`・`versions.py` → line（始め）。固定材料から始める道はまだ無く、start は入力 `fix_fixture` が空でなければ止める（fix のブロックが固定材料を受ける形を持つまで）。版の控えは始めの記録の `versions` に、止めた Archon の commit と Claude Code の版だけを置く（今の works の `versions.json` の pack の印・借りた物・模型・設定ほかは持たない）
 - 部品の宣言と書き込みの照らし（manifest）: `.shared/core/scopes.py` → manifest は落とす。入出力の宣言は YAML の `with:`・`returns:` と型が持つ（E4・E5）。宣言の外の書き込みは、読むだけの節は `mutates_checkout: false`（E7。Archon が落とす）、書く役は書き込みの出どころの突き合わせ（fix）で落とす。読み手の無い返りの欄は層の試験で赤（持ち主の決め `declared-io`）
 - 境の節（`h-*`）: `darkfactory/lib/line_edge.py` → line の `when:` と小さな script の節
 - 工程の地図: `.shared/core/graphmap.py` → 落とす。Archon の YAML がそのまま地図

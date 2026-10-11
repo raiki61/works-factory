@@ -122,6 +122,18 @@ class StartCase(Artifacts):
         self.assertEqual(json.loads((self.artifacts / "prior-failures-in.json").read_text(encoding="utf-8")),
                          [{"where": "判定", "text": "拒まれた"}])
 
+    def bad_findings(self) -> pathlib.Path:
+        """依頼の型に合わない依頼のファイル（text の無い行）。対象の木の外に置く（木を汚すと差分が空でなくなる）"""
+        path = self.tmp / "bad_findings.json"
+        path.write_text(json.dumps([{"where": "stats.py"}]), encoding="utf-8")
+        return path
+
+    def test_policy_md_is_recorded_as_an_absolute_path(self):
+        (self.repo / "policy.md").write_text("方針\n", encoding="utf-8")
+        got = self.start(request="request_ok.json", policy_md="policy.md")
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(self.record(got)["policy_md"], str(self.repo / "policy.md"))
+
     def test_refusals_stop_before_any_role(self):
         for kw, words in (({}, "直す物も審査する物も無い"),
                           ({"request": "request_ok.json", "base": "base", "pr": "1"}, "両方"),
@@ -130,7 +142,10 @@ class StartCase(Artifacts):
                           ({"request": "request_ok.json", "features_off": "nope"}, "nope"),
                           ({"request": "request_ok.json", "features_off": "judge_verify", "features_on": "judge_verify"}, "両方"),
                           ({"request": "no-such.json"}, "no-such.json"),
-                          ({"request": "request_ok.json", "design_only": "yes"}, "design_only")):
+                          ({"request": "request_ok.json", "design_only": "yes"}, "design_only"),
+                          ({"request": "request_ok.json", "policy_md": "no-such.md"}, "no-such.md"),
+                          ({"request": "request_ok.json", "fix_fixture": "fx"}, "fix_fixture"),
+                          ({"request": str(self.bad_findings())}, "findings は")):
             with self.subTest(kw=kw):
                 got = self.start(**kw)
                 self.assertEqual((got["ok"], got["stop_reason"], got["ask"]), (False, linekit.START_REFUSED, False), got)
