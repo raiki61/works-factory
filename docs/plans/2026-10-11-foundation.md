@@ -73,7 +73,7 @@
 
 **Interfaces:**
 - Produces: `scan.problems(rule: str, root: Path) -> list[str]`（`rule` は `"E2"`・`"E3"`・`"E4"`・`"E8"`・`"E9"`・`"E12"`・`"E13"`・`"E14"`。1 行に 1 つ、`<パス>:<行>: <何が>`）。各試験は本物の木で `[]`、種の木で 1 つ以上を確かめる。
-- 決まりの中身は 各階層の `AGENTS.md` の各 E の「機械」の行。E2 の名簿の読みは `docs/archon-polyfills.md` の `- 埋め:` の行の `workflows/.shared/<名>` の字。境の口は `workflows/.shared/boundary.py` の 1 つ。
+- 決まりの中身は 各階層の `AGENTS.md` の各 E の「機械」の行。E2 の名簿の読みは `docs/polyfills.md` の `- 埋め:` の行の `workflows/.shared/<名>` の字。境の口は `workflows/.shared/boundary.py` の 1 つ。
 
 - [ ] **Step 1: 種の木を作る**: `seeds/e2`（名簿に無い `.shared/extra.py`）・`seeds/e3`（`lib/x.py` に `TYPED_ARTIFACTS_FILE`）・`seeds/e4`（`workflows/judge/scripts/a.py` に `../plan/`）・`seeds/e8`（`include: archon-triage`）・`seeds/e9`（名 `archon-x`）・`seeds/e12`（`timeout: 10`）・`seeds/e13`（`workflows/judge/commands/a.md` に `pytest`）
 - [ ] **Step 2: 試験を書く**: 各試験に `test_real_tree_clean`（`problems(rule, リポジトリの根) == []`）と `test_seed_caught`（種で `len(...) >= 1`、文に種のパスが在る）。E2 は加えて `test_listed_but_missing_is_red`（名簿に在って木に無い行も赤）
@@ -187,4 +187,4 @@
 
 - [ ] 全部の試験が緑。見送りは Archon の源が無い時だけ。
 - [ ] `docs/design.md` の U3・U4 に分かった事を書いた。
-- [ ] `docs/archon-polyfills.md` の行と `workflows/.shared/` が揃う（`test_polyfills_listed`）。
+- [ ] `docs/polyfills.md` の行と `workflows/.shared/` が揃う（`test_polyfills_listed`）。

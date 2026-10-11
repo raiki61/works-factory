@@ -1,6 +1,5 @@
 """工程の名が `works-factory-<フォルダの名>` で、`archon-` で始まらない（根の AGENTS.md の E9 の機械の行）。
-
-E9 だけ。E18 の機械の行はまだ作らない（`scan.problems` の決まりの組に無い）。"""
+自分の層のパスの部分が ASF の物の名で始まらない（E18 の機械の行）。"""
 import pathlib
 import unittest
 
@@ -29,6 +28,28 @@ class NamesTest(unittest.TestCase):
         with tree({"workflows/judge/works-factory-judge.yaml": "nodes: []\n"}) as root:
             got = scan.problems("E9", root)
         self.assertTrue(any("works-factory-judge.yaml" in line for line in got), got)
+
+
+class OriginNamesTest(unittest.TestCase):
+    def test_real_tree_clean(self):
+        self.assertEqual(scan.problems("E18", ROOT), [])
+
+    def test_asf_named_path_part_is_red(self):
+        files = {
+            "docs/archon-notes.md": "x",
+            "lib/factory/a.py": "",
+            "tests/harness_x.py": "",
+            "workflows/judge/FACTORY.md": "x",
+            "bin/.factory/a": "x",
+        }
+        with tree(files) as root:
+            got = scan.problems("E18", root)
+        for rel in files:
+            self.assertTrue(any(line.startswith(rel + ":") for line in got), (rel, got))
+
+    def test_other_names_pass(self):
+        with tree({"docs/polyfills.md": "x", "lib/carry.py": "", "workflows/judge/works-factory-judge.yaml": "x"}) as root:
+            self.assertEqual(scan.problems("E18", root), [])
 
 
 if __name__ == "__main__":
