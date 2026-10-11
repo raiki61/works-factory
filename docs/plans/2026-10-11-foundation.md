@@ -150,18 +150,21 @@
 
 ### Task 6: 起動の認証と置き場の隔離を今の works から持ってくる
 
+移す元は今の works（`pack.json` の `works.commit` の `raiki61/claude-plugins` の `works/`）。持ち主の決め `bring-launch`（「3は全部持ってきたらいいのでは」）と `agents-md-per-level` の「最後には要らないものは全部掃除する感じでもいいよ」に従い、頼っている部品ごと全部を元の名のまま持ってくる。要らない所を削るのは、全部が動いた後の掃除の段。
+
 **Files:**
-- Create: `bin/_lib/auth_launch.py`・`bin/_lib/claude_auth.py`・`bin/_lib/toolset.py`（今の works の同じ名のファイルを持ってくる。移す元は `pack.json` の `works.commit` の `works/.shared/core/auth_launch.py`・`works/.shared/core/claude_auth.py`・`works/dev/toolset.py`）・`bin/_lib/isolate.py`（`works/dev/archon.sh` の置き場の隔離の所を Python に移した物）
-- Test: 元の試験（`works/tests/test_auth_launch.py` と、`toolset.py`・`archon.sh` の隔離を縛る試験）を `tests/bin/` に持ってくる
+- Create（`bin/_lib/`。元の名のまま）: `auth_launch.py`・`claude_auth.py`（元 `works/.shared/core/`）・`toolset.py`（元 `works/dev/`。部分コマンドも全部）・`hostgh.py`（元 `works/dev/`。GitHub のアカウントの選び）・これらが import する `spseam.py`・`changemap.py`・`copyledger.py`（元 `works/.shared/core/`）と、その先でさらに import する物
+- Create: `bin/_lib/isolate.py`（`works/dev/archon.sh` の、HOME・`ARCHON_HOME`・`CLAUDE_CONFIG_DIR`・`XDG_*` を run の置き場へ向ける所を Python に移した物）
+- Test（`tests/bin/`。元の名のまま）: `test_auth_launch.py`・`test_toolset.py`・`hostgh.py` を縛る元の試験と、試験の助け `hermetic.py`・`gitkit.py`（元 `works/tests/`）。`isolate.py` は元に単体の試験が無いので `test_isolate.py` を新しく書く（向け先が全部 run の置き場の下にある・利用者の `CLAUDE_CONFIG_DIR` を隔離の前に取る）
 
 **Interfaces:**
-- 根の `AGENTS.md` の E14・E18 と `bin/AGENTS.md` の E15 のとおり。作り直さない。中の、今の works だけの事情（写しの同期の説明・works の置き場の名・`WORKS_` で始まる環境変数の名）は works-factory の言葉に直し、直した所を commit に書く。
-- 既定はホストのログインのまま（`claude /login` の人・API キー・会社のゲートウェイの人がそのまま動く）。選べる道: Claude のアカウントを keychain の項目の名で選ぶ（選んだ時はそれより上に効く資格を子に渡さない）・GitHub のアカウントを名で選ぶ（`gh auth token -u <名>`）・Archon の家の置き場を選ぶ。値は利用者の設定（リポジトリの外）か引数で渡す。どの出どころの認証で起こしたかを 1 行出す。
-- Archon の実行ファイルは Task 1 の `place.archon_binary` で取る。
-- これが入って Task 5 とつながったら（段 1）、ASF もこの入口から起こし、今の仮の殻 `~/.local/state/works-factory/bin/asf-env` は捨てる。
+- 根の `AGENTS.md` の E14・E18 と `bin/AGENTS.md` の E15 のとおり。作り直さない。直すのは今の works だけの事情（写しの同期の説明・works の置き場の名・`WORKS_` で始まる環境変数の名・持ち主の環境の字 `raiki61` など。E14）だけで、直した所を commit に書く。
+- 既定はホストのログインのまま（`claude /login` の人・API キー・会社のゲートウェイの人がそのまま動く）。選べる道: Claude のアカウントを keychain の項目の名で選ぶ（選んだ時はそれより上に効く資格を子に渡さない）・GitHub のアカウントを名で選ぶ（`hostgh.py`）・Archon の家の置き場を選ぶ。値は利用者の設定（リポジトリの外）か引数で渡す。どの出どころの認証で起こしたかを 1 行出す。
+- Archon の実行ファイルは Task 1 の `place.archon_binary` で取る（`archon.sh` の取り寄せは持ってこない。E15）。
+- Task 5 の `bin/_lib/cli.py`・`bin/start` などには触らない。これが入って Task 5 とつながったら（段 1）、ASF もこの入口から起こし、今の仮の殻 `~/.local/state/works-factory/bin/asf-env` は捨てる。
 
-- [ ] **Step 1: 元の試験を持ってきて、直した名に合わせる**（赤）
-- [ ] **Step 2: 元のファイルを持ってきて直す**（緑）
+- [ ] **Step 1: 元の試験と試験の助けを持ってきて、直した名に合わせる**（赤）
+- [ ] **Step 2: 元のファイルと頼っている部品を持ってきて直す**（緑）。`test_isolate.py` を書いて赤 → `isolate.py` で緑
 - [ ] **Step 3: 全部の試験** `python3 -m unittest discover -s . -t .` が緑
 - [ ] **Step 4: commit**: `git commit -m "feat(bin): 起動の認証と置き場の隔離を今の works から持ってくる"`
 
