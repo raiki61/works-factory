@@ -1,16 +1,14 @@
-"""判定の根を開く（線の木の段 3。設計 docs/plans/2026-10-06-judge-verify.md）。判定役が切った開いた単位ごとに、判定役とは別の目の
-下請けが「本当に根本か・証拠は在るか・場所は合っているか」を確かめ、別の 1 つの下請けが単位どうしの重複・関わり・順番を見る。
-束ね役（AI の節 judge-verify）が下請けを Agent の道具で 1 つのメッセージに並べて起こし、下請けは答えを盤面の外の run ごとの
-置き場（answers_dir。盤面は役が書けない）に Write で書く。機械（merge）が答えを型で確かめて申し送り（今の周の VERIFY_FILE。
-manifest の produces）にまとめる。単位は消さない（直す義務。根本でないと出ても申し送りと報告の行になるだけ）。
+"""判定の根を開く（元 works/blk-judge/lib/judgeverify.py。元の設計 works の docs/plans/2026-10-06-judge-verify.md）の部品。判定役が切った
+開いた単位ごとに、判定役とは別の目の下請けが「本当に根本か・証拠は在るか・場所は合っているか」を確かめ、別の 1 つの下請けが
+単位どうしの重複・関わり・順番を見る。束ね役（役 judge-verify）が下請けを Agent の道具で 1 つのメッセージに並べて起こし、下請けは
+答えを置き場の verify/answers の下に Write で書く。単位は消さない（直す義務。根本でないと出ても申し送りと報告の行になるだけ）。
+支度と束ね（lib/judge_accept.py の prep_on・merge_on）がここの名・文・型・読み書きの口を使う。
 
-- prep(board_dir, repo, verify="") / prep_on(b, judgment, repo, verify=""): ラインの盤面で、止まっておらず、入力 verify が off でなく
-  （script_io.switch_on。空は on）、判定の開いた単位が MIN_UNITS 以上の時だけ go 真。単位ごとの下請けのファイル（scope の根の verify/unit-<n>.md）・相乗りのファイル（verify/synergy.md）・束ね役の指示書
-  （verify/prompt.md）・番号の控え（PLAN_FILE）・作業ツリーの姿（TREE_FILE）を書き、前の起動の答えを消し、申し送りの初めの形
-  （全部が UNVERIFIED）を置く。go 偽なら前の残りの申し送りと番号の控えを消す
-- merge(board_dir, repo) / merge_on(b, repo): 番号の控えの単位ごとに答えのファイルを確かめ（型・番号・not_root の本当の根）、相乗りの
-  番号を単位の key に戻して申し送りを書く。作業ツリーが変わっていれば盤面を止める（読むだけの役の決まり）。trace に TRACE_OP
-- output_format(): 束ね役の返答の型（1 行の要約だけ。答えの中身は写さない）に印 works-node: judge-verify
+- 置き場の名（VERIFY_FILE・BRIEF_DIR・PLAN_FILE・TREE_FILE・ANSWER_FILE・SYNERGY_FILE）と語（VERDICTS・PLACES・CHECKED・UNVERIFIED）
+  と裏取りを回す単位の数の下限 MIN_UNITS
+- 下請けと束ね役の指示書の文（TITLE・SUB_HEAD・RULES・UNIT_HEAD・UNIT_ASK・VIEW_HEAD・SYNERGY_HEAD・SYNERGY_ASK・AGG・AGG_REPLY）
+- output_format・unit_schema・synergy_schema: 束ね役の返答と答えのファイルの型
+- answer_in・open_units・_head・_unit_row・_initial・_load: 支度と束ねの口
 """
 import copy
 import json

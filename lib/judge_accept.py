@@ -321,7 +321,7 @@ MEANS_FILE = marks.KINDS[worldmark.MEANS].file
 MATERIAL_GLOB = "material-*.json"            # 素材の役が書く {role, reply, materials}
 # 裏取りの置き場は judgeverify.BRIEF_DIR（verify/）の下。judgeverify がこのモジュールを読むので、読み込みの時に jv の名を引かない
 VERIFY_ANSWERS_DIR = "verify/answers"          # 裏取りの下請けの答えの置き場（元 judgeverify.answers_dir の run ごとの置き場の代わり）
-VERIFY_TREE_FILE = "verify/verify-tree.json"   # 束ね役を起こす前の作業ツリーの姿（元 judgeverify.TREE_FILE）
+VERIFY_TREE_FILE = f"{jv.BRIEF_DIR}/{jv.TREE_FILE}"   # 束ね役を起こす前の作業ツリーの姿
 GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER        # 元 judgetake.py:42（輪 diagnose-loop の max_iterations と同じ）
 
 # 元 works/.shared/core/graphloops/rules/review-loop.py:689・:3860（init の入口で選ぶ入力の値）

@@ -1,25 +1,14 @@
-"""並行 PR の検査 p0.parallel_pr（線 A。仕様 3.8・裁定 TA8。持ち主の答え 2026-09-27: 案 (a)）。
+"""並行 PR の役 pr-check（元 works/.shared/core/prcheck.py。写しの graph の節 p0.parallel_pr）の受け付けが使う部品。機械の道（開いている PR
+と変更ファイルの交差）と受け付けの流れは lib/judge_accept.py の pr_scan・prcheck_take が持つ。
 
-1〜5 段（owner/repo の解決・自分の PR の除外・打ち切り・変更ファイルの交差）は、盤面の層の run_engine が写しの
-parallel-pr.py を走らせる（run_helper）。交差が在る・gh が無い時だけ任せ先に落ち、読むだけの
-段に書いた模型（sonnet・medium）の役 pr-check（ブロック blk-pr）が 6 段の全部をする。remote が forge（PR を持つホスト。GitHub）
-でない run（origin が無い・ローカルのパス・ほかのホスト）は、entry の差し替え（on_init・parallel_pr_due・fill_materials。forge.py）
-が run の初めに決めて節を条件外にし、素材を not_applicable（no_forge: <種類>）で埋めるので、ここにも役にも来ない。6 段目だけ替える: 担当の PR へ投稿せず、申し送りの下書きを
-conflicts[].note に書き handed_over を false で返す（真は blk-pr/scripts/accept.py の check_no_post が拒む）。
-投稿しないことは review-graph より下げた所で、<ライン>/downgrades.json に宣言し、報告の冒頭に出す。
-review-graph の 6 段の「衝突した箇所を本ループのスコープから外す」は保つ: 役は外す hunk（PR・ファイル・今の作業ツリーでの行の範囲）を
-excluded に並べ、受け付けが確かめて今の周の pr-excluded.json に置き、collect が excluded_file で渡す（後の役に触らせないため）。
+役は担当の PR へ投稿せず、申し送りの下書きを conflicts[].note に書き handed_over を false で返す。review-graph の 6 段の「衝突した
+箇所を本ループのスコープから外す」は保つ: 役は外す hunk（PR・ファイル・今の作業ツリーでの行の範囲）を excluded に並べ、受け付けが
+確かめて pr-excluded.json に置く（後の役に触らせないため）。
 
-ここに在る物:
-- NODE・ROLE・OUTPUT_FORMAT: 節の名前、役の名前、役の output_format（写しの schema に works だけの欄 excluded を足し、
-  印 works-node: pr-check を付けた物。excluded は受け付けが外してから盤面に渡す）
-- GH_READ: 打ってよい gh の語（包みの読む口を通す。口の名と呼び方の正本は包み adapter の RO_GH・RO_GH_RULE）
-- run_helper(b, *, runner=None): start（と線 B の境の節）が呼ぶ。engine で済んだか・役が要るか
-- snapshot・take・collect・drafts: blk-pr の節 pr-snap・pr-accept・collect の中身（main_* はスクリプトの入口）
-- downgrades・head_downgrades: 下げた物の一覧（<ライン>/downgrades.json）と、報告の頭の行の部品
-
-盤面を開く口は線 A の entry.open_board（Task 3）。ここでは opener で差し替えられる（試験は節の表を渡して開く）。
-take は entry.take（Task 9）と同じ約束の、このブロックだけの形（rolekit.accept_role の take に渡す）。
+- NODE・ROLE: 節の名前と役の名前
+- EXCLUDED_FIELD・EXCLUDED_SCHEMA・EXCLUDED: 外す hunk の欄・型・置き場のファイルの名
+- BRIEF: 役への渡し物のファイルの名
+- check_excluded: 外す hunk の誤りの一覧。_anchored: 受け付けた時の行の中身の印を足す。_write: 置き場に書く
 """
 import hashlib
 import pathlib
@@ -46,23 +35,10 @@ EXCLUDED_SCHEMA = {"type": "array", "items": {
     "properties": {"pr": {"type": "string", "minLength": 1}, "file": {"type": "string", "minLength": 1},
                    "start": {"type": "integer", "minimum": 1}, "end": {"type": "integer", "minimum": 1},
                    "why": {"type": "string", "minLength": 1}}}}
-EXCLUDED = marks.KINDS["pr"].file   # 受け付けた外す hunk {node, excluded}（collect の excluded_file）
-# 読む gh は包みの読む口を通す: 印のある起動の全部に、包み（.shared/core/adapter.py の 5）が素の gh を拒み（permissions.deny Bash(gh:*) と
-#   本物の gh のパス）、許す物だけを通す口 works-gh を PATH の頭に置く。口が通すのは pr list・pr view・pr diff の -R つきと
-#   repo view <OWNER/REPO> だけ。役は口を素の名の 1 つだけのコマンドで打つ（sandbox の除外に当たる形。呼び方の正本は包みの
-#   RO_GH・RO_GH_EXCLUDED・RO_GH_RULE で、tests/test_gh_port.py が指示書と YAML をそれに縛る）。
-# GH_READ: 口を通して打ってよい gh の語（全部 -R <owner/repo> を付ける）。許す物の正本は包みの口の側で、これは指示書の側の組。
-#   禁じる物の一覧は読むだけの役にとって完全にならない（gh pr update-branch・git push など）ので、柵は許す物で組む。
-GH_READ = ("pr list", "pr view", "pr diff")
+EXCLUDED = marks.KINDS["pr"].file   # 受け付けた外す hunk {node, head, excluded}
 BRIEF = "pr-brief.json"         # 役への渡し物（落ちた理由・交差を取る集合・版）
 
 
-class Refused(Exception):
-    """engine の 1〜5 段を走らせられない（呼び直しても計画が拒まれる・対象の根が引けない）。start は AI を起こす前に止める
-    （entry の CiRefused と同じ扱い）"""
-
-
-# ---------------------------------------------------------------- blk-pr の節
 def _anchored(excluded: list, repo) -> list:
     """外す hunk ごとに、受け付けた時の行の中身 text（start〜end。改行つき）と、その行のバイトの sha256 を足した写し。
     行の番号は後の周の修正でずれるので、後の役・受け付けは中身で引き直す（review-graph は同じ writer が中身で覚えている）"""
