@@ -108,7 +108,8 @@ works-factory/
 ## E13 対象の言語を知らない
 
 - 役の指示書（`workflows/*/commands/`）と `lib/` に、特定の言語・テストの実行器の名を書かない。事実上の標準の形式（JUnit XML など）は名指してよい。持ち主の決め `lang-neutral`。
-- 機械: `tests/layers/test_lang_neutral.py`（言語と実行器の名の語の表に当たる字が無い。表は試験の中）。
+- `lib/` は Python で書くので、`lib/tests/`（lib 自身の試験）と `lib/AGENTS.md` は照らさず、語の表に `python` を入れない。
+- 機械: `tests/layers/test_lang_neutral.py`（言語と実行器の名の語の表に当たる字が無い。表は `tests/layers/scan.py` の中）。
 
 ## E14 既定の道は普通の利用者の環境でそのまま動く
 

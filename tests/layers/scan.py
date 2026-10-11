@@ -1,10 +1,5 @@
 """層の決まりの「機械」の行を照らす。`problems(rule, root)` は 1 行に 1 つ `<パス>:<行>: <何が>` を返す（無ければ空）。
 
-決まりの本文と機械の行の置き場:
-- E2・E4・E12: `workflows/AGENTS.md`
-- E3: `lib/AGENTS.md`
-- E8・E9・E13・E14: 根の `AGENTS.md`
-
 字の形でしか見ないので、次は人が見る:
 - E3: 節の id（字の形で見分けられない）
 - E4: `pathlib` などで部品を継いで組むパス
@@ -24,31 +19,40 @@ POLYFILL_ROW = re.compile(r"workflows/\.shared/([^\s`（）()、・。]+)(`?（�
 ARCHON_WORDS = re.compile(r"(?i:archon)|ARTIFACTS_DIR|TYPED_ARTIFACTS_FILE|output_type")
 LAYER_IMPORT = re.compile(r"^\s*(from|import)\s+(workflows|bin)\b")
 
-# まだ木に無いブロックを指す字も捕まえるための名の表（根の AGENTS.md の「リポジトリの形」の木と合わせる）。木に在るブロックは木から読む。
+# まだ木に無いブロックを指す字も捕まえるための名の表。根の AGENTS.md の「リポジトリの形」の木との一致は test_block_paths が縛る。木に在るブロックは木から読む。
 BLOCKS = ("line", "judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
 RELATIVE_PATH = re.compile(r"(?:\.\./)+[^\s'\"`)]*")
 
-PACK = Path(__file__).resolve().parents[2] / "pack.json"
-FOREIGN_PREFIX = json.loads(PACK.read_text(encoding="utf-8"))["ours"]["name_prefix"]
+OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
+OURS_PREFIX = OURS["name_prefix"]
+OURS_PLACED_AT = OURS["placed_at"]
 CALL_KEYS = ("include", "workflow")
 
 NO_DEADLINE = "1728000000"
-# 節の種類の鍵と、その節の期限の鍵。Archon は鍵の無い節にも既定の期限を当てる（workflows/AGENTS.md の E12）。
-DEADLINE_KEY = {
-    "script": "timeout",
-    "bash": "timeout",
-    "prompt": "idle_timeout",
-    "command": "idle_timeout",
-    "loop": "idle_timeout",
+# Archon v0.11.1 の節の種類の鍵の全部と、その種類の節に Archon が既定の期限を当てる鍵（workflows/AGENTS.md の E12）。
+# ここに無い種類の節は赤にする。Archon が種類を足したら、期限を持つかを確かめてからここに足す。
+NODE_KINDS = {
+    "script": ("timeout",),
+    "bash": ("timeout",),
+    "prompt": ("idle_timeout",),
+    "command": ("idle_timeout",),
+    "loop": ("idle_timeout", "timeout"),
+    "loop_group": ("timeout",),
+    "approval": ("idle_timeout",),
+    "wait": (),
+    "cancel": (),
+    "include": (),
+    "workflow": (),
 }
-DEADLINE_KEYS = frozenset(DEADLINE_KEY.values())
+DEADLINE_KEYS = frozenset(key for keys in NODE_KINDS.values() for key in keys)
+WAIT_DEADLINE_KEY = "deadline_ms"
 YAML_INT = "tag:yaml.org,2002:int"
 
 # 持ち主の決め lang-neutral により、事実上の標準の形式（junit など）は表に入れない。
 LANG_WORDS = (
     "pytest", "unittest", "jest", "vitest", "mocha", "rspec", "minitest", "phpunit",
     "go test", "cargo test", "npm test", "yarn test", "pnpm test", "gradle", "maven", "mvn", "tox", "nox",
-    "python", "javascript", "typescript", "ruby", "rust", "golang", "java", "kotlin", "php", "swift", "perl", "scala",
+    "javascript", "typescript", "ruby", "rust", "golang", "java", "kotlin", "php", "swift", "perl", "scala",
 )
 LANG_WORD = re.compile(
     r"(?<![A-Za-z0-9_])(" + "|".join(re.escape(w) for w in LANG_WORDS) + r")(?![A-Za-z_])", re.I
@@ -56,13 +60,38 @@ LANG_WORD = re.compile(
 
 OWNER_ENV = ("raiki61", "claude-code-oauth-", "/Users/")
 
+# 決まりごとに照らしから外すパス。`/` で終わる行はそのフォルダの下の全部。どの行も本物の木の何かに当たる（stale_allowances）。
+ALLOWED = {
+    "E3": ("lib/AGENTS.md",),
+    "E13": ("lib/AGENTS.md", "lib/tests/"),
+}
+
 
 def problems(rule: str, root: Path) -> list[str]:
     try:
         check = RULES[rule]
     except KeyError:
         raise ValueError(f"知らない決まり: {rule}（{', '.join(RULES)} のどれか）") from None
-    return check(Path(root))
+    return [line for line in check(Path(root)) if not _allowed(rule, line.split(":", 1)[0])]
+
+
+def stale_allowances(root: Path) -> list[str]:
+    """`ALLOWED` の行のうち、木の何にも当たらない物"""
+    root = Path(root)
+    return [
+        f"{rule}: {entry} が木の何にも当たらない"
+        for rule, entries in ALLOWED.items()
+        for entry in entries
+        if not (any(_files(root, entry)) if entry.endswith("/") else (root / entry).is_file())
+    ]
+
+
+def _allowed(rule: str, rel: str) -> bool:
+    return any(_matches(entry, rel) for entry in ALLOWED.get(rule, ()))
+
+
+def _matches(entry: str, rel: str) -> bool:
+    return rel.startswith(entry) if entry.endswith("/") else rel == entry
 
 
 def _files(root: Path, *parts: str):
@@ -101,7 +130,7 @@ def _grep(root: Path, paths, *checks: tuple[re.Pattern, Callable[[re.Match], str
 
 def _workflow_yamls(root: Path):
     for path in _files(root, "workflows"):
-        if path.suffix in (".yaml", ".yml") and "fixtures" not in path.relative_to(root).parts:
+        if path.suffix in (".yaml", ".yml"):
             yield path
 
 
@@ -117,32 +146,25 @@ def _documents(root: Path, path: Path):
 
 
 def _pairs(node):
-    """mapping の鍵が scalar の (鍵, 値の node) を出す"""
     if isinstance(node, yaml.MappingNode):
         for key, value in node.value:
             if isinstance(key, yaml.ScalarNode):
                 yield key.value, value
 
 
-def _nodes(node):
-    """入れ子のどこでも、`nodes` の列の mapping（工程の節）を出す。
+def _nodes(document):
+    """工程の節を、`loop_group` の中の入れ子まで出す。Archon が節を入れ子にできるのは `loop_group.nodes` だけ。
 
-    節の鍵だけを照らすため。`output_format` の JSON Schema や `with:` の値の中の同じ名の鍵は、節の鍵でない。
+    `output_format` の JSON Schema や `with:` の値の中の同じ名の鍵は、節の鍵でない。
     """
-    if isinstance(node, yaml.MappingNode):
-        for key, value in node.value:
-            if isinstance(key, yaml.ScalarNode) and key.value == "nodes" and isinstance(value, yaml.SequenceNode):
-                for item in value.value:
-                    if isinstance(item, yaml.MappingNode):
-                        yield item
-            yield from _nodes(value)
-    elif isinstance(node, yaml.SequenceNode):
-        for item in node.value:
-            yield from _nodes(item)
+    body = _top(document, "nodes")
+    if isinstance(body, yaml.SequenceNode):
+        for item in body.value:
+            yield item
+            yield from _nodes(_top(item, "loop_group"))
 
 
 def _blocks(root: Path) -> list[Path]:
-    """`workflows/` の直下のブロックのフォルダ（`.shared` を除く）"""
     workflows = root / "workflows"
     if not workflows.is_dir():
         return []
@@ -183,23 +205,31 @@ def _polyfills_listed(root: Path) -> list[str]:
 
 
 def _lib_blind(root: Path) -> list[str]:
-    paths = [p for p in _files(root, "lib") if _rel(root, p) != "lib/AGENTS.md"]
     return _grep(
         root,
-        paths,
+        _files(root, "lib"),
         (ARCHON_WORDS, lambda m: f"Archon の名 {m[0]}"),
         (LAYER_IMPORT, lambda m: f"{m[2]} の中の物を import する"),
     )
 
 
 def _block_paths(root: Path) -> list[str]:
+    """ブロックの `scripts/` の字と、YAML の字（直に書いた script）を照らす。
+
+    YAML の中の script は Archon の家のどこから走るかが字から分からないので、相対パスは行き先のブロックの名だけを見る。
+    """
     out = []
     blocks = [p.name for p in _blocks(root)]
     for own in blocks:
         others = sorted((set(BLOCKS) | set(blocks)) - {own})
-        named = re.compile(r"workflows/(" + "|".join(re.escape(b) for b in others) + r")/")
+        named = re.compile(
+            rf"(?:{re.escape(OURS_PLACED_AT)}/|workflows/)(" + "|".join(re.escape(b) for b in others) + r")/"
+        )
         allowed = (f"workflows/{own}/", "lib/", "workflows/.shared/")
-        for path in _files(root, "workflows", own, "scripts"):
+        folder = root / "workflows" / own
+        scripts = [(p, True) for p in _files(root, "workflows", own, "scripts")]
+        yamls = [(p, False) for p in sorted(folder.iterdir()) if p.is_file() and p.suffix in (".yaml", ".yml")]
+        for path, is_script in scripts + yamls:
             rel = _rel(root, path)
             here = posixpath.dirname(rel)
             lines, broken = _lines(root, path)
@@ -209,13 +239,22 @@ def _block_paths(root: Path) -> list[str]:
                     out.append(f"{rel}:{number}: ほかのブロック {match[1]} を指す")
                 for match in RELATIVE_PATH.finditer(line):
                     target = match[0]
-                    first = next((part for part in target.split("/") if part not in ("..", "")), "")
+                    pointed = _pointed_block(target)
                     resolved = posixpath.normpath(posixpath.join(here, target)) + "/"
-                    if first in others:
-                        out.append(f"{rel}:{number}: 相対パス {target} がほかのブロック {first} を指す")
-                    elif not resolved.startswith(allowed):
+                    if pointed in others:
+                        out.append(f"{rel}:{number}: 相対パス {target} がほかのブロック {pointed} を指す")
+                    elif is_script and not resolved.startswith(allowed):
                         out.append(f"{rel}:{number}: 相対パス {target} が lib/・workflows/.shared/・自分のブロックの外を指す")
     return out
+
+
+def _pointed_block(target: str) -> str:
+    """相対パスの `..` の後の最初の名。`workflows/` と置いた先（`workflows/works-factory/`）の頭は飛ばす"""
+    parts = [part for part in target.split("/") if part not in ("..", ".", "")]
+    for head in OURS_PLACED_AT.split("/"):
+        if parts and parts[0] == head:
+            parts.pop(0)
+    return parts[0] if parts else ""
 
 
 def _no_asf(root: Path) -> list[str]:
@@ -231,15 +270,15 @@ def _no_asf(root: Path) -> list[str]:
                         continue
                     if not isinstance(value, yaml.ScalarNode):
                         out.append(f"{rel}:{_line(value)}: {key}: の形が読めない")
-                    elif not value.value.startswith(FOREIGN_PREFIX):
-                        out.append(f"{rel}:{_line(value)}: {key}: の値 {value.value} が {FOREIGN_PREFIX} で始まらない")
+                    elif not value.value.startswith(OURS_PREFIX):
+                        out.append(f"{rel}:{_line(value)}: {key}: の値 {value.value} が {OURS_PREFIX} で始まらない")
     return out
 
 
 def _names(root: Path) -> list[str]:
     out = []
     for folder in _blocks(root):
-        expected = f"{FOREIGN_PREFIX}{folder.name}"
+        expected = f"{OURS_PREFIX}{folder.name}"
         for path in sorted(p for p in folder.iterdir() if p.is_file() and p.suffix in (".yaml", ".yml")):
             rel = _rel(root, path)
             documents, broken = _documents(root, path)
@@ -265,11 +304,15 @@ def _no_timeouts(root: Path) -> list[str]:
         for document in documents:
             for node in _nodes(document):
                 keys = dict(_pairs(node))
-                for key in sorted(DEADLINE_KEYS & keys.keys()):
-                    value = keys[key]
+                kinds = [kind for kind in NODE_KINDS if kind in keys]
+                if not kinds:
+                    out.append(f"{rel}:{_line(node)}: 節の種類が {'・'.join(NODE_KINDS)} のどれでもない")
+                set_deadlines = [(key, keys[key]) for key in sorted(DEADLINE_KEYS & keys.keys())]
+                set_deadlines += [(key, value) for key, value in _pairs(keys.get("wait")) if key == WAIT_DEADLINE_KEY]
+                for key, value in set_deadlines:
                     if not (isinstance(value, yaml.ScalarNode) and value.tag == YAML_INT and value.value == NO_DEADLINE):
                         out.append(f"{rel}:{_line(value)}: {key} が {NO_DEADLINE} でない")
-                needed = {DEADLINE_KEY[kind] for kind in keys if kind in DEADLINE_KEY}
+                needed = {key for kind in kinds for key in NODE_KINDS[kind]}
                 for key in sorted(needed - keys.keys()):
                     out.append(f"{rel}:{_line(node)}: 節に {key} が無い（Archon の既定の期限が当たる）")
     return out
@@ -277,11 +320,7 @@ def _no_timeouts(root: Path) -> list[str]:
 
 def _lang_neutral(root: Path) -> list[str]:
     commands = [p for folder in _blocks(root) for p in _files(folder, "commands")]
-    lib = [
-        p for p in _files(root, "lib")
-        if _rel(root, p) != "lib/AGENTS.md" and not _rel(root, p).startswith("lib/tests/")
-    ]
-    return _grep(root, commands + lib, (LANG_WORD, lambda m: f"言語か実行器の名 {m[0]}"))
+    return _grep(root, commands + list(_files(root, "lib")), (LANG_WORD, lambda m: f"言語か実行器の名 {m[0]}"))
 
 
 def _no_owner_env(root: Path) -> list[str]:

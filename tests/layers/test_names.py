@@ -20,7 +20,6 @@ class NamesTest(unittest.TestCase):
         self.assertGreaterEqual(len(got), 1)
         self.assertTrue(any("workflows/judge/works-factory-judge.yaml" in line for line in got), got)
 
-
     def test_name_of_another_folder_is_red(self):
         with tree({"workflows/judge/works-factory-judge.yaml": "name: works-factory-plan\nnodes: []\n"}) as root:
             got = scan.problems("E9", root)

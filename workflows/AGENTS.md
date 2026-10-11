@@ -14,13 +14,13 @@
 
 - `workflows/.shared/` のファイルは 2 種類だけ。Archon との出入りの口（境の入出力のモジュール。1 つ）と、埋め（polyfill。Archon に無い物を外から補う部品）。
 - 埋めは `docs/archon-polyfills.md` に 1 行ずつ載せる。載せる欄は、穴・Archon の証拠の引用・外す条件。
-- 機械: `tests/layers/test_polyfills_listed.py`（`workflows/.shared/` のファイルが、境の口か名簿の行のどれかにちょうど当たる。名簿に在って木に無い行も赤）。
+- 機械: `tests/layers/test_polyfills_listed.py`（`workflows/.shared/` のファイルが、境の口か名簿の行のどれかにちょうど当たる。名簿に在って木に無い行も赤。ただし置き場のパスの直後に「（予定）」と書いた行は、木に無くてよい）。
 
 ## E4 ブロックはほかのブロックのファイルを指さない
 
 - ブロック（`workflows/<名>/`）の script は、ほかのブロックのフォルダへのパスを組まない。受け取りは `with:` の入力・前の節の返り・指し札（`archon_artifact`）・型つきの成果物（`output_type`）だけ。
 - ブロックの script は `lib/` と境の口を呼ぶだけで、確かめの中身を持たない。
-- 機械: `tests/layers/test_block_paths.py`（ブロックの script の字に、ほかのブロックの名と、`lib/`・`workflows/.shared/` の外への相対パスが無い）。
+- 機械: `tests/layers/test_block_paths.py`（ブロックの `scripts/` とブロックの YAML（直に書いた script）の字に、ほかのブロックを指すパス（`workflows/<名>/`・置いた先の `workflows/works-factory/<名>/`・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のブロックの外への相対パスも無い）。
 
 ## E5 ブロックの返りは 1 つの節の構造体
 
@@ -44,8 +44,15 @@
 ## E12 期限・タイムアウトを置かない
 
 - YAML の節にも script にも期限を置かない。止める時は止め札で止める。持ち主の決め `no-timeouts`。
-- Archon は鍵を書かない節にも既定の期限を当てる（`script:` の節は 2 分で打ち切る。Archon の文書 `guides/script-nodes.md` の `timeout`「Default: `120000`」）。だから期限を外すには、期限を持つ節（`script:`・`bash:` の `timeout` と AI の節の `idle_timeout`）に、実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値）を書く。
-- 機械: `tests/layers/test_no_timeouts.py`（`workflows/` の YAML で、期限を持つ節の `timeout`・`idle_timeout` が全部 `1728000000`）。
+- Archon は鍵を書かない節にも既定の期限を当てる（`script:` の節は 2 分で打ち切る。Archon の文書 `guides/script-nodes.md` の `timeout`「Default: `120000`」）。だから期限を外すには、期限を持つ節に実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値）を書く。期限を持つ節と鍵は次のとおり（v0.11.1 の実行ファイルで確かめた）。
+  - `script:`・`bash:` の `timeout`
+  - `prompt:`・`command:` の `idle_timeout`
+  - `loop:` の `idle_timeout`（1 周ごと）と `timeout`（`until_bash` の確かめ。無いと 120000 ms で打ち切る）
+  - `loop_group:` の `timeout`（`until_bash` の確かめ）
+  - `approval:` の `idle_timeout`（`on_reject` の直しの役が受け継ぐ）
+  - `wait:` の中の `deadline_ms`（`event` を待つ時）
+  - `cancel:`・`include:`・`workflow:` は期限を持たない（`include:`・`workflow:` の先の節は自分の鍵を持つ）
+- 機械: `tests/layers/test_no_timeouts.py`（`workflows/` の YAML の節が全部上の種類のどれかで（知らない種類は赤）、期限を持つ節に上の鍵が在り、`timeout`・`idle_timeout`・`deadline_ms` が全部 `1728000000`）。
 
 ## E16 人の関所と並べは最新の ASF の形で書く
 

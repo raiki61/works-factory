@@ -18,16 +18,20 @@ class LangNeutralTest(unittest.TestCase):
         self.assertGreaterEqual(len(got), 1)
         self.assertTrue(any("workflows/judge/commands/a.md" in line for line in got), got)
 
-
     def test_lib_is_in_scope(self):
         with tree({"lib/run.py": 'CMD = "pytest"\n'}) as root:
             got = scan.problems("E13", root)
         self.assertTrue(any("lib/run.py:1" in line for line in got), got)
 
     def test_name_with_version_is_red(self):
-        with tree({"workflows/judge/commands/a.md": "run `python3 lib/check.py`\n"}) as root:
+        with tree({"workflows/judge/commands/a.md": "run `ruby3 check.rb`\n"}) as root:
             got = scan.problems("E13", root)
-        self.assertTrue(any("a.md:1" in line and "python" in line for line in got), got)
+        self.assertTrue(any("a.md:1" in line and "ruby" in line for line in got), got)
+
+    def test_lib_tests_and_lib_rules_are_allowed(self):
+        files = {"lib/tests/test_x.py": 'CMD = "pytest"\n', "lib/AGENTS.md": "pytest を名指さない\n"}
+        with tree(files) as root:
+            self.assertEqual(scan.problems("E13", root), [])
 
     def test_unreadable_file_is_red(self):
         with tree({"workflows/judge/commands/b.md": b"\xe9 pytest\n"}) as root:

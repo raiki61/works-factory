@@ -18,7 +18,6 @@ class LibBlindTest(unittest.TestCase):
         self.assertGreaterEqual(len(got), 1)
         self.assertTrue(any("lib/x.py" in line for line in got), got)
 
-
     def test_import_of_blocks_is_red(self):
         with tree({"lib/y.py": "from workflows.judge import thing\n"}) as root:
             got = scan.problems("E3", root)

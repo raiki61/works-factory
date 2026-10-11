@@ -18,7 +18,6 @@ class NoOwnerEnvTest(unittest.TestCase):
         self.assertGreaterEqual(len(got), 1)
         self.assertTrue(any("bin/x" in line for line in got), got)
 
-
     def test_unreadable_file_is_red(self):
         with tree({"bin/y": b"\x81 /Users/example/\n"}) as root:
             got = scan.problems("E14", root)

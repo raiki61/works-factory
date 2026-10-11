@@ -18,7 +18,6 @@ class NoAsfTest(unittest.TestCase):
         self.assertGreaterEqual(len(got), 1)
         self.assertTrue(any("workflows/judge/works-factory-judge.yaml" in line for line in got), got)
 
-
     def test_workflow_call_is_red(self):
         yaml = "name: works-factory-judge\nnodes:\n  - id: f\n    workflow: archon-fix\n"
         with tree({"workflows/judge/works-factory-judge.yaml": yaml}) as root:

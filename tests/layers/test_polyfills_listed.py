@@ -1,4 +1,4 @@
-"""`workflows/.shared/` のファイルが境の口か埋めの名簿の行のどれかにちょうど当たり、名簿に在って木に無い行も赤（workflows/AGENTS.md の E2 の機械の行）。"""
+"""`workflows/.shared/` のファイルが境の口か埋めの名簿の行のどれかにちょうど当たり、名簿に在って木に無い行も赤。「（予定）」の行は木に無くてよい（workflows/AGENTS.md の E2 の機械の行）。"""
 import pathlib
 import unittest
 
@@ -29,7 +29,6 @@ class PolyfillsListedTest(unittest.TestCase):
     def test_boundary_and_listed_are_allowed(self):
         got = scan.problems("E2", SEEDS / "e2")
         self.assertFalse(any("boundary.py" in line or "listed.py" in line for line in got), got)
-
 
     def test_required_mention_wins_over_planned(self):
         registry = "- 埋め: `workflows/.shared/later.py`（予定）\n- 埋め: `workflows/.shared/later.py`\n"
