@@ -1,10 +1,9 @@
 # fix が計画の項目の誤り（replan_items）と申し出を返す。案の直し・その審査・案の直しの関所・2 度目の修正が 1 度ずつ走り、1 回目の申し出が最後の関所の理由に残る。
-# 修正前の関所は開かないので、2 度目の修正の answers は案の直しの関所の答え（筋書きの関所はいつも approved の字）だけで、条件の文は空。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
   reached: ["replan__plan", "replan-review__review", "ask-replan", "gate-replan", "answer-replan", "refix__fix", "fixed", "gate-final"]
-  resolved-text-contains: {"gate-final": "食い違いの申し出を人に回した（1 件）", "refix__inner": "plan/replan-fields.json\"}\n# answers={\"decision\":\"approve\",\"text\":\"\"}"}
+  resolved-text-contains: {"gate-final": "食い違いの申し出を人に回した（1 件）"}
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}
@@ -17,7 +16,11 @@ plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
 plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "標準", "why": "約束の形のファイルを触る"}], "round": 1}
 plan-review-run__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "review", "reason": ""}
 plan-review-run__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": false, "questions": []}
-fix__inner: "stub"
+fix__route: {"group": true}
+fix__group-start: {"tdd": false, "units": 1, "reason": ""}
+fix-prep: {"prompt_file": "", "go": false, "iteration": 1}
+fix-accept: {"ok": true, "done": true, "reason": "", "reason_file": ""}
+fix__group-end: {"result_file": ""}
 fix__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": ""}], "groups": [{"group_id": "g1", "unit_ids": ["u1"], "returned": true, "reason": ""}], "conflicts": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/conflicts.json"}, "replan_items": ["1"], "objection": "", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/diff.patch"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false}, "delta_review": {"rounds": 1, "pass": true}}
 test-gate-final__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/final/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-final__result: {"mode": "final", "ok": true, "green": true, "red_cause": "", "baseline": null, "fingerprint": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-final/evidence.json"}}
@@ -35,5 +38,7 @@ replan__ripple-items: {"ripple_file": "plan/r2/ripple.json"}
 replan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/replan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "標準", "why": "約束の形のファイルを触る"}], "round": 2}
 replan-review__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "replan", "reason": ""}
 replan-review__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": false, "questions": []}
-refix__inner: "stub"
+refix__route: {"group": true}
+refix__group-start: {"tdd": false, "units": 1, "reason": ""}
+refix__group-end: {"result_file": ""}
 refix__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": ""}], "groups": [{"group_id": "g1", "unit_ids": ["u1"], "returned": true, "reason": ""}], "conflicts": null, "replan_items": [], "objection": "", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "refix/diff.patch"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false}, "delta_review": {"rounds": 1, "pass": true}}

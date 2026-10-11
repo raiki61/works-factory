@@ -747,6 +747,18 @@ class LineWiringCase(unittest.TestCase):
                 if key == "report":
                     self.assertEqual(passed, set(declared))
 
+    def test_fix_and_refix_get_their_plan_and_gate_answers(self):
+        """筋書きは include の入力をブロックの script に渡さない（dry-run）ので、修正の段に届く物はここで照らす: 1 回目は計画の往復の
+        案と修正前の関所の答え、2 度目は案の直しの案と両方の関所を合わせた答え、直すのは 1 回目が返した計画の項目だけ"""
+        nodes = line_nodes()
+        self.assertEqual({k: nodes["fix"]["with"][k] for k in ("plan", "ripple", "depth", "answers")},
+                         {"plan": "$plan-rounds.output.plan", "ripple": "$plan-rounds.output.ripple",
+                          "depth": "$plan-rounds.output.depth", "answers": "$answer-before-fix.output.answer"})
+        self.assertNotIn("only_items", nodes["fix"]["with"])
+        self.assertEqual({k: nodes["refix"]["with"][k] for k in ("plan", "ripple", "depth", "answers", "only_items")},
+                         {"plan": "$replan.output.plan", "ripple": "$replan.output.ripple", "depth": "$replan.output.depth",
+                          "answers": "$answer-replan.output.fix_answers", "only_items": "$fix.output.replan_items"})
+
     def test_round_limit_is_the_loop_limit(self):
         self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], plan_out.ROUND_LIMIT)
 

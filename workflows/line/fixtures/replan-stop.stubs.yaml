@@ -1,4 +1,4 @@
-# 案の直しの関所で stop。2 度目の修正が飛び、fixed は 1 回目の修正を done にせず、試験の関門から merge-apply までが飛ぶ（stub が無いので、走れば代わりのブロックの中の節か、入力を受けない本物のブロックの節が落ちて筋書きが赤になる）。関所の答え stop が collect を通って report の gate-replan に届く。
+# 案の直しの関所で stop。2 度目の修正が飛び、fixed は 1 回目の修正を done にせず、試験の関門から merge-apply までが飛ぶ（stub が無いので、走れば入力を受けない本物のブロックの節が落ちて筋書きが赤になる）。関所の答え stop が collect を通って report の gate-replan に届く。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
@@ -15,7 +15,11 @@ plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
 plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "標準", "why": "約束の形のファイルを触る"}], "round": 1}
 plan-review-run__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "review", "reason": ""}
 plan-review-run__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": false, "questions": []}
-fix__inner: "stub"
+fix__route: {"group": true}
+fix__group-start: {"tdd": false, "units": 1, "reason": ""}
+fix-prep: {"prompt_file": "", "go": false, "iteration": 1}
+fix-accept: {"ok": true, "done": true, "reason": "", "reason_file": ""}
+fix__group-end: {"result_file": ""}
 fix__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": ""}], "groups": [{"group_id": "g1", "unit_ids": ["u1"], "returned": true, "reason": ""}], "conflicts": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/conflicts.json"}, "replan_items": ["1"], "objection": "", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/diff.patch"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false}, "delta_review": {"rounds": 1, "pass": true}}
 report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": ""}
 replan__round: {"round": 2, "mode": "replan", "dir": "plan/r2", "go": false}

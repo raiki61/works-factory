@@ -1,10 +1,10 @@
-# 修正前の関所と案の直しの関所が開き、どちらも通す。2 度目の修正の answers に、修正前の関所の条件（answer-before-fix の stub）と、
-# 案の直しの関所の答え（筋書きの関所はいつも approved の字。answer-replan の script が本当に走る）の両方が届く（今の works の replan._notes）。
+# 修正前の関所と案の直しの関所が開き、どちらも通す。answer-replan の script が、修正前の関所の条件（answer-before-fix の stub）と
+# 案の直しの関所の答え（筋書きの関所はいつも approved の字）を本当に組み、2 度目の修正まで進む（今の works の replan._notes）。
+# 組んだ値が refix の answers に届くことは tests/workflows/test_line.py が照らす（dry-run は include の入力を名前の script に渡さない）。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
   reached: ["gate-before-fix", "answer-before-fix", "fix__fix", "gate-replan", "answer-replan", "refix__fix", "fixed"]
-  resolved-text-contains: {"refix__inner": "# answers={\"decision\":\"approve\",\"text\":\"## 修正前の関所（gate-before-fix）で人が答えた条件（1 回目の修正の段と同じく、この段にも効く）\\n\\n範囲は stats.py だけ\\n\"}"}
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}
@@ -17,7 +17,11 @@ plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
 plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "標準", "why": "約束の形のファイルを触る"}], "round": 1}
 plan-review-run__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "review", "reason": ""}
 plan-review-run__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": true, "questions": ["人に聞く穴"]}
-fix__inner: "stub"
+fix__route: {"group": true}
+fix__group-start: {"tdd": false, "units": 1, "reason": ""}
+fix-prep: {"prompt_file": "", "go": false, "iteration": 1}
+fix-accept: {"ok": true, "done": true, "reason": "", "reason_file": ""}
+fix__group-end: {"result_file": ""}
 fix__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": ""}], "groups": [{"group_id": "g1", "unit_ids": ["u1"], "returned": true, "reason": ""}], "conflicts": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/conflicts.json"}, "replan_items": ["1"], "objection": "", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/diff.patch"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false}, "delta_review": {"rounds": 1, "pass": true}}
 test-gate-final__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/final/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-final__result: {"mode": "final", "ok": true, "green": true, "red_cause": "", "baseline": null, "fingerprint": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-final/evidence.json"}}
@@ -35,6 +39,8 @@ replan__ripple-items: {"ripple_file": "plan/r2/ripple.json"}
 replan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/replan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "標準", "why": "約束の形のファイルを触る"}], "round": 2}
 replan-review__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "replan", "reason": ""}
 replan-review__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": true, "questions": ["人に聞く穴"]}
-refix__inner: "stub"
+refix__route: {"group": true}
+refix__group-start: {"tdd": false, "units": 1, "reason": ""}
+refix__group-end: {"result_file": ""}
 refix__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": ""}], "groups": [{"group_id": "g1", "unit_ids": ["u1"], "returned": true, "reason": ""}], "conflicts": null, "replan_items": [], "objection": "", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "refix/diff.patch"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false}, "delta_review": {"rounds": 1, "pass": true}}
 answer-before-fix: {"go": true, "answer": {"decision": "continue", "text": "範囲は stats.py だけ"}, "stop_reason": ""}
