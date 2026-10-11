@@ -55,10 +55,19 @@ flowchart TB
 
 決まりは `engineering.md`、設計は `docs/design.md`。
 
+## リポジトリの中の見方
+
+根には、この工場の物と、ASF の取り付け命令が置いた物が並ぶ。名前で見分けられる。
+
+- この工場の物: `bin/`・`workflows/`・`lib/`・`tests/`・`docs/`・`pack.json`・`MISSION.md`・`engineering.md`・`README.md`・`.github/`。工程の名は `works-factory-` で始まる。
+- ASF の物: 名前が `factory`・`FACTORY`・`harness`・`.factory` で始まる物（`factory/`・`FACTORY.md`・`FACTORY_RULES.md`・`harness/`・`.factory/`）。ASF がこのリポジトリを作る時に使う。ASF の命令がこの場所と名前を決め打ちで読むので、動かさず名前も変えない。中身も手を加えず、ASF が書けと言うファイル（`harness/END-TO-END.md` など）だけを書く。
+- Archon の家に置く工程: この工場の物は `workflows/works-factory/`、ASF の物は `workflows/asf/`（名前は `archon-` で始まる）。
+- 置き場の木の全部と、名前の決まりは `engineering.md` の「リポジトリの形」と E18。
+
 ## 関係
 
 - Archon: AI の工程を YAML で書き、機械が順に回す道具。作者は coleam00（[coleam00/Archon](https://github.com/coleam00/Archon)）。works-factory はその上で動く。
-- ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までの工程の束。作りの型（返りの形・緑の認証・取り込みの計画の封印・守りのパスなど）を読んで学んだ。ASF のコードは写していない（ASF には LICENSE が無い）。学んだ型と違いは `docs/asf-notes.md`。
+- ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までの工程の束。作りの型（返りの形・緑の認証・取り込みの計画の封印・守りのパスなど）を読んで学んだ。学んだ型と違いは `docs/asf-notes.md`。この工場の層（`bin/`・`workflows/`・`lib/`）には ASF のコードを写さない。ASF の取り付け命令が置いた物は、ASF がこのリポジトリを作るために置いたまま使う（上の「リポジトリの中の見方」）。
 - 今の works（raiki61/claude-plugins の `works/`）: この工場の前の形。graphloops プラグインのレビューと修正の輪（review-graph）から育った。works-factory は今の works の能力を 1 つも落とさずに作り直した物で、同じ能力に届いたら置き換える。置き換えた後、claude-plugins には `/works` の薄い入口だけが残る。
 
 ## 文書
@@ -73,4 +82,4 @@ flowchart TB
 
 ## 今の状態
 
-作っている途中。今あるのは設計の文書と `pack.json`（Archon と ASF の版の止め）だけで、動くコードはまだ無い。修正の工場として今使えるのは、今の works（raiki61/claude-plugins の works プラグイン）。作りの順と進みは `docs/design.md` の「作りの順」。
+作っている途中。今あるのは設計の文書・`pack.json`（Archon と ASF の版の止め）・CI・ASF の取り付け命令が置いた物で、この工場の動くコードはまだ無い。土台は ASF に作らせている。修正の工場として今使えるのは、今の works（raiki61/claude-plugins の works プラグイン）。作りの順と進みは `docs/design.md` の「作りの順」。

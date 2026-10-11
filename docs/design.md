@@ -147,7 +147,7 @@ flowchart TB
 
 ## ブロック
 
-各ブロックのフォルダは `<名>.yaml`（工程の名は `works-factory-<名>`）・`commands/`（役の指示書の本文）・`scripts/`（`lib/` と境の口を呼ぶだけ）・`fixtures/`（Archon の筋書きの試験）を持つ。返りの型は `returns:` が名指す節の `output_format`。
+各ブロックのフォルダは `works-factory-<名>.yaml`（工程の名も同じ。ASF の `archon-<名>.yaml` と同じ形）・`commands/`（役の指示書の本文）・`scripts/`（`lib/` と境の口を呼ぶだけ）・`fixtures/`（Archon の筋書きの試験）を持つ。返りの型は `returns:` が名指す節の `output_format`。
 
 ### line（線）
 

@@ -9,7 +9,7 @@
 
 **道具:** Python 3.12 以上・unittest・git・`gh`・Archon v0.11.1 の実行ファイル。
 
-**仕様:** `docs/design.md`（層・線・ブロック・Archon の分かっていること）と `engineering.md`（E1〜E14）。
+**仕様:** `docs/design.md`（層・線・ブロック・Archon の分かっていること）と `engineering.md`（E1〜E18）。
 
 ## 全体の決まり
 
@@ -20,13 +20,13 @@
 - 工程の名は `works-factory-<フォルダの名>`、線は `works-factory-line`。
 - ブロックの間で渡す物の型の正本は、返す節の `output_format` と線の `with:` だけ。型の写しを作らない（持ち主の決め `io-in-output-format`）。
 - 期限を置かない（E12）。Archon の既定の期限を外すため、期限を持つ節には `1728000000` を書く。
-- 試験は `python3 -m unittest discover -s tests -t .` と `python3 -m unittest discover -s lib/tests -t .` で走る。Archon の実行ファイルが要る試験は、無ければ名前つきで見送る（`skipTest("archon の実行ファイルが無い: ...")`）。CI は実行ファイルを取ってから走るので見送らない。
+- 試験はリポジトリの根から `python3 -m unittest discover -s . -t .` の 1 つで走る（CI も ASF の `harness/harness.config.json` の `unit` も同じ命令）。`tests/`・`tests/bin/`・`lib/tests/` など試験を置くフォルダには、全部 `__init__.py` を置く（無いと Python 3.12 は黙って見つけない）。Archon の実行ファイルが要る試験は、無ければ名前つきで見送る（`skipTest("archon の実行ファイルが無い: ...")`）。CI は実行ファイルを取ってから走るので見送らない。
 
 ## 見るべき所（Task の試験が当たる物）
 
 1. ASF の commit が取れない（網が無い・commit が消えた）: 途中まで置いた物を残さず、何が取れなかったかを 1 行で言って止まる。前に置いた `workflows/asf/` は残る。→ Task 1 の `test_fetch_failure_leaves_previous_placement`
 2. Archon の家にほかの工程（同梱・ほかの pack）が在る: 消さない・上書きしない。→ Task 1 の `test_place_touches_only_own_folders`
-3. 型つきの成果物の一覧に `errors` が在る: 読めた分と一緒に返し、捨てない。→ Task 3 の `test_typed_keeps_errors`
+3. 型つきの成果物の一覧に `errors` が在る: 読めた分と一緒に返し、捨てない。→ 段 2 の report ブロックの issue（型つきの成果物の一覧を読むのは report だけ。E5）
 4. 空のファイルへの指し札: Archon が拒むので、境の口が作る時点で名前つきの誤りで止まる。→ Task 3 の `test_pointer_refuses_empty_file`
 5. `archon validate workflows` の警告: 自分の工程の警告は赤。ASF の警告（今は `archon-merge-queue` の script のパスの 2 つ）は数えない。→ Task 4 の `test_validate_has_no_warnings_for_ours`
 
@@ -36,6 +36,8 @@
 
 **Files:**
 - Create: `bin/_lib/pack.py`・`bin/_lib/place.py`
+- Create: `tests/__init__.py`・`tests/bin/__init__.py`（無いと Python 3.12 の unittest が黙って見つけない）
+- Modify: `pack.json`（Linux x64 の Archon の実行ファイルと sha256 を足す。CI は ubuntu で走り、ほかの人も Linux で使うため。E14）
 - Test: `tests/bin/test_place.py`
 
 **Interfaces:**
@@ -90,12 +92,9 @@
   - `boundary.returns(obj: dict) -> None`（JSON を標準出力に 1 つ書く。型は Archon が節の `output_format` で照らすので、ここでは照らさない）
   - `boundary.pointer(rel: str) -> dict`（`{type: "archon_artifact", run_id, path}`。ファイルが無い・空・置き場の外なら `ValueError`）
   - `boundary.resolve(ptr: dict) -> Path`（同じ run の物だけ。違えば `ValueError`）
-  - `boundary.typed(type_name: str, include_prefix: str, loop_path: list[dict]) -> tuple[list[dict], list[dict]]`（`$TYPED_ARTIFACTS_FILE` の一覧から、`nodeId` が `include_prefix + "__"` で始まり、`loopGroupPath` が `loop_path` と同じ物だけを返す。2 つ目は一覧の `errors` そのまま）
   - `boundary.lib_root() -> Path`（`lib/` の置き場。決め方は段 1 の未決 U5。段 0 はリポジトリの中の `lib/` を返す）
 
 - [ ] **Step 1: 試験を書く**（偽の一覧のファイルと環境で）
-  - `test_typed_filters_by_prefix_and_loop`: 2 つの include（`tg1`・`tg2`）と 2 つの周の物から、`tg2` の 2 周目だけが返る
-  - `test_typed_keeps_errors`: 一覧の `errors` の 2 件が 2 つ目の返りにそのまま在る
   - `test_pointer_refuses_empty_file`・`test_pointer_refuses_outside`・`test_resolve_refuses_other_run`
   - `test_returns_writes_one_json`: 標準出力が JSON 1 つちょうど
 - [ ] **Step 2: 赤**: `python3 -m unittest tests.shared.test_boundary -v`
@@ -150,7 +149,7 @@
   - `test_apply_applies_sealed_diff`: 同じなら当たる
 - [ ] **Step 2: 赤**: `python3 -m unittest tests.bin.test_cli -v`
 - [ ] **Step 3: 実装**
-- [ ] **Step 4: 緑**。全部の試験 `python3 -m unittest discover -s tests -t .` と `lib/tests` が緑
+- [ ] **Step 4: 緑**。全部の試験 `python3 -m unittest discover -s . -t .` が緑
 - [ ] **Step 5: commit**: `git commit -m "feat(bin): start・answer・show・apply"`
 
 ## 段 0 の終わりの確かめ
