@@ -159,6 +159,10 @@ class GateAnswerCase(Artifacts):
         self.assertEqual((got["go"], got["stop_reason"]), (False, "human:gate-final"))
         self.assertEqual(json.loads((self.artifacts / "gates" / "gate-final.json").read_text(encoding="utf-8"))["decision"], "stop")
 
+    def test_reject_stops_like_stop(self):
+        got = gate_answer.answer(json.dumps({"decision": linekit.REJECT, "text": ""}), "true", "", "gate-replan", self.artifacts)
+        self.assertEqual((got["go"], got["stop_reason"]), (False, "human:gate-replan"))
+
     def test_dry_run_approval_reads_as_approve(self):
         got = gate_answer.answer(linekit.DRY_RUN_APPROVED, "true", "", "gate-start", self.artifacts)
         self.assertEqual(got, {"go": True, "answer": {"decision": "approve", "text": ""}, "stop_reason": ""})
@@ -435,8 +439,9 @@ class FallbackCase(unittest.TestCase):
 
 
 class GateDecisionsCase(unittest.TestCase):
-    """人の関所は 4 つで、どれも関所の文が見せる答えの語（lib/answer.py の VERBS）と approve を受け、受ける語は通す語
-    （linekit.GO_WORDS）か止める語（VERBS のうち通す語でない物。gate_answer は通す語でない答えを止めと読む）だけ"""
+    """人の関所は 4 つで、どれも関所の文が見せる答えの語（lib/answer.py の VERBS）と approve・reject を受け、受ける語は通す語
+    （linekit.GO_WORDS）か止める語（VERBS のうち通す語でない物と reject。gate_answer は通す語でない答えを止めと読む）だけ。
+    reject が decisions に無いと、Archon はその答えを run の取り消しとして扱い、報告が出ない"""
 
     def test_gates_take_the_words_their_text_prints(self):
         gates = {key: node for key, node in line_nodes().items() if "approval" in node}
@@ -445,7 +450,8 @@ class GateDecisionsCase(unittest.TestCase):
         self.assertEqual(stop_words, {"stop"})
         for key, node in gates.items():
             with self.subTest(gate=key):
-                self.assertEqual({d["id"] for d in node["approval"]["decisions"]}, set(linekit.GO_WORDS) | set(answer.VERBS))
+                self.assertEqual({d["id"] for d in node["approval"]["decisions"]},
+                                 set(linekit.GO_WORDS) | set(answer.VERBS) | {linekit.REJECT})
 
 
 class Recorded(dict):

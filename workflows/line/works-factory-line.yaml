@@ -85,7 +85,7 @@ nodes:
   - id: gate-start
     approval:
       message: "$start.output.gate_text"
-      decisions: [{ id: approve }, { id: continue }, { id: stop }]
+      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
     idle_timeout: 1728000000
     depends_on: [start]
     when: "$start.output.ask == true"
@@ -280,7 +280,7 @@ nodes:
   - id: gate-before-fix
     approval:
       message: "$ask-before-fix.output.text"
-      decisions: [{ id: approve }, { id: continue }, { id: stop }]
+      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
     idle_timeout: 1728000000
     depends_on: [ask-before-fix]
     when: "$ask-before-fix.output.open == true"
@@ -436,7 +436,7 @@ nodes:
   - id: gate-replan
     approval:
       message: "$ask-replan.output.text"
-      decisions: [{ id: approve }, { id: continue }, { id: stop }]
+      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
     idle_timeout: 1728000000
     depends_on: [ask-replan]
     when: "$ask-replan.output.open == true"
@@ -632,7 +632,7 @@ nodes:
   - id: gate-final
     approval:
       message: "$ask-final.output.text"
-      decisions: [{ id: approve }, { id: continue }, { id: stop }]
+      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
     idle_timeout: 1728000000
     depends_on: [ask-final]
     when: "$ask-final.output.open == true"

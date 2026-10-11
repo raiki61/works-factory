@@ -169,7 +169,7 @@ flowchart TB
   - 返す節は落ちない。lib と境の口の import は返す節の `main` の中で読み、読めない時も標準ライブラリだけで偽の結末と指し札の先のファイルを書いて返す（merge・test-gate・eyes・plan・plan-review・report・judge・fix の返す節と同じ形）。中の誤りを全部捕まえ、そのブロックの偽の結末（`ok: false`・`ready: false`・`done: false`・`pass: false`）と訳を `output_format` に合う形で返す（線は落ちた返す節の先へ進めない）。
 - 線の中の id（`$<id>.output` の `<id>`。線を書く人とブロックを書く人がこの名で合わせる）:
   - 線の節: `start`（始めの節）・`answer-start`・`answer-before-fix`・`answer-replan`・`answer-final`（関所の答えの返しの節。`{go, answer, stop_reason}`）・`ask-before-fix`・`ask-replan`・`ask-final`（関所を開くかと文を決める）・`plan-rounds`（計画の往復の `loop_group`）・`plan-out`（往復の終わりの返しの節）・`planned`（往復の返りを往復の外で返し直す。`collect` が読む）・`after-fix`（案の直しと再審を差し込むか）・`judged`（judge か rejudge の単位と判定）・`fixed`（fix と refix の返りを合わせた物）・`redepth`（直した後の深さの上げ直し）・`collect`（報告へ渡す物を集める返しの節）・`result`（線の返す節）
-  - 人の関所: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`（仕様の関所は judge の中）。`decisions` は `approve`・`continue`・`stop`
+  - 人の関所: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`（仕様の関所は judge の中）。`decisions` は `approve`・`continue`・`stop`・`reject`（`reject` は `stop` と同じ。`decisions` に無いと、Archon は `reject` の答えを run の取り消しとして扱い、報告が出ない。止めた Archon の `packages/core/src/operations/workflow-operations.ts` 1633-1641 行）
   - include: `test-gate-base`・`judge`・`plan`・`plan-review`・`fix`・`rejudge`（judge の再審）・`replan`・`replan-review`（案の直し）・`refix`（案の直しの後の 2 回目の修正。fix のブロックを 1 度だけ差し込む）・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`
   - 同じブロックを 2 度差し込む所の返りは include の id ごとに分かれる（U2）。`rejudge`・`replan`・`replan-review`・`refix` の返りは差し込んだブロックと同じ形。後の段が fix の返りを読む所は `$fixed.output.<欄>`、judge の単位と判定を読む所は `$judged.output.<欄>`、plan と plan-review の返りを往復の外から読む所は `$plan-rounds.output.<欄>` を読む。
 - 線の始めの節 `start` の返りのうち、ブロックが読むのは 2 つ:

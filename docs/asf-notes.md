@@ -89,7 +89,7 @@ ASF の版を進めた時は、各節の行を新しい版で読み直し、変�
 
 - ASF: d97d00ef の `W/merge-queue/archon-merge-queue.yaml`:176-187（`approval:` の `decisions` に `approve`・`hold`、`when:` で関所を開くかを決める）と 225 行（後ろの節が `{ from: "$approval.output", if_skipped: null }` で答えを受ける）。
 - なぜその形か: 決めの語はどれも関所を終えるだけで、どこへ進むかは工程の配線が決める（Archon の `cancel` に頼ると後ろの節が走らない）。
-- 採った先: 線の 4 つの関所（`gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`）。`decisions` は `approve`・`continue`・`stop`。
+- 採った先: 線の 4 つの関所（`gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`）。`decisions` は `approve`・`continue`・`stop`・`reject`（`reject` は `stop` と同じ）。
 - 違い: 関所を開くかと見せる文は線の script（`ask-*`）が決め、答えは返しの節（`answer-*`）が `{go, answer, stop_reason}` にして後ろの `when:` に渡す。`stop` は後ろを飛ばして報告へ進む（結末 `stopped_by_human`）。
 
 ### A11 include を展開した id に stub を置き、自分の script を走らせる筋書き
