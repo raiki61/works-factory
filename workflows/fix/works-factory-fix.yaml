@@ -59,6 +59,7 @@ nodes:
   - id: route
     script: route
     runtime: uv
+    mutates_checkout: false
     timeout: 1728000000
     output_format:
       type: object
@@ -179,6 +180,7 @@ nodes:
   - id: conflict-check
     script: conflict_check
     runtime: uv
+    mutates_checkout: false
     depends_on: [join]
     timeout: 1728000000
     output_format:
@@ -202,6 +204,7 @@ nodes:
         - id: rule-prep
           script: rule_prep
           runtime: uv
+          mutates_checkout: false
           timeout: 1728000000
           output_format:
             type: object
@@ -269,6 +272,7 @@ nodes:
         - id: rule-accept
           script: rule_accept
           runtime: uv
+          mutates_checkout: false
           depends_on: [ruler]
           timeout: 1728000000
           with:
@@ -298,6 +302,7 @@ nodes:
         - id: fix-ruled-prep
           script: fix_ruled_prep
           runtime: uv
+          mutates_checkout: false
           timeout: 1728000000
           output_format:
             type: object
@@ -581,6 +586,7 @@ nodes:
         - id: ruled-consult-check
           script: consult_check
           runtime: uv
+          mutates_checkout: false
           depends_on: [fix-ruled]
           timeout: 1728000000
           with:
@@ -647,6 +653,7 @@ nodes:
         - id: ruled-consult-accept
           script: consult_accept
           runtime: uv
+          mutates_checkout: false
           depends_on: [ruled-consult-check, ruled-consult-answer]
           trigger_rule: none_failed_min_one_success
           timeout: 1728000000
@@ -885,6 +892,7 @@ nodes:
         - id: delta-accept
           script: delta_accept
           runtime: uv
+          mutates_checkout: false
           depends_on: [delta-review]
           timeout: 1728000000
           with:
@@ -903,6 +911,7 @@ nodes:
         - id: refix-prep
           script: refix_prep
           runtime: uv
+          mutates_checkout: false
           timeout: 1728000000
           output_format: &refix_prep_out
             type: object
@@ -1037,6 +1046,7 @@ nodes:
         - id: review2-accept
           script: review2_accept
           runtime: uv
+          mutates_checkout: false
           depends_on: [cut2, review2]
           trigger_rule: none_failed_min_one_success
           timeout: 1728000000
@@ -1055,6 +1065,7 @@ nodes:
         - id: refix2-prep
           script: refix2_prep
           runtime: uv
+          mutates_checkout: false
           timeout: 1728000000
           output_format: *refix_prep_out
 
@@ -1143,6 +1154,7 @@ nodes:
         - id: tdd-prep
           script: tdd_prep
           runtime: uv
+          mutates_checkout: false
           timeout: 1728000000
           output_format:
             type: object
@@ -1258,6 +1270,7 @@ nodes:
         - id: fix-prep
           script: fix_prep
           runtime: uv
+          mutates_checkout: false
           timeout: 1728000000
           output_format:
             type: object
@@ -1284,6 +1297,7 @@ nodes:
         - id: consult-check
           script: consult_check
           runtime: uv
+          mutates_checkout: false
           depends_on: [fixer]
           timeout: 1728000000
           with:
@@ -1308,6 +1322,7 @@ nodes:
         - id: consult-accept
           script: consult_accept
           runtime: uv
+          mutates_checkout: false
           depends_on: [consult-check, consult-answer]
           trigger_rule: none_failed_min_one_success
           timeout: 1728000000
@@ -1332,6 +1347,7 @@ nodes:
   - id: group-end
     script: group_end
     runtime: uv
+    mutates_checkout: false
     depends_on: [group-start, tdd-loop, fix-loop]
     trigger_rule: none_failed_min_one_success
     timeout: 1728000000
@@ -1349,6 +1365,7 @@ nodes:
   - id: fix
     script: collect
     runtime: uv
+    mutates_checkout: false
     depends_on: [route, prep, join, tdd-unit, conflict-check, rule-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end]
     trigger_rule: all_done
     timeout: 1728000000

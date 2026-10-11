@@ -38,6 +38,11 @@ CHANGED_MARKS = {"mechanism_changed", "premise_drift", "gates_changed", "seams_c
                  "path_changed"}
 INCLUDED_HEAD_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 READ_ONLY_ROLES = ("ruler", "delta-review", "review2", "lens", "consult-answer", "ruled-consult-answer")
+# 作業ツリーを変えない script の節（E7）。置き場（run の成果物の置き場）にだけ書く
+READ_ONLY_SCRIPTS = ("route", "prep", "tdd-unit", "conflict-check", "rule-prep", "rule-accept", "fix-ruled-prep",
+                     "ruled-consult-check", "ruled-consult-accept", "assert-changed", "delta-cut", "lens-prep",
+                     "lens-collect", "delta-accept", "refix-prep", "cut2", "review2-accept", "refix2-prep", "tdd-prep",
+                     "fix-prep", "consult-check", "consult-accept", "group-end", "fix")
 
 # 今の works（2aa7c66c）の同じ役の節の値: (model, effort, context, settingSources, sandbox)。
 # 元 works/blk-fix/blk-fix.yaml の tdd・fix・fix-ruled・rule・plan-answer、blk-delta.yaml の review、blk-lens.yaml の
@@ -182,6 +187,11 @@ class RolesCase(unittest.TestCase):
     def test_read_only_roles_declare_it(self):
         for nid in READ_ONLY_ROLES:
             self.assertIs(self.nodes[nid].get("mutates_checkout"), False, nid)
+
+    def test_read_only_scripts_declare_it_and_no_other_node_does(self):
+        """E7: 読むだけの script の節は mutates_checkout: false。作業ツリーを変える節（戻し・後始末・当て直し）は書かない"""
+        marked = {nid for nid, n in self.nodes.items() if n.get("mutates_checkout") is False}
+        self.assertEqual(marked, set(READ_ONLY_ROLES) | set(READ_ONLY_SCRIPTS))
 
     def test_roles_keep_the_original_model_and_session_settings(self):
         for nid, (model, effort, context, sources, sandbox) in ORIGINAL_ROLES.items():
