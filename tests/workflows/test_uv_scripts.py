@@ -19,8 +19,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEED = ROOT / "tests" / "e2e" / "target-seed"
 
 
+# Archon の MAX_SCRIPT_DISCOVERY_DEPTH の写し（tests/shared/test_archon_contract.py が止めた Archon の源に照らす）
+DISCOVERY_DEPTH = 1
+
+
 def scripts(workflows: pathlib.Path) -> list[pathlib.Path]:
-    return sorted([*workflows.glob("*/scripts/*.py"), *workflows.glob("*/scripts/*/*.py")])
+    return sorted(p for depth in range(DISCOVERY_DEPTH + 1) for p in workflows.glob("*/scripts/" + "*/" * depth + "*.py"))
 
 
 SCRIPTS = scripts(ROOT / "workflows")
