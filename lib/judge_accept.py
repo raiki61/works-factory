@@ -1233,7 +1233,6 @@ import carry  # noqa: E402
 import prcheck  # noqa: E402
 import worldmark  # noqa: E402
 
-WORLD_FEATURE = "world"            # 世界の解の段の機能の語（元 works/.shared/core/entry.py:420 の WORLD_FEATURE）
 VERIFY_FEATURE = "judge_verify"    # 判定の裏取りの機能の語（元 entry.py:425）
 
 
@@ -1293,7 +1292,6 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str) -> dict:
 EMPTY_JUDGMENT = {"units": [], "questions": [], "framing": "", "one_shot": "", "materials_missing": [], "carried_r1": [],
                   "one_shot_closes": [], "precedents": []}
 EMPTY_PURPOSE = {"purpose_text": "", "source": "", "known_weaknesses": [], "source_files": []}
-JUDGMENT_FILE = "judgment.json"
 PURPOSE_FILE = "purpose.json"
 PREMISES_FILE = "premises.json"
 VERIFY_FILE = "judge-verify.json"
