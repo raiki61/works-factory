@@ -1,6 +1,6 @@
 """殻 bin/works-factory を子のプロセスで走らせる試験の木（テストのモジュールではない。test_*.py に当たらない）。
 
-リポジトリの bin/・workflows/・pack.json を使い捨ての木に写し、その factory/pack.json は、同じ木の取り置きの置き場に作った
+リポジトリの bin/・lib/・workflows/・pack.json を使い捨ての木に写し、その factory/pack.json は、同じ木の取り置きの置き場に作った
 偽の Archon の源の commit を名指す（本物の源は取らない・網に出ない）。偽の bun は受けた引数と環境を JSON に書く。
 """
 import json
@@ -23,7 +23,7 @@ with open(os.environ["FAKE_BUN_LOG"], "w", encoding="utf-8") as f:
 
 @dataclass(frozen=True)
 class Tree:
-    repo: pathlib.Path         # 写したリポジトリの根（bin/works-factory・bin/apply が在る）
+    repo: pathlib.Path         # 写したリポジトリの根（bin/works-factory・bin/apply と、bin/apply の使う lib/ が在る）
     cache_home: pathlib.Path   # XDG_CACHE_HOME に渡す置き場
     source: pathlib.Path       # 偽の Archon の源
     tools: pathlib.Path        # python3 と git だけを置いた PATH の置き場
@@ -41,6 +41,7 @@ def build(base: pathlib.Path) -> Tree:
     repo = base / "repo"
     no_cache = shutil.ignore_patterns("__pycache__")
     shutil.copytree(ROOT / "bin", repo / "bin", ignore=no_cache)
+    shutil.copytree(ROOT / "lib", repo / "lib", ignore=no_cache)
     shutil.copytree(ROOT / "workflows", repo / "workflows", ignore=no_cache)
     shutil.copy(ROOT / "pack.json", repo / "pack.json")
     cache_home = base / "cache"

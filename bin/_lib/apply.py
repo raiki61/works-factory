@@ -6,7 +6,6 @@ hash の正本は Archon の DB の run の記録で、置き場のファイル�
 消す行の許し・止まった run の許し・git apply --check）に、封じた hash と指し札の照らし・読み戻しを足す。commit はしない。
 """
 import argparse
-import hashlib
 import json
 import os
 import subprocess
@@ -16,10 +15,17 @@ from pathlib import Path
 
 from bin._lib import launcher
 
+LIB = Path(__file__).resolve().parents[2] / "lib"
+if str(LIB) not in sys.path:   # lib/ の部品は互いを名だけで import する（merge の script と同じく lib/ を sys.path に置く）
+    sys.path.append(str(LIB))
+
+import seal  # noqa: E402  差分の封印と R2 の語の持ち主（merge の apply と同じ決まりを 2 か所に持たない）
+
 NAME = "apply"
 SHELL = Path(__file__).resolve().parents[1] / "works-factory"
 UNREADABLE = 2
 REFUSED = 1
+POINTER_TYPE = "archon_artifact"   # merge の返りの diff の型（試験が workflows/merge の output_format と縛る）
 
 Get = Callable[[str, Path], subprocess.CompletedProcess[str]]
 
@@ -51,9 +57,9 @@ def main(argv: list[str], here: Path | None = None, get: Get = ask_launcher) -> 
         record = read_run(get(args.run_id, target), args.run_id)
         diff, sealed_hash = choose(record, args.allow_stopped)
         data = diff.read_bytes()
-        if sha256(data) != sealed_hash:
-            raise Refuse(f"封じた hash と合わない（記録 {sealed_hash}・置き場のファイル {sha256(data)}: {diff}）。当てない")
-        files = put(target, diff, args.allow_delete)
+        if seal.digest(data) != sealed_hash:
+            raise Refuse(f"封じた hash と合わない（記録 {sealed_hash}・置き場のファイル {seal.digest(data)}: {diff}）。当てない")
+        files = put(target, data, args.allow_delete)
     except (launcher.Stop, Refuse) as stop:
         print(f"{NAME}: {stop}", file=sys.stderr)
         return stop.code
@@ -95,14 +101,14 @@ def choose(record: dict, allow_stopped: bool) -> tuple[Path, str]:
         raise Refuse(f"{nothing}。封じていない差分は当てない")
     if not allow_stopped:
         raise Refuse(f"{nothing}。最後の関所で止めた run の封じた差分を当てるなら --allow-stopped を付けて打ち直す")
-    if value.get("r2_status") == "redesign-needed":
-        raise Refuse("R2 が redesign-needed を言った run の差分は、--allow-stopped でも当てない")
+    if value.get("r2_status") == seal.REDESIGN:
+        raise Refuse(f"R2 が {seal.REDESIGN} を言った run の差分は、--allow-stopped でも当てない")
     return pointed(record, sealed.get("diff")), sealed["hash"]
 
 
 def pointed(record: dict, ptr) -> Path:
     """指し札の先の実のパス。指し札がこの run の物で、置き場の根の実のパスの下の在る普通のファイルでなければ止まる"""
-    if not isinstance(ptr, dict) or ptr.get("type") != "archon_artifact" or not isinstance(ptr.get("path"), str):
+    if not isinstance(ptr, dict) or ptr.get("type") != POINTER_TYPE or not isinstance(ptr.get("path"), str):
         raise Refuse(f"差分の指し札が読めない: {json.dumps(ptr, ensure_ascii=False)}")
     if ptr.get("run_id") != record["run_id"]:
         raise Refuse(f"差分の指し札が別の run {ptr.get('run_id')} を指す（記録の run は {record['run_id']}）")
@@ -120,30 +126,34 @@ def pointed(record: dict, ptr) -> Path:
     return Path(real)
 
 
-def put(target: Path, diff: Path, allow_delete: bool) -> list[str]:
-    """消す行・当たるかを確かめてから当て、読み戻す。当てたファイルの一覧"""
-    summary = git(target, "apply", "--numstat", "--summary", str(diff))
+def put(target: Path, data: bytes, allow_delete: bool) -> list[str]:
+    """照らしたバイトの差分を、消す行・当たるかを確かめてから当て、読み戻す。当てたファイルの一覧"""
+    try:
+        files = list(seal.diff_files(target, data))
+    except ValueError as e:
+        raise Refuse(f"差分を読めない（{e}）") from None
+    summary = git_apply(target, data, "--summary", "-z")
     if summary.returncode != 0:
-        raise Refuse(f"差分を読めない（git apply --numstat）: {summary.stderr.strip()}")
-    lines = summary.stdout.splitlines()
-    gone = [line.split(maxsplit=3)[3] for line in lines if line.startswith(" delete mode ")]
+        raise Refuse(f"差分を読めない（git apply --summary）: {summary.stderr}")
+    gone = [line.split(maxsplit=3)[3] for line in summary.stdout.split("\n") if line.startswith(" delete mode ")]
     if gone and not allow_delete:
         raise Refuse(f"差分が対象のファイルを消す（{' '.join(gone)}）。消してよければ --allow-delete を付けて打ち直す")
-    check = git(target, "apply", "--check", str(diff))
+    check = git_apply(target, data, "--check")
     if check.returncode != 0:
-        raise Refuse(f"差分が対象に当たらない（対象の手元の変更とぶつかっていないかを見る）: {check.stderr.strip()}")
-    done = git(target, "apply", str(diff))
+        raise Refuse(f"差分が対象に当たらない（対象の手元の変更とぶつかっていないかを見る）: {check.stderr}")
+    done = git_apply(target, data)
     if done.returncode != 0:
-        raise Refuse(f"git apply が落ちた: {done.stderr.strip()}")
-    back = git(target, "apply", "-R", "--check", str(diff))
+        raise Refuse(f"git apply が落ちた: {done.stderr}")
+    back = git_apply(target, data, "-R", "--check")
     if back.returncode != 0:
-        raise Refuse(f"当てたが読み戻せない（git apply -R --check）: {back.stderr.strip()}")
-    return [line.split("\t", 2)[2] for line in lines if line.count("\t") >= 2]
+        raise Refuse(f"当てたが読み戻せない（git apply -R --check）: {back.stderr}")
+    return files
 
 
-def git(target: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["git", "-C", str(target), *args], capture_output=True, text=True, encoding="utf-8")
-
-
-def sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+def git_apply(target: Path, data: bytes, *flags: str) -> subprocess.CompletedProcess[str]:
+    """git apply に差分のバイトを標準入力で渡す（hash を照らした物そのものを当てる）。
+    --whitespace=nowarn は、利用者の apply.whitespace の設定で落ちたり封じた物と違う行を当てたりしないため（seal.diff_files と同じ）"""
+    done = subprocess.run(["git", "-C", str(target), "apply", "--whitespace=nowarn", *flags, "-"], input=data,
+                          capture_output=True)
+    return subprocess.CompletedProcess(done.args, done.returncode, done.stdout.decode("utf-8", "replace"),
+                                       done.stderr.decode("utf-8", "replace").strip())

@@ -4,6 +4,7 @@ workflow get の答えは偽の関数で渡す（計画 docs/plans/2026-10-13-st
 線の返す節 result の値が terminal_record.returns.value）。対象と差分は使い捨ての git リポジトリで作る。
 殻を通す道だけは、tests/bin/fakelaunch.py の木で bin/apply を子のプロセスとして走らせ、偽の bun が受けた引数を照らす。
 """
+import ast
 import contextlib
 import hashlib
 import io
@@ -14,10 +15,17 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
+
+import yaml
 
 from bin._lib import apply
+from graphloops.engine.schema import validate_schema  # lib/ は bin._lib.apply が sys.path に置く
 from tests.bin import fakelaunch, hermetic
 from tests.bin.gitkit import git
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+MERGE = ROOT / "workflows" / "merge" / "works-factory-merge.yaml"
 
 RUN = "0123456789abcdef0123456789abcdef"
 SHORT = RUN[:8]
@@ -191,6 +199,49 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual(rc, 0, out + err)
         self.assertFalse((self.target / "old.txt").exists())
 
+    def test_apply_refuses_when_readback_fails(self):
+        real = apply.git_apply
+
+        def readback_fails(target, data, *flags):
+            if flags == ("-R", "--check"):
+                return subprocess.CompletedProcess([], 1, "", "patch does not apply")
+            return real(target, data, *flags)
+
+        with mock.patch.object(apply, "git_apply", readback_fails):
+            rc, out, err = self.run_apply(self.record())
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("当てたが読み戻せない", err)
+        self.assertEqual(out, "")
+
+    def test_apply_ignores_whitespace_setting_and_names_files_plainly(self):
+        git(self.target, "config", "apply.whitespace", "error")
+        git(self.target, "config", "core.quotePath", "true")
+        diff = self.make_diff(lambda: (self.target / "日本.txt").write_text("x \n", encoding="utf-8"))
+        self.place("merge/apply.diff", diff)
+        self.place("merge/sealed.diff", diff)
+        value = self.value(apply={"ok": True, "hash": sha(diff), "diff": pointer("merge/apply.diff"), "reason": ""},
+                           sealed={"ok": True, "hash": sha(diff), "diff": pointer("merge/sealed.diff")})
+        rc, out, err = self.run_apply(self.record(value))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("日本.txt", out.splitlines()[0])
+        self.assertEqual((self.target / "日本.txt").read_bytes(), b"x \n")
+
+    def test_apply_reads_the_merge_returns(self):
+        """result の apply・sealed は merge の返りの欄を写した物（計画「線の返りに足す欄」）。試験の形が merge の output_format に合う"""
+        returns = yaml.safe_load(MERGE.read_text(encoding="utf-8"))["nodes"][0]["output_format"]["properties"]
+        self.assertEqual(returns["diff"]["properties"]["type"]["enum"], [apply.POINTER_TYPE])
+        for name, member in ((n, self.value()[n]) for n in ("apply", "sealed")):
+            with self.subTest(name):
+                shape = {"type": "object", "properties": {k: returns[k] for k in member}, "required": list(member)}
+                self.assertEqual(validate_schema(member, shape), [])
+
+    def test_apply_sets_no_deadline(self):
+        for part in (ROOT / "bin" / "apply", ROOT / "bin" / "_lib" / "apply.py"):
+            with self.subTest(part.name):
+                tree = ast.parse(part.read_text(encoding="utf-8"))
+                self.assertEqual([n.lineno for n in ast.walk(tree) if isinstance(n, ast.keyword) and n.arg == "timeout"],
+                                 [])
+
     def test_apply_refuses_when_check_fails(self):
         (self.target / "stats.py").write_text("def mean(xs):\n    return 0\n", encoding="utf-8")
         before = self.status()
@@ -198,6 +249,9 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual(rc, 1, out + err)
         self.assertEqual(self.status(), before)
         self.assertEqual((self.target / "stats.py").read_text(encoding="utf-8"), "def mean(xs):\n    return 0\n")
+
+
+KEY = "sk-ant-api03-fake-for-apply"
 
 
 class BinApplyTest(unittest.TestCase):
@@ -223,7 +277,7 @@ class BinApplyTest(unittest.TestCase):
         self.bun_log = self.tmp / "bun.json"
         self.env = hermetic.child_env(HOME=str(self.tmp / "user-home"), PATH=f"{fake}{os.pathsep}{self.tree.tools}",
                                       XDG_CACHE_HOME=str(self.tree.cache_home), FAKE_BUN_LOG=str(self.bun_log),
-                                      ANTHROPIC_API_KEY="sk-ant-api03-fake-for-apply")
+                                      ANTHROPIC_API_KEY=KEY)
         for name in ("XDG_STATE_HOME", "GH_CONFIG_DIR"):
             self.env.pop(name, None)
 
@@ -237,6 +291,7 @@ class BinApplyTest(unittest.TestCase):
             with self.subTest(cwd=cwd):
                 done = self.bin_apply(RUN, *args, cwd=cwd)
                 self.assertEqual(done.returncode, 2, done.stderr)
+                self.assertNotIn(KEY, done.stdout + done.stderr)
                 got = json.loads(self.bun_log.read_text(encoding="utf-8"))
                 self.assertEqual(got["argv"][3:], ["workflow", "get", RUN, "--json", "--cwd", str(self.target)])
                 homes.append(got["env"]["HOME"])
