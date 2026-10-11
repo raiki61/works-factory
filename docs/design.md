@@ -124,7 +124,7 @@ flowchart TB
 
 型の正本は、出すブロックの返す節の `output_format` と線の `with:` だけ（持ち主の決め `io-in-output-format`）。下の表は何が渡るかの目録で、型の写しではない。
 
-- 始めの記録（入口の入力の形を含む）: 線の始めの節が出す → 全部（境の口で読む）
+- 始めの記録（入口の入力の形を含む）: 線の始めの節が出す → 全部（script が `INPUTS_<名>` を字のまま読む）
 - 直す前の結末: test-gate（base）→ fix・test-gate（final）
 - 判定（単位の目録・判定の指し札・定石の行の指し札）: judge → plan・plan-review・fix・eyes
 - 計画（修正案の指し札・波及の指し札・単位ごとの深さ）: plan → plan-review・fix・eyes

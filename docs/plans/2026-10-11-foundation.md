@@ -27,7 +27,7 @@
 1. ASF の commit が取れない（網が無い・commit が消えた）: 途中まで置いた物を残さず、何が取れなかったかを 1 行で言って止まる。前に置いた `workflows/asf/` は残る。→ Task 1 の `test_fetch_failure_leaves_previous_placement`
 2. Archon の家にほかの工程（同梱・ほかの pack）が在る: 消さない・上書きしない。→ Task 1 の `test_place_touches_only_own_folders`
 3. 型つきの成果物の一覧に `errors` が在る: 読めた分と一緒に返し、捨てない。→ 段 2 の report ブロックの issue（型つきの成果物の一覧を読むのは report だけ。E5）
-4. 空のファイルへの指し札: Archon が拒むので、境の口が作る時点で名前つきの誤りで止まる。→ Task 3 の `test_pointer_refuses_empty_file`
+4. 空のファイルへの指し札: 返りに入った札は Archon が節の終わりに照らし、名前つきの誤りで止める。境の口は札の形を組むだけで、先を照らさない。→ Archon の節の終わりの照らし（このリポジトリに試験は無い。持ち主の決め `asf-way-gates-fanout`）
 5. `archon validate workflows` の警告: 自分の工程の警告は赤。ASF の警告（今は `archon-merge-queue` の script のパスの 2 つ）は数えない。→ Task 4 の `test_validate_has_no_warnings_for_ours`
 
 ---
@@ -87,15 +87,14 @@
 - Test: `tests/shared/test_boundary.py`
 
 **Interfaces:**
-- Produces（ブロックの script が Archon と出入りする口はこれだけ）:
-  - `boundary.inputs(names: list[str]) -> dict[str, str]`（Archon が script に渡す入力を読む。足りない名は `KeyError` に名を入れる）
+- Produces（ブロックの script が Archon と出入りする口はこれだけ。入力だけは口を通さず、script が `os.environ["INPUTS_<名>"]` を字のまま読む）:
   - `boundary.returns(obj: dict) -> None`（JSON を標準出力に 1 つ書く。型は Archon が節の `output_format` で照らすので、ここでは照らさない）
-  - `boundary.pointer(rel: str) -> dict`（`{type: "archon_artifact", run_id, path}`。ファイルが無い・空・置き場の外なら `ValueError`）
-  - `boundary.resolve(ptr: dict) -> Path`（同じ run の物だけ。違えば `ValueError`）
+  - `boundary.pointer(rel: str) -> dict`（`{type: "archon_artifact", run_id, path}` の形を組むだけ。先が在る・空でない・置き場の中かは、返りに入った札を Archon が節の終わりに照らす）
+  - `boundary.resolve(ptr: dict) -> Path`（同じ run の物で、パスが置き場からの相対の物だけ。違えば、また空のパスや NUL を含むパスなら `ValueError`）
   - `boundary.lib_root() -> Path`（`lib/` の置き場。決め方は段 1 の未決 U5。段 0 はリポジトリの中の `lib/` を返す）
 
 - [ ] **Step 1: 試験を書く**（偽の一覧のファイルと環境で）
-  - `test_pointer_refuses_empty_file`・`test_pointer_refuses_outside`・`test_resolve_refuses_other_run`
+  - `test_pointer_names_this_run`・`test_resolve_refuses_other_run`・`test_resolve_refuses_bad_path`（空のパス・NUL を含むパス・置き場の外）
   - `test_returns_writes_one_json`: 標準出力が JSON 1 つちょうど
 - [ ] **Step 2: 赤**: `python3 -m unittest tests.shared.test_boundary -v`
 - [ ] **Step 3: 実装**

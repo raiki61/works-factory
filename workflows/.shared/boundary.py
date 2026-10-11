@@ -2,8 +2,9 @@
 
 Archon v0.11.1 が script の節に渡す物（packages/workflows/src/exec-environment.ts・schemas/dag-node.ts の inputEnvKey）:
 入力は環境変数 INPUTS_<UPPER_SNAKE>、run の id は WORKFLOW_ID、run の成果物の置き場は ARTIFACTS_DIR。
-指し札の決まりは Archon の artifact-pointer.ts に合わせる。Archon は返りに入った指し札を節の終わりに照らすので、
-ここではそれより先に、名前つきの誤りで止める。
+入力は口を通さず、script が os.environ["INPUTS_<名>"] を字のまま読む（Archon は工程の読み込みで script の字を走査して宣言の無い入力を拒むので、組み立てた名はその走査に見えない）。
+指し札の決まりは Archon の artifact-pointer.ts に合わせる。返りに入った指し札の先（在る・空でない・置き場の中）は Archon が節の終わりに照らすので、
+ここでは札の形を組むだけにする。
 """
 import json
 import os
@@ -13,17 +14,6 @@ from pathlib import Path
 POINTER_TYPE = "archon_artifact"
 
 
-def inputs(names: list[str]) -> dict[str, str]:
-    """節の入力を名で読む。足りない名は KeyError に名を入れる"""
-    values = {}
-    for name in names:
-        key = "INPUTS_" + name.replace("-", "_").upper()
-        if key not in os.environ:
-            raise KeyError(f"入力 {name} が無い（環境変数 {key}）")
-        values[name] = os.environ[key]
-    return values
-
-
 def returns(obj: dict) -> None:
     """節の返りを JSON 1 つで標準出力に書く。型は Archon が節の output_format で照らす。
     Archon は JSON.parse で読むので、NaN・Infinity は ValueError で止める"""
@@ -31,12 +21,7 @@ def returns(obj: dict) -> None:
 
 
 def pointer(rel: str) -> dict:
-    """この run の置き場の中の、在って空でない普通のファイルを指す札を作る"""
-    path = _inside_artifacts(rel)
-    if not path.is_file():
-        raise ValueError(f"指し札の先が普通のファイルでない（無いかフォルダ）: {rel}")
-    if path.stat().st_size == 0:
-        raise ValueError(f"指し札の先が空のファイル: {rel}")
+    """この run の置き場からの相対パス rel を指す札を作る"""
     return {"type": POINTER_TYPE, "run_id": _run_id(), "path": rel}
 
 
