@@ -3842,7 +3842,7 @@ def verdict(jdir, rdir, repo, objection: str, ptr) -> dict:
     purpose = jdir / PURPOSE_FILE
     if not purpose.is_file():
         purpose = _fill(here / PURPOSE_FILE, EMPTY_PURPOSE)
-    world = jdir / WORLD_FILE if (jdir / WORLD_FILE).is_file() and worldmark.stage_rows(jdir) is not None else None
+    world = jdir / WORLD_FILE if (jdir / WORLD_FILE).is_file() and worldmark.stage_rows(jdir) else None   # 行の無い段は空のファイル
     spec = jdir / SPEC_FILE if (jdir / SPEC_FILE).is_file() else None
     outside = jdir / OUT_OF_PURPOSE_FILE if (jdir / OUT_OF_PURPOSE_FILE).is_file() else None
 
