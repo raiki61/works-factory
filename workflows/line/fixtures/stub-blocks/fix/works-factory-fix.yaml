@@ -17,9 +17,9 @@ nodes:
       # judgment=$INPUTS.judgment
       # world=$INPUTS.world
       # plan=$INPUTS.plan
+      # answers=$INPUTS.answers
       # ripple=$INPUTS.ripple
       # depth=$INPUTS.depth
-      # answers=$INPUTS.answers
     runtime: uv
     timeout: 1728000000
 

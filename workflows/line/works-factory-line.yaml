@@ -478,7 +478,7 @@ nodes:
       plan: "$replan.output.plan"
       ripple: "$replan.output.ripple"
       depth: "$replan.output.depth"
-      answers: "$answer-replan.output.answer"
+      answers: "$answer-before-fix.output.answer"
       only_items: "$fix.output.replan_items"
 
   - id: fixed
