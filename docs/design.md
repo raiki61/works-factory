@@ -71,7 +71,7 @@ flowchart TB
 
 版の止めの正本。ただし Archon の版は書かない。
 
-- Archon の版: ASF の取り付け命令が置いた `factory/pack.json` の `repository`・`integration_revision_required`（40 字の hash）・`source_directory`（源の中の ASF の工程のフォルダ）が正本。ASF の consumer が照らすのと同じ値を `bin/_lib/pack.py` の `load` が読み、`archon.repo`・`archon.commit`・`asf.folder` として渡す。ASF が版を進めれば、自分の工程を回す Archon も同じ版になる（持ち主の決め `archon-same-as-asf`）。Archon の本体と ASF の工程の両方をこの源から取る。
+- Archon の版: ASF の取り付け命令が置いた `factory/pack.json` の `repository`・`integration_revision_required`（40 字の hash）・`source_directory`（源の中の ASF の工程のフォルダ）が正本。`bin/_lib/pack.py` の `load` がこれを読み、`archon.repo`・`archon.commit`・`asf.folder` として渡す。ASF の取り付け命令が `factory/pack.json` の版を進めれば、自分の工程を回す Archon も同じ版になる（持ち主の決め `archon-same-as-asf`）。Archon の本体と ASF の工程の両方をこの源から取る。ただし ASF の consumer（`factory/consumer.py`）が走らせて照らすのはこの値ではなく、`factory init --revision` が `.factory/consumer.json`（git に入れない）に書いた `revision` で、2 つを照らし合わせる物は無い。2026-10-11 にはどちらも `d97d00ef`。
 - `asf`: `committed_here: false` は、ASF の工程をこのリポジトリに入れないこと（LICENSE が無い）。
 - `ours`: 自分の工程のフォルダ・名の頭（`works-factory-`）・線の名。
 
@@ -520,20 +520,20 @@ flowchart TB
 
 ## Archon の分かっていること
 
-2026-10-11 に公開版 v0.11.1 の binary とソースを読み、手元で確かめた事実。同じ日に `factory/pack.json` の `integration_revision_required`（`d97d00ef`）の源で読み直した物は、その旨と在り処を書く。
+2026-10-11 に公開版 v0.11.1 の binary とソースを読み、手元で確かめた事実。同じ日に、どの項目も `factory/pack.json` の `integration_revision_required`（`d97d00ef`）の源で読み直し、在り処を書いた（パスは源の `packages/workflows/src/` からの相対。`cli.ts` は `packages/cli/src/`、文書は `packages/docs-web/src/content/docs/` から）。
 
-- `include:` は読み込みの時に展開され、子の節の id は `<include の id>__<子の id>` になる。
-- `returns:` は 1 つの節の出力を `$<include の id>.output` として見せる。
-- 型つきの成果物は、節の id と繰り返しの道（`loopGroupPath`）で鍵が付き、`$TYPED_ARTIFACTS_FILE` の一覧（`{runId, artifactsByType, errors}`）で引く。
-- `loop:` の出力は最後の回の出力。
+- `include:` は読み込みの時に展開され、子の節の id は `<include の id>__<子の id>` になる（`include-expander.ts` 1-9 行）。
+- `returns:` は 1 つの節の出力を `$<include の id>.output` として見せる。書かなければ定義の順で最初の終わりの節（`include-expander.ts` 14-19 行・857 行）。
+- 型つきの成果物は、節の id と繰り返しの道（`loopGroupPath`）で鍵が付き、`$TYPED_ARTIFACTS_FILE` の一覧（`{runId, artifactsByType, errors}`）で引く（`artifacts-index.ts` 44-57 行・366-377 行）。
+- `loop:` の出力は最後の回の出力。`output_format` を書いた `loop:` では、それが照らした JSON になる（`dag-executor.ts` 5322 行の `executeLoopNode` の `lastIterationOutput`・文書 `guides/loop-nodes.md` 338-341 行）。
 - `if_skipped` は include の入力を通して運べない（埋め P2）。
-- 指し札は同じ run の中だけ。パスは相対で、在って空でない普通のファイルだけ。
+- 指し札は同じ run の中だけ。パスは相対で、在って空でない普通のファイルだけ（`artifact-pointer.ts` 15-20 行・101 行・146-153 行）。
 - `script:` の節の `output_format` は標準出力の約束で、Archon が照らす（`d97d00ef` の文書 `guides/script-nodes.md` 124 行「JSON Schema the node's stdout must satisfy」）。だからブロックの返りの型を自前で照らす口は要らない。
-- `fan_out:` の子が承認の関所で止まると、その子は取り消される。関所は fan_out の前か後に置く。
+- `workflow:` の `fan_out:` の子が承認の関所で止まると、その子は取り消される（親は関所を 1 つしか持てない。関所を外して resume すればその子からやり直す。`dag-executor.ts` 7716-7719 行・7771-7790 行）。`include:` の `fan_out:` の中の関所と待ちは、読み込みの時に誤りになる（`include-expander.ts` 1148-1157 行）。関所は fan_out の前か後に置く。
 - 持ち主の居ない `running` の run は `resume` できない（埋め P1）。
-- 待ちは持ちこたえる（0.10.0 から）。`wait:` の節と承認の節の待ちは DB が持ち、process が再起動しても消えない（CHANGELOG [0.10.0]「The database owns suspension and resume claims, so process restarts … cannot reset a wait」）。server は期限の来た run を再開する。だから CI と人の長い待ちは `wait:` の節と承認の節で書く。
-- `include:` の節に `fan_out:` を書ける（0.10.0、PR #2512・#2795）。「Load time resolves and validates the full static block…; runtime decides only its width」。並べの数に上限を付けられ、結果は入力の順に `$<id>.output` に集まる。
-- `workflow:` の節に `fan_out:` を書くと、項目ごとに自分の run（「its own row, artifacts, cost line and gates」）を持つ子が起きる。
+- 待ちは持ちこたえる（0.10.0 から）。`wait:` の節と承認の節の待ちは DB が持ち、process が再起動しても消えない（CHANGELOG [0.10.0]「The database owns suspension and resume claims, so process restarts … cannot reset a wait」）。server は期限の来た run を再開する（`d97d00ef` の CHANGELOG 244 行）。だから CI と人の長い待ちは `wait:` の節と承認の節で書く。
+- `include:` の節に `fan_out:` を書ける（0.10.0、PR #2512・#2795）。「Load time resolves and validates the full static block…; runtime decides only its width」。並べの数に上限を付けられ、結果は入力の順に `$<id>.output` に集まる（`d97d00ef` の CHANGELOG 246 行）。
+- `workflow:` の節に `fan_out:` を書くと、項目ごとに自分の run（「its own row, artifacts, cost line and gates」）を持つ子が起きる（同じ 246 行）。
 - `$ARCHON_HOME/workflows` の工程は同じ名の同梱の工程を上書きし、`--workflow-source`（か `--cwd`）の `.archon/workflows/` の工程は両方を上書きする（`d97d00ef` の `workflow-discovery.ts` 1158-1186 行）。v0.11.1 で家に置いた ASF の束は 40 本が並び、`archon-merge-queue` は script のパスの警告を 2 つ出した。ASF の工程を走らせたことはまだ無い。
 - `--workflow-source <置き場>` は `<置き場>/.archon/workflows/` を読む。その場所が symlink でも辿り、1 段下のフォルダまで探し、`fixtures/` は飛ばす（`d97d00ef` の `cli.ts` 805-825 行・`workflow-source.ts` 500-507 行・`command-validation.ts` 23 行・`workflow-discovery.ts` 216 行）。`--resume`・`--container` とは一緒に使えない。`archon validate workflows` は `--workflow-source` を受けず黙って捨て、`--cwd` は git の木しか受けない（`cli.ts` 500-575 行）。だから確かめる時は `.archon/workflows` が `workflows/` を指す使い捨ての git の木を `--cwd` に渡す（2026-10-11 に手元で通した）。`workflow run --dry-run` は git の木でなくても `--workflow-source` で読む。
 - 作りの規則は Archon の源の `.archon/workflow-language-constitution.md`（「YAML coordinates. Code computes. Agents judge.」。`d97d00ef` でも同じ）。

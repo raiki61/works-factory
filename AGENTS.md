@@ -65,7 +65,7 @@ works-factory/
 │   ├── archon-polyfills.md      埋めの名簿
 │   └── plans/                   実装の計画
 ├── .github/workflows/tests.yml  CI。check の名は tests
-├── pack.json                    版の止め（Archon・ASF）
+├── pack.json                    版の止め（Archon の版は factory/pack.json）
 ├── pyproject.toml               Python の依存の宣言（1 か所。持ち主の決め overnight-speed）
 ├── .gitignore
 ├── pyproject.toml               外のパッケージの宣言（1 か所。lib/AGENTS.md の E3）

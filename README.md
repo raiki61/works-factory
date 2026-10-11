@@ -29,7 +29,7 @@ GitHub の About: A dev factory on Archon that turns a fix request into a verifi
 
 ここに書くコマンドはまだ無い。作りの順は `docs/design.md`。
 
-1. 入れる: このリポジトリを clone する。`bin/` が `pack.json` で止めた版の Archon と ASF を取って置く。
+1. 入れる: このリポジトリを clone し、`bun` を入れる。`bin/` が ASF の止め（`factory/pack.json`）の版の Archon の源を取り、そこから起こす。工程は Archon の家に置かない。
 2. 始める: `bin/start <対象のリポジトリ> <依頼の文か issue の番号>`。
 3. 答える: 関所で止まったら `bin/answer <run>` で答える。
 4. 見る: `bin/show <run>` で今どこか・報告・人への問いを見る。
@@ -82,4 +82,4 @@ AI 向けの決まりは各階層の `AGENTS.md`（根の物から辿る）、�
 
 ## 今の状態
 
-作っている途中。今あるのは設計の文書・`pack.json`（Archon と ASF の版の止め）・CI・ASF の取り付け命令が置いた物で、この工場の動くコードはまだ無い。土台は ASF に作らせている。修正の工場として今使えるのは、今の works（raiki61/claude-plugins の works プラグイン）。作りの順と進みは `docs/design.md` の「作りの順」。
+作っている途中。今あるのは設計の文書・`pack.json`（版の止め。Archon の版は ASF の止め `factory/pack.json`）・CI・ASF の取り付け命令が置いた物で、この工場の動くコードはまだ無い。土台は ASF に作らせている。修正の工場として今使えるのは、今の works（raiki61/claude-plugins の works プラグイン）。作りの順と進みは `docs/design.md` の「作りの順」。
