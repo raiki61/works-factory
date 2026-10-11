@@ -1,0 +1,2087 @@
+name: works-factory-judge
+description: '判定のブロック（線が include で差し込む部品。単独の run には使わない）。依頼を根本の単位にまとめる: 前提の実測・目的の固定・定石（世界の解）・並行 PR とのぶつかり・素材集め 11 本・根本の診断と受け付け・判定の裏取り・再審・目的の外の所見の持ち越し。始めの記録が仕様の段を選んだ run は、仕様を書いて審査し、仕様の関所の承認の後に受け入れテストを固める'
+interactive: true
+inputs:
+  start: {default: 'null', description: 始めの記録の指し札（JSON の字。線の $start.output.record）}
+  baseline: {default: 'null', description: 直す前の結末の指し札（JSON の字。線の $test-gate-base.output.baseline）}
+  objection: {default: '', description: 修正役の異議（線の $fix.output.objection）。空でなければ再審の道}
+  prior_failures: {default: 'null', description: 前の run の持ち越しの前の失敗の行の指し札（JSON の字。今の works の prior-failures-in.json）。約束に無い入力}
+returns: verdict
+outcome_field: ready
+nodes:
+  - id: intake
+    script: intake
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, mode, spec, world, verify, reason]
+      properties:
+        go: {type: boolean}
+        mode:
+          type: string
+          enum: [judge, rejudge]
+        spec: {type: boolean}
+        world: {type: boolean}
+        verify: {type: boolean}
+        reason: {type: string}
+  - id: spec-loop
+    depends_on: [intake]
+    when: $intake.output.spec == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: true
+      until_bash: done=$spec-accept.output.done; test "$done" = true
+      nodes:
+        - id: spec
+          command: spec
+          model: opus
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [requirements, acceptance, out_of_scope]
+            properties:
+              requirements:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, text]
+                  properties:
+                    key: {type: string, minLength: 1}
+                    text: {type: string, minLength: 4}
+              acceptance:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, requirement, file, name, run]
+                  properties:
+                    key: {type: string, minLength: 1}
+                    requirement: {type: string, minLength: 1}
+                    file: {type: string, minLength: 1}
+                    name: {type: string, minLength: 1}
+                    run: {type: string, minLength: 1}
+              out_of_scope:
+                type: array
+                items: {type: string}
+        - id: spec-accept
+          script: spec_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [spec]
+          with: {role: write, reply: $spec.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason, revise]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+              revise: {type: boolean}
+  - id: spec-review-loop
+    depends_on: [spec-loop]
+    when: $spec-loop.output.ok == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: true
+      until_bash: done=$spec-review-accept.output.done; test "$done" = true
+      nodes:
+        - id: spec-review
+          command: spec-review
+          model: opus
+          effort: high
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [faces, reason]
+            properties:
+              faces:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, kind, where, why]
+                  properties:
+                    key: {type: string, minLength: 2}
+                    kind:
+                      type: string
+                      enum: [missing, ambiguous, out_of_scope]
+                    where: {type: string, minLength: 1}
+                    why: {type: string, minLength: 20}
+              faces_none: {type: string}
+              reason: {type: string, minLength: 20}
+        - id: spec-review-accept
+          script: spec_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [spec-review]
+          with: {role: review, reply: $spec-review.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason, revise]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+              revise: {type: boolean}
+  - id: spec-revise-loop
+    depends_on: [spec-review-loop]
+    when: $spec-review-loop.output.revise == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: true
+      until_bash: done=$spec-revise-accept.output.done; test "$done" = true
+      nodes:
+        - id: spec-revise
+          command: spec-revise
+          model: opus
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [spec, handled]
+            properties:
+              spec:
+                type: object
+                additionalProperties: false
+                required: [requirements, acceptance, out_of_scope]
+                properties:
+                  requirements:
+                    type: array
+                    minItems: 1
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [key, text]
+                      properties:
+                        key: {type: string, minLength: 1}
+                        text: {type: string, minLength: 4}
+                  acceptance:
+                    type: array
+                    minItems: 1
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [key, requirement, file, name, run]
+                      properties:
+                        key: {type: string, minLength: 1}
+                        requirement: {type: string, minLength: 1}
+                        file: {type: string, minLength: 1}
+                        name: {type: string, minLength: 1}
+                        run: {type: string, minLength: 1}
+                  out_of_scope:
+                    type: array
+                    items: {type: string}
+              handled:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [key, handled, how]
+                  properties:
+                    key: {type: string, minLength: 2}
+                    handled:
+                      type: string
+                      enum: [absorbed, declared]
+                    how: {type: string, minLength: 20}
+        - id: spec-revise-accept
+          script: spec_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [spec-revise]
+          with: {role: revise, reply: $spec-revise.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason, revise]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+              revise: {type: boolean}
+  - id: spec-ask
+    script: spec_ask
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [intake, spec-loop, spec-review-loop, spec-revise-loop]
+    trigger_rule: all_done
+    when: $intake.output.spec == true
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ask, message]
+      properties:
+        ask: {type: boolean}
+        message: {type: string}
+  - id: spec-gate
+    depends_on: [spec-ask]
+    when: $spec-ask.output.ask == true
+    idle_timeout: 1728000000
+    approval:
+      message: $spec-ask.output.message
+      decisions:
+        - {id: approve}
+        - {id: continue}
+        - {id: stop}
+        - {id: reject}
+  - id: spec-freeze
+    script: spec_freeze
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [spec-ask, spec-gate]
+    trigger_rule: all_done
+    when: $intake.output.spec == true
+    with:
+      answer: {from: $spec-gate.output, if_skipped: null}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, reason]
+      properties:
+        go: {type: boolean}
+        reason: {type: string}
+  - id: pr-scan
+    script: pr_check
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [intake, spec-freeze]
+    trigger_rule: all_done
+    when: $intake.output.go == true && $intake.output.mode == 'judge'
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, go_role, reason]
+      properties:
+        go: {type: boolean}
+        go_role: {type: boolean}
+        reason: {type: string}
+  - id: pr-check-loop
+    depends_on: [pr-scan]
+    when: $pr-scan.output.go_role == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$pr-check-accept.output.done; test "$done" = true
+      nodes:
+        - id: pr-check
+          command: pr-check
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            excludedCommands: ['works-gh:*']
+            network:
+              allowedDomains: []
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [material, repo, listed, truncated, conflicts, excluded]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              repo: {type: string}
+              listed: {type: integer, minimum: 0}
+              truncated: {type: boolean}
+              conflicts:
+                type: array
+                items:
+                  type: object
+                  required: [pr, files, handed_over]
+                  additionalProperties: false
+                  properties:
+                    pr: {type: string}
+                    files:
+                      type: array
+                      items: {type: string}
+                    handed_over: {type: boolean}
+                    note: {type: string}
+              excluded:
+                type: array
+                items:
+                  type: object
+                  required: [pr, file, start, end, why]
+                  additionalProperties: false
+                  properties:
+                    pr: {type: string, minLength: 1}
+                    file: {type: string, minLength: 1}
+                    start: {type: integer, minimum: 1}
+                    end: {type: integer, minimum: 1}
+                    why: {type: string, minLength: 1}
+        - id: pr-check-accept
+          script: pr_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [pr-check]
+          with: {reply: $pr-check.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: premises-loop
+    depends_on: [pr-scan, pr-check-loop]
+    trigger_rule: none_failed_min_one_success
+    when: $pr-scan.output.go == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$premises-accept.output.done; test "$done" = true
+      nodes:
+        - id: premises
+          command: premises
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [constraints]
+            additionalProperties: false
+            properties:
+              constraints:
+                type: array
+                items:
+                  type: object
+                  required: [text, measured_how, kind]
+                  additionalProperties: false
+                  properties:
+                    text: {type: string}
+                    measured_how: {type: string}
+                    kind:
+                      type: string
+                      enum: [実測, 仮説]
+                    measured_output: {type: string, minLength: 1}
+        - id: premises-accept
+          script: premises_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [premises]
+          with: {reply: $premises.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: purpose-prep
+    script: purpose_prep
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [premises-loop]
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, brief_file, reason]
+      properties:
+        go: {type: boolean}
+        brief_file: {type: string}
+        reason: {type: string}
+  - id: purpose-loop
+    depends_on: [purpose-prep]
+    when: $purpose-prep.output.go == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$purpose-accept.output.done; test "$done" = true
+      nodes:
+        - id: purpose
+          command: purpose
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [purpose_text, source, known_weaknesses, source_files]
+            additionalProperties: false
+            properties:
+              purpose_text: {type: string, minLength: 1}
+              source:
+                type: string
+                enum: [①PR 説明, ②計画・タスク記述, ③writer の要約, 目的不明]
+              known_weaknesses:
+                type: array
+                items: {type: string}
+              source_files:
+                type: array
+                items: {type: string}
+              means:
+                type: array
+                items: {type: string, minLength: 1}
+        - id: purpose-accept
+          script: purpose_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [purpose]
+          with: {reply: $purpose.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: world-intake
+    script: world_intake
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [purpose-loop]
+    when: $intake.output.world == true
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, prompt, reason]
+      properties:
+        due: {type: boolean}
+        prompt: {type: string}
+        reason: {type: string}
+  - id: world-classes-loop
+    depends_on: [world-intake]
+    when: $world-intake.output.due == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$world-classes-accept.output.done; test "$done" = true
+      nodes:
+        - id: world-classes
+          command: world-classes
+          model: opus
+          effort: high
+          settingSources: [user]
+          allowed_tools: []
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [classes]
+            additionalProperties: false
+            properties:
+              classes:
+                type: array
+                items:
+                  type: object
+                  required: [finding, problem, activity, proposed, queries]
+                  additionalProperties: false
+                  properties:
+                    finding: {type: integer, minimum: 1}
+                    problem: {type: string, minLength: 1}
+                    activity: {type: string, minLength: 1}
+                    proposed: {type: string}
+                    queries:
+                      type: array
+                      items: {type: string}
+        - id: world-classes-accept
+          script: world_classes_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [world-classes]
+          with: {reply: $world-classes.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: world-plan
+    script: world_plan
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [world-intake, world-classes-loop]
+    trigger_rule: all_done
+    when: $intake.output.world == true
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, prompt, reason]
+      properties:
+        due: {type: boolean}
+        prompt: {type: string}
+        reason: {type: string}
+  - id: world-judge-loop
+    depends_on: [world-plan]
+    when: $world-plan.output.due == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$world-judge-accept.output.done; test "$done" = true
+      nodes:
+        - id: world-judge
+          command: world-judge
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [WebSearch, WebFetch]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [rows, excerpts]
+            additionalProperties: false
+            properties:
+              rows:
+                type: array
+                items:
+                  type: object
+                  required: [finding, practice, sources, applies, not_applies, verdict, challenge]
+                  additionalProperties: false
+                  properties:
+                    finding: {type: integer, minimum: 1}
+                    practice: {type: string, minLength: 1}
+                    sources:
+                      type: array
+                      items: {type: string}
+                    applies: {type: string}
+                    not_applies: {type: string}
+                    verdict:
+                      type: string
+                      enum: [same, differs, none]
+                    challenge: {type: string}
+              excerpts:
+                type: array
+                items:
+                  type: object
+                  required: [id, url, excerpt]
+                  additionalProperties: false
+                  properties:
+                    id: {type: string}
+                    url: {type: string}
+                    excerpt: {type: string}
+        - id: world-judge-accept
+          script: world_judge_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [world-judge]
+          with: {reply: $world-judge.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: world-finish
+    script: world_finish
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [world-plan, world-judge-loop]
+    trigger_rule: all_done
+    when: $intake.output.world == true
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, failed]
+        reason: {type: string}
+  - id: material-route
+    script: material_route
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [purpose-loop, world-finish]
+    trigger_rule: none_failed_min_one_success
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [prior_decisions, purpose_review, local_review, consistency_bypass, hygiene, external_standards, procedure_trace, gate_efficacy, test_double_fidelity, main_path_observation, provenance,
+        reason]
+      properties:
+        prior_decisions: {type: boolean}
+        purpose_review: {type: boolean}
+        local_review: {type: boolean}
+        consistency_bypass: {type: boolean}
+        hygiene: {type: boolean}
+        external_standards: {type: boolean}
+        procedure_trace: {type: boolean}
+        gate_efficacy: {type: boolean}
+        test_double_fidelity: {type: boolean}
+        main_path_observation: {type: boolean}
+        provenance: {type: boolean}
+        reason: {type: string}
+  - id: prior-decisions-loop
+    depends_on: [material-route]
+    when: $material-route.output.prior_decisions == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$prior-decisions-accept.output.done; test "$done" = true
+      nodes:
+        - id: prior-decisions-prep
+          script: material_prep
+          runtime: uv
+          timeout: 1728000000
+          with: {role: prior-decisions}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [brief_file, brief, review_md, repo_review_md]
+            properties:
+              brief_file: {type: string}
+              brief: {type: string}
+              review_md: {type: string}
+              repo_review_md: {type: string}
+        - id: prior-decisions
+          command: material-prior-decisions
+          depends_on: [prior-decisions-prep]
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            excludedCommands: ['works-gh:*']
+            network:
+              allowedDomains: []
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [material, checked, searched, settled]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              checked: {type: boolean}
+              searched:
+                type: array
+                items: {type: string}
+              settled:
+                type: array
+                items:
+                  type: object
+                  required: [topic, decision, reason, revisit]
+                  additionalProperties: false
+                  properties:
+                    topic: {type: string}
+                    decision: {type: string}
+                    reason: {type: string}
+                    revisit: {type: string}
+                    where: {type: string}
+        - id: prior-decisions-accept
+          script: material_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [prior-decisions]
+          with: {role: prior-decisions, reply: $prior-decisions.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: purpose-review-loop
+    depends_on: [material-route]
+    when: $material-route.output.purpose_review == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$purpose-review-accept.output.done; test "$done" = true
+      nodes:
+        - id: purpose-review-prep
+          script: material_prep
+          runtime: uv
+          timeout: 1728000000
+          with: {role: purpose-review}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [brief_file, brief, review_md, repo_review_md]
+            properties:
+              brief_file: {type: string}
+              brief: {type: string}
+              review_md: {type: string}
+              repo_review_md: {type: string}
+        - id: purpose-review
+          command: material-purpose-review
+          depends_on: [purpose-review-prep]
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [verdict, reason, findings]
+            additionalProperties: false
+            properties:
+              verdict:
+                type: string
+                enum: [問題なし, 狭めている]
+              reason: {type: string}
+              findings:
+                type: array
+                items:
+                  type: object
+                  required: [text, cite, hits]
+                  additionalProperties: false
+                  properties:
+                    text: {type: string, minLength: 1}
+                    cite: {type: string, minLength: 1}
+                    hits: {type: integer, minimum: 0}
+        - id: purpose-review-accept
+          script: material_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [purpose-review]
+          with: {role: purpose-review, reply: $purpose-review.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: local-review-loop
+    depends_on: [material-route]
+    when: $material-route.output.local_review == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$local-review-accept.output.done; test "$done" = true
+      nodes:
+        - id: local-review-prep
+          script: material_prep
+          runtime: uv
+          timeout: 1728000000
+          with: {role: local-review}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [brief_file, brief, review_md, repo_review_md]
+            properties:
+              brief_file: {type: string}
+              brief: {type: string}
+              review_md: {type: string}
+              repo_review_md: {type: string}
+        - id: local-review
+          command: material-local-review
+          depends_on: [local-review-prep]
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill, Agent]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            excludedCommands: ['works-gh:*']
+            network:
+              allowedDomains: []
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [material, findings, simplify_carried]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              simplify_carried: {type: boolean}
+              findings:
+                type: array
+                items:
+                  type: object
+                  required: [skill, items]
+                  additionalProperties: false
+                  properties:
+                    skill: {type: string}
+                    items:
+                      type: array
+                      items:
+                        type: object
+                        required: [where, text]
+                        additionalProperties: false
+                        properties:
+                          where: {type: string}
+                          text: {type: string}
+                          mechanism: {type: string}
+                          measured: {type: string}
+                          false_positive_if: {type: string}
+                    invoked: {type: boolean}
+                    failed: {type: string}
+        - id: local-review-accept
+          script: material_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [local-review]
+          with: {role: local-review, reply: $local-review.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: consistency-bypass-loop
+    depends_on: [material-route]
+    when: $material-route.output.consistency_bypass == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$consistency-bypass-accept.output.done; test "$done" = true
+      nodes:
+        - id: consistency-bypass-prep
+          script: material_prep
+          runtime: uv
+          timeout: 1728000000
+          with: {role: consistency-bypass}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [brief_file, brief, review_md, repo_review_md]
+            properties:
+              brief_file: {type: string}
+              brief: {type: string}
+              review_md: {type: string}
+              repo_review_md: {type: string}
+        - id: consistency-bypass
+          command: material-consistency-bypass
+          depends_on: [consistency-bypass-prep]
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [consistency, bypass, findings, bypass_findings, seen, unseen]
+            additionalProperties: false
+            properties:
+              consistency:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              bypass:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              findings:
+                type: array
+                items:
+                  type: object
+                  required: [where, text]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string}
+                    text: {type: string}
+                    mechanism: {type: string}
+                    measured: {type: string}
+                    false_positive_if: {type: string}
+              bypass_findings:
+                type: array
+                items:
+                  type: object
+                  required: [where, text]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string}
+                    text: {type: string}
+                    mechanism: {type: string}
+                    measured: {type: string}
+                    false_positive_if: {type: string}
+              seen: {type: string}
+              unseen: {type: string}
+        - id: consistency-bypass-accept
+          script: material_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [consistency-bypass]
+          with: {role: consistency-bypass, reply: $consistency-bypass.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: hygiene-loop
+    depends_on: [material-route]
+    when: $material-route.output.hygiene == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$hygiene-accept.output.done; test "$done" = true
+      nodes:
+        - id: hygiene-prep
+          script: material_prep
+          runtime: uv
+          timeout: 1728000000
+          with: {role: hygiene}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [brief_file, brief, review_md, repo_review_md]
+            properties:
+              brief_file: {type: string}
+              brief: {type: string}
+              review_md: {type: string}
+              repo_review_md: {type: string}
+        - id: hygiene
+          command: material-hygiene
+          depends_on: [hygiene-prep]
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: []
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [findings, seen]
+            additionalProperties: false
+            properties:
+              findings:
+                type: array
+                items:
+                  type: object
+                  required: [where, text]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string}
+                    text: {type: string}
+                    mechanism: {type: string}
+                    measured: {type: string}
+                    false_positive_if: {type: string}
+              seen: {type: string}
+        - id: hygiene-accept
+          script: material_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [hygiene]
+          with: {role: hygiene, reply: $hygiene.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: external-standards-loop
+    depends_on: [material-route]
+    when: $material-route.output.external_standards == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$external-standards-accept.output.done; test "$done" = true
+      nodes:
+        - id: external-standards-prep
+          script: material_prep
+          runtime: uv
+          timeout: 1728000000
+          with: {role: external-standards}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [brief_file, brief, review_md, repo_review_md]
+            properties:
+              brief_file: {type: string}
+              brief: {type: string}
+              review_md: {type: string}
+              repo_review_md: {type: string}
+        - id: external-standards
+          command: material-external-standards
+          depends_on: [external-standards-prep]
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            excludedCommands: ['works-gh:*']
+            network:
+              allowedDomains: []
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [material, findings, seen, unseen, web_refetched, rankings]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              findings:
+                type: array
+                items:
+                  type: object
+                  required: [where, text]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string}
+                    text: {type: string}
+                    mechanism: {type: string}
+                    measured: {type: string}
+                    false_positive_if: {type: string}
+              seen: {type: string}
+              unseen: {type: string}
+              web_refetched: {type: boolean}
+              rankings:
+                type: array
+                items:
+                  type: object
+                  required: [problem, source, ranked, diff_at]
+                  additionalProperties: false
+                  properties:
+                    problem: {type: string, minLength: 4}
+                    source: {type: string, minLength: 4}
+                    ranked:
+                      type: array
+                      minItems: 1
+                      items: {type: string, minLength: 1}
+                    diff_at: {type: string, minLength: 1}
+                    why_not_higher: {type: string}
+              rankings_none: {type: string}
+        - id: external-standards-accept
+          script: material_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [external-standards]
+          with: {role: external-standards, reply: $external-standards.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: procedure-trace-loop
+    depends_on: [material-route]
+    when: $material-route.output.procedure_trace == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$procedure-trace-accept.output.done; test "$done" = true
+      nodes:
+        - id: procedure-trace-prep
+          script: material_prep
+          runtime: uv
+          timeout: 1728000000
+          with: {role: procedure-trace}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [brief_file, brief, review_md, repo_review_md]
+            properties:
+              brief_file: {type: string}
+              brief: {type: string}
+              review_md: {type: string}
+              repo_review_md: {type: string}
+        - id: procedure-trace
+          command: material-procedure-trace
+          depends_on: [procedure-trace-prep]
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            excludedCommands: ['works-gh:*']
+            network:
+              allowedDomains: []
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [material, findings, unmeasured]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              findings:
+                type: array
+                items:
+                  type: object
+                  required: [where, text]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string}
+                    text: {type: string}
+                    mechanism: {type: string}
+                    measured: {type: string}
+                    false_positive_if: {type: string}
+              unmeasured:
+                type: array
+                items: {type: string}
+        - id: procedure-trace-accept
+          script: material_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [procedure-trace]
+          with: {role: procedure-trace, reply: $procedure-trace.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: gate-efficacy-loop
+    depends_on: [material-route]
+    when: $material-route.output.gate_efficacy == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$gate-efficacy-accept.output.done; test "$done" = true
+      nodes:
+        - id: gate-efficacy-prep
+          script: material_prep
+          runtime: uv
+          timeout: 1728000000
+          with: {role: gate-efficacy}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [brief_file, brief, review_md, repo_review_md]
+            properties:
+              brief_file: {type: string}
+              brief: {type: string}
+              review_md: {type: string}
+              repo_review_md: {type: string}
+        - id: gate-efficacy
+          command: material-gate-efficacy
+          depends_on: [gate-efficacy-prep]
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            enableWeakerNetworkIsolation: true
+            network:
+              allowedDomains: ['*']
+              allowLocalBinding: true
+            filesystem:
+              allowWrite: [/]
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [material, arms]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              arms:
+                type: array
+                items:
+                  type: object
+                  required: [gate, arm, red_confirmed, control_green, hit_evidence]
+                  additionalProperties: false
+                  properties:
+                    gate: {type: string}
+                    arm: {type: string}
+                    red_confirmed: {type: boolean}
+                    control_green: {type: boolean}
+                    note: {type: string}
+                    hit_evidence: {type: string}
+        - id: gate-efficacy-accept
+          script: material_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [gate-efficacy]
+          with: {role: gate-efficacy, reply: $gate-efficacy.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: test-double-fidelity-loop
+    depends_on: [material-route]
+    when: $material-route.output.test_double_fidelity == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$test-double-fidelity-accept.output.done; test "$done" = true
+      nodes:
+        - id: test-double-fidelity-prep
+          script: material_prep
+          runtime: uv
+          timeout: 1728000000
+          with: {role: test-double-fidelity}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [brief_file, brief, review_md, repo_review_md]
+            properties:
+              brief_file: {type: string}
+              brief: {type: string}
+              review_md: {type: string}
+              repo_review_md: {type: string}
+        - id: test-double-fidelity
+          command: material-test-double-fidelity
+          depends_on: [test-double-fidelity-prep]
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            enableWeakerNetworkIsolation: true
+            network:
+              allowedDomains: ['*']
+              allowLocalBinding: true
+            filesystem:
+              allowWrite: [/]
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [material, mismatches]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              mismatches:
+                type: array
+                items:
+                  type: object
+                  required: [where, text]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string}
+                    text: {type: string}
+                    mechanism: {type: string}
+                    measured: {type: string}
+                    false_positive_if: {type: string}
+        - id: test-double-fidelity-accept
+          script: material_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [test-double-fidelity]
+          with: {role: test-double-fidelity, reply: $test-double-fidelity.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: main-path-observation-loop
+    depends_on: [material-route]
+    when: $material-route.output.main_path_observation == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$main-path-observation-accept.output.done; test "$done" = true
+      nodes:
+        - id: main-path-observation-prep
+          script: material_prep
+          runtime: uv
+          timeout: 1728000000
+          with: {role: main-path-observation}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [brief_file, brief, review_md, repo_review_md]
+            properties:
+              brief_file: {type: string}
+              brief: {type: string}
+              review_md: {type: string}
+              repo_review_md: {type: string}
+        - id: main-path-observation
+          command: material-main-path-observation
+          depends_on: [main-path-observation-prep]
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            enableWeakerNetworkIsolation: true
+            network:
+              allowedDomains: ['*']
+              allowLocalBinding: true
+            filesystem:
+              allowWrite: [/]
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [material, observed]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              observed:
+                type: array
+                items:
+                  type: object
+                  required: [path, value]
+                  additionalProperties: false
+                  properties:
+                    path: {type: string, minLength: 1}
+                    value: {type: string, minLength: 1}
+        - id: main-path-observation-accept
+          script: material_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [main-path-observation]
+          with: {role: main-path-observation, reply: $main-path-observation.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: provenance-loop
+    depends_on: [material-route]
+    when: $material-route.output.provenance == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$provenance-accept.output.done; test "$done" = true
+      nodes:
+        - id: provenance-prep
+          script: material_prep
+          runtime: uv
+          timeout: 1728000000
+          with: {role: provenance}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [brief_file, brief, review_md, repo_review_md]
+            properties:
+              brief_file: {type: string}
+              brief: {type: string}
+              review_md: {type: string}
+              repo_review_md: {type: string}
+        - id: provenance
+          command: material-provenance
+          depends_on: [provenance-prep]
+          model: sonnet
+          effort: medium
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            enableWeakerNetworkIsolation: true
+            network:
+              allowedDomains: ['*']
+              allowLocalBinding: true
+            filesystem:
+              allowWrite: [/]
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [material, claims]
+            additionalProperties: false
+            properties:
+              material:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [found, clean, carried_over, not_applicable, awaiting_human, not_run]
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+                  from_round: {type: integer, minimum: 1}
+              claims:
+                type: array
+                items:
+                  type: object
+                  required: [claim, exists_at_base, evidence]
+                  additionalProperties: false
+                  properties:
+                    claim: {type: string}
+                    exists_at_base: {type: boolean}
+                    evidence: {type: string}
+        - id: provenance-accept
+          script: material_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [provenance]
+          with: {role: provenance, reply: $provenance.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: diagnose-prep
+    script: diagnose_prep
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [material-route, prior-decisions-loop, purpose-review-loop, local-review-loop, consistency-bypass-loop, hygiene-loop, external-standards-loop, procedure-trace-loop, gate-efficacy-loop, test-double-fidelity-loop,
+      main-path-observation-loop, provenance-loop]
+    trigger_rule: all_done
+    when: $intake.output.go == true && $intake.output.mode == 'judge'
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, brief_file, review_md, repo_review_md, reason]
+      properties:
+        go: {type: boolean}
+        brief_file: {type: string}
+        review_md: {type: string}
+        repo_review_md: {type: string}
+        reason: {type: string}
+  - id: diagnose-loop
+    depends_on: [diagnose-prep]
+    when: $diagnose-prep.output.go == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: false
+      until_bash: done=$diagnose-accept.output.done; test "$done" = true
+      nodes:
+        - id: diagnose
+          command: diagnose
+          model: opus
+          effort: high
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [units, questions, framing, one_shot, materials_missing, carried_r1, one_shot_closes, precedents]
+            additionalProperties: false
+            properties:
+              units:
+                type: array
+                items:
+                  type: object
+                  required: [key, label]
+                  additionalProperties: true
+                  properties:
+                    key: {type: string, minLength: 1}
+                    label:
+                      type: string
+                      enum: [block, suggest, nit, question, info]
+                    disposition:
+                      type: string
+                      enum: [do-now, defer]
+                    reason: {type: string}
+                    reopen_evidence: {type: string}
+                    origin_analysis: {type: string}
+                    why_chain:
+                      type: array
+                      items: {type: string}
+                    prescriptions:
+                      type: array
+                      items: {type: string}
+                    closed_note: {type: string}
+                    class_query:
+                      type: object
+                      required: [how, counts, total]
+                      additionalProperties: false
+                      properties:
+                        how:
+                          type: object
+                          required: [patterns, paths, count]
+                          additionalProperties: false
+                          properties:
+                            patterns:
+                              type: array
+                              minItems: 1
+                              maxItems: 20
+                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                            fixed: {type: boolean}
+                            paths:
+                              type: array
+                              minItems: 1
+                              maxItems: 50
+                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                            count:
+                              type: string
+                              enum: [lines, files]
+                            untracked: {type: boolean}
+                            ignore_case: {type: boolean}
+                            word: {type: boolean}
+                        counts:
+                          type: string
+                          enum: [defects, population]
+                        total: {type: integer, minimum: 0}
+                        note: {type: string}
+                        hits:
+                          type: array
+                          maxItems: 20
+                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                        misses:
+                          type: array
+                          maxItems: 20
+                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                        examples_unavailable: {type: string, minLength: 10}
+                        misses_omitted_why: {type: string, minLength: 10}
+              questions:
+                type: array
+                items:
+                  type: object
+                  required: [key, kind, status, reason]
+                  additionalProperties: false
+                  properties:
+                    key: {type: string, minLength: 1}
+                    kind:
+                      type: string
+                      enum: [fork, split, rule, stuck, thrash, premise, unverifiable, awaiting, field]
+                    status:
+                      type: string
+                      enum: [held, decided, resolved, escalate]
+                    reason: {type: string}
+                    resolution: {type: string}
+                    options:
+                      type: array
+                      items: {type: string}
+                    depends:
+                      type: array
+                      items: {type: string}
+                    origin: {type: string}
+              framing: {type: string}
+              one_shot: {type: string}
+              materials_missing:
+                type: array
+                items: {type: string}
+              carried_r1:
+                type: array
+                items:
+                  type: object
+                  required: [where, disposition]
+                  additionalProperties: false
+                  properties:
+                    where: {type: string, minLength: 1}
+                    disposition:
+                      type: string
+                      enum: [promote, decline]
+                    unit_key: {type: string}
+                    why: {type: string}
+              router:
+                type: array
+                items:
+                  type: object
+                  required: [key, route, note]
+                  additionalProperties: false
+                  properties:
+                    key: {type: string}
+                    route: {type: string}
+                    note: {type: string}
+              reburn_causes:
+                type: array
+                items:
+                  type: object
+                  required: [key, cause]
+                  additionalProperties: false
+                  properties:
+                    key: {type: string}
+                    cause:
+                      type: string
+                      enum: [コード, レビュアー, 規約, 前の周の修正]
+                    note: {type: string}
+              one_shot_closes:
+                type: array
+                items: {type: string}
+              precedents:
+                type: array
+                items:
+                  type: object
+                  required: [key, problem, source, verdict, reason]
+                  additionalProperties: false
+                  properties:
+                    key: {type: string, minLength: 1}
+                    problem: {type: string, minLength: 4}
+                    source: {type: string}
+                    verdict:
+                      type: string
+                      enum: [adopt, adapt, does_not_apply, not_found]
+                    reason: {type: string, minLength: 4}
+                    searched: {type: string}
+                    undecided_because: {type: string}
+              out_of_purpose:
+                type: array
+                items:
+                  type: object
+                  required: [source, where, why_outside]
+                  additionalProperties: false
+                  properties:
+                    source: {type: string, minLength: 1}
+                    where: {type: string, minLength: 1}
+                    why_outside: {type: string, minLength: 10}
+                    text: {type: string, minLength: 1}
+              answer_ties:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    answer: {type: string, minLength: 1}
+                    redesign: {type: string, minLength: 1}
+                    to: {type: string, minLength: 1}
+                    none: {type: string, minLength: 20}
+        - id: diagnose-accept
+          script: diagnose_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [diagnose]
+          with: {reply: $diagnose.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: verify-prep
+    script: verify
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [diagnose-loop]
+    mutates_checkout: false
+    with: {stage: prep}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, prompt_file, reason]
+      properties:
+        go: {type: boolean}
+        prompt_file: {type: string}
+        reason: {type: string}
+  - id: judge-verify
+    command: judge-verify
+    depends_on: [verify-prep]
+    when: $verify-prep.output.go == true
+    model: opus
+    effort: high
+    context: fresh
+    settingSources: [user]
+    allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch, Agent, Write]
+    mutates_checkout: false
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    idle_timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [summary]
+      properties:
+        summary: {type: string, minLength: 10}
+  - id: verify-merge
+    script: verify
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [verify-prep, judge-verify]
+    trigger_rule: all_done
+    mutates_checkout: false
+    with: {stage: merge}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, reason]
+      properties:
+        ok: {type: boolean}
+        reason: {type: string}
+  - id: rejudge-prep
+    script: rejudge_prep
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [intake]
+    when: $intake.output.go == true && $intake.output.mode == 'rejudge'
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [go, brief_file, reason]
+      properties:
+        go: {type: boolean}
+        brief_file: {type: string}
+        reason: {type: string}
+  - id: rejudge-loop
+    depends_on: [rejudge-prep]
+    when: $rejudge-prep.output.go == true
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: true
+      until_bash: done=$rejudge-accept.output.done; test "$done" = true
+      nodes:
+        - id: rejudge
+          command: rejudge
+          model: opus
+          effort: high
+          context: fresh
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            required: [verdict, new_facts, units]
+            additionalProperties: false
+            properties:
+              verdict:
+                type: string
+                enum: [採る, 退ける, 一部採る]
+              new_facts: {type: string, minLength: 20}
+              reason: {type: string}
+              units:
+                type: array
+                items:
+                  type: object
+                  required: [key, label]
+                  additionalProperties: true
+                  properties:
+                    key: {type: string, minLength: 1}
+                    label:
+                      type: string
+                      enum: [block, suggest, nit, question, info]
+                    disposition:
+                      type: string
+                      enum: [do-now, defer]
+                    reason: {type: string}
+                    reopen_evidence: {type: string}
+                    origin_analysis: {type: string}
+                    why_chain:
+                      type: array
+                      items: {type: string}
+                    prescriptions:
+                      type: array
+                      items: {type: string}
+                    closed_note: {type: string}
+                    class_query:
+                      type: object
+                      required: [how, counts, total]
+                      additionalProperties: false
+                      properties:
+                        how:
+                          type: object
+                          required: [patterns, paths, count]
+                          additionalProperties: false
+                          properties:
+                            patterns:
+                              type: array
+                              minItems: 1
+                              maxItems: 20
+                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                            fixed: {type: boolean}
+                            paths:
+                              type: array
+                              minItems: 1
+                              maxItems: 50
+                              items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                            count:
+                              type: string
+                              enum: [lines, files]
+                            untracked: {type: boolean}
+                            ignore_case: {type: boolean}
+                            word: {type: boolean}
+                        counts:
+                          type: string
+                          enum: [defects, population]
+                        total: {type: integer, minimum: 0}
+                        note: {type: string}
+                        hits:
+                          type: array
+                          maxItems: 20
+                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                        misses:
+                          type: array
+                          maxItems: 20
+                          items: {type: string, minLength: 1, pattern: '^[^\n\r\x00]+$'}
+                        examples_unavailable: {type: string, minLength: 10}
+                        misses_omitted_why: {type: string, minLength: 10}
+        - id: rejudge-accept
+          script: rejudge_accept
+          runtime: uv
+          timeout: 1728000000
+          depends_on: [rejudge]
+          with: {reply: $rejudge.output}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+  - id: verdict
+    script: verdict
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [intake, spec-freeze, diagnose-loop, verify-merge, rejudge-loop]
+    trigger_rule: all_done
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ready, stop_reason, units, judgment, purpose, world, spec, out_of_purpose, rejudge_verdict]
+      properties:
+        ready: {type: boolean}
+        stop_reason: {type: string}
+        units:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, paths, summary]
+            properties:
+              id: {type: string}
+              paths:
+                type: array
+                items: {type: string}
+              summary: {type: string}
+        judgment:
+          type: object
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        purpose:
+          type: object
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type:
+              type: string
+              enum: [archon_artifact]
+            run_id: {type: string}
+            path: {type: string}
+        world:
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required: [type, run_id, path]
+              properties:
+                type:
+                  type: string
+                  enum: [archon_artifact]
+                run_id: {type: string}
+                path: {type: string}
+            - {type: 'null'}
+        spec:
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required: [type, run_id, path]
+              properties:
+                type:
+                  type: string
+                  enum: [archon_artifact]
+                run_id: {type: string}
+                path: {type: string}
+            - {type: 'null'}
+        out_of_purpose:
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required: [type, run_id, path]
+              properties:
+                type:
+                  type: string
+                  enum: [archon_artifact]
+                run_id: {type: string}
+                path: {type: string}
+            - {type: 'null'}
+        rejudge_verdict:
+          anyOf:
+            - type: string
+              enum: [採る, 退ける, 一部採る]
+            - {type: 'null'}
