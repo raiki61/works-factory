@@ -1,0 +1,219 @@
+name: works-factory-test-gate
+description: |
+  試験の関門。線に 2 つの形で差し込む。base（判定の前）は対象のテストの走らせ方を見つけて 1 度走らせ、直す前の結末
+  （段ごとの結末と、JUnit の報告が在れば 1 件ごとの結末）を控える。final（修正の後）はテスト一式を走らせ、赤の原因を分けて
+  証拠と一緒に返し、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。赤は原因が何でも認証しない。
+  走らせ方は機械が決める（対象の宣言 .review-checks.json の段と test_cmd）。どちらも無ければ任せ先の CI の役が CI の定義を読み、
+  作業ツリーの写しの上で走らせる。返りは 1 つの節 result で、mode で形が分かれる（docs/design.md の「test-gate の返り」）。
+
+inputs:
+  mode:
+    required: true
+    description: 形。base（判定の前）か final（修正の後）
+  start:
+    required: true
+    description: 始めの記録の指し札の JSON の字（線の $start.output.record）
+  baseline:
+    default: ""
+    description: final の時だけ、base の返りの baseline の指し札の JSON の字。"" と null は「無い」と読む
+
+returns: result
+outcome_field: ok
+
+nodes:
+  - id: run
+    script: run
+    runtime: uv
+    timeout: 1728000000
+    with:
+      mode: $INPUTS.mode
+      start: $INPUTS.start
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [by, material, runs, skipped_steps, same_as, log, junit_steps, fingerprint_before, fingerprint_after]
+      properties:
+        by: {type: string, enum: [engine, role, role_needed]}
+        material:
+          type: [object, "null"]   # null は role_needed（任せ先の CI の役が渡す）
+          additionalProperties: false
+          required: [status]
+          properties:
+            status: {type: string, enum: [found, clean, not_applicable, awaiting_human, not_run]}
+            count: {type: integer, minimum: 0}
+            detail: {type: string}
+            checked: {type: string}
+            reason: {type: string}
+        runs:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, exit, how]
+            properties:
+              name: {type: string}
+              exit: {type: [integer, "null"]}   # null は起こせなかった段
+              how: {type: string, enum: [direct, shell]}
+              launch: {type: string, enum: [broken]}
+        skipped_steps:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, paths_ignore]
+            properties:
+              name: {type: string}
+              paths_ignore: {type: array, items: {type: string}}
+        same_as: {type: [string, "null"]}
+        log: {type: string}
+        junit_steps: {type: array, items: {type: string}}
+        fingerprint_before:
+          type: object
+          additionalProperties: false
+          required: [head, diff_hash]
+          properties:
+            head: {type: string}
+            diff_hash: {type: string}
+        fingerprint_after:
+          type: object
+          additionalProperties: false
+          required: [head, diff_hash]
+          properties:
+            head: {type: string}
+            diff_hash: {type: string}
+
+  # 任せ先の CI の役の出し直しの輪（今の works の blk-ci）。諦めは ci-accept の done・give_up で抜け、max_iterations で落とさない
+  - id: ci-loop
+    depends_on: [run]
+    when: "$run.output.by == 'role_needed'"
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      fresh_context: true
+      until_bash: accepted=$ci-accept.output.done; test "$accepted" = true
+      nodes:
+        - id: ci-prep
+          script: ci_prep
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with:
+            mode: $INPUTS.mode
+            start: $INPUTS.start
+            reject: $LOOP_PREV.ci-accept.output.reason
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [copy_dir, tmp_dir, root, base_rev, mode, reject, attempt]
+            properties:
+              copy_dir: {type: string}
+              tmp_dir: {type: string}
+              root: {type: string}
+              base_rev: {type: string}
+              mode: {type: string, enum: [base, final]}
+              reject: {type: string}
+              attempt: {type: integer, minimum: 1}
+        - id: ci
+          description: 'CI の任せ先: 対象の CI の定義を読み、作業ツリーの写しの上でテスト・lint を走らせて素材を返す'
+          command: ci
+          depends_on: [ci-prep]
+          model: sonnet       # 今の works の stage-models.json の blk-ci/ci（light）
+          effort: medium
+          context: fresh
+          mutates_checkout: false
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash はテストを走らせるため
+          # 依存の導入（~/.cache・網）と localhost のテストを通す（今の works の blk-ci と同じ形）。本物の作業ツリーの守りは
+          # mutates_checkout: false と ci-accept の作業ツリーの比べ
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            failIfUnavailable: true
+            enableWeakerNetworkIsolation: true
+            network: {allowedDomains: ['*'], allowLocalBinding: true}
+            filesystem: {allowWrite: ['/']}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [material]
+            properties:
+              material:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status: {type: string, enum: [found, clean, not_applicable, awaiting_human, not_run]}
+                  count: {type: integer, minimum: 0}
+                  detail: {type: string}
+                  checked: {type: string}
+                  reason: {type: string}
+        - id: ci-accept
+          script: ci_accept
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          depends_on: [ci]
+          with:
+            mode: $INPUTS.mode
+            reply: {from: "$ci.output"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [ok, done, give_up, reason]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              give_up: {type: boolean}
+              reason: {type: string}
+
+  # 返す節。前の節の結果はファイル（run.json・ci-material.json）で読み、$run.output・$ci-accept.output を束ねない
+  # （落ちた節への束ねは if_skipped が在っても誤りになる）。run が落ちても届くように all_done
+  - id: result
+    script: result
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [run, ci-loop]
+    trigger_rule: all_done
+    output_type: green-cert
+    with:
+      mode: $INPUTS.mode
+      start: $INPUTS.start
+      baseline: $INPUTS.baseline
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [mode, ok, green, red_cause, baseline, fingerprint, evidence]
+      properties:
+        mode: {type: string, enum: [base, final]}
+        ok: {type: boolean}
+        green: {type: boolean}
+        red_cause: {type: string, enum: [introduced, inherited, environment, interaction, incomplete, ""]}
+        baseline:
+          anyOf:
+            - type: "null"
+            - type: object
+              additionalProperties: false
+              required: [type, run_id, path]
+              properties:
+                type: {type: string, enum: [archon_artifact]}
+                run_id: {type: string}
+                path: {type: string}
+        fingerprint:
+          anyOf:
+            - type: "null"
+            - type: object
+              additionalProperties: false
+              required: [head, diff_hash]
+              properties:
+                head: {type: string}
+                diff_hash: {type: string}
+        evidence:
+          type: object
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}

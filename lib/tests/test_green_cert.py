@@ -240,6 +240,12 @@ class CertifyCase(unittest.TestCase):
             with self.subTest(green=green):
                 self.assertEqual(self.final(green=green), (False, "緑でない"))
 
+    def test_final_self_reported_green_is_not_certified(self):
+        """任せ先の役が書いた緑は認証しない（元 review-loop.py の _ci_by_engine）。base の控えは変えない"""
+        self.assertEqual(self.final(self_reported=True), (False, green_cert.SELF_REPORTED))
+        self.assertEqual(green_cert.certify(mode="base", material_status="clean", green=True, before=None, after=None, now=None,
+                                            self_reported=True), (True, ""))
+
     def test_base(self):
         for status, want in (("clean", True), ("found", True), ("not_applicable", True),
                              ("not_run", False), ("awaiting_human", False), (None, False)):
