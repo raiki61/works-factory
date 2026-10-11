@@ -1,4 +1,4 @@
-"""graph が宣言する plugin の中の物（記録の検証器 scripts/<loop>-record.py・役割 agent の定義 agents/<役>.md）の探し方と、検証器の呼び方、報告前の仕上げ。"""
+"""graph が宣言する plugin の中の物（役割 agent の定義 agents/<役>.md など）の探し方。"""
 import glob
 import json
 import os

@@ -4,20 +4,19 @@
 # ///
 """直しの後の実測（段 B。計画 2026-10-09-clean-whole の Task 2.5）。直しの前の版（INPUTS_BASE_REV）と対象の根（INPUTS_ROOT。空なら
 cwd）の今の作業ツリーの差分を、同じフォルダの measure.py の差分の形（--diff。コマンド 1 つの口。import しない）と、対象の柵の表
-（在れば。core の conceptfence.scan_change）で測り、run の置き場の structure/after.json に書く。
+（在れば。core の conceptfence.scan_change）で測る（ブロックの script が run の置き場の structure/after.json に書く）。
 
 after.json: {status: ok|failed, reason, base_rev, changed: [パス], tables: [表のパス], tables_changed: [直しが変えた表のパス],
 fence_up: [{concept, what, path, before, after}],
 new_names: [{name, sites}], dup_blocks_added: int, timing: {秒（lib/eye の WALL）}}
 - fence_up は柵の表を持つ対象だけ（表の無い対象は空。表を作らない）。住処の外で知る場所の行が増えた所。数えは直しの前の版の表で
-  行い、直しが表そのものを変えた時は tables_changed に名指す。run の作業ツリーの実行基盤の写しは差分に数えない
+  行い、直しが表そのものを変えた時は tables_changed に名指す。run の作業ツリーの実行基盤の写し（skip_prefix）は差分に数えない
 - new_names は差分が新しく持ち込んだ大文字の名と現れる場所の数、dup_blocks_added は差分で増えた写しの塊の数（ファイルごとの増えの和）
 - 差分の前の像は、対象を変えない一時の clone（--shared。対象の .git は書き換えない）を直しの前の版で取り出した物。差分は
   `git diff --binary <版>` と、まだ追跡されていないファイルの足しの patch
-- 実測が落ちても線を止めない（status: failed と reason。0 で終える）
-- {"after_file": after.json の指し札（core の script_io.artifact_pointer。{type: <実行基盤の成果物の型>, run_id, path}）} を 1 行出して 0。
-  run の置き場の環境変数・WORKFLOW_ID が欠けた（空も欠け）時だけ、標準エラーに名前を出して 2。実測と after.json の書き出しの前に
-  止まり、何も書かない
+- 実測が落ちても例外にしない（status: failed と reason）
+- run(root, base, *, skip_prefix) が after.json の中身を返す。書き出しはブロックの script。skip_prefix は差分に数えない実行基盤の
+  写しのパスの頭（ブロックが渡す。conceptfence.changed）
 """
 import json
 import shutil

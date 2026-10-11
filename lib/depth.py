@@ -1,4 +1,4 @@
-"""単位ごとの深さ（計画 docs/plans/2026-10-06-variable-depth.md。ライン darkfactory のモジュール・層 L6）。使うのは darkfactory/scripts/depth.py。
+"""単位ごとの深さ（計画 docs/plans/2026-10-06-variable-depth.md。ライン darkfactory のモジュール・層 L6）。使うのはブロックの script。
 
 判定が切った単位ごとに、修正案の項目の欄（plan-fields.json）の形から深さ（軽量か標準）を機械が決め、修正の後の信号で標準へ上げる。
 標準は今の振る舞いのすべて。軽量は、測りで何も見つけなかった確かめ（SKIPPED: 差分の審査とレンズ・手直し、独立の目の R1〜R4 と
@@ -14,8 +14,8 @@
 - raise_doc(doc, *, units, run): 信号で標準へ上げた控え。units は {単位: 理由}（その単位だけ）、run は理由の並び（全部の単位）。下げない
 - run_wide(items, keys, touched=()): 控えの単位 keys を合わせた run 全体の広さ（触るファイルの和集合と、受け入れと書き換えの
   テストの和）が単位ごとの上限 MAX_PATHS・MAX_TESTS を超えた理由の並び。触るファイルは計画の allowed_paths に、修正の実際の差分
-  （touched。raise_ が盤面の loop.fix_delta の files を渡す）のうちテストのファイルを除いた物を足して数える。raise_ が run の信号に
-  足し、単位ごとには軽量の集まりも標準へ上げる
+  （touched。呼び手が渡す）のうちテストのファイルを除いた物を足して数える。呼び手が run の信号に足し、単位ごとには軽量の集まりも
+  標準へ上げる（raise_doc の run）
 - run_depth(doc): 切った後の run 全体の段の深さ（全部の単位が軽量の時だけ軽量。単位が無ければ標準）
 - skip_reason(doc): run が軽量なら省く理由の文、標準なら空（ブロックの平の入力 skip・skip_optional に渡す）
 - lines(doc): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・軽量で省いた物）
@@ -23,13 +23,6 @@
 - write(board_dir, doc)・read(board_dir): 盤面の根の控え depth.json
 - decide(b, open_units, *, tdd_suite): 盤面を読む口（修正の前の節 h-depth）。修正案の項目の欄（planmarks.read）・start の控えの
   thickness と test_cmd・入力 tdd_suite から決めて控えを書く。open_units は h-fix の出口の JSON の配列の文字列（読めなければ単位なし）
-- signals(b): 修正の後の上げる信号 ({単位: 理由}, [run の理由])。食い違いの申し出（今の周の共有の控え r<N>/conflicts.json）・止めた単位
-  （trace の conflict.ACCEPT_PARKED_OP の行）・答えていない問い（gatemarks.pending）
-- raise_(b, *, replanned, rejudged): 盤面を読む口（修正の後の節 h-redepth）。signals と線の信号（案の直し・再審が走った）と
-  run_wide（run 全体の広さ）で上げて控えを書き直す。広さは盤面の修正の差分（loop.fix_delta。差分の審査が見るのと同じ物）で数え直し、
-  数えたファイルの数と起点を控えの counted に 1 行残す（差分が今の周に無い・読めない時は計画の allowed_paths で数え、その理由を残す）。
-  控えが無い（h-depth が走らなかった）run は単位なし（標準）。run が軽量のままなら、待っている差分の審査
-  （DELTA_NODE）を省く理由（skip_reason）で盤面から省く（board.skip。記録の省略した機構に残る）
 """
 import json
 import os
@@ -241,5 +234,3 @@ def decide(b, open_units, *, tdd_suite: str) -> dict:
     write(b.dir, doc)
     return doc
 
-
-NODE_FIELDS = ("ok", "why", "depth", "unit_depths", "skip", "lines", "depth_file")

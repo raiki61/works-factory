@@ -2,23 +2,14 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
-"""段 A の実測（設計書 structure-block-design の 2 節・8 節）。入力の契約の単位のファイル（INPUTS_UNITS。JSON の配列で、各行は
-{id, paths, summary}）を読み、単位ごとに paths を同じフォルダの measure.py に子のプロセスで渡し（コマンド 1 つの口。import しない）、
-結果を run の置き場の structure/structure.json に書く。設計の行のファイル design.jsonl は 0 バイトで置き直す（JSON Lines は空行を
-許さないので改行も書かない。行を書くのは構造の目の受け付け）。前の周の構造の目の控え eye.json は消す。
+"""段 A の実測（設計書 structure-block-design の 2 節・8 節）の部品。structure.json と design.jsonl を書くのも、構造の目を起こすかを
+決めるのもブロックの script で、ここは単位の読みと 1 単位の実測だけを出す。
 
-structure.json: {status: ok|failed, reason, root, policy_path, rules, units: [{id, summary, paths, status, reason, measure, concepts}],
-timing: {started_at, finished_at, 秒（lib/eye の WALL）}}。単位の status は measured か failed（failed なら reason に measure.py の標準エラーの末尾）。
-rules（方針の文書の中身と根の地図の文書）と単位の concepts（単位のパスに当たる考えの地図の行と知る場所の数）は lib/context が
-対象の根から機械で探した物（構造の目に見せる。地図・柵の表の無い対象では空。作らない）。
-
-- 対象の根（INPUTS_ROOT）は空なら cwd。相対なら cwd から解く。方針の文書（INPUTS_POLICY_PATH）は任意で、中身を rules に置く
-- 単位のファイルが読めない・形が違う・measure.py が落ちた時も、structure.json の status: failed と reason に残して 0 で終える
-  （実測が落ちても線を止めない。GitHub Actions の continue-on-error と同じ分け方で、節の結末は成功のまま）
-- 直しの前の版（INPUTS_BASE_REV）が在る周は直しの後の段: 単位を読まず測らず、units の空の structure.json を AFTER_DIR の下に書いて
-  after: true を返す（1 度目の段の design.jsonl と目の控えを消さない）
-  （段 B の stage_b がその差分を測る。計画 2026-10-09-clean-whole の Task 2.5）
-- {"structure_file", "design_file", "eye", "after"} を 1 行出して 0（eye は構造の目を起こす周か。lib/eye.due）。run の置き場の環境変数が欠けた（空も欠け）時だけ、標準エラーに名前を出して 2
+- read_units(path): 入力の契約の単位のファイル（JSON の配列で、各行は {id, paths, summary}）を読み、形を確かめて返す。読めない・
+  形が違うなら ValueError
+- measure_unit(unit, root): 単位の paths を同じフォルダの measure.py に子のプロセスで渡し（コマンド 1 つの口。import しない）、
+  {id, summary, paths, status, reason, measure} を返す。status は measured か failed（failed なら reason に measure.py の
+  標準エラーの末尾 REASON_TAIL 字。実測が落ちても例外にしない）
 """
 import json
 import subprocess
