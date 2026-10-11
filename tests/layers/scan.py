@@ -537,7 +537,7 @@ def _readonly_nodes(root: Path) -> list[str]:
 
 
 # 差し込まれるブロックが工程の頭に書かない鍵（E16）。run の形は差し込む一番上の工程が決める。ただし自分の節に approval: を持つ
-# ブロックの interactive: true だけは許す: 外すと止めた Archon の単独の validate が警告を出す（運び役の判断）
+# ブロックの interactive: true だけは許す: 外すと止めた Archon の単独の validate が警告を出す（workflows/AGENTS.md の E16）
 BLOCK_HEAD_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 
 
