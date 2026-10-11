@@ -67,6 +67,7 @@ works-factory/
 ├── pack.json                    版の止め（Archon・ASF）
 ├── pyproject.toml               Python の依存の宣言（1 か所。持ち主の決め overnight-speed）
 ├── .gitignore
+├── pyproject.toml               外のパッケージの宣言（1 か所。lib/AGENTS.md の E3）
 ├── AGENTS.md                    AI 向けの決まり（この文書）。下のフォルダの AGENTS.md と自動で合わさる
 ├── MISSION.md・README.md
 ├── engineering.md               ASF の役が読む入口。ここを指すだけ

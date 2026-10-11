@@ -1,0 +1,11 @@
+# 外のパッケージの宣言の置き場（1 か所。lib/AGENTS.md の E3・持ち主の決め outside-packages-ok）。版は == で止める。
+[project]
+name = "works-factory"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = [
+    "PyYAML==6.0.3",  # tests/layers/scan.py が workflows/ の YAML を読む
+]
+
+[tool.uv]
+package = false
