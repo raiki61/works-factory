@@ -1058,7 +1058,6 @@ def merge_on(jdir, repo) -> dict:
 import re  # noqa: E402
 import subprocess  # noqa: E402
 
-import accept  # noqa: E402  （作業ツリーの姿 tree_state・tree_moved）
 from engine.util import READ_CAP, pick, read_capped  # noqa: E402
 import querytest  # noqa: E402
 import rolekit  # noqa: E402
@@ -1067,7 +1066,6 @@ import tree_run  # noqa: E402
 
 # ---------------------------------------------------------------- 仕様の段（元 works/.shared/core/graphloops/rules/review-loop.py:3852〜4043）
 # 元 review-loop.py:3860〜3866（字は元のまま）
-SPEC_FLOW = "spec"
 SPEC_ORIGIN = "仕様（人が承認した受け入れ条件。テストの本文は writer が書いた）"
 SPEC_PROVENANCE = "【仕様の受け入れ条件——テストの本文は writer が書き、人は承認しただけ。役の観察と同じく反証の対象】"
 GWT = ("Given", "When", "Then")
@@ -1205,16 +1203,16 @@ def spec_take(jdir, role, reply, root) -> dict:
             raise Reject(f"{nid}: 返答が JSON のオブジェクトでない（{type(reply).__name__}）")
         if role == "review":
             snap = read_json(snap_path)
-            if not (isinstance(snap, dict) and set(accept.TREE_KEYS) <= set(snap)):
+            if not (isinstance(snap, dict) and set(core_accept.TREE_KEYS) <= set(snap)):
                 raise Reject(f"{snap_path} が無い・形が違う——書く役の返答を受けた時に置く（審査役を起こす前の作業ツリーと比べられない）")
-            moved = accept.tree_moved({k: snap[k] for k in accept.TREE_KEYS}, root)
+            moved = core_accept.tree_moved({k: snap[k] for k in core_accept.TREE_KEYS}, root)
             if moved:
                 raise Reject("読むだけの役が作業ツリーを変えた: 仕様の審査は読むだけの役で、作業ツリー・HEAD・枝・git が無視する"
                              "ファイルを変えてはいけない（変えた物を元に戻せ）（" + "・".join(moved) + "）")
             spec_review_output(reply)
         elif role == "write":
             spec_write_output(reply, root)
-            snap = accept.tree_state(root)
+            snap = core_accept.tree_state(root)
         else:
             spec_revise_output(reply, read_json(jdir / f"{SPEC_ROLES['review']}.json"), root)
     except Reject as e:
@@ -1378,7 +1376,6 @@ REJUDGE_SNAPSHOT = "rejudge-snapshot.json"    # 元 rejudge.SNAPSHOT_NAME（役�
 REJUDGE_DIFF = "rejudge-diff.json"            # 元 rejudge.DIFF_NAME
 REJUDGE_EXIT = "rejudge-exit.json"            # 元 rejudge.EXIT_NAME（再審のブロックの出口の形）
 REJUDGE_REPLY = "rejudge-reply.json"          # 受けた再審の返答の並び（元 writes の append to: process.rejudge）
-JUDGMENT_FILE = "judgment.json"               # 判定の置き場の名（J の 1 回目の物を読み、R に再審の後の物を書く）
 # 元 rejudge.py:77。修正役に貼った番号の書き方（no N・No.N・#N・N 番）。全角の数字も \d に当たる
 _NUMBERS = (re.compile(r"(?<![A-Za-z])no\.?\s*(\d+)", re.IGNORECASE), re.compile(r"[#＃]\s*(\d+)"), re.compile(r"(\d+)\s*番"))
 # 判定役の材料のうち、再審の役に Read させる 1 回目のファイル（在る物だけを brief に並べる）
@@ -1509,7 +1506,7 @@ def rejudge_prep(jdir, rdir, objection, root) -> dict:
             raise ValueError(f"{jdir / JUDGMENT_FILE} の形が違う（units の並びが無い）")
         if not (objection or "").strip():
             raise ValueError("異議の文が空——再審にかける物が無い")
-        snap = accept.tree_state(pathlib.Path(root))
+        snap = core_accept.tree_state(pathlib.Path(root))
         start = read_json(jdir / START_FILE, {}) or {}
     except (ValueError, Reject) as e:
         write_stop(rdir, stopby.REJUDGE, str(e))
@@ -1538,9 +1535,9 @@ def rejudge_take(jdir, rdir, reply, root) -> dict:
         if not isinstance(reply, dict):
             raise Reject(f"{REJUDGE_NODE}: 返答が JSON のオブジェクトでない（{type(reply).__name__}）")
         saved = read_json(rdir / REJUDGE_SNAPSHOT)
-        if not isinstance(saved, dict) or not set(accept.TREE_KEYS) <= set(saved):
+        if not isinstance(saved, dict) or not set(core_accept.TREE_KEYS) <= set(saved):
             raise Reject(f"作業ツリーの写し {rdir / REJUDGE_SNAPSHOT} が無い・形が違う（rejudge-prep が先に走る）")
-        moved = accept.tree_moved({k: saved[k] for k in accept.TREE_KEYS}, pathlib.Path(root))
+        moved = core_accept.tree_moved({k: saved[k] for k in core_accept.TREE_KEYS}, pathlib.Path(root))
         if moved:
             raise Reject("読むだけの役が作業ツリーを変えた: 再審の役は読むだけの役で、作業ツリー・HEAD・枝・git が無視する"
                          "ファイルを変えてはいけない（" + "・".join(moved) + "）")
@@ -2006,10 +2003,7 @@ def read_stop(jdir):
     return doc if isinstance(doc, dict) and isinstance(doc.get("stop_reason"), str) else None
 
 
-import accept  # noqa: E402
-import carry  # noqa: E402
 import prcheck  # noqa: E402
-import worldmark  # noqa: E402
 
 VERIFY_FEATURE = "judge_verify"    # 判定の裏取りの機能の語（元 entry.py:425）
 
@@ -2018,25 +2012,26 @@ def _intake_out(go, mode="judge", *, spec=False, world=False, verify=False, reas
     return {"go": go, "mode": mode, "spec": spec, "world": world, "verify": verify, "reason": reason}
 
 
-def request_rows(view: dict, repo) -> list:
-    """始めの記録が名指す依頼のファイルの findings の行（lib/carry.parts で容器を解く）。依頼のファイルが無い run は、始めの記録の
-    依頼の数が 0 の時だけ空の行。解けなければ ValueError（1 行）"""
+def request_container(view: dict, repo):
+    """始めの記録が名指す依頼のファイルを解いた容器（lib/carry.parts の形）と、そのパス。依頼のファイルが無い run は、始めの記録の
+    依頼の数が 0 の時だけ空の容器。解けなければ ValueError（1 行）"""
     name = view["request_file"]
     if not name:
         if view["input"].get("requests"):
             raise ValueError(f"始めの記録は依頼の行が {view['input']['requests']} 件と言うのに依頼のファイルを名指していない")
-        return []
+        return carry.parts([]), None
     path = pathlib.Path(name)
     path = path if path.is_absolute() else pathlib.Path(repo) / path
     doc = read_json(path)
     if doc is None:
         raise ValueError(f"依頼のファイル {path} が無い")
-    return carry.parts(doc)["findings"]
+    return carry.parts(doc), path
 
 
-def intake(start, start_error: str, jdir, rdir, repo, objection: str) -> dict:
+def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=()) -> dict:
     """入口の節（intake）。再審の道（objection が空でない）は判定の置き場に触らずに mode: rejudge を返す。判定の道は、始めの記録を
-    既定の値で読んで置き（START_FILE）、依頼の行を型に通して置き（REQUEST_FILE）、作業ツリーの姿を置く（TREE_FILE）。
+    既定の値で読んで置き（START_FILE）、依頼の行を型に通して置き（REQUEST_FILE。元 accept.check_request）、前の run の失敗の行
+    （依頼の容器の prior_failures と入力 prior_failures の行 prior）を lib/carry.place_prior で置き、作業ツリーの姿を置く（TREE_FILE）。
     通らなければ止めの控えに依頼の語を書き go: false（AI を 1 つも起こさない）。機能の切り替えは始めの記録の features_cut、
     仕様の段は始めの記録の input.spec。返りは INTAKE_FILE にも書く（後ろの節は with: で結ばずにここを読む）"""
     jdir, rdir = pathlib.Path(jdir), pathlib.Path(rdir)
@@ -2050,12 +2045,15 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str) -> dict:
             raise ValueError(start_error)
         view = start_view(start)
         write_json(jdir / START_FILE, view)
-        rows = request_rows(view, repo)
-        checked = check_request(rows)
-        if checked.get("ok") is not True:
-            raise ValueError(checked.get("reason") or "依頼の行が型に通らない")
+        container, path = request_container(view, repo)
+        rows = container["findings"]
+        if rows:
+            checked = check_request(rows, f"依頼のファイル {path}")
+            if checked.get("ok") is not True:
+                raise ValueError(checked.get("reason") or "依頼の行が型に通らない")
         write_json(jdir / REQUEST_FILE, rows)
-        write_json(jdir / TREE_FILE, accept.tree_state(pathlib.Path(repo)))
+        carry.place_prior(jdir, [*container["prior_failures"], *prior])
+        write_json(jdir / TREE_FILE, core_accept.tree_state(pathlib.Path(repo)))
     except (ValueError, OSError, Reject) as e:
         reason = " ".join(str(e).split())
         write_stop(jdir, REQUEST_STOP, reason)
@@ -2074,17 +2072,15 @@ PURPOSE_FILE = "purpose.json"
 PREMISES_FILE = "premises.json"
 VERIFY_FILE = "judge-verify.json"
 PR_EXCLUDED_FILE = "pr-excluded.json"
-MATERIALS_FILE = "materials.json"
 SPEC_FILE = "spec.json"
 WORLD_FILE = "world.jsonl"
 OUT_OF_PURPOSE_FILE = "out-of-purpose.json"
 PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE)   # 判定の指し札の隣に必ず置く（ほかのブロックが名で開く）
 
 
-def _empty_public(name: str, reason: str):
+def _empty_public(name: str):
     """公開の隣のファイルの空の形（その段が走らなかった・止めの道）"""
     return {PREMISES_FILE: lambda: {"constraints": []},
-            VERIFY_FILE: lambda: verify_not_run(reason),
             PR_EXCLUDED_FILE: lambda: {"node": prcheck.NODE, "excluded": []},
             MATERIALS_FILE: lambda: {}}[name]()
 
@@ -2143,7 +2139,11 @@ def verdict(jdir, rdir, repo, objection: str, ptr) -> dict:
         first = jdir / name
         if rejudging and first.is_file() and not (rdir / name).is_file():
             write_json(rdir / name, read_json(first))
-        _fill(here / name, _empty_public(name, reason or "判定の裏取りを回さなかった"))
+        if name == VERIFY_FILE:
+            if not (here / name).is_file():
+                verify_not_run(here, reason or "判定の裏取りを回さなかった")
+            continue
+        _fill(here / name, _empty_public(name))
 
     purpose = jdir / PURPOSE_FILE
     if not purpose.is_file():

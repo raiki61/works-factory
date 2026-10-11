@@ -10,10 +10,19 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import judge_accept as ja  # noqa: E402
 
-start, error = None, ""
+
+def pointed(raw: str):
+    """指し札の JSON の字の先の JSON（null の字は None）"""
+    ptr = json.loads(raw)
+    return None if ptr is None else json.loads(boundary.resolve(ptr).read_text(encoding="utf-8"))
+
+
+start, prior, error = None, [], ""
 try:
-    start = json.loads(boundary.resolve(json.loads(os.environ["INPUTS_START"])).read_text(encoding="utf-8"))
+    start = pointed(os.environ["INPUTS_START"])
+    prior = pointed(os.environ.get("INPUTS_PRIOR_FAILURES", "null")) or []
 except (KeyError, OSError, TypeError, ValueError, AttributeError) as e:
-    error = f"始めの記録が読めない（{type(e).__name__}: {e}）"
+    error = f"始めの記録か前の失敗の行が読めない（{type(e).__name__}: {e}）"
 boundary.returns(ja.intake(start, error, boundary.resolve(boundary.pointer(ja.JUDGE_DIR)),
-                           boundary.resolve(boundary.pointer(ja.REJUDGE_DIR)), Path.cwd(), os.environ["INPUTS_OBJECTION"]))
+                           boundary.resolve(boundary.pointer(ja.REJUDGE_DIR)), Path.cwd(),
+                           os.environ.get("INPUTS_OBJECTION", ""), prior))

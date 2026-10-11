@@ -389,8 +389,12 @@ SPEC = {"requirements": [{"key": "R1", "text": "mean は要素の数で割る"}]
 SPEC_TEST_FILE = "test_mean_divides_by_count\n# Given 1, 2, 3 の並び\n# When mean を呼ぶ\n# Then 2 を返す\n"
 
 
+REVIEW = {"faces": [], "faces_none": "要件と受け入れ条件の抜け・曖昧さ・範囲の外を見たが無かった",
+          "reason": "要件 R1 は受け入れ条件 A1 が試し、範囲の外の物は無い"}
+
+
 def spec_run(case: unittest.TestCase) -> Run:
-    """仕様の段を選んだ run で、仕様の書き手の返答を受け付けた所まで"""
+    """仕様の段を選んだ run で、仕様を書き・審査し、関所に見せる所まで"""
     r = Run(case)
     record = json.loads((r.artifacts / "entry" / "start.json").read_text(encoding="utf-8"))
     record["input"]["spec"] = True
@@ -398,6 +402,9 @@ def spec_run(case: unittest.TestCase) -> Run:
     case.assertTrue(r.returned("intake")["spec"])
     (r.repo / "test_spec_mean.txt").write_text(SPEC_TEST_FILE, encoding="utf-8")
     case.assertTrue(r.returned("spec_accept", role="write", reply=SPEC)["ok"])
+    review = r.returned("spec_accept", role="review", reply=REVIEW)
+    case.assertEqual((review["ok"], review["revise"]), (True, False), review)
+    case.assertTrue(r.returned("spec_ask")["ask"])
     return r
 
 
