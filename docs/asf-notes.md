@@ -47,8 +47,8 @@ ASF の版を進めた時は、各節の行を新しい版で読み直し、変�
 
 - ASF: d97d00ef の `W/.shared/report.ts`:141-206（`artifactsByType['green-gate']` を読み、`envelope.errors` を 1 件ずつ注意として出す）。役の側は `W/review/commands/review-synthesize.md`:18（「Match the artifacts' node identities to that mode node's include prefix (`path`) and their `loopGroupPath` to its `invocation.loopPath`; never count another include, iteration or run.」）。
 - なぜその形か: 置き場の名前の決まりを知らずに、型の名だけで集まりを引ける。ほかの include・ほかの周の物を数えない。
-- 採った先: 境の口 `workflows/.shared/`（型で引く口 1 つ）。使うのは eyes（R1〜R4 の結果）・report・fix（組ごとの TDD の行）。
-- 違い: 絞りと `errors` の扱いを境の口 1 か所に置き、ブロックの script は口を呼ぶだけにする（`workflows/AGENTS.md` の E5）。
+- 採った先: report ブロックの中の `workflows/report/scripts/typed.py`（`workflows/AGENTS.md` の E5「型つきの成果物の一覧を読むのは report ブロックだけ」「読む部品は report ブロックの中に置く」）。
+- 違い: 絞りと `errors` の扱いを report の中の 1 か所に置く。include の名を決め打たず、一覧に在る include の頭で組に分ける。
 
 ### A5 外への書き込みは 1 つの script の節
 
