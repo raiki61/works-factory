@@ -1,0 +1,14 @@
+# 止め札で止めた run（最後の関所の止める語で、文が request: で始まる）。ほかの入力は空。facts と report の script が本当に走り、
+# 結末は stopped_by_request（持ち主の決め report-on-stop: 止めた run も報告を出す）。AI の節だけを差し替える
+fixture:
+  expect: completed
+  reached: [facts, write, cold-prep, cold, accept, report]
+  inputs:
+    gate-final: '{"decision":"stop","text":"request: 止め札"}'
+  resolved-text-contains:
+    write: "結末の語は **stopped_by_request**"
+exec-code: true
+write:
+  text: "止め札で止めた。\n最後の関所の前で止めた。\n続けるなら新しい run を始める。"
+  terms: []
+cold: {verdict: pass, stops: [], guessed: [], decidable: true}

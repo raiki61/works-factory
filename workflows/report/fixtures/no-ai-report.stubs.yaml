@@ -1,0 +1,22 @@
+# 結果を名乗れない run（record_invalid）は書き手の輪を飛ばし、返す節は AI の報告なしで返る
+fixture:
+  expect: completed
+  reached: [facts, report]
+facts:
+  outcome: record_invalid
+  ok: false
+  stop_reason: "start:record-invalid"
+  report: {type: archon_artifact, run_id: fixture-run, path: report/report.md}
+  next_request: null
+  prior_failures: null
+  ai_go: false
+  facts_file: report/report.md
+  stamp: ""
+report:
+  outcome: record_invalid
+  stop_reason: "start:record-invalid"
+  report: {type: archon_artifact, run_id: fixture-run, path: report/report.md}
+  report_ai: null
+  next_request: null
+  prior_failures: null
+  ok: false
