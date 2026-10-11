@@ -67,6 +67,7 @@ works-factory/
 ├── pack.json                    版の止め（Archon・ASF）
 ├── pyproject.toml               Python の依存の宣言（1 か所。持ち主の決め overnight-speed）
 ├── .gitignore
+├── pyproject.toml               外のパッケージの宣言（1 か所。lib/AGENTS.md の E3）
 ├── AGENTS.md                    AI 向けの決まり（この文書）。下のフォルダの AGENTS.md と自動で合わさる
 ├── MISSION.md・README.md
 ├── engineering.md               ASF の役が読む入口。ここを指すだけ
@@ -76,7 +77,7 @@ works-factory/
     └── .factory/holdout/HOLDOUT.md                書く
 ```
 
-- 試験を置くフォルダには全部 `__init__.py` を置く（無いと Python 3.12 の unittest は黙って見つけない）。試験は根から `python3 -m unittest discover -s . -t .` の 1 つで走る。
+- 試験を置くフォルダには全部 `__init__.py` を置く（無いと Python 3.12 の unittest は黙って見つけない）。試験は根から 1 つの命令で走る（命令と外のパッケージの入れ方は `tests/AGENTS.md`）。
 - 機械: `tests/layers/test_layout.py`（根の直下のファイルとフォルダが上の木に在る物だけ。`workflows/` の直下が `line/`・8 つのブロック・`.shared/` だけ。各ブロックが `works-factory-<ブロック>.yaml` を持つ。試験のフォルダに `__init__.py` が在る）。
 
 ## E8 ASF は横に並べて見るだけ
@@ -107,7 +108,8 @@ works-factory/
 ## E13 対象の言語を知らない
 
 - 役の指示書（`workflows/*/commands/`）と `lib/` に、特定の言語・テストの実行器の名を書かない。事実上の標準の形式（JUnit XML など）は名指してよい。持ち主の決め `lang-neutral`。
-- 機械: `tests/layers/test_lang_neutral.py`（言語と実行器の名の語の表に当たる字が無い。表は試験の中）。
+- `lib/` は Python で書くので、`lib/tests/`（lib 自身の試験）と `lib/AGENTS.md` は照らさず、語の表に `python` を入れない。
+- 機械: `tests/layers/test_lang_neutral.py`（言語と実行器の名の語の表に当たる字が無い。表は `tests/layers/scan.py` の中）。
 
 ## E14 既定の道は普通の利用者の環境でそのまま動く
 

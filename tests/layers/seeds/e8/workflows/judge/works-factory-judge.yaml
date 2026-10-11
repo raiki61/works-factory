@@ -1,0 +1,4 @@
+name: works-factory-judge
+nodes:
+  - id: triage
+    include: archon-triage

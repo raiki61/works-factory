@@ -1,5 +1,6 @@
 # リポジトリの根から unittest で試験を全部見つけて走らせる（tests/ と lib/tests/。どちらも __init__.py を置く）。
 # check の名は tests（harness/harness.config.json の required_checks が名指す。ASF の merge queue が読む）。
+# 外のパッケージは uv run --isolated が pyproject.toml の宣言から入れる（宣言を CI に写さない）。命令は harness/harness.config.json の unit と同じ。
 # 1 件も走らない時、unittest は終了の値 5 で落ちる。試験の無い木を緑にしない。
 name: tests
 
@@ -19,5 +20,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
+      - name: uv
+        run: python3 -m pip install uv==0.11.29
       - name: unittest
-        run: python3 -m unittest discover -s . -t .
+        run: uv run --isolated python3 -m unittest discover -s . -t .

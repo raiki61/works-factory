@@ -20,7 +20,7 @@
 - 工程の名は `works-factory-<フォルダの名>`、線は `works-factory-line`。
 - ブロックの間で渡す物の型の正本は、返す節の `output_format` と線の `with:` だけ。型の写しを作らない（持ち主の決め `io-in-output-format`）。
 - 期限を置かない（E12）。Archon の既定の期限を外すため、期限を持つ節には `1728000000` を書く。
-- 試験はリポジトリの根から `python3 -m unittest discover -s . -t .` の 1 つで走る（CI も ASF の `harness/harness.config.json` の `unit` も同じ命令）。`tests/`・`tests/bin/`・`lib/tests/` など試験を置くフォルダには、全部 `__init__.py` を置く（無いと Python 3.12 は黙って見つけない）。Archon の実行ファイルが要る試験は、無ければ名前つきで見送る（`skipTest("archon の実行ファイルが無い: ...")`）。CI は実行ファイルを取ってから走るので見送らない。
+- 試験はリポジトリの根から `uv run --isolated python3 -m unittest discover -s . -t .` の 1 つで走る（CI も ASF の `harness/harness.config.json` の `unit` も同じ命令）。`tests/`・`tests/bin/`・`lib/tests/` など試験を置くフォルダには、全部 `__init__.py` を置く（無いと Python 3.12 は黙って見つけない）。Archon の実行ファイルが要る試験は、無ければ名前つきで見送る（`skipTest("archon の実行ファイルが無い: ...")`）。CI は実行ファイルを取ってから走るので見送らない。
 
 ## 見るべき所（Task の試験が当たる物）
 
@@ -144,7 +144,7 @@
   - `test_start_places_then_runs`: 配置が先、次に `workflow run works-factory-line`
 - [ ] **Step 2: 赤**: `python3 -m unittest tests.bin.test_cli -v`
 - [ ] **Step 3: 実装**
-- [ ] **Step 4: 緑**。全部の試験 `python3 -m unittest discover -s . -t .` が緑
+- [ ] **Step 4: 緑**。全部の試験 `uv run --isolated python3 -m unittest discover -s . -t .` が緑
 - [ ] **Step 5: commit**: `git commit -m "feat(bin): start・answer・show"`
 
 ### Task 6: 起動の認証と置き場の隔離を今の works から持ってくる
@@ -164,7 +164,7 @@
 
 - [ ] **Step 1: 元の試験と試験の助けを持ってきて、直した名に合わせる**（赤）
 - [ ] **Step 2: 元のファイルと頼っている部品を持ってきて直す**（緑）。`test_isolate.py` を書いて赤 → `isolate.py` で緑
-- [ ] **Step 3: 全部の試験** `python3 -m unittest discover -s . -t .` が緑
+- [ ] **Step 3: 全部の試験** `uv run --isolated python3 -m unittest discover -s . -t .` が緑
 - [ ] **Step 4: commit**: `git commit -m "feat(bin): 起動の認証と置き場の隔離を今の works から持ってくる"`
 
 ### Task 7: 封じた差分を当てる口（bin/apply）
