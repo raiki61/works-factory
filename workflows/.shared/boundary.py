@@ -1,8 +1,8 @@
 """ブロックの script が Archon と出入りする唯一の口（workflows/AGENTS.md の E2・E4）。
 
-Archon v0.11.1 が script の節に渡す物（packages/workflows/src/exec-environment.ts・schemas/dag-node.ts の inputEnvKey）:
+止めた Archon（docs/design.md の「語」）が script の節に渡す物（packages/workflows/src/exec-environment.ts・schemas/dag-node.ts の inputEnvKey）:
 入力は環境変数 INPUTS_<UPPER_SNAKE>、run の id は WORKFLOW_ID、run の成果物の置き場は ARTIFACTS_DIR。
-入力は口を通さず、script が os.environ["INPUTS_<名>"] を字のまま読む（Archon は工程の読み込みで script の字を走査して宣言の無い入力を拒むので、組み立てた名はその走査に見えない）。
+入力は口を通さず、script が os.environ["INPUTS_<名>"] を字のまま読む（工程が inputs: を宣言していると、Archon は読み込みで script の字を走査して宣言の無い入力を拒むので、組み立てた名はその走査に見えない）。
 指し札の決まりは Archon の artifact-pointer.ts に合わせる。返りに入った指し札の先（在る・空でない・置き場の中）は Archon が節の終わりに照らすので、
 ここでは札の形を組むだけにする。
 """
@@ -35,7 +35,7 @@ def resolve(ptr: dict) -> Path:
 
 
 def lib_root() -> Path:
-    """lib/ の置き場。Archon の家に置いた時の決め方は docs/design.md の U5（段 1 で決める）。段 0 はリポジトリの中"""
+    """lib/ の置き場。Archon が run の始めに写し取った所から走る時の決め方は docs/design.md の U5（段 1 で決める）。段 0 はリポジトリの中"""
     return Path(__file__).resolve().parents[2] / "lib"
 
 

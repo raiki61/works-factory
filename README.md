@@ -29,7 +29,7 @@ GitHub の About: A dev factory on Archon that turns a fix request into a verifi
 
 ここに書くコマンドはまだ無い。作りの順は `docs/design.md`。
 
-1. 入れる: このリポジトリを clone する。`bin/` が `pack.json` で止めた版の Archon と ASF を取って置く。
+1. 入れる: このリポジトリを clone し、`bun` を入れる。`bin/` が ASF の止め（`factory/pack.json`）の版の Archon の源を取り、そこから起こす。工程は Archon の家に置かない。
 2. 始める: `bin/start <対象のリポジトリ> <依頼の文か issue の番号>`。
 3. 答える: 関所で止まったら `bin/answer <run>` で答える。
 4. 見る: `bin/show <run>` で今どこか・報告・人への問いを見る。
@@ -46,12 +46,12 @@ flowchart TB
   wf --> lib["助け手 lib/"]
 ```
 
-- 入口 `bin/`: 人が打つ口。版を取り寄せて Archon の家に置く。
+- 入口 `bin/`: 人が打つ口。止めた版の Archon の源を取り寄せ、そこから Archon を起こす。
 - グラフ `workflows/`: この工場のエッセンス。どの確かめと役が在り、各々が何をし、どの順でつながり、どこで人に聞くかを、Archon の書き方で書く。線（ブロックを並べた 1 本の流れ）と、判定・計画・事前審査・修正・試験の関門・独立の目・報告・取り込みのブロック。各ブロックは YAML・役の指示書・節の script を持ち、ブロックの間で渡す物の型は Archon の `output_format` で表す。YAML は手で書き、変換せずに Archon に渡す。
 - 境 `workflows/.shared/`: Archon との出入りの口と、Archon に無い物を補う小さな部品だけ（`docs/archon-polyfills.md` に全部載る）。
 - 助け手 `lib/`: script の節が呼ぶ Python のモジュール（引用の照らし・TDD の赤の判定・元から赤の見分け・範囲の照らしなど）。Archon を知らない。
 
-工程を回すのは Archon の公開版（v0.11.1）。最新の ASF を同じ Archon の家の横（`workflows/asf/`）に置き、工程の名で選び分けて見比べられるようにする。別の実行の道具へ移る時は、グラフをその道具の書き方で `docs/design.md` から書き直す。役の指示書と `lib/` はそのまま持っていける。
+工程を回すのは止めた Archon（ASF と同じ開発中の源。`docs/design.md` の「語」）。ASF の工程はその源の `.archon/workflows/sdlc/` に在り、工程の名で選び分けて見比べられる。別の実行の道具へ移る時は、グラフをその道具の書き方で `docs/design.md` から書き直す。役の指示書と `lib/` はそのまま持っていける。
 
 AI 向けの決まりは各階層の `AGENTS.md`（根の物から辿る）、設計は `docs/design.md`。
 
@@ -61,7 +61,7 @@ AI 向けの決まりは各階層の `AGENTS.md`（根の物から辿る）、�
 
 - この工場の物: `bin/`・`workflows/`・`lib/`・`tests/`・`docs/`・`pack.json`・`MISSION.md`・`AGENTS.md`（各階層）・`engineering.md`（ASF の役が読む入口。`AGENTS.md` を指すだけ）・`README.md`・`.github/`。工程の名は `works-factory-` で始まる。
 - ASF の物: 名前が `factory`・`FACTORY`・`harness`・`.factory` で始まる物（`factory/`・`FACTORY.md`・`FACTORY_RULES.md`・`harness/`・`.factory/`）。ASF がこのリポジトリを作る時に使う。ASF の命令がこの場所と名前を決め打ちで読むので、動かさず名前も変えない。中身も手を加えず、ASF が書けと言うファイル（`harness/END-TO-END.md` など）だけを書く。
-- Archon の家に置く工程: この工場の物は `workflows/works-factory/`、ASF の物は `workflows/asf/`（名前は `archon-` で始まる）。
+- Archon に読ませる工程: この工場の物はこのリポジトリの `workflows/`、ASF の物は Archon の源の `.archon/workflows/sdlc/`（名前は `archon-` で始まる）。どちらも Archon の家には置かず、`--workflow-source` で読ませる。
 - 置き場の木の全部と、名前の決まりは根の `AGENTS.md` の「リポジトリの形」と E18。
 
 ## 関係
@@ -82,4 +82,4 @@ AI 向けの決まりは各階層の `AGENTS.md`（根の物から辿る）、�
 
 ## 今の状態
 
-作っている途中。今あるのは設計の文書・`pack.json`（Archon と ASF の版の止め）・CI・ASF の取り付け命令が置いた物で、この工場の動くコードはまだ無い。土台は ASF に作らせている。修正の工場として今使えるのは、今の works（raiki61/claude-plugins の works プラグイン）。作りの順と進みは `docs/design.md` の「作りの順」。
+作っている途中。今あるのは設計の文書・`pack.json`（版の止め。Archon の版は ASF の止め `factory/pack.json`）・CI・ASF の取り付け命令が置いた物で、この工場の動くコードはまだ無い。土台は ASF に作らせている。修正の工場として今使えるのは、今の works（raiki61/claude-plugins の works プラグイン）。作りの順と進みは `docs/design.md` の「作りの順」。

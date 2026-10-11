@@ -1,116 +1,117 @@
-"""pack.json の版の Archon の実行ファイルと ASF の工程を取り、Archon の家に置く。
+"""ASF が止めた版（factory/pack.json）の Archon の源を 1 度だけ取り、Archon の本体と ASF の工程の両方をそこから使う。自分の工程は置かずに起こす。
 
-置くのは $ARCHON_HOME の下の pack.json の ours.placed_at と asf.placed_at の 2 つだけ。ほかの置き場
-（同梱の工程・ほかの pack）には触らない。実行ファイルの版の固定と sha256 の確かめは、今の works の
-works/dev/archon.sh から持ってきた（E15）。
+- Archon の本体: 源の packages/cli/src/cli.ts を bun で起こす（ASF の factory/consumer.py の cli() と同じ形）。
+- ASF の工程: 源の中の asf.folder（factory/pack.json の source_directory）。ASF の工程を回す時は --workflow-source に源を渡す。
+- 自分の工程: Archon の家に写さない。Archon は --workflow-source <dir> の <dir>/.archon/workflows/ を読み、run の始めに
+  その中身を run の物として写し取る（Archon の packages/workflows/src/workflow-source.ts）。だからその場所がリポジトリの
+  workflows/ を指す小さな置き場を作り、そこを --workflow-source に渡す。
+
+Archon の家（$ARCHON_HOME/workflows など）には何も置かない。
 """
 import hashlib
-import json
-import platform
 import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-Download = Callable[[str, str, Path], Path]
-Fetch = Callable[[str, str, str, Path], None]
+ENTRY = "packages/cli/src/cli.ts"
+WORKFLOW_FOLDER = ".archon/workflows"
 
-_MACHINES = {"aarch64": "arm64", "x86_64": "x64", "AMD64": "x64"}
-
-
-def asset_name() -> str:
-    """この機械で走る Archon の実行ファイルの名（公開版の asset の名。例 archon-darwin-arm64）"""
-    system, machine = platform.system(), platform.machine()
-    return f"archon-{system.lower()}-{_MACHINES.get(machine, machine.lower())}"
+Fetch = Callable[[str, str, Path], None]
+Install = Callable[[Path], None]
 
 
-def gh_release_download(repo: str, release: str, dest_dir: Path) -> Path:
-    asset = asset_name()
-    subprocess.run(
-        ["gh", "release", "download", release, "-R", repo, "-p", asset, "-D", str(dest_dir), "--clobber"],
-        check=True,
-    )
-    return dest_dir / asset
+def git_fetch(repo: str, commit: str, dest: Path) -> None:
+    """repo（clone できる URL）の commit を dest に取り出す（dest は作る）"""
+    subprocess.run(["git", "clone", "--quiet", "--filter=blob:none", "--no-checkout", repo, str(dest)], check=True)
+    subprocess.run(["git", "-C", str(dest), "checkout", "--quiet", "--detach", commit], check=True)
 
 
-def git_sparse_fetch(repo: str, commit: str, folder: str, dest: Path) -> None:
-    """repo の commit の folder の中身を dest に写す（dest は作る）。blob は folder の分だけ取る"""
-    with tempfile.TemporaryDirectory() as tmp:
-        clone = Path(tmp) / "clone"
-        url = f"https://github.com/{repo}.git"
-        subprocess.run(["git", "clone", "--quiet", "--filter=blob:none", "--sparse", "--no-checkout", url, str(clone)], check=True)
-        subprocess.run(["git", "-C", str(clone), "sparse-checkout", "set", folder], check=True)
-        subprocess.run(["git", "-C", str(clone), "checkout", "--quiet", "--detach", commit], check=True)
-        shutil.copytree(clone / folder, dest, symlinks=True)
+def bun_install(source: Path) -> None:
+    """源の bun.lock のとおりに依存を入れる。lock は書き換えない"""
+    subprocess.run(["bun", "install", "--frozen-lockfile"], cwd=source, check=True)
 
 
-def archon_binary(pack: dict, cache: Path, download: Download = gh_release_download) -> Path:
-    """<cache>/archon/<release>/<asset> の実行ファイルを返す。無ければ download で取り、sha256 を照らす。
+def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: Install = bun_install) -> Path:
+    """Archon の源を <cache>/archon/<commit>/ に取り、依存を入れて返す。在れば照らしてから使い、取らない。
 
-    合わなければ RuntimeError で止まる。壊れたキャッシュは利用者のファイルなので消さず、消す命令を文に入れる。
+    bun が無い・取れない・依存が入らない・本体か ASF の工程が源に無ければ、途中まで取った物を残さず（前に取った物は残す）、
+    何が取れなかったかを 1 行の RuntimeError で言う。在った物が照らしに合わなければ、消して取り直す案内つきの RuntimeError。
     """
+    if shutil.which("bun") is None:
+        raise RuntimeError("bun が無い。Archon の源は bun で起こす。入れ方は https://bun.sh")
     archon = pack["archon"]
-    asset = asset_name()
-    expected = archon["assets"].get(asset)
-    if expected is None:
-        raise RuntimeError(f"pack.json の archon.assets に {asset} の sha256 が無い（この機械の実行ファイルの名）")
-    dest_dir = cache / "archon" / archon["release"]
-    path = dest_dir / asset
-    if not path.is_file():
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        path = download(archon["repo"], archon["release"], dest_dir)
-    actual = hashlib.sha256(path.read_bytes()).hexdigest()
-    if actual != expected:
-        raise RuntimeError(
-            f"sha256 が合わない: {path}（期待 {expected}、実際 {actual}）。"
-            f"壊れたキャッシュなら、このファイルを消して回し直せば取り直す（rm \"{path}\"）"
-        )
-    path.chmod(path.stat().st_mode | 0o111)
-    return path
-
-
-def asf_tree(pack: dict, cache: Path, fetch: Fetch = git_sparse_fetch) -> Path:
-    """ASF の工程のフォルダを <cache>/asf/<commit>/ に取って返す。在れば取らない。
-
-    何から取ったか（repo・folder）を横の <commit>.json に残し、pack.json と違えば取り直す。
-    取れなければ途中まで取った物を残さず（前に取った物は残す）、何が取れなかったかを 1 行の RuntimeError で言う。
-    """
-    asf = pack["asf"]
-    dest = cache / "asf" / asf["commit"]
-    record = dest.with_name(f"{dest.name}.json")
-    source = {"repo": asf["repo"], "folder": asf["folder"]}
-    if dest.is_dir() and _read_record(record) == source:
+    dest = cache / "archon" / archon["commit"]
+    if dest.is_dir():
+        _verify(dest, archon["commit"])
         return dest
 
     def fill(staging: Path) -> None:
         try:
-            fetch(asf["repo"], asf["commit"], asf["folder"], staging)
+            fetch(archon["repo"], archon["commit"], staging)
+            install(staging)
+            missing = [rel for rel in (ENTRY, pack["asf"]["folder"]) if not (staging / rel).exists()]
+            if missing:
+                raise FileNotFoundError(f"源に {', '.join(missing)} が無い")
         except Exception as error:
             reason = " ".join(str(error).split()) or type(error).__name__
-            raise RuntimeError(f"ASF の {asf['repo']} {asf['commit']} の {asf['folder']} が取れない: {reason}") from error
+            raise RuntimeError(f"Archon の源 {archon['repo']} {archon['commit']} が取れない: {reason}") from error
 
-    record.unlink(missing_ok=True)
     _replace(dest, fill)
-    record.write_text(json.dumps(source), encoding="utf-8")
     return dest
 
 
-def _read_record(record: Path) -> dict | None:
+def workflow_source(pack: dict, root: Path, cache: Path) -> Path:
+    """--workflow-source に渡す置き場を返す。その中の .archon/workflows は root の自分の工程のフォルダを指す。
+
+    置き場の名は指す先のパスの hash なので、同じ root からは同じ置き場になる。
+    """
+    target = (root / pack["ours"]["folder"]).resolve()
+    shim = cache / "workflow-source" / hashlib.sha256(str(target).encode()).hexdigest()[:16]
+    link = shim / WORKFLOW_FOLDER
+    link.parent.mkdir(parents=True, exist_ok=True)
     try:
-        return json.loads(record.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+        link.symlink_to(target, target_is_directory=True)
+    except FileExistsError:
+        if not (link.is_symlink() and link.readlink() == target):
+            raise RuntimeError(f"{link} が {target} を指していない。消して回し直せば作り直す（rm -r \"{link}\"）") from None
+    except OSError as error:
+        raise RuntimeError(f"{link} に {target} への symlink が作れない: {error.strerror or error}") from error
+    return shim
 
 
-def place(pack: dict, root: Path, archon_home: Path, asf_dir: Path) -> None:
-    """root の自分の工程と asf_dir を、Archon の家の各々の置き場にバイトのまま置く（E1）"""
-    _swap_in(root / pack["ours"]["folder"], archon_home / pack["ours"]["placed_at"])
-    _swap_in(asf_dir, archon_home / pack["asf"]["placed_at"])
+def workflow_run(source: Path, workflow_dir: Path, cwd: Path, name: str, *args: str) -> list[str]:
+    """工程 name を workflow_dir から読み、cwd に対して回す命令。
+
+    --cwd と --workflow-source は利用者の引数より前に置く。利用者の -- の後ろに付くと、文として渡り、
+    Archon が cwd の工程を探す元の動きに黙って戻る（ASF の factory/consumer.py と同じ並べ）。
+    """
+    return [
+        "bun", str(source / ENTRY),
+        "workflow", "run", "--cwd", str(cwd), "--workflow-source", str(workflow_dir),
+        name, *args,
+    ]
 
 
-def _swap_in(src: Path, target: Path) -> None:
-    _replace(target, lambda staging: shutil.copytree(src, staging, symlinks=True))
+def _verify(source: Path, commit: str) -> None:
+    """取り置いた源が commit のままで、書き換わっておらず、依存が入っているかを照らす（ASF の factory/consumer.py の
+    verify_source と同じ不変条件）。依存（node_modules）は源の .gitignore に入るので status には出ない"""
+    def git(*args: str) -> str:
+        done = subprocess.run(["git", "-C", str(source), *args], capture_output=True, text=True)
+        return done.stdout.rstrip("\n") if done.returncode == 0 else f"git {args[0]} が失敗: {done.stderr.strip()}"
+
+    head = git("rev-parse", "HEAD")
+    changed = git("status", "--porcelain", "--untracked-files=all")
+    if head != commit:
+        problem = f"HEAD が {commit} でない（{head}）"
+    elif changed:
+        problem = f"変更が在る（{', '.join(line[3:] for line in changed.splitlines()[:5])}）"
+    elif not (source / "node_modules").is_dir():
+        problem = "node_modules が無い"
+    else:
+        return
+    raise RuntimeError(f"取り置いた Archon の源 {source} が壊れている: {problem}。消して回し直せば取り直す（rm -rf \"{source}\"）")
 
 
 def _replace(target: Path, fill: Callable[[Path], None]) -> None:

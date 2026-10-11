@@ -33,8 +33,8 @@ class BlockPathsTest(unittest.TestCase):
             got = scan.problems("E4", root)
         self.assertTrue(any("a.py:1" in line and "plan" in line for line in got), got)
 
-    def test_placed_path_of_other_block_is_red(self):
-        with tree({"workflows/judge/scripts/a.py": 'X = "$HOME/workflows/works-factory/plan/out.json"\n'}) as root:
+    def test_archon_read_path_of_other_block_is_red(self):
+        with tree({"workflows/judge/scripts/a.py": 'X = "$SRC/.archon/workflows/plan/out.json"\n'}) as root:
             got = scan.problems("E4", root)
         self.assertTrue(any("a.py:1" in line and "plan" in line for line in got), got)
 

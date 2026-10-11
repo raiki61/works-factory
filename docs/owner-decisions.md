@@ -32,7 +32,7 @@
 
 - 持ち主の言葉: 「その最新のソフト自動出荷工場を横目に見れる形じゃないとダメなのではという気がしてる」
 - 決め: 最新の ASF を横に並べて見られる形にする。
-- 当て方: `bin/` が `pack.json` で止めた ASF の版を Archon の家の `workflows/asf/` に置き、工程の名で選び分ける。版を進めたら `docs/asf-notes.md` を読み直す。
+- 当て方: `bin/` が ASF の止め（`factory/pack.json`）の Archon の源を取り、その中の ASF の工程（`.archon/workflows/sdlc/`）を横に並べて読み、工程の名で選び分ける（`archon-same-as-asf` で、Archon の家に置く形から変えた）。版を進めたら `docs/asf-notes.md` を読み直す。
 
 ### `public-repo` リポジトリは公開、作業のアカウントは raiki61
 
@@ -131,7 +131,7 @@
 - 持ち主の言葉: 「1: おしで。」（2026-10-11 夜。運び役の問い「私たちの工程を回す Archon の版を、ASF と同じ開発中の版にそろえてよいか（推し：そろえる）」への答え）
 - 決め: 自分の工程を回す Archon を、公開版 v0.11.1 から、ASF が固定している Archon の源（`coleam00/Archon` の枝 `factory/sdlc-on-dev` の commit。今は `d97d00ef`）にそろえる。Archon は 1 つにする。
 - 訳: 最新の ASF の人の関所の書き方（`approval:` の `decisions`）が v0.11.1 に無く、開発中の版にだけ在る（`workflows/AGENTS.md` の E16）。
-- 当て方: `pack.json` の Archon の版を ASF と同じ commit にし、その 1 つの源から Archon の本体と ASF の工程の両方を取る。Archon は源から `bun` で起こす（ASF の取り付け命令と同じ形）。公開版の実行ファイルの取り寄せは要らなくなる。
+- 当て方: ASF の止め `factory/pack.json` の版（`integration_revision_required`）をそのまま使い、その 1 つの源から Archon の本体と ASF の工程の両方を取る。Archon は源から `bun` で起こす（ASF の取り付け命令と同じ形）。公開版の実行ファイルの取り寄せは要らなくなる。根の `pack.json` には Archon の版を書かない。
 
 ### `report-on-stop` 止め札で止めた run でも報告を出す
 
