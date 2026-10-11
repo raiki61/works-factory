@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import json
 import pathlib
-import re
 
+import changemap
 import gatemarks
 from design import MISSING as DESIGN_MISSING
 
@@ -37,7 +37,6 @@ VERDICTS = ("resolved", "escalate")
 NO_FILE = "返りのファイルが無い"
 NO_AFTER = "直しの後の実測: 控えが無い（測っていない run）"   # 元 blk-eyes/lib/eyes.py:93
 GREEN_LINE = "最後のテストの認証が通っていない（赤は最後の関所で人が見る）"
-_DIFF_FILE = re.compile(r"^diff --git a/(.*) b/(.*)$")
 DOC_SUFFIXES = (".md",)
 
 
@@ -56,26 +55,20 @@ def premise_reason(design_doc: dict) -> str:
 
 
 def changed_files(diff_text: str) -> list[str]:
-    return [m.group(2) for m in map(_DIFF_FILE.match, diff_text.splitlines()) if m]
+    return list(changemap.split_diff(diff_text)[0])
 
 
 def scalars(diff_text: str) -> dict:
     """元 同 :2153 の builtin scalars。差分から数えられる規模の数値（足した行・消した行・文書の足した行・変わったファイル）。
     差分として読めない物は 0 にせず unmeasured に訳を置く"""
-    files = changed_files(diff_text)
+    files = changemap.split_diff(diff_text)[0]
     if diff_text.strip() and not files:
         return {"unmeasured": ["累積差分が git の差分の形でない"]}
-    added = deleted = docs = 0
-    current = ""
-    for line in diff_text.splitlines():
-        if m := _DIFF_FILE.match(line):
-            current = m.group(2)
-        elif line.startswith("+") and not line.startswith("+++"):
-            added += 1
-            docs += current.endswith(DOC_SUFFIXES)
-        elif line.startswith("-") and not line.startswith("---"):
-            deleted += 1
-    return {"added_lines": added, "deleted_lines": deleted, "doc_lines": docs, "files": files}
+    rows = [(path, line[:1]) for path, lines in files.items() for line in lines]
+    return {"added_lines": sum(mark == "+" for _, mark in rows),
+            "deleted_lines": sum(mark == "-" for _, mark in rows),
+            "doc_lines": sum(mark == "+" and path.endswith(DOC_SUFFIXES) for path, mark in rows),
+            "files": list(files)}
 
 
 def scalars_text(s: dict) -> str:
