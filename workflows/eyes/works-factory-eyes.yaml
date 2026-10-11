@@ -1,0 +1,443 @@
+name: works-factory-eyes
+description: |
+  独立の目のブロック。直しを作った役と別の新しい会話で、読むだけで直しを確かめる: R1 最小性（コメントの削除候補 → 最小性）・
+  R2 独立設計との比較（独立設計が問いは立たないと言えば前提の検算）・R3 全体の整合・R4 見えていない範囲（R1・R2 の筋の後）。
+  直した後の構造の実測と守りのパスの当たりも出す。目の返りは返った時だけ走る script の節が置き場のファイルに書き、
+  返す節 verdict はそのファイルを読んで lib/eyeverdict.py でまとめる（落ちた節への with: は誤りで止まるため）。
+
+inputs:
+  units: {required: true, description: "$judge.output.units（単位の目録。JSON の配列）"}
+  judgment: {required: true, description: "$judge.output.judgment（judgment.json の指し札）"}
+  purpose: {required: true, description: "$judge.output.purpose（purpose.json の指し札）"}
+  world: {required: true, description: "$judge.output.world（定石の行の指し札。null 可）"}
+  plan: {required: true, description: "$plan.output.plan（plan-fields.json の指し札）"}
+  ripple: {required: true, description: "$plan.output.ripple（ripple.json の指し札）"}
+  depth: {required: true, description: "$redepth.output.depth（単位ごとの深さ。JSON の配列）"}
+  design: {required: true, description: "$plan-review.output.design（design.json の指し札）"}
+  diff: {required: true, description: "$fix.output.diff（累積差分の指し札）"}
+  changed: {required: true, description: "$fix.output.changed（修正の印。JSON の object）"}
+  fix_units: {required: true, description: "$fix.output.units（単位ごとの結末。JSON の配列）"}
+  green_ok: {required: true, description: "$test-gate-final.output.ok"}
+  start: {default: "null", description: "$start.output.record（始めの記録の指し札）"}
+  plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の関所で聞いた行）"}
+  answers: {default: "null", description: "{ from: $gate-before-fix.output, if_skipped: null }（修正前の関所の答え）"}
+
+returns: verdict
+outcome_field: ok
+
+nodes:
+  - id: structure-after
+    script: structure_after
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [after, status, reason]
+      properties:
+        after:
+          type: object
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        status: {type: string, enum: [ok, failed]}
+        reason: {type: string}
+
+  - id: prep
+    script: prep
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [structure-after]
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [run_eyes, compare_due, premise_due, purpose_text, design_text, premise_invalid_reason, diff_file, diff_lines,
+                 changed_files, scalars, cwd, base_rev, review_md, policy_path, r1_head, r3_head, concept_map, candidates_file,
+                 judgment_file, units_text, fixes_text, premises_text, carried, r4_context, green_line]
+      properties:
+        run_eyes: {type: boolean}
+        compare_due: {type: boolean}
+        premise_due: {type: boolean}
+        purpose_text: {type: string}
+        design_text: {type: string}
+        premise_invalid_reason: {type: string}
+        diff_file: {type: string}
+        diff_lines: {type: integer}
+        changed_files: {type: string}
+        scalars: {type: string}
+        cwd: {type: string}
+        base_rev: {type: string}
+        review_md: {type: string}
+        policy_path: {type: string}
+        r1_head: {type: string}
+        r3_head: {type: string}
+        concept_map: {type: string}
+        candidates_file: {type: string}
+        judgment_file: {type: string}
+        units_text: {type: string}
+        fixes_text: {type: string}
+        premises_text: {type: string}
+        carried: {type: string}
+        r4_context: {type: string}
+        green_line: {type: string}
+
+  # 役の節は今の works の blk-eyes の同じ役の節から settingSources・sandbox を写す。出し直しは retry（合計 3 回）
+  - id: r1-comments
+    command: r1-comments
+    depends_on: [prep]
+    when: "$prep.output.run_eyes == true"
+    model: sonnet
+    effort: medium
+    context: fresh
+    settingSources: [user]
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+    mutates_checkout: false
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      required: [candidates, kept]
+      additionalProperties: false
+      properties:
+        candidates:
+          type: array
+          items:
+            type: object
+            required: [where, comment, same_content_at, reason]
+            additionalProperties: false
+            properties:
+              where: {type: string}
+              comment: {type: string}
+              same_content_at: {type: string}
+              reason: {type: string}
+        kept:
+          type: array
+          items:
+            type: object
+            required: [where, fact]
+            additionalProperties: false
+            properties:
+              where: {type: string}
+              fact: {type: string}
+
+  - id: r1-comments-save
+    script: save_reply
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [r1-comments]
+    with:
+      name: r1-comments
+      out: $r1-comments.output
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [saved]
+      properties:
+        saved: {type: boolean}
+
+  # 削除候補が取れなくても R1 を止めない（候補はファイルで読む）
+  - id: r1-minimality
+    command: r1-minimality
+    depends_on: [prep, r1-comments-save]
+    trigger_rule: all_done
+    when: "$prep.output.run_eyes == true"
+    model: opus
+    effort: high
+    context: fresh
+    settingSources: [user]
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+    mutates_checkout: false
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      required: [status, reason, deletions, ledger_audit, increments]
+      additionalProperties: false
+      properties:
+        status: {type: string, enum: [pass, redesign-needed, unverifiable]}
+        reason: {type: string, minLength: 1}
+        deletions:
+          type: array
+          items:
+            type: object
+            required: [where, why]
+            additionalProperties: false
+            properties:
+              where:
+                type: string
+                minLength: 1
+                note: 照合される側（p2.diagnose.carried_r1[].where）は minLength を持つのに、正本のこちらが持たないと、空文字が schema を通ったうえで数える口から黙って落ち、次の周の judge はその候補について 1 行も書かなくてよくなる（実測 2026-09-16・静的）
+              why: {type: string}
+        ledger_audit: {type: array, items: {type: string}}
+        increments: {type: array, items: {type: string}}
+        candidates_note: {type: string}
+
+  - id: r2-compare
+    command: r2-compare
+    depends_on: [prep]
+    when: "$prep.output.run_eyes == true && $prep.output.compare_due == true"
+    model: opus
+    effort: high
+    context: fresh
+    settingSources: [user]
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    allowed_tools: [Read]
+    mutates_checkout: false
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      required: [status, reason, differences]
+      additionalProperties: false
+      properties:
+        status: {type: string, enum: [pass, redesign-needed]}
+        reason: {type: string, minLength: 1}
+        differences:
+          type: array
+          items:
+            type: object
+            required: [kind, text]
+            additionalProperties: false
+            properties:
+              kind: {type: string, enum: [構造, 表現]}
+              text: {type: string}
+
+  - id: premise-check
+    command: premise-check
+    depends_on: [prep]
+    when: "$prep.output.run_eyes == true && $prep.output.premise_due == true"
+    model: opus
+    effort: high
+    context: fresh
+    settingSources: [user]
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    allowed_tools: [Read, Grep, Glob, WebSearch, WebFetch]
+    mutates_checkout: false
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      required: [key, assumption, assumption_false, evidence, verdict, reason]
+      additionalProperties: false
+      properties:
+        key: {type: string, minLength: 1}
+        assumption: {type: string}
+        assumption_false: {type: boolean}
+        evidence: {type: string}
+        verdict: {type: string, enum: [resolved, escalate]}
+        reason: {type: string, minLength: 1}
+        resolution: {type: string}
+        facts_to_add: {type: array, items: {type: string}}
+
+  # seen・unseen は concepthome.R3_HEAD と指示書が求める、graph の schema に足した欄
+  - id: r3-coherence
+    command: r3-coherence
+    depends_on: [prep]
+    when: "$prep.output.run_eyes == true"
+    model: sonnet
+    effort: medium
+    context: fresh
+    settingSources: [user]
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    allowed_tools: [Read, Grep, Glob]
+    mutates_checkout: false
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      required: [status, reason, seen, unseen]
+      properties:
+        status: {type: string, enum: [pass, redesign-needed, unverifiable]}
+        reason: {type: string, minLength: 1}
+        seen: {type: array, items: {type: string}}
+        unseen: {type: array, items: {type: string}}
+
+  # R1・R2 の筋が落ちても R4 を飛ばさない。if/then は今の works の post_check r4_inventory（棚卸しが発火したら lost を明示する）
+  - id: r4-scope
+    command: r4-scope
+    depends_on: [prep, r1-minimality, r2-compare, premise-check]
+    trigger_rule: all_done
+    when: "$prep.output.run_eyes == true"
+    model: sonnet
+    effort: medium
+    context: fresh
+    settingSources: [user]
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    allowed_tools: [Read, Grep, Glob]
+    mutates_checkout: false
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      required: [status, reason, capability_inventory, policy_conflicts, surfaced, seen, unseen]
+      additionalProperties: false
+      properties:
+        status: {type: string, enum: [pass, redesign-needed, unverifiable]}
+        reason: {type: string, minLength: 1}
+        capability_inventory:
+          type: object
+          required: [fired]
+          additionalProperties: false
+          properties:
+            fired: {type: boolean}
+            lost: {type: array, items: {type: string}}
+            note: {type: string}
+        policy_conflicts: {type: array, items: {type: string, minLength: 1}}
+        surfaced:
+          type: array
+          items:
+            type: object
+            required: [where, text]
+            additionalProperties: false
+            properties:
+              where: {type: string}
+              text: {type: string}
+              mechanism: {type: string}
+              measured: {type: string}
+              false_positive_if: {type: string}
+        seen: {type: array, items: {type: string}}
+        unseen: {type: array, items: {type: string}}
+      if: {properties: {capability_inventory: {properties: {fired: {const: true}}}}}
+      then: {properties: {capability_inventory: {required: [fired, lost]}}}
+
+  # 目ごとの型つきの成果物。目が返った時だけ走り、返りの全体を置き場の <eye>.json に書く
+  - id: r1-minimality-verdict
+    script: eye_verdict
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [r1-minimality]
+    output_type: eye-verdict
+    with:
+      eye: r1
+      out: $r1-minimality.output
+    output_format: &eye_verdict
+      type: object
+      additionalProperties: false
+      required: [eye, status, reason]
+      properties:
+        eye: {type: string, enum: [r1, r2, r3, r4, premise-check]}
+        status: {type: string, enum: [pass, redesign-needed, unverifiable, resolved, escalate]}
+        reason: {type: string}
+
+  - id: r2-compare-verdict
+    script: eye_verdict
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [r2-compare]
+    output_type: eye-verdict
+    with:
+      eye: r2
+      out: $r2-compare.output
+    output_format: *eye_verdict
+
+  - id: premise-check-verdict
+    script: eye_verdict
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [premise-check]
+    output_type: eye-verdict
+    with:
+      eye: premise-check
+      out: $premise-check.output
+    output_format: *eye_verdict
+
+  - id: r3-coherence-verdict
+    script: eye_verdict
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [r3-coherence]
+    output_type: eye-verdict
+    with:
+      eye: r3
+      out: $r3-coherence.output
+    output_format: *eye_verdict
+
+  - id: r4-scope-verdict
+    script: eye_verdict
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [r4-scope]
+    output_type: eye-verdict
+    with:
+      eye: r4
+      out: $r4-scope.output
+    output_format: *eye_verdict
+
+  # 一覧か git が読めない時も落ちず、確かめられなかった印の行を当たりとして返す
+  - id: protected
+    script: protected
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [hits, lines, broken]
+      properties:
+        hits: {type: array, items: {type: string}}
+        lines: {type: array, items: {type: string}}
+        broken: {type: string}
+
+  # ASF の W/review の review-complete と同じ柵。落ちた目が在っても出口へ進む
+  - id: eyes-complete
+    bash: "true"
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [r1-comments, r1-comments-save, r1-minimality, r2-compare, premise-check, r3-coherence, r4-scope,
+                 r1-minimality-verdict, r2-compare-verdict, premise-check-verdict, r3-coherence-verdict, r4-scope-verdict]
+    trigger_rule: all_done
+
+  # 返す節は落ちない。どの節にも with: で結ばず、返った節が置き場に書いたファイルを読む
+  - id: verdict
+    script: verdict
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [eyes-complete, prep, structure-after, protected]
+    trigger_rule: all_done
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, r1, r2, r3, r4, questions, premise_check, structure_after, protected_hits]
+      properties:
+        ok: {type: boolean}
+        r1: &eye_row
+          type: [object, "null"]
+          additionalProperties: false
+          required: [status, reason]
+          properties:
+            status: {type: string, enum: [pass, redesign-needed, unverifiable]}
+            reason: {type: string}
+        r2: *eye_row
+        r3: *eye_row
+        r4: *eye_row
+        questions: {type: array, items: {type: string}}
+        premise_check:
+          type: [object, "null"]
+          additionalProperties: false
+          required: [verdict, reason]
+          properties:
+            verdict: {type: string, enum: [resolved, escalate]}
+            reason: {type: string}
+        structure_after:
+          type: [object, "null"]
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}
+        protected_hits: {type: array, items: {type: string}}

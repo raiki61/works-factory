@@ -1,0 +1,125 @@
+# 筋書き redesign: 比較役が作り直しと言う。run は completed のまま、返す節の ok が false で仕事の結末は failed
+# （run の終わりと仕事の結末は別の事実）
+fixture:
+  expect: completed
+  inputs:
+    units: '[]'
+    judgment: 'null'
+    purpose: 'null'
+    world: 'null'
+    plan: 'null'
+    ripple: 'null'
+    depth: '[]'
+    design: 'null'
+    diff: 'null'
+    changed: '{}'
+    fix_units: '[]'
+    green_ok: 'true'
+  reached:
+  - r2-compare
+  - r2-compare-verdict
+  - verdict
+structure-after:
+  after: &id001
+    type: archon_artifact
+    run_id: dry-run
+    path: eyes/structure-after.json
+  status: ok
+  reason: ''
+protected:
+  hits: []
+  lines: []
+  broken: ''
+prep:
+  run_eyes: true
+  compare_due: true
+  premise_due: false
+  purpose_text: 古い入口を消す
+  design_text: 入口を 1 つにする
+  premise_invalid_reason: ''
+  diff_file: /tmp/diff.patch
+  diff_lines: 6
+  changed_files: a.py
+  scalars: 足した行 1・消した行 1
+  cwd: /tmp/repo
+  base_rev: 0123abc
+  review_md: /tmp/REVIEW.md
+  policy_path: ''
+  r1_head: '## 最小の意味'
+  r3_head: '## 考えの住処'
+  concept_map: '## 考えの住処の地図'
+  candidates_file: /tmp/eyes/r1-comments.json
+  judgment_file: /tmp/judgment.json
+  units_text: '- u1'
+  fixes_text: '- u1: fixed'
+  premises_text: '### 記録の制約'
+  carried: ''
+  r4_context: '- 波及の一覧: /tmp/ripple.json'
+  green_line: ''
+r1-comments:
+  candidates: []
+  kept: []
+r1-comments-save:
+  saved: true
+r1-minimality:
+  status: pass
+  reason: 累積差分は最小
+  deletions: []
+  ledger_audit: []
+  increments: []
+r1-minimality-verdict:
+  eye: r1
+  status: pass
+  reason: 累積差分は最小
+r3-coherence:
+  status: pass
+  reason: 整合
+  seen:
+  - a.py
+  unseen: []
+r3-coherence-verdict:
+  eye: r3
+  status: pass
+  reason: 整合
+r4-scope:
+  status: pass
+  reason: 横断の危うさなし
+  capability_inventory:
+    fired: false
+  policy_conflicts: []
+  surfaced: []
+  seen:
+  - a.py
+  unseen: []
+r4-scope-verdict:
+  eye: r4
+  status: pass
+  reason: 横断の危うさなし
+r2-compare:
+  status: redesign-needed
+  reason: 継ぎ目の置き方が独立設計と違う
+  differences:
+  - kind: 構造
+    text: 入口が 2 つ残る
+r2-compare-verdict:
+  eye: r2
+  status: redesign-needed
+  reason: 継ぎ目の置き方が独立設計と違う
+verdict:
+  ok: false
+  r1:
+    status: pass
+    reason: 累積差分は最小
+  r2:
+    status: redesign-needed
+    reason: 継ぎ目の置き方が独立設計と違う
+  r3:
+    status: pass
+    reason: 整合
+  r4:
+    status: pass
+    reason: 横断の危うさなし
+  questions: []
+  premise_check: null
+  structure_after: *id001
+  protected_hits: []
