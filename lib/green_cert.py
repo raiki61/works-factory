@@ -15,7 +15,6 @@ import gatemarks
 import tree_run
 import unittrees
 
-FAILED = ("failure", "error")
 NOT_DONE = ("not_run", "awaiting_human", "not_applicable")
 BASE_OK = ("clean", "found", "not_applicable")
 HEAD_LIMIT = 10   # summary に並べる鍵の数
@@ -89,7 +88,7 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
         why += [f"JUnit の報告を宣言した段が走らなかった: {'・'.join(map(str, junit_unran))}"] if junit_unran else []
         return "incomplete", "；".join(why)
     names = "・".join(str(r.get("name")) for r in reds) or "無し"
-    failed = [c for c in cases or [] if c.get("outcome") in FAILED]
+    failed = [c for c in cases or [] if c.get("outcome") in baseline_red.FAILED]
     if baseline_cases is not None:
         base = baseline_red.outcomes(baseline_cases)
         introduced = [c for c in failed if baseline_red._must_pass(c, base)]
@@ -97,7 +96,7 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
             return "introduced", (f"今回落ちて元で通っていたか元に無かった {len(introduced)} 件: {_keys(introduced)}"
                                   f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")
         steps = set(junit_steps or [])
-        inherited = failed and all(base.get(baseline_red._key(c)) in FAILED for c in failed)
+        inherited = failed and all(base.get(baseline_red._key(c)) in baseline_red.FAILED for c in failed)
         if inherited and all(r.get("name") in steps for r in reds if r not in broken):
             return "inherited", (f"落ちた {len(failed)} 件は全部元でも落ちていた: {_keys(failed)}"
                                  f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")

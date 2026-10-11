@@ -5,7 +5,7 @@
 run_suite だけは元の nice -n 19 の頭と、試験の枠と控え（tree_run.slotted_run）を外し、tree_run.run で走らせる。
 元の結末のファイルの口（write_baseline・read_baseline・outcomes）は新しい関数。
 
-元の結末のファイルの必須の欄: {"suite": str, "test_cmd": str, "rev": str, "exit": int | None, "cases": [{classname, name, outcome, …}]}。
+元の結末のファイルの必須の欄: {"suite": str, "test_cmd": str, "rev": str, "exit": int | None, "cases": [{classname, name, outcome（OUTCOMES の語）, …}]}。
 ほかの欄は呼び手だけが読む（extra）。
 """
 import json
@@ -23,6 +23,9 @@ import tree_run
 ONLY_ENV = "TDD_SUITE_ONLY"
 
 REQUIRED = ("suite", "test_cmd", "rev", "exit", "cases")
+# cases の行の outcome の語（parse_junit の出す 4 つ）と、そのうちの落ちた物。元の結末のファイルはこの語だけを持つ
+OUTCOMES = ("passed", "failure", "error", "skipped")
+FAILED = ("failure", "error")
 
 
 # ---------------------------------------------------------------- テスト一式を走らせて結末を読む
@@ -203,6 +206,10 @@ def _problems(doc) -> list:
                    if not isinstance(c, dict) or not all(isinstance(c.get(f), str) for f in ("classname", "name", "outcome"))]
             if bad:
                 probs.append(f"欄 cases の行 {bad[:5]} に classname・name・outcome の文字列が揃わない")
+            unknown = [i for i, c in enumerate(rows)
+                       if i not in bad and c["outcome"] not in OUTCOMES]
+            if unknown:
+                probs.append(f"欄 cases の行 {unknown[:5]} の outcome が {'・'.join(OUTCOMES)} のどれでもない")
     return probs
 
 

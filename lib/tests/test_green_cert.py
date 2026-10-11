@@ -2,10 +2,10 @@
 
 - 指紋: 同じ木で 2 度同じ。追跡のファイルの書き換え・未追跡のファイルの追加・HEAD の移動で変わる。.gitignore に当たる
   ファイルでは変わらない。git の木でなければ ValueError
-- diff_bytes: 未追跡のファイルが入り、.gitignore に当たるファイルは入らず、本物の index を動かさない
+- diff_bytes: 未追跡のファイルが入り、.gitignore に当たるファイルは入らず、本物の index を動かさない。rev の側と比べ、引けない rev は ValueError
 - matches: 今の指紋と同じ時だけ真。None・形の違いは偽
 - classify: 6 つの道と、その間の順
-- certify: base と final の順
+- certify: base と final の順。final は before と違う指紋（after・now のどちらでも）を認証しない
 """
 import hashlib
 import os
@@ -88,6 +88,15 @@ class DiffBytesCase(RepoCase):
         self.assertEqual((index.read_bytes(), os.stat(index).st_mtime_ns), stat, "本物の index が動いた")
         self.assertEqual(git(self.repo, "status", "--porcelain"), "?? added.py")
 
+    def test_rev_is_the_side_compared(self):
+        base = git(self.repo, "rev-parse", "HEAD")
+        (self.repo / "stats.py").write_text("COMMITTED = 1\n", encoding="utf-8")
+        git(self.repo, "commit", "-qam", "edit")
+        self.assertIn(b"COMMITTED = 1", green_cert.diff_bytes(self.repo, base))
+        self.assertNotIn(b"COMMITTED = 1", green_cert.diff_bytes(self.repo, "HEAD"))
+        with self.assertRaises(ValueError):
+            green_cert.diff_bytes(self.repo, "no-such-rev")
+
     def test_fingerprint_hash_is_of_diff_bytes(self):
         (self.repo / "stats.py").write_text("x = 2\n", encoding="utf-8")
         self.assertEqual(green_cert.fingerprint(self.repo)["diff_hash"],
@@ -147,6 +156,13 @@ class ClassifyCase(unittest.TestCase):
         cause, summary = classify("found", [RED_UNIT], junit_steps=["unit"], junit_unran=["unit"])
         self.assertEqual(cause, "incomplete")
         self.assertIn("unit", summary)
+
+    def test_incomplete_comes_before_the_baseline(self):
+        for status in ("found", "not_run"):
+            with self.subTest(status):
+                unran = ["unit"] if status == "found" else []
+                self.assertEqual(classify(status, [RED_UNIT], [case("t", "failure")], [case("t", "passed")], ["unit"], unran)[0],
+                                 "incomplete")
 
     def test_broken_mixed_with_red_is_not_environment(self):
         self.assertNotEqual(classify("found", [BROKEN, RED_UNIT])[0], "environment")
@@ -209,6 +225,11 @@ class CertifyCase(unittest.TestCase):
         ok, reason = self.final(before=None)
         self.assertFalse(ok)
         self.assertIn("before", reason)
+
+    def test_after_differing_alone_is_refused(self):
+        ok, reason = self.final(after={"head": "h1", "diff_hash": "d2"})
+        self.assertFalse(ok)
+        self.assertIn("after", reason)
 
     def test_final_red_is_never_certified(self):
         self.assertEqual(self.final(green=False), (False, "緑でない"), "inherited・environment の赤も認証しない")

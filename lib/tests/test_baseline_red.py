@@ -1,9 +1,10 @@
 """元から赤の区別（lib/baseline_red.py）の検査。
 
 - run_suite の結末の行に failure の子の message と本文（元 works/tests/test_blk_fix_tdd.py の TestRedKind）
+- run_suite が only でない時は外の env の合図 ONLY_ENV を落とす
 - run_suite を種（tests/e2e/target-seed/）の写しで走らせ、JUnit を書かない時と XML が壊れた時の problems の文
 - parse_junit・red_problems・green_problems の事実の文（元は輪の中からだけ呼ばれていた筋を、関数を直に呼んで写す）
-- write_baseline → read_baseline が同じ dict に戻る（extra の欄も）。必須の欄の欠けと型の違いは ValueError
+- write_baseline → read_baseline が同じ dict に戻る（extra の欄も）。必須の欄の欠けと型の違い・OUTCOMES に無い outcome は ValueError
 - outcomes が同じ鍵の最初の 1 つを取る。_must_pass が元で failure の物を問わず、元に無い物を問う
 """
 import json
@@ -12,6 +13,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import xml.etree.ElementTree as ET
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -79,6 +81,12 @@ class RunSuiteSeedCase(unittest.TestCase):
         exe = self.runner(f"printf '%s' \"${{{baseline_red.ONLY_ENV}:-}}\" > {self.work}/only\nprintf '%s' '{JUNIT}' > \"$1\"\n")
         baseline_red.run_suite(exe, self.repo, self.work, 2, only=True)
         self.assertEqual((self.work / "only").read_text(), "1")
+
+    def test_without_only_the_inherited_signal_is_dropped(self):
+        exe = self.runner(f"printf '%s' \"${{{baseline_red.ONLY_ENV}:-}}\" > {self.work}/only\nprintf '%s' '{JUNIT}' > \"$1\"\n")
+        with mock.patch.dict(os.environ, {baseline_red.ONLY_ENV: "1"}):
+            baseline_red.run_suite(exe, self.repo, self.work, 3, only=False)
+        self.assertEqual((self.work / "only").read_text(), "")
 
     def test_no_junit_names_exit_and_log(self):
         exe = self.runner("echo 何も書かない\nexit 3\n")
@@ -205,7 +213,8 @@ class BaselineFileCase(unittest.TestCase):
 
     def test_wrong_type_is_value_error(self):
         for name, bad in (("suite", None), ("test_cmd", 1), ("rev", []), ("exit", "1"), ("exit", True), ("cases", {}),
-                          ("cases", [{"classname": "a", "name": "b"}]), ("cases", ["x"])):
+                          ("cases", [{"classname": "a", "name": "b"}]), ("cases", ["x"]),
+                          ("cases", [row("t", "failed")])):
             with self.subTest(name=name, bad=bad):
                 self.path.write_text(json.dumps({**BASE, name: bad}), encoding="utf-8")
                 with self.assertRaises(ValueError) as cm:
