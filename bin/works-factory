@@ -3,6 +3,10 @@
 import sys
 from pathlib import Path
 
+if sys.version_info < (3, 12):   # pyproject.toml の requires-python。古い Python は下の部品の読み込みで落ちる
+    print("works-factory: Python 3.12 以上が要る", file=sys.stderr)
+    sys.exit(2)
+
 sys.dont_write_bytecode = True   # 入口の部品のフォルダに __pycache__ を作らない
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

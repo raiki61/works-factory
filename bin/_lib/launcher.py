@@ -2,7 +2,7 @@
 
 Archon の命令の別名は作らない（持ち主の決め one-launcher）。持つのはつなぎだけで、認証・隔離・プラグインの選び・gh の口・源の取り寄せは
 bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
-B の「約束」1〜11）。止まる時は標準エラーに 1 行を出し、Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
+B の「約束」1〜11）。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
 """
 import hashlib
 import os
@@ -17,8 +17,10 @@ from bin._lib import hostgh, isolate, pack, place
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
 NAME = "works-factory"
-# 止めた Archon が工程を走らせる命令（packages/cli/src/cli.ts の executesWorkflow。tests/shared/test_archon_contract.py が照らす）
-EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"})
+# 止めた Archon が工程を走らせる命令（packages/cli/src/cli.ts の executesWorkflow と、その前で捌く続きの命令。
+# tests/shared/test_archon_contract.py が照らす）
+CONTINUING = frozenset({"wake", "signal"})
+EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"}) | CONTINUING
 
 
 class Stop(Exception):
@@ -46,7 +48,9 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     require_command_first(argv)
     workflow = fresh_run_workflow(argv, flags)
     no_auth = user.get("WORKS_FACTORY_NO_AUTH") == "1"
-    user_home = user["HOME"]
+    user_home = user.get("HOME")
+    if not user_home:
+        raise Stop("HOME が無い。利用者の HOME から認証と置き場を引く")
     raw_config = absolute(user.get("CLAUDE_CONFIG_DIR", ""), here)
     filled_config = raw_config or str(Path(user_home) / ".claude")
     auth = [sys.executable, "-I", str(LIB / "auth_launch.py")]
@@ -89,10 +93,10 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         except RuntimeError as error:
             raise Stop(str(error)) from None
         archon = place.workflow_run(source, workflows, target, workflow, *without_flag(argv[3:], "--cwd"))[1:]
-    bun = shutil.which("bun", path=child.get("PATH"))
-    if bun is None:
-        raise Stop("bun が隔離した PATH に無い")
-    os.execve(sys.executable, [*auth, "exec", *auth_user, "--", bun, *archon], child)
+    bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
+    # bun は打った場所の bunfig.toml の preload を走らせる。対象の物を認証つきの Archon の中で走らせないよう、源の物を名指す
+    config = f"--config={source / 'bunfig.toml'}"
+    os.execve(sys.executable, [*auth, "exec", *auth_user, "--", bun, config, *archon], child)
 
 
 def require_command_first(argv: list[str]) -> None:
@@ -148,8 +152,11 @@ def target_root(cwd: Path, here: Path) -> Path:
     real = Path(os.path.realpath(here / cwd))
     if not real.is_dir():
         raise Stop(f"対象のフォルダ {real} が無い")
-    top = subprocess.run(["git", "-C", str(real), "rev-parse", "--show-toplevel"], capture_output=True, text=True,
-                         encoding="utf-8")
+    try:
+        top = subprocess.run(["git", "-C", str(real), "rev-parse", "--show-toplevel"], capture_output=True, text=True,
+                             encoding="utf-8")
+    except FileNotFoundError:
+        raise Stop("git が無い。対象の根を git で決める") from None
     return Path(os.path.realpath(top.stdout.strip())) if top.returncode == 0 else real
 
 
@@ -184,7 +191,7 @@ def mise_trusts(user: Mapping[str, str], target: Path) -> bool:
 def install_toolset(user: Mapping[str, str], child: dict[str, str], target: Path, user_config: str, plugins: bool) -> None:
     """隔離した Claude の設定に借りる物だけを入れる。plugins が偽なら plugin の CLI を呼ばない（スキルの名は validate も照らす）"""
     if plugins:
-        claude = user.get("CLAUDE_BIN_PATH") or shutil.which("claude", path=user.get("PATH"))
+        claude = user.get("CLAUDE_BIN_PATH") or on_absolute_path("claude", user.get("PATH", ""))
         if not claude:
             raise Stop("本物の claude（隔離した設定にプラグインを入れる）が見つからない。CLAUDE_BIN_PATH に絶対パスを設定する")
         how = ["--claude", claude]
@@ -194,3 +201,11 @@ def install_toolset(user: Mapping[str, str], child: dict[str, str], target: Path
                            child["CLAUDE_CONFIG_DIR"]], env=child, cwd=target)
     if done.returncode != 0:
         raise Stop(code=done.returncode)
+
+
+def on_absolute_path(name: str, path: str) -> str | None:
+    """PATH の絶対の置き場だけから name を探す。相対の置き場は打った場所の下の物を拾うので使わない"""
+    for folder in path.split(os.pathsep):
+        if os.path.isabs(folder) and (found := shutil.which(name, path=folder)):
+            return found
+    return None

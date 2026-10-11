@@ -169,8 +169,11 @@ ARCHON_ROWS = (
         r"export function inputEnvKey\(name: string\): string \{\n\s*return `(\w+)\$\{name\.replace\(/-/g, '_'\)\.toUpperCase\(\)\}`;"),
     Row("工程の置き場 WORKFLOW_FOLDER", lambda: place.WORKFLOW_FOLDER, "packages/paths/src/archon-paths.ts",
         r"export function getWorkflowFolderSearchPaths\(\): string\[\] \{\n\s*return \['([^']+)'\];"),
-    Row("工程を走らせる命令", lambda: sorted(launcher.EXECUTING), "packages/cli/src/cli.ts",
+    Row("工程を走らせる命令", lambda: sorted(launcher.EXECUTING - launcher.CONTINUING), "packages/cli/src/cli.ts",
         r"const executesWorkflow = \[([^\]]+)\]\.includes\(", lambda m: sorted(re.findall(r"'(\w+)'", m[1]))),
+    Row("工程を続ける命令", lambda: sorted(launcher.CONTINUING), "packages/cli/src/cli.ts",
+        r"if \(command === 'workflow' && \(subcommand === '(\w+)' \|\| subcommand === '(\w+)'\)\) \{\n"
+        r"\s*const schedule", lambda m: sorted(m.groups())),
 )
 
 

@@ -80,6 +80,7 @@ class LauncherTest(unittest.TestCase):
         asf = json.loads((ROOT / "factory" / "pack.json").read_text(encoding="utf-8"))
         staging = cls.base / "archon-staging"
         put(staging / ENTRY, "// 偽の Archon の入口\n")
+        (staging / "bunfig.toml").write_text("# 偽の Archon の bun の設定\n", encoding="utf-8")
         put(staging / asf["source_directory"] / "archon-x.yaml", "name: archon-x\n")
         (staging / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
         git(staging, "init", "-q")
@@ -147,17 +148,18 @@ class LauncherTest(unittest.TestCase):
         got = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x", cwd=self.target / "sub"))
         argv = got["argv"]
         self.assertEqual(argv[0], str(self.bun))
-        self.assertEqual(argv[1], str(self.source / ENTRY))
-        self.assertEqual(argv[2:6], ["workflow", "run", "--cwd", str(self.target)])
-        self.assertEqual(argv[6], "--workflow-source")
-        self.assertEqual((pathlib.Path(argv[7]) / ".archon" / "workflows" / "works-factory").resolve(), self.repo / "workflows")
-        self.assertEqual(argv[8:], ["works-factory-line", "--input", "request=x"])
+        self.assertEqual(argv[1], f"--config={self.source / 'bunfig.toml'}")
+        self.assertEqual(argv[2], str(self.source / ENTRY))
+        self.assertEqual(argv[3:7], ["workflow", "run", "--cwd", str(self.target)])
+        self.assertEqual(argv[7], "--workflow-source")
+        self.assertEqual((pathlib.Path(argv[8]) / ".archon" / "workflows" / "works-factory").resolve(), self.repo / "workflows")
+        self.assertEqual(argv[9:], ["works-factory-line", "--input", "request=x"])
         with self.subTest("利用者の --cwd は対象に使い、二重に足さない"):
             argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--cwd", str(self.target / "sub"),
                                             "--input", "request=x", cwd=self.tmp))["argv"]
             self.assertEqual(argv.count("--cwd"), 1)
-            self.assertEqual(argv[2:6], ["workflow", "run", "--cwd", str(self.target)])
-            self.assertEqual(argv[8:], ["works-factory-line", "--input", "request=x"])
+            self.assertEqual(argv[3:7], ["workflow", "run", "--cwd", str(self.target)])
+            self.assertEqual(argv[9:], ["works-factory-line", "--input", "request=x"])
 
     def test_run_without_workflow_name_stops(self):
         err = self.stopped(self.launch("workflow", "run", "--input", "request=x"))
@@ -179,7 +181,7 @@ class LauncherTest(unittest.TestCase):
                      ["workflow", "status"]):
             with self.subTest(args=args):
                 argv = self.reached(self.launch(*args))["argv"]
-                self.assertEqual(argv[2:], args)
+                self.assertEqual(argv[3:], args)
 
     def test_user_workflow_source_is_refused(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--workflow-source", str(self.tmp)))
@@ -256,6 +258,26 @@ class LauncherTest(unittest.TestCase):
         self.assertIn("認証は ANTHROPIC_API_KEY", done.stderr)
         self.assertTrue(claude_log.exists(), "run で claude の plugin の CLI を呼んでいない")
 
+    def test_continuing_commands_check_auth_and_install_plugins(self):
+        """workflow wake・signal も止めた Archon が工程を走らせる（packages/cli/src/cli.ts が executesWorkflow の前で捌く）"""
+        for args in (["workflow", "wake", "run-1"], ["workflow", "signal", "run-1", "done"]):
+            with self.subTest(args=args):
+                claude_log = self.tmp / "claude.jsonl"
+                claude_log.unlink(missing_ok=True)
+                done = self.launch(*args, WORKS_FACTORY_HOME=str(self.tmp / "home-of" / args[1]))
+                self.reached(done)
+                self.assertIn("認証は ANTHROPIC_API_KEY", done.stderr)
+                self.assertTrue(claude_log.exists(), f"{args} で claude の plugin の CLI を呼んでいない")
+
+    def test_claude_on_relative_path_is_not_used(self):
+        """PATH の相対の置き場（打った場所の下）の claude は、隔離した設定にプラグインを入れる本物として使わない"""
+        (self.fake / "claude").unlink()
+        write_fake_claude(self.target / "rel-bin")
+        err = self.stopped(self.launch("workflow", "run", "works-factory-line",
+                                       PATH=os.pathsep.join(["rel-bin", str(self.fake), str(self.tools)])))
+        self.assertIn("CLAUDE_BIN_PATH", err)
+        self.assertFalse((self.tmp / "claude.jsonl").exists(), "相対の置き場の claude を呼んだ")
+
     def test_mise_trust_only_when_user_trusts_target(self):
         put(self.fake / "mise", FAKE_MISE)
         workspaces = os.path.realpath(self.default_home(self.target) / "archon-home" / "workspaces")
@@ -306,6 +328,40 @@ class LauncherTest(unittest.TestCase):
         env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
         self.assertIn("ANTHROPIC_API_KEY", list(env))
         self.assertFalse(self.security_log.exists(), "API キーの利用者で keychain を読んだ")
+
+    def test_missing_home_or_git_stops_with_one_line(self):
+        only_python = self.tmp / "only-python"
+        only_python.mkdir()
+        (only_python / "python3").symlink_to(sys.executable)
+        for missing, env in (("HOME", {"HOME": None}),
+                             ("git", {"PATH": os.pathsep.join([str(self.fake), str(only_python)])})):
+            with self.subTest(missing=missing):
+                err = self.stopped(self.launch("workflow", "status", **env))
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertIn(f"{missing} が無い", err)
+
+    def test_old_python_stops_before_loading_parts(self):
+        """持ってきた部品は 3.12 の書き方で、古い Python では読み込みで落ちる。その前に 1 行で止まる"""
+        pretend = ("import runpy, sys; sys.version_info = (3, 9, 6, 'final', 0); "
+                   f"runpy.run_path({str(self.repo / 'bin' / 'works-factory')!r}, run_name='__main__')")
+        done = subprocess.run([sys.executable, "-c", pretend, "workflow", "status"], env=self.env, cwd=self.target,
+                              capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(done.returncode, 2, done.stderr)
+        self.assertEqual(done.stderr.strip(), "works-factory: Python 3.12 以上が要る")
+        self.assertFalse(self.bun_log.exists())
+
+    @unittest.skipIf(shutil.which("bun") is None, "本物の bun が無い")
+    def test_target_bunfig_preload_does_not_run(self):
+        """bun は打った場所の bunfig.toml の preload を走らせる。対象の物を認証つきの Archon の中で走らせない"""
+        mark = self.tmp / "preload-ran"
+        (self.target / "bunfig.toml").write_text('preload = ["./plant.ts"]\n', encoding="utf-8")
+        (self.target / "plant.ts").write_text(f"require('fs').writeFileSync({json.dumps(str(mark))}, 'x')\n",
+                                              encoding="utf-8")
+        self.bun.unlink()
+        self.bun.symlink_to(shutil.which("bun"))
+        done = self.launch("workflow", "status")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertFalse(mark.exists(), "対象の bunfig.toml の preload が走った")
 
     def test_bun_missing_stops_with_one_line(self):
         self.bun.unlink()
