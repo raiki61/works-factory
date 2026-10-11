@@ -1,0 +1,6 @@
+name: works-factory-judge
+nodes:
+  - id: run
+    script: stub
+    runtime: uv
+    timeout: 10
