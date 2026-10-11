@@ -1,0 +1,43 @@
+# 修正役が範囲の相談を頼む: 頼みの照らしが go を立て、答えの役（読むだけ）が起きる
+fixture:
+  expect: completed
+  reached: [fixer, consult-check, consult-answer, consult-accept, fix-accept, fix]
+  inputs:
+    mode: group
+    start: '{"type":"archon_artifact","run_id":"r","path":"start.json"}'
+    units: '[{"id":"u1","paths":["stats.py"],"summary":"s"}]'
+    judgment: '{"type":"archon_artifact","run_id":"r","path":"judgment.json"}'
+route: {group: true}
+group-start: {tdd: false, units: 1, reason: 実行器の無い run}
+fix-prep: {prompt_file: fix-prompt.md, go: true, iteration: 1}
+fixer:
+  changes: []
+  not_done: []
+  fix_closure: {status: not_applicable}
+  mechanism_changed: false
+  premise_drift: false
+  gates_changed: false
+  seams_changed: false
+  security_surface_changed: false
+  path_changed: false
+  interactions: []
+  wrote_refs: []
+  plan_faces: []
+  consult: [{item: 1, paths: [other.py], tests: [], why: 呼び元の other.py も同じ不変条件を持つ}]
+consult-check: {consulted: true, go: true, prompt_file: consult-prompt.md}
+consult-answer:
+  answers: [{ask: 1, decision: allow, paths: [other.py], tests: [], spec: "", reason: 同じ不変条件を持つ呼び元なので範囲に入れる}]
+consult-accept: {consulted: true, answer_file: consult-answer.json}
+fix-accept: {ok: false, done: true, reason: "", reason_file: ""}
+group-end: {result_file: g1/result.json}
+fix:
+  done: true
+  units: [{unit_id: u1, group_id: g1, status: fixed, reason: ""}]
+  groups: [{group_id: g1, unit_ids: [u1], returned: true, reason: ""}]
+  conflicts: null
+  replan_items: []
+  objection: ""
+  diff: {type: archon_artifact, run_id: r, path: fix/fix/diff.patch}
+  allowed_test_changes: []
+  changed: {mechanism_changed: false, premise_drift: false, gates_changed: false, seams_changed: false, security_surface_changed: false, path_changed: false}
+  delta_review: {rounds: 0, pass: true}

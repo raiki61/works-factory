@@ -1,0 +1,40 @@
+# 組の子の run で実行器が無い: TDD の輪を飛ばし、修正の輪だけで直す（今の works と同じ）
+fixture:
+  expect: completed
+  reached: [group-start, fix-loop, fixer, fix-accept, group-end, fix]
+  inputs:
+    mode: group
+    start: '{"type":"archon_artifact","run_id":"r","path":"start.json"}'
+    units: '[{"id":"u1","paths":["stats.py"],"summary":"s"}]'
+    judgment: '{"type":"archon_artifact","run_id":"r","path":"judgment.json"}'
+route: {group: true}
+group-start: {tdd: false, units: 1, reason: 実行器の無い run}
+fix-prep: {prompt_file: fix-prompt.md, go: true, iteration: 1}
+fixer: &reply
+  changes: []
+  not_done: []
+  fix_closure: {status: not_applicable}
+  mechanism_changed: false
+  premise_drift: false
+  gates_changed: false
+  seams_changed: false
+  security_surface_changed: false
+  path_changed: false
+  interactions: []
+  wrote_refs: []
+  plan_faces: []
+consult-check: {consulted: false, go: false, prompt_file: ""}
+consult-accept: {consulted: false, answer_file: ""}
+fix-accept: {ok: true, done: true, reason: "", reason_file: ""}
+group-end: {result_file: g1/result.json}
+fix:
+  done: true
+  units: [{unit_id: u1, group_id: g1, status: fixed, reason: ""}]
+  groups: [{group_id: g1, unit_ids: [u1], returned: true, reason: ""}]
+  conflicts: null
+  replan_items: []
+  objection: ""
+  diff: {type: archon_artifact, run_id: r, path: fix/fix/diff.patch}
+  allowed_test_changes: []
+  changed: {mechanism_changed: false, premise_drift: false, gates_changed: false, seams_changed: false, security_surface_changed: false, path_changed: false}
+  delta_review: {rounds: 0, pass: true}
