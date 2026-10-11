@@ -172,6 +172,7 @@ class GroupsCase(unittest.TestCase):
         hits = [f"{p.name}:{i}" for p in sorted((BLOCK / "scripts").glob("*.py"))
                 for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if NO_QUEUE.search(line)]
         self.assertEqual(hits, [])
+        self.assertNotIn("flock", (LIB / "consult.py").read_text(encoding="utf-8"))   # 子の run ごとに置き場が分かれ、錠は効かない
 
     def test_one_tdd_unit_artifact_on_block_path(self):
         typed = [nid for nid, n in self.nodes.items() if n.get("output_type") == "tdd-unit"]

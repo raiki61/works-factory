@@ -42,9 +42,7 @@
 - write_config・load_config・offered: 相談の控え（事前の確かめのコマンドと受け付けの拒否の文）
 """
 import collections
-import contextlib
 import datetime
-import fcntl
 import json
 import os
 import pathlib
@@ -73,7 +71,6 @@ ALLOW, DENY, DEFER = "allow", "deny", "defer"
 DECISIONS = (ALLOW, DENY, DEFER)
 MIN_WHY = conflict.CONSULT_MIN_WHY
 CONFIG = "consult.json"
-LOCK = "consult.lock"        # 相談の行の番号を振る錠（置き場の作業ファイル。_id_lock）
 
 ANSWER_SCHEMA = {
     "type": "object", "additionalProperties": False,
@@ -470,8 +467,7 @@ def settle(b, answer, pass_: str, node: str, round_: int = 1) -> dict:
     for a in got if isinstance(got, list) else []:
         if isinstance(a, dict) and isinstance(a.get("ask"), int) and a["ask"] not in by_n:
             by_n[a["ask"]] = a
-    with _id_lock(b):   # 同時に走る修正役の並べの枝の確かめの節が、同じ番号を 2 度振らない（番号の引きと trace の書きを 1 つの錠の中に）
-        out_rows = _trace_rows(b, st, answer, by_n, turn, pass_, node, round_)
+    out_rows = _trace_rows(b, st, answer, by_n, turn, pass_, node, round_)
     path = pathlib.Path(b) / ANSWER_FILE.format(pass_=pass_, turn=turn)
     path.write_text(answer_text(turn, out_rows), encoding="utf-8")
     _write_json(state_path(b, pass_), {**st, "turn_state": ANSWERED_TURN, "answer_file": str(path),
@@ -480,20 +476,8 @@ def settle(b, answer, pass_: str, node: str, round_: int = 1) -> dict:
     return {"consulted": True, "turn": turn, "answer_file": str(path), "counts": dict(counts)}
 
 
-@contextlib.contextmanager
-def _id_lock(b):
-    """相談の行の番号を振る錠（置き場の作業ファイル LOCK。fcntl.flock。待つ上限は持たない）"""
-    pathlib.Path(b).mkdir(parents=True, exist_ok=True)
-    with open(pathlib.Path(b) / LOCK, "a", encoding="utf-8") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
-
-
 def _trace_rows(b, st: dict, answer, by_n: dict, turn: int, pass_: str, node: str, round_: int = 1) -> list:
-    """頼みごとの行を確かめて trace（conflict.ASKED_OP）に書き、行の並びを返す（番号は trace の今の最大の次から。_id_lock の中で呼ぶ）"""
+    """頼みごとの行を確かめて trace（conflict.ASKED_OP）に書き、行の並びを返す（番号は trace の今の最大の次から）"""
     known = [r.get("id") for r in conflict.plan_asks(b) if isinstance(r.get("id"), int)]
     next_id = 1 + max(known, default=0)
     out_rows = []
