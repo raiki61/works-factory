@@ -161,18 +161,20 @@ class StartCase(Artifacts):
 class ReplanAnswerCase(Artifacts):
     def test_refix_answers_carry_the_before_fix_conditions_and_the_replan_note(self):
         """元 replan._notes: 2 度目の修正には修正前の関所の条件と案の直しの関所の一言の両方が届く"""
-        got = replan_answer.fix_answers({"decision": "continue", "text": "範囲は stats.py だけ"},
+        got = replan_answer.fix_answers({"decision": "continue", "text": "範囲は stats.py だけ", "asked": ["問い q1（"]},
                                         {"decision": "approve", "text": "項目 1 は\n util.py も"})
         self.assertEqual(got, {"decision": "approve", "text": f"{replan_answer.FIX_NOTES_HEAD}\n\n範囲は stats.py だけ\n\n"
-                                                                f"{replan_answer.NOTE_HEAD}\n\n項目 1 は util.py も\n"})
-        self.assertEqual(replan_answer.fix_answers({"decision": "continue", "text": ""}, None), {"decision": "continue", "text": ""})
+                                                                f"{replan_answer.NOTE_HEAD}\n\n項目 1 は util.py も\n",
+                               "asked": ["問い q1（"]})
+        self.assertEqual(replan_answer.fix_answers({"decision": "continue", "text": ""}, None),
+                         {"decision": "continue", "text": "", "asked": []})
         self.assertEqual(replan_answer.fix_answers(None, {"decision": "continue", "text": "x"})["text"], f"{replan_answer.NOTE_HEAD}\n\nx\n")
         self.assertIsNone(replan_answer.fix_answers(None, None))
 
     def test_answer_is_the_gate_answer_with_the_fix_answers(self):
         got = replan_answer.answer(json.dumps({"decision": "continue", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts)
         self.assertEqual(got, {"go": True, "answer": {"decision": "continue", "text": "x"}, "stop_reason": "",
-                               "fix_answers": {"decision": "continue", "text": f"{replan_answer.NOTE_HEAD}\n\nx\n"}})
+                               "fix_answers": {"decision": "continue", "text": f"{replan_answer.NOTE_HEAD}\n\nx\n", "asked": []}})
 
 
 class FixGateAnswersCase(Artifacts):

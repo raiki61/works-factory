@@ -6,7 +6,7 @@
 
 関所の答えの読みと返り {go, answer, stop_reason} は gate_answer と同じ。加えて、2 度目の修正に渡す answers（fix_answers）を返す:
 修正前の関所の答えの条件と案の直しの関所の一言を見出しの下に並べた文（元 works/.shared/core/replan.py の _notes。人が修正前の
-関所で答えた条件は 2 度目の修正にも効く）。
+関所で答えた条件は 2 度目の修正にも効く）と、修正前の関所で見せた問いの行 asked（人が通した問いの単位を 2 度目の修正も直す）。
 
 入力（with:）: gate_answer の入力と before_fix（修正前の関所の答え）
 """
@@ -21,8 +21,8 @@ NOTE_HEAD = "## 人の一言（関所 gate-replan）"   # 元 replan.NOTE_HEAD
 
 
 def fix_answers(before_fix, replan) -> dict | None:
-    """2 度目の修正の answers {decision, text}。decision は後の関所の答えの語で、text は条件と一言のうち在る物（元 replan._notes の頭の
-    2 つ）。どちらの関所も開かなかった run は null"""
+    """2 度目の修正の answers {decision, text, asked}。decision は後の関所の答えの語で、text は条件と一言のうち在る物（元 replan._notes の
+    頭の 2 つ）、asked は修正前の関所の答えの物。どちらの関所も開かなかった run は null"""
     answered = [a for a in (before_fix, replan) if isinstance(a, dict)]
     if not answered:
         return None
@@ -31,7 +31,8 @@ def fix_answers(before_fix, replan) -> dict | None:
     parts = [f"{FIX_NOTES_HEAD}\n\n{prior}\n"] if prior else []
     if note:
         parts.append(f"{NOTE_HEAD}\n\n{note}\n")
-    return {"decision": answered[-1]["decision"], "text": "\n".join(parts)}
+    asked = before_fix.get("asked") if isinstance(before_fix, dict) else None
+    return {"decision": answered[-1]["decision"], "text": "\n".join(parts), "asked": asked if isinstance(asked, list) else []}
 
 
 def answer(gate_raw, go_raw, stop_raw, before_fix_raw, place: str, artifacts: Path) -> dict:

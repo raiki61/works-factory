@@ -243,8 +243,8 @@ flowchart TB
   - `baseline` ← `$test-gate-base.output.baseline`
   - `units`・`judgment`・`world` ← `$judge.output.<同じ名>`
   - `plan`・`ripple`・`depth` ← `$plan-rounds.output.<同じ名>`
-  - `answers` ← `$answer-before-fix.output.answer`（修正前の関所の答え `{decision, text}`。関所が開かなかった run は null）
-- `refix-run` の時: `only_items` ← `$fix.output.replan_items`（直す計画の項目の番号。`replan_items` と同じ形。fix はその項目に載る単位だけを直す）、`plan`・`ripple`・`depth` ← `$replan.output.<同じ名>`、`answers` ← `$answer-replan.output.fix_answers`（修正前の関所の答えの条件と案の直しの関所の一言を見出しの下に並べた `{decision, text}`。今の works の `replan._notes` と同じく、人が修正前の関所で通した範囲と条件を 2 度目の修正も守る。どちらの関所も開かなかった run は null）、ほかは `fix` と同じ。fix は include の名ごとに run の置き場の下の別のフォルダを使うので、`refix-run` は `fix` の控えを上書きしない。返りは fix と同じ形で、線の節 `fixed` が `fix` と `refix-run` の返りをまとめて後の段に渡す。
+  - `answers` ← `$answer-before-fix.output.answer`（修正前の関所の答え `{decision, text, asked}`。`asked` は関所で見せた問いの行（`answer-before-fix` が `$plan-rounds.output.questions` を受けて足す）で、fix はこの行が頭で始まる問いを人が答えたと読み、問いの単位を直す義務に戻す（`lib/fixboard.py` の `gate_items`）。関所が開かなかった run は null）
+- `refix-run` の時: `only_items` ← `$fix.output.replan_items`（直す計画の項目の番号。`replan_items` と同じ形。fix はその項目に載る単位だけを直す）、`plan`・`ripple`・`depth` ← `$replan.output.<同じ名>`、`answers` ← `$answer-replan.output.fix_answers`（修正前の関所の答えの条件と案の直しの関所の一言を見出しの下に並べた `{decision, text, asked}`。`asked` は修正前の関所の答えの物。今の works の `replan._notes` と同じく、人が修正前の関所で通した範囲と条件と問いの答えを 2 度目の修正も守る。どちらの関所も開かなかった run は null）、ほかは `fix` と同じ。fix は include の名ごとに run の置き場の下の別のフォルダを使うので、`refix-run` は `fix` の控えを上書きしない。返りは fix と同じ形で、線の節 `fixed` が `fix` と `refix-run` の返りをまとめて後の段に渡す。
 - 約束に無い入力（線は渡さない。既定 `""`）: `only_items`（`fix` では空）・`mode`（`""` はブロック、`group` は組ごとの子の run）・`group`（組 1 つの JSON）・`from_tree`（親の作業ツリーの姿の木の sha）・`out_dir`（子が結果を書く、親の run の置き場の中の絶対パス）。fix は組ごとの並べのために自分（pack `works-factory` の `works-factory-fix`）を `workflow:` と `fan_out:` で子の run として起こす（未決 U8）。
 - 返り:
   - `done`（boolean）: 直しを作業ツリーに入れ終え、差分の審査を通した。諦めた単位が在っても true → 線 8・report

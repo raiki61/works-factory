@@ -341,6 +341,7 @@ nodes:
       go: "$ask-before-fix.output.go"
       stop_reason: "$ask-before-fix.output.stop_reason"
       place: gate-before-fix
+      asked: "$plan-rounds.output.questions"
 
   # 7 修正。裁定が計画の項目の誤りとしたら案の直しとその後の 2 度目の修正を、修正役の異議が在れば再審を、1 度ずつ差し込む
   - id: fix

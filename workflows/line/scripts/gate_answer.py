@@ -7,10 +7,13 @@
 関所が方針で飛ばされても走る（trigger_rule: none_failed_min_one_success）。関所の出力は `{from, if_skipped: null}` で受ける。
 返り {go, answer, stop_reason}: 関所が飛ばされたら前の節が決めた go と止めの理由をそのまま返し、answer は null。
 関所が開いたら答え {decision, text} を返し、通す語なら go、止める語なら go: false と止めの理由 human:<関所>。
-答えは run の置き場の gates/<関所>.json に {decision, text} で書く（同じ関所の答えは書き直す。人が読む控えで、関所の文が名指す）。
+asked を受ける節（answer-before-fix）は、答えに関所で見せた問いの行 asked を足す。fix の置き場の読み（lib/fixboard.py の gate_items）は
+asked の行が問いの頭で始まる時だけ、その問いを人が答えたと読み、問いの単位を直す義務に戻す。
+答えは run の置き場の gates/<関所>.json に書く（同じ関所の答えは書き直す。人が読む控えで、関所の文が名指す）。
 報告へは返りの answer が collect を通って届く。
 
-入力（with:）: gate（関所の出力）・go・stop_reason（関所の前の節の決め）・place（関所の節の id）
+入力（with:）: gate（関所の出力）・go・stop_reason（関所の前の節の決め）・place（関所の節の id）・asked（関所で見せた問いの行。
+answer-before-fix だけ）
 """
 import json
 import os
@@ -31,10 +34,12 @@ def decision_of(raw) -> dict:
     return {"decision": str(got), "text": ""}
 
 
-def answer(gate_raw, go_raw, stop_raw, place: str, artifacts: Path) -> dict:
+def answer(gate_raw, go_raw, stop_raw, place: str, artifacts: Path, asked_raw=None) -> dict:
     if linekit.text(gate_raw) == "":
         return {"go": linekit.flag(go_raw), "answer": None, "stop_reason": linekit.text(stop_raw)}
     got = decision_of(gate_raw)
+    if asked_raw is not None:
+        got["asked"] = [line for line in linekit.items(asked_raw) if isinstance(line, str)]
     folder = artifacts / ANSWERS
     folder.mkdir(parents=True, exist_ok=True)
     (folder / f"{place}.json").write_text(json.dumps(got, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -48,5 +53,5 @@ def fallback(reason: str) -> dict:
 
 if __name__ == "__main__":
     linekit.run(lambda: answer(os.environ.get("INPUTS_GATE"), os.environ.get("INPUTS_GO"), os.environ.get("INPUTS_STOP_REASON"),
-                               os.environ["INPUTS_PLACE"], Path(os.environ["ARTIFACTS_DIR"])),
+                               os.environ["INPUTS_PLACE"], Path(os.environ["ARTIFACTS_DIR"]), os.environ.get("INPUTS_ASKED")),
                 fallback)
