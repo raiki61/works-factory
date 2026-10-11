@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """直した後の構造を、始めの版から今の作業ツリーまでの差分で測り、置き場の eyes/structure-after.json に書く。
 測れなくても節は落とさず status: failed と理由を返す（線を止めない）"""
 import json

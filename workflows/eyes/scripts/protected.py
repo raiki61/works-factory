@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """始めの版から今の作業ツリーまでの差分のうち守りの一覧に当たる物。一覧か git が読めない時も落ちず、確かめられなかった印の
 1 行を当たりとして返す（黙って空にしない）。返りは置き場の eyes/protected.json にも書く"""
 import json
