@@ -129,25 +129,24 @@
 ### Task 5: 人の打つ口
 
 **Files:**
-- Create: `bin/start`・`bin/answer`・`bin/show`・`bin/apply`（Python の実行ファイル。中身は `bin/_lib/cli.py` を呼ぶだけ）・`bin/_lib/cli.py`
+- Create: `bin/start`・`bin/answer`・`bin/show`（Python の実行ファイル。中身は `bin/_lib/cli.py` を呼ぶだけ）・`bin/_lib/cli.py`
+- `bin/apply` はこの Task に入れない。当てる差分の型の正本は Task 4 の merge ブロックの返す節の `output_format`（持ち主の決め `io-in-output-format`）なので、Task 4 の後の Task 7 で作る（ASF の run 41fe489e の確かめが見つけた計画の抜け）。
 - Test: `tests/bin/test_cli.py`
 
 **Interfaces:**
 - Consumes: Task 1 の `pack.load`・`place.*`
 - Produces:
   - `cli.start(target: Path, request: str, archon: Callable[[list[str]], str]) -> str`（配置してから `archon workflow run works-factory-line` を起こし、run の id を返す）
-  - `cli.answer(run_id: str, text: str, archon) -> None`・`cli.show(run_id: str, archon) -> str`・`cli.apply(run_id: str, target: Path) -> None`（merge の返りの指し札の差分を、封じた hash を照らしてから `git apply` する。違えば止まる）
+  - `cli.answer(run_id: str, text: str, archon) -> None`・`cli.show(run_id: str, archon) -> str`
   - Archon は引数の `archon` 関数で呼ぶ（試験は偽の関数を渡す）。本物の起こし方（認証の切り替えと置き場の隔離）は Task 6 の物で、Task 5 と Task 6 をつなぐのは段 1。
 - 持ち主の居ない `running` の扱い（埋め P1）は段 1 で足す。段 0 の `show` は Archon の状態をそのまま出す。
 
 - [ ] **Step 1: 試験を書く**（偽の `archon` 関数で引数を記録）
   - `test_start_places_then_runs`: 配置が先、次に `workflow run works-factory-line`
-  - `test_apply_refuses_changed_diff`: 封じた hash と違う差分で止まり、対象の木は変わらない
-  - `test_apply_applies_sealed_diff`: 同じなら当たる
 - [ ] **Step 2: 赤**: `python3 -m unittest tests.bin.test_cli -v`
 - [ ] **Step 3: 実装**
 - [ ] **Step 4: 緑**。全部の試験 `python3 -m unittest discover -s . -t .` が緑
-- [ ] **Step 5: commit**: `git commit -m "feat(bin): start・answer・show・apply"`
+- [ ] **Step 5: commit**: `git commit -m "feat(bin): start・answer・show"`
 
 ### Task 6: 起動の認証と置き場の隔離を今の works から持ってくる
 
@@ -165,6 +164,20 @@
 - [ ] **Step 2: 元のファイルを持ってきて直す**（緑）
 - [ ] **Step 3: 全部の試験** `python3 -m unittest discover -s . -t .` が緑
 - [ ] **Step 4: commit**: `git commit -m "feat(bin): 起動の認証と置き場の隔離を今の works から持ってくる"`
+
+### Task 7: 封じた差分を当てる口（bin/apply）
+
+**Files:**
+- Create: `bin/apply`（中身は `bin/_lib/cli.py` を呼ぶだけ）・`bin/_lib/cli.py` に `apply` を足す
+- Test: `tests/bin/test_cli.py` に足す
+
+**Interfaces:**
+- Consumes: Task 4 の merge ブロックの返す節の `output_format`（封じた差分の指し札と hash の欄）と、Task 5 の `cli.py`
+- Produces: `cli.apply(run_id: str, target: Path) -> None`（merge の返りの指し札の差分を、封じた hash を照らしてから `git apply` する。違えば止まり、対象の木は変えない）
+
+- [ ] **Step 1: 試験を書く**: `test_apply_refuses_changed_diff`（封じた hash と違う差分で止まり、対象の木は変わらない）・`test_apply_applies_sealed_diff`（同じなら当たる）
+- [ ] **Step 2: 赤** → **Step 3: 実装** → **Step 4: 緑**（全部の試験）
+- [ ] **Step 5: commit**: `git commit -m "feat(bin): 封じた差分を当てる apply"`
 
 ## 段 0 の終わりの確かめ
 
