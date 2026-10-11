@@ -35,6 +35,7 @@ collect = load("collect")
 result = load("result")
 
 import answer  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
+import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import stopby  # noqa: E402
 
@@ -172,6 +173,34 @@ class ReplanAnswerCase(Artifacts):
         got = replan_answer.answer(json.dumps({"decision": "continue", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts)
         self.assertEqual(got, {"go": True, "answer": {"decision": "continue", "text": "x"}, "stop_reason": "",
                                "fix_answers": {"decision": "continue", "text": f"{replan_answer.NOTE_HEAD}\n\nx\n"}})
+
+
+class FixGateAnswersCase(Artifacts):
+    """fix・refix-run に渡す修正前の関所の答えは、関所で見せた問いの行 asked を持ち、fix の置き場の読み（fixboard.gate_asks）が
+    人の通した問いの単位を直す義務に戻す（asked が無いと、答えた問いの単位が外されたまま直されない）"""
+
+    FORK = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "割れる"}
+
+    def gate_asks(self, name, answers):
+        place = self.tmp / name
+        place.mkdir()
+        (place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": [{"key": "u1"}], "questions": [self.FORK]}), encoding="utf-8")
+        (place / fixboard.ANSWERS_FILE).write_text(json.dumps(answers, ensure_ascii=False), encoding="utf-8")
+        return fixboard.gate_asks(place)
+
+    def test_before_fix_answer_returns_the_asked_unit(self):
+        asked = json.dumps([gatemarks.ask_text(self.FORK)], ensure_ascii=False)
+        before_fix = gate_answer.answer(json.dumps({"decision": "approve", "text": "q1 は a"}), "true", "", "gate-before-fix",
+                                        self.artifacts, asked)["answer"]
+        replan = gate_answer.answer(json.dumps({"decision": "approve", "text": "直した案でよい"}), "true", "", "gate-replan",
+                                    self.artifacts)["answer"]
+        for name, answers in (("fix", before_fix), ("refix-run", replan_answer.fix_answers(before_fix, replan)),
+                              ("refix-run の関所なし", replan_answer.fix_answers(before_fix, None))):
+            with self.subTest(include=name):
+                self.assertEqual(self.gate_asks(name, answers), ({}, {"u1"}))
+
+    def test_line_passes_the_shown_questions(self):
+        self.assertEqual(line_nodes()["answer-before-fix"]["with"]["asked"], "$plan-rounds.output.questions")
 
 
 class GateAnswerCase(Artifacts):
