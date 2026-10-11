@@ -6,6 +6,3 @@ requires-python = ">=3.12"
 dependencies = [
     "PyYAML==6.0.3",  # tests/layers/scan.py が workflows/ の YAML を読む
 ]
-
-[tool.uv]
-package = false
