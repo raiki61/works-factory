@@ -3,6 +3,7 @@ import pathlib
 import unittest
 
 from tests.layers import scan
+from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEEDS = pathlib.Path(__file__).resolve().parent / "seeds"
@@ -16,6 +17,17 @@ class LibBlindTest(unittest.TestCase):
         got = scan.problems("E3", SEEDS / "e3")
         self.assertGreaterEqual(len(got), 1)
         self.assertTrue(any("lib/x.py" in line for line in got), got)
+
+
+    def test_import_of_blocks_is_red(self):
+        with tree({"lib/y.py": "from workflows.judge import thing\n"}) as root:
+            got = scan.problems("E3", root)
+        self.assertTrue(any("lib/y.py:1" in line and "import" in line for line in got), got)
+
+    def test_unreadable_file_is_red(self):
+        with tree({"lib/z.py": b"\xff TYPED_ARTIFACTS_FILE\n"}) as root:
+            got = scan.problems("E3", root)
+        self.assertTrue(any("lib/z.py" in line for line in got), got)
 
 
 if __name__ == "__main__":
