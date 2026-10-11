@@ -219,6 +219,8 @@ flowchart TB
   - `start` ← `$start.output.record`（無人の印・設計だけ・依頼のファイル・方針の文書・事前審査の木の既定・固めた版。関所の材料と R2 の名指しの節が読む）
   - `answers` ← `{ from: "$gate-start.output", if_skipped: null }`（R2 に貼る人の関所の答え）
   - `ruling` ← `$fix.output.replan_items`（`replan-review` の時だけ。`plan-review` では `[]`。裁かれた項目だけを審査する）
+  - `conflicts` ← `$fix.output.conflicts`（`replan-review` の時だけ。`plan-review` では null。裁かれた項目ごとに申し出と裁定の文を事前審査に貼る）
+  - `gate_answers` ← 修正前の関所の答え `{decision, text, asked}`（`asked` は人が見た `questions` の行。無ければ null）。通した行を次の差し込みで聞き直さず、方針の文書の変化を通したらその版を固め直す。線はまだ渡さない（既定 null）
 - 返り:
   - `pass`（boolean）: 止める指摘が無い（通し）→ 線 5（往復を抜ける）
   - `stalled`（boolean）: 同じ所で 2 度続けて止めた（`lib/converge`）→ 線 5（往復を止める）・report
