@@ -295,6 +295,13 @@ class ConvergeCase(TmpCase):
     def states(self, record):
         return [it["state"] for it in record["passes"][-1]["items"]]
 
+    def test_bodies_are_converge_own(self):
+        """控えを取る往復の本体は converge の物（写しを持たない）"""
+        self.assertIs(planfile.splice, converge.splice_doc)
+        self.assertIs(planfile.answer_gaps, converge.answer_gaps_doc)
+        self.assertIs(planfile.revise_section, converge.revise_section_doc)
+        self.assertIs(planfile.filled_units, converge.filled_units_doc)
+
     def test_first_round_has_no_pass(self):
         self.plan_round(1, [item("u1"), item("u2")])
         got = planfile.converge_record(self.tmp)

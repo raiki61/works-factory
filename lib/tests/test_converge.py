@@ -426,5 +426,40 @@ class ItemsCase(BoardCase):
         self.assertIn("項目 1（u1）", sec)
 
 
+class DocBodiesCase(BoardCase):
+    """盤面を取る口（held・filled_units・splice・answer_gaps・revise_section）は、控えを取る本体（*_doc）を read(b) に当てた物"""
+
+    def setUp(self):
+        super().setUp()
+        converge.note_plan(self.b, [row("u1"), row("u2")])
+
+    def same(self):
+        doc = converge.read(self.b)
+        rows = [row("u1", approach="直した"), row("u2")]
+        answers = [{"key": "key-a1", "handled": "fixed", "how": "直した所をここに書いた"}]
+        self.assertEqual(converge.held(self.b), converge.held_doc(doc))
+        self.assertEqual(converge.filled_units(self.b), converge.filled_units_doc(doc))
+        self.assertEqual(converge.splice(self.b, rows), converge.splice_doc(doc, rows))
+        self.assertEqual(converge.answer_gaps(self.b, answers), converge.answer_gaps_doc(doc, answers))
+        self.assertEqual(converge.revise_section(self.b), converge.revise_section_doc(doc))
+
+    def test_before_any_pass(self):
+        self.same()
+
+    def test_after_open_and_closed_items(self):
+        converge.record_pass(self.b, {"faces": [face("key-a1", units=["u1"])]}, resolved=[], fence=3, files={})
+        self.assertIsNotNone(converge.held(self.b))
+        self.same()
+
+    def test_add_pass_is_the_row_record_pass_writes(self):
+        doc = converge.read(self.b)
+        review = {"faces": [face("key-a1", units=["u1"]), face("key-s1", units=["u2"], severity="suggest")]}
+        want = converge.add_pass(doc, review, answers=[], resolved=[], fence=3)
+        got = converge.record_pass(self.b, review, resolved=[], fence=3, files={})
+        self.assertEqual(got, want)
+        self.assertEqual(converge.read(self.b)["outcome"], doc["outcome"])
+
+
+
 if __name__ == "__main__":
     unittest.main()
