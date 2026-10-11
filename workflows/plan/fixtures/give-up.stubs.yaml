@@ -1,0 +1,34 @@
+# 筋書き: 受け付けが 3 回とも拒んで諦めた周。輪は give_up の done で抜け、返す節は ready: false で正しく終わる
+# （ASF の W/plan/fixtures/blocked.stubs.yaml と同じく、ready: false も run を落とさない）
+round: {round: 1, mode: plan, dir: plan/r1, go: true}
+structure-measure: {structure_file: plan/structure/k/structure.json, design_file: plan/structure/k/design.jsonl, eye: false, reused: false}
+structure-state: {state_file: plan/structure/k/structure-state.json}
+ripple-units: {ripple_file: plan/r1/ripple-units.json}
+plan-prep: {brief: plan/r1/brief-3.md, attempt: 3}
+plan-writer:
+  plan:
+    - unit_keys: [1]
+      approach: "stub: 単位を 1 つ書き落とした案の手順をここに書いた"
+      adds: []
+      removes: []
+      shrink_first: "stub: 足す物は無い。式を 1 か所直すだけで足りる"
+      narrows: []
+      route: direct
+      route_why: "stub: 式を 1 か所直すだけ"
+      tests: []
+      rewrite_tests: []
+      refactor: {declared: false, why: ""}
+      allowed_paths: [stats.py]
+      out_of_scope: []
+plan-accept: {ok: false, done: true, give_up: true, reason: "stub: どの案にも入っていない単位", attempt: 3}
+ripple-items: {ripple_file: plan/r1/ripple.json}
+plan:
+  ready: false
+  plan: {type: archon_artifact, run_id: fixture-run, path: plan/r1/plan-fields.json}
+  structure: {type: archon_artifact, run_id: fixture-run, path: plan/structure/k/structure-state.json}
+  ripple: {type: archon_artifact, run_id: fixture-run, path: plan/r1/ripple.json}
+  depth: []
+  round: 1
+fixture:
+  expect: completed
+  reached: [plan-accept, plan]
