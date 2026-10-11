@@ -333,9 +333,9 @@ class Run:
     def judge(self) -> pathlib.Path:
         return self.artifacts / "judge"
 
-    def run(self, script: str, *, objection: str = "", start=None, launcher=(sys.executable,), **inputs) -> subprocess.CompletedProcess:
+    def run(self, script: str, *, objection: str = "", start=None, launcher=(sys.executable,), root=ROOT, **inputs) -> subprocess.CompletedProcess:
         env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
-        env.update({"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN_ID, "WORKS_FACTORY_ROOT": str(ROOT),
+        env.update({"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN_ID, "WORKS_FACTORY_ROOT": str(root),
                     "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_START": self.start if start is None else start,
                     "INPUTS_BASELINE": "null", "INPUTS_OBJECTION": objection, "INPUTS_PRIOR_FAILURES": "null"})
         env.update({f"INPUTS_{k.upper()}": v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in inputs.items()})
@@ -631,6 +631,15 @@ class JudgedVerdictTest(StopPathFilesMixin, unittest.TestCase):
         self.assertEqual(carried["rounds"]["1"][0]["found"][0]["from"], "p1.hygiene")
         self.assert_pointers_filled(r, out)
 
+    def test_world_stage_without_rows_returns_no_world(self):
+        """世界の解の段が行を 1 つも出さなかった run は world を null にする（Archon は空のファイルを指す札で節を落とす）"""
+        r = self.judged()
+        (r.judge / "world.jsonl").write_text("", encoding="utf-8")
+        ja.worldmark.write(r.judge, status="ok", reason="", world_file=str(r.judge / "world.jsonl"), classes=0, dropped=0)
+        out = r.returned("verdict")
+        self.assertIsNone(out["world"])
+        self.assert_pointers_filled(r, out)
+
     def test_missing_premises_or_purpose_stops_even_with_an_accepted_judgment(self):
         """前提・目的の段が落ちた run（控えを書く前に終わる）は、受けた判定が在っても ready にしない"""
         for name, word in (("premises.json", "works:premises"), ("purpose.json", "works:purpose")):
@@ -710,6 +719,18 @@ class VerdictNeverFailsTest(unittest.TestCase):
                 verdict_shape(self, out)
                 self.assertFalse(out["ready"])
                 self.assertTrue(out["stop_reason"])
+
+    def test_lib_out_of_reach(self):
+        """lib を読めなくても、判定と目的の指し札の先を lib と同じ空の形で置いて ready: false を返す"""
+        for objection, here, stop in (("", "judge", ja.JUDGE_STOP), ("修正役の異議", "rejudge", ja.stopby.REJUDGE)):
+            with self.subTest(here=here):
+                r = Run(self)
+                out = r.returned("verdict", objection=objection, root=r.artifacts / "no-repository")
+                verdict_shape(self, out)
+                self.assertEqual((out["ready"], out["stop_reason"]), (False, stop))
+                self.assertEqual(json.loads(r.resolve(out["judgment"]).read_text(encoding="utf-8")), ja.EMPTY_JUDGMENT)
+                self.assertEqual(json.loads(r.resolve(out["purpose"]).read_text(encoding="utf-8")), ja.EMPTY_PURPOSE)
+                self.assertEqual(r.resolve(out["judgment"]).parent.name, here)
 
     def test_broken_judgment_file(self):
         r = Run(self)
