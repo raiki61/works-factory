@@ -46,16 +46,16 @@ def main() -> dict:
     out_dir = os.environ.get("INPUTS_OUT_DIR", "").strip()
     place = fixio.place()
     repo = fixio.repo()
-    began = fixio.read_json(place / GROUP_START) or {}
+    began = fixboard.read_json(place / GROUP_START) or {}
     reply_path = place / fixboard.FIX_REPLY_FILE
     result = fixboard.group_result(
         group, start_tree=str(began.get("start_tree") or fixboard.start_tree(place)), end_tree=groups.end_tree(repo),
-        tdd=tdd_exit(fixio.read_json(place / TDD_START)),
-        fix_units=fixio.read_json(place / fixboard.FIX_UNITS_FILE, {}), reply=fixio.read_json(reply_path),
+        tdd=tdd_exit(fixboard.read_json(place / TDD_START)),
+        fix_units=fixboard.read_json(place / fixboard.FIX_UNITS_FILE, {}), reply=fixboard.read_json(reply_path),
         reply_file=str(reply_path) if reply_path.is_file() else "",
-        allowed=fixio.read_json(place / fixboard.ALLOWED_TESTS_FILE, []) or [], conflicts=conflict.items(place))
+        allowed=fixboard.read_json(place / fixboard.ALLOWED_TESTS_FILE, []) or [], conflicts=conflict.items(place))
     target = Path(out_dir or place / "groups") / str(group["group_id"]) / fixboard.RESULT_FILE
-    fixio.write_json(target, result)
+    fixboard.write_json(target, result)
     return {"result_file": str(target)}
 
 

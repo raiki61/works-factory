@@ -40,9 +40,9 @@ def main() -> None:
     out = fixboard.accept_out(place, NAME, got)
     record = place / fixboard.DELTA_DIR / fixboard.DELTA_REVIEW.format(N)
     if out["ok"]:
-        fixio.write_json(record, {"pass": got["owed"] == 0, "owed": got["owed"], "reply_file": got["reply_file"]})
+        fixboard.write_json(record, {"pass": got["owed"] == 0, "owed": got["owed"], "reply_file": got["reply_file"]})
     elif out["done"]:
-        fixio.write_json(record, {"pass": False, "owed": 0, "reply_file": "", "gave_up": True,
+        fixboard.write_json(record, {"pass": False, "owed": 0, "reply_file": "", "gave_up": True,
                                   "reason": rolekit.given_up_reason(place, NAME)})
     boundary.returns(out)
 

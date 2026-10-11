@@ -42,14 +42,14 @@ def main() -> dict:
     owed = fixboard.group_owed(place, json.loads(group)["unit_ids"] if group else None)
     if raw.strip() in ("", "null"):
         _, excused = fixboard.fix_duty(place, owed)
-        fixio.write_json(place / fixboard.FIX_UNITS_FILE, fixboard.unit_outcomes(owed, {}, excused=excused))
+        fixboard.write_json(place / fixboard.FIX_UNITS_FILE, fixboard.unit_outcomes(owed, {}, excused=excused))
         return {"ok": True, "done": True, "reason": NOT_LAUNCHED, "reason_file": ""}
     reply, why = rolekit.parse_reply(raw)
     if reply is None:
         raise ValueError(why)
     start = startrec.read(place)
     state, _ = fixboard.loop_files(place)
-    judgment = fixio.read_json(place / fixboard.JUDGMENT_FILE) or {}
+    judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
     head = fixboard.stage_head(place, fixboard.FIX_HEAD_FILE)
     fixio.drop_runner_env()   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
     got = fixboard.accept_reply(reply, place, repo, pass_="first", iteration=iteration, owed=owed,
@@ -59,11 +59,11 @@ def main() -> dict:
 
 
 def finish(place: Path, got: dict, iteration: int) -> dict:
-    fixio.write_json(place / fixboard.FIX_UNITS_FILE, got["units"])
+    fixboard.write_json(place / fixboard.FIX_UNITS_FILE, got["units"])
     if got["ok"]:
         path = place / fixboard.FIX_REPLY_FILE
-        fixio.write_json(path, fixboard.reply_marks(got["reply"], fixio.read_json(path)))
-        fixio.write_json(place / fixboard.ALLOWED_TESTS_FILE, fixboard.granted_tests(place))
+        fixboard.write_json(path, fixboard.reply_marks(got["reply"], fixboard.read_json(path)))
+        fixboard.write_json(place / fixboard.ALLOWED_TESTS_FILE, fixboard.granted_tests(place))
         fixboard.trace(place, "fix_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]),
                        conflicted=got["conflicted"])
         return {"ok": True, "done": True, "reason": fixboard.PARKED_FOR_RULING if got["conflicted"] else "",

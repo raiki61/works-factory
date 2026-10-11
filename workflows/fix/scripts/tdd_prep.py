@@ -34,7 +34,7 @@ TDD_START = "tdd-start.json"   # group-start が書いた tddloop.start の返�
 def main() -> dict:
     place = fixio.place()
     repo = fixio.repo()
-    started = fixio.read_json(place / TDD_START)
+    started = fixboard.read_json(place / TDD_START)
     if not isinstance(started, dict):
         raise ValueError(f"置き場に {TDD_START} が無い（group-start が走らなかった。{place}）")
     if not started.get("go"):
@@ -46,7 +46,7 @@ def main() -> dict:
               "plan_file": str(plan_file) if plan_file.is_file() else "",
               "policy_path": str(start.get("policy_md") or ""), "request_file": str(start.get("request_file") or ""),
               "notes_file": ""}
-    sources = {"plan": fixio.read_json(plan_file), "judgment": fixio.read_json(judgment_file)}
+    sources = {"plan": fixboard.read_json(plan_file), "judgment": fixboard.read_json(judgment_file)}
     out = tddloop.prep(started["state_file"], values, repo, lang=fixboard.lang_line(start), sources=sources)
     return {"prompt_file": out["prompt_file"], "go": bool(out["go"])}
 

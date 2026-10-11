@@ -37,24 +37,6 @@ def repo() -> pathlib.Path:
     return pathlib.Path(top.stdout.strip())
 
 
-def read_json(path, default=None):
-    """JSON のファイルを読む。無ければ default"""
-    p = pathlib.Path(path)
-    if not p.is_file():
-        return default
-    return json.loads(p.read_text(encoding="utf-8"))
-
-
-def write_json(path, data) -> pathlib.Path:
-    """JSON を一時のファイルから置き替えて書く（読み手が書きかけを読まない）"""
-    p = pathlib.Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, p)
-    return p
-
-
 # Archon が script に渡す変数の頭。対象のテストの実行器に継がせない（lib/ は環境を os.environ から継いで子を起こす）
 RUNNER_VARS = ("ARCHON_", "INPUTS_", "ARTIFACTS_DIR", "TYPED_ARTIFACTS_FILE", "WORKFLOW_ID")
 

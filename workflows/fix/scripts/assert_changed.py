@@ -24,19 +24,19 @@ RULED_REPLY = "fix-ruled-reply.json"   # 裁定の後の修正役の受け付け
 
 def replies(place: Path, plan: dict) -> list:
     """申告を読む返答の並び（戻せた組の reply_file と、裁定の後の返答）"""
-    joined = fixio.read_json(place / "join.json", {}) or {}
+    joined = fixboard.read_json(place / "join.json", {}) or {}
     back = [g["group_id"] for g in joined.get("groups") or [] if g.get("returned")]
     out = []
     for gid in back:
-        r = fixio.read_json(Path(plan["out_dir"]) / gid / "result.json", {}) or {}
+        r = fixboard.read_json(Path(plan["out_dir"]) / gid / "result.json", {}) or {}
         if r.get("reply_file"):
-            out.append(fixio.read_json(r["reply_file"]))
-    ruled = fixio.read_json(place / RULED_REPLY)
+            out.append(fixboard.read_json(r["reply_file"]))
+    ruled = fixboard.read_json(place / RULED_REPLY)
     return out + ([ruled] if ruled is not None else [])
 
 
 def main(place: Path) -> dict:
-    plan = fixio.read_json(place / "groups.json")
+    plan = fixboard.read_json(place / "groups.json")
     if not isinstance(plan, dict) or not plan.get("start_tree"):
         raise ValueError(f"置き場に groups.json（start_tree）が無い（{place}）")
     declared = fixboard.declared_files(replies(place, plan))
@@ -53,8 +53,8 @@ if __name__ == "__main__":
         result = main(here)
     except Exception as e:
         why = f"{type(e).__name__}: {' '.join(str(e).split())}"
-        fixio.write_json(here / ASSERT_FILE, {"ok": False, "reason": f"変更の確かめが回せない（{why}）"})
+        fixboard.write_json(here / ASSERT_FILE, {"ok": False, "reason": f"変更の確かめが回せない（{why}）"})
         print(f"assert-changed: {why}", file=sys.stderr)
         sys.exit(1)
-    fixio.write_json(here / ASSERT_FILE, result)
+    fixboard.write_json(here / ASSERT_FILE, result)
     boundary.returns(result)

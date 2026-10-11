@@ -29,7 +29,7 @@ def main() -> dict:
     judgment = place / fixboard.JUDGMENT_FILE
     if not judgment.is_file():
         raise ValueError(f"置き場に判定の写し {judgment.name} が無い")
-    done = (fixio.read_json(place / ruling.LEDGER) or {}).get("iterations") or 0
+    done = (fixboard.read_json(place / ruling.LEDGER) or {}).get("iterations") or 0
     reject = place / fixboard.REJECT_NAME.format(name=ACCEPT, k=done)
     start = startrec.read(place)
     got = ruling.prep(place, repo, {"judgment_file": str(judgment), "policy_path": str(start.get("policy_md") or "")},

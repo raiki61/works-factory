@@ -44,13 +44,13 @@ def main() -> dict:
     reply = read_reply()
     place = fixio.place()
     repo = fixio.repo()
-    started = fixio.read_json(place / TDD_START)
+    started = fixboard.read_json(place / TDD_START)
     if not isinstance(started, dict):
         raise ValueError(f"置き場に {TDD_START} が無い（group-start が走らなかった。{place}）")
     if not started.get("go"):
         return {"ok": True, "done": True, "reason": "", "reason_file": "", "phase": "done"}
     state = started["state_file"]
-    judgment = fixio.read_json(place / fixboard.JUDGMENT_FILE) or {}
+    judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
     hits = querytest.judge_hits(judgment.get("units") or [] if isinstance(judgment, dict) else [])
     fixio.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
     out = tddloop.step(state, reply, repo, try_query=hits)

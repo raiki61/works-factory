@@ -180,10 +180,7 @@ def collect(place, accepted: dict, changed: dict, *, reply_file=None, owed=(), w
     if not changes and not nothing_owed_but_excused(place, owed, withheld_by=withheld_by, returned=returned):
         raise recount.Unreadable("受け付けの出力に changes が無い")
     out, fix_file = fix_reply(place, reply_file)
-    path = pathlib.Path(place) / recount.CHANGES_FILE
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps({"changes": changes}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    path = write_json(pathlib.Path(place) / recount.CHANGES_FILE, {"changes": changes})
     reads_p = pathlib.Path(reads_file) if reads_file else None
     return {"ok": True, "files": files, "changes_file": str(path), "fix_file": str(fix_file),
             "not_done": len(out.get("not_done") or []), "coverage": _coverage(place, round_),
@@ -228,11 +225,11 @@ def write_json(path, doc) -> pathlib.Path:
     return path
 
 
-def _read(path):
-    """JSON のファイルの値。無ければ None。読めない・JSON でなければ ValueError"""
+def read_json(path, default=None):
+    """JSON のファイルの値。無ければ default。読めない・JSON でなければ ValueError"""
     path = pathlib.Path(path)
     if not path.is_file():
-        return None
+        return default
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
@@ -247,7 +244,7 @@ def _given(v):
     if callable(v):
         return v()
     if isinstance(v, (str, os.PathLike)):
-        return _read(v) if str(v) else None
+        return read_json(v) if str(v) else None
     return v
 
 
@@ -257,7 +254,7 @@ def out_file(place, nid) -> pathlib.Path:
 
 def output(place, nid):
     """置き場の節 nid の受け付けた返答（無ければ None）。盤面の b.output_of_round(nid, b.round) の代わり"""
-    return _read(out_file(place, nid))
+    return read_json(out_file(place, nid))
 
 
 def loop_file(place, key) -> pathlib.Path:
@@ -266,7 +263,7 @@ def loop_file(place, key) -> pathlib.Path:
 
 def loop_value(place, key):
     """置き場の loop の鍵 key の値（無ければ None）。盤面の b.loop_state.get(key) の今の周の値の代わり"""
-    return _read(loop_file(place, key))
+    return read_json(loop_file(place, key))
 
 
 def snapshot(place, name: str, repo) -> pathlib.Path:
@@ -775,7 +772,7 @@ def depth_skip(place) -> str:
     元 works/darkfactory/lib/depth.py の skip_reason を線の h-redepth が盤面の控えで読んだ所を、置き場の写しで受ける"""
     import depth
     path = pathlib.Path(place) / DEPTH_FILE
-    doc = _read(path)
+    doc = read_json(path)
     if isinstance(doc, str):
         try:
             doc = json.loads(doc) if doc.strip() else None
@@ -802,14 +799,14 @@ def place_items(place):
     planmarks.FieldsBroken。refix.cut・accept_review・accept_fix・prep_fix の items に口（引数なし）として渡す"""
     import planmarks
     p = pathlib.Path(place)
-    return planmarks.approved_items(plan_view(p, _read(p / PLAN_REPLY_FILE), _read(p / JUDGMENT_FILE)))
+    return planmarks.approved_items(plan_view(p, read_json(p / PLAN_REPLY_FILE), read_json(p / JUDGMENT_FILE)))
 
 
 def start_tree(place) -> str:
     """run の始めの木（差分の審査の起点）: 置き場の groups.json の start_tree、無ければ控え fix-ignored-before.json の head_tree
     （leftovers.head_tree）。どちらも無ければ空"""
     import leftovers
-    doc = _read(pathlib.Path(place) / GROUPS_FILE)
+    doc = read_json(pathlib.Path(place) / GROUPS_FILE)
     got = doc.get("start_tree") if isinstance(doc, dict) else ""
     if isinstance(got, str) and got:
         return got
@@ -825,7 +822,7 @@ def group_fix_reply(place):
     そのパスを返す。どの組にも返答が無ければ None。結果・返答が無い・読めない組は飛ばす（落ちた子の組は join が not_done にする）。
     元 works/.shared/core/refix.py:362 の _fix_report が盤面の 1 つの p3.fix を読んだ所を、組ごとの返答の和で受ける"""
     p = pathlib.Path(place)
-    doc = _read(p / GROUPS_FILE)
+    doc = read_json(p / GROUPS_FILE)
     if not isinstance(doc, dict):
         return None
     out_dir = pathlib.Path(str(doc.get("out_dir") or p / "groups"))
@@ -835,8 +832,8 @@ def group_fix_reply(place):
         if not isinstance(gid, str) or not gid:
             continue
         try:
-            res = _read(out_dir / gid / RESULT_FILE)
-            reply = _read(res.get("reply_file")) if isinstance(res, dict) and res.get("reply_file") else None
+            res = read_json(out_dir / gid / RESULT_FILE)
+            reply = read_json(res.get("reply_file")) if isinstance(res, dict) and res.get("reply_file") else None
         except ValueError:
             continue
         if not isinstance(reply, dict):
@@ -963,7 +960,7 @@ def brief_lens(place, n: int = 1) -> pathlib.Path:
     （支度 refix.cut はレンズより先に走るので、集めた後に足す）。控えが読めなければ lens_error を足す。材料が無ければ ValueError"""
     import lens
     path = pathlib.Path(place) / f"review{n}-brief.json"
-    doc = _read(path)
+    doc = read_json(path)
     if not isinstance(doc, dict):
         raise ValueError(f"審査役の材料 {path} が無い（差分の審査の支度が走っていない）")
     doc.pop("lens_error", None)
@@ -1116,7 +1113,7 @@ def adopt_inputs(parent, place) -> list:
             os.replace(tmp, q)
             out.append(name)
     if conflict.frozen_fields(src, 1) is not None:
-        doc = _read(marks_path(src))
+        doc = read_json(marks_path(src))
         amended = doc.get(planmarks.AMENDED_KEY) if isinstance(doc, dict) else None
         planmarks.save(dst, 1, doc["fields"], {int(n): c for n, c in amended.items()} if isinstance(amended, dict) else None)
         out.append(marks_path(src).name)
@@ -1132,7 +1129,7 @@ def marks_path(place) -> pathlib.Path:
 def unit_depths(place) -> str:
     """置き場の深さの控え depth.json（[{unit_id, depth, why}]）を tddloop.start の unit_depths の形（{"<単位の key>": 深さの語} の
     JSON の字）に。無ければ ""。形が違えば ValueError"""
-    doc = _read(pathlib.Path(place) / DEPTH_FILE)
+    doc = read_json(pathlib.Path(place) / DEPTH_FILE)
     if doc is None:
         return ""
     if not isinstance(doc, list) or not all(isinstance(r, dict) for r in doc):
@@ -1241,7 +1238,7 @@ RIPPLE_READ = "波及の一覧 {path} も読め（範囲に入っていない当
 def group_owed(place, unit_ids=None) -> list:
     """直す義務の単位の key の並び（置き場の判定の写し judgment.json の owed_keys。判定の順）。unit_ids（組の単位）を渡せばその中だけ。
     判定の写しが無ければ ValueError。新しい（元は盤面の写しの規則の _owed_units が run の全部を読んだ）"""
-    judgment = _read(pathlib.Path(place) / JUDGMENT_FILE)
+    judgment = read_json(pathlib.Path(place) / JUDGMENT_FILE)
     if not isinstance(judgment, dict):
         raise ValueError(f"置き場に判定の写し {JUDGMENT_FILE} が無い（{place}）")
     keys = owed_keys(judgment)
@@ -1678,7 +1675,7 @@ JOIN_FILE = "join.json"             # 組を親の木へ戻した結果 {groups,
 def loop_files(place) -> tuple:
     """(今の段の TDD の輪の状態のファイル, 輪の要約のファイル)。置き場の tdd-start.json の state_file・summary_file のうち在る物
     （輪の無い run・始めていない run は ("", ""))"""
-    doc = _read(pathlib.Path(place) / TDD_START_FILE)
+    doc = read_json(pathlib.Path(place) / TDD_START_FILE)
     doc = doc if isinstance(doc, dict) else {}
     got = [str(doc.get(k) or "") for k in ("state_file", "summary_file")]
     return tuple(p if p and pathlib.Path(p).is_file() else "" for p in got)
@@ -1689,7 +1686,7 @@ def stage_head(place, name: str = "") -> str:
     fix-ignored-before.json の head_tree（leftovers.head_tree）。どちらも無ければ空"""
     import leftovers
     if name:
-        doc = _read(pathlib.Path(place) / name)
+        doc = read_json(pathlib.Path(place) / name)
         if isinstance(doc, dict) and isinstance(doc.get("tree"), str) and doc["tree"]:
             return doc["tree"]
     try:
@@ -1702,7 +1699,7 @@ def ruled_owed(place) -> list:
     """裁定の後の修正の段（形 "" の置き場）の直す義務の値: 判定の直す義務の単位（group_owed）のうち、親の木へ戻せた組の単位で
     結末が fixed でない物（join.json。無ければ判定の直す義務の全部）"""
     keys = group_owed(place)
-    doc = _read(pathlib.Path(place) / JOIN_FILE)
+    doc = read_json(pathlib.Path(place) / JOIN_FILE)
     if not isinstance(doc, dict):
         return keys
     back = {g.get("group_id") for g in doc.get("groups") or [] if isinstance(g, dict) and g.get("returned")}
@@ -1714,7 +1711,7 @@ def ruled_owed(place) -> list:
 def brief_sources(place) -> dict:
     """planbrief.cut の材料（置き場の修正案の役の返答の写し p2.fix_plan.json と判定の写し judgment.json。無ければ None）"""
     p = pathlib.Path(place)
-    return {"plan": _read(p / PLAN_REPLY_FILE), "judgment": _read(p / JUDGMENT_FILE)}
+    return {"plan": read_json(p / PLAN_REPLY_FILE), "judgment": read_json(p / JUDGMENT_FILE)}
 
 
 def fix_values(place, owed, *, start, state: str = "", summary: str = "", answer_node: str = "") -> dict:
@@ -1737,7 +1734,7 @@ def consult_skip(place, skip) -> None:
     """置き場の範囲の相談の控え（consult.CONFIG。fixrules.ask_config が書く）に除くパスの頭 skip を足す（factchecks.main が
     書き込みの出どころで読む）。控えが無ければ何もしない"""
     import consult
-    doc = _read(pathlib.Path(place) / consult.CONFIG)
+    doc = read_json(pathlib.Path(place) / consult.CONFIG)
     if isinstance(doc, dict):
         consult.write_config(place, {**doc, "skip": list(skip)})
 

@@ -59,10 +59,10 @@ def main() -> dict:
         prep.main()
     leftovers.record_ignored(place, repo)
     start_tree = groups.end_tree(repo)
-    fixio.write_json(place / fixboard.GROUPS_FILE,
+    fixboard.write_json(place / fixboard.GROUPS_FILE,
                      {"groups": [group], "count": 1, "par": False, "start_tree": start_tree,
                       "out_dir": out_dir or str(place / "groups")})
-    fixio.write_json(place / GROUP_START, {"group": group, "from_tree": from_tree, "out_dir": out_dir,
+    fixboard.write_json(place / GROUP_START, {"group": group, "from_tree": from_tree, "out_dir": out_dir,
                                            "start_tree": start_tree})
     start = startrec.read(place)
     keys = [str(k) for k in group["unit_ids"]]
@@ -74,7 +74,7 @@ def main() -> dict:
         fixio.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
         out = tddloop.start(place, repo, suite, json.dumps(keys, ensure_ascii=False),
                             test_cmd=str(start.get("test_cmd") or ""), unit_depths=depths, owed=set(keys))
-    fixio.write_json(place / TDD_START, out)
+    fixboard.write_json(place / TDD_START, out)
     return {"tdd": bool(out["go"]), "units": len(keys), "reason": str(out.get("reason") or "")}
 
 

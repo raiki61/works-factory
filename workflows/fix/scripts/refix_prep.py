@@ -14,7 +14,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import fixio  # noqa: E402
 import fixboard  # noqa: E402
-import leftovers  # noqa: E402
+import groups  # noqa: E402
 import refix  # noqa: E402
 import refixrules  # noqa: E402
 import rolekit  # noqa: E402
@@ -31,13 +31,13 @@ rulebook.CANON = RULES / "common.md"
 def main() -> None:
     place = fixio.place()
     iteration = len(rolekit.rejected(place, ACCEPT)) + 1
-    record = fixio.read_json(place / fixboard.DELTA_DIR / fixboard.DELTA_REVIEW.format(N))
+    record = fixboard.read_json(place / fixboard.DELTA_DIR / fixboard.DELTA_REVIEW.format(N))
     if not isinstance(record, dict) or record.get("pass") is not False or record.get("gave_up"):
         boundary.returns({"prompt_file": "", "go": False, "iteration": iteration})
         return
     head = place / fixboard.REFIX_HEAD_FILE.format(N)
     if not head.is_file():
-        fixio.write_json(head, {"tree": leftovers.snapshot(fixio.repo())})
+        fixboard.write_json(head, {"tree": groups.end_tree(fixio.repo())})
     start = startrec.read(place)
     policy_md = start.get("policy_md") or ""
     fix_reply = place / fixboard.FIX_REPLY_FILE

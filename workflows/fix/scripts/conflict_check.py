@@ -20,15 +20,15 @@ import fixboard  # noqa: E402
 
 def main() -> dict:
     place = fixio.place()
-    plan = fixio.read_json(place / "groups.json")
-    joined = fixio.read_json(place / "join.json")
+    plan = fixboard.read_json(place / "groups.json")
+    joined = fixboard.read_json(place / "join.json")
     if not isinstance(plan, dict) or not isinstance(joined, dict):
         raise ValueError(f"置き場に groups.json か join.json が無い（{place}）")
     out_dir = Path(plan["out_dir"])
     back = [g["group_id"] for g in joined.get("groups") or [] if g.get("returned")]
     rows = []
     for gid in back:
-        doc = fixio.read_json(out_dir / gid / "result.json", {}) or {}
+        doc = fixboard.read_json(out_dir / gid / "result.json", {}) or {}
         rows += [r for r in doc.get("conflicts") or [] if isinstance(r, dict)]
     repo = fixio.repo()
     ok, dropped = fixboard.cited_rows(rows, repo, [conflict.request_file(place), str(place)])
@@ -36,7 +36,7 @@ def main() -> dict:
         source = r.get("source") if r.get("source") in conflict.SOURCES else conflict.FIX_SOURCE
         conflict.park(place, [r], source=source, ruling=r.get("ruling"))
     if dropped:
-        fixio.write_json(place / "conflicts-dropped.json", {"dropped": dropped})
+        fixboard.write_json(place / "conflicts-dropped.json", {"dropped": dropped})
     todo = conflict.unruled(place)
     return {"go": bool(todo), "count": len(todo)}
 

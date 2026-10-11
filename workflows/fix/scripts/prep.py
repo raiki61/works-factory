@@ -55,9 +55,9 @@ def main() -> dict:
     if not isinstance(start, dict):
         raise ValueError("始めの記録が JSON のオブジェクトでない")
     start = {**START_DEFAULTS, **{k: v for k, v in start.items() if v is not None}}
-    fixio.write_json(startrec.path(place), start)
+    fixboard.write_json(startrec.path(place), start)
     judgment = read_json(pointed(os.environ["INPUTS_JUDGMENT"], "judgment"))
-    fixio.write_json(place / "judgment.json", judgment)
+    fixboard.write_json(place / "judgment.json", judgment)
 
     plan_file = pointed(os.environ.get("INPUTS_PLAN", ""), "plan")
     plan = None
@@ -70,23 +70,23 @@ def main() -> dict:
         reply = plan_file.parent / PLAN_REPLY
         if reply.is_file():
             plan = read_json(reply)
-            fixio.write_json(place / PLAN_REPLY, plan)
+            fixboard.write_json(place / PLAN_REPLY, plan)
     for name, env in (("ripple", "INPUTS_RIPPLE"), ("world", "INPUTS_WORLD")):
         src = pointed(os.environ.get(env, ""), name)
         if src is not None:
-            fixio.write_json(place / f"{name}.json", read_json(src))
+            fixboard.write_json(place / f"{name}.json", read_json(src))
     for name, env in (("depth", "INPUTS_DEPTH"), ("answers", "INPUTS_ANSWERS"), ("units", "INPUTS_UNITS")):
         got = value(os.environ.get(env, ""), name)
         if got not in (None, "", [], {}) or name == "units":
-            fixio.write_json(place / f"{name}.json", got if got is not None else [])
+            fixboard.write_json(place / f"{name}.json", got if got is not None else [])
     only = value(os.environ.get("INPUTS_ONLY_ITEMS", ""), "only_items") or []
     if not isinstance(only, list):
         raise ValueError("入力 only_items が配列でない")
-    fixio.write_json(place / "only-items.json", only)
+    fixboard.write_json(place / "only-items.json", only)
     base = pointed(os.environ.get("INPUTS_BASELINE", ""), "baseline")
     if base is not None:
         got = baseline_red.read_baseline(base)
-        fixio.write_json(place / "baseline.json", {"cases": got["cases"], "exit": got["exit"]})
+        fixboard.write_json(place / "baseline.json", {"cases": got["cases"], "exit": got["exit"]})
 
     leftovers.record_ignored(place, repo)
     start_tree = groups.end_tree(repo)
@@ -96,7 +96,7 @@ def main() -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     out = {"groups": grps, "count": len(grps), "par": fixboard.parallel(grps, start.get("features_cut"), repo),
            "start_tree": start_tree, "out_dir": str(out_dir)}
-    fixio.write_json(place / "groups.json", out)
+    fixboard.write_json(place / "groups.json", out)
     return out
 
 

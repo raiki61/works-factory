@@ -18,7 +18,7 @@ import conflict  # noqa: E402
 import factchecks  # noqa: E402
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
-import leftovers  # noqa: E402
+import groups  # noqa: E402
 import rulebook  # noqa: E402
 import startrec  # noqa: E402
 
@@ -37,7 +37,7 @@ def main() -> dict:
     if not conflict.ruled_fix(place):
         return {"prompt_file": "", "go": False, "iteration": n}
     if not (place / fixboard.RULED_HEAD_FILE).is_file():
-        fixio.write_json(place / fixboard.RULED_HEAD_FILE, {"tree": leftovers.snapshot(repo)})
+        fixboard.write_json(place / fixboard.RULED_HEAD_FILE, {"tree": groups.end_tree(repo)})
     owed = fixboard.ruled_owed(place)
     start = startrec.read(place)
     saved = fixboard.group_fix_reply(place)

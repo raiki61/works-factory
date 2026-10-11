@@ -56,21 +56,21 @@ def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review,
 
 def block(fixboard, conflict) -> dict:
     place = fixio.place()
-    plan = fixio.read_json(place / "groups.json")
+    plan = fixboard.read_json(place / "groups.json")
     if not isinstance(plan, dict) or not isinstance(plan.get("groups"), list):
         raise ValueError(f"置き場に groups.json が無い（prep が走らなかった。{place}）")
-    joined = fixio.read_json(place / "join.json")
+    joined = fixboard.read_json(place / "join.json")
     if isinstance(joined, dict):
         rows_groups = (joined["groups"], joined["units"])
     else:
         rows_groups = fixboard.join_rows(plan["groups"], {g["group_id"]: (None, False, "join が結果を残さなかった（落ちたか走らなかった）")
                                                           for g in plan["groups"]})
-    rows_groups = (rows_groups[0], fixboard.with_ruled(rows_groups[1], fixio.read_json(place / fixboard.FIX_UNITS_FILE)))
+    rows_groups = (rows_groups[0], fixboard.with_ruled(rows_groups[1], fixboard.read_json(place / fixboard.FIX_UNITS_FILE)))
     back = [g["group_id"] for g in rows_groups[0] if g["returned"]]
-    results = [fixio.read_json(Path(plan["out_dir"]) / gid / "result.json") for gid in back]
-    extras = [r for r in results if isinstance(r, dict)] + [fixio.read_json(place / RULED_REPLY)]
+    results = [fixboard.read_json(Path(plan["out_dir"]) / gid / "result.json") for gid in back]
+    extras = [r for r in results if isinstance(r, dict)] + [fixboard.read_json(place / RULED_REPLY)]
     review, _ = fixboard.delta_review(place)
-    checked = fixio.read_json(place / "assert-changed.json") or {}
+    checked = fixboard.read_json(place / "assert-changed.json") or {}
     done = isinstance(joined, dict) and checked.get("ok") is True and review["pass"]
     return fields(fixboard, conflict, place, rows_groups, plan["groups"], [r for r in extras if r is not None], review, done)
 
@@ -80,7 +80,7 @@ def group(fixboard, conflict) -> dict:
     g = json.loads(os.environ["INPUTS_GROUP"])
     gid = g["group_id"]
     base = Path(os.environ.get("INPUTS_OUT_DIR") or place / "groups")
-    result = fixio.read_json(base / gid / fixboard.RESULT_FILE)
+    result = fixboard.read_json(base / gid / fixboard.RESULT_FILE)
     if not isinstance(result, dict):
         result = None
     rows_groups = fixboard.join_rows([g], {gid: (result, result is not None, "" if result else fixboard.NO_RESULT)})
@@ -92,8 +92,9 @@ def fallback(why: str) -> dict:
     """誤りの時の約束の形の返り（done: false と理由。ほかは空の値）"""
     groups_rows, units_rows = [], []
     try:
+        import fixboard
         place = fixio.place()
-        plan = fixio.read_json(place / "groups.json")
+        plan = fixboard.read_json(place / "groups.json")
         gs = plan["groups"] if isinstance(plan, dict) and isinstance(plan.get("groups"), list) else []
         if not gs and os.environ.get("INPUTS_GROUP", "").strip():
             gs = [json.loads(os.environ["INPUTS_GROUP"])]

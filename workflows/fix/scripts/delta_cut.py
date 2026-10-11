@@ -22,7 +22,7 @@ ASSERT_FILE = "assert-changed.json"   # 変更の確かめの節が書く {ok, r
 
 
 def skip_reason(place) -> str:
-    got = fixio.read_json(place / ASSERT_FILE)
+    got = fixboard.read_json(place / ASSERT_FILE)
     if not isinstance(got, dict):
         return f"変更の確かめの控え {ASSERT_FILE} が無い（assert-changed が落ちたか走らなかった）"
     if got.get("ok") is not True:
@@ -35,7 +35,7 @@ def main() -> None:
     skipped = place / fixboard.DELTA_DIR / fixboard.DELTA_SKIPPED
     why = skip_reason(place)
     if why:
-        fixio.write_json(skipped, {"reason": why})
+        fixboard.write_json(skipped, {"reason": why})
         boundary.returns({"go": False, "files": [], "diff_file": "", "brief_file": ""})
         return
     skipped.unlink(missing_ok=True)

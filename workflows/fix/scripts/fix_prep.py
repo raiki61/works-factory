@@ -21,7 +21,7 @@ import fixio  # noqa: E402
 import factchecks  # noqa: E402
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
-import leftovers  # noqa: E402
+import groups  # noqa: E402
 import rulebook  # noqa: E402
 import startrec  # noqa: E402
 
@@ -39,7 +39,7 @@ def main() -> dict:
     group = json.loads(raw) if raw else None
     owed = fixboard.group_owed(place, group["unit_ids"] if group else None)
     if not (place / fixboard.FIX_HEAD_FILE).is_file():
-        fixio.write_json(place / fixboard.FIX_HEAD_FILE, {"tree": leftovers.snapshot(repo)})
+        fixboard.write_json(place / fixboard.FIX_HEAD_FILE, {"tree": groups.end_tree(repo)})
     start = startrec.read(place)
     n = fixrules.iteration_next(fixrules.prompt_path(place))
     duty, _ = fixboard.fix_duty(place, owed)

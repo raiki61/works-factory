@@ -38,7 +38,7 @@ def main() -> dict:
                  if (place / n).is_file()), "")
     ripple = place / "ripple.json"
     got = fixboard.consult_ask(place, reply, pass_, items, node=NODES[pass_], plan_file=plan,
-                               human_items=fixboard.gate_items(fixio.read_json(place / "answers.json")),
+                               human_items=fixboard.gate_items(fixboard.read_json(place / "answers.json")),
                                ripple_file=str(ripple) if ripple.is_file() else "")
     return {"consulted": got["consulted"], "go": got["go"], "prompt_file": got["prompt_file"]}
 

@@ -42,17 +42,17 @@ def main() -> dict:
     place, repo = fixio.place(), fixio.repo()
     owed = fixboard.ruled_owed(place)
     start = startrec.read(place)
-    judgment = fixio.read_json(place / fixboard.JUDGMENT_FILE) or {}
+    judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
     head = fixboard.stage_head(place, fixboard.RULED_HEAD_FILE)
     fixio.drop_runner_env()   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
     got = fixboard.accept_reply(reply, place, repo, pass_="ruled", iteration=iteration, owed=owed,
                                 judged=judgment.get("units"), suite=str(start.get("tdd_suite") or ""), head=head,
                                 skip=fixio.SKIP)
-    fixio.write_json(place / fixboard.FIX_UNITS_FILE, got["units"])
+    fixboard.write_json(place / fixboard.FIX_UNITS_FILE, got["units"])
     if got["ok"]:
         path = place / fixboard.RULED_REPLY_FILE
-        fixio.write_json(path, fixboard.reply_marks(got["reply"], fixio.read_json(path)))
-        fixio.write_json(place / fixboard.ALLOWED_TESTS_FILE, fixboard.granted_tests(place))
+        fixboard.write_json(path, fixboard.reply_marks(got["reply"], fixboard.read_json(path)))
+        fixboard.write_json(place / fixboard.ALLOWED_TESTS_FILE, fixboard.granted_tests(place))
         fixboard.trace(place, "fix_ruled_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]))
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
     reason_file = fixboard.write_text(place / fixboard.REJECT_NAME.format(name=NAME, k=iteration), got["reason"] + "\n")
