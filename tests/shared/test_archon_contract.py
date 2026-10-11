@@ -222,6 +222,13 @@ class PinnedSourceTest(unittest.TestCase):
         commit = git(source, "rev-parse", "HEAD")
         return source.rename(source.with_name(commit)), commit
 
+    def assert_red(self, commit: str, said: str):
+        """assertRaises(RuntimeError) は SkipTest を素通しして見送りに数えるので、見送りもここで落とす"""
+        with self.assertRaises(Exception) as caught:
+            pinned_source(str(self.cache), commit)
+        self.assertIsInstance(caught.exception, RuntimeError)
+        self.assertRegex(str(caught.exception), said)
+
     def test_held_source_is_returned(self):
         source, commit = self.held()
         self.assertEqual(pinned_source(str(self.cache), commit), source)
@@ -241,14 +248,12 @@ class PinnedSourceTest(unittest.TestCase):
         source, _ = self.held()
         other = "0" * 40
         source.rename(source.with_name(other))
-        with self.assertRaisesRegex(RuntimeError, "HEAD"):
-            pinned_source(str(self.cache), other)
+        self.assert_red(other, "HEAD")
 
     def test_dirty_source_is_red_not_skipped(self):
         source, commit = self.held()
         (source / "edited").write_text("x", encoding="utf-8")
-        with self.assertRaisesRegex(RuntimeError, "変更が在る"):
-            pinned_source(str(self.cache), commit)
+        self.assert_red(commit, "変更が在る")
 
     def test_skips_with_the_reason_and_creates_nothing(self):
         for name, cache, said in (("環境変数が無い", None, CACHE_ENV), ("置き場が無い", str(self.cache), "archon")):
