@@ -4,6 +4,8 @@
 
 - trace(place, op, **kw): 置き場の trace.jsonl に {"op": op, **kw} を 1 行足す（元の盤面の b.trace の代わり）
 - base_rev(state, given=""): 突き合わせの起点の版（元 works/.shared/core/writes.py:88 の base_rev）
+- record_base_rev(place, repo)・base_rev_of(place, given=""): 修正前の版の控えと読み（並べた組の子の HEAD は親の HEAD と
+  違うので、親の prep が控えて子が写す。新しい）
 - marks_view(place, round_=1): planmarks の凍結した欄の読み口（frozen・rewrites・removes_permits）に渡す読むだけの形
   （dir と round だけ。conflict の test_permits・frozen_fields が使う。fix のブロックの中だけの合わせ口）
 - plan_view(place, plan, judgment, round_=1): planmarks の承認済みの修正案の読み口に渡す読むだけの形（修正案の役の返答と
@@ -748,6 +750,7 @@ ANSWERS_FILE = "answers.json"          # 人の関所の答えの写し（承認
 UNITS_FILE = "units.json"              # 入力 units の写し
 ONLY_ITEMS_FILE = "only-items.json"    # 直す項目の絞り（入力 only_items。空は全部）
 BASELINE_FILE = "baseline.json"        # 直す前の結末 {cases, exit}（baseline_red.read_baseline の欄だけ）
+BASE_REV_FILE = "base-rev.json"        # 修正前の版 {rev}（prep が親の作業ツリーの HEAD の sha を控え、組の子が写す）
 FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまとめた物（差分の審査の材料 fix_report と plan_faces）
 REJECT_NAME = "reject-{name}-{k}.md"   # 受け付けの k 回目の拒否の理由（役が Read で読む）
 REFIX_PROMPT = "prompt-{}.md"          # 手直しの役の指示書（節の名 p3.delta_fix・p3.delta_fix2）
@@ -1110,7 +1113,7 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 # ---------------------------------------------------------------- 形 group の子の run（group-start・tdd-loop・group-end の scripts が呼ぶ）
 # 子が親の置き場から自分の置き場に写す入力の写し（prep が書く物。plan-fields.json と凍結の印は adopt_inputs が別に置き直す）
 ADOPTED = (startrec.REL, JUDGMENT_FILE, PLAN_REPLY_FILE, RIPPLE_FILE, WORLD_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
-           ONLY_ITEMS_FILE, BASELINE_FILE)
+           ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 修正の輪が許したテストの変更のパス [str]（fix-accept が書く）
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
@@ -1534,7 +1537,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     iteration が GIVE_UP_AFTER 以上の拒否は、行を単位に結んで（last_settle）結んだ単位だけを head に戻して諦め（park_units）、残りの
     単位で頭から通し直す。止める単位が残らないのに拒否が残れば、義務の残りを全部止めて通し直す（parking.park_owed）。それでも
     残れば受けずに諦める。owed は直す義務の値（fixboard.fix_duty に渡す）、judged は判定の units、suite は実行器、state は今の段の
-    TDD の輪の状態のファイル（無ければ空）、base_rev は修正前の版、skip は除くパスの頭。
+    TDD の輪の状態のファイル（無ければ空）、base_rev は修正前の版（空なら base_rev_of）、skip は除くパスの頭。
     返り {ok, reason, rejects: [{check, text}], reply（受けた返答。bash_writes と conflicts を外した物）, units（unit_outcomes）,
     parked {key: 理由}, conflicted}。元 works/blk-fix/scripts/accept.py:611（盤面の代わりに置き場と値）"""
     import conflict
@@ -1547,7 +1550,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     import writes
     parked = dict(parked or {})
     trail = {"reverted": []} if trail is None else trail
-    rev = base_rev_of(base_rev)
+    rev = base_rev_of(place, base_rev)
     last = iteration >= GIVE_UP_AFTER
     found, declared = [], {}
 
@@ -1642,9 +1645,19 @@ def loop_done(got: dict, iteration: int) -> bool:
     return iteration >= GIVE_UP_AFTER and got.get("queued") is not True
 
 
-def base_rev_of(given: str = "") -> str:
-    """受け付けの修正前の版（base_rev(None, given)。空なら HEAD）"""
-    return base_rev(None, given)
+def record_base_rev(place, repo) -> str:
+    """修正前の版（repo の HEAD の sha）を置き場 place の BASE_REV_FILE に控えて返す。並べた組の子の worktree は Archon が
+    origin の枝から切るので、子の HEAD は親の HEAD と違う。だから親の prep が控え、子は写した物を読む（base_rev_of）"""
+    import leftovers
+    rev = leftovers.git(repo, "rev-parse", "HEAD").strip()
+    write_json(pathlib.Path(place) / BASE_REV_FILE, {"rev": rev})
+    return rev
+
+
+def base_rev_of(place, given: str = "") -> str:
+    """受け付けの修正前の版: given、無ければ置き場 place の BASE_REV_FILE の版、それも無ければ HEAD"""
+    doc = read_json(pathlib.Path(place) / BASE_REV_FILE)
+    return base_rev(None, given or (str(doc.get("rev") or "") if isinstance(doc, dict) else ""))
 
 
 GATE_PASS = ("approve", "continue")   # 人の関所の通す語（docs/design.md の「書き方の決め」）
@@ -1780,7 +1793,7 @@ def fix_values(place, owed, *, start, state: str = "", summary: str = "", answer
             "plan_file": there(PLAN_REPLY_FILE), "policy_path": str(start.get("policy_md") or ""),
             "notes_file": there(ANSWERS_FILE), "summary_file": summary or "",
             "request_file": str(start.get("request_file") or ""), "plan_session": answer_node, "tdd_state": state or "",
-            "ripple_file": there(RIPPLE_FILE), "base_rev": ""}
+            "ripple_file": there(RIPPLE_FILE), "base_rev": base_rev_of(place)}
 
 
 def consult_skip(place, skip) -> None:

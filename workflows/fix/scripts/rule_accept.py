@@ -30,7 +30,7 @@ def main() -> dict:
         raise ValueError(why)
     iteration = int(os.environ["INPUTS_ITERATION"])
     place, repo = fixio.place(), fixio.repo()
-    got = ruling.accept_rule(reply, place, fixboard.base_rev_of(), repo, iteration=iteration)
+    got = ruling.accept_rule(reply, place, fixboard.base_rev_of(place), repo, iteration=iteration)
     if got["ok"]:
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
     path = fixboard.write_text(place / fixboard.REJECT_NAME.format(name=NAME, k=iteration), str(got["reason"]) + "\n")

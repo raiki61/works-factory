@@ -544,7 +544,7 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(out["out_dir"], str(self.place / "groups"))
         self.assertEqual(out["start_tree"], self.snapshot(self.repo))
         for name in ("r1/start.json", "judgment.json", "plan-fields.json", "p2.fix_plan.json", "fix-ignored-before.json",
-                     "groups.json", "units.json", "only-items.json"):
+                     "groups.json", "units.json", "only-items.json", "base-rev.json"):
             self.assertTrue((self.place / name).is_file(), name)
         self.assertEqual(json.loads((self.place / "groups.json").read_text(encoding="utf-8")), out)
         self.assertEqual(json.loads((self.place / "r1" / "start.json").read_text(encoding="utf-8"))["request_file"], "")
@@ -961,6 +961,23 @@ class GroupChildScriptsCase(unittest.TestCase):
                          ([_GRP_GROUP], False, str(self.out_dir), tree))
         self.assertEqual(self._grp_run("tdd_prep", "tdd-prep"), {"prompt_file": "", "go": False})
         self.assertIn("入力 group", self._grp_run("group_start", "group-start", ok=False, group="{}"))
+
+    def test_side_by_side_child_measures_from_the_parent_head(self):
+        """並べた子の worktree は origin の枝から切られ、HEAD が親と違う。修正前の版は親の prep が控えた親の HEAD を写して使い、
+        子の HEAD からは測らない（親の姿を写しただけの子の累積差分は空）"""
+        import fixboard
+        import leftovers
+        parent_head = git(self.repo, "rev-parse", "HEAD")
+        (self.parent / "base-rev.json").write_text(json.dumps({"rev": parent_head}), encoding="utf-8")
+        tree = leftovers.snapshot(self.repo)
+        (self.repo / "elsewhere.py").write_text("Z = 1\n", encoding="utf-8")
+        git(self.repo, "add", "elsewhere.py")
+        git(self.repo, "commit", "-qm", "origin の枝にだけ在る commit")
+        self._grp_run("group_start", "group-start", from_tree=tree)
+        self.assertFalse((self.repo / "elsewhere.py").exists(), "親の姿の木を写した")
+        self.assertEqual(fixboard.base_rev_of(self.place), parent_head)
+        out = self._grp_run("collect", "fix")
+        self.assertEqual(out["diff"]["path"], "fix/fix/fix-diff-none.txt", out["diff"])
 
     def test_group_start_in_order_drops_what_the_failed_child_before_left(self):
         """親の作業ツリーで 1 つずつ回る子は、前の組の子が結果を書かずに落ちて残した変更を戻してから始める"""

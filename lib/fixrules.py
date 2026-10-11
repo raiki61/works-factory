@@ -161,10 +161,10 @@ def unit_paths(judgment_file: str, open_units: str) -> tuple:
     return list(dict.fromkeys(out)), ""
 
 
-def changed_paths(repo) -> list:
-    """作業ツリーの今の差分（HEAD からの変更と未追跡。.gitignore に当たる物は除く）のパス。git が効かなければ空"""
+def changed_paths(repo, rev: str = "HEAD") -> list:
+    """作業ツリーの今の差分（修正前の版 rev からの変更と未追跡。.gitignore に当たる物は除く）のパス。git が効かなければ空"""
     try:
-        got = git_names(repo, "diff", "--name-only", "--no-renames", "HEAD", "--")
+        got = git_names(repo, "diff", "--name-only", "--no-renames", rev or "HEAD", "--")
         got += git_names(repo, "ls-files", "--others", "--exclude-standard", "--full-name", "--", ":/")
     except Unreadable:
         return []
@@ -339,7 +339,7 @@ def beside(prompt: pathlib.Path, tail: str) -> pathlib.Path:
 def kinds_now(values: dict, repo, before=()) -> dict:
     """今の組み立てで載せる証拠の種類: 判定の単位のパスと今の差分から選び、この輪で前に渡した種類を足す（輪の中で減らさない）"""
     paths, why = unit_paths(values.get("judgment_file") or "", values.get("open_units") or "")
-    sources = {"判定": paths, "差分": changed_paths(repo) if repo is not None else []}
+    sources = {"判定": paths, "差分": changed_paths(repo, values.get("base_rev")) if repo is not None else []}
     got = select_kinds(sources)
     if why and not any(sources.values()):
         got = {k: f"{why}——全部載せる" for k in KINDS}
@@ -372,7 +372,7 @@ def lib_section(b, repo, values: dict) -> str:
     except (ValueError, TypeError):
         keys = None
     files, why = libdocs.unit_files(repo, values.get("judgment_file") or "", keys) if repo is not None else ([], "")
-    text = libdocs.section(b, repo, files + (changed_paths(repo) if repo is not None else []))
+    text = libdocs.section(b, repo, files + (changed_paths(repo, values.get("base_rev")) if repo is not None else []))
     return text + (f"\n- 単位のファイルの引き: {why}" if why else "")
 
 

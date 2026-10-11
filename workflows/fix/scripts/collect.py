@@ -9,7 +9,7 @@ fix_plan_item の項目、objection・changed・allowed_test_changes は戻せ�
 （fix-ruled-reply.json）と裁定の許し、delta_review は delta/review-<n>.json（{pass}）の数と最後の pass（delta/skipped.json が
 在れば {rounds: 0, pass: true}）。done は assert-changed.json の ok かつ（審査を省いた か 審査が通った）。
 形 group（組の子）: 自分の組の結果（out_dir/<group_id>/result.json。out_dir が空なら自分の置き場の groups/ の下）の行だけを同じ形で返す。
-累積差分（版 HEAD から。未追跡を含み .archon/ の下は除く）は置き場の fix.diff に書いて指し札にする（空なら理由のファイルを指す）。
+累積差分（修正前の版 fixboard.base_rev_of から。未追跡を含み .archon/ の下は除く）は置き場の fix.diff に書いて指し札にする（空なら理由のファイルを指す）。
 この節は落ちない: 中の誤りは全部捕まえ、done: false・理由（units と groups の reason）・ほかは空の値で返し、終了の値は 0。
 """
 import json
@@ -32,7 +32,7 @@ def diff_pointer(fixboard, place: Path, why: str = "") -> dict:
     """累積差分のファイルの指し札。書けない・空なら理由を書いたファイルの指し札"""
     if not why:
         try:
-            text = fixboard.run_diff(fixio.repo(), "HEAD", fixio.SKIP)
+            text = fixboard.run_diff(fixio.repo(), fixboard.base_rev_of(place), fixio.SKIP)
         except Exception as e:
             text, why = "", f"累積差分が取れない（{type(e).__name__}: {' '.join(str(e).split())}）"
         if text.strip():

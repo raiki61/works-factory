@@ -48,7 +48,7 @@ def main() -> dict:
     values = {"judgment_file": str(judgment_file) if judgment_file.is_file() else "",
               "plan_file": str(plan_file) if plan_file.is_file() else "",
               "policy_path": str(start.get("policy_md") or ""), "request_file": str(start.get("request_file") or ""),
-              "notes_file": ""}
+              "notes_file": "", "base_rev": fixboard.base_rev_of(place)}
     sources = {"plan": fixboard.read_json(plan_file), "judgment": fixboard.read_json(judgment_file)}
     out = tddloop.prep(started["state_file"], values, repo, lang=fixboard.lang_line(start), sources=sources)
     return {"prompt_file": out["prompt_file"], "go": bool(out["go"])}
