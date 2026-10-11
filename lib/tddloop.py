@@ -507,7 +507,7 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
         return off
     keys = _open_units(open_units)
     light = _light_units(unit_depths)
-    exe = pathlib.Path(suite) if pathlib.Path(suite).is_absolute() else pathlib.Path(repo) / suite
+    exe = exe_path(repo, suite)
     if not exe.is_file() or not (suite.endswith(".py") or os.access(exe, os.X_OK)):
         return {**off, "reason": f"テストの実行器 {suite} が無いか実行できない——全部の単位を今どおり直す"}
     board_dir = pathlib.Path(board_dir)
@@ -2156,6 +2156,11 @@ def rev_id(repo, rev: str) -> str:
         return git(repo, "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}").strip() or rev
     except Unreadable:
         return rev
+
+
+def exe_path(repo, suite: str) -> pathlib.Path:
+    """入力 tdd_suite の実行器のパス（相対なら作業ツリー repo の根から解く）"""
+    return pathlib.Path(suite) if pathlib.Path(suite).is_absolute() else pathlib.Path(repo) / suite
 
 
 def exe_id(repo, exe) -> list:

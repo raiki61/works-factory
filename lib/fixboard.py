@@ -1298,9 +1298,10 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or "")}
 
 
-def adopt_tdd_states(place, results) -> list:
+def adopt_tdd_states(place, results, repo) -> list:
     """戻せた組の子の結果 results（組の順）が名指す TDD の輪の状態（tdd_state）を、親の置き場 place の次の tdd-<k>/ に写す
-    （state.json の work を写した先に替え、輪の要約 summary.md も写す）。写した状態は tddloop.states(place) に run の全部の輪として
+    （state.json の work を写した先に、exe を親の作業ツリー repo で解き直した実行器に替え、輪の要約 summary.md も写す。
+    並べた子の exe は子の作業ツリーの中を指し、自分の置き場から根を引く実行器だと親の試験を子の木で走らせるため）。写した状態は tddloop.states(place) に run の全部の輪として
     載り、裁定の後の修正の受け付けが凍結・範囲・変更に当たる試験に使う（ruled_states）。もう写した子の状態（状態の
     ADOPTED_FROM）は写し直さない。写した状態のパスを返す。新しい（元は 1 つの盤面に輪の状態が在った）"""
     import tddloop
@@ -1316,7 +1317,8 @@ def adopt_tdd_states(place, results) -> list:
             k += 1
         dst = place / f"tdd-{k}"
         st = read_json(pathlib.Path(src))
-        write_json(dst / tddloop.STATE, {**st, "work": str(dst), ADOPTED_FROM: src})
+        write_json(dst / tddloop.STATE, {**st, "work": str(dst), "exe": str(tddloop.exe_path(repo, st["suite"])),
+                                         ADOPTED_FROM: src})
         summary = pathlib.Path(src).parent / tddloop.SUMMARY
         if summary.is_file():
             write_text(dst / tddloop.SUMMARY, summary.read_text(encoding="utf-8"))

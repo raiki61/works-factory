@@ -959,14 +959,14 @@ class GroupChildScriptsCase(unittest.TestCase):
             {"units": [{"key": _GRP_MEAN, "label": "block"}], "questions": []}, ensure_ascii=False), encoding="utf-8")
         (self.parent / "baseline.json").write_text(json.dumps({"cases": [], "exit": 1}), encoding="utf-8")
 
-    def _grp_run(self, script, nid, ok=True, **inputs):
+    def _grp_run(self, script, nid, ok=True, cwd=None, **inputs):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_"))}
         env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _GRP_RUN,
                     "ARCHON_NODE_EXECUTION": json.dumps({"path": nid}), "WORKS_FACTORY_ROOT": str(ROOT),
                     "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_GROUP": json.dumps(_GRP_GROUP, ensure_ascii=False),
                     "INPUTS_OUT_DIR": str(self.out_dir), "INPUTS_FROM_TREE": "", "INPUTS_MODE": "group"})
         env.update({f"INPUTS_{k.upper()}": v for k, v in inputs.items()})
-        done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{script}.py")], cwd=self.repo, env=env,
+        done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{script}.py")], cwd=cwd or self.repo, env=env,
                               capture_output=True, text=True, encoding="utf-8")
         if not ok:
             self.assertNotEqual(done.returncode, 0, done.stdout)
@@ -1041,6 +1041,38 @@ class GroupChildScriptsCase(unittest.TestCase):
                          .replace("    return x\n", "    return lo\n"), encoding="utf-8")
         reply = {"changes": [_fx_change(_GRP_MEAN, ["stats.py"])]}
         code, out, err = _blk_run("fix_ruled_accept", self.repo, parent_art,
+                                  {"reply": json.dumps(reply, ensure_ascii=False), "consulted": "false", "iteration": "1"},
+                                  node_path="fix__fix-ruled-accept")
+        self.assertEqual(code, 0, err)
+        self.assertFalse(out["ok"], out)
+        self.assertIn("test_clamp_within_range", out["reason"])
+
+    def test_join_resolves_a_relative_runner_in_the_parent_tree(self):
+        """並べた子の worktree で回った輪の状態の実行器（相対パス。自分の置き場から根を引く）を、join は親の作業ツリーで解き直して
+        写す。親の裁定の後の修正の受け付けは親の木で試験を走らせ、元で緑だった試験を赤にする直しを拒む"""
+        import fixboard
+        from lib.tests.test_blk_fix_tdd import SUITE
+        (self.repo / "ci").mkdir()
+        (self.repo / "ci" / "suite.py").write_text(
+            "import os\nos.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))\n" + SUITE, encoding="utf-8")
+        git(self.repo, "add", "ci/suite.py")
+        git(self.repo, "commit", "-qm", "根を自分の置き場から引く実行器")
+        child = self.tmp / "child-tree"
+        git(self.repo, "worktree", "add", "--detach", "--quiet", str(child), "HEAD")
+        self._grp_parent_inputs("ci/suite.py")
+        self._grp_run("group_start", "group-start", cwd=child)
+        result = json.loads(pathlib.Path(self._grp_run("group_end", "group-end", cwd=child)["result_file"])
+                            .read_text(encoding="utf-8"))
+        fixboard.write_json(self.parent / "groups.json", {"groups": [_GRP_GROUP], "count": 1, "par": False,
+                                                          "start_tree": result["start_tree"], "out_dir": str(self.out_dir)})
+        code, _, err = _blk_run("join", self.repo, self.tmp / "parent-art", node_path="fix__join")
+        self.assertEqual(code, 0, err)
+        state = json.loads((self.parent / "tdd-1" / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(pathlib.Path(state["exe"]).resolve(), (self.repo / "ci" / "suite.py").resolve())
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("    return x\n", "    return lo\n"), encoding="utf-8")
+        reply = {"changes": [_fx_change(_GRP_MEAN, ["stats.py"])]}
+        code, out, err = _blk_run("fix_ruled_accept", self.repo, self.tmp / "parent-art",
                                   {"reply": json.dumps(reply, ensure_ascii=False), "consulted": "false", "iteration": "1"},
                                   node_path="fix__fix-ruled-accept")
         self.assertEqual(code, 0, err)
