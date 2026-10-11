@@ -226,6 +226,17 @@ class PinnedSourceTest(unittest.TestCase):
         source, commit = self.held()
         self.assertEqual(pinned_source(str(self.cache), commit), source)
 
+    def test_looks_where_archon_source_keeps_it(self):
+        """置き場の形の持ち主は archon_source。形が動けば、pinned_source が黙って見送る前にここで赤になる"""
+        source, commit = self.held()
+
+        def unreachable(*_):
+            self.fail("在る源を取り直した")
+
+        with mock.patch.object(place.shutil, "which", return_value="/bin/bun"):
+            kept = place.archon_source({"archon": {"repo": "unused", "commit": commit}}, self.cache, unreachable, unreachable)
+        self.assertEqual(pinned_source(str(self.cache), commit), kept)
+
     def test_other_head_is_red_not_skipped(self):
         source, _ = self.held()
         other = "0" * 40
