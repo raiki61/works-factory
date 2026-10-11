@@ -12,9 +12,7 @@ import planfile  # noqa: E402
 
 def main() -> None:
     art = Path(os.environ["ARTIFACTS_DIR"])
-    rnd = planfile.read_round(art / os.environ["INPUTS_DIR"])
-    units = planfile.units_of(os.environ["INPUTS_UNITS"])
-    state = planfile.write_state(planfile.structure_dir(art / "plan", units, Path.cwd(), rnd["mode"]))
+    state = planfile.write_state(art / "plan" / planfile.read_round(art / os.environ["INPUTS_DIR"])["structure"])
     boundary.returns({"state_file": state.relative_to(art).as_posix()})
 
 

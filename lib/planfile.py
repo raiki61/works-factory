@@ -3,7 +3,7 @@
 
 置き場（計画のブロックの run の置き場の plan/）: 周ごとの r<k>/（k は往復と案の直しを通して 1 から数える）と、使い回す構造の
 実測の structure/<鍵>/。周のフォルダの中:
-- round.json {round, mode（plan・replan）, go（役を起こすか）, why（起こさない訳）, items（形 replan で渡す項目の番号）}
+- round.json {round, mode（plan・replan）, go（役を起こすか）, why（起こさない訳）, items（形 replan で渡す項目の番号）, structure（周の節が読む構造の置き場。plan/ からの相対のパス）}
 - slots.json（案に入れてよい単位の no の並び。no は 1 始まりの位置）・brief-<n>.md（修正案の役の材料）・rejects-plan.json（拒否の控え。rolekit）
 - review/p2.plan_review.json（この周に受けた事前審査の返答の写し）
 - reply.json（受け付けた返答。番号を id に戻した全体で、works の欄も決め手の欄も持つ。項目の同じさ converge.item_hash の元）
@@ -73,6 +73,7 @@ RIPPLE_FILE = "ripple.json"
 COLLECT_ERROR_FILE = "collect-error.txt"
 TRACE_FILE = "trace.jsonl"
 STRUCTURE_DIR = "structure"
+UNREAD_STRUCTURE = f"{STRUCTURE_DIR}/unread"
 UNITS_FILE = "units.json"
 SKIPPED_FILE = "skipped-units.json"
 STRUCTURE_FILE = "structure.json"
@@ -205,11 +206,18 @@ def units_of(raw: str):
 
 
 def read_round(round_dir) -> dict:
-    """周のフォルダの round.json（無い・読めなければ、フォルダの名の番号と形 plan・役を起こさない形）"""
+    """周のフォルダの round.json（無い・読めなければ、フォルダの名の番号と形 plan・役を起こさない形・構造の置き場 UNREAD_STRUCTURE）。
+    structure は置き場 plan/ からの相対のパス"""
     got = _read_json(pathlib.Path(round_dir) / ROUND_FILE, {})
     name = pathlib.Path(round_dir).name
-    base = {"round": int(name[1:]) if name[1:].isdigit() else 1, "mode": "plan", "go": False, "why": "", "items": []}
-    return {**base, **got} if isinstance(got, dict) else base
+    base = {"round": int(name[1:]) if name[1:].isdigit() else 1, "mode": "plan", "go": False, "why": "", "items": [],
+            "structure": UNREAD_STRUCTURE}
+    doc = {**base, **got} if isinstance(got, dict) else base
+    if doc["mode"] not in ("plan", "replan"):
+        doc["mode"] = "plan"
+    if not isinstance(doc["structure"], str):
+        doc["structure"] = UNREAD_STRUCTURE
+    return doc
 
 
 def lib_section(cache, repo, judgment_file, keys) -> str:
@@ -441,11 +449,6 @@ def round_no(round_dir) -> int:
     return int(pathlib.Path(round_dir).name[1:])
 
 
-def round_mode(round_dir) -> str:
-    got = _read_json(pathlib.Path(round_dir) / ROUND_FILE, {})
-    return got.get("mode") if isinstance(got, dict) and got.get("mode") in ("plan", "replan") else "plan"
-
-
 def _plan_rows(rows) -> list:
     """受けた案の項目の控え（元 converge.note_plan と同じ形）"""
     return [{"id": converge.item_id(r.get("unit_keys")), "unit_keys": [str(k) for k in r.get("unit_keys") or []],
@@ -481,7 +484,7 @@ def converge_record(plan_dir) -> dict:
     doc = {"round": 0, "passes": [], "outcome": None, "open": {}}
     answers: list = []
     for d in _rounds(plan_dir):
-        if round_mode(d) != "plan":
+        if read_round(d)["mode"] != "plan":
             continue
         doc["round"] = round_no(d)
         review = _read_json(d / REVIEW_FILE)
@@ -606,8 +609,9 @@ def handed(ruling, items: int) -> tuple:
     return out, "" if out else "ruling に直す項目が無い"
 
 
-def open_round(plan_dir, *, ruling, judgment, review, why: str = "") -> dict:
-    """周のフォルダ r<k> を作り、round.json に周の事実を置く。形は ruling が空でなければ replan。受けた review（事前審査の返答。
+def open_round(plan_dir, *, ruling, judgment, review, units, repo, why: str = "") -> dict:
+    """周のフォルダ r<k> を作り、round.json に周の事実を置く。形は ruling が空でなければ replan。周の中の節が読む構造の置き場
+    （structure_dir。置き場からの相対のパス）をここで 1 度だけ決める。受けた review（事前審査の返答。
     形 plan の時だけ）を review/p2.plan_review.json に写す。役を起こすか（go）: plan は判定が読めて直す義務の単位が在り行き止まりが
     無い時、replan は直す元の案と渡す項目が在る時。why は呼び手が読めなかった入力の訳（在れば go は偽）"""
     k = next_round(plan_dir)
@@ -628,7 +632,8 @@ def open_round(plan_dir, *, ruling, judgment, review, why: str = "") -> dict:
             why = "直す元の承認済みの修正案が無い"
         else:
             items, why = handed(ruling, len(_rows(_read_json(prev / REPLY_FILE), "plan")))
-    doc = {"round": k, "mode": mode, "go": not why, "why": why, "items": items}
+    structure = structure_dir(plan_dir, units, repo, mode).relative_to(plan_dir).as_posix()
+    doc = {"round": k, "mode": mode, "go": not why, "why": why, "items": items, "structure": structure}
     _write_json(d / ROUND_FILE, doc)
     return doc
 

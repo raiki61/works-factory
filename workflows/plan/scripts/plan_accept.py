@@ -18,9 +18,8 @@ def main() -> None:
     rnd = planfile.read_round(round_dir)
     start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
     base_rev = (start.get("base_rev") if isinstance(start, dict) else "") or ""
-    units = planfile.units_of(os.environ["INPUTS_UNITS"])
     world, _ = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.resolve)
-    tables = planfile.answer_tables(planfile.structure_dir(plan_dir, units, repo, rnd["mode"]), world)
+    tables = planfile.answer_tables(plan_dir / rnd["structure"], world)
     reply, why = rolekit.parse_reply(os.environ["INPUTS_REPLY"])
     if reply is None:
         out = {"ok": False, "reason": why}

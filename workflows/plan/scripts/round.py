@@ -1,5 +1,5 @@
 """この差し込みの周を開く（lib/planfile.open_round）: plan/r<k>/ を作り、形（ruling が空でなければ replan）と役を起こすかを決め、
-受けた事前審査の指摘を周のフォルダに写す。返り {round, mode, dir, go}"""
+受けた事前審査の指摘を周のフォルダに写す。周の節が読む構造の置き場もここで決める。返り {round, mode, dir, go}"""
 import json
 import os
 import sys
@@ -21,6 +21,7 @@ def main() -> None:
     judgment, bad = planfile.read_pointed(os.environ["INPUTS_JUDGMENT"], boundary.resolve)
     review, _ = planfile.read_pointed(os.environ["INPUTS_REVIEW"], boundary.resolve)
     got = planfile.open_round(plan_dir, ruling=ruling, judgment=judgment, review=review,
+                              units=planfile.units_of(os.environ["INPUTS_UNITS"]), repo=Path.cwd(),
                               why=why or ("" if ruling else bad and f"判定が読めない（{bad}）"))
     boundary.returns({"round": got["round"], "mode": got["mode"], "dir": f"plan/r{got['round']}", "go": got["go"]})
 

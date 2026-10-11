@@ -26,7 +26,7 @@ def main() -> None:
     keys = set(planfile.slots(judgment)) if isinstance(judgment, dict) else None
     path, n = planfile.write_brief(
         round_dir, plan_dir, mode=rnd["mode"], judgment=judgment, judgment_dir=judgment_file.parent if judgment_file else None,
-        units=units, structure_dir_=planfile.structure_dir(plan_dir, units, repo, rnd["mode"]), world_rows=world, spec=spec,
+        units=units, structure_dir_=plan_dir / rnd["structure"], world_rows=world, spec=spec,
         repo=repo, base_rev=start.get("base_rev") or "", review_md=str(boundary.lib_root() / "REVIEW.md"),
         lang=start.get("lang"), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys),
         conflicts=conflicts, unread=unread)
