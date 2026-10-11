@@ -8,10 +8,13 @@
   bun が無ければ見送る。
 - 木: 使い捨ての git の木。中の .archon/workflows/<pack>/ に、名指した工程のフォルダとこのリポジトリの .shared/ を写して commit する。
   `archon validate` は --workflow-source を受けず、--cwd は git の木しか受けないので、確かめる時はこの木を --cwd に渡す。
+- validate の数えない警告: Claude Code に同梱の skill（BUILTIN_SKILLS）を節が名指した時の「ディスクに無い」の警告だけ。
+  同梱の skill は SKILL.md を持たないので、止めた Archon（packages/workflows/src/validator.ts の skills の照らし）は名指すたびに出す。
 """
 import contextlib
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import tempfile
@@ -25,6 +28,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 CACHE_ENV = "WORKS_FACTORY_ARCHON_CACHE"
 REQUIRED_ENV = "WORKS_FACTORY_ARCHON_REQUIRED"
 PACK = pack.load(ROOT)
+BUILTIN_SKILLS = frozenset({"code-review", "simplify", "security-review"})
+BUILTIN_SKILL_WARNING = re.compile(r"Claude skill '([^']+)' not found on disk — expected for built-in")
 WORKFLOWS = ROOT / PACK["ours"]["folder"]
 SHARED = ".shared"
 
@@ -33,6 +38,13 @@ def absent(reason: str) -> unittest.SkipTest | AssertionError:
     """Archon の要る物が無い時に投げる物。REQUIRED_ENV が在れば赤（AssertionError）、無ければ見送り"""
     message = f"Archon の源が無い: {reason}"
     return AssertionError(message) if os.environ.get(REQUIRED_ENV) else unittest.SkipTest(message)
+
+
+def counted(issue: dict) -> bool:
+    """validate の返りの issue を数えるか。同梱の skill の「ディスクに無い」の警告だけ数えない"""
+    name = BUILTIN_SKILL_WARNING.match(issue.get("message", ""))
+    return not (issue.get("level") == "warning" and issue.get("field") == "skills"
+                and name is not None and name.group(1) in BUILTIN_SKILLS)
 
 
 def pinned_source(cache: str | None, commit: str) -> pathlib.Path:
