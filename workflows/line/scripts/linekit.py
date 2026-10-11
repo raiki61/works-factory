@@ -22,6 +22,7 @@ LINE_SCRIPT = stopby.declare("line-script", "線の script の中で例外が起
 HUMAN = "human:"   # 人が関所で止めた時の止めの理由の頭（docs/design.md の「ブロックの返りの約束」。後ろは関所の節の id）
 GO_WORDS = ("approve", "continue")
 DRY_RUN_APPROVED = "approved"   # 筋書き（workflow test）の関所がいつも返す字。決めの語の approve と読む
+STRINGS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason")   # JSON として読まない欄
 
 
 def run(compute, fallback) -> None:
@@ -37,6 +38,11 @@ def run(compute, fallback) -> None:
 
 def value(raw):
     return skip_value.value(raw)
+
+
+def field(key: str, raw):
+    """ブロックの返りの 1 欄。字の欄（STRINGS）は字のまま、ほかは JSON として読む。飛ばされた節（null）は None"""
+    return skip_value.text(raw) if key in STRINGS else skip_value.value(raw)
 
 
 def text(raw) -> str:

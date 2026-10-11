@@ -2,7 +2,8 @@
 
 再審（rejudge）が走ればその返りから、走らなければ判定（judge）の返りから返す。後の段は単位と判定をここから読む。
 再審が開いた単位（new_open_units）と下げた単位（lowered）は、単位の id を比べて出し、collect から報告へ渡す
-（今の works の rejudge.py の new_open_units・lowered）。
+（今の works の rejudge.py の new_open_units・lowered）。例外の時は止めの理由 works:line-script を返し、fixed がそれを読んで
+後ろへ進めない。
 
 入力（with:）: judge_<欄>（judge の返り）・rejudge_<欄>（rejudge の返り。`{from, if_skipped: null}`）
 """
@@ -21,11 +22,12 @@ def judged(judge: dict, rejudge: dict | None) -> dict:
     took = rejudge if rejudge is not None else judge
     before, after = ids(judge.get("units")), ids(took.get("units"))
     return {**{key: took.get(key) for key in FIELDS}, "rejudged": rejudge is not None,
-            "new_open_units": [u for u in after if u not in before], "lowered": [u for u in before if u not in after]}
+            "new_open_units": [u for u in after if u not in before], "lowered": [u for u in before if u not in after],
+            "stop_reason": ""}
 
 
 def of_env(prefix: str) -> dict:
-    return {key: linekit.value(os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
+    return {key: linekit.field(key, os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
 
 
 def from_env() -> tuple:
@@ -34,7 +36,7 @@ def from_env() -> tuple:
 
 
 def fallback(reason: str) -> dict:
-    return {**{key: None for key in FIELDS}, "rejudged": False, "new_open_units": [], "lowered": []}
+    return {**{key: None for key in FIELDS}, "rejudged": False, "new_open_units": [], "lowered": [], "stop_reason": linekit.LINE_SCRIPT}
 
 
 if __name__ == "__main__":

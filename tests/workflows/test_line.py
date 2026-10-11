@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import yaml
+
 from tests.bin.gitkit import committed_copy, git
 from tests.bin.linescripts import SCRIPTS, load
 from tests.workflows.test_gate_head import final_got
@@ -25,13 +27,25 @@ after_fix = load("after_fix")
 judged = load("judged")
 fixed = load("fixed")
 redepth = load("redepth")
+planned_node = load("planned")
 collect = load("collect")
 result = load("result")
 
-import gatemarks  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
+import answer  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
+import gatemarks  # noqa: E402
 
 SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 RUN = "run-1"
+LINE = yaml.safe_load((SCRIPTS.parent / "works-factory-line.yaml").read_text(encoding="utf-8"))
+
+
+def line_nodes(nodes=None) -> dict:
+    """線の節（loop_group の中の節も）を id ごとに"""
+    got = {}
+    for node in LINE["nodes"] if nodes is None else nodes:
+        got[node["id"]] = node
+        got.update(line_nodes(node["loop_group"]["nodes"]) if "loop_group" in node else {})
+    return got
 
 
 class Artifacts(unittest.TestCase):
@@ -276,13 +290,13 @@ class PlanOutCase(unittest.TestCase):
                 self.assertTrue(self.got(**kw)["done"])
 
     def test_every_field_is_returned(self):
-        self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"done"})
+        self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"done", "stop_reason"})
 
 
 class AfterFixAndJudgedCase(unittest.TestCase):
     def test_after_fix_counts(self):
-        self.assertEqual(after_fix.decide([], ""), {"replan": False, "rejudge": False})
-        self.assertEqual(after_fix.decide(["1"], " 異議 "), {"replan": True, "rejudge": True})
+        self.assertEqual(after_fix.decide([], ""), {"replan": False, "rejudge": False, "stop_reason": ""})
+        self.assertEqual(after_fix.decide(["1"], " 異議 "), {"replan": True, "rejudge": True, "stop_reason": ""})
 
     def test_judged_prefers_the_rejudge_and_names_changed_units(self):
         judge = {"units": [{"id": "u1"}, {"id": "u2"}], "judgment": "j", "purpose": "p", "world": None, "rejudge_verdict": None}
@@ -301,13 +315,24 @@ class FixedCase(unittest.TestCase):
         return got
 
     def test_first_fix_alone(self):
-        got = fixed.fixed(self.fix(), None)
+        got = fixed.fixed(self.fix(), None, replan=False, stops=("", ""))
         self.assertEqual((got["conflicts"], got["refixed"], got["diff"]), ([{"path": "fix/conflicts.json"}], False, {"path": "fix/diff"}))
+        self.assertTrue(got["done"])
+
+    def test_replan_without_the_second_fix_is_not_done(self):
+        """案の直しの関所の stop・無人の止め・案ができなかった時に、1 回目の修正の差分を試験の関門から先へ進めない"""
+        self.assertFalse(fixed.fixed(self.fix(), None, replan=True, stops=("", ""))["done"])
+
+    def test_a_line_script_stop_before_is_not_done(self):
+        for stops in ((linekit.LINE_SCRIPT, ""), ("", linekit.LINE_SCRIPT)):
+            with self.subTest(stops=stops):
+                self.assertFalse(fixed.fixed(self.fix(), None, replan=False, stops=stops)["done"])
 
     def test_refix_is_merged_without_losing_the_first(self):
         refix = self.fix(units=[{"unit_id": "u1", "status": "fixed"}, {"unit_id": "u2", "status": "fixed"}], groups=[{"group_id": "g2"}],
                          conflicts=None, replan_items=[], diff={"path": "refix/diff"}, allowed_test_changes=["tests/b.py"])
-        got = fixed.fixed(self.fix(), refix)
+        got = fixed.fixed(self.fix(), refix, replan=True, stops=("", ""))
+        self.assertTrue(got["done"])
         self.assertEqual(got["units"], [{"unit_id": "u1", "status": "fixed"}, {"unit_id": "u2", "status": "fixed"}])
         self.assertEqual(got["groups"], [{"group_id": "g1"}, {"group_id": "g2"}])
         self.assertEqual(got["conflicts"], [{"path": "fix/conflicts.json"}])
@@ -344,7 +369,8 @@ class RedepthCase(unittest.TestCase):
 
 class CollectAndResultCase(unittest.TestCase):
     def line(self, **kw):
-        got = {"start": "null", "prior_failures": "null", "stops": ["", "", "null", "human:gate-final", "works:needs-human"],
+        got = {"start": "null", "prior_failures": "null",
+               "stops": ["", "", "null", "", "", "", "null", "", "", "human:gate-final", "works:needs-human"],
                "gates": {"gate_start": "null", "gate_before_fix": "null", "gate_replan": "null", "gate_final": "null"},
                "deferred_questions": "null", "widened": "null", "final_reasons": "null",
                "judged": {"rejudged": "null"}, "fixed": {"conflicts": "[]"}, "redepth": {"depth": "null"}}
@@ -379,6 +405,83 @@ class LinekitCase(unittest.TestCase):
     def test_skipped_values(self):
         self.assertEqual((linekit.value("null"), linekit.text("null"), linekit.flag("true"), linekit.items("[1]")), (None, "", True, [1]))
         self.assertEqual((linekit.value("abc"), linekit.text("abc"), linekit.items("null")), ("abc", "abc", []))
+
+
+TYPES = {"boolean": bool, "string": str, "array": list, "object": dict, "integer": int, "null": type(None)}
+
+
+def script_nodes() -> dict:
+    return {key: node for key, node in line_nodes().items() if "script" in node}
+
+
+class FallbackCase(unittest.TestCase):
+    """線の script の例外の返り fallback が、節の output_format に合い（合わなければ Archon が節を落とし、報告が届かない）、
+    止めの理由 works:line-script を持ち、関所を通さないこと"""
+
+    def test_every_fallback_fits_its_node_and_stops(self):
+        for key, node in script_nodes().items():
+            with self.subTest(node=key):
+                got = load(node["script"]).fallback("boom")
+                shape = node["output_format"]
+                self.assertLessEqual(set(shape["required"]), set(got))
+                for field, rule in shape["properties"].items():
+                    kinds = rule.get("type")
+                    if kinds is not None:
+                        self.assertIsInstance(got[field], tuple(TYPES[k] for k in ([kinds] if isinstance(kinds, str) else kinds)), field)
+                self.assertEqual(got["stop_reason"], linekit.LINE_SCRIPT)
+                self.assertIsNot(got.get("go"), True)
+                if key != "plan-out":   # plan-out の done は往復を抜けるか（例外の時は抜ける）で、修正へ進むかではない
+                    self.assertIsNot(got.get("done"), True)
+
+
+class GateDecisionsCase(unittest.TestCase):
+    """人の関所は 4 つで、どれも関所の文が見せる答えの語（lib/answer.py の VERBS）と approve を受け、受ける語は通す語
+    （linekit.GO_WORDS）か止める語（VERBS のうち通す語でない物。gate_answer は通す語でない答えを止めと読む）だけ"""
+
+    def test_gates_take_the_words_their_text_prints(self):
+        gates = {key: node for key, node in line_nodes().items() if "approval" in node}
+        self.assertEqual(set(gates), {"gate-start", "gate-before-fix", "gate-replan", "gate-final"})
+        stop_words = set(answer.VERBS) - set(linekit.GO_WORDS)
+        self.assertEqual(stop_words, {"stop"})
+        for key, node in gates.items():
+            with self.subTest(gate=key):
+                self.assertEqual({d["id"] for d in node["approval"]["decisions"]}, set(linekit.GO_WORDS) | set(answer.VERBS))
+
+
+class Recorded(dict):
+    """読まれた環境変数の名を控える os.environ の代わり"""
+
+    def __init__(self):
+        super().__init__()
+        self.read = set()
+
+    def get(self, key, default=None):
+        self.read.add(key)
+        return default
+
+
+class LineWiringCase(unittest.TestCase):
+    """返しの節の with: の鍵と、その script が読む INPUTS_<名> が同じ（片方だけ欄を足すと、欄が黙って報告から落ちる）"""
+
+    READERS = {
+        "plan-out": lambda: plan_out.from_env(),
+        "planned": lambda: planned_node.from_env(),
+        "judged": lambda: judged.from_env(),
+        "fixed": lambda: fixed.from_env(),
+        "collect": lambda: (collect.blocks_of_env(), collect.line_of_env()),
+    }
+
+    def test_with_keys_are_what_the_script_reads(self):
+        nodes = line_nodes()
+        for key, read in self.READERS.items():
+            with self.subTest(node=key):
+                env = Recorded()
+                with mock.patch.object(os, "environ", env):
+                    read()
+                self.assertEqual(env.read, {f"INPUTS_{name.upper()}" for name in nodes[key]["with"]})
+
+    def test_round_limit_is_the_loop_limit(self):
+        self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], plan_out.ROUND_LIMIT)
 
 
 if __name__ == "__main__":

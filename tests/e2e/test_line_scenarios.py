@@ -19,6 +19,7 @@ STUB_BLOCKS = LINE / "fixtures" / "stub-blocks"
 SCENARIOS = (
     "standard", "start-refused", "no-fix", "policy-continue", "policy-stop", "plan-stalled", "plan-unsettled", "replan",
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
+    "replan-stop", "plan-failed",
 )
 
 

@@ -2,7 +2,8 @@
 
 計画の深さ（案の直しが走ればその深さ）を、修正の後の信号で標準へ上げる（lib/depth.py の raise_doc。下げない）。信号は、
 単位ごとに: 修正の段が止めた単位（status が fixed でない単位）、run 全体に: 申し出が在る・答えていない問いが在る・案の直しが
-走った・再審が走った。返り {depth: [{unit_id, depth, why}], skip_optional: 軽量で省く理由の文（標準なら空）, raised}。
+走った・再審が走った。返り {depth: [{unit_id, depth, why}], skip_optional: 軽量で省く理由の文（標準なら空）, raised, stop_reason}。
+例外の時は止めの理由 works:line-script を返し、試験の関門から先は飛ぶ（深さの分からない差分を目に通さない）。
 
 入力（with:）: depth・replan_depth（`{from, if_skipped: null}`）・units・conflicts（fixed の返り）・questions・answer
 （修正前の関所の答え）・replanned・rejudged（after-fix の返り）
@@ -31,11 +32,11 @@ def redepth(planned, replanned_depth, units, conflicts, questions, answer, *, re
         run.append("再審が走った")
     raised = depthlib.raise_doc(doc, units=stopped, run=run)
     return {"depth": [{"unit_id": key, "depth": row["depth"], "why": " / ".join(row["why"])} for key, row in raised["units"].items()],
-            "skip_optional": depthlib.skip_reason(raised), "raised": raised["raised"]}
+            "skip_optional": depthlib.skip_reason(raised), "raised": raised["raised"], "stop_reason": ""}
 
 
 def fallback(reason: str) -> dict:
-    return {"depth": [], "skip_optional": "", "raised": [f"深さを上げ直せなかった（{reason}）"]}
+    return {"depth": [], "skip_optional": "", "raised": [f"深さを上げ直せなかった（{reason}）"], "stop_reason": linekit.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
