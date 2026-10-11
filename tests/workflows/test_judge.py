@@ -211,6 +211,28 @@ class RoleSettingsTest(unittest.TestCase):
         for word in ("prior_failures", "prior-failures", "judgment", "PRIOR"):
             self.assertNotIn(word, text)
 
+    def test_roles_that_reach_outside_carry_the_query_rule(self):
+        """外へ問い合わせられる役（Bash か web の道具を持つ役）の指示書は、検索語の規律（元 adapter.query_rule が lib/agents/judge.md の
+        写しから切り出して system prompt に足した塊）を字のまま持つ"""
+        lines = (ROOT / "lib" / "agents" / "judge.md").read_text(encoding="utf-8").splitlines()
+        start = next(i for i, line in enumerate(lines) if line.startswith("- **検索語に対象の名前を載せるな。**"))
+        end = next(i for i in range(start + 1, len(lines) + 1) if i == len(lines) or not lines[i].startswith("  - "))
+        rule = "\n".join(lines[start:end])
+        by = nodes()
+        for nid, (_, _, tools, *_rest) in ROLES.items():
+            if {"Bash", *WEB} & set(tools):
+                with self.subTest(role=nid):
+                    self.assertIn(rule, (COMMANDS / f"{by[nid]['command']}.md").read_text(encoding="utf-8"))
+
+    def test_dropped_sentences_are_back(self):
+        """元の役の指示書から落ちていた文: 仕様の審査役の前付け（judge）・仕様の役の実装に触れない決まり・局所レビューの無人の読み替え"""
+        judge = (ROOT / "lib" / "agents" / "judge.md").read_text(encoding="utf-8").split("---\n", 2)[2].strip()
+        self.assertIn(judge, (COMMANDS / "spec-review.md").read_text(encoding="utf-8"))
+        for name in ("spec", "spec-revise"):
+            self.assertIn("実装のファイルは 1 文字も変えるな", (COMMANDS / f"{name}.md").read_text(encoding="utf-8"))
+        self.assertIn("# 借りた superpowers のスキルを無人の役で読むときの読み替え",
+                      (COMMANDS / "material-local-review.md").read_text(encoding="utf-8"))
+
     def test_viewpoint_readers_read_review_md(self):
         for name in REVIEW_READERS:
             with self.subTest(command=name):
