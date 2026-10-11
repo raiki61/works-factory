@@ -333,8 +333,8 @@ def absorbed_rows(returns: dict, absorbed) -> list:
 def residue(returns: dict, facts: dict | None = None) -> list:
     """fixed を名乗らせない残りの行 [{where, text}]（元 rest_outside_validator の行の形）。R4 の questions は残りでない
     （人が決めることの節に出す）。深さで省いた目（null）は数えない。facts の answers が命令と出力つきで答えた測れていない素材は
-    数えず（元 residue の measured_materials）、facts の absorbed（受け止めた落ち）を数える。封じの ok は線の止め（ok: false）と
-    _proved（ほかの値）が見る"""
+    数えず（元 residue の measured_materials）、facts の absorbed（受け止めた落ち）を数える。封じの ok は残りに数えない（読み手は
+    _proved の docstring）"""
     facts = facts or {}
     rows = []
     final = returns.get("test-gate-final")
@@ -459,7 +459,9 @@ def _no_fix(returns: dict) -> bool:
 
 
 def _proved(returns: dict) -> bool:
-    """直したと名乗れる証: 最後のテストの ok と green が真で、差分を封じた（merge-seal の ok が真。封じの ok を見るのはここだけ）"""
+    """直したと名乗れる証: 最後のテストの ok と green が真で、差分を封じた（merge-seal の ok が真）。封じの ok の読み手は 3 つで
+    役が違う: ここは結末を fixed と名乗れるか、_line_stop は ok: false を線の止めにするか、runreport._stop_lines は ok でない訳を
+    報告に出すか"""
     final, seal = as_dict(returns.get("test-gate-final")), as_dict(returns.get("merge-seal"))
     return final.get("ok") is True and final.get("green") is True and seal.get("ok") is True
 

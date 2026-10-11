@@ -114,7 +114,8 @@ class TableCase(unittest.TestCase):
         self.assertEqual([r["where"] for r in outcome.residue(fixed_run(eyes=eyes))], [f"{report.EYES_WHERE} R3"], "目の行が在れば重ねない")
 
     def test_seal_without_ok_is_left(self):
-        """封じの ok を見るのは _proved だけ（ok: false は線の止めが先に拾う）。残りの行には重ねない"""
+        """封じの ok が真でない run は fixed を名乗らない（_proved。ok: false は線の止め _line_stop が先に拾い、訳は報告の
+        _stop_lines が出す）。残りの行には重ねない"""
         self.assertEqual(decide(fixed_run(**{"merge-seal": {"mode": "seal"}})), ("round_limit", ""))
         self.assertEqual(outcome.residue(fixed_run(**{"merge-seal": {"mode": "seal"}})), [])
 
