@@ -1,0 +1,13 @@
+# judge が ready: false（直す単位が無い）。計画から後が飛ぶ。
+fixture:
+  expect: "completed"
+  inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
+  reached: ["judge__verdict", "collect", "report__report", "result"]
+  resolved-text-contains: {"report__inner": "# plan=null"}
+exec-code: true
+test-gate-base__inner: "stub"
+test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}
+judge__inner: "stub"
+judge__verdict: {"ready": false, "stop_reason": "", "units": [], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null}
+report__inner: "stub"
+report__report: {"ok": true, "outcome": "no_fix_needed", "stop_reason": "", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}

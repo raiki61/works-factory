@@ -2,7 +2,8 @@
 
 木は tests/archon.py の使い捨ての木に、線と .shared/ と、代わりのブロック（workflows/line/fixtures/stub-blocks/<ブロック>/）を
 本物のブロックの置き場（<ブロック>/）に写した物。本物のブロックは置かないので、main に在っても混ざらない。
-筋書きは exec-code: true で、stub の無い線の script は本当に走る。Archon の源か bun が無ければ名前つきで見送る。
+筋書きは exec-code: true で、stub の無い線の script は本当に走る。同じ木で `archon validate` も回し、線が誤りも警告も出さないことを
+照らす（本物のブロックが揃うまで、tests/layers/test_archon_validate.py は線を見送るため）。Archon の源か bun が無ければ名前つきで見送る。
 """
 import json
 import pathlib
@@ -11,6 +12,7 @@ import tempfile
 import unittest
 
 from tests import archon
+from tests.layers.test_archon_validate import validate
 
 LINE = archon.WORKFLOWS / "line"
 STUB_BLOCKS = LINE / "fixtures" / "stub-blocks"
@@ -20,8 +22,8 @@ SCENARIOS = (
 )
 
 
-def run_scenarios() -> dict:
-    """筋書きの名 → workflow test の 1 件の結果"""
+def run_line() -> tuple[dict, dict]:
+    """(筋書きの名 → workflow test の 1 件の結果, 工程の名 → validate の誤りと警告の行)"""
     with tempfile.TemporaryDirectory() as tmp:
         workflows = pathlib.Path(tmp) / "workflows"
         shutil.copytree(LINE, workflows / "line", ignore=shutil.ignore_patterns("__pycache__"))
@@ -30,6 +32,10 @@ def run_scenarios() -> dict:
             shutil.copytree(STUB_BLOCKS / name, workflows / name)
         with archon.tree(["line", *blocks], workflows) as tree:
             done = archon.archon(tree, "workflow", "test", archon.PACK["ours"]["line"], "--cwd", str(tree), "--json")
+            return scenarios(done), validate(tree)
+
+
+def scenarios(done) -> dict:
     try:
         report = json.loads(done.stdout)
     except json.JSONDecodeError as error:
@@ -44,7 +50,11 @@ class LineScenariosTest(unittest.TestCase):
     def setUpClass(cls):
         if not LINE.is_dir():
             raise AssertionError(f"線の置き場 {LINE} が無い")
-        cls.results = run_scenarios()
+        cls.results, cls.validated = run_line()
+
+    def test_line_validates_without_errors_or_warnings(self):
+        line = archon.PACK["ours"]["line"]
+        self.assertEqual(self.validated.get(line), [], self.validated)
 
     def test_every_scenario_is_declared(self):
         self.assertEqual(sorted(self.results), sorted(SCENARIOS))

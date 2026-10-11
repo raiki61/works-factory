@@ -1,0 +1,49 @@
+# 線の筋書きだけで使う report の代わり（tests/e2e/test_line_scenarios.py が本物のブロックの置き場に写す）。
+# 返す値は筋書きの stub が決める。中の節 inner が落ちると返す節 report が飛ばされる形を筋書きで作るため、節を 2 つにする。
+# 型の写しを持たない（output_format を書かない。持ち主の決め io-in-output-format）。inner の字は、線が渡した入力を
+# 筋書きの resolved-text-contains で照らすために、全部の include が渡す入力を並べる。
+name: works-factory-report
+description: 線の筋書きだけで使う report の代わり
+returns: report
+
+nodes:
+  - id: inner
+    script: |
+      import sys
+      sys.exit("代わりのブロックの中の節。筋書きが stub で差す")
+      # start=$INPUTS.start
+      # prior_failures=$INPUTS.prior_failures
+      # test_gate_base=$INPUTS.test_gate_base
+      # judge=$INPUTS.judge
+      # rejudge=$INPUTS.rejudge
+      # plan=$INPUTS.plan
+      # plan_review=$INPUTS.plan_review
+      # replan=$INPUTS.replan
+      # replan_review=$INPUTS.replan_review
+      # fix=$INPUTS.fix
+      # refix=$INPUTS.refix
+      # fixed=$INPUTS.fixed
+      # test_gate_final=$INPUTS.test_gate_final
+      # eyes=$INPUTS.eyes
+      # merge_seal=$INPUTS.merge_seal
+      # merge_apply=$INPUTS.merge_apply
+      # gate_start=$INPUTS.gate_start
+      # gate_before_fix=$INPUTS.gate_before_fix
+      # gate_replan=$INPUTS.gate_replan
+      # gate_final=$INPUTS.gate_final
+      # stop_reason=$INPUTS.stop_reason
+      # deferred_questions=$INPUTS.deferred_questions
+      # widened=$INPUTS.widened
+      # final_reasons=$INPUTS.final_reasons
+      # judged=$INPUTS.judged
+      # redepth=$INPUTS.redepth
+    runtime: uv
+    timeout: 1728000000
+
+  - id: report
+    script: |
+      import sys
+      sys.exit("代わりのブロックの返す節。筋書きが stub で差す")
+    runtime: uv
+    depends_on: [inner]
+    timeout: 1728000000

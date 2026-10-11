@@ -1,0 +1,47 @@
+"""人の関所の答えを受ける返しの節（answer-start・answer-before-fix・answer-replan・answer-final。埋め P2）。
+
+関所が方針で飛ばされても走る（trigger_rule: none_failed_min_one_success）。関所の出力は `{from, if_skipped: null}` で受ける。
+返り {go, answer, stop_reason}: 関所が飛ばされたら前の節が決めた go と止めの理由をそのまま返し、answer は null。
+関所が開いたら答え {decision, text} を返し、通す語なら go、止める語なら go: false と止めの理由 human:<関所>。
+答えは run の置き場の gates/<関所>.json に {decision, text} で書く（同じ関所の答えは書き直す。報告が読む）。
+
+入力（with:）: gate（関所の出力）・go・stop_reason（関所の前の節の決め）・place（関所の節の id）
+"""
+import json
+import os
+from pathlib import Path
+
+import linekit
+
+ANSWERS = "gates"
+
+
+def decision_of(raw) -> dict:
+    """関所の出力の字を {decision, text} に。決めの語を持つ関所は {decision, text} の JSON を返す。筋書きの関所はいつも approved の字"""
+    got = linekit.value(raw)
+    if isinstance(got, dict) and isinstance(got.get("decision"), str):
+        return {"decision": got["decision"], "text": str(got.get("text") or "")}
+    if got == linekit.DRY_RUN_APPROVED:
+        return {"decision": "approve", "text": ""}
+    return {"decision": str(got), "text": ""}
+
+
+def answer(gate_raw, go_raw, stop_raw, place: str, artifacts: Path) -> dict:
+    if linekit.text(gate_raw) == "":
+        return {"go": linekit.flag(go_raw), "answer": None, "stop_reason": linekit.text(stop_raw)}
+    got = decision_of(gate_raw)
+    folder = artifacts / ANSWERS
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{place}.json").write_text(json.dumps(got, ensure_ascii=False) + "\n", encoding="utf-8")
+    go = got["decision"] in linekit.GO_WORDS
+    return {"go": go, "answer": got, "stop_reason": "" if go else linekit.HUMAN + place}
+
+
+def fallback(reason: str) -> dict:
+    return {"go": False, "answer": None, "stop_reason": linekit.LINE_SCRIPT}
+
+
+if __name__ == "__main__":
+    linekit.run(lambda: answer(os.environ.get("INPUTS_GATE"), os.environ.get("INPUTS_GO"), os.environ.get("INPUTS_STOP_REASON"),
+                               os.environ["INPUTS_PLACE"], Path(os.environ["ARTIFACTS_DIR"])),
+                fallback)
