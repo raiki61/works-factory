@@ -139,7 +139,7 @@
   - `cli.start(target: Path, request: str, archon: Callable[[list[str]], str]) -> str`（配置してから `archon workflow run works-factory-line` を起こし、run の id を返す）
   - `cli.answer(run_id: str, text: str, archon) -> None`・`cli.show(run_id: str, archon) -> str`・`cli.apply(run_id: str, target: Path) -> None`（merge の返りの指し札の差分を、封じた hash を照らしてから `git apply` する。違えば止まる）
   - 認証はホストの `gh` と Claude のログインをそのまま引き継ぐ。資格を環境変数で役に渡さない。
-- 持ち主の居ない `running` の扱い（埋め P3）は段 1 で足す。段 0 の `show` は Archon の状態をそのまま出す。
+- 持ち主の居ない `running` の扱い（埋め P1）は段 1 で足す。段 0 の `show` は Archon の状態をそのまま出す。
 
 - [ ] **Step 1: 試験を書く**（偽の `archon` 関数で引数を記録）
   - `test_start_places_then_runs`: 配置が先、次に `workflow run works-factory-line`

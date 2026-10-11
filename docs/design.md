@@ -7,7 +7,7 @@
 
 - Archon: AI の工程を YAML で書き、機械が順に回す道具。土台は公開版 v0.11.1。
 - ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までの工程の束（`coleam00/Archon` の枝 `factory/sdlc-on-dev` の `.archon/workflows/sdlc/`）。見る版は `pack.json` の `asf.commit`（`d97d00ef`）。
-- 今の works: raiki61/claude-plugins の `works/`。工場 darkfactory を持つ。棚卸しは origin/main の 2026-10-11 の姿（待ちの列の commit `ab9b9f17` を含む）。
+- 今の works: raiki61/claude-plugins の `works/`。工場 darkfactory を持つ。棚卸しは origin/main の 2026-10-11 の姿（commit `ab9b9f17` まで）。
 - review-graph: graphloops プラグインのレビューと修正の輪（`works/.shared/core/graphloops/graphs/review-loop.json`）。今の works の元。
 - 線: ブロックを順に並べた 1 本の工程（`workflows/line/`）。
 - ブロック: 線に `include:` で差し込む部品（`workflows/<名>/`）。ほかのブロックを知らない。
@@ -15,8 +15,7 @@
 - 役: AI を起こす節。
 - 人の関所: 人に答えを聞いて止まる節（Archon の承認の節）。
 - 単位: 判定役が切った 1 つの欠陥。直す・拒む・諦めるの数え方の単位。
-- 枝（レーン）: 単位の組を別の作業ツリーで直す並べの道。
-- 待ちの列: 枝に入りきらない組を並べておく列。枝は自分の組を終えたら列から次の組を取る。
+- 組: 判定の単位か計画の項目を共にする単位のまとまり。組は分けない。組ごとに別の作業ツリーで並べて直す。
 - エッセンス: 持ち主のグラフ（`workflows/`）。どの確かめと役が在り、各々が何をし、どの順でどうつながり、どこで人に聞くか。Archon の書き方（線とブロックの YAML・役の指示書 `commands/`・節の script `scripts/`）で書く。持ち主の言葉「で、私がエッセンスって呼んでるのはグラフの内容やグラフ全体の形かな。」（2026-10-11）
 - lib: Archon を知らない Python の助け手（`lib/`）。script の節が呼ぶ（引用の照らし・TDD の赤の判定・元から赤の見分け・範囲の照らしなど）。エッセンスそのものではない。
 - 境: Archon との出入りの口と、Archon に無い物を補う埋め（`workflows/.shared/`）。
@@ -109,7 +108,7 @@ flowchart TB
 4. judge: 前提・目的・定石・素材・判定。`--spec` の時は中に仕様の関所（人）を持つ。
 5. 計画の往復: plan → plan-review を 3 往復まで。同じ所で 2 度続けて止められたら止める。
 6. 修正前の関所（人）: 事前審査の 4 つの軸（自明・世界の解・汚くない・やりすぎでない）で人に聞く物がある時だけ開く。
-7. fix: TDD の輪・並べの枝と待ちの列・修正役・裁定・差分の審査と手直し。裁定が計画の項目の誤りとした時は、1 run に 1 度だけ plan と plan-review をもう一度差し込み、案の直しの関所（人）を通る。修正役の異議は judge を再審の入力でもう一度差し込む（1 度）。
+7. fix: 組ごとの並べ（`fan_out:`）・TDD の輪・修正役・裁定・差分の審査と手直し。裁定が計画の項目の誤りとした時は、1 run に 1 度だけ plan と plan-review をもう一度差し込み、案の直しの関所（人）を通る。修正役の異議は judge を再審の入力でもう一度差し込む（1 度）。
 8. test-gate（final）: テスト一式と CI。緑を作業ツリーの指紋つきで認証する。
 9. eyes: 独立の目 R1〜R4 と、直した後の構造の実測、守りのパスの当たり。
 10. merge（seal）: 人に見せる差分を封じる（hash）。
@@ -130,7 +129,7 @@ flowchart TB
 - 判定（単位の目録・判定の指し札・定石の行の指し札）: judge → plan・plan-review・fix・eyes
 - 計画（修正案の指し札・波及の指し札・単位ごとの深さ）: plan → plan-review・fix・eyes
 - 事前審査（止めか通しか・4 つの軸・人への問い）: plan-review → 線（関所と往復）・plan
-- 修正（単位ごとの結末・申し出・諦めた単位・差分の指し札）と型つきの成果物 `tdd-unit`・`lane-result`: fix → test-gate・eyes・report
+- 修正（単位ごとの結末・申し出・諦めた単位・差分の指し札。組ごとの結果は `fan_out:` が入力の順に集めた `$<id>.output`）と型つきの成果物 `tdd-unit`: fix → test-gate・eyes・report
 - 緑の認証（緑・赤の原因・作業ツリーの指紋）: test-gate（final）→ eyes・merge
 - 独立の目と型つきの成果物 `eye-verdict`: eyes → merge・report
 - 封じた差分（hash・守りのパスの当たり）: merge（seal）→ 最後の関所・merge（apply）
@@ -142,7 +141,7 @@ flowchart TB
 
 - 判定の受け付けが拒めば、判定役に 3 回まで出し直させる（judge の中の `loop:`）。
 - 計画の往復は線の `loop_group`（plan と plan-review の 2 つの include）で 3 回まで。`loop_group` の中に include を置けるかは未決（下の U4）。置けなければ、plan-review が自分の `commands/` に案の直しの役を持つ形にする（plan ブロックは知らない）。
-- 並べの枝: 単位を、判定の単位か計画の項目を共にする物で組にする。枝の数は機械が組の数から決める（持ち主の決め `parallel`。今の works の固定の 3 は持ち込まない）。YAML の節の数で上限が要る間は、その上限は Archon の制約として埋め P1・P2 に書く。最初は 1 本に 1 組を配り、入らない組は待ちの列に並べる。枝は自分の組を直し終えたら、錠の中で列から次の組を取る。申し出・実行器の止まり・回数の上限で止めた枝は列から取らない。当てる時は決めた順に親の木へ戻す。戻せなかった組と枝に入らない組だけ、順の輪が直す。今の works の commit `ab9b9f17`（2026-10-11）と同じ形。
+- 並べ: 単位を組にし（組は分けない）、fix は組ごとに `fan_out:` で並べる。幅は計画の組の数から run の時に決まり、並べの数の上限だけを持つ。固定の枝の数・待ちの列・錠は持たない（持ち主の決め `no-queue`。今の works の固定の 3 本と待ちの列（commit `ab9b9f17`）は持ち込まない）。結果は `fan_out:` が入力の順に集める。組の差分は決めた順に親の木へ戻し、戻せなかった組は理由つきで報告と次の run に回す。組ごとの作業ツリーの持ち方は未決 U8。
 - 修正役が 3 回拒まれた単位は、その単位を始めた時の版に戻し、理由を残して裁定に回し、ほかの単位は先へ進む。
 - 差分の審査 → 手直しは 2 往復まで。
 
@@ -156,7 +155,7 @@ flowchart TB
 - ASF で読む物: `W/lifecycle/archon-lifecycle.yaml`（子の関所を子が持つ形・`returns: merge`）と `W/ship/archon-ship.yaml`（routes の合流と `trigger_rule: none_failed_min_one_success`、`if_skipped` で飛ばされた子を `null` で受ける `outcome`）。`W` は `.archon/workflows/sdlc`。
 - 入力: 入口の入力。返り: report の返り。
 - lib: `entry_shape`・`depth`・`gate_policy`・`halt`・`converge`・`stop_reasons`（止めの理由の語）・`features`（機能の切り替えの語）。
-- 埋め: P3（持ち主の居ない running）・P4（include に if_skipped を通せない）。
+- 埋め: P1（持ち主の居ない running）・P2（include に if_skipped を通せない）。
 - 持ち主: 土台の持ち主だけ（守りのパス）。
 
 ### judge（判定）
@@ -188,13 +187,13 @@ flowchart TB
 
 ### fix（修正）
 
-- 目的: 単位ごとに直す。TDD の輪（名指しのテストが failure で落ち、直して通ることを JUnit の XML で機械が見る。役が引いた失敗の文が結末に在るかを照らす）・テストの凍結・修正案の範囲の照らしと相談・書き込みの出どころの突き合わせ・当たる試験の選び・3 回で諦める・食い違いの申し出と読むだけの裁定役・並べの枝と待ちの列・後始末・差分の審査とレンズ（silent-failure-hunter）と手直し。
+- 目的: 単位ごとに直す。TDD の輪（名指しのテストが failure で落ち、直して通ることを JUnit の XML で機械が見る。役が引いた失敗の文が結末に在るかを照らす）・テストの凍結・修正案の範囲の照らしと相談・書き込みの出どころの突き合わせ・当たる試験の選び・3 回で諦める・食い違いの申し出と読むだけの裁定役・組ごとの並べ・後始末・差分の審査とレンズ（silent-failure-hunter）と手直し。
 - 差分の審査と手直しを fix に置く訳: review-graph で同じ P3 の段（`p3.fix_delta`・`p3.delta_review`・`p3.delta_fix`）にあり、ブロックの中で輪が閉じる。ブロックの間の戻りを作らない。
 - ASF で読む物: `W/implement/archon-implement.yaml`（`loop:` と `until_field: done`・`assert-changed` が `checkoutStart` と比べて本当に変わったかを見る・`outcome_field: green`）と `W/deliver/archon-deliver.yaml`（review → correct の輪）。
-- 入力: 判定・計画・直す前の結末。型つきの成果物 `tdd-unit`・`lane-result` も出す。
+- 入力: 判定・計画・直す前の結末。型つきの成果物 `tdd-unit` も出す。
 - 役（`commands/`）: `tdd`・`fix`（修正の決まりを含む）・`ruler`・`delta-review`・`lens`・`refix`。
-- lib: `red_check`・`baseline_red`・`test_freeze`・`plan_scope`・`write_provenance`・`impact`・`test_files`・`give_up`・`lanes`・`cite`・`conflict`（申し出の形）。
-- 埋め: P1・P2（`workflows/.shared/lanes`）。
+- lib: `red_check`・`baseline_red`・`test_freeze`・`plan_scope`・`write_provenance`・`impact`・`test_files`・`give_up`・`groups`（組の作り）・`cite`・`conflict`（申し出の形）。
+- 埋め: 無し。組ごとの作業ツリーは未決 U8。
 
 ### test-gate（試験の関門）
 
@@ -291,7 +290,7 @@ flowchart TB
 - テストのファイルの見分け: `impact.py` の `is_test_file` → `lib/test_files`
 - 3 回で諦める: `fixlanes.GIVE_UP_AFTER`・`parking.py` → `lib/give_up`
 - 食い違いの申し出と裁定: `conflict.py`・`ruling.py` → `commands/ruler`・`lib/conflict`
-- 並べの枝と待ちの列: `lanekit.py`・`fixlanes.py`・`tddlanes.py`・`unitlanes.py`・`unittrees.py` → `lib/lanes`（組の作りと取り）・埋め `workflows/.shared/lanes`（作業ツリーと固定の枝の節）
+- 並べの枝: `lanekit.py`・`fixlanes.py`・`tddlanes.py`・`unitlanes.py`・`unittrees.py` → fix の `fan_out:`（並べ・集め）と `lib/groups`（組の作り・戻す順の当て）。固定の枝の数・待ちの列・錠は持ち込まない（持ち主の決め `no-queue`）
 - 後始末: `leftovers.py` → fix
 - 修正の決まりと借りた superpowers の節: `seat.py`・`spseam.py`・`rulebook.py`・`blk-fix/rules/*.md` → `commands/fix-rules`
 - 差分の審査・レンズ・手直し: `blk-delta`・`deltamarks.py`・`blk-lens`・`lens.py`・`blk-refix`・`refix.py` → fix・`commands/delta-review`・`commands/lens`
@@ -362,11 +361,14 @@ flowchart TB
 - `returns:` は 1 つの節の出力を `$<include の id>.output` として見せる。
 - 型つきの成果物は、節の id と繰り返しの道（`loopGroupPath`）で鍵が付き、`$TYPED_ARTIFACTS_FILE` の一覧（`{runId, artifactsByType, errors}`）で引く。
 - `loop:` の出力は最後の回の出力。
-- `if_skipped` は include の入力を通して運べない（埋め P4）。
+- `if_skipped` は include の入力を通して運べない（埋め P2）。
 - 指し札は同じ run の中だけ。パスは相対で、在って空でない普通のファイルだけ。
 - `script:` の節の `output_format` は標準出力の約束で、Archon が照らす（v0.11.1 の文書 `guides/script-nodes.md`「JSON Schema the node's stdout must satisfy」）。だからブロックの返りの型を自前で照らす口は要らない。
 - `fan_out:` の子が承認の関所で止まると、その子は取り消される。関所は fan_out の前か後に置く。
-- 持ち主の居ない `running` の run は `resume` できない（埋め P3）。
+- 持ち主の居ない `running` の run は `resume` できない（埋め P1）。
+- 待ちは持ちこたえる（0.10.0 から）。`wait:` の節と承認の節の待ちは DB が持ち、process が再起動しても消えない（CHANGELOG [0.10.0]「The database owns suspension and resume claims, so process restarts … cannot reset a wait」）。server は期限の来た run を再開する。だから CI と人の長い待ちは `wait:` の節と承認の節で書く。
+- `include:` の節に `fan_out:` を書ける（0.10.0、PR #2512・#2795）。「Load time resolves and validates the full static block…; runtime decides only its width」。並べの数に上限を付けられ、結果は入力の順に `$<id>.output` に集まる。
+- `workflow:` の節に `fan_out:` を書くと、項目ごとに自分の run（「its own row, artifacts, cost line and gates」）を持つ子が起きる。
 - v0.11.1 は `$ARCHON_HOME/workflows` に置いた最新の ASF の束を読む。40 本が並び、同じ名の同梱の工程を上書きする。`archon-merge-queue` は script のパスの警告を 2 つ出した。ASF の工程を走らせたことはまだ無い。
 - 作りの規則は v0.11.1 の `.archon/workflow-language-constitution.md`（「YAML coordinates. Code computes. Agents judge.」）。
 
@@ -379,7 +381,7 @@ flowchart TB
 - U5 ブロックの script が、置いた `lib/` をどのパスで見つけるか（E1 で YAML を変えないので、置き場の決めは `bin/` と境の口が持つ）。
 - U6 今の works の包みが取っていた読んだ証拠と書き込みの記録を、Archon の役の節で取れるか（Archon の出来事の記録か、節の hooks か）。取れなければ埋めの行にする。
 - U7 ASF の lifecycle を段 2 で使う時、必須の入力 `scenario`（動かして確かめる筋書き）に何を渡すか。
-- U8 `fan_out:` と `isolation: worktree` の子の枝が、親の run の今の commit から切られるか。切られるなら、枝の数を run の時に決める形（`fan_out:`）に寄せ、埋め P1・P2 を小さくできる。
+- U8 組ごとに別の作業ツリーを持てるか。推しは `workflow:` と `fan_out:` の子の run（子ごとに自分の run）。子が自分の作業ツリーを持つか、それが親の今の commit から切られるか、子の差分を親に決めた順で戻せるかを確かめる。2026-10-06 の判断「fan_out は子ごとに作業ツリーを決められない」は節の `fan_out:` だけを見ていたかもしれない。足りなければ埋めの名簿に行を足す。
 
 U1〜U3 は持ち主の挙げた物、U4〜U8 はこの文書を書く中で出た物。
 
@@ -413,7 +415,7 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 - `judge`: 前提・目的・定石・素材 11 本・診断・裏取り・再審・仕様の段が動く。受け付けが拒めば 3 回まで出し直す。定石の抜き書きが出どころに在ることを機械が照らす。目的の外の所見が持ち越しの行になる。
 - `plan`: 構造の目と修正案と波及の一覧。項目ごとに書いてよい範囲・受け入れテスト・定石と構造の行への従うか外れの訳が無ければ受け付けが拒む。案の直しの入力で 2 度目を差し込める。
 - `plan-review`: R2 の独立設計は道具なしで目的の文だけを受ける（禁じた入力が届かないことを試験で縛る）。4 つの軸と人への問いを返す。往復の止め（3 回・同じ止めが 2 度）が働く。
-- `fix`: 赤緑の機械の判定・元から赤の区別・凍結・範囲の照らしと相談・書き込みの出どころ・3 回で諦める・申し出と裁定・差分の審査と手直し 2 往復。並べの枝が待ちの列から次の組を取り、止めた枝は取らない（今の works の `tests/test_fix_lanes.py`・`test_tdd_lanes.py` と同じ筋書きを通す）。
+- `fix`: 赤緑の機械の判定・元から赤の区別・凍結・範囲の照らしと相談・書き込みの出どころ・3 回で諦める・申し出と裁定・差分の審査と手直し 2 往復。組は `fan_out:` で並べ、幅は計画（組の数）から決まり、組は分けない。並べの数の上限は持つが、固定の枝の数・待ちの列・錠は持たない。
 - `test-gate`: base と final の 2 つの形。赤の原因を 3 つに分け、今回入れた赤と原因の無い赤を拒む。緑の認証に作業ツリーの指紋が入り、木が変われば認証が使えない。
 - `eyes`: R1〜R4 と前提の検算と直した後の構造の実測。全部の役が `mutates_checkout: false`。R2 の禁じた入力が届かない。R4 の問いと守りのパスの当たりが返りに載る。型つきの成果物を自分の include の分だけ数える。
 - `report`: 結末の 10 語・機械の報告・AI の報告・初見の確かめ・持ち越し。前の段が落ちても飛ばされても走り、`errors` を注意として載せる。
