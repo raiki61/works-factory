@@ -13,6 +13,8 @@ AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CL
   名指して、何も写さずに止まる。
 - coldwrite・pr-review-toolkit（kind "plugin"）: 利用者が Claude Code に入れたプラグインから取る（本線の graphloops と同じ。版は
   Claude Code が今に保ち、入れた版をそのまま使う）。
+- coldwrite の marketplace の名と repo は borrow.json に書かず、利用者の設定（WORKS_FACTORY_COLDWRITE_MARKETPLACE・
+  WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO）から読む（user_borrow）。どちらかが無ければ install は 1 行で名指して見送り、止めない。
 - 探す所（kind "plugin"）: 利用者の設定の置き場（--user-config。無ければ env の CLAUDE_CONFIG_DIR、無ければ ~/.claude。隔離した設定ではない。
   起動は隔離の前の値を渡す。絶対パスだけを受け、隔離した設定の置き場と同じなら名指しして止まる）の plugins/installed_plugins.json の <名>@<borrow の marketplace> の行。Claude Code と同じく
   local > project > user の scope の行を取る（local・project は projectPath が今の cwd（対象リポジトリ）の行だけ。勝った行の
@@ -136,6 +138,25 @@ class ToolsetError(Exception):
 
 def load_borrow(pack: pathlib.Path) -> dict:
     return json.loads((pathlib.Path(pack) / "borrow" / "borrow.json").read_text(encoding="utf-8"))
+
+
+def user_borrow(borrow: dict, env) -> tuple:
+    """(marketplace を利用者の設定から入れた借りる物, 見送った物の 1 行ずつ)。marketplace の名と repo を borrow.json に書かず
+    環境変数（marketplace_env・marketplace_repo_env）で名指す借りる物は、持ち主の物で普通の利用者は持たないので（E14）、
+    どちらかが無ければ止めずに見送る"""
+    out, skipped = {}, []
+    for name, item in borrow.items():
+        if "marketplace_env" not in item:
+            out[name] = item
+            continue
+        keys = (item["marketplace_env"], item["marketplace_repo_env"])
+        mp, repo = (env.get(k) for k in keys)
+        if not (mp and repo):
+            skipped.append(f"{name} は借りずに見送る（{'・'.join(keys)} の設定が無い）")
+            continue
+        out[name] = {k: v for k, v in item.items() if k not in ("marketplace_env", "marketplace_repo_env")}
+        out[name].update(marketplace=mp, marketplace_repo=repo)
+    return out, skipped
 
 
 SCOPES = ("local", "project", "user")      # 勝つ順（Claude Code の discover-plugins の Which scope wins。managed は読まない）
@@ -969,7 +990,7 @@ def main(argv: list) -> int:
             return 2
     cfg = pathlib.Path(pos[0])
     try:
-        borrow = load_borrow(pack)
+        borrow, skipped = user_borrow(load_borrow(pack), os.environ)
         if cmd == "guard":
             bad = guard(cfg, borrow)
             if bad:
@@ -978,6 +999,8 @@ def main(argv: list) -> int:
             src = "--user-config" if user_cfg else "env の CLAUDE_CONFIG_DIR"
             user_cfg, here = user_cfg or user_config_dir(), os.getcwd()
             _check_user_config(user_cfg, cfg, src)
+            for line in skipped:
+                print(f"toolset.py: {line}", file=sys.stderr)
             chosen, versions = installed_sources(user_cfg, borrow, cwd=here)
             enabled = {n: source_enabled(user_cfg, f"{n}@{i['marketplace']}", here)
                        for n, i in borrow.items() if i["kind"] == "plugin"}

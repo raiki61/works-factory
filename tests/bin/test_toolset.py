@@ -51,8 +51,18 @@ VENDORED = spseam.vendored_dir(toolset.load_borrow(LIB)["superpowers"])
 LENSES = ["code-reviewer", "silent-failure-hunter", "type-design-analyzer", "pr-test-analyzer", "comment-analyzer"]
 MP = "works-local"
 # 偽の利用者の設定に入れる偽のプラグイン: 名 → (marketplace, キャッシュの版の置き場の名・installed_plugins.json の version)
-FAKE_INSTALLED = {"superpowers": ("superpowers-marketplace", "9.9.0"), "coldwrite": ("raiki61", "1.2.3"),
+# 利用者の設定が名指す coldwrite の marketplace（borrow.json には書かない。toolset.user_borrow）
+COLDWRITE_MP, COLDWRITE_REPO = "cw-market", "someone/cw-plugins"
+COLDWRITE_ENV = {"WORKS_FACTORY_COLDWRITE_MARKETPLACE": COLDWRITE_MP, "WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO": COLDWRITE_REPO}
+FAKE_INSTALLED = {"superpowers": ("superpowers-marketplace", "9.9.0"), "coldwrite": (COLDWRITE_MP, "1.2.3"),
                   "pr-review-toolkit": ("claude-plugins-official", "abc123def456")}
+
+
+def user_borrow() -> dict:
+    """利用者の設定に coldwrite の marketplace が在る時の借りる物"""
+    borrow, skipped = toolset.user_borrow(toolset.load_borrow(LIB), COLDWRITE_ENV)
+    assert skipped == [], skipped
+    return borrow
 
 
 def _put(p: pathlib.Path, body: str, mode=None) -> None:
@@ -182,7 +192,7 @@ class Base(unittest.TestCase):
         self.log = self.tmp / "claude-calls.jsonl"
         self._env = mock.patch.dict(os.environ, {"FAKE_CLAUDE_LOG": str(self.log)})
         self._env.start()
-        self.borrow = toolset.load_borrow(LIB)
+        self.borrow = user_borrow()
         self.user = make_user_config(self.tmp / "user")
 
     def tearDown(self):
@@ -209,7 +219,7 @@ class Base(unittest.TestCase):
     def cli(self, *args, **env):
         """CLI を子で起こす。利用者の設定の置き場は env の CLAUDE_CONFIG_DIR（既定は偽の利用者の設定）"""
         return subprocess.run([sys.executable, str(TOOLSET), *args], capture_output=True, text=True, encoding="utf-8",
-                              env=hermetic.child_env(**{"CLAUDE_CONFIG_DIR": str(self.user), **env}))
+                              env=hermetic.child_env(**{"CLAUDE_CONFIG_DIR": str(self.user), **COLDWRITE_ENV, **env}))
 
 
 
@@ -222,20 +232,37 @@ class BorrowListCase(unittest.TestCase):
     def test_borrow_json_names_installed_plugins(self):
         """借りる物は利用者が入れたプラグインの <名>@<marketplace> で名指し、入れるコマンドの marketplace の元（GitHub）を持つ。
         works が名前で頼る物（スキル・agent・hook）だけを並べる。写しを示す印（pinned）は無い"""
-        b = toolset.load_borrow(LIB)
+        b = user_borrow()
         self.assertEqual(sorted(b), ["coldwrite", "pr-review-toolkit", "superpowers"])
         self.assertEqual(sorted(b["superpowers"]["skills"]), sorted(BORROW_SKILLS))
         want = {"superpowers": ("superpowers-marketplace", "obra/superpowers-marketplace"),
-                "coldwrite": ("raiki61", "raiki61/claude-plugins"),
+                "coldwrite": (COLDWRITE_MP, COLDWRITE_REPO),
                 "pr-review-toolkit": ("claude-plugins-official", "anthropics/claude-plugins-official")}
         for name, (mp, repo) in want.items():
             with self.subTest(name):
                 self.assertEqual((b[name]["marketplace"], b[name]["marketplace_repo"]), (mp, repo))
                 self.assertNotIn("pinned", b[name])
         self.assertEqual(b["superpowers"]["kind"], "skills")
-        self.assertEqual(b["coldwrite"], {"kind": "plugin", "marketplace": "raiki61", "marketplace_repo": "raiki61/claude-plugins",
+        self.assertEqual(b["coldwrite"], {"kind": "plugin", "marketplace": COLDWRITE_MP, "marketplace_repo": COLDWRITE_REPO,
                                           "hooks": {"PreToolUse": ["Write"]}})
         self.assertEqual(b["pr-review-toolkit"]["agents"], LENSES)
+
+    def test_coldwrite_marketplace_is_not_in_the_repo(self):
+        """coldwrite の marketplace は持ち主の物（E14）なので borrow.json に書かず、利用者の設定の名だけを持つ。名と repo の
+        どちらかが無ければ止めずに見送り、見送った 1 行が両方の名を名指す。ほかの借りる物は変えない"""
+        raw = toolset.load_borrow(LIB)
+        self.assertNotIn("marketplace", raw["coldwrite"])
+        self.assertNotIn("marketplace_repo", raw["coldwrite"])
+        for env in ({}, {"WORKS_FACTORY_COLDWRITE_MARKETPLACE": COLDWRITE_MP},
+                    {"WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO": COLDWRITE_REPO}):
+            with self.subTest(env=env):
+                b, skipped = toolset.user_borrow(raw, env)
+                self.assertEqual(sorted(b), ["pr-review-toolkit", "superpowers"])
+                self.assertEqual(b["pr-review-toolkit"], raw["pr-review-toolkit"])
+                self.assertEqual(len(skipped), 1, skipped)
+                self.assertIn("coldwrite", skipped[0])
+                for k in COLDWRITE_ENV:
+                    self.assertIn(k, skipped[0])
 
     def test_no_vendored_copies(self):
         """works は coldwrite・pr-review-toolkit の写しを持たない（利用者が入れた版に従う）。superpowers の写しは VendorCase と
@@ -411,7 +438,7 @@ class ResolveCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = pathlib.Path(self._tmp.name)
-        self.borrow = toolset.load_borrow(LIB)
+        self.borrow = user_borrow()
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -443,7 +470,7 @@ class ResolveCase(unittest.TestCase):
         lines = str(cm.exception).splitlines()[1:]
         self.assertEqual(len(lines), 2, lines)
         self.assertNotIn("superpowers", str(cm.exception))
-        for key, repo in (("coldwrite@raiki61", "raiki61/claude-plugins"),
+        for key, repo in ((f"coldwrite@{COLDWRITE_MP}", COLDWRITE_REPO),
                           ("pr-review-toolkit@claude-plugins-official", "anthropics/claude-plugins-official")):
             line = next(ln for ln in lines if key in ln)
             self.assertIn(f"claude plugin marketplace add {repo}", line)
@@ -510,7 +537,7 @@ class ScopeCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = pathlib.Path(self._tmp.name)
-        self.borrow = toolset.load_borrow(LIB)
+        self.borrow = user_borrow()
         self.target = self.tmp / "target"
         self.target.mkdir()
         self.user = make_user_config(self.tmp / "user")
@@ -546,14 +573,14 @@ class ScopeCase(unittest.TestCase):
         記録の source_enabled は、元で勝った enabledPlugins の値（どこにも鍵が無ければ null）。superpowers は写しから入れるので、
         利用者の側の有効・無効を載せない"""
         _put(self.user / "settings.json", json.dumps({"enabledPlugins": {
-            "coldwrite@raiki61": False, "superpowers@superpowers-marketplace": False}}))
+            f"coldwrite@{COLDWRITE_MP}": False, "superpowers@superpowers-marketplace": False}}))
         _put(self.target / ".claude" / "settings.json", json.dumps({"enabledPlugins": {
             "superpowers@superpowers-marketplace": True}}))
         cfg = self.tmp / "claude-config"
         cfg.mkdir()
         r = subprocess.run([sys.executable, str(TOOLSET), "install", "--no-plugins", "--user-config", str(self.user), str(cfg)],
                            capture_output=True, text=True, encoding="utf-8", cwd=self.target,
-                           env={k: v for k, v in os.environ.items() if k != "CLAUDE_CONFIG_DIR"})
+                           env={**{k: v for k, v in os.environ.items() if k != "CLAUDE_CONFIG_DIR"}, **COLDWRITE_ENV})
         self.assertEqual(r.returncode, 0, r.stderr)
         rec = json.loads((cfg / toolset.RECORD).read_text())
         self.assertEqual(rec["coldwrite"]["source"], str(installed_dir(self.user, "coldwrite")))
@@ -568,7 +595,7 @@ class InstalledShapeCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = pathlib.Path(self._tmp.name)
-        self.borrow = toolset.load_borrow(LIB)
+        self.borrow = user_borrow()
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -956,7 +983,18 @@ class CliCase(Base):
                 self.assertEqual(self.calls(), [])
         r = self.cli("install", "--no-plugins", str(self.cfg), CLAUDE_CONFIG_DIR=str(empty))
         self.assertEqual(r.returncode, 2, r.stderr)
-        self.assertIn("coldwrite@raiki61", r.stderr)
+        self.assertIn(f"coldwrite@{COLDWRITE_MP}", r.stderr)
+
+    def test_cli_install_skips_coldwrite_without_its_marketplace(self):
+        """利用者の設定に coldwrite の marketplace が無い（普通の利用者）: 止めずに 1 行で名指して見送り、ほかは組む"""
+        r = self.cli("install", "--claude", str(self.claude), str(self.cfg), WORKS_FACTORY_COLDWRITE_MARKETPLACE="")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("coldwrite は借りずに見送る", r.stderr)
+        self.assertEqual(json.loads((self.cfg / "settings.json").read_text())["enabledPlugins"],
+                         {f"pr-review-toolkit@{MP}": True})
+        self.assertEqual(sorted(json.loads((self.cfg / toolset.RECORD).read_text())), ["pr-review-toolkit", "superpowers"])
+        r = self.cli("guard", str(self.cfg), WORKS_FACTORY_COLDWRITE_MARKETPLACE="")
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_cli_refuses_relative_user_config(self):
         """利用者の設定の置き場は絶対パスだけを受ける（相対は殻が cd の前に直す。cd の後に対象から解くと別の置き場を読む）。
@@ -965,7 +1003,7 @@ class CliCase(Base):
             with self.subTest(args=args, env=env):
                 r = subprocess.run([sys.executable, str(TOOLSET), "install", "--no-plugins", *args, str(self.cfg)],
                                    capture_output=True, text=True, encoding="utf-8", cwd=self.tmp,
-                                   env=hermetic.child_env(**{"CLAUDE_CONFIG_DIR": str(self.user), **env}))
+                                   env=hermetic.child_env(**{"CLAUDE_CONFIG_DIR": str(self.user), **COLDWRITE_ENV, **env}))
                 self.assertEqual(r.returncode, 2, r.stderr)
                 self.assertIn("絶対", r.stderr)
                 self.assertEqual(files_under(self.cfg), [])

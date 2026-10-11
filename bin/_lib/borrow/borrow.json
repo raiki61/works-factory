@@ -46,8 +46,8 @@
   },
   "coldwrite": {
     "kind": "plugin",
-    "marketplace": "raiki61",
-    "marketplace_repo": "raiki61/claude-plugins",
+    "marketplace_env": "WORKS_FACTORY_COLDWRITE_MARKETPLACE",
+    "marketplace_repo_env": "WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO",
     "hooks": {
       "PreToolUse": [
         "Write"
