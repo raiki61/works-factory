@@ -32,7 +32,10 @@ SEED = ROOT / "tests" / "e2e" / "target-seed"
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import converge  # noqa: E402
 import eye  # noqa: E402
+import gatemarks  # noqa: E402
+import planblk  # noqa: E402
 import planmarks  # noqa: E402
 import planfile  # noqa: E402  （lib/graphloops を sys.path に足す。engine より先に）
 import rolekit  # noqa: E402
@@ -339,6 +342,32 @@ class ShapeCase(unittest.TestCase):
         self.assertLessEqual({"decided_by", "undecided_because", "fences", "world", "recommend", "no_narrow"}, set(marks))
         self.assertNotIn("description", fmt)
 
+    def test_role_schemas_match_their_lib_owners(self):
+        """役の型は lib の持ち主の型の写し（Archon の YAML は lib を読めない）。写しが持ち主とずれたら落ちる"""
+        def bare(schema):
+            if isinstance(schema, dict):
+                return {k: bare(v) for k, v in schema.items() if not (k in ("note", "description") and isinstance(v, str))}
+            return [bare(v) for v in schema] if isinstance(schema, list) else schema
+
+        doc = load()
+        fmt = node(doc, "plan-writer")["output_format"]["properties"]
+        row = fmt["plan"]["items"]["properties"]
+        for key, want in planmarks.FIELD_SCHEMA.items():
+            self.assertEqual(row[key], want, key)
+        marks = row["narrows"]["items"]["properties"]
+        for key in gatemarks.FIELDS:
+            self.assertEqual(marks[key], bare(gatemarks.MARK_SCHEMA[key]), key)
+        self.assertEqual(marks[gatemarks.NO_NARROW], bare(gatemarks.NO_NARROW_SCHEMA))
+        self.assertEqual(fmt[converge.ANSWERS], converge.ANSWER_SCHEMA)
+        owner = json.loads((LIB / "design-row.schema.json").read_text(encoding="utf-8"))
+        added = {"route_reason"}           # 受け付けが足す
+        dropped = {"precedents"}           # 今の works の structure-eye の型に無い
+        unrequired = {"route"}             # 今の works の structure-eye の型は任意（受け付けが既定の行き先を足す）
+        rows = node(doc, "structure-eye")["output_format"]["properties"]["rows"]["items"]
+        self.assertEqual(rows["properties"], {k: v for k, v in bare(owner["properties"]).items() if k not in added | dropped})
+        self.assertEqual(rows["required"], [k for k in owner["required"] if k not in added | unrequired])
+        self.assertIs(rows["additionalProperties"], owner["additionalProperties"])
+
     def test_script_names_differ_from_lib_modules(self):
         """script のフォルダが sys.path の頭に来るので、lib のモジュールと同じ名の script は import で自分を読む"""
         lib = {p.stem for p in LIB.glob("*.py")}
@@ -562,6 +591,35 @@ class ReplanCase(unittest.TestCase):
         self.assertNotIn("request_ok.json:8", after, "波及の一覧が直した項目で作り直される")
 
 
+    def test_replan_reuses_the_first_measure_after_the_tree_moved(self):
+        """案の直しは修正の後の HEAD で測り直さず、1 回目の実測と構造の目の行を使う"""
+        run = self.run_
+        (run.repo / "stats.py").write_text((run.repo / "stats.py").read_text(encoding="utf-8") + "\n# 直した\n", encoding="utf-8")
+        git(run.repo, "commit", "-qam", "修正")
+        out = run.include(ruling='["1"]', conflicts=self.conflicts, eye=lambda f: self.fail("構造の目を起こした"),
+                          writer=writer_of({"plan": [self.fixed()]}))
+        self.assertIs(out["ready"], True, out)
+        self.assertIs(run.out["structure-measure"]["reused"], True)
+        self.assertEqual(run.status["structure-eye-loop"], "skipped")
+        self.assertEqual(out["structure"], self.first["structure"])
+
+    def test_ruling_outside_the_plan_skips_the_role(self):
+        run = self.run_
+        out = run.include(ruling='["5"]', conflicts=self.conflicts, writer=lambda n, brief: self.fail("役を起こした"))
+        self.assertEqual(run.status["plan-loop"], "skipped")
+        self.assertIs(out["ready"], False)
+        self.assertIn("ruling の項目 '5' が承認済みの修正案（1 項目）の番号でない", run.json(out["ripple"])["error"])
+
+
+class ReplanWithoutPlanCase(unittest.TestCase):
+    def test_replan_without_an_accepted_plan_skips_the_role(self):
+        run = Run(self)
+        out = run.include(ruling='["1"]', writer=lambda n, brief: self.fail("役を起こした"))
+        self.assertEqual(run.status["plan-loop"], "skipped")
+        self.assertIs(out["ready"], False)
+        self.assertIn("直す元の承認済みの修正案が無い", run.json(out["ripple"])["error"])
+
+
 class CollectCase(unittest.TestCase):
     """返す節は落ちない・指し札の先はいつも在って空でない・周の番号"""
 
@@ -649,6 +707,33 @@ class CollectCase(unittest.TestCase):
         self.assertIn(planfile.NOTHING_OWED, run.json(out["ripple"])["error"])
         for key in ("plan", "structure", "ripple"):
             run.file(out[key])
+
+    def test_stuck_unit_skips_the_role(self):
+        """同じ key の単位が開いた行と開いていない行で来た判定は行き止まり（必ず入れるのに案に入れられない）"""
+        run = Run(self, judge={"units": [unit(MEAN), unit(MEAN, "nit", None)], "questions": []})
+        out = run.include(writer=lambda n, brief: self.fail("役を起こした"))
+        self.assertEqual(run.status["plan-loop"], "skipped")
+        self.assertIs(out["ready"], False)
+        self.assertIn(planblk.PLAN_STUCK, run.json(out["ripple"])["error"])
+
+    def test_unreadable_pointer_inputs_are_not_absent(self):
+        """空の字と null だけが「無い」。線が渡した指し札が読めない入力は、役を起こさずに ready: false で訳を残す"""
+        missing = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "nowhere/x.json"})
+        for name in ("start", "world", "review"):
+            with self.subTest(name):
+                run = Run(self)
+                if name == "review":
+                    self.assertIs(run.include()["ready"], True)
+                out = run.include(**{name: missing}, writer=lambda n, brief: self.fail("役を起こした"))
+                self.assertEqual(run.status["plan-loop"], "skipped")
+                self.assertIs(out["ready"], False)
+                error = run.json(out["ripple"])["error"]
+                self.assertIn(f"{name} が読めない", error)
+                self.assertIn("nowhere/x.json", error)
+        run = Run(self)
+        out = run.include(start="{壊れた", writer=lambda n, brief: self.fail("役を起こした"))
+        self.assertIs(out["ready"], False)
+        self.assertIn("start が読めない", run.json(out["ripple"])["error"])
 
 
 class FixtureCase(unittest.TestCase):
