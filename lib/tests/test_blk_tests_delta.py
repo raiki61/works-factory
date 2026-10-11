@@ -43,7 +43,9 @@ class TestDeltaPlace(RF.DeltaPlaceCase):
         self.assertEqual([f["key"] for f in brief["reads"]["out.p2.plan_review"]["faces"]], [RF.PR_KEY])
         self.assertEqual([(r["key"], r["handled"]) for r in brief["reads"]["out.p3.fix.plan_faces"]], [(RF.PR_KEY, "absorbed")])
         self.assertEqual(brief["reads"]["loop.fix_delta.files"], ["stats.py"])
-        self.assertEqual(got["must"], [got["brief_file"], d["file"]])
+        self.assertEqual(got["must"], [got["brief_file"], d["file"], brief["seat_file"]])
+        self.assertIn("task-reviewer-prompt.md", pathlib.Path(brief["seat_file"]).read_text(encoding="utf-8"),
+                      "1 回目の審査役の座（seat.section の task-review）")
         self.assertEqual(brief["policy"], POLICY)
         snap = json.loads((self.place / refix.snapshot_name(1)).read_text(encoding="utf-8"))
         self.assertEqual(snap, accept.tree_state(self.repo))
