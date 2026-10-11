@@ -9,7 +9,9 @@ test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked":
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}
 judge__inner: "stub"
 judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths": ["stats.py"], "summary": "空の列の mean が 0 割りで落ちる"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null}
-plan__inner: "stub"
+plan__round: {"round": 1, "mode": "plan", "dir": "plan/r1", "go": false}
+plan__structure-state: {"state_file": "plan/r1/structure-state.json"}
+plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
 plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}], "round": 1}
 plan-review__inner: "stub"
 plan-review__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": false, "questions": []}
