@@ -76,9 +76,7 @@ def write_json(path, doc) -> pathlib.Path:
     """doc を JSON で、一時のファイルから置き換えて書く。置いたパスを返す"""
     p = pathlib.Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, p)
+    marks.write(p, doc)
     return p
 
 
@@ -438,8 +436,7 @@ def _judge_tree_unchanged(repo, jdir, rev):
     依頼を受け付けた時の写し。tree_state の形）が在れば、今の作業ツリーがその写しと同じかを tree_moved で見る（HEAD・枝の移動と
     git が無視するファイルの増減・書き換えも見る）。無ければ作業ツリーが綺麗で、HEAD が数える版 rev のままであることを求める。
     違えば Reject。元の盤面の judge-snapshot.json は入口が置く judge-tree.json（TREE_FILE）に読み替えた"""
-    snap = read_json(pathlib.Path(jdir) / TREE_FILE)
-    if snap is None:
+    if _tree_snapshot(pathlib.Path(jdir) / TREE_FILE) is None:
         now = core_accept.snapshot_tree(repo)   # 共通の姿（Claude Code の控えのフォルダ CLI_OWNED を数えない）
         dirty = now["porcelain"].splitlines() + [f"!! {n}" for n in now["ignored"]]
         if dirty:
@@ -447,8 +444,7 @@ def _judge_tree_unchanged(repo, jdir, rev):
                          f"（git status --porcelain --ignored: {dirty[:5]}{' ほか' if len(dirty) > 5 else ''}）")
         _head_at_rev(repo, rev, "判定役")
         return
-    core_accept.type_errors(snap, core_accept.TREE_SCHEMA, f"置き場の {TREE_FILE} ")
-    moved = core_accept.tree_moved({k: snap[k] for k in core_accept.TREE_KEYS}, repo)
+    moved = _moved_since(pathlib.Path(jdir) / TREE_FILE, repo)
     if moved:
         raise Reject("依頼を受け付けた後から作業ツリーが変わった——判定役は読むだけの役で、作業ツリー・HEAD・枝・git が"
                      f"無視するファイルを変えてはいけない（{'・'.join(moved)}）")
@@ -1049,9 +1045,10 @@ def merge_on(jdir, repo) -> dict:
         if not (jdir / jv.VERIFY_FILE).is_file():
             verify_not_run(jdir, "判定の裏取りの支度が走らなかった（番号の控えが無い）")
         return {"ok": True, "reason": ""}
-    snap = jv._read_json(jdir / VERIFY_TREE_FILE)
-    moved = core_accept.tree_moved({k: snap[k] for k in core_accept.TREE_KEYS}, pathlib.Path(repo)) \
-        if isinstance(snap, dict) and all(k in snap for k in core_accept.TREE_KEYS) else ["作業ツリーの写しが読めない"]
+    try:
+        moved = _moved_since(jdir / VERIFY_TREE_FILE, repo)
+    except Reject as e:
+        moved = [str(e)]
     answers = pathlib.Path(plan.get("answers") or jdir / VERIFY_ANSWERS_DIR)
     keys = {r["n"]: r["key"] for r in plan["units"]}
     rows = [_check_unit(answers, n, key) for n, key in keys.items()]
@@ -1136,12 +1133,15 @@ def _request_doc(repo, start: dict):
 
 
 # ---------------------------------------------------------------- 作業ツリーの見張り（読むだけの役の受け付け）
-def _judge_tree(jdir):
-    """入口の時の作業ツリーの姿（F の intake が置く judge-tree.json）。無ければ None、形が違えば Reject"""
-    snap = read_json(pathlib.Path(jdir) / TREE_FILE)
+def _tree_snapshot(path):
+    """置き場に置いた作業ツリーの写し（accept.tree_state の形）。無ければ None、読めない・形が違えば Reject"""
+    try:
+        snap = read_json(path)
+    except ValueError as e:
+        raise Reject(str(e)) from None
     if snap is None:
         return None
-    core_accept.type_errors(snap, core_accept.TREE_SCHEMA, f"置き場の {TREE_FILE} ")
+    core_accept.type_errors(snap, core_accept.TREE_SCHEMA, f"作業ツリーの写し {path} ")
     return {k: snap[k] for k in core_accept.TREE_KEYS}
 
 
@@ -1150,14 +1150,22 @@ def _bytecode_in(snap: dict) -> bool:
         or any(core_accept._is_bytecode(n) for n in snap["ignored"])
 
 
+def _moved_since(path, repo, *, bytecode: bool = True) -> list:
+    """写し path（_tree_snapshot）から今の作業ツリーが変わった所の文（accept.tree_moved。同じなら空）。写しが無い・読めない・形が
+    違えば Reject。bytecode=False でも写しがバイトコードを含む時は含めて比べる（写しは bytecode=True で取られるので、外した姿と
+    比べると変わっていなくても違って見える）"""
+    snap = _tree_snapshot(path)
+    if snap is None:
+        raise Reject(f"作業ツリーの写し {path} が無い——役を起こす前の作業ツリーと比べられない（写しを置く節が先に走る）")
+    return core_accept.tree_moved(snap, pathlib.Path(repo), bytecode=bytecode or _bytecode_in(snap))
+
+
 def _tree_unchanged(jdir, repo, rule: str, *, bytecode: bool = True, rev: str = "") -> None:
     """元 works/.shared/core/premises.py:44 と purpose.py:57 の _tree_unchanged。役が作業ツリーと履歴を変えていないか。
     置き場に入口の時の姿（judge-tree.json）が在れば今と比べ（accept.tree_moved。HEAD・枝・git が無視するパスも見る）、
     無ければ作業ツリーが綺麗で、rev を渡せば HEAD が rev のままであることを求める。違えば Reject。
-    bytecode=False（前提の実測役）はバイトコードを数えない。ただし入口の姿がバイトコードを含む時は含めて比べる
-    （入口の姿は bytecode=True で取られるので、外した姿と比べると変わっていなくても違って見える）"""
-    snap = _judge_tree(jdir)
-    if snap is None:
+    bytecode=False（前提の実測役）はバイトコードを数えない（_moved_since）"""
+    if _tree_snapshot(pathlib.Path(jdir) / TREE_FILE) is None:
         now = core_accept.tree_state(repo, bytecode=bytecode)
         dirty = now["porcelain"].splitlines() + [f"!! {n}" for n in now["ignored"]]
         if dirty:
@@ -1167,7 +1175,7 @@ def _tree_unchanged(jdir, repo, rule: str, *, bytecode: bool = True, rev: str = 
             raise Reject(f"HEAD が数える版から動いた（版 {rev[:12]} / 今 {now['head'][:12]}）——{rule}。commit・reset・checkout で"
                          "履歴を動かしてはいけない")
         return
-    moved = core_accept.tree_moved(snap, repo, bytecode=bytecode or _bytecode_in(snap))
+    moved = _moved_since(pathlib.Path(jdir) / TREE_FILE, repo, bytecode=bytecode)
     if moved:
         raise Reject(f"入口の後から作業ツリーが変わった——{rule}（HEAD・枝・git が無視するファイルも）。作った物"
                      "（出力のファイル・キャッシュ）は rm で消し、書き換えた追跡中のファイルは git restore -- <path> で戻してから"
@@ -2502,10 +2510,7 @@ def material_take(jdir, role: str, reply: dict, repo) -> dict:
         if not isinstance(reply, dict):
             raise Reject("返答が JSON のオブジェクトでない")
         j, repo_p = pathlib.Path(jdir), pathlib.Path(repo)
-        snap = _judge_tree(j)
-        if snap is None:
-            raise Reject(f"置き場に {TREE_FILE}（入口の時の作業ツリーの姿）が無い——入口が先に走る")
-        moved = core_accept.tree_moved(snap, repo_p)
+        moved = _moved_since(j / TREE_FILE, repo_p)
         if moved:
             raise Reject(f"{READONLY_MOVED}素材集めの役は対象の作業ツリー・HEAD・枝・git が無視するファイルを"
                          f"変えてはいけない（{'・'.join(moved)}）。同じ時に別の素材集めの役も走っている——変えたのがこの役とは限らない")
@@ -2907,10 +2912,7 @@ def spec_take(jdir, role, reply, root) -> dict:
         if not isinstance(reply, dict):
             raise Reject(f"{nid}: 返答が JSON のオブジェクトでない（{type(reply).__name__}）")
         if role == "review":
-            snap = read_json(snap_path)
-            if not (isinstance(snap, dict) and set(core_accept.TREE_KEYS) <= set(snap)):
-                raise Reject(f"{snap_path} が無い・形が違う——書く役の返答を受けた時に置く（審査役を起こす前の作業ツリーと比べられない）")
-            moved = core_accept.tree_moved({k: snap[k] for k in core_accept.TREE_KEYS}, root)
+            moved = _moved_since(snap_path, root)
             if moved:
                 raise Reject("読むだけの役が作業ツリーを変えた: 仕様の審査は読むだけの役で、作業ツリー・HEAD・枝・git が無視する"
                              "ファイルを変えてはいけない（変えた物を元に戻せ）（" + "・".join(moved) + "）")
@@ -3239,10 +3241,7 @@ def rejudge_take(jdir, rdir, reply, root) -> dict:
     try:
         if not isinstance(reply, dict):
             raise Reject(f"{REJUDGE_NODE}: 返答が JSON のオブジェクトでない（{type(reply).__name__}）")
-        saved = read_json(rdir / REJUDGE_SNAPSHOT)
-        if not isinstance(saved, dict) or not set(core_accept.TREE_KEYS) <= set(saved):
-            raise Reject(f"作業ツリーの写し {rdir / REJUDGE_SNAPSHOT} が無い・形が違う（rejudge-prep が先に走る）")
-        moved = core_accept.tree_moved({k: saved[k] for k in core_accept.TREE_KEYS}, pathlib.Path(root))
+        moved = _moved_since(rdir / REJUDGE_SNAPSHOT, root)
         if moved:
             raise Reject("読むだけの役が作業ツリーを変えた: 再審の役は読むだけの役で、作業ツリー・HEAD・枝・git が無視する"
                          "ファイルを変えてはいけない（" + "・".join(moved) + "）")
@@ -3354,13 +3353,6 @@ def _github_repo(repo):
     return f"{m.group(1)}/{m.group(2)}", None
 
 
-def _pr_wheres(rows) -> list:
-    """元 works/.shared/core/graphloops/rules/review-loop.py:203 の request_wheres の並びの所（入口の印は request_wheres が見る）。依頼の行（judge/request.json の
-    [{where, text, …}]）の where の一覧。元は判定から入る run の周（差分が空）だけ返したが、ここでは呼び手の _pr_files が
-    差分の空の時だけ使うので同じ所に落ちる"""
-    return [r["where"] for r in rows if isinstance(r, dict) and isinstance(r.get("where"), str)] if isinstance(rows, list) else []
-
-
 def _pr_files(repo, diff_base: str, wheres) -> list:
     """元 works/.shared/core/graphloops/rules/review-loop.py:2293 の _pr_files。交差を取る変更ファイルの集合。差分の根 diff_base
     から今の作業ツリーまでの変更ファイル（lib/accept.touched_files）が空（判定から入る run）なら、依頼の where の文字列に
@@ -3377,15 +3369,15 @@ def _pr_files(repo, diff_base: str, wheres) -> list:
     return sorted({t for t in tracked if t and any(t in w for w in wheres)})
 
 
-def parallel_pr_plan(repo, diff_base: str, wheres, *, which=None) -> dict:
-    """元 works/.shared/core/graphloops/rules/review-loop.py:2304 の parallel_pr_plan。返り {fallback: 理由}（役に任せる）・
-    {blocked: 理由}（走らせずに not_run）・{repo, head, files}（数えを走らせる）。which は gh を探す口（試験が差し替える）"""
+def parallel_pr_plan(repo, files, *, which=None) -> dict:
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2304 の parallel_pr_plan。files は交差を取る集合（_pr_files）。返り
+    {fallback: 理由}（役に任せる）・{blocked: 理由}（走らせずに not_run）・{repo, head, files}（数えを走らせる）。which は gh を
+    探す口（試験が差し替える）"""
     slug, why = _github_repo(repo)
     if not slug:
         return {"fallback": why}
     if not (which or shutil.which)("gh"):
         return {"fallback": "gh がこの環境に無い"}
-    files = _pr_files(repo, diff_base, wheres)
     if not files:
         return {"blocked": "交差を取る変更ファイルの集合が空（差分も、依頼の where が名指す追跡中のパスも無い）——空の集合との交差は何も確かめない"}
     head = (forge._git(repo, "rev-parse", "HEAD") or "").strip()
@@ -3450,15 +3442,15 @@ def pr_scan(jdir, repo, *, gh=None, which=None) -> dict:
     if stop:
         return {"go": False, "go_role": False, "reason": f"止めの控えが在る（{stop['stop_reason']}: {stop.get('reason', '')}）"}
     start = start_view(read_json(jdir / START_FILE, {}))
-    rows = read_json(jdir / REQUEST_FILE, [])
+    wheres = [r["where"] for r in _requests(jdir) if isinstance(r.get("where"), str)]
+    files = _pr_files(repo, start["diff_base"], wheres)
     head = (forge._git(repo, "rev-parse", "HEAD") or "").strip()
     no_forge = forge.reason(forge.detect(repo))
     if no_forge:
         result = {"reply": {"material": {"status": "not_applicable", "reason": no_forge},
                             "repo": "", "listed": 0, "truncated": False, "conflicts": []}}
     else:
-        wheres = _pr_wheres(rows)
-        launch = parallel_pr_plan(repo, start["diff_base"], wheres, which=which)
+        launch = parallel_pr_plan(repo, files, which=which)
         if "fallback" in launch:
             result = launch
         elif launch.get("blocked"):
@@ -3466,15 +3458,11 @@ def pr_scan(jdir, repo, *, gh=None, which=None) -> dict:
         else:
             got, why = parallel_pr_scan(repo, launch["repo"], launch["head"], launch["files"], gh=gh)
             result = parallel_pr_reply(launch, got, why)
+    write_json(jdir / prcheck.BRIEF, {"node": prcheck.NODE, "cwd": str(repo), "base": start["diff_base"], "changed_files": files,
+                                      "request_wheres": wheres, "fallback": result.get("fallback", "")})
     if "fallback" in result:
-        write_json(jdir / prcheck.BRIEF, {"node": prcheck.NODE, "cwd": str(repo), "base": start["diff_base"],
-                                          "changed_files": _pr_files(repo, start["diff_base"], _pr_wheres(rows)),
-                                          "request_wheres": _pr_wheres(rows), "fallback": result["fallback"]})
         return {"go": True, "go_role": True, "reason": result["fallback"]}
     reply = result["reply"]
-    write_json(jdir / prcheck.BRIEF, {"node": prcheck.NODE, "cwd": str(repo), "base": start["diff_base"],
-                                      "changed_files": _pr_files(repo, start["diff_base"], _pr_wheres(rows)),
-                                      "request_wheres": _pr_wheres(rows), "fallback": ""})
     _pr_material(jdir, reply)
     write_json(jdir / prcheck.EXCLUDED, {"node": prcheck.NODE, "head": head, "excluded": []})
     m = reply["material"]
@@ -3509,10 +3497,11 @@ def prcheck_take(jdir, reply, repo) -> dict:
     posted = check_no_post(reply)
     if posted:
         return {"ok": False, "reason": NO_POST + ", ".join(posted)}
-    before = read_json(jdir / TREE_FILE)
-    if not isinstance(before, dict):
-        return {"ok": False, "reason": f"{jdir / TREE_FILE} が無い——役を起こす前の作業ツリーの写しと比べられない"}
-    moved = core_accept.tree_moved(before, repo)
+    try:
+        moved = _moved_since(jdir / TREE_FILE, repo)
+    except Reject as e:
+        return {"ok": False, "reason": str(e)}
+    head = _tree_snapshot(jdir / TREE_FILE)["head"]
     if moved:
         return {"ok": False, "reason": "読むだけの役が作業ツリーを変えた: 並行 PR の任せ先は読むだけの役で、作業ツリー・HEAD・枝・"
                 "git が無視するファイルを変えてはいけない（checkout・switch・stash・reset・gh pr checkout を打つな）（"
@@ -3525,7 +3514,7 @@ def prcheck_take(jdir, reply, repo) -> dict:
         return {"ok": False, "reason": "外す hunk（excluded）が合わない: " + "; ".join(errs)}
     excluded = prcheck._anchored(reply[prcheck.EXCLUDED_FIELD], repo)
     bare = {k: v for k, v in reply.items() if k != prcheck.EXCLUDED_FIELD}
-    prcheck._write(jdir / prcheck.EXCLUDED, {"node": prcheck.NODE, "head": before.get("head", ""), "excluded": excluded})
+    prcheck._write(jdir / prcheck.EXCLUDED, {"node": prcheck.NODE, "head": head, "excluded": excluded})
     write_json(jdir / PR_DOWNGRADES_FILE, prcheck_drafts(bare))
     _pr_material(jdir, bare)
     return {"ok": True, "reason": ""}
