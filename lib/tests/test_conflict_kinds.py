@@ -193,6 +193,14 @@ class BriefKindCase(unittest.TestCase):
     def test_other_kinds_ignore_briefs(self):
         self.assertEqual(self.errs(ITEM, briefs=None), [])
 
+    def test_broken_ledger_gives_no_briefs(self):
+        # 壊れた控え・無い置き場は brief の無い側（{}）。元は盤面を開く口も mock したが、今は置き場のパスで読む
+        from unittest import mock
+        import planbrief
+        with mock.patch.object(planbrief, "_ledger", side_effect=planbrief.LedgerBroken("x")):
+            self.assertEqual(planbrief.by_unit_at(self.dir), {})
+        self.assertEqual(planbrief.by_unit_at(self.dir / "no-board"), {})
+
 
 class RulingLimitsTextCase(KindRowsCase):
     """裁定の limits が広げるのは案の項目の範囲に足すパスだけ（planscope の継ぎ目の決まり）を、裁定役の決まり・裁定の文・
