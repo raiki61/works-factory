@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+"""works-factory の入口: bin/works-factory <Archon の CLI の引数…>。中身は bin/_lib/launcher.py"""
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True   # 入口の部品のフォルダに __pycache__ を作らない
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from bin._lib import launcher  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(launcher.main(sys.argv[1:]))

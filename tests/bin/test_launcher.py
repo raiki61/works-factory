@@ -2,7 +2,8 @@
 
 殻を子のプロセスとして走らせる。リポジトリの bin/・workflows/・pack.json を使い捨ての木に写し、その factory/pack.json は、
 同じ木の取り置きの置き場に作った偽の Archon の源の commit を名指す（本物の源は取らない・網に出ない）。PATH には偽の bun・claude・gh・
-security（と mise）と、python3・git だけを置く。偽の bun は受けた引数と環境を JSON に書き、試験がそれを照らす（トークンは在るかだけを見る）。
+security（と mise）と、python3・git だけを置く。偽の bun は受けた引数と環境を JSON に書き、試験がそれを照らす（トークンは在るかだけを見る。環境は名の一覧で照らし、落ちた時に値を
+試験の出力に出さない）。
 """
 import hashlib
 import json
@@ -23,7 +24,8 @@ TOKEN = "sk-ant-oat01-fake-for-launcher"
 API_KEY = "sk-ant-api03-fake-for-launcher"
 ENTRY = "packages/cli/src/cli.ts"
 # 利用者の場から漏れると照らしが揺れる名（hermetic が外さない物）
-USER_SPECIFIC = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "GH_CONFIG_DIR", "MISE_TRUSTED_CONFIG_PATHS")
+USER_SPECIFIC = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "GH_CONFIG_DIR", "GH_TOKEN", "GITHUB_TOKEN",
+                 "MISE_TRUSTED_CONFIG_PATHS")
 
 FAKE_BUN = """#!/usr/bin/env python3
 import json, os, sys
@@ -207,7 +209,7 @@ class LauncherTest(unittest.TestCase):
             "workflow", "run", "works-factory-line", "--cwd", str(self.target), cwd=work, ANTHROPIC_API_KEY=None,
             CLAUDE_CONFIG_DIR="my-claude", FAKE_SECURITY_HOME=str(self.home), FAKE_SECURITY_VALUE=TOKEN,
             FAKE_SECURITY_SERVICE="Claude Code-credentials-" + short(config)))["env"]
-        self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", env)
+        self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))
         self.assertTrue(pathlib.Path(env["CLAUDE_CONFIG_DIR"]).is_relative_to(self.default_home(self.target)))
         self.assertTrue((pathlib.Path(env["CLAUDE_CONFIG_DIR"]) / ".works-toolset.json").is_file())
 
@@ -218,7 +220,7 @@ class LauncherTest(unittest.TestCase):
         shim = (head / "gh").read_text(encoding="utf-8")
         self.assertIn(str(self.gh), shim)
         self.assertIn(str(self.home), shim)
-        self.assertNotIn("GH_TOKEN", env)
+        self.assertNotIn("GH_TOKEN", list(env))
 
     def test_toolset_and_auth_check_only_for_workflow_executing_commands(self):
         def config_of(env):
@@ -246,10 +248,10 @@ class LauncherTest(unittest.TestCase):
                                        MISE_TRUSTED_CONFIG_PATHS="/before"))["env"]
         self.assertEqual(env["MISE_TRUSTED_CONFIG_PATHS"], f"/before:{workspaces}")
         env = self.reached(self.launch("workflow", "status", FAKE_MISE_TRUSTED=str(self.tmp)))["env"]
-        self.assertNotIn("MISE_TRUSTED_CONFIG_PATHS", env)
+        self.assertNotIn("MISE_TRUSTED_CONFIG_PATHS", list(env))
         env = self.reached(self.launch("workflow", "status", FAKE_MISE_TRUSTED=str(self.target),
                                        WORKS_FACTORY_NO_AUTH="1"))["env"]
-        self.assertNotIn("MISE_TRUSTED_CONFIG_PATHS", env)
+        self.assertNotIn("MISE_TRUSTED_CONFIG_PATHS", list(env))
 
     def test_toolset_failure_stops_before_archon(self):
         shutil.rmtree(self.home / ".claude")
@@ -267,12 +269,12 @@ class LauncherTest(unittest.TestCase):
         (self.home / ".claude" / ".credentials.json").write_text(
             json.dumps({"claudeAiOauth": {"accessToken": TOKEN, "refreshToken": "r"}}), encoding="utf-8")
         env = self.reached(self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None))["env"]
-        self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", env)
+        self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))
         self.assertTrue(pathlib.Path(env["CLAUDE_CONFIG_DIR"]).is_relative_to(self.default_home(self.target)))
 
     def test_api_key_user_reaches_archon(self):
         env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
-        self.assertIn("ANTHROPIC_API_KEY", env)
+        self.assertIn("ANTHROPIC_API_KEY", list(env))
         self.assertFalse(self.security_log.exists(), "API キーの利用者で keychain を読んだ")
 
     def test_bun_missing_stops_with_one_line(self):
