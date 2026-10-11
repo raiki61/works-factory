@@ -104,11 +104,16 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
     return "", f"赤の段 {names}: 元の結末と比べる 1 件ごとの事実が無い（{gatemarks.BASELINE_UNVERIFIED}）"
 
 
-def certify(*, mode, material_status, green, before, after, now) -> tuple:
+SELF_REPORTED = "任せ先の自己申告の緑（機械が走らせていない）"
+
+
+def certify(*, mode, material_status, green, before, after, now, self_reported=False) -> tuple:
     """認証してよいか ——（ok, reason）。
     - base: material_status が clean・found・not_applicable なら (True, "")。not_run・awaiting_human・素材が無いなら偽（緑を仮定しない）
     - final: before・after・now の指紋が揃わなければ偽（どれが違ったかを reason に）→ green が True（bool）でなければ (False, "緑でない")
-      （原因は呼び手が red_cause と証拠で別に返す）→ ほかは (True, "")。赤は原因が何でも認証しない"""
+      （原因は呼び手が red_cause と証拠で別に返す）→ self_reported（素材を機械でなく任せ先の役が書いた）なら (False, SELF_REPORTED)
+      → ほかは (True, "")。赤は原因が何でも認証しない。任せ先の緑は走り切る前に読んだ緑と見分けられない（今の works の
+      review-loop.py の _ci_by_engine。実測 2026-09-25: 572 件の途中の 537 件で clean と書いた）"""
     if mode == "base":
         if material_status in BASE_OK:
             return True, ""
@@ -124,4 +129,6 @@ def certify(*, mode, material_status, green, before, after, now) -> tuple:
         return False, f"指紋が before と違う: {'・'.join(differ)}"
     if green is not True:
         return False, "緑でない"
+    if self_reported:
+        return False, SELF_REPORTED
     return True, ""

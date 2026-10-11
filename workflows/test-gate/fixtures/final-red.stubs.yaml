@@ -1,0 +1,26 @@
+# 筋書き final-red: 今回入れた赤（introduced）。run は完走し、返す節は赤を認証しない（ok: false）
+run:
+  by: engine
+  material: {status: found, count: 1, detail: "suite: exit 1"}
+  runs: [{name: suite, exit: 1, how: direct}]
+  skipped_steps: []
+  same_as: null
+  log: test-gate/final/logs/checks.log
+  junit_steps: [suite]
+  fingerprint_before: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
+  fingerprint_after: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
+result:
+  mode: final
+  ok: false
+  green: false
+  red_cause: introduced
+  baseline: null
+  fingerprint: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
+  evidence: {type: archon_artifact, run_id: stub-run, path: test-gate/final/evidence.md}
+fixture:
+  inputs:
+    mode: final
+    start: '{"type": "archon_artifact", "run_id": "stub-run", "path": "start/record.json"}'
+    baseline: '{"type": "archon_artifact", "run_id": "stub-run", "path": "test-gate/base/baseline.json"}'
+  expect: completed
+  reached: [run, result]

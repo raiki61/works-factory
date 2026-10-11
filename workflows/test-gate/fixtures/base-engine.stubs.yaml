@@ -1,0 +1,25 @@
+# 筋書き base-engine: 形 base で、機械が宣言の段を走らせた（by engine）ので任せ先の輪は飛ばされ、返す節に届く
+run:
+  by: engine
+  material: {status: found, count: 1, detail: "suite: exit 1"}
+  runs: [{name: suite, exit: 1, how: direct}]
+  skipped_steps: []
+  same_as: null
+  log: test-gate/base/logs/checks.log
+  junit_steps: [suite]
+  fingerprint_before: {head: "1111111111111111111111111111111111111111", diff_hash: "aa"}
+  fingerprint_after: {head: "1111111111111111111111111111111111111111", diff_hash: "aa"}
+result:
+  mode: base
+  ok: true
+  green: false
+  red_cause: ""
+  baseline: {type: archon_artifact, run_id: stub-run, path: test-gate/base/baseline.json}
+  fingerprint: null
+  evidence: {type: archon_artifact, run_id: stub-run, path: test-gate/base/evidence.md}
+fixture:
+  inputs:
+    mode: base
+    start: '{"type": "archon_artifact", "run_id": "stub-run", "path": "start/record.json"}'
+  expect: completed
+  reached: [run, result]
