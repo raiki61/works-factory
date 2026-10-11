@@ -72,7 +72,6 @@ OUTCOMES = ("fixed", "fixed_needs_check", "no_fix_needed", "round_limit", "stopp
 EYES = ("R1", "R2", "R3", "R4")
 CHECKS_LEFT = "人が確かめる物"   # fixed_needs_check の残り（冒頭 3 行の件数と冒頭 1 の見出し）
 EYES_WHERE = "独立の目"
-ABSORBED_WHERE = "受け止めた落ち"
 REPORT_FILE = "report.md"
 FOR_READERS = "人が読む報告の本文の見出し。役の指示書には貼らない"
 PRIOR_HEADING = promptsection.Section("## 次の run に引き継ぐ落ちた理由", human=FOR_READERS)
@@ -94,8 +93,6 @@ HEADINGS = (DECISIONS_HEADING, ENTRY_HEADING, STOP_HEADING, READS_HEADING, WHERE
 TITLE_HEADING = promptsection.Section("# 報告（run {run}）", human=FOR_READERS)
 INTERRUPTED_HEAD = "run が途中で終わった"
 RETRIED_HEAD = "前の試みで落ち、続きで済んだ節"
-ABSORBED_HEAD = "落ちたが、線が宣言のとおり受け止めた節"
-AI_REPORT_KEYS = ("ok", "reason", "report_file", "cold_check", "record_invalid", "rejects")   # 最後の出口に写す AI の報告の欄
 
 
 # ---------------------------------------------------------------- 小道具
@@ -120,14 +117,6 @@ def _write_text(path: pathlib.Path, text: str) -> None:
 
 def _one_line(text) -> str:
     return " ".join(str(text).split())
-
-
-# ---------------------------------------------------------------- 報告の前の関所（TA15）
-
-
-def _first_error(x: dict) -> str:
-    """落ちた節の行 {node, error} の誤りの文の 1 行目（無ければその旨）"""
-    return (str(x.get("error") or "").strip().splitlines() or ["（誤りの文が無い）"])[0]
 
 
 # ---------------------------------------------------------------- 次の run に渡す依頼
@@ -158,20 +147,6 @@ def _time(s):
     except ValueError:
         return None
     return t if t.tzinfo else None
-
-
-# ---------------------------------------------------------------- 費用
-
-
-def _minutes(run_doc) -> float | None:
-    """実行基盤の run の行（workflow get の返り）の started_at から completed_at までの分。どちらかが読めなければ None"""
-    def at(key):
-        try:
-            return datetime.datetime.fromisoformat(str((run_doc or {}).get(key)).replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    began, ended = at("started_at"), at("completed_at")
-    return None if began is None or ended is None else round((ended - began).total_seconds() / 60, 1)
 
 
 # ---------------------------------------------------------------- 組む
@@ -245,9 +220,5 @@ def freeze_lines(stages) -> list:
 
 MODEL_HEADING = promptsection.Section("## 模型", human=FOR_READERS)
 COST_HEADING = promptsection.Section("## 費用", human=FOR_READERS)
-VERIFIER_HEADING = promptsection.Section("## 周の記録の検証器", human=FOR_READERS)
-STRUCTURE_HEADING = promptsection.Section("## 構造の目", human=FOR_READERS)
-UNSEEN_LENS_HEADING = promptsection.Section("## 未確認のレンズ", human=FOR_READERS)
-ANOMALY_HEADING = promptsection.Section("## 仕組みの異常", human=FOR_READERS)
 
 

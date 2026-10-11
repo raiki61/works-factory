@@ -39,13 +39,9 @@ from engine.schema import validate_schema  # noqa: E402
 import promptsection  # noqa: E402
 import report  # noqa: E402
 
-# 役の名（YAML の節 id・包みの印の名）→ 写しの graph の節
-WRITE = "report-write"
 # 写しの graph の報告の節の全部（このラインでは頭と初見検査が absent）。拒否の控えの数え（count_rejects）はこの全部を数える
 # （頭と初見検査が回っていた前の版の run の控えも、run をまたぐ集計 dev/report_rejects.py が数えられるように）
 REPORT_NODES = ("report.human_items", "report.cold_check", "report")
-# 書き手の出した物を確かめる初見の読み手（盤面の節ではない。書き手の輪の中で、書き手の返答の頭だけを読む）
-WRITE_COLD = "report-write-cold"
 DECISIONS_HEAD = "人が決めること"
 NOT_PASSED = "初見の確かめを通っていない"
 # 本文を返す節（graph の text: true）の返答の型。盤面は本文の節の返答を {text} だけで受けるので、run ごとの語 terms は
@@ -66,7 +62,6 @@ CELL_LIMIT = 50   # 表のセルの字数の上限（`コード` の部分を除
 REJECT_KINDS = ("cold", "format", "answer")
 # 読むときだけの種類: kind の無い行（kind が入る前の run）・知らない kind の行を捨てずに数える先。_reject は書かない
 UNKNOWN_KIND = "unknown"
-SNAPSHOT_PREFIX = "report-snapshot-"    # 書き手を起こす前の作業ツリーの写し（読むだけの役の比べ）
 FAILED_TITLE = promptsection.Section("# 報告（AI の報告を最後まで作れなかった）", human=report.FOR_READERS)
 GLOSSARY_HEADING = promptsection.Section("## 語の定義（機械が付けた。本文の外）", human=report.FOR_READERS)
 CELL_REASON = ("表のセルに説明の文を入れない（書式の決まり: 表は状態・件数・日付など数語の値の一覧だけ。端末の表は列ごとに"
@@ -100,10 +95,6 @@ def _terms_problems(reply) -> list:
     if "terms" not in reply:
         return []
     return validate_schema(reply["terms"], TEXT_SCHEMA["properties"]["terms"], "$.terms")
-
-
-def _snap_name(role) -> str:
-    return f"{SNAPSHOT_PREFIX}{role}.json"
 
 
 def head_of(text) -> str:
