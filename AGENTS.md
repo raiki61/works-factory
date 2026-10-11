@@ -57,6 +57,7 @@ works-factory/
 │   ├── layers/                  層の決まりの試験（この文書の「機械」の行）
 │   ├── bin/                     入口の試験
 │   ├── shared/                  境の試験
+│   ├── workflows/               ブロックの YAML の形と筋書きの試験（test_<ブロック>.py。筋書きは tests/archon.py の使い捨ての木で回す）
 │   └── e2e/                     小さな対象のリポジトリの種（target-seed/。__init__.py を置かない）と、通しの試験
 ├── docs/
 │   ├── design.md                設計（線・ブロック・能力の棚卸し・未決）
@@ -110,6 +111,7 @@ works-factory/
 
 - 役の指示書（`workflows/*/commands/`）と `lib/` に、特定の言語・テストの実行器の名を書かない。事実上の標準の形式（JUnit XML など）は名指してよい。持ち主の決め `lang-neutral`。
 - `lib/` は Python で書くので、`lib/tests/`（lib 自身の試験）と `lib/AGENTS.md` は照らさず、語の表に `python` を入れない。
+- 例外: 拡張子と言語の対応・テストのファイルの名の慣習の表と、その表を作る標準ライブラリの import は、`lib/impact.py`・`lib/changemap.py`・`lib/tddloop.py`・`lib/fixrules.py`・`lib/libdocs.py`・`lib/libdocs_local.py` に限って書いてよい。機械の表 `tests/layers/scan.py` の `ALLOWED["E13"]` には、そのファイルを入れる PR が 1 行ずつ足す。機械はファイルごとに外すので、表の外に言語の名が無いことは人が見る。
 - 機械: `tests/layers/test_lang_neutral.py`（言語と実行器の名の語の表に当たる字が無い。表は `tests/layers/scan.py` の中）。
 
 ## E14 既定の道は普通の利用者の環境でそのまま動く

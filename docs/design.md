@@ -159,13 +159,20 @@ flowchart TB
   - 指し札は `{type: "archon_artifact", run_id, path}`（E5）。下では型を「指し札」と書く。
   - 2 つの形を持つブロック（test-gate・merge）は、返す節を 1 つのまま `mode` の欄で形を返す。形に当たらない欄は null。
   - 「→ 線 N」は「線」の「順と関所」の N 番の段（関所の文か `when:`）が読む。「→ ブロック名」はそのブロックが `with:` で受ける。「→ 線の返り」は線の `returns: report` を通して `bin/show`・`bin/start --rounds` が読む。
+  - 指し札の先のファイルの中身は、欄が名指す今の works の同じ名のファイルの形のまま（新しい入れ物の形を作らない）。今の works が別のファイルに持っていた物は、同じフォルダの隣のファイルに置き、作ったブロックの中だけで読む。ただし次の隣のファイルは約束の一部で、ほかのブロックもこの名で開く: `judgment`（`judgment.json`）の隣の `premises.json`（実測した制約 `constraints`）・`judge-verify.json`・`pr-excluded.json`・`materials.json`（`{<素材の名>: {status, …}}`）、`plan`（`plan-fields.json`）の隣の `p2.fix_plan.json`（修正案の役の返答。関所の決め手の欄つき）、`structure`（`structure-state.json`）の隣の `design.jsonl`、`review` の隣の `gate-passes.json`（修正前の関所が聞かずに通した行）。judge は止めた時も隣のファイルを空の形で必ず書く。
+  - 直す前の結末のファイル（test-gate の `baseline` の先）は必須の欄 `{suite, test_cmd, rev, exit, cases}`。`suite` は始めの記録の `tdd_suite` の実行ファイル（無ければ `""`）、`cases` は JUnit の 1 件ごとの結末の並び。読み書きは `lib/baseline_red.py` の口だけ。test-gate は自分の欄（`junit_steps` ほか）を足してよい。
+  - fix の `conflicts` の先は `conflicts.json` = `{"items": [...]}`（今の works の `conflict.py` の形。行の欄 `unit_key`・`kind`・`between`・`ruling`（`decision`・`text`・`limits`）・`replan`）。
+  - 型つきの成果物: `green-cert` は test-gate の返す節の出力そのもの。`tdd-unit` は fix の 1 回の差し込みに 1 つで、中身は組ごとの段の物 `[{group_id, ran, reason, suite, reused, units}]`（今の works の blk-fix の `tdd` の出口。走らなかった組も `ran: false` で載る）。`eye-verdict` は `{eye, status, reason}`（`eye` は `r1`・`r2`・`r3`・`r4`・`premise-check`）。
+  - 人の関所（`approval:`）の `decisions` は `approve` を含む（Archon の決まり。`guides/approval-nodes.md`）。通す語は `approve`・`continue`、止める語は `stop`・`reject`（今の works の線の関所の語）。止め札は止める語で、文が `request:` で始まる物。ブロックの `stop_reason` は人の止めを `human:<所>`、止め札を `request:<所>` の形で返す。
+  - ブロックが約束に無い入力を要る時は、YAML の `inputs:` に既定値（`""`・`"null"`・`"[]"`）つきで宣言し、線が渡す前も動く形にする。返りの欄は足さない。足す入力はこの節に書いてから線が渡す。
+  - 返す節は落ちない。中の誤りを全部捕まえ、そのブロックの偽の結末（`ok: false`・`ready: false`・`done: false`・`pass: false`）と訳を `output_format` に合う形で返す（線は落ちた返す節の先へ進めない）。
 - 線の中の id（`$<id>.output` の `<id>`。線を書く人とブロックを書く人がこの名で合わせる）:
   - 線の節: `start`（始めの節）・`redepth`（直した後の深さの上げ直し）
   - 人の関所: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`（仕様の関所は judge の中）
-  - include: `test-gate-base`・`judge`・`plan`・`plan-review`・`fix`・`rejudge`（judge の再審）・`replan`・`replan-review`（案の直し）・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`
+  - include: `test-gate-base`・`judge`・`plan`・`plan-review`・`fix`・`rejudge`（judge の再審）・`replan`・`replan-review`（案の直し）・`refix`（案の直しの後の 2 回目の修正。fix のブロックを 1 度だけ差し込む）・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`
   - 同じブロックを 2 度差し込む所の返りが include ごとに分かれて見えるかは未決 U2。`rejudge`・`replan`・`replan-review` の返りは差し込んだブロックと同じ形で、線は後の段でそちらを先に読む。
 - 線の始めの節 `start` の返りのうち、ブロックが読むのは 1 つ:
-  - `record`（指し札）: 始めの記録。今の works の `start.json` の欄（`run_id`・`base_rev`・`test_cmd`・`final_gate`・`unattended`・`spec` ほか）→ 全ブロック
+  - `record`（指し札）: 始めの記録。今の works の `start.json` の欄（`run_id`・`base_rev`・`test_cmd`・`tdd_suite`（TDD の輪と 1 件ごとの結末に使う実行ファイルのパス。入口の入力から。無ければ `""`）・`final_gate`・`unattended`・`spec` ほか）→ 全ブロック
 
 ### judge の返り
 
@@ -174,6 +181,7 @@ flowchart TB
   - `start` ← `$start.output.record`
   - `baseline` ← `$test-gate-base.output.baseline`
   - `objection` ← `$fix.output.objection`（`rejudge` の時だけ。`judge` では `""`）
+  - `prior_failures` ← 前の run の持ち越しの前の失敗の行の指し札（`lib/carry`。今の works の `prior-failures-in.json`。無ければ null）
 - 返り:
   - `ready`（boolean）: 判定を受け付け、直す単位が 1 つ以上在る。false も正しい終わり → 線 5・report
   - `stop_reason`（string）: ready が false の訳（止めの理由の語 `lib/stop_reasons`）。ready なら `""` → report
@@ -193,8 +201,9 @@ flowchart TB
   - `units`・`judgment`・`world`・`spec` ← `$judge.output.<同じ名>`
   - `review` ← `$plan-review.output.review`（往復の 2 回目から。1 回目は null）
   - `ruling` ← `$fix.output.replan_items`（`replan` の時だけ。`plan` では `[]`）
+  - `conflicts` ← `$fix.output.conflicts`（`replan` の時だけ。`plan` では null。裁定の文を案の直しの役に渡す）
 - 返り:
-  - `ready`（boolean）: 修正案ができた。構造の目が人に上げると決めた時などは false → 線 5・report
+  - `ready`（boolean）: 修正案ができた（受け付けを通った）。false は 3 つ: 受け付けが 3 回とも拒んだ時・直す義務の単位が無い時・行き止まりの単位が在る時。構造の目が「人に上げる」とした行は false にせず、`structure` で plan-review に渡り修正前の関所の問いになる（今の works と同じ）。返りに false の訳を分ける語は持たない（欄を足さない）: 3 回の拒否と行き止まりは report がどちらも `stopped_by_line` にし、義務の単位が無い時は report が judge の返り（`units` が空）から `no_fix_needed` にする → 線 5・report
   - `plan`（指し札）: 修正案。項目ごとの書いてよい範囲・受け入れテスト・定石と構造の行ごとの従うか外れの訳（今の works の `plan-fields.json`）→ plan-review・fix・eyes
   - `structure`（指し札）: 構造の目の行（今の works の `design-row` の形）→ plan-review
   - `ripple`（指し札）: 波及の一覧（今の works の `ripple.json`）→ plan-review・fix・eyes
@@ -207,6 +216,9 @@ flowchart TB
 - 入力（`with:`）:
   - `units`・`judgment`・`purpose`・`world` ← `$judge.output.<同じ名>`
   - `plan`・`structure`・`ripple` ← `$plan.output.<同じ名>`
+  - `start` ← `$start.output.record`（無人の印・設計だけ・依頼のファイル・方針の文書・事前審査の木の既定・固めた版。関所の材料と R2 の名指しの節が読む）
+  - `answers` ← `{ from: "$gate-start.output", if_skipped: null }`（R2 に貼る人の関所の答え）
+  - `ruling` ← `$fix.output.replan_items`（`replan-review` の時だけ。`plan-review` では `[]`。裁かれた項目だけを審査する）
 - 返り:
   - `pass`（boolean）: 止める指摘が無い（通し）→ 線 5（往復を抜ける）
   - `stalled`（boolean）: 同じ所で 2 度続けて止めた（`lib/converge`）→ 線 5（往復を止める）・report
@@ -214,7 +226,7 @@ flowchart TB
   - `design`（指し札）: 独立設計 R2（review-graph の `r2.design` の `question_stands`・`design`。今の works の `design.json`）→ eyes（R2 の比較）
   - `gate_axes`（object）: 4 つの軸。鍵は `obvious`（自明）・`world`（世界の解）・`clean`（汚くない）・`not_overkill`（やりすぎでない）、各 `{ok: boolean, note: string}` → 線 6
   - `ask_human`（boolean）: 修正前の関所を開くか → 線 6
-  - `questions`（array of string）: 人への問い → 線 6
+  - `questions`（array of string）: 人への問い → 線 6・eyes
 
 ### fix の返り
 
@@ -226,11 +238,13 @@ flowchart TB
   - `units`・`judgment`・`world` ← `$judge.output.<同じ名>`
   - `plan`・`ripple`・`depth` ← `$plan.output.<同じ名>`
   - `answers` ← `{ from: "$gate-before-fix.output", if_skipped: null }`
+- `refix` の時: `only_items` ← `$fix.output.replan_items`（直す計画の項目の id。fix はその項目に載る単位だけを直す）、`plan`・`ripple`・`depth` ← `$replan.output.<同じ名>`、`answers` ← `{ from: "$gate-replan.output", if_skipped: null }`、ほかは `fix` と同じ。fix は include の名ごとに run の置き場の下の別のフォルダを使うので、`refix` は `fix` の控えを上書きしない。返りは fix と同じ形で、線の節 `fixed` が `fix` と `refix` の返りをまとめて後の段に渡す。
+- 約束に無い入力（線は渡さない。既定 `""`）: `only_items`（`fix` では空）・`mode`（`""` はブロック、`group` は組ごとの子の run）・`group`（組 1 つの JSON）・`from_tree`（親の作業ツリーの姿の木の sha）・`out_dir`（子が結果を書く、親の run の置き場の中の絶対パス）。fix は組ごとの並べのために自分（pack `works-factory` の `works-factory-fix`）を `workflow:` と `fan_out:` で子の run として起こす（未決 U8）。
 - 返り:
   - `done`（boolean）: 直しを作業ツリーに入れ終え、差分の審査を通した。諦めた単位が在っても true → 線 8・report
   - `units`（array）: 単位ごとの結末。項目は `{unit_id, group_id, status, reason}`、status は `fixed`・`given_up`・`not_done` → eyes・report
   - `groups`（array）: 組ごとの結果。項目は `{group_id, unit_ids, returned, reason}`（returned は親の木へ戻せたか）→ report
-  - `conflicts`（指し札・null 可）: 申し出と裁定（`lib/conflict` の形）。無ければ null → 線 11・report
+  - `conflicts`（指し札・null 可）: 申し出と裁定（`lib/conflict` の形）。無ければ null → 線 11・plan（replan）・report
   - `replan_items`（array of string）: 裁定が誤りとした計画の項目の id。空でなければ線が案の直しを 1 度差し込む → 線 7・plan
   - `objection`（string）: 修正役の異議。空でなければ線が再審を 1 度差し込む → 線 7・judge
   - `diff`（指し札）: 累積差分（run の始めの版から）→ eyes・merge
@@ -266,9 +280,11 @@ flowchart TB
   - `design` ← `$plan-review.output.design`
   - `diff`・`changed` ← `$fix.output.<同じ名>`、`fix_units` ← `$fix.output.units`
   - `green_ok` ← `$test-gate-final.output.ok`
+  - `start` ← `$start.output.record`（直した後の実測の数える版・守りのパスの当たり・方針の文書の置き場）
+  - `plan_questions` ← `$plan-review.output.questions`、`answers` ← `{ from: "$gate-before-fix.output", if_skipped: null }`（修正前の関所で人が通した行を R4 に渡し、同じ行を聞き直さない。持ち主の決め `decision-records`）
 - 返り:
   - `ok`（boolean）: R1〜R4 が全部 pass。深さで省いた目は数えない → 線 10・merge
-  - `r1`・`r2`・`r3`・`r4`（object・null 可）: 目ごとの `{status, reason}`。status は `pass`・`redesign-needed`・`unverifiable`（review-graph の `r1.minimality` ほか。R2 は `unverifiable` を持たない）。省いた目は null → report
+  - `r1`・`r2`・`r3`・`r4`（object・null 可）: 目ごとの `{status, reason}`。status は `pass`・`redesign-needed`・`unverifiable`（review-graph の `r1.minimality` ほか。R2 の `unverifiable` は、比べの節が落ちた・独立設計が無い時。前提が崩れた時は `premise_check` にも載る）。省いた目は null → report
   - `questions`（array of string）: R4 の人への問い → 線 11
   - `premise_check`（object・null 可）: 前提の検算 `{verdict, reason}`、verdict は `resolved`・`escalate`（review-graph の `stop.premise_check`）。走らなければ null → 線 11・report
   - `structure_after`（指し札・null 可）: 直した後の構造の実測 → report
@@ -287,23 +303,25 @@ flowchart TB
   - `eyes_ok` ← `$eyes.output.ok`
   - `sealed_hash` ← `$merge-seal.output.hash`（apply だけ。seal は null）
   - `answer` ← `{ from: "$gate-final.output", if_skipped: null }`（apply だけ）
+  - `r2` ← `{ from: "$eyes.output.r2", if_skipped: null }`（apply だけ。seal は渡さない）。R2 が `redesign-needed` なら人の答えに関わらず置かない（持ち主の決め `small-core`）。`unverifiable` とほかの目の阻害は人の通す語で置く
 - 返り:
   - `mode`（string）: `seal`・`apply` → report
   - `ok`（boolean）: seal は差分を封じた。apply は封じた hash と今の差分が合い、置いて読み戻せた → 線 11（seal）・report
   - `hash`（string）: seal は封じた差分の sha256。apply は読み戻した差分の sha256 → 線 11・merge（apply が照らす）
-  - `diff`（指し札）: seal は封じた差分。apply は置いた先（人が `bin/apply` で当てる物）→ report
+  - `diff`（指し札・null 可）: seal は封じた差分。apply は置いた先（人が `bin/apply` で当てる物）。差分が空か組めない時は null（`ok` は false、`reason` に訳）→ report
   - `protected_hits`（array of string・null 可）: 守りのパスの当たり。seal だけ → 線 11
   - `reason`（string）: ok が false の訳（hash の食い違いなど）。ok なら `""` → report
 
 ### report の返り
 
-- 返す節 `report`・`outcome_field: outcome`（線の `returns: report` もこの節を返す）
+- 返す節 `report`・`outcome_field: ok`（線の `returns: report` もこの節を返す。Archon の `outcome_field` は `required` の boolean だけを受けるので、結末の語 `outcome` とは別の欄にする）
 - 入力（`with:`）:
   - `start` ← `$start.output.record`
   - 全ブロックの返り。飛ばされうるので全部 `{ from: "$<id>.output", if_skipped: null }`: `test-gate-base`・`judge`・`rejudge`・`plan`・`plan-review`・`replan`・`replan-review`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`
   - 人の関所の答え。同じく `if_skipped: null`: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`
   - 型つきの成果物の一覧（`tdd-unit`・`green-cert`・`eye-verdict`）は `with:` でなく report の中で `$TYPED_ARTIFACTS_FILE` から読む（E5）
 - 返り:
+  - `ok`（boolean）: `outcome` が `fixed`・`fixed_needs_check`・`no_fix_needed` の時 true → 線の返り
   - `outcome`（string）: 結末の語。enum は今の works の `report.py` の `OUTCOMES` の 10 語 `fixed`・`fixed_needs_check`・`no_fix_needed`・`round_limit`・`stopped_by_request`・`stopped_by_human`・`stopped_by_line`・`needs_human`・`record_invalid`・`interrupted` → 線の返り（`bin/start --rounds` の周の鎖が種を引く）
   - `stop_reason`（string）: 止めた段と理由の語（`lib/stop_reasons`）。止まらなければ `""` → 線の返り
   - `report`（指し札）: 機械の報告（今の works の `report.md`）→ 線の返り
@@ -440,7 +458,7 @@ flowchart TB
 - 波及の一覧: `blk-plan/lib/ripple.py`・`impact.py` → plan・`lib/impact`
 - 案の直し: `replan.py` → plan（裁定の後の 1 度）
 - 独立設計 R2: `blk-plan` の `r2-design-loop`・`design.py` → plan-review・`commands/r2-design`
-- 事前審査（項目ごとの木）: `blk-plan` の `plan-review-loop`・`holeties.py` → plan-review・`commands/plan-review`
+- 事前審査（項目ごとの木）: `blk-plan` の `plan-review-loop`・`blk-plan/lib/planblk.py` の木の部分 → plan-review・`commands/plan-review`
 - 壁打ちの往復: `converge.py` → line の往復・`lib/converge`
 - 修正前の関所の 4 つの軸: `gatemarks.py` → `lib/gate_axes`
 - 人の方針の文: `policy.py` → `lib/policy`
@@ -459,7 +477,7 @@ flowchart TB
 - 並べの枝: `lanekit.py`・`fixlanes.py`・`tddlanes.py`・`unitlanes.py`・`unittrees.py` → fix の `fan_out:`（並べ・集め）と `lib/groups`（組の作り・戻す順の当て）。固定の枝の数・待ちの列・錠は持ち込まない（持ち主の決め `no-queue`）
 - 後始末: `leftovers.py` → fix
 - 修正の決まりと借りた superpowers の節: `seat.py`・`spseam.py`・`rulebook.py`・`blk-fix/rules/*.md` → `commands/fix-rules`
-- 差分の審査・レンズ・手直し: `blk-delta`・`deltamarks.py`・`blk-lens`・`lens.py`・`blk-refix`・`refix.py` → fix・`commands/delta-review`・`commands/lens`
+- 差分の審査・レンズ・手直し: `blk-delta`・`deltamarks.py`・`blk-lens`・`lens.py`・`blk-refix`・`refix.py`・`holeties.py` → fix・`commands/delta-review`・`commands/lens`
 
 ### test-gate・eyes・report・merge
 
@@ -538,6 +556,7 @@ flowchart TB
 - `$ARCHON_HOME/workflows` の工程は同じ名の同梱の工程を上書きし、`--workflow-source`（か `--cwd`）の `.archon/workflows/` の工程は両方を上書きする（`d97d00ef` の `workflow-discovery.ts` 1158-1186 行）。v0.11.1 で家に置いた ASF の束は 40 本が並び、`archon-merge-queue` は script のパスの警告を 2 つ出した。ASF の工程を走らせたことはまだ無い。
 - `--workflow-source <置き場>` は `<置き場>/.archon/workflows/` を読む。その場所が symlink でも辿り、1 段下のフォルダまで探し、`fixtures/` は飛ばす（`d97d00ef` の `cli.ts` 805-825 行・`workflow-source.ts` 500-507 行・`command-validation.ts` 23 行・`workflow-discovery.ts` 216 行）。`--resume`・`--container` とは一緒に使えない。`archon validate workflows` は `--workflow-source` を受けず黙って捨て、`--cwd` は git の木しか受けない（`cli.ts` 500-575 行）。だから確かめる時は `.archon/workflows` が `workflows/` を指す使い捨ての git の木を `--cwd` に渡す（2026-10-11 に手元で通した）。`workflow run --dry-run` は git の木でなくても `--workflow-source` で読む。
 - 作りの規則は Archon の源の `.archon/workflow-language-constitution.md`（「YAML coordinates. Code computes. Agents judge.」。`d97d00ef` でも同じ）。
+- `outcome_field:` は返す節の `output_format` の `required` に在る boolean の欄しか受けず、ほかは工程の読み込みで落ちる（止めた Archon の `packages/workflows/src/loader.ts` の `validateWorkflowOutcomeDeclaration`）。
 
 ### 未決（歩く骨組みで決める）
 
@@ -564,6 +583,7 @@ U1〜U3 は持ち主の挙げた物、U4〜U8 はこの文書を書く中で出�
 
 ### 段 2 ブロックごとの issue を並べて回す
 
+- 持ち主の決め `overnight-speed` により、段 1 の歩く骨組みを待たずに回す。未決は、U4 は Archon の文書で決着（`guides/loop-nodes.md`「`include:` is valid in a `loop_group` body」）、U5 は土台の足し P0（issue #47）、U8 は fix の issue の実測で決める。回すのは archon-ship（段 1 の通しが無い間は lifecycle の筋書きの確かめが通らないため。2026-10-11 の決めから導いた事の「段 0〜1 を回す ASF の工程」）。
 - 1 つのフォルダに 1 つの issue。中身は「グラフのブロック 1 つ（YAML・役の指示書・script）と、それが呼ぶ `lib/` のモジュールを移す。筋書き（fixture）と `lib/` の試験を先に書く」。
 - 回すのは最新の ASF の lifecycle（`archon-lifecycle`。1 run で 1 issue）。並べは issue ごとに run を起こして作る（lifecycle は自分では並べない）。
 - 共有のファイル（`workflows/.shared/`・`workflows/line/`・各階層の `AGENTS.md`・`engineering.md`・`MISSION.md`・`pack.json`）は土台の持ち主だけが変える。lifecycle の入力 `protected_paths` にこれらを渡し、ASF の merge が人の手に残す（ASF の型 A7）。issue の中で共有のファイルの変更が要ると分かったら、止めて土台の持ち主に issue で頼む。
@@ -574,8 +594,8 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 1. 筋書き（`workflows/<名>/fixtures/`）と `lib/` の試験（`lib/tests/`）が先に赤で入り、後で緑。
 2. 返す節の `output_format` を段 0 の骨組みの欄から狭めずに中身を入れ、線の `with:` が読む欄が全部在る（`tests/layers/test_block_returns.py`）。欄を足す・変えるのは線との約束を変えることなので、土台の持ち主に issue で頼む。
 3. 層の試験（`tests/layers/`）と `archon validate workflows` が緑。
-4. 採った ASF の型を `docs/asf-notes.md` に、使った埋めを `docs/polyfills.md` に書いた。
-5. 「能力の棚卸し」と「受け入れの一覧」のこのブロックの行に、証の試験か筋書きの名を書いた。
+4. 採った ASF の型（`docs/asf-notes.md` の書き方の 4 行の形）と、使いたい埋めを PR の本文に書く。土台の持ち主が `docs/asf-notes.md`・`docs/polyfills.md` に写す。
+5. 「能力の棚卸し」と「受け入れの一覧」のこのブロックの行ごとの証の試験か筋書きの名を PR の本文に書く。土台の持ち主が `docs/design.md` に写す。
 
 個別:
 
@@ -584,7 +604,7 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 - `plan-review`: R2 の独立設計は道具なしで目的の文だけを受ける（禁じた入力が届かないことを試験で縛る）。4 つの軸と人への問いを返す。往復の止め（3 回・同じ止めが 2 度）が働く。
 - `fix`: 赤緑の機械の判定・元から赤の区別・凍結・範囲の照らしと相談・書き込みの出どころ・3 回で諦める・申し出と裁定・差分の審査と手直し 2 往復。組は `fan_out:` で並べ、幅は計画（組の数）から決まり、組は分けない。並べの数の上限は持つが、固定の枝の数・待ちの列・錠は持たない。
 - `test-gate`: base と final の 2 つの形。赤の原因を 3 つに分け、今回入れた赤と原因の無い赤を拒む。緑の認証に作業ツリーの指紋が入り、木が変われば認証が使えない。
-- `eyes`: R1〜R4 と前提の検算と直した後の構造の実測。全部の役が `mutates_checkout: false`。R2 の禁じた入力が届かない。R4 の問いと守りのパスの当たりが返りに載る。型つきの成果物を自分の include の分だけ数える。
+- `eyes`: R1〜R4 と前提の検算と直した後の構造の実測。全部の役が `mutates_checkout: false`。R2 の禁じた入力が届かない。R4 の問いと守りのパスの当たりが返りに載る。型つきの成果物 `eye-verdict`（`{eye, status, reason}`）を目ごとに出す。返す節は自分の目の返りを `with:` で受けてまとめ、型つきの成果物の一覧は読まない（読むのは report だけ。E5）。
 - `report`: 結末の 10 語・機械の報告・AI の報告・初見の確かめ・持ち越し。前の段が落ちても飛ばされても走り、`errors` を注意として載せる。
 - `merge`: seal と apply の 2 つの形。封じた hash と今の差分が違えば apply は止まる。外への書き込みは 1 つの script の節で、書いた後に読み戻す。守りのパスの当たりは人に回す。
 
