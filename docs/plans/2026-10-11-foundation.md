@@ -27,7 +27,7 @@
 1. ASF の commit が取れない（網が無い・commit が消えた）: 途中まで置いた物を残さず、何が取れなかったかを 1 行で言って止まる。前に置いた `workflows/asf/` は残る。→ Task 1 の `test_fetch_failure_leaves_previous_placement`
 2. Archon の家にほかの工程（同梱・ほかの pack）が在る: 消さない・上書きしない。→ Task 1 の `test_place_touches_only_own_folders`
 3. 型つきの成果物の一覧に `errors` が在る: 読めた分と一緒に返し、捨てない。→ 段 2 の report ブロックの issue（型つきの成果物の一覧を読むのは report だけ。E5）
-4. 空のファイルへの指し札: 返りに入った札は Archon が節の終わりに照らし、名前つきの誤りで止める。境の口は札の形を組むだけで、先を照らさない。札を戻す側の `resolve` は、空のパスと NUL を含むパスを拒む。→ Task 3 の `test_resolve_refuses_bad_path`
+4. 空のファイルへの指し札: 返りに入った札は Archon が節の終わりに照らし、名前つきの誤りで止める。境の口は札の形を組むだけで、先を照らさない。→ Archon の節の終わりの照らし（このリポジトリに試験は無い。持ち主の決め `asf-way-gates-fanout`）
 5. `archon validate workflows` の警告: 自分の工程の警告は赤。ASF の警告（今は `archon-merge-queue` の script のパスの 2 つ）は数えない。→ Task 4 の `test_validate_has_no_warnings_for_ours`
 
 ---

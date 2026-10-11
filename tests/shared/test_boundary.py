@@ -34,18 +34,10 @@ class FakeRunTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.base = pathlib.Path(tmp.name)
-        self.artifacts = self.base / "runs" / "run-1"
-        self.artifacts.mkdir(parents=True)
+        self.artifacts = pathlib.Path(tmp.name)
         env = mock.patch.dict(os.environ, {"WORKFLOW_ID": "run-1", "ARTIFACTS_DIR": str(self.artifacts)})
         env.start()
         self.addCleanup(env.stop)
-
-    def write(self, rel, text):
-        path = self.artifacts / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-        return path
 
 
 class PointerTest(FakeRunTest):
@@ -58,23 +50,17 @@ class PointerTest(FakeRunTest):
 
 class ResolveTest(FakeRunTest):
     def test_resolve_returns_file_in_this_run(self):
-        path = self.write("report.md", "ok")
         self.assertEqual(
             boundary.resolve({"type": "archon_artifact", "run_id": "run-1", "path": "report.md"}),
-            path,
+            self.artifacts / "report.md",
         )
 
     def test_resolve_refuses_other_run(self):
-        self.write("report.md", "ok")
         with self.assertRaisesRegex(ValueError, "run-2"):
             boundary.resolve({"type": "archon_artifact", "run_id": "run-2", "path": "report.md"})
 
-    def test_resolve_refuses_outside(self):
-        with self.assertRaisesRegex(ValueError, r"\.\./x"):
-            boundary.resolve({"type": "archon_artifact", "run_id": "run-1", "path": "../x"})
-
     def test_resolve_refuses_bad_path(self):
-        for rel in ("", "a\0b", "/x", "\\x", "..\\x", "a/../../x", "report.md/"):
+        for rel in ("", "a\0b", "/x", "\\x", "../x", "..\\x", "a/../../x", "report.md/"):
             with self.subTest(rel=rel), self.assertRaisesRegex(ValueError, "相対"):
                 boundary.resolve({"type": "archon_artifact", "run_id": "run-1", "path": rel})
 
