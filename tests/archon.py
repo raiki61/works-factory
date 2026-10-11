@@ -8,10 +8,13 @@
   bun が無ければ見送る。
 - 木: 使い捨ての git の木。中の .archon/workflows/<pack>/ に、名指した工程のフォルダとこのリポジトリの .shared/ を写して commit する。
   `archon validate` は --workflow-source を受けず、--cwd は git の木しか受けないので、確かめる時はこの木を --cwd に渡す。
-- validate の数えない警告: Claude Code に同梱の skill（BUILTIN_SKILLS）を節が名指した時の「ディスクに無い」の警告だけ。
-  同梱の skill は SKILL.md を持たないので、止めた Archon（packages/workflows/src/validator.ts の skills の照らし）は名指すたびに出す。
+- validate の数えない警告: Claude Code に同梱の skill（BUILTIN_SKILLS）と、借りる superpowers の skill（BORROWED_SKILLS。
+  bin/_lib/borrow/borrow.json の superpowers.skills）を節が名指した時の「ディスクに無い」の警告だけ。同梱の skill は SKILL.md を
+  持たず、借りる skill は起動の時に run の隔離した設定へ入るので使い捨ての木には無い。止めた Archon（packages/workflows/src/
+  validator.ts の skills の照らし）はどちらも名指すたびに出す。
 """
 import contextlib
+import json
 import os
 import pathlib
 import re
@@ -29,6 +32,8 @@ CACHE_ENV = "WORKS_FACTORY_ARCHON_CACHE"
 REQUIRED_ENV = "WORKS_FACTORY_ARCHON_REQUIRED"
 PACK = pack.load(ROOT)
 BUILTIN_SKILLS = frozenset({"code-review", "simplify", "security-review"})
+BORROWED_SKILLS = frozenset(json.loads((ROOT / "bin" / "_lib" / "borrow" / "borrow.json").read_text(encoding="utf-8"))
+                            ["superpowers"]["skills"])
 BUILTIN_SKILL_WARNING = re.compile(r"Claude skill '([^']+)' not found on disk — expected for built-in")
 WORKFLOWS = ROOT / PACK["ours"]["folder"]
 SHARED = ".shared"
@@ -41,10 +46,10 @@ def absent(reason: str) -> unittest.SkipTest | AssertionError:
 
 
 def counted(issue: dict) -> bool:
-    """validate の返りの issue を数えるか。同梱の skill の「ディスクに無い」の警告だけ数えない"""
+    """validate の返りの issue を数えるか。同梱の skill と借りる skill の「ディスクに無い」の警告だけ数えない"""
     name = BUILTIN_SKILL_WARNING.match(issue.get("message", ""))
     return not (issue.get("level") == "warning" and issue.get("field") == "skills"
-                and name is not None and name.group(1) in BUILTIN_SKILLS)
+                and name is not None and name.group(1) in BUILTIN_SKILLS | BORROWED_SKILLS)
 
 
 def pinned_source(cache: str | None, commit: str) -> pathlib.Path:

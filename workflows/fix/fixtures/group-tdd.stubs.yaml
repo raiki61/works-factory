@@ -1,0 +1,29 @@
+# 組の子の run（mode group）で実行器が在る: 組の頭 → TDD の輪 → 修正の輪 → 組の終わり → 返す節。形 "" の節は飛ぶ。
+# 修正の支度が go: false（TDD の輪で全部の単位を直し終えた）なので修正役は起きない
+fixture:
+  expect: completed
+  reached: [group-start, tdd-loop, tdd, fix-loop, fix-accept, group-end, fix]
+  inputs:
+    mode: group
+    start: '{"type":"archon_artifact","run_id":"r","path":"start.json"}'
+    units: '[{"id":"u1","paths":["stats.py"],"summary":"s"}]'
+    judgment: '{"type":"archon_artifact","run_id":"r","path":"judgment.json"}'
+route: {group: true}
+group-start: {tdd: true, units: 1, reason: ""}
+tdd-prep: {prompt_file: tdd-prompt.md, go: true}
+tdd: {phase: route, units: [{unit_key: u1, route: tdd, why: 名指しのテストで赤を見られる}]}
+tdd-step: {ok: true, done: true, reason: "", reason_file: "", phase: done}
+fix-prep: {prompt_file: fix-prompt.md, go: false, iteration: 1}
+fix-accept: {ok: true, done: true, reason: "", reason_file: ""}
+group-end: {result_file: g1/result.json}
+fix:
+  done: true
+  units: [{unit_id: u1, group_id: g1, status: fixed, reason: ""}]
+  groups: [{group_id: g1, unit_ids: [u1], returned: true, reason: ""}]
+  conflicts: null
+  replan_items: []
+  objection: ""
+  diff: {type: archon_artifact, run_id: r, path: fix/fix/diff.patch}
+  allowed_test_changes: []
+  changed: {mechanism_changed: false, premise_drift: false, gates_changed: false, seams_changed: false, security_surface_changed: false, path_changed: false}
+  delta_review: {rounds: 0, pass: true}

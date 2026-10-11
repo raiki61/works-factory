@@ -1,7 +1,7 @@
 name: works-factory-skills
-description: 節が名指した skill の validate の警告と誤りのうち、数えない物が同梱の名の「ディスクに無い」の警告だけであることを確かめる種
+description: 節が名指した skill の validate の警告と誤りのうち、数えない物が同梱の名と借りる名の「ディスクに無い」の警告だけであることを確かめる種
 nodes:
   - id: review
     prompt: seed
     settingSources: [user]
-    skills: [simplify, security-review, unlisted-skill]
+    skills: [simplify, security-review, test-driven-development, unlisted-skill]
