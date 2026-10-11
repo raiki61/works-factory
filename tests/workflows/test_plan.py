@@ -334,8 +334,6 @@ class ShapeCase(unittest.TestCase):
     def test_writer_output_carries_works_fields_and_gate_marks(self):
         fmt = node(load(), "plan-writer")["output_format"]
         row = fmt["properties"]["plan"]["items"]
-        self.assertEqual(set(row["required"]), {"unit_keys", "approach", "adds", "removes", "shrink_first", "narrows", "route",
-                                                "tests", "rewrite_tests", "refactor", "allowed_paths", "out_of_scope"})
         self.assertIn("structure", row["properties"])
         self.assertEqual(row["properties"]["unit_keys"]["items"]["type"], ["integer", "string"])
         marks = row["properties"]["narrows"]["items"]["properties"]
@@ -354,6 +352,8 @@ class ShapeCase(unittest.TestCase):
         row = fmt["plan"]["items"]["properties"]
         for key, want in planmarks.FIELD_SCHEMA.items():
             self.assertEqual(row[key], want, key)
+        self.assertEqual(set(fmt["plan"]["items"]["required"]), set(planmarks.CORE_KEYS + planmarks.REQUIRED))
+        self.assertIn(gatemarks.NO_NARROW, row["narrows"]["items"]["required"])
         marks = row["narrows"]["items"]["properties"]
         for key in gatemarks.FIELDS:
             self.assertEqual(marks[key], bare(gatemarks.MARK_SCHEMA[key]), key)
