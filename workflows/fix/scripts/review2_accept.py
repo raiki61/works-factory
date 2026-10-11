@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """2 回目の差分の審査役の返答の受け付け（節 review2-accept）。
 
 支度（cut2）が go: false で役を起こさなかった（with: reply が null）時は done: true（2 回目の審査は回らなかった。控えは書かない）。

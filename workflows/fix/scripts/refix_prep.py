@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """1 回目の手直しの役の支度（節 refix-prep）: 1 回目の審査（置き場の delta/review-1.json）が直す義務を出した時だけ、義務と差分の
 材料を置き場の refix1-brief.json に書き（fixboard.prep_fix）、指示書を組んで置き場に書く（fixboard.refix_prompt。決まりは
 commands/fix-rules/ の refix.md と common.md。前の回の拒否が在れば理由のファイルを 1 行目で名指す）。

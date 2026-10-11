@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 conflict-check（形 ""）: 子が集めた食い違いの申し出の名指し（<パス>:<行>）を親の作業ツリーの現物で照らし（cite）、在る申し出を
 置き場の conflicts.json（conflict の形 {items: [...]}）に積む（conflict.park）。
 

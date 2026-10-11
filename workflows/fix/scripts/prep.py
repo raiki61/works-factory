@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 prep（形 ""）: 入力を置き場に写し、git が無視するファイルを控え（p1.worktree_before）、始めの木を取り、組を作る（lanekit.groups）。
 
 置き場（fixio.place() = $ARTIFACTS_DIR/fix/<include の名>/）に書く物: r1/start.json（始めの記録の写し。欠けた欄は既定）・

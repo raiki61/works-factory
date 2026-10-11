@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 clean（形 ""）: 修正役が残した、git が無視するファイルのうち、置き場の控え fix-ignored-before.json（prep が取った）に無かった
 物だけを消す（leftovers.remove_new_ignored。前から在ったフォルダの中身と、Archon の工程の置き場 .archon/ の下は消さない）。
 

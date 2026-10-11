@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """fix のブロックの script が共に読む、Archon との出入りの助け（置き場の場所・作業ツリー・控えのファイル）。
 
 lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、Archon に届く事（ARTIFACTS_DIR・ARCHON_NODE_EXECUTION・.archon/）は

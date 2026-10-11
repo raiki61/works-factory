@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 rule-prep（形 "" の裁定の輪の頭）: 裁定役の指示書を組んで置き場に書く（ruling.prep。作業ツリーの姿を控え、申し出の控え・
 判定・依頼・持ち主の決まりを名指す）。2 回目からは前の回の拒否の理由のファイル（rule-accept が書いた reject-rule-accept-<k>.md）を
 1 行目で名指す。返り {prompt_file, iteration}。裁く申し出が無い・判定の写しが無い: 標準エラーに 1 行で非 0。

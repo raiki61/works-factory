@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 tdd-prep（形 group の tdd-loop の中。役 tdd の前）: 今の段の指示書を組んでファイルに書く（tddloop.prep → fixrules.tdd_render。
 決まりの正本は commands/fix-rules/ の common.md と tdd.md）。
 

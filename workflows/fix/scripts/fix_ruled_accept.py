@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 fix-ruled-accept（形 "" の裁定の後の修正の輪の終わり）: 裁定の後の修正役の返答を受け付ける（fixboard.accept_reply の ruled。
 裁定 fix_test_scope の limits のテストの変更はここで初めて許す。新しい申し出は機械が ask_human に裁いて積む）。
 

@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """レンズの集め（節 lens-collect）: レンズの返り（with: reply。起こさなかった・飛ばされた時は null）で置き場の lens.json の行を
 埋め（lenses.collect。返りが無ければ failed と理由、在れば ran と出どころつきの findings）、1 回目の審査役の材料の lens の欄に
 足す（fixboard.brief_lens）。支度が落ちて控えが無ければ、その理由の行（not_routed）を残してから集める。

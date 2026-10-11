@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """1 回目の手直しの役の返答の受け付け（節 refix-accept）。
 
 支度が go: false で役を起こさなかった（with: reply が null）時は、受ける物が無いので done: true。返答が在れば、義務の key に

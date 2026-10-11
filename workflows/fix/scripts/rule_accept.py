@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 rule-accept（形 "" の裁定の輪の終わり）: 裁定役の返答を照らし（ruling.accept_rule: 読むだけの見張り・名指しの現物・裁定の形）、
 通れば裁定を置き場の conflicts.json に積む。拒めば理由を置き場の reject-rule-accept-<iteration>.md に書き（次の rule-prep が名指す）、
 3 回目の拒否では裁かれていない申し出を人へ回して done。返り {ok, done, reason, reason_file}。

@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 group-end（形 group の子の run の終わり）: 組の結果を out_dir/<group_id>/result.json に書く（fixboard.group_result）。
 
 読む物（無ければ空で読む）: 組の置き場（fixboard.group_dir）の group-start.json（始めの木）と、自分の置き場の

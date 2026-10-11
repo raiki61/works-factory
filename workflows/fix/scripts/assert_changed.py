@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 assert-changed（形 ""）: 申告したファイルが run の始めから本当に変わったか（p1.worktree_after。ASF の assert-changed と同じ考え）。
 
 申告 = 親の木へ戻せた組（join.json の returned）の子が受け付けた修正役の返答（result.json の reply_file）と、裁定の後の修正役の返答

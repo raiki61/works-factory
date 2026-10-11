@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 tdd-unit（形 ""・output_type: tdd-unit）: 子の結果から、組ごとの TDD の輪の結果を 1 つの型つきの成果物にして出す（子の run の
 型つきの成果物は子の run の物で親の一覧に載らないので、親の節で出す）。
 

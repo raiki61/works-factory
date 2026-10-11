@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 join（形 ""）: 子が out_dir/<group_id>/result.json に書いた結果を組の順に読み、並べた run（par）は子の差分を決めた順に親の
 作業ツリーへ当てて確かめ直す（p3.lane_merge）。
 

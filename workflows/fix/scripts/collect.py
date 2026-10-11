@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """返す節 fix（script collect。両方の形）: 前の節の返りを with: で束ねず、各節が置き場に書いたファイルを読んで返りの約束の欄を組む。
 
 形 ""（ブロック）: 組と単位の結末は join.json、申し出と裁定は conflicts.json（指し札。無ければ null）、replan_items は裁定

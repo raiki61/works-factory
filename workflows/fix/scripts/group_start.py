@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 group-start（形 group の子の run の頭）: 親の姿の木を自分の作業ツリーに写し、入力を自分の置き場に写し、git が無視する
 ファイルの控えと始めの木を取り、TDD の輪の状態を置く。
 

@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 fix-ruled-prep（形 "" の裁定の後の修正の輪の頭）: 直す裁定（fix_test_scope・fix_code_as・replace_query。conflict.ruled_fix）が
 無ければ go: false（役を起こさない）。在れば段の頭の木を 1 回目に置き場の fix-ruled-head.json に控え、組の修正役が受け付けた返答を
 1 つにまとめた控え（fixboard.group_fix_reply。fix-reply.json）と裁定の文のファイルを読む新しい会話の指示書を組む（fixrules.prep の

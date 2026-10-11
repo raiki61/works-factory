@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """形の振り分け: 入力 mode が group なら組の子の run、空ならブロックの形。include の中の when: は $INPUTS を左に置けないので、
 ここが読んで返す。知らない語は止める（黙ってブロックの形にしない）"""
 import os

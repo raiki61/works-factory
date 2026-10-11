@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 consult-check・ruled-consult-check（修正の輪の中、修正役の後）: 返答の consult の頼み（と受け付けが積んだ頼み・人の関所の
 条件）を先の確かめ（consult.screen・oos_hits）に当てて置き場の相談の状態に積み、聞く頼みが在れば答えの役（consult-answer・
 ruled-consult-answer）の指示書（修正案のファイルと波及の一覧を読む新しい会話）を置き場に書いて go: true（fixboard.consult_ask）。

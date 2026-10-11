@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """1 回目の差分の審査役の返答の受け付け（節 delta-accept）。
 
 返答（with: reply）を照らし（fixboard.delta_review_problems: 穴は差分が触ったファイルの今の姿に在る字列・検算の漏れ）、

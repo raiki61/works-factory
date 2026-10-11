@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 fix-prep（形 group の修正の輪の頭）: 修正役の指示書を組んで置き場に書く（fixrules.prep。決まりは commands/fix-rules/）。
 
 直す義務は組の単位（入力 group の unit_ids）のうち判定の直す義務の物（fixboard.group_owed）。義務が残らない（全部が答え待ち・

@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 consult-accept・ruled-consult-accept（修正の輪の中、答えの役の後）: 答え（飛ばされた周は null）を頼みごとに確かめ（許すのは
 頼んだ物の中だけ）、1 頼み 1 行を置き場の trace.jsonl に書き、修正役が次の周に読む答えのファイルを書く（consult.settle）。
 頼みの無い周は consulted: false で何も書かない。入力 pass は first か ruled。

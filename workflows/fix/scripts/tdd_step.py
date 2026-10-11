@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """節 tdd-step（形 group の tdd-loop の中。役 tdd の後）: 役の返答を機械が確かめて段を進める（tddloop.step）。
 
 段は route → 単位ごとに test（赤）→ fix（緑）→（申告の在る単位だけ）refactor。赤・緑は実行器の JUnit XML で機械が決める
