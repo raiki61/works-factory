@@ -126,6 +126,25 @@
   4. 依存の置き場は根の `pyproject.toml`、試験の命令は `uv run --isolated python3 -m unittest discover -s . -t .`（PR #8。Archon を使う人は uv を持つ。`outside-packages-ok` の当て方）。
 - 当て方: 根の `AGENTS.md` の「リポジトリの形」の木に `pyproject.toml` を載せる。計画の Task 4 と「全体の決まり」。
 
+### `archon-same-as-asf` 自分の工程も ASF と同じ開発中の Archon で回す
+
+- 持ち主の言葉: 「1: おしで。」（2026-10-11 夜。運び役の問い「私たちの工程を回す Archon の版を、ASF と同じ開発中の版にそろえてよいか（推し：そろえる）」への答え）
+- 決め: 自分の工程を回す Archon を、公開版 v0.11.1 から、ASF が固定している Archon の源（`coleam00/Archon` の枝 `factory/sdlc-on-dev` の commit。今は `d97d00ef`）にそろえる。Archon は 1 つにする。
+- 訳: 最新の ASF の人の関所の書き方（`approval:` の `decisions`）が v0.11.1 に無く、開発中の版にだけ在る（`workflows/AGENTS.md` の E16）。
+- 当て方: `pack.json` の Archon の版を ASF と同じ commit にし、その 1 つの源から Archon の本体と ASF の工程の両方を取る。Archon は源から `bun` で起こす（ASF の取り付け命令と同じ形）。公開版の実行ファイルの取り寄せは要らなくなる。
+
+### `report-on-stop` 止め札で止めた run でも報告を出す
+
+- 持ち主の言葉: 「2: おしは？」への運び役の推し「出す」（2026-10-11 夜。持ち主が違えば戻す）
+- 決め: 人が止め札を置いた run も、止めた上で報告を出す（今の works と同じ。持ち主の決め `superset`）。
+- 当て方: 止め札は、次の人の関所で「止める」と答えた扱いにし、報告の節へ流す。Archon の `cancel` は後ろの節を走らせないので使わない。自前の錠のファイル（今の works の `halt.py`）は持ち込まない。
+
+### `one-launcher` 人が打つ入口は Archon を起こす殻 1 本
+
+- 持ち主の言葉: 「3: osi」（2026-10-11 夜。運び役の問い「作業 5 の PR #20 を merge せずに閉じてよいか（推し：閉じる）」への答え）
+- 決め: 入口に Archon の命令の別名（start・answer・show）を作らない。認証の環境を整えて Archon を起こす殻 1 本にし、人は Archon の命令をそのまま打つ。
+- 当て方: 作業 6（認証と隔離）の後に、その殻を作る。計画の Task 5 はこの形に書き直す。
+
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
 - 置き換えの条件: 今の works と同じ能力に届いたら置き換え、claude-plugins には `/works` の薄い入口だけを残す。根拠: 下の `superset` と `own-graph-alongside`。
