@@ -1,10 +1,10 @@
 # fix が計画の項目の誤り（replan_items）と申し出を返す。案の直し・その審査・案の直しの関所・2 度目の修正が 1 度ずつ走り、1 回目の申し出が最後の関所の理由に残る。
-# 2 度目の修正の answers は修正前の関所の答え（この筋書きでは開かないので null）で、案の直しの関所の答えではない。
+# 修正前の関所は開かないので、2 度目の修正の answers は案の直しの関所の答え（筋書きの関所はいつも approved の字）だけで、条件の文は空。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
   reached: ["replan__plan", "replan-review__review", "ask-replan", "gate-replan", "answer-replan", "refix__fix", "fixed", "gate-final"]
-  resolved-text-contains: {"gate-final": "食い違いの申し出を人に回した（1 件）", "refix__inner": "plan/replan-fields.json\"}\n# answers=null"}
+  resolved-text-contains: {"gate-final": "食い違いの申し出を人に回した（1 件）", "refix__inner": "plan/replan-fields.json\"}\n# answers={\"decision\":\"approve\",\"text\":\"\"}"}
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}

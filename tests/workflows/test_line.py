@@ -21,6 +21,7 @@ from tests.workflows.test_gate_head import final_got
 linekit = load("linekit")
 start = load("start")
 gate_answer = load("gate_answer")
+replan_answer = load("replan_answer")
 ask_before_fix = load("ask_before_fix")
 ask_replan = load("ask_replan")
 ask_final = load("ask_final")
@@ -154,6 +155,23 @@ class StartCase(Artifacts):
                 self.assertEqual((got["ok"], got["stop_reason"], got["ask"]), (False, linekit.START_REFUSED, False), got)
                 self.assertIn(words, got["reason"])
                 self.assertEqual(self.record(got)["refused"], got["reason"])
+
+
+class ReplanAnswerCase(Artifacts):
+    def test_refix_answers_carry_the_before_fix_conditions_and_the_replan_note(self):
+        """元 replan._notes: 2 度目の修正には修正前の関所の条件と案の直しの関所の一言の両方が届く"""
+        got = replan_answer.fix_answers({"decision": "continue", "text": "範囲は stats.py だけ"},
+                                        {"decision": "approve", "text": "項目 1 は\n util.py も"})
+        self.assertEqual(got, {"decision": "approve", "text": f"{replan_answer.FIX_NOTES_HEAD}\n\n範囲は stats.py だけ\n\n"
+                                                                f"{replan_answer.NOTE_HEAD}\n\n項目 1 は util.py も\n"})
+        self.assertEqual(replan_answer.fix_answers({"decision": "continue", "text": ""}, None), {"decision": "continue", "text": ""})
+        self.assertEqual(replan_answer.fix_answers(None, {"decision": "continue", "text": "x"})["text"], f"{replan_answer.NOTE_HEAD}\n\nx\n")
+        self.assertIsNone(replan_answer.fix_answers(None, None))
+
+    def test_answer_is_the_gate_answer_with_the_fix_answers(self):
+        got = replan_answer.answer(json.dumps({"decision": "continue", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts)
+        self.assertEqual(got, {"go": True, "answer": {"decision": "continue", "text": "x"}, "stop_reason": "",
+                               "fix_answers": {"decision": "continue", "text": f"{replan_answer.NOTE_HEAD}\n\nx\n"}})
 
 
 class GateAnswerCase(Artifacts):

@@ -574,7 +574,7 @@ nodes:
     when: "$ask-replan.output.open == true"
 
   - id: answer-replan
-    script: gate_answer
+    script: replan_answer
     runtime: uv
     timeout: 1728000000
     output_format:
@@ -583,7 +583,8 @@ nodes:
         go: { type: boolean }
         answer: { type: [object, "null"] }
         stop_reason: { type: string }
-      required: [go, answer, stop_reason]
+        fix_answers: { type: [object, "null"] }
+      required: [go, answer, stop_reason, fix_answers]
     mutates_checkout: false
     depends_on: [ask-replan, gate-replan]
     trigger_rule: none_failed_min_one_success
@@ -592,6 +593,7 @@ nodes:
       go: "$ask-replan.output.go"
       stop_reason: "$ask-replan.output.stop_reason"
       place: gate-replan
+      before_fix: "$answer-before-fix.output.answer"
 
   - id: refix
     include: works-factory-fix
@@ -606,7 +608,7 @@ nodes:
       plan: "$replan.output.plan"
       ripple: "$replan.output.ripple"
       depth: "$replan.output.depth"
-      answers: "$answer-before-fix.output.answer"
+      answers: "$answer-replan.output.fix_answers"
       only_items: "$fix.output.replan_items"
 
   - id: refix-out

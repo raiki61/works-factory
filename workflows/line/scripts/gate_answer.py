@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""人の関所の答えを受ける返しの節（answer-start・answer-before-fix・answer-replan・answer-final。埋め P2）。
+"""人の関所の答えを受ける返しの節（answer-start・answer-before-fix・answer-final と、replan_answer を通して answer-replan。埋め P2）。
 
 関所が方針で飛ばされても走る（trigger_rule: none_failed_min_one_success）。関所の出力は `{from, if_skipped: null}` で受ける。
 返り {go, answer, stop_reason}: 関所が飛ばされたら前の節が決めた go と止めの理由をそのまま返し、answer は null。

@@ -96,5 +96,5 @@ ASF の版を進めた時は、各節の行を新しい版で読み直し、変�
 
 - ASF: d97d00ef の `W/ship/fixtures/planned-delivered.stubs.yaml`（`deliver__impl__implement` のように include を展開した id に stub を置き、`exec-code: true` で stub の無い `outcome` の script を本当に走らせる）。
 - なぜその形か: 役（AI）を起こさずに、工程の道筋と自分の script の決めを確かめる。stub は返す節の形を守らされる（`dry-run.ts` の `assertAuthoredStubSatisfiesSchema`）。
-- 採った先: 線の筋書き `workflows/line/fixtures/*.stubs.yaml`（18 本）。
+- 採った先: 線の筋書き `workflows/line/fixtures/*.stubs.yaml`（19 本）。
 - 違い: 本物のブロックが揃う前に回すため、在るブロックは本物を、まだ無いブロックだけ試験だけで使う代わりのブロック（`workflows/line/fixtures/stub-blocks/`。返す節に `output_format` を持たない）を本物の置き場に写して回す（`tests/e2e/test_line_scenarios.py`）。本物のブロックの節には、その返す節の `output_format` に合う stub を置く。関所の答えは筋書きで置けない（いつも `approved`）ので、返しの節 `answer-*` の stub で差す。
