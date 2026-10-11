@@ -125,7 +125,7 @@ class StartCase(Artifacts):
         """issue #89: 始めの記録の上の欄 request_file は input.request_file と同じ絶対パス（今の works の entry.py 605 行）。
         依頼の無い入口では両方 \"\""""
         doc = self.record(self.start(request="request_ok.json"))
-        self.assertEqual(doc["request_file"], str(self.repo / "request_ok.json"))
+        self.assertEqual(doc["request_file"], str((self.repo / "request_ok.json").resolve()))
         self.assertEqual(doc["request_file"], doc["input"]["request_file"])
         doc = self.record(self.start(base="base"))
         self.assertEqual((doc["request_file"], doc["input"]["request_file"]), ("", ""))
@@ -137,7 +137,7 @@ class StartCase(Artifacts):
         place = self.tmp / "fix"
         defaults = {"tdd_suite": "", "test_cmd": "", "policy_md": "", "request_file": "", "features_cut": []}   # fix の prep の START_DEFAULTS
         fixboard.write_json(startrec.path(place), {**defaults, **{k: v for k, v in doc.items() if v is not None}})
-        want = str(self.repo / "request_ok.json")
+        want = str((self.repo / "request_ok.json").resolve())
         self.assertEqual(conflict.request_file(place), want)
         self.assertEqual(fixboard.fix_values(place, [], start=startrec.read(place))["request_file"], want)
 
