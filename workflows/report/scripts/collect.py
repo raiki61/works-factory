@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """報告のブロックの返す節。facts の返りに AI の報告（在れば）を足して約束の欄を返す。落ちない: lib/ を読めない時も含めて
 中の誤りを全部捕まえ、ok: false・outcome: record_invalid と訳を、返す節の output_format に合う形で返す（線は落ちた返す節の
 先へ進めない）。lib/ は main の中で読む。"""

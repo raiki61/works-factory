@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """書き手の返答と初見の読み手の判定を受け付ける（輪の until_bash が done を読む）。受け取った物は run の置き場の report/ に書く。
 拒否の訳のファイル reason_file は、機械の事実のファイル（facts の facts_file）と同じく run の置き場からの相対で返す。"""
 import os

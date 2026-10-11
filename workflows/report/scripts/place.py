@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """run の置き場の中の報告の置き場と、そこのパスの指し札（facts.py・report_accept.py・collect.py が import する部品。節の script でない）。
 三つの script が同じ置き場を読み書きして、AI の報告を受け渡す。lib/ を読めない時の最後の受け皿（訳だけのファイル）もここに置き、
 lib/ に頼らない。"""

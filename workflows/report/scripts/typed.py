@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """型つきの成果物の一覧（$TYPED_ARTIFACTS_FILE）を読む部品（workflows/AGENTS.md の E5「読む部品は report ブロックの中に置く」）。
 節の script でなく、facts.py が import する。
 
