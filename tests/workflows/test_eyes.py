@@ -26,6 +26,9 @@ NODES = {n["id"]: n for n in DOC["nodes"]}
 ROLES = {i: n for i, n in NODES.items() if "command" in n}
 EYE_NODES = ("r1-minimality", "r2-compare", "premise-check", "r3-coherence", "r4-scope")
 VERDICT_NODES = {f"{n}-verdict": eye for n, eye in zip(EYE_NODES, ("r1", "r2", "premise-check", "r3", "r4"))}
+sys.path.append(str(ROOT / "lib"))
+import eyeverdict  # noqa: E402
+
 RETURN_FIELDS = ["ok", "r1", "r2", "r3", "r4", "questions", "premise_check", "structure_after", "protected_hits"]
 RUN_ID = "run-eyes-test"
 PROTECTED_UNKNOWN = "?: 守りのファイルを確かめられなかった"
@@ -225,6 +228,17 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(list(fmt["properties"]), RETURN_FIELDS)
         self.assertIs(fmt["additionalProperties"], False)
 
+    def test_eye_names_and_status_words_match_eyeverdict(self):
+        """eyeverdict は目のファイル名と判定の語を YAML の output_format と同じ物として読む"""
+        eye_fmt = NODES["r1-minimality-verdict"]["output_format"]["properties"]
+        verdict_fmt = NODES["verdict"]["output_format"]["properties"]
+        names = {*eyeverdict.EYES, eyeverdict.PREMISE}
+        self.assertEqual({n["with"]["eye"] for n in NODES.values() if n.get("output_type") == "eye-verdict"}, names)
+        self.assertEqual(set(eye_fmt["eye"]["enum"]), names)
+        self.assertEqual(verdict_fmt["r1"]["properties"]["status"]["enum"], list(eyeverdict.STATUSES))
+        self.assertEqual(verdict_fmt["premise_check"]["properties"]["verdict"]["enum"], list(eyeverdict.VERDICTS))
+        self.assertEqual(eye_fmt["status"]["enum"], [*eyeverdict.STATUSES, *eyeverdict.VERDICTS])
+
     def test_retry_gives_three_tries(self):
         for nid, node in ROLES.items():
             with self.subTest(nid):
@@ -347,6 +361,16 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(got["protected_hits"], ["pack.json"])
         self.assertTrue(got["ok"])
 
+    def test_verdict_points_at_the_structure_measured_after_the_fix(self):
+        self.prep_file()
+        self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
+        self.passing_eyes()
+        self.eye_file("structure-after", {"counts": {}})
+        got = self.run_script("verdict")
+        self.assertEqual(got["structure_after"], {"type": "archon_artifact", "run_id": RUN_ID, "path": "eyes/structure-after.json"})
+        (self.artifacts / "eyes" / "structure-after.json").unlink()
+        self.assertIsNone(self.run_script("verdict")["structure_after"])
+
     def test_verdict_without_prep_keeps_a_clean_protected_check_empty(self):
         self.eye_file("protected", {"hits": [], "lines": [], "broken": ""})
         got = self.run_script("verdict")
@@ -420,6 +444,11 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual((got["run_eyes"], got["compare_due"], got["premise_due"]), (True, True, False))
         self.assertEqual(got["diff_lines"], 6)
         self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), got)
+
+    def test_prep_names_the_file_r1_comments_save_writes(self):
+        self.prep_inputs()
+        self.assertEqual(pathlib.Path(self.run_script("prep")["candidates_file"]).name,
+                         NODES["r1-comments-save"]["with"]["name"] + ".json")
 
     def test_prep_all_light_turns_eyes_off(self):
         self.prep_inputs(depth=[{"unit_id": "u1", "depth": "軽量", "why": ["何も見つけなかった"]}])

@@ -71,6 +71,17 @@ class ScalarsCase(unittest.TestCase):
     def test_empty_diff_counts_zero(self):
         self.assertEqual(eyeverdict.scalars(""), {"added_lines": 0, "deleted_lines": 0, "doc_lines": 0, "files": []})
 
+    def test_hunk_lines_that_look_like_file_heads_are_counted(self):
+        diff = ("diff --git a/doc.md b/doc.md\n--- a/doc.md\n+++ b/doc.md\n@@ -1,2 +1,2 @@\n"
+                " title\n----\n+++i;\n")
+        self.assertEqual(eyeverdict.scalars(diff), {"added_lines": 1, "deleted_lines": 1, "doc_lines": 1, "files": ["doc.md"]})
+
+    def test_quoted_non_ascii_path_is_read(self):
+        diff = ('diff --git "a/\\346\\226\\207.md" "b/\\346\\226\\207.md"\n--- "a/\\346\\226\\207.md"\n'
+                '+++ "b/\\346\\226\\207.md"\n@@ -1 +1 @@\n-古い\n+新しい\n')
+        self.assertEqual(eyeverdict.changed_files(diff), ["文.md"])
+        self.assertEqual(eyeverdict.scalars(diff), {"added_lines": 1, "deleted_lines": 1, "doc_lines": 1, "files": ["文.md"]})
+
     def test_unreadable_diff_is_named_not_zero(self):
         got = eyeverdict.scalars("これは差分でない")
         self.assertNotIn("added_lines", got)
@@ -180,6 +191,25 @@ class CollectCase(unittest.TestCase):
         got = self.collect(run_eyes=False, compare_due=False)
         self.assertEqual([got[k] for k in ("r1", "r2", "r3", "r4")], [None] * 4)
         self.assertTrue(got["ok"])
+
+    def test_light_run_with_an_unconfirmed_protected_check_is_not_ok(self):
+        for protected in (None, {"hits": [eyeverdict.PROTECTED_UNKNOWN_ROW + "一覧が読めない"], "lines": [],
+                                 "broken": "一覧が読めない"}):
+            with self.subTest(protected=protected):
+                self.assertFalse(self.collect(run_eyes=False, compare_due=False, protected=protected)["ok"])
+
+    def test_r2_not_compared_is_unverifiable_and_not_ok(self):
+        self.all_pass(r2=False)
+        got = self.collect(compare_due=False, premise_due=False)
+        self.assertEqual(got["r2"]["status"], "unverifiable")
+        self.assertFalse(got["ok"])
+
+    def test_any_redesign_eye_is_not_ok(self):
+        for eye in eyeverdict.EYES:
+            with self.subTest(eye):
+                self.all_pass()
+                self.put(eye, {"status": "redesign-needed", "reason": "直しが要る"})
+                self.assertFalse(self.collect()["ok"])
 
     def test_missing_eye_file_is_unverifiable_and_named(self):
         self.all_pass()
