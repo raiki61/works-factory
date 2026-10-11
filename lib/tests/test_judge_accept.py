@@ -758,6 +758,22 @@ class MaterialCase(_RepoCase):
         self.assertTrue((self.jdir / "diff.patch").read_text(encoding="utf-8").strip())
         self.assertIn("app.txt", ja.read_json(self.jdir / ja.MATERIAL_VIEW_FILE)["changed_files"])
 
+    def test_diff_sees_files_hidden_by_index_marks(self):
+        """本物の index の assume-unchanged・skip-worktree の印を付けた変更済みのファイルも、変更ファイルと diff.patch の両方に入る"""
+        gitkit.git(self.repo, "update-index", "--assume-unchanged", "README.md")
+        gitkit.git(self.repo, "update-index", "--skip-worktree", "app.txt")
+        (self.repo / "README.md").write_text("# 対象\n\n件数は 4 件\n", encoding="utf-8")
+        (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
+        self.view()
+        doc = ja.read_json(self.jdir / ja.MATERIAL_VIEW_FILE)
+        self.assertEqual(doc["changed_files"], ["README.md", "app.txt"])
+        patch = (self.jdir / "diff.patch").read_text(encoding="utf-8")
+        self.assertIn("件数は 4 件", patch)
+        self.assertIn("直した", patch)
+        self.assertTrue(doc["stat"].startswith("2 files changed"), doc["stat"])
+        self.assertEqual(gitkit.git(self.repo, "ls-files", "-v", "README.md", "app.txt").splitlines(),
+                         ["h README.md", "S app.txt"])
+
     def test_stop_turns_every_role_off(self):
         ja.write_stop(self.jdir, ja.MATERIAL_STOP, "止めた")
         got = self.view()

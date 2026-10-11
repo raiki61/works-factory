@@ -315,22 +315,34 @@ def _names(repo, cmd, *args, env=None) -> list:
     return [os.fsdecode(n) for n in _git(repo, cmd, "-z", *args, binary=True, env=env).split(b"\0") if n]
 
 
+def _marked(repo, env=None) -> list:
+    """index（env の GIT_INDEX_FILE。無ければ本物）で assume-unchanged・skip-worktree の印が付いたパス（バイト）"""
+    return [rec[2:] for rec in _git(repo, "ls-files", "-v", "-z", binary=True, env=env).split(b"\0")
+            if rec and (rec[:1].islower() or rec[:1] == b"S")]
+
+
+def clear_marks(repo, env) -> None:
+    """env の GIT_INDEX_FILE が指す index（本物の index の写し）から assume-unchanged・skip-worktree の印を外す"""
+    marked = _marked(repo, env)
+    if not marked:
+        return
+    # 1 回の update-index に 2 つの旗を渡すと片方しか効かない。--stdin は最後の引数
+    for flag in ("--no-assume-unchanged", "--no-skip-worktree"):
+        _git(repo, "update-index", "-z", flag, "--stdin", env=env, stdin=b"\0".join(marked) + b"\0")
+
+
 @contextlib.contextmanager
 def flag_free_env(repo):
     """git に渡す env の差分。本物の index の assume-unchanged・skip-worktree の印を外して作業ツリーを見せる
     （印の付いた物が在る時だけ、本物の index の写しの一時の index を指す。本物の index は触らない）"""
-    marked = [rec[2:] for rec in _git(repo, "ls-files", "-v", "-z", binary=True).split(b"\0")
-              if rec and (rec[:1].islower() or rec[:1] == b"S")]
-    if not marked:
+    if not _marked(repo):
         yield {}
         return
     with tempfile.TemporaryDirectory(prefix="works-touched-") as tmp:
         index = os.path.join(tmp, "index")
         shutil.copy2(_git(repo, "rev-parse", "--path-format=absolute", "--git-path", "index").strip(), index)
         env = {"GIT_INDEX_FILE": index}
-        # 1 回の update-index に 2 つの旗を渡すと片方しか効かない。--stdin は最後の引数
-        for flag in ("--no-assume-unchanged", "--no-skip-worktree"):
-            _git(repo, "update-index", "-z", flag, "--stdin", env=env, stdin=b"\0".join(marked) + b"\0")
+        clear_marks(repo, env)
         yield env
 
 
