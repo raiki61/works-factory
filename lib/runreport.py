@@ -302,7 +302,7 @@ def _decisions(returns: dict, outcome: str, left: list) -> tuple[list, str]:
     return lines + _gate_passes(returns), decide
 
 
-def _tdd_stages(typed: dict, returns: dict) -> tuple[list, list]:
+def _tdd_stages(typed: dict) -> tuple[list, list]:
     """tdd-unit の成果物を (段の名, 組の段の物) の並びと、注意の行に。include の頭と周（loop）が違う物を別の修正の段に数える"""
     entries = _list(_dict(_dict(typed).get("by_type")).get("tdd-unit"))
     keys, stages, notes = [], [], []
@@ -324,7 +324,7 @@ def _tdd_stages(typed: dict, returns: dict) -> tuple[list, list]:
 
 def _tdd_lines(typed: dict, returns: dict) -> tuple[list, list, list]:
     """(TDD の節の行, 凍結の行, 注意の行)。成果物が無く fix の units が在れば、その行と成果物が無い訳"""
-    stages, notes = _tdd_stages(typed, returns)
+    stages, notes = _tdd_stages(typed)
     if stages:
         return report.tdd_lines(stages), report.freeze_lines(stages), notes
     units = [u for u in _list(_dict(returns.get("fix")).get("units")) if isinstance(u, dict)]
@@ -558,11 +558,11 @@ def accept(reply, cold, *, out_dir) -> dict:
 
     def reject(reason: str, kind: str) -> dict:
         rows.append({"node": REPORT_NODE, "attempt": len(rows) + 1, "kind": kind, "reason": reason})
-        report._write_json(out_dir / REJECTS_FILE, rows)
+        carry.write(out_dir / REJECTS_FILE, rows)
         path = _write_text(out_dir / REJECT_TEXT.format(n=len(rows)), f"{report_roles.REJECT_HEADING}\n\n{reason}\n")
         give_up = len(rows) >= report_roles.GIVE_UP_AFTER
         if give_up:
-            report._write_json(out_dir / AI_FILE, {"accepted": False, "reason": reason, "cold": c,
+            carry.write(out_dir / AI_FILE, {"accepted": False, "reason": reason, "cold": c,
                                                    "rejects": report_roles.count_rejects(rows)})
         return {"done": give_up, "ok": False, "reason": reason, "kind": kind, "reason_file": str(path)}
 
@@ -581,7 +581,7 @@ def accept(reply, cold, *, out_dir) -> dict:
         if len(rows) < report_roles.GIVE_UP_AFTER - 1:
             return reject(_cold_reason(c), "cold")
         not_passed = _cold_reason(c)
-    report._write_json(out_dir / AI_FILE, {"accepted": True, "text": got["text"], "terms": _list(got.get("terms")), "cold": c,
+    carry.write(out_dir / AI_FILE, {"accepted": True, "text": got["text"], "terms": _list(got.get("terms")), "cold": c,
                                            "not_passed": not_passed, "rejects": report_roles.count_rejects(rows)})
     reason = f"上限の回なので受け取った。ただし{report_roles.NOT_PASSED}（報告の冒頭に出す）" if not_passed else ""
     return {"done": True, "ok": True, "reason": reason, "kind": "", "reason_file": ""}

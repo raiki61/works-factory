@@ -21,8 +21,6 @@
 指示書は本線 a1202d0 の写し（blk-report/prompts/。台帳 COPIED_FROM の手直しのほかはバイト単位で同じ）。描き方は engine と同じ
 （rolekit.render_body。reads の柵・cap なし）。
 """
-import json
-import os
 import pathlib
 import re
 import sys
@@ -75,27 +73,7 @@ CELL_REASON = ("表のセルに説明の文を入れない（書式の決まり:
                "表をやめて箇条書きか散文にするか、セルを数語に縮めて説明は表の外に書け:\n")
 
 
-def _write_json(path, obj):
-    path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
-    return path
-
-
-# ---------------------------------------------------------------- 数の出どころ
-def _count(items, key):
-    got = {}
-    for it in items:
-        k = it.get(key) if isinstance(it, dict) else None
-        got[k or "未指定"] = got.get(k or "未指定", 0) + 1
-    return "・".join(f"{k} {v}" for k, v in got.items()) or "なし"
-
-
 # ---------------------------------------------------------------- 描く・印
-
-
 def _terms_problems(reply) -> list:
     """書き手の返答の terms の欄の型の破れ（欄が無ければ空）"""
     if "terms" not in reply:

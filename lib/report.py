@@ -51,7 +51,6 @@ judge-verify.json）は書き手のモジュール（ライン・ブロック）
 報告は run の中で走るので run の和は読まず、合計は節の和を「途中」として出す。
 """
 import datetime
-import json
 import os
 import pathlib
 import sys
@@ -96,19 +95,6 @@ RETRIED_HEAD = "前の試みで落ち、続きで済んだ節"
 
 
 # ---------------------------------------------------------------- 小道具
-def _read_json(path: pathlib.Path, default=None):
-    try:
-        return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return default
-
-
-def _write_json(path: pathlib.Path, doc) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
-
-
 def _write_text(path: pathlib.Path, text: str) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(text, encoding="utf-8")
