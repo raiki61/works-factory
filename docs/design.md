@@ -395,7 +395,7 @@ flowchart TB
 
 ## 能力の棚卸し
 
-今の works の能力ごとに、今の住処と新しい住処。パスは今の works は `works/` から。新しい方の `commands/<名>` は差し込むブロックの役の指示書、`lib/<名>` は助け手のモジュール（`lib/<名>.py`）。
+今の works の能力ごとに、今の住処と新しい住処。パスは今の works は `works/` から。新しい方の `commands/<名>` は差し込むブロックの役の指示書、`lib/<名>` は助け手の能力の名。置くファイルは元の名（E18・持ち主の決め `lib-port-as-is`。例: `lib/stop_reasons` は `lib/stopby.py`）。盤面と Archon に届く関数は `lib/` に持ってこず、そのブロックの issue で扱う。
 
 ### 線と入口
 
@@ -405,14 +405,14 @@ flowchart TB
 - 止め札: `.shared/core/halt.py` → line・`lib/halt`。札を置く口は `bin/`
 - 人の関所と無人の方針: `.shared/core/gatepolicy.py` → line・`lib/gate_policy`
 - 止めの理由の語: `.shared/core/stopby.py` → `lib/stop_reasons`
-- 周の鎖: `.shared/core/chain.py`・`dev/use.sh` → `bin/start --rounds`・`lib/chain`
+- 周の鎖: `.shared/core/chain.py`・`dev/use.sh` → 置き先は未決（入口の殻 1 本 `one-launcher` の issue で決める）
 - 固定材料から始める・版の控え: `.shared/core/fixture.py`・`versions.py` → line（始め）
 - 部品の宣言と書き込みの照らし（manifest）: `.shared/core/scopes.py` → manifest は落とす。入出力の宣言は YAML の `with:`・`returns:` と型が持つ（E4・E5）。宣言の外の書き込みは、読むだけの節は `mutates_checkout: false`（E7。Archon が落とす）、書く役は書き込みの出どころの突き合わせ（fix）で落とす。読み手の無い返りの欄は層の試験で赤（持ち主の決め `declared-io`）
 - 境の節（`h-*`）: `darkfactory/lib/line_edge.py` → line の `when:` と小さな script の節
 - 工程の地図: `.shared/core/graphmap.py` → 落とす。Archon の YAML がそのまま地図
 - AI の起こし方の包み（模型・effort・道具・隔離・返答の契約・system prompt の塊）: `.shared/core/adapter.py` ほか → 落とす。Archon の役の節の `model:`・`effort:`・`allowed_tools:`・`output_format:` で書く。包みが取っていた読んだ証拠と書き込みの記録をどこで取るかは未決（U6）
-- 返答の足し欄: `.shared/core/marks.py` → 落とす。返りの欄は役の節の `output_format` に直に書く
-- graphloops の写し（engine・rules・検証器）: `.shared/core/graphloops/` → 写さない。線は Archon が回し、検証器の中身は `lib/` に移す
+- 返答の足し欄: `.shared/core/marks.py` → `lib/marks.py`（planmarks・worldmark・converge などが頼るので依存として持ってくる。返りの欄は役の節の `output_format` に直に書き、掃除の段で見直す）
+- graphloops の写し（engine・rules・検証器）: `.shared/core/graphloops/` → 線は Archon が回すので、engine の盤面・rules・検証器は持ってこない。lib の部品が頼る engine の小道具（`util`・`schema`・`pointers`・`render`）だけを `lib/graphloops/engine/` に置き、掃除の段で見直す
 
 ### judge
 
