@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """素材集めの役（with: の role）の材料を judge/material-<役>-brief.md に描く（lib/judge_accept.material_prep）。
 {brief_file, brief, review_md, repo_review_md}"""
 import os

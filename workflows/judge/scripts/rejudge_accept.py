@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """再審の役の返答を受け付け、通れば R/judgment.json と単位の前後の差を書く。輪を抜ける時（通った・3 回目の拒否）に
 再審の出口 R/rejudge-exit.json を書く（lib/judge_accept.rejudge_take・rejudge_collect）"""
 import os

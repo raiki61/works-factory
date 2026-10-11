@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """判定役の返答を受け付ける（lib/judge_accept.accept）。拒否は数え、3 回目で done。諦めた時は止めの控えを置く"""
 import os
 import sys

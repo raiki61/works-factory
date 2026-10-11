@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """仕様の関所に見せる文を組む。役の輪が諦めた・仕様が揃わない時は関所を開かずに止める（lib/judge_accept.spec_ask）"""
 import json
 import os

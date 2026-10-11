@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """前提の実測役の返答を受け付ける（lib/judge_accept.check_premises）。拒否は judge/rejects-premises.json に積み、3 回目で done。
 諦めたら止めの控え（stopby.PREMISES）を置く。落ちずに {ok, done, reason} を返す"""
 import os

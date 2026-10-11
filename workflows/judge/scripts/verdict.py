@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """返す節: 判定か再審の結果を、線との約束（docs/design.md の「judge の返り」）の欄で返す（lib/judge_accept.verdict）。
 落ちない: 中の誤りは標準エラーに書き、ready: false と止めの理由を返す（線は落ちた返す節の先へ進めない）"""
 import os

@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """世界の解の段の出口: 行を judge/world.jsonl に、段の控えを judge/world-state.json に書く（lib/judge_accept.world_finish）。
 落ちた段・網に出られない段も run を止めない（持ち主の決め world）"""
 import sys

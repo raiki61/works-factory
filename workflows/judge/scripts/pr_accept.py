@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """並行 PR の役の返答を受け付ける: 投稿していない・作業ツリーを変えていない・外す hunk が合う（lib/judge_accept.pr_accept）。
 3 回目の拒否で done、諦めたら止めの控え（stopby.PR）を置く"""
 import os

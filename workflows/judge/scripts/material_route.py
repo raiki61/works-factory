@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """素材集め 11 本の要否を元の条件で決める（lib/judge_accept.material_route）。止めの控えが在れば全部偽。
 対象差分を judge/diff.patch に、要否と回さない素材の埋めを judge/material-route.json に置く"""
 import sys

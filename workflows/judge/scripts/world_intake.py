@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """世界の解の段の入口: 依頼の行と凍った目的の文を読み、言い直す役の指示書の本文を組む（lib/judge_accept.world_intake）。
 段が落ちても run は止めない"""
 import sys

@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """目的の役の返答を受け付ける（lib/judge_accept.check_purpose）。通れば judge/purpose.json と purpose-means.json。拒否は
 judge/rejects-purpose.json に積み、3 回目で done。諦めたら止めの控え（stopby.PURPOSE）を置く。落ちずに {ok, done, reason} を返す"""
 import os

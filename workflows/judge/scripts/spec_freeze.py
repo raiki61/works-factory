@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """仕様の関所の答えを受け、通す語なら受け入れ条件を走らせて仕様を J/spec.json に固め、依頼の行に積む。止める語なら
 human:spec-gate か request:spec-gate で止める（lib/judge_accept.spec_answer）"""
 import json

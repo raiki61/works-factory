@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """判定役の材料を組む（lib/judge_accept.diagnose_prep）。対象差分 judge/diff.patch・素材の 15 欄 judge/materials.json・
 材料 judge/diagnose-brief.md を書く。再審の道・止めの控えが在れば組まない。素材の役が諦めていれば、残りで組んだ上で止める。
 {go, brief_file, review_md, repo_review_md, reason}"""

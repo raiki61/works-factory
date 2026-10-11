@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """仕様の役（書く・審査・直す）の返答を受け付け、通れば J/spec-<役>.json に置く。審査が穴を挙げたら直す輪を回す印を返す
 （lib/judge_accept.spec_take）"""
 import os

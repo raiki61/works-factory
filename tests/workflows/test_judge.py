@@ -333,13 +333,13 @@ class Run:
     def judge(self) -> pathlib.Path:
         return self.artifacts / "judge"
 
-    def run(self, script: str, *, objection: str = "", start=None, **inputs) -> subprocess.CompletedProcess:
+    def run(self, script: str, *, objection: str = "", start=None, launcher=(sys.executable,), **inputs) -> subprocess.CompletedProcess:
         env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
         env.update({"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN_ID, "WORKS_FACTORY_ROOT": str(ROOT),
                     "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_START": self.start if start is None else start,
                     "INPUTS_BASELINE": "null", "INPUTS_OBJECTION": objection, "INPUTS_PRIOR_FAILURES": "null"})
         env.update({f"INPUTS_{k.upper()}": v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in inputs.items()})
-        return subprocess.run([sys.executable, str(SCRIPTS / f"{script}.py")], cwd=self.repo, env=env,
+        return subprocess.run([*launcher, str(SCRIPTS / f"{script}.py")], cwd=self.repo, env=env,
                               capture_output=True, text=True, encoding="utf-8")
 
     def returned(self, script: str, **kw) -> dict:
@@ -410,6 +410,22 @@ class ScriptReturnsTest(unittest.TestCase):
                     if kinds is not None:
                         kinds = [kinds] if isinstance(kinds, str) else kinds
                         self.assertIsInstance(value, tuple(JSON_TYPES[k] for k in kinds), key)
+
+
+class UvLaunchTest(unittest.TestCase):
+    def test_read_only_script_leaves_a_python_project_untouched(self):
+        """Archon は runtime: uv の節を作業ツリーで `uv run <script>` で起こす。対象が pyproject.toml を持つと、宣言（# /// script）の
+        無い script は uv が対象の環境（.venv・uv.lock）を作業ツリーに作り、mutates_checkout: false の節が落ちる"""
+        r = Run(self)
+        (r.repo / "pyproject.toml").write_text('[project]\nname = "target"\nversion = "0"\n', encoding="utf-8")
+        git(r.repo, "add", "pyproject.toml")
+        git(r.repo, "commit", "-q", "-m", "pyproject")
+        done = r.run("intake", launcher=("uv", "run", "--quiet"))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(git(r.repo, "status", "--porcelain", "--ignored"), "")
+        for script in SCRIPTS.glob("*.py"):
+            with self.subTest(script=script.name):
+                self.assertTrue(script.read_text(encoding="utf-8").startswith("# /// script\n"))
 
 
 class StopPathFilesMixin:

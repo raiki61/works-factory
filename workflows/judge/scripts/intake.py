@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """入口の節: 始めの記録を開き、依頼の行を型に通し、判定の道か再審の道かと段の切り替えを返す（lib/judge_accept.intake）"""
 import json
 import os

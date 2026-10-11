@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """目的の役の材料を置く（lib/judge_accept.purpose_prep）。依頼から前の run の判断を外した写し judge/purpose-request.json と、
 それ・PR の説明・前提の実測を並べた judge/purpose-brief.md。止めの控えが在れば go 偽。支度が落ちたら止めの控え（stopby.PURPOSE）を置く。{go, brief_file, reason}"""
 import sys

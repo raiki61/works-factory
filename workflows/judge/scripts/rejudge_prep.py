@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """再審の支度: 同じ run の 1 回目の判定と材料を読み、入力 objection と並べて R/brief.md を組み、単位の前の写しを置く。
 1 回目の判定が無ければ rejudge-session で止める（lib/judge_accept.rejudge_prep）"""
 import json

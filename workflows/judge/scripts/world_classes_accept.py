@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """言い直す役の返答を受け付ける: 依頼の全部の行に 1 つ・対象の識別子を持たない・検索語が在る（lib/judge_accept.world_accept）。3 回目の拒否で done。諦めても run は止めない"""
 import os
 import sys

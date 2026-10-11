@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """世界の解の類を決め、web の役の指示書の本文を組む（lib/judge_accept.world_plan）。段が落ちても run は止めない"""
 import sys
 from pathlib import Path

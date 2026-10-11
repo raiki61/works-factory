@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """並行 PR の機械の道: 開いている PR と、この run の差分・依頼の場所との交差を gh の読みだけで数え、機械で決められない時だけ
 役 pr-check を起こす（lib/judge_accept.pr_scan）。仕様の段が止めた run は先へ進めない"""
 import sys
