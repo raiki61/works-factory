@@ -1,0 +1,26 @@
+{
+  "name": "works-factory",
+  "doc": "置き場と版の止め（pin）の正本。中身の説明は docs/design.md の「pack.json」の節。",
+  "archon": {
+    "repo": "coleam00/Archon",
+    "release": "v0.11.1",
+    "assets": {
+      "archon-darwin-arm64": "b9338474fd3151d5d5402d76ae278105e65835f2e3506a93f0e5e4a378d10ede"
+    }
+  },
+  "asf": {
+    "repo": "coleam00/Archon",
+    "branch": "factory/sdlc-on-dev",
+    "commit": "d97d00ef15cce4b15d39e42635e4e86996ec1351",
+    "folder": ".archon/workflows/sdlc",
+    "placed_at": "workflows/asf",
+    "committed_here": false,
+    "why_not_committed": "ASF には LICENSE のファイルが無い。bin/ が run の時に取って Archon の家に置くだけで、このリポジトリには入れない"
+  },
+  "ours": {
+    "folder": "workflows",
+    "placed_at": "workflows/works-factory",
+    "name_prefix": "works-factory-",
+    "line": "works-factory-line"
+  }
+}
