@@ -9,7 +9,7 @@
   （開けなければ None）。conflicts だけは段ごとのパスの配列もよい
 - gates: 関所の id → {decision, text} か None（開かなかった）
 - facts: {start_ok, record_problems, failed, absorbed, answers}。failed は run の記録で最後が誤りで、後に線が進まなかった節の id の
-  並び（記録が読めなければ None）、absorbed は落ちたが線が受け止めて先へ進んだ節 [{node, error}]、answers は依頼の answers（始めの
+  並び（記録が読めなければ空）、absorbed は落ちたが線が受け止めて先へ進んだ節 [{node, error}]、answers は依頼の answers（始めの
   記録の欄）。record_problems は record_problems() の返り
 - decide_outcome(returns, gates, facts) -> (結末の語, stop_reason)。stop_reason は「<段の id>:<語>」、止まらなければ ""
 - record_problems(returns, gates, *, unread, unopened) -> (結果を名乗れない訳, 注意): 入力の読めなかった訳・開けなかった指し札・

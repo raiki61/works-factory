@@ -133,7 +133,7 @@ def main() -> dict:
     listing["warnings"] = [*notes, *listing["warnings"], *([transcript_why] if transcript_why else [])]
     facts = runreport.transcript_facts(rows, exclude_prefix=own_prefix())
     decided = outcome.decide_outcome(returns, gates, {"start_ok": bool(start), "record_problems": problems,
-                                                      "failed": facts["failed"] if facts["ok"] else None,
+                                                      "failed": facts["failed"],
                                                       "absorbed": facts["absorbed"], "answers": start.get("answers") or []})
     built = runreport.build(returns, gates, listing, facts, *decided, out_dir=out_dir(), start=start, problems=problems,
                             run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd())
