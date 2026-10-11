@@ -310,6 +310,14 @@ DIAGNOSE_NODE = "p2.diagnose"                # 判定役の節の写しの graph
 DIAGNOSE_ROLE = "diagnose"                   # 拒否の控え rejects-<役>.json の名（rolekit.with_done）
 JUDGMENT_FILE = "judgment.json"              # 元 accept.py:57 の JUDGMENT_FILE（受けた判定。judge_output が整えた返答に例と目的の外の行を戻した物）
 MATERIALS_FILE = "materials.json"            # 素材の状態（素材の名 → {status, …}。材料の支度が組む）
+# 置き場のファイルの名は書くモジュールの物を引く
+PURPOSE_FILE = _purpose.PURPOSE_FILE
+PREMISES_FILE = _premises.PREMISES_FILE
+VERIFY_FILE = jv.VERIFY_FILE
+PR_EXCLUDED_FILE = prcheck.EXCLUDED
+SPEC_FILE = specblk.SPEC_FILE
+WORLD_FILE = worldmark.WORLD_FILE
+MEANS_FILE = marks.KINDS[worldmark.MEANS].file
 MATERIAL_GLOB = "material-*.json"            # 素材の役が書く {role, reply, materials}
 # 裏取りの置き場は judgeverify.BRIEF_DIR（verify/）の下。judgeverify がこのモジュールを読むので、読み込みの時に jv の名を引かない
 VERIFY_ANSWERS_DIR = "verify/answers"          # 裏取りの下請けの答えの置き場（元 judgeverify.answers_dir の run ごとの置き場の代わり）
@@ -893,11 +901,11 @@ P1_NODES = ("p1.local_review", "p1.consistency_bypass", "p1.hygiene", "p1.extern
             "p1.gate_efficacy", "p1.test_double_fidelity", "p1.main_path_observation", "p1.provenance")
 
 
-def material_rows(jdir, origin: str = "") -> list:
+def material_rows(jdir) -> list:
     """元 works/.shared/core/outpurpose.py:87。材料の行: P1 の目の素材の役が受けた返答（置き場の material-<役>.json の reply。元は
-    盤面の p1.* の節の最新の出力）の中の where・text を持つ行の全部と、依頼の行（置き場の request.json。元は今の周に積まれた
-    依頼のバッチ）。行は {where, text, 任意の mechanism・measured・false_positive_if, from（出どころの節と目の名）}。
-    出どころの節の名は元の写しの graph の名（p1.<役の名の - を _ に>）。origin は依頼のバッチの出どころ（元 batch.origin）"""
+    盤面の p1.* の節の最新の出力）の中の where・text を持つ行の全部と、依頼のバッチ（request_batches）の行。行は {where, text,
+    任意の mechanism・measured・false_positive_if, from（出どころの節と目の名、依頼はバッチの出どころ）}。
+    出どころの節の名は元の写しの graph の名（p1.<役の名の - を _ に>）"""
     out = []
     replies = {}   # MATERIAL_GLOB は素材の役の返答の外の控え（material-view.json など。role が無い）にも当たる
     for p in pathlib.Path(jdir).glob(MATERIAL_GLOB):
@@ -907,8 +915,8 @@ def material_rows(jdir, origin: str = "") -> list:
     for nid in sorted(replies):
         if nid in P1_NODES:
             outpurpose._walk(replies[nid], nid, out)
-    rows = read_json(pathlib.Path(jdir) / REQUEST_FILE, [])
-    outpurpose._walk(rows if isinstance(rows, list) else [], f"依頼（{origin}）", out)
+    for batch in request_batches(jdir, _start_of(jdir)):
+        outpurpose._walk(batch["findings"], f"依頼（{batch['origin']}）", out)
     return out
 
 
@@ -1396,16 +1404,38 @@ def measured_needs_output(nid, out):
 
 
 PREMISES_RULE = "実測役は作業ツリーを変えてはいけない"   # 元 premises.py:41 の RULE
+# 元 premises.check_premises の型: 写しの graph の p0.premises の schema（$ref を開き注記を落とした物）を字のまま。実測役の節の
+# output_format と同じ（tests/workflows/test_judge.py）
+PREMISES_SCHEMA = {
+    "type": "object",
+    "required": ["constraints"],
+    "additionalProperties": False,
+    "properties": {
+        "constraints": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["text", "measured_how", "kind"],
+                "additionalProperties": False,
+                "properties": {
+                    "text": {"type": "string"},
+                    "measured_how": {"type": "string"},
+                    "kind": {"type": "string", "enum": ["実測", "仮説"]},
+                    "measured_output": {"type": "string", "minLength": 1},
+                },
+            },
+        },
+    },
+}
 
 
 def check_premises(reply: dict, jdir, repo, items: list) -> dict:
     """元 works/.shared/core/premises.py:125（と blk-premises/scripts/accept.py:32 の accept_premises）。実測役の返答を受け付ける:
-    依頼の実測を測り直したか（check_claims）→ 作業ツリーか HEAD が変わっていれば拒む（_tree_unchanged。バイトコードは数えない）→
-    post_check（measured_needs_output）。型は役の節の output_format が照らす。通れば置き場の premises.json に返答を書く。
+    型（PREMISES_SCHEMA）→ 依頼の実測を測り直したか（check_claims）→ 作業ツリーか HEAD が変わっていれば拒む（_tree_unchanged。
+    バイトコードは数えない）→ post_check（measured_needs_output）。通れば置き場の premises.json に返答を書く。
     items は依頼の行（judge/request.json）。{ok, reason}"""
     def run():
-        if not isinstance(reply, dict) or not isinstance(reply.get("constraints"), list):
-            raise Reject("前提の実測の返答の型が合わない: constraints の配列が要る")
+        core_accept.type_errors(reply, PREMISES_SCHEMA, "前提の実測の返答")
         missing = check_claims(reply, items)
         if missing:
             raise Reject(f"依頼の実測を測り直した制約が無い: {'・'.join(missing)}。text に where をそのまま入れよ"
@@ -1424,8 +1454,20 @@ def check_premises(reply: dict, jdir, repo, items: list) -> dict:
 
 # ---------------------------------------------------------------- 目的
 PURPOSE_RULE = "目的の役は読むだけの役で、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない"
-PURPOSE_FIELDS = ("purpose_text", "source", "known_weaknesses", "source_files")
-PURPOSE_SOURCES = ("①PR 説明", "②計画・タスク記述", "③writer の要約", "目的不明")
+# 元 purpose.check_purpose の型: accept.role_schema("p0.purpose")（写しの graph の p0.purpose の schema に足し欄 means を足した物）を
+# 字のまま。目的の役の節の output_format と同じ（tests/workflows/test_judge.py）
+PURPOSE_SCHEMA = {
+    "type": "object",
+    "required": ["purpose_text", "source", "known_weaknesses", "source_files"],
+    "additionalProperties": False,
+    "properties": {
+        "purpose_text": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "enum": ["①PR 説明", "②計画・タスク記述", "③writer の要約", "目的不明"]},
+        "known_weaknesses": {"type": "array", "items": {"type": "string"}},
+        "source_files": {"type": "array", "items": {"type": "string"}},
+        "means": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    },
+}
 PURPOSE_MISSING = ("（目的の文はこの run に無い——目的の節 p0.purpose がこのラインに無く、目的のファイルも渡されていない。"
                    "目的を推し量って補うな）")   # 元 works/blk-material/lib/material.py:176
 
@@ -1441,18 +1483,15 @@ def refuse_if_frozen(jdir):
 
 def check_purpose(reply: dict, jdir, repo) -> dict:
     """元 works/.shared/core/purpose.py:102。目的の役の返答を受け付ける。凍結（once）→ 作業ツリー（役は読むだけ。purpose-tree.json と
-    比べる）→ 足し欄 means を外す（worldmark.split_means）→ source_files（_source_files_errors）。型は役の節の output_format が
-    照らす（写しの graph の p0.purpose は post_check を持たない）。通れば置き場の purpose.json に書き、外した依頼の解き方を
+    比べる）→ 型（PURPOSE_SCHEMA）→ 足し欄 means を外す（worldmark.split_means）→ source_files（_source_files_errors）。
+    写しの graph の p0.purpose は post_check を持たない。通れば置き場の purpose.json に書き、外した依頼の解き方を
     purpose-means.json に置く。{ok, reason}"""
     def run():
         repo_p = pathlib.Path(repo)
-        if not isinstance(reply, dict) or any(k not in reply for k in PURPOSE_FIELDS):
-            raise Reject(f"目的の返答の型が合わない: {'・'.join(PURPOSE_FIELDS)} が要る")
-        if reply["source"] not in PURPOSE_SOURCES or not str(reply["purpose_text"]).strip():
-            raise Reject(f"目的の返答の型が合わない: source は {'・'.join(PURPOSE_SOURCES)} のどれか、purpose_text は空でない文")
         with core_accept.in_repo(repo_p):
             refuse_if_frozen(jdir)
             _tree_unchanged(jdir, repo_p, PURPOSE_RULE, PURPOSE_TREE_FILE)
+            core_accept.type_errors(reply, PURPOSE_SCHEMA, "目的の返答")
             out, means = worldmark.split_means(reply)   # 写しの型の外の欄を外した写し
             bad = _purpose._source_files_errors(out["source_files"], repo_p)
             if bad:
@@ -1463,7 +1502,7 @@ def check_purpose(reply: dict, jdir, repo) -> dict:
         write_json(pathlib.Path(jdir) / _purpose.PURPOSE_FILE, out)
         worldmark.write_means(jdir, means)
         if not means:
-            write_json(pathlib.Path(jdir) / "purpose-means.json", {"means": []})
+            write_json(pathlib.Path(jdir) / MEANS_FILE, {worldmark.MEANS: []})
         return {"ok": True, "reason": ""}
     return core_accept.guard(run)
 
@@ -2114,6 +2153,18 @@ def _purpose_of(jdir):
 def _requests(jdir) -> list:
     rows = read_json(pathlib.Path(jdir) / REQUEST_FILE, []) or []
     return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+
+
+def request_batches(jdir, start: dict) -> list:
+    """依頼の行（request.json）を出どころごとのバッチ [{round, origin, findings}] にする（元 record.process.request_findings の形。
+    1 run は 1 周なので round は 1）。仕様の段が積んだ受け入れ条件の行（spec_freeze が本文の頭に SPEC_PROVENANCE を書く）は
+    origin が SPEC_ORIGIN、ほかは人の依頼（入口の印が立つ run はその出どころ）。行の無いバッチは置かない"""
+    rows = _requests(jdir)
+    spec = [r for r in rows if str(r.get("text") or "").startswith(SPEC_PROVENANCE)]
+    human = [r for r in rows if not str(r.get("text") or "").startswith(SPEC_PROVENANCE)]
+    entry = (due_view(start, None, []).values.get("record.process.request_entry") or {}).get("origin")
+    human_origin = entry or f"人の依頼（{start.get('request_file') or '依頼の行'}）"
+    return [{"round": 1, "origin": origin, "findings": got} for origin, got in ((human_origin, human), (SPEC_ORIGIN, spec)) if got]
 
 
 def request_wheres(view: DueView, jdir) -> list:
@@ -2948,16 +2999,13 @@ def _diagnose_ctx(jdir, repo, start, doc, mats, review_md, repo_review_md) -> di
     local, cb = _reply_of(acc, "local-review") or {}, _reply_of(acc, "consistency-bypass") or {}
     ext, proc = _reply_of(acc, "external-standards") or {}, _reply_of(acc, "procedure-trace") or {}
     gate = _reply_of(acc, "gate-efficacy") or {}
-    reqs = _requests(j)
-    entry = (due_view(start, None, []).values.get("record.process.request_entry") or {}).get("origin")
     process = {
         "local_findings": local.get("findings"),
         "consistency_findings": cb.get("findings"),
         "bypass_findings": cb.get("bypass_findings"),
         "external_findings": ext.get("findings"),
         "procedure_findings": proc.get("findings"),
-        "request_findings": [{"round": 1, "origin": entry or f"人の依頼（{start.get('request_file') or '依頼の行'}）",
-                              "findings": reqs}] if reqs else None,
+        "request_findings": request_batches(j, start) or None,
         "gate_arms": gate.get("arms"),
         "purpose_review": _reply_of(acc, "purpose-review"),
         "constraints": (read_json(j / _premises.PREMISES_FILE, {}) or {}).get("constraints") or [],
@@ -2979,12 +3027,12 @@ def _diagnose_ctx(jdir, repo, start, doc, mats, review_md, repo_review_md) -> di
     }
 
 
-def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "", prior_rows=None) -> str:
+def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "") -> str:
     """元 works/blk-judge/lib/judgebrief.py:86 の brief の書き直し。判定役の材料を diagnose-brief.md に組み、パスを返す。節の並び:
     1 頭 BRIEF_HEAD・2 世界の解の行（worldmark.section。置き場の world-state.json が行を指す時）・3 p2.diagnose の「## 入力」の節を
     置き場の値で埋めた物・4 問いの台帳の段（LEDGER_HEAD。{{validator.*}} は PROMPT_TABLES）・5 依頼と PR の題と本文（始めの記録に
-    input.pr が在る時。request_text と pr_file_text）・6 依頼の answers（answers_section）・7 前の run の行（prior_rows。
-    carry.prior_section が PRIOR_HEAD の節と REDESIGN_HEAD の節に分ける）・8 人の方針（POLICY_HEAD。文書が在る時。policy_text）。素材の状態は materials.json（無ければ fill_materials）。
+    input.pr が在る時。request_text と pr_file_text）・6 依頼の answers（answers_section）・7 前の run の行（入口が置いた
+    prior-failures-in.json。carry.prior_section が PRIOR_HEAD の節と REDESIGN_HEAD の節に分ける）・8 人の方針（POLICY_HEAD。文書が在る時。policy_text）。素材の状態は materials.json（無ければ fill_materials）。
     対象差分は material-view.json（無ければ取る）"""
     j = pathlib.Path(jdir)
     doc = _material_view(j, repo, start)
@@ -2998,10 +3046,7 @@ def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "", pri
         req = request_text({"request_text": text, "pr": {"number": pr.get("number"), "title": pr.get("title") or "",
                                                           "body": pr.get("body") or ""}}).rstrip("\n") + "\n\n" + pr_file_text(pr)
     answers = answers_section(start.get("answers"))
-    prior = ""
-    if prior_rows:
-        carry.place_prior(j, list(prior_rows))
-        prior = carry.prior_section(j)
+    prior = carry.prior_section(j)
     pol = policy_text(start)
     p = j / DIAGNOSE_BRIEF_FILE
     tmp = p.with_name(p.name + ".tmp")
@@ -3012,21 +3057,15 @@ def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "", pri
     return str(p)
 
 
-def prior_rows(path, repo, start: dict) -> list:
-    """前の run で最後まで通らなかった物の行 [{where, text}]。path（入力 prior_failures の指し札の先。今の works の
-    prior-failures-in.json の形の配列か、依頼の容器の形）が在ればそこから、無ければ始めの記録の依頼のファイルの prior_failures から
-    （元は entry が依頼の欄を盤面の根の prior-failures-in.json に写した。carry.place_prior）。読めない・形が違えば ValueError"""
-    if path:
-        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-        return list(doc) if isinstance(doc, list) else carry.parts(doc)[carry.PRIOR]
-    _, doc = _request_doc(repo, start)
+def prior_of(doc) -> list:
+    """入力 prior_failures の先の JSON（今の works の prior-failures-in.json の形の行の並びか、依頼の容器の形）の行 [{where, text}]。
+    無ければ空。形が違えば ValueError（carry.parts）"""
     if doc is None:
         return []
-    return carry.parts(doc)[carry.PRIOR]
+    return list(doc) if isinstance(doc, list) else carry.parts(doc)[carry.PRIOR]
 
 
-def diagnose_prep(jdir, repo, start: dict, objection: str, prior_rows, review_md: str, repo_review_md: str = "",
-                  baseline=None) -> dict:
+def diagnose_prep(jdir, repo, start: dict, objection: str, review_md: str, repo_review_md: str = "", baseline=None) -> dict:
     """判定役を起こす前の支度（元 judgebrief.brief の入口と、元 blk-material の collect の止め）。返り
     {go, brief_file, review_md, repo_review_md, reason}。入力 objection が空でない（再審の道）・止めの控えが在れば組まずに go 偽。
     対象差分を取り直して diff.patch に、素材の 15 欄を materials.json に書き（baseline は入力 baseline の先のパス。在れば素材
@@ -3045,7 +3084,7 @@ def diagnose_prep(jdir, repo, start: dict, objection: str, prior_rows, review_md
     except Reject as e:
         return {**out, "reason": f"対象差分が取れない（{e}）——判定役を起こさない"}
     fill_materials(j, baseline_local_checks(baseline) if baseline else None)
-    path = brief(j, repo, start, review_md, repo_review_md, prior_rows)
+    path = brief(j, repo, start, review_md, repo_review_md)
     snap_tree(j, DIAGNOSE_TREE_FILE, repo)
     gave = materials_given_up(j)
     if gave:
@@ -3286,7 +3325,8 @@ def spec_freeze(jdir, root, pend, approval) -> dict:
     """元 works/.shared/core/graphloops/rules/review-loop.py:4010。承認済みの仕様を J/spec.json（今の works の記録の process.spec の形:
     requirements・acceptance[{key, requirement, file, name, run, sha256, exit_at_approval}]・out_of_scope・approval）に 1 度だけ固め、
     受け入れ条件を依頼の行として J/request.json に積む（1 件の受け入れ条件が 1 行。元は人の依頼のバッチ {round, origin: SPEC_ORIGIN,
-    findings} を record.process.request_findings に積んだ。ここは依頼の行の並びなので行だけを足し、出どころは各行の頭 SPEC_PROVENANCE が持つ）。
+    findings} を record.process.request_findings に積んだ。ここは依頼の行の並びなので行だけを足し、出どころは各行の頭 SPEC_PROVENANCE が持つ。
+    判定役の材料と目的の外の行の当て先は request_batches がこの頭で origin SPEC_ORIGIN のバッチに分ける）。
     承認の時点の終了コード（exit_at_approval）はここで各 run を走らせて取る。pend は spec_approve の pending、approval は答えの記録。
     1 run は 1 周なので round は 1。**拒む回は置き場を変えない**。返り {ok, problems}"""
     jdir = pathlib.Path(jdir)
@@ -3359,7 +3399,84 @@ def spec_answer(jdir, root, raw) -> dict:
 # ---------------------------------------------------------------- 再審（元 works/.shared/core/rejudge.py と写しの rules の rejudge_output）
 REJUDGE_NODE = "p2.rejudge"          # 写しの再審の節（元 rejudge.ROLE_OF の鍵）
 REJUDGE_ROLE = "rejudge"             # 役の名（拒否の控え rejects-rejudge.json の名・差の行の pass）
-REJUDGE_VERDICTS = ("採る", "退ける", "一部採る")   # 写しの schema の verdict の enum
+# 元 rejudge.take の型: 写しの graph の p2.rejudge の schema（$ref を開き注記を落とした物）を字のまま。再審の役の節の output_format と
+# 同じ（tests/workflows/test_judge.py）
+REJUDGE_SCHEMA = {
+    "type": "object",
+    "required": ["verdict", "new_facts", "units"],
+    "additionalProperties": False,
+    "properties": {
+        "verdict": {"type": "string", "enum": ["採る", "退ける", "一部採る"]},
+        "new_facts": {"type": "string", "minLength": 20},
+        "reason": {"type": "string"},
+        "units": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["key", "label"],
+                "additionalProperties": True,
+                "properties": {
+                    "key": {"type": "string", "minLength": 1},
+                    "label": {"type": "string", "enum": ["block", "suggest", "nit", "question", "info"]},
+                    "disposition": {"type": "string", "enum": ["do-now", "defer"]},
+                    "reason": {"type": "string"},
+                    "reopen_evidence": {"type": "string"},
+                    "origin_analysis": {"type": "string"},
+                    "why_chain": {"type": "array", "items": {"type": "string"}},
+                    "prescriptions": {"type": "array", "items": {"type": "string"}},
+                    "closed_note": {"type": "string"},
+                    "class_query": {
+                        "type": "object",
+                        "required": ["how", "counts", "total"],
+                        "additionalProperties": False,
+                        "properties": {
+                            "how": {
+                                "type": "object",
+                                "required": ["patterns", "paths", "count"],
+                                "additionalProperties": False,
+                                "properties": {
+                                    "patterns": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "maxItems": 20,
+                                        "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
+                                    },
+                                    "fixed": {"type": "boolean"},
+                                    "paths": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "maxItems": 50,
+                                        "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
+                                    },
+                                    "count": {"type": "string", "enum": ["lines", "files"]},
+                                    "untracked": {"type": "boolean"},
+                                    "ignore_case": {"type": "boolean"},
+                                    "word": {"type": "boolean"},
+                                },
+                            },
+                            "counts": {"type": "string", "enum": ["defects", "population"]},
+                            "total": {"type": "integer", "minimum": 0},
+                            "note": {"type": "string"},
+                            "hits": {
+                                "type": "array",
+                                "maxItems": 20,
+                                "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
+                            },
+                            "misses": {
+                                "type": "array",
+                                "maxItems": 20,
+                                "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
+                            },
+                            "examples_unavailable": {"type": "string", "minLength": 10},
+                            "misses_omitted_why": {"type": "string", "minLength": 10},
+                        },
+                    },
+                },
+            },
+        },
+    },
+}
+REJUDGE_VERDICTS = tuple(REJUDGE_SCHEMA["properties"]["verdict"]["enum"])
 REJUDGE_SETTLED = ("採る", "退ける")               # 元 rules:3210。決着して異議を降ろす答え
 # 元 写しの graph の p2.rejudge の writes（to: units の pick）。再審が単位を置き換える時に残す欄で、前後の差もこの欄だけを比べる
 REJUDGE_UNIT_FIELDS = ("key", "label", "disposition", "reason", "reopen_evidence")
@@ -3372,10 +3489,10 @@ REJUDGE_REPLY = "rejudge-reply.json"          # 受けた再審の返答の並�
 # 元 rejudge.py:77。修正役に貼った番号の書き方（no N・No.N・#N・N 番）。全角の数字も \d に当たる
 _NUMBERS = (re.compile(r"(?<![A-Za-z])no\.?\s*(\d+)", re.IGNORECASE), re.compile(r"[#＃]\s*(\d+)"), re.compile(r"(\d+)\s*番"))
 # 判定役の材料のうち、再審の役に Read させる 1 回目のファイル（在る物だけを brief に並べる）
-REJUDGE_MATERIALS = (("1 回目の判定（全部の欄）", JUDGMENT_FILE), ("判定役の材料", "diagnose-brief.md"),
-                     ("対象差分", "diff.patch"), ("前提の制約", "premises.json"), ("凍結した目的", "purpose.json"),
-                     ("素材の状態", "materials.json"), ("世界の解の行", "world.jsonl"), ("仕様", "spec.json"),
-                     ("判定の裏取り", "judge-verify.json"), ("並行 PR の外す範囲", "pr-excluded.json"))
+REJUDGE_MATERIALS = (("1 回目の判定（全部の欄）", JUDGMENT_FILE), ("判定役の材料", DIAGNOSE_BRIEF_FILE),
+                     ("対象差分", DIFF_FILE), ("前提の制約", PREMISES_FILE), ("凍結した目的", PURPOSE_FILE),
+                     ("素材の状態", MATERIALS_FILE), ("世界の解の行", WORLD_FILE), ("仕様", SPEC_FILE),
+                     ("判定の裏取り", VERIFY_FILE), ("並行 PR の外す範囲", PR_EXCLUDED_FILE))
 
 
 def rejudge_output(out):
@@ -3387,24 +3504,6 @@ def rejudge_output(out):
     if blank(fact, 20):
         raise Reject(f"{REJUDGE_NODE}: new_facts が空同然——回す側が出した事実を**自分で確かめた結果**を書け"
                      "（確かめずに採る／退けるのは、どちらも判定を都合よく使うことになる）")
-
-
-def _rejudge_type_errors(out):
-    """写しの p2.rejudge の schema のうち、受け付けが値で読む欄（verdict・new_facts・units[].key・units[].label）の型の誤り"""
-    errs = []
-    if out.get("verdict") not in REJUDGE_VERDICTS:
-        errs.append(f"$.verdict は {' / '.join(REJUDGE_VERDICTS)} のどれか（{out.get('verdict')!r}）")
-    if not isinstance(out.get("new_facts"), str):
-        errs.append("$.new_facts が文字列でない")
-    units = out.get("units")
-    if not isinstance(units, list):
-        return errs + ["$.units が配列でない"]
-    for i, u in enumerate(units):
-        if not isinstance(u, dict) or not isinstance(u.get("key"), str) or not u.get("key"):
-            errs.append(f"$.units[{i}].key が無い")
-        elif u.get("label") not in LABELS:
-            errs.append(f"$.units[{i}].label は {' / '.join(LABELS)} のどれか（{u.get('label')!r}）")
-    return errs
 
 
 def _named_numbers(text):
@@ -3512,7 +3611,7 @@ def rejudge_prep(jdir, rdir, objection, root) -> dict:
 
 def rejudge_take(jdir, rdir, reply, root) -> dict:
     """再審の役の返答を受け付ける（元 works/.shared/core/rejudge.py:421 の take）。返り {ok, reason, verdict}。順: 作業ツリーを
-    R/rejudge-snapshot.json と比べる → 写しの型（_rejudge_type_errors）→ class_query の例で問いを試して例を外す（querytest。例は
+    R/rejudge-snapshot.json と比べる → 写しの型（REJUDGE_SCHEMA）→ class_query の例で問いを試して例を外す（querytest。例は
     R/query-examples.json に足す）→ rejudge_output。拒否は {ok: False, reason}（置き場を変えない）。通れば:
     - R/judgment.json: 1 回目の判定（J/judgment.json）の units を返答の units（writes の pick: REJUDGE_UNIT_FIELDS）で置き換えた物。
       1 回目の物は上書きしない
@@ -3527,9 +3626,7 @@ def rejudge_take(jdir, rdir, reply, root) -> dict:
         if moved:
             raise Reject("読むだけの役が作業ツリーを変えた: 再審の役は読むだけの役で、作業ツリー・HEAD・枝・git が無視する"
                          "ファイルを変えてはいけない（" + "・".join(moved) + "）")
-        errs = _rejudge_type_errors(reply)
-        if errs:
-            raise Reject(f"{REJUDGE_NODE}: 返答が型に合わない: " + "; ".join(errs))
+        core_accept.type_errors(reply, REJUDGE_SCHEMA, f"{REJUDGE_NODE}: 返答")
         before_doc = read_json(rdir / REJUDGE_BEFORE)
         if not isinstance(before_doc, dict):
             raise Reject(f"{REJUDGE_ROLE} の前の単位の写しが無い（rejudge-prep が先に走る）")
@@ -3824,11 +3921,11 @@ def _world_due(jdir) -> dict:
     機能の切り替え（features_cut の world）は入口が見るので、ここでは見ない"""
     jdir = pathlib.Path(jdir)
     try:
-        doc = read_json(jdir / "purpose.json")
+        doc = read_json(jdir / PURPOSE_FILE)
     except ValueError as e:
         doc, why = None, str(e)
     else:
-        why = f"{jdir / 'purpose.json'} が無い" if doc is None else ""
+        why = f"{jdir / PURPOSE_FILE} が無い" if doc is None else ""
     if not isinstance(doc, dict) or not isinstance(doc.get("purpose_text"), str):
         return {"world_go": False, "world_purpose_file": "", "reason": f"目的の文が読めない: {why or '形が違う'}"}
     p = write_json(jdir / WORLD_PURPOSE_FILE, {"purpose_text": doc["purpose_text"], "means": worldmark.means_of(jdir)})
@@ -3983,10 +4080,10 @@ def request_container(view: dict, repo):
     return carry.parts(doc), path
 
 
-def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=()) -> dict:
+def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None) -> dict:
     """入口の節（intake）。再審の道（objection が空でない）は判定の置き場に触らずに mode: rejudge を返す。判定の道は、始めの記録を
     既定の値で読んで置き（START_FILE）、依頼の行を型に通して置き（REQUEST_FILE。元 accept.check_request）、前の run の失敗の行
-    （依頼の容器の prior_failures と入力 prior_failures の行 prior）を lib/carry.place_prior で置き、作業ツリーの姿を置く（TREE_FILE）。
+    （依頼の容器の prior_failures と、入力 prior_failures の先の JSON prior の行（prior_of））を lib/carry.place_prior で 1 度だけ置き、作業ツリーの姿を置く（TREE_FILE）。
     通らなければ止めの控えに依頼の語を書き go: false（AI を 1 つも起こさない）。機能の切り替えは始めの記録の features_cut、
     仕様の段は始めの記録の input.spec。返りは INTAKE_FILE にも書く（後ろの節は with: で結ばずにここを読む）"""
     jdir, rdir = pathlib.Path(jdir), pathlib.Path(rdir)
@@ -4007,7 +4104,7 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=()) 
             if checked.get("ok") is not True:
                 raise ValueError(checked.get("reason") or "依頼の行が型に通らない")
         write_json(jdir / REQUEST_FILE, rows)
-        carry.place_prior(jdir, [*container["prior_failures"], *prior])
+        carry.place_prior(jdir, [*container[carry.PRIOR], *prior_of(prior)])
         snap_tree(jdir, TREE_FILE, repo)
     except (ValueError, OSError, Reject) as e:
         reason = " ".join(str(e).split())
@@ -4023,12 +4120,6 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=()) 
 EMPTY_JUDGMENT = {"units": [], "questions": [], "framing": "", "one_shot": "", "materials_missing": [], "carried_r1": [],
                   "one_shot_closes": [], "precedents": []}
 EMPTY_PURPOSE = {"purpose_text": "", "source": "", "known_weaknesses": [], "source_files": []}
-PURPOSE_FILE = "purpose.json"
-PREMISES_FILE = "premises.json"
-VERIFY_FILE = "judge-verify.json"
-PR_EXCLUDED_FILE = "pr-excluded.json"
-SPEC_FILE = "spec.json"
-WORLD_FILE = "world.jsonl"
 OUT_OF_PURPOSE_FILE = "out-of-purpose.json"
 PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE)   # 判定の指し札の隣に必ず置く（ほかのブロックが名で開く）
 

@@ -561,6 +561,16 @@ class PremisesCase(_BCase):
                 self.assertIn("measured_output", got["reason"])
         self.assertFalse((self.jdir / "premises.json").exists(), "拒んだ返答は書かない")
 
+    def test_reply_outside_the_copied_type_rejected(self):
+        """元 premises.check_premises の型（写しの graph の p0.premises の schema）: 欠けた欄・知らない語・知らない欄を拒む"""
+        self.snap_tree()
+        for bad in ({"text": "a", "kind": "仮説"}, {"text": "a", "measured_how": "b", "kind": "推測"},
+                    {"text": "a", "measured_how": "b", "kind": "仮説", "note": "足した欄"}):
+            with self.subTest(bad):
+                got = ja.check_premises({"constraints": [bad]}, self.jdir, self.repo, [])
+                self.assertFalse(got["ok"])
+                self.assertIn("型が合わない", got["reason"])
+
     def test_hypothesis_needs_no_output_and_good_reply_is_written(self):
         """元 test_blk_premises の test_hypothesis_needs_no_output_and_empty_is_ok・test_accepts_good_reply"""
         self.snap_tree()
@@ -919,8 +929,8 @@ class BriefCase(_BCase):
                            input={"base": {"rev": self.head}, "pr": {"number": 9, "title": "PR の題", "body": "PR の本文"}})
         ja.write_json(self.jdir / ja.START_FILE, start)
         ja.material_route(self.jdir, self.repo)
-        prior = [{"where": "受け付け", "text": "前の拒否"}, {"where": carry.REDESIGN_WHERE, "text": "作り直し"}]
-        path = ja.brief(self.jdir, self.repo, start, str(self.tmp / "REVIEW.md"), "", prior)
+        carry.place_prior(self.jdir, [{"where": "受け付け", "text": "前の拒否"}, {"where": carry.REDESIGN_WHERE, "text": "作り直し"}])
+        path = ja.brief(self.jdir, self.repo, start, str(self.tmp / "REVIEW.md"), "")
         text = pathlib.Path(path).read_text(encoding="utf-8")
         heads = [ja.BRIEF_HEAD, worldmark.HEAD, "## 入力", ja.LEDGER_HEAD.strip(), ja.REQUEST_HEAD, ja.ANSWERS_HEAD,
                  carry.PRIOR_HEAD, carry.REDESIGN_HEAD]
@@ -969,17 +979,17 @@ class BriefCase(_BCase):
         self.assertTrue(route["hygiene"])
         for _ in range(3):
             ja.rolekit.with_done(self.jdir, "hygiene", {"ok": False, "reason": "形が違う"})
-        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "", [], str(self.tmp / "REVIEW.md"), "")
+        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "", str(self.tmp / "REVIEW.md"), "")
         self.assertFalse(got["go"])
         self.assertTrue(pathlib.Path(got["brief_file"]).is_file())
         self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], ja.MATERIAL_STOP)
         self.assertEqual(ja.read_json(self.jdir / "materials.json")["hygiene"]["status"], "not_run")
 
     def test_diagnose_prep_skips_on_objection_or_stop(self):
-        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "異議", [], "", "")
+        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "異議", "", "")
         self.assertFalse(got["go"])
         ja.write_stop(self.jdir, ja.JUDGE_STOP, "前で止めた")
-        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "", [], "", "")
+        got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "", "", "")
         self.assertFalse(got["go"])
         self.assertIn("前で止めた", got["reason"])
 
@@ -1189,6 +1199,10 @@ class SpecGateCase(_CCase):
         self.assertEqual(len(rows), 2)
         self.assertTrue(rows[1]["text"].startswith(ja.SPEC_PROVENANCE), rows[1])
         self.assertIn("exit 1", rows[1]["measured"])
+        batches = ja.request_batches(self.jdir, ja.start_view({}))
+        self.assertEqual([(b["origin"], b["findings"]) for b in batches][1:], [(ja.SPEC_ORIGIN, rows[1:])],
+                         "受け入れ条件の行は出どころの印 SPEC_ORIGIN のバッチ（元 review-loop.py:4040）")
+        self.assertEqual(batches[0]["findings"], rows[:1])
         again = ja.spec_answer(self.jdir, self.repo, json.dumps({"decision": "continue", "text": "二度目"}))
         self.assertTrue(again["go"])
         self.assertEqual(ja.read_json(self.jdir / "spec.json")["approval"]["note"], "A1 で進めてよい", "1 度だけ固める")
@@ -1278,7 +1292,7 @@ class RejudgeCase(_CCase):
         self.prepared()
         got = ja.rejudge_take(self.jdir, self.rdir, _c_rejudge_reply(verdict="保留"), self.repo)
         self.assertFalse(got["ok"])
-        self.assertIn("型に合わない", got["reason"])
+        self.assertIn("型が合わない", got["reason"])
         got = ja.rejudge_take(self.jdir, self.rdir, {"verdict": "採る"}, self.repo)
         self.assertFalse(got["ok"])
         self.assertFalse((self.rdir / "judgment.json").exists())

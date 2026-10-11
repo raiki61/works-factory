@@ -113,9 +113,13 @@ class ReturnsShapeTest(unittest.TestCase):
         self.assertEqual(by["verdict"]["trigger_rule"], "all_done")
         self.assertNotIn("output_type", by["verdict"])
 
-    def test_diagnose_reply_type_is_the_acceptance_schema(self):
-        """判定役の節の output_format と受け付けが照らす型（元 accept.role_schema("p2.diagnose")）は同じ物"""
-        self.assertEqual(nodes()["diagnose"]["output_format"], ja.DIAGNOSE_SCHEMA)
+    def test_reply_types_are_the_acceptance_schemas(self):
+        """役の節の output_format と受け付けが照らす型（元の写しの graph の schema）は同じ物"""
+        by = nodes()
+        for nid, schema in (("diagnose", ja.DIAGNOSE_SCHEMA), ("premises", ja.PREMISES_SCHEMA), ("purpose", ja.PURPOSE_SCHEMA),
+                            ("rejudge", ja.REJUDGE_SCHEMA)):
+            with self.subTest(role=nid):
+                self.assertEqual(by[nid]["output_format"], schema)
 
     def test_inputs_are_the_contract_and_prior_failures(self):
         inputs = load()["inputs"]
@@ -575,7 +579,7 @@ class SpecFreezeTest(unittest.TestCase):
         r = self.spec_run()
         self.assertTrue(r.returned("spec_freeze", answer={"decision": "approve", "text": ""})["go"])
         where = "test_spec_mean.txt: test_mean_divides_by_count"
-        reply = {"constraints": [{"text": f"{where} は承認の時点で exit 0", "kind": "仮説", "measured_output": ""}]}
+        reply = {"constraints": [{"text": f"{where} は承認の時点で exit 0", "kind": "仮説", "measured_how": "測っていない"}]}
         out = r.returned("premises_accept", reply=reply)
         self.assertTrue(out["ok"], out)
 
@@ -757,6 +761,24 @@ class BaselineTest(unittest.TestCase):
                 self.assertTrue(r.returned("diagnose_prep", **inputs)["go"])
                 got = json.loads((r.judge / "materials.json").read_text(encoding="utf-8"))["local_checks"]
                 self.assertEqual(got, material or {"status": "not_run", "reason": "走っていない（どの節も返していない）"})
+
+
+class PriorFailuresTest(unittest.TestCase):
+    def test_container_rows_and_the_input_rows_both_reach_the_brief(self):
+        """前の失敗の行は入口が 1 度だけ置く: 依頼の容器の prior_failures と入力 prior_failures の行の両方が判定役の材料に届く"""
+        from_container = {"where": "受け付け", "text": "容器の側の前の失敗の印"}
+        from_input = {"where": "受け付け", "text": "入力の側の前の失敗の印"}
+        r = Run(self, request={"findings": REQUEST, "prior_failures": [from_container]})
+        (r.artifacts / "prior.json").write_text(json.dumps([from_input], ensure_ascii=False), encoding="utf-8")
+        ptr = {"type": "archon_artifact", "run_id": RUN_ID, "path": "prior.json"}
+        self.assertTrue(r.returned("intake", prior_failures=ptr)["go"])
+        premises_and_purpose(r)
+        r.returned("material_route")
+        prep = r.returned("diagnose_prep", prior_failures=ptr)
+        self.assertTrue(prep["go"], prep)
+        text = pathlib.Path(prep["brief_file"]).read_text(encoding="utf-8")
+        for row in (from_container, from_input):
+            self.assertIn(row["text"], text)
 
 
 class MaterialGiveUpTest(unittest.TestCase):

@@ -32,8 +32,7 @@ out = {"go": False, "brief_file": "", "review_md": review_md, "repo_review_md": 
 try:
     start = ja.read_json(jdir / ja.START_FILE) or ja.start_view({})
     objection = os.environ.get("INPUTS_OBJECTION", "")
-    prior = [] if objection.strip() else ja.prior_rows(pointed("INPUTS_PRIOR_FAILURES"), Path.cwd(), start)
-    out = ja.diagnose_prep(jdir, Path.cwd(), start, objection, prior, review_md, repo_review_md, pointed("INPUTS_BASELINE"))
+    out = ja.diagnose_prep(jdir, Path.cwd(), start, objection, review_md, repo_review_md, pointed("INPUTS_BASELINE"))
 except Exception as e:  # noqa: BLE001  落ちずに go 偽と理由を返す
     out = {**out, "go": False, "reason": f"判定役の材料を組めない（{type(e).__name__}: {e}）"}
 boundary.returns({"go": bool(out["go"]), **{k: str(out[k]) for k in ("brief_file", "review_md", "repo_review_md", "reason")}})
