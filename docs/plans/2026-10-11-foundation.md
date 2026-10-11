@@ -7,14 +7,14 @@
 
 **作り:** 4 つの層（入口 `bin/`・グラフ `workflows/`・境 `workflows/.shared/`・助け手 `lib/`）の器と、器を縛る試験を先に置く。ブロックの中身は `output_format` に合う返りを返すだけの仮の物で、段 2 の issue が本物に替える。
 
-**道具:** Python 3.12 以上・unittest・git・`gh`・`bun`・Archon の源（`pack.json` の `archon.commit`。持ち主の決め `archon-same-as-asf`）。
+**道具:** Python 3.12 以上・unittest・git・`gh`・`bun`・Archon の源（`factory/pack.json` の `integration_revision_required`。持ち主の決め `archon-same-as-asf`）。
 
 **仕様:** `docs/design.md`（層・線・ブロック・Archon の分かっていること）と 各階層の `AGENTS.md`（E1〜E18）。
 
 ## 全体の決まり
 
 - 言語: Python 3.12 以上。外のパッケージは使ってよい（持ち主の決め `outside-packages-ok`）。自前で書く前に既製の物を当たり、版を止め、依存の宣言は 1 か所に置く（Task 2 で決める）。
-- 版の止め: `pack.json` の値だけを使う（Archon の源の commit `d97d00ef15cce4b15d39e42635e4e86996ec1351` 1 つ。Archon の本体と ASF の工程 `.archon/workflows/sdlc` の両方をここから取る）。
+- 版の止め: `pack.load` の値だけを使う。Archon の源の commit は ASF の止め `factory/pack.json` の `integration_revision_required`（今は `d97d00ef15cce4b15d39e42635e4e86996ec1351`）1 つで、根の `pack.json` には書かない。Archon の本体と ASF の工程（`source_directory`。`.archon/workflows/sdlc`）の両方をここから取る。
 - 置き場: Archon の家には何も置かない。自分の工程は `--workflow-source` で置かずに読ませ、ASF はその源の中の物を読む（issue #25）。
 - ASF のファイルをこのリポジトリに入れない（試験の種にも入れない）。
 - 工程の名は `works-factory-<フォルダの名>`、線は `works-factory-line`。
@@ -34,7 +34,7 @@
 
 ### Task 1: 版の取り寄せと配置
 
-> PR #6 で入った後、issue #25（持ち主の決め `archon-same-as-asf`）で形を変えた。今の口は `pack.load`・`place.archon_source`（源を 1 度だけ取って依存を入れる）・`place.workflow_source`（`--workflow-source` に渡す置き場）・`place.workflow_run`（起こす命令）。実行ファイルの取り寄せ（`archon_binary`）と家への配置（`asf_tree`・`place`）は消した。下はその時の記録。
+> PR #6 で入った後、issue #25（持ち主の決め `archon-same-as-asf`）で形を変えた。今の口は `pack.load`（Archon の版は ASF の `factory/pack.json` から読む）・`place.archon_source`（源を 1 度だけ取って依存を入れる）・`place.workflow_source`（`--workflow-source` に渡す置き場）・`place.workflow_run`（起こす命令）。実行ファイルの取り寄せ（`archon_binary`）と家への配置（`asf_tree`・`place`）は消した。下はその時の記録。
 
 **Files:**
 - Create: `bin/_lib/pack.py`・`bin/_lib/place.py`

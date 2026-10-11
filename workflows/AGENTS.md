@@ -44,7 +44,7 @@
 ## E12 期限・タイムアウトを置かない
 
 - YAML の節にも script にも期限を置かない。止める時は止め札で止める。持ち主の決め `no-timeouts`。
-- Archon は鍵を書かない節にも既定の期限を当てる（`script:` の節は 2 分で打ち切る。Archon の文書 `packages/docs-web/src/content/docs/guides/script-nodes.md` の `timeout`「Default: `120000` (2 min)」）。だから期限を外すには、期限を持つ節に実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値）を書く。期限を持つ節と鍵は次のとおり（`pack.json` の `archon.commit` の源の `packages/workflows/src/schemas/dag-node.ts`・`dag-executor.ts` で確かめた）。
+- Archon は鍵を書かない節にも既定の期限を当てる（`script:` の節は 2 分で打ち切る。Archon の文書 `packages/docs-web/src/content/docs/guides/script-nodes.md` の `timeout`「Default: `120000` (2 min)」）。だから期限を外すには、期限を持つ節に実質無しの値 `1728000000`（ミリ秒で 20 日。今の works と同じ値）を書く。期限を持つ節と鍵は次のとおり（`factory/pack.json` の `integration_revision_required` の源の `packages/workflows/src/schemas/dag-node.ts`・`dag-executor.ts` で確かめた）。
   - `script:`・`bash:` の `timeout`
   - `prompt:`・`command:` の `idle_timeout`
   - `loop:` の `idle_timeout`（1 周ごと）と `timeout`（`until_bash` の確かめ。無いと 120000 ms で打ち切る）

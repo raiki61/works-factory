@@ -32,7 +32,7 @@
 
 - 持ち主の言葉: 「その最新のソフト自動出荷工場を横目に見れる形じゃないとダメなのではという気がしてる」
 - 決め: 最新の ASF を横に並べて見られる形にする。
-- 当て方: `bin/` が `pack.json` で止めた Archon の源を取り、その中の ASF の工程（`.archon/workflows/sdlc/`）を横に並べて読み、工程の名で選び分ける（`archon-same-as-asf` で、Archon の家に置く形から変えた）。版を進めたら `docs/asf-notes.md` を読み直す。
+- 当て方: `bin/` が ASF の止め（`factory/pack.json`）の Archon の源を取り、その中の ASF の工程（`.archon/workflows/sdlc/`）を横に並べて読み、工程の名で選び分ける（`archon-same-as-asf` で、Archon の家に置く形から変えた）。版を進めたら `docs/asf-notes.md` を読み直す。
 
 ### `public-repo` リポジトリは公開、作業のアカウントは raiki61
 

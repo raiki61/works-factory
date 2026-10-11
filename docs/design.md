@@ -5,8 +5,8 @@
 
 ## 語
 
-- Archon: AI の工程を YAML で書き、機械が順に回す道具。土台は ASF と同じ開発中の源（`pack.json` の `archon.commit`。今は `d97d00ef`）で、`bun` で源から起こす（持ち主の決め `archon-same-as-asf`）。
-- ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までの工程の束（`coleam00/Archon` の枝 `factory/sdlc-on-dev` の `.archon/workflows/sdlc/`）。見る版は Archon の本体と同じ `pack.json` の `archon.commit`（`d97d00ef`）。
+- Archon: AI の工程を YAML で書き、機械が順に回す道具。土台は ASF と同じ開発中の源（`factory/pack.json` の `integration_revision_required`。今は `d97d00ef`）で、`bun` で源から起こす（持ち主の決め `archon-same-as-asf`）。
+- ASF（AI software factory）: Archon の作者が作った、作業の受け付けから merge までの工程の束（`coleam00/Archon` の枝 `factory/sdlc-on-dev` の `.archon/workflows/sdlc/`）。見る版は Archon の本体と同じ `factory/pack.json` の `integration_revision_required`（`d97d00ef`）。
 - 今の works: raiki61/claude-plugins の `works/`。工場 darkfactory を持つ。棚卸しは origin/main の 2026-10-11 の姿（commit `ab9b9f17` まで）。
 - review-graph: graphloops プラグインのレビューと修正の輪（`works/.shared/core/graphloops/graphs/review-loop.json`）。今の works の元。
 - 線: ブロックを順に並べた 1 本の工程（`workflows/line/`）。
@@ -69,10 +69,10 @@ flowchart TB
 
 ## pack.json
 
-版の止めの正本。
+版の止めの正本。ただし Archon の版は書かない。
 
-- `archon`: Archon の源の repo・枝・commit（40 字の hash）。Archon の版はここ 1 か所だけに書く。Archon の本体と ASF の工程の両方をこの源から取る（持ち主の決め `archon-same-as-asf`）。
-- `asf`: 源の中の ASF の工程のフォルダ。`committed_here: false` は、このリポジトリに入れないこと（LICENSE が無い）。
+- Archon の版: ASF の取り付け命令が置いた `factory/pack.json` の `repository`・`integration_revision_required`（40 字の hash）・`source_directory`（源の中の ASF の工程のフォルダ）が正本。ASF の consumer が照らすのと同じ値を `bin/_lib/pack.py` の `load` が読み、`archon.repo`・`archon.commit`・`asf.folder` として渡す。ASF が版を進めれば、自分の工程を回す Archon も同じ版になる（持ち主の決め `archon-same-as-asf`）。Archon の本体と ASF の工程の両方をこの源から取る。
+- `asf`: `committed_here: false` は、ASF の工程をこのリポジトリに入れないこと（LICENSE が無い）。
 - `ours`: 自分の工程のフォルダ・名の頭（`works-factory-`）・線の名。
 
 `bin/`（`bin/_lib/place.py`）は run の時に次を行う。Archon の家（`$ARCHON_HOME/workflows` など）には何も置かない。
@@ -520,7 +520,7 @@ flowchart TB
 
 ## Archon の分かっていること
 
-2026-10-11 に公開版 v0.11.1 の binary とソースを読み、手元で確かめた事実。同じ日に `pack.json` の `archon.commit`（`d97d00ef`）の源で読み直した物は、その旨と在り処を書く。
+2026-10-11 に公開版 v0.11.1 の binary とソースを読み、手元で確かめた事実。同じ日に `factory/pack.json` の `integration_revision_required`（`d97d00ef`）の源で読み直した物は、その旨と在り処を書く。
 
 - `include:` は読み込みの時に展開され、子の節の id は `<include の id>__<子の id>` になる。
 - `returns:` は 1 つの節の出力を `$<include の id>.output` として見せる。

@@ -4,7 +4,6 @@ import json
 import pathlib
 import tempfile
 import unittest
-from unittest import mock
 
 from bin._lib import pack, place
 
@@ -27,28 +26,38 @@ class PackTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.tmp = pathlib.Path(tmp.name)
+        for rel in ("pack.json", "factory/pack.json"):
+            write(self.tmp / rel, (ROOT / rel).read_bytes())
 
-    def write_pack(self, change):
-        data = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))
-        change(data)
-        (self.tmp / "pack.json").write_text(json.dumps(data), encoding="utf-8")
+    def change(self, rel, edit):
+        path = self.tmp / rel
+        data = json.loads(path.read_text(encoding="utf-8"))
+        edit(data)
+        path.write_text(json.dumps(data), encoding="utf-8")
 
-    def test_archon_version_is_written_once(self):
-        text = (ROOT / "pack.json").read_text(encoding="utf-8")
-        commit = pack.load(ROOT)["archon"]["commit"]
-        self.assertEqual(text.count(commit), 1)
-        self.assertNotIn("commit", pack.load(ROOT)["asf"])
+    def test_archon_version_comes_from_the_asf_pin_only(self):
+        asf_pin = json.loads((ROOT / "factory/pack.json").read_text(encoding="utf-8"))
+        loaded = pack.load(ROOT)
+        self.assertEqual(loaded["archon"]["commit"], asf_pin["integration_revision_required"])
+        self.assertEqual(loaded["archon"]["repo"], asf_pin["repository"])
+        self.assertEqual(loaded["asf"]["folder"], asf_pin["source_directory"])
+        self.assertNotIn(asf_pin["integration_revision_required"], (ROOT / "pack.json").read_text(encoding="utf-8"))
+
+    def test_asf_moving_its_pin_moves_ours(self):
+        self.change("factory/pack.json", lambda data: data.update(integration_revision_required="0" * 40))
+        self.assertEqual(pack.load(self.tmp)["archon"]["commit"], "0" * 40)
 
     def test_load_rejects_missing_keys(self):
-        self.write_pack(lambda data: data["archon"].pop("commit"))
-        with self.assertRaisesRegex(ValueError, r"archon\.commit"):
+        self.change("factory/pack.json", lambda data: data.pop("integration_revision_required"))
+        self.change("pack.json", lambda data: data["ours"].pop("folder"))
+        with self.assertRaisesRegex(ValueError, r"ours\.folder.*integration_revision_required"):
             pack.load(self.tmp)
 
     def test_load_rejects_commit_that_is_not_a_full_sha(self):
         for value in ("factory/sdlc-on-dev", "d97d00ef", "D97D00EF15CCE4B15D39E42635E4E86996EC1351", 1, None):
             with self.subTest(value=value):
-                self.write_pack(lambda data: data["archon"].update(commit=value))
-                with self.assertRaisesRegex(ValueError, r"archon\.commit"):
+                self.change("factory/pack.json", lambda data: data.update(integration_revision_required=value))
+                with self.assertRaisesRegex(ValueError, "integration_revision_required"):
                     pack.load(self.tmp)
 
 
@@ -93,35 +102,6 @@ class ArchonSourceTest(unittest.TestCase):
         self.assertEqual(self.source(fetch=fetch), first)
         self.assertEqual(len(self.installed), 1)
 
-    def test_refetches_when_repo_changes(self):
-        self.source(fetch=self.complete({"old": b"old"}))
-        forked = copy.deepcopy(self.pack)
-        forked["archon"]["repo"] = "someone/fork"
-        source = self.source(forked, self.complete({"new": b"new"}))
-        self.assertTrue((source / "new").is_file())
-        self.assertFalse((source / "old").exists())
-
-    def test_refetches_when_record_missing_or_broken(self):
-        record = self.cache / "archon" / f"{self.pack['archon']['commit']}.json"
-        damages = {"missing": record.unlink, "broken": lambda: record.write_text("{", encoding="utf-8")}
-        for name, damage in damages.items():
-            with self.subTest(record=name):
-                self.source(fetch=self.complete({"old": b"old"}))
-                damage()
-                source = self.source(fetch=self.complete({"new": b"new"}))
-                self.assertTrue((source / "new").is_file())
-                self.assertFalse((source / "old").exists())
-
-    def test_record_write_failure_does_not_vouch_for_new_tree(self):
-        self.source(fetch=self.complete({"old": b"old"}))
-        forked = copy.deepcopy(self.pack)
-        forked["archon"]["repo"] = "someone/fork"
-        with mock.patch.object(pathlib.Path, "write_text", side_effect=OSError("disk full")), \
-                self.assertRaisesRegex(OSError, "disk full"):
-            self.source(forked, self.complete({"forked": b"forked"}))
-        source = self.source(fetch=self.complete({"again": b"again"}))
-        self.assertTrue((source / "again").is_file())
-
     def test_incomplete_source_is_refused(self):
         for missing in (place.ENTRY, ASF_YAML):
             with self.subTest(missing=missing):
@@ -150,7 +130,7 @@ class ArchonSourceTest(unittest.TestCase):
                     place.archon_source(newer, self.cache, fetch, install)
                 self.assertNotIn("\n", str(caught.exception))
                 self.assertEqual(files(self.cache / "archon" / commit), before)
-                self.assertEqual(sorted(p.name for p in (self.cache / "archon").iterdir()), [commit, f"{commit}.json"])
+                self.assertEqual(sorted(p.name for p in (self.cache / "archon").iterdir()), [commit])
 
 
 class WorkflowSourceTest(unittest.TestCase):
