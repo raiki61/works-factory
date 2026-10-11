@@ -483,10 +483,9 @@ def _record(b, mark: dict, rows: list, skipped: list, guards: list = ()) -> None
         doc = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         doc = {}
-    doc = {"rows": list(doc.get("rows") or []), "skipped": list(doc.get("skipped") or [])}
-    if doc_guards := list(doc.get("guards") or []):
-        doc["guards"] = doc_guards
-    before = (len(doc["rows"]), len(doc["skipped"]), len(doc_guards))
+    doc = {"rows": list(doc.get("rows") or []), "skipped": list(doc.get("skipped") or []),
+           "guards": list(doc.get("guards") or [])}
+    before = (len(doc["rows"]), len(doc["skipped"]), len(doc["guards"]))
     for r in rows:
         row = {**mark, **r}
         if row not in doc["rows"]:
@@ -497,9 +496,9 @@ def _record(b, mark: dict, rows: list, skipped: list, guards: list = ()) -> None
             doc["skipped"].append(row)
     for g in guards:
         row = {**mark, **g}
-        if row not in doc.setdefault("guards", []):
+        if row not in doc["guards"]:
             doc["guards"].append(row)
-    if (len(doc["rows"]), len(doc["skipped"]), len(doc.get("guards") or [])) == before:
+    if (len(doc["rows"]), len(doc["skipped"]), len(doc["guards"])) == before:
         return
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
