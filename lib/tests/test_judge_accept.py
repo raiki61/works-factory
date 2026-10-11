@@ -26,6 +26,484 @@ class TablesCase(unittest.TestCase):
 
 # ================================================================ 依頼と判定（A）
 # （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
+import copy as _a_copy  # noqa: E402
+import json as _a_json  # noqa: E402
+import tempfile as _a_tempfile  # noqa: E402
+
+import accept as _a_accept  # noqa: E402
+import judgeverify as _a_jv  # noqa: E402
+from engine.util import Reject as _ARject  # noqa: E402
+from tests.bin.gitkit import committed_copy as _a_committed_copy, git as _a_git  # noqa: E402
+
+_A_SEED = LIB.parent / "tests" / "e2e" / "target-seed"
+_A_MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
+_A_CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
+_A_REQUEST = [{"where": "stats.py", "text": "mean([1, 2, 3]) が 2 でなく 3 を返す。test_mean_of_three が赤"},
+              {"where": "stats.py", "text": "clamp(15, 0, 10) が 10 でなく 0 を返す。test_clamp_above_range が赤"}]
+
+
+def _a_unit(key, how_patterns, counts, total, label="block", disposition="do-now"):
+    return {"key": key, "label": label, "disposition": disposition,
+            "reason": f"事実: {key}。反証: 意図の取り違えを当たったが、関数名とテストが逆を期待する",
+            "origin_analysis": "写し間違いの形",
+            "why_chain": ["テストが境界の値を試していない"],
+            "class_query": {"how": {"patterns": how_patterns, "fixed": True, "paths": ["stats.py"], "count": "lines"},
+                            "counts": counts, "total": total}}
+
+
+def _a_judge_ok():
+    """元 works/tests/replies/judge_ok.json の形（今の works の良い判定の見本）"""
+    return {
+        "framing": "依頼の 2 件はどちらも stats.py の算術の取り違え",
+        "one_shot": "mean の分母を len(xs) に、clamp の上限の枝の戻り値を hi に直す",
+        "units": [_a_unit(_A_MEAN, ["(len(xs) - 1)"], "defects", 1), _a_unit(_A_CLAMP, ["return lo"], "population", 2)],
+        "questions": [], "materials_missing": [], "carried_r1": [],
+        "one_shot_closes": [_A_MEAN, _A_CLAMP],
+        "precedents": [
+            {"key": _A_MEAN, "problem": "数列の算術平均を求める", "source": "Python の statistics.mean の文書の節",
+             "verdict": "adopt", "reason": "分母はデータ点の数 len(xs)"},
+            {"key": _A_CLAMP, "problem": "値を下限と上限の間に収める", "source": "numpy.clip の文書の節",
+             "verdict": "adopt", "reason": "上限を超えた値は上限に置き換える"}],
+    }
+
+
+class _AJudgeBase(unittest.TestCase):
+    """種（tests/e2e/target-seed）を写して commit した使い捨ての対象リポジトリと、判定の置き場 J（入口が judge-tree.json と
+    request.json と start.json を置いた後の姿）"""
+
+    def setUp(self):
+        self._tmp = _a_tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        tmp = pathlib.Path(self._tmp.name)
+        self.repo = tmp / "repo"
+        self.base = _a_committed_copy(self.repo, _A_SEED)
+        self.jdir = tmp / "art" / "judge"
+        self.jdir.mkdir(parents=True)
+        ja.write_json(self.jdir / ja.TREE_FILE, _a_accept.tree_state(self.repo))
+        ja.write_json(self.jdir / ja.REQUEST_FILE, _A_REQUEST)
+        ja.write_json(self.jdir / ja.START_FILE, ja.start_view({}))
+
+    def take(self, reply, **kw):
+        return ja.take(self.jdir, reply, self.repo, **kw)
+
+    def judgment(self):
+        return _a_json.loads((self.jdir / ja.JUDGMENT_FILE).read_text(encoding="utf-8"))
+
+
+class RequestCase(unittest.TestCase):
+    def test_request_rows_pass_the_add_type(self):
+        """元 test_accept.TestIntake.test_intake_accepts_request（依頼の行が rules の add の型を通る）"""
+        self.assertEqual(ja.check_request(_A_REQUEST, "持ち主"), {"ok": True, "reason": ""})
+        self.assertEqual(ja.add(_A_REQUEST, "持ち主"), {"round": 1, "origin": "持ち主", "findings": _A_REQUEST})
+
+    def test_unknown_key_is_rejected(self):
+        """元 test_accept.TestIntake.test_intake_rejects_unknown_key"""
+        rows = _a_copy.deepcopy(_A_REQUEST)
+        rows[0]["severity"] = "high"
+        got = ja.check_request(rows, "持ち主")
+        self.assertIs(got["ok"], False)
+        self.assertIn("severity", got["reason"])
+        self.assertIn("add の形", got["reason"])
+
+    def test_non_list_and_empty_are_rejected(self):
+        """元 test_accept.TestIntake.test_intake_rejects_non_list（findings は空でない配列。REQUEST_SCHEMA の minItems 1）"""
+        self.assertIs(ja.check_request({"where": "stats.py", "text": "x"}, "持ち主")["ok"], False)
+        self.assertIs(ja.check_request([], "持ち主")["ok"], False)
+        self.assertIs(ja.check_request([{"where": "stats.py"}], "持ち主")["ok"], False)
+
+    def test_check_inputs_refuses_misspelled_key_and_unknown_value(self):
+        """元 test_blk_spec の頭の注（写しの rules の check_inputs が flow=spec・gates=merge 以外を init で拒む）"""
+        ja.check_inputs({})
+        ja.check_inputs({"flow": "spec", "gates": "merge"})
+        with self.assertRaises(_ARject) as cm:
+            ja.check_inputs({"gate": "merge"})
+        self.assertIn("gates", str(cm.exception))
+        with self.assertRaises(_ARject) as cm:
+            ja.check_inputs({"gates": "all"})
+        self.assertIn("知らない値", str(cm.exception))
+
+
+class JudgeTakeCase(_AJudgeBase):
+    def test_good_reply_is_written_as_judgment(self):
+        """元 test_accept.TestJudge.test_judge_accepts_good_reply・test_blk_judge.ScriptCase.test_accept_good_and_bad_reply"""
+        got = self.take(_a_judge_ok())
+        self.assertIs(got["ok"], True, got["reason"])
+        self.assertEqual(got["judgment_file"], str(self.jdir / ja.JUDGMENT_FILE))
+        self.assertEqual(sorted(got["open_units"]), sorted([_A_MEAN, _A_CLAMP]))
+        doc = self.judgment()
+        for k in ("units", "questions", "framing", "one_shot", "materials_missing", "carried_r1", "one_shot_closes",
+                  "precedents"):
+            self.assertIn(k, doc)
+
+    def test_label_outside_the_table_is_rejected(self):
+        """元 rules の judge_output の「units[i] の label が不正」（検証器の表 LABELS の外。元の試験に同じ場面の物は無い）"""
+        reply = _a_judge_ok()
+        reply["units"][0]["label"] = "major"
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("label", got["reason"])
+        self.assertFalse((self.jdir / ja.JUDGMENT_FILE).exists())
+
+    def test_open_unit_why_chain_must_be_lines(self):
+        """計画の「開いた単位の why_chain が足りないと拒む」。元の型（graph の p2.diagnose の schema）は why_chain を文の配列にし、
+        元の rules に段の数の規則は無い。型の外（文でない段）を拒む"""
+        reply = _a_judge_ok()
+        reply["units"][0]["why_chain"] = [{"段": 1}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("why_chain", got["reason"])
+
+    def test_open_unit_without_class_query_is_rejected(self):
+        """元 rules の judge_output の「今の周に直す単位に class_query が無い」（元 test_blk_judge の判定の受け付けの場面）"""
+        reply = _a_judge_ok()
+        del reply["units"][1]["class_query"]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("class_query", got["reason"])
+
+    def test_class_query_examples_that_do_not_match_are_rejected(self):
+        """元 test_blk_judge.QueryExamplesCase.test_hit_the_query_does_not_match_is_rejected・
+        test_accept.TestJudge.test_judge_tests_query_examples_itself"""
+        reply = _a_judge_ok()
+        cq = reply["units"][0]["class_query"]
+        cq["hits"], cq["misses"] = ["    return sum(xs) / len(xs)"], ["    return 0"]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("class_query の例が問いと合わない", got["reason"])
+        cq["hits"], cq["misses"] = ["    return sum(xs) / (len(xs) - 1)"], ["    return sum(xs) / len(xs)"]
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+        self.assertEqual(self.judgment()["units"][0]["class_query"]["misses"], cq["misses"], "例は judgment に戻る")
+        saved = _a_json.loads((self.jdir / "query-examples.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved[_A_MEAN], {"hits": cq["hits"], "misses": cq["misses"]})
+
+    def test_precedent_source_not_in_world_rows_is_rejected(self):
+        """元 test_blk_judge.WorldSourceCase.test_take_refuses_unknown_world_source"""
+        reply = _a_judge_ok()
+        reply["precedents"][0]["source"] = "world:no-such-class"
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("precedents の出どころが世界の解の行に無い", got["reason"])
+
+    def test_question_without_kind_or_status_is_rejected(self):
+        """元 rules の judge_output の問いの kind・status の照らし（検証器の QUESTION_KINDS・QUESTION_STATUS）"""
+        reply = _a_judge_ok()
+        reply["questions"] = [{"key": "q1", "reason": "決まらない"}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("kind", got["reason"])
+        self.assertIn("status", got["reason"])
+        reply["questions"] = [{"key": "q1", "kind": "fork", "status": "held", "reason": "決まらない", "origin": _A_MEAN}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("options", got["reason"])
+
+    def test_judge_that_changed_the_tree_is_rejected(self):
+        """元 test_accept.TestJudge.test_judge_rejects_dirty_tree・test_blk_judge.ScriptCase.test_accept_rejects_file_added_after_intake"""
+        (self.repo / "extra.txt").write_text("読むだけの役が書いた\n", encoding="utf-8")
+        got = self.take(_a_judge_ok())
+        self.assertIs(got["ok"], False)
+        self.assertIn("extra.txt", got["reason"])
+        self.assertFalse((self.jdir / ja.JUDGMENT_FILE).exists())
+
+    def test_judge_that_moved_head_is_rejected(self):
+        """元 test_blk_judge.ScriptCase.test_accept_rejects_commit_after_intake"""
+        (self.repo / "extra.txt").write_text("x\n", encoding="utf-8")
+        _a_git(self.repo, "add", "extra.txt")
+        _a_git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "役が commit した")
+        got = self.take(_a_judge_ok())
+        self.assertIs(got["ok"], False)
+        self.assertIn("作業ツリー", got["reason"])
+
+    def test_without_tree_record_the_tree_must_be_clean(self):
+        """元 test_blk_judge.ScriptCase.test_check_judge_without_snapshot_needs_clean_tree"""
+        (self.jdir / ja.TREE_FILE).unlink()
+        self.assertIs(self.take(_a_judge_ok())["ok"], True)
+        (self.repo / "extra.txt").write_text("x\n", encoding="utf-8")
+        got = self.take(_a_judge_ok())
+        self.assertIs(got["ok"], False)
+        self.assertIn("作業ツリーに変更が在る", got["reason"])
+
+    def test_precedent_without_searched_is_rejected(self):
+        """元 test_accept.TestJudge.test_judge_rejects_precedent_without_searched"""
+        reply = _a_judge_ok()
+        reply["precedents"][0].update(verdict="not_found", source="")
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("searched", got["reason"])
+
+    def test_awaiting_material_needs_awaiting_question(self):
+        """元 test_line_a の test_reply_without_awaiting_goes_back_to_judge（awaiting_human の素材に kind=awaiting の問いが無い）"""
+        ja.write_json(self.jdir / "materials.json", {"parallel_pr": {"status": "awaiting_human", "reason": "gh が無い"}})
+        got = self.take(_a_judge_ok())
+        self.assertIs(got["ok"], False)
+        self.assertIn("素材 'parallel_pr' が awaiting_human なのに台帳に kind=awaiting で無い", got["reason"])
+        reply = _a_judge_ok()
+        reply["questions"] = [{"key": "parallel_pr: 並行 PR を確かめる", "kind": "awaiting", "status": "held",
+                               "reason": "gh が無く確かめられない", "origin": "parallel_pr"}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+
+    def test_materials_missing_is_rejected(self):
+        """元 rules の judge_output の materials_missing の拒否（graph の enforced_by）"""
+        reply = _a_judge_ok()
+        reply["materials_missing"] = ["hygiene"]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("hygiene", got["reason"])
+
+    def test_out_of_purpose_rows_are_checked_against_material_rows(self):
+        """元 test_out_of_purpose（outpurpose.problems を盤面の材料の行に当てる）と judgetake.take の目的の外の行の扱い"""
+        reply = _a_judge_ok()
+        reply["out_of_purpose"] = [{"source": "局所レビュー", "where": "no-such.py", "why_outside": "凍結した目的の外の所見"}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("out_of_purpose", got["reason"])
+        ja.write_json(self.jdir / "material-hygiene.json", {
+            "role": "hygiene", "materials": {"hygiene": {"status": "found", "count": 1, "detail": "1 件"}},
+            "reply": {"findings": [{"where": "test_stats.py", "text": "使わない import が残る"}]}})
+        reply["out_of_purpose"] = [{"source": "衛生", "where": "test_stats.py", "why_outside": "凍結した目的の外の衛生の所見"}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+        self.assertEqual(self.judgment()["out_of_purpose"], reply["out_of_purpose"])
+        saved = _a_json.loads((self.jdir / "out-of-purpose.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["rounds"]["1"][0]["found"][0]["from"], "p1.hygiene")
+
+    def test_material_rows_read_material_files_and_request(self):
+        """元 outpurpose.material_rows（P1 の節の出力の where・text の行と今の周の依頼の行）の書き直し"""
+        ja.write_json(self.jdir / "material-local-review.json", {
+            "role": "local-review", "materials": {}, "reply": {"lenses": [{"skill": "code-review", "findings": [
+                {"where": "stats.py:9", "text": "分母", "mechanism": "m"}]}]}})
+        ja.write_json(self.jdir / "material-prior-decisions.json", {
+            "role": "prior-decisions", "materials": {}, "reply": {"decisions": [{"where": "x", "text": "y"}]}})
+        rows = ja.material_rows(self.jdir)
+        self.assertIn({"where": "stats.py:9", "text": "分母", "mechanism": "m", "from": "p1.local_review / code-review"}, rows)
+        self.assertNotIn("x", [r["where"] for r in rows], "P0 の素材は材料の行に入らない（元は p1.* の節だけ）")
+        self.assertEqual([r["where"] for r in rows if r["from"].startswith("依頼")], ["stats.py", "stats.py"])
+
+    def test_unbound_answer_without_tie_is_rejected(self):
+        """元 test_blk_judge.AnswerTiesTakeCase.test_unbound_answer_without_tie_is_rejected_by_question"""
+        ja.write_json(self.jdir / ja.START_FILE, ja.start_view({"answers": [{"question": "どれを採るか", "text": "A を採る"}]}))
+        got = self.take(_a_judge_ok())
+        self.assertIs(got["ok"], False)
+        self.assertIn("依頼の答え 'どれを採るか'", got["reason"])
+        reply = _a_judge_ok()
+        reply["answer_ties"] = [{"answer": "どれを採るか", "to": _A_MEAN}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+        saved = _a_json.loads((self.jdir / "answer-ties.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["rounds"]["1"], reply["answer_ties"])
+
+    def test_carried_r1_tells_to_copy_the_where(self):
+        """元 test_accept.TestJudge.test_judge_carried_r1_tells_to_copy_the_where（前の周の R1 が在る時だけ当たる道）"""
+        reply = _a_judge_ok()
+        reply["carried_r1"] = [{"where": "stats.py:4", "disposition": "decline", "why": "削除すると mean が壊れる"},
+                               {"where": "stats.py:3", "disposition": "decline", "why": "削除すると mean が壊れる"}]
+        self.assertIs(self.take(reply)["ok"], True, "1 run は 1 周で、前の周の R1 は無い")
+        got = self.take(reply, prev_deletions=[{"where": "stats.py:3"}])
+        self.assertIs(got["ok"], False)
+        self.assertIn("carried_r1[0] の where 'stats.py:4'", got["reason"])
+        self.assertIn("削除候補の where を字面のまま写せ", got["reason"])
+        self.assertNotIn("no で指せ", got["reason"])
+
+    def test_fork_held_twice_must_escalate(self):
+        """元 rules の _fork_moves_forward（前の周も fork で免除された出どころを held のまま持ち越さない）"""
+        reply = _a_judge_ok()
+        reply["questions"] = [{"key": "岐路", "kind": "fork", "status": "held", "reason": "推し: A——安い",
+                               "origin": _A_MEAN, "options": ["A: 安い", "B: 堅い"]}]
+        reply["precedents"].append({"key": "岐路", "problem": "選び方の問題", "source": "文書の節", "verdict": "adopt",
+                                    "reason": "当たった", "undecided_because": "先例が割れて決まらない（①）"})
+        first = self.take(reply)
+        self.assertIs(first["ok"], True, first["reason"])
+        got = self.take(reply, prev_questions=[{"kind": "fork", "status": "held", "origin": _A_MEAN}])
+        self.assertIs(got["ok"], False)
+        self.assertIn("escalate に上げて", got["reason"])
+
+    def test_declared_route_errors(self):
+        """元 rules の _declared_route_errors（履歴の判定 p2.history の欄。このブロックの判定は当てない部品として持つ）"""
+        out = {"units": [{"key": "u", "label": "block"}], "declared_routed": [{"key": "穴", "route": "to_unit", "unit_key": "v"}]}
+        errs = ja._declared_route_errors(out, [{"key": "穴"}, {"key": "別の穴"}])
+        self.assertTrue(any("unit_key が今の周の units に無い" in e for e in errs))
+        self.assertTrue(any("'別の穴' を振り分けていない" in e for e in errs))
+
+
+class JudgeAcceptCase(_AJudgeBase):
+    def test_accept_parses_and_collect_builds_exit(self):
+        """元 test_blk_judge.ScriptCase.test_collect_builds_exit・test_accept_good_and_bad_reply"""
+        bad = ja.accept(self.jdir, "{not json", self.repo)
+        self.assertIs(bad["ok"], False)
+        self.assertIn("JSON", bad["reason"])
+        got = ja.accept(self.jdir, _a_json.dumps(_a_judge_ok(), ensure_ascii=False), self.repo)
+        self.assertIs(got["ok"], True, got["reason"])
+        out = ja.collect(self.jdir)
+        self.assertEqual((out["ok"], out["need_fix"], sorted(out["open_units"])), (True, True, sorted([_A_MEAN, _A_CLAMP])))
+        self.assertEqual(out["one_shot"], _a_judge_ok()["one_shot"])
+
+    def test_collect_without_judgment_gives_up_with_last_reject(self):
+        """元 test_line_a の test_judge_gives_up_without_failing_the_run（3 回とも拒めば最後の拒否の文で止める）"""
+        import rolekit
+        for _ in range(3):
+            rolekit.with_done(self.jdir, ja.DIAGNOSE_ROLE, {"ok": False, "reason": "kind が不正"})
+        out = ja.collect(self.jdir)
+        self.assertEqual(out, {"ok": False, "open_units": [], "need_fix": False, "judgment_file": "", "one_shot": ""})
+        stop = ja.read_stop(self.jdir)
+        self.assertEqual(stop["stop_reason"], ja.JUDGE_STOP)
+        self.assertIn("3 回とも", stop["reason"])
+        self.assertIn("kind が不正", stop["reason"])
+
+
+class _AVerifyBase(_AJudgeBase):
+    def judged(self, *units):
+        doc = {"framing": "依頼の 2 件はどちらも算術の取り違え", "one_shot": "直す", "units": list(units), "questions": []}
+        return doc
+
+    def answer(self, n, key, verdict="root", **extra):
+        p = self.jdir / ja.VERIFY_ANSWERS_DIR / _a_jv.ANSWER_FILE.format(n=n)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(_a_json.dumps({"unit": n, "verdict": verdict, "evidence_found": True,
+                                    "evidence": f"stats.py:9 を読んだ。{key} の式が在る", "location_ok": True,
+                                    "location": "stats.py:9", "why": "式を直せば期待どおりの値", **extra},
+                                   ensure_ascii=False), encoding="utf-8")
+
+    def synergy(self, body):
+        p = self.jdir / ja.VERIFY_ANSWERS_DIR / _a_jv.SYNERGY_FILE
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(_a_json.dumps(body, ensure_ascii=False), encoding="utf-8")
+
+    def notes(self):
+        return _a_json.loads((self.jdir / _a_jv.VERIFY_FILE).read_text(encoding="utf-8"))
+
+
+class VerifyPrepCase(_AVerifyBase):
+    def test_places_are_under_the_brief_dir(self):
+        """置き場の名が judgeverify の BRIEF_DIR・TREE_FILE と合う（judgeverify から先に読んでも読み込める）"""
+        self.assertEqual(ja.VERIFY_ANSWERS_DIR, f"{_a_jv.BRIEF_DIR}/answers")
+        self.assertEqual(ja.VERIFY_TREE_FILE, f"{_a_jv.BRIEF_DIR}/{_a_jv.TREE_FILE}")
+
+    def test_one_open_unit_or_off_does_not_go_and_writes_not_run(self):
+        """元 test_judge_verify.PrepCase.test_no_judgment_or_one_open_unit_does_not_go・test_verify_off_does_not_go_and_clears"""
+        one = self.judged(_a_unit(_A_MEAN, ["x"], "defects", 1), _a_unit(_A_CLAMP, ["x"], "defects", 1, label="nit"))
+        got = ja.prep_on(self.jdir, one, self.repo, True)
+        self.assertEqual((got["go"], got["prompt_file"]), (False, ""))
+        self.assertTrue(got["reason"])
+        self.assertEqual(self.notes()["units"], [])
+        self.assertEqual(self.notes()["synergy"]["state"], _a_jv.UNVERIFIED)
+        two = self.judged(_a_unit(_A_MEAN, ["x"], "defects", 1), _a_unit(_A_CLAMP, ["x"], "defects", 1))
+        got = ja.prep_on(self.jdir, two, self.repo, False)
+        self.assertIs(got["go"], False)
+        self.assertIn("judge_verify", got["reason"])
+        self.assertEqual(ja.prep_on(self.jdir, None, self.repo, True)["go"], False)
+
+    def test_two_open_units_write_briefs_and_prompt(self):
+        """元 test_judge_verify.PrepCase.test_two_open_units_write_briefs_and_prompt・test_prep_places_unverified_notes_first"""
+        doc = self.judged(_a_unit(_A_MEAN, ["x"], "defects", 1), _a_unit(_A_CLAMP, ["x"], "defects", 1),
+                          _a_unit("stats.py fmt: 桁", ["x"], "defects", 1, label="info", disposition="defer"))
+        got = ja.prep_on(self.jdir, doc, self.repo, True)
+        self.assertIs(got["go"], True)
+        prompt = pathlib.Path(got["prompt_file"])
+        self.assertTrue(str(prompt).startswith(str(self.jdir / _a_jv.BRIEF_DIR)))
+        names = sorted(p.name for p in prompt.parent.glob("*.md"))
+        self.assertEqual(names, ["prompt.md", "synergy.md", "unit-1.md", "unit-2.md"])
+        one = (prompt.parent / "unit-1.md").read_text(encoding="utf-8")
+        self.assertIn(_A_MEAN, one)
+        self.assertNotIn(_A_CLAMP, one)
+        self.assertEqual(pathlib.Path(_a_jv.answer_in(one)), self.jdir / ja.VERIFY_ANSWERS_DIR / "unit-1.json")
+        self.assertIn(_a_jv.SUBAGENT_TYPE, prompt.read_text(encoding="utf-8"))
+        self.assertEqual([(u["key"], u["state"]) for u in self.notes()["units"]],
+                         [(_A_MEAN, _a_jv.UNVERIFIED), (_A_CLAMP, _a_jv.UNVERIFIED)])
+
+
+class VerifyMergeCase(_AVerifyBase):
+    def setUp(self):
+        super().setUp()
+        doc = self.judged(_a_unit(_A_MEAN, ["x"], "defects", 1), _a_unit(_A_CLAMP, ["x"], "defects", 1))
+        self.assertIs(ja.prep_on(self.jdir, doc, self.repo, True)["go"], True)
+
+    def test_good_answers_are_merged_with_keys(self):
+        """元 test_judge_verify.MergeCase.test_good_answers_and_synergy_are_merged_with_keys"""
+        self.answer(1, _A_MEAN)
+        self.answer(2, _A_CLAMP, verdict="not_root", real_root=f"単位 1（{_A_MEAN}）と同じ根")
+        self.synergy({"why": "2 つの単位は同じ関数の群の取り違え", "duplicates": [{"units": [1, 2], "why": "同じ根の別の現れ"}],
+                      "relations": [], "order": [{"first": 1, "then": 2, "why": "mean を先に直す"}]})
+        self.assertEqual(ja.merge_on(self.jdir, self.repo), {"ok": True, "reason": ""})
+        doc = self.notes()
+        self.assertEqual([(u["key"], u["state"], u["verdict"]) for u in doc["units"]],
+                         [(_A_MEAN, _a_jv.CHECKED, "root"), (_A_CLAMP, _a_jv.CHECKED, "not_root")])
+        self.assertEqual(doc["synergy"]["duplicates"], [{"units": [_A_MEAN, _A_CLAMP], "why": "同じ根の別の現れ"}])
+        self.assertIsNone(ja.read_stop(self.jdir))
+
+    def test_verification_never_deletes_units(self):
+        """元 test_judge_verify.MergeCase.test_missing_or_bad_answers_are_named_unverified（単位は消さない）"""
+        self.answer(2, _A_CLAMP, verdict="not_root")
+        self.synergy({"why": "短い"})
+        ja.merge_on(self.jdir, self.repo)
+        doc = self.notes()
+        self.assertEqual([u["key"] for u in doc["units"]], [_A_MEAN, _A_CLAMP], "単位は消さない")
+        self.assertTrue(any("答えのファイルが無い" in e for e in doc["units"][0]["errors"]))
+        self.assertTrue(any("real_root" in e for e in doc["units"][1]["errors"]))
+        self.assertEqual(doc["synergy"]["state"], _a_jv.UNVERIFIED)
+
+    def test_tree_moved_writes_verify_stop(self):
+        """元 test_judge_verify.MergeCase.test_tree_moved_stops_board"""
+        self.answer(1, _A_MEAN)
+        (self.repo / "extra.txt").write_text("下請けが書いた\n", encoding="utf-8")
+        got = ja.merge_on(self.jdir, self.repo)
+        self.assertIs(got["ok"], False)
+        stop = ja.read_stop(self.jdir)
+        self.assertEqual(stop["stop_reason"], ja.VERIFY_STOP)
+        self.assertIn("extra.txt", stop["reason"])
+        self.assertEqual(len(self.notes()["units"]), 2, "止めても申し送りは書く")
+
+    def test_merge_without_prep_record_writes_not_run(self):
+        """元 test_judge_verify.MergeCase.test_merge_without_prep_record_is_empty"""
+        (self.jdir / _a_jv.PLAN_FILE).unlink()
+        (self.jdir / _a_jv.VERIFY_FILE).unlink()
+        got = ja.merge_on(self.jdir, self.repo)
+        self.assertIs(got["ok"], True)
+        self.assertEqual(self.notes()["units"], [])
+        p = ja.verify_not_run(self.jdir, "判定の輪が諦めた")
+        self.assertEqual(_a_json.loads(p.read_text(encoding="utf-8")),
+                         {"units": [], "synergy": {"state": _a_jv.UNVERIFIED, "errors": ["判定の輪が諦めた"]}})
+
+
+class StructureUnitsCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = _a_tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.repo = pathlib.Path(self._tmp.name)
+        (self.repo / "src").mkdir()
+        (self.repo / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")
+        (self.repo / "b.py").write_text("y = 2\n", encoding="utf-8")
+
+    @staticmethod
+    def unit(paths=None, key="src/a.py mean: 分母が違う", label="block"):
+        u = {"key": key, "label": label, "disposition": "do-now", "reason": "r"}
+        if paths is not None:
+            u["class_query"] = {"how": {"patterns": ["x"], "paths": paths}}
+        return u
+
+    def test_keeps_files_under_root_in_order_without_duplicates(self):
+        """元 test_structure_units.UnitFilePathsCase.test_keeps_files_under_root_in_order_without_duplicates"""
+        self.assertEqual(ja._unit_file_paths(self.unit(["b.py", "./src/a.py", "src/a.py"]), self.repo), (["b.py", "src/a.py"], []))
+
+    def test_drops_paths_that_are_not_files_under_root(self):
+        """元 test_structure_units.UnitFilePathsCase.test_drops_paths_measure_cannot_read"""
+        bad = ["src", "*.py", ":(glob)src/*.py", str(self.repo / "b.py"), "../b.py", "src/../b.py", "gone.py"]
+        self.assertEqual(ja._unit_file_paths(self.unit(["b.py", *bad]), self.repo), (["b.py"], bad))
+
+    def test_falls_back_to_key_head_only_without_how_paths(self):
+        """元 test_structure_units.UnitFilePathsCase.test_falls_back_to_key_head_only_without_how_paths"""
+        self.assertEqual(ja._unit_file_paths(self.unit(), self.repo), (["src/a.py"], []))
+        self.assertEqual(ja._unit_file_paths(self.unit(key="上限を呼び手ごとに持つ"), self.repo), ([], ["上限を呼び手ごとに持つ"]))
+
+    def test_all_open_units_are_listed_even_without_paths(self):
+        """元 line_edge.structure_units（計画の決め: paths が空の単位も落とさない。開いていない単位は入れない）"""
+        doc = {"units": [self.unit(["b.py"], key="b.py 一"), self.unit(key="上限を呼び手ごとに持つ"),
+                         self.unit(["b.py"], key="b.py 情報", label="info")]}
+        self.assertEqual(ja.structure_units(doc, self.repo),
+                         [{"id": "b.py 一", "paths": ["b.py"], "summary": "r"},
+                          {"id": "上限を呼び手ごとに持つ", "paths": [], "summary": "r"}])
+        self.assertEqual(ja.structure_units(None, self.repo), [])
 # ================================================================ 依頼と判定（A）の終わり
 
 

@@ -267,6 +267,784 @@ REQUEST_STOP = stopby.declare("request", "依頼の型が通らない・始め�
 
 # ================================================================ 依頼と判定（A）
 # （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
+# 元: works/.shared/core/accept.py の check_request・_head_at_rev・_judge_tree_unchanged・check_judge と言い換えの表、
+# 写しの rules（works/.shared/core/graphloops/rules/review-loop.py）の依頼の型と judge_output とその助け、
+# works/blk-judge/lib/judgetake.py の受け付けの流れ、works/blk-judge/lib/judgeverify.py の支度とまとめ、
+# works/darkfactory/lib/line_edge.py の単位の目録、works/.shared/core/outpurpose.py の material_rows、
+# works/.shared/core/gatemarks.py の依頼の答えの結びの照らし。盤面の値は引数か置き場 jdir のファイルで受ける。
+import difflib  # noqa: E402
+import shutil  # noqa: E402
+
+import accept as core_accept  # noqa: E402  （作業ツリーの姿 tree_state・tree_moved と git の口）
+import carry  # noqa: E402
+import gatemarks  # noqa: E402
+import judgeverify as jv  # noqa: E402
+import marks  # noqa: E402
+import outpurpose  # noqa: E402
+import querytest  # noqa: E402
+import rolekit  # noqa: E402
+import worldmark  # noqa: E402
+import engine.util as _util  # noqa: E402
+from engine.schema import validate_schema  # noqa: E402
+
+DIAGNOSE_NODE = "p2.diagnose"                # 判定役の節の写しの graph の名（querytest・outpurpose・gatemarks の足し欄の表の鍵）
+DIAGNOSE_ROLE = "diagnose"                   # 拒否の控え rejects-<役>.json の名（rolekit.with_done）
+JUDGMENT_FILE = "judgment.json"              # 元 accept.py:57 の JUDGMENT_FILE（受けた判定。judge_output が整えた返答に例と目的の外の行を戻した物）
+MATERIALS_FILE = "materials.json"            # 素材の状態（素材の名 → {status, …}。材料の支度が組む）
+MATERIAL_GLOB = "material-*.json"            # 素材の役が書く {role, reply, materials}
+# 裏取りの置き場は judgeverify.BRIEF_DIR（verify/）の下。judgeverify がこのモジュールを読むので、読み込みの時に jv の名を引かない
+VERIFY_ANSWERS_DIR = "verify/answers"          # 裏取りの下請けの答えの置き場（元 judgeverify.answers_dir の run ごとの置き場の代わり）
+VERIFY_TREE_FILE = "verify/verify-tree.json"   # 束ね役を起こす前の作業ツリーの姿（元 judgeverify.TREE_FILE）
+GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER        # 元 judgetake.py:42（輪 diagnose-loop の max_iterations と同じ）
+
+# 元 works/.shared/core/graphloops/rules/review-loop.py:689・:3860（init の入口で選ぶ入力の値）
+GATES_MERGE = "merge"
+SPEC_FLOW = "spec"
+# 元 review-loop.py:472（判定の後に機械が台帳へ立てる問いの key。依頼の答えの結びを求めない字）
+ASK_KEYS = {
+    "R1": "累積差分の最小性を独立に測れない（R1 unverifiable）——測る材料を人が示すか、未収束のまま報告するか",
+    "R2": "元の目的を独立に取れない（R2 unverifiable）——目的の出典を人が示すか、未収束のまま報告するか",
+    "R3": "文書横断の整合を独立に確かめられない（R3 unverifiable）——確かめる材料を人が示すか、未収束のまま報告するか",
+    "R4": "横断リスクと消えた能力を独立に確かめられない（R4 unverifiable）——基準点の材料を人が示すか、未収束のまま報告するか",
+}
+# 元 review-loop.py:104 の REQUEST_SCHEMA（依頼のバッチの一覧の型）
+REQUEST_SCHEMA = {"type": "array", "items": {
+    "type": "object", "required": ["round", "origin", "findings"], "additionalProperties": False, "properties": {
+        "round": {"type": "integer", "minimum": 1},
+        "origin": {"type": "string", "minLength": 1},
+        "findings": {"type": "array", "minItems": 1, "items": {
+            "type": "object", "required": ["where", "text"], "additionalProperties": False,
+            "properties": {k: {"type": "string"} for k in ("where", "text", "mechanism", "measured", "false_positive_if")}}}}}}
+# 元 accept.py:64 の NUMBER_HINTS（rules の拒否の番号で指せという案内を、名前を写せに言い換える）
+NUMBER_HINTS = (
+    ("写さずに、貼られた行の no で指せ", "削除候補の where を字面のまま写せ"),       # _carried_r1_accounted（判定の carried_r1）
+)
+# 元 review-loop.py:2357
+ONE_LINE_FIELDS = ("key", "reason")
+# 元 accept.check_judge の型の照らし（role_schema("p2.diagnose")）。写しの graph の p2.diagnose の schema の、この受け付けが
+# 読む欄の型（class_query の how の中は engine の run_count が照らす）。out_of_purpose・answer_ties は受け付けが先に外す
+_TEXTS = {"type": "array", "items": {"type": "string"}}
+DIAGNOSE_SCHEMA = {
+    "type": "object", "additionalProperties": False,
+    "required": ["units", "questions", "framing", "one_shot", "materials_missing", "carried_r1", "one_shot_closes", "precedents"],
+    "properties": {
+        "units": {"type": "array", "items": {
+            "type": "object", "required": ["key", "label"], "properties": {
+                "key": {"type": "string", "minLength": 1},
+                "label": {"type": "string", "enum": list(LABELS)},
+                "disposition": {"type": "string", "enum": ["do-now", "defer"]},
+                "reason": {"type": "string"}, "reopen_evidence": {"type": "string"}, "origin_analysis": {"type": "string"},
+                "why_chain": _TEXTS, "prescriptions": _TEXTS, "closed_note": {"type": "string"},
+                "class_query": {"type": "object", "required": ["how", "counts", "total"], "properties": {
+                    "how": {"type": "object"}, "counts": {"type": "string", "enum": ["defects", "population"]},
+                    "total": {"type": "integer", "minimum": 0}, "note": {"type": "string"}}}}}},
+        "questions": {"type": "array", "items": {"type": "object", "required": ["key", "kind", "status", "reason"],
+                                                 "properties": {"key": {"type": "string", "minLength": 1}}}},
+        "framing": {"type": "string"}, "one_shot": {"type": "string"},
+        "materials_missing": _TEXTS,
+        "carried_r1": {"type": "array", "items": {
+            "type": "object", "required": ["where", "disposition"], "additionalProperties": False, "properties": {
+                "where": {"type": "string", "minLength": 1}, "disposition": {"type": "string", "enum": ["promote", "decline"]},
+                "unit_key": {"type": "string"}, "why": {"type": "string"}}}},
+        "router": {"type": "array", "items": {"type": "object"}},
+        "reburn_causes": {"type": "array", "items": {"type": "object"}},
+        "one_shot_closes": _TEXTS,
+        "precedents": {"type": "array", "items": {
+            "type": "object", "required": ["key", "problem", "source", "verdict", "reason"], "properties": {
+                "key": {"type": "string", "minLength": 1}, "problem": {"type": "string"}, "source": {"type": "string"},
+                "verdict": {"type": "string", "enum": ["adopt", "adapt", "does_not_apply", "not_found"]},
+                "reason": {"type": "string"}, "searched": {"type": "string"}, "undecided_because": {"type": "string"}}}},
+    },
+}
+
+
+class Unreadable(Exception):
+    """元 judgetake.py:47。出口を組めない（judgment.json の形が崩れた）"""
+
+
+# ---------------------------------------------------------------- 依頼の型
+def check_inputs(inputs):
+    """元 works/.shared/core/graphloops/rules/review-loop.py:67。init の入口（置き場を作る前）で、選ぶ入力の鍵と値を確かめる——
+    綴り違いの鍵や知らない値を既定（今の流れ）に倒さない。仕様の道（flow=spec）と、変異の検算を合流でまとめる選択（gates=merge）"""
+    chosen = {"flow": SPEC_FLOW, "gates": GATES_MERGE}
+    for k in inputs:
+        # 鍵の綴り違い（gate=merge）は、黙って既定（撃つ）に倒れると選んだつもりの害がそのまま起きる。似て非なる鍵を落とす
+        near = difflib.get_close_matches(k, chosen, n=1, cutoff=0.75) if k not in chosen else []
+        if near:
+            raise Reject(f"--input {k}=… は鍵 {near[0]} の綴り違いに見える（知らない鍵は既定の流れに倒れる）——{near[0]}={chosen[near[0]]} と書け")
+    for k, want in chosen.items():
+        v = inputs.get(k)
+        if v is not None and v != want:
+            raise Reject(f"--input {k}={v!r} は知らない値（使えるのは {k}={want}。今の流れなら {k} を渡さない）")
+
+
+def add(items, reason, rnd: int = 1) -> dict:
+    """元 works/.shared/core/graphloops/rules/review-loop.py:124 の add の型の規則。人の修正依頼を、判定役に渡すバッチ
+    {round, origin, findings} にして返す（型が通らなければ Reject）。1 run は 1 周で、依頼は入口が判定役を起こす前に 1 度だけ積むので、
+    元の「その周の判定役が起きた後は足せない」と、記録の依頼の欄の型の崩れの照らしは当たらない"""
+    batch = {"round": rnd, "origin": reason, "findings": items}
+    errs = validate_schema([batch], REQUEST_SCHEMA)
+    if errs:
+        raise Reject("add の形: [{where, text, mechanism?, measured?, false_positive_if?}] の配列（空でない）: " + "; ".join(errs))
+    return batch
+
+
+def check_request(items, reason: str) -> dict:
+    """元 works/.shared/core/accept.py:456。依頼を rules の add（[{where, text, mechanism?, measured?, false_positive_if?}]）に通す。
+    {"ok", "reason"}。通った行を置き場の request.json に書くのは呼び手（元は盤面の request.json に積んだ）"""
+    def run():
+        add(items, reason)
+        return {"ok": True, "reason": ""}
+    return core_accept.guard(run)
+
+
+# ---------------------------------------------------------------- 判定の受け付け
+def _name_hints(e: Reject) -> Reject:
+    """元 works/.shared/core/accept.py:69。rules の拒否の番号で指せという案内を、名前を写せに言い換えた Reject にする（ほかの文はそのまま）"""
+    msg = str(e)
+    for by_number, by_name in NUMBER_HINTS:
+        msg = msg.replace(by_number, by_name)
+    return Reject(msg)
+
+
+def _head_at_rev(repo, rev, role):
+    """元 works/.shared/core/accept.py:472。HEAD が数える版 rev のままか。動いていれば Reject（写しの無い見張りで、役が作った物を
+    commit して git status を空に戻す道を塞ぐ。dogfood run 21）。role は読むだけの役の名"""
+    head = core_accept._git(repo, "rev-parse", "--verify", "-q", "HEAD").strip()
+    if head != rev:
+        raise Reject(f"HEAD が数える版から動いた（版 {rev[:12]} / 今 {head[:12]}）——{role}は作業ツリーと履歴を変えてはいけない"
+                     "（commit・reset・checkout で履歴を動かさない）")
+
+
+def _judge_tree_unchanged(repo, jdir, rev):
+    """元 works/.shared/core/accept.py:481。判定役が作業ツリーを変えていないか（Ruling R3・R14）。置き場に judge-tree.json（入口が
+    依頼を受け付けた時の写し。tree_state の形）が在れば、今の作業ツリーがその写しと同じかを tree_moved で見る（HEAD・枝の移動と
+    git が無視するファイルの増減・書き換えも見る）。無ければ作業ツリーが綺麗で、HEAD が数える版 rev のままであることを求める。
+    違えば Reject。元の盤面の judge-snapshot.json は入口が置く judge-tree.json（TREE_FILE）に読み替えた"""
+    snap = read_json(pathlib.Path(jdir) / TREE_FILE)
+    if snap is None:
+        now = core_accept.snapshot_tree(repo)   # 共通の姿（Claude Code の控えのフォルダ CLI_OWNED を数えない）
+        dirty = now["porcelain"].splitlines() + [f"!! {n}" for n in now["ignored"]]
+        if dirty:
+            raise Reject("作業ツリーに変更が在る——判定役は読むだけの役で、作業ツリーを変えてはいけない"
+                         f"（git status --porcelain --ignored: {dirty[:5]}{' ほか' if len(dirty) > 5 else ''}）")
+        _head_at_rev(repo, rev, "判定役")
+        return
+    core_accept.type_errors(snap, core_accept.TREE_SCHEMA, f"置き場の {TREE_FILE} ")
+    moved = core_accept.tree_moved({k: snap[k] for k in core_accept.TREE_KEYS}, repo)
+    if moved:
+        raise Reject("依頼を受け付けた後から作業ツリーが変わった——判定役は読むだけの役で、作業ツリー・HEAD・枝・git が"
+                     f"無視するファイルを変えてはいけない（{'・'.join(moved)}）")
+
+
+def _carried_r1_accounted(out, prev_deletions=None):
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2359。前の周の R1 最小性が挙げた削除候補を、judge が 1 件につき 1 行で
+    処理したか。prev_deletions は直前の周の R1 の deletions（元 b.outputs の r1.minimality。直前の周に R1 が走っていなければ None）。
+    1 run は 1 周なので、このブロックの受け付けはいつも None を渡す（元の「直前の周のものだけを見る」で空を返す道）"""
+    if prev_deletions is None:
+        return []
+    want = [d["where"] for d in prev_deletions if isinstance(d, dict) and d.get("where")]
+    rows = out.get("carried_r1") or []
+    errs, seen = [], {}
+    for i, r in enumerate(rows):
+        w = r.get("where", "")
+        if w in seen:
+            errs.append(f"carried_r1 に同じ where の行が 2 本: {w}")
+        seen[w] = r
+        if w not in want:
+            errs.append(f"carried_r1[{i}] の where '{w}' は前の周の R1 の削除候補に無い（正本は prev.r1.minimality.deletions。写さずに、貼られた行の no で指せ）")
+        elif r["disposition"] == "promote" and not (r.get("unit_key") or "").strip():
+            errs.append(f"carried_r1[{i}]（{w}）が disposition=promote なのに unit_key が無い")
+        elif r["disposition"] == "decline" and not (r.get("why") or "").strip():
+            errs.append(f"carried_r1[{i}]（{w}）が disposition=decline なのに why が無い——落とす判断にも理由が要る")
+    keys = {u["key"] for u in out.get("units", [])}
+    for r in rows:
+        if r.get("disposition") == "promote" and r.get("unit_key") and r["unit_key"] not in keys:
+            errs.append(f"carried_r1 の unit_key '{r['unit_key']}' が units に無い")
+    for w in want:
+        if w not in seen:
+            errs.append(f"前の周の R1 が挙げた '{w}' の行が carried_r1 に無い——unit に上げるか、落とす理由を書け。"
+                        "**行を省くな**（省けるなら、読んだ上で黙って落とせていた元の穴に戻る）")
+    return errs
+
+
+def _fork_moves_forward(out, prev_questions=()):
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2404。fork が出どころの [block] を免除するのは 1 周だけ。2 周目からは
+    escalate（人に実際に届く形）に上げろ。prev_questions は前の周の台帳の問い（元 loop.prev_questions。1 run は 1 周なので空）"""
+    prev_exempt = set()
+    for q in (prev_questions or []):
+        if q.get("kind") == "fork" and q.get("status") in ASKING:
+            prev_exempt |= {q.get("origin")} | set(q.get("depends", []) or [])
+    prev_exempt.discard(None)
+    if not prev_exempt:
+        return []
+    errs = []
+    for i, q in enumerate(out.get("questions", [])):
+        if q.get("kind") != "fork" or q.get("status") != "held":
+            continue
+        again = ({q.get("origin")} | set(q.get("depends", []) or [])) & prev_exempt
+        if again:
+            errs.append(f"questions[{i}]（fork）の出どころ {sorted(again)} は前の周も fork で免除されていた——"
+                        "held のまま 2 周目に入ると、人には何も届かないまま [block] が未着手で通り続ける。"
+                        "escalate に上げて人に聞くか、decided / resolved に倒せ")
+    return errs
+
+
+def _precedent_gap(r):
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2437。先行例の 1 行に足りない物（無ければ空文字）。判定者の行と修正役の行が
+    同じ規則を使う——見つからないなら何を探したか、それ以外は一次情報の出典"""
+    if r.get("verdict") == "not_found":
+        return "searched（何をどう探したか）が無い" if blank(r.get("searched"), 4) else ""
+    return "source（一次情報の出典）が無い" if blank(r.get("source"), 4) else ""
+
+
+def _precedent_errors(out):
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2445。判定者の先行例の行（precedents）: 今の周に直す単位と人へ回す問いの
+    key ごとに 1 行、出典つき。人へ回す問いの行には『世界の解を当たっても決まらない理由』（検証器の表はこのモジュールの頭の物）"""
+    rows = out.get("precedents") or []
+    errs, by = _keys_once(rows, "precedents"), {r["key"]: r for r in rows}
+    for i, r in enumerate(rows):
+        gap = _precedent_gap(r)
+        if gap:
+            errs.append(f"precedents[{i}]（{r['verdict']}）に {gap}")
+    need = [(u["key"], False) for u in out["units"] if is_open(u)]
+    need += [(q["key"], True) for q in out["questions"]
+             if (q.get("kind") == "fork" and q.get("status") in ASKING) or q.get("status") == "escalate"]
+    for k, asks in need:
+        r = by.get(k)
+        if r is None:
+            errs.append(f"precedents に '{k[:60]}' の行が無い——今の周に直す単位と人へ回す問いには、世界の解（先行例）を当たった行が要る")
+        elif asks and blank(r.get("undecided_because"), 10):
+            errs.append(f"precedents['{k[:60]}'] に undecided_because が無い——世界の解を当たっても決まらない理由（困っている点・残る不安）を"
+                        "書け。書けないなら自明なので人に回さず、処方として採れ")
+    return errs
+
+
+def _awaiting_origins(questions, materials, where):
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2468。人待ちの問い（kind=awaiting で未決）の出どころが、今 awaiting_human の
+    素材か。元は全部の節の done が通る check_record から呼んだ。このブロックは判定の受け付け（take）が judge_output の後に呼ぶ"""
+    errs = []
+    for i, q in enumerate(questions):
+        if origin_not_awaiting(q, materials):
+            m = materials[q["origin"]]
+            errs.append(f"{where}[{i}]（awaiting・{q['status']}）の出どころの素材 '{q['origin']}' が {m.get('status')}——awaiting の出どころは"
+                        "今 awaiting_human の素材だけ。素材を書く節は、人に諮っている最中の欄を awaiting_human のまま書け（見た結果は reason に）。"
+                        "人が実地で確かめるまで決まらない問いは kind=field で立てろ（素材の欄を借りない）")
+    return errs
+
+
+def _declared_route_errors(out, prev_declared_faces=()):
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2483。前の周に残すと宣言した穴を、判定者が 1 件ずつ振り分けたか
+    （to_unit＝今の周の直す単位に上げた／accept＝残すことを認めた）。元は履歴を読む判定の節 p2.history でだけ当てた（judge_output の
+    nid の分け）。このブロックの判定は p2.diagnose だけなので judge_output は呼ばない。prev_declared_faces は元 loop.prev_declared_faces"""
+    asked = {r["key"] for r in prev_declared_faces or []}
+    rows = out.get("declared_routed") or []
+    errs = _keys_once(rows, "declared_routed")
+    errs += [f"declared_routed の key '{r['key'][:40]}' は前の周に宣言された穴に無い" for r in rows if r["key"] not in asked]
+    errs += [f"前の周に残すと宣言された穴 '{k[:40]}' を振り分けていない——to_unit（直す単位に上げる）か accept（残すことを認める）で答えろ"
+             for k in sorted(asked - {r["key"] for r in rows})]
+    units = {u["key"] for u in out.get("units") or []}
+    errs += [f"declared_routed '{r['key'][:40]}' は to_unit なのに unit_key が今の周の units に無い" for r in rows
+             if r["route"] == "to_unit" and r.get("unit_key") not in units]
+    return errs
+
+
+def judge_output(out, jdir, root, rev, materials, *, prev_deletions=None, prev_questions=(), defer_ledger=None):
+    """元 works/.shared/core/graphloops/rules/review-loop.py:2497。judge の返答を、検証器の語彙（このモジュールの頭の表）で先に見る。
+    落ちるなら judge に返させ直す（Reject）。あわせて 1 行の欄を 1 行に正規化し、class_query の件数を engine が数えた値に置き換える
+    （out を書き換える）。返りは置き換えの注記（無ければ ""）。
+
+    盤面から引数に替えた物: 置き場 jdir（数えた件数の控え。元 b.dir）・対象の根 root と数える版 rev（元 _repo_root と
+    inputs.review_rev）・素材の状態 materials（元 record.materials）・前の周の R1 の削除候補 prev_deletions・前の周の台帳の問い
+    prev_questions・defer 台帳 defer_ledger（1 run は 1 周なので、どれも無い・空）。
+    元が節の宣言（graph の p2.diagnose の schema と reads）で分けていた所は、p2.diagnose の決まった事実として書いた: schema に
+    precedents と carried_r1 が在り、reads に prev.r1.minimality が在り、loop.prev_blocks・loop.prev_units・loop.prev_questions は無い
+    （だから _stuck_unrouted と _history_rules の 2 つの検証器の規則は当たらない）。履歴の判定（p2.history）の _declared_route_errors は
+    このブロックに無い。元の loop.engine_zero への書き込み（修正の側が読む 0 件の単位）は、修正が別のブロックなので持たない"""
+    errs = []
+    # **役の自由文から改行を落とす。** 検証器は台帳と阻害要因を「  - 」で字下げして echo するので、key / reason の
+    # 中の改行が新しい行頭を作り、その行が停止文言を含めば stop_branch の行頭規則が判定行と読み違える
+    for row in list(out.get("units", [])) + list(out.get("questions", [])):
+        for f in ONE_LINE_FIELDS:
+            if isinstance(row.get(f), str):
+                row[f] = " ".join(row[f].split())
+    keys = set()
+    replaced, zeroed = [], []
+    for i, u in enumerate(out["units"]):
+        if u["key"] in keys:
+            errs.append(f"units[{i}] の key が重複: {u['key']}")
+        keys.add(u["key"])
+        if u["label"] not in LABELS:
+            errs.append(f"units[{i}] の label が不正: {u['label']}")
+        if u["label"] == "suggest":
+            if u.get("disposition") not in ("do-now", "defer"):
+                errs.append(f"units[{i}]（suggest）に disposition（do-now / defer）が無い")
+            elif u["disposition"] == "defer" and not u.get("reason"):
+                errs.append(f"units[{i}] の defer に構造的理由が無い")
+        # 今の周に直す単位は、同じ形を**全部**引ける機械の問いを持て。「この周に直す単位か」の正本は検証器の is_open
+        if is_open(u):
+            cq = u.get("class_query") or {}
+            if not cq.get("how") or not isinstance(cq.get("total"), int) or isinstance(cq.get("total"), bool):
+                errs.append(f"units[{i}]（今の周に直す単位）に class_query（how＝同じ形を全部引ける機械の問い・total＝その件数）が無い"
+                            "——1 site しか無いなら total: 1 でそう示せ")
+            else:
+                # 判定役が読んだのと同じ版（この周に固定した版）で数える。修正役の after は作業ツリーで数える
+                got, why = _run_query(jdir, f"units[{i}].class_query", cq["how"], root, rev=rev)
+                if why:
+                    errs.append(why)
+                elif got == 0 and cq["total"] != 0:
+                    # **0 件は黙って置き換えない**——役の数を残し、0 だったことを note に書く
+                    zeroed.append(f"units[{i}].class_query（役 {cq['total']} / engine 0）")
+                    cq["note"] = (f"{cq.get('note') or ''}（engine が how を走らせると 0 件——在るべき物が無い型か、問いが対象を"
+                                  f"取りこぼしている。役の書いた {cq['total']} を残した）").strip()
+                elif got != cq["total"]:
+                    replaced.append(f"units[{i}].class_query.total {cq['total']} → {got}")
+                    cq["note"] = (f"{cq.get('note') or ''}（役の書いた total は {cq['total']}。engine が how を走らせた {got} に置き換えた）").strip()
+                    cq["total"] = got
+    # 一撃は反証可能に——「何が消えるはずか」を名指しし、次の周が測る問いを添える
+    open_units = [u for u in out["units"] if is_open(u)]
+    closes = out.get("one_shot_closes") or []
+    if open_units:
+        if not closes:
+            errs.append("one_shot_closes が空——その一撃が閉じると見込む unit の key を名指ししろ（次の周が実際の再発と突き合わせる）")
+    unknown = [k for k in closes if k not in keys]
+    if unknown:
+        errs.append(f"one_shot_closes に今の周の units に無い key: {unknown}")
+    defer = set(defer_ledger or {})
+    for i, q in enumerate(out["questions"]):
+        unknown = sorted(set(q) - set(QUESTION_FIELDS))
+        if unknown:
+            errs.append(f"questions[{i}] に知らない欄: {unknown}（書けるのは {'/'.join(QUESTION_FIELDS)}）")
+        kind, status = q.get("kind"), q.get("status")
+        if kind not in QUESTION_KINDS:
+            errs.append(f"questions[{i}] の kind が不正: {kind}")
+            continue
+        if status not in QUESTION_STATUS:
+            errs.append(f"questions[{i}] の status が不正: {status}")
+            continue
+        domain, extra = QUESTION_KINDS[kind].domain, QUESTION_KINDS[kind].fields
+        for f in ("reason",) + extra + QUESTION_STATUS[status]:
+            if not q.get(f):
+                errs.append(f"questions[{i}]（{kind}/{status}）に '{f}' が要る")
+        if kind == "fork" and not (isinstance(q.get("options"), list) and len(q["options"]) >= 2):
+            errs.append(f"questions[{i}] の options は選択肢 2 つ以上（各項に帰結まで）")
+        # 出どころ（origin と depends）の走査は検証器の targets 1 本
+        for fld, dom, val in targets(q):
+            if dom == "unit" and val not in keys | defer:
+                errs.append(f"questions[{i}] の {fld} '{val}' が units にも defer 台帳にも無い")
+            elif dom == "material" and val not in MATERIALS:
+                errs.append(f"questions[{i}] の {fld} は素材名: {val}")
+            elif dom == "review" and val not in REVIEWS:
+                errs.append(f"questions[{i}] の {fld} は R1〜R4: {val}")
+        if domain == "none" and (q.get("origin") or q.get("depends")):
+            errs.append(f"questions[{i}]（{kind}）は origin / depends を持てない")
+        for d in q.get("depends", []) or []:
+            if d not in keys | defer:
+                errs.append(f"questions[{i}] の depends '{d}' が units にも defer 台帳にも無い")
+        if status in ASKING and kind in NO_OPEN_ORIGIN:
+            for k in [q.get("origin")] + list(q.get("depends", []) or []):
+                u = next((x for x in out["units"] if x["key"] == k), None)
+                if u and is_open(u):
+                    errs.append(f"questions[{i}]（{kind}）の出どころ '{k}' が [block] / do-now（人に聞く前に直す義務が消える。defer にして構造的理由を書け）")
+        errs += [f"questions[{i}]: {m}" for m in settled_state_errors(q, out["units"])]
+    awaiting = {name for name, m in (materials or {}).items() if isinstance(m, dict) and m.get("status") == "awaiting_human"}
+    listed = {q.get("origin") for q in out["questions"] if q.get("kind") == "awaiting" and q.get("status") in ASKING}
+    for name in sorted(awaiting - listed):
+        errs.append(f"素材 '{name}' が awaiting_human なのに台帳に kind=awaiting で無い")
+    if out.get("materials_missing"):
+        errs.append("judge が素材の欠落を報告した（P2 を止めて当該 grader を再起動しろ）: " + ", ".join(out["materials_missing"]))
+    errs += _fork_moves_forward(out, prev_questions)
+    errs += _precedent_errors(out)        # p2.diagnose の schema は precedents を持つ
+    errs += _carried_r1_accounted(out, prev_deletions)   # p2.diagnose は prev.r1.minimality を読み、schema に carried_r1 を持つ
+    if errs:
+        raise Reject("judge の返答が記録の語彙に合わない（judge に返させ直す）: " + "; ".join(errs))
+    notes = ([f"class_query の件数を engine が走らせた値に置き換えた: {'; '.join(replaced)}"] if replaced else []) + \
+            ([f"engine の数が 0 件なので置き換えなかった: {'; '.join(zeroed)}"] if zeroed else [])
+    return " / ".join(notes)
+
+
+def _materials(jdir) -> dict:
+    """置き場の素材の状態（materials.json。無ければ空）"""
+    doc = read_json(pathlib.Path(jdir) / MATERIALS_FILE, {})
+    return doc if isinstance(doc, dict) else {}
+
+
+def _judged(reply, jdir, base_rev, repo, *, prev_deletions=None, prev_questions=(), defer_ledger=None) -> tuple:
+    """元 accept.check_judge の芯（書く前まで）: 作業ツリーと HEAD → 型 → class_query の例 → 先例の出どころ → judge_output →
+    awaiting の出どころ（元 check_record の _awaiting_origins）。返り (正規化した返答, 例, 注記)。拒否は Reject"""
+    repo_p = pathlib.Path(repo)
+    with core_accept.in_repo(repo_p):
+        rev = core_accept.resolve_rev(repo_p, base_rev)
+        _judge_tree_unchanged(repo_p, jdir, rev)
+        core_accept.type_errors(reply, DIAGNOSE_SCHEMA, "判定の返答")
+        errs = querytest.problems(reply.get("units"), is_open)
+        if errs:
+            raise Reject("class_query の例が問いと合わない: " + "; ".join(errs))
+        errs = worldmark.ref_problems(reply, jdir)
+        if errs:
+            raise Reject("precedents の出どころが世界の解の行に無い: " + "; ".join(errs))
+        out, examples = querytest.split(reply, is_open)   # judge_output は 1 行の欄と class_query を正規化する（split の写し。返答の元は触らない）
+        root = _util.repo_root(_util.git) or ""
+        materials = _materials(jdir)
+        try:
+            note = judge_output(out, jdir, root, rev, materials, prev_deletions=prev_deletions,
+                                prev_questions=prev_questions, defer_ledger=defer_ledger)
+        except Reject as e:
+            raise _name_hints(e)
+        errs = _awaiting_origins(out["questions"], materials, "questions")
+        if errs:
+            raise Reject("判定の問いの台帳が素材の状態と合わない: " + "; ".join(errs))
+    return out, examples, note
+
+
+def _save_examples(jdir, examples) -> None:
+    """元 accept.check_judge の例の控え: 例の無い判定は前の例を消すだけ（ファイルが在れば空に置き換え、無ければ作らない）"""
+    if examples or marks.path_of("query", jdir).is_file():
+        querytest.save(jdir, examples, replace=True)
+
+
+def check_judge(reply, jdir, base_rev, repo) -> dict:
+    """元 works/.shared/core/accept.py:504。判定役の返答を受け付ける。作業ツリーか HEAD が変わっていれば拒む（_judge_tree_unchanged）→
+    型（DIAGNOSE_SCHEMA）→ class_query の例（querytest）→ 先例の出どころ（worldmark）→ judge_output（素材は置き場の materials.json）。
+    通れば置き場の judgment.json に書く（例は外して judge_output に通し、query-examples.json に置いて戻す）。
+    {"ok", "reason", "open_units", "judgment_file"}。目的の外の所見と依頼の答えの結びも照らすのは take"""
+    def run():
+        out, examples, note = _judged(reply, jdir, base_rev, repo)
+        _save_examples(jdir, examples)
+        path = write_json(pathlib.Path(jdir) / JUDGMENT_FILE, querytest.restore(out, jdir))
+        return {"ok": True, "reason": note or "", "open_units": [u["key"] for u in out["units"] if is_open(u)],
+                "judgment_file": str(path)}
+    return core_accept.guard(run, open_units=[], judgment_file="")
+
+
+# 元 works/blk-material/lib/material.py:65-73 の ROLES の P1 の 9 本（写しの graph の p1.* の役の節）
+P1_NODES = ("p1.local_review", "p1.consistency_bypass", "p1.hygiene", "p1.external_standards", "p1.procedure_trace",
+            "p1.gate_efficacy", "p1.test_double_fidelity", "p1.main_path_observation", "p1.provenance")
+
+
+def material_rows(jdir, origin: str = "") -> list:
+    """元 works/.shared/core/outpurpose.py:87。材料の行: P1 の目の素材の役が受けた返答（置き場の material-<役>.json の reply。元は
+    盤面の p1.* の節の最新の出力）の中の where・text を持つ行の全部と、依頼の行（置き場の request.json。元は今の周に積まれた
+    依頼のバッチ）。行は {where, text, 任意の mechanism・measured・false_positive_if, from（出どころの節と目の名）}。
+    出どころの節の名は元の写しの graph の名（p1.<役の名の - を _ に>）。origin は依頼のバッチの出どころ（元 batch.origin）"""
+    out = []
+    files = sorted(pathlib.Path(jdir).glob(MATERIAL_GLOB))
+    for nid, doc in sorted((f"p1.{str(d.get('role')).replace('-', '_')}", d)
+                           for d in (read_json(p, None) for p in files) if isinstance(d, dict)):
+        if nid in P1_NODES:
+            outpurpose._walk(doc.get("reply"), nid, out)
+    rows = read_json(pathlib.Path(jdir) / REQUEST_FILE, [])
+    outpurpose._walk(rows if isinstance(rows, list) else [], f"依頼（{origin}）", out)
+    return out
+
+
+def request_answers(jdir) -> list:
+    """元 works/.shared/core/gatemarks.py:687。依頼の answers（置き場の start.json の欄。元は盤面の start の控え。dict でない行は読まない）"""
+    rows = (read_json(pathlib.Path(jdir) / START_FILE, {}) or {}).get("answers")
+    return [a for a in rows if isinstance(a, dict)] if isinstance(rows, list) else []
+
+
+def unmeasured(materials) -> dict:
+    """元 works/.shared/core/gatemarks.py:693。今の周に測れていない素材 {名: status}: 素材のうち、検証器の表 STATUS で阻害になる
+    status（not_run・awaiting_human）の物"""
+    if not isinstance(materials, dict) or not materials:
+        return {}
+    return {n: m["status"] for n, m in materials.items()
+            if isinstance(m, dict) and m.get("status") in STATUS and STATUS[m["status"]].blocks}
+
+
+def origin_of(q, materials) -> str:
+    """元 works/.shared/core/gatemarks.py:704。答えを結ぶ時の問いの出どころ: 台帳の origin。origin が空の問いで、key が今の周に測れていない
+    素材の名で始まる（名の直後が終わりか KEY_CHAR でない字）物は、その素材の名"""
+    got = q.get("origin")
+    if isinstance(got, str) and got:
+        return got
+    key = str(q.get("key") or "")
+    return next((n for n in unmeasured(materials)
+                 if key.startswith(n) and not gatemarks.KEY_CHAR.match(key[len(n):len(n) + 1])), "")
+
+
+def answer_binds(a, questions, materials) -> list:
+    """元 works/.shared/core/gatemarks.py:716 を受け付けの呼び方（answer_rows は空の列。字の一致だけ）で。依頼の答え a が当たる返答の
+    問い: question と key が字のまま等しい問い、無ければ出どころ（origin_of）が等しい問いの全部"""
+    qs = [q for q in questions if isinstance(q, dict)]
+    name = a.get("question")
+    by_key = [q for q in qs if isinstance(q.get("key"), str) and q.get("key") and q.get("key") == name]
+    return by_key or [q for q in qs if name and origin_of(q, materials) == name]
+
+
+def redesign_rows(jdir) -> list:
+    """元 works/.shared/core/gatemarks.py:774。依頼の prior_failures の写し（置き場の prior-failures-in.json）のうち、作り直しの行（無い・読めなければ空）"""
+    try:
+        rows = json.loads((pathlib.Path(jdir) / carry.PRIOR_IN_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [r for r in rows if carry.is_redesign(r)] if isinstance(rows, list) else []
+
+
+def answer_tie_problems(jdir, reply, rows, materials) -> list:
+    """元 works/.shared/core/gatemarks.py:824。判定の返答 reply（answer_ties を外した写し）と結びの行 rows の誤り（1 件 1 文）。
+    盤面から替えた物: 依頼の answers（request_answers）・作り直しの行（redesign_rows）・測れていない素材（unmeasured。materials は
+    置き場の素材の状態）・判定の後に機械が台帳へ立てる問いの key（ASK_KEYS の表。元 b.rules.ASK_KEYS）。行の 1 つの照らしは
+    gatemarks._tie_row_problems をそのまま使う"""
+    if not isinstance(rows, list):
+        return [f"{gatemarks.ANSWER_TIES} が配列でない（{type(rows).__name__}）"]
+    body = reply if isinstance(reply, dict) else {}
+    questions = [q for q in body.get("questions") or [] if isinstance(q, dict)]
+    units = {u.get("key"): u for u in body.get("units") or [] if isinstance(u, dict)}
+    answers = {a.get("question"): a for a in request_answers(jdir)}
+    redesign = {carry.row_key(r): r for r in redesign_rows(jdir)}
+    out, tied = [], set()
+    for i, r in enumerate(rows):
+        errs, got = gatemarks._tie_row_problems(i, r, answers, redesign, {q.get("key") for q in questions}, units)
+        out += errs
+        if got is not None and not errs:
+            if got in tied:
+                out.append(f"{gatemarks.ANSWER_TIES}[{i}] が同じ {got[0]} {got[1]!r} の 2 度目（1 つの答え・行に結びは 1 つ）")
+            tied.add(got)
+    later = set(ASK_KEYS.values())   # 判定の後に機械が台帳へ立てる問いの key
+    for name, a in answers.items():
+        if ("answer", name) in tied or name in later:
+            continue
+        hits = answer_binds(a, questions, materials)
+        if len(hits) == 1 or (not hits and name in unmeasured(materials)):
+            continue
+        out.append(f"依頼の答え {name!r} が" + (f"返答の複数の問いに当たる（{'・'.join(str(q.get('key')) for q in hits)}）" if hits
+                                             else "返答のどの問いにも当たらない")
+                   + f"のに結びが無い——{gatemarks.ANSWER_TIES} に {{answer: {name!r}, to: <今の返答の問いの key か単位の key>}} か "
+                   f"{{answer: {name!r}, none: <当たらない訳。{gatemarks.ANSWER_TIE_MIN} 字以上>}} を足す")
+    for key, r in redesign.items():
+        if ("redesign", key) not in tied:
+            out.append(f"作り直しの行 {gatemarks._squeeze(r.get('text'))!r} に結びが無い——{gatemarks.ANSWER_TIES} に {{redesign: <行の text の最初の「（」まで>, "
+                       f"to: <[block] か do-now の単位の key>}} か {{redesign, none: <反証で死んだか目的の外とした訳。{gatemarks.ANSWER_TIE_MIN} 字以上>}} を足す")
+    return out
+
+
+def take(jdir, reply, repo, base_rev: str = "", *, prev_deletions=None, prev_questions=(), defer_ledger=None) -> dict:
+    """元 works/blk-judge/lib/judgetake.py:74 の take と、受け付けの芯（元 entry.take の p2.diagnose の done と accept.check_judge）。
+    順（計画の節 9）: 作業ツリーと HEAD → 型 → class_query の例（querytest）→ 先例の出どころが世界の解の行に在る（worldmark）→
+    judge_output → 目的の外の所見の行を材料の行に当てる（outpurpose）→ 依頼の答えと作り直しの行の結び（answer_ties）。
+    例・目的の外の行・結びは型と judge_output の前に外す（写しの型はどの欄も持たない）。通れば例を query-examples.json に、
+    目的の外の行を当たった材料の行ごと out-of-purpose.json（周は 1）に、結びを answer-ties.json に置き、judge_output が整えた返答に
+    例と目的の外の行を戻して judgment.json に書く（元 judgetake.finish）。
+    返り {ok, reason, open_units, judgment_file}。拒否の時は judgment.json を書かない"""
+    def run():
+        if not isinstance(reply, dict):
+            raise Reject(f"判定の返答が JSON のオブジェクトでない（{type(reply).__name__}）")
+        body, outside = outpurpose.split(reply)
+        body, tie_rows = gatemarks.split_answer_ties(body)
+        out, examples, note = _judged(body, jdir, base_rev, repo, prev_deletions=prev_deletions,
+                                      prev_questions=prev_questions, defer_ledger=defer_ledger)
+        material = material_rows(jdir)
+        errs = outpurpose.problems(outside, material)
+        if errs:
+            raise Reject(f"{outpurpose.FIELD} の行が材料の行と合わない: " + "; ".join(errs))
+        errs = answer_tie_problems(jdir, out, tie_rows, _materials(jdir))
+        if errs:
+            raise Reject(f"{gatemarks.ANSWER_TIES} が依頼の答えと作り直しの行に結ばれていない: " + "; ".join(errs))
+        _save_examples(jdir, examples)
+        outpurpose.save(jdir, 1, outside, material)
+        gatemarks.save_answer_ties(jdir, 1, tie_rows)
+        doc = outpurpose.restore(querytest.restore(out, jdir), jdir, 1)
+        path = write_json(pathlib.Path(jdir) / JUDGMENT_FILE, doc)
+        return {"ok": True, "reason": note or "", "open_units": [u["key"] for u in out["units"] if is_open(u)],
+                "judgment_file": str(path)}
+    return core_accept.guard(run, open_units=[], judgment_file="")
+
+
+def accept(jdir, raw: str, repo, base_rev: str = "") -> dict:
+    """元 works/blk-judge/lib/judgetake.py:106。役の返答の字 raw を読んで take に通す（元 rolekit.accept_role の読み）。
+    返り {ok, reason, open_units, judgment_file}。done（3 回目の拒否で輪を抜ける旗）は呼び手が rolekit.with_done で足す"""
+    reply, why = rolekit.parse_reply(raw)
+    if reply is None:
+        return {"ok": False, "reason": why, "open_units": [], "judgment_file": ""}
+    return take(jdir, reply, repo, base_rev)
+
+
+def _give_up(jdir) -> dict:
+    """元 works/blk-judge/lib/judgetake.py:122。受け付けを通った判定が無いまま輪を抜けた: 最後の拒否の文で止めの控えを置き
+    （JUDGE_STOP。もう止めの控えが在れば write_stop は書かない）、ok false の出口"""
+    rows = rolekit.rejected(jdir, DIAGNOSE_ROLE)
+    if rows:
+        reason = f"{DIAGNOSE_NODE} の返答が {len(rows)} 回とも受け付けで拒まれた（最後の拒否: {' '.join(rows[-1].split())}）"
+    else:
+        reason = f"受け付けを通った判定が無いまま判定の輪を抜けた（{DIAGNOSE_NODE} の受け付けの拒否の控えも無い）"
+    write_stop(jdir, JUDGE_STOP, reason)
+    return {"ok": False, "open_units": [], "need_fix": False, "judgment_file": "", "one_shot": ""}
+
+
+def collect(jdir) -> dict:
+    """元 works/blk-judge/lib/judgetake.py:140。判定の出口。judgment.json から {ok, open_units, need_fix, judgment_file, one_shot}。
+    無ければ _give_up。形が崩れていれば Unreadable"""
+    path = pathlib.Path(jdir) / JUDGMENT_FILE
+    try:
+        judgment = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return _give_up(jdir)
+    except (OSError, ValueError) as e:
+        raise Unreadable(f"置き場の {JUDGMENT_FILE} が読めない（{path}: {type(e).__name__}: {e}）——受け付けを通った判定が無い") from None
+    units = judgment.get("units") if isinstance(judgment, dict) else None
+    one_shot = judgment.get("one_shot") if isinstance(judgment, dict) else None
+    if not isinstance(units, list) or not all(isinstance(u, dict) and "key" in u and "label" in u for u in units) \
+            or not isinstance(one_shot, str):
+        raise Unreadable(f"置き場の {JUDGMENT_FILE} の形が崩れている（units[].key・label と one_shot が要る）: {path}")
+    open_units = [u["key"] for u in units if is_open(u)]
+    return {"ok": True, "open_units": open_units, "need_fix": bool(open_units), "judgment_file": str(path),
+            "one_shot": one_shot}
+
+
+# ---------------------------------------------------------------- 単位の目録
+def _unit_file_paths(u: dict, repo) -> tuple:
+    """元 works/darkfactory/lib/line_edge.py:343。単位 1 つが名指すファイル（class_query.how.paths。無ければ key の頭の語）のうち、
+    対象の根からの相対で在るファイルのパスと、捨てたパス。how.paths は git の pathspec（ディレクトリ・glob・絶対パスも来る）で、
+    構造の目は根の中のファイルしか測らないので、ここで捨てて数を残す（黙って空の実測にしない）"""
+    how = (u.get("class_query") or {}).get("how") or {}
+    raw = [p for p in how.get("paths") or [] if isinstance(p, str) and p]
+    if not raw and isinstance(u.get("key"), str) and u["key"].split():
+        raw = [u["key"].split()[0]]
+    root = pathlib.Path(repo).resolve()
+    kept, dropped = [], []
+    for p in raw:
+        q = pathlib.PurePosixPath(p[2:] if p.startswith("./") else p)
+        ok = (not q.is_absolute() and ".." not in q.parts and not any(c in p for c in "*?[:")
+              and (root / q).is_file())
+        (kept if ok else dropped).append(str(q) if ok else p)
+    return list(dict.fromkeys(kept)), list(dict.fromkeys(dropped))
+
+
+def structure_units(judgment, repo) -> list:
+    """元 works/darkfactory/lib/line_edge.py:361。判定の開いた単位（is_open）を全部、構造の目の入力の形 {id, paths, summary} に写した
+    並び（判定の順）。summary は単位の reason だけ。元は paths が 1 本も残らない単位を写さなかったが、計画の決めで落とさない
+    （paths: [] で返す。構造の目に回すかは plan が決める）。元の書き出し（盤面の作業ファイル）と trace の行は持たない"""
+    rows = []
+    for u in (judgment.get("units") if isinstance(judgment, dict) else None) or []:
+        if not isinstance(u, dict) or not isinstance(u.get("key"), str) or not is_open(u):
+            continue
+        paths, _ = _unit_file_paths(u, repo)
+        reason = u.get("reason") if isinstance(u.get("reason"), str) else ""
+        rows.append({"id": u["key"], "paths": paths, "summary": reason})
+    return rows
+
+
+# ---------------------------------------------------------------- 判定の裏取り
+def verify_not_run(jdir, reason: str) -> pathlib.Path:
+    """裏取りを回さなかった時の judge-verify.json（元 blk-judge/schemas/judge-verify.schema.json の形の空: 単位の行は無く、相乗りは
+    確かめられなかった・訳は errors の 1 行。元の works は回さない周にファイルを置かず、読み手は無い時を空として読んだ。
+    このブロックは返る時に必ず置くので、読み手（planblk.verify_part）が「確かめられなかった（訳）」と読む形にした）。置いたパスを返す"""
+    return write_json(pathlib.Path(jdir) / jv.VERIFY_FILE,
+                      {"units": [], "synergy": {"state": jv.UNVERIFIED, "errors": [str(reason)]}})
+
+
+def _verify_off(jdir, reason: str) -> dict:
+    """支度の go 偽: 番号の控えを消し（元 judgeverify._clear）、回さなかった形の申し送りを置く"""
+    (pathlib.Path(jdir) / jv.PLAN_FILE).unlink(missing_ok=True)
+    verify_not_run(jdir, reason)
+    return {"go": False, "prompt_file": "", "reason": reason}
+
+
+def prep_on(jdir, judgment, repo, verify: bool = True) -> dict:
+    """元 works/blk-judge/lib/judgeverify.py:202。裏取りの支度。返り {go, prompt_file, reason}。verify（入口の機能の切り替え。
+    features_cut に judge_verify が在れば偽）が偽・止めの控えが在る・受けた判定が無い・開いた単位が MIN_UNITS 未満なら go 偽で、
+    回さなかった形の申し送りを置く。go なら単位ごとの下請けのファイル（verify/unit-<n>.md）・相乗りのファイル（verify/synergy.md）・
+    束ね役の指示書（verify/prompt.md）・番号の控え（PLAN_FILE）・作業ツリーの姿（verify/verify-tree.json）を書き、前の起動の答えを消し、
+    申し送りの初めの形（全部が UNVERIFIED）を置く。答えの置き場は置き場の verify/answers/（元は盤面の外の run ごとの置き場）"""
+    jdir = pathlib.Path(jdir)
+    units = jv.open_units(judgment)
+    if not verify:
+        return _verify_off(jdir, "判定の裏取りは機能の切り替えで切（始めの記録の features_cut に judge_verify）")
+    stop = read_stop(jdir)
+    if stop is not None:
+        return _verify_off(jdir, f"run が止まっている（{stop['stop_reason']}）")
+    if not isinstance(judgment, dict):
+        return _verify_off(jdir, "受け付けを通った判定が無い")
+    if len(units) < jv.MIN_UNITS:
+        return _verify_off(jdir, f"開いた単位が {len(units)} つ（{jv.MIN_UNITS} つ未満は相乗りが無く、裏取りを回さない）")
+    answers = jdir / VERIFY_ANSWERS_DIR
+    shutil.rmtree(answers, ignore_errors=True)   # 前の起動の答えを今の判定の答えに数えない
+    answers.mkdir(parents=True, exist_ok=True)
+    head = jv._head(judgment)
+    files = []
+    for n, u in enumerate(units, 1):
+        path = jdir / jv.BRIEF_DIR / f"unit-{n}.md"
+        body = "\n\n".join([head, jv.UNIT_HEAD.format(n=n),
+                            f"```json\n{json.dumps(jv._unit_row(u), ensure_ascii=False, indent=1)}\n```",
+                            jv.UNIT_ASK.format(n=n, answer=answers / jv.ANSWER_FILE.format(n=n),
+                                               schema=json.dumps(jv.unit_schema(), ensure_ascii=False))])
+        path.write_text(body + "\n", encoding="utf-8")
+        files.append(f"- 単位 {n}: {path}")
+    syn = jdir / jv.BRIEF_DIR / "synergy.md"
+    rows = "\n".join(f"- 単位 {n}: {json.dumps(jv._unit_row(u), ensure_ascii=False)}" for n, u in enumerate(units, 1))
+    syn.write_text("\n\n".join([head, jv.SYNERGY_HEAD, jv.ALL_UNITS_HEAD + rows,
+                                jv.SYNERGY_ASK.format(answer=answers / jv.SYNERGY_FILE,
+                                                      schema=json.dumps(jv.synergy_schema(), ensure_ascii=False))])
+                   + "\n", encoding="utf-8")
+    files.append(f"- 相乗り: {syn}")
+    prompt = jdir / jv.BRIEF_DIR / "prompt.md"
+    reply = {k: v for k, v in jv.output_format().items() if k != "description"}
+    prompt.write_text("\n\n".join([jv.AGG, "下請けのファイル:\n" + "\n".join(files),
+                                   f"{jv.AGG_REPLY}\n\n```json\n{json.dumps(reply, ensure_ascii=False)}\n```"]) + "\n", encoding="utf-8")
+    jv._write_json(jdir / VERIFY_TREE_FILE, core_accept.tree_state(pathlib.Path(repo)))
+    jv._write_json(jdir / jv.PLAN_FILE, {"units": [{"n": n, "key": u["key"]} for n, u in enumerate(units, 1)], "answers": str(answers)})
+    jv._write_json(jdir / jv.VERIFY_FILE, jv._initial(units))
+    return {"go": True, "prompt_file": str(prompt), "reason": ""}
+
+
+def _check_unit(answers, n: int, key: str) -> dict:
+    """元 works/blk-judge/lib/judgeverify.py:255。答えの置き場 answers の単位 n の答えを確かめた申し送りの行"""
+    got, errs = jv._load(pathlib.Path(answers) / jv.ANSWER_FILE.format(n=n), jv.unit_schema())
+    if got is not None:
+        if got["unit"] != n:
+            errs.append(f"$.unit: {n} でない（{got['unit']}）")
+        if got["verdict"] == "not_root" and len(str(got.get("real_root") or "").strip()) < 4:
+            errs.append("$.real_root: not_root なのに本当の根が書かれていない")
+    if errs:
+        return {"n": n, "key": key, "state": jv.UNVERIFIED, "errors": errs}
+    return {"n": n, "key": key, "state": jv.CHECKED, **{k: v for k, v in got.items() if k != "unit"}}
+
+
+def _check_synergy(answers, keys: dict) -> dict:
+    """元 works/blk-judge/lib/judgeverify.py:267。相乗りの答えを確かめ、番号を単位の key に戻した申し送りの欄"""
+    got, errs = jv._load(pathlib.Path(answers) / jv.SYNERGY_FILE, jv.synergy_schema())
+    if got is not None:
+        nums = [x for row in got["duplicates"] + got["relations"] for x in row["units"]]
+        nums += [x for row in got["order"] for x in (row["first"], row["then"])]
+        errs += [f"単位 {x} は無い（単位は 1〜{len(keys)}）" for x in sorted(set(nums)) if x not in keys]
+        errs += [f"$.duplicates・relations: 同じ単位だけを並べた行（{row['units']}）" for row in got["duplicates"] + got["relations"]
+                 if len(set(row["units"])) < 2]
+    if errs:
+        return {"state": jv.UNVERIFIED, "errors": errs}
+
+    def group(rows):
+        return [{"units": [keys[x] for x in dict.fromkeys(r["units"])], "why": r["why"],
+                 **({"place": r["place"]} if "place" in r else {})} for r in rows]
+    return {"state": jv.CHECKED, "why": got["why"], "duplicates": group(got["duplicates"]), "relations": group(got["relations"]),
+            "order": [{"first": keys[r["first"]], "then": keys[r["then"]], "why": r["why"]} for r in got["order"]]}
+
+
+def merge_on(jdir, repo) -> dict:
+    """元 works/blk-judge/lib/judgeverify.py:285。裏取りのまとめ。返り {ok, reason}。番号の控えが無ければ（支度が go 偽・支度が
+    走らなかった）回さなかった形の申し送りを置いて ok。在れば単位ごとに答えのファイルを確かめ（型・番号・not_root の本当の根）、
+    相乗りの番号を単位の key に戻して judge-verify.json に書く（単位は消さない）。束ね役か下請けが作業ツリーを変えていれば
+    止めの控え（VERIFY_STOP）を置いて ok 偽（元は盤面を止めた）"""
+    jdir = pathlib.Path(jdir)
+    plan = jv._read_json(jdir / jv.PLAN_FILE)
+    if not isinstance(plan, dict) or not isinstance(plan.get("units"), list):
+        if not (jdir / jv.VERIFY_FILE).is_file():
+            verify_not_run(jdir, "判定の裏取りの支度が走らなかった（番号の控えが無い）")
+        return {"ok": True, "reason": ""}
+    snap = jv._read_json(jdir / VERIFY_TREE_FILE)
+    moved = core_accept.tree_moved({k: snap[k] for k in core_accept.TREE_KEYS}, pathlib.Path(repo)) \
+        if isinstance(snap, dict) and all(k in snap for k in core_accept.TREE_KEYS) else ["作業ツリーの写しが読めない"]
+    answers = pathlib.Path(plan.get("answers") or jdir / VERIFY_ANSWERS_DIR)
+    keys = {r["n"]: r["key"] for r in plan["units"]}
+    rows = [_check_unit(answers, n, key) for n, key in keys.items()]
+    syn = _check_synergy(answers, keys)
+    jv._write_json(jdir / jv.VERIFY_FILE, {"units": rows, "synergy": syn})
+    if moved:
+        reason = "判定の裏取りの束ね役か下請けが作業ツリーを変えた（読むだけの役）: " + "・".join(moved)
+        write_stop(jdir, VERIFY_STOP, reason)
+        return {"ok": False, "reason": reason}
+    return {"ok": True, "reason": ""}
 # ================================================================ 依頼と判定（A）の終わり
 
 
