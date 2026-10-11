@@ -17,13 +17,11 @@ import os
 import sys
 from pathlib import Path
 
-sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
-sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
-
 NO_REVIEW = {"rounds": 0, "pass": False}
+CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
+                 "path_changed")
+ERROR_FILE = "fix-collect-error.txt"
+boundary = fixio = None   # 境の口と fixio。読めない時は fallback が stdlib だけで返す
 
 
 def rel(place: Path, name: str) -> str:
@@ -91,13 +89,28 @@ def group(fixboard, conflict) -> dict:
     return fields(fixboard, conflict, place, rows_groups, [g], extras, dict(NO_REVIEW), result is not None)
 
 
+def error_pointer(why: str) -> dict:
+    """理由を置き場の fix-collect-error.txt に書いた指し札（stdlib だけ。境の口と fixio を読めない時も置く）"""
+    try:
+        name = fixio.include_name()
+    except Exception:
+        name = "fix"
+    rel_path = f"fix/{name}/{ERROR_FILE}"
+    try:
+        target = Path(os.environ["ARTIFACTS_DIR"]) / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(why + "\n", encoding="utf-8")
+    except Exception:
+        pass
+    return {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel_path}
+
+
 def fallback(why: str) -> dict:
     """誤りの時の約束の形の返り（done: false と理由。ほかは空の値）"""
     groups_rows, units_rows = [], []
     try:
         import fixboard
-        place = fixio.place()
-        plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
+        plan = fixboard.read_json(fixio.place() / fixboard.GROUPS_FILE)
         gs = plan["groups"] if isinstance(plan, dict) and isinstance(plan.get("groups"), list) else []
         if not gs and os.environ.get("INPUTS_GROUP", "").strip():
             gs = [json.loads(os.environ["INPUTS_GROUP"])]
@@ -110,21 +123,19 @@ def fallback(why: str) -> dict:
         groups_rows, units_rows = [], []
     if not groups_rows:
         groups_rows = [{"group_id": "", "unit_ids": [], "returned": False, "reason": why}]
-    try:
-        place = fixio.place()
-        (place / "fix-collect-error.txt").write_text(why + "\n", encoding="utf-8")
-        diff = boundary.pointer(rel(place, "fix-collect-error.txt"))
-    except Exception:
-        diff = {"type": boundary.POINTER_TYPE, "run_id": os.environ.get("WORKFLOW_ID", ""),
-                "path": "fix/fix/fix-collect-error.txt"}
     return {"done": False, "units": units_rows, "groups": groups_rows, "conflicts": None, "replan_items": [],
-            "objection": "", "diff": diff, "allowed_test_changes": [],
-            "changed": {k: False for k in ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed",
-                                           "security_surface_changed", "path_changed")},
-            "delta_review": dict(NO_REVIEW)}
+            "objection": "", "diff": error_pointer(why), "allowed_test_changes": [],
+            "changed": {k: False for k in CHANGED_MARKS}, "delta_review": dict(NO_REVIEW)}
 
 
 def main() -> dict:
+    global boundary, fixio
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+    import boundary
+    sys.path.append(str(boundary.lib_root()))
+    import fixio
+
     import conflict
     import fixboard
     mode = os.environ.get("INPUTS_MODE", "")
@@ -136,12 +147,13 @@ def main() -> dict:
 if __name__ == "__main__":
     try:
         out = main()
-    except BaseException as e:   # 返す節は落ちない（線が先へ進めなくなる）
+    except BaseException as e:   # 返す節は落ちない（線が先へ進めなくなる）。境の口と lib を読む所の誤りも捕まえる
         why = f"fix の返りを組めない（{type(e).__name__}: {' '.join(str(e).split())[:500]}）"
         print(f"collect: {why}", file=sys.stderr)
         out = fallback(why)
-    try:
-        boundary.returns(out)
-    except Exception as e:
-        boundary.returns(fallback(f"fix の返りを書けない（{type(e).__name__}: {e}）"))
+    try:   # boundary.returns と同じ形（境の口を読めなかった時も返す）
+        text = json.dumps(out, ensure_ascii=False, allow_nan=False)
+    except ValueError as e:
+        text = json.dumps(fallback(f"fix の返りを書けない（{type(e).__name__}: {e}）"), ensure_ascii=False)
+    print(text, flush=True)
     sys.exit(0)

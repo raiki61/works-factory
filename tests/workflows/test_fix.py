@@ -743,6 +743,22 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertEqual((out["delta_review"], out["done"]), ({"rounds": 0, "pass": False}, False))
 
+    def test_collect_returns_the_contract_when_the_boundary_cannot_be_read(self):
+        """境の口（.shared）も lib も読めない写しから起こしても、返す節は落ちずに約束の形の done: false を返す（stdlib だけの最後の手）"""
+        lone = self.tmp / "lone" / "fix" / "scripts"
+        lone.mkdir(parents=True)
+        (lone / "collect.py").write_bytes((BLOCK / "scripts" / "collect.py").read_bytes())
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_", "WORKS_FACTORY_ROOT"))}
+        env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _BLK_RUN, "PYTHONDONTWRITEBYTECODE": "1"})
+        done = subprocess.run([sys.executable, str(lone / "collect.py")], cwd=self.repo, env=env, capture_output=True,
+                              text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        out = json.loads(done.stdout)
+        self.assert_contract(out)
+        self.assertFalse(out["done"])
+        self.assertEqual(out["diff"]["path"], "fix/fix/fix-collect-error.txt")
+        self.assertIn("boundary", (self.place / "fix-collect-error.txt").read_text(encoding="utf-8"))
+
     def test_collect_refused_change_is_not_done(self):
         self.collect_place(ok=False)
         code, out, err = _blk_run("collect", self.repo, self.art)
