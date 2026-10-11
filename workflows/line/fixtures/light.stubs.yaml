@@ -1,4 +1,4 @@
-# 全部の単位が軽量のまま。直した後の上げ直しの信号が無く、深さは軽量（R1〜R4 を省く値）のまま eyes と報告に渡る。
+# 全部の単位が軽量のまま。直した後の上げ直しの信号が無く、深さは軽量（R1〜R4 を省く値）のまま eyes に渡る。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}

@@ -1,4 +1,4 @@
-# 最後の関所で stop。merge-apply が飛び、止めの理由 human:gate-final が報告へ届く。
+# 最後の関所で stop。merge-apply が飛び、関所の答え stop が collect を通って report の gate-final に届く。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
