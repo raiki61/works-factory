@@ -1,0 +1,68 @@
+"""節 group-end（形 group の子の run の終わり）: 組の結果を out_dir/<group_id>/result.json に書く（fixboard.group_result）。
+
+読む物（どれも自分の置き場。無ければ空で読む）: group-start.json（始めの木）・tdd-start.json（TDD の輪の頭の返り。輪の結果は
+tddloop.exit_fields）・fix-units.json（修正の輪の単位ごとの結末 {unit_key: {status, reason}}）・fix-reply.json（最後に受け付けた
+修正役の返答。異議 rejudge_requested と 6 つの印）・allowed-tests.json（許したテストの変更のパス）・conflicts.json（申し出。
+conflict.items）。終わりの木は作業ツリーの今の姿（groups.end_tree）。
+TDD の輪が済まずに抜けた（回数の上限・落ちた）時は tdd を ran: false と理由にする。
+書く先: 入力 out_dir が在ればその下の <group_id>/result.json、空の単独の run は自分の置き場の groups/<group_id>/result.json。
+返り {result_file}。入力 group が読めない・git が効かない・置き場のファイルが壊れた: 標準エラーに 1 行で 1。
+"""
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
+sys.path.append(str(boundary.lib_root()))
+import fixio  # noqa: E402
+
+import conflict  # noqa: E402
+import fixboard  # noqa: E402
+import groups  # noqa: E402
+import tddloop  # noqa: E402
+
+TDD_START = "tdd-start.json"
+GROUP_START = "group-start.json"
+
+
+def tdd_exit(started) -> dict:
+    """TDD の輪の出口の欄（tddloop.exit_fields）。輪の頭の返りが無い・輪が済んでいなければ ran: false と理由"""
+    if not isinstance(started, dict):
+        return {"ran": False, "suite": "", "reason": f"置き場に {TDD_START} が無い（group-start が走らなかった）", "units": []}
+    try:
+        return tddloop.exit_fields(started)
+    except tddloop.Broken as e:
+        return {"ran": False, "suite": str(started.get("suite") or ""),
+                "reason": f"TDD の輪が済まずに抜けた（{' '.join(str(e).split())}）", "units": []}
+
+
+def main() -> dict:
+    group = json.loads(os.environ["INPUTS_GROUP"])
+    if not isinstance(group, dict) or not group.get("group_id"):
+        raise ValueError("入力 group に group_id が無い")
+    out_dir = os.environ.get("INPUTS_OUT_DIR", "").strip()
+    place = fixio.place()
+    repo = fixio.repo()
+    began = fixio.read_json(place / GROUP_START) or {}
+    reply_path = place / fixboard.FIX_REPLY_FILE
+    result = fixboard.group_result(
+        group, start_tree=str(began.get("start_tree") or fixboard.start_tree(place)), end_tree=groups.end_tree(repo),
+        tdd=tdd_exit(fixio.read_json(place / TDD_START)),
+        fix_units=fixio.read_json(place / fixboard.FIX_UNITS_FILE, {}), reply=fixio.read_json(reply_path),
+        reply_file=str(reply_path) if reply_path.is_file() else "",
+        allowed=fixio.read_json(place / fixboard.ALLOWED_TESTS_FILE, []) or [], conflicts=conflict.items(place))
+    target = Path(out_dir or place / "groups") / str(group["group_id"]) / fixboard.RESULT_FILE
+    fixio.write_json(target, result)
+    return {"result_file": str(target)}
+
+
+if __name__ == "__main__":
+    try:
+        out = main()
+    except Exception as e:
+        print(f"group-end: {type(e).__name__}: {' '.join(str(e).split())}", file=sys.stderr)
+        sys.exit(1)
+    boundary.returns(out)
