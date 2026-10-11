@@ -1,12 +1,11 @@
 """merge の返す節。seal は今の差分を封じて守りのパスの当たりを返し、apply は封じた hash を今の差分と照らして置く。
 
 差分は作業ツリー（節の cwd）と始めの記録の base_rev の間で green_cert.diff_bytes が組み、守りのパスの当たりもその差分から数える。
-書くのは run の置き場だけ。
+書く（消す）のは run の置き場だけ。apply は始めに前の merge/apply.diff を消し、置くと決めた時だけ書く（やり直しの apply が拒んでも古い物が残らない）。
 落ちない: どの誤りも終了の値 0 で ok: false と理由を返す（線は落ちた返す節の先へ進めない）。
 """
 import json
 import os
-import subprocess
 
 NO_VALUE = ("", "null")
 
@@ -30,21 +29,6 @@ def object_or_none(raw: str, name: str):
     return got
 
 
-def numstat(repo, data: bytes) -> dict:
-    """封じる差分のバイトそのものに載るファイルごとの (足した行, 消した行)。バイナリは (None, None)。
-    本物の index を通して数え直すと assume-unchanged・skip-worktree の印の付いたファイルが見えないので、差分から読む"""
-    done = subprocess.run(["git", "apply", "--numstat", "--whitespace=nowarn", "-z", "-"], input=data, cwd=repo,
-                          capture_output=True)
-    if done.returncode != 0:
-        raise ValueError(f"差分のファイルを数えられない: {done.stderr.decode('utf-8', 'replace').strip()[-300:]}")
-    out = {}
-    for rec in done.stdout.decode("utf-8", "replace").split("\0"):
-        if rec:
-            added, deleted, name = rec.split("\t", 2)
-            out[name] = (None, None) if added == "-" else (int(added), int(deleted))
-    return out
-
-
 def main() -> None:
     import sys
     from pathlib import Path
@@ -58,6 +42,8 @@ def main() -> None:
     mode = os.environ["INPUTS_MODE"]
     if mode not in ("seal", "apply"):
         raise ValueError(f"mode は seal か apply: {mode!r}")
+    if mode == "apply":
+        boundary.resolve(boundary.pointer("merge/apply.diff")).unlink(missing_ok=True)
     start = object_or_none(os.environ["INPUTS_START"], "start")
     if start is None:
         raise ValueError("start の指し札が無い")
@@ -73,7 +59,7 @@ def main() -> None:
         return
 
     try:
-        stats = numstat(repo, data)
+        stats = seal.diff_files(repo, data)
         protected = protect.lines([{**r, "added": stats[r["path"]][0], "deleted": stats[r["path"]][1]}
                                    for r in protect.hits(stats)])
     except (protect.Broken, ValueError) as e:

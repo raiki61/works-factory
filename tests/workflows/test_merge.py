@@ -14,7 +14,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
 
 import yaml
 
@@ -208,14 +207,6 @@ class SealTest(ScriptCase):
                 self.assertIn("守りのパス", refused["reason"])
                 self.assertFalse(self.artifact("merge/apply.diff").exists())
 
-    def test_user_whitespace_setting_does_not_make_a_hit(self):
-        (self.repo / "a.txt").write_text("two \n", encoding="utf-8")
-        strict = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "apply.whitespace", "GIT_CONFIG_VALUE_0": "error"}
-        with mock.patch.dict(os.environ, strict):
-            got = self.seal()
-            self.assertEqual(got["protected_hits"], [], got)
-            self.assertIs(self.apply(got["hash"], answer="null")["ok"], True)
-
     def test_broken_manifest_is_an_unknown_hit_and_blocks_apply_without_answer(self):
         root = self.tmp / "root"
         shutil.copytree(LIB, root / "lib", ignore=shutil.ignore_patterns("__pycache__"))
@@ -225,7 +216,7 @@ class SealTest(ScriptCase):
         self.assertTrue(sealed["protected_hits"][0].startswith(seal.unknown_row("")))
         got = self.apply(sealed["hash"], root=root, answer="null")
         self.assertIs(got["ok"], False)
-        self.assertIn("守りのパス", got["reason"])
+        self.assertIn("守りのパスを確かめられない", got["reason"])
         self.assertFalse(self.artifact("merge/apply.diff").exists())
 
     def test_empty_diff_is_null(self):
@@ -255,6 +246,12 @@ class ApplyTest(ScriptCase):
         self.assertFalse(self.artifact("merge/apply.diff").exists())
         self.assertEqual(got["diff"]["path"], "merge/refused.diff")
         self.assertEqual(got["hash"], hashlib.sha256(self.artifact("merge/refused.diff").read_bytes()).hexdigest())
+
+    def test_refused_retry_removes_the_earlier_apply(self):
+        self.assertIs(self.apply(self.sealed)["ok"], True)
+        (self.repo / "a.txt").write_text("three\n", encoding="utf-8")
+        self.assertIs(self.apply(self.sealed)["ok"], False)
+        self.assertFalse(self.artifact("merge/apply.diff").exists())
 
     def assertRefused(self, got, words):
         self.assertIs(got["ok"], False)

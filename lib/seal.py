@@ -1,17 +1,21 @@
-"""run の差分の封印と、封じた差分を置いてよいかの決まり。標準ライブラリと答えの語（answer.VERBS）だけ。
+"""run の差分の封印と、封じた差分を置いてよいかの決まり。標準ライブラリと答えの語（answer.VERBS）だけ（git は repo を cwd にして呼ぶ）。
 
 差分を組む・作業ツリーの指紋を取るのは green_cert（差分の組み方の 1 か所）で、ここは持たない。
 封じる型は ASF の merge-queue（gate の封印を execute が照らし直し、書いた後に読み戻す）に倣う。
 
 - SealError: 書けない・読み戻しが書いた物と違う
 - digest(data) -> str: sha256 の 16 進 64 字
-- write_readback(path, data) -> str: 書いて読み戻し、読み戻した物の digest を返す。違えば SealError（書けたと言わない）
+- write_readback(path, data) -> str: 隣の一時ファイルに書いて読み戻し、合えば path に付け替えて digest を返す。違えば SealError
+  （書けたと言わない・path は前のまま）
+- diff_files(repo, data) -> {path: (added, deleted)}: 差分のバイトに載るファイルごとの行数。読めなければ ValueError
 - seal_refusal(*, fingerprint, fingerprint_ok) -> str: 封じてよいかの理由（空なら封じてよい）
 - unknown_row(reason) -> str: 守りのパスを確かめられない時に、当たりとして数える 1 行
 - apply_refusal(*, ...) -> str: 置いてよいかの理由（空なら置く）。決まりは関数の doc
 """
 import hashlib
+import os
 import pathlib
+import subprocess
 
 from answer import VERBS
 
@@ -32,15 +36,35 @@ def digest(data: bytes) -> str:
 
 def write_readback(path, data: bytes) -> str:
     path = pathlib.Path(path)
+    tmp = path.with_name(path.name + ".tmp")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
-        back = path.read_bytes()
+        tmp.write_bytes(data)
+        back = tmp.read_bytes()
+        if digest(back) != digest(data):
+            raise SealError(f"{path} の読み戻しが書いた物と違う（書いた {digest(data)}・読んだ {digest(back)}）")
+        os.replace(tmp, path)
     except OSError as e:
         raise SealError(f"{path} に書けない（{e}）") from e
-    if digest(back) != digest(data):
-        raise SealError(f"{path} の読み戻しが書いた物と違う（書いた {digest(data)}・読んだ {digest(back)}）")
+    finally:
+        tmp.unlink(missing_ok=True)
     return digest(back)
+
+
+def diff_files(repo, data: bytes) -> dict:
+    """封じる差分のバイトそのものに載るファイルごとの (足した行, 消した行)。バイナリは (None, None)。
+    本物の index を通して数え直すと assume-unchanged・skip-worktree の印の付いたファイルが見えないので、差分から読む。
+    --whitespace=nowarn は利用者の apply.whitespace=error の設定で数える口が落ちないため"""
+    done = subprocess.run(["git", "apply", "--numstat", "--whitespace=nowarn", "-z", "-"], input=data, cwd=repo,
+                          capture_output=True)
+    if done.returncode != 0:
+        raise ValueError(f"差分のファイルを数えられない: {done.stderr.decode('utf-8', 'replace').strip()[-300:]}")
+    out = {}
+    for rec in done.stdout.decode("utf-8", "replace").split("\0"):
+        if rec:
+            added, deleted, name = rec.split("\t", 2)
+            out[name] = (None, None) if added == "-" else (int(added), int(deleted))
+    return out
 
 
 def seal_refusal(*, fingerprint, fingerprint_ok) -> str:
@@ -76,7 +100,7 @@ def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, f
     3. 答え answer（{decision, text}）が在り、decision が PASS のどれでもない（止め札もここ）
     4. r2（None か {status, reason}）の status が REDESIGN。人の通しの答えでも拒む（R2 が作り直しと言った run は部分を取り込まない）
     5. 答えが無い（関所が開かなかった）のに、green_ok・eyes_ok・fingerprint_ok のどれかが真でないか、protected（守りの当たりの行。
-       unknown_row の行も当たり）が空でない。守りのパスは人の通しの答えだけが通す
+       unknown_row の行は「確かめられない」として書き分けるが、当たりと同じく拒む）が空でない。守りのパスは人の通しの答えだけが通す
     答えが PASS なら、赤でも・R2 の作り直しのほかの目の阻害でも置く"""
     if not sealed_hash:
         return "封じた hash が無い（seal が走っていない）"
@@ -91,8 +115,11 @@ def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, f
     if answer is None:
         unchecked = [word for word, fact in (("緑でない", green_ok), ("目が通していない", eyes_ok),
                                              ("緑の認証の指紋が今の木と違う", fingerprint_ok)) if fact is not True]
-        if protected:
-            unchecked.append(f"守りのパスに当たった（{len(protected)} 行）")
+        unknown = [row for row in protected if row.startswith(UNKNOWN_HEAD)]
+        if len(unknown) < len(protected):
+            unchecked.append(f"守りのパスに当たった（{len(protected) - len(unknown)} 行）")
+        if unknown:
+            unchecked.append("守りのパスを確かめられない")
         if unchecked:
             return f"人の通しの答えが無いのに {'・'.join(unchecked)}"
     return ""
