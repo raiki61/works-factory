@@ -126,6 +126,33 @@ class PlaceTest(unittest.TestCase):
         asf_dir = place.asf_tree(moved, self.cache, self.fake_fetch({"new.yaml": b"new"}))
         self.assertEqual(files(asf_dir), {"new.yaml": b"new"})
 
+    def test_asf_refetches_when_repo_changes(self):
+        place.asf_tree(self.pack, self.cache, self.fake_fetch({"old.yaml": b"old"}))
+        forked = copy.deepcopy(self.pack)
+        forked["asf"]["repo"] = "someone/fork"
+        asf_dir = place.asf_tree(forked, self.cache, self.fake_fetch({"new.yaml": b"new"}))
+        self.assertEqual(files(asf_dir), {"new.yaml": b"new"})
+
+    def test_asf_refetches_when_record_missing_or_broken(self):
+        record = self.cache / "asf" / f"{self.pack['asf']['commit']}.json"
+        damages = {"missing": record.unlink, "broken": lambda: record.write_text("{", encoding="utf-8")}
+        for name, damage in damages.items():
+            with self.subTest(record=name):
+                place.asf_tree(self.pack, self.cache, self.fake_fetch({"old.yaml": b"old"}))
+                damage()
+                asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"new.yaml": b"new"}))
+                self.assertEqual(files(asf_dir), {"new.yaml": b"new"})
+
+    def test_asf_record_write_failure_does_not_vouch_for_new_tree(self):
+        place.asf_tree(self.pack, self.cache, self.fake_fetch({"old.yaml": b"old"}))
+        moved = copy.deepcopy(self.pack)
+        moved["asf"]["folder"] = ".archon/workflows/other"
+        with mock.patch.object(pathlib.Path, "write_text", side_effect=OSError("disk full")), \
+                self.assertRaisesRegex(OSError, "disk full"):
+            place.asf_tree(moved, self.cache, self.fake_fetch({"moved.yaml": b"moved"}))
+        asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"old.yaml": b"old"}))
+        self.assertEqual(files(asf_dir), {"old.yaml": b"old"})
+
     def test_place_is_byte_identical(self):
         asf_dir = place.asf_tree(self.pack, self.cache, self.fake_fetch({"archon-a.yaml": b"a"}))
         place.place(self.pack, self.root, self.home, asf_dir)
