@@ -4,15 +4,34 @@
 test_judge_verify・test_structure_units・test_accept の TestJudge・TestIntake）が盤面の上で確かめていた場面を、値を渡す形に写した。
 各試験の docstring に元の試験の名を書く。
 """
+import copy
+import hashlib
+import json
+import os
 import pathlib
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import accept as core_accept  # noqa: E402
+import carry  # noqa: E402
+import diverted  # noqa: E402
 import judge_accept as ja  # noqa: E402
+import judgeverify as jv  # noqa: E402
+import rolekit  # noqa: E402
+import specblk  # noqa: E402
+import stopby  # noqa: E402
+import webget  # noqa: E402
+import worldblk  # noqa: E402
+import worldmark  # noqa: E402
+from engine.util import Reject  # noqa: E402
+from tests.bin import gitkit  # noqa: E402
 
 
 class TablesCase(unittest.TestCase):
@@ -24,16 +43,8 @@ class TablesCase(unittest.TestCase):
         self.assertFalse(ja.is_open({"label": "nit"}))
 
 
-# ================================================================ 依頼と判定（A）
-# （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
-import copy as _a_copy  # noqa: E402
-import json as _a_json  # noqa: E402
-import tempfile as _a_tempfile  # noqa: E402
+# ================================================================ 依頼と判定
 
-import accept as _a_accept  # noqa: E402
-import judgeverify as _a_jv  # noqa: E402
-from engine.util import Reject as _ARject  # noqa: E402
-from tests.bin.gitkit import committed_copy as _a_committed_copy, git as _a_git  # noqa: E402
 
 _A_SEED = LIB.parent / "tests" / "e2e" / "target-seed"
 _A_MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
@@ -72,14 +83,14 @@ class _AJudgeBase(unittest.TestCase):
     request.json と start.json を置いた後の姿）"""
 
     def setUp(self):
-        self._tmp = _a_tempfile.TemporaryDirectory()
+        self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         tmp = pathlib.Path(self._tmp.name)
         self.repo = tmp / "repo"
-        self.base = _a_committed_copy(self.repo, _A_SEED)
+        self.base = gitkit.committed_copy(self.repo, _A_SEED)
         self.jdir = tmp / "art" / "judge"
         self.jdir.mkdir(parents=True)
-        ja.write_json(self.jdir / ja.TREE_FILE, _a_accept.tree_state(self.repo))
+        ja.write_json(self.jdir / ja.TREE_FILE, core_accept.tree_state(self.repo))
         ja.write_json(self.jdir / ja.REQUEST_FILE, _A_REQUEST)
         ja.write_json(self.jdir / ja.START_FILE, ja.start_view({}))
 
@@ -87,7 +98,7 @@ class _AJudgeBase(unittest.TestCase):
         return ja.take(self.jdir, reply, self.repo, **kw)
 
     def judgment(self):
-        return _a_json.loads((self.jdir / ja.JUDGMENT_FILE).read_text(encoding="utf-8"))
+        return json.loads((self.jdir / ja.JUDGMENT_FILE).read_text(encoding="utf-8"))
 
 
 class RequestCase(unittest.TestCase):
@@ -98,7 +109,7 @@ class RequestCase(unittest.TestCase):
 
     def test_unknown_key_is_rejected(self):
         """元 test_accept.TestIntake.test_intake_rejects_unknown_key"""
-        rows = _a_copy.deepcopy(_A_REQUEST)
+        rows = copy.deepcopy(_A_REQUEST)
         rows[0]["severity"] = "high"
         got = ja.check_request(rows, "持ち主")
         self.assertIs(got["ok"], False)
@@ -115,10 +126,10 @@ class RequestCase(unittest.TestCase):
         """元 test_blk_spec の頭の注（写しの rules の check_inputs が flow=spec・gates=merge 以外を init で拒む）"""
         ja.check_inputs({})
         ja.check_inputs({"flow": "spec", "gates": "merge"})
-        with self.assertRaises(_ARject) as cm:
+        with self.assertRaises(Reject) as cm:
             ja.check_inputs({"gate": "merge"})
         self.assertIn("gates", str(cm.exception))
-        with self.assertRaises(_ARject) as cm:
+        with self.assertRaises(Reject) as cm:
             ja.check_inputs({"gates": "all"})
         self.assertIn("知らない値", str(cm.exception))
 
@@ -174,7 +185,7 @@ class JudgeTakeCase(_AJudgeBase):
         got = self.take(reply)
         self.assertIs(got["ok"], True, got["reason"])
         self.assertEqual(self.judgment()["units"][0]["class_query"]["misses"], cq["misses"], "例は judgment に戻る")
-        saved = _a_json.loads((self.jdir / "query-examples.json").read_text(encoding="utf-8"))
+        saved = json.loads((self.jdir / "query-examples.json").read_text(encoding="utf-8"))
         self.assertEqual(saved[_A_MEAN], {"hits": cq["hits"], "misses": cq["misses"]})
 
     def test_precedent_source_not_in_world_rows_is_rejected(self):
@@ -209,8 +220,8 @@ class JudgeTakeCase(_AJudgeBase):
     def test_judge_that_moved_head_is_rejected(self):
         """元 test_blk_judge.ScriptCase.test_accept_rejects_commit_after_intake"""
         (self.repo / "extra.txt").write_text("x\n", encoding="utf-8")
-        _a_git(self.repo, "add", "extra.txt")
-        _a_git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "役が commit した")
+        gitkit.git(self.repo, "add", "extra.txt")
+        gitkit.git(self.repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "役が commit した")
         got = self.take(_a_judge_ok())
         self.assertIs(got["ok"], False)
         self.assertIn("作業ツリー", got["reason"])
@@ -266,7 +277,7 @@ class JudgeTakeCase(_AJudgeBase):
         got = self.take(reply)
         self.assertIs(got["ok"], True, got["reason"])
         self.assertEqual(self.judgment()["out_of_purpose"], reply["out_of_purpose"])
-        saved = _a_json.loads((self.jdir / "out-of-purpose.json").read_text(encoding="utf-8"))
+        saved = json.loads((self.jdir / "out-of-purpose.json").read_text(encoding="utf-8"))
         self.assertEqual(saved["rounds"]["1"][0]["found"][0]["from"], "p1.hygiene")
 
     def test_material_rows_read_material_files_and_request(self):
@@ -291,7 +302,7 @@ class JudgeTakeCase(_AJudgeBase):
         reply["answer_ties"] = [{"answer": "どれを採るか", "to": _A_MEAN}]
         got = self.take(reply)
         self.assertIs(got["ok"], True, got["reason"])
-        saved = _a_json.loads((self.jdir / "answer-ties.json").read_text(encoding="utf-8"))
+        saved = json.loads((self.jdir / "answer-ties.json").read_text(encoding="utf-8"))
         self.assertEqual(saved["rounds"]["1"], reply["answer_ties"])
 
     def test_carried_r1_tells_to_copy_the_where(self):
@@ -333,7 +344,7 @@ class JudgeAcceptCase(_AJudgeBase):
         bad = ja.accept(self.jdir, "{not json", self.repo)
         self.assertIs(bad["ok"], False)
         self.assertIn("JSON", bad["reason"])
-        got = ja.accept(self.jdir, _a_json.dumps(_a_judge_ok(), ensure_ascii=False), self.repo)
+        got = ja.accept(self.jdir, json.dumps(_a_judge_ok(), ensure_ascii=False), self.repo)
         self.assertIs(got["ok"], True, got["reason"])
         out = ja.collect(self.jdir)
         self.assertEqual((out["ok"], out["need_fix"], sorted(out["open_units"])), (True, True, sorted([_A_MEAN, _A_CLAMP])))
@@ -341,7 +352,6 @@ class JudgeAcceptCase(_AJudgeBase):
 
     def test_collect_without_judgment_gives_up_with_last_reject(self):
         """元 test_line_a の test_judge_gives_up_without_failing_the_run（3 回とも拒めば最後の拒否の文で止める）"""
-        import rolekit
         for _ in range(3):
             rolekit.with_done(self.jdir, ja.DIAGNOSE_ROLE, {"ok": False, "reason": "kind が不正"})
         out = ja.collect(self.jdir)
@@ -358,27 +368,27 @@ class _AVerifyBase(_AJudgeBase):
         return doc
 
     def answer(self, n, key, verdict="root", **extra):
-        p = self.jdir / ja.VERIFY_ANSWERS_DIR / _a_jv.ANSWER_FILE.format(n=n)
+        p = self.jdir / ja.VERIFY_ANSWERS_DIR / jv.ANSWER_FILE.format(n=n)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(_a_json.dumps({"unit": n, "verdict": verdict, "evidence_found": True,
+        p.write_text(json.dumps({"unit": n, "verdict": verdict, "evidence_found": True,
                                     "evidence": f"stats.py:9 を読んだ。{key} の式が在る", "location_ok": True,
                                     "location": "stats.py:9", "why": "式を直せば期待どおりの値", **extra},
                                    ensure_ascii=False), encoding="utf-8")
 
     def synergy(self, body):
-        p = self.jdir / ja.VERIFY_ANSWERS_DIR / _a_jv.SYNERGY_FILE
+        p = self.jdir / ja.VERIFY_ANSWERS_DIR / jv.SYNERGY_FILE
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(_a_json.dumps(body, ensure_ascii=False), encoding="utf-8")
+        p.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
 
     def notes(self):
-        return _a_json.loads((self.jdir / _a_jv.VERIFY_FILE).read_text(encoding="utf-8"))
+        return json.loads((self.jdir / jv.VERIFY_FILE).read_text(encoding="utf-8"))
 
 
 class VerifyPrepCase(_AVerifyBase):
     def test_places_are_under_the_brief_dir(self):
         """置き場の名が judgeverify の BRIEF_DIR・TREE_FILE と合う（judgeverify から先に読んでも読み込める）"""
-        self.assertEqual(ja.VERIFY_ANSWERS_DIR, f"{_a_jv.BRIEF_DIR}/answers")
-        self.assertEqual(ja.VERIFY_TREE_FILE, f"{_a_jv.BRIEF_DIR}/{_a_jv.TREE_FILE}")
+        self.assertEqual(ja.VERIFY_ANSWERS_DIR, f"{jv.BRIEF_DIR}/answers")
+        self.assertEqual(ja.VERIFY_TREE_FILE, f"{jv.BRIEF_DIR}/{jv.TREE_FILE}")
 
     def test_one_open_unit_or_off_does_not_go_and_writes_not_run(self):
         """元 test_judge_verify.PrepCase.test_no_judgment_or_one_open_unit_does_not_go・test_verify_off_does_not_go_and_clears"""
@@ -387,7 +397,7 @@ class VerifyPrepCase(_AVerifyBase):
         self.assertEqual((got["go"], got["prompt_file"]), (False, ""))
         self.assertTrue(got["reason"])
         self.assertEqual(self.notes()["units"], [])
-        self.assertEqual(self.notes()["synergy"]["state"], _a_jv.UNVERIFIED)
+        self.assertEqual(self.notes()["synergy"]["state"], jv.UNVERIFIED)
         two = self.judged(_a_unit(_A_MEAN, ["x"], "defects", 1), _a_unit(_A_CLAMP, ["x"], "defects", 1))
         got = ja.prep_on(self.jdir, two, self.repo, False)
         self.assertIs(got["go"], False)
@@ -401,16 +411,16 @@ class VerifyPrepCase(_AVerifyBase):
         got = ja.prep_on(self.jdir, doc, self.repo, True)
         self.assertIs(got["go"], True)
         prompt = pathlib.Path(got["prompt_file"])
-        self.assertTrue(str(prompt).startswith(str(self.jdir / _a_jv.BRIEF_DIR)))
+        self.assertTrue(str(prompt).startswith(str(self.jdir / jv.BRIEF_DIR)))
         names = sorted(p.name for p in prompt.parent.glob("*.md"))
         self.assertEqual(names, ["prompt.md", "synergy.md", "unit-1.md", "unit-2.md"])
         one = (prompt.parent / "unit-1.md").read_text(encoding="utf-8")
         self.assertIn(_A_MEAN, one)
         self.assertNotIn(_A_CLAMP, one)
-        self.assertEqual(pathlib.Path(_a_jv.answer_in(one)), self.jdir / ja.VERIFY_ANSWERS_DIR / "unit-1.json")
-        self.assertIn(_a_jv.SUBAGENT_TYPE, prompt.read_text(encoding="utf-8"))
+        self.assertEqual(pathlib.Path(jv.answer_in(one)), self.jdir / ja.VERIFY_ANSWERS_DIR / "unit-1.json")
+        self.assertIn(jv.SUBAGENT_TYPE, prompt.read_text(encoding="utf-8"))
         self.assertEqual([(u["key"], u["state"]) for u in self.notes()["units"]],
-                         [(_A_MEAN, _a_jv.UNVERIFIED), (_A_CLAMP, _a_jv.UNVERIFIED)])
+                         [(_A_MEAN, jv.UNVERIFIED), (_A_CLAMP, jv.UNVERIFIED)])
 
 
 class VerifyMergeCase(_AVerifyBase):
@@ -428,7 +438,7 @@ class VerifyMergeCase(_AVerifyBase):
         self.assertEqual(ja.merge_on(self.jdir, self.repo), {"ok": True, "reason": ""})
         doc = self.notes()
         self.assertEqual([(u["key"], u["state"], u["verdict"]) for u in doc["units"]],
-                         [(_A_MEAN, _a_jv.CHECKED, "root"), (_A_CLAMP, _a_jv.CHECKED, "not_root")])
+                         [(_A_MEAN, jv.CHECKED, "root"), (_A_CLAMP, jv.CHECKED, "not_root")])
         self.assertEqual(doc["synergy"]["duplicates"], [{"units": [_A_MEAN, _A_CLAMP], "why": "同じ根の別の現れ"}])
         self.assertIsNone(ja.read_stop(self.jdir))
 
@@ -441,7 +451,7 @@ class VerifyMergeCase(_AVerifyBase):
         self.assertEqual([u["key"] for u in doc["units"]], [_A_MEAN, _A_CLAMP], "単位は消さない")
         self.assertTrue(any("答えのファイルが無い" in e for e in doc["units"][0]["errors"]))
         self.assertTrue(any("real_root" in e for e in doc["units"][1]["errors"]))
-        self.assertEqual(doc["synergy"]["state"], _a_jv.UNVERIFIED)
+        self.assertEqual(doc["synergy"]["state"], jv.UNVERIFIED)
 
     def test_tree_moved_writes_verify_stop(self):
         """元 test_judge_verify.MergeCase.test_tree_moved_stops_board"""
@@ -456,19 +466,19 @@ class VerifyMergeCase(_AVerifyBase):
 
     def test_merge_without_prep_record_writes_not_run(self):
         """元 test_judge_verify.MergeCase.test_merge_without_prep_record_is_empty"""
-        (self.jdir / _a_jv.PLAN_FILE).unlink()
-        (self.jdir / _a_jv.VERIFY_FILE).unlink()
+        (self.jdir / jv.PLAN_FILE).unlink()
+        (self.jdir / jv.VERIFY_FILE).unlink()
         got = ja.merge_on(self.jdir, self.repo)
         self.assertIs(got["ok"], True)
         self.assertEqual(self.notes()["units"], [])
         p = ja.verify_not_run(self.jdir, "判定の輪が諦めた")
-        self.assertEqual(_a_json.loads(p.read_text(encoding="utf-8")),
-                         {"units": [], "synergy": {"state": _a_jv.UNVERIFIED, "errors": ["判定の輪が諦めた"]}})
+        self.assertEqual(json.loads(p.read_text(encoding="utf-8")),
+                         {"units": [], "synergy": {"state": jv.UNVERIFIED, "errors": ["判定の輪が諦めた"]}})
 
 
 class StructureUnitsCase(unittest.TestCase):
     def setUp(self):
-        self._tmp = _a_tempfile.TemporaryDirectory()
+        self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.repo = pathlib.Path(self._tmp.name)
         (self.repo / "src").mkdir()
@@ -504,36 +514,26 @@ class StructureUnitsCase(unittest.TestCase):
                          [{"id": "b.py 一", "paths": ["b.py"], "summary": "r"},
                           {"id": "上限を呼び手ごとに持つ", "paths": [], "summary": "r"}])
         self.assertEqual(ja.structure_units(None, self.repo), [])
-# ================================================================ 依頼と判定（A）の終わり
 
 
-# ================================================================ 材料・前提・目的・素材（B）
-# （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
-# ---------------------------------------------------------------- 試験の助け（B）
-import json as _bjson  # noqa: E402
-import os as _bos  # noqa: E402
-import subprocess as _bsub  # noqa: E402
-import tempfile as _btemp  # noqa: E402
+# ================================================================ 材料・前提・目的・素材
+# ---------------------------------------------------------------- 試験の助け
 
-import accept as _bacc  # noqa: E402
-import carry as _bcarry  # noqa: E402
-import diverted as _bdiv  # noqa: E402
-import worldmark as _bworld  # noqa: E402
 
 _BENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid", "GIT_COMMITTER_NAME": "t",
-         "GIT_COMMITTER_EMAIL": "t@example.invalid", "GIT_CONFIG_GLOBAL": _bos.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+         "GIT_COMMITTER_EMAIL": "t@example.invalid", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
 
 
 def _bgit(repo, *args):
-    return _bsub.run(["git", *args], cwd=str(repo), check=True, capture_output=True, text=True,
-                     env={**_bos.environ, **_BENV}).stdout
+    return subprocess.run(["git", *args], cwd=str(repo), check=True, capture_output=True, text=True,
+                     env={**os.environ, **_BENV}).stdout
 
 
 class _BCase(unittest.TestCase):
     """対象のリポジトリ（commit 1 つ）と run の置き場 judge/ を一時の場所に組む"""
 
     def setUp(self):
-        td = _btemp.TemporaryDirectory()
+        td = tempfile.TemporaryDirectory()
         self.addCleanup(td.cleanup)
         self.tmp = pathlib.Path(td.name)
         self.repo = self.tmp / "repo"
@@ -548,7 +548,7 @@ class _BCase(unittest.TestCase):
         self.jdir.mkdir(parents=True)
 
     def snap_tree(self):
-        ja.write_json(self.jdir / ja.TREE_FILE, _bacc.tree_state(self.repo))
+        ja.write_json(self.jdir / ja.TREE_FILE, core_accept.tree_state(self.repo))
 
     def start(self, **over):
         doc = {"base_rev": self.head, "input": {"base": {"rev": self.head}, "diff": {"empty": False}, "requests": 1}}
@@ -656,20 +656,20 @@ class PurposeCase(_BCase):
     def test_purpose_material_has_no_prior_failures(self):
         """元 test_blk_purpose.test_purpose_never_sees_prior_failures（目的の役に前の run の判断を見せない。carry.without_prior）"""
         req = self.repo / "request.json"
-        req.write_text(_bjson.dumps({"findings": [{"where": "app.txt:1", "text": "数え違い"}],
+        req.write_text(json.dumps({"findings": [{"where": "app.txt:1", "text": "数え違い"}],
                                      "prior_failures": [{"where": "受け付け", "text": "前の run で拒まれた行の印XYZ"}]},
                                     ensure_ascii=False), encoding="utf-8")
         ja.write_json(self.jdir / "premises.json", {"constraints": [{"text": "制約の印ABC", "measured_how": "m", "kind": "仮説"}]})
         start = self.start(request_file="request.json", input={"pr": {"number": 7, "title": "題", "body": "本文"}})
         got = ja.purpose_prep(self.jdir, self.repo, start)
         self.assertTrue(got["go"], got)
-        copy = ja.read_json(self.jdir / "purpose-request.json")
-        self.assertNotIn("prior_failures", copy)
-        self.assertEqual(copy["findings"][0]["where"], "app.txt:1")
+        request = ja.read_json(self.jdir / "purpose-request.json")
+        self.assertNotIn("prior_failures", request)
+        self.assertEqual(request["findings"][0]["where"], "app.txt:1")
         text = pathlib.Path(got["brief_file"]).read_text(encoding="utf-8")
         self.assertNotIn("印XYZ", text)
-        self.assertNotIn(_bcarry.PRIOR_HEAD, text)
-        self.assertNotIn(_bcarry.REDESIGN_HEAD, text)
+        self.assertNotIn(carry.PRIOR_HEAD, text)
+        self.assertNotIn(carry.REDESIGN_HEAD, text)
         self.assertIn("制約の印ABC", text)
         self.assertIn("app.txt:1", text)
         self.assertIn("本文", text, "PR の説明は目的の出典①")
@@ -812,8 +812,8 @@ class MaterialCase(_BCase):
         got = ja.material_take(self.jdir, "local-review", reply, self.repo)
         self.assertTrue(got["ok"], got)
         doc = ja.read_json(self.jdir / "material-local-review.json")
-        self.assertTrue(doc["reply"]["findings"][0]["failed"].startswith(_bdiv.UNSEEN_TAG))
-        self.assertEqual(ja.read_json(self.jdir / _bdiv.LENS_FILE)["unseen"], ["/code-review"])
+        self.assertTrue(doc["reply"]["findings"][0]["failed"].startswith(diverted.UNSEEN_TAG))
+        self.assertEqual(ja.read_json(self.jdir / diverted.LENS_FILE)["unseen"], ["/code-review"])
 
     def test_materials_mark_not_run_and_given_up(self):
         """元 test_blk_material.test_collect_names_every_waiting_node と写しの rules の fill_materials"""
@@ -856,12 +856,12 @@ class BriefCase(_BCase):
         self.snap_tree()
         (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
         req = self.repo / "request.json"
-        req.write_text(_bjson.dumps([{"where": "app.txt:2", "text": "依頼の本文"}], ensure_ascii=False), encoding="utf-8")
+        req.write_text(json.dumps([{"where": "app.txt:2", "text": "依頼の本文"}], ensure_ascii=False), encoding="utf-8")
         row = {"finding": 1, "where": "app.txt:2", "class_id": "w1", "problem": "問題", "activity": "作業", "practice": "定石",
                "sources": [], "applies": "", "not_applies": "", "basis": "knowledge",
                "versus": {"proposed": "", "verdict": "none", "challenge": ""}}
-        (self.jdir / "world.jsonl").write_text(_bjson.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
-        _bworld.write(self.jdir, status="ok", reason="", world_file=str(self.jdir / "world.jsonl"), classes=[], dropped=[])
+        (self.jdir / "world.jsonl").write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+        worldmark.write(self.jdir, status="ok", reason="", world_file=str(self.jdir / "world.jsonl"), classes=[], dropped=[])
         ja.write_json(self.jdir / ja.REQUEST_FILE, [{"where": "app.txt:2", "text": "依頼の本文"}])
         ja.write_json(self.jdir / "purpose.json", {"purpose_text": "凍った目的の印", "source": "①PR 説明",
                                                    "known_weaknesses": [], "source_files": []})
@@ -871,11 +871,11 @@ class BriefCase(_BCase):
                            input={"base": {"rev": self.head}, "pr": {"number": 9, "title": "PR の題", "body": "PR の本文"}})
         ja.write_json(self.jdir / ja.START_FILE, start)
         ja.material_route(self.jdir, self.repo)
-        prior = [{"where": "受け付け", "text": "前の拒否"}, {"where": _bcarry.REDESIGN_WHERE, "text": "作り直し"}]
+        prior = [{"where": "受け付け", "text": "前の拒否"}, {"where": carry.REDESIGN_WHERE, "text": "作り直し"}]
         path = ja.brief(self.jdir, self.repo, start, str(self.tmp / "REVIEW.md"), "", prior)
         text = pathlib.Path(path).read_text(encoding="utf-8")
-        heads = [ja.BRIEF_HEAD, _bworld.HEAD, "## 入力", ja.LEDGER_HEAD.strip(), ja.REQUEST_HEAD, ja.ANSWERS_HEAD,
-                 _bcarry.PRIOR_HEAD, _bcarry.REDESIGN_HEAD]
+        heads = [ja.BRIEF_HEAD, worldmark.HEAD, "## 入力", ja.LEDGER_HEAD.strip(), ja.REQUEST_HEAD, ja.ANSWERS_HEAD,
+                 carry.PRIOR_HEAD, carry.REDESIGN_HEAD]
         at = [text.find(h) for h in heads]
         self.assertNotIn(-1, at, list(zip(heads, at)))
         self.assertEqual(at, sorted(at), "節の並び")
@@ -906,21 +906,10 @@ class BriefCase(_BCase):
         got = ja.diagnose_prep(self.jdir, self.repo, self.start(), "", [], "", "")
         self.assertFalse(got["go"])
         self.assertIn("前で止めた", got["reason"])
-# ================================================================ 材料・前提・目的・素材（B）の終わり
 
 
-# ================================================================ 再審と仕様（C）
-# （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
-import hashlib as _c_hashlib  # noqa: E402
-import json as _c_json  # noqa: E402
-import shutil as _c_shutil  # noqa: E402
-import tempfile as _c_tempfile  # noqa: E402
+# ================================================================ 再審と仕様
 
-from engine.util import Reject as _CReject  # noqa: E402
-import rolekit as _c_rolekit  # noqa: E402
-import specblk as _c_specblk  # noqa: E402
-import stopby as _c_stopby  # noqa: E402
-from tests.bin import gitkit as _c_gitkit  # noqa: E402
 
 # 元 works/tests/test_blk_spec.py の ACCEPT_TEST・write_reply・review_reply・revise_reply の写し（走らせるのは exit 1 の字面）
 _C_ACCEPT_TEST = ("def test_mean_is_middle():\n"
@@ -958,14 +947,14 @@ class _CCase(unittest.TestCase):
     """使い捨ての対象のリポジトリ（git。1 commit）と、run の置き場の judge/・rejudge/"""
 
     def setUp(self):
-        self.tmp = pathlib.Path(_c_tempfile.mkdtemp())
-        self.addCleanup(_c_shutil.rmtree, self.tmp, True)
+        self.tmp = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
         self.repo = self.tmp / "repo"
         self.repo.mkdir()
         (self.repo / "a.txt").write_text("a\n", encoding="utf-8")
-        _c_gitkit.git(self.repo, "init", "-q")
-        _c_gitkit.git(self.repo, "add", "-A")
-        _c_gitkit.git(self.repo, "commit", "-q", "-m", "seed")
+        gitkit.git(self.repo, "init", "-q")
+        gitkit.git(self.repo, "add", "-A")
+        gitkit.git(self.repo, "commit", "-q", "-m", "seed")
         self.jdir = self.tmp / "art" / ja.JUDGE_DIR
         self.rdir = self.tmp / "art" / ja.REJUDGE_DIR
         self.jdir.mkdir(parents=True)
@@ -984,18 +973,18 @@ class SpecErrorsCase(_CCase):
     def test_acceptance_without_gwt_rejected(self):
         """元 test_blk_spec の書く役の拒否（写しの rules の _spec_errors: テストの中に Given/When/Then が要る）"""
         self.write_tests("def test_mean_is_middle():\n    assert False\n")
-        with self.assertRaises(_CReject) as cm:
+        with self.assertRaises(Reject) as cm:
             ja.spec_write_output(_c_write_reply(), self.repo)
         self.assertIn("Given/When/Then", str(cm.exception))
         self.assertTrue(str(cm.exception).startswith("spec.write: "))
 
     def test_missing_test_file_and_name_rejected(self):
         """元 test_blk_spec の test_give_up_after_three（テストのファイルが無い）と、名前の無いファイル"""
-        with self.assertRaises(_CReject) as cm:
+        with self.assertRaises(Reject) as cm:
             ja.spec_write_output(_c_write_reply(file="missing_test.txt"), self.repo)
         self.assertIn("missing_test.txt", str(cm.exception))
         self.write_tests(_C_ACCEPT_TEST.replace("test_mean_is_middle", "test_other"))
-        with self.assertRaises(_CReject) as cm:
+        with self.assertRaises(Reject) as cm:
             ja.spec_write_output(_c_write_reply(), self.repo)
         self.assertIn("name 'test_mean_is_middle'", str(cm.exception))
 
@@ -1017,7 +1006,7 @@ class SpecErrorsCase(_CCase):
         """元 写しの rules の spec_review_output（穴を挙げないなら faces_none が要る）"""
         ja.spec_review_output(_c_review_reply())
         ja.spec_review_output(_c_review_reply(faces=False))
-        with self.assertRaises(_CReject) as cm:
+        with self.assertRaises(Reject) as cm:
             ja.spec_review_output({"faces": [], "faces_none": "無い", "reason": "x" * 20})
         self.assertIn("faces_none", str(cm.exception))
 
@@ -1027,7 +1016,7 @@ class SpecErrorsCase(_CCase):
         ja.spec_revise_output(_c_revise_reply(), _c_review_reply(), self.repo)
         bad = _c_revise_reply()
         bad["handled"] = [{"key": "F9", "handled": "absorbed", "how": "x" * 20}]
-        with self.assertRaises(_CReject) as cm:
+        with self.assertRaises(Reject) as cm:
             ja.spec_revise_output(bad, _c_review_reply(), self.repo)
         self.assertIn("'F9' は仕様の審査に無い", str(cm.exception))
         self.assertIn("'F1' に応答が無い", str(cm.exception))
@@ -1089,10 +1078,10 @@ class SpecGateCase(_CCase):
         """元 test_blk_spec の test_pass_path の関所の文（run の字面・審査の穴と答え・答えの行）と test_blk_spec_gate"""
         got = self.asked()
         for part in (_C_ACCEPT_RUN, "spec.approve", "F1", "declared", "process.spec.approval",
-                     _c_specblk.gatemarks.answer.line("run-spec", "continue", "<通す範囲と条件>", env={}),
-                     _c_specblk.gatemarks.answer.line("run-spec", "stop", "<理由>", env={})):
+                     specblk.gatemarks.answer.line("run-spec", "continue", "<通す範囲と条件>", env={}),
+                     specblk.gatemarks.answer.line("run-spec", "stop", "<理由>", env={})):
             self.assertIn(part, got["message"])
-        self.assertFalse((self.jdir / _c_specblk.SPEC_FILE).exists(), "承認の前に仕様を固めない")
+        self.assertFalse((self.jdir / specblk.SPEC_FILE).exists(), "承認の前に仕様を固めない")
 
     def test_ask_without_faces_has_no_face_lines(self):
         """元 test_blk_spec の test_no_faces_skips_revise（審査の穴の行が無い）"""
@@ -1101,7 +1090,7 @@ class SpecGateCase(_CCase):
     def test_ask_after_give_up_stops(self):
         """元 test_blk_spec の test_give_up_after_three（3 回とも拒まれたら関所を開かず works:spec で止める）"""
         for _ in range(3):
-            _c_rolekit.with_done(self.jdir, "spec-write", {"ok": False, "reason": "テストのファイルが無い"})
+            rolekit.with_done(self.jdir, "spec-write", {"ok": False, "reason": "テストのファイルが無い"})
         got = ja.spec_ask(self.jdir, self.repo, "run-spec")
         self.assertEqual(got, {"ask": False, "message": ""})
         stop = ja.read_stop(self.jdir)
@@ -1112,11 +1101,11 @@ class SpecGateCase(_CCase):
         """元 test_blk_spec の test_pass_path（承認の後に run を走らせ、sha256 と exit_at_approval を固め、依頼の行を積む）"""
         self.asked()
         ja.write_json(self.jdir / "request.json", [{"where": "x.txt", "text": "人の依頼"}])
-        got = ja.spec_answer(self.jdir, self.repo, _c_json.dumps({"decision": "approve", "text": "A1 で進めてよい"}))
+        got = ja.spec_answer(self.jdir, self.repo, json.dumps({"decision": "approve", "text": "A1 で進めてよい"}))
         self.assertEqual(got, {"go": True, "reason": ""})
         spec = ja.read_json(self.jdir / "spec.json")
         a = spec["acceptance"][0]
-        want = _c_hashlib.sha256((self.repo / "test_spec_accept.txt").read_bytes()).hexdigest()
+        want = hashlib.sha256((self.repo / "test_spec_accept.txt").read_bytes()).hexdigest()
         self.assertEqual((a["sha256"], a["exit_at_approval"]), (want, 1))
         self.assertEqual((spec["approval"]["answer"], spec["approval"]["note"]), ("continue", "A1 で進めてよい"))
         self.assertEqual(spec["out_of_scope"], _c_revise_reply()["spec"]["out_of_scope"], "直した版を固めた")
@@ -1124,7 +1113,7 @@ class SpecGateCase(_CCase):
         self.assertEqual(len(rows), 2)
         self.assertTrue(rows[1]["text"].startswith(ja.SPEC_PROVENANCE), rows[1])
         self.assertIn("exit 1", rows[1]["measured"])
-        again = ja.spec_answer(self.jdir, self.repo, _c_json.dumps({"decision": "continue", "text": "二度目"}))
+        again = ja.spec_answer(self.jdir, self.repo, json.dumps({"decision": "continue", "text": "二度目"}))
         self.assertTrue(again["go"])
         self.assertEqual(ja.read_json(self.jdir / "spec.json")["approval"]["note"], "A1 で進めてよい", "1 度だけ固める")
         self.assertEqual(len(ja.read_json(self.jdir / "request.json")), 2)
@@ -1138,17 +1127,17 @@ class SpecGateCase(_CCase):
             with self.subTest(decision=decision, text=text):
                 self.setUp()
                 self.asked(faces=False)
-                got = ja.spec_answer(self.jdir, self.repo, _c_json.dumps({"decision": decision, "text": text}))
+                got = ja.spec_answer(self.jdir, self.repo, json.dumps({"decision": decision, "text": text}))
                 self.assertIs(got["go"], False)
                 stop = ja.read_stop(self.jdir)
                 self.assertEqual(stop["stop_reason"], want)
-                self.assertIn(text or _c_specblk.GATE_STOP_NOTE, stop["reason"])
+                self.assertIn(text or specblk.GATE_STOP_NOTE, stop["reason"])
                 self.assertFalse((self.jdir / "spec.json").exists())
 
     def test_gate_skipped(self):
         """元 test_blk_spec の test_give_up_after_three の answer gate=null（関所が開かなかった）"""
         for _ in range(3):
-            _c_rolekit.with_done(self.jdir, "spec-write", {"ok": False, "reason": "テストのファイルが無い"})
+            rolekit.with_done(self.jdir, "spec-write", {"ok": False, "reason": "テストのファイルが無い"})
         ja.spec_ask(self.jdir, self.repo, "run-spec")
         got = ja.spec_answer(self.jdir, self.repo, "null")
         self.assertIs(got["go"], False)
@@ -1156,10 +1145,10 @@ class SpecGateCase(_CCase):
 
     def test_gate_unknown_word(self):
         """元 test_blk_spec の test_answer_rejects_unknown_word"""
-        with self.assertRaises(_c_rolekit.BoardGap):
-            _c_specblk.parse_gate(_c_json.dumps({"decision": "maybe", "text": ""}))
+        with self.assertRaises(rolekit.BoardGap):
+            specblk.parse_gate(json.dumps({"decision": "maybe", "text": ""}))
         self.asked(faces=False)
-        got = ja.spec_answer(self.jdir, self.repo, _c_json.dumps({"decision": "maybe", "text": ""}))
+        got = ja.spec_answer(self.jdir, self.repo, json.dumps({"decision": "maybe", "text": ""}))
         self.assertIs(got["go"], False)
         self.assertIn("maybe", got["reason"])
 
@@ -1193,7 +1182,7 @@ class RejudgeCase(_CCase):
         """元 test_blk_rejudge の test_block_no_session_path（1 回目の判定が無ければ再審せずに rejudge-session で止める）"""
         got = ja.rejudge_prep(self.jdir, self.rdir, "異議", self.repo)
         self.assertEqual((got["go"], got["brief_file"]), (False, ""))
-        self.assertEqual(ja.read_stop(self.rdir)["stop_reason"], _c_stopby.REJUDGE_SESSION)
+        self.assertEqual(ja.read_stop(self.rdir)["stop_reason"], stopby.REJUDGE_SESSION)
         self.assertIsNone(ja.read_stop(self.jdir))
 
     def test_prep_writes_brief_and_before(self):
@@ -1282,11 +1271,11 @@ class RejudgeCase(_CCase):
         self.prepared()
         for _ in range(3):
             out = ja.rejudge_take(self.jdir, self.rdir, _c_rejudge_reply(new_facts="確かめた"), self.repo)
-            _c_rolekit.with_done(self.rdir, "rejudge", out)
+            rolekit.with_done(self.rdir, "rejudge", out)
         got = ja.rejudge_collect(self.rdir)
         self.assertFalse(got["ok"])
         self.assertIn("3 回", got["reason"])
-        self.assertEqual(ja.read_stop(self.rdir)["stop_reason"], _c_stopby.REJUDGE)
+        self.assertEqual(ja.read_stop(self.rdir)["stop_reason"], stopby.REJUDGE)
         self.assertIsNone(ja.rejudge_verdict(self.rdir))
 
     def test_class_query_examples_tried(self):
@@ -1346,34 +1335,21 @@ class SpecblkCase(unittest.TestCase):
 
     def test_gate_text_answer_lines(self):
         asking = {"node": "spec.approve", "kinds": ["declared"], "question": "承認するか", "items": ["A1"]}
-        text = _c_specblk.gate_text(asking, run_id="run-x")
+        text = specblk.gate_text(asking, run_id="run-x")
         for verb, note in (("continue", "<通す範囲と条件>"), ("stop", "<理由>")):
-            self.assertIn(_c_specblk.gatemarks.answer.line("run-x", verb, note), text)
+            self.assertIn(specblk.gatemarks.answer.line("run-x", verb, note), text)
 
     def test_parse_gate(self):
-        self.assertIsNone(_c_specblk.parse_gate("null"))
-        self.assertIsNone(_c_specblk.parse_gate(""))
-        self.assertEqual(_c_specblk.parse_gate('{"decision": "reject"}'), {"decision": "reject", "text": ""})
-        with self.assertRaises(_c_rolekit.BoardGap):
-            _c_specblk.parse_gate("[1]")
-        self.assertEqual(_c_specblk.snapshot_name("spec.review"), "spec-snapshot-spec.review.json")
-# ================================================================ 再審と仕様（C）の終わり
+        self.assertIsNone(specblk.parse_gate("null"))
+        self.assertIsNone(specblk.parse_gate(""))
+        self.assertEqual(specblk.parse_gate('{"decision": "reject"}'), {"decision": "reject", "text": ""})
+        with self.assertRaises(rolekit.BoardGap):
+            specblk.parse_gate("[1]")
+        self.assertEqual(specblk.snapshot_name("spec.review"), "spec-snapshot-spec.review.json")
 
 
-# ================================================================ 並行 PR と世界の解（W）
-# （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
-import hashlib as _w_hashlib  # noqa: E402
-import json as _w_json  # noqa: E402
-import shutil as _w_shutil  # noqa: E402
-import subprocess as _w_subprocess  # noqa: E402
-import tempfile as _w_tempfile  # noqa: E402
+# ================================================================ 並行 PR と世界の解
 
-import rolekit as _w_rolekit  # noqa: E402
-import stopby as _w_stopby  # noqa: E402
-import webget as _w_webget  # noqa: E402
-import worldblk as _w_worldblk  # noqa: E402
-import worldmark as _w_worldmark  # noqa: E402
-from accept import tree_state as _w_tree_state  # noqa: E402
 
 _W_GITHUB = "git@github.com:o/r.git"
 _W_SEED = "def mean(xs):\n    return sum(xs)\n"
@@ -1399,7 +1375,7 @@ _W_PR_HANDED_OVER = {
 
 
 def _w_git(repo, *args):
-    return _w_subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],
+    return subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],
                              check=True, capture_output=True, text=True, encoding="utf-8").stdout
 
 
@@ -1426,8 +1402,8 @@ class _WPrBase(unittest.TestCase):
     """並行 PR の場面（元 test_blk_pr の PrCase）: 判定から入る run の対象（stats.py を持つ git の木）と judge/ の置き場"""
 
     def setUp(self):
-        self.tmp = pathlib.Path(_w_tempfile.mkdtemp(prefix="judge-w-"))
-        self.addCleanup(_w_shutil.rmtree, self.tmp, ignore_errors=True)
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="judge-w-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.repo, self.jdir = self.tmp / "repo", self.tmp / "art" / ja.JUDGE_DIR
         self.repo.mkdir()
         self.jdir.mkdir(parents=True)
@@ -1444,11 +1420,11 @@ class _WPrBase(unittest.TestCase):
         return ja.pr_scan(self.jdir, self.repo, gh=gh or _w_never, which=which)
 
     def material(self):
-        return _w_json.loads((self.jdir / ja.MATERIAL_PR_FILE).read_text(encoding="utf-8"))
+        return json.loads((self.jdir / ja.MATERIAL_PR_FILE).read_text(encoding="utf-8"))
 
     def snap(self):
         """入口が置く作業ツリーの写し（judge/judge-tree.json。元 prcheck.snapshot の pr-snapshot.json）"""
-        ja.write_json(self.jdir / ja.TREE_FILE, _w_tree_state(self.repo))
+        ja.write_json(self.jdir / ja.TREE_FILE, core_accept.tree_state(self.repo))
 
 
 class WPrScanCase(_WPrBase):
@@ -1462,7 +1438,7 @@ class WPrScanCase(_WPrBase):
         self.assertEqual(self.material()["materials"]["parallel_pr"]["status"], "clean")
         self.assertEqual(self.material()["role"], "pr-check")
         self.assertNotIn(("pr", "view", "3", "-R", "o/r", "--json", "files"), gh.calls, "自分の PR は見ない")
-        doc = _w_json.loads((self.jdir / "pr-excluded.json").read_text(encoding="utf-8"))
+        doc = json.loads((self.jdir / "pr-excluded.json").read_text(encoding="utf-8"))
         self.assertEqual((doc["node"], doc["excluded"]), ("p0.parallel_pr", []))
         self.assertTrue(all("-R" in c for c in gh.calls), "gh は必ず -R で呼ぶ")
 
@@ -1472,7 +1448,7 @@ class WPrScanCase(_WPrBase):
         got = self.scan(_w_fake_gh([{"number": 7, "headRefOid": "f" * 40}], {"7": ["stats.py"]}))
         self.assertEqual((got["go"], got["go_role"]), (True, True))
         self.assertIn("交差", got["reason"])
-        brief = _w_json.loads((self.jdir / "pr-brief.json").read_text(encoding="utf-8"))
+        brief = json.loads((self.jdir / "pr-brief.json").read_text(encoding="utf-8"))
         self.assertEqual((brief["node"], brief["changed_files"], brief["fallback"]), ("p0.parallel_pr", ["stats.py"], got["reason"]))
         self.assertEqual(brief["request_wheres"], ["stats.py:2"])
         self.assertFalse((self.jdir / ja.MATERIAL_PR_FILE).exists())
@@ -1541,14 +1517,14 @@ class WPrAcceptCase(_WPrBase):
         self.snap()
 
     def accept(self, reply):
-        return ja.pr_accept(self.jdir, _w_json.dumps(reply, ensure_ascii=False), self.repo)
+        return ja.pr_accept(self.jdir, json.dumps(reply, ensure_ascii=False), self.repo)
 
     def test_check_no_post(self):
         """元 test_blk_pr の test_check_no_post"""
         self.assertEqual(ja.check_no_post(_W_PR_HANDED_OVER), ["7"])
         self.assertEqual(ja.check_no_post(_W_PR_OK), [])
         self.assertEqual(ja.check_no_post(_W_PR_NO_CONFLICTS), [])
-        two = _w_json.loads(_w_json.dumps(_W_PR_OK))
+        two = json.loads(json.dumps(_W_PR_OK))
         two["conflicts"] += [{"pr": "9", "files": ["a"], "handed_over": True}, {"pr": "11", "files": ["b"], "handed_over": True}]
         self.assertEqual(ja.check_no_post(two), ["9", "11"])
         self.assertEqual(ja.check_no_post({"conflicts": "x"}), [])
@@ -1567,13 +1543,13 @@ class WPrAcceptCase(_WPrBase):
         素材（excluded を外した返答）が material-pr-check.json に置かれる"""
         got = self.accept(_W_PR_OK)
         self.assertEqual(got, {"ok": True, "done": True, "reason": ""})
-        doc = _w_json.loads((self.jdir / "pr-excluded.json").read_text(encoding="utf-8"))
+        doc = json.loads((self.jdir / "pr-excluded.json").read_text(encoding="utf-8"))
         self.assertEqual((doc["node"], doc["head"]), ("p0.parallel_pr", self.head))
         h = doc["excluded"][0]
         self.assertEqual({k: h[k] for k in ("pr", "file", "start", "end", "why")}, _W_PR_OK["excluded"][0])
         self.assertEqual(h["text"], _W_SEED)
-        self.assertEqual(h["sha256"], _w_hashlib.sha256(_W_SEED.encode("utf-8")).hexdigest())
-        drafts = _w_json.loads((self.jdir / ja.PR_DOWNGRADES_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(h["sha256"], hashlib.sha256(_W_SEED.encode("utf-8")).hexdigest())
+        drafts = json.loads((self.jdir / ja.PR_DOWNGRADES_FILE).read_text(encoding="utf-8"))
         self.assertEqual(drafts, [{"pr": "7", "files": ["stats.py"], "note": _W_PR_OK["conflicts"][0]["note"]}])
         mat = self.material()
         self.assertEqual(mat["materials"]["parallel_pr"]["status"], "found")
@@ -1582,7 +1558,7 @@ class WPrAcceptCase(_WPrBase):
     def test_no_conflicts_reply_accepted(self):
         """元 test_blk_pr の test_no_conflicts_reply_accepted"""
         self.assertTrue(self.accept(_W_PR_NO_CONFLICTS)["ok"])
-        doc = _w_json.loads((self.jdir / "pr-excluded.json").read_text(encoding="utf-8"))
+        doc = json.loads((self.jdir / "pr-excluded.json").read_text(encoding="utf-8"))
         self.assertEqual(doc["excluded"], [])
 
     def test_excluded_checked(self):
@@ -1622,11 +1598,11 @@ class WPrAcceptCase(_WPrBase):
 
     def test_third_rejection_gives_up_and_stops(self):
         """元 blk-pr/scripts/collect.py の gave_up（rolekit.gave_up。by は stopby.PR）: 3 回目の拒否で done、止めの控えを置く"""
-        for n in range(1, _w_rolekit.GIVE_UP_AFTER + 1):
+        for n in range(1, rolekit.GIVE_UP_AFTER + 1):
             got = self.accept(_W_PR_HANDED_OVER)
-            self.assertEqual(got["done"], n == _w_rolekit.GIVE_UP_AFTER, n)
-        self.assertEqual(len(_w_json.loads((self.jdir / "rejects-pr-check.json").read_text(encoding="utf-8"))), 3)
-        self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], _w_stopby.PR)
+            self.assertEqual(got["done"], n == rolekit.GIVE_UP_AFTER, n)
+        self.assertEqual(len(json.loads((self.jdir / "rejects-pr-check.json").read_text(encoding="utf-8"))), 3)
+        self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], stopby.PR)
 
 
 # 元 works/tests/test_blk_world.py の見本
@@ -1659,8 +1635,8 @@ class WWorldCase(unittest.TestCase):
     節の中身の関数で。網に出ない: 取り直しの口 get を差し替える）"""
 
     def setUp(self):
-        self.tmp = pathlib.Path(_w_tempfile.mkdtemp(prefix="judge-w-world-"))
-        self.addCleanup(_w_shutil.rmtree, self.tmp, ignore_errors=True)
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="judge-w-world-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.jdir = self.tmp / ja.JUDGE_DIR
         self.jdir.mkdir()
         ja.write_json(self.jdir / ja.START_FILE, ja.start_view({}))
@@ -1674,7 +1650,7 @@ class WWorldCase(unittest.TestCase):
 
     def through_classes(self):
         self.assertTrue(self.intake()["due"])
-        self.assertTrue(ja.world_accept(self.jdir, "world-classes", _w_json.dumps(_W_CLASSES, ensure_ascii=False))["ok"])
+        self.assertTrue(ja.world_accept(self.jdir, "world-classes", json.dumps(_W_CLASSES, ensure_ascii=False))["ok"])
 
     def test_intake_shows_request_purpose_and_means(self):
         """元 test_blk_world の test_purpose_means_are_shown: 言い直す役の指示書の本文に依頼の行・目的の文・依頼の解き方が載る。
@@ -1683,16 +1659,16 @@ class WWorldCase(unittest.TestCase):
         self.assertEqual((got["due"], got["reason"]), (True, ""))
         for want in ("赤を言語に依らず判じる", "読むだけの役を足す", _W_FINDINGS[0]["where"]):
             self.assertIn(want, got["prompt"])
-        doc = _w_json.loads((self.jdir / ja.WORLD_PURPOSE_FILE).read_text(encoding="utf-8"))
+        doc = json.loads((self.jdir / ja.WORLD_PURPOSE_FILE).read_text(encoding="utf-8"))
         self.assertEqual(doc, {"purpose_text": "赤を言語に依らず判じる", "means": ["読むだけの役を足す"]})
-        self.assertTrue((self.jdir / "world" / _w_worldblk.INTAKE).is_file())
-        self.assertTrue(_w_json.loads((self.jdir / "world" / _w_worldblk.INTAKE).read_text(encoding="utf-8"))["web"])
+        self.assertTrue((self.jdir / "world" / worldblk.INTAKE).is_file())
+        self.assertTrue(json.loads((self.jdir / "world" / worldblk.INTAKE).read_text(encoding="utf-8"))["web"])
 
     def test_world_cut_turns_web_off(self):
         """始めの記録の features_cut に world が在れば web は off（元 entry.py の WORLD_FEATURE）"""
         ja.write_json(self.jdir / ja.START_FILE, ja.start_view({"features_cut": ["world"]}))
         self.intake()
-        self.assertFalse(_w_json.loads((self.jdir / "world" / _w_worldblk.INTAKE).read_text(encoding="utf-8"))["web"])
+        self.assertFalse(json.loads((self.jdir / "world" / worldblk.INTAKE).read_text(encoding="utf-8"))["web"])
 
     def test_missing_purpose_is_not_due_and_finish_says_why(self):
         """元 line_edge._world_due: 目的の文が読めなければ回さない。出口は status failed で理由に目的の文のファイル"""
@@ -1704,7 +1680,7 @@ class WWorldCase(unittest.TestCase):
         self.assertIn(ja.WORLD_PURPOSE_FILE, fin["reason"])
 
     def test_stopped_run_is_not_due(self):
-        ja.write_stop(self.jdir, _w_stopby.PURPOSE, "目的が決まらない")
+        ja.write_stop(self.jdir, stopby.PURPOSE, "目的が決まらない")
         self.assertEqual(self.intake()["due"], False)
         self.assertEqual(ja.world_plan(self.jdir)["due"], False)
 
@@ -1720,16 +1696,16 @@ class WWorldCase(unittest.TestCase):
         made_up = {"id": "x2", "url": _W_URL, "excerpt": "Nothing like this sentence is on that page at all."}
         reply = {"rows": [_w_judged(sources=["x1", "x2"]), _w_judged(2, verdict="none", challenge="")],
                  "excerpts": [{"id": "x1", "url": _W_URL, "excerpt": _W_GOOD}, made_up]}
-        got = ja.world_accept(self.jdir, "world-judge", _w_json.dumps(reply, ensure_ascii=False), get=lambda u: (200, _W_PAGE))
+        got = ja.world_accept(self.jdir, "world-judge", json.dumps(reply, ensure_ascii=False), get=lambda u: (200, _W_PAGE))
         self.assertEqual(got, {"ok": True, "done": True, "reason": ""})
         fin = ja.world_finish(self.jdir)
         self.assertEqual((fin["ok"], fin["status"]), (True, "ok"), fin)
-        rows = _w_worldmark.rows(self.jdir / _w_worldmark.WORLD_FILE)
+        rows = worldmark.rows(self.jdir / worldmark.WORLD_FILE)
         self.assertEqual([(r["basis"], [s["id"] for s in r["sources"]]) for r in rows], [("web", ["x1"]), ("knowledge", [])])
         self.assertEqual(rows[0]["where"], _W_FINDINGS[0]["where"])
-        state = _w_worldmark.read(self.jdir)
+        state = worldmark.read(self.jdir)
         self.assertEqual((state["status"], state["classes"], state["dropped"]), ("ok", 2, 1))
-        self.assertEqual(_w_worldmark.stage_rows(self.jdir), rows)
+        self.assertEqual(worldmark.stage_rows(self.jdir), rows)
 
     def test_offline_run_still_finishes(self):
         """元 test_blk_world の test_verified_fields_offline_and_web_off: 網に届かない run は止めず、行は知識だけ（NOT_WEB）"""
@@ -1737,24 +1713,24 @@ class WWorldCase(unittest.TestCase):
         ja.world_plan(self.jdir)
 
         def down(url):
-            raise _w_webget.FetchError("網に届かない")
+            raise webget.FetchError("網に届かない")
         reply = {"rows": [_w_judged(sources=["x1"]), _w_judged(2, verdict="none", challenge="")],
                  "excerpts": [{"id": "x1", "url": _W_URL, "excerpt": _W_GOOD}]}
-        self.assertTrue(ja.world_accept(self.jdir, "world-judge", _w_json.dumps(reply), get=down)["ok"])
+        self.assertTrue(ja.world_accept(self.jdir, "world-judge", json.dumps(reply), get=down)["ok"])
         fin = ja.world_finish(self.jdir)
         self.assertEqual(fin["status"], "ok")
-        self.assertIn(_w_worldmark.NOT_WEB, fin["reason"])
-        self.assertEqual({r["basis"] for r in _w_worldmark.rows(self.jdir / _w_worldmark.WORLD_FILE)}, {"knowledge"})
+        self.assertIn(worldmark.NOT_WEB, fin["reason"])
+        self.assertEqual({r["basis"] for r in worldmark.rows(self.jdir / worldmark.WORLD_FILE)}, {"knowledge"})
 
     def test_rejections_counted_and_give_up_does_not_stop(self):
         """元 test_blk_world の test_rejections_counted_by_rolekit・test_classes_given_up_skips_everything: JSON でない返答も
         拒否として数え、3 回目で done。web の役は起こさず、出口は status failed（言い直す役）で、run は止めない"""
         self.intake()
-        for n in range(1, _w_rolekit.GIVE_UP_AFTER + 1):
+        for n in range(1, rolekit.GIVE_UP_AFTER + 1):
             got = ja.world_accept(self.jdir, "world-classes", "not json" if n == 1 else '{"classes": []}')
-            self.assertEqual((got["ok"], got["done"]), (False, n == _w_rolekit.GIVE_UP_AFTER), n)
-        self.assertEqual(len(_w_rolekit.rejected(self.jdir, "world-classes")), 3)
-        self.assertEqual(len(_w_rolekit.rejected(self.jdir / "world", _w_worldblk.CLASSES_ROLE)), 3)
+            self.assertEqual((got["ok"], got["done"]), (False, n == rolekit.GIVE_UP_AFTER), n)
+        self.assertEqual(len(rolekit.rejected(self.jdir, "world-classes")), 3)
+        self.assertEqual(len(rolekit.rejected(self.jdir / "world", worldblk.CLASSES_ROLE)), 3)
         plan = ja.world_plan(self.jdir)
         self.assertFalse(plan["due"])
         self.assertIn("3 回とも", plan["reason"])
@@ -1762,22 +1738,20 @@ class WWorldCase(unittest.TestCase):
         self.assertEqual((fin["ok"], fin["status"]), (True, "failed"))
         self.assertIn("言い直す役", fin["reason"])
         self.assertIsNone(ja.read_stop(self.jdir))
-        self.assertEqual(_w_worldmark.read(self.jdir)["status"], "failed")
-        self.assertIsNone(_w_worldmark.stage_rows(self.jdir))
+        self.assertEqual(worldmark.read(self.jdir)["status"], "failed")
+        self.assertIsNone(worldmark.stage_rows(self.jdir))
 
     def test_judge_reject_names_the_problem(self):
         """元 test_blk_world の Judge.test_differs_needs_challenge・test_practice_with_target_identifier_is_refused"""
         self.through_classes()
         ja.world_plan(self.jdir)
         bad = {"rows": [_w_judged(challenge="短い"), _w_judged(2, verdict="none", challenge="")], "excerpts": []}
-        self.assertIn("challenge", ja.world_accept(self.jdir, "world-judge", _w_json.dumps(bad))["reason"])
+        self.assertIn("challenge", ja.world_accept(self.jdir, "world-judge", json.dumps(bad))["reason"])
         bad = {"rows": [_w_judged(practice="src/red_check.py を直す"), _w_judged(2, verdict="none", challenge="")], "excerpts": []}
-        self.assertIn("src/red_check.py", ja.world_accept(self.jdir, "world-judge", _w_json.dumps(bad))["reason"])
-# ================================================================ 並行 PR と世界の解（W）の終わり
+        self.assertIn("src/red_check.py", ja.world_accept(self.jdir, "world-judge", json.dumps(bad))["reason"])
 
 
-# ================================================================ 入口と返り（F）
-# （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
+# ================================================================ 入口と返り
 class StartViewCase(unittest.TestCase):
     def test_missing_fields_take_the_contract_defaults(self):
         """元 test_accept.TestIntake（始めの記録の欄が無い時の読み）。既定は docs/design.md の「judge の返り」の入力 start の決め"""
@@ -1795,7 +1769,6 @@ class StartViewCase(unittest.TestCase):
 
 class StopFileCase(unittest.TestCase):
     def test_first_stop_wins(self):
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             self.assertIsNone(ja.read_stop(tmp))
             ja.write_stop(tmp, ja.SPEC_STOP, "一つ目")
@@ -1805,7 +1778,6 @@ class StopFileCase(unittest.TestCase):
     def test_block_words_carry_the_machine_head(self):
         for word in (ja.JUDGE_STOP, ja.VERIFY_STOP, ja.SPEC_STOP, ja.MATERIAL_STOP, ja.REQUEST_STOP):
             self.assertTrue(word.startswith("works:"), word)
-# ================================================================ 入口と返り（F）の終わり
 
 
 if __name__ == "__main__":

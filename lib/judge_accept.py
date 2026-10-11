@@ -22,8 +22,39 @@ _GL = pathlib.Path(__file__).resolve().parent / "graphloops"
 if str(_GL) not in sys.path:
     sys.path.insert(0, str(_GL))
 
-from engine.util import Reject, run_count  # noqa: E402
+import copy  # noqa: E402
+import difflib  # noqa: E402
+import re  # noqa: E402
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
+import tempfile  # noqa: E402
+
+import accept as core_accept  # noqa: E402  （lib/accept。このモジュールに受け付けの関数 accept が在るので別名で読む）
+import carry  # noqa: E402
+import cite  # noqa: E402
+import diverted  # noqa: E402
+import engine.util as _util  # noqa: E402
+import forge  # noqa: E402
+import gatemarks  # noqa: E402
+import ghreads  # noqa: E402
+import judgeverify as jv  # noqa: E402
+import marks  # noqa: E402
+import outpurpose  # noqa: E402
+import prcheck  # noqa: E402
+import premises as _premises  # noqa: E402
+import promptsection  # noqa: E402
+import purpose as _purpose  # noqa: E402
+import querytest  # noqa: E402
+import rolekit  # noqa: E402
+import specblk  # noqa: E402
 import stopby  # noqa: E402
+import tree_run  # noqa: E402
+import worldblk  # noqa: E402
+import worldmark  # noqa: E402
+from engine.render import Renderer  # noqa: E402
+from engine.schema import validate_schema  # noqa: E402
+from engine.util import (READ_CAP, Reject, _grep as grep, git, hook_evidence, pick, read_capped, repo_root,  # noqa: E402
+                         run_count, sum_counts)
 
 JUDGE_DIR = "judge"
 REJUDGE_DIR = "rejudge"
@@ -265,27 +296,13 @@ MATERIAL_STOP = stopby.declare("material", "素材集めの役の返答を 3 回
 REQUEST_STOP = stopby.declare("request", "依頼の型が通らない・始めの記録が読めない")
 
 
-# ================================================================ 依頼と判定（A）
-# （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
+# ================================================================ 依頼と判定
 # 元: works/.shared/core/accept.py の check_request・_head_at_rev・_judge_tree_unchanged・check_judge と言い換えの表、
 # 写しの rules（works/.shared/core/graphloops/rules/review-loop.py）の依頼の型と judge_output とその助け、
 # works/blk-judge/lib/judgetake.py の受け付けの流れ、works/blk-judge/lib/judgeverify.py の支度とまとめ、
 # works/darkfactory/lib/line_edge.py の単位の目録、works/.shared/core/outpurpose.py の material_rows、
 # works/.shared/core/gatemarks.py の依頼の答えの結びの照らし。盤面の値は引数か置き場 jdir のファイルで受ける。
-import difflib  # noqa: E402
-import shutil  # noqa: E402
 
-import accept as core_accept  # noqa: E402  （作業ツリーの姿 tree_state・tree_moved と git の口）
-import carry  # noqa: E402
-import gatemarks  # noqa: E402
-import judgeverify as jv  # noqa: E402
-import marks  # noqa: E402
-import outpurpose  # noqa: E402
-import querytest  # noqa: E402
-import rolekit  # noqa: E402
-import worldmark  # noqa: E402
-import engine.util as _util  # noqa: E402
-from engine.schema import validate_schema  # noqa: E402
 
 DIAGNOSE_NODE = "p2.diagnose"                # 判定役の節の写しの graph の名（querytest・outpurpose・gatemarks の足し欄の表の鍵）
 DIAGNOSE_ROLE = "diagnose"                   # 拒否の控え rejects-<役>.json の名（rolekit.with_done）
@@ -1045,33 +1062,14 @@ def merge_on(jdir, repo) -> dict:
         write_stop(jdir, VERIFY_STOP, reason)
         return {"ok": False, "reason": reason}
     return {"ok": True, "reason": ""}
-# ================================================================ 依頼と判定（A）の終わり
 
 
-# ================================================================ 材料・前提・目的・素材（B）
-# （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
-# 持ち主 B の部品。元: works/blk-judge/lib/judgebrief.py・works/.shared/core/entryshape.py:134-200・premises.py・purpose.py・
+# ================================================================ 材料・前提・目的・素材
+# 元: works/blk-judge/lib/judgebrief.py・works/.shared/core/entryshape.py:134-200・premises.py・purpose.py・
 # works/blk-material/lib/material.py・works/blk-premises/scripts/accept.py・works/blk-purpose/scripts/intake.py と、
 # 写しの rules（works/.shared/core/graphloops/rules/review-loop.py）の素材の要否・受け付け・素材の埋め（版 2aa7c66）。
 # 盤面（b）を読んでいた所は、置き場 jdir のファイル・始めの記録の見方（start_view）・対象の根 repo を引数で受ける形に替えた。
-import copy as _copy  # noqa: E402
-import re as _re  # noqa: E402
-import shutil as _shutil  # noqa: E402
-import tempfile as _tempfile  # noqa: E402
 
-import accept as _accept  # noqa: E402
-import carry  # noqa: E402
-import cite  # noqa: E402
-import diverted  # noqa: E402
-import gatemarks  # noqa: E402
-import premises as _premises  # noqa: E402
-import promptsection  # noqa: E402
-import purpose as _purpose  # noqa: E402
-import rolekit  # noqa: E402
-import worldmark  # noqa: E402
-from engine.render import Renderer  # noqa: E402
-from engine.schema import validate_schema  # noqa: E402
-from engine.util import READ_CAP, _grep as grep, git, hook_evidence, read_capped, repo_root, sum_counts  # noqa: E402
 
 PREMISES_ROLE = "premises"          # 拒否の控え rejects-premises.json の名
 PURPOSE_ROLE = "purpose"            # 拒否の控え rejects-purpose.json の名
@@ -1081,7 +1079,6 @@ DIFF_FILE = "diff.patch"
 CHANGED_FILE = "changed-files.txt"
 MATERIAL_VIEW_FILE = "material-view.json"     # 素材の役が読む版と差分（material_route が 1 度置く）
 MATERIAL_ROUTE_FILE = "material-route.json"   # 素材ごとの要否と回さない素材の埋め（material_route）
-MATERIALS_FILE = "materials.json"             # 公開の隣のファイル（素材の名 → {status, …}）
 DECL_NAME = ".review-checks.json"             # 元 engine/declared.py の DECL_NAME（対象リポジトリの宣言の名）
 
 
@@ -1144,13 +1141,13 @@ def _judge_tree(jdir):
     snap = read_json(pathlib.Path(jdir) / TREE_FILE)
     if snap is None:
         return None
-    _accept.type_errors(snap, _accept.TREE_SCHEMA, f"置き場の {TREE_FILE} ")
-    return {k: snap[k] for k in _accept.TREE_KEYS}
+    core_accept.type_errors(snap, core_accept.TREE_SCHEMA, f"置き場の {TREE_FILE} ")
+    return {k: snap[k] for k in core_accept.TREE_KEYS}
 
 
 def _bytecode_in(snap: dict) -> bool:
-    return any(_accept._is_bytecode(_accept._porcelain_path(ln)) for ln in snap["porcelain"].splitlines()) \
-        or any(_accept._is_bytecode(n) for n in snap["ignored"])
+    return any(core_accept._is_bytecode(core_accept._porcelain_path(ln)) for ln in snap["porcelain"].splitlines()) \
+        or any(core_accept._is_bytecode(n) for n in snap["ignored"])
 
 
 def _tree_unchanged(jdir, repo, rule: str, *, bytecode: bool = True, rev: str = "") -> None:
@@ -1161,7 +1158,7 @@ def _tree_unchanged(jdir, repo, rule: str, *, bytecode: bool = True, rev: str = 
     （入口の姿は bytecode=True で取られるので、外した姿と比べると変わっていなくても違って見える）"""
     snap = _judge_tree(jdir)
     if snap is None:
-        now = _accept.tree_state(repo, bytecode=bytecode)
+        now = core_accept.tree_state(repo, bytecode=bytecode)
         dirty = now["porcelain"].splitlines() + [f"!! {n}" for n in now["ignored"]]
         if dirty:
             raise Reject(f"作業ツリーに変更が在る——{rule}"
@@ -1170,7 +1167,7 @@ def _tree_unchanged(jdir, repo, rule: str, *, bytecode: bool = True, rev: str = 
             raise Reject(f"HEAD が数える版から動いた（版 {rev[:12]} / 今 {now['head'][:12]}）——{rule}。commit・reset・checkout で"
                          "履歴を動かしてはいけない")
         return
-    moved = _accept.tree_moved(snap, repo, bytecode=bytecode or _bytecode_in(snap))
+    moved = core_accept.tree_moved(snap, repo, bytecode=bytecode or _bytecode_in(snap))
     if moved:
         raise Reject(f"入口の後から作業ツリーが変わった——{rule}（HEAD・枝・git が無視するファイルも）。作った物"
                      "（出力のファイル・キャッシュ）は rm で消し、書き換えた追跡中のファイルは git restore -- <path> で戻してから"
@@ -1215,15 +1212,15 @@ def check_premises(reply: dict, jdir, repo, items: list) -> dict:
             raise Reject(f"依頼の実測を測り直した制約が無い: {'・'.join(missing)}。text に where をそのまま入れよ"
                          "（この作業ツリーで測り直せなければ kind: 仮説 に落とし、text に where と測れない理由を書く）")
         repo_p = pathlib.Path(repo)
-        with _accept.in_repo(repo_p):
-            rev = _accept.resolve_rev(repo_p, "")
+        with core_accept.in_repo(repo_p):
+            rev = core_accept.resolve_rev(repo_p, "")
             # 実測役は測るために Bash を持つが、作業ツリーは変えない約束（後ろの判定はこの後の作業ツリーを写し、
             # 修正の差分は版からの差分で数える——ここで残った物は修正役の差分に混じる）
             _tree_unchanged(jdir, repo_p, PREMISES_RULE, bytecode=False, rev=rev)
-            measured_needs_output(_purpose.PREMISES_NODE, _copy.deepcopy(reply))
+            measured_needs_output(_purpose.PREMISES_NODE, copy.deepcopy(reply))
         write_json(pathlib.Path(jdir) / _premises.PREMISES_FILE, reply)
         return {"ok": True, "reason": ""}
-    return _accept.guard(run)
+    return core_accept.guard(run)
 
 
 # ---------------------------------------------------------------- 目的
@@ -1254,7 +1251,7 @@ def check_purpose(reply: dict, jdir, repo) -> dict:
             raise Reject(f"目的の返答の型が合わない: {'・'.join(PURPOSE_FIELDS)} が要る")
         if reply["source"] not in PURPOSE_SOURCES or not str(reply["purpose_text"]).strip():
             raise Reject(f"目的の返答の型が合わない: source は {'・'.join(PURPOSE_SOURCES)} のどれか、purpose_text は空でない文")
-        with _accept.in_repo(repo_p):
+        with core_accept.in_repo(repo_p):
             refuse_if_frozen(jdir)
             _tree_unchanged(jdir, repo_p, PURPOSE_RULE)
             out, means = worldmark.split_means(reply)   # 写しの型の外の欄を外した写し
@@ -1269,7 +1266,7 @@ def check_purpose(reply: dict, jdir, repo) -> dict:
         if not means:
             write_json(pathlib.Path(jdir) / "purpose-means.json", {"means": []})
         return {"ok": True, "reason": ""}
-    return _accept.guard(run)
+    return core_accept.guard(run)
 
 
 def purpose_prep(jdir, repo, start: dict) -> dict:
@@ -1314,7 +1311,6 @@ ENTRY_SCHEMA = {"type": "object", "required": ["origin"], "additionalProperties"
                 "properties": {"origin": {"type": "string", "minLength": 1}}}
 ENTRY_BUILTIN = "request_entry"
 # 元 rules:689
-GATES_MERGE = "merge"
 GATES_MERGE_WHY = "変異の検算は合流した版でまとめて 1 回撃つ（init --input gates=merge）"
 # 元 rules:367
 PROCEDURE_PATTERNS = (r"README", r"\.md$", r"\.sh$", r"^scripts/", r"^\.github/workflows/", r"Makefile", r"Dockerfile",
@@ -1411,7 +1407,7 @@ def entry_first_fix(v):
 def touches_procedures(v):
     """元 rules:372"""
     files = v("loop.changed_files", [])
-    hit = sorted({f for f in files for p in PROCEDURE_PATTERNS if _re.search(p, f)})
+    hit = sorted({f for f in files for p in PROCEDURE_PATTERNS if re.search(p, f)})
     return bool(hit), (f"差分に手順書・スクリプト・CI 定義が {len(hit)} 件" if hit else "差分に手順書・スクリプト・CI 定義が無い")
 
 
@@ -1824,7 +1820,7 @@ def _unfrozen(what, why, hint=None):
 def _worktree_tree():
     """元 rules:1501。作業ツリーの今の姿の木の id（未追跡の新規ファイルも含め、追跡していない .gitignore の対象は除く）。
     本物の index を一時 index に写してから add -A する（本物の index は読むだけで書かない）。固められなければ Reject"""
-    tmp = _tempfile.mkdtemp(prefix="graphloops-index-")
+    tmp = tempfile.mkdtemp(prefix="graphloops-index-")
     idx = pathlib.Path(tmp) / "index"
     env = {"GIT_INDEX_FILE": str(idx)}
     why = []
@@ -1834,7 +1830,7 @@ def _worktree_tree():
             raise _unfrozen("本物の index の場所を git rev-parse --git-path で引けない", why,
                             "git 2.31 以上か、リポジトリの中で呼んでいるかを確かめよ")
         try:
-            _shutil.copy2(real.strip(), idx)
+            shutil.copy2(real.strip(), idx)
         except FileNotFoundError:
             pass
         except OSError as e:
@@ -1846,7 +1842,7 @@ def _worktree_tree():
             raise _unfrozen("git write-tree が木を返さない", why)
         return tree.strip()
     finally:
-        _shutil.rmtree(tmp, ignore_errors=True)
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def _snapshot(msg):
@@ -1870,14 +1866,14 @@ def _take_diff(jdir, repo, start: dict) -> dict:
     changed-files.txt に書く。返り {base, review_rev, diff_file, changed_files, changed_files_file, stat, commits}。
     空の差分は止めない（判定から入る run は差分が空なのが普通。盤面の空差分の柵は 1 run = 1 周の形では入口が見る）"""
     j, repo_p = pathlib.Path(jdir), pathlib.Path(repo)
-    with _accept.in_repo(repo_p):
-        base = _accept.resolve_rev(repo_p, start.get("diff_base") or "")
+    with core_accept.in_repo(repo_p):
+        base = core_accept.resolve_rev(repo_p, start.get("diff_base") or "")
         snap = _snapshot("works-factory judge")
-        raw = _accept._git(repo_p, "diff", "--binary", base, snap, binary=True)
-        numstat = _accept._git(repo_p, "diff", "--numstat", "-z", base, snap)
-        commits = _accept._git(repo_p, "rev-list", "--count", f"{base}..HEAD").strip()
+        raw = core_accept._git(repo_p, "diff", "--binary", base, snap, binary=True)
+        numstat = core_accept._git(repo_p, "diff", "--numstat", "-z", base, snap)
+        commits = core_accept._git(repo_p, "rev-list", "--count", f"{base}..HEAD").strip()
     _, ins, dels, nfiles = numstat_totals(numstat)
-    changed = _accept.touched_files(repo_p, base)
+    changed = core_accept.touched_files(repo_p, base)
     j.mkdir(parents=True, exist_ok=True)
     f = j / DIFF_FILE
     tmp = f.with_name(f"{f.name}.{os.getpid()}.tmp")
@@ -2509,7 +2505,7 @@ def material_take(jdir, role: str, reply: dict, repo) -> dict:
         snap = _judge_tree(j)
         if snap is None:
             raise Reject(f"置き場に {TREE_FILE}（入口の時の作業ツリーの姿）が無い——入口が先に走る")
-        moved = _accept.tree_moved(snap, repo_p)
+        moved = core_accept.tree_moved(snap, repo_p)
         if moved:
             raise Reject(f"{READONLY_MOVED}素材集めの役は対象の作業ツリー・HEAD・枝・git が無視するファイルを"
                          f"変えてはいけない（{'・'.join(moved)}）。同じ時に別の素材集めの役も走っている——変えたのがこの役とは限らない")
@@ -2527,7 +2523,7 @@ def material_take(jdir, role: str, reply: dict, repo) -> dict:
         if where_gap:
             raise Reject(where_gap)
         post = MATERIAL_NODES[nid].get("post_check")
-        with _accept.in_repo(repo_p):
+        with core_accept.in_repo(repo_p):
             if post == "main_path_observed":
                 main_path_observed(nid, got)
             elif post == "external_rankings":
@@ -2546,7 +2542,7 @@ def material_take(jdir, role: str, reply: dict, repo) -> dict:
         if lens_note is not None:   # 受け付けが通った返答の分だけ
             write_json(j / diverted.LENS_FILE, lens_note)
         return {"ok": True, "reason": ""}
-    return _accept.guard(run)
+    return core_accept.guard(run)
 
 
 # ---------------------------------------------------------------- 素材の 15 欄（元 rules:1705 の fill_materials の書き直し）
@@ -2768,19 +2764,10 @@ def diagnose_prep(jdir, repo, start: dict, objection: str, prior_rows, review_md
         write_stop(j, MATERIAL_STOP, reason)
         return {**out, "brief_file": path, "reason": reason}
     return {**out, "go": True, "brief_file": path}
-# ================================================================ 材料・前提・目的・素材（B）の終わり
 
 
-# ================================================================ 再審と仕様（C）
-# （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
-import re  # noqa: E402
-import subprocess  # noqa: E402
+# ================================================================ 再審と仕様
 
-from engine.util import READ_CAP, pick, read_capped  # noqa: E402
-import querytest  # noqa: E402
-import rolekit  # noqa: E402
-import specblk  # noqa: E402
-import tree_run  # noqa: E402
 
 # ---------------------------------------------------------------- 仕様の段（元 works/.shared/core/graphloops/rules/review-loop.py:3852〜4043）
 # 元 review-loop.py:3860〜3866（字は元のまま）
@@ -3334,21 +3321,10 @@ def rejudge_verdict(rdir):
         return None
     got = (doc.get("verdicts") or [None])[-1] if isinstance(doc, dict) and doc.get("ok") else None
     return got if got in REJUDGE_VERDICTS else None
-# ================================================================ 再審と仕様（C）の終わり
 
 
-# ================================================================ 並行 PR と世界の解（W）
-# （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
-import re  # noqa: E402
-import shutil as _w_shutil  # noqa: E402
+# ================================================================ 並行 PR と世界の解
 
-from accept import touched_files as _w_touched_files, tree_moved as _w_tree_moved  # noqa: E402
-import forge  # noqa: E402
-import ghreads  # noqa: E402
-import prcheck  # noqa: E402
-import rolekit  # noqa: E402
-import worldblk  # noqa: E402
-import worldmark  # noqa: E402
 
 PR_DOWNGRADES_FILE = "pr-downgrades.json"        # 申し送りの下書き [{pr, files, note}]（GitHub に投稿しない。報告が人に渡す）
 MATERIAL_PR_FILE = f"material-{prcheck.ROLE}.json"   # 並行 PR の素材 {role, reply, materials: {parallel_pr}}
@@ -3378,8 +3354,8 @@ def _github_repo(repo):
     return f"{m.group(1)}/{m.group(2)}", None
 
 
-def request_wheres(rows) -> list:
-    """元 works/.shared/core/graphloops/rules/review-loop.py:203 の request_wheres。依頼の行（judge/request.json の
+def _pr_wheres(rows) -> list:
+    """元 works/.shared/core/graphloops/rules/review-loop.py:203 の request_wheres の並びの所（入口の印は request_wheres が見る）。依頼の行（judge/request.json の
     [{where, text, …}]）の where の一覧。元は判定から入る run の周（差分が空）だけ返したが、ここでは呼び手の _pr_files が
     差分の空の時だけ使うので同じ所に落ちる"""
     return [r["where"] for r in rows if isinstance(r, dict) and isinstance(r.get("where"), str)] if isinstance(rows, list) else []
@@ -3392,7 +3368,7 @@ def _pr_files(repo, diff_base: str, wheres) -> list:
     files = []
     if diff_base:
         try:
-            files = _w_touched_files(pathlib.Path(repo), diff_base)
+            files = core_accept.touched_files(pathlib.Path(repo), diff_base)
         except Reject:
             files = []
     if files:
@@ -3407,7 +3383,7 @@ def parallel_pr_plan(repo, diff_base: str, wheres, *, which=None) -> dict:
     slug, why = _github_repo(repo)
     if not slug:
         return {"fallback": why}
-    if not (which or _w_shutil.which)("gh"):
+    if not (which or shutil.which)("gh"):
         return {"fallback": "gh がこの環境に無い"}
     files = _pr_files(repo, diff_base, wheres)
     if not files:
@@ -3481,7 +3457,7 @@ def pr_scan(jdir, repo, *, gh=None, which=None) -> dict:
         result = {"reply": {"material": {"status": "not_applicable", "reason": no_forge},
                             "repo": "", "listed": 0, "truncated": False, "conflicts": []}}
     else:
-        wheres = request_wheres(rows)
+        wheres = _pr_wheres(rows)
         launch = parallel_pr_plan(repo, start["diff_base"], wheres, which=which)
         if "fallback" in launch:
             result = launch
@@ -3492,13 +3468,13 @@ def pr_scan(jdir, repo, *, gh=None, which=None) -> dict:
             result = parallel_pr_reply(launch, got, why)
     if "fallback" in result:
         write_json(jdir / prcheck.BRIEF, {"node": prcheck.NODE, "cwd": str(repo), "base": start["diff_base"],
-                                          "changed_files": _pr_files(repo, start["diff_base"], request_wheres(rows)),
-                                          "request_wheres": request_wheres(rows), "fallback": result["fallback"]})
+                                          "changed_files": _pr_files(repo, start["diff_base"], _pr_wheres(rows)),
+                                          "request_wheres": _pr_wheres(rows), "fallback": result["fallback"]})
         return {"go": True, "go_role": True, "reason": result["fallback"]}
     reply = result["reply"]
     write_json(jdir / prcheck.BRIEF, {"node": prcheck.NODE, "cwd": str(repo), "base": start["diff_base"],
-                                      "changed_files": _pr_files(repo, start["diff_base"], request_wheres(rows)),
-                                      "request_wheres": request_wheres(rows), "fallback": ""})
+                                      "changed_files": _pr_files(repo, start["diff_base"], _pr_wheres(rows)),
+                                      "request_wheres": _pr_wheres(rows), "fallback": ""})
     _pr_material(jdir, reply)
     write_json(jdir / prcheck.EXCLUDED, {"node": prcheck.NODE, "head": head, "excluded": []})
     m = reply["material"]
@@ -3536,7 +3512,7 @@ def prcheck_take(jdir, reply, repo) -> dict:
     before = read_json(jdir / TREE_FILE)
     if not isinstance(before, dict):
         return {"ok": False, "reason": f"{jdir / TREE_FILE} が無い——役を起こす前の作業ツリーの写しと比べられない"}
-    moved = _w_tree_moved(before, repo)
+    moved = core_accept.tree_moved(before, repo)
     if moved:
         return {"ok": False, "reason": "読むだけの役が作業ツリーを変えた: 並行 PR の任せ先は読むだけの役で、作業ツリー・HEAD・枝・"
                 "git が無視するファイルを変えてはいけない（checkout・switch・stash・reset・gh pr checkout を打つな）（"
@@ -3669,11 +3645,9 @@ def world_finish(jdir) -> dict:
     worldmark.write(jdir, status=status, reason=reason, world_file=str(dest), classes=got.get("classes", 0),
                     dropped=got.get("dropped", 0))
     return {"ok": True, "status": status, "reason": reason}
-# ================================================================ 並行 PR と世界の解（W）の終わり
 
 
-# ================================================================ 入口と返り（F）
-# （ここから下の節は持ち主ごとに分けて書く。節の境の行は消さない）
+# ================================================================ 入口と返り
 START_FILE = "start.json"          # 始めの記録を既定の値で読んだ物（start_view）
 INTAKE_FILE = "intake.json"        # 入口の返り {go, mode, spec, world, verify, reason}
 REQUEST_FILE = "request.json"      # 依頼の行（check_request が通した物。仕様の段が受け入れ条件の行を積む）
@@ -3720,8 +3694,6 @@ def read_stop(jdir):
         return None
     return doc if isinstance(doc, dict) and isinstance(doc.get("stop_reason"), str) else None
 
-
-import prcheck  # noqa: E402
 
 VERIFY_FEATURE = "judge_verify"    # 判定の裏取りの機能の語（元 entry.py:425）
 
@@ -3898,4 +3870,3 @@ def verdict_fallback(jdir, rdir, objection: str, ptr) -> dict:
     return {"ready": False, "stop_reason": stopby.REJUDGE if objection.strip() else JUDGE_STOP, "units": [],
             "judgment": ptr(f"{here.name}/{JUDGMENT_FILE}"), "purpose": ptr(f"{here.name}/{PURPOSE_FILE}"),
             "world": None, "spec": None, "out_of_purpose": None, "rejudge_verdict": None}
-# ================================================================ 入口と返り（F）の終わり
