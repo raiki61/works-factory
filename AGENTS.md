@@ -51,12 +51,13 @@ works-factory/
 │   │   └── fixtures/            Archon の筋書きの試験
 │   └── .shared/                 境。Archon との出入りの口 1 つと埋め（E2）
 ├── lib/                         助け手（AGENTS.md が E3）。Archon を知らない Python（E3）
+│   ├── graphloops/engine/       lib の部品が頼る graphloops の小道具（持ち主の決め lib-port-as-is）
 │   └── tests/                   lib/ の試験
 ├── tests/                       lib/ 以外の試験（AGENTS.md が試験の決まり）
 │   ├── layers/                  層の決まりの試験（この文書の「機械」の行）
 │   ├── bin/                     入口の試験
 │   ├── shared/                  境の試験
-│   └── e2e/                     小さな対象のリポジトリの種と、通しの試験
+│   └── e2e/                     小さな対象のリポジトリの種（target-seed/。__init__.py を置かない）と、通しの試験
 ├── docs/
 │   ├── design.md                設計（線・ブロック・能力の棚卸し・未決）
 │   ├── owner-decisions.md       持ち主の決めの正本
