@@ -710,6 +710,29 @@ class RejudgedVerdictTest(unittest.TestCase):
                          json.loads((r.judge / "premises.json").read_text(encoding="utf-8")))
 
 
+class BaselineTest(unittest.TestCase):
+    def test_local_checks_come_from_the_baseline(self):
+        """素材 local_checks（元の p0.local_checks）は入力 baseline の先の素材を写す: 修正前のテストが通れば clean、赤なら found。
+        baseline の無い run は走っていない（not_run）"""
+        clean = {"status": "clean", "count": 0, "checked": "宣言の一式を対象の根で走らせた: exit 0"}
+        found = {"status": "found", "count": 1, "detail": "test_mean_of_three が赤"}
+        for material in (clean, found, None):
+            with self.subTest(status=material and material["status"]):
+                r = Run(self)
+                r.returned("intake")
+                premises_and_purpose(r)
+                r.returned("material_route")
+                inputs = {}
+                if material:
+                    rel = "test-gate/base/baseline.json"
+                    ja.baseline_red.write_baseline(r.artifacts / rel, suite="", test_cmd="", rev=r.head, exit=0, cases=[],
+                                                   material=material)
+                    inputs["baseline"] = {"type": "archon_artifact", "run_id": RUN_ID, "path": rel}
+                self.assertTrue(r.returned("diagnose_prep", **inputs)["go"])
+                got = json.loads((r.judge / "materials.json").read_text(encoding="utf-8"))["local_checks"]
+                self.assertEqual(got, material or {"status": "not_run", "reason": "走っていない（どの節も返していない）"})
+
+
 class MaterialGiveUpTest(unittest.TestCase):
     def test_diagnose_prep_builds_the_brief_from_the_remaining_materials(self):
         """素材の 1 本の受け付けが諦めても、支度は残りの素材のファイルで材料を組む（諦めた素材が在るので判定役は起こさない）"""

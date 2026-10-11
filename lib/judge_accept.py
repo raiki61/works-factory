@@ -31,6 +31,7 @@ import tempfile  # noqa: E402
 import types  # noqa: E402
 
 import accept as core_accept  # noqa: E402  （lib/accept。このモジュールに受け付けの関数 accept が在るので別名で読む）
+import baseline_red  # noqa: E402
 import carry  # noqa: E402
 import cite  # noqa: E402
 import diverted  # noqa: E402
@@ -2605,9 +2606,23 @@ def _accepted(jdir) -> dict:
     return out
 
 
-def fill_materials(jdir) -> dict:
+def baseline_local_checks(path) -> dict:
+    """素材 local_checks（元の p0.local_checks。修正前の CI の素材）を、入力 baseline の先（test-gate の base が
+    baseline_red.write_baseline で書いた直す前の結末）の material から写す。修正前のテストが通れば clean、赤なら found。
+    結末が読めない・素材の形が違えば not_run と理由"""
+    try:
+        m = baseline_red.read_baseline(path).get("material")
+    except ValueError as e:
+        return {"status": "not_run", "reason": f"直す前の結末が読めない: {e}"}
+    rule = STATUS.get(m.get("status")) if isinstance(m, dict) else None
+    if rule is None or any(k not in m for k in rule.fields):
+        return {"status": "not_run", "reason": f"直す前の結末（{path}）の素材 material の形が違う: {json.dumps(m, ensure_ascii=False)[:200]}"}
+    return m
+
+
+def fill_materials(jdir, local_checks=None) -> dict:
     """元 rules:1705 の fill_materials の書き直し。素材の 15 欄（MATERIALS）を全部そろえて materials.json に書いて返す:
-    受けた役の素材（material-<役>.json の materials）→ 回さないと決めた役は material-route.json の埋め（入口なら not_applicable と
+    受けた役の素材（material-<役>.json の materials）→ local_checks は渡された修正前の CI の素材（baseline_local_checks）→ 回さないと決めた役は material-route.json の埋め（入口なら not_applicable と
     入口の理由・条件外なら not_applicable・ほかは not_run）→ 回すと決めたのに受けた返答が無い役は not_run（受け付けが 3 回とも
     拒んだならその理由、ほかは走っていない）→ base_determination は基準点の決め（元 board.py:536 の base_output と同じ形）→
     fix_closure は P1 時点の not_applicable → 残りは not_run（走っていない）"""
@@ -2615,6 +2630,8 @@ def fill_materials(jdir) -> dict:
     mats = {}
     for doc in _accepted(j).values():
         mats.update({k: v for k, v in doc["materials"].items() if isinstance(v, dict)})
+    if local_checks is not None:
+        mats["local_checks"] = local_checks
     route = read_json(j / MATERIAL_ROUTE_FILE, {}) or {}
     roles, fill = route.get("roles") or {}, route.get("fill") or {}
     for role, nid in MATERIAL_ROLES.items():
@@ -2798,10 +2815,12 @@ def prior_rows(path, repo, start: dict) -> list:
     return carry.parts(doc)[carry.PRIOR]
 
 
-def diagnose_prep(jdir, repo, start: dict, objection: str, prior_rows, review_md: str, repo_review_md: str = "") -> dict:
+def diagnose_prep(jdir, repo, start: dict, objection: str, prior_rows, review_md: str, repo_review_md: str = "",
+                  baseline=None) -> dict:
     """判定役を起こす前の支度（元 judgebrief.brief の入口と、元 blk-material の collect の止め）。返り
     {go, brief_file, review_md, repo_review_md, reason}。入力 objection が空でない（再審の道）・止めの控えが在れば組まずに go 偽。
-    対象差分を取り直して diff.patch に、素材の 15 欄を materials.json に書き、材料を組み、役を起こす前の作業ツリーの姿を
+    対象差分を取り直して diff.patch に、素材の 15 欄を materials.json に書き（baseline は入力 baseline の先のパス。在れば素材
+    local_checks をそこから写す。baseline_local_checks）、材料を組み、役を起こす前の作業ツリーの姿を
     diagnose-tree.json に置く。素材の役が 1 本でも諦めていれば、
     残りの素材で材料を組んだ上で止めの控え（MATERIAL_STOP）を置いて go 偽（今の works の素材集めの諦めが判定の前で線を止めたのと同じ）"""
     j = pathlib.Path(jdir)
@@ -2815,7 +2834,7 @@ def diagnose_prep(jdir, repo, start: dict, objection: str, prior_rows, review_md
         _material_view(j, repo, start, retake=True)
     except Reject as e:
         return {**out, "reason": f"対象差分が取れない（{e}）——判定役を起こさない"}
-    fill_materials(j)
+    fill_materials(j, baseline_local_checks(baseline) if baseline else None)
     path = brief(j, repo, start, review_md, repo_review_md, prior_rows)
     snap_tree(j, DIAGNOSE_TREE_FILE, repo)
     gave = materials_given_up(j)

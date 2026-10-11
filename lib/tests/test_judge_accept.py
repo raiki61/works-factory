@@ -890,6 +890,16 @@ class BriefCase(_BCase):
                 self.assertEqual(tail == body.strip(), whole)
                 self.assertEqual(ja._rejudge_brief(self.jdir, "異議", {}, start).split(ja.POLICY_HEAD)[1].strip(), tail)
 
+    def test_baseline_that_cannot_be_read_leaves_local_checks_not_run(self):
+        """直す前の結末が読めない・素材の欄が欠けた時は、素材 local_checks を not_run と理由にする（clean と読まない）"""
+        path = self.tmp / "baseline.json"
+        path.write_text("{broken", encoding="utf-8")
+        self.assertEqual(ja.baseline_local_checks(path)["status"], "not_run")
+        ja.baseline_red.write_baseline(path, suite="", test_cmd="", rev=self.head, exit=0, cases=[], material={"status": "clean"})
+        got = ja.baseline_local_checks(path)
+        self.assertEqual(got["status"], "not_run")
+        self.assertIn("形が違う", got["reason"])
+
     def test_diagnose_prep_stops_after_material_give_up(self):
         """元 blk-material の collect（素材の役が 3 回とも拒まれたら盤面を止めた）。残りの素材で材料は組む"""
         ja.write_json(self.jdir / ja.START_FILE, self.start())
