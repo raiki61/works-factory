@@ -2,6 +2,8 @@
 # check の名は tests（harness/harness.config.json の required_checks が名指す。ASF の merge queue が読む）。
 # 外のパッケージは uv run --isolated が pyproject.toml の宣言から入れる（宣言を CI に写さない）。命令は harness/harness.config.json の unit と同じ。
 # 1 件も走らない時、unittest は終了の値 5 で落ちる。試験の無い木を緑にしない。
+# Archon を要る試験（tests/archon.py）を見送らないように、止めた Archon の源（factory/pack.json の commit）を bin/_lib/place.py で取り、
+# WORKS_FACTORY_ARCHON_CACHE で渡す。源は commit を鍵に actions のキャッシュに置く。bun の版は源の package.json の engines.bun から読む。
 name: tests
 
 on:
@@ -22,5 +24,55 @@ jobs:
           python-version: "3.12"
       - name: uv
         run: python3 -m pip install uv==0.11.29
+      - name: Archon の源の置き場
+        id: archon
+        run: |
+          python3 - <<'EOF'
+          import os, pathlib
+          from bin._lib import pack, place
+          cache = place.cache_dir(os.environ)
+          commit = pack.load(pathlib.Path("."))["archon"]["commit"]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print(f"commit={commit}", file=out)
+              print(f"source={cache / 'archon' / commit}", file=out)
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              print(f"WORKS_FACTORY_ARCHON_CACHE={cache}", file=env)
+          EOF
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.archon.outputs.source }}
+          key: archon-source-${{ runner.os }}-${{ steps.archon.outputs.commit }}
+      - name: bun の版
+        id: bun
+        env:
+          SOURCE: ${{ steps.archon.outputs.source }}
+          STAGING: ${{ runner.temp }}/archon-source
+        run: |
+          python3 - <<'EOF'
+          import json, os, pathlib
+          from bin._lib import pack, place
+          source = pathlib.Path(os.environ["SOURCE"])
+          if not source.is_dir():
+              archon = pack.load(pathlib.Path("."))["archon"]
+              source = pathlib.Path(os.environ["STAGING"])
+              place.git_fetch(archon["repo"], archon["commit"], source)
+          version = json.loads((source / "package.json").read_text(encoding="utf-8"))["engines"]["bun"]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print(f"version={version}", file=out)
+          EOF
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ steps.bun.outputs.version }}
+      - name: Archon の源
+        env:
+          STAGING: ${{ runner.temp }}/archon-source
+        run: |
+          python3 - <<'EOF'
+          import os, pathlib, shutil
+          from bin._lib import pack, place
+          def fetched(repo, commit, dest):
+              shutil.move(os.environ["STAGING"], dest)
+          place.archon_source(pack.load(pathlib.Path(".")), pathlib.Path(os.environ["WORKS_FACTORY_ARCHON_CACHE"]), fetched)
+          EOF
       - name: unittest
         run: uv run --isolated python3 -m unittest discover -s . -t .
