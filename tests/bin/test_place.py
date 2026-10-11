@@ -2,10 +2,13 @@
 import copy
 import json
 import pathlib
+import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from bin._lib import pack, place
+from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ASF_YAML = ".archon/workflows/sdlc/archon-a.yaml"
@@ -62,29 +65,37 @@ class PackTest(unittest.TestCase):
 
 
 class ArchonSourceTest(unittest.TestCase):
+    """源は手元の使い捨ての git リポジトリから本物の git_fetch で取る。install（bun）は偽"""
+
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.tmp = pathlib.Path(tmp.name)
-        self.pack = pack.load(ROOT)
         self.cache = self.tmp / "cache"
         self.installed = []
+        which = mock.patch.object(place.shutil, "which", return_value="/bin/bun")
+        self.which = which.start()
+        self.addCleanup(which.stop)
+        self.pack = self.upstream("up", {place.ENTRY: b"cli", ASF_YAML: b"a"})
 
-    def fake_fetch(self, files_by_path):
-        def fetch(repo, commit, dest):
-            for rel, data in files_by_path.items():
-                write(dest / rel, data)
-        return fetch
-
-    def complete(self, extra=None):
-        return self.fake_fetch({place.ENTRY: b"cli", ASF_YAML: b"a", **(extra or {})})
+    def upstream(self, name, files_by_path):
+        """files_by_path を 1 本の commit にした git リポジトリを作り、それを指す pack を返す"""
+        repo = self.tmp / name
+        for rel, data in {".gitignore": b"node_modules/\n", **files_by_path}.items():
+            write(repo / rel, data)
+        git(repo, "init", "-q")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "seed")
+        loaded = pack.load(ROOT)
+        loaded["archon"] = {"repo": repo.as_uri(), "commit": git(repo, "rev-parse", "HEAD")}
+        return loaded
 
     def install(self, source):
         self.installed.append(source.name)
         write(source / "node_modules/.installed", b"")
 
-    def source(self, pack_=None, fetch=None):
-        return place.archon_source(pack_ or self.pack, self.cache, fetch or self.complete(), self.install)
+    def source(self, pack_=None, fetch=place.git_fetch):
+        return place.archon_source(pack_ or self.pack, self.cache, fetch, self.install)
 
     def test_fetches_installs_and_holds_entry_and_asf(self):
         source = self.source()
@@ -102,14 +113,48 @@ class ArchonSourceTest(unittest.TestCase):
         self.assertEqual(self.source(fetch=fetch), first)
         self.assertEqual(len(self.installed), 1)
 
+    def test_broken_cache_is_refused_with_the_way_back(self):
+        def edit(source):
+            (source / place.ENTRY).write_bytes(b"edited")
+
+        def move_head(source):
+            write(source / "extra", b"x")
+            git(source, "add", "extra")
+            git(source, "commit", "-q", "-m", "moved")
+
+        def drop_deps(source):
+            (source / "node_modules/.installed").unlink()
+            (source / "node_modules").rmdir()
+
+        for name, breaks, said in (("edited", edit, place.ENTRY), ("moved", move_head, "HEAD"),
+                                   ("no deps", drop_deps, "node_modules")):
+            with self.subTest(name):
+                shutil.rmtree(self.cache, ignore_errors=True)
+                source = self.source()
+                breaks(source)
+                with self.assertRaisesRegex(RuntimeError, said) as caught:
+                    self.source()
+                self.assertIn(f'rm -rf "{source}"', str(caught.exception))
+
+    def test_without_bun_stops_before_fetching(self):
+        self.which.return_value = None
+
+        def fetch(repo, commit, dest):
+            self.fail("bun が無いのに fetch を呼んだ")
+
+        with self.assertRaisesRegex(RuntimeError, r"bun が無い.*https://bun\.sh"):
+            self.source(fetch=fetch)
+        self.assertFalse(self.cache.exists())
+
     def test_incomplete_source_is_refused(self):
         for missing in (place.ENTRY, ASF_YAML):
             with self.subTest(missing=missing):
                 partial = {place.ENTRY: b"cli", ASF_YAML: b"a"}
                 del partial[missing]
+                partial_pack = self.upstream(f"partial-{len(missing)}", partial)
                 with self.assertRaisesRegex(RuntimeError, missing.rsplit("/", 1)[0]):
-                    self.source(fetch=self.fake_fetch(partial))
-                self.assertFalse((self.cache / "archon" / self.pack["archon"]["commit"]).exists())
+                    self.source(partial_pack)
+                self.assertFalse((self.cache / "archon" / partial_pack["archon"]["commit"]).exists())
 
     def test_failure_leaves_previous_source(self):
         before = files(self.source())
@@ -124,10 +169,12 @@ class ArchonSourceTest(unittest.TestCase):
             raise OSError("bun: command not found")
 
         commit = self.pack["archon"]["commit"]
-        for name, fetch, install in (("fetch", broken_fetch, self.install), ("install", self.complete(), broken_install)):
+        newest = self.upstream("newest", {place.ENTRY: b"cli2", ASF_YAML: b"a"})
+        for name, pack_, fetch, install in (("fetch", newer, broken_fetch, self.install),
+                                            ("install", newest, place.git_fetch, broken_install)):
             with self.subTest(step=name):
-                with self.assertRaisesRegex(RuntimeError, "0{40}") as caught:
-                    place.archon_source(newer, self.cache, fetch, install)
+                with self.assertRaisesRegex(RuntimeError, pack_["archon"]["commit"]) as caught:
+                    place.archon_source(pack_, self.cache, fetch, install)
                 self.assertNotIn("\n", str(caught.exception))
                 self.assertEqual(files(self.cache / "archon" / commit), before)
                 self.assertEqual(sorted(p.name for p in (self.cache / "archon").iterdir()), [commit])
@@ -167,6 +214,11 @@ class WorkflowSourceTest(unittest.TestCase):
         write(link / "x.yaml", b"foreign")
         with self.assertRaisesRegex(RuntimeError, str(link)):
             place.workflow_source(self.pack, self.root, self.cache)
+
+    def test_symlink_refusal_names_the_place(self):
+        with mock.patch.object(pathlib.Path, "symlink_to", side_effect=OSError(1, "Operation not permitted")):
+            with self.assertRaisesRegex(RuntimeError, r"workflow-source.*Operation not permitted"):
+                place.workflow_source(self.pack, self.root, self.cache)
 
     def test_repo_and_archon_home_are_untouched(self):
         home = self.tmp / "archon-home"

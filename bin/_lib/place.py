@@ -9,6 +9,7 @@
 Archon の家（$ARCHON_HOME/workflows など）には何も置かない。
 """
 import hashlib
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable
@@ -33,14 +34,17 @@ def bun_install(source: Path) -> None:
 
 
 def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: Install = bun_install) -> Path:
-    """Archon の源を <cache>/archon/<commit>/ に取り、依存を入れて返す。在れば取らない。
+    """Archon の源を <cache>/archon/<commit>/ に取り、依存を入れて返す。在れば照らしてから使い、取らない。
 
-    取れない・依存が入らない・本体か ASF の工程が源に無ければ、途中まで取った物を残さず（前に取った物は残す）、
-    何が取れなかったかを 1 行の RuntimeError で言う。
+    bun が無い・取れない・依存が入らない・本体か ASF の工程が源に無ければ、途中まで取った物を残さず（前に取った物は残す）、
+    何が取れなかったかを 1 行の RuntimeError で言う。在った物が照らしに合わなければ、消して取り直す案内つきの RuntimeError。
     """
+    if shutil.which("bun") is None:
+        raise RuntimeError("bun が無い。Archon の源は bun で起こす。入れ方は https://bun.sh")
     archon = pack["archon"]
     dest = cache / "archon" / archon["commit"]
     if dest.is_dir():
+        _verify(dest, archon["commit"])
         return dest
 
     def fill(staging: Path) -> None:
@@ -72,6 +76,8 @@ def workflow_source(pack: dict, root: Path, cache: Path) -> Path:
     except FileExistsError:
         if not (link.is_symlink() and link.readlink() == target):
             raise RuntimeError(f"{link} が {target} を指していない。消して回し直せば作り直す（rm -r \"{link}\"）") from None
+    except OSError as error:
+        raise RuntimeError(f"{link} に {target} への symlink が作れない: {error.strerror or error}") from error
     return shim
 
 
@@ -86,6 +92,26 @@ def workflow_run(source: Path, workflow_dir: Path, cwd: Path, name: str, *args: 
         "workflow", "run", "--cwd", str(cwd), "--workflow-source", str(workflow_dir),
         name, *args,
     ]
+
+
+def _verify(source: Path, commit: str) -> None:
+    """取り置いた源が commit のままで、書き換わっておらず、依存が入っているかを照らす（ASF の factory/consumer.py の
+    verify_source と同じ不変条件）。依存（node_modules）は源の .gitignore に入るので status には出ない"""
+    def git(*args: str) -> str:
+        done = subprocess.run(["git", "-C", str(source), *args], capture_output=True, text=True)
+        return done.stdout.rstrip("\n") if done.returncode == 0 else f"git {args[0]} が失敗: {done.stderr.strip()}"
+
+    head = git("rev-parse", "HEAD")
+    changed = git("status", "--porcelain", "--untracked-files=all")
+    if head != commit:
+        problem = f"HEAD が {commit} でない（{head}）"
+    elif changed:
+        problem = f"変更が在る（{', '.join(line[3:] for line in changed.splitlines()[:5])}）"
+    elif not (source / "node_modules").is_dir():
+        problem = "node_modules が無い"
+    else:
+        return
+    raise RuntimeError(f"取り置いた Archon の源 {source} が壊れている: {problem}。消して回し直せば取り直す（rm -rf \"{source}\"）")
 
 
 def _replace(target: Path, fill: Callable[[Path], None]) -> None:
