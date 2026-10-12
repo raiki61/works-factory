@@ -627,17 +627,18 @@ def read_observed(folder: Path, factory: str) -> list[tuple[str, object]]:
 
 
 def verdict(rows: dict, observed) -> dict:
-    """行の判定。読めなかった関門が行の当てる先に当たるか、何も flagged に無い対照に 1 つでも在れば、corpus.score を呼ばずに
-    INCONCLUSIVE（対照の CLEAN は「どの関門も出していない」の言い切りで、読めなかった関門はそれを言えない）"""
+    """行の判定。読めなかった関門が行の当てる先に当たれば INCONCLUSIVE。対照は先に corpus.score で判じ、CLEAN の時だけ読めなかった
+    関門が 1 つでも在れば INCONCLUSIVE に替える（CLEAN は「どの関門も出していない」の言い切りで、読めなかった関門はそれを言えない。
+    結末で決まる FALSE_ALARM は関門を読まずに言える）"""
     row_id = observed.get("id") if isinstance(observed, dict) else None
     if row_id not in rows:
         return _inconclusive(row_id, f"observed が読めないか、行 {row_id} が束に無い")
     row = rows[row_id]
     unread = observed.get("unread") or []
     if row["kind"] == "none":
-        lost = [] if observed.get("flagged") else list(unread)
-    else:
-        lost = [a for a in corpus._aims(row) if a in unread]
+        got = corpus.score(row, observed)
+        return _inconclusive(row_id, f"読めなかった関門 {list(unread)}") if got["verdict"] == "CLEAN" and unread else got
+    lost = [a for a in corpus._aims(row) if a in unread]
     if lost:
         return _inconclusive(row_id, f"読めなかった関門 {lost}")
     return corpus.score(row, observed)

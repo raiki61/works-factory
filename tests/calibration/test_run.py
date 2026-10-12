@@ -475,6 +475,14 @@ class RunTest(RunnerCase):
         self.assertEqual(got["loud.json"]["verdict"], "FALSE_ALARM")
         self.assertEqual(corpus.score(row, quiet)["verdict"], "CLEAN")
 
+    def test_unread_gate_keeps_outcome_false_alarm_on_control(self):
+        fixed = {"id": CONTROL, "factory": "works", "run_id": "f" * 12, "outcome": "fixed", "flagged": [],
+                 "unread": ["p1.hygiene"]}
+        [line, total] = self.score_lines("works", fixed=fixed)
+        self.assertEqual(line["verdict"], "FALSE_ALARM", line)
+        self.assertIn("fixed", line["detail"])
+        self.assertEqual(total["verdicts"]["FALSE_ALARM"], 1)
+
     def test_score_sums_missed_by_per_gate(self):
         row = next(r for r in corpus.load()["rows"] if r["id"] == REQUEST)
         base = {"id": REQUEST, "factory": "works", "outcome": "fixed", "unread": []}
