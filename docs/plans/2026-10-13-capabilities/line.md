@@ -729,7 +729,7 @@
   - 今: 無し。judge が ready:false なら後ろが全部飛ぶ（workflows/line/fixtures/no-fix.stubs.yaml:1-5）
   - 証: 要追加: 筋書き no-fix に、独立設計・eyes の R2・最後のテストの節を reached で縛る
   - 本物の run: 筋書きでのみ（種は欠陥 2 つ）
-  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻すか持ち主へ）
+  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻すか持ち主へ） → 部分 D2 では戻していない（狭めではない。直す物が無い周は judge の ready: false で計画の往復・修正前の関所・fix が飛び、後ろの fixed・judged・redepth・test-gate-final・eyes・merge・ask-final の with: が飛んだ節の出力を直に結ぶので、Archon は結んだ節を落とす〔workflows/src/output-ref.ts 272・344 行の producer-not-run〕。戻すには plan-review に独立設計だけを作る形を足し、直す物の無い周の道を fixed から最後の関所まで {from, if_skipped} か新しい節で通し、merge が空の差分を封じない形を決める作りの直しが要る。部分 D2 の台帳に BLOCKED として残した）
 - L-W08 判定の開いた単位を構造の目の入力 {id, paths, summary} に写し、パスの取れない単位・捨てたパスを記録に残す
   - 元: works/darkfactory/lib/line_edge.py:361 `structure_units`・:343 `_unit_file_paths`・:134 STRUCTURE_UNITS_OP
   - 今: lib/judge_accept.py `structure_units`（record に {units, paths} を書く）・`verdict` が判定の置き場の `structure-units-dropped.json`（`STRUCTURE_DROPPED_FILE`）に書く
