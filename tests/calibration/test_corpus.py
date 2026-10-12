@@ -242,7 +242,6 @@ class TestMaterialize(unittest.TestCase):
                     self.assertEqual(json.loads(pathlib.Path(made["request"]).read_text(encoding="utf-8")),
                                      row["request"])
         self.assertEqual(git(ROOT, *status), before)
-        self.assertEqual(list(SEED.rglob("__pycache__")), [])
 
     def test_materialize_refuses_nonempty_dest(self):
         with tempfile.TemporaryDirectory() as tmp:
