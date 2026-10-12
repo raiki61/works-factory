@@ -463,10 +463,9 @@ def reuse_place(top, run: str, *, rerun: bool) -> dict | None:
 
 
 def child_env(env) -> dict:
-    """reuse_run が子に渡す環境: 包みの家（webget.SHARED_ENV。web の控えの置き場で試験に要らない）と旗 RERUN_ENV を外す。外さないと、
-    外した変数が結果を変えたまま同じ指紋に当たるか、旗の有無だけで指紋が割れる。実行基盤が節に立てる変数は呼び手が先に落とす
+    """reuse_run が子に渡す環境: 旗 RERUN_ENV を外す。外さないと、旗の有無だけで指紋が割れる。実行基盤が節に立てる変数は呼び手が先に落とす
     （元 works/.shared/core/tree_run.py:452 `child_env` の、実行基盤の名を含まない部分）"""
-    return {k: v for k, v in env.items() if k not in (webget.SHARED_ENV, RERUN_ENV)}
+    return {k: v for k, v in env.items() if k != RERUN_ENV}
 
 
 def _tool(argv0, cwd, path):
