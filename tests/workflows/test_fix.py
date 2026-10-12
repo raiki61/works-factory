@@ -33,6 +33,7 @@ if str(LIB / "graphloops") not in sys.path:
 
 from engine.schema import validate_schema  # noqa: E402  （output_format の照らし。jsonschema に頼らない lib の小道具）
 import conflict  # noqa: E402
+import fixboard  # noqa: E402
 import rolekit  # noqa: E402
 import ruling  # noqa: E402
 
@@ -140,11 +141,15 @@ class ContractCase(unittest.TestCase):
         self.assertIs(self.fmt["additionalProperties"], False)
         self.assertEqual(self.fmt["properties"]["done"], {"type": "boolean"})
 
+    def test_unit_status_enum_matches_unit_statuses(self):
+        """単位の状態の enum（型の正本は YAML）は、lib の論理が読む語彙 fixboard.UNIT_STATUSES と同じ"""
+        unit = self.fmt["properties"]["units"]["items"]
+        self.assertEqual(unit["properties"]["status"]["enum"], list(fixboard.UNIT_STATUSES))
+
     def test_nested_shapes(self):
         props = self.fmt["properties"]
         unit = props["units"]["items"]
         self.assertEqual(set(unit["required"]), {"unit_id", "group_id", "status", "reason"})
-        self.assertEqual(unit["properties"]["status"]["enum"], ["fixed", "given_up", "not_done"])
         self.assertIs(unit["additionalProperties"], False)
         group = props["groups"]["items"]
         self.assertEqual(set(group["required"]), {"group_id", "unit_ids", "returned", "reason"})

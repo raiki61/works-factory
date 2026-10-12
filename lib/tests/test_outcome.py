@@ -11,6 +11,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import conflict  # noqa: E402
+import fixboard  # noqa: E402
 import outcome  # noqa: E402
 import report  # noqa: E402
 import stopby  # noqa: E402
@@ -400,6 +401,21 @@ class ReadingCase(unittest.TestCase):
     def test_ok_outcomes(self):
         self.assertEqual(outcome.OK_OUTCOMES, ("fixed", "fixed_needs_check", "no_fix_needed"))
         self.assertTrue(set(outcome.OK_OUTCOMES) <= set(report.OUTCOMES))
+
+
+class StatusWordsCase(unittest.TestCase):
+    """修正の単位の状態の語は fixboard.UNIT_STATUSES の 1 か所。残りに数える語もそこから引く"""
+
+    @staticmethod
+    def left(statuses):
+        fix = {**fixed_run()["fix"], "units": [{"unit_id": s, "status": s, "reason": ""} for s in statuses]}
+        return [r["where"] for r in outcome.residue(fixed_run(fix=fix))]
+
+    def test_fix_status_left_comes_from_unit_statuses(self):
+        self.assertEqual(self.left(fixboard.UNIT_STATUSES),
+                         [f"修正 {s}" for s in fixboard.UNIT_STATUSES if s != fixboard.FIXED])
+        with mock.patch.object(fixboard, "UNIT_LEFT", (fixboard.NOT_DONE,)):
+            self.assertEqual(self.left(fixboard.UNIT_STATUSES), [f"修正 {fixboard.NOT_DONE}"])
 
 
 class WordsCase(unittest.TestCase):

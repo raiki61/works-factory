@@ -38,6 +38,7 @@ if str(_HERE) not in sys.path:
 import answer  # noqa: E402
 import conflict  # noqa: E402
 import fixbeside  # noqa: E402
+import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import replan  # noqa: E402
 import report  # noqa: E402
@@ -50,7 +51,6 @@ GATES = ("gate-start", "gate-before-fix", "gate-replan", "gate-final")
 STOP_WORDS = answer.STOP_WORDS
 PASS_WORDS = answer.GO_WORDS
 WAIT_WORDS = stopby.WAITING
-FIX_STATUS_LEFT = ("given_up", "not_done")
 NOT_CLOSED = "直したと申告したが、機械が判定の問いで数え直すと閉じていない"   # 元 report._closed_units が残りから外さなかった単位
 EYE_STATUS_LEFT = (seal.REDESIGN, seal.UNVERIFIABLE)
 EYE_NAMES = tuple(e.lower() for e in report.EYES)
@@ -338,10 +338,10 @@ def residue(returns: dict, facts: dict | None = None) -> list:
     fix = returns.get("fix")
     if isinstance(fix, dict):
         for u in fix.get("units") or []:
-            if isinstance(u, dict) and u.get("status") in FIX_STATUS_LEFT:
+            if isinstance(u, dict) and u.get("status") in fixboard.UNIT_LEFT:
                 rows.append({"where": f"修正 {u.get('unit_id')}",
                              "text": f"単位 {u.get('unit_id')} が {u['status']}: {report._one_line(u.get('reason') or '理由なし')}"})
-        left = {u.get("unit_id") for u in fix.get("units") or [] if isinstance(u, dict) and u.get("status") in FIX_STATUS_LEFT}
+        left = {u.get("unit_id") for u in fix.get("units") or [] if isinstance(u, dict) and u.get("status") in fixboard.UNIT_LEFT}
         beside = facts.get("beside") or fixbeside.read(fix_folders(returns))
         for k in fixbeside.not_closed(beside):   # 元 report._closed_units: 申告しても表で閉じていない
             if k not in left:
