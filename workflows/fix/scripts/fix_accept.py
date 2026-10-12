@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """節 fix-accept（形 group の修正の輪の終わり）: 修正役の返答を受け付ける（fixboard.accept_reply。照らしは factchecks・fixgates・
-書き込みの出どころ（記録が無い run は段の頭の木からの変更が全部 changes[].files か bash_writes に在るか。未決 U6）・
+書き込みの出どころ（記録が無い run は段の頭の木からの変更が全部 changes[].files か bash_writes に在るか。U6 の狭め）・
 recount.accept_fix・tddloop.selected_problems。除くパスの頭 fixio.SKIP）。
 
 - 範囲の相談の周（入力 consulted が true）は受け付けを回さず done: false

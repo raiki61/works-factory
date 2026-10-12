@@ -87,7 +87,7 @@ HUMAN_FACE_KINDS = ("regression", "policy")   # 事前審査の穴のうち人�
 GROUP_WHERE = "組"
 REJUDGE_LEFT_WHERE = "判定（再審されずに残った異議）"
 JUDGED_FIELDS = ("label", "disposition")         # 再審の前後で比べる judgment の単位の欄（元 rejudge.diff_units の欄のうち人が決める物）
-UNSEEN = "取れない（docs/design.md の U6。読んだ証拠を run の記録から取り出す口が無い）"
+UNSEEN = "取れない（読んだ証拠を集める口を戻していない。docs/design.md の U6）"
 
 POINTERS = (("judge", "judgment", "判定"), ("judge", "purpose", "目的"), ("judge", "world", "定石"),
             ("judge", "spec", "仕様"), ("judge", "out_of_purpose", "目的の外の所見"),
