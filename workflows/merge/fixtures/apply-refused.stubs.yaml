@@ -12,7 +12,6 @@ fixture:
   inputs:
     mode: apply
     start: '{"type":"archon_artifact","run_id":"fixture-run","path":"start.json"}'
-    diff: '{"type":"archon_artifact","run_id":"fixture-run","path":"fix/diff.patch"}'
     sealed_hash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     answer: "null"
     r2: '{"status":"redesign-needed","reason":"別の設計"}'
