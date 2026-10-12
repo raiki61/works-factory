@@ -175,6 +175,12 @@ class ReadNamedCase(unittest.TestCase):
             self.assertIn("GH_REPO", got["reason"])
         self.assertEqual(gh_calls(self.calls), [])
 
+    def test_malformed_gh_repo_reason_drops_userinfo(self):
+        """形の崩れた GH_REPO の値は理由の文に載り github.json へ書かれるので、URL に埋めたトークンを落とす"""
+        doc = self.read([7], [], GH_REPO="https://x:sekret-fake@github.com/o/r")
+        self.assertEqual(doc["pr"]["7"]["status"], "unreadable")
+        self.assertNotIn("sekret-fake", doc["pr"]["7"]["reason"])
+
     def test_undecided_target_is_left_to_gh(self):
         """GitHub の URL も GH_HOST のホストも無い remote では、読む先を gh に決めさせる打ち方（-R 無し）で gh を起こす（自前の
         ドメインの GHES は gh が hosts.yml で読める）。run の中ではそれを読むだけの口が拒み、項は口の言葉で unreadable"""

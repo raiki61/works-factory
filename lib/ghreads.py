@@ -88,28 +88,12 @@ def _target(repo: pathlib.Path, remote: str):
         if len(parts) == 2:
             parts = [gh_host or "github.com", *parts]
         if len(parts) != 3 or not (forge.HOST.match(parts[0].lower()) and all(map(forge.SEGMENT.match, parts[1:]))):
-            return _unreadable(f"GH_REPO が [HOST/]OWNER/REPO の形でない（{_line(named)}）", False)
+            return _unreadable(f"GH_REPO が [HOST/]OWNER/REPO の形でない（{forge.redact(_line(named))}）", False)
         return parts[0].lower(), parts[1], parts[2]
-    for got in _remote_repos(repo, remote):
+    for got in forge.remote_repos(repo, remote):
         if got["kind"] == forge.GITHUB or got["host"] == gh_host:
             return got["host"], got["owner"], got["name"]
     return None
-
-
-def _remote_repos(repo: pathlib.Path, remote: str):
-    """remote を読む順に forge.repo_of の値で出す。gh repo set-default は remote.<名>.gh-resolved に base（その remote）か
-    OWNER/REPO（フォークの clone で親を名指した時など。ホストは remote の物）を記す"""
-    names = (forge._git(repo, "remote") or "").split()
-    keys = (forge._git(repo, "config", "--get-regexp", r"^remote\..*\.gh-resolved$") or "").splitlines()
-    resolved = {k[len("remote."):-len(".gh-resolved")]: v for k, _, v in (line.partition(" ") for line in keys)}
-    for name in dict.fromkeys([*resolved, remote, "upstream", "github", "origin", *names]):
-        got = forge.repo_of(forge._git(repo, "remote", "get-url", name) or "") if name in names else None
-        if not got:
-            continue
-        parts = resolved.get(name, "base").split("/")
-        if len(parts) == 2 and all(map(forge.SEGMENT.match, parts)):
-            got = {**got, "owner": parts[0], "name": parts[1]}
-        yield got
 
 
 def _read_pr(repo: pathlib.Path, target, n: int) -> dict:
