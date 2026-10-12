@@ -686,8 +686,9 @@ nodes:
         depth: { type: array }
         skip_optional: { type: string }
         raised: { type: array }
+        counted: { type: string }
         stop_reason: { type: string }
-      required: [depth, skip_optional, raised, stop_reason]
+      required: [depth, skip_optional, raised, counted, stop_reason]
     mutates_checkout: false
     depends_on: [fixed]
     with:
@@ -695,8 +696,12 @@ nodes:
       replan_depth: { from: "$replan.output.depth", if_skipped: null }
       units: "$fixed.output.units"
       conflicts: "$fixed.output.conflicts"
-      questions: "$plan-rounds.output.questions"
+      plan: "$fixed.output.plan"
+      diff: "$fixed.output.diff"
+      judgment: "$judged.output.judgment"
+      start: "$start.output.record"
       answer: "$answer-before-fix.output.answer"
+      ties_judgment: "$judge.output.judgment"
       replanned: "$after-fix.output.replan"
       rejudged: "$after-fix.output.rejudge"
 

@@ -1317,12 +1317,17 @@ class FixedCase(unittest.TestCase):
         self.assertEqual(fixed.fixed(self.fix(), None, replan=False, stops=("", ""))["refix_objection"], "")
 
 
-class RedepthCase(unittest.TestCase):
+class RedepthCase(Artifacts):
     LIGHT = [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}]
 
-    def redepth(self, *, units=(), conflicts=(), questions=(), answer=None, replanned=False, rejudged=False, replanned_depth=None):
-        return redepth.redepth(self.LIGHT, replanned_depth, list(units), list(conflicts), list(questions), answer,
-                               replanned=replanned, rejudged=rejudged)
+    def redepth(self, *, units=(), conflicts=(), signals=(), replanned=False, rejudged=False, replanned_depth=None, counted=""):
+        return redepth.redepth(self.LIGHT, replanned_depth, list(units), list(conflicts), list(signals), replanned=replanned,
+                               rejudged=rejudged, counted=counted)
+
+    def put(self, rel, doc):
+        (self.artifacts / rel).parent.mkdir(parents=True, exist_ok=True)
+        (self.artifacts / rel).write_text(doc if isinstance(doc, str) else json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        return {"type": "archon_artifact", "run_id": RUN, "path": rel}
 
     def test_quiet_run_stays_light_and_names_what_it_skips(self):
         got = self.redepth(units=[{"unit_id": "u1", "status": "fixed"}])
@@ -1330,18 +1335,66 @@ class RedepthCase(unittest.TestCase):
         self.assertTrue(got["skip_optional"])
 
     def test_signals_raise_to_standard(self):
-        for kw in ({"units": [{"unit_id": "u1", "status": "given_up"}]}, {"conflicts": [{"path": "c"}]}, {"questions": ["q"]},
-                   {"replanned": True}, {"rejudged": True}):
+        for kw in ({"units": [{"unit_id": "u1", "status": "given_up"}]}, {"conflicts": [{"path": "c"}]},
+                   {"signals": ["答えていない問い q1"]}, {"replanned": True}, {"rejudged": True}):
             with self.subTest(kw=kw):
                 got = self.redepth(**kw)
                 self.assertEqual((got["depth"][0]["depth"], got["skip_optional"]), ("標準", ""))
 
-    def test_answered_questions_do_not_raise(self):
-        self.assertEqual(self.redepth(questions=["q"], answer={"decision": "approve", "text": ""})["depth"][0]["depth"], "軽量")
+    def test_question_not_in_the_answer_still_raises(self):
+        """L-D08: 上げる信号「答えていない問い」は問いの台帳の問いごと（元 depth.signals の gatemarks.pending。判定の役が人に聞くと保留に
+        した問いも含む）。修正前の関所の答えが聞いた問いと依頼の answers が答えた問いは数えず、関所の答えが 1 つ在っても聞いていない問い・
+        「保留: <key>」と名指した問いは上げる。台帳が読めない時は上げる側に倒す"""
+        questions = [{"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "reason": "a か b か"},
+                     {"key": "q2", "kind": "fork", "status": "held", "origin": "u2", "reason": "c か d か"},
+                     {"key": "q3", "kind": "fork", "status": "held", "origin": "u3", "reason": "e か f か"}]
+        judgment = self.put("judge/judgment.json", {"units": [], "questions": questions})
+        start = self.put("r1/start.json", {"answers": [{"question": "q3", "text": "e"}]})
+        answer = {"decision": "continue", "text": "", "asked": [gatemarks.ask_text(questions[0])]}
+        self.assertEqual(redepth.pending_signals(judgment, start, answer, judgment), ["答えていない問い q2"])
+        held = {**answer, "text": "保留: q1", "asked": [gatemarks.ask_text(q) for q in questions[:2]]}
+        self.assertEqual(redepth.pending_signals(judgment, start, held, judgment), ["答えていない問い q1"])
+        self.assertEqual(redepth.pending_signals(judgment, start, None, judgment), ["答えていない問い q1", "答えていない問い q2"])
+        broken = self.put("judge/broken.json", "{壊れた")
+        self.assertTrue(redepth.pending_signals(broken, start, None, broken)[0].startswith("問いの台帳が読めない"))
+        self.assertEqual(redepth.pending_signals(None, start, None, None), [])
+        got = self.redepth(signals=redepth.pending_signals(judgment, start, answer, judgment))
+        self.assertEqual(got["depth"][0]["depth"], "標準")
+        self.assertIn("答えていない問い q2", got["raised"])
 
-    def test_replanned_depth_wins(self):
+    def test_wide_run_raises_to_standard(self):
+        """L-D10: run 全体の広さ（計画の allowed_paths と修正の実際の差分のファイルの和集合・受け入れと書き換えのテストの本数。
+        depth.run_wide）が単位ごとの上限を超えれば、軽量の名指しでも全部の単位を標準へ上げ、数えた数と起点を counted に残す
+        （元 depth.raise_ :302-313）"""
+        plan = self.put("plan/plan-fields.json", {"fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "tests": [], "rewrite_tests": []}]})
+        diff = "".join(f"diff --git a/w{n}.py b/w{n}.py\n--- a/w{n}.py\n+++ b/w{n}.py\n@@ -1 +1 @@\n-x\n+y\n" for n in range(4))
+        ptr = self.put("fix/diff.patch", diff)
+        signals, counted = redepth.wide_signals(plan, ptr, ["u1"])
+        self.assertEqual(signals, ["run 全体で触るファイル 5 個（3 個まで）"])
+        self.assertEqual(counted, "触るファイル 5 個（起点: 修正の差分 fix/diff.patch）")
+        got = self.redepth(signals=signals, counted=counted)
+        self.assertEqual((got["depth"][0]["depth"], got["counted"]), ("標準", counted))
+        signals, counted = redepth.wide_signals(plan, None, ["u1"])
+        self.assertEqual(signals, [])
+        self.assertTrue(counted.startswith(f"触るファイル 1 個（起点: {redepth.PLAN_ORIGIN}"), counted)
+
+    def test_replanned_depth_merges_by_unit(self):
+        """L-D15: 案の直しの後の深さは、1 回目の単位の行を残して直した案の単位の行で単位ごとに置き換える（元 depth.raise_ は全部の単位の
+        控えを残して上げた）"""
         got = self.redepth(replanned_depth=[{"unit_id": "u9", "depth": "標準", "why": "直した案"}], replanned=True)
-        self.assertEqual([row["unit_id"] for row in got["depth"]], ["u9"])
+        self.assertEqual([row["unit_id"] for row in got["depth"]], ["u1", "u9"])
+        got = self.redepth(replanned_depth=[{"unit_id": "u1", "depth": "標準", "why": "直した案"}])
+        self.assertEqual([(row["unit_id"], row["depth"]) for row in got["depth"]], [("u1", "標準")])
+
+    def test_line_passes_what_the_signals_read(self):
+        """L-D08・L-D10: redepth は判定の問いの台帳（判定と始めの記録と修正前の関所の答えと 1 回目の判定の結び）と、修正の計画と差分を
+        受ける"""
+        with_ = line_nodes()["redepth"]["with"]
+        self.assertEqual({k: with_[k] for k in ("judgment", "start", "answer", "ties_judgment", "plan", "diff")},
+                         {"judgment": "$judged.output.judgment", "start": "$start.output.record",
+                          "answer": "$answer-before-fix.output.answer", "ties_judgment": "$judge.output.judgment",
+                          "plan": "$fixed.output.plan", "diff": "$fixed.output.diff"})
+        self.assertIn("counted", line_nodes()["redepth"]["output_format"]["required"])
 
 
 class ReturnedCase(unittest.TestCase):
@@ -1583,6 +1636,7 @@ class LineWiringCase(unittest.TestCase):
         "fixed": lambda: fixed.from_env(),
         "collect": lambda: (collect.received_of_env(), collect.line_of_env()),
         "ask-final": lambda: ask_final.from_env(),
+        "redepth": lambda: redepth.from_env(),
         "answer-before-fix": lambda: before_fix_answer.from_env(),
         "result": lambda: (result.from_env(), result.line_of_env()),
     }
@@ -1670,6 +1724,23 @@ class LineWiringCase(unittest.TestCase):
         self.assertEqual({k: nodes["refix-run"]["with"][k] for k in ("plan", "ripple", "depth", "answers", "only_items")},
                          {"plan": "$replan.output.plan", "ripple": "$replan.output.ripple", "depth": "$replan.output.depth",
                           "answers": "$answer-replan.output.fix_answers", "only_items": "$fix.output.replan_items"})
+
+    def test_second_round_plan_gets_the_review(self):
+        """L-D17: 計画の往復の 2 周目の plan は、前の周の事前審査の返り review（plan-out が plan-review-run から受け直した物）を
+        $LOOP_PREV で受けて案を直す（元 converge.revise_section :538）。筋書きは輪を 1 周で終え前の周の値を渡さない（docs/design.md の U3。
+        止めた Archon の packages/workflows/src/dry-run.ts 795・849-890 行）ので、2 周目の値は段 1 の本物の run で見る。ブロックの側は
+        tests/workflows/test_plan.py の CollectCase.test_rounds_count_and_second_round_gets_review"""
+        nodes = line_nodes()
+        self.assertEqual(nodes["plan"]["with"]["review"], "$LOOP_PREV.plan-out.output.review")
+        self.assertEqual(nodes["plan-out"]["with"]["review"], {"from": "$plan-review-run.output.review", "if_skipped": None})
+
+    def test_eyes_get_the_raised_depth(self):
+        """L-D11: 独立の目は直した後に上げ直した深さ（redepth の返り）を受け、全部の単位が軽量のままなら削除候補と R1〜R4 を省く（目の
+        ブロックの prep が depth.skip_reason で決める。tests/workflows/test_eyes.py の test_prep_all_light_turns_eyes_off）。筋書きは
+        include の入力を目の script に渡さない（docs/design.md の U3）ので、深さで目が省かれる道はここと目のブロックの試験で照らす"""
+        self.assertEqual(line_nodes()["eyes"]["with"]["depth"], "$redepth.output.depth")
+        self.assertEqual(line_nodes()["eyes"]["depends_on"], ["test-gate-final"])
+        self.assertIn("redepth", json.dumps(line_nodes()["test-gate-final"]))
 
     def test_replan_gets_ruling_and_conflicts(self):
         """L-D24: 案の直しの役に、裁かれた項目（ruling）と申し出・裁定の文（conflicts）を渡す（元 works/.shared/core/replan.py:116

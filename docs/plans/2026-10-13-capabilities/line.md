@@ -1114,10 +1114,10 @@
   - 狭め: 無し
 - L-D04 計画の段の深さを修正へ、2 度目の修正には直した案の深さを渡す
   - 元: works/darkfactory/darkfactory.yaml:636
-  - 今: yaml:358（`$plan-rounds.output.depth`）・:612（`$replan.output.depth`）
-  - 証: 要追加: tests/workflows/test_line.py::LineWiringCase.test_fix_and_refix_get_the_plan_depth（今の test_includes_pass_only_what_the_real_block_declares は fix を見送る）
+  - 今: yaml の fix.depth（$plan-rounds.output.depth）・refix-run.depth（$replan.output.depth）
+  - 証: tests/workflows/test_line.py::LineWiringCase.test_fix_and_refix_get_their_plan_and_gate_answers（部分 B1 が置いた。test_fix_and_refix_get_the_plan_depth の名を変えた）
   - 本物の run: 節 fix の入力 depth
-  - 狭め: 無し
+  - 狭め: 無し → 部分 C で縛りを確かめた
 - L-D05 修正の後の信号で標準へ上げ、下げない。単位の信号はその単位だけ、run の信号は全部を上げ、単位の外の信号は raised に残す
   - 元: works/darkfactory/lib/depth.py:160 `raise_doc`・:302 `raise_`
   - 今: lib/depth.py:146 `raise_doc`、scripts/redepth.py:23 `redepth`
@@ -1138,10 +1138,10 @@
   - 狭め: 無し（標準へ倒す側に広げた）
 - L-D08 上げる信号「答えていない問い」（元は gatemarks.pending で問いごと、判定の保留の問いも含む）
   - 元: works/darkfactory/lib/depth.py:279-283
-  - 今: scripts/redepth.py:33-34 は plan-rounds の questions だけを見て、関所の答えが 1 つでも在れば全部を答えた扱い。replan-review の問いと判定の保留の問いは見ない
-  - 証: RedepthCase.test_answered_questions_do_not_raise（:519）は狭めた形を縛る → 要追加: RedepthCase.test_question_not_in_the_answer_still_raises
+  - 今: scripts/redepth.py の pending_signals（gatemarks.ledger_beside・gatemarks.pending。判定の問いの台帳と依頼の answers と修正前の関所の答え。台帳が読めなければ上げる側）
+  - 証: tests/workflows/test_line.py::RedepthCase.test_question_not_in_the_answer_still_raises（狭めた形を縛った test_answered_questions_do_not_raise は外した）
   - 本物の run: 節 redepth の出力 raised
-  - 狭め: #74 で狭めた（不可でない → 戻す）
+  - 狭め: #74 で狭めた（不可でない → 戻す） → 部分 C で戻した
 - L-D09 同じ run で案の直しか再審が走ったら run 全体を標準へ上げる
   - 元: works/darkfactory/lib/depth.py:305-308、works/darkfactory/darkfactory.yaml:885-886
   - 今: scripts/redepth.py:35-38、yaml:686-687
@@ -1150,28 +1150,28 @@
   - 狭め: 無し
 - L-D10 run 全体の広さで上げる（計画の allowed_paths と実際の差分のファイルの和集合とテストの本数。数えた数と起点を counted に残す。軽量の名指しでも上げる）
   - 元: works/darkfactory/lib/depth.py:97 `run_wide`・:289 `_actual_diff`・:312-313
-  - 今: fix の delta-cut の中だけ（main lib/fixboard.py:862 `redepth`）。線の scripts/redepth.py は run_wide を呼ばない。修正の中では標準に上がって差分の審査を回したのに、独立の目には軽量が渡って R1〜R4 を省く食い違いが起こりうる
-  - 証: 要追加: tests/workflows/test_line.py::RedepthCase.test_wide_run_raises_to_standard。lib 側の元の試験（works/tests/test_depth.py:299・321・344・384・396）も main に無い → 要追加: lib/tests/test_fixboard.py::RedepthCase.test_actual_diff_beyond_plan_raises
+  - 今: scripts/redepth.py の wide_signals（depth.run_wide。計画の欄と fixed の差分。counted を返し報告の深さの行に出る）と fix の中の lib/fixboard.py の redepth
+  - 証: tests/workflows/test_line.py::RedepthCase.test_wide_run_raises_to_standard・lib/tests/test_fix_seams.py::DeltaSeamCase.test_redepth_raises_on_the_signals_after_the_fix（test_fixboard.py::RedepthCase.test_actual_diff_beyond_plan_raises の名を変えた。既に在った）
   - 本物の run: fix の置き場の depth-raised.json の counted。線では観測できない
-  - 狭め: #74（線が持たない）と #94（試験が落ちた）。不可でない → 戻す
+  - 狭め: #74（線が持たない）と #94（試験が落ちた）。不可でない → 戻す → 部分 C で戻した
 - L-D11 全部の単位が軽量のままの run は、独立の目の削除候補と R1〜R4 を省く
   - 元: works/darkfactory/darkfactory.yaml:1201（skip_optional）
-  - 今: yaml:733（`depth: $redepth.output.depth`）→ main workflows/eyes/scripts/prep.py:56
-  - 証: 筋書き light（workflows/line/fixtures/light.stubs.yaml）は eyes__prep を stub で差すので、深さで目が省かれることを照らさない（弱い）→ 要追加: LineWiringCase.test_eyes_get_the_raised_depth と、eyes__prep を stub にしない筋書き light-skips-eyes
+  - 今: yaml の eyes.depth（$redepth.output.depth）→ workflows/eyes/scripts/prep.py の run_eyes（depth.skip_reason）
+  - 証: tests/workflows/test_line.py::LineWiringCase.test_eyes_get_the_raised_depth・tests/workflows/test_eyes.py::ScriptCase.test_prep_all_light_turns_eyes_off（筋書き light-skips-eyes は置けない: 筋書きは include の入力を目の script に渡さない。docs/design.md の U3・止めた Archon の packages/workflows/src/dry-run.ts 757-766 行）
   - 本物の run: 節 eyes の返りの r1〜r4（種は標準なので全部走る）
-  - 狭め: 無し
+  - 狭め: 無し → 部分 C で縛った（筋書きは U3 で狭め）
 - L-D12 全部の単位が軽量のままの run は、差分の審査とレンズ・手直しを省く
   - 元: works/darkfactory/lib/depth.py:315-317
-  - 今: main workflows/fix/works-factory-fix.yaml:726 delta-cut（scripts/delta_cut.py:39-41）
-  - 証: main tests/workflows/test_fix.py:343 は異議の信号の時だけ → 要追加（fix の区分へ）
+  - 今: workflows/fix/scripts/delta_cut.py（fixboard.redepth の skip_reason で delta/skipped.json を書いて go: false。後ろのレンズ・手直しも飛ぶ）
+  - 証: tests/workflows/test_fix.py::DeltaScriptsCase.test_delta_cut_skips_an_all_light_run・test_delta_cut_raises_the_depth_before_skipping
   - 本物の run: fix の置き場 delta/skipped.json（種では無い）
-  - 狭め: 無し（住処が fix に移った）
+  - 狭め: 無し（住処が fix に移った） → 部分 C で縛りを確かめた
 - L-D13 報告の冒頭 2 に深さの行（単位ごとの数・標準へ上げた信号・run の広さの数え・軽量で省いた物）
   - 元: works/darkfactory/lib/depth.py:192 `lines` → works/darkfactory/darkfactory.yaml:1330
-  - 今: lib/runreport.py:890-892 は plan の depth（上げる前）しか出さない。redepth の raised・skip_optional は collect に入口が無い
-  - 証: 要追加: tests/workflows/test_line.py::CollectAndResultCase.test_raised_depth_reaches_the_report（と report の LinesCase.test_depth_lines_name_raised_and_skipped）
+  - 今: lib/runreport.py の _depth_lines（redepth の返り {depth, raised, counted} を lib/depth.lines の形で。単位ごとの数・上げた信号・run の広さの数え・軽量で省いた物）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_depth_lines_name_raised_and_skipped・tests/workflows/test_line.py::CollectAndResultCase.test_deferred_widened_reasons_reach_report（CollectAndResultCase.test_raised_depth_reaches_the_report の名を変えた）
   - 本物の run: report.md の「深さ:」の行
-  - 狭め: #74 で名指し済み（S30・S53。不可でない → 戻す）
+  - 狭め: #74 で名指し済み（S30・S53。不可でない → 戻す） → 部分 C で戻した
 - L-D14 深さを決められない時の倒し方（元は標準へ倒して続け、訳を why に残した）
   - 元: works/darkfactory/lib/depth.py:330-341 `node`
   - 今: scripts/redepth.py:43-44 `fallback` は works:line-script で止め、試験の関門から先が飛ぶ（yaml:693）
@@ -1180,10 +1180,10 @@
   - 狭め: 振る舞いを変えた（続ける → 止める）。持ち主の確かめ待ち
 - L-D15 案の直しの後の深さ（元は全部の単位の控えを残して上げた）
   - 元: works/darkfactory/lib/depth.py:302-317
-  - 今: scripts/redepth.py:24 は直した案の深さで丸ごと置き換え、1 回目に直した単位の行が目へ渡らない
-  - 証: RedepthCase.test_replanned_depth_wins（:523）は狭めた形を縛る → 要追加: RedepthCase.test_replanned_depth_merges_by_unit
+  - 今: scripts/redepth.py の merged（直した案の行で単位ごとに置き換え、1 回目の単位の行を残す）
+  - 証: tests/workflows/test_line.py::RedepthCase.test_replanned_depth_merges_by_unit（狭めた形を縛った test_replanned_depth_wins を置き換えた）
   - 本物の run: 筋書きでのみ
-  - 狭め: #74（小さい。不可でない → unit_id で合わせて戻す）
+  - 狭め: #74（小さい。不可でない → unit_id で合わせて戻す） → 部分 C で戻した
 - L-D16 計画と事前審査の往復は最大 3 周で、上限でも輪は落ちずに抜ける（計画ができない・通った・stalled・3 周目）
   - 元: works/.shared/core/converge.py:148 `decide`
   - 今: yaml:187-188、scripts/plan_out.py:25-28（ROUND_LIMIT）。Archon は上限に達した輪を落とす（packages/workflows/src/dag-executor.ts:5222）ので done で先に抜ける
@@ -1193,9 +1193,9 @@
 - L-D17 2 周目の plan は前の周の事前審査の返り（review）を受けて案を直す
   - 元: works/.shared/core/converge.py:538 `revise_section`・:72 REVISE_ASK
   - 今: yaml:198（`$LOOP_PREV.plan-out.output.review`）
-  - 証: 要追加: tests/e2e の筋書き plan-two-rounds — 2 周目の plan__round の入力 review が 1 周目の review の指し札（ブロック側は tests/workflows/test_plan.py::CollectCase.test_rounds_count_and_second_round_gets_review）
+  - 証: tests/workflows/test_line.py::LineWiringCase.test_second_round_plan_gets_the_review・tests/workflows/test_plan.py::CollectCase.test_rounds_count_and_second_round_gets_review（筋書き plan-two-rounds は置けない: 筋書きは輪を 1 周で終え前の周の値を渡さない。止めた Archon の packages/workflows/src/dry-run.ts 795・849-890 行。本物は段 1）
   - 本物の run: 置き場 plan/r2/（2 周した時だけ）。dry-run は $LOOP_PREV を置き換えない（S36）
-  - 狭め: 無し
+  - 狭め: 無し → 部分 C で配線を縛った
 - L-D18 直しの役は修正案の役の会話の続きで起きる
   - 元: works/blk-plan の plan-revise
   - 今: 新しい会話で、保存した案と指摘を読む
