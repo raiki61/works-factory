@@ -81,6 +81,10 @@ class SkippedStepsCase(unittest.TestCase):
     def test_ignored_path_matches_file_or_folder_head(self):
         self.assertEqual(self.skipped(lambda: ["works"], ignores={"far": ["works"]}), [{"name": "far", "paths_ignore": ["works"]}])
 
+    def test_sibling_with_same_prefix_is_not_under(self):
+        """範囲はパスの頭の字でなく区切りで見る: 頭の字だけが同じ隣のフォルダ（works2）は works の下でない"""
+        self.assertEqual(self.skipped(lambda: ["works2/a.py"], ignores={"far": ["works"]}), [])
+
     def test_unmeasured_change_runs_every_step(self):
         """元 ScopedStepsCase.test_unmeasured_change_runs_every_step: 変更を測れない（口が None・空を返す）・口が無い回は絞らない"""
         for changed in (lambda: None, lambda: [], None):

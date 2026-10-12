@@ -31,6 +31,14 @@ TEXT_FIELDS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict
 
 _import_error = None
 
+# Archon が script の節に立てる変数（exec-environment.ts の buildExecNodeEnvironment。tests/shared/test_archon_contract.py が照らす）。
+# 頭の一致は ARCHON_・INPUTS_ だけで、ほかは名の完全一致（CONTEXT などを頭で落とすと利用者の変数まで落とす）
+RUNNER_PREFIXES = ("ARCHON_", "INPUTS_")
+RUNNER_NAMES = frozenset({
+    "ARTIFACTS_DIR", "STATE_DIR", "LOG_DIR", "ADOPTED_RUN_DIR", "WORKFLOW_ID", "BASE_BRANCH", "USER_MESSAGE", "ARGUMENTS",
+    "LOOP_USER_INPUT", "LOOP_PREV_OUTPUT", "REJECTION_REASON", "CONTEXT", "EXTERNAL_CONTEXT", "ISSUE_CONTEXT", "TYPED_ARTIFACTS_FILE",
+})
+
 
 def returns(obj: dict) -> None:
     """節の返りを JSON 1 つで標準出力に書く。型は Archon が節の output_format で照らす。
@@ -106,6 +114,13 @@ def flag(raw) -> bool:
 def items(raw) -> list:
     got = skip_value.value(raw)
     return got if isinstance(got, list) else []
+
+
+def drop_runner_env() -> None:
+    """Archon の変数を落とす。入力と置き場を読み終えた後、対象のテストを走らせる lib/ の関数を呼ぶ前に呼ぶ（lib/ は環境を os.environ
+    から継いで子を起こす。節ごと・子の run ごとに値が違うので、残すと同じ run の中の試験の結果の使い回しの指紋も割れる）"""
+    for name in [n for n in os.environ if n.startswith(RUNNER_PREFIXES) or n in RUNNER_NAMES]:
+        del os.environ[name]
 
 
 def _run_id() -> str:

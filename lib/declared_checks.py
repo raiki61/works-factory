@@ -2,12 +2,16 @@
 走らせ、素材（material）を組み、任せ先の役の素材の欄の決まりを照らす。名は今の works の CI の節の語 CI_BUILTIN（entry.py:442）。
 
 今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の関数を元の名で写した物（各関数の docstring の末尾に元の `<パス>:<行>`）。
-盤面の引数 b・記録への控え（process.checks）・試験の枠と控え（tree_run.slotted_run・同じ run の中の使い回し）・台帳の人待ちは外した。
+盤面の引数 b・記録への控え（process.checks）・機械全体の試験の枠（tree_run.slotted_run の slotwrap.sh）・台帳の人待ちは外した。
+同じ run の中の使い回しは、置き場を呼び手が引数 reuse（tree_run.reuse_place の返り）で渡す形で tree_run.reuse_run に残す。
 - 字のまま（継ぎ目の直しだけ）: TEST_CMD_STEP・local_checks_material・_nice19・_launched・_cmd_material・_same_step・env_only_red・
-  _suite_kind・suites_line・CiRefused（InputRefused ごと）・_with_test_cmd・_junit_unran・_tail（TAIL_LINES・TAIL_BYTES ごと）
+  _suite_kind・suites_line・CiRefused（InputRefused ごと）・_with_test_cmd・_junit_unran・_tail（TAIL_LINES・TAIL_BYTES ごと）・
+  _reused_material・_reused_note
 - 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci・baseline_line
-- 新しい関数: material_problems・drop_copy
+- 元の盤面の部分を盤面なしで組み直した物: _planned_run・_declaration_moved（宣言の照合）・_fall_back（任せ先へ落とす）
+- 新しい関数: material_problems・drop_copy・_cant_status
 """
+import contextlib
 import json
 import os
 import pathlib
@@ -70,15 +74,17 @@ def _tail(data):
 
 # ---------------------------------------------------------------- test_cmd
 def local_checks_material(repo: pathlib.Path, test_cmd: str, log_path: pathlib.Path, *, launched: dict | None = None,
-                          niced: bool = False) -> dict:
+                          niced: bool = False, reuse: dict | None = None) -> dict:
     """任せ先に落ちた CI の節に渡す素材 {"material": …} を組む。
-    test_cmd を tree_run.command_argv の形（direct か shell）で tree_run.run に走らせ（対象の根で・標準入力は空・環境は
+    test_cmd を tree_run.command_argv の形（direct か shell）で tree_run.reuse_run に走らせ（対象の根で・標準入力は空・環境は
     tree_run.outside_env。標準出力と標準エラーを log_path に）、終了コード 0 なら clean（checked が要る）、他は found・count 1。
     detail はログの末尾（宣言の段の末尾と同じ切り方）。起こせなければ（shell の先頭の語が tree_run.prove_launchable の証明を
     通らない回も）not_run。test_cmd が空なら走らせずに not_run。
-    止められたら（tree_run.Stopped）捕まえない。launched（dict）を渡せば、起こす前に決めた起こし方を launched["how"] に置く。
+    止められたら（tree_run.Stopped）捕まえない。launched（dict）を渡せば、起こす前に決めた起こし方を launched["how"] に置き、
+    reuse_run の note にも使う（reuse（tree_run.reuse_place の返り）を渡した回は、同じ run の中の控えから使い回すと launched["reused"] に
+    出どころが、使い回せなかった回は launched["reuse_off"] に理由が入る。出どころは素材の checked にその句が付く）。
     niced が真なら、起こすプロセスの優先度を nice -n 19 と同じだけ下げる（argv・起こし方・起こせなさの証明は変えない）
-    （元 works/.shared/core/entry.py:650-677。tree_run.slotted_run を tree_run.run に替え、使い回しの欄は書かない）"""
+    （元 works/.shared/core/entry.py:650-677。tree_run.slotted_run を tree_run.reuse_run に替えた）"""
     cmd = (test_cmd or "").strip()
     if not cmd:
         return {"material": {"status": "not_run", "reason": "テストのコマンド（test_cmd）が空で、走らせる物が無い"}}
@@ -89,12 +95,12 @@ def local_checks_material(repo: pathlib.Path, test_cmd: str, log_path: pathlib.P
     launched["how"] = how
     with open(log_path, "wb") as f:
         try:
-            code = tree_run.run(argv, env=tree_run.outside_env(os.environ), stdin=subprocess.DEVNULL,
-                                stdout=f, stderr=subprocess.STDOUT, cwd=str(repo),
-                                **({"preexec_fn": _nice19} if niced else {}))
+            code = tree_run.reuse_run(argv, tree_run.outside_env(os.environ), place=reuse, note=launched,
+                                      stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT, cwd=str(repo),
+                                      **({"preexec_fn": _nice19} if niced else {}))
         except OSError as e:
             return {"material": {"status": "not_run", "reason": f"{_launched(argv, how)} でテストのコマンドを起こせない: {e}"}}
-    return _cmd_material(code, log_path, argv, how)
+    return _reused_material(_cmd_material(code, log_path, argv, how), launched)
 
 
 def _nice19() -> None:
@@ -123,6 +129,17 @@ def _cmd_material(code: int | None, log_path: pathlib.Path, argv: list, how: str
                          "detail": f"{ran} ／ 末尾: {tail} ／ {gatemarks.BASELINE_UNVERIFIED}（test_cmd は shell の文字列で、試験の報告を宣言できない）"}}
 
 
+def _reused_material(mat: dict, note: dict) -> dict:
+    """同じ run の中の控えから使い回した test_cmd（note は tree_run.reuse_run の note か、その欄を写した行）の素材 mat の checked（clean）の
+    末尾に、出どころの句を足す。控えは終了コード 0 の回だけなので使い回した素材は clean にしかならない。使い回していない・clean でない
+    素材は変えない（元 works/.shared/core/entry.py:706-713）"""
+    m = mat["material"]
+    text = tree_run.reused_text(note)
+    if not text or m.get("status") != "clean":
+        return mat
+    return {"material": {**m, "checked": f"{m['checked']} ／ {TEST_CMD_STEP} は控えから使った（{text}）"}}
+
+
 def _same_step(steps: list, argv: list, how: str) -> str | None:
     """test_cmd を直に起こす形（how が direct）の argv が宣言の段の argv と同じなら、その段の名（同じコマンドを
     2 度走らせない）。シェルを通す test_cmd は宣言の段（シェルを通さない）と同じにならない（元 works/.shared/core/entry.py:742-747）"""
@@ -131,11 +148,12 @@ def _same_step(steps: list, argv: list, how: str) -> str | None:
     return next((s.get("name") for s in steps if list(s.get("argv") or []) == argv), None)
 
 
-def _with_test_cmd(runner, test_cmd: str, note: dict):
+def _with_test_cmd(runner, test_cmd: str, note: dict, reuse: dict | None = None):
     """runner (steps, cwd, log_dir) -> runs を包み、宣言の段の後に test_cmd の段を 1 つ足す。runner は steps + [test_cmd の段] で
     1 度だけ呼ぶ（ログは段の番号で分かれる）。test_cmd が宣言の段と同じコマンドなら足さず、note["same_as"] にその段の名を置く。
     test_cmd が空なら足さない。段の起こし方 how は起こす前に決め（足す段は tree_run.command_argv の値、宣言の段はシェルを
-    通さないので direct）、走った行に写す（元 works/.shared/core/entry.py:750-765。既定の runner を tree_runner に替えた）"""
+    通さないので direct）、走った行に写す。reuse（同じ run の中の使い回しの置き場）は runner に渡す
+    （元 works/.shared/core/entry.py:750-765。既定の runner を tree_runner に替えた）"""
     cmd = (test_cmd or "").strip()
     argv, how = tree_run.command_argv(cmd) if cmd else (None, None)
 
@@ -143,7 +161,7 @@ def _with_test_cmd(runner, test_cmd: str, note: dict):
         note["same_as"] = _same_step(steps, argv, how) if cmd else None
         extra = [{"name": TEST_CMD_STEP, "argv": argv, "how": how}] if cmd and not note["same_as"] else []
         hows = ["direct"] * len(steps) + [s["how"] for s in extra]
-        rows = (runner or tree_runner)(list(steps) + extra, cwd, log_dir)
+        rows = (runner or tree_runner)(list(steps) + extra, cwd, log_dir, reuse=reuse)
         return [{**r, "how": h} for r, h in zip(rows, hows)]
     return run
 
@@ -203,31 +221,56 @@ def suites_line(tests: dict | None, *, role_status: str | None = None) -> str:
 
 
 # ---------------------------------------------------------------- 宣言の段
-def tree_runner(steps: list, cwd, log_dir) -> list:
-    """段を 1 つずつ tree_run.run で走らせる: 段の argv は shell を通さない・別のプロセスグループ・期限なし・標準入力は空・uv run の
+def tree_runner(steps: list, cwd, log_dir, *, reuse: dict | None = None) -> list:
+    """段を 1 つずつ tree_run.reuse_run で走らせる: 段の argv は shell を通さない・別のプロセスグループ・期限なし・標準入力は空・uv run の
     環境を外す（tree_run.outside_env）・止められたら木ごと止めて tree_run.Stopped を投げる（ここでは捕まえない）。標準出力・
     標準エラーは log_dir/<段の番号>.out・.err に丸ごと。返りの行は {name, argv, out, err, started, exit, wall_s, tail}（started は
     段を起こした epoch 秒で、試験の報告が今の段の物かを checks_reply が見る。起こせなければ exit None と error）。
-    信号で死んだ段の exit は tree_run の 128+信号。同じ run の中の使い回しはしない
-    （元 works/.shared/core/board.py:379-433。tree_run.slotted_run を tree_run.run に替え、replay_group・keep_group・note_fields・wait_s を外した）"""
+    信号で死んだ段の exit は tree_run の 128+信号。
+    使い回し（reuse。tree_run.reuse_place の返りで、None なら使い回さない）の単位は宣言の一式（段は前の段の副作用に依りうるので、
+    一式の中では段ごとには使い回さない）: 全段のログを開いた後に tree_run.replay_group が一式の控えを 1 度だけ引き、全段が同じ run の中で
+    同じ木・同じ一式・同じ環境の緑なら、子を起こさず、段の junit（宣言していれば cwd からのパス）を全部書き戻す。1 段でも外れれば全段を
+    走らせ（tree_run.reuse_run）、全段が緑で各段の前後の木が同じなら一式を置く（tree_run.keep_group。一式の外の呼び（TDD の輪の頭の
+    test_cmd など）が引く段ごとの控えも並べて置く）。段ごとの note の欄（出どころ reused・使い回せなかった理由 reuse_off）は
+    tree_run.note_fields で行へ写す
+    （元 works/.shared/core/board.py:379-433。tree_run.slotted_run を tree_run.reuse_run に替え、枠を待った秒 wait_s を外した）"""
     log_dir = pathlib.Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     env = tree_run.outside_env(os.environ)
+    outputs = [[str(pathlib.Path(cwd) / s["junit"])] if s.get("junit") else [] for s in steps]
     runs = []
-    for i, s in enumerate(steps, 1):
-        out_path, err_path = log_dir / f"{i}.out", log_dir / f"{i}.err"
-        started = time.time()
-        row = {"name": s["name"], "argv": list(s["argv"]), "out": str(out_path), "err": str(err_path), "started": started}
-        with open(out_path, "wb") as out, open(err_path, "wb") as err:
-            try:
-                rc = tree_run.run(list(s["argv"]), env=env, stdin=subprocess.DEVNULL, stdout=out, stderr=err, cwd=str(cwd))
-            except OSError as e:
-                rc = None
-                row["error"] = str(e)
-                err.write(str(e).encode("utf-8"))
-        data = out_path.read_bytes() + b"\n" + err_path.read_bytes()
-        row.update(exit=rc, wall_s=round(time.time() - started, 1), tail=_tail(data))
-        runs.append(row)
+    with contextlib.ExitStack() as stack:
+        logs = []
+        for i in range(len(steps)):
+            out_path, err_path = log_dir / f"{i + 1}.out", log_dir / f"{i + 1}.err"
+            logs.append((str(out_path), str(err_path), stack.enter_context(open(out_path, "wb")),
+                         stack.enter_context(open(err_path, "wb"))))
+        group = tree_run.new_group([{"name": s["name"], "argv": list(s["argv"]), "outputs": o} for s, o in zip(steps, outputs)], cwd)
+        replay_at = tree_run.file_clock()   # 控えから書き戻した報告が、段の起動より古く見えないように、書き戻す前の時刻を起動に使う
+        replayed, why = tree_run.replay_group(group, env, cwd, [(out, err) for _, _, out, err in logs], reuse)
+        notes = replayed or [{} for _ in steps]
+        for s, o, note, (out_path, err_path, out, err) in zip(steps, outputs, notes, logs):
+            started = replay_at if replayed else tree_run.file_clock()
+            row = {"name": s["name"], "argv": list(s["argv"]), "out": out_path, "err": err_path, "started": started}
+            if replayed:
+                rc = 0
+            else:
+                try:
+                    rc = tree_run.reuse_run(list(s["argv"]), env, place=reuse, outputs=o, note=note, skip=why, group=group,
+                                            stdin=subprocess.DEVNULL, stdout=out, stderr=err, cwd=str(cwd))
+                except OSError as e:
+                    rc = None
+                    row["error"] = str(e)
+                    err.write(str(e).encode("utf-8"))
+            out.flush()
+            err.flush()
+            data = pathlib.Path(out_path).read_bytes() + b"\n" + pathlib.Path(err_path).read_bytes()
+            row.update(exit=rc, wall_s=round(time.time() - started, 1), tail=_tail(data))
+            runs.append(row)
+        if not replayed:
+            tree_run.keep_group(group, notes)
+    for row, note in zip(runs, notes):
+        row.update(tree_run.note_fields(note))
     return runs
 
 
@@ -352,41 +395,91 @@ def _junit_reports(root: pathlib.Path, steps: list, runs: list, report_dir) -> t
 
 
 def _row(r: dict) -> dict:
-    """返りの段の行 {name, exit, how, launch?}（launch は起こせない段だけ broken）"""
+    """返りの段の行 {name, exit, how, launch?, reused?, reuse_off?}（launch は起こせない段だけ broken。reused・reuse_off は
+    tree_run.note_fields の欄）"""
     kind = tree_run.launch_kind(r.get("exit"))
-    return {"name": r["name"], "exit": r.get("exit"), "how": r.get("how"), **({"launch": kind} if kind == "broken" else {})}
+    return {"name": r["name"], "exit": r.get("exit"), "how": r.get("how"), **({"launch": kind} if kind == "broken" else {}),
+            **tree_run.note_fields(r)}
 
 
-def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_dir=None) -> dict:
-    """CI の節を走らせる。返り {by, material, runs, skipped_steps, same_as, test_cmd_how, log, cases, junit_steps, junit_unran}。
+def _reused_note(runs: list, material: dict) -> dict:
+    """素材に、控えから使った段の出どころを足す。使い回した段（行に reused）が在れば、素材の checked（clean）の末尾に
+    『控えから使った段: <段>（<出どころ>）』。控えは全段が緑の一式だけなので、使い回した段の在る素材は clean にしかならない
+    （checks_reply は終了コードで赤を決める）。clean でない素材は変えない。修正前のテストの行（baseline_line）は checked を
+    そのまま出すので、ここに足せば出どころが報告に載る（元 works/.shared/core/board.py:436-447。返答の包みを外し、素材を受ける）"""
+    used = [f"{r['name']}（{text}）" for r in runs if (text := tree_run.reused_text(r))]
+    if not used or material.get("status") != "clean" or not isinstance(material.get("checked"), str):
+        return material
+    return {**material, "checked": f"{material['checked']} ／ 控えから使った段: {'・'.join(used)}"}
+
+
+def _no_runs() -> dict:
+    return {"material": None, "runs": [], "skipped_steps": [], "same_as": None, "test_cmd_how": None, "log": "", "cases": [],
+            "junit_steps": [], "junit_unran": []}
+
+
+def _cant_status(material: dict, after_judge: bool) -> dict:
+    """走らせられない素材の status を形に合わせる（判定の前は awaiting_human・後は not_run）。test_cmd の素材は起こせない時に
+    形を問わず not_run を返すので、判定の前の素材の決まり（material_problems）に外れないように置き換える"""
+    cant = CANT[bool(after_judge)]
+    return {**material, "status": cant} if material.get("status") in CANT.values() else material
+
+
+def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_dir=None, reuse: dict | None = None) -> dict:
+    """CI の節を走らせる。返り {by, material, runs, skipped_steps, same_as, test_cmd_how, log, cases, junit_steps, junit_unran, fell_back?}。
     - 範囲の宣言（checkscope.SCOPE_DECL）が在るのに対象の宣言（DECL_NAME）が無い・範囲の宣言の誤り・宣言に無い段の名は、
       走らせる前に CiRefused（範囲の宣言が黙って効かない形にしない）
     - 宣言が在れば by engine: 範囲の宣言の paths_ignore を changed（変更のパスを返す口。範囲を持つ段が在る時だけ呼ぶ）と照らし、
       変更が全部その下に在る段は回さず skipped_steps に名と範囲で残す。宣言の段の後に test_cmd の段を足し（宣言の段と同じ
       コマンドなら足さず same_as にその段の名）、素材は全部の段から組む——宣言の一式と test_cmd の両方が緑の時だけ clean。
       宣言の書式の誤りは走らせずに走らせられない素材（判定の前は awaiting_human・後は not_run）
+    - 走らせた段が宣言を書き換えた（走らせた後の宣言の sha が計画の sha と違う）なら、計画から 1 度だけやり直す（ログは
+      log_dir/replan）。やり直しの後も変わっていれば CiRefused
+    - engine の素材が素材の欄の決まり（material_problems）に外れれば任せ先に落とし、fell_back に訳を置く: engine が同じ呼び出しで
+      test_cmd の段を走らせていれば、その結果から by role の素材を組む（test_cmd を 2 度走らせない）。走らせていなければ test_cmd を
+      走らせて by role。test_cmd が無ければ by role_needed
     - 宣言が無く test_cmd が在れば by role: test_cmd だけを走らせた素材と、起こす前に決めた起こし方 test_cmd_how（direct・shell）
     - どちらも無ければ by role_needed: 素材は None（任せ先の CI の役が渡す。前の結果を使ってよい、ではない）
-    runs は走った段ごとの {name, exit, how, launch?}。cases は JUnit の報告を宣言して走った段の 1 件ごとの結末（baseline_red.parse_junit
+    by role の素材の走らせられない status は形に合わせる（_cant_status）。
+    reuse（tree_run.reuse_place の返り）を渡せば、宣言の一式と test_cmd を同じ run の中の控えから使い回し・控える（tree_runner・
+    local_checks_material）。使い回した段の出どころは素材の checked と段の行の reused に、使い回さなかった理由は段の行の reuse_off に出る。
+    最後のテストの呼び手は渡さない（最後のテストは省かない）。
+    runs は走った段ごとの {name, exit, how, launch?, reused?, reuse_off?}。cases は JUnit の報告を宣言して走った段の 1 件ごとの結末（baseline_red.parse_junit
     の形）、junit_steps はその段の名、junit_unran はそのうち試験を走らせなかった段の名。段が対象の木の中に書いた報告は report_dir に
     段の番号で写し、走らせる前に無かった報告は対象の木から消す（止められた時も）。止められたら（tree_run.Stopped）捕まえない
     （元 works/.shared/core/entry.py:858-904 の盤面の外の決まりを、盤面の run_engine の代わりに checks_plan・checkscope・tree_runner・
-    checks_reply で組んだ物。scope_changed が足していた依頼の where が名指すパスは持たない——変更は changed だけで受ける）"""
+    checks_reply で組んだ物。scope_changed が足していた依頼の where が名指すパスは、呼び手が changed に足して渡す
+    （checkscope.request_files））"""
     root = pathlib.Path(root)
     log_dir = pathlib.Path(log_dir)
     if (root / checkscope.SCOPE_DECL).is_file() and not (root / DECL_NAME).is_file():
         raise CiRefused(f"範囲の宣言 {checkscope.SCOPE_DECL} が在るのに、それが段を名指す対象の宣言 {DECL_NAME} が無い"
                         "——範囲の宣言が効かない（宣言を置くか、範囲の宣言を消す）")
-    out = {"material": None, "runs": [], "skipped_steps": [], "same_as": None, "test_cmd_how": None, "log": "", "cases": [],
-           "junit_steps": [], "junit_unran": []}
+    got, ran, moved = _planned_run(root, test_cmd, log_dir, changed, after_judge, report_dir, reuse)
+    if moved:
+        got, ran, again = _planned_run(root, test_cmd, log_dir / "replan", changed, after_judge, report_dir, reuse)
+        if again:
+            raise CiRefused(f"宣言 {DECL_NAME} が計画の後に 2 度変わった（計画し直しても同じ）: {moved}／{again}")
+    if got["by"] != "engine":
+        return got
+    problems = material_problems(got["material"], mode=MODES[bool(after_judge)])
+    if not problems:
+        return got
+    why = "engine が組んだ素材が素材の欄の決まりに外れた: " + "；".join(problems)
+    return _fall_back(root, test_cmd, log_dir, after_judge, ran, got["same_as"], why, reuse)
+
+
+def _planned_run(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, changed, after_judge: bool, report_dir, reuse) -> tuple:
+    """計画から走らせて素材を組むまでの 1 回 ——（返り, 走った段の行（tree_runner の形）, 宣言が計画の後に変わった訳か ""）"""
+    out = _no_runs()
     plan = checks_plan(root)
     if "fallback" in plan:
         if not (test_cmd or "").strip():
-            return {**out, "by": "role_needed"}
+            return {**out, "by": "role_needed"}, [], ""
         log = log_dir / f"{TEST_CMD_STEP}.log"
         launched = {}
-        material = local_checks_material(root, test_cmd, log, launched=launched)["material"]
-        return {**out, "by": "role", "material": material, "log": str(log), "test_cmd_how": launched.get("how")}
+        material = _cant_status(local_checks_material(root, test_cmd, log, launched=launched, reuse=reuse)["material"], after_judge)
+        return {**out, "by": "role", "material": material, "log": str(log), "test_cmd_how": launched.get("how")}, [], ""
     steps = plan.get("steps") or []
     launch = {"steps": steps, "sha": plan.get("sha"), "blocked": plan.get("blocked")}
     runs, skipped, note, todo = [], [], {}, []
@@ -402,16 +495,50 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
     new_reports = [root / s["junit"] for s in todo if s.get("junit") and not (root / s["junit"]).exists()]
     try:
         if not launch["blocked"]:
-            runs = _with_test_cmd(None, test_cmd, note)(todo, root, log_dir)
-        material = _skipped_note(skipped, checks_reply(launch, runs, root, after_judge=after_judge))
+            runs = _with_test_cmd(None, test_cmd, note, reuse)(todo, root, log_dir)
+        material = _reused_note(runs, _skipped_note(skipped, checks_reply(launch, runs, root, after_judge=after_judge)))
         cases, junit_steps, junit_unran = _junit_reports(root, steps, runs, report_dir)
     finally:
         for path in new_reports:
             path.unlink(missing_ok=True)
     log = _engine_log(log_dir / "checks.log", runs, material.get("reason") or "")
-    return {**out, "by": "engine", "material": material, "runs": [_row(r) for r in runs], "skipped_steps": skipped,
-            "same_as": note.get("same_as"), "log": str(log), "cases": cases, "junit_steps": junit_steps,
-            "junit_unran": junit_unran}
+    got = {**out, "by": "engine", "material": material, "runs": [_row(r) for r in runs], "skipped_steps": skipped,
+           "same_as": note.get("same_as"), "log": str(log), "cases": cases, "junit_steps": junit_steps,
+           "junit_unran": junit_unran}
+    return got, runs, (_declaration_moved(root, launch["sha"]) if runs else "")
+
+
+def _declaration_moved(root: pathlib.Path, sha: str) -> str:
+    """走らせた後の宣言が計画の宣言（sha）と違えば、その訳（同じなら空）。読めない・誤りも違うと数える
+    （元 works/.shared/core/graphloops/engine/commands.py:522 engine_run_refusal の宣言の照合）"""
+    now = declared.read(root)
+    after = (now or {}).get("sha")
+    if after == sha:
+        return ""
+    return f"宣言 {DECL_NAME} が計画の後に変わった（sha {sha[:12]} → {after[:12] if after else (now or {}).get('error') or '無い'}）"
+
+
+def _fall_back(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, after_judge: bool, runs: list, same_as, why: str,
+               reuse) -> dict:
+    """engine の結果を使えない CI の節を任せ先へ落とす。test_cmd の素材は、engine が同じ呼び出しで走らせた test_cmd の段（名
+    TEST_CMD_STEP か same_as の段で、起こせた物）が在ればその終了コードと標準出力・標準エラーと、走った行の argv・how から組み、
+    無ければ test_cmd を走らせる（元 works/.shared/core/board.py:1413 _fall_back と works/.shared/core/entry.py:925 _ci_by_cmd。
+    印 mark_launched と盤面の done を外し、素材を返りに置く）"""
+    out = {**_no_runs(), "fell_back": why}
+    if not (test_cmd or "").strip():
+        return {**out, "by": "role_needed"}
+    log = log_dir / f"{TEST_CMD_STEP}.log"
+    ran = next((r for r in runs if r["name"] in (TEST_CMD_STEP, same_as) and r.get("exit") is not None), None)
+    if ran:
+        log.write_bytes(b"".join(pathlib.Path(ran[k]).read_bytes() for k in ("out", "err")
+                                 if ran.get(k) and pathlib.Path(ran[k]).is_file()))
+        launched = {"how": ran.get("how")}
+        material = _reused_material(_cmd_material(ran["exit"], log, ran["argv"], launched["how"]), ran)["material"]
+    else:
+        launched = {}
+        material = local_checks_material(root, test_cmd, log, launched=launched, reuse=reuse)["material"]
+    return {**out, "by": "role", "material": _cant_status(material, after_judge), "log": str(log),
+            "test_cmd_how": launched.get("how")}
 
 
 # ---------------------------------------------------------------- 任せ先の役の素材
