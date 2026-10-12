@@ -13,7 +13,7 @@
   - 元: works/.shared/core/entry.py:616-638 `_read_request`
   - 今: scripts/start.py:102-117 `request`、lib/entry.py:122 `request_problems`
   - 証: tests/workflows/test_line.py::StartCase.test_refusals_stop_before_any_role（bad_findings→"findings は"。assert: test_line.py:155-157）
-  - 本物の run: artifacts/start.json の input.requests（種の request_ok.json なら 2）。拒みは筋書きでのみ
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば artifacts/start.json の input.requests（種の request_ok.json なら 2）。拒みは筋書きでのみ）
   - 狭め: 無し
 - L-E02 依頼が「読めない」「JSON として読めない」「形が違う」の 3 つを別の文で拒む
   - 元: works/.shared/core/entry.py:620-632 `_read_request`
@@ -127,19 +127,19 @@
   - 元: works/.shared/core/board.py:554-581 `diff_of`
   - 今: lib/entryshape.py:211-239 `diff_of`・242 `_worktree_tree`
   - 証: lib/tests/test_entry_inputs.py::ChangeInputsCase.test_diff_of_clean_head_is_empty・test_diff_of_counts_untracked・test_diff_of_refuses_unknown_rev（assert: test_entry_inputs.py:39・50・53・58）
-  - 本物の run: start.json の input.diff
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json の input.diff）
   - 狭め: 無し
 - L-E21 始めの記録の base_rev は修正の前の HEAD（merge-base でない）。merge・test-gate が読む
   - 元: works/.shared/core/entry.py:1203 `start`
   - 今: scripts/start.py:167
   - 証: test_line.py::StartCase.test_base_alone_is_a_change_entry（assert: test_line.py:113）
-  - 本物の run: start.json の base_rev
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json の base_rev）
   - 狭め: 無し
 - L-E22 入口の文 startrec.words（差分なし／差分 <12 字>..HEAD／・仕様の段あり）
   - 元: works/.shared/core/startrec.py:58-71 `words`
   - 今: lib/startrec.py:66-74
   - 証: lib/tests/test_startrec.py::StartRecCase.test_words_shapes（assert: test_startrec.py:55-59）
-  - 本物の run: gate-start の関所の文の 1 行目
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば gate-start の関所の文の 1 行目（関所の文は run の記録に残らない。同じ入口の文が report/report.md の「入口: 」の行に出る））
   - 狭め: 無し
 - L-E23 始めの記録の読み手（diff_empty・requests）は、形の無い前の版の記録を None で返す
   - 元: works/.shared/core/startrec.py:44-56
@@ -187,7 +187,7 @@
   - 元: works/.shared/core/gatepolicy.py `check`、entry.py:562-565
   - 今: lib/gatepolicy.py:37-48、scripts/start.py:69・168
   - 証: lib/tests/test_gatepolicy.py::CheckCase.test_empty_is_default・test_unknown_words_refused（assert: test_gatepolicy.py:34・42）、test_request_builds…（assert: test_line.py:103）
-  - 本物の run: start.json の final_gate・unattended
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json の final_gate・unattended）
   - 狭め: 無し
 - L-E31 features_off・features_on の知らない語と、同じ語の両方への名指しを拒む
   - 元: works/.shared/core/entry.py:461-468・568-572
@@ -199,7 +199,7 @@
   - 元: works/.shared/core/entry.py:421-512
   - 今: lib/entry.py:26-108、scripts/start.py:171-173
   - 証: lib/tests/test_line_inputs.py::FeaturesOffCase.test_named_words_beat_defaults・test_features_on_of_reads_any_board（assert: test_line_inputs.py:39-44・50-54）、test_request_builds…（assert: test_line.py:101-102）
-  - 本物の run: start.json の features・features_cut
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json の features・features_cut）
   - 狭め: 無し
 - L-E33 機能の切り替えがブロックに届く（今はブロックが記録の features_cut を読む）
   - 元: works/blk-entry/blk-entry.yaml の出口 fix_lanes ほかを darkfactory.yaml がブロックに写す
@@ -217,7 +217,7 @@
   - 元: works/.shared/core/entry.py:593-598
   - 今: scripts/start.py:91-99
   - 証: test_line.py::StartCase.test_policy_md_is_recorded_as_an_absolute_path（assert: test_line.py:139）
-  - 本物の run: start.json の policy_md
+  - 本物の run: 筋書きでのみ（種は policy_md を名指さない。在れば start.json の policy_md）
   - 狭め: 無し
 - L-E36 人の方針の本文を役に貼る
   - 元: works/.shared/core/entry.py:1212・1221 `start`（policy.brief）
@@ -289,7 +289,7 @@
   - 元: works/blk-entry/blk-entry.yaml の launch、works/dev/use.sh:1215-1224
   - 今: yaml:86-92（gate-start。when: ask）、scripts/start.py:183
   - 証: test_line.py::StartCase.test_unattended_does_not_open_the_start_gate（assert: test_line.py:118）、test_request_builds…（assert: test_line.py:96）
-  - 本物の run: Archon の run の gate-start の approval（paused）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば Archon の run の gate-start の approval（paused））
   - 狭め: 無し
 - L-E48 起動の関所の文: 冒頭 3 行・入口の文・機能・最後の関所の開き方・答え方の 2 行
   - 元: works/blk-entry/blk-entry.yaml の launch の message
@@ -313,7 +313,7 @@
   - 元: works/blk-entry/blk-entry.yaml の launch（reject は run の取り消し）
   - 今: yaml:94-112（answer-start）、scripts/gate_answer.py
   - 証: test_line.py::GateAnswerCase.test_go_words_continue_and_are_recorded・test_stop_word_stops_with_the_gate_named・test_reject_stops_like_stop・test_dry_run_approval_reads_as_approve（assert: test_line.py:188-207）、GateDecisionsCase.test_gates_take_the_words_their_text_prints（assert: test_line.py:672-673）
-  - 本物の run: gates/gate-start.json、answer-start の output.go
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば gates/gate-start.json、answer-start の output.go）
   - 狭め: 無し（報告が出るので強くなった）
 - L-E52 入口の拒みは AI を起こす前に止める。ブロックは when: で全部飛び、collect・report・result だけが走る（止めの語 works:start-refused）
   - 元: works/blk-entry/scripts/start.py（終了コード 1。報告なし）
@@ -331,7 +331,7 @@
   - 元: works/tests/test_line_inputs.py（TA16）
   - 今: yaml の inputs: と scripts/start.py `raw_inputs`
   - 証: tests/workflows/test_line.py::LineWiringCase.test_line_inputs_are_what_start_reads
-  - 本物の run: start.json の inputs
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json の inputs）
   - 狭め: 無し
 - L-E55 入口の種類（依頼・base・PR）を知るのは入口の変換だけ（柵 entry-kind）
   - 元: works/tests/test_entry_block.py::ConversionLayerCase.test_only_conversion_layer_knows_entry_kind
@@ -343,7 +343,7 @@
   - 元: works/.shared/core/entry.py:972-1016 `_drain`・`resume_after_ci`
   - 今: yaml:115-122（test-gate-base）と main workflows/judge/works-factory-judge.yaml:272（pr_check）に移った
   - 証: test-gate・judge の棚卸しに任せる
-  - 本物の run: test-gate/base/baseline.json、judge の pr の素材
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば test-gate/base/baseline.json、judge の pr の素材）
   - 狭め: 無し（住処が移った）
 
 ## L-G 人の関所 4 つ・無人の方針・止めの語
@@ -352,13 +352,13 @@
   - 元: works/blk-entry/blk-entry.yaml:79 `launch`・works/darkfactory/darkfactory.yaml:534 `policy-gate`・:741 `replan-gate`・:1247 `final-gate`
   - 今: yaml:86 `gate-start`・:317 `gate-before-fix`・:570 `gate-replan`・:842 `gate-final`
   - 証: tests/workflows/test_line.py::GateDecisionsCase.test_gates_take_the_words_their_text_prints（assert: test_line.py:667 で関所の id の組を等号で縛る）
-  - 本物の run: run の events の approval の節（`gate-start`・`gate-final` は人の居る標準の run で必ず開く）。答えは `gates/<関所>.json`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば run の events の approval の節（`gate-start`・`gate-final` は人の居る標準の run で必ず開く）。答えは `gates/<関所>.json`）
   - 狭め: 無し（仕様の関所は judge へ移った: main workflows/judge/works-factory-judge.yaml:248、tests/workflows/test_judge.py::GateTest.test_spec_gate_is_an_approval_with_the_four_words、assert: test_judge.py:145）
 - L-G02 答えの語は approve・continue が通し、stop・reject が止める。reject で run が取り消されて報告が消えることは無い
   - 元: works/darkfactory/lib/line_edge.py:131-132 `GATE_GO`・`GATE_STOP`
   - 今: lib/answer.py `GO_WORDS`・`REJECT`・`taken`、4 つの関所の decisions（yaml の gate-*）
   - 証: tests/workflows/test_line.py::GateAnswerCase.test_reject_stops_like_stop（assert: test_line.py:201）・GateDecisionsCase（assert: :667）
-  - 本物の run: `gates/gate-final.json` の `decision`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `gates/gate-final.json` の `decision`）
   - 狭め: 無し
 - L-G03 知らない答えの語を通さない（元は BoardGap で落とした。今は通す語でない物を全部止めと読む）
   - 元: works/darkfactory/lib/line_edge.py:191-203 `_gate_words`
@@ -370,7 +370,7 @@
   - 元: works/darkfactory/lib/line_edge.py:291-324 `_answer_policy_gate`・`_answer_final_gate`
   - 今: scripts/gate_answer.py:38-40（`gates/<所>.json`）→ collect（yaml:941-944）→ report
   - 証: tests/workflows/test_line.py::GateAnswerCase.test_go_words_continue_and_are_recorded（assert: :190・:192）
-  - 本物の run: `gates/gate-start.json`・`gates/gate-final.json`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `gates/gate-start.json`・`gates/gate-final.json`）
   - 狭め: 無し
 - L-G05 関所が飛ばされた時は、前の節の決め（go・止めの理由）をそのまま渡し、answer は null
   - 元: works/darkfactory/lib/line_edge.py:1167-1185
@@ -412,7 +412,7 @@
   - 元: works/.shared/core/gatepolicy.py:37-48 `check`
   - 今: lib/gatepolicy.py:37-48、scripts/start.py:69
   - 証: lib/tests/test_gatepolicy.py::CheckCase.test_unknown_words_refused（assert: :42）・test_empty_is_default（assert: :34）
-  - 本物の run: start.json の `final_gate`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json の `final_gate`）
   - 狭め: 無し
 - L-G12 無人の語は空か `true` だけを受ける
   - 元: works/.shared/core/gatepolicy.py:42-44
@@ -430,25 +430,25 @@
   - 元: works/.shared/core/gatepolicy.py:64-70 `opens`・works/darkfactory/lib/line_edge.py:870
   - 今: lib/gatepolicy.py:64-70、scripts/ask_final.py:125
   - 証: lib/tests/test_gatepolicy.py::OpensCase（assert: :80・:83・:87）、tests/workflows/test_line.py::AskFinalCase.test_protected_only_ignores_other_reasons（assert: :308）、筋書き final-when-needed-green
-  - 本物の run: `ask-final.output.open`（always なので真）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `ask-final.output.open`（always なので真））
   - 狭め: 無し
 - L-G15 開き方は始めの記録から読み、記録に知らない語が在れば配線の誤りとして落とす
   - 元: works/.shared/core/gatepolicy.py:51-56 `final_mode`・works/darkfactory/lib/line_edge.py:1250-1254
   - 今: yaml:817（`final_gate: $start.output.final_gate`）。scripts/ask_final.py:125 は `mode or ALWAYS` で読み、知らない語を確かめない
   - 証: lib/tests/test_gatepolicy.py::ReadCase.test_unknown_mode_in_record_is_an_error（assert: :69。lib 止まり）
-  - 本物の run: start.json の `final_gate`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json の `final_gate`）
   - 狭め: 無し（start が先に確かめる）
 - L-G16 報告の頭と関所の文に「最後の関所: <開き方>」の句を出す
   - 元: works/.shared/core/gatepolicy.py:73-76 `head_words`
   - 今: lib/gatepolicy.py:73-76、scripts/start.py:131、scripts/ask_final.py:89
   - 証: lib/tests/test_gatepolicy.py::ReadCase.test_head_words（assert: :74）
-  - 本物の run: gate-start の message
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば gate-start の message（関所の文は run の記録に残らない。同じ句が report/report.md の「最後の承認ノード: always」に出る））
   - 狭め: 無し
 - L-G17 修正前の関所は要る時だけ開く。人に回す項目が無ければ開かずに修正へ、計画が無ければどちらへも進まない
   - 元: works/.shared/core/gatemarks.py:625-642 `plan_gate_items`・works/darkfactory/darkfactory.yaml:491-547 `h-gate`
   - 今: scripts/ask_before_fix.py:31-55、main lib/boardview.py:942-955 `collect`
   - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_clean_plan_goes_to_fix_without_the_gate（assert: :223）・test_no_plan_goes_nowhere（:220）・test_reasons_that_open_the_gate（:234）
-  - 本物の run: `ask-before-fix.output.open`
+  - 本物の run: 筋書きでのみ（種は人に回す項目が無く、開かずに修正へ進むことは節の名で言えない。在れば `ask-before-fix.output.open`）
   - 狭め: 無し
 - L-G18 決め手が揃い 4 つの軸が揃う行は聞かずに通し、出どころつきで通した行として残す
   - 元: works/.shared/core/gatemarks.py:576-602 `axes`・:1239-1242 `_record`
@@ -692,19 +692,19 @@
   - 元: works/darkfactory/darkfactory.yaml:1-15（順の説明）・:98-1391
   - 今: yaml:66-1007
   - 証: tests/e2e/test_line_scenarios.py::LineScenariosTest.test_every_scenario_passes（assert: :83）と workflows/line/fixtures/standard.stubs.yaml:5 の reached の並び
-  - 本物の run: Archon の出来事の記録で節の id が出た順（start … result）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば Archon の出来事の記録で節の id が出た順（start … result））
   - 狭め: 無し（レンズ・差分の審査・手直しは fix の中へ、CI の任せ先の役は test-gate の中へ移った）
 - L-W02 次のブロックを回すか（go）を前の段の返りで決める
   - 元: works/darkfactory/lib/line_edge.py:94 `GO_NODE`・:1258 `edge`
   - 今: yaml の when:（plan-rounds :184 `judge.ready`・fix :349 `answer-before-fix.go`・test-gate-final :693 `fixed.done && redepth.stop_reason==''`・merge-apply :874）
   - 証: test_line_scenarios.py::LineScenariosTest.test_every_scenario_passes（assert: :83。no-fix・policy-stop・replan-stop の reached）
-  - 本物の run: 各 include の節が走ったか飛ばされたか
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 各 include の節が走ったか飛ばされたか）
   - 狭め: 無し
 - L-W03 並行 PR・前提の実測・目的・仕様の段・世界の解の段を回すかを決め、前提・目的の出口が届かない時は読める訳で止める
   - 元: works/darkfactory/lib/line_edge.py:761 `entry_edge`・:769 `spec_edge`・:930 `judge_edge`・:995 `mat_edge`・:1026 `_world_due`・:428 `world_edge`
   - 今: judge のブロックの中（main workflows/judge/works-factory-judge.yaml:12 intake・:304 pr-scan・:415 premises-loop・:477 purpose-prep・:553 world-intake・:30 spec-loop）
   - 証: judge の区分で照らす
-  - 本物の run: `judge/` の置き場（premises.json・purpose.json・world の控え）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `judge/` の置き場（premises.json・purpose.json・world の控え））
   - 狭め: 無し（住処が移った）
 - L-W04 包みの確かめ（役が起きた後の最初の境の節で、包みを通っていなければ ADAPTER で止める）
   - 元: works/darkfactory/lib/line_edge.py:964 `_adapter_guard`・:942-950
@@ -716,7 +716,7 @@
   - 元: works/darkfactory/lib/line_edge.py:224 `_carried`・:1163
   - 今: `$judge.output.units/judgment` を plan・plan-review・fix へ（yaml:189-214・:353-354）。後ろは scripts/judged.py:77 `judged` から
   - 証: tests/workflows/test_line.py::HandoffCase.test_handoff_table（plan・plan-review-run・fix・replan・replan-review・refix-run の units・judgment の行）、AfterFixAndJudgedCase.test_judged_without_the_rejudge_is_the_judge
-  - 本物の run: 節 `judged` の output.units・judgment
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `judged` の output.units・judgment）
   - 狭め: 無し
 - L-W06 判定の出口が読めない・届かない時に止める
   - 元: works/darkfactory/lib/line_edge.py:1096-1104 `plan_edge`・:116 JUDGE_BRIDGE_BY
@@ -752,13 +752,13 @@
   - 元: works/darkfactory/lib/line_edge.py:1217-1226・:163 `_ripple_file`、works/darkfactory/darkfactory.yaml:628-637。試験 works/tests/test_edge.py::GoCase.test_plan_file_from_outputs（:1005）・test_ripple_file_from_plan_block（:1014）
   - 今: yaml:356-358（fix の plan・ripple・depth は `$plan-rounds.output.*`）
   - 証: tests/workflows/test_line.py::HandoffCase.test_handoff_table（fix と refix-run の plan・ripple・depth の行）
-  - 本物の run: fix の置き場の prep が読む plan-fields.json・ripple.json
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば fix の置き場の prep が読む plan-fields.json・ripple.json）
   - 狭め: 無し
 - L-W12 計画の往復（plan → plan-review を止め時の converge.decide まで、安全の上限 20 周。事前審査の返答を次の周の plan に渡す）
   - 元: works/blk-plan の輪と works/.shared/core/converge.py
   - 今: yaml:182-259（loop_group。`review: $LOOP_PREV.plan-out.output.review` は :198）、scripts/plan_out.py:25 `plan_out`
   - 証: tests/workflows/test_line.py::HandoffCase.test_handoff_table（plan の review ＝ $LOOP_PREV.plan-out.output.review）、PlanOutCase.test_done_rules、LineWiringCase.test_round_limit_is_the_loop_limit
-  - 本物の run: plan-rounds の output.round・review
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan-rounds の output.round・review）
   - 狭め: 無し
 - L-W13 往復の外は plan-out が返し直した欄を読み、collect は受け皿 plan-rounds-out からだけ読む
   - 元: 無し（Archon の形で新しく要った）
@@ -776,7 +776,7 @@
   - 元: works/darkfactory/lib/line_edge.py:96-98・:191 `_gate_words`・:291 `_answer_policy_gate`。試験 works/tests/test_edge.py::GateCase.test_approve_is_continue（:291）・test_reject_is_stop（:298）・test_stop_without_text_has_default_reason（:311）・test_bad_inputs_are_board_gaps（:337）
   - 今: lib/answer.py `taken`（scripts/gate_answer.py・before_fix_answer.py・replan_answer.py が呼ぶ）
   - 証: tests/workflows/test_line.py::GateAnswerCase.test_reject_stops_like_stop（:201）・test_stop_word_stops_with_the_gate_named（:196-197）、GateDecisionsCase（:671-673）
-  - 本物の run: gates/gate-*.json と collect の gate_*
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば gates/gate-*.json と collect の gate_*）
   - 狭め: 止めの語の改名は名指し済み。一言の無い stop の既定の理由は落ちた（L-G07）
 - L-W16 Archon の再開で境の節を呼び直しても関所の答えを 2 度当てない
   - 元: works/darkfactory/lib/line_edge.py:296-298。試験 works/tests/test_edge.py::GateCase.test_gate_answer_on_resume_is_not_repeated（:328）
@@ -824,7 +824,7 @@
   - 元: works/darkfactory/lib/line_edge.py:1249-1256・:870。試験 works/tests/test_edge.py::ProtectedGateCase.test_touch_forces_gate_when_needed（:668）・test_protected_only_opens_just_for_protected_files（:663）・FinalGateCase.test_mode_comes_from_start_record（:481）
   - 今: scripts/ask_final.py:122-130（yaml:817）
   - 証: tests/workflows/test_line.py::AskFinalCase.test_protected_hits_and_conflicts_open_in_every_mode（:305）・test_protected_only_ignores_other_reasons（:308）・test_always_is_the_default（:299）
-  - 本物の run: 節 ask-final の output.open
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 ask-final の output.open）
   - 狭め: 無し
 - L-W24 申し出は人に回した行（ask_human と案の直しを諦めた行）だけを数え、関所の文に単位ごとの行（conflict.human_lines）を並べる
   - 元: works/darkfactory/lib/line_edge.py:785 `_guard`・:712 `_conflict_text`・:697 `_record_conflict`。試験 works/tests/test_blk_fix_conflict.py::test_forces_final_gate_report_and_next_request（:387）
@@ -842,7 +842,7 @@
   - 元: works/darkfactory/lib/line_edge.py:304 `_answer_final_gate`。試験 works/tests/test_edge.py::ProtectedGateCase.test_continue_passes_and_marks_row（:719）、works/tests/test_line_a.py::LineCase.test_final_gate_continue_note_reaches_report（:228）
   - 今: scripts/gate_answer.py:38-42 → collect の gate_final（scripts/collect.py:41）→ report
   - 証: tests/workflows/test_line.py::CollectAndResultCase.test_gate_answers_and_the_start_pass_through（assert: :584）
-  - 本物の run: gates/gate-final.json、collect の output.gate_final
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば gates/gate-final.json、collect の output.gate_final）
   - 狭め: 無し
 - L-W27 最後の関所の stop・reject で差分を当てずに報告へ進む
   - 元: works/darkfactory/lib/line_edge.py:1178-1183。試験 works/tests/test_edge.py::FinalGateCase.test_final_gate_stop_and_reject（:531）
@@ -914,7 +914,7 @@
   - 元: works/darkfactory/lib/line_edge.py:1210-1215・:149 `gate_text`。試験 works/tests/test_edge.py::GateCase.test_gate_asks_with_text（:228）・test_gate_not_asking_leaves_closed（:245）
   - 今: scripts/ask_before_fix.py:31-60（細目は L-G17〜L-G28）
   - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_reasons_that_open_the_gate（:234-235）・test_clean_plan_goes_to_fix_without_the_gate（:223）
-  - 本物の run: 節 ask-before-fix の output.open・text
+  - 本物の run: 筋書きでのみ（種は人に聞く物が無く、修正前の関所が開く道を通らない。在れば節 ask-before-fix の output.open・text）
   - 狭め: 無し
 - L-W39 無人の run では、関所を開くはずの時に止め（needs-human）、問いと聞かずに通した直しを報告へ回す
   - 元: works/tests/test_line_a.py::ConvergeLineCase.test_unattended_same_block_stops（:882）、gatepolicy
@@ -980,13 +980,13 @@
   - 元: 盤面に積んでいた
   - 今: scripts/fixed.py:35 `fixed`
   - 証: tests/workflows/test_line.py::FixedCase.test_refix_is_merged_without_losing_the_first（:491-497）
-  - 本物の run: 節 fixed の output
+  - 本物の run: 筋書きでのみ（2 回目の修正が要る。在れば節 fixed の output）
   - 狭め: 無し
 - L-W50 単位ごとの深さを修正へ渡し、修正の後の信号で上げ直して独立の目が省くかを決める
   - 元: works/darkfactory/darkfactory.yaml:596-620（h-depth）・:636・:875-899（h-redepth）・:1201（skip_optional）。試験 works/tests/test_line.py::DepthWiringCase.test_depth_nodes_wired（:430）
   - 今: yaml:358（fix.depth）・:665-688（redepth）・:733（eyes.depth ＝ `$redepth.output.depth`）
   - 証: tests/workflows/test_line.py::HandoffCase.test_handoff_table（fix・eyes の depth と redepth の replan_depth・replanned・rejudged）、RedepthCase.test_signals_raise_to_standard
-  - 本物の run: 節 redepth の output.depth・raised
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 redepth の output.depth・raised）
   - 狭め: 無し（深さの決め方は L-D）
 - L-W51 深さを上げ直した行を報告の冒頭 2 に出す
   - 元: works/darkfactory/darkfactory.yaml:1330（report の depth ＝ h-redepth）
@@ -998,7 +998,7 @@
   - 元: works/darkfactory/lib/line_edge.py:1258
   - 今: yaml:693
   - 証: tests/workflows/test_line.py::FixedCase.test_a_line_script_stop_before_is_not_done（:484-485）
-  - 本物の run: test-gate-final が走ったか
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば test-gate-final が走ったか）
   - 狭め: 無し
 - L-W53 最後のテストを機械で走らせられない run では任せ先の CI の役が回す
   - 元: works/darkfactory/lib/line_edge.py:1243-1244、works/darkfactory/darkfactory.yaml:1069-1121。試験 works/tests/test_edge.py::GoCase.test_ci_go_when_final_test_falls_to_role（:1087）
@@ -1034,13 +1034,13 @@
   - 元: works/tests/test_line_a.py::PriorFailuresLineCase.test_prior_failures_reach_judge_and_plan_only（:503）
   - 今: yaml:155（judge）・:200（plan）・:486（replan）・:411（rejudge）・:741（eyes start_answers）・:214（plan-review answers）
   - 証: tests/workflows/test_line.py::HandoffCase.test_handoff_table（judge・rejudge-run・plan・replan の prior_failures、plan-review-run・replan-review の answers、eyes の start_answers）・HandoffCase.test_prior_failures_reach_judge_and_plan_only、LineWiringCase.test_blocks_get_the_start_answers_and_prior_failures
-  - 本物の run: judge・plan の置き場の prior-failures-in.json
+  - 本物の run: 筋書きでのみ（種の依頼に prior_failures が無い。在れば start が置き場の根に置く prior-failures-in.json）
   - 狭め: 無し
 - L-W59 封じと適用（seal は差分・指紋・緑・目の ok を受け、apply は最後の関所の go の後だけ、封じた hash・答えを受ける）
   - 元: 適用は use.sh apply が最後の関所の答えを読んだ（works/darkfactory/lib/line_edge.py:99-100 の注）
   - 今: yaml:768-777（merge-seal）・:871-883（merge-apply）
   - 証: LineWiringCase.test_includes_pass_only_what_the_real_block_declares（:746）と筋書き final-stop（reached に merge-apply が無い）
-  - 本物の run: merge-seal の output.hash、merge-apply の output.ok と置き場の差分
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば merge-seal の output.hash、merge-apply の output.ok と置き場の差分）
   - 狭め: 無し
 - L-W60 報告はいつも走る（前の段が落ちても、ブロックの返す節そのものが落ちても）。Archon の resume でも報告を回し直す（always_run）
   - 元: works/darkfactory/darkfactory.yaml:1314-1322（all_done・always_run）。試験 works/tests/test_line_wiring.py::ReportAfterFailureCase.test_report_runs_after_failed_upstream（:242）・test_report_reruns_on_resume（:264）
@@ -1052,7 +1052,7 @@
   - 元: works/darkfactory/darkfactory.yaml:1330-1332（fix_tdd・refit_tdd）。試験 works/tests/test_line_wiring.py::ReportAfterFailureCase.test_report_reads_tdd_outcomes_of_both_fix_stages（:255）
   - 今: 型つきの成果物 tdd-unit を report が読む（main lib/runreport.py:784）
   - 証: report の区分の行
-  - 本物の run: run の型つきの成果物 tdd-unit
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば run の型つきの成果物 tdd-unit）
   - 狭め: 無し（移した）
 - L-W62 線の返り（結末の語と、fixed・fixed_needs_check の時に真の fixed）
   - 元: works/darkfactory/darkfactory.yaml:1363-1391
@@ -1110,7 +1110,7 @@
   - 元: works/darkfactory/lib/depth.py:148 `decide_doc`・:181 `run_depth`
   - 今: lib/depth.py:134・:167
   - 証: lib/tests/test_depth.py::DecideCase.test_forced_word_fixes_every_unit（:102-105）・test_no_units_is_standard_run（:109-110）
-  - 本物の run: plan-rounds.output.depth の why が「入力 thickness の名指し（標準）」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan-rounds.output.depth の why が「入力 thickness の名指し（標準）」）
   - 狭め: 無し
 - L-D04 計画の段の深さを修正へ、2 度目の修正には直した案の深さを渡す
   - 元: works/darkfactory/darkfactory.yaml:636
@@ -1188,7 +1188,7 @@
   - 元: works/.shared/core/converge.py:148 `decide`
   - 今: works-factory-line.yaml の `max_iterations: 20` と plan-out の `with:` の `round_limit: 20`、scripts/plan_out.py `plan_out`（round ≥ round_limit で done）。Archon は上限に達した輪を落とす（packages/workflows/src/dag-executor.ts:5222）ので done で先に抜ける
   - 証: PlanOutCase.test_done_rules（:413-416）・LineWiringCase.test_round_limit_is_the_loop_limit（:751）、筋書き plan-unsettled
-  - 本物の run: 節 plan-out の出力 done・round、置き場 plan/r<k>/round.json
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 plan-out の出力 done・round、置き場 plan/r<k>/round.json）
   - 狭め: 無し
 - L-D17 2 周目の plan は前の周の事前審査の返り（review）を受けて案を直す
   - 元: works/.shared/core/converge.py:538 `revise_section`・:72 REVISE_ASK
@@ -1314,7 +1314,7 @@
   - 元: works/.shared/core/replan.py:184 `hand_held`・:202 `settle`
   - 今: scripts/fixed.py:37-58
   - 証: FixedCase.test_refix_is_merged_without_losing_the_first（:490-496）
-  - 本物の run: 節 fixed の出力（種では refixed が false）
+  - 本物の run: 筋書きでのみ（2 度目の修正が要る。種では refixed が false。在れば節 fixed の出力）
   - 狭め: 無し
 - L-D38 2 度目の修正でまた案の誤りと裁かれたら、案の段には戻らずに諦め（CLOSE_WHY）、人に回す行にする
   - 元: works/.shared/core/replan.py:159 `close`・:99 CLOSE_WHY（works/tests/test_replan.py:1431）
@@ -1374,7 +1374,7 @@
   - 元: works/.shared/core/report.py:1181・:1195
   - 今: lib/runreport.py:452・:534-535
   - 証: lib/tests/test_runreport.py::CarryCase.test_rejudge_changes_and_opened_units（:570）・test_rejudge_lowered_block_units_are_shown_and_carried（:591）
-  - 本物の run: report の next-request.json の findings
+  - 本物の run: 筋書きでのみ（lib/runreport.py は findings か下書きが在る時だけ next-request.json を書き、種は再審が走らず全部直る見込み。在れば report の置き場の next-request.json の findings）
   - 狭め: 無し
 - L-D48 再審が止まった run（3 回拒まれた・支度ができない）は試験の関門・独立の目・merge へ進めない
   - 元: works/.shared/core/rejudge.py:546-558（`b.stop(by works:rejudge)`）
@@ -1392,7 +1392,7 @@
   - 元: works/.shared/core/entry.py:1186
   - 今: scripts/start.py:177-180、yaml:155・200・411・486
   - 証: StartCase.test_prior_failures_of_the_request_are_placed（:125-127）・LineWiringCase.test_blocks_get_the_start_answers_and_prior_failures（:733）
-  - 本物の run: start.output.prior_failures（種では null）
+  - 本物の run: 筋書きでのみ（種の依頼に prior_failures が無く start.output.prior_failures は null。在れば置き場の根の prior-failures-in.json）
   - 狭め: 無し
 - L-D51 形の合わない前の失敗の行は入口で拒む
   - 元: works/.shared/core/carry.py:127 `_prior_failures`
@@ -1410,7 +1410,7 @@
   - 元: works/.shared/core/carry.py:221 `save`
   - 今: lib/runreport.py:981-994、scripts/result.py:31
   - 証: lib/tests/test_carry_home.py::Contract.test_writer_refuses_off_contract（:51-56）
-  - 本物の run: report の置き場の next-request.json・prior-failures.json、result.output.next_request・prior_failures
+  - 本物の run: 筋書きでのみ（next-request.json は findings か下書きが、prior-failures.json は前の失敗が在る時だけ書かれる。在れば report の置き場の 2 つと result.output.next_request・prior_failures）
   - 狭め: 無し
 - L-D54 CI の赤の試験 id を次の依頼の prior_failures に足す口 carry-ci（同じ行は 2 度足さず、形が違えば exit 2）
   - 元: works/.shared/core/carry.py:265・:288（使い方は works/skills/works/SKILL.md:71）

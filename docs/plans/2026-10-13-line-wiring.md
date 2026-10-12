@@ -60,7 +60,7 @@
 7. 写した指示書と役の定義（`workflows/*/commands/**`・`lib/agents/*.md`）を触る時は、`tests/workflows/test_prompt_contracts.py` の 4 つの約束を保つ。今の形に合わせて直す字は「元の字 → 写しの字」の組で試験に持たせる（K9）。持ち主の決め `prompts-coldread`（2026-10-12、`docs/owner-decisions.md`）で、初見の読み手での書き直しも元の字に戻さず、許した直しとして組に足す。
 8. 期限・タイムアウトを新しく足さない（持ち主の決め `no-timeouts`。層の E12）。
 9. 試験は `WORKS_FACTORY_ARCHON_REQUIRED=1 uv run --isolated python3 -m unittest discover -s . -t .` が全部緑（層の試験 `tests/layers/` と筋書き `tests/e2e/test_line_scenarios.py` を含む）。`archon validate` は線と全部のブロックで誤りも警告も無い。
-10. 段 1 の照らしの表: 段 1 が main に入った後の部分（B1〜D2）は、`tests/e2e/evidence.json` で自分の「閉じる行」が `waits-part` の物を、`seen`（置き場と照らしを書く）か `scenario-only`・`seed-cannot`（訳つき）に移す。
+10. 段 1 の照らしの表: 照らしの表が main に入った後の部分（A〜D2）は、`tests/e2e/evidence.json` で自分の「閉じる行」が `waits-part` の物を、`seen`（置き場と照らしを書く）か `scenario-only`・`seed-cannot`（訳つき）に移す。
 
 ## 落とし穴の確かめ（K1〜K20。どの部分の PR も全部に答える）
 
@@ -213,6 +213,7 @@
 - L-E33〔試〕機能の切り替えがブロックに届く（今はブロックが記録の features_cut を読む）
 - L-E34〔試〕呼び直しで機能・test_cmd・入口の形・base_rev を替えない
 - L-E38〔試〕test_cmd・tdd_suite を記録し、test-gate と fix が読む
+- L-E44〔戻・試〕版の控えに元の欄（works の版・pack の sha256・写しの元・借りた物・模型と出どころ・設定・Python・platform）を戻す（#74 で Archon と Claude Code の版だけに狭めた）
 - L-E45〔無・試〕分からない版の値は null にし、unknown に理由を書く
 - L-E46〔試〕拒む run でも版の控えと設定の写しを残す
 - L-E48〔試〕起動の関所の文: 冒頭 3 行・入口の文・機能・最後の関所の開き方・答え方の 2 行
@@ -237,7 +238,7 @@
 2. 再審が止まった run を止める（L-D48）: `workflows/line/scripts/judged.py` の `judged()`（今は再審の返りの止めを捨てて `""` を返す）が、再審の返り（`ready: false`・止めの語 `works:rejudge`）を `stop_reason` で返し、`test-gate-final` 以降を飛ばして `collect`・`report` へ進める。筋書き `rejudge-stop` を足す。
 3. 目に渡す案（L-W56）: 案の直しが通った run では、eyes の `plan`・`ripple` を `replan` の物にする（線の `fixed` か同じ形の返しの節で選ぶ。元 `works/darkfactory/lib/line_edge.py:1058-1064`）。
 4. 方針の文書を run の始めで固める（P216・P192。S24・issue #84）: `start` が `policy_md` の版（sha256 と写しのパス）を始めの記録に置き、plan と plan-review は固めた写しを貼る。変化の行（`policy_changed`）は固めた版と比べる。修正前の関所で方針の変化を通した時に固め直す今の能力（`lib/boardview.py` の `_frozen_policy` と `take_gate_answers`）は残し、固め直した版を後の段も読む。元 `works/.shared/core/policy_input.py:61` `resolve`。
-5. 版の控え（L-E45・L-E46。S56）: 分からない値は null にし `unknown` に訳。拒む run でも控えを残す。今の `versions` の欄（Archon の commit と Claude Code の版）に、元の `works/.shared/core/versions.py` の欄のうち Archon の上でも取れる物を足す。取れない物は欄ごとに訳を書く（Archon で不可なら源の行）。
+5. 版の控え（L-E44・L-E45・L-E46。S56）: 分からない値は null にし `unknown` に訳。拒む run でも控えを残す。今の `versions` の欄（Archon の commit と Claude Code の版）に、元の `works/.shared/core/versions.py` の欄のうち Archon の上でも取れる物を足す。取れない物は欄ごとに訳を書く（Archon で不可なら源の行）。
 6. 認証の要らない起動の名（L-E15）: `lib/entryshape.py` の `NO_AUTH_ENV` を、殻が立てる `WORKS_FACTORY_NO_AUTH`（`bin/_lib/launcher.py:50`・`bin/_lib/auth_launch.py:155`）に合わせる（殻 `bin/` は触らない）。
 7. spec の拒み（L-E29）と PR の本文（L-E17）: `request_text` の既定の文で空を隠さない。PR の題と本文は始めの記録の `input.pr` に載せ、judge の目的の材料が読む。
 8. 報告はいつも走る（L-W60）: 前の段とブロックの返す節が落ちても報告が回る。resume で報告の節が回し直されるかは筋書きで確かめられないので、試験は YAML の節の条件を照らし、本物の確かめは段 1 に書き送る。
