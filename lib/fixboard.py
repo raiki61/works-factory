@@ -723,15 +723,49 @@ def replan_items(rows, groups=()) -> list:
     return out
 
 
-def allowed_tests(place, results=()) -> list:
-    """許したテストの変更のパス（名の順）: 置き場 place の裁定と承認済みの修正案のテストの変更の許し（conflict.ruled_test_limits の
-    範囲を parse_limit でパスに）と、組の子の結果の allowed_test_changes"""
+def _permit_source(permit: str) -> str:
+    """許しの id（conflict.test_permits の id）の頭から出どころの語（ALLOWED_SOURCES のどれか。知らない頭は ""）"""
     import conflict
-    out = set()
-    for lim in conflict.ruled_test_limits(place):
-        got = conflict.parse_limit(lim)
+    plan, consult, ruling = ALLOWED_SOURCES
+    heads = ((conflict.PLAN_TEST_ID, plan), (conflict.REMOVES_TEST_ID, plan), (conflict.AGREED_TEST_ID, consult),
+             (conflict.RULED_TEST_ID, ruling))
+    return next((src for head, src in heads if str(permit).startswith(head + "-")), "")
+
+
+def allowed_test_rows(place, results=()) -> list:
+    """許したテストの変更の訳 [{path, permit, source}]（返りの diff の隣の allowed-tests.json の中身。パスと許しの id の順・重ねない）:
+    置き場 place のテストの変更の許し（conflict.test_permits の範囲の在る行。承認済みの修正案の rewrite_tests・removes・範囲の相談の
+    合意・裁定 fix_test_scope）と、範囲の相談の合意の新しいテストのファイル（granted_new_tests）と、組の子の結果の allowed_tests の行。
+    permit は許しの id、source は ALLOWED_SOURCES の語。元 works/.shared/core/conflict.py:983 ruled_test_doc（許しの id と理由を
+    最後の関所の守りのファイルの行にした）を、パスごとの許しの行で受ける形にした物"""
+    import conflict
+    rows = []
+
+    def add(path, permit, source):
+        row = {"path": path, "permit": permit, "source": source}
+        if isinstance(path, str) and path and isinstance(permit, str) and permit and source in ALLOWED_SOURCES \
+                and row not in rows:
+            rows.append(row)
+    for p in conflict.test_permits(place):
+        got = conflict.parse_limit(p["limit"]) if "limit" in p else None
         if got:
-            out.add(got[0])
+            add(got[0], p["id"], _permit_source(p["id"]))
+    for r in conflict.agreed(place):
+        for g in r.get("granted_new_tests") or []:
+            tid = g.get("id") if isinstance(g, dict) else None
+            if isinstance(tid, str) and tid:
+                add(tid.partition("::")[0], f"{conflict.AGREED_TEST_ID}-{r.get('item')}", ALLOWED_SOURCES[1])
+    for res in results:
+        for row in (res or {}).get("allowed_tests") or []:
+            if isinstance(row, dict):
+                add(row.get("path"), row.get("permit"), row.get("source"))
+    return sorted(rows, key=lambda r: (r["path"], r["permit"]))
+
+
+def allowed_tests(place, results=()) -> list:
+    """許したテストの変更のパス（名の順）: 置き場 place と組の子の結果の許しの訳（allowed_test_rows）のパスと、組の子の結果の
+    allowed_test_changes"""
+    out = {r["path"] for r in allowed_test_rows(place, results)}
     for r in results:
         out.update(p for p in (r or {}).get("allowed_test_changes") or [] if isinstance(p, str) and p)
     return sorted(out)
@@ -1250,7 +1284,9 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 ADOPTED = (startrec.REL, JUDGMENT_FILE, PLAN_REPLY_FILE, RIPPLE_FILE, WORLD_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
            ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
-ALLOWED_TESTS_FILE = "allowed-tests.json"   # 修正の輪が許したテストの変更のパス [str]（fix-accept が書く）
+GRANTED_TESTS_FILE = "granted-tests.json"   # 修正の輪が許したテストの変更のパス [str]（fix-accept が書き、group-end が読む）
+ALLOWED_TESTS_FILE = "allowed-tests.json"   # 返りの diff の隣: 許したテストの変更の訳 [{path, permit, source}]（collect が書く。allowed_test_rows）
+ALLOWED_SOURCES = ("plan", "consult", "ruling")   # allowed-tests.json の source の語: 承認済みの修正案・範囲の相談の合意・裁定
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
 DROPPED_FILE = "dropped.json"           # 落ちた子の変更を戻した控え {start_tree, paths}（drop_unreturned が組の置き場に書く）
 ADOPTED_FROM = "adopted_from"           # 親の置き場に写した TDD の輪の状態の、写し元の子の状態のパスの欄（adopt_tdd_states）
@@ -1326,10 +1362,10 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
-                 reply_file: str = "", allowed=(), conflicts=(), worktree: str = "") -> dict:
+                 reply_file: str = "", allowed=(), allowed_rows=(), conflicts=(), worktree: str = "") -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed,
-    allowed_test_changes, verified, reply_file, tdd_state, worktree}。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
+    allowed_test_changes, allowed_tests, verified, reply_file, tdd_state, worktree}。allowed_rows は許しの訳（allowed_test_rows の行）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
     writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
@@ -1345,6 +1381,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "objection": objection([reply] if reply else []),
             "changed": changed_marks([{"changed": reply}] if reply else []),
             "allowed_test_changes": sorted({p for p in allowed or [] if isinstance(p, str) and p}),
+            "allowed_tests": [r for r in allowed_rows or [] if isinstance(r, dict)],
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
             "worktree": str(worktree or "")}
 

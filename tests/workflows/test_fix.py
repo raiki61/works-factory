@@ -1333,6 +1333,46 @@ class BlockScriptsCase(unittest.TestCase):
                 self.assertEqual(out["delta_review"], {"rounds": 0, "pass": False})
                 self.assertTrue(out["done"], "組の子の done は審査に依らない")
 
+    def test_collect_allowed_test_changes_from_rulings_and_groups(self):
+        """F429: 許したテストの変更（裁定 fix_test_scope の範囲・組の子が許した物）を返りの allowed_test_changes にパスで並べ、
+        訳（許しの id と出どころ）を返りの diff の隣の allowed-tests.json に [{path, permit, source}] で置く（元
+        works/.shared/core/conflict.py:983 ruled_test_doc が最後の関所に許しの id と理由つきで並べた）。止めの道（lib は読めるが
+        返りを組めない）と lib の無い道でも、diff の隣に空の [] を置く"""
+        import fixboard
+        ruled = {"id": "c1-1", "round": 1, "source": "fix", "unit_key": "A", "between": ["stats.py:9", "test_stats.py:8"],
+                 "why_both_cannot_hold": "テストの期待が判定と食い違う", "which_is_right": "request", "kind": "test_vs_request",
+                 "status": "ruled", "ruling": {"decision": "fix_test_scope", "text": "期待を直してよい",
+                                               "limits": ["test_stats.py:8-9"]}}
+        child = {"path": "test_extra.py", "permit": "plan-agreed-2", "source": "consult"}
+        self.collect_place(conflicts=[ruled], result_extra={"allowed_test_changes": ["test_extra.py"], "allowed_tests": [child]})
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assert_contract(out)
+        self.assertEqual(out["allowed_test_changes"], ["test_extra.py", "test_stats.py"])
+        beside = (self.art / out["diff"]["path"]).parent / fixboard.ALLOWED_TESTS_FILE
+        self.assertEqual(json.loads(beside.read_text(encoding="utf-8")),
+                         [child, {"path": "test_stats.py", "permit": "conflict-ruling-c1-1", "source": "ruling"}])
+        self.assertTrue({r["source"] for r in json.loads(beside.read_text(encoding="utf-8"))} <= set(fixboard.ALLOWED_SOURCES))
+        with self.subTest("止めの道"):
+            __import__("shutil").rmtree(self.art, ignore_errors=True)
+            self.place.mkdir(parents=True)
+            code, out, err = _blk_run("collect", self.repo, self.art)
+            self.assertEqual((code, out["done"]), (0, False), err)
+            beside = (self.art / out["diff"]["path"]).parent / fixboard.ALLOWED_TESTS_FILE
+            self.assertEqual(json.loads(beside.read_text(encoding="utf-8")), [])
+        with self.subTest("lib の無い道"):
+            __import__("shutil").rmtree(self.art, ignore_errors=True)
+            lone = self.tmp / "lone" / "fix" / "scripts"
+            lone.mkdir(parents=True)
+            (lone / "collect.py").write_bytes((BLOCK / "scripts" / "collect.py").read_bytes())
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_", "WORKS_FACTORY_ROOT"))}
+            env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": _BLK_RUN, "PYTHONDONTWRITEBYTECODE": "1"})
+            done = subprocess.run([sys.executable, str(lone / "collect.py")], cwd=self.repo, env=env, capture_output=True,
+                                  text=True, encoding="utf-8")
+            self.assertEqual(done.returncode, 0, done.stderr)
+            beside = (self.art / json.loads(done.stdout)["diff"]["path"]).parent / fixboard.ALLOWED_TESTS_FILE
+            self.assertEqual(json.loads(beside.read_text(encoding="utf-8")), [])
+
     def test_collect_never_fails(self):
         cases = {
             "start_not_json": lambda: {"start": "{not json"},
@@ -1782,12 +1822,12 @@ class GroupChildScriptsCase(unittest.TestCase):
         (self.place / "fix-reply.json").write_text(json.dumps({"changes": [], "gates_changed": True,
                                                                "rejudge_requested": "単位の見立てが違う"},
                                                               ensure_ascii=False), encoding="utf-8")
-        (self.place / "allowed-tests.json").write_text(json.dumps(["test_stats.py"]), encoding="utf-8")
+        (self.place / "granted-tests.json").write_text(json.dumps(["test_stats.py"]), encoding="utf-8")
         out = self._grp_run("group_end", "group-end")
         self.assertEqual(out["result_file"], str(self.out_dir / "g1" / "result.json"))
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
-                                       "objection", "changed", "allowed_test_changes", "verified", "reply_file",
+                                       "objection", "changed", "allowed_test_changes", "allowed_tests", "verified", "reply_file",
                                        "tdd_state", "worktree"})
         self.assertEqual(result["tdd_state"], "", "輪の無い組")
         self.assertEqual(result["worktree"], os.path.realpath(self.repo))
@@ -2047,7 +2087,7 @@ class FixLoopScriptsCase(unittest.TestCase):
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         kept = json.loads((self.place / "fix-ruled-reply.json").read_text(encoding="utf-8"))
         self.assertEqual(set(kept["changed"]), set(CHANGED_MARKS))
-        self.assertEqual(json.loads((self.place / "allowed-tests.json").read_text(encoding="utf-8")), ["test_stats.py"])
+        self.assertEqual(json.loads((self.place / "granted-tests.json").read_text(encoding="utf-8")), ["test_stats.py"])
 
     def test_fix_ruled_prep_without_fix_ruling_does_not_launch(self):
         import conflict

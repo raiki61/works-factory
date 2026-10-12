@@ -1749,8 +1749,8 @@ class GroupChildSeamCase(TempCase):
                                     end_tree="t1", tdd=tdd, fix_units={"a": {"status": "fixed", "reason": ""}},
                                     reply=reply, reply_file="/r.json", allowed=["t.py", "t.py"], conflicts=[{"id": 1}])
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
-                                    "objection", "changed", "allowed_test_changes", "verified", "reply_file", "tdd_state",
-                                    "worktree"})
+                                    "objection", "changed", "allowed_test_changes", "allowed_tests", "verified", "reply_file",
+                                    "tdd_state", "worktree"})
         self.assertEqual(got["worktree"], "", "渡さなければ空")
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
@@ -1758,6 +1758,9 @@ class GroupChildSeamCase(TempCase):
         self.assertEqual(got["objection"], "判定の単位 a は誤り")
         self.assertEqual(got["changed"], {k: k == "mechanism_changed" for k in fixboard.CHANGED_MARKS})
         self.assertEqual(got["allowed_test_changes"], ["t.py"])
+        row = {"path": "t.py", "permit": "plan-rewrite-1", "source": "plan"}
+        self.assertEqual(fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
+                                               allowed_rows=[row, "壊れた行"])["allowed_tests"], [row])
         empty = fixboard.group_result({"group_id": "g2", "unit_ids": []}, start_tree="", end_tree="", tdd=None)
         self.assertEqual((empty["tdd"]["ran"], empty["objection"], empty["reply_file"]), (False, "", ""))
         self.assertFalse(any(empty["changed"].values()))
