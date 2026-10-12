@@ -163,7 +163,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 - K5 `loop_group` の中の役の節は自分の `with:` を結ばない（輪の頭の script の節。PR #100）
 - K6 周ごとの値は本物の run でしか確かめられない
 - K7 E3・E4・E13 の層の決まり・K8 script どうしの import と循環 import を作らない
-- K9 写した指示書と役の定義は元の字のまま、許した直しを試験で縛る
+- K9 写した指示書と役の定義は元の字のまま、許した直しを試験で縛る（持ち主の決め `prompts-coldread`（2026-10-12、`docs/owner-decisions.md`）で、初見の読み手での書き直しも許した直しとして足す。4 つの約束は `tests/workflows/test_prompt_contracts.py` が別に照らす）
 - K10 どの関所の `reject` も報告へ流す（Archon は `decisions` に `reject` が無いと run を取り消す。`workflow-operations.ts` 1625-1700 行）
 - K11 ブロックに足す入力は既定値つき・K12 新しい入力と隣のファイルは読み手と配線の試験を持つ
 - K13 返りの指し札の先は在って空でない・K14 2 度差し込むブロックの 2 度目が 1 度目の物を拾わない・K15 読めない入力を名指す・K16 返りの JSON は `allow_nan=False`

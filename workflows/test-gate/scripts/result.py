@@ -80,7 +80,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     start = read_json(boundary.resolve(json.loads(start_raw)))
     run_path = artifacts / rel(mode, "run.json")
     if not run_path.is_file():
-        raise ValueError(f"{rel(mode, 'run.json')} が無い——節 run が落ちたか飛ばされた")
+        raise ValueError(f"{rel(mode, 'run.json')} が無い——ノード run が落ちたか飛ばされた")
     run = read_json(run_path)
     ci_path = artifacts / rel(mode, "ci-material.json")
     role = run["by"] == "role_needed"
@@ -93,7 +93,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     if mode == "final" and baseline_raw.strip() not in NONE_WORDS:
         base = baseline_red.read_baseline(boundary.resolve(json.loads(baseline_raw)))
     if material is None:
-        red_cause, summary = "incomplete", "任せ先の CI の役が素材を渡さなかった（受け付けが拒み続けた・輪が回らなかった）"
+        red_cause, summary = "incomplete", "任せ先の CI の役が素材を渡さなかった（受け付けが拒み続けた・ループが回らなかった）"
     else:
         cases = base["cases"] if base and base["exit"] is not None and suite_exit(run) is not None else None
         red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=run["cases"], baseline_cases=cases,
@@ -125,7 +125,7 @@ def failed(mode: str, error: BaseException) -> dict:
     line = f"{type(error).__name__}: {' '.join(str(error).split())}"
     name = "evidence.md"
     try:
-        write(rel(mode, name), f"# test-gate（{mode}）\n\n- ok: false（返す節の中の誤り）\n- 誤り: {line}\n\n```text\n"
+        write(rel(mode, name), f"# test-gate（{mode}）\n\n- ok: false（出力ノードの中の誤り）\n- 誤り: {line}\n\n```text\n"
               + "".join(traceback.format_exception(error)) + "```\n")
     except Exception:
         name = "failure.txt"

@@ -160,7 +160,7 @@ def _close_round(out, role, bad: list) -> dict:
 def _why_failed(out, role) -> str:
     """輪が通らなかった役の理由（諦めた文か、落ちた周の最後の拒否の文。拒否も無ければ走らなかった）"""
     rejected = rolekit.rejected(out, role)
-    return rolekit.given_up_reason(out, role) or (rejected[-1] if rejected else "輪が走らなかったか落ちた")
+    return rolekit.given_up_reason(out, role) or (rejected[-1] if rejected else "ループが走らなかったか落ちた")
 
 
 # ---------------------------------------------------------------- 言い直す役
@@ -453,7 +453,7 @@ def finish(out) -> dict:
     world = out / worldmark.WORLD_FILE
     reasons, status = [], "ok"
     if not intake_doc:
-        status, reasons = "failed", ["入口の控えが無い（入口の節が落ちた）"]
+        status, reasons = "failed", ["入口の控えが無い（入口のノードが落ちた）"]
     elif intake_doc.get("reason"):
         status, reasons = "failed", [intake_doc["reason"]]
     elif intake_doc.get("findings"):
@@ -462,7 +462,7 @@ def finish(out) -> dict:
             reasons.append(f"言い直す役の返答が受け付けを通らなかった: {_why_failed(out, CLASSES_ROLE)}")
         elif not pl:
             status = "failed"
-            reasons.append("類を決める節が落ちた（類を決めた控えが無い）")
+            reasons.append("類を決めるノードが落ちた（類を決めた控えが無い）")
         elif pl.get("taken") and not (out / JUDGED).is_file():
             status = "failed"
             reasons.append(f"集めて判断する役の返答が受け付けを通らなかった: {_why_failed(out, JUDGE_ROLE)}")

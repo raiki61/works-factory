@@ -1,46 +1,46 @@
 name: works-factory-fix
 description: |
-  修正のブロック。判定と承認済みの修正案の単位を組に分け、組ごとに子の run で直し（TDD の輪と修正役）、直しを親の作業ツリーへ
+  修正のサブグラフ。判定と承認済みの修正案の単位を組に分け、組ごとに子の run で直し（TDD のループと修正役）、直しを親の作業ツリーへ
   戻し、食い違いの申し出を裁き、後始末と変更の確かめの後に、修正だけの差分を審査役とレンズに見せて手直しを 2 往復まで回す。
-  1 つの YAML が 2 つの形で走る。入力 mode が空（既定）は線が include するブロックの形で、組ごとに自分（works-factory-fix）を
+  1 つの YAML が 2 つの形で走る。入力 mode が空（既定）はメイングラフが include するサブグラフの形で、組ごとに自分（works-factory-fix）を
   workflow: と fan_out: で子の run として起こす。子の run の名が先祖の run に在ると Archon が循環として拒むので、
-  この形は線の include の中でだけ回す。mode が group は組 1 つを直す子の run の形で、単独の run でも回る。
-  返す節はどちらの形でも fix（docs/design.md の「ブロックの返りの約束」の fix の返り）。
+  この形はメイングラフの include の中でだけ回す。mode が group は組 1 つを直す子の run の形で、単独の run でも回る。
+  出力ノードはどちらの形でも fix（docs/design.md の「サブグラフの出力の約束」の fix の出力）。
 
 inputs:
   start:
     required: true
-    description: 始めの記録の指し札（線の $start.output.record）
+    description: 始めの記録のポインタ（メイングラフの $start.output.record）
   baseline:
     default: ""
-    description: 直す前の結末の指し札（$test-gate-base.output.baseline）。空・null は実行器の無い run
+    description: 直す前の結末のポインタ（$test-gate-base.output.baseline）。空・null は実行器の無い run
   units:
     required: true
     description: 単位の目録の JSON（$judge.output.units）
   judgment:
     required: true
-    description: 判定の指し札（$judge.output.judgment）
+    description: 判定のポインタ（$judge.output.judgment）
   world:
     default: ""
-    description: 定石の行の指し札（$judge.output.world）
+    description: 定石の行のポインタ（$judge.output.world）
   plan:
     default: ""
-    description: 修正案の指し札（$plan.output.plan。plan-fields.json）。空は修正案の無い run
+    description: 修正案のポインタ（$plan.output.plan。plan-fields.json）。空は修正案の無い run
   ripple:
     default: ""
-    description: 波及の一覧の指し札（$plan.output.ripple）
+    description: 波及の一覧のポインタ（$plan.output.ripple）
   depth:
     default: ""
     description: 単位ごとの深さの JSON の配列（$plan.output.depth）
   answers:
     default: ""
-    description: 修正前の関所の答え（$gate-before-fix.output。飛ばされれば null）
+    description: 修正前の承認ノードの答え（$gate-before-fix.output。飛ばされれば null）
   only_items:
     default: ""
-    description: 案の直しの後の 2 回目の修正（線の include refix）で直す計画の項目の id の JSON の配列。空は直す義務の単位の全部
+    description: 案の直しの後の 2 回目の修正（メイングラフの include refix）で直す計画の項目の id の JSON の配列。空は直す義務の単位の全部
   mode:
     default: ""
-    description: 空はブロックの形（線の include の中だけ）、group は組ごとの子の run
+    description: 空はサブグラフの形（メイングラフの include の中だけ）、group は組ごとの子の run
   group:
     default: ""
     description: 組 1 つの JSON（{group_id, unit_ids, items}。形 group の時に親の fan_out が渡す）
@@ -1288,7 +1288,7 @@ nodes:
               iteration: {type: integer, minimum: 1}
 
         - id: fixer
-          description: '修正役: TDD の輪で直していない単位を直す'
+          description: '修正役: TDD のループで直していない単位を直す'
           model: sonnet
           effort: high
           prompt: 指示書 `$fix-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書が名指す欄の JSON だけ。

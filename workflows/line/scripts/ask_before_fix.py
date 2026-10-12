@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""修正前の関所を開くかと、見せる文を決める節 ask-before-fix（docs/design.md の「線」の「順と関所」の 6）。
+"""修正前の関所を開くかと、見せる文を決める節 ask-before-fix（docs/design.md の「メイングラフ」の「順と承認ノード」の 6）。
 
 入力（with:）は計画の往復の返り（plan-rounds の ready・pass・stalled・ask_human・gate_axes・questions）と、始めの節の
 unattended・design_only。
@@ -11,7 +11,7 @@ unattended・design_only。
   設計だけの run（design_only）
 - 開く: 4 つの軸のどれかが ok でない・事前審査が人に聞くと言った（ask_human）・人への問いが在る
 - 無人の run: 人への問い（台帳の問い）は関所に載せず、deferred で返す（report に受ける入力が無く、まだ報告には届かない。
-  docs/design.md の「report の返り」）。それでも開くはずの時は開かずに止める
+  docs/design.md の「report の出力」）。それでも開くはずの時は開かずに止める
   （needs-human。今の works で無人の殻が関所に stop を返したのと同じ結末）
 """
 import os

@@ -1,6 +1,6 @@
 """計画のブロック（workflows/plan/）の試験。
 
-- 形: YAML を PyYAML で読み、返りの約束（docs/design.md の「plan の返り」）・役の節の決まり（E7・E12・E16）・輪の数を見る。
+- 形: YAML を PyYAML で読み、返りの約束（docs/design.md の「plan の出力」）・役の節の決まり（E7・E12・E16）・輪の数を見る。
 - script: 節の script を子のプロセスで Archon と同じ順に回す（with: と工程の入力 → INPUTS_<大文字>・ARTIFACTS_DIR・WORKFLOW_ID・
   cwd は対象の根。loop_group は until_bash の式を sh で評価し、max_iterations まで）。AI の節（構造の目・修正案の役）は試験が
   返答を渡す。対象は tests/e2e/target-seed/ の git の写し（tests.bin.gitkit）。元の works の tests/test_blk_plan.py・
@@ -315,7 +315,7 @@ def writer_of(*replies):
 
 
 class ShapeCase(unittest.TestCase):
-    """返りの約束と入力（docs/design.md の「plan の返り」）"""
+    """返りの約束と入力（docs/design.md の「plan の出力」）"""
 
     def test_name_inputs_and_return(self):
         doc = load()
@@ -367,13 +367,11 @@ class ShapeCase(unittest.TestCase):
 
     def test_fix_plan_command_is_the_original_with_only_the_allowed_edits(self):
         """修正案の役の指示書は元の p2.fix_plan.md の文のまま: 許した直しを逆に当てると元のバイトに戻る"""
-        self.assertEqual(copied.restore_problems((COMMANDS / "fix-plan.md").read_text(encoding="utf-8"), *COPIED["fix-plan.md"]),
-                         [])
+        self.assertEqual(copied.restore_problems(COMMANDS / "fix-plan.md", *COPIED["fix-plan.md"]), [])
 
     def test_eye_command_is_the_original(self):
-        """構造の目の指示書は元の blk-structure/commands/structure-eye.md のバイトのまま（直しを許していない）"""
-        self.assertEqual(copied.restore_problems((COMMANDS / "structure-eye.md").read_text(encoding="utf-8"),
-                                                 *COPIED["structure-eye.md"]), [])
+        """構造の目の指示書は元の blk-structure/commands/structure-eye.md の字のまま（台帳の直しは無く、書き直しは copied_rewrites.json の件だけ）"""
+        self.assertEqual(copied.restore_problems(COMMANDS / "structure-eye.md", *COPIED["structure-eye.md"]), [])
 
     def test_deadlines_are_all_twenty_days(self):
         keys = ("timeout", "idle_timeout")
@@ -486,9 +484,10 @@ class CopiedTextsCase(unittest.TestCase):
     def test_every_command_is_its_original_with_only_ledgered_edits(self):
         names = sorted(p.name for p in COMMANDS.glob("*.md"))
         self.assertEqual(names, sorted(COPIED), "台帳に無い指示書か、指示書の無い台帳の行")
+        self.assertLessEqual(copied.rewritten(COMMANDS), set(COPIED), "台帳に無い指示書の書き直し")
         for name in names:
             with self.subTest(name):
-                self.assertEqual(copied.restore_problems((COMMANDS / name).read_text(encoding="utf-8"), *COPIED[name]), [])
+                self.assertEqual(copied.restore_problems(COMMANDS / name, *COPIED[name]), [])
 
 
 class StageACase(unittest.TestCase):
@@ -1121,7 +1120,7 @@ class CollectCase(unittest.TestCase):
             "読めない start": {"start": "{壊れた"},
             "形の違う units": {"units": '{"id": 1}'},
             "在らない指し札": {"judgment": json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "judge/none.json"})},
-            "ほかの run の指し札": {"judgment": json.dumps({"type": "archon_artifact", "run_id": "other", "path": "x.json"})},
+            "ほかの run のポインタ": {"judgment": json.dumps({"type": "archon_artifact", "run_id": "other", "path": "x.json"})},
         }
         for name, bad in cases.items():
             with self.subTest(name):
@@ -1340,7 +1339,7 @@ class SurvivesCase(unittest.TestCase):
         self.assertEqual(validate_schema(rnd, node(load(), "round")["output_format"]), [])
         self.assertEqual((rnd["round"], rnd["dir"], rnd["go"]), (1, "plan/r1", False))
         why = json.loads((run.art / "plan" / "r1" / "round.json").read_text(encoding="utf-8"))["why"]
-        self.assertIn("周を開く節の中で誤りが起きた: ModuleNotFoundError", why)
+        self.assertIn("周を開くノードの中で誤りが起きた: ModuleNotFoundError", why)
         out = run.script("plan_collect", {"dir": rnd["dir"]}, root=broken)
         self.assertEqual(validate_schema(out, node(load(), "plan")["output_format"]), [])
         self.assertEqual((out["ready"], out["round"], out["depth"]), (False, 1, []))

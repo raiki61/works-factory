@@ -35,7 +35,7 @@ import worldmark    # 世界の解の答えの要る行（同じ表のもう 1 �
 OWNER_HINT = "（項目 {nums} の範囲には入る。その項目の単位の changes[].files に申告すれば、その項目の out_of_scope だけで照らす）"
 LIFTED = "out_of_scope_lifted"   # with_agreed が項目の写しに足す欄: 合意でその項目の out_of_scope から外したパス（字のまま）
 NO_PLAN = "承認済みの修正案か works の欄の控えが無い"
-NO_SCOPE = "範囲の欄の無い控え（217 番の形の盤面）"
+NO_SCOPE = "範囲の欄の無い控え（217 番の形の共有ボード）"
 
 
 def globs(it: dict) -> list[str]:

@@ -130,7 +130,7 @@ AMENDED_TEST_ID = "plan-amended"        # 案の直しで直した項目の単�
 ASKED_OP = "plan_scope_asked"
 CONSULT_FIELD = "consult"   # 修正役の返答の任意の欄: 範囲の相談の頼み（在れば受け付けはその周を回さず、答えの節が答える）
 CONSULT_MIN_WHY = 10        # 頼みの理由の下限の字数
-FIELDS_TAMPERED = f"承認済みの修正案の欄の控え（盤面の {planmarks.FIELDS_FILE}）が受け付けの後に書き換えられた。"
+FIELDS_TAMPERED = f"承認済みの修正案の欄の控え（共有ボードの {planmarks.FIELDS_FILE}）が受け付けの後に書き換えられた。"
 FIELDS_BROKEN = FIELDS_TAMPERED + "テストの変更の許しを引かずに止めた"   # 修正の段（by stopby.FIX）の止めの文
 FIX_SOURCE = "fix"                       # 盤面の行の出どころの欄 source の値: 修正役の申し出（受け付けと修正役の並べが積む）
 TDD_SOURCE = "tdd"                       # 同じく: TDD の輪の役の申し出（phase conflict）
@@ -153,15 +153,15 @@ AMENDED_PROMISE = ("案の項目そのものが誤りと裁いたが、同じ ru
                    "直し、この単位も changes に 1 行を書け")   # 裁定の文の AMENDED の行の約束（write_rulings）
 HELD_WORK_KEPT = "この run の修正の段で直した分は作業ツリーに残した"   # 諦めた行の直しの在りか（1 回目・2 回目の段のどちらで諦めても。約束・関所・次の依頼）
 GAVE_UP_PROMISE = ("案の項目そのものが誤りと裁いたが、同じ run の中で案を直せなかった（諦めた。理由は「案の直しを諦めた理由」）。"
-                   "この単位も「項目の単位」に並べた同じ項目の単位も直すな（機械が直す義務から外した。最後の人の関所で人が"
+                   "この単位も「項目の単位」に並べた同じ項目の単位も直すな（機械が直す義務から外した。最後の承認ノードで人が"
                    f"決める）。changes に書くな。{HELD_WORK_KEPT}（戻すな）")   # 裁定の文の GAVE_UP の行の約束（write_rulings）
 ACCEPTED_WHY = "1 回目の修正の段で受け付けた（控え {path}。この単位の行は機械が足す）"
 ACCEPTED_PROMISE = ("この単位は 1 回目の修正の段で受け付けた（控え {path}）。changes にも not_done にも書くな（この単位の行は機械が"
                     "控えから足す。書いた返答は拒まれる）")   # 裁定の文の、控えの単位の行の約束（write_rulings。ACCEPTED_WHY と同じ扱い）
 LATE_REPLAN_PROMISE = ("案の項目そのものが誤りと裁いたが、この run の案の直しはもう済んだ（案の段に戻るのは 1 run に 1 回）。この単位も"
                        "「項目の単位」に並べた同じ項目の単位も直すな（機械が直す義務から外した）。修正の段を抜ける時に機械が諦めた"
-                       "行にし、最後の人の関所で人が決める。changes に書くな。この段までに直した項目の単位の直しは作業ツリーに"
-                       "そのまま残す（戻すな・触るな。最後の人の関所で人が見る）")   # 2 回目の修正の段で新しく fix_plan_item と裁いた行（状態 WAITING）の約束（write_rulings）
+                       "行にし、最後の承認ノードで人が決める。changes に書くな。この段までに直した項目の単位の直しは作業ツリーに"
+                       "そのまま残す（戻すな・触るな。最後の承認ノードで人が見る）")   # 2 回目の修正の段で新しく fix_plan_item と裁いた行（状態 WAITING）の約束（write_rulings）
 _HELD_ROWS = ("changes", "not_done")    # 控えと返答を単位で合わせる欄
 
 ITEM_SCHEMA = {
@@ -638,17 +638,17 @@ def write_rulings(b) -> pathlib.Path:
     lines = [RULINGS_TITLE, ""]
     promise = {
         "fix_test_scope": "テストが誤った動きを書いていると裁いた。テストを直してよいのは「範囲」に並べた所だけで、直したテストは"
-                          "最後の人の関所に守りのファイルとして並ぶ。範囲の外のテストは変えるな・緩めるな。この単位も changes に 1 行を書け",
+                          "最後の承認ノードに守りのファイルとして並ぶ。範囲の外のテストは変えるな・緩めるな。この単位も changes に 1 行を書け",
         "fix_code_as": "コードを「裁定」の文のとおりに直せ。案の項目の範囲の外で変えてよいのは「範囲」に並べたパスだけ"
                        "（無ければ範囲の外は変えるな）。テストは変えるな。この単位も changes に 1 行を書け",
-        "ask_human": "この単位は直すな（機械が直す義務から外した。最後の人の関所で人が決める）。changes に書くな。"
+        "ask_human": "この単位は直すな（機械が直す義務から外した。最後の承認ノードで人が決める）。changes に書くな。"
                      "この単位の直しが作業ツリーに在れば、そのまま残す（戻すな・触るな。機械が戻して控えの patch を名指した時は、当て直すな）",
         REPLACE: "判定者の問いが直した後の正しい形にも当たると裁き、問いを「置き換えた問い」に替えた（機械が hits・misses と申し出の"
                  "正しい行で試した）。閉鎖の数え直しは機械がこの問いで数える（coverage.how は書かなくてよい）。案の項目の範囲の"
                  "外で変えてよいのは「範囲」に並べたパスだけ（無ければ範囲の外は変えるな）。テストは変えるな。"
                  "この単位も changes に 1 行を書け",
         REPLAN: "案の項目そのものが誤りと裁いた。この単位も「項目の単位」に並べた同じ項目の単位も、今は直すな（機械が直す義務から"
-                "外した）。この run の中で修正案の役がこの項目だけを直し、事前審査と人の関所の決まりを通ってから、2 回目の修正の段で"
+                "外した）。この run の中で修正案の役がこの項目だけを直し、事前審査と承認ノードの決まりを通ってから、2 回目の修正の段で"
                 "直す。changes に書くな。1 回目に直した項目の単位の直しは作業ツリーにそのまま残す（戻すな・触るな。機械も戻さない。"
                 "案を直した後の 2 回目の修正の段がその上で直す）",
     }
@@ -688,8 +688,8 @@ def write_rulings(b) -> pathlib.Path:
 
 # ---------------------------------------------------------------- 写しの RL の差し替え・最後の関所
 NOTHING_OWED = ("直す義務の単位が残っていない——開いた単位は全部、人の答え待ちか ask_human・fix_plan_item で直す義務から外れた"
-                "（changes が空なのが正しい返答。ask_human は最後の人の関所で人が決め、fix_plan_item は同じ run の中で案の項目を"
-                "直してから 2 回目の修正の段で直す。直せなければ最後の人の関所へ）")
+                "（changes が空なのが正しい返答。ask_human は最後の承認ノードで人が決め、fix_plan_item は同じ run の中で案の項目を"
+                "直してから 2 回目の修正の段で直す。直せなければ最後の承認ノードへ）")
 
 
 def held_reply(b) -> tuple:
@@ -784,7 +784,7 @@ def fields_broken(b, e: Exception, *, by: str = stopby.FIX, stop=None) -> Except
         try:
             stop(why, by=by)
         except Reject as r:
-            why += f"（盤面を止められない: {' '.join(str(r).split())}）"
+            why += f"（共有ボードを止められない: {' '.join(str(r).split())}）"
     return ValueError(why)
 
 
@@ -905,7 +905,7 @@ def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_ro
                  "why": f"{HEAD}の裁定 {r['id']}（{r['unit_key']}）が許したテストの変更: {r['ruling']['text']}"}
                 for r, lim in ruled_limits(b, decisions=("fix_test_scope",))]
     out += [{"units": sorted(ruled_units(i)), "id": f"{AMENDED_TEST_ID}-{i['id']}",
-             "why": f"案の直し {i['id']} で直した項目の単位の、前の輪の受け入れのテスト（直した案で書き直してよい）"}
+             "why": f"案の直し {i['id']} で直した項目の単位の、前のループの受け入れのテスト（直した案で書き直してよい）"}
             for i in items(b) if replan_state(i) == AMENDED and ruled_units(i)]
     return out
 

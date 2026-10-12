@@ -78,7 +78,7 @@ class AskGateCase(unittest.TestCase):
         text = ask_before_fix.gate_text(self.asking([NARROW_ITEM]), run_id="run-1")
         self.assertEqual(heads(text), HEADS)
         first = text.splitlines()[0]
-        self.assertIn("直す前の関所", first)
+        self.assertIn("直す前の承認ノード", first)
         self.assertIn("1 件", first)
         self.assertEqual(internal_subjects("\n".join(text.splitlines()[:3])), [])
 
@@ -177,7 +177,7 @@ class FinalHeadCase(unittest.TestCase):
         got = final_got(held=[gatemarks.ask_text(FORK)])
         self.assertEqual(ask_final.final_needs(got), [])
         first = self.head(got)[0]
-        self.assertIn("保留にしたままの問いも在る（1 件。関所を開ける理由には数えない）", first)
+        self.assertIn("保留にしたままの問いも在る（1 件。承認ノードを開ける理由には数えない）", first)
         self.assertNotIn("開けた理由: ", first)
         self.assertFalse(ask_final.ask(got, mode="when_needed", unattended=False, run_id="run-1")["open"])
 

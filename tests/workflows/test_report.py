@@ -22,7 +22,7 @@ import yaml
 
 from tests import archon
 from tests.workflows import test_plan_review as plan_review
-from tests.workflows.copied import assert_is_original
+from tests.workflows.copied import assert_is_original, rewritten
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "report"
@@ -250,9 +250,10 @@ class CopiedTextsCase(unittest.TestCase):
     def test_every_command_is_its_original_with_only_ledgered_edits(self):
         """役の指示書は元の works の指示書の文のまま: 台帳の直しを逆に当てると元のバイトに戻る"""
         self.assertEqual({p.name for p in (BLOCK / "commands").glob("*.md")}, set(COPIED))
+        self.assertLessEqual(rewritten(BLOCK / "commands"), set(COPIED))
         for name, (original, sha, edits) in COPIED.items():
             with self.subTest(name, original=original):
-                assert_is_original(self, (BLOCK / "commands" / name).read_text(encoding="utf-8"), sha, edits)
+                assert_is_original(self, BLOCK / "commands" / name, sha, edits)
 
 
 class TypedCase(unittest.TestCase):
@@ -365,7 +366,7 @@ class FactsCase(Run):
         self.assertIs(out["ai_go"], False)
         text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
         self.assertIn("始めの記録（入力 start）が届いていない", text)
-        self.assertTrue(out["stamp"].endswith(" / 線の版 読めない（始めの記録が読めない）"), out["stamp"])
+        self.assertTrue(out["stamp"].endswith(" / メイングラフの版 読めない（始めの記録が読めない）"), out["stamp"])
         self.assertIn("TYPED_ARTIFACTS_FILE が空", text)
         self.assertIn("LOG_DIR", text)
 
@@ -379,7 +380,7 @@ class FactsCase(Run):
         self.assertIn("入力 judge が JSON でない", text)
         self.assertIn("入力 plan が JSON のオブジェクトでない", text)
         self.assertIn("始めの記録を開けない", text)
-        self.assertTrue(out["stamp"].endswith(" / 線の版 読めない（始めの記録が読めない）"), out["stamp"])
+        self.assertTrue(out["stamp"].endswith(" / メイングラフの版 読めない（始めの記録が読めない）"), out["stamp"])
         self.assertIn(f"run の記録 {self.dir / RUN}.jsonl が読めない", text)
 
     def test_unexpected_error_still_returns(self):
@@ -404,7 +405,7 @@ class FactsCase(Run):
         self.assertEqual(code, 0)
         self.assertEqual((out["outcome"], out["stop_reason"], out["ok"]), ("record_invalid", "report:record-invalid", False))
         text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
-        self.assertIn("結果を名乗れない訳: 関所 gate-final の知らない答えの語 'maybe'", text)
+        self.assertIn("結果を名乗れない訳: 承認ノード gate-final の知らない答えの語 'maybe'", text)
 
     def test_unreadable_or_missing_conflicts_are_record_invalid(self):
         """人に回した申し出が読めない run は結果を名乗らない（読めなければ人に聞いた申し出が無いと数えて fixed に落ちる）"""
@@ -412,7 +413,7 @@ class FactsCase(Run):
         broken = self.pointer("fix/conflicts.json", {})
         (self.artifacts / "fix/conflicts.json").write_text("{not json", encoding="utf-8")
         missing = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "fix/none.json"})
-        for name, conflicts, word in (("JSON でない", broken, "申し出と裁定のファイル"), ("先が無い", missing, "指し札の先")):
+        for name, conflicts, word in (("JSON でない", broken, "申し出と裁定のファイル"), ("先が無い", missing, "ポインタの先")):
             with self.subTest(name):
                 fix = json.dumps({"done": True, "units": [], "conflicts": json.loads(conflicts)})
                 code, out = self.run_script("facts", INPUTS_START=start, INPUTS_FIX=fix)
@@ -422,7 +423,7 @@ class FactsCase(Run):
                 self.assertIn(f"結果を名乗れない訳: {word}", text)
 
     def test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome(self):
-        """来歴の行の周は計画（案の直しが在ればそちら）の round、線の版は始めの記録の versions.line。依頼が命令と出力つきで答えた素材は残りに数えない（始めの記録の
+        """来歴の行の周は計画（案の直しが在ればそちら）の round、メイングラフの版は始めの記録の versions.line。依頼が命令と出力つきで答えた素材は残りに数えない（始めの記録の
         answers が結末の決め方に届く）"""
         start = self.pointer("start/start.json", {"run_id": RUN, "versions": {"line": "c" * 64}, "answers": [
             {"question": "ci", "text": "緑", "command": "make ci", "output": "ok"}]})
@@ -435,7 +436,7 @@ class FactsCase(Run):
         code, out = self.run_script("facts", **env)
         self.assertEqual(code, 0)
         self.assertEqual(out["outcome"], "fixed", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
-        self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / 工程の版 [0-9a-f]{{12}} / 線の版 cccccccccccc$")
+        self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / グラフの版 [0-9a-f]{{12}} / メイングラフの版 cccccccccccc$")
 
     def test_green_cert_section_reads_the_test_gate_evidence(self):
         """test-gate の result.py が書く証拠の文の走らせ方とログの行が、緑の認証の節に届く（runreport.EVIDENCE_ROWS と test-gate の字の結び）"""
@@ -548,7 +549,7 @@ class CollectScriptCase(Run):
         runreport.accept(AcceptScriptCase.REPLY, AcceptScriptCase.PASS, out_dir=self.artifacts / "report")
         out = self.collect(json.dumps(facts))
         text = (self.artifacts / out["report_ai"]["path"]).read_text(encoding="utf-8")
-        self.assertTrue(text.startswith(f"works-factory-report / run {RUN} / 周 — / 工程の版 "))
+        self.assertTrue(text.startswith(f"works-factory-report / run {RUN} / 周 — / グラフの版 "))
         self.assertIn(report_roles.MACHINE_HEADING, text)
 
     def test_ok_is_passed_through_from_facts(self):

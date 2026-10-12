@@ -34,7 +34,7 @@ REPLAN_ASK = ("承認済みの修正案の項目のうち、下に貼った項�
               "fix_plan_item（案の項目そのものの誤り）と裁いた。申し出の文と裁定の文を読み、裁定の文が名指した所を直した項目を"
               "返せ。plan は下に貼った項目と同じ数・同じ順で、各項目の unit_keys は貼った文字列を一字も変えずに写せ（番号で書かない）。"
               "ほかの項目は返すな。直した項目は事前審査に掛かり、約束の欄（unit_keys・narrows・removes・allowed_paths・out_of_scope・"
-              "rewrite_tests・tests の behavior）を変えた時は人の関所に出る。")
+              "rewrite_tests・tests の behavior）を変えた時は承認ノードに出る。")
 REPLAN_REJECT = "直した項目の返答に誤りが在る（下の行を全部直して出し直せ）:"
 ITEM_HEAD = promptsection.Section("## 直す項目 {n}（承認済みの修正案の項目の番号）", source="fn:replan._section")
 OLD_HEAD = promptsection.Section("### 前の項目（承認済み。機械が貼った）", source="fn:replan._section")

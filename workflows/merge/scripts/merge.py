@@ -53,7 +53,7 @@ def main() -> None:
         boundary.resolve(boundary.pointer("merge/apply.diff")).unlink(missing_ok=True)
     start = object_or_none(os.environ["INPUTS_START"], "start")
     if start is None:
-        raise ValueError("start の指し札が無い")
+        raise ValueError("start のポインタが無い")
     base_rev = json.loads(boundary.resolve(start).read_text(encoding="utf-8")).get("base_rev")
     if not isinstance(base_rev, str) or not base_rev:
         raise ValueError(f"始めの記録に base_rev が無い: {base_rev!r}")

@@ -1,13 +1,13 @@
 {
  "$schema": "https://json-schema.org/draft/2020-12/schema",
- "title": "design.jsonl の 1 行（設計書 structure-block-design の 4 節・5 節・6 節）",
+ "title": "design.jsonl の 1 行（設計書 structure-block-design のセクション 4・5・6）",
  "type": "object",
  "required": ["unit_id", "verdict", "faces", "evidence", "reason", "route", "route_reason"],
  "additionalProperties": false,
  "properties": {
   "unit_id": {"type": "string", "minLength": 1, "description": "判定の単位の id"},
   "verdict": {"type": "string", "enum": ["汚れる", "汚れない"]},
-  "faces": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 6}, "description": "当たった形の番号（4 節の 1〜6）"},
+  "faces": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 6}, "description": "当たった形の番号（セクション 4 の 1〜6）"},
   "evidence": {"type": "array", "items": {"type": "string"}, "description": "根拠にした structure.json の欄"},
   "reason": {"type": "string", "minLength": 1},
   "chosen": {"type": "string", "description": "推しの案"},

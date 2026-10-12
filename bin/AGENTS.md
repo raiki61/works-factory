@@ -1,4 +1,4 @@
-<!-- coldwrite:skip AI 向けの決まり。語は docs/design.md の「語」の節で定義 -->
+<!-- coldwrite:skip AI 向けの決まり。語は docs/design.md の「語」のセクションで定義 -->
 # 入口（`bin/`）の決まり
 
 `bin/` を書く時に読む。リポジトリ全体の決まりは根の `AGENTS.md`。

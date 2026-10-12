@@ -409,7 +409,7 @@ def _load(state_file) -> dict:
     try:
         return json.loads(pathlib.Path(state_file).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        raise Broken(f"TDD の輪の状態が読めない（{state_file}: {e}）")
+        raise Broken(f"TDD のループの状態が読めない（{state_file}: {e}）")
 
 
 def _save(state_file, st: dict) -> None:
@@ -559,9 +559,9 @@ def _test_cmd_gate(exe: pathlib.Path, cmd: str, repo, log: pathlib.Path, *, reus
     if mat["status"] == "clean":
         return GATE_ON, "", made
     if mat["status"] == "found":
-        return GATE_OFF, (f"run の test_cmd（{cmd}）が輪の頭で赤（{mat.get('rewrote') or f'元から赤。ログ {log}'}）——"
-                          "単位ごとに確かめると毎単位を拒むのでこの輪では確かめない（一式の緑は線の最後のテストの段が確かめる）"), made
-    return GATE_OFF, f"run の test_cmd（{cmd}）を輪の頭で走らせられない（{mat.get('reason', '')}）——この輪では確かめない", made
+        return GATE_OFF, (f"run の test_cmd（{cmd}）がループの頭で赤（{mat.get('rewrote') or f'元から赤。ログ {log}'}）——"
+                          "単位ごとに確かめると毎単位を拒むのでこのループでは確かめない（一式の緑はメイングラフの最後のテストの段が確かめる）"), made
+    return GATE_OFF, f"run の test_cmd（{cmd}）をループの頭で走らせられない（{mat.get('reason', '')}）——このループでは確かめない", made
 
 
 def _cmd_run(repo, cmd: str, log: pathlib.Path, *, reuse: dict | None = None) -> tuple[dict, list[str]]:
@@ -634,7 +634,7 @@ def _test_cmd_problems(st, repo) -> list[str]:
         _cur(st)["test_cmd"] = "ok"
         return []
     tail = " ".join(str(mat.get("detail", "")).split())[-400:]
-    return [f"名指しのテストと一式は緑だが、run の test_cmd（{st['test_cmd']}）が赤（輪の頭では緑。ログ {log}）——"
+    return [f"名指しのテストと一式は緑だが、run の test_cmd（{st['test_cmd']}）が赤（ループの頭では緑。ログ {log}）——"
             f"これも緑にせよ（赤の元が凍ったテストのファイルなら phase conflict で申し出よ）。{mat.get('rewrote') or '末尾: ' + tail}"]
 
 
@@ -654,16 +654,16 @@ RETURN_CONFLICT = ('どの段でも、緑にするためにテスト・依頼・
                    '"why_both_cannot_hold": "<なぜ両方は成り立たないか>", "which_is_right": "request か test か code か unknown か query", '
                    '"kind": "<種類: ' + " か ".join(conflict.DIV_KINDS) + '>"}'
                    '（query なら "correct_lines": ["<問いが当たる直した後の正しい行>"] も）'
-                   '（振り分けの段なら義務の単位のどれか、ほかの段なら今の単位）。種類の意味は決まりの節「食い違いの申し出」')
+                   '（振り分けの段なら義務の単位のどれか、ほかの段なら今の単位）。種類の意味は決まりのセクション「食い違いの申し出」')
 DO = {
     "route": "直す義務の単位を全部、ちょうど 1 度ずつ振り分けよ。tdd＝直す前に落ち、直した後に通るテストをリポジトリのテスト一式に"
              "書ける単位。direct＝先にテストを書けない単位（文書・指示書・注記・設定だけの直しなど）で、理由を 10 字以上で書く。"
              "この段では作業ツリーを変えるな。",
-    "test": "今の単位の欠陥を再現する、今は落ちるテストを書け（「今の単位と一緒に直す単位」の節が在れば、その単位も今の単位に含める）。"
+    "test": "今の単位の欠陥を再現する、今は落ちるテストを書け（「今の単位と一緒に直す単位」のセクションが在れば、その単位も今の単位に含める）。"
             "やり方は rules/tdd.md の test の段に従え。機械が一式を走らせ、名指しのテストが failure で落ち、元で通っていたテストが"
             "通ることを確かめる（error・一式の結末に居ない・もう通る・飛ばされた、は拒む）。名指しごとの失敗の文の引用と理由は返答の欄 "
             + QUOTES_FIELD + " に書け（機械は引用が結末の failure の文に在るかを照らす）。",
-    "fix": "今の単位だけを直せ（「今の単位と一緒に直す単位」の節が在れば、その単位も）。テストのファイルは変えるな（凍っている。"
+    "fix": "今の単位だけを直せ（「今の単位と一緒に直す単位」のセクションが在れば、その単位も）。テストのファイルは変えるな（凍っている。"
            "テストの誤りに気づいたら直さずに what に書け）。機械が一式を"
            "走らせ、名指しのテストと元で通っていたテストが通ることを確かめる。緑の後に整えたい所（重複・名前・不要になったコード）が"
            "在る時だけ refactor の declared を true にし、why に理由を 10 字以上で書け。申告が無ければ整えの段は来ない（brief の "
@@ -695,7 +695,7 @@ def current_lines(st) -> list:
     tries = st.get("tries") or 0
     again = [f"- この段の返答は {tries} 回拒まれた（理由は上の「前の回の返答を機械が拒んだ理由」）"] if tries else []
     if phase == "route":
-        return ["- 今の段: route（直す義務の単位の振り分け）。この輪の最初の段で、前の段の結果は無い", *again]
+        return ["- 今の段: route（直す義務の単位の振り分け）。このループの最初の段で、前の段の結果は無い", *again]
     if phase not in ("test", "fix", "refactor") or not st.get("queue") or st["cur"] >= len(st["queue"]):
         return [f"- 今の段: {phase}", *again]
     u = _cur(st)
@@ -730,7 +730,7 @@ def handoff_lines(st) -> list:
             continue
         if u.get("covered_by"):
             rows.append(f"- {k}: 同じ修正案の項目の単位 {'、'.join(u['covered_by'])} の段で一緒に直した（受け入れのテスト "
-                        f"{', '.join(u.get('tests') or [])} は輪が赤→緑を確かめ済み）")
+                        f"{', '.join(u.get('tests') or [])} はループが赤→緑を確かめ済み）")
             continue
         bits = [f"直したファイル {', '.join(u.get('files') or []) or 'なし'}",
                 f"緑にしたテスト {', '.join(u.get('tests') or []) or 'なし'}"]
@@ -779,7 +779,7 @@ DUTY_HEAD = promptsection.Section("## 直す義務の単位", source="fn:tddloop
 NOW_HEAD = promptsection.Section("## 今の単位", source="fn:tddloop.prep")
 RUN_HEAD = promptsection.Section("## テストの回し方", source="fn:tddloop.prep")
 REPLY_HEAD = promptsection.Section("## 返す JSON", source="fn:tddloop.prep")
-STEP_TITLE = promptsection.Section("# TDD の輪の指示書（{count} 回目・段 {phase}）", source="fn:tddloop.prep")
+STEP_TITLE = promptsection.Section("# TDD のループの指示書（{count} 回目・段 {phase}）", source="fn:tddloop.prep")
 
 
 def prep(state_file, values: dict | None = None, repo=None, *, lang: str = "", sources=None) -> dict:
@@ -837,14 +837,14 @@ def prep(state_file, values: dict | None = None, repo=None, *, lang: str = "", s
     try:
         seat_text = seat.section("tdd")
     except ValueError as e:
-        raise Broken(f"TDD の輪の座を組めない: {e}") from None
+        raise Broken(f"TDD のループの座を組めない: {e}") from None
 
     def build(kinds):
         try:
             return fixrules.tdd_render(vals, phase, "\n".join(lines), title=title, reason=st["reason"], kinds=kinds,
                                        iteration=n, brief=brief, seat=seat_text, lang=lang)
         except fixrules.Unfilled as e:
-            raise Broken(f"TDD の輪の指示書を組めない: {e}")
+            raise Broken(f"TDD のループの指示書を組めない: {e}")
     fixrules.write_prompt(path, repo, vals, build, n)
     return {"prompt_file": str(path), "go": True}
 
@@ -961,7 +961,7 @@ def _close_covered(st) -> None:
                               refactor_why=src.get("refactor_why", ""), covered_by=by,
                               test_cmd="" if src.get("test_cmd") == CMD_LIGHT and k not in st.get("light", []) else src.get("test_cmd", ""),
                               what=f"同じ修正案の項目の単位 {'、'.join(by)} の段で一緒に直した",
-                              why=f"同じ修正案の項目の単位 {'、'.join(by)} の段で一緒に直した（受け入れのテストは輪が赤→緑を確かめ済み）")
+                              why=f"同じ修正案の項目の単位 {'、'.join(by)} の段で一緒に直した（受け入れのテストはループが赤→緑を確かめ済み）")
         st["cur"] += 1
 
 
@@ -1493,10 +1493,10 @@ def step(state_file, reply, repo, try_query=None, lanes=None, log=None, outbox=T
     if reply is None and _over(st):   # 支度が go: false を返して役が飛ばされた周（resume）: 何も動かさずに輪を抜ける
         return {"ok": True, "done": True, "reason": "", "phase": "done" if st["done"] else st["phase"]}
     if st["done"]:
-        raise Broken("TDD の輪は済んでいる（tdd-step を呼ぶ番でない）")
+        raise Broken("TDD のループは済んでいる（tdd-step を呼ぶ番でない）")
     phase = st["phase"]
     if phase == "lanes":
-        raise Broken("並べの周（段 lanes）は輪の外の節（枝の輪と tdd-join）が回す（tdd-step を呼ぶ番でない）")
+        raise Broken("並べの周（段 lanes）はループの外のノード（枝のループと tdd-join）が回す（tdd-step を呼ぶ番でない）")
     t0, runs0 = time.monotonic(), st["runs"]   # 段ごとの呼び出しの記録（calls）の元。秒は書くだけで止める条件に使わない
     call = {"n": st["iterations"] + 1,
             "phase": "conflict" if isinstance(reply, dict) and reply.get("phase") == "conflict" else phase,
@@ -1528,7 +1528,7 @@ def step(state_file, reply, repo, try_query=None, lanes=None, log=None, outbox=T
             call["phase"] = "runner"   # 機械の止まり（役の拒否と分ける）
         if phase == "route" and not probs and lanes is not None:
             if st["done"]:
-                skipped = {"reason": "units", "why": "振り分けの後に TDD の輪で直す単位が残らない"}
+                skipped = {"reason": "units", "why": "振り分けの後に TDD のループで直す単位が残らない"}
             elif not st.get("lanes_on"):
                 skipped = st.get("lanes_off") or {"reason": "off", "why": "並べの周が切られている（状態に理由が無い）"}
             elif not lanes.plan(st, repo):   # 範囲の引ける tdd の枝が 2 本以上なら枝ごとの worktree を切って段 lanes へ（輪はここで抜ける）
@@ -1543,7 +1543,7 @@ def step(state_file, reply, repo, try_query=None, lanes=None, log=None, outbox=T
             source = conflict.GAVE_UP_SOURCE
     st["iterations"] += 1
     if not st["done"] and st["iterations"] >= MAX_ITERATIONS:
-        _abort(st, repo, f"TDD の輪の回数の上限（{MAX_ITERATIONS} 回）に届いた", "budget")
+        _abort(st, repo, f"TDD のループの回数の上限（{MAX_ITERATIONS} 回）に届いた", "budget")
     if st["done"]:
         _finish(st, repo)
     if got and not got["problems"]:   # 突き合わせを通った木だけ（機械が単位の頭に戻した木は _next_unit が進める）
@@ -1560,11 +1560,11 @@ def step(state_file, reply, repo, try_query=None, lanes=None, log=None, outbox=T
     return out
 
 
-RESULT_TITLE = promptsection.Section("# TDD の輪の結果（機械が書いた）", source="fn:tddloop._finish")
-FIXED_HEAD = promptsection.Section("## 輪で直した単位（直さず、changes に 1 行を書け。テストのファイルは変えるな——受け付けが拒む。"
-                                   "食い違いの裁定 fix_test_scope が範囲に並べた所だけは例外。修正案の rewrite_tests の名指しは輪で書き換えて凍結した）",
+RESULT_TITLE = promptsection.Section("# TDD のループの結果（機械が書いた）", source="fn:tddloop._finish")
+FIXED_HEAD = promptsection.Section("## ループで直した単位（直さず、changes に 1 行を書け。テストのファイルは変えるな——受け付けが拒む。"
+                                   "食い違いの裁定 fix_test_scope が範囲に並べた所だけは例外。修正案の rewrite_tests の名指しはループで書き換えて凍結した）",
                                    source="fn:tddloop._finish")
-CONFLICT_HEAD = promptsection.Section("## 食い違いで止めた単位（直すな。輪の後に裁定役が裁き、裁定が理由のファイルで届く）", source="fn:tddloop._finish")
+CONFLICT_HEAD = promptsection.Section("## 食い違いで止めた単位（直すな。ループの後に裁定役が裁き、裁定が理由のファイルで届く）", source="fn:tddloop._finish")
 OUT_HEAD = promptsection.Section("## 直す義務から外れた単位（直すな。not_done に理由を書け）", source="fn:tddloop._finish")
 DIRECT_HEAD = promptsection.Section("## direct の単位（ここで直せ）", source="fn:tddloop._finish")
 
@@ -1575,7 +1575,7 @@ def _finish(st, repo) -> None:
     st["frozen_tree"] = snapshot(repo)
     lines = [RESULT_TITLE, ""]
     if st["note"]:
-        lines += [f"輪を途中で抜けた: {st['note']}", ""]
+        lines += [f"ループを途中で抜けた: {st['note']}", ""]
     lines += [FIXED_HEAD, ""]
     for u in passed:
         lines += [f"- {u['unit_key']}", f"  - 名指しのテスト（機械が赤→緑を確かめた）: {', '.join(u['tests'])}",
@@ -1645,13 +1645,13 @@ def _frozen_rows(state_file, repo, allowed, since, skip_spans) -> list:
             if not any(_same_code(was, lines) for lines in pruned):
                 bad = min([_hunks_outside(repo, base, f, []), *(_hunks_outside(repo, base, f, [], new=lines) for lines in pruned)],
                           key=len)
-                out.append((f, f"TDD の輪で凍ったテストのファイルを書き換えた: {[f]}（輪で直した単位のテストは変えない）", bad))
+                out.append((f, f"TDD のループで凍ったテストのファイルを書き換えた: {[f]}（ループで直した単位のテストは変えない）", bad))
             continue
         # 足した物を除いた中身のどれか（と今どおりの中身）で範囲の外の塊が無ければ通す。並べるのは一番少ない物
         bad = min([_hunks_outside(repo, base, f, spans), *(_hunks_outside(repo, base, f, spans, new=lines) for lines in pruned)],
                   key=len)
         if bad:
-            out.append((f, f"TDD の輪で凍ったテストのファイル {f} を、テストの変更の許し（修正案の rewrite_tests の名指しまたは裁定 "
+            out.append((f, f"TDD のループで凍ったテストのファイル {f} を、テストの変更の許し（修正案の rewrite_tests の名指しまたは裁定 "
                            f"fix_test_scope）の範囲の外で書き換えた: 旧い行 {', '.join(bad)}"
                            "（範囲に並べた行だけ直してよい。.py の 1 行の指しはその行を含む関数の全体）", bad))
     return out
@@ -1809,7 +1809,7 @@ def _hunks_outside(repo, tree, path, spans, new=None) -> list:
     except Unreadable:
         old = None
     if old is None:
-        return ["（輪が済んだ時の姿が読めない）"]
+        return ["（ループが済んだ時の姿が読めない）"]
     wide = []
     for s, e, single in (sp for sp in spans if sp):
         w = _function_span(old, s) if single and path.endswith(".py") else None
@@ -2261,7 +2261,7 @@ def exit_fields(start_out: dict) -> dict:
         return {"ran": False, "suite": so.get("suite", ""), "reason": so.get("reason", ""), "units": []}
     st = _load(start_out["state_file"])
     if not st["done"]:
-        raise Broken("TDD の輪が済んでいない（done の印が無い）")
+        raise Broken("TDD のループが済んでいない（done の印が無い）")
     rows = [{f: st["units"][k][f] for f in FIELDS} for k in st["order"]]
     rows += [{**{f: _unit(k, "parked")[f] for f in FIELDS}, "why": st.get("parked_why", {}).get(k, "")}
              for k in st.get("parked", []) if k not in st["order"]]   # 振り分けの段で止めた単位

@@ -474,7 +474,7 @@ class TestReplanWords(unittest.TestCase):
     def test_replan_promise_says_same_run(self):
         b = fake_with_rows([row("c1-1", MEAN, "fix_plan_item", state="waiting", plan_units=[MEAN, CLAMP])])
         text = conflict.write_rulings(b).read_text(encoding="utf-8")
-        self.assertIn("この run の中で修正案の役がこの項目だけを直し、事前審査と人の関所の決まりを通ってから、2 回目の修正の段で直す",
+        self.assertIn("この run の中で修正案の役がこの項目だけを直し、事前審査と承認ノードの決まりを通ってから、2 回目の修正の段で直す",
                       text)
 
     def test_gave_up_rows_promise_the_last_gate(self):
@@ -483,7 +483,7 @@ class TestReplanWords(unittest.TestCase):
         conflict.set_replan(b, ["c1-1"], conflict.GAVE_UP, why="修正案の役の直しが 3 回とも拒まれた: 数が違う")
         text = conflict.write_rulings(b).read_text(encoding="utf-8")
         self.assertNotIn("2 回目の修正の段で直す", text)
-        self.assertIn("最後の人の関所で人が決める", text)
+        self.assertIn("最後の承認ノードで人が決める", text)
         self.assertIn("修正案の役の直しが 3 回とも拒まれた: 数が違う", text)
 
     def test_parked_note_excludes_every_unit_outside_duty(self):
@@ -518,7 +518,7 @@ class TestReplanWords(unittest.TestCase):
         mine = self.section(conflict.write_rulings(b).read_text(encoding="utf-8"), "c2-1")
         self.assertNotIn("2 回目の修正の段で直す", mine)
         self.assertIn(conflict.LATE_REPLAN_PROMISE, mine)
-        self.assertIn("最後の人の関所で人が決める", mine)
+        self.assertIn("最後の承認ノードで人が決める", mine)
         first = self.section(conflict.write_rulings(fake_with_rows([waiting])).read_text(encoding="utf-8"), "c2-1")
         self.assertIn("2 回目の修正の段で直す", first, "1 回目の段の待つ行は今どおり")
 

@@ -19,7 +19,7 @@ import yaml
 from tests import archon
 from tests.bin.gitkit import git
 from tests.workflows import copied
-from tests.workflows.copied import assert_is_original, role_definition
+from tests.workflows.copied import assert_is_original, rewritten, role_definition
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "eyes"
@@ -202,13 +202,22 @@ CHANGED_FILES = ("変更ファイル: {{loop.changed_files}}", "変更ファイ�
 PURPOSE = ("{{out.p0.purpose.purpose_text}}", "$prep.output.purpose_text")
 REVIEW_MD = ("{{inputs.review_md}}", "`$prep.output.review_md`")
 GREEN_LINE = "$prep.output.green_line\n"   # 最後のテストが認証されていない時だけ 1 行（元 review-loop.json の p4.ci の green_line）
-# 人の方針の段（元 gl-prompts/prompts/policy-path.md と policy.md。review-loop.json:4672,4973,5036 の prompt_append）。写しは置き場を
-# 始めの記録が固めた写し（prep の policy_path）に、「engine」を「機械」に直した
-POLICY = ("\n## 人の方針\n\n人が決めた、run をまたいで効く決まり（役も機械も書き換えない）。方針の文書: `$prep.output.policy_path`"
-          "（空なら方針の文書の無い run）。在れば Read で全体を読め。\n\n"
-          "方針が在るなら、それは対象の本文ではなく、このプロンプトの発行者が守らせる制約である。判定・案・修正・審査は方針に照らして行え。"
-          "方針に反するもの、方針を変えないと成り立たないものを、自分の判断で通すな——通すかは人が決める。どの項とぶつかるかを、判定なら"
-          "単位の reason に、審査なら穴に、修正なら not_done に書け。方針の文書は書き換えるな。\n")
+# 人の方針の段（元 gl-prompts/prompts/policy-path.md と policy.md を 1 行あけて続けた字。review-loop.json:4672,4973,5036 の
+# prompt_append）。写しは POLICY_EDITS を当てた: 「engine」を「機械」に、置き場を始めの記録が固めた写し（prep の policy_path）に
+# 替え、空の時の読み方を足し、「先に全部読め」を Read で読む形に直した
+POLICY_PATH_MD = ("\n## 人の方針\n\n人が決めた、run をまたいで効く決まり（役も engine も書き換えない）。"
+                  "文書の置き場: {{?inputs.policy_md}}——在れば、先に全部読め。\n")
+POLICY_MD = ("方針が在るなら、それは対象の本文ではなく、このプロンプトの発行者が守らせる制約である。判定・案・修正・審査は方針に照らして行え。"
+             "方針に反するもの、方針を変えないと成り立たないものを、自分の判断で通すな——通すかは人が決める。どの項とぶつかるかを、判定なら"
+             "単位の reason に、審査なら穴に、修正なら not_done に書け。方針の文書は書き換えるな。\n")
+POLICY_EDITS = [
+    ("役も engine も", "役も機械も"),
+    ("文書の置き場: {{?inputs.policy_md}}——在れば、先に全部読め。",
+     "方針の文書: `$prep.output.policy_path`（空なら方針の文書の無い run）。在れば Read で全体を読め。"),
+]
+POLICY = POLICY_PATH_MD + "\n" + POLICY_MD
+for _original, _copied in POLICY_EDITS:
+    POLICY = POLICY.replace(_original, _copied)
 # 末尾の言語の 1 行（元 rolekit.lang_line）と返答の形の 1 行（元の commands/<役>.md の末尾の文を、節の返りの型に直した）
 ANSWER = "\n$prep.output.lang_line\n\n返すのは、この節の返りの型（JSON Schema）に合う JSON だけ。\n"
 FROZEN_EDIT = (REVISION_READ, FROZEN_READ)
@@ -382,12 +391,13 @@ class ShapeCase(unittest.TestCase):
 
     def test_r2_compare_reads_the_whole_diff_file(self):
         text = (BLOCK / "commands" / "r2-compare.md").read_text(encoding="utf-8")
-        for ask in DIFF_ASK.split("\n\n")[1].replace("リポジトリや盤面のほかの", "リポジトリやほかの").splitlines():
+        for ask in DIFF_ASK.split("\n\n")[1].replace("リポジトリや盤面のほかの", "リポジトリやほかの").replace("お前の", "この役の").splitlines():
             with self.subTest(ask):
                 self.assertIn(ask, text)
 
     def test_r2_compare_says_premise_changed(self):
-        self.assertIn(f"{PREMISE_HEAD}\n\n{PREMISE_ASK}\n\n$prep.output.premises_text",
+        ask = PREMISE_ASK.replace("人の関所の答え", "人が承認ノードで答えたこと").replace("設計書の節", "設計書のセクション")
+        self.assertIn(f"{PREMISE_HEAD}\n\n{ask}\n\n$prep.output.premises_text",
                       (BLOCK / "commands" / "r2-compare.md").read_text(encoding="utf-8"))
 
     def test_r1_comments_keeps_the_three_added_asks(self):
@@ -395,14 +405,15 @@ class ShapeCase(unittest.TestCase):
         text = (BLOCK / "commands" / "r1-comments.md").read_text(encoding="utf-8")
         for ask in ("1. 削除候補ごとに**同じ内容がどこにあるかを名指しせよ**（コード・他のコメント・文書・テスト名。名指しできないなら削らない）"
                     "——名指しは後から確かめられるので、提案が意見のまま残らない。",
-                    "2. **残すと判断したコメントにも、それが運んでいる事実を一文で言え**（kept）——削る側にだけ義務があると、黙って残す方が安くなる。",
+                    "2. **残すと判断したコメントにも、それが運んでいる事実を一文で言え**（kept。対象のコメントで candidates に入れなかったものは"
+                    "全部 kept に載せる）——削る側にだけ義務があると、黙って残す方が安くなる。",
                     "3. コメントアウトされたコード・編集の実況（「〜を追加した」）・名前のすぐ隣で名前を言い直しているものを、具体的な引き金として"
                     "明示的に探せ。"):
             with self.subTest(ask[:2]):
                 self.assertIn(ask + "\n", text)
 
     def test_minimality_knows_where_handoffs_go(self):
-        self.assertIn(HANDOFFS, (BLOCK / "commands" / "r1-minimality.md").read_text(encoding="utf-8"))
+        self.assertIn(HANDOFFS.rstrip("\n"), (BLOCK / "commands" / "r1-minimality.md").read_text(encoding="utf-8"))
 
     def test_concept_map_only_on_r1_and_r3(self):
         """考えの地図の節と住処の観点は R1（最小性）と R3 にだけ貼る（元 works/blk-eyes/lib/eyes.py:91-92 CONCEPT_HEADS・CONCEPT_FLAG）"""
@@ -416,8 +427,9 @@ class ShapeCase(unittest.TestCase):
         for path in sorted((BLOCK / "commands").glob("*.md")):
             text = path.read_text(encoding="utf-8")
             with self.subTest(path.stem):
-                if path.stem in ("r1-minimality", "r3-coherence", "r4-scope"):
-                    self.assertIn(POLICY, text)
+                if path.stem in ("r1-minimality", "r3-coherence", "r4-scope"):   # ぶつかりの書く先は役ごとの返答の欄に書き直した
+                    self.assertIn(POLICY.partition("どの項とぶつかるかを、")[0] + "どの項とぶつかるかを書け——", text)
+                    self.assertIn("方針の文書は書き換えるな。\n", text)
                 else:
                     self.assertNotIn("## 人の方針", text)
                     self.assertNotIn("policy_path", prep_reads(text))
@@ -449,7 +461,7 @@ class ShapeCase(unittest.TestCase):
         for path in sorted((BLOCK / "commands").glob("*.md")):
             text = path.read_text(encoding="utf-8")
             with self.subTest(path.name):
-                self.assertTrue(text.rstrip().endswith("$prep.output.lang_line\n\n返すのは、この節の返りの型（JSON Schema）に合う JSON だけ。"))
+                self.assertTrue(text.rstrip().endswith("$prep.output.lang_line\n\n返すのは、このノードの出力の型（JSON Schema）に合う JSON だけ。"))
 
     def test_r3_names_the_target_repo_review_md(self):
         self.assertIn("（対象リポジトリ側: $prep.output.repo_review_md）",
@@ -509,10 +521,10 @@ class ShapeCase(unittest.TestCase):
         self.assertIn("前の周と同じ能力なら同じ文で書け", (BLOCK / "commands" / "r4-scope.md").read_text(encoding="utf-8"))
 
     def test_concept_map_is_pasted_after_the_concept_head(self):
-        """concepthome の R1_HEAD・R3_HEAD は『考えの住処の地図』の節を「機械がこの節の後ろに貼った」と読ませる"""
+        """concepthome の R1_HEAD・R3_HEAD は『考えの住処の地図』のセクションを「機械がこのセクションの後ろに貼った」と読ませる"""
         for name, field, head in (("r1-minimality", "r1_head", concepthome.R1_HEAD), ("r3-coherence", "r3_head", concepthome.R3_HEAD)):
             with self.subTest(name):
-                self.assertIn("機械がこの節の後ろに貼った", head)
+                self.assertIn("機械がこのセクションの後ろに貼った", head)
                 text = (BLOCK / "commands" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertLess(text.index(f"$prep.output.{field}"), text.index("$prep.output.concept_map"))
 
@@ -839,7 +851,7 @@ class ScriptCase(unittest.TestCase):
         self.inputs["x_scalars"] = json.dumps({"x_endpoints": 2})
         got = self.run_script("prep")
         self.assertEqual(pathlib.Path(got["repo_review_md"]).resolve(), (self.repo / "REVIEW.md").resolve())
-        for want in ("古い入口は消してよい", "入口は 2 つあった", "### 対象のリポジトリの地図", "### 依頼が名指した設計書の節",
+        for want in ("古い入口は消してよい", "入口は 2 つあった", "### 対象のリポジトリの地図", "### 依頼が名指した設計書のセクション",
                      "依頼が名指したが引けなかった: docs/d.md 2 節"):
             self.assertIn(want, got["premises_text"])
         self.assertIn("English", got["lang_line"])
@@ -967,10 +979,11 @@ class CopiedTextsCase(unittest.TestCase):
         on_disk = {p.name for p in (BLOCK / "commands").glob("*.md")}
         with self.subTest(ledger="台帳と指示書の一覧"):
             self.assertEqual(sorted(COPIED_TEXTS), sorted(on_disk))
+            self.assertLessEqual(rewritten(BLOCK / "commands"), set(COPIED_TEXTS))
         for name in sorted(on_disk & set(COPIED_TEXTS)):
             source, sha256, edits = COPIED_TEXTS[name]
             with self.subTest(command=name, source=source):
-                assert_is_original(self, (BLOCK / "commands" / name).read_text(encoding="utf-8"), sha256, edits)
+                assert_is_original(self, BLOCK / "commands" / name, sha256, edits)
 
 
 if __name__ == "__main__":

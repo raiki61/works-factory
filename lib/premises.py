@@ -62,11 +62,11 @@ def collect(board: pathlib.Path) -> dict:
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        raise Broken(f"盤面の {PREMISES_FILE} が読めない（{path}: {type(e).__name__}: {e}）——受け付けを通った前提の実測が無い") from None
+        raise Broken(f"共有ボードの {PREMISES_FILE} が読めない（{path}: {type(e).__name__}: {e}）——受け付けを通った前提の実測が無い") from None
     cs = doc.get("constraints") if isinstance(doc, dict) else None
     if not isinstance(cs, list) or not all(isinstance(c, dict) and all(isinstance(c.get(k), str) for k in ("text", "measured_how", "kind"))
                                            for c in cs):
-        raise Broken(f"盤面の {PREMISES_FILE} の形が崩れている（constraints[].text・measured_how・kind が要る）: {path}")
+        raise Broken(f"共有ボードの {PREMISES_FILE} の形が崩れている（constraints[].text・measured_how・kind が要る）: {path}")
     asked = claims(request_items(board) or [])
     hyp = [c for c in asked if not any(x["kind"] == "実測" for x in _covering(c["where"], cs))]
     summary = "\n".join(f"- [{c['kind']}] {_one_line(c['text'])}（測り方: {_one_line(c['measured_how'])}）" for c in cs)

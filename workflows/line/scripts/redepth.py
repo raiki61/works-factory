@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""直した後に深さを上げ直す節 redepth（docs/design.md の「線」の「順と関所」の 7 の後）。
+"""直した後に深さを上げ直す節 redepth（docs/design.md の「メイングラフ」の「順と承認ノード」の 7 の後）。
 
 計画の深さ（案の直しが走ればその深さ）を、修正の後の信号で標準へ上げる（lib/depth.py の raise_doc。下げない）。信号は、
 単位ごとに: 修正の段が止めた単位（status が fixed でない単位）、run 全体に: 申し出が在る・答えていない問いが在る・案の直しが

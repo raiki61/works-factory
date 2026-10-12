@@ -119,7 +119,7 @@ QUESTION = promptsection.Section("""\
 答えは次の JSON だけ（`answers` に相談の番号ごとに 1 件。番号は上の「相談 <番号>」）:
 - ask: 相談の番号
 - decision: allow（範囲に足してよい）・deny（足さない。範囲の中で直せ）・defer（今の run では直さない。次の run の仕事）
-- paths: 足してよいパス（頼まれた物の中から。allow の時だけ。頼まれていない物は機械が捨てる。「人が関所で出した条件」の相談には
+- paths: 足してよいパス（頼まれた物の中から。allow の時だけ。頼まれていない物は機械が捨てる。「人が承認ノードで出した条件」の相談には
   頼まれた物の一覧が無い。条件が求める物を自分で挙げてよい。機械はリポジトリの根の外のパスだけ捨てる）
 - tests: 書き換えてよいテストの範囲（頼まれた物の中から。allow の時だけ。期待を実装に合わせるための書き換えは許すな）
 - new_tests: 足してよい新しいテスト（頼まれた物の中から。allow の時だけ。無ければ省く）。{{id, red_kind}} の並び。red_kind は
@@ -147,7 +147,7 @@ ASK_GATE_TEXT = promptsection.Section("""\
 
 - 項目の今の範囲（allowed_paths）: {allowed}
 - 触らない物（out_of_scope）: {oos}
-- 人が関所で出した条件（字のまま。直す前に人が答えた物で、通す範囲と条件を超えて削れない）:
+- 人が承認ノードで出した条件（字のまま。直す前に人が答えた物で、通す範囲と条件を超えて削れない）:
 {why}
 {oos_hits}- 答え方: この条件を満たすのにこの項目で要る、足すパス・書き換える既存のテストの範囲・足す新しいテスト（id と赤の種類）を決めよ。
   この項目に関わらない条件なら deny。
@@ -156,17 +156,17 @@ ASK_GATE_TEXT = promptsection.Section("""\
 ANSWER_HEAD = promptsection.Section("""\
 # 範囲の相談の答え（相談の周 {turn}）
 
-前の返答の consult に、修正案を書いた役が答えた（機械が確かめて盤面に残した）。相談ごとの答え:
+前の返答の consult に、修正案を書いた役が答えた（機械が確かめて共有ボードに残した）。相談ごとの答え:
 """, source="fn:consult.answer_text")
 ANSWER_HEAD_ACCEPT = promptsection.Section("""\
 # 範囲の相談の答え（相談の周 {turn}）
 
-受け付けが見つけたはみ出しを、修正案を書いた役に聞いた（機械が確かめて盤面に残した）。相談ごとの答え:
+受け付けが見つけたはみ出しを、修正案を書いた役に聞いた（機械が確かめて共有ボードに残した）。相談ごとの答え:
 """, source="fn:consult.answer_text")
 ANSWER_HEAD_GATE = promptsection.Section("""\
 # 範囲の相談の答え（相談の周 {turn}）
 
-人が関所で出した条件を、修正案を書いた役に聞いた（機械が確かめて盤面に残した）。相談ごとの答え:
+人が承認ノードで出した条件を、修正案を書いた役に聞いた（機械が確かめて共有ボードに残した）。相談ごとの答え:
 """, source="fn:consult.answer_text")
 ANSWER_ROW_HEAD = promptsection.Section("## 相談（項目 {item}・パス {paths}・テスト {tests}{new_tests}）", source="fn:consult.answer_text")
 

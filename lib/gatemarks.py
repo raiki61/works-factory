@@ -110,7 +110,7 @@ RECOMMEND_KEYS = ("answer", "note", "why")   # 頭が答え、残りが RECOMMEN
 RECOMMEND_ANSWERS = ("continue", "stop")
 RECOMMEND_WORDS = {"continue": "通す", "stop": "止める"}
 RECOMMEND_MIN = 4
-RECOMMEND_SAYS = ("関所の一言にそのまま写せる通す範囲と条件か止める理由", "推す理由")   # RECOMMEND_KEYS[1:] の各欄に書く物
+RECOMMEND_SAYS = ("承認ノードの一言にそのまま写せる通す範囲と条件か止める理由", "推す理由")   # RECOMMEND_KEYS[1:] の各欄に書く物
 RECOMMEND_SHAPE = ("{" + f"{RECOMMEND_KEYS[0]}: " + " か ".join(f"{a}（{RECOMMEND_WORDS[a]}）" for a in RECOMMEND_ANSWERS)
                    + "".join(f", {k}: {say}（{RECOMMEND_MIN} 字以上）" for k, say in zip(RECOMMEND_KEYS[1:], RECOMMEND_SAYS))
                    + "}")
@@ -119,7 +119,7 @@ RECOMMEND_SHAPE = ("{" + f"{RECOMMEND_KEYS[0]}: " + " か ".join(f"{a}（{RECOMM
 FENCES = ("external_write", "irreversible", "policy_doc", "widen_protection", "web_doubt")
 MARK_SCHEMA = {
     "decided_by": {"type": "string",
-                   "note": "決め手の出どころ（依頼の引用・URL と節・対象の同じ場面・人の前の決定＝ADR・台帳の行）。無ければ書かない"},
+                   "note": "決め手の出どころ（依頼の引用・URL とセクション・対象の同じ場面・人の前の決定＝ADR・台帳の行）。無ければ書かない"},
     "undecided_because": {"type": "string",
                           "note": "決め手を当たっても答えが 1 つに決まらない理由。書けないなら空（自明なので人に回さない）"},
     "fences": {"type": "array", "uniqueItems": True, "items": {"type": "string", "enum": list(FENCES)},
@@ -129,8 +129,8 @@ MARK_SCHEMA = {
     RECOMMEND: {"type": "object", "additionalProperties": False, "required": list(RECOMMEND_KEYS),
                 "properties": {RECOMMEND_KEYS[0]: {"type": "string", "enum": list(RECOMMEND_ANSWERS)},
                                **{k: {"type": "string", "minLength": RECOMMEND_MIN} for k in RECOMMEND_KEYS[1:]}},
-                "note": "人に回す行の推し: answer＝continue（通す）か stop（止める）・note＝関所の一言に写せる通す範囲と条件か止める理由・"
-                        "why＝推す理由。人が答えるまでの下書きで、機械は関所に答えない"},
+                "note": "人に回す行の推し: answer＝continue（通す）か stop（止める）・note＝承認ノードの一言に写せる通す範囲と条件か止める理由・"
+                        "why＝推す理由。人が答えるまでの下書きで、機械は承認ノードに答えない"},
 }
 # 狭めない案を探した結果（持ち主の方針 ADR 0002「今ある能力と使い方を減らさない」）。決め手の欄と同じく役の型にだけ足して受け付けが外すが、
 # 関所を通す条件（decided）には使わない。修正案の narrows の行では欠け・短いを受け付けが拒み、事前審査の穴では示せる時だけ書く
@@ -139,33 +139,33 @@ NO_NARROW_MIN = 20     # 本流の事前審査が entrance の穴に求める no
 NO_NARROW_SCHEMA = {"type": "string", "minLength": NO_NARROW_MIN,
                     "note": "狭めない案（BASE の動きを残し、直したい場合だけ新しい動きを当て、黙らずに名指す形）を探した結果"}
 NODES = marks.nodes("gate")
-_RULE = ("に、決め手の欄を書け。decided_by＝決め手の出どころ（URL と節・<パス>:<行>（対象の同じ場面・人の前の決定＝ADR）・"
+_RULE = ("に、決め手の欄を書け。decided_by＝決め手の出どころ（URL とセクション・<パス>:<行>（対象の同じ場面・人の前の決定＝ADR）・"
          "設計の決定の記録のパス・依頼の引用「…」（依頼の文を字のまま鉤括弧で）。機械が現物に在るかを照らし、照らせない出どころの行は人に回る）。"
          "undecided_because＝決め手を当たっても答えが 1 つに決まらない理由（書けないなら空にせよ——自明なので人に回さない）。"
          "fences＝当たる柵の印（external_write 外への書き込み・irreversible 取り消せない操作・policy_doc 方針の文書の変更・"
          "widen_protection 守り（資格・sandbox）を広げる・web_doubt web の結果が新しい疑いを出した）。decided_by が在り "
-         "undecided_because が空で fences が無く、出どころが現物に在り、世界の解の軸が揃い（頭の『世界の解の行』の節が在る run では、"
-         "行の外れは世界の解の外れの項目が 1 度だけ聞き、この行の軸には入れない。節の無い run は world か URL の決め手が在る）、構造の目が人に上げた単位に当たらず、"
-         "修正案の単位の外を名指さない行は、修正前の関所で人に聞かずに通り、出どころつきで報告に並ぶ（最後の関所が開けばその文にも）。"
+         "undecided_because が空で fences が無く、出どころが現物に在り、世界の解の軸が揃い（頭の『世界の解の行』のセクションが在る run では、"
+         "行の外れは世界の解の外れの項目が 1 度だけ聞き、この行の軸には入れない。セクションの無い run は world か URL の決め手が在る）、構造の目が人に上げた単位に当たらず、"
+         "修正案の単位の外を名指さない行は、修正前の承認ノードで人に聞かずに通り、出どころつきで報告に並ぶ（最後の承認ノードが開けばその文にも）。"
          "決め手が無い・決まらない・柵に当たる行は今までどおり人に聞く。"
-         "人に回す前に、世の中が同じ問題をどう解いているかを当たれ——頭の『世界の解の行』の節が在れば、その行（依頼の行ごとの"
+         "人に回す前に、世の中が同じ問題をどう解いているかを当たれ——頭の『世界の解の行』のセクションが在れば、その行（依頼の行ごとの"
          "問題の類・定石・依頼の解き方との比べ）を使え。行の無い問いだけ、標準仕様・著名 OSS・公式の文書の定石を自分で引け。"
          "依頼が示した解き方は決め手にならない（定石と比べて疑う案）。定石で 1 つに決まるなら、その出どころを decided_by に書いて"
          "自分で決めよ。どの行にも "
-         "world＝当たった結果の 1 文（出どころと割れ方、当たらなかったならその理由。人の前の決定で決まる行はそう書く）を書け。人に回す行では関所の項目にそのまま載る。"
-         f"人に回す行には {RECOMMEND}＝お前の推す答え 1 つ {RECOMMEND_SHAPE} も書け。関所の項目の推しとして載り、無人の run が関所で止まった時は次の run の"
-         "依頼の下書きの答えの下書きになる（人が見直すまで使われない。機械は関所に答えない）")
+         "world＝当たった結果の 1 文（出どころと割れ方、当たらなかったならその理由。人の前の決定で決まる行はそう書く）を書け。人に回す行では承認ノードの項目にそのまま載る。"
+         f"人に回す行には {RECOMMEND}＝推す答え 1 つ {RECOMMEND_SHAPE} も書け。承認ノードの項目の推しとして載り、無人の run が承認ノードで止まった時は次の run の"
+         "依頼の下書きの答えの下書きになる（人が見直すまで使われない。機械は承認ノードに答えない）")
 _NO_NARROW_PLAN = ("\n\n狭めない案を先に探せ: narrows を書く前に、その狭めを避ける形——直したい場合だけに新しい動きを当て、当てられない"
                    "場合（記録の欄が無い・数えられない・道具が違う等）は BASE の動きを残し、黙らずに報告か標準エラーで名指す形——を"
                    "当たれ。在ればそれを案に採り、その行を narrows に書かない。無い時だけ narrows に書き、各行に "
                    f"{NO_NARROW}＝探した結果（どの狭めない案を当たり、なぜ採れないか。{NO_NARROW_MIN} 字以上）を書け。欠けた行・"
-                   "短い行は受け付けが拒み、書いた文は関所の項目にそのまま載る")
+                   "短い行は受け付けが拒み、書いた文は承認ノードの項目にそのまま載る")
 _NO_NARROW_REVIEW = ("\n\n狭めない案を添えよ: kind が regression の穴で、BASE の動きを残し、直したい場合だけ新しい動きを当て、"
                      f"当てられない場合は黙らずに名指す形を示せるなら、{NO_NARROW}＝その案（{NO_NARROW_MIN} 字以上）を書け。"
-                     "示せなければ書かない。書いた文は関所の項目に添わる")
+                     "示せなければ書かない。書いた文は承認ノードの項目に添わる")
 # 役の指示書の頭に足す文（写しの指示書は欄を知らない）
-HEAD = {"p2.fix_plan": "関所の項目の決め手: plan[].narrows の各行" + _RULE + _NO_NARROW_PLAN,
-        "p2.plan_review": "関所の項目の決め手: faces のうち kind が regression・policy の各行" + _RULE + _NO_NARROW_REVIEW}
+HEAD = {"p2.fix_plan": "承認ノードの項目の決め手: plan[].narrows の各行" + _RULE + _NO_NARROW_PLAN,
+        "p2.plan_review": "承認ノードの項目の決め手: faces のうち kind が regression・policy の各行" + _RULE + _NO_NARROW_REVIEW}
 PASSED_BY = "decided"
 PASSED_BY_HUMAN = "human"               # 修正の後の関所で、修正前の関所で人が通した行と同じなので聞き直さなかった
 GATE_NODE = "p2.human_gate"
@@ -173,8 +173,8 @@ R4_GATE_NODE = "r4.human_gate"
 # 修正前の関所の行の頭（plan_gate_items と写しの _plan_gate_items が組む形）。r4_gate_items が種類と本文に分ける
 NARROW_HEAD = re.compile(r"修正案 \d+ が狭める能力: ")
 FACE_HEAD = re.compile(r"事前審査の穴 \[([^\]]+)\] [^\n]*?: ")
-CARRIED_HEAD = promptsection.Section("## 直す前の関所で人が通した狭まり（機械が貼った）", source="fn:gatemarks.carried_section")
-CARRIED_ASK = ("下の行は、直す前の関所で人が通すと答えた（continue）。同じ能力の消えを capability_inventory.lost に、同じ方針との"
+CARRIED_HEAD = promptsection.Section("## 直す前の承認ノードで人が通した狭まり（機械が貼った）", source="fn:gatemarks.carried_section")
+CARRIED_ASK = ("下の行は、直す前の承認ノードで人が通すと答えた（continue）。同じ能力の消えを capability_inventory.lost に、同じ方針との"
                "ぶつかりを policy_conflicts に書くなら、[ ] の種類（regression は lost・policy は policy_conflicts）に合わせ、本文を"
                "一字も変えずに写せ。通した条件を超える消え・別の能力は自分の言葉で書け")
 ASK_HEAD = "問いの台帳の問い"          # 関所の項目の頭。答えの突き合わせもこの頭と key で引く
@@ -183,7 +183,7 @@ HOLD = re.compile(r"保留\s*[:：]\s*([^。；;\n]+)")   # 一言の「保留: 
 HOLD_END = re.compile(r"[。；;\n]")   # HOLD が読む文の終わり（unread_holds が一言を文に切る）
 KEY_CHAR = re.compile(r"[A-Za-z0-9_-]")   # 台帳の key の一致の前後にこれが続けば、もっと長い key の断片
 HOLD_ITEM = re.compile(r"(?:^|[・、,，])\s*([A-Za-z0-9_-]*[A-Za-z0-9][A-Za-z0-9_-]*)")   # 「保留:」に並べた項の頭の key らしい並び
-ANSWERED_HEAD = "答えた問い（関所の continue か依頼の answers）"   # 答えた行（answered_lines）の見出し（報告の冒頭と最後の関所）
+ANSWERED_HEAD = "答えた問い（承認ノードの continue か依頼の answers）"   # 答えた行（answered_lines）の見出し（報告の冒頭と最後の承認ノード）
 ANSWER_KEY_HEAD = "答える時の answers の question"   # 保留の行の尾: 依頼の answers に字のまま書く question（answer_key。JSON の文字列で区切る）
 HAND_CHECKED = "人が手元で確かめた（実測とは書かない）"   # 命令と出力つきの依頼の答えが当たった測れていない素材の名乗り
 ANSWER_HOW = ('答え方: 次の run の依頼を {"findings": [...], "answers": [{"question": "<問いの key か出どころ>", "text": "<答え>"}]} '
@@ -197,13 +197,13 @@ ANSWER_TIE_ROW = {
     "type": "object", "additionalProperties": False,
     "properties": {
         "answer": {"type": "string", "minLength": 1, "note": "依頼の answers の question を一字も変えずに写した物"},
-        "redesign": {"type": "string", "minLength": 1, "note": "作り直しの節の行の text の最初の「（」まで"},
+        "redesign": {"type": "string", "minLength": 1, "note": "作り直しのセクションの行の text の最初の「（」まで"},
         "to": {"type": "string", "minLength": 1, "note": "結び先: 今の返答の問いの key か単位の key（作り直しの行は [block] か do-now の単位）"},
         "none": {"type": "string", "minLength": ANSWER_TIE_MIN, "note": "結べない訳（答えが当たる問いも単位も無い・作り直しの行が反証で死んだか目的の外）"},
     },
 }
 NO_CARRY_HEAD = promptsection.Section("### 判定が単位にしなかった作り直し（次の run に運ばない）",
-                                      human="人が読む報告の節 PRIOR_HEADING の中の小見出し。役の指示書には貼らない")
+                                      human="人が読む報告のセクション PRIOR_HEADING の中の小見出し。役の指示書には貼らない")
 DESIGN_ONLY = "true"                  # 入力 design_only の設計だけの語（entry.DESIGN_ONLY_WORDS）
 DESIGN_ONLY_KIND = "design_only"      # 関所の項目の kinds（設計だけの行）
 DESIGN_KIND = "design"                # 関所の項目の kinds（構造の目が決めきれなかった設計の問い）
@@ -218,10 +218,10 @@ ASK_GATE_HEAD = ("判定の役が人に聞くと保留にした問い（問い�
 # 関所の文と報告が主語にする平易な名（盤面の節 → 流れの図 docs/darkfactory-flow.md の工程の日本語の名）。初めて読む人は盤面の
 # 節の名を解けないので、平易な名を主語にし、記録と照らす内部の名は named() が括弧に回す。報告の「見る所」の表もここから引く。
 # 図の英語の工程の名はラインの節の id で、層の決まり（下の層はラインの名を書かない）により持たない
-PLAIN = {"p2.diagnose": "判定", "p2.fix_plan": "修正案", "p2.plan_review": "事前審査", GATE_NODE: "直す前の関所",
+PLAIN = {"p2.diagnose": "判定", "p2.fix_plan": "修正案", "p2.plan_review": "事前審査", GATE_NODE: "直す前の承認ノード",
          "p3.fix": "修正", "p3.delta_review": "差分の審査", "p3.delta_fix": "手直し", "p3.delta_review2": "2 回目の審査",
          "p3.delta_fix2": "手直し 2 回目", "p4.ci": "最後のテスト", "r4.human_gate": "独立の目が人に回した問い",
-         "spec.approve": "仕様の承認の関所", "r2.design": "独立設計"}
+         "spec.approve": "仕様の承認ノード", "r2.design": "独立設計"}
 # 独立の目の名 → 何を見る目か（流れの図の 17 項）と、目の判定の状態の語 → 平易な言い方（目の語は seal から読む）
 EYES = {"R1": "直しが最小か・注記が正しいかを見る目", "R2": "独立の設計と構造が合うかを見る目",
         "R3": "前提と全体の筋を見る目", "R4": "依頼の範囲を超えていないかを見る目"}
@@ -239,8 +239,8 @@ HANDLED_WORDS = {"fixed": "直した", "declared": "直さずに残すと申告�
 
 # 盤面の問いの文は写しの規則が本線の道具の書き方（continue --note・--detail）で作り、写しは本線とバイト一致で縛られて直せない。
 # 関所の文ではそれを引用として置き、この 1 行で読み替える（--detail は答えの行に口が無い）
-QUOTE_NOTE = ("（引用の中の continue --note <…> は本線の道具の書き方。この関所では下の continue の行の一言で答える。"
-              "--detail（単位を外す）はこの関所に無い——外したい単位と理由を一言に書けば修正役に届くが、直す義務の数からは外れない）")
+QUOTE_NOTE = ("（引用の中の continue --note <…> は元の graphloops の道具の書き方。この承認ノードでは下の continue の行の一言で答える。"
+              "--detail（単位を外す）はこの承認ノードに無い——外したい単位と理由を一言に書けば修正役に届くが、直す義務の数からは外れない）")
 
 # 人が読む関所の文と報告の冒頭 3 行の頭（依頼の「冒頭 3 行で完結」。形は BLUF と blk-report の commands/report-write.md の冒頭 3 行）
 HAPPENED, DECIDE, PUSH = "起きたこと: ", "決めてほしいこと: ", "推し: "
@@ -263,7 +263,7 @@ def quote(question) -> list:
 
 def named(node) -> str:
     """盤面の節を人が読む名に: 「平易な名（記録の名 <節>）」。表に無い節は「盤面の節（記録の名 <節>）」"""
-    return f"{PLAIN.get(str(node), '盤面の節')}（記録の名 {node}）"
+    return f"{PLAIN.get(str(node), '共有ボードのノード')}（記録の名 {node}）"
 
 
 def eye_named(name: str, status) -> str:
@@ -297,7 +297,7 @@ def gate_text(asking: dict, *, run_id: str, node: str, record_name: str) -> str:
     1 行（QUOTE_NOTE）→ 項目 1 行ずつ → 答え方（answer.line。一言は record_name の記録に残る）。頭は平易な名で、盤面の節の
     名と種類の語は括弧に回す（named）"""
     if not isinstance(asking, dict):
-        raise TypeError(f"盤面の問いが dict でない: {type(asking).__name__}")
+        raise TypeError(f"共有ボードの問いが dict でない: {type(asking).__name__}")
     kinds = [str(k) for k in asking.get("kinds") or []]
     items = [str(x) for x in asking.get("items") or []]
     what = "・".join(f"{KIND_WORDS.get(k, '人が決める項目')}（{k}）" for k in kinds) or "人が決める項目"
@@ -310,7 +310,7 @@ def gate_text(asking: dict, *, run_id: str, node: str, record_name: str) -> str:
         lines += [ASK_GATE_HEAD, ""]
     lines += ["問いの文（記録のまま引く）:", *quote(asking.get("question")), QUOTE_NOTE, "", f"項目（{len(items)} 件）:"]
     lines += [f"- {x}" for x in items] or ["- （無し）"]
-    lines += ["", "答え方（人が決める関所。依頼者に聞いて、その言葉で答える）:",
+    lines += ["", "答え方（人が決める承認ノード。依頼者に聞いて、その言葉で答える）:",
               f"- 通す: {answer.line(run_id, 'continue', '<通す範囲と条件>')}（一言は run の記録（記録の名 {record_name}）に残り、"
               "修正役に届く）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]
@@ -831,7 +831,7 @@ def _tie_row_problems(i: int, r, answers: dict, redesign: dict, questions: dict,
     else:
         key = carry.row_key({"where": carry.REDESIGN_WHERE, "text": value})
         if key not in redesign:
-            out.append(f"{where} の redesign {_squeeze(value)!r} が作り直しの節のどの行にも当たらない（行の text の最初の「（」までを写す）")
+            out.append(f"{where} の redesign {_squeeze(value)!r} が作り直しのセクションのどの行にも当たらない（行の text の最初の「（」までを写す）")
     if target[0] == "none":
         if len(_squeeze(r["none"])) < ANSWER_TIE_MIN:
             out.append(f"{where} の none が {ANSWER_TIE_MIN} 字に満たない（当たらない訳を書く）")
@@ -1040,7 +1040,7 @@ def draft_line(drafts: list, next_file: str) -> str:
         return ""
     return (f"{DRAFT_HEAD}: {len(drafts)} 件——次の run の依頼の下書き{f' {next_file}' if next_file else ''} の answers に置いた"
             "（draft: true・出どころ source つき。機械は答えていない。推しの無い行は text が空で、材料は note に在る。見直して、台帳の"
-            "問いと素材の行（question が問いの key か素材の名）は採るなら draft と source（と note）を消して text を答えにし、採らないなら行を消す。関所の項目の行（question が関所の項目の文）は次の run の関所の continue の一言の材料で、"
+            "問いと素材の行（question が問いの key か素材の名）は採るなら draft と source（と note）を消して text を答えにし、採らないなら行を消す。承認ノードの項目の行（question が承認ノードの項目の文）は次の run の承認ノードの continue の一言の材料で、"
             "依頼ではどの問いにも当たらないので、一言に写してから行を消す）")
 
 
@@ -1197,7 +1197,7 @@ def returned_lines(b) -> list:
         a = request_answer(b, q)
         how = (f"——答え: {answer_note(a)}" if a is not None else
                f"——一言に案が無ければ問いの理由の推しで直す（問いの理由: {q.get('reason') or ''}）")
-        out.append(f"{'依頼' if a is not None else '関所'}で答えた{ASK_HEAD} {q.get('key')} の出どころ・depends は直す義務に戻った"
+        out.append(f"{'依頼' if a is not None else '承認ノード'}で答えた{ASK_HEAD} {q.get('key')} の出どころ・depends は直す義務に戻った"
                    f"（保留の問いの出どころとして飛ばさない）: {'・'.join(keep)}{how}。"
                    "判定者の class_query が無い単位は coverage.how と counts を書け（写しの受け付けが求める）")
     answer_rows = answer_ties(b)
@@ -1208,10 +1208,17 @@ def returned_lines(b) -> list:
     return out
 
 
+GATE_CONTINUED = "・承認ノードで continue を受けた"   # 答えた台帳の行の印。依頼の answers の答えでなく関所の continue で答えた物
+
+
+def unreturned_line(key, unit) -> str:
+    """関所で答えたが、今の周の判定の units に無いので直す義務に戻せなかった単位の 1 行（runreport も同じ行を組む）"""
+    return f"承認ノードで答えたが直す単位に入れられなかった: {key}・{unit}（理由: 今の周の判定に無い）"
+
+
 def unreturned_lines(b) -> list:
     """関所で答えたが、今の周の判定の units に無いので直す義務に戻せなかった単位（1 件 1 行）"""
-    return [f"関所で答えたが直す単位に入れられなかった: {q.get('key')}・{k}（理由: 今の周の判定に無い）"
-            for q, _, gone in _answered_skips(b) for k in gone]
+    return [unreturned_line(q.get("key"), k) for q, _, gone in _answered_skips(b) for k in gone]
 
 
 def _gate_answered(b, q) -> bool:
@@ -1237,7 +1244,7 @@ def held_lines(b) -> list:
 def answered_lines(b) -> list:
     """held_lines と同じ所に別の見出し（ANSWERED_HEAD）で並べ、保留の件数に数えない行: 関所で continue を受けたか、依頼の
     answers が答えた台帳の問い（印は答えの出どころを名乗る）"""
-    return [_ledger_line(q, "・" + answer_note(a) if (a := request_answer(b, q)) is not None else "・関所で continue を受けた")
+    return [_ledger_line(q, "・" + answer_note(a) if (a := request_answer(b, q)) is not None else GATE_CONTINUED)
             for q in _asking(b) if _gate_answered(b, q)] + material_lines(b)
 
 

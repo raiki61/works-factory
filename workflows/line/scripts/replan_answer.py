@@ -20,8 +20,8 @@ import boundary  # noqa: E402
 with boundary.guarded_imports():
     import answer
 
-FIX_NOTES_HEAD = "## 修正前の関所（gate-before-fix）で人が答えた条件（1 回目の修正の段と同じく、この段にも効く）"   # 元 replan.FIX_NOTES_HEAD
-NOTE_HEAD = "## 人の一言（関所 gate-replan）"   # 元 replan.NOTE_HEAD
+FIX_NOTES_HEAD = "## 修正前の承認ノード（gate-before-fix）で人が答えた条件（1 回目の修正の段と同じく、この段にも効く）"   # 元 replan.FIX_NOTES_HEAD
+NOTE_HEAD = "## 人の一言（承認ノード gate-replan）"   # 元 replan.NOTE_HEAD
 
 
 def fix_answers(before_fix, replan) -> dict | None:

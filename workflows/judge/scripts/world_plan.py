@@ -17,5 +17,5 @@ jdir.mkdir(parents=True, exist_ok=True)
 try:
     out = ja.world_plan(jdir)
 except Exception as e:  # noqa: BLE001  （世界の解の段は run を止めない）
-    out = {"due": False, "prompt": "", "reason": f"類を決める節が落ちた（{type(e).__name__}: {e}）"}
+    out = {"due": False, "prompt": "", "reason": f"類を決めるノードが落ちた（{type(e).__name__}: {e}）"}
 boundary.returns(out)

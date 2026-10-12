@@ -89,7 +89,7 @@ def _read_board(board, name):
     try:
         return json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        raise Reject(f"盤面の {name} が読めない（{e}）")
+        raise Reject(f"共有ボードの {name} が読めない（{e}）")
 
 
 def _write_board(board, name, obj):

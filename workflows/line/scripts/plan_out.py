@@ -12,7 +12,7 @@ lib の converge.decide）・plan の round が往復の安全の上限 round_li
 突き合わせる）で、減り続ける往復は普通は届かない。上限の周の終わりで必ず真になるので、往復は上限に当たって落ちない。
 例外の時は計画ができなかった形（ready: false・done: true）と止めの理由 works:line-script を返す。
 
-入力（with:）: plan の 6 つの欄と plan-review の 7 つの欄（docs/design.md の「plan の返り」「plan-review の返り」）と round_limit
+入力（with:）: plan の 6 つの欄と plan-review の 7 つの欄（docs/design.md の「plan の出力」「plan-review の出力」）と round_limit
 """
 import os
 import sys

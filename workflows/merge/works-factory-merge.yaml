@@ -6,10 +6,10 @@ inputs:
     description: seal（merge-seal）か apply（merge-apply）
   start:
     required: true
-    description: 始めの記録の指し札（base_rev を読む）
+    description: 始めの記録のポインタ（base_rev を読む）
   diff:
     required: true
-    description: fix の累積差分の指し札。受けるが読まない（封じるのは今の木から組み直した差分）
+    description: fix の累積差分のポインタ。受けるが読まない（封じるのは今の木から組み直した差分）
   fingerprint:
     default: ""
     description: test-gate final の緑の認証の指紋 {head, diff_hash}
@@ -24,7 +24,7 @@ inputs:
     description: merge-seal の hash（apply だけ）
   answer:
     default: ""
-    description: 最後の関所の答え {decision, text}。関所が開かなければ null（apply だけ）
+    description: 最後の承認ノードの答え {decision, text}。承認ノードが開かなければ null（apply だけ）
   r2:
     default: ""
     description: eyes の R2 の {status, reason}。省いた・走らなければ null（apply だけ）

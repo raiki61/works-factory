@@ -2,7 +2,7 @@
 
 YAML は PyYAML で読み、script は subprocess で起こす（Archon は起こさない）。筋書き（fixtures/）だけは tests/archon.py の
 使い捨ての木で止めた Archon の `archon workflow test` を回す（源が無ければ見送る）。
-返りの約束は docs/design.md の「ブロックの返りの約束」の fix の返り、節の並びは docs/plans/2026-10-12-blocks/fix.md の「作る物」。
+返りの約束は docs/design.md の「サブグラフの出力の約束」の fix の返り、節の並びは docs/plans/2026-10-12-blocks/fix.md の「作る物」。
 """
 import json
 import os

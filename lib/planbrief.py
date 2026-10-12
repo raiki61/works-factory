@@ -216,7 +216,7 @@ def _drawn(b, src: dict) -> list[tuple[list, str]] | None:
     if plan is None or fields is None:
         return None
     if len(fields) != len(plan):
-        raise LedgerBroken(f"修正案の項目の数 {len(plan)} と盤面の控え {planmarks.FIELDS_FILE} の欄の数 {len(fields)} が違う"
+        raise LedgerBroken(f"修正案の項目の数 {len(plan)} と共有ボードの控え {planmarks.FIELDS_FILE} の欄の数 {len(fields)} が違う"
                            "（同じ周の受け付けが同じ並びで書く物）")
     given = planmarks.prescriptions(view)   # 判定の返答の単位の処方（利用者の声 D2）
     units = {u["key"]: {**u, "prescriptions": given.get(u["key"]) or u.get("prescriptions")}

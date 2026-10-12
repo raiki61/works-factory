@@ -65,7 +65,7 @@ NODE_OF = {"plan": "p2.fix_plan", "plan-review": "p2.plan_review"}   # 役（YAM
 ROLES = tuple(NODE_OF)
 DESIGN_ROLE = "r2-design"   # 独立設計の役（盤面の節へは渡さない。core の design）
 REVISE_ROLE = "plan-revise"   # 直しの役（事前審査の壁打ちで修正案の役の会話の続き。盤面の節は p2.fix_plan。NODE_OF・ROLES に入れない）
-STOP_BY = stopby.declare("plan", "修正案の段が止めた（輪が諦めた・行き止まりの単位・控えを置けない）")
+STOP_BY = stopby.declare("plan", "修正案の段が止めた（ループが諦めた・行き止まりの単位・控えを置けない）")
 NONE_WORDS = ("", "null")               # 入口の「無し」（実行基盤の入力の既定の空と、ラインが渡す文字列 null）
 EXCLUDED_HEAD = "並行 PR の範囲。触らず、単位に入れない"
 RIPPLE_UNITS = "ripple/units.json"      # 今の周の作業ファイル（manifest の produces ripple/**）
@@ -77,7 +77,7 @@ TREE_AUTO_MIN = 2
 # 受け付けの拒みの頭（plan の受け付け planfile と事前審査の受け付け boardview が読む）
 NO_NARROW_REJECT = (f"narrows の行に狭めない案を探した結果（{gatemarks.NO_NARROW}）が無いか短い（直して出し直せ）。狭めを避ける形が"
                     "在ればそれを案に採ってその行を消し、無い時だけ、どの形を当たりなぜ採れないかを書け:")
-RECOMMEND_REJECT = (f"関所の項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている（直して出し直せ）。"
+RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている（直して出し直せ）。"
                     f"書くなら {gatemarks.RECOMMEND_SHAPE} の形で:")
 NOT_OWED_REJECT = "案に、直す義務の無い単位が入っている（nit・info・defer など。受け付けが受けない）。案から外せ。案に入れてよい no（必ず入れる物を含む）は"
 RESOLVED_REJECT = "前の往復の block の行き先が書かれていない（下の行を全部直して出し直せ）:"
@@ -85,7 +85,7 @@ ANSWERS_REJECT = "block への答えに誤りが在る（下の行を全部直�
 TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る（下の行を全部直して出し直せ）:"
 CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "   # 元 works/.shared/core/entry.py:1228
-NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度の節が走っていない）"
+NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度のノードが走っていない）"
 # 案の直しを終えられなかった項目の諦めの訳（元 works/.shared/core/replan.py:139-140）と、その行 [{item, why, ruling}] を置く隣のファイル
 # （計画の返り plan と事前審査の返り review の指し札の先と同じフォルダ。報告が前の失敗の行に読む）
 PLAN_GAVE_UP_WHY = "修正案の役の直しが 3 回とも拒まれた: {reason}"
@@ -103,11 +103,11 @@ SURPLUS_OP = "plan_review_surplus"
 # general-purpose・往復 2・3 が Explore で、型ごとに道具と深さが違った）
 SUBAGENT_TYPE = "general-purpose"
 AGG_HEAD = promptsection.Section("## 束ね役の頼み（項目ごとの下請けを並べる。機械が貼った）", source="fn:planblk.tree_part")
-AGG_ASK = ("お前は束ね役。案の項目を自分で見ずに、下の下請けのファイルごとに Agent の道具で下請けを 1 つずつ起こせ。下請けの呼びは"
+AGG_ASK = ("この役は束ね役。案の項目を自分で見ずに、下の下請けのファイルごとに Agent の道具で下請けを 1 つずつ起こせ。下請けの呼びは"
            " 1 つのメッセージに全部並べよ（同時に走る）。subagent_type は全部 " + SUBAGENT_TYPE + "（相乗りの審査も同じ。ほかの型を"
            "使わない）。各下請けへの頼みは「<ファイル> を Read で読み、その指示に従え」の 1 行でよい。"
            "下請けは読むだけで、答えはファイルに書き（どこに書くかはファイルが名指す。作業ツリーは変えない。変われば受け付けが拒む）、"
-           "最後に 1 行の要約を返す。答えのファイルは受け付け（機械）が確かめてまとめるので、お前は答えの中身を写さない。")
+           "最後に 1 行の要約を返す。答えのファイルは受け付け（機械）が確かめてまとめるので、答えの中身を写さない。")
 AGG_MERGE = ("下請けが全部返ったら、返答は次の形だけにせよ（受け付けが答えのファイルと突き合わせ、食い違えば拒む）: faces と shrink は"
              "空の配列、origins は書かない（出自は下請けの答えのファイルに書く）、reason にこの往復のまとめ（20 字以上）、items に開いた項目ごとに 1 行 {item, verdict（下請けの要約が clean なら"
              " clean、block なら block）, blocks（下請けの要約の block の key ごとに {key, why（一言）}。clean なら []）}。"
@@ -118,17 +118,17 @@ OPEN_HEAD = "開いた項目の下請けのファイル:"
 DONE_HEAD = "済んだ下請け（答えのファイルが機械の確かめを通った。起こし直さない）:"
 REDO_HEAD = "起こし直す下請け（答えのファイルが無いか、機械の確かめを通らなかった。この下請けだけを起こす）:"
 BRIEF_TITLE = promptsection.Section("# 事前審査の下請け", source="fn:planblk.brief_head")
-ITEM_HEAD = promptsection.Section("## お前の項目: 項目 {n}", source="fn:planblk.tree_part")   # 下請けのファイルの共通の頭（全部の項目で同じバイト。プロンプトのキャッシュ）と項目の節の境
-SUB_HEAD = ("お前は修正案の事前審査の下請け（読むだけ。Read・Grep・Glob と web の道具で調べ、Write は下の答えのファイルにだけ使う。"
+ITEM_HEAD = promptsection.Section("## この下請けの項目: 項目 {n}", source="fn:planblk.tree_part")   # 下請けのファイルの共通の頭（全部の項目で同じバイト。プロンプトのキャッシュ）と項目の節の境
+SUB_HEAD = ("この役は修正案の事前審査の下請け（読むだけ。Read・Grep・Glob と web の道具で調べ、Write は下の答えのファイルにだけ使う。"
             "Edit・Bash を使わず、作業ツリーを 1 文字も変えない）。審査の決まり・独立設計・判定者の見立てはこのファイルの頭に、"
-            "お前の項目の案・単位・波及の一覧は最後の節に在る。ほかのファイルの指示書を読みに行かなくてよい（根拠のコードは読め）。")
+            "この下請けの項目の案・単位・波及の一覧は最後のセクションに在る。ほかのファイルの指示書を読みに行かなくてよい（根拠のコードは読め）。")
 RULES_FROM = "\nリポジトリ: "   # 描いた事前審査の指示書のうち、下請けに貼る審査の決まりの頭（そこから末尾まで）
-RULES_MISSING = "審査の決まりを切り出せなかった。指示書 {main} の『見ること』『返し方』『人の方針』を Read で読め（そこの束ね役の頼みと返す型はお前への指示でない）"
+RULES_MISSING = "審査の決まりを切り出せなかった。指示書 {main} の『見ること』『返し方』『人の方針』を Read で読め（そこの束ね役の頼みと返す型はこの下請けへの指示でない）"
 SUB_FORMAT = promptsection.Section("## 答え方（全部の下請けで同じ）\n\n項目の下請けは、覆っていない当たりの全部に covered（この項目の範囲で覆っている。"
                                    "どこで）・no_effect（影響しない。理由）・block（穴。faces に severity block で挙げる）のどれかで答える（why は当たり"
                                    "ごとに 10 字以上。『同上』で済ませない）。faces の unit_keys は項目の unit_keys を字のまま写す（no の整数でなく）。"
                                    "resolved は前の往復の block のうち消えた key（無ければ []）。答えは下の JSON Schema に合う JSON 1 つにして、"
-                                   "最後の節が名指すファイルに Write で書く（そのファイルのほかに書かない。書き直す時も同じファイル）。書いたら最後の"
+                                   "最後のセクションが名指すファイルに Write で書く（そのファイルのほかに書かない。書き直す時も同じファイル）。書いたら最後の"
                                    "メッセージに 1 行だけ返す（答えの中身を写さない）。\n\n```json\n{schema}\n```", source="fn:planblk.brief_head")
 ANSWER_AT = "Write の道具でファイル {answer} に書け"   # 下請けのファイルが答えの置き場を名指す句（answer_in が引く）
 DIFF_HEAD = promptsection.Section("## 前の往復からのこの項目の案の差分（見るのはこの差分と前の block の行き先だけ）", source="fn:planblk._diff_part")
@@ -143,13 +143,13 @@ PRECEDENT_CACHE = "precedent-checks.json"
 PRECEDENT_HEAD = promptsection.Section("## この項目の先行例の出典（判定者の先行例のうち adopt・adapt。見ること 8）", source="fn:planblk._precedent_part")
 PRECEDENT_FETCH = "WebFetch で 1 度だけ開いて確かめ、答えの precedents に {id, found（在り単位の問題に当たっているか）, quote（確かめた一文）} の行を書け"
 PRECEDENT_CACHED = "確かめ済み（控えのとおり。WebFetch で開き直さない。この控えで判定せよ）"
-PRECEDENT_OTHER = "この往復は項目 {m} の下請けが開く（お前は開かない。この出典の穴は項目 {m} の下請けが挙げる）"
+PRECEDENT_OTHER = "この往復は項目 {m} の下請けが開く（この下請けは開かない。この出典の穴は項目 {m} の下請けが挙げる）"
 PRECEDENT_VERDICTS = ("adopt", "adapt")
 ERRORS_HEAD = promptsection.Section("## 前の答えの誤り（機械の確かめ。この誤りだけを直して同じファイルに書き直せ）", source="fn:planblk._errors_part")
-SUB_ITEM_ASK = ("お前が見るのは下の項目 {n} だけ。この項目が固まる（直しへ進めない穴が無い）まで深く見よ。ほかの項目の穴は挙げない"
+SUB_ITEM_ASK = ("見るのは下の項目 {n} だけ。この項目が固まる（直しへ進めない穴が無い）まで深く見よ。ほかの項目の穴は挙げない"
                 "（項目どうしの関わりは別の下請けが見る）。答えは頭の『答え方』の型で、" + ANSWER_AT + "。書いたら最後のメッセージに"
                 " 1 行だけ返せ: `項目 {n}: clean` か `項目 {n}: block <key>、<key>`。")
-SUB_SYNERGY_ASK = ("お前は相乗りの審査の下請け。項目どうしの関わりだけを見る（1 つの項目の中の穴は挙げない。頭の『答え方』の当たりの"
+SUB_SYNERGY_ASK = ("この役は相乗りの審査の下請け。項目どうしの関わりだけを見る（1 つの項目の中の穴は挙げない。頭の『答え方』の当たりの"
                    "答えは要らない）: 同じ行・同じ塊への食い違う変更・順番の依存・重複した作業・同じ根なのに別の項目に分かれた所。"
                    "同じファイルの別の所（別の関数・別のクラス・別のクラスに足すテスト）を触るだけの項目は穴でない（まとめさせない）。"
                    "穴は faces に挙げ、unit_keys に関わる項目の単位の名を全部、字のまま入れよ（名指した項目だけが開き直す）。why に見た事と、穴が"
@@ -158,13 +158,13 @@ SUB_SYNERGY_ASK = ("お前は相乗りの審査の下請け。項目どうしの
                    "\n\n```json\n{schema}\n```")
 LATER_NODES = ("p2.human_gate", "p3.lane_merge")   # 役の節 2 つを戻す前に、今の周に受けていてはいけない後ろの節（戻しは後ろへ伝わらない）
 PLAN_STUCK = "修正案の行き止まり: 必ず案に入れる単位が開いていない"
-STUCK_WHY = ("受け付けの写しは開いていない単位を受けず、義務からも外さないので、案の形では閉じない。人が関所で問いの答えを直すか、"
+STUCK_WHY = ("受け付けの写しは開いていない単位を受けず、義務からも外さないので、案の形では閉じない。人が承認ノードで問いの答えを直すか、"
              "単位を開く")
 PLAN_SLOTS_HEAD = promptsection.Section("## 案に入れてよい単位の no（機械が受け付けと同じ述語から作った。下の本文の『今の周に直す単位』の見出しと、"
-                                        "one_shot_closes に載る単位より、この節が優先する）", source="fn:planblk.plan_slots_section")
-DESIGN_HEAD = promptsection.Section("## 独立設計（修正案を見ない別の目が、目的と実測した制約・人の関所の答え・依頼が名指した設計書の節から作った理想解。機械が貼った）", source="fn:planblk.design_only")
+                                        "one_shot_closes に載る単位より、このセクションが優先する）", source="fn:planblk.plan_slots_section")
+DESIGN_HEAD = promptsection.Section("## 独立設計（修正案を見ない別の目が、目的と実測した制約・承認ノードの答え・依頼が名指した設計書のセクションから作った理想解。機械が貼った）", source="fn:planblk.design_only")
 DESIGN_ASK = ("修正案をこの設計と構造で突き合わせよ——何を固定し何を派生と見るか・どこに継ぎ目を置くか・目的の当事者が日常で回す"
-              "動線が閉じるか。案が足す仕組み（ファイル・関数・節・役・欄・入力）ごとと、この項目の adds・allowed_paths の大きさごとに、"
+              "動線が閉じるか。案が足す仕組み（ファイル・関数・ノード・役・欄・入力）ごとと、この項目の adds・allowed_paths の大きさごとに、"
               "設計との食い違いかを判じよ。判じる根拠は引用で示す: 独立設計の行と案の行（その項目の "
               f"{'・'.join(design.ROW_QUOTE_KEYS)}）を、それぞれ「…」で字のまま引け。設計から引用できない所は、大きさの開きでも対の無さでも食い違いに数えない"
               "（表現の違い・設計が触れていない所もこの決まり1つで読む。設計は判定の単位も実装の事情も知らない）。"
@@ -204,13 +204,13 @@ REUSE_REVIEW = ("既にある物を量ったかを見よ: adds の行が新し�
 # 修正役の『人に回す』も人に届かなかった）。修正前の関所に載る種類は写しの rules の HUMAN_FACE_KINDS（regression・policy）
 HANDOFF_REVIEW = ("人に回す物は人の口で挙げよ: 穴の直しの一部に、直す側に任せず人が決める物（方針の文書・ADR の書き換えなど）が"
                   "在るなら、why に「人に回す」と書くだけでなく、その分を kind policy・severity suggest の別の穴として挙げよ（fences に"
-                  " policy_doc。案の欠陥ではないので block にしない）——修正前の関所に載り、人が決める。ほかの kind の why に書いた回付は、"
-                  "どの関所にも載らない")
+                  " policy_doc。案の欠陥ではないので block にしない）——修正前の承認ノードに載り、人が決める。ほかの kind の why に書いた回付は、"
+                  "どの承認ノードにも載らない")
 HEAD = {
-    "plan": ("お前は修正案の役（読むだけ）。道具は Read・Grep・Glob と web を引く WebSearch・WebFetch だけで、作業ツリーを 1 文字も変えてはいけない（受け付けは起こす前の"
+    "plan": ("この役は修正案の役（読むだけ）。道具は Read・Grep・Glob と web を引く WebSearch・WebFetch だけで、作業ツリーを 1 文字も変えてはいけない（受け付けは起こす前の"
              "作業ツリーの写しと比べ、変わっていれば拒む）。下の指示書に従い、指示書の JSON Schema に合う JSON だけを返せ。"
              "\n\n" + planmarks.HEAD + "\n\n" + ITEMS_RULE + "\n\n" + REUSE_RULE + "\n\n" + concepthome.PLAN_RULE),
-    "plan-review": ("お前は修正案の事前審査の役（読むだけ。判定をした役とは別の目）。道具は Read・Grep・Glob と web を引く WebSearch・WebFetch と、"
+    "plan-review": ("この役は修正案の事前審査の役（読むだけ。判定をした役とは別の目）。道具は Read・Grep・Glob と web を引く WebSearch・WebFetch と、"
                     "項目ごとの下請けを起こす Agent と、下請けが答えのファイル（作業ツリーの外の run の置き場）を書く Write だけで、作業ツリーを"
                     " 1 文字も変えてはいけない（受け付けは起こす前の作業ツリーの写しと比べ、変わっていれば拒む）。下の指示書に従い、指示書の"
                     " JSON Schema に合う JSON だけを返せ。\n\n" + REUSE_REVIEW + "\n\n" + HANDOFF_REVIEW + "\n\n" + concepthome.REVIEW_ASK),
@@ -219,7 +219,7 @@ HEAD = {
 
 def role_node(role: str) -> str:
     if role not in NODE_OF:
-        raise BoardGap(f"役 {role!r} は blk-plan の盤面へ渡す役（{' / '.join(ROLES)}）でない")
+        raise BoardGap(f"役 {role!r} は blk-plan の共有ボードへ渡す役（{' / '.join(ROLES)}）でない")
     return NODE_OF[role]
 
 
@@ -407,7 +407,7 @@ def lib_section(b, repo, shared=None) -> str:
     控えの根（None なら使わない）"""
     out = (b.state.get("outputs") or {}).get("p2.diagnose") or {}
     judgment = str(pathlib.Path(b.dir) / out["file"]) if out.get("file") else ""
-    files, why = libdocs.unit_files(repo, judgment) if judgment else ([], "判定の出力が盤面に無い")
+    files, why = libdocs.unit_files(repo, judgment) if judgment else ([], "判定の出力が共有ボードに無い")
     text = libdocs.section(b.work(""), repo, files, shared=shared)
     return text + (f"\n- 単位のファイルの引き: {why}" if why else "")
 
@@ -894,7 +894,7 @@ def _opened(b, rows: list) -> list:
     return [n for n in (converge.open_items(b) if plan else range(1, len(rows) + 1)) if n <= len(rows)]
 
 
-SYNERGY_HEAD = promptsection.Section("## お前の審査: 相乗りの審査", source="fn:planblk.tree_part")
+SYNERGY_HEAD = promptsection.Section("## この下請けの審査: 相乗りの審査", source="fn:planblk.tree_part")
 ITEM_PLAN_HEAD = promptsection.Section("### 項目 {n} の案", source="fn:planblk.tree_part")
 ITEM_UNITS_HEAD = promptsection.Section("### 項目 {n} の単位（判定）", source="fn:planblk.tree_part")
 ALL_ITEMS_HEAD = promptsection.Section("### 項目の全部（閉じた項目も含む）", source="fn:planblk.tree_part")
@@ -910,7 +910,7 @@ def tree_part(b, main_prompt: pathlib.Path) -> str:
     if not rows:
         return ""
     k = converge.pass_no(b)
-    doc = _ripple_of(b, k) or {"items": [], "overlaps": [], "error": "波及の一覧の節がこの往復の一覧を置いていない"}
+    doc = _ripple_of(b, k) or {"items": [], "overlaps": [], "error": "波及の一覧のノードがこの往復の一覧を置いていない"}
     folder = b.work(ITEMS_DIR.format(k=k))
     folder.mkdir(parents=True, exist_ok=True)
     answers_dir(b, k).mkdir(parents=True, exist_ok=True)
@@ -972,7 +972,7 @@ def rewind_roles(b) -> None:
     （by stopby.PLAN_CONVERGE。もう止まっていれば止め直さない）BoardGap。機械の節は渡さない（engine が戻さずに落ちる）"""
     later = [n for n in LATER_NODES if n in b.rd["done"]]
     if later:
-        why = f"事前審査の壁打ちで修正案と事前審査を戻せない: 後ろの節 {'・'.join(later)} がこの周に受けた後（戻しは後ろへ伝わらない）"
+        why = f"事前審査の壁打ちで修正案と事前審査を戻せない: 後ろのノード {'・'.join(later)} がこの周に受けた後（戻しは後ろへ伝わらない）"
         if not (b.state.get("halted") or b.state.get("stop")):
             b.stop(why, by=stopby.PLAN_CONVERGE)
         raise BoardGap(why)

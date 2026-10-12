@@ -198,7 +198,7 @@ def collect(place, accepted: dict, changed: dict, *, reply_file=None, owed=(), w
 # 役の指示書の組み立て（元 works/.shared/core/rolekit.py:64・168・205 の写し。main の lib/rolekit.py に無いので fix の中に置く）
 REJECT_LINE = ("前の回の返答は受け付けで拒まれた。理由はファイル {path} に在る。先に Read で読み、そこを直した返答を丸ごと"
                "出し直せ（直した所だけを返すな）。")
-ROLE_DEF_HEAD = "## お前の役の定義（{agent}）"
+ROLE_DEF_HEAD = "## 役の定義（{agent}）"
 
 
 def compose(parts, *, reject_file: str = "") -> str:
@@ -762,7 +762,7 @@ REJECT_NAME = "reject-{name}-{k}.md"   # 受け付けの k 回目の拒否の理
 REFIX_PROMPT = "prompt-{}.md"          # 手直しの役の指示書（節の名 p3.delta_fix・p3.delta_fix2）
 LENS_PROMPT = "prompt-lens-{}.md"      # レンズの節の指示書（lenses.key）
 # 役に言語を縛る 1 行（元 works/.shared/core/rolekit.py:67 の LANG_RULE と board.py:96 の LANG_DEFAULT の写し）
-LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、関所と報告に載る文）は {lang} で書け。"
+LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、承認ノードと報告に載る文）は {lang} で書け。"
              "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
 LANG_DEFAULT = "依頼文の言語（利用者の言語）"
 # 差分の審査の受け付けが拒む穴の語（元 works/.shared/core/graphloops/rules/review-loop.py:4084-4087）
@@ -978,7 +978,7 @@ def delta_review_problems(place, n: int, reply: dict, repo, *, fix_reply=None) -
             errs.append(f"faces[{i}] の kind '{kind}' は事前審査だけの語——修正の後の後退・方針とのぶつかりは後の工程が人に聞く")
             continue
         if kind in PLAN_ONLY_FACE_KINDS:
-            errs.append(f"faces[{i}] の kind '{kind}' は事前審査だけの語——判定者の先行例はこの節に渡っていない")
+            errs.append(f"faces[{i}] の kind '{kind}' は事前審査だけの語——判定者の先行例はこのノードに渡っていない")
             continue
         if where not in files:
             errs.append(f"faces[{i}] の where '{where[:60]}' はこの往復の差分が触ったファイルでない（{sorted(files)[:5]}）")
@@ -1190,7 +1190,7 @@ GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, fr
 DROPPED_FILE = "dropped.json"           # 落ちた子の変更を戻した控え {start_tree, paths}（drop_unreturned が組の置き場に書く）
 ADOPTED_FROM = "adopted_from"           # 親の置き場に写した TDD の輪の状態の、写し元の子の状態のパスの欄（adopt_tdd_states）
 UNIT_STATUSES = ("fixed", "given_up", "not_done")
-NO_UNIT_RESULT = "修正の輪がこの単位の結末を残さなかった"
+NO_UNIT_RESULT = "修正のループがこの単位の結末を残さなかった"
 
 
 def adopt_inputs(parent, place) -> list:
@@ -1256,7 +1256,7 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
     t = tdd_rows.get(key) or {}
     if t.get("gave_up") or t.get("route") == "parked":
         return {"unit_id": key, "status": "given_up",
-                "reason": str(t.get("why") or "") or f"TDD の輪で諦めた（{t.get('gave_up')}）"}
+                "reason": str(t.get("why") or "") or f"TDD のループで諦めた（{t.get('gave_up')}）"}
     return {"unit_id": key, "status": "not_done", "reason": NO_UNIT_RESULT}
 
 
@@ -1363,7 +1363,7 @@ GIVE_UP_AFTER = 3                           # 諦める拒否の回（元 accept
 # 修正の受け付けの確かめの id → 拒否の見出しの短い名（受け付けが回す順）。元 works/blk-fix/scripts/accept.py:180
 FIX_CHECKS = {
     "consult": "範囲の相談の枠",
-    "frozen": "TDD の輪で凍ったテストのファイル",
+    "frozen": "TDD のループで凍ったテストのファイル",
     "writes": "書き込みの出どころ",
     "conflict": "食い違いの申し出の形",
     "duplicate": "同じ unit_key の重なり",
@@ -1378,21 +1378,21 @@ FIX_REJECT_HEAD = ("受け付けは確かめを全部回した。見出しごと
                    "1 回の出し直しで全部を直せ）:")   # 元 accept.py:195
 FIX_CHECK_HEAD = "## {head}（確かめ {cid}・{count} 件）"   # 元 works/blk-fix/lib/fixlanes.py:449
 DUPLICATE = "同じ unit_key を 2 行以上に分けた（直した単位ごとにちょうど 1 行。1 つの単位が複数のファイルに及ぶなら files に並べよ）: "
-NOT_OPENED = ("今の周に直す単位に無い unit_key を changes に書いた（開いた単位と、関所で答えた問いの出どころ・depends のほかは直さない。"
+NOT_OPENED = ("今の周に直す単位に無い unit_key を changes に書いた（開いた単位と、承認ノードで答えた問いの出どころ・depends のほかは直さない。"
               "単位を切り直さず、貼られた単位の no か key で指せ。判定への異議は rejudge_requested に書く）: ")
 EXCUSED = ("直す義務から外れた単位を changes に書いた（答えが届くまで・人が決めるまで直さない。changes から外し、not_done に"
            "理由を書け）: ")
 CONFLICT_BAD = "食い違いの申し出を受けない（名指した所が現物に無いか、形が違う。直して丸ごと出し直せ）: "
-SECOND_CONFLICT = ("裁定の後の出し直しで新しく申し出た食い違い——裁定の輪は 1 周に 1 回だけなので、機械が人に回した"
-                   "（最後の人の関所で人が決める）")
-CONSULT_SPENT = ("範囲の相談の枠（この段の輪で {n} 回）を使い切った後の consult を受けない。consult の欄を外し、範囲の中で直すか、"
+SECOND_CONFLICT = ("裁定の後の出し直しで新しく申し出た食い違い——裁定のループは 1 周に 1 回だけなので、機械が人に回した"
+                   "（最後の承認ノードで人が決める）")
+CONSULT_SPENT = ("範囲の相談の枠（この段のループで {n} 回）を使い切った後の consult を受けない。consult の欄を外し、範囲の中で直すか、"
                  "変えずに食い違いの申し出（kind は scope_needed）で返せ")
 CONSULTED = "範囲の相談の周（返答の consult に答えの役が答えた）。受け付けは回さず、次の周の修正役が答えを読んで続けた返答を受け付ける"
-BOUND_PARKED = ("修正の輪の最後の回も、この単位に結んだ拒否が残った（文がこの単位か、その足跡・届く試験を名指す。どの単位にも"
+BOUND_PARKED = ("修正のループの最後の回も、この単位に結んだ拒否が残った（文がこの単位か、その足跡・届く試験を名指す。どの単位にも"
                 "結べない拒否は直す義務の全部の単位に結ぶ）。返答全体を拒む代わりに、機械がこの単位の直しを段の頭の木に"
                 "戻して控えの patch に移し、人に回し、ほかの単位の直しを受けた。拒否の文: ")
-GAVE_UP = "修正の輪の {n} 回目の拒否で諦めた（直しは段の頭の木に戻し、控え {patch} に移した）: {why}"
-NOT_SETTLED = "修正の輪の最後の回に、止める単位が残らないのに拒否が残った（受けずに諦めた）: "
+GAVE_UP = "修正のループの {n} 回目の拒否で諦めた（直しは段の頭の木に戻し、控え {patch} に移した）: {why}"
+NOT_SETTLED = "修正のループの最後の回に、止める単位が残らないのに拒否が残った（受けずに諦めた）: "
 PARKED_FOR_RULING = "食い違いの申し出を裁定へ回した（裁定の後の修正役が受け付け直す）"
 UNDECLARED = ("書き込みの記録が無い run で、作業ツリーの変更が返答の changes[].files にも bash_writes にも無い——直したファイルなら "
               "changes の files に足し、Bash で書いたなら bash_writes にパスと理由を書き、要らない変更なら戻せ: ")

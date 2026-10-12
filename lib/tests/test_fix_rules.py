@@ -1,8 +1,8 @@
 """修正の決まりの正本（workflows/fix/commands/fix-rules/common.md）と、2 つの修正役の指示書の組み立て（lib/fixrules.py。裁定 R65）の検査。
 
 - 決まりの正本は 1 つ: 直す役（fix-prep が組む）と TDD の輪の役（tdd-prep が組む）の両方の指示書が、正本の節をそのまま含む
-- 本線から来た決まりの句が正本に在る・「プロジェクトのテストを回せ」の文は RUN_TESTS と一字違わず（直した単位に絞る）・
-  変更の種類ごとの直の証拠（決定 C8）が在る
+- 本線から来た決まりの句が正本に在る・「プロジェクトのテストを回せ」の文はバイトコードを作らずに回せと言う（直した単位に絞る意味は
+  tests/workflows/prompt_contracts.json が照らす）・変更の種類ごとの直の証拠（決定 C8）が在る
 - 節を機械が選ぶ: 本線の核（直し方・守ること）はいつも、証拠の節は単位のファイルと差分に在る種類だけ、TDD の段の約束は今の段だけ
 - 指示書は決まりを全部載せた 1 つの形（prompt_file）。どの節を載せたか・なぜかは 1 行目の見出しに在る
 - 組み立ては機械だけ（AI を通さない）で、同じ入力からはバイト単位で同じ。値の穴は全部埋まる
@@ -38,14 +38,6 @@ SHARED = FR / "common.md"
 # 本線（graphloops の p3.fix.md）から来た決まりの句。正本に在り、両方の指示書に届く
 MAINLINE = ("根本の単位ごとに直せ", "同じ形を全部直せ", "直す前に既製の物で済まないかを確かめろ", "動きを変えたら",
             "テストを消すな・緩めるな", "git commit` するな")
-# 書く役の試験の回し方（直した単位に絞る。一式は線の最後のテストの段が回す。裁定 c1-1 で書き換えた文）
-RUN_TESTS = ("- **プロジェクトのテストを回せ。** 直した単位に当たる試験だけを絞って回せ（実行器の絞り方——試験の id か名前で"
-             "絞る。絞り方はリポジトリの `run.sh`・テストの置き場から探す）。テストの実行器が在る run では、受け付けが"
-             "版からの変更に当たる試験を機械で選んで回し、元で赤でなかった試験が赤なら理由のファイルで返す——自分で回すなら同じく"
-             "変えたファイルに当たる試験を選べ。リポジトリのテスト一式は線の最後のテストの段が回すので、役は回さない。絞る手が無い時"
-             "だけ、返答の直前に一式を 1 回だけ回せ。赤が残るなら、どの単位のどこかを直してから出せ。Python は "
-             "`PYTHONDONTWRITEBYTECODE=1` を立てて回せ。git が無視する生成物（`__pycache__` など）のうち、あなたの前に無かった物は"
-             "後の節が消す（消した物は人に見せる）。")
 VALUES = {"judgment_file": "/b/out/r1/p2.diagnose.json", "open_units": '["a: 分母", "b: 上限"]', "plan_file": "/b/out/r1/p2.fix_plan.json",
           "policy_path": "", "notes_file": "/b/r1/notes.md", "summary_file": "/b/tdd-1/summary.md"}
 PHASE_TEXT = "## この段ですること\n\n今の単位だけを直せ。\n\n## 返す JSON\n\n{\"phase\": \"fix\"}"
@@ -145,8 +137,11 @@ class TestSharedSource(unittest.TestCase):
             with self.subTest(phrase):
                 self.assertIn(phrase, core)
 
-    def test_run_tests_sentence_kept(self):
-        self.assertEqual([ln for ln in shared_lines() if "プロジェクトのテストを回せ" in ln], [RUN_TESTS])
+    def test_run_tests_sentence_keeps_bytecode_rule(self):
+        [line] = [ln for ln in shared_lines() if "プロジェクトのテストを回せ" in ln]
+        for clause in ("`PYTHONDONTWRITEBYTECODE=1` を立てて回せ", "`__pycache__` など"):
+            with self.subTest(clause):
+                self.assertIn(clause, line)
 
     def test_direct_evidence_by_change_kind(self):
         """決定 C8: 先にテストを書けない直しの証拠を、変更の種類ごとに（文書・指示書・設定・注記と型）1 節ずつ"""
@@ -184,7 +179,7 @@ class TestCompose(unittest.TestCase):
         """brief が要求の正本で判定は背景。誤りと見たら食い違いの申し出で返し、rewrite_tests は最後の人の関所に並ぶ。
         brief の無い run は判定のファイルが正本のまま"""
         sec = fixrules.sections(fixrules.BRIEF)["brief-canon"]
-        for w in ("要求の正本", "brief が勝つ", "背景", "食い違いの申し出", "rewrite_tests", "最後の人の関所", "判定のファイルが正本"):
+        for w in ("要求の正本", "brief が勝つ", "背景", "食い違いの申し出", "rewrite_tests", "最後の承認ノード", "判定のファイルが正本"):
             self.assertIn(w, sec)
 
     def test_brief_rule_one_voice_with_brief_background(self):
@@ -281,7 +276,7 @@ class TestCompose(unittest.TestCase):
         text = fixrules.tdd_lane_render(tdd_values(), "## この単位の決まり（機械が書いた）", title=TITLE)
         for p, b in PHASE_BULLET.items():
             (self.assertIn if p in fixrules.LANE_PHASES else self.assertNotIn)(b, text)
-        for s in ("## 並べの枝の役の読み替え", "## この輪での読み替え", "## この単位の決まり（機械が書いた）", TITLE, "cwd（単位の worktree）",
+        for s in ("## 並べの枝の役の読み替え", "## このループでの読み替え", "## この単位の決まり（機械が書いた）", TITLE, "cwd（単位の worktree）",
                   "回ごとの指示書"):
             self.assertIn(s, text)
         for s in ("段のコマンド", "まとめ役", "Agent で起こした"):
@@ -301,7 +296,7 @@ class TestCompose(unittest.TestCase):
         for s in ("## 修正ごとに書くこと", "## 周の全体に書くこと", "何も変えずに「済んだ」と言うな", "`plan_faces`", "`wrote_refs`"):
             self.assertIn(s, fix)
             self.assertNotIn(s, tdd)
-        for s in ("## 今の段の約束", "## この輪での読み替え", "JUnit XML の書き先は作業ツリーの外", PHASE_TEXT, TITLE):
+        for s in ("## 今の段の約束", "## このループでの読み替え", "JUnit XML の書き先は作業ツリーの外", PHASE_TEXT, TITLE):
             self.assertIn(s, tdd)
             self.assertNotIn(s, fix)
         self.assertEqual(tdd.split("\n")[1], TITLE, "見出しの次が題")
@@ -315,7 +310,7 @@ class TestCompose(unittest.TestCase):
             self.assertNotIn("$INPUTS", text)
             self.assertNotIn("$LOOP_PREV", text)
             self.assertNotIn("{{", text)
-            self.assertNotIn("<!-- 節", text)
+            self.assertNotIn(rulebook.MARK_HEAD, text)
         for k in fixrules.FIX_VALUES:
             if VALUES[k]:
                 self.assertIn(f"`{VALUES[k]}`", fix, k)
