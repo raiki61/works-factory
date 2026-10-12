@@ -6,20 +6,15 @@
 
 lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、Archon に届く事（ARTIFACTS_DIR・ARCHON_NODE_EXECUTION・
 CLAUDE_CONFIG_DIR・入力の指し札）はここと script の側と境（boundary）だけが持ち、lib/ へは値を引数で渡す。節の script ではない
-（工程の YAML は名指さない）。読む script は境の置き場と lib/ を sys.path に足してから import する。
+（工程の YAML は名指さない）。読む script は境の置き場を sys.path に足してから import する。lib/ は使う関数の中で読む（頭で
+読むと、lib/ を足さない route なども lib/ に頼る）ので、その関数を呼ぶ script は lib/ も足す。
 """
 import json
 import os
 import pathlib
 import subprocess
 
-import baseline_red
 import boundary
-import fixboard
-import groups
-import leftovers
-import planmarks
-import startrec
 
 # 後始末・変更の確かめ・書き込みの出どころの照らしで数えない・消さないパスの頭（境の工程の写しの置き場）
 SKIP = (boundary.RUNTIME_COPY_PREFIX,)
@@ -113,6 +108,12 @@ def _read_json(path: pathlib.Path):
 def prep() -> dict:
     """入力を置き場に写し、始めの記録・git が無視するファイルの控え・始めの木を取り、組を作って返す（置く物と返りの形は節 prep の
     docstring）。節 prep と、単独の run の組の子の頭（節 group-start。指し札は自分の run の物）が同じ写しを置くのに呼ぶ"""
+    import baseline_red
+    import fixboard
+    import groups
+    import leftovers
+    import planmarks
+    import startrec
     folder, worktree = place(), repo()
     start_writes_log()
     start = _read_json(_pointed(os.environ["INPUTS_START"], "start"))

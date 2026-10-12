@@ -652,6 +652,16 @@ class BlockScriptsCase(unittest.TestCase):
     def assert_contract(self, out):
         self.assertEqual(validate_schema(out, self.fmt), [], out)
 
+    # ---- route.py
+    def test_route_returns_the_shape_of_the_mode(self):
+        """route は境の置き場だけを sys.path に足して fixio を読む（fixio の頭は lib/ を読まない）"""
+        fmt = all_nodes(load())["route"]["output_format"]
+        for mode, group in (("", False), ("group", True)):
+            code, out, err = _blk_run("route", self.repo, self.art, {"mode": mode}, "fix__route")
+            self.assertEqual(code, 0, err)
+            self.assertEqual(out, {"group": group})
+            self.assertEqual(validate_schema(out, fmt), [], out)
+
     # ---- prep.py
     def test_prep_two_groups_run_side_by_side(self):
         subprocess.run(["git", "remote", "add", "origin", str(self.tmp / "origin.git")], cwd=self.repo, check=True)
