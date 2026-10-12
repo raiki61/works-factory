@@ -223,8 +223,16 @@ class TestBeyondStatus(AcceptCase):
         (self.repo / "__pycache__").mkdir()
         (self.repo / "__pycache__" / "stats.cpython-314.pyc").write_bytes(b"x")
         self.assertTrue([m for m in self.moved(before) if m.startswith("git が無視するパス")])
-        self.assertFalse(set(accept.BEYOND_STATUS) - set(accept.TREE_KEYS))
-        self.assertNotIn("porcelain", accept.BEYOND_STATUS)
+        self.assertEqual(set(accept.TREE_KEYS) - set(accept.BEYOND_STATUS), {"porcelain"})
+
+    def test_status_keys_drops_porcelain_only_for_a_true_flag(self):
+        """グラフは with: の真偽を字で渡す。字の "false" も全部の欄を比べる（真に読む縮めは状態の照らしの無い役の index の動きを見逃す）"""
+        for flag in ("false", False, "", None, "False"):
+            with self.subTest(flag=flag):
+                self.assertEqual(accept.status_keys(flag), accept.TREE_KEYS)
+        for flag in (True, "true", " True "):
+            with self.subTest(flag=flag):
+                self.assertEqual(accept.status_keys(flag), accept.BEYOND_STATUS)
 
 
 if __name__ == "__main__":

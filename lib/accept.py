@@ -258,7 +258,7 @@ def snapshot_tree(repo: pathlib.Path, *, bytecode: bool = True) -> dict:
 TREE_KEYS = ("porcelain", "diff_sha256", "ignored", "head", "ref")
 # 節の前後の git status の行の違いを実行基盤が別に照らす役（状態の照らしで守られた役）の受け付けが比べる欄。porcelain はその照らしと
 # 重なるので外す。diff_sha256 は外さない: 行の字が同じままの、既に変わっていたファイルの 2 度目の書き換えを照らしは見ない
-BEYOND_STATUS = ("diff_sha256", "ignored", "head", "ref")
+BEYOND_STATUS = tuple(k for k in TREE_KEYS if k != "porcelain")
 TREE_SCHEMA = {"type": "object", "required": list(TREE_KEYS), "properties": {
     **SNAPSHOT_SCHEMA["properties"], "head": {"type": "string"}, "ref": {"type": "string"}}}
 
