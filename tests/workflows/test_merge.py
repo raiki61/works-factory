@@ -238,6 +238,18 @@ class SealTest(ScriptCase):
         self.assertIn("守りのパスを確かめられない", got["reason"])
         self.assertFalse(self.artifact("merge/apply.diff").exists())
 
+    def test_sealed_diff_has_no_runtime_folder(self):
+        copy = self.repo / ".archon" / "workflows" / "works-factory" / "x.yaml"
+        copy.parent.mkdir(parents=True)
+        copy.write_text("RUNTIME = 1\n", encoding="utf-8")
+        got = self.seal()
+        written = self.artifact("merge/sealed.diff").read_bytes()
+        self.assertNotIn(b".archon/", written)
+        self.assertIn(b"a.txt", written)
+        applied = self.apply(got["hash"])
+        self.assertIs(applied["ok"], True, applied)
+        self.assertEqual(self.artifact("merge/apply.diff").read_bytes(), written)
+
     def test_empty_diff_is_null(self):
         (self.repo / "a.txt").write_text("one\n", encoding="utf-8")
         got = self.seal()

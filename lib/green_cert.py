@@ -1,6 +1,6 @@
 """緑の認証の行: 作業ツリーの指紋と、赤の原因の分け方と、認証の判定。
 
-- diff_bytes(repo, rev) -> bytes: 作業ツリーの今の姿の木と rev の間の差分のバイト（差分の組み方の 1 か所）
+- diff_bytes(repo, rev, *, skip=()) -> bytes: 作業ツリーの今の姿の木と rev の間の差分のバイト（差分の組み方の 1 か所。除くパスの頭 skip の下は載せない）
 - fingerprint(repo) -> {"head", "diff_hash"}: HEAD と、HEAD に対する diff_bytes の sha256
 - matches(cert_fingerprint, repo) -> bool: 認証の指紋が今の作業ツリーと同じか
 - classify(...) -> (red_cause, summary): 事実だけで赤の原因を分ける
@@ -22,14 +22,15 @@ BASE_OK = MEASURED + ("not_applicable",)
 HEAD_LIMIT = 10   # summary に並べる鍵の数
 
 
-def diff_bytes(repo, rev) -> bytes:
+def diff_bytes(repo, rev, *, skip=()) -> bytes:
     """unittrees.fresh_tree(repo)（追跡のファイルと .gitignore に当たらない未追跡のファイルの中身・実行ビット・シンボリックリンクの木。
     本物の index・HEAD は動かさない）と rev の間の `git diff <unittrees._DIFF の旗> <rev> <その木>` のバイト（--binary・--no-renames・--no-ext-diff・--no-textconv・
-    --no-color と、a/・b/ の頭を固める旗。利用者の git の設定で字が変わらない）。
+    --no-color と、a/・b/ の頭を固める旗。利用者の git の設定で字が変わらない）。除くパスの頭 skip（writes.check と同じ形）の下は載せない。
     git の木でない・rev が引けなければ ValueError。fingerprint・合わせの封印・累積差分が同じこの関数を使う"""
+    spec = ["--", ":/", *[f":(top,exclude){s.rstrip('/')}" for s in skip]] if skip else []
     try:
         tree = unittrees.fresh_tree(repo)
-        return unittrees._git(repo, *unittrees._DIFF, rev, tree).stdout
+        return unittrees._git(repo, *unittrees._DIFF, rev, tree, *spec).stdout
     except (unittrees.UnitTreeError, OSError) as e:
         raise ValueError(f"差分を組めない（{repo}・{rev}）: {e}") from e
 
