@@ -1005,7 +1005,7 @@
 - P139 案の直しの事前審査の申し出と裁定の行は、線が渡す conflicts（fix の conflicts.json）から引く
   - 元: works/.shared/core/replan.py:387 `_section`（盤面の食い違いの控え）
   - 今: lib/boardview.py:392 `open_pass(conflicts=…)`。ただし P74 works-factory-line.yaml:507-523 `replan-review` の with: に `conflicts` が無い（計画の `replan` には在る :485）。既定 null なので、本物の run では事前審査に申し出と裁定の行が届かない
-  - 証: lib/tests/test_boardview.py::ReplanItemsCase（lib の水準）。線の配線を縛る試験は無い（P74 tests/workflows/test_line.py::…test_includes_pass_only_what_the_real_block_declares は required の入力しか見ない :735-746）→ 要追加: P74 tests/workflows/test_line.py::WiringCase.test_replan_review_gets_the_fix_conflicts — `replan-review` の with に `conflicts: $fix.output.conflicts`
+  - 証: lib/tests/test_boardview.py::ReplanItemsCase（lib の水準）。線の配線を縛る試験は無い（P74 tests/workflows/test_line.py::…test_includes_pass_only_what_the_real_block_declares は required の入力しか見ない :743-754）→ 要追加: P74 tests/workflows/test_line.py::WiringCase.test_replan_review_gets_the_fix_conflicts — `replan-review` の with に `conflicts: $fix.output.conflicts`
   - 本物の run: plan-review/pass-<k>/prompt.md の「### 修正の段の申し出と裁定」節（今の線では出ない）。筋書きでのみ
   - 狭め: #74（線）の配線の欠け。不可でない → 戻す
 
@@ -1075,7 +1075,7 @@
 - P149 2 度目の修正の段は、案の直しで返った単位だけを直す義務にし、1 回目の差分と束ねる（TestSecondPass・TestLineReplay の筋）
   - 元: works/tests/test_replan.py:1164-1465（TestSecondPass・TestLineReplay）
   - 今: P74 works-factory-line.yaml:592-607 `refix`（only_items: $fix.output.replan_items）・`fixed`
-  - 証: P74 tests/workflows/test_line.py::…test_fix_is_the_first_and_second_fix_merged（:561）・筋書き P74 workflows/line/fixtures/replan-answers.stubs.yaml
+  - 証: P74 tests/workflows/test_line.py::…test_fix_is_the_first_and_second_fix_merged（:569）・筋書き P74 workflows/line/fixtures/replan-answers.stubs.yaml
   - 本物の run: 筋書きでのみ
   - 狭め: fix・線の棚卸しで照合（PB の外）
 
