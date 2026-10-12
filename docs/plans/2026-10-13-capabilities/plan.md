@@ -1167,10 +1167,10 @@
 
 - P161 目的の監査が「狭めている」と言い、その findings が全部裏取りの柵（cite）を通っている時は独立設計を回さない（素の文字列の findings では止めない）
   - 元: works/.shared/core/graphloops/rules/review-loop.py:398 `purpose_findings_vetted`・:403 `purpose_unusable`（record.process.purpose_review を読む）
-  - 今: lib/boardview.py:177・:183（open.json の purpose_review。lib/boardview.py:436 は judgment.json の欄 `purpose_review` から取る）
-  - 証: tests/workflows/test_plan_review.py::DesignCase.test_skipped_when_purpose_unusable（assert: :616-619。試験は judgment.json に purpose_review を手で置く）。本物の線では効かない → 要追加: tests/workflows/test_plan_review.py::DesignCase.test_purpose_review_from_the_judge_material_skips_r2 — judge が置く判定の隣の `material-purpose-review.json`（main lib/judge_accept.py:2860 `_accepted`・:3015）の reply が「狭めている」で cite つきなら r2_go が false
+  - 今: judge が判定の隣に purpose-review.json を置き（lib/judge_accept.py の verdict）、plan-review の lib/boardview.py の _purpose_review が名で開く（名は lib/purpose.py の REVIEW_FILE の 1 か所）
+  - 証: tests/workflows/test_plan_review.py::DesignCase.test_skipped_when_purpose_review_sibling_narrows・test_unreadable_purpose_review_sibling_is_named・lib/tests/test_judge_accept.py::VerdictPublicCase.test_verdict_places_purpose_review_sibling（要追加の test_purpose_review_from_the_judge_material_skips_r2 はこれらで足りる）
   - 本物の run: 筋書きでのみ
-  - 狭め: #73 で狭めた（judge の judgment.json は purpose_review を持たない。lib/judge_accept.py:3015 は判定役の材料の中にだけ置く。Archon で不可でない → 判定の隣の材料のファイルを読む形に戻す）
+  - 狭め: #73 で狭めた（judge の judgment.json は purpose_review を持たない。lib/judge_accept.py:3015 は判定役の材料の中にだけ置く。Archon で不可でない → 判定の隣の材料のファイルを読む形に戻す） → 戻っていた（部分 C で名の住処を 1 つにした）
 
 - P162 独立設計の役は道具ゼロ・opus・effort high・設定は user だけ・sandbox 有効。既定の system prompt（作業ツリーの git の様子を入れる claude_code の preset）を役 blind-judge の本文に置き換える
   - 元: works/blk-plan/blk-plan.yaml:124-153（印 `works-node: r2-design isolated`。包みが Git の外の置き場で起こした）

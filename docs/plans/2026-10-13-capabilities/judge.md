@@ -262,10 +262,10 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: #76 で入れていない（未決 U6。Archon で不可という源の証は示されていない——不可でない可能性が高い → 持ち主へ）
 - J41 並行 PR を投稿しない形に下げたことを宣言し（`downgrades.json` の p0.parallel_pr と r2.design）、報告の頭に「下げている所: N 個」を出す
   - 元: works/.shared/core/prcheck.py:322 `downgrades`・:345 `head_downgrades`・works/darkfactory/downgrades.json・works/.shared/core/entry.py:1107
-  - 今: 無し（lib/report.py:19 に `declared_downgrades` の注は在るが、宣言のファイルも呼び手も無い）
-  - 証: 要追加: lib/tests/test_runreport.py::HeadCase.test_head_names_declared_downgrades — 報告の頭に下げた所の数と各行
+  - 今: lib/downgrades.json（元 darkfactory/downgrades.json の写し）・lib/prcheck.py の downgrades・head_downgrades → lib/runreport.py の _downgrade_lines（入口の節）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_head_names_declared_downgrades（HeadCase.test_head_names_declared_downgrades の名を変えた）
   - 本物の run: 報告の頭の行
-  - 狭め: #76 で外した（読み先が lib/ に無いため。不可でない → 戻す。置き場は report か線）
+  - 狭め: #76 で外した（読み先が lib/ に無いため。不可でない → 戻す。置き場は report か線） → 部分 C で戻した
 
 ## 素材の要否と支度
 
@@ -706,22 +706,22 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: #68 で狭めた（不可でない。PR #68 本文 152・168 行が約束の隣に足す頼みとして持ち主に返している → 持ち主へ） → 部分 B1 で戻した
 - J110 局所レビューで見ていないレンズ（local-review-lenses.json）を報告の「未確認のレンズ」の節に出す
   - 元: works/.shared/core/diverted.py:52 `report_lines`・works/.shared/core/report.py:2069
-  - 今: 読み手が無い（lib/diverted.py:12 が「report_lines は持ってこなかった」と書く。PR #76 の申し送りは report が読む前提と書いたが、PR #68 は読まない）
-  - 証: 要追加: lib/tests/test_runreport.py::LinesCase.test_unseen_local_review_lens_is_reported
+  - 今: lib/diverted.py の report_lines（判定の隣の local-review-lenses.json）→ lib/runreport.py の _unseen_lens_lines（報告の「未確認のレンズ」の節 report.UNSEEN_LENS_HEADING）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_unseen_local_review_lens_is_reported
   - 本物の run: 筋書きでのみ
-  - 狭め: #76（report_lines を外した）と #68（読まない）で落ちた。不可でない → 戻す（ファイルは約束の隣でないので、約束の隣に足すか返りの欄が要る → 持ち主へ）
+  - 狭め: #76（report_lines を外した）と #68（読まない）で落ちた。不可でない → 戻す（ファイルは約束の隣でないので、約束の隣に足すか返りの欄が要る → 持ち主へ） → 部分 C で戻した（約束の隣のファイルに在る。修正の後のレンズ lens.report_lines は修正のブロックの控えで区分 F）
 - J111 並行 PR の申し送りの下書き（pr-downgrades.json）を報告の冒頭に出す（担当の PR に人が渡す）
   - 元: works/.shared/core/report.py:1274 `_pr_lines`
-  - 今: 読み手が無い（lib/judge_accept.py:3902 が書くだけ。commands/pr-check.md:41 は「下書きは報告の冒頭に載り」と役に言っている）
-  - 証: 要追加: lib/tests/test_runreport.py::LinesCase.test_parallel_pr_drafts_reach_the_head
+  - 今: lib/prcheck.py の DRAFTS・draft_lines（判定の隣の pr-downgrades.json）→ lib/runreport.py の _pr_draft_lines（人が決めることの節）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_parallel_pr_drafts_reach_the_head
   - 本物の run: 筋書きでのみ（種に remote が無い）
-  - 狭め: #68 で狭めた（PR #68 本文 155・169 行が持ち主に返している）。不可でない → 戻す
+  - 狭め: #68 で狭めた（PR #68 本文 155・169 行が持ち主に返している）。不可でない → 戻す → 部分 C で戻した
 - J112 世界の解の段の控え world-state.json の status・reason・dropped を報告に出す（段が落ちた訳・網が無かった・落とした抜き書きの数）
   - 元: works/.shared/core/worldmark.py:265 `report_lines`（test_worldmark.py:120 `test_report_lines_failed_state`）
-  - 今: 判定の中（lib/judge_accept.py:3046・:4205 の stage_rows）だけが読む。報告 lib/runreport.py:850 は world が null の時に 1 行の一般の文だけ。lib/boardview.py:580 は判定の物を読まず自分で ok の控えを書く
-  - 証: 要追加: lib/tests/test_runreport.py::LinesCase.test_world_stage_failure_reason_is_reported
+  - 今: lib/runreport.py の _world_lines（1 回目の判定の隣の world-state.json を worldmark.read で。段が落ちた訳・類・落とした抜き書きの数）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_world_state_reason_and_dropped（test_world_stage_failure_reason_is_reported の名を変えた）
   - 本物の run: judge/world-state.json（網の無い run は status: failed と reason）
-  - 狭め: #68 で狭めた（PR #68 本文 154・168 行が約束の隣に足す頼みで持ち主に返している）。不可でない
+  - 狭め: #68 で狭めた（PR #68 本文 154・168 行が約束の隣に足す頼みで持ち主に返している）。不可でない → 部分 C で戻した
 - J113 再審の差と出口（rejudge-diff.json・rejudge-exit.json）
   - 元: works/.shared/core/rejudge.py の DIFF_NAME・EXIT_NAME を report.py が読んだ
   - 今: 書くのは lib/judge_accept.py:3661。読み手は無いが、線（workflows/line/scripts/judged.py:12-57）と報告（lib/runreport.py:435-500）が判定と再審の返りから同じ差を組み直す

@@ -1495,7 +1495,7 @@
 - S22「約束を変える頼み」1（gate_answers）: plan-review に修正前の関所の答え `{decision, text, asked}` を `gate_answers` で渡す。→ **開いている**→ 済み（部分 B1。replan-review に配線済みで、返しの節 gate_answer は全部の関所で `{decision, text, asked}` を返す。`LineWiringCase.test_replan_review_gets_the_before_fix_answer`・`GateAnswerCase.test_answer_carries_asked`。往復の中の plan-review-run には修正前の関所より前なので渡さない）
 - S23「約束を変える頼み」2: `ruling`（fix の `replan_items`）の項目の id の形（番号か `converge.item_id`）を決める。→ **開いている**（持ち主の決め待ち。issue #82〜#84 の群） 決め: PR #105 で決まった（replan_items は承認済みの修正案の plan[] の 1 から数えた位置の字）（線の配線の文書の「この文書の外」の「決めた物」）
 - S24「約束を変える頼み」3: 始めの記録に、方針の文書を固めた版（sha256 と写しのパス）を載せる。→ **開いている**（`LS/start.py:88-98` は `policy_md` の絶対パスだけを置く）
-- S25「約束を変える頼み」4: 判定の `judgment` の隣に目的の監査（`purpose_review`）を置く。→ **開いている**（judge の約束の件）
+- S25「約束を変える頼み」4: 判定の `judgment` の隣に目的の監査（`purpose_review`）を置く。→ **部分 C で閉じた**（judge が判定の隣に purpose-review.json を置き plan-review が読む。名は lib/purpose.py の REVIEW_FILE）
 - S26「既定で動いた事実（no-silent-loosen）」: 線から `start`・`answers` を渡す。→ **済み**（`LY:207`・`:214`（往復の中）、`:514`・`:522`（`replan-review`））
 - S27「plan-review の外に置いた場面と渡し先」: `AskGateCase` の関所の文の頭 3 行は線へ → **済み**（`tests/workflows/test_gate_head.py:72-92`）。`FinalHeadCase` は線へ → **済み**（S16）。答えで直す義務に戻る単位の場面（`test_branch_rows_in_final_text_and_head`・`test_held_questions_are_listed_not_none`・`test_answered_question_is_not_counted_as_held`。元 `works/tests/test_plan_gate.py`）は fix と report へ → 部分 B2 で閉じた（`tests/workflows/test_gate_head.py::LedgerAsksCase` に元の名で写した。最後の関所は `ask_final`、報告の冒頭は `lib/runreport.py` の `_decisions`。`test_branch_rows_in_final_text_and_head` は穴の名札の控えが無い〔S29〕ので最後の関所の側だけ）
 
@@ -1504,7 +1504,7 @@
 - S28「約束を変える頼み」1: fix の返りに、修正の後に問いを数え直した結果（閉鎖の数え直し）の欄か指し札を足す。→ **開いている**（`FX:1378`）
 - S29「約束を変える頼み」2: fix の返りに、手直しの穴の名札（差分の審査の穴と、手直しが `handled` とした行）の指し札を足す。→ **開いている**
 - S30「約束を変える頼み」3: 線の `redepth` の返りを report の入力に足す。→ **部分 C で閉じた**（report の入力 redepth ← collect ← $redepth.output）
-- S31「約束を変える頼み」4: 判定の `judgment` の隣に `answer-ties.json`・`world-state.json` を置く。→ **開いている**
+- S31「約束を変える頼み」4: 判定の `judgment` の隣に `answer-ties.json`・`world-state.json` を置く。→ **部分 C で閉じた**（answer-ties.json・world-state.json は約束の隣のファイル（docs/design.md）。報告が world-state.json を読む）
 - S32「約束を変える頼み」5: 受け付けの最後の拒否の本文と、並行 PR への申し送りの下書きを、各ブロックの返りの指し札にする。→ **開いている**
 - S33「後の issue に渡す物」1: 最後の関所に並べる行の場面（元 `test_gate_head.py` の FinalHeadCase ほか）。→ **済み**（`tests/workflows/test_gate_head.py:116-176`）
 - S34「後の issue に渡す物」2: runreport・outcome が読む `conflicts.json` の欄の名を `lib/conflict.py` から引く形に寄せる。→ **部分 C で閉じた**（lib/outcome.py・lib/runreport.py は conflict.ITEMS・RULING・DECISION ほか lib/conflict.py の名を引く。lib/tests/test_outcome.py::ConflictNamesCase）
@@ -1517,7 +1517,7 @@
 - S38「約束を変える頼み」1: ブロックの頭の `interactive: true` を許す（E16）。→ **済み**（層の試験 `tests/layers/test_gates.py:3-5`・`:26`）。`workflows/AGENTS.md` の E16 の文は人が直す → **開いている**
 - S39「約束を変える頼み」2: E1 の文に、同梱の skill の警告を数えない例外を足す。→ 線の外（人が AGENTS.md を直す）
 - S40「狭め（再審）」: 再審の役は判定役の会話を継がない。持ち主が「会話を継ぐ」と答えれば、線が会話の印を渡すか埋めを足す。→ **開いている**（持ち主の答え待ち） 決め: 継がない。保存した返答を読む新しい会話で回す（docs/owner-decisions.md の「導いた事」の 2026-10-12 の推しの決め。Archon loader.ts:1173-1175）。狭めとして確定（線の配線の文書の「この文書の外」の「決めた物」）
-- S41「申し送り（report のブロックへ）」: `judge/local-review-lenses.json`（確かめられなかったレンズ）と `judge/pr-downgrades.json`（並行 PR への申し送りで下げている所）を、report が読んで人に見せる。→ **開いている**（`lib/runreport.py`・`outcome.py`・`workflows/report/` のどこにもこの名が無い）
+- S41「申し送り（report のブロックへ）」: `judge/local-review-lenses.json`（確かめられなかったレンズ）と `judge/pr-downgrades.json`（並行 PR への申し送りで下げている所）を、report が読んで人に見せる。→ **部分 C で閉じた**（報告が local-review-lenses.json（未確認のレンズの節）と pr-downgrades.json（人が決めることの節）を読む）
 - S42 コメント「マージ前の独立の目」7: 入力 `baseline` を judge に渡す。→ **済み**（`LY:153`・`:409`）
 
 ### #94 fix（冒頭の S01〜S03 のほか）

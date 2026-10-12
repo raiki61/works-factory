@@ -3700,7 +3700,7 @@ def rejudge_verdict(rdir):
 # ================================================================ 並行 PR と世界の解
 
 
-PR_DOWNGRADES_FILE = "pr-downgrades.json"        # 申し送りの下書き [{pr, files, note}]（GitHub に投稿しない。報告が人に渡す）
+PR_DOWNGRADES_FILE = prcheck.DRAFTS              # 申し送りの下書き [{pr, files, note}]（GitHub に投稿しない。報告が人に渡す）
 MATERIAL_PR_FILE = f"material-{prcheck.ROLE}.json"   # 並行 PR の素材 {role, reply, materials: {parallel_pr}}
 PR_LIMIT = 100   # 元 works/.shared/core/graphloops/scripts/parallel-pr.py:16 の LIMIT（gh pr list の --limit）
 # 元 works/.shared/core/graphloops/rules/review-loop.py:2278
@@ -4119,7 +4119,7 @@ EMPTY_JUDGMENT = {"units": [], "questions": [], "framing": "", "one_shot": "", "
                   "one_shot_closes": [], "precedents": []}
 EMPTY_PURPOSE = {"purpose_text": "", "source": "", "known_weaknesses": [], "source_files": []}
 OUT_OF_PURPOSE_FILE = "out-of-purpose.json"
-PURPOSE_REVIEW_FILE = "purpose-review.json"   # 目的の監査の役の受けた返答（plan-review が独立設計を回すかを決める）
+PURPOSE_REVIEW_FILE = _purpose.REVIEW_FILE   # 目的の監査の役の受けた返答（plan-review が独立設計を回すかを決める）
 PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE,
                 PURPOSE_REVIEW_FILE)   # 判定の指し札の隣に必ず置く（ほかのブロックが名で開く）
 

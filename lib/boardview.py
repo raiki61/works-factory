@@ -44,6 +44,7 @@ import planblk
 import planmarks
 import policy
 import promptsection
+import purpose as purposelib
 import rolekit
 import startrec
 import structmark
@@ -59,7 +60,7 @@ OPEN_FILE = "open.json"                 # open_pass が置く見え方の材料�
 OPEN_ERROR = "open-error.txt"           # 差し込みの頭の節が落ちた訳（返す節の訳に載る。節が書く）
 JUDGMENT_COPY = "judgment.json"         # 判定の写し（planblk.lib_section が state.outputs から引く）
 EXCLUDED_FILE = "pr-excluded.json"      # 判定の隣の並行 PR の外した範囲（在れば写して役の頭に名指す）
-PURPOSE_REVIEW_FILE = "purpose-review.json"  # 判定の隣の目的の監査の受けた返答（judge が必ず置く。無い・読めない時は {} で読む）
+PURPOSE_REVIEW_FILE = purposelib.REVIEW_FILE   # 判定の隣の目的の監査の受けた返答（judge が必ず置く。無い・読めない時は {} で読む）
 POLICY_FILE = "policy.json"             # 方針の文書を固めた版 {named, path, sha256, copy, amendments}（始めの記録の欄 policy から置く）
 POLICY_DIR = policy.DIR
 POLICY_CHANGED = "policy_changed"       # 関所の項目の種類（方針の文書が固めた版から変わった）

@@ -928,6 +928,54 @@ class LinesCase(Base):
         _, text, _ = self.build(fixed_run(judge=None), )
         self.assertNotIn(report.WORLD_HEADING, text)
 
+    def test_world_state_reason_and_dropped(self):
+        """J112・R79（元 worldmark.report_lines :265-277）: 判定の隣の world-state.json の段が落ちた訳（status が ok でない時の reason）と、
+        類の数・落とした抜き書きの数を世界の解の節に出す。控えが無い run は前の 1 行のまま"""
+        judgment = self.put("judge/judgment.json", {})
+        self.put(f"judge/{worldmark.STATE_FILE}", {"status": "failed", "reason": "網が無い（web を引けない）", "world_file": "",
+                                                   "classes": 0, "dropped": 0})
+        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment, "world": None}))
+        self.assertIn("- 世界の解の段が落ちた（行なしで進んだ）: 網が無い（web を引けない）", self.section(text, report.WORLD_HEADING))
+        world = self.put("judge/world.jsonl", json.dumps({**WORLD_ROW, "basis": "knowledge"}, ensure_ascii=False))
+        self.put(f"judge/{worldmark.STATE_FILE}", {"status": "ok", "reason": "", "world_file": world, "classes": 1, "dropped": 3})
+        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment, "world": world}))
+        self.assertIn("- 類 1・落とした抜き書き 3", self.section(text, report.WORLD_HEADING))
+
+    def test_unseen_local_review_lens_is_reported(self):
+        """J110（元 diverted.report_lines・report.py:2069）: 判定の隣の local-review-lenses.json の見ていないレンズを、報告の
+        「未確認のレンズ」の節に出す。控えが無ければ節に「無い」"""
+        import diverted
+        judgment = self.put("judge/judgment.json", {})
+        self.put(f"judge/{diverted.LENS_FILE}", {"unseen": ["/code-review"]})
+        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment}))
+        self.assertIn("- 局所レビューの /code-review: 所見を受け取れていない（fork の返答が届かなかった）——見ていないのと同じ",
+                      self.section(text, report.UNSEEN_LENS_HEADING))
+        _, text, _ = self.build()
+        self.assertIn("- 無い", self.section(text, report.UNSEEN_LENS_HEADING))
+
+    def test_parallel_pr_drafts_reach_the_head(self):
+        """J111・R80（元 report._pr_lines の前半 :1274-1281）: 判定の隣の pr-downgrades.json の並行 PR の担当への申し送りの下書きを、
+        人が決めることの節に「投稿していない」と出す（人が担当の PR に渡す）"""
+        import prcheck
+        judgment = self.put("judge/judgment.json", {})
+        self.put(f"judge/{prcheck.DRAFTS}", [{"pr": 12, "files": ["a.py", "b.py"], "note": "a.py の 3 行目を同時に直しています"}])
+        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "judgment": judgment}))
+        self.assertIn("- 並行 PR #12 の担当への申し送りの下書き（a.py・b.py。投稿していない）: a.py の 3 行目を同時に直しています",
+                      self.section(text, report.DECISIONS_HEADING))
+
+    def test_head_names_declared_downgrades(self):
+        """J41（元 prcheck.downgrades・head_downgrades と報告の head_entry）: 並行 PR を投稿しない形と独立設計を 1 度だけ作る形に下げた
+        ことを宣言した控え（lib/downgrades.json）を読み、入口の節に「下げている所: N 個」と 1 行ずつ出す"""
+        import prcheck
+        rows = prcheck.downgrades()
+        self.assertEqual([r["node"] for r in rows], ["p0.parallel_pr", "r2.design"])
+        _, text, _ = self.build()
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"- 下げている所: 2 個\n  - p0.parallel_pr: {rows[0]['what']}（{rows[0]['versus']}）\n", entry)
+        bad = self.put("downgrades.json", [{"node": "p0.parallel_pr", "what": ""}])
+        with self.assertRaises(ValueError):
+            prcheck.downgrades(pathlib.Path(bad))
+
     def test_structure_rows_and_after(self):
         design = self.put("plan/design.jsonl", json.dumps({"unit_id": "u1", "verdict": "汚れる", "faces": [], "evidence": [],
                                                            "reason": "責務が割れる"}, ensure_ascii=False))

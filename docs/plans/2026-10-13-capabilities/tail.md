@@ -1744,17 +1744,17 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R79 世界の解の段が落ちた訳と落とした抜き書きの数（world-state.json の reason・dropped）
   - 元: works/.shared/core/worldmark.py:265-277 `report_lines`（「類 N・落とした抜き書き M」）
-  - 今: 無し（lib/runreport.py:850 は world が null の時の 1 行と類の数だけ）
-  - 証: 要追加: lib/tests/test_runreport.py::LinesCase.test_world_state_reason_and_dropped — world-state.json の status: failed の reason と dropped が世界の解の節に出る
+  - 今: lib/runreport.py の _world_lines（world-state.json の reason・classes・dropped）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_world_state_reason_and_dropped
   - 本物の run: judge/world-state.json
-  - 狭め: 判定: 戻せる（#68 の主張は誤り）。判定のブロックは world-state.json を world.jsonl と同じ judge/ に書く（workflows/judge/scripts/world_finish.py:5、lib/worldmark.py:115 `write`）。world が null の時も judgment の隣（同じ judge/）で読める。Archon で不可でない → 戻す
+  - 狭め: 判定: 戻せる（#68 の主張は誤り）。判定のブロックは world-state.json を world.jsonl と同じ judge/ に書く（workflows/judge/scripts/world_finish.py:5、lib/worldmark.py:115 `write`）。world が null の時も judgment の隣（同じ judge/）で読める。Archon で不可でない → 戻す → 部分 C で戻した
 
 - R80 並行 PR の担当への申し送りの下書き（conflicts[].note。投稿していない）
   - 元: works/.shared/core/report.py:1274-1281（`_pr_lines` の前半）
-  - 今: 無し
-  - 証: 要追加: lib/tests/test_runreport.py::LinesCase.test_parallel_pr_handover_drafts — judgment の隣の material-pr-check.json の reply.conflicts[].note が「並行 PR #N の担当への申し送りの下書き（投稿していない）」で出る
+  - 今: lib/runreport.py の _pr_draft_lines（判定の隣の pr-downgrades.json。material-pr-check.json の reply.conflicts[].note を judge_accept.prcheck_drafts が写した物）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_parallel_pr_drafts_reach_the_head（test_parallel_pr_handover_drafts の名を変えた）
   - 本物の run: judge/material-pr-check.json（並行 PR が在る時。種では無い）
-  - 狭め: 判定: 戻せる（#68 の主張は誤り）。判定のブロックが並行 PR の役の返答を judge/material-pr-check.json に書く（lib/judge_accept.py:3713 `MATERIAL_PR_FILE`・:3814、lib/prcheck.py:29 `ROLE = "pr-check"`。note の在ることは lib/prcheck.py:80-81 が照らす）。Archon で不可でない → 戻す
+  - 狭め: 判定: 戻せる（#68 の主張は誤り）。判定のブロックが並行 PR の役の返答を judge/material-pr-check.json に書く（lib/judge_accept.py:3713 `MATERIAL_PR_FILE`・:3814、lib/prcheck.py:29 `ROLE = "pr-check"`。note の在ることは lib/prcheck.py:80-81 が照らす）。Archon で不可でない → 戻す → 部分 C で戻した
 
 - R81 来歴の行の規則の表の版（と、graph の版が線の工程の版であること）
   - 元: works/blk-report/lib/report_roles.py:476 `stamp`

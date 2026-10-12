@@ -16,6 +16,7 @@ from engine.util import Reject  # noqa: E402
 NODE = "p0.purpose"
 PREMISES_NODE = "p0.premises"
 PURPOSE_FILE = "purpose.json"             # 受け付けた目的の返答（graph の process.purpose と同じ中身）
+REVIEW_FILE = "purpose-review.json"       # 判定の隣の目的の監査の役の受けた返答（judge が必ず置き、plan-review が名で開く約束の隣のファイル）
 REQUEST_COPY = "purpose-request.json"     # 目的の役に渡す依頼の写し（前の run の判断 prior_failures を外した物。carry.without_prior）
 
 

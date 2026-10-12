@@ -33,12 +33,14 @@ import carry  # noqa: E402
 import changemap  # noqa: E402
 import conflict  # noqa: E402
 import depth as depthlib  # noqa: E402
+import diverted  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
 import marks  # noqa: E402
 import outcome as oc  # noqa: E402
 import outpurpose  # noqa: E402
 import planmarks  # noqa: E402
+import prcheck  # noqa: E402
 import promptsection  # noqa: E402
 import querytest  # noqa: E402
 import report  # noqa: E402
@@ -124,6 +126,13 @@ def _ret(returns: dict, rid: str) -> dict:
 def _beside(returns: dict, rid: str, field: str, name: str) -> pathlib.Path | None:
     """段の返りの指し札の先と同じフォルダの name（指し札が無ければ None）"""
     p = _ret(returns, rid).get(field)
+    return pathlib.Path(p).with_name(name) if isinstance(p, str) and p else None
+
+
+def _first_beside(returns: dict, name: str) -> pathlib.Path | None:
+    """1 回目の判定（judge の差し込み）の judgment の隣の name。世界の解・局所レビュー・並行 PR の控えは判定の道の置き場にだけ在り、
+    再審の judgment の隣には無い（docs/design.md の隣のファイル）。指し札が無ければ None"""
+    p = as_dict(returns.get("judge")).get("judgment")
     return pathlib.Path(p).with_name(name) if isinstance(p, str) and p else None
 
 
@@ -835,6 +844,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     lines += rejudge_lines(returns)
     lines += rejudge_changes(returns)
     lines += verify_lines(returns)
+    lines += _pr_draft_lines(returns)
     lines += pr_lines(returns)
     lines += premise_lines(returns, start)
     lines += inner_word_lines(as_dict(returns.get("fix")).get("diff"), lambda w: _target_uses(repo, rev, w))
@@ -932,18 +942,50 @@ def _eye_lines(returns: dict, typed: dict) -> tuple[list, list]:
 
 
 def _world_lines(returns: dict) -> list:
-    """依頼の行ごとの定石と、定石を web で確かめたかの印と、依頼の解き方との比べと、類の数のまとめ（元 worldmark.report_lines の行）。
-    判定が返ったのに world が null なら、段が落ちたか行を取れなかった 1 行"""
+    """依頼の行ごとの定石と、定石を web で確かめたかの印と、依頼の解き方との比べと、類の数と落とした抜き書きの数のまとめ（元
+    worldmark.report_lines :265-277。数と段が落ちた訳は 1 回目の判定の隣の world-state.json）。判定が返ったのに world が null なら、
+    段が落ちた訳（控えが無ければ、段が落ちたか行を取れなかった 1 行）"""
     judge = _ret(returns, "judge")
+    state_at = _first_beside(returns, worldmark.STATE_FILE)
+    state = worldmark.read(state_at.parent) if state_at is not None else None
     p = judge.get("world")
     if not (isinstance(p, str) and p):
+        if state is not None and state.get("status") != "ok":
+            return [f"世界の解の段が落ちた（行なしで進んだ）: {report._one_line(state.get('reason') or '理由の記録が無い')}"]
         return ["世界の解の行が無い（判定の返りの world が null: 世界の解の段が落ちたか、行を取れなかった。行なしで進んだ）"] if judge else []
     try:
         rows = worldmark.rows(p)
     except ValueError as e:
         return [f"世界の解の行が読めない: {report._one_line(e)}"]
+    tail = f"類 {state.get('classes', len(rows))}・落とした抜き書き {state.get('dropped', 0)}" if state else f"類 {len(rows)}"
     return [*(f"類 {r['class_id']}（依頼の行 {r['finding']}）: {r['practice']}{worldmark._mark(r)}（{worldmark._versus(r)}）" for r in rows),
-            f"類 {len(rows)}"]
+            tail]
+
+
+def _unseen_lens_lines(returns: dict) -> list:
+    """未確認のレンズの節（元 report.py:2069 の diverted.report_lines。1 回目の判定の隣の local-review-lenses.json）"""
+    at = _first_beside(returns, diverted.LENS_FILE)
+    return (diverted.report_lines(at.parent) if at is not None else []) or ["無い"]
+
+
+def _pr_draft_lines(returns: dict) -> list:
+    """並行 PR の担当への申し送りの下書き（1 回目の判定の隣の pr-downgrades.json。prcheck.draft_lines）。読めなければその 1 行"""
+    at = _first_beside(returns, prcheck.DRAFTS)
+    if at is None or not at.is_file():
+        return []
+    try:
+        return prcheck.draft_lines(_list(oc.read_json(at)))
+    except (OSError, ValueError) as e:
+        return [f"並行 PR の担当への申し送りの下書き: 読めない（{report._one_line(e)}）"]
+
+
+def _downgrade_lines() -> list:
+    """下げている所の数と 1 行ずつ（元 head_entry の declared_downgrades。lib/downgrades.json）"""
+    try:
+        rows = prcheck.downgrades()
+    except ValueError as e:
+        return [f"下げている所: 読めない（{report._one_line(e)}）"]
+    return [prcheck.head_downgrades(rows), *[f"  - {r['node']}: {r['what']}（{r['versus']}）" for r in rows]]
 
 
 def _structure_lines(returns: dict) -> list:
@@ -998,6 +1040,7 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     skipped = [k for k, v in returns.items() if v is None]
     out.append(f"走った段: {'・'.join(ran) or '無い'}")
     out.append(f"飛ばされた・返りの無い段: {'・'.join(skipped) or '無い'}")
+    out += _downgrade_lines()
     out += _depth_lines(start, returns, line)
     out += _prior_in_lines(line)
     base = returns.get("test-gate-base")
@@ -1086,6 +1129,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
         (EYES_HEADING, eye_lines),
         (report.STRUCTURE_HEADING, _structure_lines(returns)),
         (report.WORLD_HEADING, _world_lines(returns)),
+        (report.UNSEEN_LENS_HEADING, _unseen_lens_lines(returns)),
         (report.OUTSIDE_HEADING, outside),
         (report.PRIOR_HEADING, report.prior_lines(prior)),
         (report.MODEL_HEADING, _model_lines(tfacts)),

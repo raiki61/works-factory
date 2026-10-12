@@ -245,5 +245,6 @@ def freeze_lines(stages) -> list:
 MODEL_HEADING = promptsection.Section("## 模型", human=FOR_READERS)
 COST_HEADING = promptsection.Section("## 費用", human=FOR_READERS)
 STRUCTURE_HEADING = promptsection.Section("## 構造の目", human=FOR_READERS)
+UNSEEN_LENS_HEADING = promptsection.Section("## 未確認のレンズ", human=FOR_READERS)   # 局所レビューの見ていないレンズ（diverted.report_lines）
 
 
