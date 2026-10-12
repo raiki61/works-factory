@@ -657,6 +657,24 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(run.json(out["ripple"])["error"], "")
         self.assertEqual(out["depth"][0]["unit_id"], MEAN)
 
+    def test_ripple_skips_the_runtime_copy(self):
+        """作業ツリーの中の工程の写し（境の RUNTIME_COPY_DIRS）の当たりは、項目ごとの波及にも単位の波及にも数えない"""
+        run = Run(self)
+        runtime = run.repo / ".archon" / "workflows" / "x" / "y.py"
+        runtime.parent.mkdir(parents=True)
+        runtime.write_text("from stats import clamp\nclamp(1, 0, 2)\n", encoding="utf-8")
+        git(run.repo, "add", "-f", ".archon")
+        git(run.repo, "commit", "-qm", "工程の写し")
+        out = run.include(writer=writer_of({"plan": [item(1, 2)]}))
+        items = run.json(out["ripple"])["items"]
+        self.assertEqual([h["at"] for h in items[0]["uncovered"] if h["at"].startswith(".archon/")], [], items)
+        units = run.script("ripple_units", {"dir": "plan/r1", "judgment": run.pointer(
+            "judge/plus.json", judgment(unit("stats.py +clamp: 上限の枝")))})
+        rows = json.loads((run.art / units["ripple_file"]).read_text(encoding="utf-8"))["units"]
+        hits = [at for u in rows for r in u["names"] for at in r["code"] + r["tests"]]
+        self.assertTrue(hits, rows)
+        self.assertEqual([at for at in hits if str(at).startswith(".archon/")], [], rows)
+
     def reject_once(self, run, bad, *, eye_reply=None):
         out = run.include(eye=eye_reply, writer=writer_of(bad, {"plan": [item(1, 2)]}))
         self.assertIs(out["ready"], False if bad is None else True, out)

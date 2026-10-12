@@ -2,19 +2,22 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""fix のブロックの script が共に読む、Archon との出入りの助け（置き場の場所・作業ツリー・控えのファイル）。
+"""fix のブロックの script が共に読む、Archon との出入りの助け（置き場の場所・作業ツリー・控えのファイル・入力の写し）。
 
-lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、Archon に届く事（ARTIFACTS_DIR・ARCHON_NODE_EXECUTION・STATE_DIR・
-CLAUDE_CONFIG_DIR・.archon/）は
-ここと script の側だけが持ち、lib/ へは値を引数で渡す。節の script ではない（工程の YAML は名指さない）。
+lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、Archon に届く事（ARTIFACTS_DIR・ARCHON_NODE_EXECUTION・
+CLAUDE_CONFIG_DIR・入力の指し札）はここと script の側と境（boundary）だけが持ち、lib/ へは値を引数で渡す。節の script ではない
+（工程の YAML は名指さない）。読む script は境の置き場を sys.path に足してから import する。lib/ は使う関数の中で読む（頭で
+読むと、lib/ を足さない route なども lib/ に頼る）ので、その関数を呼ぶ script は lib/ も足す。
 """
 import json
 import os
 import pathlib
 import subprocess
 
-# Archon が run の作業ツリーに写す工程の置き場。後始末・変更の確かめ・書き込みの出どころの照らしで数えない・消さないパスの頭
-SKIP = (".archon/",)
+import boundary
+
+# 後始末・変更の確かめ・書き込みの出どころの照らしで数えない・消さないパスの頭（境の工程の写しの置き場）
+SKIP = (boundary.RUNTIME_COPY_PREFIX,)
 BLOCK_NAME = "fix"
 MODES = {"": False, "group": True}   # 入力 mode の語 → 組の子の run か（route が振り分け、collect が返りの形を選ぶ）
 
@@ -35,12 +38,6 @@ def place() -> pathlib.Path:
     folder = pathlib.Path(os.environ["ARTIFACTS_DIR"]) / BLOCK_NAME / include_name()
     folder.mkdir(parents=True, exist_ok=True)
     return folder
-
-
-def shared_cache() -> pathlib.Path | None:
-    """run をまたぐ控えの根（Archon が project ごとに渡す STATE_DIR の下 works-factory/。渡されなければ None で、控えを使わない）"""
-    state = os.environ.get("STATE_DIR")
-    return pathlib.Path(state) / "works-factory" if state else None
 
 
 def _writes_root() -> pathlib.Path | None:
@@ -83,3 +80,88 @@ def line_top(out_dir: str) -> pathlib.Path | None:
     if path.name != "groups" or len(path.parents) < 3 or path.parents[1].name != BLOCK_NAME:
         return None
     return path.parents[2]
+
+
+_START_DEFAULTS = {"tdd_suite": "", "test_cmd": "", "policy_md": "", "request_file": "", "features_cut": []}
+
+
+def _value(raw: str, name: str):
+    """入力の字を JSON で読む（空・null は None）"""
+    if not (raw or "").strip() or raw.strip() == "null":
+        return None
+    try:
+        return json.loads(raw)
+    except ValueError as e:
+        raise ValueError(f"入力 {name} が JSON として読めない: {e}（頭: {raw[:120]!r}）") from None
+
+
+def _pointed(raw: str, name: str):
+    """入力の指し札の先のパス（空・null は None）"""
+    ptr = _value(raw, name)
+    return None if ptr is None else boundary.resolve(ptr)
+
+
+def _read_json(path: pathlib.Path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def prep() -> dict:
+    """入力を置き場に写し、始めの記録・git が無視するファイルの控え・始めの木を取り、組を作って返す（置く物と返りの形は節 prep の
+    docstring）。節 prep と、単独の run の組の子の頭（節 group-start。指し札は自分の run の物）が同じ写しを置くのに呼ぶ"""
+    import baseline_red
+    import fixboard
+    import groups
+    import leftovers
+    import planmarks
+    import startrec
+    folder, worktree = place(), repo()
+    start_writes_log()
+    start = _read_json(_pointed(os.environ["INPUTS_START"], "start"))
+    if not isinstance(start, dict):
+        raise ValueError("始めの記録が JSON のオブジェクトでない")
+    start = {**_START_DEFAULTS, **{k: v for k, v in start.items() if v is not None}}
+    fixboard.write_json(startrec.path(folder), start)
+    judgment = _read_json(_pointed(os.environ["INPUTS_JUDGMENT"], "judgment"))
+    fixboard.write_json(folder / fixboard.JUDGMENT_FILE, judgment)
+
+    plan_file = _pointed(os.environ.get("INPUTS_PLAN", ""), "plan")
+    plan = None
+    if plan_file is not None:
+        doc = _read_json(plan_file)
+        if not isinstance(doc, dict) or not isinstance(doc.get("fields"), list):
+            raise ValueError(f"修正案の欄 {plan_file.name} の形が違う（{{round, fields}}）")
+        amended = doc.get(planmarks.AMENDED_KEY)
+        planmarks.save(folder, 1, doc["fields"], {int(n): c for n, c in amended.items()} if isinstance(amended, dict) else None)
+        reply = plan_file.parent / fixboard.PLAN_REPLY_FILE
+        if reply.is_file():
+            plan = _read_json(reply)
+            fixboard.write_json(folder / fixboard.PLAN_REPLY_FILE, plan)
+    for name, file in (("ripple", fixboard.RIPPLE_FILE), ("world", fixboard.WORLD_FILE)):
+        src = _pointed(os.environ.get(f"INPUTS_{name.upper()}", ""), name)
+        if src is not None:
+            fixboard.write_json(folder / file, _read_json(src))
+    for name, file in (("depth", fixboard.DEPTH_FILE), ("answers", fixboard.ANSWERS_FILE), ("units", fixboard.UNITS_FILE)):
+        got = _value(os.environ.get(f"INPUTS_{name.upper()}", ""), name)
+        if got not in (None, "", [], {}) or name == "units":
+            fixboard.write_json(folder / file, got if got is not None else [])
+    only = _value(os.environ.get("INPUTS_ONLY_ITEMS", ""), "only_items") or []
+    if not isinstance(only, list):
+        raise ValueError("入力 only_items が配列でない")
+    fixboard.write_json(folder / fixboard.ONLY_ITEMS_FILE, only)
+    base = _pointed(os.environ.get("INPUTS_BASELINE", ""), "baseline")
+    if base is not None:
+        got = baseline_red.read_baseline(base)
+        fixboard.write_json(folder / fixboard.BASELINE_FILE, {"cases": got["cases"], "exit": got["exit"]})
+
+    leftovers.record_ignored(folder, worktree)
+    fixboard.record_base_rev(folder, worktree)
+    start_tree = groups.end_tree(worktree)
+    items = planmarks.approved_items(fixboard.plan_view(folder, plan, judgment)) if plan is not None else None
+    fixboard.write_notes(folder)
+    grps = fixboard.fix_groups(fixboard.group_owed(folder), items, only)
+    out_dir = folder / "groups"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = {"groups": grps, "count": len(grps), "par": fixboard.parallel(grps, start.get("features_cut"), worktree),
+           "start_tree": start_tree, "out_dir": str(out_dir)}
+    fixboard.write_json(folder / fixboard.GROUPS_FILE, out)
+    return out

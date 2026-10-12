@@ -29,7 +29,6 @@ import tree_run  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
 
 LOGS = "logs"
-WORKSPACE_PREFIX = ".archon/"   # Archon が run の作業ツリーに置く物。修正の変更でない
 OUTPUT = ("by", "material", "runs", "skipped_steps", "same_as", "log", "junit_steps", "fingerprint_before", "fingerprint_after")
 
 
@@ -42,7 +41,7 @@ def changed(root: Path, base_rev: str, wheres=()):
             files |= set(accept.touched_files(root, base_rev))
         except accept.Reject:
             return None
-    return sorted(f for f in files if not f.startswith(WORKSPACE_PREFIX)) or None
+    return sorted(f for f in files if not f.startswith(boundary.RUNTIME_COPY_PREFIX)) or None
 
 
 def request_wheres(start: dict, mode: str) -> list:

@@ -652,6 +652,16 @@ class BlockScriptsCase(unittest.TestCase):
     def assert_contract(self, out):
         self.assertEqual(validate_schema(out, self.fmt), [], out)
 
+    # ---- route.py
+    def test_route_returns_the_shape_of_the_mode(self):
+        """route は境の置き場だけを sys.path に足して fixio を読む（fixio の頭は lib/ を読まない）"""
+        fmt = all_nodes(load())["route"]["output_format"]
+        for mode, group in (("", False), ("group", True)):
+            code, out, err = _blk_run("route", self.repo, self.art, {"mode": mode}, "fix__route")
+            self.assertEqual(code, 0, err)
+            self.assertEqual(out, {"group": group})
+            self.assertEqual(validate_schema(out, fmt), [], out)
+
     # ---- prep.py
     def test_prep_two_groups_run_side_by_side(self):
         subprocess.run(["git", "remote", "add", "origin", str(self.tmp / "origin.git")], cwd=self.repo, check=True)
@@ -1406,6 +1416,20 @@ class GroupChildScriptsCase(unittest.TestCase):
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(result["units"][0]["status"], "not_done")
         self.assertIn("group-start", result["tdd"]["reason"])
+
+    def test_group_start_alone_places_the_inputs_it_points_to(self):
+        """out_dir が空の単独の run は、自分の run の指し札の先の始めの記録と判定を自分の置き場に写す（節 prep と同じ写し）"""
+        self.art.mkdir(parents=True, exist_ok=True)
+        inputs = {"start": {"tdd_suite": "", "run_id": _GRP_RUN},
+                  "judgment": {"units": [{"key": _GRP_MEAN, "label": "block"}], "questions": []}}
+        pointers = {}
+        for name, doc in inputs.items():
+            (self.art / f"{name}.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+            pointers[name] = json.dumps({"type": "archon_artifact", "run_id": _GRP_RUN, "path": f"{name}.json"})
+        out = self._grp_run("group_start", "group-start", out_dir="", **pointers)
+        self.assertEqual((out["tdd"], out["units"]), (False, 1), out)
+        self.assertEqual(json.loads((self.place / "r1" / "start.json").read_text(encoding="utf-8"))["run_id"], _GRP_RUN)
+        self.assertEqual(json.loads((self.place / "judgment.json").read_text(encoding="utf-8"))["units"][0]["key"], _GRP_MEAN)
 
 
 # ---------------------------------------------------------------- 修正の輪と裁定の輪の script（fix_prep・fix_accept・fix_ruled_prep・
