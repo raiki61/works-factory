@@ -79,6 +79,30 @@ class ClassifyCase(unittest.TestCase):
                 self.assertNotIn(SECRET, forge.reason({**d, "remote": "origin"}))
 
 
+class RepoOfCase(unittest.TestCase):
+    """remote の URL から gh が名指せる {kind, host, owner, name}（ghreads が -R に使う）。userinfo（トークン）は載せない"""
+
+    def test_github_forms(self):
+        for url, host in (("git@github.com:o/r.git", "github.com"), (f"https://x:{SECRET}@github.com/o/r", "github.com"),
+                          ("ssh://git@github.com-work/o/r.git", "github.com"), ("https://www.github.com/o/r/", "github.com"),
+                          ("https://acme.ghe.com/o/r", "acme.ghe.com")):
+            with self.subTest(url):
+                got = forge.repo_of(url)
+                self.assertEqual(got, {"kind": forge.GITHUB, "host": host, "owner": "o", "name": "r"})
+                self.assertNotIn(SECRET, repr(got))
+
+    def test_other_host_keeps_its_host(self):
+        self.assertEqual(forge.repo_of("https://gitlab.example/o/r.git"),
+                         {"kind": forge.OTHER_HOST, "host": "gitlab.example", "owner": "o", "name": "r"})
+        self.assertEqual(forge.repo_of("git@ghe.corp.example:team/app.git")["host"], "ghe.corp.example")
+
+    def test_not_a_repo_of_two_segments(self):
+        for url in ("https://github.com/o", "https://github.com/o/r/x", "/tmp/o/r.git", "file:///tmp/o/r.git", "", None,
+                    "https://github.com/o%2Fr/x", "foo::https://github.com/o/r"):
+            with self.subTest(url):
+                self.assertIsNone(forge.repo_of(url))
+
+
 class ReasonCase(unittest.TestCase):
     def test_no_forge_reason_names_the_kind(self):
         for kind in forge.NO_FORGE:

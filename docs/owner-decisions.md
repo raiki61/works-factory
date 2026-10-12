@@ -167,7 +167,7 @@
 
 - 持ち主の言葉: 「おすすめでやっておいて」（2026-10-12。issue #65 の運び役の推し「役の PATH に読むだけの口 works-gh を置く」への答え）
 - 決め: run の中の AI の役の PATH には、読むだけの口 `bin/_lib/no-post-bin/works-gh` を利用者の gh より前に置く。役の子の環境から GitHub の資格（`GH_TOKEN`・`GITHUB_TOKEN`・`GH_ENTERPRISE_TOKEN`・`GITHUB_ENTERPRISE_TOKEN`）を外す。ブロックの script の節が gh を使う時は入口の殻の `hostgh` の口を通す。`auth-middleware`（GitHub の資格は AI の役に渡さない）の当て方。
-- 当て方: issue #65。
+- 当て方: issue #65。環境変数だけで gh にログインする利用者の値は、役の環境の gh の標準の名（上の 4 つ）からは外し、gh も他の道具も自動では読まない別名（`bin/_lib/hostgh.py` の `RELAY`）で渡して、`hostgh` の口だけが読み、本物の gh を起こす時だけ標準の名へ戻す。役は自分の環境の別名を読めるので、事故の柵で堅い境ではない。これは持ち主の決めでなく、`others-may-use`・`auth-middleware`・この決めから導いた運び役の決め（#131 のコメント、#132）。
 
 ### `follow-ups-by-recommendation` 夜の後の作業の判断は運び役の推しで決める
 

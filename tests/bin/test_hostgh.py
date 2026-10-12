@@ -8,7 +8,12 @@ $XDG_CONFIG_HOME/gh、無ければ ~/.config/gh）、macOS の keychain に置�
 （隔離した HOME では login の keychain が探す先に無い。2026-10-08 に security list-keychains で確かめた）ので、gh だけを
 利用者の HOME で起こす口を PATH の頭に置く。トークンは写さない・出さない・置かない（口は gh・HOME・設定の置き場のパスだけ）。
 
-偽の gh（受けた HOME・GH_CONFIG_DIR・引数を記録し、GH_CONFIG_DIR の hosts.yml が在る時だけ 0）で縛る。本物の gh・GitHub に
+環境変数だけで gh にログインする利用者（#132）: 起動は 4 つのトークンの名を子から外したまま、値を gh の読まない名
+（hostgh.RELAY）で子に渡す。口は本物の gh を起こす時だけそれを gh の名へ戻し、渡しの名は本物の gh に見せない。口のファイルには名
+だけを書き、値は書かない。
+
+偽の gh（受けた HOME・GH_CONFIG_DIR・引数と、トークンが期待の値で届いたかを記録し、GH_CONFIG_DIR の hosts.yml が在る時だけ 0）で
+縛る。本物の gh・GitHub に
 触れない。関数を直に呼ぶ・sh の口を子で起こすだけ（git・盤面なし）。
 """
 import os
@@ -17,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 TESTS = pathlib.Path(__file__).resolve().parent
 DEV = TESTS.parents[1] / "bin" / "_lib"
@@ -28,13 +34,20 @@ import hostgh  # noqa: E402
 import hermetic  # noqa: E402
 
 NO_POST_BIN = DEV / "no-post-bin"
+GITHUB_TOKENS = ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")
+FAKE = "ghp_fake-for-hostgh"
 
 
 def fake_gh(bindir: pathlib.Path, log: pathlib.Path) -> pathlib.Path:
+    """偽の gh。<log>.tokens に「GH_TOKEN|GH_ENTERPRISE_TOKEN|渡しの名の数」を 1 行で書く。トークンは値を書かず、FAKE と
+    同じなら ok・違えば other・無ければ missing"""
     bindir.mkdir(parents=True, exist_ok=True)
     gh = bindir / "gh"
     gh.write_text("#!/bin/sh\n"
                   f'printf \'%s|%s|%s\\n\' "$HOME" "${{GH_CONFIG_DIR-(unset)}}" "$*" >> "{log}"\n'
+                  'state() { if [ -z "$2" ]; then echo missing; elif [ "$2" = "$1" ]; then echo ok; else echo other; fi; }\n'
+                  f'printf \'%s|%s|%s\\n\' "$(state {FAKE} "${{GH_TOKEN-}}")" "$(state {FAKE} "${{GH_ENTERPRISE_TOKEN-}}")" '
+                  f'"$(env | grep -c \'^WORKS_FACTORY_HOST_\')" >> "{log}.tokens"\n'
                   '[ -f "${GH_CONFIG_DIR:-/nonexistent}/hosts.yml" ] || { echo "You are not logged into any GitHub hosts." >&2; exit 4; }\n'
                   'echo "Logged in to github.com"\n', encoding="utf-8")
     gh.chmod(0o755)
@@ -47,6 +60,31 @@ class ConfigDirCase(unittest.TestCase):
         self.assertEqual(hostgh.config_dir({"GH_CONFIG_DIR": "/g", "XDG_CONFIG_HOME": "/x", "HOME": "/h"}), "/g")
         self.assertEqual(hostgh.config_dir({"GH_CONFIG_DIR": "", "XDG_CONFIG_HOME": "/x", "HOME": "/h"}), "/x/gh")
         self.assertEqual(hostgh.config_dir({"XDG_CONFIG_HOME": "", "HOME": "/h"}), "/h/.config/gh")
+
+
+class RelayCase(unittest.TestCase):
+    """起動が子に渡すトークン: gh 自身の先後（GH_TOKEN が GITHUB_TOKEN より先）で 1 つ。GHES の名は GHES の名の行へ。空は無いのと同じ"""
+
+    def test_github_row_prefers_gh_token(self):
+        self.assertEqual(hostgh.relay({"GH_TOKEN": "a", "GITHUB_TOKEN": "b"}), {"WORKS_FACTORY_HOST_GH_TOKEN": "a"})
+        self.assertEqual(hostgh.relay({"GH_TOKEN": "", "GITHUB_TOKEN": "b"}), {"WORKS_FACTORY_HOST_GH_TOKEN": "b"})
+
+    def test_enterprise_row_is_its_own(self):
+        self.assertEqual(hostgh.relay({"GITHUB_ENTERPRISE_TOKEN": "e", "GITHUB_TOKEN": "b"}),
+                         {"WORKS_FACTORY_HOST_GH_TOKEN": "b", "WORKS_FACTORY_HOST_GH_ENTERPRISE_TOKEN": "e"})
+
+    def test_no_token_relays_nothing(self):
+        self.assertEqual(hostgh.relay({"HOME": "/h", "GH_TOKEN": ""}), {})
+
+    def test_relay_names_are_not_read_by_gh(self):
+        """渡しの名は gh の読む名（GH_・GITHUB_ で始まる）でない"""
+        for relay, _ in hostgh.RELAY:
+            self.assertFalse(relay.startswith(("GH_", "GITHUB_")), relay)
+
+    def test_relay_names_end_with_token(self):
+        """Archon の記録の伏せ字は名が TOKEN で終わる値に効く。名を変えると黙って伏せ字から外れる"""
+        for relay, _ in hostgh.RELAY:
+            self.assertTrue(relay.endswith("_TOKEN"), relay)
 
 
 class ShimCase(unittest.TestCase):
@@ -70,9 +108,29 @@ class ShimCase(unittest.TestCase):
         iso = self.tmp / "iso"
         env = hermetic.child_env(HOME=str(iso / "home"), XDG_CONFIG_HOME=str(iso / "xdg"),
                                  PATH=f"{os.path.dirname(shim)}{os.pathsep}/usr/bin:/bin")
-        env.pop("GH_CONFIG_DIR", None)
+        for name in ("GH_CONFIG_DIR", *GITHUB_TOKENS):
+            env.pop(name, None)
         env["GH_TOKEN_PROBE"] = "ghp_SHOULDNOTAPPEAR"
         return env
+
+    def tokens_seen(self, shim, **env):
+        subprocess.run(["gh", "pr", "list"], env={**self.isolated_env(shim), **env}, capture_output=True, check=False)
+        return pathlib.Path(f"{self.log}.tokens").read_text(encoding="utf-8").splitlines()[-1]
+
+    def test_relayed_token_reaches_the_real_gh_as_gh_token(self):
+        """環境変数だけでログインする利用者: 渡しの名の値が本物の gh に GH_TOKEN で届き、渡しの名は本物の gh に見えない"""
+        shim = self.write()
+        self.assertEqual(self.tokens_seen(shim, WORKS_FACTORY_HOST_GH_TOKEN=FAKE), "ok|missing|0")
+        self.assertEqual(self.tokens_seen(shim, WORKS_FACTORY_HOST_GH_ENTERPRISE_TOKEN=FAKE), "missing|ok|0")
+
+    def test_token_already_set_wins(self):
+        """子に GH_TOKEN が在れば（Archon が節に渡したなど）口は上書きしない"""
+        shim = self.write()
+        self.assertEqual(self.tokens_seen(shim, GH_TOKEN=FAKE, WORKS_FACTORY_HOST_GH_TOKEN="ghp_other"), "ok|missing|0")
+
+    def test_without_relay_the_shim_adds_no_token(self):
+        """keychain・hosts.yml でログインする利用者は今のまま（口は値を足さない）"""
+        self.assertEqual(self.tokens_seen(self.write()), "missing|missing|0")
 
     def test_isolated_env_sees_the_users_login_through_the_shim(self):
         """隔離した HOME・XDG の下でも、口の gh は利用者の HOME と gh の設定の置き場で本物の gh を起こす（引数・終了コードはそのまま）"""
@@ -94,12 +152,11 @@ class ShimCase(unittest.TestCase):
         self.assertEqual(self.log.read_text(encoding="utf-8").splitlines()[-1].split("|")[0], str(self.user_home))   # 口を通った
 
     def test_shim_holds_paths_only(self):
-        """口はパスだけを持つ（トークンの値は env に在っても書かない）"""
-        os.environ["GH_TOKEN_PROBE"] = "ghp_SHOULDNOTAPPEAR"
-        self.addCleanup(os.environ.pop, "GH_TOKEN_PROBE", None)
-        text = pathlib.Path(self.write()).read_text(encoding="utf-8")
+        """口はパスと名だけを持つ（トークンの値は env のどの名に在っても書かない）"""
+        names = ("GH_TOKEN_PROBE", *GITHUB_TOKENS, *(relay for relay, _ in hostgh.RELAY))
+        with mock.patch.dict(os.environ, dict.fromkeys(names, "ghp_SHOULDNOTAPPEAR")):
+            text = pathlib.Path(self.write()).read_text(encoding="utf-8")
         self.assertNotIn("ghp_", text)
-        self.assertNotIn("TOKEN", text)
 
     def test_no_gh_on_path_writes_no_shim(self):
         """PATH に gh が無ければ口を置かない（run の中は今どおり gh が無い扱い。前の口は消さない——別の run が使っているかもしれない）"""
