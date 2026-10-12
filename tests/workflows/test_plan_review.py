@@ -1718,6 +1718,24 @@ class ReadsCase(RunCase):
         trace = [json.loads(x) for x in (r.folder / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
         self.assertEqual([x["launched"] for x in trace if x["op"] == planblk.AGENT_OP], [0])
 
+    def test_session_that_read_only_the_policy_is_not_the_roles(self):
+        """役の session を決めるのは役だけに渡した材料 prompt.md。方針の写しは別の役も読むので、それだけを読んだ session の
+        読みと web を事前審査の役の物に数えない"""
+        r = self.run_
+        pol = r.tmp / "policy.md"
+        pol.write_text("# 方針\n", encoding="utf-8")
+        r.start(features_off=["review_tree"], policy_md=str(pol), policy=policy.freeze(r.tmp / "frozen", r.repo, str(pol)))
+        r.open()
+        copy = boardview.read_open(r.folder)["policy_copy"]
+        self.assertTrue(copy)
+        self.hook("Read", file_path=r.out("review_prep")["prompt_file"])
+        self.hook("Read", session="S-judge", file_path=copy)
+        self.hook("WebFetch", session="S-judge", url="https://judge.example/")
+        got, index = self.collect()
+        self.assertEqual(got["missing"], [copy])
+        doc = json.loads(pathlib.Path(index["plan-review"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["web"], {"fetches": [], "searches": []})
+
     def test_replan_reads_are_named_apart(self):
         """案の直しの差し込みの読んだ証拠は reads-replan-<役>.json と reads-replan-block.json（1 回目の物と名を分ける）"""
         r = self.run_

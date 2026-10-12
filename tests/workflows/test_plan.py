@@ -983,8 +983,8 @@ class ReadsCase(unittest.TestCase):
         (run.config / reads.ROOT).mkdir(parents=True)
         return run
 
-    def hook(self, run, path):
-        event = {"session_id": "s-1", "tool_name": "Read", "tool_input": {"file_path": path}, "tool_use_id": "toolu_r",
+    def hook(self, run, tool, session="s-1", **tool_input):
+        event = {"session_id": session, "tool_name": tool, "tool_input": tool_input, "tool_use_id": f"toolu_{tool}",
                  "cwd": str(run.repo), "hook_event_name": "PostToolUse"}
         env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
         done = subprocess.run([sys.executable, str(RECORDER), str(run.config / reads.ROOT)], input=json.dumps(event),
@@ -995,7 +995,7 @@ class ReadsCase(unittest.TestCase):
     def reader(self, run, reply):
         """材料を Read で読んでから返す修正案の役"""
         def writer(n, brief):
-            self.hook(run, run.out["plan-prep"]["brief"])
+            self.hook(run, "Read", file_path=run.out["plan-prep"]["brief"])
             return copy.deepcopy(reply)
         return writer
 
@@ -1015,7 +1015,7 @@ class ReadsCase(unittest.TestCase):
     def test_unread_brief_and_reject_file_are_missing(self):
         """拒まれた後の材料と前の拒否の理由のファイルも渡したパスに数え、読んでいなければ missing（受け付けは拒まない）"""
         run = self.run_with_root()
-        self.hook(run, str(run.repo / "stats.py"))
+        self.hook(run, "Read", file_path=str(run.repo / "stats.py"))
         out = run.include(writer=writer_of({"plan": [item(1)]}, {"plan": [item(1, 2)]}))
         self.assertIs(out["ready"], True)
         rnd = run.art / "plan" / "r1"
@@ -1026,7 +1026,7 @@ class ReadsCase(unittest.TestCase):
         run = self.run_with_root()
 
         def writer(n, brief):
-            self.hook(run, run.out["plan-prep"]["brief"])
+            self.hook(run, "Read", file_path=run.out["plan-prep"]["brief"])
             log = reads.reads_path(run.config / reads.ROOT, run.repo)
             rows = [json.loads(x) for x in log.read_text(encoding="utf-8").splitlines()]
             log.write_text("".join(json.dumps({**r, "ts": "2000-01-01T00:00:00"}) + "\n" for r in rows), encoding="utf-8")
@@ -1034,6 +1034,27 @@ class ReadsCase(unittest.TestCase):
 
         self.assertIs(run.include(writer=writer)["ready"], True)
         self.assertEqual(run.out["plan-reads"]["missing"], [str(run.art / "plan" / "r1" / "brief-1.md")])
+
+    def test_session_that_read_only_the_policy_is_not_the_roles(self):
+        """役の session を決めるのは役だけに渡した材料 brief-*.md。方針の写しは別の役も読むので、それだけを読んだ session の
+        読みと web を修正案の役の物に数えない"""
+        run = self.run_with_root()
+        copy_ = str(run.tmp / "frozen.md")
+        pathlib.Path(copy_).write_text("# 方針\n", encoding="utf-8")
+        run.inputs["start"] = run.pointer("start/start.json", {
+            "base_rev": run.base, "policy_md": "POLICY.md",
+            "policy": {"named": "POLICY.md", "path": "/repo/POLICY.md", "sha256": "a" * 64, "copy": copy_}})
+
+        def writer(n, brief):
+            self.hook(run, "Read", file_path=run.out["plan-prep"]["brief"])
+            self.hook(run, "Read", session="S-judge", file_path=copy_)
+            self.hook(run, "WebFetch", session="S-judge", url="https://judge.example/")
+            return {"plan": [item(1, 2)]}
+
+        self.assertIs(run.include(writer=writer)["ready"], True)
+        self.assertEqual(run.out["plan-reads"]["missing"], [copy_])
+        doc = json.loads(pathlib.Path(self.index(run)["plan-writer"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["web"], {"fetches": [], "searches": []})
 
     def test_round_without_the_role_names_it(self):
         run = Run(self, judge={"units": [unit(NIT, "nit", None)], "questions": []})
