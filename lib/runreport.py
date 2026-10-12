@@ -394,6 +394,14 @@ def _outside(returns: dict) -> tuple[list, list]:
     return outpurpose.next_items(path.parent), outpurpose.report_lines(path.parent)
 
 
+def _outside_count(returns: dict, next_file: str) -> str:
+    """人が決めることの節に置く、目的の外の所見の件数と置き場の 1 行（無い・名違いなら ""。名違いは _outside の行が言う）"""
+    p = _ret(returns, "judge").get("out_of_purpose")
+    if not (isinstance(p, str) and p) or pathlib.Path(p).name != outpurpose.FILE:
+        return ""
+    return outpurpose.count_line(pathlib.Path(p).parent, next_file, report.OUTSIDE_HEADING.removeprefix("## "))
+
+
 def _parked(returns: dict) -> list:
     """修正の段が親の木へ戻せなかった組（fix.groups の returned が偽）"""
     return [g for g in _list(as_dict(returns.get("fix")).get("groups")) if isinstance(g, dict) and g.get("returned") is False]
@@ -963,12 +971,14 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     notes = [*_list(typed.get("warnings")), *tdd_notes, *eye_notes, *([material_note] if material_note else [])]
     next_file = carry.NEXT_REQUEST_FILE if findings or drafts else ""
     draft = gatemarks.draft_line(drafts, next_file)
+    outside_count = _outside_count(returns, next_file)
     split = split_line(returns)
     asked_texts = [q for rid in ("plan-review", "eyes") for q in _list(_ret(returns, rid).get("questions")) if isinstance(q, str)]
     head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）" + (f"。{split}" if split else ""),
                            decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts)} 件")
     sections = [
-        (report.DECISIONS_HEADING, [*decisions, f"次の run に渡す物: {len(findings) + len(drafts)} 件" + (f"（{next_file}）" if next_file else ""),
+        (report.DECISIONS_HEADING, [*decisions, *([outside_count] if outside_count else []),
+                                    f"次の run に渡す物: {len(findings) + len(drafts)} 件" + (f"（{next_file}）" if next_file else ""),
                                     *([draft] if draft else [])]),
         (report.ENTRY_HEADING, _entry_lines(start, returns, freeze)),
         (report.STOP_HEADING, _stop_lines(outcome, stop_reason, gates, tfacts, returns, list(problems))),

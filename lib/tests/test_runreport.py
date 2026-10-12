@@ -18,6 +18,7 @@ import carry  # noqa: E402
 import gatemarks  # noqa: E402
 import worldmark  # noqa: E402
 import outcome  # noqa: E402
+import outpurpose  # noqa: E402
 import querytest  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
@@ -842,6 +843,28 @@ class LinesCase(Base):
         body = self.section(text, report.ENTRY_HEADING)
         self.assertNotIn("直す前のテスト", body)
         self.assertIn("- 飛ばされた・返りの無い段: test-gate-base・rejudge・replan・replan-review", body)
+
+    def test_outside_purpose_rows_and_wrong_name(self):
+        """目的の外の所見は節に 1 件ずつ、人が決めることの節に件数と置き場の 1 行（次の run に渡す物の行の前）。名の違う控えは読まない"""
+        p = self.put("judge/out-of-purpose.json", {"rounds": {"1": [{"source": "P1", "why_outside": "目的の外の所見",
+                                                                    "found": [{"where": "a.py:1", "text": "x"},
+                                                                              {"where": "b.py:2", "text": "y"}]}]}})
+        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "out_of_purpose": p}))
+        outside = self.section(text, report.OUTSIDE_HEADING)
+        self.assertIn(f"{outpurpose.REPORT_HEAD}: 2 件", outside)
+        self.assertIn("  - a.py:1（出どころ: P1・", outside)
+        lines = self.section(text, report.DECISIONS_HEADING).splitlines()
+        count = [i for i, x in enumerate(lines) if x.startswith(f"- {outpurpose.COUNT_HEAD}")]
+        carried = [i for i, x in enumerate(lines) if x.startswith("- 次の run に渡す物:")]
+        self.assertEqual(len(count), 1, lines)
+        self.assertLess(count[0], carried[0])
+        for word in ("2 件", carry.NEXT_REQUEST_FILE, report.OUTSIDE_HEADING.removeprefix("## ")):
+            self.assertIn(word, lines[count[0]])
+
+        other = self.put("judge/other.json", {})
+        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "out_of_purpose": other}))
+        self.assertIn(f"の名が {outpurpose.FILE} でない（読まなかった）", self.section(text, report.OUTSIDE_HEADING))
+        self.assertNotIn(outpurpose.COUNT_HEAD, self.section(text, report.DECISIONS_HEADING))
 
     def test_every_line_is_a_bullet(self):
         """元 build の行の組み方: 節の行は「- 」か、字下げした内訳の行"""
