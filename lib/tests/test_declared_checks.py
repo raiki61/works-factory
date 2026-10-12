@@ -200,6 +200,22 @@ class SuitesLineCase(unittest.TestCase):
                 self.assertNotIn("環境で起こせなかった", line)
                 self.assertFalse(dc.env_only_red(tests))
 
+    def test_role_status_words(self):
+        """元 entry.suites_line の書き分け: 任せ先の役の素材が clean・found なら役が選んだ一式を走らせたと書き、ほかの status・素材が
+        無い・役がまだ渡していない回は走らせなかった側に書く。宣言が読めない engine と、test_cmd の段が無い engine も名指す"""
+        role = {"by": "role_needed", "suites": []}
+        for status, ran, unran in (
+                ("clean", "任せ先の CI の役 blk-ci が選んだ一式（素材の status clean）", "無い"),
+                ("found", "任せ先の CI の役 blk-ci が選んだ一式（素材の status found）", "無い"),
+                ("not_run", "無い", f"宣言の段・{dc.TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせなかった: 素材の status not_run）"),
+                ("", "無い", f"宣言の段・{dc.TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせなかった: 素材の status 無い）"),
+                (None, "無い", f"宣言の段・{dc.TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせる）")):
+            with self.subTest(status=status):
+                self.assertEqual(dc.suites_line(role, role_status=status), f"走らせた: {ran}／走らせなかった: {unran}")
+        self.assertIn(f"宣言の段・{dc.TEST_CMD_STEP}（宣言が読めないので engine が走らせなかった）",
+                      dc.suites_line({"by": "engine", "suites": []}))
+        self.assertIn(f"{dc.TEST_CMD_STEP}（渡されていない）", dc.suites_line({"by": "engine", "suites": [{"name": "suite", "exit": 0}]}))
+
     def test_unlaunched_direct_step_names_how_to_wrap_in_bash(self):
         """元 LaunchKindCase.test_unlaunched_direct_step_names_how_to_wrap_in_bash（行の分）"""
         tests = {"by": "engine", "suites": [{"name": dc.TEST_CMD_STEP, "exit": None, "how": "direct", "launch": "broken"}]}

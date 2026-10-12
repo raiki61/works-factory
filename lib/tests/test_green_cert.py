@@ -222,6 +222,16 @@ class ClassifyCase(unittest.TestCase):
         self.assertEqual(cause, "")
         self.assertIn(gatemarks.BASELINE_UNVERIFIED, summary)
 
+    def test_summary_lists_ten_keys_and_counts_the_rest(self):
+        """赤の原因の要約は落ちた試験の鍵を 10 件まで並べ、超えた分は「ほか N 件」と数える"""
+        failed = [case(f"t{i:02d}", "failure") for i in range(12)]
+        cause, summary = classify("found", [RED_UNIT], failed, [], ["unit"])
+        self.assertEqual(cause, "introduced")
+        for i in range(10):
+            self.assertIn(f"::t{i:02d}", summary)
+        self.assertNotIn("::t10", summary)
+        self.assertIn("ほか 2 件", summary)
+
     def test_red_without_failed_cases_is_causeless(self):
         self.assertEqual(classify("found", [RED_UNIT], [case("t", "passed")], [case("t", "passed")], ["unit"])[0], "")
 
