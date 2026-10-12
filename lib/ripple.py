@@ -165,7 +165,7 @@ def _path_of(at: str) -> str:
 
 def _covered(f: dict, kind: str, at: str) -> bool:
     ids = {r.get("id") for key in ("tests", "rewrite_tests") for r in f.get(key) or [] if isinstance(r, dict)}
-    if kind in ("test", "removed_test") and "::" in at:
+    if kind in ("test", REMOVED_KINDS["test"]) and "::" in at:
         return at in ids
     return planrange.inside(_path_of(at), f)
 

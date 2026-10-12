@@ -161,6 +161,7 @@ ORIGIN_SCHEMA = {"type": "array", "items": {
     "properties": {"key": {"type": "string"}, "origin": {"type": "string", "enum": list(CLAIMED)},
                    "of": {"type": "string"}}}}
 TREE_FIELDS = {"plan-review": {ITEMS: ITEMS_SCHEMA, DESIGN_MAP: DESIGN_MAP_SCHEMA, ORIGINS: ORIGIN_SCHEMA}}
+TREE_KEYS = (*TREE_FIELDS["plan-review"], SYNERGY)   # 事前審査の返答から外す木の欄
 
 
 # ---------------------------------------------------------------- 決まり
@@ -609,10 +610,9 @@ def split(role: str, reply: dict) -> tuple[dict, list]:
 
 
 def tree_split(reply: dict) -> tuple[dict, dict]:
-    """（束ね役の欄 ITEMS・SYNERGY と対応表 DESIGN_MAP・出自 ORIGINS を外した返答の写し,
-    {ITEMS: 値 | None, SYNERGY: 値 | None, DESIGN_MAP: 値 | None, ORIGINS: 値 | None}）"""
-    out, got = marks.split("converge", "plan-review", reply, (ITEMS, SYNERGY, DESIGN_MAP, ORIGINS))
-    return out, {name: got.get(name) for name in (ITEMS, SYNERGY, DESIGN_MAP, ORIGINS)}
+    """（木の欄 TREE_KEYS（束ね役の欄 ITEMS・SYNERGY と対応表 DESIGN_MAP・出自 ORIGINS）を外した返答の写し, {欄: 値 | None}）"""
+    out, got = marks.split("converge", "plan-review", reply, TREE_KEYS)
+    return out, {name: got.get(name) for name in TREE_KEYS}
 
 
 def with_design_map(schema: dict) -> dict:
@@ -621,11 +621,11 @@ def with_design_map(schema: dict) -> dict:
 
 
 def drop_fields(reply):
-    """事前審査の返答から壁打ちの欄（RESOLVED・ITEMS・SYNERGY・DESIGN_MAP・ORIGINS）を外した写し（案の直しの事前審査は写しの型で受ける。
+    """事前審査の返答から壁打ちの欄（RESOLVED と TREE_KEYS）を外した写し（案の直しの事前審査は写しの型で受ける。
     対応表は外す前に呼び手が取り出して照らす）"""
     if not isinstance(reply, dict):
         return reply
-    return marks.split("converge", "plan-review", reply, (RESOLVED, ITEMS, SYNERGY, DESIGN_MAP, ORIGINS))[0]
+    return marks.split("converge", "plan-review", reply, (RESOLVED, *TREE_KEYS))[0]
 
 
 # ---------------------------------------------------------------- 文
