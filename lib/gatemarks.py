@@ -102,12 +102,16 @@ import structmark  # 構造の目の行（汚れる・人に上げる）
 import worldmark   # 世界の解の行と、関所の軸「世界の解か」（world_ok）
 
 MARKS_FILE = marks.KINDS["gate"].file
-RECOMMEND = "recommend"   # 人に回す行の推し {answer, note, why}（実の利用者の run ac9e02ab。機械が読める推しが無かった）
+RECOMMEND = "recommend"   # 人に回す行の推し（欄は RECOMMEND_KEYS。実の利用者の run ac9e02ab。機械が読める推しが無かった）
 FIELDS = ("decided_by", "undecided_because", "fences", "world", RECOMMEND)
 RECOMMEND_KEYS = ("answer", "note", "why")   # 頭が答え、残りが RECOMMEND_MIN 字以上の文
 RECOMMEND_ANSWERS = ("continue", "stop")
 RECOMMEND_WORDS = {"continue": "通す", "stop": "止める"}
 RECOMMEND_MIN = 4
+RECOMMEND_SAYS = ("関所の一言にそのまま写せる通す範囲と条件か止める理由", "推す理由")   # RECOMMEND_KEYS[1:] の各欄に書く物
+RECOMMEND_SHAPE = ("{" + f"{RECOMMEND_KEYS[0]}: " + " か ".join(f"{a}（{RECOMMEND_WORDS[a]}）" for a in RECOMMEND_ANSWERS)
+                   + "".join(f", {k}: {say}（{RECOMMEND_MIN} 字以上）" for k, say in zip(RECOMMEND_KEYS[1:], RECOMMEND_SAYS))
+                   + "}")
 # 決め手が在っても人に聞く行の印（外への書き込み・取り消せない操作・方針の文書の変更・守り（資格・sandbox）を広げる・web の結果が
 # 新しい疑いを出した）
 FENCES = ("external_write", "irreversible", "policy_doc", "widen_protection", "web_doubt")
@@ -147,8 +151,7 @@ _RULE = ("に、決め手の欄を書け。decided_by＝決め手の出どころ
          "依頼が示した解き方は決め手にならない（定石と比べて疑う案）。定石で 1 つに決まるなら、その出どころを decided_by に書いて"
          "自分で決めよ。どの行にも "
          "world＝当たった結果の 1 文（出どころと割れ方、当たらなかったならその理由。人の前の決定で決まる行はそう書く）を書け。人に回す行では関所の項目にそのまま載る。"
-         "人に回す行には recommend＝お前の推す答え 1 つ {answer: continue（通す）か stop（止める）, note: 関所の一言にそのまま写せる"
-         "通す範囲と条件か止める理由, why: 推す理由} も書け。関所の項目の推しとして載り、無人の run が関所で止まった時は次の run の"
+         f"人に回す行には {RECOMMEND}＝お前の推す答え 1 つ {RECOMMEND_SHAPE} も書け。関所の項目の推しとして載り、無人の run が関所で止まった時は次の run の"
          "依頼の下書きの答えの下書きになる（人が見直すまで使われない。機械は関所に答えない）")
 _NO_NARROW_PLAN = ("\n\n狭めない案を先に探せ: narrows を書く前に、その狭めを避ける形——直したい場合だけに新しい動きを当て、当てられない"
                    "場合（記録の欄が無い・数えられない・道具が違う等）は BASE の動きを残し、黙らずに報告か標準エラーで名指す形——を"
@@ -958,7 +961,8 @@ def _gate_draft(text: str, mark: dict, node: str) -> dict:
     who = named(node)
     rec = recommend_of(mark)
     if rec is not None:
-        return _draft(text, f"{rec['answer']}: {_squeeze(rec['note'])}（推す理由: {_squeeze(rec['why'])}）", f"{who}の行の {RECOMMEND}")
+        answer, note, why = (rec[k] for k in RECOMMEND_KEYS)
+        return _draft(text, f"{answer}: {_squeeze(note)}（推す理由: {_squeeze(why)}）", f"{who}の行の {RECOMMEND}")
     parts = [(NO_NARROW, "狭めない案", mark.get(NO_NARROW)), ("world", "世界の解", mark.get("world"))]
     parts = [(k, w, _squeeze(v)) for k, w, v in parts if _squeeze(v)]
     if parts:
