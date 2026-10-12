@@ -3,7 +3,7 @@
 - 「元」は raiki61/claude-plugins @2aa7c66c の `works/`。「今」は works-factory の origin/main（4e0e18d）の相対のパス。線は PR #74 の頭（824dee3）。
 - 本物の run の置き場は run の artifacts の下。計画のブロックは `plan/r<k>/`（周ごと）と `plan/structure/<鍵>/`（使い回す構造の実測）、事前審査のブロックは `plan-review/`（差し込みごとに `plan-review/pass-<k>/`）。
 - 種（tests/e2e/target-seed）は stats.py の 2 つの欠陥（mean・clamp）、厚さ 標準、方針の文書も docs/concepts も無い。往復の 2 周目・案の直し・関所の答えの道は、健全な種の run ではほぼ「筋書きでのみ」。
-- 行の番号 P001〜P257 は区分の中の通し番号。節は 5 つ（修正案を書く側・構造の実測と目・往復と案の直し・事前審査・修正前の関所の材料）。
+- 行の番号 P001〜P258 は区分の中の通し番号（P258 は #207 で足し、P208 の隣に置いた）。節は 5 つ（修正案を書く側・構造の実測と目・往復と案の直し・事前審査・修正前の関所の材料）。
 
 ## 修正案を書く側（計画のブロック: 直す義務・受け付け・材料・波及・返り）
 
@@ -259,10 +259,10 @@
 
 - P035 リポジトリ・読む版・BASE・観点の正本（REVIEW.md）の行を材料に描く。
   - 元: p2.fix_plan.md の雛形の行（inputs.cwd・inputs.review_rev・record.base・inputs.review_md）
-  - 今: lib/planfile.py:108 `REPO_LINE`・:860
-  - 証: tests/workflows/test_plan.py::BriefCase.test_repo_line_names_base_and_review_md（#120 で足した。消すと赤: write_brief の REPO_LINE を外すと赤）
+  - 今: lib/planfile.py `REPO_LINE`・`repo_line`・`write_brief`、lib/boardview.py `open_pass`・`review_body`、lib/startrec.py `read_rev`・`diff_base`（読む版は始めの記録の review_rev、BASE は入口の差分の根 input.base.rev。どちらも無い前の版の控えは base_rev。行は repo_line の 1 か所が描く）
+  - 証: tests/workflows/test_plan.py::BriefCase.test_repo_line_names_base_and_review_md・tests/workflows/test_plan_review.py::ReviewAcceptCase.test_repo_line_reads_review_rev_apart_from_base（#120 で足し、#207 で差分の run にした。消すと赤: write_brief の repo_line を外すと赤、読む版を差分の根に替えると両方赤）
   - 本物の run: plan/r1/brief-1.md の「リポジトリ:」の行
-  - 狭め: 読む版を BASE と同じ値にした（元は review_rev と base を別に持てた）。Archon で不可でない。差分の run（base と review の版が違う run）で効くかは持ち主に
+  - 狭め: 無し（#207 で戻した。前は読む版を BASE と同じ値にしていた）
 
 - P036 並行 PR の外した範囲（判定の隣の pr-excluded.json）を頭で名指し、無ければ貼らない。
   - 元: planblk.py:299 `head`（EXCLUDED_HEAD :111）、試験 works/tests/test_blk_plan.py:1042 test_excluded_range_named
@@ -1316,7 +1316,7 @@
 
 - P182 材料の差し込み: 修正役の案・直す単位（番号つき。元の行「no の整数で指せ」を engine を機械に読み替えた字）・判定者の見立て（framing・one_shot）・先行例（在れば）・リポジトリと読む版と BASE と観点の正本（REVIEW.md）
   - 元: works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md:3-7・works/tests/test_blk_plan.py:951 `test_prompt_rendered_from_mainline`
-  - 今: lib/boardview.py:127-128（UNITS_LINE・REPO_LINE）・:771-781
+  - 今: lib/boardview.py:130（UNITS_LINE）・:834-842、lib/planfile.py `repo_line`（リポジトリ・読む版・BASE・観点の正本の行）
   - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_material_carries_the_mainline_inputs（assert: :745-750）・PortedMaterialCase.test_units_line_is_the_original_instruction_line（assert: :1582-1586）・PortedMaterialCase.test_material_carries_policy_base_units_and_concept_map（assert: :1570）
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/pass-1/prompt.md` の「## 差し込み」の節と `"no": 1`）
   - 狭め: 無し
@@ -1500,12 +1500,19 @@
   - 本物の run: `plan-review/plan-review/r1/pass-1/synergy.json`（全部 clean の時）
   - 狭め: 無し
 
-- P208 2 往復目の下請けは前の往復からのその項目の案の差分と前の block の行き先だけを見て、前の往復で答えた当たりは機械が引き継ぐ。閉じた項目は審査しない
+- P208 2 往復目の下請けは前の往復からのその項目の案の差分と前の block の行き先だけを見て（約束の欄が変わった項目と大きく変わった項目は全部を見る。P258）、前の往復で答えた当たりは機械が引き継ぐ。閉じた項目は審査しない
   - 元: works/blk-plan/lib/planblk.py:960 `_diff_part`・:973 `_carried_part`・:764 `carried_hits`
   - 今: lib/planblk.py:839・:852・:646
   - 証: tests/workflows/test_plan_review.py::TreeCase.test_second_pass_reviews_diff_and_carries_answers_and_notes（assert: :1131-1155）
   - 本物の run: 往復が 2 回の run だけ `plan-review/plan-review-items/pass-2/`
   - 狭め: 無し（往復の止めそのものは PB の区分）
+
+- P258 2 往復目に約束の欄（planmarks.contract_diff）が変わった項目は、変わった欄の名を言って差分に絞らず全部を審査させる。変わった字の割合が DIFF_FULL_SHARE（0.25）を超えた項目も全部を審査させる。関所の決め手の欄だけの変化は数えない
+  - 元: raiki61/claude-plugins @d51cc183 の works/blk-plan/lib/planblk.py:982 `_diff_part`（DIFF_FULL_SHARE・DIFF_FULL_ASK :180-184）、試験 works/tests/test_blk_plan.py:2992 test_large_item_change_is_reviewed_whole・:3006 test_contract_field_change_is_reviewed_whole・:3015 test_tree_item_contract_change_is_reviewed_whole・:3036 test_narrows_gate_marks_only_change_stays_diff
+  - 今: lib/planblk.py `_diff_part`・`_changed_chars`、lib/planmarks.py `joined`（lib/boardview.py `open_pass` が往復の控えの行に同じ番号の works の欄を重ね、allowed_paths などの変化も比べと差分に出す）
+  - 証: tests/workflows/test_plan_review.py::TreeCase.test_tree_item_contract_change_is_reviewed_whole（#207。消すと赤: contract_diff を空にするか、控えの行に欄を重ねないと赤）・TreeCase.test_large_item_change_is_reviewed_whole（消すと赤: 字の割合の比べを外すと赤）・TreeCase.test_narrows_gate_marks_only_change_stays_diff・TreeCase.test_second_pass_reviews_diff_and_carries_answers_and_notes（小さい直しは差分のまま）
+  - 本物の run: 往復が 2 回の run だけ `plan-review/plan-review-items/pass-2/item-<n>.md` の「前の往復からのこの項目の案の差分」の頼みの文
+  - 狭め: 無し。審査役 1 つの往復（木にしない往復）は今も 2 往復目に案の全部を審査する（元の single_part の差分への絞りは速さの差で、写していない。#207）。貼る差分は関所の決め手の欄を外した行（元は決め手の欄も含む生の行）
 
 - P209 判定者の先行例（adopt・adapt）の出典は run で 1 度だけ、1 つの項目の下請けが WebFetch で開いて確かめ、控え precedent-checks.json に置く。後の往復・ほかの項目には控えを貼って開かせない。確かめの行の欠けは拒む
   - 元: works/blk-plan/lib/planblk.py:660-742（precedent_checks・precedent_plan・save_precedents）

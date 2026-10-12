@@ -12,7 +12,7 @@ description: |
 inputs:
   start:
     default: ""
-    description: 始めの記録のポインタ（メイングラフの start の record）。欄 policy_md・thickness・test_cmd・tdd_suite・base_rev・lang を読む
+    description: 始めの記録のポインタ（メイングラフの start の record）。欄 policy_md・thickness・test_cmd・tdd_suite・base_rev・review_rev・input.base.rev・lang を読む
   units:
     default: "[]"
     description: 単位の目録（judge の units。[{id, paths, summary}]）

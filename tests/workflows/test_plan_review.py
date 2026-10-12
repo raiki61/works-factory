@@ -9,6 +9,7 @@
 今の works の試験（tests/test_blk_plan.py・test_plan_gate.py・test_gate_drafts.py）の事前審査と独立設計と関所の材料の場面を、
 盤面なしの形で写した。元の試験の名は各試験の docstring に書く。
 """
+import copy
 import importlib.util
 import json
 import os
@@ -241,7 +242,7 @@ class Run:
                                         "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), raw=True)
 
     def start(self, **doc):
-        self.inputs["start"] = self.put("start/start.json", {"run_id": RUN_ID, "base_rev": "HEAD", **doc})
+        self.inputs["start"] = self.put("start/start.json", {"run_id": RUN_ID, "base_rev": "HEAD", "review_rev": "HEAD", **doc})
 
     def env(self, **extra) -> dict:
         names = {f"INPUTS_{k.upper()}": v for k, v in self.inputs.items()}
@@ -936,6 +937,18 @@ class ReviewAcceptCase(RunCase):
         self.assertNotIn("{{", text)
         self.assertIn(boardview.DEFAULT_ANSWERS, text.splitlines()[0])
 
+    def test_repo_line_reads_review_rev_apart_from_base(self):
+        """P035: 差分の run（入口の差分の根 input.base.rev が読む版 review_rev と違う）では、材料のリポジトリの行が読む版と BASE を
+        別の値で描く（元 p2.plan_review.md の雛形の inputs.review_rev と record.base）"""
+        r = self.run_
+        head = git(r.repo, "rev-parse", "HEAD")
+        fork = "f0" * 20
+        r.start(features_off=["review_tree"], review_rev=head,
+                input={"base": {"rev": fork, "from": "base", "name": "fork", "label": "base fork"}})
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(f"リポジトリ: {r.repo}（読む版: `{head}`）　BASE: `{fork}`", text)
+
     def test_material_carries_plan_fields(self):
         """元 tests/test_blk_plan.py の test_plan_review_prompt_carries_fields: 項目ごとの works の欄（受け入れテストの id・道・
         書いてよいパス）を JSON で貼り、見る点を頼む"""
@@ -1460,6 +1473,8 @@ class TreeCase(RunCase):
         brief = (self.items_dir(2) / "item-2.md").read_text(encoding="utf-8")
         diff = brief[brief.index(planblk.DIFF_HEAD):]
         self.assertIn("上限ちょうどの値はそのまま返す", diff)
+        self.assertIn(planblk.DIFF_ASK, brief)
+        self.assertNotIn(planblk.DIFF_FULL_ASK, brief)
         self.assertIn(CLAMP_BLOCK["key"], brief)
         self.assertIn(planblk.CARRIED_HEAD, brief)
         self.assertFalse((self.items_dir(2) / "item-1.md").exists(), "閉じた項目は審査しない")
@@ -1472,6 +1487,70 @@ class TreeCase(RunCase):
         self.assertEqual([(h["id"], h.get("carried")) for h in hits], [("h1", 1)])
         saved = json.loads((r.folder / "pass-2" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
         self.assertIn(note["key"], [f["key"] for f in saved["faces"]])
+
+    def second_pass_brief(self, first=None, edit=None, edit_fields=None) -> str:
+        """2 項目の案（first。既定は setUp の案）の 1 往復目は項目 2 だけ block。項目 2 の行を edit が、項目 2 の works の欄を
+        edit_fields が直した後の 2 往復目の項目 2 の下請けのファイル"""
+        r = self.run_
+        r.start(features_on=["review_tree"])
+        rows = first or [item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}])]
+        r.plan(rows)
+        self.prepped()
+        self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK])})
+        self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))["ok"])
+        r.out("result")
+        fixed = copy.deepcopy(rows)
+        field_rows = [fields(x["unit_keys"][0]) for x in fixed]
+        if edit is not None:
+            edit(fixed[1])
+        if edit_fields is not None:
+            edit_fields(field_rows[1])
+        r.plan(fixed, rnd=2, field_rows=field_rows,
+               answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}])
+        r.open()
+        r.out("review_prep")
+        return (self.items_dir(2) / "item-2.md").read_text(encoding="utf-8")
+
+    def test_tree_item_contract_change_is_reviewed_whole(self):
+        """元 test_tree_item_contract_change_is_reviewed_whole・test_contract_field_change_is_reviewed_whole: 2 往復目、約束の欄
+        （allowed_paths）に 1 行足しただけの開いた項目の下請けのファイルは、差分に絞らず全部を審査せよと頼み、変わった欄の名を言う。
+        字の割合は小さくても、直しが触れる物が変わるので差分の外の読み直しが要る"""
+        brief = self.second_pass_brief(edit_fields=lambda row: row["allowed_paths"].append("README.md"))
+        self.assertIn("約束の欄（allowed_paths）が変わった。" + planblk.DIFF_FULL_ASK, brief)
+        self.assertIn("README.md", brief[brief.index(planblk.DIFF_HEAD):])
+        self.assertNotIn(planblk.DIFF_ASK, brief)
+
+    def test_large_item_change_is_reviewed_whole(self):
+        """元 test_large_item_change_is_reviewed_whole: 開いた項目の approach を丸ごと書き直し、前の行の字の DIFF_FULL_SHARE を
+        超えて変えた直しの後は、差分に絞らず全部を審査せよと頼む（約束の欄は変わっていないので欄の名は言わない）"""
+        big = "".join(f"手順 {i}: {c} の入口で空の列を弾き、{c} の出口で分母を {i} 倍に直さず len(xs) に揃える。"
+                      for i, c in enumerate("甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥", 1))
+        brief = self.second_pass_brief(edit=lambda row: row.update(approach=big))
+        self.assertIn(f"{planblk.DIFF_HEAD}\n\n{planblk.DIFF_FULL_ASK}", brief)
+        self.assertNotIn(planblk.DIFF_ASK, brief)
+        self.assertNotIn("約束の欄（", brief)
+
+    def test_narrows_gate_marks_only_change_stays_diff(self):
+        """元 test_narrows_gate_marks_only_change_stays_diff: narrows の行の関所の決め手の欄（world・recommend）の長い文を丸ごと
+        書き直しただけの直しは、約束の欄の変更にも大きい変更にも数えず差分のまま"""
+        narrow = {**TP.NARROW, "no_narrow": "空の列で例外を投げる今の動きを残すと直したい呼び手が成り立たない",
+                  "decided_by": "", "undecided_because": "", "fences": [],
+                  "world": "Python 公式の statistics.mean は空の列で例外を投げる",
+                  "recommend": {"answer": "continue", "why": "空の列の例外は前から同じで、能力は減らない", "note": "今の動きのまま通す"}}
+        first = [item(UNIT_MEAN, 1),
+                 item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}], narrows=[narrow])]
+        long_world = "".join(f"事例 {i}: {c} の標準の平均は空の列で StatisticsError を投げ、呼び手が捕まえて 0 を返す慣習が広い。"
+                             for i, c in enumerate("甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥", 1))
+        long_why = "".join(f"理由 {i}: {c} の呼び手は例外の型を前から同じに受けるので、通しても能力は減らず、利用者の経路も変わらない。"
+                           for i, c in enumerate("甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥", 1))
+
+        def reword(row):
+            row["narrows"][0]["world"] = long_world
+            row["narrows"][0]["recommend"] = {"answer": "continue", "why": long_why, "note": "今の動きのまま通してよい"}
+
+        brief = self.second_pass_brief(first=first, edit=reword)
+        self.assertIn(planblk.DIFF_ASK, brief)
+        self.assertNotIn(planblk.DIFF_FULL_ASK, brief)
 
     def test_precedent_sources_are_fetched_once_per_run(self):
         """元 test_precedent_sources_are_fetched_once_per_run"""
@@ -2095,6 +2174,15 @@ class ResultCase(RunCase):
         self.check(got)
         self.assertEqual((got["pass"], got["ask_human"]), (False, True))
         self.assertTrue(any("JSONDecodeError" in q for q in texts(got)), texts(got))
+
+    def test_open_refuses_fields_count_apart_from_plan_rows(self):
+        """修正案の項目の数と plan-fields.json の欄の数が違えば、往復の控えの行に欄を重ねられないので open は訳つきで落ちる
+        （欄を黙って空にすると約束の欄の比べが消え、全部の審査に戻す枝が黙って止まる）"""
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)], field_rows=[fields(UNIT_MEAN)])
+        opened = r.out("pass_open")
+        self.assertFalse(opened["ok"])
+        self.assertIn("修正案の項目の数 2", opened["reason"])
 
     def test_empty_folder_never_fails_the_return_node(self):
         """open も受け付けも走らず plan-review/ が空でも、返す節は偽の結末を返す"""
