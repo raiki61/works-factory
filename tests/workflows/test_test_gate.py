@@ -810,6 +810,16 @@ class ResultScriptCase(ScriptCase):
         out = self.result("base")
         self.assertIn("走らせた: test_cmd（shell）", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
 
+    def test_fell_back_reason_is_in_the_evidence(self):
+        """engine の結果を任せ先へ落とした回の証拠は、落とした訳（run.json の fell_back）を書く"""
+        self.write_start(test_cmd=f"{PY} -c pass")
+        self.ok("run", mode="base", start=self.start)
+        run_json = self.artifacts / "test-gate" / "base" / "run.json"
+        run = json.loads(run_json.read_text(encoding="utf-8"))
+        run_json.write_text(json.dumps({**run, "fell_back": "engine が組んだ素材が素材の欄の決まりに外れた: 訳 X"}), encoding="utf-8")
+        text = self.pointed(self.result("base")["evidence"]).read_text(encoding="utf-8")
+        self.assertIn("- engine の結果を任せ先へ落とした訳: engine が組んだ素材が素材の欄の決まりに外れた: 訳 X", text)
+
     def test_broken_inputs_return_incomplete_without_failing(self):
         """返す節は落ちない: 壊れた入力でも終了の値 0 で、output_format に合う ok: false・red_cause: incomplete を 1 つ出す"""
         self.decl([{"name": "suite", "argv": [PY, "-c", "print('ok')"]}])
