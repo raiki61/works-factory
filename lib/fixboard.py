@@ -213,6 +213,44 @@ def collect(place, accepted: dict, changed: dict, *, reply_file=None, owed=(), w
             "reads_file": str(reads_p) if reads_p and reads_p.is_file() else ""}
 
 
+# ---------------------------------------------------------------- 読んだ証拠（fix の fix-reads の script が呼ぶ）
+READS_OWNER = "fix"   # 読んだ証拠の索引の持ち主（reads.index_name。元 recount.READS の役）
+
+
+def read_stages(place) -> list:
+    """読んだ証拠を集める修正の段 [(役, 段の頭の印のファイル, 指示書)]: 修正役 fix と、裁定の後の修正役 fix-ruled"""
+    import fixrules
+    fixer = fixrules.prompt_path(place)
+    return [(READS_OWNER, pathlib.Path(place) / FIX_HEAD_FILE, fixer),
+            ("fix-ruled", pathlib.Path(place) / RULED_HEAD_FILE, fixer.with_name(fixer.stem + fixrules.RULED_TAIL))]
+
+
+def collect_reads(place, log, *, repo) -> dict:
+    """修正の段の役（read_stages）が、機械が渡したパス（その段の指示書・置き場の判定の写し judgment.json・今の周の brief の
+    ファイル）を読んだ証拠を reads.collect で集め、置き場に reads-<役>.json と索引（reads.index_name(READS_OWNER)。{役: 役ごとの
+    証拠のパス}）を書く（元 works/blk-fix/scripts/reads.py の節 fix-reads と fixrules.reads_more）。記録はその段の頭の印を置いた
+    時刻から後の、その段の指示書を読んだ session の行で切る。指示書か頭の印の無い段（役を起こしていない・この run の形で走らない段）は
+    索引に null で、訳を why に置く。受け付けの条件にしない。返り {ok: True, missing, index_file}"""
+    import planbrief
+    import reads
+    p = pathlib.Path(place)
+    shared = [str(p / JUDGMENT_FILE), *planbrief.files(p)]
+    index, missing, idle = {}, [], []
+    for role, head, prompt in read_stages(p):
+        if not (prompt.is_file() and head.is_file()):
+            index[role] = None
+            idle.append(role)
+            continue
+        got = reads.collect(p, role, [str(prompt), *shared], log, own=[str(prompt)], since=reads.stamp(head.stat().st_mtime),
+                            repo=repo)
+        index[role] = got["reads_file"]
+        missing += got["missing"]
+    if idle:
+        index["why"] = f"{reads.NOT_LAUNCHED}: {'・'.join(idle)}"
+    out = write_json(p / reads.index_name(READS_OWNER), index)
+    return {"ok": True, "missing": missing, "index_file": str(out)}
+
+
 # ---------------------------------------------------------------- 差分の審査と手直し（refix・lenses・rulebook が読む）
 # 役の指示書の組み立て（元 works/.shared/core/rolekit.py:64・168・205 の写し。main の lib/rolekit.py に無いので fix の中に置く）
 REJECT_LINE = ("前の回の返答は受け付けで拒まれた。理由はファイル {path} に在る。先に Read で読み、そこを直した返答を丸ごと"

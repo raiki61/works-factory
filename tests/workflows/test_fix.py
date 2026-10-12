@@ -911,6 +911,57 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(validate_schema(out, self.fmt), [], out)
         self.assertEqual(set(out), CONTRACT_FIELDS, "返す節は required に無い欄も全部返す")
 
+    # ---- fix_reads.py
+    def read_hook(self, cfg, path, session="s-1"):
+        """隔離した設定の読んだ証拠のフック（bin/_lib/record-read.py を実物で起こす）に、役が path を Read した出来事を渡す"""
+        import reads
+        event = {"session_id": session, "tool_name": "Read", "tool_input": {"file_path": str(path)}, "tool_use_id": "toolu_read",
+                 "cwd": str(self.repo), "hook_event_name": "PostToolUse"}
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
+        done = subprocess.run([sys.executable, str(ROOT / "bin" / "_lib" / "record-read.py"), str(cfg / reads.ROOT)],
+                              input=json.dumps(event), text=True, encoding="utf-8", capture_output=True, cwd=str(self.repo),
+                              env={**env, "PYTHONDONTWRITEBYTECODE": "1"})
+        self.assertEqual(done.returncode, 0, done.stderr)
+
+    def test_fix_reads_names_what_the_fixer_did_not_read(self):
+        """F147: 修正役が指示書を読み、判定の写しを読まなかった置き場は、reads-fix.json で指示書が read・判定の写しが missing。
+        記録は段の頭の印 fix-head.json を置いた時刻から後で切る。役を起こしていない段（裁定の後の修正役）は索引に null と訳。
+        受け付けの条件にしない（ok: true）"""
+        import reads
+        cfg = self.tmp / "claude-config"
+        (cfg / reads.ROOT).mkdir(parents=True)
+        judgment = _blk_write(self.place / "judgment.json", {"units": [], "questions": []})
+        head = _blk_write(self.place / "fix-head.json", {"tree": "t"})
+        os.utime(head, (head.stat().st_mtime - 60,) * 2)
+        prompt = self.place / "prompt-p3.fix.md"
+        prompt.write_text("指示書\n", encoding="utf-8")
+        self.read_hook(cfg, prompt)
+        code, out, err = _blk_run("fix_reads", self.repo, self.art, {}, "fix__fix-reads", env_extra={"CLAUDE_CONFIG_DIR": str(cfg)})
+        self.assertEqual(code, 0, err)
+        self.assertEqual((out["ok"], out["missing"], out["reason"]), (True, [str(judgment)], ""), out)
+        index = json.loads(pathlib.Path(out["index_file"]).read_text(encoding="utf-8"))
+        self.assertIsNone(index["fix-ruled"])
+        self.assertIn("fix-ruled", index["why"])
+        doc = json.loads(pathlib.Path(index["fix"]).read_text(encoding="utf-8"))
+        self.assertEqual([(r["path"], r["hook"] in reads.HOOK_SEEN) for r in doc["rows"]], [(str(prompt), True), (str(judgment), False)])
+
+        os.utime(head, (head.stat().st_mtime + 120,) * 2)
+        code, out, err = _blk_run("fix_reads", self.repo, self.art, {}, "fix__fix-reads", env_extra={"CLAUDE_CONFIG_DIR": str(cfg)})
+        self.assertIn(str(prompt), out["missing"], "段の頭より前の読みは数えない")
+
+    def test_fix_reads_without_the_record_says_why_and_does_not_fail(self):
+        """記録の根が無い起動は、読んだかを測れない訳を残して ok: true（missing は空。読んでいないと取り違えない）"""
+        import reads
+        _blk_write(self.place / "judgment.json", {"units": [], "questions": []})
+        _blk_write(self.place / "fix-head.json", {"tree": "t"})
+        (self.place / "prompt-p3.fix.md").write_text("指示書\n", encoding="utf-8")
+        code, out, err = _blk_run("fix_reads", self.repo, self.art, {}, "fix__fix-reads",
+                                  env_extra={"CLAUDE_CONFIG_DIR": str(self.tmp / "no-config")})
+        self.assertEqual((code, out["ok"], out["missing"]), (0, True, []), err)
+        doc = json.loads(pathlib.Path(json.loads(pathlib.Path(out["index_file"]).read_text(encoding="utf-8"))["fix"])
+                         .read_text(encoding="utf-8"))
+        self.assertEqual(doc["sources"], {"hook": "none", "why": reads.NO_ROOT})
+
     # ---- route.py
     def test_route_returns_the_shape_of_the_mode(self):
         """route は入力 mode の語を fixboard.MODES で引いて形を返す"""

@@ -664,10 +664,10 @@
 
 - F147 修正役が読んだ証拠（読んだファイルの記録 record-read.py と、読むべき物を読んだかの照らし reads.py・節 fix-reads）
   - 元: works/.shared/core/reads.py・record-read.py、works/blk-fix/scripts/reads.py、works/blk-fix/blk-fix.yaml:2029 の節 fix-reads
-  - 今: 無し
-  - 証: 無し（元 works/tests/test_reads.py は持ってこない）
-  - 本物の run: 無し
-  - 狭め: #121 で飛ばした（区分 P の読んだ証拠の土台 lib/reads.py（PR #210）が main に無い）。条件つきの項として残る
+  - 今: lib/fixboard.py `collect_reads`・`read_stages`（lib/reads.collect の上。修正役 fix と裁定の後の修正役 fix-ruled の段ごとに、指示書・判定の写し・brief を渡したパスにし、段の頭の印から後の、指示書を読んだ session の行で切る）、workflows/fix/scripts/fix_reads.py（節 fix-reads。受け付けの条件にしない。返す節に結ばない。落ちない）
+  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_fix_reads_names_what_the_fixer_did_not_read・test_fix_reads_without_the_record_says_why_and_does_not_fail
+  - 本物の run: 修正役の置き場の `reads-fix.json`・`reads-fix-ruled.json` と索引 `reads-fix-block.json`
+  - 狭め: 元は collect の返りの reads_file で出口に出した。今は区分 P（plan-reads・review-reads）と同じく置き場に書くだけで、fix の出力に欄を足していない（読み手の報告は区分 R）
 
 - F148 受け付けた changes と単位ごとの件数を置き場に書き、空の changes は外れた単位の無い置き場では止める（直す義務が残らず外れた単位だけの run だけ空を通す）
   - 元: works/.shared/core/recount.py:150 `collect`

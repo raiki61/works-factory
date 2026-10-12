@@ -1388,6 +1388,26 @@ nodes:
       properties:
         result_file: {type: string}
 
+  # 読んだ証拠（受け付けの条件にしない。返す節に結ばない）。修正役（組の子の run）と裁定の後の修正役（ブロックの形）が、機械が
+  # 渡したパス（指示書・判定の写し・brief）を読んだかを、フックの記録から集めて置き場の reads-<役>.json と索引に書く。前の節が
+  # 落ちても飛ばされても走り、落ちない
+  - id: fix-reads
+    script: fix_reads
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [fix-loop, fix-ruled-loop]
+    trigger_rule: all_done
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, missing, index_file, reason]
+      properties:
+        ok: {type: boolean}
+        missing: {type: array, items: {type: string}}
+        index_file: {type: string}
+        reason: {type: string}
+
   # ---- 返す節（両方の形） ----
 
   # 前の節の返りを with: で束ねず、各節が置き場に書いたファイルを読んで返りの約束の欄を組む。前の節が落ちても飛ばされても走り、
@@ -1396,7 +1416,7 @@ nodes:
     script: collect
     runtime: uv
     mutates_checkout: false
-    depends_on: [route, prep, join, tdd-unit, conflict-check, rule-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end]
+    depends_on: [route, prep, join, tdd-unit, conflict-check, rule-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end, fix-reads]
     trigger_rule: all_done
     timeout: 1728000000
     output_format:
