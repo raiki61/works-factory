@@ -2248,6 +2248,14 @@ class PrScanCase(_PrBase):
         gitkit.git(self.repo, "remote", "set-url", "origin", "https://github.com/o/r.git")
         self.assertEqual(ja._github_repo(self.repo), ("o/r", None))
 
+    def test_github_repo_reads_the_url_with_forge(self):
+        """URL の読みは forge.repo_of と同じ広さ（github.com の別名は OWNER/REPO、GitHub Enterprise Cloud はホストつきで gh -R に渡す）"""
+        for url, slug in (("ssh://git@ssh.github.com:443/o/r.git", "o/r"), ("https://www.github.com/o/r", "o/r"),
+                          ("git@github.com-work:o/r.git", "o/r"), ("https://acme.ghe.com/o/r.git", "acme.ghe.com/o/r")):
+            with self.subTest(url):
+                gitkit.git(self.repo, "remote", "set-url", "origin", url)
+                self.assertEqual(ja._github_repo(self.repo), (slug, None))
+
 
 class PrAcceptCase(_PrBase):
     def setUp(self):

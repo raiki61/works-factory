@@ -3744,7 +3744,6 @@ PR_DOWNGRADES_FILE = "pr-downgrades.json"        # 申し送りの下書き [{pr
 MATERIAL_PR_FILE = f"material-{prcheck.ROLE}.json"   # 並行 PR の素材 {role, reply, materials: {parallel_pr}}
 PR_LIMIT = 100   # 元 works/.shared/core/graphloops/scripts/parallel-pr.py:16 の LIMIT（gh pr list の --limit）
 # 元 works/.shared/core/graphloops/rules/review-loop.py:2278
-GITHUB_REMOTE = re.compile(r"^(?:https?://github\.com/|ssh://git@github\.com[^/]*/|git@github\.com[^:]*:)([^/\s]+)/([^/\s]+?)(?:\.git)?/?$")
 # 元 works/blk-pr/scripts/accept.py:21
 NO_POST = "このラインは申し送りを投稿しない（持ち主の決定 2026-09-27）。下書きを note に書き handed_over を false にせよ: "
 WORLD_FEATURE = "world"   # 元 works/.shared/core/entry.py:420 の WORLD_FEATURE（始めの記録の features_cut の世界の解の語）
@@ -3755,17 +3754,18 @@ WORLD_ROLES = {"world-classes": worldblk.CLASSES_ROLE, "world-judge": worldblk.J
 # ---------------------------------------------------------------- 並行 PR（機械の道）
 def _github_repo(repo):
     """元 works/.shared/core/graphloops/rules/review-loop.py:2280 の _github_repo（と works/.shared/core/entry.py の
-    github_repo_redacted の、理由の文から URL の userinfo を落とす包み）。並行 PR を引く owner/repo ——（値, 引けない理由）。
-    upstream の remote を先に、無ければ origin。git は lib/forge の読みで、対象の根 repo で引く"""
-    up = forge._git(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
-    remote = up.strip().split("/", 1)[0] if up and up.strip() else "origin"
+    github_repo_redacted の、理由の文から URL の userinfo を落とす包み）。並行 PR を引く gh -R の [HOST/]OWNER/REPO ——（値, 引けない
+    理由）。remote の選び（upstream を先に、無ければ origin）は forge.detect、URL の読みは forge.repo_of（github.com の別名は
+    OWNER/REPO、GitHub Enterprise Cloud はホストつき）。git は対象の根 repo で引く"""
+    remote = forge.detect(repo)["remote"] or "origin"
     url = forge._git(repo, "remote", "get-url", remote)
     if url is None:
         return None, f"remote '{remote}' の URL が引けない"
-    m = GITHUB_REMOTE.match(url.strip())
-    if not m:
+    got = forge.repo_of(url)
+    if not got or got["kind"] != forge.GITHUB:
         return None, forge.redact(f"remote '{remote}' が GitHub でない（{url.strip()[:80]}）——同等のコマンドへの読み替えは役")
-    return f"{m.group(1)}/{m.group(2)}", None
+    slug = f"{got['owner']}/{got['name']}"
+    return (slug if got["host"] == "github.com" else f"{got['host']}/{slug}"), None
 
 
 def _pr_files(repo, diff_base: str, wheres) -> list:
