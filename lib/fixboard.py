@@ -805,9 +805,9 @@ def handoff_lines(replies) -> list:
 
 def mismatched_lines(place) -> list:
     """置き場 place の閉鎖の表（querytest.save_closure。修正の受け付けが数え直した表）のうち、直したという申告と機械の数え直しが
-    合わない単位の行（querytest.closure_lines の mismatched_only）"""
+    合わない単位の行（querytest.closure_lines）"""
     import querytest
-    return querytest.closure_lines(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), mismatched_only=True)
+    return querytest.closure_lines(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1))
 
 
 def final_lines(results, field: str, more=()) -> list:
