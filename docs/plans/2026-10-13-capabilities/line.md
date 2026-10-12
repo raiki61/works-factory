@@ -1222,10 +1222,10 @@
   - 狭め: 無し
 - L-D22 往復ごとの行（何往復か・抜け方・続いた block・suggest に下げた key）を報告に出す
   - 元: works/.shared/core/converge.py:593 `lines` → works/.shared/core/report.py:949
-  - 今: 無し（plan-review は pass-<k>/gate.json の converge に書く: main lib/boardview.py:951。runreport は出さない）
-  - 証: 要追加: lib/tests/test_runreport.py::LinesCase.test_converge_lines_reach_the_report
-  - 本物の run: plan-review の pass-<k>/gate.json の converge
-  - 狭め: #73・#74（不可でない → 戻す）
+  - 今: lib/runreport.py の _converge_lines（事前審査の返り review の隣の gate.json の converge を lib/gatemarks.converge_of で。計画の往復と案の直しの事前審査）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_converge_lines_reach_the_report
+  - 本物の run: plan-review の review の隣の gate.json と report/report.md の「1. 人が決めること」
+  - 狭め: #73・#74（不可でない → 戻す） → 部分 C で戻した
 - L-D23 修正の段の裁定が案の項目の誤り（replan_items）なら、同じ run で 1 度だけ案の直しへ戻る
   - 元: works/darkfactory/darkfactory.yaml:643 h-replan → works/.shared/core/replan.py:291 `material`
   - 今: scripts/after_fix.py:20-21、yaml:473-486
@@ -1324,10 +1324,10 @@
   - 狭め: 無し（住処が報告に移った。線の試験が無い）
 - L-D39 同じ run で直した項目ごとの結果（承認・聞かずに通した・無人で広げた・諦めた理由・未完了）を最後の関所と報告の冒頭 1 に出す
   - 元: works/.shared/core/replan.py:767 `lines` → works/.shared/core/report.py:1075 `_amend_lines`
-  - 今: 無し
-  - 証: 要追加: lib/tests/test_runreport.py::LinesCase.test_amended_items_are_listed
+  - 今: lib/replan.py の amend_lines・AMEND_HEAD（項目ごとの 1 行）を lib/runreport.py の _amend_lines と線の scripts/ask_final.py が読む。項目ごとの聞いたかは案の直しの関所の答えの asked（ask-replan の asked → answer-replan）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_amended_items_are_listed・tests/workflows/test_line.py::AskReplanCase.test_asked_items_reach_the_gate_answer・AskFinalCase.test_final_text_sections_match_the_original
   - 本物の run: 筋書きでのみ
-  - 狭め: #74（不可でない → 戻す）
+  - 狭め: #74（不可でない → 戻す） → 部分 C で戻した
 - L-D40 案の直しの関所の人の答えを記録する
   - 元: works/.shared/core/replan.py:666 `_record_human`
   - 今: gates/gate-replan.json（scripts/gate_answer.py）
@@ -1507,7 +1507,7 @@
 - S31「約束を変える頼み」4: 判定の `judgment` の隣に `answer-ties.json`・`world-state.json` を置く。→ **開いている**
 - S32「約束を変える頼み」5: 受け付けの最後の拒否の本文と、並行 PR への申し送りの下書きを、各ブロックの返りの指し札にする。→ **開いている**
 - S33「後の issue に渡す物」1: 最後の関所に並べる行の場面（元 `test_gate_head.py` の FinalHeadCase ほか）。→ **済み**（`tests/workflows/test_gate_head.py:116-176`）
-- S34「後の issue に渡す物」2: runreport・outcome が読む `conflicts.json` の欄の名を `lib/conflict.py` から引く形に寄せる。→ **開いている**（`lib/conflict.py` は main に入った: `lib/conflict.py`）
+- S34「後の issue に渡す物」2: runreport・outcome が読む `conflicts.json` の欄の名を `lib/conflict.py` から引く形に寄せる。→ **部分 C で閉じた**（lib/outcome.py・lib/runreport.py は conflict.ITEMS・RULING・DECISION ほか lib/conflict.py の名を引く。lib/tests/test_outcome.py::ConflictNamesCase）
 - S35「後の issue に渡す物」3: 書き手の会話の続き（輪の間に cold を挟む時、会話がどう継がれるか）を本物の run で確かめる。→ **開いている**（本物の run で見る）
 - S36「後の issue に渡す物」4: dry-run は `$LOOP_PREV.*` を置き換えない。→ 線にも当たる（`LY:198` の `review: "$LOOP_PREV.plan-out.output.review"`）。本物の run で、1 周目が `''`、2 周目が前の周の値になることを見る。**開いている**（筋書きでは確かめられない）
 - S37「持ち主の確かめ待ち」の `gates_deferred`: 線が入力 `gates` を落とした（PR #74「計画とずれた所」4）ので、入口が無い。→ **狭めたまま**（持ち主の確かめ待ち） 決め: 段 3 で変異の検算と一緒に持ち主に聞く（線の配線の文書の「この文書の外」の「決めた物」）

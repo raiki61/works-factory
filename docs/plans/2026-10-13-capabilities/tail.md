@@ -1341,10 +1341,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R24 同じ run の中で直した修正案の項目の行
   - 元: works/.shared/core/report.py:1075 `_amend_lines`
-  - 今: 無し（lib/outcome.py:73 `REPLAN_KEPT` の amended は数えから外すだけ）
-  - 証: 要追加: lib/tests/test_runreport.py::LinesCase.test_amended_plan_items_are_listed — 申し出の replan: amended の行が人が決めることの節に名指しで出る
+  - 今: lib/runreport.py の _amend_lines（lib/replan.amend_lines。諦めた訳は申し出の行の replan_why）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_amended_items_are_listed（test_amended_plan_items_are_listed の名を変えた）
   - 本物の run: 筋書きでのみ
-  - 狭め: #68 で書かれずに落ちた。不可でない → 戻す
+  - 狭め: #68 で書かれずに落ちた。不可でない → 戻す → 部分 C で戻した
 
 - R25 申し出の件数と、裁定ごと（parked・fix_test_scope・fix_code_as・ask_human・unruled、在れば replace_query・fix_plan_item）と種類ごと（6 種と種類なし）の内訳
   - 元: works/.shared/core/report.py:1112 `_conflict_line`
@@ -1418,10 +1418,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R35 事前審査の壁打ちの往復の行（往復の数・結末・残った key と、往復ごとの block・fixed・disputed・下げた key・項目の閉じ・開き・保留）
   - 元: works/.shared/core/converge.py:593 `lines`（works/.shared/core/report.py:965）
-  - 今: 無し（lib/converge.py:593 `lines` は在るが報告が呼ばない。往復の控えは run の置き場の plan-review/ に在る）
-  - 証: 要追加: lib/tests/test_runreport.py::LinesCase.test_plan_review_passes_are_listed — plan-review の review の置き場の往復の控えから converge.lines の行が人が決めることの節に出る
+  - 今: lib/runreport.py の _converge_lines（converge.lines の行が review の隣の gate.json に在る）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_converge_lines_reach_the_report（test_plan_review_passes_are_listed の名を変えた）
   - 本物の run: plan-review/ の往復の控えと report/report.md
-  - 狭め: #68 で書かれずに落ちた。不可でない → 戻す
+  - 狭め: #68 で書かれずに落ちた。不可でない → 戻す → 部分 C で戻した
 
 - R36 独立設計が問いは立たないと返したのに根拠にパス:行の名指しが無い 1 行
   - 元: works/.shared/core/report.py:1265 `_design_unanchored`

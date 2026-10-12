@@ -1272,6 +1272,13 @@ def ledger_beside(judgment_dir, judgment, *, answers=(), gate=None, ties_dir=Non
     return ledger(judgment, answers=answers, gate=gate, ties=ties, materials=materials)
 
 
+def converge_of(folder) -> list:
+    """事前審査の返り review の隣の GATE_RECORD_FILE の壁打ちの往復の行（converge.lines。字でない行は捨てる）。無い・読めなければ
+    OSError・ValueError（読み手が訳を名指す）"""
+    doc = json.loads((pathlib.Path(folder) / GATE_RECORD_FILE).read_text(encoding="utf-8"))
+    return [x for x in (doc.get("converge") if isinstance(doc, dict) else None) or [] if isinstance(x, str)]
+
+
 def gate_items(answer) -> list:
     """修正前の関所の答え answer（{decision, text, asked}。飛ばされた時は None）を、人の関所の行 human_items
     [{round, node, answer, note, asked}] にする。通す語の時だけ 1 行（answer は continue。asked は人が見た関所の行）"""

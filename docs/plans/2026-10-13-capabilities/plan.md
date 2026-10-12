@@ -860,10 +860,10 @@
 
 - P119 往復の報告の行（何往復・抜け方の語・続いた block・往復ごとの block と答えの数・項目の閉じた/開いた/保留・相乗りの block）を報告の冒頭に載せる
   - 元: works/.shared/core/converge.py:593 `lines`、works/.shared/core/report.py:949（`lines += converge.lines(b)`）
-  - 今: lib/boardview.py:951 が plan-review/pass-<k>/gate.json の `converge` に書くだけで、報告（lib/runreport.py・lib/report.py）も線も読まない
-  - 証: lib/tests/test_converge.py::TextCase.test_lines_summarize_passes（lib の水準だけ）。報告に届く試験は無い → 要追加: tests/workflows/test_report.py::ConvergeLinesCase.test_head_carries_plan_converge_lines — plan-review の返りの review の隣の gate.json の converge の行が報告の冒頭の決めの節に載る
+  - 今: lib/runreport.py の _converge_lines（lib/gatemarks.converge_of。最後の関所の ask_final.review_rows も同じ口）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_converge_lines_reach_the_report（tests/workflows/test_report.py::ConvergeLinesCase.test_head_carries_plan_converge_lines の名を変えた）
   - 本物の run: plan-review/pass-1/gate.json の `converge`（種の run では「事前審査の壁打ち: 1 往復・抜け方は block が消えた…」の 1 行が在るはず）と report の本文（今は載らない）
-  - 狭め: #73・#68 のどちらにも狭めの記載無し（不可でない → 戻す。報告が gate-passes.json と同じく review の隣を読めば足りる）
+  - 狭め: #73・#68 のどちらにも狭めの記載無し（不可でない → 戻す。報告が gate-passes.json と同じく review の隣を読めば足りる） → 部分 C で戻した
 
 - P120 往復ごとの拒否の数え直し: again で次の往復に移ると、計画と事前審査の拒否の回数を 0 から数え直す（拒否の行は往復の行に残す）
   - 元: works/blk-plan/lib/planblk.py:1178 `with_converge`（converge.stash_rejects・rolekit.take_rejects）、works/tests/test_blk_plan.py:1751 `test_rejects_restart_per_pass`
@@ -1053,10 +1053,10 @@
 
 - P146 報告と最後の関所の文に、案の直しの項目ごとの 1 行（直した——人が承認した／聞かずに通した（手段の欄だけ）／直さずに諦めた: 訳／未完了）を見出し AMEND_HEAD の下に並べる
   - 元: works/.shared/core/replan.py:767 `lines`・:144 `AMEND_HEAD`、works/tests/test_replan.py:1097-1124
-  - 今: 無し（AMEND_HEAD・項目ごとの行の組み立ては main にも P74 にも無い。outcome.py は待つ行の締めだけ）
-  - 証: 要追加: tests/workflows/test_report.py::ReplanLinesCase.test_each_replanned_item_has_one_line — replan の返りと関所の答えから、項目ごとの結末の行が報告に載る
+  - 今: lib/replan.py の amend_lines（人が承認した・聞かずに通した（手段の欄だけ）・WIDEN_LINE・直さずに諦めた: 訳・未完了）→ 報告（lib/runreport.py の _amend_lines）と最後の関所（ask_final の amend）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_amended_items_are_listed・tests/workflows/test_line.py::AskReplanCase.test_asked_items_reach_the_gate_answer（tests/workflows/test_report.py::ReplanLinesCase.test_each_replanned_item_has_one_line の名を変えた）
   - 本物の run: 筋書きでのみ
-  - 狭め: 記載無し（#68 report・#74 line のどちらか）。不可でない → 戻す
+  - 狭め: 記載無し（#68 report・#74 line のどちらか）。不可でない → 戻す → 部分 C で戻した
 
 - P147 案の直しを待つ行の締め（落ちの無い run は CLOSE_WHY で諦めた行にし、途中で落ちた run は締めず未完了 PENDING_WHY と報告して resume で続ける）
   - 元: works/.shared/core/replan.py:159 `close`・:176 `close_at`・:202 `settle`

@@ -503,11 +503,12 @@ class FactsCase(Run):
         code, out = self.run_script("facts", INPUTS_START=start, INPUTS_STOPS=json.dumps({"ask-final": "works:needs-human"}),
                                     INPUTS_DEFERRED='["[fork] q1"]', INPUTS_WIDENED='["項目 1: 直した——広げた"]',
                                     INPUTS_FINAL_REASONS='["守りのパスに当たった"]', INPUTS_PRIOR_FAILURES=prior,
-                                    INPUTS_REDEPTH=json.dumps(redepth), INPUTS_OPTIONAL='["eyes__"]')
+                                    INPUTS_REDEPTH=json.dumps(redepth), INPUTS_OPTIONAL='["eyes__"]',
+                                    INPUTS_FIX=json.dumps({"done": True, "units": [], "replan_items": ["1"], "refixed": True}))
         self.assertEqual(code, 0)
         self.assertEqual((out["outcome"], out["stop_reason"]), ("needs_human", "ask-final:works:needs-human"))
         text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
-        for line in (f"- {runreport.DEFERRED_HEAD}: 1 件\n  - [fork] q1", f"- {runreport.WIDENED_HEAD}: 1 件\n  - 項目 1: 直した——広げた",
+        for line in (f"- {runreport.DEFERRED_HEAD}: 1 件\n  - [fork] q1", "  - 案の項目 1: 直した——広げた",
                      f"- {runreport.FINAL_REASONS_HEAD}: 1 件\n  - 守りのパスに当たった", f"- {runreport.PRIOR_IN_HEAD}: 1 件\n  - 受け付け 計画: 前の run の拒否",
                      "  - 標準へ上げた信号: 再審が走った", "- 線の節の止め: ask-final が works:needs-human"):
             with self.subTest(line=line):

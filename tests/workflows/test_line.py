@@ -45,6 +45,7 @@ import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
 import policy  # noqa: E402
 import querytest  # noqa: E402
+import replan  # noqa: E402
 import seal  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
@@ -769,6 +770,22 @@ class AskReplanCase(Artifacts):
         self.assertEqual((got["open"], got["go"]), (False, True))
         self.assertEqual(got["widened"], ["項目 1: 直した——無人の run なので人に聞かずに範囲を広げた（allowed_paths に足した: util.py）"])
 
+    def test_asked_items_reach_the_gate_answer(self):
+        """P146・L-D39: 案の直しの関所に見せた項目の行（asked）を answer-replan が答えの asked にし、報告と最後の関所は項目ごとに人が
+        承認したか聞かずに通したかを読む（lib/replan.amend_lines。元 replan.lines の行の ask）"""
+        got = self.ask({**self.ITEM, "out_of_scope": ["cli.py"]})
+        self.assertEqual(got["asked"], ["項目 1: 約束の欄が変わった（out_of_scope）"])
+        self.assertEqual(self.ask({**self.ITEM, "approach": "別の手段"})["asked"], [])
+        answered = replan_answer.answer('{"decision": "continue", "text": "よい"}', "true", "", "null", "gate-replan", self.artifacts,
+                                        json.dumps(got["asked"], ensure_ascii=False))
+        self.assertEqual(answered["answer"]["asked"], got["asked"])
+        self.assertEqual(replan.amend_lines(["1"], refixed=True, answer=answered["answer"]), ["案の項目 1: 直した——人が承認した"])
+        nodes = line_nodes()
+        self.assertEqual(nodes["answer-replan"]["with"]["asked"], "$ask-replan.output.asked")
+        self.assertEqual({k: nodes["ask-final"]["with"][k] for k in ("replan_answer", "widened")},
+                         {"replan_answer": {"from": "$answer-replan.output.answer", "if_skipped": None},
+                          "widened": {"from": "$ask-replan.output.widened", "if_skipped": None}})
+
     def test_gate_text_shows_claim_ruling_and_both_items(self):
         """L-G44・L-D31: 案の直しの関所の文は聞く項目ごとに、約束の欄の変化・その項目を誤りとした申し出の文と裁定の文（字のまま）・
         前の項目と直した項目の JSON を見せる（元 replan._gate_section）"""
@@ -903,14 +920,14 @@ class AskFinalCase(unittest.TestCase):
                        split="修正の段は 1 単位（u1）を受け、1 単位（u2）を止めて持ち越した", deleted=["old.py"],
                        eyes={**self.got()["eyes"], "r3": {"status": "redesign-needed", "reason": ""}, "r4": None})
         text = ask_final.final_text(got, [], RUN)
-        for want in (f"## {querytest.UNPROVEN_HEAD}（1 件）", "- u1: 例が無い", f"## {ask_final.AMEND_HEAD}（1 件）", "- 案の項目 1: 直した",
+        for want in (f"## {querytest.UNPROVEN_HEAD}（1 件）", "- u1: 例が無い", f"## {replan.AMEND_HEAD}（1 件）", "- 案の項目 1: 直した",
                      f"- {seal.DELETED_HEAD}: old.py", "独立の目の阻害 1 件（R3）・結果が無い目 1 件（R4）", ask_final.NOT_COUNTED):
             self.assertIn(want, text)
         self.assertIn("1 単位（u2）を止めて持ち越した", text.splitlines()[0])
-        self.assertEqual(ask_final.amend_rows(["1"], None, False),
-                         ["案の項目 1: 直さずに諦めた: 2 度目の修正が走らなかった（案を直せなかったか、案の直しの関所で止めた）"])
-        self.assertEqual(ask_final.amend_rows(["2"], True, True), ["案の項目 2: 直した——人が承認した"])
-        self.assertEqual(ask_final.amend_rows(["2"], False, True), ["案の項目 2: 直した——聞かずに通した（約束の欄が変わらなかった）"])
+        self.assertEqual(replan.amend_lines(["1"], refixed=False), [f"案の項目 1: 直さずに諦めた: {replan.NOT_RUN_WHY}"])
+        approved = {"decision": "continue", "text": "", "asked": ["項目 2: 約束の欄が変わった（allowed_paths）"]}
+        self.assertEqual(replan.amend_lines(["2", "3"], refixed=True, answer=approved),
+                         ["案の項目 2: 直した——人が承認した", "案の項目 3: 直した——聞かずに通した（手段の欄だけ）"])
 
 
 class AskFinalReadsCase(Artifacts):

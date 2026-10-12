@@ -17,6 +17,7 @@ if str(LIB) not in sys.path:
 import carry  # noqa: E402
 import gatemarks  # noqa: E402
 import worldmark  # noqa: E402
+import conflict  # noqa: E402
 import outcome  # noqa: E402
 import outpurpose  # noqa: E402
 import querytest  # noqa: E402
@@ -703,7 +704,7 @@ class CarryCase(Base):
                  "replan": "waiting"}]
         fix = {**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": rows})}
         cut = runreport.next_request(fixed_run(fix=fix), [], closed=False)
-        self.assertEqual(cut, [{"where": "u2", "text": f"u2（{outcome.PENDING_WHY}。裁定の文: 案を直す。名指し 案。{outcome.HELD_WORK_KEPT}）"}])
+        self.assertEqual(cut, [{"where": "u2", "text": f"u2（{outcome.PENDING_WHY}。裁定の文: 案を直す。名指し 案。{conflict.HELD_WORK_KEPT}）"}])
         closed = runreport.next_request(fixed_run(fix=fix), [])
         self.assertIn(f"案の直し: {outcome.CLOSE_WHY}", closed[0]["text"])
         facts = runreport.transcript_facts([start("fix__write", "2026-10-12T00:00:00Z"),
@@ -987,11 +988,12 @@ class LinesCase(Base):
         line = {"deferred": ["[fork] u1: どちらに寄せるか"], "widened": ["項目 1: 直した——無人の run なので人に聞かずに範囲を広げた（allowed_paths に足した: b.py）"],
                 "final_reasons": ["守りのパスに当たった差分が在る"], "prior_failures": prior,
                 "stops": {"ask-final": stopby.NEEDS_HUMAN}}
-        _, text, decided = self.build(fixed_run(**{"merge-apply": None}), line=line)
+        fix = {**fixed_run()["fix"], "replan_items": ["1"], "refixed": True}
+        _, text, decided = self.build(fixed_run(fix=fix, **{"merge-apply": None}), line=line)
         self.assertEqual(decided, ("needs_human", f"ask-final:{stopby.NEEDS_HUMAN}"))
         decisions = self.section(text, report.DECISIONS_HEADING)
         self.assertIn(f"- {runreport.DEFERRED_HEAD}: 1 件\n  - [fork] u1: どちらに寄せるか\n", decisions)
-        self.assertIn("  - 項目 1: 直した——無人の run なので人に聞かずに範囲を広げた（allowed_paths に足した: b.py）", decisions)
+        self.assertIn("  - 案の項目 1: 直した——無人の run なので人に聞かずに範囲を広げた（allowed_paths に足した: b.py）", decisions)
         self.assertIn(f"- {runreport.FINAL_REASONS_HEAD}: 1 件\n  - 守りのパスに当たった差分が在る\n", decisions)
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn(f"- {runreport.PRIOR_IN_HEAD}: 1 件\n  - 受け付け 計画: 前の run で計画が通らなかった\n", entry)
@@ -1023,6 +1025,56 @@ class LinesCase(Base):
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn("- 深さ: 軽量（単位ごと: 軽量 1 個・標準 0 個。機械が決めた）", entry)
         self.assertIn(runreport.NO_REDEPTH, entry)
+
+    def test_converge_lines_reach_the_report(self):
+        """L-D22・P119・R35: 事前審査の壁打ちの往復の行（何往復・抜け方・続いた block と、往復ごとの block・fixed・disputed・suggest に
+        下げた key・項目の閉じた/開いた/保留・相乗りの block。converge.lines）を、事前審査の返り review の隣の gate.json の converge から
+        人が決めることの節に出す（元 report.head_decisions の converge.lines(b)。計画の往復と案の直しの事前審査の両方）"""
+        import converge
+        head = converge.LINE_HEAD.format(n=2, word="同じ block が続いた", outcome="persisted", persists="k1", path="plan-review/pass")
+        rounds = [head, converge.LINE_PASS.format(k=1, keys="k1", f=0, d=0, resolved="無い", down="無い"),
+                  converge.LINE_ITEMS.format(closed="1", open="2", held="無い", synergy="無い"),
+                  converge.LINE_PASS.format(k=2, keys="k1", f=1, d=1, resolved="無い", down="k2")]
+        review = self.put("plan-review/review.json", {})
+        self.put(f"plan-review/{gatemarks.GATE_RECORD_FILE}", {"items": [], "converge": rounds})
+        again = self.put("replan-review/review.json", {})
+        self.put(f"replan-review/{gatemarks.GATE_RECORD_FILE}", {"items": [], "converge": ["事前審査の壁打ち: 1 往復・抜け方は block が消えた"]})
+        returns = fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "review": review},
+                               "replan-review": {**fixed_run()["plan-review"], "review": again}})
+        _, text, _ = self.build(returns)
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("\n".join([f"- {head}", *rounds[1:]]) + "\n", body)
+        self.assertIn("- 事前審査の壁打ち: 1 往復・抜け方は block が消えた\n", body)
+        self.put(f"plan-review/{gatemarks.GATE_RECORD_FILE}", "{壊れた")
+        _, text, _ = self.build(returns)
+        self.assertIn(f"事前審査の壁打ちの往復（plan-review）: 読めない", self.section(text, report.DECISIONS_HEADING))
+
+    def test_amended_items_are_listed(self):
+        """L-D39・P146・R24: 同じ run で直した案の項目ごとに 1 行（元 replan.lines と report._amend_lines）を見出し AMEND_HEAD の下に
+        並べる: 案の直しの関所が聞いた項目を人が通した（人が承認した）・聞かずに通した（手段の欄だけ）・無人の run で範囲を広げた
+        （WIDEN_LINE）・2 度目の修正が走らなかった（直さずに諦めた: 申し出の行の replan_why か、関所の止めの一言）・途中で落ちた run（未完了）"""
+        import replan
+        rows = [{"unit_key": "u3", "between": ["案"], "ruling": {"decision": "fix_plan_item", "text": "案を直す", "plan_units": ["u3"],
+                                                              "plan_items": ["3"]}, "plan_items": ["3"], "replan": "gave_up",
+                 "replan_why": "直した案が事前審査を通らなかった"}]
+        fix = {**fixed_run()["fix"], "replan_items": ["1", "2", "4"], "refixed": True,
+               "conflicts": self.put("fix/conflicts.json", {"items": []})}
+        gate = {"decision": "continue", "text": "", "asked": ["項目 1: 約束の欄が変わった（allowed_paths）"]}
+        widened = ["項目 4: " + replan.widen_text({"allowed_paths": ["b.py"]})]
+        _, text, _ = self.build(fixed_run(fix=fix), gates={"gate-replan": gate}, line={"widened": widened})
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn(f"- {replan.AMEND_HEAD}: 3 件\n  - 案の項目 1: 直した——人が承認した\n"
+                      "  - 案の項目 2: 直した——聞かずに通した（手段の欄だけ）\n"
+                      "  - 案の項目 4: 直した——無人の run なので人に聞かずに範囲を広げた（allowed_paths に足した: b.py）\n", body)
+        fix = {**fix, "replan_items": ["3"], "refixed": False, "conflicts": self.put("fix/conflicts.json", {"items": rows})}
+        self.assertIn("  - 案の項目 3: 直さずに諦めた: 直した案が事前審査を通らなかった\n",
+                      self.section(self.build(fixed_run(fix=fix))[1], report.DECISIONS_HEADING))
+        stop = {"decision": "stop", "text": "範囲が違う", "asked": []}
+        fix = {**fix, "replan_items": ["5"]}
+        self.assertIn("  - 案の項目 5: 直さずに諦めた: 人が関所 gate-replan で run を止めた: 範囲が違う\n",
+                      self.section(self.build(fixed_run(fix=fix), gates={"gate-replan": stop})[1], report.DECISIONS_HEADING))
+        self.assertEqual(replan.amend_lines(["5"], refixed=False, pending=True), [f"案の項目 5: {outcome.PENDING_WHY}"])
+        self.assertNotIn(replan.AMEND_HEAD, self.build()[1])
 
     def test_every_line_is_a_bullet(self):
         """元 build の行の組み方: 節の行は「- 」か、字下げした内訳の行"""

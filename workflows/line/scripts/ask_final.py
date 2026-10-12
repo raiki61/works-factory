@@ -36,6 +36,7 @@ with linekit.guarded_imports():
     import gatepolicy
     import protect
     import querytest
+    import replan
     import runreport
     import seal
     import structmark
@@ -53,7 +54,6 @@ SELF_REPORTED = "role_needed"   # 証拠の走らせ方の語のうち、任せ�
 NO_DELTA_HOLES = "穴の数と枝の名札・手直しの結果: 取れない（修正の返りの約束に差分の審査の穴の控えが無い。S29）"
 NOT_COUNTED = ("clean が消したファイル・レンズ・仕組みの異常: 取れない（修正の返りの約束にその控えが無い。S28）")
 EYE_QUESTION_NODE = "r4.human_gate"
-AMEND_HEAD = "同じ run の中で直した修正案の項目"   # 元 replan.AMEND_HEAD
 
 
 def tests_word(ok: bool, green: bool, red_cause: str) -> str:
@@ -246,7 +246,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     lines += protected_section(got)
     lines += conflict_section(got)
     lines += rows_section(querytest.UNPROVEN_HEAD, got["unproven"])
-    lines += rows_section(AMEND_HEAD, got["amend"])
+    lines += rows_section(replan.AMEND_HEAD, got["amend"])
     lines += [f"最後の人の関所（最後のテストと独立の目の後・報告の前）: テストは{tests_word(got['tests_ok'], got['green'], got['red_cause'])}", ""]
     lines += tests_lines(got)
     lines += delta_lines(got)
@@ -397,8 +397,7 @@ def review_rows(reviews) -> tuple:
         try:
             folder = boundary.resolve(ptr).parent
             passes += gatemarks.pass_lines(json.loads((folder / gatemarks.PASSES_FILE).read_text(encoding="utf-8")))
-            gate = json.loads((folder / gatemarks.GATE_RECORD_FILE).read_text(encoding="utf-8"))
-            rounds += [x for x in (gate.get("converge") if isinstance(gate, dict) else None) or [] if isinstance(x, str)]
+            rounds += gatemarks.converge_of(folder)
         except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
             unread.append(f"事前審査の隣の控え（通した行・往復）を読めない（{type(error).__name__}: {' '.join(str(error).split())}）")
     return passes, rounds, unread
@@ -425,15 +424,6 @@ def judged_returns(raw: dict) -> dict:
 def rejudge_rows(returns: dict) -> list:
     """決着した再審の結果（runreport.rejudge_lines。残った異議の行は「止めずに残った異議」の 1 行が持つので外す）"""
     return [x for x in runreport.rejudge_lines(returns) if not x.startswith("再審されずに残った異議")]
-
-
-def amend_rows(items, replan_open, refixed: bool) -> list:
-    """同じ run の中で直した修正案の項目の行（元 replan.lines。項目ごとに 1 行）"""
-    if not items:
-        return []
-    how = ("直した——人が承認した" if replan_open and refixed else "直した——聞かずに通した（約束の欄が変わらなかった）" if refixed
-           else "直さずに諦めた: 2 度目の修正が走らなかった（案を直せなかったか、案の直しの関所で止めた）")
-    return [f"案の項目 {item}: {how}" for item in items]
 
 
 def deleted_files(diff) -> tuple:
@@ -494,8 +484,9 @@ def got_of_env() -> dict:
         "rejudge": rejudge_rows(returns),
         "split": runreport.split_line(returns),
         "unproven": [x.removeprefix("  - ") for x in runreport.unproven_lines(returns)[1:]],
-        "amend": amend_rows(linekit.items(os.environ.get("INPUTS_REPLAN_ITEMS")), env("REPLAN_OPEN"),
-                            linekit.flag(os.environ.get("INPUTS_REFIXED"))),
+        "amend": replan.amend_lines(linekit.items(os.environ.get("INPUTS_REPLAN_ITEMS")),
+                                    refixed=linekit.flag(os.environ.get("INPUTS_REFIXED")), answer=env("REPLAN_ANSWER"),
+                                    widened=linekit.items(os.environ.get("INPUTS_WIDENED"))),
         "delta_review": env("DELTA_REVIEW"),
         "branch_rows": [],
         "sealed": linekit.flag(os.environ.get("INPUTS_SEALED")),

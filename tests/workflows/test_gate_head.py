@@ -29,6 +29,7 @@ import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
 import protect  # noqa: E402
 import querytest  # noqa: E402
+import replan  # noqa: E402
 import runreport  # noqa: E402
 import seal  # noqa: E402
 
@@ -238,7 +239,7 @@ class FinalSectionsCase(unittest.TestCase):
         テスト・ログ・作業ツリー → 差分の審査 → 異議・再審 → 実測 → 通した行・往復 → 消えるファイル → 目 → 問い → 控え → 答え方）"""
         text = self.text(every_section())
         order = ["## " + ask_final.PROTECTED_HEAD, "## " + ask_final.ALLOWED_TESTS_HEAD, "## " + conflict.HEAD,
-                 "## " + querytest.UNPROVEN_HEAD, "## " + ask_final.AMEND_HEAD, "最後の人の関所（", "- テストの一式: ",
+                 "## " + querytest.UNPROVEN_HEAD, "## " + replan.AMEND_HEAD, "最後の人の関所（", "- テストの一式: ",
                  "- 修正前のテスト: ", "- ログ: ", "- run の作業ツリー: ", "- 差分の審査: 2 回", "差分の審査の穴の枝: 見本の 1 行",
                  "- 止めずに残った異議: 異議の文", "- 再審で決着した結果:", "直した後の実測: 表 1", "- 直す前の関所で通した項目",
                  "事前審査の壁打ち: 1 往復", f"- {seal.DELETED_HEAD}: old.py", "- 独立の目の判定", "- 残り（最後の関所で数えられる分）",

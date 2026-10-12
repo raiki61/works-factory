@@ -35,7 +35,9 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 import answer  # noqa: E402
+import conflict  # noqa: E402
 import gatemarks  # noqa: E402
+import replan  # noqa: E402
 import report  # noqa: E402
 import seal  # noqa: E402
 import stopby  # noqa: E402
@@ -57,30 +59,11 @@ RECORD_INVALID = "record-invalid"
 # 開けないと結果を名乗れない指し札 (段, 欄)。申し出と裁定が読めないと、人に回した申し出が見えなくなる
 MUST_OPEN = (("fix", "conflicts"),)
 
-# fix の conflicts の先（今の works の conflicts.json の包み）を欄の名で読む字。元は works/.shared/core/conflict.py:91-160 の
-# FILE・DECISIONS・FIX_DECISIONS・PLAN_UNITS・DIV_KINDS・UNSET・HEAD・REPLAN_STATE・WAITING・AMENDED・REPLAN_WHY・HELD_WORK_KEPT
-# と asked:388・ruled_units:470・counts:517・kind_counts:529（掃除の段で lib/conflict.py を引く形に寄せる）
-CONFLICT_ITEMS = "items"
-CONFLICT_RULING = "ruling"
-CONFLICT_DECISION = "decision"
-CONFLICT_REPLAN = "replan"
-CONFLICT_KIND = "kind"
-CONFLICT_HEAD = "食い違いの申し出"
-ASK_HUMAN = "ask_human"
-REPLACE_QUERY = "replace_query"
-FIX_PLAN_ITEM = "fix_plan_item"
-FIX_RULINGS = ("fix_test_scope", "fix_code_as", REPLACE_QUERY)
-RULINGS = ("fix_test_scope", "fix_code_as", ASK_HUMAN, REPLACE_QUERY, FIX_PLAN_ITEM)
-REPLAN_WAITING = "waiting"
-REPLAN_KEPT = (REPLAN_WAITING, "amended")
-REPLAN_WHY = "replan_why"
-PLAN_UNITS = "plan_units"
-HELD_WORK_KEPT = "この run の修正の段で直した分は作業ツリーに残した"
+# fix の conflicts の先（今の works の conflicts.json の包み）を読む欄の名と語は lib/conflict.py の物を引く（S34。自分の定数に写さない）。
+# 元は works/.shared/core/conflict.py:91-160 と asked:388・ruled_units:470・counts:517・kind_counts:529
 # 案の直しを待つ行の締め（元 works/.shared/core/replan.py:99-101）。途中で落ちた run は締めずに次の依頼へ未完了で運ぶ
 CLOSE_WHY = "同じ run の中で案の直しを終えられなかった（案の段に戻るのは 1 run に 1 回）"
-PENDING_WHY = "未完了（前の run が途中で落ちて、案の直しを終えていない）"
-DIV_KINDS = ("brief_vs_judgment", "unnamed_test_broke", "not_red", "scope_needed", "query_hits_fixed", "needs_context")
-UNSET = "unset"
+PENDING_WHY = replan.PENDING_WHY
 
 # 判定の judgment の隣の素材の測りの状態 {<素材の名>: {status, …}}（docs/design.md の「書き方の決め」の名指しの隣のファイル）。
 # 測れていない status は元の写しの検証器の STATUS で阻害になる物（gatemarks.unmeasured。works/.shared/core/gatemarks.py:708-716）
@@ -155,9 +138,9 @@ def conflict_rows(returns: dict) -> tuple[list, list]:
     for p in paths(as_dict(returns.get("fix")).get("conflicts")):
         try:
             doc = read_json(p)
-            items = doc.get(CONFLICT_ITEMS) if isinstance(doc, dict) else None
+            items = doc.get(conflict.ITEMS) if isinstance(doc, dict) else None
             if not isinstance(items, list):
-                raise ValueError(f"欄 {CONFLICT_ITEMS} の配列が無い")
+                raise ValueError(f"欄 {conflict.ITEMS} の配列が無い")
         except (OSError, ValueError) as e:
             notes.append(f"申し出と裁定のファイル {p} が読めない: {report._one_line(e)}")
             continue
@@ -166,21 +149,22 @@ def conflict_rows(returns: dict) -> tuple[list, list]:
 
 
 def _ruling(row: dict) -> str | None:
-    return as_dict(row.get(CONFLICT_RULING)).get(CONFLICT_DECISION)
+    return as_dict(row.get(conflict.RULING)).get(conflict.DECISION)
 
 
 def waiting_conflicts(returns: dict) -> list:
     """案の直しを待つ行（元 conflict.waiting）"""
     rows, _ = conflict_rows(returns)
-    return [i for i in rows if _ruling(i) == FIX_PLAN_ITEM and i.get(CONFLICT_REPLAN) == REPLAN_WAITING]
+    return [i for i in rows if _ruling(i) == conflict.REPLAN and i.get(conflict.REPLAN_STATE) == conflict.WAITING]
 
 
 def asked_conflicts(returns: dict, closed: bool = True) -> list:
     """人に諮る申し出の行（元 conflict.asked: 直す裁定でも裁定無しでもなく、案の直しを待つ・直した行でもない）。closed（途中で
     落ちていない run）なら、案の直しを待つ行も諦めた行として足す（元 report.build が先に replan.close_at で締めた形。訳は CLOSE_WHY）"""
     rows, _ = conflict_rows(returns)
-    asked = [i for i in rows if _ruling(i) not in (None, *FIX_RULINGS) and i.get(CONFLICT_REPLAN) not in REPLAN_KEPT]
-    return asked + [{**i, REPLAN_WHY: CLOSE_WHY} for i in waiting_conflicts(returns)] if closed else asked
+    asked = [i for i in rows if _ruling(i) not in (None, *conflict.FIX_DECISIONS)
+             and i.get(conflict.REPLAN_STATE) not in (conflict.WAITING, conflict.AMENDED)]
+    return asked + [{**i, conflict.REPLAN_WHY: CLOSE_WHY} for i in waiting_conflicts(returns)] if closed else asked
 
 
 def asked_units(returns: dict, closed: bool = True, rows: list | None = None) -> list:
@@ -191,7 +175,7 @@ def asked_units(returns: dict, closed: bool = True, rows: list | None = None) ->
     for r in rows:
         own.setdefault(r.get("unit_key"), r)
     for r in rows:
-        for k in dict.fromkeys([r.get("unit_key"), *(as_dict(r.get(CONFLICT_RULING)).get(PLAN_UNITS) or [])]):
+        for k in dict.fromkeys([r.get("unit_key"), *(as_dict(r.get(conflict.RULING)).get(conflict.PLAN_UNITS) or [])]):
             if isinstance(k, str) and k:
                 out.setdefault(k, own.get(k, r))
     return list(out.items())
@@ -199,18 +183,18 @@ def asked_units(returns: dict, closed: bool = True, rows: list | None = None) ->
 
 def conflict_counts(returns: dict) -> tuple[dict, dict]:
     """(裁定の内訳, 種類の内訳)（元 conflict.counts・kind_counts）。裁定は {parked, fix_test_scope, fix_code_as, ask_human,
-    unruled} に、replace_query・fix_plan_item は裁いた物が在る時だけ足す。種類は DIV_KINDS の全部（0 も）に、kind の無い行が
-    在る時だけ UNSET を足す"""
+    unruled} に、replace_query・fix_plan_item は裁いた物が在る時だけ足す。種類は conflict.DIV_KINDS の全部（0 も）に、kind の無い行が
+    在る時だけ conflict.UNSET を足す"""
     rows, _ = conflict_rows(returns)
-    rulings = {"parked": len(rows), "unruled": sum(1 for i in rows if i.get(CONFLICT_RULING) is None)}
-    for d in RULINGS:
+    rulings = {"parked": len(rows), "unruled": sum(1 for i in rows if i.get(conflict.RULING) is None)}
+    for d in conflict.DECISIONS:
         n = sum(1 for i in rows if _ruling(i) == d)
-        if n or d not in (REPLACE_QUERY, FIX_PLAN_ITEM):
+        if n or d not in (conflict.REPLACE, conflict.REPLAN):
             rulings[d] = n
-    kinds = {k: sum(1 for r in rows if r.get(CONFLICT_KIND) == k) for k in DIV_KINDS}
-    unset = sum(1 for r in rows if not r.get(CONFLICT_KIND))
+    kinds = {k: sum(1 for r in rows if r.get(conflict.KIND_FIELD) == k) for k in conflict.DIV_KINDS}
+    unset = sum(1 for r in rows if not r.get(conflict.KIND_FIELD))
     if unset:
-        kinds[UNSET] = unset
+        kinds[conflict.UNSET] = unset
     return rulings, kinds
 
 

@@ -31,6 +31,7 @@ if str(_HERE) not in sys.path:
 
 import carry  # noqa: E402
 import changemap  # noqa: E402
+import conflict  # noqa: E402
 import depth as depthlib  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
@@ -41,6 +42,7 @@ import planmarks  # noqa: E402
 import promptsection  # noqa: E402
 import querytest  # noqa: E402
 import report  # noqa: E402
+import replan  # noqa: E402
 import report_roles  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
@@ -91,7 +93,6 @@ REJUDGE_LEFT_WHERE = "判定（再審されずに残った異議）"
 UNSEEN = "取れない（docs/design.md の U6。読んだ証拠を run の記録から取り出す口が無い）"
 # 線の値（線の collect が report の入力で渡す物。docs/design.md の report の返り）の行の頭
 DEFERRED_HEAD = "無人の run で修正前の関所に載せずに報告へ回した問い（関所を開かずに修正へ進めた）"
-WIDENED_HEAD = "無人の run で聞かずに通した範囲を広げるだけの直し"
 FINAL_REASONS_HEAD = "最後の関所を開ける理由（無人の run では開かずに止めた理由）"
 PRIOR_IN_HEAD = "依頼が運んだ前の run の失敗（prior_failures）"
 NO_REDEPTH = "直した後の深さの上げ直しの返りが無い（上げ直しの節が走っていない）。計画の深さのまま"
@@ -514,15 +515,15 @@ def _asked_rows(returns: dict, closed: bool) -> list:
     out = []
     if not closed:
         for k, r in oc.asked_units(returns, rows=oc.waiting_conflicts(returns)):
-            out.append({"where": k, "text": f"{k}（{oc.PENDING_WHY}。裁定の文: {as_dict(r.get(oc.CONFLICT_RULING)).get('text') or ''}。"
-                                            f"名指し {', '.join(str(x) for x in _list(r.get('between')))}。{oc.HELD_WORK_KEPT}）"})
+            out.append({"where": k, "text": f"{k}（{oc.PENDING_WHY}。裁定の文: {as_dict(r.get(conflict.RULING)).get('text') or ''}。"
+                                            f"名指し {', '.join(str(x) for x in _list(r.get('between')))}。{conflict.HELD_WORK_KEPT}）"})
     for k, r in oc.asked_units(returns, closed):
-        ruling = as_dict(r.get(oc.CONFLICT_RULING))
-        why = r.get(oc.REPLAN_WHY)
+        ruling = as_dict(r.get(conflict.RULING))
+        why = r.get(conflict.REPLAN_WHY)
         out.append({"where": k,
-                    "text": f"{k}（{oc.CONFLICT_HEAD}を人に回した——直さずに残した。裁定の文: {ruling.get('text') or ''}。"
+                    "text": f"{k}（{conflict.HEAD}を人に回した——直さずに残した。裁定の文: {ruling.get('text') or ''}。"
                             f"名指し {', '.join(str(x) for x in _list(r.get('between')))}"
-                            + (f"。案の直し: {why}。{oc.HELD_WORK_KEPT}" if why else "") + "）"})
+                            + (f"。案の直し: {why}。{conflict.HELD_WORK_KEPT}" if why else "") + "）"})
     return out
 
 
@@ -628,11 +629,11 @@ def _gate_passes(returns: dict) -> list:
 def _conflict_line(returns: dict) -> str:
     """申し出の件数と裁定・種類の内訳（元 report._conflict_line）"""
     c, k = oc.conflict_counts(returns)
-    plan_n = f"・案の項目を直す（{oc.FIX_PLAN_ITEM}）{c[oc.FIX_PLAN_ITEM]}" if oc.FIX_PLAN_ITEM in c else ""
-    swap = f"・問いを置き換える（{oc.REPLACE_QUERY}）{c[oc.REPLACE_QUERY]}" if oc.REPLACE_QUERY in c else ""
-    kinds = [f"{x} {k[x]}" for x in oc.DIV_KINDS] + ([f"種類なし {k[oc.UNSET]}"] if oc.UNSET in k else [])
-    return (f"{oc.CONFLICT_HEAD}: {c['parked']} 件（裁定の内訳。括弧は記録の名: テストの直しを許す（fix_test_scope）"
-            f"{c['fix_test_scope']}・コードをこう直す（fix_code_as）{c['fix_code_as']}・人に回す（ask_human）{c[oc.ASK_HUMAN]}"
+    plan_n = f"・案の項目を直す（{conflict.REPLAN}）{c[conflict.REPLAN]}" if conflict.REPLAN in c else ""
+    swap = f"・問いを置き換える（{conflict.REPLACE}）{c[conflict.REPLACE]}" if conflict.REPLACE in c else ""
+    kinds = [f"{x} {k[x]}" for x in conflict.DIV_KINDS] + ([f"種類なし {k[conflict.UNSET]}"] if conflict.UNSET in k else [])
+    return (f"{conflict.HEAD}: {c['parked']} 件（裁定の内訳。括弧は記録の名: テストの直しを許す（fix_test_scope）"
+            f"{c['fix_test_scope']}・コードをこう直す（fix_code_as）{c['fix_code_as']}・人に回す（ask_human）{c[conflict.ASK]}"
             f"{swap}{plan_n}・裁定なし {c['unruled']}）。種類の内訳: " + "・".join(kinds))
 
 
@@ -753,11 +754,41 @@ def _counted(head: str, rows: list) -> list:
 
 
 def _line_lines(line: dict) -> list:
-    """線の値の行: 無人の run で修正前の関所に載せなかった問い（ask-before-fix の deferred）・聞かずに通した範囲を広げるだけの直し
-    （ask-replan の widened。元 replan.WIDEN_LINE の字）・最後の関所を開ける理由（ask-final の reasons）"""
+    """線の値の行: 無人の run で修正前の関所に載せなかった問い（ask-before-fix の deferred）・最後の関所を開ける理由（ask-final の
+    reasons）。聞かずに通した範囲を広げるだけの直し（ask-replan の widened）は案の直しの項目の行（_amend_lines）が持つ"""
     line = as_dict(line)
-    return [*_counted(DEFERRED_HEAD, _list(line.get("deferred"))), *_counted(WIDENED_HEAD, _list(line.get("widened"))),
-            *_counted(FINAL_REASONS_HEAD, _list(line.get("final_reasons")))]
+    return [*_counted(DEFERRED_HEAD, _list(line.get("deferred"))), *_counted(FINAL_REASONS_HEAD, _list(line.get("final_reasons")))]
+
+
+def _amend_lines(returns: dict, gates: dict, line: dict, closed: bool) -> list:
+    """同じ run の中で直した修正案の項目ごとの 1 行（元 report._amend_lines・replan.lines。lib/replan.amend_lines）: 修正の返りの
+    replan_items と refixed・案の直しの関所の答え・線の widened・申し出の行の諦めた訳（replan_why。項目の番号は行の plan_items）"""
+    fix = as_dict(returns.get("fix"))
+    items = [str(i) for i in _list(fix.get("replan_items"))]
+    whys = {}
+    for r in oc.conflict_rows(returns)[0]:
+        why = r.get(conflict.REPLAN_WHY)
+        for n in _list(r.get(conflict.PLAN_ITEMS)) or _list(as_dict(r.get(conflict.RULING)).get(conflict.PLAN_ITEMS)):
+            if isinstance(why, str) and why:
+                whys.setdefault(str(n), why)
+    rows = replan.amend_lines(items, refixed=fix.get("refixed") is True, answer=gates.get("gate-replan"),
+                              widened=_list(as_dict(line).get("widened")), whys=whys, pending=not closed)
+    return _counted(replan.AMEND_HEAD, rows)
+
+
+def _converge_lines(returns: dict) -> list:
+    """事前審査の壁打ちの往復の行（元 report.head_decisions の converge.lines。返り review の隣の gate.json の converge。計画の往復と
+    案の直しの事前審査）。控えが読めなければその 1 行"""
+    out = []
+    for rid in ("plan-review", "replan-review"):
+        p = as_dict(returns.get(rid)).get("review")
+        if not (isinstance(p, str) and p):
+            continue
+        try:
+            out += gatemarks.converge_of(pathlib.Path(p).parent)
+        except (OSError, ValueError) as e:
+            out.append(f"事前審査の壁打ちの往復（{rid}）: 読めない（{report._one_line(e)}）")
+    return out
 
 
 def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, repo=None,
@@ -807,7 +838,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     lines += pr_lines(returns)
     lines += premise_lines(returns, start)
     lines += inner_word_lines(as_dict(returns.get("fix")).get("diff"), lambda w: _target_uses(repo, rev, w))
-    return lines + _gate_passes(returns) + _line_lines(line), decide
+    return lines + _gate_passes(returns) + _converge_lines(returns) + _amend_lines(returns, gates, line, closed) + _line_lines(line), decide
 
 
 def _tdd_stages(typed: dict) -> tuple[list, list]:

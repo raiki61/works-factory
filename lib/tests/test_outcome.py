@@ -10,6 +10,7 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import conflict  # noqa: E402
 import outcome  # noqa: E402
 import report  # noqa: E402
 import stopby  # noqa: E402
@@ -142,6 +143,20 @@ class LineStopCase(unittest.TestCase):
         self.assertIn(stopby.NEEDS_HUMAN, outcome.WAIT_WORDS)
 
 
+class ConflictNamesCase(unittest.TestCase):
+    def test_conflict_field_names_come_from_conflict(self):
+        """S34: 結末と報告は fix の conflicts.json の欄の名と裁定の語を lib/conflict.py から引き、自分の定数に写さない（K20）"""
+        import conflict
+        import runreport
+        for name in ("CONFLICT_ITEMS", "CONFLICT_RULING", "CONFLICT_DECISION", "CONFLICT_REPLAN", "CONFLICT_KIND", "CONFLICT_HEAD",
+                     "ASK_HUMAN", "REPLACE_QUERY", "FIX_PLAN_ITEM", "FIX_RULINGS", "RULINGS", "REPLAN_WAITING", "REPLAN_KEPT",
+                     "REPLAN_WHY", "PLAN_UNITS", "HELD_WORK_KEPT", "DIV_KINDS", "UNSET"):
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(outcome, name))
+                self.assertFalse(hasattr(runreport, name))
+        self.assertEqual((conflict.ITEMS, conflict.RULING, conflict.DECISION), ("items", "ruling", "decision"))
+
+
 class OrderCase(unittest.TestCase):
     def test_request_before_line_stop(self):
         returns = fixed_run(**{"merge-seal": {"ok": False}})
@@ -218,7 +233,7 @@ class ReadingCase(unittest.TestCase):
         waiting = {"unit_key": "u3", "ruling": {"decision": "fix_plan_item", "text": "案を", "plan_units": ["u3"]}, "replan": "waiting"}
         fix = {**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": [waiting]})}
         self.assertEqual(decide(fixed_run(fix=fix)), ("needs_human", f"fix:{stopby.CONFLICT}"))
-        self.assertEqual(outcome.asked_conflicts(fixed_run(fix=fix))[0][outcome.REPLAN_WHY], outcome.CLOSE_WHY)
+        self.assertEqual(outcome.asked_conflicts(fixed_run(fix=fix))[0][conflict.REPLAN_WHY], outcome.CLOSE_WHY)
         self.assertEqual(decide(fixed_run(fix=fix), facts={**OK_FACTS, "failed": ["refix__write"]})[0], "interrupted")
         self.assertEqual(outcome.asked_conflicts(fixed_run(fix=fix), closed=False), [])
         self.assertEqual(outcome.waiting_conflicts(fixed_run(fix=fix)), [waiting])
@@ -323,7 +338,7 @@ class ReadingCase(unittest.TestCase):
         returns = fixed_run(fix={**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": rows})})
         rulings, kinds = outcome.conflict_counts(returns)
         self.assertEqual(rulings, {"parked": 4, "unruled": 1, "fix_test_scope": 0, "fix_code_as": 1, "ask_human": 1, "fix_plan_item": 1})
-        self.assertEqual((kinds["not_red"], kinds["scope_needed"], kinds[outcome.UNSET]), (2, 1, 1))
+        self.assertEqual((kinds["not_red"], kinds["scope_needed"], kinds[conflict.UNSET]), (2, 1, 1))
         self.assertEqual([k for k, _ in outcome.asked_units(returns)], ["u1", "u2", "u3"])
 
     def test_ok_outcomes(self):

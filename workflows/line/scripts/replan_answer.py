@@ -8,7 +8,10 @@
 修正前の関所の答えの条件と案の直しの関所の一言を見出しの下に並べた文（元 works/.shared/core/replan.py の _notes。人が修正前の
 関所で答えた条件は 2 度目の修正にも効く）と、修正前の関所で見せた問いの行 asked（人が通した問いの単位を 2 度目の修正も直す）。
 
-入力（with:）: gate_answer の入力と before_fix（修正前の関所の答え）
+答え {decision, text, asked} の asked は案の直しの関所に見せた項目の行（ask-replan の asked。「項目 <id>: …」の行で、報告と最後の関所が
+項目ごとに人が承認したかを読む。lib/replan.amend_lines）。
+
+入力（with:）: gate_answer の入力と before_fix（修正前の関所の答え）・asked（関所に見せた項目の行）
 """
 import os
 from pathlib import Path
@@ -35,8 +38,8 @@ def fix_answers(before_fix, replan) -> dict | None:
     return {"decision": answered[-1]["decision"], "text": "\n".join(parts), "asked": asked if isinstance(asked, list) else []}
 
 
-def answer(gate_raw, go_raw, stop_raw, before_fix_raw, place: str, artifacts: Path) -> dict:
-    got = gate_answer.answer(gate_raw, go_raw, stop_raw, place, artifacts)
+def answer(gate_raw, go_raw, stop_raw, before_fix_raw, place: str, artifacts: Path, asked_raw=None) -> dict:
+    got = gate_answer.answer(gate_raw, go_raw, stop_raw, place, artifacts, asked_raw)
     return {**got, "fix_answers": fix_answers(linekit.value(before_fix_raw), got["answer"])}
 
 
@@ -46,5 +49,6 @@ def fallback(reason: str) -> dict:
 
 if __name__ == "__main__":
     linekit.run(lambda: answer(os.environ.get("INPUTS_GATE"), os.environ.get("INPUTS_GO"), os.environ.get("INPUTS_STOP_REASON"),
-                               os.environ.get("INPUTS_BEFORE_FIX"), os.environ["INPUTS_PLACE"], Path(os.environ["ARTIFACTS_DIR"])),
+                               os.environ.get("INPUTS_BEFORE_FIX"), os.environ["INPUTS_PLACE"], Path(os.environ["ARTIFACTS_DIR"]),
+                               os.environ.get("INPUTS_ASKED")),
                 fallback)
