@@ -1505,7 +1505,7 @@
 - S29「約束を変える頼み」2: fix の返りに、手直しの穴の名札（差分の審査の穴と、手直しが `handled` とした行）の指し札を足す。→ **開いている**
 - S30「約束を変える頼み」3: 線の `redepth` の返りを report の入力に足す。→ **部分 C で閉じた**（report の入力 redepth ← collect ← $redepth.output）
 - S31「約束を変える頼み」4: 判定の `judgment` の隣に `answer-ties.json`・`world-state.json` を置く。→ **部分 C で閉じた**（answer-ties.json・world-state.json は約束の隣のファイル（docs/design.md）。報告が world-state.json を読む）
-- S32「約束を変える頼み」5: 受け付けの最後の拒否の本文と、並行 PR への申し送りの下書きを、各ブロックの返りの指し札にする。→ **開いている**
+- S32「約束を変える頼み」5: 受け付けの最後の拒否の本文と、並行 PR への申し送りの下書きを、各ブロックの返りの指し札にする。→ **部分 C で閉じた**（受け付けの最後の拒否の本文は報告が止めた段の置き場の下から読み前の失敗に載せる（rolekit.last_reject）。並行 PR への申し送りの下書きは約束の隣のファイル pr-downgrades.json を報告が読む）
 - S33「後の issue に渡す物」1: 最後の関所に並べる行の場面（元 `test_gate_head.py` の FinalHeadCase ほか）。→ **済み**（`tests/workflows/test_gate_head.py:116-176`）
 - S34「後の issue に渡す物」2: runreport・outcome が読む `conflicts.json` の欄の名を `lib/conflict.py` から引く形に寄せる。→ **部分 C で閉じた**（lib/outcome.py・lib/runreport.py は conflict.ITEMS・RULING・DECISION ほか lib/conflict.py の名を引く。lib/tests/test_outcome.py::ConflictNamesCase）
 - S35「後の issue に渡す物」3: 書き手の会話の続き（輪の間に cold を挟む時、会話がどう継がれるか）を本物の run で確かめる。→ **開いている**（本物の run で見る）

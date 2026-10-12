@@ -106,6 +106,17 @@ class TableCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(**{"test-gate-final": None})), ("interrupted", "test-gate-final:chain-cut"))
         self.assertEqual(decide(fixed_run(**{"merge-seal": None, "merge-apply": None})), ("interrupted", "merge-seal:chain-cut"))
 
+    def test_missing_eye_of_a_standard_run_is_left(self):
+        """R14（元 report.eye_counts の missing「結果が無い——再実行の要あり」:599-602）: 直した後の深さが標準（線の redepth の
+        skip_optional が空。facts の eyes_skip）なのに返りの無い目は、深さで省いた目と分けて残りに数える。軽量で省いた run と、深さの
+        返りの届かない run は数えない"""
+        eyes = {**fixed_run()["eyes"], "r2": None}
+        self.assertEqual(decide(fixed_run(eyes=eyes), facts={**OK_FACTS, "eyes_skip": ""}), ("round_limit", ""))
+        self.assertIn({"where": f"{report.EYES_WHERE} R2", "text": "R2 の結果が無い——再実行の要あり（深さは標準で、省いていない）"},
+                      outcome.residue(fixed_run(eyes=eyes), {"eyes_skip": ""}))
+        self.assertEqual(decide(fixed_run(eyes=eyes), facts={**OK_FACTS, "eyes_skip": "軽量で省いた"}), ("fixed", ""))
+        self.assertEqual(decide(fixed_run(eyes=eyes)), ("fixed", ""))
+
     def test_eyes_not_ok_without_counted_eyes_is_left(self):
         """独立の目のブロックが ok: false で、数えた目（r1〜r4）が全部 null でも、残りに 1 行入れて fixed にしない"""
         eyes = {**fixed_run()["eyes"], "ok": False, "r1": None}

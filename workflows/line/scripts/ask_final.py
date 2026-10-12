@@ -50,7 +50,6 @@ ALLOWED_TESTS_HEAD = "書き換えを許したテストを触った"   # 元は 
 CONFLICT_UNREAD = "食い違いの申し出の控えを読めない"
 RECORD = "run の置き場の gates/gate-final.json"
 FINAL_GATE_FILE = "gates/final-gate.md"   # 開いた関所の文の控え（元 line_edge.FINAL_GATE_FILE）
-SELF_REPORTED = "role_needed"   # 証拠の走らせ方の語のうち、任せ先の役が素材を書いた（engine が走らせていない）物
 NO_DELTA_HOLES = "穴の数と枝の名札・手直しの結果: 取れない（修正の返りの約束に差分の審査の穴の控えが無い。S29）"
 NOT_COUNTED = ("clean が消したファイル・レンズ・仕組みの異常: 取れない（修正の返りの約束にその控えが無い。S28）")
 EYE_QUESTION_NODE = "r4.human_gate"
@@ -173,9 +172,8 @@ def tests_lines(got: dict) -> list:
     ev = got["evidence"]
     lines = [f"- テストの一式: {ev['suites'] or '証拠に走らせ方の行が無い'}",
              f"- {runreport.BASELINE_ROW[0]}: {ev['baseline'] or '証拠に修正前のテストの行が無い'}"]
-    if ev["suites"].startswith(SELF_REPORTED):
-        lines.append(f"- 最後のテストは engine が走らせた結果ではない（任せ先の申告）。走らせる語を宣言 {declared_checks.DECL_NAME} に"
-                     "書けば次の run から engine が走らせる。確かめてから通すか（continue の一言に何を走らせて何色だったか）、止めるか（stop）")
+    if ev["suites"].startswith(declared_checks.ROLE_NEEDED):
+        lines.append(f"- {declared_checks.SELF_REPORTED_NOTE}。確かめてから通すか（continue の一言に何を走らせて何色だったか）、止めるか（stop）")
     lines.append(f"- ログ: {ev['log'] or '（無い）'}")
     if ev["why"]:
         lines.append(f"- 走れなかった・認証しなかった理由: {ev['why']}")

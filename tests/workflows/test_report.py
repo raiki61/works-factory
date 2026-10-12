@@ -519,6 +519,18 @@ class FactsCase(Run):
         self.assertEqual(out["outcome"], "record_invalid")
         self.assertIn("入力 deferred が JSON でない", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
 
+    def test_missing_eye_of_a_standard_run_is_not_fixed(self):
+        """R14: 直した後の深さが標準（入力 redepth の skip_optional が空）なのに返りの無い目は、結末を fixed にしない（深さで省いた run は数えない）"""
+        start = self.pointer("start/start.json", {"run_id": RUN})
+        env = {"INPUTS_START": start, "INPUTS_JUDGE": json.dumps({"ready": True, "stop_reason": "", "units": [{"id": "u1"}]}),
+               "INPUTS_PLAN": '{"ready": true, "round": 1}', "INPUTS_FIX": json.dumps({"done": True, "units": []}),
+               "INPUTS_TEST_GATE_FINAL": '{"ok": true, "green": true}', "INPUTS_MERGE_SEAL": '{"ok": true}',
+               "INPUTS_EYES": json.dumps({"ok": True, "r1": {"status": "pass", "reason": ""}, "r2": None, "r3": None, "r4": None})}
+        standard = {"depth": [], "skip_optional": "", "raised": [], "counted": "", "stop_reason": ""}
+        self.assertEqual(self.run_script("facts", **env, INPUTS_REDEPTH=json.dumps(standard))[1]["outcome"], "round_limit")
+        light = {**standard, "skip_optional": "軽量で省いた"}
+        self.assertEqual(self.run_script("facts", **env, INPUTS_REDEPTH=json.dumps(light))[1]["outcome"], "fixed")
+
     def test_returns_with_pointers_reach_the_report(self):
         judgment = self.pointer("judge/judgment.json", {})
         judge = json.dumps({"ready": True, "stop_reason": "", "units": [{"id": "u1"}], "judgment": json.loads(judgment)})

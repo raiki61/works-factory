@@ -169,7 +169,9 @@ def main() -> dict:
     decided = outcome.decide_outcome(returns, gates, {"start_ok": bool(start), "record_problems": problems,
                                                       "failed": facts["failed"],
                                                       "absorbed": facts["absorbed"], "answers": start.get("answers") or [],
-                                                      "stops": list(line["stops"].items())})
+                                                      "stops": list(line["stops"].items()),
+                                                      "eyes_skip": (line["redepth"] or {}).get("skip_optional")
+                                                      if isinstance(line["redepth"], dict) else None})
     built = runreport.build(returns, gates, listing, facts, *decided, out_dir=out_dir(), start=start, problems=problems,
                             run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd(), line=line)
     report = rel(built["report"])

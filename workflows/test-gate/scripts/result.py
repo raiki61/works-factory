@@ -68,6 +68,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     import baseline_red
     import declared_checks
     import green_cert
+    import rolekit
     from engine import util   # declared_checks が lib/graphloops を sys.path に足す
 
     if mode not in declared_checks.MODES:
@@ -82,7 +83,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
         raise ValueError(f"{rel(mode, 'run.json')} が無い——節 run が落ちたか飛ばされた")
     run = read_json(run_path)
     ci_path = artifacts / rel(mode, "ci-material.json")
-    role = run["by"] == "role_needed"
+    role = run["by"] == declared_checks.ROLE_NEEDED
     material = (read_json(ci_path)["material"] if ci_path.is_file() else None) if role else run["material"]
     status = (material or {}).get("status")
     green = status == "clean"
@@ -91,8 +92,10 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     base = None
     if mode == "final" and baseline_raw.strip() not in NONE_WORDS:
         base = baseline_red.read_baseline(boundary.resolve(json.loads(baseline_raw)))
-    if material is None:
-        red_cause, summary = "incomplete", "任せ先の CI の役が素材を渡さなかった（受け付けが拒み続けた・輪が回らなかった）"
+    if material is None:   # 3 回とも拒まれて諦めた時は最後の拒否の文を人に見える証拠に出す（T45。元 ci_role.collect :349-356）
+        red_cause = "incomplete"
+        summary = (rolekit.given_up_reason(artifacts / rel(mode, ""), declared_checks.CI_ROLE)
+                   or "任せ先の CI の役が素材を渡さなかった（受け付けが拒み続けた・輪が回らなかった）")
     else:
         cases = base["cases"] if base and base["exit"] is not None and suite_exit(run) is not None else None
         red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=run["cases"], baseline_cases=cases,

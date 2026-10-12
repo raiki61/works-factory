@@ -488,6 +488,20 @@ class ResultScriptCase(ScriptCase):
         out = self.result("base")
         self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, "incomplete"))
 
+    def test_given_up_role_names_last_reject(self):
+        """T45（元 ci_role.collect :349-356 の「<節> の返答が 3 回とも受け付けで拒まれた（最後の拒否: …）」）: 任せ先の CI の役が 3 回とも
+        拒まれて素材が無い時、証拠の文に最後の拒否の文を出す（人に見える所）。拒否が 3 回に届いていなければ前の固定の文"""
+        self.assertEqual(self.ok("run", mode="base", start=self.start)["by"], declared_checks.ROLE_NEEDED)
+        gate = self.artifacts / "test-gate" / "base"
+        out = self.result("base")
+        self.assertIn("任せ先の CI の役が素材を渡さなかった", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
+        for k in (1, 2, 3):
+            rolekit.with_done(gate, declared_checks.CI_ROLE, {"ok": False, "reason": f"素材の欄が足りない {k}"})
+        out = self.result("base")
+        self.assertEqual((out["ok"], out["red_cause"]), (False, "incomplete"))
+        self.assertIn(f"{declared_checks.CI_ROLE} の返答が 3 回とも受け付けで拒まれた（最後の拒否: 素材の欄が足りない 3）",
+                      self.pointed(out["evidence"]).read_text(encoding="utf-8"))
+
     def test_final_not_run_is_incomplete(self):
         self.ok("run", mode="final", start=self.start)
         gate = self.artifacts / "test-gate" / "final"

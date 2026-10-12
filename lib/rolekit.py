@@ -7,6 +7,7 @@
                   積み、通った時か give_up_after 回目の拒否で done（控えは intake が clear_rejects で消す）
 - rejected:       盤面の節でない受け付けの拒否の文の並び（古い順。指示書の番号と、輪が落ちた周の最後の拒否の文に使う）
 - given_up_reason: 盤面の節でない受け付けの出口が、控えの最後の拒否の文を引く
+- last_reject(folder): 置き場の下の受け付けの最後の拒否の本文（報告の前の失敗の行が読む）
 - parse_reply:    役の返答（$<役>.output の JSON の文字列）を dict に
 - LANG_RULE・LANG_DEFAULT・lang_line(start): 役の文の頭に足す言語の 1 行（元 rolekit.py 67-68 行・147-150 行。言語は始めの記録の
                   lang。空なら依頼文の言語。元 board.py 96 行）。判定・計画・修正・独立の目・報告の書き手の役が同じ口で読む
@@ -142,6 +143,25 @@ def given_up_reason(board: pathlib.Path, name: str, *, give_up_after: int = GIVE
     """控えの拒否が give_up_after 件あれば、諦めた理由の 1 行（最後の拒否の文）。届いていなければ空"""
     got = rejected(board, name)
     return _gave_up_text(name, len(got), got[-1]) if len(got) >= give_up_after else ""
+
+
+def last_reject(folder) -> str:
+    """置き場 folder（の下）の受け付けの最後の拒否の本文（元 report._accept_last_files の reason_file の本文）: 拒否の控え
+    rejects-<名>.json の最後の行の文と、拒否の訳のファイル reject-*.md・reject-*.txt のうち一番新しい物。無い・読めなければ空"""
+    rows = []
+    for p in pathlib.Path(folder).rglob("reject*") if pathlib.Path(folder).is_dir() else ():
+        try:
+            if p.name.startswith("rejects-") and p.suffix == ".json":
+                got = json.loads(p.read_text(encoding="utf-8"))
+                text = str(got[-1].get("reason", "")) if isinstance(got, list) and got and isinstance(got[-1], dict) else ""
+            elif p.name.startswith("reject-") and p.suffix in (".md", ".txt"):
+                text = p.read_text(encoding="utf-8", errors="replace")
+            else:
+                continue
+            rows.append((p.stat().st_mtime, text))
+        except (OSError, ValueError):
+            continue
+    return " ".join(max(rows, key=lambda r: r[0])[1].split()) if rows else ""
 
 
 def parse_reply(raw):

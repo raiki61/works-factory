@@ -70,7 +70,8 @@ class Base(unittest.TestCase):
         gates = gates or {}
         decided = outcome.decide_outcome(returns, gates, {"start_ok": True, "record_problems": list(problems),
                                                           "failed": (transcript or {}).get("failed", []),
-                                                          "stops": list(((line or {}).get("stops") or {}).items())})
+                                                          "stops": list(((line or {}).get("stops") or {}).items()),
+                                                          "eyes_skip": ((line or {}).get("redepth") or {}).get("skip_optional")})
         got = runreport.build(returns, gates, typed or {}, transcript, *decided, out_dir=self.out, start=start or {"run_id": RUN},
                               problems=problems, run_id=RUN, line=line)
         return got, pathlib.Path(got["report"]).read_text(encoding="utf-8"), decided
@@ -290,6 +291,18 @@ class TranscriptCase(Base):
 
 
 class DecisionsCase(Base):
+    def test_residue_count_is_always_shown(self):
+        """R20（元 report.always_rows の「残り: N 件」:1588-1591）: 残りの件数の行を結末に依らず人が決めることの節に出す（0 件も）。
+        残りが在れば、結果が無い目の注記を添える"""
+        _, text, decided = self.build()
+        self.assertEqual(decided[0], "fixed")
+        self.assertIn(f"- {runreport.RESIDUE_HEAD}: 0 件（", self.section(text, report.DECISIONS_HEADING))
+        eyes = {**fixed_run()["eyes"], "r3": {"status": "redesign-needed", "reason": "崩れる"}}
+        _, text, _ = self.build(fixed_run(eyes=eyes))
+        line = next(x for x in self.section(text, report.DECISIONS_HEADING).splitlines() if x.startswith(f"- {runreport.RESIDUE_HEAD}"))
+        self.assertIn(": 1 件（", line)
+        self.assertIn(runreport.MISSING_EYE_NOTE, line)
+
     def test_nothing_to_decide_puts_next_items(self):
         """元 ReportHeadCase.test_nothing_to_decide_puts_next_items: 決めることが無い run は 2 行目に次の run に渡す物の件数"""
         p = self.put("judge/out-of-purpose.json", {"rounds": {"1": [{"source": "P1", "why_outside": "目的の外の所見",
@@ -720,11 +733,28 @@ class CarryCase(Base):
         returns = fixed_run(judge={**fixed_run()["judge"], "ready": False, "stop_reason": stopby.PURPOSE})
         rows = runreport.prior_failures(returns, [])
         self.assertEqual(rows, [{"where": f"{runreport.STOPPED_WHERE} judge",
-                                 "text": f"{stopby.PURPOSE}（{stopby.REASONS['purpose']}）。受け付けの最後の拒否の本文は返りに無い"}])
+                                 "text": f"{stopby.PURPOSE}（{stopby.REASONS['purpose']}）。{runreport.NO_REJECT}"}])
         returns = fixed_run(plan={"ready": False, "stop_reason": stopby.FIX, "depth": []}, fix=None)
         self.assertEqual([r["where"] for r in runreport.prior_failures(returns, [])], [runreport.PLAN_GAVE_UP_WHERE])
         returns = fixed_run(fix={**fixed_run()["fix"], "stop_reason": stopby.CONFLICT})
         self.assertEqual(runreport.prior_failures(returns, []), [], "人待ちの語は前の失敗でない")
+
+
+    def test_last_reject_text_is_a_prior_failure(self):
+        """R78（元 report._accept_last_files・prior_failures :713・:732-749）: 止めの語で止めた段の置き場（返りの指し札と同じフォルダの
+        下）の受け付けの最後の拒否の本文（拒否の控え rejects-<役>.json の最後の行か reject-*.md・reject-*.txt の一番新しい物）を、前の失敗の
+        行の文に載せる（lib/rolekit.last_reject）"""
+        import os
+        import rolekit
+        judgment = self.put("judge/judgment.json", {})
+        self.put("judge/rejects-purpose.json", [{"at": "t1", "reason": "1 回目の拒否"}, {"at": "t2", "reason": "目的の文が\n空同然"}])
+        returns = fixed_run(judge={**fixed_run()["judge"], "ready": False, "stop_reason": stopby.PURPOSE, "judgment": judgment})
+        rows = runreport.prior_failures(returns, [])
+        self.assertEqual(rows[0]["text"], f"{stopby.PURPOSE}（{stopby.REASONS['purpose']}）。受け付けの最後の拒否: 目的の文が 空同然")
+        later = self.put("judge/r1/reject-3.txt", "計画の欄が足りない")
+        os.utime(later, (4_000_000_000, 4_000_000_000))
+        self.assertEqual(rolekit.last_reject(pathlib.Path(judgment).parent), "計画の欄が足りない")
+        self.assertEqual(rolekit.last_reject(self.dir / "nowhere"), "")
 
 
 class LedgerCase(Base):
@@ -1123,6 +1153,100 @@ class LinesCase(Base):
                       self.section(self.build(fixed_run(fix=fix), gates={"gate-replan": stop})[1], report.DECISIONS_HEADING))
         self.assertEqual(replan.amend_lines(["5"], refixed=False, pending=True), [f"案の項目 5: {outcome.PENDING_WHY}"])
         self.assertNotIn(replan.AMEND_HEAD, self.build()[1])
+
+    def test_missing_eye_is_named_apart_from_the_skipped(self):
+        """R14: 目の節は、直した後の深さが標準なのに返りの無い目を「結果が無い」と、軽量で省いた目を「深さで省いた」と分けて出し、前の物を
+        残りに数える"""
+        eyes = {**fixed_run()["eyes"], "r2": None}
+        standard = {"depth": [], "skip_optional": "", "raised": [], "counted": "", "stop_reason": ""}
+        _, text, _ = self.build(fixed_run(eyes=eyes), line={"redepth": standard})
+        self.assertIn("- R2: 結果が無い——再実行の要あり（深さは標準で、省いていない）", self.section(text, runreport.EYES_HEADING))
+        self.assertIn(f"- {runreport.RESIDUE_HEAD}: 3 件（", self.section(text, report.DECISIONS_HEADING))
+        _, text, _ = self.build(fixed_run(eyes=eyes), line={"redepth": {**standard, "skip_optional": "軽量で省いた"}})
+        self.assertIn("- R2: 深さで省いた", self.section(text, runreport.EYES_HEADING))
+
+    def test_design_without_anchor_is_named(self):
+        """R36（元 report._design_unanchored :1265）: 独立設計が問いは立たないと返したのに、理由にパス:行の名指しが無ければ 1 行"""
+        import design
+        p = self.put("plan-review/design.json", {"question_stands": False, "premise_invalid_reason": "前提がそもそも違う"})
+        _, text, _ = self.build(fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "design": p}}))
+        self.assertIn(f"- 独立設計は問いが立たないと返したが、{design.UNANCHORED}（前提がそもそも違う）", self.section(text, report.DECISIONS_HEADING))
+        self.put("plan-review/design.json", {"question_stands": False, "premise_invalid_reason": "stats.py:3 が既に空を扱う"})
+        _, text, _ = self.build(fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "design": p}}))
+        self.assertNotIn(design.UNANCHORED, text)
+
+    def test_entry_names_thickness_and_features(self):
+        """R41（元 report.head_entry :1308-1338・forge_line :1339）: 入口の節に段（thickness）・機能の on でない物（entry.features_part）・
+        決めた人（関所の答えの数）と、forge の無い対象では並行 PR の確かめが条件外の 1 行"""
+        import entry
+        start = {"run_id": RUN, "thickness": "軽量", entry.FEATURES_KEY: ["world"], entry.FEATURES_ON_KEY: []}
+        gates = {"gate-start": {"decision": "approve", "text": "", "asked": []}}
+        _, text, _ = self.build(start=start, gates=gates)
+        body = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"- 段: 軽量・{entry.features_part(['world'], [])}\n", body)
+        self.assertIn("- 決めた人: 関所の答え 1 件\n", body)
+        import subprocess
+        target = self.dir / "target"
+        target.mkdir()
+        subprocess.run(["git", "init", "-q", str(target)], check=True)
+        got = runreport.build(fixed_run(), {}, {}, None, "fixed", "", out_dir=self.out, start={"run_id": RUN}, run_id=RUN, repo=target)
+        self.assertIn(f"- {runreport.FORGE_HEAD}: 無い——並行 PR の確かめは条件外（not_applicable。",
+                      self.section(pathlib.Path(got["report"]).read_text(encoding="utf-8"), report.ENTRY_HEADING))
+
+    def test_policy_change_is_named(self):
+        """R75（元の書き手の指示書の構成 2 の 3 つ目・process.policy_change）: 事前審査が固めた方針の文書の版（review の隣の
+        policy.json）から今の文書が変わったまま終わった run は、入口の節に差分の置き場つきで 1 行（boardview.policy_change）"""
+        import boardview
+        import policy
+        doc = self.dir / "repo" / "POLICY.md"
+        doc.parent.mkdir()
+        doc.write_text("古い方針\n", encoding="utf-8")
+        review = self.put("plan-review/review.json", {})
+        self.put(f"plan-review/{boardview.POLICY_FILE}", policy.freeze(self.dir / "plan-review", self.dir / "repo", str(doc)))
+        returns = fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "review": review}})
+        got = runreport.build(returns, {}, {}, None, "fixed", "", out_dir=self.out, start={"run_id": RUN}, run_id=RUN, repo=self.dir / "repo")
+        self.assertNotIn(runreport.POLICY_CHANGED_HEAD, pathlib.Path(got["report"]).read_text(encoding="utf-8"))
+        doc.write_text("新しい方針\n", encoding="utf-8")
+        got = runreport.build(returns, {}, {}, None, "fixed", "", out_dir=self.out, start={"run_id": RUN}, run_id=RUN, repo=self.dir / "repo")
+        entry = self.section(pathlib.Path(got["report"]).read_text(encoding="utf-8"), report.ENTRY_HEADING)
+        self.assertIn(f"- {runreport.POLICY_CHANGED_HEAD}: 人の方針の文書 {doc} が固定した版から変わった", entry)
+        self.assertIn("（差分 ", entry)
+
+    def test_apply_line_names_bin_apply(self):
+        """M37（元 works/dev/lib.sh:633-644・test_use.py::test_show_hides_raw_apply_for_stopped_or_unjudgeable_run）: 差分を置いた run の
+        報告に bin/apply <run-id> の行を出し、関所で止めた run には止まりの 1 行（結末の語・止めた所・人の一言）と --allow-stopped の
+        要ることを出す。どちらも生の git apply の行を出さない"""
+        seal_ok = {"mode": "seal", "ok": True, "diff": self.put("merge/sealed.diff", "")}
+        _, text, _ = self.build(fixed_run(**{"merge-seal": seal_ok}))
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn(f"- {runreport.APPLY_HEAD}: bin/apply {RUN}（", body)
+        self.assertNotIn("git apply", text)
+        stop = {"decision": "stop", "text": "範囲が広すぎる", "asked": []}
+        _, text, _ = self.build(fixed_run(**{"merge-seal": seal_ok, "merge-apply": None}), gates={"gate-final": stop})
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("- 止まった run: 人が関所で止めた（gate-final:stop）で止まった: 「範囲が広すぎる」", body)
+        self.assertIn(f"- {runreport.APPLY_HEAD}: bin/apply {RUN} --allow-stopped（", body)
+        self.assertNotIn("git apply", text)
+        _, text, _ = self.build(fixed_run(**{"merge-seal": None, "merge-apply": None, "eyes": None}))
+        self.assertIn(f"- {runreport.APPLY_HEAD}: 無い（差分を封じていない）", self.section(text, report.DECISIONS_HEADING))
+
+    def test_tests_head_lines_and_deleted_files(self):
+        """T35・T41・M38（部分 B2 の申し送り。最後の関所と同じ行を報告の冒頭に）: 人が決めることの節に最後のテストの一式の行と修正前のテストの
+        行（test-gate の証拠の字のまま）、任せ先の申告の緑なら走らせる語の宣言の仕方、封じた差分が消すファイルを 1 本ずつ出す"""
+        import declared_checks
+        import seal
+        evidence = self.put("test-gate/final/evidence.md", "\n".join([
+            "# test-gate（final）", "- ok: true", "- 走らせ方: role_needed・一式: 任せ先の申告", "- ログ: /tmp/ci.log",
+            "- 修正前のテスト: 赤（段ごとの終了コード {\"suite\": 1}）——最後のテストの赤は修正前から在りうる"]) + "\n")
+        diff = self.put("merge/sealed.diff", "diff --git a/old.py b/old.py\ndeleted file mode 100644\n--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n")
+        returns = fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": evidence},
+                               "merge-seal": {"mode": "seal", "ok": True, "diff": diff}})
+        _, text, _ = self.build(returns)
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("- 最後のテストの一式: role_needed・一式: 任せ先の申告・ログ /tmp/ci.log\n", body)
+        self.assertIn("- 修正前のテスト: 赤（段ごとの終了コード {\"suite\": 1}）——最後のテストの赤は修正前から在りうる\n", body)
+        self.assertIn(f"- {declared_checks.SELF_REPORTED_NOTE}", body)
+        self.assertIn(f"- {seal.DELETED_HEAD}: old.py\n", body)
 
     def test_every_line_is_a_bullet(self):
         """元 build の行の組み方: 節の行は「- 」か、字下げした内訳の行"""

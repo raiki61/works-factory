@@ -51,6 +51,7 @@ WAIT_WORDS = (stopby.CONFLICT, stopby.REPLAN, stopby.TDD_REPEAT, stopby.NEEDS_HU
 FIX_STATUS_LEFT = ("given_up", "not_done")
 EYE_STATUS_LEFT = (seal.REDESIGN, seal.UNVERIFIABLE)
 EYE_NAMES = tuple(e.lower() for e in report.EYES)
+MISSING_EYE = "の結果が無い——再実行の要あり（深さは標準で、省いていない）"   # 元 rest_outside_validator の missing の行
 GIVE_UP = "give-up"
 NOT_OK = "not-ok"
 NODE_ERROR = "node-error"
@@ -271,19 +272,23 @@ def _is_material_row(row: dict) -> bool:
     return str(row.get("where") or "").startswith(f"{MATERIAL_WHERE} ")
 
 
-def _eye_rows(returns: dict) -> list:
-    """独立の目の残り（元 rest_outside_validator の目の行と exit_problem）: 目ごとの阻害と確かめられない目。目のブロックが ok で
-    ないのに数えた目が 1 つも無ければ、ok でないことを 1 行（深さで省いた目は数えないので、省かれた目だけの ok: false を黙らせない）"""
+def _eye_rows(returns: dict, eyes_skip=None) -> list:
+    """独立の目の残り（元 rest_outside_validator の目の行と exit_problem）: 目ごとの阻害と確かめられない目と、直した後の深さが標準
+    （eyes_skip が空の字。線の redepth の skip_optional）なのに返りの無い目（元 eye_counts の missing。深さで省いた目は数えない。深さの
+    返りが届かない run（eyes_skip が None）は省いた目と分けられないので数えない）。目のブロックが ok でないのに数えた目が 1 つも
+    無ければ、ok でないことを 1 行（深さで省いた目は数えないので、省かれた目だけの ok: false を黙らせない）"""
     eyes = returns.get("eyes")
     if not isinstance(eyes, dict):
         return []
     rows = []
     for name in EYE_NAMES:
         e = eyes.get(name)
+        label = name.upper()
         if isinstance(e, dict) and e.get("status") in EYE_STATUS_LEFT:
-            label = name.upper()
             rows.append({"where": f"{report.EYES_WHERE} {label}",
                          "text": f"{label} が {e['status']}: {report._one_line(e.get('reason') or '理由なし')}"})
+        elif e is None and eyes_skip == "":
+            rows.append({"where": f"{report.EYES_WHERE} {label}", "text": f"{label} {MISSING_EYE}"})
     if eyes.get("ok") is False and not rows:
         rows.append({"where": report.EYES_WHERE,
                      "text": "独立の目のブロックが ok でない: 目ごとの返り（r1〜r4）に阻害も確かめられない目も無い"})
@@ -312,7 +317,8 @@ def absorbed_rows(returns: dict, absorbed) -> list:
 def residue(returns: dict, facts: dict | None = None) -> list:
     """fixed を名乗らせない残りの行 [{where, text}]（元 rest_outside_validator の行の形）。R4 の questions は残りでない
     （人が決めることの節に出す）。深さで省いた目（null）は数えない。facts の answers が命令と出力つきで答えた測れていない素材は
-    数えず（元 residue の measured_materials）、facts の absorbed（受け止めた落ち）を数える。封じの ok は残りに数えない（読み手は
+    数えず（元 residue の measured_materials）、facts の absorbed（受け止めた落ち）を数え、facts の eyes_skip（直した後の深さの
+    省く理由。標準なら空）が空なら返りの無い目を数える。封じの ok は残りに数えない（読み手は
     _proved の docstring）"""
     facts = facts or {}
     rows = []
@@ -320,7 +326,7 @@ def residue(returns: dict, facts: dict | None = None) -> list:
     if isinstance(final, dict) and (final.get("ok") is not True or final.get("green") is not True):
         rows.append({"where": "最後のテスト", "text": f"最後のテストが緑でない・認証できない（ok {final.get('ok')}・green {final.get('green')}・"
                                                  f"赤の原因 {final.get('red_cause') or '—'}）"})
-    rows += _eye_rows(returns)
+    rows += _eye_rows(returns, facts.get("eyes_skip"))
     fix = returns.get("fix")
     if isinstance(fix, dict):
         for u in fix.get("units") or []:
