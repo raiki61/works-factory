@@ -47,6 +47,7 @@ import planblk  # noqa: E402
 import planfile  # noqa: E402
 import planmarks  # noqa: E402
 import policy  # noqa: E402
+import reads  # noqa: E402
 import rolekit  # noqa: E402
 import startrec  # noqa: E402
 import structmark  # noqa: E402
@@ -495,7 +496,7 @@ class YamlCase(unittest.TestCase):
 
     def test_script_names_do_not_hide_lib_modules(self):
         names = {p.stem for p in (BLOCK / "scripts").glob("*.py")}
-        self.assertEqual(names, {"pass_open", "r2_prep", "r2_accept", "review_prep", "review_accept", "result"})
+        self.assertEqual(names, {"pass_open", "r2_prep", "r2_accept", "review_prep", "review_accept", "review_reads", "result"})
         self.assertEqual(names & {p.stem for p in LIB.glob("*.py")}, set())
 
     def test_scripts_read_only_declared_inputs(self):
@@ -1599,6 +1600,101 @@ class TreeCase(RunCase):
         self.assertFalse(self.items_dir(2).exists())
         self.assertTrue(r.accept(review(resolved=[MEAN_BLOCK["key"]]))["ok"])
         self.assertEqual(converge.read(r.view())["outcome"], converge.CLEAN)
+
+
+RECORDER = ROOT / "bin" / "_lib" / "record-read.py"
+
+
+class ReadsCase(RunCase):
+    """読んだ証拠（review-reads の節。lib/reads・boardview.collect_reads）: 隔離した設定のフック（bin/_lib/record-read.py を実物で
+    起こす）が作業の場ごとに書いた記録から、事前審査の役が材料を読んだか・束ね役が下請けを何人起こしたか・web を引いたかを集める
+    （元 planblk.collect_reads。元は実行基盤の出来事 tool_called からも引いた）"""
+
+    def setUp(self):
+        super().setUp()
+        self.config = self.run_.tmp / "claude"
+        (self.config / reads.ROOT).mkdir(parents=True)
+
+    def hook(self, tool, **tool_input):
+        event = {"session_id": "s-1", "tool_name": tool, "tool_input": tool_input, "tool_use_id": f"toolu_{tool}",
+                 "cwd": str(self.run_.repo), "hook_event_name": "PostToolUse"}
+        done = subprocess.run([sys.executable, str(RECORDER), str(self.config / reads.ROOT)], input=json.dumps(event),
+                              text=True, encoding="utf-8", capture_output=True, cwd=str(self.run_.repo),
+                              env=hermetic.child_env(PYTHONDONTWRITEBYTECODE="1", CLAUDE_PROJECT_DIR=str(self.run_.repo)))
+        self.assertEqual(done.returncode, 0, done.stderr)
+
+    def collect(self):
+        got = self.run_.out("review_reads", CLAUDE_CONFIG_DIR=str(self.config))
+        self.assertTrue(got["ok"], got)
+        return got, json.loads(pathlib.Path(got["index_file"]).read_text(encoding="utf-8"))
+
+    def test_reads_collected_from_the_hook_records(self):
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        prompt = r.out("review_prep")["prompt_file"]
+        self.hook("Read", file_path=prompt)
+        got, index = self.collect()
+        self.assertEqual(pathlib.Path(got["index_file"]).name, reads.index_name("plan-review"))
+        self.assertEqual(index["r2-design"], None, "道具を持たない役は名指して null")
+        doc = json.loads(pathlib.Path(index["plan-review"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["rows"], [{"path": prompt, "hook": "read"}])
+        self.assertEqual((doc["sources"]["hook"], got["missing"]), ("recorded", []))
+
+    def test_unread_material_is_missing_and_no_root_is_named(self):
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        prompt = r.out("review_prep")["prompt_file"]
+        self.hook("Read", file_path=str(r.repo / "stats.py"))
+        got, _ = self.collect()
+        self.assertEqual(got["missing"], [prompt])
+        got = r.out("review_reads", CLAUDE_CONFIG_DIR=str(r.tmp / "no-config"))
+        doc = json.loads(pathlib.Path(json.loads(pathlib.Path(got["index_file"]).read_text(encoding="utf-8"))["plan-review"])
+                         .read_text(encoding="utf-8"))
+        self.assertEqual((doc["sources"]["hook"], got["missing"]), ("none", []))
+        self.assertEqual(doc["sources"]["why"], reads.NO_ROOT)
+
+    def test_agent_launches_counted_against_item_files(self):
+        """束ね役の Agent の起動の数と subagent_type を、この差し込みで書いた下請けのファイルの数と並べて trace に残す（拒まない）"""
+        r = self.run_
+        r.judgment(precedents=PRECEDENTS)
+        r.ripple(RIPPLE)
+        self.assertTrue(r.open()["tree"])
+        r.out("review_prep")
+        for _ in range(3):
+            self.hook("Agent", subagent_type=planblk.SUBAGENT_TYPE, prompt="項目を見よ")
+        self.collect()
+        rows = [json.loads(x) for x in (r.folder / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        got = [{k: x[k] for k in ("launched", "types", "item_files", "synergy_files")} for x in rows if x["op"] == planblk.AGENT_OP]
+        self.assertEqual(got, [{"launched": 3, "types": {planblk.SUBAGENT_TYPE: 3}, "item_files": 2, "synergy_files": 1}])
+
+    def test_web_calls_recorded(self):
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        r.out("review_prep")
+        self.hook("WebFetch", url="https://docs.python.org/3/library/statistics.html", prompt="空の列")
+        self.hook("WebSearch", query="statistics.mean empty")
+        _, index = self.collect()
+        doc = json.loads(pathlib.Path(index["plan-review"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["web"], {"fetches": ["https://docs.python.org/3/library/statistics.html"],
+                                      "searches": ["statistics.mean empty"]})
+
+    def test_replan_reads_are_named_apart(self):
+        """案の直しの差し込みの読んだ証拠は reads-replan-<役>.json と reads-replan-block.json（1 回目の物と名を分ける）"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        self.assertTrue(r.pass_(review())["pass"])
+        first, _ = self.collect()
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, approach=f"{PLAN_MARK} 直した項目 2")], rnd=2)
+        r.inputs.update(ruling=json.dumps(["2"]), conflicts=r.put("fix/conflicts.json", {"items": [ReplanCase.CONFLICT]}))
+        r.open()
+        r.out("review_prep")
+        got, index = self.collect()
+        self.assertEqual(pathlib.Path(got["index_file"]).name, reads.index_name(planblk.REPLAN_READS))
+        self.assertEqual(pathlib.Path(index["replan-plan-review"]).name, reads.evidence_name("replan-plan-review"))
+        self.assertTrue(pathlib.Path(first["index_file"]).is_file())
 
 
 class ReplanCase(RunCase):

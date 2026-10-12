@@ -3,9 +3,11 @@
 
 置き場（計画のブロックの run の置き場の plan/）: 周ごとの r<k>/（k は往復と案の直しを通して 1 から数える）と、使い回す構造の
 実測の structure/<鍵>/。周のフォルダの中:
-- round.json {round, mode（plan・replan）, go（役を起こすか）, why（起こさない訳）, items（形 replan で渡す項目の番号）, structure（周の節が読む構造の置き場。plan/ からの相対のパス）}
+- round.json {round, mode（plan・replan）, go（役を起こすか）, why（起こさない訳）, items（形 replan で渡す項目の番号）, structure（周の節が読む構造の置き場。plan/ からの相対のパス）,
+  at（周を開いた時刻。読んだ証拠の記録を切る。reads.TS_FORMAT）}
 - slots.json（案に入れてよい単位の no の並び。no は 1 始まりの位置）・brief-<n>.md（修正案の役の材料）・rejects-plan.json（拒否の控え。rolekit）・
-  tree.json（役を起こす前の作業ツリーの姿）・item-brief-<no>.md（形 replan で直す項目の brief）
+  tree.json（役を起こす前の作業ツリーの姿）・item-brief-<no>.md（形 replan で直す項目の brief）・
+  reads-<役>.json と索引 reads-plan-block.json（形 replan は reads-replan-<役>.json と reads-replan-block.json。読んだ証拠）
 - review/p2.plan_review.json（この周に受けた事前審査の返答の写し）
 - reply.json（受け付けた返答。番号を id に戻した全体で、works の欄も決め手の欄も持つ。項目の同じさ converge.item_hash の元）
 - p2.fix_plan.json（reply.json から works の欄を外した物。2 往復目からは block_answers も）・plan-fields.json（planmarks.save の形）・
@@ -65,6 +67,7 @@ import prcheck  # noqa: E402
 import promptsection  # noqa: E402
 import replan  # noqa: E402
 import ripple  # noqa: E402
+import reads  # noqa: E402
 import rolekit  # noqa: E402
 import stage_a  # noqa: E402
 import structmark  # noqa: E402
@@ -528,7 +531,7 @@ def open_round(plan_dir, *, ruling, judgment, review, units, repo, why: str = ""
             items, why = planmarks.handed(ruling, len(_rows(_read_json(prev / REPLY_FILE), "plan")))
     structure = (f"{d.name}/{STRUCTURE_DIR}" if why
                  else structure_dir(plan_dir, units, repo, prev).relative_to(plan_dir).as_posix())
-    doc = {"round": k, "mode": mode, "go": not why, "why": why, "items": items, "structure": structure}
+    doc = {"round": k, "mode": mode, "go": not why, "why": why, "items": items, "structure": structure, "at": reads.stamp()}
     _write_json(d / ROUND_FILE, doc)
     return {**doc, "dir": f"{PLAN_DIR}/{d.name}"}
 
@@ -930,6 +933,31 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
     planmarks.append_trace(round_dir, planmarks.AMEND_OP, round=k, items=sorted(row["item"] for row in rows))
     _write_json(round_dir / replan.TRIP_FILE, {"round": k, "items": rows})
     return saved
+
+
+# ---------------------------------------------------------------- 読んだ証拠
+def collect_reads(round_dir, log, *, role: str, quiet: tuple, policy_md: str, repo) -> dict:
+    """この周に起こした修正案の役 role が、機械が渡したパス（周の材料 brief-*.md・前の拒否の理由 reject-*.txt・方針の文書の固めた写し）
+    を読んだ証拠を reads.collect で集め、{役: 役ごとの証拠のパス} の索引を周のフォルダに書く（元 planblk.collect_reads）。記録は周を
+    開いた時刻（round.json の at）から後の行で切る。道具を持たない役 quiet は読む物が無いので null で名指す。役を起こさない周は
+    索引の why に reads.NOT_LAUNCHED と訳。形 replan は役の名の頭と索引の持ち主を planblk.REPLAN_READS にする（1 回目の物を上書き
+    しない）。受け付けの条件にしない。返り {ok: True, missing, index_file}"""
+    round_dir = pathlib.Path(round_dir)
+    rnd = read_round(round_dir)
+    again = rnd["mode"] == "replan"
+    prefix = f"{planblk.REPLAN_READS}-" if again else ""
+    index = {f"{prefix}{r}": None for r in (role, *quiet)}
+    missing = []
+    if rnd["go"]:
+        must = [str(p) for p in sorted(round_dir.glob(BRIEF_FILE.format(n="*"))) + sorted(round_dir.glob(REJECT_FILE.format(n="*")))]
+        since = rnd.get("at") if isinstance(rnd.get("at"), str) else reads.stamp((round_dir / ROUND_FILE).stat().st_mtime)
+        got = reads.collect(round_dir, role, must + ([policy_md] if policy_md else []), log, since=since, repo=repo,
+                            prefix=prefix)
+        index[f"{prefix}{role}"], missing = got["reads_file"], got["missing"]
+    else:
+        index["why"] = f"{reads.NOT_LAUNCHED}: {rnd['why']}"
+    out = _write_json(round_dir / reads.index_name(planblk.REPLAN_READS if again else ROLE), index)
+    return {"ok": True, "missing": missing, "index_file": str(out)}
 
 
 # ---------------------------------------------------------------- 波及の一覧と出口

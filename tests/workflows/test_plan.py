@@ -43,6 +43,7 @@ import libdocs  # noqa: E402
 import planblk  # noqa: E402
 import planbrief  # noqa: E402
 import planmarks  # noqa: E402
+import reads  # noqa: E402
 import replan  # noqa: E402
 import planfile  # noqa: E402  （lib/graphloops を sys.path に足す。engine より先に）
 import ripple  # noqa: E402
@@ -171,6 +172,7 @@ class Run:
         self.out = {}
         self.status = {}
         self.env_extra = {}
+        self.config = self.tmp / "claude"   # 隔離した設定の置き場（読んだ証拠の記録の根は試験が作る）
 
     def pointer(self, rel, doc, *, lines=False):
         p = self.art / rel
@@ -183,7 +185,7 @@ class Run:
         env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
         env.update({f"INPUTS_{k.upper()}": v for k, v in {**self.inputs, **bound}.items()})
         env.update(ARTIFACTS_DIR=str(self.art), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(root),
-                   PYTHONDONTWRITEBYTECODE="1", WORKS_LIBDOCS_WEB="off")
+                   PYTHONDONTWRITEBYTECODE="1", WORKS_LIBDOCS_WEB="off", CLAUDE_CONFIG_DIR=str(self.config))
         env.update(self.env_extra)
         return env
 
@@ -913,6 +915,81 @@ class ReplanWithoutPlanCase(unittest.TestCase):
         self.assertEqual(run.status["plan-loop"], "skipped")
         self.assertIs(out["ready"], False)
         self.assertIn("直す元の承認済みの修正案が無い", run.json(out["ripple"])["error"])
+
+
+RECORDER = ROOT / "bin" / "_lib" / "record-read.py"
+
+
+class ReadsCase(unittest.TestCase):
+    """読んだ証拠（plan-reads の節。lib/reads・planfile.collect_reads）: 隔離した設定のフック（bin/_lib/record-read.py を実物で
+    起こす）が作業の場ごとに書いた記録から、この周の修正案の役が材料を読んだかを集める（元 planblk.collect_reads）"""
+
+    def run_with_root(self):
+        run = Run(self)
+        (run.config / reads.ROOT).mkdir(parents=True)
+        return run
+
+    def hook(self, run, path):
+        event = {"session_id": "s-1", "tool_name": "Read", "tool_input": {"file_path": path}, "tool_use_id": "toolu_r",
+                 "cwd": str(run.repo), "hook_event_name": "PostToolUse"}
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
+        done = subprocess.run([sys.executable, str(RECORDER), str(run.config / reads.ROOT)], input=json.dumps(event),
+                              text=True, encoding="utf-8", capture_output=True, cwd=str(run.repo),
+                              env={**env, "PYTHONDONTWRITEBYTECODE": "1"})
+        self.assertEqual(done.returncode, 0, done.stderr)
+
+    def reader(self, run, reply):
+        """材料を Read で読んでから返す修正案の役"""
+        def writer(n, brief):
+            self.hook(run, run.out["plan-prep"]["brief"])
+            return copy.deepcopy(reply)
+        return writer
+
+    def index(self, run, k=1, owner="plan"):
+        return json.loads((run.art / "plan" / f"r{k}" / reads.index_name(owner)).read_text(encoding="utf-8"))
+
+    def test_writer_reads_its_brief_are_recorded(self):
+        run = self.run_with_root()
+        self.assertIs(run.include(writer=self.reader(run, {"plan": [item(1, 2)]}))["ready"], True)
+        self.assertEqual(run.out["plan-reads"]["ok"], True)
+        self.assertEqual(run.out["plan-reads"]["missing"], [])
+        index = self.index(run)
+        self.assertEqual(index["structure-eye"], None, "道具を持たない役は名指して null")
+        doc = json.loads(pathlib.Path(index["plan-writer"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["rows"], [{"path": str(run.art / "plan" / "r1" / "brief-1.md"), "hook": "read"}])
+
+    def test_unread_brief_and_reject_file_are_missing(self):
+        """拒まれた後の材料と前の拒否の理由のファイルも渡したパスに数え、読んでいなければ missing（受け付けは拒まない）"""
+        run = self.run_with_root()
+        self.hook(run, str(run.repo / "stats.py"))
+        out = run.include(writer=writer_of({"plan": [item(1)]}, {"plan": [item(1, 2)]}))
+        self.assertIs(out["ready"], True)
+        rnd = run.art / "plan" / "r1"
+        self.assertEqual(run.out["plan-reads"]["missing"], [str(rnd / "brief-1.md"), str(rnd / "brief-2.md"), str(rnd / "reject-1.txt")])
+
+    def test_round_without_the_role_names_it(self):
+        run = Run(self, judge={"units": [unit(NIT, "nit", None)], "questions": []})
+        run.include(writer=lambda n, brief: self.fail("役を起こした"))
+        self.assertEqual(run.status["plan-reads"], "ok")
+        index = self.index(run)
+        self.assertEqual(index["plan-writer"], None)
+        self.assertTrue(index["why"].startswith(reads.NOT_LAUNCHED), index)
+
+    def test_replan_reads_do_not_overwrite_planning_reads(self):
+        run = self.run_with_root()
+        self.assertIs(run.include(writer=self.reader(run, {"plan": [item(1, 2)]}))["ready"], True)
+        first = (run.art / "plan" / "r1" / reads.index_name("plan")).read_bytes()
+        conflicts = run.pointer("fix/conflicts.json", {"items": [
+            {"id": "c1", "unit_key": CLAMP, "kind": "scope", "between": ["stats.py"], "why_both_cannot_hold": "試験と両立しない",
+             "which_is_right": "plan", "ruling": {"decision": "fix_plan_item", "text": "項目 1 を直せ", "limits": [], "plan_items": [1]}}]})
+        out = run.include(ruling='["1"]', conflicts=conflicts, writer=self.reader(run, {"plan": [item(MEAN, CLAMP)]}))
+        self.assertIs(out["ready"], True, out)
+        self.assertEqual((run.art / "plan" / "r1" / reads.index_name("plan")).read_bytes(), first)
+        index = self.index(run, 2, planblk.REPLAN_READS)
+        self.assertEqual(sorted(index), ["replan-plan-writer", "replan-structure-eye"])
+        self.assertEqual(pathlib.Path(index["replan-plan-writer"]).name, reads.evidence_name("replan-plan-writer"))
+        doc = json.loads(pathlib.Path(index["replan-plan-writer"]).read_text(encoding="utf-8"))
+        self.assertEqual([r["hook"] for r in doc["rows"]], ["read"])
 
 
 class CollectCase(unittest.TestCase):

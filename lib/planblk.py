@@ -71,6 +71,8 @@ EXCLUDED_HEAD = "並行 PR の範囲。触らず、単位に入れない"
 RIPPLE_UNITS = "ripple/units.json"      # 今の周の作業ファイル（manifest の produces ripple/**）
 RIPPLE_PASS = "ripple/pass-{k}.json"
 ITEMS_DIR = "plan-review-items/pass-{k}"   # 事前審査の下請けのファイル（manifest の produces plan-review-items/**）
+AGENT_OP = "plan_review_agents"         # 読んだ証拠の節が trace に書く、事前審査の下請けの起動の数の行（元 planblk.py:134）
+REPLAN_READS = "replan"                 # 案の直しの差し込みの読んだ証拠の頭（reads-replan-<役>.json）と索引の持ち主の名（元 replan.READS_PREFIX・READS_INDEX）
 # 入力 review_tree が auto の時に木にする開いた項目の数の下限
 TREE_AUTO_MIN = 2
 # 受け付けの拒みの頭（plan の受け付け planfile と事前審査の受け付け boardview が読む）

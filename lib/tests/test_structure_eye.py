@@ -23,7 +23,7 @@ DIRTY = {"unit_id": "u-1", "verdict": "汚れる", "faces": [2], "evidence": ["/
          "chosen": "1 か所に固める", "chosen_reason": "読み直しを割らない"}
 
 
-# 今の works の設計書 works/docs/specs/2026-09-29-structure-block-design.md:63-68（raiki61/claude-plugins の
+# 今の works の設計書 works/docs/specs/2026-09-29-structure-block-design.md:63-68（pack.json の works.commit の版
 # 2aa7c66cf7abe1fe09699ac2942d107123214168）の 4 節「構造の目」の番号つきの一覧を字のまま（works-factory に設計書の 4 節は無い）
 DESIGN_DOC_FORMS = """\
   1. 共有の物を run や呼び手ごとに書き換える

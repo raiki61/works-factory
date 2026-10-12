@@ -529,6 +529,28 @@ nodes:
       properties:
         ripple_file: {type: string}
 
+  # 読んだ証拠: この周に起こした修正案の役が、機械が渡したパス（材料・前の拒否の理由・方針の文書）を読んだかを、隔離した設定の
+  # フックの記録から集めて周のフォルダに書く（受け付けの条件にしない。返す節に結ばない。役を起こさない周も走って「役を起こして
+  # いない」と書く。落ちない）
+  - id: plan-reads
+    script: plan_reads
+    runtime: uv
+    mutates_checkout: false
+    timeout: 1728000000
+    depends_on: [round, plan-loop]
+    trigger_rule: all_done
+    with:
+      dir: $round.output.dir
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, missing, index_file, reason]
+      properties:
+        ok: {type: boolean}
+        missing: {type: array, items: {type: string}}
+        index_file: {type: string}
+        reason: {type: string}
+
   # 返す節。落ちない（中の誤りを捕まえて ready: false と、在って空でない指し札の先を返す。誤りの訳は plan/r<k>/collect-error.txt）
   - id: plan
     script: plan_collect
