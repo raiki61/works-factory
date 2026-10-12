@@ -18,8 +18,6 @@ from __future__ import annotations
 import gatemarks
 
 AXES = gatemarks.AXES
-NOT_DECIDED = gatemarks.NOT_DECIDED
-NO_WORLD = gatemarks.NO_WORLD
 
 
 def _note(notes: list) -> dict:
