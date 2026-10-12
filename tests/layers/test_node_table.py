@@ -567,6 +567,21 @@ class NodeTableTest(unittest.TestCase):
         row = {"name": KEEP_NAMES["1"], "where": ["a/x", "a/r"], "proof": [OK_TEST]}
         self.assertEqual(self.broken(use(base_table(), "keep", "1", row)), [])
 
+    def test_gaps_name_an_issue(self):
+        row = {"by": "machine", "where": ["a/x"], "proof": [OK_TEST], "gaps": ["#119 J45: 再開で上書きしない試験が無い"]}
+        self.assertEqual(self.broken(use(base_table(), "graph", "p0.base", row)), [])
+        for gaps, needle in ((["J45: 番号が無い"], "gaps の値 'J45: 番号が無い' が #<issue の番号> と欠けで始まらない"),
+                             (["#119 "], "gaps の値 '#119 ' が #<issue の番号> と欠けで始まらない"),
+                             ([], "gaps が空か文字列の配列でない"),
+                             ("#119 J45", "gaps が空か文字列の配列でない")):
+            with self.subTest(gaps=gaps):
+                self.one(f"graph.p0.base: {needle}", use(base_table(), "graph", "p0.base", {**row, "gaps": gaps}))
+        t = base_table()
+        t["graph"]["p0.base"]["gaps"] = ["#119 J45: 欠け"]
+        self.one("graph.p0.base: absent の行が gaps を持つ", t)
+        row = {"name": KEEP_NAMES["5"], "where": ["a/x"], "proof": [OK_TEST], "gaps": ["F102: 番号が無い"]}
+        self.one("keep.5: gaps の値 'F102: 番号が無い'", use(base_table(), "keep", "5", row))
+
     def test_design_ids_in_table(self):
         design = "### 受け入れの一覧\n\n- [ ] `p0.base`・`p9.gone` 何か（`workflows/a/fixtures/ok.stubs.yaml`）\n"
         self.one(f"{DESIGN}: 受け入れの一覧の p9.gone", **{DESIGN: design})
