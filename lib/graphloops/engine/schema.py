@@ -13,9 +13,7 @@ minLength / maxLength / pattern だけで、これ以外は無視する（展開
 この schema は役に貼るプロンプトにも「返答の形」として載るので、意味の差はここに書いて 1 か所にする。
 エラーの一覧を返す（空なら合格）。
 """
-import copy
 import functools
-import pathlib
 import re
 
 
@@ -103,122 +101,6 @@ def validate_schema(value, schema, path="$"):
     return errs
 
 
-def expand_refs(graph):
-    """graph の schema の中の `"$ref"` を展開した写しを返す（JSON Schema の $defs / $ref と同じ形）。引けるのは
-    `#/$defs/<名前>`（graph の最上位の $defs）と `engine#/<名前>`（engine が持つ定義。engine/util.py の ENGINE_DEFS）だけ。
-    節の pointers（番号で指す欄。engine/pointers.py）の型の広げもここで行う。
-    **展開は graph を読む入口（盤面・init・graphcheck）で 1 度だけ行い、型検査は展開後の形だけを見る**。
-    引けない $ref は ValueError（黙って空の schema にすると、その欄の型検査が消える）"""
-    from .util import ENGINE_DEFS
-    local = graph.get("$defs") or {}
-
-    def walk(x, seen):
-        if isinstance(x, list):
-            return [walk(v, seen) for v in x]
-        if not isinstance(x, dict):
-            return x
-        ref = x.get("$ref")
-        if ref is not None:
-            if set(x) - {"$ref", "note", "description"}:
-                raise ValueError(f"$ref {ref!r} に他の語が並んでいる（展開した定義を上書きしない。足すなら定義の側に）")
-            src, _, name = ref.partition("#/")
-            if src == "" and name.startswith("$defs/"):
-                table, key = local, name[len("$defs/"):]
-            elif src == "engine":
-                table, key = ENGINE_DEFS, name   # engine#/$defs/<名前> は鍵に $defs/ が残るので引けない（名乗りどおり engine#/<名前> だけ）
-            else:
-                table, key = {}, None
-            if key not in table:
-                raise ValueError(f"$ref {ref!r} が引けない（引けるのは #/$defs/<名前> と engine#/<名前>）")
-            if (src, key) in seen:
-                raise ValueError(f"$ref {ref!r} が自分を引いている")
-            return walk(copy.deepcopy(table[key]), seen | {(src, key)})
-        return {k: walk(v, seen) for k, v in x.items()}
-    out = {k: v for k, v in graph.items() if k != "$defs"}
-    out["nodes"] = walk(graph.get("nodes", {}), frozenset())
-    # 番号で指す欄（pointers）の型も同じ入口で広げる——graph に型を手で書かせず、宣言の誤りはここで ValueError
-    from .pointers import widen
-    widen(out["nodes"])
-    return out
-
-
-def merge_patch(target, patch):
-    """RFC 7396（JSON Merge Patch）で target に patch を重ねた写し: object は鍵ごとに重ね、null は鍵を消し、それ以外（配列も）は置き換える"""
-    if not isinstance(patch, dict):
-        return copy.deepcopy(patch)
-    out = copy.deepcopy(target) if isinstance(target, dict) else {}
-    for k, v in patch.items():
-        if v is None:
-            out.pop(k, None)
-        else:
-            out[k] = merge_patch(out.get(k), v)
-    return out
-
-
-def extends_path(path, g):
-    """差し替えの版（最上位に "extends": "<元の graph のファイル名>"）なら元の graph のパス、でなければ None。
-    **元は同じ置き場のファイルだけ**——継いだ節の prompt_file・rules の相対パスは、差し替えの版の置き場を基準に読まれる"""
-    ref = g.get("extends")
-    if ref is None:
-        return None
-    if not isinstance(ref, str) or not ref or pathlib.PurePath(ref).name != ref:
-        raise ValueError(f"extends {ref!r} は同じ置き場の graph のファイル名だけ（継いだ節の相対パスが別の置き場を指さないため）")
-    base = pathlib.Path(path).parent / ref
-    if base.resolve() == pathlib.Path(path).resolve():
-        raise ValueError(f"extends {ref!r} が自分を指している")
-    if not base.is_file():
-        raise ValueError(f"extends {ref!r} が無い（{base}）")
-    return base
-
-
-def resolve_extends(path, read):
-    """graph の差し替えの版を元の graph に重ねた姿（extends の無い graph はそのまま）。重ねは 1 段だけ。
-    配列は置き換えなので、足すなら元の要素も書く（落としていないかは graphcheck が見る）"""
-    g = read(path)
-    base = extends_path(path, g)
-    if base is None:
-        return g
-    b = read(base)
-    if "extends" in b:
-        raise ValueError(f"extends の先 {base.name} がまた extends を持つ——重ねは 1 段だけ")
-    return merge_patch(b, {k: v for k, v in g.items() if k != "extends"})
-
-
-def graph_text(path):
-    """graph の本文（差し替えの版なら元の graph の本文も続ける）——init の後に graph が変わったかを sha で見るため"""
-    from .util import read_json
-    text = pathlib.Path(path).read_text(encoding="utf-8")
-    try:
-        base = extends_path(path, read_json(path))
-    except ValueError:
-        return text
-    return text if base is None else text + "\n" + base.read_text(encoding="utf-8")
-
-
-def load_graph(path):
-    """graph を読んで（差し替えの版なら元の graph に重ねて）$ref を展開する ——（graph, ""）か（None, 理由）。graph を読む入口（盤面・init・graphcheck）はこの 1 本を通し、
-    理由をどう伝えるか（die か NG の印字か）だけを呼び元が決める"""
-    from .util import read_json
-    try:
-        return expand_refs(resolve_extends(path, read_json)), ""
-    except ValueError as e:
-        return None, f"{path}: {e}"
-
-
-def walk_schema(schema, path="$"):
-    """schema の中の schema を全部（(どこ, schema) の列）。properties・patternProperties・items を辿る——走査を 1 本にして、
-    語の検査と正規表現の検査が別々に木を辿らない"""
-    if not isinstance(schema, dict):
-        return
-    yield path, schema
-    for k, v in (schema.get("properties") or {}).items():
-        yield from walk_schema(v, f"{path}.{k}")
-    for k, v in (schema.get("patternProperties") or {}).items():
-        yield from walk_schema(v, f"{path}[/{k}/]")
-    if isinstance(schema.get("items"), dict):
-        yield from walk_schema(schema["items"], f"{path}[]")
-
-
 # engine が読む語の全部。これ以外（oneOf / not / format / uniqueItems、綴り違い）は validate_schema が黙って無視するので、
 # graph に書いても効かない。graphcheck がこの集合で節の schema を走査して落とす（注記で守るのをやめ、仕組みで守る）。
 # note / description は説明のための欄で、検査には使わないが書いてよい。
@@ -236,11 +118,6 @@ ENGINE_NODE_KEYS = frozenset({
     "reads", "run_by", "runner_judgment_by_design", "same_context_as", "save_text_as", "schema", "skills", "text", "thickness_from",
     "thickness_reason_from", "verdict_is_copy", "writes"})
 DOC_NODE_KEYS = frozenset({"note", "does", "source", "stage"})
-
-
-def unknown_keywords(schema, path="$"):
-    """schema の中で engine が読まない語を列挙する（空なら全部効く語）。"""
-    return [f"{p}: '{k}'" for p, s in walk_schema(schema, path) for k in s if k not in KNOWN_KEYWORDS]
 
 
 def _is_type(v, t):

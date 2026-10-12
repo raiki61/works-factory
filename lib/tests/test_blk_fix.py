@@ -1,6 +1,6 @@
 """修正のブロック（blk-fix）の検査のうち、lib/ の部品を直に呼ぶ物。
 
-- 役の指示書（fixrules.fix_prompt が修正の決まりの正本と run の値から組む）が値と決まり（commit しない・テスト）を持ち、
+- 役の指示書（fixrules.render が fix_parts の修正の決まりの正本と run の値から組む）が値と決まり（commit しない・テスト）を持ち、
   修正案・人の答え・方針の文書・TDD の輪の結果を run の値のパスから読ませ、前の回の拒否の理由をファイルのパスで頭に置く
 - 後始末のモジュール leftovers は標準ライブラリだけを読む
 盤面・git・子のプロセスは使わない（関数を直に呼ぶ）。
@@ -20,6 +20,7 @@ import fixboard  # noqa: E402
 import fixrules  # noqa: E402
 import policy  # noqa: E402
 import rulebook  # noqa: E402
+from lib.tests.test_fix_rules import fix_prompt  # noqa: E402
 
 # 決まりの文の本体の置き場（scripts が import の後にする置き替えと同じ。lib/ の字にパスを書かない）
 FR = LIB.parent / "workflows" / "fix" / "commands" / "fix-rules"
@@ -30,7 +31,7 @@ fixrules.RULES_DIR = FR
 
 class TestFixPrompt(unittest.TestCase):
     def fix_prompt(self):
-        return fixrules.fix_prompt({k: f"/b/{k}" for k in fixrules.FIX_VALUES})
+        return fix_prompt({k: f"/b/{k}" for k in fixrules.FIX_VALUES})
 
     def test_fix_prompt(self):
         """組んだ指示書: run の値は全部パスで埋まり（実行基盤の $ の置き換えに通さない）、決まり（commit しない・テスト）と欄を持つ"""
@@ -55,7 +56,7 @@ class TestFixPrompt(unittest.TestCase):
         # 盤面の無い物を読ませない: engine の穴（{{…}}）・前の周の R1/R4・並行の線の合流は無い
         for gone in ("{{", "prev.r1", "prev.r4", "lane_merge"):
             self.assertNotIn(gone, body)
-        again = fixrules.fix_prompt({k: f"/b/{k}" for k in fixrules.FIX_VALUES}, reject_file="/b/reject-accept_fix-1.txt")
+        again = fix_prompt({k: f"/b/{k}" for k in fixrules.FIX_VALUES}, reject_file="/b/reject-accept_fix-1.txt")
         self.assertIn("/b/reject-accept_fix-1.txt", again.split("\n")[1])
 
 

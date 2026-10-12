@@ -15,10 +15,8 @@
 - owed_units_but_asked(place, owed, withheld=, returned=)・fix_duty(place, owed, withheld_by=, returned=)・
   nothing_owed_but_excused(place, owed, withheld_by=, returned=): 直す義務（元 works/.shared/core/conflict.py:676・696・787。
   盤面の写しの規則と問いの台帳を読んだ所を、値の引数で受ける）
-- _fix_output(reply_file)・fix_reply(reply_file=None)・_coverage(place, round_=1)・
-  collect(place, accepted, changed, reply_file=, owed=, withheld_by=, returned=, reads_file=): 修正の返答の読み口と集める節の中身
-  （元 works/.shared/core/recount.py:89・101・142・149。盤面の p3.fix の出力と loop.coverage_after を読んだ所を、置き場と
-  返答のファイルのパスで受ける）
+- _fix_output(reply_file)・fix_reply(reply_file=None): 修正の返答の読み口
+  （元 works/.shared/core/recount.py:89・101。盤面の p3.fix の出力を読んだ所を、返答のファイルのパスで受ける）
 - compose・REJECT_LINE・ROLE_DEF_HEAD: 役の指示書の組み立て（元 works/.shared/core/rolekit.py:64・168・205 の写し。rulebook.render・
   lenses.render が使う）
 - write_json・out_file・output・loop_file・loop_value・snapshot・tree_moved_since・take・READONLY_MOVED: 差分の審査と手直しの
@@ -189,48 +187,6 @@ def fix_reply(reply_file=None) -> tuple:
     元 works/.shared/core/recount.py:101（盤面の p3.fix を読んだ。2 回目の修正の段が 1 回目の段の控え fix-held-reply.json に
     倒れる道は、控えを書く節が無いので持たない。1 回目の返答を失わないのは線の fixed）"""
     return _fix_output(reply_file)
-
-
-def _coverage(place, round_: int = 1) -> dict:
-    """単位ごとの {before, after}（recount.accept_fix が置き場 place に書いた coverage-after.json の今の周の行。before は修正前の
-    版で数えた母数 total）。無い・周が違えば空。元 works/.shared/core/recount.py:142（盤面の loop.coverage_after を読んだ）"""
-    import recount
-    try:
-        cov = json.loads((pathlib.Path(place) / recount.COVERAGE_FILE).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    if not isinstance(cov, dict) or cov.get("round") != round_:
-        return {}
-    return {i["unit_key"]: {"before": i["total"], "after": i["after"]} for i in cov.get("items") or []}
-
-
-def collect(place, accepted: dict, changed: dict, *, reply_file=None, owed=(), withheld_by=None, returned=(),
-            reads_file="", round_: int = 1) -> dict:
-    """集める節の中身。1 本目の {ok, files, changes_file} を全部残し、fix_file（fix_reply が読んだ方のファイル）・not_done（件数）・
-    coverage（単位ごとの {before, after}。_coverage）・reads_file（読んだ証拠のファイル。呼び手が渡す。在るファイルだけ、無ければ空）
-    を足す。受け付けた changes を置き場 place の changes.json（{"changes": [...]}。1 本目の形）に書く。
-    受け付けが通っていない・assert-changed の出力が読めない・返答も控えも無い・changes が空（直す義務の単位が残らず、外れた単位が
-    在る置き場 nothing_owed_but_excused(place, owed, …) を除く）ときは recount.Unreadable（何も書かない）。
-    元 works/.shared/core/recount.py:149（盤面を開いて loop.coverage_after・state.outputs・写しの規則の義務を読んだ所を、
-    置き場と返答のファイル・直す義務 owed・問いの台帳 withheld_by／returned の引数で受ける）"""
-    import recount
-    if not isinstance(accepted, dict) or accepted.get("ok") is not True:
-        raise recount.Unreadable(f"受け付けが通っていない（{(accepted or {}).get('reason') if isinstance(accepted, dict) else accepted!r}）")
-    changes = accepted.get("changes")
-    if not isinstance(changes, list):
-        raise recount.Unreadable("受け付けの出力に changes が無い")
-    files = changed.get("files") if isinstance(changed, dict) else None
-    if not isinstance(changed, dict) or changed.get("ok") is not True or not isinstance(files, list) \
-            or not all(isinstance(f, str) for f in files):
-        raise recount.Unreadable(f"assert-changed の出力に files が無い（{changed!r}）")
-    if not changes and not nothing_owed_but_excused(place, owed, withheld_by=withheld_by, returned=returned):
-        raise recount.Unreadable("受け付けの出力に changes が無い")
-    out, fix_file = fix_reply(reply_file)
-    path = write_json(pathlib.Path(place) / recount.CHANGES_FILE, {"changes": changes})
-    reads_p = pathlib.Path(reads_file) if reads_file else None
-    return {"ok": True, "files": files, "changes_file": str(path), "fix_file": str(fix_file),
-            "not_done": len(out.get("not_done") or []), "coverage": _coverage(place, round_),
-            "reads_file": str(reads_p) if reads_p and reads_p.is_file() else ""}
 
 
 # ---------------------------------------------------------------- 読んだ証拠（fix の fix-reads の script が呼ぶ）
@@ -746,7 +702,6 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     import groups
     import lanekit
     import tddloop
-    import unitlanes
     import unittrees
     patch = groups.diff_since(repo, from_tree, end_tree)
     kept = pathlib.Path(kept)
@@ -754,10 +709,10 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     kept.write_text(patch, encoding="utf-8", errors="surrogateescape")
     before = tddloop.snapshot(repo)
     got: list = []
-    ok, why = unittrees.apply(repo, patch, union=union, unioned=got, check=unitlanes.tests_unique)
+    ok, why = unittrees.apply(repo, patch, union=union, unioned=got, check=unittrees.tests_unique)
     if not ok:
         return lanekit.Merge(f"差分が親の作業ツリーに当たらない（{' '.join(why.split())[:300]}）", str(kept), [], [], True)
-    names = unitlanes._names(patch)
+    names = unittrees.patch_names(patch)
     try:
         why = (check(names) if check else "") if names else ""
     except BaseException:
@@ -1025,7 +980,7 @@ def delta_review(place) -> tuple:
 
 def run_diff(repo, base: str = "HEAD", skip=()) -> str:
     """版 base から作業ツリーの今の姿（未追跡の新しいファイルも・無視される物を除く。leftovers.snapshot）への累積差分
-    （unittrees.diff と同じ形）。除くパスの頭 skip の下は載せない。git が落ちれば unittrees.UnitTreeError"""
+    （unittrees._DIFF の形）。除くパスの頭 skip の下は載せない。git が落ちれば unittrees.UnitTreeError"""
     import leftovers
     import unittrees
     spec = [":/", *[f":(top,exclude){s.rstrip('/')}" for s in skip]]
@@ -1086,7 +1041,7 @@ def policy_brief(start) -> dict:
 
 
 def depth_doc(place):
-    """置き場の深さの控え（depth.json の [{unit_id, depth, why}]。depth.write の形 {units: {…}} も読む）を depth の控えの形
+    """置き場の深さの控え（depth.json の [{unit_id, depth, why}]。前の版の控えの形 {units: {…}} も読む）を depth の控えの形
     {units: {key: {depth, why: [...]}}, …} にした物。控えが無ければ None。読めない・形が違えば ValueError"""
     import depth
     path = pathlib.Path(place) / DEPTH_FILE

@@ -103,24 +103,6 @@ class Files(unittest.TestCase):
         worldmark.write(self.dir, status="failed", reason="段が落ちた", world_file="", classes=0, dropped=0)
         self.assertIsNone(worldmark.stage_rows(self.dir))
 
-    def test_report_lines(self):
-        p = self.put([row(), row(finding=2, class_id="w2", basis="knowledge", sources=[])])
-        (self.dir / worldmark.STATE_FILE).write_text(json.dumps(
-            {"status": "ok", "reason": "", "world_file": str(p), "classes": 2, "dropped": 4}),
-            encoding="utf-8")
-        got = "\n".join(worldmark.report_lines(self.dir))
-        self.assertIn("w1", got)
-        self.assertIn(worldmark.NOT_WEB, got)
-        for n in ("類 2", "落とした抜き書き 4"):
-            self.assertIn(n, got)
-        self.assertEqual(worldmark.report_lines(self.dir / "none"), [])
-
-    def test_report_lines_failed_state(self):
-        (self.dir / worldmark.STATE_FILE).write_text(json.dumps({"status": "failed", "reason": "言い直す役が 3 回拒まれた",
-                                                                 "world_file": ""}), encoding="utf-8")
-        got = "\n".join(worldmark.report_lines(self.dir))
-        self.assertIn("言い直す役が 3 回拒まれた", got)
-
 
 class Notes(unittest.TestCase):
     """構造の目への単位の注記の道（unit_note・where_paths）は無い。世界の解は判定の単位の処方と先例を通って届く"""

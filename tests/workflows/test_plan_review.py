@@ -329,6 +329,12 @@ def synergy(faces=()) -> dict:
     return {"why": "2 つの項目は stats.py の別の関数を直し、順番の依存も重複も無い", "faces": list(faces)}
 
 
+def fetch_ids(brief: str) -> list:
+    """下請けのファイルが開けと言う先行例の出典の id（planblk.PRECEDENT_FETCH の行の頭の `- P<i>`）"""
+    return [line.split(":", 1)[0][2:] for line in brief.splitlines()
+            if line.startswith("- P") and planblk.PRECEDENT_FETCH in line]
+
+
 def summary(verdicts) -> dict:
     """束ね役の返答（項目ごとの判定の要約だけ。verdicts は {項目: [block の key]}）"""
     return {"faces": [], "shrink": [], "reason": SUMMARY_REASON,
@@ -1560,7 +1566,7 @@ class TreeCase(RunCase):
         one, two = ((self.items_dir() / f"item-{n}.md").read_text(encoding="utf-8") for n in (1, 2))
         self.assertIn("statistics.mean", one)
         self.assertNotIn("numpy.clip", one)
-        self.assertEqual((len(planblk.fetch_ids(one)), len(planblk.fetch_ids(two))), (1, 1))
+        self.assertEqual((len(fetch_ids(one)), len(fetch_ids(two))), (1, 1))
         self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK])}, fetched=False)
         got = r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))
         self.assertFalse(got["ok"])
@@ -1577,7 +1583,7 @@ class TreeCase(RunCase):
         brief = (self.items_dir(2) / "item-2.md").read_text(encoding="utf-8")
         self.assertIn("numpy.clip", brief)
         self.assertIn(planblk.PRECEDENT_CACHED, brief)
-        self.assertEqual(planblk.fetch_ids(brief), [])
+        self.assertEqual(fetch_ids(brief), [])
 
     def test_surplus_rows_dropped(self):
         """元 test_surplus_precedent_row_dropped・test_surplus_hit_dropped: 余りの行は拒まずに trace に残して捨てる"""
@@ -2920,38 +2926,6 @@ class LedgerAsksCase(GateBase):
         self.answer(b, got, note=f"保留: {slashed['key']}")
         self.assertFalse(gatemarks.answered(b, slashed))
 
-    def test_unread_hold_is_shown_to_the_human(self):
-        """元 tests/test_plan_gate.py の LedgerAsksCase.test_unread_hold_is_shown_to_the_human。台帳の key を拾えない「保留」
-        （打ち間違いの key・コロン無し）は答えた扱いのまま、「読めなかった保留」の行（報告の冒頭と最後の関所の文が並べる
-        gatemarks.unread_hold_lines）に一言の断片と答えた扱いになった問いの key を並べる"""
-        for note in ("保留: q-emty-mean", "q-emty-mean は保留"):
-            with self.subTest(note=note):
-                got, b = self.gate(questions=[TP.FORK], units=TP.UNITS)
-                self.answer(b, got, note=note)
-                self.assertTrue(gatemarks.answered(b, TP.FORK))
-                rows = [r for r in gatemarks.unread_hold_lines(b) if "読めなかった保留" in r]
-                self.assertTrue(rows, gatemarks.unread_hold_lines(b))
-                self.assertIn("q-emty-mean", "\n".join(rows))
-                self.assertIn(TP.FORK["key"], "\n".join(rows))
-
-    def test_unread_hold_beside_a_read_key_is_shown(self):
-        """元 tests/test_plan_gate.py の LedgerAsksCase.test_unread_hold_beside_a_read_key_is_shown。正しい key と打ち間違いを
-        並べた「保留:」は、正しい key を保留にしたまま、打ち間違いの側を「読めなかった保留」に並べる。key の後ろの言葉（英語・
-        「-」も）だけなら並べない"""
-        for tail in ("・q-typo", "・q-typo は来週", ", q-typo"):
-            with self.subTest(tail=tail):
-                got, b = self.gate(questions=[TP.FORK], units=TP.UNITS)
-                self.answer(b, got, note=f"保留: {TP.FORK['key']}{tail}")
-                self.assertFalse(gatemarks.answered(b, TP.FORK))
-                rows = "\n".join(r for r in gatemarks.unread_hold_lines(b) if "読めなかった保留" in r)
-                self.assertIn("「q-typo」", rows, gatemarks.unread_hold_lines(b))
-        for tail in ("は来週決める", " until Monday", " - 来週決める"):
-            with self.subTest(tail=tail):
-                got, b = self.gate(questions=[TP.FORK], units=TP.UNITS)
-                self.answer(b, got, note=f"保留: {TP.FORK['key']}{tail}")
-                self.assertFalse(gatemarks.answered(b, TP.FORK))
-                self.assertEqual(gatemarks.unread_hold_lines(b), [])
-
     def test_unattended_run_does_not_open_the_gate_for_questions_only(self):
         """元 tests/test_plan_gate.py の LedgerAsksCase.test_unattended_run_does_not_open_the_gate_for_questions_only。無人の run:
         保留の問いだけでは関所を開かない（無人の殻の stop で修正が飛ばない）。狭めの在る関所は今どおり開く（問いの行は載せない）。
@@ -3209,24 +3183,6 @@ class RequestAnswersCase(GateBase):
         self.assertEqual(gatemarks.pending(b), [])
         self.assertIn("依頼者の答え: 例外のまま", "\n".join(gatemarks.returned_lines(b)))
 
-    def test_measured_answer_shows_command_and_output(self):
-        """元 tests/test_plan_gate.py の RequestAnswersCase.test_measured_answer_shows_command_and_output。命令と出力つきの答えは
-        答えた行に命令と出力を載せる"""
-        self.answers({"question": "parallel_pr", "text": "一覧は空", "command": "gh pr list --state open",
-                      "output": "no open pull requests"})
-        _, b = self.gate(questions=[TP.AWAITING_PR], units=TP.UNITS)
-        line = gatemarks.answered_lines(b)[0]
-        self.assertIn("人が手元で実行: `gh pr list --state open`", line)
-        self.assertIn("no open pull requests", line)
-
-    def test_unmatched_answer_is_shown_and_question_stays_held(self):
-        """元 tests/test_plan_gate.py の RequestAnswersCase.test_unmatched_answer_is_shown_and_question_stays_held。当たらない答えは
-        名指し、問いは保留のまま（最後の関所の文・報告の冒頭は落とした）"""
-        self.answers({"question": "parallel-pr", "text": "無い"})
-        _, b = self.gate(questions=[TP.AWAITING_PR], units=TP.UNITS)
-        self.assertEqual(len(gatemarks.held_lines(b)), 1)
-        self.assertIn("parallel-pr", "\n".join(gatemarks.unmatched_answer_lines(b)))
-
     def test_answer_hitting_several_questions_answers_none(self):
         """元 tests/test_plan_gate.py の RequestAnswersCase.test_answer_hitting_several_questions_answers_none。出どころで当てた
         答えが同じ単位の別の問い（fork と escalate）に当たれば、どれにも答えた扱いにせず名指す（最後の関所の文・報告の冒頭は
@@ -3234,30 +3190,15 @@ class RequestAnswersCase(GateBase):
         self.answers({"question": TP.FORK_UNIT, "text": "例外のまま"})
         got, b = self.gate(questions=[TP.FORK, TP.ESCALATE], units=TP.UNITS)
         self.assertEqual(got.get("decision"), "ask", "どちらの問いも関所に載る")
-        self.assertEqual(gatemarks.answered_lines(b), [])
         self.assertEqual(gatemarks.returned_lines(b), [])
         self.assertEqual(len(gatemarks.held_lines(b)), 2)
-        line = "\n".join(gatemarks.unmatched_answer_lines(b))
-        self.assertIn(f"複数の問いに当たった: {TP.FORK_UNIT} → {TP.FORK['key']}・{TP.ESCALATE['key']}", line)
 
     def test_answer_by_key_is_not_ambiguous(self):
         """元 tests/test_plan_gate.py の RequestAnswersCase.test_answer_by_key_is_not_ambiguous。key で当てた答えは、同じ出どころの
         問いが他に在ってもその問いだけに当たる"""
         self.answers({"question": TP.ESCALATE["key"], "text": "直さない"})
         _, b = self.gate(questions=[TP.FORK, TP.ESCALATE], units=TP.UNITS)
-        self.assertIn("依頼者の答え: 直さない", "\n".join(gatemarks.answered_lines(b)))
         self.assertEqual(len(gatemarks.held_lines(b)), 1)
-        self.assertEqual(gatemarks.unmatched_answer_lines(b), [])
-
-    def test_answer_hitting_settled_question_is_shown(self):
-        """元 tests/test_plan_gate.py の RequestAnswersCase.test_answer_hitting_settled_question_is_shown。決着済みの問いに当たった
-        答えも、答えた行・当たらなかった行のどちらからも落とさず名指す（最後の関所の文・報告の冒頭は落とした）"""
-        self.answers({"question": "parallel_pr", "text": "無い"})
-        _, b = self.gate(questions=[{**TP.AWAITING_PR, "status": "decided"}], units=TP.UNITS)
-        self.assertEqual(gatemarks.answered_lines(b), [])
-        line = "\n".join(gatemarks.unmatched_answer_lines(b))
-        self.assertIn(f"決着済みの問いに当たった答え: parallel_pr → {TP.AWAITING_PR['key']}（decided）", line)
-        self.assertIn("依頼者の答え: 無い", line)
 
     def ties(self, *rows):
         gatemarks.save_answer_ties(self.tmp, 1, list(rows))
@@ -3272,8 +3213,6 @@ class RequestAnswersCase(GateBase):
         self.assertEqual(got, {"ok": True}, "答えた問いは修正前の関所に載せない")
         self.assertTrue(gatemarks.answered(b, ledger(b, q7)))
         self.assertEqual(gatemarks.answer_binds(b, gatemarks.request_answers(b)[0]), [q7], "結びが当てる問いは key q-7 の 1 つ")
-        self.assertEqual(gatemarks.unmatched_answer_lines(b), [])
-        self.assertIn("依頼者の答え: 例外のまま", "\n".join(gatemarks.answered_lines(b)))
 
     def test_tie_to_unit_and_none_rows(self):
         """元 tests/test_plan_gate.py の RequestAnswersCase.test_tie_to_unit_and_none_rows。単位に結んだ答えはその単位の答えとして
@@ -3287,18 +3226,12 @@ class RequestAnswersCase(GateBase):
         returned = "\n".join(gatemarks.returned_lines(b))
         self.assertIn(f"依頼で答えた単位 {TP.OTHER_UNIT}", returned)
         self.assertIn("依頼者の答え: 上限は 10", returned)
-        unmatched = "\n".join(gatemarks.unmatched_answer_lines(b))
-        self.assertIn("もう無い問い", unmatched)
-        self.assertIn("その問いは前の run で決着して今の台帳に無い", unmatched)
-        self.assertNotIn("単位への答え", unmatched)
-        self.assertNotIn(TP.FORK["key"], unmatched)
         # 判定が none に結んでも、台帳に key が字のまま等しい問いが在れば答えた扱いのまま、当たらない行にも並ばない
         # （判定の後に機械が立てる問いの key で書かれた答え）
         self.answers({"question": TP.FORK["key"], "text": "例外のまま"})
         self.ties({"answer": TP.FORK["key"], "none": "判定の返答にその問いが無く、後で機械が台帳に立てる問い"})
         _, b = self.gate(questions=[TP.FORK], units=TP.UNITS)
         self.assertTrue(gatemarks.answered(b, ledger(b, TP.FORK)))
-        self.assertEqual(gatemarks.unmatched_answer_lines(b), [])
 
 
 class MaterialAnswersCase(GateBase):
@@ -3312,8 +3245,6 @@ class MaterialAnswersCase(GateBase):
         self.answers({"question": "parallel_pr", "text": "並行する PR は無い"})
         _, b = self.gate(questions=[TP.FIELD_PR], units=TP.UNITS, materials=TP.PR_NOT_RUN)
         self.assertEqual(gatemarks.held_lines(b), [])
-        self.assertIn("依頼者の答え: 並行する PR は無い", "\n".join(gatemarks.answered_lines(b)))
-        self.assertEqual(gatemarks.unmatched_answer_lines(b), [])
         self.assertEqual(gatemarks.origin_of(b, TP.FIELD_PR), "parallel_pr")
 
     def test_key_prefix_needs_a_word_boundary_and_an_unmeasured_material(self):
@@ -3324,45 +3255,6 @@ class MaterialAnswersCase(GateBase):
             with self.subTest(name):
                 _, b = self.gate(questions=[q], units=TP.UNITS, materials=mats)
                 self.assertEqual(gatemarks.origin_of(b, q), "")
-
-    def test_answer_to_material_without_question_is_not_unmatched(self):
-        """元 tests/test_plan_gate.py の MaterialAnswersCase.test_answer_to_material_without_question_is_not_unmatched。判定役が問いを
-        立てなかった素材にも、素材の名の答えは当たる（利用者の run f6eaf0a0）。命令と出力が無ければ測りの代わりにしない（決め 4）"""
-        self.answers({"question": "parallel_pr", "text": "並行する PR は無い"})
-        _, b = self.gate(units=TP.UNITS, materials=TP.PR_NOT_RUN)
-        self.assertEqual(gatemarks.unmatched_answer_lines(b), [])
-        self.assertEqual(gatemarks.measured_materials(b), set())
-        line = "\n".join(gatemarks.answered_lines(b))
-        self.assertIn("素材 parallel_pr", line)
-        self.assertIn("依頼者の答え: 並行する PR は無い", line)
-        self.assertNotIn(gatemarks.HAND_CHECKED, line)
-
-    def test_measured_answer_closes_the_material_as_hand_checked(self):
-        """元 tests/test_plan_gate.py の MaterialAnswersCase.test_measured_answer_closes_the_material_as_hand_checked。命令と出力
-        つきの答えは、素材を『人が手元で確かめた（実測とは書かない）』にする（報告の冒頭と最後の関所の文は落とした）"""
-        self.answers(TP.MEASURED)
-        _, b = self.gate(questions=[TP.FIELD_PR], units=TP.UNITS, materials=TP.PR_NOT_RUN)
-        self.assertEqual(gatemarks.measured_materials(b), {"parallel_pr"})
-
-    def test_answer_hitting_several_material_questions_closes_nothing(self):
-        """元 tests/test_plan_gate.py の MaterialAnswersCase.test_answer_hitting_several_material_questions_closes_nothing。素材の名の
-        答えが key の頭がその名の問い 2 つに当たる時は、どれにも答えず、素材も人が確かめた物にしない（答えたと言わない物で残りを
-        外さない）"""
-        self.answers(TP.MEASURED)
-        two = [TP.FIELD_PR, {**TP.FIELD_PR, "key": "parallel_pr: 別の確かめ"}]
-        _, b = self.gate(questions=two, units=TP.UNITS, materials=TP.PR_NOT_RUN)
-        self.assertEqual(gatemarks.measured_materials(b), set())
-        self.assertEqual(gatemarks.material_lines(b), [])
-        self.assertIn("複数の問いに当たった", "\n".join(gatemarks.unmatched_answer_lines(b)))
-
-    def test_answer_to_measured_material_is_still_unmatched(self):
-        """元 tests/test_plan_gate.py の MaterialAnswersCase.test_answer_to_measured_material_is_still_unmatched。測れている素材
-        （clean）の名の答えは素材に当てない（答えは要らなかった。黙って捨てずに名指す）"""
-        self.answers(TP.MEASURED)
-        _, b = self.gate(units=TP.UNITS, materials={"parallel_pr": {"status": "clean", "reason": "交差なし"}})
-        self.assertEqual(gatemarks.measured_materials(b), set())
-        self.assertIn("parallel_pr", "\n".join(gatemarks.unmatched_answer_lines(b)))
-
 
 class PushCase(GateBase):
     """関所の項目の推し（gatemarks の recommend）が人に回す行の尾と関所の文に載るか"""

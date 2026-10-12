@@ -14,8 +14,6 @@
 - permit_paths(b, *, ruled, agreed, round_): 許しのパスの並び（b は fix の run の置き場のフォルダのパス。conflict と同じ）
 - outside(items, paths, permits, *, hint): 単位に結べない変わったパスの外れの行（全項目の範囲の和か許しに入らない・どれかの項目の
   out_of_scope に当たる）。hint なら、ほかの項目の out_of_scope に当たるがある項目の範囲には入るパスに OWNER_HINT を足す
-- answer_tables(board_dir): 修正案の欄 structure の答えの要る行の表の並び（構造の目の汚れる行と世界の解の答えの要る行。修正案の
-  受け付けと同じ run の中の案の直しが planmarks.structure_gaps に渡す。世界の解の行は項目に場所で結ばない）
 - approved(items, *, by): 承認済みの修正案の項目の値 items（planmarks.approved_items の形。呼び手が渡す）を照らせるか
 - check_paths(b, paths, *, items, ruled, by, round_): 承認済みの修正案の項目 items で paths を outside で照らす (行, 記録)。
   合意と裁定は置き場 b から読む。照らさない項目（修正案の無い・範囲の欄の無い控え）は ([], {"checked": False, "why": 理由})。
@@ -28,8 +26,6 @@ import posixpath
 import conflict
 import planmarks
 import stopby   # L1。止めの理由の住処
-import structmark   # 構造の目の汚れる行（修正案の欄 structure の答えの要る行の表の 1 つ）
-import worldmark    # 世界の解の答えの要る行（同じ表のもう 1 つ）
 
 # 単位に結べない変わったパスがほかの項目の out_of_scope に当たり、ある項目の範囲には入る時に足す文（申告すればその項目で照らす）
 OWNER_HINT = "（項目 {nums} の範囲には入る。その項目の単位の changes[].files に申告すれば、その項目の out_of_scope だけで照らす）"
@@ -56,10 +52,6 @@ def owner(path: str, items: list[dict]):
     """path を結ぶ項目: 範囲に入る（inside）最初の項目、無ければ items の最初。items が空なら None（受け付けがはみ出しを範囲の
     相談に回す時に、頼みをどの項目に結ぶかの決まりの 1 か所。planscope・fixgates・受け付けが呼ぶ）"""
     return next((it for it in items if inside(path, it)), items[0] if items else None)
-
-
-def answer_tables(board_dir) -> list:
-    return [planmarks.design_need(structmark.dirty(board_dir)), worldmark.need(worldmark.stage_rows(board_dir) or [])]
 
 
 def oos_hit(path: str, items: list[dict]):

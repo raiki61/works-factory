@@ -17,10 +17,6 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parents[2] / ".shared" / "core"
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
-
 import fixboard  # noqa: E402  （役の定義の見出し ROLE_DEF_HEAD）
 import lens  # noqa: E402
 import promptsection  # noqa: E402

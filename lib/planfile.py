@@ -899,7 +899,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
 def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_rev: str, keys=accept.TREE_KEYS) -> dict:
     """修正案の役の直した項目の返答（形 replan）を受け付ける。拒否は REPLAN_REJECT と誤りの全部。通れば replan.json（行は
     replan.TRIP_KEYS の形。contract_changed・widened は事実だけ）と、直した項目を差し替えた案の全体を p2.fix_plan.json・
-    plan-fields.json（amended に直した項目の核の欄。planmarks.amend と同じ）・reply.json に書き、trace に planmarks.AMEND_OP を書く。
+    plan-fields.json（amended に直した項目の核の欄）・reply.json に書き、trace に planmarks.AMEND_OP を書く。
     作業ツリーの比べと控えを置けない時は take_plan と同じ"""
     round_dir = pathlib.Path(round_dir)
     why = moved(round_dir / TREE_FILE, repo, keys)

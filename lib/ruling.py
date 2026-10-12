@@ -25,10 +25,6 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parents[2] / ".shared" / "core"
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
-
 _GL = pathlib.Path(__file__).resolve().parent / "graphloops"   # 写しの engine（engine.schema。元は import board が sys.path に足した。carry.py と同じ足し方）
 if str(_GL) not in sys.path:
     sys.path.insert(0, str(_GL))

@@ -17,7 +17,6 @@ if str(LIB) not in sys.path:
 from lib.tests import test_blk_refix as RF  # noqa: E402
 import lens  # noqa: E402
 import lenses  # noqa: E402
-import refix  # noqa: E402
 
 FINDING = {"where": "stats.py", "cite": "return hi", "why": "上限を超えた値を黙って hi に丸め、呼び元は丸めたことに気づけない"}
 LENS_REPLY = {"findings": [], "findings_none": "差分の stats.py と呼び元を読み、黙って失敗する所は無かった"}
@@ -59,12 +58,6 @@ class LensPlaceCase(RF.DeltaPlaceCase):
         self.assertIs(out["ok"], False)
         self.assertIn("控えが無い", out["reason"])
 
-    def test_not_routed_lens_is_counted(self):
-        self.routed(go=False)
-        out = self.collect("null")
-        self.assertEqual((out["ok"], out["not_routed"], out["ran"]), (True, 1, 0))
-        self.assertIn("silent-failure-hunter: 起こさなかった（変わったファイルに例外の扱いが無い）", lens.report_lines(self.place))
-
     # -- 集計
     def test_findings_keeps_valid_and_counts_dropped(self):
         """1 件の形の誤りは捨てて件数を行の dropped に書き、形の合った発見は残す。findings が配列でなければ failed"""
@@ -78,30 +71,6 @@ class LensPlaceCase(RF.DeltaPlaceCase):
         row = lens.read(self.place)[0]
         self.assertEqual(row["state"], "failed")
         self.assertNotIn("dropped", row)
-
-    def test_count_line_always_names_failed_lens_count(self):
-        self.routed()
-        self.collect(json.dumps(LENS_REPLY, ensure_ascii=False))
-        self.assertIn("落ちたレンズ 0 件", lens.count_line(lens.summary(self.place)))
-        self.assertIn("落ちたレンズ 0 件", lens.report_lines(self.place)[-1])
-        self.routed()
-        self.collect("null")
-        self.assertIn("落ちたレンズ 1 件", lens.count_line(lens.summary(self.place)))
-
-    def test_summary_counts_adopted_by_lens_field(self):
-        """採った件数は審査の faces の lens 欄がレンズの名の穴の数。審査の返答は受け付けが置き場に置いたファイルで渡す"""
-        self.fixed()
-        self.routed()
-        self.collect(json.dumps({"findings": [FINDING, {**FINDING, "where": "other.py"}]}, ensure_ascii=False))
-        self.cut()
-        reply = RF.review_faces()
-        base = reply["faces"][0]
-        reply["faces"] = [{**base, "key": f"{base['key']} {i}", **({"lens": v} if v else {})}
-                          for i, v in enumerate(["silent-failure-hunter", None, "no-such-lens"])]
-        got = refix.accept_review(reply, self.place, self.base, self.repo, n=1)
-        self.assertTrue(got["ok"], got)
-        s = lens.summary(self.place, got["reply_file"])
-        self.assertEqual((s["ran"], s["readable"], s["adopted"], s["not_adopted"], s["unmatched"]), (True, True, 1, 1, 1))
 
     # -- 差分の審査の brief
     def test_cut_brief_carries_lens_rows(self):

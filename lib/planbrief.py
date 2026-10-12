@@ -47,10 +47,6 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parents[2] / ".shared" / "core"
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
-
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行・planmarks に渡す読み口）
 import planmarks  # noqa: E402
 import promptsection  # noqa: E402

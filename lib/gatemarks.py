@@ -12,11 +12,9 @@ undecided_because の規律（本流 p2.diagnose.md 8 項）を関所の項目�
 狭めない案（持ち主 2026-10-01。人が関所で毎回「BASE の動きを残し、黙らずに名指す」形を書き足していたため）: 修正案の役は
 narrows を書く前に狭めを避ける形を当たり、無い時だけ narrows に書いて各行に探した結果（NO_NARROW）を書く。欄は決め手の欄と
 同じ道で役の型にだけ足して盤面へ渡す前に外し、関所の項目の尾に添えるが、関所を通す条件（decided）には使わない。
-- with_marks(node, schema)・split(node, reply)・save(board, node, round, marks): 役の型・受け付け
+- split(node, reply)・save(board, node, round, marks): 受け付け
 - narrow_gaps(node, reply): 修正案の narrows の行で狭めない案の欄を欠く・短い行（planblk.take が拒む）
 - plan_gate_items(b): 写しの _plan_gate_items の差し替え
-- r4_gate_items(rl): 写しの _r4_gate_items の組み手。修正前の関所で人が continue で通した行と種類も本文も同じ行を、修正の後の
-  関所（r4.human_gate）で聞き直さず、gate_passes に by human で残す（ADR 0043 の文脈と同じ向き: 答え済みの人の決定を聞き直さない）
 - passes(b)・lines(b): 通した行と、最後の関所の文・報告の行
 
 問いの台帳（record.questions）のうち人に聞く状態（検証器の ASKING）の問いも、修正前の関所の項目に 1 件 1 行で載せる（持ち主
@@ -48,15 +46,15 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
   （answered と _gate_answered が読む。関所の continue と同じく答えた扱い。出どころで複数の問いに当たる答えはどれにも答えない）・
   答えの名乗りの文・答えた行に載らない答えの行（台帳のどの問いにも当たらない・複数の問いに当たった・決着済みの問いに当たった・
   判定が結べないと訳つきで名乗った。報告の冒頭と最後の関所が名指す。保留の件数に数えない）。
-- answer_binds(b, a, questions=None, answer_rows=None)・with_answer_ties(node, schema)・split_answer_ties(reply)・answer_tie_problems(b, reply, rows)・
-  answer_ties(b)・save_answer_ties(board, rnd, rows)・answer_tie_lines(b): 依頼の答えが当たる問いを決める 1 つの式（受け付けは返答の
-  問いに、報告は台帳に当てる）と、判定の返答の足し欄 answer_ties（種 answers。答えを問い・単位に、前の周の作り直しの行を直す単位に結ぶ。
-  役の型に足し、受け付けが外して確かめ、通れば控え answer-ties.json に置く）の手順の口と、判定が単位にしなかった作り直しの報告の行
+- answer_binds(b, a, questions=None, answer_rows=None)・split_answer_ties(reply)・answer_ties(b)・save_answer_ties(board, rnd, rows)・
+  answer_tie_lines(b): 依頼の答えが当たる問いを決める 1 つの式（受け付けは返答の問いに、報告は台帳に当てる）と、判定の返答の足し欄
+  answer_ties（種 answers。答えを問い・単位に、前の周の作り直しの行を直す単位に結ぶ。受け付けが外して確かめ、通れば控え
+  answer-ties.json に置く）の手順の口と、判定が単位にしなかった作り直しの報告の行
   ANSWERED_HEAD は答えた行の見出し、ANSWER_HOW は保留の行の下に出す答え方の 1 行
-- unmeasured(b)・origin_of(b, q)・material_answer(b, name)・measured_materials(b)・material_lines(b): 今の周に測れていない素材
+- unmeasured(b)・origin_of(b, q)・material_answer(b, name)・material_lines(b): 今の周に測れていない素材
   （not_run・awaiting_human）・答えを結ぶ時の問いの出どころ（台帳の origin。origin を持てない field の問いは、key の頭の測れていない
-  素材の名）・素材の名で答えた依頼の答え（問いが立っていなくても当たる）・命令と出力つきで答えた素材（報告が検証器の阻害から外す。
-  HAND_CHECKED と名乗る）・答えた行に足す素材の行（利用者の声 10-09 の C2）
+  素材の名）・素材の名で答えた依頼の答え（問いが立っていなくても当たる）・答えた行に足す素材の行（命令と出力つきの答えは
+  HAND_CHECKED と名乗る。利用者の声 10-09 の C2）
 - design_only(b)・design_item(b): 設計だけの run か・関所に載せる設計だけの行（載せなければ空）
 - PLAIN・named(node)・eye_named(name, status): 関所の文と報告が主語にする平易な名（内部の名は括弧へ。plan・specblk・境の節・報告が使う）
 - quote(question)・QUOTE_NOTE: 盤面の問いの文を引用として載せる行と、関所で添える答え方の読み替えの 1 行
@@ -64,9 +62,9 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 - gate_text(asking, *, run_id, node, record_name): 答えを受ける関所の文（修正前の関所と仕様の関所が呼ぶ 1 つの組み立て）
 - recommend_gaps(node, reply)・recommend_of(mark): 関所の項目の行の推し recommend {answer, note, why}（実の利用者の run ac9e02ab）の
   形の誤り（受け付けが拒む）と、形の整った推し（人に回す項目の末尾「／推し: …」に載る。照らしの _human_passed はこの尾を外す）
-- answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD と下書きが使う）
-- answer_drafts(b)・draft_line(drafts, next_file): 無人の run が関所で止まった項目と、保留のままの台帳の問い・問いの無い測れていない素材への答えの下書き
-  （draft: true・source つき。報告が next-request.json の answers に置き、依頼の入口 carry.parts が拒む）と、報告の冒頭 1 の行
+- answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD が使う）
+- draft_line(drafts, next_file): 答えの下書き（draft: true・source つき。報告が next-request.json の answers に置き、依頼の入口
+  carry.parts が拒む）の報告の冒頭 1 の行
 グラフの中で決めてよいか（持ち主 2026-10-09 の決め 1。計画 2026-10-09-clean-whole の Task 2.6）: 関所の行を聞かずに通すのは、4 つの軸が
 全部揃う時だけ（人がいる run も無人の run も同じ決まり。揃わない行は今どおり人に回し、無人なら止めて答えの下書きを残す）。
 自明（決め手の欄が揃い、decided_by の出どころ＝URL・パス:行・依頼の引用「…」・設計の決定の記録のパスが現物に在る。cite.sources_problem）・
@@ -194,15 +192,6 @@ ANSWER_HOW = ('答え方: 次の run の依頼を {"findings": [...], "answers":
 ANSWER_TIES = "answer_ties"
 ANSWER_TIE_NODES = marks.nodes("answers")
 ANSWER_TIE_MIN = 20     # none の訳の最小の長さ（本流の事前審査が entrance の穴に求める no_add と同じ長さ）
-ANSWER_TIE_ROW = {
-    "type": "object", "additionalProperties": False,
-    "properties": {
-        "answer": {"type": "string", "minLength": 1, "note": "依頼の answers の question を一字も変えずに写した物"},
-        "redesign": {"type": "string", "minLength": 1, "note": "作り直しのセクションの行の text の最初の「（」まで"},
-        "to": {"type": "string", "minLength": 1, "note": "結び先: 今の返答の問いの key か単位の key（作り直しの行は [block] か do-now の単位）"},
-        "none": {"type": "string", "minLength": ANSWER_TIE_MIN, "note": "結べない訳（答えが当たる問いも単位も無い・作り直しの行が反証で死んだか目的の外）"},
-    },
-}
 NO_CARRY_HEAD = promptsection.Section("### 判定が単位にしなかった作り直し（次の run に運ばない）",
                                       human="人が読む報告のセクション PRIOR_HEADING の中の小見出し。役の指示書には貼らない")
 DESIGN_ONLY = "true"                  # 入力 design_only の設計だけの語（entry.DESIGN_ONLY_WORDS）
@@ -333,12 +322,6 @@ def gate_text(asking: dict, *, run_id: str, node: str, record_name: str) -> str:
               "修正役に届く）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]
     return "\n".join(lines) + "\n"
-
-
-def with_marks(node: str, schema: dict) -> dict:
-    """役の型に決め手の欄と狭めない案の欄を足した写し（NODES でなければそのまま）。修正案の narrows の行では狭めない案の欄が要る"""
-    return marks.add("gate", node, schema, {**MARK_SCHEMA, NO_NARROW: NO_NARROW_SCHEMA},
-                     required=(NO_NARROW,) if node == "p2.fix_plan" else ())
 
 
 def narrow_gaps(node: str, reply: dict) -> list:
@@ -804,13 +787,6 @@ def _tie_of(rows, a):
     return next((r for r in rows if isinstance(r, dict) and "answer" in r and r["answer"] == a.get("question")), None)
 
 
-def with_answer_ties(node: str, schema: dict) -> dict:
-    """役の型に answer_ties（任意の欄。古い返答を拒まない）を足した写し（ANSWER_TIE_NODES でなければそのまま）"""
-    return marks.add("answers", node, schema, {ANSWER_TIES: {
-        "type": "array", "items": ANSWER_TIE_ROW,
-        "note": "依頼の answers と前の周の作り直しの行を、今の返答の問い・単位に結ぶ行（字の一致で当たらない答えと、作り直しの行の全部）"}})
-
-
 def split_answer_ties(reply) -> tuple:
     """（answer_ties を外した返答の写し, 行の一覧。欄が無ければ []）。dict でない返答はそのまま"""
     if not isinstance(reply, dict):
@@ -845,15 +821,6 @@ def save_answer_ties(board, rnd: int, rows: list) -> None:
         return
     doc["rounds"][str(rnd)] = rows
     marks.write(p, doc)
-
-
-def _redesign_rows(b) -> list:
-    """依頼の prior_failures の写し（盤面の根の prior-failures-in.json）のうち、作り直しの行（無い・読めなければ空）"""
-    try:
-        rows = json.loads((pathlib.Path(b.dir) / carry.PRIOR_IN_FILE).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    return [r for r in rows if carry.is_redesign(r)] if isinstance(rows, list) else []
 
 
 def _fix_duty(unit: dict) -> bool:
@@ -897,45 +864,6 @@ def _tie_row_problems(i: int, r, answers: dict, redesign: dict, questions: dict,
     return out, (kind, key)
 
 
-def answer_tie_problems(b, reply, rows) -> list:
-    """判定の返答 reply（answer_ties を外した写し）と結びの行 rows の誤り（1 件 1 文）: 行の形・to が今の返答の問いか単位の key に
-    在るか・作り直しの行の結び先が直す単位か。求める結び: 返答の問いに answer_binds で 1 つにも当たらない（素材の名で測れていない
-    素材に当たる答えを除く）・複数に当たる依頼の答えと、作り直しの行の全部。字の一致で返答の問い 1 つに当たる答えは結びを求めない
-    （書けば結びが勝つ）。判定の後に機械が台帳へ立てる問い（R が確かめられないと返した周の ASK_KEYS の key）の字で書かれた答えも、
-    判定の返答に問いが無いので結びを求めない。台帳はこの時点で今の返答の問いを持たないので、返答の問いを渡して当てる"""
-    if not isinstance(rows, list):
-        return [f"{ANSWER_TIES} が配列でない（{type(rows).__name__}）"]
-    body = reply if isinstance(reply, dict) else {}
-    questions = [q for q in body.get("questions") or [] if isinstance(q, dict)]
-    units = {u.get("key"): u for u in body.get("units") or [] if isinstance(u, dict)}
-    answers = {a.get("question"): a for a in request_answers(b)}
-    redesign = {carry.row_key(r): r for r in _redesign_rows(b)}
-    out, tied = [], set()
-    for i, r in enumerate(rows):
-        errs, got = _tie_row_problems(i, r, answers, redesign, {q.get("key") for q in questions}, units)
-        out += errs
-        if got is not None and not errs:
-            if got in tied:
-                out.append(f"{ANSWER_TIES}[{i}] が同じ {got[0]} {got[1]!r} の 2 度目（1 つの答え・行に結びは 1 つ）")
-            tied.add(got)
-    later = set((getattr(getattr(b, "rules", None), "ASK_KEYS", None) or {}).values())   # 判定の後に機械が台帳へ立てる問いの key
-    for name, a in answers.items():
-        if ("answer", name) in tied or name in later:
-            continue
-        hits = answer_binds(b, a, questions, answer_rows=())
-        if len(hits) == 1 or (not hits and name in unmeasured(b)):
-            continue
-        out.append(f"依頼の答え {name!r} が" + (f"返答の複数の問いに当たる（{'・'.join(str(q.get('key')) for q in hits)}）" if hits
-                                             else "返答のどの問いにも当たらない")
-                   + f"のに結びが無い——{ANSWER_TIES} に {{answer: {name!r}, to: <今の返答の問いの key か単位の key>}} か "
-                   f"{{answer: {name!r}, none: <当たらない訳。{ANSWER_TIE_MIN} 字以上>}} を足す")
-    for key, r in redesign.items():
-        if ("redesign", key) not in tied:
-            out.append(f"作り直しの行 {_squeeze(r.get('text'))!r} に結びが無い——{ANSWER_TIES} に {{redesign: <行の text の最初の「（」まで>, "
-                       f"to: <[block] か do-now の単位の key>}} か {{redesign, none: <反証で死んだか目的の外とした訳。{ANSWER_TIE_MIN} 字以上>}} を足す")
-    return out
-
-
 def answer_tie_lines(b) -> list:
     """報告の節の小見出し NO_CARRY_HEAD と、判定が単位にしなかった作り直しの行（redesign と none の結び）の 1 件 1 行。無ければ空
     （この行は次の run に運ばない。次の周の独立の目がもう一度見る）"""
@@ -957,14 +885,6 @@ def material_answer(b, name: str):
     if name not in unmeasured(b):
         return None
     return next((a for a in request_answers(b) if a.get("question") == name and len(answer_binds(b, a)) <= 1), None)
-
-
-def measured_materials(b) -> set:
-    """依頼の答えが命令と出力つきで答えた、今の周に測れていない素材の名（報告が検証器の阻害から外す。計画 request-answers の
-    決め 4 を、命令と出力の在る答えに限って測れなかった素材の代わりにする——実測とは書かず、人が手元で確かめたと名乗る）"""
-    if not request_answers(b):
-        return set()
-    return {n for n in unmeasured(b) if (a := material_answer(b, n)) is not None and _measured(a)}
 
 
 def material_lines(b) -> list:
@@ -1033,56 +953,11 @@ def answer_key(b, q) -> str:
     return str(q.get("key") or "")
 
 
-def _ask_draft(b, q: dict) -> dict:
-    """台帳の問い 1 つの下書き（question は answer_key。見直して draft を外せば次の run の依頼の answers がこの問いに当たる）"""
-    key = answer_key(b, q)
-    got = [m.strip() for m in PUSH_IN.findall(str(q.get("reason") or "")) if m.strip() and m.strip() != NO_PUSH]
-    if got:
-        return _draft(key, got[0], f"{ASK_HEAD} {key} の理由の推し（判定の役）")
-    opts = "・".join(str(o) for o in q.get("options") or []) or "（無し）"
-    return _draft(key, "", f"{ASK_HEAD} {key} の選択肢", f"推しを判定の役が書いていない。選択肢から人が答えを text に書く: {opts}")
-
-
 def _material_draft(name: str, st: str, reason) -> dict:
     """問いの立っていない測れていない素材の下書き（question は素材の名）。答えは人が手元で確かめて書く"""
     return _draft(name, "", f"素材 {name}（{st}）",
                   f"run の中で測れなかった（{_squeeze(reason) or '理由なし'}）。手元で確かめ、結果を text に、打った命令と出力を "
                   "command と output に書く（両方が在れば、次の run はこの素材を人が手元で確かめた物として残りに数えない）")
-
-
-def answer_drafts(b) -> list:
-    """人の判断を待つ項目を残した時の答えの下書き [{question, text, draft: True, source, note?}]（実の利用者の run ac9e02ab。
-    推しの無い行は text が空で、材料が note に在る）: 無人の run だけ、修正前の関所に無人の殻が stop を答えた周の項目ごとに 1 行
-    （人の居る run は人が関所で答えた。推しが在ればその答え、無ければ
-    狭めない案・世界の解。入力 design_only の設計だけの行は除き、事前審査の壁打ちが止まった行は載せる。控えに当たらない項目は文の
-    推しの尾を拾う）と、人の居る run でも無人の run でも、保留のままの台帳の問い（held_lines に並ぶ問い。kind を問わない）ごとに
-    1 行（question は answer_key、text は理由の推し）と、問いの立っていない測れていない素材ごとに 1 行（question は素材の名。
-    依頼の答えが当たった素材は除く）。人の居る run の下書きは利用者の声 10-09 の C4（下書きが無く、利用者が問いの名を推して書いて
-    字が合わなかった）。機械は関所にも問いにも答えない——下書きは依頼の入口が拒むので、人が見直してから使う"""
-    out = []
-    stops = [h for h in (b.record.get("process") or {}).get("human_items") or []
-             if isinstance(h, dict) and h.get("node") == GATE_NODE and h.get("answer") == "stop" and h.get("round") == b.round
-             ] if gatepolicy.unattended(b.dir) else []
-    rows = {_item(text, m, why if decided(m) else ()): (text, m, node)
-            for _, text, m, node, units in _gate_rows(b) for why in [axes(b, m, units)]} if stops else {}
-    rows.update({f"{text}（人に聞く訳: {' / '.join(why)}）": (text, {"world": m["world"]}, planmarks.NODE)
-                 for text, m, why in world_items(b) if why} if stops else {})
-    for a in (stops[-1].get("asked") or []) if stops else []:
-        if not isinstance(a, str) or a.startswith(DESIGN_ONLY_ITEM):
-            continue
-        if a in rows:
-            out.append(_gate_draft(*rows[a]))
-            continue
-        push = PUSH_IN.findall(a) if PUSH_TAIL.search(a) else []
-        out.append(_draft(PUSH_TAIL.sub("", a), push[-1].strip(), f"{named(GATE_NODE)}の項目の文の推し") if push
-                   else _gate_draft(a, {}, GATE_NODE))
-    held = [q for q in _asking(b) if not _gate_answered(b, q)]
-    out += [_ask_draft(b, q) for q in held]
-    asked = {origin_of(b, q) for q in _asking(b)}
-    mats = (b.record.get("materials") or {}) if unmeasured(b) else {}
-    out += [_material_draft(n, st, (mats.get(n) or {}).get("reason")) for n, st in unmeasured(b).items()
-            if n not in asked and material_answer(b, n) is None]
-    return out
 
 
 def draft_line(drafts: list, next_file: str) -> str:
@@ -1414,26 +1289,6 @@ def carried_section(b) -> str:
     なら本文をそのまま写せという頼み。r4_gate_items は本文の完全一致で照らすので、別の役の自由文を揃える口。無ければ空"""
     rows = [f"- [{kind}] {body}" for kind, body in _human_passed(b)]
     return f"{CARRIED_HEAD}\n\n{CARRIED_ASK}\n\n" + "\n".join(rows) if rows else ""
-
-
-def r4_gate_items(rl):
-    """写しの RL の _r4_gate_items の組み手（board.rl_builder の印で _apply_overrides が開いた RL を渡す）。元の関数の行のうち、
-    修正前の関所で人が continue で通した行と種類も頭を除いた本文も同じ物を外し、state.works.gate_passes に by human で残す。
-    写しの元は頭込みの文で照らすので、関所ごとに頭の違う同じ狭めを外せない"""
-    base, heads = rl._r4_gate_items, {kind: head for kind, _, head in rl.R4_ROWS}
-
-    def items(b):
-        passed, out = _human_passed(b), []
-        for kind, row in base(b):
-            head = heads.get(kind, "")
-            key = (kind, row[len(head):]) if row.startswith(head) else None
-            if key not in passed:
-                out.append((kind, row))
-                continue
-            _keep(b, {"node": R4_GATE_NODE, "round": b.round, "by": PASSED_BY_HUMAN, "item": row,
-                      "passed_at": {"node": GATE_NODE, "round": passed[key]}})
-        return out
-    return items
 
 
 def passes(b) -> list:

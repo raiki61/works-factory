@@ -10,7 +10,6 @@ output_format）にだけ足し、受け付けが返答から外してから盤�
   file＝盤面の控えの名（None は控えを別の考えの記録に置く種）、place＝ROOT（盤面の根）か WORK（今の周の作業の置き場）
 - nodes(kind): 欄を持つ節（か役）の名
 - add(kind, node, schema, fields, required=()): 役の型の写しの行に欄を足す（表に無い節は渡した物をそのまま返す）
-- drop(kind, node, schema, names): add の逆（足した欄を外した型の写し。受け付けが写しの graph の型で照らす時）
 - rows(kind, node, reply): 欄を持つ行（写さずにその場の物）を道の形で（検査が行を名指すのに使う。表に無い節は None）
 - split(kind, node, reply, names): （欄を外した返答の写し, 外した欄）。外した欄は道の EACH の段だけ入れ子の並びで、葉は
   外した欄の dict。形の崩れた返答（dict でない・並びでない）でも落ちず、その所は空（{} か []）。表に無い節は（写し, None）
@@ -77,19 +76,6 @@ def add(kind: str, node: str, schema: dict, fields: dict, required=()) -> dict:
     if required:
         have = row.get("required", [])
         row["required"] = [*have, *dict.fromkeys(k for k in required if k not in have)]
-    return out
-
-
-def drop(kind: str, node: str, schema: dict, names) -> dict:
-    """add の逆: schema の写しの、node の行の在り処の properties と required から names を外す（写しの graph の型で照らす時）。
-    node が表に無ければ schema をそのまま返す"""
-    out, row = _schema_row(kind, node, schema)
-    if row is None:
-        return schema
-    for k in names:
-        row.get("properties", {}).pop(k, None)
-    if "required" in row:
-        row["required"] = [r for r in row["required"] if r not in names]
     return out
 
 

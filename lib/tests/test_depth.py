@@ -17,8 +17,6 @@
 import json
 import pathlib
 import sys
-import tempfile
-import types
 import unittest
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように
@@ -155,67 +153,6 @@ class LinesCase(unittest.TestCase):
         text = "\n".join(depth.lines(doc))
         self.assertNotIn("軽量で省いた", text)
         self.assertIn("標準", text)
-
-
-class WordsCase(unittest.TestCase):
-    def test_skipped_review_has_plain_word(self):
-        """省いた目（記録の reviews の skipped）は、最後の関所と報告の目の行に平易な語で出る"""
-        import gatemarks
-        self.assertEqual(gatemarks.eye_named("R1", "skipped"), f"{gatemarks.EYES['R1']}（R1）: 軽量で省いた（skipped）")
-
-
-class FileCase(unittest.TestCase):
-    def test_write_and_read(self):
-        with tempfile.TemporaryDirectory() as d:
-            doc = depth.decide_doc([item([U1])], [U1], forced="", checked=True)
-            path = depth.write(pathlib.Path(d), doc)
-            self.assertEqual(path.name, depth.FILE)
-            self.assertEqual(depth.read(pathlib.Path(d)), doc)
-            self.assertEqual(json.loads(depth.unit_map(doc)), {U1: depth.LIGHT})
-
-    def test_read_missing_is_none(self):
-        with tempfile.TemporaryDirectory() as d:
-            self.assertIsNone(depth.read(pathlib.Path(d)))
-
-
-class BoardReadCase(unittest.TestCase):
-    """盤面を読む口（decide・signals・raise_）。盤面は dir・round・record・work だけを持つ偽物で、控えのファイルを一時の置き場に書く"""
-
-    def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        self.dir = pathlib.Path(self._tmp.name)
-        self.skipped = {}
-        self.b = types.SimpleNamespace(dir=self.dir, round=1, record={"questions": []}, state={},
-                                       node_state=lambda nid: "done" if nid in self.skipped else "pending",
-                                       skip=lambda nid, why: self.skipped.__setitem__(nid, why),
-                                       work=lambda name: self.dir / "r1" / name)   # 周の作業ファイル（食い違いの共有の控え）
-        put(self.dir / "plan-fields.json", {"round": 1, "fields": [item([U1]), item([U2], tests=4)]})
-
-    def start(self, **kw):
-        put(self.dir / "r1" / "start.json", {"thickness": "自動", "test_cmd": "", **kw})
-
-    def test_decide_reads_fields_and_start_and_writes_file(self):
-        self.start(test_cmd="sh t.sh")
-        doc = depth.decide(self.b, json.dumps([U1, U2]), tdd_suite="")
-        self.assertEqual({k: v["depth"] for k, v in doc["units"].items()}, {U1: depth.LIGHT, U2: depth.STANDARD})
-        self.assertEqual(depth.read(self.dir), doc)
-
-    def test_decide_without_checks_is_standard(self):
-        self.start()
-        doc = depth.decide(self.b, json.dumps([U1]), tdd_suite="")
-        self.assertEqual(doc["units"][U1]["depth"], depth.STANDARD)
-        doc = depth.decide(self.b, json.dumps([U1]), tdd_suite="dev/suite.sh")
-        self.assertEqual(doc["units"][U1]["depth"], depth.LIGHT)
-
-    def test_decide_forced_word_from_start(self):
-        self.start(thickness=depth.STANDARD, test_cmd="sh t.sh")
-        doc = depth.decide(self.b, json.dumps([U1]), tdd_suite="")
-        self.assertEqual(doc["units"][U1]["depth"], depth.STANDARD)
-
-    def test_decide_unreadable_open_units_is_no_units(self):
-        self.start(test_cmd="sh t.sh")
-        self.assertEqual(depth.decide(self.b, "null", tdd_suite="")["units"], {})
 
 
 def put(path: pathlib.Path, doc) -> None:

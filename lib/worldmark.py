@@ -26,12 +26,12 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
   項目の欄 structure の答え {world: <類の id>, follows: true} か {world, deviation}
 - world_ok(answer, row, own_sources, cite_ok): 関所の軸「世界の解か」（答えの要らない行・従う・依頼の外の出どころで訳の立つ外れ。
   web で確かめていない行（knowledge）は従う答えだけが揃い、外れは人に聞く——計画の 5.5 節「知識だけの定石に従うのは自明側、外れは人へ」）
-- gate_line(row, answer)・report_lines(board_dir): 関所の項目と報告の節「世界の解」の行
+- gate_line(row, answer): 関所の項目の行
 
 依頼の解き方（足し欄 means。計画の W6・5.3 節の 1）: 目的の役は目的の文に解き方を書かず、依頼が示した解き方（手段）を役の型の
 足し欄 MEANS に分ける。足す・外す・置くの手順は住処 marks（種 means）に任せ、欄の意味（型・読んだ後の使い方）をここが持つ。
 目的の文の型は写しのまま。控えは世界の解の段の入力（言い直す役が依頼の解き方として見る）で、独立設計には渡さない（目的だけから設計する）。
-- MEANS_NODES・with_means(node, schema)・split_means(reply): 欄を持つ節・役の型に欄を足した写し・（欄を外した返答の写し, 手段の並び）
+- MEANS_NODES・split_means(reply): 欄を持つ節・（欄を外した返答の写し, 手段の並び）
 - write_means(board_dir, means)・means_of(board_dir): 控えを置く（空なら置かない）・読む（無い・読めなければ []）
 """
 import json
@@ -63,8 +63,6 @@ PLAN_ASK = ("当たる所の在る行（答えの要る行）は、行ごとに�
 STATES = ("ok", "failed")
 MEANS = "means"
 MEANS_NODES = marks.nodes(MEANS)
-MEANS_SCHEMA = {"type": "array", "items": {"type": "string", "minLength": 1},
-                "note": "依頼が示した解き方（こう直せという手段）の文の並び。目的の文には書かない。解き方を示さない依頼は書かない"}
 
 
 # ---------------------------------------------------------------- 読む
@@ -143,9 +141,6 @@ def ref_problems(reply, board_dir) -> list:
 
 
 # ---------------------------------------------------------------- 依頼の解き方（足し欄 means）
-def with_means(node: str, schema: dict) -> dict:
-    """役の型に means（任意の欄。古い返答を拒まない）を足した写し（MEANS_NODES でなければそのまま）"""
-    return marks.add(MEANS, node, schema, {MEANS: MEANS_SCHEMA})
 
 
 def split_means(reply) -> tuple:
@@ -261,18 +256,3 @@ def gate_line(row, answer) -> str:
         return f"{head}／案は定石に従う"
     return f"{head}／案は外れる——{answer.get('deviation')}"
 
-
-def report_lines(board_dir) -> list:
-    st = read(board_dir)
-    if st is None:
-        return []
-    if st["status"] != "ok":
-        return [f"- 世界の解の段が落ちた（行なしで進んだ）: {st.get('reason') or '理由の記録が無い'}"]
-    try:
-        got = rows(st.get("world_file") or "") if st.get("world_file") else []
-    except ValueError as e:
-        return [f"- 世界の解の行が読めない: {e}"]
-    out = [f"- 類 {r['class_id']}（依頼の行 {r['finding']}）: {r['practice']}{_mark(r)}"
-           f"（{_versus(r)}）" for r in got]
-    out.append(f"- 類 {st.get('classes', len(got))}・落とした抜き書き {st.get('dropped', 0)}")
-    return out

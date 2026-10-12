@@ -4,14 +4,12 @@
 - Section は見出しの字そのものの str（f-string・.format・==・dict の鍵が素の字と同じ）。出どころ（source）か機械が貼らない
   理由（human）を欄に持ち、複製（copy.deepcopy）と pickle の往復で欄が残る
 - Receive は受け手の役の側の行（role・section・when）。when を省けば節の出どころ（fn:）の関数で、出どころが関数でない節は省けない
-- declared_sections(module) はモジュールの直下の Section の値だけを名と並べて返す
-標準ライブラリだけ。mock なし（モジュールの代わりに types.SimpleNamespace を渡す）。
+標準ライブラリだけ。mock なし。
 """
 import copy
 import pathlib
 import pickle
 import sys
-import types
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -26,13 +24,13 @@ class SectionCase(unittest.TestCase):
             import promptsection as m   # 住処（無ければこの試験が断言の失敗で落ちる）
         except ImportError as e:
             self.fail(f"promptsection が読めない: {e}")
-        for name in ("Section", "Receive", "declared_sections"):
+        for name in ("Section", "Receive"):
             self.assertTrue(hasattr(m, name), f"promptsection.{name} が無い")
         return m
 
     def test_section_is_the_heading_with_its_declaration(self):
         """Section は見出しの字と同じ str として指示書の本文に入り、出どころ・理由の欄が複製と pickle の往復で残る。
-        Receive は (role, section, when)。declared_sections はモジュールの Section の値だけを名と並べる"""
+        Receive は (role, section, when)"""
         m = self.ps()
         head = "## 前の回の受け付けが拒んだ理由"
         s = m.Section(head, source="board:worldmark.HEAD", human="")
@@ -74,14 +72,6 @@ class SectionCase(unittest.TestCase):
         for section in (s, bare, human):   # 出どころが関数でない節は省けない
             with self.subTest(section.source or section.human or "空"), self.assertRaisesRegex(ValueError, "when が無く"):
                 m.Receive("plan", section)
-
-        # 宣言の口: Section の値だけを名と並べる（素の str・数・関数は数えない）
-        mod = types.SimpleNamespace(A_HEAD=s, B_HEAD=human, PLAIN_HEAD="## 素の字", N=3, ROWS=[row], f=lambda: s)
-        got = dict(m.declared_sections(mod))
-        self.assertEqual(set(got), {"A_HEAD", "B_HEAD"})
-        self.assertIs(got["A_HEAD"], s)
-        self.assertIs(got["B_HEAD"], human)
-        self.assertEqual(dict(m.declared_sections(types.SimpleNamespace(X="## y"))), {})
 
 
 if __name__ == "__main__":

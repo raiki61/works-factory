@@ -8,7 +8,7 @@
   と裏取りを回す単位の数の下限 MIN_UNITS
 - 下請けと束ね役の指示書の文（TITLE・SUB_HEAD・RULES・UNIT_HEAD・UNIT_ASK・VIEW_HEAD・SYNERGY_HEAD・SYNERGY_ASK・AGG・AGG_REPLY）
 - output_format・unit_schema・synergy_schema: 束ね役の返答と答えのファイルの型
-- answer_in・_head・_unit_row・_initial・_load: 支度と束ねの口（開いた単位を選ぶ open_units は is_open の持ち主 judge_accept に在る。
+- _head・_unit_row・_initial・_load: 支度と束ねの口（開いた単位を選ぶ open_units は is_open の持ち主 judge_accept に在る。
   ここから judge_accept を読むと、ここを先に読んだ時に循環で読み込めない）
 """
 import copy
@@ -42,7 +42,7 @@ PLACES = ("same", "apart")              # 関わりの行の place: 同じ行・
 WAITING = "裏取りの答えがまだ無い（束ね役が落ちたか、下請けを起こさなかった）"
 
 UNIT_HEAD = promptsection.Section("## この下請けの単位: 単位 {n}", source="fn:judgeverify.prep_on")   # 下請けのファイルの共通の頭（全部の単位と相乗りで同じバイト）とその単位の節の境
-ANSWER_AT = "Write の道具でファイル {answer} に書け"   # 下請けのファイルが答えの置き場を名指す句（answer_in が引く）
+ANSWER_AT = "Write の道具でファイル {answer} に書け"   # 下請けのファイルが答えの置き場を名指す句
 TITLE = promptsection.Section("# 判定の単位の裏取りの下請け", source="fn:judgeverify._head")
 SUB_HEAD = ("この役は判定の単位の裏取りの下請け（読むだけ。Read・Grep・Glob で根拠のコードを調べ、Write は最後のセクションが名指す答えの"
             "ファイルにだけ使う。Edit・Bash を使わず、作業ツリーを 1 文字も変えない）。判定役が人の修正依頼を根本の単位に切った。"
@@ -107,17 +107,6 @@ def synergy_schema() -> dict:
             "properties": {"why": {"type": "string", "minLength": 10}, "duplicates": {"type": "array", "items": pair},
                            "relations": {"type": "array", "items": relation},
                            "order": {"type": "array", "items": order}}}
-
-
-def answer_in(brief: str) -> str:
-    """下請けのファイルの文が名指す答えのファイル（ANSWER_AT の句。無ければ空）"""
-    head, _, tail = ANSWER_AT.partition("{answer}")
-    at = brief.find(head)
-    if at < 0:
-        return ""
-    rest = brief[at + len(head):]
-    end = rest.find(tail)
-    return rest[:end] if end >= 0 else ""
 
 
 def _read_json(path: pathlib.Path):

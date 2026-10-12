@@ -22,7 +22,6 @@
 
 - CITE_IN_WHERE: 場所の文の中の名指し 1 つ分の形（CITE の錨を外した物。パスは空でもよい）
 - where_cites(where) -> [(パス, 始め, 終わり)]: 場所の文の中の名指しを順に返す。パスの無い `:<行>` は直前のパス、直前が無ければ空
-- lead_path(text) -> str: 場所の文（「x.py:12（…）」「x.py の docstring」）の頭のパス。パスの形でなければ空
 
 標準ライブラリだけ。works の物を何も import しない（読み手が多いので輪を作らない）。
 """
@@ -85,14 +84,6 @@ def where_cites(where) -> list:
         last = m["path"] or last
         out.append((last, m["a"], m["b"]))
     return out
-
-
-def lead_path(text: str) -> str:
-    """場所の文（「works/x.py:12（…）」「works/x.py の docstring」）の頭のパス。最初の空白か「（」までの字から、最初の「:」の前。
-    パスの形（/ か . を持つ）でなければ空"""
-    head = str(text or "").strip().split(None, 1)[0] if str(text or "").strip() else ""
-    head = head.split("（", 1)[0].split(":", 1)[0]
-    return head if "/" in head or "." in head else ""
 
 
 def flat(s) -> str:

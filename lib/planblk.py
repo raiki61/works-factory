@@ -10,12 +10,10 @@ p2.fix_plan）が案を直す。直しの役が起きるかは壁打ちの控え
 ブロックの script が役を起こす支度・受け付け・出口を持ち、ここはその部品を出す（盤面 b は引数で受ける）。
 
 - 頭: head（役の定義・並行 PR の外した範囲・ライブラリの文書の節・事前審査なら独立設計の節）と、修正案の役の頭に貼る節
-            plan_slots_section（入れてよい no）・prescription_section（判定の処方）・world_part（世界の解）・prior_part（前の run で
-            最後まで通らなかった物）・verify_part（裏取りの申し送り）・units_ripple_part（波及の一覧）・lib_section（ライブラリの文書）。
+            plan_slots_section（入れてよい no）・prescription_section（判定の処方）・verify_part（裏取りの申し送り）・
+            lib_section（ライブラリの文書）。
             事前審査の役の頭の design_section は独立設計の節（design_only）と項目の works の欄の節（planmarks.review_section）
-- 役の名: role_node・known_role（独立設計の役 DESIGN_ROLE・直しの役 REVISE_ROLE も写しの graph の節に引く）・snapshot_name
-- 受け付けの照らし: not_allowed（案に入れてはいけない単位）・stuck_reason・halt_if_stuck（必ず入れるのに開いていない単位。
-            案の形では閉じないので盤面を止める）
+- 役の名: role_node（独立設計の役 DESIGN_ROLE・直しの役 REVISE_ROLE も写しの graph の節に引く）
 - 事前審査の木: 事前審査の役は束ね役。tree_part が開いた項目（converge.open_items）ごとの下請けのファイルと、項目が 2 つ以上なら相乗りの
             審査のファイルを今の周の plan-review-items/pass-<k>/ に書き、束ね役の頼み（AGG_HEAD）でそれを Agent で並べて起こさせる。
             下請けは答えを作業ツリーの外の run の置き場（answers_dir。作業ツリーは役が変えてはいけない）の機械が決めたファイルに Write で
@@ -26,7 +24,6 @@ p2.fix_plan）が案を直す。直しの役が起きるかは壁打ちの控え
             ファイルにだけ機械の読める誤りの一覧（ERRORS_HEAD）を貼って起こし直させ、通った項目は起こし直さない。
             支度（ブロックの script）が tree_part を呼ばなかった往復は下請けの置き場（ITEMS_DIR）が無いので、受け付けは木のまとめを飛ばす
             （_tree_off。審査役 1 つの返答をそのまま受ける。出自の申告 origins は役の型が確かめた返答の欄のまま）
-- 壁打ちの again: rewind_roles が役の節 2 つを同じ周の待ちに戻す。replanning は入力 replan が同じ run の中の案の直しを指すか
 - RECEIVES: 役ごとに貼る節の見出しの表（promptsection）
 """
 import copy
@@ -49,13 +46,11 @@ import carry  # noqa: E402
 import concepthome  # noqa: E402  （L1。判断の 1 軸と考えの住処の観点の文）
 import converge  # noqa: E402
 import design  # noqa: E402
-from engine import pointers  # noqa: E402  （board が写しの engine を sys.path に足す）
 from engine.schema import validate_schema  # noqa: E402
 import gatemarks  # noqa: E402
 import libdocs  # noqa: E402
 import planmarks  # noqa: E402
 import promptsection  # noqa: E402
-import stopby  # noqa: E402  （L1。止めの理由の住処）
 import ripple  # noqa: E402  （blk-plan の lib。波及の一覧）
 import rolekit  # noqa: E402
 import structmark  # noqa: E402
@@ -65,10 +60,8 @@ NODE_OF = {"plan": "p2.fix_plan", "plan-review": "p2.plan_review"}   # 役（YAM
 ROLES = tuple(NODE_OF)
 DESIGN_ROLE = "r2-design"   # 独立設計の役（盤面の節へは渡さない。core の design）
 REVISE_ROLE = "plan-revise"   # 直しの役（事前審査の壁打ちで修正案の役の会話の続き。盤面の節は p2.fix_plan。NODE_OF・ROLES に入れない）
-STOP_BY = stopby.declare("plan", "修正案の段が止めた（ループが諦めた・行き止まりの単位・控えを置けない）")
 NONE_WORDS = ("", "null")               # 入口の「無し」（実行基盤の入力の既定の空と、ラインが渡す文字列 null）
 EXCLUDED_HEAD = "並行 PR の範囲。触らず、単位に入れない"
-RIPPLE_UNITS = "ripple/units.json"      # 今の周の作業ファイル（manifest の produces ripple/**）
 RIPPLE_PASS = "ripple/pass-{k}.json"
 ITEMS_DIR = "plan-review-items/pass-{k}"   # 事前審査の下請けのファイル（manifest の produces plan-review-items/**）
 AGENT_OP = "plan_review_agents"         # 読んだ証拠の節が trace に書く、事前審査の下請けの起動の数の行（元 planblk.py:134）
@@ -161,7 +154,6 @@ SUB_SYNERGY_ASK = ("この役は相乗りの審査の下請け。項目どうし
                    "無いならその理由を書く。答えは下の JSON Schema に合う JSON 1 つにして、" + ANSWER_AT + "（このファイルのほかに"
                    "書かない）。書いたら最後のメッセージに 1 行だけ返せ: `相乗り: clean` か `相乗り: block <key>、<key>`。"
                    "\n\n```json\n{schema}\n```")
-LATER_NODES = ("p2.human_gate", "p3.lane_merge")   # 役の節 2 つを戻す前に、今の周に受けていてはいけない後ろの節（戻しは後ろへ伝わらない）
 PLAN_STUCK = "修正案の行き止まり: 必ず案に入れる単位が開いていない"
 STUCK_WHY = ("受け付けの写しは開いていない単位を受けず、義務からも外さないので、案の形では閉じない。人が承認ノードで問いの答えを直すか、"
              "単位を開く")
@@ -226,20 +218,6 @@ def role_node(role: str) -> str:
     if role not in NODE_OF:
         raise BoardGap(f"役 {role!r} は blk-plan の共有ボードへ渡す役（{' / '.join(ROLES)}）でない")
     return NODE_OF[role]
-
-
-def known_role(role: str) -> str:
-    """役の写しの graph の節（独立設計の役・直しの役も含む）。知らない役は BoardGap"""
-    if role == REVISE_ROLE:
-        return NODE_OF["plan"]
-    return design.NODE if role == DESIGN_ROLE else role_node(role)
-
-
-def snapshot_name(role: str) -> str:
-    """役を起こす前の作業ツリーの写しの名（直しの役は自分の snap が置く写し。1 往復目の修正案の写しと比べない）"""
-    if role != REVISE_ROLE:
-        role_node(role)
-    return f"{role}-snapshot.json"
 
 
 def _given(value) -> str:
@@ -313,70 +291,6 @@ def prescription_section(b) -> str:
     return f"{PRESCRIPTION_HEAD}\n\n{PRESCRIPTION_ASK}\n\n" + "\n\n".join(rows) if rows else ""
 
 
-def stuck_reason(b) -> str:
-    """必ず入れるのに開いていない単位（関所で答えた問いの出どころが defer など。plan_slots の 必ず入れる − 入れてよい）が在れば、
-    盤面を止める理由（PLAN_STUCK・その単位の no と key・STUCK_WHY）。無ければ空。写しの受け付けはこの単位を入れても外しても拒むので、
-    役を起こすと同じ拒否を 3 回繰り返して止まる"""
-    owed, opened, _ = plan_slots(b)
-    stuck = sorted(owed - opened)
-    if not stuck:
-        return ""
-    names = _names(b, NODE_OF["plan"])
-    items = "・".join(f"no {names.index(k) + 1}（{k}）" if k in names else f"no の一覧に無い単位（{k}）" for k in stuck)
-    return f"{PLAN_STUCK}: {items}。{STUCK_WHY}"
-
-
-def halt_if_stuck(b) -> str:
-    """行き止まりの単位が在れば盤面を止めて（by works:plan。もう止まっていれば止め直さない）理由を返す。無ければ空"""
-    why = stuck_reason(b)
-    if why and not (b.state.get("halted") or b.state.get("stop")):
-        b.stop(why, by=STOP_BY)
-    return why
-
-
-def _resolved(b, nid: str, reply: dict) -> dict:
-    """返答の写しの no を engine の pointers.resolve で名前に戻した物（戻せない番号は番号のまま。拒否は entry.take＝engine に任せる）"""
-    got = copy.deepcopy(reply)
-    pointers.resolve(got, b.nodes[nid].get("pointers"), (b.rd["instances"].get(nid) or {}).get("pointers"))
-    return got
-
-
-def _plan_keys(got) -> list:
-    """修正案の返答が案の行に挙げた単位の key（文字列）。形の崩れた行・欄は飛ばす（形の拒否は entry.take＝engine に任せる。再提出の道に乗せる）"""
-    rows = got.get("plan") if isinstance(got, dict) else None
-    return [k for p in rows if isinstance(p, dict) and isinstance(p.get("unit_keys"), list)
-            for k in p["unit_keys"] if isinstance(k, str)] if isinstance(rows, list) else []
-
-
-def allowed_nos(b, nid: str) -> list:
-    """案に入れてよい no（開いている単位の no。必ず入れる単位は開いている＝halt_if_stuck が保つ）"""
-    _, opened, _ = plan_slots(b)
-    return [i + 1 for i, k in enumerate(_names(b, nid)) if k in opened]
-
-
-def not_allowed(b, nid: str, reply) -> list[str]:
-    """修正案の返答が案に入れた単位のうち、受け付けが受けない物（入れてよくなく、必ず入れる物でもない）の理由の行。no は engine の
-    pointers.resolve で名前に戻す（範囲外の番号・判定に無い key の拒否は entry.take＝engine に任せる）"""
-    if not isinstance(reply, dict):
-        return []
-    owed, opened, units = plan_slots(b)
-    got = _resolved(b, nid, reply)
-    names = _names(b, nid)
-    lines = []
-    for k in _plan_keys(got):
-        if k in units and k in names and k not in opened and k not in owed:   # 判定に無い key・番号に無い名前は受け付けの写しの拒否に任せる
-            u = units[k]
-            lines.append(f"no {names.index(k) + 1} は label={u.get('label')}（disposition={u.get('disposition', '無し')}）"
-                         f"で直す対象でない（{k[:40]}）")
-    return lines
-
-
-def world_part(b) -> str:
-    """修正案の指示書の頭に貼る世界の解の節（盤面の根の控えが指す行と、行ごとの答えの頼み。行が無い周は ""）"""
-    got = worldmark.section(worldmark.stage_rows(b.dir) or [])
-    return f"{got}\n{worldmark.PLAN_ASK}\n" if got else ""
-
-
 def design_section(b) -> str:
     """事前審査の指示書の頭に貼る節: 独立設計の節（design_only）と、修正案の項目の works の欄の節（planmarks.review_section。
     控えが無ければ無し）。欄の控えが凍結の印と食い違えば控えを名指す理由の BoardGap（盤面を止めるのは呼ぶブロックの script）"""
@@ -399,12 +313,6 @@ def design_only(b) -> str:
         return f"{DESIGN_HEAD}\n\n" + DESIGN_NOT_STANDS.format(reason=r + design.anchor_note(r))
     return (f"{DESIGN_HEAD}\n\n{DESIGN_ASK}\n\n設計の役の理由: {got['reason']}\n\n=====独立設計ここから=====\n"
             f"{got['design']}\n=====独立設計ここまで=====")
-
-
-def prior_part(b, role: str) -> str:
-    """修正案の役の頭に貼る、前の run で最後まで通らなかった物の節（盤面の根の prior-failures-in.json。manifest の consumes。
-    carry.prior_section）。修正案の役だけ（事前審査・独立設計の役には貼らない）。行が無ければ空"""
-    return carry.prior_section(b.dir, gap=BoardGap) if role == "plan" else ""
 
 
 def lib_section(b, repo, shared=None) -> str:
@@ -481,11 +389,6 @@ def verify_part(verify_file) -> str:
     return "\n".join(lines)
 
 
-def units_ripple_part(b) -> str:
-    doc = _read_json(b.work(RIPPLE_UNITS))
-    return ripple.units_section(doc) if isinstance(doc, dict) else ""
-
-
 def _item_rows(b) -> list:
     """今の周の案の項目（盤面の p2.fix_plan の出力の行に、項目の works の欄を重ねた物。番号は並びの順）"""
     doc = b.output_of_round(NODE_OF["plan"], b.round)
@@ -530,17 +433,6 @@ def answer_file(b, k: int, n: int) -> pathlib.Path:
 
 def synergy_file(b, k: int) -> pathlib.Path:
     return answers_dir(b, k) / SYNERGY_FILE
-
-
-def answer_in(brief: str) -> str:
-    """下請けのファイルの文が名指す答えのファイル（ANSWER_AT の句。無ければ空）"""
-    head, _, tail = ANSWER_AT.partition("{answer}")
-    at = brief.find(head)
-    if at < 0:
-        return ""
-    rest = brief[at + len(head):]
-    end = rest.find(tail)
-    return rest[:end] if end >= 0 else ""
 
 
 def _faces_schema(b) -> tuple[dict, dict]:
@@ -593,12 +485,6 @@ def precedent_plan(b, opened: list) -> dict:
                 owner.setdefault(src, n)
             out.setdefault(n, []).append({"id": f"P{i}", "row": r, "cached": hit, "fetch_by": owner.get(src)})
     return out
-
-
-def fetch_ids(brief: str) -> list:
-    """下請けのファイルが開けと言う先行例の出典の id（PRECEDENT_FETCH の行の頭の `- P<i>`）"""
-    return [line.split(":", 1)[0][2:] for line in brief.splitlines()
-            if line.startswith("- P") and PRECEDENT_FETCH in line]
 
 
 def _precedent_part(rows: list, n: int) -> str:
@@ -985,23 +871,6 @@ def tree_part(b, main_prompt: pathlib.Path) -> str:
 
 
 # ---------------------------------------------------------------- 節
-def replanning(replan) -> bool:
-    """入力 replan が同じ run の中の案の直しの口を指すか（空でも文字列 null でもない）"""
-    return bool(_given(replan))
-
-
-def rewind_roles(b) -> None:
-    """壁打ちの again で役の節 2 つ（修正案・事前審査）を同じ周の待ちに戻して settle する（修正案の待ちが出る。事前審査の待ちは
-    案を受けるまで出ない）。後ろの節（LATER_NODES）が今の周に受けていれば、戻しは後ろへ伝わらないので戻さずに盤面を止めて
-    （by stopby.PLAN_CONVERGE。もう止まっていれば止め直さない）BoardGap。機械の節は渡さない（engine が戻さずに落ちる）"""
-    later = [n for n in LATER_NODES if n in b.rd["done"]]
-    if later:
-        why = f"事前審査の壁打ちで修正案と事前審査を戻せない: 後ろのノード {'・'.join(later)} がこの周に受けた後（戻しは後ろへ伝わらない）"
-        if not (b.state.get("halted") or b.state.get("stop")):
-            b.stop(why, by=stopby.PLAN_CONVERGE)
-        raise BoardGap(why)
-    b.rewind([NODE_OF["plan"], NODE_OF["plan-review"]], by=stopby.PLAN_CONVERGE)
-    b.settle()
 
 
 def _write_json(path: pathlib.Path, doc) -> None:

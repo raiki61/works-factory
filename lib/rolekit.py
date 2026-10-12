@@ -2,7 +2,7 @@
 ブロックのスクリプトの入口の約束を 1 か所に置く（前は rejudge・refix に写しが在った）。
 
 - with_reject:    道具ゼロの役の指示書の頭に前の拒否の文を貼る（ファイルを名指さない。裁定 R44）
-- agent_def:      engine の agent_def（役の定義 agents/<役>.md）を、写しの plugin の役は pack の写し（core/agents/）から引く
+- agent_def:      engine の agent_def（利用者が入れた plugin の役の定義 agents/<役>.md。無ければ None）
 - with_done:      盤面の節でない受け付け（script_io.main の finish）に done を足す。拒否は盤面の根の控え rejects-<名>.json に
                   積み、通った時か give_up_after 回目の拒否で done（出し直しても直らない拒みは 1 回目で。控えは intake が
                   clear_rejects で消す）
@@ -31,7 +31,7 @@ if str(_CORE) not in sys.path:
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 from engine.util import safe_name  # noqa: E402
-from engine.validator import agent_def as _engine_agent_def, env_root  # noqa: E402
+from engine.validator import agent_def  # noqa: E402,F401  （fixboard のレンズが rolekit.agent_def の名で読む）
 import promptsection  # noqa: E402
 
 
@@ -39,25 +39,7 @@ class BoardGap(Exception):
     """内部の誤り（表の欠け・配線の誤り・保存できない盤面への保存・効かない差し替え）。役に返しても直らない"""
 
 
-AGENTS_PLUGIN = "convergence-loops"    # core/agents/ に写した役の定義の plugin（写しの graph の plugin。tests/test_core_copy.py）
 GIVE_UP_AFTER = 3                       # 輪の max_iterations と同じ数（ブロックの試験が YAML と突き合わせる）
-
-
-def agent_def(agent_type: str):
-    """engine の agent_def と同じ返り（無ければ None）。本線の engine は隣に並ぶ plugin の agents/<役>.md を読むが、pack の engine の
-    隣は plugin でないので、写しの plugin（AGENTS_PLUGIN）の役は、置き場 <PLUGIN>_ROOT が明示されていなければ pack の写し
-    （core/agents/。COPIED_FROM）を指して引く——利用者の plugin のキャッシュに依らない（run 31: 隔離した CLAUDE_CONFIG_DIR に
-    convergence-loops が無く、独立の目の支度が BoardGap で落ちた）。明示された置き場と別 plugin の役は engine の探し方のまま。
-    置き場の環境変数はこの呼びの間だけ置く（後で起こす子のプロセス——対象の試験など——へ漏らさない）"""
-    plugin = agent_type.rpartition(":")[0]
-    key = env_root(plugin) if plugin else ""
-    if plugin != AGENTS_PLUGIN or os.environ.get(key):
-        return _engine_agent_def(agent_type)
-    os.environ[key] = str(_CORE)
-    try:
-        return _engine_agent_def(agent_type)
-    finally:
-        os.environ.pop(key, None)
 
 
 # 役の文は関所と報告に機械が字のまま載せるので、書き手に言語を縛る（元 works/.shared/core/rolekit.py 67-68 行。機械で訳さない）

@@ -23,7 +23,6 @@ if str(_GL) not in sys.path:
     sys.path.insert(0, str(_GL))
 
 import copy  # noqa: E402
-import difflib  # noqa: E402
 import re  # noqa: E402
 import shutil  # noqa: E402
 import subprocess  # noqa: E402
@@ -546,24 +545,7 @@ DIAGNOSE_SCHEMA = {
 }
 
 
-class Unreadable(Exception):
-    """元 judgetake.py:47。出口を組めない（judgment.json の形が崩れた）"""
-
-
 # ---------------------------------------------------------------- 依頼の型
-def check_inputs(inputs):
-    """元 works/.shared/core/graphloops/rules/review-loop.py:67。init の入口（置き場を作る前）で、選ぶ入力の鍵と値を確かめる——
-    綴り違いの鍵や知らない値を既定（今の流れ）に倒さない。仕様の道（flow=spec）と、変異の検算を合流でまとめる選択（gates=merge）"""
-    chosen = {"flow": SPEC_FLOW, "gates": GATES_MERGE}
-    for k in inputs:
-        # 鍵の綴り違い（gate=merge）は、黙って既定（撃つ）に倒れると選んだつもりの害がそのまま起きる。似て非なる鍵を落とす
-        near = difflib.get_close_matches(k, chosen, n=1, cutoff=0.75) if k not in chosen else []
-        if near:
-            raise Reject(f"--input {k}=… は鍵 {near[0]} の綴り違いに見える（知らない鍵は既定の流れに倒れる）——{near[0]}={chosen[near[0]]} と書け")
-    for k, want in chosen.items():
-        v = inputs.get(k)
-        if v is not None and v != want:
-            raise Reject(f"--input {k}={v!r} は知らない値（使えるのは {k}={want}。今の流れなら {k} を渡さない）")
 
 
 def add(items, reason, rnd: int = 1) -> dict:
@@ -720,22 +702,6 @@ def _awaiting_origins(questions, materials, where):
     return errs
 
 
-def _declared_route_errors(out, prev_declared_faces=()):
-    """元 works/.shared/core/graphloops/rules/review-loop.py:2483。前の周に残すと宣言した穴を、判定者が 1 件ずつ振り分けたか
-    （to_unit＝今の周の直す単位に上げた／accept＝残すことを認めた）。元は履歴を読む判定の節 p2.history でだけ当てた（judge_output の
-    nid の分け）。このブロックの判定は p2.diagnose だけなので judge_output は呼ばない。prev_declared_faces は元 loop.prev_declared_faces"""
-    asked = {r["key"] for r in prev_declared_faces or []}
-    rows = out.get("declared_routed") or []
-    errs = _keys_once(rows, "declared_routed")
-    errs += [f"declared_routed の key '{r['key'][:40]}' は前の周に宣言された穴に無い" for r in rows if r["key"] not in asked]
-    errs += [f"前の周に残すと宣言された穴 '{k[:40]}' を振り分けていない——to_unit（直す単位に上げる）か accept（残すことを認める）で答えろ"
-             for k in sorted(asked - {r["key"] for r in rows})]
-    units = {u["key"] for u in out.get("units") or []}
-    errs += [f"declared_routed '{r['key'][:40]}' は to_unit なのに unit_key が今の周の units に無い" for r in rows
-             if r["route"] == "to_unit" and r.get("unit_key") not in units]
-    return errs
-
-
 def judge_output(out, jdir, root, rev, materials, *, prev_deletions=None, prev_questions=(), defer_ledger=None):
     """元 works/.shared/core/graphloops/rules/review-loop.py:2497。judge の返答を、検証器の語彙（このモジュールの頭の表）で先に見る。
     落ちるなら judge に返させ直す（Reject）。あわせて 1 行の欄を 1 行に正規化し、class_query の件数を engine が数えた値に置き換える
@@ -889,20 +855,6 @@ def _save_examples(jdir, examples) -> None:
     """元 accept.check_judge の例の控え: 例の無い判定は前の例を消すだけ（ファイルが在れば空に置き換え、無ければ作らない）"""
     if examples or marks.path_of("query", jdir).is_file():
         querytest.save(jdir, examples, replace=True)
-
-
-def check_judge(reply, jdir, base_rev, repo) -> dict:
-    """元 works/.shared/core/accept.py:504。判定役の返答を受け付ける。作業ツリーか HEAD が変わっていれば拒む（_judge_tree_unchanged）→
-    型（DIAGNOSE_SCHEMA）→ class_query の例（querytest）→ 先例の出どころ（worldmark）→ judge_output（素材は置き場の materials.json）。
-    通れば置き場の judgment.json に書く（例は外して judge_output に通し、query-examples.json に置いて戻す）。
-    {"ok", "reason", "open_units", "judgment_file"}。目的の外の所見と依頼の答えの結びも照らすのは take"""
-    def run():
-        out, examples, note = _judged(reply, jdir, base_rev, repo)
-        _save_examples(jdir, examples)
-        path = write_json(pathlib.Path(jdir) / JUDGMENT_FILE, querytest.restore(out, jdir))
-        return {"ok": True, "reason": note or "", "open_units": [u["key"] for u in out["units"] if is_open(u)],
-                "judgment_file": str(path)}
-    return core_accept.guard(run, open_units=[], judgment_file="")
 
 
 # 元 works/blk-material/lib/material.py:65-73 の ROLES の P1 の 9 本（写しの graph の p1.* の役の節）
@@ -1071,26 +1023,6 @@ def _give_up(jdir) -> dict:
         reason = f"受け付けを通った判定が無いまま判定のループを抜けた（{DIAGNOSE_NODE} の受け付けの拒否の控えも無い）"
     write_stop(jdir, JUDGE_STOP, reason)
     return {"ok": False, "open_units": [], "need_fix": False, "judgment_file": "", "one_shot": ""}
-
-
-def collect(jdir) -> dict:
-    """元 works/blk-judge/lib/judgetake.py:140。判定の出口。judgment.json から {ok, open_units, need_fix, judgment_file, one_shot}。
-    無ければ _give_up。形が崩れていれば Unreadable"""
-    path = pathlib.Path(jdir) / JUDGMENT_FILE
-    try:
-        judgment = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return _give_up(jdir)
-    except (OSError, ValueError) as e:
-        raise Unreadable(f"置き場の {JUDGMENT_FILE} が読めない（{path}: {type(e).__name__}: {e}）——受け付けを通った判定が無い") from None
-    units = judgment.get("units") if isinstance(judgment, dict) else None
-    one_shot = judgment.get("one_shot") if isinstance(judgment, dict) else None
-    if not isinstance(units, list) or not all(isinstance(u, dict) and "key" in u and "label" in u for u in units) \
-            or not isinstance(one_shot, str):
-        raise Unreadable(f"置き場の {JUDGMENT_FILE} の形が崩れている（units[].key・label と one_shot が要る）: {path}")
-    open_units = [u["key"] for u in units if is_open(u)]
-    return {"ok": True, "open_units": open_units, "need_fix": bool(open_units), "judgment_file": str(path),
-            "one_shot": one_shot}
 
 
 # ---------------------------------------------------------------- 単位の目録

@@ -10,9 +10,6 @@ findings の lens は指摘の出どころ（レンズの名）。dropped は形
                          在れば ran と出どころつきの findings。1 件の形の誤りは捨てて dropped に数える）。控えが無い・読めなければ ValueError
 - read(b):               行の一覧。控えが無い run は None、読めない・形が違えば ValueError
 - brief_rows(b):         差分の審査役の brief の lens の欄（控えが無い run は []。読めなければ ValueError）
-- summary(b, review_file=None): レンズの集計（採った・採らなかった・捨てた件数・落ちたレンズ。投げない）。報告・関所・次の依頼はこれだけを読む。
-                         review_file は差分の審査（1 回目）の出力の JSON のファイル（None は審査が走っていない）
-- report_lines(b, review_file=None): 報告の「未確認のレンズ」の節の行（控えが無い run は「走らせていない」の行。読めなければ理由の行）
 """
 import json
 import os
@@ -22,7 +19,6 @@ LENS_FILE = "lens.json"
 STATES = ("pending", "ran", "failed", "not_routed")
 FINDING_KEYS = ("where", "cite", "why")
 UNSEEN = {"pending": "集め役が埋めていない", "failed": "落ちた", "not_routed": "起こさなかった"}
-REFIX_NOTE = "手直しの差分にはレンズが当たらない（最後のテストで守る）"
 
 
 def _write(b, rows: list):
@@ -85,63 +81,3 @@ def collect(b, outputs: dict) -> list:
 def brief_rows(b) -> list:
     return [{k: r.get(k) for k in ("lens", "state", "reason", "findings")} for r in read(b) or []]
 
-
-def summary(b, review_file=None) -> dict:
-    """レンズの集計の正本。報告・最後の関所・次の依頼はこの戻り値だけを読む（lens 欄の読みもここだけ）。投げない。
-    {ran, readable, reason, rows, failed, dropped, adopted, not_adopted, unmatched}。
-    - ran: 控えが在る（レンズを走らせた）。無ければ False で、ほかの数は 0 か None
-    - readable: 控えが読めた。読めなければ False と reason（0 件に見せない）
-    - rows: ran のレンズごとの {lens, findings, adopted, not_adopted, dropped}。adopted は review_file（差分の審査の出力）の faces のうち
-      lens 欄がその名の穴の数、not_adopted は findings から adopted を引いた残り（負にしない）
-    - failed: 落ちたレンズの [{lens, reason}]。dropped: 形の誤りで捨てた発見の総数
-    - adopted・not_adopted: 差分の審査の出力が無ければ（review_file が None）None（審査が走っていない＝調べていない。0 ではない）
-    - unmatched: lens 欄が ran のレンズの名に当たらない穴の数（数えに混ざらないよう別に出す。審査が無ければ None）"""
-    out = {"ran": False, "readable": True, "reason": "", "rows": [], "failed": [], "dropped": 0,
-           "adopted": None, "not_adopted": None, "unmatched": None}
-    try:
-        rows = read(b)
-    except ValueError as e:
-        return {**out, "ran": True, "readable": False, "reason": str(e)}
-    if rows is None:
-        return {**out, "adopted": 0, "not_adopted": 0, "unmatched": 0}
-    try:
-        review = None if review_file is None else json.loads(pathlib.Path(review_file).read_text(encoding="utf-8"))
-    except (OSError, ValueError, KeyError) as e:
-        return {**out, "ran": True, "readable": False, "reason": f"差分の審査の出力が読めない: {e}"}
-    faces = [f for f in (review.get("faces") or []) if isinstance(f, dict)] if isinstance(review, dict) else None
-    ran = [r for r in rows if r["state"] == "ran"]
-    counted = []
-    for r in ran:
-        found = r.get("findings") if isinstance(r.get("findings"), list) else []
-        adopted = None if faces is None else sum(1 for f in faces if f.get("lens") == r["lens"])
-        counted.append({"lens": r["lens"], "findings": len(found), "adopted": adopted,
-                        "not_adopted": None if adopted is None else max(0, len(found) - adopted),
-                        "dropped": r["dropped"] if isinstance(r.get("dropped"), int) else 0})
-    names = {r["lens"] for r in ran}
-    return {**out, "ran": True, "rows": counted,
-            "failed": [{"lens": r["lens"], "reason": r.get("reason") or "理由の記録が無い"} for r in rows if r["state"] == "failed"],
-            "dropped": sum(c["dropped"] for c in counted),
-            "adopted": None if faces is None else sum(c["adopted"] for c in counted),
-            "not_adopted": None if faces is None else sum(c["not_adopted"] for c in counted),
-            "unmatched": None if faces is None else sum(1 for f in faces if isinstance(f.get("lens"), str) and f["lens"] not in names)}
-
-
-def count_line(s: dict) -> str:
-    """summary の採った・採らなかった・捨てた件数と落ちたレンズの件数（0 も）を 1 行にする（審査が走っていなければ「調べていない」）"""
-    if s["adopted"] is None:
-        taken = "差分の審査が走っていないので採った・採らなかったは調べていない"
-    else:
-        taken = f"採った {s['adopted']} 件・採らなかった {s['not_adopted']} 件"
-        if s["unmatched"]:
-            taken += f"（レンズの名に当たらない lens 欄 {s['unmatched']} 件は数えに入れない）"
-    return f"レンズの発見: {taken}・形の誤りで捨てた {s['dropped']} 件・落ちたレンズ {len(s['failed'])} 件"
-
-
-def report_lines(b, review_file=None) -> list:
-    s = summary(b, review_file)
-    if not s["readable"]:
-        return [f"レンズの控えが読めない（{s['reason']}）。どのレンズが見たかを確かめられない", REFIX_NOTE]
-    if not s["ran"]:
-        return ["レンズを走らせていない（控えが無い）"]
-    left = [f"{r['lens']}: {UNSEEN[r['state']]}（{r.get('reason') or '理由の記録が無い'}）" for r in read(b) if r["state"] in UNSEEN]
-    return [*(left or ["なし（振り分けたレンズは全部走った）"]), REFIX_NOTE, count_line(s)]

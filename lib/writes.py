@@ -35,8 +35,7 @@ if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行）
-import impact  # noqa: E402  （テストのファイルの名の慣習 is_test）
-from leftovers import Unreadable, git, git_names  # noqa: E402
+from leftovers import git  # noqa: E402
 
 FIELD = "bash_writes"
 MIN_WHY = 10
@@ -80,28 +79,6 @@ def shape_problems(items) -> list:
 def _rel(p: str):
     n = posixpath.normpath(p.strip())
     return None if n.startswith("/") or n == ".." or n.startswith("../") else n
-
-
-def base_test_texts(b, repo, rev: str) -> dict:
-    """修正前の版 rev（呼び手が fixboard.base_rev で選ぶ）に在ったテストの .py（名の慣習 impact.is_test の module）の中身 {パス: 中身}（git ls-tree・git show）。
-    版が読めない・読めないファイルは含めない（空なら {}）が、読み損ねたことは置き場 b の trace.jsonl の行 BASE_TESTS_UNREAD_OP（版と読めなかった
-    パス。版が読めなければ unread は空でなく ["<版>"]）に残す——含めなかったテストを名指す許しは凍結した欄に載らないので、後の拒否の
-    原因を辿れるようにする"""
-    try:
-        names = git_names(repo, "ls-tree", "-r", "--name-only", rev)
-    except Unreadable:
-        fixboard.trace(b, BASE_TESTS_UNREAD_OP, rev=rev, unread=["<版>"])
-        return {}
-    out, unread = {}, []
-    for path in sorted(names):
-        if path.endswith(".py") and impact.is_test(path) == "module":
-            try:
-                out[path] = git(repo, "show", f"{rev}:{path}")
-            except Unreadable:
-                unread.append(path)
-    if unread:
-        fixboard.trace(b, BASE_TESTS_UNREAD_OP, rev=rev, unread=unread)
-    return out
 
 
 def changed(repo, rev: str) -> list:

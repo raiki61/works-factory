@@ -128,17 +128,6 @@ class RequestCase(unittest.TestCase):
         self.assertIs(ja.check_request([], "持ち主")["ok"], False)
         self.assertIs(ja.check_request([{"where": "stats.py"}], "持ち主")["ok"], False)
 
-    def test_check_inputs_refuses_misspelled_key_and_unknown_value(self):
-        """元 test_blk_spec の頭の注（写しの rules の check_inputs が flow=spec・gates=merge 以外を init で拒む）"""
-        ja.check_inputs({})
-        ja.check_inputs({"flow": "spec", "gates": "merge"})
-        with self.assertRaises(Reject) as cm:
-            ja.check_inputs({"gate": "merge"})
-        self.assertIn("gates", str(cm.exception))
-        with self.assertRaises(Reject) as cm:
-            ja.check_inputs({"gates": "all"})
-        self.assertIn("知らない値", str(cm.exception))
-
 
 class JudgeTakeCase(_JudgeBase):
     def test_good_reply_is_written_as_judgment(self):
@@ -335,13 +324,6 @@ class JudgeTakeCase(_JudgeBase):
         got = self.take(reply, prev_questions=[{"kind": "fork", "status": "held", "origin": _MEAN}])
         self.assertIs(got["ok"], False)
         self.assertIn("escalate に上げて", got["reason"])
-
-    def test_declared_route_errors(self):
-        """元 rules の _declared_route_errors（履歴の判定 p2.history の欄。このブロックの判定は当てない部品として持つ）"""
-        out = {"units": [{"key": "u", "label": "block"}], "declared_routed": [{"key": "穴", "route": "to_unit", "unit_key": "v"}]}
-        errs = ja._declared_route_errors(out, [{"key": "穴"}, {"key": "別の穴"}])
-        self.assertTrue(any("unit_key が今の周の units に無い" in e for e in errs))
-        self.assertTrue(any("'別の穴' を振り分けていない" in e for e in errs))
 
     def test_ignored_file_added_by_the_judge_is_rejected(self):
         """元 test_accept.py:178 の test_judge_rejects_ignored_file_without_snapshot・:186 の
@@ -652,7 +634,7 @@ class VerifyPrepCase(_VerifyBase):
         one = (prompt.parent / "unit-1.md").read_text(encoding="utf-8")
         self.assertIn(_MEAN, one)
         self.assertNotIn(_CLAMP, one)
-        self.assertEqual(pathlib.Path(jv.answer_in(one)), self.jdir / ja.VERIFY_ANSWERS_DIR / "unit-1.json")
+        self.assertIn(jv.ANSWER_AT.format(answer=self.jdir / ja.VERIFY_ANSWERS_DIR / "unit-1.json"), one)
         self.assertIn(jv.SUBAGENT_TYPE, prompt.read_text(encoding="utf-8"))
         self.assertEqual([(u["key"], u["state"]) for u in self.notes()["units"]],
                          [(_MEAN, jv.UNVERIFIED), (_CLAMP, jv.UNVERIFIED)])
