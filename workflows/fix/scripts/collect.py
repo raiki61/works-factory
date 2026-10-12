@@ -30,7 +30,6 @@ ERROR_FILE = "fix-collect-error.txt"
 LENSES_FILE = "lenses.json"   # fixboard.LENSES_FILE と同じ名（lib が読めない道でも書く）
 NO_COLLECTOR = "レンズの集め役が終わらなかった: 集め役の出口が無い（集め役が落ちたか走らなかった）"   # fixboard.LENS_NOT_DONE の形
 GROUP_LENSES = "組の子の run はレンズを起こさない（差分の審査は親の run が回す）"
-
 ALLOWED_TESTS = "allowed-tests.json"   # fixboard.ALLOWED_TESTS_FILE と同じ名（lib を読めない時も diff の隣に [] を置く）
 boundary = fixio = None   # 境の口と fixio。読めない時は fallback が stdlib だけで返す
 
