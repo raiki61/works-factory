@@ -301,7 +301,7 @@ class FalseRejectCase(unittest.TestCase):
         self.assertEqual(note["unchecked"], ["docs/scope.md"])
 
     def test_py_file_name_is_module_not_extension(self):
-        """.py のファイルの名（/ も :: も無い）の adds・removes はモジュールの名で見る（0.2.41 の名の規則。tddloop._declared_name）:
+        """.py のファイルの名（/ も :: も無い）の adds・removes はモジュールの名で見る（0.2.41 の名の規則。planmarks.declared_name）:
         拡張子 py を語として探さない。足すモジュールは、そのモジュールの名の .py のファイル（パッケージの __init__.py も）が足した
         行を持つか、消すモジュールはそのファイルが消えたか（ファイルの中身が自分の名を書かないので語では探せない）。__init__.py
         だけの名はモジュールの名が引けないので unchecked"""

@@ -29,9 +29,6 @@ ALLOWED = {
     ("workflows/plan-review/fixtures/stalled.stubs.yaml", 1):
         "stalled: true は返す節 review の stub の値で、筋書きは前の往復と比べていない（前の往復の review は渡らない）。"
         "注記を「stalled を返した後の姿」に直す。区分 P。区分の issue で外す",
-    ("workflows/line/fixtures/plan-stalled.stubs.yaml", 1):
-        "stalled は plan-review の返りの stub の値で、筋書きは 2 度続いたことを確かめていない。"
-        "注記を「plan-review が stalled を返した」に直す。区分 P。区分の issue で外す",
 }
 
 

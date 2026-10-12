@@ -182,7 +182,7 @@ nodes:
     when: "$judge.output.ready == true"
     timeout: 1728000000
     loop_group:
-      max_iterations: 3
+      max_iterations: 20
       until_bash: 'done=$plan-out.output.done; [ "$done" = "true" ]'
       nodes:
         - id: plan
@@ -213,6 +213,7 @@ nodes:
             ripple: "$plan.output.ripple"
             answers: "$answer-start.output.answer"
             ruling: []
+            round_limit: 20
 
         - id: plan-out
           script: plan_out
@@ -242,7 +243,7 @@ nodes:
           depends_on: [plan, plan-review-run]
           trigger_rule: none_failed_min_one_success
           with:
-            round_limit: 3
+            round_limit: 20
             ready: "$plan.output.ready"
             plan: "$plan.output.plan"
             structure: "$plan.output.structure"
@@ -318,13 +319,11 @@ nodes:
       ready: "$plan-rounds.output.ready"
       pass: "$plan-rounds.output.pass"
       stalled: "$plan-rounds.output.stalled"
-      round: "$plan-rounds.output.round"
       ask_human: "$plan-rounds.output.ask_human"
       gate_axes: "$plan-rounds.output.gate_axes"
       questions: "$plan-rounds.output.questions"
       unattended: "$start.output.unattended"
       design_only: "$start.output.design_only"
-      round_limit: 3
 
   - id: gate-before-fix
     approval:

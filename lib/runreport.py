@@ -629,6 +629,15 @@ def _gate_passes(returns: dict) -> list:
     return out
 
 
+def _converge_lines(returns: dict) -> list:
+    """事前審査の往復の報告の行（plan-review の review の隣の gate.json の converge。converge.lines の頭の行と往復ごとの行）。
+    指し札かファイルが無ければ空（無いことは _gate_passes の行が言う）、読めなければその 1 行"""
+    doc, why = _read_beside(returns, "plan-review", "review", gatemarks.PLAN_GATE_FILE)
+    if why:
+        return [f"事前審査の壁打ちの行: 無い（{why}）"]
+    return [x for x in _list(as_dict(doc).get("converge")) if isinstance(x, str)]
+
+
 def _conflict_line(returns: dict) -> str:
     """申し出の件数と裁定・種類の内訳（元 report._conflict_line）"""
     c, k = oc.conflict_counts(returns)
@@ -795,7 +804,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     lines += pr_lines(returns)
     lines += premise_lines(returns, start)
     lines += inner_word_lines(as_dict(returns.get("fix")).get("diff"), lambda w: _target_uses(repo, rev, w))
-    return lines + _gate_passes(returns), decide
+    return lines + _converge_lines(returns) + _gate_passes(returns), decide
 
 
 def _tdd_stages(typed: dict) -> tuple[list, list]:

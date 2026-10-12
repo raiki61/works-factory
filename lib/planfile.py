@@ -457,7 +457,7 @@ def converge_record(plan_dir) -> dict:
         if isinstance(review, dict) and doc.get("plan"):
             resolved = review.get(converge.RESOLVED)
             converge.add_pass(doc, review, answers=copy.deepcopy(answers),
-                              resolved=resolved if isinstance(resolved, list) else [], fence=rolekit.GIVE_UP_AFTER)
+                              resolved=resolved if isinstance(resolved, list) else [])
         reply = _read_json(d / REPLY_FILE)
         if isinstance(reply, dict) and isinstance(reply.get("plan"), list):
             doc["plan"] = converge.plan_rows(reply["plan"])

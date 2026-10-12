@@ -103,6 +103,7 @@ import worldmark   # 世界の解の行と、関所の軸「世界の解か」�
 
 MARKS_FILE = marks.KINDS["gate"].file
 MATERIALS_FILE = "materials.json"   # 判定の隣の素材の状態（素材の名 → {status, …}。材料の支度が組み、判定と報告が読む）
+PLAN_GATE_FILE = "gate.json"   # 事前審査の差し込みの関所の項目と往復の報告の行 converge（boardview が書き、報告が読む）
 RECOMMEND = "recommend"   # 人に回す行の推し（欄は RECOMMEND_KEYS。実の利用者の run ac9e02ab。機械が読める推しが無かった）
 FIELDS = ("decided_by", "undecided_because", "fences", "world", RECOMMEND)
 RECOMMEND_KEYS = ("answer", "note", "why")   # 頭が答え、残りが RECOMMEND_MIN 字以上の文
