@@ -2014,7 +2014,7 @@ class ResultCase(RunCase):
         missing = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "judge/no-such.json"})
         for label, value, word in (("空の字", "", "JSONDecodeError"), ("JSON でない字", "{壊れた", "JSONDecodeError"),
                                    ("ほかの run の札", other, "ほかの run のポインタ"), ("在らない先", missing, "no-such.json"),
-                                   ("指し札でない", json.dumps({"path": "x"}), "指し札でない")):
+                                   ("ポインタでない", json.dumps({"path": "x"}), "ポインタでない")):
             with self.subTest(label):
                 self.run_.inputs["judgment"] = value
                 opened = self.run_.out("pass_open")
