@@ -135,9 +135,6 @@ UNSENT = "unsent"   # 状態の欄: 盤面へまだ積んでいない止めた�
 SESSION_KEY = "session_key"   # 状態の欄: 前の周の支度が組んだ単位の鍵（prep の new_unit の元。元 write_key の鍵）
 GAVE_UP_WHY = "機械が書いた申し出（TDD の確認が回数の上限まで通らなかった）: "   # 3 回拒まれた単位の申し出の why の頭
 STATE, PROMPT, SUMMARY = "state.json", "next.md", "summary.md"
-UNIT_NODE = "tdd"   # 輪の役の節の名
-REST_NODE = "tdd-rest"   # 並べの後に残りの単位を順に回す輪 tdd-rest の役の節の名（同じ支度・確かめ）
-UNIT_NODES = (UNIT_NODE, REST_NODE)   # 輪の役の節の名の全部
 WRITES_LOG = "writes-log.jsonl"   # 書き込みの記録（tdd-<k>/ の下。記録を取る包みが無い run は無い。step の log の既定。無ければ writes.NO_RECORD）
 NO_SUITE = "テストの実行器（入力 tdd_suite）が無い run——全部の単位を今どおり直す"
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
