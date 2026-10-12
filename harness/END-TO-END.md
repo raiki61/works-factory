@@ -18,9 +18,9 @@ ASF（Archon という AI の工程を回す道具の作者が作った、issue 
 
 目的: 線の中の 8 つのブロック（試験の関門・判定・計画・事前審査・修正・独立の目・取り込み・報告）が、通しの中で全部本物に走ったことを run の記録で示す。
 
-期待: 線の include ごとに、その中の節が 1 つ以上 `completed`。修正は fix の組ごとの子の run の中で見る。独立の目の R1〜R4 の役の節が省かれずに `completed`。
+期待: 線の include ごとに、その中の節が親の run の記録で 1 つ以上 `completed`（修正の include も親の run で見る）。修正の役そのものは fix の組ごとの子の run の中で走るので、子の run のどれかで修正の役の節が `completed`。独立の目の R1〜R4 の役の節が省かれずに `completed`。
 
-**落ちたと言える物:** どれかの include の節が 1 つも `completed` でない・R1〜R4 のどれかが省かれた。
+**落ちたと言える物:** どれかの include の節が 1 つも `completed` でない・子の run が無いか、どの子でも修正の役が走っていない・R1〜R4 のどれかが省かれた。
 
 ## `capabilities-evidenced`
 
