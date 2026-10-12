@@ -23,6 +23,9 @@ NAME = "works-factory"
 # tests/shared/test_archon_contract.py が照らす）
 CONTINUING = frozenset({"wake", "signal"})
 EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"}) | CONTINUING
+# 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
+READING = frozenset({"validate", "version", "help"})
+HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
 
 
 class Stop(Exception):
@@ -80,8 +83,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
     child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", WORKS_FACTORY_ROOT=str(ROOT))
     child[place.SOURCE_ENV] = str(source)
-    child[answer.ENV] = answer_head(target)
-    child.pop(answer.WHO_ENV, None)  # respond に答えた者の引数は無い
+    child[answer.ENV] = answer_head(home, target)
     if not no_auth and mise_trusts(user, target):
         workspaces = Path(child["ARCHON_HOME"]) / "workspaces"
         workspaces.mkdir(parents=True, exist_ok=True)
@@ -107,12 +109,23 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             raise Stop(str(error)) from None
         args = place.workflow_run(source, workflows, target, workflow, *without_flag(argv[3:], "--cwd"))[2:]
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
-    os.execve(sys.executable, [*auth, "exec", *auth_user, "--", *place.archon(bun, source), *args], child)
+    command = [*place.archon(bun, source), *args]
+    if not reads_only(argv):
+        command = [*auth, "exec", *auth_user, "--", *command]
+    os.execve(command[0], command, child)
 
 
-def answer_head(target: Path) -> str:
-    """関所の文の答えの行の頭: 殻を通して対象を名指した respond（tests/shared/test_archon_contract.py が引数の形を照らす）"""
-    return shlex.join([str(ROOT / "bin" / NAME), "workflow", "respond", "--cwd", str(target)])
+def reads_only(argv: list[str]) -> bool:
+    """認証を通さずに Archon を起こしてよい命令か: workflow の走らせない命令と、読むだけと分かった上の命令"""
+    if argv[:1] == ["workflow"]:
+        return argv[1:2] != [] and argv[1] not in EXECUTING
+    return argv[:1] != [] and argv[0] in READING
+
+
+def answer_head(home: Path, target: Path) -> str:
+    """関所の文の答えの行の頭: 家を env で名指し、殻を通して対象を名指した respond（家を選ぶ値の無いシェルで打っても同じ run の
+    DB に届く。tests/shared/test_archon_contract.py が殻の後ろの引数の形を照らす）"""
+    return shlex.join(["env", f"{HOME_ENV}={home}", str(ROOT / "bin" / NAME), "workflow", "respond", "--cwd", str(target)])
 
 
 def require_command_first(argv: list[str]) -> None:
@@ -178,10 +191,10 @@ def target_root(cwd: Path, here: Path) -> Path:
 
 def run_home(user: Mapping[str, str], target: Path) -> Path:
     """Archon の DB と隔離した置き場の根。対象ごとに 1 つで起動をまたいで同じ（run・respond・resume が同じ DB を見る）"""
-    chosen = user.get("WORKS_FACTORY_HOME")
+    chosen = user.get(HOME_ENV)
     if chosen:
         if not os.path.isabs(chosen):
-            raise Stop(f"WORKS_FACTORY_HOME は絶対パスにする（受けた値: {chosen}）")
+            raise Stop(f"{HOME_ENV} は絶対パスにする（受けた値: {chosen}）")
         return Path(chosen)
     state = user.get("XDG_STATE_HOME") or str(Path(user["HOME"]) / ".local" / "state")
     return Path(state) / NAME / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]

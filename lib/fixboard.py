@@ -2090,9 +2090,9 @@ def overflow_trace(place, trail: dict, repo, *, pass_: str, attempt: int) -> Non
              for g in r.get("granted_new_tests") or [] if isinstance(g, dict) and fixgates.present(repo, g.get("id"))]
     guards = [f"{g['id']}: 守りのテスト（base で {g['base']}）"
               for g in fixgates.guards(place, pass_=pass_, attempt=attempt)]
-    if agreed or trail["reverted"] or guards or gated:
-        trace(place, impact.ACCEPT_OVERFLOW_OP, node=FIX_ACCEPT_BY, agreed=agreed, reverted=trail["reverted"], guards=guards,
-              gate_tests=gated)
+    row = dict(zip(impact.ACCEPT_OVERFLOW_KEYS, (agreed, trail["reverted"], guards, gated), strict=True))
+    if any(row.values()):
+        trace(place, impact.ACCEPT_OVERFLOW_OP, node=FIX_ACCEPT_BY, **row)
 
 
 def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: str, reverted, trail: dict, pass_: str,

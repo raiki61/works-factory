@@ -96,6 +96,7 @@ import converge
 import marks
 import planmarks   # 修正案の欄 structure（汚れる行への答え）
 import promptsection
+import seal      # 目の状態の語の持ち主
 import startrec   # 始めの記録（盤面の r1/start.json）の読み口
 import structmark  # 構造の目の行（汚れる・人に上げる）
 import worldmark   # 世界の解の行と、関所の軸「世界の解か」（world_ok）
@@ -217,10 +218,10 @@ PLAIN = {"p2.diagnose": "判定", "p2.fix_plan": "修正案", "p2.plan_review": 
          "p3.fix": "修正", "p3.delta_review": "差分の審査", "p3.delta_fix": "手直し", "p3.delta_review2": "2 回目の審査",
          "p3.delta_fix2": "手直し 2 回目", "p4.ci": "最後のテスト", "r4.human_gate": "独立の目が人に回した問い",
          "spec.approve": "仕様の承認の関所", "r2.design": "独立設計"}
-# 独立の目の名 → 何を見る目か（流れの図の 17 項）と、目の判定の状態の語 → 平易な言い方（語は写しの検証器の REVIEW_STATUS）
+# 独立の目の名 → 何を見る目か（流れの図の 17 項）と、目の判定の状態の語 → 平易な言い方（目の語は seal から読む）
 EYES = {"R1": "直しが最小か・注記が正しいかを見る目", "R2": "独立の設計と構造が合うかを見る目",
         "R3": "前提と全体の筋を見る目", "R4": "依頼の範囲を超えていないかを見る目"}
-REVIEW_WORDS = {"pass": "通った", "redesign-needed": "作り直しが要る", "unverifiable": "確かめられない",
+REVIEW_WORDS = {seal.PASSED: "通った", seal.REDESIGN: "作り直しが要る", seal.UNVERIFIABLE: "確かめられない",
                 "premise-invalid": "前提が崩れている", "carried_over": "前の周から持ち越した", "not_applicable": "当てはまらない",
                 "not_run": "走っていない", "skipped": "軽量で省いた"}
 # 素材の状態の語（写しの graph の material.status の enum）→ 平易な言い方。目の判定と共通の語は REVIEW_WORDS から引く

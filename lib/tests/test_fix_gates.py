@@ -752,6 +752,16 @@ class TestLedgerAndText(FixGatesCase):
         self.assertEqual(fixgates.skipped(self.board, pass_="first", attempt=1), [], "帳面が無ければ空")
         self.assertEqual(fixgates.guards(self.board, pass_="first", attempt=1), [])
 
+    def test_every_section_is_kept_and_counted(self):
+        """帳面の節は SECTIONS の 1 か所が持つ。節を足せば、前の行の読み込み・組み直し・積み増しの数えが全部その節も回る（#97 の落とし）"""
+        self.board.mkdir(parents=True, exist_ok=True)
+        old = {"pass": "first", "attempt": 1, "note": "前の回"}
+        (self.board / fixgates.LEDGER).write_text(json.dumps({"rows": [], "notes": [old]}), encoding="utf-8")
+        with mock.patch.object(fixgates, "SECTIONS", (*fixgates.SECTIONS, "notes")):
+            fixgates._record(self.board, {"pass": "first", "attempt": 2}, {"notes": [{"note": "この回"}]})
+        self.assertEqual(self.ledger()["notes"], [old, {"pass": "first", "attempt": 2, "note": "この回"}])
+        self.assertEqual(self.ledger()["guards"], [])
+
 
 class TestAgreedPermitTrees(unittest.TestCase):
     """範囲の相談の合意の範囲の行は修正前の版の行（読む木は 1 つ）。凍結の検査のように別の木を読む側へは conflict.agreed_permits が移す"""

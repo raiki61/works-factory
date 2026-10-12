@@ -1726,12 +1726,14 @@ class OverflowTraceSeamCase(TempCase):
 
     def test_accepted_guard_test_is_named_in_the_overflow_trace(self):
         import fixgates
+        import impact
         (self.place / fixgates.LEDGER).write_text(json.dumps({"rows": [], "skipped": [], "guards": [
             {"pass": "first", "attempt": 1, "id": self.GATE_ID, "base": "passed"},
             {"pass": "first", "attempt": 2, "id": self.GONE_ID, "base": "passed"}]}), encoding="utf-8")
         (row,) = self.overflow_rows()
         self.assertEqual(row["guards"], [f"{self.GATE_ID}: 守りのテスト（base で passed）"])
         self.assertEqual((row["agreed"], row["reverted"], row["gate_tests"]), ([], [], []))
+        self.assertEqual(set(row) - {"op", "node"}, set(impact.ACCEPT_OVERFLOW_KEYS), "行の鍵は impact の定数が持つ")
 
     def asked(self, *grants):
         import conflict

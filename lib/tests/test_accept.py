@@ -116,6 +116,33 @@ class TestSnapshot(AcceptCase):
         (self.repo / "__pycache__").write_text("2\n", encoding="utf-8")
         self.assertEqual(snapshot_tree(self.repo, bytecode=False)["diff_sha256"], before)
 
+    def test_snapshot_sees_edits_hidden_by_index_marks(self):
+        """本物の index の assume-unchanged・skip-worktree の印を付けたファイルの編集も姿を変え、印は消さない（touched_files と同じ見え方）"""
+        for name in ("f", "g"):
+            (self.repo / name).write_text("1\n", encoding="utf-8")
+        git(self.repo, "add", "f", "g")
+        git(self.repo, "commit", "-q", "-m", "fg")
+        git(self.repo, "update-index", "--assume-unchanged", "f")
+        git(self.repo, "update-index", "--skip-worktree", "g")
+        for name in ("f", "g"):
+            with self.subTest(name=name):
+                before = snapshot_tree(self.repo)
+                (self.repo / name).write_text(f"{name} を書き換えた\n", encoding="utf-8")
+                after = snapshot_tree(self.repo)
+                self.assertIn(f" M {name}", after["porcelain"])
+                self.assertNotEqual(after["diff_sha256"], before["diff_sha256"])
+        self.assertEqual(git(self.repo, "ls-files", "-v", "f", "g").splitlines(), ["h f", "S g"])
+
+    def test_snapshot_leaves_out_of_cone_files_unchanged(self):
+        """sparse checkout の範囲外（skip-worktree の印が付き disk に無い）のファイルは、消したと見ない"""
+        for name in ("x/a", "y/b"):
+            (self.repo / name).parent.mkdir()
+            (self.repo / name).write_text("1\n", encoding="utf-8")
+        git(self.repo, "add", "x", "y")
+        git(self.repo, "commit", "-q", "-m", "xy")
+        git(self.repo, "sparse-checkout", "set", "y")
+        self.assertEqual(snapshot_tree(self.repo)["porcelain"], "")
+
 
 class TestTouchedFiles(AcceptCase):
     def test_touched_files_sees_files_hidden_by_index_marks(self):

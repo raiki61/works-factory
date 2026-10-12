@@ -1,7 +1,7 @@
 """受け付けの口。役の返答を、写した graphloops の規則（rules/review-loop.py）と検証器（scripts/review-record.py）に通す。
 
 実行基盤を知らない関数だけを出す。ブロックの script の節がこれを呼び、結果をそのまま出口にする。
-- snapshot_tree: 作業ツリーの写し（git が無視するファイルも入れる。tree_state の土台）
+- snapshot_tree: 作業ツリーの写し（git が無視するファイルも入れる。index の印に隠れた物も入れる。tree_state の土台）
 - tree_state・tree_change・tree_moved: 読むだけの役（blk-pr・blk-ci・entry.take・rejudge.take）を起こす前後の作業ツリーの姿
                  （snapshot_tree に HEAD・枝を足した物）と、その違いの文（R47。check_judge の突き合わせも tree_change で言う）。
                  bytecode=False はバイトコード（_is_bytecode）を姿から除く（測るためにコマンドを走らせる実測役の見張り。premises）
@@ -230,7 +230,8 @@ _NO_BYTECODE = (":(top)", ":(top,exclude,glob)**/*.pyc", ":(top,exclude,glob)**/
 def snapshot_tree(repo: pathlib.Path, *, bytecode: bool = True) -> dict:
     """作業ツリーの写し {"porcelain": str, "ignored": [str], "diff_sha256": str}。tree_state がこれに HEAD・枝を足し、
     読むだけの役を起こす前後に比べる（判定役を起こす前に盤面に写しが無い時は、check_judge が今の写しで作業ツリーが綺麗かを見る）。
-    porcelain は git status --porcelain（未追跡は 1 本ずつ）。ignored は git が無視するパス（_ignored_entries。
+    porcelain は git status --porcelain（未追跡は 1 本ずつ）。porcelain と差分は本物の index の印を外して見る（flag_free_env。
+    touched_files と同じ見え方: assume-unchanged・skip-worktree の印の付いたファイルの編集も見え、sparse checkout の範囲外は消したと見ない）。ignored は git が無視するパス（_ignored_entries。
     差分には載らないが、後の節——テスト——の緑赤を左右する物も在るので、読むだけの役が足しても見逃さない）。
     diff_sha256 は HEAD からの差分（--binary）と、未追跡のファイルの名前と中身・無視されるパスの名前と stat の印
     （_ignored_digests。中身は読まない）を続けた sha256——名前が同じまま中身だけ変わっても違う値になる。フォルダ（入れ子の
@@ -238,12 +239,14 @@ def snapshot_tree(repo: pathlib.Path, *, bytecode: bool = True) -> dict:
     bytecode=False はバイトコード（_is_bytecode。__pycache__/ の下と .pyc）を porcelain・差分・未追跡・無視されるパスの
     どれからも除く（測るために試験を走らせる役が作る物を変化に数えない。修正の差分の側の touched_files と同じ定義）"""
     repo = pathlib.Path(repo)
-    porcelain = _git(repo, "status", "--porcelain", "--untracked-files=all")
+    with flag_free_env(repo) as env:
+        porcelain = _git(repo, "status", "--porcelain", "--untracked-files=all", env=env)
+        diff = _git(repo, "diff", "--binary", "--no-ext-diff", "HEAD", *(() if bytecode else ("--", *_NO_BYTECODE)),
+                    binary=True, env=env)
     porcelain = "".join(f"{ln}\n" for ln in porcelain.splitlines()
                         if not (ln.startswith("?? ") and _cli_owned(_porcelain_path(ln)))
                         and (bytecode or not _is_bytecode(_porcelain_path(ln))))
-    h = hashlib.sha256(_git(repo, "diff", "--binary", "--no-ext-diff", "HEAD", *(() if bytecode else ("--", *_NO_BYTECODE)),
-                            binary=True))
+    h = hashlib.sha256(diff)
     for name in sorted(n for n in _git(repo, "ls-files", "--others", "--exclude-standard", "-z", binary=True).split(b"\0") if n):
         if (not bytecode and _is_bytecode(os.fsdecode(name))) or _cli_owned(os.fsdecode(name)):
             continue

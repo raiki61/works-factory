@@ -22,7 +22,7 @@ from answer import VERBS
 PASS = ("approve", VERBS[0])     # 通す語。approve は承認の節の decisions に要る語、continue は今の works の答えの語
 STOPS = (VERBS[1], "reject")     # 止める語（今の works の report.FINAL_GATE_STOPS）
 REQUEST_BY = "request:"          # 止め札: 文がこれで始まる止める語（今の works の report.REQUEST_BY）
-REDESIGN = "redesign-needed"     # R2 の作り直しの語。unverifiable は機械で拒まず人の答えに任せる
+PASSED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "redesign-needed", "unverifiable")   # 目の状態の語の持ち主（ほかは写さずここを読む）
 UNKNOWN_HEAD = "守りのパスを確かめられない（差分が一覧に触れていないとは言えない）: "
 
 
@@ -98,7 +98,7 @@ def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, f
     1. sealed_hash が空（seal が走っていない）
     2. current_hash が sealed_hash と違う
     3. 答え answer（{decision, text}）が在り、decision が PASS のどれでもない（止め札もここ）
-    4. r2（None か {status, reason}）の status が REDESIGN。人の通しの答えでも拒む（R2 が作り直しと言った run は部分を取り込まない）
+    4. r2（None か {status, reason}）の status が REDESIGN（unverifiable は機械で拒まず人の答えに任せる）。人の通しの答えでも拒む（R2 が作り直しと言った run は部分を取り込まない）
     5. 答えが無い（関所が開かなかった）のに、green_ok・eyes_ok・fingerprint_ok のどれかが真でないか、protected（守りの当たりの行。
        unknown_row の行は「確かめられない」として書き分けるが、当たりと同じく拒む）が空でない。守りのパスは人の通しの答えだけが通す
     答えが PASS なら、赤でも・R2 の作り直しのほかの目の阻害でも置く"""

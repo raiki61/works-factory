@@ -69,6 +69,7 @@ import tddloop  # noqa: E402  （同じブロックの lib。輪の関門の読�
 from leftovers import Unreadable, git  # noqa: E402
 
 LEDGER = "fix-gates.json"
+SECTIONS = ("rows", "skipped", "guards")   # 帳面の節（読み込み・組み直し・積み増しの数えは全部これを回る）
 GATES = ("red_green", "test_edits")
 NO_SUITE = "テストの実行器（入力 tdd_suite）が無い run——受け入れのテストの事後の赤緑は確かめない"
 REJECT = "修正の後の木に、輪の中の関門が通さない物が在る（事後の関門の束）: "
@@ -106,7 +107,7 @@ def problems(board_dir, repo, base_rev: str, suite: str, attempt: int, *, pass_:
         rows += [{**r, "agreed": True} if r["id"] in agreed else r for r in got]   # 合意のテストの行（受け付けがそのテストだけを戻す）
         gaps += why
     rows += _test_edits(b, repo, rev, pass_ == "ruled" or conflict.second_pass(b), [t["id"] for t in tests], round_)
-    _record(b, _mark(pass_, attempt), rows, gaps, guards)
+    _record(b, _mark(pass_, attempt), {"rows": rows, "skipped": [{"why": why} for why in gaps], "guards": guards})
     return rows
 
 
@@ -475,31 +476,24 @@ def _row(gate: str, test_id: str, detail: str, keys=()) -> dict:
     return {"gate": gate, "id": test_id, "detail": detail, "unit_keys": list(keys)}
 
 
-def _record(b, mark: dict, rows: list, skipped: list, guards: list = ()) -> None:
-    """帳面に積む（同じ回の印・同じ中身の行と skipped と守りのテストの結末は積み増さない）。積む物が無ければ書かない"""
-    if not rows and not skipped and not guards:
+def _record(b, mark: dict, entries: dict) -> None:
+    """帳面に積む（entries は節の名 → 印に重ねる行の並び。同じ回の印・同じ中身の行は積み増さない）。積む物が無ければ書かない"""
+    if not any(entries.values()):
         return
     path = pathlib.Path(b) / LEDGER
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         doc = {}
-    doc = {"rows": list(doc.get("rows") or []), "skipped": list(doc.get("skipped") or []),
-           "guards": list(doc.get("guards") or [])}
-    before = (len(doc["rows"]), len(doc["skipped"]), len(doc["guards"]))
-    for r in rows:
-        row = {**mark, **r}
-        if row not in doc["rows"]:
-            doc["rows"].append(row)
-    for why in skipped:
-        row = {**mark, "why": why}
-        if row not in doc["skipped"]:
-            doc["skipped"].append(row)
-    for g in guards:
-        row = {**mark, **g}
-        if row not in doc["guards"]:
-            doc["guards"].append(row)
-    if (len(doc["rows"]), len(doc["skipped"]), len(doc["guards"])) == before:
+    doc = {name: list(doc.get(name) or []) for name in SECTIONS}
+    grew = False
+    for name, rows in entries.items():
+        for r in rows:
+            row = {**mark, **r}
+            if row not in doc[name]:
+                doc[name].append(row)
+                grew = True
+    if not grew:
         return
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
