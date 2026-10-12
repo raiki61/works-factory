@@ -12,6 +12,7 @@ import pathlib
 import shlex
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -606,15 +607,19 @@ class ReuseCase(RepoCase):
         self.assertEqual(got["runs"][0]["reused"]["from"], "run-1")
 
     def test_reused_suite_writes_its_junit_back(self):
-        """JUnit を宣言した段の使い回しは報告を書き戻し、段の起動を書き戻す前に取るので、報告は今の段の物として数える"""
+        """JUnit を宣言した段の使い回しは報告を書き戻し、段の起動を書き戻す前に取るので、報告は今の段の物として数える。
+        段の起動はファイルの時刻の時計で取る: time.time() がファイルの時刻より進んでいても（Linux の粗いファイルの時刻）、報告を落とさない"""
         (self.repo / ".gitignore").write_text("out/\n", encoding="utf-8")
         report = self.repo / "out" / "r.xml"
         write = (f"open({str(self.count)!r}, 'a').write('1\\n'); import os; os.makedirs('out', exist_ok=True); "
                  "open('out/r.xml', 'w').write('<testsuite><testcase classname=\"c\" name=\"t\"/></testsuite>')")
         self.decl([{"name": "suite", "argv": [PY, "-c", write], "junit": "out/r.xml"}])
-        self.run_ci(reuse=self.place())
-        report.unlink(missing_ok=True)
-        got = self.run_ci(reuse=self.place())
+        real = time.time
+        with mock.patch.object(time, "time", lambda: real() + 5):
+            fresh = self.run_ci(reuse=self.place())
+            report.unlink(missing_ok=True)
+            got = self.run_ci(reuse=self.place())
+        self.assertEqual((fresh["material"]["status"], fresh["junit_unran"]), ("clean", []))
         self.assertEqual((self.launched(), got["material"]["status"], len(got["cases"]), got["junit_unran"]), (1, "clean", 1, []))
         self.assertIn("reused", got["runs"][0])
 
