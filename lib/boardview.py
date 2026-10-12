@@ -62,6 +62,7 @@ DIAGNOSE_NODE = "p2.diagnose"
 FOLDER = "plan-review"                  # run の置き場の中のこのブロックの置き場（呼び手が run の置き場に足して folder にする）
 OPEN_FILE = "open.json"                 # open_pass が置く見え方の材料（後の支度・受け付け・返りが読む）
 OPEN_ERROR = "open-error.txt"           # 差し込みの頭の節が落ちた訳（返す節の訳に載る。節が書く）
+PREP_ERROR = "prep-error.txt"           # 事前審査の支度が止めた訳（凍結の欄の食い違い。pass-<k>/ の中。返す節の訳に載る）
 JUDGMENT_COPY = "judgment.json"         # 判定の写し（planblk.lib_section が state.outputs から引く）
 EXCLUDED_FILE = prcheck.EXCLUDED   # 判定の隣の並行 PR の外した範囲（在れば写して役の頭に名指す）
 PURPOSE_REVIEW_FILE = _purpose.PURPOSE_REVIEW_FILE   # 判定の隣の目的の監査の受けた返答（judge が必ず置く。無い・読めない時は {} で読む）
@@ -760,12 +761,22 @@ def review_material(folder, repo, command_text: str, review_md, *, shared=None) 
     works の欄・2 往復目からは前の往復の block と答え・木なら下請けのファイルと束ね役の頼み）と、写しの指示書の差し込み（修正案・
     単位・判定者の見立て・先行例・リポジトリと読む版と BASE）と、人の方針（在れば）と、考えの住処の地図（今の works の包みが
     旗 concept-map の役の system prompt の末尾に足した物）。形 replan では独立設計の節と、裁かれた項目ごとの前の形・申し出と
-    裁定・直した形（元 works/.shared/core/replan.py:423 の prep）を見させる。shared はライブラリの文書の run をまたぐ控えの根
-    （planblk.lib_section）"""
+    裁定・直した形（元 works/.shared/core/replan.py:423 の prep）を見させる。凍結の欄の控えが印と食い違えば（planblk.design_section の
+    BoardGap）その訳を pass-<k>/PREP_ERROR に残して落ちる（返す節が読む。元は盤面を止めて訳を残した）。shared はライブラリの文書の
+    run をまたぐ控えの根（planblk.lib_section）"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
     p.mkdir(parents=True, exist_ok=True)
+    (p / PREP_ERROR).unlink(missing_ok=True)
+    try:
+        return _review_material(d, p, inputs, repo, command_text, review_md)
+    except rolekit.BoardGap as e:
+        (p / PREP_ERROR).write_text(str(e), encoding="utf-8")
+        raise
+
+
+def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, command_text: str, review_md) -> pathlib.Path:
     rev, base = inputs.get("rev") or "HEAD", inputs.get("base") or inputs.get("rev") or "HEAD"
     inputs = {**inputs, "review_body": review_body(command_text, repo=repo, rev=rev, base=base, review_md=review_md,
                                                    policy_md=inputs.get("policy_copy") or "")}
@@ -968,7 +979,9 @@ def collect(folder) -> dict:
     gave = rolekit.given_up_reason(p, REVIEW_NODE)
     review = _read_json(p / REVIEW_FILE) if (p / REVIEW_FILE).is_file() else None
     if review is None:
-        raise Missing(f"事前審査の返答 {p / REVIEW_FILE} が無い（受け付けが通っていない）")
+        prep = p / PREP_ERROR
+        raise Missing(prep.read_text(encoding="utf-8") if prep.is_file()
+                      else f"事前審査の返答 {p / REVIEW_FILE} が無い（受け付けが通っていない）")
     b = view(d, inputs, None if gave else review)
     blocks = converge.block_faces(review)
     if gave:

@@ -439,6 +439,18 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(sorted(fmt["required"]), ["faces", "reason", "shrink"])
         self.assertLessEqual(set(boardview.HUMAN_FACE_KINDS), set(row["kind"]["enum"]), "人の関所に回す穴の種類が役の返りの kind に無い")
 
+    def test_recommend_is_optional_on_both_roles(self):
+        """元 tests/test_gate_drafts.py の SchemaCase.test_gate_rows_have_the_recommend_field: 推しの欄は事前審査の faces の行と
+        修正案の narrows の行の型に在り、どちらも required に入れない"""
+        faces = nodes()["plan-review"]["output_format"]["properties"]["faces"]["items"]
+        plan_doc = yaml.safe_load((ROOT / "workflows" / "plan" / "works-factory-plan.yaml").read_text(encoding="utf-8"))
+        writer = next(n for g in plan_doc["nodes"] for n in [g, *g.get("loop_group", {}).get("nodes", [])] if n["id"] == "plan-writer")
+        narrows = writer["output_format"]["properties"]["plan"]["items"]["properties"]["narrows"]["items"]
+        for name, row in (("faces", faces), ("narrows", narrows)):
+            with self.subTest(name):
+                self.assertIn(gatemarks.RECOMMEND, row["properties"])
+                self.assertNotIn(gatemarks.RECOMMEND, row["required"])
+
     def test_scripts_read_role_formats_from_the_yaml(self):
         """script は外のパッケージ無しで走るので、役の節の型は JSON の形で書き、差し込みの頭の script の node_schema で読む
         （節の id と YAML の並びの読みは script の側に置く。lib/AGENTS.md の E3）"""
@@ -889,6 +901,36 @@ class ReviewAcceptCase(RunCase):
         self.assertNotIn(planblk.PLAN_SLOTS_HEAD, text)
         self.assertNotIn("{{", text)
         self.assertIn(boardview.DEFAULT_ANSWERS, text.splitlines()[0])
+
+    def test_material_carries_plan_fields(self):
+        """元 tests/test_blk_plan.py の test_plan_review_prompt_carries_fields: 項目ごとの works の欄（受け入れテストの id・道・
+        書いてよいパス）を JSON で貼り、見る点を頼む"""
+        r = self.run_
+        test = {"id": "test_stats.py::TestStats::test_mean_of_two", "behavior": "2 つの値の平均がその真ん中の値になる",
+                "path": "本物の経路: stats.mean を本物のまま呼ぶ", "red_kind": "assertion", "red_why": "分母が 1 少ない"}
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)],
+               field_rows=[{**fields(UNIT_MEAN), "route": "tdd", "tests": [test]}, fields(UNIT_CLAMP)])
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        for want in (planmarks.REVIEW_HEAD, planmarks.REVIEW_ASK, planmarks.FIELDS_ITEM_HEAD.format(n=1), '"route": "tdd"',
+                     test["id"], "本物の経路: stats.mean を本物のまま呼ぶ", '"allowed_paths"'):
+            self.assertIn(want, text)
+
+    def test_material_lists_deviations(self):
+        """元 tests/test_blk_plan.py の test_plan_review_sees_deviations・test_world_deviation_listed_for_review: 欄 structure の外れの
+        訳を DEVIATION_HEAD の節に並べ、世界の解の類には依頼の解き方との比べの文を添える"""
+        r = self.run_
+        r.world({**TP.WORLD_ROW, "versus": {**TP.WORLD_ROW["versus"], "challenge": "WC-8841 定石は分母を要素の数にする"}})
+        row_dev = {"row": UNIT_MEAN, "deviation": "既存の関数の中で直すと呼び手の約束が変わるので外す（DEV-MARK-1）"}
+        world_dev = {"world": TP.WORLD_ROW["class_id"], "deviation": "依頼の解き方に従い分母を変えない（https://example.org/a）"}
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)],
+               field_rows=[{**fields(UNIT_MEAN), "structure": [row_dev, world_dev]}, fields(UNIT_CLAMP)])
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        at = text.index(planmarks.DEVIATION_HEAD)
+        self.assertLess(at, text.index(planmarks.REVIEW_HEAD))
+        self.assertIn("DEV-MARK-1", text[at:])
+        self.assertIn("WC-8841", text[at:])
 
     def test_excluded_range_named(self):
         """元 ScriptCase.test_excluded_range_named: 判定の隣の並行 PR の外した範囲が在れば、役の頭に名指す"""
@@ -1757,6 +1799,14 @@ class GateFromPlanCase(RunCase):
         self.assertFalse(got["gate_axes"]["obvious"]["ok"])
 
 
+    def test_non_human_face_kinds_are_not_asked(self):
+        """関所に載るのは人に聞く種類の穴（HUMAN_FACE_KINDS）だけ: contract_drift の block の穴だけの返答は人に聞かない"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        got = r.pass_(review(face("mean-contract-drift", kind="contract_drift")))
+        self.assertEqual((got["pass"], got["ask_human"], got["questions"]), (False, False, []), got)
+
+
 class ResultCase(RunCase):
     """返す節は落ちない（元に無い。持ち主の決めと docs/design.md の『返す節は落ちない』）と、返りが output_format を満たす"""
 
@@ -1770,6 +1820,41 @@ class ResultCase(RunCase):
         got = self.run_.pass_(review(face("regression-face-ask", kind="regression", severity="suggest")))
         self.check(got)
         self.assertTrue(got["ask_human"])
+
+    def test_tampered_fields_reason_reaches_the_return(self):
+        """凍結の欄の控えが受け付けの後に書き換わった差し込みは、支度の節が落ちた訳を置き場に残し、返す節がそれを読んで
+        questions に控えの名と「凍結と食い違う」を載せ、pass: false で返す（元は盤面を止めて訳を残した）"""
+        r = self.run_
+        r.open()
+        p = r.folder / planmarks.FIELDS_FILE
+        doc = json.loads(p.read_text(encoding="utf-8"))
+        doc["fields"][0]["route"] = "tdd"
+        p.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        self.assertNotEqual(r.script("review_prep").returncode, 0)
+        got = r.out("result")
+        self.check(got)
+        self.assertIs(got["pass"], False)
+        self.assertTrue(any(planmarks.FIELDS_FILE in q and "凍結と食い違う" in q for q in got["questions"]),
+                        got["questions"])
+
+    def test_gate_files_carry_kinds_and_items(self):
+        """返した関所の項目の種類と方針の変化を gate-asked.json に積み、項目の全部と壁打ちの行を pass-<k>/gate.json に残す"""
+        r = self.run_
+        pol = r.tmp / "policy.md"
+        pol.write_text("# 方針\n- 公開の口を減らさない\n", encoding="utf-8")
+        r.start(features_off=["review_tree"], policy_md=str(pol))
+        r.plan([item(UNIT_MEAN, 1, narrows=[dict(TP.NARROW)]), item(UNIT_CLAMP, 2)])
+        r.open()
+        pol.write_text("# 方針\n- 公開の口を減らさない\n- 足した\n", encoding="utf-8")
+        got = r.pass_(review())
+        gate = json.loads((r.pointed(got["review"]).parent / boardview.GATE_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([x["kind"] for x in gate["items"]], ["regression", boardview.POLICY_CHANGED])
+        self.assertEqual([x["text"] for x in gate["items"]], got["questions"])
+        self.assertIn("converge", gate)
+        asked = json.loads((r.folder / boardview.GATE_ASKED_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(sorted(asked), sorted(got["questions"]))
+        self.assertEqual({t: (v["kind"], "policy_change" in v) for t, v in asked.items()},
+                         {got["questions"][0]: ("regression", False), got["questions"][1]: (boardview.POLICY_CHANGED, True)})
 
     def test_broken_inputs_never_fail_the_return_node(self):
         """壊れた入力（読めない指し札・空の字・JSON でない字・ほかの run の札・在らない先）で open が ok: false を返し、返す節は
@@ -2173,6 +2258,14 @@ class PlanGateCase(GateBase):
                 self.assertTrue(got["ask"]["items"][0].endswith(tail), got["ask"]["items"])
         got, _ = self.gate(narrows=[dict(TP.NARROW)])
         self.assertNotIn("世界の解", got["ask"]["items"][0])
+
+    def test_asked_row_shows_the_no_narrow(self):
+        """人に回す行は、役が書いた狭めない案の 1 文を項目の尾に載せる（no_narrow を書いた行だけ）"""
+        no_narrow = "空の列に 0 を返す形を当たったが、呼び手が例外を捕まえて別の道に進むので採れない"
+        got, _ = self.gate(narrows=[{**TP.NARROW, **TP.DECIDED, "undecided_because": "置き場が割れる", "no_narrow": no_narrow}])
+        self.assertIn(f"（狭めない案: {no_narrow}）", got["ask"]["items"][0])
+        got, _ = self.gate(narrows=[{**TP.NARROW, **TP.DECIDED, "undecided_because": "置き場が割れる"}])
+        self.assertNotIn("狭めない案", got["ask"]["items"][0])
 
     def test_rule_points_at_world_rows(self):
         """元 tests/test_plan_gate.py の PlanGateCase.test_rule_points_at_world_rows。関所の決め手の頼みは、世界の調べを役に
