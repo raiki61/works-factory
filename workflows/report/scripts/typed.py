@@ -21,20 +21,15 @@ def _include(node_id: str) -> str:
     return head if sep else ""
 
 
-def own_include(execution: str) -> str:
-    """自分の節の実行の記録（ARCHON_NODE_EXECUTION の JSON）の path から、自分の include の名前空間（節の id の最後の __ より前。
-    入れ子の include の節の id は outer__inner__node なので outer__inner。include の外の節なら空）"""
+def own_prefix(execution: str) -> str:
+    """自分の節の実行の記録（ARCHON_NODE_EXECUTION の JSON）の path から、自分の include の名前空間の節の id の頭（節の id の
+    最後の __ まで。入れ子の include の節の id は outer__inner__node なので outer__inner__。include の外の節なら空）"""
     try:
         doc = json.loads(execution) if execution else {}
     except ValueError:
         return ""
     path = doc.get("path") if isinstance(doc, dict) else None
-    return path.rsplit(".", 1)[-1].rpartition("__")[0] if isinstance(path, str) else ""
-
-
-def own_prefix(execution: str) -> str:
-    """自分の include の名前空間の節の id の頭（own_include + "__"。include の外の節なら空）"""
-    head = own_include(execution)
+    head = path.rsplit(".", 1)[-1].rpartition("__")[0] if isinstance(path, str) else ""
     return f"{head}__" if head else ""
 
 

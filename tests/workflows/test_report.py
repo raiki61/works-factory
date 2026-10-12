@@ -196,10 +196,10 @@ class TypedCase(unittest.TestCase):
         got = self.read(self.listing({"k": rows}), json.dumps({"path": "outer__report__facts"}))
         self.assertEqual([u["node"] for u in got["by_type"]["k"]], ["outer__fix__tdd"])
 
-    def test_own_include_is_the_full_namespace(self):
-        self.assertEqual(typed.own_include(json.dumps({"path": "outer__report__facts"})), "outer__report")
-        self.assertEqual(typed.own_include(json.dumps({"path": "report__facts"})), "report")
-        self.assertEqual(typed.own_include(json.dumps({"path": "facts"})), "")
+    def test_own_prefix_is_the_full_namespace(self):
+        self.assertEqual(typed.own_prefix(json.dumps({"path": "outer__report__facts"})), "outer__report__")
+        self.assertEqual(typed.own_prefix(json.dumps({"path": "report__facts"})), "report__")
+        self.assertEqual(typed.own_prefix(json.dumps({"path": "facts"})), "")
 
     def test_errors_each_become_a_warning(self):
         errors = [{"path": "nodes/x.meta.json", "kind": "invalid_metadata"}, {"path": "nodes", "kind": "unreadable_directory", "code": "EACCES"}]
@@ -553,7 +553,7 @@ class RealRunCase(unittest.TestCase):
                                     env["ARCHON_NODE_EXECUTION"])
                 self.assertEqual(got["warnings"], [])
                 self.assertEqual([(r["node"], r["body"]) for r in got["by_type"]["probe-kind"]], [("make", {"a": 1})])
-                self.assertEqual(typed.own_include(env["ARCHON_NODE_EXECUTION"]), "")
+                self.assertEqual(typed.own_prefix(env["ARCHON_NODE_EXECUTION"]), "")
 
 if __name__ == "__main__":
     unittest.main()
