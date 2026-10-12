@@ -39,7 +39,9 @@ import carry  # noqa: E402
 import converge  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
+import libdocs  # noqa: E402
 import planblk  # noqa: E402
+import planbrief  # noqa: E402
 import planmarks  # noqa: E402
 import planfile  # noqa: E402  （lib/graphloops を sys.path に足す。engine より先に）
 import ripple  # noqa: E402
@@ -738,6 +740,19 @@ class ReplanCase(unittest.TestCase):
         self.assertNotIn("request_ok.json:8", after, "波及の一覧が直した項目で作り直される")
 
 
+    def test_brief_of_the_item_is_named(self):
+        """元 replan._section の「この項目の brief」の行: 案の直しの材料が、承認済みの項目と判定から組んだ項目の brief を名指す"""
+        run = self.run_
+        out = run.include(ruling='["1"]', conflicts=self.conflicts, writer=writer_of({"plan": [self.fixed()]}))
+        self.assertIs(out["ready"], True, out)
+        rnd = run.art / "plan" / "r2"
+        item_brief = rnd / planfile.ITEM_BRIEF_FILE.format(no=1)
+        self.assertIn(f"- この項目の brief: {item_brief}", (rnd / "brief-1.md").read_text(encoding="utf-8"))
+        text = item_brief.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith(planbrief.TITLE.format(n=1)), text[:200])
+        self.assertIn(f"### {MEAN}", text)
+        self.assertIn("mean の分母を len(xs) に", text)
+
     def test_replan_reuses_the_first_measure_after_the_tree_moved(self):
         """案の直しは修正の後の HEAD で測り直さず、1 回目の実測と構造の目の行を使う"""
         run = self.run_
@@ -834,6 +849,16 @@ class CollectCase(unittest.TestCase):
         trace = [json.loads(x) for x in (rnd / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
         self.assertEqual([(r["op"], r.get("id")) for r in trace if r["op"] == converge.DROPPED_OP],
                          [(converge.DROPPED_OP, converge.item_id([CLAMP]))], "前のまま書いた閉じた項目の行は捨てて trace に残す")
+
+    def test_second_round_brief_has_no_independent_design(self):
+        """元 tests/test_blk_plan.py の test_revise_prompt_names_blocks_and_keys: 2 周目の材料に独立設計の節は無い（役の頭は貼り直す）"""
+        run = Run(self)
+        run.include()
+        run.include(review=run.pointer("review/p2.plan_review.json", {"faces": []}))
+        brief = (run.art / "plan" / "r2" / "brief-1.md").read_text(encoding="utf-8")
+        self.assertIn(planfile.PRIOR_HEAD, brief)
+        self.assertTrue(brief.startswith(planblk.HEAD["plan"]))
+        self.assertNotIn(planblk.DESIGN_HEAD, brief)
 
     def test_route_up_row_keeps_ready(self):
         run = Run(self)
@@ -982,6 +1007,119 @@ class BriefCase(unittest.TestCase):
         brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
         self.assertNotIn("## 人の方針", brief)
         self.assertNotIn(carry.PRIOR_HEAD, brief)
+
+    def brief(self, run, n=1, k=1):
+        return (run.art / "plan" / f"r{k}" / f"brief-{n}.md").read_text(encoding="utf-8")
+
+    def test_dirty_structure_rows_reach_the_brief(self):
+        run = Run(self)
+        self.assertIs(run.include(eye=eye_dirty, writer=writer_of({"plan": [item(1, 2, structure=[
+            {"row": MEAN, "follows": True}])]}))["ready"], True)
+        brief = self.brief(run)
+        for word in (structmark.PLAN_HEAD, structmark.PLAN_ASK, DIRTY_ROW["chosen"]):
+            self.assertIn(word, brief)
+        self.assertNotIn(structmark.MISSING, brief)
+
+    def test_brief_carries_structure_rows(self):
+        """元 structmark.plan_section の行の形: 判定・形・根拠・避け方"""
+        run = Run(self)
+        run.include(eye=eye_dirty, writer=writer_of({"plan": [item(1, 2, structure=[{"row": MEAN, "follows": True}])]}))
+        brief = self.brief(run)
+        self.assertIn(f"- {MEAN}: 汚れる（形 5・根拠 /units/0/id）", brief)
+        self.assertIn(f"避け方: {DIRTY_ROW['chosen']}", brief)
+
+    def test_failed_structure_marks_the_brief(self):
+        run = Run(self)
+        out = run.include(eye=lambda f: {"rows": []})
+        self.assertIs(out["ready"], True, out)
+        brief = self.brief(run)
+        self.assertIn(f"{structmark.MISSING}（理由: 構造の目の返答が 3 回とも受け付けで拒まれた", brief)
+        self.assertNotIn(structmark.PLAN_ASK, brief)
+        self.assertEqual(rolekit.rejected(run.art / "plan" / "r1", "plan"), [], "構造の行への答えを求めない")
+
+    def test_prescriptions_reach_the_brief(self):
+        judge = judgment()
+        judge["units"][0]["prescriptions"] = ["分母を len(xs) にする"]
+        run = Run(self, judge=judge)
+        self.assertIs(run.include()["ready"], True)
+        brief = self.brief(run)
+        self.assertIn(planblk.PRESCRIPTION_HEAD, brief)
+        self.assertIn(f"{planblk.PRESCRIPTION_UNIT_HEAD.format(key=MEAN)}\n\n1. 分母を len(xs) にする", brief)
+        self.assertNotIn(planblk.PRESCRIPTION_UNIT_HEAD.format(key=CLAMP), brief)
+
+    def test_brief_opens_with_the_role_head(self):
+        run = Run(self)
+        run.include()
+        brief = self.brief(run)
+        self.assertTrue(brief.startswith(planblk.HEAD["plan"]), brief[:200])
+        for word in (planblk.ITEMS_RULE, planblk.REUSE_RULE, planmarks.HEAD, gatemarks.HEAD[planmarks.NODE]):
+            self.assertIn(word, brief)
+
+    def test_units_section_carries_catalog_ledger_and_view(self):
+        judge = judgment(unit(NIT, "nit", None))
+        judge["questions"] = [{"key": "q-mean", "kind": "fork", "status": "held", "origin": CLAMP, "depends": []}]
+        judge["precedents"] = [{"source": "https://example.org/mean", "verdict": "adopt"}]
+        run = Run(self, judge=judge)
+        self.assertIs(run.include()["ready"], True)
+        brief = self.brief(run)
+        for word in (planfile.UNITS_HEAD, "  - paths: stats.py", "  - summary: mean の分母",
+                     f"- 入れてはいけない単位（受け付けが拒む）: `{NIT}`（label=nit", "問いの台帳（", '"key": "q-mean"',
+                     "判定者の見立て: ", '"framing": "算術平均と上限の枝の取り違え"', "判定者の先行例（世界の解）: ",
+                     "https://example.org/mean",
+                     f"- no 2 `{CLAMP}`: label=block・disposition=do-now・入れてもよい"):
+            self.assertIn(word, brief)
+
+    def test_repo_line_names_base_and_review_md(self):
+        run = Run(self)
+        run.include()
+        brief = self.brief(run)
+        self.assertIn(f"リポジトリ: {run.repo.resolve()}（読む版: `{run.base}`）　BASE: `{run.base}`　観点の正本: {LIB / 'REVIEW.md'}",
+                      brief)
+
+    def test_excluded_range_named(self):
+        run = Run(self)
+        run.include()
+        self.assertNotIn(planblk.EXCLUDED_HEAD, self.brief(run))
+        run = Run(self)
+        run.pointer("judge/pr-excluded.json", {"paths": ["other.py"]})
+        run.include()
+        self.assertIn(f"{planblk.EXCLUDED_HEAD}: {run.art / 'judge' / 'pr-excluded.json'}", self.brief(run))
+
+    def test_brief_carries_lib_docs_section(self):
+        run = Run(self)
+        run.include()
+        brief = self.brief(run)
+        self.assertIn(libdocs.TITLE, brief)
+        self.assertIn("ライブラリの文書を取る物は無い（0 本）", brief)
+
+    def test_brief_ends_with_language_rule(self):
+        for lang, want in (("日本語", "日本語"), ("", planfile.LANG_DEFAULT)):
+            with self.subTest(lang=lang):
+                run = Run(self, start={"lang": lang})
+                run.include()
+                self.assertEqual(self.brief(run).splitlines()[-1], planfile.LANG_RULE.format(lang=want))
+
+    def test_spec_reaches_the_brief(self):
+        run = Run(self)
+        run.include()
+        self.assertNotIn(planfile.SPEC_HEAD, self.brief(run))
+        run = Run(self)
+        run.inputs["spec"] = run.pointer("judge/spec.json", {"requirements": ["空の列の平均は 0"],
+                                                             "acceptance": ["test_stats.py::TestStats::test_mean_of_empty"]})
+        run.include()
+        brief = self.brief(run)
+        self.assertIn(planfile.SPEC_HEAD, brief)
+        self.assertIn("test_stats.py::TestStats::test_mean_of_empty", brief)
+
+    def test_units_ripple_reaches_the_brief(self):
+        """元 tests/test_blk_plan.py の test_units_ripple_reaches_plan_prompt"""
+        run = Run(self)
+        run.include()
+        brief = self.brief(run)
+        self.assertIn(ripple.UNITS_HEAD, brief)
+        self.assertIn(f"### 単位 {MEAN}", brief)
+        self.assertIn(f"### 単位 {CLAMP}", brief)
+        self.assertTrue((run.art / "plan" / "r1" / planfile.RIPPLE_UNITS_FILE).is_file())
 
     def test_prior_failures_of_wrong_shape_are_named_unread(self):
         run = Run(self)

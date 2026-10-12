@@ -5,7 +5,7 @@
 実測の structure/<鍵>/。周のフォルダの中:
 - round.json {round, mode（plan・replan）, go（役を起こすか）, why（起こさない訳）, items（形 replan で渡す項目の番号）, structure（周の節が読む構造の置き場。plan/ からの相対のパス）}
 - slots.json（案に入れてよい単位の no の並び。no は 1 始まりの位置）・brief-<n>.md（修正案の役の材料）・rejects-plan.json（拒否の控え。rolekit）・
-  tree.json（役を起こす前の作業ツリーの姿）
+  tree.json（役を起こす前の作業ツリーの姿）・item-brief-<no>.md（形 replan で直す項目の brief）
 - review/p2.plan_review.json（この周に受けた事前審査の返答の写し）
 - reply.json（受け付けた返答。番号を id に戻した全体で、works の欄も決め手の欄も持つ。項目の同じさ converge.item_hash の元）
 - p2.fix_plan.json（reply.json から works の欄を外した物。2 往復目からは block_answers も）・plan-fields.json（planmarks.save の形）・
@@ -16,7 +16,7 @@
   slots・plan_slots・stuck_reason・not_allowed（元 works/blk-plan/lib/planblk.py:316・:366・:407）・named（no を id に戻す）・
   fix_plan_covers_units（元 rules/review-loop.py:3077。例外の代わりに行を返す）
 - 案の直し: _plan_errors（元 works/.shared/core/replan.py:478）・exists_at（元 replan.py の _start_tree）・revised_fields（元 replan.py:365）・
-  replan_section（元 replan.py の _section）
+  replan_section（元 replan.py の _section）・item_brief（元 replan.py:291 material の brief の行。planbrief.render で組む）
 - 判定の処方: prescriptions（元 works/.shared/core/planmarks.py:804）・prescription_section（元 planblk.py:356）
 - 修正前の版のテスト: base_test_texts（元 works/.shared/core/writes.py:93）
 - 壁打ち: converge_record（元 works/.shared/core/converge.py:214 の read と :373 の record_pass。往復の行は converge.add_pass）。
@@ -58,6 +58,7 @@ import impact  # noqa: E402
 import judgeverify  # noqa: E402
 import libdocs  # noqa: E402
 import planblk  # noqa: E402
+import planbrief  # noqa: E402
 import planmarks  # noqa: E402
 import prcheck  # noqa: E402
 import promptsection  # noqa: E402
@@ -77,6 +78,7 @@ FIX_PLAN_FILE = "p2.fix_plan.json"
 REVIEW_FILE = "review/p2.plan_review.json"
 BRIEF_FILE = "brief-{n}.md"
 REJECT_FILE = "reject-{n}.txt"
+ITEM_BRIEF_FILE = "item-brief-{no}.md"   # 案の直しで直す項目の brief（planbrief.render。周の材料 BRIEF_FILE と別の名）
 TREE_FILE = "tree.json"            # 修正案の役を起こす前の作業ツリーの姿（accept.tree_state。支度の節が回ごとに置き直す）
 RIPPLE_UNITS_FILE = "ripple-units.json"
 RIPPLE_FILE = "ripple.json"
@@ -414,11 +416,21 @@ def conflict_rows(conflicts, n: int, old: dict) -> list:
     return conflict.replan_rows(_rows(conflicts, "items"), n, old.get("unit_keys"))
 
 
-def replan_section(n: int, old: dict, rows: list) -> str:
-    """直す項目ごとの節: 番号・unit_keys（字のまま）・前の項目・申し出の行と裁定の文（字のまま）
+def item_brief(round_dir, n: int, old: dict, fields: dict, judgment, structure_dir_) -> pathlib.Path:
+    """承認済みの項目 n の brief（planbrief.render。修正のブロックが項目ごとに切る物と同じ部品・同じ材料）を周のフォルダの
+    ITEM_BRIEF_FILE に書く（元の修正の段の brief-<n>.md は fix の置き場に在り、このブロックは開かない）"""
+    path = pathlib.Path(round_dir) / ITEM_BRIEF_FILE.format(no=n)
+    path.write_text(planbrief.render(n, old, fields, _units(judgment), "", structmark.plan_section(structure_dir_)),
+                    encoding="utf-8")
+    return path
+
+
+def replan_section(n: int, old: dict, rows: list, brief: str = "") -> str:
+    """直す項目ごとの節: 番号・unit_keys（字のまま）・その項目の brief のパス・前の項目・申し出の行と裁定の文（字のまま）
     （元 works/.shared/core/replan.py の _section。盤面の食い違いの控えの代わりに fix の conflicts.json の行を受ける）"""
     lines = [replan.ITEM_HEAD.format(n=n), "",
-             f"- unit_keys（この字のまま写せ）: {json.dumps(old.get('unit_keys'), ensure_ascii=False)}", "",
+             f"- unit_keys（この字のまま写せ）: {json.dumps(old.get('unit_keys'), ensure_ascii=False)}",
+             f"- この項目の brief: {brief or '（無い）'}", "",
              replan.OLD_HEAD, "", *replan._json_block(old)]
     for i, c in enumerate(rows, 1):
         ru = c.get("ruling") or {}
@@ -711,8 +723,12 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
         prev = latest(plan_dir, before=round_dir)
         rows = _rows(_read_json(prev / REPLY_FILE), "plan") if prev else []
         items = [i for i in read_round(round_dir)["items"] if 1 <= i <= len(rows)]
+        fields = (_read_json(prev / planmarks.FIELDS_FILE, {}) if prev else {}).get("fields") or []
         parts = [*common, replan.REPLAN_ASK,
-                 *(replan_section(i, rows[i - 1], conflict_rows(conflicts, i, rows[i - 1])) for i in items)]
+                 *(replan_section(i, rows[i - 1], conflict_rows(conflicts, i, rows[i - 1]),
+                                  str(item_brief(round_dir, i, rows[i - 1], fields[i - 1] if i <= len(fields) else {},
+                                                 judgment, structure_dir_)))
+                   for i in items)]
     else:
         owed, opened, _ = plan_slots(judgment)
         skipped = _read_json(pathlib.Path(structure_dir_) / SKIPPED_FILE, [])
