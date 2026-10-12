@@ -47,8 +47,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   前の往復の block を審査が suggest に下げた key も名指す）
 
 役の型に欄を足す・返答から外す手順は住処 marks（種 converge）に任せる。外した欄は足し欄の控えでなく、この往復の控えに置く。
-盤面の b のうち round・dir・work・trace だけを使い、標準ライブラリと住処 marks（L1）と写しの engine の型の検査（engine.schema。L0）
-だけを import する（gatemarks がこのモジュールを読み、entry が gatemarks を読むので、entry・rolekit・gatemarks を import すると輪になる）。
+盤面の b のうち round・dir・work・trace だけを使い、標準ライブラリと住処 marks（L1）だけを import する（gatemarks がこのモジュールを
+読み、entry が gatemarks を読むので、entry・rolekit・gatemarks を import すると輪になる）。
 """
 from __future__ import annotations
 
@@ -56,17 +56,10 @@ import copy
 import hashlib
 import json
 import os
-import pathlib
 import shutil
-import sys
 
-_GL = pathlib.Path(__file__).resolve().parent / "graphloops"
-if str(_GL) not in sys.path:
-    sys.path.insert(0, str(_GL))
-
-from engine.schema import validate_schema  # noqa: E402
-import marks  # noqa: E402
-import promptsection  # noqa: E402
+import marks
+import promptsection
 
 RECORD = "plan-converge.json"
 PASS_DIR = "plan-converge"
@@ -238,11 +231,6 @@ def _attributed(units: list, items: list) -> list[int]:
     return hit or list(range(len(items)))
 
 
-def _claim(c) -> bool:
-    """申告の行の入口のふるい（ORIGIN_SCHEMA の行の型に合う）"""
-    return not validate_schema(c, ORIGIN_SCHEMA["items"])
-
-
 def _origins(new: list, claimed: list, *, rows: list, prev: list, face_units: dict, earlier: set, earlier_units: dict,
              resolved: list) -> tuple[dict, list]:
     """（新しい block の key ごとの出自の語, 採らなかった申告の行）。審査の申告は、その block の項目の控えの事実が申告の語の
@@ -256,8 +244,7 @@ def _origins(new: list, claimed: list, *, rows: list, prev: list, face_units: di
     申告も採らずに unsplit"""
     said = {}
     for c in claimed:
-        if _claim(c):
-            said.setdefault(c["key"], set()).add((c["origin"], c.get("of")))
+        said.setdefault(c["key"], set()).add((c["origin"], c.get("of")))
     conflicted = {key for key, claims in said.items() if len(claims) > 1}
     before = {it["id"]: it["hash"] for it in prev}
     changed = {r["id"] for r in rows if before.get(r["id"]) != r["hash"]}   # 前の往復に無い項目も変わった物に数える
@@ -276,8 +263,7 @@ def _origins(new: list, claimed: list, *, rows: list, prev: list, face_units: di
         elif (origin == ORIGIN_REPHRASED and of in earlier and of in resolved
               and set(earlier_units.get(of) or []) & set(face_units.get(key) or [])):
             out[key] = ORIGIN_REPHRASED
-    return out, [copy.deepcopy(c) for c in claimed
-                 if isinstance(c, dict) and (not _claim(c) or c["key"] in conflicted or out.get(c["key"]) != c["origin"])]
+    return out, [copy.deepcopy(c) for c in claimed if c["key"] in conflicted or out.get(c["key"]) != c["origin"]]
 
 
 def _item_states(plan: list, faces: list, face_units: dict, prev: list, earlier: set) -> list[dict]:
@@ -471,8 +457,8 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
     """控え doc に事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて doc と行の outcome に置く（ファイルの写し・
     書き込み・trace はしない）。at_cap（呼び手が渡す、輪がもう 1 周回せない事実）が真で decide が AGAIN の往復は、行に
     capped: true を立てて UNSETTLED（保留の項目が在れば PERSISTED）で止める（決まりは decide のまま。CLEAN と止める往復は
-    変えない）。origins（審査の出自の申告の行）は _origins が照らして、2 往復目からの新しい block の出自を行の origins に置く
-    （採らなかった申告は origins_claimed）。返りは足した行"""
+    変えない）。origins（審査の出自の申告の行。型は受け付けが ORIGIN_SCHEMA の写しの役の型・答えのファイルの型で照らし済み）は
+    _origins が照らして、2 往復目からの新しい block の出自を行の origins に置く（採らなかった申告は origins_claimed）。返りは足した行"""
     passes = doc["passes"]
     k = len(passes) + 1
     faces = block_faces(review)
