@@ -9,6 +9,7 @@ fix_plan_item の項目、objection・changed・allowed_test_changes は戻せ�
 （fix-ruled-reply.json）と裁定の許し、delta_review は delta/review-<n>.json（{pass}）の数と最後の pass（delta/skipped.json が
 在れば {rounds: 0, pass: true}）。done は assert-changed.json の ok かつ（審査を省いた か 審査が通った）。
 形 group（組の子）: 自分の組の結果（out_dir/<group_id>/result.json。out_dir が空なら自分の置き場の groups/ の下）の行だけを同じ形で返す。
+レンズの集め役の事実は diff の隣の lenses.json（{collector: {ok, reason}}。集め役が書かずに落ちた・走らなかった時は ok: false）。
 累積差分（修正前の版 fixboard.base_rev_of から。未追跡を含み .archon/ の下は除く）は置き場の fix.diff に書いて指し札にする（空なら理由のファイルを指す）。
 この節は落ちない: 中の誤りは全部捕まえ、done: false・理由（units と groups の reason）・ほかは空の値で返し、終了の値は 0。
 """
@@ -21,6 +22,9 @@ NO_REVIEW = {"rounds": 0, "pass": False}
 CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
                  "path_changed")
 ERROR_FILE = "fix-collect-error.txt"
+LENSES_FILE = "lenses.json"   # fixboard.LENSES_FILE と同じ名（lib が読めない道でも書く）
+NO_COLLECTOR = "レンズの集め役が終わらなかった: 集め役の出口が無い（集め役が落ちたか走らなかった）"   # fixboard.LENS_NOT_DONE の形
+GROUP_LENSES = "組の子の run はレンズを起こさない（差分の審査は親の run が回す）"
 boundary = fixio = None   # 境の口と fixio。読めない時は fallback が stdlib だけで返す
 
 
@@ -105,6 +109,33 @@ def error_pointer(why: str) -> dict:
     return {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel_path}
 
 
+def lenses_file() -> None:
+    """diff の隣の lenses.json（レンズの集め役の事実 {collector: {ok, reason}}。fixboard.LENSES_FILE と同じ名）を必ず置く: 集め役
+    （lens-collect）か delta-cut が書いた行が読めればそのまま、無い・形が違えば ok: false と理由（集め役が何も書けずに落ちたか
+    走らなかった）、組の子は ok: true（レンズを起こさない）。stdlib だけ（lib と境の口が読めない道でも書く）。書けなければ標準
+    エラーに名指す（落ちない）"""
+    try:
+        name = fixio.include_name()
+    except Exception:
+        name = "fix"
+    path = Path(os.environ.get("ARTIFACTS_DIR", ".")) / "fix" / name / LENSES_FILE
+    if os.environ.get("INPUTS_MODE", "") == "group":
+        doc = {"collector": {"ok": True, "reason": GROUP_LENSES}}
+    else:
+        try:
+            got = json.loads(path.read_text(encoding="utf-8"))["collector"]
+            if isinstance(got.get("ok"), bool) and isinstance(got.get("reason"), str):
+                return
+        except Exception:
+            pass
+        doc = {"collector": {"ok": False, "reason": NO_COLLECTOR}}
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except Exception as e:
+        print(f"collect: {LENSES_FILE} を書けない（{path}: {type(e).__name__}: {' '.join(str(e).split())}）", file=sys.stderr)
+
+
 def fallback(why: str) -> dict:
     """誤りの時の約束の形の返り（done: false と理由。ほかは空の値）"""
     groups_rows, units_rows = [], []
@@ -151,6 +182,7 @@ if __name__ == "__main__":
         why = f"fix の出力を組めない（{type(e).__name__}: {' '.join(str(e).split())[:500]}）"
         print(f"collect: {why}", file=sys.stderr)
         out = fallback(why)
+    lenses_file()
     try:
         print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
     except ValueError as e:

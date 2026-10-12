@@ -748,6 +748,9 @@ FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまと
 REJECT_NAME = "reject-{name}-{k}.md"   # 受け付けの k 回目の拒否の理由（役が Read で読む）
 REFIX_PROMPT = "prompt-{}.md"          # 手直しの役の指示書（節の名 p3.delta_fix・p3.delta_fix2）
 LENS_PROMPT = "prompt-lens-{}.md"      # レンズの節の指示書（lenses.key）
+LENSES_FILE = "lenses.json"            # レンズの集め役の事実 {collector: {ok, reason}}（diff の隣のファイル。読み手は最後の関所と報告）
+LENS_NOT_DONE = "レンズの集め役が終わらなかった: {why}"   # 集め役が落ちた・ok でない時の理由の頭（元 works/blk-lens/lib/lenses.py:130 の exit_）
+LENS_NOT_DUE = "差分の審査を回さないのでレンズは起こさない（{why}）"   # delta-cut が go: false の時の理由
 # 役に言語を縛る 1 行（元 works/.shared/core/rolekit.py:67 の LANG_RULE と board.py:96 の LANG_DEFAULT の写し）
 LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、承認ノードと報告に載る文）は {lang} で書け。"
              "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
@@ -817,7 +820,7 @@ def depth_signals(place) -> tuple:
     受け付けが最後の回に止めた単位（置き場の trace の conflict.ACCEPT_PARKED_OP と、戻せた組の結末 given_up）。run: 答えていない
     修正前の関所の問い（gatemarks.pending）・同じ run の案の直しが走った（置き場の only-items.json が空でない 2 回目の修正）・
     修正役が判定に異議を出した（組の子の結果と裁定の後の返答の objection）。控えが読めなければ上げる側へ倒す。
-    元 works/darkfactory/lib/depth.py:262 の signals と、線の h-redepth が渡した replanned・rejudged"""
+    元 works/darkfactory/lib/depth.py:268 の signals と、線の h-redepth が渡した replanned・rejudged"""
     import conflict
     import gatemarks
     place = pathlib.Path(place)
@@ -1046,6 +1049,12 @@ def lens_route(place, lang: str = "") -> dict:
         out[row["lens"]] = {"go": go, "reason": why, "prompt_file": prompt}
     lens.write_routes(p, rows)
     return out
+
+
+def lens_collector(place, ok: bool, reason: str = "") -> pathlib.Path:
+    """レンズの集め役の事実を置き場の LENSES_FILE に {collector: {ok, reason}} で書く（止めずに知らせる。集め役が落ちた・ok でない
+    時は ok: false と理由。元 works/blk-lens/lib/lenses.py:126 の exit_ は盤面を止めた）"""
+    return write_json(pathlib.Path(place) / LENSES_FILE, {"collector": {"ok": bool(ok), "reason": str(reason or "")}})
 
 
 def brief_lens(place, n: int = 1) -> pathlib.Path:

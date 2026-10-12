@@ -10,7 +10,8 @@
 軽量の run（持ち主の決め dynamic-depth）は、置き場の delta/skipped.json に {reason} を書いて go: false で審査を飛ばす。
 作業ツリーが修正前の版と同じ（.archon/ の下は数えない）で、修正が塞いだと言う事前審査の穴も無い run も、同じ印に訳を書いて
 go: false で審査役を起こさない（fixboard.delta_review_due。元 review-loop.py:604 fix_delta_nonempty・:617 delta_review_due）。
-返り {go, files, diff_file, brief_file}。回す側の誤り（差分の起点が無い・差分を切れない・修正案の欄の控えが壊れた）は標準エラーに
+go: false の時は、レンズも起こさないので diff の隣の lenses.json に集め役の事実 {collector: {ok: true, reason}} を置く
+（前の試みの lenses.json は頭で消す。fixboard.lens_collector）。返り {go, files, diff_file, brief_file}。回す側の誤り（差分の起点が無い・差分を切れない・修正案の欄の控えが壊れた）は標準エラーに
 1 行で非 0。
 """
 import functools
@@ -27,27 +28,35 @@ import refix  # noqa: E402
 import startrec  # noqa: E402
 
 NO_GO = {"go": False, "files": [], "diff_file": "", "brief_file": ""}
+NOT_CHECKED = "変更の確かめが通らない"
+
+
+def no_go(place, why: str) -> None:
+    """審査を回さない: レンズも起こさないので、レンズの集め役の事実を ok: true と訳で置いて go: false を返す"""
+    fixboard.lens_collector(place, True, fixboard.LENS_NOT_DUE.format(why=why))
+    boundary.returns(NO_GO)
 
 
 def main() -> None:
     place = fixio.place()
     skipped = place / fixboard.DELTA_DIR / fixboard.DELTA_SKIPPED
     skipped.unlink(missing_ok=True)
+    (place / fixboard.LENSES_FILE).unlink(missing_ok=True)   # 前の試みの集め役の事実を返す節に読ませない
     checked = fixboard.read_json(place / fixboard.ASSERT_FILE)
     if not isinstance(checked, dict) or checked.get("ok") is not True:
-        boundary.returns(NO_GO)
+        no_go(place, str((checked.get("reason") if isinstance(checked, dict) else "") or NOT_CHECKED))
         return
     repo = fixio.repo()
     light = fixboard.redepth(place, repo, fixio.SKIP)
     if light:
         fixboard.write_json(skipped, {"reason": light})
-        boundary.returns(NO_GO)
+        no_go(place, light)
         return
     fix_reply = fixboard.group_fix_reply(place)
     due, why = fixboard.delta_review_due(place, repo, fixio.SKIP, fix_reply)
     if not due:
         fixboard.write_json(skipped, {"reason": why})
-        boundary.returns(NO_GO)
+        no_go(place, why)
         return
     start = startrec.read(place)
     got = refix.cut(place, 1, repo, fixboard.start_tree(place), plan_review=None,

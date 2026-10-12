@@ -630,6 +630,73 @@ class DeltaScriptsCase(unittest.TestCase):
         brief = json.loads((self.place / "review1-brief.json").read_text(encoding="utf-8"))
         self.assertEqual(brief["lens"][0]["findings"][0]["where"], "stats.py")
 
+    def test_lens_collect_failure_is_reported_not_silent(self):
+        """レンズの集め役（lens-collect）が落ちた・ok でない事実を止めずに知らせる: diff の隣の lenses.json に
+        {collector: {ok: false, reason}} で載せる。集め役が自分の誤りで落ちれば集め役が書き、何も書かずに落ちた・走らなかった時は
+        返す節が書く（lib が読めない道でも）。集めが済めば ok: true、審査を回さない run も ok: true と訳。書けなければ名指す
+        （元 works/blk-lens/scripts/exit.py の lenses.exit_ は盤面を止めた。fix は落ちないを約束にしたので知らせる形）"""
+        lenses = self.place / "lenses.json"
+
+        def collector():
+            return json.loads(lenses.read_text(encoding="utf-8"))["collector"]
+
+        def raw(script, nid, cwd_script=None, **inputs):
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "PR_REVIEW_TOOLKIT"))}
+            env.update({"ARTIFACTS_DIR": str(self.art), "WORKFLOW_ID": "run-delta", "PYTHONDONTWRITEBYTECODE": "1",
+                        "ARCHON_NODE_EXECUTION": json.dumps({"path": f"fix__{nid}"}), "WORKS_FACTORY_ROOT": str(ROOT),
+                        "CLAUDE_CONFIG_DIR": str(self.cfg)})
+            env.update({f"INPUTS_{k.upper()}": v for k, v in inputs.items()})
+            return subprocess.run([sys.executable, str(cwd_script or BLOCK / "scripts" / f"{script}.py")], cwd=self.repo,
+                                  env=env, capture_output=True, text=True, encoding="utf-8")
+
+        self._json("lenses.json", {"collector": {"ok": True, "reason": "前の試みの行"}})
+        self._cut()
+        self.assertFalse(lenses.exists(), "delta-cut が前の試みの印を消す")
+        self._run("lens_prep", "lens-prep")
+        (self.place / "lens.json").write_text("{壊れた", encoding="utf-8")
+        done = raw("lens_collect", "lens-collect", reply="null")
+        self.assertNotEqual(done.returncode, 0, done.stdout)
+        got = collector()
+        self.assertIs(got["ok"], False)
+        self.assertIn("レンズの集め役が終わらなかった", got["reason"])
+        self.assertIn("読めない", got["reason"])
+        self._run("collect", "fix")
+        self.assertEqual(collector(), got, "返す節は集め役が書いた事実をそのまま残す")
+        with self.subTest("集め役が何も書かずに落ちた・走らなかった"):
+            lenses.unlink()
+            self._run("collect", "fix")
+            got = collector()
+            self.assertIs(got["ok"], False)
+            self.assertIn("集め役の出口が無い", got["reason"])
+        with self.subTest("lib も境の口も読めない返す節"):
+            lenses.unlink()
+            lone = self.tmp / "lone" / "fix" / "scripts" / "collect.py"
+            lone.parent.mkdir(parents=True)
+            lone.write_bytes((BLOCK / "scripts" / "collect.py").read_bytes())
+            done = raw("collect", "fix", cwd_script=lone)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertIs(collector()["ok"], False)
+        with self.subTest("書けない"):
+            lenses.unlink()
+            lenses.mkdir()
+            done = raw("collect", "fix")
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertIn(f"lenses.json を書けない（{lenses}", done.stderr)
+            lenses.rmdir()
+        with self.subTest("集めが済んだ"):
+            self._run("lens_prep", "lens-prep")
+            self.assertEqual(self._run("lens_collect", "lens-collect", reply="null")["state"], "not_routed")
+            self.assertEqual(collector(), {"ok": True, "reason": ""})
+            self._run("collect", "fix")
+            self.assertEqual(collector(), {"ok": True, "reason": ""})
+        with self.subTest("審査を回さない run"):
+            self._json("assert-changed.json", {"ok": False, "reason": "申告したファイルが変わっていない"})
+            self.assertFalse(self._run("delta_cut", "delta-cut")["go"])
+            self._run("collect", "fix")
+            got = collector()
+            self.assertIs(got["ok"], True)
+            self.assertIn("レンズは起こさない", got["reason"])
+
     def test_scripts_do_not_name_queues_or_take(self):
         for name in ("delta_cut", "delta_accept", "lens_prep", "lens_collect", "refix_prep", "refix_accept", "cut2",
                      "review2_accept", "refix2_prep", "refix2_accept"):
