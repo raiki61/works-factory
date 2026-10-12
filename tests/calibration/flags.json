@@ -1,0 +1,1296 @@
+{
+ "works": {
+  "converge": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/converge.json",
+     "path": "decision",
+     "value": "next_round"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/converge.json",
+     "path": "decision",
+     "value": "ask"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/converge.json",
+     "path": "decision",
+     "value": "stopped"
+    }
+   ],
+   "why": "収束しない周の decision（next_round・ask・stopped。converged だけが緑）。.shared/core/graphloops/rules/review-loop.py:2019-2124"
+  },
+  "p0.base": {
+   "never": "版の根を機械が組むだけで、名指しの base_rev があれば material.status は必ず found になり所見ではない（.shared/core/board.py:548-551）"
+  },
+  "p0.local_checks": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p0.local_checks.json",
+     "path": "material.status",
+     "value": "found"
+    }
+   ],
+   "why": "直す前の試験の赤は material.status=found（宣言の段は review-loop.py:2260-2264、test_cmd は .shared/core/entry.py:702）"
+  },
+  "p0.parallel_pr": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p0.parallel_pr.json",
+     "path": "conflicts.0"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p0.parallel_pr.json",
+     "path": "material.status",
+     "value": "found"
+    }
+   ],
+   "why": "並行 PR と交われば役（blk-pr）の返答の conflicts と material が out に入る（review-loop.py:2320-2339）"
+  },
+  "p0.premises": {
+   "never": "返答は測り直した制約 constraints[] だけで、所見か赤を言う欄が無い（review-loop.json:980、blk-premises/commands/premises.md）"
+  },
+  "p0.prior_decisions": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p0.prior_decisions.json",
+     "path": "material.status",
+     "value": "found"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p0.prior_decisions.json",
+     "path": "settled.0"
+    }
+   ],
+   "why": "関わる決定記録を見つけたら material.status=found と settled[]（review-loop.json:1336）"
+  },
+  "p0.purpose": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p0.purpose.json",
+     "path": "source",
+     "value": "目的不明"
+    }
+   ],
+   "why": "目的の出典が『目的不明』なら独立設計が検証できない赤（review-loop.json:1045・1083）"
+  },
+  "p0.purpose_review": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p0.purpose_review.json",
+     "path": "verdict",
+     "value": "狭めている"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p0.purpose_review.json",
+     "path": "findings.0"
+    }
+   ],
+   "why": "目的の文が依頼を狭めていると見た verdict と findings（review-loop.json:1110）"
+  },
+  "p1.consistency_bypass": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p1.consistency_bypass.json",
+     "path": "consistency.status",
+     "value": "found"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p1.consistency_bypass.json",
+     "path": "bypass.status",
+     "value": "found"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p1.consistency_bypass.json",
+     "path": "findings.0"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p1.consistency_bypass.json",
+     "path": "bypass_findings.0"
+    }
+   ],
+   "why": "素材 consistency・bypass の status と findings（review-loop.json:1677）"
+  },
+  "p1.external_standards": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p1.external_standards.json",
+     "path": "material.status",
+     "value": "found"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p1.external_standards.json",
+     "path": "findings.0"
+    }
+   ],
+   "why": "material と findings（review-loop.json:1976）"
+  },
+  "p1.gate_efficacy": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p1.gate_efficacy.json",
+     "path": "material.status",
+     "value": "found"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p1.gate_efficacy.json",
+     "path": "arms.*.red_confirmed",
+     "value": false
+    }
+   ],
+   "why": "赤を見ていない腕が在れば found（review-loop.py:3022-3062）と腕ごとの red_confirmed（review-loop.json:521・638）"
+  },
+  "p1.hygiene": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p1.hygiene.json",
+     "path": "findings.0"
+    }
+   ],
+   "why": "findings が空でなければ素材は found（review-loop.py:1303 の material_from_findings、review-loop.json:1894）"
+  },
+  "p1.local_review": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p1.local_review.json",
+     "path": "material.status",
+     "value": "found"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p1.local_review.json",
+     "path": "findings.*.items.0"
+    }
+   ],
+   "why": "material と、スキルごとの findings[].items[]（review-loop.json:1491）"
+  },
+  "p1.main_path_observation": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p1.main_path_observation.json",
+     "path": "material.status",
+     "value": "found"
+    }
+   ],
+   "why": "material.status=found（review-loop.json:2471）"
+  },
+  "p1.procedure_trace": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p1.procedure_trace.json",
+     "path": "material.status",
+     "value": "found"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p1.procedure_trace.json",
+     "path": "findings.0"
+    }
+   ],
+   "why": "material と findings（review-loop.json:2174）"
+  },
+  "p1.provenance": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p1.provenance.json",
+     "path": "material.status",
+     "value": "found"
+    }
+   ],
+   "why": "material.status=found（review-loop.json:2577）"
+  },
+  "p1.test_double_fidelity": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p1.test_double_fidelity.json",
+     "path": "material.status",
+     "value": "found"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p1.test_double_fidelity.json",
+     "path": "mismatches.0"
+    }
+   ],
+   "why": "material と mismatches（review-loop.json:2357）"
+  },
+  "p1.worktree_after": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p1.worktree_after.json",
+     "path": "ok",
+     "value": false
+    },
+    {
+     "check": "json-equals",
+     "where": "board/state.json",
+     "path": "git_mismatches.*.where",
+     "value": "P1"
+    }
+   ],
+   "why": "P1 の前後で作業ツリーが違えば {ok:false} を返し state.git_mismatches に where=P1 の行を積む（review-loop.py:1624-1682）"
+  },
+  "p1.worktree_before": {
+   "never": "版を固めて差分の控えを取るだけ。ok:false は git が読めない環境の止まりに限る（review-loop.py:1596-1621）"
+  },
+  "p2.diagnose": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p2.diagnose.json",
+     "path": "units.*.label",
+     "value": "block"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p2.diagnose.json",
+     "path": "units.*.label",
+     "value": "suggest"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p2.diagnose.json",
+     "path": "units.*.label",
+     "value": "nit"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p2.diagnose.json",
+     "path": "units.*.label",
+     "value": "question"
+    }
+   ],
+   "why": "判定の単位 units[].label のうち info でない物（review-loop.json:2707）"
+  },
+  "p2.fix_plan": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p2.fix_plan.json",
+     "path": "plan.*.narrows.0"
+    }
+   ],
+   "why": "今ある能力を狭める宣言 narrows は修正前の関所の項目になる（review-loop.json:3318、review-loop.py:4099-4104）"
+  },
+  "p2.history": {
+   "never": "今の works の darkfactory/nodes.json でも absent（1 周の run の 1 周目は条件で na）"
+  },
+  "p2.human_gate": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p2.human_gate.json",
+     "path": "decision",
+     "value": "ask"
+    }
+   ],
+   "why": "項目が 1 件でも在れば decision=ask（review-loop.py:4116-4131、項目は gatemarks.plan_gate_items）"
+  },
+  "p2.plan_review": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p2.plan_review.json",
+     "path": "faces.0"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p2.plan_review.json",
+     "path": "shrink.0"
+    }
+   ],
+   "why": "事前審査が案に見つけた穴 faces と縮める提案 shrink（review-loop.json:3473）"
+  },
+  "p2.rejudge": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p2.rejudge.json",
+     "path": "verdict",
+     "value": "採る"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p2.rejudge.json",
+     "path": "verdict",
+     "value": "一部採る"
+    }
+   ],
+   "why": "異議の再審が修正役の異議を採った verdict（review-loop.json:5453。条件 rejudge_open の時だけ走る）"
+  },
+  "p3.delta_fix": {
+   "never": "手直しの役で、差分の審査の穴に答えるだけ（review-loop.json:475）。所見は p3.delta_review が出す"
+  },
+  "p3.delta_fix2": {
+   "never": "p3.delta_fix と同じ形の 2 回目の手直し（review-loop.json:4327）"
+  },
+  "p3.delta_gates": {
+   "never": "今の works の darkfactory/nodes.json でも absent（変異の検算の線はこのラインに無い）"
+  },
+  "p3.delta_owed": {
+   "never": "p3.delta_review の faces と closed=false を数え直すだけ（review-loop.py:582-591）。所見は p3.delta_review の側で数える"
+  },
+  "p3.delta_owed2": {
+   "never": "p3.delta_owed と同じ集計（review-loop.py:582-591）"
+  },
+  "p3.delta_review": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p3.delta_review.json",
+     "path": "faces.0"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p3.delta_review.json",
+     "path": "checks.*.closed",
+     "value": false
+    }
+   ],
+   "why": "差分の審査の穴 faces と、塞いだと言われて塞がっていない checks（review-loop.json:397）"
+  },
+  "p3.delta_review2": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "board/out/r*/p3.delta_review2.json",
+     "path": "faces.0"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p3.delta_review2.json",
+     "path": "checks.*.closed",
+     "value": false
+    }
+   ],
+   "why": "p3.delta_review と同じ形の 2 回目（review-loop.json:4263）"
+  },
+  "p3.fix": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p3.fix.json",
+     "path": "fix_closure.status",
+     "value": "found"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p3.fix.json",
+     "path": "premise_drift",
+     "value": true
+    }
+   ],
+   "why": "閉鎖の実証で赤を見ていない site が在れば fix_closure=found（review-loop.py:2674-2690・2786-2789）、前提のずれは premise_drift（review-loop.json:3660）"
+  },
+  "p3.fix_delta": {
+   "never": "この周の修正の差分を写すだけ（review-loop.py:1567-1593）"
+  },
+  "p3.fix_delta2": {
+   "never": "手直しの差分を写すだけ（review-loop.py:1567-1593）"
+  },
+  "p3.gates_cut": {
+   "never": "版を固めて線の範囲を置くだけ（review-loop.py:700-728）。最後の試験の赤は p4.ci の側"
+  },
+  "p3.lane_merge": {
+   "never": "線の結果の patch を重ねる節だが、線を撃つ p3.delta_gates がこのラインに無いので重ねる物も食い違いも出ない（review-loop.py:903-935）"
+  },
+  "p4.assemble": {
+   "never": "開いた単位の数と再発火を数えるだけ（review-loop.py:1803-1850）"
+  },
+  "p4.ci": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p4.ci.json",
+     "path": "material.status",
+     "value": "found"
+    }
+   ],
+   "why": "最後の試験の赤は material.status=found（review-loop.py:2236-2274。走らせられない時は not_run）"
+  },
+  "p4.final_gates": {
+   "never": "今の works の darkfactory/nodes.json でも absent（最後の変異の検算はこのラインに無い）"
+  },
+  "p4.record": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p4.record.json",
+     "path": "exit",
+     "value": 1
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/p4.record.json",
+     "path": "ok",
+     "value": false
+    }
+   ],
+   "why": "記録の検証器の exit 1 は阻害あり、ok:false は記録が不正か検証器が動かない（review-loop.py:1999-2016）"
+  },
+  "p4.scalars": {
+   "never": "規模の数値を数えるだけ（review-loop.py:2153-2178）"
+  },
+  "r1.comment_candidates": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "board/out/r*/r1.comment_candidates.json",
+     "path": "candidates.0"
+    }
+   ],
+   "why": "削除候補のコメント candidates（review-loop.json:4574）"
+  },
+  "r1.minimality": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/r1.minimality.json",
+     "path": "status",
+     "value": "redesign-needed"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/r1.minimality.json",
+     "path": "deletions.0"
+    }
+   ],
+   "why": "R1 の status と削れる所 deletions（review-loop.json:4672）"
+  },
+  "r2.compare": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/r2.compare.json",
+     "path": "status",
+     "value": "redesign-needed"
+    }
+   ],
+   "why": "独立設計と修正の比べの status（review-loop.json:4887）"
+  },
+  "r2.design": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/design.json",
+     "path": "question_stands",
+     "value": false
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/r2.design.json",
+     "path": "question_stands",
+     "value": false
+    }
+   ],
+   "why": "問いが立たない（前提不成立）が R2 の赤。修正の前に盤面の根の design.json に控える（.shared/core/design.py:61・599・724）"
+  },
+  "r3.coherence": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/r3.coherence.json",
+     "path": "status",
+     "value": "redesign-needed"
+    }
+   ],
+   "why": "R3 の status（review-loop.json:4973）"
+  },
+  "r4.hidden_scope": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/r4.hidden_scope.json",
+     "path": "status",
+     "value": "redesign-needed"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/r4.hidden_scope.json",
+     "path": "capability_inventory.lost.0"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/r4.hidden_scope.json",
+     "path": "policy_conflicts.0"
+    },
+    {
+     "check": "json-has",
+     "where": "board/out/r*/r4.hidden_scope.json",
+     "path": "surfaced.0"
+    }
+   ],
+   "why": "R4 の status と、消えた能力・方針とのぶつかり・見つけた所見（review-loop.json:5036）"
+  },
+  "r4.human_gate": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/r4.human_gate.json",
+     "path": "decision",
+     "value": "ask"
+    }
+   ],
+   "why": "R4 の lost と policy_conflicts のうち人がまだ通していない物が在れば ask（review-loop.py:4109-4131、gatemarks.r4_gate_items）"
+  },
+  "report": {
+   "never": "報告の書き手で所見は出さない（blk-report/lib/report_roles.py:78）"
+  },
+  "report.cold_check": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/*/r*/report-rejects.json",
+     "path": "*.kind",
+     "value": "cold"
+    },
+    {
+     "check": "exists",
+     "where": "board/*/r*/report-cold-unpassed.json"
+    }
+   ],
+   "why": "初見の読み手が redesign-needed を返すと report-rejects.json に kind=cold を積み、通らなければ report-cold-unpassed.json を置く（blk-report/lib/report_roles.py:80・88・409-417・454-458）"
+  },
+  "report.human_items": {
+   "never": "今の works に節が無い（docs/nodes.json の reason の『今の works では absent』。頭は blk-report の report-write が本文と一緒に書く）"
+  },
+  "spec.approve": {
+   "never": "仕様の承認を人に聞く関所で、関門自身は所見も赤も出さない（review-loop.py:3971-3990。spec=on の run だけ）"
+  },
+  "spec.check": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/spec.check.json",
+     "path": "decision",
+     "value": "ask"
+    }
+   ],
+   "why": "承認した受け入れ条件のテストのファイルが変わった時だけ ask（review-loop.py:4044-4068）"
+  },
+  "spec.freeze": {
+   "never": "承認した仕様を固めて依頼を積むだけ（review-loop.py:4010-4041）"
+  },
+  "spec.review": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "board/out/r*/spec.review.json",
+     "path": "faces.0"
+    }
+   ],
+   "why": "仕様の審査の穴 faces（review-loop.json:5831）"
+  },
+  "spec.revise": {
+   "never": "書き手が審査の穴に答えて直す節（review-loop.json:5906）。所見は spec.review が出す"
+  },
+  "spec.write": {
+   "never": "要件と受け入れ条件を書く節（review-loop.json:5733）"
+  },
+  "stop.premise_check": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/stop.premise_check.json",
+     "path": "verdict",
+     "value": "escalate"
+    },
+    {
+     "check": "json-equals",
+     "where": "board/out/r*/stop.premise_check.json",
+     "path": "assumption_false",
+     "value": true
+    }
+   ],
+   "why": "R2 が前提不成立の周だけ走り、前提が偽か人に上げるか（review-loop.json:5189）"
+  }
+ },
+ "works-factory": {
+  "converge": {
+   "never": "docs/nodes.json の by が absent（works-factory に節が無い）。run は 1 周で周の収束を持たない"
+  },
+  "p0.base": {
+   "never": "line/start は始めの記録に base_rev を書くだけの記帳で、所見も赤も出さない（workflows/line/scripts/start.py:141・166・184）"
+  },
+  "p0.local_checks": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/test-gate/base/baseline.json",
+     "path": "material.status",
+     "value": "found"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/test-gate/base/evidence.md",
+     "text": "- green: false"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/test-gate/base/evidence.md",
+     "text": "返す節の中の誤り"
+    },
+    {
+     "check": "exists",
+     "where": "parent/test-gate/base/failure.txt"
+    }
+   ],
+   "why": "line/test-gate-base で走る test-gate/run の素材を test-gate/result が baseline.json の material に写し（found が修正前の赤）、evidence.md の『- green: false』か落ちた時の failure.txt を赤とする（workflows/test-gate/scripts/result.py:49・88・104-108・116・127・132）"
+  },
+  "p0.parallel_pr": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-pr-check.json",
+     "path": "materials.parallel_pr.status",
+     "value": "found"
+    },
+    {
+     "check": "json-has",
+     "where": "parent/judge/material-pr-check.json",
+     "path": "reply.conflicts.0"
+    }
+   ],
+   "why": "judge/pr-scan が交差を見て役に回し、material-pr-check.json の status found か conflicts を並行 PR との交差の所見とする（lib/judge_accept.py:3790・3812-3815・3903）"
+  },
+  "p0.premises": {
+   "never": "judge/premises の返答は測り直した制約 constraints だけで、所見か赤を言う欄が無い（lib/judge_accept.py:1459）"
+  },
+  "p0.prior_decisions": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-prior-decisions.json",
+     "path": "materials.prior_decisions.status",
+     "value": "found"
+    }
+   ],
+   "why": "judge/prior-decisions-accept が material-prior-decisions.json を書き、status found を所見とする（lib/judge_accept.py:117・2852）"
+  },
+  "p0.purpose": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/purpose.json",
+     "path": "source",
+     "value": "目的不明"
+    }
+   ],
+   "why": "judge/purpose-accept が judge/purpose.json を書き、出典が『目的不明』なら独立設計が検証できない赤とする（lib/judge_accept.py:1511、workflows/judge/commands/purpose.md:49）"
+  },
+  "p0.purpose_review": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-purpose-review.json",
+     "path": "reply.verdict",
+     "value": "狭めている"
+    },
+    {
+     "check": "json-has",
+     "where": "parent/judge/material-purpose-review.json",
+     "path": "reply.findings.0"
+    }
+   ],
+   "why": "judge/purpose-review-accept が material-purpose-review.json を書き、verdict『狭めている』か findings を所見とする（lib/judge_accept.py:2650・2852）"
+  },
+  "p1.consistency_bypass": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-consistency-bypass.json",
+     "path": "materials.consistency.status",
+     "value": "found"
+    },
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-consistency-bypass.json",
+     "path": "materials.bypass.status",
+     "value": "found"
+    }
+   ],
+   "why": "judge/consistency-bypass-accept が素材 consistency と bypass を書き、どちらかの found を所見とする（lib/judge_accept.py:1916-1923・2852）"
+  },
+  "p1.external_standards": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-external-standards.json",
+     "path": "materials.external_standards.status",
+     "value": "found"
+    }
+   ],
+   "why": "judge/external-standards-accept が書く素材の found（lib/judge_accept.py:2852）"
+  },
+  "p1.gate_efficacy": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-gate-efficacy.json",
+     "path": "materials.gate_efficacy.status",
+     "value": "found"
+    }
+   ],
+   "why": "judge/gate-efficacy-accept が書く素材の found（lib/judge_accept.py:2852）"
+  },
+  "p1.hygiene": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-hygiene.json",
+     "path": "materials.hygiene.status",
+     "value": "found"
+    }
+   ],
+   "why": "judge/hygiene-accept が書く素材の found。findings が在れば found（lib/judge_accept.py:2750-2757・2852）"
+  },
+  "p1.local_review": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-local-review.json",
+     "path": "materials.local_review.status",
+     "value": "found"
+    },
+    {
+     "check": "json-has",
+     "where": "parent/judge/material-local-review.json",
+     "path": "reply.findings.0"
+    }
+   ],
+   "why": "judge/local-review-accept が書く素材の found か reply.findings（lib/judge_accept.py:2852）"
+  },
+  "p1.main_path_observation": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-main-path-observation.json",
+     "path": "materials.main_path_observation.status",
+     "value": "found"
+    }
+   ],
+   "why": "judge/main-path-observation-accept が書く素材の found（lib/judge_accept.py:2852）"
+  },
+  "p1.procedure_trace": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-procedure-trace.json",
+     "path": "materials.procedure_trace.status",
+     "value": "found"
+    }
+   ],
+   "why": "judge/procedure-trace-accept が書く素材の found（lib/judge_accept.py:2852）"
+  },
+  "p1.provenance": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-provenance.json",
+     "path": "materials.provenance.status",
+     "value": "found"
+    }
+   ],
+   "why": "judge/provenance-accept が書く素材の found（lib/judge_accept.py:2852）"
+  },
+  "p1.test_double_fidelity": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/material-test-double-fidelity.json",
+     "path": "materials.test_double_fidelity.status",
+     "value": "found"
+    }
+   ],
+   "why": "judge/test-double-fidelity-accept が書く素材の found（lib/judge_accept.py:2852）"
+  },
+  "p1.worktree_after": {
+   "rules": [
+    {
+     "check": "text-contains",
+     "where": "parent/judge/rejects-prior-decisions.json",
+     "text": "読むだけの役が作業ツリーを変えた"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/judge/rejects-local-review.json",
+     "text": "読むだけの役が作業ツリーを変えた"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/judge/rejects-consistency-bypass.json",
+     "text": "読むだけの役が作業ツリーを変えた"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/judge/rejects-hygiene.json",
+     "text": "読むだけの役が作業ツリーを変えた"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/judge/rejects-external-standards.json",
+     "text": "読むだけの役が作業ツリーを変えた"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/judge/rejects-procedure-trace.json",
+     "text": "読むだけの役が作業ツリーを変えた"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/judge/rejects-gate-efficacy.json",
+     "text": "読むだけの役が作業ツリーを変えた"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/judge/rejects-test-double-fidelity.json",
+     "text": "読むだけの役が作業ツリーを変えた"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/judge/rejects-main-path-observation.json",
+     "text": "読むだけの役が作業ツリーを変えた"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/judge/rejects-provenance.json",
+     "text": "読むだけの役が作業ツリーを変えた"
+    }
+   ],
+   "why": "judge/hygiene-accept などの素材の受け付けは作業ツリーが役の前と違えば拒み（lib/judge_accept.py:2000・2819-2823）、その文を judge/rejects-<役>.json に積む（lib/rolekit.py:95-103）"
+  },
+  "p1.worktree_before": {
+   "never": "judge/material-route は役を起こす前の作業ツリーの姿 material-tree.json を置くだけで、照らして拒むのは p1.worktree_after の側（lib/judge_accept.py:2233-2234）"
+  },
+  "p2.diagnose": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/judge/judgment.json",
+     "path": "units.*.label",
+     "value": "block"
+    },
+    {
+     "check": "json-equals",
+     "where": "parent/judge/judgment.json",
+     "path": "units.*.label",
+     "value": "suggest"
+    },
+    {
+     "check": "json-equals",
+     "where": "parent/judge/judgment.json",
+     "path": "units.*.label",
+     "value": "nit"
+    },
+    {
+     "check": "json-equals",
+     "where": "parent/judge/judgment.json",
+     "path": "units.*.label",
+     "value": "question"
+    },
+    {
+     "check": "json-equals",
+     "where": "parent/judge/judge-verify.json",
+     "path": "units.*.verdict",
+     "value": "not_root"
+    }
+   ],
+   "why": "judge/diagnose-accept が judge/judgment.json を書き、label が info でない単位を所見とする（lib/judge_accept.py:129・899・1039）。judge/verify-merge が書く not_root も所見（:1251）"
+  },
+  "p2.fix_plan": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "parent/plan/r*/p2.fix_plan.json",
+     "path": "plan.*.narrows.0"
+    }
+   ],
+   "why": "plan/plan-accept が受けた案を plan/r<k>/p2.fix_plan.json に書き（lib/planfile.py:71・775）、今ある能力を狭める宣言 narrows を修正前の関所の項目として所見とする"
+  },
+  "p2.history": {
+   "never": "docs/nodes.json の by が absent（works-factory に節が無い）。run は 1 周で周の鎖を持たない"
+  },
+  "p2.human_gate": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "parent/plan-review/pass-*/gate.json",
+     "path": "items.0"
+    },
+    {
+     "check": "exists",
+     "where": "parent/gates/gate-before-fix.json"
+    }
+   ],
+   "why": "plan-review/review が人に回す項目を plan-review/pass-<k>/gate.json の items に書き（lib/boardview.py:934）、line/gate-before-fix が開いて答えると line/answer-before-fix が gates/gate-before-fix.json を書く（workflows/line/scripts/gate_answer.py:42-44）"
+  },
+  "p2.plan_review": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "parent/plan-review/pass-*/review.json",
+     "path": "faces.0"
+    },
+    {
+     "check": "json-has",
+     "where": "parent/plan-review/pass-*/review.json",
+     "path": "shrink.0"
+    }
+   ],
+   "why": "plan-review/review-accept が plan-review/pass-<k>/review.json を書き、穴 faces と縮める提案 shrink を所見とする（lib/boardview.py:196・851）"
+  },
+  "p2.rejudge": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/rejudge/rejudge-exit.json",
+     "path": "verdicts.*",
+     "value": "採る"
+    },
+    {
+     "check": "json-equals",
+     "where": "parent/rejudge/rejudge-exit.json",
+     "path": "verdicts.*",
+     "value": "一部採る"
+    },
+    {
+     "check": "json-has",
+     "where": "parent/rejudge/rejudge-exit.json",
+     "path": "new_open_units.0"
+    },
+    {
+     "check": "json-has",
+     "where": "parent/rejudge/rejudge-exit.json",
+     "path": "lowered.0"
+    }
+   ],
+   "why": "line/rejudge-run の中の judge/rejudge-accept が受けた再審を rejudge/rejudge-exit.json に書き、異議を採った verdicts・新しく開いた単位・下げた block を所見とする（lib/judge_accept.py:3681-3695）"
+  },
+  "p3.delta_fix": {
+   "never": "fix/refix は差分の審査の穴に答える手直しの役で、所見は p3.delta_review が出す（lib/refix.py:252）"
+  },
+  "p3.delta_fix2": {
+   "never": "fix/refix2 は p3.delta_fix と同じ形の 2 回目の手直し（lib/refix.py:252）"
+  },
+  "p3.delta_gates": {
+   "never": "docs/nodes.json の by が absent（works-factory に節が無い）。変異の検算の線が無い"
+  },
+  "p3.delta_owed": {
+   "never": "fix/delta-accept は p3.delta_review の穴と閉じていない checks を数え直すだけ（workflows/fix/scripts/delta_accept.py:44-49）。所見は p3.delta_review の側で数える"
+  },
+  "p3.delta_owed2": {
+   "never": "fix/review2-accept は p3.delta_owed と同じ集計（workflows/fix/scripts/review2_accept.py:47-52）"
+  },
+  "p3.delta_review": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "parent/fix/*/out-p3.delta_review.json",
+     "path": "faces.0"
+    },
+    {
+     "check": "json-equals",
+     "where": "parent/fix/*/out-p3.delta_review.json",
+     "path": "checks.*.closed",
+     "value": false
+    },
+    {
+     "check": "json-has",
+     "where": "parent/fix/*/lens.json",
+     "path": "rows.*.findings.0"
+    }
+   ],
+   "why": "fix/delta-review の受けた返答の faces と closed:false の checks（lib/refix.py:220、lib/fixboard.py:213・315-326）と、fix/lens-collect が残すレンズの指摘（workflows/fix/scripts/lens_collect.py:32）"
+  },
+  "p3.delta_review2": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "parent/fix/*/out-p3.delta_review2.json",
+     "path": "faces.0"
+    },
+    {
+     "check": "json-equals",
+     "where": "parent/fix/*/out-p3.delta_review2.json",
+     "path": "checks.*.closed",
+     "value": false
+    }
+   ],
+   "why": "fix/review2 の受けた返答の faces と closed:false の checks（lib/refix.py:212）"
+  },
+  "p3.fix": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/fix/*/assert-changed.json",
+     "path": "ok",
+     "value": false
+    },
+    {
+     "check": "json-equals",
+     "where": "parent/fix/*/groups/*/result.json",
+     "path": "units.*.status",
+     "value": "given_up"
+    },
+    {
+     "check": "json-equals",
+     "where": "parent/fix/*/groups/*/result.json",
+     "path": "tdd.calls.*.ok",
+     "value": false
+    }
+   ],
+   "why": "fix/assert-changed が申告と変更の食い違いを ok:false で書き（workflows/fix/scripts/assert_changed.py:57・60）、子の run の終わりに fix の組が諦めた単位と TDD の段の落ちを groups/<gid>/result.json に書く（workflows/fix/scripts/group_end.py:64-65）"
+  },
+  "p3.fix_delta": {
+   "never": "fix/delta-cut は修正だけの差分を切るか飛ばすだけの記帳（lib/refix.py:117-130・189、workflows/fix/scripts/delta_cut.py:41）"
+  },
+  "p3.fix_delta2": {
+   "never": "fix/cut2 は 2 回目の差分を切るか go:false を返すだけの記帳（workflows/fix/scripts/cut2.py:27-35）"
+  },
+  "p3.gates_cut": {
+   "never": "test-gate/result は修正の後の姿を緑の認証の指紋で固めるだけ（lib/green_cert.py:114-138）。最後の試験の赤は p4.ci の側で数える"
+  },
+  "p3.lane_merge": {
+   "rules": [
+    {
+     "check": "text-contains",
+     "where": "parent/fix/*/join.json",
+     "text": "差分が親の作業ツリーに当たらない"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/fix/*/join.json",
+     "text": "元で赤でなかった試験が赤"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/fix/*/join.json",
+     "text": "組の差分を当てられない"
+    }
+   ],
+   "why": "fix/join が組の差分を親の作業ツリーに当てられない・当てた後に元で赤でなかった試験が赤の時、join.json の groups[].reason に書く（workflows/fix/scripts/join.py:73・98、lib/fixboard.py:518・522・549）"
+  },
+  "p4.assemble": {
+   "never": "docs/nodes.json の by が absent（works-factory に節が無い）。R1・R2 の再発火を数える節を持たない"
+  },
+  "p4.ci": {
+   "rules": [
+    {
+     "check": "text-contains",
+     "where": "parent/test-gate/final/evidence.md",
+     "text": "- green: false"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/test-gate/final/evidence.md",
+     "text": "返す節の中の誤り"
+    },
+    {
+     "check": "exists",
+     "where": "parent/test-gate/final/failure.txt"
+    }
+   ],
+   "why": "line/test-gate-final で走る test-gate/run の結末を test-gate/result が evidence.md の『- green: false』か落ちた時の failure.txt で書く（workflows/test-gate/scripts/result.py:49・88・116・127・132）"
+  },
+  "p4.final_gates": {
+   "never": "docs/nodes.json の by が absent（works-factory に節が無い）。最後の変異の検算が無い"
+  },
+  "p4.record": {
+   "never": "docs/nodes.json の by が absent（works-factory に節が無い）。周の記録を持たない"
+  },
+  "p4.scalars": {
+   "never": "eyes/prep は規模の数値を数えるだけ（lib/eyeverdict.py の scalars、workflows/eyes/scripts/prep.py:66・91）"
+  },
+  "r1.comment_candidates": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "parent/eyes/r1-comments.json",
+     "path": "candidates.0"
+    }
+   ],
+   "why": "eyes/r1-comments-save が eyes/r1-comments の返りを eyes/r1-comments.json に書き、削除候補 candidates を所見とする（workflows/eyes/scripts/save_reply.py:15）"
+  },
+  "r1.minimality": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/eyes/r1.json",
+     "path": "status",
+     "value": "redesign-needed"
+    },
+    {
+     "check": "json-has",
+     "where": "parent/eyes/r1.json",
+     "path": "deletions.0"
+    }
+   ],
+   "why": "eyes/r1-minimality-verdict が eyes/r1.json に返りを書き、status redesign-needed か deletions を所見とする（workflows/eyes/scripts/eye_verdict.py:17）"
+  },
+  "r2.compare": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/eyes/r2.json",
+     "path": "status",
+     "value": "redesign-needed"
+    }
+   ],
+   "why": "eyes/r2-compare-verdict が eyes/r2.json に返りを書き、status redesign-needed を所見とする（workflows/eyes/scripts/eye_verdict.py:17）"
+  },
+  "r2.design": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/plan-review/design.json",
+     "path": "question_stands",
+     "value": false
+    }
+   ],
+   "why": "plan-review/r2-accept が plan-review/design.json を書き、問いが立たない question_stands:false を赤とする（lib/boardview.py:670、lib/eyeverdict.py:71-73）"
+  },
+  "r3.coherence": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/eyes/r3.json",
+     "path": "status",
+     "value": "redesign-needed"
+    }
+   ],
+   "why": "eyes/r3-coherence-verdict が eyes/r3.json に返りを書き、status redesign-needed を所見とする（workflows/eyes/scripts/eye_verdict.py:17）"
+  },
+  "r4.hidden_scope": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/eyes/r4.json",
+     "path": "status",
+     "value": "redesign-needed"
+    },
+    {
+     "check": "json-has",
+     "where": "parent/eyes/r4.json",
+     "path": "capability_inventory.lost.0"
+    },
+    {
+     "check": "json-has",
+     "where": "parent/eyes/r4.json",
+     "path": "policy_conflicts.0"
+    }
+   ],
+   "why": "eyes/r4-scope-verdict が eyes/r4.json に返りを書き、status redesign-needed か消えた能力・方針とのぶつかりを所見とする（workflows/eyes/scripts/eye_verdict.py:17、lib/eyeverdict.py:137-147）"
+  },
+  "r4.human_gate": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/gates/gate-final.json",
+     "path": "decision",
+     "value": "stop"
+    },
+    {
+     "check": "json-equals",
+     "where": "parent/gates/gate-final.json",
+     "path": "decision",
+     "value": "reject"
+    }
+   ],
+   "why": "line/gate-final が開いて答えると line/answer-final が gates/gate-final.json に decision を書き、通す語でない stop・reject を赤とする（workflows/line/scripts/gate_answer.py:42-44）。無人の run が関所の手前で needs-human で止まる時は書かれない（workflows/line/scripts/ask_final.py:131-132）"
+  },
+  "report": {
+   "never": "report/write は報告の書き手で、所見は出さない（受け付けの拒みは報告の形の直しで、対象への所見でない。lib/runreport.py:1100-1105）"
+  },
+  "report.cold_check": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/report/ai.json",
+     "path": "cold.verdict",
+     "value": "redesign-needed"
+    },
+    {
+     "check": "json-has",
+     "where": "parent/report/ai.json",
+     "path": "not_passed"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/report/reject-*.md",
+     "text": "redesign-needed を返した"
+    }
+   ],
+   "why": "report/cold の判定を report/accept が受け、redesign-needed なら ai.json の cold.verdict・not_passed と reject-<N>.md に残す（lib/runreport.py:1083-1127）"
+  },
+  "report.human_items": {
+   "never": "report/facts はほかの関門が人に回した項目を数えて報告の頭に書くだけで、自分では所見も赤も出さない（lib/runreport.py:785・1020）"
+  },
+  "spec.approve": {
+   "never": "judge/spec-gate は仕様の承認を人に聞く関所で、関門自身は所見も赤も出さない（spec=on の run だけ。無人の run とは組めない）"
+  },
+  "spec.check": {
+   "never": "docs/nodes.json の by が absent（works-factory に節が無い）。凍結した受け入れ条件のテストの hash を後で照らす節が無い"
+  },
+  "spec.freeze": {
+   "never": "judge/spec-freeze は承認した仕様を固めて依頼を積むだけ（lib/judge_accept.py:3357-3358）"
+  },
+  "spec.review": {
+   "rules": [
+    {
+     "check": "json-has",
+     "where": "parent/judge/spec-review.json",
+     "path": "faces.0"
+    }
+   ],
+   "why": "judge/spec-review-accept が審査の返答を judge/spec-review.json に書き、穴 faces を所見とする（lib/judge_accept.py:3258）"
+  },
+  "spec.revise": {
+   "never": "judge/spec-revise は書き手が審査の穴に答えて直す節で、所見は spec.review が出す（lib/judge_accept.py:3258）"
+  },
+  "spec.write": {
+   "never": "judge/spec-accept は書き手の仕様を置くだけで、返答に所見や赤の欄が無い（lib/judge_accept.py:3258）"
+  },
+  "stop.premise_check": {
+   "rules": [
+    {
+     "check": "json-equals",
+     "where": "parent/eyes/premise-check.json",
+     "path": "verdict",
+     "value": "escalate"
+    },
+    {
+     "check": "text-contains",
+     "where": "parent/report/report.md",
+     "text": "前提の検算が人に上げた物: 1 件"
+    }
+   ],
+   "why": "eyes/premise-check-verdict が eyes/premise-check.json に返りを書き verdict escalate を赤とし、役が落ちて escalate に倒した時は report.md の行で拾う（workflows/eyes/scripts/eye_verdict.py:17、lib/eyeverdict.py:346-349、lib/runreport.py:763-774）"
+  }
+ }
+}
