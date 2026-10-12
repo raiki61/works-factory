@@ -22,10 +22,10 @@
   - 狭め: 試験だけ落ちた（#94）。能力は残る
 - F026〔無・戻・試〕手元の試験の起こし方: 実行器と test_cmd を nice -n 19 で起こし、機械全体の試験の枠（slotwrap）を通し、同じ run の中の元の結末と test_cmd の結果を使い回して出どころの句（reused）を残す
   - 元: works/blk-fix/lib/tddloop.py:296 `run_suite`（slotwrap・nice）・:565 `start`（reused）、旧試験 works/tests/test_blk_fix_tdd.py:2441 `TestRunSuiteSlot`・TestTestCmdGate の使い回しと nice の 5 本
-  - 今: lib/baseline_red.py `niced`（起こす argv の頭 `nice -n 19` の 1 か所。nice が無ければ素で起こしログの頭に NO_NICE の 1 行）を `run_suite` と lib/tddloop.py `_cmd_material` が呼ぶ（#121）
-  - 証: lib/tests/test_baseline_red.py::RunSuiteSeedCase.test_runner_is_niced・test_runner_without_nice_runs_bare_and_says_so、lib/tests/test_blk_fix_tdd.py::TestTestCmdGate.test_test_cmd_is_niced・test_shell_test_cmd_that_cannot_launch_is_not_run_under_nice（shell の形の先頭の語が無いコマンドは nice の下でも not_run）
+  - 今: lib/baseline_red.py `lowered`・`nice19`（子の優先度を nice -n 19 と同じだけ下げる preexec の 1 か所。argv・環境・作業の場は変えないので、起こせるかの証明は tree_run.run が走らせる時と同じ形で行う。下げられない環境は下げずに起こしログの頭に NO_NICE の 1 行）を `run_suite`・lib/tddloop.py `_cmd_material`・lib/declared_checks.py `local_checks_material` が呼ぶ（#121）
+  - 証: lib/tests/test_baseline_red.py::RunSuiteSeedCase.test_runner_is_niced・test_runner_without_nice_runs_bare_and_says_so、lib/tests/test_blk_fix_tdd.py::TestTestCmdGate.test_test_cmd_is_niced・test_shell_test_cmd_that_cannot_launch_is_not_run_under_nice（shell の形の先頭の語が無いコマンドは not_run）・test_command_only_on_the_uv_run_path_is_not_run（uv run の PATH の頭にしか無い語は、パイプの後ろが緑でも not_run）
   - 本物の run: 筋書きでのみ（プロセスの優先度は成果物に残らない）
-  - 狭め: nice は戻した（#121）。試験の枠と同じ run の中の使い回しは持ち主の決め no-queue で戻さない
+  - 狭め: nice は戻した（#121）。試験の枠は持ち主の決め no-queue で戻さない。同じ run の中の使い回しは #202 が tree_run.reuse_run で戻した
 - F028〔試〕輪の回数の上限 40（max_iterations と同じ値）に届く周で、残りを direct（gave_up budget）にして done で抜ける（max_iterations に当てて run を落とさない）
   - 元: works/blk-fix/lib/tddloop.py:131 `MAX_ITERATIONS`、works/blk-fix/blk-fix.yaml:157 付近
   - 今: lib/tddloop.py `MAX_ITERATIONS`、workflows/fix/works-factory-fix.yaml:1153（`max_iterations: 40`・`until_bash: done=$tdd-step.output.done`）

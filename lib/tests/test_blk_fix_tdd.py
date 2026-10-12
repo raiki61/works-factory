@@ -1577,24 +1577,42 @@ class TestTestCmdGate(LoopCase):
         self.standard_mean_rejected(json.dumps({CLAMP: "軽量"}))
 
     def test_test_cmd_is_niced(self):
-        """run の test_cmd も実行器と同じ頭（baseline_red.niced。nice -n 19）で起こす（元 works/blk-fix/lib/tddloop.py:638 の niced）"""
+        """run の test_cmd も実行器と同じ口（baseline_red.lowered）で優先度を下げて起こす（元 works/.shared/core/entry.py:680 の
+        _nice19）。argv は command_argv の形のまま"""
         seen = []
         log = pathlib.Path(self.st()["work"]) / "test-cmd-niced.log"
-        with mock.patch.object(tddloop.tree_run, "run", side_effect=lambda argv, **kw: seen.append(argv) or 0):
+        with mock.patch.object(tddloop.tree_run, "run", side_effect=lambda argv, **kw: seen.append((argv, kw)) or 0):
             mat = tddloop._cmd_material(self.repo, self.lint(), log)
         self.assertEqual(mat["status"], "clean", mat)
-        self.assertEqual([a[:3] for a in seen], [["nice", "-n", "19"]])
-        self.assertIn("nice -n 19", mat["checked"], "起こした argv の写しにも頭が載る")
+        self.assertEqual([(argv, kw.get("preexec_fn")) for argv, kw in seen],
+                         [(tddloop.tree_run.command_argv(self.lint())[0], tddloop.baseline_red.nice19)])
 
     def test_shell_test_cmd_that_cannot_launch_is_not_run_under_nice(self):
-        """shell の形の test_cmd の先頭の語が無ければ、nice を頭に付けても起こす前の証明（tree_run.prove_launchable）を通らず
-        not_run（nice の後ろの bash は起こせるので、証明を飛ばすと exit 127 の赤やパイプの後ろの緑に化ける）"""
+        """shell の形の test_cmd の先頭の語が無ければ、優先度を下げても起こす前の証明（tree_run.prove_launchable）を通らず
+        not_run（証明を飛ばすと exit 127 の赤やパイプの後ろの緑に化ける）"""
         log = pathlib.Path(self.st()["work"]) / "test-cmd-missing.log"
         for cmd in ("no_such_cmd_xyz --x | cat", "no_such_cmd_xyz --x"):
             with self.subTest(cmd=cmd):
                 mat = tddloop._cmd_material(self.repo, cmd, log)
                 self.assertEqual(mat["status"], "not_run", mat)
                 self.assertIn("no_such_cmd_xyz", mat["reason"])
+
+    def test_command_only_on_the_uv_run_path_is_not_run(self):
+        """起こせるかの証明は走らせる時と同じ環境で行う: 実行基盤は script を uv run で起こし、uv は PATH の頭に自分の python の bin
+        を足すが、test_cmd には外した環境（tree_run.outside_env）を渡す。そこにしか無い語（uv の下の python など）を先頭に持つ
+        shell の形の test_cmd は、パイプの後ろが緑でも clean でなく not_run（review が再現した `python … | cat` の偽の clean）"""
+        uv_bin = pathlib.Path(self._tmp.name) / "uv-bin"
+        uv_bin.mkdir()
+        only = uv_bin / "only_on_uv_path"
+        only.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        only.chmod(0o755)
+        env = {"PATH": f"{uv_bin}{os.pathsep}{os.environ.get('PATH', '')}", "UV_RUN_RECURSION_DEPTH": "1"}
+        log = pathlib.Path(self.st()["work"]) / "test-cmd-uv.log"
+        with mock.patch.dict(os.environ, env), mock.patch.object(tddloop.tree_run.sys, "executable", str(uv_bin / "python3")):
+            self.assertIsNotNone(__import__("shutil").which("only_on_uv_path"), "この process からは見える")
+            mat = tddloop._cmd_material(self.repo, "only_on_uv_path --x | cat", log)
+        self.assertEqual(mat["status"], "not_run", mat)
+        self.assertIn("only_on_uv_path", mat["reason"])
 
     def test_unit_depths_of_wrong_shape_is_broken(self):
         for raw in ("{", "[]", json.dumps({MEAN: 1})):

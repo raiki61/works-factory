@@ -2,7 +2,7 @@
 
 今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の `works/.shared/core/graphloops/rules/review-loop-tdd.py`
 と `works/blk-fix/lib/tddloop.py` の関数を、元の名のまま字のとおり写した物（各関数の docstring の末尾に元の `<パス>:<行>`）。
-run_suite だけは元の試験の枠（tree_run.slotted_run の枠）を外し、tree_run.reuse_run で走らせる（nice -n 19 の頭は niced が 1 か所で組む）。
+run_suite だけは元の試験の枠（tree_run.slotted_run の枠）を外し、tree_run.reuse_run で走らせる（優先度は lowered が 1 か所で下げる）。
 元の結末のファイルの口（write_baseline・read_baseline・outcomes）は新しい関数。
 
 元の結末のファイルの必須の欄: {"suite": str, "test_cmd": str, "rev": str, "exit": int | None, "cases": [{classname, name, outcome（OUTCOMES の語）, …}]}。
@@ -11,7 +11,6 @@ run_suite だけは元の試験の枠（tree_run.slotted_run の枠）を外し�
 import json
 import os
 import pathlib
-import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -23,10 +22,11 @@ import tree_run
 # 元 works/blk-fix/lib/tddloop.py:142-144
 ONLY_ENV = "TDD_SUITE_ONLY"
 
-# 起こす argv の頭（実行器と run の test_cmd の両方。同じ機械で別の run も動くので優先度を下げる）。組むのは niced の 1 か所
-# 元 works/blk-fix/lib/tddloop.py:307（実行器）・works/.shared/core/entry.py:680 _nice19（test_cmd。preexec で同じだけ下げた）
-NICE = ("nice", "-n", "19")
-NO_NICE = "（nice が PATH に無い——優先度を下げずに素の argv で起こした）"   # 素で起こした回にログへ書く 1 行
+# 起こす子の優先度（実行器と run の test_cmd と test-gate の宣言の試験。同じ機械で別の run も動くので nice -n 19 と同じだけ下げる）。
+# 下げる口は lowered の 1 か所。元 works/blk-fix/lib/tddloop.py:307（実行器は argv の頭の nice）・works/.shared/core/entry.py:680
+# _nice19（test_cmd は preexec で同じだけ下げた）
+NICENESS = 19
+NO_NICE = "（この環境では優先度を下げられない——nice -n 19 と同じだけ下げずに起こした）"   # 下げずに起こした回にログへ書く 1 行
 
 REQUIRED = ("suite", "test_cmd", "rev", "exit", "cases")
 # cases の行の outcome の語（parse_junit の出す 4 つ）と、そのうちの落ちた物。元の結末のファイルはこの語だけを持つ
@@ -129,24 +129,21 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0):
     return probs
 
 
-def niced(argv, cwd=None) -> tuple[list, str]:
-    """起こす argv の頭に NICE を付けた argv と、付けなかった訳（付けたら空）。実行器（run_suite）と run の test_cmd
-    （tddloop._cmd_material）の頭はここ 1 か所で組む。nice が PATH に無い環境（層の E14: 普通の利用者の機械）は素の argv と
-    NO_NICE（呼び手がログに 1 行書く）。argv[0] が起こせない（無い・実行できない）時と、shell の形（bash -c）の中の先頭の語が
-    起こす前の証明（tree_run.prove_launchable）を通らない時も素の argv を返し、起こせなさは呼び手の OSError のまま名指す（nice を
-    挟むと証明が飛び、exit 127 の赤やパイプの後ろの緑に化ける）。cwd は相対の argv[0] を解く根（元 works/blk-fix/lib/tddloop.py:307
-    の頭と works/.shared/core/entry.py:680 の _nice19 を 1 つにした新しい関数）"""
-    argv = list(argv)
-    if shutil.which(NICE[0]) is None:
-        return argv, NO_NICE
-    head = argv[0] if cwd is None or "/" not in argv[0] else os.path.join(cwd, argv[0])
-    if shutil.which(head) is None:
-        return argv, ""
-    try:
-        tree_run.prove_launchable(argv, cwd)
-    except OSError:
-        return argv, ""
-    return [*NICE, *argv], ""
+def nice19() -> None:
+    """子の中で exec の前に呼ぶ（Popen の preexec_fn）: nice -n 19 と同じだけ優先度を下げる（元 works/.shared/core/entry.py:680-682 の
+    _nice19）"""
+    os.nice(NICENESS)
+
+
+def lowered() -> tuple[dict, str]:
+    """起こす子の優先度を下げる Popen の引数と、下げない訳（下げたら空）。実行器（run_suite）・run の test_cmd（tddloop._cmd_material）・
+    test-gate の宣言の試験（declared_checks.local_checks_material の niced）の起こし口がここを引く。argv・環境・作業の場は変えない
+    ので、起こせるかの証明（tree_run.run の prove_launchable）は走らせる時と同じ環境・作業の場・起こし方のまま行われる（argv の頭に
+    nice を付けると証明が nice を見て通り、bash -c の中の起こせない語が exit 127 の赤やパイプの後ろの緑に化ける）。os.nice の無い
+    環境（層の E14: 普通の利用者の機械）は {} と NO_NICE（呼び手がログに 1 行書く）"""
+    if getattr(os, "nice", None) is None:
+        return {}, NO_NICE
+    return {"preexec_fn": nice19}, ""
 
 
 def run_suite(exe: str, repo, work: pathlib.Path, n, args=(), only=False, reuse=None, note=None):
@@ -155,12 +152,13 @@ def run_suite(exe: str, repo, work: pathlib.Path, n, args=(), only=False, reuse=
     args は JUnit の書き先の後ろに足す（段の外の試験のファイル・node id を絶対パスで・受け付けの -k。works/dev/tdd-suite.sh は
     試験の実行器に渡し、試験の根（conftest.py の置き場）が違う名指しは根ごとに別のプロセスで流して JUnit を 1 つに合わせる）。同じ鍵の行は 1 つにまとめる（段のファイルと足した node id が重なっても 1 件）。
     only なら env に合図 ONLY_ENV=1 を付ける（後ろの試験だけでよい。輪の赤・緑の回）。付けない回は外の env の合図も落とす。
-    頭に nice -n 19 を付ける（niced。nice が無い環境は素で起こし、ログの頭に NO_NICE の 1 行）。
+    優先度は nice -n 19 と同じだけ下げる（lowered。下げられない環境は下げずに起こし、ログの頭に NO_NICE の 1 行）。
     reuse（tree_run.reuse_place の返り）を渡した呼びは、同じ run の中で同じ木・同じ引数の緑の回を控えから使い回して子を起こさない
     （JUnit XML は書き戻す）。note（dict）を渡せば、呼び手が出どころ（reused）と理由（reuse_off）を読める。
     （元 works/blk-fix/lib/tddloop.py:296-333。試験の枠（slotted_run の枠・待った秒）を外し、tree_run.reuse_run で
     自分のプロセスグループで走らせる。使い回しの句はログでなく note に置く。rules().parse_junit は同じファイルの parse_junit）"""
-    argv, bare = niced(([sys.executable] if exe.endswith(".py") else []) + [exe], cwd=str(repo))
+    argv = ([sys.executable] if exe.endswith(".py") else []) + [exe]
+    nice_kw, bare = lowered()
     junit = work / f"junit-{n}.xml"
     log = work / f"suite-{n}.log"
     env = {k: v for k, v in tree_run.outside_env(os.environ).items() if k != ONLY_ENV}
@@ -171,7 +169,7 @@ def run_suite(exe: str, repo, work: pathlib.Path, n, args=(), only=False, reuse=
             out.flush()
         try:
             rc = tree_run.reuse_run([*argv, str(junit), *args], env, place=reuse, outputs=(junit,), note=note,
-                                    stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, cwd=str(repo))
+                                    stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, cwd=str(repo), **nice_kw)
         except OSError as e:
             return None, None, [f"テストの実行器を起こせない（{type(e).__name__}: {e}。ログ {log}）"]
     if not junit.is_file():
