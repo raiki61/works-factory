@@ -22,7 +22,8 @@ LIB = Path(__file__).resolve().parents[2] / "lib"
 if str(LIB) not in sys.path:   # lib/ の部品は互いを名だけで import する（merge の script と同じく lib/ を sys.path に置く）
     sys.path.append(str(LIB))
 
-import seal  # noqa: E402  差分の封印と R2 の語の持ち主（merge の apply と同じ決まりを 2 か所に持たない）
+import eyeverdict  # noqa: E402  R2 の語の持ち主
+import seal  # noqa: E402  差分の封印（merge の apply と同じ決まりを 2 か所に持たない）
 
 NAME = "apply"
 SHELL = Path(__file__).resolve().parents[1] / "works-factory"
@@ -122,12 +123,12 @@ def choose(run: dict, target: Path, allow_stopped: bool) -> tuple[Path, str, str
     why = stopped_why(value)
     nothing = f"置いた差分が無い（{why}）"
     if not (isinstance(sealed, dict) and sealed.get("ok") is True):
-        by_hand = "" if value.get("r2_status") == seal.REDESIGN else from_worktree(run, target)
+        by_hand = "" if value.get("r2_status") == eyeverdict.REDESIGN else from_worktree(run, target)
         raise Refuse(f"{nothing}。封じていない差分は当てない{by_hand}")
     if not allow_stopped:
         raise Refuse(f"{nothing}。最後の関所で止めた run の封じた差分を当てるなら --allow-stopped を付けて打ち直す")
-    if value.get("r2_status") == seal.REDESIGN:
-        raise Refuse(f"R2 が {seal.REDESIGN} を言った run の差分は、--allow-stopped でも当てない")
+    if value.get("r2_status") == eyeverdict.REDESIGN:
+        raise Refuse(f"R2 が {eyeverdict.REDESIGN} を言った run の差分は、--allow-stopped でも当てない")
     return pointed(record, sealed.get("diff")), sealed["hash"], why
 
 

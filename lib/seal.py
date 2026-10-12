@@ -1,4 +1,4 @@
-"""run の差分の封印と、封じた差分を置いてよいかの決まり。標準ライブラリと答えの語（answer.VERBS）だけ（git は repo を cwd にして呼ぶ）。
+"""run の差分の封印と、封じた差分を置いてよいかの決まり。標準ライブラリと答えの語（answer.VERBS）と R2 の語（eyeverdict.REDESIGN。置くかの決まりの中で読む）だけ（git は repo を cwd にして呼ぶ）。
 
 差分を組む・作業ツリーの指紋を取るのは green_cert（差分の組み方の 1 か所）で、ここは持たない。
 封じる型は ASF の merge-queue（gate の封印を execute が照らし直し、書いた後に読み戻す）に倣う。
@@ -22,7 +22,6 @@ from answer import VERBS
 PASS = ("approve", VERBS[0])     # 通す語。approve は承認の節の decisions に要る語、continue は今の works の答えの語
 STOPS = (VERBS[1], "reject")     # 止める語（今の works の report.FINAL_GATE_STOPS）
 REQUEST_BY = "request:"          # 止め札: 文がこれで始まる止める語（今の works の report.REQUEST_BY）
-REDESIGN = "redesign-needed"     # R2 の作り直しの語。unverifiable は機械で拒まず人の答えに任せる
 UNKNOWN_HEAD = "守りのパスを確かめられない（差分が一覧に触れていないとは言えない）: "
 
 
@@ -98,10 +97,11 @@ def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, f
     1. sealed_hash が空（seal が走っていない）
     2. current_hash が sealed_hash と違う
     3. 答え answer（{decision, text}）が在り、decision が PASS のどれでもない（止め札もここ）
-    4. r2（None か {status, reason}）の status が REDESIGN。人の通しの答えでも拒む（R2 が作り直しと言った run は部分を取り込まない）
+    4. r2（None か {status, reason}）の status が eyeverdict.REDESIGN（unverifiable は機械で拒まず人の答えに任せる）。人の通しの答えでも拒む（R2 が作り直しと言った run は部分を取り込まない）
     5. 答えが無い（関所が開かなかった）のに、green_ok・eyes_ok・fingerprint_ok のどれかが真でないか、protected（守りの当たりの行。
        unknown_row の行は「確かめられない」として書き分けるが、当たりと同じく拒む）が空でない。守りのパスは人の通しの答えだけが通す
     答えが PASS なら、赤でも・R2 の作り直しのほかの目の阻害でも置く"""
+    import eyeverdict   # R2 の語の持ち主。eyeverdict が seal を import するので頭に置かない
     if not sealed_hash:
         return "封じた hash が無い（seal が走っていない）"
     if current_hash != sealed_hash:
@@ -110,7 +110,7 @@ def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, f
         why = _answer_refusal(answer)
         if why:
             return why
-    if isinstance(r2, dict) and r2.get("status") == REDESIGN:
+    if isinstance(r2, dict) and r2.get("status") == eyeverdict.REDESIGN:
         return f"R2 が作り直しと言った（部分を取り込まない）: {r2.get('reason') or '理由なし'}"
     if answer is None:
         unchecked = [word for word, fact in (("緑でない", green_ok), ("目が通していない", eyes_ok),

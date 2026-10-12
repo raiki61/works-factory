@@ -52,7 +52,7 @@ EYES = ("r1", "r2", "r3", "r4")
 PREMISE = "premise-check"
 LANE = {"r1": "R1", "r2": "R2", PREMISE: "R2", "r3": "R3", "r4": "R4"}
 RETURN_FIELDS = ("ok", *EYES, "questions", "premise_check", "structure_after", "protected_hits")
-STATUSES = ("pass", "redesign-needed", "unverifiable")
+PASSED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "redesign-needed", "unverifiable")   # 目の状態の語の持ち主（ほかは写さずここを読む）
 VERDICTS = ("resolved", "escalate")
 NO_FILE = "返りのファイルが無い"
 NO_AFTER = "直しの後の実測: 控えが無い（測っていない run）"   # 元 blk-eyes/lib/eyes.py:93
@@ -353,7 +353,7 @@ def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, d
     else:
         out["r2"] = {"status": "unverifiable", "reason": R2_NO_PURPOSE if design.get("question_stands") is True else R2_NO_STANDS}
     out["questions"] = r4_gate_items(docs.get("r4"), passed)
-    out["ok"] = guarded and all(out[e]["status"] == "pass" for e in EYES)
+    out["ok"] = guarded and all(out[e]["status"] == PASSED for e in EYES)
     return out
 
 

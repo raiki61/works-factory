@@ -20,6 +20,7 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import eyeverdict  # noqa: E402
 import seal  # noqa: E402
 
 HASH = hashlib.sha256(b"diff").hexdigest()
@@ -139,7 +140,7 @@ class ApplyRefusalOrderCase(unittest.TestCase):
         self.assertIn("最後の関所で stop と答えた", refusal(answer={"decision": "stop", "text": ""}))
 
     def test_4_r2_redesign_even_with_pass(self):
-        got = refusal(answer=PASS, r2={"status": seal.REDESIGN, "reason": "別の設計"})
+        got = refusal(answer=PASS, r2={"status": eyeverdict.REDESIGN, "reason": "別の設計"})
         self.assertIn("R2 が作り直しと言った", got)
 
     def test_5_no_answer_and_red(self):
@@ -151,7 +152,7 @@ class ApplyRefusalOrderCase(unittest.TestCase):
         self.assertIn("封じた差分と今の差分が違う", refusal(current_hash=OTHER, answer={"decision": "stop", "text": ""}))
 
     def test_order_answer_before_r2(self):
-        got = refusal(answer={"decision": "stop", "text": ""}, r2={"status": seal.REDESIGN, "reason": ""})
+        got = refusal(answer={"decision": "stop", "text": ""}, r2={"status": eyeverdict.REDESIGN, "reason": ""})
         self.assertIn("最後の関所で stop と答えた", got)
 
 
