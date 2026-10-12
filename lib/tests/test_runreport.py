@@ -9,6 +9,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
@@ -129,6 +130,22 @@ class BuildCase(Base):
         self.assertEqual([r["where"] for r in prior if r["where"] == carry.REDESIGN_WHERE], [carry.REDESIGN_WHERE])
         self.assertFalse(any(report._r2_redesign(r) for r in doc["findings"]), "R2 の作り直しの行は前の失敗にだけ載せる")
         self.assertTrue(any("受け付けが 3 回拒んだ" in r["text"] for r in prior))
+
+    def test_build_refuses_off_contract_carries(self):
+        """2 つとも照らしてから書く: 次の依頼か前の失敗のどちらかが約束に合わなければ ValueError で、どちらのファイルも置かない。
+        次の依頼は前の失敗の行を同じ形で抱えるので、前の失敗だけが合わない場面は PRIOR_SCHEMA の照らしだけを誤らせて作る"""
+        eyes = {**fixed_run()["eyes"], "r2": {"status": "redesign-needed", "reason": "独立設計と食い違う"}}
+        fix = {**fixed_run()["fix"], "units": [{"unit_id": "u1", "status": "given_up", "reason": "受け付けが 3 回拒んだ"}]}
+        real = carry.errors
+        only_prior = mock.patch.object(carry, "errors", side_effect=lambda doc, name: ["合わない"] if name == carry.PRIOR_SCHEMA
+                                       else real(doc, name))
+        off_next = mock.patch.object(runreport, "next_request", return_value=[{"where": 3, "text": "where が字でない"}])
+        for word, patch in (("次の依頼", off_next), ("前の失敗", only_prior)):
+            with self.subTest(off=word), patch:
+                with self.assertRaisesRegex(ValueError, word):
+                    self.build(fixed_run(eyes=eyes, fix=fix))
+                self.assertFalse((self.out / carry.NEXT_REQUEST_FILE).exists())
+                self.assertFalse((self.out / carry.PRIOR_FAILURES_FILE).exists())
 
     def test_record_invalid_has_no_ai(self):
         got = runreport.build({}, {}, {}, None, "record_invalid", "start:record-invalid", out_dir=self.out)

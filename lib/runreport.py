@@ -1335,16 +1335,15 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                         *(f"{h}\n\n" + "\n".join(_bullets(lines)) for h, lines in sections if lines)]) + "\n"
     paths = {"report": _write_text(out_dir / report_name, text), "next_request": None, "prior_failures": None}
     doc = carry.compose(findings, prior, drafts, constraints)
-    if findings or drafts or constraints:
-        errs = carry.errors(doc, carry.NEXT_SCHEMA)
-        if errs:
-            raise ValueError(f"次の依頼が約束の Schema に合わない: {errs}")
+    has_next = bool(findings or drafts or constraints)
+    for present, body, schema, word in ((has_next, doc, carry.NEXT_SCHEMA, "次の依頼"), (prior, prior, carry.PRIOR_SCHEMA, "前の失敗")):
+        errs = carry.errors(body, schema) if present else []
+        if errs:   # 2 つとも照らしてから書く（片方だけ合わない時に、もう片方を残さない）
+            raise ValueError(f"{word}が約束の Schema に合わない: {errs}")
+    if has_next:
         paths["next_request"] = out_dir / carry.NEXT_REQUEST_FILE
         carry.write(paths["next_request"], doc)
     if prior:
-        errs = carry.errors(prior, carry.PRIOR_SCHEMA)
-        if errs:
-            raise ValueError(f"前の失敗が約束の Schema に合わない: {errs}")
         paths["prior_failures"] = out_dir / carry.PRIOR_FAILURES_FILE
         carry.write(paths["prior_failures"], prior)
     return {**paths, "ai_go": outcome != "record_invalid"}
