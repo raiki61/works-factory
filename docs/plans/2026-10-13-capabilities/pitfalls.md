@@ -128,6 +128,7 @@
     - `lib/tests/test_imports.py::LibImportCase.test_every_module_imports_first_in_a_fresh_interpreter`: lib/ の各モジュールを、新しい interpreter で 1 本ずつ最初に `import` し、全部が終了の値 0 になること
 
 - K9 役の指示書と役の定義は、元の works から字のまま写す。写しの文を縛る試験を置く（許した直しだけを差として持つ）
+  - 置き換わった: K9 は持ち主の決め `prompts-coldread`（2026-10-12、`docs/owner-decisions.md`）で置き換わった。役の指示書は元の字に戻さず、`tests/workflows/test_prompt_contracts.py` の 4 つの約束（約束の表 `tests/workflows/prompt_contracts.json`）で縛る。下の「今の機械」の字の一致の試験は消え、「要る試験」の `test_copied_texts` は作らない。下は歴史として読む。
   - 根拠:
     - 能力の落ち: PR #67 の 1 回目の 3（comment-analyzer の定義が 1 文の要約に）・2 回目の 2（「戻した指示書の文に、消すと赤になる試験を足す」）、#73 の 1 回目の 7・3 回目の 2（「今は外しても緑」）、#75 の 1 回目の 6・2 回目の 2（「`commands/fix-plan.md` を元の `p2.fix_plan.md` と突き合わせる試験を足す」。写しの台帳 `bin/_lib/copyledger.py` の `!` の行で許した直しを書ける形）、#68 の 1 回目の 5、#76 の 1 回目の 9、#94 の 1 回目の 5（`delta-review.md` の落ちた 1 行）・2 回目の 2
     - 根の決まり: `AGENTS.md` の E18（元と同じファイル名で置く）
