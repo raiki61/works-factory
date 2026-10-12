@@ -10,7 +10,7 @@
   見張り）、指示書を fixrules.ruler_prompt で組んで置き場の prompt-rule.md に書く。出し直しなら前の拒否の理由のファイル reject_file
   （呼び手が渡す）を 1 行目で名指す（R44）。lang は言語の 1 行（呼び手が組む）
 - accept_rule(reply, board, base_rev, repo, iteration=None): 節 rule-accept の中身（呼び手の script が回す）。作業ツリーが変わっていない・裁く申し出の id に
-  ちょうど 1 件ずつ・語・fix_test_scope の範囲が現物に在る・replace_query の問いが例（hits・misses・申し出の correct_lines）で
+  ちょうど 1 件ずつ・fix_test_scope の範囲が現物に在る・replace_query の問いが例（hits・misses・申し出の correct_lines）で
   外れない・裁きの出どころ（grounds）が現物に在り、依頼のファイルが在る run の ask_human は依頼の行か request_searched を持つ・
   fix_plan_item は範囲を持たず、grounds にその単位の brief の行を名指す（planbrief.by_unit_at・conflict.brief_cite_problem）・
   同じ返答で fix_plan_item に裁いた項目の単位に直す裁定を出さない（plan_item_fix_problems）、
@@ -25,14 +25,9 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_GL = pathlib.Path(__file__).resolve().parent / "graphloops"   # 写しの engine（engine.schema。元は import board が sys.path に足した。carry.py と同じ足し方）
-if str(_GL) not in sys.path:
-    sys.path.insert(0, str(_GL))
-
 from accept import TREE_KEYS, tree_moved  # noqa: E402   共通の作業ツリーの比べ（R47）
 import cite  # noqa: E402
 import conflict  # noqa: E402
-from engine.schema import validate_schema  # noqa: E402
 import fixboard  # noqa: E402   置き場への作業ツリーの姿の控え（元 entry.snapshot）
 import fixrules  # noqa: E402
 import planbrief  # noqa: E402   今の周の brief の行（fix_plan_item を brief の在る単位に限る）
@@ -49,10 +44,6 @@ BY_GIVE_UP = stopby.declare("rule-give-up", "裁定の by: 裁定役の返答が
 GIVE_UP_TEXT = f"裁定役の返答が {GIVE_UP_AFTER} 回とも受け付けを通らなかった——材料から決められない物として人に回した"
 READONLY = "裁定役は読むだけで、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない: "
 RULING_KEYS = ("decision", "text", "limits", "grounds", "request_searched", "query")   # 置き場の控えに積む裁定の欄
-# 裁定の返答の形（problems が先に照らす。元の RULE_OUTPUT_FORMAT から節の印 node_marker.mark を外した物）
-REPLY_SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["rulings"],
-    "properties": {"rulings": {"type": "array", "minItems": 1, "items": conflict.RULING_SCHEMA}}}
 
 
 def _read_json(path: pathlib.Path):
@@ -127,9 +118,6 @@ def problems(reply, todo: dict, repo, request: str = "", roots=(), briefs=None) 
     """裁定の返答の確かめ（空なら通る）。request は run の依頼のファイル（空なら依頼の無い run）、roots は grounds の絶対パスを
     許す置き場（依頼のファイル・fix の run の置き場）、briefs は今の周の brief の行 {unit_key: [{item, file}]}（planbrief.by_unit_at。None と {}
     は brief の無い run で、fix_plan_item を通さない）"""
-    errs = validate_schema(reply, REPLY_SCHEMA)
-    if errs:
-        return [f"返答の形: {e}" for e in errs]
     rows = reply["rulings"]
     ids = [r["id"] for r in rows]
     errs = [f"知らない申し出の id {i!r}（裁くのは {sorted(todo)}）" for i in dict.fromkeys(i for i in ids if i not in todo)]

@@ -193,31 +193,6 @@ CONSULT_SCHEMA = {
         },
     },
 }
-_LINES = {"type": "array", "maxItems": MAX_LINES, "items": {"type": "string", "minLength": 1}}
-RULING_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["id", "decision", "text", "limits"],
-    "properties": {
-        "id": {"type": "string", "minLength": 1},
-        "decision": {"type": "string", "enum": list(DECISIONS)},
-        "text": {"type": "string", "minLength": MIN_WHY},
-        "limits": {"type": "array", "items": {"type": "string", "minLength": 1}},
-        "grounds": {"type": "array", "items": {"type": "string", "minLength": 3}},
-        "request_searched": {"type": "string", "minLength": MIN_WHY},
-        "query": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["how", "counts", "hits", "misses"],
-            "properties": {
-                "how": {"type": "object"},
-                "counts": {"type": "string", "enum": ["defects", "population"]},
-                "hits": {**_LINES, "minItems": 1},
-                "misses": _LINES,
-            },
-        },
-    },
-}
 
 
 # ---------------------------------------------------------------- 名指しの確かめ

@@ -18,6 +18,7 @@ from unittest import mock
 import yaml
 
 from tests import archon
+from tests.bin import trimmed
 from tests.bin.gitkit import committed_copy, git
 from tests.workflows.copied import agent_body, assert_is_original, rewritten, role_definition
 
@@ -26,6 +27,8 @@ sys.path.append(str(ROOT / "lib"))
 import judge_accept as ja  # noqa: E402
 import rolekit  # noqa: E402
 import seat  # noqa: E402
+from engine.schema import validate_schema  # noqa: E402  （judge_accept が写しの engine を sys.path に足す）
+from lib.tests import test_judge_accept as TJ  # noqa: E402
 
 BLOCK = ROOT / "workflows" / "judge"
 YAML_FILE = BLOCK / "works-factory-judge.yaml"
@@ -135,6 +138,65 @@ esac
                              [["pr", "list"], ["pr", "view"]])
 
 
+class ReplyTypeCase(unittest.TestCase):
+    """役の返答の型の正本は節の output_format だけ（受け付けは型を照らし直さない）。受け付けの型の写しが拒んでいた返答を、節の
+    output_format が拒む事と、前後の空白を除いた長さの下限を pattern が持つ事を見る"""
+    TYPED = ("diagnose", "rejudge", "premises", "purpose", "pr-check")
+
+    def rejected(self, nid: str, reply) -> list:
+        return validate_schema(reply, nodes()[nid]["output_format"])
+
+    def test_trimmed_min_length_kept_by_pattern(self):
+        by = nodes()
+        for nid in self.TYPED:
+            with self.subTest(nid):
+                self.assertEqual(trimmed.missing_patterns(by[nid]["output_format"]), [])
+
+    def test_good_replies_fit_the_output_format(self):
+        """受け付けの試験の良い返答は節の output_format に合う（型の外の返答で受け付けの試験を組んでいない）"""
+        self.assertEqual(self.rejected("diagnose", TJ._judge_ok()), [])
+        self.assertEqual(self.rejected("rejudge", TJ._rejudge_reply()), [])
+        self.assertEqual(self.rejected("premises", TJ.PremisesCase.GOOD), [])
+
+    def test_diagnose_reply_outside_the_type_is_rejected(self):
+        """元 test_judge_accept の test_open_unit_why_chain_must_be_lines と test_question_without_kind_or_status_is_rejected の型の側:
+        why_chain の段が文でない・問いに kind と status が無い"""
+        reply = TJ._judge_ok()
+        reply["units"][0]["why_chain"] = [{"段": 1}]
+        self.assertTrue([e for e in self.rejected("diagnose", reply) if "why_chain" in e])
+        reply = TJ._judge_ok()
+        reply["questions"] = [{"key": "q1", "reason": "決まらない"}]
+        errs = " ".join(self.rejected("diagnose", reply))
+        self.assertIn("kind", errs)
+        self.assertIn("status", errs)
+
+    def test_premises_reply_outside_the_type_is_rejected(self):
+        """元 test_judge_accept の PremisesCase.test_reply_outside_the_copied_type_rejected: 欠けた欄・知らない語・知らない欄"""
+        for bad in ({"text": "a", "kind": "仮説"}, {"text": "a", "measured_how": "b", "kind": "推測"},
+                    {"text": "a", "measured_how": "b", "kind": "仮説", "note": "足した欄"}):
+            with self.subTest(bad):
+                self.assertTrue(self.rejected("premises", {"constraints": [bad]}))
+
+    def test_rejudge_reply_outside_the_type_is_rejected(self):
+        """元 test_judge_accept の RejudgeCase.test_verdict_word_outside_three_rejected: verdict は 3 つの語・欠けた欄"""
+        self.assertTrue(self.rejected("rejudge", TJ._rejudge_reply(verdict="保留")))
+        self.assertTrue(self.rejected("rejudge", {"verdict": "採る"}))
+
+    def test_pr_check_reply_outside_the_type_is_rejected(self):
+        """元 test_judge_accept の PrAcceptCase.test_excluded_checked の型の側: excluded が無い・行の番号が 1 より小さい"""
+        good = TJ._PR_OK
+        self.assertEqual(self.rejected("pr-check", good), [])
+        self.assertTrue(self.rejected("pr-check", {k: v for k, v in good.items() if k != "excluded"}))
+        self.assertTrue(self.rejected("pr-check", dict(good, excluded=[dict(good["excluded"][0], start=0)])))
+
+    def test_whitespace_only_text_is_rejected_by_pattern(self):
+        """lib の型検査が前後の空白を除いて数えていた下限は、Ajv の素の長さでなく pattern が持つ"""
+        fmt = nodes()["premises"]["output_format"]
+        field = fmt["properties"]["constraints"]["items"]["properties"]["measured_output"]
+        self.assertFalse(trimmed.matches(field["pattern"], "   "))
+        self.assertTrue(trimmed.matches(field["pattern"], "$ grep -c x README.md\n3"))
+
+
 class ReturnsShapeTest(unittest.TestCase):
     def test_verdict_returns_exactly_the_contract(self):
         doc, by = load(), nodes()
@@ -148,13 +210,10 @@ class ReturnsShapeTest(unittest.TestCase):
         self.assertEqual(by["verdict"]["trigger_rule"], "all_done")
         self.assertNotIn("output_type", by["verdict"])
 
-    def test_reply_types_are_the_acceptance_schemas(self):
-        """役の節の output_format と受け付けが照らす型（元の写しの graph の schema）は同じ物"""
-        by = nodes()
-        for nid, schema in (("diagnose", ja.DIAGNOSE_SCHEMA), ("premises", ja.PREMISES_SCHEMA), ("purpose", ja.PURPOSE_SCHEMA),
-                            ("rejudge", ja.REJUDGE_SCHEMA)):
-            with self.subTest(role=nid):
-                self.assertEqual(by[nid]["output_format"], schema)
+    def test_rejudge_vocabulary_matches_output_format(self):
+        """受け付けの論理が使う再審の答えの語（ja.REJUDGE_VERDICTS）は、再審の役の節の output_format の verdict の enum と同じ。
+        型の正本は output_format だけで、lib は語だけを持つ"""
+        self.assertEqual(nodes()["rejudge"]["output_format"]["properties"]["verdict"]["enum"], list(ja.REJUDGE_VERDICTS))
 
     def test_inputs_are_the_contract_and_prior_failures(self):
         inputs = load()["inputs"]

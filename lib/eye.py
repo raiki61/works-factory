@@ -35,7 +35,6 @@ EYE_FILE = "eye.json"
 PROMPT_FILE = "eye-prompt-{n}.md"
 MAX_ATTEMPTS = 3
 DUP_SHOWN = 5   # 目に見せる duplicates の件数（残りは duplicates_total の数だけ。_cut）
-SCHEMA = pathlib.Path(__file__).resolve().parent / "design-row.schema.json"
 WALL = "wall_s"   # ブロックの時間の欄の名（壁時計の秒。段 A・段 B の timing・目の控え・出口が同じ名で持つ）
 ROUTES = ("自分で決める", "人に上げる")
 ROUTE, ROUTE_UP = ROUTES
@@ -182,11 +181,10 @@ def _pointer(doc, ptr: str) -> bool:
 
 
 def problems(doc: dict, reply) -> list:
-    """返答の外れ（空なら通る）。単位と 1 対 1・形・根拠の実在・汚れる行の避け方・人に上げる道の無さを見る"""
+    """返答の外れ（空なら通る。型は目の節の output_format が照らす）。単位と 1 対 1・根拠の実在・汚れる行の避け方・人に上げる道の無さを見る"""
     rows = reply.get("rows") if isinstance(reply, dict) else None
     if not isinstance(rows, list):
         return ["返答に rows（行の配列）が無い"]
-    keys = set(json.loads(SCHEMA.read_text(encoding="utf-8"))["properties"])
     want = [u["id"] for u in measured(doc)]
     seen, out = [], []
     shown = view(doc)
@@ -196,21 +194,12 @@ def problems(doc: dict, reply) -> list:
             continue
         uid = r.get("unit_id")
         head = f"行 {i}（{uid}）"
-        extra = sorted(set(r) - keys)
-        if extra:
-            out.append(f"{head}: 行の形に無い欄 {extra}")
         if uid not in want:
             out.append(f"{head}: 実測した単位に無い id（在るのは {want}）")
         elif uid in seen:
             out.append(f"{head}: 同じ単位の 2 行目")
         seen.append(uid)
-        if r.get("verdict") not in VERDICTS:
-            out.append(f"{head}: verdict は {'・'.join(VERDICTS)} のどちらか")
-        faces = r.get("faces")
-        if not isinstance(faces, list) or any(not isinstance(f, int) or isinstance(f, bool) or not 1 <= f <= len(FORMS)
-                                              for f in faces):
-            out.append(f"{head}: faces は形の番号 1〜{len(FORMS)} の配列")
-        elif r.get("verdict") == DIRTY and not faces:
+        if r.get("verdict") == DIRTY and not r.get("faces"):
             out.append(f"{head}: 汚れると見たのに当たった形の番号が無い")
         ev = r.get("evidence")
         if not isinstance(ev, list) or not ev:
@@ -221,10 +210,7 @@ def problems(doc: dict, reply) -> list:
             out.append(f"{head}: reason が空")
         if r.get("verdict") == DIRTY and not all(isinstance(r.get(k), str) and r[k].strip() for k in ("chosen", "chosen_reason")):
             out.append(f"{head}: 汚れると見た行に chosen（推しの避け方）と chosen_reason が無い")
-        route = r.get("route", ROUTE)
-        if route not in ROUTES:
-            out.append(f"{head}: route は {'・'.join(ROUTES)} のどちらか")
-        elif route == ROUTE_UP:
+        if r.get("route", ROUTE) == ROUTE_UP:
             if r.get("verdict") != DIRTY:
                 out.append(f"{head}: {ROUTE_UP}のは汚れると見た行だけ")
             why = r.get("undecided_because")

@@ -354,195 +354,6 @@ NUMBER_HINTS = (
 )
 # 元 review-loop.py:2357
 ONE_LINE_FIELDS = ("key", "reason")
-# 元 accept.check_judge の型の照らし: accept.role_schema("p2.diagnose")（写しの graph の p2.diagnose の schema の $ref を開き、注記を
-# 落とし、足し欄 out_of_purpose・answer_ties を足した物）を字のまま。判定役の節の output_format と同じ（tests/workflows/test_judge.py）。
-# 足し欄は受け付け（take）が型の前に外す
-DIAGNOSE_SCHEMA = {
-    "type": "object",
-    "required": [
-        "units",
-        "questions",
-        "framing",
-        "one_shot",
-        "materials_missing",
-        "carried_r1",
-        "one_shot_closes",
-        "precedents",
-    ],
-    "additionalProperties": False,
-    "properties": {
-        "units": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["key", "label"],
-                "additionalProperties": True,
-                "properties": {
-                    "key": {"type": "string", "minLength": 1},
-                    "label": {"type": "string", "enum": ["block", "suggest", "nit", "question", "info"]},
-                    "disposition": {"type": "string", "enum": ["do-now", "defer"]},
-                    "reason": {"type": "string"},
-                    "reopen_evidence": {"type": "string"},
-                    "origin_analysis": {"type": "string"},
-                    "why_chain": {"type": "array", "items": {"type": "string"}},
-                    "prescriptions": {"type": "array", "items": {"type": "string"}},
-                    "closed_note": {"type": "string"},
-                    "class_query": {
-                        "type": "object",
-                        "required": ["how", "counts", "total"],
-                        "additionalProperties": False,
-                        "properties": {
-                            "how": {
-                                "type": "object",
-                                "required": ["patterns", "paths", "count"],
-                                "additionalProperties": False,
-                                "properties": {
-                                    "patterns": {
-                                        "type": "array",
-                                        "minItems": 1,
-                                        "maxItems": 20,
-                                        "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
-                                    },
-                                    "fixed": {"type": "boolean"},
-                                    "paths": {
-                                        "type": "array",
-                                        "minItems": 1,
-                                        "maxItems": 50,
-                                        "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
-                                    },
-                                    "count": {"type": "string", "enum": ["lines", "files"]},
-                                    "untracked": {"type": "boolean"},
-                                    "ignore_case": {"type": "boolean"},
-                                    "word": {"type": "boolean"},
-                                },
-                            },
-                            "counts": {"type": "string", "enum": ["defects", "population"]},
-                            "total": {"type": "integer", "minimum": 0},
-                            "note": {"type": "string"},
-                            "hits": {
-                                "type": "array",
-                                "maxItems": 20,
-                                "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
-                            },
-                            "misses": {
-                                "type": "array",
-                                "maxItems": 20,
-                                "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
-                            },
-                            "examples_unavailable": {"type": "string", "minLength": 10},
-                            "misses_omitted_why": {"type": "string", "minLength": 10},
-                        },
-                    },
-                },
-            },
-        },
-        "questions": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["key", "kind", "status", "reason"],
-                "additionalProperties": False,
-                "properties": {
-                    "key": {"type": "string", "minLength": 1},
-                    "kind": {
-                        "type": "string",
-                        "enum": ["fork", "split", "rule", "stuck", "thrash", "premise", "unverifiable", "awaiting", "field"],
-                    },
-                    "status": {"type": "string", "enum": ["held", "decided", "resolved", "escalate"]},
-                    "reason": {"type": "string"},
-                    "resolution": {"type": "string"},
-                    "options": {"type": "array", "items": {"type": "string"}},
-                    "depends": {"type": "array", "items": {"type": "string"}},
-                    "origin": {"type": "string"},
-                },
-            },
-        },
-        "framing": {"type": "string"},
-        "one_shot": {"type": "string"},
-        "materials_missing": {"type": "array", "items": {"type": "string"}},
-        "carried_r1": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["where", "disposition"],
-                "additionalProperties": False,
-                "properties": {
-                    "where": {"type": "string", "minLength": 1},
-                    "disposition": {"type": "string", "enum": ["promote", "decline"]},
-                    "unit_key": {"type": "string"},
-                    "why": {"type": "string"},
-                },
-            },
-        },
-        "router": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["key", "route", "note"],
-                "additionalProperties": False,
-                "properties": {"key": {"type": "string"}, "route": {"type": "string"}, "note": {"type": "string"}},
-            },
-        },
-        "reburn_causes": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["key", "cause"],
-                "additionalProperties": False,
-                "properties": {
-                    "key": {"type": "string"},
-                    "cause": {"type": "string", "enum": ["コード", "レビュアー", "規約", "前の周の修正"]},
-                    "note": {"type": "string"},
-                },
-            },
-        },
-        "one_shot_closes": {"type": "array", "items": {"type": "string"}},
-        "precedents": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["key", "problem", "source", "verdict", "reason"],
-                "additionalProperties": False,
-                "properties": {
-                    "key": {"type": "string", "minLength": 1},
-                    "problem": {"type": "string", "minLength": 4},
-                    "source": {"type": "string"},
-                    "verdict": {"type": "string", "enum": ["adopt", "adapt", "does_not_apply", "not_found"]},
-                    "reason": {"type": "string", "minLength": 4},
-                    "searched": {"type": "string"},
-                    "undecided_because": {"type": "string"},
-                },
-            },
-        },
-        "out_of_purpose": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["source", "where", "why_outside"],
-                "properties": {
-                    "source": {"type": "string", "minLength": 1},
-                    "where": {"type": "string", "minLength": 1},
-                    "why_outside": {"type": "string", "minLength": 10},
-                    "text": {"type": "string", "minLength": 1},
-                },
-            },
-        },
-        "answer_ties": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
-                    "answer": {"type": "string", "minLength": 1},
-                    "redesign": {"type": "string", "minLength": 1},
-                    "to": {"type": "string", "minLength": 1},
-                    "none": {"type": "string", "minLength": 20},
-                },
-            },
-        },
-    },
-}
 
 
 # ---------------------------------------------------------------- 依頼の型
@@ -824,13 +635,12 @@ def _materials(jdir) -> dict:
 
 def _judged(reply, jdir, base_rev, repo, *, prev_deletions=None, prev_questions=(), defer_ledger=None,
             keys=core_accept.TREE_KEYS) -> tuple:
-    """元 accept.check_judge の芯（書く前まで）: 作業ツリーと HEAD（keys は写しと比べる欄）→ 型 → class_query の例 → 先例の出どころ →
+    """元 accept.check_judge の芯（書く前まで）: 作業ツリーと HEAD（keys は写しと比べる欄）→ class_query の例 → 先例の出どころ →
     judge_output → awaiting の出どころ（元 check_record の _awaiting_origins）。返り (正規化した返答, 例, 注記)。拒否は Reject"""
     repo_p = pathlib.Path(repo)
     with core_accept.in_repo(repo_p):
         rev = core_accept.resolve_rev(repo_p, base_rev)
         _judge_tree_unchanged(repo_p, jdir, rev, keys)
-        core_accept.type_errors(reply, DIAGNOSE_SCHEMA, "判定の返答")
         errs = querytest.problems(reply.get("units"), is_open)
         if errs:
             raise Reject("class_query の例が問いと合わない: " + "; ".join(errs))
@@ -953,9 +763,9 @@ def answer_tie_problems(jdir, reply, rows, materials) -> list:
 def take(jdir, reply, repo, base_rev: str = "", *, prev_deletions=None, prev_questions=(), defer_ledger=None,
          keys=core_accept.TREE_KEYS) -> dict:
     """元 works/blk-judge/lib/judgetake.py:74 の take と、受け付けの芯（元 entry.take の p2.diagnose の done と accept.check_judge）。
-    順（計画の節 9）: 作業ツリーと HEAD → 型 → class_query の例（querytest）→ 先例の出どころが世界の解の行に在る（worldmark）→
+    順（計画の節 9）: 作業ツリーと HEAD → class_query の例（querytest）→ 先例の出どころが世界の解の行に在る（worldmark）→
     judge_output → 目的の外の所見の行を材料の行に当てる（outpurpose）→ 依頼の答えと作り直しの行の結び（answer_ties）。
-    例・目的の外の行・結びは型と judge_output の前に外す（写しの型はどの欄も持たない）。通れば例を query-examples.json に、
+    返答の型は判定役の節の output_format だけが持つ。例・目的の外の行・結びは judge_output の前に外す。通れば例を query-examples.json に、
     目的の外の行を当たった材料の行ごと out-of-purpose.json（周は 1）に、結びを answer-ties.json に置き、judge_output が整えた返答に
     例と目的の外の行を戻して judgment.json に書く（元 judgetake.finish）。
     keys は作業ツリーの写しと比べる欄（_judge_tree_unchanged）。返り {ok, reason, open_units, judgment_file}。拒否の時は judgment.json
@@ -1346,29 +1156,6 @@ def measured_needs_output(nid, out):
 
 
 PREMISES_RULE = "実測役は作業ツリーを変えてはいけない"   # 元 premises.py:41 の RULE
-# 元 premises.check_premises の型: 写しの graph の p0.premises の schema（$ref を開き注記を落とした物）を字のまま。実測役の節の
-# output_format と同じ（tests/workflows/test_judge.py）
-PREMISES_SCHEMA = {
-    "type": "object",
-    "required": ["constraints"],
-    "additionalProperties": False,
-    "properties": {
-        "constraints": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["text", "measured_how", "kind"],
-                "additionalProperties": False,
-                "properties": {
-                    "text": {"type": "string"},
-                    "measured_how": {"type": "string"},
-                    "kind": {"type": "string", "enum": ["実測", "仮説"]},
-                    "measured_output": {"type": "string", "minLength": 1},
-                },
-            },
-        },
-    },
-}
 
 
 def with_carried(reply: dict, jdir) -> dict:
@@ -1381,12 +1168,11 @@ def with_carried(reply: dict, jdir) -> dict:
 
 def check_premises(reply: dict, jdir, repo, items: list) -> dict:
     """元 works/.shared/core/premises.py:125（と blk-premises/scripts/accept.py:32 の accept_premises）。実測役の返答を受け付ける:
-    型（PREMISES_SCHEMA）→ 依頼の実測を測り直したか（check_claims）→ 作業ツリーか HEAD が変わっていれば拒む（_tree_unchanged。
+    依頼の実測を測り直したか（check_claims）→ 作業ツリーか HEAD が変わっていれば拒む（_tree_unchanged。
     バイトコードは数えない）→ post_check（measured_needs_output）。通れば置き場の premises.json に返答を書く（依頼が運んだ前の run の
     実測を制約に足す。with_carried）。
     items は依頼の行（judge/request.json）。{ok, reason}"""
     def run():
-        core_accept.type_errors(reply, PREMISES_SCHEMA, "前提の実測の返答")
         missing = check_claims(reply, items)
         if missing:
             raise Reject(f"依頼の実測を測り直した制約が無い: {'・'.join(missing)}。text に where をそのまま入れよ"
@@ -1405,20 +1191,6 @@ def check_premises(reply: dict, jdir, repo, items: list) -> dict:
 
 # ---------------------------------------------------------------- 目的
 PURPOSE_RULE = "目的の役は読むだけの役で、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない"
-# 元 purpose.check_purpose の型: accept.role_schema("p0.purpose")（写しの graph の p0.purpose の schema に足し欄 means を足した物）を
-# 字のまま。目的の役の節の output_format と同じ（tests/workflows/test_judge.py）
-PURPOSE_SCHEMA = {
-    "type": "object",
-    "required": ["purpose_text", "source", "known_weaknesses", "source_files"],
-    "additionalProperties": False,
-    "properties": {
-        "purpose_text": {"type": "string", "minLength": 1},
-        "source": {"type": "string", "enum": ["①PR 説明", "②計画・タスク記述", "③writer の要約", "目的不明"]},
-        "known_weaknesses": {"type": "array", "items": {"type": "string"}},
-        "source_files": {"type": "array", "items": {"type": "string"}},
-        "means": {"type": "array", "items": {"type": "string", "minLength": 1}},
-    },
-}
 PURPOSE_MISSING = ("（目的の文はこの run に無い——目的のノード p0.purpose がこのラインに無く、目的のファイルも渡されていない。"
                    "目的を推し量って補うな）")   # 元 works/blk-material/lib/material.py:176
 
@@ -1434,7 +1206,7 @@ def refuse_if_frozen(jdir):
 
 def check_purpose(reply: dict, jdir, repo, *, keys=core_accept.TREE_KEYS) -> dict:
     """元 works/.shared/core/purpose.py:102。目的の役の返答を受け付ける。凍結（once）→ 作業ツリー（役は読むだけ。purpose-tree.json と
-    比べる）→ 型（PURPOSE_SCHEMA）→ 足し欄 means を外す（worldmark.split_means）→ source_files（_source_files_errors）。
+    比べる）→ 足し欄 means を外す（worldmark.split_means）→ source_files（_source_files_errors）。
     写しの graph の p0.purpose は post_check を持たない。通れば置き場の purpose.json に書き、外した依頼の解き方を
     purpose-means.json に置く。keys は作業ツリーの写しと比べる欄（_tree_unchanged）。{ok, reason}"""
     def run():
@@ -1442,7 +1214,6 @@ def check_purpose(reply: dict, jdir, repo, *, keys=core_accept.TREE_KEYS) -> dic
         with core_accept.in_repo(repo_p):
             refuse_if_frozen(jdir)
             _tree_unchanged(jdir, repo_p, PURPOSE_RULE, PURPOSE_TREE_FILE, keys=keys)
-            core_accept.type_errors(reply, PURPOSE_SCHEMA, "目的の返答")
             out, means = worldmark.split_means(reply)   # 写しの型の外の欄を外した写し
             bad = _purpose._source_files_errors(out["source_files"], repo_p)
             if bad:
@@ -3374,84 +3145,7 @@ def spec_answer(jdir, root, raw) -> dict:
 # ---------------------------------------------------------------- 再審（元 works/.shared/core/rejudge.py と写しの rules の rejudge_output）
 REJUDGE_NODE = "p2.rejudge"          # 写しの再審の節（元 rejudge.ROLE_OF の鍵）
 REJUDGE_ROLE = "rejudge"             # 役の名（拒否の控え rejects-rejudge.json の名・差の行の pass）
-# 元 rejudge.take の型: 写しの graph の p2.rejudge の schema（$ref を開き注記を落とした物）を字のまま。再審の役の節の output_format と
-# 同じ（tests/workflows/test_judge.py）
-REJUDGE_SCHEMA = {
-    "type": "object",
-    "required": ["verdict", "new_facts", "units"],
-    "additionalProperties": False,
-    "properties": {
-        "verdict": {"type": "string", "enum": ["採る", "退ける", "一部採る"]},
-        "new_facts": {"type": "string", "minLength": 20},
-        "reason": {"type": "string"},
-        "units": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["key", "label"],
-                "additionalProperties": True,
-                "properties": {
-                    "key": {"type": "string", "minLength": 1},
-                    "label": {"type": "string", "enum": ["block", "suggest", "nit", "question", "info"]},
-                    "disposition": {"type": "string", "enum": ["do-now", "defer"]},
-                    "reason": {"type": "string"},
-                    "reopen_evidence": {"type": "string"},
-                    "origin_analysis": {"type": "string"},
-                    "why_chain": {"type": "array", "items": {"type": "string"}},
-                    "prescriptions": {"type": "array", "items": {"type": "string"}},
-                    "closed_note": {"type": "string"},
-                    "class_query": {
-                        "type": "object",
-                        "required": ["how", "counts", "total"],
-                        "additionalProperties": False,
-                        "properties": {
-                            "how": {
-                                "type": "object",
-                                "required": ["patterns", "paths", "count"],
-                                "additionalProperties": False,
-                                "properties": {
-                                    "patterns": {
-                                        "type": "array",
-                                        "minItems": 1,
-                                        "maxItems": 20,
-                                        "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
-                                    },
-                                    "fixed": {"type": "boolean"},
-                                    "paths": {
-                                        "type": "array",
-                                        "minItems": 1,
-                                        "maxItems": 50,
-                                        "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
-                                    },
-                                    "count": {"type": "string", "enum": ["lines", "files"]},
-                                    "untracked": {"type": "boolean"},
-                                    "ignore_case": {"type": "boolean"},
-                                    "word": {"type": "boolean"},
-                                },
-                            },
-                            "counts": {"type": "string", "enum": ["defects", "population"]},
-                            "total": {"type": "integer", "minimum": 0},
-                            "note": {"type": "string"},
-                            "hits": {
-                                "type": "array",
-                                "maxItems": 20,
-                                "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
-                            },
-                            "misses": {
-                                "type": "array",
-                                "maxItems": 20,
-                                "items": {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"},
-                            },
-                            "examples_unavailable": {"type": "string", "minLength": 10},
-                            "misses_omitted_why": {"type": "string", "minLength": 10},
-                        },
-                    },
-                },
-            },
-        },
-    },
-}
-REJUDGE_VERDICTS = tuple(REJUDGE_SCHEMA["properties"]["verdict"]["enum"])
+REJUDGE_VERDICTS = ("採る", "退ける", "一部採る")   # 再審の役の節の output_format の verdict の enum（tests/workflows/test_judge.py が突き合わせる）
 ADOPTED = REJUDGE_VERDICTS[0]                     # 異議を採る答え（最後の関所と報告が「止めずに残った異議」から外す）
 REJUDGE_SETTLED = ("採る", "退ける")               # 元 rules:3210。決着して異議を降ろす答え
 # 元 写しの graph の p2.rejudge の writes（to: units の pick）。再審が単位を置き換える時に残す欄で、前後の差もこの欄だけを比べる
@@ -3587,7 +3281,7 @@ def rejudge_prep(jdir, rdir, objection, root) -> dict:
 
 def rejudge_take(jdir, rdir, reply, root, *, keys=core_accept.TREE_KEYS) -> dict:
     """再審の役の返答を受け付ける（元 works/.shared/core/rejudge.py:421 の take）。返り {ok, reason, verdict}。順: 作業ツリーを
-    R/rejudge-snapshot.json と比べる → 写しの型（REJUDGE_SCHEMA）→ class_query の例で問いを試して例を外す（querytest。例は
+    R/rejudge-snapshot.json と比べる → class_query の例で問いを試して例を外す（querytest。例は
     R/query-examples.json に足す）→ rejudge_output。拒否は {ok: False, reason}（置き場を変えない）。通れば:
     - R/judgment.json: 1 回目の判定（J/judgment.json）の units を返答の units（writes の pick: REJUDGE_UNIT_FIELDS）で置き換えた物。
       1 回目の物は上書きしない
@@ -3602,7 +3296,6 @@ def rejudge_take(jdir, rdir, reply, root, *, keys=core_accept.TREE_KEYS) -> dict
         if moved:
             raise Reject("読むだけの役が作業ツリーを変えた: 再審の役は読むだけの役で、作業ツリー・HEAD・枝・git が無視する"
                          "ファイルを変えてはいけない（" + "・".join(moved) + "）")
-        core_accept.type_errors(reply, REJUDGE_SCHEMA, f"{REJUDGE_NODE}: 返答")
         before_doc = read_json(rdir / REJUDGE_BEFORE)
         if not isinstance(before_doc, dict):
             raise Reject(f"{REJUDGE_ROLE} の前の単位の写しが無い（rejudge-prep が先に走る）")

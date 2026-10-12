@@ -17,7 +17,7 @@ from unittest import mock
 import yaml
 
 from tests import archon
-from tests.bin import hermetic
+from tests.bin import hermetic, trimmed
 from tests.bin.gitkit import git
 from tests.workflows.copied import REWRITES, assert_text_is_original
 
@@ -32,6 +32,7 @@ if str(LIB / "graphloops") not in sys.path:
     sys.path.append(str(LIB / "graphloops"))
 
 from engine.schema import validate_schema  # noqa: E402  （output_format の照らし。jsonschema に頼らない lib の小道具）
+import conflict  # noqa: E402
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
                    "changed", "x_scalars", "delta_review", "handoffs", "mismatched"}
@@ -160,6 +161,30 @@ class ContractCase(unittest.TestCase):
         self.assertEqual(props["conflicts"]["type"], ["object", "null"])
         self.assertEqual({k: v for k, v in props["conflicts"].items() if k != "type"},
                          {k: v for k, v in pointer.items() if k != "type"})
+
+
+class RulerTypeCase(unittest.TestCase):
+    """裁定役の返答の型の正本は節 ruler の output_format だけ（受け付けの ruling.problems は裁きの意味だけを見る）"""
+
+    def fmt(self) -> dict:
+        return all_nodes(load())["ruler"]["output_format"]
+
+    def test_trimmed_min_length_kept_by_pattern(self):
+        self.assertEqual(trimmed.missing_patterns(self.fmt()), [])
+
+    def test_decision_vocabulary_matches_output_format(self):
+        """受け付けが裁きを分ける語（conflict.DECISIONS）は、節 ruler の output_format の decision の enum と同じ"""
+        row = self.fmt()["properties"]["rulings"]["items"]["properties"]
+        self.assertEqual(row["decision"]["enum"], list(conflict.DECISIONS))
+
+    def test_ruling_outside_the_type_is_rejected(self):
+        good = {"id": "c-1", "decision": conflict.ASK, "text": "材料から決められないので人に回す", "limits": []}
+        self.assertEqual(validate_schema({"rulings": [good]}, self.fmt()), [])
+        for name, reply in (("裁きが無い", {"rulings": []}), ("知らない語", {"rulings": [{**good, "decision": "later"}]}),
+                            ("知らない欄", {"rulings": [{**good, "note": "x"}]}),
+                            ("範囲が無い", {"rulings": [{k: v for k, v in good.items() if k != "limits"}]})):
+            with self.subTest(name):
+                self.assertTrue(validate_schema(reply, self.fmt()))
 
 
 class InputsCase(unittest.TestCase):

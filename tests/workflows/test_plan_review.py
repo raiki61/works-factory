@@ -26,7 +26,7 @@ import yaml
 
 from tests import archon
 from tests.workflows import copied
-from tests.bin import hermetic
+from tests.bin import hermetic, trimmed
 from tests.bin.gitkit import committed_copy, git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -448,15 +448,15 @@ class YamlCase(unittest.TestCase):
         strip = lambda d: {k: v for k, v in d.items() if k != "note"}  # noqa: E731
         for name, schema in {**gatemarks.MARK_SCHEMA, gatemarks.NO_NARROW: gatemarks.NO_NARROW_SCHEMA}.items():
             with self.subTest(name):
-                got = row[name]
+                got = trimmed.without_trimmed(row[name])
                 want = strip(schema)
                 if name == gatemarks.RECOMMEND:
                     want = {**want, "properties": schema["properties"]}
                 self.assertEqual(got, want)
-        self.assertEqual(fmt["properties"]["resolved"], converge.RESOLVED_SCHEMA)
-        self.assertEqual(fmt["properties"]["items"], converge.ITEMS_SCHEMA)
-        self.assertEqual(fmt["properties"]["design_map"], converge.DESIGN_MAP_SCHEMA)
-        self.assertEqual(fmt["properties"]["origins"], converge.ORIGIN_SCHEMA)
+        self.assertEqual(trimmed.without_trimmed(fmt["properties"]["resolved"]), converge.RESOLVED_SCHEMA)
+        self.assertEqual(trimmed.without_trimmed(fmt["properties"]["items"]), converge.ITEMS_SCHEMA)
+        self.assertEqual(trimmed.without_trimmed(fmt["properties"]["design_map"]), converge.DESIGN_MAP_SCHEMA)
+        self.assertEqual(trimmed.without_trimmed(fmt["properties"]["origins"]), converge.ORIGIN_SCHEMA)
         self.assertEqual(sorted(fmt["required"]), ["faces", "reason", "shrink"])
         self.assertLessEqual(set(boardview.HUMAN_FACE_KINDS), set(row["kind"]["enum"]), "人の関所に回す穴の種類が役の返りの kind に無い")
 
@@ -471,6 +471,13 @@ class YamlCase(unittest.TestCase):
             with self.subTest(name):
                 self.assertIn(gatemarks.RECOMMEND, row["properties"])
                 self.assertNotIn(gatemarks.RECOMMEND, row["required"])
+
+    def test_trimmed_min_length_kept_by_pattern(self):
+        """事前審査と独立設計の返答の型は節の output_format だけが持ち、前後の空白を除いた長さの下限は pattern が持つ"""
+        got = nodes()
+        for nid in ("plan-review", "r2-design"):
+            with self.subTest(nid):
+                self.assertEqual(trimmed.missing_patterns(got[nid]["output_format"]), [])
 
     def test_scripts_read_role_formats_from_the_yaml(self):
         """script は外のパッケージ無しで走るので、役の節の型は JSON の形で書き、差し込みの頭の script の node_schema で読む
@@ -2442,13 +2449,10 @@ class PortedMaterialCase(RunCase):
         self.assertIn(policy.RULE, prompt)
 
     def test_reply_out_of_the_role_format_is_rejected(self):
-        r = self.run_
-        r.start(features_off=["review_tree"])
-        r.open()
-        r.out("review_prep")
-        got = r.accept(review(face("bad-kind-face", kind="taste")))
-        self.assertFalse(got["ok"])
-        self.assertIn("事前審査の返答の型が合わない", got["reason"])
+        """型の外の返答（知らない kind）は事前審査の節の output_format が拒む（受け付けは型を照らし直さない）"""
+        fmt = nodes()["plan-review"]["output_format"]
+        self.assertEqual(validate_schema(review(face("good-kind-face")), fmt), [])
+        self.assertTrue(validate_schema(review(face("bad-kind-face", kind="taste")), fmt))
 
 
 class QuoteFoldCase(unittest.TestCase):

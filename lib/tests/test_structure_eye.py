@@ -93,14 +93,13 @@ class EyeAcceptCase(unittest.TestCase):
         self.assertEqual(eye.problems(DOC, {"rows": [DIRTY]}), [])
 
     def test_bad_rows_are_named(self):
+        """行の意味の外れ（行の形の外れ——知らない行き先・形の外の欄・形の番号の型——は目の節の output_format が拒む。
+        tests/workflows/test_plan.py の EyeTypeCase）"""
         for name, rows in (("汚れるで避け方が無い", [{**DIRTY, "chosen": ""}]),
                            ("汚れるで形が無い", [{**DIRTY, "faces": []}]),
-                           ("知らない行き先", [{**DIRTY, "route": "後で"}]),
                            ("測れなかった単位", [CLEAN, {**CLEAN, "unit_id": "u-2"}]),
                            ("同じ単位の 2 行", [CLEAN, CLEAN]),
                            ("行が無い", []),
-                           ("形の外の欄", [{**CLEAN, "note": "x"}]),
-                           ("真偽を形の番号に", [{**CLEAN, "faces": [True]}]),
                            ("ポインタでない根拠", [{**CLEAN, "evidence": ["units/0/measure"]}]),
                            ("前に 0 を付けた添字", [{**CLEAN, "evidence": ["/units/00/measure"]}]),
                            ("測れなかった単位の null", [{**CLEAN, "evidence": ["/units/1/measure"]}])):

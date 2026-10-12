@@ -150,15 +150,6 @@ class JudgeTakeCase(_JudgeBase):
         self.assertIn("label", got["reason"])
         self.assertFalse((self.jdir / ja.JUDGMENT_FILE).exists())
 
-    def test_open_unit_why_chain_must_be_lines(self):
-        """計画の「開いた単位の why_chain が足りないと拒む」。元の型（graph の p2.diagnose の schema）は why_chain を文の配列にし、
-        元の rules に段の数の規則は無い。型の外（文でない段）を拒む"""
-        reply = _judge_ok()
-        reply["units"][0]["why_chain"] = [{"段": 1}]
-        got = self.take(reply)
-        self.assertIs(got["ok"], False)
-        self.assertIn("why_chain", got["reason"])
-
     def test_open_unit_without_class_query_is_rejected(self):
         """元 rules の judge_output の「今の周に直す単位に class_query が無い」（元 test_blk_judge の判定の受け付けの場面）"""
         reply = _judge_ok()
@@ -191,14 +182,10 @@ class JudgeTakeCase(_JudgeBase):
         self.assertIs(got["ok"], False)
         self.assertIn("precedents の出どころが世界の解の行に無い", got["reason"])
 
-    def test_question_without_kind_or_status_is_rejected(self):
-        """元 rules の judge_output の問いの kind・status の照らし（検証器の QUESTION_KINDS・QUESTION_STATUS）"""
+    def test_fork_question_without_options_is_rejected(self):
+        """元 rules の judge_output の問いの照らし: fork の問いは選べる案（options）を持つ（kind・status の欠けは判定役の節の
+        output_format が拒む。tests/workflows/test_judge.py の ReplyTypeCase）"""
         reply = _judge_ok()
-        reply["questions"] = [{"key": "q1", "reason": "決まらない"}]
-        got = self.take(reply)
-        self.assertIs(got["ok"], False)
-        self.assertIn("kind", got["reason"])
-        self.assertIn("status", got["reason"])
         reply["questions"] = [{"key": "q1", "kind": "fork", "status": "held", "reason": "決まらない", "origin": _MEAN}]
         got = self.take(reply)
         self.assertIs(got["ok"], False)
@@ -906,16 +893,6 @@ class PremisesCase(_RepoCase):
                 self.assertFalse(got["ok"])
                 self.assertIn("measured_output", got["reason"])
         self.assertFalse((self.jdir / "premises.json").exists(), "拒んだ返答は書かない")
-
-    def test_reply_outside_the_copied_type_rejected(self):
-        """元 premises.check_premises の型（写しの graph の p0.premises の schema）: 欠けた欄・知らない語・知らない欄を拒む"""
-        self.snap_tree()
-        for bad in ({"text": "a", "kind": "仮説"}, {"text": "a", "measured_how": "b", "kind": "推測"},
-                    {"text": "a", "measured_how": "b", "kind": "仮説", "note": "足した欄"}):
-            with self.subTest(bad):
-                got = ja.check_premises({"constraints": [bad]}, self.jdir, self.repo, [])
-                self.assertFalse(got["ok"])
-                self.assertIn("型が合わない", got["reason"])
 
     def test_hypothesis_needs_no_output_and_good_reply_is_written(self):
         """元 test_blk_premises の test_hypothesis_needs_no_output_and_empty_is_ok・test_accepts_good_reply"""
@@ -1983,16 +1960,6 @@ class RejudgeCase(_SpecRepoCase):
         ja.rejudge_prep(self.jdir, self.rdir, "別の異議", self.repo)
         self.assertEqual(ja.read_json(self.rdir / "units-before.json"), before, "写しは 1 回目の前だけ")
 
-    def test_verdict_word_outside_three_rejected(self):
-        """元 test_rejudge の test_type_rejected（写しの型: verdict は 採る・退ける・一部採る）"""
-        self.prepared()
-        got = ja.rejudge_take(self.jdir, self.rdir, _rejudge_reply(verdict="保留"), self.repo)
-        self.assertFalse(got["ok"])
-        self.assertIn("型が合わない", got["reason"])
-        got = ja.rejudge_take(self.jdir, self.rdir, {"verdict": "採る"}, self.repo)
-        self.assertFalse(got["ok"])
-        self.assertFalse((self.rdir / "judgment.json").exists())
-
     def test_empty_facts_rejected(self):
         """元 test_rejudge の test_empty_facts_rejected（写しの rules の rejudge_output）"""
         self.prepared()
@@ -2379,13 +2346,11 @@ class PrAcceptCase(_PrBase):
     def test_excluded_checked(self):
         """元 test_blk_pr の test_excluded_checked: 外す hunk の誤り → ok false。何も書かない"""
         hunk = _PR_OK["excluded"][0]
-        cases = {"excluded が無い": {k: v for k, v in _PR_OK.items() if k != "excluded"},
-                 "conflicts に無い": dict(_PR_OK, excluded=[dict(hunk, pr="99")]),
+        cases = {"conflicts に無い": dict(_PR_OK, excluded=[dict(hunk, pr="99")]),
                  "交差したファイル": dict(_PR_OK, excluded=[dict(hunk, file="other.py")]),
                  "より大きい": dict(_PR_OK, excluded=[dict(hunk, start=2, end=1)]),
                  "行の数 2 を超える": dict(_PR_OK, excluded=[dict(hunk, end=3)]),
-                 "note": dict(_PR_OK, conflicts=[{k: v for k, v in _PR_OK["conflicts"][0].items() if k != "note"}]),
-                 "型": dict(_PR_OK, excluded=[dict(hunk, start=0)])}
+                 "note": dict(_PR_OK, conflicts=[{k: v for k, v in _PR_OK["conflicts"][0].items() if k != "note"}])}
         for word, bad in cases.items():
             got = ja.prcheck_take(self.jdir, bad, self.repo)
             self.assertFalse(got["ok"], word)
