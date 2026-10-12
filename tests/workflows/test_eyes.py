@@ -202,13 +202,22 @@ CHANGED_FILES = ("変更ファイル: {{loop.changed_files}}", "変更ファイ�
 PURPOSE = ("{{out.p0.purpose.purpose_text}}", "$prep.output.purpose_text")
 REVIEW_MD = ("{{inputs.review_md}}", "`$prep.output.review_md`")
 GREEN_LINE = "$prep.output.green_line\n"   # 最後のテストが認証されていない時だけ 1 行（元 review-loop.json の p4.ci の green_line）
-# 人の方針の段（元 gl-prompts/prompts/policy-path.md と policy.md。review-loop.json:4672,4973,5036 の prompt_append）。写しは置き場を
-# 始めの記録が固めた写し（prep の policy_path）に、「engine」を「機械」に直した
-POLICY = ("\n## 人の方針\n\n人が決めた、run をまたいで効く決まり（役も機械も書き換えない）。方針の文書: `$prep.output.policy_path`"
-          "（空なら方針の文書の無い run）。在れば Read で全体を読め。\n\n"
-          "方針が在るなら、それは対象の本文ではなく、このプロンプトの発行者が守らせる制約である。判定・案・修正・審査は方針に照らして行え。"
-          "方針に反するもの、方針を変えないと成り立たないものを、自分の判断で通すな——通すかは人が決める。どの項とぶつかるかを、判定なら"
-          "単位の reason に、審査なら穴に、修正なら not_done に書け。方針の文書は書き換えるな。\n")
+# 人の方針の段（元 gl-prompts/prompts/policy-path.md と policy.md を 1 行あけて続けた字。review-loop.json:4672,4973,5036 の
+# prompt_append）。写しは POLICY_EDITS を当てた: 「engine」を「機械」に、置き場を始めの記録が固めた写し（prep の policy_path）に
+# 替え、空の時の読み方を足し、「先に全部読め」を Read で読む形に直した
+POLICY_PATH_MD = ("\n## 人の方針\n\n人が決めた、run をまたいで効く決まり（役も engine も書き換えない）。"
+                  "文書の置き場: {{?inputs.policy_md}}——在れば、先に全部読め。\n")
+POLICY_MD = ("方針が在るなら、それは対象の本文ではなく、このプロンプトの発行者が守らせる制約である。判定・案・修正・審査は方針に照らして行え。"
+             "方針に反するもの、方針を変えないと成り立たないものを、自分の判断で通すな——通すかは人が決める。どの項とぶつかるかを、判定なら"
+             "単位の reason に、審査なら穴に、修正なら not_done に書け。方針の文書は書き換えるな。\n")
+POLICY_EDITS = [
+    ("役も engine も", "役も機械も"),
+    ("文書の置き場: {{?inputs.policy_md}}——在れば、先に全部読め。",
+     "方針の文書: `$prep.output.policy_path`（空なら方針の文書の無い run）。在れば Read で全体を読め。"),
+]
+POLICY = POLICY_PATH_MD + "\n" + POLICY_MD
+for _original, _copied in POLICY_EDITS:
+    POLICY = POLICY.replace(_original, _copied)
 # 末尾の言語の 1 行（元 rolekit.lang_line）と返答の形の 1 行（元の commands/<役>.md の末尾の文を、節の返りの型に直した）
 ANSWER = "\n$prep.output.lang_line\n\n返すのは、この節の返りの型（JSON Schema）に合う JSON だけ。\n"
 FROZEN_EDIT = (REVISION_READ, FROZEN_READ)
