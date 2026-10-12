@@ -946,23 +946,22 @@ def collect_reads(round_dir, log, *, role: str, quiet: tuple, policy_md: str, re
     """この周に起こした修正案の役 role が、機械が渡したパス（周の材料 brief-*.md・前の拒否の理由 reject-*.txt・方針の文書の固めた写し）
     を読んだ証拠を reads.collect で集め、{役: 役ごとの証拠のパス} の索引を周のフォルダに書く（元 planblk.collect_reads）。記録は周を
     開いた時刻（round.json の at）から後の行で切る。道具を持たない役 quiet は読む物が無いので null で名指す。役を起こさない周は
-    索引の why に reads.NOT_LAUNCHED と訳。形 replan は役の名の頭と索引の持ち主を planblk.REPLAN_READS にする（1 回目の物を上書き
+    索引の why に reads.NOT_LAUNCHED と訳。形 replan は役の名と索引を reads の案の直しの名にする（1 回目の物を上書き
     しない）。受け付けの条件にしない。返り {ok: True, missing, index_file}"""
     round_dir = pathlib.Path(round_dir)
     rnd = read_round(round_dir)
     again = rnd["mode"] == "replan"
-    prefix = f"{planblk.REPLAN_READS}-" if again else ""
-    index = {f"{prefix}{r}": None for r in (role, *quiet)}
+    index = {reads.role_key(r, again): None for r in (role, *quiet)}
     missing = []
     if rnd["go"]:
         must = [str(p) for p in sorted(round_dir.glob(BRIEF_FILE.format(n="*"))) + sorted(round_dir.glob(REJECT_FILE.format(n="*")))]
         since = rnd.get("at") if isinstance(rnd.get("at"), str) else reads.stamp((round_dir / ROUND_FILE).stat().st_mtime)
         got = reads.collect(round_dir, role, must + ([policy_md] if policy_md else []), log, since=since, repo=repo,
-                            prefix=prefix)
-        index[f"{prefix}{role}"], missing = got["reads_file"], got["missing"]
+                            replan=again)
+        index[reads.role_key(role, again)], missing = got["reads_file"], got["missing"]
     else:
         index["why"] = f"{reads.NOT_LAUNCHED}: {rnd['why']}"
-    out = _write_json(round_dir / reads.index_name(planblk.REPLAN_READS if again else ROLE), index)
+    out = _write_json(round_dir / reads.index_name(ROLE, again), index)
     return {"ok": True, "missing": missing, "index_file": str(out)}
 
 

@@ -10,10 +10,10 @@
 
 フックが import するので、頭は標準ライブラリだけを読む（記録の状態を測る hook_evidence は collect の中で読む）。
 - ROOT・LOG・root(config_dir)・reads_path(root, cwd)・log_here(): 記録の根（Claude の設定の置き場の下）と、作業の場ごとの記録のファイル
-- EVIDENCE_GLOB・evidence_name(role)・index_name(owner)・is_index(name): 置き場の読んだ証拠と索引の名
+- EVIDENCE_GLOB・REPLAN・role_key(role, replan)・evidence_name(role)・index_name(owner, replan)・is_index(name): 置き場の読んだ証拠と索引の名
 - stamp()・records(log, since): 記録の時刻の形と、since から後の行（読めなければ None と訳）
 - tool_count・tool_inputs・web_fetches・web_searches: 記録の行の道具の呼びの数と入力
-- collect(place, role, must_read, log, *, since, repo, prefix): 役ごとの reads-<頭><役>.json を書く
+- collect(place, role, must_read, log, *, since, repo, replan): 役ごとの reads-<役>.json（案の直しは reads-replan-<役>.json）を書く
 """
 import hashlib
 import json
@@ -28,6 +28,7 @@ KEY_LEN = 16                   # cwd の実パスの sha256 の頭の字数（�
 TS_FORMAT = "%Y-%m-%dT%H:%M:%S"   # 記録の行の ts（地方時。秒で切る）
 EVIDENCE_GLOB = "reads-*.json"
 _INDEX_SUFFIX = "-block.json"
+REPLAN = "replan"              # 案の直しの差し込みの役の名の頭と索引の持ち主（1 回目の物を上書きしない。元 replan.READS_PREFIX・READS_INDEX）
 HOOK_SEEN = ("read", "stale", "partial")   # フックで「読んだ跡が在る」状態（missing に数えない）
 NOT_LAUNCHED = "役を起こしていない"
 NO_ROOT = "記録の根が無い（Claude の設定の置き場が渡っていない起動）"
@@ -43,14 +44,19 @@ def reads_path(root, cwd) -> pathlib.Path:
     return pathlib.Path(root) / key / LOG
 
 
+def role_key(role: str, replan: bool = False) -> str:
+    """読んだ証拠と索引の中での役 role の名（案の直しの差し込みは頭に REPLAN）"""
+    return f"{REPLAN}-{role}" if replan else role
+
+
 def evidence_name(role: str) -> str:
     """役 role の読んだ証拠のファイルの名（collect が書く）"""
     return f"reads-{role}.json"
 
 
-def index_name(owner: str) -> str:
-    """読んだ証拠を集めた側 owner が書く索引の名（{役: 役ごとの証拠のパス}。役ごとの証拠と別の名）"""
-    return f"reads-{owner}{_INDEX_SUFFIX}"
+def index_name(owner: str, replan: bool = False) -> str:
+    """読んだ証拠を集めた側 owner が書く索引の名（{役: 役ごとの証拠のパス}。役ごとの証拠と別の名。案の直しの差し込みは持ち主を REPLAN に）"""
+    return f"reads-{REPLAN if replan else owner}{_INDEX_SUFFIX}"
 
 
 def is_index(name: str) -> bool:
@@ -124,10 +130,11 @@ def _write_json(path: pathlib.Path, doc) -> pathlib.Path:
     return path
 
 
-def collect(place, role: str, must_read: list, log, *, since: str, repo, prefix: str = "") -> dict:
+def collect(place, role: str, must_read: list, log, *, since: str, repo, replan: bool = False) -> dict:
     """機械が役 role に渡したパス must_read の 1 つずつについて、記録の行のうち since から後の物でフックの状態（hook_evidence の
-    read・stale・partial・absent・none）を測り、place の reads-<prefix><role>.json に {role, since, rows: [{path, hook}], sources,
-    missing, web} を書き、{ok: True, sources, missing, reads_file} を返す（受け付けの条件にしない）。
+    read・stale・partial・absent・none）を測り、place の reads-<role_key(role, replan)>.json に {role, since, rows: [{path, hook}],
+    sources, missing, web} を書き、{ok: True, sources, missing, reads_file, records} を返す（受け付けの条件にしない。records は
+    records(log, since) の行で、読めなければ None）。
     - sources.hook: 記録が在れば "recorded"、無ければ "none"、読めなければ "unreadable"（どちらも訳 sources.why。読めない記録を
       読んでいないと取り違えない。その時 missing は空、各行の hook は null）
     - web: since から後の WebFetch の URL と WebSearch の問い {fetches, searches}（読めない記録なら null）
@@ -135,7 +142,7 @@ def collect(place, role: str, must_read: list, log, *, since: str, repo, prefix:
     repo = pathlib.Path(repo)
     got, why = records(log, since)
     must = list(dict.fromkeys(m for m in must_read if isinstance(m, str) and m))
-    if got is None or log is None or not pathlib.Path(log).exists():
+    if why:
         sources = {"hook": "unreadable" if got is None else "none", "why": why}
         rows = [{"path": p, "hook": None} for p in must]
         missing, web = [], None if got is None else {"fetches": [], "searches": []}
@@ -157,6 +164,7 @@ def collect(place, role: str, must_read: list, log, *, since: str, repo, prefix:
             if hook not in HOOK_SEEN:
                 missing.append(p)
         web = {"fetches": web_fetches(got), "searches": web_searches(got)}
-    out = _write_json(pathlib.Path(place) / evidence_name(prefix + role),
-                      {"role": prefix + role, "since": since, "rows": rows, "sources": sources, "missing": missing, "web": web})
-    return {"ok": True, "sources": sources, "missing": missing, "reads_file": str(out)}
+    name = role_key(role, replan)
+    out = _write_json(pathlib.Path(place) / evidence_name(name),
+                      {"role": name, "since": since, "rows": rows, "sources": sources, "missing": missing, "web": web})
+    return {"ok": True, "sources": sources, "missing": missing, "reads_file": str(out), "records": got}

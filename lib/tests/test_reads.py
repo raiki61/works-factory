@@ -98,8 +98,8 @@ class CollectTest(Case):
         self.assertEqual(got["sources"]["hook"], "unreadable")
         self.assertEqual((got["missing"], doc["web"]), ([], None))
 
-    def test_prefix_names_the_evidence_file(self):
-        got, doc = self.collect([str(self.doc)], prefix="replan-")
+    def test_replan_names_the_evidence_file(self):
+        got, doc = self.collect([str(self.doc)], replan=True)
         self.assertEqual(pathlib.Path(got["reads_file"]).name, "reads-replan-plan-writer.json")
         self.assertEqual(doc["role"], "replan-plan-writer")
 

@@ -987,7 +987,7 @@ class ReadsCase(unittest.TestCase):
         out = run.include(ruling='["1"]', conflicts=conflicts, writer=self.reader(run, {"plan": [item(MEAN, CLAMP)]}))
         self.assertIs(out["ready"], True, out)
         self.assertEqual((run.art / "plan" / "r1" / reads.index_name("plan")).read_bytes(), first)
-        index = self.index(run, 2, planblk.REPLAN_READS)
+        index = self.index(run, 2, reads.REPLAN)
         self.assertEqual(sorted(index), ["replan-plan-writer", "replan-structure-eye"])
         self.assertEqual(pathlib.Path(index["replan-plan-writer"]).name, reads.evidence_name("replan-plan-writer"))
         doc = json.loads(pathlib.Path(index["replan-plan-writer"]).read_text(encoding="utf-8"))

@@ -1692,7 +1692,7 @@ class ReadsCase(RunCase):
         r.open()
         r.out("review_prep")
         got, index = self.collect()
-        self.assertEqual(pathlib.Path(got["index_file"]).name, reads.index_name(planblk.REPLAN_READS))
+        self.assertEqual(pathlib.Path(got["index_file"]).name, reads.index_name(reads.REPLAN))
         self.assertEqual(pathlib.Path(index["replan-plan-review"]).name, reads.evidence_name("replan-plan-review"))
         self.assertTrue(pathlib.Path(first["index_file"]).is_file())
 
