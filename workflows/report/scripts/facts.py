@@ -136,7 +136,8 @@ def main() -> dict:
     return {"outcome": decided[0], "ok": decided[0] in outcome.OK_OUTCOMES, "stop_reason": decided[1],
             "report": report, "next_request": rel(built["next_request"]),
             "prior_failures": rel(built["prior_failures"]), "ai_go": built["ai_go"], "facts_file": report["path"],
-            "stamp": runreport.stamp(run_id, WORKFLOW_FILE, outcome.as_dict(outcome.planned(returns)).get("round"))}
+            "stamp": runreport.stamp(run_id, WORKFLOW_FILE, outcome.as_dict(outcome.planned(returns)).get("round"),
+                                     start=start)}
 
 
 def fallen(error: BaseException) -> dict:

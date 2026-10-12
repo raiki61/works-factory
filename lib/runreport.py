@@ -14,7 +14,7 @@
 - build(returns, gates, typed, transcript, outcome, stop_reason, *, out_dir, start, problems, run_id, transcript_why, repo,
   report_name) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000）
 - fallback_report(out_dir, why, name): 思わぬ誤りの時の機械の報告（名は呼び手が渡す。facts の報告を上書きしない名）
-- cold_body(raw)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd): 書き手の
+- cold_body(raw)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd, start): 書き手の
   返答の受け付けと AI の報告（元 report_roles.py の write_cold_prep・accept・collect・stamp）
 """
 from __future__ import annotations
@@ -1108,15 +1108,20 @@ def accept(reply, cold, *, out_dir) -> dict:
     return {"done": True, "ok": True, "reason": reason, "kind": "", "reason_file": ""}
 
 
-def stamp(run_id: str, workflow_file, rnd=None) -> str:
+def stamp(run_id: str, workflow_file, rnd=None, start: dict | None = None) -> str:
     """報告の頭の来歴の 1 行（機械が刻む。元 report_roles.stamp の works の線・run・周・graph の版を、工程の名（ファイルの名）・run・
     周（計画の round。何回目の案か。無ければ —）・工程のファイルの sha256 の頭 12 字で。元の table の版は規則の表が無いので無い）。
-    工程のファイルが読めなければ版の所にその旨"""
+    工程のファイルが読めなければ版の所にその旨。start（始めの記録）を渡せば、末尾に線の版（versions.line の頭 12 字。
+    無ければその旨）"""
     try:
         sha = hashlib.sha256(pathlib.Path(workflow_file).read_bytes()).hexdigest()[:12]
     except OSError as e:
         sha = f"読めない（{type(e).__name__}）"
-    return " / ".join([pathlib.Path(workflow_file).stem, f"run {run_id or '—'}", f"周 {rnd if rnd is not None else '—'}", f"工程の版 {sha}"])
+    parts = [pathlib.Path(workflow_file).stem, f"run {run_id or '—'}", f"周 {rnd if rnd is not None else '—'}", f"工程の版 {sha}"]
+    if start is not None:
+        line = as_dict(as_dict(start).get("versions")).get("line")
+        parts.append(f"線の版 {line[:12]}" if isinstance(line, str) and line else "線の版 始めの記録に無い（versions.line）")
+    return " / ".join(parts)
 
 
 def embedded(machine_text: str) -> str:

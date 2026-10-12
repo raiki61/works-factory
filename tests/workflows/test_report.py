@@ -320,9 +320,9 @@ class FactsCase(Run):
                 self.assertIn(f"結果を名乗れない訳: {word}", text)
 
     def test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome(self):
-        """来歴の行の周は計画（案の直しが在ればそちら）の round。依頼が命令と出力つきで答えた素材は残りに数えない（始めの記録の
+        """来歴の行の周は計画（案の直しが在ればそちら）の round、線の版は始めの記録の versions.line。依頼が命令と出力つきで答えた素材は残りに数えない（始めの記録の
         answers が結末の決め方に届く）"""
-        start = self.pointer("start/start.json", {"run_id": RUN, "answers": [
+        start = self.pointer("start/start.json", {"run_id": RUN, "versions": {"line": "c" * 64}, "answers": [
             {"question": "ci", "text": "緑", "command": "make ci", "output": "ok"}]})
         judgment = self.pointer("judge/judgment.json", {})
         self.pointer("judge/materials.json", {"ci": {"status": "awaiting_human"}})
@@ -333,7 +333,7 @@ class FactsCase(Run):
         code, out = self.run_script("facts", **env)
         self.assertEqual(code, 0)
         self.assertEqual(out["outcome"], "fixed", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
-        self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / 工程の版 [0-9a-f]{{12}}$")
+        self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / 工程の版 [0-9a-f]{{12}} / 線の版 cccccccccccc$")
 
     def test_returns_with_pointers_reach_the_report(self):
         judgment = self.pointer("judge/judgment.json", {})
