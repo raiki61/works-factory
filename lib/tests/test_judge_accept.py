@@ -1422,8 +1422,7 @@ class MaterialCase(_RepoCase):
                 with self.subTest(status):
                     mat = {"status": status, "checked": "差分を見た", "reason": "待つ"}
                     reply = {"material": mat, "simplify_carried": False, "findings": rows}
-                    got = ja.accept_round(self.jdir, "local-review", json.dumps(reply),
-                                          lambda r: ja.material_take(self.jdir, "local-review", r, self.repo))
+                    got = self.take_round("local-review", reply)
                     self.assertFalse(got["ok"])
                     self.assertFalse(got["done"], "プラグインが在れば出し直させる")
                     self.assertIn("'pr-review-toolkit:code-reviewer' は必須のレンズ", got["reason"])
@@ -1437,8 +1436,7 @@ class MaterialCase(_RepoCase):
         reply = {"material": {"status": "clean", "checked": "差分を見た"}, "simplify_carried": False,
                  "findings": self._lens_rows(lambda s: not s.startswith("pr-review-toolkit:"))}
         with self._plugins(["other-plugin"]):
-            got = ja.accept_round(self.jdir, "local-review", json.dumps(reply),
-                                  lambda r: ja.material_take(self.jdir, "local-review", r, self.repo))
+            got = self.take_round("local-review", reply)
         self.assertFalse(got["ok"])
         self.assertTrue(got["done"], "1 回目から諦める")
         self.assertIn("プラグイン pr-review-toolkit が入っていない", got["reason"])
