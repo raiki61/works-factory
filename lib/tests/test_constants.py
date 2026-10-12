@@ -44,8 +44,6 @@ OVERLAPS = {
         "再審の支度が置く別のファイルで、fixrules.BRIEF（修正の決まりの brief.md）と字だけ同じ。区分 J。区分の issue で外す",
     ("lib/judge_accept.py", "COUNT_BUDGET_FILE"): "recount.COUNT_BUDGET_FILE の写し。区分 J。区分の issue で外す",
     ("lib/judge_accept.py", "COUNT_CACHE_FILE"): "recount.COUNT_CACHE_FILE の写し。区分 J。区分の issue で外す",
-    ("lib/fixboard.py", "DEPTH_FILE"):
-        "fix の置き場の深さの写し（plan の返り depth の形）で、depth.FILE（盤面の根の控え）と字だけ同じ。区分 F。区分の issue で外す",
     ("lib/eyeverdict.py", "DESIGN_PREMISES"): "boardview.PREMISES_FILE の写し（plan-review の隣のファイルを名で開く）。区分 E。区分の issue で外す",
     ("lib/boardview.py", "JUDGMENT_COPY"): "judge_accept.JUDGMENT_FILE の写し。区分 P。区分の issue で外す",
     ("lib/fixboard.py", "JUDGMENT_FILE"): "judge_accept.JUDGMENT_FILE の写し。区分 F。区分の issue で外す",

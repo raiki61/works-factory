@@ -591,11 +591,11 @@
   - 本物の run: `plan/structure/<鍵>/design.jsonl` の各行の `route`・`route_reason`
   - 狭め: 無し
 
-- P082 拒んだ時は design.jsonl に行を書かず、理由を控え eye.json に置いて同じ会話（fresh_context: false）で出し直させ、3 回目の拒否で give_up して輪を抜ける（max_iterations で落とさない）
+- P082 拒んだ時は design.jsonl に行を書かず、理由を拒否の控え rejects-structure-eye.json（rolekit）に積んで同じ会話（fresh_context: false）で出し直させ、3 回目の拒否で give_up して輪を抜ける（max_iterations で落とさない）
   - 元: works/blk-structure/lib/eye.py:280-287・works/blk-structure/blk-structure.yaml:88-91
   - 今: lib/eye.py 同じ行・workflows/plan/works-factory-plan.yaml:89-93
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_third_rejection_gives_up（assert: lib/tests/test_structure_eye.py:127-130）・tests/workflows/test_plan.py::ShapeCase.test_loops_give_up_in_the_body_before_max_iterations（assert: tests/workflows/test_plan.py:362-365）
-  - 本物の run: `plan/structure/<鍵>/eye-prompt-2.md`（拒否の後の出し直しの時だけ）と `eye.json` の `reason`。`attempt` は支度が拒否が無くても 1 で書く
+  - 本物の run: `plan/structure/<鍵>/eye-prompt-2.md`（拒否の後の出し直しの時だけ）と `eye.json` の `status`・`rejects-structure-eye.json` の拒否の行（回の数は行の数。#232 で eye.json の attempt を外した）
   - 狭め: 無し
 
 - P083 構造の目の控え structure-state.json（status・reason・design_file・wall_s）を、目が飛んだ・落ちた・3 回拒まれた周も必ず書く。失敗の訳は「実測が落ちた: …」「構造の目の返答が N 回とも受け付けで拒まれた: …」「構造の目の会話が落ちたか走らなかった」の 3 通り。目を起こさない周（eye.due が偽）は ok
@@ -1223,10 +1223,10 @@
 
 - P169 独立設計の返答は JSON として読み、役の型（YAML の役の節の output_format を差し込みの頭が控えた物）で照らす。読めない・型に合わない返答は拒む
   - 元: works/.shared/core/design.py:586-601 `check_design`（accept.type_errors・accept.role_schema）・:603 `accept_reply`
-  - 今: lib/boardview.py:670-694・workflows/plan-review/scripts/pass_open.py:22 `node_schema`
-  - 証: tests/workflows/test_plan_review.py::DesignCase.test_off_schema_reply_names_the_type_error（#120 で足した。消すと赤: 型の拒みの訳から「独立設計の返答」を外すと赤）
-  - 本物の run: 節 `r2-accept` の reason が空
-  - 狭め: 無し
+  - 今: 型は workflows/plan-review/works-factory-plan-review.yaml の節 r2-design の `output_format`（型の正本。Claude Code が節の中で照らして出し直させる）。lib/boardview.py `check_design` は JSON として読む（rolekit.parse_reply）だけで型を照らし直さない（受け付けの `accept.type_errors` は #232 で消した）。workflows/plan-review/scripts/pass_open.py:22 `node_schema` が控える型は、design.json の読み直し（lib/design.py `read_design`）と下請けの答えのファイルの faces・shrink の照らしが使う
+  - 証: tests/workflows/test_plan_review.py::DesignCase.test_off_schema_reply_names_the_type_error（assert: tests/workflows/test_plan_review.py:724。欠けた欄 question_stands を output_format が名指す）
+  - 本物の run: 節 `r2-design` の出力が型を通った記録、節 `r2-accept` の reason が空
+  - 狭め: 型に合わない返答は受け付けの輪の回を使わず、節の中で出し直させ、使い切ると節が落ちる（#232 の「狭まる所」1）
 
 - P170 問いが立たないと返した時、根拠に名指した `パス:行` が固めた版の追跡ファイルと行の範囲に当たらなければ拒む（名指しが無ければ拒まない）
   - 元: works/.shared/core/design.py:560 `anchor_misses`・:104 `PREMISE_MISS`

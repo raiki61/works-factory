@@ -643,7 +643,7 @@ def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
     """事前審査の受け付けの木のまとめ（機械）。束ね役の返答の外した写し bare・束ね役の欄 tree・束ね役の resolved から、
     {review（盤面へ渡す返答）, resolved, synergy（相乗りの審査の face の key）, hits（{項目: 当たりの答え}）, origins（新しい block の
     出自の申告の行。下請けと相乗りの答えの物を集める）, files（往復の控えに写す答えのファイル）, gaps（拒む理由の行。在れば他は
-    使わない）} を返す。木にしない案は審査役 1 つの返答のまま（出自の申告はその欄 origins。型は受け付けが役の型で確かめ済み）"""
+    使わない）} を返す。木にしない案は審査役 1 つの返答のまま（出自の申告はその欄 origins。型は節の output_format が確かめ済み）"""
     k = converge.pass_no(b)
     rip = _ripple_of(b, k) or {}
     base = {"review": bare, "resolved": resolved, "synergy": [], "hits": {}, "origins": [], "files": {}, "gaps": []}

@@ -458,7 +458,7 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
     """控え doc に事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて doc と行の outcome に置く（ファイルの写し・
     書き込み・trace はしない）。at_cap（呼び手が渡す、輪がもう 1 周回せない事実）が真で decide が AGAIN の往復は、行に
     capped: true を立てて UNSETTLED（保留の項目が在れば PERSISTED）で止める（決まりは decide のまま。CLEAN と止める往復は
-    変えない）。origins（審査の出自の申告の行。型は受け付けが ORIGIN_SCHEMA の写しの役の型・答えのファイルの型で照らし済み）は
+    変えない）。origins（審査の出自の申告の行。型は節の output_format か、受け付けが答えのファイルの型（ORIGIN_SCHEMA の写し）で照らし済み）は
     _origins が照らして、2 往復目からの新しい block の出自を行の origins に置く（採らなかった申告は origins_claimed）。返りは足した行"""
     passes = doc["passes"]
     k = len(passes) + 1

@@ -725,13 +725,10 @@ class DesignCase(RunCase):
         self.assertIn("拒まれた", missing["missing"])
 
     def test_off_schema_reply_names_the_type_error(self):
-        """独立設計の返答は役の型（差し込みの頭が YAML から控えた物）で照らし、拒みの訳は型の誤りの欄を名指す"""
-        r = self.run_
-        r.open()
-        _, got = self.designed({"reason": "x"})
-        self.assertFalse(got["ok"], got)
-        self.assertIn("独立設計の返答", got["reason"])
-        self.assertIn("question_stands", got["reason"])
+        """独立設計の返答の型は節 r2-design の output_format だけが持ち（Claude Code が節の中で照らして出し直させる）、型の誤りは
+        欠けた欄を名指す。受け付け（boardview.check_design）は型を照らし直さない"""
+        errs = validate_schema({"reason": "x"}, nodes()["r2-design"]["output_format"])
+        self.assertTrue(any("question_stands" in e for e in errs), errs)
 
     def test_design_handoff_is_traced(self):
         """返す節は設計の控えを返り design で渡した・渡せなかったを trace に残す（元 design.hand の r2_design_handed・r2_design_missing）"""
@@ -1170,7 +1167,7 @@ class ConvergeCase(RunCase):
               [{"at": "t1", "reason": "計画の 1 回目の拒否"}])
         r.open()
         r.out("review_prep")
-        self.assertFalse(r.accept(review(face("x" * 20, kind="不明")))["ok"])
+        self.assertFalse(r.accept(review(face("entrance-without-no-add", kind="entrance")))["ok"])
         self.assertTrue(r.accept(review(MEAN_BLOCK))["ok"])
         r.out("result")
         r.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾いて分母を直す"), item(UNIT_CLAMP, 2)], rnd=2,
@@ -1676,8 +1673,8 @@ class TreeCase(RunCase):
                          (converge.AGAIN, {again["key"]: converge.ORIGIN_INTRODUCED}, []))   # 開いた block は 2 → 1 に減る
 
     def test_review_tree_off_second_pass_takes_checked_origins(self):
-        """審査役 1 つ（木にしない）の 2 往復目: 材料に出自の頼み ORIGIN_ASK が在る（1 往復目には無い）。返答の origins は役の型
-        （converge.ORIGIN_SCHEMA）で確かめ、型の外れは出し直させて往復も記録しない。正しい申告は往復の行に照らして入る"""
+        """審査役 1 つ（木にしない）の 2 往復目: 材料に出自の頼み ORIGIN_ASK が在る（1 往復目には無い）。返答の origins の型
+        （converge.ORIGIN_SCHEMA）は節の output_format が持ち、型の外れはそこで出し直させる。正しい申告は往復の行に照らして入る"""
         r = self.run_
         r.start(features_off=["review_tree"])
         self.assertFalse(r.open()["tree"])
@@ -1692,16 +1689,15 @@ class TreeCase(RunCase):
         self.assertIn(converge.ORIGIN_ASK, text)
         new = face("mean-boundary-value-0")
 
-        def send(claim):
-            return r.accept(review(new, resolved=[MEAN_BLOCK["key"]], origins=claim))
+        def sent(claim):
+            return review(new, resolved=[MEAN_BLOCK["key"]], origins=claim)
 
+        fmt = nodes()["plan-review"]["output_format"]
         for claim in ([{"key": new["key"], "origin": "guessed"}], [{"key": [new["key"]], "origin": converge.ORIGIN_MISSED}]):
             with self.subTest(claim=claim):
-                got = send(claim)
-                self.assertFalse(got["ok"], got)
-                self.assertIn(converge.ORIGINS, got["reason"])
-                self.assertEqual(len(converge.read(r.view())["passes"]), 1)
-        got = send([{"key": new["key"], "origin": converge.ORIGIN_REPHRASED, "of": MEAN_BLOCK["key"]}])
+                errs = validate_schema(sent(claim), fmt)
+                self.assertTrue(any(converge.ORIGINS in e for e in errs), errs)
+        got = r.accept(sent([{"key": new["key"], "origin": converge.ORIGIN_REPHRASED, "of": MEAN_BLOCK["key"]}]))
         self.assertTrue(got["ok"], got)
         row = converge.read(r.view())["passes"][-1]
         self.assertEqual((row["origins"], row["origins_claimed"]), ({new["key"]: converge.ORIGIN_REPHRASED}, []))
