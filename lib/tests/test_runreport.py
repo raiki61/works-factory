@@ -235,8 +235,9 @@ class TypedCase(Base):
         fell = self.put("fell/evidence.md", "# test-gate（final）\n\n- ok: false（返す節の中の誤り）\n- 誤り: KeyError: 'by'\n")
         _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": fell}}))
         green = self.section(text, runreport.GREEN_HEADING)
-        self.assertIn("- 最後のテスト（test-gate-final）の走らせ方: 証拠に「走らせ方」の行が無い", green)
-        self.assertIn("- 最後のテスト（test-gate-final）のログ: 証拠に「ログ」の行が無い", green)
+        self.assertIn("- 最後のテスト（test-gate-final）の走らせ方: 証拠に「走らせ方」の行が無い\n", green)
+        self.assertIn("- 最後のテスト（test-gate-final）のログ: 証拠に「ログ」の行が無い\n", green)
+        self.assertNotIn("証拠か", green, "行が無い訳を推し量らない")
 
         _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": str(self.dir)}}))
         self.assertIn("- 最後のテスト（test-gate-final）の走らせ方とログ: 読めない（", self.section(text, runreport.GREEN_HEADING))
@@ -1200,7 +1201,8 @@ class LinesCase(Base):
         self.assertIn("- 飛ばされた・出力の無い段: test-gate-base・rejudge・replan・replan-review", body)
 
     def test_outside_purpose_rows_and_wrong_name(self):
-        """目的の外の所見は節に 1 件ずつ、人が決めることの節に件数と置き場の 1 行（次の run に渡す物の行の前）。名の違う控えは読まない"""
+        """目的の外の所見は節に 1 件ずつ、人が決めることの節に件数と置き場の 1 行（次の run に渡す物の行のすぐ後ろ。元 works/.shared/core/
+        report.py:1019-1022 の順）。名の違う控えは読まない"""
         p = self.put("judge/out-of-purpose.json", {"rounds": {"1": [{"source": "P1", "why_outside": "目的の外の所見",
                                                                     "found": [{"where": "a.py:1", "text": "x"},
                                                                               {"where": "b.py:2", "text": "y"}]}]}})
@@ -1212,7 +1214,7 @@ class LinesCase(Base):
         count = [i for i, x in enumerate(lines) if x.startswith(f"- {outpurpose.COUNT_HEAD}")]
         carried = [i for i, x in enumerate(lines) if x.startswith("- 次の run に渡す物:")]
         self.assertEqual(len(count), 1, lines)
-        self.assertLess(count[0], carried[0])
+        self.assertEqual(count[0], carried[0] + 1)
         for word in ("2 件", carry.NEXT_REQUEST_FILE, report.OUTSIDE_HEADING.removeprefix("## ")):
             self.assertIn(word, lines[count[0]])
 

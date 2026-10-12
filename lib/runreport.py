@@ -89,11 +89,8 @@ NOTES_HEADING = promptsection.Section("## 注意（読めなかった物）", hu
 MACHINE_DECISIONS = promptsection.Section("## 1. 人の判断を待つ物の機械の数え（判断の本文は報告の頭）", human=report.FOR_READERS)
 RED_KEPT = ("inherited", "environment")       # 認証が通した赤（元から赤・環境の赤）
 GATE_RUNS = (("test-gate-base", "直す前のテスト"), ("test-gate-final", "最後のテスト"))
-# test-gate の証拠の文（返りの evidence の先）の行の頭。test-gate の result.py の evidence() と同じ字であることを
-# tests/workflows/test_report.py が縛る
-EVIDENCE_ROWS = (("走らせ方", "- 走らせ方: "), ("ログ", "- ログ: "))
-BASELINE_ROW = ("修正前のテスト", "- 修正前のテスト: ")   # final の証拠だけに在る行（test-gate の result.py が declared_checks.baseline_line を書く）
-OK_ROW = "- ok: "                                         # 証拠の頭の行（false なら括弧に認証しなかった訳）
+# 試験の関所の証拠の文の行の頭の、線の最後の関所の文が読む名（持ち主は declared_checks。この中は declared_checks を引く）
+EVIDENCE_ROWS, BASELINE_ROW, OK_ROW = declared_checks.EVIDENCE_ROWS, declared_checks.BASELINE_ROW, declared_checks.OK_ROW
 EYE_KEYS = ("eye", "status", "reason")
 GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
 PLAN_GAVE_UP_WHERE = "受け付け 計画"          # 元 report.ACCEPT_WHERE（受け付け <名>）の計画の行
@@ -970,10 +967,11 @@ def _tests_head_lines(returns: dict) -> list:
     if rows is not None:
         def row(prefix):
             return next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
-        (_, run_prefix), (_, log_prefix) = EVIDENCE_ROWS
-        suites, log, base = row(run_prefix), row(log_prefix), row(BASELINE_ROW[1])
+        (_, run_prefix), (_, log_prefix) = declared_checks.EVIDENCE_ROWS
+        base_name, base_prefix = declared_checks.BASELINE_ROW
+        suites, log, base = row(run_prefix), row(log_prefix), row(base_prefix)
         out.append(f"最後のテストの一式: {suites or '証拠に走らせ方の行が無い'}・ログ {log or '（無い）'}")
-        out.append(f"{BASELINE_ROW[0]}: {base or '証拠に修正前のテストの行が無い'}")
+        out.append(f"{base_name}: {base or '証拠に修正前のテストの行が無い'}")
         if (suites or "").startswith(declared_checks.ROLE_NEEDED):
             out.append(declared_checks.SELF_REPORTED_NOTE)
     elif why:
@@ -1042,7 +1040,7 @@ def _tdd_lines(typed: dict, returns: dict) -> tuple[list, list, list]:
 
 def _evidence_lines(returns: dict) -> list:
     """試験の関所の段ごとの、走らせた一式の行とログの置き場（元 report.py:1042-1050。返りの evidence の先の行から）と、最後のテストの
-    修正前のテストの行（BASELINE_ROW。元の報告の冒頭の entry.baseline_line）"""
+    修正前のテストの行（declared_checks.BASELINE_ROW。元の報告の冒頭の entry.baseline_line）"""
     out = []
     for rid, label in GATE_RUNS:
         ret = _ret(returns, rid)
@@ -1058,9 +1056,9 @@ def _evidence_lines(returns: dict) -> list:
         except (OSError, UnicodeDecodeError) as e:
             out.append(f"{head}の走らせ方とログ: 読めない（{report._one_line(e)}）")
             continue
-        for name, prefix in (*EVIDENCE_ROWS, *((BASELINE_ROW,) if rid == "test-gate-final" else ())):
+        for name, prefix in (*declared_checks.EVIDENCE_ROWS, *((declared_checks.BASELINE_ROW,) if rid == "test-gate-final" else ())):
             got = next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
-            out.append(f"{head}の{name}: " + (got if got is not None else f"証拠に「{name}」の行が無い（出力ノードが誤りで落ちた時の証拠か）"))
+            out.append(f"{head}の{name}: " + (got if got is not None else f"証拠に「{name}」の行が無い"))
     return out
 
 
@@ -1311,8 +1309,9 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）" + (f"。{split}" if split else ""),
                            decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
-        (report.DECISIONS_HEADING, [*decisions, *([outside_count] if outside_count else []),
+        (report.DECISIONS_HEADING, [*decisions,
                                     f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件" + (f"（{next_file}）" if next_file else ""),
+                                    *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],
                                     *([draft] if draft else []), *_apply_lines(returns, gates, outcome, stop_reason, run_id or "—")]),
         (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line, gates, repo)),
