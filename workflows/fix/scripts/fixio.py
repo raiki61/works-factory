@@ -43,24 +43,29 @@ def shared_cache() -> pathlib.Path | None:
     return pathlib.Path(state) / "works-factory" if state else None
 
 
+def _writes_root() -> pathlib.Path | None:
+    import writelog
+    config = os.environ.get("CLAUDE_CONFIG_DIR")
+    root = writelog.root(config) if config else None
+    return root if root is not None and root.is_dir() else None
+
+
 def writes_log(cwd=None) -> pathlib.Path | None:
     """書き込みの記録のフック（bin/_lib/record-write.py）が作業の場 cwd（既定はこの節の cwd。役の節と同じ run の作業ツリー）の
     Edit・Write を残すファイル（lib/writelog.log_path）。記録の根（起動が隔離した設定 CLAUDE_CONFIG_DIR の下に作る）が無い起動は
     None で、受け付けは記録の無い run の道（writes.NO_RECORD）を通る"""
     import writelog
-    config = os.environ.get("CLAUDE_CONFIG_DIR")
-    root = writelog.root(config) if config else None
-    if root is None or not root.is_dir():
-        return None
-    return writelog.log_path(root, os.getcwd() if cwd is None else cwd)
+    root = _writes_root()
+    return None if root is None else writelog.log_path(root, os.getcwd() if cwd is None else cwd)
 
 
 def start_writes_log() -> None:
-    """記録の根が在れば、この節の作業の場の記録を空で作る（在れば触らない。前の役の記録を残す）"""
-    log = writes_log()
-    if log is not None:
-        log.parent.mkdir(exist_ok=True)
-        log.touch()
+    """記録の根が在れば、この節の作業の場の記録を空で作る（在れば触らない。前の役の記録を残す）。置き場はフックと同じ
+    writelog.open_log で作る（作業の場の控えつき）"""
+    import writelog
+    root = _writes_root()
+    if root is not None:
+        writelog.open_log(root, os.getcwd()).touch()
 
 
 def repo() -> pathlib.Path:
