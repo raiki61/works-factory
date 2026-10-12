@@ -338,6 +338,229 @@ class JudgeTakeCase(_JudgeBase):
         self.assertTrue(any("unit_key が今の周の units に無い" in e for e in errs))
         self.assertTrue(any("'別の穴' を振り分けていない" in e for e in errs))
 
+    def test_ignored_file_added_by_the_judge_is_rejected(self):
+        """元 test_accept.py:178 の test_judge_rejects_ignored_file_without_snapshot・:186 の
+        test_judge_rejects_ignored_file_after_snapshot・test_blk_judge.py:437・447・454（git が無視するファイルの増減と書き換えも拒む）"""
+        cache = self.repo / "__pycache__"
+        cache.mkdir()
+        old = cache / "old.pyc"
+        old.write_bytes(b"old")
+        ja.snap_tree(self.jdir, ja.DIAGNOSE_TREE_FILE, self.repo)
+        self.assertIs(self.take(_judge_ok())["ok"], True, "前から在って変わらない無視されるファイルは通る")
+        (self.jdir / ja.JUDGMENT_FILE).unlink()
+        (self.repo / ".env.pyc").write_bytes(b"x")
+        got = self.take(_judge_ok())
+        self.assertIs(got["ok"], False)
+        self.assertIn(".env.pyc", got["reason"])
+        (self.repo / ".env.pyc").unlink()
+        old.write_bytes(b"new")
+        self.assertIs(self.take(_judge_ok())["ok"], False, "名前が同じまま中身だけ変わっても拒む")
+        old.unlink()
+        (self.jdir / ja.DIAGNOSE_TREE_FILE).unlink()
+        (cache / "stats.cpython-314.pyc").write_bytes(b"x")
+        got = self.take(_judge_ok())
+        self.assertIs(got["ok"], False, "写しが無い時も無視されるファイルを数える")
+        self.assertIn("__pycache__", got["reason"])
+        self.assertFalse((self.jdir / ja.JUDGMENT_FILE).exists())
+
+    def test_newlines_in_key_and_reason_are_folded(self):
+        """元 rules の judge_output の 1 行の欄（ONE_LINE_FIELDS）の正規化（review-loop.py:2508。元の試験に同じ場面の物は無い）"""
+        reply = _judge_ok()
+        reply["units"][0]["key"] = _MEAN.replace(": ", ":\n  ")
+        reply["units"][0]["reason"] = "事実: 分母が違う。\n反証: 意図の取り違えを当たった"
+        reply["questions"] = [{"key": "実機で\n確かめる", "kind": "field", "status": "held", "reason": "実機が\n要る"}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+        doc = self.judgment()
+        self.assertEqual(doc["units"][0]["key"], _MEAN)
+        self.assertEqual(doc["units"][0]["reason"], "事実: 分母が違う。 反証: 意図の取り違えを当たった")
+        self.assertEqual((doc["questions"][0]["key"], doc["questions"][0]["reason"]), ("実機で 確かめる", "実機が 要る"))
+
+    def test_duplicate_key_and_suggest_without_disposition_are_rejected(self):
+        """元 rules の judge_output の key の重複・suggest の disposition・defer の構造的理由（review-loop.py:2520-2530）"""
+        reply = _judge_ok()
+        reply["units"].append(copy.deepcopy(reply["units"][0]))
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn(f"units[2] の key が重複: {_MEAN}", got["reason"])
+        reply = _judge_ok()
+        reply["units"].append(_unit("stats.py fmt: 桁", ["x"], "population", 0, label="suggest"))
+        del reply["units"][2]["disposition"]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("units[2]（suggest）に disposition（do-now / defer）が無い", got["reason"])
+        reply["units"][2].update(disposition="defer", reason="")
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("units[2] の defer に構造的理由が無い", got["reason"])
+
+    def test_engine_recounts_the_class_query_total(self):
+        """元 rules の judge_output の class_query の数え直し（review-loop.py:2531-2550 と _run_query）。違う total は engine の数に
+        置き換えて注記し、engine が 0 件なら役の数を残して注記する"""
+        reply = _judge_ok()
+        reply["units"][1]["class_query"]["total"] = 5
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+        self.assertIn("class_query の件数を engine が走らせた値に置き換えた: units[1].class_query.total 5 → 2", got["reason"])
+        cq = self.judgment()["units"][1]["class_query"]
+        self.assertEqual(cq["total"], 2)
+        self.assertIn("役の書いた total は 5", cq["note"])
+        reply = _judge_ok()
+        reply["units"][1]["class_query"].update(how={"patterns": ["no-such-line-anywhere"], "fixed": True, "paths": ["stats.py"],
+                                                    "count": "lines"}, total=3)
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+        self.assertIn("engine の数が 0 件なので置き換えなかった: units[1].class_query（役 3 / engine 0）", got["reason"])
+        cq = self.judgment()["units"][1]["class_query"]
+        self.assertEqual(cq["total"], 3)
+        self.assertIn("engine が how を走らせると 0 件", cq["note"])
+
+    def test_defects_query_needs_misses_and_must_not_match_the_fixed_form(self):
+        """元 test_blk_judge.py:604 の QueryExamplesCase.test_defects_query_without_misses_is_rejected・:613 の
+        test_defects_query_matching_fixed_form_is_rejected"""
+        reply = _judge_ok()
+        cq = reply["units"][0]["class_query"]
+        cq["hits"] = ["    return sum(xs) / (len(xs) - 1)"]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn(f"{_MEAN}: 欠陥の形を数える問い（counts: defects）に misses が無い", got["reason"])
+        self.assertFalse((self.jdir / ja.JUDGMENT_FILE).exists())
+        fixed = "    return sum(xs) / (len(xs) - 1)  # 直した"
+        cq["misses"] = [fixed]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("直した後の正しい形にも当たる", got["reason"])
+        self.assertIn(repr(fixed), got["reason"])
+        self.assertFalse((self.jdir / ja.JUDGMENT_FILE).exists())
+
+    def test_one_shot_closes_must_name_open_units(self):
+        """元 rules の judge_output の一撃の反証（one_shot_closes。review-loop.py:2551-2558）"""
+        reply = _judge_ok()
+        reply["one_shot_closes"] = []
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("one_shot_closes が空", got["reason"])
+        reply["one_shot_closes"] = [_MEAN, "stats.py: 無い単位"]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("one_shot_closes に今の周の units に無い key: ['stats.py: 無い単位']", got["reason"])
+
+    def test_question_ledger_targets_and_settled_state(self):
+        """元 rules の judge_output の問いの台帳の照らし（review-loop.py:2559-2595。検証器の QUESTION_FIELDS・targets・NO_OPEN_ORIGIN・
+        settled_state_errors）"""
+        out = {"units": [], "questions": [{"key": "q", "kind": "field", "status": "held", "reason": "実機が要る", "severity": "high"}]}
+        with self.assertRaises(Reject) as cm:
+            ja.judge_output(out, self.jdir, "", "", {})
+        self.assertIn("questions[0] に知らない欄: ['severity']", str(cm.exception))
+        reply = _judge_ok()
+        reply["units"].append(_unit("stats.py fmt: 桁", ["x"], "population", 0, label="nit"))
+        for name, q, needle in (
+                ("無い出どころ", {"kind": "stuck", "status": "held", "origin": "stats.py: 無い単位"},
+                 "questions[0] の origin 'stats.py: 無い単位' が units にも defer 台帳にも無い"),
+                ("無い depends", {"kind": "stuck", "status": "held", "origin": _MEAN, "depends": ["stats.py: 無い単位"]},
+                 "questions[0] の depends 'stats.py: 無い単位' が units にも defer 台帳にも無い"),
+                ("開いた単位の split", {"kind": "split", "status": "held", "origin": _MEAN},
+                 f"questions[0]（split）の出どころ '{_MEAN}' が [block] / do-now"),
+                ("開いたまま resolved", {"kind": "stuck", "status": "resolved", "resolution": "A を採る", "origin": _MEAN},
+                 "出どころが [block] / do-now のまま resolved"),
+                ("閉じたのに decided", {"kind": "stuck", "status": "decided", "resolution": "A を採る",
+                                        "origin": "stats.py fmt: 桁"},
+                 "出どころが閉じているのに decided")):
+            with self.subTest(name):
+                reply["questions"] = [{"key": "q", "reason": "決まらない", **q}]
+                got = self.take(reply)
+                self.assertIs(got["ok"], False)
+                self.assertIn(needle, got["reason"])
+        reply["questions"] = [{"key": "q", "reason": "決まらない", "kind": "stuck", "status": "decided", "resolution": "A を採る",
+                               "origin": _MEAN}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+
+    def test_open_unit_without_precedent_row_and_ask_without_undecided_because_are_rejected(self):
+        """元 rules の _precedent_errors（review-loop.py:2445。今の周に直す単位と人へ回す問いの key ごとに先行例の行。人へ回す問いには
+        undecided_because）"""
+        reply = _judge_ok()
+        del reply["precedents"][1]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn(f"precedents に '{_CLAMP}' の行が無い", got["reason"])
+        reply = _judge_ok()
+        reply["questions"] = [{"key": "実機で確かめる", "kind": "field", "status": "escalate", "reason": "実機が要る"}]
+        reply["precedents"].append({"key": "実機で確かめる", "problem": "実機の振る舞い", "source": "機器の文書の節",
+                                    "verdict": "adopt", "reason": "当たった"})
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("precedents['実機で確かめる'] に undecided_because が無い", got["reason"])
+        reply["precedents"][-1]["undecided_because"] = "文書が機器の版ごとに割れて決まらない"
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+
+    def test_answer_ties_rules(self):
+        """元 test_blk_judge.py:743 の AnswerTiesTakeCase.test_literal_and_material_answers_need_no_tie・
+        :757 の test_answer_hitting_two_reply_questions_needs_tie・:767 の test_tie_to_unknown_key_is_rejected・
+        :774 の test_redesign_row_must_bind_to_open_unit_or_none・:790 の test_redesign_none_row_passes_and_is_reported・
+        :803 の test_good_ties_are_taken_off_and_saved（結びの規則。報告の行は持たない）"""
+        def answers(*rows):
+            ja.write_json(self.jdir / ja.START_FILE, ja.start_view({"answers": list(rows)}))
+
+        def stuck(key):
+            return {"key": key, "kind": "stuck", "status": "held", "reason": "割れる", "origin": _MEAN}
+
+        with self.subTest("字の一致・測れていない素材・機械が立てる問いの答えは結びが要らない"):
+            answers({"question": "q-1", "text": "0 を返す"}, {"question": "parallel_pr", "text": "並行する PR は無い"},
+                    {"question": ja.ASK_KEYS["R3"], "text": "docs/ を見よ"})
+            ja.write_json(self.jdir / ja.MATERIALS_FILE, {"parallel_pr": {"status": "not_run", "reason": "通信を拒まれた"}})
+            reply = _judge_ok()
+            reply["questions"] = [stuck("q-1")]
+            got = self.take(reply)
+            self.assertIs(got["ok"], True, got["reason"])
+            (self.jdir / ja.MATERIALS_FILE).unlink()
+        with self.subTest("返答の問い 2 つに当たる答え"):
+            answers({"question": _MEAN, "text": "例外"})
+            reply = _judge_ok()
+            reply["questions"] = [stuck("q-1"), stuck("q-2")]
+            got = self.take(reply)
+            self.assertIs(got["ok"], False)
+            self.assertIn("返答の複数の問いに当たる（q-1・q-2）", got["reason"])
+            reply["answer_ties"] = [{"answer": _MEAN, "to": "q-2"}]
+            got = self.take(reply)
+            self.assertIs(got["ok"], True, got["reason"])
+        with self.subTest("知らない key への結び"):
+            answers({"question": "空の列の扱い", "text": "例外"})
+            reply = _judge_ok()
+            reply["answer_ties"] = [{"answer": "空の列の扱い", "to": "q-9"}]
+            got = self.take(reply)
+            self.assertIs(got["ok"], False)
+            self.assertIn("to 'q-9' が今の返答の問いの key にも単位の key にも無い", got["reason"])
+        answers()
+        (self.jdir / "answer-ties.json").unlink()
+        redesign = {"where": carry.REDESIGN_WHERE, "text": "R2 が redesign-needed: 独立設計と構造が合わない"}
+        carry.place_prior(self.jdir, [redesign])
+        defer = _unit("stats.py fmt: 桁", ["x"], "population", 0, label="suggest", disposition="defer")
+        head = redesign["text"]
+        for name, ties, needle in (("結び無し", [], "作り直しの行"),
+                                   ("defer の単位", [{"redesign": head, "to": defer["key"]}], "[block] でも do-now でもない"),
+                                   ("知らない行", [{"redesign": "別の行", "to": _MEAN}], "作り直しの節のどの行にも当たらない"),
+                                   ("短い訳", [{"redesign": head, "none": "目的の外"}], "字に満たない")):
+            with self.subTest(name):
+                reply = _judge_ok()
+                reply["units"].append(copy.deepcopy(defer))
+                reply["answer_ties"] = ties
+                got = self.take(reply)
+                self.assertIs(got["ok"], False)
+                self.assertIn(needle, got["reason"])
+                self.assertFalse((self.jdir / "answer-ties.json").exists())
+        for ties in ([{"redesign": head, "to": _MEAN}],
+                     [{"redesign": head, "none": "反証で死んだ: 独立設計の構造は依頼の外の物で、この周の目的に入らない"}]):
+            with self.subTest(ties[0]):
+                reply = _judge_ok()
+                reply["answer_ties"] = ties
+                got = self.take(reply)
+                self.assertIs(got["ok"], True, got["reason"])
+                self.assertNotIn("answer_ties", self.judgment())
+                saved = json.loads((self.jdir / "answer-ties.json").read_text(encoding="utf-8"))
+                self.assertEqual(saved, {"rounds": {"1": ties}})
+
 
 class JudgeAcceptCase(_JudgeBase):
     def test_accept_parses_and_collect_builds_exit(self):
@@ -459,6 +682,31 @@ class VerifyMergeCase(_VerifyBase):
         self.assertTrue(any("答えのファイルが無い" in e for e in doc["units"][0]["errors"]))
         self.assertTrue(any("real_root" in e for e in doc["units"][1]["errors"]))
         self.assertEqual(doc["synergy"]["state"], jv.UNVERIFIED)
+
+    def test_bad_missing_and_out_of_range_answers_are_unverified(self):
+        """元 test_judge_verify.py:180 の MergeCase.test_good_answers_and_synergy_are_merged_with_keys・
+        :199 の test_missing_or_bad_answers_are_named_unverified・:213 の test_wrong_unit_number_and_out_of_range_synergy。
+        無い・型の外・番号の外の答えは「確かめられなかった」と誤りの行で控え、単位は消さない"""
+        self.answer(1, _MEAN, unit=2)
+        self.answer(2, _CLAMP, verdict="maybe")
+        self.synergy({"why": "単位 3 と単位 1 が重なる", "duplicates": [{"units": [1, 3], "why": "同じ根の別の現れ"}],
+                      "relations": [], "order": []})
+        self.assertEqual(ja.merge_on(self.jdir, self.repo), {"ok": True, "reason": ""})
+        doc = self.notes()
+        self.assertEqual([(u["key"], u["state"]) for u in doc["units"]], [(_MEAN, jv.UNVERIFIED), (_CLAMP, jv.UNVERIFIED)])
+        self.assertIn("$.unit: 1 でない（2）", doc["units"][0]["errors"])
+        self.assertTrue(any("verdict" in e for e in doc["units"][1]["errors"]), doc["units"][1]["errors"])
+        self.assertEqual(doc["synergy"]["state"], jv.UNVERIFIED)
+        self.assertIn("単位 3 は無い（単位は 1〜2）", doc["synergy"]["errors"])
+        (self.jdir / ja.VERIFY_ANSWERS_DIR / jv.ANSWER_FILE.format(n=1)).unlink()
+        (self.jdir / ja.VERIFY_ANSWERS_DIR / jv.SYNERGY_FILE).unlink()
+        ja.merge_on(self.jdir, self.repo)
+        doc = self.notes()
+        self.assertEqual([u["key"] for u in doc["units"]], [_MEAN, _CLAMP], "単位は消さない")
+        self.assertEqual(doc["units"][0]["state"], jv.UNVERIFIED)
+        self.assertTrue(any("答えのファイルが無い" in e for e in doc["units"][0]["errors"]))
+        self.assertEqual(doc["synergy"]["state"], jv.UNVERIFIED)
+        self.assertTrue(doc["synergy"]["errors"])
 
     def test_tree_moved_writes_verify_stop(self):
         """元 test_judge_verify.MergeCase.test_tree_moved_stops_board"""
