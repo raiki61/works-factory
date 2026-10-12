@@ -74,11 +74,12 @@ def repo() -> pathlib.Path:
     return pathlib.Path(top.stdout.strip())
 
 
-# Archon が script に渡す変数の頭。対象のテストの実行器に継がせない（lib/ は環境を os.environ から継いで子を起こす）
-RUNNER_VARS = ("ARCHON_", "INPUTS_", "ARTIFACTS_DIR", "TYPED_ARTIFACTS_FILE", "WORKFLOW_ID")
-
-
-def drop_runner_env() -> None:
-    """入力を読み終えた後、テストを走らせる lib/ の関数を呼ぶ前に呼ぶ"""
-    for name in [n for n in os.environ if n.startswith(RUNNER_VARS)]:
-        del os.environ[name]
+def line_top(out_dir: str) -> pathlib.Path | None:
+    """同じ run の中の試験の結果の控えを置く run の置き場（線の run の成果物の置き場）。組の子の run は入力 out_dir（親の置き場の
+    <run の置き場>/fix/<include の名>/groups）から 3 つ上、単独の run（out_dir が空）は自分の ARTIFACTS_DIR。形が違えば None（使い回さない）"""
+    if not out_dir:
+        return pathlib.Path(os.environ["ARTIFACTS_DIR"])
+    path = pathlib.Path(out_dir)
+    if path.name != "groups" or len(path.parents) < 3 or path.parents[1].name != BLOCK_NAME:
+        return None
+    return path.parents[2]

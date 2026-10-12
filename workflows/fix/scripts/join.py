@@ -55,7 +55,7 @@ def main() -> dict:
         start = startrec.read(place)
         cases = (fixboard.read_json(place / fixboard.BASELINE_FILE, {}) or {}).get("cases") or []
         with_result = [g for g in plan["groups"] if results[g["group_id"]] is not None]
-        fixio.drop_runner_env()   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
+        boundary.drop_runner_env()   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
 
         def merge_one(g, earlier):
             r = results[g["group_id"]]

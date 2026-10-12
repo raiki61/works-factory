@@ -1296,6 +1296,25 @@ class GroupChildScriptsCase(unittest.TestCase):
             got = self._grp_step(reply)
             self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
 
+    def test_tdd_head_reuses_the_test_gate_base_test_cmd(self):
+        """test-gate の base が線の run の置き場に控えた test_cmd の緑を、fix の組の子の run の TDD の輪の頭が引く（同じ run の中で
+        2 度走らせない）。置き場（fixio.line_top）・run の名（始めの記録の run_id）・落とす変数・2 つの起こし口の指紋が揃って当たる"""
+        count = self.tmp / "test-cmd-count"
+        test_cmd = f"{sys.executable} -c \"open({str(count)!r}, 'a').write('1\\n')\""
+        line = self.tmp / "parent-art"
+        self._grp_parent_inputs(str(self.suite), test_cmd=test_cmd, run_id="line-run")
+        _blk_write(line / "start" / "record.json", {"run_id": "line-run", "test_cmd": test_cmd, "base_rev": "", "tdd_suite": ""})
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_"))}
+        env.update({"ARTIFACTS_DIR": str(line), "WORKFLOW_ID": "line-run", "ARCHON_NODE_EXECUTION": json.dumps({"path": "test-gate"}),
+                    "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_MODE": "base",
+                    "INPUTS_START": json.dumps({"type": "archon_artifact", "run_id": "line-run", "path": "start/record.json"})})
+        gate = subprocess.run([sys.executable, str(ROOT / "workflows" / "test-gate" / "scripts" / "run.py")], cwd=self.repo,
+                              env=env, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(gate.returncode, 0, gate.stderr)
+        self.assertEqual(json.loads(gate.stdout)["material"]["status"], "clean", gate.stdout)
+        self.assertEqual(self._grp_run("group_start", "group-start")["tdd"], True)
+        self.assertEqual(len(count.read_text(encoding="utf-8").split()), 1)
+
     def test_tdd_step_takes_the_red_and_gives_up_on_the_third_refusal(self):
         """実行器が在る run: 振り分け → 名指しが failure で落ちる赤を受け → 直しの段で 3 回拒まれた単位は、単位の頭の木に戻して
         機械の申し出を置き場の conflicts.json に積み、輪を抜ける"""

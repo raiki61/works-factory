@@ -257,6 +257,23 @@ class TestStart(LoopCase):
         again = tddloop.start(self.board, self.repo, str(self.suite), OPEN)
         self.assertNotEqual(again["state_file"], self.state)
 
+    def test_head_reuses_the_green_baseline_of_the_same_run(self):
+        """元 works/blk-fix/lib/tddloop.py:598 の run_suite(note=reuse["suite"]): 同じ run の中で同じ木の輪の頭は、緑の元の結末を
+        控えから使い回して実行器を起こさない（JUnit は書き戻すので元の結末は同じ）。出どころは状態の reused.suite に出る（tdd の出口の reused に載る）"""
+        import tree_run
+        count = self.board.parent / "suite-count"
+        green = self.board.parent / "green.py"
+        green.write_text(f"import sys\nopen({str(count)!r}, 'a').write('1\\n')\nopen(sys.argv[1], 'w').write("
+                         "'<testsuite><testcase classname=\"c\" name=\"t\"/></testsuite>')\n", encoding="utf-8")
+        place = tree_run.reuse_place(self.board.parent, "run-1", rerun=False)
+        first = tddloop.start(self.board, self.repo, str(green), OPEN, reuse=place)
+        again = tddloop.start(self.board, self.repo, str(green), OPEN, reuse=place)
+        states = [json.loads(pathlib.Path(s["state_file"]).read_text(encoding="utf-8")) for s in (first, again)]
+        self.assertEqual(len(count.read_text(encoding="utf-8").split()), 1)
+        self.assertEqual(states[1]["baseline"], {"c::t": "passed"})
+        self.assertEqual(states[0]["reused"], {})
+        self.assertIn("run run-1", states[1]["reused"]["suite"])
+
     def test_tdd_prep_puts_brief_of_current_unit(self):
         """振り分けの段は直す義務の単位の全部の brief、ほかの段は今の単位の brief だけを頭で名指す"""
         rows = [{"item": 1, "unit_keys": [MEAN], "file": "/b/r1/brief-1.md", "sha256": "a" * 64},
