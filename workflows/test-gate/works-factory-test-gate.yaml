@@ -1,10 +1,10 @@
 name: works-factory-test-gate
 description: |
-  試験の関門。線に 2 つの形で差し込む。base（判定の前）は対象のテストの走らせ方を見つけて 1 度走らせ、直す前の結末
+  試験の関門。メイングラフに 2 つの形で include する。base（判定の前）は対象のテストの走らせ方を見つけて 1 度走らせ、直す前の結末
   （段ごとの結末と、JUnit の報告が在れば 1 件ごとの結末）を控える。final（修正の後）はテスト一式を走らせ、赤の原因を分けて
   証拠と一緒に返し、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。赤は原因が何でも認証しない。
   走らせ方は機械が決める（対象の宣言 .review-checks.json の段と test_cmd）。どちらも無ければ任せ先の CI の役が CI の定義を読み、
-  作業ツリーの写しの上で走らせる。返りは 1 つの節 result で、mode で形が分かれる（docs/design.md の「test-gate の返り」）。
+  作業ツリーの写しの上で走らせる。出力は 1 つのノード result で、mode で形が分かれる（docs/design.md の「test-gate の出力」）。
 
 inputs:
   mode:
@@ -12,10 +12,10 @@ inputs:
     description: 形。base（判定の前）か final（修正の後）
   start:
     required: true
-    description: 始めの記録の指し札の JSON の字（線の $start.output.record）
+    description: 始めの記録のポインタの JSON の字（メイングラフの $start.output.record）
   baseline:
     default: ""
-    description: final の時だけ、base の返りの baseline の指し札の JSON の字。"" と null は「無い」と読む
+    description: final の時だけ、base の出力の baseline のポインタの JSON の字。"" と null は「無い」と読む
 
 returns: result
 outcome_field: ok

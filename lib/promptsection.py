@@ -61,7 +61,7 @@ class Receive:
             source = getattr(self.section, "source", "")
             kind, _, fn = source.partition(":")
             if kind != "fn":
-                raise ValueError(f"受け手の行 {self.role} の when が無く、節の出どころが関数（fn:）でない: {source!r}")
+                raise ValueError(f"受け手の行 {self.role} の when が無く、セクションの出どころが関数（fn:）でない: {source!r}")
             object.__setattr__(self, "when", fn)
 
 

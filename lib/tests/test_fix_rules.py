@@ -42,10 +42,10 @@ MAINLINE = ("根本の単位ごとに直せ", "同じ形を全部直せ", "直�
 RUN_TESTS = ("- **プロジェクトのテストを回せ。** 直した単位に当たる試験だけを絞って回せ（実行器の絞り方——試験の id か名前で"
              "絞る。絞り方はリポジトリの `run.sh`・テストの置き場から探す）。テストの実行器が在る run では、受け付けが"
              "版からの変更に当たる試験を機械で選んで回し、元で赤でなかった試験が赤なら理由のファイルで返す——自分で回すなら同じく"
-             "変えたファイルに当たる試験を選べ。リポジトリのテスト一式は線の最後のテストの段が回すので、役は回さない。絞る手が無い時"
+             "変えたファイルに当たる試験を選べ。リポジトリのテスト一式はメイングラフの最後のテストの段が回すので、役は回さない。絞る手が無い時"
              "だけ、返答の直前に一式を 1 回だけ回せ。赤が残るなら、どの単位のどこかを直してから出せ。Python は "
              "`PYTHONDONTWRITEBYTECODE=1` を立てて回せ。git が無視する生成物（`__pycache__` など）のうち、あなたの前に無かった物は"
-             "後の節が消す（消した物は人に見せる）。")
+             "後のノードが消す（消した物は人に見せる）。")
 VALUES = {"judgment_file": "/b/out/r1/p2.diagnose.json", "open_units": '["a: 分母", "b: 上限"]', "plan_file": "/b/out/r1/p2.fix_plan.json",
           "policy_path": "", "notes_file": "/b/r1/notes.md", "summary_file": "/b/tdd-1/summary.md"}
 PHASE_TEXT = "## この段ですること\n\n今の単位だけを直せ。\n\n## 返す JSON\n\n{\"phase\": \"fix\"}"
@@ -184,7 +184,7 @@ class TestCompose(unittest.TestCase):
         """brief が要求の正本で判定は背景。誤りと見たら食い違いの申し出で返し、rewrite_tests は最後の人の関所に並ぶ。
         brief の無い run は判定のファイルが正本のまま"""
         sec = fixrules.sections(fixrules.BRIEF)["brief-canon"]
-        for w in ("要求の正本", "brief が勝つ", "背景", "食い違いの申し出", "rewrite_tests", "最後の人の関所", "判定のファイルが正本"):
+        for w in ("要求の正本", "brief が勝つ", "背景", "食い違いの申し出", "rewrite_tests", "最後の承認ノード", "判定のファイルが正本"):
             self.assertIn(w, sec)
 
     def test_brief_rule_one_voice_with_brief_background(self):
@@ -281,7 +281,7 @@ class TestCompose(unittest.TestCase):
         text = fixrules.tdd_lane_render(tdd_values(), "## この単位の決まり（機械が書いた）", title=TITLE)
         for p, b in PHASE_BULLET.items():
             (self.assertIn if p in fixrules.LANE_PHASES else self.assertNotIn)(b, text)
-        for s in ("## 並べの枝の役の読み替え", "## この輪での読み替え", "## この単位の決まり（機械が書いた）", TITLE, "cwd（単位の worktree）",
+        for s in ("## 並べの枝の役の読み替え", "## このループでの読み替え", "## この単位の決まり（機械が書いた）", TITLE, "cwd（単位の worktree）",
                   "回ごとの指示書"):
             self.assertIn(s, text)
         for s in ("段のコマンド", "まとめ役", "Agent で起こした"):
@@ -301,7 +301,7 @@ class TestCompose(unittest.TestCase):
         for s in ("## 修正ごとに書くこと", "## 周の全体に書くこと", "何も変えずに「済んだ」と言うな", "`plan_faces`", "`wrote_refs`"):
             self.assertIn(s, fix)
             self.assertNotIn(s, tdd)
-        for s in ("## 今の段の約束", "## この輪での読み替え", "JUnit XML の書き先は作業ツリーの外", PHASE_TEXT, TITLE):
+        for s in ("## 今の段の約束", "## このループでの読み替え", "JUnit XML の書き先は作業ツリーの外", PHASE_TEXT, TITLE):
             self.assertIn(s, tdd)
             self.assertNotIn(s, fix)
         self.assertEqual(tdd.split("\n")[1], TITLE, "見出しの次が題")

@@ -3,7 +3,7 @@
 - CANON: 書く役（コードを直す役はどれも）の決まりの正本 writerules/common.md。ブロックの境を越えて読めるよう core に 1 つだけ置く
   （ほかの置き場に写さない。tests/test_fix_rules.py）。節は core-fix（直し方）・evidence・evidence-<種類>（テストで赤→緑を示せない
   直しの証拠）・core-conflict（食い違いの申し出）・core-keep（守ること）
-- sections(path): `<!-- 節 <id> -->` の行で切った {id: 本文}（印の行は指示書に入れない）
+- sections(path): `<!-- セクション <id> -->` の行で切った {id: 本文}（印の行は指示書に入れない）
 - fill: 型の穴 <<名>> を `値`（空は EMPTY）で埋める。穴に値が無い時は Unfilled
 - render: 節の並び [(id, 本文, 理由)] から指示書の 1 つの形。1 行目（HEADER）に、どの節を載せたか・なぜかを機械の事実として書く。
   呼び手が取った言語の 1 行を渡せば末尾に置く
@@ -27,7 +27,7 @@ import fixboard  # noqa: E402  （指示書の組み立て compose。元 rolekit
 CANON = _CORE / "writerules" / "common.md"
 EMPTY = "（空）"
 HOLE = re.compile(r"<<([a-z_]+)>>")
-MARK = re.compile(r"^<!-- 節 ([a-z0-9-]+) -->$")
+MARK = re.compile(r"^<!-- セクション ([a-z0-9-]+) -->$")
 HEADER = "<!-- works-prompt {} -->"
 
 
@@ -45,12 +45,12 @@ def sections(path) -> dict:
         if m:
             cur = m.group(1)
             if cur in out:
-                raise Unfilled(f"{path.name}: 節 {cur} が 2 つ在る")
+                raise Unfilled(f"{path.name}: セクション {cur} が 2 つ在る")
             out[cur] = []
         elif cur is not None:
             out[cur].append(line)
         elif line.strip():
-            raise Unfilled(f"{path.name}: 節の印より前に文が在る: {line[:60]!r}")
+            raise Unfilled(f"{path.name}: セクションの印より前に文が在る: {line[:60]!r}")
     return {k: "\n".join(v).strip("\n") for k, v in out.items()}
 
 

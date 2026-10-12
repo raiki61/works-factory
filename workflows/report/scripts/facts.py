@@ -66,10 +66,10 @@ def opened(value, unopened: list, rid: str, field: str = ""):
         try:
             path = boundary.resolve(value)
         except (KeyError, ValueError) as e:
-            unopened.append((rid, field, f"指し札 {value.get('path')} を開けない: {e}"))
+            unopened.append((rid, field, f"ポインタ {value.get('path')} を開けない: {e}"))
             return None
         if not path.is_file():
-            unopened.append((rid, field, f"指し札の先 {path} が無い"))
+            unopened.append((rid, field, f"ポインタの先 {path} が無い"))
             return None
         return str(path)
     if isinstance(value, dict):

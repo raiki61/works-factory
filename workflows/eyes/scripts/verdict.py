@@ -32,7 +32,7 @@ try:
     protected = eyeverdict.read_json(eyes / "protected.json")
     prep = eyeverdict.read_json(eyes / "prep.json")
     if prep is None:
-        out = eyeverdict.unverified("支度の節（prep か、その前の直しの後の実測）が落ちた", protected)
+        out = eyeverdict.unverified("支度のノード（prep か、その前の直しの後の実測）が落ちた", protected)
     else:
         design_ptr = json.loads(os.environ["INPUTS_DESIGN"])
         design_file = boundary.resolve(design_ptr) if design_ptr else None
@@ -51,5 +51,5 @@ except Exception as e:  # noqa: BLE001  返す節は落ちない（落ちると�
 try:   # Archon の JSON.parse が読めない NaN・Infinity は落ちた返りにする
     print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
 except ValueError as e:
-    print(json.dumps(fallen(f"出口が落ちた: 返りが JSON に書けない: {e}"), ensure_ascii=False, allow_nan=False),
+    print(json.dumps(fallen(f"出口が落ちた: 出力が JSON に書けない: {e}"), ensure_ascii=False, allow_nan=False),
           flush=True)

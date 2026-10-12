@@ -1,6 +1,6 @@
 """判定のブロック（workflows/judge/）の YAML の形・筋書き・script の振る舞いの試験（計画 docs/plans/2026-10-12-blocks/judge.md の「試験」）。
 
-- YAML の形: PyYAML で読み、Archon を起こさない。返す節の約束（docs/design.md の「judge の返り」）・関所・輪・役の節の設定の表
+- YAML の形: PyYAML で読み、Archon を起こさない。返す節の約束（docs/design.md の「judge の出力」）・関所・輪・役の節の設定の表
 - 筋書き: tests/archon.py の使い捨ての木で `archon workflow test` と `archon validate workflows` を回す。源か bun が無ければ見送る
 - script の振る舞い: scripts/<名>.py を子のプロセスで走らせる（Archon が渡す INPUTS_<名>・ARTIFACTS_DIR・WORKFLOW_ID と、
   boundary.lib_root() が届く WORKS_FACTORY_ROOT を置く。作業ツリーは tests/e2e/target-seed/ の写し）
@@ -36,7 +36,7 @@ NAME = "works-factory-judge"
 NO_DEADLINE = 1728000000
 RUN_ID = "run-judge"
 
-# 返す節の欄（docs/design.md の「ブロックの返りの約束」の judge の返り）
+# 返す節の欄（docs/design.md の「サブグラフの出力の約束」の judge の返り）
 RETURNS = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spec", "out_of_purpose", "rejudge_verdict")
 INPUTS = {"start": "null", "baseline": "null", "objection": "", "prior_failures": "null"}
 RUN_OWNED = ("worktree", "container", "evidence_policy", "mutates_checkout")
@@ -823,7 +823,7 @@ class BaselineTest(unittest.TestCase):
                     inputs["baseline"] = {"type": "archon_artifact", "run_id": RUN_ID, "path": rel}
                 self.assertTrue(r.returned("diagnose_prep", **inputs)["go"])
                 got = json.loads((r.judge / "materials.json").read_text(encoding="utf-8"))["local_checks"]
-                self.assertEqual(got, material or {"status": "not_run", "reason": "走っていない（どの節も返していない）"})
+                self.assertEqual(got, material or {"status": "not_run", "reason": "走っていない（どのノードも返していない）"})
 
 
 class PriorFailuresTest(unittest.TestCase):

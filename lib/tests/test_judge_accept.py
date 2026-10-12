@@ -2543,7 +2543,7 @@ class WorldStageCase(unittest.TestCase):
 # ================================================================ 入口と返り
 class StartViewCase(unittest.TestCase):
     def test_missing_fields_take_the_contract_defaults(self):
-        """元 test_accept.TestIntake（始めの記録の欄が無い時の読み）。既定は docs/design.md の「judge の返り」の入力 start の決め"""
+        """元 test_accept.TestIntake（始めの記録の欄が無い時の読み）。既定は docs/design.md の「judge の出力」の入力 start の決め"""
         view = ja.start_view({"input": {"request_file": "/r.json", "base": {"rev": "a" * 40}}})
         self.assertEqual(view["request_file"], "/r.json")
         self.assertEqual((view["policy_md"], view["features_cut"], view["spec"], view["answers"], view["gates"]),

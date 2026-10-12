@@ -1,9 +1,9 @@
 name: works-factory-report
 description: |
-  報告のブロック。線の最後で、前の段が落ちても飛ばされても走る。結末の 10 語と止めの語を決め、機械の報告・次の run の依頼の
+  報告のサブグラフ。メイングラフの最後で、前の段が落ちても飛ばされても走る。結末の 10 語と止めの語を決め、機械の報告・次の run の依頼の
   下書き・前の失敗の行を run の置き場の report/ に書く（facts）。結果を名乗れる run では、書き手が平易な冒頭・人が決めること・
   本文を書き、道具を持たない初見の読み手が頭だけを読んで確かめる（write-loop。3 回目は通らなくても受け取って印を付ける）。
-  返す節 report は落ちない: AI の報告が無くても機械の報告を返す。型つきの成果物の一覧（tdd-unit・green-cert・eye-verdict）は
+  出力ノード report は落ちない: AI の報告が無くても機械の報告を返す。型つきの成果物の一覧（tdd-unit・green-cert・eye-verdict）は
   with: でなく facts が $TYPED_ARTIFACTS_FILE から読む（workflows/AGENTS.md の E5）。
 
 inputs:

@@ -41,7 +41,7 @@ def tdd_exit(started) -> dict:
         return tddloop.exit_fields(started)
     except tddloop.Broken as e:
         return {"ran": False, "suite": str(started.get("suite") or ""),
-                "reason": f"TDD の輪が済まずに抜けた（{' '.join(str(e).split())}）", "units": []}
+                "reason": f"TDD のループが済まずに抜けた（{' '.join(str(e).split())}）", "units": []}
 
 
 def main() -> dict:

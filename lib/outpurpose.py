@@ -40,7 +40,7 @@ DRAFT_SOURCE = "前の run の判定が目的の外とした所見"   # next_ite
 ROW_SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["source", "where", "why_outside"],
     "properties": {
-        "source": {"type": "string", "minLength": 1, "note": "材料のどの節・どの目の行か（材料の見出しと目の名）"},
+        "source": {"type": "string", "minLength": 1, "note": "材料のどのセクション・どの目の行か（材料の見出しと目の名）"},
         "where": {"type": "string", "minLength": 1, "note": "材料の行の where を一字も変えずに写した物"},
         "why_outside": {"type": "string", "minLength": MIN_WHY, "note": "凍結した目的の外とした理由"},
         "text": {"type": "string", "minLength": 1,
@@ -123,7 +123,7 @@ def problems(rows, material: list) -> list:
             out.append(f"{FIELD}[{i}] が {{source, where, why_outside}} の object でない")
             continue
         if not _squeeze(r.get("source")):
-            out.append(f"{FIELD}[{i}] の source が空（材料のどの節・どの目の行かを書く）")
+            out.append(f"{FIELD}[{i}] の source が空（材料のどのセクション・どの目の行かを書く）")
         if len(_squeeze(r.get("why_outside"))) < MIN_WHY:
             out.append(f"{FIELD}[{i}] の why_outside が {MIN_WHY} 字に満たない（凍結した目的の外とした理由を書く）")
         if "text" in r and not _squeeze(r.get("text")):
@@ -133,7 +133,7 @@ def problems(rows, material: list) -> list:
         if not hits:
             out.append(f"{FIELD}[{i}] の where {_squeeze(r.get('where'))!r}"
                        + (f"・text の頭 {_squeeze(r.get('text'))!r}" if "text" in r else "")
-                       + " が盤面の材料の行（P1 の所見と依頼の行）のどれにも当たらない（材料の行の where を一字も変えずに写す）")
+                       + " が共有ボードの材料の行（P1 の所見と依頼の行）のどれにも当たらない（材料の行の where を一字も変えずに写す）")
         elif len(hits) > 1:
             out.append(f"{FIELD}[{i}] の where {_squeeze(r.get('where'))!r} が材料の {len(hits)} 行に当たる（同じ where の別の所見）——"
                        "text に、運ぶ行の text の頭を一字も変えずに写して 1 行に絞る")
@@ -238,4 +238,4 @@ def count_line(board_dir, next_file: str = "", section: str = "") -> str:
         return ""
     where = f"次の run の依頼の下書き {next_file}" if next_file else "次の run の依頼の下書き"
     return (f"{COUNT_HEAD}: {len(got)} 件（{where} の findings に下書きの印つきで載せた。次の run に回すかの材料"
-            + (f"で、1 件ずつの中身は下の節「{section}」" if section else "") + "）")
+            + (f"で、1 件ずつの中身は下のセクション「{section}」" if section else "") + "）")

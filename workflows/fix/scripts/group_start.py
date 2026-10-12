@@ -41,7 +41,7 @@ import startrec  # noqa: E402
 import tddloop  # noqa: E402
 import tree_run  # noqa: E402
 
-NO_UNITS = "組に単位が無い——TDD の輪を回さない"
+NO_UNITS = "組に単位が無い——TDD のループを回さない"
 
 
 def read_group() -> dict:

@@ -62,7 +62,7 @@ def failed(error: BaseException) -> dict:
     """ready: false と、在って空でない指し札の先。境の口が読めなかった時にも出せるよう、札は境の口を通さずに組む"""
     art = Path(os.environ["ARTIFACTS_DIR"])
     round_dir = art / os.environ.get("INPUTS_DIR", "")
-    reason = f"返す節の中で誤りが起きた: {type(error).__name__}: {' '.join(str(error).split())}"
+    reason = f"出力ノードの中で誤りが起きた: {type(error).__name__}: {' '.join(str(error).split())}"
     try:
         rnd = json.loads((round_dir / ROUND_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):

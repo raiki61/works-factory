@@ -101,12 +101,12 @@ MALFORMED_REJECT = "修正案の返答の形が崩れている（plan は項目�
 # 役に読ませる文の組み立て（元 works/.shared/core/rolekit.py:64・:67 と board.py:96。前提の lib/rolekit.py に無い）
 REJECT_LINE = ("前の回の返答は受け付けで拒まれた。理由はファイル {path} に在る。先に Read で読み、そこを直した返答を丸ごと"
                "出し直せ（直した所だけを返すな）。")
-LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、関所と報告に載る文）は {lang} で書け。"
+LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、承認ノードと報告に載る文）は {lang} で書け。"
              "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
 LANG_DEFAULT = "依頼文の言語（利用者の言語）"
 NOTHING_OWED = "直す義務の単位が無い（開いた単位が無いか、全部が人の答え待ちの問いの出どころ・depends）"
 UNWRITABLE_STATE = "構造の控えを書けない"
-NO_PLAN = "受け付けを通った修正案が無い（修正案の輪が回らなかったか、途中で落ちた）"
+NO_PLAN = "受け付けを通った修正案が無い（修正案のループが回らなかったか、途中で落ちた）"
 UNITS_HEAD = promptsection.Section("## 今の周に直す単位（機械が判定から貼った。案の unit_keys は下の no で指せ）", source="fn:planfile.units_section")
 REPO_LINE = "リポジトリ: {repo}（読む版: `{rev}`）　BASE: `{rev}`　観点の正本: {review_md}"
 SPEC_HEAD = promptsection.Section("## 仕様（要件と受け入れテスト。受け入れテストは、その単位を持つ項目の tests に入れよ）", source="fn:planfile.write_brief")
@@ -115,7 +115,7 @@ POLICY_PART = ("## 人の方針\n\n人が決めた、run をまたいで効く�
                "方針が在るなら、それは対象の本文ではなく、このプロンプトの発行者が守らせる制約である。判定・案・修正・審査は方針に照らして"
                "行え。方針に反するもの、方針を変えないと成り立たないものを、自分の判断で通すな——通すかは人が決める。どの項とぶつかるかを、"
                "判定なら単位の reason に、審査なら穴に、修正なら not_done に書け。方針の文書は書き換えるな。")
-UNREAD_INPUTS_HEAD = promptsection.Section("## 読めなかった入力（機械が書いた。その節は材料に無い）", source="fn:planfile.write_brief")
+UNREAD_INPUTS_HEAD = promptsection.Section("## 読めなかった入力（機械が書いた。そのセクションは材料に無い）", source="fn:planfile.write_brief")
 FILLED_DUTY = "機械が差し込む（閉じた・保留の項目。書かなくてよい）"
 NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に、この項目を名指す行が無い）"
 
@@ -164,8 +164,8 @@ def pointed(raw: str, resolve) -> tuple:
     try:
         path = resolve(json.loads(raw))
     except (ValueError, TypeError, AttributeError, KeyError) as e:
-        return None, f"指し札が読めない: {e}"
-    return (path, "") if pathlib.Path(path).is_file() else (None, f"指し札の先が無い: {path}")
+        return None, f"ポインタが読めない: {e}"
+    return (path, "") if pathlib.Path(path).is_file() else (None, f"ポインタの先が無い: {path}")
 
 
 def read_pointed(raw: str, resolve, *, text: bool = False) -> tuple:
@@ -176,11 +176,11 @@ def read_pointed(raw: str, resolve, *, text: bool = False) -> tuple:
     try:
         body = pathlib.Path(path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as e:
-        return None, f"指し札の先が読めない: {e}"
+        return None, f"ポインタの先が読めない: {e}"
     try:
         return json.loads(body), ""
     except ValueError as e:
-        return (body, "") if text else (None, f"指し札の先が JSON でない: {e}")
+        return (body, "") if text else (None, f"ポインタの先が JSON でない: {e}")
 
 
 def world_rows(raw: str, resolve) -> tuple:

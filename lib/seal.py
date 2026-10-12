@@ -90,7 +90,7 @@ def _answer_refusal(answer: dict) -> str:
         kind = ""
     else:
         kind = f"（通す語 {'・'.join(PASS)} のどれでもない）"
-    return f"最後の関所で {word or '語なし'} と答えた{kind}"
+    return f"最後の承認ノードで {word or '語なし'} と答えた{kind}"
 
 
 def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, fingerprint_ok, protected) -> str:

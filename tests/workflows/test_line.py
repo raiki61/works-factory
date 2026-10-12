@@ -455,7 +455,7 @@ class AskBeforeFixCase(unittest.TestCase):
         failing = {**planned()["gate_axes"], "clean": {"ok": False, "note": "名前が合わない"}}
         for plan, words in ((planned(gate_axes=failing), "汚くない（clean）の軸が通らない: 名前が合わない"),
                             (planned(questions=["0 を返すか"]), "0 を返すか"),
-                            (planned(ask_human=True), "直す前の関所"),
+                            (planned(ask_human=True), "直す前の承認ノード"),
                             (planned(**{"pass": False, "stalled": True}), gatemarks.STUCK_ITEM),
                             (planned(**{"pass": False, "stalled": True, "round": ROUND_LIMIT, "ask_human": True,
                                         "questions": [f"{gatemarks.STUCK_ITEM}。理由: " + converge.CAP_WHY.format(
@@ -629,7 +629,7 @@ class AskFinalReadsCase(Artifacts):
 
     def test_answered_unit_missing_from_the_judgment_is_said(self):
         got = self.held([self.FORK], answers=[{"question": "q1", "text": "a"}], units=())
-        self.assertEqual(got, ["関所で答えたが直す単位に入れられなかった: q1・u1（理由: 今の周の判定に無い）"])
+        self.assertEqual(got, ["承認ノードで答えたが直す単位に入れられなかった: q1・u1（理由: 今の周の判定に無い）"])
 
     def test_unreadable_judgment_is_said(self):
         held, unread = ask_final.held_questions({"type": "archon_artifact", "run_id": "another", "path": "x.json"}, None, None, [])
@@ -648,7 +648,7 @@ class AskFinalReadsCase(Artifacts):
     def test_unreadable_structure_after_is_said(self):
         rows, unread = ask_final.fenced_rows({"type": "archon_artifact", "run_id": "another", "path": "eyes/structure-after.json"})
         self.assertEqual(rows, [])
-        self.assertIn("指し札を読めない", unread)
+        self.assertIn("ポインタを読めない", unread)
         rows, unread = ask_final.fenced_rows(self.place("eyes/structure-after.json", {"status": "?"}))
         self.assertEqual(rows, [])
         self.assertIn("控え structure-after.json を読めない", unread)
@@ -1068,8 +1068,8 @@ class LineWiringCase(unittest.TestCase):
         ("refix-run", "out_dir"): GROUP_ONLY,
         ("fix", "only_items"): "1 回目は全部の項目（refix-run だけが 1 回目の replan_items を渡す）",
         ("plan-review-run", "conflicts"): "修正の前なので申し出が無い",
-        ("plan-review-run", "gate_answers"): "修正前の関所より前に走る",
-        ("replan-review", "round_limit"): "案の直しの事前審査は往復の輪の外で、輪の上限が無い",
+        ("plan-review-run", "gate_answers"): "修正前の承認ノードより前に走る",
+        ("replan-review", "round_limit"): "案の直しの事前審査は往復のループの外で、ループの上限が無い",
         ("eyes", "x_scalars"): "部分 D1 で配線する。D1 で表から消す",
     }
 

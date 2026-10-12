@@ -73,9 +73,9 @@ def collect(b, outputs: dict) -> list:
         out = outputs.get(r["lens"])
         got = None if out is None else _findings(r["lens"], out)
         if out is None:
-            r.update(state="failed", reason="レンズの節の出口が無い（落ちたか走らなかった）")
+            r.update(state="failed", reason="レンズのノードの出口が無い（落ちたか走らなかった）")
         elif got is None:
-            r.update(state="failed", reason=f"レンズの節の出口の findings の形が違う: {str(out)[:200]}")
+            r.update(state="failed", reason=f"レンズのノードの出口の findings の形が違う: {str(out)[:200]}")
         else:
             r.update(state="ran", findings=got[0], dropped=got[1])
     _write(b, rows)

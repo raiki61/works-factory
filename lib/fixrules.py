@@ -103,7 +103,7 @@ G1_REST = "修正案のどの項目にも無い直す義務の単位 {keys}（�
 SEAT_BRIEFS = "seat-briefs.md"   # 修正役の座の型の [BRIEF_FILE]（置き場のファイル。直す義務の単位の brief を名指す節）
 LANES_RECORD = "fix-lanes-out.json"   # 修正役の並べの枝の結末（今の scope の周の作業ファイル。締めの節 fix-join が書く。fixlanes）
 LANES_SUMMARY = "fix-lanes.md"         # 同じ結末の修正役が読む本文（指示書の節 lanes が名指す）
-LANES_WHY = "修正役の並べの枝の結末が在る（締めの節 fix-join が書いた。docs/plans/2026-10-07-fix-lane-nodes.md）"
+LANES_WHY = "修正役の並べの枝の結末が在る（締めのノード fix-join が書いた。docs/plans/2026-10-07-fix-lane-nodes.md）"
 BRIEF_BROKEN = (f"修正案の brief の控え（置き場の {planbrief.LEDGER}）か欄の控え（置き場の {planbrief.planmarks.FIELDS_FILE}）が壊れているか"
                 "凍結の後に書き換えられ、承認した要求の正本が"
                 "引けない——brief の無い指示書で役を起こさずに止める")
@@ -238,11 +238,11 @@ def fix_parts(values: dict, kinds: dict | None = None, libdocs: str = "", seat: 
             ("brief-canon", sections(BRIEF)["brief-canon"], ALWAYS + BRIEF_WHY),
             *([("held", held, HELD_WHY)] if held else []),
             *([("lanes", lanes, LANES_WHY)] if lanes else []),
-            ("core-fix", c["core-fix"], ALWAYS + "（本線の核）"), *_evidence(c, kinds),
-            ("core-conflict", c["core-conflict"], ALWAYS + CONFLICT_WHY), ("core-keep", c["core-keep"], ALWAYS + "（本線の核）"),
+            ("core-fix", c["core-fix"], ALWAYS + "（元の graphloops の核）"), *_evidence(c, kinds),
+            ("core-conflict", c["core-conflict"], ALWAYS + CONFLICT_WHY), ("core-keep", c["core-keep"], ALWAYS + "（元の graphloops の核）"),
             ("fix-keep", d["fix-keep"], ALWAYS + "（直す役）"),
             *([("ask", ask, ASK_WHY)] if ask else []),
-            *([("libdocs", libdocs, "機械が引いた（手元の版・公式。見つけた数と取れた数は節の頭）")] if libdocs else []),
+            *([("libdocs", libdocs, "機械が引いた（手元の版・公式。見つけた数と取れた数はセクションの頭）")] if libdocs else []),
             *_seat(seat), *([("fix-lane", lane, ALWAYS + "（修正役の並べの枝の役）")] if lane else []),
             ("fix-reply", d["fix-reply"], ALWAYS + "（返答の欄）")]
 
@@ -253,9 +253,9 @@ def tdd_parts(values: dict, kinds: dict | None = None, seat: str = "") -> list:
     kinds = _all_kinds() if kinds is None else kinds
     return [("tdd-head", fill(t["tdd-head"], _pick(values, TDD_VALUES)), ALWAYS + "（役・読む物・run の値）"),
             ("brief-canon", sections(BRIEF)["brief-canon"], ALWAYS + BRIEF_WHY),
-            ("core-fix", c["core-fix"], ALWAYS + "（本線の核）"), *_evidence(c, kinds),
-            ("core-conflict", c["core-conflict"], ALWAYS + CONFLICT_WHY), ("core-keep", c["core-keep"], ALWAYS + "（本線の核）"),
-            ("tdd-remap", t["tdd-remap"], ALWAYS + "（この輪での読み替え）"), *_seat(seat)]
+            ("core-fix", c["core-fix"], ALWAYS + "（元の graphloops の核）"), *_evidence(c, kinds),
+            ("core-conflict", c["core-conflict"], ALWAYS + CONFLICT_WHY), ("core-keep", c["core-keep"], ALWAYS + "（元の graphloops の核）"),
+            ("tdd-remap", t["tdd-remap"], ALWAYS + "（このループでの読み替え）"), *_seat(seat)]
 
 
 def tdd_phase_rules(phase: str) -> str:
@@ -348,7 +348,7 @@ def kinds_now(values: dict, repo, before=()) -> dict:
     if why and not any(sources.values()):
         got = {k: f"{why}——全部載せる" for k in KINDS}
     for k in before:
-        got.setdefault(k, "この輪で前に渡した")
+        got.setdefault(k, "このループで前に渡した")
     return got
 
 
@@ -524,7 +524,7 @@ LANES_TEXT = promptsection.Section("## 修正役の並べの枝の結末（機�
                                    "- 「順に戻した項目」は、ほかの直す義務の単位と同じにこの周で直す（下請けの項目に載る）。前の試みの差分が名指されていれば読み、"
                                    "使える所は使え（作業ツリーには当たっていない）\n"
                                    "- 「枝が直さなかった単位」（枝の返答の not_done）も直す義務のまま（下請けの項目に載る）\n"
-                                   "- 「止めた単位」（食い違いの申し出。機械が盤面に積んだ）は changes にも not_done にも書かない", source="fn:fixrules.lanes_text")
+                                   "- 「止めた単位」（食い違いの申し出。機械が共有ボードに積んだ）は changes にも not_done にも書かない", source="fn:fixrules.lanes_text")
 
 
 def lanes_text(b) -> str:
@@ -576,7 +576,7 @@ def implementer_values(b, values: dict, repo, owed: list[str], briefs: list) -> 
     return {"[task name]": f"直す義務の単位 {len(owed)} 件" + (f"（修正案の項目 {items}）" if items else ""),
             "[BRIEF_FILE]": brief_file,
             "[Scene-setting: where this fits, dependencies, architectural context]":
-                seatkit.SCENE + (f"。輪の要約のファイル: {summary}" if summary else ""),
+                seatkit.SCENE + (f"。ループの要約のファイル: {summary}" if summary else ""),
             "[directory]": "" if repo is None else str(repo),
             "[REPORT_FILE]": seatkit.NO_REPORT_FILE}
 

@@ -467,7 +467,7 @@ class YamlCase(unittest.TestCase):
         script = load_script("pass_open")
         for nid in ("r2-design", "plan-review"):
             self.assertEqual(script.node_schema(text, nid), got[nid]["output_format"])
-        for nid, word in (("nope", "節 nope が無い"), ("review-loop", "output_format が無い"), ("review", "JSON の形でない")):
+        for nid, word in (("nope", "ノード nope が無い"), ("review-loop", "output_format が無い"), ("review", "JSON の形でない")):
             with self.subTest(nid), self.assertRaises(ValueError) as cm:
                 script.node_schema(text, nid)
             self.assertIn(word, str(cm.exception))
@@ -2013,7 +2013,7 @@ class ResultCase(RunCase):
         other = json.dumps({"type": "archon_artifact", "run_id": "other-run", "path": "judge/judgment.json"})
         missing = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "judge/no-such.json"})
         for label, value, word in (("空の字", "", "JSONDecodeError"), ("JSON でない字", "{壊れた", "JSONDecodeError"),
-                                   ("ほかの run の札", other, "ほかの run の指し札"), ("在らない先", missing, "no-such.json"),
+                                   ("ほかの run の札", other, "ほかの run のポインタ"), ("在らない先", missing, "no-such.json"),
                                    ("指し札でない", json.dumps({"path": "x"}), "指し札でない")):
             with self.subTest(label):
                 self.run_.inputs["judgment"] = value
@@ -2082,7 +2082,7 @@ class FailSafeCase(RunCase):
         got = json.loads(done.stdout)
         self.assertEqual(validate_schema(got, nodes()["review"]["output_format"]), [], got)
         self.assertEqual((got["pass"], got["ask_human"]), (False, True))
-        self.assertTrue(got["questions"][0].startswith("返す節が落ちた: "), got["questions"])
+        self.assertTrue(got["questions"][0].startswith("出力ノードが落ちた: "), got["questions"])
         for name in ("review", "design"):
             r.assert_pointer(got[name])
         passes = r.pointed(got["review"]).with_name(boardview.PASSES_FILE)

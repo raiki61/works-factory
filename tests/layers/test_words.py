@@ -3,7 +3,7 @@
 
 見る字（`scope`）: `docs/` の直下の `*.md`・`AGENTS.md`（ASF の物を除く）・根の `README.md`・`lib/` の直下の `*.md`・`*.json`・
 役の指示書（`workflows/*/commands/` の下の全部・`lib/agents/*.md`・`bin/_lib/borrow/unattended.md`）・グラフの YAML の `description`・`prompt`・`systemPrompt`・`message` の値・
-`lib/` の直下と `workflows/*/scripts/` の Python の文字列（docstring とコメントは開発者の字なので見ない）。
+`lib/` の直下・`workflows/*/scripts/`・境 `workflows/.shared/` の Python の文字列（docstring とコメントは開発者の字なので見ない）。
 旧い語は部分一致で探す。外す規則は `EXCEPT` の 1 か所。
 """
 import ast
@@ -36,7 +36,20 @@ EXCEPT = {
 }
 # 4. lib・script の文字列のうち、字でなく値の物（前の run が書いたファイルから読み戻す語など）。{(パス, 文字列の 1 行): 訳}。
 # どの行も木の文字列に当たる（当たらない行は test_keep_rows_hit_the_tree が赤にする）。
-KEEP: dict[tuple[str, str], str] = {}
+_SECTION_NUMBER = "依頼が設計書のセクションを番号で名指す書き方（「`<path>` 3 節」）。依頼の字を読むので変えない"
+KEEP: dict[tuple[str, str], str] = {
+    ("lib/design.py", r'r"`([^`\s#]+\.[A-Za-z0-9]+)`\s*(?:の\s*)?(?:§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節)"'): _SECTION_NUMBER,
+    ("lib/design.py", r'r"(?:\s+|\s*の\s*)(?:§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節)"'): _SECTION_NUMBER,
+    ("lib/design.py", r'r"§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節"'): _SECTION_NUMBER,
+    ("lib/design.py", " 節"): _SECTION_NUMBER + "（名指しの `<path> <N> 節` の形を組む）",
+    ("lib/design.py", '"結び付けられる形の設計書の名指しが依頼に無い（リンク・`<path>#<見出し>`・`<path>` N 節・<名前> N 節 の形だけを数える）"'):
+        _SECTION_NUMBER + "（数える形を依頼の字のまま並べる）",
+    ("lib/design.py", r"(?:\.?(?:\s|$)|節)"): _SECTION_NUMBER + "（見出しの頭の番号を引く）",
+    ("lib/design.py", r'r"(.+) (\S+) 節"'): _SECTION_NUMBER + "（名指しの `<path> <N> 節` の形を解く）",
+    ("lib/design.py", r"\s*節"): _SECTION_NUMBER + "（返答が名指しを挙げたかを照らす）",
+    ("lib/report.py", '"盤面"'): "直しが対象に漏らした works の内側の語を探す字。旧い語も漏れうる",
+    ("lib/report.py", '"関所"'): "直しが対象に漏らした works の内側の語を探す字。旧い語も漏れうる",
+}
 
 
 def scope(root):
@@ -54,7 +67,7 @@ def scope(root):
         yield path.relative_to(root).as_posix(), "md"
     for path in sorted(root.glob("workflows/*/*.yaml")):
         yield path.relative_to(root).as_posix(), "yaml"
-    for path in sorted([*root.glob("lib/*.py"), *root.glob("workflows/*/scripts/*.py")]):
+    for path in sorted([*root.glob("lib/*.py"), *root.glob("workflows/*/scripts/*.py"), *root.glob("workflows/.shared/*.py")]):
         yield path.relative_to(root).as_posix(), "py"
 
 
@@ -146,9 +159,9 @@ class WordsTest(unittest.TestCase):
 
     def test_keep_row_skips_its_literal_and_a_stale_row_is_red(self):
         row = ("lib/a.py", '"関所"')
-        with mock.patch.dict(KEEP, {row: "前の run の記録から読み戻す語"}), tree({"lib/a.py": 'X = "関所"\n'}) as root:
+        with mock.patch.dict(KEEP, {row: "前の run の記録から読み戻す語"}, clear=True), tree({"lib/a.py": 'X = "関所"\n'}) as root:
             self.assertEqual((problems(root), stale_keep(root)), ([], []))
-        with mock.patch.dict(KEEP, {row: "前の run の記録から読み戻す語"}), tree({"lib/a.py": 'X = "承認ノード"\n'}) as root:
+        with mock.patch.dict(KEEP, {row: "前の run の記録から読み戻す語"}, clear=True), tree({"lib/a.py": 'X = "承認ノード"\n'}) as root:
             self.assertEqual(stale_keep(root), ["KEEP: lib/a.py の '\"関所\"' が木の文字列に当たらない"])
 
     def red(self, files, where, word):

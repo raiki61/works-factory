@@ -80,15 +80,15 @@ RESOLVED = "resolved"
 HANDLED = ("fixed", "disputed")
 FACE_KEYS = ("key", "kind", "where", "why")
 
-REVISE_ASK = ("事前審査（別の目）が、お前の修正案に下の block（直しへ進めない穴）を挙げた。block ごとに、案を直したなら handled に fixed、"
+REVISE_ASK = ("事前審査（別の目）が、修正案に下の block（直しへ進めない穴）を挙げた。block ごとに、案を直したなら handled に fixed、"
               "how に直した所を、直さずに異を唱えるなら handled に disputed、how に根拠を、block_answers に 1 行ずつ書け（key は下の key を"
               "一字も変えずに写す）。そのうえで開いた項目の行を plan に返せ（前の案と同じ型の行。閉じた項目は書くな。機械が前の往復の行を"
               "差し込む。保留の項目は直す時だけ書け）。suggest の穴は採っても採らなくてもよい。直した案は新しい会話の事前審査に掛かり、"
-              "同じ block が残るか、開いた block の数が前の往復より減らなければ直しへ進まずに人の関所で止まる。")
+              "同じ block が残るか、開いた block の数が前の往復より減らなければ直しへ進まずに承認ノードで止まる。")
 REREVIEW_ASK = ("下は前の往復で挙がった block と、修正案の役の答え（fixed＝直した・disputed＝異を唱えた）。今の案を読み、前の block の key "
                 "ごとに、穴が消えたなら resolved にその key を入れ、残っていれば同じ key のまま faces に severity block で挙げ直せ（同じ穴に"
                 "別の key を付けない。key は一字も変えずに写す）。新しい穴は新しい key で挙げよ。前の block が 1 つでも block のまま残ると、"
-                "案は直しへ進まず人の関所で止まる。")
+                "案は直しへ進まず承認ノードで止まる。")
 ORIGIN_ASK = ("今の往復で新しく挙げた block（前のどの往復の block の key とも違う物）が在れば、origins に 1 件ずつ {key, origin} で"
               "出自を書け。origin は missed（前に審査した案の行に既に在ったのに、前の審査が見落とした穴）・introduced（直しが"
               "持ち込んだ穴）・rephrased（前の block の言い換え。of に言い換えた前の block の key を書き、その key は resolved に"
@@ -113,7 +113,7 @@ LINE_PASS = ("  - {k} 往復目: block {keys}・修正案の役の答え fixed {
 CLOSED_ASK = "下の項目は前の往復で事前審査が block を挙げずに閉じた。plan に書くな（機械が前の往復の行のまま差し込む）:"
 NOTES_HEAD = ("参考: 事前審査が挙げた suggest の穴（block でない。答えなくてよく、採っても採らなくてもよい。項目を開き直さない。"
               "修正の段にも事前審査の返答として渡る）:")
-HELD_NOTE = "下の項目は同じ block が続いたので保留にした（直さなくてよい。書かなければ機械が差し込む。人の関所が読む）:"
+HELD_NOTE = "下の項目は同じ block が続いたので保留にした（直さなくてよい。書かなければ機械が差し込む。承認ノードが読む）:"
 ITEMS_WHY = "固まった項目: {closed}。保留の項目: {held}。開いたままの項目: {open}"
 LINE_ITEMS = "    項目: 閉じた {closed}・開いた {open}・保留 {held}・相乗りの審査の block {synergy}"
 WORDS = {CLEAN: "block が消えた", PERSISTED: "同じ block が続いた", UNSETTLED: "開いた block が残ったまま止めた", AGAIN: "途中"}

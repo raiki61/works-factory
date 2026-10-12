@@ -1,13 +1,13 @@
 name: works-factory-line
 description: |
-  works-factory の線。修正依頼か差分を受け、8 つのブロック（judge・plan・plan-review・fix・test-gate・eyes・report・merge）を
-  include: で並べ、人の関所・計画の往復・一度だけの差し込み（案の直しと 2 度目の修正・再審）・深さの上げ直し・無人の方針を持ち、
-  どの道でも報告を出す。順と関所は docs/design.md の「線」、ブロックとの受け渡しは同じ文書の「ブロックの返りの約束」。
-  YAML は配線だけで、決めは線の script（workflows/line/scripts/）、確かめは lib/ が持つ。
-  ブロックに渡す飛ばされうる値は、返しの節（埋め P2: answer-*・collect）が `{from, if_skipped: null}` で受けて明示の値で返し直す。
-  ブロックと計画の往復の返りは受け皿の節（<include の id>-out・plan-rounds-out・plan-rounds-review-out）が受け直し、collect はそこからだけ読む
-  （受ける節が落ちても受け皿が飛ばされるだけで、報告まで届く）。
-  返りは線の節 result（結末の語と、結末が fixed・fixed_needs_check の時に真の fixed）。
+  works-factory のメイングラフ。修正依頼か差分を受け、8 つのサブグラフ（judge・plan・plan-review・fix・test-gate・eyes・report・merge）を
+  include: で並べ、承認ノード・計画の往復・一度だけの include（案の直しと 2 度目の修正・再審）・深さの上げ直し・無人の方針を持ち、
+  どの道でも報告を出す。順と承認ノードは docs/design.md の「メイングラフ」、サブグラフとの受け渡しは同じ文書の「サブグラフの出力の約束」。
+  YAML は配線だけで、決めはメイングラフの script（workflows/line/scripts/）、確かめは lib/ が持つ。
+  サブグラフに渡す飛ばされうる値は、返しのノード（埋め P2: answer-*・collect）が `{from, if_skipped: null}` で受けて明示の値で返し直す。
+  サブグラフと計画の往復の出力は受け皿のノード（<include の id>-out・plan-rounds-out・plan-rounds-review-out）が受け直し、collect はそこからだけ読む
+  （受けるノードが落ちても受け皿が飛ばされるだけで、報告まで届く）。
+  出力はメイングラフのノード result（結末の語と、結末が fixed・fixed_needs_check の時に真の fixed）。
 
 interactive: true
 
@@ -29,16 +29,16 @@ inputs:
     description: テストのコマンド（対象の根で走らせる 1 行）。test-gate が読む
   tdd_suite:
     default: ""
-    description: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら修正の段の TDD の輪を飛ばす
+    description: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら修正の段の TDD のループを飛ばす
   final_gate:
     default: ""
-    description: 最後の関所の開き方。always（空の既定）・when_needed・protected_only（lib/gatepolicy.py）。守りのパスの当たりと申し出はどれでも開く
+    description: 最後の承認ノードの開き方。always（空の既定）・when_needed・protected_only（lib/gatepolicy.py）。守りのパスの当たりと申し出はどれでも開く
   unattended:
     default: ""
-    description: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは関所に載せず、関所を開くはずの時は開かずに止める（needs-human）
+    description: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは承認ノードに載せず、承認ノードを開くはずの時は開かずに止める（needs-human）
   design_only:
     default: ""
-    description: 設計だけの run か（空か true）。true は修正前の関所を必ず開く
+    description: 設計だけの run か（空か true）。true は修正前の承認ノードを必ず開く
   thickness:
     default: ""
     description: 手厚さ（深さ）。空・自動は機械が単位ごとに決める。軽量・標準は全部の単位をその深さに固定する。重厚は受けない
@@ -56,7 +56,7 @@ inputs:
     description: 固定材料のフォルダ（前の run の修正の前の写し）。その道はまだ無く、空でなければ start が止める
   lang:
     default: ""
-    description: 報告と、関所・報告に載る役の文の言語。空は依頼文の言語
+    description: 報告と、承認ノード・報告に載る役の文の言語。空は依頼文の言語
 
 returns: result
 outcome_field: fixed

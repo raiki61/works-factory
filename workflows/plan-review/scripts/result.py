@@ -18,7 +18,7 @@ REVIEW_FILE = "review.json"
 DESIGN_FILE = "design.json"
 PASSES_FILE = "gate-passes.json"
 AXES = ("obvious", "world", "clean", "not_overkill")
-FAILED_HEAD = "返す節が落ちた: "
+FAILED_HEAD = "出力ノードが落ちた: "
 
 
 def collected() -> tuple:

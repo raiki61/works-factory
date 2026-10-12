@@ -74,7 +74,7 @@ def prep(board_dir, repo, values: dict, *, reject_file: str = "", lang: str = ""
     b = board_dir
     todo = conflict.unruled(b)
     if not todo:
-        raise ValueError("裁く申し出が無い（conflict-check の go が偽なのに裁定の輪を回した）")
+        raise ValueError("裁く申し出が無い（conflict-check の go が偽なのに裁定のループを回した）")
     ledger = pathlib.Path(b) / LEDGER
     n = ((_read_json(ledger) or {}).get("iterations") or 0) + 1
     fixboard.snapshot(board_dir, TREE, pathlib.Path(repo))

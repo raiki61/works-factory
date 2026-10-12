@@ -449,7 +449,7 @@ class ShapeCase(unittest.TestCase):
         for path in sorted((BLOCK / "commands").glob("*.md")):
             text = path.read_text(encoding="utf-8")
             with self.subTest(path.name):
-                self.assertTrue(text.rstrip().endswith("$prep.output.lang_line\n\n返すのは、この節の返りの型（JSON Schema）に合う JSON だけ。"))
+                self.assertTrue(text.rstrip().endswith("$prep.output.lang_line\n\n返すのは、このノードの出力の型（JSON Schema）に合う JSON だけ。"))
 
     def test_r3_names_the_target_repo_review_md(self):
         self.assertIn("（対象リポジトリ側: $prep.output.repo_review_md）",
@@ -509,10 +509,10 @@ class ShapeCase(unittest.TestCase):
         self.assertIn("前の周と同じ能力なら同じ文で書け", (BLOCK / "commands" / "r4-scope.md").read_text(encoding="utf-8"))
 
     def test_concept_map_is_pasted_after_the_concept_head(self):
-        """concepthome の R1_HEAD・R3_HEAD は『考えの住処の地図』の節を「機械がこの節の後ろに貼った」と読ませる"""
+        """concepthome の R1_HEAD・R3_HEAD は『考えの住処の地図』のセクションを「機械がこのセクションの後ろに貼った」と読ませる"""
         for name, field, head in (("r1-minimality", "r1_head", concepthome.R1_HEAD), ("r3-coherence", "r3_head", concepthome.R3_HEAD)):
             with self.subTest(name):
-                self.assertIn("機械がこの節の後ろに貼った", head)
+                self.assertIn("機械がこのセクションの後ろに貼った", head)
                 text = (BLOCK / "commands" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertLess(text.index(f"$prep.output.{field}"), text.index("$prep.output.concept_map"))
 
@@ -839,7 +839,7 @@ class ScriptCase(unittest.TestCase):
         self.inputs["x_scalars"] = json.dumps({"x_endpoints": 2})
         got = self.run_script("prep")
         self.assertEqual(pathlib.Path(got["repo_review_md"]).resolve(), (self.repo / "REVIEW.md").resolve())
-        for want in ("古い入口は消してよい", "入口は 2 つあった", "### 対象のリポジトリの地図", "### 依頼が名指した設計書の節",
+        for want in ("古い入口は消してよい", "入口は 2 つあった", "### 対象のリポジトリの地図", "### 依頼が名指した設計書のセクション",
                      "依頼が名指したが引けなかった: docs/d.md 2 節"):
             self.assertIn(want, got["premises_text"])
         self.assertIn("English", got["lang_line"])

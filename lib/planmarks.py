@@ -137,15 +137,15 @@ STRUCTURE_REJECT = ("修正案の項目の works の欄 structure に欠けか�
                     "避け方に従うか外れの訳を書く。世界の解の答えの要る行は、行ごとにどれかの項目が定石に従うか外れの訳を"
                     "書く）。下の行を直した案を丸ごと出し直せ:")
 ANSWER_KEYS = ("row", "prescription", "world")   # 欄 structure の行が答える先の鍵（ちょうど 1 つ）
-STRUCTURE_HEAD = ("structure＝構造の目が汚れると見た行（頭の『構造の目の行』の節の単位）への答えの並び。その単位を unit_keys に持つ"
+STRUCTURE_HEAD = ("structure＝構造の目が汚れると見た行（頭の『構造の目の行』のセクションの単位）への答えの並び。その単位を unit_keys に持つ"
                   "項目は、行ごとに {row: <単位の id（行の頭の字のまま）>, follows: true}（避け方 chosen に従う）か "
                   f"{{row: <単位の id>, deviation: <従わない訳。{MIN_DEVIATION} 字以上>}} を書け（欠けは受け付けが拒む）。"
-                  "判定の処方（頭の『判定の処方』の節）から外れる項目は {prescription: <単位の key>, deviation: <訳>} を、"
+                  "判定の処方（頭の『判定の処方』のセクション）から外れる項目は {prescription: <単位の key>, deviation: <訳>} を、"
                   "処方に従うなら {prescription: <単位の key>, follows: true} を並べてよい。"
-                  "頭の『世界の解の行』の節に当たる所（答えの要る行）が在れば、答えの要る行ごとに、どれかの項目が "
+                  "頭の『世界の解の行』のセクションに当たる所（答えの要る行）が在れば、答えの要る行ごとに、どれかの項目が "
                   "{world: <類の id>, follows: true}（定石に従う）か {world: <類の id>, deviation: <従わない訳。"
                   f"{MIN_DEVIATION} 字以上で、出どころ（URL・<パス>:<行>・決定の記録のパス）を添える>}} を書け。どの項目も答えていない"
-                  "答えの要る行は受け付けが拒む。依頼そのものを出どころにした外れは修正前の関所で人に回る。"
+                  "答えの要る行は受け付けが拒む。依頼そのものを出どころにした外れは修正前の承認ノードで人に回る。"
                   "汚れる行も答えの要る世界の解の行も無い項目は空の並びか書かない")
 REJECT = ("修正案の項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope）か adds の name に欠けか誤りが在る。"
           "下の行を直した案を丸ごと出し直せ:")
@@ -678,7 +678,7 @@ def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
                 out.append(f"plan[{i}].adds[{j}].name（{name}）: kind が {add['kind']} の name はファイルの名・パスでなく識別子"
                            "（足す関数・欄の名。例 handle・Receiver.handle・app.receivers.handle）で書け。置くファイルのパスは "
                            "canonical に書け（新しいモジュールは canonical を『<パス>.py（新設。理由）』と書けば、そのモジュールも宣言した"
-                           "名前になる。TDD の輪は宣言した名前を名前・import の失敗の無い名前と比べ、修正の受け付けは name を差分の足した行で探す）")
+                           "名前になる。TDD のループは宣言した名前を名前・import の失敗の無い名前と比べ、修正の受け付けは name を差分の足した行で探す）")
         rf = it.get("refactor")
         if isinstance(rf, dict) and rf.get("declared") is True:
             rwhy = rf.get("why")
@@ -947,7 +947,7 @@ def approved_items(b) -> list[dict] | None:
     if fields is None or plan is None:
         return None
     if len(fields) != len(plan):
-        raise FieldsBroken(f"修正案の項目の数 {len(plan)} と盤面の控え {FIELDS_FILE} の欄の数 {len(fields)} が違う"
+        raise FieldsBroken(f"修正案の項目の数 {len(plan)} と共有ボードの控え {FIELDS_FILE} の欄の数 {len(fields)} が違う"
                            "（同じ周の受け付けが同じ並びで書く物）")
     out = []
     for n, (it, f) in enumerate(zip(plan, fields), 1):
@@ -985,9 +985,9 @@ def _frozen_doc(b) -> dict | None:
     try:
         raw = p.read_bytes()
     except OSError as e:
-        raise FieldsBroken(f"盤面の控え {p}（{FIELDS_FILE}）が読めない。周 {b.round} の {SAVED_OP} の印が在る: {e}") from None
+        raise FieldsBroken(f"共有ボードの控え {p}（{FIELDS_FILE}）が読めない。周 {b.round} の {SAVED_OP} の印が在る: {e}") from None
     if hashlib.sha256(raw).hexdigest() != mark.get("sha256"):
-        raise FieldsBroken(f"盤面の控え {p}（{FIELDS_FILE}）のバイトの sha256 が周 {b.round} の {SAVED_OP} の印と違う"
+        raise FieldsBroken(f"共有ボードの控え {p}（{FIELDS_FILE}）のバイトの sha256 が周 {b.round} の {SAVED_OP} の印と違う"
                            "（受け付けの後に書き換えた）")
     return _doc(b)
 
@@ -1004,7 +1004,7 @@ def amended(b) -> dict[int, dict]:
     except (AttributeError, TypeError, ValueError):
         out = None
     if out is None or not all(isinstance(c, dict) for c in out.values()):
-        raise FieldsBroken(f"盤面の控え {FIELDS_FILE} の {AMENDED_KEY} の形が違う（{{番号: 核の欄}} でない）")
+        raise FieldsBroken(f"共有ボードの控え {FIELDS_FILE} の {AMENDED_KEY} の形が違う（{{番号: 核の欄}} でない）")
     return out
 
 
@@ -1018,7 +1018,7 @@ def plan_items(b) -> list | None:
     out = copy.deepcopy(plan)
     for n, core in amended(b).items():
         if not 1 <= n <= len(out):
-            raise FieldsBroken(f"盤面の控え {FIELDS_FILE} の {AMENDED_KEY} の項目 {n} が修正案の項目（{len(out)} 個）の外")
+            raise FieldsBroken(f"共有ボードの控え {FIELDS_FILE} の {AMENDED_KEY} の項目 {n} が修正案の項目（{len(out)} 個）の外")
         base = out[n - 1] if isinstance(out[n - 1], dict) else {}
         out[n - 1] = {**base, **copy.deepcopy(core)}
     return out

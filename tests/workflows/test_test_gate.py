@@ -1,6 +1,6 @@
 """ブロック test-gate（workflows/test-gate/）の YAML の形と、script を子のプロセスで走らせる振る舞いと、筋書きを Archon で回す試験。
 
-- YAML: 工程の名・入力・返す節・返す節の output_format（docs/design.md の「test-gate の返り」の欄ちょうど）・任せ先の CI の役の節の形
+- YAML: 工程の名・入力・返す節・返す節の output_format（docs/design.md の「test-gate の出力」の欄ちょうど）・任せ先の CI の役の節の形
   （今の works の blk-ci.yaml の値）・輪の上限と受け付けの諦める回数・script の INPUTS_<名> と with: の鍵・読むだけの節
 - script（今の works の test_blk_tests_delta.py の TestTestsModes・test_blk_ci.py の ScriptCase と同じ形。Archon が渡す環境
   INPUTS_*・ARTIFACTS_DIR・WORKFLOW_ID を与え、tests/e2e/target-seed/ の写しを対象にする）: 止められた run・JUnit の報告の後始末・
@@ -829,7 +829,7 @@ class ResultScriptCase(ScriptCase):
         other_run = json.dumps({"type": "archon_artifact", "run_id": "other-run", "path": "start/record.json"})
         cases = {
             "INPUTS_START が JSON でない": {"start": "{"},
-            "ほかの run の指し札": {"start": other_run},
+            "ほかの run のポインタ": {"start": other_run},
             "INPUTS_BASELINE の先が無い": {"baseline": json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "nope.json"})},
             "壊れた元の結末のファイル": {"baseline": json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "broken.json"})},
             "形が違う": {"mode": "middle"},

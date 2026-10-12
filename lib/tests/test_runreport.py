@@ -112,7 +112,7 @@ class BuildCase(Base):
         _, text, decided = self.build(gates=gates)
         self.assertEqual(decided[0], "stopped_by_request")
         self.assertIn(report.OUTCOME_WORDS["stopped_by_request"], text)
-        self.assertIn("関所 gate-final: stop（request: 止め札）", text)
+        self.assertIn("承認ノード gate-final: stop（request: 止め札）", text)
 
 
 class TddCase(Base):
@@ -232,7 +232,7 @@ class TranscriptCase(Base):
         _, text, decided = self.build(transcript=facts)
         self.assertEqual(decided[0], "interrupted")
         self.assertIn("- 費用の合計: $1.0000（途中。", text)
-        self.assertIn(f"{report.INTERRUPTED_HEAD}: 節 eyes__r1 が落ちた（誤り: 目が落ちた）", text)
+        self.assertIn(f"{report.INTERRUPTED_HEAD}: ノード eyes__r1 が落ちた（誤り: 目が落ちた）", text)
         self.assertIn(f"{report.RETRIED_HEAD}: fix__write（落ちた回 1。最後の誤り: （誤りの文が無い））", text)
         self.assertIn("費用の欄が無い行 1 件", text)
         self.assertIn("- judge__diagnose: sonnet", self.section(text, report.MODEL_HEADING))
@@ -312,12 +312,12 @@ class DecisionsCase(Base):
         self.put("plan-review/gate-passes.json", [{"item": "小さい直し", "why": "自明"}])
         _, text, _ = self.build(fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "review": review}}))
         body = self.section(text, report.DECISIONS_HEADING)
-        self.assertIn("修正前の関所が聞かずに通した行（plan-review）: 1 件", body)
+        self.assertIn("修正前の承認ノードが聞かずに通した行（plan-review）: 1 件", body)
         self.assertIn("小さい直し", body)
 
     def test_gate_passes_missing_or_broken_is_one_line(self):
-        for name, returns in (("返りが無い", fixed_run(**{"plan-review": None})),
-                              ("事前審査の指し札が無い", fixed_run()),
+        for name, returns in (("出力が無い", fixed_run(**{"plan-review": None})),
+                              ("事前審査のポインタが無い", fixed_run()),
                               ("が読めない", fixed_run(**{"plan-review": {"review": str(self.dir / "nowhere" / "review.json")}}))):
             with self.subTest(name):
                 _, text, _ = self.build(returns)
@@ -466,7 +466,7 @@ class GlossaryCase(unittest.TestCase):
         self.assertEqual(runreport.glossary_section("何も無い", [], pack), "")
 
     def test_pack_terms_come_from_lib(self):
-        self.assertTrue(any(t["term"] == "関所" for t in runreport.pack_terms()))
+        self.assertTrue(any(t["term"] == "承認ノード" for t in runreport.pack_terms()))
 
 
 class AcceptCase(Base):
@@ -512,13 +512,13 @@ class CollectCase(Base):
 
     def test_taken_reply_becomes_ai_report(self):
         runreport.accept(AcceptCase.REPLY, AcceptCase.PASS, out_dir=self.out)
-        path = runreport.collect("- 関所: 開かなかった\n", out_dir=self.out, stamp="works-factory report / run x")
+        path = runreport.collect("- 承認ノード: 開かなかった\n", out_dir=self.out, stamp="works-factory report / run x")
         text = path.read_text(encoding="utf-8")
         self.assertTrue(text.startswith("works-factory report / run x\n\n直した。"))
         self.assertIn(report_roles.MACHINE_HEADING, text)
         self.assertIn(f"{report_roles.COLD_REJECTS_LINE} 0 回", text)
-        self.assertTrue(text.endswith("- 関所: 開かなかった\n"), "機械の事実の行は書き換えずに最後に付ける")
-        self.assertIn("- 関所:", text.split(report_roles.GLOSSARY_HEADING)[1], "機械の事実に現れる語も定義する")
+        self.assertTrue(text.endswith("- 承認ノード: 開かなかった\n"), "機械の事実の行は書き換えずに最後に付ける")
+        self.assertIn("- 承認ノード:", text.split(report_roles.GLOSSARY_HEADING)[1], "機械の事実に現れる語も定義する")
 
     def test_not_passed_mark_is_on_top(self):
         for _ in range(report_roles.GIVE_UP_AFTER):
@@ -547,9 +547,9 @@ class CollectCase(Base):
 
 class ColdBodyCase(unittest.TestCase):
     def test_head_and_glossary_only(self):
-        reply = json.dumps({"text": "関所で止めた。\n\n## 1. 人が決めること\n\n- A\n\n## 2. 経緯\n\n長い", "terms": []}, ensure_ascii=False)
+        reply = json.dumps({"text": "承認ノードで止めた。\n\n## 1. 人が決めること\n\n- A\n\n## 2. 経緯\n\n長い", "terms": []}, ensure_ascii=False)
         body = runreport.cold_body(reply)
-        self.assertIn("関所で止めた", body)
+        self.assertIn("承認ノードで止めた", body)
         self.assertNotIn("長い", body)
         self.assertIn(report_roles.GLOSSARY_HEADING, body)
 
@@ -718,7 +718,7 @@ class LedgerCase(Base):
         self.assertEqual(state["held"], [])
         self.assertEqual(state["answered"], [
             gatemarks._ledger_line(FORK, "・" + gatemarks.answer_note(answers[0])),
-            gatemarks._ledger_line(other, "・関所で continue を受けた")])
+            gatemarks._ledger_line(other, "・承認ノードで continue を受けた")])
         self.assertIn("人が手元で実行: `pytest -k mean`", state["answered"][0])
 
     def test_answer_hitting_two_questions_answers_neither(self):
@@ -743,7 +743,7 @@ class LedgerCase(Base):
     def test_answered_but_unit_gone_is_held(self):
         returns = self.returns(FORK, units=[], review=[gatemarks.ask_text(FORK)])
         state = runreport.ledger_state(returns, {"gate-before-fix": {"decision": "continue", "text": ""}}, {"run_id": RUN})
-        self.assertEqual(state["held"], [(None, f"関所で答えたが直す単位に入れられなかった: {FORK['key']}・{FORK_UNIT}（理由: 今の周の判定に無い）")])
+        self.assertEqual(state["held"], [(None, f"承認ノードで答えたが直す単位に入れられなかった: {FORK['key']}・{FORK_UNIT}（理由: 今の周の判定に無い）")])
 
     def test_material_answer_lines(self):
         materials = {"ci": {"status": "awaiting_human"}, "lint": {"status": "not_run"}}
@@ -860,7 +860,7 @@ class LinesCase(Base):
 
     def test_entry_gate_words(self):
         _, text, _ = self.build(start={"run_id": RUN, "final_gate": "when_needed"})
-        self.assertIn("- 最後の関所: when_needed", self.section(text, report.ENTRY_HEADING))
+        self.assertIn("- 最後の承認ノード: when_needed", self.section(text, report.ENTRY_HEADING))
 
     def test_entry_lists_ran_and_skipped_stages_and_baseline(self):
         """入口の節に走った段・飛ばされた段・直す前のテストの色と赤の原因（元 report.py の入口の行）"""

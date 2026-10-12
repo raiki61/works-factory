@@ -1,13 +1,13 @@
-<!-- coldwrite:skip AI 向けの決まりの正本。語は docs/design.md の「語」の節で定義 -->
+<!-- coldwrite:skip AI 向けの決まりの正本。語は docs/design.md の「語」のセクションで定義 -->
 # AGENTS.md（works-factory の AI 向けの決まり）
 
-works-factory は、修正依頼を受けて確かめ済みの変更と報告を返す工場。Archon（AI の工程を YAML で書いて回す道具）の上で動く。目的と範囲は `MISSION.md`、設計は `docs/design.md`、持ち主の決めの正本は `docs/owner-decisions.md`。
+works-factory は、修正依頼を受けて確かめ済みの変更と報告を返す工場。Archon（AI の処理をグラフにして YAML で書いて回す道具）の上で動く。目的と範囲は `MISSION.md`、設計は `docs/design.md`、持ち主の決めの正本は `docs/owner-decisions.md`。
 
 - コードを書く前と審査の前に、この文書と、触るフォルダとその上の階層の `AGENTS.md` を読む。審査で指摘する時は決まりの番号（`E1` など）を引く。書いてない好みは指摘しない。
 - 「機械」の行は、その決まりを守らせる試験。今は予定（土台の計画 `docs/plans/2026-10-11-foundation.md` で作る）。試験で縛れない決まりは「人が見る」と書く。
 - `CLAUDE.md` を置かない。Claude Code は `CLAUDE.md` が在ると `AGENTS.md` を読まない（持ち主の決め `agents-md-per-level`）。
 - 文書は日本語。
-- 今の works（このリポジトリの前の形。`raiki61/claude-plugins` の `works/`、移す元の版は `pack.json` の `works.commit`）を読めば分かる事は、ここに書き直さず元を読む。役の指示書の中身・確かめの部品の作り・その試験・能力の訳がそれに当たる。移す時は元のファイル名を残す（E18）。持ち主の決め `read-original-works`。
+- 今の works（このリポジトリの前の形。`raiki61/claude-plugins` の `works/`、移す元の版は `pack.json` の `works.commit`）を読めば分かる事は、ここに書き直さず元を読む。確かめの部品の作り・その試験・能力の訳がそれに当たる。移す時は元のファイル名を残す（E18）。持ち主の決め `read-original-works`。役の指示書の中身はこれに当たらない。役の指示書は初見の読み手で詰まりが無くなるまで書き直し、元の字は歴史として読むだけにする（持ち主の決め `prompts-coldread`）。
 
 ## 決まりの置き場
 
@@ -42,13 +42,13 @@ works-factory/
 │   └── _lib/                    入口の中身。Archon の源の取り寄せと起こし方・起動の認証と隔離・プラグインの選び（E15）
 ├── workflows/                   グラフ（エッセンス。AGENTS.md がグラフの決まり）。置かずに --workflow-source で Archon に読ませる（E1）
 │   ├── line/
-│   │   ├── works-factory-line.yaml   線。ブロックを並べ、人の関所を置く
-│   │   ├── scripts/                  線の script の節。lib/ と境の口を呼ぶだけ
-│   │   └── fixtures/                 線の筋書きの試験
-│   ├── <ブロック>/              judge・plan・plan-review・fix・test-gate・eyes・report・merge の 8 つ
-│   │   ├── works-factory-<ブロック>.yaml   ブロックの工程（工程の名もこれ。E9）
+│   │   ├── works-factory-line.yaml   メイングラフ。サブグラフを並べ、承認ノードを置く
+│   │   ├── scripts/                  メイングラフの script ノード。lib/ と境の口を呼ぶだけ
+│   │   └── fixtures/                 メイングラフの筋書きの試験
+│   ├── <サブグラフ>/            judge・plan・plan-review・fix・test-gate・eyes・report・merge の 8 つ
+│   │   ├── works-factory-<サブグラフ>.yaml   サブグラフの YAML（グラフの名もこれ。E9）
 │   │   ├── commands/            役の指示書の本文
-│   │   ├── scripts/             script の節。lib/ と境の口を呼ぶだけ
+│   │   ├── scripts/             script ノード。lib/ と境の口を呼ぶだけ
 │   │   └── fixtures/            Archon の筋書きの試験
 │   └── .shared/                 境。Archon との出入りの口 1 つと埋め（E2）
 ├── lib/                         助け手（AGENTS.md が E3）。Archon を知らない Python（E3）
@@ -58,10 +58,10 @@ works-factory/
 │   ├── layers/                  層の決まりの試験（この文書の「機械」の行）
 │   ├── bin/                     入口の試験
 │   ├── shared/                  境の試験
-│   ├── workflows/               ブロックの YAML の形と筋書きの試験（test_<ブロック>.py。筋書きは tests/archon.py の使い捨ての木で回す）
+│   ├── workflows/               サブグラフの YAML の形と筋書きの試験（test_<サブグラフ>.py。筋書きは tests/archon.py の使い捨ての木で回す）
 │   └── e2e/                     小さな対象のリポジトリの種（target-seed/。__init__.py を置かない）と、通しの試験
 ├── docs/
-│   ├── design.md                設計（線・ブロック・能力の棚卸し・未決）
+│   ├── design.md                設計（メイングラフ・サブグラフ・能力の棚卸し・未決）
 │   ├── owner-decisions.md       持ち主の決めの正本
 │   ├── asf-notes.md             ASF から採った型
 │   ├── polyfills.md      埋めの名簿
@@ -80,18 +80,18 @@ works-factory/
 ```
 
 - 試験を置くフォルダには全部 `__init__.py` を置く（無いと Python 3.12 の unittest は黙って見つけない）。試験は根から 1 つの命令で走る（命令と外のパッケージの入れ方は `tests/AGENTS.md`）。
-- 機械: `tests/layers/test_layout.py`（根の直下のファイルとフォルダが上の木に在る物だけ。木の根の直下の名は 1 度だけ。`workflows/` の直下が `line/`・8 つのブロック・`.shared/` だけ。各ブロックが `works-factory-<ブロック>.yaml` を持つ。試験のフォルダに `__init__.py` が在る）。
+- 機械: `tests/layers/test_layout.py`（根の直下のファイルとフォルダが上の木に在る物だけ。木の根の直下の名は 1 度だけ。`workflows/` の直下が `line/`・8 つのサブグラフ・`.shared/` だけ。各サブグラフが `works-factory-<サブグラフ>.yaml` を持つ。試験のフォルダに `__init__.py` が在る）。
 
 ## E8 ASF は横に並べて見るだけ
 
-- ASF と Archon 同梱の工程を `include:`・`workflow:` で呼ばない。ASF のコードを自分の層（`bin/`・`workflows/`・`lib/`）に写さない。採るのは型（なぜその形か）だけ。
-- ASF の取り付け命令が置いた物（`factory/`・`harness/`・`FACTORY.md`・`FACTORY_RULES.md`・`.factory/`）は、ASF がこのリポジトリを作るための物で、4 つの層の外に置いたまま手を加えない。ASF の共有の工程への決まりは `factory/WORKFLOW_POLICY.md`。持ち主の決め `asf-installer-in-repo`。
-- ASF の型を採ったら、`docs/asf-notes.md` に 1 行足す（ASF の commit・ファイル・採った先のブロック・違いと訳）。
+- ASF と Archon 同梱のグラフを `include:`・`workflow:` で呼ばない。ASF のコードを自分の層（`bin/`・`workflows/`・`lib/`）に写さない。採るのは型（なぜその形か）だけ。
+- ASF の取り付け命令が置いた物（`factory/`・`harness/`・`FACTORY.md`・`FACTORY_RULES.md`・`.factory/`）は、ASF がこのリポジトリを作るための物で、4 つの層の外に置いたまま手を加えない。ASF の共有のグラフへの決まりは `factory/WORKFLOW_POLICY.md`。持ち主の決め `asf-installer-in-repo`。
+- ASF の型を採ったら、`docs/asf-notes.md` に 1 行足す（ASF の commit・ファイル・採った先のサブグラフ・違いと訳）。
 - 機械: `tests/layers/test_no_asf.py`（`include:`・`workflow:` の値が `works-factory-` で始まる）。写していないことと名簿の行は人が見る。
 
-## E9 工程の名は archon- で始めない
+## E9 グラフの名は archon- で始めない
 
-- 工程の名は `works-factory-<フォルダの名>`。線は `works-factory-line`。ASF（`archon-*`）と並べて見比べても名前で選び分けられる。
+- グラフの名は `works-factory-<フォルダの名>`。メイングラフは `works-factory-line`。ASF（`archon-*`）と並べて見比べても名前で選び分けられる。
 - 機械: `tests/layers/test_names.py`（E18 と同じ試験）。
 
 ## E10 4 つの層の外に仕組みを足す前に、持ち主の決めを書く
@@ -123,7 +123,7 @@ works-factory/
 
 ## E18 取ってきた物と自分の物を名前で見分けられるようにする
 
-- 取ってきた物は元の名前と場所のまま置き、名前を変えない。ASF の物は `factory`・`FACTORY`・`harness`・`.factory`・`archon-` で始まる。ASF の工程は Archon の源の `.archon/workflows/sdlc/` に、自分の工程はこのリポジトリの `workflows/` に在り、混ぜて置かない。持ち主の決め `name-by-origin`。
-- 自分の物には、それらで始まる名前を付けない（ファイル・フォルダ・工程・型の名）。自分の工程は `works-factory-` で始める（E9）。
+- 取ってきた物は元の名前と場所のまま置き、名前を変えない。ASF の物は `factory`・`FACTORY`・`harness`・`.factory`・`archon-` で始まる。ASF のグラフは Archon の源の `.archon/workflows/sdlc/` に、自分のグラフはこのリポジトリの `workflows/` に在り、混ぜて置かない。持ち主の決め `name-by-origin`。
+- 自分の物には、それらで始まる名前を付けない（ファイル・フォルダ・グラフ・型の名）。自分のグラフは `works-factory-` で始める（E9）。
 - 今の works から持ってきた物（E15）は、元と同じファイル名で置く。元と見比べられるようにするため。どこから持ってきたかは commit に書く。
 - 機械: `tests/layers/test_names.py`（`bin/`・`workflows/`・`lib/`・`tests/`・`docs/` の下のパスの部分に、`factory`・`FACTORY`・`harness`・`.factory`・`archon-` で始まる物が無い）。ASF の物が「リポジトリの形」の木の場所の外に無いことは人が見る。

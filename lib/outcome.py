@@ -327,7 +327,7 @@ def absorbed_rows(returns: dict, absorbed) -> list:
     """落ちたが線が受け止めて先へ進んだ節の残りの行（元 report.absorbed_rows。その段が見るはずだった物は確かめていない）。返りの
     在るブロックの中の落ちは、そのブロックが返りで言うので重ねない（元の seen）"""
     return [{"where": f"{report.ABSORBED_WHERE} {a.get('node')}",
-             "text": f"{a.get('node')} が落ちた（誤り: {report._first_error(a)}）——線は受け止めて先へ進んだが、その段の結果は確かめていない（再実行の要あり）"}
+             "text": f"{a.get('node')} が落ちた（誤り: {report._first_error(a)}）——メイングラフは受け止めて先へ進んだが、その段の結果は確かめていない（再実行の要あり）"}
             for a in absorbed or [] if isinstance(a, dict) and not isinstance(returns.get(_include(a.get("node"))), dict)]
 
 
@@ -365,7 +365,7 @@ def unknown_answers(gates: dict) -> list:
     for gid in GATES:
         g = gates.get(gid)
         if isinstance(g, dict) and g.get("decision") not in (*PASS_WORDS, *STOP_WORDS):
-            out.append(f"関所 {gid} の知らない答えの語 {g.get('decision')!r}（通す語 {'・'.join(PASS_WORDS)}・止める語 {'・'.join(STOP_WORDS)}）")
+            out.append(f"承認ノード {gid} の知らない答えの語 {g.get('decision')!r}（通す語 {'・'.join(PASS_WORDS)}・止める語 {'・'.join(STOP_WORDS)}）")
     return out
 
 
