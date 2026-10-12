@@ -16,6 +16,7 @@
 import hashlib
 import os
 import pathlib
+import re
 import subprocess
 
 from answer import VERBS
@@ -82,10 +83,29 @@ def unknown_row(reason: str) -> str:
 
 
 def deleted_paths(text: str) -> list:
-    """git の差分の字のうち、ファイルを消す節（deleted file mode）のパス（現れた順。changemap.deleted_paths。元 works/dev/lib.sh:595-597 の
-    diff --diff-filter=D --name-only と同じ物を、封じた差分そのものから読む）"""
-    import changemap
-    return changemap.deleted_paths(text)
+    """git の差分の字のうち、ファイルを消す節（見出しに deleted file mode）のパス（現れた順・重ねない。元 works/dev/lib.sh:595-597 の
+    diff --diff-filter=D --name-only と同じ物を、封じた差分そのものから読む）。パスは '--- a/…' 行を正とし、中身の無いファイルの
+    削除のように '---' 行の無い節は 'diff --git' の見出しから引く（どちらも git の引用を changemap.unquote_git_path で解く）"""
+    from changemap import unquote_git_path
+    out, head, gone, path = [], None, False, None
+
+    def close():
+        name = path or head
+        if gone and name is not None and name not in out:
+            out.append(name)
+    for line in text.split("\n"):
+        if line.startswith("diff --git "):
+            close()
+            m = re.match(r'diff --git ("?)a/(.*?)\1 ("?)b/(.*?)\3$', line)
+            head = unquote_git_path(m.group(1) + m.group(2) + m.group(1)) if m else None
+            gone, path = False, None
+        elif line.startswith("deleted file mode"):
+            gone = True
+        elif line.startswith("--- ") and not line.startswith("--- /dev/null") and path is None:
+            got = unquote_git_path(line[4:].strip())
+            path = got[2:] if got.startswith("a/") else got
+    close()
+    return out
 
 
 def _answer_refusal(answer: dict) -> str:

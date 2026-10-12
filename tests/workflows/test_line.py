@@ -983,6 +983,7 @@ class AskFinalCase(unittest.TestCase):
     def test_always_is_the_default(self):
         got = self.ask(self.got())
         self.assertEqual((got["open"], got["go"], got["reasons"]), (True, True, []))
+        self.assertIn("承認ノードはいつも開く設定", got["text"].splitlines()[0])
 
     def test_protected_hits_and_conflicts_open_in_every_mode(self):
         for mode in ("when_needed", "protected_only"):

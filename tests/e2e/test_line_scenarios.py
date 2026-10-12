@@ -18,6 +18,11 @@ import yaml
 from tests import archon
 from tests.layers import scan
 
+if str(archon.ROOT / "lib") not in sys.path:
+    sys.path.append(str(archon.ROOT / "lib"))
+import fixbeside  # noqa: E402  （diff の隣の控えの名の持ち主）
+import fixboard  # noqa: E402
+
 SCENARIOS = (
     "standard", "start-refused", "no-fix", "policy-continue", "policy-stop", "plan-stalled", "plan-unsettled", "replan",
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
@@ -201,6 +206,17 @@ def rerun(trace: dict, node: str, artifacts: pathlib.Path, run_id: str) -> dict:
 LINE = archon.WORKFLOWS / "line" / "works-factory-line.yaml"
 
 
+def place_beside(artifacts: pathlib.Path, diff: dict) -> None:
+    """修正の段の diff のポインタ diff の隣に、何も残っていない段の控え（閉鎖の表・差分の審査の穴・受け付けの行・レンズの集め役・許した
+    テストの変更の訳。lib/fixbeside.py の FILES と fixboard の名）を置く。dry-run の置き場には無いので、走らせ直す試験が置く"""
+    folder = (artifacts / diff["path"]).parent
+    folder.mkdir(parents=True, exist_ok=True)
+    for name, doc in ((fixbeside.CLOSURE_FILE, {"rows": [], "claimed": []}), (fixbeside.DELTA_HOLES_FILE, {}),
+                      (fixboard.ACCEPT_TRACE_FILE, []), (fixboard.LENSES_FILE, {"collector": {"ok": True, "reason": ""}}),
+                      (fixboard.ALLOWED_TESTS_FILE, [])):
+        (folder / name).write_text(json.dumps(doc), encoding="utf-8")
+
+
 class ConflictGateTest(unittest.TestCase):
     """筋書き conflict-ask の最後の関所（L-W24・F426。部分 B2 の受け入れ）: 申し出は人に回した行（ask_human・諦めた fix_plan_item）
     だけを数え、裁定が直す裁定だけなら protected_only の関所は開かず、ask_human の行が 1 つ在れば開いて文にその行が出る。dry-run は
@@ -221,6 +237,8 @@ class ConflictGateTest(unittest.TestCase):
             path = pathlib.Path(tmp) / ptr["path"]
             path.parent.mkdir(parents=True)
             path.write_text(json.dumps({"items": rows}, ensure_ascii=False), encoding="utf-8")
+            for diff in bound(self.trace, "$fixed.output.diffs"):
+                place_beside(pathlib.Path(tmp), diff)
             return rerun(self.trace, "ask-final", pathlib.Path(tmp), ptr["run_id"])
 
     def test_unreadable_conflicts_open_and_are_named_in_the_scenario(self):
@@ -241,32 +259,32 @@ class ConflictGateTest(unittest.TestCase):
 
 
 class RefixHandoffTest(unittest.TestCase):
-    """部分 D2 の受け入れ（筋書き refix-handoff。L-W20・F427・R23）: 1 回目と 2 度目の修正の段の diff の隣の handoffs.json（修正役が
-    壊すと分かって通した理由）が在ると、開き方 when_needed でも最後の関所が開き、1 行目に件数、節に 1 件 1 行で出る。dry-run は置き場に
-    ファイルを書けない（ConflictGateTest と同じ訳）ので、筋書きでは開かずに読めない控えを名指すことを照らし、開くかは筋書きが
-    ask-final に結んだ値（fixed の diffs）のまま script を走らせ直して照らす"""
+    """部分 D2 の受け入れ（筋書き refix-handoff。L-W20・F427・R23）: 1 回目と 2 度目の修正の段の修正役が人に回した物（壊すと分かって
+    通した理由。fix の出力 handoffs）を fixed が合わせて渡すと、開き方 when_needed でも最後の関所が開き、1 行目に件数、節に 1 件 1 行で
+    出る。dry-run は置き場にファイルを書けない（ConflictGateTest と同じ訳）ので、筋書きでは読めない控えも開けた理由に並ぶ。受け入れた
+    壊れだけで開くかは、筋書きが ask-final に結んだ値のまま、両方の段の diff の隣に控えを置いて script を走らせ直して照らす"""
+
+    ROWS = "- u1: 壊すと分かって通した——段 1 で既定が変わる\n- u1: 壊すと分かって通した——段 2 で既定が変わる"
 
     @classmethod
     def setUpClass(cls):
         cls.trace = line_traces(("refix-handoff",))["refix-handoff"]
 
-    def test_scenario_names_the_unreadable_beside_files_without_opening(self):
+    def test_scenario_opens_with_both_stages_rows(self):
         got = json.loads(self.trace["ask-final"]["output"])
-        self.assertEqual((got["open"], got["go"], got["reasons"]), (False, True, []), got)
+        self.assertTrue(got["open"], got)
         self.assertEqual(len(bound(self.trace, "$fixed.output.diffs")), 2, "1 回目と 2 度目の修正の diff")
+        self.assertIn("修正役が人に回した物が在る（2 件）", got["text"].splitlines()[0])
+        self.assertIn(self.ROWS, got["text"])
 
-    def test_accepted_breaks_open_the_gate_and_are_listed(self):
+    def test_accepted_breaks_alone_open_the_gate(self):
         diffs = bound(self.trace, "$fixed.output.diffs")
         with tempfile.TemporaryDirectory() as tmp:
-            for n, ptr in enumerate(diffs, 1):
-                folder = (pathlib.Path(tmp) / ptr["path"]).parent
-                folder.mkdir(parents=True, exist_ok=True)
-                (folder / "handoffs.json").write_text(json.dumps([{"unit_key": "u1", "accepted": f"段 {n} で既定が変わる"}],
-                                                                 ensure_ascii=False), encoding="utf-8")
+            for ptr in diffs:
+                place_beside(pathlib.Path(tmp), ptr)
             got = rerun(self.trace, "ask-final", pathlib.Path(tmp), diffs[0]["run_id"])
-        self.assertTrue(got["open"], got)
-        self.assertIn("修正役が人に回した物が在る（2 件）", got["text"].splitlines()[0])
-        self.assertIn("- u1: 壊すと分かって通した——段 1 で既定が変わる\n- u1: 壊すと分かって通した——段 2 で既定が変わる", got["text"])
+        self.assertEqual((got["open"], got["reasons"]), (True, ["修正役が人に回した物が在る（2 件）"]), got)
+        self.assertIn(self.ROWS, got["text"])
 
 
 class NoFixRoundTest(unittest.TestCase):
@@ -382,7 +400,7 @@ class ReportOutcomeTest(unittest.TestCase):
 
     def test_line_stop_reaches_the_report_text(self):
         got = self.facts(self.traces["unattended-needs-human"])
-        self.assertIn("- 線の節の止め: ask-final が works:needs-human", got["text"])
+        self.assertIn("- メイングラフのノードの止め: ask-final が works:needs-human", got["text"])
 
 
 if __name__ == "__main__":

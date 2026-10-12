@@ -607,6 +607,9 @@ def prep(folder, worktree, raw: dict, resolve) -> dict:
     write_json(folder / ONLY_ITEMS_FILE, only)
     prior = pointed("prior_conflicts")
     if prior is not None:
+        import conflict
+        if not (prior.parent / conflict.FILE).is_file():
+            raise ValueError(f"入力 prior_conflicts の先 {prior} が無い（1 回目の段の申し出と裁定を写せない）")
         adopt_prior_pass(folder, prior.parent, only, worktree)
     base = pointed("baseline")
     if base is not None:

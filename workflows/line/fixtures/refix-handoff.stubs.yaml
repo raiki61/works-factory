@@ -1,12 +1,13 @@
 # 筋書き refix-handoff（部分 D2 の受け入れ）: 1 回目の修正と 2 度目の修正（refix-run）が走り、どちらの段の修正役も「壊すと分かって通した」
-# 理由（breaks.accepted）を diff の隣の handoffs.json に残す。開き方 when_needed で、ほかに開ける理由の無い run（緑・目は通る・申し出は無い）。
-# dry-run の置き場には隣のファイルが無い（dry-run.ts 614・798 行）ので、筋書きの中では最後の関所は開かず、読めない控えを文の訳に名指すだけ。
-# 受け入れた壊れが在ると最後の関所が開き文に行が出ることは、tests/e2e/test_line_scenarios.py の RefixHandoffTest が、この筋書きが
-# ask-final に結んだ値（fixed の diffs）のまま script を走らせ直し、両方の段の diff の隣に handoffs.json を置いて照らす。
+# 理由（breaks.accepted）を返す（fix の出力 handoffs。fixed が 2 つの段の分を合わせて ask-final に渡す）。開き方 when_needed で、ほかに
+# 開ける理由の無い run（緑・目は通る・申し出は無い）。最後の関所が開き、1 行目に件数が出る。dry-run の置き場には diff の隣の控えが無い
+# （dry-run.ts 614・798 行）ので読めない控えも開けた理由に並ぶ。受け入れた壊れだけで開くことは、tests/e2e/test_line_scenarios.py の
+# RefixHandoffTest が、この筋書きが ask-final に結んだ値のまま script を走らせ直し、両方の段の diff の隣に控えを置いて照らす。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json", "final_gate": "when_needed"}
-  reached: ["refix-run__fix", "fixed", "ask-final", "answer-final", "merge-apply__merge", "report__report"]
+  reached: ["refix-run__fix", "fixed", "ask-final", "gate-final", "answer-final", "merge-apply__merge", "report__report"]
+  resolved-text-contains: {"gate-final": "修正役が人に回した物が在る（2 件）"}
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}
@@ -24,7 +25,7 @@ fix__group-start: {"tdd": false, "units": 1, "reason": ""}
 fix-prep: {"prompt_file": "", "go": false, "iteration": 1}
 fix-accept: {"ok": true, "done": true, "reason": "", "reason_file": ""}
 fix__group-end: {"result_file": ""}
-fix__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": ""}], "groups": [{"group_id": "g1", "unit_ids": ["u1"], "returned": true, "reason": ""}], "conflicts": null, "replan_items": ["1"], "objection": "", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/diff.patch"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false, "premise_drift_note": ""}, "x_scalars": {}, "delta_review": {"rounds": 1, "pass": true}}
+fix__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": ""}], "groups": [{"group_id": "g1", "unit_ids": ["u1"], "returned": true, "reason": ""}], "conflicts": null, "replan_items": ["1"], "objection": "", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/diff.patch"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false, "premise_drift_note": ""}, "x_scalars": {}, "handoffs": ["u1: 壊すと分かって通した——段 1 で既定が変わる"], "mismatched": [], "delta_review": {"rounds": 1, "pass": true}}
 test-gate-final__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/final/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-final__result: {"mode": "final", "ok": true, "green": true, "red_cause": "", "baseline": null, "fingerprint": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-final/evidence.json"}}
 eyes__structure-after: {"after": {"type": "archon_artifact", "run_id": "fixture-run", "path": "eyes/structure-after.json"}, "status": "ok", "reason": ""}
@@ -44,4 +45,4 @@ replan-review__review: {"pass": true, "stalled": false, "review": {"type": "arch
 refix-run__route: {"group": true}
 refix-run__group-start: {"tdd": false, "units": 1, "reason": ""}
 refix-run__group-end: {"result_file": ""}
-refix-run__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": ""}], "groups": [{"group_id": "g1", "unit_ids": ["u1"], "returned": true, "reason": ""}], "conflicts": null, "replan_items": [], "objection": "", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "refix/diff.patch"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false, "premise_drift_note": ""}, "x_scalars": {}, "delta_review": {"rounds": 1, "pass": true}}
+refix-run__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": ""}], "groups": [{"group_id": "g1", "unit_ids": ["u1"], "returned": true, "reason": ""}], "conflicts": null, "replan_items": [], "objection": "", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "refix/diff.patch"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false, "premise_drift_note": ""}, "x_scalars": {}, "handoffs": ["u1: 壊すと分かって通した——段 2 で既定が変わる"], "mismatched": [], "delta_review": {"rounds": 1, "pass": true}}

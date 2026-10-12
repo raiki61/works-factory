@@ -2,11 +2,13 @@
 # 制約で筋書きでは照らせず、tests/workflows/test_line.py が線の with: で照らす。docs/design.md の U3）。
 # 線の返り result の apply.ok が真で sealed.hash と apply.hash が同じこと（bin/apply が読む欄）は tests/e2e/test_line_scenarios.py の
 # LineReturnsTest が同じ stub の dry-run の trace で照らす。
+# dry-run の置き場には修正の diff の隣の控えが無い（dry-run.ts 614・798 行）ので、最後の関所は読めない控えを開けた理由に名指す
+# （ほかに開けた理由の無い時の「いつも開く設定」の文は tests/workflows/test_line.py の AskFinalCase が照らす）。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
   reached: ["start", "gate-start", "answer-start", "plan-out", "ask-before-fix", "answer-before-fix", "fix__fix", "after-fix", "judged", "fixed", "redepth", "eyes__verdict", "merge-seal__merge", "ask-final", "gate-final", "answer-final", "merge-apply__merge", "collect", "report__report", "result"]
-  resolved-text-contains: {"gate-final": "承認ノードはいつも開く設定"}
+  resolved-text-contains: {"gate-final": "開けた理由: 修正の段の控えを読めない"}
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}

@@ -33,13 +33,13 @@ ALLOWED = {
         "「simplify は制約付き」は単純にする直しの考え方を言う語で、skill の呼び出しではない",
     ("workflows/fix/commands/delta-review.md", 11, PLUGIN):
         "入力の材料 `lens` の出どころ（修正の後のレンズの節が起こした agent）の説明で、この役は agent を起こさない",
-    ("workflows/judge/commands/material-local-review.md", 98, "systematic-debugging"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 114, "receiving-code-review"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 115, "test-driven-development"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 141, "requesting-code-review"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 165, "receiving-code-review"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 165, "systematic-debugging"): OVERLAY,
-    ("workflows/judge/commands/material-local-review.md", 173, "systematic-debugging"): OVERLAY,
+    ("workflows/judge/commands/material-local-review.md", 100, "systematic-debugging"): OVERLAY,
+    ("workflows/judge/commands/material-local-review.md", 116, "receiving-code-review"): OVERLAY,
+    ("workflows/judge/commands/material-local-review.md", 117, "test-driven-development"): OVERLAY,
+    ("workflows/judge/commands/material-local-review.md", 143, "requesting-code-review"): OVERLAY,
+    ("workflows/judge/commands/material-local-review.md", 167, "receiving-code-review"): OVERLAY,
+    ("workflows/judge/commands/material-local-review.md", 167, "systematic-debugging"): OVERLAY,
+    ("workflows/judge/commands/material-local-review.md", 175, "systematic-debugging"): OVERLAY,
 }
 
 
