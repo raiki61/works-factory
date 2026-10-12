@@ -450,7 +450,7 @@ flowchart TB
 
 - 目的: 2 つの形で include する。seal は人に見せる差分を封じ（hash）、守りのパスの当たりを出す。apply は封じた hash を今の差分と照らし、違えば止める。同じなら外へ 1 度だけ書き、読み戻す。既定の書き先は run の置き場の差分（人が `bin/apply` で当てる）。今の works には PR を出す口も main へ当てる口も無いので、それは置き換えの後の足し。
 - ASF で読む物: `W/merge-queue/archon-merge-queue.yaml`（`path-policy`・`gate` の封印・`approval`・`refresh` → `execute`）と `W/merge-queue/scripts/merge-action.ts`（封印と読み戻し）。
-- 入力: 緑の認証・独立の目・始めの記録。fix の差分は受けない（封じる差分は作業ツリーと始めの記録の `base_rev` から組み直し、その hash を緑の認証の指紋と照らす。今の works の取り込み `dev/use.sh` の apply も run の作業ツリーから差分を組み直して当てた）。
+- 入力: 緑の認証・独立の目・始めの記録。fix の差分は受けない（封じる差分は作業ツリーと始めの記録の `base_rev` から組み直す。緑の認証の指紋は今の作業ツリーの指紋（`green_cert.matches`）と照らす。今の works の取り込み `dev/use.sh` の apply も run の作業ツリーから差分を組み直して当てた）。
 - lib: `seal`・`protected`。
 - 埋め: 無し。
 
