@@ -2033,7 +2033,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M31 無人の run（unattended）で守りのパスに当たり関所が開くはずなら、開かずに needs-human で止まり、merge-apply を飛ばす
   - 元: works/darkfactory/lib/line_edge.py:1186-1191（答えの無い守りの行で止める）
   - 今: pr74 ask_final.py:127-128・works-factory-line.yaml:874（`when: "$answer-final.output.go == true"`）
-  - 証: tests/workflows/test_line.py::AskFinalCase.test_unattended_protected_hit_stops（assert: tests/workflows/test_line.py:446-452。protected_only・unattended で go: false・needs-human、gate-final と merge-apply の when、answer-final が go を落とす）・AskFinalCase.test_unattended_stops_instead_of_opening（always の道）・筋書き workflows/line/fixtures/unattended-needs-human.stubs.yaml（tests/e2e/test_line_scenarios.py::LineScenariosTest.test_every_scenario_passes）
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_unattended_protected_hit_stops（assert: tests/workflows/test_line.py:446-449。protected_only・unattended で go: false・needs-human、gate-final と merge-apply の when）・GateAnswerCase.test_skipped_gate_passes_the_decision_before_it（assert: tests/workflows/test_line.py:308-309。飛んだ gate-final で answer-final が go: false・needs-human を渡す）・AskFinalCase.test_unattended_stops_instead_of_opening（always の道）・筋書き workflows/line/fixtures/unattended-needs-human.stubs.yaml（tests/e2e/test_line_scenarios.py::LineScenariosTest.test_every_scenario_passes）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -2047,7 +2047,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M33 封じが ok でない（指紋の食い違い・差分が空）時は、最後の関所を開ける理由に「差分を封じられなかった（<訳>）」を入れる
   - 元: 無し（新しい強め）
   - 今: pr74 ask_final.py:72-73
-  - 証: tests/workflows/test_line.py::AskFinalCase.test_unsealed_is_a_reason（assert: tests/workflows/test_line.py:456-457）
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_unsealed_is_a_reason（assert: tests/workflows/test_line.py:453-454）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
