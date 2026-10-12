@@ -1,5 +1,5 @@
 """考えの住処の柵の道具 lib/conceptfence.py の試験（仮の置き場で数え方・歯止め・地図の読みを見る Synthetic、表 docs/concepts.json の
-柵 entry-kind が住処ありで既知の漏れを持たず、本当に当たることを見る FenceCase、main の表を引く main_table の MainTableCase）。
+住処ありの柵が本当に当たることと entry-kind が既知の漏れを持たないことを見る FenceCase、main の表を引く main_table と分かれ目の fork_ref の MainTableCase）。
 
 works-factory 自身の地図と表の全部を本物の木に当てる試験は tests/layers/test_concept_fences.py。
 """
@@ -127,6 +127,25 @@ class Synthetic(unittest.TestCase):
 
 
 class FenceCase(unittest.TestCase):
+    # 住処ありの柵ごとに、柵が当たるはずの 1 行（表の fences の順）。表の柵が正規表現の書き損じで何にも当たらなくなると、
+    # 本物の木の FencesHold は「漏れが無い」と見分けがつかず緑のまま。柵を足したらここにも 1 行足す（足さなければ赤）
+    HITS = {
+        "entry-kind": ['b = _word(raw, "base")', 'if base["from"] == "pr":'],
+        "web-get": ["from urllib.request import urlopen"],
+        "cite": ["from cite import quoted_in", "ok = cite.fold(a) in cite.fold(b)"],
+        "prompt-sections": ["class Section:"],
+    }
+
+    def test_every_home_fence_hits_its_line(self):
+        table = cf().load(LIB.parent)
+        homes = {k: v["fences"] for k, v in table["concepts"].items() if v["status"] == "住処あり"}
+        self.assertEqual(set(self.HITS), set(homes))
+        for k, fences in homes.items():
+            self.assertEqual(len(self.HITS[k]), len(fences), k)
+            for line, fence in zip(self.HITS[k], fences):
+                with self.subTest(concept=k, what=fence["what"]):
+                    self.assertEqual(cf().count_lines(line, fence, "lib/x.py"), 1)
+
     def test_entry_kind_read_only_by_entryshape(self):
         """L-E55: 入口の種類（依頼・base・PR）を知るのは入口の変換（lib/entryshape.py とメイングラフの start）だけ（元 works/tests/
         test_entry_block.py の ConversionLayerCase.test_only_conversion_layer_knows_entry_kind）。既知の漏れは 0 件（本物の木の
@@ -138,10 +157,7 @@ class FenceCase(unittest.TestCase):
         self.assertEqual(concept["status"], "住処あり")
         fences = concept["fences"]
         self.assertEqual([f["known"] for f in fences], [{}, {}])
-        with tempfile.TemporaryDirectory() as tmp:   # 柵が本当に当たる: 入口の種類で分かれる行と生の入力の読みを数える
-            (pathlib.Path(tmp) / "x.py").write_text('if base["from"] == "pr":\n    pass\nb = _word(raw, "base")\n'
-                                                     'w = step["from"] != "$"\n', encoding="utf-8")
-            self.assertEqual([cf().scan(tmp, ["x.py"], fence, []) for fence in fences], [{"x.py": 1}, {"x.py": 1}])
+        self.assertEqual([cf().count_lines('w = step["from"] != "$"', fence, "lib/x.py") for fence in fences], [0, 0])
 
 
 class MainTableCase(unittest.TestCase):
@@ -162,6 +178,19 @@ class MainTableCase(unittest.TestCase):
             git(root, "add", "-A")
             git(root, "commit", "-q", "-m", "table")
             self.assertEqual(cf().main_table(root, "HEAD"), (table, None))
+
+    def test_fork_ref_is_none_without_fork_point(self):
+        """分かれ目を引けなければ None（ref の頭に比べ直さない。比べ直すと別の版か空の表と比べて黙って通る）"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            git(root, "init", "-q", "-b", "main")
+            (root / "a.txt").write_text("a\n", encoding="utf-8")
+            git(root, "add", "-A")
+            git(root, "commit", "-q", "-m", "a")
+            self.assertIsNone(cf().fork_ref(root))            # origin/main が無い
+            git(root, "checkout", "-q", "--orphan", "other")
+            git(root, "commit", "-q", "-m", "b")
+            self.assertIsNone(cf().fork_ref(root, "main"))    # 共通の祖先が無い
 
 
 if __name__ == "__main__":

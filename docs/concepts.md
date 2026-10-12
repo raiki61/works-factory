@@ -3,6 +3,8 @@
 
 状態: 2026-10-13 の初版（issue #254）。今の works の地図（`works/docs/concepts.md`）のうち、住処が今の `lib/` に 1 つのモジュールとして在り、柵の語の形をそのまま当てても住処の外の当たりが 0 件の考えと、散らばりの考え 1 つ（`ledger`）を載せた。ほかの考えは、住処の置き場を確かめて柵の当たりの理由を調べてから足す。行のパスは試験（`tests/layers/test_concept_fences.py`）が在ることを確かめる（まだ無い物は「予定」と書き、試験は見ない）。
 
+まだ載せていない考え: モジュールの docstring がこの地図を指すが、まだ地図に無い考えは `carry-over`（`lib/carry.py`）・`stop-reasons`（`lib/stopby.py`）・`world`（`lib/worldmark.py`）・`marks`（`lib/marks.py`）。柵の当たりを調べてから足す。
+
 ## 平たく言うと（3 行）
 
 - works-factory の設計の考え（「入口の種類」「機械の web の取得」など）ごとに、それを 1 か所で持つ部品（住処）と、その考えを知ってよい所を並べた地図。

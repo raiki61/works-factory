@@ -56,13 +56,15 @@ class MapAndTable(unittest.TestCase):
         self.assertEqual(missing, [])
 
     def test_bound_copies_name_their_binding_test(self):
-        """結んだ写し（bound）の行は、写しを源に縛る試験のファイル by が在り、その試験が柵の表の行を読んで縛る数と揃える"""
+        """表の形は対象の表と同じ確かめ（check_table）を通り、結んだ写し（bound）の行は、写しを源に縛る試験のファイル by が在り、
+        その試験が柵の表の行を読んで縛る数と揃える"""
+        cf.check_table(self.table)
         for k, v in self.table["concepts"].items():
             for f in v["fences"]:
                 for b in f.get("bound") or []:
-                    with self.subTest(concept=k, by=b.get("by")):
+                    with self.subTest(concept=k, by=b["by"]):
                         self.assertTrue((ROOT / b["by"]).is_file(), b)
-                        self.assertTrue(b["paths"] and b["lines"] and b.get("why", "").strip(), b)
+                        self.assertTrue(b["paths"] and b.get("why", "").strip(), b)
 
     def test_known_rows_have_reason(self):
         for k, v in self.table["concepts"].items():
@@ -90,10 +92,13 @@ class NotAboveMain(unittest.TestCase):
     出ない。main で柵を持たない考え（柵を初めて掛ける差分。分かれ目に表が無い時も）は比べない"""
 
     def test_known_not_above_main(self):
-        main, why = cf.main_table(ROOT, cf.fork_ref(ROOT))
+        fork = cf.fork_ref(ROOT)
+        if fork is None:
+            self.fail(f"HEAD と {cf.MAIN_REF} の分かれ目を引けない（浅い clone か ref が無い。手元では git fetch origin main。"
+                      f"CI は fetch-depth: 0 で全履歴を取る）")
+        main, why = cf.main_table(ROOT, fork)
         if main is None:
-            self.fail(f"main の柵の表を比べる版を引けない（{cf.MAIN_REF}。浅い clone か ref が無い。"
-                      f"CI は fetch-depth: 0 で全履歴を取る）: {why}")
+            self.fail(f"分かれ目 {fork} の柵の表を引けない: {why}")
         self.assertEqual(cf.growth(main, cf.load(ROOT)), [])
 
     def test_missing_ref_is_reported_not_raised(self):
