@@ -1,0 +1,60 @@
+name: works-factory-loop-prev
+description: |
+  段 1b の K6 の使い捨ての工程（docs/plans/2026-10-13-stage1-walking-skeleton.md の手順 6）。周ごとの値（$LOOP_PREV）は
+  筋書きでは渡らないので、本物の役で確かめる。輪の頭の script の節が前の周の受け付けの理由を返し、役はそれを聞き返すだけ、
+  受け付けは聞き返しが空なら理由つきで拒み、理由が届いていれば通す。$LOOP_PREV が届かなければ 2 周目も空で、輪が上限で落ちる。
+  回すのは tests/e2e/test_loop_prev_real.py（WORKS_FACTORY_REAL_RUN=1 の時だけ）。ブロックと同じ決まり（K1〜K5・K18）で書く。
+
+nodes:
+  - id: rounds
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 2
+      fresh_context: true
+      until_bash: done=$round-check.output.done; test "$done" = true
+      nodes:
+        - id: prev-reason
+          script: prev_reason
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          with: {reason: "$LOOP_PREV.round-check.output.reason"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [reason]
+            properties: {reason: {type: string}}
+        - id: echo
+          prompt: |
+            下の囲みの中の字を、前後の空白を除いてそのまま heard に入れて返せ。囲みの中が空なら heard は空の字にする。
+            字を足したり言い換えたりするな。道具は使わない。
+
+            ```text
+            $prev-reason.output.reason
+            ```
+          depends_on: [prev-reason]
+          model: haiku
+          settingSources: [user]
+          allowed_tools: []
+          mutates_checkout: false
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [heard]
+            properties: {heard: {type: string}}
+        - id: round-check
+          script: round_check
+          runtime: uv
+          timeout: 1728000000
+          mutates_checkout: false
+          depends_on: [echo]
+          with: {heard: "$echo.output.heard"}
+          output_format:
+            type: object
+            additionalProperties: false
+            required: [done, reason]
+            properties:
+              done: {type: boolean}
+              reason: {type: string}
