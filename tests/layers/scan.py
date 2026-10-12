@@ -74,8 +74,6 @@ ALLOWED = {
         "lib/AGENTS.md",
         # 今の works から写した lib が実行基盤の名を字で持つ（K7）。行ごとに外す区分の issue
         "lib/stage_a.py#INPUTS_UNITS",              # 区分 P #120（planfile が読む単位の口）
-        "lib/stage_b.py#INPUTS_BASE_REV",           # 区分 E #123（structure-after の直しの前の版の口）
-        "lib/stage_b.py#INPUTS_ROOT",               # 区分 E #123（structure-after の対象の根の口）
         "lib/tree_run.py#INPUTS_CMD",               # 区分 T #122（test-gate の run が走らせるコマンドの口）
         "lib/refixrules.py#$LOOP_PREV",             # 区分 F #121（手直しの指示書の docstring）
         "lib/rolekit.py#$LOOP_PREV",                # 区分 F #121（with_reject の docstring。使う役は fix の手直しと裁定）
