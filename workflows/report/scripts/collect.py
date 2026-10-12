@@ -31,7 +31,7 @@ def main() -> dict:
 
     facts = json.loads(FACTS) if FACTS.strip() not in ("", "null") else None
     if not isinstance(facts, dict) or not isinstance(facts.get("report"), dict):
-        raise ValueError("facts の返りが無いか、機械の報告の指し札を持たない")
+        raise ValueError("facts の出力が無いか、機械の報告のポインタを持たない")
     machine = boundary.resolve(facts["report"])
     ai = runreport.collect(machine.read_text(encoding="utf-8"), out_dir=out_dir(), stamp=facts["stamp"])
     return {"outcome": facts["outcome"], "ok": facts["ok"], "stop_reason": facts["stop_reason"], "report": rel(machine),

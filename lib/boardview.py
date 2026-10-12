@@ -88,8 +88,8 @@ TREE_FEATURE = "review_tree"
 # 元 works/.shared/core/design.py:104
 PREMISE_MISS = "premise_invalid_reason の名指しが固めた版の実物に当たらない（追跡されたファイルと、その行の範囲を名指せ）: "
 # 元 works/.shared/core/design.py:82。指示書は「渡すのは元の目的と実測した制約だけ」と書くので、貼った前提をこの節で読み替える
-DESIGN_PREMISE_REREAD = ("下の指示書の「渡すのは元の目的と実測した制約だけである」は、この run では、この節（人の関所の答え・"
-                         "依頼が名指した設計書の節・対象のリポジトリの地図）も渡していると読み替えよ。")
+DESIGN_PREMISE_REREAD = ("下の指示書の「渡すのは元の目的と実測した制約だけである」は、この run では、このセクション（承認ノードの答え・"
+                         "依頼が名指した設計書のセクション・対象のリポジトリの地図）も渡していると読み替えよ。")
 PURPOSE_HEAD = "元の目的:"
 CONSTRAINTS_HEAD = "実測した制約（kind=仮説 のものは所与にするな）:"
 # 元 works/.shared/core/gl-prompts/prompts/review-loop/r2.design.md:7-8 の 2 行（値は機械が埋める。前提のドリフトは修正の前に 1 度だけ
@@ -99,14 +99,14 @@ STALE_LINE = ("裏取りを通っていない目的の判定（あれば）: {st
               "目的を独立に取れない理由としては使えない")
 NONE_YET = "（無い）"
 STALE_WHY = "裏取りを通っていない形の findings（旧形の素の文字列、または cite 無し）に乗った『狭めている』なので、R2 を止める根拠には使わない"
-NOT_GIVEN_START = "依頼が名指した設計書の節: 渡っていない（線が始めの記録を渡していない。依頼の本文を読めない）"
-DEFAULTS_HEAD = "線が渡していない入力を既定で読んだ: "
+NOT_GIVEN_START = "依頼が名指した設計書のセクション: 渡っていない（メイングラフが始めの記録を渡していない。依頼の本文を読めない）"
+DEFAULTS_HEAD = "メイングラフが渡していない入力を既定で読んだ: "
 DEFAULT_START = ("start（始めの記録）が null——無人でない・設計だけでない・依頼のファイル無し（依頼の引用の決め手は照らせないので"
                  "人に回る）・方針の文書無し・事前審査の木は auto として読んだ")
-DEFAULT_ANSWERS = "answers（人の関所の答え）が null——独立設計に貼る人の答えは無い"
+DEFAULT_ANSWERS = "answers（承認ノードの答え）が null——独立設計に貼る人の答えは無い"
 PURPOSE_REVIEW_UNREAD = (f"判定の隣の {PURPOSE_REVIEW_FILE}（目的の監査の受けた返答）を読めない（{{why}}）——監査は無かったとして読み、"
                          "独立設計を目的の『狭めている』では止めない")
-REQUEST_UNREAD = "依頼のファイル {path} を読めない（{why}）——依頼の本文は空として読み、依頼が名指した設計書の節は渡っていない"
+REQUEST_UNREAD = "依頼のファイル {path} を読めない（{why}）——依頼の本文は空として読み、依頼が名指した設計書のセクションは渡っていない"
 # 案の直しの事前審査の頼みと項目の節（元 works/.shared/core/replan.py:121・126-129）
 REVIEW_ASK_REPLAN = ("下は承認済みの修正案の項目の前の形と、修正の段の申し出と裁定を受けて修正案の役が直した形。直した形が裁定の文の"
                      "指摘を直したか、新しい後退（regression）や方針とのぶつかり（policy）を作らないかを見よ。前の形に在った穴を"
@@ -333,7 +333,7 @@ def read_open(folder) -> dict:
     except (OSError, ValueError) as e:
         err = p.with_name(OPEN_ERROR)
         why = err.read_text(encoding="utf-8") if err.is_file() else str(e)
-        raise Missing(f"見え方の材料 {p} が無い（差し込みの頭の節が通っていない）: {why}") from None
+        raise Missing(f"見え方の材料 {p} が無い（include の頭のノードが通っていない）: {why}") from None
     if not isinstance(doc, dict):
         raise Missing(f"見え方の材料 {p} が object でない")
     return doc

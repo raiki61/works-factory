@@ -239,7 +239,7 @@
 - P032 修正案の役の指示書は元の p2.fix_plan.md の字のまま（許した 3 つの直し: 頭の 1 行・engine の雛形を外す・「材料の一覧の番号」）。
   - 元: works/.shared/core/gl-prompts/prompts/review-loop/p2.fix_plan.md（graphs/review-loop.json:3331）
   - 今: workflows/plan/commands/fix-plan.md
-  - 証: tests/workflows/test_plan.py::ShapeCase.test_fix_plan_command_is_the_original_with_only_the_allowed_edits（assert: tests/workflows/test_plan.py:343・:345）・test_eye_command_reads_only_its_prep（:337）
+  - 証: tests/workflows/test_plan.py::ShapeCase.test_fix_plan_command_is_the_original_with_only_the_allowed_edits（assert: tests/workflows/test_plan.py:370。初見の読み手での書き直しは tests/workflows/copied_rewrites.json の許した直し）・test_eye_command_reads_only_its_prep（:364）・tests/workflows/test_prompt_contracts.py::PromptContractsTest.test_every_prompt_keeps_its_contract（約束の表の鍵 workflows/plan/commands/fix-plan.md）
   - 本物の run: plan-writer の節の会話（指示書の本文）。run の記録の node の prompt
   - 狭め: 無し
 

@@ -42,7 +42,7 @@ FOR_READERS = "人が読む報告の本文の見出し。役の指示書には�
 PRIOR_HEADING = promptsection.Section("## 次の run に引き継ぐ落ちた理由", human=FOR_READERS)
 OUTSIDE_HEADING = promptsection.Section("## 判定が目的の外とした所見", human=FOR_READERS)   # 1 件ずつの行（outpurpose.report_lines）。冒頭 1 は件数の行だけ（outpurpose.count_line）
 WORLD_HEADING = promptsection.Section("## 世界の解", human=FOR_READERS)   # 依頼の行ごとの定石と依頼の解き方との比べ（worldmark.report_lines。控えの無い run は節を出さない）
-TDD_HEADING = promptsection.Section("## TDD の輪の単位ごとの結末", human=FOR_READERS)   # keep-essence の 11（修正のブロックの出口 tdd を、修正の段ごとに単位の行で）
+TDD_HEADING = promptsection.Section("## TDD のループの単位ごとの結末", human=FOR_READERS)   # keep-essence の 11（修正のブロックの出口 tdd を、修正の段ごとに単位の行で）
 TDD_STAGES = ("修正の段", "案を直した後の修正の段")   # build の tdd の並び（ラインの report の with の fix_tdd・refit_tdd の順）
 FREEZE_OFF_HEAD = "テストの凍結"   # 冒頭 2 の行の頭（TDD の輪を回していない修正の段は、凍結が効いていないと言う。freeze_lines）
 R2_REDESIGN = "R2 が redesign-needed"      # 検証器と独立の目が R2 の作り直しの行に付ける頭（findings から外し prior_failures にだけ載せる）
@@ -57,12 +57,13 @@ WHERE_HEADING = promptsection.Section("## 5. 見る所", human=FOR_READERS)
 HEADINGS = (DECISIONS_HEADING, ENTRY_HEADING, STOP_HEADING, READS_HEADING, WHERE_HEADING)
 TITLE_HEADING = promptsection.Section("# 報告（run {run}）", human=FOR_READERS)
 INTERRUPTED_HEAD = "run が途中で終わった"
-RETRIED_HEAD = "前の試みで落ち、続きで済んだ節"
-ABSORBED_HEAD = "落ちたが、線が宣言のとおり受け止めた節"
+RETRIED_HEAD = "前の試みで落ち、続きで済んだノード"
+ABSORBED_HEAD = "落ちたが、メイングラフが宣言のとおり受け止めたノード"
 REJUDGE_WHERE = "判定（再審の結果）"           # 次の run の依頼の再審の結果の行の where
 # 直しが対象に書く文に混じってはいけない works の内側の語と run の中の事情の言い方（修正役の共通の決まり writerules/common.md の
 # 「対象に書く文」。利用者の run 8cb2ee00 の差分が Terraform のコメントに「この単位」「作業ツリー」を書いた）。拒まず報告に並べる
-INNER_WORDS = ("この単位", "単位の key", "作業ツリー", "盤面", "この周", "この run", "判定役", "修正役", "独立の目", "関所")
+INNER_WORDS = ("この単位", "単位の key", "作業ツリー", "共有ボード", "盤面", "この周", "この run", "判定役", "修正役", "独立の目",
+               "承認ノード", "関所")
 INNER_WORD = re.compile("|".join(re.escape(w) + ("(?!辺)" if w == "この周" else "") for w in INNER_WORDS))   # 「この周辺」は除く
 INNER_WORDS_HEAD = "直しが対象に足した行に works の内側の語（対象の読み手に通じない。当てる前に言い換えるかを決める）"
 HUNK_NEW = re.compile(r"^@@ -\S+ \+(\d+)")
@@ -101,7 +102,7 @@ OUTCOME_WORDS = {"fixed": "直して、最後のテストまで通った",
                  "fixed_needs_check": "直して、最後のテストまで通った。run の中で測れなかった確かめが残る（人の確かめ待ち）",
                  "no_fix_needed": "直す物が無かった",
                  "round_limit": "決めた周の数のうちに直しきれずに止まった", "stopped_by_request": "止め札で止めた",
-                 "stopped_by_human": "人が関所で止めた", "stopped_by_line": "ラインが途中で止めた",
+                 "stopped_by_human": "人が承認ノードで止めた", "stopped_by_line": "ラインが途中で止めた",
                  "needs_human": "人の判断を待ったまま止まった", "record_invalid": "記録が検証器を通らない（結果を名乗れない）",
                  "interrupted": "run が途中で終わった"}
 
@@ -161,7 +162,7 @@ def tdd_lines(stages) -> list:
         if not isinstance(tdd, dict):
             continue
         if not tdd.get("ran"):
-            rows.append(f"{name}: TDD の輪を回していない（{_one_line(tdd.get('reason') or '理由なし')}）")
+            rows.append(f"{name}: TDD のループを回していない（{_one_line(tdd.get('reason') or '理由なし')}）")
             continue
         units = [u for u in tdd.get("units") or [] if isinstance(u, dict)]
         green = sum(u.get("route") == "tdd" and u.get("green") == "ok" for u in units)
@@ -169,7 +170,7 @@ def tdd_lines(stages) -> list:
         direct = sum(u.get("route") == "direct" and not u.get("gave_up") for u in units)
         parked = sum(u.get("route") == "parked" for u in units)
         rows.append(f"{name}: {len(units)} 単位（赤→緑 {green}・TDD を諦めた {gave}・初めから今どおりの直し {direct}・止めた {parked}。"
-                    f"実行器 {tdd.get('suite') or '—'}）" + (f"。輪を途中で抜けた: {_one_line(tdd['reason'])}" if tdd.get("reason") else "")
+                    f"実行器 {tdd.get('suite') or '—'}）" + (f"。ループを途中で抜けた: {_one_line(tdd['reason'])}" if tdd.get("reason") else "")
                     + (f"。控えから使った結果: {_reused_line(tdd['reused'])}" if tdd.get("reused") else ""))
         rows += [f"  - {_tdd_unit(u)}" for u in units]
     return rows
@@ -178,7 +179,7 @@ def tdd_lines(stages) -> list:
 def freeze_lines(stages) -> list:
     """冒頭 2 の行（keep-essence の 3）: TDD の輪を回していない修正の段（修正のブロックの出口 tdd の ran が偽）ごとに、テストの
     凍結が効いていないと理由つきで 1 行（黙らない）。stages は tdd_lines と同じ。走っていない段（None）は出さない"""
-    return [f"{FREEZE_OFF_HEAD}: {name}で効いていない（TDD の輪を回していないので既存のテストを凍らせていない——"
+    return [f"{FREEZE_OFF_HEAD}: {name}で効いていない（TDD のループを回していないので既存のテストを凍らせていない——"
             f"{_one_line(tdd.get('reason') or '理由なし')}）"
             for name, tdd in stages if isinstance(tdd, dict) and not tdd.get("ran")]
 

@@ -134,8 +134,9 @@ class RejectHeadOwnerCase(unittest.TestCase):
                     self.assertFalse(hasattr(reader, name), f"{reader.__name__}.{name}")
 
     def test_review_head_names_no_board(self):
-        self.assertNotIn("盤面", planblk.HEAD["plan-review"])
-        self.assertNotIn("盤面", planblk.head("plan-review"))
+        for board in ("盤面", "共有ボード"):
+            self.assertNotIn(board, planblk.HEAD["plan-review"])
+            self.assertNotIn(board, planblk.head("plan-review"))
 
 
 class QuoteFoldCase(unittest.TestCase):

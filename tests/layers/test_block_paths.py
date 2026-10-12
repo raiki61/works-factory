@@ -68,7 +68,7 @@ class BlockPathsTest(unittest.TestCase):
 
     def test_block_names_match_root_tree(self):
         text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-        listed = re.search(r"<ブロック>/\s+(\S+) の \d+ つ", text)[1].split("・")
+        listed = re.search(r"<サブグラフ>/\s+(\S+) の \d+ つ", text)[1].split("・")
         self.assertIn("── line/", text)
         self.assertEqual(sorted(scan.BLOCKS), sorted(["line", *listed]))
 

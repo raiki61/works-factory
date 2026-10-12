@@ -34,7 +34,7 @@ R2_NO_STANDS = R2_NOT_COMPARED_HEAD + "独立設計の返答に問いが立つ�
 FELL_MARK = "の筋が落ちた"
 # 元 blk-eyes/lib/eyes.py:115-117 の LATE_HEAD・LATE_ASK
 LATE_HEAD = "### 独立設計の後に来た人の答え（独立設計は見ていない）"
-LATE_ASK = ("上の人の関所の答えのうち、次の物は独立設計を作った後に来た。設計がこれを置いていないことを設計の漏れに数えず、"
+LATE_ASK = ("上の承認ノードの答えのうち、次の物は独立設計を作った後に来た。設計がこれを置いていないことを設計の漏れに数えず、"
             "答えに照らした目的で突き合わせよ。")
 DRIFT_HEAD = "### 前提のずれ（修正の中の申告）"     # 元 同 :118
 CONSTRAINT_HEAD = "### 記録の制約"                 # 元 同 :119
@@ -42,7 +42,7 @@ NO_CONSTRAINTS = "（記録の制約 premises.json が渡っていない）"
 NO_REQUEST = "依頼のファイルが渡っていない"
 START_GATE_NODE = "gate-start"   # 線の始めの関所（plan-review が独立設計に貼る人の答えの源）
 # 元 .shared/core/rolekit.py:67 の LANG_RULE と board.py:96 の LANG_DEFAULT
-LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、関所と報告に載る文）は {lang} で書け。"
+LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、承認ノードと報告に載る文）は {lang} で書け。"
              "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
 LANG_DEFAULT = "依頼文の言語（利用者の言語）"
 # 元 .shared/core/graphloops/rules/review-loop.py:4103 の R4_ROWS（種類・R4 の返りの欄・行の頭）
@@ -55,7 +55,7 @@ RETURN_FIELDS = ("ok", *EYES, "questions", "premise_check", "structure_after", "
 VERDICTS = ("resolved", "escalate")
 NO_FILE = "返りのファイルが無い"
 NO_AFTER = "直しの後の実測: 控えが無い（測っていない run）"   # 元 blk-eyes/lib/eyes.py:93
-GREEN_LINE = "最後のテストの認証が通っていない（赤は最後の関所で人が見る）"
+GREEN_LINE = "最後のテストの認証が通っていない（赤は最後の承認ノードで人が見る）"
 DOC_SUFFIXES = (".md",)
 DESIGN_PREMISES = "design-premises.json"   # 独立設計の役に貼った物の控え（design.json の隣。元 design.PREMISES_FILE）
 R2_PREMISES = "r2-premises.json"           # 比較役に貼った物の控え（置き場。元 eyes.PREMISES_NAME）
@@ -275,7 +275,7 @@ def read_json(path):
 def read_design(path) -> dict:
     """独立設計の控え design.json。無い・読めない・object でなければ {"missing": 訳}"""
     if path is None:
-        return {"missing": "独立設計の指し札が渡っていない"}
+        return {"missing": "独立設計のポインタが渡っていない"}
     try:
         doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
@@ -287,7 +287,7 @@ def fell_text(fell: list, ran: str = "") -> str:
     """元 blk-eyes/lib/eyes.py:307。fell は [{lane, eye, state}]。尾は元の「<実行基盤の名>の節が落ちた」から名を外した（E3）"""
     names = "・".join(f["lane"] for f in fell)
     head = f"{names} {FELL_MARK}まま {ran} を回した" if ran else f"{names} {FELL_MARK}"
-    return head + "（" + "・".join(f"{f['eye']}: {f['state']}" for f in fell) + "。節が落ちた）"
+    return head + "（" + "・".join(f"{f['eye']}: {f['state']}" for f in fell) + "。ノードが落ちた）"
 
 
 def _read_eye(eyes_dir: pathlib.Path, eye: str) -> tuple[dict | None, str]:
@@ -305,7 +305,7 @@ def _read_eye(eyes_dir: pathlib.Path, eye: str) -> tuple[dict | None, str]:
 def _protected(protected: dict | None) -> tuple[list, bool]:
     """守りのパスの節の返り（節が落ちていれば None）から (protected_hits, 確かめられたか)。約束の形でない返りも落ちたと数える"""
     if not isinstance(protected, dict) or not isinstance(protected.get("hits"), list):
-        return [seal.unknown_row("守りのパスの節が落ちた")], False
+        return [seal.unknown_row("守りのパスのノードが落ちた")], False
     return list(protected["hits"]), not protected.get("broken")
 
 

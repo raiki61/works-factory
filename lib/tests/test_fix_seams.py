@@ -1260,11 +1260,11 @@ class DeltaSeamCase(TempCase):
         import refixrules
         import rulebook
         rules, canon = self.tmp / "refix.md", self.tmp / "common.md"
-        rules.write_text("".join(f"<!-- 節 {s} -->\n{s} の本文 <<brief_file>>\n" if s.startswith("refix-head") else
-                                 f"<!-- 節 {s} -->\n{s} の本文\n"
+        rules.write_text("".join(f"<!-- セクション {s} -->\n{s} の本文 <<brief_file>>\n" if s.startswith("refix-head") else
+                                 f"<!-- セクション {s} -->\n{s} の本文\n"
                                  for s in ("refix-head-1", "refix-head-2", "refix-remap", "refix-keep", "refix-reply",
                                            "refix-tail-1", "refix-tail-2")), encoding="utf-8")
-        canon.write_text("<!-- 節 core-fix -->\n直し方\n<!-- 節 core-conflict -->\n申し出\n", encoding="utf-8")
+        canon.write_text("<!-- セクション core-fix -->\n直し方\n<!-- セクション core-conflict -->\n申し出\n", encoding="utf-8")
         with mock.patch.object(refixrules, "RULES", rules), mock.patch.object(rulebook, "CANON", canon):
             text = fixboard.refix_prompt(2, {"brief_file": "/b.json", "diff_file": "/d.patch", "policy_path": "",
                                              "request_file": "/req.md"},

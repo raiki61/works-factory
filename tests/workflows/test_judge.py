@@ -1,6 +1,6 @@
 """判定のブロック（workflows/judge/）の YAML の形・筋書き・script の振る舞いの試験（計画 docs/plans/2026-10-12-blocks/judge.md の「試験」）。
 
-- YAML の形: PyYAML で読み、Archon を起こさない。返す節の約束（docs/design.md の「judge の返り」）・関所・輪・役の節の設定の表
+- YAML の形: PyYAML で読み、Archon を起こさない。返す節の約束（docs/design.md の「judge の出力」）・関所・輪・役の節の設定の表
 - 筋書き: tests/archon.py の使い捨ての木で `archon workflow test` と `archon validate workflows` を回す。源か bun が無ければ見送る
 - script の振る舞い: scripts/<名>.py を子のプロセスで走らせる（Archon が渡す INPUTS_<名>・ARTIFACTS_DIR・WORKFLOW_ID と、
   boundary.lib_root() が届く WORKS_FACTORY_ROOT を置く。作業ツリーは tests/e2e/target-seed/ の写し）
@@ -19,7 +19,7 @@ import yaml
 
 from tests import archon
 from tests.bin.gitkit import committed_copy, git
-from tests.workflows.copied import agent_body, assert_is_original, role_definition
+from tests.workflows.copied import agent_body, assert_is_original, rewritten, role_definition
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
@@ -36,7 +36,7 @@ NAME = "works-factory-judge"
 NO_DEADLINE = 1728000000
 RUN_ID = "run-judge"
 
-# 返す節の欄（docs/design.md の「ブロックの返りの約束」の judge の返り）
+# 返す節の欄（docs/design.md の「サブグラフの出力の約束」の judge の返り）
 RETURNS = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spec", "out_of_purpose", "rejudge_verdict")
 INPUTS = {"start": "null", "baseline": "null", "objection": "", "prior_failures": "null"}
 RUN_OWNED = ("worktree", "container", "evidence_policy", "mutates_checkout")
@@ -294,12 +294,10 @@ class RoleSettingsTest(unittest.TestCase):
                     self.assertIn(rule, (COMMANDS / f"{by[nid]['command']}.md").read_text(encoding="utf-8"))
 
     def test_dropped_sentences_are_back(self):
-        """元の役の指示書から落ちていた文: 仕様の審査役の前付け（judge）・仕様の役の実装に触れない決まり・局所レビューの無人の読み替え
-        （元 rolekit.skill_overlay が末尾に載せた全文）"""
+        """元の役の指示書から落ちていた文: 仕様の審査役の前付け（judge）・局所レビューの無人の読み替え（元 rolekit.skill_overlay が
+        末尾に載せた全文）。仕様の役の実装に触れない決まりは tests/workflows/prompt_contracts.json が照らす"""
         judge = agent_body("judge")
         self.assertIn(judge, (COMMANDS / "spec-review.md").read_text(encoding="utf-8"))
-        for name in ("spec", "spec-revise"):
-            self.assertIn("実装のファイルは 1 文字も変えるな", (COMMANDS / f"{name}.md").read_text(encoding="utf-8"))
         unattended = (ROOT / "bin" / "_lib" / "borrow" / "unattended.md").read_text(encoding="utf-8")
         self.assertTrue((COMMANDS / "material-local-review.md").read_text(encoding="utf-8").endswith(unattended),
                         "局所レビューの指示書の末尾に bin/_lib/borrow/unattended.md の全文")
@@ -823,7 +821,7 @@ class BaselineTest(unittest.TestCase):
                     inputs["baseline"] = {"type": "archon_artifact", "run_id": RUN_ID, "path": rel}
                 self.assertTrue(r.returned("diagnose_prep", **inputs)["go"])
                 got = json.loads((r.judge / "materials.json").read_text(encoding="utf-8"))["local_checks"]
-                self.assertEqual(got, material or {"status": "not_run", "reason": "走っていない（どの節も返していない）"})
+                self.assertEqual(got, material or {"status": "not_run", "reason": "走っていない（どのノードも返していない）"})
 
 
 class PriorFailuresTest(unittest.TestCase):
@@ -1431,10 +1429,11 @@ class CopiedTextsCase(unittest.TestCase):
         on_disk = {p.name for p in COMMANDS.glob("*.md")}
         with self.subTest(ledger="台帳と指示書の一覧"):
             self.assertEqual(sorted(COPIED_TEXTS), sorted(on_disk))
+            self.assertLessEqual(rewritten(COMMANDS), set(COPIED_TEXTS))
         for name in sorted(on_disk & set(COPIED_TEXTS)):
             source, sha256, edits = COPIED_TEXTS[name]
             with self.subTest(command=name, source=source):
-                assert_is_original(self, (COMMANDS / name).read_text(encoding="utf-8"), sha256, edits)
+                assert_is_original(self, COMMANDS / name, sha256, edits)
 
 
 if __name__ == "__main__":

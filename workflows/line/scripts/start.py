@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""線の始めの節 start（docs/design.md の「線」の「順と関所」の 1）。
+"""線の始めの節 start（docs/design.md の「メイングラフ」の「順と承認ノード」の 1）。
 
 入口の入力を 1 つの形にそろえ（lib/entryshape.py）、始めの記録（lib/startrec.py の start.json の形）を run の置き場に書き、
 指し札で返す。差分も依頼の行も無い・入力の組み合わせが拒まれる時は、落ちずに ok: false と止めの理由の語を返す。後ろの節は
@@ -86,7 +86,7 @@ def words(raw: dict, repo: Path) -> dict:
         raise Refused(f"thickness={raw['thickness']!r} は知らない値（{' / '.join(t for t in THICKNESS if t)}）")
     if raw["fix_fixture"].strip():
         raise Refused("固定材料（fix_fixture）から修正を始める道はまだ無い（判定と修正案を作り直さずに修正から始めるには、"
-                      "fix のブロックが固定材料を受ける形が要る）。fix_fixture を空にして回す")
+                      "fix のサブグラフが固定材料を受ける形が要る）。fix_fixture を空にして回す")
     return {**gate, "spec": spec, "design_only": design_only, "thickness": thickness, "features_off": off, "features_on": on,
             "policy_md": policy_md(raw["policy_md"], repo)}
 

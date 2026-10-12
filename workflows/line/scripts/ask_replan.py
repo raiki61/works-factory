@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""案の直しの関所を開くかと、見せる文を決める節 ask-replan（docs/design.md の「線」の「順と関所」の 7）。
+"""案の直しの関所を開くかと、見せる文を決める節 ask-replan（docs/design.md の「メイングラフ」の「順と承認ノード」の 7）。
 
 直した項目ごとに、承認済みの項目（計画の往復の plan）と直した項目（replan の plan）の約束の欄を比べる（lib/planmarks.py の
 contract_diff）。約束の欄が変わった項目と、事前審査（replan-review）が人に聞くと言った時は聞く。無人の run では、範囲を広げるだけの
@@ -25,7 +25,7 @@ with boundary.guarded_imports():
     import planmarks
     import stopby
 
-HEAD = "案の直しの関所"
+HEAD = "案の直しの承認ノード"
 RECORD = "run の置き場の gates/gate-replan.json"
 
 
@@ -70,7 +70,7 @@ def ask(old_ptr, new_ptr, ids: list, *, ask_human: bool, questions: list, unatte
                             "直した案で 2 度目の修正へ進めるか、止めるか（打つ行は末尾の答え方）", gatemarks.push_of(rows))
     lines += ["", f"項目（{len(rows)} 件）:", *[f"- {row}" for row in rows], *[f"- {w}" for w in widened], "",
               "答え方:",
-              f"- 修正に戻る: {answer.line(run_id, 'continue', '<一言>')}（一言は {RECORD} に残り、修正前の関所の答えの条件と共に 2 度目の修正に届く）",
+              f"- 修正に戻る: {answer.line(run_id, 'continue', '<一言>')}（一言は {RECORD} に残り、修正前の承認ノードの答えの条件と共に 2 度目の修正に届く）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]
     return {"open": True, "go": True, "stop_reason": "", "text": "\n".join(lines) + "\n", "widened": widened}
 

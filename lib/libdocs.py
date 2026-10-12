@@ -420,10 +420,10 @@ def section(cache, repo, files, *, get=None, env=None, now: float | None = None,
     try:
         return _section(cache, repo, files, get, env, now, shared)
     except Exception as e:  # noqa: BLE001  組めなかったことは節に書く（黙って落とさない）
-        return f"{TITLE}\n\n組めなかった（{type(e).__name__}: {e}）。この節の文書は無い。"[:1000]
+        return f"{TITLE}\n\n組めなかった（{type(e).__name__}: {e}）。このセクションの文書は無い。"[:1000]
 
 
-HEAD = ("機械が、この単位のファイルが使うライブラリの文書を 2 つの出どころから取り、盤面にファイルで丸ごと控えた（本文はここに"
+HEAD = ("機械が、この単位のファイルが使うライブラリの文書を 2 つの出どころから取り、共有ボードにファイルで丸ごと控えた（本文はここに"
         "貼っていない。ライブラリごとに下の段に名・版・出どころ・ファイルのパスを並べた）: "
         "(1) 手元の版——run の作業ツリーか同じリポジトリの main の作業ツリーに入っている版のコードを、import せずに読んだ署名と"
         "説明（入っている版のコードそのもの） (2) 公式——ライブラリの持ち主の文書（PyPI・npm の README、docs の場所の llms.txt。"
@@ -492,7 +492,7 @@ def _section(cache, repo, files, get, env, now, shared) -> str:
     else:
         lines.append("- 公式の文書: " + "／".join((
             _count("取れた", by_official["ok"], name),
-            f"控えから {official_from['board'] + official_from['shared']} 本（盤面 {official_from['board']} 本・"
+            f"控えから {official_from['board'] + official_from['shared']} 本（共有ボード {official_from['board']} 本・"
             f"ほかの run {official_from['shared']} 本）",
             _count("見つからない", by_official["not_found"], name),
             _count("取れなかった", by_official["error"], lambda r: f"{name(r)}: {r['official']['error']}"))))

@@ -227,7 +227,7 @@ class TestStart(LoopCase):
         out = tddloop.prep(self.state, {"judgment_file": "/b/j.json"}, self.repo)
         prompt = pathlib.Path(out["prompt_file"])
         full = prompt.read_text(encoding="utf-8")
-        for s in (core, fixrules.sections(fixrules.SHARED)["core-keep"], "## この輪での読み替え", "- **route**:",
+        for s in (core, fixrules.sections(fixrules.SHARED)["core-keep"], "## このループでの読み替え", "- **route**:",
                   "## この段ですること", "`/b/j.json`"):
             self.assertIn(s, full)
         self.assertNotIn("- **test**:", full, "今の段の約束だけ")
@@ -1231,8 +1231,8 @@ class TestOneItemTwoUnits(ContractCase):
         self.assertIn(MEAN, c["why"], "どの単位の段で一緒に直したかを残す")
         self.assertEqual(st["units"][CLAMP]["covered_by"], [MEAN])
         summary = pathlib.Path(self.start["summary_file"]).read_text(encoding="utf-8")
-        done = summary.split("## 輪で直した単位", 1)[1].split("\n## ", 1)[0]
-        self.assertIn(f"- {CLAMP}", done, "閉じた単位は輪で直した単位に並ぶ（direct に並べない）")
+        done = summary.split("## ループで直した単位", 1)[1].split("\n## ", 1)[0]
+        self.assertIn(f"- {CLAMP}", done, "閉じた単位はループで直した単位に並ぶ（direct に並べない）")
         self.assertEqual(tddloop.frozen_problems(self.state, self.repo), [])
 
     def test_later_unit_is_not_closed_when_its_tests_are_not_verified(self):

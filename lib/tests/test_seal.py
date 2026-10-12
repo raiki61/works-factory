@@ -136,7 +136,7 @@ class ApplyRefusalOrderCase(unittest.TestCase):
         self.assertIn(OTHER, got)
 
     def test_3_stop_answer(self):
-        self.assertIn("最後の関所で stop と答えた", refusal(answer={"decision": "stop", "text": ""}))
+        self.assertIn("最後の承認ノードで stop と答えた", refusal(answer={"decision": "stop", "text": ""}))
 
     def test_4_r2_redesign_even_with_pass(self):
         got = refusal(answer=PASS, r2={"status": seal.REDESIGN, "reason": "別の設計"})
@@ -152,7 +152,7 @@ class ApplyRefusalOrderCase(unittest.TestCase):
 
     def test_order_answer_before_r2(self):
         got = refusal(answer={"decision": "stop", "text": ""}, r2={"status": seal.REDESIGN, "reason": ""})
-        self.assertIn("最後の関所で stop と答えた", got)
+        self.assertIn("最後の承認ノードで stop と答えた", got)
 
 
 class ApplyAnswerCase(unittest.TestCase):
@@ -169,11 +169,11 @@ class ApplyAnswerCase(unittest.TestCase):
         for answer in ({"decision": "stop", "text": ""}, {"decision": "reject", "text": ""},
                        {"decision": "hold", "text": ""}, {}):
             with self.subTest(answer=answer):
-                self.assertIn("最後の関所で", refusal(answer=answer))
+                self.assertIn("最後の承認ノードで", refusal(answer=answer))
 
     def test_request_stop_card_refuses(self):
         got = refusal(answer={"decision": "stop", "text": "request: 止めて"})
-        self.assertIn("最後の関所で stop と答えた", got)
+        self.assertIn("最後の承認ノードで stop と答えた", got)
         self.assertIn("止め札", got)
 
 

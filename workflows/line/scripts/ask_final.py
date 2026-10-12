@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""最後の関所を開くかと、見せる文を決める節 ask-final（docs/design.md の「線」の「順と関所」の 11）。
+"""最後の関所を開くかと、見せる文を決める節 ask-final（docs/design.md の「メイングラフ」の「順と承認ノード」の 11）。
 
 開ける理由（final_needs。今の works の works/darkfactory/lib/line_edge.py の _final_needs の理由のうち、線が返りから読める物）を
 test-gate（final）・fixed・eyes・merge（seal）・judged の返りから並べ、開き方（final_gate）で開くかを決める（lib/gatepolicy.py の
@@ -92,10 +92,10 @@ def final_head(got: dict, why: list) -> list:
     held = got["held"]
     happened = (f"最後のテストと独立の目が済み、報告の前で止まった。テストは{tests_word(got['tests_ok'], got['green'], got['red_cause'])}。"
                 + ("開けた理由: " + "・".join(why) if why else
-                   f"関所はいつも開く設定（{gatepolicy.head_words({gatepolicy.FINAL_KEY: gatepolicy.ALWAYS})}）で、ほかに開けた理由は無い")
-                + (f"。判定の役が人に聞くと保留にしたままの問いも在る（{len(held)} 件。関所を開ける理由には数えない）" if held else ""))
+                   f"承認ノードはいつも開く設定（{gatepolicy.head_words({gatepolicy.FINAL_KEY: gatepolicy.ALWAYS})}）で、ほかに開けた理由は無い")
+                + (f"。判定の役が人に聞くと保留にしたままの問いも在る（{len(held)} 件。承認ノードを開ける理由には数えない）" if held else ""))
     decide = ("報告へ進めて run を終えるか、止めるか（打つ行は末尾の答え方）"
-              + ("。守りのパスの変更は下の最初の節を確かめてから通す" if guarded else ""))
+              + ("。守りのパスの変更は下の最初のセクションを確かめてから通す" if guarded else ""))
     return gatemarks.head3(happened, decide, gatemarks.pushes([*held, *got["questions"]]))
 
 
@@ -115,7 +115,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     if got["fenced"]:
         lines += [f"## 考えの住処の柵の数が増えた（{len(got['fenced'])} 件）", *[f"- {row['text']}" for row in got["fenced"]], ""]
     if got["held"]:
-        lines += [f"## 判定の役が人に聞くと保留にしたままの問い（{len(got['held'])} 件。この関所の答えは問いに答えない。問いは報告の冒頭に並ぶ）",
+        lines += [f"## 判定の役が人に聞くと保留にしたままの問い（{len(got['held'])} 件。この承認ノードの答えは問いに答えない。問いは報告の冒頭に並ぶ）",
                   *[f"- {q}" for q in got["held"]], gatemarks.ANSWER_HOW, ""]
     if got["unread"]:
         lines += [*[f"- {why}" for why in got["unread"]], ""]
@@ -176,7 +176,7 @@ def held_questions(judgment, start, before_fix, before_fix_asked: list) -> tuple
     lines = [gatemarks._ledger_line(q, skip=[k for k in gatemarks._skips(q) if k in kept] if q in pending else [])
              + f"／{gatemarks.ANSWER_KEY_HEAD}: {json.dumps(str(q.get('key') or ''), ensure_ascii=False)}"
              for q in asking if q in pending or (q not in asks and not by_request(q))]
-    return lines + [f"関所で答えたが直す単位に入れられなかった: {q.get('key')}・{k}（理由: 今の周の判定に無い）"
+    return lines + [f"承認ノードで答えたが直す単位に入れられなかった: {q.get('key')}・{k}（理由: 今の周の判定に無い）"
                     for q in done for k in gatemarks._skips(q) if k not in units], ""
 
 
@@ -189,7 +189,7 @@ def fenced_rows(structure_after) -> tuple:
     try:
         folder = boundary.resolve(structure_after).parent
     except (ValueError, TypeError, AttributeError, KeyError) as error:
-        return [], f"直した後の実測の指し札を読めない（柵の増えを数えていない。{type(error).__name__}: {error}）"
+        return [], f"直した後の実測のポインタを読めない（柵の増えを数えていない。{type(error).__name__}: {error}）"
     if structmark.read_after(folder) is None:
         return [], f"直した後の実測の控え {structmark.AFTER_FILE} を読めない（柵の増えを数えていない）"
     return structmark.after_rows(folder), ""

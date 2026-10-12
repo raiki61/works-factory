@@ -245,7 +245,7 @@ class Plan(Base):
         self.classes({"classes": [klass(1), doc_class()]})
         got = worldblk.finish(self.out)
         self.assertEqual(got["status"], "failed")
-        self.assertIn("類を決める節", got["reason"])
+        self.assertIn("類を決めるノード", got["reason"])
 
     def test_classes_given_up_skips_everything(self):
         self.intake()

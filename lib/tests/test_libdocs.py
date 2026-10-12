@@ -387,7 +387,7 @@ class ComposerCase(Base):
         self.assertEqual(uf.call_args.args[1], str(self.board.dir / "out" / "diagnose.json"))
         self.assertIn("取れた 1 本", text)
         self.board.state = {"outputs": {}}
-        self.assertIn("判定の出力が盤面に無い", planblk.lib_section(self.board, self.repo))
+        self.assertIn("判定の出力が共有ボードに無い", planblk.lib_section(self.board, self.repo))
 
 
 class HomeBase(Base):

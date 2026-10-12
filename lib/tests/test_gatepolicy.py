@@ -71,7 +71,7 @@ class ReadCase(unittest.TestCase):
 
     def test_head_words(self):
         """報告の頭の行の句: 記録に開き方が在れば「最後の関所: <語>」、無ければ空"""
-        self.assertEqual(gp.head_words({gp.FINAL_KEY: "when_needed"}), "最後の関所: when_needed")
+        self.assertEqual(gp.head_words({gp.FINAL_KEY: "when_needed"}), "最後の承認ノード: when_needed")
         self.assertEqual(gp.head_words({}), "")
 
 

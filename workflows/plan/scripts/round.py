@@ -49,7 +49,7 @@ def failed(error: BaseException) -> dict:
     rounds = sorted((p for p in plan_dir.glob("r*") if p.is_dir() and p.name[1:].isdigit()), key=lambda p: int(p.name[1:]))
     d = rounds[-1] if rounds and not (rounds[-1] / ROUND_FILE).exists() else plan_dir / f"r{len(rounds) + 1}"
     k = int(d.name[1:])
-    why = f"周を開く節の中で誤りが起きた: {type(error).__name__}: {' '.join(str(error).split())}"
+    why = f"周を開くノードの中で誤りが起きた: {type(error).__name__}: {' '.join(str(error).split())}"
     doc = {"round": k, "mode": "plan", "go": False, "why": why, "items": [], "structure": f"{d.name}/{STRUCTURE_DIR}"}
     try:
         d.mkdir(parents=True, exist_ok=True)

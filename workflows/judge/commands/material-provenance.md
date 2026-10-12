@@ -19,22 +19,22 @@ $provenance-reject.output.reason
 
 ---
 
-お前は根拠の出所検査の役（任せ先）。graphloops の節 p1.provenance を、下の本線の指示書のとおりに行う。
+この役は根拠の出所検査の役（任せ先）。graphloops のノード p1.provenance を、下の元の graphloops の指示書のとおりに行う。
 
-1. まず材料 `$provenance-prep.output.brief_file` を Read で読め。下の指示書の「［材料: 〜］」は、そのファイルの同じ名の節の値（対象差分・変更ファイルの一覧・観点の正本のパスと、この run の値。engine と同じ描き方で機械が描いた物）。末尾の『条件に当たらない』の節も読め。
-2. 頭の「前の回の受け付けが拒んだ理由」の節の理由が空でなければ、お前の前の返答は受け付けで拒まれている。そこに書かれた理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。
+1. まず材料 `$provenance-prep.output.brief_file` を Read で読め。下の指示書の「［材料: 〜］」は、そのファイルの同じ名のセクションの値（対象差分・変更ファイルの一覧・観点の正本のパスと、この run の値。engine と同じ描き方で機械が描いた物）。末尾の『条件に当たらない』のセクションも読め。
+2. 頭の「前の回の受け付けが拒んだ理由」のセクションの理由が空でなければ、前の返答は受け付けで拒まれている。そこに書かれた理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。
 3. 道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。Bash は sandbox の中で走り、写しは一時の置き場（mktemp -d）に作れ。対象の作業ツリーへの書き込みは包みが止める。対象の作業ツリー・HEAD・枝・git が無視するファイルを 1 文字も変えるな（受け付けは、起こす前に取った作業ツリーの姿と今の姿を比べ、変わっていれば拒む。同じ時に別の素材集めの役も走っている）。
 
 ---
 
-## 本線の指示書（graphloops の節 p1.provenance）
+## 元の graphloops の指示書（ノード p1.provenance）
 
 # P1 根拠の出所検査（writer が実行）
 
 対象差分: ［材料: loop.diff_file］　BASE: ［材料: record.base］　リポジトリ: ［材料: inputs.cwd］
 
-対象差分の本文・PR 説明・docstring から「正本は X」「規約は X」「合意済み」等の事実の主張を抽出し、その X が対象差分の内側に無いかを確認しろ（`git log -S` 等で BASE 時点の実在を見る）。差分が自ら足したものを根拠として引用しているなら循環で、素材として P2 へ渡す。外部（他チーム・他システム・取り込み元）との合意を主張する箇所は、BASE に痕跡が無ければ「未確認の前提」として扱え。claims に主張・BASE 時点の実在・証拠。
-素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかった節に機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は review-record.py。
+対象差分の本文・PR 説明・docstring から「正本は X」「規約は X」「合意済み」等の事実の主張を抽出し、その X が対象差分の内側に無いかを確認しろ（`git log -S` 等で BASE 時点の実在を見る）。差分が自ら足したものを根拠として引用しているなら循環で、素材として P2 へ渡す（P2 は素材を読んで判定する段で、この run では診断の役 diagnose がこの役の返答を読む。渡し方: claims のその行の exists_at_base を false にし、evidence に循環の証拠（X を足した差分の箇所と、打ったコマンドの結果）を書き、material を found にして count と detail に書く）。外部（他チーム・他システム・取り込み元）との合意を主張する箇所は、BASE に痕跡が無ければ「未確認の前提」として扱え。claims に主張・BASE 時点の実在・証拠を書け。claims は返答の頭の欄で material とは別。抽出した主張 1 件ごとに 1 行で、`claim`（主張の文）・`exists_at_base`（X が BASE 時点に在ったか。真偽）・`evidence`（確かめた方法と結果）を書く。
+素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は review-record.py。
 
 ---
 
@@ -42,4 +42,4 @@ $provenance-reject.output.reason
 
 所見の場所（`where`）の `<パス>:<行>` は、作業ツリーの今のファイルの行番号で書け。差分のファイル（patch）の中の行番号を書くな——差分の行はファイルの行と違い、人が場所を開けない。差分で見つけた所見は、ファイルを読める役ならそのファイルをRead して行を確かめてから書け（読めない役は、確かめられない行番号を書かずにパスと関数名などで書け）。受け付けは、在るファイルの行の外を指す場所を拒んで出し直させる。
 
-返すのは節の output_format の形に合う JSON だけ。
+返すのはノードの output_format の形に合う JSON だけ。

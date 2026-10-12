@@ -148,12 +148,12 @@ if __name__ == "__main__":
     try:
         out = main()
     except BaseException as e:   # 返す節は落ちない（線が先へ進めなくなる）。境の口と lib を読む所の誤りも捕まえる
-        why = f"fix の返りを組めない（{type(e).__name__}: {' '.join(str(e).split())[:500]}）"
+        why = f"fix の出力を組めない（{type(e).__name__}: {' '.join(str(e).split())[:500]}）"
         print(f"collect: {why}", file=sys.stderr)
         out = fallback(why)
     try:
         print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
     except ValueError as e:
-        print(json.dumps(fallback(f"fix の返りを書けない（{type(e).__name__}: {e}）"), ensure_ascii=False, allow_nan=False),
+        print(json.dumps(fallback(f"fix の出力を書けない（{type(e).__name__}: {e}）"), ensure_ascii=False, allow_nan=False),
               flush=True)
     sys.exit(0)

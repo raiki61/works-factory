@@ -1,10 +1,10 @@
-"""読めない指し札の入力を、黙って空や当たりにせず名指す（落とし穴 K15。持ち主の決め no-silent-loosen）。
+"""読めないポインタの入力を、黙って空や当たりにせず名指す（落とし穴 K15。持ち主の決め no-silent-loosen）。
 
-ブロックごとに、宣言の入力のうち指し札の物を 1 つずつ壊れた先（run の置き場に無いファイル gone/x9.json）にして、その入力を読む
+ブロックごとに、宣言の入力のうちポインタの物を 1 つずつ壊れた先（run の置き場に無いファイル gone/x9.json）にして、その入力を読む
 script を子のプロセスで走らせ、返り（標準出力の JSON）か書いたファイルに、その入力の名が載ることを見る。
-- 指し札の入力: YAML の inputs: の description に「指し札」が在る物（「〜の指し札の先から読む」のように、ほかの入力の指し札を言う
-  だけの物は除く）。docs/design.md の「ブロックの返りの約束」の入力の欄と同じ物になる。report の入力（ブロックの返りの束）と
-  線の request（ファイルのパス）は指し札でないので見ない
+- ポインタの入力: YAML の inputs: の description に「ポインタ」が在る物（「〜のポインタの先から読む」のように、ほかの入力のポインタを言う
+  だけの物は除く）。docs/design.md の「サブグラフの出力の約束」の入力の欄と同じ物になる。report の入力（ブロックの返りの束）と
+  線の request（ファイルのパス）はポインタでないので見ない
 - 読む script: script の字に `INPUTS_<名>` が在るか、`INPUTS_{…}` を組んで読む script が名の字を持つ物。YAML の順に、SETUPS が
   名指す前の script（with: で読む値と置き場の控えを作る節）の後に走らせる。with: の `$INPUTS.<名>`・`$<節>.output.<欄>` は
   ブロックの入力と前に走らせた script の返りで解き、役の節の返りと `$LOOP_PREV` は空の字
@@ -33,7 +33,7 @@ RUN_ID = "run-unread"
 GONE = "gone/x9.json"
 BROKEN = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": GONE})
 SKIP = ("line", "report")
-POINTER = re.compile(r"指し札(?!の先)")
+POINTER = re.compile(r"ポインタ(?!の先)")
 
 
 def flat(nodes) -> list[dict]:
@@ -88,7 +88,7 @@ def named(name: str, strings) -> bool:
 
 
 class Place:
-    """1 回の run の置き場と対象のリポジトリ。seed が入力の指し札の先を書く"""
+    """1 回の run の置き場と対象のリポジトリ。seed が入力のポインタの先を書く"""
 
     def __init__(self, tmp: pathlib.Path):
         self.tmp = tmp
@@ -364,8 +364,8 @@ class UnreadNamedCase(unittest.TestCase):
         self.assertEqual(said('{"a": "x"}\nplain\n'), ["x", "plain"])
 
     def test_pointer_inputs_are_read_from_the_description(self):
-        doc = {"inputs": {"a": {"description": "判定の指し札（judgment.json）"},
-                          "units": {"description": "単位の目録。判定の単位は judgment の指し札の先から読む"},
+        doc = {"inputs": {"a": {"description": "判定のポインタ（judgment.json）"},
+                          "units": {"description": "単位の目録。判定の単位は judgment のポインタの先から読む"},
                           "b": {"description": "JSON の配列"}, "c": {"default": ""}}}
         self.assertEqual(pointer_inputs(doc), ["a"])
         self.assertTrue(reads('os.environ["INPUTS_START"]', "start"))

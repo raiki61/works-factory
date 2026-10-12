@@ -54,9 +54,9 @@ def pointer(rel: str) -> dict:
 def resolve(ptr: dict) -> Path:
     """この run の指し札を、置き場の中のパスに戻す"""
     if ptr.get("type") != POINTER_TYPE:
-        raise ValueError(f"{POINTER_TYPE} の指し札でない: {ptr!r}")
+        raise ValueError(f"{POINTER_TYPE} のポインタでない: {ptr!r}")
     if ptr.get("run_id") != _run_id():
-        raise ValueError(f"ほかの run の指し札: {ptr.get('run_id')}（この run は {_run_id()}）")
+        raise ValueError(f"ほかの run のポインタ: {ptr.get('run_id')}（この run は {_run_id()}）")
     return _inside_artifacts(ptr.get("path", ""))
 
 
@@ -136,5 +136,5 @@ def _inside_artifacts(rel: str) -> Path:
         or rel.endswith("/")
         or ".." in re.split(r"[\\/]", rel)
     ):
-        raise ValueError(f"指し札のパスは run の置き場からの相対で、.. を持たず、/ で終わらない: {rel}")
+        raise ValueError(f"ポインタのパスは run の置き場からの相対で、.. を持たず、/ で終わらない: {rel}")
     return Path(os.environ["ARTIFACTS_DIR"]) / rel

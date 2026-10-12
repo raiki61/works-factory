@@ -24,17 +24,17 @@ def node_schema(yaml_text: str, node_id: str) -> dict:
     （YAML の flow の書き方。JSON は YAML の部分集合）で書き、ここは節の行の後の最初の output_format: の値を JSON として読む"""
     head = re.search(rf"^\s*- id: {re.escape(node_id)}\s*$", yaml_text, re.M)
     if head is None:
-        raise ValueError(f"YAML に節 {node_id} が無い")
+        raise ValueError(f"YAML にノード {node_id} が無い")
     key = re.compile(r"^\s*output_format:\s*", re.M).search(yaml_text, head.end())
     nxt = re.compile(r"^\s*- id: ", re.M).search(yaml_text, head.end())
     if key is None or (nxt is not None and nxt.start() < key.start()):
-        raise ValueError(f"節 {node_id} に output_format が無い")
+        raise ValueError(f"ノード {node_id} に output_format が無い")
     try:
         got, _ = json.JSONDecoder().raw_decode(yaml_text, key.end())
     except ValueError as e:
-        raise ValueError(f"節 {node_id} の output_format が JSON の形でない: {e}") from None
+        raise ValueError(f"ノード {node_id} の output_format が JSON の形でない: {e}") from None
     if not isinstance(got, dict):
-        raise ValueError(f"節 {node_id} の output_format が object でない")
+        raise ValueError(f"ノード {node_id} の output_format が object でない")
     return got
 
 

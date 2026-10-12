@@ -100,7 +100,7 @@ class IntakeCase(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             carry.parts({"findings": [], "answers": [{"question": "q", "text": "t", "draft": True, "source": "s"}]})
         self.assertIn("台帳の問い", str(cm.exception))
-        self.assertIn("関所の項目", str(cm.exception))
+        self.assertIn("承認ノードの項目", str(cm.exception))
 
     def test_carry_ci_keeps_drafts_as_they_are(self):
         """CI の赤を足す口（carry_ci）は下書きの行で止まらず、そのまま残す（審査の再現: 無人の run の下書きで exit 2 だった）"""

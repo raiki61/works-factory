@@ -17,6 +17,6 @@ jdir.mkdir(parents=True, exist_ok=True)
 try:
     got = ja.spec_ask(jdir, Path.cwd(), boundary.pointer(ja.JUDGE_DIR)["run_id"])
 except Exception as e:  # 関所を開けない誤りは仕様の止めにする（後ろの spec-freeze と verdict が止めの控えを読む）
-    ja.write_stop(jdir, ja.SPEC_STOP, f"仕様の関所の文を組めない（{type(e).__name__}: {e}）")
+    ja.write_stop(jdir, ja.SPEC_STOP, f"仕様の承認ノードの文を組めない（{type(e).__name__}: {e}）")
     got = {"ask": False, "message": ""}
 boundary.returns({"ask": got["ask"], "message": got["message"]})

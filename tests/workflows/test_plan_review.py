@@ -467,7 +467,7 @@ class YamlCase(unittest.TestCase):
         script = load_script("pass_open")
         for nid in ("r2-design", "plan-review"):
             self.assertEqual(script.node_schema(text, nid), got[nid]["output_format"])
-        for nid, word in (("nope", "節 nope が無い"), ("review-loop", "output_format が無い"), ("review", "JSON の形でない")):
+        for nid, word in (("nope", "ノード nope が無い"), ("review-loop", "output_format が無い"), ("review", "JSON の形でない")):
             with self.subTest(nid), self.assertRaises(ValueError) as cm:
                 script.node_schema(text, nid)
             self.assertIn(word, str(cm.exception))
@@ -493,13 +493,11 @@ class YamlCase(unittest.TestCase):
 
     def test_r2_command_is_the_original_with_only_the_allowed_edits(self):
         """独立設計の指示書は元の r2.design.md の字のまま: 許した直しを逆に当てると元のバイトに戻る"""
-        self.assertEqual(copied.restore_problems((BLOCK / "commands" / "r2-design.md").read_text(encoding="utf-8"),
-                                                 *COPIED["r2-design.md"]), [])
+        self.assertEqual(copied.restore_problems(BLOCK / "commands" / "r2-design.md", *COPIED["r2-design.md"]), [])
 
     def test_review_command_is_the_original_with_only_the_allowed_edits(self):
         """事前審査の指示書は役 judge の定義と元の p2.plan_review.md を繋いだ字のまま: 許した直しを逆に当てると元のバイトに戻る"""
-        self.assertEqual(copied.restore_problems((BLOCK / "commands" / "plan-review.md").read_text(encoding="utf-8"),
-                                                 *COPIED["plan-review.md"]), [])
+        self.assertEqual(copied.restore_problems(BLOCK / "commands" / "plan-review.md", *COPIED["plan-review.md"]), [])
 
     def test_script_names_do_not_hide_lib_modules(self):
         names = {p.stem for p in (BLOCK / "scripts").glob("*.py")}
@@ -542,10 +540,10 @@ class CopiedTextsCase(unittest.TestCase):
     def test_every_command_is_its_original_with_only_ledgered_edits(self):
         names = sorted(p.name for p in (BLOCK / "commands").glob("*.md"))
         self.assertEqual(names, sorted(COPIED), "台帳に無い指示書か、指示書の無い台帳の行")
+        self.assertLessEqual(copied.rewritten(BLOCK / "commands"), set(COPIED), "台帳に無い指示書の書き直し")
         for name in names:
             with self.subTest(name):
-                self.assertEqual(copied.restore_problems((BLOCK / "commands" / name).read_text(encoding="utf-8"),
-                                                         *COPIED[name]), [])
+                self.assertEqual(copied.restore_problems(BLOCK / "commands" / name, *COPIED[name]), [])
 
 
 class IsolationCase(RunCase):
@@ -2013,8 +2011,8 @@ class ResultCase(RunCase):
         other = json.dumps({"type": "archon_artifact", "run_id": "other-run", "path": "judge/judgment.json"})
         missing = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "judge/no-such.json"})
         for label, value, word in (("空の字", "", "JSONDecodeError"), ("JSON でない字", "{壊れた", "JSONDecodeError"),
-                                   ("ほかの run の札", other, "ほかの run の指し札"), ("在らない先", missing, "no-such.json"),
-                                   ("指し札でない", json.dumps({"path": "x"}), "指し札でない")):
+                                   ("ほかの run の札", other, "ほかの run のポインタ"), ("在らない先", missing, "no-such.json"),
+                                   ("ポインタでない", json.dumps({"path": "x"}), "ポインタでない")):
             with self.subTest(label):
                 self.run_.inputs["judgment"] = value
                 opened = self.run_.out("pass_open")
@@ -2082,7 +2080,7 @@ class FailSafeCase(RunCase):
         got = json.loads(done.stdout)
         self.assertEqual(validate_schema(got, nodes()["review"]["output_format"]), [], got)
         self.assertEqual((got["pass"], got["ask_human"]), (False, True))
-        self.assertTrue(got["questions"][0].startswith("返す節が落ちた: "), got["questions"])
+        self.assertTrue(got["questions"][0].startswith("出力ノードが落ちた: "), got["questions"])
         for name in ("review", "design"):
             r.assert_pointer(got[name])
         passes = r.pointed(got["review"]).with_name(boardview.PASSES_FILE)
@@ -3037,7 +3035,7 @@ class RequestAnswersCase(GateBase):
         self.assertEqual(gatemarks.held_lines(b), [])
         done = "\n".join(gatemarks.answered_lines(b))
         self.assertIn("依頼者の答え: 並行する PR は無い", done)
-        self.assertNotIn("関所で continue を受けた", done)
+        self.assertNotIn(gatemarks.GATE_CONTINUED, done)
 
     def test_requester_answer_by_key_skips_gate_and_returns_origin(self):
         """元 tests/test_plan_gate.py の RequestAnswersCase.test_requester_answer_by_key_skips_gate_and_returns_origin。key で当てた

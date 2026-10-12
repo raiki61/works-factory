@@ -197,7 +197,7 @@ def cost_rows(facts: dict) -> list:
         m = (facts.get("minutes") or {}).get(s)
         parts = [f"${usd:.4f}" if usd is not None else "費用の記録なし"]
         if n:
-            parts.append(f"費用の欄が無い行 {n} 件（AI でない節か、提供元が費用を返さなかった）")
+            parts.append(f"費用の欄が無い行 {n} 件（AI ノードでないノードか、提供元が費用を返さなかった）")
         parts.append(f"{m} 分" if m is not None else "時間を測れない")
         rows.append(f"{s}: " + "・".join(parts))
     return rows
@@ -267,9 +267,9 @@ def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
     held = [(q, gatemarks._ledger_line(q, skip=[k for k in gatemarks._skips(q) if k in withheld] if q in pending else [])
              + f"／{gatemarks.ANSWER_KEY_HEAD}: {json.dumps(answer_key(q), ensure_ascii=False)}")
             for q in qs if not answered(q)]
-    held += [(None, f"関所で答えたが直す単位に入れられなかった: {q.get('key')}・{k}（理由: 今の周の判定に無い）")
+    held += [(None, gatemarks.unreturned_line(q.get("key"), k))
              for q in qs if asked(q) and answered(q) for k in gatemarks._skips(q) if k not in units]
-    done = [gatemarks._ledger_line(q, "・" + gatemarks.answer_note(a) if (a := request_answer(q)) is not None else "・関所で continue を受けた")
+    done = [gatemarks._ledger_line(q, "・" + gatemarks.answer_note(a) if (a := request_answer(q)) is not None else gatemarks.GATE_CONTINUED)
             for q in qs if answered(q)]
     for n, st in missing.items() if answers else ():
         a = oc.material_answer(returns, answers, n)
@@ -633,16 +633,16 @@ def _gate_passes(returns: dict) -> list:
             continue
         p = as_dict(r).get("review")
         if not (isinstance(p, str) and p):
-            out.append(f"修正前の関所が聞かずに通した行（{rid}）: 無い（{'返りが無い' if r is None else '事前審査の指し札が無い'}）")
+            out.append(f"修正前の承認ノードが聞かずに通した行（{rid}）: 無い（{'出力が無い' if r is None else '事前審査のポインタが無い'}）")
             continue
         path = pathlib.Path(p).with_name(GATE_PASSES)
         try:
             rows = oc.read_json(path)
         except (OSError, ValueError) as e:
-            out.append(f"修正前の関所が聞かずに通した行（{rid}）: 無い（{path} が読めない: {report._one_line(e)}）")
+            out.append(f"修正前の承認ノードが聞かずに通した行（{rid}）: 無い（{path} が読めない: {report._one_line(e)}）")
             continue
         rows = rows if isinstance(rows, list) else [rows]
-        out.append(f"修正前の関所が聞かずに通した行（{rid}）: {len(rows)} 件")
+        out.append(f"修正前の承認ノードが聞かずに通した行（{rid}）: {len(rows)} 件")
         out += [f"  - {report._one_line(json.dumps(x, ensure_ascii=False) if not isinstance(x, str) else x)}" for x in rows]
     return out
 
@@ -737,7 +737,7 @@ def verify_lines(returns: dict) -> list:
         notes.append("単位どうしの相乗りは確かめられなかった")
     if not notes:
         return [f"判定の単位の裏取り: {len(units)} 単位とも根本・証拠・場所が合った（重複・順番の名指しなし）"]
-    return [f"判定の単位の裏取り（{len(units)} 単位。単位は消していない。減らすなら関所か再審で）:", *[f"  - {x}" for x in notes]]
+    return [f"判定の単位の裏取り（{len(units)} 単位。単位は消していない。減らすなら承認ノードか再審で）:", *[f"  - {x}" for x in notes]]
 
 
 def pr_lines(returns: dict) -> list:
@@ -869,7 +869,7 @@ def _evidence_lines(returns: dict) -> list:
         head = f"{label}（{rid}）"
         p = ret.get("evidence")
         if not (isinstance(p, str) and p):
-            out.append(f"{head}の走らせ方とログ: 取れない（証拠の指し札が無いか開けなかった）")
+            out.append(f"{head}の走らせ方とログ: 取れない（証拠のポインタが無いか開けなかった）")
             continue
         try:
             rows = pathlib.Path(p).read_text(encoding="utf-8").splitlines()
@@ -878,7 +878,7 @@ def _evidence_lines(returns: dict) -> list:
             continue
         for name, prefix in EVIDENCE_ROWS:
             got = next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
-            out.append(f"{head}の{name}: " + (got if got is not None else f"証拠に「{name}」の行が無い（返す節が誤りで落ちた時の証拠か）"))
+            out.append(f"{head}の{name}: " + (got if got is not None else f"証拠に「{name}」の行が無い（出力ノードが誤りで落ちた時の証拠か）"))
     return out
 
 
@@ -899,7 +899,7 @@ def _eye_lines(returns: dict, typed: dict) -> tuple[list, list]:
     eyes = returns.get("eyes")
     out, notes = [], []
     if eyes is None:
-        out.append("独立の目のブロックの返りが無い（飛ばされた・落ちた）")
+        out.append("独立の目のサブグラフの出力が無い（飛ばされた・落ちた）")
     for name in oc.EYE_NAMES:
         e = as_dict(eyes).get(name)
         if eyes is not None:
@@ -967,13 +967,13 @@ def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, retur
     out = [f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", f"止めた段と理由の語: {stop_reason or '止めていない'}"]
     for gid in oc.GATES:
         g = gates.get(gid)
-        out.append(f"関所 {gid}: " + (f"{g.get('decision')}（{report._one_line(g.get('text') or '')}）" if isinstance(g, dict) else "開かなかった"))
+        out.append(f"承認ノード {gid}: " + (f"{g.get('decision')}（{report._one_line(g.get('text') or '')}）" if isinstance(g, dict) else "開かなかった"))
     for rid in ("merge-seal", "merge-apply"):
         m = returns.get(rid)
         if isinstance(m, dict) and m.get("ok") is not True:
             out.append(f"{rid} が ok でない: {report._one_line(m.get('reason') or '訳の記録が無い')}")
     if tfacts.get("ok"):
-        out += [f"{report.INTERRUPTED_HEAD}: 節 {s} が落ちた（誤り: {report._first_error({'error': (tfacts.get('errors') or {}).get(s)})}）"
+        out += [f"{report.INTERRUPTED_HEAD}: ノード {s} が落ちた（誤り: {report._first_error({'error': (tfacts.get('errors') or {}).get(s)})}）"
                 for s in tfacts.get("failed") or []]
         out += [f"{report.RETRIED_HEAD}: {r['node']}（落ちた回 {r['failures']}。最後の誤り: {r['error'] or '（誤りの文が無い）'}）"
                 for r in tfacts.get("retried") or []]
@@ -988,7 +988,7 @@ def _where_lines(returns: dict) -> list:
     for rid, field, label in POINTERS:
         for p in oc.paths(_ret(returns, rid).get(field)):
             out.append(f"{label}（{rid}.{field}）: {p}")
-    return out or ["返りに指し札が無い"]
+    return out or ["出力にポインタが無い"]
 
 
 def _bullets(lines: list) -> list:
@@ -1158,20 +1158,20 @@ def accept(reply, cold, *, out_dir) -> dict:
 
 
 def stamp(run_id: str, workflow_file, rnd, start: dict | None) -> str:
-    """報告の頭の来歴の 1 行（機械が刻む。元 report_roles.stamp の works の線・run・周・graph の版を、工程の名（ファイルの名）・run・
-    周（計画の round。何回目の案か。無ければ —）・工程のファイルの sha256 の頭 12 字・線の版（始めの記録 start の versions.line の
-    頭 12 字）で。元の table の版は規則の表が無いので無い）。工程のファイルが読めなければ工程の版の所に、start が None（始めの記録が
-    読めない）なら線の版の所にその旨。読めた記録に versions.line が無ければ「無い」と分けて書く"""
+    """報告の頭の来歴の 1 行（機械が刻む。元 report_roles.stamp の works の線・run・周・graph の版を、グラフの名（ファイルの名）・run・
+    周（計画の round。何回目の案か。無ければ —）・グラフのファイルの sha256 の頭 12 字（グラフの版）・メイングラフの版（始めの記録 start の versions.line の
+    頭 12 字）で。元の table の版は規則の表が無いので無い）。グラフのファイルが読めなければグラフの版の所に、start が None（始めの記録が
+    読めない）ならメイングラフの版の所にその旨。読めた記録に versions.line が無ければ「無い」と分けて書く"""
     try:
         sha = hashlib.sha256(pathlib.Path(workflow_file).read_bytes()).hexdigest()[:12]
     except OSError as e:
         sha = f"読めない（{type(e).__name__}）"
-    parts = [pathlib.Path(workflow_file).stem, f"run {run_id or '—'}", f"周 {rnd if rnd is not None else '—'}", f"工程の版 {sha}"]
+    parts = [pathlib.Path(workflow_file).stem, f"run {run_id or '—'}", f"周 {rnd if rnd is not None else '—'}", f"グラフの版 {sha}"]
     if start is None:
-        parts.append("線の版 読めない（始めの記録が読めない）")
+        parts.append("メイングラフの版 読めない（始めの記録が読めない）")
     else:
         line = as_dict(start.get("versions")).get("line")
-        parts.append(f"線の版 {line[:12]}" if isinstance(line, str) and line else "線の版 始めの記録に無い（versions.line）")
+        parts.append(f"メイングラフの版 {line[:12]}" if isinstance(line, str) and line else "メイングラフの版 始めの記録に無い（versions.line）")
     return " / ".join(parts)
 
 
