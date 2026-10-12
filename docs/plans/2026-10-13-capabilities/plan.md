@@ -860,10 +860,10 @@
 
 - P119 往復の報告の行（何往復・抜け方の語・続いた block・往復ごとの block と答えの数・項目の閉じた/開いた/保留・相乗りの block）を報告の冒頭に載せる
   - 元: works/.shared/core/converge.py:593 `lines`、works/.shared/core/report.py:949（`lines += converge.lines(b)`）
-  - 今: lib/boardview.py:951 が plan-review/pass-<k>/gate.json の `converge` に書くだけで、報告（lib/runreport.py・lib/report.py）も線も読まない
-  - 証: lib/tests/test_converge.py::TextCase.test_lines_summarize_passes（lib の水準だけ）。報告に届く試験は無い → 要追加: tests/workflows/test_report.py::ConvergeLinesCase.test_head_carries_plan_converge_lines — plan-review の返りの review の隣の gate.json の converge の行が報告の冒頭の決めの節に載る
-  - 本物の run: plan-review/pass-1/gate.json の `converge`（種の run では「事前審査の壁打ち: 1 往復・抜け方は block が消えた…」の 1 行が在るはず）と report の本文（今は載らない）
-  - 狭め: #73・#68 のどちらにも狭めの記載無し（不可でない → 戻す。報告が gate-passes.json と同じく review の隣を読めば足りる）
+  - 今: lib/boardview.py の collect が plan-review/pass-<k>/gate.json の `converge` に書き、lib/runreport.py の `_converge_lines` が plan-review の返りの review の隣のその行を報告の冒頭の決めの節に載せる（gate-passes.json と同じ読み方）
+  - 証: lib/tests/test_converge.py::TextCase.test_lines_summarize_passes（lib の水準）、tests/workflows/test_report.py::ConvergeLinesCase.test_head_carries_plan_converge_lines（事前審査のブロックの script を回した返りの gate.json の converge の行が報告の冒頭の決めの節に載る）
+  - 本物の run: plan-review/pass-<k>/gate.json の `converge`（種の run では「事前審査の壁打ち: 1 往復・抜け方は block が消えた…」の 1 行が在るはず）と report の本文の決めの節
+  - 狭め: 無し
 
 - P120 往復ごとの拒否の数え直し: again で次の往復に移ると、計画と事前審査の拒否の回数を 0 から数え直す（拒否の行は往復の行に残す）
   - 元: works/blk-plan/lib/planblk.py:1178 `with_converge`（converge.stash_rejects・rolekit.take_rejects）、works/tests/test_blk_plan.py:1751 `test_rejects_restart_per_pass`
