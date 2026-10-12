@@ -572,6 +572,17 @@ class ReuseRunCase(unittest.TestCase):
         self.assertNotIn("reused", note)
         self.assertIn("書き戻しに失敗した", note["reuse_off"])
 
+    def test_report_written_right_after_launch_is_kept(self):
+        """起こした時刻はファイルの時刻の時計で取る: time.time() がファイルの時刻より進んでいても（Linux の粗いファイルの時刻）、
+        起こした後に書いた報告を控え、書き戻す"""
+        real = time.time
+        with mock.patch.object(time, "time", lambda: real() + 5):
+            self.launch()
+            self.report.unlink()
+            _, _, note = self.launch()
+        self.assertEqual((self.launched(), self.report.read_text(encoding="utf-8")), (1, "<r/>\n"))
+        self.assertIn("reused", note)
+
     def test_red_or_tree_changing_run_is_not_kept(self):
         red = ["sh", "-c", f"echo 1 >> {self.count}; exit 1"]
         self.assertEqual(self.launch(red, ())[0], 1)

@@ -52,6 +52,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 sys.dont_write_bytecode = True   # 下の import が（python3 tree_run.py で起こした時に）pack の中へ __pycache__ を作らないように
@@ -443,6 +444,13 @@ IGNORED_ENV = frozenset({
 })
 
 
+def file_clock() -> float:
+    """ファイルの時刻の時計で読んだ今（空のファイルを作って更新時刻を読む）。起こした時刻を、子が書く報告の更新時刻と比べる呼び手が使う。
+    Linux はファイルの時刻を粗い時計（1 tick 遅れうる）で付けるので、time.time() と比べると起こした直後に書いた報告が起こすより古く見える"""
+    with tempfile.NamedTemporaryFile() as f:
+        return os.fstat(f.fileno()).st_mtime
+
+
 def reuse_place(top, run: str, *, rerun: bool) -> dict | None:
     """使い回しの置き場 {dir, run, skip}: 控えは top（run の置き場）の直下の REUSE_SUB、run は控えに書いて引く時に照らす run の名、
     skip は引かずに走らせる理由（rerun が真なら旗 RERUN_ENV の文。置くのは続ける）。top か run が空なら None（控えを読まず書かない）。
@@ -785,7 +793,7 @@ def reuse_run(argv, env, *, place, outputs=(), note=None, skip="", group=None, *
                 return 0
         if reason:
             _off(note, reason)
-    started = time.time()
+    started = file_clock()
     rc = run(argv, env=child_env(env), **popen_kw)
     if plan:
         _keep(plan, rc, started, round(time.time() - started, 1), outputs, note, group)

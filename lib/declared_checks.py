@@ -246,11 +246,11 @@ def tree_runner(steps: list, cwd, log_dir, *, reuse: dict | None = None) -> list
             logs.append((str(out_path), str(err_path), stack.enter_context(open(out_path, "wb")),
                          stack.enter_context(open(err_path, "wb"))))
         group = tree_run.new_group([{"name": s["name"], "argv": list(s["argv"]), "outputs": o} for s, o in zip(steps, outputs)], cwd)
-        replay_at = time.time()   # 控えから書き戻した報告が、段の起動より古く見えないように、書き戻す前の時刻を起動に使う
+        replay_at = tree_run.file_clock()   # 控えから書き戻した報告が、段の起動より古く見えないように、書き戻す前の時刻を起動に使う
         replayed, why = tree_run.replay_group(group, env, cwd, [(out, err) for _, _, out, err in logs], reuse)
         notes = replayed or [{} for _ in steps]
         for s, o, note, (out_path, err_path, out, err) in zip(steps, outputs, notes, logs):
-            started = replay_at if replayed else time.time()
+            started = replay_at if replayed else tree_run.file_clock()
             row = {"name": s["name"], "argv": list(s["argv"]), "out": out_path, "err": err_path, "started": started}
             if replayed:
                 rc = 0
