@@ -138,6 +138,31 @@ class MakeTargetTest(unittest.TestCase):
         cases = list(ET.parse(out).getroot().iter("testcase"))
         self.assertEqual([(c.get("name"), c.find("failure") is not None) for c in cases], [("test_mean_of_three", True)])
 
+    def test_make_takes_seed_and_request(self):
+        seed = self.tmp / "other-seed"
+        seed.mkdir()
+        (seed / "only.txt").write_text("x\n", encoding="utf-8")
+        request = self.tmp / "ask.json"
+        request.write_text('[{"where": "only.txt", "text": "y"}]\n', encoding="utf-8")
+        done = self.make_target("make", str(self.tmp / "attempt"), "--seed", str(seed), "--request", str(request))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        made = {k: pathlib.Path(v) for k, v in json.loads(done.stdout).items()}
+        self.assertEqual(git(made["target"], "ls-files"), "only.txt")
+        self.assertEqual(made["request"].read_bytes(), request.read_bytes())
+        self.assertEqual(self.ledger(self.repo).read_text(encoding="utf-8"), f"{made['home']}\t{made['target']}\n")
+
+    def test_make_without_ledger_is_not_torn_down(self):
+        done = self.make_target("make", str(self.tmp / "attempt"), "--no-ledger")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertFalse(self.ledger(self.repo).exists())
+        self.assertEqual(self.make_target("teardown").returncode, 0)
+        self.assertEqual(self.calls(), [])
+
+    def test_make_refuses_unknown_arguments(self):
+        for args in (["--seed"], ["a", "b"], ["a", "--seed", "x", "--seed", "y"], ["a", "--force"]):
+            with self.subTest(args=args):
+                self.assertEqual(self.make_target("make", *args).returncode, 2)
+
     def test_make_refuses_non_empty_or_inside_checkout(self):
         full = self.tmp / "full"
         full.mkdir()
