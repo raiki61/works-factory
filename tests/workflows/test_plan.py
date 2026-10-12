@@ -367,13 +367,11 @@ class ShapeCase(unittest.TestCase):
 
     def test_fix_plan_command_is_the_original_with_only_the_allowed_edits(self):
         """修正案の役の指示書は元の p2.fix_plan.md の文のまま: 許した直しを逆に当てると元のバイトに戻る"""
-        self.assertEqual(copied.restore_problems((COMMANDS / "fix-plan.md").read_text(encoding="utf-8"), *COPIED["fix-plan.md"]),
-                         [])
+        self.assertEqual(copied.restore_problems(COMMANDS / "fix-plan.md", *COPIED["fix-plan.md"]), [])
 
     def test_eye_command_is_the_original(self):
         """構造の目の指示書は元の blk-structure/commands/structure-eye.md のバイトのまま（直しを許していない）"""
-        self.assertEqual(copied.restore_problems((COMMANDS / "structure-eye.md").read_text(encoding="utf-8"),
-                                                 *COPIED["structure-eye.md"]), [])
+        self.assertEqual(copied.restore_problems(COMMANDS / "structure-eye.md", *COPIED["structure-eye.md"]), [])
 
     def test_deadlines_are_all_twenty_days(self):
         keys = ("timeout", "idle_timeout")
@@ -486,9 +484,10 @@ class CopiedTextsCase(unittest.TestCase):
     def test_every_command_is_its_original_with_only_ledgered_edits(self):
         names = sorted(p.name for p in COMMANDS.glob("*.md"))
         self.assertEqual(names, sorted(COPIED), "台帳に無い指示書か、指示書の無い台帳の行")
+        self.assertLessEqual(copied.rewritten(COMMANDS), set(COPIED), "台帳に無い指示書の書き直し")
         for name in names:
             with self.subTest(name):
-                self.assertEqual(copied.restore_problems((COMMANDS / name).read_text(encoding="utf-8"), *COPIED[name]), [])
+                self.assertEqual(copied.restore_problems(COMMANDS / name, *COPIED[name]), [])
 
 
 class StageACase(unittest.TestCase):

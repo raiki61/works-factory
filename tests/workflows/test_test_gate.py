@@ -22,7 +22,7 @@ import yaml
 
 from tests import archon
 from tests.bin.gitkit import committed_copy, git
-from tests.workflows.copied import assert_is_original
+from tests.workflows.copied import assert_is_original, rewritten
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "test-gate"
@@ -322,7 +322,8 @@ class YamlCase(unittest.TestCase):
 class CopiedTextsCase(unittest.TestCase):
     def test_every_command_is_its_original_with_only_ledgered_edits(self):
         """役の指示書は元の 3 つの文のまま: 台帳 CI_EDITS の直しを逆に当てると元のバイトに戻る（直しは 1 組ずつ訳つき）"""
-        assert_is_original(self, (BLOCK / "commands" / "ci.md").read_text(encoding="utf-8"), CI_SHA256, CI_EDITS)
+        self.assertLessEqual(rewritten(BLOCK / "commands"), {"ci.md"})
+        assert_is_original(self, BLOCK / "commands" / "ci.md", CI_SHA256, CI_EDITS)
 
 
 class ScriptCase(unittest.TestCase):

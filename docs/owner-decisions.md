@@ -183,8 +183,8 @@
 ### `prompts-coldread` 役の指示書は初見の読み手で詰まりが 0 になるまで書き直してよい
 
 - 持ち主の言葉: 「全部指示文とかはcoldreaderとかcoldwriterで修正していいよ。」（2026-10-12）
-- 決め: 役の指示書は、初見の読み手（cold-reader）が詰まらなくなるまで書き直してよい。禁じた入力の一覧・返す JSON の形・手順の順と止める条件・`{{…}}` などの差し込みの名の 4 つは前後で同じに保ち、指示書ごとに試験で照らす。元の works から写した指示書をバイトで縛る試験は外す（今の works の元の字は歴史として読むだけ）。
-- 当て方: `tests/workflows/test_prompt_contracts.py` と約束の表 `tests/workflows/prompt_contracts.json`（変えてよいのは quote だけ）。外の作者の本文（`workflows/eyes/commands/r1-comments.md` の comment-analyzer の定義）はバイトの縛りを残す。この決めで置き換わる計画の箇所: `docs/plans/2026-10-13-line-wiring.md` の共通の決まり 7・K9・部分 D1 のやる事 2（`direct.md` を元の字に戻す）、`docs/plans/2026-10-13-capabilities/pitfalls.md` の K9、`docs/plans/2026-10-13-capabilities/plan.md` の P032 と、r2-design・plan-review の指示書の sha256 の縛りを求める証、`docs/plans/2026-10-13-stage1-walking-skeleton.md` の K9。
+- 決め: 役の指示書は、初見の読み手（cold-reader）が詰まらなくなるまで書き直してよい。禁じた入力の一覧・返す JSON の形・手順の順と止める条件・`{{…}}` などの差し込みの名の 4 つは前後で同じに保ち、指示書ごとに試験で照らす。写しの台帳（元の works の字の sha256 と許した直しの組）を持つ指示書は、台帳の試験を残し、書き直しを台帳の許した直しとして 1 件ずつ足す。
+- 当て方: `tests/workflows/test_prompt_contracts.py` と約束の表 `tests/workflows/prompt_contracts.json`（変えてよいのは quote だけ）。外の作者の本文（`workflows/eyes/commands/r1-comments.md` の comment-analyzer の定義）はバイトの縛りを残す。書き直しの許した直しは `tests/workflows/copied_rewrites.json` に指示書ごとに並べ、`tests/workflows/copied.py` の `assert_is_original` が台帳の直しの後ろに当てる。計画の K9（写しを元の字と許した直しで縛る）はこの決めと両立して残る。替わるのは「元の字に戻す」の既定だけで、書き直しは元に戻さずに許した直しとして記録する（`docs/plans/2026-10-13-line-wiring.md` の共通の決まり 7・K9・部分 D1 のやる事 2、`docs/plans/2026-10-13-capabilities/pitfalls.md` の K9、`docs/plans/2026-10-13-stage1-walking-skeleton.md` の K9）。台帳を残して書き直しを足す形は、PR #221 の運び役の決め（2026-10-12。2 つの決めを満たす形が 1 つに決まるので持ち主には聞いていない）。
 
 ### `full-suite-in-ci` 全部の試験は CI に寄せ、run の中では回さない
 

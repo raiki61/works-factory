@@ -493,13 +493,11 @@ class YamlCase(unittest.TestCase):
 
     def test_r2_command_is_the_original_with_only_the_allowed_edits(self):
         """独立設計の指示書は元の r2.design.md の字のまま: 許した直しを逆に当てると元のバイトに戻る"""
-        self.assertEqual(copied.restore_problems((BLOCK / "commands" / "r2-design.md").read_text(encoding="utf-8"),
-                                                 *COPIED["r2-design.md"]), [])
+        self.assertEqual(copied.restore_problems(BLOCK / "commands" / "r2-design.md", *COPIED["r2-design.md"]), [])
 
     def test_review_command_is_the_original_with_only_the_allowed_edits(self):
         """事前審査の指示書は役 judge の定義と元の p2.plan_review.md を繋いだ字のまま: 許した直しを逆に当てると元のバイトに戻る"""
-        self.assertEqual(copied.restore_problems((BLOCK / "commands" / "plan-review.md").read_text(encoding="utf-8"),
-                                                 *COPIED["plan-review.md"]), [])
+        self.assertEqual(copied.restore_problems(BLOCK / "commands" / "plan-review.md", *COPIED["plan-review.md"]), [])
 
     def test_script_names_do_not_hide_lib_modules(self):
         names = {p.stem for p in (BLOCK / "scripts").glob("*.py")}
@@ -542,10 +540,10 @@ class CopiedTextsCase(unittest.TestCase):
     def test_every_command_is_its_original_with_only_ledgered_edits(self):
         names = sorted(p.name for p in (BLOCK / "commands").glob("*.md"))
         self.assertEqual(names, sorted(COPIED), "台帳に無い指示書か、指示書の無い台帳の行")
+        self.assertLessEqual(copied.rewritten(BLOCK / "commands"), set(COPIED), "台帳に無い指示書の書き直し")
         for name in names:
             with self.subTest(name):
-                self.assertEqual(copied.restore_problems((BLOCK / "commands" / name).read_text(encoding="utf-8"),
-                                                         *COPIED[name]), [])
+                self.assertEqual(copied.restore_problems(BLOCK / "commands" / name, *COPIED[name]), [])
 
 
 class IsolationCase(RunCase):

@@ -22,7 +22,7 @@ import yaml
 
 from tests import archon
 from tests.workflows import test_plan_review as plan_review
-from tests.workflows.copied import assert_is_original
+from tests.workflows.copied import assert_is_original, rewritten
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "report"
@@ -250,9 +250,10 @@ class CopiedTextsCase(unittest.TestCase):
     def test_every_command_is_its_original_with_only_ledgered_edits(self):
         """役の指示書は元の works の指示書の文のまま: 台帳の直しを逆に当てると元のバイトに戻る"""
         self.assertEqual({p.name for p in (BLOCK / "commands").glob("*.md")}, set(COPIED))
+        self.assertLessEqual(rewritten(BLOCK / "commands"), set(COPIED))
         for name, (original, sha, edits) in COPIED.items():
             with self.subTest(name, original=original):
-                assert_is_original(self, (BLOCK / "commands" / name).read_text(encoding="utf-8"), sha, edits)
+                assert_is_original(self, BLOCK / "commands" / name, sha, edits)
 
 
 class TypedCase(unittest.TestCase):

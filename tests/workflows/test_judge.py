@@ -19,7 +19,7 @@ import yaml
 
 from tests import archon
 from tests.bin.gitkit import committed_copy, git
-from tests.workflows.copied import agent_body, assert_is_original, role_definition
+from tests.workflows.copied import agent_body, assert_is_original, rewritten, role_definition
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
@@ -1429,10 +1429,11 @@ class CopiedTextsCase(unittest.TestCase):
         on_disk = {p.name for p in COMMANDS.glob("*.md")}
         with self.subTest(ledger="台帳と指示書の一覧"):
             self.assertEqual(sorted(COPIED_TEXTS), sorted(on_disk))
+            self.assertLessEqual(rewritten(COMMANDS), set(COPIED_TEXTS))
         for name in sorted(on_disk & set(COPIED_TEXTS)):
             source, sha256, edits = COPIED_TEXTS[name]
             with self.subTest(command=name, source=source):
-                assert_is_original(self, (COMMANDS / name).read_text(encoding="utf-8"), sha256, edits)
+                assert_is_original(self, COMMANDS / name, sha256, edits)
 
 
 if __name__ == "__main__":
