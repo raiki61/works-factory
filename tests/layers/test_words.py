@@ -26,6 +26,8 @@ ASF_DIRS = ("factory", "harness", ".factory")
 ROOT_DOCS = ("README.md", "MISSION.md", "engineering.md")
 BORROWED_PROMPT = "bin/_lib/borrow/unattended.md"   # 局所レビューの役の指示書の末尾に全文で載る
 
+_SECTION_NUMBER = "依頼が設計書のセクションを番号で名指す書き方（「`<path>` 3 節」）。依頼の字を読むので変えない"
+
 # 外す規則の全部。ここの外で字を外さない。
 EXCEPT = {
     # 1. `…` の中は識別子とパス（ファイル名・YAML の id・欄の名）。識別子は変えない。
@@ -34,22 +36,21 @@ EXCEPT = {
     "owner_quote_line": "持ち主の言葉",
     # 3. 線・節をグラフの語でない意味で含む語。
     "compounds": ("配線", "導線", "動線", "点線", "下線", "上線", "実線", "罫線", "条件節", "節約"),
-}
-# 4. lib・script の文字列のうち、字でなく値の物（前の run が書いたファイルから読み戻す語など）。{(パス, 文字列の 1 行): 訳}。
-# どの行も木の文字列に当たる（当たらない行は test_keep_rows_hit_the_tree が赤にする）。
-_SECTION_NUMBER = "依頼が設計書のセクションを番号で名指す書き方（「`<path>` 3 節」）。依頼の字を読むので変えない"
-KEEP: dict[tuple[str, str], str] = {
-    ("lib/design.py", r'r"`([^`\s#]+\.[A-Za-z0-9]+)`\s*(?:の\s*)?(?:§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節)"'): _SECTION_NUMBER,
-    ("lib/design.py", r'r"(?:\s+|\s*の\s*)(?:§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節)"'): _SECTION_NUMBER,
-    ("lib/design.py", r'r"§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節"'): _SECTION_NUMBER,
-    ("lib/design.py", " 節"): _SECTION_NUMBER + "（名指しの `<path> <N> 節` の形を組む）",
-    ("lib/design.py", '"結び付けられる形の設計書の名指しが依頼に無い（リンク・`<path>#<見出し>`・`<path>` N 節・<名前> N 節 の形だけを数える）"'):
-        _SECTION_NUMBER + "（数える形を依頼の字のまま並べる）",
-    ("lib/design.py", r"(?:\.?(?:\s|$)|節)"): _SECTION_NUMBER + "（見出しの頭の番号を引く）",
-    ("lib/design.py", r'r"(.+) (\S+) 節"'): _SECTION_NUMBER + "（名指しの `<path> <N> 節` の形を解く）",
-    ("lib/design.py", r"\s*節"): _SECTION_NUMBER + "（返答が名指しを挙げたかを照らす）",
-    ("lib/report.py", '"盤面"'): "直しが対象に漏らした works の内側の語を探す字。旧い語も漏れうる",
-    ("lib/report.py", '"関所"'): "直しが対象に漏らした works の内側の語を探す字。旧い語も漏れうる",
+    # 4. lib・script の文字列のうち、字でなく値の物（前の run が書いたファイルから読み戻す語など）。{(パス, 文字列の 1 行): 訳}。
+    # どの行も木の文字列に当たる（当たらない行は test_keep_rows_hit_the_tree が赤にする）。
+    "keep": {
+        ("lib/design.py", r'r"`([^`\s#]+\.[A-Za-z0-9]+)`\s*(?:の\s*)?(?:§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節)"'): _SECTION_NUMBER,
+        ("lib/design.py", r'r"(?:\s+|\s*の\s*)(?:§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節)"'): _SECTION_NUMBER,
+        ("lib/design.py", r'r"§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節"'): _SECTION_NUMBER,
+        ("lib/design.py", " 節"): _SECTION_NUMBER + "（名指しの `<path> <N> 節` の形を組む）",
+        ("lib/design.py", '"結び付けられる形の設計書の名指しが依頼に無い（リンク・`<path>#<見出し>`・`<path>` N 節・<名前> N 節 の形だけを数える）"'):
+            _SECTION_NUMBER + "（数える形を依頼の字のまま並べる）",
+        ("lib/design.py", r"(?:\.?(?:\s|$)|節)"): _SECTION_NUMBER + "（見出しの頭の番号を引く）",
+        ("lib/design.py", r'r"(.+) (\S+) 節"'): _SECTION_NUMBER + "（名指しの `<path> <N> 節` の形を解く）",
+        ("lib/design.py", r"\s*節"): _SECTION_NUMBER + "（返答が名指しを挙げたかを照らす）",
+        ("lib/report.py", '"盤面"'): "直しが対象に漏らした works の内側の語を探す字。旧い語も漏れうる",
+        ("lib/report.py", '"関所"'): "直しが対象に漏らした works の内側の語を探す字。旧い語も漏れうる",
+    },
 }
 
 
@@ -137,7 +138,7 @@ def problems(root):
     out = []
     for rel, kind in scope(root):
         for lineno, line in texts(root / rel, kind):
-            if (rel, line) in KEEP:
+            if (rel, line) in EXCEPT["keep"]:
                 continue
             rest = masked(line)
             out += [f"{rel}:{lineno}: 旧い語 {word}" for word in BANNED if word in rest]
@@ -145,10 +146,10 @@ def problems(root):
 
 
 def stale_keep(root):
-    """`KEEP` の行のうち、木の文字列に当たらない物"""
+    """`EXCEPT["keep"]` の行のうち、木の文字列に当たらない物"""
     root = pathlib.Path(root)
     found = {(rel, line) for rel, kind in scope(root) if kind == "py" for _, line in texts(root / rel, kind)}
-    return [f"KEEP: {rel} の {line!r} が木の文字列に当たらない" for rel, line in KEEP if (rel, line) not in found]
+    return [f"keep: {rel} の {line!r} が木の文字列に当たらない" for rel, line in EXCEPT["keep"] if (rel, line) not in found]
 
 
 class WordsTest(unittest.TestCase):
@@ -160,10 +161,10 @@ class WordsTest(unittest.TestCase):
 
     def test_keep_row_skips_its_literal_and_a_stale_row_is_red(self):
         row = ("lib/a.py", '"関所"')
-        with mock.patch.dict(KEEP, {row: "前の run の記録から読み戻す語"}, clear=True), tree({"lib/a.py": 'X = "関所"\n'}) as root:
+        with mock.patch.dict(EXCEPT["keep"], {row: "前の run の記録から読み戻す語"}, clear=True), tree({"lib/a.py": 'X = "関所"\n'}) as root:
             self.assertEqual((problems(root), stale_keep(root)), ([], []))
-        with mock.patch.dict(KEEP, {row: "前の run の記録から読み戻す語"}, clear=True), tree({"lib/a.py": 'X = "承認ノード"\n'}) as root:
-            self.assertEqual(stale_keep(root), ["KEEP: lib/a.py の '\"関所\"' が木の文字列に当たらない"])
+        with mock.patch.dict(EXCEPT["keep"], {row: "前の run の記録から読み戻す語"}, clear=True), tree({"lib/a.py": 'X = "承認ノード"\n'}) as root:
+            self.assertEqual(stale_keep(root), ["keep: lib/a.py の '\"関所\"' が木の文字列に当たらない"])
 
     def red(self, files, where, word):
         with tree(files) as root:
