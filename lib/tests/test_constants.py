@@ -16,6 +16,7 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 ROOT = LIB.parent
 SUFFIXES = (".json", ".md", ".txt", ".diff")
 FALLBACK = "lib を読めない時にも返りの約束の形を書く逃げ道の写し（K1）。lib の値との一致は script の頭の注記の試験が縛る"
+BARE = "境の口か隣の place を読めない時の逃げ道 bare の写し（K1）。place.UNWRITTEN と字が違えば行が当たらず赤"
 
 # (定義の在る所, 名) -> 訳
 FALLBACKS = {
@@ -28,6 +29,8 @@ FALLBACKS = {
     ("workflows/plan/scripts/plan_collect.py", "STATE_FILE"): FALLBACK + "（structmark.STATE_FILE）",
     ("workflows/plan/scripts/plan_collect.py", "RIPPLE_FILE"): FALLBACK + "（planfile.RIPPLE_FILE）",
     ("workflows/plan/scripts/round.py", "ROUND_FILE"): FALLBACK + "（planfile.ROUND_FILE）",
+    ("workflows/report/scripts/facts.py", "UNWRITTEN"): BARE,
+    ("workflows/report/scripts/collect.py", "UNWRITTEN"): BARE,
 }
 
 # (定義の在る所, 名) -> 訳。住処は訳の頭に書いた方

@@ -10,11 +10,13 @@ import os
 import sys
 from pathlib import Path
 
+UNWRITTEN = "report-unwritten.md"   # place.UNWRITTEN の写し。隣の place を読めない時の bare も同じ名へ書く
+
 try:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
     import boundary
 
-    from place import UNWRITTEN, failed_line, out_dir, rel, unwritten
+    from place import failed_line, out_dir, rel, unwritten
     unread = None
 except Exception as error:  # noqa: BLE001 — 返す節は落ちない（下の bare で返す）
     boundary, unread = None, error
@@ -68,7 +70,7 @@ def fallen(error: BaseException) -> dict:
 def bare(what: str, error: BaseException) -> tuple:
     """境の口か隣の部品を読めない時の訳と、訳だけを書いたファイルの指し札（place.failed_line・unwritten の標準ライブラリだけの写し）"""
     why = f"{what}を組めなかった（{type(error).__name__}: {' '.join(str(error).split())}）"
-    rel_path = "report/report-unwritten.md"
+    rel_path = f"report/{UNWRITTEN}"
     try:
         path = Path(os.environ["ARTIFACTS_DIR"]) / rel_path
         path.parent.mkdir(parents=True, exist_ok=True)
