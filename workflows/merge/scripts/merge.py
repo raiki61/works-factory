@@ -43,10 +43,7 @@ def main() -> None:
         raise ValueError(f"mode は seal か apply: {mode!r}")
     if mode == "apply":
         boundary.resolve(boundary.pointer("merge/apply.diff")).unlink(missing_ok=True)
-    start = object_or_none(boundary.parsed(os.environ["INPUTS_START"]), "start")
-    if start is None:
-        raise ValueError("start のポインタが無い")
-    base_rev = json.loads(boundary.resolve(start).read_text(encoding="utf-8")).get("base_rev")
+    base_rev = json.loads(boundary.needed(os.environ["INPUTS_START"], "start").read_text(encoding="utf-8")).get("base_rev")
     if not isinstance(base_rev, str) or not base_rev:
         raise ValueError(f"始めの記録に base_rev が無い: {base_rev!r}")
     fingerprint = boundary.parsed(os.environ["INPUTS_FINGERPRINT"])

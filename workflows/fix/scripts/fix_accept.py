@@ -43,7 +43,7 @@ def main() -> dict:
     place, repo = boundary.place("fix"), boundary.work_tree()
     group = boundary.parsed(os.environ.get("INPUTS_GROUP"))
     owed = fixboard.group_owed(place, group["unit_ids"] if group else None)
-    if raw.strip() in ("", "null"):
+    if boundary.value(raw) is None:
         _, excused = fixboard.fix_duty(place, owed)
         fixboard.write_json(place / fixboard.FIX_UNITS_FILE, fixboard.unit_outcomes(owed, {}, excused=excused))
         return {"ok": True, "done": True, "reason": NOT_LAUNCHED, "reason_file": ""}
