@@ -891,7 +891,7 @@
   - 今: workflows/line/scripts/ask_final.py の final_text: 例で証明できない判定の問い（runreport.unproven_lines）・同じ run で直した修正案の項目（amend_rows・AMEND_HEAD）・持ち越した単位（runreport.split_line を 1 行目に）・残りの数え（eye_lines）
   - 証: tests/workflows/test_line.py::AskFinalCase.test_final_text_sections_match_the_original
   - 本物の run: ask-final の text
-  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻す） → 部分 B2 で戻した。clean が消したファイル・レンズ・仕組みの異常・数え直しの表・止まった単位は fix の返りの約束に控えが無いので「取れない」と書く（部分 D2。R38・R72）
+  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻す） → 部分 B2 で戻した。clean が消したファイル・レンズ・仕組みの異常・数え直しの表・止まった単位は fix の返りの約束に控えが無いので「取れない」と書く（部分 D2。R38・R72） → 部分 D2 で clean が消したファイル・レンズ・数え直しの表・減っていない単位を戻した（修正の diff の隣の約束のファイル）。仕組みの異常は「取れない（U6）」と書く
 - L-W35 最後の関所の文に、人に聞いている問いを記録のまま引き「この関所の答えは問いに答えない」と添える
   - 元: works/darkfactory/lib/line_edge.py:613-619
   - 今: workflows/line/scripts/ask_final.py の question_lines（gatemarks.quote で引き、この関所の答えは問いに答えないと添える）
