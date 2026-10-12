@@ -64,7 +64,7 @@ def main() -> int:
         out = opened()
     except Exception as e:  # noqa: BLE001  返す節が dir を束ねるので、この節は落ちない
         out = failed(e)
-    print(json.dumps(out, ensure_ascii=False), flush=True)
+    print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 

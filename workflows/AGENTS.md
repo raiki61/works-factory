@@ -20,7 +20,8 @@
 
 - ブロック（`workflows/<名>/`）の script は、ほかのブロックのフォルダへのパスを組まない。受け取りは `with:` の入力・前の節の返り・指し札（`archon_artifact`）・型つきの成果物（`output_type`）だけ。
 - ブロックの script は `lib/` と境の口を呼ぶだけで、確かめの中身を持たない。
-- 機械: `tests/layers/test_block_paths.py`（ブロックの `scripts/` とブロックの YAML（直に書いた script）の字に、ほかのブロックを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/works-factory/<名>/`（pack の形。pack の段 `works-factory` は飛ばして見る）・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のブロックの外への相対パスも無い）。
+- script は同じ `scripts/` の別の script を import しない（共に使う物は lib か境の口に置く）。script の名を lib のモジュールの名にしない（script のフォルダが `sys.path` の頭に来るので、`import <名>` が lib の物でなく script を読む）。
+- 機械: `tests/layers/test_block_paths.py`（ブロックの `scripts/` とブロックの YAML（直に書いた script）の字に、ほかのブロックを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/works-factory/<名>/`（pack の形。pack の段 `works-factory` は飛ばして見る）・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のブロックの外への相対パスも無い。`scripts/*.py` の import の名が同じ `scripts/` の別のファイルの名でない（今の物は `tests/layers/scan.py` の `ALLOWED["E4"]` に import する script を 1 本ずつ名指し、区分の issue で外す）。線とブロックの `scripts/*.py` の名と `lib/*.py` の名が重ならない）。
 
 ## E5 ブロックの返りは 1 つの節の構造体
 
@@ -29,7 +30,8 @@
 - ブロックの間は `with:` と返りの構造体だけで渡す。飛ばされうる段の返りは、受ける側の `with:` に `{ from: "$<id>.output.<欄>", if_skipped: null }` を書く（ASF の `W/ship/archon-ship.yaml`:148）。受け手が include の時は、線の返しの節（`script:` の節）で受けてから渡す（埋め P2。Archon は include の `with:` に書いた束ねを黙って JSON の値として渡すので、書けたように見えて効かない）。並べた物の集まりは `fan_out:` の返り（入力の順の配列）で受ける。
 - 型つきの成果物の一覧（`$TYPED_ARTIFACTS_FILE`）を読むのは report ブロックだけ。輪の返りは最後の 1 周しか残らないので、全部の周の記録（試験の関門の認証・認めた元からの赤・範囲の外の所見）を拾うのに使う（ASF の `W/.shared/report.ts`:130-140 と同じ）。引く時は include の頭（`<include の id>__`）と `loopGroupPath` で自分の分だけに絞り、一覧の `errors` を捨てない（読めた分と一緒に返す）。読む部品は report ブロックの中に置く。
 - 仕事の結末を表す欄は `outcome_field:` で名指す。run が終わったことと仕事がうまくいったことは別の事実。
-- 機械: `tests/layers/test_block_returns.py`（全ブロックに `returns:` と `outcome_field:` が在り、返す節が `output_format` を持ち、`outcome_field` の欄がその `required` に在る。線が `$<include の id>.output.<欄>` で読まない返りの欄は赤）。線が読む欄が返す節の `output_format` に在るかは Archon の `validate`（`tests/layers/test_archon_validate.py`。E1）が照らす。
+- ブロックの `inputs:` の入力は、どれもブロックの中に読み手（script の `INPUTS_<名>` か、役の指示書（`commands/` と YAML の `prompt:`）の `$INPUTS.<名>`）を持つ。YAML の `with:` で script へ渡すだけの字は読み手でない。輪（`loop_group`）の中の役の節は自分の `with:` を結ばない。前の周の値は輪の頭の script の節が `$LOOP_PREV` で結んで返し、役はその出力を読む（Archon は include の時に役の `with:` を既定の字で固める。PR #100）。
+- 機械: `tests/layers/test_block_returns.py`（全ブロックに `returns:` と `outcome_field:` が在り、返す節が `output_format` を持ち、`outcome_field` の欄がその `required` に在る。線が `$<include の id>.output.<欄>` で読まない返りの欄は赤。読み手の無い入力（今の物は `ALLOWED["E5"]` に名指し、区分の issue で外す）と、輪の中で `with:` を結ぶ役の節も赤）。線が読む欄が返す節の `output_format` に在るかは Archon の `validate`（`tests/layers/test_archon_validate.py`。E1）が照らす。
 
 ## E6 外への書き込みは 1 つの script の節で、書いた後に読み戻す
 
@@ -38,9 +40,11 @@
 
 ## E7 読むだけの節は mutates_checkout: false を書く
 
-- 作業ツリーを変えない節（判定・計画・事前審査・独立の目・報告の役と、読むだけの script）は `mutates_checkout: false` を書く。Archon は書いた節が作業ツリーを変えたら、その節を落とす。`loop:` の節には書かない（Archon は `loop:` の節の `mutates_checkout` を無視して警告を出す。止めた Archon の `packages/workflows/src/schemas/dag-node.ts` 1025-1030 行）。
-- 機械: `tests/layers/test_readonly_nodes.py`（ブロック `judge`・`plan`・`plan-review`・`eyes`・`report` の役の節（`prompt:`・`command:`）に全部在る。ただし judge の役のうち、作業ツリーに書く役（受け入れテストのファイルを書く `spec`・`spec-revise`）と、対象のリポジトリでコマンドを走らせる役（`pr-check`・`premises`・`prior-decisions`・`local-review`・`external-standards`・`procedure-trace`・`gate-efficacy`・`test-double-fidelity`・`main-path-observation`・`provenance`）は書かない。後の 10 は、今の works と同じく受け付けの script が作業ツリーの姿を比べ、変えた返答を拒む。ほかのブロックは試験の中の表で名指した節）。
-- `runtime: uv` の script は頭に uv の script の宣言（PEP 723 の 4 行 `# /// script`・`# requires-python = ">=3.12"`・`# dependencies = []`・`# ///`）を置く。Archon は script の節を対象の作業ツリーを cwd にして `uv run <ファイル>` で起こすので、宣言が無いと対象に `pyproject.toml` が在る時に uv が作業ツリーに `.venv`・`uv.lock` を作り、読むだけの節が落ちる（issue #92）。機械: `tests/workflows/test_uv_scripts.py`（`workflows/*/scripts/*.py` の頭の 4 行と、`pyproject.toml` の在る種で走らせても作業ツリーが変わらないこと。`scripts/` の 1 段下のフォルダはまだ見ない。issue #96）。
+- 作業ツリーを変えない節（読むだけの役と、読むだけの script）は `mutates_checkout: false` を書く。script・bash の節は全部書き、外れは作業ツリーを変える節（`tests/layers/scan.py` の表 `CHANGE_CHECKOUT`。訳つき）だけ。Archon は書いた節が作業ツリーを変えたら、その節を落とす。役の節（`prompt:`・`command:`）の印は道具から決まる: `allowed_tools` に Bash・Edit・Write が無い役は書き、在る役は書かない（今の works の `works/tests/test_yaml_rules.py` と同じ）。Bash を持つ読む役（judge の素材集めの役など）は、今の works と同じく受け付けの script が作業ツリーの姿を比べ、変えた返答を拒む。外れは変える道具を持つが作業ツリーを変えない役（`tests/layers/scan.py` の表 `KEEP_CHECKOUT`。訳つき）だけ。
+- `loop:` の節を作らない（Archon は `loop:` の節の `mutates_checkout` を無視して警告を出す。止めた Archon の `packages/workflows/src/schemas/dag-node.ts` 1025-1030 行）。読むだけの役の繰り返しは `loop_group` で書く。
+- 役の節は `settingSources: [user]`・閉じた `sandbox`（`enabled: true`・`allowUnsandboxedCommands: false`）・道具の表（`scan.py` の `ROLE_TOOLS`）の中の `allowed_tools` を持つ（今の works の `works/tests/test_yaml_rules.py` の決まり）。
+- 機械: `tests/layers/test_readonly_nodes.py`（全部のブロックと線の役の節の印が道具に合う。script・bash の節は表 `CHANGE_CHECKOUT` の外の全部に在り、表の節には無い。`loop:` の節が無い。役の節が上の 3 つの鍵を持つ。違反の見本は `tests/layers/seeds/k18-*`・`k3-*` に 1 本 1 違反）。
+- `runtime: uv` の script は頭に uv の script の宣言（PEP 723 の 4 行 `# /// script`・`# requires-python = ">=3.12"`・`# dependencies = []`・`# ///`）を置く。Archon は script の節を対象の作業ツリーを cwd にして `uv run <ファイル>` で起こすので、宣言が無いと対象に `pyproject.toml` が在る時に uv が作業ツリーに `.venv`・`uv.lock` を作り、読むだけの節が落ちる（issue #92）。機械: `tests/workflows/test_uv_scripts.py`（`workflows/*/scripts/` から Archon と同じく 1 段下のフォルダまでの `.py` の頭の 4 行・YAML の `script:` の名が全部その中のファイルに当たり、直に書いた `script:` が無いこと・`pyproject.toml` の在る種で走らせても作業ツリーが変わらないこと）。
 
 ## E12 期限・タイムアウトを置かない
 
@@ -60,7 +64,8 @@
 - 人の関所: 工程に `interactive: true` を書き、関所の節は `approval:`（見せる文 `message` と選び肢 `decisions`）で書く。後ろの節はその答えを `{ from: "$<関所>.output", if_skipped: null }` で受ける（ASF の `W/merge-queue/archon-merge-queue.yaml`:8・179-225）。持ち主の決め `asf-way-gates-fanout`。
 - 自分の節に `approval:` を持つブロック（judge の仕様の関所）は、工程の頭に `interactive: true` を残す。止めた Archon の単独の `archon validate` は、`approval:` の節を持つ工程の頭に `interactive: true` が無いと警告を出す（`packages/workflows/src/loader.ts` 1389-1427 行の `validateWorkflowClassPlacement` が誤りの文を返し、1666-1675 行が猶予の警告にする）。線から差し込まれた時は線の `interactive: true` が効き、ブロックの頭のこの鍵には何も言わない。
 - 並べ: `fan_out:`（`items`・`as`・`max_parallel`・`join`）で書く（ASF の `W/verify-runtime-suite/archon-verify-runtime-suite.yaml`:27-34）。作業ツリーに書く並べ（fix の組）は、組ごとに子の run を起こして作業ツリーを分ける。子の run が自分の作業ツリーを持つかは段 1 で実測する（`docs/design.md` の U8）。待ちの列・固定の枝の数・錠は持たない（持ち主の決め `no-queue`）。
-- 機械: `tests/layers/test_gates.py`（`approval:` の節を持つ工程を差し込む一番上の工程（線）に `interactive: true` が在る。差し込まれるブロックは工程の頭に `worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない。`interactive` は、自分の節に `approval:` を持つブロックが `true` で書く時だけ許し、ほかのブロックが書いた時と `true` 以外の値は赤）。並べの形は人が見る。
+- どの関所も `decisions` に `reject` を持ち、`on_reject` を持たない（止めた Archon の `packages/core/src/operations/workflow-operations.ts` 1625-1700 行: そうでない関所の reject は run の取り消しになり、報告が出ない）。輪（`loop_group`）の本体に関所を置かない（本体が関所で終わる輪の再開は会話を引き継がない。今の works の `works/tests/test_yaml_rules.py` 43-45 行）。
+- 機械: `tests/layers/test_gates.py`（全工程の関所が `reject` を持ち `on_reject` を持たない。輪の本体に関所が無い。`approval:` の節を持つ工程を差し込む一番上の工程（線）に `interactive: true` が在る。差し込まれるブロックは工程の頭に `worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない。`interactive` は、自分の節に `approval:` を持つブロックが `true` で書く時だけ許し、ほかのブロックが書いた時と `true` 以外の値は赤）。並べの形は人が見る。
 
 ## E17 対象のリポジトリには差分を置くだけ
 

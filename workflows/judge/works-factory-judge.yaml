@@ -91,6 +91,7 @@ nodes:
           script: spec_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [spec]
           with: {status_guarded: false, role: write, reply: $spec.output}
           output_format:
@@ -156,6 +157,7 @@ nodes:
           script: spec_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [spec-review]
           with: {status_guarded: true, role: review, reply: $spec-review.output}
           output_format:
@@ -248,6 +250,7 @@ nodes:
           script: spec_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [spec-revise]
           with: {status_guarded: false, role: revise, reply: $spec-revise.output}
           output_format:
@@ -402,6 +405,7 @@ nodes:
           script: pr_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [pr-check]
           with: {reply: $pr-check.output}
           output_format:
@@ -464,6 +468,7 @@ nodes:
           script: premises_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [premises]
           with: {reply: $premises.output}
           output_format:
@@ -540,6 +545,7 @@ nodes:
           script: purpose_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [purpose]
           with: {status_guarded: true, reply: $purpose.output}
           output_format:
@@ -554,6 +560,7 @@ nodes:
     script: world_intake
     runtime: uv
     timeout: 1728000000
+    mutates_checkout: false
     depends_on: [purpose-loop]
     when: $intake.output.world == true
     output_format:
@@ -617,6 +624,7 @@ nodes:
           script: world_classes_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [world-classes]
           with: {reply: $world-classes.output}
           output_format:
@@ -631,6 +639,7 @@ nodes:
     script: world_plan
     runtime: uv
     timeout: 1728000000
+    mutates_checkout: false
     depends_on: [world-intake, world-classes-loop]
     trigger_rule: all_done
     when: $intake.output.world == true
@@ -709,6 +718,7 @@ nodes:
           script: world_judge_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [world-judge]
           with: {reply: $world-judge.output}
           output_format:
@@ -723,6 +733,7 @@ nodes:
     script: world_finish
     runtime: uv
     timeout: 1728000000
+    mutates_checkout: false
     depends_on: [world-plan, world-judge-loop]
     trigger_rule: all_done
     when: $intake.output.world == true
@@ -774,6 +785,7 @@ nodes:
           script: material_prep
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           with: {role: prior-decisions}
           output_format:
             type: object
@@ -848,6 +860,7 @@ nodes:
           script: material_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [prior-decisions]
           with: {status_guarded: false, role: prior-decisions, reply: $prior-decisions.output}
           output_format:
@@ -871,6 +884,7 @@ nodes:
           script: material_prep
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           with: {role: purpose-review}
           output_format:
             type: object
@@ -925,6 +939,7 @@ nodes:
           script: material_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [purpose-review]
           with: {status_guarded: true, role: purpose-review, reply: $purpose-review.output}
           output_format:
@@ -948,6 +963,7 @@ nodes:
           script: material_prep
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           with: {role: local-review}
           output_format:
             type: object
@@ -1031,6 +1047,7 @@ nodes:
           script: material_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [local-review]
           with: {status_guarded: false, role: local-review, reply: $local-review.output}
           output_format:
@@ -1054,6 +1071,7 @@ nodes:
           script: material_prep
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           with: {role: consistency-bypass}
           output_format:
             type: object
@@ -1146,6 +1164,7 @@ nodes:
           script: material_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [consistency-bypass]
           with: {status_guarded: true, role: consistency-bypass, reply: $consistency-bypass.output}
           output_format:
@@ -1169,6 +1188,7 @@ nodes:
           script: material_prep
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           with: {role: hygiene}
           output_format:
             type: object
@@ -1222,6 +1242,7 @@ nodes:
           script: material_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [hygiene]
           with: {status_guarded: true, role: hygiene, reply: $hygiene.output}
           output_format:
@@ -1245,6 +1266,7 @@ nodes:
           script: material_prep
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           with: {role: external-standards}
           output_format:
             type: object
@@ -1334,6 +1356,7 @@ nodes:
           script: material_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [external-standards]
           with: {status_guarded: false, role: external-standards, reply: $external-standards.output}
           output_format:
@@ -1357,6 +1380,7 @@ nodes:
           script: material_prep
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           with: {role: procedure-trace}
           output_format:
             type: object
@@ -1430,6 +1454,7 @@ nodes:
           script: material_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [procedure-trace]
           with: {status_guarded: false, role: procedure-trace, reply: $procedure-trace.output}
           output_format:
@@ -1453,6 +1478,7 @@ nodes:
           script: material_prep
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           with: {role: gate-efficacy}
           output_format:
             type: object
@@ -1527,6 +1553,7 @@ nodes:
           script: material_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [gate-efficacy]
           with: {status_guarded: false, role: gate-efficacy, reply: $gate-efficacy.output}
           output_format:
@@ -1550,6 +1577,7 @@ nodes:
           script: material_prep
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           with: {role: test-double-fidelity}
           output_format:
             type: object
@@ -1623,6 +1651,7 @@ nodes:
           script: material_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [test-double-fidelity]
           with: {status_guarded: false, role: test-double-fidelity, reply: $test-double-fidelity.output}
           output_format:
@@ -1646,6 +1675,7 @@ nodes:
           script: material_prep
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           with: {role: main-path-observation}
           output_format:
             type: object
@@ -1716,6 +1746,7 @@ nodes:
           script: material_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [main-path-observation]
           with: {status_guarded: false, role: main-path-observation, reply: $main-path-observation.output}
           output_format:
@@ -1739,6 +1770,7 @@ nodes:
           script: material_prep
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           with: {role: provenance}
           output_format:
             type: object
@@ -1810,6 +1842,7 @@ nodes:
           script: material_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [provenance]
           with: {status_guarded: false, role: provenance, reply: $provenance.output}
           output_format:
@@ -2047,6 +2080,7 @@ nodes:
           script: diagnose_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [diagnose]
           with: {status_guarded: true, reply: $diagnose.output}
           output_format:
@@ -2231,6 +2265,7 @@ nodes:
           script: rejudge_accept
           runtime: uv
           timeout: 1728000000
+          mutates_checkout: false
           depends_on: [rejudge]
           with: {status_guarded: true, reply: $rejudge.output}
           output_format:

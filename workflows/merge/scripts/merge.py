@@ -101,5 +101,5 @@ def main() -> None:
 try:
     main()
 except Exception as e:
-    print(json.dumps(broken(mode_of(os.environ.get("INPUTS_MODE", "")), f"{type(e).__name__}: {e}"), ensure_ascii=False),
-          flush=True)
+    print(json.dumps(broken(mode_of(os.environ.get("INPUTS_MODE", "")), f"{type(e).__name__}: {e}"), ensure_ascii=False,
+                     allow_nan=False), flush=True)

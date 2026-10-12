@@ -18,7 +18,11 @@ ROOT_ENV = "WORKS_FACTORY_ROOT"
 
 
 def load_boundary():
-    # .shared は import の名にならないので、ファイルから読む。Archon が置き場をバイトで照らすので __pycache__ を作らない
+    # .shared は import の名にならないので、ファイルから読む（境の口が読む埋め skip_value も同じ置き場から）。
+    # Archon が置き場をバイトで照らすので __pycache__ を作らない
+    shared = str(ROOT / "workflows" / ".shared")
+    if shared not in sys.path:
+        sys.path.append(shared)
     spec = importlib.util.spec_from_file_location("boundary", ROOT / "workflows" / ".shared" / "boundary.py")
     module = importlib.util.module_from_spec(spec)
     saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True

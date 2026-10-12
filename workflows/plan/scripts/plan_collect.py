@@ -86,7 +86,7 @@ def main() -> int:
         out = collected()
     except Exception as e:  # noqa: BLE001  返す節は落ちない（誤りは訳に残して ready: false）
         out = failed(e)
-    print(json.dumps(out, ensure_ascii=False), flush=True)
+    print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 

@@ -151,9 +151,9 @@ if __name__ == "__main__":
         why = f"fix の返りを組めない（{type(e).__name__}: {' '.join(str(e).split())[:500]}）"
         print(f"collect: {why}", file=sys.stderr)
         out = fallback(why)
-    try:   # boundary.returns と同じ形（境の口を読めなかった時も返す）
-        text = json.dumps(out, ensure_ascii=False, allow_nan=False)
+    try:
+        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
     except ValueError as e:
-        text = json.dumps(fallback(f"fix の返りを書けない（{type(e).__name__}: {e}）"), ensure_ascii=False)
-    print(text, flush=True)
+        print(json.dumps(fallback(f"fix の返りを書けない（{type(e).__name__}: {e}）"), ensure_ascii=False, allow_nan=False),
+              flush=True)
     sys.exit(0)

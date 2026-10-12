@@ -13,10 +13,13 @@
 （修正前の関所の答え）・replanned・rejudged（after-fix の返り）
 """
 import os
+import sys
+from pathlib import Path
 
-import linekit
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
     import depth as depthlib
 
 
@@ -41,13 +44,13 @@ def redepth(planned, replanned_depth, units, conflicts, questions, answer, *, re
 
 
 def fallback(reason: str) -> dict:
-    return {"depth": [], "skip_optional": "", "raised": [f"深さを上げ直せなかった（{reason}）"], "stop_reason": linekit.LINE_SCRIPT}
+    return {"depth": [], "skip_optional": "", "raised": [f"深さを上げ直せなかった（{reason}）"], "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: redepth(linekit.value(os.environ.get("INPUTS_DEPTH")), linekit.value(os.environ.get("INPUTS_REPLAN_DEPTH")),
-                                linekit.items(os.environ.get("INPUTS_UNITS")), linekit.items(os.environ.get("INPUTS_CONFLICTS")),
-                                linekit.items(os.environ.get("INPUTS_QUESTIONS")), linekit.value(os.environ.get("INPUTS_ANSWER")),
-                                replanned=linekit.flag(os.environ.get("INPUTS_REPLANNED")),
-                                rejudged=linekit.flag(os.environ.get("INPUTS_REJUDGED"))),
+    boundary.run(lambda: redepth(boundary.value(os.environ.get("INPUTS_DEPTH")), boundary.value(os.environ.get("INPUTS_REPLAN_DEPTH")),
+                                boundary.items(os.environ.get("INPUTS_UNITS")), boundary.items(os.environ.get("INPUTS_CONFLICTS")),
+                                boundary.items(os.environ.get("INPUTS_QUESTIONS")), boundary.value(os.environ.get("INPUTS_ANSWER")),
+                                replanned=boundary.flag(os.environ.get("INPUTS_REPLANNED")),
+                                rejudged=boundary.flag(os.environ.get("INPUTS_REJUDGED"))),
                 fallback)

@@ -51,9 +51,8 @@ try:
 except Exception as e:  # noqa: BLE001  境の口か lib を読めない
     print(f"verdict: {type(e).__name__}: {e}", file=sys.stderr)
     out = fallen(objection)
-try:   # boundary.returns と同じ形（境の口を読めなかった時も返す）
-    text = json.dumps(out, ensure_ascii=False, allow_nan=False)
+try:
+    print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
 except ValueError as e:
     print(f"verdict: 返りが JSON に書けない: {e}", file=sys.stderr)
-    text = json.dumps(fallen(objection), ensure_ascii=False)
-print(text, flush=True)
+    print(json.dumps(fallen(objection), ensure_ascii=False, allow_nan=False), flush=True)

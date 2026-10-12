@@ -139,9 +139,9 @@
 
 - [ ] **Step 1: 試験を書く**（層の試験 4 つと種・`tests/e2e/test_line_scenarios.py`・`lib/` の 2 つの元の試験）
 - [ ] **Step 2: 赤**: `uv run --isolated python3 -m unittest discover -s . -t .`
-- [ ] **Step 3: 代わりのブロック・`lib/` の 2 つ・線の script・線の YAML と筋書きを書く**
-- [ ] **Step 4: 緑**。筋書き 15 本が `workflow test` で通る
-- [ ] **Step 5: commit**: `git commit -m "feat(workflows): 線と、代わりのブロックで回す筋書き"`
+- [ ] **Step 3: `lib/` の 2 つ・線の script・線の YAML と筋書きを書く**（線は本物の 8 ブロックを差し込む。代わりのブロックは PR #74 の 5 回目の直しで外した）
+- [ ] **Step 4: 緑**。筋書きが全部 `workflow test` で通る
+- [ ] **Step 5: commit**: `git commit -m "feat(workflows): 線と、本物のブロックで回す筋書き"`
 
 ### Task 5: 入口の殻 1 本（bin/works-factory）
 

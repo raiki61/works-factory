@@ -79,5 +79,32 @@ class BlockPathsTest(unittest.TestCase):
         self.assertTrue(any("a.py:1" in line and "newblock" in line for line in got), got)
 
 
+    def test_script_importing_a_sibling_script_is_red(self):
+        """script は同じ scripts/ の別の script を import しない（K8）。lib のモジュールと境の口は読んでよい"""
+        files = {"workflows/judge/scripts/a.py": "import os\nimport b\nfrom b import x\nimport boundary\n",
+                 "workflows/judge/scripts/b.py": "x = 1\n"}
+        with tree(files) as root:
+            got = scan.problems("E4", root)
+        self.assertEqual([line.split(": ", 1)[0] for line in got], ["workflows/judge/scripts/a.py:2", "workflows/judge/scripts/a.py:3"])
+        self.assertIn("script b を import する", got[0])
+
+    def test_script_named_like_a_lib_module_is_red(self):
+        """script の名を lib のモジュールの名にしない（script のフォルダが sys.path の頭に来て lib の物を隠す。K19）"""
+        with tree({"workflows/line/scripts/answer.py": "", "lib/answer.py": ""}) as root:
+            got = scan.problems("E4", root)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("lib/answer.py と同じ", got[0])
+
+    def test_sibling_import_allowance_names_the_script(self):
+        """ALLOWED["E4"] の `<script のパス>#<名>` の行は、名指した script のその import だけを外す（新しい script に
+        import fixio を足すと赤）"""
+        files = {"workflows/fix/scripts/clean.py": "import fixio\nimport b\n", "workflows/fix/scripts/fixio.py": "",
+                 "workflows/fix/scripts/b.py": "", "workflows/fix/scripts/new.py": "import fixio\n"}
+        with tree(files) as root:
+            got = scan.problems("E4", root)
+        self.assertEqual(len(got), 2, got)
+        self.assertIn("clean.py:2: 同じ scripts/ の script b", got[0])
+        self.assertIn("new.py:1: 同じ scripts/ の script fixio", got[1])
+
 if __name__ == "__main__":
     unittest.main()

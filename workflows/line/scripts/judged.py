@@ -18,9 +18,11 @@ works:line-script を返し、fixed がそれを読んで後ろへ進めない�
 import json
 import os
 import re
+import sys
+from pathlib import Path
 
-import linekit
-from linekit import boundary
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
 FIELDS = ("units", "judgment", "purpose", "world", "rejudge_verdict")
 UNIT_FIELDS = ("label", "disposition", "reason", "reopen_evidence")   # 再審が単位を置き換える時に残す欄（元 review-loop.json の p2.rejudge の pick）
@@ -81,18 +83,18 @@ def judged(judge: dict, rejudge: dict | None, objection: str) -> dict:
 
 
 def of_env(prefix: str) -> dict:
-    return {key: linekit.field(key, os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
+    return {key: boundary.field(key, os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
 
 
 def from_env() -> tuple:
     rejudge = of_env("REJUDGE")
-    return of_env("JUDGE"), (None if rejudge["units"] is None else rejudge), linekit.text(os.environ.get("INPUTS_OBJECTION"))
+    return of_env("JUDGE"), (None if rejudge["units"] is None else rejudge), boundary.text(os.environ.get("INPUTS_OBJECTION"))
 
 
 def fallback(reason: str) -> dict:
     return {**{key: None for key in FIELDS}, "rejudged": False, "new_open_units": [], "lowered": [], "unnamed_changed": [],
-            "unread": "", "stop_reason": linekit.LINE_SCRIPT}
+            "unread": "", "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: judged(*from_env()), fallback)
+    boundary.run(lambda: judged(*from_env()), fallback)

@@ -19,8 +19,11 @@ stop_after_fix・stop_judged（after-fix・judged の止めの理由）
 """
 import json
 import os
+import sys
+from pathlib import Path
 
-import linekit
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
 FIELDS = ("done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes", "changed",
           "delta_review")
@@ -68,20 +71,20 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple) -> dict:
 
 
 def of_env(prefix: str) -> dict:
-    return {key: linekit.field(key, os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
+    return {key: boundary.field(key, os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
 
 
 def from_env() -> dict:
     refix = of_env("REFIX")
     return {"fix": of_env("FIX"), "refix": None if refix["done"] is None else refix,
-            "replan": linekit.flag(os.environ.get("INPUTS_REPLAN")),
-            "stops": (linekit.text(os.environ.get("INPUTS_STOP_AFTER_FIX")), linekit.text(os.environ.get("INPUTS_STOP_JUDGED")))}
+            "replan": boundary.flag(os.environ.get("INPUTS_REPLAN")),
+            "stops": (boundary.text(os.environ.get("INPUTS_STOP_AFTER_FIX")), boundary.text(os.environ.get("INPUTS_STOP_JUDGED")))}
 
 
 def fallback(reason: str) -> dict:
     return {**{key: None for key in FIELDS}, "done": False, "go": False, "units": [], "groups": [], "conflicts": [], "replan_items": [],
-            "objection": "", "refix_objection": "", "allowed_test_changes": [], "refixed": False, "stop_reason": linekit.LINE_SCRIPT}
+            "objection": "", "refix_objection": "", "allowed_test_changes": [], "refixed": False, "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: fixed(**from_env()), fallback)
+    boundary.run(lambda: fixed(**from_env()), fallback)
