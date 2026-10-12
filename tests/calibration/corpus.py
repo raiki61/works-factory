@@ -20,6 +20,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 CORPUS = HERE / "corpus.json"
 DESIGN = ROOT / "docs" / "design.md"
+ROW_HEAD = re.compile(r"`([^`]+)`(?:（[^）]*）)?")
 
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))   # 頭に入れると lib/tests が根の tests を隠す（tests/AGENTS.md）
@@ -61,10 +62,20 @@ def load(path=CORPUS) -> dict:
 
 
 def _acceptance_ids() -> set:
+    """受け入れの一覧の各行（- [ ] …）の頭に・でつながる id。id の後ろの（禁: …）は飛ばす。行の文の backtick の語は受けない"""
     text = DESIGN.read_text(encoding="utf-8")
     section = text[text.index("### 受け入れの一覧"):]
     end = section.find("\n## ")
-    return set(re.findall(r"`([^`]+)`", section if end < 0 else section[:end]))
+    ids = set()
+    for row in re.findall(r"^- \[[ x]\] (.*)$", section if end < 0 else section[:end], re.M):
+        pos = 0
+        while head := ROW_HEAD.match(row, pos):
+            ids.add(head[1])
+            pos = head.end()
+            if not row.startswith("・", pos):
+                break
+            pos += 1
+    return ids
 
 
 def _problems(data, folder) -> list:

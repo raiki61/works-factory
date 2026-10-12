@@ -122,6 +122,16 @@ class TestCorpusShape(unittest.TestCase):
         lines = self.refusal(lambda d, r: r[10].update(also=["p1.gate_efficacy"]))
         self.assertReported(lines, control["id"], "also")
 
+    def test_only_row_heads_of_the_acceptance_list_are_catchers(self):
+        """受け入れの一覧の各行の頭の id だけが捕り手。節の文の backtick の語（置き場や決めの名）は受けない"""
+        known = corpus._acceptance_ids()
+        self.assertLessEqual({"p0.base", "p1.worktree_after", "converge", "r2.design", "r2.compare", "report"}, known)
+        self.assertFalse(known & {"docs/owner-decisions.md", "superset", "darkfactory/nodes.json", "by", "absent",
+                                  "docs/keep-essence.md"},
+                         known)
+        lines = self.refusal(lambda d, r: r[0].update(catcher="docs/owner-decisions.md"))
+        self.assertReported(lines, _raw()["rows"][0]["id"], "docs/owner-decisions.md")
+
     def test_review_materials_need_change_entry(self):
         row = _raw()["rows"][3]
         self.assertTrue(row["catcher"].startswith("p1."))
