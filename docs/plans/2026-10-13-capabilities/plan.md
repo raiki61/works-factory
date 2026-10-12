@@ -429,7 +429,7 @@
 
 - P059 単位ごとの深さ（軽量・標準と訳）を、直す義務の単位だけについて、受け付けた案の欄と始めの記録の厚さ（thickness）・試験の命令の有無から決めて返す。案が無ければ空。
   - 元: works/darkfactory/lib/depth.py:244 `decide`（線の h-depth が h-fix.open_units で呼んだ。depth.json を書いた）
-  - 今: lib/planfile.py:1016 `collect`・:1010 `owed_order`・lib/depth.py:127 `decide_doc`・:101 `unit_depth`・workflows/plan/scripts/plan_collect.py:39-40（盤面を読む lib/depth.py の `decide` は届かなかったので #232 で消した）
+  - 今: lib/planfile.py:1013 `collect`・:1007 `owed_order`・lib/depth.py:127 `decide_doc`・:101 `unit_depth`・workflows/plan/scripts/plan_collect.py:39-41（盤面を読む lib/depth.py の `decide` は届かなかったので #232 で消した）
   - 証: tests/workflows/test_plan.py::CollectCase.test_depth_follows_start_thickness_and_checks（#120 で足した。消すと赤: plan_collect が thickness か試験の命令を渡さないと赤）
   - 本物の run: plan の節の出力 depth（種の厚さ 標準 なら全部 標準）
   - 狭め: depth.json の控え（深さの上げ直しが読む）はブロックが書かない。上げ直しは線（workflows/line/scripts/redepth.py）の持ち物なので PA の外
@@ -939,8 +939,8 @@
 
 - P130 直した項目を差し替えた案の全体を、その周の p2.fix_plan.json・plan-fields.json（amended に直した項目の核の欄）・reply.json に書き、trace に `plan_amended` を書く。直さない項目の欄は前の周のまま
   - 元: works/.shared/core/planmarks.py:981 `amend`（関所の答えの後）、works/.shared/core/replan.py:699 `answer`
-  - 今: lib/planfile.py:809 `take_replan`（:846 で amended つき plan-fields.json、:847 で trace に `plan_amended`）・:386 `revised_fields`（受け付けで差し替える。採るかは線の関所。届かなかった lib/planmarks.py の `amend` は #232 で消した）
-  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends（assert: :672・675-677）・lib/tests/test_planfile.py::RevisedFieldsCase.test_replaces_only_revised_items（:454-456）
+  - 今: lib/planfile.py:884 `take_replan`（:925 で amended つき plan-fields.json、:928 で trace に `plan_amended`）・:400 `revised_fields`（受け付けで差し替える。採るかは線の関所。届かなかった lib/planmarks.py の `amend` は #232 で消した）
+  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends（assert: :952・955-957）・lib/tests/test_planfile.py::RevisedFieldsCase.test_replaces_only_revised_items（:505-507）
   - 本物の run: plan/r2/plan-fields.json の `amended`・plan/r2/trace.jsonl の `plan_amended`。筋書きでのみ
   - 狭め: 無し（差し替える時が受け付けに早まったが、2 度目の修正が使うのは関所の後だけ: P74 works-factory-line.yaml:592-607 `refix` の when）
 
@@ -1223,8 +1223,8 @@
 
 - P169 独立設計の返答は JSON として読み、役の型（YAML の役の節の output_format を差し込みの頭が控えた物）で照らす。読めない・型に合わない返答は拒む
   - 元: works/.shared/core/design.py:586-601 `check_design`（accept.type_errors・accept.role_schema）・:603 `accept_reply`
-  - 今: 型は workflows/plan-review/works-factory-plan-review.yaml の節 r2-design の `output_format`（型の正本。Claude Code が節の中で照らして出し直させる）。lib/boardview.py `check_design` は JSON として読む（rolekit.parse_reply）だけで型を照らし直さない（受け付けの `accept.type_errors` は #232 で消した）。workflows/plan-review/scripts/pass_open.py:22 `node_schema` が控える型は、design.json の読み直し（lib/design.py `read_design`）と下請けの答えのファイルの faces・shrink の照らしが使う
-  - 証: tests/workflows/test_plan_review.py::DesignCase.test_off_schema_reply_names_the_type_error（assert: tests/workflows/test_plan_review.py:724。欠けた欄 question_stands を output_format が名指す）
+  - 今: 型は workflows/plan-review/works-factory-plan-review.yaml の節 r2-design の `output_format`（型の正本。Claude Code が節の中で照らして出し直させる）。lib/boardview.py `check_design` は JSON として読む（rolekit.parse_reply）だけで型を照らし直さない（受け付けの `accept.type_errors` は #232 で消した）。workflows/plan-review/scripts/pass_open.py:23 `node_schema` が控える型は、design.json の読み直し（lib/design.py `read_design`）と下請けの答えのファイルの faces・shrink の照らしが使う
+  - 証: tests/workflows/test_plan_review.py::DesignCase.test_off_schema_reply_names_the_type_error（assert: tests/workflows/test_plan_review.py:730。欠けた欄 question_stands を output_format が名指す）
   - 本物の run: 節 `r2-design` の出力が型を通った記録、節 `r2-accept` の reason が空
   - 狭め: 型に合わない返答は受け付けの輪の回を使わず、節の中で出し直させ、使い切ると節が落ちる（#232 の「狭まる所」1）
 
@@ -1588,7 +1588,7 @@
 
 - P218 関所の決め手の欄（decided_by・undecided_because・fences・world・recommend）と狭めない案（no_narrow）を、修正案の narrows の行と事前審査の faces の行の役の型にだけ足す。欄の型の持ち主は gatemarks.MARK_SCHEMA の 1 か所
   - 元: works/.shared/core/gatemarks.py:113 `MARK_SCHEMA`・:328 `with_marks`
-  - 今: lib/gatemarks.py:118 `MARK_SCHEMA`（役の型に足す口 `with_marks` は #232 で消し、欄は節の output_format が持つ）・workflows/plan-review/works-factory-plan-review.yaml:195-215（faces の行）・workflows/plan/works-factory-plan.yaml（narrows の行）
+  - 今: lib/gatemarks.py:119 `MARK_SCHEMA`（役の型に足す口 `with_marks` は #232 で消し、欄は節の output_format が持つ）・workflows/plan-review/works-factory-plan-review.yaml:195-215（faces の行）・workflows/plan/works-factory-plan.yaml（narrows の行）
   - 証: tests/workflows/test_plan_review.py::YamlCase.test_recommend_is_optional_on_both_roles（#120 で足した。消すと赤: faces の行の required に recommend を足すと赤）
   - 本物の run: 節 `plan-review` の出力が型を通った記録、`plan-review/gate-marks.json`
   - 狭め: 無し

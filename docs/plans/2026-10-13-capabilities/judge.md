@@ -436,8 +436,8 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J68 判定の返答を写しの p2.diagnose の schema（足し欄 out_of_purpose・answer_ties と例の欄つき）の字のまま照らし、key・reason の改行を落として 1 行にする
   - 元: works/.shared/core/accept.py:504 `check_judge`・review-loop.py:2497 の ONE_LINE_FIELDS
-  - 今: workflows/judge/works-factory-judge.yaml の節 diagnose の `output_format`（lib の写し `DIAGNOSE_SCHEMA` は #232 で消した）、改行を落とすのは lib/judge_accept.py:355 `ONE_LINE_FIELDS`・:530-533（`judge_output`）
-  - 証: tests/workflows/test_judge.py::ReplyTypeCase.test_diagnose_reply_outside_the_type_is_rejected（assert: tests/workflows/test_judge.py:167）・::ReturnsShapeTest.test_lib_vocabularies_match_output_format（label・kind・status の語の表）・lib/tests/test_judge_accept.py::JudgeTakeCase.test_newlines_in_key_and_reason_are_folded（assert: lib/tests/test_judge_accept.py:342-346。改行の畳みだけ）
+  - 今: workflows/judge/works-factory-judge.yaml の節 diagnose の `output_format`（lib の写し `DIAGNOSE_SCHEMA` は #232 で消した）、改行を落とすのは lib/judge_accept.py:356 `ONE_LINE_FIELDS`・:531-534（`judge_output`）
+  - 証: tests/workflows/test_judge.py::ReplyTypeCase.test_diagnose_reply_outside_the_type_is_rejected（assert: tests/workflows/test_judge.py:167）・::ReturnsShapeTest.test_lib_vocabularies_match_output_format（label・kind・status の語の表）・lib/tests/test_judge_accept.py::JudgeTakeCase.test_newlines_in_key_and_reason_are_folded（assert: lib/tests/test_judge_accept.py:347-351。改行の畳みだけ）
   - 本物の run: judge/judgment.json
   - 狭め: 無し
 - J69 単位の key の重なり・label が表の外・suggest に disposition が無い・defer に構造的理由が無い時は拒む
@@ -472,8 +472,8 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J74 問いの台帳: kind・status の表、status ごとの要る欄、fork は選択肢 2 つ以上、知らない欄、origin・depends の先（単位・defer・素材・R1〜R4）、出どころが開いた単位の問いの禁止、決着の欄の整合
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2571-2610・review-record.py の QUESTION_KINDS ほか
-  - 今: lib/judge_accept.py:576-612（`judge_output` の問いの照らし）・:132-173 の表、型の側は works-factory-judge.yaml の節 diagnose の `output_format`
-  - 証: lib/tests/test_judge_accept.py::JudgeTakeCase.test_fork_question_without_options_is_rejected（assert: :186-187）・JudgeTakeCase.test_question_ledger_targets_and_settled_state（assert: :421-446。知らない欄・無い先・NO_OPEN_ORIGIN・settled_state_errors）・tests/workflows/test_judge.py::ReplyTypeCase.test_diagnose_reply_outside_the_type_is_rejected（assert: :171-172 の kind・status）・::ReturnsShapeTest.test_lib_vocabularies_match_output_format
+  - 今: lib/judge_accept.py:577-613（`judge_output` の問いの照らし）・:133-174 の表、型の側は works-factory-judge.yaml の節 diagnose の `output_format`
+  - 証: lib/tests/test_judge_accept.py::JudgeTakeCase.test_fork_question_without_options_is_rejected（assert: :191-192）・JudgeTakeCase.test_question_ledger_targets_and_settled_state（assert: :426-451。知らない欄・無い先・NO_OPEN_ORIGIN・settled_state_errors）・tests/workflows/test_judge.py::ReplyTypeCase.test_diagnose_reply_outside_the_type_is_rejected（assert: :171-172 の kind・status）・::ReturnsShapeTest.test_lib_vocabularies_match_output_format
   - 本物の run: judge/judgment.json の questions
   - 狭め: 無し
 - J75 先例の行: 開いた単位と人へ回す問いの key ごとに 1 行、出典か「何をどう探したか」、人へ回す問いには世界の解でも決まらない理由（undecided_because）
@@ -496,8 +496,8 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J78 前の周の R1 の削除候補の振り分け・fork を 2 周 held に置かない・前の周に残すと宣言した穴の振り分け
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2359・:2404・:2483
-  - 今: lib/judge_accept.py:419 `_carried_r1_accounted`・:450 `_fork_moves_forward`（受け付けはいつも空の前の周を渡す）。前の周に残すと宣言した穴の振り分け（`_declared_route_errors`）は届かなかったので #232 で消した
-  - 証: lib/tests/test_judge_accept.py::JudgeTakeCase.test_carried_r1_tells_to_copy_the_where（assert: :290-295）・JudgeTakeCase.test_fork_held_twice_must_escalate（assert: :305-308）
+  - 今: lib/judge_accept.py:420 `_carried_r1_accounted`・:451 `_fork_moves_forward`（受け付けはいつも空の前の周を渡す）。前の周に残すと宣言した穴の振り分け（`_declared_route_errors`）は届かなかったので #232 で消した
+  - 証: lib/tests/test_judge_accept.py::JudgeTakeCase.test_carried_r1_tells_to_copy_the_where（assert: :295-300）・JudgeTakeCase.test_fork_held_twice_must_escalate（assert: :310-313）
   - 本物の run: 筋書きでのみ
   - 狭め: 1 run = 1 周（持ち主の決め carry）で、run の中では当たらない。R1 の振り分けと fork の部品は持つ。宣言した穴の振り分けは持たない（#232）
 - J79 目的の外の所見（out_of_purpose）を材料の行（P1 の素材の行と依頼のバッチ）に当てて外し、当たった行ごと out-of-purpose.json に置き、judgment に戻す
@@ -514,7 +514,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し（読み手の側は J102）
 - J81 受け付けが拒めば同じ会話で 3 回まで出し直し、理由は輪の頭の reject の節から役へ渡し、3 回目で最後の拒否の文で works:judge で止める
   - 元: works/blk-judge/lib/judgetake.py:106 `accept`・:122 `_give_up`・rolekit の拒否の控え
-  - 今: lib/judge_accept.py:831 `accept`・:838 `_give_up`・workflows/judge/works-factory-judge.yaml の `diagnose-reject`（集めの口 `collect` は届かなかったので #232 で消した）
+  - 今: lib/judge_accept.py:819 `accept`・:826 `_give_up`・workflows/judge/works-factory-judge.yaml の `diagnose-reject`（集めの口 `collect` は届かなかったので #232 で消した）
   - 証: tests/workflows/test_judge.py::AcceptLoopTest.test_diagnose_accept_gives_up_on_the_third_reject（assert: tests/workflows/test_judge.py:633・639・640）・LoopTest.test_every_loop_retries_three_times_until_its_accept_is_done（assert: :278-282）・LoopTest.test_roles_receive_the_reject_reason_through_the_reject_node（assert: :299-310）・StopPathTest.test_gave_up_judgment_still_fills_pointers（assert: :758 の works:judge）。止めの文が最後の拒否を名指すかは縛られていない（`collect` と共に JudgeAcceptCase.test_collect_without_judgment_gives_up_with_last_reject を #232 で消した）→ 要追加: JudgeTakeCase.test_give_up_names_the_last_reject — 3 回拒んだ後の止めの控えの reason に「3 回とも」と最後の拒否の文
   - 本物の run: judge/rejects-diagnose.json（拒まれた時）
   - 狭め: 無し
@@ -658,8 +658,8 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J103 再審の答えは 採る・退ける・一部採る の 3 語、new_facts は自分で確かめた事実（20 字以上）。再審役は読むだけ
   - 元: works/.shared/core/graphloops/rules/review-loop.py:3186 `rejudge_output`・works/.shared/core/rejudge.py:421 `take`
-  - 今: lib/judge_accept.py:3162 `rejudge_output`・:3276 `rejudge_take`・:3143 `REJUDGE_VERDICTS`、型は works-factory-judge.yaml の節 rejudge の `output_format`（lib の写し `REJUDGE_SCHEMA` は #232 で消した）
-  - 証: tests/workflows/test_judge.py::ReplyTypeCase.test_rejudge_reply_outside_the_type_is_rejected（assert: :183-184）・::ReturnsShapeTest.test_rejudge_vocabulary_matches_output_format（assert: :217）・lib/tests/test_judge_accept.py::RejudgeCase.test_empty_facts_rejected（assert: :1892-1894）・RejudgeCase.test_tree_changed_rejected（assert: :1901-1902）
+  - 今: lib/judge_accept.py:3169 `rejudge_output`・:3283 `rejudge_take`・:3149 `REJUDGE_VERDICTS`、型は works-factory-judge.yaml の節 rejudge の `output_format`（lib の写し `REJUDGE_SCHEMA` は #232 で消した）
+  - 証: tests/workflows/test_judge.py::ReplyTypeCase.test_rejudge_reply_outside_the_type_is_rejected（assert: :183-184）・::ReturnsShapeTest.test_rejudge_vocabulary_matches_output_format（assert: :217）・lib/tests/test_judge_accept.py::RejudgeCase.test_empty_facts_rejected（assert: :1931-1933）・RejudgeCase.test_tree_changed_rejected（assert: :1940-1941）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（元の「前の周の defer の再浮上」は 1 run = 1 周で当たらない）
 - J104 再審の結果は rejudge/judgment.json に書き 1 回目を上書きしない。前後の差（名指しの有無・名指されない変化・block から下げた単位・新しく開いた単位）を残す

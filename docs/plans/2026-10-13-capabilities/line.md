@@ -1408,8 +1408,8 @@
   - 狭め: 無し
 - L-D53 報告は next-request.json と prior-failures.json を約束の Schema で照らしてから書き、線の返りに指し札を出す
   - 元: works/.shared/core/carry.py:221 `save`
-  - 今: lib/runreport.py:991-1003（`build` が carry.errors で NEXT_SCHEMA・PRIOR_SCHEMA を照らし、合わなければ ValueError）、scripts/result.py:31（届かなかった lib/carry.py の `save` は #232 で消した）
-  - 証: lib/tests/test_carry_home.py::Contract.test_reader_checks_prior_rows_against_schema（assert: :48-49。照らしの口だけ）。lib/tests/test_runreport.py::BuildCase.test_writes_report_and_only_present_carries（:99-100）は良い物が合うことだけを見る → 要追加: lib/tests/test_runreport.py::BuildCase.test_build_refuses_off_contract_carries — 合わない次の依頼・前の失敗で ValueError、どちらのファイルも置かない
+  - 今: lib/runreport.py:1338-1350（`build` が carry.errors で NEXT_SCHEMA・PRIOR_SCHEMA を照らし、合わなければ ValueError）、scripts/result.py:31（届かなかった lib/carry.py の `save` は #232 で消した）
+  - 証: lib/tests/test_carry_home.py::Contract.test_reader_checks_prior_rows_against_schema（assert: :48-49。照らしの口だけ）。lib/tests/test_runreport.py::BuildCase.test_writes_report_and_only_present_carries（:127-128）は良い物が合うことだけを見る → 要追加: lib/tests/test_runreport.py::BuildCase.test_build_refuses_off_contract_carries — 合わない次の依頼・前の失敗で ValueError、どちらのファイルも置かない
   - 本物の run: 筋書きでのみ（next-request.json は findings か下書きが、prior-failures.json は前の失敗が在る時だけ書かれる。在れば report の置き場の 2 つと result.output.next_request・prior_failures）
   - 狭め: build は次の依頼を照らして書いてから前の失敗を照らす（元の save は 2 つとも照らしてから書いた）。前の失敗だけが合わない時は次の依頼だけが残る。#232 の前から run の道はこの形。不可でない → 戻す
 - L-D54 CI の赤の試験 id を次の依頼の prior_failures に足す口 carry-ci（同じ行は 2 度足さず、形が違えば exit 2）
