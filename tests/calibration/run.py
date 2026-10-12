@@ -29,8 +29,9 @@ observed の units（直した単位の名の並び）と asks（人の関所で
   （出力の置き場は .shared/core/board.py:1025、changes[].unit_key は .shared/core/graphloops/graphs/review-loop.json:3660 の p3.fix の
   pointers）。asks は record/parent.json の出来事のうち approval_requested の step_name（関所は blk-entry/blk-entry.yaml:79 の
   launch・blk-spec/blk-spec.yaml:443 の spec-gate・darkfactory/darkfactory.yaml:534・741・1247 の policy-gate・replan-gate・final-gate）。
-- works-factory: units は修正の置き場 parent/fix/<include の名>/join.json の単位の行に、同じ置き場の fix-units.json の裁定の後の結末を
-  重ねて fixed の unit_id（workflows/fix/scripts/collect.py:85 と同じ重ね方。lib/fixboard.py:742・760・1445・2308）。asks は
+- works-factory: units は修正の置き場 parent/fix/<include の名>/（groups.json の在る所）ごとに、join.json の単位の行に同じ置き場の
+  fix-units.json の裁定の後の結末を重ねて fixed の unit_id（workflows/fix/scripts/collect.py:79-85 と同じ重ね方。join.json の無い
+  置き場は join が落ちたか走らなかった印で、units を読めないとする。lib/fixboard.py:742・760・979・1445・2308）。asks は
   record/parent.json の terminal_record.nodes のうち、メイングラフの承認ノード（WorksFactory.gates）で skipped・pending でない物。
 
 今の works（pack.json の works.commit。置き場は環境変数 WORKS_FACTORY_OLD_WORKS に、取り出した claude-plugins の works/ を渡す）の
@@ -190,14 +191,15 @@ class WorksFactory:
         if not (ev / "parent").is_dir():
             return None, "parent: 無い"
         names = []
-        for join in sorted((ev / "parent").glob(f"fix/*/{fixboard.JOIN_FILE}")):
-            doc, why = _read_json(ev, join)
+        for groups in sorted((ev / "parent").glob(f"fix/*/{fixboard.GROUPS_FILE}")):
+            place = groups.parent
+            doc, why = _read_json(ev, place / fixboard.JOIN_FILE)
             rows = doc.get("units") if isinstance(doc, dict) else None
             if not isinstance(rows, list):
-                return None, why or f"{_name(ev, join)}: units が並びでない"
+                return None, why or f"{_name(ev, place / fixboard.JOIN_FILE)}: units が並びでない"
             ruled, why = None, ""
-            if (join.parent / fixboard.FIX_UNITS_FILE).exists():
-                ruled, why = _read_json(ev, join.parent / fixboard.FIX_UNITS_FILE)
+            if (place / fixboard.FIX_UNITS_FILE).exists():
+                ruled, why = _read_json(ev, place / fixboard.FIX_UNITS_FILE)
             if why:
                 return None, why
             rows = [r for r in rows if isinstance(r, dict) and "unit_id" in r and "status" in r]
@@ -722,6 +724,9 @@ def reobserve_rows(args) -> int:
             except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                 raise Stop(STOPPED, f"行 {row['id']} の前の observed（{path}）が読めない。来歴を引き継げないので取り直さない") from None
             ev = Path(last["attempt"]) / evidence.EVIDENCE
+            _, why = _read_json(ev, "record/parent.json")
+            if why:
+                raise Stop(STOPPED, f"行 {row['id']} の記録が読めない（{ev} の {why}）。前の observed を空の結末で上書きしないので取り直さない")
             ended = {**factory.ended(ev), "children": before.get("child_run_ids") or []}
             made = {k: v for k, v in _object(before.get("provenance")).items() if k != "fingerprint"}
             observed = observe(row, factory, last["run_id"], ended, ev, flags, args.corpus, made)
@@ -845,7 +850,8 @@ def compare(args) -> int:
     for factory in corpus.FACTORIES:
         now = fingerprint(factory, args.corpus, flags)
         for name, observed in read_observed(args.observed, factory):
-            fresh = isinstance(observed, dict) and (observed.get("provenance") or {}).get("fingerprint") == now
+            fresh = (isinstance(observed, dict) and (observed.get("provenance") or {}).get("fingerprint") == now
+                     and all(field in observed for field in RECORDED))
             if not fresh:
                 print(json.dumps({"stale": f"{factory}/{name}"}, ensure_ascii=False))
                 continue

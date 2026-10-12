@@ -561,8 +561,11 @@ class RunTest(RunnerCase):
         self.assertRan(self.run_rows("works", CHANGE))
         stale = self.observed_files("works")[0] | {"id": CONTROL, "provenance": {"fingerprint": "0" * 64}}
         (self.observed / "works" / "stale.json").write_text(json.dumps(stale), encoding="utf-8")
+        older = {k: v for k, v in self.observed_files("works")[0].items() if k != "asks"} | {"id": CONTROL}
+        (self.observed / "works" / "older.json").write_text(json.dumps(older), encoding="utf-8")
         lines = self.compare_lines()
         self.assertIn({"stale": "works/stale.json"}, lines)
+        self.assertIn({"stale": "works/older.json"}, lines)
         [one] = [line for line in lines if "one_sided" in line]
         self.assertEqual((one["one_sided"], one["only"]), (REQUEST, "works-factory"))
         self.assertEqual(set(one["works-factory"][0]), {"verdict", "outcome", "units", "asks", "cost"})
@@ -576,7 +579,7 @@ class RunTest(RunnerCase):
 
     def test_compare_names_each_field_that_differs(self):
         self.set_plan(outcome="fixed", artifacts={"test-gate/base/baseline.json": '{"material": {"status": "found"}}',
-                                                  "fix/fix/join.json": json.dumps({"units": [{"unit_id": "u1", "status": "fixed"}]})},
+                                                  "fix/fix/groups.json": "{}", "fix/fix/join.json": json.dumps({"units": [{"unit_id": "u1", "status": "fixed"}]})},
                       nodes=[{"node_id": "gate-final", "state": "completed"}])
         self.assertRan(self.run_rows("works-factory", CHANGE))
         self.set_plan(outcome="fixed", asks=["final-gate"],
@@ -595,9 +598,14 @@ class RunTest(RunnerCase):
         self.assertEqual(differs["differs"], ["units", "asks"])
         self.assertEqual(differs["reason"], "")
 
+        path.write_text(json.dumps(observed | {"flagged": []}), encoding="utf-8")
+        [verdicts] = [line for line in self.compare_lines() if "compare" in line]
+        self.assertEqual(verdicts["differs"], ["verdict"])
+
     FIXED = {
         "works-factory": {"artifacts": {
             "test-gate/base/baseline.json": '{"material": {"status": "found"}}',
+            "fix/fix/groups.json": "{}", "fix/refix-run/groups.json": "{}",
             "fix/fix/join.json": json.dumps({"units": [{"unit_id": "u1", "status": "fixed"}, {"unit_id": "u2", "status": "not_done"},
                                                        {"unit_id": "u3", "status": "given_up"}]}),
             "fix/fix/fix-units.json": json.dumps({"u2": {"status": "fixed", "reason": ""}, "u3": {"status": "given_up"}}),
@@ -675,6 +683,54 @@ class RunTest(RunnerCase):
                 self.assertLessEqual({"units", "asks"}, set(observed["unread"]))
                 self.assertIn(self.BROKEN[factory], observed["flag_evidence"]["units"])
                 self.assertIn("record/parent.json", observed["flag_evidence"]["asks"])
+
+    def test_fix_place_without_join_names_units_unread(self):
+        artifacts = {k: v for k, v in self.FIXED["works-factory"]["artifacts"].items() if k != "fix/fix/join.json"}
+        self.set_plan(**self.FIXED["works-factory"] | {"artifacts": artifacts})
+        self.assertRan(self.run_rows("works-factory", CHANGE))
+        [observed] = self.observed_files("works-factory")
+        self.assertIsNone(observed["units"])
+        self.assertIn("units", observed["unread"])
+        self.assertIn("parent/fix/fix/join.json: 無い", observed["flag_evidence"]["units"])
+
+    MISSING = {"works-factory": "parent", "works": "board"}
+
+    def test_reobserve_names_missing_record_folder_in_unread(self):
+        for factory in ("works-factory", "works"):
+            with self.subTest(factory=factory):
+                shutil.rmtree(self.attempts, ignore_errors=True)
+                self.set_plan(**self.FIXED[factory])
+                self.assertRan(self.run_rows(factory, CHANGE))
+                shutil.rmtree(self.attempts / f"{CHANGE}--1" / "evidence" / self.MISSING[factory])
+                self.assertRan(self.reobserve(factory))
+                [observed] = self.observed_files(factory)
+                self.assertIsNone(observed["units"])
+                self.assertIn("units", observed["unread"])
+                self.assertIn(self.MISSING[factory], observed["flag_evidence"]["units"])
+
+    def test_reobserve_refuses_without_evidence_and_keeps_observed(self):
+        for factory in ("works-factory", "works"):
+            with self.subTest(factory=factory):
+                shutil.rmtree(self.attempts, ignore_errors=True)
+                shutil.rmtree(self.observed, ignore_errors=True)
+                self.set_plan(**self.FIXED[factory])
+                self.assertRan(self.run_rows(factory, CHANGE))
+                [path] = (self.observed / factory).glob("*.json")
+                before = path.read_bytes()
+                shutil.rmtree(self.attempts / f"{CHANGE}--1" / "evidence")
+                done = self.reobserve(factory)
+                self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+                self.assertIn(CHANGE, done.stderr)
+                self.assertEqual(path.read_bytes(), before)
+
+    def test_reobserve_keeps_child_run_ids(self):
+        self.set_plan(**self.FIXED["works-factory"], children=2)
+        self.assertRan(self.run_rows("works-factory", CHANGE))
+        [before] = self.observed_files("works-factory")
+        self.assertEqual(len(before["child_run_ids"]), 2)
+        self.assertRan(self.reobserve("works-factory"))
+        [after] = self.observed_files("works-factory")
+        self.assertEqual(after["child_run_ids"], before["child_run_ids"])
 
     def test_reobserve_needs_an_earlier_observed(self):
         self.assertRan(self.run_rows("works", REQUEST))
