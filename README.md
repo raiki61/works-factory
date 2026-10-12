@@ -38,7 +38,7 @@ GitHub の About: A dev factory on Archon that turns a fix request into a verifi
 - 止める: 関所で `workflow respond <run> stop <一言>` と打つと、線が後ろを飛ばして報告を出す（`workflow reject <run>` も同じ）。関所の間で走っている run は `workflow cancel <run>` で止まるが、報告は出ない。
 - 自分の工程（`workflows/`）を Archon に渡すのは `workflow run` の時だけ。`trigger`・`chat` には渡らない。
 - run は始めに `workflows/` だけを写し取るので、走っている間にこのリポジトリの `lib/` を変えると、その run に効く。
-- 選べる道は環境変数で渡す（どれも無ければ Claude Code と gh のログインのまま動く）: `WORKS_FACTORY_HOME`（家の置き場。絶対パス）・`WORKS_FACTORY_KEYCHAIN_ITEM`（Claude のアカウントを keychain の項目の名で選ぶ）・`WORKS_FACTORY_NO_AUTH=1`（認証の要らない道）・`CLAUDE_BIN_PATH`（隔離した設定にプラグインを入れる本物の claude の絶対パス。無ければ `PATH` の絶対の置き場から探す）・`WORKS_FACTORY_COLDWRITE_MARKETPLACE`・`WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`（coldwrite を借りる時）。
+- 選べる道は環境変数で渡す（どれも無ければ Claude Code と gh のログインのまま動く）: `WORKS_FACTORY_HOME`（家の置き場。絶対パス。家か対象が実パスで `/tmp/claude-*` の下なら、役の sandbox が書ける置き場なので拒む）・`WORKS_FACTORY_KEYCHAIN_ITEM`（Claude のアカウントを keychain の項目の名で選ぶ）・`WORKS_FACTORY_NO_AUTH=1`（認証の要らない道）・`CLAUDE_BIN_PATH`（隔離した設定にプラグインを入れる本物の claude の絶対パス。無ければ `PATH` の絶対の置き場から探す）・`WORKS_FACTORY_COLDWRITE_MARKETPLACE`・`WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO`（coldwrite を借りる時）。
 
 Claude Code からは `/works`（raiki61/claude-plugins の works プラグイン）で同じ事ができるようになる。
 

@@ -4,6 +4,7 @@ Archon の命令の別名は作らない（持ち主の決め one-launcher）。
 bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
 B の「約束」1〜11）。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
 """
+import fnmatch
 import hashlib
 import os
 import shlex
@@ -14,7 +15,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from bin._lib import hostgh, isolate, pack, place
-from lib import answer
+from lib import answer, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
@@ -26,6 +27,9 @@ EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"}) | CONTI
 # 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
 READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
+# 役の sandbox の Bash が書ける置き場（Claude の一時の置き場）。家や対象がこの下だと、役が書き込みの記録・控え・DB・対象の .git を
+# 書き換えられる。形は今の works の dev/guard.sh の works_dev_refuse_claude_tmp と同じ（実パスで照らす。* は / も越える）
+SANDBOX_WRITABLE = ("/tmp/claude-*", "/private/tmp/claude-*")
 
 
 class Stop(Exception):
@@ -61,6 +65,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     auth = [sys.executable, "-I", str(LIB / "auth_launch.py")]
     auth_user = ["--for", NAME, "--user-home", user_home, "--user-config", raw_config]
     target = target_root(Path(flag_value(flags, "--cwd") or here), here)
+    refuse_sandbox_writable("対象", target)
     home = run_home(user, target)
     cache = place.cache_dir(user)
     try:
@@ -99,6 +104,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         print(f"{NAME}: 認証は {check.stdout.strip()} から拾う（値は出さない）", file=sys.stderr)
     if executing or argv[:1] == ["validate"]:
         install_toolset(user, child, target, filled_config, plugins=executing and not no_auth)
+    if executing:
+        sweep_write_logs(child["CLAUDE_CONFIG_DIR"])
 
     if workflow is None:
         args = argv
@@ -195,9 +202,23 @@ def run_home(user: Mapping[str, str], target: Path) -> Path:
     if chosen:
         if not os.path.isabs(chosen):
             raise Stop(f"{HOME_ENV} は絶対パスにする（受けた値: {chosen}）")
+        refuse_sandbox_writable(HOME_ENV, chosen)
         return Path(chosen)
     state = user.get("XDG_STATE_HOME") or str(Path(user["HOME"]) / ".local" / "state")
-    return Path(state) / NAME / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]
+    home = Path(state) / NAME / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]
+    refuse_sandbox_writable("XDG_STATE_HOME" if user.get("XDG_STATE_HOME") else "HOME", home)
+    return home
+
+
+def sandbox_writable(path) -> bool:
+    real = os.path.realpath(path)
+    return any(fnmatch.fnmatchcase(real, pattern) for pattern in SANDBOX_WRITABLE)
+
+
+def refuse_sandbox_writable(what: str, path) -> None:
+    if sandbox_writable(path):
+        raise Stop(f"{what} の置き場 {os.path.realpath(path)} は /tmp/claude-* の下で、役の sandbox の Bash が書ける。"
+                   "ほかの置き場を選ぶ")
 
 
 def mise_trusts(user: Mapping[str, str], target: Path) -> bool:
@@ -230,6 +251,17 @@ def install_toolset(user: Mapping[str, str], child: dict[str, str], target: Path
                            child["CLAUDE_CONFIG_DIR"]], env=child, cwd=target)
     if done.returncode != 0:
         raise Stop(code=done.returncode)
+
+
+def sweep_write_logs(config: str) -> None:
+    """作業の場が無くなった run の書き込みの記録を片付ける（writelog.sweep）。片付けは run の正しさに効かないので、しくじっても止めない"""
+    try:
+        gone = writelog.sweep(writelog.root(config))
+    except OSError as error:
+        print(f"{NAME}: 前の run の書き込みの記録を片付けられなかった（{error}）。run は続ける", file=sys.stderr)
+        return
+    if gone:
+        print(f"{NAME}: 作業の場が無くなった run の書き込みの記録を {len(gone)} 件片付けた", file=sys.stderr)
 
 
 def on_absolute_path(name: str, path: str) -> str | None:
