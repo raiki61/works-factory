@@ -82,9 +82,12 @@ def _write_json(path: pathlib.Path, doc) -> None:
     os.replace(tmp, path)
 
 
-def _gave_up_text(name: str, count: int, last: str) -> str:
-    """諦めた理由の 1 行（gave_up と given_up_reason が共に使う文の正本）"""
-    return f"{name} の返答が {count} 回とも受け付けで拒まれた（最後の拒否: {' '.join(str(last).split())}）"
+def _gave_up_text(name: str, count: int, last: str, *, at_once: bool = False) -> str:
+    """諦めた理由の 1 行の文の正本。at_once は出し直させずに諦めた時（with_done の give_up）"""
+    last = " ".join(str(last).split())
+    if at_once:
+        return f"{name} の返答を受け付けが出し直させずに諦めた（拒否: {last}）"
+    return f"{name} の返答が {count} 回とも受け付けで拒まれた（最後の拒否: {last}）"
 
 
 # ---------------------------------------------------------------- 盤面の節でない受け付けの done
@@ -106,24 +109,24 @@ def with_done(board: pathlib.Path, name: str, out: dict, *, give_up_after: int =
     return {**out, "done": give_up or len(rows) >= give_up_after}
 
 
+def _reject_rows(board: pathlib.Path, name: str) -> list:
+    rows = _read_json(rejects_path(board, name), [])
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+
+
 def rejected(board: pathlib.Path, name: str) -> list:
     """盤面の節でない受け付け name の拒否の文の並び（古い順。控えが無ければ空）"""
-    rows = _read_json(rejects_path(board, name), [])
-    return [str(r.get("reason", "")) for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+    return [str(r.get("reason", "")) for r in _reject_rows(board, name)]
 
 
 def given_up_reason(board: pathlib.Path, name: str, *, give_up_after: int = GIVE_UP_AFTER) -> str:
     """控えの拒否が give_up_after 件あるか、出し直さずに諦めた拒否（with_done の give_up）が在れば、諦めた理由の 1 行（最後の拒否の文）。
     届いていなければ空"""
-    got = rejected(board, name)
-    if got and _gave_up_at_once(board, name):
-        return f"{name} の返答を受け付けが出し直させずに諦めた（拒否: {' '.join(got[-1].split())}）"
-    return _gave_up_text(name, len(got), got[-1]) if len(got) >= give_up_after else ""
-
-
-def _gave_up_at_once(board: pathlib.Path, name: str) -> bool:
-    rows = _read_json(rejects_path(board, name), [])
-    return isinstance(rows, list) and any(isinstance(r, dict) and r.get("give_up") is True for r in rows)
+    rows = _reject_rows(board, name)
+    at_once = any(r.get("give_up") is True for r in rows)
+    if not rows or not (at_once or len(rows) >= give_up_after):
+        return ""
+    return _gave_up_text(name, len(rows), str(rows[-1].get("reason", "")), at_once=at_once)
 
 
 def parse_reply(raw):
