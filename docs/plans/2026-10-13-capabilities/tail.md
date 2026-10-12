@@ -107,7 +107,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T13 run の変更が全部ある段の paths_ignore の下（glob でなくパスの頭の一致。ファイルかフォルダ）に在れば、その段を回さない。外に 1 本でも在れば全段を回す。
   - 元: works/.shared/core/board.py:481 `skipped_steps`
-  - 今: lib/checkscope.py:48 `skipped_steps`・lib/declared_checks.py:472 `_planned_run`
+  - 今: lib/checkscope.py:51 `skipped_steps`・lib/declared_checks.py:472 `_planned_run`
   - 証: lib/tests/test_checkscope.py::SkippedStepsCase.test_change_all_under_ignored_skips_step_and_names_it・test_change_outside_ignored_runs_every_step・test_ignored_path_matches_file_or_folder_head・test_sibling_with_same_prefix_is_not_under（#122）・lib/tests/test_declared_checks.py::ScopedStepsCase.test_final_skips_step_whose_ignored_paths_hold_every_change・test_final_runs_step_when_change_touches_outside_ignored
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
@@ -464,14 +464,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T62 同じ run の中で、同じ作業ツリーの木・同じ命令・同じ環境の緑の一式の結果を使い回す（一式の全段が当たった時だけ子を起こさずに全段を使い、JUnit も書き戻す。走らせている間に木が変わった回は置かない。run をまたがない）。直す前の確かめと TDD の輪の頭が同じ test_cmd を 2 度走らせない。
   - 元: works/.shared/core/tree_run.py:670 `replay_group`・:750 `keep_group`・:779 `slotted_run`・works/.shared/core/board.py:379-433・works/CHANGELOG.md:30・:53（0.2.64）
-  - 今: lib/tree_run.py:650 `replay_group`・:731 `keep_group`・:760 `reuse_run`（元 slotted_run から枠を外した物）・:443 `reuse_place`・lib/declared_checks.py:224 `tree_runner`・lib/tddloop.py:544 `_test_cmd_gate`。控えは線の run の置き場の直下 test-reuse/（run の名は始めの記録の run_id）。test-gate の base（workflows/test-gate/scripts/run.py）が引いて置き、fix の組の子の run の TDD の輪の頭（workflows/fix/scripts/group_start.py・fixio.line_top）が引く。final は引かない（#122）
-  - 証: lib/tests/test_declared_checks.py::ReuseCase.test_same_tree_same_suite_runs_once・test_other_run_or_moved_tree_is_not_reused・test_tdd_head_test_cmd_reads_the_base_keep・TestModesCase.test_final_never_reads_reuse_store・lib/tests/test_tree_run.py::ReuseRunCase・tests/workflows/test_test_gate.py::RunScriptCase.test_base_rerun_reuses_the_green_suite_and_final_does_not・RunnerVarsCase.test_test_gate_drops_the_same_runner_vars_as_fix
+  - 今: lib/tree_run.py:658 `replay_group`・:739 `keep_group`・:768 `reuse_run`（元 slotted_run から枠を外した物）・:451 `reuse_place`・lib/declared_checks.py:224 `tree_runner`・lib/tddloop.py:544 `_test_cmd_gate`。控えは線の run の置き場の直下 test-reuse/（run の名は始めの記録の run_id）。test-gate の base（workflows/test-gate/scripts/run.py）が引いて置き、fix の組の子の run の TDD の輪の頭（workflows/fix/scripts/group_start.py・fixio.line_top）が引く。final は引かない（#122）
+  - 証: lib/tests/test_declared_checks.py::ReuseCase.test_same_tree_same_suite_runs_once・test_other_run_or_moved_tree_is_not_reused・test_tdd_head_test_cmd_reads_the_base_keep・test_reused_suite_writes_its_junit_back・TestModesCase.test_final_never_reads_reuse_store・lib/tests/test_tree_run.py::ReuseRunCase・tests/workflows/test_test_gate.py::RunScriptCase.test_base_rerun_reuses_the_green_suite_and_final_does_not・RunnerVarsCase.test_test_gate_drops_the_same_runner_vars_as_fix・tests/workflows/test_fix.py::GroupChildScriptsCase.test_tdd_head_reuses_the_test_gate_base_test_cmd・tests/shared/test_archon_contract.py::ArchonContractTest（script の節に立つ変数の名）
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で外した。PR は持ち主の決め no-queue を理由に挙げるが、no-queue（docs/owner-decisions.md:62-66）は修正の並べの待ちの列の決めで、使い回しは reuse-results（:263-268「使い回すのは入力が変わらない時だけ」「最後のテストは省かない」）に当たる。Archon で不可でない → 持ち主の確かめ 決め: 戻すと決めた（reuse-results）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
 
 - T63 使い回した段の出どころ（run・時刻・鍵）を素材の checked・段の行・報告に出し、使い回さなかった理由（reuse_off）を段の行・trace に出す。旗 GRAPHLOOPS_RERUN_CHECKS=1 で必ず走らせる。
   - 元: works/.shared/core/board.py:436 `_reused_note`・works/.shared/core/entry.py:706 `_reused_material`・works/.shared/core/tree_run.py:433 RERUN_ENV・:496 `note_fields`・:501 `reused_text`
-  - 今: lib/tree_run.py:495 `note_fields`・:501 `reused_text`・:432 RERUN_ENV・lib/declared_checks.py:405 `_reused_note`・:132 `_reused_material`・:397 `_row`（段の行の reused・reuse_off。trace の代わりに test-gate/<mode>/run.json の runs）。旗は script が読む（#122）
+  - 今: lib/tree_run.py:503 `note_fields`・:509 `reused_text`・:433 RERUN_ENV・lib/declared_checks.py:405 `_reused_note`・:132 `_reused_material`・:397 `_row`（段の行の reused・reuse_off。trace の代わりに test-gate/<mode>/run.json の runs）。旗は script が読む（#122）
   - 証: lib/tests/test_declared_checks.py::ReuseCase.test_reused_steps_named_in_material_and_rows・test_rerun_flag_runs_again
   - 本物の run: 筋書きでのみ
   - 狭め: T62 と同じ 決め: 戻すと決めた（reuse-results）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
