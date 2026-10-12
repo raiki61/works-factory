@@ -2,22 +2,30 @@
   "assertions": [
     {
       "id": "request-to-report",
-      "description": "小さな種のリポジトリに修正依頼を 1 つ渡し、works-factory を通しで回して報告まで届くかを見る。前提: この checkout に入口の殻 bin/works-factory と線 works-factory-line（workflows/ の工程）が在り、tests/e2e/ に種のリポジトリとその依頼の文が在る（段 1 で作る）。どれかが無い間は、まだ作られていない物は確かめられないので outcome を inconclusive にし、reason に無いパスを書く。failed にはしない。手順: (1) この試みの置き場（attempt directory）の下に、tests/e2e/ の種を写して git を初期化した対象のリポジトリと、空の家（WORKS_FACTORY_HOME に絶対パスで渡す新しいフォルダ。殻はその下に Archon の家を作る）を作る。前の試みの物は使わない。(2) この checkout の殻を相対パスで ./bin/works-factory workflow run works-factory-line --cwd <対象> --input request=<依頼> と呼び、写した対象のリポジトリと種の依頼の文を渡す。ほかに入っている works-factory や Archon の家は使わない。(3) 人の関所（人に答えを聞いて止まる所）で止まるたびに ./bin/works-factory workflow status --cwd <対象>・workflow get <run> --cwd <対象> で止まった所を見て、./bin/works-factory workflow respond <run> approve --cwd <対象> で通す答えを返す。(4) run が終わるまで workflow status・workflow get で見る。期待: workflow run が run の id をちょうど 1 つ返す。workflow get が、run が終わったこと、結末の語（workflows/report の返す節の output_format の enum の 1 つ）、報告の本文（空でない）を出す。./bin/apply を呼ぶ前は、対象のリポジトリの git status が空（写した直後のまま）。"
+      "description": "小さな種の対象に修正依頼を 1 つ渡し、works-factory の線 works-factory-line を本物の役で始めから報告まで回す。語: <試み> はこの試みの置き場（attempt directory）の下に新しく作る空のフォルダ。<target>・<request>・<家> は (1) の出力の target・request・home の絶対パス。<run> は線の run の id。命令はどれもこの checkout の根で打つ。環境変数は道具の呼び出しをまたいで残らないので、./bin/works-factory と ./bin/apply の呼び出しには毎回 WORKS_FACTORY_HOME=<家> を前に付ける。ほかに入っている works-factory や Archon の家は使わない。手順: (1) python3 tests/e2e/make_target.py make <試み> で対象（git の木 target/ とその origin）・依頼 request.json・家 home/ を作り、出力の JSON を証拠に残す。<target>/junit-suite.sh が実行できる（mode 100755）ことを見る。(2) 起こす: `WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow run works-factory-line --cwd <target> --input request=<request> --input test_cmd='python3 -m unittest -v' --input tdd_suite=junit-suite.sh --input thickness=標準` を前で打つ（--detach を付けない。線は interactive: true で、止めた Archon は切り離した新しい起こしを拒む）。道具の 1 回の呼び出しの上限は 600 秒に上げて呼ぶ。命令は最初の人の関所 gate-start で止まって返る（その前に走るのは始めの節 start だけ）。返りは JSON でないので、<run> は WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow runs --json --all --cwd <target> の runs のうち parent_run_id の無い行の id から取る。(3) 待つ: WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow wait <run> --json --timeout 540 --cwd <target> を繰り返す。--timeout は道具の呼び出しを有限にする区切りで、run に期限を置く物ではない（run は区切りで止まらない）。終了の値 3（区切りが来た）なら同じ命令をもう一度打つ。(4) wait の返りの attention.kind で分ける。terminal: 終わり。awaiting_response: WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow get <respondTo.runId> --json --cwd <target> で関所の文を見て証拠に残し、WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow respond <respondTo.runId> approve --detach --json --cwd <target> で答えて (3) へ戻る（respondTo.runId は子の run のことがある。--detach を必ず付ける。付けないと答えた後の run の続き（数時間）が 1 回の道具の呼び出しの中で走り、上限で殺されると持ち主の居ない run が残る）。stalled_tool_calls: workflow logs <run> を見て待ちを続ける（止めない）。owner_lost・action_required・読めない返り: 止めて workflow get <run> --json を証拠に残し、この主張を inconclusive にする。期待: (2) の後に workflow runs が出す parent_run_id の無い run がちょうど 1 つ。WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow get <run> --json --cwd <target> の terminal_record.status が completed。terminal_record.returns.value.outcome が報告の結末の 10 語（workflows/report/works-factory-report.yaml の返す節の output_format の enum）の 1 つ。returns.value.report の指す報告の本文（terminal_record.artifacts.root の下）が空でない。./bin/apply を呼ぶ前の <target> の git status --porcelain が空。認証が拾えずに殻が止まった時は製品の不具合ではないので inconclusive にし、殻の 1 行を reason に書く。"
     },
     {
-      "id": "sealed-diff-fixes-seed",
-      "description": "最後の関所で封じた差分を当てると、種の落ちていた試験が通るかを見る。前提: request-to-report の前提に加え、ブロックが全部本物になっている（workflows/ の下に scripts/stub.py が 1 つも無い。段 2 の終わり）。stub.py が在る間は直しの中身がまだ仮なので outcome を inconclusive にし、reason に在った stub.py のパスを書く。failed にはしない。手順: (1) request-to-report の run が終わった後、当てる前に、種が名指す試験の命令を対象のリポジトリで走らせ、結末を控える。(2) ./bin/apply <run> で差分を対象のリポジトリに当てる。(3) 同じ試験の命令をもう一度走らせる。期待: 当てる前は、種が直してほしいとした試験が 1 件以上落ちる。当てた後は、その試験が全部通り、当てる前に通っていた試験は 1 件も落ちない。対象のリポジトリの git diff は空でなく、変わったファイルは報告が挙げたファイルの中だけ。"
+      "id": "every-block-ran",
+      "description": "request-to-report の run で、線の中の 8 つのブロックが全部本物に走ったかを見る。手順: WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow get <run> --json --verbose --cwd <target> の nodes を読む。線の include の id は test-gate-base・judge・plan・plan-review-run・fix・test-gate-final・eyes・merge-seal・merge-apply・report。plan と plan-review-run は計画の往復の輪の中に在り、節の id に plan-rounds. の頭が付く。fix の役の節は fix の組ごとの子の run に在るので、workflow runs --json --all --cwd <target> の parent_run_id が <run> の行を引き、子ごとに workflow get <子> --json --verbose --cwd <target> を読む。案の直しの道の include（rejudge-run・replan・replan-review・refix-run）は、その道を通った run でだけ見る。期待: 上の include の id ごとに、節の id に <include の id>__ の区切りを含む節が 1 つ以上 completed（fix は子の run の中で）。eyes の R1〜R4 の役の節（eyes__r1-minimality・eyes__r2-compare・eyes__r3-coherence・eyes__r4-scope）が completed（深さを標準で回したので省かれない）。"
+    },
+    {
+      "id": "capabilities-evidenced",
+      "description": "request-to-report の run の記録に、今の works の能力の棚卸しの行ごとの跡が在るかを、照らしの表 tests/e2e/evidence.json で機械に照らさせる。手順: python3 tests/e2e/evidence.py collect <試み> <run> で、親の run と fix の組の子の run の置き場と記録を <試み>/evidence/ に写す。次に python3 tests/e2e/evidence.py check <試み> を走らせ、出力の全部を証拠に残す。期待: check が終了の値 0（absent も unreadable も 0 件）。unexpected の行（seen でない行が見えた）は失敗にしないが、行を全部 reason に写す。"
     },
     {
       "id": "changed-diff-refused",
-      "description": "封じた後に差分が変わると、./bin/apply が当てずに止まるかを見る。前提: request-to-report の前提に加え、run が封じた差分のファイル（merge の seal の返りの指し札が指す、run の置き場の中のファイル）を残す。残さない間は outcome を inconclusive にし、reason にそう書く。failed にはしない。手順: (1) request-to-report と同じ手順で、新しい対象のリポジトリと新しい run を作り、最後の関所まで通す。(2) ./bin/apply を呼ぶ前に、封じた差分のファイルの中身を 1 バイト変える。(3) ./bin/apply <run> を呼ぶ。期待: ./bin/apply が 0 以外の終了の値で終わり、封じた hash と合わないことを言う。対象のリポジトリの git status は空のまま（何も当たっていない）。"
+      "description": "封じた後に差分が変わると、./bin/apply が当てずに止まるかを見る。手順: request-to-report の run で、当てる前に、WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow get <run> --json --cwd <target> の terminal_record.returns.value.apply.diff が指すファイル（terminal_record.artifacts.root の下）を <試み> に写して控え、元のファイルの中身を 1 バイト変えてから WORKS_FACTORY_HOME=<家> ./bin/apply <run> --cwd <target> を呼ぶ。終わったら控えから元に戻す。期待: ./bin/apply が 0 以外の終了の値で終わり、封じた hash と合わないことを言う。<target> の git status --porcelain は空のまま（何も当たっていない）。"
+    },
+    {
+      "id": "sealed-diff-fixes-seed",
+      "description": "封じた差分を当てると、種の落ちていた試験が通るかを見る。手順: changed-diff-refused の後（差分を控えから戻した後）、<target> で python3 -m unittest -v を走らせて控える。WORKS_FACTORY_HOME=<家> ./bin/apply <run> --cwd <target> で当て、もう一度 python3 -m unittest -v を走らせる。期待: 当てる前は、依頼が名指した 2 件（test_mean_of_three・test_clamp_above_range）が落ちる。当てた後は 3 件全部が通る。<target> の git diff --stat は空でなく、変わったファイルは報告が挙げたファイルの中だけ。"
     }
   ],
   "environment": {
     "ownership": "external",
     "setup": "",
     "start": "",
-    "teardown": "",
+    "teardown": "python3 tests/e2e/make_target.py teardown",
     "candidate_command": "test -z \"$(git status --porcelain --untracked-files=no)\" && git rev-parse HEAD"
   }
 }

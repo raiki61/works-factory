@@ -1,5 +1,5 @@
 {
-  "description": "works-factory の動かしての確かめ（runtime）の入力の控え。このファイルは何も実行しない。works-factory は HTTP の server ではなく、入口の殻 bin/works-factory（Archon の命令をそのまま渡す）と bin/apply を人が打つ CLI なので driver は cli。archon-lifecycle の入力 scenario に渡す JSON は harness/runtime.scenario.json（筋書きの文は harness/END-TO-END.md）。線 works-factory-line と、確かめに使う小さな種のリポジトリ（tests/e2e/）が在るまで、cli.invoke は空のまま。ASF の runtime host（factory/RUNTIME_HOST.md）は使わない。host は子に Claude の資格を渡さず、cli の形の実行を 300 秒で打ち切るが、works-factory を通しで回すには Claude の資格が要り、期限を置かない決まり（workflows/AGENTS.md の E12）もある。",
+  "description": "works-factory の動かしての確かめ（runtime）の入力の控え。このファイルは何も実行しない。works-factory は HTTP の server ではなく、入口の殻 bin/works-factory（Archon の命令をそのまま渡す）と bin/apply を人が打つ CLI なので driver は cli。archon-lifecycle の入力 scenario に渡す JSON は harness/runtime.scenario.json（筋書きの文は harness/END-TO-END.md）。止めた Archon の工程はこのファイルを読まない（archon-lifecycle に渡すのは scenario と holdout の絶対パスだけ）。ASF の runtime host（factory/RUNTIME_HOST.md）は使わない。host は子に Claude の資格を渡さず、cli の形の実行を 300 秒で打ち切るが、works-factory を通しで回すには Claude の資格が要り、期限を置かない決まり（workflows/AGENTS.md の E12）もある。",
   "scenarios": "harness/END-TO-END.md",
   "holdout": ".factory/holdout/HOLDOUT.md",
   "driver": "cli",
