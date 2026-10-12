@@ -17,6 +17,7 @@ ask_final = load("ask_final")
 
 import answer  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
 import gatemarks  # noqa: E402
+import protect  # noqa: E402
 import seal  # noqa: E402
 
 HEADS = [gatemarks.HAPPENED, gatemarks.DECIDE, gatemarks.PUSH]
@@ -144,6 +145,19 @@ class FinalHeadCase(unittest.TestCase):
         self.assertEqual(heads(text), HEADS)
         self.assertEqual(lines[3], "")
         self.assertTrue(lines[4].startswith("## " + ask_final.PROTECTED_HEAD), lines[4])
+
+    def test_protected_section_keeps_rule_and_count(self):
+        """merge が protect.lines で作った行は、冒頭 3 行の直後の最初の節に字のまま載る（規則と行数を落とさない）"""
+        rows = protect.lines([{"path": "lib/seal.py", "id": "seal", "glob": "lib/seal.py", "why": "封印", "added": 2, "deleted": 1},
+                              {"path": "lib/x.bin", "id": "lib", "glob": "lib/**", "why": "芯", "added": None, "deleted": None}])
+        lines = ask_final.final_text(final_got(protected_hits=rows), ["理由"], "run-1").splitlines()
+        self.assertTrue(lines[4].startswith("## " + ask_final.PROTECTED_HEAD), lines[4])
+        self.assertEqual(lines[5:7], [f"- {row}" for row in rows])
+        self.assertIn("（+2 −1）: 規則 seal（lib/seal.py）", lines[5])
+
+    def test_final_text_names_the_sealed_hash(self):
+        self.assertIn(f"封じた差分の hash: {'a' * 64}", ask_final.final_text(final_got(), ["理由"], "run-1"))
+        self.assertIn("封じた差分の hash: （無い）", ask_final.final_text(final_got(hash=""), ["理由"], "run-1"))
 
     def test_when_needed_opens_on_the_same_reasons_as_the_first_line(self):
         """when_needed で開くかと 1 行目の開けた理由は同じ 1 つの列（final_needs）: 列が空なら開かず、在れば全部が 1 行目に載る"""
