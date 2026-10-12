@@ -502,7 +502,7 @@ class DeltaScriptsCase(unittest.TestCase):
                   "quality": {"verdict": "pass", "why": "新しい品質の穴は無く、開いているのは事前審査の穴の検算の 1 件だけ"}}
         got = self._run("delta_accept", "delta-accept", reply=json.dumps(review, ensure_ascii=False))
         self.assertTrue(got["ok"], got)
-        self.assertTrue(self._run("refix_prep", "refix-prep")["go"])
+        self.assertTrue(self._run("refix_prep", "refix-prep", n="1")["go"])
         ties = json.loads((self.place / "refix1-brief.json").read_text(encoding="utf-8"))["ties"]
         self.assertEqual([(t["key"], t["via"]) for t in ties], [(face, ["check"])])
         self.assertTrue(ties[0]["branches"], ties)
@@ -510,11 +510,11 @@ class DeltaScriptsCase(unittest.TestCase):
         p.write_text(p.read_text(encoding="utf-8").replace("def mean(xs):\n", "def mean(xs):\n    if not xs:\n        return 0\n"),
                      encoding="utf-8")
         fixed = {"handled": [{"key": face, "handled": "fixed", "how": "空の列は 0 を返す", "files": ["stats.py"]}]}
-        self.assertTrue(self._run("refix_accept", "refix-accept", reply=json.dumps(fixed, ensure_ascii=False), iteration="1")["ok"])
+        self.assertTrue(self._run("refix_accept", "refix-accept", reply=json.dumps(fixed, ensure_ascii=False), iteration="1", n="1")["ok"])
         self.assertTrue(self._run("cut2", "cut2")["go"])
         review2 = {**review, "checks": [{"key": face, "closed": False, "why": "負の数で割れる"}]}
         self.assertTrue(self._run("review2_accept", "review2-accept", reply=json.dumps(review2, ensure_ascii=False))["ok"])
-        self.assertTrue(self._run("refix2_prep", "refix2-prep")["go"])
+        self.assertTrue(self._run("refix_prep", "refix2-prep", n="2")["go"])
         ties2 = json.loads((self.place / "refix2-brief.json").read_text(encoding="utf-8"))["ties"]
         self.assertEqual([t["key"] for t in ties2], [face])
         self.assertIn("earlier", ties2[0]["via"])
