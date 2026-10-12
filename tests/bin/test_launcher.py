@@ -339,6 +339,19 @@ class LauncherTest(unittest.TestCase):
                 self.assertIn("認証は ANTHROPIC_API_KEY", done.stderr)
                 self.assertTrue(claude_log.exists(), f"{args} で claude の plugin の CLI を呼んでいない")
 
+    def test_continuing_commands_carry_the_login_to_archon(self):
+        """関所に答える・run を続ける命令も AI の節を走らせるので、ログインだけの利用者のトークンが Archon に届く"""
+        (self.home / ".claude" / ".credentials.json").write_text(
+            json.dumps({"claudeAiOauth": {"accessToken": TOKEN}}), encoding="utf-8")
+        login = {"ANTHROPIC_API_KEY": None, "FAKE_SECURITY_HOME": str(self.home), "FAKE_SECURITY_VALUE": TOKEN,
+                 "FAKE_SECURITY_SERVICE": "Claude Code-credentials"}
+        for args in (["workflow", "resume", "run-1"], ["workflow", "approve", "run-1"], ["workflow", "reject", "run-1"],
+                     ["workflow", "respond", "run-1", "continue", "x"], ["workflow", "wake", "run-1"],
+                     ["workflow", "signal", "run-1", "done"]):
+            with self.subTest(args=args):
+                env = self.reached(self.launch(*args, WORKS_FACTORY_HOME=str(self.tmp / "home-of" / args[1]), **login))["env"]
+                self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))
+
     def test_claude_on_relative_path_is_not_used(self):
         """PATH の相対の置き場（打った場所の下）の claude は、隔離した設定にプラグインを入れる本物として使わない"""
         (self.fake / "claude").unlink()
