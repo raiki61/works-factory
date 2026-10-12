@@ -863,6 +863,19 @@ class BriefCase(unittest.TestCase):
         self.assertIn("- 修正案の受け付け: 単位の網羅が 3 回とも欠けた", brief)
         self.assertIn("## 考えの住処の地図", brief)
 
+    def test_plan_prep_policy_is_frozen_copy(self):
+        """修正案の材料と構造の目が名指す方針は、始めの記録の固めた版の写し（policy_md の生の文書ではない）"""
+        frozen = {"named": "POLICY.md", "path": "/repo/POLICY.md", "sha256": "a" * 64, "copy": "/run/policy/frozen.md"}
+        run = Run(self, start={"policy_md": "POLICY.md", "policy": frozen})
+        self.assertIs(run.include()["ready"], True)
+        brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
+        self.assertIn("文書の置き場: /run/policy/frozen.md", brief)
+        self.assertNotIn("文書の置き場: POLICY.md", brief)
+        rnd = run.script("round")
+        got = run.script("structure_measure", {"dir": rnd["dir"]})
+        self.assertEqual(json.loads(pathlib.Path(got["structure_file"]).read_text(encoding="utf-8"))["policy_path"],
+                         "/run/policy/frozen.md")
+
     def test_without_policy_or_prior_failures_neither_section(self):
         run = Run(self)
         run.include()

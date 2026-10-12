@@ -26,6 +26,7 @@ with linekit.guarded_imports():
     import gatemarks
     import gatepolicy
     import ghreads
+    import policy
     import startrec
 
     DESIGN_ONLY_WORDS = ("", gatemarks.DESIGN_ONLY)
@@ -168,7 +169,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         "tdd_suite": raw["tdd_suite"],
         gatepolicy.FINAL_KEY: checked[gatepolicy.FINAL_KEY], gatepolicy.UNATTENDED_KEY: checked[gatepolicy.UNATTENDED_KEY],
         "design_only": checked["design_only"], "thickness": checked["thickness"], "spec": checked["spec"],
-        "policy_md": checked["policy_md"], "lang": raw["lang"],
+        "policy_md": checked["policy_md"], "policy": policy.freeze(artifacts, repo, checked["policy_md"]), "lang": raw["lang"],
         entry.FEATURES_KEY: checked["features_off"], entry.FEATURES_ON_KEY: checked["features_on"],
         entry.FEATURES_CUT_KEY: entry.features_cut(checked["features_off"], checked["features_on"]),
         "features": entry.feature_words(checked["features_off"], checked["features_on"]),

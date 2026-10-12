@@ -43,13 +43,12 @@ def main() -> None:
     if not head.is_file():
         fixboard.write_json(head, {"tree": groups.end_tree(fixio.repo())})
     start = startrec.read(place)
-    policy_md = start.get("policy_md") or ""
     fix_reply = place / fixboard.FIX_REPLY_FILE
     got = fixboard.prep_fix(place, N, items=functools.partial(fixboard.place_items, place), plan_review=None,
-                            fix_reply=fix_reply if fix_reply.is_file() else None, policy=fixboard.policy_brief(policy_md))
+                            fix_reply=fix_reply if fix_reply.is_file() else None, policy=fixboard.policy_brief(start))
     if not got["ok"]:
         raise ValueError(got["reason"])
-    text = fixboard.refix_prompt(N, {"brief_file": got["brief_file"], "diff_file": got["diff_file"], "policy_path": policy_md,
+    text = fixboard.refix_prompt(N, {"brief_file": got["brief_file"], "diff_file": got["diff_file"], "policy_path": fixboard.policy_path(start),
                                      "request_file": str(start.get("request_file") or "")},
                                  reject_file=fixboard.last_reject_file(place, ACCEPT), iteration=iteration,
                                  lang=fixboard.lang_line(start))

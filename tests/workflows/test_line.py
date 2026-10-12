@@ -168,6 +168,17 @@ class StartCase(Artifacts):
         self.assertTrue(got["ok"], got)
         self.assertEqual(self.record(got)["policy_md"], str(self.repo / "policy.md"))
 
+    def test_record_carries_the_policy_frozen_at_the_start(self):
+        """始めの記録の欄 policy は run の始めに固めた版 {named, path, sha256, copy}（写しは run の置き場の中）。名指しも既定の置き場の
+        文書も無ければ path は空・sha256 と copy は null"""
+        (self.tmp / "policy.md").write_text("方針\n", encoding="utf-8")
+        frozen = self.record(self.start(request="request_ok.json", policy_md=str(self.tmp / "policy.md")))["policy"]
+        self.assertEqual((frozen["named"], frozen["path"]), (str(self.tmp / "policy.md"),) * 2)
+        self.assertTrue(pathlib.Path(frozen["copy"]).is_relative_to(self.artifacts))
+        self.assertEqual(pathlib.Path(frozen["copy"]).read_text(encoding="utf-8"), "方針\n")
+        self.assertEqual(self.record(self.start(request="request_ok.json"))["policy"],
+                         {"named": "", "path": "", "sha256": None, "copy": None})
+
     def test_refusals_stop_before_any_role(self):
         for kw, words in (({}, "直す物も審査する物も無い"),
                           ({"request": "request_ok.json", "base": "base", "pr": "1"}, "両方"),

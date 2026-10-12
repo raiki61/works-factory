@@ -16,6 +16,7 @@ sys.path.append(str(boundary.lib_root()))
 import concepthome  # noqa: E402
 import depth  # noqa: E402
 import eyeverdict  # noqa: E402
+import policy  # noqa: E402
 import structmark  # noqa: E402
 
 EYES = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
@@ -67,7 +68,7 @@ out = {
     "base_rev": start.get("base_rev") or "",
     "review_md": str(boundary.lib_root() / "REVIEW.md"),
     "repo_review_md": str(repo_review) if repo_review.is_file() else "（対象のリポジトリの根に REVIEW.md は無い）",
-    "policy_path": start.get("policy_md") or "",
+    "policy_path": policy.frozen_copy(start),
     "lang_line": eyeverdict.lang_line(start.get("lang")),
     "r1_head": concepthome.R1_HEAD.format(section=after),
     "r3_head": concepthome.R3_HEAD.format(section=after),

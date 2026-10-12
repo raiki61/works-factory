@@ -1,6 +1,8 @@
 """人の方針を役に届ける形（policy）。盤面の写しから組む brief と、盤面の無いブロックが貼る節 section が同じ上限で本文を切ること
 （元 works/.shared/core/gl-prompts/prompts/policy-paste.md・policy.md）"""
+import hashlib
 import pathlib
+import subprocess
 import sys
 import tempfile
 import types
@@ -41,6 +43,46 @@ class SectionCase(unittest.TestCase):
         self.assertEqual(body, policy.brief(types.SimpleNamespace(
             record={"process": {"policy": {"copy": str(self.pol)}}}))["paste"])
         self.assertTrue(got.endswith(policy.RULE))
+
+
+class FreezeCase(unittest.TestCase):
+    """run の始めに 1 度だけ固める版 {named, path, sha256, copy}（元 graphloops/rules/policy_input.py の locate・snapshot）と、
+    ブロックが読む写し frozen_copy"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        self.repo, self.run = self.tmp / "repo", self.tmp / "run"
+        self.repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
+
+    def assert_copied(self, got, named, path, body: bytes):
+        sha = hashlib.sha256(body).hexdigest()
+        self.assertEqual((got["named"], got["path"], got["sha256"]), (named, path, sha))
+        self.assertEqual(pathlib.Path(got["copy"]), self.run / policy.DIR / f"{sha}.md")
+        self.assertEqual(pathlib.Path(got["copy"]).read_bytes(), body)
+
+    def test_freeze_named_default_and_absent(self):
+        self.assertEqual(policy.freeze(self.run, self.repo, ""), {"named": "", "path": "", "sha256": None, "copy": None})
+        default = self.repo / ".git" / "graphloops" / "policy.md"
+        default.parent.mkdir(parents=True)
+        default.write_bytes("- 既定の置き場の方針\n".encode("utf-8"))
+        self.assert_copied(policy.freeze(self.run, self.repo, ""), "", str(default.resolve()), default.read_bytes())
+        named = self.tmp / "named.md"
+        named.write_bytes("- 名指した方針\n".encode("utf-8"))
+        self.assert_copied(policy.freeze(self.run, self.repo, str(named)), str(named), str(named), named.read_bytes())
+
+    def test_frozen_copy_reads_the_version_and_falls_back_to_policy_md(self):
+        """欄 policy の在る記録は写し copy（文書が無い版は空）、欄の無い・壊れた記録は今どおり policy_md"""
+        frozen = {"named": "/p.md", "path": "/p.md", "sha256": "a" * 64, "copy": "/run/policy/a.md"}
+        self.assertEqual(policy.frozen_copy({"policy_md": "/p.md", "policy": frozen}), "/run/policy/a.md")
+        self.assertEqual(policy.frozen_copy({"policy_md": "/p.md", "policy": {**frozen, "sha256": None, "copy": None}}), "")
+        for start in ({"policy_md": "/p.md"}, {"policy_md": "/p.md", "policy": "壊れた"},
+                      {"policy_md": "/p.md", "policy": {"copy": 3}}):
+            with self.subTest(start=start):
+                self.assertEqual(policy.frozen_copy(start), "/p.md")
+        self.assertEqual(policy.frozen_copy(None), "")
 
 
 if __name__ == "__main__":

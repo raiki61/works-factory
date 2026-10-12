@@ -29,7 +29,7 @@ def main() -> None:
         boundary.returns({"go": False, "files": [], "diff_file": "", "brief_file": ""})
         return
     start = startrec.read(place)
-    got = refix.cut(place, N, fixio.repo(), policy=fixboard.policy_brief(start.get("policy_md") or ""))
+    got = refix.cut(place, N, fixio.repo(), policy=fixboard.policy_brief(start))
     if not got.get("ok"):
         raise ValueError(got.get("reason") or "差分を切れない")
     boundary.returns({"go": True, "files": got["files"], "diff_file": got["diff_file"], "brief_file": got["brief_file"]})

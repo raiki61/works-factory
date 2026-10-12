@@ -788,14 +788,21 @@ def lang_line(start) -> str:
     return LANG_RULE.format(lang=str(got or "").strip() or LANG_DEFAULT)
 
 
-def policy_brief(policy_md) -> dict:
-    """人の方針 {paste, path}（policy.brief。方針の文書のパス policy_md は始めの記録の欄。空なら両方空）。文書が読めなければ
-    ValueError。元 works/.shared/core/policy.py:26（盤面の record.process.policy.copy を読んだ）"""
+def policy_path(start) -> str:
+    """役に渡す方針の文書のパス: 始めの記録 start の固めた版の写し（policy.frozen_copy。文書が無ければ空）"""
     import policy
+    return policy.frozen_copy(start)
+
+
+def policy_brief(start) -> dict:
+    """人の方針 {paste, path}（policy.brief。path は policy_path。空なら両方空）。文書が読めなければ ValueError。
+    元 works/.shared/core/policy.py:26（盤面の record.process.policy.copy を読んだ）"""
+    import policy
+    copy_of = policy_path(start)
     try:
-        return policy.brief(types.SimpleNamespace(record={"process": {"policy": {"copy": str(policy_md or "")}}}))
+        return policy.brief(types.SimpleNamespace(record={"process": {"policy": {"copy": copy_of}}}))
     except OSError as e:
-        raise ValueError(f"人の方針の文書 {policy_md} が読めない: {e}") from None
+        raise ValueError(f"人の方針の文書 {copy_of} が読めない: {e}") from None
 
 
 def depth_doc(place):
@@ -1975,7 +1982,7 @@ def brief_sources(place) -> dict:
 
 def fix_values(place, owed, *, start, state: str = "", summary: str = "", answer_node: str = "") -> dict:
     """修正役の指示書の run の値（fixrules.FIX_VALUES と request_file・plan_session・tdd_state・ripple_file・base_rev）。始めの
-    記録 start の policy_md は policy_path、request_file はそのまま。plan_session は範囲の相談に答える役の名（answer_node。
+    記録 start の固めた方針の写しは policy_path、request_file はそのまま。plan_session は範囲の相談に答える役の名（answer_node。
     空なら相談の節を載せない）"""
     p = pathlib.Path(place)
 
@@ -1983,7 +1990,7 @@ def fix_values(place, owed, *, start, state: str = "", summary: str = "", answer
         return str(p / name) if (p / name).is_file() else ""
     start = start if isinstance(start, dict) else {}
     return {"judgment_file": there(JUDGMENT_FILE), "open_units": json.dumps(list(owed), ensure_ascii=False),
-            "plan_file": there(PLAN_REPLY_FILE), "policy_path": str(start.get("policy_md") or ""),
+            "plan_file": there(PLAN_REPLY_FILE), "policy_path": policy_path(start),
             "notes_file": there(NOTES_FILE), "summary_file": summary or "",
             "request_file": str(start.get("request_file") or ""), "plan_session": answer_node, "tdd_state": state or "",
             "ripple_file": there(RIPPLE_FILE), "base_rev": base_rev_of(place)}

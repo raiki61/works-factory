@@ -2951,12 +2951,12 @@ POLICY_HEAD = promptsection.Section("## 人の方針", source="fn:judge_accept.p
 
 
 def policy_text(start) -> str:
-    """人の方針の文書（始めの記録の policy_md）の役に貼る本文。元 policy.brief のとおり PASTE_CAP バイトで先頭を切り、続きの置き場を
-    末尾に書く。文書が無ければ空（policy.brief は盤面の record.process.policy.copy を読むので、その形で渡す）"""
-    pmd = (start or {}).get("policy_md") or ""
-    if not pmd or not pathlib.Path(pmd).is_file():
+    """人の方針の文書（始めの記録の固めた版の写し。policy.frozen_copy）の役に貼る本文。元 policy.brief のとおり PASTE_CAP バイトで
+    先頭を切り、続きの置き場を末尾に書く。文書が無ければ空（policy.brief は盤面の record.process.policy.copy を読むので、その形で渡す）"""
+    copy_of = policy.frozen_copy(start)
+    if not copy_of or not pathlib.Path(copy_of).is_file():
         return ""
-    return policy.brief(types.SimpleNamespace(record={"process": {"policy": {"copy": pmd}}}))["paste"]
+    return policy.brief(types.SimpleNamespace(record={"process": {"policy": {"copy": copy_of}}}))["paste"]
 
 
 def section(text: str, start_at: str = START, end_at: str = END) -> str:
@@ -4022,7 +4022,8 @@ def start_view(doc) -> dict:
     """始めの記録（今の works の blk-entry/schemas/start.schema.json の形）を、このブロックが読む欄だけ既定の値で読んだ物。
     欄が無い時の既定は docs/design.md の「judge の返り」の入力 start の決め（request_file は input.request_file・""、policy_md は ""、
     features_cut は ["judge_verify"]、spec は input.spec・false、answers は []、gates は ""）。base_rev は修正の起点（start の時の HEAD）、
-    diff_base は差分の根（input.base.rev。P1 の役が差分を取る起点。無ければ base_rev）"""
+    diff_base は差分の根（input.base.rev。P1 の役が差分を取る起点。無ければ base_rev）。policy（固めた版）は形を問わず写し、
+    読み手の policy.frozen_copy が欄の無い・壊れた記録を policy_md に倒す"""
     doc = doc if isinstance(doc, dict) else {}
     shape = doc.get("input") if isinstance(doc.get("input"), dict) else {}
     base = shape.get("base") if isinstance(shape.get("base"), dict) else {}
@@ -4030,6 +4031,7 @@ def start_view(doc) -> dict:
     return {
         "request_file": doc.get("request_file") or shape.get("request_file") or "",
         "policy_md": doc.get("policy_md") or "",
+        "policy": doc.get("policy"),
         "features_cut": list(cut) if isinstance(cut, list) else list(DEFAULT_FEATURES_CUT),
         "spec": shape.get("spec") is True,
         "answers": doc.get("answers") if isinstance(doc.get("answers"), list) else [],

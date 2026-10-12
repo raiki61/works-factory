@@ -172,21 +172,31 @@ class OpenCase(Base):
             boardview.rolekit.with_done(self.folder, "r2.design", {"ok": False, "reason": "拒んだ"})
         self.assertFalse(self.open()["r2_go"])
 
-    def test_policy_frozen_on_first_open_and_change_named(self):
-        """方針の文書は run の最初の差し込みで固め、後で変わればその事実（固めた版と今の版の写しと差分）を返す"""
+    def test_policy_version_comes_from_start(self):
+        """方針の文書の版は始めの記録の欄 policy（run の始めに固めた版）で、最初の差し込みは文書を読み直さない。始めから最初の
+        差し込みまでに変わった文書は、固めた版と今の版の写しと差分で関所に名指す"""
         pol = self.tmp / "policy.md"
         pol.write_text("# 方針\n- 公開の口を減らさない\n", encoding="utf-8")
-        start = self.put("start.json", {"run_id": "r", "policy_md": str(pol)})
-        self.open(start=start)
-        first = boardview.read_open(self.folder)["policy_copy"]
-        self.assertTrue(pathlib.Path(first).is_file())
-        self.assertIsNone(boardview.policy_change(self.folder, self.tmp))
+        frozen = policy.freeze(self.tmp / "run", self.tmp, str(pol))
+        start = self.put("start.json", {"run_id": "r", "policy_md": str(pol), "policy": frozen})
         pol.write_text("# 方針\n- 公開の口を減らさない\n- 足した\n", encoding="utf-8")
         self.open(start=start)
-        self.assertEqual(boardview.read_open(self.folder)["policy_copy"], first)
+        self.assertEqual(json.loads((self.folder / boardview.POLICY_FILE).read_text(encoding="utf-8"))["sha256"], frozen["sha256"])
+        self.assertEqual(boardview.read_open(self.folder)["policy_copy"], frozen["copy"])
         ch = boardview.policy_change(self.folder, self.tmp)
+        self.assertEqual(ch["from"], frozen["sha256"])
         self.assertIn("足した", pathlib.Path(ch["diff_file"]).read_text(encoding="utf-8"))
         self.assertIn(str(pol), boardview.change_row(ch))
+        self.open(start=start)
+        self.assertEqual(boardview.read_open(self.folder)["policy_copy"], frozen["copy"])
+
+    def test_record_without_a_version_freezes_on_first_open(self):
+        """欄 policy の無い始めの記録（線の外から差し込んだ run）は、今どおり最初の差し込みで読んだ版を固める"""
+        pol = self.tmp / "policy.md"
+        pol.write_text("- 前\n", encoding="utf-8")
+        self.open(start=self.put("start.json", {"run_id": "r", "policy_md": str(pol)}))
+        self.assertTrue(pathlib.Path(boardview.read_open(self.folder)["policy_copy"]).is_file())
+        self.assertIsNone(boardview.policy_change(self.folder, self.tmp))
 
     def test_missing_open_names_the_error(self):
         self.folder.mkdir(parents=True)
