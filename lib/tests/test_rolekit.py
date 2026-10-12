@@ -82,3 +82,11 @@ class AgentDefCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RejectWordsCase(unittest.TestCase):
+    def test_no_board_done_in_lib(self):
+        """役に返る拒みの文は「出し直せ」と言う（works-factory に盤面の命令 done は無い。古い「直して done し直す」を残さない）"""
+        hits = [f"{p.name}:{n}" for p in sorted(LIB.glob("*.py"))
+                for n, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if "done し直す" in line]
+        self.assertEqual(hits, [])

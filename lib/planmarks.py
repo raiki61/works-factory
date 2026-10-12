@@ -135,7 +135,7 @@ FIELD_SCHEMA = {
 
 STRUCTURE_REJECT = ("修正案の項目の works の欄 structure に欠けか誤りが在る（構造の目が汚れると見た単位を持つ項目は、その行ごとに"
                     "避け方に従うか外れの訳を書く。世界の解の答えの要る行は、行ごとにどれかの項目が定石に従うか外れの訳を"
-                    "書く。直して done し直す）。下の行を直した案を丸ごと出し直せ:")
+                    "書く）。下の行を直した案を丸ごと出し直せ:")
 ANSWER_KEYS = ("row", "prescription", "world")   # 欄 structure の行が答える先の鍵（ちょうど 1 つ）
 STRUCTURE_HEAD = ("structure＝構造の目が汚れると見た行（頭の『構造の目の行』の節の単位）への答えの並び。その単位を unit_keys に持つ"
                   "項目は、行ごとに {row: <単位の id（行の頭の字のまま）>, follows: true}（避け方 chosen に従う）か "
@@ -147,8 +147,8 @@ STRUCTURE_HEAD = ("structure＝構造の目が汚れると見た行（頭の『�
                   f"{MIN_DEVIATION} 字以上で、出どころ（URL・<パス>:<行>・決定の記録のパス）を添える>}} を書け。どの項目も答えていない"
                   "答えの要る行は受け付けが拒む。依頼そのものを出どころにした外れは修正前の関所で人に回る。"
                   "汚れる行も答えの要る世界の解の行も無い項目は空の並びか書かない")
-REJECT = ("修正案の項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope）か adds の name に欠けか誤りが在る"
-          "（直して done し直す）。下の行を直した案を丸ごと出し直せ:")
+REJECT = ("修正案の項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope）か adds の name に欠けか誤りが在る。"
+          "下の行を直した案を丸ごと出し直せ:")
 # 修正案の役の指示書の頭に足す文（写しの指示書はこの欄を知らない）
 HEAD = ("修正案の項目の works の欄: 写しの指示書はこの欄を知らないが、plan[] の各項目に必ず書け。"
         "route＝直し方の道（tdd＝先に落ちる受け入れのテストを書いてから直す・direct＝テストを先に書かずに直す）。"
