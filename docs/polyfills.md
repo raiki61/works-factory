@@ -67,13 +67,13 @@
 - 使うサブグラフ: メイングラフ（入口）
 - 外す条件: `--workflow-source` に任意のフォルダを渡して、その中のグラフを読める版が出たら
 
-### P4 読んだ証拠のフックを節に付けられない
+### P4 読んだ証拠のフックをノードに付けられない
 
-- 穴: 節の hooks: は固定の返事だけで、役が読んだファイルの記録を残せない。
+- 穴: ノードの hooks: は固定の返事だけで、役が読んだファイルの記録を残せない。
 - 証拠: 止めた Archon の packages/docs-web/src/content/docs/guides/hooks.md 59-77 行「YAML hooks: are deliberately static」と 64-70 行の表（中身を見るフックは Claude の設定に置く）。
 - 埋め: bin/_lib/record-read.py（Read と、Agent・WebFetch・WebSearch を path の無い行で）。bin/_lib/toolset.py の install が隔離した設定の settings.json の hooks.PostToolUse に置く。
-- 使うブロック: plan・plan-review（区分 J・F の issue の後は judge・fix）
-- 外す条件: 節の hooks: が command の種類を受け、入力を見て書ける版が出たら
+- 使うサブグラフ: plan・plan-review（区分 J・F の issue の後は judge・fix）
+- 外す条件: ノードの hooks: が command の種類を受け、入力を見て書ける版が出たら
 
 ## 外した
 
