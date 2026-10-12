@@ -45,6 +45,7 @@ import answer  # noqa: E402  （線の script が lib/ と境の口の置き場�
 import boardview  # noqa: E402
 import boundary  # noqa: E402
 import conflict  # noqa: E402
+import converge  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
@@ -442,7 +443,7 @@ def planned(**kw) -> dict:
 
 class AskBeforeFixCase(unittest.TestCase):
     def ask(self, plan, unattended=False, design_only=False):
-        return ask_before_fix.ask(plan, unattended=unattended, design_only=design_only, round_limit=ROUND_LIMIT, run_id=RUN)
+        return ask_before_fix.ask(plan, unattended=unattended, design_only=design_only, run_id=RUN)
 
     def test_no_plan_goes_nowhere(self):
         self.assertEqual(self.ask(planned(ready=False)), {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": []})
@@ -456,7 +457,10 @@ class AskBeforeFixCase(unittest.TestCase):
                             (planned(questions=["0 を返すか"]), "0 を返すか"),
                             (planned(ask_human=True), "直す前の関所"),
                             (planned(**{"pass": False, "stalled": True}), gatemarks.STUCK_ITEM),
-                            (planned(**{"pass": False, "round": ROUND_LIMIT}), "仕組みの異常として止めた")):
+                            (planned(**{"pass": False, "stalled": True, "round": ROUND_LIMIT, "ask_human": True,
+                                        "questions": [f"{gatemarks.STUCK_ITEM}。理由: " + converge.CAP_WHY.format(
+                                            n=ROUND_LIMIT, counts="1 往復目 2 → 20 往復目 1")]}),
+                             "仕組みの異常として止めた")):
             with self.subTest(words=words):
                 got = self.ask(plan)
                 self.assertEqual((got["open"], got["go"]), (True, True))
@@ -1308,7 +1312,7 @@ class LineWiringCase(unittest.TestCase):
     def test_round_limit_is_the_loop_limit(self):
         """往復の輪の上限は 1 つの数: 線の max_iterations・plan-out の round_limit・事前審査が上限の周を知る boardview.LOOP_CAP"""
         nodes = line_nodes()
-        self.assertEqual({nodes[key]["with"]["round_limit"] for key in ("plan-out", "ask-before-fix")} | {boardview.LOOP_CAP},
+        self.assertEqual({nodes["plan-out"]["with"]["round_limit"], boardview.LOOP_CAP},
                          {nodes["plan-rounds"]["loop_group"]["max_iterations"]})
 
 

@@ -318,13 +318,11 @@ nodes:
       ready: "$plan-rounds.output.ready"
       pass: "$plan-rounds.output.pass"
       stalled: "$plan-rounds.output.stalled"
-      round: "$plan-rounds.output.round"
       ask_human: "$plan-rounds.output.ask_human"
       gate_axes: "$plan-rounds.output.gate_axes"
       questions: "$plan-rounds.output.questions"
       unattended: "$start.output.unattended"
       design_only: "$start.output.design_only"
-      round_limit: 20
 
   - id: gate-before-fix
     approval:
