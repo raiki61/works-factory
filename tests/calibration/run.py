@@ -65,8 +65,6 @@ LOCK = ".lock"
 DONE = "done"
 OPEN = ("started", "stopped", "paused")   # 台帳の状態のうち run を持ちうる物。prepared（試みを作る途中で落ちた）は新しい試みで回し直す
 SKIPPED = "skipped"
-UNREAD_VERDICT = "INCONCLUSIVE"
-VERDICTS = ("CAUGHT", "ESCAPED", "CLEAN", "FALSE_ALARM", UNREAD_VERDICT)
 WAIT_RUNNING = 3
 STATES = {"running": "running", "pending": "running", "paused": "paused", "completed": DONE}   # Archon の run の status → run_one の分かれ
 
@@ -351,7 +349,7 @@ def _state(status) -> str:
     return STATES.get(status, "failed")
 
 
-FACTORY = {"works": OldWorks, "works-factory": WorksFactory}
+FACTORY = {c.name: c for c in (OldWorks, WorksFactory)}
 
 
 # ---------------------------------------------------------------- flagged の表
@@ -629,18 +627,25 @@ def read_observed(folder: Path, factory: str) -> list[tuple[str, object]]:
 
 
 def verdict(rows: dict, observed) -> dict:
-    """行の判定。読めなかった関門が行の当てる先に当たれば corpus.score を呼ばずに INCONCLUSIVE"""
+    """行の判定。読めなかった関門が行の当てる先に当たるか、何も flagged に無い対照に 1 つでも在れば、corpus.score を呼ばずに
+    INCONCLUSIVE（対照の CLEAN は「どの関門も出していない」の言い切りで、読めなかった関門はそれを言えない）"""
     row_id = observed.get("id") if isinstance(observed, dict) else None
     if row_id not in rows:
-        return {"id": row_id, "verdict": UNREAD_VERDICT, "aimed_hit": False, "caught_by": [], "missed_by": [],
-                "outcome_as_expected": False, "detail": f"observed が読めないか、行 {row_id} が束に無い"}
+        return _inconclusive(row_id, f"observed が読めないか、行 {row_id} が束に無い")
     row = rows[row_id]
     unread = observed.get("unread") or []
-    lost = [a for a in corpus._aims(row) if a in unread]
+    if row["kind"] == "none":
+        lost = [] if observed.get("flagged") else list(unread)
+    else:
+        lost = [a for a in corpus._aims(row) if a in unread]
     if lost:
-        return {"id": row_id, "verdict": UNREAD_VERDICT, "aimed_hit": False, "caught_by": [], "missed_by": [],
-                "outcome_as_expected": False, "detail": f"読めなかった関門 {lost}"}
+        return _inconclusive(row_id, f"読めなかった関門 {lost}")
     return corpus.score(row, observed)
+
+
+def _inconclusive(row_id, detail: str) -> dict:
+    return {"id": row_id, "verdict": corpus.INCONCLUSIVE, "aimed_hit": False, "caught_by": [], "missed_by": [],
+            "outcome_as_expected": False, "detail": detail}
 
 
 def score(args) -> int:
@@ -651,7 +656,7 @@ def score(args) -> int:
         verdicts[got["verdict"]] += 1
         missed.update(got["missed_by"])
         print(json.dumps({"file": name, **got}, ensure_ascii=False))
-    print(json.dumps({"verdicts": {v: verdicts[v] for v in VERDICTS}, "missed_by": dict(sorted(missed.items()))},
+    print(json.dumps({"verdicts": {v: verdicts[v] for v in corpus.VERDICTS}, "missed_by": dict(sorted(missed.items()))},
                      ensure_ascii=False))
     return OK
 
@@ -660,7 +665,7 @@ def compare(args) -> int:
     rows = {r["id"]: r for r in corpus.load(args.corpus)["rows"]}
     flags = load_flags()
     sides = {}
-    for factory in FACTORY:
+    for factory in corpus.FACTORIES:
         now = fingerprint(factory, args.corpus, flags)
         for name, observed in read_observed(args.observed, factory):
             fresh = isinstance(observed, dict) and (observed.get("provenance") or {}).get("fingerprint") == now
@@ -675,7 +680,7 @@ def compare(args) -> int:
             print(json.dumps({"one_sided": row_id, "only": next(iter(side))}, ensure_ascii=False))
             continue
         views = {f: sorted(set(v)) for f, v in side.items()}
-        if views["works"] != views["works-factory"]:
+        if len({tuple(v) for v in views.values()}) > 1:
             print(json.dumps({"differs": row_id, **{f: [{"verdict": v, "outcome": o} for v, o in views[f]] for f in views}},
                              ensure_ascii=False))
     return OK

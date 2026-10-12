@@ -1,7 +1,7 @@
 """score（後の走り手が 1 行の run の結果を数える口）の試験。合成の observed だけで回す。"""
 import unittest
 
-from tests.calibration.corpus import score
+from tests.calibration.corpus import VERDICTS, score
 
 DEFECT = {"id": "load-tested-only-with-stand-in", "kind": "stand-in-diverges", "catcher": "p1.test_double_fidelity",
           "also": ["p1.gate_efficacy"], "outcome": "fixed"}
@@ -92,6 +92,14 @@ class TestScore(unittest.TestCase):
                 self.assertFalse(got["outcome_as_expected"])
                 self.assertTrue(got["detail"])
 
+
+    def test_verdicts_name_every_word_score_gives(self):
+        got = {score(DEFECT, observed(DEFECT, "fixed", ["p1.gate_efficacy"]))["verdict"],
+               score(DEFECT, observed(DEFECT, "fixed", []))["verdict"],
+               score(DEFECT, observed(DEFECT, "done", []))["verdict"],
+               score(CONTROL, observed(CONTROL, "no_fix_needed", []))["verdict"],
+               score(CONTROL, observed(CONTROL, "fixed", []))["verdict"]}
+        self.assertEqual(got, set(VERDICTS))
 
 if __name__ == "__main__":
     unittest.main()

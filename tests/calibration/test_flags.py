@@ -3,6 +3,7 @@
 import json
 import pathlib
 import re
+import shutil
 import tempfile
 import unittest
 
@@ -128,6 +129,30 @@ class FlagTableTest(unittest.TestCase):
             (ev / "board" / "state.json").write_text(json.dumps({"rounds": [{"skipped": {"r1.minimality": "軽量"}}]}),
                                                      encoding="utf-8")
             self.assertEqual(runner.OldWorks.skipped(ev), {"r1.minimality"})
+
+    def test_fingerprint_covers_corpus_seed_and_own_flags(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            corpus_path = pathlib.Path(tmp) / "corpus.json"
+            shutil.copy(corpus.CORPUS, corpus_path)
+            shutil.copytree(HERE / "seed", pathlib.Path(tmp) / "seed", ignore=corpus.COPY_IGNORE)
+            table = _table()
+            first = {f: runner.fingerprint(f, corpus_path, table) for f in corpus.FACTORIES}
+            self.assertEqual(first, {f: runner.fingerprint(f, corpus_path, table) for f in corpus.FACTORIES})
+            self.assertNotEqual(first["works"], first["works-factory"])
+
+            other = json.loads(json.dumps(table))
+            other["works-factory"]["report"] = {"never": "changed"}
+            self.assertEqual(runner.fingerprint("works", corpus_path, other), first["works"])
+            self.assertNotEqual(runner.fingerprint("works-factory", corpus_path, other), first["works-factory"])
+            other["works"]["report"] = {"never": "changed"}
+            self.assertNotEqual(runner.fingerprint("works", corpus_path, other), first["works"])
+
+            stats = pathlib.Path(tmp) / "seed" / "stats.py"
+            stats.write_bytes(stats.read_bytes() + b"\n")
+            self.assertNotEqual(runner.fingerprint("works", corpus_path, table), first["works"])
+
+    def test_dispatch_covers_every_factory(self):
+        self.assertEqual(sorted(runner.FACTORY), sorted(corpus.FACTORIES))
 
     def test_stored_observed_shape(self):
         rows = {r["id"] for r in corpus.load()["rows"]}

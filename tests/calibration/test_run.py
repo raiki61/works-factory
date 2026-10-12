@@ -383,6 +383,17 @@ class RunTest(RunnerCase):
         self.assertEqual(done.returncode, 2, done.stderr)
         self.assertNotIn("resume", self.verbs())
 
+    def test_resume_skips_done_rows(self):
+        for factory in ("works-factory", "works"):
+            with self.subTest(factory=factory):
+                shutil.rmtree(self.attempts, ignore_errors=True)
+                self.assertRan(self.run_rows(factory, REQUEST))
+                self.log.unlink()
+                self.assertRan(self.run_rows(factory, REQUEST, extra=["--resume"]))
+                self.assertEqual(self.calls(), [])
+                self.assertFalse((self.attempts / f"{REQUEST}--2").exists())
+                self.assertEqual(len(self.observed_files(factory)), 1)
+
     def test_old_works_commit_must_match_pack(self):
         other = self.tmp / "other-plugins"
         (other / "works" / "dev").mkdir(parents=True)
@@ -443,6 +454,35 @@ class RunTest(RunnerCase):
         self.assertEqual(lines[-1]["verdicts"]["INCONCLUSIVE"], 1)
         self.assertEqual(lines[-1]["missed_by"], {})
         self.assertEqual(corpus.score(row, observed)["verdict"], "ESCAPED")
+
+    def score_lines(self, factory, **files) -> list[dict]:
+        (self.observed / factory).mkdir(parents=True)
+        for name, observed in files.items():
+            (self.observed / factory / f"{name}.json").write_text(json.dumps(observed), encoding="utf-8")
+        done = self.runner("score", factory, "--observed", str(self.observed))
+        self.assertRan(done)
+        return [json.loads(line) for line in done.stdout.splitlines()]
+
+    def test_unread_gate_makes_quiet_control_inconclusive(self):
+        row = next(r for r in corpus.load()["rows"] if r["id"] == CONTROL)
+        quiet = {"id": CONTROL, "factory": "works", "run_id": "q" * 12, "outcome": "no_fix_needed", "flagged": [],
+                 "unread": ["p1.hygiene"]}
+        loud = quiet | {"run_id": "l" * 12, "flagged": ["r1.minimality"]}
+        lines = self.score_lines("works", quiet=quiet, loud=loud)
+        got = {line["file"]: line for line in lines[:-1]}
+        self.assertEqual(got["quiet.json"]["verdict"], "INCONCLUSIVE")
+        self.assertIn("p1.hygiene", got["quiet.json"]["detail"])
+        self.assertEqual(got["loud.json"]["verdict"], "FALSE_ALARM")
+        self.assertEqual(corpus.score(row, quiet)["verdict"], "CLEAN")
+
+    def test_score_sums_missed_by_per_gate(self):
+        row = next(r for r in corpus.load()["rows"] if r["id"] == REQUEST)
+        base = {"id": REQUEST, "factory": "works", "outcome": "fixed", "unread": []}
+        lines = self.score_lines("works", escaped=base | {"run_id": "e" * 12, "flagged": []},
+                                 caught=base | {"run_id": "c" * 12, "flagged": [row["catcher"]]})
+        self.assertEqual(sorted(line["verdict"] for line in lines[:-1]), ["CAUGHT", "ESCAPED"])
+        self.assertEqual(lines[-1]["verdicts"], {"CAUGHT": 1, "ESCAPED": 1, "CLEAN": 0, "FALSE_ALARM": 0, "INCONCLUSIVE": 0})
+        self.assertEqual(lines[-1]["missed_by"], {row["catcher"]: 1, **{a: 2 for a in row["also"]}})
 
     def test_compare_names_stale_and_one_sided_rows(self):
         self.assertRan(self.run_rows("works-factory", CHANGE, REQUEST))
