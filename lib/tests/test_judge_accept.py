@@ -1387,14 +1387,17 @@ class MaterialCase(_RepoCase):
         (self.repo / "arms.txt").write_text("arm-1\n", encoding="utf-8")
         decl = {"suite": [{"name": "t", "argv": ["true"]}], "mutation": {"argv": ["mutate", "--fast"], "arms": "arms.txt"}}
         self.view()
+        undeclared = ja.MUTATION_UNDECLARED.format(decl=ja.DECL_NAME)
         cases = (
-            (decl, ['["mutate", "--fast"]', "arms.txt"], "探せ"),
-            ({"suite": decl["suite"]}, [ja.MUTATION_UNDECLARED.format(decl=ja.DECL_NAME)], "読めない"),
-            ({**decl, "mutation": {"argv": []}}, ["探せ", "mutation の段を読めない"], "mutate"),
+            (json.dumps(decl), ['["mutate", "--fast"]', "arms.txt"], "探せ"),
+            (json.dumps({"suite": decl["suite"]}), [undeclared], "読めない"),
+            (json.dumps({**decl, "mutation": {"argv": []}}), ["探せ", "mutation の段を読めない"], "mutate"),
+            ("{", [undeclared, "読めない"], "mutate"),
+            (json.dumps({**decl, "suite": []}), [undeclared, "読めない"], "mutate"),
         )
-        for doc, said, unsaid in cases:
-            with self.subTest(doc=doc):
-                (self.repo / ja.DECL_NAME).write_text(json.dumps(doc), encoding="utf-8")
+        for text, said, unsaid in cases:
+            with self.subTest(text=text):
+                (self.repo / ja.DECL_NAME).write_text(text, encoding="utf-8")
                 brief = ja.material_prep(self.jdir, "gate-efficacy", self.repo, "")["brief"]
                 for s in said:
                     self.assertIn(s, brief)
