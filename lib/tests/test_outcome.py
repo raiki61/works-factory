@@ -398,6 +398,22 @@ class ReadingCase(unittest.TestCase):
         self.assertEqual((kinds["not_red"], kinds["scope_needed"], kinds[conflict.UNSET]), (2, 1, 1))
         self.assertEqual([k for k, _ in outcome.asked_units(returns)], ["u1", "u2", "u3"])
 
+    def test_conflict_rows_are_read_by_conflict_predicates(self):
+        """#251: 結末の申し出の数えと人に回した行は lib/conflict.py の述語の読みと同じ（写しを持たない）。裁定が dict でない壊れた行も、
+        両方が同じに読む（裁定なしでも直す裁定でもない行に数えず、落ちない）"""
+        rows = [{"unit_key": "u1", "kind": "not_red", "ruling": {"decision": "ask_human", "text": "人に"}},
+                {"unit_key": "u2", "kind": "scope_needed", "ruling": {"decision": "fix_plan_item", "text": "案を", "plan_units": ["u3"]},
+                 "replan": "waiting"},
+                {"unit_key": "u4", "ruling": "壊れた裁定"},
+                {"unit_key": "u5", "kind": "not_red", "ruling": None}]
+        board = self.dir / "fix"
+        returns = fixed_run(fix={**fixed_run()["fix"], "conflicts": self.put(f"fix/{conflict.FILE}", {"items": rows})})
+        self.assertEqual(outcome.waiting_conflicts(returns), conflict.waiting(board))
+        self.assertEqual(outcome.asked_conflicts(returns, closed=False), conflict.asked(board))
+        self.assertEqual(outcome.conflict_counts(returns), (conflict.counts(board), conflict.kind_counts(board)))
+        self.assertEqual([k for k, _ in outcome.asked_units(returns, closed=False)],
+                         [k for r in conflict.asked(board) for k in conflict.ruled_units(r)])
+
     def test_ok_outcomes(self):
         self.assertEqual(outcome.OK_OUTCOMES, ("fixed", "fixed_needs_check", "no_fix_needed"))
         self.assertTrue(set(outcome.OK_OUTCOMES) <= set(report.OUTCOMES))
