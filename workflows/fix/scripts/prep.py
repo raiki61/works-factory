@@ -9,7 +9,8 @@ judgment.json・plan-fields.json と凍結の印（planmarks.save）・p2.fix_pl
 depth.json・answers.json・units.json・only-items.json・baseline.json（{cases, exit}）・fix-ignored-before.json・human-notes.md（関所の一言と答えで戻った単位の行。
 無ければ書かない）・base-rev.json
 （修正前の版。親の HEAD の sha。組の子が写して受け付けの起点にする）・groups.json
-（返りと同じ物）。組の子が結果を書く out_dir（置き場の groups/）も作る。
+（返りと同じ物）。組の子が結果を書く out_dir（置き場の groups/）も作る。記録の根が在れば、この作業ツリーの書き込みの記録を
+空で作る（fixio.start_writes_log。在れば触らない）。
 返り {groups: [{group_id, unit_ids, items}], count, par, start_tree, out_dir}。入力が読めない・git が効かない: 標準エラーに 1 行で 1。
 """
 import json
@@ -56,6 +57,7 @@ def read_json(path: Path):
 def main() -> dict:
     place = fixio.place()
     repo = fixio.repo()
+    fixio.start_writes_log()
     start = read_json(pointed(os.environ["INPUTS_START"], "start"))
     if not isinstance(start, dict):
         raise ValueError("始めの記録が JSON のオブジェクトでない")

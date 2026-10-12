@@ -643,14 +643,14 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     return prompt
 
 
-def _moved(before_file: pathlib.Path, repo) -> list:
+def _moved(before_file: pathlib.Path, repo, keys=accept.TREE_KEYS) -> list:
     if not before_file.is_file():
         raise Reject(NO_TREE.format(name=before_file.name))
-    return accept.tree_moved(_read_json(before_file), pathlib.Path(repo))
+    return accept.tree_moved(_read_json(before_file), pathlib.Path(repo), keys=keys)
 
 
-def check_design(folder, raw, repo) -> dict:
-    """独立設計の受け付け: 作業ツリーが役の前と同じ → 型（差し込みの頭が置いた材料の役の型） → 問いが立たない時は根拠の名指し（パス:行）が固めた版に在る。通れば
+def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
+    """独立設計の受け付け: 作業ツリーが役の前と同じ（keys の欄で比べる）→ 型（差し込みの頭が置いた材料の役の型） → 問いが立たない時は根拠の名指し（パス:行）が固めた版に在る。通れば
     design.json と、返答が『渡されていない』と書いた文と控えの given の対（PREMISES_FILE の claims）。拒みは控えに積み、
     GIVE_UP_AFTER 回目で done・give_up。返り {ok, done, give_up, reason}"""
     d = pathlib.Path(folder)
@@ -659,7 +659,7 @@ def check_design(folder, raw, repo) -> dict:
         reply, why = rolekit.parse_reply(raw)
         if reply is None:
             raise Reject(why)
-        moved = _moved(d / R2_TREE, repo)
+        moved = _moved(d / R2_TREE, repo, keys)
         if moved:
             raise Reject(READONLY_MOVED + "；".join(moved))
         accept.type_errors(reply, read_open(d)["design_schema"], "独立設計の返答")
@@ -729,13 +729,14 @@ def _replan_section(row: dict) -> str:
     return "\n".join(lines)
 
 
-def review_material(folder, repo, command_text: str, review_md) -> pathlib.Path:
+def review_material(folder, repo, command_text: str, review_md, *, shared=None) -> pathlib.Path:
     """事前審査の材料のファイル pass-<k>/prompt.md を書き、役を起こす前の作業ツリーの姿を pass-<k>/tree.json に置く。材料は
     役の頭（planblk.head。関所の決め手・既にある物を量ったか・人に回す物の挙げ方・ライブラリの文書・独立設計の節・修正案の
     works の欄・2 往復目からは前の往復の block と答え・木なら下請けのファイルと束ね役の頼み）と、写しの指示書の差し込み（修正案・
     単位・判定者の見立て・先行例・リポジトリと読む版と BASE）と、人の方針（在れば）と、考えの住処の地図（今の works の包みが
     旗 concept-map の役の system prompt の末尾に足した物）。形 replan では独立設計の節と、裁かれた項目ごとの前の形・申し出と
-    裁定・直した形（元 works/.shared/core/replan.py:423 の prep）を見させる"""
+    裁定・直した形（元 works/.shared/core/replan.py:423 の prep）を見させる。shared はライブラリの文書の run をまたぐ控えの根
+    （planblk.lib_section）"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
@@ -752,7 +753,7 @@ def review_material(folder, repo, command_text: str, review_md) -> pathlib.Path:
         part = "\n\n".join(x for x in (planblk.design_section(b), converge.review_section(b),
                                        planblk.tree_part(b, main) if inputs.get("tree") else "") if x)
     head = planblk.head("plan-review", excluded_file=inputs.get("excluded_file") or "",
-                        lib_docs=planblk.lib_section(b, pathlib.Path(repo)), design_part=part)
+                        lib_docs=planblk.lib_section(b, pathlib.Path(repo), shared), design_part=part)
     diag = (b.record["process"].get("diagnosis") or {})
     body = "\n\n".join(x for x in (
         _defaults_line(inputs), head, "## 差し込み（機械が貼った）",
@@ -790,8 +791,8 @@ def _lines(head: str, gaps: list) -> str:
     return head + "\n" + "\n".join(f"  - {g}" for g in gaps)
 
 
-def take_review(folder, raw, repo) -> dict:
-    """事前審査の受け付け（元 planblk.take と with_converge の事前審査の側）。作業ツリーが役の前と同じ → 推しの形 → 型（役の型） → 木なら下請けの
+def take_review(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
+    """事前審査の受け付け（元 planblk.take と with_converge の事前審査の側）。作業ツリーが役の前と同じ（keys の欄で比べる）→ 推しの形 → 型（役の型） → 木なら下請けの
     答えのまとめ（planblk.tree_merge）・木でなければ独立設計の引用と design_map（planblk.design_gaps）→ 前の往復の block の行き先
     （converge.resolved_gaps）→ 審査の決まり（rules.plan_review_output）。通れば決め手の欄を gate-marks.json に置き、形 review なら
     往復を控え（converge.record_pass）、返答を pass-<k>/review.json に書く。拒みは pass-<k>/ の控えに積み、GIVE_UP_AFTER 回目で
@@ -800,17 +801,17 @@ def take_review(folder, raw, repo) -> dict:
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
     p.mkdir(parents=True, exist_ok=True)
-    got = _done(p, REVIEW_NODE, accept.guard(lambda: _take(d, p, inputs, raw, repo)))
+    got = _done(p, REVIEW_NODE, accept.guard(lambda: _take(d, p, inputs, raw, repo, keys)))
     if got["give_up"]:
         _write_json(p / REVIEW_FILE, {"faces": [], "shrink": [], "reason": GIVEN_UP_FACES + got["reason"]})
     return got
 
 
-def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo) -> dict:
+def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo, keys) -> dict:
     reply, why = rolekit.parse_reply(raw)
     if reply is None:
         raise Reject(why)
-    moved = _moved(p / TREE_FILE, repo)
+    moved = _moved(p / TREE_FILE, repo, keys)
     if moved:
         raise Reject(READONLY_MOVED + "；".join(moved))
     if not isinstance(reply.get("faces"), list):

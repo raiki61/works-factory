@@ -92,7 +92,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [spec]
-          with: {role: write, reply: $spec.output}
+          with: {status_guarded: false, role: write, reply: $spec.output}
           output_format:
             type: object
             additionalProperties: false
@@ -157,7 +157,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [spec-review]
-          with: {role: review, reply: $spec-review.output}
+          with: {status_guarded: true, role: review, reply: $spec-review.output}
           output_format:
             type: object
             additionalProperties: false
@@ -249,7 +249,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [spec-revise]
-          with: {role: revise, reply: $spec-revise.output}
+          with: {status_guarded: false, role: revise, reply: $spec-revise.output}
           output_format:
             type: object
             additionalProperties: false
@@ -541,7 +541,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [purpose]
-          with: {reply: $purpose.output}
+          with: {status_guarded: true, reply: $purpose.output}
           output_format:
             type: object
             additionalProperties: false
@@ -849,7 +849,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [prior-decisions]
-          with: {role: prior-decisions, reply: $prior-decisions.output}
+          with: {status_guarded: false, role: prior-decisions, reply: $prior-decisions.output}
           output_format:
             type: object
             additionalProperties: false
@@ -926,7 +926,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [purpose-review]
-          with: {role: purpose-review, reply: $purpose-review.output}
+          with: {status_guarded: true, role: purpose-review, reply: $purpose-review.output}
           output_format:
             type: object
             additionalProperties: false
@@ -1032,7 +1032,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [local-review]
-          with: {role: local-review, reply: $local-review.output}
+          with: {status_guarded: false, role: local-review, reply: $local-review.output}
           output_format:
             type: object
             additionalProperties: false
@@ -1147,7 +1147,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [consistency-bypass]
-          with: {role: consistency-bypass, reply: $consistency-bypass.output}
+          with: {status_guarded: true, role: consistency-bypass, reply: $consistency-bypass.output}
           output_format:
             type: object
             additionalProperties: false
@@ -1223,7 +1223,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [hygiene]
-          with: {role: hygiene, reply: $hygiene.output}
+          with: {status_guarded: true, role: hygiene, reply: $hygiene.output}
           output_format:
             type: object
             additionalProperties: false
@@ -1335,7 +1335,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [external-standards]
-          with: {role: external-standards, reply: $external-standards.output}
+          with: {status_guarded: false, role: external-standards, reply: $external-standards.output}
           output_format:
             type: object
             additionalProperties: false
@@ -1431,7 +1431,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [procedure-trace]
-          with: {role: procedure-trace, reply: $procedure-trace.output}
+          with: {status_guarded: false, role: procedure-trace, reply: $procedure-trace.output}
           output_format:
             type: object
             additionalProperties: false
@@ -1528,7 +1528,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [gate-efficacy]
-          with: {role: gate-efficacy, reply: $gate-efficacy.output}
+          with: {status_guarded: false, role: gate-efficacy, reply: $gate-efficacy.output}
           output_format:
             type: object
             additionalProperties: false
@@ -1624,7 +1624,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [test-double-fidelity]
-          with: {role: test-double-fidelity, reply: $test-double-fidelity.output}
+          with: {status_guarded: false, role: test-double-fidelity, reply: $test-double-fidelity.output}
           output_format:
             type: object
             additionalProperties: false
@@ -1717,7 +1717,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [main-path-observation]
-          with: {role: main-path-observation, reply: $main-path-observation.output}
+          with: {status_guarded: false, role: main-path-observation, reply: $main-path-observation.output}
           output_format:
             type: object
             additionalProperties: false
@@ -1811,7 +1811,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [provenance]
-          with: {role: provenance, reply: $provenance.output}
+          with: {status_guarded: false, role: provenance, reply: $provenance.output}
           output_format:
             type: object
             additionalProperties: false
@@ -2048,7 +2048,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [diagnose]
-          with: {reply: $diagnose.output}
+          with: {status_guarded: true, reply: $diagnose.output}
           output_format:
             type: object
             additionalProperties: false
@@ -2063,7 +2063,7 @@ nodes:
     timeout: 1728000000
     depends_on: [diagnose-loop]
     mutates_checkout: false
-    with: {stage: prep}
+    with: {status_guarded: false, stage: prep}
     output_format:
       type: object
       additionalProperties: false
@@ -2097,7 +2097,7 @@ nodes:
     depends_on: [verify-prep, judge-verify]
     trigger_rule: all_done
     mutates_checkout: false
-    with: {stage: merge}
+    with: {status_guarded: true, stage: merge}
     output_format:
       type: object
       additionalProperties: false
@@ -2232,7 +2232,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           depends_on: [rejudge]
-          with: {reply: $rejudge.output}
+          with: {status_guarded: true, reply: $rejudge.output}
           output_format:
             type: object
             additionalProperties: false

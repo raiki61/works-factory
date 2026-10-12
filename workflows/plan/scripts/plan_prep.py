@@ -2,7 +2,9 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""修正案の役の材料を plan/r<k>/brief-<n>.md に組む（lib/planfile.write_brief）。返り {brief, attempt}"""
+"""修正案の役の材料を plan/r<k>/brief-<n>.md に組む（lib/planfile.write_brief）。返り {brief, attempt}
+
+ライブラリの文書の run をまたぐ控えは、Archon が project ごとに渡す run をまたぐ置き場 STATE_DIR の下 works-factory/ に置く"""
 import os
 import sys
 from pathlib import Path
@@ -14,6 +16,11 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import planfile  # noqa: E402
 import policy  # noqa: E402
+
+
+def shared_cache() -> Path | None:
+    state = os.environ.get("STATE_DIR")
+    return Path(state) / "works-factory" if state else None
 
 
 def main() -> None:
@@ -36,7 +43,8 @@ def main() -> None:
         round_dir, plan_dir, mode=rnd["mode"], judgment=judgment, judgment_dir=judgment_file.parent if judgment_file else None,
         units=units, structure_dir_=plan_dir / rnd["structure"], world_rows=world, spec=spec,
         repo=repo, base_rev=start.get("base_rev") or "", review_md=str(boundary.lib_root() / "REVIEW.md"),
-        lang=start.get("lang"), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys),
+        lang=start.get("lang"), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys,
+                                                                     shared=shared_cache()),
         conflicts=conflicts, policy_md=policy.frozen_copy(start), prior_failures=prior, unread=unread)
     boundary.returns({"brief": str(path), "attempt": n})
 

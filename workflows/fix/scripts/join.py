@@ -7,7 +7,8 @@
 
 並べた run: 組ごとに子の終わりの木と始めの木の差分（groups.diff_since）を 3 方向で当て（unittrees.apply。lanekit.merge_in_order の順）、
 当てた後に、前の組とも重なったファイルの名指しのテストの中身が子の終わりの木と同じかを照らし（fixboard.tests_moved）、その組で
-赤 → 緑を確かめた名指しを親の木で走らせ直す（fixboard.rerun_problem。その前に Archon の変数を環境から落とす）。結果のファイルが
+赤 → 緑を確かめた名指しを親の木で走らせ直す（fixboard.rerun_problem。その前に Archon の変数を環境から落とす）。戻せた組の子の
+書き込みの記録は、親の作業ツリーの記録へ写す（writes.carry_children。親の手直しの受け付けが、子の書いた変更を記録の無い変更と見ない）。結果のファイルが
 無い（子が落ちた）組は当てず、当たらない・確かめ直しが赤・確かめ直しが落ちた組は当てたパスを戻して、returned: false と理由。
 並べない run は子が親の木で直したので当てない。結果のファイルが在れば returned: true、無い組は、その子が親の木に残した変更を
 子の始めの木に戻して（fixboard.drop_unreturned。次の組の group-start が先に戻した組はその控え）returned: false と理由。
@@ -28,6 +29,7 @@ import fixio  # noqa: E402
 import fixboard  # noqa: E402
 import lanekit  # noqa: E402
 import startrec  # noqa: E402
+import writes  # noqa: E402
 
 
 def result_of(out_dir: Path, gid: str):
@@ -49,6 +51,7 @@ def main() -> dict:
     outcomes = {}
     if plan["par"]:
         repo = fixio.repo()
+        log = fixio.writes_log()
         start = startrec.read(place)
         cases = (fixboard.read_json(place / fixboard.BASELINE_FILE, {}) or {}).get("cases") or []
         with_result = [g for g in plan["groups"] if results[g["group_id"]] is not None]
@@ -69,8 +72,14 @@ def main() -> dict:
             except Exception as e:   # 子の木が引けない・git が落ちた組は戻さない（ほかの組は先へ）
                 return lanekit.Merge(f"組の差分を当てられない（{type(e).__name__}: {' '.join(str(e).split())[:300]}）",
                                      "", [], [], False)
+        applied = []
         for g, got in lanekit.merge_in_order(with_result, merge_one):
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)
+            r = results[g["group_id"]]
+            if not got.why and r.get("worktree") and log is not None:
+                applied.append((r["worktree"], fixio.writes_log(r["worktree"]), got.names))
+        if log is not None and log.is_file():
+            writes.carry_children(log, repo, applied)
     else:
         repo = fixio.repo()
         for g in plan["groups"]:

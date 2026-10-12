@@ -2,8 +2,8 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""始めの版から今の作業ツリーまでの差分のうち守りの一覧に当たる物。一覧か git が読めない時も落ちず、確かめられなかった印の
-1 行を当たりとして返す（黙って空にしない）。返りは置き場の eyes/protected.json にも書く"""
+"""始めの版から今の作業ツリーまでの差分のうち守りの一覧（自分の一覧と、対象のリポジトリの始めの版の宣言を合わせた物）に当たる物。
+一覧・宣言か git が読めない時も落ちず、確かめられなかった印の 1 行を当たりとして返す（黙って空にしない）。返りは置き場の eyes/protected.json にも書く"""
 import json
 import os
 import sys
@@ -19,7 +19,8 @@ import seal  # noqa: E402
 try:
     start_ptr = json.loads(os.environ["INPUTS_START"])
     start = json.loads(boundary.resolve(start_ptr).read_text(encoding="utf-8")) if start_ptr else {}
-    rows = protect.touched(Path.cwd(), start.get("base_rev") or "")
+    base_rev = start.get("base_rev") or ""
+    rows = protect.touched(Path.cwd(), base_rev, protect.merged(Path.cwd(), base_rev))
     out = {"hits": [r["path"] for r in rows], "lines": protect.lines(rows), "broken": ""}
 except Exception as e:  # noqa: BLE001  protect.Broken と、始めの記録が読めない時
     why = str(e) or type(e).__name__

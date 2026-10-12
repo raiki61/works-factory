@@ -1603,6 +1603,25 @@ class PortedMaterialCase(RunCase):
             self.assertIn(want, text)
         self.assertLess(text.index(policy.RULE), text.index("## 考えの住処の地図"))
 
+    def test_prep_passes_state_dir_cache_root(self):
+        """材料のライブラリの文書の節は、STATE_DIR の下 works-factory/ の run をまたぐ控えを読む（網に出ない）"""
+        import libdocs
+        from lib.tests.test_libdocs import FakeBoard, ok_http
+        r = self.run_
+        (r.repo / "app.py").write_text("import requests\n", encoding="utf-8")
+        (r.repo / "requirements.txt").write_text("requests==2.32.3\n", encoding="utf-8")
+        git(r.repo, "add", "app.py", "requirements.txt")
+        git(r.repo, "commit", "-q", "-m", "app")
+        r.units[0]["reason"] += "（app.py の requests）"
+        r.judgment()
+        state = r.tmp / "state"
+        libdocs.section(FakeBoard(r.tmp / "earlier").work(""), r.repo, ["app.py"], get=ok_http(), env={},
+                        shared=state / "works-factory")
+        r.start(features_off=["review_tree"])
+        r.open()
+        got = r.out("review_prep", STATE_DIR=str(state), https_proxy="http://127.0.0.1:9", HTTPS_PROXY="http://127.0.0.1:9")
+        self.assertIn("ほかの run 1 本", pathlib.Path(got["prompt_file"]).read_text(encoding="utf-8"))
+
     def test_units_line_is_the_original_instruction_line(self):
         """材料の直す単位の行は元の指示書 p2.plan_review.md:4 の行（engine を機械に読み替え、雛形を番号つきの単位に置き換えた物）。
         元の字は単位を key のまま書かせた行を持たず、外した行も戻っていない"""
@@ -2616,6 +2635,7 @@ class PushCase(GateBase):
         """元 tests/test_gate_drafts.py の PushCase.test_row_without_recommend_is_as_before。推しの無い行は推しの尾を付けない"""
         got, _ = self.gate(narrows=[{**TP.NARROW, **ASKED}])
         self.assertNotIn("／推し", got["ask"]["items"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

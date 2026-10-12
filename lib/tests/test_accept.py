@@ -186,5 +186,54 @@ class TestTreeState(AcceptCase):
         self.assertEqual(_ignored_entries(self.repo), [])
 
 
+
+class TestBeyondStatus(AcceptCase):
+    """状態の照らしで守られた役の受け付けは accept.BEYOND_STATUS の欄だけを比べる（git status の行の違いは照らしが見る）"""
+
+    def moved(self, before):
+        return accept.tree_moved(before, self.repo, keys=accept.BEYOND_STATUS)
+
+    def test_beyond_status_ignores_porcelain_only_change(self):
+        with open(self.repo / "stats.py", "a") as f:
+            f.write("# 前から在った変更\n")
+        before = tree_state(self.repo)
+        git(self.repo, "add", "stats.py")
+        self.assertNotEqual(tree_state(self.repo)["porcelain"], before["porcelain"])
+        self.assertEqual(self.moved(before), [])
+        self.assertTrue(accept.tree_moved(before, self.repo), "keys を渡さなければ今のまま全部の欄を比べる")
+
+    def test_beyond_status_still_sees_rewrite_of_dirty_file(self):
+        with open(self.repo / "stats.py", "a") as f:
+            f.write("# 前から在った変更\n")
+        before = tree_state(self.repo)
+        with open(self.repo / "stats.py", "a") as f:
+            f.write("# 役が書いた\n")
+        self.assertTrue([m for m in self.moved(before) if "中身が変わった" in m])
+
+    def test_beyond_status_still_sees_head_branch_and_ignored(self):
+        before = tree_state(self.repo)
+        git(self.repo, "checkout", "-q", "-b", "other")
+        self.assertTrue([m for m in self.moved(before) if m.startswith("ref:")])
+        before = tree_state(self.repo)
+        (self.repo / "s.txt").write_text("x\n")
+        git(self.repo, "add", "s.txt")
+        git(self.repo, "commit", "-q", "-m", "moved")
+        self.assertTrue([m for m in self.moved(before) if m.startswith("head:")])
+        before = tree_state(self.repo)
+        (self.repo / "__pycache__").mkdir()
+        (self.repo / "__pycache__" / "stats.cpython-314.pyc").write_bytes(b"x")
+        self.assertTrue([m for m in self.moved(before) if m.startswith("git が無視するパス")])
+        self.assertEqual(set(accept.TREE_KEYS) - set(accept.BEYOND_STATUS), {"porcelain"})
+
+    def test_status_keys_drops_porcelain_only_for_a_true_flag(self):
+        """グラフは with: の真偽を字で渡す。字の "false" も全部の欄を比べる（真に読む縮めは状態の照らしの無い役の index の動きを見逃す）"""
+        for flag in ("false", False, "", None, "False"):
+            with self.subTest(flag=flag):
+                self.assertEqual(accept.status_keys(flag), accept.TREE_KEYS)
+        for flag in (True, "true", " True "):
+            with self.subTest(flag=flag):
+                self.assertEqual(accept.status_keys(flag), accept.BEYOND_STATUS)
+
+
 if __name__ == "__main__":
     unittest.main()

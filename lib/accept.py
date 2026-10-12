@@ -256,8 +256,16 @@ def snapshot_tree(repo: pathlib.Path, *, bytecode: bool = True) -> dict:
 
 
 TREE_KEYS = ("porcelain", "diff_sha256", "ignored", "head", "ref")
+# 節の前後の git status の行の違いを実行基盤が別に照らす役（状態の照らしで守られた役）の受け付けが比べる欄。porcelain はその照らしと
+# 重なるので外す。diff_sha256 は外さない: 行の字が同じままの、既に変わっていたファイルの 2 度目の書き換えを照らしは見ない
+BEYOND_STATUS = tuple(k for k in TREE_KEYS if k != "porcelain")
 TREE_SCHEMA = {"type": "object", "required": list(TREE_KEYS), "properties": {
     **SNAPSHOT_SCHEMA["properties"], "head": {"type": "string"}, "ref": {"type": "string"}}}
+
+
+def status_keys(guarded) -> tuple:
+    """受け付けが比べる欄: guarded（グラフが受け付けの節に渡す印。真か字の true）なら BEYOND_STATUS、ほかは TREE_KEYS"""
+    return BEYOND_STATUS if guarded is True or str(guarded).strip().lower() == "true" else TREE_KEYS
 
 
 def tree_state(repo: pathlib.Path, *, bytecode: bool = True) -> dict:
@@ -300,15 +308,15 @@ def tree_change(before: dict, now: dict, keys=TREE_KEYS) -> list:
     return out
 
 
-def tree_moved(before: dict, repo: pathlib.Path, *, bytecode: bool = True) -> list:
-    """役を起こす前の姿 before（tree_state）と今の作業ツリーの違いの文（tree_change）。今の姿が引けない（HEAD が無い・git が
-    効かない）ときはその 1 行——起こす前は引けたので、役が HEAD を動かした（checkout --orphan など）。bytecode は before を
-    取った時と同じ値を渡す"""
+def tree_moved(before: dict, repo: pathlib.Path, *, bytecode: bool = True, keys=TREE_KEYS) -> list:
+    """役を起こす前の姿 before（tree_state）と今の作業ツリーの違いの文（tree_change。keys の欄だけを比べる）。今の姿が引けない
+    （HEAD が無い・git が効かない）ときはその 1 行——起こす前は引けたので、役が HEAD を動かした（checkout --orphan など）。
+    bytecode は before を取った時と同じ値を渡す"""
     try:
         now = tree_state(repo, bytecode=bytecode)
     except Reject as e:
         return [f"作業ツリー・HEAD が引けなくなった: {e}"]
-    return tree_change(before, now)
+    return tree_change(before, now, keys)
 
 
 def _names(repo, cmd, *args, env=None) -> list:

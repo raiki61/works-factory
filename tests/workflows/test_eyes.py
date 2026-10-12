@@ -451,6 +451,19 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual((got["hits"], got["broken"]), (["lib/protect.py"], ""))
         self.assertTrue(json.loads((self.artifacts / "eyes" / "protected.json").read_text(encoding="utf-8"))["lines"])
 
+    def test_protected_hits_include_target_rules(self):
+        (self.repo / ".works-protected.json").write_text(
+            json.dumps({"rules": [{"id": "core", "glob": "core/*.txt", "why": "対象の芯"}]}), encoding="utf-8")
+        git(self.repo, "add", ".works-protected.json")
+        git(self.repo, "commit", "-q", "-m", "declare")
+        self.base = git(self.repo, "rev-parse", "HEAD").strip()
+        self.start()
+        (self.repo / ".works-protected.json").unlink()
+        (self.repo / "core").mkdir()
+        (self.repo / "core" / "a.txt").write_text("足した\n", encoding="utf-8")
+        got = self.run_script("protected")
+        self.assertEqual((got["hits"], got["broken"]), ([".works-protected.json", "core/a.txt"], ""))
+
     def test_verdict_never_fails(self):
         for label, setup, artifacts in (
                 ("壊れた入力", lambda: self.inputs.update(design="{", answers="[", plan_questions="{"), None),
@@ -591,6 +604,7 @@ class ScriptCase(unittest.TestCase):
         got = self.run_script("structure_after")
         self.assertEqual(got["after"]["path"], "eyes/structure-after.json")
         self.assertTrue((self.artifacts / "eyes" / "structure-after.json").is_file())
+
 
 
 if __name__ == "__main__":

@@ -555,5 +555,6 @@ class RealRunCase(unittest.TestCase):
                 self.assertEqual([(r["node"], r["body"]) for r in got["by_type"]["probe-kind"]], [("make", {"a": 1})])
                 self.assertEqual(typed.own_prefix(env["ARCHON_NODE_EXECUTION"]), "")
 
+
 if __name__ == "__main__":
     unittest.main()

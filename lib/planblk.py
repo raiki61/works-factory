@@ -396,12 +396,13 @@ def prior_part(b, role: str) -> str:
     return carry.prior_section(b.dir, gap=BoardGap) if role == "plan" else ""
 
 
-def lib_section(b, repo) -> str:
-    """判定の単位のファイルが使うライブラリの文書の節（同じ周の 2 つ目の役は盤面の控えを読み、網に出ない）"""
+def lib_section(b, repo, shared=None) -> str:
+    """判定の単位のファイルが使うライブラリの文書の節（同じ周の 2 つ目の役は盤面の控えを読み、網に出ない）。shared は run をまたぐ
+    控えの根（None なら使わない）"""
     out = (b.state.get("outputs") or {}).get("p2.diagnose") or {}
     judgment = str(pathlib.Path(b.dir) / out["file"]) if out.get("file") else ""
     files, why = libdocs.unit_files(repo, judgment) if judgment else ([], "判定の出力が盤面に無い")
-    text = libdocs.section(b.work(""), repo, files)
+    text = libdocs.section(b.work(""), repo, files, shared=shared)
     return text + (f"\n- 単位のファイルの引き: {why}" if why else "")
 
 

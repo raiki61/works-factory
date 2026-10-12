@@ -131,6 +131,7 @@ nodes:
           depends_on: [r2-design]
           mutates_checkout: false
           with:
+            status_guarded: true
             reply: $r2-design.output
           output_format:
             type: object
@@ -275,6 +276,7 @@ nodes:
           depends_on: [plan-review]
           mutates_checkout: false
           with:
+            status_guarded: true
             reply: $plan-review.output
           output_format:
             type: object
