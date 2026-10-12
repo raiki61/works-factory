@@ -9,7 +9,8 @@
 食い違いの申し出（phase conflict）は、名指しが現物に在れば単位を止める（query の申し出は判定者の問いを当てる。querytest.judge_hits）。
 止めた申し出は状態の未送の並びから置き場の conflicts.json に積む（tddloop.flush_unsent → conflict.park_claims。前の周が積めなかった
 物も積み直す）。並べの周（tddlanes）は使わない（組の並べは子の run の fan_out が持つ）。
-入力 reply は役 tdd の返答（役が飛ばされた周は null か空）。拒んだ理由は置き場の tdd-step-reject-<n>.md にも書き、パスを返す
+入力 reply は同じ単位の続きの役 tdd の返答、reply_new は新しい単位の役 tdd-new の返答（周ごとにどちらか一方だけが起き、
+飛ばされた方は null か空。両方が空なら役が飛ばされた周）。拒んだ理由は置き場の tdd-step-reject-<n>.md にも書き、パスを返す
 （次の指示書にも tddloop.prep が載せる）。
 返り {ok, done, reason, reason_file, phase}（done は輪が済んだ時）。輪の状態が読めない・済んだ輪に返答が来た・git が効かない:
 標準エラーに 1 行で 1。
@@ -35,6 +36,8 @@ REJECT = "tdd-step-reject-{}.md"
 
 def read_reply():
     raw = os.environ["INPUTS_REPLY"]
+    if not raw.strip() or raw.strip() == "null":
+        raw = os.environ.get("INPUTS_REPLY_NEW", "")   # 単位が替わった周は新しい単位の役の返答
     if not raw.strip() or raw.strip() == "null":
         return None
     try:

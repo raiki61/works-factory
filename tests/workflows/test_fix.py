@@ -256,6 +256,39 @@ class RolesCase(unittest.TestCase):
         self.assertIn("$tdd-step.output.done", loop["until_bash"])
         self.assertIn("done", self.nodes["tdd-step"]["output_format"]["required"])
 
+    def test_tdd_role_continues_within_a_unit(self):
+        """同じ単位の段（test → fix → refactor）は同じ会話で続け、単位が替わる周だけ新しい会話にする（元 works/blk-fix/blk-fix.yaml:142・
+        :157 の fresh_context: false と、包みが単位の鍵で会話を切る works/blk-fix/lib/tddloop.py:880 write_key）。止めた Archon は
+        fresh_context: false の loop_group で前の周の最後の会話を次の周の体の AI の節へ渡し（dag-executor.ts の
+        lastSequentialSession）、節の context: fresh だけがそれを切る。並んだ層（2 つ以上の節の層）では会話を渡さないので、2 つの役は
+        別の層に置く。周をまたぐ会話は筋書きで渡らない（K6）ので、ここは形だけを縛る"""
+        loop = self.nodes["tdd-loop"]["loop_group"]
+        self.assertIs(loop["fresh_context"], False)
+        body = {n["id"]: n for n in loop["nodes"]}
+        roles = sorted(nid for nid, n in body.items() if "prompt" in n or "command" in n)
+        self.assertEqual(roles, ["tdd", "tdd-new"])
+        same, new = body["tdd"], body["tdd-new"]
+        self.assertNotIn("context", same, "同じ単位の続きの役は前の周の会話を継ぐ")
+        self.assertEqual(new.get("context"), "fresh", "新しい単位の役は新しい会話")
+        wiring = ("id", "description", "context", "when", "depends_on", "trigger_rule")
+        self.assertEqual({k: v for k, v in same.items() if k not in wiring}, {k: v for k, v in new.items() if k not in wiring},
+                         "2 つの役は同じ指示書の字・道具・skills・印")
+        for node in (same, new):
+            self.assertNotIn("with", node, "輪の中の役の節に with: を足さない（K5）")
+            self.assertNotIn("mutates_checkout", node)
+        prep = body["tdd-prep"]["output_format"]
+        self.assertIn("new_unit", prep["required"])
+        self.assertEqual(prep["properties"]["new_unit"], {"type": "boolean"})
+        self.assertEqual(same["when"], "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == false")
+        self.assertEqual(new["when"], "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == true")
+        self.assertEqual((same["depends_on"], new["depends_on"]), (["tdd-prep"], ["tdd-prep", "tdd"]),
+                         "2 つの役を同じ層に置くと Archon は並んだ層として会話を切る")
+        self.assertEqual(new.get("trigger_rule"), "none_failed_min_one_success", "続きの役が飛ばされた周も新しい単位の役は起きる")
+        step = body["tdd-step"]
+        self.assertEqual(step["depends_on"], ["tdd-prep", "tdd", "tdd-new"])
+        self.assertEqual(step["with"], {"reply": {"from": "$tdd.output", "if_skipped": None},
+                                        "reply_new": {"from": "$tdd-new.output", "if_skipped": None}})
+
 
 class FilesCase(unittest.TestCase):
     def setUp(self):
@@ -1355,7 +1388,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         grp = json.loads((self.place / "groups.json").read_text(encoding="utf-8"))
         self.assertEqual((grp["groups"], grp["par"], grp["out_dir"], grp["start_tree"]),
                          ([_GRP_GROUP], False, str(self.out_dir), tree))
-        self.assertEqual(self._grp_run("tdd_prep", "tdd-prep"), {"prompt_file": "", "go": False})
+        self.assertEqual(self._grp_run("tdd_prep", "tdd-prep"), {"prompt_file": "", "go": False, "new_unit": False})
         self.assertIn("入力 group", self._grp_run("group_start", "group-start", ok=False, group="{}"))
 
     def test_side_by_side_child_measures_from_the_parent_head(self):
@@ -1523,6 +1556,26 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(self._grp_run("group_start", "group-start")["tdd"], True)
         self.assertEqual(len(count.read_text(encoding="utf-8").split()), 1)
 
+    def test_tdd_prep_and_step_route_the_unit_change_between_the_two_roles(self):
+        """tdd-prep は 1 周目と単位が替わる周だけ new_unit: true（新しい会話の役 tdd-new）、同じ単位の出し直しは false（続きの役
+        tdd）。tdd-step は飛ばされた方の束ね（null）を読まず、起きた方の返答で段を進める（F032）"""
+        self._grp_parent_inputs(str(self.suite))
+        self._grp_run("group_start", "group-start")
+        self.assertIs(self._grp_run("tdd_prep", "tdd-prep")["new_unit"], True)
+        route = json.dumps({"phase": "route", "units": [{"unit_key": _GRP_MEAN, "route": "tdd"}]}, ensure_ascii=False)
+        got = self._grp_run("tdd_step", "tdd-step", reply="null", reply_new=route)
+        self.assertEqual((got["ok"], got["phase"]), (True, "test"), got)
+        self.assertIs(self._grp_run("tdd_prep", "tdd-prep")["new_unit"], True, "振り分けから単位の段へ")
+        bad = json.dumps({"phase": "test", "unit_key": _GRP_MEAN, "test_files": [], "tests": []}, ensure_ascii=False)
+        got = self._grp_run("tdd_step", "tdd-step", reply="null", reply_new=bad)
+        self.assertEqual((got["ok"], got["phase"]), (False, "test"), got)
+        self.assertIs(self._grp_run("tdd_prep", "tdd-prep")["new_unit"], False, "同じ単位の出し直しは続きの会話")
+        got = self._grp_run("tdd_step", "tdd-step", reply=bad, reply_new="null")
+        self.assertEqual((got["ok"], got["phase"]), (False, "test"), got)
+        state = json.loads((self.place / "tdd-start.json").read_text(encoding="utf-8"))["state_file"]
+        calls = json.loads(pathlib.Path(state).read_text(encoding="utf-8"))["calls"]
+        self.assertEqual([c["ok"] for c in calls], [True, False, False], "どちらの束ねの返答も 1 周 1 回の確かめ")
+
     def test_tdd_step_takes_the_red_and_gives_up_on_the_third_refusal(self):
         """実行器が在る run: 振り分け → 名指しが failure で落ちる赤を受け → 直しの段で 3 回拒まれた単位は、単位の頭の木に戻して
         機械の申し出を置き場の conflicts.json に積み、輪を抜ける"""
@@ -1554,7 +1607,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(test_file.read_text(encoding="utf-8"), head, "単位の頭の木に戻した")
         rows = json.loads((self.place / "conflicts.json").read_text(encoding="utf-8"))["items"]
         self.assertEqual([r["unit_key"] for r in rows], [_GRP_MEAN])
-        self.assertEqual(self._grp_run("tdd_prep", "tdd-prep"), {"prompt_file": "", "go": False})
+        self.assertEqual(self._grp_run("tdd_prep", "tdd-prep"), {"prompt_file": "", "go": False, "new_unit": False})
         end = self._grp_run("group_end", "group-end")
         result = json.loads(pathlib.Path(end["result_file"]).read_text(encoding="utf-8"))
         self.assertTrue(result["tdd"]["ran"])

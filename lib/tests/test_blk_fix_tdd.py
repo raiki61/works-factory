@@ -219,6 +219,24 @@ class TestStart(LoopCase):
         self.assertIn("`test-driven-development`", full)
         self.assertIn((seat.BORROW_DIR / seat.OVERLAY_FILE).read_text(encoding="utf-8").strip(), full)
 
+    def test_prep_marks_a_new_unit_only_when_the_unit_changes(self):
+        """支度の返りの new_unit は、前の周の支度と単位の鍵（振り分けの段は route、ほかの段は今の単位）が違う周だけ真（YAML が
+        新しい会話の役と続きの役を振り分ける。元 works/blk-fix/lib/tddloop.py:880 write_key の鍵と同じ切れ目）。拒まれた出し直し・
+        同じ単位の次の段は偽、単位が替われば真"""
+        def new_unit():
+            return tddloop.prep(self.state)["new_unit"]
+        self.assertTrue(new_unit(), "1 周目は新しい会話")
+        self.assertFalse(new_unit(), "同じ振り分けの段の出し直し")
+        self.route(clamp="tdd")
+        self.assertTrue(new_unit(), "振り分けから単位の段へ")
+        self.assertFalse(self.step({"phase": "test", "unit_key": MEAN, "test_files": [], "tests": []})["ok"])
+        self.assertFalse(new_unit(), "拒まれた出し直しは同じ会話")
+        self.red()
+        self.assertFalse(new_unit(), "同じ単位の次の段（fix）は同じ会話")
+        self.fix_mean()
+        self.assertEqual(self.st()["queue"][self.st()["cur"]], CLAMP)
+        self.assertTrue(new_unit(), "次の単位は新しい会話")
+
     def test_seat_failure_stops_with_broken(self):
         """座を組めない（写しが固定と違う）時は座の無い指示書に逃げず Broken で止め、指示書を書かない
         （元 works/blk-fix/lib/tddloop.py:807 prep、旧試験 works/tests/test_blk_fix_tdd.py:536 test_tdd_seat_failure_stops_with_broken）"""
@@ -2001,7 +2019,7 @@ class TestResume(LoopCase):
     def test_done_loop_ends_without_the_role(self):
         self.done_loop()
         before = self.snap()
-        self.assertEqual(tddloop.prep(self.state), {"prompt_file": "", "go": False})
+        self.assertEqual(tddloop.prep(self.state), {"prompt_file": "", "go": False, "new_unit": False})
         got = self.step(None)
         self.assertEqual((got["ok"], got["done"], got["phase"], got["reason"]), (True, True, "done", ""), got)
         self.assertEqual(self.snap(), before, "済んだ輪の周は状態と作業ツリーを動かさない")

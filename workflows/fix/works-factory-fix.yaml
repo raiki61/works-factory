@@ -1146,14 +1146,18 @@ nodes:
         reason: {type: string}
 
   # 単位ごとの TDD の輪（route → 単位ごとに test（赤）→ fix（緑）→ refactor）。赤・緑は tdd-step が JUnit XML で機械が決める。
-  # 単位が替わる周だけ新しい会話にする口が Archon に無いので、周ごとに新しい会話にし、前の周の引き継ぎは指示書が渡す
+  # 同じ単位の段は 1 つの会話で続け、単位が替わる周だけ新しい会話にする（元 blk-fix.yaml:142・:157 の fresh_context: false と
+  # 包みが単位の鍵で会話を切る tddloop.py:880 write_key）。Archon は fresh_context: false の輪で前の周の最後の会話を次の周の体の
+  # AI の節へ渡し、節の context: fresh だけがそれを切る（止めた Archon の dag-executor.ts の lastSequentialSession）。tdd-prep が
+  # 単位が替わったかを new_unit で返し、続きの役 tdd と新しい単位の役 tdd-new を when: で振り分ける。並んだ層（2 つ以上の節の層）は
+  # 会話を渡さないので、tdd-new は tdd の後ろの層に置く。前の単位の物は指示書の引き継ぎの節でも渡す
   - id: tdd-loop
     depends_on: [group-start]
     when: "$group-start.output.tdd == true"
     timeout: 1728000000
     loop_group:
       max_iterations: 40
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$tdd-step.output.done; test "$done" = true
       nodes:
         - id: tdd-prep
@@ -1164,24 +1168,26 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [prompt_file, go]
+            required: [prompt_file, go, new_unit]
             properties:
               prompt_file: {type: string}
               go: {type: boolean}
+              new_unit: {type: boolean}   # 前の周と単位（振り分けの段は route）が替わった周（tdd-new が新しい会話で起きる）
 
+        # 同じ単位の続き（前の周の会話を継ぐ）。字・道具・skills は tdd-new と同じ（anchor）
         - id: tdd
-          description: 'TDD の役（今の単位を直す）'
-          model: sonnet
-          effort: high
-          prompt: 指示書 `$tdd-prep.output.prompt_file` を Read で毎回全部読み（回ごとに中身が替わる）、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
+          description: 'TDD の役（今の単位を直す。同じ単位の続き）'
+          model: &tdd_model sonnet
+          effort: &tdd_effort high
+          prompt: &tdd_prompt 指示書 `$tdd-prep.output.prompt_file` を Read で毎回全部読み（回ごとに中身が替わる）、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
           depends_on: [tdd-prep]
-          when: "$tdd-prep.output.go == true"
-          settingSources: [user]
-          skills: [test-driven-development]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          when: "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == false"
+          settingSources: &tdd_sources [user]
+          skills: &tdd_skills [test-driven-development]
+          allowed_tools: &tdd_tools [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
+          sandbox: &tdd_sandbox {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
-          output_format:
+          output_format: &tdd_reply
             type: object
             additionalProperties: false
             required: [phase]
@@ -1243,14 +1249,32 @@ nodes:
                     path: {type: string, minLength: 1}
                     why: {type: string, minLength: 10}
 
+        # 新しい単位（1 周目と単位が替わる周。新しい会話）。tdd の後ろの層（同じ層に置くと Archon は並んだ層として会話を切る）
+        - id: tdd-new
+          description: 'TDD の役（今の単位を直す。新しい単位）'
+          model: *tdd_model
+          effort: *tdd_effort
+          prompt: *tdd_prompt
+          depends_on: [tdd-prep, tdd]
+          trigger_rule: none_failed_min_one_success
+          when: "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == true"
+          context: fresh
+          settingSources: *tdd_sources
+          skills: *tdd_skills
+          allowed_tools: *tdd_tools
+          sandbox: *tdd_sandbox
+          idle_timeout: 1728000000
+          output_format: *tdd_reply
+
         - id: tdd-step
           script: tdd_step
           runtime: uv
-          depends_on: [tdd-prep, tdd]
+          depends_on: [tdd-prep, tdd, tdd-new]
           trigger_rule: none_failed_min_one_success
           timeout: 1728000000
           with:
             reply: {from: "$tdd.output", if_skipped: null}
+            reply_new: {from: "$tdd-new.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false
