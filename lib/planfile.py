@@ -23,7 +23,8 @@
   この控えを converge の answer_gaps・splice・revise_section・filled_units に渡す
 - 材料と受け付け: write_brief・prior_section・take_plan・take_replan（元 planblk の prep・prior_part・take・with_plan_fields・revise_take と
   replan の prep・_take）
-- 構造の実測: structure_dir・measure（元 works/blk-structure/scripts/stage_a.py の main）・write_state（元 blk-structure/scripts/collect.py）
+- 構造の実測: structure_dir・measure（元 works/blk-structure/scripts/stage_a.py の main）・write_state（元 blk-structure/scripts/collect.py）・
+  keep_state（書けない周の控え）
 - 周と出口: next_round・latest・structure_key・open_round・ripple_units・ripple_items・owed_order・collect・placeholders
 """
 from __future__ import annotations
@@ -101,6 +102,7 @@ LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所�
              "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
 LANG_DEFAULT = "依頼文の言語（利用者の言語）"
 NOTHING_OWED = "直す義務の単位が無い（開いた単位が無いか、全部が人の答え待ちの問いの出どころ・depends）"
+UNWRITABLE_STATE = "構造の控えを書けない"
 NO_PLAN = "受け付けを通った修正案が無い（修正案の輪が回らなかったか、途中で落ちた）"
 UNITS_HEAD = promptsection.Section("## 今の周に直す単位（機械が判定から貼った。案の unit_keys は下の no で指せ）", source="fn:planfile.units_section")
 REPO_LINE = "リポジトリ: {repo}（読む版: `{rev}`）　BASE: `{rev}`　観点の正本: {review_md}"
@@ -628,6 +630,24 @@ def write_state(out_dir, *, skipped: str = "") -> pathlib.Path:
         status, reason = "failed", f"段 A の {STRUCTURE_FILE} が読めない"
     return structmark.write(out_dir, status=status, reason=reason, design_file=str(out_dir / DESIGN_FILE),
                             wall_s=round(eye.wall(doc) + eye.wall(kept), 3))
+
+
+def keep_state(plan_dir, round_dir) -> pathlib.Path:
+    """周の構造の目の控えを書く（write_state。役を起こさない周は測らなかった訳で failed）。構造の置き場に書けなければ節を落とさず、
+    周のフォルダの structure/ に UNWRITABLE_STATE の訳で failed の控えを置き、round.json の structure をそこへ替えて計画へ進む
+    （元 works/darkfactory/lib/line_edge.py の structure_edge）"""
+    plan_dir, round_dir = pathlib.Path(plan_dir), pathlib.Path(round_dir)
+    rnd = read_round(round_dir)
+    try:
+        return write_state(plan_dir / rnd["structure"], skipped="" if rnd["go"] else rnd["why"])
+    except OSError as e:
+        own = f"{round_dir.name}/{STRUCTURE_DIR}"
+        _write_json(round_dir / ROUND_FILE, {**rnd, "structure": own})
+        out = plan_dir / own
+        out.mkdir(parents=True, exist_ok=True)
+        (out / DESIGN_FILE).write_bytes(b"")
+        return structmark.write(out, status="failed", reason=f"{UNWRITABLE_STATE}（{rnd['structure']}）: {e}",
+                                design_file=str(out / DESIGN_FILE), wall_s=0)
 
 
 def answer_tables(structure_dir_, world_rows) -> list:

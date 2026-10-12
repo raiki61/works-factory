@@ -24,7 +24,7 @@ import yaml
 from tests import archon
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
-from tests.workflows.copied import assert_is_original
+from tests.workflows import copied
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "plan"
@@ -59,26 +59,34 @@ MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 NIT = "stats.py mean: 変数名が短い"
 LOOSE = "stats.py: 全体の書き方"
-# 修正案の役の指示書の元: 今の works（raiki61/claude-plugins の 2aa7c66cf7abe1fe09699ac2942d107123214168）の
-# works/.shared/core/gl-prompts/prompts/review-loop/p2.fix_plan.md の sha256 と、持ち主が許した直し（元の字, 写しの字）の 3 つ
-FIX_PLAN_SHA256 = "381674c83992c9b0955f961e1e7ff2b5fd451458902f60842e36b547eeb26b95"
+# 役の指示書の写しの台帳（K9。tests/workflows/copied.py）。元は今の works（raiki61/claude-plugins の
+# 2aa7c66cf7abe1fe09699ac2942d107123214168）の works/ の下
 FIX_PLAN_TITLE = "# P2-10 修正案（writer の仕事。書く前に出す）\n"
-FIX_PLAN_EDITS = [
-    (FIX_PLAN_TITLE,   # 頭の 1 行（材料のファイルを読め）
-     "お前は修正案の役で、新しい会話で起きている。役の定義・直す単位と番号・判定の処方・構造の目の行・世界の解の行・波及の一覧・"
-     "前の回の拒否の理由（在れば）は、機械が材料のファイルに書いた。先に材料のファイル `$plan-prep.output.brief` を Read で読み、"
-     "その指示に従え。\n\n" + FIX_PLAN_TITLE),
-    (FIX_PLAN_TITLE + "\n"   # engine の雛形の 5 行を外す（材料のファイルが同じ物を持つ）
-     "今の周に直す単位（各行の `no` は engine が振った番号。**key を写さず no の整数で指せ**——engine が名前に戻して記録する）: "
-     "{{record.units | pick key,label,disposition}}\n"
-     "問いの台帳（fork の出どころ・depends に挙がった単位は待ってよい——案に入れなくてよい）: "
-     "{{?record.questions | pick key,kind,status,origin,depends}}\n"
-     "判定者の見立て: {{record.process.diagnosis | pick framing,one_shot,one_shot_closes}}\n"
-     "判定者の先行例（世界の解）: {{?record.process.precedents}}\n"
-     "リポジトリ: {{inputs.cwd}}（読む版: `{{inputs.review_rev}}`）\u3000BASE: `{{record.base}}`\u3000観点の正本: {{inputs.review_md}}\n\n",
-     FIX_PLAN_TITLE + "\n"),
-    ("の no（上の一覧の番号。", "の no（材料の一覧の番号。"),   # no は材料の一覧で指す
-]
+COPIED = {
+    "fix-plan.md": (
+        [("works/.shared/core/gl-prompts/prompts/review-loop/p2.fix_plan.md",
+          "381674c83992c9b0955f961e1e7ff2b5fd451458902f60842e36b547eeb26b95", 3485)],
+        [(FIX_PLAN_TITLE,
+          "お前は修正案の役で、新しい会話で起きている。役の定義・直す単位と番号・判定の処方・構造の目の行・世界の解の行・波及の一覧・"
+          "前の回の拒否の理由（在れば）は、機械が材料のファイルに書いた。先に材料のファイル `$plan-prep.output.brief` を Read で読み、"
+          "その指示に従え。\n\n" + FIX_PLAN_TITLE,
+          "頭の 1 行（材料のファイルを読め）"),
+         (FIX_PLAN_TITLE + "\n"
+          "今の周に直す単位（各行の `no` は engine が振った番号。**key を写さず no の整数で指せ**——engine が名前に戻して記録する）: "
+          "{{record.units | pick key,label,disposition}}\n"
+          "問いの台帳（fork の出どころ・depends に挙がった単位は待ってよい——案に入れなくてよい）: "
+          "{{?record.questions | pick key,kind,status,origin,depends}}\n"
+          "判定者の見立て: {{record.process.diagnosis | pick framing,one_shot,one_shot_closes}}\n"
+          "判定者の先行例（世界の解）: {{?record.process.precedents}}\n"
+          "リポジトリ: {{inputs.cwd}}（読む版: `{{inputs.review_rev}}`）\u3000BASE: `{{record.base}}`\u3000観点の正本: {{inputs.review_md}}\n\n",
+          FIX_PLAN_TITLE + "\n",
+          "engine の雛形の 5 行を外す（材料のファイルが同じ物を持つ）"),
+         ("の no（上の一覧の番号。", "の no（材料の一覧の番号。", "no は材料の一覧で指す")]),
+    "structure-eye.md": (
+        [("works/blk-structure/commands/structure-eye.md",
+          "e6927788ec3f660e996d8c723fc86792f4929495afc2b68fb97b0d75610ca98f", 1238)],
+        []),
+}
 DIRTY_ROW = {"verdict": "汚れる", "faces": [5], "evidence": ["/units/0/id"], "reason": "骨組みの無い口が増える",
              "chosen": "既存の関数の中で直す", "chosen_reason": "骨組みが在る"}
 WORLD_ROW = {"finding": 1, "where": "stats.py", "class_id": "mean-denominator", "problem": "平均の分母の取り違え",
@@ -132,6 +140,10 @@ def item(*keys, **more):
 
 def narrow(**more):
     return {"what": "空の列の mean が例外を投げる", "why": "空の列の平均は 0 割りの例外のまま残す", **more}
+
+
+class _NodeFailed(Exception):
+    """試験が落とした script の節（Archon は節を failed にして、後の節の trigger_rule に渡す）"""
 
 
 class Run:
@@ -252,7 +264,11 @@ class Run:
                 if self.typed:
                     self.case.assertEqual(validate_schema(got, n["output_format"]), [], f"{n['id']} の見本が型に合わない")
             else:
-                got = self.script(n["script"], {k: self.value(v) for k, v in (n.get("with") or {}).items()})
+                try:
+                    got = self.script(n["script"], {k: self.value(v) for k, v in (n.get("with") or {}).items()})
+                except _NodeFailed:
+                    self.status[n["id"]] = "failed"
+                    continue
                 self.case.assertEqual(validate_schema(got, n["output_format"]), [], n["id"])
             self.out[n["id"]], self.status[n["id"]] = got, "ok"
 
@@ -343,7 +359,13 @@ class ShapeCase(unittest.TestCase):
 
     def test_fix_plan_command_is_the_original_with_only_the_allowed_edits(self):
         """修正案の役の指示書は元の p2.fix_plan.md の文のまま: 許した直しを逆に当てると元のバイトに戻る"""
-        assert_is_original(self, (COMMANDS / "fix-plan.md").read_text(encoding="utf-8"), FIX_PLAN_SHA256, FIX_PLAN_EDITS)
+        self.assertEqual(copied.restore_problems((COMMANDS / "fix-plan.md").read_text(encoding="utf-8"), *COPIED["fix-plan.md"]),
+                         [])
+
+    def test_eye_command_is_the_original(self):
+        """構造の目の指示書は元の blk-structure/commands/structure-eye.md のバイトのまま（直しを許していない）"""
+        self.assertEqual(copied.restore_problems((COMMANDS / "structure-eye.md").read_text(encoding="utf-8"),
+                                                 *COPIED["structure-eye.md"]), [])
 
     def test_deadlines_are_all_twenty_days(self):
         keys = ("timeout", "idle_timeout")
@@ -435,6 +457,17 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(mine, {n["script"] for n in nodes(load()) if "script" in n})
 
 
+class CopiedTextsCase(unittest.TestCase):
+    """指示書の写しの台帳（K9）: commands/ の全部が台帳に在り、許した直しを逆に当てると元のバイトに戻る"""
+
+    def test_every_command_is_its_original_with_only_ledgered_edits(self):
+        names = sorted(p.name for p in COMMANDS.glob("*.md"))
+        self.assertEqual(names, sorted(COPIED), "台帳に無い指示書か、指示書の無い台帳の行")
+        for name in names:
+            with self.subTest(name):
+                self.assertEqual(copied.restore_problems((COMMANDS / name).read_text(encoding="utf-8"), *COPIED[name]), [])
+
+
 class StageACase(unittest.TestCase):
     """段 A（元 tests/test_blk_structure.py の BlockCase・EyeInputsCase）"""
 
@@ -493,6 +526,79 @@ class StageACase(unittest.TestCase):
         self.assertIn("### `outcome` run の結末", prompt)
         self.assertIn("known_places", prompt)
         self.assertIn("結末の語は report.py だけが持つ", prompt)
+
+    MAP = ("# 地図\n\n### `outcome` run の結末\n\n- 状態: 住処あり\n- 住処: `src/report.py`\n\n"
+           "### `halt` 止め札\n\n- 状態: 住処あり\n- 住処: `src/halt.py`\n")
+    TABLE = {"exclude": ["docs/**"], "concepts": {
+        "outcome": {"status": "住処あり", "fences": [{"what": "結末の語", "pattern": "\"round_limit\"",
+                                                     "allowed": ["src/report.py"], "known": {}}]},
+        "halt": {"status": "住処あり", "fences": [{"what": "止め札", "pattern": "\"STOP\"", "allowed": ["src/halt.py"],
+                                                  "known": {}}]}}}
+
+    def target(self, run, files):
+        """元 tests/test_blk_structure.py の EyeInputsCase.target の形を種に commit する"""
+        for rel, text in files.items():
+            (run.repo / rel).parent.mkdir(parents=True, exist_ok=True)
+            (run.repo / rel).write_text(text, encoding="utf-8")
+        git(run.repo, "add", "-A")
+        git(run.repo, "commit", "-q", "-m", "target")
+
+    def edge_run(self, **start):
+        return Run(self, units=[{"id": MEAN, "paths": ["src/edge.py"], "summary": "境の節が結末の語を書く"}], start=start)
+
+    def test_fresh_measure_drops_old_eye_state(self):
+        run = Run(self)
+        rnd = run.script("round")
+        out = run.art / "plan" / planfile.read_round(run.art / rnd["dir"])["structure"]
+        out.mkdir(parents=True)
+        (out / eye.EYE_FILE).write_text('{"status": "gave_up"}', encoding="utf-8")
+        (out / planfile.DESIGN_FILE).write_text('{"unit_id": "前の行"}\n', encoding="utf-8")
+        got = run.script("structure_measure", {"dir": rnd["dir"]})
+        self.assertFalse((out / eye.EYE_FILE).exists())
+        self.assertEqual(pathlib.Path(got["design_file"]).read_bytes(), b"")
+
+    def test_concept_rows_only_for_unit_paths(self):
+        """元 tests/test_blk_structure.py の test_eye_sees_concept_rows_for_unit_paths"""
+        run = self.edge_run()
+        self.target(run, {"src/report.py": 'OUT = "round_limit"\n', "src/edge.py": 'x = "round_limit"\n',
+                          "src/halt.py": 'S = "STOP"\n', "docs/concepts.md": self.MAP,
+                          "docs/concepts.json": json.dumps(self.TABLE, ensure_ascii=False)})
+        got = self.measure(run)
+        unit_ = json.loads(pathlib.Path(got["structure_file"]).read_text(encoding="utf-8"))["units"][0]
+        self.assertEqual([r["id"] for r in unit_["concepts"]["rows"]], ["outcome"])
+        self.assertEqual([(x["concept"], x["path"], x["home"], x["known_places"]) for x in unit_["concepts"]["places"]],
+                         [("outcome", "src/edge.py", False, 2)])
+        prompt = run.script("eye_prep", {"structure_file": got["structure_file"]})["prompt"]
+        self.assertIn("### `outcome` run の結末", prompt)
+        self.assertNotIn("### `halt`", prompt)
+
+    def test_no_map_no_table_measures_only(self):
+        run = self.edge_run()
+        self.target(run, {"src/edge.py": 'x = "round_limit"\n'})
+        got = self.measure(run)
+        doc = json.loads(pathlib.Path(got["structure_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["units"][0]["concepts"], {"rows": [], "places": []})
+        self.assertFalse((run.repo / "docs").exists())
+
+    def test_eye_sees_root_map_and_cut_policy(self):
+        """元 tests/test_blk_structure.py の test_eye_sees_policy_text（根の地図の文書）と、長い方針の文書の切りの印"""
+        run = self.edge_run(policy_md="POLICY.md")
+        long_policy = "決まり: 結末の語は report.py だけが持つ\n" + "あ" * planfile.context.TEXT_CAP
+        self.target(run, {"src/edge.py": 'x = "round_limit"\n', "POLICY.md": long_policy,
+                          "AGENTS.md": "# 対象の決まり\n\n層は下へだけ依存する\n"})
+        got = self.measure(run)
+        prompt = run.script("eye_prep", {"structure_file": got["structure_file"]})["prompt"]
+        self.assertIn("結末の語は report.py だけが持つ", prompt)
+        self.assertIn("層は下へだけ依存する", prompt)
+        cut = len(long_policy) - planfile.context.TEXT_CAP
+        self.assertIn(f"…（{cut} 字を切った）", prompt)
+
+    def test_measure_records_timing(self):
+        doc = json.loads(pathlib.Path(self.measure(Run(self))["structure_file"]).read_text(encoding="utf-8"))
+        timing = doc["timing"]
+        self.assertIsInstance(timing[eye.WALL], float)
+        for key in ("started_at", "finished_at"):
+            self.assertRegex(timing[key], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+00:00$", key)
 
     def test_same_units_and_head_reuse_the_measure(self):
         run = Run(self)
@@ -868,6 +974,48 @@ class CollectCase(unittest.TestCase):
         rows = [json.loads(x) for x in (run.file(out["structure"]).parent / "design.jsonl").read_text(
             encoding="utf-8").splitlines()]
         self.assertEqual(rows[0]["route"], "人に上げる")
+
+    def test_failed_structure_note_reaches_the_brief(self):
+        """元 tests/test_structure_eye.py の test_block_reason_reaches_the_mark: 構造の境の中の失敗は節を落とさず、行なしで計画する"""
+        run = Run(self)
+        out = run.include(eye=lambda f: {"rows": []})
+        self.assertEqual((run.status["structure-state"], run.status["plan-loop"]), ("ok", "ok"))
+        self.assertIs(out["ready"], True, out)
+        reason = run.json(out["structure"])["reason"]
+        brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
+        self.assertIn(f"{structmark.MISSING}（理由: {reason}", brief)
+
+    def test_unwritable_state_still_plans(self):
+        """構造の控えを鍵の置き場に書けない周も節を落とさず、周のフォルダに訳つきの failed の控えを置いて計画へ進む"""
+        run = Run(self)
+        rnd = run.script("round")
+        out = run.art / "plan" / planfile.read_round(run.art / rnd["dir"])["structure"]
+        (out / structmark.STATE_FILE).mkdir(parents=True)
+        shutil.rmtree(run.art / "plan" / "r1")
+        got = run.include()
+        self.assertEqual(run.status["structure-state"], "ok")
+        self.assertIs(got["ready"], True, got)
+        state = run.json(got["structure"])
+        self.assertEqual(state["status"], "failed")
+        self.assertIn(planfile.UNWRITABLE_STATE, state["reason"])
+        self.assertEqual(got["structure"]["path"], f"plan/r1/{planfile.STRUCTURE_DIR}/{structmark.STATE_FILE}")
+
+    def test_failed_state_node_gives_not_ready(self):
+        """構造の境の節そのものが落ちた周は計画の役を起こさず ready: false（線は計画なしで修正へ進まない）"""
+        run = Run(self)
+        run.doc = copy.deepcopy(run.doc)
+        node(run.doc, "structure-state")["script"] = "no_such_script"
+        script = run.script
+
+        def failing(name, bound=None, **kw):
+            if name == "no_such_script":
+                raise _NodeFailed
+            return script(name, bound, **kw)
+
+        run.script = failing
+        out = run.include(writer=lambda n, brief: self.fail("役を起こした"))
+        self.assertEqual((run.status["structure-state"], run.status["plan-loop"]), ("failed", "skipped"))
+        self.assertIs(out["ready"], False)
 
     def test_eye_without_rows_leaves_failed_state(self):
         run = Run(self)
