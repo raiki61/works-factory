@@ -25,12 +25,12 @@
 口（標準ライブラリだけ。網は get で差し替える。期限は足さない——節の宣言の 20 日だけ）:
 - detect(repo, files) -> {libs, counts, unreadable}
 - unit_files(repo, judgment_file, keys=None) -> (files, why): 判定の単位の字に現れる追跡中の file（impact.seeds_from_units）
-- section(cache, repo, files, *, get=None, env=None, now=None) -> str: 指示書に貼る節（文書のファイルの一覧）。公式の取れた物と見つからない
+- section(cache, repo, files, *, get=None, env=None, now=None, shared=None) -> str: 指示書に貼る節（文書のファイルの一覧）。公式の取れた物と見つからない
   物は控えの置き場 cache の libdocs/<名>@<版>.official.json に控え、その控えも読む（同じ置き場を渡す間は網に出ない）。
   取れなかった物・見つからない物・上限で取らない物・読めない file・手元に入っていない物は節の頭に数と名前で書く（黙って落とさない）。
   WORKS_LIBDOCS_WEB=off は網に出ない（公式を引かない。手元は読む）
-- run をまたぐ控え（env に包みの家 webget.SHARED_ENV が在る時だけ。置き場の理由は webget の頭、長さの理由は定数の注記。読み書きは
-  core の webget.Store）: 公式の取れた物と見つからない物を、取った時刻と一緒に <包みの家>/libdocs/ にも書き、同じ家の後の run は
+- run をまたぐ控え（呼ぶ側が根 shared を渡す時だけ。置き場の理由は webget の頭、長さの理由は定数の注記。読み書きは
+  core の webget.Store）: 公式の取れた物と見つからない物を、取った時刻と一緒に <shared>/libdocs/ にも書き、同じ根の後の run は
   SHARED_TTL（7 日）の内なら網に出ずに使う（盤面の今の周にも写す）。
   前の版が同じ置き場に残した Context7 の控え（<名>@<版>.json・<名>@<版>-<問いの digest>.json・枠切れの印 _quota.json）は、名が
   公式の控えの名（尾 OFFICIAL_SUFFIX）と違うので読まない（消しもしない）
@@ -298,12 +298,12 @@ def _cached(cache, name: str, statuses=("ok", "not_found")):
 
 
 def _official_name(lib: dict) -> str:
-    """公式の文書の控えの名（盤面の周・包みの家）: ライブラリの名と版だけ（公式の問いは名と版しか持たない）"""
+    """公式の文書の控えの名（盤面の周・run をまたぐ控え）: ライブラリの名と版だけ（公式の問いは名と版しか持たない）"""
     return _lib_dir(lib) + OFFICIAL_SUFFIX
 
 
 def _official(cache, lib: dict, get, store, now: float, keep, share) -> tuple:
-    """公式の文書（盤面の控え → 家の控え store → 網の順）。(控えの形の dict, 出どころ board|shared|net)。取れた物と見つからない物だけ控える"""
+    """公式の文書（盤面の控え → run をまたぐ控え store → 網の順）。(控えの形の dict, 出どころ board|shared|net)。取れた物と見つからない物だけ控える"""
     name = _official_name(lib)
     got = _cached(cache, name)
     if got is not None:
@@ -411,13 +411,14 @@ def _count(label: str, rows: list, pick) -> str:
     return f"{label} {len(rows)} 本" + (f"（{_names(rows, pick)}）" if rows else "")
 
 
-def section(cache, repo, files, *, get=None, env=None, now: float | None = None) -> str:
-    """指示書に貼る節（TITLE で始まる）。組めない時も節を返し、理由を書く。now は run をまたぐ控えの時刻の比べ（既定は今）"""
+def section(cache, repo, files, *, get=None, env=None, now: float | None = None, shared=None) -> str:
+    """指示書に貼る節（TITLE で始まる）。組めない時も節を返し、理由を書く。now は run をまたぐ控えの時刻の比べ（既定は今）、
+    shared は run をまたぐ控えの根（None なら使わない）"""
     env = os.environ if env is None else env
     get = http_get if get is None else get
     now = time.time() if now is None else now
     try:
-        return _section(cache, repo, files, get, env, now)
+        return _section(cache, repo, files, get, env, now, shared)
     except Exception as e:  # noqa: BLE001  組めなかったことは節に書く（黙って落とさない）
         return f"{TITLE}\n\n組めなかった（{type(e).__name__}: {e}）。この節の文書は無い。"[:1000]
 
@@ -431,7 +432,7 @@ HEAD = ("機械が、この単位のファイルが使うライブラリの文�
         "WebSearch・WebFetch で公式の文書を自分で引け。")
 
 
-def _section(cache, repo, files, get, env, now) -> str:
+def _section(cache, repo, files, get, env, now, shared) -> str:
     head = [TITLE, "", HEAD]
     if repo is None:
         return "\n".join(head + ["", "対象のリポジトリが渡されていないので、ライブラリを見つけられない（0 本）。"])
@@ -447,7 +448,7 @@ def _section(cache, repo, files, get, env, now) -> str:
     take, over = keys[:MAX_LIBS], keys[MAX_LIBS:]
     rows, unshared = [], []
     official_from = {"board": 0, "shared": 0, "net": 0}
-    store = webget.Store(webget.shared_root(env, CACHE_DIR), SCHEMA, SHARED_TTL)
+    store = webget.Store(webget.shared_root(shared, CACHE_DIR), SCHEMA, SHARED_TTL)
     roots = libdocs_local.roots(pathlib.Path(repo))
 
     def keep(name, doc):

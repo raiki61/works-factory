@@ -23,6 +23,7 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -154,6 +155,7 @@ class Run:
         self.doc = load()
         self.out = {}
         self.status = {}
+        self.env_extra = {}
 
     def pointer(self, rel, doc, *, lines=False):
         p = self.art / rel
@@ -163,10 +165,11 @@ class Run:
         return json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": rel})
 
     def env(self, bound, root):
-        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
+        env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_") and not hermetic.dropped(k)}
         env.update({f"INPUTS_{k.upper()}": v for k, v in {**self.inputs, **bound}.items()})
         env.update(ARTIFACTS_DIR=str(self.art), WORKFLOW_ID=RUN_ID, WORKS_FACTORY_ROOT=str(root),
                    PYTHONDONTWRITEBYTECODE="1", WORKS_LIBDOCS_WEB="off")
+        env.update(self.env_extra)
         return env
 
     def script(self, name, bound=None, *, root=ROOT):
@@ -875,6 +878,24 @@ class BriefCase(unittest.TestCase):
         got = run.script("structure_measure", {"dir": rnd["dir"]})
         self.assertEqual(json.loads(pathlib.Path(got["structure_file"]).read_text(encoding="utf-8"))["policy_path"],
                          "/run/policy/frozen.md")
+
+    def test_prep_passes_state_dir_cache_root(self):
+        """修正案の材料のライブラリの文書の節は、STATE_DIR の下 works-factory/ の run をまたぐ控えを読む（網に出ない）"""
+        import libdocs
+        from lib.tests.test_libdocs import FakeBoard, ok_http
+        run = Run(self, judge=judgment(unit("app.py の requests の使い方")))
+        (run.repo / "app.py").write_text("import requests\n", encoding="utf-8")
+        (run.repo / "requirements.txt").write_text("requests==2.32.3\n", encoding="utf-8")
+        git(run.repo, "add", "app.py", "requirements.txt")
+        git(run.repo, "commit", "-q", "-m", "app")
+        state = run.tmp / "state"
+        libdocs.section(FakeBoard(run.tmp / "earlier").work(""), run.repo, ["app.py"], get=ok_http(), env={},
+                        shared=state / "works-factory")
+        run.env_extra = {"STATE_DIR": str(state), "WORKS_LIBDOCS_WEB": "", "https_proxy": "http://127.0.0.1:9",
+                         "HTTPS_PROXY": "http://127.0.0.1:9"}
+        run.include()
+        brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
+        self.assertIn("ほかの run 1 本", brief)
 
     def test_without_policy_or_prior_failures_neither_section(self):
         run = Run(self)

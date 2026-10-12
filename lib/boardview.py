@@ -729,13 +729,14 @@ def _replan_section(row: dict) -> str:
     return "\n".join(lines)
 
 
-def review_material(folder, repo, command_text: str, review_md) -> pathlib.Path:
+def review_material(folder, repo, command_text: str, review_md, *, shared=None) -> pathlib.Path:
     """事前審査の材料のファイル pass-<k>/prompt.md を書き、役を起こす前の作業ツリーの姿を pass-<k>/tree.json に置く。材料は
     役の頭（planblk.head。関所の決め手・既にある物を量ったか・人に回す物の挙げ方・ライブラリの文書・独立設計の節・修正案の
     works の欄・2 往復目からは前の往復の block と答え・木なら下請けのファイルと束ね役の頼み）と、写しの指示書の差し込み（修正案・
     単位・判定者の見立て・先行例・リポジトリと読む版と BASE）と、人の方針（在れば）と、考えの住処の地図（今の works の包みが
     旗 concept-map の役の system prompt の末尾に足した物）。形 replan では独立設計の節と、裁かれた項目ごとの前の形・申し出と
-    裁定・直した形（元 works/.shared/core/replan.py:423 の prep）を見させる"""
+    裁定・直した形（元 works/.shared/core/replan.py:423 の prep）を見させる。shared はライブラリの文書の run をまたぐ控えの根
+    （planblk.lib_section）"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
@@ -752,7 +753,7 @@ def review_material(folder, repo, command_text: str, review_md) -> pathlib.Path:
         part = "\n\n".join(x for x in (planblk.design_section(b), converge.review_section(b),
                                        planblk.tree_part(b, main) if inputs.get("tree") else "") if x)
     head = planblk.head("plan-review", excluded_file=inputs.get("excluded_file") or "",
-                        lib_docs=planblk.lib_section(b, pathlib.Path(repo)), design_part=part)
+                        lib_docs=planblk.lib_section(b, pathlib.Path(repo), shared), design_part=part)
     diag = (b.record["process"].get("diagnosis") or {})
     body = "\n\n".join(x for x in (
         _defaults_line(inputs), head, "## 差し込み（機械が貼った）",

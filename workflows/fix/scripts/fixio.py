@@ -4,7 +4,7 @@
 # ///
 """fix のブロックの script が共に読む、Archon との出入りの助け（置き場の場所・作業ツリー・控えのファイル）。
 
-lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、Archon に届く事（ARTIFACTS_DIR・ARCHON_NODE_EXECUTION・.archon/）は
+lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、Archon に届く事（ARTIFACTS_DIR・ARCHON_NODE_EXECUTION・STATE_DIR・.archon/）は
 ここと script の側だけが持ち、lib/ へは値を引数で渡す。節の script ではない（工程の YAML は名指さない）。
 """
 import json
@@ -34,6 +34,12 @@ def place() -> pathlib.Path:
     folder = pathlib.Path(os.environ["ARTIFACTS_DIR"]) / BLOCK_NAME / include_name()
     folder.mkdir(parents=True, exist_ok=True)
     return folder
+
+
+def shared_cache() -> pathlib.Path | None:
+    """run をまたぐ控えの根（Archon が project ごとに渡す STATE_DIR の下 works-factory/。渡されなければ None で、控えを使わない）"""
+    state = os.environ.get("STATE_DIR")
+    return pathlib.Path(state) / "works-factory" if state else None
 
 
 def repo() -> pathlib.Path:

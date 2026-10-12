@@ -514,7 +514,7 @@ class TestPrepOwedValues(unittest.TestCase):
 
     def test_prep_reads_the_duty_before_it_builds_the_prompt(self):
         src = (LIB / "fixrules.py").read_text(encoding="utf-8")
-        self.assertLess(src.index("values = owed_values(b, values, owed=owed"), src.index("docs = lib_section(b, repo, values)"))
+        self.assertLess(src.index("values = owed_values(b, values, owed=owed"), src.index("docs = lib_section(b, repo, values, shared)"))
 
 
 class TestBriefCanonEdges(unittest.TestCase):

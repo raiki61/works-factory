@@ -16,6 +16,7 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.bin import hermetic
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -78,6 +79,8 @@ ORIGINAL_LOOPS = {"tdd-loop": 40, "fix-loop": 12, "fix-ruled-loop": 12, "rule-lo
 FIX_RULES = ("common", "brief", "direct", "principles", "ruler", "tdd", "refix")
 COMMANDS = ("delta-review", "review2", "lens-silent-failure-hunter")
 NO_QUEUE = re.compile(r"\b(queue|lock)\b|\btake\(")
+# 網に出ようとした子をすぐ落とす宛先（控えを読めなかった時に本物の網へ出ない）
+NO_NET = {"https_proxy": "http://127.0.0.1:9", "HTTPS_PROXY": "http://127.0.0.1:9"}
 
 
 def load():
@@ -513,7 +516,7 @@ _BLK_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_chan
 
 def _blk_run(script, repo, art, inputs=None, node_path="fix__x"):
     """scripts/<script>.py を一時の対象のリポジトリ repo で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)"""
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_"))}
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_")) and not hermetic.dropped(k)}
     env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": _BLK_RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                 "ARCHON_NODE_EXECUTION": json.dumps({"path": node_path}), "PYTHONDONTWRITEBYTECODE": "1"})
     env.update({f"INPUTS_{k.upper()}": v for k, v in (inputs or {}).items()})
@@ -1266,11 +1269,13 @@ _FX_JUDGMENT = {"units": [
     {"key": _FX_BOUND, "label": "block"}], "questions": []}
 
 
-def _fx_run(script, repo, art, **inputs):
-    """scripts/<script>.py を一時の対象のリポジトリ repo・一時の置き場 art で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)"""
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_"))}
+def _fx_run(script, repo, art, *, env_extra=None, **inputs):
+    """scripts/<script>.py を一時の対象のリポジトリ repo・一時の置き場 art で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)。
+    env_extra は子の環境に足す（hermetic.dropped の名は継がない）"""
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_")) and not hermetic.dropped(k)}
     env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": _FX_RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                 "ARCHON_NODE_EXECUTION": json.dumps({"path": "x"}), "PYTHONDONTWRITEBYTECODE": "1"})
+    env.update(env_extra or {})
     env.update({f"INPUTS_{k.upper()}": v for k, v in inputs.items()})
     done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{script}.py")], cwd=repo, env=env,
                           capture_output=True, text=True, encoding="utf-8")
@@ -1510,6 +1515,21 @@ class FixLoopScriptsCase(unittest.TestCase):
         self.assertIn(str(self.place / "g1-1.patch"), (self.place / "g1-review-1.md").read_text(encoding="utf-8"))
         code, out, err = _fx_run("fix_prep", self.repo, self.art, group=self._fx_group(["not-owed"]))
         self.assertEqual((code, out["go"]), (0, False), err)
+
+    def test_prep_passes_state_dir_cache_root(self):
+        """修正役の指示書のライブラリの文書の節は、STATE_DIR の下 works-factory/ の run をまたぐ控えを読む（網に出ない）"""
+        import libdocs
+        from lib.tests.test_libdocs import FakeBoard, ok_http
+        (self.repo / "app.py").write_text("import requests\n", encoding="utf-8")
+        (self.repo / "requirements.txt").write_text("requests==2.32.3\n", encoding="utf-8")
+        state = self.tmp / "state"
+        libdocs.section(FakeBoard(self.tmp / "earlier").work(""), self.repo, ["app.py"], get=ok_http(), env={},
+                        shared=state / "works-factory")
+        code, out, err = _fx_run("fix_prep", self.repo, self.art, group=self._fx_group([_FX_MEAN]),
+                                 env_extra={"STATE_DIR": str(state), **NO_NET})
+        self.assertEqual(code, 0, err)
+        text = pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn("ほかの run 1 本", text)
 
     def _fx_overflow(self):
         """承認済みの項目 1（stats.py だけ）の範囲の外の request_ok.json にも触れた返答。返り (返答, 触る前の中身)"""

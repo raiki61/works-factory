@@ -4,17 +4,17 @@
 - 見つけ方: 単位のファイルの import（Python・JS/TS）から標準ライブラリとリポジトリの中の物を除き、依存の宣言
   （pyproject.toml・requirements*.txt・package.json）から版を引く。宣言のファイル自体が単位なら宣言の全部が対象
 - 控え: 公式の取れた物と見つからない物はライブラリ＋版の鍵で渡された控えの置き場に書き、同じ置き場を渡す間は網に出ない
-  （前の周の置き場は読まない。周をまたぐのは家の控え）
+  （前の周の置き場は読まない。周をまたぐのは run をまたぐ控え）
 - 数で言う: 取れなかった・見つからない・上限で取らない物は節の頭に数と名前で出す（黙って落とさない）
 - 標準ライブラリだけの対象は何も取らず、取らないことを書く。WORKS_LIBDOCS_WEB=off も網に出ないことを書く
 - 組み立て: 修正案の役の頭（planblk.head）に節が入る（ComposerCase）
 - 出どころ（SourcesCase。設計 works/docs/plans/2026-10-08-libdocs-sources.md）: 手元の版 → 公式の順に並べる。手元で読んだ版で
   公式に問う。どこからも取れなかった物は名指して役に自分で引けと言う。off でも手元は読む。公式の取れた物と見つからない物は
-  盤面と家に控える（取れなかった物は控えない）
+  盤面と run をまたぐ控えに控える（取れなかった物は控えない）
 - 文書はファイルで渡す（FilesCase。持ち主 2026-10-09）: 量の上限（BUDGET）は無い。手元と公式の文書はライブラリごとに今の周の
   libdocs/<名>@<版>/ にファイルで丸ごと控え、節にはライブラリごとの名・入っている版・出どころ・ファイルのパスと短い要点だけを
   並べる（本文は貼らない）。役は要る時にそのファイルを Read で読む（読むべき物には数えない）
-- Context7 はやめた（持ち主 2026-10-09）: 網の問いは公式の口にだけ出る。前の版が家に残した Context7 の控え（問いの digest の名・
+- Context7 はやめた（持ち主 2026-10-09）: 網の問いは公式の口にだけ出る。前の版が run をまたぐ控えに残した Context7 の控え（問いの digest の名・
   名と版だけの名・枠切れの印 _quota.json）は読まない（NoContext7Case）
 """
 import json
@@ -273,17 +273,16 @@ class SourcesCase(Base):
         self.install()
         f = self.write("app.py", "from requests import Session\n")
         home = self.tmp / "home"
-        env = {webget.SHARED_ENV: str(home)}
-        libdocs.section(self.board.work(""), self.repo, [f], get=ok_http(), env=env, now=1_800_000_000.0)
+        libdocs.section(self.board.work(""), self.repo, [f], get=ok_http(), env={}, now=1_800_000_000.0, shared=home)
         self.board.round = 2
         http = FakeHttp()
-        text = libdocs.section(self.board.work(""), self.repo, [f], get=http, env=env, now=1_800_000_060.0)
-        self.assertEqual(http.calls, [], "次の周は前の周の置き場を読まず、家の控えを読む")
+        text = libdocs.section(self.board.work(""), self.repo, [f], get=http, env={}, now=1_800_000_060.0, shared=home)
+        self.assertEqual(http.calls, [], "次の周は前の周の置き場を読まず、run をまたぐ控えを読む")
         self.assertIn("Use `requests.Session` to keep cookies", self.saved("official-1-readme.md", rnd=2))
         other = FakeBoard(self.tmp / "board2")
         http = FakeHttp()
-        libdocs.section(other.work(""), self.repo, [f], get=http, env=env, now=1_800_000_120.0)
-        self.assertEqual(http.calls, [], "同じ家のほかの run は家の控えを読む")
+        libdocs.section(other.work(""), self.repo, [f], get=http, env={}, now=1_800_000_120.0, shared=home)
+        self.assertEqual(http.calls, [], "同じ根のほかの run は run をまたぐ控えを読む")
         self.assertIn("Use `requests.Session` to keep cookies", self.saved("official-1-readme.md", board=other))
         self.assertTrue((home / libdocs.CACHE_DIR / ("requests@2.32.3" + libdocs.OFFICIAL_SUFFIX)).is_file())
 
@@ -392,24 +391,25 @@ class ComposerCase(Base):
 
 
 class HomeBase(Base):
-    """包みの家（WORKS_ADAPTER_HOME）を持つ run の節"""
+    """run をまたぐ控えの根（呼ぶ側が shared で渡す）を持つ run の節"""
     T = 1_800_000_000.0
 
     def setUp(self):
         super().setUp()
-        self.home = self.tmp / "adapter-home"
-        self.env = {webget.SHARED_ENV: str(self.home)}
+        self.home = self.tmp / "shared-root"
+        self.shared = self.home
+        self.env = {}
         self.f = self.write("app.py", "import requests\n")
         self.write("requirements.txt", "requests==2.32.3\n")
 
     def run_section(self, board_name, http, now):
         board = FakeBoard(self.tmp / board_name)
-        return board, libdocs.section(board.work(""), self.repo, [self.f], get=http, env=self.env, now=now)
+        return board, libdocs.section(board.work(""), self.repo, [self.f], get=http, env=self.env, now=now,
+                                      shared=self.shared)
 
 
 class SharedCacheCase(HomeBase):
-    """run をまたぐ控え（利用の家の包みの家 WORKS_ADAPTER_HOME の下 libdocs/）: 同じ家のほかの run が取った公式の文書を TTL の間は
-    網に出ずに使う"""
+    """run をまたぐ控え（呼ぶ側が渡す根の下 libdocs/）: 同じ根のほかの run が取った公式の文書を TTL の間は網に出ずに使う"""
 
     def test_later_run_uses_the_shared_cache_without_the_network(self):
         self.run_section("run1", ok_http(), self.T)
@@ -428,13 +428,24 @@ class SharedCacheCase(HomeBase):
         self.assertTrue(http.calls, "TTL を過ぎた控えは使わずに取り直す")
         self.assertIn("ほかの run 0 本", text)
 
-    def test_no_home_means_no_shared_cache(self):
-        self.env = {}
+    def test_no_root_no_shared_cache(self):
+        self.shared = None
         self.run_section("run1", ok_http(), self.T)
         http = ok_http()
         self.run_section("run2", http, self.T + 60)
-        self.assertTrue(http.calls, "家が無ければ run ごとの控えだけ（今までどおり）")
+        self.assertTrue(http.calls, "根が無ければ run ごとの控えだけ")
         self.assertFalse(self.home.exists())
+
+    def test_shared_cache_root_is_an_argument(self):
+        self.env = {"WORKS_ADAPTER_HOME": str(self.home)}
+        self.shared = None
+        self.run_section("run1", ok_http(), self.T)
+        self.assertFalse(self.home.exists(), "根は環境変数から読まない")
+        self.shared = self.home
+        self.run_section("run1b", ok_http(), self.T)
+        http = FakeHttp()
+        self.run_section("run2", http, self.T + 60)
+        self.assertEqual(http.calls, [], "渡した根の控えを後の run が網に出ずに使う")
 
     def test_failures_are_not_shared(self):
         self.run_section("run1", FakeHttp({"pypi.org": (500, {"error": "boom"})}), self.T)
@@ -454,7 +465,7 @@ class SharedCacheCase(HomeBase):
 
 
 class NoContext7Case(HomeBase):
-    """Context7 はやめた（持ち主 2026-10-09）。網の問いは公式の口にだけ出し、節は Context7 を言わず、前の版が家と盤面に残した
+    """Context7 はやめた（持ち主 2026-10-09）。網の問いは公式の口にだけ出し、節は Context7 を言わず、前の版が run をまたぐ控えと盤面に残した
     Context7 の控え（名と版の not_found・問いの digest の ok・枠切れの印 _quota.json）は読まない"""
 
     def leftovers(self, sd):

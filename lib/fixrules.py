@@ -369,14 +369,16 @@ def write_prompt(prompt: pathlib.Path, repo, values: dict, build, iteration: int
 
 
 # ---------------------------------------------------------------- 節 fix-prep
-def lib_section(b, repo, values: dict) -> str:
-    """ライブラリの文書の節（libdocs.section。控えは置き場 b）: 直す義務の単位のファイルと今の差分のファイルが使うライブラリ"""
+def lib_section(b, repo, values: dict, shared=None) -> str:
+    """ライブラリの文書の節（libdocs.section。控えは置き場 b、run をまたぐ控えは根 shared）: 直す義務の単位のファイルと今の差分の
+    ファイルが使うライブラリ"""
     try:
         keys = set(json.loads(values.get("open_units") or "[]"))
     except (ValueError, TypeError):
         keys = None
     files, why = libdocs.unit_files(repo, values.get("judgment_file") or "", keys) if repo is not None else ([], "")
-    text = libdocs.section(b, repo, files + (changed_paths(repo, values.get("base_rev")) if repo is not None else []))
+    text = libdocs.section(b, repo, files + (changed_paths(repo, values.get("base_rev")) if repo is not None else []),
+                           shared=shared)
     return text + (f"\n- 単位のファイルの引き: {why}" if why else "")
 
 
@@ -626,7 +628,7 @@ def dispatched(owed: list[str], green=frozenset()) -> list[str]:
 
 
 def prep(b, repo, values: dict, pass_: str = PASSES[0], *, owed, withheld_by=None, returned=(), items=None, sources=None,
-         reject_file: str = "", lang: str = "", green=frozenset()) -> dict:
+         reject_file: str = "", lang: str = "", green=frozenset(), shared=None) -> dict:
     """節 fix-prep（pass_ first）と fix-ruled-prep（pass_ ruled）: 置き場 b に指示書を書き、{prompt_file, iteration}（iteration は
     この輪の何回目か。受け付けが 3 回目の拒否で done を立てる。R50）を返す。
     reject_file は受け付けが書いた一番新しい拒否の理由のファイル（同じ試行の出し直し。呼び手が渡す。見出しの次の 1 行で名指す。R44）。
@@ -641,7 +643,8 @@ def prep(b, repo, values: dict, pass_: str = PASSES[0], *, owed, withheld_by=Non
     書き、iteration は前の回のまま（相談の周は受け付けの回に数えない）。受け付けがはみ出しを相談に積んだ周（consult.queued）も
     組み直さず、続きの指示書（overflow_queued）だけを書く。
     owed・withheld_by・returned は直す義務（owed_values → fixboard.fix_duty）、items は承認済みの項目（ask_config）、lang は言語の
-    1 行（呼び手が組む）。green は TDD の輪が緑にした単位（呼び手が tddloop.green_units で引く）。
+    1 行（呼び手が組む）。green は TDD の輪が緑にした単位（呼び手が tddloop.green_units で引く）。shared はライブラリの文書の
+    run をまたぐ控えの根（lib_section。None なら使わない）。
     修正役が下請けを起こす単位（dispatched。輪が緑にした単位の外）が在れば、下請けを回す節（seat.g1_section。下請けのファイルは
     g1_values）を載せ、輪が全部を緑にした周は借りたスキルの座（seat.section。型の穴は implementer_values）を載せる。写しが固定と
     違う・穴が埋まらなければ ValueError のまま上げる（指示書を書かない）。
@@ -682,7 +685,7 @@ def prep(b, repo, values: dict, pass_: str = PASSES[0], *, owed, withheld_by=Non
         seat = seatkit.g1_section(g1_values(b, values, repo, subs, briefs, ask=ask_sub))
     else:
         seat = seatkit.section(mark, implementer_values(b, values, repo, owed_keys, briefs))
-    docs = lib_section(b, repo, values)
+    docs = lib_section(b, repo, values, shared)
     held, held_path = conflict.held_reply(b)
     held = held_text(held_path if held is not None else "")
     lanes = lanes_text(b)
