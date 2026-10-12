@@ -109,6 +109,28 @@ class RunSuiteSeedCase(unittest.TestCase):
         self.assertEqual((cases, code), (None, None))
         self.assertTrue(why[0].startswith("テストの実行器を起こせない（"), why)
 
+    def test_runner_is_niced(self):
+        """実行器は nice -n 19 と同じだけ優先度を下げて起こす（元 works/blk-fix/lib/tddloop.py:307。同じ機械で別の run も動く）。
+        argv は変えない（起こせるかの証明を走らせる時と同じ形のまま通す）"""
+        mine = os.nice(0)
+        exe = self.runner(f"ps -o nice= -p $$ > {self.work}/nice\nexit 0\n")
+        seen = []
+        real = baseline_red.tree_run.run
+        with mock.patch.object(baseline_red.tree_run, "run", side_effect=lambda argv, **kw: seen.append(argv) or real(argv, **kw)):
+            baseline_red.run_suite(exe, self.repo, self.work, "niced")
+        self.assertEqual(seen[0][0], exe)
+        self.assertGreaterEqual(int((self.work / "nice").read_text(encoding="utf-8").strip()), min(mine + baseline_red.NICENESS, 19))
+        self.assertNotIn(baseline_red.NO_NICE, (self.work / "suite-niced.log").read_text(encoding="utf-8"))
+
+    def test_runner_without_nice_runs_bare_and_says_so(self):
+        """優先度を下げられない環境（os.nice が無い）では下げずに起こし、その事実をログに 1 行残す（黙って下げずに走らせない）"""
+        exe = self.runner("exit 0\n")
+        seen = []
+        with mock.patch.object(baseline_red.os, "nice", None), \
+                mock.patch.object(baseline_red.tree_run, "run", side_effect=lambda argv, **kw: seen.append(kw) or 0):
+            baseline_red.run_suite(exe, self.repo, self.work, "bare")
+        self.assertNotIn("preexec_fn", seen[0])
+        self.assertIn(baseline_red.NO_NICE, (self.work / "suite-bare.log").read_text(encoding="utf-8"))
 
 def row(name, outcome, cls="test_a.TestA"):
     return {"classname": cls, "name": name, "outcome": outcome}

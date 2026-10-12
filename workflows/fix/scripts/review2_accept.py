@@ -19,7 +19,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 import accept  # noqa: E402
 import fixboard  # noqa: E402
 import refix  # noqa: E402
@@ -38,7 +37,7 @@ def main() -> None:
     reply, why = rolekit.parse_reply(raw)
     if reply is None:
         raise ValueError(why)
-    place, repo = fixio.place(), fixio.repo()
+    place, repo = boundary.place("fix"), boundary.work_tree()
     bad = fixboard.delta_review_problems(place, N, reply, repo)
     got = {"ok": False, "reason": "差分の審査の返答の照らしに通らない:\n" + "\n".join(f"  - {x}" for x in bad)} if bad else \
         refix.accept_review(reply, place, fixboard.start_tree(place), repo, n=N,

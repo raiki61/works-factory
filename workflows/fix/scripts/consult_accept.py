@@ -16,7 +16,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import consult  # noqa: E402
 
@@ -32,7 +31,7 @@ def main() -> dict:
         answer = json.loads(raw) if raw and raw != "null" else None
     except ValueError:
         answer = None   # 読めない答えは答えの無い周と同じ（行は unavailable）
-    got = consult.settle(fixio.place(), answer, pass_, NODES[pass_])
+    got = consult.settle(boundary.place("fix"), answer, pass_, NODES[pass_])
     return {"consulted": bool(got["consulted"]), "answer_file": str(got["answer_file"] or "")}
 
 

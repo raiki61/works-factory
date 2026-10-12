@@ -8,12 +8,12 @@
   run のテストのコマンド（線の入力 test_cmd）の関門（test_cmd_gate）もここで 1 回だけ決める: 空なら off、実行器のファイルが
   そのコマンドの文字列をそのまま含むなら same_as_suite（一式と同じなので 2 度走らせない）、ほかは 1 回走らせて緑なら on、
   赤・走らないなら off にして理由を test_cmd_note に残す（元から赤の test_cmd で毎単位を拒まない）。test_cmd は baseline_red.run_suite と
-  同じ起こし方（tree_run.reuse_run）で走らせ、既存のファイルを書き換えた回はいつも赤（書き換えた物は戻す。_cmd_run）。関門が on なら
+  同じ起こし方（tree_run.reuse_run・優先度は baseline_red.lowered）で走らせ、既存のファイルを書き換えた回はいつも赤（書き換えた物は戻す。_cmd_run）。関門が on なら
   直し・整えの段の指示書にそのコマンドを書く。
 - tdd-loop の中: tdd-prep → prep（今の段の指示書を fixrules で組んで書く。頭に brief の節: 振り分けの段は
-  直す義務の単位の全部、ほかの段は今の単位の brief。brief の控えの無い置き場・平の run は無し）→ 役 tdd（修正役。
-  周ごとに新しい会話で起きるので、前の単位と今の単位のこれまで（段・前の段の結果）は引き継ぎの節（handoff_lines）が状態から書く。
-  振り分け・テスト・直し・整えを返す）→
+  直す義務の単位の全部、ほかの段は今の単位の brief。brief の控えの無い置き場・平の run は無し。単位が替わった周かを new_unit で返す）→
+  役 tdd（修正役。同じ単位の段は前の周の会話を継ぎ、単位が替わる周だけ新しい会話で起きる。前の単位と今の単位のこれまで（段・
+  前の段の結果）は引き継ぎの節（handoff_lines）も状態から書く。振り分け・テスト・直し・整えを返す）→
   tdd-step → step（返答を機械が確かめて段を進める）。段は route → 単位ごとに test → fix →（申告の在る単位だけ）refactor → 次の単位。
   step 1 回ごとに状態の calls に 1 行（n・確かめた段（申し出は conflict、実行器・test_cmd が走らずに抜けた回は runner）・単位・
   合否・その回に起こした一式と test_cmd の数・秒）を積む（秒は書くだけで止める条件に使わない）
@@ -132,11 +132,9 @@ MIN_WHY = 10
 MIN_QUOTE = 3   # 赤の引用の下限（寄せた字数。1〜2 字の引用はどの失敗の文にも当たるので、照らす先が短くなければ拒む）
 QUOTES_FIELD = "red_quotes"   # test の段の返答の欄と単位の記録の欄の名: {名指しの id: {quote: 失敗の文, why: なぜ期待どおりの理由か}}
 UNSENT = "unsent"   # 状態の欄: 盤面へまだ積んでいない止めた申し出の並び（行 {source, item}）
+SESSION_KEY = "session_key"   # 状態の欄: 前の周の支度が組んだ単位の鍵（prep の new_unit の元。元 write_key の鍵）
 GAVE_UP_WHY = "機械が書いた申し出（TDD の確認が回数の上限まで通らなかった）: "   # 3 回拒まれた単位の申し出の why の頭
 STATE, PROMPT, SUMMARY = "state.json", "next.md", "summary.md"
-UNIT_NODE = "tdd"   # 輪の役の節の名
-REST_NODE = "tdd-rest"   # 並べの後に残りの単位を順に回す輪 tdd-rest の役の節の名（同じ支度・確かめ）
-UNIT_NODES = (UNIT_NODE, REST_NODE)   # 輪の役の節の名の全部
 WRITES_LOG = "writes-log.jsonl"   # 書き込みの記録（tdd-<k>/ の下。記録を取る包みが無い run は無い。step の log の既定。無ければ writes.NO_RECORD）
 NO_SUITE = "テストの実行器（入力 tdd_suite）が無い run——全部の単位を今どおり直す"
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
@@ -570,8 +568,9 @@ def _cmd_run(repo, cmd: str, log: pathlib.Path, *, reuse: dict | None = None) ->
     （restore_paths。緑を出した木と残る木を違えない）、素材を赤（found）にして、書き換えたパスと戻したことを rewrote の文に載せる。
     suite_made に積んでよいのは新しく出来たパスだけ（積むと書き込みの出どころの照合・凍結の照らしから外れる）。
     起こし方は baseline_red.run_suite と同じ tree_run.reuse_run（自分のプロセスグループ・標準入力は空・環境は tree_run.outside_env・
-    出力は log）で、コマンドの 1 行は tree_run.command_argv の形（direct か shell）。元は entry.local_checks_material（試験の枠
-    tree_run.slotted_run・nice・同じ run の控えの使い回し）で走らせた。枠と nice は外し、使い回しは reuse を渡した呼び（輪の頭）だけ"""
+    出力は log）で、コマンドの 1 行は tree_run.command_argv の形（direct か shell）、優先度は実行器と同じ baseline_red.lowered（nice -n 19 と同じだけ下げる）。
+    元は entry.local_checks_material（試験の枠 tree_run.slotted_run・nice・同じ run の控えの使い回し）で走らせた。枠は外し、
+    使い回しは reuse を渡した呼び（ループの頭）だけ"""
     pre = snapshot(repo)
     mat = _cmd_material(repo, cmd, pathlib.Path(log), reuse=reuse)
     post = snapshot(repo)
@@ -594,12 +593,16 @@ def _cmd_material(repo, cmd: str, log: pathlib.Path, *, reuse: dict | None = Non
         return {"status": "not_run", "reason": "テストのコマンド（test_cmd）が空で、走らせる物が無い"}
     log.parent.mkdir(parents=True, exist_ok=True)
     argv, how = tree_run.command_argv(cmd)
+    nice_kw, bare = baseline_red.lowered()   # 実行器と同じ 1 か所（下げられなければ下げずに、ログに 1 行）
     launched = f"{shlex.join(argv)}（起こし方 {how}）"
     note = {}
     with open(log, "wb") as f:
+        if bare:
+            f.write(f"{bare}\n".encode("utf-8"))
+            f.flush()
         try:
             code = tree_run.reuse_run(argv, tree_run.outside_env(os.environ), place=reuse, note=note, stdin=subprocess.DEVNULL,
-                                      stdout=f, stderr=subprocess.STDOUT, cwd=str(repo))
+                                      stdout=f, stderr=subprocess.STDOUT, cwd=str(repo), **nice_kw)
         except OSError as e:
             return {"status": "not_run", "reason": f"{launched} でテストのコマンドを起こせない: {e}"}
     kind = tree_run.launch_kind(code)
@@ -784,21 +787,24 @@ STEP_TITLE = promptsection.Section("# TDD のループの指示書（{count} 回
 
 def prep(state_file, values: dict | None = None, repo=None, *, lang: str = "", sources=None) -> dict:
     """節 tdd-prep。今の段の指示書を組み（fixrules.tdd_render: 修正の決まりの正本・TDD の決まり・今の段の約束・run の値）、状態の
-    置き場の next.md に書き、{prompt_file} を返す。
+    置き場の next.md に書き、{prompt_file, go, new_unit} を返す。
     values は fixrules.TDD_VALUES の run の値（義務の単位は状態の物を使う。欠けは空。policy_path・request_file は始めの記録の
     値の 2 行にも載る）。repo は差分から変更の種類を選ぶ根（None は見ない）。lang は言語の 1 行（呼び手が組む）。sources は
     brief を切る材料（planbrief.cut。置き場に控えが在れば読まない）。
     題の次に brief の節（planbrief.head_text）: 振り分けの段は直す義務の単位の全部、ほかの段は今の単位 1 つの brief。行の
     「単位」はその段で直す単位だけで、項目のほかの単位には「今は直すな」と添える。
-    輪が済んでいる（状態の done）か段 lanes（並べの周。輪の外の枝の輪が回す）なら、何も書かずに {"prompt_file": "", "go": False}:
+    輪が済んでいる（状態の done）か段 lanes（並べの周。輪の外の枝の輪が回す）なら、何も書かずに {"prompt_file": "", "go": False,
+    "new_unit": False}:
     確かめの節が状態にそれを保存した後、実行基盤が輪の済みを記録する前に止まった run を、実行基盤の resume は輪の 1 周目から
     回し直す（役の節は when: で飛び、確かめ step は返答 None で何も動かさずに輪を抜ける）。
-    役は周ごとに新しい会話で起きるので、前の単位の物と今の単位のこれまで（段・前の段の結果）は引き継ぎの節（handoff_lines）だけで
-    渡る。借りたスキルの座（seat.section。test-driven-development と読み替え）を載せる。写しが壊れていれば Broken。包みが単位の
-    切れ目で会話を切る鍵（元の adapter.session_key_path）は外した"""
+    new_unit は単位の鍵（輪の置き場の名と、振り分けの段は route・ほかの段は今の単位）が前の周の支度の鍵（状態の SESSION_KEY）と
+    違う周だけ真: 呼び手の工程はそれで役を振り分け、同じ単位の段は前の周の会話を継ぎ、単位が替わる周だけ新しい会話で起こす（元は
+    包みが同じ鍵で会話を切った: works/blk-fix/lib/tddloop.py:880 write_key と adapter.session_key_path。鍵のファイルの代わりに返りの
+    欄で渡す）。新しい会話でも前の単位の物は引き継ぎの節（handoff_lines）で渡る。
+    借りたスキルの座（seat.section。test-driven-development と読み替え）を載せる。写しが壊れていれば Broken"""
     st = _load(state_file)
     if _over(st):   # resume で 1 周目から回し直された済んだ輪: 役を起こさない（YAML の役の when: が go を読む）
-        return {"prompt_file": "", "go": False}
+        return {"prompt_file": "", "go": False, "new_unit": False}
     path = pathlib.Path(st["work"]) / PROMPT
     briefs = _briefs(path.parent.parent, **(sources or {}))   # 状態の置き場は fix の置き場の tdd-<k>
     phase = st["phase"]
@@ -846,7 +852,12 @@ def prep(state_file, values: dict | None = None, repo=None, *, lang: str = "", s
         except fixrules.Unfilled as e:
             raise Broken(f"TDD のループの指示書を組めない: {e}")
     fixrules.write_prompt(path, repo, vals, build, n)
-    return {"prompt_file": str(path), "go": True}
+    key = f"{path.parent.name}:{phase if phase == 'route' else st['queue'][st['cur']]}"
+    new_unit = st.get(SESSION_KEY) != key
+    if new_unit:
+        st[SESSION_KEY] = key
+        _save(state_file, st)
+    return {"prompt_file": str(path), "go": True, "new_unit": new_unit}
 
 
 def _over(st: dict) -> bool:

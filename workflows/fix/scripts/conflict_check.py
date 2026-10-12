@@ -16,14 +16,13 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
 
 
 def main() -> dict:
-    place = fixio.place()
+    place = boundary.place("fix")
     plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
     joined = fixboard.read_json(place / fixboard.JOIN_FILE)
     if not isinstance(plan, dict) or not isinstance(joined, dict):
@@ -34,7 +33,7 @@ def main() -> dict:
     for gid in back:
         doc = fixboard.read_json(out_dir / gid / fixboard.RESULT_FILE, {}) or {}
         rows += [r for r in doc.get("conflicts") or [] if isinstance(r, dict)]
-    repo = fixio.repo()
+    repo = boundary.work_tree()
     ok, dropped = fixboard.cited_rows(rows, repo, [conflict.request_file(place), str(place)])
     for r in ok:
         source = r.get("source") if r.get("source") in conflict.SOURCES else conflict.FIX_SOURCE

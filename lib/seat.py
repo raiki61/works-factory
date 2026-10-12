@@ -44,9 +44,10 @@ FENCE, PROMPT_LINE = "```", "  prompt: |"
 QUERY_RULE_SOURCE = pathlib.Path(__file__).resolve().parent / "agents" / "judge.md"   # 検索語の規律の正本（写し）
 QUERY_RULE_HEAD = "- **検索語に対象の名前を載せるな。**"
 
-SEATS = {"tdd": "tdd", "fix": "implementer", "fix-ruled": "implementer", "review": "task-review",   # 役の名 → 節の名
+SEATS = {"tdd": "tdd", "tdd-new": "tdd", "fix": "implementer", "fix-ruled": "implementer", "review": "task-review",   # 役の名 → 節の名
          "refix": "receiving-review", "refix2": "receiving-review"}
-SKILL_NODES = frozenset({"tdd", "refix", "refix2"})   # 座が skill の役（YAML の skills: を持つ節。試験が一致を縛る）
+SKILL_NODES = frozenset({"tdd", "tdd-new", "refix", "refix2"})   # 座が skill の役（YAML の skills: を持つ節。試験が一致を縛る。
+# tdd と tdd-new は TDD の輪の同じ役を同じ単位の続きと新しい単位に分けた 2 つの節。元も tdd・tdd-rest・tdd-lane-<n> を並べた）
 NONE = "（無し）"   # 型の穴に入れる物が無い時の値（人の方針の文書が無い run の [GLOBAL_CONSTRAINTS] など）
 # 差分の審査役の型（task-review）の出口の語（216 の works の語）→ 差分の審査の返答の 2 判定の欄（deltamarks.KEYS）と欄の語
 # （deltamarks.COMPLIANCE・QUALITY）。審査役の座の型の後ろに words_table の表で載り、役は型の語をこの欄に書く

@@ -1,6 +1,6 @@
 """工程の YAML の `script:` が名指す節の script は、同じ工程のほかの節の script を import しない（workflows/AGENTS.md の E4）。
 
-節の script を import すると、その script の振る舞いが 2 つの節に跨る。共に使う物は節でないモジュール（fix の fixio.py など）か lib/ に置く。
+節の script を import すると、その script の振る舞いが 2 つの節に跨る。共に使う物は lib/ か境の口（workflows/.shared/boundary.py）に置く。
 同じ scripts/ の import を拾う規則は K8 の tests/layers/scan.py の 1 か所が持ち、ここは K8 の許しの表を通さずに節どうしだけを見る。
 """
 import pathlib

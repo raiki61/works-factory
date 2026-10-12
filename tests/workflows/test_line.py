@@ -653,6 +653,28 @@ class AskFinalReadsCase(Artifacts):
         self.assertEqual(rows, [])
         self.assertIn("控え structure-after.json を読めない", unread)
 
+    def test_allowed_tests_come_from_beside_both_diffs(self):
+        """許したテストの変更は fix と refix-run の差分の隣の allowed-tests.json を読み、許しの id と出どころつきで並べる（重ねない）"""
+        row = {"path": "tests/test_a.py", "permit": "plan-1", "source": "plan"}
+        fix = self.place("fix/fix/fix.diff", "")
+        self.place("fix/fix/allowed-tests.json", [row])
+        refix = self.place("fix/refix/fix.diff", "")
+        self.place("fix/refix/allowed-tests.json", [row, {"path": "tests/test_b.py", "permit": "r-2", "source": "ruling"}])
+        rows, unread = ask_final.allowed_tests((fix, refix))
+        self.assertEqual(([r["path"] for r in rows], unread), (["tests/test_a.py", "tests/test_b.py"], ""))
+        self.assertEqual(ask_final.allowed_tests((fix, None)), ([row], ""))
+        text = ask_final.final_text(final_got(allowed_tests=rows), [], RUN)
+        self.assertIn("## 許したテストの変更（2 件）", text)
+        self.assertIn("- tests/test_b.py（許し r-2・ruling）", text)
+
+    def test_unreadable_allowed_tests_is_said(self):
+        """collect は落ちた道でも [] を置くので、無い・形の違う allowed-tests.json は読めなかった訳を返す（黙って空にしない）"""
+        rows, unread = ask_final.allowed_tests((self.place("fix/fix/fix.diff", ""),))
+        self.assertEqual(rows, [])
+        self.assertIn("allowed-tests.json を読めない", unread)
+        self.place("fix/fix/allowed-tests.json", {"path": "x"})
+        self.assertIn("行の配列でない", ask_final.allowed_tests((self.place("fix/fix/fix.diff", ""),))[1])
+
     def test_unread_is_shown_in_the_gate_text(self):
         text = ask_final.final_text(final_got(unread=["読めない訳"]), [], RUN)
         self.assertIn("- 読めない訳", text)
@@ -1129,12 +1151,16 @@ class LineWiringCase(unittest.TestCase):
         "design.jsonl": (("plan", "structure"), "lib/boardview.py"),
         "gate-passes.json": (("plan-review", "review"), "lib/eyeverdict.py"),
         "design-premises.json": (("plan-review", "design"), "lib/eyeverdict.py"),
+        "allowed-tests.json": (("fix", "diff"), "workflows/line/scripts/ask_final.py"),
+        "lenses.json": (("fix", "diff"), "lib/runreport.py"),
+        "accept-trace.json": (("fix", "diff"), "lib/runreport.py"),
     }
     # 書き手の返す節を空の置き場で走らせる時の入力（ブロックの YAML がその節に渡す with: と、Archon がブロックの入力を渡す INPUTS_*）
     RETURN_INPUTS = {
         "judge": {"INPUTS_OBJECTION": ""},
         "plan": {"INPUTS_DIR": "plan/r1", "INPUTS_START": "", "INPUTS_JUDGMENT": ""},
         "plan-review": {},
+        "fix": {"INPUTS_MODE": ""},
     }
     # 今の木で照らしが通らない所（named: 書き手の script と lib が名を持つ・stop: lib の在る返す節が空の置き場でも書く・bare: lib も
     # 境の口も無い返す節が書く・read: 読み手が名を開く）。表に無い新しい穴と、通るようになったのに残る行は赤
@@ -1148,6 +1174,8 @@ class LineWiringCase(unittest.TestCase):
         ("answer-ties.json", "read"): "区分の issue で外す（ほかのブロックが判定の隣のこの名を開かない。部分 B1 の S58・部分 C の S31）",
         ("local-review-lenses.json", "read"): "区分の issue で外す（report が開かない。部分 C の S41）",
         ("pr-downgrades.json", "read"): "区分の issue で外す（report が開かない。部分 C の S41）",
+        ("lenses.json", "read"): "メイングラフの配線の部分 D2（#211）で外す（report が開かない）",
+        ("accept-trace.json", "read"): "メイングラフの配線の部分 D2（#211）で外す（report が開かない）",
     }
 
     def written_beside(self, block: str, field: str, bare: bool) -> set:
@@ -1206,7 +1234,7 @@ class LineWiringCase(unittest.TestCase):
     def test_twice_included_blocks_use_their_own_place(self):
         """落とし穴 K14: 線が 2 度差し込むブロック（YAML から数える）の全部で、置き場を決める関数に 2 つの include の id か形（with: の
         値）を渡すと違う置き場が返る（2 度目が 1 度目の置き場の物を今回の物として拾わない）。関数: judge は lib/judge_accept.verdict
-        （異議の有無で judge/・rejudge/）、plan は lib/planfile.open_round（周ごとの plan/r<k>/）、fix は workflows/fix/scripts/fixio.place
+        （異議の有無で judge/・rejudge/）、plan は lib/planfile.open_round（周ごとの plan/r<k>/）、fix は workflows/.shared/boundary.place("fix")
         （include の名ごとの fix/<id>/）、test-gate は workflows/test-gate/scripts/result.rel（形ごとの test-gate/<mode>/）、merge は
         workflows/merge/scripts/merge.py の返す節（形ごとのファイル。フォルダ merge/ は同じ）。表 SHARED_PLACE のブロックは置き場を
         共にし、2 つの include が形の with: の値で分かれる"""
@@ -1244,13 +1272,13 @@ class LineWiringCase(unittest.TestCase):
                     for ruling in ([], ["1"])]
 
     def fix_places(self, includes, keys) -> list:
-        fixio = load_file("fix_fixio", SCRIPTS.parents[1] / "fix" / "scripts" / "fixio.py")
+        boundary = load_file("boundary", SCRIPTS.parents[1] / ".shared" / "boundary.py")
         with tempfile.TemporaryDirectory() as tmp:
             places = []
             for include in keys:
                 env = {"ARTIFACTS_DIR": tmp, "ARCHON_NODE_EXECUTION": json.dumps({"path": f"{include}__fix-prep"})}
                 with mock.patch.dict(os.environ, env):
-                    places.append(fixio.place())
+                    places.append(boundary.place("fix"))
             return places
 
     def gate_places(self, includes, keys) -> list:

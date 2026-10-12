@@ -74,7 +74,6 @@ ALLOWED = {
         "lib/AGENTS.md",
         # 今の works から写した lib が実行基盤の名を字で持つ（K7）。行ごとに外す区分の issue
         "lib/tree_run.py#INPUTS_CMD",               # 区分 T #122（test-gate の run が走らせるコマンドの口）
-        "lib/refixrules.py#$LOOP_PREV",             # 区分 F #121（手直しの指示書の docstring）
         "lib/report_roles.py#loop_group",           # 区分 R #124（受け付けの諦めの数の注）
         "lib/specblk.py#$spec-gate.output",         # 区分 J #119（仕様の関所の出口の字）
         "lib/judge_accept.py#$spec-gate.output",    # 区分 J #119（仕様の関所の答えの字）
@@ -91,13 +90,7 @@ ALLOWED = {
         "workflows/merge/works-factory-merge.yaml#diff",               # 区分 M #125（受けるが読まない。封じるのは今の木から組み直した差分）
     ),
     "E4": (
-        # script どうしの import（K8）。今 import している script を 1 本ずつ名指す。外す区分の issue は fix が区分 F #121・report が区分 R #124
-        *(f"workflows/fix/scripts/{name}.py#fixio" for name in (
-            "assert_changed", "clean", "collect", "conflict_check", "consult_accept", "consult_check", "cut2", "delta_accept",
-            "delta_cut", "fix_accept", "fix_prep", "fix_ruled_accept", "fix_ruled_prep", "group_end", "group_start", "join",
-            "lens_collect", "lens_prep", "prep", "refix2_accept", "refix2_prep", "refix_accept", "refix_prep", "review2_accept",
-            "route", "rule_accept", "rule_prep", "tdd_prep", "tdd_step", "tdd_unit",
-        )),
+        # script どうしの import（K8）。今 import している script を 1 本ずつ名指す。外す区分の issue は report が区分 R #124
         "workflows/report/scripts/collect.py#place",
         "workflows/report/scripts/facts.py#place",
         "workflows/report/scripts/facts.py#typed",

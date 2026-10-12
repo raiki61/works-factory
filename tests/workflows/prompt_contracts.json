@@ -2162,6 +2162,30 @@
     ],
     "stops": []
   },
+  "workflows/fix/works-factory-fix.yaml#tdd-new.prompt": {
+    "inserts": [
+      "$tdd-prep.output.prompt_file"
+    ],
+    "returns": {
+      "nodes": [
+        "workflows/fix/works-factory-fix.yaml#tdd-new"
+      ],
+      "output_format_sha256": "5250eb5bc25056e47f53892610dfe951e78871d3bbc5f3e7efeea2576a88c93e",
+      "json_keys": []
+    },
+    "forbidden": [],
+    "steps": [
+      {
+        "what": "指示書のファイルを全部読む",
+        "quote": "を Read で毎回全部読み"
+      },
+      {
+        "what": "指示書の「返す JSON」の形の JSON だけを返す",
+        "quote": "返すのは指示書の「返す JSON」の形の JSON だけ"
+      }
+    ],
+    "stops": []
+  },
   "workflows/judge/commands/diagnose.md": {
     "inserts": [
       "$diagnose-prep.output.brief_file",

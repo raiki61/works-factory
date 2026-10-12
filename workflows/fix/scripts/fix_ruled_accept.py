@@ -12,7 +12,7 @@ join が組の子から写した物（fixboard.ruled_states。凍結したテス
   段の頭の木（fix-ruled-head.json）に戻して諦め、ほかを受けて done: true
 - 範囲の外のはみ出しだけの返答は拒まずに範囲の相談に積むか機械が戻す（fixboard.settle_overflow）。積んだ回は done: false
 置き場に残す物: fix-ruled-reply.json（受けた返答に 6 つの印と rejudge_requested を前の控えと論理和で重ね、印を changed にも置いた物。
-assert-changed・collect が読む）・fix-units.json・allowed-tests.json。
+assert-changed・collect が読む）・fix-units.json。
 返り {ok, done, reason, reason_file}。回す側の誤りは標準エラーに 1 行で非 0。
 """
 import os
@@ -23,11 +23,11 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import fixboard  # noqa: E402
 import rolekit  # noqa: E402
 import startrec  # noqa: E402
+import writelog  # noqa: E402
 
 NAME = "fix-ruled-accept"
 NOT_LAUNCHED = "裁定の後の修正役を起こさなかった（直す裁定が無い）"
@@ -44,22 +44,21 @@ def main() -> dict:
     reply, why = rolekit.parse_reply(raw)
     if reply is None:
         raise ValueError(why)
-    place, repo = fixio.place(), fixio.repo()
+    place, repo = boundary.place("fix"), boundary.work_tree()
     owed = fixboard.ruled_owed(place)
     start = startrec.read(place)
     judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
     head = fixboard.stage_head(place, fixboard.RULED_HEAD_FILE)
     state, tests_state = fixboard.ruled_states(place)
-    log = fixio.writes_log()
+    log = writelog.log_here()
     boundary.drop_runner_env()   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
     got = fixboard.accept_reply(reply, place, repo, pass_="ruled", iteration=iteration, owed=owed,
                                 judged=judgment.get("units"), suite=str(start.get("tdd_suite") or ""), state=state,
-                                tests_state=tests_state, head=head, skip=fixio.SKIP, log=log)
+                                tests_state=tests_state, head=head, skip=boundary.SKIP, log=log)
     fixboard.write_json(place / fixboard.FIX_UNITS_FILE, got["units"])
     if got["ok"]:
         path = place / fixboard.RULED_REPLY_FILE
         fixboard.write_json(path, fixboard.reply_marks(got["reply"], fixboard.read_json(path)))
-        fixboard.write_json(place / fixboard.ALLOWED_TESTS_FILE, fixboard.granted_tests(place))
         fixboard.trace(place, "fix_ruled_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]))
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
     reason_file = fixboard.write_text(place / fixboard.REJECT_NAME.format(name=NAME, k=iteration), got["reason"] + "\n")

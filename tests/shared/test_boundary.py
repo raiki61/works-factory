@@ -6,6 +6,7 @@ import io
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -64,6 +65,7 @@ class ArchonFactsCase(unittest.TestCase):
         self.assertEqual(boundary.RUNTIME_COPY, ".archon")
         self.assertEqual(boundary.RUNTIME_COPY_PREFIX, boundary.RUNTIME_COPY + "/")
         self.assertEqual(boundary.RUNTIME_COPY_DIRS, ((boundary.RUNTIME_COPY,),))
+        self.assertEqual(boundary.SKIP, (boundary.RUNTIME_COPY_PREFIX,))
 
     def test_shared_cache_is_under_state_dir_or_none(self):
         self.assertIn(boundary.SHARED_CACHE_ENV, boundary.RUNNER_NAMES)
@@ -111,6 +113,30 @@ class FakeRunTest(unittest.TestCase):
         env = mock.patch.dict(os.environ, {"WORKFLOW_ID": "run-1", "ARTIFACTS_DIR": str(self.artifacts)})
         env.start()
         self.addCleanup(env.stop)
+
+
+class BlockPlaceTest(FakeRunTest):
+    """サブグラフの script の置き場（include ごと）と run の作業ツリー"""
+
+    def test_place_is_the_include_folder_under_the_block(self):
+        for node, want in ((json.dumps({"path": "refix__fix-prep"}), "refix"), (json.dumps({"path": "fix-prep"}), "fix"),
+                           ("{", "fix"), ("", "fix"), (json.dumps({"path": "__x"}), "fix")):
+            with self.subTest(node=node), mock.patch.dict(os.environ, {"ARCHON_NODE_EXECUTION": node}):
+                self.assertEqual(boundary.include_name("fix"), want)
+                got = boundary.place("fix")
+                self.assertEqual(got, self.artifacts / "fix" / want)
+                self.assertTrue(got.is_dir(), "無ければ作る")
+
+    def test_work_tree_is_the_git_top(self):
+        repo = self.artifacts / "repo"
+        (repo / "sub").mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        cwd = os.getcwd()
+        os.chdir(repo / "sub")
+        try:
+            self.assertEqual(boundary.work_tree().resolve(), repo.resolve())
+        finally:
+            os.chdir(cwd)
 
 
 class PointerTest(FakeRunTest):

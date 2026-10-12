@@ -4,7 +4,7 @@
 今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の関数を元の名で写した物（各関数の docstring の末尾に元の `<パス>:<行>`）。
 盤面の引数 b・記録への控え（process.checks）・機械全体の試験の枠（tree_run.slotted_run の slotwrap.sh）・台帳の人待ちは外した。
 同じ run の中の使い回しは、置き場を呼び手が引数 reuse（tree_run.reuse_place の返り）で渡す形で tree_run.reuse_run に残す。
-- 字のまま（継ぎ目の直しだけ）: TEST_CMD_STEP・local_checks_material・_nice19・_launched・_cmd_material・_same_step・env_only_red・
+- 字のまま（継ぎ目の直しだけ）: TEST_CMD_STEP・local_checks_material・_launched・_cmd_material・_same_step・env_only_red・
   _suite_kind・suites_line・CiRefused（InputRefused ごと）・_with_test_cmd・_junit_unran・_tail（TAIL_LINES・TAIL_BYTES ごと）・
   _reused_material・_reused_note
 - 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci・baseline_line
@@ -83,7 +83,7 @@ def local_checks_material(repo: pathlib.Path, test_cmd: str, log_path: pathlib.P
     止められたら（tree_run.Stopped）捕まえない。launched（dict）を渡せば、起こす前に決めた起こし方を launched["how"] に置き、
     reuse_run の note にも使う（reuse（tree_run.reuse_place の返り）を渡した回は、同じ run の中の控えから使い回すと launched["reused"] に
     出どころが、使い回せなかった回は launched["reuse_off"] に理由が入る。出どころは素材の checked にその句が付く）。
-    niced が真なら、起こすプロセスの優先度を nice -n 19 と同じだけ下げる（argv・起こし方・起こせなさの証明は変えない）
+    niced が真なら、起こすプロセスの優先度を nice -n 19 と同じだけ下げる（baseline_red.lowered。argv・起こし方・起こせなさの証明は変えない）
     （元 works/.shared/core/entry.py:650-677。tree_run.slotted_run を tree_run.reuse_run に替えた）"""
     cmd = (test_cmd or "").strip()
     if not cmd:
@@ -97,15 +97,10 @@ def local_checks_material(repo: pathlib.Path, test_cmd: str, log_path: pathlib.P
         try:
             code = tree_run.reuse_run(argv, tree_run.outside_env(os.environ), place=reuse, note=launched,
                                       stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT, cwd=str(repo),
-                                      **({"preexec_fn": _nice19} if niced else {}))
+                                      **(baseline_red.lowered()[0] if niced else {}))
         except OSError as e:
             return {"material": {"status": "not_run", "reason": f"{_launched(argv, how)} でテストのコマンドを起こせない: {e}"}}
     return _reused_material(_cmd_material(code, log_path, argv, how), launched)
-
-
-def _nice19() -> None:
-    """子の中で exec の前に呼ぶ（Popen の preexec_fn）: nice -n 19 と同じだけ優先度を下げる（元 works/.shared/core/entry.py:680-682）"""
-    os.nice(19)
 
 
 def _launched(argv: list, how: str) -> str:
