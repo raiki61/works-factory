@@ -6,6 +6,7 @@ B の「約束」1〜11）。止まる時は Archon を起こさない。トー�
 """
 import hashlib
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from bin._lib import hostgh, isolate, pack, place
+from lib import answer
 
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
@@ -75,6 +77,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     heads = [str(hostgh.NO_POST_BIN), str(Path(shim).parent)] if shim else []
     child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
     child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", WORKS_FACTORY_ROOT=str(ROOT))
+    child[answer.ENV] = answer_head(target)
+    child.pop(answer.WHO_ENV, None)  # respond に答えた者の引数は無い
     if not no_auth and mise_trusts(user, target):
         workspaces = Path(child["ARCHON_HOME"]) / "workspaces"
         workspaces.mkdir(parents=True, exist_ok=True)
@@ -103,6 +107,11 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     # bun は打った場所の bunfig.toml の preload を走らせる。対象の物を認証つきの Archon の中で走らせないよう、源の物を名指す
     config = f"--config={source / 'bunfig.toml'}"
     os.execve(sys.executable, [*auth, "exec", *auth_user, "--", bun, config, *archon], child)
+
+
+def answer_head(target: Path) -> str:
+    """関所の文の答えの行の頭: 殻を通して対象を名指した respond（tests/shared/test_archon_contract.py が引数の形を照らす）"""
+    return shlex.join([str(ROOT / "bin" / NAME), "workflow", "respond", "--cwd", str(target)])
 
 
 def require_command_first(argv: list[str]) -> None:
