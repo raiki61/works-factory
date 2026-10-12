@@ -41,3 +41,5 @@ fix:
   allowed_test_changes: []
   changed: {mechanism_changed: false, premise_drift: false, gates_changed: false, seams_changed: false, security_surface_changed: false, path_changed: false}
   delta_review: {rounds: 0, pass: true}
+  handoffs: []
+  mismatched: []

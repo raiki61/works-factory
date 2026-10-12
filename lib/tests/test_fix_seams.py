@@ -147,6 +147,53 @@ class TestLeftovers(TempCase):
         with self.assertRaises(leftovers.Unreadable):
             leftovers.remove_new_ignored(self.place, self.repo, skip=SKIP)
 
+    def test_keeps_files_inside_old_ignored_dirs_and_empty_dirs(self):
+        """F418: 前から在った無視されるフォルダ（svc/.venv）に足したファイルは 1 本も消さず、新しく出来た無視されるフォルダは丸ごと
+        消す。前から在った空のフォルダ（build/empty・追跡するフォルダの下の src/cache）に置かれた無視されるファイルは消すがフォルダは
+        残し、後から出来たフォルダは消す。フォルダの控えの無い古い形の控えは拒んで何も消さない（元 works/tests/test_blk_fix.py:1641
+        test_keeps_new_files_inside_ignored_dir_that_was_there_before・:1661 test_keeps_empty_dir_that_was_there_before・:1682
+        test_refuses_old_record_without_dirs の写し）"""
+        (self.repo / ".gitignore").write_text("*.log\n.venv/\nvendored/\n__pycache__/\n*.pyc\n**/.venv\n", encoding="utf-8")
+        (self.repo / "src").mkdir()
+        (self.repo / "src" / "keep.txt").write_text("k\n", encoding="utf-8")
+        git(self.repo, "add", ".gitignore", "src/keep.txt")
+        git(self.repo, "commit", "-q", "-m", "ignore")
+        venv = self.repo / "svc" / ".venv"
+        (venv / "lib").mkdir(parents=True)
+        (venv / "lib" / "old.py").write_text("o\n", encoding="utf-8")
+        (self.repo / "build" / "empty").mkdir(parents=True)
+        (self.repo / "src" / "cache").mkdir()
+        leftovers.record_ignored(self.place, self.repo)
+        added = [venv / "lib" / "pkg" / f"m{i}.py" for i in range(5)]
+        added[0].parent.mkdir()
+        for p in added:
+            p.write_text("m\n", encoding="utf-8")
+        (self.repo / "svc2" / ".venv" / "lib").mkdir(parents=True)
+        (self.repo / "svc2" / ".venv" / "lib" / "n.py").write_text("n\n", encoding="utf-8")
+        (self.repo / "build" / "empty" / "x.pyc").write_bytes(b"x")
+        (self.repo / "src" / "cache" / "y.pyc").write_bytes(b"y")
+        (self.repo / "src" / "new" / "__pycache__").mkdir(parents=True)
+        (self.repo / "src" / "new" / "__pycache__" / "z.pyc").write_bytes(b"z")
+        got = leftovers.remove_new_ignored(self.place, self.repo, skip=SKIP)
+        removed = json.loads((self.place / leftovers.REMOVED_FILE).read_text(encoding="utf-8"))["removed"]
+        self.assertEqual(got["count"], len(removed))
+        self.assertEqual([p for p in added if not p.exists()], [], "前から在った .venv に足したファイルは残す")
+        self.assertTrue((venv / "lib" / "old.py").exists())
+        self.assertFalse((self.repo / "svc2").exists(), "修正役の後に出来た無視のフォルダは消す")
+        self.assertTrue((self.repo / "build" / "empty").is_dir(), "前から在った空のフォルダは残す")
+        self.assertFalse((self.repo / "build" / "empty" / "x.pyc").exists())
+        self.assertTrue((self.repo / "src" / "cache").is_dir(), "前から在った空のフォルダは残す")
+        self.assertFalse((self.repo / "src" / "cache" / "y.pyc").exists())
+        self.assertFalse((self.repo / "src" / "new").exists(), "修正役の後に出来たフォルダは消す")
+        self.assertTrue((self.repo / "src" / "keep.txt").exists())
+        with self.subTest("フォルダの控えの無い古い形の控え"):
+            (self.place / leftovers.IGNORED_BEFORE_FILE).write_text(json.dumps({"ignored": []}), encoding="utf-8")
+            (self.repo / "__pycache__").mkdir()
+            (self.repo / "__pycache__" / "x.pyc").write_bytes(b"x")
+            with self.assertRaisesRegex(leftovers.Unreadable, "dirs"):
+                leftovers.remove_new_ignored(self.place, self.repo, skip=SKIP)
+            self.assertTrue((self.repo / "__pycache__" / "x.pyc").exists())
+
 
 class TestWritesSeams(TempCase):
     def setUp(self):
@@ -1561,6 +1608,19 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual(fixboard.objection([{"objection": "前提が違う"}, {"rejudge_requested": "前提が違う"}, {}]), "前提が違う")
         self.assertEqual(fixboard.allowed_tests(self.place, [{"allowed_test_changes": ["t/a.py"]}]), ["t/a.py"])
 
+    def test_changed_marks_or_over_groups_and_ruled(self):
+        """F138: 修正役の 6 つの印は、戻せた組の子の結果（group_result の changed）と裁定の後の返答（reply_marks の changed）の
+        論理和。組 1 が真・組 2 が偽なら真、全部偽なら偽"""
+        off = {k: False for k in fixboard.CHANGED_MARKS}
+        g1 = fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
+                                   reply={**off, "mechanism_changed": True})
+        g2 = fixboard.group_result({"group_id": "g2", "unit_ids": []}, start_tree="", end_tree="", tdd=None, reply=dict(off))
+        ruled = fixboard.reply_marks({"seams_changed": True})
+        got = fixboard.changed_marks([g1, g2, ruled])
+        self.assertEqual(got, {**off, "mechanism_changed": True, "seams_changed": True})
+        self.assertEqual(fixboard.changed_marks([g2, fixboard.reply_marks({})]), off)
+        self.assertEqual(fixboard.changed_marks([g2, g1]), {**off, "mechanism_changed": True}, "後の組が偽でも前の組の真は残る")
+
     def test_delta_review_counts_rounds(self):
         d = self.place / fixboard.DELTA_DIR
         self.assertEqual(fixboard.delta_review(self.place), ({"rounds": 0, "pass": False}, False))
@@ -1750,7 +1810,7 @@ class GroupChildSeamCase(TempCase):
                                     reply=reply, reply_file="/r.json", allowed=["t.py", "t.py"], conflicts=[{"id": 1}])
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                     "objection", "changed", "allowed_test_changes", "allowed_tests", "verified", "reply_file",
-                                    "tdd_state", "worktree"})
+                                    "tdd_state", "worktree", "handoffs", "mismatched"})
         self.assertEqual(got["worktree"], "", "渡さなければ空")
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
@@ -1761,6 +1821,9 @@ class GroupChildSeamCase(TempCase):
         row = {"path": "t.py", "permit": "plan-rewrite-1", "source": "plan"}
         self.assertEqual(fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
                                                allowed_rows=[row, "壊れた行"])["allowed_tests"], [row])
+        final = fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
+                                      reply={"changes": [{"unit_key": "a", "breaks": {"accepted": "x"}}]}, mismatched=["m", "m"])
+        self.assertEqual((final["handoffs"], final["mismatched"]), (["a: 壊すと分かって通した——x"], ["m"]))
         empty = fixboard.group_result({"group_id": "g2", "unit_ids": []}, start_tree="", end_tree="", tdd=None)
         self.assertEqual((empty["tdd"]["ran"], empty["objection"], empty["reply_file"]), (False, "", ""))
         self.assertFalse(any(empty["changed"].values()))

@@ -12,6 +12,9 @@ fix_plan_item の項目、objection・changed・allowed_test_changes は戻せ�
 レンズの集め役の事実は diff の隣の lenses.json（{collector: {ok, reason}}。集め役が書かずに落ちた・走らなかった時は ok: false）。
 累積差分（修正前の版 fixboard.base_rev_of から。未追跡を含み .archon/ の下は除く）は置き場の fix.diff に書いて指し札にする（空なら理由のファイルを指す）。
 diff の隣（置き場）に許したテストの変更の訳 allowed-tests.json = [{path, permit, source}]（fixboard.allowed_test_rows）を置く。
+最後の関所を開ける理由の 2 欄（元 works/darkfactory/lib/line_edge.py:800 _final_needs）: handoffs は修正役が人に回した物
+（子の結果の handoffs と裁定の後の返答の changes[].breaks.accepted。fixboard.handoff_lines）、mismatched は直したという申告と
+機械の数え直しが合わない単位（子の結果の mismatched と親の置き場の閉鎖の表。fixboard.mismatched_lines）。形 group は自分の結果の行だけ。
 この節は落ちない: 中の誤りは全部捕まえ、done: false・理由（units と groups の reason）・ほかは空の値で返し、終了の値は 0
 （diff は理由のファイル fix-collect-error.txt を指し、その隣の allowed-tests.json は空の []）。
 """
@@ -51,8 +54,9 @@ def diff_pointer(fixboard, place: Path, why: str = "") -> dict:
     return boundary.pointer(rel(place, "fix-diff-none.txt"))
 
 
-def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review, done) -> dict:
-    """返りの欄（組と単位の行は rows_groups = (組の行, 単位の行)。groups は組の分け、extras は子の結果と修正役の返答）"""
+def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review, done, final) -> dict:
+    """返りの欄（組と単位の行は rows_groups = (組の行, 単位の行)。groups は組の分け、extras は子の結果と修正役の返答、final は
+    最後の関所を開ける理由の行 (handoffs, mismatched)）"""
     rows = conflict.items(place)
     groups_rows, units_rows = rows_groups
     fixboard.write_json(place / fixboard.ALLOWED_TESTS_FILE, fixboard.allowed_test_rows(place, extras))
@@ -61,7 +65,8 @@ def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review,
             "replan_items": fixboard.replan_items(rows, groups),
             "objection": fixboard.objection(extras), "diff": diff_pointer(fixboard, place),
             "allowed_test_changes": fixboard.allowed_tests(place, extras),
-            "changed": fixboard.changed_marks(extras), "delta_review": review}
+            "changed": fixboard.changed_marks(extras), "delta_review": review,
+            "handoffs": final[0], "mismatched": final[1]}
 
 
 def block(fixboard, conflict) -> dict:
@@ -78,11 +83,15 @@ def block(fixboard, conflict) -> dict:
     rows_groups = (rows_groups[0], fixboard.with_ruled(rows_groups[1], fixboard.read_json(place / fixboard.FIX_UNITS_FILE)))
     back = [g["group_id"] for g in rows_groups[0] if g["returned"]]
     results = [fixboard.read_json(Path(plan["out_dir"]) / gid / fixboard.RESULT_FILE) for gid in back]
-    extras = [r for r in results if isinstance(r, dict)] + [fixboard.read_json(place / fixboard.RULED_REPLY_FILE)]
+    results = [r for r in results if isinstance(r, dict)]
+    ruled = fixboard.read_json(place / fixboard.RULED_REPLY_FILE)
+    extras = results + ([ruled] if ruled is not None else [])
     review, _ = fixboard.delta_review(place)
     checked = fixboard.read_json(place / fixboard.ASSERT_FILE) or {}
     done = isinstance(joined, dict) and checked.get("ok") is True and review["pass"]
-    return fields(fixboard, conflict, place, rows_groups, plan["groups"], [r for r in extras if r is not None], review, done)
+    final = (fixboard.final_lines(results, "handoffs", fixboard.handoff_lines([ruled])),
+             fixboard.final_lines(results, "mismatched", fixboard.mismatched_lines(place)))
+    return fields(fixboard, conflict, place, rows_groups, plan["groups"], extras, review, done, final)
 
 
 def group(fixboard, conflict) -> dict:
@@ -95,7 +104,8 @@ def group(fixboard, conflict) -> dict:
         result = None
     rows_groups = fixboard.join_rows([g], {gid: (result, result is not None, "" if result else fixboard.NO_RESULT)})
     extras = [result] if result else []
-    return fields(fixboard, conflict, place, rows_groups, [g], extras, dict(NO_REVIEW), result is not None)
+    final = (fixboard.final_lines(extras, "handoffs"), fixboard.final_lines(extras, "mismatched"))
+    return fields(fixboard, conflict, place, rows_groups, [g], extras, dict(NO_REVIEW), result is not None, final)
 
 
 def error_pointer(why: str) -> dict:
@@ -162,7 +172,7 @@ def fallback(why: str) -> dict:
         groups_rows = [{"group_id": "", "unit_ids": [], "returned": False, "reason": why}]
     return {"done": False, "units": units_rows, "groups": groups_rows, "conflicts": None, "replan_items": [],
             "objection": "", "diff": error_pointer(why), "allowed_test_changes": [],
-            "changed": {k: False for k in CHANGED_MARKS}, "delta_review": dict(NO_REVIEW)}
+            "changed": {k: False for k in CHANGED_MARKS}, "delta_review": dict(NO_REVIEW), "handoffs": [], "mismatched": []}
 
 
 def main() -> dict:

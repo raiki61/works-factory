@@ -786,6 +786,35 @@ def objection(results) -> str:
     return "\n".join(out)
 
 
+def handoff_lines(replies) -> list:
+    """修正役が人に回した物（1 件 1 行）: 受け付けた返答（replies。dict の並び）の changes[].breaks.accepted（壊すと分かっていて
+    通す理由。空白だけの行は除く）。元 works/.shared/core/report.py:304 の handoff_lines（今の周の修正の返答を盤面から読んだ所を
+    返答の値で受ける）"""
+    out = []
+    for reply in replies:
+        for c in (reply or {}).get("changes") or [] if isinstance(reply, dict) else []:
+            got = (c.get("breaks") or {}).get("accepted") if isinstance(c, dict) and isinstance(c.get("breaks"), dict) else None
+            if isinstance(got, str) and got.strip():
+                out.append(f"{c.get('unit_key')}: 壊すと分かって通した——{' '.join(got.split())}")
+    return out
+
+
+def mismatched_lines(place) -> list:
+    """置き場 place の閉鎖の表（querytest.save_closure。修正の受け付けが数え直した表）のうち、直したという申告と機械の数え直しが
+    合わない単位の行（querytest.closure_lines の mismatched_only）"""
+    import querytest
+    return querytest.closure_lines(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), mismatched_only=True)
+
+
+def final_lines(results, field: str, more=()) -> list:
+    """組の子の結果 results の欄 field（handoffs・mismatched の行の並び）と more を、重ねずに現れた順でつないだ並び"""
+    out: list = []
+    for line in [*(x for r in results for x in (r or {}).get(field) or []), *more]:
+        if isinstance(line, str) and line.strip() and line not in out:
+            out.append(line)
+    return out
+
+
 def delta_review(place) -> tuple:
     """({rounds, pass}, 飛ばしたか)。置き場の delta/ の下の審査の控え review-1.json・review-2.json（{pass}）の数と最後の pass。
     審査を飛ばした印 skipped.json（全部の単位が軽量・差分が空で塞いだ穴も無い）が在れば ({rounds: 0, pass: True}, True)。どちらも無ければ審査は走らなかった
@@ -1362,10 +1391,11 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
-                 reply_file: str = "", allowed=(), allowed_rows=(), conflicts=(), worktree: str = "") -> dict:
+                 reply_file: str = "", allowed=(), allowed_rows=(), conflicts=(), worktree: str = "", mismatched=()) -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed,
-    allowed_test_changes, allowed_tests, verified, reply_file, tdd_state, worktree}。allowed_rows は許しの訳（allowed_test_rows の行）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
+    allowed_test_changes, allowed_tests, verified, reply_file, tdd_state, worktree, handoffs, mismatched}。allowed_rows は許しの訳
+    （allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の mismatched_lines（最後の関所を開ける理由）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
     writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
@@ -1383,7 +1413,8 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "allowed_test_changes": sorted({p for p in allowed or [] if isinstance(p, str) and p}),
             "allowed_tests": [r for r in allowed_rows or [] if isinstance(r, dict)],
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
-            "worktree": str(worktree or "")}
+            "worktree": str(worktree or ""), "handoffs": handoff_lines([reply] if reply else []),
+            "mismatched": final_lines([], "", mismatched)}
 
 
 def adopt_tdd_states(place, results, repo) -> list:

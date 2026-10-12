@@ -15,6 +15,8 @@
 - split(reply, is_open): 例と理由を外した返答の写しと {単位の key: {例・理由・unproven}}
 - save(board, examples, replace)・restore(doc, board): 盤面の query-examples.json に置く・判定の写しの class_query に戻す（印は戻さない）
 - save_closure(b, rows): 修正の受け付けが問いを数え直した単位ごとの閉鎖の表を置く
+- closure_rows(b)・closure_lines(b, mismatched_only=, stuck_only=, claimed=): 今の周の閉鎖の表の行と、最後の関所と報告に載せる
+  行（合わない単位・閉じていない単位・減っていない単位）
 """
 import json
 import pathlib
@@ -225,3 +227,59 @@ def save_closure(b, rows: list) -> pathlib.Path:
     tmp.write_text(json.dumps({"round": b.round, "rows": rows}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     tmp.replace(p)
     return p
+
+
+def _stuck(r: dict) -> bool:
+    """欠陥の形を数える問い（defects）で、修正前に当たりが在り、修正後に 1 件も減っていない行（population は直しても減らない母集団）"""
+    total, after = r.get("total"), r.get("after")
+    return (r.get("counts") == "defects" and isinstance(total, int) and isinstance(after, int) and total > 0
+            and after >= total)
+
+
+def closure_rows(b) -> list:
+    """今の周の閉鎖の表の行（表が無い・読めない・前の周の物なら空）。表は save_closure が置いた b.scope_root の物（元
+    works/.shared/core/querytest.py:239 は盤面の根と登録した scope の根の表から今の周の最後の物を読んだ。置き場は include ごとに
+    分かれるので、渡された置き場の 1 つだけを読む）"""
+    try:
+        doc = json.loads((pathlib.Path(b.scope_root) / CLOSURE_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    if not isinstance(doc, dict) or doc.get("round") != getattr(b, "round", None):
+        return []
+    return [r for r in doc.get("rows") or [] if isinstance(r, dict)]
+
+
+def closure_lines(b, *, mismatched_only: bool = False, stuck_only: bool = False, claimed=()) -> list:
+    """最後の関所と報告に載せる今の周の表の行（1 件 1 行）: 申告と数え直しが合わない単位と、数え直しで閉じていない単位と、
+    問いの当たりの外に site を並べた単位（パスを並べる。合わないには数えない）。当たりが減っていない単位（_stuck）は
+    見出し STUCK_HEAD の節に分けて stuck_only で返し、既定の列からは外す（二重に並べない）。
+    mismatched_only は合わない単位だけ（前は返答全体を拒んだ形で、関所を開ける理由になる。減っていない単位も含む）。
+    claimed は修正役が changes に載せた単位の key で、表に行が無い物は既定の列に名指しで足す（申告だけでは閉じたと言わない）。
+    元 works/.shared/core/querytest.py:254 の写し"""
+    rows = closure_rows(b)
+    out = []
+    for r in rows:
+        bad = r.get("discrepancies") or []
+        outside = r.get("out_of_query") or []
+        if stuck_only:
+            show = _stuck(r)
+        elif mismatched_only:
+            show = bool(bad)
+        else:
+            show = not _stuck(r) and bool(bad or r.get("closed") is False or outside)
+        if show:
+            state = "閉じた" if r.get("closed") else "閉じていない"
+            out.append(f"{r.get('unit_key')}: {state}（{r.get('counts')}・修正前 {r.get('total')}・修正後 {r.get('after')}・"
+                       f"申告の site {r.get('claimed')}" + (f"・修正で覆った当たり {r['covered']}" if r.get("bound") else
+                                                         f"・機械が覆いに数えた {r['covered']}"
+                                                         if r.get("covered") != r.get("claimed") else "") +
+                       f"・問い {r.get('how_from')}）" + (f"——合わない: {' / '.join(bad)}" if bad else "") +
+                       (f"——site が名指さず変更で覆った当たりのファイル: {', '.join(r['changed_cover'])}" if r.get("changed_cover") else "") +
+                       (f"——site が名指したが修正で変わっていない当たりのファイル: {', '.join(r['unchanged_sites'])}"
+                        if r.get("unchanged_sites") else "") +
+                       (f"——問いの外の site {len(outside)} 件: {', '.join(outside)}" if outside else ""))
+    if not (stuck_only or mismatched_only):
+        seen = {r.get("unit_key") for r in rows}
+        out += [f"{k}: 閉鎖の表に行が無い（修正役の申告だけで、機械の数え直しで閉じたと確かめていない）"
+                for k in claimed if k not in seen]
+    return out

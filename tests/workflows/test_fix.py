@@ -34,7 +34,10 @@ if str(LIB / "graphloops") not in sys.path:
 from engine.schema import validate_schema  # noqa: E402  （output_format の照らし。jsonschema に頼らない lib の小道具）
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
-                   "changed", "delta_review"}
+                   "changed", "delta_review", "handoffs", "mismatched"}
+# 最後の関所を開ける理由の 2 欄。collect はいつも返すが、線の筋書きの代わりの返り（workflows/line/fixtures/）が持たないので
+# required に入れない（線が読む配線と一緒に入れる）
+FINAL_REASON_FIELDS = {"handoffs", "mismatched"}
 CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "world", "plan", "ripple", "depth", "answers"}
 EXTRA_INPUTS = {"only_items", "mode", "group", "from_tree", "out_dir"}
 CHANGED_MARKS = {"mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
@@ -118,7 +121,7 @@ def refs(text: str) -> set:
 
 
 class ContractCase(unittest.TestCase):
-    """返す節 fix の output_format が約束の 10 欄をちょうど持つ"""
+    """返す節 fix の output_format が約束の 12 欄をちょうど持つ（10 欄と、最後の関所を開ける理由の 2 欄 handoffs・mismatched）"""
 
     def setUp(self):
         self.doc = load()
@@ -132,7 +135,7 @@ class ContractCase(unittest.TestCase):
 
     def test_exact_fields_all_required_and_closed(self):
         self.assertEqual(set(self.fmt["properties"]), CONTRACT_FIELDS)
-        self.assertEqual(set(self.fmt["required"]), CONTRACT_FIELDS)
+        self.assertEqual(set(self.fmt["required"]), CONTRACT_FIELDS - FINAL_REASON_FIELDS)
         self.assertIs(self.fmt["additionalProperties"], False)
         self.assertEqual(self.fmt["properties"]["done"], {"type": "boolean"})
 
@@ -148,7 +151,7 @@ class ContractCase(unittest.TestCase):
         self.assertEqual(set(props["changed"]["required"]), CHANGED_MARKS)
         self.assertTrue(all(v == {"type": "boolean"} for v in props["changed"]["properties"].values()))
         self.assertEqual(set(props["delta_review"]["required"]), {"rounds", "pass"})
-        for name in ("replan_items", "allowed_test_changes"):
+        for name in ("replan_items", "allowed_test_changes", "handoffs", "mismatched"):
             self.assertEqual(props[name]["items"], {"type": "string"})
         self.assertEqual(props["objection"], {"type": "string"})
         pointer = props["diff"]
@@ -889,6 +892,7 @@ class BlockScriptsCase(unittest.TestCase):
 
     def assert_contract(self, out):
         self.assertEqual(validate_schema(out, self.fmt), [], out)
+        self.assertEqual(set(out), CONTRACT_FIELDS, "返す節は required に無い欄も全部返す")
 
     # ---- route.py
     def test_route_returns_the_shape_of_the_mode(self):
@@ -1178,6 +1182,44 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertIn("E8 = 8\n", e, "後の組の直しは戻す")
         self.assertEqual((self.repo / "b.py").read_text(encoding="utf-8"), "def triple(x):\n    return x * 3 + 1\n")
 
+    # ---- conflict_check.py
+    def test_conflict_check_gathers_child_claims_and_goes(self):
+        """F208: 組を戻した後、戻せた組の子の申し出（結果の conflicts）を親の置き場の conflicts.json に集める。名指した行が親の作業
+        ツリーに無くなった申し出は積まずに conflicts-dropped.json に名指し、戻せなかった組の申し出は裁かない。裁く申し出が在る時だけ
+        go: true（裁定の輪を回す）"""
+        claim = {"unit_key": "A", "between": ["stats.py:9", "test_stats.py:8"], "why_both_cannot_hold": "期待と判定が食い違う",
+                 "which_is_right": "request", "kind": "test_vs_request", "source": "tdd"}
+        gone = {**claim, "unit_key": "B", "between": ["stats.py:900", "test_stats.py:8"]}
+        start = self.snapshot(self.repo)
+        out_dir = self.groups_file([{"group_id": g, "unit_ids": [k], "items": []} for g, k in (("g1", "A"), ("g2", "B"), ("g3", "C"))],
+                                   start, par=False)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], start, start, conflicts=[claim]))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], start, start, conflicts=[gone]))
+        _blk_write(out_dir / "g3" / "result.json", _blk_result("g3", ["C"], start, start, conflicts=[{**claim, "unit_key": "C"}]))
+        _blk_write(self.place / "join.json", {"par": False, "units": [], "groups": [
+            {"group_id": "g1", "unit_ids": ["A"], "returned": True, "reason": ""},
+            {"group_id": "g2", "unit_ids": ["B"], "returned": True, "reason": ""},
+            {"group_id": "g3", "unit_ids": ["C"], "returned": False, "reason": "当たらない"}]})
+        code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out, {"go": True, "count": 1})
+        items = json.loads((self.place / "conflicts.json").read_text(encoding="utf-8"))["items"]
+        self.assertEqual([(r["unit_key"], r["source"], r["status"]) for r in items], [("A", "tdd", "parked")])
+        dropped = json.loads((self.place / "conflicts-dropped.json").read_text(encoding="utf-8"))["dropped"]
+        self.assertEqual(len(dropped), 1)
+        self.assertIn("B", dropped[0])
+        with self.subTest("申し出の無い run は裁定の輪を回さない"):
+            __import__("shutil").rmtree(self.place)
+            self.place.mkdir(parents=True)
+            out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": []}], start, par=False)
+            _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], start, start))
+            _blk_write(self.place / "join.json", {"par": False, "units": [], "groups": [
+                {"group_id": "g1", "unit_ids": ["A"], "returned": True, "reason": ""}]})
+            code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
+            self.assertEqual(code, 0, err)
+            self.assertEqual(out, {"go": False, "count": 0})
+            self.assertFalse((self.place / "conflicts-dropped.json").exists())
+
     # ---- tdd_unit.py
     def test_tdd_unit_writes_one_body_for_all_groups(self):
         start = self.snapshot(self.repo)
@@ -1373,6 +1415,107 @@ class BlockScriptsCase(unittest.TestCase):
             beside = (self.art / json.loads(done.stdout)["diff"]["path"]).parent / fixboard.ALLOWED_TESTS_FILE
             self.assertEqual(json.loads(beside.read_text(encoding="utf-8")), [])
 
+    def test_collect_returns_handoffs_and_mismatched_units(self):
+        """最後の関所を開ける理由の 2 欄（元 works/darkfactory/lib/line_edge.py:800 _final_needs の handoffs・mismatched）:
+        handoffs は修正役が人に回した物（受け付けた返答の changes[].breaks.accepted。元 works/.shared/core/report.py:304
+        handoff_lines）、mismatched は直したという申告と機械の数え直しが合わない単位（閉鎖の表の discrepancies の在る行。元
+        works/.shared/core/querytest.py:254 closure_lines の mismatched_only）。組の子の結果の行と、親の置き場の裁定の後の返答と
+        閉鎖の表の行を重ねずに並べる。形 group は自分の結果の行だけ、返りを組めない道は空"""
+        import fixboard
+        import querytest
+        child = {"handoffs": ["A: 壊すと分かって通した——古い呼び出しを捨てる"],
+                 "mismatched": ["A: 閉じていない（defects・修正前 3・修正後 1・申告の site 3・問い 判定者）——合わない: 残り 1"]}
+        self.collect_place(result_extra=child)
+        _blk_write(self.place / fixboard.RULED_REPLY_FILE, {"changes": [
+            {"unit_key": "B", "breaks": {"how": "h", "result": "r", "accepted": "  外の利用者の\n挙動が変わる  "}},
+            {"unit_key": "C", "breaks": {"how": "h", "result": "r", "accepted": " "}},
+            {"unit_key": "A", "breaks": {"how": "h", "result": "r"}}]})
+        _blk_write(self.place / querytest.CLOSURE_FILE, {"round": 1, "rows": [
+            {"unit_key": "B", "closed": True, "discrepancies": ["申告の数が問いの数と合わない"]},
+            {"unit_key": "C", "closed": False, "discrepancies": []}]})
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assert_contract(out)
+        self.assertEqual(out["handoffs"], [*child["handoffs"], "B: 壊すと分かって通した——外の利用者の 挙動が変わる"])
+        self.assertEqual(len(out["mismatched"]), 2, out["mismatched"])
+        self.assertEqual(out["mismatched"][0], child["mismatched"][0])
+        self.assertTrue(out["mismatched"][1].startswith("B: 閉じた（"), out["mismatched"])
+        self.assertIn("合わない: 申告の数が問いの数と合わない", out["mismatched"][1])
+        with self.subTest("形 group は自分の結果の行だけ"):
+            start = self.snapshot(self.repo)
+            out_dir = self.tmp / "parent" / "groups"
+            _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], start, start, **child))
+            group = json.dumps({"group_id": "g2", "unit_ids": ["B"], "items": []})
+            code, out, err = _blk_run("collect", self.repo, self.art, {"mode": "group", "group": group, "out_dir": str(out_dir)},
+                                      "collect")
+            self.assertEqual(code, 0, err)
+            self.assertEqual((out["handoffs"], out["mismatched"]), (child["handoffs"], child["mismatched"]))
+        with self.subTest("返りを組めない道"):
+            __import__("shutil").rmtree(self.art, ignore_errors=True)
+            self.place.mkdir(parents=True)
+            code, out, err = _blk_run("collect", self.repo, self.art)
+            self.assertEqual(code, 0, err)
+            self.assert_contract(out)
+            self.assertEqual((out["done"], out["handoffs"], out["mismatched"]), (False, [], []))
+
+    def test_collect_diff_holds_every_returned_group(self):
+        """F424: 返りの diff は run の始めの版（prep が控えた base-rev.json）から今の作業ツリーへの累積差分の指し札で、戻せた組の
+        全部の直し（未追跡の新しいファイルも）が載り、.archon/ の下は載らない。途中で HEAD が進んでも始めの版から取る。差分が無ければ
+        空の差分の訳のファイルを指す（元 works/.shared/core/graphloops/rules/review-loop.py:1567 の fix_delta と線の差分）"""
+        import fixboard
+        fixboard.record_base_rev(self.place, self.repo)
+        start = self.snapshot(self.repo)
+        t1 = self.tree_with({"stats.py": (self.repo / "stats.py").read_text(encoding="utf-8").replace("len(xs) - 1", "len(xs)")})
+        t2 = self.tree_with({"extra.py": "X = 1\n"})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual((code, out), (0, {"groups": 2, "returned": 2}), err)
+        git(self.repo, "commit", "-qam", "途中で HEAD が進む")
+        (self.repo / ".archon").mkdir()
+        (self.repo / ".archon" / "run.json").write_text("{}\n", encoding="utf-8")
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assert_contract(out)
+        self.assertEqual(out["diff"]["path"], "fix/fix/fix.diff")
+        diff = (self.art / out["diff"]["path"]).read_text(encoding="utf-8")
+        self.assertIn("b/stats.py", diff)
+        self.assertIn("/ (len(xs))", diff)
+        self.assertIn("b/extra.py", diff)
+        self.assertNotIn(".archon", diff)
+        with self.subTest("差分が無い"):
+            (self.place / "fix.diff").unlink()
+            git(self.repo, "reset", "-q", "--hard", fixboard.base_rev_of(self.place))
+            git(self.repo, "clean", "-qfd", "-e", ".archon")
+            code, out, err = _blk_run("collect", self.repo, self.art)
+            self.assertEqual(code, 0, err)
+            self.assertEqual(out["diff"]["path"], "fix/fix/fix-diff-none.txt")
+            self.assertIn("空", (self.art / out["diff"]["path"]).read_text(encoding="utf-8"))
+
+    def test_collect_conflicts_pointer_only_with_rows(self):
+        """F425: 返りの conflicts は申し出と裁定の置き場 conflicts.json の指し札で、行が無ければ null（置き場のファイルが空の行でも
+        null）。replan_items は裁定 fix_plan_item が誤りとした項目の番号（欄 plan_items、無ければその単位の組の項目）"""
+        self.collect_place()
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assertEqual((out["conflicts"], out["replan_items"]), (None, []))
+        self.collect_place(conflicts=[])
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assertIsNone(out["conflicts"], "行の無い conflicts.json は指さない")
+        row = {"id": "c1-1", "round": 1, "source": "fix", "unit_key": "A", "between": ["stats.py:9", "test_stats.py:8"],
+               "why_both_cannot_hold": "案の項目が判定と食い違う", "which_is_right": "request", "kind": "brief_vs_judgment",
+               "status": "ruled", "ruling": {"decision": "fix_plan_item", "text": "項目が誤り", "limits": []}, "replan": "waiting"}
+        self.collect_place(conflicts=[row, {**row, "id": "c1-2", "unit_key": "B",
+                                             "ruling": {"decision": "ask_human", "text": "人に聞く", "limits": []}}])
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assert_contract(out)
+        self.assertEqual(out["conflicts"], {"type": "archon_artifact", "run_id": _BLK_RUN, "path": "fix/fix/conflicts.json"})
+        self.assertEqual(out["replan_items"], ["1"], "欄 plan_items の無い裁定はその単位の組の項目")
+
     def test_collect_never_fails(self):
         cases = {
             "start_not_json": lambda: {"start": "{not json"},
@@ -1444,6 +1587,30 @@ class BlockScriptsCase(unittest.TestCase):
     def test_assert_changed_refuses_empty_declaration(self):
         out = self.assert_case([], ["stats.py"])
         self.assertFalse(out["ok"])
+
+    def test_assert_changed_reads_japanese_and_untracked_names(self):
+        """F419: 日本語の名前は git の引用（"\\346\\227\\245..."）でなくそのままの名で申告と突き合わせ、未追跡の新しいファイルも変わった
+        物に数える。申告したのに変わっていないファイルと、テストを走らせただけ（無視される __pycache__ が出来ただけ）の木は通さず、
+        落ちずに ok: false と理由を書く（元 works/tests/test_blk_fix.py:450 test_japanese_names_pass・:436
+        test_untracked_file_passes・:428 test_declared_but_unchanged_file_fails・:413 test_running_tests_only_fails の写し）"""
+        (self.repo / "日本.py").write_text("x = 1\n", encoding="utf-8")
+        git(self.repo, "add", "日本.py")
+        git(self.repo, "commit", "-qm", "日本")
+        out = self.assert_case(["日本.py", "未追跡.py"], ["日本.py", "未追跡.py"])
+        self.assertEqual(out, {"ok": True, "reason": ""})
+        self.restore()
+        with self.subTest("申告したのに変わっていない"):
+            out = self.assert_case(["stats.py", "test_stats.py"], ["stats.py"])
+            self.assertFalse(out["ok"])
+            self.assertIn("test_stats.py", out["reason"])
+        self.restore()
+        with self.subTest("テストを走らせただけ"):
+            run = subprocess.run([sys.executable, "-m", "unittest", "-q"], cwd=self.repo, capture_output=True, text=True,
+                                 env={"PATH": os.environ["PATH"]})
+            self.assertTrue(list(self.repo.glob("__pycache__/*.pyc")), run.stderr)
+            out = self.assert_case(["stats.py"], [])
+            self.assertFalse(out["ok"])
+            self.assertIn("stats.py", out["reason"])
 
 
 _GRP_RUN = "wf-grp"
@@ -1828,7 +1995,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "allowed_test_changes", "allowed_tests", "verified", "reply_file",
-                                       "tdd_state", "worktree"})
+                                       "tdd_state", "worktree", "handoffs", "mismatched"})
         self.assertEqual(result["tdd_state"], "", "輪の無い組")
         self.assertEqual(result["worktree"], os.path.realpath(self.repo))
         self.assertEqual(result["units"], [{"unit_id": _GRP_MEAN, "status": "fixed", "reason": ""}])

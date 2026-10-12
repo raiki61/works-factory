@@ -9,7 +9,9 @@ tdd-start.json（TDD の輪の頭の返り。輪の結果は tddloop.exit_fields
 {unit_key: {status, reason}}）・fix-reply.json（最後に受け付けた修正役の返答。異議 rejudge_requested と 6 つの印）・
 granted-tests.json（許したテストの変更のパス）・conflicts.json（申し出。conflict.items）。終わりの木は作業ツリーの今の姿
 （groups.end_tree）。子の作業ツリーの実パスも載せる（join がそこから子の書き込みの記録を引き、
-親の記録へ写す。fixio.writes_log）。許したテストの変更の訳（fixboard.allowed_test_rows。親の collect が allowed-tests.json に集める）も載せる。
+親の記録へ写す。fixio.writes_log）。許したテストの変更の訳（fixboard.allowed_test_rows。親の collect が allowed-tests.json に集める）と、
+最後の関所を開ける理由の行（修正役が人に回した物 handoffs と、自分の置き場の閉鎖の表で申告と数え直しが合わない単位 mismatched。
+fixboard.mismatched_lines）も載せる。
 TDD の輪の状態が済んでいなければ tdd を ran: false と理由にする。前の節が落ちた子ではこの節は走らず、結果のファイルは無い
 （並べない run は、その子が親の作業ツリーに残した変更を次の組の group-start か join が戻す。fixboard.drop_unreturned）。
 書く先: 入力 out_dir が在ればその下の <group_id>/result.json、空の単独の run は自分の置き場の groups/<group_id>/result.json。
@@ -61,7 +63,7 @@ def main() -> dict:
         reply_file=str(reply_path) if reply_path.is_file() else "",
         allowed=fixboard.read_json(place / fixboard.GRANTED_TESTS_FILE, []) or [],
         allowed_rows=fixboard.allowed_test_rows(place), conflicts=conflict.items(place),
-        worktree=os.path.realpath(repo))
+        worktree=os.path.realpath(repo), mismatched=fixboard.mismatched_lines(place))
     target = gdir / fixboard.RESULT_FILE
     fixboard.write_json(target, result)
     return {"result_file": str(target)}
