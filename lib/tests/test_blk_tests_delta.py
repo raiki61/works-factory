@@ -78,6 +78,18 @@ class TestDeltaPlace(RF.DeltaPlaceCase):
             brief = self.brief(self.cut())
         self.assertEqual(brief["protected_files"], [{"path": "stats.py", "id": "seed-core", "glob": "stats.py", "why": "種の芯"}])
 
+    def test_cut_brief_lists_files_the_target_declares_protected(self):
+        """対象のリポジトリが修正前の版で守ると宣言したファイルも protected_files に並ぶ（修正役が作業ツリーで宣言を消しても）"""
+        (self.repo / protect.TARGET_FILE).write_text(
+            json.dumps({"rules": [{"id": "core", "glob": "stats.py", "why": "対象の芯"}]}), encoding="utf-8")
+        git(self.repo, "add", protect.TARGET_FILE)
+        git(self.repo, "commit", "-q", "-m", "declare")
+        self.base = fixboard.record_base_rev(self.place, self.repo)
+        self.fixed(before_fix=lambda repo: (repo / protect.TARGET_FILE).unlink())
+        rows = self.brief(self.cut())["protected_files"]
+        self.assertEqual([(r["path"], r["id"]) for r in rows],
+                         [(protect.TARGET_FILE, protect.TARGET_SELF["id"]), ("stats.py", protect.TARGET_ID + "core")])
+
     def test_cut_brief_carries_plan_items_and_fix_report(self):
         """1 回目の brief に範囲の欄の在る承認済みの修正案の項目（無ければ空）と直した側の報告（changes・not_done）"""
         self.fixed()
