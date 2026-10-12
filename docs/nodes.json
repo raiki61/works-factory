@@ -1,6 +1,5 @@
 {
  "source": {"repo": "raiki61/claude-plugins", "commit": "2aa7c66cf7abe1fe09699ac2942d107123214168", "graph": "works/.shared/core/graphloops/graphs/review-loop.json", "graph_sha": "2eb140b879e5", "table": "works/darkfactory/nodes.json", "keep": "works/docs/keep-essence.md"},
- "pending": {"line": "PR #74 で workflows/line/works-factory-line.yaml が入るまで"},
  "graph": {
   "p0.base": {"by": "machine", "where": ["line/start"], "proof": ["lib/tests/test_startrec.py::StartRecCase.test_shape_readers", "lib/tests/test_accept.py::TestSnapshot.test_snapshot_sees_untracked_content"], "reason": "線の始めの節が始めの記録（base_rev を含む）を書く。未追跡のファイルは作業ツリーの写しが載せる"},
   "p0.local_checks": {"by": "machine", "where": ["test-gate/run", "line/test-gate-base", "line/test-gate-base-out"], "fallback": "role", "fallback_where": ["test-gate/ci-loop", "test-gate/ci-prep", "test-gate/ci", "test-gate/ci-accept"], "proof": ["tests/workflows/test_judge.py::BaselineTest.test_local_checks_come_from_the_baseline", "workflows/test-gate/fixtures/base-role.stubs.yaml", "tests/workflows/test_test_gate.py::ResultScriptCase.test_base_that_cannot_run_is_not_ok"], "reason": "今の works の engine_run。試験の関門の base が対象の宣言で走らせ、走らせ方が無ければ任せ先の CI の役が CI の定義を読んで走らせる。走らなければ緑を仮定しない"},
@@ -54,7 +53,7 @@
   "report.human_items": {"by": "role", "where": ["report/write-loop", "report/write-reject", "report/write"], "proof": ["tests/workflows/test_report.py::AcceptScriptCase.test_cells_and_terms_rejected_first_time"], "reason": "今の works では absent（頭は書き手が本文と一緒に書く）。works-factory も書き手 report/write が頭と人が決めることを書く"},
   "report.cold_check": {"by": "role", "where": ["report/cold-prep", "report/cold"], "proof": ["tests/workflows/test_report.py::AcceptScriptCase.test_cold_redesign_three_times", "tests/workflows/test_report.py::ShapeCase.test_cold_reader_is_told_the_machine_heading"], "reason": "今の works では absent（書き手の輪の初見の読み手が持つ）。works-factory も書き手の輪の初見の読み手 report/cold が頭を確かめる"},
   "report": {"by": "role", "where": ["report/write", "report/accept", "report/facts", "report/report"], "proof": ["workflows/report/fixtures/fixed.stubs.yaml", "tests/workflows/test_report.py::CollectScriptCase.test_without_ai_file_returns_machine_report"]},
-  "p2.rejudge": {"by": "role", "where": ["judge/rejudge-prep", "judge/rejudge-loop", "judge/rejudge-reject", "judge/rejudge", "judge/rejudge-accept", "line/rejudge", "line/rejudge-out"], "skippable": true, "proof": ["tests/workflows/test_judge.py::FixtureTest.test_fixture_rejudge", "tests/workflows/test_judge.py::RejudgedVerdictTest.test_rejudge_returns_its_own_units_and_keeps_the_first_judgment"], "reason": "再審は判定役の会話を継がず、保存した返答を読む新しい会話で回す（downgrades）"},
+  "p2.rejudge": {"by": "role", "where": ["judge/rejudge-prep", "judge/rejudge-loop", "judge/rejudge-reject", "judge/rejudge", "judge/rejudge-accept", "line/rejudge-run", "line/rejudge-run-out"], "skippable": true, "proof": ["tests/workflows/test_judge.py::FixtureTest.test_fixture_rejudge", "tests/workflows/test_judge.py::RejudgedVerdictTest.test_rejudge_returns_its_own_units_and_keeps_the_first_judgment"], "reason": "再審は判定役の会話を継がず、保存した返答を読む新しい会話で回す（downgrades）"},
   "p2.rejudge_third": {"by": "absent", "reason": "新しい会話の第三の目。今の works の写しの規則では再審は 1 周に 1 回でこの節は ready にならず、今の works も absent。works-factory の再審（p2.rejudge）も 1 回だけ"},
   "spec.write": {"by": "role", "where": ["judge/spec-loop", "judge/spec-reject", "judge/spec", "judge/spec-accept"], "proof": ["workflows/judge/fixtures/spec-on.stubs.yaml", "lib/tests/test_judge_accept.py::SpecErrorsCase.test_missing_test_file_and_name_rejected"]},
   "spec.review": {"by": "role", "where": ["judge/spec-review-loop", "judge/spec-review-reject", "judge/spec-review", "judge/spec-review-accept"], "proof": ["lib/tests/test_judge_accept.py::SpecTakeCase.test_review_is_read_only"]},
@@ -115,7 +114,7 @@
   "line/ask-replan": "案の直しの関所の問いを組む節",
   "line/gate-replan": "案の直しの関所",
   "line/answer-replan": "案の直しの関所の答えを読む節",
-  "line/refix": "案の直しの後の修正のブロックを差し込む節",
+  "line/refix-run": "案の直しの後の修正のブロックを差し込む節",
   "line/fixed": "修正の結末をまとめる節",
   "line/redepth": "単位ごとの深さ（軽量で省く目と審査）を決め直す節",
   "line/eyes": "独立の目のブロックを差し込む節",
