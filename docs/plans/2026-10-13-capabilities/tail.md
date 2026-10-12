@@ -1819,7 +1819,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M1 封じる差分は、始めの記録の base_rev（修正の前の HEAD）から今の作業ツリーまでの差で、commit 済み・未追跡を含み、.gitignore に当たる物とバイトコードは含まず、バイナリも載り、本物の index を動かさずに組む
   - 元: works/dev/lib.sh:565-617（`works_dev_show_run` の BRING_BACK の枝。一時の index で read-tree・add -A・diff --cached --binary <base>）
   - 今: wf workflows/merge/scripts/merge.py:54-60 `main` → wf lib/green_cert.py:23 `diff_bytes`
-  - 証: wf tests/workflows/test_merge.py::SealTest.test_seal_hashes_the_written_diff（assert: test_merge.py:181）・wf lib/tests/test_green_cert.py::DiffBytesCase.test_untracked_in_ignored_out_index_unmoved（assert: test_green_cert.py:85-89）・DiffBytesCase.test_rev_is_the_side_compared（assert: :95-96）
+  - 証: wf tests/workflows/test_merge.py::SealTest.test_seal_hashes_the_written_diff（assert: test_merge.py:182）・wf lib/tests/test_green_cert.py::DiffBytesCase.test_untracked_in_ignored_out_index_unmoved（assert: test_green_cert.py:85-89）・DiffBytesCase.test_rev_is_the_side_compared（assert: :95-96）
   - 本物の run: run の置き場の `merge/sealed.diff`（中身が種の stats.py の直し）
   - 狭め: 無し
 
@@ -1833,42 +1833,42 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M3 封じた差分は書いた後に読み戻し、その sha256 を hash として返す。読み戻しが合わなければ書けたと言わず、前のファイルを残し一時ファイルも残さない
   - 元: works/dev/lib.sh:603-616（書けなかった時は前の差分を消さず終了コード 4。読み戻しは無かった）
   - 今: wf lib/seal.py:37-51 `write_readback`・merge.py:72-78
-  - 証: wf lib/tests/test_seal.py::WriteReadbackCase.test_readback_mismatch_is_not_a_write（assert: test_seal.py:63-64）・test_returns_hash_of_what_was_written（assert: :50-51）・test_merge.py::SealTest.test_seal_hashes_the_written_diff（assert: test_merge.py:180）
+  - 証: wf lib/tests/test_seal.py::WriteReadbackCase.test_readback_mismatch_is_not_a_write（assert: test_seal.py:63-64）・test_returns_hash_of_what_was_written（assert: :50-51）・test_merge.py::SealTest.test_seal_hashes_the_written_diff（assert: test_merge.py:181）
   - 本物の run: `merge-seal.output.hash` が `merge/sealed.diff` の sha256 と同じ
   - 狭め: 無し
 
 - M4 差分を組む git が落ちた時は、空の差分と取り違えず「組めない」と理由を返す（落ちない）
   - 元: works/dev/lib.sh:603-607（git の失敗は終了コード 4・前の差分を残す）・works/tests/test_use.py::UseShell.test_show_keeps_previous_diff_and_fails_when_git_diff_fails
   - 今: wf lib/green_cert.py:28-32（ValueError）→ merge.py:98-102（ok: false と理由）
-  - 証: wf test_merge.py::NeverFailsTest.test_checkout_not_git（assert: test_merge.py:298-299）
+  - 証: wf test_merge.py::NeverFailsTest.test_checkout_not_git（assert: test_merge.py:319-320）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - M5 差分が空なら封じない（ok: false・hash ""・diff null・理由「差分が空」）。0 バイトの差分を「修正なし」として置かない
   - 元: works/dev/lib.sh:608-612（空なら書かず、前の同名の差分を消し、取り込みの行も出さない）
   - 今: wf merge.py:60-63
-  - 証: wf test_merge.py::SealTest.test_empty_diff_is_null（assert: test_merge.py:225-226）・筋書き wf workflows/merge/fixtures/empty-diff.stubs.yaml（形だけ）
+  - 証: wf test_merge.py::SealTest.test_empty_diff_is_null（assert: test_merge.py:244-245）・筋書き wf workflows/merge/fixtures/empty-diff.stubs.yaml（形だけ）
   - 本物の run: 筋書きでのみ（種の run は直しが入る）
   - 狭め: 無し
 
 - M6 緑の認証の指紋（test-gate final の {head, diff_hash}）が在って今の木と違えば、封じは ok: false と理由を返す（差分は置き場に書く）。指紋が無ければ照らさない
   - 元: 今の works の取り込みには無い（新しい強め。指紋の考えは works の test-gate の緑の認証）
   - 今: wf lib/seal.py:70-75 `seal_refusal`・lib/green_cert.py:53-61 `matches`
-  - 証: wf test_merge.py::SealTest.test_changed_fingerprint_refuses_but_writes（assert: test_merge.py:187-189）・test_seal.py::SealRefusalCase（assert: test_seal.py:107・110・113）・test_green_cert.py::MatchesCase（assert: test_green_cert.py:110・118・124）
+  - 証: wf test_merge.py::SealTest.test_changed_fingerprint_refuses_but_writes（assert: test_merge.py:188-190）・test_seal.py::SealRefusalCase（assert: test_seal.py:107・110・113）・test_green_cert.py::MatchesCase（assert: test_green_cert.py:110・118・124）
   - 本物の run: `merge-seal.output.ok == true`・`reason == ""`（test-gate final の後に木が動いていない）
   - 狭め: 無し（計画の「今の木の指紋が取れない」の補足文は出なくなった。拒む事は同じ。PR #66 の「計画からのずれ」）
 
 - M7 封じた差分の守りのパスの当たりを、置く差分のバイトそのもの（`git apply --numstat -z`）から数え、1 行ずつ「<パス>（+足した −消した）: 規則 <id>（<glob>）——<理由>」で返す
   - 元: works/.shared/core/protect.py:146-173 `touched`・`lines`（line_edge._protected が呼ぶ）
   - 今: wf merge.py:65-68・lib/seal.py:54-67 `diff_files`・lib/protect.py:98-107 `hits`・:167-173 `lines`
-  - 証: wf test_merge.py::SealTest.test_protected_hit_is_named（assert: test_merge.py:194-195）・test_index_marks_do_not_hide_a_protected_hit（assert: :204「（+1 −1）」）・wf lib/tests/test_protect.py::TouchedCase.test_lines_name_file_stat_and_rule（assert: test_protect.py:164-165）
+  - 証: wf test_merge.py::SealTest.test_protected_hit_is_named（assert: test_merge.py:195-196）・test_index_marks_do_not_hide_a_protected_hit（assert: :205「（+1 −1）」）・wf lib/tests/test_protect.py::TouchedCase.test_lines_name_file_stat_and_rule（assert: test_protect.py:164-165）
   - 本物の run: `merge-seal.output.protected_hits`（種では `[]`）。当たる道は筋書きでのみ
   - 狭め: 無し
 
 - M8 assume-unchanged・skip-worktree の印の付いた守りのファイルの変更も当たりとして数える（本物の index を通さない）
   - 元: 無し（元の protect.touched は印に目が届かなかった。PR #66 の discovery）
   - 今: wf lib/seal.py:54-67 `diff_files`
-  - 証: wf test_merge.py::SealTest.test_index_marks_do_not_hide_a_protected_hit（assert: test_merge.py:203-208）
+  - 証: wf test_merge.py::SealTest.test_index_marks_do_not_hide_a_protected_hit（assert: test_merge.py:204-209）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（新しい強め）
 
@@ -1889,7 +1889,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M11 守りの一覧が読めない・形が崩れている時は黙って空にせず、「守りのパスを確かめられない（差分が一覧に触れていないとは言えない）: <理由>」の 1 行を当たりとして返す（fail closed）
   - 元: works/darkfactory/lib/line_edge.py:651・670-675 `_protected_text`（PROTECTED_UNKNOWN）・works/tests/test_edge.py::ProtectedGateCase.test_broken_manifest_forces_gate
   - 今: wf merge.py:69-70・lib/seal.py:26・78-79 `unknown_row`
-  - 証: wf test_merge.py::SealTest.test_broken_manifest_is_an_unknown_hit_and_blocks_apply_without_answer（assert: test_merge.py:215-216）・test_seal.py::UnknownRowCase.test_row_says_the_diff_may_touch_the_list（assert: test_seal.py:119-120）
+  - 証: wf test_merge.py::SealTest.test_broken_manifest_is_an_unknown_hit_and_blocks_apply_without_answer（assert: test_merge.py:216-217）・test_seal.py::UnknownRowCase.test_row_says_the_diff_may_touch_the_list（assert: test_seal.py:119-120）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -1903,7 +1903,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M13 守りの一覧は run の作業ツリーでなく、走っている pack（WORKS_FACTORY_ROOT の lib/）から読む（修正役が作業ツリーの一覧を空にしても確かめは緩まない）
   - 元: works/.shared/core/protect.py:8（MANIFEST は pack の物）
   - 今: wf workflows/.shared/boundary.py:37-41 `lib_root`・merge.py:39-44
-  - 証: wf tests/shared/test_boundary.py::LibRootTest.test_lib_root_follows_works_factory_root（assert: test_boundary.py:109）・wf test_merge.py::SealTest.test_broken_manifest_is_an_unknown_hit_and_blocks_apply_without_answer（root を差し替えて、cwd の木に無い一覧を読む。assert: test_merge.py:215-216）
+  - 証: wf tests/shared/test_boundary.py::LibRootTest.test_lib_root_follows_works_factory_root（assert: test_boundary.py:109）・wf test_merge.py::SealTest.test_broken_manifest_is_an_unknown_hit_and_blocks_apply_without_answer（root を差し替えて、cwd の木に無い一覧を読む。assert: test_merge.py:216-217）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -1912,7 +1912,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M14 apply は始めに前の `merge/apply.diff` を消し、置くと決めた時だけ書く（同じ run のやり直しが拒んだ時、古い置いた差分が残らない）
   - 元: works/dev/use.sh:967-969（書き直せなければ前の差分を当てない）
   - 今: wf merge.py:49-50・94
-  - 証: wf test_merge.py::ApplyTest.test_refused_retry_removes_the_earlier_apply（assert: test_merge.py:253-254）
+  - 証: wf test_merge.py::ApplyTest.test_refused_retry_removes_the_earlier_apply（assert: test_merge.py:274-275）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -1926,70 +1926,70 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M16 拒む理由 2: 今組み直した差分の hash が封じた hash と違う（封じた後に作業ツリーが動いた）。理由に両方の hash を書く。拒んだ差分は `merge/refused.diff` に置き、その hash を返す
   - 元: 無し（今の works は当てる時に差分を組み直すだけで、封じた物と照らさなかった。新しい強め）
   - 今: wf lib/seal.py:107-108・merge.py:94-95
-  - 証: lib/tests/test_seal.py::ApplyRefusalOrderCase.test_2_hash_mismatch（assert: lib/tests/test_seal.py:131）・ApplyRefusalOrderCase.test_2_names_both_hashes（assert: :135-136。両方の hash）・tests/workflows/test_merge.py::ApplyTest.test_tree_changed_after_seal_refuses（assert: tests/workflows/test_merge.py:264-267。merge/refused.diff とその hash）
+  - 証: lib/tests/test_seal.py::ApplyRefusalOrderCase.test_2_hash_mismatch（assert: lib/tests/test_seal.py:131）・ApplyRefusalOrderCase.test_2_names_both_hashes（assert: :135-136。両方の hash）・tests/workflows/test_merge.py::ApplyTest.test_tree_changed_after_seal_refuses（assert: tests/workflows/test_merge.py:264-269。merge/refused.diff が空でないこととその hash）
   - 本物の run: 筋書きでのみ（種の run では `merge-apply.output.hash == merge-seal.output.hash`）
   - 狭め: 無し
 
 - M17 拒む理由 3: 最後の関所の答えが通す語（approve・continue）でない。stop・reject も知らない語も答えの語なしも「最後の関所で <語> と答えた」で拒む
   - 元: works/.shared/core/report.py:172・648-667 `stopped_run`（FINAL_GATE_STOPS）・works/dev/use.sh:409-426
   - 今: wf lib/seal.py:22-23・82-93 `_answer_refusal`・:109-112
-  - 証: wf test_seal.py::ApplyAnswerCase.test_non_pass_words_refuse（assert: test_seal.py:167）・ApplyRefusalOrderCase.test_3_stop_answer（assert: :134）・wf test_merge.py::ApplyTest.test_stop_answer_refuses（assert: test_merge.py:257-259）
+  - 証: wf test_seal.py::ApplyAnswerCase.test_non_pass_words_refuse（assert: test_seal.py:172）・ApplyRefusalOrderCase.test_3_stop_answer（assert: :139）・wf test_merge.py::ApplyTest.test_stop_answer_refuses（assert: test_merge.py:278-280）
   - 本物の run: 筋書きでのみ（本物の run では答えを continue にする。stop にすれば `merge-apply` は飛ぶ: M38）
   - 狭め: 無し
 
 - M18 答えの文が `request:` で始まる止める語は「止め札」と書き分ける
   - 元: works/.shared/core/report.py:173・639-640（止め札は盤面の state.stop.by の頭 `request:`）
   - 今: wf lib/seal.py:24・87-88
-  - 証: wf test_seal.py::ApplyAnswerCase.test_request_stop_card_refuses（assert: test_seal.py:171-172）
+  - 証: wf test_seal.py::ApplyAnswerCase.test_request_stop_card_refuses（assert: test_seal.py:176-177）
   - 本物の run: 筋書きでのみ
   - 狭め: 元の止め札は「人が走っている run に置く札」（state.stop.by）で、関所の答えの文ではない。今の書き分けは関所の答えの文の頭を見るだけで、run の途中に置く止め札そのものは M の範囲に無い（止め札で止めた run は `merge-apply` が飛ぶので、置かない事は M38 で保たれる）。持ち主へ: 止め札の口をどこが持つかを線の範囲で確かめる 決め: 止め札は持ち込まない（stop-at-gates）（線の配線の文書の「この文書の外」の「決めた物」）
 
 - M19 拒む理由 4: R2 が作り直し（redesign-needed）と言った run は、人が通しの答えを返しても置かない（部分を取り込まない）
   - 元: 今の works の use.sh apply には無い（持ち主の決め small-core から来た新しい強め）
   - 今: wf lib/seal.py:25・113-114
-  - 証: wf test_seal.py::ApplyRefusalOrderCase.test_4_r2_redesign_even_with_pass（assert: test_seal.py:138）・ApplyR2Case.test_r2_shapes（assert: :190）・wf test_merge.py::ApplyTest.test_redesign_r2_with_continue_refuses（assert: test_merge.py:289-290）
+  - 証: wf test_seal.py::ApplyRefusalOrderCase.test_4_r2_redesign_even_with_pass（assert: test_seal.py:143）・ApplyR2Case.test_r2_shapes（assert: :195）・wf test_merge.py::ApplyTest.test_redesign_r2_with_continue_refuses（assert: test_merge.py:310-311）
   - 本物の run: `eyes.output.r2.status`（種の run では pass の見込み）と `merge-apply.output.ok`
   - 狭め: 無し
 
 - M20 拒む理由の順は上から 1→5 で最初の 1 つ（hash の食い違いは答えより先、答えは R2 より先）
   - 元: works/dev/use.sh:396-433（消す行 → 止まり → --check の順）
   - 今: wf lib/seal.py:96-125
-  - 証: wf test_seal.py::ApplyRefusalOrderCase.test_order_hash_before_answer（assert: test_seal.py:146）・test_order_answer_before_r2（assert: :150）
+  - 証: wf test_seal.py::ApplyRefusalOrderCase.test_order_hash_before_answer（assert: test_seal.py:151）・test_order_answer_before_r2（assert: :155）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - M21 拒む理由 5: 関所が開かず答えが無いのに、緑でない・目が通していない・緑の認証の指紋が今の木と違う、のどれかが在れば、在る物を全部「・」でつないで拒む
   - 元: 今の works の use.sh apply には無い（新しい強め。元は止まりの記録だけを見た）
   - 今: wf lib/seal.py:115-124
-  - 証: wf test_seal.py::ApplyNoAnswerCase.test_each_unchecked_fact_refuses（assert: test_seal.py:202-203）・ApplyRefusalOrderCase.test_5_no_answer_and_red（assert: :142-143）・wf test_merge.py::ApplyTest.test_no_answer_and_clean_run_applies_only_when_every_check_passed（assert: test_merge.py:274-276）・test_no_answer_and_red_refuses（assert: :266）
+  - 証: wf test_seal.py::ApplyNoAnswerCase.test_each_unchecked_fact_refuses（assert: test_seal.py:207-208）・ApplyRefusalOrderCase.test_5_no_answer_and_red（assert: :147-148）・wf test_merge.py::ApplyTest.test_no_answer_and_clean_run_applies_only_when_every_check_passed（assert: test_merge.py:295-297）・test_no_answer_and_red_refuses（assert: :287）
   - 本物の run: 筋書きでのみ（本物の run は関所がいつも開く）
   - 狭め: 無し
 
 - M22 拒む理由 5 の守りのパス: 答えが無いのに当たりが在れば「守りのパスに当たった（N 行）」、確かめられない行は「守りのパスを確かめられない」と書き分けて、どちらも拒む（通すのは人の通しの答えだけ）
   - 元: works/darkfactory/lib/line_edge.py:1186-1191（守りのファイルを触ったのに最後の関所の答えが無い → 止める）・works/tests/test_edge.py::ProtectedGateCase.test_no_gate_answer_stops・test_final_skipped_still_stops
   - 今: wf lib/seal.py:118-122
-  - 証: wf test_seal.py::ApplyNoAnswerCase.test_hit_and_unknown_are_named_apart（assert: test_seal.py:212-213）・test_unknown_protected_row_refuses_as_unverified_not_hit（assert: :207-208）・wf test_merge.py::ApplyTest.test_no_answer_and_protected_hit_refuses（assert: test_merge.py:281）
+  - 証: wf test_seal.py::ApplyNoAnswerCase.test_hit_and_unknown_are_named_apart（assert: test_seal.py:217-218）・test_unknown_protected_row_refuses_as_unverified_not_hit（assert: :212-213）・wf test_merge.py::ApplyTest.test_no_answer_and_protected_hit_refuses（assert: test_merge.py:302）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - M23 答えが通す語なら、赤でも・目の阻害でも・指紋が違っても・守りのパスに当たっても置く（人の通しが勝つ。superset）。R2 の unverifiable も人の答えに任せる
   - 元: works/dev/use.sh:396-433（止まりでなければ赤でも当てた）・works/tests/test_edge.py::ProtectedGateCase.test_continue_passes_and_marks_row
   - 今: wf lib/seal.py:104・109-112
-  - 証: wf test_seal.py::ApplyAnswerCase.test_pass_words_apply_even_when_red_or_eyes_blocked（assert: test_seal.py:157-158）・wf test_merge.py::ApplyTest.test_unverifiable_r2_with_approve_applies（assert: test_merge.py:286）
+  - 証: wf test_seal.py::ApplyAnswerCase.test_pass_words_apply_even_when_red_or_eyes_blocked（assert: test_seal.py:162-163）・wf test_merge.py::ApplyTest.test_unverifiable_r2_with_approve_applies（assert: test_merge.py:307）
   - 本物の run: `gates/gate-final.json` の decision と `merge-apply.output.ok == true`
   - 狭め: 無し
 
 - M24 置くと決めた差分は `merge/apply.diff` に書いて読み戻し、hash は封じた hash と同じ。merge は対象のリポジトリにも run の作業ツリーにも当てない（当てるのは人）
   - 元: works/dev/use.sh:950-971（run の差分は家の diffs/run-<id>.diff に書き、人が apply で当てた）
   - 今: wf merge.py:94-95・works-factory-merge.yaml:36（`mutates_checkout: false`）
-  - 証: wf test_merge.py::ApplyTest.test_same_tree_applies_the_sealed_diff（assert: test_merge.py:236-239）・ShapeTest.test_one_script_node（assert: :67）・ScriptCase.run_script（全部の走りで作業ツリーの status が前後で同じ。assert: :134）
+  - 証: wf test_merge.py::ApplyTest.test_same_tree_applies_the_sealed_diff（assert: test_merge.py:255-258）・ShapeTest.test_one_script_node（assert: :68）・ScriptCase.run_script（全部の走りで作業ツリーの status が前後で同じ。assert: :135）
   - 本物の run: run の置き場の `merge/apply.diff` と `merge-apply.output.hash`
   - 狭め: 無し
 
 - M25 返す節は落ちない: 知らない mode・壊れた start・別の run の指し札・base_rev の無い記録・JSON でない answer/r2・lib が無い・git の木でない、のどれでも終了の値 0 で ok: false と理由を返す
   - 元: works/dev/use.sh:192-195 `refuse`（読める 1 行で止まる）
   - 今: wf merge.py:98-102
-  - 証: wf test_merge.py::NeverFailsTest（9 件。assert: test_merge.py:298-299）
+  - 証: wf test_merge.py::NeverFailsTest（9 件。assert: test_merge.py:319-320）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -2285,7 +2285,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 数（4 つの領域の合計。各領域の内訳は各領域の終わりの節）:
 - 行の総数: 294（T 71・E 77・R 83〔R1〜R82 と R5b〕・M 63）
 - 今: 無し: 63（T 14・E 3・R 25・M 21）。M の 21 のうち 15 は段 1 で作る bin/apply の行（M39〜M53。住処は bin/_lib/apply.py、試験は tests/bin/test_apply.py）、1 は置き換えで要らない行（M62）。ほかに E に、今は在るが配線か読み手が無くて本物の run に届かない行が 6（E17・E37・E42・E45・E66・E73）
-- 証が要追加か弱い: 122（T 26・E 30〔要追加 15、受け手の試験が要る 5、弱い 10〕・R 33・M 33）
+- 証が要追加か弱い: 114（T 26・E 30〔要追加 15、受け手の試験が要る 5、弱い 10〕・R 33・M 25）
 - 狭めたのに Archon が強いていない: 59（T 14・E 12・R 27・M 6）。どの PR も書かずに黙って落とした物を含む（T35・T41・T45・T47・T70、R5b・R14・R16・R20・R23・R24・R35〜R39・R41・R49 など）
 - Archon が強いた狭め: 1（E30。読むだけの役が作業ツリーを変えた時の出し直しが無くなった。dag-executor.ts:1243-1249 で、checkout の照らしの違反は retry の外）
 - PR の対応表の照らし: #66（M）・#67（E）・#69（T）が挙げた試験は main に全部在り、該当の動きを assert していた。#68 の「取り戻せない」12 件のうち、今も読む先が無いのは gates_deferred（R71）と来歴の表（R81 の表の部分）だけ。閉鎖の数え直し（R72）は組の子 run に元データが在り、約束に足せば戻る。R73〜R80 の 8 件は今の置き場から戻せ、うち R75・R76・R79・R80 の 4 件は #68 の主張が誤り。R71・R81・R82 は持ち主に聞く

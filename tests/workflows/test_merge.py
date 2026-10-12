@@ -264,7 +264,9 @@ class ApplyTest(ScriptCase):
         self.assertIn("封じた差分と今の差分が違う", got["reason"])
         self.assertFalse(self.artifact("merge/apply.diff").exists())
         self.assertEqual(got["diff"]["path"], "merge/refused.diff")
-        self.assertEqual(got["hash"], hashlib.sha256(self.artifact("merge/refused.diff").read_bytes()).hexdigest())
+        refused = self.artifact("merge/refused.diff").read_bytes()
+        self.assertTrue(refused)
+        self.assertEqual(got["hash"], hashlib.sha256(refused).hexdigest())
 
     def test_refused_retry_removes_the_earlier_apply(self):
         self.assertIs(self.apply(self.sealed)["ok"], True)
