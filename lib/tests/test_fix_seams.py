@@ -2200,7 +2200,7 @@ class FixAcceptSeamCase(TempCase):
 
     def test_pack_copy_change_is_rejected(self):
         """除くパスの頭（script が渡す実行基盤の工程の写しの置き場。ここでは SKIP）の下を changes[].files に申告した・修正の段の
-        頭の控え（record_skipped）から中身を変えた・足した返答を拒む。触れなければ通る。元 works/blk-fix/scripts/accept.py:234
+        頭の控え（record_skipped）から中身を変えた・足した・消した返答を拒む。触れなければ通る。元 works/blk-fix/scripts/accept.py:234
         check_pack_copy・:663（元の試験 works/tests/test_blk_fix.py:1154-1175）"""
         copy = self.repo / "vendored" / "workflows" / "x.yaml"
         copy.parent.mkdir(parents=True)
@@ -2232,8 +2232,12 @@ class FixAcceptSeamCase(TempCase):
         self.assertEqual(len(packs), 1, got["rejects"])
         for word in ("vendored/workflows/x.yaml", "vendored/workflows/added.txt", "戻"):
             self.assertIn(word, packs[0])
-        copy.write_text("a: 1\n", encoding="utf-8")
+        copy.unlink()
         (copy.parent / "added.txt").unlink()
+        packs = [r["text"] for r in accept(_fix_ok())["rejects"] if r["check"] == "pack"]
+        self.assertEqual(len(packs), 1, "消した写しも拒む")
+        self.assertIn("vendored/workflows/x.yaml", packs[0])
+        copy.write_text("a: 1\n", encoding="utf-8")
         self.assertTrue(accept(_fix_ok())["ok"], "前から在る写しに触れない修正は通る")
 
 
