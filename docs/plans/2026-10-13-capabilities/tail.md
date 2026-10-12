@@ -63,21 +63,21 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T7 宣言の書式の誤りは走らせず、走らせられない素材（判定の前の base は awaiting_human・修正の後の final は not_run）の reason に宣言の名と誤りを書く。
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2199 `checks_plan`（blocked）・:2236
-  - 今: lib/declared_checks.py:301 `checks_plan`・:336 `checks_reply`（:342-344）
+  - 今: lib/declared_checks.py `checks_plan`・`checks_reply`
   - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_broken_declaration_is_blocked_without_running（判定の前の awaiting_human と後の not_run の両方。#122）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - T8 宣言が計画の後に変わったら（宣言の sha の照合）1 度だけ計画し直し、2 度目も変われば CiRefused で止める。
   - 元: works/.shared/core/entry.py:886-890 `run_ci`（relaunch）・works/.shared/core/graphloops/engine/commands.py:522 `engine_run_refusal`
-  - 今: lib/declared_checks.py:428 `run_ci`・:472 `_planned_run`・:511 `_declaration_moved`（走らせた後の宣言の sha を照らし、違えば計画から 1 度だけやり直す。ログは logs/…/replan。#122）
+  - 今: lib/declared_checks.py `run_ci`・`_planned_run`・`_declaration_moved`（走らせた後の宣言の sha を照らし、違えば計画から 1 度だけやり直す。ログは logs/…/replan。#122）
   - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_declaration_changed_after_plan_is_replanned_once・test_declaration_changing_twice_is_refused
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で外した（PR の「外した物」の盤面の部分）。Archon で不可でない → 戻すか、計画と走りが同じ関数の中で続くので目的が消えたことを持ち主に諮る
 
 - T9 engine が組んだ素材を受け付けの規則で照らし、通らなければ任せ先に落とす。その時 engine が既に走らせた test_cmd の段の結果を使い、test_cmd を 2 度走らせない。
   - 元: works/.shared/core/board.py:1145 `_accept_engine_reply`・:1413 `_fall_back`・works/.shared/core/entry.py:925 `_ci_by_cmd`（ran）・works/tests/test_ci_test_cmd.py:113 test_fallback_after_run_reuses_test_cmd_result
-  - 今: lib/declared_checks.py:428 `run_ci`（material_problems を engine の素材にも当てる）・:521 `_fall_back`（engine が走らせた test_cmd の段の結果から素材を組む）・:421 `_cant_status`（#122）
+  - 今: lib/declared_checks.py `run_ci`（material_problems を engine の素材にも当てる）・`_fall_back`（engine が走らせた test_cmd の段の結果から素材を組む。落とした訳 fell_back は workflows/test-gate/scripts/result.py `evidence` が証拠の文にも出す）・`_cant_status`（#122）
   - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_engine_material_meets_material_problems・test_engine_material_that_breaks_the_rules_falls_back_without_rerunning_test_cmd
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で外した（盤面の部分）。Archon で不可でない → 戻す（少なくとも engine の素材にも material_problems を当てる）
@@ -107,7 +107,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T13 run の変更が全部ある段の paths_ignore の下（glob でなくパスの頭の一致。ファイルかフォルダ）に在れば、その段を回さない。外に 1 本でも在れば全段を回す。
   - 元: works/.shared/core/board.py:481 `skipped_steps`
-  - 今: lib/checkscope.py:51 `skipped_steps`・lib/declared_checks.py:472 `_planned_run`
+  - 今: lib/checkscope.py `skipped_steps`・lib/declared_checks.py `_planned_run`
   - 証: lib/tests/test_checkscope.py::SkippedStepsCase.test_change_all_under_ignored_skips_step_and_names_it・test_change_outside_ignored_runs_every_step・test_ignored_path_matches_file_or_folder_head・test_sibling_with_same_prefix_is_not_under（#122）・lib/tests/test_declared_checks.py::ScopedStepsCase.test_final_skips_step_whose_ignored_paths_hold_every_change・test_final_runs_step_when_change_touches_outside_ignored
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
@@ -121,14 +121,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T15 範囲と照らす変更は base_rev から今の作業ツリーまでに触ったファイル（追跡の変更・消した物・未追跡）で、Archon が作業ツリーに置く `.archon/` の下は数えない。
   - 元: works/.shared/core/entry.py:907 `scope_changed`・works/tests/test_blk_tests_delta.py:364 test_final_does_not_count_archon_workspace_as_change
-  - 今: workflows/test-gate/scripts/run.py:43 `changed`（WORKSPACE_PREFIX の除き）・lib/accept.py:380 `touched_files`
+  - 今: workflows/test-gate/scripts/run.py `changed`（WORKSPACE_PREFIX の除き）・lib/accept.py `touched_files`
   - 証: tests/workflows/test_test_gate.py::RunScriptCase.test_archon_workspace_is_not_a_change（#122）
   - 本物の run: 筋書きでのみ（種に範囲の宣言が無い）
   - 狭め: 無し（試験だけが欠け）
 
 - T16 判定から入る run の入口の確かめでは、依頼の where が名指す追跡中のパスも変更に足して範囲と照らす（works だけを直す依頼で、works を見ない段を入口から回さない）。
   - 元: works/.shared/core/entry.py:907-922 `scope_changed`（b.rules._pr_files）
-  - 今: workflows/test-gate/scripts/run.py:55 `request_wheres`（判定から入る run の base で始めの記録の依頼の where）・:43 `changed`・lib/checkscope.py:77 `request_files`（元 `_pr_files` の式。#122）
+  - 今: workflows/test-gate/scripts/run.py `request_wheres`（判定から入る run の base で始めの記録の依頼の where）・`changed`・lib/checkscope.py `request_files`（元 `_pr_files` の式。#122）
   - 証: tests/workflows/test_test_gate.py::RunScriptCase.test_base_reads_request_where_as_change
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で狭めた（PR の「能力の狭め」2 つ目）。Archon で不可でない（依頼は始めの記録に在る）。落ちるのは速さだけで確かめは減らない → 持ち主の確かめ 決め: 戻すと決めた（superset）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
@@ -149,7 +149,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T19 test_cmd が範囲で外した段と同じコマンドなら、外さずに test_cmd の段として走らせる（入力で名指した一式は外さない）。
   - 元: works/.shared/core/entry.py:858 `run_ci` の docstring（範囲の項）
-  - 今: lib/declared_checks.py:472 `_planned_run`（_with_test_cmd に外した後の段を渡すので、_same_step は外した段と比べない）
+  - 今: lib/declared_checks.py `_planned_run`（_with_test_cmd に外した後の段を渡すので、_same_step は外した段と比べない）
   - 証: lib/tests/test_declared_checks.py::ScopedStepsCase.test_test_cmd_same_as_skipped_step_still_runs（#122）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
@@ -232,14 +232,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T30 一式の行が、任せ先の役の素材に合わせて書き分ける: clean・found なら「走らせた: 任せ先の CI の役 blk-ci が選んだ一式（素材の status X）」、ほかは「走らせなかった: 宣言の段・test_cmd（任せ先の CI の役 blk-ci が走らせなかった: 素材の status X）」、宣言が読めない engine は「宣言が読めないので engine が走らせなかった」、test_cmd が無ければ「test_cmd（渡されていない）」。
   - 元: works/.shared/core/entry.py:819 `suites_line`・works/tests/test_line_a.py:324
-  - 今: lib/declared_checks.py:183 `suites_line`・workflows/test-gate/scripts/result.py:114
+  - 今: lib/declared_checks.py `suites_line`・workflows/test-gate/scripts/result.py `certified`
   - 証: lib/tests/test_declared_checks.py::SuitesLineCase.test_role_status_words（#122）
   - 本物の run: test_cmd を渡さない run の test-gate/final/evidence.md の「- 走らせ方: role_needed・走らせた: 任せ先の CI の役 blk-ci が選んだ一式（…）」
   - 狭め: 無し
 
 - T31 clean の checked に、走らせた宣言の sha の頭 12 字と段ごとの終了コードと秒を書く（何を根拠にした緑かを残す）。
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2271
-  - 今: lib/declared_checks.py:336 `checks_reply`（clean の checked）
+  - 今: lib/declared_checks.py `checks_reply`（clean の checked）
   - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_clean_names_declaration_sha_and_steps（#122）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
@@ -292,7 +292,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T38 赤の原因の要約に落ちた試験の鍵を 10 件まで並べ、超えた分は「ほか N 件」と数える。
   - 元: 無し（新）
-  - 今: lib/green_cert.py:22 HEAD_LIMIT・:66 `_keys`
+  - 今: lib/green_cert.py HEAD_LIMIT・`_keys`
   - 証: lib/tests/test_green_cert.py::ClassifyCase.test_summary_lists_ten_keys_and_counts_the_rest（#122）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
@@ -355,7 +355,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T47 止められた後の呼び直し（resume）で、前の走りのログを上書きしない（空いた番号の置き場 runs/r<N>/<節>.a<k>/）。
   - 元: works/.shared/core/board.py:1404 `_log_dir`・works/tests/test_board_engine_run.py:321 test_rerun_keeps_earlier_logs
-  - 今: workflows/test-gate/scripts/run.py:73 `fresh_gate`（logs/ のほかを消し、今回のログは空いた番号の logs/a<k>/。#122）
+  - 今: workflows/test-gate/scripts/run.py `fresh_gate`（logs/ のほかを消し、今回のログは空いた番号の logs/a<k>/。#122）
   - 証: tests/workflows/test_test_gate.py::RunScriptCase.test_rerun_keeps_earlier_logs
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で落ちた（T46 の副作用。挙げていない）。Archon で不可でない → 戻す（ログだけ番号で分ける）
@@ -371,7 +371,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T49 本物の作業ツリーへの書き込みを、包み（adapter）が印の旗 no-tree-write を見て起動ごとに denyWrite に足して塞ぐ。切符の無い起動は起こさない。包みを宣言した run は受け付けが包みの起動の記録で柵が掛かったかを見て、無ければ止める。包み無しの run は知らせ NO_ADAPTER_NOTE を出す。宣言が読めなければ役を起こさずに止める。
   - 元: works/.shared/core/ci_role.py:150 `fence`・:274-298 `take`・:76 NO_ADAPTER_NOTE・works/blk-ci/blk-ci.yaml:28-42
-  - 今: workflows/test-gate/works-factory-test-gate.yaml の節 ci の sandbox.filesystem `{allowWrite: ['/'], denyWrite: ['.']}`（役の cwd = run の作業ツリーを塞ぐ。止めた Archon は節の sandbox をそのまま SDK に渡す: dag-executor.ts:1847・providers/src/claude/provider.ts:801-803。実測は未。#122）と、mutates_checkout: false・受け付けの作業ツリーの比べ（T51）
+  - 今: workflows/test-gate/works-factory-test-gate.yaml の節 ci の sandbox.filesystem `{allowWrite: ['/'], denyWrite: ['.']}`（役の cwd = run の作業ツリーを塞ぐ。止めた Archon は節の sandbox をそのまま SDK に渡す: dag-executor.ts:1847・providers/src/claude/provider.ts:801-803。実測は #217（段 1a・#154）。#122）と、mutates_checkout: false・受け付けの作業ツリーの比べ（T51）
   - 証: tests/workflows/test_test_gate.py::YamlCase.test_role_cannot_write_the_checkout・test_role_node_matches_works_blk_ci
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で狭めた（PR の「能力の狭め」1 つ目）。Archon で不可でない（packages/workflows/src/schemas/dag-node.ts:109 に sandbox.filesystem.denyWrite が在る。run ごとの場所を書けるかは要実測）→ 持ち主の確かめ 決め: 戻すと決めた。run ごとの作業ツリーを denyWrite で塞げないと実測で分かった時だけ源の行つきで狭め。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
@@ -399,7 +399,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T53 前の回の拒否の理由を次の回の指示書の頭に置き、「理由のところを直した返答を丸ごと出し直せ」と言う。拒否の文の中の `$<節>.output.<欄>` を Archon が置き換え直して輪が落ちないように渡す（元の裁定 R44: $LOOP_PREV で指示書に直に貼らない）。
   - 元: works/.shared/core/ci_role.py:236-241 `prep`（REJECT_HEADING）
-  - 今: workflows/test-gate/scripts/ci_prep.py（前の回の拒否を rolekit.rejected の控えの最後の 1 件から読む。with: の $LOOP_PREV は外した: Archon は with: に $LOOP_PREV を生のまま貼った後に節の出力の参照をもう 1 度置き換える。dag-executor.ts:5279-5306・:464-493。#122）・workflows/test-gate/commands/ci.md:3-7
+  - 今: workflows/test-gate/scripts/ci_prep.py（前の回の拒否を rolekit.rejected の控えの最後の 1 件から読む。with: の $LOOP_PREV は外した: Archon は with: に $LOOP_PREV を生のまま貼った後に節の出力の参照をもう 1 度置き換える。dag-executor.ts:5279-5306・:464-493。#122）・workflows/test-gate/commands/ci.md
   - 証: tests/workflows/test_test_gate.py::YamlCase.test_loop_does_not_paste_previous_reject_by_loop_prev（旧 test_prep_takes_previous_reject）・CiRoleCase.test_reject_with_a_reference_reaches_the_prompt_verbatim・test_prep_copies_tree_and_passes_reject
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（形を変えた。落ちないかは未確かめ）
@@ -464,14 +464,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T62 同じ run の中で、同じ作業ツリーの木・同じ命令・同じ環境の緑の一式の結果を使い回す（一式の全段が当たった時だけ子を起こさずに全段を使い、JUnit も書き戻す。走らせている間に木が変わった回は置かない。run をまたがない）。直す前の確かめと TDD の輪の頭が同じ test_cmd を 2 度走らせない。
   - 元: works/.shared/core/tree_run.py:670 `replay_group`・:750 `keep_group`・:779 `slotted_run`・works/.shared/core/board.py:379-433・works/CHANGELOG.md:30・:53（0.2.64）
-  - 今: lib/tree_run.py:658 `replay_group`・:739 `keep_group`・:768 `reuse_run`（元 slotted_run から枠を外した物）・:451 `reuse_place`・lib/declared_checks.py:224 `tree_runner`・lib/tddloop.py:544 `_test_cmd_gate`。控えは線の run の置き場の直下 test-reuse/（run の名は始めの記録の run_id）。test-gate の base（workflows/test-gate/scripts/run.py）が引いて置き、fix の組の子の run の TDD の輪の頭（workflows/fix/scripts/group_start.py・fixio.line_top）が引く。final は引かない（#122）
-  - 証: lib/tests/test_declared_checks.py::ReuseCase.test_same_tree_same_suite_runs_once・test_other_run_or_moved_tree_is_not_reused・test_tdd_head_test_cmd_reads_the_base_keep・test_reused_suite_writes_its_junit_back・TestModesCase.test_final_never_reads_reuse_store・lib/tests/test_tree_run.py::ReuseRunCase・tests/workflows/test_test_gate.py::RunScriptCase.test_base_rerun_reuses_the_green_suite_and_final_does_not・tests/workflows/test_fix.py::GroupChildScriptsCase.test_tdd_head_reuses_the_test_gate_base_test_cmd・tests/shared/test_archon_contract.py::ArchonContractTest（script の節に立つ変数の名）
+  - 今: lib/tree_run.py `replay_group`・`keep_group`・`reuse_run`（元 slotted_run から枠を外した物）・`reuse_place`・lib/declared_checks.py `tree_runner`・lib/tddloop.py `_test_cmd_gate`・`start`（元の結末の一式）・lib/baseline_red.py `run_suite`。控えは線の run の置き場の直下 test-reuse/（run の名は始めの記録の run_id）。test-gate の base（workflows/test-gate/scripts/run.py）が引いて置き、fix の組の子の run の TDD の輪の頭（workflows/fix/scripts/group_start.py・fixio.line_top）が test_cmd と元の結末の一式を引いて置く。final は引かない（#122）
+  - 証: lib/tests/test_declared_checks.py::ReuseCase.test_same_tree_same_suite_runs_once・test_other_run_or_moved_tree_is_not_reused・test_tdd_head_test_cmd_reads_the_base_keep・test_reused_suite_writes_its_junit_back・TestModesCase.test_final_never_reads_reuse_store・lib/tests/test_tree_run.py::ReuseRunCase・tests/workflows/test_test_gate.py::RunScriptCase.test_base_rerun_reuses_the_green_suite_and_final_does_not・tests/workflows/test_fix.py::GroupChildScriptsCase.test_tdd_head_reuses_the_test_gate_base_test_cmd・lib/tests/test_blk_fix_tdd.py::TestStart.test_head_reuses_the_green_baseline_of_the_same_run・tests/shared/test_archon_contract.py::ArchonContractTest（script の節に立つ変数の名）
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で外した。PR は持ち主の決め no-queue を理由に挙げるが、no-queue（docs/owner-decisions.md:62-66）は修正の並べの待ちの列の決めで、使い回しは reuse-results（:263-268「使い回すのは入力が変わらない時だけ」「最後のテストは省かない」）に当たる。Archon で不可でない → 持ち主の確かめ 決め: 戻すと決めた（reuse-results）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
 
 - T63 使い回した段の出どころ（run・時刻・鍵）を素材の checked・段の行・報告に出し、使い回さなかった理由（reuse_off）を段の行・trace に出す。旗 GRAPHLOOPS_RERUN_CHECKS=1 で必ず走らせる。
   - 元: works/.shared/core/board.py:436 `_reused_note`・works/.shared/core/entry.py:706 `_reused_material`・works/.shared/core/tree_run.py:433 RERUN_ENV・:496 `note_fields`・:501 `reused_text`
-  - 今: lib/tree_run.py:503 `note_fields`・:509 `reused_text`・:433 RERUN_ENV・lib/declared_checks.py:405 `_reused_note`・:132 `_reused_material`・:397 `_row`（段の行の reused・reuse_off。trace の代わりに test-gate/<mode>/run.json の runs）。旗は script が読む（#122）
+  - 今: lib/tree_run.py `note_fields`・`reused_text`・RERUN_ENV・lib/declared_checks.py `_reused_note`・`_reused_material`・`_row`（段の行の reused・reuse_off。trace の代わりに test-gate/<mode>/run.json の runs）。旗は script が読む（#122）
   - 証: lib/tests/test_declared_checks.py::ReuseCase.test_reused_steps_named_in_material_and_rows・test_rerun_flag_runs_again
   - 本物の run: 筋書きでのみ
   - 狭め: T62 と同じ 決め: 戻すと決めた（reuse-results）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
