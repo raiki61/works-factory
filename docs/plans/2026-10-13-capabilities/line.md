@@ -139,7 +139,7 @@
   - 元: works/.shared/core/startrec.py:58-71 `words`
   - 今: lib/startrec.py:66-74
   - 証: lib/tests/test_startrec.py::StartRecCase.test_words_shapes（assert: test_startrec.py:55-59）
-  - 本物の run: gate-start の関所の文の 1 行目
+  - 本物の run: gate-start の関所の文の 1 行目（関所の文は run の記録に残らない。同じ入口の文が report/report.md の「入口: 」の行に出る）
   - 狭め: 無し
 - L-E23 始めの記録の読み手（diff_empty・requests）は、形の無い前の版の記録を None で返す
   - 元: works/.shared/core/startrec.py:44-56
@@ -217,7 +217,7 @@
   - 元: works/.shared/core/entry.py:593-598
   - 今: scripts/start.py:91-99
   - 証: test_line.py::StartCase.test_policy_md_is_recorded_as_an_absolute_path（assert: test_line.py:139）
-  - 本物の run: start.json の policy_md
+  - 本物の run: 筋書きでのみ（種は policy_md を名指さない。在れば start.json の policy_md）
   - 狭め: 無し
 - L-E36 人の方針の本文を役に貼る
   - 元: works/.shared/core/entry.py:1212・1221 `start`（policy.brief）
@@ -442,7 +442,7 @@
   - 元: works/.shared/core/gatepolicy.py:73-76 `head_words`
   - 今: lib/gatepolicy.py:73-76、scripts/start.py:131、scripts/ask_final.py:89
   - 証: lib/tests/test_gatepolicy.py::ReadCase.test_head_words（assert: :74）
-  - 本物の run: gate-start の message
+  - 本物の run: gate-start の message（関所の文は run の記録に残らない。同じ句が report/report.md の「最後の承認ノード: always」に出る）
   - 狭め: 無し
 - L-G17 修正前の関所は要る時だけ開く。人に回す項目が無ければ開かずに修正へ、計画が無ければどちらへも進まない
   - 元: works/.shared/core/gatemarks.py:625-642 `plan_gate_items`・works/darkfactory/darkfactory.yaml:491-547 `h-gate`
@@ -1034,7 +1034,7 @@
   - 元: works/tests/test_line_a.py::PriorFailuresLineCase.test_prior_failures_reach_judge_and_plan_only（:503）
   - 今: yaml:155（judge）・:200（plan）・:486（replan）・:411（rejudge）・:741（eyes start_answers）・:214（plan-review answers）
   - 証: tests/workflows/test_line.py::HandoffCase.test_handoff_table（judge・rejudge-run・plan・replan の prior_failures、plan-review-run・replan-review の answers、eyes の start_answers）・HandoffCase.test_prior_failures_reach_judge_and_plan_only、LineWiringCase.test_blocks_get_the_start_answers_and_prior_failures
-  - 本物の run: judge・plan の置き場の prior-failures-in.json
+  - 本物の run: 筋書きでのみ（種の依頼に prior_failures が無い。在れば start が置き場の根に置く prior-failures-in.json）
   - 狭め: 無し
 - L-W59 封じと適用（seal は差分・指紋・緑・目の ok を受け、apply は最後の関所の go の後だけ、封じた hash・答えを受ける）
   - 元: 適用は use.sh apply が最後の関所の答えを読んだ（works/darkfactory/lib/line_edge.py:99-100 の注）
@@ -1374,7 +1374,7 @@
   - 元: works/.shared/core/report.py:1181・:1195
   - 今: lib/runreport.py:452・:534-535
   - 証: lib/tests/test_runreport.py::CarryCase.test_rejudge_changes_and_opened_units（:570）・test_rejudge_lowered_block_units_are_shown_and_carried（:591）
-  - 本物の run: report の next-request.json の findings
+  - 本物の run: 筋書きでのみ（lib/runreport.py は findings か下書きが在る時だけ next-request.json を書き、種は再審が走らず全部直る見込み。在れば report の置き場の next-request.json の findings）
   - 狭め: 無し
 - L-D48 再審が止まった run（3 回拒まれた・支度ができない）は試験の関門・独立の目・merge へ進めない
   - 元: works/.shared/core/rejudge.py:546-558（`b.stop(by works:rejudge)`）
@@ -1392,7 +1392,7 @@
   - 元: works/.shared/core/entry.py:1186
   - 今: scripts/start.py:177-180、yaml:155・200・411・486
   - 証: StartCase.test_prior_failures_of_the_request_are_placed（:125-127）・LineWiringCase.test_blocks_get_the_start_answers_and_prior_failures（:733）
-  - 本物の run: start.output.prior_failures（種では null）
+  - 本物の run: 筋書きでのみ（種の依頼に prior_failures が無く start.output.prior_failures は null。在れば置き場の根の prior-failures-in.json）
   - 狭め: 無し
 - L-D51 形の合わない前の失敗の行は入口で拒む
   - 元: works/.shared/core/carry.py:127 `_prior_failures`
@@ -1410,7 +1410,7 @@
   - 元: works/.shared/core/carry.py:221 `save`
   - 今: lib/runreport.py:981-994、scripts/result.py:31
   - 証: lib/tests/test_carry_home.py::Contract.test_writer_refuses_off_contract（:51-56）
-  - 本物の run: report の置き場の next-request.json・prior-failures.json、result.output.next_request・prior_failures
+  - 本物の run: 筋書きでのみ（next-request.json は findings か下書きが、prior-failures.json は前の失敗が在る時だけ書かれる。在れば report の置き場の 2 つと result.output.next_request・prior_failures）
   - 狭め: 無し
 - L-D54 CI の赤の試験 id を次の依頼の prior_failures に足す口 carry-ci（同じ行は 2 度足さず、形が違えば exit 2）
   - 元: works/.shared/core/carry.py:265・:288（使い方は works/skills/works/SKILL.md:71）

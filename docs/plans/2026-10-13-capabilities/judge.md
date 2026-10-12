@@ -234,7 +234,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 元: works/.shared/core/prcheck.py:129 `_anchored`・:139 `check_excluded`
   - 今: lib/prcheck.py `_anchored`・`check_excluded`・lib/judge_accept.py:3929
   - 証: lib/tests/test_judge_accept.py::PrAcceptCase.test_excluded_checked（assert: :2273-2275）・PrAcceptCase.test_handover_draft_accepted_with_anchor（assert: :2242-2250）
-  - 本物の run: judge/pr-excluded.json
+  - 本物の run: judge/pr-excluded.json の excluded（種は remote が forge でなく機械が決めるので空。外す hunk は pr-check の役が回る run だけ）
   - 狭め: 無し
 - J37 pr-check の役は読むだけ（入口の写しと比べ、HEAD の移動と無視されるパスの増減も拒み、変わった欄を名指す）
   - 元: works/.shared/core/prcheck.py:199 `take`（test_blk_pr.py:428・442・467・557）
@@ -462,7 +462,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 元: works/.shared/core/querytest.py:126 `unproven`
   - 今: lib/querytest.py:124
   - 証: lib/tests/test_blk_judge.py::UnprovenQueryCase.test_units_without_examples_are_marked_unproven（assert: lib/tests/test_blk_judge.py:45-48）・UnprovenQueryCase.test_examples_unavailable_with_examples_is_rejected（assert: :62）
-  - 本物の run: judge/query-examples.json の unproven の行
+  - 本物の run: judge/query-examples.json の <単位の key>.unproven（判定役が例を出せない単位だけ。種は例を出せることが多い）
   - 狭め: 無し
 - J73 一撃は反証できる形に: 開いた単位が在れば one_shot_closes を要り、units に無い key を拒む
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2562-2570
@@ -504,7 +504,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 元: works/.shared/core/outpurpose.py:87 `material_rows`・:114 `problems`・:157 `save`・:170 `restore`
   - 今: lib/judge_accept.py:910 `material_rows`・:1022-1036・lib/outpurpose.py
   - 証: lib/tests/test_judge_accept.py::JudgeTakeCase.test_out_of_purpose_rows_are_checked_against_material_rows（assert: :273・280・282）・tests/workflows/test_judge.py::JudgedVerdictTest.test_open_unit_is_ready_with_its_out_of_purpose_rows（assert: tests/workflows/test_judge.py:711-714）・lib/tests/test_out_of_purpose.py::ProblemsCase.*
-  - 本物の run: judge/out-of-purpose.json・verdict の output.out_of_purpose
+  - 本物の run: judge/out-of-purpose.json の rounds.1・verdict の output.out_of_purpose（目的の外の行が在る時だけ。種の依頼は目的の内で書かれない）
   - 狭め: 無し
 - J80 依頼の answers と前の run の作り直しの行を answer_ties で問いか単位に結ばせる（結び無しの答え・2 つの問いに当たる答え・知らない key・作り直しの行は開いた単位か none 20 字以上）。通れば answer-ties.json に置く
   - 元: works/.shared/core/gatemarks.py:824 `answer_tie_problems`（test_blk_judge.py:729-803 の 7 場面）
@@ -687,7 +687,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 元: works/.shared/core/adapter.py の `query_rule`（system prompt に足した）
   - 今: 13 本の workflows/judge/commands/*.md の頭
   - 証: tests/workflows/test_judge.py::RoleSettingsTest.test_roles_that_reach_outside_carry_the_query_rule（assert: tests/workflows/test_judge.py:261）
-  - 本物の run: 各役の節の指示書
+  - 本物の run: 各役の節の指示書（置き場にも run の記録にも写らない。試験 tests/workflows/test_judge.py が字を縛る）
   - 狭め: 無し
 
 ## 判定の側のファイルと読み手

@@ -1,4 +1,4 @@
-"""照らしの道具 tests/e2e/evidence.py の試験（collect・4 種の照らしの判じ・check）と、照らしの表 evidence.json の試験。
+"""照らしの道具 tests/e2e/evidence.py の試験（collect・5 種の照らしの判じ・check）と、照らしの表 evidence.json の試験。
 collect の後ろの Archon は偽の殻で、家の fake-runs.json の run を workflow runs・get で答える。
 
 表の試験は、表を能力の棚卸し docs/plans/2026-10-13-capabilities/ と線の配線の文書 docs/plans/2026-10-13-line-wiring.md に
@@ -24,6 +24,21 @@ SCENARIO_ONLY = "筋書きでのみ"
 # 照らしの where の run の記録 → その run の工程（親は線、子は fix の組ごとの子の run）
 RECORDS = {"record/parent.json": "works-factory-line", "record/child-*.json": "works-factory-fix"}
 OUTSIDE = "この文書の外"
+WRITERS = ("lib", "workflows", "bin")
+# 名を組んで書くので字で引けない置き場 → 名を組む所（Archon が書く物は、その節を置く YAML の行）
+NAMED_BY_PATTERN = {
+    "parent/gates/gate-start.json": "lib/answer.py:64",
+    "parent/gates/gate-*.json": "lib/answer.py:64",
+    "parent/nodes/*.meta.json": "workflows/fix/works-factory-fix.yaml:175",
+    "parent/judge/material-prior-decisions-brief.md": "lib/judge_accept.py:2396",
+    "parent/judge/material-prior-decisions.json": "lib/judge_accept.py:2883",
+    "parent/plan/r1/brief-1.md": "lib/planfile.py:83",
+    "parent/plan/structure/*/eye-prompt-1.md": "lib/eye.py:35",
+    "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py:923",
+    "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py:99",
+    "parent/fix/fix/review1-brief.json": "lib/refix.py:155",
+    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:474",
+}
 
 FAKE_SHELL = """#!/usr/bin/env python3
 import json, os, pathlib, sys
@@ -93,10 +108,14 @@ class EvidenceTableCase(unittest.TestCase):
         for row in self.rows:
             with self.subTest(row=row.get("id")):
                 self.assertIsNone(evidence.row_problem(row))
-        for broken in ({"id": "J1", "kind": "seen"}, {"id": "J1", "kind": "maybe", "why": "x"},
+        for broken in ({"id": "J1", "kind": "seen", "writer": "lib/a.py:1"}, {"id": "J1", "kind": "maybe", "why": "x"},
+                       {"id": "J1", "kind": "seen", "check": "exists", "where": "parent/a"},
+                       {"id": "J1", "kind": "seen", "writer": "lib/a.py", "check": "exists", "where": "parent/a"},
+                       {"id": "J1", "kind": "seen", "writer": "lib/a.py:1", "check": "node-completed", "where": "parent/a",
+                        "node": "x"},
                        {"id": "J1", "kind": "waits-part", "part": "Z"}, {"id": "J1", "kind": "handed-off", "why": "x"},
                        {"id": "J1", "kind": "scenario-only", "why": "x", "check": "exists", "where": "parent/a"},
-                       {"id": "J1", "kind": "seen", "check": "exists", "where": "elsewhere/a"}):
+                       {"id": "J1", "kind": "seen", "writer": "lib/a.py:1", "check": "exists", "where": "elsewhere/a"}):
             with self.subTest(broken=broken):
                 self.assertIsNotNone(evidence.row_problem(broken))
 
@@ -116,19 +135,42 @@ class EvidenceTableCase(unittest.TestCase):
                 self.assertEqual(waiting, parts[part])
 
     def test_node_rules_name_node_ids_the_workflow_makes(self):
-        """run の記録の節の id を照らす行（json-equals の nodes.*.nodeId と、引用符を含む text-contains）は、その run の工程の
-        YAML から組んだ節の id のどれかに当たる。種類を問わない（seen でない行も、当たらなければ unexpected を言えない）"""
+        """run の記録の節を照らす行は node-completed で、node はその run の工程の YAML から組んだ節の id か、その include の頭。
+        種類を問わない（seen でない行も、当たらなければ unexpected を言えない）。nodes[] は飛ばされた節も載せるので、節の名を
+        json-equals や text-contains で照らす行を置かない"""
         names = {where: stepnames.step_names(flow) for where, flow in RECORDS.items()}
         for row in self.rows:
             if not row.get("where", "").startswith("record/"):
                 continue
             with self.subTest(row=row["id"]):
                 self.assertIn(row["where"], names)
-                shown = [json.dumps({"nodeId": n}, ensure_ascii=False)[1:-1] for n in names[row["where"]]]
-                if row["check"] == "json-equals" and row["path"] == "nodes.*.nodeId":
-                    self.assertIn(row["value"], names[row["where"]])
-                elif row["check"] == "text-contains" and '"' in row["text"]:
-                    self.assertTrue(any(row["text"] in line for line in shown), row["text"])
+                self.assertFalse(row["check"] == "json-equals" and row["path"].endswith("nodeId"), "節の名だけの照らし")
+                self.assertFalse(row["check"] == "text-contains" and ("nodeId" in row["text"] or row["text"].endswith('"')),
+                                 "節の名だけの照らし")
+                if row["check"] == "node-completed":
+                    node, made = row["node"], names[row["where"]]
+                    self.assertTrue(node in made or any(n.startswith(node + "__") for n in made), node)
+
+    def test_seen_rows_name_a_writer_in_the_repository(self):
+        """seen の行の writer はリポジトリの在る行で、where のファイル名（glob の無い名）を lib・workflows・bin のどれかが書く。
+        名を組んで書く置き場は NAMED_BY_PATTERN に名を組む行と名指す"""
+        sources = [p for top in WRITERS for p in (ROOT / top).rglob("*") if p.is_file()
+                   and (p.suffix in (".py", ".yaml", ".md", ".sh") or p.parent.name == "bin")
+                   and not {"tests", "fixtures"} & set(p.relative_to(ROOT).parts)]
+        written = "\n".join(p.read_text(encoding="utf-8") for p in sources)
+        for writer in [row["writer"] for row in self.rows if row["kind"] == "seen"] + list(NAMED_BY_PATTERN.values()):
+            with self.subTest(writer=writer):
+                path, line = writer.rsplit(":", 1)
+                self.assertLessEqual(int(line), len((ROOT / path).read_text(encoding="utf-8").splitlines()))
+        for row in self.rows:
+            if row["kind"] != "seen":
+                continue
+            with self.subTest(row=row["id"]):
+                name = row["where"].rsplit("/", 1)[-1]
+                if row["where"].startswith("record/") or row["where"] in NAMED_BY_PATTERN:
+                    continue
+                self.assertNotRegex(name, r"[*?\[]", "glob の名は NAMED_BY_PATTERN に名指す")
+                self.assertTrue(name in written, f"{row['where']} の名を書くコードが無い")
 
     def test_backlog_and_handed_off_rows_name_their_place(self):
         _, outside = wiring()
@@ -153,6 +195,8 @@ class EvidenceCheckCase(unittest.TestCase):
         self.put("parent/a.json", json.dumps({"rows": [{"status": "clean"}, {"status": "found", "x": [1]}], "empty": []}))
         self.put("parent/b.md", "- green: false\n")
         self.put("parent/empty.txt", "")
+        self.put("record/parent.json", json.dumps({"nodes": [{"nodeId": "start", "state": "skipped"},
+                                                             {"nodeId": "fix__prep", "state": "completed"}]}))
         cases = [
             ({"check": "exists", "where": "parent/*.md"}, evidence.PASS),
             ({"check": "exists", "where": "parent/empty.txt"}, evidence.FAIL),
@@ -164,6 +208,10 @@ class EvidenceCheckCase(unittest.TestCase):
             ({"check": "json-equals", "where": "parent/a.json", "path": "rows.0.status", "value": "found"}, evidence.FAIL),
             ({"check": "text-contains", "where": "parent/b.md", "text": "green: false"}, evidence.PASS),
             ({"check": "text-contains", "where": "parent/b.md", "text": "green: true"}, evidence.FAIL),
+            ({"check": "node-completed", "where": "record/parent.json", "node": "fix__prep"}, evidence.PASS),
+            ({"check": "node-completed", "where": "record/parent.json", "node": "fix"}, evidence.PASS),
+            ({"check": "node-completed", "where": "record/parent.json", "node": "fix__pre"}, evidence.FAIL),
+            ({"check": "node-completed", "where": "record/parent.json", "node": "start"}, evidence.FAIL),
         ]
         for rule, want in cases:
             with self.subTest(rule=rule):
@@ -191,7 +239,8 @@ class EvidenceCheckCase(unittest.TestCase):
         self.assertIn("parent/bad.json", detail)
         state, _ = evidence.judge(self.ev, {"check": "json-has", "where": "parent/*.json", "path": "x"})
         self.assertEqual(state, evidence.PASS)
-        seen = {"id": "J1", "kind": "seen", "check": "json-has", "where": "parent/good.json", "path": "x"}
+        seen = {"id": "J1", "kind": "seen", "writer": "lib/a.py:1", "check": "json-has", "where": "parent/good.json",
+                "path": "x"}
         rows, code = self.checked([seen])
         self.assertEqual((rows, code), ([("J1", "seen", "parent/good.json: x = 1")], 0))
         rows, code = self.checked([seen, {**seen, "id": "J2", "path": "y"}])
@@ -215,7 +264,8 @@ class EvidenceCheckCase(unittest.TestCase):
 
     def test_counts_are_by_inventory_category(self):
         self.put("parent/a.md", "x\n")
-        rows = [{"id": i, "kind": "seen", "check": "exists", "where": "parent/a.md"} for i in ("L-E01", "L-G02", "J3")]
+        rows = [{"id": i, "kind": "seen", "writer": "lib/a.py:1", "check": "exists", "where": "parent/a.md"}
+                for i in ("L-E01", "L-G02", "J3")]
         got = evidence.check(self.ev.parent, self.table(rows + [{"id": "M4", "kind": "scenario-only", "why": "x"}]))
         self.assertEqual(evidence.counts(got), {"L": {"seen": 2}, "J": {"seen": 1}, "M": {"scenario-only": 1}})
 

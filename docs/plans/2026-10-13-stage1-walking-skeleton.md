@@ -119,7 +119,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 
 能力の棚卸しの区分 L・J・P・F・T・E・R・M の全部の行を、1 行ずつ次のどれかの種類で載せる（`pitfalls.md` の K1〜K20 と、`line.md` の線への申し送り S01〜S68 は能力の行でないので載せない）。棚卸しに在って表に無い行が 1 つでも在れば `tests/e2e/test_evidence.py` が赤。
 
-- `seen`: 本物の run で見えるはずの行。欄は `id`・`where`（置き場の中の相対パスの glob。親の run の置き場は `parent/`、fix の組の子の run の置き場は `child-*/` で始める。run の記録 `workflow get --json --verbose` の出力は `record/parent.json`・`record/child-<n>.json`）・`check`（次の 4 つの 1 つ: `exists`〔在って空でない〕・`json-has`〔JSON の欄の道 `path` が在って null でも空でもない〕・`json-equals`〔欄の値が `value`〕・`text-contains`〔字 `text` を含む〕）。棚卸しの「本物の run」の欄の名指しをそのまま形にする。
+- `seen`: 本物の run で見えるはずの行。欄は `id`・`where`（置き場の中の相対パスの glob。親の run の置き場は `parent/`、fix の組の子の run の置き場は `child-*/` で始める。run の記録 `workflow get --json --verbose` の出力は `record/parent.json`・`record/child-<n>.json`）・`check`（次の 5 つの 1 つ: `exists`〔在って空でない〕・`json-has`〔JSON の欄の道 `path` が在って null でも空でもない〕・`json-equals`〔欄の値が `value`〕・`text-contains`〔字 `text` を含む〕・`node-completed`〔run の記録の `nodes[]` に、節の id が `node` か `<node>__` で始まる節が `completed` で在る。`nodes[]` は飛ばされた節・落ちた節も載せるので、節の名だけを照らさない〕）・`writer`（where のファイルと欄を書くコードの「パス:行」。run の記録の行はその節を置く YAML の行）。棚卸しの「本物の run」の欄の名指しを形にし、書き手のコードで確かめる（走らなくても空の形を書く出口が在る置き場は、中身の欄で照らす）。
 - `scenario-only`: 棚卸しの「本物の run」が「筋書きでのみ」で始まる行（`waits-part` の行を除く）。欄 `why` は棚卸しの字。欄の途中に「筋書きでのみ」を含む行（例 L-E01「拒みは筋書きでのみ」）は行ごとに決める。
 - `seed-cannot`: 棚卸しは置き場を名指すが、この種では通らない道の行（種に `.review-checks.json` が無い・PR も forge も無い・申し出や 3 回目の拒否が起きない、など）。欄 `why` に、通らない訳を 1 句。
 - `waits-part`: 線の配線の部分 A・B1・B2・C・D1・D2 の「閉じる行」。欄 `part`（`A`・`B1`・`B2`・`C`・`D1`・`D2`）。棚卸しが「筋書きでのみ」と書く行でも、閉じる行なら `waits-part` にする（その部分が入った時に `scenario-only` へ移す。線の配線の文書の共通の決まり 10）。
@@ -138,9 +138,10 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
   - `EvidenceTableCase.test_every_row_has_a_known_kind_and_fields`
   - `EvidenceTableCase.test_scenario_only_rows_match_the_inventory`（棚卸しが「筋書きでのみ」で始まる行は、`waits-part` でなければ `scenario-only`。「筋書きでのみ」を含まない行は `scenario-only` でない）
   - `EvidenceTableCase.test_waits_part_rows_are_closing_rows_of_that_part`（`waits-part` の行が線の配線の文書のその部分の「閉じる行」に在り、その部分の閉じる行は全部 `waits-part`）
-  - `EvidenceTableCase.test_node_rules_name_node_ids_the_workflow_makes`（run の記録の節の id を照らす行が、線と fix の YAML から組んだ節の id のどれかに当たる）
+  - `EvidenceTableCase.test_node_rules_name_node_ids_the_workflow_makes`（run の記録の節を照らす行が `node-completed` で、node が線と fix の YAML から組んだ節の id かその include の頭に当たる）
+  - `EvidenceTableCase.test_seen_rows_name_a_writer_in_the_repository`（`seen` の行の `writer` がリポジトリの在る行で、where のファイル名を `lib/`・`workflows/`・`bin/` のどれかが書く。名を組んで書く置き場は名指して除く）
   - `EvidenceTableCase.test_backlog_and_handed_off_rows_name_their_place`（`backlog` の行が線の配線の文書の「この文書の外」に在り、`handed-off` の行が `why` と `to` を持つ）
-  - `EvidenceCheckCase.test_each_check_kind_passes_and_fails`（一時のフォルダに作った置き場で 4 つの照らしの通る形と通らない形）
+  - `EvidenceCheckCase.test_each_check_kind_passes_and_fails`（一時のフォルダに作った置き場で 5 つの照らしの通る形と通らない形）
   - `EvidenceCheckCase.test_absent_row_exits_one_and_unreadable_file_is_named`
   - `EvidenceCheckCase.test_unexpected_seen_is_reported`
   - `EvidenceCheckCase.test_cli_exits_one_on_an_absent_row`（命令の終了の値。筋書きが読むのはこれだけ）

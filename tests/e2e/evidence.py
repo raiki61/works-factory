@@ -9,8 +9,10 @@ parent_run_id）の置き場（terminal_record.artifacts.root）を evidence/par
 --verbose の出力を evidence/record/parent.json・evidence/record/child-<n>.json に置く（後で消える作業ツリーに依らない）。子の n は
 workflow runs の started_at の順で 1 から。
 
-照らしは 4 種（exists・json-has・json-equals・text-contains）。where は evidence/ からの glob で、当たったファイルのどれか 1 つで
-通れば通る。path は欄の道（. で区切る。数は並びの番目、* はどの要素・値でも）。判じは pass・fail・missing（where に当たる
+照らしは 5 種（exists・json-has・json-equals・text-contains・node-completed）。where は evidence/ からの glob で、当たったファイルの
+どれか 1 つで通れば通る。path は欄の道（. で区切る。数は並びの番目、* はどの要素・値でも）。node-completed は run の記録の nodes[]
+に、節の id が node か <node>__ で始まる（include の頭）節が completed で在れば通る（nodes[] は飛ばされた節・落ちた節も載せるので、
+節の名だけでは走ったと言えない）。判じは pass・fail・missing（where に当たる
 ファイルが無い）・unreadable（在るが読めない。黙って fail にしない。落とし穴 K15）の 4 つ。標準ライブラリだけ。期限を置かない。
 
 check は照らしの表 evidence.json（能力の棚卸しの 1 行 = 表の 1 行）を読み、行ごとに判じを 1 行出し、最後に区分（L・J・P・F・T・
@@ -19,6 +21,7 @@ E・R・M）ごとの数を出す。判じは seen・absent（seen の行の照�
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -27,21 +30,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SHELL = ROOT / "bin" / "works-factory"
 EVIDENCE = "evidence"
-CHECKS = ("exists", "json-has", "json-equals", "text-contains")
+CHECKS = ("exists", "json-has", "json-equals", "text-contains", "node-completed")
 RULE_FIELDS = {"exists": {"check", "where"}, "json-has": {"check", "where", "path"},
-               "json-equals": {"check", "where", "path", "value"}, "text-contains": {"check", "where", "text"}}
+               "json-equals": {"check", "where", "path", "value"}, "text-contains": {"check", "where", "text"},
+               "node-completed": {"check", "where", "node"}}
+COMPLETED = "completed"
 PASS, FAIL, MISSING, UNREADABLE = "pass", "fail", "missing", "unreadable"
 SHOWN = 80
 RUNS_LISTED = "1000"
 TABLE = Path(__file__).resolve().with_name("evidence.json")
-# 行の種類ごとの欄。照らし（RULE_FIELDS）は seen の行に要り、scenario-only の行は持たず、ほかの行は見えたかを知るために持ってよい
-ROW_FIELDS = {"seen": {"id", "kind"}, "scenario-only": {"id", "kind", "why"}, "seed-cannot": {"id", "kind", "why"},
+# 行の種類ごとの欄。照らし（RULE_FIELDS）は seen の行に要り、scenario-only の行は持たず、ほかの行は見えたかを知るために持ってよい。
+# seen の writer は where のファイルと欄を書くコードの「リポジトリの根からのパス:行」（run の記録の行は、その節を置く YAML の行）
+ROW_FIELDS = {"seen": {"id", "kind", "writer"}, "scenario-only": {"id", "kind", "why"}, "seed-cannot": {"id", "kind", "why"},
               "waits-part": {"id", "kind", "part"}, "backlog": {"id", "kind", "why"},
               "handed-off": {"id", "kind", "why", "to"}}
 # 線の配線（#211）がまだ入れていない部分。入った部分の行は seen・scenario-only・seed-cannot へ移す
 PARTS = ("A", "B1", "B2", "C", "D1", "D2")
 WHERE_HEADS = ("parent/", "child-*/", "record/")
 SEEN, ABSENT, UNEXPECTED = "seen", "absent", "unexpected"
+WRITER = r"[\w.-]+(?:/[\w.-]+)*:[1-9]\d*"
 
 
 class Stop(Exception):
@@ -131,11 +138,22 @@ def _one(path: Path, rule: dict) -> str | None:
     if kind == "exists":
         return "在る" if path.stat().st_size > 0 else None
     text = path.read_text(encoding="utf-8")
+    if kind == "node-completed":
+        return _completed(json.loads(text), rule["node"])
     if kind == "text-contains":
         return f"字 = {rule['text'][:SHOWN]}" if rule["text"] in text else None
     for value in _walk(json.loads(text), rule["path"].split(".")):
         if (value == rule["value"]) if kind == "json-equals" else value not in (None, "", [], {}):
             return f"{rule['path']} = {json.dumps(value, ensure_ascii=False)[:SHOWN]}"
+    return None
+
+
+def _completed(record, name: str) -> str | None:
+    nodes = record.get("nodes") if isinstance(record, dict) else None
+    for node in nodes if isinstance(nodes, list) else ():
+        ident = node.get("nodeId") if isinstance(node, dict) else None
+        if isinstance(ident, str) and (ident == name or ident.startswith(name + "__")) and node.get("state") == COMPLETED:
+            return f"{ident} = {COMPLETED}"
     return None
 
 
@@ -160,8 +178,10 @@ def rule_problem(rule) -> str | None:
         return f"照らし {rule!r} の check が {CHECKS} のどれでもない"
     if set(rule) != RULE_FIELDS[rule["check"]]:
         return f"照らし {rule!r} の欄が {sorted(RULE_FIELDS[rule['check']])} でない"
-    if not all(isinstance(rule[k], str) and rule[k] for k in ("where", "path", "text") if k in rule):
-        return f"照らし {rule!r} の where・path・text が空でない字でない"
+    if not all(isinstance(rule[k], str) and rule[k] for k in ("where", "path", "text", "node") if k in rule):
+        return f"照らし {rule!r} の where・path・text・node が空でない字でない"
+    if rule["check"] == "node-completed" and not rule["where"].startswith("record/"):
+        return f"照らし {rule!r} の where が run の記録（record/）でない"
     if Path(rule["where"]).is_absolute() or ".." in Path(rule["where"]).parts:
         return f"照らし {rule!r} の where が evidence/ の外を指す"
     return None
@@ -174,6 +194,8 @@ def row_problem(row) -> str | None:
     own = ROW_FIELDS[row["kind"]]
     if not own <= set(row) or not all(isinstance(row[k], str) and row[k].strip() for k in own):
         return f"行 {row!r} に {sorted(own)} が空でない字で無い"
+    if row["kind"] == "seen" and not re.fullmatch(WRITER, row["writer"]):
+        return f"行 {row['id']} の writer が「パス:行」でない"
     if row["kind"] == "waits-part" and row["part"] not in PARTS:
         return f"行 {row['id']} の part が {PARTS} のどれでもない"
     rule = {k: v for k, v in row.items() if k not in own}

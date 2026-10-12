@@ -44,7 +44,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/entry.py:716 `_engine_log`・works/.shared/core/board.py:379 `tree_runner`
   - 今: lib/declared_checks.py:234 `_engine_log`・:206 `tree_runner`
   - 証: lib/tests/test_declared_checks.py::RunCiTestCmdRulesCase.test_different_command_runs_both_with_separate_logs（assert: :123-125）・RunEngineCase.test_broken_declaration_is_blocked_without_running（assert: :398）
-  - 本物の run: test_cmd を渡す run は test-gate/base/logs/test_cmd.log・test-gate/final/logs/test_cmd.log。checks.log は宣言の在る run だけ
+  - 本物の run: test_cmd を渡す run は test-gate/base/logs/a<k>/test_cmd.log・test-gate/final/logs/a<k>/test_cmd.log。checks.log は宣言の在る run だけ（logs/a<k>/checks.log）
   - 狭め: 無し
 
 - T5 宣言が無く test_cmd が在れば test_cmd だけを走らせ（by role）、0 は clean・ほかは found（count 1）にする。
@@ -58,7 +58,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/entry.py:858 `run_ci`（role_needed）・works/blk-tests/scripts/run_tests.py:67-68・works/blk-ci/blk-ci.yaml
   - 今: lib/declared_checks.py:384-385・workflows/test-gate/works-factory-test-gate.yaml:86-88（ci-loop の when）
   - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_no_declaration_falls_back（assert: :381）・tests/workflows/test_test_gate.py::YamlCase.test_loop_matches_give_up（assert: tests/workflows/test_test_gate.py:134）
-  - 本物の run: test_cmd を渡さない run の test-gate/base/run.json の by="role_needed" と、節 test-gate-base__ci が走ること
+  - 本物の run: test_cmd を渡さない run の test-gate/base/run.json の by="role_needed" と、節 test-gate-base__ci-loop.ci が走ること
   - 狭め: 無し
 
 - T7 宣言の書式の誤りは走らせず、走らせられない素材（判定の前の base は awaiting_human・修正の後の final は not_run）の reason に宣言の名と誤りを書く。
@@ -271,7 +271,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/darkfactory/lib/line_edge.py:569-571 `_final_text`・報告の冒頭（entry.baseline_line・suites_line）
   - 今: 無し（字は evidence.md だけ。最後の関所 workflows/line/scripts/ask_final.py（#74 の head）:39-60 は tests_ok・green・red_cause だけを読み、報告は lib/runreport.py:92 の指し札「試験の記録（最後）」と :818-826 の green-cert の 1 行だけ）
   - 証: 要追加: tests/workflows/test_gate_head.py::FinalHeadCase.test_final_text_carries_suites_and_baseline_lines（#74 の head）— 最後の関所の文に evidence.md の「走らせ方」と「修正前のテスト」の行が在る。報告の側も lib/tests の report の試験に同じ照らしを 1 本
-  - 本物の run: gates/gate-final.json の text（関所はいつも開く）に行が在るか。report/report.md の「試験の記録（最後）」の指し札
+  - 本物の run: 最後の関所の文（ask-final の text。置き場の控えは部分 B2 の final-gate.md。gates/gate-final.json は人の答え）に行が在るか。report/report.md の「試験の記録（最後）」の指し札
   - 狭め: #69 はブロックの範囲で evidence.md に戻したが、線（#74）と報告が受けていない。Archon で不可でない → 戻す（線と報告への申し送り）
 
 ### G 赤の原因と緑の認証
@@ -315,7 +315,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2093-2115（ask ci_unverified）
   - 今: 無し（evidence.md の SELF_REPORTED の句だけ。最後の関所 workflows/line/scripts/ask_final.py（#74 の head）:39-44 は「認証できなかった」としか言わず、宣言を書く手がかりが無い）
   - 証: 要追加: tests/workflows/test_gate_head.py::FinalHeadCase.test_self_reported_green_names_how_to_declare（#74 の head）— 自己申告で認証しなかった最後の関所の文に `.review-checks.json` の名と次の手が在る
-  - 本物の run: test_cmd を渡さない run の gates/gate-final.json の text
+  - 本物の run: test_cmd を渡さない run の最後の関所の文（置き場の控えは部分 B2 の final-gate.md）
   - 狭め: #69 と #74 の間で落ちた（どの PR も挙げていない）。Archon で不可でない → 戻す
 
 - T42 base の認証: 素材が clean・found・not_applicable なら ok（直す前の赤は控えるのが仕事）、not_run・awaiting_human・素材が無いなら ok false（緑を仮定しない）。base の任せ先の緑は ok にする。
@@ -366,7 +366,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-ci/blk-ci.yaml:87-105
   - 今: workflows/test-gate/works-factory-test-gate.yaml:86-135
   - 証: tests/workflows/test_test_gate.py::YamlCase.test_role_node_reads_only（assert: :109-113）・test_role_node_matches_works_blk_ci（assert: :119-124）・test_loop_matches_give_up（assert: :134）
-  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci・test-gate-final__ci の記録
+  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci-loop.ci・test-gate-final__ci-loop.ci の記録
   - 狭め: 無し
 
 - T49 本物の作業ツリーへの書き込みを、包み（adapter）が印の旗 no-tree-write を見て起動ごとに denyWrite に足して塞ぐ。切符の無い起動は起こさない。包みを宣言した run は受け付けが包みの起動の記録で柵が掛かったかを見て、無ければ止める。包み無しの run は知らせ NO_ADAPTER_NOTE を出す。宣言が読めなければ役を起こさずに止める。
@@ -380,7 +380,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/ci_role.py:177 `_make_copy`・:189 `snapshot`
   - 今: workflows/test-gate/scripts/ci_prep.py:35-38
   - 証: tests/workflows/test_test_gate.py::CiRoleCase.test_prep_copies_tree_and_passes_reject（assert: :283-285）
-  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci-prep の copy_dir・tmp_dir
+  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci-loop.ci-prep の copy_dir・tmp_dir
   - 狭め: 無し
 
 - T51 受け付けは役を起こす前の本物の作業ツリーの姿（porcelain・HEAD からの差分・git が無視するパス・HEAD・枝）と今を比べ、変わっていれば変わった物を名指して「読むだけの役が作業ツリーを変えた…写しの上で走らせ直せ」と拒む。元に戻せば通る。
@@ -450,7 +450,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-ci/prompts/p0.local_checks.md・works/blk-ci/prompts/p4.ci.md・works/blk-ci/commands/ci.md・works/tests/test_blk_ci.py:176 test_command_is_thin_and_prompts_keep_the_rules
   - 今: workflows/test-gate/commands/ci.md:22-30
   - 証: tests/workflows/test_test_gate.py::YamlCase.test_ci_command_keeps_the_rules（#122）・CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits（元の 3 つと台帳 5 組）
-  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci の指示書（Archon の記録）
+  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci-loop.ci の指示書（Archon の記録）
   - 狭め: 無し（字は在る。縛る試験が無い）
 
 - T61 修正の後の役の指示書に、前の周で人へ諮った答えと、台帳の kind=awaiting・origin=local_checks の未決の問いを渡し、未決の問いが在る間は CI を走らせても awaiting_human のまま書かせる（人に諮っている最中の欄を clean で上書きしない）。
@@ -503,7 +503,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/darkfactory/lib/line_edge.py:567（rest.tests_word）
   - 今: workflows/line/scripts/ask_final.py（#74 の head）:39-44 `tests_word`
   - 証: tests/workflows/test_gate_head.py::FinalHeadCase.test_three_lines_and_reasons（#74 の head。assert: :125）。弱い: final_got の既定 tests_ok=True と green=False の組は test-gate の final が返さない（final の赤は必ず ok false）。本物の赤は「認証できなかった（introduced）」と出て「赤」にならず、「赤」の枝は届かない。要追加: FinalHeadCase.test_red_final_says_red — tests_ok=False・green=False・red_cause=introduced で 1 行目が「テストは赤（introduced）」
-  - 本物の run: gates/gate-final.json の text の 1 行目
+  - 本物の run: 最後の関所の文の 1 行目（置き場の控えは部分 B2 の final-gate.md）
   - 狭め: 無し（字の誤り）
 
 - T68 報告の「直す前のテスト」の行が、走らせられなかった base（incomplete）を「赤」と言わない（元は MATERIAL_WORDS で状態の語を出した）。
@@ -1300,7 +1300,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:618-622 `gatemarks.measured_materials`・:701 `_unmeasured_row`
   - 今: lib/outcome.py:280 `measured_materials`・:356-357
   - 証: lib/tests/test_outcome.py::ReadingCase.test_material_answered_with_command_and_output_is_not_left（assert: :226-232）・tests/workflows/test_report.py::FactsCase.test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome（assert: :321）
-  - 本物の run: judge/materials.json の status、report/report.md「1. 人が決めること」の「人が確かめる物」
+  - 本物の run: judge/materials.json の素材ごとの status、report/report.md「1. 人が決めること」の「人が確かめる物」の素材の行
   - 狭め: 無し
 
 - R19 落ちたが線が受け止めた節を残りに（返りの在るブロックの中の落ちは重ねない）
@@ -1414,7 +1414,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:964 `gatemarks.lines`
   - 今: lib/runreport.py:593 `_gate_passes`
   - 証: lib/tests/test_runreport.py::DecisionsCase.test_gate_passes_follow_decisions（assert: :290-291）・test_gate_passes_missing_or_broken_is_one_line（assert: :300-305）
-  - 本物の run: plan-review/gate-passes.json、report/report.md「修正前の関所が聞かずに通した行（plan-review）: N 件」
+  - 本物の run: plan-review/pass-<k>/gate-passes.json、report/report.md「修正前の承認ノードが聞かずに通した行（plan-review）: N 件」
   - 狭め: 無し
 
 - R35 事前審査の壁打ちの往復の行（往復の数・結末・残った key と、往復ごとの block・fixed・disputed・下げた key・項目の閉じ・開き・保留）
@@ -1458,14 +1458,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1302 `head_entry`・entry.baseline_line（works/.shared/core/entry.py:792）
   - 今: lib/runreport.py `_entry_lines`
   - 証: lib/tests/test_runreport.py::LinesCase.test_entry_gate_words・test_entry_lists_ran_and_skipped_stages_and_baseline（返りが null の段が「飛ばされた・返りの無い段」に、test-gate-base の赤の原因が「直す前のテスト: 赤（赤の原因 …）」に出る。3 行のどれを消しても赤）
-  - 本物の run: start/start.json と report/report.md「## 2. 入口・段・決めた人」
+  - 本物の run: start.json（run の置き場の直下）と report/report.md「## 2. 入口・段・決めた人」
   - 狭め: 下の R41
 
 - R41 段（thickness）・機能の on/off（features_off・features_on と既定）・決めた人（関所の答えの数）・forge が無い時の並行 PR の条件外
   - 元: works/.shared/core/report.py:1308-1338 `head_entry`・:1339 `forge_line`
   - 今: 無し。始めの記録は thickness・features・versions を持つ（workflows/line/scripts/start.py:165-173）が lib/runreport.py:873 `_entry_lines` は出さない
   - 証: 要追加: lib/tests/test_runreport.py::LinesCase.test_entry_names_thickness_and_features — 始めの記録の thickness と entry.features_part の字が入口の節に出る
-  - 本物の run: start/start.json の thickness（標準）・features
+  - 本物の run: start.json（run の置き場の直下）の thickness（標準）・features
   - 狭め: #68 で書かれずに落ちた。不可でない → 戻す（元の「下げている所 downgrades.json」と「このラインに無い節」は線の形が変わったので対象が無い）
 
 - R42 線が渡した深さの行（単位ごとの深さ・標準へ上げた信号・軽量で省いた物）
@@ -1488,7 +1488,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1346 `head_stop`
   - 今: lib/runreport.py:899 `_stop_lines`
   - 証: lib/tests/test_runreport.py::BuildCase.test_stopped_by_request_still_writes_report（assert: :113）・LinesCase.test_seal_not_ok_says_why（assert: :778-781）・TranscriptCase.test_rows_give_cost_time_failed_and_retried（assert: :208-209）・TranscriptCase.test_fall_the_line_went_past_is_absorbed_not_interrupted（assert: :238-243）・tests/workflows/test_report.py::FactsCase.test_unknown_answer_word_is_record_invalid_with_its_reason（assert: :291）
-  - 本物の run: report/report.md「## 3. 止めたか」の「関所 gate-final: approve（…）」
+  - 本物の run: report/report.md「## 3. 止めたか」の「承認ノード gate-final: approve（…）」
   - 狭め: 止め札の行は R2
 
 - R45 run の記録の読み: 最後が node_error の節を、後にほかの節（自分の include を除く）が始まったかで落ち（failed）と受け止めた落ち（absorbed）に分け、node_error の後に済んだ節を retried に
@@ -1520,7 +1520,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1961 `tdd_lines`・:1926 `_red_evidence`
   - 今: lib/report.py:194 `tdd_lines`・lib/runreport.py:784 `_tdd_stages`・:804 `_tdd_lines`
   - 証: lib/tests/test_report.py::TddLinesCase.test_each_unit_gets_its_outcome（assert: :37-45）・test_tdd_unit_shows_red_quotes_stub_files_and_unchecked（assert: :65-69）・lib/tests/test_runreport.py::TddCase.test_second_fix_stage_is_named_apart（assert: :142）・test_units_without_artifact（assert: :148-149）
-  - 本物の run: 型つきの成果物の一覧の tdd-unit、report/report.md「## TDD の輪の単位ごとの結末」の「修正の段（組 g1）: 2 単位（赤→緑 2…）」
+  - 本物の run: 型つきの成果物の一覧の tdd-unit、report/report.md「## TDD のループの単位ごとの結末」の「修正の段（組 g1）: 2 単位（赤→緑 2…）」
   - 狭め: 無し
 
 - R49 緑の認証（全部の周）: green-cert ごとに緑か・ok・赤の原因、認証が通した赤（inherited・environment）を名指す
@@ -1608,7 +1608,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-report/blk-report.yaml（書き手の輪）、works/blk-report/lib/report_roles.py:290 `prep`・:328 `write_cold_prep`
   - 今: workflows/report/works-factory-report.yaml:52-153、workflows/report/commands/report.md・cold-check.md
   - 証: tests/workflows/test_report.py::ShapeCase.test_roles（assert: :116-124）・test_writer_receives_the_reject_file_through_the_reject_node（assert: :131-139）・test_loop_gives_up_with_the_roles_count（assert: :151-152）
-  - 本物の run: 節 `report__write`・`report__cold`・`report__accept` の出力、report/reject-<n>.md
+  - 本物の run: 節 `report__write-loop.write`・`report__write-loop.cold`・`report__write-loop.accept` の出力、report/reject-<n>.md（拒んだ回だけ）
   - 狭め: 無し（輪の頭の script の節は #100 の直し。Archon の include の読み込みが with: で結んだ名を入力の欠けと数えるため: packages/workflows/src/include-expander.ts:566-579）
 
 - R61 受け付けの順: 読む → terms の型 → 表のセルの書式（「。」か 50 字超で拒む。`コード` は数えない）→ 初見の判定。拒否の行に種類（cold・format・answer）。3 回拒めば受け取れなかった訳。初見だけが通さない時は 3 回目に受け取り「初見の確かめを通っていない」の印
@@ -1622,7 +1622,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-report/lib/report_roles.py:316 `head_of`・:328 `write_cold_prep`
   - 今: lib/report_roles.py:81 `head_of`・lib/runreport.py:1031 `cold_body`、workflows/report/commands/cold-check.md
   - 証: lib/tests/test_runreport.py::ColdBodyCase.test_head_and_glossary_only（assert: :518-520）・test_unreadable_reply_says_so（assert: :523）・lib/tests/test_report_roles.py::HeadCase（assert: :48-53）・tests/workflows/test_report.py::ShapeCase.test_cold_reader_is_told_the_machine_heading（assert: :148）
-  - 本物の run: 節 `report__cold-prep` の出力 body、`report__cold` の出力 verdict
+  - 本物の run: 節 `report__write-loop.cold-prep` の出力 body、`report__write-loop.cold` の出力 verdict
   - 狭め: 無し
 
 - R63 AI の報告: 来歴の 1 行・（通っていなければ）印・本文・語の定義・初見の拒否の回数・機械の事実（見出しを 1 段下げ、「人が決めること」を機械の数えの見出しに言い換えて節を 1 つに）。受け取れなかった時は訳と機械の事実
@@ -1650,7 +1650,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:2031 `ai_go`（途中で終わった run は回さない）
   - 今: lib/runreport.py:980、workflows/report/works-factory-report.yaml:54
   - 証: lib/tests/test_runreport.py::BuildCase.test_record_invalid_has_no_ai（assert: :106）・test_writes_report_and_only_present_carries（assert: :88）
-  - 本物の run: 節 `report__facts` の出力 ai_go == true と `report__write` が走ったこと
+  - 本物の run: 節 `report__facts` の出力 ai_go == true と `report__write-loop.write` が走ったこと
   - 狭め: 無し（上位）
 
 ### 落ちない・前の段が落ちても走る

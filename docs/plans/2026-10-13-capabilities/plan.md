@@ -152,7 +152,7 @@
   - 元: planmarks.py:593（_file_name）、試験 works/tests/test_plan_fields.py:124
   - 今: lib/planmarks.py:579・:593
   - 証: lib/tests/test_plan_fields.py::TestGaps.test_gaps_adds_symbol_kind_named_by_file（assert: :121）
-  - 本物の run: plan/r1/p2.fix_plan.json の plan[].adds
+  - 本物の run: plan/r1/rejects-plan.json（adds の name にファイル名を書いた行を拒んだ時だけ）。受けた案は plan/r1/p2.fix_plan.json の plan[].adds
   - 狭め: 無し
 
 - P021 受け付けた案を works の欄と分けて、素の案（p2.fix_plan.json。核の 6 欄と決め手）・欄の控え（plan-fields.json {round, fields}）・番号を戻した全体（reply.json）に置く。
@@ -203,7 +203,7 @@
   - 元: works/.shared/core/structmark.py:111 `plan_section`・planblk.py:1085 `prep`、試験 works/tests/test_blk_plan.py:1300 StructureHeadCase.test_design_rows_reach_plan_head
   - 今: lib/planfile.py:865（write_brief の structmark.plan_section）
   - 証: tests/workflows/test_plan.py::BriefCase.test_dirty_structure_rows_reach_the_brief（#120 で足した。消すと赤: write_brief の structmark.plan_section を外すと赤）
-  - 本物の run: plan/r1/brief-1.md の「構造の目の行」の節（目が汚れると見た時だけ行が出る）
+  - 本物の run: plan/r1/brief-1.md の「## 構造の目の行」の節（目の受け付けが通れば汚れない行も含め全部の行が出る。避け方の「。避け方: 」は汚れると見た行だけ）
   - 狭め: 無し（試験だけ欠け）
 
 - P028 構造の目の行が無い周（実測が落ちた・目が 3 回拒まれた・目が走らなかった・控えが読めない）は、材料に「構造の目の行なしで計画した（理由）」と書き、行への答えを求めずに計画へ進む。
@@ -389,7 +389,7 @@
   - 元: planblk.py:1441 `collect`（ok・plan_file・ripple_file ほか）
   - 今: workflows/plan/scripts/plan_collect.py:57-90・lib/planfile.py:1056 `placeholders`
   - 証: tests/workflows/test_plan.py::CollectCase.test_broken_inputs_still_return_the_contract（assert: tests/workflows/test_plan.py:704・:705・:712・:717）・SurvivesCase（:828・:829・:833）
-  - 本物の run: plan の節の出力の plan・structure・ripple の指し札（path が plan/r1/… を指す）
+  - 本物の run: plan の節の出力の plan・structure・ripple の指し札（plan と ripple は plan/r1/…、structure は plan/structure/<鍵>/structure-state.json。出力は run の記録に載らないので、照らしは節 plan-rounds.plan__plan の completed）
   - 狭め: 無し
 
 - P054 返りの約束: ready・plan・structure・ripple の指し札（archon_artifact）・depth・round を、ちょうどこの 6 つで返す。
@@ -595,7 +595,7 @@
   - 元: works/blk-structure/lib/eye.py:280-287・works/blk-structure/blk-structure.yaml:88-91
   - 今: lib/eye.py 同じ行・workflows/plan/works-factory-plan.yaml:89-93
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_third_rejection_gives_up（assert: lib/tests/test_structure_eye.py:127-130）・tests/workflows/test_plan.py::ShapeCase.test_loops_give_up_in_the_body_before_max_iterations（assert: tests/workflows/test_plan.py:362-365）
-  - 本物の run: `plan/structure/<鍵>/eye.json` の `attempt`・`status`
+  - 本物の run: `plan/structure/<鍵>/eye-prompt-2.md`（拒否の後の出し直しの時だけ）と `eye.json` の `reason`。`attempt` は支度が拒否が無くても 1 で書く
   - 狭め: 無し
 
 - P083 構造の目の控え structure-state.json（status・reason・design_file・wall_s）を、目が飛んだ・落ちた・3 回拒まれた周も必ず書く。失敗の訳は「実測が落ちた: …」「構造の目の返答が N 回とも受け付けで拒まれた: …」「構造の目の会話が落ちたか走らなかった」の 3 通り。目を起こさない周（eye.due が偽）は ok
@@ -728,7 +728,7 @@
   - 元: works/darkfactory/lib/line_edge.py `_unit_file_paths`・`structure_units`
   - 今: lib/judge_accept.py:1102 `_unit_file_paths`（judge の持ち物）
   - 証: lib/tests/test_judge_accept.py::StructureUnitsCase.test_drops_paths_that_are_not_files_under_root ほか 3 件（judge の区分。ここは参照だけ）
-  - 本物の run: judge の出力 `units`（plan の入力）の `paths`=`["stats.py"]`
+  - 本物の run: `plan/structure/<鍵>/units.json` の `paths`=`["stats.py"]`（judge の出力 units を plan が写した目録。出力そのものは run の記録に載らない）
   - 狭め: 無し
 
 ## 計画と事前審査の往復（壁打ち）と案の直し（形 replan）
@@ -813,7 +813,7 @@
   - 元: works/.shared/core/converge.py:555 `review_section`
   - 今: lib/boardview.py:750 `review_material`（converge.review_section）
   - 証: tests/workflows/test_plan_review.py::ConvergeCase.test_rereview_material_carries_previous_blocks_and_answers（assert: tests/workflows/test_plan_review.py:906-908）・test_first_material_has_no_rereview（:914）
-  - 本物の run: plan-review/pass-2/prompt.md。種の run では pass-1/prompt.md に REREVIEW_ASK が無いことだけ見える
+  - 本物の run: 筋書きでのみ（再審は 2 往復目から。在れば plan-review/pass-2/prompt.md の REREVIEW_ASK。種の run では pass-1/prompt.md に REREVIEW_ASK が無いことだけ見える）
   - 狭め: 無し
 
 - P113 again（開いた block が前の往復より減った往復）では止めず関所も決めず、計画に返す。同じ block が 2 度続いた（persisted）・開いた block が減らない（unsettled）・安全の上限の周（capped）の時は止めて、修正前の関所に止まりの行（STUCK_ITEM と理由）と block の穴を載せる
@@ -1483,7 +1483,7 @@
   - 元: works/blk-plan/lib/planblk.py:851 `tree_merge`
   - 今: lib/planblk.py:733 `tree_merge`・lib/boardview.py:843-845
   - 証: tests/workflows/test_plan_review.py::TreeCase.test_machine_merges_item_answers_into_review（assert: :1004-1014）
-  - 本物の run: `plan-review/pass-1/review.json`（items が無い）・往復の控えの passes[].files に item-<n>.json
+  - 本物の run: `plan-review/pass-1/review.json`（items が無い）・往復の控えの写し `plan-review/plan-converge/pass-1/item-<n>.json`（passes[].files が指す）
   - 狭め: 無し
 
 - P206 誤った答えはその項目の下請けだけに戻す（済んだ下請けと起こし直す下請けを分けて名指し、下請けのファイルに前の答えの誤りを貼る）。項目の下請けの独立設計の引用の誤りもその項目だけを開き直す
@@ -1590,7 +1590,7 @@
   - 元: works/.shared/core/gatemarks.py:162 `HEAD`
   - 今: lib/gatemarks.py:160 `HEAD`
   - 証: tests/workflows/test_plan_review.py::PlanGateCase.test_rule_points_at_world_rows（assert: tests/workflows/test_plan_review.py:1765-1767）・lib/tests/test_gate_drafts.py::SchemaCase.test_rule_text_asks_for_recommend。材料に貼られることは PD と PA の行が持つ
-  - 本物の run: `plan-review/pass-1/prompt.md` と `plan/r1/brief-1.md` に「関所の項目の決め手」の段落
+  - 本物の run: `plan-review/pass-1/prompt.md` と `plan/r1/brief-1.md` に「承認ノードの項目の決め手」の段落
   - 狭め: 無し
 
 - P220 受け付けは返答から決め手の欄を外して控え gate-marks.json に置き、後段へは欄の無い形で渡す（推しも同じ道）
@@ -1667,14 +1667,14 @@
   - 元: works/.shared/core/gatemarks.py:576 `axes`・`_answered_rows`
   - 今: lib/gatemarks.py:561 `axes`・:550 `_answered_rows`・lib/gate_axes.py:43-51・lib/boardview.py:590 `_copy_structure`
   - 証: tests/workflows/test_plan_review.py::FourAxesCase.test_clean_route_rows_do_not_block・lib/tests/test_gate_axes.py::SplitCase.test_route_up_unit_is_not_clean・test_dirty_unit_without_answer_is_not_clean（assert: lib/tests/test_gate_axes.py:130-134）
-  - 本物の run: `gate_axes.clean`、`plan-review/structure/design.jsonl`（計画の design.jsonl の写し）
+  - 本物の run: `gate_axes.clean`、`plan-review/structure-state.json` の design_file（計画の design.jsonl の写し `plan-review/structure/design.jsonl` を指す。構造の目が行を書かない run では写しは 0 バイト）
   - 狭め: 無し
 
 - P231 軸「やりすぎでない」: 柵の印が無く、行が修正案の単位の外を名指さない
   - 元: works/.shared/core/gatemarks.py:576 `axes`
   - 今: lib/gatemarks.py:561 `axes`・lib/gate_axes.py:38-39・:52-54
   - 証: tests/workflows/test_plan_review.py::FourAxesCase.test_face_outside_plan_units_asks・lib/tests/test_gate_axes.py::SplitCase.test_fences_are_overkill・test_face_outside_plan_units_is_overkill
-  - 本物の run: `gate_axes.not_overkill`
+  - 本物の run: 筋書きでのみ（軸の値は返す節 `review` の出力にだけ在り置き場に書かれない。種は関所の行が無く軸は空の ok の見込み）
   - 狭め: 無し
 
 - P232 4 つの軸を軸ごとの {ok, note} に分けて返す（返す節の gate_axes）。軸の決まりは gatemarks.axes と gate_axes._reasons の 2 か所が持つが、「全部の軸が ok ⇔ gatemarks.axes が空」と「全部の軸が ok ⇔ 関所の項目が無い」を試験が縛る。項目の無い軸は {ok: true, note: ""}、note は行の頭と訳
@@ -1765,7 +1765,7 @@
   - 元: works/.shared/core/graphloops/rules/review-loop.py:4134 `human_gate_answered`（盤面の record.process.human_items に積んだ）
   - 今: lib/boardview.py:332 `take_gate_answers`・:912 `_note_asked`・workflows/plan-review/scripts/pass_open.py（入力 gate_answers）。線は渡さない: workflows/line/works-factory-line.yaml:203-216（plan-review-run の with に gate_answers が無い）・:509-523（replan-review も無い）
   - 証: lib/tests/test_boardview.py::GateAnswersCase.test_continued_rows_are_not_asked_again（assert: lib/tests/test_boardview.py:317-321）・tests/workflows/test_plan_review.py::PortedMaterialCase.test_gate_answers_reach_the_lib_through_the_open_script（assert: :1594）。線の配線は 要追加: tests/workflows/test_line.py::WiringCase.test_replan_review_gets_the_before_fix_answer — replan-review の with に `gate_answers: $answer-before-fix.output.answer`（項目の文の asked つき。P241 と同じ穴）が在ること
-  - 本物の run: `plan-review/gate-answers.json`（今の線では書かれない。直れば案の直しの run で見える）
+  - 本物の run: `plan-review/gate-answers.json`（修正前の関所が開いて通すと線の answer-before-fix が boardview.passed_version で積む。次の差し込みが読んだことは案の直しの run の `plan-review/open.json` の human_items で見える）
   - 狭め: #73 は入力を足したが、#74 の線が渡さない。今の線で同じ run の 2 度目の差し込みは案の直しの事前審査だけで、そこでは方針の変化の行を聞き直す（P246）。Archon で不可でない → 線に配線する
 
 - P245 返した関所の項目の種類と方針の変化を gate-asked.json に積み、関所の項目の全部と壁打ちの行を pass-<k>/gate.json に残す（次の差し込みが通した行の種類を引く・人が読む控え）
