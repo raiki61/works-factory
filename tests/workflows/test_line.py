@@ -145,6 +145,19 @@ def literals(path: pathlib.Path) -> set:
             if isinstance(n, ast.Constant) and isinstance(n.value, str)}
 
 
+def named_files(path: pathlib.Path) -> set:
+    """ファイルが名で持つ字: 字の定数と、import した lib のモジュールの字の定数を <別名>.<名> で引いた値（持ち主の定数で開く読み手）"""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    aliases = {a.asname or a.name: a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    found = literals(path)
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id in aliases:
+            module = aliases[n.value.id]
+            if (ROOT / "lib" / f"{module}.py").is_file() and isinstance(value := getattr(importlib.import_module(module), n.attr, None), str):
+                found.add(value)
+    return found
+
+
 def load_file(name: str, path: pathlib.Path):
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
@@ -1148,7 +1161,7 @@ class LineWiringCase(unittest.TestCase):
     def test_every_contract_neighbour_file_has_a_writer_and_a_reader(self):
         """落とし穴 K12: docs/design.md の隣のファイルの一覧と表 NEIGHBOURS が同じで、各行で、書き手のブロックの script か lib が
         その名を字の定数で持ち（named）、書き手の返す節が止めの道（空の置き場で lib の在る道。stop）と lib の無い道（bare）でも返りの
-        欄の指し札の隣にそのファイルを置き、読み手（書き手でないブロックの script か、そこから import で辿れる lib）がその名を開く（read）。
+        欄の指し札の隣にそのファイルを置き、読み手（書き手でないブロックの script か、そこから import で辿れる lib）がその名を字か持ち主の定数で開く（read）。
         約束が「書かれないことがある」と名指した 4 つは stop・bare を問わない。通らない照らしは UNPROVEN に名指して許す"""
         names, optional = neighbour_files(DESIGN.read_text(encoding="utf-8"))
         self.assertEqual(set(self.NEIGHBOURS), names, "表と docs/design.md の隣のファイルの一覧が違う")
@@ -1165,7 +1178,7 @@ class LineWiringCase(unittest.TestCase):
                 "named": any(name in literals(p) for p in reach[block]),
                 "stop": name in optional or name in beside[block, field, False],
                 "bare": name in optional or name in beside[block, field, True],
-                "read": reader_path.is_file() and name in literals(reader_path)
+                "read": reader_path.is_file() and name in named_files(reader_path)
                         and any(reader_path in files for other, files in reach.items() if other != block),
             }
             found |= {(name, check) for check, ok in checks.items() if not ok}
