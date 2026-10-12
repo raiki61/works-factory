@@ -870,7 +870,6 @@ nodes:
     with:
       mode: seal
       start: "$start.output.record"
-      diff: "$fixed.output.diff"
       fingerprint: "$test-gate-final.output.fingerprint"
       green_ok: "$test-gate-final.output.ok"
       eyes_ok: "$eyes.output.ok"
@@ -992,7 +991,6 @@ nodes:
     with:
       mode: apply
       start: "$start.output.record"
-      diff: "$fixed.output.diff"
       fingerprint: "$test-gate-final.output.fingerprint"
       green_ok: "$test-gate-final.output.ok"
       eyes_ok: "$eyes.output.ok"
@@ -1132,6 +1130,23 @@ nodes:
       redepth: "$collect.output.redepth"
       optional: "$collect.output.optional"
 
+  # 後始末。fix の並べ（groups-par）の子の run が残した作業ツリーと枝を消す（issue #113）。消すのはこの run の子で status が
+  # completed の物で、子を起こした fan_out の節と join が済んだ物だけ（再開が join を走らせ直しうる間は残す）。落ちない（返りの error に畳む）ので run の結末を変えず、返り {cleaned, left, error} は result が線の返りに載せる
+  - id: sweep-children
+    script: sweep_children
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        cleaned: { type: array, items: { type: object } }
+        left: { type: array, items: { type: object } }
+        error: { type: string }
+      required: [cleaned, left, error]
+    mutates_checkout: false
+    depends_on: [report]
+    trigger_rule: all_done
+
   # 線の返す節
   - id: result
     script: result
@@ -1152,10 +1167,11 @@ nodes:
         sealed: { type: [object, "null"] }
         r2_status: { type: [string, "null"] }
         final_answer: { type: [object, "null"] }
+        children: { type: [object, "null"] }
       required: [fixed, ok, outcome, stop_reason, report, report_ai, next_request, prior_failures, apply, sealed, r2_status,
-                 final_answer]
+                 final_answer, children]
     mutates_checkout: false
-    depends_on: [collect, report]
+    depends_on: [collect, report, sweep-children]
     trigger_rule: all_done
     always_run: true
     with:
@@ -1170,3 +1186,4 @@ nodes:
       merge_seal: { from: "$collect.output.merge_seal", if_skipped: null }
       eyes: { from: "$collect.output.eyes", if_skipped: null }
       gate_final: { from: "$collect.output.gate_final", if_skipped: null }
+      children: { from: "$sweep-children.output", if_skipped: null }
