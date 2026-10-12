@@ -1831,7 +1831,7 @@ class GroupChildSeamCase(TempCase):
 
 class FixAcceptSeamCase(TempCase):
     """修正役の受け付けと範囲の相談の部品（fixboard の check_*_units・fix_reject_text・undeclared_writes・reply_marks・unit_outcomes・
-    granted_tests・ruled_owed・ruled_reply_line・consult_ask・accept_reply）。元 works/blk-fix/scripts/accept.py の単位の行の照らしと
+    allowed_tests・ruled_owed・ruled_reply_line・consult_ask・accept_reply）。元 works/blk-fix/scripts/accept.py の単位の行の照らしと
     元 works/blk-fix/lib/consult.py:522 の頼みの節を、置き場と値で回す"""
 
     def test_unit_row_checks(self):
@@ -1898,7 +1898,7 @@ class FixAcceptSeamCase(TempCase):
         got = fixboard.unit_outcomes(["a"], {}, conflicted=["a"])
         self.assertEqual(got["a"], {"status": "not_done", "reason": fixboard.PARKED_FOR_RULING})
 
-    def test_granted_tests_take_rulings_and_agreements(self):
+    def test_allowed_tests_take_rulings_and_agreements(self):
         import conflict
         conflict.park(self.place, [{"unit_key": "a", "between": ["stats.py:9", "test_stats.py:8"],
                                     "why_both_cannot_hold": "テストの期待が誤っている", "which_is_right": "request",
@@ -1907,7 +1907,7 @@ class FixAcceptSeamCase(TempCase):
         fixboard.trace(self.place, conflict.ASKED_OP, id=1, item="1", status="answered", decision="allow", granted_paths=[],
                        granted_tests=["tests/test_b.py:3"], granted_new_tests=[{"id": "tests/test_c.py::T::t", "red_kind": "red"}],
                        reason="足してよい")
-        self.assertEqual(fixboard.granted_tests(self.place), ["test_stats.py", "tests/test_b.py", "tests/test_c.py"])
+        self.assertEqual(fixboard.allowed_tests(self.place), ["test_stats.py", "tests/test_b.py", "tests/test_c.py"])
 
     def test_ruled_owed_reads_the_join(self):
         (self.place / "judgment.json").write_text(json.dumps({"units": [{"key": k, "label": "block"} for k in "abc"]}),

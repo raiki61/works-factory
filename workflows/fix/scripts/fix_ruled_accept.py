@@ -59,7 +59,7 @@ def main() -> dict:
     if got["ok"]:
         path = place / fixboard.RULED_REPLY_FILE
         fixboard.write_json(path, fixboard.reply_marks(got["reply"], fixboard.read_json(path)))
-        fixboard.write_json(place / fixboard.GRANTED_TESTS_FILE, fixboard.granted_tests(place))
+        fixboard.write_json(place / fixboard.GRANTED_TESTS_FILE, fixboard.allowed_tests(place))
         fixboard.trace(place, "fix_ruled_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]))
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
     reason_file = fixboard.write_text(place / fixboard.REJECT_NAME.format(name=NAME, k=iteration), got["reason"] + "\n")

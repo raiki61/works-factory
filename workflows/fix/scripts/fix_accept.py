@@ -68,7 +68,7 @@ def finish(place: Path, got: dict, iteration: int) -> dict:
     if got["ok"]:
         path = place / fixboard.FIX_REPLY_FILE
         fixboard.write_json(path, fixboard.reply_marks(got["reply"], fixboard.read_json(path)))
-        fixboard.write_json(place / fixboard.GRANTED_TESTS_FILE, fixboard.granted_tests(place))
+        fixboard.write_json(place / fixboard.GRANTED_TESTS_FILE, fixboard.allowed_tests(place))
         fixboard.trace(place, "fix_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]),
                        conflicted=got["conflicted"])
         return {"ok": True, "done": True, "reason": fixboard.PARKED_FOR_RULING if got["conflicted"] else "",
