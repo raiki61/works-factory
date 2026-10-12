@@ -596,6 +596,58 @@ class RecountSeamCase(TempCase):
         self.accept(_fix_ok(), commit=False)
         self.assertEqual(self.calls() - first, 2, "修正前の版の 2 つは取り置きから読み、修正後の 2 つだけ数える")
 
+    def test_budget_exhausted_is_a_reject_line(self):
+        """1 周に数える問いを走らせる量の上限（COUNT_BUDGET）に達したら、問いを走らせずに『上限に達した』の行で拒む
+        （元 works/.shared/core/graphloops/rules/review-loop.py:3304 COUNT_BUDGET・:3307 _run_query）"""
+        self.edit_tree(R_FIXED)
+        spent = {"round": 1, "calls": self.recount.COUNT_BUDGET["calls"], "seconds": 0.0}
+        (self.place / self.recount.COUNT_BUDGET_FILE).write_text(json.dumps(spent), encoding="utf-8")
+        got = self.accept(_fix_ok())
+        self.assertFalse(got["ok"], got)
+        self.assertIn(f"上限（{self.recount.COUNT_BUDGET['calls']} 回か {self.recount.COUNT_BUDGET['seconds']} 秒）に達した",
+                      got["reason"])
+        self.assertEqual(self.calls(), spent["calls"], "上限の後は走らせない")
+        self.assertTrue(self.accept(_fix_ok(), round_=2)["ok"], "周が替われば数え直す")
+
+    def test_zero_unit_is_not_rejected_as_narrowed(self):
+        """判定の時に engine が 0 件と数えた単位（zero_keys）は、判定者の母数より修正前の数が少なくても『問いを狭めている』で
+        拒まない（元 review-loop.py:2638・:2776-2777 の盤面の engine_zero）"""
+        judged = [{"key": R_MEAN, "class_query": {"how": {"patterns": ["zzz-none"], "fixed": True, "paths": ["stats.py"],
+                                                           "count": "lines"}, "counts": "population", "total": 2}}]
+        reply = {"changes": [{**_fix_row(R_MEAN, 0)}], "not_done": []}
+        got = self.accept(reply, judged=judged, owed={R_MEAN})
+        self.assertFalse(got["ok"], got)
+        self.assertIn("判定者が数えた母数は 2", got["reason"])
+        self.assertIn("狭めている", got["reason"])
+        got = self.accept(reply, judged=judged, owed={R_MEAN}, zero_keys={R_MEAN})
+        self.assertTrue(got["ok"], got)
+
+    def test_rejects_blank_interaction_check(self):
+        """2 つの修正が同じファイルを触った時、interactions のそのファイルの checked が空同然なら拒む（元 review-loop.py:2690-2709）"""
+        self.edit_tree(R_FIXED)
+        reply = _fix_ok()
+        reply["interactions"] = [{"surface": "stats.py", "checked": "済み"}]
+        got = self.accept(reply)
+        self.assertFalse(got["ok"], got)
+        self.assertIn("interactions[stats.py] の checked が空同然", got["reason"])
+        self.assertTrue(self.accept(_fix_ok())["ok"], "突き合わせた結果を書けば通す")
+
+    def test_rejects_precedent_without_problem_or_source(self):
+        """precedent は from_judge_row でなければ problem と source（verdict が not_found なら searched）を求める
+        （元 review-loop.py:2725-2732）"""
+        self.edit_tree(R_FIXED)
+        bare = _fix_ok()
+        bare["changes"][0]["precedent"] = {"verdict": "adopt", "reason": "標準の定義に合わせる"}
+        self.assertIn(f"{R_MEAN[:60]}: precedent に problem と source", self.accept(bare)["reason"])
+        unsourced = _fix_ok()
+        unsourced["changes"][0]["precedent"] = {"problem": "平均の分母の誤り", "verdict": "adopt", "reason": "標準の定義に合わせる"}
+        self.assertIn("precedent に problem と source", self.accept(unsourced)["reason"])
+        unsearched = _fix_ok()
+        unsearched["changes"][0]["precedent"] = {"problem": "平均の分母の誤り", "verdict": "not_found", "reason": "見つからない"}
+        self.assertIn("precedent に problem と source", self.accept(unsearched)["reason"])
+        unsearched["changes"][0]["precedent"]["searched"] = "標準ライブラリの文書と課題の一覧を引いた"
+        self.assertTrue(self.accept(unsearched)["ok"], "not_found は searched が在れば通す")
+
     def test_fix_reply_reads_the_reply_file(self):
         import fixboard
         f = self.place / "fix-reply.json"
@@ -1920,6 +1972,18 @@ class FixAcceptSeamCase(TempCase):
         self.assertEqual([(r["unit_key"], r["ruling"]["decision"]) for r in conflict.items(self.place)], [(R_MEAN, conflict.ASK)],
                          "積み増さない")
 
+    def test_consult_after_budget_is_rejected_and_dropped(self):
+        """範囲の相談の周でない回に来た consult は枠を使い切った後の物: 確かめ consult の行で拒み、欄を外した返答を後の確かめに
+        当てる（元 works/blk-fix/scripts/accept.py:629-631。元の試験 works/tests/test_fix_precheck.py:145・test_fix_lanes.py:223）"""
+        import conflict
+        import consult
+        ask = [{"item": 1, "paths": ["docs/n.md"], "tests": [], "why": "直しに伴う記録を残す要が在る（範囲の外）"}]
+        got = self._accept_fixed({**_fix_ok(), conflict.CONSULT_FIELD: ask})
+        self.assertFalse(got["ok"], got)
+        self.assertEqual(got["rejects"], [{"check": "consult", "text": fixboard.CONSULT_SPENT.format(n=consult.BUDGET)}])
+        self.assertNotIn(conflict.CONSULT_FIELD, got["reply"])
+        self.assertEqual(len(got["reply"]["changes"]), 2, "欄を外した返答を後の確かめに当てた")
+
     def _hold_clamp(self) -> str:
         """R_CLAMP を ask_human の裁定で直す義務から外し（conflict.held_by_rulings）、外れた理由を返す"""
         import conflict
@@ -1947,6 +2011,20 @@ class FixAcceptSeamCase(TempCase):
 
     def _held_row(self, files):
         return {"unit_key": R_CLAMP, "what": "上限の枝を直した", "files": files, **SELF_REPORT}
+
+    def test_accept_reply_rejects_duplicate_unknown_and_excused_rows(self):
+        """受け付けは単位の行を照らす: 同じ unit_key の 2 行・義務にも外れにも無い key・外れた単位の行（外れた理由を名指す）。
+        元 works/blk-fix/scripts/accept.py:664-672（元の試験 works/tests/test_fix_duty.py:148・:193）"""
+        why = self._hold_clamp()
+        accept = self._held_turns({"held.txt": "上限の枝\n", "made-up.txt": "x\n"})
+        reply = {"changes": [_fix_row(R_MEAN, 1), _fix_row(R_MEAN, 1), {**_fix_row("作り話の単位", 0), "files": ["made-up.txt"]},
+                             self._held_row(["held.txt"])], "not_done": []}
+        got = accept(reply, 1)
+        self.assertFalse(got["ok"], got)
+        rows = [(r["check"], r["text"]) for r in got["rejects"] if r["check"] in ("duplicate", "not_opened", "excused")]
+        self.assertEqual(rows, [("duplicate", fixboard.DUPLICATE + R_MEAN), ("not_opened", fixboard.NOT_OPENED + "作り話の単位"),
+                                ("excused", f"{fixboard.EXCUSED}{R_CLAMP}（{why}）")])
+        self.assertNotIn(fixboard.NOT_OPENED + R_CLAMP, got["reason"], "外れた単位は作り話の key と分けて名指す")
 
     def test_last_turn_drops_only_the_excused_row(self):
         """最後の回: 外れた単位にだけ結んだ拒否の行は数えず、その単位の行を changes から外して残りで受ける。外れた単位の直しは
@@ -1985,6 +2063,26 @@ class FixAcceptSeamCase(TempCase):
         self.assertTrue((self.repo / "held.txt").is_file(), "外れた単位の直しは戻さない")
         self.assertEqual([r["unit_key"] for r in conflict.items(self.place)], [R_CLAMP, R_MEAN])
         self.assertEqual([r["dropped"] for r in _traced(self.place) if r["op"] == fixboard.ABSORBED_OP], [[R_CLAMP]])
+
+    def test_last_turn_without_bound_unit_parks_the_rest_or_gives_up(self):
+        """最後の回に止める単位が残らないのに写しの拒否が残れば（外れた単位の足跡の Markdown のリンクが届かない）、義務の残りを
+        全部止めて通し直し（parking.park_owed）、それでも残れば受けずに諦める（NOT_SETTLED）。元 works/blk-fix/scripts/accept.py:738-740
+        （止めた後に残れば元は機械の空の返答 hand_empty を渡した。今は受けずに諦める）"""
+        import conflict
+        import parking
+        self._hold_clamp()
+        accept = self._held_turns({"held.md": "# 覚え\n\n[無い](gone.md)\n"})
+        reply = {"changes": [_fix_row(R_MEAN, 1), self._held_row(["held.md"])], "not_done": []}
+        got = accept(reply, 3)
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(fixboard.NOT_SETTLED), got["reason"])
+        self.assertIn("gone.md", got["reason"])
+        self.assertEqual(list(got["parked"]), [R_MEAN], "義務の残りを全部止めた")
+        self.assertEqual(got["units"][R_MEAN]["status"], "given_up")
+        self.assertIn(parking.OUT_ONLY, got["parked"][R_MEAN])
+        self.assertIn("(len(xs) - 1)", (self.repo / "stats.py").read_text(encoding="utf-8"), "止めた単位の直しは戻した")
+        self.assertTrue((self.repo / "held.md").is_file(), "外れた単位の直しは戻さない")
+        self.assertEqual([r["unit_key"] for r in conflict.items(self.place)], [R_CLAMP, R_MEAN])
 
     def test_pack_copy_change_is_rejected(self):
         """除くパスの頭（script が渡す実行基盤の工程の写しの置き場。ここでは SKIP）の下を changes[].files に申告した・修正の段の
@@ -2149,6 +2247,22 @@ class SettleOverflowSeamCase(TempCase):
         rows = [r for r in _traced(self.place) if r["op"] == impact.ACCEPT_OVERFLOW_OP]
         self.assertEqual([r["reverted"][0]["paths"] for r in rows], [["request_ok.json"]], rows)
         self.assertTrue(pathlib.Path(rows[0]["reverted"][0]["patch"]).is_file())
+
+    def test_copy_reject_turns_overflow_into_a_reject(self):
+        """はみ出しだけに見える回でも、写しの照らし（数え直し）を乾いた形で先に当て、写しの拒否が在れば相談に積まずに拒む
+        （後で見つかる写しの拒否で相談の周を無駄にしない。元 works/blk-fix/scripts/accept.py:675-681）"""
+        import consult
+        import recount
+        reply = {"changes": [{**_fix_row(R_MEAN, 1), "bypass_tried": "なし", "files": ["stats.py", "request_ok.json"]}],
+                 "not_done": []}
+        got = fixboard.accept_reply(reply, self.place, self.repo, iteration=1, **self.kw)
+        self.assertFalse(got["ok"], got)
+        self.assertFalse(got.get("queued"), got["reason"])
+        self.assertTrue(any(r["check"] == "copy" and "bypass_tried が空同然" in r["text"] for r in got["rejects"]), got["rejects"])
+        self.assertTrue(any(r["check"] == "scope" and "request_ok.json" in r["text"] for r in got["rejects"]), got["rejects"])
+        self.assertEqual(consult.queued(self.place, "first"), [], "相談に積まない")
+        self.assertEqual(self.extra.read_bytes(), self.before + b"\n", "拒んだ回は作業ツリーを変えない")
+        self.assertFalse((self.place / recount.COVERAGE_FILE).exists(), "写しの照らしは乾いた形（件数を書かない）")
 
 
 if __name__ == "__main__":

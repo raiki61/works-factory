@@ -78,6 +78,20 @@ ORIGINAL_ROLES = {
 # 今の works の輪の max_iterations（同じ元の YAML）
 ORIGINAL_LOOPS = {"tdd-loop": 40, "fix-loop": 12, "fix-ruled-loop": 12, "rule-loop": 3, "delta-loop": 3, "refix-loop": 3,
                   "review2-loop": 3, "refix2-loop": 3}
+# 元の修正役の output_format の欄（raiki61/claude-plugins @ 2aa7c66c の works/.shared/core/recount.py:85 FIX_OUTPUT_FORMAT
+# = fix_output_format()。:69 が写しの p3.fix の schema に conflicts・consult・bash_writes を足した物）を、元のモジュールを読んで
+# 写した値（CI に元が無いので定数に持つ）
+FIX_REPLY_ORIGINAL = {
+    "required": {"changes", "fix_closure", "gates_changed", "interactions", "mechanism_changed", "not_done", "path_changed",
+                 "plan_faces", "premise_drift", "seams_changed", "security_surface_changed", "wrote_refs"},
+    "properties": {"bash_writes", "changes", "conflicts", "consult", "decision_records_changed", "fix_closure", "gates_changed",
+                   "interactions", "mechanism_changed", "not_done", "path_changed", "plan_faces", "premise_drift",
+                   "premise_drift_note", "rejudge_requested", "seams_changed", "security_surface_changed", "wrote_refs",
+                   "x_scalars"},
+    "changes.required": {"breaks", "bypass_tried", "closure", "files", "precedent", "root_or_symptom", "unit_key", "what"},
+    "changes.properties": {"breaks", "bypass_tried", "closure", "coverage", "files", "precedent", "root_or_symptom", "unit_key",
+                           "what"},
+}
 FIX_RULES = ("common", "brief", "direct", "principles", "ruler", "tdd", "refix")
 COMMANDS = ("delta-review", "review2", "lens-silent-failure-hunter")
 NO_QUEUE = re.compile(r"\b(queue|lock)\b|\btake\(")
@@ -288,6 +302,17 @@ class RolesCase(unittest.TestCase):
         self.assertEqual(step["depends_on"], ["tdd-prep", "tdd", "tdd-new"])
         self.assertEqual(step["with"], {"reply": {"from": "$tdd.output", "if_skipped": None},
                                         "reply_new": {"from": "$tdd-new.output", "if_skipped": None}})
+
+    def test_fix_reply_shape_matches_the_original(self):
+        """修正役の返答の型（&fix_reply。fixer と fix-ruled が共有）が、元の修正役の output_format の欄を 1 つも落とさない:
+        required・欄の全部、changes[] の required・欄の全部が元の物を含む（FIX_REPLY_ORIGINAL）"""
+        for nid in ("fixer", "fix-ruled"):
+            fmt = self.nodes[nid]["output_format"]
+            row = fmt["properties"]["changes"]["items"]
+            got = {"required": set(fmt["required"]), "properties": set(fmt["properties"]),
+                   "changes.required": set(row["required"]), "changes.properties": set(row["properties"])}
+            for part, want in FIX_REPLY_ORIGINAL.items():
+                self.assertEqual(want - got[part], set(), (nid, part))
 
 
 class FilesCase(unittest.TestCase):
@@ -1640,6 +1665,21 @@ class GroupChildScriptsCase(unittest.TestCase):
     def _grp_accept(self, reply):
         return self._grp_run("fix_accept", "fix-accept", reply=json.dumps(reply, ensure_ascii=False), consulted="false",
                              iteration="1")
+
+    def test_fix_accept_rejects_a_change_to_a_loop_frozen_test(self):
+        """輪の後の修正役が、TDD の輪で緑にした単位のテストのファイルの既存の行を変えた返答を、fix-accept が凍ったテストの確かめで
+        拒み、そのファイルを名指す（accept_reply から factchecks.check_frozen を外すと赤）。元 works/blk-fix/lib/tddloop.py:1662
+        frozen_problems・works/blk-fix/scripts/accept.py の 1b check_frozen"""
+        import fixboard
+        test_file = self._grp_green_loop()
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
+                             encoding="utf-8")
+        out = self._grp_accept({"changes": [_fx_change(_GRP_MEAN, ["stats.py", "test_stats.py"])]})
+        self.assertEqual((out["ok"], out["done"]), (False, False), out)
+        head = fixboard.FIX_CHECK_HEAD.format(head=fixboard.FIX_CHECKS["frozen"], cid="frozen", count=1)
+        self.assertIn(head, out["reason"])
+        frozen = out["reason"].split(head, 1)[1].split("\n## ", 1)[0]
+        self.assertIn("test_stats.py", frozen)
 
     def test_fix_accept_rejects_a_change_under_the_skip_head(self):
         """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は fixio.SKIP）、fix-accept が
