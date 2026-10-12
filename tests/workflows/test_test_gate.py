@@ -274,6 +274,21 @@ class RunScriptCase(ScriptCase):
         out = self.ok("run", mode="base", start=self.start)
         self.assertEqual(out["skipped_steps"], [{"name": "far", "paths_ignore": ["works/"]}])
 
+    def test_base_reads_request_where_as_change(self):
+        """元 entry.scope_changed の _pr_files: 判定から入る run（入口の差分が空）の base は、依頼の where が名指す追跡中のパスも
+        変更に足す。where が全部 far の見ない所なら base で far を回さない。final は where を足さない（変更の無い final は絞らない）"""
+        (self.repo / "works").mkdir()
+        (self.repo / "works" / "a.py").write_text("x\n", encoding="utf-8")
+        self.scoped()
+        request = self.tmp / "request.json"
+        request.write_text(json.dumps({"findings": [{"where": "works/a.py:1", "text": "x"}]}), encoding="utf-8")
+        self.write_start(request_file=str(request), input={"diff": {"empty": True}})
+        self.assertEqual(self.ok("run", mode="base", start=self.start)["skipped_steps"],
+                         [{"name": "far", "paths_ignore": ["works/"]}])
+        self.assertEqual(self.ok("run", mode="final", start=self.start)["skipped_steps"], [])
+        self.write_start(request_file=str(request), input={"diff": {"empty": False}})
+        self.assertEqual(self.ok("run", mode="base", start=self.start)["skipped_steps"], [])
+
     def test_scope_declaration_without_review_declaration_stops(self):
         """範囲の宣言だけが在れば走らせずに 1 で止め、理由を標準エラーに出す"""
         (self.repo / ".works-checks.json").write_text('{"far": {"paths_ignore": ["works/"]}}', encoding="utf-8")

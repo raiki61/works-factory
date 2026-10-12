@@ -18,6 +18,8 @@ sys.path.append(str(boundary.lib_root()))
 
 import accept  # noqa: E402
 import baseline_red  # noqa: E402
+import carry  # noqa: E402
+import checkscope  # noqa: E402
 import declared_checks  # noqa: E402
 import green_cert  # noqa: E402
 import tree_run  # noqa: E402
@@ -27,16 +29,28 @@ WORKSPACE_PREFIX = ".archon/"   # Archon が run の作業ツリーに置く物�
 OUTPUT = ("by", "material", "runs", "skipped_steps", "same_as", "log", "junit_steps", "fingerprint_before", "fingerprint_after")
 
 
-def changed(root: Path, base_rev: str):
-    """範囲の宣言と照らす変更（根からのパス）。base_rev から今の作業ツリーまでに触ったファイルから Archon の置き場を除いた物。
-    測れない（base_rev が無い・git の誤り・空）なら None（絞らない）"""
-    if not base_rev:
-        return None
+def changed(root: Path, base_rev: str, wheres=()):
+    """範囲の宣言と照らす変更（根からのパス）。base_rev から今の作業ツリーまでに触ったファイルと、依頼の where が名指す追跡中の
+    パス（wheres。request_wheres）の和から Archon の置き場を除いた物。測れない（git の誤り・空）なら None（絞らない）"""
+    files = set(checkscope.request_files(root, wheres))
+    if base_rev:
+        try:
+            files |= set(accept.touched_files(root, base_rev))
+        except accept.Reject:
+            return None
+    return sorted(f for f in files if not f.startswith(WORKSPACE_PREFIX)) or None
+
+
+def request_wheres(start: dict, mode: str) -> list:
+    """判定から入る run（入口の差分が空）の base で、依頼の行の where の並び。修正の前の入口の確かめは、変更を依頼が名指す所で
+    決める（修正が where の外へ広がれば final がその変更で照らす）。差分の在る入口・final・依頼が無いか読めない時は []（足さない）"""
+    if mode != "base" or not ((start.get("input") or {}).get("diff") or {}).get("empty") or not start.get("request_file"):
+        return []
     try:
-        files = accept.touched_files(root, base_rev)
-    except accept.Reject:
-        return None
-    return [f for f in files if not f.startswith(WORKSPACE_PREFIX)] or None
+        findings = carry.parts(json.loads(Path(start["request_file"]).read_text(encoding="utf-8")))[carry.FINDINGS]
+    except (OSError, UnicodeDecodeError, ValueError):
+        return []
+    return [f["where"] for f in findings if isinstance(f, dict) and isinstance(f.get("where"), str)]
 
 
 def main() -> int:
@@ -51,10 +65,11 @@ def main() -> int:
     gate.mkdir(parents=True)
     base_rev = start.get("base_rev") or ""
     suite = start.get("tdd_suite") or ""
+    wheres = request_wheres(start, mode)
     try:
         before = green_cert.fingerprint(root)
         ci = declared_checks.run_ci(root, test_cmd=start.get("test_cmd") or "", log_dir=gate / "logs",
-                                    changed=lambda: changed(root, base_rev), after_judge=mode == "final",
+                                    changed=lambda: changed(root, base_rev, wheres), after_judge=mode == "final",
                                     report_dir=gate / "junit")
         ran = None
         if suite:

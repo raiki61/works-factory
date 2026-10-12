@@ -371,7 +371,8 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
     の形）、junit_steps はその段の名、junit_unran はそのうち試験を走らせなかった段の名。段が対象の木の中に書いた報告は report_dir に
     段の番号で写し、走らせる前に無かった報告は対象の木から消す（止められた時も）。止められたら（tree_run.Stopped）捕まえない
     （元 works/.shared/core/entry.py:858-904 の盤面の外の決まりを、盤面の run_engine の代わりに checks_plan・checkscope・tree_runner・
-    checks_reply で組んだ物。scope_changed が足していた依頼の where が名指すパスは持たない——変更は changed だけで受ける）"""
+    checks_reply で組んだ物。scope_changed が足していた依頼の where が名指すパスは、呼び手が changed に足して渡す
+    （checkscope.request_files））"""
     root = pathlib.Path(root)
     log_dir = pathlib.Path(log_dir)
     if (root / checkscope.SCOPE_DECL).is_file() and not (root / DECL_NAME).is_file():
