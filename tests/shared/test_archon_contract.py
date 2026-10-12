@@ -219,6 +219,12 @@ ARCHON_ROWS = (
         r"^\s*parentNodeId: '(\w+)',$"),
     Row("complete が消せた行", lambda: childsweep.COMPLETED, "packages/cli/src/commands/isolation.ts",
         r"console\.log\(`  (Completed: )\$\{branch\}`\);"),
+    Row("complete の警告の行", lambda: childsweep.WARNING, "packages/cli/src/commands/isolation.ts",
+        r"console\.warn\(`  (Warning: )\$\{warning\}`\);"),
+    Row("子の run の親の run の鍵", lambda: childsweep.PARENT_KEY, "packages/workflows/src/schemas/workflow-run.ts",
+        r"^\s*(parent_run_id): z\.string\(\)\.nullable\(\),$"),
+    Row("run が終わった status", lambda: childsweep.DONE, "packages/workflows/src/schemas/workflow-run.ts",
+        r"export const workflowRunStatusSchema = z\.enum\(\[[^\]]*'(completed)',"),
 )
 
 

@@ -12,7 +12,9 @@ finishes」）。この部品は線の最後の節から呼ばれ、この run �
 - --force は commit していない変更の照らしを越えるために要る（子は修正を commit せず木の sha で親へ渡す）。越えないのは
   Archon が作った証の照らしで、人の作業ツリーは Archon が拒む（packages/isolation/src/providers/worktree.ts）。
   complete は終了の値で成否を言わないので、標準出力の「  Completed: <枝>」の行で読む（packages/cli/src/commands/isolation.ts）。
-- 起こし方: 入口の殻を入れ子にすると別の ARCHON_HOME を開き源を取り直しに行くので、殻が渡す源のパス（SOURCE_ENV）の
+  作業ツリーを消した後に手元か遠くの枝を消せなかった時も Completed: を出し、標準エラーの「  Warning: 」の行でだけ言う
+  （packages/isolation/src/providers/worktree.ts の deleteBranchTracked）ので、その時は警告を理由に残した物へ入れる。
+- 起こし方: 入口の殻を入れ子にすると別の ARCHON_HOME を開き源を取り直しに行くので、殻が渡す源のパス（place.SOURCE_ENV）の
   CLI を bun で直に起こす。Archon の CLI は git の木の中でしか動かない（packages/cli/src/cli.ts の requiresGitRepo）ので
   --cwd に run の作業ツリーを渡し、打つ場所は ARTIFACTS_DIR にする（Archon は打った場所の .archon/.env を読む。
   packages/cli/src/load-cli-env.ts）。complete は遠くの枝も消しにいく（子の枝は push されないので遠くは変わらない）ため、git の資格の
@@ -30,8 +32,10 @@ BRANCH_HEAD = "archon/task-"
 RUN_HEAD = 8
 BRANCH_KEY = "branch_name"
 NODE_KEY = "parent_node_id"
+PARENT_KEY = "parent_run_id"
+DONE = "completed"
 COMPLETED = "Completed: "
-SOURCE_ENV = "WORKS_FACTORY_ARCHON_SOURCE"
+WARNING = "Warning: "
 LIST_LIMIT = 1000
 REASON_LIMIT = 300
 
@@ -47,7 +51,7 @@ def select(run_id: str, listing: object) -> tuple[list[dict], list[dict]]:
         raise ValueError(f"一覧にこの run が無い（新しい順の {LIST_LIMIT} 件を越えた）")
     remove, left = [], []
     for r in runs:
-        if r.get("parent_run_id") != run_id:
+        if r.get(PARENT_KEY) != run_id:
             continue
         metadata = _metadata(r.get("metadata"))
         branch = metadata.get(BRANCH_KEY)
@@ -56,7 +60,7 @@ def select(run_id: str, listing: object) -> tuple[list[dict], list[dict]]:
         found = {"branch": branch, "run_id": r.get("id"), "node": metadata.get(NODE_KEY) or ""}
         if not branch.startswith(f"{BRANCH_HEAD}{run_id[:RUN_HEAD]}-"):
             left.append({**found, "reason": "枝の名がこの run の子の形でない"})
-        elif r.get("status") != "completed":
+        elif r.get("status") != DONE:
             left.append({**found, "reason": f"子の run が {r.get('status')}。再開が作業ツリーを使い回しうるので残す"})
         else:
             remove.append(found)
@@ -64,9 +68,10 @@ def select(run_id: str, listing: object) -> tuple[list[dict], list[dict]]:
 
 
 def outcome(branch: str, stdout: str, stderr: str) -> str | None:
-    """complete <branch> の出力から、消せたなら None、消せなかったならその理由"""
+    """complete <branch> の出力から、作業ツリーも枝も消せたなら None、消せなかったならその理由"""
     if any(line.strip() == f"{COMPLETED}{branch}" for line in stdout.splitlines()):
-        return None
+        warnings = [line.strip() for line in stderr.splitlines() if line.strip().startswith(WARNING)]
+        return _clip(f"作業ツリーは消えたが枝が残りうる: {' / '.join(warnings)}") if warnings else None
     said = " / ".join(line.strip() for line in (stderr + "\n" + stdout).splitlines() if line.strip())
     return _clip(said) or "complete が何も言わなかった"
 
@@ -74,9 +79,9 @@ def outcome(branch: str, stdout: str, stderr: str) -> str | None:
 def sweep(run_id: str, checkout: str, env: Mapping[str, str], run: Run = subprocess.run) -> dict:
     """この run の completed の子の作業ツリーと枝を消し、{cleaned, left, error} を返す。checkout は run の作業ツリー（節の cwd）"""
     result = {"cleaned": [], "left": [], "error": ""}
-    source = env.get(SOURCE_ENV)
+    source = env.get(place.SOURCE_ENV)
     if not source:
-        result["error"] = f"{SOURCE_ENV} が無い（入口の殻 bin/works-factory から起こした run でない）"
+        result["error"] = f"{place.SOURCE_ENV} が無い（入口の殻 bin/works-factory から起こした run でない）"
         return result
     bun = shutil.which("bun", path=env.get("PATH"))
     if not bun:

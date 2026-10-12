@@ -58,7 +58,7 @@ class ChildSweepTest(unittest.TestCase):
         self.bun = bin_dir / "bun"
         self.bun.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         self.bun.chmod(0o755)
-        self.env = {"PATH": str(bin_dir), childsweep.SOURCE_ENV: str(self.source), "ARTIFACTS_DIR": str(self.tmp)}
+        self.env = {"PATH": str(bin_dir), place.SOURCE_ENV: str(self.source), "ARTIFACTS_DIR": str(self.tmp)}
 
     def sweep(self, archon: FakeArchon, env: dict | None = None) -> dict:
         return childsweep.sweep(RUN, CHECKOUT, self.env if env is None else env, run=archon)
@@ -104,6 +104,27 @@ class ChildSweepTest(unittest.TestCase):
         self.assertIn("uncommitted changes in worktree", reasons[f"{OURS}2"])
         self.assertIn("Worktree creation identity changed", reasons[f"{OURS}3"])
 
+    def test_keeps_children_that_have_not_completed(self):
+        archon = FakeArchon({"runs": [child(0, "running"), child(1, "pending"), child(2, "cancelled"), child(3),
+                                      row(RUN, "running")]})
+        got = self.sweep(archon)
+        self.assertEqual(archon.completed(), [f"{OURS}3"])
+        reasons = {left["branch"]: left["reason"] for left in got["left"]}
+        self.assertEqual(list(reasons), [f"{OURS}0", f"{OURS}1", f"{OURS}2"])
+        for n, status in enumerate(("running", "pending", "cancelled")):
+            self.assertIn(status, reasons[f"{OURS}{n}"])
+
+    def test_branch_left_behind_after_the_worktree_is_reported(self):
+        warning = f"Unexpected error deleting branch '{OURS}0': Command failed: git branch -D"
+        archon = FakeArchon({"runs": [child(0), child(1), row(RUN, "running")]}, {
+            f"{OURS}0": (f"\n  Completed: {OURS}0\n", f"  Warning: {warning}\n"),
+            f"{OURS}1": (f"\n  Completed: {OURS}1\n", '{"level":30,"msg":"isolation.complete"}\n'),
+        })
+        got = self.sweep(archon)
+        self.assertEqual([c["branch"] for c in got["cleaned"]], [f"{OURS}1"])
+        self.assertEqual([left["branch"] for left in got["left"]], [f"{OURS}0"])
+        self.assertIn(warning, got["left"][0]["reason"])
+
     def test_silent_complete_is_left_with_a_reason(self):
         archon = FakeArchon({"runs": [child(0), row(RUN, "running")]}, {f"{OURS}0": ("", "")})
         got = self.sweep(archon)
@@ -146,11 +167,11 @@ class ChildSweepTest(unittest.TestCase):
         self.assertEqual(archon.calls[0]["env"]["GIT_SSH_COMMAND"], "ssh -i key")
 
     def test_without_source_runs_nothing(self):
-        env = {k: v for k, v in self.env.items() if k != childsweep.SOURCE_ENV}
+        env = {k: v for k, v in self.env.items() if k != place.SOURCE_ENV}
         archon = FakeArchon({"runs": []})
         got = self.sweep(archon, env)
         self.assertEqual(archon.calls, [])
-        self.assertIn(childsweep.SOURCE_ENV, got["error"])
+        self.assertIn(place.SOURCE_ENV, got["error"])
 
     def test_without_bun_runs_nothing(self):
         archon = FakeArchon({"runs": []})
