@@ -14,7 +14,7 @@
 - build(returns, gates, typed, transcript, outcome, stop_reason, *, out_dir, start, problems, run_id, transcript_why, repo,
   report_name) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000）
 - fallback_report(out_dir, why, name): 思わぬ誤りの時の機械の報告（名は呼び手が渡す。facts の報告を上書きしない名）
-- cold_body(raw)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd): 書き手の
+- cold_body(raw)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd, start): 書き手の
   返答の受け付けと AI の報告（元 report_roles.py の write_cold_prep・accept・collect・stamp）
 """
 from __future__ import annotations
@@ -69,6 +69,10 @@ NOTES_HEADING = promptsection.Section("## 注意（読めなかった物）", hu
 # AI の報告に機械の事実を付ける時の、機械の「人が決めること」の見出しの言い換え（判断は書き手の頭の 1 か所に集める）
 MACHINE_DECISIONS = promptsection.Section("## 1. 人の判断を待つ物の機械の数え（判断の本文は報告の頭）", human=report.FOR_READERS)
 RED_KEPT = ("inherited", "environment")       # 認証が通した赤（元から赤・環境の赤）
+GATE_RUNS = (("test-gate-base", "直す前のテスト"), ("test-gate-final", "最後のテスト"))
+# test-gate の証拠の文（返りの evidence の先）の行の頭。test-gate の result.py の evidence() と同じ字であることを
+# tests/workflows/test_report.py が縛る
+EVIDENCE_ROWS = (("走らせ方", "- 走らせ方: "), ("ログ", "- ログ: "))
 EYE_KEYS = ("eye", "status", "reason")
 GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
 PLAN_GAVE_UP_WHERE = "受け付け 計画"          # 元 report.ACCEPT_WHERE（受け付け <名>）の計画の行
@@ -383,15 +387,17 @@ def answer_drafts(returns: dict, gates: dict, start: dict) -> list:
 
 
 # ---------------------------------------------------------------- 次の run に渡す物
-def _outside(returns: dict) -> tuple[list, list]:
-    """判定が目的の外とした所見の (次の依頼の行, 報告の行)。指し札の先は outpurpose の控えの名のファイル"""
+def _outside(returns: dict, next_file: str = "") -> tuple[list, list, str]:
+    """判定が目的の外とした所見の (次の依頼の行, 報告の行, 人が決めることの節に置く件数と置き場の 1 行)。指し札の先は outpurpose の
+    控えの名のファイル。無い・名違いなら件数の行は ""（名違いは報告の行が言う）"""
     p = _ret(returns, "judge").get("out_of_purpose")
     if not (isinstance(p, str) and p):
-        return [], []
+        return [], [], ""
     path = pathlib.Path(p)
     if path.name != outpurpose.FILE:
-        return [], [f"目的の外の所見のファイル {p} の名が {outpurpose.FILE} でない（読まなかった）"]
-    return outpurpose.next_items(path.parent), outpurpose.report_lines(path.parent)
+        return [], [f"目的の外の所見のファイル {p} の名が {outpurpose.FILE} でない（読まなかった）"], ""
+    return (outpurpose.next_items(path.parent), outpurpose.report_lines(path.parent),
+            outpurpose.count_line(path.parent, next_file, report.OUTSIDE_HEADING.removeprefix("## ")))
 
 
 def _parked(returns: dict) -> list:
@@ -824,7 +830,30 @@ def _tdd_lines(typed: dict, returns: dict) -> tuple[list, list, list]:
     return lines, [], notes
 
 
-def _green_lines(typed: dict) -> list:
+def _evidence_lines(returns: dict) -> list:
+    """試験の関所の段ごとの、走らせた一式の行とログの置き場（元 report.py:1042-1050。返りの evidence の先の行から）"""
+    out = []
+    for rid, label in GATE_RUNS:
+        ret = _ret(returns, rid)
+        if not ret:
+            continue
+        head = f"{label}（{rid}）"
+        p = ret.get("evidence")
+        if not (isinstance(p, str) and p):
+            out.append(f"{head}の走らせ方とログ: 取れない（証拠の指し札が無いか開けなかった）")
+            continue
+        try:
+            rows = pathlib.Path(p).read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError) as e:
+            out.append(f"{head}の走らせ方とログ: 読めない（{report._one_line(e)}）")
+            continue
+        for name, prefix in EVIDENCE_ROWS:
+            got = next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
+            out.append(f"{head}の{name}: " + (got if got is not None else f"証拠に「{name}」の行が無い（返す節が誤りで落ちた時の証拠か）"))
+    return out
+
+
+def _green_lines(typed: dict, returns: dict) -> list:
     out = []
     for e in _list(as_dict(as_dict(typed).get("by_type")).get("green-cert")):
         b = as_dict(e.get("body"))
@@ -834,7 +863,7 @@ def _green_lines(typed: dict) -> list:
         if b.get("ok") is True and cause in RED_KEPT:
             line += f"——赤のまま通した（{cause} の赤。直しが起こした赤でないと認証が見た）"
         out.append(line)
-    return out or ["型つきの成果物 green-cert が一覧に無い"]
+    return (out or ["型つきの成果物 green-cert が一覧に無い"]) + _evidence_lines(returns)
 
 
 def _eye_lines(returns: dict, typed: dict) -> tuple[list, list]:
@@ -958,24 +987,25 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     decisions, decide = _decisions(returns, gates, start, outcome, left, closed=closed, repo=repo)
     tdd, freeze, tdd_notes = _tdd_lines(typed, returns)
     eye_lines, eye_notes = _eye_lines(returns, typed)
-    outside = _outside(returns)[1]
     _, material_note = oc.materials(returns)
     notes = [*_list(typed.get("warnings")), *tdd_notes, *eye_notes, *([material_note] if material_note else [])]
     next_file = carry.NEXT_REQUEST_FILE if findings or drafts else ""
     draft = gatemarks.draft_line(drafts, next_file)
+    _, outside, outside_count = _outside(returns, next_file)
     split = split_line(returns)
     asked_texts = [q for rid in ("plan-review", "eyes") for q in _list(_ret(returns, rid).get("questions")) if isinstance(q, str)]
     head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）" + (f"。{split}" if split else ""),
                            decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts)} 件")
     sections = [
-        (report.DECISIONS_HEADING, [*decisions, f"次の run に渡す物: {len(findings) + len(drafts)} 件" + (f"（{next_file}）" if next_file else ""),
+        (report.DECISIONS_HEADING, [*decisions, *([outside_count] if outside_count else []),
+                                    f"次の run に渡す物: {len(findings) + len(drafts)} 件" + (f"（{next_file}）" if next_file else ""),
                                     *([draft] if draft else [])]),
         (report.ENTRY_HEADING, _entry_lines(start, returns, freeze)),
         (report.STOP_HEADING, _stop_lines(outcome, stop_reason, gates, tfacts, returns, list(problems))),
         (report.READS_HEADING, [f"読んだ証拠: {UNSEEN}"]),
         (report.WHERE_HEADING, _where_lines(returns)),
         (report.TDD_HEADING, tdd or ["修正の段が走っていない（TDD の単位の行が無い）"]),
-        (GREEN_HEADING, _green_lines(typed)),
+        (GREEN_HEADING, _green_lines(typed, returns)),
         (EYES_HEADING, eye_lines),
         (report.STRUCTURE_HEADING, _structure_lines(returns)),
         (report.WORLD_HEADING, _world_lines(returns)),
@@ -1098,15 +1128,22 @@ def accept(reply, cold, *, out_dir) -> dict:
     return {"done": True, "ok": True, "reason": reason, "kind": "", "reason_file": ""}
 
 
-def stamp(run_id: str, workflow_file, rnd=None) -> str:
+def stamp(run_id: str, workflow_file, rnd, start: dict | None) -> str:
     """報告の頭の来歴の 1 行（機械が刻む。元 report_roles.stamp の works の線・run・周・graph の版を、工程の名（ファイルの名）・run・
-    周（計画の round。何回目の案か。無ければ —）・工程のファイルの sha256 の頭 12 字で。元の table の版は規則の表が無いので無い）。
-    工程のファイルが読めなければ版の所にその旨"""
+    周（計画の round。何回目の案か。無ければ —）・工程のファイルの sha256 の頭 12 字・線の版（始めの記録 start の versions.line の
+    頭 12 字）で。元の table の版は規則の表が無いので無い）。工程のファイルが読めなければ工程の版の所に、start が None（始めの記録が
+    読めない）なら線の版の所にその旨。読めた記録に versions.line が無ければ「無い」と分けて書く"""
     try:
         sha = hashlib.sha256(pathlib.Path(workflow_file).read_bytes()).hexdigest()[:12]
     except OSError as e:
         sha = f"読めない（{type(e).__name__}）"
-    return " / ".join([pathlib.Path(workflow_file).stem, f"run {run_id or '—'}", f"周 {rnd if rnd is not None else '—'}", f"工程の版 {sha}"])
+    parts = [pathlib.Path(workflow_file).stem, f"run {run_id or '—'}", f"周 {rnd if rnd is not None else '—'}", f"工程の版 {sha}"]
+    if start is None:
+        parts.append("線の版 読めない（始めの記録が読めない）")
+    else:
+        line = as_dict(start.get("versions")).get("line")
+        parts.append(f"線の版 {line[:12]}" if isinstance(line, str) and line else "線の版 始めの記録に無い（versions.line）")
+    return " / ".join(parts)
 
 
 def embedded(machine_text: str) -> str:
