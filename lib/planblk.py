@@ -29,6 +29,7 @@ p2.fix_plan）が案を直す。直しの役が起きるかは壁打ちの控え
 import copy
 import difflib
 import json
+import os
 import pathlib
 import sys
 
