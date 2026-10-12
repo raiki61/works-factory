@@ -1,0 +1,9 @@
+name: works-factory-fix
+nodes:
+  - id: fixer
+    prompt: 直す
+    idle_timeout: 1728000000
+    settingSources: [user]
+    allowed_tools: [Read, Edit, Write, Bash]
+    sandbox: { enabled: true, allowUnsandboxedCommands: false }
+    mutates_checkout: false
