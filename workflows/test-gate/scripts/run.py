@@ -29,14 +29,14 @@ import tree_run  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
 
 LOGS = "logs"
-WORKSPACE_PREFIX = ".archon/"
+WORKSPACE_PREFIX = ".archon/"   # Archon が run の作業ツリーに置く物。修正の変更でない
 # Archon が script に渡す変数（fix の fixio.py と同じ 2 つ。試験が等しさを縛る）。頭の一致は ARCHON_・INPUTS_ だけで、ほかは名の完全一致。
 # 名は止めた Archon の packages/workflows/src/exec-environment.ts の buildExecNodeEnvironment
 RUNNER_PREFIXES = ("ARCHON_", "INPUTS_")
 RUNNER_NAMES = frozenset({
     "ARTIFACTS_DIR", "STATE_DIR", "LOG_DIR", "ADOPTED_RUN_DIR", "WORKFLOW_ID", "BASE_BRANCH", "USER_MESSAGE", "ARGUMENTS",
     "LOOP_USER_INPUT", "LOOP_PREV_OUTPUT", "REJECTION_REASON", "CONTEXT", "EXTERNAL_CONTEXT", "ISSUE_CONTEXT", "TYPED_ARTIFACTS_FILE",
-})   # Archon が run の作業ツリーに置く物。修正の変更でない
+})
 OUTPUT = ("by", "material", "runs", "skipped_steps", "same_as", "log", "junit_steps", "fingerprint_before", "fingerprint_after")
 
 
