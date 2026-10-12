@@ -421,6 +421,11 @@ def conflict_rows(conflicts, n: int, old: dict) -> list:
     return conflict.replan_rows(_rows(conflicts, "items"), n, old.get("unit_keys"))
 
 
+def ruling_text(rows: list) -> str:
+    """申し出と裁定の行の裁定の文（字のまま。2 行以上は「／」で繋ぐ）"""
+    return "／".join(str((c.get("ruling") or {}).get("text") or "") for c in rows) or NO_ROWS
+
+
 def item_brief(round_dir, n: int, old: dict, fields: dict, judgment, structure_dir_) -> pathlib.Path:
     """承認済みの項目 n の brief（planbrief.render。修正のブロックが項目ごとに切る物と同じ部品・同じ材料）を周のフォルダの
     ITEM_BRIEF_FILE に書く（元の修正の段の brief-<n>.md は fix の置き場に在り、このブロックは開かない）"""
@@ -967,11 +972,6 @@ def ripple_units(round_dir, judgment, repo, *, skip_dirs) -> pathlib.Path:
     names = slots(judgment)
     doc = ripple.for_units(repo, names + sorted(owed - set(names)), skip_dirs=skip_dirs)
     return _write_json(pathlib.Path(round_dir) / RIPPLE_UNITS_FILE, doc)
-
-
-def ruling_text(rows: list) -> str:
-    """申し出と裁定の行の裁定の文（字のまま。2 行以上は「／」で繋ぐ）"""
-    return "／".join(str((c.get("ruling") or {}).get("text") or "") for c in rows) or NO_ROWS
 
 
 def note_gave_up(round_dir, plan_dir, conflicts) -> None:

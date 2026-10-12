@@ -24,6 +24,7 @@
 """
 from __future__ import annotations
 
+import collections
 import copy
 import datetime
 import difflib
@@ -923,29 +924,26 @@ def collect_reads(folder, log, *, role: str, quiet: tuple, repo) -> dict:
     reads.collect で集め、{役: 役ごとの証拠のパス} の索引を pass-<k>/ に書く（元 planblk.collect_reads の事前審査の側）。記録は差し込みを
     開いた時刻（OPEN_FILE を置いた時）から後の行で切る。道具を持たない役 quiet は null で名指す。束ね役の Agent の起動の数と型ごとの数を、
     この差し込みで書いた下請けのファイルの数と並べて trace に planblk.AGENT_OP で残す（拒まない。測る。記録が読めなければ launched は
-    null と訳）。形 replan は役の名の頭と索引の持ち主を
-    planblk.REPLAN_READS にする。返り {ok: True, missing, index_file}"""
+    null と訳）。形 replan は役の名の頭と索引の持ち主を planblk.REPLAN_READS にする。返り {ok: True, missing, index_file}"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
     p.mkdir(parents=True, exist_ok=True)
     again = inputs["form"] == "replan"
     prefix = f"{planblk.REPLAN_READS}-" if again else ""
-    since = reads.stamp((d / OPEN_FILE).stat().st_mtime)
+    opened = (d / OPEN_FILE).stat().st_mtime
+    since = reads.stamp(opened)
     must = [str(p / PROMPT_FILE)] + ([inputs["policy_copy"]] if inputs.get("policy_copy") else [])
     got = reads.collect(p, role, must, log, since=since, repo=repo, prefix=prefix)
     index = {f"{prefix}{r}": None for r in quiet}
     index[f"{prefix}{role}"] = got["reads_file"]
     out = _write_json(p / reads.index_name(planblk.REPLAN_READS if again else role), index)
     rows, why = reads.records(log, since)
-    opened = (d / OPEN_FILE).stat().st_mtime
     base = (d / planblk.ITEMS_DIR.format(k=1)).parent
 
     def written(pattern):
         return len([f for f in base.glob(f"pass-*/{pattern}") if f.stat().st_mtime >= opened])
-    types: dict = {}
-    for t in reads.tool_inputs(rows, "Agent"):
-        types[str(t or "")] = types.get(str(t or ""), 0) + 1
+    types = dict(collections.Counter(str(t or "") for t in reads.tool_inputs(rows, "Agent")))
     planmarks.append_trace(d, planblk.AGENT_OP, launched=None if rows is None else reads.tool_count(rows, "Agent"),
                            types=types, item_files=written("item-*.md"), synergy_files=written("synergy.md"),
                            **({"why": why} if why else {}))
