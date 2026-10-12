@@ -31,7 +31,7 @@
   - 元: engine の pointers（works/.shared/core/graphloops/graphs/review-loop.json:3341 `pointers` の at plan[].unit_keys[] from record.units）と mark_launched の控え、works/blk-plan/lib/planblk.py:387 `_resolved`・:1236 `with_plan_fields`
   - 今: lib/planfile.py:261 `slots`・:303 `named`・:623 `open_round`（slots.json を書く）・:915 `take_plan`
   - 証: tests/workflows/test_plan.py::AcceptCase.test_accepted_plan_files（assert: tests/workflows/test_plan.py:519・:522・:525）・lib/tests/test_planfile.py::SlotsCase.test_named_turns_numbers_into_ids_and_keeps_unknown_numbers（:167）
-  - 本物の run: plan/r1/slots.json（種では [mean の key, clamp の key]）・plan/r1/plan-fields.json の fields[].unit_keys
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan/r1/slots.json（種では [mean の key, clamp の key]）・plan/r1/plan-fields.json の fields[].unit_keys）
   - 狭め: 番号の振り方を変えた（元は判定の全部の単位に番号、今は開いた単位だけ。#75 本文「not_allowed の文」）。能力は落ちていない
 
 - P004 直す義務の単位を 1 つでも書き落とした案を、単位を名指して拒む。
@@ -138,14 +138,14 @@
   - 元: planmarks.py:593 `gaps`、試験 works/tests/test_plan_fields.py:79・:90・:95
   - 今: lib/planmarks.py:593
   - 証: lib/tests/test_plan_fields.py::TestGaps.test_gaps_rewrite_must_name_an_existing_test（assert: :72）・test_gaps_new_test_must_not_exist_yet（:80）・test_gaps_same_id_in_tests_and_rewrites（:86）
-  - 本物の run: plan/r1/plan-fields.json の fields[].tests・rewrite_tests
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan/r1/plan-fields.json の fields[].tests・rewrite_tests）
   - 狭め: 無し
 
 - P019 試験の id のパスは根の中の相対だけ（逆斜線・絶対・根の外を拒む）。書いてよい範囲 allowed_paths は相対で狭く（字の無い glob は木の丸ごとで拒む）、out_of_scope は案が名指す試験に当たってはいけない。
   - 元: planmarks.py:593 `gaps`・:206 `glob_problem`、試験 works/tests/test_plan_fields.py::TestIdPaths・ScopeFieldsCase
   - 今: lib/planmarks.py:593・:206
   - 証: lib/tests/test_plan_fields.py::ScopeFieldsCase.test_gaps_allowed_paths_must_be_relative_and_narrow（assert: :406）・test_glob_without_a_literal_character_is_a_whole_tree_allowance（:415）・test_gaps_out_of_scope_must_not_hit_named_tests（:455）・TestIdPaths の 5 件・tests/workflows/test_plan.py::AcceptCase.test_works_field_gaps_rejected（:561 の allowed_paths[0]）
-  - 本物の run: plan/r1/plan-fields.json の fields[].allowed_paths・out_of_scope
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan/r1/plan-fields.json の fields[].allowed_paths・out_of_scope）
   - 狭め: 範囲の glob の当て方を守りのファイルの当て方と 1 つにする試験（元 works/tests/test_plan_fields.py:505 test_glob_match_is_the_protect_matcher）が無い → 要追加: lib/tests/test_plan_fields.py::ScopeFieldsCase.test_glob_match_is_the_protect_matcher — planmarks.glob_match と protect.match が 5 つの組で同じ値（lib/protect.py が在るので写せる）。Archon で不可でない
 
 - P020 adds の行の名を、関数・欄（function・record_field）はファイルの中の名として照らし、ファイル名を名に書いた行を名指す。
@@ -159,7 +159,7 @@
   - 元: planmarks.py:702 `split`・:846 `save`・planblk.py:1236 `with_plan_fields`、試験 works/tests/test_blk_plan.py:1496 test_plan_fields_saved_and_board_gets_bare_plan
   - 今: lib/planfile.py:909 `_save`・:915 `take_plan`
   - 証: tests/workflows/test_plan.py::AcceptCase.test_accepted_plan_files（assert: tests/workflows/test_plan.py:517・:518・:520・:523）・lib/tests/test_plan_fields.py::TestSplitAndBoard.test_split_strips_fields_and_resolves_limit（:174）
-  - 本物の run: plan/r1/p2.fix_plan.json・plan/r1/plan-fields.json（返りの plan の指し札の先）・plan/r1/reply.json
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan/r1/p2.fix_plan.json・plan/r1/plan-fields.json（返りの plan の指し札の先）・plan/r1/reply.json）
   - 狭め: 無し
 
 - P022 rewrite_tests の行に、書き換えてよい範囲 limit（既存のテストの <パス>:<行>）を受け付けで引いて控える。
@@ -296,7 +296,7 @@
   - 元: 包みが旗 concept-map の役の system prompt に足した concepthome.section（works/.shared/core/concepthome.py:117）、試験 works/tests/test_blk_plan.py:1562 test_roles_carry_concept_map_flag
   - 今: lib/planfile.py:849
   - 証: tests/workflows/test_plan.py::BriefCase.test_brief_carries_policy_concept_map_and_prior_failures（assert: tests/workflows/test_plan.py:864）
-  - 本物の run: plan/r1/brief-1.md の「## 考えの住処の地図」（種は地図が無い旨）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan/r1/brief-1.md の「## 考えの住処の地図」（種は地図が無い旨））
   - 狭め: 無し
 
 - P041 前の run で最後まで通らなかった物（prior_failures）を材料に貼り、周のフォルダに写しを置く。形が違えば読めなかった入力として名指す。
@@ -441,7 +441,7 @@
   - 元: works/blk-structure/scripts/stage_a.py:96 `main`・:76 `measure_unit`
   - 今: lib/planfile.py:679 `measure`・lib/stage_a.py `measure_unit`・workflows/plan/scripts/structure_measure.py `main`
   - 証: tests/workflows/test_plan.py::StageACase.test_measures_units_and_writes_empty_design_rows（assert: tests/workflows/test_plan.py:449-452 の status ok・単位の id の並び・design.jsonl 0 バイト・eye true）
-  - 本物の run: `plan/structure/<鍵>/structure.json` の `status`=ok と `units[].id`=判定の単位の id、`units[].measure.schema`=`measure/1`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/structure.json` の `status`=ok と `units[].id`=判定の単位の id、`units[].measure.schema`=`measure/1`）
   - 狭め: 無し
 
 - P061 paths が空の単位は測らずに skipped-units.json に名を残し、修正案の材料に「構造の目が見ていない単位」として名指す
@@ -539,7 +539,7 @@
   - 元: works/blk-structure/lib/eye.py:165-166
   - 今: lib/eye.py:165-166
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_prompt_asks_chosen_to_follow_world_practice（assert: lib/tests/test_structure_eye.py:31-33）
-  - 本物の run: `plan/structure/<鍵>/eye-prompt-1.md` の「定石」の行
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/eye-prompt-1.md` の「定石」の行）
   - 狭め: 無し
 
 - P075 目に見せる duplicates は先頭 DUP_SHOWN（5）件に切り、全件の数を duplicates_total に置く（支度の出力が実行基盤の標準出力の上限を越えて線が落ちた事故の再発止め）
@@ -567,7 +567,7 @@
   - 元: works/blk-structure/lib/eye.py:213 `problems`・:193 `_pointer`
   - 今: lib/eye.py:213 `problems`・:193 `_pointer`
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_bad_rows_are_named（assert: lib/tests/test_structure_eye.py:52-53）・test_good_rows_pass・test_evidence_indexes_the_units_the_prompt_showed（assert: :104-105）
-  - 本物の run: `plan/structure/<鍵>/eye.json` の `status`=ok・`reason`=""
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/eye.json` の `status`=ok・`reason`=""）
   - 狭め: 無し
 
 - P079 汚れると見た行は当たった形の番号と、推しの避け方 chosen と chosen_reason が要る
@@ -644,21 +644,21 @@
   - 元: works/blk-structure/blk-structure.yaml:174-200（出力 3 本だけを宣言）・works/.shared/core/structmark.py 冒頭
   - 今: workflows/plan/scripts/plan_collect.py `collected`・lib/planfile.py:1056 `placeholders`
   - 証: tests/workflows/test_plan.py::CollectCase.test_route_up_row_keeps_ready（assert: tests/workflows/test_plan.py:761 の隣の design.jsonl を開く）・ShapeCase.test_fallback_names_match_lib（assert: tests/workflows/test_plan.py:424-427）
-  - 本物の run: 返す節 `plan` の出力 `structure.path`=`plan/structure/<鍵>/structure-state.json`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 返す節 `plan` の出力 `structure.path`=`plan/structure/<鍵>/structure-state.json`）
   - 狭め: 無し
 
 - P090 実測（measure.py）の行数と伸び: 窓の始まりの commit の行数を改名をたどった名で数え、差を出す。窓は HEAD の日時から 90 日
   - 元: works/blk-structure/scripts/measure.py `growth`・`window_since`・`name_at`
   - 今: lib/measure.py（字のまま）
   - 証: lib/tests/test_blk_structure.py::MeasureCase.test_growth_counts_base_under_old_name・test_window_days_counts_back_from_head（元と同じ assert）
-  - 本物の run: `plan/structure/<鍵>/structure.json` の `units[].measure.paths[].growth`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/structure.json` の `units[].measure.paths[].growth`）
   - 狭め: 無し
 
 - P091 実測の変更の頻度: パスごとに --follow・素・--no-merges の 3 つの数、複数のパスの和集合は 1 本ずつの和、素と --no-merges の差がマージの数
   - 元: works/blk-structure/scripts/measure.py `commits`
   - 今: lib/measure.py
   - 証: lib/tests/test_blk_structure.py::MeasureCase.test_follow_raw_no_merges_per_path・test_union_follow_is_sum_of_single_file_sets・test_raw_minus_no_merges_is_merge_count
-  - 本物の run: `plan/structure/<鍵>/structure.json` の `units[].measure` の frequency・union
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/structure.json` の `units[].measure` の frequency・union）
   - 狭め: 無し
 
 - P092 浅い clone では頻度・伸び・和集合の数を出さず「測れない」と書く
@@ -679,7 +679,7 @@
   - 元: works/blk-structure/scripts/measure.py（entrypoints・env）
   - 今: lib/measure.py
   - 証: lib/tests/test_blk_structure.py::MeasureCase.test_entrypoints・test_env_prefix_tie_is_broken_by_name_order・test_env_prefix_without_tie・test_env_three_counts_and_writes
-  - 本物の run: `plan/structure/<鍵>/structure.json` の `units[].measure` の entrypoints・env
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/structure.json` の `units[].measure` の entrypoints・env）
   - 狭め: 無し
 
 - P095 読めない・大きすぎる・追跡されていないパスは skipped に理由つきで並べて続け、閾値で止めない。同じ入力なら同じ出力
@@ -700,14 +700,14 @@
   - 元: works/.shared/core/concepthome.py `section`・`pick_maps`
   - 今: lib/concepthome.py（字のまま。包みの system prompt でなく材料の末尾に貼る、と文だけ直した）
   - 証: lib/tests/test_concepthome.py::SectionCase.test_section_without_map・test_section_lists_maps_and_rest・test_section_names_unreadable_tree・PickCase の 3 件
-  - 本物の run: `plan/r1/brief-1.md` の「考えの住処の地図」の節（種は地図なしの文）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/r1/brief-1.md` の「考えの住処の地図」の節（種は地図なしの文））
   - 狭め: 無し
 
 - P098 判断の 1 軸と目・審査・修正案の問いの文（PLAN_RULE・REVIEW_ASK・R1_HEAD・R3_HEAD・EYE_ASK）は 1 か所が持ち、全部が軸の文で始まり印と差し込み口を持つ
   - 元: works/.shared/core/concepthome.py
   - 今: lib/concepthome.py
   - 証: lib/tests/test_concepthome.py::TextCase.test_texts_carry_prefix_and_slot・test_axis_heads_every_text
-  - 本物の run: `plan/structure/<鍵>/eye-prompt-1.md` の問い（EYE_ASK の字）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan/structure/<鍵>/eye-prompt-1.md` の問い（EYE_ASK の字））
   - 狭め: 無し
 
 - P099 柵（conceptfence）: 考えの語の形が知ってよい所と除く所の外に何行あるかを数え、写しの束ねの行は数えず、壊れた束ねは拒み、増える向きだけ赤（ratchet）。単位のパスの知る場所の数（places）と、版の間の増え（scan_change。実行基盤の写しの置き場と入れ子のリポジトリは除く）
@@ -750,14 +750,14 @@
   - 元: works/.shared/core/converge.py:190 `_item_states`・:184 `_attributed`
   - 今: lib/converge.py:190（写し）。計画の側は lib/planfile.py:469 `_record_pass` が converge._item_states を呼ぶ
   - 証: lib/tests/test_converge.py::ItemsCase.test_persisted_item_is_held_and_others_go_on・test_synergy_block_reopens_named_closed_item（assert: :312-313）・test_face_naming_no_item_counts_for_every_reviewed_item（:319）。計画の側の写しは lib/tests/test_planfile.py::ConvergeCase.test_same_block_twice_holds_item（assert: lib/tests/test_planfile.py:319）
-  - 本物の run: plan-review/plan-converge.json の `passes[-1].items[].state`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan-review/plan-converge.json の `passes[-1].items[].state`）
   - 狭め: 無し
 
 - P104 往復の控えに往復ごとの行（blocks・faces・suggests・answers・resolved・persists・outcome）を積み、指示書と事前審査の返答を pass-<k>/ に写し、trace に `plan_converge` の行を書く
   - 元: works/.shared/core/converge.py:373 `record_pass`。写す物は元 works/blk-plan/lib/planblk.py:1178 `with_converge` が p2.fix_plan.json・p2.plan_review.json・plan-fields.json・指示書の 4 つを渡した
   - 今: lib/boardview.py:827 `_take` が converge.record_pass を呼ぶ。写すのは指示書（prompt.md）と木の下請けのファイルだけ（案・欄は計画のブロックの plan/r<k>/ に、審査は plan-review/pass-<k>/review.json に別に残る）
   - 証: lib/tests/test_converge.py::RecordCase.test_record_pass_keeps_every_pass_and_copies_files（assert: :95-110）・tests/workflows/test_plan_review.py::ConvergeCase.test_first_block_is_not_stalled（assert: tests/workflows/test_plan_review.py:872）
-  - 本物の run: plan-review/plan-converge.json の `passes[0]`、plan-review/plan-converge/pass-1/prompt.md
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan-review/plan-converge.json の `passes[0]`、plan-review/plan-converge/pass-1/prompt.md）
   - 狭め: 写しの 4 つが 1 つに減ったが、中身は周のフォルダに在る（能力は落ちていない）。往復の行の `files` から案と審査のファイルを引けなくなっただけ
 
 - P105 again の往復の後、計画の役に返す材料: REVISE_ASK・返した block の穴ごとの節・suggest の穴（NOTES_HEAD、答えなくてよい）・閉じた項目（CLOSED_ASK、書くな）・保留の項目（HELD_NOTE）
@@ -834,7 +834,7 @@
   - 元: works/.shared/core/converge.py:214 `read`（盤面の周ごと）・:236 `pass_no`
   - 今: lib/planfile.py:593 `next_round`・:491 `converge_record`（mode replan を飛ばす）、lib/boardview.py:248 `place`（round 1 固定）
   - 証: lib/tests/test_planfile.py::RoundCase.test_next_round_counts_round_folders・ConvergeCase.test_replan_rounds_are_not_passes（assert: lib/tests/test_planfile.py:326）・lib/tests/test_boardview.py::OpenCase.test_round_is_always_one_and_k_is_the_plan_round
-  - 本物の run: plan/r1/round.json の `round`、plan-review/plan-converge.json の `round`=1
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan/r1/round.json の `round`、plan-review/plan-converge.json の `round`=1）
   - 狭め: 無し
 
 - P116 往復の控えを、計画の側と事前審査の側の 2 か所で独立に組む（計画の側は周ごとの reply.json と受けた review から組み直す）。2 つが食い違わないこと
@@ -1183,42 +1183,42 @@
   - 元: works/.shared/core/graphloops/graphs/review-loop.json:4809-4900 `r2.design` の forbidden_inputs（実装・リポジトリ・コミット履歴・累積差分・決着済み論点）・works/tests/test_blk_plan.py:1145 `test_independent_design_input_has_no_means`
   - 今: lib/boardview.py:626 `r2_prompt`・workflows/plan-review/scripts/r2_prep.py
   - 証: tests/workflows/test_plan_review.py::IsolationCase.test_r2_prep_reads_only_the_allowed_names（assert: :459-463）・IsolationCase.test_prompt_carries_purpose_and_constraints_only（assert: :474-479）
-  - 本物の run: `plan-review/r2-prompt.md` に目的の文と制約が在り、修正案の項目・stats.py のパスが無い
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/r2-prompt.md` に目的の文と制約が在り、修正案の項目・stats.py のパスが無い）
   - 狭め: 無し
 
 - P164 目的の役が分けた依頼の解き方 means（purpose-means.json）は独立設計に渡らない
   - 元: works/tests/test_blk_plan.py:1145 `test_independent_design_input_has_no_means`
   - 今: lib/boardview.py:626 `r2_prompt`（purpose.json の purpose_text だけを読む）
   - 証: tests/workflows/test_plan_review.py::IsolationCase.test_purpose_means_do_not_reach_the_design（assert: :486-487）
-  - 本物の run: `plan-review/r2-prompt.md` と `plan-review/design-premises.json` に means の文が無い
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/r2-prompt.md` と `plan-review/design-premises.json` に means の文が無い）
   - 狭め: 無し
 
 - P165 人が決めた前提の節（人の関所の答え・依頼を固めた版のファイルから抜いた、依頼が名指した設計書の節だけ・対象のリポジトリの地図 ARCHITECTURE.md/AGENTS.md）を「渡すのは元の目的と制約だけ」の読み替えの文つきで頭に貼る
   - 元: works/.shared/core/design.py:432 `premises`・:379 `named_sections`・:402 `repo_map`・:82 `DESIGN_PREMISE_REREAD`・:528 `prep`
   - 今: lib/design.py:418 `premises`・lib/boardview.py:98 `DESIGN_PREMISE_REREAD`・:626 `r2_prompt`
   - 証: tests/workflows/test_plan_review.py::IsolationCase.test_human_answers_and_named_sections_are_pasted（assert: :531-536。名指さない節「定義どおり」は無い）
-  - 本物の run: `plan-review/r2-prompt.md` の「## 人が決めた前提」（種の依頼は設計書を名指さず地図も無いので節は「渡っていない」の行だけになりうる）・`plan-review/design-premises.json` の given・withheld
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/r2-prompt.md` の「## 人が決めた前提」（種の依頼は設計書を名指さず地図も無いので節は「渡っていない」の行だけになりうる）・`plan-review/design-premises.json` の given・withheld）
   - 狭め: 無し
 
 - P166 線が始めの記録・人の答えを渡さない時と、依頼のファイルが無い・UTF-8 でない時は、空として黙らず「渡っていない」「読めない（<型>）」を独立設計の本文と前提の控えの withheld と事前審査の材料の 1 行目に名指す
   - 元: 無し（盤面が必ず持った）
   - 今: lib/boardview.py:102-107（NOT_GIVEN_START・DEFAULT_START・DEFAULT_ANSWERS・REQUEST_UNREAD）・:372 `_request`・:722 `_defaults_line`
   - 証: tests/workflows/test_plan_review.py::IsolationCase.test_defaults_are_named_in_the_premises（assert: :492-495）・IsolationCase.test_unreadable_request_file_is_named（assert: :507-514）・lib/tests/test_boardview.py::OpenCase.test_defaults_are_named（assert: lib/tests/test_boardview.py:150-153）
-  - 本物の run: `plan-review/design-premises.json` の withheld（線は start・answers を渡すので既定の行は無いはず）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/design-premises.json` の withheld（線は start・answers を渡すので既定の行は無いはず））
   - 狭め: 無し（足した能力）
 
 - P167 独立設計にも人の方針の節（前置き・本文・「方針に反するものを自分の判断で通すな」の段落）を貼る。方針の文書が無ければ節ごと貼らない
   - 元: works/.shared/core/graphloops/graphs/review-loop.json `r2.design` の prompt_append（policy-paste.md・policy.md）
   - 今: lib/boardview.py:653-654（policy.section）
   - 証: tests/workflows/test_plan_review.py::PortedMaterialCase.test_design_prompt_gets_the_policy（assert: :1622-1625）
-  - 本物の run: 種に方針の文書が無いので `plan-review/r2-prompt.md` に「## 人の方針」が無い
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 種に方針の文書が無いので `plan-review/r2-prompt.md` に「## 人の方針」が無い）
   - 狭め: 無し
 
 - P168 独立設計の受け付けは、道具ゼロの役でも起こす前の作業ツリーの姿（porcelain・差分・HEAD・枝）と比べ、変わっていれば拒んで design.json を書かない
   - 元: works/.shared/core/design.py:586 `check_design`（entry.tree_moved_since・READONLY_MOVED）・works/tests/test_blk_plan.py:1197 `test_design_tree_change_rejected`
   - 今: lib/boardview.py:664 `_moved`・:670 `check_design`
   - 証: tests/workflows/test_plan_review.py::DesignCase.test_tree_change_rejected（assert: :603-605）
-  - 本物の run: `plan-review/r2-tree.json` が在り、節 `r2-accept` の ok=true
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/r2-tree.json` が在り、節 `r2-accept` の ok=true）
   - 狭め: 無し
 
 - P169 独立設計の返答は JSON として読み、役の型（YAML の役の節の output_format を差し込みの頭が控えた物）で照らす。読めない・型に合わない返答は拒む
@@ -1267,14 +1267,14 @@
   - 元: works/blk-plan/lib/planblk.py:430 `design_section`・works/tests/test_blk_plan.py:1099 `test_design_before_plan_reaches_plan_review`
   - 今: lib/planblk.py:353 `design_section`・lib/boardview.py:767
   - 証: tests/workflows/test_plan_review.py::DesignCase.test_design_accepted_and_reaches_the_review（assert: :557-559）
-  - 本物の run: `plan-review/pass-1/prompt.md` の「## 独立設計」と「=====独立設計ここから=====」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/pass-1/prompt.md` の「## 独立設計」と「=====独立設計ここから=====」）
   - 狭め: 無し
 
 - P176 DESIGN_ASK は、設計に対の無い仕組みと、項目の大きさの食い違いを名指して挙げよと頼む
   - 元: works/blk-plan/lib/planblk.py:200 `DESIGN_ASK`
   - 今: lib/planblk.py:144
   - 証: lib/tests/test_blk_plan.py::ScriptCase.test_design_ask_names_unpaired_mechanisms_and_item_size_gap（元と同名）
-  - 本物の run: `plan-review/pass-1/prompt.md` の DESIGN_ASK の字
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/pass-1/prompt.md` の DESIGN_ASK の字）
   - 狭め: 無し
 
 - P177 「独立設計との構造の食い違い」「独立設計に対の無い仕組み」で始まる穴は、独立設計の文と案の行（approach・adds・allowed_paths・shrink_first）の両方に字のまま在る引用「…」が要る（幅と空白を畳み、字の 1 つ違いは見逃さない）
@@ -1311,14 +1311,14 @@
   - 元: works/blk-plan/lib/planblk.py:243 `HEAD`・:299 `head`・works/tests/test_blk_plan.py:736 `test_plan_review_head_unchanged`
   - 今: lib/planblk.py:186 `HEAD`・:222 `head`・lib/boardview.py:769
   - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_material_carries_the_mainline_inputs（assert: :745-749）・lib/tests/test_blk_plan.py::ConceptRuleCase.test_plan_head_has_concept_rule
-  - 本物の run: `plan-review/pass-1/prompt.md` の頭
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/pass-1/prompt.md` の頭）
   - 狭め: 無し
 
 - P182 材料の差し込み: 修正役の案・直す単位（番号つき。元の行「no の整数で指せ」を engine を機械に読み替えた字）・判定者の見立て（framing・one_shot）・先行例（在れば）・リポジトリと読む版と BASE と観点の正本（REVIEW.md）
   - 元: works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md:3-7・works/tests/test_blk_plan.py:951 `test_prompt_rendered_from_mainline`
   - 今: lib/boardview.py:127-128（UNITS_LINE・REPO_LINE）・:771-781
   - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_material_carries_the_mainline_inputs（assert: :745-750）・PortedMaterialCase.test_units_line_is_the_original_instruction_line（assert: :1582-1586）・PortedMaterialCase.test_material_carries_policy_base_units_and_concept_map（assert: :1570）
-  - 本物の run: `plan-review/pass-1/prompt.md` の「## 差し込み」の節と `"no": 1`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/pass-1/prompt.md` の「## 差し込み」の節と `"no": 1`）
   - 狭め: 無し
 
 - P183 返答の unit_keys を no の整数で指してよく、受けた返答では単位の名に戻す
@@ -1367,21 +1367,21 @@
   - 元: works/blk-plan/lib/planblk.py:462 `lib_section`
   - 今: lib/planblk.py:383 `lib_section`・lib/boardview.py:770
   - 証: lib/tests/test_boardview.py::LibDocsCase.test_cache_is_reused_across_passes（assert: lib/tests/test_boardview.py:387-388）
-  - 本物の run: `plan-review/pass-1/prompt.md` のライブラリの文書の節（stats.py は標準ライブラリだけ）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/pass-1/prompt.md` のライブラリの文書の節（stats.py は標準ライブラリだけ））
   - 狭め: 無し
 
 - P190 考えの住処の地図（concepthome.section）を材料の末尾に貼る（元は包みが旗 concept-map の役の system prompt に足した）
   - 元: works/blk-plan/lib/planblk.py:106 `CONCEPT_FLAG`・works/tests/test_blk_plan.py:1562 `test_roles_carry_concept_map_flag`
   - 今: lib/boardview.py:783
   - 証: tests/workflows/test_plan_review.py::PortedMaterialCase.test_material_carries_policy_base_units_and_concept_map（assert: :1570-1571）
-  - 本物の run: `plan-review/pass-1/prompt.md` の「## 考えの住処の地図」（種は地図なし）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/pass-1/prompt.md` の「## 考えの住処の地図」（種は地図なし））
   - 狭め: 無し
 
 - P191 人の方針の節を材料の末尾と、木の下請けの決まりに足す。方針が無ければ節ごと無い。本文は PASTE_CAP（40000 バイト）で切って続きの置き場を書く
   - 元: works/.shared/core/gl-prompts/prompts/policy-paste.md・policy.md（p2.plan_review の prompt_append）・works/.shared/core/policy.py `brief`
   - 今: lib/policy.py `section`・`_capped`・lib/boardview.py:712・:783
   - 証: tests/workflows/test_plan_review.py::PortedMaterialCase.test_material_carries_policy_base_units_and_concept_map・test_no_policy_no_section（:1601-1602）・test_item_subagents_get_the_policy（:1613-1617）・lib/tests/test_policy.py::SectionCase の 2 件（assert: lib/tests/test_policy.py:26-31・:38-44）
-  - 本物の run: 種に方針が無いので `plan-review/pass-1/prompt.md` に「## 人の方針」が無い
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 種に方針が無いので `plan-review/pass-1/prompt.md` に「## 人の方針」が無い）
   - 狭め: 無し
 
 - P192 貼る方針は run で固めた版の写し（元は record.process.policy.copy から貼った）。今は固めた版でなく、その時の文書のパスを読んで貼る
@@ -1409,7 +1409,7 @@
   - 元: works/blk-plan/lib/planblk.py:930 `_review_rules`（描いた指示書から切り出した）
   - 今: lib/boardview.py:702 `review_body`・lib/planblk.py:812 `_review_rules`
   - 証: lib/tests/test_boardview.py::RulesCase.test_review_body_names_the_run_values（assert: lib/tests/test_boardview.py:241-251）
-  - 本物の run: `plan-review/plan-review-items/pass-1/item-1.md` の決まりの節（木の周だけ）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/plan-review-items/pass-1/item-1.md` の決まりの節（木の周だけ））
   - 狭め: 無し
 
 ### 事前審査の受け付け
@@ -1425,7 +1425,7 @@
   - 元: works/blk-plan/lib/planblk.py:141 `take`（READONLY_MOVED）・works/tests/test_blk_plan.py:765・:1697
   - 今: lib/boardview.py:94・:833-835・pass-<k>/tree.json
   - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_read_only_tree_changed_rejected（assert: :699-705）
-  - 本物の run: `plan-review/pass-1/tree.json`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/pass-1/tree.json`）
   - 狭め: 無し
 
 - P198 返答が JSON でなければ役に戻し、型（役の型）に合わなければ「事前審査の返答の型が合わない」で拒む
@@ -1462,21 +1462,21 @@
   - 元: works/blk-plan/lib/planblk.py:128 `TREE_AUTO_MIN`・入力 review_tree・works/tests/test_blk_plan.py:2699-2768（unknown word は prep が止めた）
   - 今: lib/boardview.py:83・:362 `tree_word`・:604 `_tree_on`・#74 の head/workflows/line/scripts/start.py:70-75（features の語の照らし）
   - 証: tests/workflows/test_plan_review.py::TreeCase.test_review_tree_off_is_one_reviewer（:1227-1231）・test_review_tree_on_one_item_is_tree（:1237）・test_review_tree_auto_one_item_plan_is_one_reviewer（:1244-1246）・test_review_tree_auto_counts_open_items_per_pass（:1253-1263）・lib/tests/test_boardview.py::RulesCase.test_unattended_and_tree_words（:233-235）
-  - 本物の run: 節 `open` の出力 `tree`（種は 2 単位なので案が 2 項目なら true）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `open` の出力 `tree`（種は 2 単位なので案が 2 項目なら true））
   - 狭め: 無し（知らない語の止めは線の start へ移った。線の試験の持ち物）
 
 - P203 木の往復では束ね役が、開いた項目ごとの下請けのファイルと相乗りのファイルを置き場（作業ツリーの外）に作り、Agent の道具で下請けを 1 つずつ起こす（subagent_type は全部 general-purpose）。下請けの答えは答えのファイルに書かせる
   - 元: works/blk-plan/lib/planblk.py:998 `tree_part`・:138 `SUBAGENT_TYPE`・:140 `AGG_ASK`
   - 今: lib/planblk.py:877 `tree_part`・:82・:84
   - 証: tests/workflows/test_plan_review.py::TreeCase.test_aggregator_spawns_item_subagents_and_synergy（assert: :970-981）
-  - 本物の run: `plan-review/plan-review-items/pass-1/item-1.md`・`item-2.md`・`synergy.md` と、答え `plan-review/plan-review/r1/pass-1/item-<n>.json`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/plan-review-items/pass-1/item-1.md`・`item-2.md`・`synergy.md` と、答え `plan-review/plan-review/r1/pass-1/item-<n>.json`）
   - 狭め: 無し
 
 - P204 下請けのファイルは審査の決まり・独立設計の節・自分の項目だけを持ち、項目の節より前は全部の項目で同じバイト（プロンプトのキャッシュ）
   - 元: works/blk-plan/lib/planblk.py:941 `brief_head`
   - 今: lib/planblk.py:820 `brief_head`
   - 証: tests/workflows/test_plan_review.py::TreeCase.test_brief_carries_only_its_item_inline（assert: :989-996）
-  - 本物の run: `plan-review/plan-review-items/pass-1/item-1.md` と `item-2.md` の頭が同じ
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/plan-review-items/pass-1/item-1.md` と `item-2.md` の頭が同じ）
   - 狭め: 無し
 
 - P205 機械が下請けの答えを事前審査の返答にまとめ（束ね役の items は返答に残さない）、往復の控えに項目ごとの状態と当たりを積む
@@ -1550,7 +1550,7 @@
   - 元: works/.shared/core/graphloops/rules/policy_input.py:22 `default_path`・:38 `snapshot`・:52 `locate`・:61 `resolve`
   - 今: lib/boardview.py:503 `_policy_path`・:518 `_policy_snapshot`・:532 `_frozen_policy`
   - 証: lib/tests/test_boardview.py::PolicyCase.test_default_location_is_read_when_not_named（assert: lib/tests/test_boardview.py:278-279）・OpenCase.test_policy_frozen_on_first_open_and_change_named（assert: :183-187）
-  - 本物の run: `plan-review/policy.json`（種は方針が無いので sha256 が null）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/policy.json`（種は方針が無いので sha256 が null））
   - 狭め: 無し（固める時期は P216）
 
 - P215 固めた版から方針の文書が変わったら、前の版と今の版の写しと差分のファイルを置き、関所の行（policy_changed。置き場だけで本文を載せない）にする。固めた時に無く後で既定の置き場に置いた文書も変化に数え、固めた版の写しが消えていれば差分を作らず diff_missing を名指す
@@ -1590,7 +1590,7 @@
   - 元: works/.shared/core/gatemarks.py:162 `HEAD`
   - 今: lib/gatemarks.py:160 `HEAD`
   - 証: tests/workflows/test_plan_review.py::PlanGateCase.test_rule_points_at_world_rows（assert: tests/workflows/test_plan_review.py:1765-1767）・lib/tests/test_gate_drafts.py::SchemaCase.test_rule_text_asks_for_recommend。材料に貼られることは PD と PA の行が持つ
-  - 本物の run: `plan-review/pass-1/prompt.md` と `plan/r1/brief-1.md` に「承認ノードの項目の決め手」の段落
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/pass-1/prompt.md` と `plan/r1/brief-1.md` に「承認ノードの項目の決め手」の段落）
   - 狭め: 無し
 
 - P220 受け付けは返答から決め手の欄を外して控え gate-marks.json に置き、後段へは欄の無い形で渡す（推しも同じ道）
@@ -1667,7 +1667,7 @@
   - 元: works/.shared/core/gatemarks.py:576 `axes`・`_answered_rows`
   - 今: lib/gatemarks.py:561 `axes`・:550 `_answered_rows`・lib/gate_axes.py:43-51・lib/boardview.py:590 `_copy_structure`
   - 証: tests/workflows/test_plan_review.py::FourAxesCase.test_clean_route_rows_do_not_block・lib/tests/test_gate_axes.py::SplitCase.test_route_up_unit_is_not_clean・test_dirty_unit_without_answer_is_not_clean（assert: lib/tests/test_gate_axes.py:130-134）
-  - 本物の run: `gate_axes.clean`、`plan-review/structure-state.json` の design_file（計画の design.jsonl の写し `plan-review/structure/design.jsonl` を指す。構造の目が行を書かない run では写しは 0 バイト）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `gate_axes.clean`、`plan-review/structure-state.json` の design_file（計画の design.jsonl の写し `plan-review/structure/design.jsonl` を指す。構造の目が行を書かない run では写しは 0 バイト））
   - 狭め: 無し
 
 - P231 軸「やりすぎでない」: 柵の印が無く、行が修正案の単位の外を名指さない

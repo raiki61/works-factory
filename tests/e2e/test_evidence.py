@@ -27,9 +27,10 @@ SCENARIO_ONLY = "筋書きでのみ"
 # 照らしの where の run の記録 → その run の工程（親は線、子は fix の組ごとの子の run）
 RECORDS = {"record/parent.json": "works-factory-line", "record/child-*.json": "works-factory-fix"}
 OUTSIDE = "この文書の外"
+# 線の中のブロック（置き場の parent/ の次のフォルダ）と線そのもの。fix の組の子の run の置き場は fix
+BLOCKS = ("judge", "plan", "plan-review", "fix", "test-gate", "eyes", "merge", "report")
+LINE_ITSELF = "line"
 WRITERS = ("lib", "workflows", "bin")
-# writer の行から名を探す前後の行の数（書く関数の頭の定数の読みと、名を組んで書く行が届く幅）
-WRITER_REACH = 30
 # 名を組んで書く・名の表から引いて書くので字で引けない置き場 → 名を組む所・表の行（Archon が書く物は、その節を置く YAML の行）
 NAMED_BY_PATTERN = {
     "parent/gates/gate-start.json": "lib/answer.py:64",
@@ -151,6 +152,14 @@ def inventory() -> dict[str, str]:
     return rows
 
 
+def block_of(where: str) -> str:
+    """照らしの where を置く書き手のブロック（parent/ の次のフォルダ・child-*/ は fix・ほかは線そのもの）"""
+    head, *rest = where.split("/")
+    if head.startswith("child-"):
+        return "fix"
+    return rest[0] if head == "parent" and len(rest) > 1 and rest[0] in BLOCKS else LINE_ITSELF
+
+
 def wiring() -> tuple[dict[str, set[str]], dict[str, str]]:
     """線の配線の文書の（部分の名 → 閉じる行）と（「この文書の外」の行 → それを名指した節の名）"""
     parts, outside = {}, {}
@@ -233,10 +242,11 @@ class EvidenceTableCase(unittest.TestCase):
                     self.assertIn(row["node"], names[row["where"]])
 
     def test_seen_rows_name_a_writer_in_the_repository(self):
-        """seen の行の writer は lib・workflows・bin のコードの在る行で、その行の近く（前後 WRITER_REACH 行）のコードの字（コメント・
-        docstring・.md を除く）に where のファイル名か、その名を作る定数が在る。where の置き場の頭のフォルダ（parent/・child-*/ の次）
-        の名も、書き手のファイルかそのブロックの script と YAML のコードの字に在る。名を組んで書く置き場は NAMED_BY_PATTERN に名を
-        組む行と名指し、名の照らしだけを外す。run の記録の節の行の writer は、その節の id を置く YAML の行"""
+        """seen の行の writer は、能力の決める行（拒み・止め・既定でない側・値を作る行。保存の行でない）で、lib・workflows・bin の
+        コードの在る行。決める行は保存の行から離れうるので、where のファイル名かその名を作る定数は、writer のファイルのコードの字
+        （コメント・docstring・.md を除く）のどこかに在ればよい。where の置き場の頭のフォルダ（parent/・child-*/ の次）の名も、
+        書き手のファイルかそのブロックの script と YAML のコードの字に在る。名を組んで書く置き場は NAMED_BY_PATTERN に名を組む行と
+        名指し、名の照らしだけを外す。run の記録の節の行の writer は、その節の id を置く YAML の行"""
         code = CodeText()
         for row in [r for r in self.rows if r["kind"] == "seen"] + [{"id": w, "where": w, "writer": v}
                                                                      for w, v in NAMED_BY_PATTERN.items()]:
@@ -246,7 +256,6 @@ class EvidenceTableCase(unittest.TestCase):
                 lines = code.lines(path)
                 self.assertLessEqual(int(line), len(lines))
                 self.assertTrue(lines[int(line) - 1].strip(), f"{row['writer']} がコードの行でない（空かコメント）")
-                near = "\n".join(lines[max(0, int(line) - 1 - WRITER_REACH):int(line) + WRITER_REACH])
                 if row.get("check") == "node-completed":
                     steps = {row["node"].split("__", 1)[0], row["node"].rsplit("__", 1)[-1].rsplit(".", 1)[-1]}
                     placed = re.findall(r"\bid: (\S+)", "\n".join(lines[int(line) - 1:int(line) + 1]))
@@ -265,7 +274,18 @@ class EvidenceTableCase(unittest.TestCase):
                     continue
                 name = rest[-1]
                 self.assertNotRegex(name, r"[*?\[]", "glob の名は NAMED_BY_PATTERN に名指す")
-                self.assertTrue(code.names(near, name), f"{row['writer']} の近くに {name} の名もその名を作る定数も無い")
+                self.assertTrue(code.names(code.text(path), name), f"{path} のコードに {name} の名もその名を作る定数も無い")
+
+    def test_every_block_has_a_seen_row(self):
+        """本物の通しが見るのは、本物の役で各ブロックが仕事をしたか。どのブロックにも seen の行が在る（埋め物でない中身かは
+        IdleRunCase が縛る）"""
+        seen = {}
+        for row in self.rows:
+            if row["kind"] == "seen":
+                seen.setdefault(block_of(row["where"]), []).append(row["id"])
+        for block in (LINE_ITSELF, *BLOCKS):
+            with self.subTest(block=block):
+                self.assertGreaterEqual(len(seen.get(block, [])), 1)
 
     def test_backlog_and_handed_off_rows_name_their_place(self):
         _, outside = wiring()
@@ -280,7 +300,11 @@ class EvidenceTableCase(unittest.TestCase):
 SCENARIO = ROOT / "harness" / "runtime.scenario.json"
 SCRIPTS = ROOT / "workflows"
 IDLE_RUN = "idle"
-SKIPPED = "skipped"
+SKIPPED, COMPLETED = "skipped", evidence.COMPLETED
+LINE = "works-factory-line"
+# 前の段が全部飛んでも走る線の節: 始め・入口の関所の答え・報告の集め・報告のブロック（AI の書き手は記録が崩れていなければ走る。
+# lib/runreport.py の ai_go）・返す節
+ALWAYS_RAN = re.compile(r"start|answer-start|collect|report__.*|result")
 # start に入力を受けさせない名指し（固定材料から始める道はまだ無い）。受けない start は入力のこだまと版の控えだけを書く
 REFUSED_INPUT = "fixture"
 
@@ -292,11 +316,12 @@ def seed_inputs(request: str) -> dict[str, str]:
     return {k: request if v == "<request>" else v.strip("'") for k, v in re.findall(r"--input (\w+)=('[^']*'|[^\s`]+)", launch)}
 
 
-def idle_run(tmp: pathlib.Path) -> pathlib.Path:
-    """何も働かなかった run の試みのフォルダ。run の記録は線と fix の組の子の全部の節が skipped。置き場は、どの能力も働かなくても
-    書かれる物だけ: 種の入力を受けなかった線の始めの節 start（入力のこだまと版の控え）と、各ブロックとメイングラフの落ちない返す節・
-    目の prep を、上流が全部飛んだ形（入力が null）で今の書き手のまま走らせた物（判定・計画の空の埋め物、目の prep がいつも書く欄、
-    報告の見出しと 0 件の行など）"""
+def idle_run(tmp: pathlib.Path, started: bool) -> pathlib.Path:
+    """何も働かなかった run の試みのフォルダ。置き場は、どの能力も働かなくても書かれる物だけ: 線の始めの節 start と、各ブロックと
+    メイングラフの落ちない返す節・目の prep を、上流が全部飛んだ形（入力が null）で今の書き手のまま走らせた物（判定・計画の空の
+    埋め物、目の prep がいつも書く欄、報告の見出しと 0 件の行など）。started が偽なら start は種の入力を受けず（入力のこだまと版の
+    控えだけを書く）、run の記録は線と fix の組の子の全部の節が skipped。真なら start は種の入力を受けて書く欄を全部書き、線の
+    ALWAYS_RAN の節は completed（ほかは skipped）"""
     made = make_target.make(tmp / "attempt", listed=False)
     target, attempt = pathlib.Path(made["target"]), tmp / "attempt"
     ev = attempt / evidence.EVIDENCE
@@ -322,9 +347,10 @@ def idle_run(tmp: pathlib.Path) -> pathlib.Path:
     parent = ev / "parent"
     parent.mkdir()
     start = ptr("start.json")
-    refused = script(parent, "line/scripts/start.py", "", "", **seed_inputs(made["request"]), fix_fixture=REFUSED_INPUT)
-    if refused["ok"]:
-        raise AssertionError("start が固定材料の名指しを受けた（入力を受けない道で走らせられない）")
+    refused = {} if started else {"fix_fixture": REFUSED_INPUT}
+    begun = script(parent, "line/scripts/start.py", "", "", **seed_inputs(made["request"]), **refused)
+    if begun["ok"] != started:
+        raise AssertionError(f"start の ok が {begun['ok']}（{begun['reason']}）")
     for mode in ("base", "final"):
         script(parent, "test-gate/scripts/result.py", f"test-gate-{mode}__result", mode=mode, start=start)
     script(parent, "judge/scripts/verdict.py", objection="")
@@ -348,8 +374,9 @@ def idle_run(tmp: pathlib.Path) -> pathlib.Path:
     child = ev / "child-1"
     child.mkdir()
     script(child, "fix/scripts/collect.py", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": ["stats.py"]}))
-    for name, flow, value in (("parent", "works-factory-line", returned), ("child-1", "works-factory-fix", None)):
-        nodes = [{"nodeId": n, "state": SKIPPED} for n in sorted(stepnames.step_names(flow))]
+    for name, flow, value in (("parent", LINE, returned), ("child-1", "works-factory-fix", None)):
+        nodes = [{"nodeId": n, "state": COMPLETED if started and flow == LINE and ALWAYS_RAN.match(n) else SKIPPED}
+                 for n in sorted(stepnames.step_names(flow))]
         record = {"id": name, "status": "completed", "nodes": nodes,
                   "terminal_record": {"status": "completed", "nodes": nodes, "returns": {"value": value},
                                       "artifacts": {"root": str(ev / name)}}}
@@ -363,10 +390,13 @@ class IdleRunCase(unittest.TestCase):
     言えなくなるので同じ"""
 
     def test_no_row_holds_on_a_run_where_nothing_worked(self):
-        got = evidence.check(idle_run(hermetic.tmpdir(self)))
-        held = [f"{r['id']}（{r['kind']}）: {r['detail']}" for r in got if r["state"] in (evidence.SEEN, evidence.UNEXPECTED)]
-        self.assertEqual(held, [], "\n".join(held))
-        self.assertEqual([r["id"] for r in got if r["state"] == evidence.UNREADABLE], [])
+        for started in (False, True):
+            with self.subTest(started=started):
+                got = evidence.check(idle_run(hermetic.tmpdir(self), started))
+                held = [f"{r['id']}（{r['kind']}）: {r['detail']}" for r in got
+                        if r["state"] in (evidence.SEEN, evidence.UNEXPECTED)]
+                self.assertEqual(held, [], "\n".join(held))
+                self.assertEqual([r["id"] for r in got if r["state"] == evidence.UNREADABLE], [])
 
 
 class EvidenceCheckCase(unittest.TestCase):
