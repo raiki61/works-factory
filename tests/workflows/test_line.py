@@ -802,7 +802,7 @@ class CollectAndResultCase(unittest.TestCase):
 
     def test_skipped_receiver_is_null(self):
         seal = {"got": {"mode": "seal", "ok": True, "hash": "123"}, "stop_reason": ""}
-        got = collect.collect({"judge": "null", "merge_seal": json.dumps(seal), "plan_rounds": None}, self.line())
+        got = collect.collect({"judge": "null", "merge_seal": json.dumps(seal), "plan": "null", "plan_review": "null"}, self.line())
         self.assertIsNone(got["judge"])
         self.assertEqual(got["merge_seal"], seal["got"])
         self.assertEqual((got["plan"], got["plan_review"], got["fix"]), (None, None, None))
@@ -965,6 +965,25 @@ class LineWiringCase(unittest.TestCase):
                 self.assertTrue(all(name.startswith("got_") for name in node["with"]), node["with"])
                 env = run_inputs | {f"INPUTS_{name.upper()}": "null" for name in node["with"]}
                 self.assertEqual(set(returned.returned(env)["got"]), {name.removeprefix("got_") for name in node["with"]})
+
+    def test_receivers_take_every_field_of_what_they_receive(self):
+        """受け皿の got_<欄> は受ける節の同じ欄を指し、欄の組はブロックの返す節の output_format（計画の往復は plan_out の
+        PLAN・REVIEW）と同じ（受け皿の鍵を消すか向け違えると、その欄が黙って報告から落ちる）"""
+        nodes = line_nodes()
+        rounds = {"plan-rounds-out": plan_out.PLAN, "plan-rounds-review-out": plan_out.REVIEW}
+        for key, node in nodes.items():
+            if node.get("script") != "returned":
+                continue
+            with self.subTest(node=key):
+                dep = node["depends_on"][0]
+                fields = {name.removeprefix("got_") for name in node["with"]}
+                self.assertEqual(node["with"], {f"got_{name}": f"${dep}.output.{name}" for name in fields})
+                if key in rounds:
+                    self.assertEqual(fields, set(rounds[key]))
+                    continue
+                doc = block_doc(nodes[dep]["include"])
+                returns = next(n for n in doc["nodes"] if n["id"] == doc["returns"])
+                self.assertEqual(fields, set(returns["output_format"]["properties"]))
 
     def test_every_include_and_the_plan_rounds_have_a_receiver_that_collect_reads(self):
         """ブロックの返す節が落ちても報告が出るように、collect は返りを受け皿 <id>-out からだけ読む。2 度目の修正 refix-run は、
