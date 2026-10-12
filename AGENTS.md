@@ -68,9 +68,8 @@ works-factory/
 │   └── plans/                   実装の計画
 ├── .github/workflows/tests.yml  CI。check の名は tests（4 つの分けを集める。分けは tests/shard.py）
 ├── pack.json                    版の止め（Archon の版は factory/pack.json）
-├── pyproject.toml               Python の依存の宣言（1 か所。持ち主の決め overnight-speed）
+├── pyproject.toml               Python の外のパッケージの宣言（1 か所。持ち主の決め outside-packages-ok・overnight-speed。lib/AGENTS.md の E3）
 ├── .gitignore
-├── pyproject.toml               外のパッケージの宣言（1 か所。lib/AGENTS.md の E3）
 ├── AGENTS.md                    AI 向けの決まり（この文書）。下のフォルダの AGENTS.md と自動で合わさる
 ├── MISSION.md・README.md
 ├── engineering.md               ASF の役が読む入口。ここを指すだけ
@@ -81,7 +80,7 @@ works-factory/
 ```
 
 - 試験を置くフォルダには全部 `__init__.py` を置く（無いと Python 3.12 の unittest は黙って見つけない）。試験は根から 1 つの命令で走る（命令と外のパッケージの入れ方は `tests/AGENTS.md`）。
-- 機械: `tests/layers/test_layout.py`（根の直下のファイルとフォルダが上の木に在る物だけ。`workflows/` の直下が `line/`・8 つのブロック・`.shared/` だけ。各ブロックが `works-factory-<ブロック>.yaml` を持つ。試験のフォルダに `__init__.py` が在る）。
+- 機械: `tests/layers/test_layout.py`（根の直下のファイルとフォルダが上の木に在る物だけ。木の根の直下の名は 1 度だけ。`workflows/` の直下が `line/`・8 つのブロック・`.shared/` だけ。各ブロックが `works-factory-<ブロック>.yaml` を持つ。試験のフォルダに `__init__.py` が在る）。
 
 ## E8 ASF は横に並べて見るだけ
 
