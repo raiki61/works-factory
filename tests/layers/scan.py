@@ -336,14 +336,16 @@ def _block_paths(root: Path) -> list[str]:
     return out
 
 
-def _script_imports(root: Path) -> list[str]:
-    out = []
+def sibling_imports(root: Path) -> tuple[list[tuple[Path, int, str]], list[str]]:
+    """ブロックの scripts/ の script が同じ scripts/ のほかの script を import する所（script、行、import する script の名）と、
+    読めないファイルの問題の行。K8 と、節の script どうしの import の試験（tests/workflows/test_script_imports.py）が共に読む"""
+    found, broken = [], []
     for folder in _blocks(root):
         scripts = folder / "scripts"
         siblings = {p.stem for p in scripts.glob("*.py")} if scripts.is_dir() else set()
         for path in sorted(scripts.glob("*.py")) if scripts.is_dir() else []:
-            lines, broken = _lines(root, path)
-            out += broken
+            lines, unread = _lines(root, path)
+            broken += unread
             for number, line in enumerate(lines, 1):
                 match = IMPORT_NAMES.match(line)
                 if not match:
@@ -352,8 +354,13 @@ def _script_imports(root: Path) -> list[str]:
                 for name in names:
                     head = name.split(".")[0]
                     if head in siblings - {path.stem}:
-                        out.append(f"{_rel(root, path)}:{number}: 同じ scripts/ の script {head} を import する")
-    return out
+                        found.append((path, number, head))
+    return found, broken
+
+
+def _script_imports(root: Path) -> list[str]:
+    found, broken = sibling_imports(root)
+    return broken + [f"{_rel(root, path)}:{number}: 同じ scripts/ の script {head} を import する" for path, number, head in found]
 
 
 def _script_names(root: Path) -> list[str]:
