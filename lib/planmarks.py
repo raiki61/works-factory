@@ -34,6 +34,7 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
 - glob_match(path, glob): 根からの相対のパスが glob に当たるか（* ? [..] は / を跨がない・** は段をまたぐ。守りのファイルの
   protect.match もこれを呼ぶ）。gaps は out_of_scope の glob が tests・rewrite_tests の id のファイルに当たる案を拒む
 - approved_items(b): 今の周の承認済みの修正案の項目と凍結した欄を同じ番号で合わせた並び（修正の受け付けが差分と照らす）
+- joined(it, f): 案の項目の行に同じ番号の欄の行の KEYS を重ねた行（approved_items と事前審査の往復の控えの行が使う）
 - handed(ruling, items): 裁かれた項目の番号の字（fix の replan_items）を案の項目の番号に読み、番号でない行と案の外の番号は訳を返す
   （案の直しの周を開く planfile と、案の直しの事前審査を開く boardview が同じ物を呼ぶ）
 - 約束の欄と手段の欄（依頼 226）: CONTRACT_KEYS・CONTRACT_TEST_KEYS（tests[] の行の約束の欄）は変えると関所に戻す物、
@@ -953,8 +954,14 @@ def approved_items(b) -> list[dict] | None:
     for n, (it, f) in enumerate(zip(plan, fields), 1):
         it = it if isinstance(it, dict) else {}
         f = f if isinstance(f, dict) else {}
-        out.append({"item": n, **copy.deepcopy(it), **{k: copy.deepcopy(f[k]) for k in KEYS if k in f}})
+        out.append({"item": n, **copy.deepcopy(joined(it, f))})
     return out
+
+
+def joined(it: dict, f: dict) -> dict:
+    """案の項目の行 it に同じ番号の欄の行 f（plan-fields.json の行）の KEYS の物を重ねた行（unit_keys は案の物）。
+    承認済みの項目（approved_items）と事前審査の往復の控えの行（boardview.open_pass）が同じ物を呼ぶ"""
+    return {**it, **{k: f[k] for k in KEYS if k in f}}
 
 
 def scoped(items: list | None) -> bool:

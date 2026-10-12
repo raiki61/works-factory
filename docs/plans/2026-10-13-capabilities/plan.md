@@ -1509,7 +1509,7 @@
 
 - P258 2 往復目に約束の欄（planmarks.contract_diff）が変わった項目は、変わった欄の名を言って差分に絞らず全部を審査させる。変わった字の割合が DIFF_FULL_SHARE（0.25）を超えた項目も全部を審査させる。関所の決め手の欄だけの変化は数えない
   - 元: raiki61/claude-plugins @d51cc183 の works/blk-plan/lib/planblk.py:982 `_diff_part`（DIFF_FULL_SHARE・DIFF_FULL_ASK :180-184）、試験 works/tests/test_blk_plan.py:2992 test_large_item_change_is_reviewed_whole・:3006 test_contract_field_change_is_reviewed_whole・:3015 test_tree_item_contract_change_is_reviewed_whole・:3036 test_narrows_gate_marks_only_change_stays_diff
-  - 今: lib/planblk.py `_diff_part`・`_changed_chars`、lib/boardview.py `_with_fields`（往復の控えの行に同じ番号の works の欄を重ね、allowed_paths などの変化も比べと差分に出す）
+  - 今: lib/planblk.py `_diff_part`・`_changed_chars`、lib/planmarks.py `joined`（lib/boardview.py `open_pass` が往復の控えの行に同じ番号の works の欄を重ね、allowed_paths などの変化も比べと差分に出す）
   - 証: tests/workflows/test_plan_review.py::TreeCase.test_tree_item_contract_change_is_reviewed_whole（#207。消すと赤: contract_diff を空にするか、控えの行に欄を重ねないと赤）・TreeCase.test_large_item_change_is_reviewed_whole（消すと赤: 字の割合の比べを外すと赤）・TreeCase.test_narrows_gate_marks_only_change_stays_diff・TreeCase.test_second_pass_reviews_diff_and_carries_answers_and_notes（小さい直しは差分のまま）
   - 本物の run: 往復が 2 回の run だけ `plan-review/plan-review-items/pass-2/item-<n>.md` の「前の往復からのこの項目の案の差分」の頼みの文
   - 狭め: 無し。審査役 1 つの往復（木にしない往復）は今も 2 往復目に案の全部を審査する（元の single_part の差分への絞りは速さの差で、写していない。#207）。貼る差分は関所の決め手の欄を外した行（元は決め手の欄も含む生の行）

@@ -461,7 +461,9 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     ruled, why = planmarks.handed(ruling, len(rows)) if form == "replan" else ([], "")
     if why:
         raise Missing(why)
-    converge.note_plan(out, _with_fields(rows, fields["fields"]))
+    if len(rows) != len(fields["fields"]):
+        raise Missing(f"修正案の項目の数 {len(rows)} と {plan} の欄の数 {len(fields['fields'])} が違う（同じ受け付けが同じ並びで書く物）")
+    converge.note_plan(out, [planmarks.joined(r, f if isinstance(f, dict) else {}) for r, f in zip(rows, fields["fields"])])
     if form == "review" and answered:
         converge.note_answers(out, answered)
     frozen = _frozen_policy(d, start_doc, cwd)
@@ -535,16 +537,6 @@ def _collect_design(d: pathlib.Path, inputs: dict) -> dict:
     design_file = d / design.DESIGN_FILE if got is not None else _write_json(p / design.DESIGN_FILE, {"missing": design.missing(b)})
     return {"pass": True, "stalled": False, "review": review, "design": design_file,
             "gate_axes": {axis: {"ok": True, "note": ""} for axis in gatemarks.AXES}, "ask_human": False, "questions": []}
-
-
-def _with_fields(rows: list, fields: list) -> list:
-    """案の項目の行に同じ番号の works の欄（planmarks.KEYS。plan-fields.json の行）を重ねた写し。往復の控えの行にして、次の往復の
-    差分と約束の欄の比べ（planblk._diff_part）が欄の変化も見る（元の works は返答の行が欄を持った）"""
-    out = []
-    for i, r in enumerate(rows):
-        f = fields[i] if i < len(fields) and isinstance(fields[i], dict) else {}
-        out.append({**r, **{k: f[k] for k in planmarks.KEYS if k in f}})
-    return out
 
 
 def _approved(d: pathlib.Path) -> list | None:

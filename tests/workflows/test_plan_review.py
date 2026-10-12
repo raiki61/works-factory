@@ -2175,6 +2175,15 @@ class ResultCase(RunCase):
         self.assertEqual((got["pass"], got["ask_human"]), (False, True))
         self.assertTrue(any("JSONDecodeError" in q for q in texts(got)), texts(got))
 
+    def test_open_refuses_fields_count_apart_from_plan_rows(self):
+        """修正案の項目の数と plan-fields.json の欄の数が違えば、往復の控えの行に欄を重ねられないので open は訳つきで落ちる
+        （欄を黙って空にすると約束の欄の比べが消え、全部の審査に戻す枝が黙って止まる）"""
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)], field_rows=[fields(UNIT_MEAN)])
+        opened = r.out("pass_open")
+        self.assertFalse(opened["ok"])
+        self.assertIn("修正案の項目の数 2", opened["reason"])
+
     def test_empty_folder_never_fails_the_return_node(self):
         """open も受け付けも走らず plan-review/ が空でも、返す節は偽の結末を返す"""
         done = self.run_.script("result")
