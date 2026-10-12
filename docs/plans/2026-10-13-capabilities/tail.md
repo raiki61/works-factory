@@ -200,7 +200,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T26 起こせない段（exit None）だけから来た赤は「環境で起こせなかった（コードの赤ではない）」と名指し、コードの赤と分ける（赤の原因 environment）。
   - 元: works/.shared/core/entry.py:768 `env_only_red`・:819 `suites_line`
-  - 今: lib/declared_checks.py:152 `env_only_red`・:181-201・lib/green_cert.py:83-86
+  - 今: lib/declared_checks.py:154 `_suite_kind`・:160 `suites_line`（:194 の名指し。届かなかった `env_only_red` は #232 で消した）・lib/green_cert.py:83-86
   - 証: lib/tests/test_declared_checks.py::SuitesLineCase.test_unlaunchable_step_is_named_apart_from_code_red（assert: :176-177）・test_code_red_is_not_env（assert: :188-189）・test_missing_command_127_is_red_like_the_material（assert: :182-183）・lib/tests/test_green_cert.py::ClassifyCase.test_environment_only_broken_steps（assert: lib/tests/test_green_cert.py:146-147）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し

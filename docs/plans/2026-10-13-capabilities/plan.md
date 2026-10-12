@@ -429,7 +429,7 @@
 
 - P059 単位ごとの深さ（軽量・標準と訳）を、直す義務の単位だけについて、受け付けた案の欄と始めの記録の厚さ（thickness）・試験の命令の有無から決めて返す。案が無ければ空。
   - 元: works/darkfactory/lib/depth.py:244 `decide`（線の h-depth が h-fix.open_units で呼んだ。depth.json を書いた）
-  - 今: lib/planfile.py:1041 `collect`・:1035 `owed_order`・workflows/plan/scripts/plan_collect.py:39-40
+  - 今: lib/planfile.py:1016 `collect`・:1010 `owed_order`・lib/depth.py:127 `decide_doc`・:101 `unit_depth`・workflows/plan/scripts/plan_collect.py:39-40（盤面を読む lib/depth.py の `decide` は届かなかったので #232 で消した）
   - 証: tests/workflows/test_plan.py::CollectCase.test_depth_follows_start_thickness_and_checks（#120 で足した。消すと赤: plan_collect が thickness か試験の命令を渡さないと赤）
   - 本物の run: plan の節の出力 depth（種の厚さ 標準 なら全部 標準）
   - 狭め: depth.json の控え（深さの上げ直しが読む）はブロックが書かない。上げ直しは線（workflows/line/scripts/redepth.py）の持ち物なので PA の外
@@ -939,8 +939,8 @@
 
 - P130 直した項目を差し替えた案の全体を、その周の p2.fix_plan.json・plan-fields.json（amended に直した項目の核の欄）・reply.json に書き、trace に `plan_amended` を書く。直さない項目の欄は前の周のまま
   - 元: works/.shared/core/planmarks.py:981 `amend`（関所の答えの後）、works/.shared/core/replan.py:699 `answer`
-  - 今: lib/planfile.py:959 `take_replan`・:411 `revised_fields`（受け付けで差し替える。採るかは線の関所）
-  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends（assert: :643-648）・lib/tests/test_planfile.py::RevisedFieldsCase.test_replaces_only_revised_items（:454-456）・lib/tests/test_plan_fields.py::TestAmend.test_amend_swaps_one_item_and_refreezes
+  - 今: lib/planfile.py:809 `take_replan`（:846 で amended つき plan-fields.json、:847 で trace に `plan_amended`）・:386 `revised_fields`（受け付けで差し替える。採るかは線の関所。届かなかった lib/planmarks.py の `amend` は #232 で消した）
+  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends（assert: :672・675-677）・lib/tests/test_planfile.py::RevisedFieldsCase.test_replaces_only_revised_items（:454-456）
   - 本物の run: plan/r2/plan-fields.json の `amended`・plan/r2/trace.jsonl の `plan_amended`。筋書きでのみ
   - 狭め: 無し（差し替える時が受け付けに早まったが、2 度目の修正が使うのは関所の後だけ: P74 works-factory-line.yaml:592-607 `refix` の when）
 
@@ -1588,7 +1588,7 @@
 
 - P218 関所の決め手の欄（decided_by・undecided_because・fences・world・recommend）と狭めない案（no_narrow）を、修正案の narrows の行と事前審査の faces の行の役の型にだけ足す。欄の型の持ち主は gatemarks.MARK_SCHEMA の 1 か所
   - 元: works/.shared/core/gatemarks.py:113 `MARK_SCHEMA`・:328 `with_marks`
-  - 今: lib/gatemarks.py:111 `MARK_SCHEMA`・:313 `with_marks`・workflows/plan-review/works-factory-plan-review.yaml:195-215（faces の行）・workflows/plan/works-factory-plan.yaml（narrows の行）
+  - 今: lib/gatemarks.py:118 `MARK_SCHEMA`（役の型に足す口 `with_marks` は #232 で消し、欄は節の output_format が持つ）・workflows/plan-review/works-factory-plan-review.yaml:195-215（faces の行）・workflows/plan/works-factory-plan.yaml（narrows の行）
   - 証: tests/workflows/test_plan_review.py::YamlCase.test_recommend_is_optional_on_both_roles（#120 で足した。消すと赤: faces の行の required に recommend を足すと赤）
   - 本物の run: 節 `plan-review` の出力が型を通った記録、`plan-review/gate-marks.json`
   - 狭め: 無し
@@ -1686,7 +1686,7 @@
 
 - P232 4 つの軸を軸ごとの {ok, note} に分けて返す（返す節の gate_axes）。軸の決まりは gatemarks.axes と gate_axes._reasons の 2 か所が持つが、「全部の軸が ok ⇔ gatemarks.axes が空」と「全部の軸が ok ⇔ 関所の項目が無い」を試験が縛る。項目の無い軸は {ok: true, note: ""}、note は行の頭と訳
   - 元: works/.shared/core/gatemarks.py:576 `axes`（訳を 1 つの並びで返した。軸ごとの分けは元に無い）
-  - 今: lib/gate_axes.py:56 `split`・:61 `gather`・lib/boardview.py:954
+  - 今: lib/gate_axes.py:26 `gather`・lib/boardview.py:954
   - 証: lib/tests/test_gate_axes.py::AxesBase（assert: lib/tests/test_gate_axes.py:46 の全部 ok ⇔ axes が空）・GatherCase.test_gather_agrees_with_the_gate（assert: :183）・test_no_rows_is_all_ok・test_rows_name_their_text
   - 本物の run: 返す節 `review` の出力 `gate_axes`（4 つの鍵、種では全部 ok の見込み）
   - 狭め: 無し（決まりを 2 か所が持つのは #73 の申し送り。今壊れていない。gatemarks に軸ごとの訳の口を足せば 1 か所になる）
@@ -1721,7 +1721,7 @@
 
 - P237 一言の「保留: <key>」で名指した問いは答えに数えない。key は台帳の key を最長一致で拾い、key の後ろの言葉・区切りの字を含む key・並べた複数の key も読む。前後が key の字で続く一致は拾わない
   - 元: works/.shared/core/gatemarks.py:1118 `hold_keys`・`_hold_scan`・:1070 `answered`
-  - 今: lib/gatemarks.py:1103 `hold_keys`・:1109 `_hold_scan`・:1055 `answered`
+  - 今: lib/gatemarks.py:894 `hold_keys`・:871 `answered`
   - 証: tests/workflows/test_plan_review.py::LedgerAsksCase.test_hold_note_keeps_the_fork_origin_exempt（assert: :1996-1998）・test_hold_note_names_only_the_whole_key・test_hold_note_lists_several_keys・test_hold_note_with_words_after_the_key_keeps_the_fork_origin_exempt・test_hold_note_names_a_key_that_holds_a_separator・EscalateAsksCase.test_hold_note_keeps_the_escalate_origin_exempt。断言は owed の数えから withheld・returned・answered に替わったが、lib の決まりは縛る
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（lib の水準。run で効くかは P241 の配線の穴に依る）
@@ -1756,7 +1756,7 @@
 
 - P242 依頼の answers（始めの記録の欄）が問いの key か出どころ origin と字のまま等しく、その問いだけに当たる時は答えた扱い（関所を飛ばし、出どころを直す義務に戻す、答えの文で直させる）。命令と出力つきの答えはそれを見せる。どの問いにも当たらない・複数の問いに当たる・決着済みの問いに当たる答えは答えた扱いにせず名指す。判定の answer_ties が問いの key・単位・none に結ぶ
   - 元: works/.shared/core/gatemarks.py:923 `request_answer`・:731 `answer_binds`・:1036 `unmatched_answer_lines`
-  - 今: lib/gatemarks.py:908 `request_answer`・:716 `answer_binds`・:1021 `unmatched_answer_lines`・lib/boardview.py:403-404（始めの記録の写しから読む）
+  - 今: lib/gatemarks.py:795 `request_answer`・:698 `answer_binds`（当たらない答えの名指しは lib/runreport.py:229 `ledger_state` の unmatched。gatemarks の `unmatched_answer_lines` は #232 で消した）・lib/boardview.py:403-404（始めの記録の写しから読む）
   - 証: tests/workflows/test_plan_review.py::RequestAnswersCase の 9 件。名指しの文（「依頼の答えに当たる問いが台帳に無い」「複数の問いに当たった」「決着済みの問いに当たった答え」・ANSWERED_HEAD）の断言は外れ、lib/tests/test_runreport.py::LedgerCase.test_answers_that_answer_nothing_are_named・test_answered_lines_name_where_the_answer_came_from が報告の側で持つ（報告は gatemarks を呼ばず書き直した写し lib/runreport.py:228 `ledger_state`）
   - 本物の run: 筋書きでのみ（種の request_ok.json は answers を持たない）
   - 狭め: 無し（報告の側の写しは字の一致だけで answer_ties の結びを読まない、と lib/runreport.py:234 が自ら書く。報告の区分の行）
