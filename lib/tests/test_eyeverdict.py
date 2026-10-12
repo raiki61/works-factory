@@ -534,18 +534,18 @@ class WriteNotesCase(unittest.TestCase):
 
 
 class StatusOwnerCase(unittest.TestCase):
-    """目の状態の語の持ち主は eyeverdict だけ。置くかの決まり（seal）と結末の分け（outcome）は語を写さず持ち主から読む"""
+    """目の状態の語の持ち主は seal だけ。目の判定（eyeverdict）と結末の分け（outcome）は語を写さず持ち主から読む"""
 
     def test_readers_do_not_restate_the_words(self):
-        words = set(eyeverdict.STATUSES) - {eyeverdict.PASSED}
-        for name in ("seal.py", "outcome.py"):
+        words = set(seal.STATUSES) - {seal.PASSED}
+        for name in ("eyeverdict.py", "outcome.py"):
             with self.subTest(name=name):
                 tree = ast.parse((LIB / name).read_text(encoding="utf-8"))
                 restated = {n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and n.value in words}
                 self.assertEqual(restated, set())
 
     def test_apply_refusal_follows_the_owner(self):
-        with mock.patch.object(eyeverdict, "REDESIGN", "renamed"):
+        with mock.patch.object(seal, "REDESIGN", "renamed"):
             got = seal.apply_refusal(sealed_hash="h", current_hash="h", answer={"decision": "continue", "text": ""},
                                      green_ok=True, eyes_ok=True, r2={"status": "renamed", "reason": "r"},
                                      fingerprint_ok=True, protected=[])

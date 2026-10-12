@@ -52,7 +52,6 @@ EYES = ("r1", "r2", "r3", "r4")
 PREMISE = "premise-check"
 LANE = {"r1": "R1", "r2": "R2", PREMISE: "R2", "r3": "R3", "r4": "R4"}
 RETURN_FIELDS = ("ok", *EYES, "questions", "premise_check", "structure_after", "protected_hits")
-PASSED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "redesign-needed", "unverifiable")   # 目の状態の語の持ち主（ほかは写さずここを読む）
 VERDICTS = ("resolved", "escalate")
 NO_FILE = "返りのファイルが無い"
 NO_AFTER = "直しの後の実測: 控えが無い（測っていない run）"   # 元 blk-eyes/lib/eyes.py:93
@@ -312,7 +311,7 @@ def _protected(protected: dict | None) -> tuple[list, bool]:
 
 def unverified(reason: str, protected: dict | None) -> dict:
     """目を数えられない時の返り（r1〜r4 は unverifiable、ok は false）。protected は collect と同じ"""
-    row = {"status": "unverifiable", "reason": reason}
+    row = {"status": seal.UNVERIFIABLE, "reason": reason}
     return {"ok": False, **{e: dict(row) for e in EYES}, "questions": [], "premise_check": None, "structure_after": None,
             "protected_hits": _protected(protected)[0]}
 
@@ -341,9 +340,9 @@ def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, d
     for eye in ("r1", "r3", "r4"):
         out[eye] = _row(eye, docs.get(eye), fell.get(eye), ran=ran if eye == "r1" else "")
     if "missing" in design:
-        out["r2"] = {"status": "unverifiable", "reason": R2_MISSING_HEAD + str(design["missing"])}
+        out["r2"] = {"status": seal.UNVERIFIABLE, "reason": R2_MISSING_HEAD + str(design["missing"])}
     elif premise_due:
-        out["r2"] = {"status": "unverifiable", "reason": R2_PREMISE_HEAD + premise_reason(design)}
+        out["r2"] = {"status": seal.UNVERIFIABLE, "reason": R2_PREMISE_HEAD + premise_reason(design)}
         check = docs.get(PREMISE)
         out["premise_check"] = ({"verdict": check["verdict"], "reason": str(check.get("reason"))}
                                 if check and check.get("verdict") in VERDICTS
@@ -351,9 +350,9 @@ def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, d
     elif compare_due:
         out["r2"] = _row("r2", docs.get("r2"), fell.get("r2"), ran=ran)
     else:
-        out["r2"] = {"status": "unverifiable", "reason": R2_NO_PURPOSE if design.get("question_stands") is True else R2_NO_STANDS}
+        out["r2"] = {"status": seal.UNVERIFIABLE, "reason": R2_NO_PURPOSE if design.get("question_stands") is True else R2_NO_STANDS}
     out["questions"] = r4_gate_items(docs.get("r4"), passed)
-    out["ok"] = guarded and all(out[e]["status"] == PASSED for e in EYES)
+    out["ok"] = guarded and all(out[e]["status"] == seal.PASSED for e in EYES)
     return out
 
 
@@ -378,6 +377,6 @@ def _off_contract(eye: str) -> dict:
 
 
 def _row(eye: str, doc: dict | None, fell: dict | None, *, ran: str) -> dict:
-    if doc is None or doc.get("status") not in STATUSES:
-        return {"status": "unverifiable", "reason": fell_text([fell or _off_contract(eye)], ran)}
+    if doc is None or doc.get("status") not in seal.STATUSES:
+        return {"status": seal.UNVERIFIABLE, "reason": fell_text([fell or _off_contract(eye)], ran)}
     return {"status": doc["status"], "reason": str(doc.get("reason"))}

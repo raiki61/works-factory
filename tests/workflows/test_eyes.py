@@ -286,9 +286,9 @@ class ShapeCase(unittest.TestCase):
         names = {*eyeverdict.EYES, eyeverdict.PREMISE}
         self.assertEqual({n["with"]["eye"] for n in NODES.values() if n.get("output_type") == "eye-verdict"}, names)
         self.assertEqual(set(eye_fmt["eye"]["enum"]), names)
-        self.assertEqual(verdict_fmt["r1"]["properties"]["status"]["enum"], list(eyeverdict.STATUSES))
+        self.assertEqual(verdict_fmt["r1"]["properties"]["status"]["enum"], list(seal.STATUSES))
         self.assertEqual(verdict_fmt["premise_check"]["properties"]["verdict"]["enum"], list(eyeverdict.VERDICTS))
-        self.assertEqual(eye_fmt["status"]["enum"], [*eyeverdict.STATUSES, *eyeverdict.VERDICTS])
+        self.assertEqual(eye_fmt["status"]["enum"], [*seal.STATUSES, *eyeverdict.VERDICTS])
 
     def test_retry_gives_three_tries(self):
         for nid, node in ROLES.items():
