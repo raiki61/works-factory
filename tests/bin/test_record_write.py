@@ -12,6 +12,7 @@ import json
 import os
 import pathlib
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -126,9 +127,104 @@ class TestHook(unittest.TestCase):
         f = self.work / "a.py"
         f.write_text("x\n", encoding="utf-8")
         self.run_recorder({"tool_name": "Write", "tool_input": {"file_path": str(f)}, "cwd": str(link)})
-        self.assertEqual([p for p in self.root.rglob("*") if p.is_file()], [writelog.log_path(self.root, self.work)])
+        log = writelog.log_path(self.root, self.work)
+        self.assertEqual({p for p in self.root.rglob("*") if p.is_file()}, {log, log.parent / writelog.WHERE})
+        self.assertEqual((log.parent / writelog.WHERE).read_text(encoding="utf-8"), str(self.work), "控えは実パス")
         self.assertEqual(writelog.log_path(self.root, link), writelog.log_path(self.root, self.work))
         self.assertNotEqual(writelog.log_path(self.root, self.tmp), writelog.log_path(self.root, self.work))
+
+
+class TestSweep(unittest.TestCase):
+    """作業の場が無くなった run の書き込みの記録だけを片付ける（writelog.sweep。起動が工程を走らせる命令の前に呼ぶ）"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(os.path.realpath(tmp.name))
+        self.root = self.tmp / "works-writes"
+        self.root.mkdir()
+
+    def workspace(self, name):
+        w = self.tmp / name
+        w.mkdir()
+        return w
+
+    def test_log_of_gone_workspace_is_removed(self):
+        w = self.workspace("gone")
+        writelog.open_log(self.root, w).write_text("{}\n", encoding="utf-8")
+        w.rmdir()
+        key = writelog.log_path(self.root, w).parent
+        self.assertEqual(writelog.sweep(self.root), ([key], []))
+        self.assertFalse(key.exists())
+
+    def test_log_of_live_workspace_is_kept(self):
+        w = self.workspace("live")
+        log = writelog.open_log(self.root, w)
+        log.touch()
+        self.assertEqual(writelog.sweep(self.root), ([], []))
+        self.assertTrue(log.exists())
+
+    def test_log_without_sidecar_is_kept(self):
+        """控えの無い置き場（控えを書く前の一瞬・控えを持たなかった頃の記録）は持ち主を決められないので残す"""
+        legacy = writelog.log_path(self.root, self.tmp / "never-made")
+        legacy.parent.mkdir()
+        legacy.touch()
+        self.assertEqual(writelog.sweep(self.root), ([], []))
+        self.assertTrue(legacy.exists())
+
+    def test_sidecar_not_matching_its_name_is_kept(self):
+        odd = self.root / "0123456789abcdef"
+        odd.mkdir()
+        (odd / writelog.WHERE).write_text(str(self.tmp / "gone"), encoding="utf-8")
+        self.assertEqual(writelog.sweep(self.root), ([], []))
+        self.assertTrue(odd.exists())
+
+    def test_symlink_entry_is_not_followed(self):
+        w = self.workspace("gone")
+        elsewhere = self.tmp / "elsewhere"
+        elsewhere.mkdir()
+        writelog.open_log(elsewhere, w)
+        w.rmdir()
+        key = writelog.log_path(elsewhere, w).parent
+        (self.root / key.name).symlink_to(key)
+        self.assertEqual(writelog.sweep(self.root), ([], []))
+        self.assertTrue(key.exists())
+
+    @unittest.skipIf(os.geteuid() == 0, "root は書けないフォルダの中も消せる")
+    def test_one_stuck_entry_does_not_stop_the_rest(self):
+        """消せない置き場が 1 つ在っても残りは片付け、消せなかった分を誤りで返す"""
+        stuck_w, free_w = self.workspace("stuck"), self.workspace("free")
+        stuck, free = (writelog.open_log(self.root, w).parent for w in (stuck_w, free_w))
+        locked = stuck / "locked"
+        locked.mkdir()
+        (locked / "f").touch()
+        locked.chmod(0o500)
+        self.addCleanup(locked.chmod, 0o700)
+        stuck_w.rmdir()
+        free_w.rmdir()
+        gone, failed = writelog.sweep(self.root)
+        self.assertEqual(gone, [free])
+        self.assertEqual(len(failed), 1, failed)
+        self.assertIsInstance(failed[0], PermissionError)
+        self.assertTrue(stuck.exists())
+
+    def test_entry_removed_by_a_concurrent_sweep_is_not_a_failure(self):
+        """並んだ起動の sweep が同じ置き場を先に消しても、片付けの失敗として数えない"""
+        w = self.workspace("gone")
+        key = writelog.open_log(self.root, w).parent
+        w.rmdir()
+        real_rmtree = shutil.rmtree
+
+        def raced(path, *args, **kwargs):
+            real_rmtree(path)
+            raise FileNotFoundError(2, "No such file or directory", str(path))
+
+        with mock.patch.object(writelog.shutil, "rmtree", raced):
+            self.assertEqual(writelog.sweep(self.root), ([], []))
+        self.assertFalse(key.exists())
+
+    def test_missing_root_sweeps_nothing(self):
+        self.assertEqual(writelog.sweep(self.tmp / "none"), ([], []))
 
 
 if __name__ == "__main__":

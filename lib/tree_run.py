@@ -17,8 +17,9 @@ engine/role_run.py（_tree_members・_stop_tree。本線 9f91687 = graphloops 0.
 - 止める信号（か親の替わり）で木を止めた後は、すぐ抜けずに LINGER 秒待ってから抜ける。実行基盤は Ctrl-C を受けると
   run を failed と書いてから抜けるが、節がすぐ死ぬとその書き込みが確定する前に CLI が抜け、run が running のまま固まって
   resume できず abandon しか残らなかった（試し P17: すぐ死ぬ節で 3/3、1 秒以上残る節で 5/5 が failed になり resume できた）。
-  上限の勘定: 信号に気づくまで POLL、SIGKILL まで KILL_GRACE + PS_TIMEOUT、抜けるまで LINGER で 0.2 + 2 + 1 + 1 = 4.2 秒。
-  実行基盤の cancel の猶予 5 秒より前に抜ける。コマンドが自分で終わった回は待たない。起こす前の証明（prove_launchable）の間に
+  上限の勘定: 信号に気づくまで POLL、SIGKILL まで KILL_GRACE + ps の 1 回、抜けるまで LINGER で 0.2 + 2 + 1 = 3.2 秒と
+  ps の回の分。ps は PS（/bin/ps を名指し、カーネルの表の欄だけを求める）で待ちに止まらないので、実行基盤の cancel の
+  猶予 5 秒より前に抜ける。コマンドが自分で終わった回は待たない。起こす前の証明（prove_launchable）の間に
   届いた信号は POLL の内に証明を捨て、コマンドを起こさずに LINGER 待って抜ける（PROOF_TIMEOUT は勘定に入らない）
 - コマンドが自分で終わった後も、背景に残した孫を同じ手順で止める（節が終わった後に作業ツリーを書く物を残さない）
 抜け道: 数える前に親が消えて親子の鎖が切れ、かつ setsid でセッションも抜けた子孫（二重 fork の daemon 化。コマンドが
@@ -48,7 +49,10 @@ KILL_GRACE = 2    # SIGTERM から SIGKILL までの猶予（秒）。実行基�
 POLL = 0.2        # 信号と親の替わりを見る間隔（秒）
 STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 LINGER = 1.0      # 止める信号で木を止めた後、抜ける前に待つ秒数（試し P17 の Ctrl-C の穴。モジュールの説明に上限の勘定）
-PS_TIMEOUT = 1.0  # 全プロセスの表（ps）を待つ上限（秒）。超えたら表を読めない回として扱う（stop_group の上限の勘定）
+# 全プロセスの表を読む ps。期限を置かず（E12）、止まらない形を命令の選びで持つ: 絶対パスで名指して PATH の替え玉（対象の道具・
+# 試験の偽物）を拾わず、欄はカーネルのプロセスの表から引ける物だけにする（args・command・env のように他のプロセスの記憶を読む欄は、
+# 固まったプロセスで ps を待たせる）。無い・起こせない時は表を読めない回（直ちにグループへ送る）を通る
+PS = "/bin/ps"
 REUSE_SLACK = 2.0   # 開始時刻の読みの誤差（ps の etime は秒の切り捨て）。長を起こした時刻よりこれを超えて後に始まった物は別物
 _Proc = collections.namedtuple("_Proc", "pid ppid pgid uid started stat")   # ps の 1 行（started は開始時刻のエポック秒）
 
@@ -223,10 +227,8 @@ def _ps_all():
     引く（後から引くと ps の遅れが開始時刻に乗り、番号の再利用の見分けを誤る）。本線 role_run._ps_all の写し"""
     now = time.time()
     try:
-        r = subprocess.run(["ps", "-A", "-o", "pid=,ppid=,pgid=,uid=,etime=,stat="], stdin=subprocess.DEVNULL,
-                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=PS_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        return None, f"ps が {PS_TIMEOUT} 秒の内に答えない"
+        r = subprocess.run([PS, "-A", "-o", "pid=,ppid=,pgid=,uid=,etime=,stat="], stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
     except (OSError, subprocess.SubprocessError) as e:
         return None, f"ps を起こせない（{e}）"
     rows = {}
@@ -297,10 +299,11 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
     回ごとに仲間を数え上げ、生きた仲間が居なければ戻る。居れば、生きた仲間が属するグループのうち長が仲間のグループと
     p のグループへは killpg（数えた後に増えた子にも届く）、残りの仲間へは 1 本ずつ送り、数えた生きた仲間が消えるまで
     待つ（長は待つ間に回収する）。SIGKILL の後に数え直して生きた仲間が残れば名指しの理由を返す。
-    **上限**: 最初の回の待ちは止め始めから KILL_GRACE 秒で切る（ps を待った分も含める）。ps は PS_TIMEOUT 秒で切り、
-    1 度でも表を読めなければ、以後の回は ps を起こさずに直ちに送る——送り先は p のグループと、前の回に数えて待ち終えても
-    消えたのを見ていない仲間（番号は同じ相手のまま）。これで SIGKILL は止め始めから KILL_GRACE + PS_TIMEOUT 秒の内に出る
-    （＋殻が信号に気づくまでの POLL。実行基盤の cancel の 5 秒より前）。表を読めなかった回は、外へ出た子孫を確かめていないと返す。
+    **上限**: 最初の回の待ちは止め始めから KILL_GRACE 秒で切る（ps を待った分も含める）。ps は待ちに止まらない形で呼ぶ（PS）。
+    1 度でも表を読めなければ（ps を起こせない・表を返さない）、以後の回は ps を起こさずに直ちに送る——送り先は p のグループと、
+    前の回に数えて待ち終えても消えたのを見ていない仲間（番号は同じ相手のまま）。これで SIGKILL は止め始めから KILL_GRACE と
+    ps の 1 回の内に出る（＋殻が信号に気づくまでの POLL。実行基盤の cancel の 5 秒より前）。表を読めなかった回は、外へ出た
+    子孫を確かめていないと返す。
     born は長の番号の再利用の目印で、長を回収した後にだけ効かせる（回収していない子の番号は再利用されない）。
     known は呼ぶ側が前に数えた仲間 {pid: 開始時刻}（_tree_members の known。Claude の包みが走る間の見回りで溜めた物。
     同じ辞書に数えた仲間を足していく）。省けば空から数える"""
