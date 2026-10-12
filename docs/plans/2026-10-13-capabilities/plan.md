@@ -186,7 +186,7 @@
 - P025 拒まれた案は欄の控えを置かない（受けた時だけ置く）。受けた後に控えを置けなければ、欄の無い案のまま黙って進ませない。
   - 元: planblk.py:1236 `with_plan_fields`（盤面を止め BoardGap）、試験 works/tests/test_blk_plan.py:1523 test_rejected_by_board_leaves_no_fields・:1580 test_save_failure_after_board_took_plan_halts・:1591 test_round_read_once_at_head
   - 今: lib/planfile.py `_save`（置けなければ置いた控えを消し、round.json の why に控えの名。返り halt で plan_accept が拒否に数えず輪を止める）（#120）
-  - 証: lib/tests/test_planfile.py::TakePlanCase.test_save_failure_leaves_no_accepted_plan（#120 で足した。消すと赤: _save の OSError の捕まえを外すと赤）
+  - 証: lib/tests/test_planfile.py::TakePlanCase.test_save_failure_leaves_no_accepted_plan・tests/workflows/test_plan.py::AcceptCase.test_unsavable_plan_halts_without_counting_a_rejection（#120 で足した。消すと赤: _save の OSError の捕まえを外すと赤・plan_accept の halt の枝を with_done にすると赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 止め方を変えた（元は盤面を止めて理由に plan-fields.json を名指した。今は節が落ちて ready: false。理由の字は collect-error でなく why_not_ready の NO_PLAN になり、どの控えが置けなかったかが返りに残らない）。Archon で不可でない → 置けない訳を round.json の why か collect の reason に残すよう戻す
 
@@ -359,8 +359,8 @@
 
 - P049 役が作業ツリーを変えた・commit して HEAD や枝を動かした返答を、受け付けが写しと比べて拒み、出し直させる。
   - 元: entry.take の作業ツリーの比べ（accept.tree_moved: porcelain・差分・HEAD・枝。READONLY_MOVED）・planblk.py:1062 `snap` の写し、試験 works/tests/test_blk_plan.py:765 test_readonly_tree_changed_rejected
-  - 今: lib/planfile.py `snap_tree`・`_moved`（workflows/plan/scripts/plan_prep.py が plan/r<k>/tree.json を置き、take_plan・take_replan が accept.tree_moved で比べる。拒みの頭は planblk.READONLY_MOVED・NO_TREE）（#120）
-  - 証: tests/workflows/test_plan.py::AcceptCase.test_role_that_moved_the_tree_is_refused（#120 で足した。消すと赤: 新しい能力（take_plan の _moved））
+  - 今: lib/planfile.py `snap_tree`・`moved`（workflows/plan/scripts/plan_prep.py が plan/r<k>/tree.json を置き、take_plan・take_replan が accept.tree_moved で比べる。拒みの頭は planblk.READONLY_MOVED・NO_TREE）（#120）
+  - 証: tests/workflows/test_plan.py::AcceptCase.test_role_that_moved_the_tree_is_refused・ReplanCase.test_replan_writer_that_moved_the_tree_is_refused（#120 で足した。消すと赤: 新しい能力（take_plan・take_replan の moved の照らし））
   - 本物の run: 筋書きでのみ
   - 狭め: #75 で狭めた（本文に書かれていない）。Archon で不可でない: Archon の比べは git status --porcelain だけで HEAD の動きを見ず（Archon packages/workflows/src/dag-executor.ts:1196-1215 `snapshotCheckout`）、違反は役に返さず節を落とす（同:1262-1280 `assertCheckoutUntouched`）。役の道具に Bash・Write・Edit が無いので今は起きにくいが、元の能力（出し直しの道と HEAD の比べ）は落ちている → plan-prep で accept.tree_state を置き plan-accept で accept.tree_moved を照らす形で戻す（plan-review と揃う）
 
