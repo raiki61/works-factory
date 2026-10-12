@@ -18,7 +18,7 @@ import unittrees
 MEASURED = ("clean", "found")
 # 素材の語の持ち主は gatemarks.MATERIAL_WORDS。測った結果でない語は全部未了で、落ちた先の分けで黙って認証しない
 NOT_DONE = tuple(w for w in gatemarks.MATERIAL_WORDS if w not in MEASURED)
-BASE_OK = ("clean", "found", "not_applicable")
+BASE_OK = MEASURED + ("not_applicable",)
 HEAD_LIMIT = 10   # summary に並べる鍵の数
 
 
