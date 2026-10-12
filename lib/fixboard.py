@@ -36,6 +36,7 @@ import types
 import startrec
 
 TRACE_FILE = "trace.jsonl"
+ACCEPT_TRACE_FILE = "accept-trace.json"   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
 
 def trace(place, op: str, **kw) -> None:
@@ -44,6 +45,23 @@ def trace(place, op: str, **kw) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps({"op": op, **kw}, ensure_ascii=False) + "\n")
+
+
+def tests_trace(place, state_file, note: str, *, pass_: str, attempt: int) -> None:
+    """受け付けの回 (pass_, attempt) に選んだ試験を走らせた知らせ（tddloop.selected_problems の 2 つ目の返り。0 件しか走らなかった・
+    走らせられない・実行器が無い・新しい赤なし）を、置き場 place の ACCEPT_TRACE_FILE の並びの末尾に 1 行足す。行の形は元の盤面の
+    trace の行 {op: impact.ACCEPT_TRACE_OP, node, note, ci_left, final_left, final_far}（元 works/blk-fix/scripts/accept.py:708）に
+    pass と attempt を足した物（回ごとに足し、受けた回の行を読み手が選ぶ）。元は受けた回だけ盤面の trace に書いた（新しい関数）"""
+    import impact
+    import tddloop
+    path = pathlib.Path(place) / ACCEPT_TRACE_FILE
+    rows = read_json(path, [])
+    if not isinstance(rows, list):
+        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    rows.append({"op": impact.ACCEPT_TRACE_OP, "node": FIX_ACCEPT_BY, "pass": pass_, "attempt": attempt, "note": note,
+                 "ci_left": tddloop.ci_left(state_file), "final_left": tddloop.final_left(state_file),
+                 "final_far": tddloop.final_far(state_file)})
+    write_json(path, rows)
 
 
 def base_rev(state, given: str = "") -> str:
@@ -1746,8 +1764,9 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         note("scope", scope)
     else:
         duty, excused = fix_duty(place, owed)
-    red, _ = tddloop.selected_problems(state or tests_state, repo, rev)
+    red, tests_note = tddloop.selected_problems(state or tests_state, repo, rev)
     note("tests", red)
+    tests_trace(place, state or tests_state, tests_note, pass_=pass_, attempt=iteration)   # 0 件の知らせも捨てない（F014）
     gates = fixgates.problems(place, repo, rev, suite, iteration, pass_=pass_, owed=set(duty))
     note("gates", fixgates.reject_lines(gates) if gates else [])
     shaped, closure, zero = closure_reply(reply, place, repo, rev, judged)
