@@ -2175,7 +2175,8 @@ class PrScanCase(_PrBase):
         self.assertEqual((got["go"], got["go_role"]), (True, False), got)
         self.assertEqual(self.material()["materials"]["parallel_pr"]["status"], "clean")
         self.assertEqual(self.material()["role"], "pr-check")
-        self.assertNotIn(("pr", "view", "3", "-R", "o/r", "--json", "files"), gh.calls, "自分の PR は見ない")
+        self.assertIn(("pr", "view", "7", "-R", "github.com/o/r", "--json", "files"), gh.calls)
+        self.assertNotIn(("pr", "view", "3", "-R", "github.com/o/r", "--json", "files"), gh.calls, "自分の PR は見ない")
         doc = json.loads((self.jdir / "pr-excluded.json").read_text(encoding="utf-8"))
         self.assertEqual((doc["node"], doc["excluded"]), ("p0.parallel_pr", []))
         self.assertTrue(all("-R" in c for c in gh.calls), "gh は必ず -R で呼ぶ")
@@ -2255,6 +2256,17 @@ class PrScanCase(_PrBase):
             with self.subTest(url):
                 gitkit.git(self.repo, "remote", "set-url", "origin", url)
                 self.assertEqual(ja._github_repo(self.repo), (slug, None))
+
+    def test_github_repo_takes_the_tracked_remote_first(self):
+        """枝が origin の外の remote を追えばその remote の PR を引く（fork の clone で origin の fork を引いて clean と言わない）。
+        追う先が手元の枝（remote の無い名）なら origin"""
+        gitkit.git(self.repo, "remote", "add", "up", "https://github.com/up/r.git")
+        gitkit.git(self.repo, "update-ref", "refs/remotes/up/main", "HEAD")
+        gitkit.git(self.repo, "branch", "-q", "--set-upstream-to=up/main")
+        self.assertEqual(ja._github_repo(self.repo), ("github.com/up/r", None))
+        gitkit.git(self.repo, "branch", "-q", "base")
+        gitkit.git(self.repo, "branch", "-q", "--set-upstream-to=base")
+        self.assertEqual(ja._github_repo(self.repo), ("github.com/o/r", None))
 
 
 class PrAcceptCase(_PrBase):
