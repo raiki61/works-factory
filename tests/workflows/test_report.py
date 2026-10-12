@@ -8,7 +8,6 @@
   成果物の一覧を読む部品に読ませる
 """
 import ast
-import hashlib
 import importlib.util
 import json
 import os
@@ -22,6 +21,7 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.workflows.copied import assert_is_original
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "report"
@@ -249,11 +249,7 @@ class CopiedTextsCase(unittest.TestCase):
         self.assertEqual({p.name for p in (BLOCK / "commands").glob("*.md")}, set(COPIED))
         for name, (original, sha, edits) in COPIED.items():
             with self.subTest(name, original=original):
-                text = (BLOCK / "commands" / name).read_text(encoding="utf-8")
-                for before, after, _why in reversed(edits):
-                    self.assertEqual(text.count(after), 1, after)
-                    text = text.replace(after, before)
-                self.assertEqual(hashlib.sha256(text.encode("utf-8")).hexdigest(), sha)
+                assert_is_original(self, (BLOCK / "commands" / name).read_text(encoding="utf-8"), sha, edits)
 
 
 class TypedCase(unittest.TestCase):

@@ -8,7 +8,6 @@
 - 筋書き: Archon の `workflow test` で fixtures/*.stubs.yaml を回す（配線だけ。止めた Archon の源が無ければ見送る。tests/archon.py）。
 """
 import copy
-import hashlib
 import importlib.util
 import json
 import os
@@ -25,6 +24,7 @@ import yaml
 from tests import archon
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
+from tests.workflows.copied import assert_is_original
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "plan"
@@ -341,11 +341,7 @@ class ShapeCase(unittest.TestCase):
 
     def test_fix_plan_command_is_the_original_with_only_the_allowed_edits(self):
         """修正案の役の指示書は元の p2.fix_plan.md の文のまま: 許した直しを逆に当てると元のバイトに戻る"""
-        text = (COMMANDS / "fix-plan.md").read_text(encoding="utf-8")
-        for original, copied in reversed(FIX_PLAN_EDITS):
-            self.assertEqual(text.count(copied), 1, copied)
-            text = text.replace(copied, original)
-        self.assertEqual(hashlib.sha256(text.encode("utf-8")).hexdigest(), FIX_PLAN_SHA256)
+        assert_is_original(self, (COMMANDS / "fix-plan.md").read_text(encoding="utf-8"), FIX_PLAN_SHA256, FIX_PLAN_EDITS)
 
     def test_deadlines_are_all_twenty_days(self):
         keys = ("timeout", "idle_timeout")

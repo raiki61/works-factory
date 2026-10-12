@@ -7,12 +7,14 @@ test_judge_verify・test_structure_units・test_accept の TestJudge・TestIntak
 import copy
 import hashlib
 import json
+import os
 import pathlib
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
@@ -336,6 +338,229 @@ class JudgeTakeCase(_JudgeBase):
         self.assertTrue(any("unit_key が今の周の units に無い" in e for e in errs))
         self.assertTrue(any("'別の穴' を振り分けていない" in e for e in errs))
 
+    def test_ignored_file_added_by_the_judge_is_rejected(self):
+        """元 test_accept.py:178 の test_judge_rejects_ignored_file_without_snapshot・:186 の
+        test_judge_rejects_ignored_file_after_snapshot・test_blk_judge.py:437・447・454（git が無視するファイルの増減と書き換えも拒む）"""
+        cache = self.repo / "__pycache__"
+        cache.mkdir()
+        old = cache / "old.pyc"
+        old.write_bytes(b"old")
+        ja.snap_tree(self.jdir, ja.DIAGNOSE_TREE_FILE, self.repo)
+        self.assertIs(self.take(_judge_ok())["ok"], True, "前から在って変わらない無視されるファイルは通る")
+        (self.jdir / ja.JUDGMENT_FILE).unlink()
+        (self.repo / ".env.pyc").write_bytes(b"x")
+        got = self.take(_judge_ok())
+        self.assertIs(got["ok"], False)
+        self.assertIn(".env.pyc", got["reason"])
+        (self.repo / ".env.pyc").unlink()
+        old.write_bytes(b"new")
+        self.assertIs(self.take(_judge_ok())["ok"], False, "名前が同じまま中身だけ変わっても拒む")
+        old.unlink()
+        (self.jdir / ja.DIAGNOSE_TREE_FILE).unlink()
+        (cache / "stats.cpython-314.pyc").write_bytes(b"x")
+        got = self.take(_judge_ok())
+        self.assertIs(got["ok"], False, "写しが無い時も無視されるファイルを数える")
+        self.assertIn("__pycache__", got["reason"])
+        self.assertFalse((self.jdir / ja.JUDGMENT_FILE).exists())
+
+    def test_newlines_in_key_and_reason_are_folded(self):
+        """元 rules の judge_output の 1 行の欄（ONE_LINE_FIELDS）の正規化（review-loop.py:2508。元の試験に同じ場面の物は無い）"""
+        reply = _judge_ok()
+        reply["units"][0]["key"] = _MEAN.replace(": ", ":\n  ")
+        reply["units"][0]["reason"] = "事実: 分母が違う。\n反証: 意図の取り違えを当たった"
+        reply["questions"] = [{"key": "実機で\n確かめる", "kind": "field", "status": "held", "reason": "実機が\n要る"}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+        doc = self.judgment()
+        self.assertEqual(doc["units"][0]["key"], _MEAN)
+        self.assertEqual(doc["units"][0]["reason"], "事実: 分母が違う。 反証: 意図の取り違えを当たった")
+        self.assertEqual((doc["questions"][0]["key"], doc["questions"][0]["reason"]), ("実機で 確かめる", "実機が 要る"))
+
+    def test_duplicate_key_and_suggest_without_disposition_are_rejected(self):
+        """元 rules の judge_output の key の重複・suggest の disposition・defer の構造的理由（review-loop.py:2520-2530）"""
+        reply = _judge_ok()
+        reply["units"].append(copy.deepcopy(reply["units"][0]))
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn(f"units[2] の key が重複: {_MEAN}", got["reason"])
+        reply = _judge_ok()
+        reply["units"].append(_unit("stats.py fmt: 桁", ["x"], "population", 0, label="suggest"))
+        del reply["units"][2]["disposition"]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("units[2]（suggest）に disposition（do-now / defer）が無い", got["reason"])
+        reply["units"][2].update(disposition="defer", reason="")
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("units[2] の defer に構造的理由が無い", got["reason"])
+
+    def test_engine_recounts_the_class_query_total(self):
+        """元 rules の judge_output の class_query の数え直し（review-loop.py:2531-2550 と _run_query）。違う total は engine の数に
+        置き換えて注記し、engine が 0 件なら役の数を残して注記する"""
+        reply = _judge_ok()
+        reply["units"][1]["class_query"]["total"] = 5
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+        self.assertIn("class_query の件数を engine が走らせた値に置き換えた: units[1].class_query.total 5 → 2", got["reason"])
+        cq = self.judgment()["units"][1]["class_query"]
+        self.assertEqual(cq["total"], 2)
+        self.assertIn("役の書いた total は 5", cq["note"])
+        reply = _judge_ok()
+        reply["units"][1]["class_query"].update(how={"patterns": ["no-such-line-anywhere"], "fixed": True, "paths": ["stats.py"],
+                                                    "count": "lines"}, total=3)
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+        self.assertIn("engine の数が 0 件なので置き換えなかった: units[1].class_query（役 3 / engine 0）", got["reason"])
+        cq = self.judgment()["units"][1]["class_query"]
+        self.assertEqual(cq["total"], 3)
+        self.assertIn("engine が how を走らせると 0 件", cq["note"])
+
+    def test_defects_query_needs_misses_and_must_not_match_the_fixed_form(self):
+        """元 test_blk_judge.py:604 の QueryExamplesCase.test_defects_query_without_misses_is_rejected・:613 の
+        test_defects_query_matching_fixed_form_is_rejected"""
+        reply = _judge_ok()
+        cq = reply["units"][0]["class_query"]
+        cq["hits"] = ["    return sum(xs) / (len(xs) - 1)"]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn(f"{_MEAN}: 欠陥の形を数える問い（counts: defects）に misses が無い", got["reason"])
+        self.assertFalse((self.jdir / ja.JUDGMENT_FILE).exists())
+        fixed = "    return sum(xs) / (len(xs) - 1)  # 直した"
+        cq["misses"] = [fixed]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("直した後の正しい形にも当たる", got["reason"])
+        self.assertIn(repr(fixed), got["reason"])
+        self.assertFalse((self.jdir / ja.JUDGMENT_FILE).exists())
+
+    def test_one_shot_closes_must_name_open_units(self):
+        """元 rules の judge_output の一撃の反証（one_shot_closes。review-loop.py:2551-2558）"""
+        reply = _judge_ok()
+        reply["one_shot_closes"] = []
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("one_shot_closes が空", got["reason"])
+        reply["one_shot_closes"] = [_MEAN, "stats.py: 無い単位"]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("one_shot_closes に今の周の units に無い key: ['stats.py: 無い単位']", got["reason"])
+
+    def test_question_ledger_targets_and_settled_state(self):
+        """元 rules の judge_output の問いの台帳の照らし（review-loop.py:2559-2595。検証器の QUESTION_FIELDS・targets・NO_OPEN_ORIGIN・
+        settled_state_errors）"""
+        out = {"units": [], "questions": [{"key": "q", "kind": "field", "status": "held", "reason": "実機が要る", "severity": "high"}]}
+        with self.assertRaises(Reject) as cm:
+            ja.judge_output(out, self.jdir, "", "", {})
+        self.assertIn("questions[0] に知らない欄: ['severity']", str(cm.exception))
+        reply = _judge_ok()
+        reply["units"].append(_unit("stats.py fmt: 桁", ["x"], "population", 0, label="nit"))
+        for name, q, needle in (
+                ("無い出どころ", {"kind": "stuck", "status": "held", "origin": "stats.py: 無い単位"},
+                 "questions[0] の origin 'stats.py: 無い単位' が units にも defer 台帳にも無い"),
+                ("無い depends", {"kind": "stuck", "status": "held", "origin": _MEAN, "depends": ["stats.py: 無い単位"]},
+                 "questions[0] の depends 'stats.py: 無い単位' が units にも defer 台帳にも無い"),
+                ("開いた単位の split", {"kind": "split", "status": "held", "origin": _MEAN},
+                 f"questions[0]（split）の出どころ '{_MEAN}' が [block] / do-now"),
+                ("開いたまま resolved", {"kind": "stuck", "status": "resolved", "resolution": "A を採る", "origin": _MEAN},
+                 "出どころが [block] / do-now のまま resolved"),
+                ("閉じたのに decided", {"kind": "stuck", "status": "decided", "resolution": "A を採る",
+                                        "origin": "stats.py fmt: 桁"},
+                 "出どころが閉じているのに decided")):
+            with self.subTest(name):
+                reply["questions"] = [{"key": "q", "reason": "決まらない", **q}]
+                got = self.take(reply)
+                self.assertIs(got["ok"], False)
+                self.assertIn(needle, got["reason"])
+        reply["questions"] = [{"key": "q", "reason": "決まらない", "kind": "stuck", "status": "decided", "resolution": "A を採る",
+                               "origin": _MEAN}]
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+
+    def test_open_unit_without_precedent_row_and_ask_without_undecided_because_are_rejected(self):
+        """元 rules の _precedent_errors（review-loop.py:2445。今の周に直す単位と人へ回す問いの key ごとに先行例の行。人へ回す問いには
+        undecided_because）"""
+        reply = _judge_ok()
+        del reply["precedents"][1]
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn(f"precedents に '{_CLAMP}' の行が無い", got["reason"])
+        reply = _judge_ok()
+        reply["questions"] = [{"key": "実機で確かめる", "kind": "field", "status": "escalate", "reason": "実機が要る"}]
+        reply["precedents"].append({"key": "実機で確かめる", "problem": "実機の振る舞い", "source": "機器の文書の節",
+                                    "verdict": "adopt", "reason": "当たった"})
+        got = self.take(reply)
+        self.assertIs(got["ok"], False)
+        self.assertIn("precedents['実機で確かめる'] に undecided_because が無い", got["reason"])
+        reply["precedents"][-1]["undecided_because"] = "文書が機器の版ごとに割れて決まらない"
+        got = self.take(reply)
+        self.assertIs(got["ok"], True, got["reason"])
+
+    def test_answer_ties_rules(self):
+        """元 test_blk_judge.py:743 の AnswerTiesTakeCase.test_literal_and_material_answers_need_no_tie・
+        :757 の test_answer_hitting_two_reply_questions_needs_tie・:767 の test_tie_to_unknown_key_is_rejected・
+        :774 の test_redesign_row_must_bind_to_open_unit_or_none・:790 の test_redesign_none_row_passes_and_is_reported・
+        :803 の test_good_ties_are_taken_off_and_saved（結びの規則。報告の行は持たない）"""
+        def answers(*rows):
+            ja.write_json(self.jdir / ja.START_FILE, ja.start_view({"answers": list(rows)}))
+
+        def stuck(key):
+            return {"key": key, "kind": "stuck", "status": "held", "reason": "割れる", "origin": _MEAN}
+
+        with self.subTest("字の一致・測れていない素材・機械が立てる問いの答えは結びが要らない"):
+            answers({"question": "q-1", "text": "0 を返す"}, {"question": "parallel_pr", "text": "並行する PR は無い"},
+                    {"question": ja.ASK_KEYS["R3"], "text": "docs/ を見よ"})
+            ja.write_json(self.jdir / ja.MATERIALS_FILE, {"parallel_pr": {"status": "not_run", "reason": "通信を拒まれた"}})
+            reply = _judge_ok()
+            reply["questions"] = [stuck("q-1")]
+            got = self.take(reply)
+            self.assertIs(got["ok"], True, got["reason"])
+            (self.jdir / ja.MATERIALS_FILE).unlink()
+        with self.subTest("返答の問い 2 つに当たる答え"):
+            answers({"question": _MEAN, "text": "例外"})
+            reply = _judge_ok()
+            reply["questions"] = [stuck("q-1"), stuck("q-2")]
+            got = self.take(reply)
+            self.assertIs(got["ok"], False)
+            self.assertIn("返答の複数の問いに当たる（q-1・q-2）", got["reason"])
+            reply["answer_ties"] = [{"answer": _MEAN, "to": "q-2"}]
+            got = self.take(reply)
+            self.assertIs(got["ok"], True, got["reason"])
+        with self.subTest("知らない key への結び"):
+            answers({"question": "空の列の扱い", "text": "例外"})
+            reply = _judge_ok()
+            reply["answer_ties"] = [{"answer": "空の列の扱い", "to": "q-9"}]
+            got = self.take(reply)
+            self.assertIs(got["ok"], False)
+            self.assertIn("to 'q-9' が今の返答の問いの key にも単位の key にも無い", got["reason"])
+        answers()
+        (self.jdir / "answer-ties.json").unlink()
+        redesign = {"where": carry.REDESIGN_WHERE, "text": "R2 が redesign-needed: 独立設計と構造が合わない"}
+        carry.place_prior(self.jdir, [redesign])
+        defer = _unit("stats.py fmt: 桁", ["x"], "population", 0, label="suggest", disposition="defer")
+        head = redesign["text"]
+        for name, ties, needle in (("結び無し", [], "作り直しの行"),
+                                   ("defer の単位", [{"redesign": head, "to": defer["key"]}], "[block] でも do-now でもない"),
+                                   ("知らない行", [{"redesign": "別の行", "to": _MEAN}], "作り直しの節のどの行にも当たらない"),
+                                   ("短い訳", [{"redesign": head, "none": "目的の外"}], "字に満たない")):
+            with self.subTest(name):
+                reply = _judge_ok()
+                reply["units"].append(copy.deepcopy(defer))
+                reply["answer_ties"] = ties
+                got = self.take(reply)
+                self.assertIs(got["ok"], False)
+                self.assertIn(needle, got["reason"])
+                self.assertFalse((self.jdir / "answer-ties.json").exists())
+        for ties in ([{"redesign": head, "to": _MEAN}],
+                     [{"redesign": head, "none": "反証で死んだ: 独立設計の構造は依頼の外の物で、この周の目的に入らない"}]):
+            with self.subTest(ties[0]):
+                reply = _judge_ok()
+                reply["answer_ties"] = ties
+                got = self.take(reply)
+                self.assertIs(got["ok"], True, got["reason"])
+                self.assertNotIn("answer_ties", self.judgment())
+                saved = json.loads((self.jdir / "answer-ties.json").read_text(encoding="utf-8"))
+                self.assertEqual(saved, {"rounds": {"1": ties}})
+
 
 class JudgeAcceptCase(_JudgeBase):
     def test_accept_parses_and_collect_builds_exit(self):
@@ -458,6 +683,31 @@ class VerifyMergeCase(_VerifyBase):
         self.assertTrue(any("real_root" in e for e in doc["units"][1]["errors"]))
         self.assertEqual(doc["synergy"]["state"], jv.UNVERIFIED)
 
+    def test_bad_missing_and_out_of_range_answers_are_unverified(self):
+        """元 test_judge_verify.py:180 の MergeCase.test_good_answers_and_synergy_are_merged_with_keys・
+        :199 の test_missing_or_bad_answers_are_named_unverified・:213 の test_wrong_unit_number_and_out_of_range_synergy。
+        無い・型の外・番号の外の答えは「確かめられなかった」と誤りの行で控え、単位は消さない"""
+        self.answer(1, _MEAN, unit=2)
+        self.answer(2, _CLAMP, verdict="maybe")
+        self.synergy({"why": "単位 3 と単位 1 が重なる", "duplicates": [{"units": [1, 3], "why": "同じ根の別の現れ"}],
+                      "relations": [], "order": []})
+        self.assertEqual(ja.merge_on(self.jdir, self.repo), {"ok": True, "reason": ""})
+        doc = self.notes()
+        self.assertEqual([(u["key"], u["state"]) for u in doc["units"]], [(_MEAN, jv.UNVERIFIED), (_CLAMP, jv.UNVERIFIED)])
+        self.assertIn("$.unit: 1 でない（2）", doc["units"][0]["errors"])
+        self.assertTrue(any("verdict" in e for e in doc["units"][1]["errors"]), doc["units"][1]["errors"])
+        self.assertEqual(doc["synergy"]["state"], jv.UNVERIFIED)
+        self.assertIn("単位 3 は無い（単位は 1〜2）", doc["synergy"]["errors"])
+        (self.jdir / ja.VERIFY_ANSWERS_DIR / jv.ANSWER_FILE.format(n=1)).unlink()
+        (self.jdir / ja.VERIFY_ANSWERS_DIR / jv.SYNERGY_FILE).unlink()
+        ja.merge_on(self.jdir, self.repo)
+        doc = self.notes()
+        self.assertEqual([u["key"] for u in doc["units"]], [_MEAN, _CLAMP], "単位は消さない")
+        self.assertEqual(doc["units"][0]["state"], jv.UNVERIFIED)
+        self.assertTrue(any("答えのファイルが無い" in e for e in doc["units"][0]["errors"]))
+        self.assertEqual(doc["synergy"]["state"], jv.UNVERIFIED)
+        self.assertTrue(doc["synergy"]["errors"])
+
     def test_tree_moved_writes_verify_stop(self):
         """元 test_judge_verify.MergeCase.test_tree_moved_stops_board"""
         self.answer(1, _MEAN)
@@ -550,6 +800,51 @@ class _RepoCase(unittest.TestCase):
         doc = {"base_rev": self.head, "input": {"base": {"rev": self.head}, "diff": {"empty": False}, "requests": 1}}
         doc.update(over)
         return ja.start_view(doc)
+
+
+# ================================================================ 入口
+class IntakeCase(_RepoCase):
+    ROWS = [{"where": "app.txt", "text": "二行目が違う"}]
+
+    def intake(self, start):
+        return ja.intake(start, "", self.jdir, self.tmp / "artifacts" / ja.REJUDGE_DIR, self.repo, "")
+
+    def test_request_file_shapes(self):
+        """元 test_blk_judge.py:300・313・322・328（intake.py の main）: 無い・JSON でない・形の違う依頼のファイルは AI を 1 つも
+        起こさずに依頼の語で止める。容器の形と、根からの相対・根の外の絶対パスは受けて request.json に行を置く"""
+        outside = self.tmp / "outside.json"
+        outside.write_text(json.dumps(self.ROWS), encoding="utf-8")
+        (self.repo / "req.json").write_text(json.dumps({"findings": self.ROWS, "pr": [7]}), encoding="utf-8")
+        (self.repo / "broken.json").write_text("{", encoding="utf-8")
+        (self.repo / "odd.json").write_text(json.dumps({"rows": self.ROWS}), encoding="utf-8")
+        for name, go in (("req.json", True), (str(outside), True), ("nothing.json", False), ("broken.json", False),
+                         ("odd.json", False)):
+            with self.subTest(name):
+                shutil.rmtree(self.jdir)
+                got = self.intake(self.start(request_file=name))
+                self.assertIs(got["go"], go, got)
+                self.assertEqual(ja.read_json(self.jdir / ja.INTAKE_FILE), got)
+                if go:
+                    self.assertEqual(ja.read_json(self.jdir / ja.REQUEST_FILE), self.ROWS)
+                    self.assertFalse((self.jdir / ja.STOP_FILE).exists())
+                else:
+                    self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], ja.REQUEST_STOP)
+                    self.assertFalse((self.jdir / ja.REQUEST_FILE).exists())
+
+    def test_features_cut_and_spec_set_the_stage_flags(self):
+        """元 entry.py の FEATURES・line_edge.py:1026 の _world_due・judgeverify.py:306 の prep: 始めの記録の features_cut の world が
+        世界の解の段を、judge_verify が判定の裏取りを切り、input.spec が仕様の段を入れる（features_cut の無い記録は裏取りだけ切る）"""
+        cases = (({}, (False, True, False)),
+                 ({"features_cut": []}, (False, True, True)),
+                 ({"features_cut": ["world"]}, (False, False, True)),
+                 ({"features_cut": ["world", "judge_verify"]}, (False, False, False)),
+                 ({"input": {"base": {"rev": self.head}, "spec": True}}, (True, True, False)))
+        (self.repo / "req.json").write_text(json.dumps(self.ROWS), encoding="utf-8")
+        for over, flags in cases:
+            with self.subTest(over):
+                got = self.intake(self.start(request_file="req.json", **over))
+                self.assertTrue(got["go"], got)
+                self.assertEqual((got["spec"], got["world"], got["verify"]), flags)
 
 
 # ================================================================ 前提の実測
@@ -650,6 +945,34 @@ class PurposeCase(_RepoCase):
                 got = ja.check_purpose({**self.GOOD, "source_files": bad}, self.jdir, self.repo)
                 self.assertFalse(got["ok"], got)
                 self.assertIn("source_files", got["reason"])
+
+    def test_source_files_nested_ignored_and_subdir(self):
+        """元 test_blk_purpose.py:460・472・505・512（_source_files_errors）: 入れ子の綴り・git が無視するファイル・git の形でない名前を
+        拒み、未追跡の新規は通す。サブディレクトリで回しても根からの相対を通し、そこからの相対は拒む"""
+        (self.repo / "sub").mkdir()
+        for name in ("a.md", "new.md", "skip.log"):
+            (self.repo / "sub" / name).write_text("x\n", encoding="utf-8")
+        (self.repo / ".gitignore").write_text("*.log\n", encoding="utf-8")
+        gitkit.git(self.repo, "add", "sub/a.md", ".gitignore")
+        gitkit.git(self.repo, "commit", "-q", "-m", "sub")
+        for repo, good, bads in (
+                (self.repo, ["sub/a.md", "sub/new.md"],
+                 ("sub//a.md", "sub/./a.md", "sub/skip.log", "sub/a.md/", "Sub/a.md", "./sub/a.md")),
+                (self.repo / "sub", ["sub/a.md"], ("a.md",))):
+            for bad in bads:
+                with self.subTest(repo=repo.name, bad=bad):
+                    shutil.rmtree(self.jdir)
+                    ja.snap_tree(self.jdir, ja.PURPOSE_TREE_FILE, repo)
+                    got = ja.check_purpose({**self.GOOD, "source_files": [*good, bad]}, self.jdir, repo)
+                    self.assertFalse(got["ok"], got)
+                    self.assertIn(f"source_files に作業ツリーの根からの相対の正規形で版に在るファイルでない物が在る: {[bad]!r}",
+                                  got["reason"])
+            with self.subTest(repo=repo.name, good=good):
+                shutil.rmtree(self.jdir)
+                ja.snap_tree(self.jdir, ja.PURPOSE_TREE_FILE, repo)
+                got = ja.check_purpose({**self.GOOD, "source_files": good}, self.jdir, repo)
+                self.assertTrue(got["ok"], got)
+                self.assertEqual(ja.read_json(self.jdir / "purpose.json")["source_files"], good)
 
     def test_frozen_purpose_is_not_overwritten(self):
         """元 test_blk_purpose の test_accept_refuses_to_overwrite_frozen_purpose（p0.purpose の once）"""
@@ -863,6 +1186,265 @@ class MaterialCase(_RepoCase):
         got = ja.material_take(self.jdir, "provenance", {"material": {"status": "clean", "checked": "x"}, "claims": []}, self.repo)
         self.assertFalse(got["ok"])
         self.assertIn("作業ツリー", got["reason"])
+
+    def changed(self, *names):
+        """app.txt と names を変えた差分で素材の道を分ける"""
+        for name in ("app.txt", *names):
+            with (self.repo / name).open("a", encoding="utf-8") as fh:
+                fh.write("直した\n")
+        return self.view()
+
+    def take_round(self, role, reply):
+        return ja.accept_round(self.jdir, role, json.dumps(reply, ensure_ascii=False),
+                               lambda r: ja.material_take(self.jdir, role, r, self.repo))
+
+    def test_route_keeps_the_first_tree_record(self):
+        """元 test_blk_material.py:471 の test_route_keeps_first_snapshot: 素材の役を起こす前の作業ツリーの姿は 1 度だけ置く
+        （run の再開で道分けが走り直しても、役が変えた後の姿で上書きしない）"""
+        self.changed()
+        first = ja.read_json(self.jdir / ja.MATERIAL_TREE_FILE)
+        (self.repo / "tmp.out").write_text("役が残した\n", encoding="utf-8")
+        self.view()
+        self.assertEqual(ja.read_json(self.jdir / ja.MATERIAL_TREE_FILE), first)
+        got = ja.material_take(self.jdir, "provenance", {"material": {"status": "clean", "checked": "x"}, "claims": []}, self.repo)
+        self.assertIn("tmp.out", got["reason"])
+
+    def test_na_note_for_each_kind_of_node(self):
+        """元 test_blk_material.py:885・892・898・903（NaNoteCase。_na_note）: 材料の末尾に、条件の偽・条件の真・役の判定を受ける
+        ゲートの役・条件の無い節・na_self_ok を宣言した節ごとに、not_applicable を書けるかの文を足す"""
+        refused = "`not_applicable` は受け付けが拒む"
+        allowed = "`not_applicable`（理由を reason に）を書いてよい"
+        cases = (("procedure-trace", (), ["`touches_procedures` はこの周に偽", allowed], refused),
+                 ("procedure-trace", ("run.sh",), ["`touches_procedures` はこの周に真", refused], allowed),
+                 ("gate-efficacy", (), ["`gates_touched` はこの周に真", "役の判定を受ける", allowed], refused),
+                 ("gate-efficacy", ("test_app.txt",), ["`gates_touched` はこの周に真", refused], allowed),
+                 ("consistency-bypass", (), ["条件（applies_cond）を持たず", "na_self_ok が無い", refused], allowed))
+        for role, files, said, unsaid in cases:
+            with self.subTest(role=role, files=files):
+                self.setUp()
+                self.changed(*files)
+                brief = ja.material_prep(self.jdir, role, self.repo, "")["brief"]
+                self.assertIn(str(ja.NA_HEADING), brief)
+                for text in said:
+                    self.assertIn(text, brief)
+                self.assertNotIn(unsaid, brief)
+        nid = ja.MATERIAL_ROLES["consistency-bypass"]
+        nodes = {**ja.MATERIAL_NODES, nid: {**ja.MATERIAL_NODES[nid], "na_self_ok": "差分にコードが無い"}}
+        with mock.patch.object(ja, "MATERIAL_NODES", nodes):
+            brief = ja.material_prep(self.jdir, "consistency-bypass", self.repo, "")["brief"]
+        self.assertIn("na_self_ok: 差分にコードが無い", brief)
+        self.assertIn(allowed, brief)
+
+    def test_missing_purpose_is_said_not_invented(self):
+        """元 test_blk_material.py:527: 目的の文が無い run の材料は PURPOSE_MISSING と書き、目的を作らない"""
+        self.changed()
+        self.assertFalse((self.jdir / "purpose.json").exists())
+        brief = ja.material_prep(self.jdir, "external-standards", self.repo, "")["brief"]
+        self.assertIn(f"## 材料: out.p0.purpose.purpose_text\n\n{ja.PURPOSE_MISSING}", brief)
+        self.assertFalse((self.jdir / "purpose.json").exists())
+
+    def test_purpose_review_findings_must_cite_the_version(self):
+        """元 rules:3274 の purpose_findings_cited（:3471 _cite_errors・:3612 _count_in_version）: 目的の監査の所見の引用を、
+        素材の道が固めた版で数え直す。版に無い引用・数の合わない申告・根拠の無い『狭めている』を拒む"""
+        self.changed()
+        def reply(*findings, verdict="狭めている"):
+            return {"verdict": verdict, "findings": [{"text": "目的が件数の数えに狭まっている", "cite": c, "hits": h}
+                                                     for c, h in findings]}
+        cases = ((reply(("件数は 3 件", 1)), ""),
+                 (reply(("どこにも無い字列", 1)), "'どこにも無い字列' が現物に 1 件も無い"),
+                 (reply(("件数は 3 件", 2)), "'件数は 3 件' の件数の申告 2 が数え直し 1 と違う"),
+                 (reply(), "『狭めている』のに findings が空"))
+        for got_reply, why in cases:
+            with self.subTest(why=why):
+                got = ja.material_take(self.jdir, "purpose-review", got_reply, self.repo)
+                self.assertEqual(got["ok"], not why, got)
+                if why:
+                    self.assertIn(why, got["reason"])
+        self.assertEqual(ja.read_json(self.jdir / "material-purpose-review.json")["reply"], cases[0][0])
+
+    def test_local_review_rows_cover_the_declared_lenses(self):
+        """元 rules:3214 の local_review_covers_lenses: 宣言のレンズ 1 本に findings の行 1 本。行の欠け・宣言の外の名・同じレンズの
+        2 行・items も failed も無い行をそれぞれ拒む"""
+        self.changed()
+        rows = self._lens_rows(lambda s: True)
+        hunter = "pr-review-toolkit:silent-failure-hunter"
+        def without(skill):
+            return [r for r in rows if r["skill"] != skill]
+        cases = ((rows, ""),
+                 (without("/security-review"), "宣言した '/security-review' の行が findings に無い"),
+                 ([*rows, {**rows[1], "skill": "my:lens"}], "findings[7] の skill 'my:lens' は宣言に無い"),
+                 ([*rows, rows[1]], "findings に同じ skill の行が 2 本: pr-review-toolkit:code-reviewer"),
+                 ([*without(hunter), {"skill": hunter, "items": [], "invoked": True, "failed": ""}],
+                  f"'{hunter}' の行が items も failed も持たない"))
+        for found, why in cases:
+            with self.subTest(why=why):
+                reply = {"material": {"status": "clean", "checked": "差分を見た"}, "simplify_carried": False, "findings": found}
+                got = ja.material_take(self.jdir, "local-review", reply, self.repo)
+                self.assertEqual(got["ok"], not why, got)
+                if why:
+                    self.assertIn(why, got["reason"])
+
+    def test_location_beyond_the_file_is_sent_back_then_marked(self):
+        """元 test_blk_material.py:610・627・640・650（_location_problems・_location_gap）: 所見の場所の行がファイルに無ければ
+        拒んで出し直させ、上限の 1 つ手前からは where に LOCATION_MARK を付けて受ける。作業ツリーの外とファイルの無い場所は照らさない"""
+        self.changed()
+        outside = self.tmp / "outside.txt"
+        outside.write_text("1 行\n", encoding="utf-8")
+        def hygiene(*wheres):
+            return {"findings": [{"where": w, "text": "所見の見本"} for w in wheres], "seen": "差分の全部"}
+        self.assertTrue(self.take_round("hygiene", hygiene("app.txt:1", f"{outside}:50", "infra/main.tf:184"))["ok"])
+        (self.jdir / "material-hygiene.json").unlink()
+        bad = hygiene("app.txt:1", "app.txt:99")
+        for n in range(1, ja.GIVE_UP_AFTER):
+            with self.subTest(round=n):
+                got = self.take_round("hygiene", bad)
+                self.assertEqual((got["ok"], got["done"]), (False, False), got)
+                self.assertIn(ja.LOCATION_HEAD, got["reason"])
+                self.assertIn("app.txt:99", got["reason"])
+        got = self.take_round("hygiene", bad)
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+        wheres = [f["where"] for f in ja.read_json(self.jdir / "material-hygiene.json")["reply"]["findings"]]
+        self.assertEqual(wheres, ["app.txt:1", "app.txt:99" + ja.LOCATION_MARK])
+
+    def test_prior_decisions_reply_is_taken_or_refused(self):
+        """素材の役の受け付け（先例の突合）: 見た返答は素材の欄に写して受け、名乗れない not_applicable は拒む"""
+        self.changed()
+        good = {"material": {"status": "clean", "checked": "PR と issue の議論を見た"}, "checked": "PR #1", "searched": "題で探した",
+                "settled": []}
+        self.assertFalse(self.take_round("prior-decisions", {**good, "material": {"status": "not_applicable", "reason": "無い"}})["ok"])
+        self.assertTrue(self.take_round("prior-decisions", good)["ok"])
+        self.assertEqual(ja.read_json(self.jdir / "material-prior-decisions.json")["materials"],
+                         {"prior_decisions": good["material"]})
+
+    def test_consistency_bypass_reply_is_taken_or_refused(self):
+        """素材の役の受け付け（整合と標準機構の迂回）: 2 つの素材を両方書いた返答だけ受ける"""
+        self.changed()
+        good = {"consistency": {"status": "clean", "checked": "呼び手を見た"}, "bypass": {"status": "clean", "checked": "標準の口を見た"},
+                "findings": [], "bypass_findings": []}
+        got = self.take_round("consistency-bypass", {k: v for k, v in good.items() if k != "bypass"})
+        self.assertFalse(got["ok"])
+        self.assertIn("素材 'bypass' が返答に無い", got["reason"])
+        self.assertTrue(self.take_round("consistency-bypass", good)["ok"])
+        self.assertEqual(ja.read_json(self.jdir / "material-consistency-bypass.json")["materials"],
+                         {"consistency": good["consistency"], "bypass": good["bypass"]})
+
+    def test_hygiene_reply_is_taken_or_refused(self):
+        """素材の役の受け付け（コード衛生）: findings と seen を素材 1 つに写す。何を見たかの無い clean は拒む"""
+        self.changed()
+        got = self.take_round("hygiene", {"findings": [], "seen": ""})
+        self.assertFalse(got["ok"])
+        self.assertIn("素材 'hygiene'（clean）に 'checked' が要る", got["reason"])
+        self.assertTrue(self.take_round("hygiene", {"findings": [{"where": "app.txt:2", "text": "名が短い"}], "seen": "差分"})["ok"])
+        self.assertEqual(ja.read_json(self.jdir / "material-hygiene.json")["materials"],
+                         {"hygiene": {"status": "found", "checked": "差分", "count": 1, "detail": "app.txt:2: 名が短い"}})
+
+    def test_procedure_trace_reply_is_taken_or_refused(self):
+        """素材の役の受け付け（手順の追跡）: 条件 touches_procedures が偽なら not_applicable を受け、真なら拒む"""
+        na = {"material": {"status": "not_applicable", "reason": "手順書の変更が無い"}, "findings": []}
+        for files, ok in (((), True), (("run.sh",), False)):
+            with self.subTest(files=files):
+                self.setUp()
+                self.changed(*files)
+                got = self.take_round("procedure-trace", na)
+                self.assertEqual(got["ok"], ok, got)
+                self.assertEqual((self.jdir / "material-procedure-trace.json").exists(), ok)
+
+    def test_test_double_fidelity_reply_is_taken_or_refused(self):
+        """素材の役の受け付け（代役の忠実性）: 見た返答は受け、走った節の流用（carried_over）は拒む"""
+        self.changed()
+        got = self.take_round("test-double-fidelity",
+                              {"material": {"status": "carried_over", "from_round": 1, "reason": "前の周と同じ"}})
+        self.assertFalse(got["ok"])
+        self.assertIn("素材 'test_double_fidelity'（節 p1.test_double_fidelity）は今の周に走ったのに carried_over", got["reason"])
+        good = {"material": {"status": "clean", "checked": "代役と本物の口を比べた"}}
+        self.assertTrue(self.take_round("test-double-fidelity", good)["ok"])
+        self.assertEqual(ja.read_json(self.jdir / "material-test-double-fidelity.json")["materials"],
+                         {"test_double_fidelity": good["material"]})
+
+    def test_tree_change_names_the_peer_roles(self):
+        """元 test_blk_material.test_tree_change_rejects_and_names_peers（_peers）: 拒みの文に、material-route.json で同じ時に回す
+        ほかの役を名指す。route が読めない時は読めないと言う"""
+        (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
+        self.view()
+        route = ja.read_json(self.jdir / ja.MATERIAL_ROUTE_FILE)
+        peers = [r for r, d in route["roles"].items() if d["run"] and r != "provenance"]
+        self.assertIn("hygiene", peers)
+        (self.repo / "tmp.out").write_text("x\n", encoding="utf-8")
+        reply = {"material": {"status": "clean", "checked": "x"}, "claims": []}
+        got = ja.material_take(self.jdir, "provenance", reply, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn("・".join(peers), got["reason"])
+        self.assertNotIn("provenance・", got["reason"])
+        (self.jdir / ja.MATERIAL_ROUTE_FILE).write_text("{", encoding="utf-8")
+        got = ja.material_take(self.jdir, "provenance", reply, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn(f"{ja.MATERIAL_ROUTE_FILE} が読めない", got["reason"])
+
+    def test_gate_prep_shows_the_declared_mutation_stage(self):
+        """元 review-loop.py:734 の mutation_decl: 対象の宣言の mutation の段を材料に貼る。段が無ければ探させる文、
+        壊れていれば読めないと名指す"""
+        (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
+        (self.repo / "arms.txt").write_text("arm-1\n", encoding="utf-8")
+        decl = {"suite": [{"name": "t", "argv": ["true"]}], "mutation": {"argv": ["mutate", "--fast"], "arms": "arms.txt"}}
+        self.view()
+        undeclared = ja.MUTATION_UNDECLARED.format(decl=ja.DECL_NAME)
+        cases = (
+            (json.dumps(decl), ['["mutate", "--fast"]', "arms.txt"], "探せ"),
+            (json.dumps({"suite": decl["suite"]}), [undeclared], "読めない"),
+            (json.dumps({**decl, "mutation": {"argv": []}}), ["探せ", "mutation の段を読めない"], "mutate"),
+            ("{", [undeclared, "読めない"], "mutate"),
+            (json.dumps({**decl, "suite": []}), [undeclared, "読めない"], "mutate"),
+        )
+        for text, said, unsaid in cases:
+            with self.subTest(text=text):
+                (self.repo / ja.DECL_NAME).write_text(text, encoding="utf-8")
+                brief = ja.material_prep(self.jdir, "gate-efficacy", self.repo, "")["brief"]
+                for s in said:
+                    self.assertIn(s, brief)
+                self.assertNotIn(unsaid, brief)
+
+    def _lens_rows(self, invoked):
+        return [{"skill": e["skill"], "items": [], "invoked": invoked(e["skill"]), "failed": "起こしたが所見なし（差分を見た）"}
+                for e in ja._skills(ja.due_view(self.start(), {}, []), "local-review")]
+
+    def _plugins(self, names):
+        cfg = self.tmp / "claude-config"
+        ja.write_json(cfg / "plugins" / "installed_plugins.json", {"plugins": {f"{n}@market": [] for n in names}})
+        return mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(cfg)})
+
+    def test_missing_required_lens_is_refused(self):
+        """元 test_blk_material の必須のレンズの場面（_lens_gap）: 必須のレンズを起こしていない返答と、それを awaiting_human に
+        した返答を拒む。プラグインが入っていれば出し直させる（1 回目で諦めない）"""
+        self.view()
+        rows = self._lens_rows(lambda s: s != "pr-review-toolkit:code-reviewer")
+        with self._plugins(["pr-review-toolkit"]):
+            for status in ("clean", "awaiting_human"):
+                with self.subTest(status):
+                    mat = {"status": status, "checked": "差分を見た", "reason": "待つ"}
+                    reply = {"material": mat, "simplify_carried": False, "findings": rows}
+                    got = self.take_round("local-review", reply)
+                    self.assertFalse(got["ok"])
+                    self.assertFalse(got["done"], "プラグインが在れば出し直させる")
+                    self.assertIn("'pr-review-toolkit:code-reviewer' は必須のレンズ", got["reason"])
+                    self.assertEqual("awaiting_human にできない" in got["reason"], status == "awaiting_human")
+        self.assertEqual(ja.rolekit.given_up_reason(self.jdir, "local-review"), "")
+
+    def test_absent_plugin_gives_up_at_once(self):
+        """元 material.py:455 の _lens_gap の 2 つ目（出し直さないか）を _reject(give_up=True) に渡した: レンズのプラグインが
+        隔離した設定に無ければ、1 回目の拒みで done にして人に渡し、素材の欄と判定の支度がその理由を読む"""
+        self.view()
+        reply = {"material": {"status": "clean", "checked": "差分を見た"}, "simplify_carried": False,
+                 "findings": self._lens_rows(lambda s: not s.startswith("pr-review-toolkit:"))}
+        with self._plugins(["other-plugin"]):
+            got = self.take_round("local-review", reply)
+        self.assertFalse(got["ok"])
+        self.assertTrue(got["done"], "1 回目から諦める")
+        self.assertIn("プラグイン pr-review-toolkit が入っていない", got["reason"])
+        self.assertEqual(len(ja.rolekit.rejected(self.jdir, "local-review")), 1)
+        gave = ja.rolekit.given_up_reason(self.jdir, "local-review")
+        self.assertIn("pr-review-toolkit", gave)
+        self.assertEqual(ja.materials_given_up(self.jdir), [gave])
+        self.assertIn("pr-review-toolkit", ja.fill_materials(self.jdir)["local_review"]["reason"])
 
     def test_local_review_unseen_lens_is_marked(self):
         """元 test_diverted.TakeCase.test_unrecovered_loss_is_taken_but_said_unseen（受け付けは拒まず、見ていないと書く）"""
@@ -1486,6 +2068,20 @@ class SpecblkCase(unittest.TestCase):
         for verb, note in (("continue", "<通す範囲と条件>"), ("stop", "<理由>")):
             self.assertIn(specblk.gatemarks.answer.line("run-x", verb, note), text)
 
+    def test_gate_text_subjects_are_plain_and_quote_the_question(self):
+        """元 test_blk_spec_gate.py:34・41: 仕様の関所の文も平易な名を主語にし（記録の名は括弧の中の『記録の名』の後ろにだけ）、
+        本線の答え方で書かれた問いは引用（> の行）で載せて読み替えの 1 行を添え、答え方の continue は 1 通りだけ"""
+        from lib.tests.test_plan_gate import MAINLINE_Q, internal_subjects, unquoted_mainline
+        asking = {"node": "spec.approve", "kinds": ["declared"], "question": MAINLINE_Q, "items": ["A1"]}
+        text = specblk.gate_text(asking, run_id="run-x")
+        self.assertEqual(internal_subjects(text), [])
+        self.assertEqual(unquoted_mainline(text), [])
+        quoted = [x.lstrip()[1:].strip() for x in text.splitlines() if x.lstrip().startswith(">")]
+        self.assertEqual(quoted, [x.strip() for x in MAINLINE_Q.splitlines()])
+        after = text.split(quoted[-1], 1)[1].split("答え方", 1)[0]
+        self.assertEqual(len([x for x in after.splitlines() if "--note" in x and "--detail" in x]), 1, after)
+        self.assertEqual(text.count(specblk.gatemarks.answer.line("run-x", "continue", "<通す範囲と条件>")), 1)
+
     def test_parse_gate(self):
         self.assertIsNone(specblk.parse_gate("null"))
         self.assertIsNone(specblk.parse_gate(""))
@@ -1729,6 +2325,28 @@ class PrAcceptCase(_PrBase):
         (self.repo / "stats.py").write_text(_MEAN_SOURCE, encoding="utf-8")
         gitkit.git(self.repo, "checkout", "-q", "-b", "other")
         self.assertIn("ref", ja.prcheck_take(self.jdir, _PR_OK, self.repo)["reason"])
+
+    def test_head_move_and_ignored_paths_are_refused(self):
+        """元 test_blk_pr.py:442・467・557（prcheck.py:199 の take）: 作業ツリーの中身が同じままの別の commit への checkout と、
+        git が無視するパスの追加も拒み、拒みの文が変わった欄を名指す"""
+        (self.repo / ".gitignore").write_text("*.log\n", encoding="utf-8")
+        gitkit.git(self.repo, "add", ".gitignore")
+        gitkit.git(self.repo, "commit", "-q", "-m", "ignore")
+        self.snap()
+        tree = gitkit.git(self.repo, "rev-parse", "HEAD^{tree}").strip()
+        other = gitkit.git(self.repo, "commit-tree", tree, "-p", "HEAD", "-m", "same tree").strip()
+        gitkit.git(self.repo, "checkout", "-q", "--detach", other)
+        got = ja.prcheck_take(self.jdir, _PR_OK, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn(f"/ 今 {other}", got["reason"])
+        self.assertIn("ref: 役を起こす前 refs/heads/", got["reason"])
+        self.assertNotIn("git status --porcelain", got["reason"])
+        gitkit.git(self.repo, "checkout", "-q", "-")
+        (self.repo / "cache.log").write_text("x\n", encoding="utf-8")
+        got = ja.prcheck_take(self.jdir, _PR_OK, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn("git が無視するパス: 増えた ['cache.log'] 消えた []", got["reason"])
+        self.assertFalse((self.jdir / ja.MATERIAL_PR_FILE).exists())
 
     def test_malformed_reply_bounced_not_crashed(self):
         """元 test_blk_pr の test_malformed_reply_bounced_not_crashed・test_accept_script_unreadable_reply: JSON でない・
