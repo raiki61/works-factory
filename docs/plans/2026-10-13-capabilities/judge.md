@@ -41,7 +41,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J06 前の run の失敗の行（依頼の容器の prior_failures と入力 prior_failures の先）を 1 度だけ置き、判定の材料に「注意」と「直す穴」の節で出す
   - 元: works/.shared/core/carry.py `prior_section`・works/blk-judge/lib/judgebrief.py:86 `brief`（盤面の prior-failures-in.json）
   - 今: lib/judge_accept.py:4143 `intake`（carry.place_prior）・:3066 `brief`
-  - 証: tests/workflows/test_judge.py::PriorFailuresTest.test_container_rows_and_the_input_rows_both_reach_the_brief（assert: tests/workflows/test_judge.py:805・809・812）
+  - 証: tests/workflows/test_judge.py::PriorFailuresTest.test_container_rows_and_the_input_rows_both_reach_the_brief（assert: tests/workflows/test_judge.py:804・808・811）
   - 本物の run: 筋書きでのみ（種の 1 回目の run は前の失敗を持たない）
   - 狭め: 無し
 - J07 止めの控えは最初に止めた節の理由だけを残し、機械の止めの語は `works:` の頭を持つ
@@ -74,13 +74,13 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J11 前提の返答を写しの schema の字のままで照らし、型の外を拒む（役の節の output_format と同じ型）
   - 元: works/.shared/core/premises.py:125 `check_premises`
   - 今: lib/judge_accept.py:1417 `PREMISES_SCHEMA`
-  - 証: lib/tests/test_judge_accept.py::PremisesCase.test_reply_outside_the_copied_type_rejected（assert: :873）・tests/workflows/test_judge.py::ReturnsShapeTest.test_reply_types_are_the_acceptance_schemas（assert: tests/workflows/test_judge.py:130）
+  - 証: lib/tests/test_judge_accept.py::PremisesCase.test_reply_outside_the_copied_type_rejected（assert: :873）・tests/workflows/test_judge.py::ReturnsShapeTest.test_reply_types_are_the_acceptance_schemas（assert: tests/workflows/test_judge.py:129）
   - 本物の run: judge/premises.json
   - 狭め: 無し
 - J12 前提か目的の段が落ちた run は、判定を受けていても ready で返さず、その段を止めの理由にする
   - 元: works/darkfactory/lib/line_edge.py の `_first_missing_stage`
   - 今: lib/judge_accept.py:4177 `_missing_stage`
-  - 証: tests/workflows/test_judge.py::JudgedVerdictTest.test_missing_premises_or_purpose_stops_even_with_an_accepted_judgment（assert: tests/workflows/test_judge.py:736）
+  - 証: tests/workflows/test_judge.py::JudgedVerdictTest.test_missing_premises_or_purpose_stops_even_with_an_accepted_judgment（assert: tests/workflows/test_judge.py:735）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - J13 前提の役の指示書の決まり（依頼の measured の where をそのまま text に・測れなければ仮説・実例 4MB と 5,411 バイトと .github/workflows/test.yml）を持つ
@@ -101,7 +101,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J15 目的の役には前の run の判断（prior_failures・前の判定）を外した依頼の写しと材料だけを渡す（指示書の頼みでなく機械で外す）
   - 元: works/blk-purpose/scripts/intake.py（test_blk_purpose.py:335）
   - 今: lib/judge_accept.py:1518 `purpose_prep`
-  - 証: lib/tests/test_judge_accept.py::PurposeCase.test_purpose_material_has_no_prior_failures（assert: :1005-1010）・tests/workflows/test_judge.py::RoleSettingsTest.test_purpose_role_does_not_see_the_prior_run（assert: tests/workflows/test_judge.py:249）
+  - 証: lib/tests/test_judge_accept.py::PurposeCase.test_purpose_material_has_no_prior_failures（assert: :1005-1010）・tests/workflows/test_judge.py::RoleSettingsTest.test_purpose_role_does_not_see_the_prior_run（assert: tests/workflows/test_judge.py:248）
   - 本物の run: judge/purpose-request.json・judge/purpose-brief.md（前の失敗の行が無い）
   - 狭め: 無し
 - J16 目的の役は読むだけ（役を起こす前の写し purpose-tree.json と比べ、HEAD・枝・無視されるファイルも見る）
@@ -125,7 +125,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J19 目的の支度が落ちたら止めの控え（works:purpose）を置く
   - 元: works/blk-purpose/scripts/intake.py の終了コード 1
   - 今: workflows/judge/scripts/purpose_prep.py:22-24
-  - 証: tests/workflows/test_judge.py::JudgedVerdictTest.test_purpose_prep_failure_writes_a_stop（assert: tests/workflows/test_judge.py:744）
+  - 証: tests/workflows/test_judge.py::JudgedVerdictTest.test_purpose_prep_failure_writes_a_stop（assert: tests/workflows/test_judge.py:743）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - J20 目的の役の指示書の決まり（①PR 説明 → ②計画 → ③writer の要約 → 目的不明の順・known_weaknesses・実例「2 周空転」「実測 2026-09-13」）を持つ
@@ -152,7 +152,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J23 web の役に対象の名を渡さない（指示書に依頼の本文と where を貼らない・practice に対象の識別子が在れば拒む）。言い直す役は道具なし、web の役は web の検索と取得だけ
   - 元: works/blk-world/lib/worldblk.py:288 `judge_prep`・worldcheck.py:72 `banned_tokens`・blk-world.yaml の役の道具
   - 今: lib/worldblk.py:293・lib/worldcheck.py:72・workflows/judge/works-factory-judge.yaml の world-classes・world-judge の節
-  - 証: lib/tests/test_blk_world.py::Judge.test_prompt_asks_for_excerpts_without_target_text（assert: :364-368）・Judge.test_practice_with_target_identifier_is_refused（assert: :389）・lib/tests/test_world_check.py::Banned.*・tests/workflows/test_judge.py::RoleSettingsTest.test_roles_keep_the_old_settings（assert: tests/workflows/test_judge.py:236）
+  - 証: lib/tests/test_blk_world.py::Judge.test_prompt_asks_for_excerpts_without_target_text（assert: :364-368）・Judge.test_practice_with_target_identifier_is_refused（assert: :389）・lib/tests/test_world_check.py::Banned.*・tests/workflows/test_judge.py::RoleSettingsTest.test_roles_keep_the_old_settings（assert: tests/workflows/test_judge.py:235）
   - 本物の run: world-judge の節の指示書（`$world-plan.output.prompt`）
   - 狭め: 無し
 - J24 定石の行の basis は機械だけが付け、differs は challenge を要り、verdict none は依頼が解き方を示さない時だけ、判定の行は類の全部
@@ -188,7 +188,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J29 世界の解の行が 0 の時は返り world を null にする（空のファイルを指す札を返さない）
   - 元: works/darkfactory/lib/line_edge.py の境の節（world_file の空）
   - 今: lib/judge_accept.py:4236 `verdict`
-  - 証: tests/workflows/test_judge.py::JudgedVerdictTest.test_world_stage_without_rows_returns_no_world（assert: tests/workflows/test_judge.py:726）
+  - 証: tests/workflows/test_judge.py::JudgedVerdictTest.test_world_stage_without_rows_returns_no_world（assert: tests/workflows/test_judge.py:725）
   - 本物の run: verdict の節の output.world（網が無ければ null）
   - 狭め: 無し
 - J30 web の切り替えの語は on・off だけ（ほかの語は誤り）
@@ -389,13 +389,13 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J61 素材 local_checks（修正前の CI）を直す前の結末（入力 baseline）から写す。読めない・欄が欠ければ not_run と理由
   - 元: 写しの p0.local_checks（盤面の素材）
   - 今: lib/judge_accept.py:2906 `baseline_local_checks`
-  - 証: tests/workflows/test_judge.py::BaselineTest.test_local_checks_come_from_the_baseline（assert: tests/workflows/test_judge.py:792・794）・lib/tests/test_judge_accept.py::BriefCase.test_baseline_that_cannot_be_read_leaves_local_checks_not_run（assert: :1567-1571）
+  - 証: tests/workflows/test_judge.py::BaselineTest.test_local_checks_come_from_the_baseline（assert: tests/workflows/test_judge.py:791・793）・lib/tests/test_judge_accept.py::BriefCase.test_baseline_that_cannot_be_read_leaves_local_checks_not_run（assert: :1567-1571）
   - 本物の run: judge/materials.json の local_checks（test-gate-base の baseline から）
   - 狭め: 無し
 - J62 素材の役が 3 回とも拒まれたら、残りの素材で材料を組んだ上で works:material で止める（諦めた役は全部名指す）
   - 元: works/blk-material/lib/material.py:605 `collect`
   - 今: lib/judge_accept.py:2962 `materials_given_up`・:3104 `diagnose_prep`
-  - 証: lib/tests/test_judge_accept.py::BriefCase.test_diagnose_prep_stops_after_material_give_up（assert: :1581-1584）・tests/workflows/test_judge.py::MaterialGiveUpTest.test_diagnose_prep_builds_the_brief_from_the_remaining_materials（assert: tests/workflows/test_judge.py:829）
+  - 証: lib/tests/test_judge_accept.py::BriefCase.test_diagnose_prep_stops_after_material_give_up（assert: :1581-1584）・tests/workflows/test_judge.py::MaterialGiveUpTest.test_diagnose_prep_builds_the_brief_from_the_remaining_materials（assert: tests/workflows/test_judge.py:828）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（同じ層の受け付けを盤面の錠で 1 本ずつ書く元の形は、各役が自分のファイルにだけ書く形に替えた。持ち主の決め no-queue）
 
@@ -503,7 +503,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J79 目的の外の所見（out_of_purpose）を材料の行（P1 の素材の行と依頼のバッチ）に当てて外し、当たった行ごと out-of-purpose.json に置き、judgment に戻す
   - 元: works/.shared/core/outpurpose.py:87 `material_rows`・:114 `problems`・:157 `save`・:170 `restore`
   - 今: lib/judge_accept.py:910 `material_rows`・:1022-1036・lib/outpurpose.py
-  - 証: lib/tests/test_judge_accept.py::JudgeTakeCase.test_out_of_purpose_rows_are_checked_against_material_rows（assert: :273・280・282）・tests/workflows/test_judge.py::JudgedVerdictTest.test_open_unit_is_ready_with_its_out_of_purpose_rows（assert: tests/workflows/test_judge.py:712-715）・lib/tests/test_out_of_purpose.py::ProblemsCase.*
+  - 証: lib/tests/test_judge_accept.py::JudgeTakeCase.test_out_of_purpose_rows_are_checked_against_material_rows（assert: :273・280・282）・tests/workflows/test_judge.py::JudgedVerdictTest.test_open_unit_is_ready_with_its_out_of_purpose_rows（assert: tests/workflows/test_judge.py:711-714）・lib/tests/test_out_of_purpose.py::ProblemsCase.*
   - 本物の run: judge/out-of-purpose.json・verdict の output.out_of_purpose
   - 狭め: 無し
 - J80 依頼の answers と前の run の作り直しの行を answer_ties で問いか単位に結ばせる（結び無しの答え・2 つの問いに当たる答え・知らない key・作り直しの行は開いた単位か none 20 字以上）。通れば answer-ties.json に置く
@@ -515,13 +515,13 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J81 受け付けが拒めば同じ会話で 3 回まで出し直し、理由は輪の頭の reject の節から役へ渡し、3 回目で最後の拒否の文で works:judge で止める
   - 元: works/blk-judge/lib/judgetake.py:106 `accept`・:122 `_give_up`・rolekit の拒否の控え
   - 今: lib/judge_accept.py:1065・:1072・workflows/judge/works-factory-judge.yaml の `diagnose-reject`
-  - 証: tests/workflows/test_judge.py::AcceptLoopTest.test_diagnose_accept_gives_up_on_the_third_reject（assert: tests/workflows/test_judge.py:524-529）・LoopTest.test_every_loop_retries_three_times_until_its_accept_is_done（assert: :162-165）・LoopTest.test_roles_receive_the_reject_reason_through_the_reject_node（assert: :184-189）・lib/tests/test_judge_accept.py::JudgeAcceptCase.test_collect_without_judgment_gives_up_with_last_reject（assert: :584-586）
+  - 証: tests/workflows/test_judge.py::AcceptLoopTest.test_diagnose_accept_gives_up_on_the_third_reject（assert: tests/workflows/test_judge.py:523-528）・LoopTest.test_every_loop_retries_three_times_until_its_accept_is_done（assert: :161-164）・LoopTest.test_roles_receive_the_reject_reason_through_the_reject_node（assert: :183-188）・lib/tests/test_judge_accept.py::JudgeAcceptCase.test_collect_without_judgment_gives_up_with_last_reject（assert: :584-586）
   - 本物の run: judge/rejects-diagnose.json（拒まれた時）
   - 狭め: 無し
 - J82 受けた判定を今の works の形（units・questions・framing・one_shot・materials_missing・carried_r1・one_shot_closes・precedents）で judgment.json に書き、隣に premises.json・judge-verify.json・pr-excluded.json・materials.json を置く。拒んだ回は書かない
   - 元: works/blk-judge/lib/judgetake.py:59 `finish`・works/.shared/core/accept.py:504
   - 今: lib/judge_accept.py:1036-1039・:4160 `PUBLIC_FILES`
-  - 証: lib/tests/test_judge_accept.py::JudgeTakeCase.test_good_reply_is_written_as_judgment（assert: :143・148）・tests/workflows/test_judge.py::AcceptLoopTest.test_accepted_judgment_is_written_with_its_public_neighbours（assert: tests/workflows/test_judge.py:535-541）
+  - 証: lib/tests/test_judge_accept.py::JudgeTakeCase.test_good_reply_is_written_as_judgment（assert: :143・148）・tests/workflows/test_judge.py::AcceptLoopTest.test_accepted_judgment_is_written_with_its_public_neighbours（assert: tests/workflows/test_judge.py:534-540）
   - 本物の run: judge/judgment.json と隣の 4 つ
   - 狭め: 無し
 
@@ -569,19 +569,19 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J89 返す節は約束の 9 欄をちょうど返す。ready は「判定を受け、開いた単位が 1 つ以上」、開いた単位が無いのは止めでなく stop_reason は空
   - 元: works/blk-judge/lib/judgetake.py:140 `collect` の出口（ok・open_units・need_fix）
   - 今: lib/judge_accept.py:4201 `verdict`・workflows/judge/scripts/verdict.py
-  - 証: tests/workflows/test_judge.py::ReturnsShapeTest.test_verdict_returns_exactly_the_contract（assert: tests/workflows/test_judge.py:116-120）・StopPathTest.test_no_open_units_is_not_a_stop（assert: :659）
+  - 証: tests/workflows/test_judge.py::ReturnsShapeTest.test_verdict_returns_exactly_the_contract（assert: tests/workflows/test_judge.py:115-119）・StopPathTest.test_no_open_units_is_not_a_stop（assert: :658）
   - 本物の run: verdict の節の output（ready: true・units 2 つ）
   - 狭め: 無し
 - J90 止めの道（依頼の型・判定の諦め・仕様の止め・再審の止め）でも、指し札の先と公開の隣の 4 つを空の形で置いてから返す
   - 元: 線の境の節が盤面を止めた後に読む出口
   - 今: lib/judge_accept.py:4223-4233・:4170 `_fill`
-  - 証: tests/workflows/test_judge.py::StopPathTest.*（assert: tests/workflows/test_judge.py:634・644・651）
+  - 証: tests/workflows/test_judge.py::StopPathTest.*（assert: tests/workflows/test_judge.py:633・643・650）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - J91 返す節は落ちない（壊れた入力・lib に届かない・壊れた judgment.json でも ready: false と訳を返す）
   - 元: 無し（線が落ちた節の先へ進めない Archon の事実から足した）
   - 今: workflows/judge/scripts/verdict.py・lib/judge_accept.py:4255 `verdict_fallback`
-  - 証: tests/workflows/test_judge.py::VerdictNeverFailsTest.*（assert: tests/workflows/test_judge.py:847・857-860・868）
+  - 証: tests/workflows/test_judge.py::VerdictNeverFailsTest.*（assert: tests/workflows/test_judge.py:846・856-859・867）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -614,13 +614,13 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J96 関所の語は approve・continue で通し、stop・reject で止める（文が `request:` で始まれば request:spec-gate、ほかは human:spec-gate）。知らない語と開かなかった関所は works:spec
   - 元: works/blk-spec/lib/specblk.py:79-84・:279 `parse_gate`・:302 `answer`
   - 今: lib/judge_accept.py:3393 `spec_answer`・workflows/judge/works-factory-judge.yaml の spec-gate
-  - 証: tests/workflows/test_judge.py::GateTest.test_spec_gate_is_an_approval_with_the_four_words（assert: tests/workflows/test_judge.py:149-152）・SpecFreezeTest.test_stop_word_is_a_human_stop（assert: :600）・SpecFreezeTest.test_request_flag_is_a_request_stop（assert: :606）・lib/tests/test_judge_accept.py::SpecGateCase.test_gate_unknown_word（assert: :1840）・SpecGateCase.test_gate_skipped（assert: :1831）
+  - 証: tests/workflows/test_judge.py::GateTest.test_spec_gate_is_an_approval_with_the_four_words（assert: tests/workflows/test_judge.py:148-151）・SpecFreezeTest.test_stop_word_is_a_human_stop（assert: :599）・SpecFreezeTest.test_request_flag_is_a_request_stop（assert: :605）・lib/tests/test_judge_accept.py::SpecGateCase.test_gate_unknown_word（assert: :1840）・SpecGateCase.test_gate_skipped（assert: :1831）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - J97 承認の後に各受け入れ条件の run を走らせて承認の時点の終了の値を取り、テストのファイルの sha256 と一緒に spec.json に固め、受け入れ条件を出どころの印つきで依頼の行に積み、作業ツリーの写しを取り直す
   - 元: works/.shared/core/graphloops/rules/review-loop.py:4010 `spec_freeze`・:3959 `_spec_run`
   - 今: lib/judge_accept.py:3360・:3347・:3431
-  - 証: lib/tests/test_judge_accept.py::SpecGateCase.test_freeze_records_sha_and_exit（assert: :1789-1798）・tests/workflows/test_judge.py::SpecFreezeTest.test_approval_freezes_hashes_and_exit_codes（assert: tests/workflows/test_judge.py:623-624）・SpecFreezeTest.test_roles_after_approval_take_the_spec_tests_as_given（assert: :611・615）
+  - 証: lib/tests/test_judge_accept.py::SpecGateCase.test_freeze_records_sha_and_exit（assert: :1789-1798）・tests/workflows/test_judge.py::SpecFreezeTest.test_approval_freezes_hashes_and_exit_codes（assert: tests/workflows/test_judge.py:622-623）・SpecFreezeTest.test_roles_after_approval_take_the_spec_tests_as_given（assert: :610・614）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（元の run の上限 600 秒は持ち主の決め no-timeouts で置かない）
 - J98 仕様の輪が諦めた・返答が足りない時は関所を開かずに works:spec で止める
@@ -641,7 +641,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J100 1 回目の判定が無い run（判定の道を通っていない）は再審せずに works:rejudge-session で止める
   - 元: works/.shared/core/rejudge.py:227 `session_ready`・:288 `route`
   - 今: lib/judge_accept.py:3612 `rejudge_prep`
-  - 証: lib/tests/test_judge_accept.py::RejudgeCase.test_no_first_judgment_stops_session（assert: :1873）・tests/workflows/test_judge.py::RejudgeTest.test_rejudge_without_a_first_judgment_stops（assert: tests/workflows/test_judge.py:671）
+  - 証: lib/tests/test_judge_accept.py::RejudgeCase.test_no_first_judgment_stops_session（assert: :1873）・tests/workflows/test_judge.py::RejudgeTest.test_rejudge_without_a_first_judgment_stops（assert: tests/workflows/test_judge.py:670）
   - 本物の run: 筋書きでのみ（修正役が異議を出した run なら rejudge/ の下）
   - 狭め: 無し
 - J101 再審役は判定役の会話を継ぐ。会話を確かめられなければ黙って新しい会話で回さずに止める
@@ -653,7 +653,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J102 再審の材料に異議・今の単位・台帳・判定の見立て・1 回目のファイルのパス・人の方針を並べ、前の単位の写しと番号の控えを置く
   - 元: works/.shared/core/rejudge.py:323 `render`・:372 `prep`・:360 `numbered_keys`
   - 今: lib/judge_accept.py:3595・:3612
-  - 証: lib/tests/test_judge_accept.py::RejudgeCase.test_prep_writes_brief_and_before（assert: :1881-1886）・tests/workflows/test_judge.py::RejudgeTest.test_rejudge_with_a_first_judgment_writes_its_brief（assert: tests/workflows/test_judge.py:681-683）
+  - 証: lib/tests/test_judge_accept.py::RejudgeCase.test_prep_writes_brief_and_before（assert: :1881-1886）・tests/workflows/test_judge.py::RejudgeTest.test_rejudge_with_a_first_judgment_writes_its_brief（assert: tests/workflows/test_judge.py:680-682）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - J103 再審の答えは 採る・退ける・一部採る の 3 語、new_facts は自分で確かめた事実（20 字以上）。再審役は読むだけ
@@ -665,7 +665,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J104 再審の結果は rejudge/judgment.json に書き 1 回目を上書きしない。前後の差（名指しの有無・名指されない変化・block から下げた単位・新しく開いた単位）を残す
   - 元: works/.shared/core/rejudge.py:473 `diff_units`・:525 `collect`
   - 今: lib/judge_accept.py:3554・:3692
-  - 証: lib/tests/test_judge_accept.py::RejudgeCase.test_accept_writes_judgment_and_diff（assert: :1918-1926）・RejudgeCase.test_lowered_block_named_in_diff_and_exit（assert: :1937-1943）・RejudgeDiffCase.*・tests/workflows/test_judge.py::RejudgedVerdictTest.test_rejudge_returns_its_own_units_and_keeps_the_first_judgment（assert: tests/workflows/test_judge.py:756-767）
+  - 証: lib/tests/test_judge_accept.py::RejudgeCase.test_accept_writes_judgment_and_diff（assert: :1918-1926）・RejudgeCase.test_lowered_block_named_in_diff_and_exit（assert: :1937-1943）・RejudgeDiffCase.*・tests/workflows/test_judge.py::RejudgedVerdictTest.test_rejudge_returns_its_own_units_and_keeps_the_first_judgment（assert: tests/workflows/test_judge.py:755-766）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - J105 再審でも class_query の例で問いを試す。3 回とも拒まれたら works:rejudge で止める
@@ -680,13 +680,13 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J106 役の節の模型・effort・道具・sandbox（gh は読むだけの口 works-gh だけを外に出す・任せ先の網）・settingSources・context・mutates_checkout・skills と plugins を旧 YAML の値のまま持つ
   - 元: works/blk-*/blk-*.yaml・works/darkfactory/darkfactory.yaml:174-400・866・works/blk-material/lib/material.py の POSTURE・SANDBOX
   - 今: workflows/judge/works-factory-judge.yaml
-  - 証: tests/workflows/test_judge.py::RoleSettingsTest.test_roles_keep_the_old_settings（assert: tests/workflows/test_judge.py:234-238）
+  - 証: tests/workflows/test_judge.py::RoleSettingsTest.test_roles_keep_the_old_settings（assert: tests/workflows/test_judge.py:233-237）
   - 本物の run: Archon の節の起こし（run の記録の節の設定）
   - 狭め: 無し（包み adapter の柵と切符は docs/design.md:436 で Archon の節の設定に置き換える決め）
 - J107 外へ問い合わせられる役の指示書は、検索語に対象の名前を載せない決まりを字のまま持つ
   - 元: works/.shared/core/adapter.py の `query_rule`（system prompt に足した）
   - 今: 13 本の workflows/judge/commands/*.md の頭
-  - 証: tests/workflows/test_judge.py::RoleSettingsTest.test_roles_that_reach_outside_carry_the_query_rule（assert: tests/workflows/test_judge.py:262）
+  - 証: tests/workflows/test_judge.py::RoleSettingsTest.test_roles_that_reach_outside_carry_the_query_rule（assert: tests/workflows/test_judge.py:261）
   - 本物の run: 各役の節の指示書
   - 狭め: 無し
 
@@ -695,7 +695,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J108 判定の公開の隣の 4 つ（premises.json・judge-verify.json・pr-excluded.json・materials.json）を、ほかのブロックが名で開く
   - 元: 盤面の同じ名のファイル（report・plan・fix が読んだ）
   - 今: 読み手は在る。materials.json → lib/runreport.py・lib/outcome.py・lib/boardview.py・workflows/plan-review/works-factory-plan-review.yaml:17、judge-verify.json → workflows/plan/works-factory-plan.yaml・lib/planfile.py・lib/runreport.py:664、pr-excluded.json → lib/planfile.py・lib/runreport.py:700、premises.json → workflows/eyes/scripts/prep.py・workflows/plan-review/scripts/r2_prep.py・lib/runreport.py:727
-  - 証: tests/workflows/test_judge.py::AcceptLoopTest.test_accepted_judgment_is_written_with_its_public_neighbours（assert: tests/workflows/test_judge.py:537-541）（読み手の側の試験はそのブロックの棚卸し）
+  - 証: tests/workflows/test_judge.py::AcceptLoopTest.test_accepted_judgment_is_written_with_its_public_neighbours（assert: tests/workflows/test_judge.py:536-540）（読み手の側の試験はそのブロックの棚卸し）
   - 本物の run: judge/ の 4 つ
   - 狭め: 無し
 - J109 依頼の答えの結び answer-ties.json を報告が読み、どの問いにも当たらなかった答え・判定が単位にしなかった作り直しの行（none の訳）を人に出す
@@ -725,7 +725,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 - J113 再審の差と出口（rejudge-diff.json・rejudge-exit.json）
   - 元: works/.shared/core/rejudge.py の DIFF_NAME・EXIT_NAME を report.py が読んだ
   - 今: 書くのは lib/judge_accept.py:3692。読み手は無いが、線（workflows/line/scripts/judged.py:12-57）と報告（lib/runreport.py:435-500）が判定と再審の返りから同じ差を組み直す
-  - 証: tests/workflows/test_judge.py::RejudgedVerdictTest.test_rejudge_returns_its_own_units_and_keeps_the_first_judgment（assert: tests/workflows/test_judge.py:763-767）（線の側の試験は線の棚卸し）
+  - 証: tests/workflows/test_judge.py::RejudgedVerdictTest.test_rejudge_returns_its_own_units_and_keeps_the_first_judgment（assert: tests/workflows/test_judge.py:762-766）（線の側の試験は線の棚卸し）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（名指しの番号の控え numbered_keys は判定の側にしか無く、線の組み直しは異議の文の字だけで名指しを見る——線の棚卸しで照らす）
 

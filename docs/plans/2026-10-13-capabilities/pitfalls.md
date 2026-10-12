@@ -151,8 +151,8 @@
 - K10 どの関所の `reject` も `stop` も、run の取り消しにせず報告へ流す。Archon は `decisions` に `reject` が無い関所の reject を run の取り消しとして扱う
   - 根拠: Archon `core/src/operations/workflow-operations.ts:1625-1640`（`willResolveNewMode` は `decisions` に `reject` が在り `on_reject` が無い時だけ）・`:1665-1677`（`{decision: 'reject'}` で関所を終える）・`:1690-1700`（それ以外は `resolveAndCancelApprovalGate` で run を取り消す）。PR #74 の 1 回目の 1（「Archon は decisions に無い `reject` を取り消しとして扱う。`workflow-operations.ts:1638-1700`」）・本文「計画とずれた所」1
   - 今の機械:
-    - #74 の head: `tests/workflows/test_line.py::GateDecisionsCase.test_gates_take_the_words_their_text_prints`（:652-665。線の 4 つの関所の `decisions` が `GO_WORDS ∪ VERBS ∪ {reject}` と等しい）と `GateAnswerCase.test_reject_stops_like_stop`（:199。`gate_answer` が reject を止めと読む）
-    - main: `tests/workflows/test_judge.py::GateTest.test_spec_gate_is_an_approval_with_the_four_words`（:143-146。judge の `spec-gate` が `[approve, continue, stop, reject]`）
+    - #74 の head: `tests/workflows/test_line.py::GateDecisionsCase.test_gates_take_the_words_their_text_prints`（:660-673。線の 4 つの関所の `decisions` が `GO_WORDS ∪ VERBS ∪ {reject}` と等しい）と `GateAnswerCase.test_reject_stops_like_stop`（:199。`gate_answer` が reject を止めと読む）
+    - main: `tests/workflows/test_judge.py::GateTest.test_spec_gate_is_an_approval_with_the_four_words`（:142-145。judge の `spec-gate` が `[approve, continue, stop, reject]`）
   - 穴:
     - 関所を横に通す決まりが無い。E16 の走査（#74 の head `scan.py:542` の `_gates`）は `interactive` と頭の鍵だけを見て、`decisions` の `reject` と `on_reject` の有無を見ない。新しいブロックに関所を足すと、どの試験にも掛からない
     - 線の筋書きは関所の答えの節（`answer-*`）を stub で差すので、Archon の reject から報告までを通しで走らせた筋書きは無い（`workflows/line/fixtures/` に `reject` は 0 件）
@@ -184,7 +184,7 @@
       - 返す節が `output_format` を持ち、`outcome_field` がその `required` に在る
       - 返りの欄のどれもが、線の YAML のどこかで `$<include の id>.output.<欄>`（`$LOOP_PREV.` つきも。`:383`）として字で現れる
     - 配線（#74 の head）: `tests/workflows/test_line.py::LineWiringCase.test_with_keys_are_what_the_script_reads`。`READERS` の 5 つの節（`plan-out`・`judged`・`fixed`・`collect`・`ask-final`）と受け皿の節で、`with:` の鍵 = script が読む `INPUTS_<名>`
-    - 隣のファイルの書き手（main）: judge だけ。`tests/workflows/test_judge.py::StopPathTest` が `StopPathFilesMixin.assert_pointers_filled`（:490-503）で `judge_accept.PUBLIC_FILES` の 4 本が在り、空でなく、JSON であることを止めの道でも照らす
+    - 隣のファイルの書き手（main）: judge だけ。`tests/workflows/test_judge.py::StopPathTest` が `StopPathFilesMixin.assert_pointers_filled`（:489-502）で `judge_accept.PUBLIC_FILES` の 4 本が在り、空でなく、JSON であることを止めの道でも照らす
     - plan と plan-review の落ちた時の名は `test_plan.py::ShapeCase.test_fallback_names_match_lib`・`test_plan_review.py::FailSafeCase.test_script_literals_match_the_lib` が照らす
   - 穴:
     - E5 は返りの欄しか見ない。隣のファイルも、ブロックの入力も見ない
@@ -215,7 +215,7 @@
 
 - K16 （一覧に無い物）返りの JSON は `allow_nan=False` で書く。Archon は返りを `JSON.parse` で読むので、NaN が混じると節が落ちる
   - 根拠: PR #67 の 2 回目の 3（「`verdict.py` の最後の print に `allow_nan=False` を戻す」）。`workflows/.shared/boundary.py` の `returns` の docstring
-  - 今の機械: `tests/workflows/test_eyes.py::ScriptCase.test_verdict_returns_strict_json`（:477。eyes だけ）
+  - 今の機械: `tests/workflows/test_eyes.py::ScriptCase.test_verdict_returns_strict_json`（:742。eyes だけ）
   - 穴: 境の口を通さずに直に `print(json.dumps(…))` する返りが、`allow_nan=False` 無しで残る。`workflows/plan/scripts/plan_collect.py:89` と `round.py:67` は通常の道で、`merge.py:101`・`plan-review/scripts/pass_open.py:80`・`result.py:58`・`test-gate/scripts/result.py:145` は落ちた時の道
   - 要る試験: `tests/layers/test_block_paths.py::BlockPathsTest.test_scripts_print_returns_only_through_strict_json`（`scripts/` の `json.dumps(` が `allow_nan=False` を持つか、`boundary.returns` を使う）
 
