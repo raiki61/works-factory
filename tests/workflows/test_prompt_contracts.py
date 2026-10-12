@@ -14,14 +14,19 @@ import hashlib
 import json
 import pathlib
 import re
+import sys
 import unittest
 
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(ROOT / "lib") not in sys.path:
+    sys.path.append(str(ROOT / "lib"))
+
+import rulebook  # noqa: E402
 CONTRACTS = pathlib.Path(__file__).resolve().parent / "prompt_contracts.json"
 INLINE_KEYS = ("prompt", "systemPrompt")
-INSERT = re.compile(r"(?a:\$[A-Za-z_][\w-]*(?:\.[\w-]+)*)|\{\{[^}]*\}\}|［材料:[^］]*］|<<[a-z_]+>>")
+INSERT = re.compile(r"(?a:\$[A-Za-z_][\w-]*(?:\.[\w-]+)*)|\{\{[^}]*\}\}|［材料:[^］]*］|" + rulebook.HOLE.pattern)
 JSON_KEY = re.compile(r'"([A-Za-z_]\w*)"\s*:', re.ASCII)
 SPACE = re.compile(r"\s")
 
@@ -83,7 +88,7 @@ def measured(root, key, text):
     """機械で抜ける 2 つ（差し込みの名・返す JSON の形）"""
     nodes = users(root, key)
     return {
-        "inserts": sorted(set(INSERT.findall(text))),
+        "inserts": sorted({m.group() for m in INSERT.finditer(text)}),
         "returns": {"nodes": sorted(nodes), "output_format_sha256": shape_sha(nodes),
                     "json_keys": sorted(set(JSON_KEY.findall(text)))},
     }
