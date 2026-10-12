@@ -689,7 +689,7 @@ class ReviewAcceptCase(RunCase):
         got = self.run_.accept(review(face("regression-recommend", kind="regression", severity="suggest",
                                            recommend={"answer": "continue", "note": "x", "why": "推す理由を書いた"})))
         self.assertFalse(got["ok"])
-        self.assertTrue(got["reason"].startswith(boardview.RECOMMEND_REJECT), got["reason"])
+        self.assertTrue(got["reason"].startswith(planblk.RECOMMEND_REJECT), got["reason"])
 
     def test_faces_none_and_units_and_keys(self):
         """穴も別案も挙げない返答は faces_none が要る。案に無い単位・重複の key は拒む（元 rules の plan_review_output）"""
@@ -823,7 +823,7 @@ class ReviewAcceptCase(RunCase):
                 with self.subTest(head=head, case=label):
                     got = r.accept(review(drift(why, head), design_map=self.full_map()))
                     self.assertFalse(got["ok"], got)
-                    self.assertTrue(got["reason"].startswith(boardview.DESIGN_QUOTE_REJECT), got["reason"])
+                    self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
                     self.assertIn("design-drift-mean-split", got["reason"])
         good = f"設計の「上限は入口 1 箇所で掛け」に対し案の「{ROW_TEXT}」は継ぎ目の置き方が違う"
         got = r.accept(review(drift(good, design.UNPAIRED_HEAD), design_map=self.full_map()))
@@ -847,7 +847,7 @@ class ReviewAcceptCase(RunCase):
             with self.subTest(label):
                 got = r.accept(review(design_map=bad))
                 self.assertFalse(got["ok"], got)
-                self.assertTrue(got["reason"].startswith(boardview.DESIGN_QUOTE_REJECT), got["reason"])
+                self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
                 self.assertRegex(got["reason"], r"(add|name) helper_1")
         got = r.accept(review(design_map=[row, other]))
         self.assertTrue(got["ok"], got)
@@ -908,7 +908,7 @@ class ConvergeCase(RunCase):
         r.out("review_prep")
         got = r.accept(review())
         self.assertFalse(got["ok"])
-        self.assertTrue(got["reason"].startswith(boardview.RESOLVED_REJECT), got["reason"])
+        self.assertTrue(got["reason"].startswith(planblk.RESOLVED_REJECT), got["reason"])
         self.assertIn(MEAN_BLOCK["key"], got["reason"])
         self.assertEqual(len(converge.read(r.view())["passes"]), 1)
         got = r.accept(review(resolved=[MEAN_BLOCK["key"]]))
@@ -1041,7 +1041,7 @@ class TreeCase(RunCase):
         self.write_answers(1, {1: answer(1), 2: answer(2, why="同上")}, syn=synergy())
         got = r.accept(summary({1: [], 2: []}))
         self.assertFalse(got["ok"])
-        self.assertTrue(got["reason"].startswith(boardview.TREE_REJECT), got["reason"])
+        self.assertTrue(got["reason"].startswith(planblk.TREE_REJECT), got["reason"])
         self.assertIn("項目 2", got["reason"])
         self.assertNotIn("項目 1（", got["reason"])
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
@@ -1069,7 +1069,7 @@ class TreeCase(RunCase):
         self.write_answers(1, {1: one, 2: two})
         got = r.accept(summary({1: [drift["key"]], 2: []}))
         self.assertFalse(got["ok"], got)
-        self.assertTrue(got["reason"].startswith(boardview.TREE_REJECT), got["reason"])
+        self.assertTrue(got["reason"].startswith(planblk.TREE_REJECT), got["reason"])
         self.assertIn(bad_quote, got["reason"])
         self.assertNotIn("項目 2（", got["reason"])
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
@@ -1367,7 +1367,7 @@ class ReplanCase(RunCase):
         stale = [{"item": 2, "name": "helper_2", "design_quote": None, "why": "設計に対の無い助け手の名だけを足す"}]
         got = r.accept(review(design_map=stale))
         self.assertFalse(got["ok"], got)
-        self.assertTrue(got["reason"].startswith(boardview.DESIGN_QUOTE_REJECT), got["reason"])
+        self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
         fresh = [{"item": 2, "name": "clamp_entry", "design_quote": "上限は入口 1 箇所で掛け", "why": "設計の入口の上限に案の名が当たる"}]
         self.assertTrue(r.accept(review(design_map=fresh))["ok"])
 
