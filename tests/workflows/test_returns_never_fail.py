@@ -151,9 +151,10 @@ def alone_problems(done: subprocess.CompletedProcess, schema: dict | None) -> li
 
 
 def pointers(value):
-    """返りの中の指し札（入れ子も）"""
+    """返りの中の指し札（入れ子も）。指し札は run_id と path を持つ物で見分け、type の字は見分けに使わない（字を書き違えた
+    指し札も resolve が拒んで赤になる）"""
     if isinstance(value, dict):
-        if value.get("type") == "archon_artifact" and {"run_id", "path"} <= set(value):
+        if {"run_id", "path"} <= set(value):
             yield value
         else:
             for v in value.values():
