@@ -1721,7 +1721,7 @@
 
 - P237 一言の「保留: <key>」で名指した問いは答えに数えない。key は台帳の key を最長一致で拾い、key の後ろの言葉・区切りの字を含む key・並べた複数の key も読む。前後が key の字で続く一致は拾わない
   - 元: works/.shared/core/gatemarks.py:1118 `hold_keys`・`_hold_scan`・:1070 `answered`
-  - 今: lib/gatemarks.py:894 `hold_keys`・:871 `answered`
+  - 今: lib/gatemarks.py:1103 `hold_keys`・:1109 `_hold_scan`・:1055 `answered`
   - 証: tests/workflows/test_plan_review.py::LedgerAsksCase.test_hold_note_keeps_the_fork_origin_exempt（assert: :1996-1998）・test_hold_note_names_only_the_whole_key・test_hold_note_lists_several_keys・test_hold_note_with_words_after_the_key_keeps_the_fork_origin_exempt・test_hold_note_names_a_key_that_holds_a_separator・EscalateAsksCase.test_hold_note_keeps_the_escalate_origin_exempt。断言は owed の数えから withheld・returned・answered に替わったが、lib の決まりは縛る
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（lib の水準。run で効くかは P241 の配線の穴に依る）
@@ -1756,7 +1756,7 @@
 
 - P242 依頼の answers（始めの記録の欄）が問いの key か出どころ origin と字のまま等しく、その問いだけに当たる時は答えた扱い（関所を飛ばし、出どころを直す義務に戻す、答えの文で直させる）。命令と出力つきの答えはそれを見せる。どの問いにも当たらない・複数の問いに当たる・決着済みの問いに当たる答えは答えた扱いにせず名指す。判定の answer_ties が問いの key・単位・none に結ぶ
   - 元: works/.shared/core/gatemarks.py:923 `request_answer`・:731 `answer_binds`・:1036 `unmatched_answer_lines`
-  - 今: lib/gatemarks.py:795 `request_answer`・:698 `answer_binds`（当たらない答えの名指しは lib/runreport.py:229 `ledger_state` の unmatched。gatemarks の `unmatched_answer_lines` は #232 で消した）・lib/boardview.py:403-404（始めの記録の写しから読む）
+  - 今: lib/gatemarks.py:908 `request_answer`・:716 `answer_binds`・:1021 `unmatched_answer_lines`・lib/boardview.py:403-404（始めの記録の写しから読む）
   - 証: tests/workflows/test_plan_review.py::RequestAnswersCase の 9 件。名指しの文（「依頼の答えに当たる問いが台帳に無い」「複数の問いに当たった」「決着済みの問いに当たった答え」・ANSWERED_HEAD）の断言は外れ、lib/tests/test_runreport.py::LedgerCase.test_answers_that_answer_nothing_are_named・test_answered_lines_name_where_the_answer_came_from が報告の側で持つ（報告は gatemarks を呼ばず書き直した写し lib/runreport.py:228 `ledger_state`）
   - 本物の run: 筋書きでのみ（種の request_ok.json は answers を持たない）
   - 狭め: 無し（報告の側の写しは字の一致だけで answer_ties の結びを読まない、と lib/runreport.py:234 が自ら書く。報告の区分の行）

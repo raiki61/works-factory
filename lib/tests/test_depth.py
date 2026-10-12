@@ -155,6 +155,13 @@ class LinesCase(unittest.TestCase):
         self.assertIn("標準", text)
 
 
+class WordsCase(unittest.TestCase):
+    def test_skipped_review_has_plain_word(self):
+        """省いた目（記録の reviews の skipped）は、最後の関所と報告の目の行に平易な語で出る"""
+        import gatemarks
+        self.assertEqual(gatemarks.eye_named("R1", "skipped"), f"{gatemarks.EYES['R1']}（R1）: 軽量で省いた（skipped）")
+
+
 def put(path: pathlib.Path, doc) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")

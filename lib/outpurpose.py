@@ -16,7 +16,9 @@ FILE に周ごとに控え、判定の写し judgment.json に戻す。次の ru
 - split(reply): （欄を外した返答の写し, 行の一覧）
 - problems(rows, material): 行の誤り（形・材料に当たらない where）。1 件 1 文
 - save(board_dir, rnd, rows, material)・restore(doc, board_dir, rnd): 周の分を控える・判定の写しに戻す
-- next_items(board_dir)・report_lines(board_dir): 次の run の依頼の行・報告の本文の行
+- next_items(board_dir)・report_lines(board_dir)・count_line(board_dir, next_file, section): 次の run の依頼の行・報告の本文の行・
+  報告の冒頭 1（人が決めること）の件数の 1 行。冒頭 1 には人が決めることだけを置き、所見は 1 件ずつ並べない（材料であって決め事でない。
+  利用者の声 10-09 の B。10-09 の利用者は 23 件を読んで 3 件を採った）
 標準ライブラリと住処 marks・carry（L1）だけ。
 """
 import json
@@ -32,6 +34,7 @@ CARRY_KEYS = ("mechanism", "measured", "false_positive_if")   # 依頼の行の�
 MARK = "前の run の判定が凍結した目的の外として単位にしなかった所見を運んだ（この run の目的の内か、別の依頼に分けるかは判定が決める）"
 REPORT_HEAD = ("判定が凍結した目的の外として単位にしなかった所見（次の run の依頼の下書きに材料の行の全部の欄で、下書きの印 draft・"
                "source つきで載せた。依頼の入口が拒むので、次の run の目的に入れる行は印を消し、入れない行は消す）")
+COUNT_HEAD = "判定が目的の外とした所見"   # 冒頭 1 の件数の行の頭
 DRAFT_SOURCE = "前の run の判定が目的の外とした所見"   # next_items の行の source の頭
 ROW_SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["source", "where", "why_outside"],

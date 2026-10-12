@@ -2090,6 +2090,22 @@ def _named_files(st) -> list:
     return sorted({posixpath.normpath(i.partition("::")[0]) for i in ids if i and i.strip()})
 
 
+def final_left(state_file) -> list:
+    """受け付けが直に関わらないので回さず、線の最後のテストの段に任せた試験（状態が無い・まだ選んでいなければ空）"""
+    return _load(state_file).get("final_left", []) if state_file and pathlib.Path(state_file).is_file() else []
+
+
+def final_far(state_file) -> list:
+    """受け付けが一式を回す理由にせず最後のテストの段に任せた、地図の遠く（深さ 2 以上）の分からない物の理由（impact の far）"""
+    return _load(state_file).get("final_far", []) if state_file and pathlib.Path(state_file).is_file() else []
+
+
+def ci_left(state_file) -> list:
+    """受け付けが手元で回さず 手元で回さなかった試験（状態が無い・まだ選んでいなければ空）。見せるだけの読み口なので、状態のファイルが
+    無ければ空（受け付けの知らせの文にも同じ名が載る）"""
+    return _load(state_file).get("ci_left", []) if state_file and pathlib.Path(state_file).is_file() else []
+
+
 REV_CACHE = "accept-rev-cache.json"   # 版の写しの結末の控え（盤面の根。run の全部の輪と受け付けの回が使い回す）
 
 

@@ -7,7 +7,7 @@ tests/bin/gitkit.py と tests/e2e/target-seed/ の写しで小さなリポジト
 - leftovers.record_ignored・remove_new_ignored: 控えに無かった無視されるファイルだけを消し、前から在った無視されるフォルダの
   中は残し、除くパスの頭の下は消さない。既定の () では除かない。控えは置き場のフォルダに置く
 - writes の除き（check・unrecorded の skip）も同じ。fixboard.base_rev は元の writes.base_rev と同じ順で版を選ぶ
-- lens の控えは置き場の lens.json
+- lens の控えは置き場の lens.json。summary は差分の審査の出力をファイルのパスで受ける
 - refix・lenses・rulebook: refix.cut・accept_review・accept_fix は置き場のファイルと引数の値で回り、範囲の外の手直しを
   planrange.check_paths の行で拒む。lenses.render は役の定義の本文から、rulebook.render は fixboard.compose で指示書を組む
 - ruling.prep・accept_rule: 置き場のファイルで回り、作業ツリーの控えは fixboard.snapshot、拒否の理由のファイル・言語の行・輪の回は
@@ -261,13 +261,22 @@ class TestLensPlace(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.place = pathlib.Path(tmp.name)
 
-    def test_routes_and_collect(self):
+    def test_routes_collect_and_summary(self):
         self.assertIsNone(lens.read(self.place))
         lens.write_routes(self.place, [{"lens": "a", "agent": "x", "go": True}, {"lens": "b", "agent": "y", "go": False}])
         self.assertTrue((self.place / lens.LENS_FILE).is_file())
         lens.collect(self.place, {"a": {"findings": [{"where": "w", "cite": "c", "why": "y"}, {"where": ""}]}})
         rows = lens.read(self.place)
         self.assertEqual([(r["lens"], r["state"]) for r in rows], [("a", "ran"), ("b", "not_routed")])
+        self.assertEqual(lens.summary(self.place)["adopted"], None, "審査の出力を渡さなければ調べていない")
+        review = self.place / "review.json"
+        review.write_text(json.dumps({"faces": [{"key": "k", "lens": "a"}, {"key": "j", "lens": "zz"}]}), encoding="utf-8")
+        s = lens.summary(self.place, review)
+        self.assertEqual((s["adopted"], s["not_adopted"], s["dropped"], s["unmatched"]), (1, 0, 1, 1))
+        self.assertIn("採った 1 件", lens.report_lines(self.place, review)[-1])
+        broken = lens.summary(self.place, self.place / "none.json")
+        self.assertFalse(broken["readable"])
+
 
 
 

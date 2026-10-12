@@ -51,10 +51,10 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
   answer_ties（種 answers。答えを問い・単位に、前の周の作り直しの行を直す単位に結ぶ。受け付けが外して確かめ、通れば控え
   answer-ties.json に置く）の手順の口と、判定が単位にしなかった作り直しの報告の行
   ANSWERED_HEAD は答えた行の見出し、ANSWER_HOW は保留の行の下に出す答え方の 1 行
-- unmeasured(b)・origin_of(b, q)・material_answer(b, name)・material_lines(b): 今の周に測れていない素材
+- unmeasured(b)・origin_of(b, q)・material_answer(b, name)・measured_materials(b)・material_lines(b): 今の周に測れていない素材
   （not_run・awaiting_human）・答えを結ぶ時の問いの出どころ（台帳の origin。origin を持てない field の問いは、key の頭の測れていない
-  素材の名）・素材の名で答えた依頼の答え（問いが立っていなくても当たる）・答えた行に足す素材の行（命令と出力つきの答えは
-  HAND_CHECKED と名乗る。利用者の声 10-09 の C2）
+  素材の名）・素材の名で答えた依頼の答え（問いが立っていなくても当たる）・命令と出力つきで答えた素材（報告が検証器の阻害から外す。
+  HAND_CHECKED と名乗る）・答えた行に足す素材の行（利用者の声 10-09 の C2）
 - design_only(b)・design_item(b): 設計だけの run か・関所に載せる設計だけの行（載せなければ空）
 - PLAIN・named(node)・eye_named(name, status): 関所の文と報告が主語にする平易な名（内部の名は括弧へ。plan・specblk・境の節・報告が使う）
 - quote(question)・QUOTE_NOTE: 盤面の問いの文を引用として載せる行と、関所で添える答え方の読み替えの 1 行
@@ -885,6 +885,14 @@ def material_answer(b, name: str):
     if name not in unmeasured(b):
         return None
     return next((a for a in request_answers(b) if a.get("question") == name and len(answer_binds(b, a)) <= 1), None)
+
+
+def measured_materials(b) -> set:
+    """依頼の答えが命令と出力つきで答えた、今の周に測れていない素材の名（報告が検証器の阻害から外す。計画 request-answers の
+    決め 4 を、命令と出力の在る答えに限って測れなかった素材の代わりにする——実測とは書かず、人が手元で確かめたと名乗る）"""
+    if not request_answers(b):
+        return set()
+    return {n for n in unmeasured(b) if (a := material_answer(b, n)) is not None and _measured(a)}
 
 
 def material_lines(b) -> list:

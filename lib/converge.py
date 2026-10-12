@@ -518,6 +518,14 @@ def record_pass(b, review: dict, *, resolved: list, files: dict, synergy: list |
     return row
 
 
+def stash_rejects(b, rows: list) -> None:
+    """最後の往復の行の rejects に足す（往復が無ければ何もしない）"""
+    doc = read(b)
+    if doc["passes"]:
+        doc["passes"][-1].setdefault("rejects", []).extend(rows)
+        _write(b, doc)
+
+
 def held(doc: dict) -> dict | None:
     """抜け方が AGAIN（修正案の役に返す）時の最後の往復の行"""
     return doc["passes"][-1] if doc.get("outcome") == AGAIN and doc.get("passes") else None
