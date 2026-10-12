@@ -1421,7 +1421,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "allowed_tests": [r for r in allowed_rows or [] if isinstance(r, dict)],
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
             "worktree": str(worktree or ""), "handoffs": handoff_lines([reply] if reply else []),
-            "mismatched": final_lines([], "", mismatched),
+            "mismatched": list(mismatched),
             "accept_trace": [{**r, "group_id": gid} for r in accept_trace or [] if isinstance(r, dict)]}
 
 
@@ -1625,7 +1625,6 @@ def check_pack_copy(reply: dict, place, repo, skip) -> str:
     for c in reply.get("changes") or []:
         for f in (c.get("files") if isinstance(c, dict) else None) or []:
             if isinstance(f, str) and f.strip():
-                f = f.strip()
                 f = parking._rel(f, repo)
                 if not parking._ours(f, tuple(skip)):
                     declared.add(f)

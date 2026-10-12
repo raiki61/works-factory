@@ -1810,7 +1810,7 @@ class GroupChildSeamCase(TempCase):
                                     reply=reply, reply_file="/r.json", allowed=["t.py", "t.py"], conflicts=[{"id": 1}])
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                     "objection", "changed", "allowed_test_changes", "allowed_tests", "verified", "reply_file",
-                                    "tdd_state", "worktree", "handoffs", "mismatched"})
+                                    "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace"})
         self.assertEqual(got["worktree"], "", "渡さなければ空")
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
@@ -1822,8 +1822,10 @@ class GroupChildSeamCase(TempCase):
         self.assertEqual(fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
                                                allowed_rows=[row, "壊れた行"])["allowed_tests"], [row])
         final = fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
-                                      reply={"changes": [{"unit_key": "a", "breaks": {"accepted": "x"}}]}, mismatched=["m", "m"])
+                                      reply={"changes": [{"unit_key": "a", "breaks": {"accepted": "x"}}]}, mismatched=["m"],
+                                      accept_trace=[{"op": "fix_tests_selected", "note": "0 件"}, "壊れた行"])
         self.assertEqual((final["handoffs"], final["mismatched"]), (["a: 壊すと分かって通した——x"], ["m"]))
+        self.assertEqual(final["accept_trace"], [{"op": "fix_tests_selected", "note": "0 件", "group_id": "g1"}])
         empty = fixboard.group_result({"group_id": "g2", "unit_ids": []}, start_tree="", end_tree="", tdd=None)
         self.assertEqual((empty["tdd"]["ran"], empty["objection"], empty["reply_file"]), (False, "", ""))
         self.assertFalse(any(empty["changed"].values()))
