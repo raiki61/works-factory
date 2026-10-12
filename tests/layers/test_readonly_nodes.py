@@ -1,7 +1,7 @@
 """作業ツリーを変えない節が `mutates_checkout: false` を書き、役の節が役の決まりを守る（workflows/AGENTS.md の E7 の機械の行）。
 
 全部のブロックと線の役の節（`prompt:`・`command:`。輪の中も）の印は道具から導く: `allowed_tools` に Bash・Edit・Write（scan.TREE_CHANGERS）
-が無い役は書き、在る役は書かない（外れは表 scan.KEEP_CHECKOUT の役だけ）。script の節は表 scan.READONLY_NODES で名指した節が書く。
+が無い役は書き、在る役は書かない（外れは表 scan.KEEP_CHECKOUT の役だけ）。script・bash の節は表 scan.CHANGE_CHECKOUT の節の外が書く。
 `loop:` の節は作らない（Archon は loop: の節の mutates_checkout を無視する）。役の節は settingSources: [user]・閉じた sandbox・
 表 scan.ROLE_TOOLS の中の allowed_tools を持つ（K18）。
 """
@@ -48,7 +48,7 @@ class ReadonlyNodesTest(unittest.TestCase):
     def test_role_nodes_with_the_mark_are_clean(self):
         nodes = (role("diagnose", "[Read, Grep]", True)
                  + "  - id: g\n    loop_group:\n      nodes:\n" + role("again", "[Read]", True, indent=8)
-                 + "  - id: take\n    script: take\n    timeout: 1728000000\n")
+                 + "  - id: take\n    script: take\n    timeout: 1728000000\n    mutates_checkout: false\n")
         self.assertEqual(self.problems({PLAN: workflow("plan", nodes)}), [])
 
     def test_nested_role_node_without_the_mark_is_red(self):
@@ -121,18 +121,28 @@ class ReadonlyNodesTest(unittest.TestCase):
                 self.assertEqual(len(got), 1, got)
                 self.assertIn(words, got[0])
 
-    def test_named_line_node_without_the_mark_is_red(self):
-        named = scan.READONLY_NODES["line"]
-        nodes = "".join(f"  - id: {name}\n    script: x\n    mutates_checkout: false\n" for name in named[1:])
-        got = self.problems({LINE: f"name: works-factory-line\nnodes:\n  - id: {named[0]}\n    script: x\n" + nodes})
+    def test_script_node_without_the_mark_is_red(self):
+        """script・bash の節は表 CHANGE_CHECKOUT に無ければ書く"""
+        for kind in ("script: take", "bash: echo"):
+            with self.subTest(kind=kind):
+                got = self.problems({PLAN: workflow("plan", f"  - id: take\n    {kind}\n")})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("take", got[0])
+
+    def test_change_checkout_node_with_the_mark_is_red(self):
+        self.assertIn(("line", "start"), scan.CHANGE_CHECKOUT)
+        got = self.problems({LINE: workflow("line", "  - id: start\n    script: start\n    mutates_checkout: false\n")})
         self.assertEqual(len(got), 1, got)
-        self.assertIn(named[0], got[0])
+        self.assertIn("CHANGE_CHECKOUT", got[0])
 
-    def test_named_node_missing_from_its_workflow_is_red(self):
-        """表が名指した節が工程に無ければ赤（表が古くなって黙って照らさなくならない）"""
-        got = self.problems({LINE: "name: works-factory-line\nnodes: []\n"})
-        self.assertEqual(len(got), len(scan.READONLY_NODES["line"]), got)
-
+    def test_change_checkout_rows_name_code_nodes_of_the_tree(self):
+        """表が名指した節は本物の工程の script・bash の節（表が古くなって黙って外さない）"""
+        for block, ident in scan.CHANGE_CHECKOUT:
+            with self.subTest(block=block, node=ident):
+                _, document = scan._workflow_doc(ROOT / "workflows" / block)
+                node = next((n for n in scan._nodes(document) if getattr(scan._top(n, "id"), "value", None) == ident), None)
+                self.assertIsNotNone(node)
+                self.assertTrue(any(scan._top(node, kind) is not None for kind in scan.CODE_KINDS))
 
 if __name__ == "__main__":
     unittest.main()

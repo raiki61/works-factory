@@ -114,7 +114,7 @@ class BlockReturnsTest(unittest.TestCase):
 
 
     def test_declared_input_without_a_reader_is_red(self):
-        """ブロックの入力は、その script の INPUTS_<名> か指示書・YAML の $INPUTS.<名> に読み手を持つ（K12）"""
+        """ブロックの入力は、その script の INPUTS_<名> か役の指示書の $INPUTS.<名> に読み手を持つ（K12）"""
         block = RETURNING.replace("nodes:\n", "inputs:\n  plan: {default: ''}\n  ripple-list: {default: ''}\nnodes:\n", 1)
         files = {BLOCK: block, LINE: "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
                                      "  - id: r\n    script: r\n    with: {a: $judge.output.ready, b: $judge.output.units}\n"}
@@ -122,6 +122,19 @@ class BlockReturnsTest(unittest.TestCase):
         self.assertEqual(sorted(line.split("入力 ")[1].split(" ")[0] for line in got), ["plan", "ripple-list"], got)
         files["workflows/judge/scripts/s.py"] = 'P = os.environ["INPUTS_PLAN"]\n'
         files["workflows/judge/commands/c.md"] = "波及は $INPUTS.ripple-list\n"
+        self.assertEqual(self.files(files), [])
+
+    def test_input_passed_by_with_only_is_red(self):
+        """YAML の with: で script へ渡すだけの $INPUTS.<名> は読み手に数えない（merge の diff を merge.py が読まないと赤）。
+        YAML の役の節の prompt: の $INPUTS.<名> は数える"""
+        block = RETURNING.replace("nodes:\n", "inputs:\n  diff: {default: ''}\nnodes:\n", 1)
+        block += "  - id: s\n    script: s\n    with: {diff: $INPUTS.diff}\n"
+        files = {BLOCK: block, LINE: "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
+                                     "  - id: r\n    script: r\n    with: {a: $judge.output.ready, b: $judge.output.units}\n"}
+        got = self.files(files)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("入力 diff に読み手が無い", got[0])
+        files[BLOCK] = block + "  - id: role\n    prompt: 差分は $INPUTS.diff\n"
         self.assertEqual(self.files(files), [])
 
     def test_role_in_a_loop_group_binding_its_own_with_is_red(self):

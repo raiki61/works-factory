@@ -25,6 +25,7 @@ import unittest
 import yaml
 
 from tests.bin.gitkit import committed_copy, git
+from tests.layers.scan import script_reads as reads
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEED = ROOT / "tests" / "e2e" / "target-seed"
@@ -47,13 +48,6 @@ def flat(nodes) -> list[dict]:
 def pointer_inputs(doc: dict) -> list[str]:
     return [name for name, spec in (doc.get("inputs") or {}).items()
             if isinstance(spec, dict) and POINTER.search(spec.get("description") or "")]
-
-
-def reads(text: str, name: str) -> bool:
-    """script の字が入力 name を読むか"""
-    if re.search(rf"INPUTS_{name.upper()}(?![A-Z0-9_])", text):
-        return True
-    return "INPUTS_{" in text and re.search(rf"[\"']{re.escape(name)}[\"']", text) is not None
 
 
 def readers(block: pathlib.Path, doc: dict, name: str) -> list[dict]:

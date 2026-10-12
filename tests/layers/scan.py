@@ -72,33 +72,42 @@ OWNER_ENV = ("raiki61", "claude-code-oauth-", "/Users/")
 ALLOWED = {
     "E3": (
         "lib/AGENTS.md",
-        # 区分の issue で外す（今の works から写した lib が実行基盤の名を字で持つ。K7）
-        "lib/stage_a.py#INPUTS_UNITS",
-        "lib/stage_b.py#INPUTS_BASE_REV",
-        "lib/stage_b.py#INPUTS_ROOT",
-        "lib/tree_run.py#INPUTS_CMD",
-        "lib/refixrules.py#$LOOP_PREV",
-        "lib/rolekit.py#$LOOP_PREV",
-        "lib/report_roles.py#loop_group",
-        "lib/boardview.py#loop_group",
-        "lib/specblk.py#$spec-gate.output",
-        "lib/judge_accept.py#$spec-gate.output",
-        "lib/judge_accept.py#$material-route.output",
+        # 今の works から写した lib が実行基盤の名を字で持つ（K7）。行ごとに外す区分の issue
+        "lib/stage_a.py#INPUTS_UNITS",              # 区分 P #120（planfile が読む単位の口）
+        "lib/stage_b.py#INPUTS_BASE_REV",           # 区分 E #123（structure-after の直しの前の版の口）
+        "lib/stage_b.py#INPUTS_ROOT",               # 区分 E #123（structure-after の対象の根の口）
+        "lib/tree_run.py#INPUTS_CMD",               # 区分 T #122（test-gate の run が走らせるコマンドの口）
+        "lib/refixrules.py#$LOOP_PREV",             # 区分 F #121（手直しの指示書の docstring）
+        "lib/rolekit.py#$LOOP_PREV",                # 区分 F #121（with_reject の docstring。使う役は fix の手直しと裁定）
+        "lib/report_roles.py#loop_group",           # 区分 R #124（受け付けの諦めの数の注）
+        "lib/boardview.py#loop_group",              # 区分 P #120（plan-review の往復の柵の注）
+        "lib/specblk.py#$spec-gate.output",         # 区分 J #119（仕様の関所の出口の字）
+        "lib/judge_accept.py#$spec-gate.output",    # 区分 J #119（仕様の関所の答えの字）
+        "lib/judge_accept.py#$material-route.output",  # 区分 J #119（素材の振り分けの返りの欄の注）
+        # 役に届く文に $LOOP_PREV が無いことを確かめる試験の字。語の不在を試すので区分の issue の後も残る
         "lib/tests/test_blk_fix.py#$LOOP_PREV",
         "lib/tests/test_blk_plan.py#$LOOP_PREV",
         "lib/tests/test_fix_rules.py#$LOOP_PREV",
-        "lib/tests/test_tree_run.py#INPUTS_CMD",
+        "lib/tests/test_tree_run.py#INPUTS_CMD",    # 区分 T #122（lib/tree_run.py の INPUTS_CMD の口を試す。口と一緒に外す）
     ),
     "E5": (
-        # 区分の issue で外す（宣言したが誰も読まない入力。K12。区分 P）
-        "workflows/plan-review/works-factory-plan-review.yaml#units",
+        # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
+        "workflows/plan-review/works-factory-plan-review.yaml#units",  # 区分 P #120
+        "workflows/merge/works-factory-merge.yaml#diff",               # 区分 M #125（受けるが読まない。封じるのは今の木から組み直した差分）
     ),
     "E4": (
-        # 区分の issue で外す（script どうしの import。K8）
-        "workflows/fix/scripts/#fixio",
+        # script どうしの import（K8）。今 import している script を 1 本ずつ名指す。外す区分の issue は fix が区分 F #121・report が区分 R #124
+        *(f"workflows/fix/scripts/{name}.py#fixio" for name in (
+            "assert_changed", "clean", "collect", "conflict_check", "consult_accept", "consult_check", "cut2", "delta_accept",
+            "delta_cut", "fix_accept", "fix_prep", "fix_ruled_accept", "fix_ruled_prep", "group_end", "group_start", "join",
+            "lens_collect", "lens_prep", "prep", "refix2_accept", "refix2_prep", "refix_accept", "refix_prep", "review2_accept",
+            "route", "rule_accept", "rule_prep", "tdd_prep", "tdd_step", "tdd_unit",
+        )),
         "workflows/fix/scripts/group_start.py#prep",
-        "workflows/report/scripts/#place",
-        "workflows/report/scripts/#typed",
+        "workflows/report/scripts/collect.py#place",
+        "workflows/report/scripts/facts.py#place",
+        "workflows/report/scripts/facts.py#typed",
+        "workflows/report/scripts/report_accept.py#place",
     ),
     "E13": (
         "lib/AGENTS.md",
@@ -537,9 +546,21 @@ def _block_returns(root: Path) -> list[str]:
     return out
 
 
+def script_reads(text: str, name: str) -> bool:
+    """script の字が入力 name を読むか。Archon は名の - を _ にして大文字の INPUTS_<名> で渡す。`INPUTS_{…}` を組んで読む script は
+    名の字を持つ物を読み手に数える"""
+    if re.search(rf"INPUTS_{re.escape(name.replace('-', '_').upper())}(?![A-Z0-9_])", text):
+        return True
+    return "INPUTS_{" in text and re.search(rf"[\"']{re.escape(name)}[\"']", text) is not None
+
+
+def _role_reads(text: str, name: str) -> bool:
+    return re.search(rf"\$INPUTS\.{re.escape(name)}(?![\w-])", text) is not None
+
+
 def _inputs_read(root: Path) -> list[str]:
-    """ブロックの inputs: の名は、そのブロックの script の字の INPUTS_<名>（Archon は - を _ にして大文字で渡す）か、指示書と YAML の
-    $INPUTS.<名> に現れる（宣言しただけで誰も読まない入力を残さない）"""
+    """ブロックの inputs: の名は、そのブロックの script が INPUTS_<名> で読むか、役の指示書（commands/ と YAML の prompt:）が
+    $INPUTS.<名> で読む（宣言しただけで誰も読まない入力を残さない）。YAML の with: で script へ渡すだけの字は読み手に数えない"""
     out = []
     for folder in _blocks(root):
         if folder.name == LINE_FOLDER:
@@ -547,12 +568,12 @@ def _inputs_read(root: Path) -> list[str]:
         path, document = _workflow_doc(folder)
         if document is None:
             continue
-        scripts = "\n".join(line for p in _files(folder, "scripts") if p.suffix == ".py" for line in _lines(root, p)[0])
-        texts = path.read_text(encoding="utf-8") + "".join(p.read_text(encoding="utf-8", errors="replace")
-                                                            for p in _files(folder, "commands"))
+        scripts = ["\n".join(_lines(root, p)[0]) for p in _files(folder, "scripts") if p.suffix == ".py"]
+        roles = [p.read_text(encoding="utf-8", errors="replace") for p in _files(folder, "commands")]
+        roles += [value.value for node in _nodes(document) if isinstance(value := _top(node, "prompt"), yaml.ScalarNode)]
         for key, value in _pairs(_top(document, "inputs")):
-            env = "INPUTS_" + key.replace("-", "_").upper()
-            if not re.search(rf"\b{env}\b", scripts) and not re.search(rf"\$INPUTS\.{re.escape(key)}(?![\w-])", texts):
+            if not any(script_reads(text, key) for text in scripts) and not any(_role_reads(text, key) for text in roles):
+                env = "INPUTS_" + key.replace("-", "_").upper()
                 out.append(f"{_rel(root, path)}:{_line(value)}: 入力 {key} に読み手が無い（script の {env} も指示書の $INPUTS.{key} も無い）")
     return out
 
@@ -607,8 +628,9 @@ def _outward_write(root: Path) -> list[str]:
 # 役の節（prompt:・command:）の印は道具から導く: allowed_tools に作業ツリーを変える道具（TREE_CHANGERS）が無い役は
 # mutates_checkout: false を書き、在る役は書かない（元 works/tests/test_yaml_rules.py の TREE_CHANGERS と keep_checkout）。
 # 外れは KEEP_CHECKOUT の役だけ（変える道具を持つが作業ツリーは変えない役で、false で Archon に守らせる）。
-# script の節は READONLY_NODES で名指した節が false を書く。
+# script・bash の節は全部 false を書く。外れは CHANGE_CHECKOUT の節だけ（作業ツリーを変えるか、印を足すと振る舞いが変わる節）。
 ROLE_KINDS = ("prompt", "command")
+CODE_KINDS = ("script", "bash")
 TREE_CHANGERS = frozenset({"Bash", "Edit", "Write"})
 KEEP_CHECKOUT = {
     ("judge", "judge-verify"): "単位ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout）",
@@ -616,29 +638,22 @@ KEEP_CHECKOUT = {
     ("test-gate", "ci"): "Bash でテストを走らせるが作業ツリーは書かない。今の works は包みが作業ツリーを守り、ここでは false と ci-accept の"
                          "作業ツリーの比べが守る（#69）",
 }
+CHANGE_CHECKOUT = {
+    ("line", "start"): "始めの記録を run の置き場に書くだけだが、今の線は印を持たない。足すと Archon の照らしが増えて振る舞いが変わるので部分 0 では足さない",
+    ("judge", "spec-freeze"): "人が通した受け入れ条件を作業ツリーで /bin/sh -c で走らせる（lib/judge_accept._spec_run）",
+    ("fix", "group-start"): "親の姿の木を作業ツリーと index に写す（groups.adopt_tree）",
+    ("fix", "join"): "並べた組の子の差分を親の作業ツリーへ当て、当たらない組は戻す（unittrees.apply）",
+    ("fix", "clean"): "修正役が残した git の無視するファイルを消す（leftovers.remove_new_ignored）",
+    ("fix", "tdd-step"): "諦めた単位を単位の頭の木に戻す（tddloop.step）",
+    ("fix", "fix-accept"): "3 回目の拒否で名指しの単位を戻す（fixboard.accept_reply）",
+    ("fix", "fix-ruled-accept"): "3 回目の拒否で名指しの単位を戻す（fixboard.accept_reply の ruled）",
+    ("fix", "refix-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
+    ("fix", "refix2-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
+    ("test-gate", "run"): "対象のテストを作業ツリーで走らせる（declared_checks.run_ci）",
+}
 # 役の節に要る鍵（K18。元 works/tests/test_yaml_rules.py の決まり）: settingSources: [user]・閉じた sandbox・道具の表の中の allowed_tools
 ROLE_TOOLS = frozenset({"Read", "Grep", "Glob", "Edit", "Write", "Bash", "WebSearch", "WebFetch", "Agent", "Skill"})
 CLOSED_SANDBOX = (("enabled", "true"), ("allowUnsandboxedCommands", "false"))
-READONLY_NODES = {
-    "line": (
-        "answer-start", "plan-out", "ask-before-fix", "answer-before-fix", "after-fix", "judged", "ask-replan",
-        "answer-replan", "fixed", "redepth", "ask-final", "answer-final", "collect", "result",
-        # 受け皿（workflows/line/scripts/returned.py）
-        "test-gate-base-out", "judge-out", "plan-rounds-out", "plan-rounds-review-out", "fix-out", "rejudge-run-out", "replan-out",
-        "replan-review-out", "test-gate-final-out", "eyes-out", "merge-seal-out", "merge-apply-out",
-    ),
-    # 受け付けと材料の組み立てと世界の解の段の script（run の置き場に書くだけ。作業ツリーの姿は比べるだけで変えない）。
-    # spec-freeze は外す: 人が通した受け入れ条件を作業ツリーで /bin/sh -c で走らせる（lib/judge_accept._spec_run）
-    "judge": (
-        "spec-accept", "spec-review-accept", "spec-revise-accept", "pr-check-accept", "premises-accept",
-        "purpose-accept", "world-intake", "world-classes-accept", "world-plan", "world-judge-accept", "world-finish",
-        *(f"{role}-{step}" for role in ("prior-decisions", "purpose-review", "local-review", "consistency-bypass", "hygiene",
-                                        "external-standards", "procedure-trace", "gate-efficacy", "test-double-fidelity",
-                                        "main-path-observation", "provenance")
-          for step in ("prep", "accept")),
-        "diagnose-accept", "rejudge-accept",
-    ),
-}
 YAML_BOOL = "tag:yaml.org,2002:bool"
 
 
@@ -653,7 +668,6 @@ def _readonly_nodes(root: Path) -> list[str]:
         if document is None:
             continue
         rel = _rel(root, path)
-        named = READONLY_NODES.get(folder.name, ())
         seen = set()
         for node in _nodes(document):
             ident = getattr(_top(node, "id"), "value", "")
@@ -672,11 +686,12 @@ def _readonly_nodes(root: Path) -> list[str]:
                     out.append(f"{at}: 作業ツリーを変える道具を持つ役 {ident} に mutates_checkout: false が在る")
                 elif not marked and (not changer or keep):
                     out.append(f"{at}: 読むだけの役 {ident} に mutates_checkout: false が無い")
-            elif ident in named and not marked:
-                out.append(f"{at}: 読むだけの節 {ident} に mutates_checkout: false が無い")
-        for ident in named:
-            if ident not in seen:
-                out.append(f"{rel}:1: 表 READONLY_NODES が名指した節 {ident} が工程に無い")
+            elif any(_top(node, kind) is not None for kind in CODE_KINDS):
+                changes = (folder.name, ident) in CHANGE_CHECKOUT
+                if marked and changes:
+                    out.append(f"{at}: 表 CHANGE_CHECKOUT の節 {ident} に mutates_checkout: false が在る")
+                elif not marked and not changes:
+                    out.append(f"{at}: script の節 {ident} に mutates_checkout: false が無い（作業ツリーを変えるなら表 CHANGE_CHECKOUT に訳を書く）")
         for block, ident in KEEP_CHECKOUT:
             if block == folder.name and ident not in seen:
                 out.append(f"{rel}:1: 表 KEEP_CHECKOUT が名指した役 {ident} が工程に無い")
