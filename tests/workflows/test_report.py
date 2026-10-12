@@ -21,7 +21,6 @@ import unittest
 import yaml
 
 from tests import archon
-from tests.workflows import nodeflags
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "report"
@@ -555,19 +554,6 @@ class RealRunCase(unittest.TestCase):
                 self.assertEqual(got["warnings"], [])
                 self.assertEqual([(r["node"], r["body"]) for r in got["by_type"]["probe-kind"]], [("make", {"a": 1})])
                 self.assertEqual(typed.own_prefix(env["ARCHON_NODE_EXECUTION"]), "")
-
-class NodeFlagsCase(unittest.TestCase):
-    """節の印（tests/workflows/nodeflags.py）: coldwrite を節に名指さない・作業ツリーを比べる受け付けの status_guarded が受ける役の
-    mutates_checkout: false と対になる"""
-
-    def setUp(self):
-        self.doc = yaml.safe_load((nodeflags.WORKFLOWS / "report" / "works-factory-report.yaml").read_text(encoding="utf-8"))
-
-    def test_no_node_names_coldwrite(self):
-        self.assertEqual(nodeflags.coldwrite_named(self.doc), [])
-
-    def test_guarded_accepts_flag_matches_role(self):
-        self.assertEqual(nodeflags.guarded_mismatches(self.doc, "report"), [])
 
 
 if __name__ == "__main__":

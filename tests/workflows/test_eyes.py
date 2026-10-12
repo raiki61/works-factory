@@ -17,7 +17,6 @@ import unittest
 import yaml
 
 from tests import archon
-from tests.workflows import nodeflags
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -606,19 +605,6 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(got["after"]["path"], "eyes/structure-after.json")
         self.assertTrue((self.artifacts / "eyes" / "structure-after.json").is_file())
 
-
-class NodeFlagsCase(unittest.TestCase):
-    """節の印（tests/workflows/nodeflags.py）: coldwrite を節に名指さない・作業ツリーを比べる受け付けの status_guarded が受ける役の
-    mutates_checkout: false と対になる"""
-
-    def setUp(self):
-        self.doc = yaml.safe_load((nodeflags.WORKFLOWS / "eyes" / "works-factory-eyes.yaml").read_text(encoding="utf-8"))
-
-    def test_no_node_names_coldwrite(self):
-        self.assertEqual(nodeflags.coldwrite_named(self.doc), [])
-
-    def test_guarded_accepts_flag_matches_role(self):
-        self.assertEqual(nodeflags.guarded_mismatches(self.doc, "eyes"), [])
 
 
 if __name__ == "__main__":

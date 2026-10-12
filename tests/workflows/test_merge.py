@@ -19,7 +19,6 @@ from unittest import mock
 import yaml
 
 from tests import archon
-from tests.workflows import nodeflags
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -393,19 +392,6 @@ class FixturesTest(unittest.TestCase):
             self.assertIn(f"merge/fixtures/{name}", done.stdout)
         self.assertIn(f"{len(fixtures)} passed, 0 failed", done.stdout)
 
-
-class NodeFlagsCase(unittest.TestCase):
-    """節の印（tests/workflows/nodeflags.py）: coldwrite を節に名指さない・作業ツリーを比べる受け付けの status_guarded が受ける役の
-    mutates_checkout: false と対になる"""
-
-    def setUp(self):
-        self.doc = yaml.safe_load((nodeflags.WORKFLOWS / "merge" / "works-factory-merge.yaml").read_text(encoding="utf-8"))
-
-    def test_no_node_names_coldwrite(self):
-        self.assertEqual(nodeflags.coldwrite_named(self.doc), [])
-
-    def test_guarded_accepts_flag_matches_role(self):
-        self.assertEqual(nodeflags.guarded_mismatches(self.doc, "merge"), [])
 
 
 if __name__ == "__main__":

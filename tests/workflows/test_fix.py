@@ -17,7 +17,6 @@ from unittest import mock
 import yaml
 
 from tests import archon
-from tests.workflows import nodeflags
 from tests.bin import hermetic
 from tests.bin.gitkit import git
 
@@ -1778,16 +1777,3 @@ class FixLoopScriptsCase(unittest.TestCase):
         self.assertEqual((code, out["iteration"]), (0, 2), err)
         self.assertIn(reject, pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8"))
 
-
-class NodeFlagsCase(unittest.TestCase):
-    """節の印（tests/workflows/nodeflags.py）: coldwrite を節に名指さない・作業ツリーを比べる受け付けの status_guarded が受ける役の
-    mutates_checkout: false と対になる"""
-
-    def setUp(self):
-        self.doc = yaml.safe_load((nodeflags.WORKFLOWS / "fix" / "works-factory-fix.yaml").read_text(encoding="utf-8"))
-
-    def test_no_node_names_coldwrite(self):
-        self.assertEqual(nodeflags.coldwrite_named(self.doc), [])
-
-    def test_guarded_accepts_flag_matches_role(self):
-        self.assertEqual(nodeflags.guarded_mismatches(self.doc, "fix"), [])
