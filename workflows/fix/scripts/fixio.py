@@ -74,23 +74,6 @@ def repo() -> pathlib.Path:
     return pathlib.Path(top.stdout.strip())
 
 
-# Archon が script に渡す変数。対象のテストの実行器に継がせない（lib/ は環境を os.environ から継いで子を起こす）。節ごと・子の run
-# ごとに値が違うので、残すと同じ run の中の試験の結果の使い回し（tree_run.reuse_run）の指紋も割れる。頭の一致は ARCHON_・INPUTS_
-# だけで、ほかは名の完全一致（CONTEXT などを頭で落とすと利用者の変数まで落とす）。名は止めた Archon の
-# packages/workflows/src/exec-environment.ts の buildExecNodeEnvironment。test-gate の run.py が同じ 2 つを持つ（試験が等しさを縛る）
-RUNNER_PREFIXES = ("ARCHON_", "INPUTS_")
-RUNNER_NAMES = frozenset({
-    "ARTIFACTS_DIR", "STATE_DIR", "LOG_DIR", "ADOPTED_RUN_DIR", "WORKFLOW_ID", "BASE_BRANCH", "USER_MESSAGE", "ARGUMENTS",
-    "LOOP_USER_INPUT", "LOOP_PREV_OUTPUT", "REJECTION_REASON", "CONTEXT", "EXTERNAL_CONTEXT", "ISSUE_CONTEXT", "TYPED_ARTIFACTS_FILE",
-})
-
-
-def drop_runner_env() -> None:
-    """入力を読み終えた後、テストを走らせる lib/ の関数を呼ぶ前に呼ぶ"""
-    for name in [n for n in os.environ if n.startswith(RUNNER_PREFIXES) or n in RUNNER_NAMES]:
-        del os.environ[name]
-
-
 def line_top(out_dir: str) -> pathlib.Path | None:
     """同じ run の中の試験の結果の控えを置く run の置き場（線の run の成果物の置き場）。組の子の run は入力 out_dir（親の置き場の
     <run の置き場>/fix/<include の名>/groups）から 3 つ上、単独の run（out_dir が空）は自分の ARTIFACTS_DIR。形が違えば None（使い回さない）"""

@@ -85,7 +85,7 @@ def main() -> dict:
     else:
         reuse = tree_run.reuse_place(fixio.line_top(out_dir), str(start.get("run_id") or ""),
                                      rerun=bool(os.environ.get(tree_run.RERUN_ENV)))
-        fixio.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo・reuse は先に取った）
+        boundary.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo・reuse は先に取った）
         out = tddloop.start(place, repo, suite, json.dumps(keys, ensure_ascii=False),
                             test_cmd=str(start.get("test_cmd") or ""), unit_depths=depths, owed=set(keys), reuse=reuse)
     fixboard.write_json(place / fixboard.TDD_START_FILE, out)

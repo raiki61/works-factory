@@ -56,7 +56,7 @@ def main() -> dict:
     judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
     hits = querytest.judge_hits(judgment.get("units") or [] if isinstance(judgment, dict) else [])
     log = fixio.writes_log()
-    fixio.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
+    boundary.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
     out = tddloop.step(state, reply, repo, try_query=hits, log=log)
     tddloop.flush_unsent(state, lambda rows: conflict.park_claims(place, rows))
     reason_file = ""

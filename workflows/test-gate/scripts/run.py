@@ -30,13 +30,6 @@ from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path
 
 LOGS = "logs"
 WORKSPACE_PREFIX = ".archon/"   # Archon が run の作業ツリーに置く物。修正の変更でない
-# Archon が script に渡す変数（fix の fixio.py と同じ 2 つ。試験が等しさを縛る）。頭の一致は ARCHON_・INPUTS_ だけで、ほかは名の完全一致。
-# 名は止めた Archon の packages/workflows/src/exec-environment.ts の buildExecNodeEnvironment（tests/shared/test_archon_contract.py が照らす）
-RUNNER_PREFIXES = ("ARCHON_", "INPUTS_")
-RUNNER_NAMES = frozenset({
-    "ARTIFACTS_DIR", "STATE_DIR", "LOG_DIR", "ADOPTED_RUN_DIR", "WORKFLOW_ID", "BASE_BRANCH", "USER_MESSAGE", "ARGUMENTS",
-    "LOOP_USER_INPUT", "LOOP_PREV_OUTPUT", "REJECTION_REASON", "CONTEXT", "EXTERNAL_CONTEXT", "ISSUE_CONTEXT", "TYPED_ARTIFACTS_FILE",
-})
 OUTPUT = ("by", "material", "runs", "skipped_steps", "same_as", "log", "junit_steps", "fingerprint_before", "fingerprint_after")
 
 
@@ -62,12 +55,6 @@ def request_wheres(start: dict, mode: str) -> list:
     except (OSError, UnicodeDecodeError, ValueError):
         return []
     return [f["where"] for f in findings if isinstance(f, dict) and isinstance(f.get("where"), str)]
-
-
-def drop_runner_env() -> None:
-    """入力と置き場を読み終えた後、テストを走らせる lib/ の関数を呼ぶ前に呼ぶ"""
-    for name in [n for n in os.environ if n.startswith(RUNNER_PREFIXES) or n in RUNNER_NAMES]:
-        del os.environ[name]
 
 
 def fresh_gate(gate: Path) -> Path:
@@ -99,7 +86,7 @@ def main() -> int:
     log_dir = fresh_gate(gate)
     reuse = (tree_run.reuse_place(artifacts, start.get("run_id") or "", rerun=bool(os.environ.get(tree_run.RERUN_ENV)))
              if mode == "base" else None)
-    drop_runner_env()
+    boundary.drop_runner_env()
     base_rev = start.get("base_rev") or ""
     suite = start.get("tdd_suite") or ""
     wheres = request_wheres(start, mode)

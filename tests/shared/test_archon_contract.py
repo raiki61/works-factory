@@ -130,16 +130,15 @@ def _answer_positions() -> list[int]:
 
 
 def _runner_vars() -> dict:
-    """test-gate の run.py の RUNNER_PREFIXES・RUNNER_NAMES（script は import すると lib を sys.path に足すので、字から読む。
-    fix の fixio.py の写しは tests/workflows/test_test_gate.py の RunnerVarsCase が等しさを縛る）"""
-    tree = ast.parse((ROOT / "workflows/test-gate/scripts/run.py").read_text(encoding="utf-8"))
+    """境 boundary.py の RUNNER_PREFIXES・RUNNER_NAMES（字から読む）"""
+    tree = ast.parse((ROOT / "workflows/.shared/boundary.py").read_text(encoding="utf-8"))
     return {t.id: ast.literal_eval(n.value.args[0] if isinstance(n.value, ast.Call) else n.value)
             for n in tree.body if isinstance(n, ast.Assign) for t in n.targets
             if isinstance(t, ast.Name) and t.id in ("RUNNER_PREFIXES", "RUNNER_NAMES")}
 
 
 def _exec_node_names(body: str) -> list[str]:
-    """buildExecNodeEnvironment が返す物の鍵のうち、写しの頭の一致（RUNNER_PREFIXES）で落ちない物"""
+    """buildExecNodeEnvironment が返す物の鍵のうち、頭の一致（RUNNER_PREFIXES）で落ちない物"""
     return sorted(k for k in re.findall(r"^    (\w+):", body, re.M) if not k.startswith(_runner_vars()["RUNNER_PREFIXES"]))
 
 

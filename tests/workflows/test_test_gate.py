@@ -7,7 +7,6 @@
   任せ先の受け付けの拒みと諦め・返す節の赤の原因と認証・壊れた入力でも落ちない返す節
 - 筋書き: tests/archon.py の使い捨ての木で `archon workflow test` を fixtures/ の全部に走らせる（Archon の源が無ければ見送る）
 """
-import ast
 import hashlib
 import json
 import os
@@ -499,21 +498,6 @@ class RunScriptCase(ScriptCase):
         rc, out, err = self.script("run", mode="base", start=self.start)
         self.assertEqual((rc, out), (1, None))
         self.assertIn(".works-checks.json", err)
-
-
-class RunnerVarsCase(unittest.TestCase):
-    def test_test_gate_drops_the_same_runner_vars_as_fix(self):
-        """test-gate の run と fix の script が対象のテストの前に落とす Archon の変数は同じ（ブロックどうしは import しないので
-        2 か所に持つ。片方だけ足すと、同じ run の中の控えの指紋が test-gate と fix で割れて当たらない）"""
-        def consts(path):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            return {t.id: ast.literal_eval(n.value.args[0] if isinstance(n.value, ast.Call) else n.value)
-                    for n in tree.body if isinstance(n, ast.Assign) for t in n.targets
-                    if isinstance(t, ast.Name) and t.id in ("RUNNER_PREFIXES", "RUNNER_NAMES")}
-        gate = consts(SCRIPTS / "run.py")
-        fix = consts(ROOT / "workflows" / "fix" / "scripts" / "fixio.py")
-        self.assertEqual(set(gate), {"RUNNER_PREFIXES", "RUNNER_NAMES"})
-        self.assertEqual(gate, fix)
 
 
 class CiRoleCase(ScriptCase):
