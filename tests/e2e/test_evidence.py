@@ -11,7 +11,7 @@ import subprocess
 import sys
 import unittest
 
-from tests.bin import hermetic
+from tests.bin import hermetic, stepnames
 from tests.e2e import evidence
 
 E2E = pathlib.Path(__file__).resolve().parent
@@ -21,6 +21,8 @@ INVENTORY_FILES = ("line.md", "judge.md", "plan.md", "fix.md", "tail.md")
 WIRING = ROOT / "docs" / "plans" / "2026-10-13-line-wiring.md"
 ROW_ID = r"(?:L-[EGWD]|[JPFTERM])\d+[a-z]?"
 SCENARIO_ONLY = "筋書きでのみ"
+# 照らしの where の run の記録 → その run の工程（親は線、子は fix の組ごとの子の run）
+RECORDS = {"record/parent.json": "works-factory-line", "record/child-*.json": "works-factory-fix"}
 OUTSIDE = "この文書の外"
 
 FAKE_SHELL = """#!/usr/bin/env python3
@@ -112,6 +114,21 @@ class EvidenceTableCase(unittest.TestCase):
                 waiting = {row["id"] for row in self.rows if row["kind"] == "waits-part" and row["part"] == part}
                 self.assertTrue(parts.get(part))
                 self.assertEqual(waiting, parts[part])
+
+    def test_node_rules_name_node_ids_the_workflow_makes(self):
+        """run の記録の節の id を照らす行（json-equals の nodes.*.nodeId と、引用符を含む text-contains）は、その run の工程の
+        YAML から組んだ節の id のどれかに当たる。種類を問わない（seen でない行も、当たらなければ unexpected を言えない）"""
+        names = {where: stepnames.step_names(flow) for where, flow in RECORDS.items()}
+        for row in self.rows:
+            if not row.get("where", "").startswith("record/"):
+                continue
+            with self.subTest(row=row["id"]):
+                self.assertIn(row["where"], names)
+                shown = [json.dumps({"nodeId": n}, ensure_ascii=False)[1:-1] for n in names[row["where"]]]
+                if row["check"] == "json-equals" and row["path"] == "nodes.*.nodeId":
+                    self.assertIn(row["value"], names[row["where"]])
+                elif row["check"] == "text-contains" and '"' in row["text"]:
+                    self.assertTrue(any(row["text"] in line for line in shown), row["text"])
 
     def test_backlog_and_handed_off_rows_name_their_place(self):
         _, outside = wiring()
