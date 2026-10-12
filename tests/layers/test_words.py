@@ -4,8 +4,8 @@
 見る字（`scope`）: `docs/` の直下の `*.md`・`*.json`・`AGENTS.md`（ASF の物を除く）・根の `README.md`・`MISSION.md`・`engineering.md`・
 `lib/` の直下の `*.md`・`*.json`・借りる物の表 `bin/_lib/borrow/*.json`・
 役の指示書（`workflows/*/commands/` の下の全部・`lib/agents/*.md`・`bin/_lib/borrow/unattended.md`）・グラフの YAML の `description`・`prompt`・`systemPrompt`・`message` の値・
-`lib/` の直下・`workflows/*/scripts/`・境 `workflows/.shared/`・入口 `bin/`（殻 2 つ・`bin/_lib/` の直下・`bin/_lib/no-post-bin/works-gh`）の Python の文字列
-（docstring とコメントは開発者の字なので見ない）。旧い語は #115 の対応表の左の全部で、部分一致で探す。外す規則は `EXCEPT` の 1 か所。
+`lib/` の直下・`workflows/*/scripts/`・境 `workflows/.shared/` の Python の文字列（docstring とコメントは開発者の字なので見ない）・
+入口 `bin/`（殻 2 つ・`bin/_lib/` の直下・`bin/_lib/no-post-bin/works-gh`）の Python の文字列・docstring・コメントの全部。旧い語は #115 の対応表の左の全部で、部分一致で探す。外す規則は `EXCEPT` の 1 か所。
 """
 import ast
 import io
@@ -62,7 +62,7 @@ EXCEPT = {
 
 
 def scope(root):
-    """`(根からのパス, 種類)` を並べる。種類は md（json も行ごとに読む）・yaml・py"""
+    """`(根からのパス, 種類)` を並べる。種類は md（json も行ごとに読む）・yaml・py・bin（docstring とコメントも読む py）"""
     root = pathlib.Path(root)
     found = []
     found += [p for p in root.glob("docs/*.md")]
@@ -80,19 +80,21 @@ def scope(root):
         yield path.relative_to(root).as_posix(), "yaml"
     copies = {led.base / rel for led in map(copyledger.read, root.glob(f"bin/**/{EXCEPT['copies']}")) for rel, _ in led.rows}
     bin_py = {p for pattern in BIN_PY for p in root.glob(pattern)} - copies
-    for path in sorted([*root.glob("lib/*.py"), *root.glob("workflows/*/scripts/*.py"), *root.glob("workflows/.shared/*.py"), *bin_py]):
+    for path in sorted([*root.glob("lib/*.py"), *root.glob("workflows/*/scripts/*.py"), *root.glob("workflows/.shared/*.py")]):
         yield path.relative_to(root).as_posix(), "py"
+    for path in sorted(bin_py):
+        yield path.relative_to(root).as_posix(), "bin"
 
 
 def texts(path, kind):
-    """`(行, 字)` を並べる。md は行ごと、yaml は見る鍵の値、py は docstring を除く文字列"""
+    """`(行, 字)` を並べる。md は行ごと、yaml は見る鍵の値、py は docstring を除く文字列、bin は文字列とコメントの全部"""
     body = path.read_text(encoding="utf-8")
     if kind == "md":
         yield from enumerate(body.splitlines(), 1)
     elif kind == "yaml":
         yield from _yaml_texts(yaml.compose(body))
     else:
-        yield from _py_texts(body)
+        yield from _py_texts(body, everything=kind == "bin")
 
 
 def _yaml_texts(node, key=None):
@@ -108,14 +110,14 @@ def _yaml_texts(node, key=None):
             yield first + i, line
 
 
-def _py_texts(body):
+def _py_texts(body, everything):
     docstrings = set()
-    for node in ast.walk(ast.parse(body)):
+    for node in ([] if everything else ast.walk(ast.parse(body))):
         if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
             first = node.body[0]
             if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
                 docstrings.add((first.lineno, first.col_offset))
-    kinds = {tokenize.STRING, getattr(tokenize, "FSTRING_MIDDLE", tokenize.STRING)}
+    kinds = {tokenize.STRING, getattr(tokenize, "FSTRING_MIDDLE", tokenize.STRING)} | ({tokenize.COMMENT} if everything else set())
     for tok in tokenize.generate_tokens(io.StringIO(body).readline):
         if tok.type in kinds and tok.start not in docstrings:
             for i, line in enumerate(tok.string.splitlines()):
@@ -159,7 +161,7 @@ def problems(root):
 def stale_keep(root):
     """`EXCEPT["keep"]` の行のうち、木の文字列に当たらない物"""
     root = pathlib.Path(root)
-    found = {(rel, line) for rel, kind in scope(root) if kind == "py" for _, line in texts(root / rel, kind)}
+    found = {(rel, line) for rel, kind in scope(root) if kind in ("py", "bin") for _, line in texts(root / rel, kind)}
     return [f"keep: {rel} の {line!r} が木の文字列に当たらない" for rel, line in EXCEPT["keep"] if (rel, line) not in found]
 
 
@@ -234,11 +236,15 @@ class WordsTest(unittest.TestCase):
         for word in ("工程", "ワークフロー", "ブロック", "返り", "差し込み", "依る"):
             self.red({"docs/a.md": f"x{word}y\n"}, "docs/a.md:1", word)
 
-    def test_bin_literal_is_red_but_docstring_and_comment_are_not(self):
+    def test_bin_literal_docstring_and_comment_are_red(self):
         self.red({"bin/_lib/a.py": 'MSG = "工程の名"\n'}, "bin/_lib/a.py:1", "工程")
         self.red({"bin/works-factory": '#!/usr/bin/env python3\nraise SystemExit("返りが読めない")\n'}, "bin/works-factory:2", "返り")
         self.red({"bin/_lib/no-post-bin/works-gh": 'print("輪")\n'}, "bin/_lib/no-post-bin/works-gh:1", "輪")
-        self.clean({"bin/_lib/a.py": '"""工程の docstring"""\n# 工程のコメント\n'})
+        body = '"""工程の docstring"""\n# 線のコメント\n\n\ndef f():\n    """節の docstring"""\n    return 1   # 輪\n'
+        with tree({"bin/_lib/a.py": body}) as root:
+            got = problems(root)
+        self.assertEqual(got, ["bin/_lib/a.py:1: 旧い語 工程", "bin/_lib/a.py:2: 旧い語 線", "bin/_lib/a.py:6: 旧い語 節",
+                               "bin/_lib/a.py:7: 旧い語 輪"])
 
     def test_json_tables_are_red(self):
         self.red({"docs/nodes.json": '{"graph": {"a": "判定のブロック"}}\n'}, "docs/nodes.json:1", "ブロック")

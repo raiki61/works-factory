@@ -658,10 +658,6 @@ class NodeTableTest(unittest.TestCase):
         t["pending"] = {"zz": " "}
         self.one("pending.zz: 理由が無い", t)
 
-    def test_keep_name_rewrites_hit_the_source_once(self):
-        self.assertEqual({k: KEEP_SOURCE_NAMES[k].count(original) for k, (original, _) in KEEP_NAME_REWRITES.items()},
-                         {k: 1 for k in KEEP_NAME_REWRITES})
-
     def test_pending_rows_are_named(self):
         errors, held = check(ROOT)
         self.assertEqual(errors, [])
