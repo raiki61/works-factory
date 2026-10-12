@@ -77,7 +77,7 @@ def line_nodes(nodes=None) -> dict:
 
 ROOT = SCRIPTS.parents[2]
 DESIGN = ROOT / "docs" / "design.md"
-CONTRACT_HEAD = "## ブロックの返りの約束"
+CONTRACT_HEAD = "## サブグラフの出力の約束"
 
 
 def contract_section(text: str) -> str:
@@ -92,7 +92,7 @@ def contract_inputs(text: str) -> dict:
     「←」の在る行は各「←」の直前の `名`（`a`・`b` ← の並びも）、無い行（`mode` の行・report の行）は行の中の `名` の全部（約束の外の
     名は呼び手が宣言と交わして落とす）。同じ節の上の段の箇条（fix の「`refix-run` の時」「約束に無い入力」）は約束の入力に数えない"""
     got = {}
-    for block, body in re.findall(r"^### (\S+) の返り\n(.*?)(?=^### |\Z)", contract_section(text), re.M | re.S):
+    for block, body in re.findall(r"^### (\S+) の出力\n(.*?)(?=^### |\Z)", contract_section(text), re.M | re.S):
         lines = body.splitlines()
         head = next((i for i, line in enumerate(lines) if line.startswith("- 入力（`with:`）")), None)
         if head is None:
