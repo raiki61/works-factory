@@ -280,9 +280,10 @@ def snapshot(place, name: str, repo) -> pathlib.Path:
     return write_json(pathlib.Path(place) / name, accept.tree_state(pathlib.Path(repo)))
 
 
-def tree_moved_since(place, name: str, repo) -> str:
-    """置き場の name の写しと今の作業ツリーの違いを述べる文（同じなら空）。写しが無い・形が違うのは snapshot が走っていない
-    回す側の誤りで ValueError。元 works/.shared/core/entry.py:1240（b.work(name) を置き場のパスに、BoardGap を ValueError に）"""
+def tree_moved_since(place, name: str, repo, keys=None) -> str:
+    """置き場の name の写しと今の作業ツリーの違いを述べる文（同じなら空。keys の欄だけを比べる。None は accept.TREE_KEYS）。写しが
+    無い・形が違うのは snapshot が走っていない回す側の誤りで ValueError。元 works/.shared/core/entry.py:1240（b.work(name) を置き場の
+    パスに、BoardGap を ValueError に）"""
     import accept
     from engine.schema import validate_schema
     p = pathlib.Path(place) / name
@@ -293,19 +294,19 @@ def tree_moved_since(place, name: str, repo) -> str:
     errs = validate_schema(snap, accept.TREE_SCHEMA)
     if errs:
         raise ValueError(f"作業ツリーの写し {p} の形が違う: " + "; ".join(errs))
-    moved = accept.tree_moved({k: snap[k] for k in accept.TREE_KEYS}, pathlib.Path(repo))
+    moved = accept.tree_moved({k: snap[k] for k in accept.TREE_KEYS}, pathlib.Path(repo), keys=keys or accept.TREE_KEYS)
     if not moved:
         return ""
     return "この役は読むだけの役で、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない（" + "・".join(moved) + "）"
 
 
-def take(place, nid: str, reply: dict, repo, *, snapshot_name: str | None = None) -> dict:
-    """役の返答を置き場に受ける: snapshot_name が在れば読むだけの役の写しと今の作業ツリーを比べ、違えば
+def take(place, nid: str, reply: dict, repo, *, snapshot_name: str | None = None, keys=None) -> dict:
+    """役の返答を置き場に受ける: snapshot_name が在れば読むだけの役の写しと今の作業ツリーを比べ（keys は tree_moved_since）、違えば
     {ok: False, reason: READONLY_MOVED + 文}。同じなら返答を out_file(place, nid) に置いて {ok: True, reply_file}。
     元 works/.shared/core/entry.py:1262 の take のうち、写しの比べと出力の置きだけ（盤面の規則の照らし vet と settle は持ってこない。
     返答の形は実行基盤の出力の型が照らす）"""
     if snapshot_name:
-        moved = tree_moved_since(place, snapshot_name, repo)
+        moved = tree_moved_since(place, snapshot_name, repo, keys)
         if moved:
             return {"ok": False, "reason": READONLY_MOVED + moved}
     return {"ok": True, "reply_file": str(write_json(out_file(place, nid), reply))}

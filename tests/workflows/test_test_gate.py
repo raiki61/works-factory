@@ -21,6 +21,7 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.workflows import nodeflags
 from tests.bin.gitkit import committed_copy, git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -334,6 +335,30 @@ class CiRoleCase(ScriptCase):
         self.assertFalse(got["ok"])
         self.assertIn("new.txt", got["reason"])
 
+    def test_status_guarded_leaves_index_only_change_to_the_status_check(self):
+        """with: の status_guarded が真の受け付けは、Archon の状態の照らし（git status の行の違い）が見る index だけの変化では
+        拒まない。印が無ければ今どおり全部の欄を比べて拒む"""
+        with open(self.repo / "stats.py", "a", encoding="utf-8") as f:
+            f.write("# 前から在った変更\n")
+        self.prep()
+        git(self.repo, "add", "stats.py")
+        got = self.ok("ci_accept", mode="base", reply=self.GOOD)
+        self.assertFalse(got["ok"])
+        self.assertIn("git status --porcelain", got["reason"])
+        got = self.ok("ci_accept", mode="base", reply=self.GOOD, status_guarded="true")
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+
+    def test_status_guarded_still_sees_rewrite_of_dirty_file(self):
+        """status_guarded でも、git status の行が同じままの既に変わっていたファイルの書き換えは拒む（照らしが見ない所）"""
+        with open(self.repo / "stats.py", "a", encoding="utf-8") as f:
+            f.write("# 前から在った変更\n")
+        self.prep()
+        with open(self.repo / "stats.py", "a", encoding="utf-8") as f:
+            f.write("# 役が書いた\n")
+        got = self.ok("ci_accept", mode="base", reply=self.GOOD, status_guarded="true")
+        self.assertFalse(got["ok"])
+        self.assertIn("中身が変わった", got["reason"])
+
     def test_done_removes_only_its_own_copy_folder(self):
         """終わった時に消すのは一時の置き場の直下の写しの頭のフォルダだけ（symlink は辿らない）。役が書ける snapshot の top が
         別の所を指しても消さない"""
@@ -583,6 +608,20 @@ class FixtureCase(unittest.TestCase):
         authored = {pathlib.Path(r["fixture"]).name.removesuffix(".stubs.yaml"): r["authoredOutcome"] for r in got["results"]}
         self.assertEqual(authored, self.AUTHORED)
         self.assertTrue(all(r["pass"] for r in got["results"]))
+
+
+class NodeFlagsCase(unittest.TestCase):
+    """節の印（tests/workflows/nodeflags.py）: coldwrite を節に名指さない・作業ツリーを比べる受け付けの status_guarded が受ける役の
+    mutates_checkout: false と対になる"""
+
+    def setUp(self):
+        self.doc = yaml.safe_load((nodeflags.WORKFLOWS / "test-gate" / "works-factory-test-gate.yaml").read_text(encoding="utf-8"))
+
+    def test_no_node_names_coldwrite(self):
+        self.assertEqual(nodeflags.coldwrite_named(self.doc), [])
+
+    def test_guarded_accepts_flag_matches_role(self):
+        self.assertEqual(nodeflags.guarded_mismatches(self.doc, "test-gate"), [])
 
 
 if __name__ == "__main__":

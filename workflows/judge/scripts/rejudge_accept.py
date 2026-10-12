@@ -12,13 +12,15 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
+import accept  # noqa: E402
 import judge_accept as ja  # noqa: E402
 
 jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
 rdir = boundary.resolve(boundary.pointer(ja.REJUDGE_DIR))
 rdir.mkdir(parents=True, exist_ok=True)
+KEYS = accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", ""))
 out = ja.accept_round(rdir, ja.REJUDGE_ROLE, os.environ.get("INPUTS_REPLY", ""),
-                      lambda reply: ja.rejudge_take(jdir, rdir, reply, Path.cwd()))
+                      lambda reply: ja.rejudge_take(jdir, rdir, reply, Path.cwd(), keys=KEYS))
 if out["done"]:
     try:
         ja.rejudge_collect(rdir)

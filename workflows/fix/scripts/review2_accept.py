@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import fixio  # noqa: E402
+import accept  # noqa: E402
 import fixboard  # noqa: E402
 import refix  # noqa: E402
 import rolekit  # noqa: E402
@@ -40,7 +41,8 @@ def main() -> None:
     place, repo = fixio.place(), fixio.repo()
     bad = fixboard.delta_review_problems(place, N, reply, repo)
     got = {"ok": False, "reason": "差分の審査の返答の照らしに通らない:\n" + "\n".join(f"  - {x}" for x in bad)} if bad else \
-        refix.accept_review(reply, place, fixboard.start_tree(place), repo, n=N)
+        refix.accept_review(reply, place, fixboard.start_tree(place), repo, n=N,
+                            keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")))
     out = fixboard.accept_out(place, NAME, got)
     record = place / fixboard.DELTA_DIR / fixboard.DELTA_REVIEW.format(N)
     if out["ok"]:

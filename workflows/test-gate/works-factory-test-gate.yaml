@@ -155,6 +155,7 @@ nodes:
           mutates_checkout: false
           depends_on: [ci]
           with:
+            status_guarded: true
             mode: $INPUTS.mode
             reply: {from: "$ci.output"}
           output_format:

@@ -24,6 +24,7 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.workflows import nodeflags
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 
@@ -2635,6 +2636,20 @@ class PushCase(GateBase):
         """元 tests/test_gate_drafts.py の PushCase.test_row_without_recommend_is_as_before。推しの無い行は推しの尾を付けない"""
         got, _ = self.gate(narrows=[{**TP.NARROW, **ASKED}])
         self.assertNotIn("／推し", got["ask"]["items"][0])
+
+class NodeFlagsCase(unittest.TestCase):
+    """節の印（tests/workflows/nodeflags.py）: coldwrite を節に名指さない・作業ツリーを比べる受け付けの status_guarded が受ける役の
+    mutates_checkout: false と対になる"""
+
+    def setUp(self):
+        self.doc = yaml.safe_load((nodeflags.WORKFLOWS / "plan-review" / "works-factory-plan-review.yaml").read_text(encoding="utf-8"))
+
+    def test_no_node_names_coldwrite(self):
+        self.assertEqual(nodeflags.coldwrite_named(self.doc), [])
+
+    def test_guarded_accepts_flag_matches_role(self):
+        self.assertEqual(nodeflags.guarded_mismatches(self.doc, "plan-review"), [])
+
 
 if __name__ == "__main__":
     unittest.main()

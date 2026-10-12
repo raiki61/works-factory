@@ -198,8 +198,9 @@ def brief_ties(ties: list) -> list[dict]:
 
 
 # ---------------------------------------------------------------- 受け付け
-def accept_review(reply: dict, board: pathlib.Path, base_rev: str, repo: pathlib.Path, *, n: int, items=None) -> dict:
-    """n 回目の審査役の返答（読むだけの役。cut が撮った写しと今の作業ツリーを比べる）。fixboard.take の返り {ok, reply_file}
+def accept_review(reply: dict, board: pathlib.Path, base_rev: str, repo: pathlib.Path, *, n: int, items=None,
+                  keys=None) -> dict:
+    """n 回目の審査役の返答（読むだけの役。cut が撮った写しと今の作業ツリーを keys の欄で比べる。fixboard.take）。fixboard.take の返り {ok, reply_file}
     に、受けた時は owed（手直しが答える義務の数。fixboard._owed_rows）を足す。節が deltamarks.NODES に在れば、先に 2 判定の欄を
     承認済みの修正案の項目（items。cut と同じ形）と照らし、欠けと誤りが在れば受けずに {ok: False, reason: deltamarks.REJECT と行}。
     無ければ欄を外した返答を受け、受けた時だけ欄を控える（置けなければ控えを名指す ValueError）。修正案の欄の控えが凍結の印と
@@ -207,14 +208,15 @@ def accept_review(reply: dict, board: pathlib.Path, base_rev: str, repo: pathlib
     照らさずに、欄を外して受ける（返答の型は実行基盤の出力の型が照らす。守る 2 つの欄を知らない欄と言わせない）"""
     nid = _pass(n)["review"]
     if nid not in deltamarks.NODES:
-        return _owed(fixboard.take(board, nid, reply, repo, snapshot_name=snapshot_name(n)), board, n)
+        return _owed(fixboard.take(board, nid, reply, repo, snapshot_name=snapshot_name(n), keys=keys), board, n)
     if deltamarks.malformed(reply):
-        return _owed(fixboard.take(board, nid, deltamarks.split(reply)[0], repo, snapshot_name=snapshot_name(n)), board, n)
+        return _owed(fixboard.take(board, nid, deltamarks.split(reply)[0], repo, snapshot_name=snapshot_name(n), keys=keys),
+                     board, n)
     gaps = deltamarks.gaps(reply, fixboard._plan_items(board, items))
     bare, verdicts = deltamarks.split(reply)
     if gaps:
         return {"ok": False, "reason": deltamarks.REJECT + "\n" + "\n".join(f"  - {g}" for g in gaps)}
-    out = fixboard.take(board, nid, bare, repo, snapshot_name=snapshot_name(n))
+    out = fixboard.take(board, nid, bare, repo, snapshot_name=snapshot_name(n), keys=keys)
     if out.get("ok") is True:   # 受けた時だけ（拒否では置き場の控えも前のまま）
         try:
             deltamarks.save(board, verdicts)

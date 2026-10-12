@@ -11,7 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
+import accept  # noqa: E402
 import boardview  # noqa: E402
 
 boundary.returns(boardview.take_review(Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER, os.environ["INPUTS_REPLY"],
-                                       Path.cwd()))
+                                       Path.cwd(), keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", ""))))

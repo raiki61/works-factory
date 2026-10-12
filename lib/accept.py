@@ -263,6 +263,11 @@ TREE_SCHEMA = {"type": "object", "required": list(TREE_KEYS), "properties": {
     **SNAPSHOT_SCHEMA["properties"], "head": {"type": "string"}, "ref": {"type": "string"}}}
 
 
+def status_keys(guarded) -> tuple:
+    """受け付けが比べる欄: guarded（グラフが受け付けの節に渡す印。真か字の true）なら BEYOND_STATUS、ほかは TREE_KEYS"""
+    return BEYOND_STATUS if guarded is True or str(guarded).strip().lower() == "true" else TREE_KEYS
+
+
 def tree_state(repo: pathlib.Path, *, bytecode: bool = True) -> dict:
     """読むだけの役（blk-pr の並行 PR・blk-ci の CI・entry.take と rejudge.take が受ける役）を起こす前後に比べる作業ツリーの姿 {TREE_KEYS}:
     snapshot_tree（porcelain・git が無視するパスの一覧 ignored・diff_sha256。無視されるパスの stat の印も diff_sha256 に入る——
