@@ -69,7 +69,7 @@ def boards(cwd):
     return [b]
 
 
-READ_CAP = 4_000_000  # engine/util.py の READ_CAP の写し（根拠はあちらの注記。一致は simulate.py の腕が見る）
+READ_CAP = 4_000_000  # engine/util.py の READ_CAP の写し（根拠はあちらの注記。一致は tests/bin/test_record_read.py が見る）
 HARNESS_LINES = 2000    # Read が offset / limit 無しで返す行数の上限（公式文書の既定値）
 HARNESS_BYTES = 25_000  # 量で切れうる大きさ。切れを見分けられないので安全側に小さく置く（量の上限の正確な値は未実測）
 

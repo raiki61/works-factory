@@ -5,8 +5,10 @@ test_record_read_copy_differs_only_in_sink（同じ名の試験）。置き場�
 引数の根の下の作業の場ごと（CLAUDE_PROJECT_DIR、無ければ入力の cwd）。
 - 記録器: Read で 1 行（path・sha・部分読みか）。Agent・WebFetch・WebSearch は path の無い行（入力の 1 欄だけ）、ほかの道具と
   根の無い起動は 1 バイトも書かない
-- 写し: 元の record-read.py と違うのは書く先を決める boards() と、Read の外の道具の行（other_tool と main の頭の分かれ）だけ
+- 写し: 元の record-read.py と違うのは書く先を決める boards() と、Read の外の道具の行（other_tool と main の頭の分かれ）と、
+  READ_CAP の一致を見る所の名指しだけ。READ_CAP は読む側（engine.util）と同じ値
 """
+import ast
 import hashlib
 import json
 import os
@@ -114,10 +116,16 @@ class TestHook(unittest.TestCase):
         self.assertEqual(hashlib.sha256(outside_changes(RECORDER.read_text(encoding="utf-8")).encode("utf-8")).hexdigest(),
                          ORIGINAL_OUTSIDE_SHA256)
 
+    def test_read_cap_is_the_engine_one(self):
+        """記録器の上限が読む側と違えば、間の大きさの文書は sha の無い行になり「読んだ」が partial に化ける"""
+        tree = ast.parse(RECORDER.read_text(encoding="utf-8"))
+        caps = [n.value for n in tree.body if isinstance(n, ast.Assign) and [ast.unparse(t) for t in n.targets] == ["READ_CAP"]]
+        self.assertEqual([ast.literal_eval(v) for v in caps], [util.READ_CAP])
+
 
 def outside_changes(text: str) -> str:
-    """boards() の本体・other_tool・import の足し・main の頭の分かれ・記録の名と時刻の形の字を、元の字に戻して外し、頭の説明の
-    文（今の works の置き場の言葉を直した。bin/AGENTS.md の E15）も外した残り"""
+    """boards() の本体・other_tool・import の足し・main の頭の分かれ・記録の名と時刻の形の字・READ_CAP の一致を見る所の名を、元の字に
+    戻して外し、頭の説明の文（今の works の置き場の言葉を直した。bin/AGENTS.md の E15）も外した残り"""
     head, rest = text.split("\ndef boards(", 1)
     text = head + rest[rest.index("\nREAD_CAP = "):]
     text = text.replace('\nsys.dont_write_bytecode = True\nsys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "lib"))'
@@ -129,6 +137,7 @@ def outside_changes(text: str) -> str:
                         '    if not isinstance(d, dict) or d.get("tool_name") != "Read":\n')
     text = text.replace("time.strftime(reads.TS_FORMAT)", 'time.strftime("%Y-%m-%dT%H:%M:%S")')
     text = text.replace('open(b / reads.LOG, "a"', 'open(b / "reads.jsonl", "a"')
+    text = text.replace("一致は tests/bin/test_record_read.py が見る", "一致は simulate.py の腕が見る")
     return text.split('"""', 2)[2]
 
 
