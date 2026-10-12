@@ -1467,7 +1467,7 @@
 
 ### #69 test-gate
 
-- S06 #69「線（#60）への申し送り」: 範囲の宣言が誤っていて節 `run` が 1 を返して終わる時や、任せ先の役の節が落ちた時は、Archon が線の run 全体を failed で終える。→ **一部済み**: 受け皿 `test-gate-base-out`・`test-gate-final-out`（`LY:124-145`・`:699-`）と `collect` の `trigger_rule: all_done`（`LY:908-955`）があるので、報告は出る形になっている。ただ、test-gate が落ちる場面の筋書きは無い（`block-failed` が落とすのは judge の `intake`）。要追加: `workflows/line/fixtures/test-gate-failed.stubs.yaml`（`test-gate-final` の `run` を型に合わない stub で落とし、`report` まで届くこと）
+- S06 #69「線（#60）への申し送り」: 範囲の宣言が誤っていて節 `run` が 1 を返して終わる時や、任せ先の役の節が落ちた時は、Archon が線の run 全体を failed で終える。→ **済み**（部分 0）: 受け皿 `test-gate-base-out`・`test-gate-final-out` と `collect` の `trigger_rule: all_done` で報告は出る。筋書き `workflows/line/fixtures/test-gate-failed.stubs.yaml` が `test-gate-final` の `run` を落とし、`test-gate-final-out`・`collect`・`report__report`・`result` まで届くことを縛る（`tests/e2e/test_line_scenarios.py`）。返す節 `result` は `trigger_rule: all_done` で落ちない（K1）ので、届く返りは null でなく認証できなかった形
 - S07 #69「能力の狭め」2: `entry.scope_changed`（`works/.shared/core/entry.py:907-925`）が、変更に依頼の `where` を足していた分を落とした（`lib/declared_checks.py:374` の docstring）。判定から入る run の base で、依頼の where に当たる段を回さなくなる。→ **開いている**（test-gate 側の狭め。線は `start` を渡しているので、test-gate が `start` の依頼の where を読めば戻せる。持ち主の確かめ待ち） 決め: 戻すと決めた（superset）。区分 T の issue（T16）（線の配線の文書の「この文書の外」の「決めた物」）
 - S08 #69「約束を変える頼み」: 無し
 
@@ -1533,7 +1533,7 @@
 
 ### #74 線（本文とコメント）
 
-- S48「約束を変える頼み（report の入力）」1: 線の止めの語（`works:start-refused`・`works:needs-human`・`works:line-script`。`LS/linekit.py:25-27`）を report に届ける。→ **開いている**（report に受け口が無い）。今は、無人の run が最後の関所で止まっても、report はそれを止めと見ない
+- S48「約束を変える頼み（report の入力）」1: 線の止めの語（`works:start-refused`・`works:needs-human`・`works:line-script`。`lib/stopby.py` の `START_REFUSED`・`NEEDS_HUMAN`・`LINE_SCRIPT`）を report に届ける。→ **開いている**（report に受け口が無い）。今は、無人の run が最後の関所で止まっても、report はそれを止めと見ない
 - S49 同 2: 依頼の前の失敗の指し札（`$start.output.prior_failures`）を report に届ける。→ **開いている**
 - S50 同 3: 無人の run で関所に載せなかった問い（`ask-before-fix` の `deferred`）と、聞かずに通した範囲を広げるだけの直し（`ask-replan` の `widened`）を report に届ける。→ **開いている**
 - S51 同 4: 最後の関所を開けた理由（`ask-final` の `reasons`）を report に届ける。→ **開いている**
@@ -1552,7 +1552,7 @@
 - S64 コメント「2 回目の直し」1〜4: 両方の関所の答えを refix に渡す、`READERS` に ask-final を足す（`tests/workflows/test_line.py:683-688`）、保留の問いを `gatemarks.held_lines` に合わせる、`fenced_rows` が読めない時に訳を返す。→ **済み**（held_lines の細目は L-G の行）
 - S65 コメント「3 回目の直し」1〜3: plan に `prior_failures`（済み: S17）。本文の違い 7（済み）。3 つを別の issue に回すと書く（S58。**開いている**）
 - S66 コメント「4 回目の直し」1〜4: 1 `reject_reason` を渡す（#100 で不要になった: S47）、2 E16（済み: S38）、3 往復の中の id を `plan-review-run` にする（済み: `LY:203`）、4 report の `with:` を main の 17 の入力に合わせる（済み: `LY:932` の required）
-- S67 コメント「5 回目」2: 代わりのブロックを全部外し、本物の fix と組んで validate と筋書きを回す。fix の返りと入力（`only_items`・`replan_items` など）に線の `with:` を合わせる。→ **開いている**（#74 の head には `workflows/line/fixtures/stub-blocks/fix/works-factory-fix.yaml` がまだ在る。`tests/e2e/test_line_scenarios.py:68-72` は「在るブロックには代わりを置かない」を縛るので、main の fix と組むと赤になる）
+- S67 コメント「5 回目」2: 代わりのブロックを全部外し、本物の fix と組んで validate と筋書きを回す。fix の返りと入力（`only_items`・`replan_items` など）に線の `with:` を合わせる。→ **済み**（部分 0 の確かめ 0-a）: `workflows/line/fixtures/stub-blocks/` は無く、線の include は全部本物の `works-factory-<ブロック>`。fix の入力の配線は `LineWiringCase.test_every_declared_block_input_is_wired_or_listed` が縛る
 - S68 #74 の審査の Discoveries（R12）: 線の `start.json` の置き場と形が、盤面の読み手（`startrec`・`gatemarks`・`depth`）と違う。→ **開いている**（L-E・L-D の行で個々に見る）
 
 ## 穴の要約
@@ -1597,7 +1597,6 @@
 - L-E17: PR の本文が目的の役に届かない（input.pr に本文が無い）
 - L-E24: 始めの記録の置き場が 2 つ（artifacts/start.json と r1/start.json）。lib の読み手（gatemarks・depth・boardview）は書かれていない方を読む
 - L-W56: 案の直しの後も、独立の目は直す前の修正案を照らす
-- S67: #74 の head はまだ代わりの fix と組んでいる。本物の fix と組むと配線の照らし（L-W67 が無いこと）の穴がそのまま出る
 
 ### 持ち主に上げる物
 
@@ -1608,10 +1607,10 @@
 5. 名指されずに落ちていた物（今回見つけた）: L-W07（直す物が無い run の最後の試験・独立設計・R2）・L-W56（直した案が目に渡らない）・L-W60（報告の always_run）・L-E17・L-E29・L-E49・L-D10（線が run の広さで深さを上げない）・L-D42（refix の異議が届かない）・L-D48
 6. 返りの約束の欄の決め（ブロックの持ち主と運び役）: fix の返りに breaks.accepted（S03）・x_scalars と premise_drift_note（S09・S10）・閉鎖の数え直し（S28）・手直しの穴の名札（S29）、eyes の返りに premise-inputs・gate-passes の指し札（S12）、judge の隣に answer-ties.json・world-state.json・purpose_review（S25・S31）、report の入力に線の止めの語・prior_failures・deferred・widened・reasons・judged・redepth（S48〜S53）、plan に関所の答え（S18）、plan-review の項目の id の形（S23）、始めの記録に方針の文書の固めた版（S24）
 7. test-gate が依頼の where を変更に足さなくなった件（S07）。→ 決めた: 戻す（区分 T の issue）
-8. 試験の仕組みの穴: 宣言したブロックの入力が全部配線されているか、名指しの未配線の表に在るかを照らす試験（L-W67）が無い。このせいで L-W18・L-W19・L-W45・L-W57 が黙って落ちた。配線の値の突き合わせ（test_handoff_table。L-W05・11・12・43・50・55・56・58）と一緒に、線の issue の最初に置くのがよい
+8. 試験の仕組みの穴: 宣言したブロックの入力が全部配線されているか、名指しの未配線の表に在るかを照らす試験（L-W67）が無い。このせいで L-W18・L-W19・L-W45・L-W57 が黙って落ちた。配線の値の突き合わせ（test_handoff_table。L-W05・11・12・43・50・55・56・58）と一緒に、線の issue の最初に置くのがよい。→ 済み（部分 0: `test_every_declared_block_input_is_wired_or_listed`・`HandoffCase.test_handoff_table`）
 
 ### 確かめの仕方の断り
 
-- 行の大半の「今」の場所は #74 の head の物。fix のブロックは main の物で、#74 の head にはまだ入っていない（S67）
+- 行の大半の「今」の場所は #74 の head の物（部分 0 で直した行は部分 0 の後の木の物）
 - 「証」の assert の行は試験のファイルを読んで決めた。試験は走らせていない（この棚卸しの決まりどおり）
 - 線の YAML の行番号は #74 の head の `workflows/line/works-factory-line.yaml`（1007 行）で照らし直した
