@@ -20,6 +20,7 @@ if str(LIB) not in sys.path:
 
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import carry  # noqa: E402
+import conflict  # noqa: E402
 import converge  # noqa: E402
 import planblk  # noqa: E402
 import planfile  # noqa: E402
@@ -403,6 +404,16 @@ class ReplanInputsCase(TmpCase):
                 {"id": "c4", "unit_key": MEAN, "ruling": "壊れた"}]
         got = planfile.conflict_rows({"items": rows}, 1, item(MEAN))
         self.assertEqual([c["id"] for c in got], ["c1"])
+
+    def test_conflict_rows_compare_unit_keys_as_text(self):
+        rows = [{"id": "c1", "unit_key": 7, "ruling": {"decision": "fix_plan_item"}}]
+        self.assertEqual([c["id"] for c in planfile.conflict_rows({"items": rows}, 1, item("7"))], ["c1"])
+
+    def test_conflict_rows_read_the_replan_decision_from_conflict(self):
+        rows = [{"id": "c1", "unit_key": MEAN, "ruling": {"decision": "renamed"}}]
+        with mock.patch.object(conflict, "REPLAN", "renamed"):
+            self.assertEqual([c["id"] for c in planfile.conflict_rows({"items": rows}, 1, item(MEAN))], ["c1"])
+        self.assertFalse(hasattr(planfile, "REPLAN_DECISION"))
 
     def test_replan_structure_is_the_source_rounds(self):
         """直す元の周の round.json の structure を使う（後から書いたほかの鍵の控えに倒れない）"""

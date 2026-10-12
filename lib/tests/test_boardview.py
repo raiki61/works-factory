@@ -19,6 +19,7 @@ import converge  # noqa: E402
 import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
 import marks  # noqa: E402
+import planfile  # noqa: E402
 import planmarks  # noqa: E402
 import policy  # noqa: E402
 import startrec  # noqa: E402
@@ -371,6 +372,21 @@ class ReplanItemsCase(Base):
         section = boardview._replan_section(got[0])
         for word in (boardview.OLD_HEAD, boardview.NEW_HEAD, boardview.ROW_HEAD.format(id="c1"), "範囲を広げよ", "両方は立たない"):
             self.assertIn(word, section)
+
+    def test_rows_match_the_plan_brief(self):
+        """事前審査の材料と案の直しの brief（planfile.conflict_rows）が同じ行を選ぶ（fix_plan_item でない裁定の行は、項目の単位を
+        名指しても選ばない）"""
+        self.open(plan_rows=[self.ROW], fields=[{"route": "direct", "structure": [], "allowed_paths": ["stats.py"]}])
+        rows = [{"id": "c1", "unit_key": UNIT, "ruling": {"decision": "fix_plan_item", "text": "範囲を広げよ"}},
+                {"id": "c2", "unit_key": UNIT, "ruling": {"decision": "ask_human", "text": "人に聞け"}},
+                {"id": "c3", "unit_key": "ほかの単位", "ruling": {"decision": "fix_plan_item", "plan_items": [1]}}]
+        conflicts = self.put("fix/conflicts.json", {"items": rows})
+        self.open(plan_rows=[self.ROW], rnd=3, ruling=["1"], conflicts=conflicts,
+                  fields=[{"route": "direct", "structure": [], "allowed_paths": ["stats.py"]}])
+        got = boardview.read_open(self.folder)["replan_items"][0]["rows"]
+        brief = planfile.conflict_rows({"items": rows}, 1, {"unit_keys": [UNIT]})
+        self.assertEqual([c["id"] for c in got], [c["id"] for c in brief])
+        self.assertEqual([c["id"] for c in got], ["c1", "c3"])
 
     def test_ruling_must_be_item_numbers(self):
         """ruling の行は案の項目の 1 から数えた番号の字だけ（項目の id・0・案の外の番号・数でない字は訳つきで拒み、黙って落とさない）"""

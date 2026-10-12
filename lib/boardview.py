@@ -35,6 +35,7 @@ import types
 
 import accept
 import concepthome
+import conflict
 import converge
 import design
 import gate_axes
@@ -495,8 +496,7 @@ def _bare(item: dict) -> dict:
 
 def replan_items(b, approved, marked_rows: list, ruled: list, conflicts: list) -> list:
     """裁かれた項目ごとの {item, units, rows（申し出と裁定の行）, old（承認済みの前の形）, new（直した形。決め手の欄つき）}。
-    申し出の行は、裁定の plan_items がその項目の番号を持つか、申し出の単位がその項目の単位に在る物。承認済みの案が無い・
-    項目が案の外なら Missing"""
+    申し出の行は conflict.replan_rows の選び。承認済みの案が無い・項目が案の外なら Missing"""
     if approved is None:
         raise Missing(NO_APPROVED)
     now = planmarks.approved_items(b) or []
@@ -506,9 +506,8 @@ def replan_items(b, approved, marked_rows: list, ruled: list, conflicts: list) -
             raise Missing(f"裁かれた項目 {n} が承認済みの修正案（{len(approved)} 項目）か直した案（{len(now)} 項目）の外")
         units = [str(k) for k in now[n - 1].get("unit_keys") or []]
         new = {**_role_item(now[n - 1]), **{k: copy.deepcopy(v) for k, v in marked_rows[n - 1].items() if k == "narrows"}}
-        mine = [c for c in conflicts if isinstance(c, dict)
-                and (n in ((c.get("ruling") or {}).get("plan_items") or []) or str(c.get("unit_key")) in units)]
-        out.append({"item": n, "units": units, "rows": mine, "old": _role_item(approved[n - 1]), "new": new})
+        out.append({"item": n, "units": units, "rows": conflict.replan_rows(conflicts, n, units),
+                    "old": _role_item(approved[n - 1]), "new": new})
     return out
 
 

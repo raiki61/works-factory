@@ -29,6 +29,7 @@
 - held_by_rulings(b)・ruled_units(row): 直す義務から外す単位と理由。決まりは「直す裁定（FIX_DECISIONS）でない裁定は、それが外す
   単位（申し出の単位と、fix_plan_item ならその項目に載る単位の全部）を直させない」の 1 つ
   （kind の無い前の形の控えの行も読む。種類は「無し」）
+- replan_rows(rows, n, unit_keys): 裁定 fix_plan_item の行のうち案の項目 n を名指す物（案の直しの材料が読む 1 つの選び）
 - apply_rulings(b, rulings, by=): 裁定を積み、trace に 1 行、裁定の文のファイル（RULINGS_FILE。修正役に reason_file で
   渡す）を書く。裁定の文と申し出の回の控え（PARKED_REPLY）は今の scope の周の置き場の物（2 回目の修正の段は 1 回目と分かれる。
   write_rulings）。
@@ -465,6 +466,19 @@ def set_replan(b, ids, state: str, *, why: str = "") -> None:
 def ruled_units(row) -> list:
     """1 件の裁定が外す単位（申し出の単位と、fix_plan_item ならその項目に載る単位 PLAN_UNITS。重ねない・申し出の単位が先）"""
     return list(dict.fromkeys([row["unit_key"], *((row.get("ruling") or {}).get(PLAN_UNITS) or [])]))
+
+
+def replan_rows(rows, n: int, unit_keys) -> list:
+    """申し出の行 rows のうち、裁定が REPLAN で案の項目 n を名指す物（裁定の PLAN_ITEMS が n を持つか、申し出の単位が項目の
+    unit_keys に在る。単位は字で比べる）。案の直しの材料（planfile の brief・boardview の事前審査）が読む 1 つの選び"""
+    keys = {str(k) for k in unit_keys or []}
+    out = []
+    for c in rows or []:
+        ru = c.get("ruling") if isinstance(c, dict) else None
+        if isinstance(ru, dict) and ru.get("decision") == REPLAN and (
+                n in (ru.get(PLAN_ITEMS) or []) or str(c.get("unit_key")) in keys):
+            out.append(c)
+    return out
 
 
 def held_by_rulings(b) -> dict:
