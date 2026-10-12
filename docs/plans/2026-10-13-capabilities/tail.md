@@ -1546,7 +1546,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - R52 世界の解: 依頼の行ごとの定石・web で確かめたかの印・依頼の解き方との比べ・類の数。判定の world が null なら段が何も返さなかった 1 行
   - 元: works/.shared/core/worldmark.py:265 `report_lines`
   - 今: lib/runreport.py:850 `_world_lines`
-  - 証: lib/tests/test_runreport.py::LinesCase.test_world_rows_keep_mark_and_versus（assert: :787-789）・test_world_null_says_the_stage_gave_nothing（assert: :794-796）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_world_rows_keep_mark_and_versus（assert: :787-789）・test_world_null_says_the_stage_gave_nothing（assert: :802-804）
   - 本物の run: judge/world.jsonl、report/report.md「## 世界の解」
   - 狭め: 段が落ちた訳と落とした抜き書きの数は R79
 
@@ -1574,7 +1574,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - R56 節の行は「- 」か字下げした内訳の行
   - 元: works/.shared/core/report.py:2045
   - 今: lib/runreport.py:927 `_bullets`
-  - 証: lib/tests/test_runreport.py::LinesCase.test_every_line_is_a_bullet（assert: :821）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_every_line_is_a_bullet（assert: :829）
   - 本物の run: report/report.md
   - 狭め: 無し
 
