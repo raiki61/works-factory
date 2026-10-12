@@ -3,8 +3,11 @@
 使い捨ての git の木（lib/impact.py・lib/changemap.py・tests/changed.py の写しと、小さな lib と試験）で殻を起こし、
 unittest の最後の数え（Ran N tests）で何が回ったかを見る。木の試験は test_alpha 1 本・test_beta 2 本・層の柵 1 本。
 - lib の 1 ファイルを変えると、その試験のモジュールと層の柵だけが回る
-- 全部を回す: tests/archon.py などの変更・起点（origin/main との merge-base）が無い時・git が起こせない時
+- 選べない時（tests/archon.py などの変更・選びが全部が要ると言った時・起点（origin/main との merge-base）が無い時・git が起こせない時）も
+  全部は回さず、選べた範囲と層の柵だけを回し、全部の試験は CI に寄せるの 1 行と訳を出して緑（持ち主の決め full-suite-in-ci）
 - 選んだ物が 0 本でも層の柵は回り、選んだ試験の赤は殻の赤
+- 頭で読み込めない試験のパッケージの下を変えると赤（パッケージ名の 1 件を選ぶ）
+- 集め方の正本（tests/shard.py の PATTERN）を変えると、殻の選び（変わった lib を import する試験も）と CI の分けの両方が変わる
 - 出力の最後は unittest の数えで、harness の unit_count_pattern が最初に当たるのもその行
 """
 import json
@@ -20,6 +23,7 @@ import unittest
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+IN_CI = "全部の試験は CI に寄せる（持ち主の決め full-suite-in-ci）"
 COUNT = re.compile(json.loads((ROOT / "harness" / "harness.config.json").read_text(encoding="utf-8"))["unit_count_pattern"])
 COPIED = ("lib/impact.py", "lib/changemap.py", "tests/changed.py", "tests/shard.py")
 ONE_TEST = "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_one(self):\n        pass\n"
@@ -100,40 +104,45 @@ class ChangedTest(unittest.TestCase):
         self.assertEqual(self.ran(out), 2, out)
         self.assertIn("tests.testzz", stdout)
 
-    def test_archon_helper_change_runs_everything(self):
+    def test_archon_helper_change_runs_only_the_fence_and_defers_to_ci(self):
         self.write("tests/archon.py", "# changed\n")
         rc, stdout, out = self.run_changed()
         self.assertEqual(rc, 0, out)
-        self.assertEqual(self.ran(out), 4, out)
+        self.assertEqual(self.ran(out), 1, out)
+        self.assertIn(IN_CI, stdout)
         self.assertIn("tests/archon.py", stdout)
 
-    def test_ci_change_runs_everything(self):
+    def test_ci_change_runs_only_the_fence_and_defers_to_ci(self):
         self.write(".github/workflows/tests.yml", "name: tests\n")
         rc, stdout, out = self.run_changed()
         self.assertEqual(rc, 0, out)
-        self.assertEqual(self.ran(out), 4, out)
+        self.assertEqual(self.ran(out), 1, out)
+        self.assertIn(IN_CI, stdout)
         self.assertIn(".github/workflows/tests.yml", stdout)
 
-    def test_unanalysable_change_runs_everything(self):
+    def test_unanalysable_change_runs_what_it_reached_and_defers_to_ci(self):
         self.write("lib/alpha.py", "import importlib\n\n\ndef value():\n    return 1\n\n\n"
                                    "def load(name):\n    return importlib.import_module(name)\n")
         rc, stdout, out = self.run_changed()
         self.assertEqual(rc, 0, out)
-        self.assertEqual(self.ran(out), 4, out)
+        self.assertEqual(self.ran(out), 2, out)
+        self.assertIn(IN_CI, stdout)
         self.assertIn("dynamic-import", stdout)
 
-    def test_no_base_runs_everything(self):
+    def test_no_base_runs_only_the_fence_and_defers_to_ci(self):
         git(self.repo, "update-ref", "-d", "refs/remotes/origin/main")
         self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
         rc, stdout, out = self.run_changed()
         self.assertEqual(rc, 0, out)
-        self.assertEqual(self.ran(out), 4, out)
+        self.assertEqual(self.ran(out), 1, out)
+        self.assertIn(IN_CI, stdout)
         self.assertIn("origin/main", stdout)
 
-    def test_no_git_runs_everything(self):
+    def test_no_git_runs_only_the_fence_and_defers_to_ci(self):
         rc, stdout, out = self.run_changed(env={**os.environ, "PATH": ""})
         self.assertEqual(rc, 0, out)
-        self.assertEqual(self.ran(out), 4, out)
+        self.assertEqual(self.ran(out), 1, out)
+        self.assertIn(IN_CI, stdout)
         self.assertIn("origin/main", stdout)
 
     def test_change_with_no_tests_still_runs_the_fence(self):
@@ -148,6 +157,34 @@ class ChangedTest(unittest.TestCase):
         rc, _stdout, out = self.run_changed()
         self.assertNotEqual(rc, 0, out)
         self.assertEqual(self.ran(out), 2, out)
+
+    def test_test_package_that_fails_to_import_is_red(self):
+        self.write("lib/tests/__init__.py", "raise ImportError('broken package')\n")
+        self.write("lib/tests/test_alpha.py", LIB_TEST.format(name="alpha") + "\n# changed\n")
+        rc, stdout, out = self.run_changed()
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("lib.tests", stdout)
+
+    def test_changing_the_collection_rule_changes_both_selections(self):
+        shard = self.repo / "tests/shard.py"
+        shard.write_text(shard.read_text(encoding="utf-8").replace('PATTERN = "test*.py"', 'PATTERN = "check*.py"'),
+                         encoding="utf-8")
+        git(self.repo, "commit", "-q", "-am", "rule")
+        git(self.repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+        self.write("lib/tests/check_alpha.py", LIB_TEST.format(name="alpha"))
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "check")
+        git(self.repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+        self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
+        rc, stdout, out = self.run_changed()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.ran(out), 1, out)
+        self.assertIn("lib.tests.check_alpha", stdout)
+        self.assertNotIn("tests.layers.test_fence", stdout)
+        done = subprocess.run([sys.executable, "-m", "tests.shard", "--shard", "1/1"], cwd=self.repo, capture_output=True,
+                              text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(self.ran(done.stderr), 1, done.stderr)
 
     def test_output_ends_with_the_unittest_count(self):
         self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")

@@ -9,6 +9,10 @@
   秒数の表 `tests/shard-seconds.json` で重い順に一番軽い分けへ置く。表に無いモジュールは表の中央値の秒数とみなす。
   置いた後で、どの分けにも入らないモジュールと 2 つの分けに入ったモジュールが 0 かを確かめ、0 でなければ落ちる。
   表が古くても分けが偏るだけで、試験は漏れない。
+- 名指しのパスだけを走らせる: `python3 -m tests.shard --paths PATH...`（tests/changed.py が使う）。
+  同じ集め方で見つけたモジュールのうち、名指しのファイルか名指しのフォルダの下に在る物だけを走らせる。
+  頭（__init__.py）で読めないパッケージ（discover がパッケージ名の 1 件にする物）は、その下のパスでも選ぶ。
+  試験のモジュールの集め方（discover と PATTERN）は suites() の 1 か所に在り、作業中の選びと CI の分けの両方がそこから読む。
 - 表を直す: CI の各分けが上げた秒数（artifact の `shard-seconds-<i>`）を取り、
   `python3 -m tests.shard --merge <置き場>...` で表を作り直して、PR で入れる。
 """
@@ -22,6 +26,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TABLE = ROOT / "tests" / "shard-seconds.json"
+PATTERN = "test*.py"
 
 
 class ModuleLoader(unittest.TestLoader):
@@ -33,7 +38,7 @@ class ModuleLoader(unittest.TestLoader):
 
 def suites(root: pathlib.Path) -> dict[str, unittest.TestSuite]:
     found = {}
-    for suite in ModuleLoader().discover(str(root), top_level_dir=str(root)):
+    for suite in ModuleLoader().discover(str(root), pattern=PATTERN, top_level_dir=str(root)):
         # 読み込めない・モジュールの頭で見送ったモジュールは、discover がモジュール名をメソッド名に持つ 1 件の suite にする
         name = getattr(suite, "module", None) or next(iter(suite))._testMethodName
         if suite.countTestCases():
@@ -43,6 +48,21 @@ def suites(root: pathlib.Path) -> dict[str, unittest.TestSuite]:
 
 def modules(root: pathlib.Path) -> list[str]:
     return sorted(suites(root))
+
+
+def source(name: str) -> str:
+    return name.replace(".", "/") + ".py"
+
+
+def pick(names: list[str], paths: list[str]) -> list[str]:
+    dirs = tuple(p.rstrip("/") + "/" for p in paths)
+
+    def named(name: str) -> bool:
+        # 頭（__init__.py）で読み込めないパッケージは、discover がパッケージ名の 1 件にするので、その下のパスでも選ぶ
+        package = name.replace(".", "/") + "/"
+        return source(name) in paths or source(name).startswith(dirs) or any(d.startswith(package) for d in dirs)
+
+    return sorted(name for name in names if named(name))
 
 
 def load_seconds(path: pathlib.Path) -> dict[str, float]:
@@ -119,14 +139,22 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="python3 -m tests.shard")
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--shard", type=shard_arg, metavar="I/N")
+    action.add_argument("--paths", nargs="+", metavar="PATH")
     action.add_argument("--merge", type=pathlib.Path, nargs="+", metavar="SECONDS")
     parser.add_argument("--record", type=pathlib.Path)
     args = parser.parse_args(argv)
     if args.merge:
         TABLE.write_text(json.dumps(merge(args.merge), indent=2) + "\n", encoding="utf-8")
         return 0
-    index, count = args.shard
     found = suites(ROOT)
+    if args.paths:
+        names = pick(sorted(found), args.paths)
+        print(f"名指しのパスに当たる {len(names)} モジュールを回す（回さない: {len(found) - len(names)} モジュール。"
+              f"全部は CI が回す）:")
+        print("\n".join(f"  {name}" for name in names))
+        sys.stdout.flush()
+        return run({name: found[name] for name in names}, args.record)
+    index, count = args.shard
     names = sorted(found)
     shards = plan(names, load_seconds(TABLE), count)
     check(names, shards)
