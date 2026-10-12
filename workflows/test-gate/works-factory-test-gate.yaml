@@ -122,7 +122,8 @@ nodes:
           mutates_checkout: false
           settingSources: [user]
           allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash はテストを走らせるため
-          # 依存の導入（~/.cache・網）と localhost のテストを通す（今の works の blk-ci と同じ形）。本物の作業ツリーの守りは
+          # 依存の導入（~/.cache・網）と localhost のテストを通す（今の works の blk-ci と同じ形）。本物の作業ツリーへの書き込みは
+          # denyWrite で塞ぐ（相対のパスは役の cwd = run の作業ツリーから読む。写しは一時の置き場の直下で書ける）。その上に
           # mutates_checkout: false と ci-accept の作業ツリーの比べ
           sandbox:
             enabled: true
@@ -130,7 +131,7 @@ nodes:
             failIfUnavailable: true
             enableWeakerNetworkIsolation: true
             network: {allowedDomains: ['*'], allowLocalBinding: true}
-            filesystem: {allowWrite: ['/']}
+            filesystem: {allowWrite: ['/'], denyWrite: ['.']}
           idle_timeout: 1728000000
           output_format:
             type: object

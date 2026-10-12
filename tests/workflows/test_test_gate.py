@@ -131,8 +131,15 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(ci["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
                                          "enableWeakerNetworkIsolation": True,
                                          "network": {"allowedDomains": ["*"], "allowLocalBinding": True},
-                                         "filesystem": {"allowWrite": ["/"]}})
+                                         "filesystem": {"allowWrite": ["/"], "denyWrite": ["."]}})
         self.assertEqual(ci["output_format"]["properties"]["material"], declared_checks.MATERIAL_SCHEMA)
+
+    def test_role_cannot_write_the_checkout(self):
+        """元 ci_role.fence の書き込みの守り: 役の砂場は run の作業ツリー（役の cwd。砂場は相対のパスを cwd から読む）への書き込みを塞ぎ、
+        写しの置き場（一時の置き場の直下）は書けるまま。読むだけの節の印 mutates_checkout: false も外さない"""
+        ci = node("ci")
+        self.assertEqual(ci["sandbox"]["filesystem"], {"allowWrite": ["/"], "denyWrite": ["."]})
+        self.assertIs(ci["mutates_checkout"], False)
 
     def test_run_material_is_the_material_schema_or_null(self):
         material = node("run")["output_format"]["properties"]["material"]
