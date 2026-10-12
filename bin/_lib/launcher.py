@@ -79,6 +79,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     heads = [str(hostgh.NO_POST_BIN), str(Path(shim).parent)] if shim else []
     child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
     child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", WORKS_FACTORY_ROOT=str(ROOT))
+    child[place.SOURCE_ENV] = str(source)
     child[answer.ENV] = answer_head(target)
     child.pop(answer.WHO_ENV, None)  # respond に答えた者の引数は無い
     if not no_auth and mise_trusts(user, target):
@@ -98,17 +99,15 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         install_toolset(user, child, target, filled_config, plugins=executing and not no_auth)
 
     if workflow is None:
-        archon = [str(source / place.ENTRY), *argv]
+        args = argv
     else:
         try:
             workflows = place.workflow_source(loaded, ROOT, cache)
         except RuntimeError as error:
             raise Stop(str(error)) from None
-        archon = place.workflow_run(source, workflows, target, workflow, *without_flag(argv[3:], "--cwd"))[1:]
+        args = place.workflow_run(source, workflows, target, workflow, *without_flag(argv[3:], "--cwd"))[2:]
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
-    # bun は打った場所の bunfig.toml の preload を走らせる。対象の物を認証つきの Archon の中で走らせないよう、源の物を名指す
-    config = f"--config={source / 'bunfig.toml'}"
-    os.execve(sys.executable, [*auth, "exec", *auth_user, "--", bun, config, *archon], child)
+    os.execve(sys.executable, [*auth, "exec", *auth_user, "--", *place.archon(bun, source), *args], child)
 
 
 def answer_head(target: Path) -> str:
