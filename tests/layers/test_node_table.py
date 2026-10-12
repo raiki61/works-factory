@@ -15,9 +15,11 @@ from tests.layers.trees import tree
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TABLE = "docs/nodes.json"
 DESIGN = "docs/design.md"
-WORKS = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))["works"]
+PACK = "pack.json"
 
-# 出典: pack.json の works.repo・works.commit の版の works/.shared/core/graphloops/graphs/review-loop.json。節の並びもその nodes の順。
+# 出典: raiki61/claude-plugins@2aa7c66cf7abe1fe09699ac2942d107123214168 の works/.shared/core/graphloops/graphs/review-loop.json。
+# 節の並びもその nodes の順。pack.json の works の止めが動いたら、SIXTY・OPTIONAL・KEEP_NAMES・GRAPH_SHA を新しい版から読み直して SOURCE を動かす。
+SOURCE = {"repo": "raiki61/claude-plugins", "commit": "2aa7c66cf7abe1fe09699ac2942d107123214168"}
 GRAPH_SHA = "2eb140b879e5"
 SIXTY = (
     "p0.base", "p0.local_checks", "p0.premises", "p0.purpose", "p0.purpose_review", "p0.parallel_pr", "p0.prior_decisions",
@@ -36,7 +38,7 @@ OPTIONAL = frozenset({
     "p2.history", "p3.delta_review", "r1.comment_candidates", "r1.minimality", "r2.compare", "r3.coherence",
     "r4.hidden_scope", "stop.premise_check", "p2.rejudge", "p2.rejudge_third",
 })
-# 出典: 同じ版の works/docs/keep-essence.md:10-21
+# 出典: SOURCE の版の works/docs/keep-essence.md:10-21
 KEEP_NAMES = {
     "1": "赤緑の機械の判定", "2": "元から赤のテストの区別", "3": "テストの凍結", "4": "3 回拒まれたら諦める",
     "5": "書き込みの出どころの突き合わせ", "6": "当たる試験を選んで回し、回さなかった試験を名で残す",
@@ -70,13 +72,13 @@ def _no_duplicate_keys(pairs):
     return out
 
 
-def block_nodes(root) -> tuple[dict[str, dict[str, str]], dict[str, set[str]]]:
+def block_nodes(root, prefix) -> tuple[dict[str, dict[str, str]], dict[str, set[str]]]:
     """木のブロックの節（{ブロック: {節の鍵: 種類}}）と、ブロックごとの include: の値。
     節の入れ子は loop_group.nodes だけを辿る（output_format・with: の中の同じ名の鍵を節と取り違えない）"""
     nodes, includes = {}, {}
-    for path in sorted((root / "workflows").glob("*/works-factory-*.yaml")):
+    for path in sorted((root / "workflows").glob(f"*/{prefix}*.yaml")):
         block = path.parent.name
-        if path.name != f"works-factory-{block}.yaml":
+        if path.name != f"{prefix}{block}.yaml":
             continue
         found, inc = {}, set()
 
@@ -121,6 +123,7 @@ class _Check:
         self.out: list[str] = []
         self.held_nodes: dict[str, set[str]] = {}
         self.held_proofs: dict[str, set[str]] = {}
+        self.held_rows: dict[str, set[str]] = {}
 
     def run(self):
         try:
@@ -128,21 +131,24 @@ class _Check:
         except DuplicateKey as e:
             self.out.append(f"{TABLE}: 同じ鍵 {e} が 2 度在る")
             return
-        self.nodes, includes = block_nodes(self.root)
+        pack = json.loads((self.root / PACK).read_text(encoding="utf-8"))
+        self.prefix = pack["ours"]["name_prefix"]
+        line = pack["ours"]["line"].removeprefix(self.prefix)
+        self.nodes, includes = block_nodes(self.root, self.prefix)
         self.pending = table.get("pending") or {}
         self.held_blocks = set(self.pending) - set(self.nodes)
         self.kinds = {key: kind for found in self.nodes.values() for key, kind in found.items()}
         self.covered: set[str] = set()
         self.where_keys: set[str] = set()
         self._pending()
-        self._source(table.get("source") or {})
+        self._source(table.get("source") or {}, pack["works"])
         self._graph(table.get("graph") or {})
         self._keep(table.get("keep") or {})
         self._support(table.get("support") or {})
         self._downgrades(table.get("downgrades") or [], table.get("graph") or {})
         self._design(table.get("graph") or {})
-        if "line" in self.nodes:
-            self._wiring(table, includes["line"])
+        if line in self.nodes:
+            self._wiring(table, line, includes[line])
         for key in sorted(set(self.kinds) - self.covered):
             self.out.append(f"{key}: 木の節が表（graph・keep の where・fallback_where・support）のどこにも無い")
 
@@ -153,25 +159,31 @@ class _Check:
             elif _blank(why):
                 self.out.append(f"pending.{block}: 理由が無い")
 
-    def _held(self, key) -> bool:
-        block = key.split("/", 1)[0]
-        if block in self.held_blocks:
-            self.held_nodes.setdefault(block, set()).add(key)
-            return True
-        return False
-
-    def _where(self, label, keys) -> tuple[set[str], bool]:
-        """在る節の種類と保留のブロックの節を含むかを返し、無い節を名指す（保留のブロックの節は数えるだけ）"""
-        kinds, held = set(), False
+    def _where(self, label, keys) -> tuple[set[str], set[str]]:
+        """在る節の種類と、節を含む保留のブロックを返し、無い節を名指す（保留のブロックの節は数えるだけ）"""
+        kinds, held = set(), set()
         for key in keys:
             self.covered.add(key)
-            if self._held(key):
-                held = True
+            block = key.split("/", 1)[0]
+            if block in self.held_blocks:
+                self.held_nodes.setdefault(block, set()).add(key)
+                held.add(block)
             elif key not in self.kinds:
                 self.out.append(f"{label}: 節 {key} が木の YAML に無い")
             else:
                 kinds.add(self.kinds[key])
         return kinds, held
+
+    def _kind(self, label, want, kinds, held, problem):
+        """在る節に want の種類が無ければ赤。保留のブロックの節を含む行は赤にしない。
+        そのうち在る節も持つ行は、在る節の種類を照らさなかった行として名を残す（保留の節だけの行は節の数に入る）"""
+        if want & kinds:
+            return
+        if not held:
+            self.out.append(f"{label}: {problem}")
+        elif kinds:
+            for block in held:
+                self.held_rows.setdefault(block, set()).add(label)
 
     def _proofs(self, label, refs):
         if not _strings(refs) or not refs:
@@ -204,12 +216,15 @@ class _Check:
             return f"メソッド {method} が無い"
         return None
 
-    def _source(self, source):
+    def _source(self, source, works):
         if source.get("graph_sha") != GRAPH_SHA:
             self.out.append(f"source.graph_sha: {source.get('graph_sha')!r} は固めた {GRAPH_SHA} と違う")
-        for field in ("repo", "commit"):
-            if source.get(field) != WORKS[field]:
-                self.out.append(f"source.{field}: {source.get(field)!r} は pack.json の works.{field} {WORKS[field]!r} と違う")
+        for field, frozen in SOURCE.items():
+            if source.get(field) != frozen:
+                self.out.append(f"source.{field}: {source.get(field)!r} は出典の {frozen!r} と違う")
+            if works.get(field) != frozen:
+                self.out.append(f"{PACK}: works.{field} が出典の版 {frozen!r} から動いた。"
+                                f"{pathlib.Path(__file__).name} の固めた節と名を新しい版から読み直し、SOURCE と表の source を動かす")
 
     def _graph(self, graph):
         for name in SIXTY:
@@ -246,11 +261,11 @@ class _Check:
         where = row.get("where")
         if not _strings(where) or not where:
             self.out.append(f"{label}: where が無い")
-            where = []
-        self.where_keys.update(where)
-        kinds, held = self._where(label, where)
-        if not BY_KINDS[by] & kinds and not held:
-            self.out.append(f"{label}: by {by} なのに where に {'・'.join(sorted(BY_KINDS[by]))} の節が無い")
+        else:
+            self.where_keys.update(where)
+            kinds, held = self._where(label, where)
+            self._kind(label, BY_KINDS[by], kinds, held,
+                       f"by {by} なのに where に {'・'.join(sorted(BY_KINDS[by]))} の節が無い")
         self._fallback(label, by, row)
         self._proofs(label, row.get("proof"))
 
@@ -271,8 +286,7 @@ class _Check:
         fb_where = fb_where if _strings(fb_where) else []
         self.where_keys.update(fb_where)
         kinds, held = self._where(label, fb_where)
-        if not BY_KINDS["role"] & kinds and not held:
-            self.out.append(f"{label}: fallback role なのに fallback_where に役の節が無い")
+        self._kind(label, BY_KINDS["role"], kinds, held, "fallback role なのに fallback_where に役の節が無い")
 
     def _keep(self, keep):
         if sorted(keep, key=lambda k: (len(k), k)) != list(KEEP_NAMES):
@@ -323,23 +337,23 @@ class _Check:
             if name not in graph:
                 self.out.append(f"{DESIGN}: 受け入れの一覧の {name} が graph に無い")
 
-    def _wiring(self, table, line_includes):
+    def _wiring(self, table, line, line_includes):
         rows = [(f"graph.{n}", r) for n, r in (table.get("graph") or {}).items()]
         rows += [(f"keep.{n}", r) for n, r in (table.get("keep") or {}).items()]
         for label, row in rows:
             if not isinstance(row, dict) or row.get("by") == "absent":
                 continue
-            where = row.get("where") if _strings(row.get("where")) else []
-            for block in sorted({k.split("/", 1)[0] for k in where} - {"line"}):
-                if f"works-factory-{block}" not in line_includes:
-                    self.out.append(f"{label}: where のブロック {block} が線の include: に無い")
+            keys = [k for field in ("where", "fallback_where") if _strings(row.get(field)) for k in row[field]]
+            for block in sorted({k.split("/", 1)[0] for k in keys} - {line}):
+                if f"{self.prefix}{block}" not in line_includes:
+                    self.out.append(f"{label}: where か fallback_where のブロック {block} が線の include: に無い")
 
 
-def check(root) -> tuple[list[str], dict[str, tuple[int, int]]]:
-    """表と木の食い違いの行と、保留のブロックごとに照らさなかった（節の数, 証の数）"""
+def check(root) -> tuple[list[str], dict[str, tuple[int, int, tuple[str, ...]]]]:
+    """表と木の食い違いの行と、保留のブロックごとに照らさなかった（節の数, 証の数, 種類を照らさなかった行の名）"""
     c = _Check(root)
     c.run()
-    held = {b: (len(c.held_nodes.get(b, ())), len(c.held_proofs.get(b, ())))
+    held = {b: (len(c.held_nodes.get(b, ())), len(c.held_proofs.get(b, ())), tuple(sorted(c.held_rows.get(b, ()))))
             for b in sorted(set(c.held_nodes) | set(c.held_proofs))}
     return c.out, held
 
@@ -375,7 +389,7 @@ LINE_YAML = "name: works-factory-line\nnodes:\n  - id: start\n    script: start\
 
 def base_table() -> dict:
     return {
-        "source": {"repo": WORKS["repo"], "commit": WORKS["commit"], "graph_sha": GRAPH_SHA},
+        "source": {**SOURCE, "graph_sha": GRAPH_SHA},
         "graph": {n: {"by": "absent", "reason": "無し"} for n in SIXTY},
         "keep": {k: {"name": v, "by": "absent", "reason": "無し"} for k, v in KEEP_NAMES.items()},
         "support": {k: "種" for k in ("a/x", "a/r", "a/g", "a/lp", "a/inner")},
@@ -398,6 +412,7 @@ def files(table=None, **extra) -> dict:
         "workflows/a/works-factory-a.yaml": BLOCK_YAML,
         "tests/workflows/test_a.py": PROOF_PY,
         OK_FIXTURE: "stubs: []\n",
+        PACK: (ROOT / PACK).read_text(encoding="utf-8"),
     }
     out.update(extra)
     return out
@@ -432,7 +447,10 @@ class NodeTableTest(unittest.TestCase):
         for field in ("repo", "commit"):
             t = base_table()
             t["source"][field] = "old"
-            self.one(f"source.{field}: 'old' は pack.json の works.{field}", t)
+            self.one(f"source.{field}: 'old' は出典の", t)
+        pack = json.loads((ROOT / PACK).read_text(encoding="utf-8"))
+        pack["works"]["commit"] = "0" * 40
+        self.one(f"{PACK}: works.commit が出典の版", **{PACK: json.dumps(pack)})
         real = json.loads((ROOT / TABLE).read_text(encoding="utf-8"))
         self.assertEqual(list(real["graph"]), list(SIXTY))
 
@@ -448,6 +466,9 @@ class NodeTableTest(unittest.TestCase):
         t = base_table()
         t["graph"]["p0.base"]["fallback_wehre"] = []
         self.one("graph.p0.base: 知らない欄 fallback_wehre", t)
+        t = base_table()
+        t["graph"]["p0.base"] = "machine"
+        self.one("graph.p0.base: 行が object でない", t)
 
     def test_absent_needs_reason(self):
         t = base_table()
@@ -456,6 +477,9 @@ class NodeTableTest(unittest.TestCase):
         t = base_table()
         del t["graph"]["p0.base"]["reason"]
         self.one("graph.p0.base: absent に理由が無い", t)
+        t = base_table()
+        t["graph"]["p0.base"]["proof"] = [OK_TEST]
+        self.one("graph.p0.base: absent の行が proof を持つ", t)
 
     def test_where_node_gone_is_red(self):
         t = use(base_table(), "graph", "p0.base", {"by": "machine", "where": ["a/x", "a/gone"], "proof": [OK_TEST]})
@@ -463,6 +487,7 @@ class NodeTableTest(unittest.TestCase):
         t = base_table()
         t["support"]["b/gone"] = "無いブロック"
         self.one("support.b/gone: 節 b/gone", t)
+        self.one("graph.p0.base: where が無い", use(base_table(), "graph", "p0.base", {"by": "machine", "proof": [OK_TEST]}))
 
     def test_yaml_node_missing_from_table_is_red(self):
         t = base_table()
@@ -494,6 +519,8 @@ class NodeTableTest(unittest.TestCase):
         self.one("graph.p0.base: fallback 'machine'", use(base_table(), "graph", "p0.base", row))
         row = {"by": "machine", "where": ["a/x"], "fallback": "role", "fallback_where": ["a/g"], "proof": [OK_TEST]}
         self.one("graph.p0.base: fallback role なのに", use(base_table(), "graph", "p0.base", row))
+        row = {"by": "machine", "where": ["a/x"], "fallback": "absent", "fallback_where": ["b/r"], "proof": [OK_TEST]}
+        self.one("graph.p0.base: fallback absent なのに fallback_where", use(base_table(), "graph", "p0.base", row))
         row = {"by": "machine", "where": ["a/x"], "fallback": "role", "fallback_where": ["a/r"], "proof": [OK_TEST]}
         self.assertEqual(self.broken(use(base_table(), "graph", "p0.base", row)), [])
 
@@ -528,6 +555,15 @@ class NodeTableTest(unittest.TestCase):
         t = base_table()
         t["keep"]["3"]["reason"] = ""
         self.one("keep.3: absent に理由が無い", t)
+        t = base_table()
+        t["keep"]["3"] = "凍結"
+        self.one("keep.3: 行が object でない", t)
+        t = base_table()
+        t["keep"]["3"]["proff"] = []
+        self.one("keep.3: 知らない欄 proff", t)
+        row = {"name": KEEP_NAMES["1"], "by": "role", "where": ["a/x"], "proof": [OK_TEST]}
+        self.one("keep.1: by は absent だけ", use(base_table(), "keep", "1", row))
+        self.one("keep.1: where が無い", use(base_table(), "keep", "1", {"name": KEEP_NAMES["1"], "proof": [OK_TEST]}))
         row = {"name": KEEP_NAMES["1"], "where": ["a/x", "a/r"], "proof": [OK_TEST]}
         self.assertEqual(self.broken(use(base_table(), "keep", "1", row)), [])
 
@@ -555,7 +591,14 @@ class NodeTableTest(unittest.TestCase):
         self.assertEqual(wired(LINE_YAML), [])
         got = wired(LINE_YAML.replace("include: works-factory-a", "include: works-factory-b"))
         self.assertEqual(len(got), 1, got)
-        self.assertIn("graph.p0.base: where のブロック a が線の include: に無い", got[0])
+        self.assertIn("graph.p0.base: where か fallback_where のブロック a が線の include: に無い", got[0])
+        t = use(base_table(), "graph", "p0.base",
+                {"by": "machine", "where": ["a/x"], "fallback": "role", "fallback_where": ["b/r"], "proof": [OK_TEST]})
+        t["support"].update({"line/start": "始め", "line/a": "差し込み"})
+        got = self.broken(t, **{"workflows/line/works-factory-line.yaml": LINE_YAML,
+                                "workflows/b/works-factory-b.yaml": "name: works-factory-b\nnodes:\n  - id: r\n    command: r\n"})
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("graph.p0.base: where か fallback_where のブロック b が線の include: に無い", got[0])
 
     def test_pending_block_tolerated_while_absent(self):
         t = base_table()
@@ -564,7 +607,15 @@ class NodeTableTest(unittest.TestCase):
         use(t, "graph", "p2.human_gate", row)
         t["support"]["line/start"] = "始め"
         with tree(files(t)) as root:
-            self.assertEqual(check(root), ([], {"line": (3, 1)}))
+            self.assertEqual(check(root), ([], {"line": (3, 1, ())}))
+        row = {"by": "role", "where": ["a/x", "line/r"], "proof": [OK_TEST]}
+        use(t, "graph", "p0.premises", row)
+        with tree(files(t)) as root:
+            self.assertEqual(check(root), ([], {"line": (4, 1, ("graph.p0.premises",))}))
+        row = {"by": "machine", "where": ["a/x"], "fallback": "role", "fallback_where": ["a/g", "line/r2"], "proof": [OK_TEST]}
+        use(t, "graph", "p0.base", row)
+        with tree(files(t)) as root:
+            self.assertEqual(check(root), ([], {"line": (5, 1, ("graph.p0.base", "graph.p0.premises"))}))
 
     def test_pending_block_stale_is_red(self):
         t = base_table()
@@ -572,6 +623,9 @@ class NodeTableTest(unittest.TestCase):
         t["support"].update({"line/start": "始め", "line/a": "差し込み"})
         self.one("pending.line: workflows/line/ の YAML が在る。pending から line を消す", t,
                  **{"workflows/line/works-factory-line.yaml": LINE_YAML})
+        t = base_table()
+        t["pending"] = {"zz": " "}
+        self.one("pending.zz: 理由が無い", t)
 
     def test_pending_rows_are_named(self):
         errors, held = check(ROOT)
@@ -579,7 +633,8 @@ class NodeTableTest(unittest.TestCase):
         pending = json.loads((ROOT / TABLE).read_text(encoding="utf-8")).get("pending") or {}
         self.assertEqual(set(held), set(pending))
         if held:
-            self.skipTest("・".join(f"保留: {b} の節 {n} 個・証 {m} 個（{pending[b]}）" for b, (n, m) in held.items()))
+            self.skipTest("・".join(f"保留: {b} の節 {n} 個・証 {m} 個・種類を照らさない行 {len(rows)} 個 {list(rows)}（{pending[b]}）"
+                                    for b, (n, m, rows) in held.items()))
 
 
 if __name__ == "__main__":
