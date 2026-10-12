@@ -12,6 +12,7 @@ import json
 import os
 import pathlib
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -206,6 +207,21 @@ class TestSweep(unittest.TestCase):
         self.assertEqual(len(failed), 1, failed)
         self.assertIsInstance(failed[0], PermissionError)
         self.assertTrue(stuck.exists())
+
+    def test_entry_removed_by_a_concurrent_sweep_is_not_a_failure(self):
+        """並んだ起動の sweep が同じ置き場を先に消しても、片付けの失敗として数えない"""
+        w = self.workspace("gone")
+        key = writelog.open_log(self.root, w).parent
+        w.rmdir()
+        real_rmtree = shutil.rmtree
+
+        def raced(path, *args, **kwargs):
+            real_rmtree(path)
+            raise FileNotFoundError(2, "No such file or directory", str(path))
+
+        with mock.patch.object(writelog.shutil, "rmtree", raced):
+            self.assertEqual(writelog.sweep(self.root), ([], []))
+        self.assertFalse(key.exists())
 
     def test_missing_root_sweeps_nothing(self):
         self.assertEqual(writelog.sweep(self.tmp / "none"), ([], []))
