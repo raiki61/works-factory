@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """読んだ証拠の節（lib/boardview.collect_reads）: この差し込みの事前審査の役が、機械が渡したパスを読んだかを、隔離した設定の
-フックの記録（lib/reads。Claude の設定の置き場 CLAUDE_CONFIG_DIR の下）から集め、pass-<k>/ に reads-<役>.json と索引を書き、
+フックの記録（lib/reads.log_here。隔離した Claude の設定の置き場の下）から集め、pass-<k>/ に reads-<役>.json と索引を書き、
 束ね役が起こした下請けの数を trace に残す。受け付けの条件にしない。返す節に結ばない。落ちない: 中の誤りは ok: false と訳で返す。
 返り {ok, missing, index_file, reason}"""
 import json
@@ -25,7 +25,7 @@ def collected() -> None:
     import reads
 
     got = boardview.collect_reads(Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER,
-                                  reads.log_of(os.environ.get("CLAUDE_CONFIG_DIR")), role=ROLE, quiet=QUIET, repo=Path.cwd())
+                                  reads.log_here(), role=ROLE, quiet=QUIET, repo=Path.cwd())
     boundary.returns({**got, "reason": ""})
 
 

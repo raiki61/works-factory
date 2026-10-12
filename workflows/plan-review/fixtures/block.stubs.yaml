@@ -10,6 +10,7 @@ plan-review:
   shrink: []
   reason: "stub: 契約のずれを 1 つ挙げ、ほかの見ることは穴が無い"
 review-accept: { ok: true, done: true, give_up: false, reason: "" }
+review-reads: { ok: true, missing: [], index_file: plan-review/pass-1/reads-plan-review-block.json, reason: "" }
 review:
   pass: false
   stalled: false

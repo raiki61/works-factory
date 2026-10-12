@@ -6,6 +6,7 @@ r2-accept: { ok: false, done: true, give_up: true, reason: "stub: 根拠の名�
 review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md" }
 plan-review: { faces: [], shrink: [], reason: "stub: 写し・入口・契約のずれを確かめた", faces_none: "stub: 穴が無いことを全部の見ることで確かめた" }
 review-accept: { ok: true, done: true, give_up: false, reason: "" }
+review-reads: { ok: true, missing: [], index_file: plan-review/pass-1/reads-plan-review-block.json, reason: "" }
 review:
   pass: true
   stalled: false

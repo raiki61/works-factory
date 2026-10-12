@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """読んだ証拠の節（lib/planfile.collect_reads）: この周に起こした修正案の役が、機械が渡したパスを読んだかを、隔離した設定の
-フックの記録（lib/reads。Claude の設定の置き場 CLAUDE_CONFIG_DIR の下）から集め、周のフォルダに reads-<役>.json と索引を書く。
+フックの記録（lib/reads.log_here。隔離した Claude の設定の置き場の下）から集め、周のフォルダに reads-<役>.json と索引を書く。
 受け付けの条件にしない。返す節に結ばない。落ちない: 中の誤りは ok: false と訳で返す。返り {ok, missing, index_file, reason}"""
 import json
 import os
@@ -26,7 +26,7 @@ def collected() -> None:
 
     start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
     got = planfile.collect_reads(Path(os.environ["ARTIFACTS_DIR"]) / os.environ["INPUTS_DIR"],
-                                 reads.log_of(os.environ.get("CLAUDE_CONFIG_DIR")), role=ROLE, quiet=QUIET,
+                                 reads.log_here(), role=ROLE, quiet=QUIET,
                                  policy_md=policy.frozen_copy(start if isinstance(start, dict) else {}), repo=Path.cwd())
     boundary.returns({**got, "reason": ""})
 

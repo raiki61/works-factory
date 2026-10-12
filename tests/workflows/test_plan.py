@@ -239,6 +239,8 @@ class Run:
         rule = n.get("trigger_rule", "all_success")
         if rule == "all_done":
             ok = True
+        elif rule == "one_success":
+            ok = "ok" in states
         elif rule == "none_failed_min_one_success":
             ok = "ok" in states and "failed" not in states
         else:

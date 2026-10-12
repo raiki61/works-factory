@@ -9,7 +9,7 @@
 受け付けの条件にはしない（欠けは報告が出す）。
 
 フックが import するので、頭は標準ライブラリだけを読む（記録の状態を測る hook_evidence は collect の中で読む）。
-- ROOT・LOG・root(config_dir)・reads_path(root, cwd): 記録の根（Claude の設定の置き場の下）と、作業の場ごとの記録のファイル
+- ROOT・LOG・root(config_dir)・reads_path(root, cwd)・log_here(): 記録の根（Claude の設定の置き場の下）と、作業の場ごとの記録のファイル
 - EVIDENCE_GLOB・evidence_name(role)・index_name(owner)・is_index(name): 置き場の読んだ証拠と索引の名
 - stamp()・records(log, since): 記録の時刻の形と、since から後の行（読めなければ None と訳）
 - tool_count・tool_inputs・web_fetches・web_searches: 記録の行の道具の呼びの数と入力
@@ -62,11 +62,13 @@ def stamp(at: float | None = None) -> str:
     return time.strftime(TS_FORMAT, time.localtime(at))
 
 
-def log_of(config_dir) -> pathlib.Path | None:
-    """Claude の設定の置き場 config_dir の下の、この作業の場（cwd）の記録のファイル。置き場か根が無ければ None"""
-    if not config_dir or not root(config_dir).is_dir():
+def log_here() -> pathlib.Path | None:
+    """このプロセスの Claude の設定の置き場（起動の殻が隔離した CLAUDE_CONFIG_DIR。役の会話もフックも同じ値で起きる）の下の、
+    この作業の場（cwd）の記録のファイル。置き場か根が無ければ None。置き場の決まりはここの 1 か所に持つ"""
+    config = os.environ.get("CLAUDE_CONFIG_DIR")
+    if not config or not root(config).is_dir():
         return None
-    return reads_path(root(config_dir), pathlib.Path.cwd())
+    return reads_path(root(config), pathlib.Path.cwd())
 
 
 def records(log, since: str) -> tuple:

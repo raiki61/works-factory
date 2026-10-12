@@ -530,15 +530,15 @@ nodes:
         ripple_file: {type: string}
 
   # 読んだ証拠: この周に起こした修正案の役が、機械が渡したパス（材料・前の拒否の理由・方針の文書）を読んだかを、隔離した設定の
-  # フックの記録から集めて周のフォルダに書く（受け付けの条件にしない。返す節に結ばない。役を起こさない周も走って「役を起こして
-  # いない」と書く。落ちない）
+  # フックの記録から集めて周のフォルダに書く（受け付けの条件にしない。返す節に結ばない。役を起こさない周も、輪が落ちた周も走って
+  # 書く。周を開く節が落ちた周は dir が無いので飛ぶ（one_success）。落ちない）
   - id: plan-reads
     script: plan_reads
     runtime: uv
     mutates_checkout: false
     timeout: 1728000000
     depends_on: [round, plan-loop]
-    trigger_rule: all_done
+    trigger_rule: one_success
     with:
       dir: $round.output.dir
     output_format:
