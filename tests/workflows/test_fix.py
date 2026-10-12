@@ -386,6 +386,34 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertFalse(out["go"])
         self.assertFalse((self.place / "delta" / "skipped.json").exists())
 
+    def test_empty_diff_without_claims_does_not_launch_the_review(self):
+        """作業ツリーが run の始めの版と同じ（.archon/ の下の変更は数えない）で、修正役が塞いだと言う事前審査の穴（plan_faces の
+        absorbed）も無い run は、delta/skipped.json に訳を書いて go: false で審査役を起こさない。返す節はこれを審査を省いた run と
+        読む（{rounds: 0, pass: true}）。塞いだと言う穴が在れば、差分が空でも検算のために審査を回す
+        （元 works/.shared/core/graphloops/rules/review-loop.py:604 fix_delta_nonempty・:617 delta_review_due）"""
+        import fixboard
+        git(self.repo, "checkout", "-q", "--", "stats.py")
+        (self.repo / ".archon").mkdir()
+        (self.repo / ".archon" / "copied.txt").write_text("Archon が写した工程\n", encoding="utf-8")
+        out = self._run("delta_cut", "delta-cut")
+        self.assertEqual(out, {"go": False, "files": [], "diff_file": "", "brief_file": ""})
+        got = json.loads((self.place / "delta" / "skipped.json").read_text(encoding="utf-8"))
+        self.assertEqual(list(got), ["reason"])
+        self.assertIn("差分が空", got["reason"])
+        self.assertIn("塞いだと言われた穴も無い", got["reason"])
+        self.assertFalse((self.place / "loop-fix_delta.json").exists())
+        self.assertFalse((self.place / "review1-brief.json").exists())
+        self.assertEqual(fixboard.delta_review(self.place), ({"rounds": 0, "pass": True}, True))
+        with self.subTest("塞いだと言う穴が在る"):
+            reply = self.place / "g1-reply.json"
+            reply.write_text(json.dumps({"changes": [], "not_done": [], "plan_faces": [
+                {"key": "pf-1", "handled": "absorbed", "how": "既に塞がっていた"}]}, ensure_ascii=False), encoding="utf-8")
+            self._json("groups/g1/result.json", {"group_id": "g1", "reply_file": str(reply)})
+            out = self._run("delta_cut", "delta-cut")
+            self.assertTrue(out["go"], out)
+            self.assertNotIn("stats.py", out["files"])
+            self.assertFalse((self.place / "delta" / "skipped.json").exists())
+
     def test_cut_review_refix_rejects_outside_the_range_then_accepts(self):
         """標準の run: 差分を切って材料を書き、審査を受けて delta/review-1.json に pass: false、手直しの支度が指示書を書き、
         範囲の外（other.py）を変えた手直しは拒んで理由のファイルを置き、外を戻せば受ける"""

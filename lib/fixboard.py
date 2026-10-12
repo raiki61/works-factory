@@ -427,7 +427,7 @@ NO_RESULT = "組の子の run が結果のファイルを書かなかった（�
 DROPPED = "。子が親の作業ツリーに残した変更を子の始めの木に戻した: {paths}"
 DELTA_DIR = "delta"                       # 差分の審査の控えの置き場（置き場の下）
 DELTA_REVIEW = "review-{}.json"           # n 回目の審査の控え {pass: bool}（delta-accept・review2-accept が書く）
-DELTA_SKIPPED = "skipped.json"            # 全部の単位が軽量で審査を飛ばした印 {reason}（delta-cut が書く）
+DELTA_SKIPPED = "skipped.json"            # 審査を飛ばした印 {reason}（全部の単位が軽量・差分が空で塞いだ穴も無い。delta-cut が書く）
 CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
                  "path_changed")
 NOT_CHANGED = "修正役は済んだと言ったが、申告したファイル {files} は run の始めから何も変わっていない（変わった物: {moved}）"
@@ -700,7 +700,7 @@ def objection(results) -> str:
 
 def delta_review(place) -> tuple:
     """({rounds, pass}, 飛ばしたか)。置き場の delta/ の下の審査の控え review-1.json・review-2.json（{pass}）の数と最後の pass。
-    全部の単位が軽量で審査を飛ばした印 skipped.json が在れば ({rounds: 0, pass: True}, True)。どちらも無ければ審査は走らなかった
+    審査を飛ばした印 skipped.json（全部の単位が軽量・差分が空で塞いだ穴も無い）が在れば ({rounds: 0, pass: True}, True)。どちらも無ければ審査は走らなかった
     （{rounds: 0, pass: False}）。控えが読めなければ ValueError"""
     d = pathlib.Path(place) / DELTA_DIR
     if (d / DELTA_SKIPPED).is_file():
@@ -869,6 +869,21 @@ def redepth(place, repo, skip=()) -> str:
     doc = depth.raise_doc(doc, units=units, run=run)
     write_json(pathlib.Path(place) / DEPTH_RAISED_FILE, doc)
     return depth.skip_reason(doc)
+
+
+def delta_review_due(place, repo, skip=(), fix_reply=None) -> tuple:
+    """1 回目の差分の審査を起こすか (起こすか, 訳)。修正の差分（修正前の版 base_rev_of から今の作業ツリーへの累積差分。除くパスの頭
+    skip の下は数えない。run_diff）が空でないか、検算すべき『塞いだ』と言われた穴（claimed_closed の 1 回目。fix_reply は値か
+    そのパス）が在れば起こす。差分の無い申告を誰も検算しない形を作らない。git が落ちれば unittrees.UnitTreeError。
+    元 works/.shared/core/graphloops/rules/review-loop.py:604 の fix_delta_nonempty と :617 の delta_review_due"""
+    rev = base_rev_of(place)
+    if run_diff(repo, rev, skip).strip():
+        return True, f"修正の差分が在る（起点 {rev[:12]}）"
+    k = len(claimed_closed(place, 1, fix_reply))
+    if k:
+        return True, f"修正の差分は空だが、修正が塞いだと言う事前審査の穴が {k} 件在る（検算する）"
+    return False, (f"差分が空で、塞いだと言われた穴も無いので差分の審査を起こさない（修正前の版 {rev[:12]} から作業ツリーは"
+                   "変わっていない。修正が塞いだと言う事前審査の穴は 0 件）")
 
 
 def place_items(place):
