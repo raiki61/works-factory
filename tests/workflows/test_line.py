@@ -36,9 +36,12 @@ collect = load("collect")
 result = load("result")
 
 import answer  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
+import boardview  # noqa: E402
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
+import judge_accept  # noqa: E402
+import policy  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
 
@@ -198,6 +201,53 @@ class StartCase(Artifacts):
                 self.assertEqual(self.record(got)["refused"], got["reason"])
 
 
+class PolicyPassedCase(Artifacts):
+    """修正前の関所で人が方針の文書の変化（版 A→B）を通したら、answer-before-fix が始めの記録の欄 policy を事前審査が固め直した版 B に
+    書き直し、始めの記録を読む fix・eyes・judge の再審が B を読む。止めた答えでは書き直さない"""
+
+    def setUp(self):
+        super().setUp()
+        self.repo = self.tmp / "repo"
+        committed_copy(self.repo, SEED)
+        self.doc = self.tmp / "policy.md"
+        self.doc.write_text("- 版 A\n", encoding="utf-8")
+        self.pointer = start.start(raw(request="request_ok.json", policy_md=str(self.doc)), self.repo, self.artifacts, RUN)["record"]
+        self.folder = self.artifacts / boardview.FOLDER
+        self.folder.mkdir()
+        (self.folder / boardview.POLICY_FILE).write_text(json.dumps(self.record()["policy"]), encoding="utf-8")
+        self.doc.write_text("- 版 B\n", encoding="utf-8")
+        self.change = boardview.policy_change(self.folder, self.repo)
+        self.row = boardview.change_row(self.change)
+        boardview._note_asked(self.folder, [(boardview.POLICY_CHANGED, self.row)], self.change)
+
+    def record(self) -> dict:
+        return json.loads((self.artifacts / self.pointer["path"]).read_text(encoding="utf-8"))
+
+    def answer(self, decision: str) -> dict:
+        return before_fix_answer.answer(json.dumps(self.pointer), self.artifacts, go_raw="true", stop_raw="", place="gate-before-fix",
+                                        gate_raw=json.dumps({"decision": decision, "text": "B で進める"}, ensure_ascii=False),
+                                        asked_raw=json.dumps([self.row], ensure_ascii=False))
+
+    def test_continue_past_a_policy_change_rewrites_the_record_with_the_refrozen_version(self):
+        self.assertTrue(self.answer("continue")["go"])
+        rec = self.record()
+        self.assertEqual((rec["policy"]["sha256"], rec["policy"]["copy"]), (self.change["to"], self.change["to_copy"]))
+        self.assertEqual(policy.frozen_copy(rec), self.change["to_copy"], "fix の役と eyes の prep が読む写し")
+        self.assertIn("版 B", fixboard.policy_brief(rec)["paste"])
+        self.assertIn("版 B", judge_accept.policy_text(rec), "judge の再審が貼る本文")
+        self.answer("continue")
+        self.assertEqual(self.record(), rec, "同じ答えをもう 1 度受けても版は変わらない")
+
+    def test_stop_keeps_the_version_of_the_start(self):
+        frozen = self.record()["policy"]
+        self.assertFalse(self.answer("stop")["go"])
+        self.assertEqual(self.record()["policy"], frozen)
+        self.assertFalse((self.folder / boardview.GATE_ANSWERS_FILE).exists(), "止めた答えは事前審査の控えにも積まない")
+
+    def test_line_passes_the_start_record(self):
+        self.assertEqual(line_nodes()["answer-before-fix"]["with"]["start"], "$start.output.record")
+
+
 class ReplanAnswerCase(Artifacts):
     def test_refix_answers_carry_the_before_fix_conditions_and_the_replan_note(self):
         """元 replan._notes: 2 度目の修正には修正前の関所の条件と案の直しの関所の一言の両方が届く"""
@@ -232,7 +282,7 @@ class FixGateAnswersCase(Artifacts):
 
     def test_before_fix_answer_returns_the_asked_unit(self):
         asked = json.dumps([gatemarks.ask_text(self.FORK)], ensure_ascii=False)
-        before_fix = gate_answer.answer(**self.before_fix_inputs(asked), artifacts=self.artifacts)["answer"]
+        before_fix = before_fix_answer.answer(**self.before_fix_inputs(asked), artifacts=self.artifacts)["answer"]
         replan = gate_answer.answer(json.dumps({"decision": "approve", "text": "直した案でよい"}), "true", "", "gate-replan",
                                     self.artifacts)["answer"]
         for name, answers in (("fix", before_fix), ("refix-run", replan_answer.fix_answers(before_fix, replan)),

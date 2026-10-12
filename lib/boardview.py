@@ -11,7 +11,8 @@
 - rules: 見え方が b.rules で渡す、写しの rules と検証器の表のうち、このブロックの部品が読む物の書き直し（元の名のまま）
 - open_pass: 差し込みの頭（元 planblk.snap と design.due・design.snap。works/blk-plan/lib/planblk.py:1062・
   works/.shared/core/design.py:492）。形 replan の項目（replan_items。元 works/.shared/core/replan.py:291 の material）と、
-  修正前の関所の答えの控え（take_gate_answers。元 graphloops/rules/review-loop.py:4134 の human_gate_answered）
+  修正前の関所の答えの控え（take_gate_answers。元 graphloops/rules/review-loop.py:4134 の human_gate_answered）と、それを受けた後の
+  方針の文書の版（passed_version。線の節 answer-before-fix が呼ぶ）
 - 方針の文書: 固めた版（始めの記録の欄 policy。置き場と写しは policy.locate・snapshot）・変化（policy_change・change_row。元
   graphloops/rules/policy_input.py）。役に貼る節は固めた版の写しの policy.section
 - r2_prompt・check_design: 独立設計の支度と受け付け（元 works/.shared/core/design.py:528 の prep・:586 の check_design・
@@ -370,6 +371,17 @@ def take_gate_answers(folder, gate_answers) -> list:
                 _write_json(d / POLICY_FILE, pol)
     _write_json(d / GATE_ANSWERS_FILE, have)
     return have
+
+
+def passed_version(folder, gate_answers) -> dict | None:
+    """修正前の関所の答えを受けた後の方針の文書の版 {named, path, sha256, copy}。答えを take_gate_answers で控えに積み（通した方針の
+    変化はここで固め直す）、置き場の POLICY_FILE を読む。この run の差し込みが版を置いていなければ None（線の節 answer-before-fix
+    が始めの記録の欄 policy をこの版で書き直す）"""
+    d = pathlib.Path(folder)
+    if not (d / POLICY_FILE).is_file():
+        return None
+    take_gate_answers(d, gate_answers)
+    return policy.version({"policy": _read_json(d / POLICY_FILE)})
 
 
 def tree_word(start: dict | None) -> str:
