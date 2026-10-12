@@ -2494,7 +2494,7 @@ def _grep_count(cite_, rev):
     root = _repo_root()
     if root is None:
         return None, "git が動かない"
-    return grep(["git", "grep", "-F", "-cI", "-e", cite_, rev, "--", ":(top)"], root, 60)
+    return grep(["git", "grep", "-F", "-cI", "-e", cite_, rev, "--", ":(top)"], root)
 
 
 def _in_version(rels):
