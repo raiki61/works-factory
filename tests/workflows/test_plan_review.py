@@ -1373,10 +1373,22 @@ class ReplanCase(RunCase):
 
     def test_replan_without_block_passes(self):
         r = self.run_
-        self.replan(ruled=converge.item_id([UNIT_CLAMP]))
+        self.replan()
         self.assertTrue(r.accept(review())["ok"])
         got = r.out("result")
         self.assertEqual((got["pass"], got["stalled"]), (True, False))
+
+    def test_replan_with_unknown_ruling_asks_human(self):
+        """番号でない ruling の形 replan は、差し込みの頭が訳つきで落ち、返す節が pass: false・ask_human: true で訳を名指す
+        （黙って 0 項目を審査して通さない）"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        self.assertTrue(r.pass_(review())["pass"])
+        r.inputs["ruling"] = json.dumps(["x"])
+        self.assertFalse(r.out("pass_open")["ok"])
+        got = r.out("result")
+        self.assertEqual((got["pass"], got["ask_human"]), (False, True))
+        self.assertTrue(any("ruling の項目 'x'" in q for q in got["questions"]), got["questions"])
 
     def test_replan_without_an_approved_plan_names_it(self):
         """同じ run の置き場に承認済みの案（前の差し込みの往復の控え）が無ければ、差し込みの頭は ok: false でその訳を返す"""

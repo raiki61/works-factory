@@ -128,15 +128,13 @@ class OpenCase(Base):
 
     def test_replan_form_records_no_pass(self):
         """裁かれた項目が在れば形 replan で、往復を控えに積まない（案の項目の控えは審査する直した案に置き換える）。裁かれた項目は
-        番号か項目の id で引く"""
+        項目の番号の字で引く"""
         self.open()
-        got = self.open(ruling=[converge.item_id([UNIT])])
+        got = self.open(ruling=["1"])
         self.assertEqual(got["form"], "replan")
         record = converge.read(self.view())
         self.assertEqual((record["passes"], record["open"]), ([], {}))
         self.assertEqual([it["unit_keys"] for it in record["plan"]], [[UNIT]])
-        self.assertEqual(boardview.read_open(self.folder)["ruled"], [1])
-        self.open(ruling=["1"])
         self.assertEqual(boardview.read_open(self.folder)["ruled"], [1])
 
     def test_answers_become_human_items(self):
@@ -363,6 +361,15 @@ class ReplanItemsCase(Base):
         section = boardview._replan_section(got[0])
         for word in (boardview.OLD_HEAD, boardview.NEW_HEAD, boardview.ROW_HEAD.format(id="c1"), "範囲を広げよ", "両方は立たない"):
             self.assertIn(word, section)
+
+    def test_ruling_must_be_item_numbers(self):
+        """ruling の行は案の項目の 1 から数えた番号の字だけ（項目の id・0・案の外の番号・数でない字は訳つきで拒み、黙って落とさない）"""
+        self.open(plan_rows=[self.ROW])
+        for bad in (converge.item_id([UNIT]), "0", "2", "x"):
+            with self.subTest(bad):
+                with self.assertRaises(boardview.Missing) as cm:
+                    self.open(plan_rows=[self.ROW], rnd=3, ruling=["1", bad])
+                self.assertIn(repr(bad), str(cm.exception))
 
     def test_no_approved_plan_stops_the_open(self):
         with self.assertRaises(boardview.Missing) as cm:
