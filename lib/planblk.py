@@ -76,10 +76,8 @@ TREE_AUTO_MIN = 2
 # 受け付けの拒みの頭（plan の受け付け planfile と事前審査の受け付け boardview が読む）
 NO_NARROW_REJECT = (f"narrows の行に狭めない案を探した結果（{gatemarks.NO_NARROW}）が無いか短い（直して出し直せ）。狭めを避ける形が"
                     "在ればそれを案に採ってその行を消し、無い時だけ、どの形を当たりなぜ採れないかを書け:")
-RECOMMEND_REJECT = (f"関所の項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている（直して出し直せ）。書くなら {{"
-                    + ", ".join([f"{gatemarks.RECOMMEND_KEYS[0]}: {' か '.join(gatemarks.RECOMMEND_ANSWERS)}"]
-                                + [f"{k}: {gatemarks.RECOMMEND_MIN} 字以上" for k in gatemarks.RECOMMEND_KEYS[1:]])
-                    + "}:")
+RECOMMEND_REJECT = (f"関所の項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている（直して出し直せ）。"
+                    f"書くなら {gatemarks.RECOMMEND_SHAPE} の形で:")
 NOT_OWED_REJECT = "案に、直す義務の無い単位が入っている（nit・info・defer など。受け付けが受けない）。案から外せ。案に入れてよい no（必ず入れる物を含む）は"
 RESOLVED_REJECT = "前の往復の block の行き先が書かれていない（下の行を全部直して出し直せ）:"
 ANSWERS_REJECT = "block への答えに誤りが在る（下の行を全部直して出し直せ）:"

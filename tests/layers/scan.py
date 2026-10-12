@@ -208,17 +208,17 @@ def _line(node) -> int:
     return node.start_mark.line + 1
 
 
-def includes(root: Path, rel: str) -> list[str]:
-    """root/rel の工程の `include:` の先の工程の名（`loop_group` の中も）。読めない YAML は ValueError"""
+def nodes(root: Path, rel: str) -> list:
+    """root/rel の工程の節の node（`loop_group` の中も）。読めない YAML は ValueError"""
     documents, broken = _documents(root, root / rel)
     if broken:
         raise ValueError(broken[0])
-    return [
-        value.value
-        for document in documents
-        for node in _nodes(document)
-        if isinstance(value := _top(node, "include"), yaml.ScalarNode)
-    ]
+    return [node for document in documents for node in _nodes(document)]
+
+
+def includes(root: Path, rel: str) -> list[str]:
+    """root/rel の工程の `include:` の先の工程の名（`loop_group` の中も）。読めない YAML は ValueError"""
+    return [value.value for node in nodes(root, rel) if isinstance(value := _top(node, "include"), yaml.ScalarNode)]
 
 
 def _polyfills_listed(root: Path) -> list[str]:

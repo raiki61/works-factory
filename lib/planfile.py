@@ -46,15 +46,18 @@ if str(_CORE / "graphloops") not in sys.path:
 
 import carry  # noqa: E402
 import concepthome  # noqa: E402
+import conflict  # noqa: E402
 import context  # noqa: E402
 import converge  # noqa: E402
 import depth  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
 import impact  # noqa: E402
+import judgeverify  # noqa: E402
 import libdocs  # noqa: E402
 import planblk  # noqa: E402
 import planmarks  # noqa: E402
+import prcheck  # noqa: E402
 import promptsection  # noqa: E402
 import replan  # noqa: E402
 import ripple  # noqa: E402
@@ -104,7 +107,6 @@ POLICY_PART = ("## 人の方針\n\n人が決めた、run をまたいで効く�
                "判定なら単位の reason に、審査なら穴に、修正なら not_done に書け。方針の文書は書き換えるな。")
 UNREAD_INPUTS_HEAD = promptsection.Section("## 読めなかった入力（機械が書いた。その節は材料に無い）", source="fn:planfile.write_brief")
 FILLED_DUTY = "機械が差し込む（閉じた・保留の項目。書かなくてよい）"
-REPLAN_DECISION = "fix_plan_item"   # 案の項目そのものが誤りと裁く裁定（元 works/.shared/core/conflict.py:103 の REPLAN）
 NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に、この項目を名指す行が無い）"
 
 
@@ -404,12 +406,9 @@ def revised_fields(fields, rows, repo, *, base_tests=None) -> list:
 
 
 def conflict_rows(conflicts, n: int, old: dict) -> list:
-    """fix の conflicts.json の行のうち、裁定が REPLAN_DECISION で項目 n の物（裁定の plan_items が n を持つか、申し出の単位が項目の
-    unit_keys に在る）（元 works/.shared/core/replan.py の close が待つ行に選ぶ物）"""
-    keys = set(old.get("unit_keys") or [])
-    rows = [(c, c.get("ruling") if isinstance(c.get("ruling"), dict) else {}) for c in _rows(conflicts, "items")]
-    return [c for c, ru in rows if ru.get("decision") == REPLAN_DECISION
-            and (n in (ru.get("plan_items") or []) or c.get("unit_key") in keys)]
+    """fix の conflicts.json の行のうち、裁定が fix_plan_item で項目 n を名指す物（conflict.replan_rows）
+    （元 works/.shared/core/replan.py の close が待つ行に選ぶ物）"""
+    return conflict.replan_rows(_rows(conflicts, "items"), n, old.get("unit_keys"))
 
 
 def replan_section(n: int, old: dict, rows: list) -> str:
@@ -697,7 +696,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
         rf = round_dir / REJECT_FILE.format(n=len(rejected))
         rf.write_text(rejected[-1], encoding="utf-8")
         reject_file = str(rf)
-    head = planblk.head("plan", _neighbor(judgment_dir, "pr-excluded.json"), lib_docs)
+    head = planblk.head("plan", _neighbor(judgment_dir, prcheck.EXCLUDED), lib_docs)
     rev = base_rev or "HEAD"
     try:
         carried = prior_section(round_dir, prior_failures)
@@ -723,7 +722,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
                  structmark.plan_section(structure_dir_),
                  f"{world}\n{worldmark.PLAN_ASK}\n" if world else "",
                  ripple.units_section(doc) if isinstance(doc, dict) else "",
-                 planblk.verify_part(_neighbor(judgment_dir, "judge-verify.json")),
+                 planblk.verify_part(_neighbor(judgment_dir, judgeverify.VERIFY_FILE)),
                  f"{SPEC_HEAD}\n\n" + "\n".join(replan._json_block(spec)) if spec is not None else "",
                  _prior_section(round_dir, plan_dir, record),
                  POLICY_PART.format(path=policy_md) if policy_md else ""]

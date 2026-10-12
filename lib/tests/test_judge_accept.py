@@ -2175,7 +2175,8 @@ class PrScanCase(_PrBase):
         self.assertEqual((got["go"], got["go_role"]), (True, False), got)
         self.assertEqual(self.material()["materials"]["parallel_pr"]["status"], "clean")
         self.assertEqual(self.material()["role"], "pr-check")
-        self.assertNotIn(("pr", "view", "3", "-R", "o/r", "--json", "files"), gh.calls, "自分の PR は見ない")
+        self.assertIn(("pr", "view", "7", "-R", "github.com/o/r", "--json", "files"), gh.calls)
+        self.assertNotIn(("pr", "view", "3", "-R", "github.com/o/r", "--json", "files"), gh.calls, "自分の PR は見ない")
         doc = json.loads((self.jdir / "pr-excluded.json").read_text(encoding="utf-8"))
         self.assertEqual((doc["node"], doc["excluded"]), ("p0.parallel_pr", []))
         self.assertTrue(all("-R" in c for c in gh.calls), "gh は必ず -R で呼ぶ")
@@ -2246,7 +2247,26 @@ class PrScanCase(_PrBase):
         self.assertIsNone(slug)
         self.assertNotIn("SECRET", why)
         gitkit.git(self.repo, "remote", "set-url", "origin", "https://github.com/o/r.git")
-        self.assertEqual(ja._github_repo(self.repo), ("o/r", None))
+        self.assertEqual(ja._github_repo(self.repo), ("github.com/o/r", None))
+
+    def test_github_repo_reads_the_url_with_forge(self):
+        """URL の読みは forge.repo_of と同じ広さで、gh -R には常にホストまで渡す（github.com の別名は github.com に寄せる）"""
+        for url, slug in (("ssh://git@ssh.github.com:443/o/r.git", "github.com/o/r"), ("https://www.github.com/o/r", "github.com/o/r"),
+                          ("git@github.com-work:o/r.git", "github.com/o/r"), ("https://acme.ghe.com/o/r.git", "acme.ghe.com/o/r")):
+            with self.subTest(url):
+                gitkit.git(self.repo, "remote", "set-url", "origin", url)
+                self.assertEqual(ja._github_repo(self.repo), (slug, None))
+
+    def test_github_repo_takes_the_tracked_remote_first(self):
+        """枝が origin の外の remote を追えばその remote の PR を引く（fork の clone で origin の fork を引いて clean と言わない）。
+        追う先が手元の枝（remote の無い名）なら origin"""
+        gitkit.git(self.repo, "remote", "add", "up", "https://github.com/up/r.git")
+        gitkit.git(self.repo, "update-ref", "refs/remotes/up/main", "HEAD")
+        gitkit.git(self.repo, "branch", "-q", "--set-upstream-to=up/main")
+        self.assertEqual(ja._github_repo(self.repo), ("github.com/up/r", None))
+        gitkit.git(self.repo, "branch", "-q", "base")
+        gitkit.git(self.repo, "branch", "-q", "--set-upstream-to=base")
+        self.assertEqual(ja._github_repo(self.repo), ("github.com/o/r", None))
 
 
 class PrAcceptCase(_PrBase):
@@ -2570,6 +2590,31 @@ class VerdictPublicCase(unittest.TestCase):
             jdir = pathlib.Path(tmp) / "judge"
             ja.verdict(jdir, pathlib.Path(tmp) / "rejudge", tmp, "", lambda rel: rel)
             self.assertEqual(ja.read_json(jdir / "purpose-review.json"), {})
+
+
+class PublicFileReadersCase(unittest.TestCase):
+    OWNERS = {"judge_accept.py", "premises.py", "judgeverify.py", "marks.py", "gatemarks.py", "purpose.py"}
+    READERS = ("outcome", "runreport", "boardview", "planfile")
+
+    def test_readers_take_the_names_from_the_owner(self):
+        """判定の隣の公開のファイルの名（PUBLIC_FILES）を、持ち主の外の lib と script の節が字で書かない（持ち主が名を変えると、
+        字で書いた読み手は黙って何も読まなくなる）"""
+        import ast
+        files = [p for p in LIB.glob("*.py") if p.name not in self.OWNERS] + sorted(LIB.parent.glob("workflows/*/scripts/*.py"))
+        hits = [f"{p.relative_to(LIB.parent)}:{n.lineno} {n.value}" for p in files
+                for n in ast.walk(ast.parse(p.read_text(encoding="utf-8")))
+                if isinstance(n, ast.Constant) and n.value in ja.PUBLIC_FILES]
+        self.assertEqual(hits, [])
+
+    def test_readers_do_not_load_judge_accept(self):
+        """名だけを読む読み手は名の軽い持ち主を読み、判定の受け付け（judge_accept と、それが読む数十のモジュール）を読み込まない"""
+        for mod in self.READERS:
+            with self.subTest(mod=mod):
+                got = subprocess.run([sys.executable, "-c", f"import sys, {mod}; print('judge_accept' in sys.modules)"],
+                                     cwd=LIB, capture_output=True, text=True, check=True)
+                self.assertEqual(got.stdout.strip(), "False")
+        prep = LIB.parent / "workflows" / "eyes" / "scripts" / "prep.py"
+        self.assertNotIn("judge_accept", prep.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
