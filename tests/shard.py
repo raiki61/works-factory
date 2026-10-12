@@ -11,6 +11,7 @@
   表が古くても分けが偏るだけで、試験は漏れない。
 - 名指しのパスだけを走らせる: `python3 -m tests.shard --paths PATH...`（tests/changed.py が使う）。
   同じ集め方で見つけたモジュールのうち、名指しのファイルか名指しのフォルダの下に在る物だけを走らせる。
+  頭（__init__.py）で読めないパッケージ（discover がパッケージ名の 1 件にする物）は、その下のパスでも選ぶ。
   試験のモジュールの集め方（discover と PATTERN）は suites() の 1 か所に在り、作業中の選びと CI の分けの両方がそこから読む。
 - 表を直す: CI の各分けが上げた秒数（artifact の `shard-seconds-<i>`）を取り、
   `python3 -m tests.shard --merge <置き場>...` で表を作り直して、PR で入れる。
