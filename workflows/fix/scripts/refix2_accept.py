@@ -43,7 +43,7 @@ def main() -> None:
         reply, repo, fixboard.stage_head(place, fixboard.REFIX_HEAD_FILE.format(N)), skip=fixio.SKIP)
     got = {"ok": False, "reason": "手直しの返答の照らしに通らない:\n" + "\n".join(f"  - {x}" for x in bad)} if bad else \
         refix.accept_fix(reply, place, fixboard.start_tree(place), repo, n=N,
-                         items=functools.partial(fixboard.place_items, place), skip=fixio.SKIP)
+                         items=functools.partial(fixboard.place_items, place), skip=fixio.SKIP, log=fixio.writes_log())
     out = fixboard.accept_out(place, NAME, got)
     fixboard.trace(place, "refix_accepted" if out["ok"] else "refix_rejected", node=NAME, iteration=iteration,
                    done=out["done"])

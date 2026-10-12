@@ -55,10 +55,11 @@ def main() -> dict:
     state, _ = fixboard.loop_files(place)
     judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
     head = fixboard.stage_head(place, fixboard.FIX_HEAD_FILE)
+    log = fixio.writes_log()
     fixio.drop_runner_env()   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
     got = fixboard.accept_reply(reply, place, repo, pass_="first", iteration=iteration, owed=owed,
                                 judged=judgment.get("units"), suite=str(start.get("tdd_suite") or ""), state=state,
-                                head=head, skip=fixio.SKIP)
+                                head=head, skip=fixio.SKIP, log=log)
     return finish(place, got, iteration)
 
 

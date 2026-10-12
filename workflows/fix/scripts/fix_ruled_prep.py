@@ -52,7 +52,7 @@ def main() -> dict:
                         shared=fixio.shared_cache())
     if Path(got["prompt_file"]) == prompt and saved is not None:
         fixboard.ruled_reply_line(prompt, str(saved))
-    fixboard.consult_skip(place, fixio.SKIP)
+    fixboard.consult_skip(place, fixio.SKIP, fixio.writes_log())
     return {"prompt_file": got["prompt_file"], "go": True, "iteration": got["iteration"]}
 
 

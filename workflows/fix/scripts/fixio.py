@@ -4,7 +4,8 @@
 # ///
 """fix のブロックの script が共に読む、Archon との出入りの助け（置き場の場所・作業ツリー・控えのファイル）。
 
-lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、Archon に届く事（ARTIFACTS_DIR・ARCHON_NODE_EXECUTION・STATE_DIR・.archon/）は
+lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、Archon に届く事（ARTIFACTS_DIR・ARCHON_NODE_EXECUTION・STATE_DIR・
+CLAUDE_CONFIG_DIR・.archon/）は
 ここと script の側だけが持ち、lib/ へは値を引数で渡す。節の script ではない（工程の YAML は名指さない）。
 """
 import json
@@ -40,6 +41,26 @@ def shared_cache() -> pathlib.Path | None:
     """run をまたぐ控えの根（Archon が project ごとに渡す STATE_DIR の下 works-factory/。渡されなければ None で、控えを使わない）"""
     state = os.environ.get("STATE_DIR")
     return pathlib.Path(state) / "works-factory" if state else None
+
+
+def writes_log(cwd=None) -> pathlib.Path | None:
+    """書き込みの記録のフック（bin/_lib/record-write.py）が作業の場 cwd（既定はこの節の cwd。役の節と同じ run の作業ツリー）の
+    Edit・Write を残すファイル（lib/writelog.log_path）。記録の根（起動が隔離した設定 CLAUDE_CONFIG_DIR の下に作る）が無い起動は
+    None で、受け付けは記録の無い run の道（writes.NO_RECORD）を通る"""
+    import writelog
+    config = os.environ.get("CLAUDE_CONFIG_DIR")
+    root = writelog.root(config) if config else None
+    if root is None or not root.is_dir():
+        return None
+    return writelog.log_path(root, os.getcwd() if cwd is None else cwd)
+
+
+def start_writes_log() -> None:
+    """記録の根が在れば、この節の作業の場の記録を空で作る（在れば触らない。前の役の記録を残す）"""
+    log = writes_log()
+    if log is not None:
+        log.parent.mkdir(exist_ok=True)
+        log.touch()
 
 
 def repo() -> pathlib.Path:

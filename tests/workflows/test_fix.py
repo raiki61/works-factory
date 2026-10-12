@@ -514,11 +514,13 @@ _BLK_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_chan
               "path_changed")
 
 
-def _blk_run(script, repo, art, inputs=None, node_path="fix__x"):
-    """scripts/<script>.py を一時の対象のリポジトリ repo で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)"""
+def _blk_run(script, repo, art, inputs=None, node_path="fix__x", env_extra=None):
+    """scripts/<script>.py を一時の対象のリポジトリ repo で起こす。(終了の値, 標準出力の JSON か None, 標準エラー)。
+    env_extra は子の環境に足す（hermetic.dropped の名は継がない）"""
     env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "ARCHON_")) and not hermetic.dropped(k)}
     env.update({"ARTIFACTS_DIR": str(art), "WORKFLOW_ID": _BLK_RUN, "WORKS_FACTORY_ROOT": str(ROOT),
                 "ARCHON_NODE_EXECUTION": json.dumps({"path": node_path}), "PYTHONDONTWRITEBYTECODE": "1"})
+    env.update(env_extra or {})
     env.update({f"INPUTS_{k.upper()}": v for k, v in (inputs or {}).items()})
     done = subprocess.run([sys.executable, str(BLOCK / "scripts" / f"{script}.py")], cwd=repo, env=env,
                           capture_output=True, text=True, encoding="utf-8")
@@ -538,6 +540,25 @@ def _blk_write(path, doc):
 
 def _blk_ptr(rel):
     return json.dumps({"type": "archon_artifact", "run_id": _BLK_RUN, "path": rel})
+
+
+def _recorder_root(tmp):
+    """記録の根を持つ隔離した設定の置き場（toolset.install が作る形）。(子の環境に足す物, 記録の根)"""
+    import writelog
+    cfg = pathlib.Path(tmp) / "claude-config"
+    root = writelog.root(cfg)
+    root.mkdir(parents=True)
+    return {"CLAUDE_CONFIG_DIR": str(cfg)}, root
+
+
+def _record(log, path, tool="Edit"):
+    """記録のフックが書く形の 1 行を log に足す"""
+    import hashlib
+    log.parent.mkdir(parents=True, exist_ok=True)
+    real = os.path.realpath(str(path))
+    with open(log, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"tool_name": tool, "path": real,
+                            "file_sha": hashlib.sha256(pathlib.Path(real).read_bytes()).hexdigest()}) + "\n")
 
 
 def _blk_result(gid, units, end_tree, start_tree, **extra):
@@ -682,6 +703,49 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(out["out_dir"], str(self.art / "fix" / "refix" / "groups"))
         self.assertTrue((self.art / "fix" / "refix" / "groups.json").is_file())
         self.assertEqual(json.loads((self.place / "groups.json").read_text(encoding="utf-8")), {"mark": "first"})
+
+    def test_prep_starts_an_empty_log_when_recorder_root_exists(self):
+        import writelog
+        env, root = _recorder_root(self.tmp)
+        log = writelog.log_path(root, self.repo)
+        code, out, err = _blk_run("prep", self.repo, self.art, self.prep_inputs(), "fix__prep", env_extra=env)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(log.read_text(encoding="utf-8"), "")
+        _record(log, self.repo / "stats.py")
+        code, out, err = _blk_run("prep", self.repo, self.art, self.prep_inputs(), "fix__prep", env_extra=env)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(log.read_text(encoding="utf-8").splitlines()), 1, "在る記録は空にしない")
+
+    def test_join_carries_child_records_to_parent(self):
+        """並べた子の記録（子の作業ツリーのパス）を、子の差分を当てた親の作業ツリーの記録へ写す。記録の無い子の変更は写さない"""
+        import writelog
+        import writes
+        env, root = _recorder_root(self.tmp)
+        parent_log = writelog.log_path(root, self.repo)
+        parent_log.parent.mkdir()
+        parent_log.write_text("", encoding="utf-8")
+        start = self.snapshot(self.repo)
+        fixed = (self.repo / "stats.py").read_text(encoding="utf-8").replace("len(xs) - 1", "len(xs)")
+        t1 = self.tree_with({"stats.py": fixed})
+        t2 = self.tree_with({"extra.py": "X = 1\n"})
+        child = self.tmp / "child-g1"
+        child.mkdir()
+        (child / "stats.py").write_text(fixed, encoding="utf-8")
+        child_log = writelog.log_path(root, child)
+        _record(child_log, child / "stats.py")
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start, worktree=str(child),
+                                                               writes_log=str(child_log)))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, worktree="", writes_log=""))
+        code, out, err = _blk_run("join", self.repo, self.art, env_extra=env)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out, {"groups": 2, "returned": 2})
+        rows = [json.loads(ln) for ln in parent_log.read_text(encoding="utf-8").splitlines()]
+        carried = [r for r in rows if r["tool_name"] == writes.CARRY_TOOL]
+        self.assertEqual([(r["path"], r["from"]) for r in carried],
+                         [(os.path.realpath(self.repo / "stats.py"), os.path.realpath(child / "stats.py"))])
+        self.assertEqual(writes.unrecorded(self.repo, ["stats.py", "extra.py"], parent_log), ["extra.py"])
 
     # ---- join.py
     def test_join_applies_both_groups_in_order(self):
@@ -1235,8 +1299,9 @@ class GroupChildScriptsCase(unittest.TestCase):
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "allowed_test_changes", "verified", "reply_file",
-                                       "tdd_state"})
+                                       "tdd_state", "worktree", "writes_log"})
         self.assertEqual(result["tdd_state"], "", "輪の無い組")
+        self.assertEqual((result["worktree"], result["writes_log"]), (os.path.realpath(self.repo), ""), "記録の根の無い起動")
         self.assertEqual(result["units"], [{"unit_id": _GRP_MEAN, "status": "fixed", "reason": ""}])
         self.assertEqual(result["end_tree"], leftovers.snapshot(self.repo))
         self.assertNotEqual(result["end_tree"], result["start_tree"])
@@ -1369,6 +1434,38 @@ class FixLoopScriptsCase(unittest.TestCase):
                     "bash_writes": [{"path": "scratch.txt", "why": "Bash で生成した下書きのファイル"}]}
         out = self._fx_accept("fix_accept", declared, 2, group=self._fx_group([_FX_MEAN]))
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
+
+    def _fx_accept_env(self, env, reply, iteration):
+        code, out, err = _fx_run("fix_accept", self.repo, self.art, env_extra=env, reply=json.dumps(reply, ensure_ascii=False),
+                                 consulted="false", iteration=str(iteration), group=self._fx_group([_FX_MEAN]))
+        self.assertEqual(code, 0, err)
+        return out
+
+    def test_accept_rejects_unrecorded_change_when_log_exists(self):
+        """記録の根が在る run（記録の在る run）は、記録も申告も無い変更を拒み、記録が在れば通す（keep-essence の 5）"""
+        import writelog
+        import writes
+        env, root = _recorder_root(self.tmp)
+        log = writelog.log_path(root, self.repo)
+        log.parent.mkdir()
+        log.write_text("", encoding="utf-8")   # 始めの節（prep・group-start）が作る物
+        self._fx_fix_mean()
+        reply = {"changes": [_fx_change(_FX_MEAN, ["stats.py"])]}
+        out = self._fx_accept_env(env, reply, 1)
+        self.assertEqual((out["ok"], out["done"]), (False, False), out)
+        self.assertIn(writes.REJECT + "stats.py", out["reason"])
+        _record(log, self.repo / "stats.py")
+        out = self._fx_accept_env(env, reply, 2)
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)
+
+    def test_no_recorder_root_keeps_no_record_path(self):
+        """記録の根が無い起動は記録の無い run の道（記録を求めず、段の頭からの変更を申告に縛る）のまま"""
+        cfg = self.tmp / "claude-config"
+        cfg.mkdir()
+        self._fx_fix_mean()
+        out = self._fx_accept_env({"CLAUDE_CONFIG_DIR": str(cfg)}, {"changes": [_fx_change(_FX_MEAN, ["stats.py"])]}, 1)
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)
+        self.assertEqual(list(cfg.iterdir()), [], "根も記録も作らない")
 
     def test_tdd_loop_writes_are_not_the_fixers(self):
         """修正の段の頭は TDD の輪の後の木（fix-prep が 1 回目に控える）。輪が書いた物を修正役の申告に求めない"""

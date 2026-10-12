@@ -1260,10 +1260,11 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
-                 reply_file: str = "", allowed=(), conflicts=()) -> dict:
+                 reply_file: str = "", allowed=(), conflicts=(), worktree: str = "", writes_log: str = "") -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed,
-    allowed_test_changes, verified, reply_file, tdd_state}。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
+    allowed_test_changes, verified, reply_file, tdd_state, worktree, writes_log}。worktree は子の作業ツリーの実パス、writes_log は
+    その書き込みの記録のファイル（記録の無い run は空。join が子の記録を親の記録へ写す。writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
     を持つ。無ければ None）、allowed は許したテストの変更のパス、conflicts は置き場の申し出の行（conflict.items）。新しい"""
@@ -1278,7 +1279,8 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "objection": objection([reply] if reply else []),
             "changed": changed_marks([{"changed": reply}] if reply else []),
             "allowed_test_changes": sorted({p for p in allowed or [] if isinstance(p, str) and p}),
-            "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or "")}
+            "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
+            "worktree": str(worktree or ""), "writes_log": str(writes_log or "")}
 
 
 def adopt_tdd_states(place, results, repo) -> list:
@@ -1642,7 +1644,7 @@ def _without_units(reply: dict, drop: set) -> dict:
 
 def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, judged=None, suite: str = "",
                  state: str = "", tests_state: str = "", base_rev: str = "", head: str = "", skip=(), parked=None,
-                 reverted=frozenset(), trail=None) -> dict:
+                 reverted=frozenset(), trail=None, log=None) -> dict:
     """修正役の返答の受け付け（fix-accept は pass_ first・fix-ruled-accept は ruled）。確かめは返さずに FIX_CHECKS の id で積み、
     最後に 1 回だけ拒む。順は 範囲の相談の枠 → 凍ったテスト（factchecks.check_frozen）→ 書き込みの出どころ（factchecks.check_writes。
     記録の無い run は undeclared_writes で段の頭の木 head からの変更を申告に縛る）→ 食い違いの申し出（take_conflicts。first で
@@ -1655,7 +1657,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     単位で頭から通し直す。止める単位が残らないのに拒否が残れば、義務の残りを全部止めて通し直す（parking.park_owed）。それでも
     残れば受けずに諦める。owed は直す義務の値（fixboard.fix_duty に渡す）、judged は判定の units、suite は実行器、state は今の段の
     TDD の輪の状態のファイル（無ければ空）、tests_state は state が空の時に変更に当たる試験を走らせる輪の状態（実行器と名指し。
-    裁定の後の段で組の輪が幾つも在る時。ruled_states）、base_rev は修正前の版（空なら base_rev_of）、skip は除くパスの頭。
+    裁定の後の段で組の輪が幾つも在る時。ruled_states）、base_rev は修正前の版（空なら base_rev_of）、skip は除くパスの頭、log は
+    書き込みの記録のファイル（factchecks.check_writes。None なら置き場の既定）。
     返り {ok, reason, rejects: [{check, text}], reply（受けた返答。bash_writes と conflicts を外した物）, units（unit_outcomes）,
     parked {key: 理由}, conflicted}。元 works/blk-fix/scripts/accept.py:611（盤面の代わりに置き場と値）"""
     import conflict
@@ -1683,7 +1686,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     frozen_over = []   # 相談に回せる凍ったファイルの頼み（check_frozen が足す）
     note("frozen", factchecks.check_frozen(pathlib.Path(place), state, repo, pass_, asks=frozen_over, base_rev=rev))
     made = set(tddloop.suite_made(state)) | tddloop.suite_made_all(place)
-    wrote = factchecks.check_writes(reply, pathlib.Path(place), rev, repo, state, since=head or None, skip=tuple(skip))
+    wrote = factchecks.check_writes(reply, pathlib.Path(place), rev, repo, state, log=log, since=head or None,
+                                    skip=tuple(skip))
     note("writes", wrote["problems"])
     if not wrote["problems"] and wrote["note"] == writes.NO_RECORD:
         note("writes", undeclared_writes(reply, repo, head or rev, made=made, skip=skip))
@@ -1727,7 +1731,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     over, rest = split_rows(found, asks)
     if over and not rest:   # はみ出しの行だけ（写しの照らしは上で乾いた形に当ててある）: 拒まずに相談に積むか、戻して通し直す
         kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, state=state,
-                  tests_state=tests_state, base_rev=base_rev, head=head, skip=skip, parked=parked)
+                  tests_state=tests_state, base_rev=base_rev, head=head, skip=skip, parked=parked, log=log)
         got = settle_overflow(asks, found, whole, place, repo, head=head or rev, reverted=reverted, trail=trail,
                               pass_=pass_, ask=not parked, again=lambda r, gone: accept_reply(r, place, repo, **kw,
                                                                                                reverted=gone, trail=trail))
@@ -1760,7 +1764,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     now, _ = park_units(place, repo, settled, head or rev, iteration=iteration)
     return accept_reply(_without_units(whole, set(now)), place, repo, pass_=pass_, iteration=iteration, owed=owed,
                         judged=judged, suite=suite, state=state, tests_state=tests_state, base_rev=base_rev, head=head,
-                        skip=skip, parked={**parked, **now}, reverted=reverted, trail=trail)
+                        skip=skip, parked={**parked, **now}, reverted=reverted, trail=trail, log=log)
 
 
 def closure_reply(reply: dict, place, repo, rev: str, judged) -> tuple:
@@ -1990,13 +1994,13 @@ def fix_values(place, owed, *, start, state: str = "", summary: str = "", answer
             "ripple_file": there(RIPPLE_FILE), "base_rev": base_rev_of(place)}
 
 
-def consult_skip(place, skip) -> None:
-    """置き場の範囲の相談の控え（consult.CONFIG。fixrules.ask_config が書く）に除くパスの頭 skip を足す（factchecks.main が
-    書き込みの出どころで読む）。控えが無ければ何もしない"""
+def consult_skip(place, skip, log=None) -> None:
+    """置き場の範囲の相談の控え（consult.CONFIG。fixrules.ask_config が書く）に除くパスの頭 skip と書き込みの記録のファイル log
+    （在れば。受け付けと同じ物）を足す（factchecks.main が書き込みの出どころで読む）。控えが無ければ何もしない"""
     import consult
     doc = read_json(pathlib.Path(place) / consult.CONFIG)
     if isinstance(doc, dict):
-        consult.write_config(place, {**doc, "skip": list(skip)})
+        consult.write_config(place, {**doc, "skip": list(skip), **({"log": str(log)} if log else {})})
 
 
 # ---------------------------------------------------------------- はみ出しの行だけの回の道筋（元 works/blk-fix/scripts/accept.py:498〜:609）
