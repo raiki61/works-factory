@@ -1,6 +1,8 @@
 """読むだけの gh の口（bin/_lib/no-post-bin/works-gh）の検査。
 
-- 通すのは pr list・pr view・pr diff（-R 付き）と repo view <OWNER/REPO> だけ。ほかの形と -w・--web は本物の gh を起こさずに 2
+- 通すのは pr list・pr view・pr diff・issue view（-R 付き）と repo view <OWNER/REPO>、api は PR の行コメントを読む 1 つの形
+  （[--paginate] [--hostname <host>] repos/<OWNER>/<REPO>/pulls/<番号>/comments）だけ。ほかの形（書く命令・api の -X・-f・--input
+  など・auth token）と -w・--web は本物の gh を起こさずに 2
 - 口は本物の gh を起こす前に WORKS_FACTORY_GH_ACTIVE を立て、それが立った env で口に入れば拒む（読む側と立てる側の名を
   1 つの試験で縛る。片側だけ名を替えると輪の断ち方が黙って外れる）
 
@@ -19,11 +21,21 @@ sys.path.insert(0, str(TESTS))
 
 import hermetic  # noqa: E402
 
+COMMENTS = "repos/o/r/pulls/7/comments"
 ALLOWED = (["pr", "list", "-R", "o/r"], ["pr", "view", "1", "-R", "o/r"], ["pr", "diff", "br", "--repo=o/r"],
-           ["pr", "view", "1", "--repo", "github.com/o/r"], ["repo", "view", "o/r"])
+           ["pr", "view", "1", "--repo", "github.com/o/r"], ["repo", "view", "o/r"], ["issue", "view", "1", "-R", "o/r"],
+           ["api", "--paginate", "--hostname", "github.com", COMMENTS], ["api", "--paginate", COMMENTS],
+           ["api", "--hostname=ghe.corp.example", COMMENTS])
 REFUSED = (["pr", "create", "-R", "o/r"], ["pr", "merge", "1", "-R", "o/r"], ["pr", "comment", "1", "-R", "o/r"],
-           ["api", "repos/o/r"], ["issue", "view", "1", "-R", "o/r"], ["pr", "view", "1"], ["repo", "view"],
-           ["pr", "view", "1", "-R", "o/r", "-w"], ["pr", "list", "-R", "o/r", "--web"], ["repo", "view", "o/r", "--web"], [])
+           ["api", "repos/o/r"], ["issue", "view", "1"], ["issue", "create", "-R", "o/r"], ["issue", "comment", "1", "-R", "o/r"],
+           ["pr", "view", "1"], ["repo", "view"], ["pr", "view", "1", "-R", "o/r", "-w"], ["pr", "list", "-R", "o/r", "--web"],
+           ["repo", "view", "o/r", "--web"], ["issue", "view", "1", "-R", "o/r", "--web"], [], ["api"],
+           ["api", "-X", "POST", COMMENTS], ["api", "--method=POST", COMMENTS], ["api", "--method", "GET", COMMENTS],
+           ["api", COMMENTS, "-f", "body=x"], ["api", COMMENTS, "-F", "body=x"], ["api", COMMENTS, "--raw-field", "body=x"],
+           ["api", "--input", "f", COMMENTS], ["api", "-H", "X: y", COMMENTS], ["api", "graphql", "-f", "query=x"],
+           ["api", "repos/{owner}/{repo}/pulls/7/comments"], ["api", COMMENTS, "repos/o/r/issues"],
+           ["api", COMMENTS + "?per_page=1"], ["api", "--hostname", COMMENTS], ["api", "--hostname", "a/b", COMMENTS],
+           ["api", "--paginate", "--paginate", COMMENTS], ["auth", "token"], ["auth", "status", "--show-token"])
 
 
 class WorksGhCase(unittest.TestCase):
