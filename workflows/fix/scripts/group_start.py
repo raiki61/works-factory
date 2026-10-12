@@ -8,15 +8,15 @@
 - 入力 from_tree が在れば、作業ツリーと index をその木の姿にする（groups.adopt_tree）
 - 入力の写し: 入力 out_dir が在る（親が起こした子）なら、親の置き場（out_dir の 1 つ上）の写しを自分の置き場に写す
   （fixboard.adopt_inputs。親の指し札は親の run の物で、この run では引けない）。out_dir が空の単独の run は、指し札を自分で
-  引いて節 prep と同じ写しを置く（fixio.prep）
+  引いて節 prep と同じ写しを置く（fixboard.prep）
 - 親の作業ツリーで 1 つずつ回る子（out_dir が在り from_tree が空）は、前の組の子が結果を書かずに落ちて残した変更を、その子の
   始めの木に戻してから始める（fixboard.drop_unreturned。最後の組の分は join が戻す）
-- 記録の根が在れば、自分の作業ツリーの書き込みの記録を空で作る（fixio.start_writes_log。並べた子は自分の作業ツリーを持つ）
+- 記録の根が在れば、自分の作業ツリーの書き込みの記録を空で作る（writelog.open_here。並べた子は自分の作業ツリーを持つ）
 - 控え（leftovers.record_ignored）と始めの木（groups.end_tree）。自分の組だけの groups.json（{groups: [組], count: 1, par: false,
   start_tree, out_dir}）
 - TDD の輪（tddloop.start）: 実行器は始めの記録の tdd_suite（空は実行器の無い run）。輪の頭で一式を 1 回走らせて元の結末を取る
   （今の works のまま。親の baseline.json は写して受け付けと join の確かめ直しが読む）。返りを置き場の tdd-start.json に控える。
-  輪の頭の test_cmd は、線の run の置き場（fixio.line_top）の控えから同じ run の中の緑を使い回す（run の名は始めの記録の run_id。
+  輪の頭の test_cmd は、線の run の置き場（line_top）の控えから同じ run の中の緑を使い回す（run の名は始めの記録の run_id。
   旗 tree_run.RERUN_ENV が立てば引かない）
 置き場に書く物: 上の写し・fix-ignored-before.json・groups.json・tdd-start.json・tdd-<k>/（輪の状態）。組の置き場
 （fixboard.group_dir）に group-start.json（{group, from_tree, out_dir, start_tree}。group-end と drop_unreturned が読む）。
@@ -32,7 +32,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import fixboard  # noqa: E402
 import groups  # noqa: E402
@@ -40,8 +39,20 @@ import leftovers  # noqa: E402
 import startrec  # noqa: E402
 import tddloop  # noqa: E402
 import tree_run  # noqa: E402
+import writelog  # noqa: E402
 
 NO_UNITS = "組に単位が無い——TDD のループを回さない"
+
+
+def line_top(out_dir: str) -> Path | None:
+    """同じ run の中の試験の結果の控えを置く run の置き場（線の run の成果物の置き場）。組の子の run は入力 out_dir（親の置き場の
+    <run の置き場>/fix/<include の名>/groups）から 3 つ上、単独の run（out_dir が空）は自分の ARTIFACTS_DIR。形が違えば None（使い回さない）"""
+    if not out_dir:
+        return Path(os.environ["ARTIFACTS_DIR"])
+    path = Path(out_dir)
+    if path.name != "groups" or len(path.parents) < 3 or path.parents[1].name != "fix":
+        return None
+    return path.parents[2]
 
 
 def read_group() -> dict:
@@ -56,18 +67,23 @@ def main() -> dict:
     group = read_group()
     from_tree = os.environ.get("INPUTS_FROM_TREE", "").strip()
     out_dir = os.environ.get("INPUTS_OUT_DIR", "").strip()
-    place = fixio.place()
-    repo = fixio.repo()
-    fixio.start_writes_log()
+    place = boundary.place("fix")
+    repo = boundary.work_tree()
+    writelog.open_here()
     if from_tree:
         groups.adopt_tree(repo, from_tree)
     if out_dir:
         fixboard.adopt_inputs(Path(out_dir).parent, place)
         if not from_tree:
             for gdir in sorted(p for p in Path(out_dir).glob("*") if p.is_dir()):
-                fixboard.drop_unreturned(repo, gdir, fixio.SKIP)
+                fixboard.drop_unreturned(repo, gdir, boundary.SKIP)
     else:
-        fixio.prep()
+        raw = {"start": os.environ.get("INPUTS_START", ""), "judgment": os.environ.get("INPUTS_JUDGMENT", ""),
+               "plan": os.environ.get("INPUTS_PLAN", ""), "ripple": os.environ.get("INPUTS_RIPPLE", ""),
+               "world": os.environ.get("INPUTS_WORLD", ""), "depth": os.environ.get("INPUTS_DEPTH", ""),
+               "answers": os.environ.get("INPUTS_ANSWERS", ""), "units": os.environ.get("INPUTS_UNITS", ""),
+               "only_items": os.environ.get("INPUTS_ONLY_ITEMS", ""), "baseline": os.environ.get("INPUTS_BASELINE", "")}
+        fixboard.prep(place, repo, raw, boundary.resolve)
     leftovers.record_ignored(place, repo)
     start_tree = groups.end_tree(repo)
     fixboard.write_json(place / fixboard.GROUPS_FILE,
@@ -82,7 +98,7 @@ def main() -> dict:
     if not keys:
         out = {"go": False, "reason": NO_UNITS, "suite": suite, "state_file": "", "summary_file": ""}
     else:
-        reuse = tree_run.reuse_place(fixio.line_top(out_dir), str(start.get("run_id") or ""),
+        reuse = tree_run.reuse_place(line_top(out_dir), str(start.get("run_id") or ""),
                                      rerun=bool(os.environ.get(tree_run.RERUN_ENV)))
         boundary.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo・reuse は先に取った）
         out = tddloop.start(place, repo, suite, json.dumps(keys, ensure_ascii=False),

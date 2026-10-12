@@ -29,6 +29,9 @@ FALLBACKS = {
     ("workflows/plan/scripts/plan_collect.py", "STATE_FILE"): FALLBACK + "（structmark.STATE_FILE）",
     ("workflows/plan/scripts/plan_collect.py", "RIPPLE_FILE"): FALLBACK + "（planfile.RIPPLE_FILE）",
     ("workflows/plan/scripts/round.py", "ROUND_FILE"): FALLBACK + "（planfile.ROUND_FILE）",
+    ("workflows/fix/scripts/collect.py", "ALLOWED_TESTS"): FALLBACK + "（fixboard.ALLOWED_TESTS_FILE）",
+    ("workflows/fix/scripts/collect.py", "ACCEPT_TRACE"): FALLBACK + "（fixboard.ACCEPT_TRACE_FILE）",
+    ("workflows/fix/scripts/collect.py", "LENSES_FILE"): FALLBACK + "（fixboard.LENSES_FILE）",
     ("workflows/report/scripts/facts.py", "UNWRITTEN"): BARE,
     ("workflows/report/scripts/collect.py", "UNWRITTEN"): BARE,
 }

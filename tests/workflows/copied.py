@@ -25,10 +25,15 @@ def role_definition(agent: str, body: str) -> str:
 
 
 def assert_is_original(case, path: pathlib.Path, sha256: str, edits) -> None:
-    """写し path の字に台帳の直し edits（(元の字, 写しの字, …) の並び。前から当てると元が写しになる順）と、その後ろの
-    REWRITES の書き直しを後ろから逆に当てると、元のバイト（sha256）に戻る。直しの写しの字はどれも写しにちょうど 1 度だけ現れる"""
-    rewrites = [(r["original"], r["copied"]) for r in REWRITES.get(path.relative_to(ROOT).as_posix(), [])]
-    text = path.read_text(encoding="utf-8")
+    """写しのファイル path の字が元に戻る（assert_text_is_original。REWRITES の鍵は根からのパス）"""
+    assert_text_is_original(case, path.relative_to(ROOT).as_posix(), path.read_text(encoding="utf-8"), sha256, edits)
+
+
+def assert_text_is_original(case, key: str, text: str, sha256: str, edits) -> None:
+    """写しの字 text に台帳の直し edits（(元の字, 写しの字, …) の並び。前から当てると元が写しになる順）と、その後ろの
+    REWRITES[key] の書き直しを後ろから逆に当てると、元のバイト（sha256）に戻る。直しの写しの字はどれも写しにちょうど 1 度だけ
+    現れる。key は写しのファイルの根からのパスか、YAML に直に書いた prompt: の `<YAML の根からのパス>#<ノードの id>`"""
+    rewrites = [(r["original"], r["copied"]) for r in REWRITES.get(key, [])]
     for original, copied, *_ in reversed([*edits, *rewrites]):
         case.assertEqual(text.count(copied), 1, copied)
         text = text.replace(copied, original)

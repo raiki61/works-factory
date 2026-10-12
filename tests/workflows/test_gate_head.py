@@ -107,7 +107,7 @@ class AskGateCase(unittest.TestCase):
 def final_got(**kw) -> dict:
     """最後の関所の材料（ask_final.got_of_env の形）。既定は緑で、目は全部通り、申し出も守りのパスの当たりも無い"""
     eye = {"status": "pass", "reason": ""}
-    got = {"tests_ok": True, "green": True, "red_cause": "", "protected_hits": [], "conflicts": [], "allowed_test_changes": [],
+    got = {"tests_ok": True, "green": True, "red_cause": "", "protected_hits": [], "conflicts": [], "allowed_tests": [],
            "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [], "objection": "",
            "refix_objection": "", "rejudge_verdict": "", "sealed": True, "seal_reason": "", "hash": "a" * 64, "fenced": [], "held": [], "unread": []}
     got.update(kw)

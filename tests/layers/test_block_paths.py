@@ -97,14 +97,14 @@ class BlockPathsTest(unittest.TestCase):
 
     def test_sibling_import_allowance_names_the_script(self):
         """ALLOWED["E4"] の `<script のパス>#<名>` の行は、名指した script のその import だけを外す（新しい script に
-        import fixio を足すと赤）"""
-        files = {"workflows/fix/scripts/clean.py": "import fixio\nimport b\n", "workflows/fix/scripts/fixio.py": "",
-                 "workflows/fix/scripts/b.py": "", "workflows/fix/scripts/new.py": "import fixio\n"}
+        import place を足すと赤）"""
+        files = {"workflows/report/scripts/collect.py": "import place\nimport b\n", "workflows/report/scripts/place.py": "",
+                 "workflows/report/scripts/b.py": "", "workflows/report/scripts/new.py": "import place\n"}
         with tree(files) as root:
             got = scan.problems("E4", root)
         self.assertEqual(len(got), 2, got)
-        self.assertIn("clean.py:2: 同じ scripts/ の script b", got[0])
-        self.assertIn("new.py:1: 同じ scripts/ の script fixio", got[1])
+        self.assertIn("collect.py:2: 同じ scripts/ の script b", got[0])
+        self.assertIn("new.py:1: 同じ scripts/ の script place", got[1])
 
 if __name__ == "__main__":
     unittest.main()

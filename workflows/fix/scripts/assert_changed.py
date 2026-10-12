@@ -18,7 +18,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import fixboard  # noqa: E402
 
@@ -41,7 +40,7 @@ def main(place: Path) -> dict:
     if not isinstance(plan, dict) or not plan.get("start_tree"):
         raise ValueError(f"置き場に groups.json（start_tree）が無い（{place}）")
     declared = fixboard.declared_files(replies(place, plan))
-    touched = fixboard.touched_since(fixio.repo(), plan["start_tree"], fixio.SKIP)
+    touched = fixboard.touched_since(boundary.work_tree(), plan["start_tree"], boundary.SKIP)
     owed = [k for g in plan["groups"] for k in g["unit_ids"]]
     excused = fixboard.nothing_owed_but_excused(place, set(owed)) if not declared else {}
     ok, reason = fixboard.changed_problem(declared, touched, excused)
@@ -49,7 +48,7 @@ def main(place: Path) -> dict:
 
 
 if __name__ == "__main__":
-    here = fixio.place()
+    here = boundary.place("fix")
     try:
         result = main(here)
     except Exception as e:

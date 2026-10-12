@@ -48,7 +48,7 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
 飛ばした理由は拒まない（受け付けの回数を使わない）が、見えなくしない: 受け付けが受けた時に unchecked(…)（skipped から
 OUT_OF_DUTY を除いた物。義務の外の項目は確かめる物でなく、ほかの項目は確かめた）を置き場の trace の SKIPPED_OP の行に載せ
 （呼び手が fixboard.trace で書く）、報告と最後の人の関所の文が「確かめずに通した」回を数える。OUT_OF_DUTY は帳面にだけ残る。
-期限は持たない（実行器は baseline_red.run_suite が tree_run.run で走らせる。元の枠と nice は外れた）。
+期限は持たない（実行器は baseline_red.run_suite が nice -n 19 の頭で tree_run.run で走らせる。元の枠は外れた）。
 """
 from __future__ import annotations
 

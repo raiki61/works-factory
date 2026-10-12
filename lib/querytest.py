@@ -15,6 +15,7 @@
 - split(reply, is_open): 例と理由を外した返答の写しと {単位の key: {例・理由・unproven}}
 - save(board, examples, replace)・restore(doc, board): 盤面の query-examples.json に置く・判定の写しの class_query に戻す（印は戻さない）
 - save_closure(b, rows): 修正の受け付けが問いを数え直した単位ごとの閉鎖の表を置く
+- closure_rows(b)・closure_lines(b): 今の周の閉鎖の表の行と、最後の関所を開ける理由に載せる行（申告と数え直しが合わない単位）
 """
 import json
 import pathlib
@@ -225,3 +226,38 @@ def save_closure(b, rows: list) -> pathlib.Path:
     tmp.write_text(json.dumps({"round": b.round, "rows": rows}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     tmp.replace(p)
     return p
+
+
+def closure_rows(b) -> list:
+    """今の周の閉鎖の表の行（表が無い・読めない・前の周の物なら空）。表は save_closure が置いた b.scope_root の物（元
+    works/.shared/core/querytest.py:239 は盤面の根と登録した scope の根の表から今の周の最後の物を読んだ。置き場は include ごとに
+    分かれるので、渡された置き場の 1 つだけを読む）"""
+    try:
+        doc = json.loads((pathlib.Path(b.scope_root) / CLOSURE_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    if not isinstance(doc, dict) or doc.get("round") != getattr(b, "round", None):
+        return []
+    return [r for r in doc.get("rows") or [] if isinstance(r, dict)]
+
+
+def closure_lines(b) -> list:
+    """最後の関所を開ける理由に載せる今の周の表の行（1 件 1 行）: 直したという申告と機械の数え直しが合わない単位（前は返答全体を
+    拒んだ形）。元 works/.shared/core/querytest.py:254 closure_lines の mismatched_only の形だけの写し（閉じていない・減って
+    いない・表に行の無い単位の列は読む所が無いので写していない）"""
+    out = []
+    for r in closure_rows(b):
+        bad = r.get("discrepancies") or []
+        outside = r.get("out_of_query") or []
+        if bad:
+            state = "閉じた" if r.get("closed") else "閉じていない"
+            out.append(f"{r.get('unit_key')}: {state}（{r.get('counts')}・修正前 {r.get('total')}・修正後 {r.get('after')}・"
+                       f"申告の site {r.get('claimed')}" + (f"・修正で覆った当たり {r['covered']}" if r.get("bound") else
+                                                         f"・機械が覆いに数えた {r['covered']}"
+                                                         if r.get("covered") != r.get("claimed") else "") +
+                       f"・問い {r.get('how_from')}）——合わない: {' / '.join(bad)}" +
+                       (f"——site が名指さず変更で覆った当たりのファイル: {', '.join(r['changed_cover'])}" if r.get("changed_cover") else "") +
+                       (f"——site が名指したが修正で変わっていない当たりのファイル: {', '.join(r['unchanged_sites'])}"
+                        if r.get("unchanged_sites") else "") +
+                       (f"——問いの外の site {len(outside)} 件: {', '.join(outside)}" if outside else ""))
+    return out

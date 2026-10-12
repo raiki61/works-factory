@@ -16,7 +16,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 import fixboard  # noqa: E402
 import groups  # noqa: E402
 import policy  # noqa: E402
@@ -34,7 +33,7 @@ rulebook.CANON = RULES / "common.md"
 
 
 def main() -> None:
-    place = fixio.place()
+    place = boundary.place("fix")
     iteration = len(rolekit.rejected(place, ACCEPT)) + 1
     record = fixboard.read_json(place / fixboard.DELTA_DIR / fixboard.DELTA_REVIEW.format(N))
     if not isinstance(record, dict) or record.get("pass") is not False or record.get("gave_up"):
@@ -42,7 +41,7 @@ def main() -> None:
         return
     head = place / fixboard.REFIX_HEAD_FILE.format(N)
     if not head.is_file():
-        fixboard.write_json(head, {"tree": groups.end_tree(fixio.repo())})
+        fixboard.write_json(head, {"tree": groups.end_tree(boundary.work_tree())})
     start = startrec.read(place)
     fix_reply = place / fixboard.FIX_REPLY_FILE
     got = fixboard.prep_fix(place, N, items=functools.partial(fixboard.place_items, place), plan_review=None,

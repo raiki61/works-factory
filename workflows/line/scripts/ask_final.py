@@ -11,8 +11,10 @@ opens）。守りのパスの当たり（確かめられなかった時も）と
 判定の役が人に聞くと保留にしたままの問い（held_questions。元 gatemarks.held_lines）は冒頭と本文に見せるが、開ける理由には数えない
 （元の _final_head・_final_text と同じ）。保留の問いと柵の増えの控えを読めなければ、読めなかった訳を本文に並べる。
 元の理由のうち「修正役が人に回した物が在る」（report.handoff_lines。返答の changes[].breaks.accepted）と「直したという申告と
-機械の数え直しが合わない単位が在る」（querytest.closure_lines の mismatched_only）は、fix の返りの約束に欄が無く読めないので
-持たない（今の works からの狭め）。
+機械の数え直しが合わない単位が在る」（querytest.closure_lines の mismatched_only）は、fix の出力の handoffs・mismatched に在るが、
+この節へ届ける配線（fixed を通す）はまだ無いので数えない（メイングラフの配線 #211 の B2 で足す）。
+許したテストの変更は、fix と 2 度目の修正（refix-run）の差分の隣の allowed-tests.json（[{path, permit, source}]）を読んで、許しの
+id と出どころつきで並べる。読めなければ読めなかった訳を本文に並べる。
 
 文は冒頭 3 行（final_head。lib/gatemarks.py の head3）で始め、守りのパス・申し出・許したテストの変更・独立の目の行・保留の問い・
 封じた差分を並べる。
@@ -27,6 +29,7 @@ import boundary  # noqa: E402
 
 with boundary.guarded_imports():
     import answer
+    import fixboard
     import gatemarks
     import gatepolicy
     import seal
@@ -106,8 +109,9 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     if got["conflicts"]:
         lines += [f"## 申し出の控え（{len(got['conflicts'])} 件。人に回した物かは数えていない。通すのは人の答えだけ）",
                   *[f"- {c.get('path') if isinstance(c, dict) else c}" for c in got["conflicts"]], ""]
-    if got["allowed_test_changes"]:
-        lines += [f"## 許したテストの変更（{len(got['allowed_test_changes'])} 件）", *[f"- {p}" for p in got["allowed_test_changes"]], ""]
+    if got["allowed_tests"]:
+        lines += [f"## 許したテストの変更（{len(got['allowed_tests'])} 件）",
+                  *[f"- {row.get('path')}（許し {row.get('permit')}・{row.get('source')}）" for row in got["allowed_tests"]], ""]
     eyes = [f"- {name.upper()}: {got['eyes'][name].get('status')}（{got['eyes'][name].get('reason') or ''}）"
             for name in EYES if isinstance(got["eyes"].get(name), dict)]
     if eyes or got["questions"]:
@@ -195,19 +199,40 @@ def fenced_rows(structure_after) -> tuple:
     return structmark.after_rows(folder), ""
 
 
+def allowed_tests(diffs) -> tuple:
+    """(許したテストの変更の訳の行 {path, permit, source}, 読めなかった訳)。fix の collect が差分 diffs（fix と refix-run の diff の
+    ポインタ。走らなかった方は null）の隣に置く fixboard.ALLOWED_TESTS_FILE を順に読む。collect は落ちた道でも [] を置くので、
+    無い・読めない・行の配列でないファイルは訳を返す（黙って空にしない）"""
+    rows, unread = [], []
+    for diff in diffs:
+        if diff is None:
+            continue
+        try:
+            doc = json.loads((boundary.resolve(diff).parent / fixboard.ALLOWED_TESTS_FILE).read_text(encoding="utf-8"))
+            if not isinstance(doc, list) or not all(isinstance(row, dict) for row in doc):
+                raise ValueError("行の配列でない")
+        except (OSError, ValueError, TypeError, AttributeError) as error:
+            unread.append(f"許したテストの変更の訳 {fixboard.ALLOWED_TESTS_FILE} を読めない（{type(error).__name__}: {error}）")
+            continue
+        rows += [row for row in doc if row not in rows]
+    return rows, "。".join(unread)
+
+
 def got_of_env() -> dict:
     held, held_unread = held_questions(boundary.value(os.environ.get("INPUTS_JUDGMENT")),
                                        boundary.value(os.environ.get("INPUTS_START")),
                                        boundary.value(os.environ.get("INPUTS_BEFORE_FIX_ANSWER")),
                                        [str(q) for q in boundary.items(os.environ.get("INPUTS_BEFORE_FIX_ASKED"))])
     fenced, fenced_unread = fenced_rows(boundary.value(os.environ.get("INPUTS_STRUCTURE_AFTER")))
+    allowed, allowed_unread = allowed_tests((boundary.value(os.environ.get("INPUTS_FIX_DIFF")),
+                                             boundary.value(os.environ.get("INPUTS_REFIX_DIFF"))))
     return {
         "tests_ok": boundary.flag(os.environ.get("INPUTS_TESTS_OK")),
         "green": boundary.flag(os.environ.get("INPUTS_GREEN")),
         "red_cause": boundary.text(os.environ.get("INPUTS_RED_CAUSE")),
         "protected_hits": boundary.items(os.environ.get("INPUTS_PROTECTED_HITS")),
         "conflicts": boundary.items(os.environ.get("INPUTS_CONFLICTS")),
-        "allowed_test_changes": boundary.items(os.environ.get("INPUTS_ALLOWED_TEST_CHANGES")),
+        "allowed_tests": allowed,
         "eyes": {
             "r1": boundary.value(os.environ.get("INPUTS_R1")),
             "r2": boundary.value(os.environ.get("INPUTS_R2")),
@@ -224,7 +249,7 @@ def got_of_env() -> dict:
         "hash": boundary.text(os.environ.get("INPUTS_HASH")),
         "fenced": fenced,
         "held": held,
-        "unread": [why for why in (held_unread, fenced_unread) if why],
+        "unread": [why for why in (held_unread, fenced_unread, allowed_unread) if why],
     }
 
 

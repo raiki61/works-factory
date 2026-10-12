@@ -36,8 +36,6 @@
 - 同じ run に修正役を 2 度起こす段（依頼 226 の 2 回目の修正の段）の指示書（と隣の .delivered.json）・裁定の後の尾・裁定の文・
   申し出の回の控えは、名を変えずに置き場（呼び手が渡す b。fix/fix/ と fix/refix/）で 1 回目の物と分かれる。2 回目の段は自分の
   数えから始まり、3 回の諦めを回ごとに数える
-- 1 回目の修正の段で受け付けた返答の控え（conflict.held_reply）が在る時だけ、修正役の指示書の brief の節の後に HELD_HEAD の節
-  （HELD_ASK）を置く（2 回目の修正の段）
 """
 import json
 import pathlib
@@ -80,11 +78,6 @@ OVERLAP_LINE = ("前の周は修正案の項目 {items} を並べ、同じファ
                 "なら、合わせた作業ツリーの上で、後の項目の直しを前の項目の直しに合わせて直せ（依頼 243 の並べの 3 段目）")
 RULINGS_LINE = ("食い違いの申し出への裁定を書いたファイル {path} を、先に Read で全部読め。裁定に従って直し、返答を丸ごと出し直せ"
                 "（裁定の文そのものはここに貼らない）")
-HELD_HEAD = promptsection.Section("## 1 回目の修正の段で受け付けた返答（機械が貼った）", source="fn:fixrules.held_text")
-HELD_ASK = ("控え {path} を Read で読め。直す義務は上の「読む物」の「直す義務の単位の key」（案を直して戻った単位）だけで、"
-            "控えの単位の行は機械が足す——changes と not_done に控えの単位を書くな。changes と not_done の外の欄（fix_closure・mechanism_changed・"
-            "plan_faces など）は、1 回目と今回を合わせた差分の全体について書け（控えの値から始めよ）。")
-HELD_WHY = "1 回目の修正の段で受け付けた返答の控えが在る（2 回目の修正の段）"
 KINDS = ("docs", "prompts", "config", "code")   # 変更の種類 → 節 evidence-<種類>
 PHASES = ("route", "test", "fix", "refactor")   # TDD の輪の役の段（並べの枝の役は LANE_PHASES）
 # 種類の見分け（パスの形だけで決める。当たらない物は種類なし）
@@ -214,29 +207,22 @@ def start_lines(values: dict) -> list:
             REQUEST_LINE.format(path=request) if request else NO_REQUEST_LINE]
 
 
-def held_text(held_path) -> str:
-    """1 回目に受け付けた返答の控えの節（HELD_HEAD と HELD_ASK。held_path が空なら空）"""
-    return f"{HELD_HEAD}\n\n{HELD_ASK.format(path=held_path)}" if held_path else ""
-
-
 def _seat(seat: str) -> list:
     """座の節（呼び手が渡す座の文。空なら載せない）"""
     return [("seat", seat, ALWAYS + "（座）")] if seat else []
 
 
-def fix_parts(values: dict, kinds: dict | None = None, libdocs: str = "", seat: str = "", held: str = "", ask: str = "",
+def fix_parts(values: dict, kinds: dict | None = None, libdocs: str = "", seat: str = "", ask: str = "",
               lanes: str = "", lane: str = "") -> list:
     """直す役の決まりの節 [(id, 本文, 理由)]（順は指示書の順）。libdocs はライブラリの文書の節（libdocs.section。空なら載せない）。
     seat は座の文（呼び手が渡す。空なら載せない）で、返答の欄の直前に置く。
-    held は 1 回目に受け付けた返答の控えの節（held_text。空なら載せない）で、brief の節の後に置く。
     ask は範囲の相談と事前の確かめの節（ask_text。空なら載せない）で、守ることの後に置く。
-    lanes は修正役の並べの枝の結末の節（lanes_text。空なら載せない）で、held の後に置く。lane は並べの枝の役の節（lane_text。
+    lanes は修正役の並べの枝の結末の節（lanes_text。空なら載せない）で、brief の節の後に置く。lane は並べの枝の役の節（lane_text。
     fixlanes が枝の項目の決まりのファイルに組む。空なら載せない）で、座の後・返答の欄の前に置く"""
     c, d = sections(SHARED), sections(DIRECT)
     kinds = _all_kinds() if kinds is None else kinds
     return [("fix-head", fill(d["fix-head"], _pick(values, FIX_VALUES)), ALWAYS + "（役・読む物・run の値）"),
             ("brief-canon", sections(BRIEF)["brief-canon"], ALWAYS + BRIEF_WHY),
-            *([("held", held, HELD_WHY)] if held else []),
             *([("lanes", lanes, LANES_WHY)] if lanes else []),
             ("core-fix", c["core-fix"], ALWAYS + "（元の graphloops の核）"), *_evidence(c, kinds),
             ("core-conflict", c["core-conflict"], ALWAYS + CONFLICT_WHY), ("core-keep", c["core-keep"], ALWAYS + "（元の graphloops の核）"),
@@ -637,7 +623,6 @@ def prep(b, repo, values: dict, pass_: str = PASSES[0], *, owed, withheld_by=Non
     題の次（ruled の 1 回目は裁定の文のファイルの行の後）に、直す義務の単位の brief を名指す節（planbrief.head_text。義務から外れた
     単位には「今は直すな」）を置く。brief は sources（planbrief.cut の材料）で置き場に凍結する。控えが壊れていれば理由の ValueError
     （briefs_or_halt。指示書を書かない）。
-    1 回目に受け付けた返答の控え（conflict.held_reply。置き場 b の物）が在れば、brief の節の後に控えの節（held_text）を置く。
     修正役の並べの枝の結末（lanes_record）が在れば節 lanes（lanes_text）を置く。
     範囲の相談の答えがまだ渡っていない周（consult.take）は、指示書を組み直さずに答えのファイルを名指す続きの指示書（resume）だけを
     書き、iteration は前の回のまま（相談の周は受け付けの回に数えない）。受け付けがはみ出しを相談に積んだ周（consult.queued）も
@@ -686,12 +671,10 @@ def prep(b, repo, values: dict, pass_: str = PASSES[0], *, owed, withheld_by=Non
     else:
         seat = seatkit.section(mark, implementer_values(b, values, repo, owed_keys, briefs))
     docs = lib_section(b, repo, values, shared)
-    held, held_path = conflict.held_reply(b)
-    held = held_text(held_path if held is not None else "")
     lanes = lanes_text(b)
 
     def build(kinds):
-        return render("fix", n, fix_parts(values, kinds, docs, seat, held, ask, lanes), reject_file=reject,
+        return render("fix", n, fix_parts(values, kinds, docs, seat, ask, lanes), reject_file=reject,
                       before=before, lang=lang)
     write_prompt(path, repo, values, build, n)
     return {"prompt_file": str(path), "iteration": n}

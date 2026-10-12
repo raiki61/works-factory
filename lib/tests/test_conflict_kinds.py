@@ -12,9 +12,10 @@
 - fix_plan_item の行の案の直しの状態（waiting・amended・gave_up。依頼 226）: 裁定で waiting に置き、set_replan の 1 か所で
   amended か gave_up に移す。amended の単位は直す義務に戻り、gave_up の行は ask_human の行として字のまま並ぶ。欄の無い前の形の
   行は waiting と読む
-- 1 回目に受け付けた返答の控え（置き場の fix-held-reply.json）: その単位を直す義務から外し（fixboard.fix_duty）、
-  2 回目の返答に単位ごとに合わせる。役が申告した bash_writes を残す
-盤面・git・子のプロセスは使わない（関数を直に呼ぶ。一時の置き場に種のファイルと控えを書くだけ）。
+- 修正役の受け付け（fixboard.accept_reply）は、直す義務の外の単位の申し出と、申し出た単位を changes にも書いた返答を
+  食い違いの申し出の拒否（check conflict）にし、積まない（FixAcceptSeamCase。元 works/blk-fix/scripts/accept.py:319-333）
+盤面・子のプロセスは使わない（関数を直に呼ぶ。一時の置き場に種のファイルと控えを書くだけ。git は FixAcceptSeamCase の
+受け付けが段の頭の木と版を引く小さなリポジトリだけ）。
 """
 import json
 import pathlib
@@ -269,21 +270,6 @@ def row(rid, key, decision, *, state=None, text="受け入れのテストの赤�
     return out
 
 
-def mean_row():
-    """MEAN の changes の 1 行"""
-    return {"unit_key": MEAN, "what": "mean の分母を len(xs) に直した", "files": ["stats.py"]}
-
-
-def clamp_row():
-    """CLAMP の changes の 1 行（1 回目の控えに置く）"""
-    return {"unit_key": CLAMP, "what": "clamp の上限の枝の戻り値を hi に直した", "files": ["stats.py"]}
-
-
-def hold(b, doc):
-    """1 回目に受け付けた返答の控えを盤面に置く"""
-    b.work(conflict.HELD_REPLY).write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-
-
 class TestReplanState(unittest.TestCase):
     def test_ruling_starts_waiting_and_holds(self):
         b = fake_with_rows([row("c1-1", MEAN, None)])                # 裁いていない申し出の行
@@ -382,85 +368,6 @@ class TestReplanState(unittest.TestCase):
         self.assertNotIn("replan_why", conflict.items(b)[1])
 
 
-class TestHeldReply(unittest.TestCase):
-    def test_accepted_units_leave_duty_but_not_board_owed(self):
-        b = fake_with_rows([])
-        hold(b, {"changes": [clamp_row()], "not_done": []})
-        owed, excused = fixboard.fix_duty(b, {MEAN, CLAMP}, withheld_by={})
-        self.assertEqual(owed, {MEAN})
-        self.assertIn("1 回目の修正の段で受け付けた", excused[CLAMP])
-        self.assertIn(str(b.work(conflict.HELD_REPLY)), excused[CLAMP])
-        self.assertEqual(set(excused), {CLAMP})
-
-    def test_no_held_reply_leaves_duty_as_is(self):
-        b = fake_with_rows([])
-        self.assertEqual(fixboard.fix_duty(b, {MEAN, CLAMP}, withheld_by={}), ({MEAN, CLAMP}, {}))
-        self.assertEqual(conflict.held_reply(b), (None, b.work(conflict.HELD_REPLY)))
-        self.assertEqual(conflict.accepted_units(b), set())
-        self.assertEqual(conflict.held_writes(b), [])
-
-    def test_accepted_units_read_changes_and_not_done(self):
-        b = fake_with_rows([])
-        hold(b, {"changes": [clamp_row()], "not_done": [{"unit_key": "u-left", "why": "範囲外"}]})
-        self.assertEqual(conflict.accepted_units(b), {CLAMP, "u-left"})
-
-    def test_with_held_merges_rows_by_unit(self):
-        b = fake_with_rows([])
-        hold(b, {"changes": [clamp_row(), {**mean_row(), "what": "1 回目の古い行"}], "not_done": [],
-                 "fix_closure": {"status": "open"}, "bash_writes": [{"path": "x.bin", "why": "バイナリ"}]})
-        reply = {"changes": [mean_row()], "not_done": [], "fix_closure": {"status": "clean"}}
-        merged = conflict.with_held(b, reply)
-        self.assertEqual([c["unit_key"] for c in merged["changes"]], [CLAMP, MEAN])
-        self.assertEqual(merged["changes"][1], mean_row())                # 同じ単位は返答の行
-        self.assertEqual(merged["fix_closure"], {"status": "clean"})
-        self.assertNotIn("bash_writes", merged)
-        self.assertEqual(reply["changes"], [mean_row()])                  # 返答そのものは変えない（写し）
-
-    def test_held_keeps_rows_as_written_and_hands_the_board_rows(self):
-        """控えの changes は役が書いた形（site の path・役の coverage）のまま、写しに渡した形の行は欄 HANDED に置く（依頼 195i の 1）。
-        2 回目の段の合わせ（with_held）は書いた形を、盤面に渡す口（handed・with_held(as_handed=True)）は渡した形を読む"""
-        b = fake_with_rows([])
-        written = {**clamp_row(), "closure": {"sites": [{"site": "上限の枝", "red_seen": True, "path": "stats.py"}]}}
-        board_row = {**clamp_row(), "closure": {"sites": [{"site": "上限の枝", "red_seen": True}]},
-                     "coverage": {"how": {"patterns": ["return lo"]}}}
-        hold(b, {"changes": [written], "not_done": [], "fix_closure": {"status": "open"},
-                 "bash_writes": [{"path": "x.bin", "why": "バイナリ"}], conflict.HANDED: [board_row]})
-        self.assertEqual(conflict.with_held(b, {"changes": [mean_row()]})["changes"], [written, mean_row()])
-        self.assertEqual(conflict.with_held(b, {"changes": [mean_row()]}, as_handed=True)["changes"], [board_row, mean_row()])
-        got = conflict.handed(conflict.held_reply(b)[0])
-        self.assertEqual(got, {"changes": [board_row], "not_done": [], "fix_closure": {"status": "open"}},
-                         "盤面に渡す形は渡した行で、works だけの欄（bash_writes・HANDED）を外す")
-        self.assertEqual(conflict.accepted_units(b), {CLAMP})
-
-    def test_broken_handed_rows_are_board_gap(self):
-        b = fake_with_rows([])
-        for bad in ({}, [{"what": "x"}], ["x"]):
-            with self.subTest(bad=bad):
-                hold(b, {"changes": [clamp_row()], conflict.HANDED: bad})
-                with self.assertRaises(ValueError):
-                    conflict.held_reply(b)
-
-    def test_with_held_without_held_is_the_reply(self):
-        b = fake_with_rows([])
-        reply = {"changes": [mean_row()], "not_done": []}
-        self.assertIs(conflict.with_held(b, reply), reply)
-
-    def test_held_writes_are_kept(self):
-        b = fake_with_rows([])
-        writes = [{"path": "tools/run.sh", "why": "実行の権限を付けた"}]
-        hold(b, {"changes": [clamp_row()], "not_done": [], "bash_writes": writes})
-        self.assertEqual(conflict.held_writes(b), writes)
-
-    def test_broken_held_reply_is_board_gap(self):
-        b = fake_with_rows([])
-        for text in ("{", "[]", '{"changes": {}}', '{"changes": [{"what": "x"}]}', '{"not_done": ["x"]}',
-                     '{"bash_writes": {}}'):
-            with self.subTest(text=text):
-                b.work(conflict.HELD_REPLY).write_text(text, encoding="utf-8")
-                with self.assertRaises(ValueError):
-                    conflict.held_reply(b)
-
-
 class TestReplanWords(unittest.TestCase):
     """fix_plan_item の意味は「同じ run の中で案を直す」（依頼 226）。持ち越しの語が残らず、裁定の文の約束が状態ごとに正しい"""
 
@@ -499,17 +406,6 @@ class TestReplanWords(unittest.TestCase):
     def section(text, rid):
         return text.split(f"## {rid}:", 1)[1].split("\n## ", 1)[0]
 
-    def test_accepted_unit_rows_say_do_not_write(self):
-        """1 回目に受け付けた控えの単位の裁定の行（直す裁定でも）は「changes に 1 行を書け」と言わず、受け付けが拒む
-        （accept.ACCEPTED_ROWS）のと同じく、書くな・行は機械が足すと言う（fix_duty の ACCEPTED_WHY と同じ扱い）"""
-        b = fake_with_rows([row("c1-1", CLAMP, "fix_code_as"), row("c1-2", MEAN, "fix_code_as")])
-        hold(b, {"changes": [clamp_row()], "not_done": []})
-        text = conflict.write_rulings(b).read_text(encoding="utf-8")
-        mine = self.section(text, "c1-1")
-        self.assertNotIn("changes に 1 行を書け", mine)
-        self.assertIn(conflict.ACCEPTED_PROMISE.format(path=b.work(conflict.HELD_REPLY)), mine)
-        self.assertIn("changes に 1 行を書け", self.section(text, "c1-2"), "控えに無い単位は今どおり")
-
     def test_second_pass_new_replan_rows_promise_the_last_gate(self):
         """2 回目の修正の段（案を直した行が在る。conflict.second_pass）で新しく fix_plan_item と裁いた行（待つ行）は、無い 3 回目の
         修正の段を約束せず、修正の段を抜ける時に諦めた行になり最後の人の関所へ行くと言う（replan.settle が締める）"""
@@ -533,13 +429,49 @@ class TestReplanWords(unittest.TestCase):
         self.assertIn("changes に書くな", mine)
         self.assertNotIn(conflict.HELD_WORK_KEPT, mine)
 
-    def test_held_ask_points_at_the_owed_keys_above(self):
-        """控えの節の『直す義務』の名指しは、指示書でその節より前（上）に在る読む物の行を指す"""
-        self.assertNotIn("下の『直す義務の単位』", fixrules.HELD_ASK)
-        self.assertIn("上の「読む物」の「直す義務の単位の key」", fixrules.HELD_ASK)
-        parts = [i for i, _, _ in fixrules.fix_parts({k: "" for k in fixrules.FIX_VALUES}, held="x")]
-        self.assertLess(parts.index("fix-head"), parts.index("held"))
-        self.assertIn("直す義務の単位の key", fixrules.sections(fixrules.DIRECT)["fix-head"])
+
+class FixAcceptSeamCase(unittest.TestCase):
+    """修正役の受け付け（fixboard.accept_reply）の申し出の照らし（take_conflicts）: 直す義務の外の単位の申し出と、申し出た
+    単位を changes にも書いた返答を拒む（元 works/blk-fix/scripts/accept.py:319-333。元 test_blk_fix_conflict.py:152
+    test_conflict_outside_owed_units_is_rejected）"""
+
+    def setUp(self):
+        from tests.bin.gitkit import committed_copy
+        tmp = tempfile.TemporaryDirectory(prefix="works-conflict-accept-")
+        self.addCleanup(tmp.cleanup)
+        root = pathlib.Path(tmp.name)
+        self.repo, self.place = root / "repo", root / "place"
+        self.rev = committed_copy(self.repo, LIB.parent / "tests" / "e2e" / "target-seed")
+        self.place.mkdir()
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": [{"key": MEAN}, {"key": CLAMP}]}),
+                                                         encoding="utf-8")
+
+    def accept(self, conflicts, changes=()):
+        import leftovers
+        reply = {"changes": [{"unit_key": k, "what": "直した", "files": ["stats.py"]} for k in changes],
+                 "conflicts": conflicts}
+        return fixboard.accept_reply(reply, self.place, self.repo, pass_="first", iteration=1, owed=[MEAN, CLAMP], judged=[],
+                                     head=leftovers.snapshot(self.repo), base_rev=self.rev)
+
+    def claim(self, key=MEAN):
+        return {"unit_key": key, "between": ["stats.py:9", "test_stats.py:9"],
+                "why_both_cannot_hold": "テストは分母 len(xs) - 1 の値を期待しているが、依頼は算術平均を求めている",
+                "which_is_right": "request", "kind": "unnamed_test_broke"}
+
+    def conflict_rejects(self, got) -> str:
+        return " ".join(r["text"] for r in got["rejects"] if r["check"] == "conflict")
+
+    def test_conflict_unit_also_in_changes_is_rejected(self):
+        got = self.accept([self.claim()], changes=[MEAN, CLAMP])
+        self.assertEqual((got["ok"], got["conflicted"]), (False, False), got)
+        self.assertIn(f"申し出た単位を changes にも書いた: {MEAN}", self.conflict_rejects(got))
+        self.assertEqual(conflict.items(self.place), [], "拒んだ申し出は積まない")
+        got = self.accept([self.claim("stats.py ghost: 作り話の単位")])
+        self.assertFalse(got["ok"], got)
+        self.assertIn("今の直す義務の単位に無い", self.conflict_rejects(got))
+        self.assertEqual(conflict.items(self.place), [])
+        got = self.accept([self.claim()])
+        self.assertEqual((got["ok"], got["conflicted"]), (True, True), got)
 
 
 if __name__ == "__main__":
