@@ -5,6 +5,8 @@
 - (c) 分けの秒数の最大と最小の差が、表の 1 モジュールの最大より小さい
 - (d) 新しい試験のファイルを足すと、どれかの分けに入る
 """
+import contextlib
+import io
 import json
 import pathlib
 import tempfile
@@ -75,6 +77,67 @@ class NewFileTest(unittest.TestCase):
             (root / pkg / "deep" / "test_new.py").write_text(TEST_CASE, encoding="utf-8")
             shards = shard.plan(shard.modules(root), {f"{pkg}.test_old": 4.0}, N)
             self.assertIn(f"{pkg}.deep.test_new", [m for s in shards for m in s])
+
+
+FAILING_CASE = "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_fail(self):\n        self.fail()\n"
+
+
+def tree(root: pathlib.Path, pkg: str, files: dict[str, str]) -> None:
+    (root / pkg).mkdir()
+    (root / pkg / "__init__.py").write_text("", encoding="utf-8")
+    for name, body in files.items():
+        (root / pkg / name).write_text(body, encoding="utf-8")
+
+
+def run_quietly(suites: dict, record: pathlib.Path | None = None) -> int:
+    with contextlib.redirect_stderr(io.StringIO()):
+        return shard.run(suites, record)
+
+
+class SameAsDiscoverTest(unittest.TestCase):
+    # discover が import するので、パッケージの名は他の試験のモジュール名と重ならない名にする
+
+    def test_reexported_case_runs_under_each_importing_module(self):
+        pkg = "shard_reexport_pkg"
+        reexport = f"from {pkg}.base import Base\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            tree(root, pkg, {"base.py": TEST_CASE.replace("class T", "class Base"), "test_one.py": reexport, "test_two.py": reexport})
+            found = shard.suites(root)
+            self.assertEqual(sorted(found), [f"{pkg}.test_one", f"{pkg}.test_two"])
+            self.assertEqual(sum(s.countTestCases() for s in found.values()), 2)
+
+    def test_module_level_skip_is_a_skip(self):
+        pkg = "shard_skip_pkg"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            tree(root, pkg, {"test_skip.py": "import unittest\nraise unittest.SkipTest('no')\n"})
+            found = shard.suites(root)
+            self.assertEqual(sorted(found), [f"{pkg}.test_skip"])
+            self.assertEqual(run_quietly(found), 0)
+
+    def test_broken_module_is_placed_and_red_without_stopping_the_rest(self):
+        pkg = "shard_broken_pkg"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            tree(root, pkg, {"test_import.py": "import shard_no_such_module_zz\n", "test_syntax.py": "x = (\n", "test_ok.py": TEST_CASE})
+            found = shard.suites(root)
+            self.assertEqual(sorted(found), [f"{pkg}.test_import", f"{pkg}.test_ok", f"{pkg}.test_syntax"])
+            record = root / "seconds.json"
+            self.assertEqual(run_quietly(found, record), 1)
+            self.assertEqual(sorted(json.loads(record.read_text(encoding="utf-8"))), sorted(found))
+
+
+class RunExitTest(unittest.TestCase):
+    def test_exit_status(self):
+        pkg = "shard_exit_pkg"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            tree(root, pkg, {"test_ok.py": TEST_CASE, "test_fail.py": FAILING_CASE})
+            found = shard.suites(root)
+            self.assertEqual(run_quietly({f"{pkg}.test_ok": found[f"{pkg}.test_ok"]}), 0)
+            self.assertEqual(run_quietly({f"{pkg}.test_fail": found[f"{pkg}.test_fail"]}), 1)
+            self.assertEqual(run_quietly({}), 5)
 
 
 if __name__ == "__main__":

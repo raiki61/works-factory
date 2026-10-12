@@ -24,20 +24,25 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 TABLE = ROOT / "tests" / "shard-seconds.json"
 
 
-def module_names(suite: unittest.TestSuite) -> set[str]:
-    found = set()
-    for item in suite:
-        if isinstance(item, unittest.TestSuite):
-            found |= module_names(item)
-        elif type(item).__module__ == "unittest.loader":
-            found.add(item._testMethodName)   # 読み込めないモジュールは discover が _FailedTest（名はモジュール名）にする
-        else:
-            found.add(type(item).__module__)
+class ModuleLoader(unittest.TestLoader):
+    def loadTestsFromModule(self, module, *args, **kwargs):
+        suite = super().loadTestsFromModule(module, *args, **kwargs)
+        suite.module = module.__name__
+        return suite
+
+
+def suites(root: pathlib.Path) -> dict[str, unittest.TestSuite]:
+    found = {}
+    for suite in ModuleLoader().discover(str(root), top_level_dir=str(root)):
+        # 読み込めない・モジュールの頭で見送ったモジュールは、discover がモジュール名をメソッド名に持つ 1 件の suite にする
+        name = getattr(suite, "module", None) or next(iter(suite))._testMethodName
+        if suite.countTestCases():
+            found[name] = suite
     return found
 
 
 def modules(root: pathlib.Path) -> list[str]:
-    return sorted(module_names(unittest.TestLoader().discover(str(root), top_level_dir=str(root))))
+    return sorted(suites(root))
 
 
 def load_seconds(path: pathlib.Path) -> dict[str, float]:
@@ -92,10 +97,9 @@ class TimedModule(unittest.TestSuite):
         return result
 
 
-def run(names: list[str], record: pathlib.Path | None) -> int:
-    loader = unittest.TestLoader()
+def run(found: dict[str, unittest.TestSuite], record: pathlib.Path | None) -> int:
     seconds: dict[str, float] = {}
-    suite = unittest.TestSuite(TimedModule(name, loader.loadTestsFromName(name), seconds) for name in names)
+    suite = unittest.TestSuite(TimedModule(name, tests, seconds) for name, tests in found.items())
     result = unittest.TextTestRunner().run(suite)
     if record is not None:
         record.write_text(json.dumps(seconds, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -122,10 +126,11 @@ def main(argv: list[str]) -> int:
         TABLE.write_text(json.dumps(merge(args.merge), indent=2) + "\n", encoding="utf-8")
         return 0
     index, count = args.shard
-    names = modules(ROOT)
+    found = suites(ROOT)
+    names = sorted(found)
     shards = plan(names, load_seconds(TABLE), count)
     check(names, shards)
-    return run(shards[index - 1], args.record)
+    return run({name: found[name] for name in shards[index - 1]}, args.record)
 
 
 if __name__ == "__main__":
