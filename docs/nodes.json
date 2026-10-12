@@ -128,6 +128,7 @@
   "line/merge-apply-out": "置いた差分の出力をメイングラフの形に直すノード",
   "line/collect": "報告に渡す各段の出力を集めるノード",
   "line/report": "報告のサブグラフを include するノード",
+  "line/sweep-children": "fix の並べの子の run が残した作業ツリーと枝を消す後始末のノード（issue #113。今の works の unittrees.sweep。review-graph のノードに当たらない）",
   "line/result": "メイングラフの出力ノード",
   "fix/prep": "修正の前の木の控えを書く支度のノード（review-graph の p1.worktree_before は素材の段の前の姿で、これとは別物）",
   "fix/group-start": "組の子の run の修正の前の木の控えを書くノード（fix/prep の組の側）",
