@@ -15,6 +15,7 @@ import unittest
 
 import yaml
 
+from bin._lib import place
 from tests import archon
 from tests.layers import scan
 
@@ -117,10 +118,11 @@ class LineReturnsTest(unittest.TestCase):
         self.assertEqual(got["final_answer"], {"decision": "approve", "text": "", "asked": []})
 
     def test_sweep_without_children_reaches_the_return(self):
-        """後始末の節は子の run の無い run（筋書きは fix を stub で差す）でも落ちず、返りが線の返りの欄 children に載る"""
+        """後始末の節は写した工程のフォルダから部品 childsweep まで届き、落ちずに返りが線の返りの欄 children に載る。試験の Archon は
+        入口の殻を通さない（tests/archon.py が源のパスを継がない）ので、節は何も消さず、訳に源のパスの環境変数の名を書く"""
         children = self.returns["standard"]["children"]
-        self.assertEqual(sorted(children), ["cleaned", "error", "left"])
-        self.assertEqual(children["cleaned"], [])
+        self.assertEqual((children["cleaned"], children["left"]), ([], []))
+        self.assertIn(place.SOURCE_ENV, children["error"])
 
     def test_final_stop_keeps_the_seal_without_applying(self):
         got = self.returns["final-stop"]

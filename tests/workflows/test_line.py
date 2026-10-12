@@ -2044,19 +2044,24 @@ class SweepChildrenCase(unittest.TestCase):
         returns.assert_called_once_with({"cleaned": [], "left": [], "error": "OSError: 壊れた"})
 
     def run_node(self, extra: dict) -> dict:
-        """節の script を本当に走らせる。Archon は偽の bun（一覧に WORKFLOW_ID の run だけを出す）で、子の run は無い"""
+        """節の script を、Archon と同じく工程のフォルダの写し（線と境の口）から、リポジトリの根を WORKS_FACTORY_ROOT で渡して
+        本当に走らせる。Archon は偽の bun（一覧に WORKFLOW_ID の run だけを出す）で、子の run は無い"""
         with tempfile.TemporaryDirectory() as tmp:
             tmp = pathlib.Path(tmp)
+            copied = tmp / "workflows"
+            for folder in ("line", ".shared"):
+                shutil.copytree(SCRIPTS.parents[1] / folder, copied / folder)
             (tmp / "bin").mkdir()
             bun = tmp / "bin" / "bun"
             listing = json.dumps({"runs": [{"id": RUN, "status": "running", "parent_run_id": None, "metadata": {}}]})
             bun.write_text(f"#!/bin/sh\ncat <<'EOF'\n{listing}\nEOF\n", encoding="utf-8")
             bun.chmod(0o755)
             env = {k: v for k, v in os.environ.items() if k != "WORKS_FACTORY_ARCHON_SOURCE"}
-            env.update({"PATH": f"{tmp / 'bin'}{os.pathsep}{env.get('PATH', '')}", "WORKFLOW_ID": RUN, "ARTIFACTS_DIR": str(tmp)})
+            env.update({"PATH": f"{tmp / 'bin'}{os.pathsep}{env.get('PATH', '')}", "WORKFLOW_ID": RUN, "ARTIFACTS_DIR": str(tmp),
+                        "WORKS_FACTORY_ROOT": str(ROOT)})
             env.update({k: v.replace("<tmp>", str(tmp)) for k, v in extra.items()})
-            done = subprocess.run([sys.executable, str(SCRIPTS / "sweep_children.py")], cwd=tmp, env=env, capture_output=True,
-                                  text=True, encoding="utf-8")
+            done = subprocess.run([sys.executable, str(copied / "line/scripts/sweep_children.py")], cwd=tmp, env=env,
+                                  capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(done.returncode, 0, done.stderr)
         return json.loads(done.stdout)
 
