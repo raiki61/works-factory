@@ -1739,7 +1739,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         over, rest = split_rows(found, asks)
     if not found:
         units = unit_outcomes([k for k in owed if k not in parked], reply, excused=excused, parked=parked)
-        overflow_trace(place, trail)
+        overflow_trace(place, trail, repo, pass_=pass_, attempt=iteration)
         return {"ok": True, "reason": "", "rejects": [], "reply": reply, "units": units, "parked": parked,
                 "conflicted": False}
     texts = [t for _, t in rest]   # 最後の回の止めは成り立たない行にだけ当てる（はみ出しは止めた後の通し直しが聞かずに戻す）
@@ -2070,16 +2070,23 @@ def _without_rows(reply: dict, rest: list, mine: set, repo) -> dict:
     return out
 
 
-def overflow_trace(place, trail: dict) -> None:
-    """受けた回に、はみ出しを相談で認めた（合意の行の origin が accept）・機械が戻した物を置き場の trace の
-    impact.ACCEPT_OVERFLOW_OP の行に名指す（どちらも無ければ書かない）。元 accept.py:705 の traced の中の 1 行（守りのテストと
-    関所の条件の相談の名指しは今は持ってこない）"""
+def overflow_trace(place, trail: dict, repo, *, pass_: str, attempt: int) -> None:
+    """受けた回 (pass_, attempt) に、はみ出しを相談で認めた（合意の行の origin が accept）・機械が戻した物・守りのテスト・関所の
+    条件の相談（origin が gate）で認めた新しいテストのうち今の木（repo）に在る物を置き場の trace の impact.ACCEPT_OVERFLOW_OP の
+    行に名指す（どれも無ければ書かない）。名指しの字は元 accept.py:715 の traced の中の 1 行と同じ（報告が 1 件ずつ読む）"""
     import conflict
     import consult
+    import fixgates
     import impact
-    agreed = [r.get("id") for r in conflict.agreed(place) if r.get("origin") == consult.ORIGIN_ACCEPT]
-    if agreed or trail["reverted"]:
-        trace(place, impact.ACCEPT_OVERFLOW_OP, node=FIX_ACCEPT_BY, agreed=agreed, reverted=trail["reverted"])
+    rows = conflict.agreed(place)
+    agreed = [r.get("id") for r in rows if r.get("origin") == consult.ORIGIN_ACCEPT]
+    gated = [f"{g['id']}（{g.get('red_kind')}）" for r in rows if r.get("origin") == consult.ORIGIN_GATE
+             for g in r.get("granted_new_tests") or [] if isinstance(g, dict) and fixgates.present(repo, g.get("id"))]
+    guards = [f"{g['id']}: 守りのテスト（base で {g['base']}）"
+              for g in fixgates.guards(place, pass_=pass_, attempt=attempt)]
+    if agreed or trail["reverted"] or guards or gated:
+        trace(place, impact.ACCEPT_OVERFLOW_OP, node=FIX_ACCEPT_BY, agreed=agreed, reverted=trail["reverted"], guards=guards,
+              gate_tests=gated)
 
 
 def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: str, reverted, trail: dict, pass_: str,

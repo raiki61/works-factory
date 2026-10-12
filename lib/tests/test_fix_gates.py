@@ -211,6 +211,17 @@ class TestRedGreen(FixGatesCase):
         self.assertEqual([(r["gate"], r["id"]) for r in rows], [("red_green", MEAN_ID)])
         self.assertIn("今の木", rows[0]["detail"])
 
+    def test_guards_of_an_earlier_attempt_survive_a_later_write(self):
+        """後の回が帳面に行を積んでも、前の回の守りのテストの base の結末は残る（元 works の誤りを直す）"""
+        self.ready_with_fields(direct_fields())
+        self.agree(MEAN_ID, planmarks.GUARD_KIND)
+        self.add_test_that_passes_on_base("test_mean_of_two")
+        self.assertEqual(self.problems(), [])
+        self.edit_tests("    def test_mean_of_two(self):\n        self.assertEqual(clamp(5, 0, 10), 5)",
+                        "    def test_mean_of_two(self):\n        self.assertEqual(clamp(5, 0, 10), 6)")
+        self.assertTrue(self.problems(attempt=2), "2 回目は行を積む")
+        self.assertEqual(fixgates.guards(self.board, pass_="first", attempt=1), [{"id": MEAN_ID, "base": "passed"}])
+
     def test_not_green_now_is_a_miss(self):
         """受け入れのテストが base で正しく赤でも、今の木で緑でなければ行（直していない）"""
         self.ready_with_fields()
