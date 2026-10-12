@@ -666,7 +666,8 @@ class BlockScriptsCase(unittest.TestCase):
                      "groups.json", "units.json", "only-items.json", "base-rev.json"):
             self.assertTrue((self.place / name).is_file(), name)
         self.assertEqual(json.loads((self.place / "groups.json").read_text(encoding="utf-8")), out)
-        self.assertEqual(json.loads((self.place / "r1" / "start.json").read_text(encoding="utf-8"))["request_file"], "")
+        self.assertEqual((self.place / "r1" / "start.json").read_bytes(), (self.art / "in" / "start.json").read_bytes(),
+                         "始めの記録は字のまま写す（欄を既定で埋めない。L-E24 の startrec.adopt）")
 
     def test_prep_writes_only_copies_the_children_adopt(self):
         """prep が置き場に書く入力の写しは、組の子が親から写す一覧 fixboard.ADOPTED に全部載る（載らない写しは子で黙って空になる）"""

@@ -28,10 +28,10 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J04 依頼のファイルを名指したのに行が空なら（始めの記録が依頼 1 件以上と言う run）欠けとして止める
   - 元: works/blk-judge/scripts/intake.py:47-60（依頼の無い run 以外は空でも `check_request` に通し、add の minItems で拒む。test_blk_judge.py:359 `test_intake_refuses_empty_request_when_input_has_requests`）
-  - 今: 無し（lib/judge_accept.py:4107 は `if rows:` の時だけ型に通すので、空の行の並びは素通りする。止めるのは依頼のファイルを名指さない時だけ :4077）
-  - 証: 要追加: lib/tests/test_judge_accept.py::IntakeCase.test_empty_request_file_is_refused_when_start_counts_requests — requests: 2 の始めの記録と `[]` のファイルで go: false・works:request
+  - 今: lib/judge_accept.py `intake`（始めの記録が依頼 1 件以上と言えば空の行も check_request に通す）（部分 A で閉じた）
+  - 証: lib/tests/test_judge_accept.py::IntakeCase.test_empty_request_file_is_refused_when_start_counts_requests
   - 本物の run: 筋書きでのみ
-  - 狭め: #76 で狭めた（不可でない → 戻す）
+  - 狭め: #76 で狭めた（不可でない → 戻す） → 部分 A で戻した
 - J05 機能の切り替え: features_cut の world で世界の解の段を、judge_verify で判定の裏取りを切り、input.spec で仕様の段を入れる
   - 元: works/.shared/core/entry.py の FEATURES・works/darkfactory/lib/line_edge.py:1026 `_world_due`・works/blk-judge/lib/judgeverify.py:306 `prep`
   - 今: lib/judge_accept.py:4119-4121 `intake`

@@ -6,6 +6,7 @@
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -111,6 +112,8 @@ class StartCase(Artifacts):
         head = git(self.repo, "rev-parse", "HEAD")
         self.assertEqual(doc["input"]["base"], {"rev": head, "from": "head", "name": "", "label": "HEAD"})
         self.assertEqual((doc["input"]["requests"], doc["input"]["diff"]["empty"]), (2, True))
+        self.assertEqual(doc["input"]["request_file"], str((self.repo / "request_ok.json").resolve()),
+                         "相対の依頼は対象の根から読み、絶対パスで残す（L-E06）")
         self.assertEqual(doc["features_off"], ["tdd_lanes"])
         self.assertEqual(doc["features"]["tdd_lanes"], "off")
         self.assertEqual(doc["final_gate"], "when_needed")
@@ -121,7 +124,8 @@ class StartCase(Artifacts):
         got = self.start(base="base")
         self.assertTrue(got["ok"], got)
         doc = self.record(got)
-        self.assertEqual(doc["input"]["base"]["rev"], self.fork)
+        self.assertEqual(doc["input"]["base"], {"rev": self.fork, "from": "base", "name": "base", "label": "base base"},
+                         "差分の根は base と HEAD の merge-base、label は「base <名>」（L-E09）")
         self.assertGreaterEqual(doc["input"]["diff"]["files"], 1)
         self.assertEqual(doc["base_rev"], git(self.repo, "rev-parse", "HEAD"),
                          "base_rev は修正の前の HEAD（今の works の entry.py 1203 行。merge と test-gate が差分の起点に読む）")
@@ -136,12 +140,12 @@ class StartCase(Artifacts):
         self.assertEqual((doc["request_file"], doc["input"]["request_file"]), ("", ""))
 
     def test_blocks_read_the_request_file_from_the_line_record(self):
-        """issue #89: 線の始めの記録を fix の prep と同じ重ね方で置き場の r1/start.json に写すと、上の欄だけを読む fix の読み手
-        （conflict.request_file・fixboard.fix_values）が依頼のファイルを返す"""
-        doc = self.record(self.start(request="request_ok.json"))
+        """issue #89: 線の始めの記録を fix の prep・事前審査の open と同じ口（startrec.adopt）で置き場の r1/start.json に字のまま写すと、
+        上の欄だけを読む fix の読み手（conflict.request_file・fixboard.fix_values）が依頼のファイルを返す"""
+        got = self.start(request="request_ok.json")
         place = self.tmp / "fix"
-        defaults = {"tdd_suite": "", "test_cmd": "", "policy_md": "", "request_file": "", "features_cut": []}   # fix の prep の START_DEFAULTS
-        fixboard.write_json(startrec.path(place), {**defaults, **{k: v for k, v in doc.items() if v is not None}})
+        self.assertEqual(startrec.adopt(place, self.artifacts / got["record"]["path"]), self.record(got))
+        self.assertEqual(startrec.path(place).read_bytes(), (self.artifacts / got["record"]["path"]).read_bytes())
         want = str((self.repo / "request_ok.json").resolve())
         self.assertEqual(conflict.request_file(place), want)
         self.assertEqual(fixboard.fix_values(place, [], start=startrec.read(place))["request_file"], want)
@@ -186,7 +190,8 @@ class StartCase(Artifacts):
         for kw, words in (({}, "直す物も審査する物も無い"),
                           ({"request": "request_ok.json", "base": "base", "pr": "1"}, "両方"),
                           ({"request": "request_ok.json", "spec": "on", "unattended": "true"}, "組めない"),
-                          ({"request": "request_ok.json", "thickness": "重厚"}, "重厚"),
+                          ({"request": "request_ok.json", "thickness": "重厚"}, "足す工程がまだ無い"),
+                          ({"request": "request_ok.json", "thickness": "xx"}, "知らない値"),
                           ({"request": "request_ok.json", "features_off": "nope"}, "nope"),
                           ({"request": "request_ok.json", "features_off": "judge_verify", "features_on": "judge_verify"}, "両方"),
                           ({"request": "no-such.json"}, "no-such.json"),
@@ -198,7 +203,197 @@ class StartCase(Artifacts):
                 got = self.start(**kw)
                 self.assertEqual((got["ok"], got["stop_reason"], got["ask"]), (False, linekit.START_REFUSED, False), got)
                 self.assertIn(words, got["reason"])
-                self.assertEqual(self.record(got)["refused"], got["reason"])
+                doc = self.record(got)
+                self.assertEqual(doc["refused"], got["reason"])
+                self.assertEqual(doc["inputs"], raw(**kw), "拒む run でも設定の写しを残す（L-E46）")
+                self.assertIn("unknown", doc["versions"], "拒む run でも版の控えを残す（L-E46）")
+
+    def outside(self, name: str, text: str) -> pathlib.Path:
+        """対象の木の外に置く依頼のファイル（木を汚すと差分が空でなくなる）"""
+        path = self.tmp / name
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def refused(self, **kw) -> str:
+        got = self.start(**kw)
+        self.assertEqual((got["ok"], got["stop_reason"]), (False, linekit.START_REFUSED), got)
+        return got["reason"]
+
+    def test_request_refusals_name_the_cause(self):
+        """L-E02: 依頼が読めない・JSON として読めない・形が違うを別の文で拒む（元 works/.shared/core/entry.py 620-632 行）"""
+        self.assertIn("読めない", self.refused(request="no-such.json"))
+        self.assertNotIn("JSON", self.refused(request="no-such.json"))
+        self.assertIn("JSON として読めない", self.refused(request=str(self.outside("broken.json", "{findings"))))
+        bad = json.dumps({"findings": [{"where": "a", "text": "b"}], "answers": "x"})
+        reason = self.refused(request=str(self.outside("bad_answers.json", bad)))
+        self.assertIn("の形", reason)
+        self.assertNotIn("読めない", reason)
+
+    def test_request_answers_reach_the_record(self):
+        """L-E03: 依頼の answers は始めの記録の answers（元 works/tests/test_entry.py の test_request_answers_reach_start_doc）"""
+        rows = [{"question": "q1", "text": "a を選ぶ"}]
+        path = self.outside("answers.json", json.dumps({"findings": [{"where": "a", "text": "b"}], "answers": rows}))
+        self.assertEqual(self.record(self.start(request=str(path)))["answers"], rows)
+
+    def test_bad_answers_or_prior_shape_refused(self):
+        """L-E04・L-D51: answers・prior_failures の形の違う依頼は AI の前で拒む（元 test_entry.py の
+        test_request_answers_bad_shape_refused・test_request_prior_failures_bad_shape_refused）"""
+        for key, bad in (("answers", [{"text": "問いの無い答え"}]), ("answers", "x"), ("prior_failures", [{"where": "w"}]),
+                         ("prior_failures", [{"where": "w", "text": "t", "extra": 1}])):
+            with self.subTest(key=key, bad=bad):
+                path = self.outside("shape.json", json.dumps({"findings": [{"where": "a", "text": "b"}], key: bad}))
+                self.assertIn(key, self.refused(request=str(path)))
+
+    def test_bad_base_or_pr_refused(self):
+        """L-E10: 引けない base・番号でない pr を名を言って拒む"""
+        self.assertIn("no-such-branch", self.refused(base="no-such-branch"))
+        self.assertIn("引けない", self.refused(base="no-such-branch"))
+        self.assertIn("番号でない", self.refused(pr="x"))
+
+    def pr_reads(self, **pr) -> dict:
+        doc = {"baseRefOid": self.fork, "headRefOid": git(self.repo, "rev-parse", "HEAD"), "title": "題 T", "body": "本文X",
+               "status": "ok"}
+        doc.update(pr)
+        return {"version": 1, "pr": {"7": doc}, "issue": {}}
+
+    def start_with_gh(self, reads, **kw):
+        """run の中の gh の読み出しを reads に差して start を回す（呼ばれた回数を返す）"""
+        import ghreads
+        calls = []
+
+        def read_named(repo, prs, issues):
+            calls.append((prs, issues))
+            return reads
+        with mock.patch.object(ghreads, "read_named", read_named):
+            return self.start(**kw), calls
+
+    def test_named_pr_is_read_once_and_placed(self):
+        """L-E11: 名指した PR は run の中で 1 度だけ読み、置き場の根の github.json に 0600 で置く。2 度目（再開）は読み直さない"""
+        import ghreads
+        got, calls = self.start_with_gh(self.pr_reads(), pr="7")
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(calls, [([7], [])])
+        placed = self.artifacts / ghreads.BOARD_FILE
+        self.assertEqual(placed.stat().st_mode & 0o777, 0o600)
+        again, calls = self.start_with_gh(self.pr_reads(title="別の題"), pr="7")
+        self.assertEqual(calls, [])
+        self.assertEqual(self.record(again)["input"]["pr"]["title"], "題 T")
+
+    def test_pr_base_is_the_github_base_oid(self):
+        """L-E12: PR の差分の根は GitHub の baseRefOid と HEAD の merge-base、label は「PR #N「題」」（元 works/tests/test_entry_inputs.py の
+        test_pr_uses_github_base_oid_and_carries_description）"""
+        got, _ = self.start_with_gh(self.pr_reads(), pr="7")
+        doc = self.record(got)
+        self.assertEqual(doc["input"]["base"], {"rev": self.fork, "from": "pr", "name": "7", "label": "PR #7「題 T」"})
+
+    def test_pr_refused_when_head_differs_or_base_missing(self):
+        """L-E13: PR の head が対象の HEAD と違えば止め、PR の base の版が無ければ fetch してからと言って止める"""
+        import ghreads
+        got, _ = self.start_with_gh(self.pr_reads(headRefOid=self.fork), pr="7")
+        self.assertIn("head", got["reason"])
+        self.assertIn("違う", got["reason"])
+        (self.artifacts / ghreads.BOARD_FILE).unlink()
+        got, _ = self.start_with_gh(self.pr_reads(baseRefOid="f" * 40), pr="7")
+        self.assertIn("fetch してから", got["reason"])
+        self.assertFalse(got["ok"])
+
+    def test_no_auth_launch_refuses_named_pr_without_gh(self):
+        """L-E15: 認証の要らない起動（殻が立てる WORKS_FACTORY_NO_AUTH=1）で PR を名指せば、gh を呼ばずに認証を使う起動で回すと止める"""
+        with mock.patch.dict(os.environ, {"WORKS_FACTORY_NO_AUTH": "1"}):
+            got, calls = self.start_with_gh(self.pr_reads(), pr="7")
+        self.assertEqual(calls, [])
+        self.assertFalse(got["ok"])
+        self.assertIn("認証を使う起動", got["reason"])
+
+    def test_request_text_carries_request_and_pr(self):
+        """L-E16: 依頼と PR の両方なら見出しつき、片方ならその文（元 works/tests/test_entry_inputs.py の同名）。L-E17: PR の題と本文は
+        始めの記録の input.pr に載る（目的の役の材料が読む）"""
+        req = self.outside("req.json", json.dumps([{"where": "stats.py", "text": "依頼の穴"}], ensure_ascii=False))
+        doc = self.record(self.start_with_gh(self.pr_reads(), pr="7", request=str(req))[0])
+        self.assertIn("## 依頼", doc["request_text"])
+        self.assertIn("依頼の穴", doc["request_text"])
+        self.assertIn("## PR #7 の題と本文", doc["request_text"])
+        self.assertIn("本文X", doc["request_text"])
+        self.assertEqual(doc["input"]["pr"], {"number": "7", "title": "題 T", "body": "本文X"})
+        doc = self.record(self.start_with_gh(self.pr_reads(), pr="7")[0])
+        self.assertEqual(doc["request_text"], "題 T\n\n本文X")
+        doc = self.record(self.start(request=str(req)))
+        self.assertEqual(doc["request_text"], req.read_text(encoding="utf-8"))
+
+    def test_every_entry_has_the_same_shape(self):
+        """L-E19: 依頼・base・PR のどの入口でも input の鍵が同じ（元 works/tests/test_entry_inputs.py の test_build_input_from_each_entry）"""
+        keys = {"base", "head_rev", "diff", "requests", "request_file", "pr", "spec"}
+        for name, got in (("依頼", self.start(request="request_ok.json")), ("base", self.start(base="base")),
+                          ("PR", self.start_with_gh(self.pr_reads(), pr="7")[0])):
+            with self.subTest(entry=name):
+                doc = self.record(got)
+                self.assertEqual(set(doc["input"]), keys)
+                self.assertEqual(set(doc["input"]["base"]), {"rev", "from", "name", "label"})
+
+    def test_record_is_where_lib_readers_look(self):
+        """L-E24: start が書いた記録を lib の読み手の口（startrec.read）がそのまま読む（置き場が 2 つに割れない）"""
+        got = self.start(request="request_ok.json", features_off="world")
+        self.assertEqual(startrec.read(self.artifacts), self.record(got))
+        self.assertEqual(self.artifacts / got["record"]["path"], startrec.path(self.artifacts))
+
+    def test_spec_word_checked(self):
+        """L-E27: spec は空か on。on は input.spec を真に（元 works/tests/test_entry_inputs.py の SpecInputCase.test_spec_word_checked）"""
+        self.assertIn("spec", self.refused(request="request_ok.json", spec="yes"))
+        self.assertTrue(self.record(self.start(request="request_ok.json", spec="on"))["input"]["spec"])
+        self.assertFalse(self.record(self.start(request="request_ok.json"))["input"]["spec"])
+
+    def test_spec_refused_without_request_text(self):
+        """L-E29: spec=on なのに依頼の文（依頼も PR の題と本文も）が無ければ止める（元 SpecInputCase の同名）"""
+        self.assertIn("依頼の文", self.refused(base="base", spec="on"))
+
+    def test_features_cut_is_recorded(self):
+        """L-E33: 機能の切り替えは始めの記録の features_cut に載り、ブロックはそこを読む"""
+        self.assertIn("world", self.record(self.start(request="request_ok.json", features_off="world"))["features_cut"])
+
+    def test_test_cmd_and_tdd_suite_are_recorded(self):
+        """L-E38: test_cmd・tdd_suite を始めの記録に置く（test-gate と fix が読む）"""
+        doc = self.record(self.start(request="request_ok.json", test_cmd="make test", tdd_suite="./junit-suite.sh"))
+        self.assertEqual((doc["test_cmd"], doc["tdd_suite"]), ("make test", "./junit-suite.sh"))
+
+    def test_unknown_versions_say_why(self):
+        """L-E45: 分からない版の値は null にし、unknown に理由を書く（元 works/.shared/core/versions.py 59-117 行）"""
+        bare = self.tmp / "bare-bin"   # git だけを置いた PATH（claude が無い）
+        bare.mkdir()
+        (bare / "git").symlink_to(shutil.which("git"))
+        with mock.patch.dict(os.environ, {"PATH": str(bare)}), \
+                mock.patch.object(start.boundary, "lib_root", return_value=self.tmp / "nowhere" / "lib"):
+            doc = self.record(self.start(request="request_ok.json"))["versions"]
+        for key in ("archon", "claude_code"):
+            with self.subTest(key=key):
+                self.assertIsNone(doc[key])
+                self.assertTrue(doc["unknown"][key])
+        self.assertTrue(doc["python"])
+        self.assertTrue(doc["platform"])
+
+    def test_start_gate_text_names_entry_features_and_answers(self):
+        """L-E48・L-G09: 起動の関所の文は冒頭 3 行・入口の文・機能・最後の関所の開き方・答え方の 2 行を持ち、AI の前に見せる"""
+        got = self.start(request="request_ok.json", final_gate="when_needed", features_off="world")
+        text = got["gate_text"]
+        lines = text.splitlines()
+        self.assertTrue(lines[0].startswith("起きたこと: "))
+        self.assertIn("入口: 差分なし（HEAD）・依頼 2 件", text)
+        self.assertIn("機能: ", text)
+        self.assertIn("world off", text)
+        self.assertIn("最後の関所: when_needed", text)
+        self.assertIn(answer.line(RUN, "continue", "<一言>"), text)
+        self.assertIn(answer.line(RUN, "stop", "<理由>"), text)
+        self.assertEqual(line_nodes()["gate-start"]["approval"]["message"], "$start.output.gate_text")
+        self.assertEqual(line_nodes()["gate-start"]["depends_on"], ["start"])
+
+    def test_gate_text_has_the_depth_word(self):
+        """L-E49: 頭の行に段（thickness と（既定））・機能・最後の関所・修正前のテストの任せ先の注を並べる（元 entry.py 1213-1219 行）"""
+        text = self.start(request="request_ok.json")["gate_text"]
+        self.assertIn("段: 自動（既定）", text)
+        self.assertIn("修正前のテスト: 宣言も test_cmd も無い", text)
+        text = self.start(request="request_ok.json", thickness="軽量", test_cmd="make test")["gate_text"]
+        self.assertIn("段: 軽量", text)
+        self.assertNotIn("（既定）", text)
+        self.assertNotIn("修正前のテスト:", text)
 
 
 class PolicyPassedCase(Artifacts):
@@ -326,6 +521,26 @@ class GateAnswerCase(Artifacts):
     def test_reject_stops_like_stop(self):
         got = gate_answer.answer(json.dumps({"decision": linekit.REJECT, "text": ""}), "true", "", "gate-replan", self.artifacts)
         self.assertEqual((got["go"], got["stop_reason"]), (False, "human:gate-replan"))
+
+    def test_unknown_word_stops(self):
+        """L-G03: 通す語でない答え（知らない語も）は通さず、止めと読む（元 line_edge.py 191-203 行 _gate_words は知らない語を落とした）"""
+        got = gate_answer.answer(json.dumps({"decision": "maybe", "text": ""}), "true", "", "gate-before-fix", self.artifacts)
+        self.assertEqual((got["go"], got["stop_reason"]), (False, "human:gate-before-fix"))
+
+    def test_empty_stop_note_gets_the_default_reason(self):
+        """L-G07: stop・reject の一言が空なら既定の文を止めの理由にする（元 line_edge.py 98・104 行の GATE_STOP_NOTE・
+        FINAL_GATE_STOP_NOTE）。一言が在れば字のまま。通す答えの空の一言は空のまま"""
+        for place, word, want in (("gate-final", "stop", gate_answer.FINAL_STOP_NOTE), ("gate-before-fix", "reject", gate_answer.STOP_NOTE),
+                                  ("gate-start", "stop", gate_answer.STOP_NOTE)):
+            with self.subTest(place=place, word=word):
+                got = gate_answer.answer(json.dumps({"decision": word, "text": " "}), "true", "", place, self.artifacts)
+                self.assertEqual(got["answer"]["text"], want)
+                self.assertEqual(json.loads((self.artifacts / "gates" / f"{place}.json").read_text(encoding="utf-8"))["text"], want)
+        self.assertEqual((gate_answer.STOP_NOTE, gate_answer.FINAL_STOP_NOTE), ("関所で止めた", "最後の関所で止めた"))
+        got = gate_answer.answer(json.dumps({"decision": "stop", "text": "範囲が違う"}), "true", "", "gate-final", self.artifacts)
+        self.assertEqual(got["answer"]["text"], "範囲が違う")
+        got = gate_answer.answer(json.dumps({"decision": "continue", "text": ""}), "true", "", "gate-final", self.artifacts)
+        self.assertEqual(got["answer"]["text"], "")
 
     def test_dry_run_approval_reads_as_approve(self):
         got = gate_answer.answer(linekit.DRY_RUN_APPROVED, "true", "", "gate-start", self.artifacts)
@@ -598,6 +813,23 @@ class AfterFixAndJudgedCase(Artifacts):
         self.assertEqual(got["unnamed_changed"], ["d", "e"])
         self.assertEqual(got["unread"], "")
 
+    def test_rejudge_stop_holds_the_line(self):
+        """L-D48: 再審が止まった run（3 回拒まれた・支度ができない）は、judged が再審の止めの理由を返し、fixed が試験の関門（final）・
+        独立の目・merge へ進めない（元 works/.shared/core/rejudge.py 546-558 行）。止まらない再審と、再審の無い run は止めない"""
+        judge = self.returned(self.judgment("judge/judgment.json", []))
+        stopped = {**self.returned(judge["judgment"]), "units": []}
+        got = judged.judged(judge, stopped, "異議", "works:rejudge")
+        self.assertEqual(got["stop_reason"], "works:rejudge")
+        fix = FixedCase.fix(FixedCase())
+        self.assertEqual((lambda f: (f["done"], f["go"]))(fixed.fixed(fix, None, replan=False, stops=("", got["stop_reason"]))),
+                         (False, False))
+        self.assertEqual(judged.judged(judge, self.returned(judge["judgment"], "採る"), "異議", "")["stop_reason"], "")
+        self.assertEqual(judged.judged(judge, None, "", "works:rejudge")["stop_reason"], "", "再審が走らなければ止めの理由は無い")
+        nodes = line_nodes()
+        self.assertEqual(nodes["judged"]["with"]["rejudge_stop_reason"], {"from": "$rejudge-run.output.stop_reason", "if_skipped": None})
+        self.assertEqual(nodes["fixed"]["with"]["stop_judged"], "$judged.output.stop_reason")
+        self.assertIn("$fixed.output.go == true", nodes["test-gate-final"]["when"])
+
     def test_unreadable_judgments_are_said(self):
         judge = self.returned({"type": "archon_artifact", "run_id": "another", "path": "judge/judgment.json"})
         got = judged.judged(judge, self.returned(judge["judgment"]), "")
@@ -653,6 +885,23 @@ class FixedCase(unittest.TestCase):
         self.assertEqual(got["conflicts"], [{"path": "fix/conflicts.json"}])
         self.assertEqual(got["allowed_test_changes"], ["tests/a.py", "tests/b.py"])
         self.assertEqual((got["diff"], got["replan_items"], got["refixed"]), ({"path": "refix/diff"}, ["1"], True))
+
+    def test_eyes_get_the_replanned_plan(self):
+        """L-W56: 独立の目が照らす修正案と波及は、案の直しの後（2 度目の修正が走った run）は案の直しの物に差し替えた承認済みの物
+        （元 works/darkfactory/lib/line_edge.py 1058-1064 行）。2 度目の修正が走らなければ計画の往復の物"""
+        again = {"ready": True, "plan": {"path": "replan/plan-fields.json"}, "ripple": {"path": "replan/ripple.json"}, "depth": []}
+        plans = {"plan": {"path": "plan/plan-fields.json"}, "ripple": {"path": "plan/ripple.json"}, "replanned": again}
+        got = fixed.fixed(self.fix(), self.fix(), replan=True, stops=("", ""), plans=plans)
+        self.assertEqual((got["plan"], got["ripple"]), (again["plan"], again["ripple"]))
+        got = fixed.fixed(self.fix(), None, replan=True, stops=("", ""), plans=plans)
+        self.assertEqual((got["plan"], got["ripple"]), (plans["plan"], plans["ripple"]))
+        nodes = line_nodes()
+        self.assertEqual({k: nodes["eyes"]["with"][k] for k in ("plan", "ripple")},
+                         {"plan": "$fixed.output.plan", "ripple": "$fixed.output.ripple"})
+        self.assertEqual({k: nodes["fixed"]["with"][k] for k in (*fixed.PLANS, "replanned")},
+                         {"plan": "$plan-rounds.output.plan", "ripple": "$plan-rounds.output.ripple",
+                          "replanned": {"from": "$replan-out.output.got", "if_skipped": None}})
+        self.assertIn("replan-out", nodes["fixed"]["depends_on"])
 
     def test_refix_objection_is_kept_beside_the_first(self):
         """再審が受けるのは 1 回目の異議。2 度目の修正の異議は捨てず、再審されずに残った異議として refix_objection で運ぶ"""
@@ -739,6 +988,25 @@ class CollectAndResultCase(unittest.TestCase):
         gates = {"gate_start": "null", "gate_before_fix": "null", "gate_replan": "null", "gate_final": json.dumps(stop)}
         got = collect.collect({}, self.line(start=json.dumps(ptr), gates=gates))
         self.assertEqual((got["start"], got["gate_final"], got["gate_start"]), (ptr, stop, None))
+
+    def test_result_carries_what_apply_reads(self):
+        """線の返りの欄 apply・sealed・r2_status・final_answer（bin/apply と段 1 が読む）は collect が集めた返りから組み、飛ばされた段は
+        null。result は merge・eyes・関所の返りを直に読まず collect を通す"""
+        seal = {"mode": "seal", "ok": True, "hash": "h", "diff": {"path": "merge/sealed.diff"}, "protected_hits": [], "reason": ""}
+        put = {**seal, "mode": "apply", "diff": {"path": "merge/apply.diff"}}
+        eyes = {"ok": True, "r2": {"status": "pass", "reason": ""}}
+        answer = {"decision": "stop", "text": "やめる"}
+        got = result.result({"outcome": "fixed"}, {"merge_apply": put, "merge_seal": seal, "eyes": eyes, "gate_final": answer})
+        self.assertEqual(got["apply"], {"ok": True, "hash": "h", "diff": {"path": "merge/apply.diff"}, "reason": ""})
+        self.assertEqual(got["sealed"], {"ok": True, "hash": "h", "diff": {"path": "merge/sealed.diff"}})
+        self.assertEqual((got["r2_status"], got["final_answer"]), ("pass", answer))
+        got = result.result({"outcome": ""}, {"merge_apply": None, "merge_seal": None, "eyes": {"ok": True, "r2": None}, "gate_final": None})
+        self.assertEqual((got["apply"], got["sealed"], got["r2_status"], got["final_answer"]), (None, None, None, None))
+        with_ = line_nodes()["result"]["with"]
+        for key in ("merge_apply", "merge_seal", "eyes", "gate_final"):
+            with self.subTest(key=key):
+                self.assertEqual(with_[key], {"from": f"$collect.output.{key}", "if_skipped": None})
+        self.assertFalse([v for v in with_.values() if "$merge-" in json.dumps(v) or "$eyes" in json.dumps(v)])
 
     def test_result_fixed(self):
         for outcome, want in (("fixed", True), ("fixed_needs_check", True), ("no_fix_needed", False), ("", False)):
@@ -852,6 +1120,7 @@ class LineWiringCase(unittest.TestCase):
         "collect": lambda: (collect.received_of_env(), collect.line_of_env()),
         "ask-final": lambda: ask_final.from_env(),
         "answer-before-fix": lambda: before_fix_answer.from_env(),
+        "result": lambda: (result.from_env(), result.line_of_env()),
     }
 
     def test_with_keys_are_what_the_script_reads(self):
@@ -957,6 +1226,28 @@ class LineWiringCase(unittest.TestCase):
         includes = {key for key, node in line_nodes().items() if "include" in node}
         self.assertEqual(len(includes), 14)
         self.assertEqual(includes & body_ids(LINE["nodes"]), set())
+
+    def test_report_reruns_on_resume(self):
+        """L-W60: 報告はいつも走る。collect・report・result は前の段が落ちても飛ばされても走り（all_done）、Archon の resume でも collect と
+        result は回し直す（always_run。元 works/darkfactory/darkfactory.yaml 1314-1322 行・works/tests/test_line_wiring.py の
+        ReportAfterFailureCase.test_report_reruns_on_resume）。report は include で、Archon は include の always_run を捨てる
+        （止めた Archon の packages/workflows/src/schemas/dag-node.ts 1085-1091 行・1911-1914 行）ので、回し直した collect の返りが
+        変わった時に Archon が report の中の節の控えを捨てて回し直す（dag-executor.ts 9716-9727 行の getStaleCachedDependencies）。
+        resume で本当に回し直されるかは筋書きで確かめられない（段 1 の本物の run で見る）"""
+        nodes = line_nodes()
+        for key in ("collect", "report", "result"):
+            with self.subTest(node=key):
+                self.assertEqual(nodes[key]["trigger_rule"], "all_done")
+        for key in ("collect", "result"):
+            with self.subTest(node=key):
+                self.assertIs(nodes[key].get("always_run"), True)
+        self.assertNotIn("always_run", nodes["report"], "include の always_run は Archon が捨てる（効くと読み違えない）")
+        self.assertEqual(nodes["report"]["depends_on"], ["collect"])
+
+    def test_start_is_not_always_run(self):
+        """L-E34: 呼び直し（resume）で機能・test_cmd・入口の形・base_rev を替えない。Archon の再開は済んだ節を飛ばすので、start に
+        always_run を付けない（止めた Archon の packages/workflows/src/dag-executor.ts 9664-9666 行の priorCompletedNodes）"""
+        self.assertNotIn("always_run", line_nodes()["start"])
 
     def test_round_limit_is_the_loop_limit(self):
         self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], plan_out.ROUND_LIMIT)

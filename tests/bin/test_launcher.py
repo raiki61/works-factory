@@ -416,6 +416,18 @@ class LauncherTest(unittest.TestCase):
         self.assertTrue((pathlib.Path(env["CLAUDE_CONFIG_DIR"]) / ".works-toolset.json").is_file())
         self.assertFalse((self.tmp / "claude.jsonl").exists(), "NO_AUTH で claude の plugin の CLI を呼んだ")
 
+    def test_no_auth_name_matches_entryshape(self):
+        """L-E15: 殻が読む認証の要らない起動の名は、線の入口（lib/entryshape.py の NO_AUTH_ENV）が見る名と同じで、run の環境に届く
+        （名が違うと、認証の要らない起動で PR を名指した run が gh を呼びに行く）"""
+        lib = str(pathlib.Path(__file__).resolve().parents[2] / "lib")
+        if lib not in sys.path:
+            sys.path.append(lib)
+        import entryshape
+        env = self.reached(self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None,
+                                       **{entryshape.NO_AUTH_ENV: "1"}))["env"]
+        self.assertEqual(env.get(entryshape.NO_AUTH_ENV), "1")
+        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", list(env), "殻が認証の要らない起動と読んでいない")
+
     @unittest.skipIf(sys.platform == "darwin", "macOS 以外の道: macOS は Claude Code のログインを keychain から読む")
     def test_claude_login_only_user_reaches_archon(self):
         """keychain の項目を名指さず、<CLAUDE_CONFIG_DIR>/.credentials.json にだけログインが在る利用者（E14）"""

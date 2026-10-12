@@ -4,6 +4,7 @@
 base と HEAD の merge-base（GitHub の PR の three-dot と同じ）、名指しが無ければ HEAD。差分が空で依頼の行も空なら拒む
 （盤面を作る前）。種の git は gitkit の型の写し。
 """
+import json
 import pathlib
 import sys
 import tempfile
@@ -57,6 +58,19 @@ class ChangeInputsCase(unittest.TestCase):
         """引けない版 → Reject（黙って空と言わない）"""
         with self.assertRaises(entryshape.Reject):
             entryshape.diff_of(self.repo, "1" * 40)
+
+
+
+class NamedCase(unittest.TestCase):
+    def test_request_names_pr_and_issue(self):
+        """L-E18: 依頼の欄 pr・issue で名指した番号も run の中で読む（入力 pr と合わせ、重ねない。元 entryshape.py 156-169 行 named）"""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = pathlib.Path(tmp)
+            (repo / "req.json").write_text(json.dumps({"findings": [{"where": "a", "text": "b"}], "pr": [3, 7], "issue": [9]}),
+                                           encoding="utf-8")
+            self.assertEqual(entryshape.named({"request": "req.json", "pr": "7"}, repo), ([3, 7], [9]))
+            self.assertEqual(entryshape.named({"request": "", "pr": "7"}, repo), ([7], []))
+            self.assertEqual(entryshape.named({"request": "no-such.json", "pr": ""}, repo), ([], []))
 
 
 if __name__ == "__main__":

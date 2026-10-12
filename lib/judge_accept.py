@@ -4106,7 +4106,7 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None
         write_json(jdir / START_FILE, view)
         container, path = request_container(view, repo)
         rows = container["findings"]
-        if rows:
+        if rows or view["input"].get("requests"):   # 依頼の無い run 以外は空でも型に通す（元 blk-judge/scripts/intake.py 47-60 行）
             checked = check_request(rows, f"依頼のファイル {path}")
             if checked.get("ok") is not True:
                 raise ValueError(checked.get("reason") or "依頼の行が型に通らない")

@@ -20,6 +20,7 @@ from linekit import boundary
 with linekit.guarded_imports():
     import answer
     import carry
+    import declared_checks
     import depth
     import entry
     import entryshape
@@ -28,12 +29,17 @@ with linekit.guarded_imports():
     import ghreads
     import policy
     import startrec
+    import versions
 
     DESIGN_ONLY_WORDS = ("", gatemarks.DESIGN_ONLY)
     THICKNESS = ("", "自動", depth.LIGHT, depth.STANDARD)
 SPEC_ON = "on"
 SPEC_WORDS = ("", SPEC_ON)
 HEAVY = "重厚"
+AUTO = "自動"   # thickness の既定（元 works/.shared/core/entry.py 412 行の THICKNESS_DEFAULT）
+PIN = ("factory/pack.json", "integration_revision_required")   # 止めた Archon の commit（ASF の止め。Archon の版の正本）
+MODEL_UNKNOWN = ("run 全体の模型の 1 つの値は無い——Archon が役の節ごとに model・provider から決める"
+                 "（止めた Archon の packages/workflows/src/node-model-resolution.ts）")
 GATE = "gate-start"
 
 
@@ -108,9 +114,16 @@ def request(raw: dict, repo: Path) -> dict:
     path = Path(rel) if Path(rel).is_absolute() else repo / rel
     try:
         body = path.read_text(encoding="utf-8")
-        parts = carry.parts(json.loads(body))
-    except (OSError, UnicodeDecodeError, ValueError) as error:
-        raise Refused(f"依頼 {rel} を読めない（{type(error).__name__}: {error}）") from None
+    except (OSError, UnicodeDecodeError) as error:
+        raise Refused(f"依頼のファイル {rel} が読めない（{type(error).__name__}: {error}）") from None
+    try:
+        doc = json.loads(body)
+    except ValueError as error:
+        raise Refused(f"依頼のファイル {rel} が JSON として読めない（{error}）") from None
+    try:
+        parts = carry.parts(doc)
+    except ValueError as error:
+        raise Refused(f"依頼のファイル {rel} の形: {error}") from None
     problems = entry.request_problems(parts[carry.FINDINGS])
     if problems:
         raise Refused(f"依頼のファイル {rel} の形: findings の配列か {{findings, pr, issue, answers}} の形で、findings は "
@@ -118,18 +131,30 @@ def request(raw: dict, repo: Path) -> dict:
     return {"items": parts[carry.FINDINGS], "request_file": str(path.resolve()), "request_text": body, "parts": parts}
 
 
-def versions(root: Path) -> dict:
-    """版の控え: 止めた Archon の commit（ASF の factory/pack.json）と Claude Code の版。引けなければ空の字"""
-    try:
-        pinned = json.loads((root / "factory" / "pack.json").read_text(encoding="utf-8"))["integration_revision_required"]
-    except (OSError, ValueError, KeyError):
-        pinned = ""
-    return {"archon": pinned, "claude_code": startrec.cli_version("claude")}
+def version_record(root: Path, raw: dict, run_id: str) -> dict:
+    """版の控え（lib/versions.py。元 works/.shared/core/versions.py）。止めた Archon の commit と模型は線が引いて渡す"""
+    archon, why = versions.pinned(root / PIN[0], PIN[1])
+    return versions.snapshot(root, run_id=run_id, settings={k: raw[k] for k in ("features_off", "features_on")},
+                             given={"archon": (archon, f"止めた Archon の commit を引けない（{why}）"),
+                                    "model": (None, MODEL_UNKNOWN)})
 
 
-def gate_text(shape: dict, record: dict, run_id: str) -> str:
+def depth_words(raw: dict, record: dict) -> str:
+    """頭の行の段の句（元 works/.shared/core/entry.py 1215 行。名指しが無ければ「（既定）」を付ける）"""
+    return f"段: {record['thickness'] or AUTO}" + ("" if raw["thickness"].strip() else "（既定）")
+
+
+def test_note(raw: dict, repo: Path) -> str:
+    """修正前のテストの任せ先の注（元 entry.py 1218-1219 行）。test_cmd も対象の宣言も無ければ、任せ先の役が走らせ方を探す"""
+    if raw["test_cmd"].strip() or "fallback" not in declared_checks.checks_plan(repo):
+        return ""
+    return "修正前のテスト: 宣言も test_cmd も無い——任せ先の役がリポジトリから走らせ方を探す"
+
+
+def gate_text(shape: dict, record: dict, run_id: str, note: str = "") -> str:
     happened = f"run を始める前で止まった。入口: {startrec.words(shape)}"
-    rest = [entry.features_part(record["features_off"], record["features_on"]), gatepolicy.head_words(record)]
+    rest = [depth_words(record["inputs"], record), entry.features_part(record["features_off"], record["features_on"]),
+            gatepolicy.head_words(record), note]
     lines = gatemarks.head3(happened, "この入力で run を始めるか、止めるか（打つ行は末尾の答え方）", gatemarks.NO_PUSH)
     lines += ["", *[f"- {x}" for x in rest if x], "", "答え方:",
               f"- 始める: {answer.line(run_id, 'continue', '<一言>')}",
@@ -137,13 +162,14 @@ def gate_text(shape: dict, record: dict, run_id: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write(artifacts: Path, name: str, doc) -> dict:
-    (artifacts / name).write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return boundary.pointer(name)
+def write(artifacts: Path, doc) -> dict:
+    """始めの記録を run の置き場の根を盤面の根として startrec の置き場に書き、指し札を返す（lib の読み手と同じ所。L-E24）"""
+    startrec.write(artifacts, doc)
+    return boundary.pointer(startrec.REL)
 
 
 def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
-    record = {"run_id": run_id, "inputs": raw, "versions": versions(boundary.lib_root().parent)}
+    record = {"run_id": run_id, "inputs": raw, "versions": version_record(boundary.lib_root().parent, raw, run_id)}
     try:
         checked = words(raw, repo)
         asked = request(raw, repo)
@@ -155,13 +181,15 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         inp = {"items": asked["items"], "request_file": asked["request_file"], "request_text": asked["request_text"],
                "base": change["base"] if change else None, "pr": change["pr"] if change else None,
                "spec": bool(checked["spec"])}
-        if checked["spec"] and not entryshape.request_text(inp).strip():
-            raise Refused("spec=on には依頼の文（依頼のファイルか PR の題と本文）が要る")
+        pr = inp["pr"] or {}
+        if checked["spec"] and not asked["request_text"].strip() and not (pr.get("title") or pr.get("body")):
+            raise Refused("spec=on なのに依頼の文が無い（依頼のファイルも PR の題と本文も無い）——仕様の書き手が読む物が無い。"
+                          "依頼を名指すか、仕様の段を外す")
         shape = entryshape.build(inp, repo)
     except (Refused, entryshape.Refused) as error:
         record["refused"] = str(error)
         return {"ok": False, "stop_reason": linekit.START_REFUSED, "reason": str(error),
-                "record": write(artifacts, startrec.NAME, record), "prior_failures": None, "ask": False, "gate_text": "",
+                "record": write(artifacts, record), "prior_failures": None, "ask": False, "gate_text": "",
                 "unattended": False, "design_only": False, "final_gate": ""}
     parts = asked["parts"]
     record.update({
@@ -181,8 +209,8 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         carry.place_prior(artifacts, parts[carry.PRIOR])
         prior = boundary.pointer(carry.PRIOR_IN_FILE)
     unattended = record[gatepolicy.UNATTENDED_KEY] == gatepolicy.UNATTENDED
-    return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, startrec.NAME, record),
-            "prior_failures": prior, "ask": not unattended, "gate_text": gate_text(shape, record, run_id),
+    return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, record),
+            "prior_failures": prior, "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_note(raw, repo)),
             "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
             "final_gate": record[gatepolicy.FINAL_KEY]}
 

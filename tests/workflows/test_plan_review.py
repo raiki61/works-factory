@@ -861,6 +861,28 @@ class ReviewAcceptCase(RunCase):
         self.assertTrue(got["ok"], got)
 
 
+class PolicyCase(RunCase):
+    """方針の文書は run の始め（線の start）に固めた版を使う（元 works/.shared/core/graphloops/rules/policy_input.py:61 の resolve は盤面の
+    on_init で固めた）"""
+
+    def frozen_start(self) -> pathlib.Path:
+        """版 A を線の start と同じ口（policy.freeze）で固めた始めの記録を置き、文書を版 B に書き換える"""
+        r = self.run_
+        pol = r.tmp / "policy.md"
+        pol.write_text("# 方針\n- POLICY-A-1111 版 A\n", encoding="utf-8")
+        r.start(features_off=["review_tree"], policy_md=str(pol), policy=policy.freeze(r.art, r.repo, str(pol)))
+        pol.write_text("# 方針\n- POLICY-B-2222 版 B\n", encoding="utf-8")
+        return pol
+
+    def test_policy_frozen_at_run_start(self):
+        """P216: 始めの記録が持つ方針の版（sha256 と写し）を固めた版として使い、run の始めから事前審査の最初の差し込みまでに書き換えた
+        文書は、最初の差し込みで変化（人の方針の文書が固定した版から変わった）の行になる"""
+        self.frozen_start()
+        got = self.run_.pass_(review())
+        self.assertTrue(got["ask_human"])
+        self.assertTrue(any("人の方針の文書" in q and "が固定した版から変わった" in q for q in got["questions"]), got["questions"])
+
+
 class ConvergeCase(RunCase):
     """往復の決め（review_accept と result を往復ごとに子のプロセスで続けて回す。元 ConvergeReviewCase の
     test_persisted_review_taken_and_gate_opens_design_item・test_rereview_must_account_for_every_previous_block・
@@ -1602,6 +1624,19 @@ class PortedMaterialCase(RunCase):
                      policy.RULE, "## 考えの住処の地図"):
             self.assertIn(want, text)
         self.assertLess(text.index(policy.RULE), text.index("## 考えの住処の地図"))
+
+    def test_material_pastes_the_frozen_copy(self):
+        """P192: 事前審査の材料と独立設計の材料に貼る方針の本文は、run の始めに固めた版の写し（元 works/.shared/core/policy.py の brief は
+        record.process.policy.copy を貼った）。後から書き換えた文書の字は貼らず、変化は関所の行だけが言う"""
+        PolicyCase.frozen_start(self)
+        r = self.run_
+        r.open()
+        texts = {"事前審査": pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8"),
+                 "独立設計": r.out("r2_prep")["prompt"]}
+        for name, text in texts.items():
+            with self.subTest(material=name):
+                self.assertIn("POLICY-A-1111", text)
+                self.assertNotIn("POLICY-B-2222", text)
 
     def test_prep_passes_state_dir_cache_root(self):
         """材料のライブラリの文書の節は、STATE_DIR の下 works-factory/ の run をまたぐ控えを読む（網に出ない）"""

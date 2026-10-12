@@ -409,9 +409,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     d = pathlib.Path(folder)
     d.mkdir(parents=True, exist_ok=True)
     out = place(d)
-    start_doc = _read_json(start) if start else None
-    if start_doc is not None:
-        _write_json(startrec.path(d), start_doc)
+    start_doc = startrec.adopt(d, start) if start else None
     gate_rows = take_gate_answers(d, gate_answers)
     judged = _read_json(judgment)
     shutil.copyfile(judgment, d / JUDGMENT_COPY)

@@ -9,13 +9,15 @@ import json
 import pathlib
 import unittest
 
+import yaml
+
 from tests import archon
 from tests.layers import scan
 
 SCENARIOS = (
     "standard", "start-refused", "no-fix", "policy-continue", "policy-stop", "plan-stalled", "plan-unsettled", "replan",
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
-    "replan-stop", "plan-failed", "block-returns-failed", "replan-answers",
+    "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "rejudge-stop",
 )
 
 
@@ -55,6 +57,54 @@ class LineScenariosTest(unittest.TestCase):
                 got = self.results.get(name)
                 self.assertIsNotNone(got, f"筋書き {name} が無い")
                 self.assertTrue(got["pass"], json.dumps(got, ensure_ascii=False))
+
+
+
+def line_returns(names) -> dict:
+    """筋書きの名 → その筋書きの stub で線を dry-run（exec-code）した時の、線の返す節 result の出力。workflow test は節の出力を
+    返さないので、筋書きの stub と入力をそのまま `workflow run --dry-run` に渡して trace を読む（tests/workflows/test_report.py と同じ形）"""
+    out = {}
+    with archon.tree(["line", *blocks()]) as tree:
+        for name in names:
+            fixture = yaml.safe_load((archon.WORKFLOWS / "line" / "fixtures" / f"{name}.stubs.yaml").read_text(encoding="utf-8"))
+            stubs = tree.parent / f"{name}.stubs.yaml"
+            stubs.write_text(yaml.safe_dump({k: v for k, v in fixture.items() if k not in ("fixture", "exec-code")}, allow_unicode=True),
+                             encoding="utf-8")
+            args = [arg for k, v in (fixture["fixture"].get("inputs") or {}).items() for arg in ("--input", f"{k}={v}")]
+            done = archon.archon(tree, "workflow", "run", archon.PACK["ours"]["line"], "--dry-run", "--exec-code", "--stubs", str(stubs),
+                                 "--json", *args, "--cwd", str(tree))
+            try:
+                trace = {n["nodeId"]: n for n in json.loads(done.stdout)["trace"]}
+                out[name] = json.loads(trace["result"]["output"])
+            except (json.JSONDecodeError, KeyError, TypeError) as error:
+                raise AssertionError(f"{name} の dry-run の result が読めない（{error}）: {done.stdout[-2000:]}{done.stderr[-2000:]}") from None
+    return out
+
+
+class LineReturnsTest(unittest.TestCase):
+    """線の返り（result）の欄 apply・sealed・r2_status・final_answer（bin/apply と段 1 が読む）を、筋書きの道で照らす"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.returns = line_returns(("standard", "final-stop", "rejudge-stop"))
+
+    def test_standard_applies_the_sealed_diff(self):
+        got = self.returns["standard"]
+        self.assertIs(got["apply"]["ok"], True, got)
+        self.assertEqual(got["apply"]["hash"], got["sealed"]["hash"])
+        self.assertEqual(got["r2_status"], "pass")
+        self.assertEqual(got["final_answer"], {"decision": "approve", "text": ""})
+
+    def test_final_stop_keeps_the_seal_without_applying(self):
+        got = self.returns["final-stop"]
+        self.assertIsNone(got["apply"], got)
+        self.assertIs(got["sealed"]["ok"], True)
+        self.assertEqual(got["final_answer"]["decision"], "stop")
+
+    def test_rejudge_stop_never_seals(self):
+        """L-D48: 再審が止まった run は試験の関門から先へ進まず、封じも当てもしない"""
+        got = self.returns["rejudge-stop"]
+        self.assertEqual((got["apply"], got["sealed"], got["r2_status"], got["final_answer"]), (None, None, None, None), got)
 
 
 if __name__ == "__main__":

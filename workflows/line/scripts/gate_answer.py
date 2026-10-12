@@ -7,7 +7,9 @@ answer-replan。埋め P2）。
 
 関所が方針で飛ばされても走る（trigger_rule: none_failed_min_one_success）。関所の出力は `{from, if_skipped: null}` で受ける。
 返り {go, answer, stop_reason}: 関所が飛ばされたら前の節が決めた go と止めの理由をそのまま返し、answer は null。
-関所が開いたら答え {decision, text} を返し、通す語なら go、止める語なら go: false と止めの理由 human:<関所>。
+関所が開いたら答え {decision, text} を返し、通す語なら go、通す語でない語（stop・reject・知らない語）なら go: false と止めの理由
+human:<関所>。止める答えの一言が空なら既定の文（STOP_NOTE・最後の関所は FINAL_STOP_NOTE。元 works/darkfactory/lib/line_edge.py 98・
+104 行）を一言にする（報告の止めの理由が空にならない）。
 asked_raw（関所で見せた問いの行。before_fix_answer だけが渡す）が在れば、答えに asked を足す。
 答えは run の置き場の gates/<関所>.json に書く（同じ関所の答えは書き直す。人が読む控えで、関所の文が名指す）。
 報告へは返りの answer が collect を通って届く。
@@ -21,6 +23,9 @@ from pathlib import Path
 import linekit
 
 ANSWERS = "gates"
+STOP_NOTE = "関所で止めた"
+FINAL_STOP_NOTE = "最後の関所で止めた"
+FINAL = "gate-final"
 
 
 def decision_of(raw) -> dict:
@@ -37,12 +42,14 @@ def answer(gate_raw, go_raw, stop_raw, place: str, artifacts: Path, asked_raw=No
     if linekit.text(gate_raw) == "":
         return {"go": linekit.flag(go_raw), "answer": None, "stop_reason": linekit.text(stop_raw)}
     got = decision_of(gate_raw)
+    go = got["decision"] in linekit.GO_WORDS
+    if not go and not got["text"].strip():
+        got["text"] = FINAL_STOP_NOTE if place == FINAL else STOP_NOTE
     if asked_raw is not None:
         got["asked"] = [line for line in linekit.items(asked_raw) if isinstance(line, str)]
     folder = artifacts / ANSWERS
     folder.mkdir(parents=True, exist_ok=True)
     (folder / f"{place}.json").write_text(json.dumps(got, ensure_ascii=False) + "\n", encoding="utf-8")
-    go = got["decision"] in linekit.GO_WORDS
     return {"go": go, "answer": got, "stop_reason": "" if go else linekit.HUMAN + place}
 
 

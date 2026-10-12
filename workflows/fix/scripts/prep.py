@@ -4,7 +4,7 @@
 # ///
 """節 prep（形 ""）: 入力を置き場に写し、git が無視するファイルを控え（p1.worktree_before）、始めの木を取り、組を作る（lanekit.groups）。
 
-置き場（fixio.place() = $ARTIFACTS_DIR/fix/<include の名>/）に書く物: r1/start.json（始めの記録の写し。欠けた欄は既定）・
+置き場（fixio.place() = $ARTIFACTS_DIR/fix/<include の名>/）に書く物: r1/start.json（始めの記録の字のままの写し。startrec.adopt）・
 judgment.json・plan-fields.json と凍結の印（planmarks.save）・p2.fix_plan.json（修正案の隣に在れば）・ripple.json・world.json・
 depth.json・answers.json・units.json・only-items.json・baseline.json（{cases, exit}）・fix-ignored-before.json・human-notes.md（関所の一言と答えで戻った単位の行。
 無ければ書かない）・base-rev.json
@@ -31,9 +31,6 @@ import leftovers  # noqa: E402
 import planmarks  # noqa: E402
 import startrec  # noqa: E402
 
-START_DEFAULTS = {"tdd_suite": "", "test_cmd": "", "policy_md": "", "request_file": "", "features_cut": []}
-
-
 def value(raw: str, name: str):
     """入力の字を JSON で読む（空・null は None）"""
     if not (raw or "").strip() or raw.strip() == "null":
@@ -58,11 +55,7 @@ def main() -> dict:
     place = fixio.place()
     repo = fixio.repo()
     fixio.start_writes_log()
-    start = read_json(pointed(os.environ["INPUTS_START"], "start"))
-    if not isinstance(start, dict):
-        raise ValueError("始めの記録が JSON のオブジェクトでない")
-    start = {**START_DEFAULTS, **{k: v for k, v in start.items() if v is not None}}
-    fixboard.write_json(startrec.path(place), start)
+    start = startrec.adopt(place, pointed(os.environ["INPUTS_START"], "start"))
     judgment = read_json(pointed(os.environ["INPUTS_JUDGMENT"], "judgment"))
     fixboard.write_json(place / fixboard.JUDGMENT_FILE, judgment)
 

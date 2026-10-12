@@ -17,20 +17,20 @@
   - 狭め: 無し
 - L-E02 依頼が「読めない」「JSON として読めない」「形が違う」の 3 つを別の文で拒む
   - 元: works/.shared/core/entry.py:620-632 `_read_request`
-  - 今: scripts/start.py:108-112 `request`。3 つが「依頼 X を読めない（ValueError: …）」の 1 文にまとまった
-  - 証: test_refusals_stop_before_any_role は no-such.json の 1 通りだけ（test_line.py:156）。要追加: tests/workflows/test_line.py::StartCase.test_request_refusals_name_the_cause — JSON でない依頼と、answers の形の違う依頼の拒みの文に、それぞれ「JSON」「形」の語がある
+  - 今: workflows/line/scripts/start.py `request`（読めない・JSON として読めない・形の 3 つを別の文で拒む）（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_request_refusals_name_the_cause
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で文が粗くなった（宣言なし。不可でない → 戻す）
+  - 狭め: #74 で文が粗くなった（宣言なし。不可でない → 戻す） → 部分 A で戻した
 - L-E03 依頼の answers を始めの記録の answers に置く（後で問いに答えたかを決める元）
   - 元: works/.shared/core/entry.py:609 `check_inputs`（carry.ANSWERS）
-  - 今: scripts/start.py:174 `start`
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_request_answers_reach_the_record — {findings, answers:[…]} で record["answers"] がその配列（元 works/tests/test_entry.py::CheckInputsCase.test_request_answers_reach_start_doc）
+  - 今: workflows/line/scripts/start.py `start`（record["answers"]）（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_request_answers_reach_the_record
   - 本物の run: start.json の answers（種では []）
   - 狭め: 無し
 - L-E04 answers・prior_failures の形が違う依頼を拒む
   - 元: works/.shared/core/entry.py:629-632（carry.parts の ValueError）
-  - 今: scripts/start.py:110-112
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_bad_answers_or_prior_shape_refused — ok false・START_REFUSED（元 test_entry.py::CheckInputsCase.test_request_answers_bad_shape_refused・test_request_prior_failures_bad_shape_refused）
+  - 今: workflows/line/scripts/start.py `request`（carry.parts の ValueError を「形」で拒む）（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_bad_answers_or_prior_shape_refused
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - L-E05 依頼の prior_failures を置き場の根の prior-failures-in.json に置き、指し札を judge・plan・replan・rejudge に渡す
@@ -41,8 +41,8 @@
   - 狭め: 無し
 - L-E06 依頼の相対パスは対象の根から読み、request_file は絶対パスで残す
   - 元: works/.shared/core/entry.py:620、entryshape.py:119 `build`
-  - 今: scripts/start.py:107・117
-  - 証: test_line.py::StartCase.test_request_builds_the_entry_shape_and_the_record（相対名で 2 件。assert: test_line.py:100）。絶対パスの assert は無い → 要追加: 同じ試験に doc["input"]["request_file"] == str(repo/"request_ok.json")
+  - 今: workflows/line/scripts/start.py `request`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_request_builds_the_entry_shape_and_the_record（input.request_file が絶対パス）
   - 本物の run: start.json の input.request_file
   - 狭め: 無し
 - L-E07 依頼の行も差分も無い入力は EMPTY_REFUSED（「直す物も審査する物も無い」）で止める。依頼の行が在れば git を測らない
@@ -59,32 +59,32 @@
   - 狭め: 無し
 - L-E09 base を名指せば base と HEAD の merge-base を差分の根にし、label を「base <名>」にする
   - 元: works/.shared/core/entryshape.py:74-76
-  - 今: lib/entryshape.py:76-78
-  - 証: test_line.py::StartCase.test_base_alone_is_a_change_entry（assert: test_line.py:111-112）。label の assert は無い → 要追加: input.base == {rev: fork, from: "base", name: "base", label: "base base"}
+  - 今: lib/entryshape.py `change_base`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_base_alone_is_a_change_entry（input.base の 4 つの欄と label）
   - 本物の run: start.json の input.base（種は base 無し）
   - 狭め: 無し
 - L-E10 引けない base・番号でない pr を名を言って拒む
   - 元: works/.shared/core/entryshape.py:53・80
-  - 今: lib/entryshape.py:55・82
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_bad_base_or_pr_refused — base=no-such-branch→"引けない"、pr=x→"番号でない"（元 works/tests/test_entry_inputs.py::ChangeInputsCase.test_needs_request_or_change_and_not_both_changes）
+  - 今: lib/entryshape.py `merge_base`・`change_base`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_bad_base_or_pr_refused
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（試験だけ落ちた）
 - L-E11 名指した PR・issue を run の中で gh で読み、置き場の根の github.json に 0600 で置く。在れば読み直さない
   - 元: works/.shared/core/entryshape.py:172-189 `github_reads`、entry.py:1180-1185
-  - 今: lib/entryshape.py:174-191、scripts/start.py:149-151
-  - 証: lib/tests/test_forge.py::GhReadsCase は read_named だけ。要追加: tests/workflows/test_line.py::StartCase.test_named_pr_is_read_once_and_placed — 偽の gh で pr=7 を回すと artifacts/github.json が 0600 で在り、2 度目の start は gh を呼ばない
+  - 今: lib/entryshape.py `github_reads`、workflows/line/scripts/start.py `start`（ghreads.place）（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_named_pr_is_read_once_and_placed
   - 本物の run: 筋書きでのみ（種は PR を名指さない）
   - 狭め: 無し
 - L-E12 PR の差分の根は GitHub の baseRefOid と HEAD の merge-base。label は「PR #N「題」」
   - 元: works/.shared/core/entryshape.py:94-98
-  - 今: lib/entryshape.py:96-100
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_pr_base_is_the_github_base_oid（元 works/tests/test_entry_inputs.py::ChangeInputsCase.test_pr_uses_github_base_oid_and_carries_description。PR #74 本文 5 は「StartCase が照らす」と書くが、PR の試験は無い）
+  - 今: lib/entryshape.py `change_base`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_pr_base_is_the_github_base_oid
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（試験だけ落ちた）
 - L-E13 PR の head が対象の HEAD と違えば止める。PR の base の版が無ければ「fetch してから」と言って止める
   - 元: works/.shared/core/entryshape.py:87-93
-  - 今: lib/entryshape.py:89-95
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_pr_refused_when_head_differs_or_base_missing（元 works/tests/test_entry_inputs.py の同名）
+  - 今: lib/entryshape.py `change_base`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_pr_refused_when_head_differs_or_base_missing
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - L-E14 PR の base・head が読めない時、forge が無ければ「base を名指して回す」、読めなければ「gh でログインしてから回す」と分けて言う
@@ -95,32 +95,32 @@
   - 狭め: 無し
 - L-E15 認証の要らない起動で PR・issue を名指せば、gh を呼ばずに「認証を使う起動で回す」と止める
   - 元: works/.shared/core/entryshape.py:184-189（NO_AUTH_ENV=WORKS_DEV_NO_AUTH）
-  - 今: lib/entryshape.py:38・187-190 は WORKS_DEV_NO_AUTH を見るが、起動の殻は WORKS_FACTORY_NO_AUTH を立てる（bin/_lib/launcher.py:50、bin/_lib/auth_launch.py:155）。名が違うので発火しない
-  - 証: 要追加: tests/bin/test_launcher.py::LauncherCase.test_no_auth_name_matches_entryshape — entryshape.NO_AUTH_ENV が殻の立てる名と同じで、run の節の env に届く
+  - 今: lib/entryshape.py `NO_AUTH_ENV`（WORKS_FACTORY_NO_AUTH。殻 bin/_lib/launcher.py・auth_launch.py と同じ名）（部分 A で閉じた）
+  - 証: tests/bin/test_launcher.py::LauncherTest.test_no_auth_name_matches_entryshape・tests/workflows/test_line.py::StartCase.test_no_auth_launch_refuses_named_pr_without_gh
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で黙って死んだ（宣言なし。不可でない → 戻す）
+  - 狭め: #74 で黙って死んだ（宣言なし。不可でない → 戻す） → 部分 A で戻した
 - L-E16 依頼の文（request_text）: 依頼と PR の両方なら「## 依頼」「## PR #N の題と本文」の見出しつき、片方ならその文、無ければ「変更（label）の審査」
   - 元: works/.shared/core/entryshape.py:141-153 `request_text`
-  - 今: lib/entryshape.py:143-155、scripts/start.py:174
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_request_text_carries_request_and_pr（元 works/tests/test_entry_inputs.py の同名。PR #74 本文 5 の「StartCase が照らす」は事実と違う）
+  - 今: lib/entryshape.py `request_text`、workflows/line/scripts/start.py `start`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_request_text_carries_request_and_pr
   - 本物の run: start.json の request_text
   - 狭め: 無し（試験だけ落ちた）
 - L-E17 PR の題と本文が目的の役に「①PR 説明」として届く
   - 元: works/.shared/core/entryshape.py:192-205 `write_pr_file` → works/darkfactory/darkfactory.yaml:297（pr_file）→ works/blk-purpose/commands/purpose.md:16
-  - 今: 無し。scripts/start.py:175 が artifacts/pr.md を書くが誰も読まない。judge は main lib/judge_accept.py:1305-1308 `_pr_of`・:1535 で input.pr から組み直すが、input.pr は {number, title} だけ（lib/entryshape.py:121-140）なので本文は常に「（空）」
-  - 証: 要追加: tests/workflows/test_judge.py::PurposeCase.test_pr_body_reaches_purpose_brief — pr=7（本文「本文X」）の始めの記録から、目的の材料に「本文X」が載る
+  - 今: lib/entryshape.py `build`（input.pr に body）→ lib/judge_accept.py `start_view`・`_pr_of`・`purpose_prep`（部分 A で閉じた）
+  - 証: lib/tests/test_judge_accept.py::PurposeCase.test_pr_body_reaches_purpose_brief・tests/workflows/test_line.py::StartCase.test_request_text_carries_request_and_pr
   - 本物の run: 筋書きでのみ（種は PR 無し）
-  - 狭め: #74 と #76 のつなぎで落ちた（宣言なし。不可でない → 戻す）
+  - 狭め: #74 と #76 のつなぎで落ちた（宣言なし。不可でない → 戻す） → 部分 A で戻した
 - L-E18 依頼の欄 issue・pr で名指した番号も読む（named）
   - 元: works/.shared/core/entryshape.py:156-169 `named`
-  - 今: lib/entryshape.py:158-171
-  - 証: 要追加: lib/tests/test_entry_inputs.py::NamedCase.test_request_names_pr_and_issue — {findings, pr:[3], issue:[9]} と入力 pr=7 から ([3,7],[9])
+  - 今: lib/entryshape.py `named`（部分 A で閉じた）
+  - 証: lib/tests/test_entry_inputs.py::NamedCase.test_request_names_pr_and_issue
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - L-E19 入口の入力の形 input {base, head_rev, diff, requests, request_file, pr, spec} を 1 つにそろえる（どの入口でも鍵が同じ）
   - 元: works/.shared/core/entryshape.py:119-138 `build`、works/blk-entry/schemas/input.schema.json
-  - 今: lib/entryshape.py:121-140、scripts/start.py:159。約束の schema は無い
-  - 証: test_request_builds_the_entry_shape_and_the_record（assert: test_line.py:99-100）は依頼の入口だけ。要追加: tests/workflows/test_line.py::StartCase.test_every_entry_has_the_same_shape — 依頼・base・PR の 3 入口で input の鍵が同じ（元 test_entry_inputs.py::test_build_input_from_each_entry、test_entry.py::InputShapeCase.test_start_doc_matches_contract）
+  - 今: lib/entryshape.py `build`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_every_entry_has_the_same_shape
   - 本物の run: start.json の input
   - 狭め: 無し（約束の schema と試験が落ちた）
 - L-E20 差分の測り diff_of: 未追跡の新規は数え、.gitignore に当たる物は除く。引けない版は Reject
@@ -149,14 +149,14 @@
   - 狭め: 無し
 - L-E24 始めの記録の置き場は 1 つで、全部の読み手が同じ口で読む（置き場が割れて機能の切り替えが黙って変わった 8dfebca6 の柵）
   - 元: works/.shared/core/startrec.py:1-20・24-30
-  - 今: scripts/start.py:139-141 は artifacts/start.json に書くが、startrec.path は r1/start.json を指し、lib の読み手 gatemarks.py:516・621・631、depth.py:231、boardview.py:891 はそちらを読む（fix は main workflows/fix/scripts/prep.py:63 で写し直す）。置き場が 2 つ
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_record_is_where_lib_readers_look — start が書いた記録を startrec.read で読める
-  - 本物の run: artifacts/start.json（r1/start.json は無い）
-  - 狭め: #74 の審査の R12 で既知（不可でない → 直す）
+  - 今: lib/startrec.py `path`・`write`・`adopt`・`read`（線の start は run の置き場の根の r1/start.json に書き、fix の prep・事前審査の open は adopt で字のまま写す）（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_record_is_where_lib_readers_look・StartCase.test_blocks_read_the_request_file_from_the_line_record
+  - 本物の run: artifacts/r1/start.json（線の start が書く 1 つの置き場。部分 A の前は artifacts/start.json）
+  - 狭め: #74 の審査の R12 で既知（不可でない → 直す） → 部分 A で直した
 - L-E25 thickness は空・自動・軽量・標準を受け、重厚は「足す工程がまだ無い」、ほかは「知らない値」で拒む
   - 元: works/.shared/core/entry.py:546-552
-  - 今: scripts/start.py:79-83
-  - 証: test_refusals_stop_before_any_role（重厚。assert: test_line.py:156）。知らない語は無い → 要追加: thickness=xx→"知らない値"
+  - 今: workflows/line/scripts/start.py `words`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_refusals_stop_before_any_role（重厚→「足す工程がまだ無い」・xx→「知らない値」）
   - 本物の run: start.json の thickness（種は 標準）
   - 狭め: 無し
 - L-E26 design_only（空か true）を確かめて出口に出す。true なら修正前の関所を必ず開く
@@ -167,8 +167,8 @@
   - 狭め: 無し
 - L-E27 spec の語（空か on）を確かめ、on は input.spec を真にする
   - 元: works/.shared/core/entry.py:559-561
-  - 今: scripts/start.py:65-67・156
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_spec_word_checked（元 works/tests/test_entry_inputs.py::SpecInputCase.test_spec_word_checked）
+  - 今: workflows/line/scripts/start.py `words`・`start`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_spec_word_checked
   - 本物の run: start.json の input.spec
   - 狭め: 無し
 - L-E28 spec=on と無人の run は組めない
@@ -179,10 +179,10 @@
   - 狭め: 無し
 - L-E29 spec=on なのに依頼の文（依頼も PR の題と本文も）が無ければ止める
   - 元: works/.shared/core/entry.py:589-592
-  - 今: 無し（壊れ）。scripts/start.py:157-158 は request_text が空かで見るが、request_text は依頼も PR も無い時に「変更（label）の審査」を返すので空にならない（lib/entryshape.py:143-155）
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_spec_refused_without_request_text — base=base・spec=on・依頼なしで ok false・"依頼の文"（元 test_entry_inputs.py::SpecInputCase の同名）
+  - 今: workflows/line/scripts/start.py `start`（依頼の文と PR の題・本文を見る。既定の「変更（label）の審査」で空を隠さない）（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_spec_refused_without_request_text
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で壊れた（宣言なし。不可でない → 戻す）
+  - 狭め: #74 で壊れた（宣言なし。不可でない → 戻す） → 部分 A で戻した
 - L-E30 final_gate（既定 always・when_needed・protected_only）と unattended（空か true）を確かめて記録に置く
   - 元: works/.shared/core/gatepolicy.py `check`、entry.py:562-565
   - 今: lib/gatepolicy.py:37-48、scripts/start.py:69・168
@@ -203,14 +203,14 @@
   - 狭め: 無し
 - L-E33 機能の切り替えがブロックに届く（今はブロックが記録の features_cut を読む）
   - 元: works/blk-entry/blk-entry.yaml の出口 fix_lanes ほかを darkfactory.yaml がブロックに写す
-  - 今: main lib/judge_accept.py:3950（world）、main workflows/fix/scripts/prep.py:104
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_features_cut_is_recorded — features_off=world で record.features_cut に world
+  - 今: workflows/line/scripts/start.py `start`（features_cut）（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_features_cut_is_recorded
   - 本物の run: start.json の features_cut
   - 狭め: 無し
 - L-E34 呼び直しで機能・test_cmd・入口の形・base_rev を替えない
   - 元: works/.shared/core/entry.py:517-528 `_resumed_features`・1117-1130 `_kept_input`・1192-1201
-  - 今: Archon の再開が済んだ節を飛ばすので start は走り直さない（Archon packages/workflows/src/dag-executor.ts:9674-9686 priorCompletedNodes）
-  - 証: 要追加: tests/workflows/test_line.py::LineWiringCase.test_start_is_not_always_run — start の節に always_run が無い
+  - 今: Archon の再開が済んだ節を飛ばす（start に always_run を付けない）（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::LineWiringCase.test_start_is_not_always_run
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（Archon が担う）
 - L-E35 policy_md の在り処を確かめ、無ければ止め、在れば絶対パスで記録に置く
@@ -233,8 +233,8 @@
   - 狭め: #76 で judge の役に届かない（宣言なし。不可でない → 戻す） 決め: 戻すと決めた。部分 A のやる事 11（今の works の 1 行は人が読む欄だけその言語で、lang-one の当て方そのもの）（線の配線の文書の「この文書の外」の「決めた物」）
 - L-E38 test_cmd・tdd_suite を記録し、test-gate と fix が読む
   - 元: works/.shared/core/entry.py:606 `check_inputs`
-  - 今: scripts/start.py:167、workflows/test-gate/scripts/run.py:53-56
-  - 証: 要追加: StartCase に record["test_cmd"]・record["tdd_suite"] の assert
+  - 今: workflows/line/scripts/start.py `start`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_test_cmd_and_tdd_suite_are_recorded
   - 本物の run: start.json の test_cmd・tdd_suite
   - 狭め: 無し
 - L-E39 adapter の語（空か optional）を確かめる
@@ -275,14 +275,14 @@
   - 狭め: #74 で狭めた（宣言済み。不可でない → 持ち主の確かめ）
 - L-E45 分からない版の値は null にし、unknown に理由を書く
   - 元: works/.shared/core/versions.py:59-117
-  - 今: 無し（start.py:124-126・startrec.py:77-85 は理由なしの空の字）
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_unknown_versions_say_why
+  - 今: lib/versions.py `snapshot`（元 versions.py の名。分からない値は null と unknown の訳）（部分 A で閉じた）
+  - 証: lib/tests/test_versions.py::SnapshotCase・tests/workflows/test_line.py::StartCase.test_unknown_versions_say_why
   - 本物の run: start.json の versions
   - 狭め: #74（L-E44 に含む。不可でない）
 - L-E46 拒む run でも版の控えと設定の写しを残す
   - 元: works/blk-entry/scripts/start.py（確かめの前に versions.write）
-  - 今: scripts/start.py:145-164
-  - 証: test_refusals_stop_before_any_role は refused だけ（assert: test_line.py:157）。要追加: 同じ試験で record の inputs と versions も在る（元 works/tests/test_versions.py::StartWritesVersionsCase.test_start_writes_versions_even_when_refused）
+  - 今: workflows/line/scripts/start.py `start`（確かめの前に inputs と versions を置く）（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_refusals_stop_before_any_role（record の inputs と versions.unknown）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - L-E47 起動の関所: 人が依頼と入力を見て始めるか止めるかを決める。無人の run は開かない
@@ -293,16 +293,16 @@
   - 狭め: 無し
 - L-E48 起動の関所の文: 冒頭 3 行・入口の文・機能・最後の関所の開き方・答え方の 2 行
   - 元: works/blk-entry/blk-entry.yaml の launch の message
-  - 今: scripts/start.py:129-136 `gate_text`
-  - 証: test_request_builds…（冒頭の字だけ。assert: test_line.py:105）。要追加: tests/workflows/test_line.py::StartCase.test_start_gate_text_names_entry_features_and_answers
+  - 今: workflows/line/scripts/start.py `gate_text`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_start_gate_text_names_entry_features_and_answers
   - 本物の run: gate-start の approval の message
   - 狭め: 無し
 - L-E49 頭の行に段（thickness と（既定））・gates・機能・このラインに無い節の数・downgrades・修正前のテストの任せ先の注を並べる
   - 元: works/.shared/core/entry.py:1213-1219 `start`（head_line）
-  - 今: 無し
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_gate_text_has_the_depth_word — thickness 空で「自動（既定）」が文に在る
+  - 今: workflows/line/scripts/start.py `depth_words`・`test_note`・`gate_text`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_gate_text_has_the_depth_word
   - 本物の run: gate-start の message
-  - 狭め: #74 で落ちた（宣言なし。不可でない → 戻すか持ち主へ）
+  - 狭め: #74 で落ちた（宣言なし。不可でない → 戻すか持ち主へ） → 部分 A で戻した
 - L-E50 答えの行の頭は殻が env の WORKS_ANSWER_CMD に置き、答えた者（WORKS_ANSWER_WHO）を末尾に付ける
   - 元: works/.shared/core/answer.py:20-29、works/dev/use.sh:266-271
   - 今: lib/answer.py:14-29（同じ字）。殻 bin/_lib/launcher.py は WORKS_ANSWER_CMD を置かないので、文はいつも穴 HOLE（lib/answer.py:16。無い use.sh を指す）
@@ -335,10 +335,10 @@
   - 狭め: 無し（試験が落ちた）
 - L-E55 入口の種類（依頼・base・PR）を知るのは入口の変換だけ（柵 entry-kind）
   - 元: works/tests/test_entry_block.py::ConversionLayerCase.test_only_conversion_layer_knows_entry_kind
-  - 今: 柵が無い（lib/entryshape.py:8 の注だけ）
-  - 証: 要追加: lib/tests/test_concept_fences.py::FenceCase.test_entry_kind_read_only_by_entryshape — input.base.from を読むのが lib/entryshape.py・scripts/start.py だけ
+  - 今: lib/entryshape.py と workflows/line/scripts/start.py だけ（柵 entry-kind）（部分 A で閉じた）
+  - 証: lib/tests/test_concept_fences.py::FenceCase.test_entry_kind_read_only_by_entryshape
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で柵が落ちた（宣言なし。不可でない → 戻す）
+  - 狭め: #74 で柵が落ちた（宣言なし。不可でない → 戻す） → 部分 A で戻した
 - L-E56 修正前の CI・任せ先・並行 PR の節は start の中で回っていた
   - 元: works/.shared/core/entry.py:972-1016 `_drain`・`resume_after_ci`
   - 今: yaml:115-122（test-gate-base）と main workflows/judge/works-factory-judge.yaml:272（pr_check）に移った
@@ -362,8 +362,8 @@
   - 狭め: 無し
 - L-G03 知らない答えの語を通さない（元は BoardGap で落とした。今は通す語でない物を全部止めと読む）
   - 元: works/darkfactory/lib/line_edge.py:191-203 `_gate_words`
-  - 今: scripts/gate_answer.py:24-31 `decision_of`・:41
-  - 証: 要追加: tests/workflows/test_line.py::GateAnswerCase.test_unknown_word_stops — `{"decision":"maybe"}` で go 偽・stop_reason `human:<所>`
+  - 今: workflows/line/scripts/gate_answer.py `answer`（通す語でない答えは止め）（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::GateAnswerCase.test_unknown_word_stops
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - L-G04 関所の答え {decision, text} の一言を 1 字も変えずに残す
@@ -386,10 +386,10 @@
   - 狭め: #74 で止めの語を改名（`answer`・`works:replan` → `human:<所>`。名指し済み）
 - L-G07 stop の一言が空なら、既定の文（「関所で止めた」「最後の関所で止めた」）を止めの理由にする
   - 元: works/darkfactory/lib/line_edge.py:133 `GATE_STOP_NOTE`・FINAL_GATE_STOP_NOTE・:303・:325
-  - 今: 無し
-  - 証: 要追加: tests/workflows/test_line.py::GateAnswerCase.test_empty_stop_note_gets_the_default_reason
+  - 今: workflows/line/scripts/gate_answer.py `answer`・`STOP_NOTE`・`FINAL_STOP_NOTE`（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::GateAnswerCase.test_empty_stop_note_gets_the_default_reason
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で狭めた（不可でない → 戻す）
+  - 狭め: #74 で狭めた（不可でない → 戻す） → 部分 A で戻した
 - L-G08 関所の文の答えの行は殻が env に置いた頭（WORKS_ANSWER_CMD）と答えた者（WORKS_ANSWER_WHO）で組み、そのまま打てる
   - 元: works/.shared/core/answer.py、works/dev/use.sh
   - 今: lib/answer.py:14-29 は写したが、bin/_lib/launcher.py は env を置かない。行はいつも穴 `HOLE`（lib/answer.py:16）
@@ -398,8 +398,8 @@
   - 狭め: #74 で範囲の外とした（不可でない → 戻す。L-E50 と同じ）
 - L-G09 始めの関所の文（冒頭 3 行・入口の語・機能・最後の関所の開き方・答えの行）を AI の前に見せる
   - 元: works/blk-entry/blk-entry.yaml:79-86
-  - 今: scripts/start.py:128-136 `gate_text`・yaml:86-92
-  - 証: 要追加: tests/workflows/test_line.py::StartCase.test_start_gate_text_names_entry_features_and_final_mode（L-E48 と同じ試験でよい）
+  - 今: workflows/line/scripts/start.py `gate_text`・yaml gate-start（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::StartCase.test_start_gate_text_names_entry_features_and_answers
   - 本物の run: `start.output.gate_text`
   - 狭め: 無し
 - L-G10 無人の run は人を待たずに始めの関所を越える
@@ -1020,10 +1020,10 @@
   - 狭め: 無し
 - L-W56 独立の目が照らす修正案と波及は、案の直しの後に差し替えた承認済みの物
   - 元: works/darkfactory/lib/line_edge.py:1062-1064（refit で承認済みの案を差し替える）
-  - 今: yaml:731-732。eyes の plan・ripple は案の直しの前の `$plan-rounds.output.*` のまま
-  - 証: 要追加: test_handoff_table と tests/workflows/test_line.py::FixedCase.test_eyes_get_the_replanned_plan
+  - 今: workflows/line/scripts/fixed.py `fixed`（plan・ripple。2 度目の修正が走れば replan-out の got から）→ yaml eyes の plan・ripple は $fixed.output.*（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::FixedCase.test_eyes_get_the_replanned_plan（test_handoff_table は部分 0）
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で狭めた（名指し無し。今回見つけた。不可でない → 戻す）
+  - 狭め: #74 で狭めた（名指し無し。今回見つけた。不可でない → 戻す） → 部分 A で戻した
 - L-W57 eyes に修正役の規模の数値 x_scalars と前提のずれの申告文を渡す
   - 元: 盤面の p3.fix の返答
   - 今: 無し。eyes は `x_scalars` を宣言（main workflows/eyes/works-factory-eyes.yaml:18）、線は渡さず、fix の返りにも無い
@@ -1044,10 +1044,10 @@
   - 狭め: 無し
 - L-W60 報告はいつも走る（前の段が落ちても、ブロックの返す節そのものが落ちても）。Archon の resume でも報告を回し直す（always_run）
   - 元: works/darkfactory/darkfactory.yaml:1314-1322（all_done・always_run）。試験 works/tests/test_line_wiring.py::ReportAfterFailureCase.test_report_runs_after_failed_upstream（:242）・test_report_reruns_on_resume（:264）
-  - 今: 受け皿 `<id>-out` と collect・report・result の all_done（yaml:937・:960・:999）。always_run は無い
-  - 証: LineWiringCase.test_every_include_and_the_plan_rounds_have_a_receiver_that_collect_reads（:712-720）、筋書き block-failed・block-returns-failed。resume は要追加: tests/workflows/test_line.py::LineWiringCase.test_report_reruns_on_resume（collect・report・result の always_run を縛る）
+  - 今: yaml collect・report・result の all_done と collect・result の always_run（report は include で Archon が always_run を捨てる: packages/workflows/src/schemas/dag-node.ts 1085-1091・1911-1914 行。回し直した collect の返りが変われば report の中の控えを捨てる: dag-executor.ts 9716-9727 行）（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::LineWiringCase.test_report_reruns_on_resume・test_every_include_and_the_plan_rounds_have_a_receiver_that_collect_reads、筋書き block-failed・block-returns-failed
   - 本物の run: 筋書きでのみ（resume）
-  - 狭め: #74 で always_run を落とした（名指し無し。Archon の型に always_run が在るので不可でない → 戻す）。受け皿は Archon の都合（落ちた節は if_skipped に落ちない: dag-executor.ts の resolveBindingDirective）
+  - 狭め: #74 で always_run を落とした（名指し無し。Archon の型に always_run が在るので不可でない → 戻す）。受け皿は Archon の都合（落ちた節は if_skipped に落ちない: dag-executor.ts の resolveBindingDirective） → 部分 A で戻した
 - L-W61 報告は 2 つの修正の段の TDD の単位の結末を読む（keep-essence の 11）
   - 元: works/darkfactory/darkfactory.yaml:1330-1332（fix_tdd・refit_tdd）。試験 works/tests/test_line_wiring.py::ReportAfterFailureCase.test_report_reads_tdd_outcomes_of_both_fix_stages（:255）
   - 今: 型つきの成果物 tdd-unit を report が読む（main lib/runreport.py:784）
@@ -1378,10 +1378,10 @@
   - 狭め: 無し
 - L-D48 再審が止まった run（3 回拒まれた・支度ができない）は試験の関門・独立の目・merge へ進めない
   - 元: works/.shared/core/rejudge.py:546-558（`b.stop(by works:rejudge)`）
-  - 今: 無し。judge のブロックは ready false と works:rejudge を返すが、scripts/judged.py:77-80 の `judged()` は止めの理由を無視して "" を返すので test-gate-final 以降が走る
-  - 証: 要追加: AfterFixAndJudgedCase.test_rejudge_stop_holds_the_line と筋書き rejudge-stop
+  - 今: workflows/line/scripts/judged.py `judged`（rejudge_stop_reason を stop_reason で返す）→ fixed.py が held（部分 A で閉じた）
+  - 証: tests/workflows/test_line.py::AfterFixAndJudgedCase.test_rejudge_stop_holds_the_line・筋書き workflows/line/fixtures/rejudge-stop.stubs.yaml・tests/e2e/test_line_scenarios.py::LineReturnsTest.test_rejudge_stop_never_seals
   - 本物の run: 筋書きでのみ
-  - 狭め: #74（不可でない → 戻す。今壊れている側）
+  - 狭め: #74（不可でない → 戻す。今壊れている側） → 部分 A で戻した
 - L-D49 再審で採られずに残った異議は最後の関所を開ける理由にする
   - 元: works/darkfactory/lib/line_edge.py:800 `_final_needs`
   - 今: scripts/ask_final.py:70
@@ -1396,8 +1396,8 @@
   - 狭め: 無し
 - L-D51 形の合わない前の失敗の行は入口で拒む
   - 元: works/.shared/core/carry.py:127 `_prior_failures`
-  - 今: lib/carry.py:127（start が parts を呼ぶ）
-  - 証: lib/tests/test_carry_home.py::Contract.test_reader_checks_prior_rows_against_schema（:68-70）。線の試験は L-E04 の要追加と同じ
+  - 今: lib/carry.py `_prior_failures`（start が parts を呼ぶ）（部分 A で閉じた）
+  - 証: lib/tests/test_carry_home.py::Contract.test_reader_checks_prior_rows_against_schema・tests/workflows/test_line.py::StartCase.test_bad_answers_or_prior_shape_refused
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - L-D52 役に貼る前の失敗の節を 2 つに分ける（受け付けの拒否の行は「直す穴ではない」、R2 の作り直しの行は「この周の先頭で直す穴」）。目的の役には前の run の判断を見せない
@@ -1414,10 +1414,10 @@
   - 狭め: 無し
 - L-D54 CI の赤の試験 id を次の依頼の prior_failures に足す口 carry-ci（同じ行は 2 度足さず、形が違えば exit 2）
   - 元: works/.shared/core/carry.py:265・:288（使い方は works/skills/works/SKILL.md:71）
-  - 今: lib/carry.py（同じ）。README・bin・skill に入口の案内が無い
-  - 証: lib/tests/test_carry_ci.py::CliCase.test_stdin_ids_and_refusal_exit_2（:101-104）
+  - 今: lib/carry.py `carry_ci`・`main`（python3 -I lib/carry.py carry-ci）と README.md の使い方 6（部分 A で閉じた）
+  - 証: lib/tests/test_carry_ci.py::CliCase.test_stdin_ids_and_refusal_exit_2・CliCase.test_readme_names_the_carry_ci_command
   - 本物の run: 筋書きでのみ
-  - 狭め: 入口の案内が落ちた（不可でない → 戻す）
+  - 狭め: 入口の案内が落ちた（不可でない → 戻す） → 部分 A で戻した
 - L-D55 周の鎖（--rounds N で周ごとの run を起こし、次の一手を「周の数 → 結末の種 → 人が要る → 進みが無い → 費用」の順で決める）
   - 元: works/.shared/core/chain.py:140 `decide`・:42 STOPS
   - 今: 無し（#74 の head docs/design.md:436 で「線の後ろ・段 3」）

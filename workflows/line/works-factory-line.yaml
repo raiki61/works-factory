@@ -470,6 +470,7 @@ nodes:
       rejudge_purpose: { from: "$rejudge-run.output.purpose", if_skipped: null }
       rejudge_world: { from: "$rejudge-run.output.world", if_skipped: null }
       rejudge_rejudge_verdict: { from: "$rejudge-run.output.rejudge_verdict", if_skipped: null }
+      rejudge_stop_reason: { from: "$rejudge-run.output.stop_reason", if_skipped: null }
       objection: "$fix.output.objection"
 
   - id: replan
@@ -637,11 +638,13 @@ nodes:
         done: { type: boolean }
         go: { type: boolean }
         refixed: { type: boolean }
+        plan: {}
+        ripple: {}
         stop_reason: { type: string }
       required: [units, groups, conflicts, replan_items, objection, refix_objection, diff, allowed_test_changes, changed, delta_review,
-                 done, go, refixed, stop_reason]
+                 done, go, refixed, plan, ripple, stop_reason]
     mutates_checkout: false
-    depends_on: [after-fix, judged, refix-run]
+    depends_on: [after-fix, judged, refix-run, replan-out]
     trigger_rule: none_failed_min_one_success
     with:
       fix_done: "$fix.output.done"
@@ -667,6 +670,9 @@ nodes:
       replan: "$after-fix.output.replan"
       stop_after_fix: "$after-fix.output.stop_reason"
       stop_judged: "$judged.output.stop_reason"
+      plan: "$plan-rounds.output.plan"
+      ripple: "$plan-rounds.output.ripple"
+      replanned: { from: "$replan-out.output.got", if_skipped: null }
 
   - id: redepth
     script: redepth
@@ -734,8 +740,8 @@ nodes:
       judgment: "$judged.output.judgment"
       purpose: "$judged.output.purpose"
       world: "$judged.output.world"
-      plan: "$plan-rounds.output.plan"
-      ripple: "$plan-rounds.output.ripple"
+      plan: "$fixed.output.plan"
+      ripple: "$fixed.output.ripple"
       depth: "$redepth.output.depth"
       design: "$plan-rounds.output.design"
       diff: "$fixed.output.diff"
@@ -911,7 +917,8 @@ nodes:
       protected_hits: "$merge-apply.output.protected_hits"
       reason: "$merge-apply.output.reason"
 
-  # 13 報告。前の段が落ちても飛ばされても走る
+  # 13 報告。前の段が落ちても飛ばされても走る。resume でも collect と result は回し直す（always_run。report は include で、Archon は
+  # include の always_run を捨てるので、回し直した collect の返りが変われば Archon が report の中の控えを捨てて回し直す）
   - id: collect
     script: collect
     runtime: uv
@@ -942,6 +949,7 @@ nodes:
                  replan-out, replan-review-out, answer-replan, fixed, test-gate-final-out, eyes-out, merge-seal-out, answer-final,
                  merge-apply-out]
     trigger_rule: all_done
+    always_run: true
     with:
       start: { from: "$start.output.record", if_skipped: null }
       fixed: { from: "$fixed.output", if_skipped: null }
@@ -1000,10 +1008,16 @@ nodes:
         report_ai: {}
         next_request: {}
         prior_failures: {}
-      required: [fixed, ok, outcome, stop_reason, report, report_ai, next_request, prior_failures]
+        apply: { type: [object, "null"] }
+        sealed: { type: [object, "null"] }
+        r2_status: { type: [string, "null"] }
+        final_answer: { type: [object, "null"] }
+      required: [fixed, ok, outcome, stop_reason, report, report_ai, next_request, prior_failures, apply, sealed, r2_status,
+                 final_answer]
     mutates_checkout: false
-    depends_on: [report]
+    depends_on: [collect, report]
     trigger_rule: all_done
+    always_run: true
     with:
       ok: { from: "$report.output.ok", if_skipped: null }
       outcome: { from: "$report.output.outcome", if_skipped: null }
@@ -1012,3 +1026,7 @@ nodes:
       report_ai: { from: "$report.output.report_ai", if_skipped: null }
       next_request: { from: "$report.output.next_request", if_skipped: null }
       prior_failures: { from: "$report.output.prior_failures", if_skipped: null }
+      merge_apply: { from: "$collect.output.merge_apply", if_skipped: null }
+      merge_seal: { from: "$collect.output.merge_seal", if_skipped: null }
+      eyes: { from: "$collect.output.eyes", if_skipped: null }
+      gate_final: { from: "$collect.output.gate_final", if_skipped: null }

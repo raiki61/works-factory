@@ -12,8 +12,11 @@
 - unnamed_changed: 欄が変わったか増えた・消えたのに、異議の文が名指していない単位（変化は争点外として強調する側に倒す）
 judgment の先を読めない時は 3 つを空にし、読めなかった訳を unread に返す（黙って空にしない）。例外の時は止めの理由
 works:line-script を返し、fixed がそれを読んで後ろへ進めない。
+再審が止まった（3 回とも拒まれた・支度ができない。judge のブロックが止めの理由 works:rejudge ほかを返した）時は、その止めの理由を
+stop_reason で返し、fixed が試験の関門・独立の目・merge へ進めない（元 works/.shared/core/rejudge.py 546-558 行の b.stop）。
 
-入力（with:）: judge_<欄>（judge の返り）・rejudge_<欄>（rejudge-run の返り。`{from, if_skipped: null}`）・objection（fix の異議）
+入力（with:）: judge_<欄>（judge の返り）・rejudge_<欄>（rejudge-run の返り。`{from, if_skipped: null}`）・rejudge_stop_reason
+（rejudge-run の止めの理由。`{from, if_skipped: null}`）・objection（fix の異議）
 """
 import json
 import os
@@ -74,10 +77,10 @@ def compared(judge: dict, rejudge: dict | None, objection: str) -> dict:
     return {**unit_changes(before, after, objection), "unread": ""}
 
 
-def judged(judge: dict, rejudge: dict | None, objection: str) -> dict:
+def judged(judge: dict, rejudge: dict | None, objection: str, rejudge_stop: str = "") -> dict:
     took = rejudge if rejudge is not None else judge
     return {**{key: took.get(key) for key in FIELDS}, "rejudged": rejudge is not None, **compared(judge, rejudge, objection),
-            "stop_reason": ""}
+            "stop_reason": rejudge_stop if rejudge is not None else ""}
 
 
 def of_env(prefix: str) -> dict:
@@ -86,7 +89,8 @@ def of_env(prefix: str) -> dict:
 
 def from_env() -> tuple:
     rejudge = of_env("REJUDGE")
-    return of_env("JUDGE"), (None if rejudge["units"] is None else rejudge), linekit.text(os.environ.get("INPUTS_OBJECTION"))
+    return (of_env("JUDGE"), (None if rejudge["units"] is None else rejudge), linekit.text(os.environ.get("INPUTS_OBJECTION")),
+            linekit.text(os.environ.get("INPUTS_REJUDGE_STOP_REASON")))
 
 
 def fallback(reason: str) -> dict:

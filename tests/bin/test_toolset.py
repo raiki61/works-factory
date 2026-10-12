@@ -1581,3 +1581,13 @@ class NewerCase(Base):
         out = self.newer_out()
         self.assertIn(f"superpowers {newer}: 上流の tag に在る", out)
         self.assert_unchecked(out, "上流の tag")
+
+
+class RecordNameCase(unittest.TestCase):
+    def test_record_name_is_what_lib_versions_reads(self):
+        """借りた物の記録の名は、run の版の控え（lib/versions.py。L-E45）が読む名と同じ（lib は bin を読まないので名を 2 か所に持つ）"""
+        lib = str(pathlib.Path(__file__).resolve().parents[2] / "lib")
+        if lib not in sys.path:
+            sys.path.append(lib)
+        import versions
+        self.assertEqual(versions.TOOLSET_RECORD, toolset.RECORD)

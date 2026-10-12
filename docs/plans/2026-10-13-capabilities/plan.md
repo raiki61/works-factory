@@ -1386,10 +1386,10 @@
 
 - P192 貼る方針は run で固めた版の写し（元は record.process.policy.copy から貼った）。今は固めた版でなく、その時の文書のパスを読んで貼る
   - 元: works/.shared/core/policy.py `brief`（copy を読む）
-  - 今: lib/boardview.py:430（open.json の policy_md は固めた版の path。copy は policy_copy に在るが貼るのは path）・:654・:712・:783
-  - 証: 要追加: tests/workflows/test_plan_review.py::PortedMaterialCase.test_material_pastes_the_frozen_copy — open の後に方針の文書を書き換えても、材料・下請け・独立設計に貼る本文は固めた版の字（変化は関所の行だけが言う）
+  - 今: lib/boardview.py `review_material`（policy_copy）・`r2_prompt`（POLICY_FILE の copy）（部分 A で閉じた）
+  - 証: tests/workflows/test_plan_review.py::PortedMaterialCase.test_material_pastes_the_frozen_copy
   - 本物の run: 筋書きでのみ
-  - 狭め: #73 で狭めた（気づかれていない）。Archon で不可でない → 写しを貼る形に戻す
+  - 狭め: #73 で狭めた（気づかれていない）。Archon で不可でない → 写しを貼る形に戻す → 部分 A で戻した
 
 - P193 前の回の拒みの理由を次の材料の頭に貼る（REJECT_HEADING）
   - 元: works/blk-plan/lib/planblk.py の prep（拒みの理由のファイルを頭の 1 行で名指した。works/tests/test_blk_plan.py:1012 `test_reject_reason_by_file`）
@@ -1562,10 +1562,10 @@
 
 - P216 方針の文書は run の始め（盤面を作る時）に固めた。今は事前審査の最初の差し込みで固めるので、run の始めから計画の終わりまでの書き換え（判定・修正案が読んだ版との食い違い）は変化として見えない
   - 元: works/.shared/core/graphloops/rules/policy_input.py:61 `resolve`（盤面の on_init。record.process.policy）
-  - 今: lib/boardview.py:532 `_frozen_policy`（open_pass の最初の差し込み）
-  - 証: 要追加: tests/workflows/test_plan_review.py::PolicyCase.test_policy_frozen_at_run_start — 始めの記録が持つ方針の版（sha256 と写し）を固めた版として使い、事前審査の前に書き換えた文書が最初の差し込みで policy_changed の行になること
+  - 今: workflows/line/scripts/start.py `start`（record.policy = policy.freeze）→ lib/boardview.py `_frozen_policy`（始めの記録の版をそのまま置く）（部分 A で閉じた）
+  - 証: tests/workflows/test_plan_review.py::PolicyCase.test_policy_frozen_at_run_start
   - 本物の run: `plan-review/policy.json` の sha256 と線の start の記録の版（今は記録に版が無い）
-  - 狭め: #73 で狭めた（始めの記録が版を持たない）。Archon で不可でない（線の start が sha256 と写しを記録に置けばよい）→ 戻す（#73 が「約束を変える頼み」に挙げ済み）
+  - 狭め: #73 で狭めた（始めの記録が版を持たない）。Archon で不可でない（線の start が sha256 と写しを記録に置けばよい）→ 戻す（#73 が「約束を変える頼み」に挙げ済み） → 部分 A で戻した
 
 ### 区分の外への渡し（確かめだけ）
 

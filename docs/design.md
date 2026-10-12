@@ -175,7 +175,7 @@ flowchart TB
   - 同じブロックを 2 度差し込む所の返りは include の id ごとに分かれる（U2）。`rejudge-run`・`replan`・`replan-review`・`refix-run` の返りは差し込んだブロックと同じ形。後の段が fix の返りを読む所は `$fixed.output.<欄>`、judge の単位と判定を読む所は `$judged.output.<欄>`、plan と plan-review の返りを往復の外から読む所は `$plan-rounds.output.<欄>` を読む。
 - 線の始めの節 `start` の返りのうち、ブロックが読むのは 2 つ:
   - `prior_failures`（指し札・null 可）: 前の run の持ち越しの前の失敗の行（始めの節が依頼から `lib/carry` で置く、今の works の `prior-failures-in.json`）。無ければ null → judge・plan
-  - `record`（指し札）: 始めの記録。今の works の `start.json` の欄（`run_id`・`base_rev`（修正の前の HEAD。差分の根 `input.base.rev` とは別）・`test_cmd`・`tdd_suite`（TDD の輪と 1 件ごとの結末に使う実行ファイルのパス。入口の入力から。無ければ `""`）・`final_gate`・`unattended`・`policy`（人の方針の文書を run の始めに 1 度だけ固めた版 `{named, path, sha256, copy}`。`named` は入口の名指し `policy_md`、`path` は名指しの文書か、対象のリポジトリの git の共通の置き場の `graphloops/policy.md`。文書が無ければ `path` は `""`、`sha256` と `copy` は null。役に貼る本文は `copy` から読み、`policy_md` を生で読まない。修正前の関所で人が方針の文書の変化を通したら、線の節 `answer-before-fix` がこの欄を通した版に書き直す。だから fix・eyes・judge の再審は人が通した版を読む）・`spec` ほか）→ 全ブロック
+  - `record`（指し札）: 始めの記録。run の置き場の根を盤面の根とした `lib/startrec.py` の置き場 `r1/start.json`（lib の読み手が `startrec.read` で読む所と同じ 1 つ。ブロックは指し札の先を自分の置き場の同じ所へ `startrec.adopt` で字のまま写し、欄を既定で埋めない）。今の works の `start.json` の欄（`input`（入口の入力の形 `{base: {rev, from, name, label}, head_rev, diff, requests, request_file, pr: {number, title, body} | null, spec}`。どの入口でも鍵が同じ。入口の種類（`base.from`）で分かれるのは入口の変換 `lib/entryshape.py` と線の `start` だけ）・`inputs`（入口の入力の写し。拒んだ run にも在る）・`versions`（版の控え `lib/versions.py`。分からない値は null で `unknown` に訳。拒んだ run にも在る）・`answers`（依頼の answers）・`run_id`・`base_rev`（修正の前の HEAD。差分の根 `input.base.rev` とは別）・`test_cmd`・`tdd_suite`（TDD の輪と 1 件ごとの結末に使う実行ファイルのパス。入口の入力から。無ければ `""`）・`final_gate`・`unattended`・`policy`（人の方針の文書を run の始めに 1 度だけ固めた版 `{named, path, sha256, copy}`。`named` は入口の名指し `policy_md`、`path` は名指しの文書か、対象のリポジトリの git の共通の置き場の `graphloops/policy.md`。文書が無ければ `path` は `""`、`sha256` と `copy` は null。役に貼る本文は `copy` から読み、`policy_md` を生で読まない。修正前の関所で人が方針の文書の変化を通したら、線の節 `answer-before-fix` がこの欄を通した版に書き直す。だから fix・eyes・judge の再審は人が通した版を読む）・`spec` ほか）→ 全ブロック
 
 ### judge の返り
 
@@ -281,7 +281,7 @@ flowchart TB
 - 返す節 `verdict`・`outcome_field: ok`（今の works の `eyes-exit.ok`）
 - 入力（`with:`）:
   - `units`・`judgment`・`purpose`・`world` ← `$judged.output.<同じ名>`（再審が走ればその返り）
-  - `plan`・`ripple` ← `$plan-rounds.output.<同じ名>`
+  - `plan`・`ripple` ← `$fixed.output.<同じ名>`（計画の往復の物。案の直しの後に 2 度目の修正が走った run は案の直しの物に差し替えた承認済みの物。元 `works/darkfactory/lib/line_edge.py` 1058-1064 行）
   - `depth` ← `$redepth.output.depth`（plan の深さを直した後に上げ直した物）
   - `design` ← `$plan-rounds.output.design`
   - `diff`・`changed` ← `$fixed.output.<同じ名>`、`fix_units` ← `$fixed.output.units`
@@ -337,6 +337,18 @@ flowchart TB
   - `next_request`（指し札・null 可）: 次の依頼（`lib/carry`。今の works の `next-request.json`）→ 線の返り
   - `prior_failures`（指し札・null 可）: 前の失敗の行（`lib/carry`。今の works の `prior-failures.json`）→ 線の返り
 
+### 線の返り
+
+- 返す節 `result`（`workflows/line/scripts/result.py`）・`outcome_field: fixed`。`collect` と `report` の後に `trigger_rule: all_done` で走り、resume でも回し直す（`always_run`）。読み手は人（`bin/works-factory workflow get`）・差分を当てる殻 `bin/apply`・段 1 の通しの試験
+- 欄:
+  - report の返りの 7 つ（`ok`・`outcome`・`stop_reason`・`report`・`report_ai`・`next_request`・`prior_failures`。report が届かなければ null と `""`）と、結末が `fixed`・`fixed_needs_check` の時に真の `fixed`
+  - `apply`（object・null 可）: merge-apply の返りの `{ok, hash, diff, reason}`。merge-apply が飛ばされたら null → `bin/apply`
+  - `sealed`（object・null 可）: merge-seal の返りの `{ok, hash, diff}`。merge-seal が飛ばされたら null → `bin/apply`（`apply.hash` と照らす）
+  - `r2_status`（string・null 可）: 独立の目の R2 の `status`。省いた・飛ばされたら null → `bin/apply`（`redesign-needed` の run は当てない）
+  - `final_answer`（object・null 可）: 最後の関所の答え `{decision, text}`（`answer-final` の `answer`）。関所が開かなかったら null → `bin/apply`（止まった run を拒む 1 行に人の一言を載せる。M43）
+- `apply`・`sealed`・`r2_status`・`final_answer` は `$collect.output.<欄>`（`merge_apply`・`merge_seal`・`eyes`・`gate_final`）だけから組む。merge・eyes の返りを直に読むと、その返す節が落ちた時に線の返りまで落ちる
+- 線の中の節の返りで約束を変えた物（部分 A）: `judged` は再審の止めの理由（`rejudge-run` の `stop_reason`）を `stop_reason` で返し、`fixed` が後ろへ進めない。`fixed` は独立の目が照らす修正案と波及 `plan`・`ripple`（2 度目の修正が走った run は案の直しの受け皿 `replan-out` の物、ほかは計画の往復の物）を返し、eyes の `plan`・`ripple` は `$fixed.output.<欄>`
+
 ## ブロック
 
 各ブロックのフォルダは `works-factory-<名>.yaml`（工程の名も同じ。ASF の `archon-<名>.yaml` と同じ形）・`commands/`（役の指示書の本文）・`scripts/`（`lib/` と境の口を呼ぶだけ）・`fixtures/`（Archon の筋書きの試験）を持つ。返りの型は `returns:` が名指す節の `output_format`。
@@ -345,7 +357,7 @@ flowchart TB
 
 - 目的: ブロックを並べ、関所・往復・止め札・深さ・無人の方針を持つ。
 - ASF で読む物: `W/lifecycle/archon-lifecycle.yaml`（子の関所を子が持つ形・`returns: merge`）と `W/ship/archon-ship.yaml`（routes の合流と `trigger_rule: none_failed_min_one_success`、`if_skipped` で飛ばされた子を `null` で受ける `outcome`）。`W` は `.archon/workflows/sdlc`。
-- 入力: 入口の入力。返り: 線の節 `result`（report の返りと、結末が `fixed`・`fixed_needs_check` の時に真の `fixed`。`outcome_field: fixed`）。
+- 入力: 入口の入力。返り: 線の節 `result`（report の返りと、結末が `fixed`・`fixed_needs_check` の時に真の `fixed`、`bin/apply` が読む `apply`・`sealed`・`r2_status`・`final_answer`。`outcome_field: fixed`。「ブロックの返りの約束」の「線の返り」）。
 - lib: `entry_shape`・`depth`・`gate_policy`・`halt`・`converge`・`stop_reasons`（止めの理由の語）・`features`（機能の切り替えの語）。
 - 埋め: P1（持ち主の居ない running）・P2（include に if_skipped を通せない）。
 - 持ち主: 土台の持ち主だけ（守りのパス）。

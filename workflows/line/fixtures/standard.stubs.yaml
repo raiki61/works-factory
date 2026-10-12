@@ -1,5 +1,7 @@
 # 全部の段が回る。計画の往復の返りを外の節 ask-before-fix が $plan-rounds.output.<欄> で読めることも照らす（fix に届く値は dry-run の
 # 制約で筋書きでは照らせず、tests/workflows/test_line.py が線の with: で照らす。docs/design.md の U3）。
+# 線の返り result の apply.ok が真で sealed.hash と apply.hash が同じこと（bin/apply が読む欄）は tests/e2e/test_line_scenarios.py の
+# LineReturnsTest が同じ stub の dry-run の trace で照らす。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}

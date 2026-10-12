@@ -553,6 +553,21 @@ class _RepoCase(unittest.TestCase):
 
 
 # ================================================================ 前提の実測
+class IntakeCase(_RepoCase):
+    def test_empty_request_file_is_refused_when_start_counts_requests(self):
+        """J04: 依頼のファイルを名指したのに行が空なら、始めの記録が依頼 1 件以上と言う run では欠けとして止める（元 works/blk-judge/
+        scripts/intake.py 47-60 行。依頼の無い run 以外は空でも型に通し、minItems で拒む）"""
+        (self.repo / "empty.json").write_text("[]", encoding="utf-8")
+        start = {"base_rev": self.head, "request_file": "empty.json",
+                 "input": {"base": {"rev": self.head}, "diff": {"empty": False}, "requests": 2, "request_file": "empty.json"}}
+        got = ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "")
+        self.assertFalse(got["go"], got)
+        self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], ja.REQUEST_STOP)
+        start["input"]["requests"] = 0
+        shutil.rmtree(self.jdir)
+        self.assertTrue(ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "")["go"], "依頼の無い run は空の行で通す")
+
+
 class PremisesCase(_RepoCase):
     GOOD = {"constraints": [{"text": "README.md の件数は 3 件", "measured_how": "grep", "kind": "実測",
                              "measured_output": "$ grep -c 件 README.md\n1"}]}
@@ -650,6 +665,19 @@ class PurposeCase(_RepoCase):
                 got = ja.check_purpose({**self.GOOD, "source_files": bad}, self.jdir, self.repo)
                 self.assertFalse(got["ok"], got)
                 self.assertIn("source_files", got["reason"])
+
+    def test_pr_body_reaches_purpose_brief(self):
+        """L-E17: 線の入口が始めの記録の input.pr に置いた PR の題と本文が、目的の役の材料に「PR の説明」として載る
+        （元 works/.shared/core/entryshape.py 192-205 行 write_pr_file → darkfactory.yaml 297 行 pr_file → purpose.md 16 行 ①PR 説明）"""
+        import entryshape
+        pr = {"number": "7", "title": "題 T", "body": "本文X"}
+        shape = entryshape.build({"items": [], "request_file": "", "base": {"rev": self.head, "from": "pr", "name": "7",
+                                                                           "label": "PR #7「題 T」"}, "pr": pr}, self.repo)
+        got = ja.purpose_prep(self.jdir, self.repo, ja.start_view({"base_rev": self.head, "input": shape}))
+        self.assertTrue(got["go"], got)
+        text = pathlib.Path(got["brief_file"]).read_text(encoding="utf-8")
+        self.assertIn("本文X", text)
+        self.assertIn("題 T", text)
 
     def test_frozen_purpose_is_not_overwritten(self):
         """元 test_blk_purpose の test_accept_refuses_to_overwrite_frozen_purpose（p0.purpose の once）"""
