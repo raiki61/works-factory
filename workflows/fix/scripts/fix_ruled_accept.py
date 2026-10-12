@@ -12,7 +12,7 @@ join が組の子から写した物（fixboard.ruled_states。凍結したテス
   段の頭の木（fix-ruled-head.json）に戻して諦め、ほかを受けて done: true
 - 範囲の外のはみ出しだけの返答は拒まずに範囲の相談に積むか機械が戻す（fixboard.settle_overflow）。積んだ回は done: false
 置き場に残す物: fix-ruled-reply.json（受けた返答に 6 つの印と rejudge_requested を前の控えと論理和で重ね、印を changed にも置いた物。
-assert-changed・collect が読む）・fix-units.json・granted-tests.json。
+assert-changed・collect が読む）・fix-units.json。
 返り {ok, done, reason, reason_file}。回す側の誤りは標準エラーに 1 行で非 0。
 """
 import os
@@ -59,7 +59,6 @@ def main() -> dict:
     if got["ok"]:
         path = place / fixboard.RULED_REPLY_FILE
         fixboard.write_json(path, fixboard.reply_marks(got["reply"], fixboard.read_json(path)))
-        fixboard.write_json(place / fixboard.GRANTED_TESTS_FILE, fixboard.allowed_tests(place))
         fixboard.trace(place, "fix_ruled_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]))
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
     reason_file = fixboard.write_text(place / fixboard.REJECT_NAME.format(name=NAME, k=iteration), got["reason"] + "\n")

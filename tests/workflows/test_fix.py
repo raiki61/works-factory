@@ -2288,7 +2288,6 @@ class FixLoopScriptsCase(unittest.TestCase):
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         kept = json.loads((self.place / "fix-ruled-reply.json").read_text(encoding="utf-8"))
         self.assertEqual(set(kept["changed"]), set(CHANGED_MARKS))
-        self.assertEqual(json.loads((self.place / "granted-tests.json").read_text(encoding="utf-8")), ["test_stats.py"])
 
     def test_fix_ruled_prep_without_fix_ruling_does_not_launch(self):
         import conflict
