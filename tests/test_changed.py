@@ -3,11 +3,12 @@
 使い捨ての git の木（lib/impact.py・lib/changemap.py・tests/changed.py の写しと、小さな lib と試験）で殻を起こし、
 unittest の最後の数え（Ran N tests）で何が回ったかを見る。木の試験は test_alpha 1 本・test_beta 2 本・層の柵 1 本。
 - lib の 1 ファイルを変えると、その試験のモジュールと層の柵だけが回る
-- 全部を回す: tests/archon.py などの変更・起点（origin/main との merge-base）が無い時
+- 全部を回す: tests/archon.py などの変更・起点（origin/main との merge-base）が無い時・git が起こせない時
 - 選んだ物が 0 本でも層の柵は回り、選んだ試験の赤は殻の赤
 - 出力の最後は unittest の数えで、harness の unit_count_pattern が最初に当たるのもその行
 """
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -59,9 +60,9 @@ class ChangedTest(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
-    def run_changed(self):
+    def run_changed(self, env=None):
         done = subprocess.run([sys.executable, "tests/changed.py"], cwd=self.repo, capture_output=True, text=True,
-                              encoding="utf-8")
+                              encoding="utf-8", env=env)
         return done.returncode, done.stdout, done.stdout + done.stderr
 
     def ran(self, out):
@@ -102,6 +103,12 @@ class ChangedTest(unittest.TestCase):
         git(self.repo, "update-ref", "-d", "refs/remotes/origin/main")
         self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
         rc, stdout, out = self.run_changed()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.ran(out), 4, out)
+        self.assertIn("origin/main", stdout)
+
+    def test_no_git_runs_everything(self):
+        rc, stdout, out = self.run_changed(env={**os.environ, "PATH": ""})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.ran(out), 4, out)
         self.assertIn("origin/main", stdout)

@@ -38,7 +38,10 @@ def module(path):
 
 
 def merge_base():
-    done = subprocess.run(["git", "-C", str(ROOT), "merge-base", BASE_REF, "HEAD"], capture_output=True, text=True)
+    try:
+        done = subprocess.run(["git", "-C", str(ROOT), "merge-base", BASE_REF, "HEAD"], capture_output=True, text=True)
+    except OSError:
+        return ""
     return done.stdout.strip() if done.returncode == 0 else ""
 
 
