@@ -1,13 +1,11 @@
 """`archon validate workflows` が自分の工程（works-factory-*）に誤りも警告も出さない（workflows/AGENTS.md の E1 の機械の行）。
 
-木は tests/archon.py の使い捨ての木に workflows/ の全部（線と在るブロック）を pack の形で置いた物。
-線が include: する工程が 1 つでも木に無い間は、線の `include target … not found` の誤りだけを数えず、
-無い工程を名指して見送る（ほかの工程は照らし続ける）。同梱の skill の警告は数えない（tests/archon.py の counted）。
+木は tests/archon.py の使い捨ての木に workflows/ の全部（線とブロック）を pack の形で置いた物。
+同梱の skill の警告は数えない（tests/archon.py の counted）。
 Archon の源か bun が無ければ見送る。
 """
 import json
 import pathlib
-import re
 import unittest
 
 import yaml
@@ -18,7 +16,6 @@ from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEEDS = pathlib.Path(__file__).resolve().parent / "seeds"
-MISSING_INCLUDE = re.compile(r"include target '[^']+' not found")
 
 
 def validate(tree: pathlib.Path) -> dict[str, list[str]]:
@@ -40,16 +37,10 @@ class ArchonValidateTest(unittest.TestCase):
     def test_own_workflows_have_no_errors_or_warnings(self):
         names = [folder.name for folder in scan._blocks(ROOT)]
         workflows = {f"{scan.OURS_PREFIX}{name}" for name in names}
-        line = scan.OURS["line"]
-        missing = sorted(set(scan.includes(ROOT, scan.LINE_YAML)) - workflows) if (ROOT / scan.LINE_YAML).is_file() else []
         with archon.tree(names) as tree:
             found = validate(tree)
         self.assertEqual(sorted(found), sorted(workflows))
-        if missing:
-            found[line] = [issue for issue in found[line] if not MISSING_INCLUDE.search(issue)]
         self.assertEqual({name: issues for name, issues in found.items() if issues}, {})
-        if missing:
-            self.skipTest(f"ブロックがまだ無い: {', '.join(name.removeprefix(scan.OURS_PREFIX) for name in missing)}")
 
     def test_every_block_loads_when_included(self):
         """どのブロックも、線のように include された形で読み込める。ブロック 1 つを include するだけの親の工程を木に足し、必須の

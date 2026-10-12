@@ -121,18 +121,18 @@
 
 ### Task 4: 線
 
-> 持ち主の決め `overnight-speed` で、ブロック 8 つは各々の issue が自分のフォルダを中身ごと作る。この Task は線だけを作り、ブロックの代わり（試験だけで使う同じ名の小さな工程。`workflows/line/fixtures/stub-blocks/`）で Archon の筋書きの試験を `exec-code: true` で回す。中身の正本は `docs/plans/2026-10-12-groundwork-line-launcher.md` の A の節。下は要点。
+> 持ち主の決め `overnight-speed` で、ブロック 8 つは各々の issue が自分のフォルダを中身ごと作る。この Task は線だけを作り、Archon の筋書きの試験を `exec-code: true` で回す。ブロックの代わり（試験だけで使う同じ名の小さな工程）を置く予定だったが、線の PR #74 の間に 8 つのブロックが全部 main に入ったので、筋書きは本物のブロックと組んで回し、代わりは置かない。中身の正本は `docs/plans/2026-10-12-groundwork-line-launcher.md` の A の節。下は要点。
 
 **Files:**
-- Create: `workflows/line/works-factory-line.yaml`・`workflows/line/scripts/`・`workflows/line/fixtures/`（筋書きと代わりのブロック）・`workflows/.shared/skip_value.py`（埋め P2）
+- Create: `workflows/line/works-factory-line.yaml`・`workflows/line/scripts/`・`workflows/line/fixtures/`（筋書き）・`workflows/.shared/skip_value.py`（埋め P2）
 - Create: `lib/entryshape.py`・`lib/entry.py`（機能の切り替えの塊だけ）とその試験（持ち主の決め `lib-port-as-is`）
-- Test: `tests/layers/test_block_returns.py`・`test_outward_write.py`・`test_readonly_nodes.py`・`test_gates.py`・`tests/e2e/test_line_scenarios.py`
-- Modify: `docs/design.md`（線の中の id・U2〜U4・P2 の受け手の書き方・線の止め札の行）・`docs/polyfills.md`（P2）・`workflows/AGENTS.md` の E5
+- Test: `tests/layers/test_block_returns.py`・`test_outward_write.py`・`test_readonly_nodes.py`・`test_gates.py`・`tests/e2e/test_line_scenarios.py`・`tests/workflows/test_line.py`（線の script の決め）・`tests/workflows/test_gate_head.py`（関所の文の頭。今の works の試験を戻した物）
+- Modify: `docs/design.md`（線の中の id・U2〜U4・P2 の受け手の書き方・線の止め札の行）・`docs/polyfills.md`（P2）・`docs/asf-notes.md`（A9〜A11）・`workflows/AGENTS.md` の E5
 
 **Interfaces:**
 - Consumes: Task 3 の境の口・Task 3b・#30 の `lib/`（`startrec`・`gatepolicy`・`stopby`・`converge`・`gatemarks`・`answer`・`planmarks` ほか）・`docs/design.md` の「ブロックの返りの約束」
 - Produces:
-  - 線の順・関所・往復は `docs/design.md` の「線」の 1〜13。関所は E16 の形で、どの関所も `decisions` に `approve` と `stop` を持つ。`stop` は後ろを飛ばして report へ流す（持ち主の決め `report-on-stop`）。関所の間の止めは持ち主の答え待ち。
+  - 線の順・関所・往復は `docs/design.md` の「線」の 1〜13。関所は E16 の形で、どの関所も `decisions` に `approve`・`continue`・`stop` を持つ（`continue` は lib/answer.py の答えの行の語）。`stop` は後ろを飛ばして report へ流す（持ち主の決め `report-on-stop`）。報告つきの止めは関所の `stop`・`reject` だけ。関所の間は報告の無い `cancel` を狭めとして認めた（持ち主の決め `stop-at-gates`）。
   - include の受け手に `if_skipped` を書けない（P2）ので、関所の答えと飛ばされうる返りは線の返しの節（`answer-*`・`judged`・`fixed`・`plan-out`・`collect`）で受け直してから渡す。
   - 計画の往復は `loop_group` の中の 2 つの `include:` と、終わりの返しの節 `plan-out`（中の節は外から見えないため。抜けるのは通し・止め・3 周目のどれか）。`report` は `trigger_rule: all_done`。線の返す節は線の `result`（`outcome_field: fixed`）。
   - 線とブロックの欄の照らしは Archon の `validate`（Task 3b の `test_archon_validate`）。

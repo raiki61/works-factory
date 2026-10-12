@@ -551,6 +551,15 @@ class CarryCase(Base):
         returns = fixed_run(fix={**fixed_run()["fix"], "objection": "判定が違う"})
         self.assertIn({"where": runreport.REJUDGE_LEFT_WHERE, "text": "判定が違う"}, runreport.next_request(returns, []))
 
+    def test_refix_objection_is_left_even_after_a_rejudge(self):
+        """2 度目の修正の異議（線の fixed の refix_objection）は再審の後に出るので、再審の結果に関わらず再審されずに残った異議"""
+        fix = {**fixed_run()["fix"], "objection": "判定が違う", "refix_objection": "u2 の判定も違う"}
+        returns = fixed_run(fix=fix, rejudge={**fixed_run()["judge"], "rejudge_verdict": "退ける"})
+        self.assertEqual(runreport.rejudge_lines(returns)[-1], "再審されずに残った異議: u2 の判定も違う")
+        self.assertIn({"where": runreport.REJUDGE_LEFT_WHERE, "text": "u2 の判定も違う"}, runreport.next_request(returns, []))
+        alone = fixed_run(fix={**fixed_run()["fix"], "refix_objection": "u2 の判定も違う"})
+        self.assertEqual(runreport.rejudge_lines(alone), ["再審されずに残った異議: u2 の判定も違う"])
+
     def test_plan_give_up_is_a_prior_failure(self):
         returns = fixed_run(plan={"ready": False, "stop_reason": "", "depth": []}, fix=None)
         rows = runreport.prior_failures(returns, [])

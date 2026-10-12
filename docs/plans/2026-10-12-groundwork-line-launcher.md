@@ -191,7 +191,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 - 一度だけの差し込み（案の直しとその後の 2 度目の修正・再審と、再審が開いた・下げた単位）。
 - 機能の切り替え（`features_off`・`features_on`。語の検査は `lib/entry.py`）・版の控え・固定材料から始める入力（`fix_fixture`）。
 
-落ちうる物（名指す）: ブロックの返す節そのものが落ちた時、`collect` はその節を読めず落ち、報告は走らない（Archon の run の記録が落ちた節を名指す）。今の works は報告が盤面を読んだので、この場合も報告が出た。線の側で耐える書き方は Archon に無い（`resolveBindingDirective`）ので、ブロックの issue に「返す節は落とさない（中で受けて `ok: false` で返す）」を頼む。
+ブロックの返す節そのものが落ちた時も報告は出る: 線はブロックごとに受け皿の節 `<include の id>-out` を既定の `trigger_rule` で後ろに置き、`collect` は受け皿からだけ読む（落ちた節は `{from, if_skipped}` でも読めない。`resolveBindingDirective`。受け皿は飛ばされて `if_skipped: null` に落ちる。今の works も報告が盤面を読んだので、この場合も報告が出た）。筋書き `block-returns-failed` が照らす。
 
 ### 筋書き
 

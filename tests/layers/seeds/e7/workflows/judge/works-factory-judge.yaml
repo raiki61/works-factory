@@ -1,0 +1,5 @@
+name: works-factory-judge
+nodes:
+  - id: diagnose
+    prompt: 判定する
+    idle_timeout: 1728000000

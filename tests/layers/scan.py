@@ -28,7 +28,8 @@ RELATIVE_PATH = re.compile(r"(?:\.\./)+[^\s'\"`)]*")
 OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
 OURS_PREFIX = OURS["name_prefix"]
 OURS_PACK = OURS["pack"]
-LINE_YAML = f"workflows/{OURS['line'].removeprefix(OURS_PREFIX)}/{OURS['line']}.yaml"
+LINE_FOLDER = OURS["line"].removeprefix(OURS_PREFIX)
+LINE_YAML = f"workflows/{LINE_FOLDER}/{OURS['line']}.yaml"
 CALL_KEYS = ("include", "workflow")
 
 NO_DEADLINE = "1728000000"
@@ -381,14 +382,208 @@ def _origin_names(root: Path) -> list[str]:
     return out
 
 
+OUTPUT_REF = re.compile(r"\$(?:LOOP_PREV\.)?([A-Za-z_][\w-]*)\.output\.([A-Za-z_]\w*)")
+
+
+def _workflow_doc(folder: Path):
+    """フォルダの工程 `works-factory-<フォルダの名>.yaml` の (パス, 頭の node)。無い・読めなければ (パス, None)"""
+    path = folder / f"{OURS_PREFIX}{folder.name}.yaml"
+    if not path.is_file():
+        return path, None
+    documents, broken = _documents(folder.parents[1], path)
+    return path, (documents[0] if documents and not broken else None)
+
+
+def _scalars(node):
+    """node の下の字の値を全部（鍵は除く）"""
+    if isinstance(node, yaml.ScalarNode):
+        yield node.value
+    elif isinstance(node, yaml.SequenceNode):
+        for item in node.value:
+            yield from _scalars(item)
+    elif isinstance(node, yaml.MappingNode):
+        for _, value in node.value:
+            yield from _scalars(value)
+
+
+def _line_reads(root: Path) -> dict:
+    """線が `$<include の id>.output.<欄>` で読む欄を、差し込んだ工程の名ごとに {名: {欄…}}"""
+    path = root / LINE_YAML
+    documents, broken = _documents(root, path) if path.is_file() else ([], [])
+    if broken or not documents:
+        return {}
+    document = documents[0]
+    target = {
+        _top(node, "id").value: value.value
+        for node in _nodes(document)
+        if isinstance(value := _top(node, "include"), yaml.ScalarNode) and isinstance(_top(node, "id"), yaml.ScalarNode)
+    }
+    reads = {}
+    for text in _scalars(_top(document, "nodes")):
+        for match in OUTPUT_REF.finditer(text):
+            if match[1] in target:
+                reads.setdefault(target[match[1]], set()).add(match[2])
+    return reads
+
+
+def _block_returns(root: Path) -> list[str]:
+    out = []
+    reads = _line_reads(root)
+    for folder in _blocks(root):
+        if folder.name == LINE_FOLDER:
+            continue
+        path, document = _workflow_doc(folder)
+        if document is None:
+            continue
+        rel = _rel(root, path)
+        returns, outcome = _top(document, "returns"), _top(document, "outcome_field")
+        for key, value in (("returns", returns), ("outcome_field", outcome)):
+            if not isinstance(value, yaml.ScalarNode):
+                out.append(f"{rel}:1: {key}: が無い")
+        if not isinstance(returns, yaml.ScalarNode):
+            continue
+        node = next((n for n in _nodes(document) if getattr(_top(n, "id"), "value", None) == returns.value), None)
+        schema = _top(node, "output_format")
+        if not isinstance(schema, yaml.MappingNode):
+            out.append(f"{rel}:{_line(node) if node is not None else _line(returns)}: 返す節 {returns.value} に output_format が無い")
+            continue
+        required = [item.value for item in getattr(_top(schema, "required"), "value", []) if isinstance(item, yaml.ScalarNode)]
+        if isinstance(outcome, yaml.ScalarNode) and outcome.value not in required:
+            out.append(f"{rel}:{_line(outcome)}: outcome_field の欄 {outcome.value} が返す節の required に無い")
+        read = reads.get(f"{OURS_PREFIX}{folder.name}", set())
+        for key, value in _pairs(_top(schema, "properties")):
+            if key not in read:
+                out.append(f"{rel}:{_line(value)}: 返りの欄 {key} に読み手が無い（線の with:・when:・返しの節の from の誰も読まない）")
+    return out
+
+
+# 外への書き込み（E6）: GitHub への gh と、対象のリポジトリの main への git push・git merge。
+OUTWARD = re.compile(r"(?<![\w./-])gh(?![\w./-])|\bgit[\"'\s,]+(?:push|merge)\b")
+NAMED_SCRIPT = re.compile(r"[\w.-]+")
+
+
+def _node_code(folder: Path, node) -> str | None:
+    """節の走らせる字（直に書いた script・bash か、名前の script のファイルの中身）。script・bash の節でなければ None"""
+    for key in ("script", "bash"):
+        value = _top(node, key)
+        if isinstance(value, yaml.ScalarNode):
+            if key == "script" and NAMED_SCRIPT.fullmatch(value.value):
+                found = sorted((folder / "scripts").glob(f"{value.value}.*")) if (folder / "scripts").is_dir() else []
+                return "".join(p.read_text(encoding="utf-8", errors="replace") for p in found)
+            return value.value
+    return None
+
+
+def _outward_write(root: Path) -> list[str]:
+    out = []
+    for folder in _blocks(root):
+        path, document = _workflow_doc(folder)
+        if document is None:
+            continue
+        writers = [node for node in _nodes(document) if OUTWARD.search(_node_code(folder, node) or "")]
+        if len(writers) > 1:
+            names = "・".join(getattr(_top(n, "id"), "value", "?") for n in writers)
+            out.append(f"{_rel(root, path)}:{_line(writers[1])}: 外へ書く節が {len(writers)} つ（{names}）。ブロックに 1 つまで")
+    return out
+
+
+# 読むだけの節（E7）。ROLE_BLOCKS の役の節は全部、ほかは READONLY_NODES で名指した節が mutates_checkout: false を書く。
+ROLE_BLOCKS = ("judge", "plan", "plan-review", "eyes", "report")
+# loop: の節は数えない（Archon は loop: の節の mutates_checkout を無視して警告を出す。止めた Archon の schemas/dag-node.ts 1025-1030 行）
+ROLE_KINDS = ("prompt", "command")
+# judge の役のうち、作業ツリーに書く役（spec・spec-revise）と、対象のリポジトリでコマンドを走らせる役（受け付けの script が作業ツリーの姿を比べる）
+JUDGE_WRITERS = (
+    "spec", "spec-revise", "pr-check", "premises", "prior-decisions", "local-review", "external-standards",
+    "procedure-trace", "gate-efficacy", "test-double-fidelity", "main-path-observation", "provenance",
+)
+READONLY_NODES = {
+    "line": (
+        "answer-start", "plan-out", "ask-before-fix", "answer-before-fix", "after-fix", "judged", "ask-replan",
+        "answer-replan", "fixed", "redepth", "ask-final", "answer-final", "collect", "result",
+        # 受け皿（workflows/line/scripts/returned.py）
+        "test-gate-base-out", "judge-out", "plan-rounds-out", "fix-out", "rejudge-run-out", "replan-out", "replan-review-out",
+        "test-gate-final-out", "eyes-out", "merge-seal-out", "merge-apply-out",
+    ),
+}
+YAML_BOOL = "tag:yaml.org,2002:bool"
+
+
+def _is_bool(node, word: str) -> bool:
+    return isinstance(node, yaml.ScalarNode) and node.tag == YAML_BOOL and node.value.lower() == word
+
+
+def _readonly_nodes(root: Path) -> list[str]:
+    out = []
+    for folder in _blocks(root):
+        path, document = _workflow_doc(folder)
+        if document is None:
+            continue
+        rel = _rel(root, path)
+        named = READONLY_NODES.get(folder.name, ())
+        seen = set()
+        for node in _nodes(document):
+            ident = getattr(_top(node, "id"), "value", "")
+            seen.add(ident)
+            role = any(_top(node, kind) is not None for kind in ROLE_KINDS)
+            due = ident in named or (
+                folder.name in ROLE_BLOCKS and role and not (folder.name == "judge" and ident in JUDGE_WRITERS)
+            )
+            if due and not _is_bool(_top(node, "mutates_checkout"), "false"):
+                out.append(f"{rel}:{_line(node)}: 読むだけの節 {ident} に mutates_checkout: false が無い")
+        for ident in named:
+            if ident not in seen:
+                out.append(f"{rel}:1: 表 READONLY_NODES が名指した節 {ident} が工程に無い")
+    return out
+
+
+# 差し込まれるブロックが工程の頭に書かない鍵（E16）。run の形は差し込む一番上の工程が決める。ただし自分の節に approval: を持つ
+# ブロックの interactive: true だけは許す: 外すと止めた Archon の単独の validate が警告を出す（workflows/AGENTS.md の E16）
+BLOCK_HEAD_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
+
+
+def _gates(root: Path) -> list[str]:
+    out = []
+    docs = {}
+    for folder in _blocks(root):
+        path, document = _workflow_doc(folder)
+        if document is not None:
+            docs[f"{OURS_PREFIX}{folder.name}"] = (path, document)
+
+    def own_gate(name: str) -> bool:
+        return any(_top(n, "approval") is not None for n in _nodes(docs[name][1]))
+
+    def gated(name: str, trail: frozenset = frozenset()) -> bool:
+        if name not in docs or name in trail:
+            return False
+        return own_gate(name) or any(
+            gated(value.value, trail | {name})
+            for n in _nodes(docs[name][1]) if isinstance(value := _top(n, "include"), yaml.ScalarNode)
+        )
+
+    for name, (path, document) in docs.items():
+        rel = _rel(root, path)
+        if name != OURS["line"]:
+            for key, value in _pairs(document):
+                if key in BLOCK_HEAD_KEYS and not (key == "interactive" and _is_bool(value, "true") and own_gate(name)):
+                    out.append(f"{rel}:{_line(value)}: 差し込まれるブロックが工程の頭に {key} を書く")
+        elif gated(name):
+            if not _is_bool(_top(document, "interactive"), "true"):
+                out.append(f"{rel}:1: 人の関所を持つ一番上の工程に interactive: true が無い")
+    return out
+
+
 RULES = {
     "E2": _polyfills_listed,
     "E3": _lib_blind,
     "E4": _block_paths,
+    "E5": _block_returns,
+    "E6": _outward_write,
+    "E7": _readonly_nodes,
     "E8": _no_asf,
     "E9": _names,
     "E12": _no_timeouts,
     "E13": _lang_neutral,
     "E14": _no_owner_env,
+    "E16": _gates,
     "E18": _origin_names,
 }

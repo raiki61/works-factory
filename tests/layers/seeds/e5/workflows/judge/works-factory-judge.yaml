@@ -1,0 +1,14 @@
+name: works-factory-judge
+returns: verdict
+outcome_field: ready
+nodes:
+  - id: verdict
+    script: stub
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        ready: { type: boolean }
+        unread: { type: string }
+      required: [ready, unread]
