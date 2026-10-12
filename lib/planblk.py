@@ -131,10 +131,15 @@ SUB_FORMAT = promptsection.Section("## 答え方（全部の下請けで同じ�
                                    "最後のセクションが名指すファイルに Write で書く（そのファイルのほかに書かない。書き直す時も同じファイル）。書いたら最後の"
                                    "メッセージに 1 行だけ返す（答えの中身を写さない）。\n\n```json\n{schema}\n```", source="fn:planblk.brief_head")
 ANSWER_AT = "Write の道具でファイル {answer} に書け"   # 下請けのファイルが答えの置き場を名指す句（answer_in が引く）
-DIFF_HEAD = promptsection.Section("## 前の往復からのこの項目の案の差分（見るのはこの差分と前の block の行き先だけ）", source="fn:planblk._diff_part")
+DIFF_HEAD = promptsection.Section("## 前の往復からのこの項目の案の差分", source="fn:planblk._diff_part")
 DIFF_ASK = ("前の往復でこの項目を見た審査は、下の前の block のほかに直しへ進めない穴を挙げなかった。今の往復で見るのは (1) 前の block が"
             "消えたか（消えたなら resolved、残れば同じ key で faces に block）と (2) 下の差分（- が前・+ が今）が作る新しい穴だけ。"
             "差分の外の所を見直して新しい穴を探さない。穴の重さの決まり（block か suggest か）は変えない。")
+# 差分に絞らず全部を審査する、前の往復の行から違う字の割合の境（決まりと字の数え方の正本は _diff_part の docstring）
+DIFF_FULL_SHARE = 0.25
+DIFF_FULL_ASK = ("この項目は前の往復から大きく変わった（下の差分は変わった所の目安）。差分に絞らず、この項目の案の全部を審査せよ。"
+                 "前の block が消えたかも見る（消えたなら resolved、残れば同じ key で faces に block）。穴の重さの決まり（block か "
+                 "suggest か）は変えない。")
 CARRIED_HEAD = promptsection.Section("## 前の往復で答えた当たり（機械が答えを引き継ぐ。hits に入れなくてよい。差分で答えが変わる物だけ入れ直せ）", source="fn:planblk._carried_part")
 # 先行例の出典の確かめ（見ること 8）は run の中で 1 度だけ: 開く下請けを出典ごとに 1 つに決め、受け付けがその答えの確かめを
 # scope の根の PRECEDENT_CACHE に控え、後の往復・後の周の下請けには控えを貼って開かせない（run 68f35d6b は同じ 2 つの出典を
@@ -864,16 +869,35 @@ def _item_units(b, unit_keys) -> list:
 
 
 def _diff_part(b, n: int) -> str:
-    """2 往復目から: 前の往復のこの項目の案の行と今の行の差分（unified diff）と DIFF_ASK。前の行が無ければ空（全部を見る）"""
+    """2 往復目から: 前の往復のこの項目の案の行と今の行の差分（unified diff）と DIFF_ASK。行は往復の控えの物（関所の決め手の欄を
+    外し、works の欄を重ねた物。boardview.open_pass）。約束の欄（planmarks.contract_diff。直しが触れる物や確かめる物を変え、行の
+    差分に現れない読み直しを要る）が変わった項目（変わった欄の名を DIFF_FULL_ASK の前に言う）と、変わった字の割合が
+    DIFF_FULL_SHARE を超えた項目は、差分に絞らず DIFF_FULL_ASK。字の数えは行の単位の比べで、置き換えた行の組は共通の頭と尾を
+    除いた字、足した・消した行は全部の字を、前と今の字数の和で割る。前の行が無ければ空（全部を見る）
+    （元 今の works の commit d51cc183 の works/blk-plan/lib/planblk.py:982 _diff_part）"""
     old = converge.prev_row(b, n)
     plan = converge.read(b).get("plan") or []
     new = plan[n - 1].get("row") if 1 <= n <= len(plan) else None
     if old is None or new is None:
         return ""
-    lines = list(difflib.unified_diff(json.dumps(old, ensure_ascii=False, indent=1, sort_keys=True).splitlines(),
-                                      json.dumps(new, ensure_ascii=False, indent=1, sort_keys=True).splitlines(),
-                                      "前の往復", "今の往復", lineterm="", n=2))
-    return f"{DIFF_HEAD}\n\n{DIFF_ASK}\n\n```diff\n" + ("\n".join(lines) or "（変わっていない）") + "\n```"
+    before, after = (json.dumps(row, ensure_ascii=False, indent=1, sort_keys=True).splitlines() for row in (old, new))
+    lines = list(difflib.unified_diff(before, after, "前の往復", "今の往復", lineterm="", n=2))
+    fields = planmarks.contract_diff(old, new)
+    if fields or _changed_chars(before, after) > DIFF_FULL_SHARE * (len("\n".join(before)) + len("\n".join(after))):
+        ask = (f"約束の欄（{'・'.join(fields)}）が変わった。" if fields else "") + DIFF_FULL_ASK
+    else:
+        ask = DIFF_ASK
+    return f"{DIFF_HEAD}\n\n{ask}\n\n```diff\n" + ("\n".join(lines) or "（変わっていない）") + "\n```"
+
+
+def _changed_chars(before: list, after: list) -> int:
+    changed = 0
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, before, after, autojunk=False).get_opcodes():
+        gone, came = "\n".join(before[i1:i2]), "\n".join(after[j1:j2])
+        head = len(os.path.commonprefix([gone, came]))
+        tail = len(os.path.commonprefix([gone[head:][::-1], came[head:][::-1]]))
+        changed += 0 if tag == "equal" else len(gone) + len(came) - 2 * (head + tail)
+    return changed
 
 
 def _carried_part(b, n: int, rip: dict) -> str:

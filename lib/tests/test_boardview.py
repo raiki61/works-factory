@@ -77,7 +77,8 @@ class OpenCase(Base):
     def test_view_reads_what_open_placed(self):
         """始めの記録・構造の目の控え・世界の解の段・修正案の欄・決め手の控えを、今の works の読み口が見え方の上で読む"""
         wf = self.put("judge/world/world.jsonl", json.dumps(TP.WORLD_ROW, ensure_ascii=False) + "\n", raw=True)
-        start = self.put("start.json", {"run_id": "r", "base_rev": "abc", "unattended": "true", "design_only": "true"})
+        start = self.put("start.json", {"run_id": "r", "base_rev": "abc", "review_rev": "abc", "unattended": "true",
+                                       "design_only": "true"})
         got = self.open(world=wf, start=start)
         self.assertEqual((got["k"], got["form"]), (2, "review"))
         b = self.view()

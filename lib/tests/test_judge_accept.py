@@ -2625,6 +2625,7 @@ class StartViewCase(unittest.TestCase):
                          ("", ["judge_verify"], False, [], ""))
         self.assertEqual(view["diff_base"], "a" * 40)
         self.assertEqual(ja.start_view(None)["request_file"], "")
+        self.assertEqual(ja.start_view({"base_rev": "abc"})["diff_base"], "abc")
 
     def test_explicit_fields_win(self):
         view = ja.start_view({"request_file": "/top.json", "features_cut": [], "input": {"spec": True, "request_file": "/r.json"}})

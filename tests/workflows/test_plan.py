@@ -149,6 +149,9 @@ class _NodeFailed(Exception):
     """試験が落とした script の節（Archon は節を failed にして、後の節の trigger_rule に渡す）"""
 
 
+FORK = "f0" * 20   # 差分の run の差分の根（読む版と違う版）
+
+
 class Run:
     """1 つの run の置き場と対象。include(…) で計画のブロックを 1 度差し込む（Archon と同じ順に script を回す）"""
 
@@ -162,7 +165,8 @@ class Run:
         committed_copy(self.repo, SEED)
         self.base = git(self.repo, "rev-parse", "HEAD")
         self.inputs = dict(INPUTS)
-        self.inputs["start"] = self.pointer("start/start.json", {"base_rev": self.base, "test_cmd": "", "tdd_suite": "",
+        self.inputs["start"] = self.pointer("start/start.json", {"base_rev": self.base, "review_rev": self.base,
+                                                                  "test_cmd": "", "tdd_suite": "",
                                                                   "thickness": "", "policy_md": "", "lang": "日本語",
                                                                   **(start or {})})
         self.inputs["units"] = json.dumps(catalog() if units is None else units, ensure_ascii=False)
@@ -1526,10 +1530,11 @@ class BriefCase(unittest.TestCase):
             self.assertIn(word, brief)
 
     def test_repo_line_names_base_and_review_md(self):
-        run = Run(self)
+        """P035: 差分の run（入口の差分の根 input.base.rev が読む版 review_rev と違う）では、読む版と BASE を別の値で描く"""
+        run = Run(self, start={"input": {"base": {"rev": FORK, "from": "base", "name": "fork", "label": "base fork"}}})
         run.include()
         brief = self.brief(run)
-        self.assertIn(f"リポジトリ: {run.repo.resolve()}（読む版: `{run.base}`）　BASE: `{run.base}`　観点の正本: {LIB / 'REVIEW.md'}",
+        self.assertIn(f"リポジトリ: {run.repo.resolve()}（読む版: `{run.base}`）　BASE: `{FORK}`　観点の正本: {LIB / 'REVIEW.md'}",
                       brief)
 
     def test_excluded_range_named(self):

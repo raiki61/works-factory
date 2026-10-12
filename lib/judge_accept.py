@@ -51,6 +51,7 @@ import querytest  # noqa: E402
 import report  # noqa: E402  （約束の隣のファイルの名 REJUDGE_DIFF・REJUDGE_EXIT の住処）
 import rolekit  # noqa: E402
 import specblk  # noqa: E402
+import startrec  # noqa: E402
 import stopby  # noqa: E402
 import tree_run  # noqa: E402
 import worldblk  # noqa: E402
@@ -4065,11 +4066,10 @@ def start_view(doc) -> dict:
     """始めの記録（今の works の blk-entry/schemas/start.schema.json の形）を、このブロックが読む欄だけ既定の値で読んだ物。
     欄が無い時の既定は docs/design.md の「judge の出力」の入力 start の決め（request_file は input.request_file・""、policy_md は ""、
     features_cut は ["judge_verify"]、spec は input.spec・false、answers は []、gates は ""）。base_rev は修正の起点（start の時の HEAD）、
-    diff_base は差分の根（input.base.rev。P1 の役が差分を取る起点。無ければ base_rev）。policy（固めた版）は形を問わず写し、
+    diff_base は差分の根（startrec.diff_base。input.base.rev で、P1 の役が差分を取る起点。無ければ base_rev）。policy（固めた版）は形を問わず写し、
     読み手の policy.frozen_copy が欄の無い・壊れた記録を policy_md に倒す"""
     doc = doc if isinstance(doc, dict) else {}
     shape = doc.get("input") if isinstance(doc.get("input"), dict) else {}
-    base = shape.get("base") if isinstance(shape.get("base"), dict) else {}
     cut = doc.get("features_cut")
     return {
         "request_file": doc.get("request_file") or shape.get("request_file") or "",
@@ -4080,7 +4080,7 @@ def start_view(doc) -> dict:
         "answers": doc.get("answers") if isinstance(doc.get("answers"), list) else [],
         "gates": doc.get("gates") if isinstance(doc.get("gates"), str) else "",
         "base_rev": doc.get("base_rev") or "",
-        "diff_base": base.get("rev") or doc.get("base_rev") or "",
+        "diff_base": startrec.diff_base(doc),
         "input": shape,
         "pr": shape.get("pr") if isinstance(shape.get("pr"), dict) else None,
     }

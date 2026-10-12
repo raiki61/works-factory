@@ -104,7 +104,7 @@ NOTHING_OWED = "直す義務の単位が無い（開いた単位が無いか、�
 UNWRITABLE_STATE = "構造の控えを書けない"
 NO_PLAN = "受け付けを通った修正案が無い（修正案のループが回らなかったか、途中で落ちた）"
 UNITS_HEAD = promptsection.Section("## 今の周に直す単位（機械が判定から貼った。案の unit_keys は下の no で指せ）", source="fn:planfile.units_section")
-REPO_LINE = "リポジトリ: {repo}（読む版: `{rev}`）　BASE: `{rev}`　観点の正本: {review_md}"
+REPO_LINE = "リポジトリ: {repo}（読む版: `{rev}`）　BASE: `{base}`　観点の正本: {review_md}"
 SPEC_HEAD = promptsection.Section("## 仕様（要件と受け入れテスト。受け入れテストは、その単位を持つ項目の tests に入れよ）", source="fn:planfile.write_brief")
 PRIOR_HEAD = promptsection.Section("## 前の周の案と事前審査の指摘（機械が貼った）", source="fn:planfile.write_brief")
 POLICY_PART = ("## 人の方針\n\n人が決めた、run をまたいで効く決まり（役も engine も書き換えない）。文書の置き場: {path}——在れば、先に全部読め。\n\n"
@@ -680,6 +680,11 @@ def _dump(doc) -> str:
     return json.dumps(doc, ensure_ascii=False)
 
 
+def repo_line(repo, rev: str, base: str, review_md) -> str:
+    """役の材料のリポジトリの行（修正役の brief と事前審査の材料が同じ物を貼る）。BASE が空（入口の差分の根が無い）なら読む版"""
+    return REPO_LINE.format(repo=repo, rev=rev, base=base or rev, review_md=review_md)
+
+
 def units_section(judgment, units, skipped, filled=()) -> str:
     """修正案の材料に貼る、案に入れる単位の no と、判定の単位・問いの台帳・見立て・先行例（元の指示書 p2.fix_plan.md の頭の雛形の
     字を、単位の目録 units の paths・summary と構造の目が見ていない単位 skipped つきで機械が描いた物）。filled（filled_units）の
@@ -722,7 +727,7 @@ def _neighbor(judgment_dir, name: str) -> str:
 
 
 def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units, structure_dir_, world_rows, spec,
-                repo, base_rev: str, review_md: str, lang_line: str, lib_docs: str = "", conflicts=None, policy_md: str = "",
+                repo, review_rev: str, base: str, review_md: str, lang_line: str, lib_docs: str = "", conflicts=None, policy_md: str = "",
                 prior_failures=None, unread=()) -> tuple:
     """修正案の役の材料のファイル brief-<n>.md を書き、(パス, 回の番号 n) を返す。前の回の拒否が在れば、その理由を reject-<n>.txt に
     置いて頭の 1 行で名指す。両方の形に役の定義・並行 PR の外した範囲・ライブラリの文書・前の run で通らなかった物（prior_failures。
@@ -740,7 +745,6 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
         rf.write_text(rejected[-1], encoding="utf-8")
         reject_file = str(rf)
     head = planblk.head("plan", _neighbor(judgment_dir, prcheck.EXCLUDED), lib_docs)
-    rev = base_rev or "HEAD"
     try:
         carried = prior_section(round_dir, prior_failures)
     except ValueError as e:
@@ -764,7 +768,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
         doc = _read_json(round_dir / RIPPLE_UNITS_FILE)
         record = converge_record(plan_dir)
         parts = [*common, units_section(judgment, units, skipped, converge.filled_units(record)),
-                 REPO_LINE.format(repo=repo, rev=rev, review_md=review_md),
+                 repo_line(repo, review_rev, base, review_md),
                  prescription_section([k for k in slots(judgment) if k in owed | opened], prescriptions(judgment)),
                  structmark.plan_section(structure_dir_),
                  f"{world}\n{worldmark.PLAN_ASK}\n" if world else "",

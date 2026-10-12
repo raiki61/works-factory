@@ -18,6 +18,8 @@
 - shape(doc): 入口の入力の形（欄 input の dict）。無い前の版の控え（入口の入力の形を持つ前の固定材料）は None
 - diff_empty(doc): 入口の差分が空か（真偽）。入力の形が無ければ None
 - requests(doc): 依頼の行の数。入力の形が無ければ None
+- read_rev(doc)・diff_base(doc): 役の材料の「読む版」（欄 review_rev。役が根拠を取る版）と「BASE」（入口の差分の根 input.base.rev）。
+  差分の run では 2 つが違う
 - words(shape): 頭の行と報告の冒頭 2 の入口の文（例: 差分なし（HEAD）・依頼 2 件——P1 の役は起こさない）。出どころは
   base.label（入口の変換が書いた文）で、入口の種類で分岐しない
 - cli_version(command): 始めの記録の版の控えに置く、PATH の上の命令の `--version` の 1 行（無い・落ちたら空の字）
@@ -97,6 +99,24 @@ def requests(doc: dict):
     s = shape(doc)
     got = s.get("requests") if s is not None else None
     return got if isinstance(got, int) and not isinstance(got, bool) else None
+
+
+def read_rev(doc: dict) -> str:
+    """役の材料の読む版（欄 review_rev）。無い前の版の控えは base_rev、それも無ければ HEAD"""
+    return _text(doc, "review_rev") or _text(doc, "base_rev") or "HEAD"
+
+
+def diff_base(doc: dict) -> str:
+    """役の材料の BASE（入口の差分の根 input.base.rev）。入力の形が無い前の版の控えは base_rev、それも無ければ空の字"""
+    s = shape(doc)
+    base = s.get("base") if s is not None else None
+    got = base.get("rev") if isinstance(base, dict) else None
+    return got if isinstance(got, str) and got else _text(doc, "base_rev")
+
+
+def _text(doc: dict, key: str) -> str:
+    got = doc.get(key) if isinstance(doc, dict) else None
+    return got if isinstance(got, str) else ""
 
 
 def words(s: dict) -> str:
