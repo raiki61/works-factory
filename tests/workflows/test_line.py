@@ -472,9 +472,33 @@ class ReplanAnswerCase(Artifacts):
     def test_answer_is_the_gate_answer_with_the_fix_answers(self):
         got = replan_answer.answer(json.dumps({"decision": "continue", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts)
         notes = got.pop("fix_notes")
+        self.assertIsNone(got.pop("fix_ripple"), "波及の一覧の指し札が無ければ null")
         self.assertEqual(got, {"go": True, "answer": {"decision": "continue", "text": "x", "asked": []}, "stop_reason": "",
                                "fix_answers": {"decision": "continue", "text": f"{replan_answer.NOTE_HEAD}\n\nx\n", "asked": []}})
         self.assertTrue(notes.startswith(replan.NO_REVIEW_WHY.split("{")[0]), "事前審査の返りが無ければ訳を 1 行")
+
+    def test_refix_ripple_falls_back_to_the_first_list(self):
+        """L-W17: 2 度目の修正に渡す波及の一覧は、案の直しが作り直した一覧。作り直せなかった（作れなかった訳 error を持つ・読めない）
+        時だけ 1 回目の案の一覧（元 works/darkfactory/lib/line_edge.py:169 の refit_ripple_file）。止める答えでは渡さない"""
+        ptr = lambda rel: {"type": "archon_artifact", "run_id": RUN, "path": rel}
+        (self.artifacts / "replan").mkdir()
+        gate = json.dumps({"decision": "continue", "text": ""})
+        for doc, want in (({"items": [{"path": "stats.py"}]}, "replan/ripple.json"),
+                          ({"items": [], "error": "案が無い"}, "plan/ripple.json"), (None, "plan/ripple.json")):
+            with self.subTest(doc=doc):
+                path = self.artifacts / "replan" / "ripple.json"
+                path.unlink(missing_ok=True)
+                if doc is not None:
+                    path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+                got = replan_answer.answer(gate, "true", "", "null", "gate-replan", self.artifacts, None, None, None, "[]",
+                                           json.dumps(ptr("replan/ripple.json")), json.dumps(ptr("plan/ripple.json")))
+                self.assertEqual(got["fix_ripple"], ptr(want))
+        stopped = replan_answer.answer(json.dumps({"decision": "stop", "text": ""}), "true", "", "null", "gate-replan",
+                                       self.artifacts, None, None, None, "[]", json.dumps(ptr("replan/ripple.json")),
+                                       json.dumps(ptr("plan/ripple.json")))
+        self.assertIsNone(stopped["fix_ripple"])
+        self.assertEqual({k: line_nodes()["answer-replan"]["with"][k] for k in ("ripple", "first_ripple")},
+                         {"ripple": "$replan.output.ripple", "first_ripple": "$plan-rounds.output.ripple"})
 
     def test_refix_answers_carry_the_non_human_faces_of_taken_items(self):
         """P144・L-D35・L-W17: 2 度目の修正に、採った項目ごとの事前審査の穴のうち人に聞く種類でない物を見出しつきで渡す（元
@@ -1827,7 +1851,7 @@ class LineWiringCase(unittest.TestCase):
                           "depth": "$plan-rounds.output.depth", "answers": "$answer-before-fix.output.answer"})
         self.assertNotIn("only_items", nodes["fix"]["with"])
         self.assertEqual({k: nodes["refix-run"]["with"][k] for k in ("plan", "ripple", "depth", "answers", "only_items")},
-                         {"plan": "$replan.output.plan", "ripple": "$replan.output.ripple", "depth": "$replan.output.depth",
+                         {"plan": "$replan.output.plan", "ripple": "$answer-replan.output.fix_ripple", "depth": "$replan.output.depth",
                           "answers": "$answer-replan.output.fix_answers", "only_items": "$fix.output.replan_items"})
 
     def test_refix_gets_only_the_ruled_items(self):

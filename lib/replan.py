@@ -58,6 +58,12 @@ FACES_HEAD = promptsection.Section("## 直した項目 {item}（単位 {units}�
 NO_REVIEW_WHY = "（案の直しの事前審査の返答を読めない——採った項目の事前審査の穴を渡していない: {why}）"
 
 
+def remade_ripple(doc) -> bool:
+    """案の直しが作り直した波及の一覧か（読めて、作れなかった訳 error を持たない。元 works/darkfactory/lib/line_edge.py:169 の
+    refit_ripple_file: 作り直せなかった時だけ 1 回目の案の一覧を 2 度目の修正に渡す）"""
+    return isinstance(doc, dict) and isinstance(doc.get("items"), list) and not doc.get("error")
+
+
 def close(b, why: str) -> list[str]:
     """置き場 b の案の直しを待つ行（conflict.waiting）の全部を諦めた行（GAVE_UP・理由 why）にし、その id を返す。待つ行が無ければ
     何もせず []（元 replan.close :159。修正の段を抜ける所の締め replan.settle が CLOSE_WHY で呼んだ）"""
