@@ -31,7 +31,7 @@ from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path
 LOGS = "logs"
 WORKSPACE_PREFIX = ".archon/"   # Archon が run の作業ツリーに置く物。修正の変更でない
 # Archon が script に渡す変数（fix の fixio.py と同じ 2 つ。試験が等しさを縛る）。頭の一致は ARCHON_・INPUTS_ だけで、ほかは名の完全一致。
-# 名は止めた Archon の packages/workflows/src/exec-environment.ts の buildExecNodeEnvironment
+# 名は止めた Archon の packages/workflows/src/exec-environment.ts の buildExecNodeEnvironment（tests/shared/test_archon_contract.py が照らす）
 RUNNER_PREFIXES = ("ARCHON_", "INPUTS_")
 RUNNER_NAMES = frozenset({
     "ARTIFACTS_DIR", "STATE_DIR", "LOG_DIR", "ADOPTED_RUN_DIR", "WORKFLOW_ID", "BASE_BRANCH", "USER_MESSAGE", "ARGUMENTS",

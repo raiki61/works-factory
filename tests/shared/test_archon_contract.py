@@ -1,5 +1,6 @@
 """Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・
-bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行）を、写した元の字に照らす。
+bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・test-gate の run.py が
+対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
 
 行ごとに「写しの値」と「元の中のその値の在り処（ファイルと正規表現）」を持ち、正規表現で引いた値と写しの値を比べる。
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
@@ -7,6 +8,7 @@ bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が 
 - ASF の消費者 factory/consumer.py は木に在るので常に照らす。
 - 止めた Archon の源は、tests/archon.py の決まりで見つかる時だけ照らす（壊れていれば赤）。
 """
+import ast
 import os
 import pathlib
 import json
@@ -127,6 +129,20 @@ def _answer_positions() -> list[int]:
     return [positionals.index(arg) for arg in ("RUN", "continue", "TEXT")]
 
 
+def _runner_vars() -> dict:
+    """test-gate の run.py の RUNNER_PREFIXES・RUNNER_NAMES（script は import すると lib を sys.path に足すので、字から読む。
+    fix の fixio.py の写しは tests/workflows/test_test_gate.py の RunnerVarsCase が等しさを縛る）"""
+    tree = ast.parse((ROOT / "workflows/test-gate/scripts/run.py").read_text(encoding="utf-8"))
+    return {t.id: ast.literal_eval(n.value.args[0] if isinstance(n.value, ast.Call) else n.value)
+            for n in tree.body if isinstance(n, ast.Assign) for t in n.targets
+            if isinstance(t, ast.Name) and t.id in ("RUNNER_PREFIXES", "RUNNER_NAMES")}
+
+
+def _exec_node_names(body: str) -> list[str]:
+    """buildExecNodeEnvironment が返す物の鍵のうち、写しの頭の一致（RUNNER_PREFIXES）で落ちない物"""
+    return sorted(k for k in re.findall(r"^    (\w+):", body, re.M) if not k.startswith(_runner_vars()["RUNNER_PREFIXES"]))
+
+
 def _string_options(block: str) -> set[str]:
     return set(re.findall(r"^\s*'?([\w-]+)'?: \{ type: 'string'", block, re.M))
 
@@ -191,6 +207,10 @@ ARCHON_ROWS = (
         lambda: _env_read_by(lambda: boundary.resolve({"type": boundary.POINTER_TYPE, "run_id": "r", "path": "p"}),
                              {"WORKFLOW_ID": "r"}),
         "packages/workflows/src/exec-environment.ts", r"^\s*(\w+): context\.artifactsDir,$"),
+    Row("script の節に立つ変数の名（test-gate・fix が対象のテストの前に落とす）", lambda: sorted(_runner_vars()["RUNNER_NAMES"]),
+        "packages/workflows/src/exec-environment.ts",
+        r"export function buildExecNodeEnvironment\(context: ExecNodeEnvironmentContext\): NodeJS\.ProcessEnv \{\n.*?"
+        r"  return \{\n(.*?)\n  \};\n\}", lambda m: _exec_node_names(m[1])),
     Row("入力の環境変数の鍵", lambda: re.search(r"入力は環境変数 (\w+)<UPPER_SNAKE>", boundary.__doc__)[1],
         "packages/workflows/src/schemas/dag-node.ts",
         r"export function inputEnvKey\(name: string\): string \{\n\s*return `(\w+)\$\{name\.replace\(/-/g, '_'\)\.toUpperCase\(\)\}`;"),
