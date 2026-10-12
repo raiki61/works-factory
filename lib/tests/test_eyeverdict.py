@@ -534,11 +534,11 @@ class WriteNotesCase(unittest.TestCase):
 
 
 class StatusOwnerCase(unittest.TestCase):
-    """目の状態の語の持ち主は seal だけ。目の判定（eyeverdict）と結末の分け（outcome）は語を写さず持ち主から読む"""
+    """目の状態の語の持ち主は seal だけ。目の判定（eyeverdict）・結末の分け（outcome）・関所の文の語（gatemarks）は語を写さず持ち主から読む"""
 
     def test_readers_do_not_restate_the_words(self):
         words = set(seal.STATUSES) - {seal.PASSED}
-        for name in ("eyeverdict.py", "outcome.py"):
+        for name in ("eyeverdict.py", "outcome.py", "gatemarks.py"):
             with self.subTest(name=name):
                 tree = ast.parse((LIB / name).read_text(encoding="utf-8"))
                 restated = {n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and n.value in words}

@@ -390,7 +390,7 @@ class ScriptCase(unittest.TestCase):
         self.passing_eyes()
         (self.artifacts / "eyes" / "r1.json").unlink()
         got = self.run_script("verdict")
-        self.assertEqual(got["r1"]["status"], "unverifiable")
+        self.assertEqual(got["r1"]["status"], seal.UNVERIFIABLE)
         self.assertIn("R1 の筋が落ちた", got["r1"]["reason"])
         self.assertFalse(got["ok"])
 
@@ -484,6 +484,7 @@ class ScriptCase(unittest.TestCase):
         got = json.loads(done.stdout.strip().splitlines()[-1])
         self.assertEqual(conforms(got, NODES["verdict"]["output_format"]), [])
         self.assertFalse(got["ok"])
+        self.assertEqual(got["r1"]["status"], seal.UNVERIFIABLE)   # lib を読めない時の約束の形（fallen）は語を写すしかない
         self.assertIn("出口が落ちた", got["r1"]["reason"])
         self.assertTrue(got["protected_hits"])
 
