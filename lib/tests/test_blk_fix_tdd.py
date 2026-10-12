@@ -1586,6 +1586,16 @@ class TestTestCmdGate(LoopCase):
         self.assertEqual([a[:3] for a in seen], [["nice", "-n", "19"]])
         self.assertIn("nice -n 19", mat["checked"], "起こした argv の写しにも頭が載る")
 
+    def test_shell_test_cmd_that_cannot_launch_is_not_run_under_nice(self):
+        """shell の形の test_cmd の先頭の語が無ければ、nice を頭に付けても起こす前の証明（tree_run.prove_launchable）を通らず
+        not_run（nice の後ろの bash は起こせるので、証明を飛ばすと exit 127 の赤やパイプの後ろの緑に化ける）"""
+        log = pathlib.Path(self.st()["work"]) / "test-cmd-missing.log"
+        for cmd in ("no_such_cmd_xyz --x | cat", "no_such_cmd_xyz --x"):
+            with self.subTest(cmd=cmd):
+                mat = tddloop._cmd_material(self.repo, cmd, log)
+                self.assertEqual(mat["status"], "not_run", mat)
+                self.assertIn("no_such_cmd_xyz", mat["reason"])
+
     def test_unit_depths_of_wrong_shape_is_broken(self):
         for raw in ("{", "[]", json.dumps({MEAN: 1})):
             with self.subTest(raw=raw), self.assertRaises(tddloop.Broken):

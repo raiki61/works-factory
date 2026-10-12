@@ -132,14 +132,19 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0):
 def niced(argv, cwd=None) -> tuple[list, str]:
     """起こす argv の頭に NICE を付けた argv と、付けなかった訳（付けたら空）。実行器（run_suite）と run の test_cmd
     （tddloop._cmd_material）の頭はここ 1 か所で組む。nice が PATH に無い環境（層の E14: 普通の利用者の機械）は素の argv と
-    NO_NICE（呼び手がログに 1 行書く）。argv[0] が起こせない（無い・実行できない）時も素の argv を返し、起こせなさは呼び手の
-    OSError のまま名指す（nice を挟むと exit 127 の赤に化ける）。cwd は相対の argv[0] を解く根（元 works/blk-fix/lib/tddloop.py:307
+    NO_NICE（呼び手がログに 1 行書く）。argv[0] が起こせない（無い・実行できない）時と、shell の形（bash -c）の中の先頭の語が
+    起こす前の証明（tree_run.prove_launchable）を通らない時も素の argv を返し、起こせなさは呼び手の OSError のまま名指す（nice を
+    挟むと証明が飛び、exit 127 の赤やパイプの後ろの緑に化ける）。cwd は相対の argv[0] を解く根（元 works/blk-fix/lib/tddloop.py:307
     の頭と works/.shared/core/entry.py:680 の _nice19 を 1 つにした新しい関数）"""
     argv = list(argv)
     if shutil.which(NICE[0]) is None:
         return argv, NO_NICE
     head = argv[0] if cwd is None or "/" not in argv[0] else os.path.join(cwd, argv[0])
     if shutil.which(head) is None:
+        return argv, ""
+    try:
+        tree_run.prove_launchable(argv, cwd)
+    except OSError:
         return argv, ""
     return [*NICE, *argv], ""
 
