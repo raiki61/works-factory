@@ -761,7 +761,7 @@ def review_material(folder, repo, command_text: str, review_md, *, shared=None) 
     diag = (b.record["process"].get("diagnosis") or {})
     body = "\n\n".join(x for x in (
         _defaults_line(inputs), head, "## 差し込み（機械が貼った）",
-        "修正役の案: " + json.dumps((inputs.get("plan") or {}).get("plan") or [], ensure_ascii=False, indent=1),
+        "修正役の案: " + json.dumps(_shown_plan(inputs), ensure_ascii=False, indent=1),
         UNITS_LINE + _units_text(b),
         "判定者の見立て: " + json.dumps(diag, ensure_ascii=False),
         ("判定者の先行例（世界の解）: " + json.dumps(b.record["process"]["precedents"], ensure_ascii=False))
@@ -779,6 +779,15 @@ def review_material(folder, repo, command_text: str, review_md, *, shared=None) 
 def _origin_ask(b, inputs: dict) -> str:
     """木にしない 2 往復目からの出自の頼み（書き手は審査役 1 つ。木なら書き手は下請けで、planblk が下請けのファイルに貼る）"""
     return converge.ORIGIN_ASK if not inputs.get("tree") and converge.read(b)["passes"] else ""
+
+
+def _shown_plan(inputs: dict) -> list:
+    """材料に貼る修正案の項目: 形 review は全部、形 replan は裁かれた項目だけ（直していない項目の案を見せない。元
+    works/.shared/core/replan.py:410 の prep は事前審査の役に裁かれた項目の節だけを渡した）"""
+    rows = (inputs.get("plan") or {}).get("plan") or []
+    if inputs["form"] != "replan":
+        return rows
+    return [r for n, r in enumerate(rows, 1) if n in set(inputs.get("ruled") or [])]
 
 
 def _unit_name(names: list, k):
@@ -928,7 +937,8 @@ def collect(folder) -> dict:
     受け付けが諦めた往復は pass: false・stalled: true で、諦めた訳を questions に載せる。関所の項目は、形 review なら
     gatemarks.plan_gate_items、形 replan なら約束の欄が変わったか人に聞く穴の在る直した項目だけ（replan_asks）で、どちらも方針の
     文書の変化を足す。聞かずに通した行は pass-<k>/gate-passes.json、4 つの軸は gate_axes.gather。返した項目の種類と方針の変化を
-    GATE_ASKED_FILE に積む（次の差し込みが入力 gate_answers の通した行を引く）"""
+    GATE_ASKED_FILE に積む（次の差し込みが入力 gate_answers の通した行を引く）。形 replan で受け付けが諦めた時は、裁かれた項目
+    ごとの諦めの行を review.json の隣の planblk.REPLAN_GAVE_UP_FILE に置く"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
@@ -953,6 +963,11 @@ def collect(folder) -> dict:
     questions = [text for _, text in items]
     if gave:
         questions.append(GIVEN_UP_FACES + gave)
+        if inputs["form"] == "replan":
+            why = planblk.REVIEW_GAVE_UP_WHY.format(reason=gave)
+            _write_json(p / planblk.REPLAN_GAVE_UP_FILE,
+                        [{"item": r["item"], "why": why, "ruling": planfile.ruling_text(r.get("rows") or [])}
+                         for r in inputs.get("replan_items") or []])
     _write_json(p / PASSES_FILE, gatemarks.passes(b))
     _write_json(p / gatemarks.PLAN_GATE_FILE, {"items": [{"kind": k, "text": t} for k, t in items], "converge": converge.lines(b)})
     got, _ = design.made(d, b.design_schema)

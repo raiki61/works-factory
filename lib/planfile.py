@@ -941,6 +941,28 @@ def ripple_units(round_dir, judgment, repo, *, skip_dirs) -> pathlib.Path:
     return _write_json(pathlib.Path(round_dir) / RIPPLE_UNITS_FILE, doc)
 
 
+def ruling_text(rows: list) -> str:
+    """申し出と裁定の行の裁定の文（字のまま。2 行以上は「／」で繋ぐ）"""
+    return "／".join(str((c.get("ruling") or {}).get("text") or "") for c in rows) or NO_ROWS
+
+
+def note_gave_up(round_dir, plan_dir, conflicts) -> None:
+    """形 replan の周で修正案の役が 3 回とも拒まれたら、渡した項目ごとの諦めの行 {item, why（planblk.PLAN_GAVE_UP_WHY）, ruling（裁定の
+    文を字のまま）} を planblk.REPLAN_GAVE_UP_FILE に置く（元 works/.shared/core/replan.py:625 の gate の _give_up。ほかの項目は
+    承認済みの案のまま採れる）"""
+    round_dir = pathlib.Path(round_dir)
+    rnd = read_round(round_dir)
+    reason = rolekit.given_up_reason(round_dir, ROLE)
+    if rnd["mode"] != "replan" or not reason or (round_dir / REPLY_FILE).is_file():
+        return
+    prev = latest(plan_dir, before=round_dir)
+    old = _rows(_read_json(prev / REPLY_FILE), "plan") if prev else []
+    why = planblk.PLAN_GAVE_UP_WHY.format(reason=reason)
+    _write_json(round_dir / planblk.REPLAN_GAVE_UP_FILE,
+                [{"item": n, "why": why, "ruling": ruling_text(conflict_rows(conflicts, n, old[n - 1]))}
+                 for n in rnd["items"] if 1 <= n <= len(old)])
+
+
 def why_not_ready(round_dir) -> str:
     """この周に案が無い訳（役を起こさなかった訳・3 回の拒否の最後の理由・輪が回らなかった）"""
     why = read_round(round_dir)["why"]

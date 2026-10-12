@@ -1482,6 +1482,51 @@ class ReplanCase(RunCase):
         self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, False, False), got["questions"])
         self.assertEqual(len(converge.read(r.view())["passes"]), 1)
 
+    def designed_replan(self):
+        """設計の立った review の形の往復の後に、項目 2 を直した案で形 replan の支度まで回す。返りは材料の本文"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        DesignCase.designed(self)
+        r.out("review_prep")
+        self.assertTrue(r.accept(review(design_map=ReviewAcceptCase.full_map()))["ok"])
+        r.out("result")
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, approach=f"{PLAN_MARK} 直した項目 2")], rnd=2)
+        r.inputs.update(ruling=json.dumps(["2"]), conflicts=r.put("fix/conflicts.json", {"items": [self.CONFLICT]}))
+        self.assertEqual(r.open()["form"], "replan")
+        return pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+
+    def test_replan_material_carries_the_independent_design(self):
+        """元 replan.prep の plan-review の頼み: 独立設計の節（design_only）・REVIEW_ASK_REPLAN・planmarks.REVIEW_ASK・項目ごとの節"""
+        text = self.designed_replan()
+        at = [text.index(w) for w in (planblk.DESIGN_HEAD, DESIGN_TEXT, boardview.REVIEW_ASK_REPLAN, planmarks.REVIEW_ASK,
+                                      boardview.ITEM_HEAD.format(n=2))]
+        self.assertEqual(at, sorted(at))
+
+    def test_replan_material_shows_only_ruled_items(self):
+        """元 tests/test_replan.py の test_review_role_sees_design_only_and_both_forms: 案の直しの事前審査は裁かれた項目だけを見る
+        （直していない項目の案・欄を貼らない）"""
+        text = self.replan()
+        self.assertIn("直した項目 2", text)
+        self.assertNotIn(f"{PLAN_MARK} 項目 1 の直し", text)
+        self.assertNotIn(planmarks.REVIEW_HEAD, text)
+
+    def test_replan_drift_quotes_checked_and_extra_fields_dropped(self):
+        """形 replan の受け付け: 壁打ちと束ね役の任意の欄（resolved・items。synergy は役の型に無い）は外してから照らし、独立設計が立つ時は穴の
+        引用と design_map を直した項目の行と照らす（元 replan._take の drop_fields と design.quote_gaps）"""
+        r = self.run_
+        self.designed_replan()
+        drift = face("clamp-drift-no-quote", UNIT_CLAMP, why=design.DRIFT_HEAD + "設計と継ぎ目の置き方が違う、という穴だ")
+        fresh = [{"item": 2, "name": "helper_2", "design_quote": None, "why": "設計に対の無い助け手の名だけを足す"}]
+        got = r.accept(review(drift, design_map=fresh))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
+        got = r.accept(review(design_map=fresh, resolved=[], items=[{"item": 2, "verdict": "clean", "blocks": []}]))
+        self.assertTrue(got["ok"], got)
+        kept = json.loads((r.folder / "pass-2" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
+        for key in ("resolved", "items", "design_map"):
+            self.assertNotIn(key, kept)
+
     def test_contract_change_or_human_face_asks(self):
         """約束の欄（allowed_paths）を変えた直しと、人に聞く種類の穴（regression）が在る直しは人に聞く"""
         r = self.run_
@@ -1532,6 +1577,19 @@ class ReplanCase(RunCase):
         self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
         fresh = [{"item": 2, "name": "clamp_entry", "design_quote": "上限は入口 1 箇所で掛け", "why": "設計の入口の上限に案の名が当たる"}]
         self.assertTrue(r.accept(review(design_map=fresh))["ok"])
+
+    def test_replan_review_gave_up_names_each_item(self):
+        """形 replan の事前審査が 3 回とも拒まれたら、裁かれた項目ごとの諦めの訳と裁定の文（字のまま）を review.json の隣に置く"""
+        r = self.run_
+        self.replan()
+        for _ in range(boardview.FENCE):
+            got = r.accept({"faces": "x"})
+        self.assertTrue(got["give_up"], got)
+        out = r.out("result")
+        self.assertIs(out["pass"], False)
+        rows = json.loads(r.pointed(out["review"]).with_name(planblk.REPLAN_GAVE_UP_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([(x["item"], x["ruling"]) for x in rows], [(2, self.CONFLICT["ruling"]["text"])])
+        self.assertTrue(rows[0]["why"].startswith(planblk.REVIEW_GAVE_UP_WHY.split("{")[0]), rows[0]["why"])
 
     def test_replan_without_block_passes(self):
         r = self.run_

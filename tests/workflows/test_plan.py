@@ -43,6 +43,7 @@ import libdocs  # noqa: E402
 import planblk  # noqa: E402
 import planbrief  # noqa: E402
 import planmarks  # noqa: E402
+import replan  # noqa: E402
 import planfile  # noqa: E402  （lib/graphloops を sys.path に足す。engine より先に）
 import ripple  # noqa: E402
 import rolekit  # noqa: E402
@@ -854,6 +855,23 @@ class ReplanCase(unittest.TestCase):
         self.assertIn("request_ok.json:8", before, "1 回目の案は request_ok.json の当たりを覆っていない")
         self.assertNotIn("request_ok.json:8", after, "波及の一覧が直した項目で作り直される")
 
+
+    def test_three_rejections_give_up_without_amending(self):
+        """案の直しの役も 3 回拒まれたら諦めて ready: false。承認済みの案（前の周の控え）は書き換えない"""
+        run = self.run_
+        before = (run.art / "plan" / "r1" / planmarks.FIELDS_FILE).read_bytes()
+        out = run.include(ruling='["1"]', conflicts=self.conflicts, writer=writer_of({"plan": [item(1, 2)]}))
+        self.assertEqual({k: run.out["plan-accept"][k] for k in ("ok", "done", "give_up", "attempt")},
+                         {"ok": False, "done": True, "give_up": True, "attempt": 3})
+        self.assertIs(out["ready"], False)
+        self.assertEqual((run.art / "plan" / "r1" / planmarks.FIELDS_FILE).read_bytes(), before)
+        self.assertEqual(run.json(out["plan"]), {"round": 2, "fields": []})
+        error = run.json(out["ripple"])["error"]
+        self.assertIn("3 回とも受け付けで拒まれた", error)
+        self.assertIn(replan.REPLAN_REJECT, error)
+        rows = json.loads((run.file(out["plan"]).parent / planblk.REPLAN_GAVE_UP_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([(r["item"], r["ruling"]) for r in rows], [(1, "項目 1 の allowed_paths に request_ok.json を足せ")])
+        self.assertTrue(rows[0]["why"].startswith(planblk.PLAN_GAVE_UP_WHY.split("{")[0]), rows[0]["why"])
 
     def test_brief_of_the_item_is_named(self):
         """元 replan._section の「この項目の brief」の行: 案の直しの材料が、承認済みの項目と判定から組んだ項目の brief を名指す"""
