@@ -19,6 +19,7 @@ import yaml
 from tests import archon
 from tests.bin import hermetic
 from tests.bin.gitkit import git
+from tests.workflows.copied import assert_is_original
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "fix"
@@ -1849,3 +1850,118 @@ class FixLoopScriptsCase(unittest.TestCase):
         self.assertEqual((code, out["iteration"]), (0, 2), err)
         self.assertIn(reject, pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8"))
 
+
+
+# 写しの台帳（K9）: workflows/fix/commands/ の下の指示書の全部と、YAML に直に書いた役の prompt: の全部の元（今の works
+# 2aa7c66c の works/ の下）・元の sha256・許した直し (元の字, 写しの字, 訳)（前から当てると元が写しになる順）。
+# prompt: の元は元の YAML の同じ役の節の prompt の値（YAML として読んだ字。sha256 もその字の物）
+REVIEW_PROMPT_TAIL = ("が名指す欄の JSON だけ。\n前の回の受け付けが拒んだ理由を書いたファイル（初回は空。空でなければ、まずそのファイルを "
+                      "Read で読み、書かれた理由を直した返答を丸ごと出し直せ。理由の本文はファイルにだけ在る）: "
+                      "`$LOOP_PREV.{accept}.output.reason_file`")
+REFIX_PROMPT_WHY = ("拒否の理由のファイルは支度の節が指示書の見出しの次の 1 行で名指す（refix_prep の reject_file。$LOOP_PREV は"
+                    "筋書きで渡らない）。返す形は指示書の「返す JSON」の節が持つ")
+COPIED_TEXTS = {
+    "commands/delta-review.md": ("works/blk-delta/commands/delta-review.md",
+                                 "e036035e56e7e7a0d14f08f3c60e84789abdbdb7b9a49c08ce5fa3fd9e7887de", [
+        ("`$cut.output.diff_file`", "`$delta-cut.output.diff_file`", "切り出しの節の名が delta-cut（2 回目の cut2 と分ける）"),
+        ("$cut.output.files", "$delta-cut.output.files", "切り出しの節の名が delta-cut"),
+        ("`$cut.output.brief_file`", "`$delta-cut.output.brief_file`", "切り出しの節の名が delta-cut"),
+        ("（`faces`・`shrink`）\n", "（`faces`・`shrink`）。null なら、この run の材料に事前審査の返答は無い\n",
+         "fix の入力に事前審査の返答が無い run は材料の値が null"),
+        ("$LOOP_PREV.review-accept.output.reason_file", "$LOOP_PREV.delta-accept.output.reason_file",
+         "受け付けの節の名が delta-accept"),
+    ]),
+    "commands/fix-rules/brief.md": ("works/blk-fix/rules/brief.md",
+                                    "9e3dbe4e819682536d80fe2afabe817a69133f6e255510792f82997a7cac0d7c", []),
+    "commands/fix-rules/common.md": ("works/.shared/core/writerules/common.md",
+                                     "b5babd288578c598fe106e7d30d3d449852aa509fd05c4715f40e3acbeef6294", [
+        ("（pytest の node id か `-k`、unittest の `-k` かモジュール名。", "（実行器の絞り方——試験の id か名前で絞る。",
+         "実行器の名を書かない（E13）"),
+        ("包みが Edit・Write の書き込みを記録し、受け付けが版からの変更と突き合わせて、記録も申告も無い変更を拒む。",
+         "受け付けが版からの変更を返答の申告（`changes[].files` と `bash_writes`）と突き合わせて、申告の無い変更を拒む。",
+         "包みの書き込みの記録が無い（U6）"),
+    ]),
+    "commands/fix-rules/direct.md": ("works/blk-fix/rules/direct.md",
+                                     "f1b27e13722aa4f6480e322244f78e5d255ac68229679ba82192d50e0f8c32c3", [
+        ("事前審査の返答 `p2.plan_review.json` は <<plan_file>> と同じフォルダに在り、`plan_faces` に答えるのに読め（`faces` が穴、"
+         "`shrink` が別案。どちらも `key` を持つ）。空なら修正案の無い run で、事前審査への答えは要らない",
+         "事前審査の返答はこの修正の材料に渡らない（`plan_faces` は空配列で返せ）。空なら修正案の無い run",
+         "fix の入力に事前審査の返答が無い"),
+        ("（誤検知なら現物のどこで誤りと言えるか）。答えない key が在れば機械が拒む。block",
+         "（誤検知なら現物のどこで誤りと言えるか）。block", "事前審査の返答が無いので答えない key を照らさない"),
+        ("修正案の無い run・事前審査が穴も別案も挙げなかった run は空配列", "今は事前審査の返答がこの修正の材料に渡らないので空配列",
+         "fix の入力に事前審査の返答が無い"),
+    ]),
+    "commands/fix-rules/principles.md": ("works/blk-fix/rules/principles.md",
+                                         "5dfb51bcef4e50ab2a104e38113aa00dbfe15041b774579a370a90b1b941ee54", []),
+    "commands/fix-rules/refix.md": ("works/blk-refix/rules/refix.md",
+                                    "e87d509ef9db2c497098974a6f00f2bd197ba62523a5695e6e6799e2de5499e1", []),
+    "commands/fix-rules/ruler.md": ("works/blk-fix/rules/ruler.md",
+                                    "1de1fa87d5d34a27060cb409a99f34e58208d4f8d1fb1093b059ae3016c26237", []),
+    "commands/fix-rules/tdd.md": ("works/blk-fix/rules/tdd.md",
+                                  "82a607d001d49666e7d38594e74267813ed8c7d258811f013cd5ed14699a1519", []),
+    "commands/lens-silent-failure-hunter.md": ("works/blk-lens/commands/lens-silent-failure-hunter.md",
+                                               "ba8c29ce63a91212aa3ec239666669e9c5af30ef5e835077666cbc3d7c317db3", [
+        ("下の囲みの中が、お前への指示書そのもの（振り分けの節が組んだ、", "下のファイルが、お前への指示書そのもの（支度の節が組んだ、",
+         "指示書は支度の節 lens-prep が置き場のファイルに書く"),
+        ("返し方）。その指示に従え。", "返し方）。Read で全部読み、その指示に従え。", "指示書をファイルで渡す"),
+        ("=====指示書ここから=====\n$lens-route.output.prompt_silent_failure_hunter\n=====指示書ここまで=====\n",
+         "指示書: `$lens-prep.output.prompt_file`\n", "指示書を貼らずにファイルを名指す"),
+    ]),
+    "commands/review2.md": ("works/blk-refix/commands/review2.md",
+                            "a6093ec64027e1c606a39fd9eae78938ff1e5b4f6d6725642c5c30bf96a03b8b", [
+        ("## 付録: 人の方針（囲みの中が本文。この節の決まりで読め）\n", "## 付録: 人の方針\n", "方針を貼らずに材料で渡す"),
+        ("（役も engine も書き換えない）。方針が在るなら",
+         "（役も engine も書き換えない）。本文は材料 `$cut2.output.brief_file` の `policy.paste`（空なら方針は無い。長くて"
+         "切り詰めたときは末尾に続きの置き場が在り、写しの置き場は `policy.path`）——在れば、先に全部読め。方針が在るなら",
+         "$INPUTS.policy_paste が無いので方針は材料の policy で渡す"),
+        ("方針の文書は書き換えるな。本文（空なら方針は無い）:\n\n=====人の方針ここから=====\n$INPUTS.policy_paste\n"
+         "=====人の方針ここまで=====\n", "方針の文書は書き換えるな。\n", "方針を貼らない"),
+    ]),
+    "works-factory-fix.yaml#ruler": ("works/blk-fix/blk-fix.yaml:1757（節 rule）",
+                                     "fabd4b04185b20a41238e68d785fb06e23ebf03b0871aa25f85b515a90d3755a", []),
+    "works-factory-fix.yaml#fix-ruled": ("works/blk-fix/blk-fix.yaml:1868（節 fix-ruled）",
+                                         "19bac0da387f893cf0d67d4c411b8c002068f38e14dae713b120c18baebf42b4", []),
+    "works-factory-fix.yaml#ruled-consult-answer": ("works/blk-fix/blk-fix.yaml:1913（節 plan-answer-ruled）",
+                                                    "1323fb401e69c0f217bf8ff9c9076f76ca1fa2d17ac46477ae9f4df9f24c72c2", [
+        ("$fix-ruled-consult.output", "$ruled-consult-check.output", "相談の支度の節の名が ruled-consult-check"),
+    ]),
+    "works-factory-fix.yaml#refix": ("works/blk-refix/blk-refix.yaml:60（節 refix）",
+                                     "9c27f69e8198db36e6be6e12485a7013b7225507c19165dd65bf9d05044d326a", [
+        (REVIEW_PROMPT_TAIL.format(accept="refix-accept"), "の「返す JSON」の形の JSON だけ。", REFIX_PROMPT_WHY),
+    ]),
+    "works-factory-fix.yaml#refix2": ("works/blk-refix/blk-refix.yaml:328（節 refix2）",
+                                      "3e2b5d7bc34a7d5c95b7a94960afbcb7a7564cdcae653fefd8c61f596395df6d", [
+        (REVIEW_PROMPT_TAIL.format(accept="refix2-accept"), "の「返す JSON」の形の JSON だけ。", REFIX_PROMPT_WHY),
+    ]),
+    "works-factory-fix.yaml#tdd": ("works/blk-fix/blk-fix.yaml:183（節 tdd）",
+                                   "e0f08ddf808130be63ceb2841b823757d376d510ff11aae84aab2739b55b0a7f", []),
+    "works-factory-fix.yaml#fixer": ("works/blk-fix/blk-fix.yaml:1585（節 fix）",
+                                     "7d362884bfc6bb2ab759c6fe3d4fcec869ced370248dd66777db3c4fc7c66506", []),
+    "works-factory-fix.yaml#consult-answer": ("works/blk-fix/blk-fix.yaml:1632（節 plan-answer）",
+                                              "d4df849c558c8451ca1225e90bbbb2a5e04ffbf9664a7c52b2277f78cf9999c7", [
+        ("$fix-consult.output", "$consult-check.output", "相談の支度の節の名が consult-check"),
+    ]),
+}
+
+
+def copied_texts() -> dict:
+    """台帳の鍵 → 今の字: commands/ の下の指示書の全部（commands/<相対パス>）と、YAML の役の節の prompt: の全部（<YAML の名>#<id>）"""
+    out = {f"commands/{p.relative_to(BLOCK / 'commands').as_posix()}": p.read_text(encoding="utf-8")
+           for p in sorted((BLOCK / "commands").rglob("*.md"))}
+    out.update({f"{YAML_PATH.name}#{nid}": n["prompt"] for nid, n in all_nodes(load()).items() if "prompt" in n})
+    return out
+
+
+class CopiedTextsCase(unittest.TestCase):
+    """役の指示書の写しの台帳（K9）: 全部の指示書と YAML の役の prompt: が、元の works の文に台帳の直しだけを当てた物"""
+
+    def test_every_command_is_its_original_with_only_ledgered_edits(self):
+        """許した直しを逆に当てると元のバイト（元の sha256）に戻る。台帳に無い指示書・prompt と、写しの無い台帳の行は赤"""
+        texts = copied_texts()
+        with self.subTest(ledger="台帳と指示書・prompt の一覧"):
+            self.assertEqual(sorted(COPIED_TEXTS), sorted(texts))
+        for key in sorted(set(texts) & set(COPIED_TEXTS)):
+            source, sha256, edits = COPIED_TEXTS[key]
+            with self.subTest(text=key, source=source):
+                assert_is_original(self, texts[key], sha256, edits)
