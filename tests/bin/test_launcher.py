@@ -1,7 +1,6 @@
 """入口の殻 bin/works-factory（bin/_lib/launcher.py）の試験。
 
-殻を子のプロセスとして走らせる。リポジトリの bin/・workflows/・pack.json を使い捨ての木に写し、その factory/pack.json は、
-同じ木の取り置きの置き場に作った偽の Archon の源の commit を名指す（本物の源は取らない・網に出ない）。PATH には偽の bun・claude・gh・
+殻を子のプロセスとして、tests/bin/fakelaunch.py の使い捨ての木（偽の Archon の源）で走らせる。PATH には偽の bun・claude・gh・
 security（と mise）と、python3・git だけを置く。偽の bun は受けた引数と環境を JSON に書き、試験がそれを照らす（トークンは在るかだけを見る。環境は名の一覧で照らし、落ちた時に値を
 試験の出力に出さない）。
 """
@@ -15,23 +14,17 @@ import sys
 import tempfile
 import unittest
 
-from tests.bin import hermetic
+from tests.bin import fakelaunch, hermetic
+from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
 from tests.bin.gitkit import git
 from tests.bin.test_toolset import make_user_config, write_fake_claude
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
 TOKEN = "sk-ant-oat01-fake-for-launcher"
 API_KEY = "sk-ant-api03-fake-for-launcher"
-ENTRY = "packages/cli/src/cli.ts"
 # 利用者の場から漏れると照らしが揺れる名（hermetic が外さない物）
 USER_SPECIFIC = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "GH_CONFIG_DIR", "GH_TOKEN", "GITHUB_TOKEN",
                  "MISE_TRUSTED_CONFIG_PATHS")
 
-FAKE_BUN = """#!/usr/bin/env python3
-import json, os, sys
-with open(os.environ["FAKE_BUN_LOG"], "w", encoding="utf-8") as f:
-    json.dump({"argv": sys.argv, "env": dict(os.environ)}, f)
-"""
 FAKE_GH = "#!/bin/sh\nexit 0\n"
 # 名指した項目を、名指した HOME で引いた時だけトークンを返す（ほかは本物の security の「無い」と同じ 44）
 FAKE_SECURITY = """#!/usr/bin/env python3
@@ -55,13 +48,6 @@ exit 0
 """
 
 
-def put(path: pathlib.Path, body: str) -> pathlib.Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(body, encoding="utf-8")
-    path.chmod(0o755)
-    return path
-
-
 def short(path) -> str:
     return hashlib.sha256(str(path).encode()).hexdigest()[:8]
 
@@ -70,34 +56,8 @@ class LauncherTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory(prefix="works-launcher-")
-        cls.base = pathlib.Path(os.path.realpath(cls._tmp.name))
-        cls.repo = cls.base / "repo"
-        no_cache = shutil.ignore_patterns("__pycache__")
-        shutil.copytree(ROOT / "bin", cls.repo / "bin", ignore=no_cache)
-        shutil.copytree(ROOT / "workflows", cls.repo / "workflows", ignore=no_cache)
-        shutil.copy(ROOT / "pack.json", cls.repo / "pack.json")
-        cls.cache_home = cls.base / "cache"
-        asf = json.loads((ROOT / "factory" / "pack.json").read_text(encoding="utf-8"))
-        staging = cls.base / "archon-staging"
-        put(staging / ENTRY, "// 偽の Archon の入口\n")
-        (staging / "bunfig.toml").write_text("# 偽の Archon の bun の設定\n", encoding="utf-8")
-        put(staging / asf["source_directory"] / "archon-x.yaml", "name: archon-x\n")
-        (staging / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
-        git(staging, "init", "-q")
-        git(staging, "add", "-A")
-        git(staging, "commit", "-q", "-m", "fake archon")
-        commit = git(staging, "rev-parse", "HEAD")
-        cls.source = cls.cache_home / "works-factory" / "archon" / commit
-        cls.source.parent.mkdir(parents=True)
-        staging.rename(cls.source)
-        (cls.source / "node_modules").mkdir()
-        asf.update(integration_revision_required=commit, repository=str(cls.source))
-        (cls.repo / "factory").mkdir()
-        (cls.repo / "factory" / "pack.json").write_text(json.dumps(asf), encoding="utf-8")
-        cls.tools = cls.base / "tools"
-        cls.tools.mkdir()
-        for name, real in (("python3", sys.executable), ("git", shutil.which("git"))):
-            (cls.tools / name).symlink_to(real)
+        tree = fakelaunch.build(pathlib.Path(os.path.realpath(cls._tmp.name)))
+        cls.repo, cls.cache_home, cls.source, cls.tools = tree.repo, tree.cache_home, tree.source, tree.tools
 
     @classmethod
     def tearDownClass(cls):
