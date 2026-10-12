@@ -11,16 +11,26 @@ import pathlib
 import unittest
 
 from tests import archon
+from tests.layers.test_archon_validate import validate
 
 E2E = pathlib.Path(__file__).resolve().parent
 WORKFLOW = "works-factory-loop-prev"
 REAL_RUN_ENV = "WORKS_FACTORY_REAL_RUN"
+NODES = ("prev-reason", "echo", "round-check")
 
 
 def body_outputs(events: list[dict], node: str) -> list[dict]:
     """輪の本体の節 node の周ごとの返り（周の順）"""
     done = [e for e in events if e["event_type"] == "node_completed" and e["step_name"] == f"rounds.{node}"]
     return [e["data"]["structured_output"] for e in sorted(done, key=lambda e: e["event_order"])]
+
+
+class LoopPrevValidateCase(unittest.TestCase):
+    """本物の回しは CI で見送るので、工程の形の崩れ（名前の script の解決・節の結び）は CI でも validate で捕まえる"""
+
+    def test_workflow_has_no_errors_or_warnings(self):
+        with archon.tree(["loop-prev"], workflows=E2E) as root:
+            self.assertEqual(validate(root), {WORKFLOW: []})
 
 
 class LoopPrevRealCase(unittest.TestCase):
@@ -37,11 +47,10 @@ class LoopPrevRealCase(unittest.TestCase):
             self.assertEqual(len(runs), 1, listed.stdout)
             got = archon.archon(root, "workflow", "get", runs[0]["id"], "--json", "--verbose", "--events")
             detail = json.loads(got.stdout)
-        print(json.dumps({"run": runs[0]["id"], "status": detail["status"],
-                          **{n: body_outputs(detail["events"], n) for n in ("prev-reason", "echo", "round-check")}},
-                         ensure_ascii=False, indent=1))
+        outputs = {node: body_outputs(detail["events"], node) for node in NODES}
+        print(json.dumps({"run": runs[0]["id"], "status": detail["status"], **outputs}, ensure_ascii=False, indent=1))
         self.assertEqual(detail["status"], "completed")
-        heads, echoes, checks = (body_outputs(detail["events"], n) for n in ("prev-reason", "echo", "round-check"))
+        heads, echoes, checks = (outputs[node] for node in NODES)
         self.assertEqual(len(heads), 2)
         self.assertEqual(heads[0]["reason"], "")
         self.assertTrue(checks[0]["reason"])
