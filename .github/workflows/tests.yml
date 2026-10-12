@@ -1,7 +1,10 @@
-# リポジトリの根から unittest で試験を全部見つけて走らせる（tests/ と lib/tests/。どちらも __init__.py を置く）。
-# check の名は tests（harness/harness.config.json の required_checks が名指す。ASF の merge queue が読む）。
-# 外のパッケージは uv run --isolated が pyproject.toml の宣言から入れる（宣言を CI に写さない）。命令は harness/harness.config.json の unit と同じ。
-# 1 件も走らない時、unittest は終了の値 5 で落ちる。試験の無い木を緑にしない。
+# リポジトリの根から unittest の discover と同じ規則で試験を全部見つけ（tests/ と lib/tests/。どちらも __init__.py を置く）、
+# tests/shard.py が秒数の表 tests/shard-seconds.json で 4 つの分けに割って、shard の job で並べて走らせる。
+# 各分けはモジュールごとの秒数を artifact の shard-seconds-<i> に上げる（表の直し方は tests/shard.py）。
+# check の名は tests（harness/harness.config.json の required_checks と main の保護が名指す。ASF の merge queue が読む）。
+# 集めの job の tests は 4 つが全部緑の時だけ緑。if: always() で、分けが落ちた時も見送られず赤になる（見送られた必須の確かめを通さない）。
+# 外のパッケージは uv run --isolated が pyproject.toml の宣言から入れる（宣言を CI に写さない）。命令は harness/harness.config.json の unit を分けた物。
+# 1 件も走らない分けは終了の値 5 で落ちる。試験の無い木を緑にしない。
 # Archon を要る試験（tests/archon.py）を見送らないように、止めた Archon の源（factory/pack.json の commit）を bin/_lib/place.py で取り、
 # WORKS_FACTORY_ARCHON_CACHE で渡す。源は commit を鍵に actions のキャッシュに置く。bun の版は源の package.json の engines.bun から読む。
 name: tests
@@ -15,8 +18,13 @@ permissions:
   contents: read
 
 jobs:
-  tests:
+  shard:
+    name: shard ${{ matrix.shard }}/${{ strategy.job-total }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -77,4 +85,19 @@ jobs:
       - name: unittest
         env:
           WORKS_FACTORY_ARCHON_REQUIRED: "1"
-        run: uv run --isolated python3 -m unittest discover -s . -t .
+        run: uv run --isolated python3 -m tests.shard --shard ${{ matrix.shard }}/${{ strategy.job-total }} --record "$RUNNER_TEMP/shard-seconds-${{ matrix.shard }}.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: shard-seconds-${{ matrix.shard }}
+          path: ${{ runner.temp }}/shard-seconds-${{ matrix.shard }}.json
+          if-no-files-found: error
+
+  tests:
+    needs: shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 4 つの分けが全部緑
+        env:
+          RESULT: ${{ needs.shard.result }}
+        run: test "$RESULT" = success
