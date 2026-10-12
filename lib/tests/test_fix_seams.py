@@ -783,13 +783,13 @@ class RefixSeamCase(TempCase):
 
 
 class LensesSeamCase(unittest.TestCase):
-    """lenses.render: 役の定義の本文（rolekit.agent_def が利用者の入れた plugin の agents/<役>.md から引いた body）から、
+    """lenses.render: 役の定義の本文（engine.validator.agent_def が利用者の入れた plugin の agents/<役>.md から引いた body）から、
     レンズの節の指示書を組む。見出しは fixboard.ROLE_DEF_HEAD（元 rolekit の写し）"""
 
     def test_render_builds_prompt_from_the_role_definition(self):
         import os
         import lenses
-        import rolekit
+        from engine.validator import agent_def
         row = lenses.LENSES[0]
         plugin, _, role = row["agent"].rpartition(":")
         with tempfile.TemporaryDirectory() as td:
@@ -798,7 +798,7 @@ class LensesSeamCase(unittest.TestCase):
             (agents / f"{role}.md").write_text("---\nname: x\nmodel: inherit\n---\n黙って失敗する所を探す役。\n",
                                                encoding="utf-8")
             with mock.patch.dict(os.environ, {plugin.upper().replace("-", "_") + "_ROOT": td}):
-                got = rolekit.agent_def(row["agent"])
+                got = agent_def(row["agent"])
         self.assertEqual(got["body"], "黙って失敗する所を探す役。")
         text = lenses.render(row, got["body"], "/home/x/fix-delta.patch", ["stats.py"], "LANG の 1 行")
         self.assertTrue(text.startswith(fixboard.ROLE_DEF_HEAD.format(agent=row["agent"]) + "\n\n黙って失敗する所を探す役。\n"))

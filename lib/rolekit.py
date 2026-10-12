@@ -2,10 +2,9 @@
 ブロックのスクリプトの入口の約束を 1 か所に置く（前は rejudge・refix に写しが在った）。
 
 - with_reject:    道具ゼロの役の指示書の頭に前の拒否の文を貼る（ファイルを名指さない。裁定 R44）
-- agent_def:      engine の agent_def（利用者が入れた plugin の役の定義 agents/<役>.md。無ければ None）
 - with_done:      盤面の節でない受け付け（script_io.main の finish）に done を足す。拒否は盤面の根の控え rejects-<名>.json に
-                  積み、通った時か give_up_after 回目の拒否で done（出し直しても直らない拒みは 1 回目で。控えは intake が
-                  clear_rejects で消す）
+                  積み、通った時か give_up_after 回目の拒否で done（出し直しても直らない拒みは 1 回目で。控えは run の間
+                  消さず resume を跨いで数える。消すのは構造の目の段 A が測り直す周の eye.reset だけ）
 - rejected:       盤面の節でない受け付けの拒否の文の並び（古い順。指示書の番号と、輪が落ちた周の最後の拒否の文に使う）
 - gave_up_text:   役の返答を諦めた理由の 1 行の文（回数で諦めた時と、出し直させずに諦めた時）
 - given_up_reason: 盤面の節でない受け付けの出口が、控えの最後の拒否の文を引く
@@ -32,7 +31,6 @@ if str(_CORE) not in sys.path:
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 from engine.util import safe_name  # noqa: E402
-from engine.validator import agent_def  # noqa: E402,F401  （fixboard のレンズが rolekit.agent_def の名で読む）
 import jsonfile  # noqa: E402
 import promptsection  # noqa: E402
 

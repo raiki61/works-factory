@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""レンズの支度（節 lens-prep）: 利用者が入れた silent-failure-hunter の役の定義の本文（rolekit.agent_def）から、修正の差分を
+"""レンズの支度（節 lens-prep）: 利用者が入れた silent-failure-hunter の役の定義の本文（engine.validator.agent_def）から、修正の差分を
 見るレンズの指示書を組んで置き場に書く（lenses.render。中身は fixboard.lens_route）。振り分けの行は置き場の lens.json に残す。
 変わったファイルが無い・役の定義が引けない時は go: false（理由は lens.json の行の reason）。返り {go, prompt_file}。
 置き場に修正の差分が無い（差分の審査の支度が走っていない）のは標準エラーに 1 行で非 0。

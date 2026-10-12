@@ -1289,14 +1289,14 @@ def delta_fix_problems(place, n: int, reply: dict) -> list:
 
 def lens_route(place, lang: str = "") -> dict:
     """レンズの振り分け: 前の試みの控えを消し、置き場の 1 回目の差分（refix.fix_delta）の変わったファイルでレンズごとに起こすかを
-    決め（lenses.LENSES の route）、起こすレンズは利用者が入れた役の定義の本文（rolekit.agent_def）から指示書を組んで
+    決め（lenses.LENSES の route）、起こすレンズは利用者が入れた役の定義の本文（engine.validator.agent_def）から指示書を組んで
     置き場の prompt-lens-<key>.md に書く。定義が引けなければ起こさない理由を残す。行を lens.json に書き（lens.write_routes）、
     {レンズの名: {go, reason, prompt_file}} を返す。差分が無ければ ValueError。
     元 works/blk-lens/lib/lenses.py:81 の route（盤面の今の周の差分と inputs を読み、出口の欄を <key>_go にした）"""
     import lens
     import lenses
     import refix
-    import rolekit
+    from engine.validator import agent_def   # refix の import が写しの engine を sys.path に足した後
     p = pathlib.Path(place)
     (p / lens.LENS_FILE).unlink(missing_ok=True)   # 前の試みの控えを次の集め役に読ませない
     d = refix.fix_delta(p)
@@ -1309,7 +1309,7 @@ def lens_route(place, lang: str = "") -> dict:
         prompt = ""
         if go:
             try:
-                got = rolekit.agent_def(row["agent"])
+                got = agent_def(row["agent"])
             except (Exception, SystemExit) as e:   # engine の探しが出所の曖昧さで止まる（die）時も、起こさない理由にする
                 got, why = None, f"{row['agent']} の定義を引けない（{type(e).__name__}: {' '.join(str(e).split())}）"
             if got is None or not got.get("body"):
