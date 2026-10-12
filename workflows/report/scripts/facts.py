@@ -170,8 +170,7 @@ def main() -> dict:
                                                       "failed": facts["failed"],
                                                       "absorbed": facts["absorbed"], "answers": start.get("answers") or [],
                                                       "stops": list(line["stops"].items()),
-                                                      "eyes_skip": (line["redepth"] or {}).get("skip_optional")
-                                                      if isinstance(line["redepth"], dict) else None})
+                                                      "eyes_skip": runreport.eyes_skip(line)})
     built = runreport.build(returns, gates, listing, facts, *decided, out_dir=out_dir(), start=start, problems=problems,
                             run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd(), line=line)
     report = rel(built["report"])

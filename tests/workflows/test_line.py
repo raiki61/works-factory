@@ -1029,9 +1029,9 @@ class AskFinalReadsCase(Artifacts):
         first = None if ties is None else self.place("judge-first/judgment.json", {})
         if ties is not None:
             self.place(f"judge-first/{gatemarks.BESIDE[0]}", {"rounds": {"1": ties}})
-        held, unread = ask_final.held_questions(self.judgment(questions, units), start_ptr, before_fix, first)
+        b, unread = ask_final.ledger(self.judgment(questions, units), start_ptr, before_fix, first)
         self.assertEqual(unread, list(notes))
-        return held
+        return gatemarks.held_lines(b)
 
     FORK = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "割れる"}
 
@@ -1086,24 +1086,24 @@ class AskFinalReadsCase(Artifacts):
         self.assertEqual(got, ["関所で答えたが直す単位に入れられなかった: q1・u1（理由: 今の周の判定に無い）"])
 
     def test_unreadable_judgment_is_said(self):
-        held, unread = ask_final.held_questions({"type": "archon_artifact", "run_id": "another", "path": "x.json"}, None, None)
-        self.assertEqual(held, [])
+        b, unread = ask_final.ledger({"type": "archon_artifact", "run_id": "another", "path": "x.json"}, None, None)
+        self.assertIsNone(b)
         self.assertIn("判定の問いの控えか始めの記録を読めない", unread[0])
-        self.assertEqual(ask_final.held_questions(None, None, None), ([], []))
+        self.assertEqual(ask_final.ledger(None, None, None), (None, []))
 
     def test_fence_rows_come_from_the_structure_after(self):
         rise = {"concept": "止め", "what": "語", "path": "a.py", "before": 1, "after": 2}
         ptr = self.place("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
                                                        "after": {"tables": ["t"], "fence_up": [rise]}})
-        rows, unread = ask_final.fenced_rows(ptr)
+        rows, _, unread = ask_final.after_rows(ptr)
         self.assertEqual(([row["where"] for row in rows], unread), (["a.py"], ""))
-        self.assertEqual(ask_final.fenced_rows(None), ([], ""))
+        self.assertEqual(ask_final.after_rows(None), ([], [ask_final.NO_AFTER], ""))
 
     def test_unreadable_structure_after_is_said(self):
-        rows, unread = ask_final.fenced_rows({"type": "archon_artifact", "run_id": "another", "path": "eyes/structure-after.json"})
+        rows, _, unread = ask_final.after_rows({"type": "archon_artifact", "run_id": "another", "path": "eyes/structure-after.json"})
         self.assertEqual(rows, [])
         self.assertIn("指し札を読めない", unread)
-        rows, unread = ask_final.fenced_rows(self.place("eyes/structure-after.json", {"status": "?"}))
+        rows, _, unread = ask_final.after_rows(self.place("eyes/structure-after.json", {"status": "?"}))
         self.assertEqual(rows, [])
         self.assertIn("控え structure-after.json を読めない", unread)
 

@@ -326,8 +326,8 @@ def residue(returns: dict, facts: dict | None = None) -> list:
     """fixed を名乗らせない残りの行 [{where, text}]（元 rest_outside_validator の行の形）。R4 の questions は残りでない
     （人が決めることの節に出す）。深さで省いた目（null）は数えない。facts の answers が命令と出力つきで答えた測れていない素材は
     数えず（元 residue の measured_materials）、facts の absorbed（受け止めた落ち）を数え、facts の eyes_skip（直した後の深さの
-    省く理由。標準なら空）が空なら返りの無い目を数える。封じの ok は残りに数えない（読み手は
-    _proved の docstring）"""
+    省く理由。標準なら空）が空なら返りの無い目を数える。facts の beside（修正の diff の隣のファイルの fixbeside.read の返り）が
+    在れば読み直さない。封じの ok は残りに数えない（読み手は _proved の docstring）"""
     facts = facts or {}
     rows = []
     final = returns.get("test-gate-final")
@@ -342,7 +342,7 @@ def residue(returns: dict, facts: dict | None = None) -> list:
                 rows.append({"where": f"修正 {u.get('unit_id')}",
                              "text": f"単位 {u.get('unit_id')} が {u['status']}: {report._one_line(u.get('reason') or '理由なし')}"})
         left = {u.get("unit_id") for u in fix.get("units") or [] if isinstance(u, dict) and u.get("status") in FIX_STATUS_LEFT}
-        for k in fixbeside.not_closed(fixbeside.read(fix_folders(returns))):   # 元 report._closed_units: 申告しても表で閉じていない
+        for k in fixbeside.not_closed(facts.get("beside") or fixbeside.read(fix_folders(returns))):   # 元 report._closed_units: 申告しても表で閉じていない
             if k not in left:
                 rows.append({"where": f"修正 {k}", "text": f"単位 {k} が閉鎖の表で閉じていない（{NOT_CLOSED}）"})
         if fix.get("done") is False:

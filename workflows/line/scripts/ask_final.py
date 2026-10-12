@@ -287,9 +287,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
 
 
 def ask(got: dict, *, mode: str, unattended: bool, run_id: str) -> dict:
-    rows = needs(got)
-    why = [phrase for phrase, _ in rows]
-    must = any(m for _, m in rows)
+    why, must = final_needs(got), any(m for _, m in needs(got))
     opens = must or gatepolicy.opens(mode or gatepolicy.ALWAYS, reasons=why, guarded=bool(got["protected_hits"]))
     if not opens:
         return {"open": False, "go": True, "stop_reason": "", "text": "", "reasons": why}
@@ -344,12 +342,6 @@ def ledger(judgment, start, before_fix, ties_judgment=None) -> tuple:
                                 gate=before_fix, ties_dir=ties_dir)
     units = [u.get("key") for u in b.record["units"]]
     return b, gatemarks.lost_ties(b.ties, b.record["questions"], units)
-
-
-def held_questions(judgment, start, before_fix, ties_judgment=None) -> tuple:
-    """(判定の役が人に聞くと保留にしたままの問いの行（元 gatemarks.held_lines）, 添える行)。台帳は ledger の見え方"""
-    b, notes = ledger(judgment, start, before_fix, ties_judgment)
-    return (gatemarks.held_lines(b) if b is not None else []), notes
 
 
 def ledger_rows(b) -> dict:
@@ -424,12 +416,6 @@ def eye_notes(notes) -> dict:
             "notes_unread": [] if rows is not None else [f"独立の目の {eyeverdict.GATE_PASSES} を読めない（人が通した行を並べていない）"]}
 
 
-def fenced_rows(structure_after) -> tuple:
-    """(柵の増えの行, 読めなかった訳)"""
-    fenced, _, unread = after_rows(structure_after)
-    return fenced, unread
-
-
 def evidence_rows(ptr) -> dict:
     """最後のテストの証拠（test-gate の evidence.md）から、走らせ方・修正前のテスト・ログ・認証しなかった訳の行（字のまま）"""
     got = {"suites": "", "baseline": "", "log": "", "why": "", "unread": ""}
@@ -488,7 +474,7 @@ def judged_returns(raw: dict) -> dict:
 
 def rejudge_rows(returns: dict) -> list:
     """決着した再審の結果（runreport.rejudge_lines。残った異議の行は「止めずに残った異議」の 1 行が持つので外す）"""
-    return [x for x in runreport.rejudge_lines(returns) if not x.startswith("再審されずに残った異議")]
+    return [x for x in runreport.rejudge_lines(returns, runreport.rejudge_exit(returns)) if not x.startswith("再審されずに残った異議")]
 
 
 def deleted_files(diff) -> tuple:

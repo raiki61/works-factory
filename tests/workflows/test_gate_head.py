@@ -342,7 +342,8 @@ class LedgerAsksCase(unittest.TestCase):
         final = ask_final.final_text(got, ask_final.final_needs(got), "run-1")
         returns = fixed_run(judge={**fixed_run()["judge"], "judgment": str(self.artifacts / "judge/judgment.json"),
                                    "units": [{"id": u["key"], "label": u["label"]} for u in units]})
-        head, _ = runreport._decisions(returns, {"gate-before-fix": answer} if answer else {}, {"answers": []}, "fixed", [], closed=True)
+        head, _ = runreport._decisions(returns, {"gate-before-fix": answer} if answer else {}, {"answers": []}, "fixed", [], closed=True,
+                                       beside=runreport.fix_beside(returns), exit_=runreport.rejudge_exit(returns))
         return final, "\n".join(head)
 
     def test_branch_rows_in_final_text_and_head(self):

@@ -7,7 +7,7 @@
 
 - transcript_facts(rows, *, exclude_prefix, optional) -> {ok, failed, absorbed, errors, retried, cost, uncosted, minutes, models}（run の記録の行の読み）
 - cost_rows(facts)・head_cost(facts, why): 節ごとの費用と時間の行と、費用の節の行（元 report.py:1769・1806）
-- next_request(returns, left, closed)・prior_failures(returns, left): 次の依頼の findings と前の失敗の行（元 report.py:784・720）
+- next_request(returns, left, closed, *, beside, exit_doc)・prior_failures(returns, left): 次の依頼の findings と前の失敗の行（元 report.py:784・720）
 - ledger_state(returns, gates, start): 問いの台帳の保留の行と答えた行（元 gatemarks.held_lines・answered_lines）
 - answer_drafts(returns, gates, start): 人の判断を待つ項目への答えの下書き（元 gatemarks.answer_drafts）
 - glossary_section(text, terms, pack)・pack_terms(): 本文と機械の事実に現れる語だけの定義の節（元 report_roles.py の glossary_section）
@@ -154,6 +154,12 @@ def _first_beside(returns: dict, name: str) -> pathlib.Path | None:
     再審の judgment の隣には無い（docs/design.md の隣のファイル）。指し札が無ければ None"""
     p = as_dict(returns.get("judge")).get("judgment")
     return pathlib.Path(p).with_name(name) if isinstance(p, str) and p else None
+
+
+def eyes_skip(line):
+    """線の値 line の redepth が許した、省いてよい目（skip_optional。無ければ None）"""
+    redepth = as_dict(line).get("redepth")
+    return redepth.get("skip_optional") if isinstance(redepth, dict) else None
 
 
 def fix_beside(returns: dict) -> dict:
@@ -457,7 +463,7 @@ def _judgment_units(ret) -> dict:
     return {u["key"]: u for u in _list(as_dict(doc).get("units")) if isinstance(u, dict) and isinstance(u.get("key"), str)}
 
 
-def _rejudge_exit(returns: dict) -> tuple:
+def rejudge_exit(returns: dict) -> tuple:
     """(再審の出口 rejudge-exit.json の中身, 読めなかった訳)。再審の judgment の隣の約束のファイル（判定のブロックが書く。
     lib/report.rejudge_exit）。再審が走っていなければ (None, "")"""
     rejudge = returns.get("rejudge")
@@ -469,16 +475,15 @@ def _rejudge_exit(returns: dict) -> tuple:
     return report.rejudge_exit(pathlib.Path(p).parent)
 
 
-def _exit_keys(returns: dict, field: str) -> list:
-    doc, _ = _rejudge_exit(returns)
+def _exit_keys(doc, field: str) -> list:
     return [k for k in _list(as_dict(doc).get(field)) if isinstance(k, str) and k]
 
 
-def rejudge_lowered(returns: dict) -> list:
-    """再審が block から他のラベルに下げた単位 [(key, 今のラベル)]（rejudge-exit.json の lowered。今のラベルは再審の judgment。
-    指示書は禁じるが受け付けは拒まないので、拒まずに見せる）"""
+def rejudge_lowered(returns: dict, exit_doc) -> list:
+    """再審が block から他のラベルに下げた単位 [(key, 今のラベル)]（再審の出口 exit_doc（rejudge_exit の中身）の lowered。今のラベルは
+    再審の judgment。指示書は禁じるが受け付けは拒まないので、拒まずに見せる）"""
     now = _judgment_units(returns.get("rejudge"))
-    return [(k, str(as_dict(now.get(k)).get("label") or "（判定に無い）")) for k in _exit_keys(returns, "lowered")]
+    return [(k, str(as_dict(now.get(k)).get("label") or "（判定に無い）")) for k in _exit_keys(exit_doc, "lowered")]
 
 
 def unproven_lines(returns: dict) -> list:
@@ -488,24 +493,18 @@ def unproven_lines(returns: dict) -> list:
     return [f"{querytest.UNPROVEN_HEAD}: {len(rows)} 件", *[f"  - {r['key']}: {r['why']}" for r in rows]] if rows else []
 
 
-def rejudge_opened(returns: dict) -> list:
-    """再審が直す単位にした単位のうち修正の段が受けていない物（rejudge-exit.json の new_open_units。この run では直していない）"""
+def rejudge_opened(returns: dict, exit_doc) -> list:
+    """再審が直す単位にした単位のうち修正の段が受けていない物（再審の出口 exit_doc の new_open_units。この run では直していない）"""
     fixed = {u.get("unit_id") for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict)}
-    return [k for k in _exit_keys(returns, "new_open_units") if k not in fixed]
+    return [k for k in _exit_keys(exit_doc, "new_open_units") if k not in fixed]
 
 
 def rejudge_changes(returns: dict) -> list:
     """再審で単位が変わった行（元 report._rejudge_changes。再審の judgment の隣の rejudge-diff.json の changed の全部。異議に名指されて
     いない物は「争点でない」と印を付ける）"""
-    p = as_dict(returns.get("rejudge")).get("judgment")
-    if not (isinstance(p, str) and p):
-        return []
-    try:
-        rows = oc.read_json(pathlib.Path(p).with_name(report.REJUDGE_DIFF))
-    except FileNotFoundError:
-        return []
-    except (OSError, ValueError) as e:
-        return [f"再審の単位の前後の差 {report.REJUDGE_DIFF} が読めない（{report._one_line(e)}）"]
+    rows, why = _read_beside(returns, "rejudge", "judgment", report.REJUDGE_DIFF)
+    if why:
+        return [f"再審の単位の前後の差: {why}"]
     lines = []
     for row in _list(rows):
         for c in _list(as_dict(row).get("changed")):
@@ -520,20 +519,20 @@ def rejudge_changes(returns: dict) -> list:
     return lines
 
 
-def rejudge_lines(returns: dict) -> list:
+def rejudge_lines(returns: dict, exit_: tuple) -> list:
     """決着した再審の結果の行（元 report.rejudge_lines・_settled_rounds。再審の judgment の隣の rejudge-exit.json の往復の数と答えの
     並び・異議の文、再審が直す単位にした単位と block から下げた単位）と、再審されずに残った異議（線の fixed の objection は 1 回目と 2 度目の修正の異議をつないだ文）。出口が
-    読めない再審は 1 行で名指す"""
+    読めない再審は 1 行で名指す。exit_ は rejudge_exit の返り"""
     verdict, objection = _rejudge(returns)
     left = [f"再審されずに残った異議: {objection}"] if objection and not verdict else []
     if not isinstance(returns.get("rejudge"), dict):
         return left
-    doc, why = _rejudge_exit(returns)
+    doc, why = exit_
     if doc is None:
         return [f"再審の記録が読めない（{why}）——再審の結果を確かめる", *left]
     raw = _list(doc.get("verdicts"))
     obj = report._one_line(doc.get("objection") or "") or objection
-    opened, lowered = rejudge_opened(returns), rejudge_lowered(returns)
+    opened, lowered = rejudge_opened(returns, doc), rejudge_lowered(returns, doc)
     if not (raw or opened or lowered or obj):
         return left
     verdicts = "・".join(v if isinstance(v, str) and v else "（判定の欄が無い）" for v in raw) or "（判定の往復が無い）"
@@ -561,11 +560,12 @@ def _asked_rows(returns: dict, closed: bool) -> list:
     return out
 
 
-def next_request(returns: dict, left: list, closed: bool = True) -> list:
+def next_request(returns: dict, left: list, closed: bool = True, *, beside: dict, exit_doc) -> list:
     """次の依頼の findings（元 report.py:784）: 残りの行（R2 の作り直しの行は前の失敗にだけ載せる。人に回した単位の修正の行は
     その単位の行が持つ）・判定が目的の外とした所見・親の木へ戻せなかった組・再審の結果と再審されずに残った異議・再審が直す単位にした
     単位・手直しが declared で残した穴と 2 回目の手直しが fixed と言った穴（枝の名札つき）・落ちたレンズの「再実行の要あり」
-    （fixbeside.next_items）・人に回した申し出の単位・途中で落ちた run（closed が偽）の案の直しを待つ単位"""
+    （fixbeside.next_items）・人に回した申し出の単位・途中で落ちた run（closed が偽）の案の直しを待つ単位。beside は fix_beside の返り、
+    exit_doc は再審の出口の中身"""
     asked = _asked_rows(returns, closed)
     owned = {f"修正 {r['where']}" for r in asked}
     items = [r for r in left if not report._r2_redesign(r) and r["where"] not in owned]
@@ -578,9 +578,9 @@ def next_request(returns: dict, left: list, closed: bool = True) -> list:
         items.append({"where": report.REJUDGE_WHERE, "text": f"再審: {verdict}" + (f"（異議: {objection}）" if objection else "")})
     elif objection:
         items.append({"where": REJUDGE_LEFT_WHERE, "text": objection})
-    items += [{"where": k, "text": f"{k}（再審が直す単位にした——この run では直していない）"} for k in rejudge_opened(returns)]
-    items += [{"where": k, "text": f"{k}（再審が block から {label} に下げた——人が確かめる）"} for k, label in rejudge_lowered(returns)]
-    items += fixbeside.next_items(fix_beside(returns))
+    items += [{"where": k, "text": f"{k}（再審が直す単位にした——この run では直していない）"} for k in rejudge_opened(returns, exit_doc)]
+    items += [{"where": k, "text": f"{k}（再審が block から {label} に下げた——人が確かめる）"} for k, label in rejudge_lowered(returns, exit_doc)]
+    items += fixbeside.next_items(beside)
     items += asked
     seen, out = set(), []
     for it in items:
@@ -838,8 +838,8 @@ def _converge_lines(returns: dict) -> list:
     return out
 
 
-def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, repo=None,
-               line: dict | None = None) -> tuple[list, str]:
+def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, beside: dict, exit_: tuple,
+               repo=None, line: dict | None = None) -> tuple[list, str]:
     """人が決めることの行と、冒頭の 2 行目（件数）。数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは
     直す義務に戻せなかった単位の行を重ねて数えない。closed は途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
     plan_qs = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions")))
@@ -853,7 +853,6 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     premise = as_dict(as_dict(returns.get("eyes")).get("premise_check"))
     escalate = [premise] if premise.get("verdict") == "escalate" else []
     checks = left if outcome == "fixed_needs_check" else []
-    beside = fix_beside(returns)
     handoffs = fixbeside.handoff_lines(beside)
     counted_units = {f"修正 {u.get('unit_id')}" for u in unreturned}
     rest = [r for r in left if r["where"] not in counted_units] if outcome == "round_limit" else []
@@ -882,7 +881,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     rev = as_dict(start).get("base_rev")
     lines.append(_conflict_line(returns))
     lines += unproven_lines(returns)
-    lines += rejudge_lines(returns)
+    lines += rejudge_lines(returns, exit_)
     lines += rejudge_changes(returns)
     lines += verify_lines(returns)
     lines += _pr_draft_lines(returns)
@@ -1096,11 +1095,11 @@ def _world_lines(returns: dict) -> list:
             tail]
 
 
-def _unseen_lens_lines(returns: dict) -> list:
+def _unseen_lens_lines(returns: dict, beside: dict) -> list:
     """未確認のレンズの節（元 report.py:2069-2073: 局所レビューの戻した・見ていないレンズ diverted.report_lines を先に、修正の後の
     レンズ lens.report_lines を後に。1 回目の判定の隣の local-review-lenses.json と、修正の diff の隣の lenses.json）"""
     at = _first_beside(returns, diverted.LENS_FILE)
-    return [*(diverted.report_lines(at.parent) if at is not None else []), *fixbeside.lens_lines(fix_beside(returns))] or ["無い"]
+    return [*(diverted.report_lines(at.parent) if at is not None else []), *fixbeside.lens_lines(beside)] or ["無い"]
 
 
 def _pr_draft_lines(returns: dict) -> list:
@@ -1257,17 +1256,18 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     returns, gates, typed, start = returns or {}, gates or {}, typed or {}, start or {}
     tfacts = transcript or transcript_facts(None)
     closed = not oc.cut_at(returns, tfacts.get("failed"))
-    redepth = as_dict(line).get("redepth")
-    left = oc.residue(returns, {"answers": _request_answers(start), "absorbed": tfacts.get("absorbed"),
-                                "eyes_skip": redepth.get("skip_optional") if isinstance(redepth, dict) else None})
-    findings = next_request(returns, left, closed)
+    skip, beside, exit_ = eyes_skip(line), fix_beside(returns), rejudge_exit(returns)
+    left = oc.residue(returns, {"answers": _request_answers(start), "absorbed": tfacts.get("absorbed"), "eyes_skip": skip,
+                                "beside": beside})
+    findings = next_request(returns, left, closed, beside=beside, exit_doc=exit_[0])
     prior = prior_failures(returns, left)
     drafts = answer_drafts(returns, gates, start)
     notes_at = eye_notes_dir(returns)   # E37: 前提の検算が偽と示した仮定の実測を次の run の制約に運ぶ
     constraints = carry.carried_constraints(eyeverdict.premise_facts(notes_at)["facts"] if notes_at is not None else [], run_id)
-    decisions, decide = _decisions(returns, gates, start, outcome, left, closed=closed, repo=repo, line=line)
+    decisions, decide = _decisions(returns, gates, start, outcome, left, closed=closed, beside=beside, exit_=exit_,
+                                  repo=repo, line=line)
     tdd, freeze, tdd_notes = _tdd_lines(typed, returns)
-    eye_lines, eye_notes = _eye_lines(returns, typed, redepth.get("skip_optional") if isinstance(redepth, dict) else None)
+    eye_lines, eye_notes = _eye_lines(returns, typed, skip)
     _, material_note = oc.materials(returns)
     notes = [*_list(typed.get("warnings")), *tdd_notes, *eye_notes, *([material_note] if material_note else [])]
     next_file = carry.NEXT_REQUEST_FILE if findings or drafts or constraints else ""
@@ -1292,7 +1292,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
         (EYES_HEADING, eye_lines),
         (report.STRUCTURE_HEADING, _structure_lines(returns)),
         (report.WORLD_HEADING, _world_lines(returns)),
-        (report.UNSEEN_LENS_HEADING, _unseen_lens_lines(returns)),
+        (report.UNSEEN_LENS_HEADING, _unseen_lens_lines(returns, beside)),
         (report.OUTSIDE_HEADING, outside),
         (report.PRIOR_HEADING, report.prior_lines(prior)),
         (report.MODEL_HEADING, _model_lines(tfacts)),

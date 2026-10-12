@@ -91,6 +91,15 @@ class Base(unittest.TestCase):
         return fixed_run(fix={**fixed_run()["fix"], "diff": diffs[-1], "diffs": list(diffs)}, **over)
 
     @staticmethod
+    def rejudge_lines(returns):
+        return runreport.rejudge_lines(returns, runreport.rejudge_exit(returns))
+
+    @staticmethod
+    def next_request(returns, left, closed=True):
+        return runreport.next_request(returns, left, closed, beside=runreport.fix_beside(returns),
+                                      exit_doc=runreport.rejudge_exit(returns)[0])
+
+    @staticmethod
     def section(text: str, heading: str) -> str:
         body = text.split(f"{heading}\n\n", 1)[1]
         return body.split("\n## ", 1)[0]
@@ -698,10 +707,10 @@ class CarryCase(Base):
         units = [{"key": "a", "label": "block", "disposition": "fix"}]
         judge, rejudge = self.rejudged(units, units, "a は違う", verdicts=("一部採る", "退ける"))
         fix = {**fixed_run()["fix"], "objection": "a は違う"}
-        lines = runreport.rejudge_lines(fixed_run(judge=judge, rejudge=rejudge, fix=fix))
+        lines = self.rejudge_lines(fixed_run(judge=judge, rejudge=rejudge, fix=fix))
         self.assertEqual(lines[0], "再審の結果（2 往復）: 一部採る・退ける（異議: a は違う）")
         (self.dir / "rejudge" / report.REJUDGE_EXIT).unlink()
-        lines = runreport.rejudge_lines(fixed_run(judge=judge, rejudge=rejudge, fix=fix))
+        lines = self.rejudge_lines(fixed_run(judge=judge, rejudge=rejudge, fix=fix))
         self.assertTrue(lines[0].startswith(f"再審の記録が読めない（再審の出口 {report.REJUDGE_EXIT} が無い"), lines)
 
     def test_asked_conflicts_parked_groups_and_rejudge_reach_next_request(self):
@@ -728,16 +737,16 @@ class CarryCase(Base):
 
     def test_objection_without_rejudge_is_carried(self):
         returns = fixed_run(fix={**fixed_run()["fix"], "objection": "判定が違う"})
-        self.assertIn({"where": runreport.REJUDGE_LEFT_WHERE, "text": "判定が違う"}, runreport.next_request(returns, []))
+        self.assertIn({"where": runreport.REJUDGE_LEFT_WHERE, "text": "判定が違う"}, self.next_request(returns, []))
 
     def test_refix_objection_is_rejudged_with_the_first(self):
         """L-D42: 2 度目の修正の異議は、1 回目の異議とつないだ線の fixed の objection で 2 度目の修正の後の再審に渡る（元
         works/darkfactory/darkfactory.yaml:827）。再審の答えが在れば再審されずに残った異議に数えず、再審の無い run は両方が残る"""
         fix = {**fixed_run()["fix"], "objection": "判定が違う\nu2 の判定も違う"}
         returns = fixed_run(fix=fix, rejudge={**fixed_run()["judge"], "rejudge_verdict": "退ける"})
-        self.assertEqual([x for x in runreport.rejudge_lines(returns) if x.startswith("再審されずに残った異議")], [])
-        self.assertNotIn(runreport.REJUDGE_LEFT_WHERE, [r["where"] for r in runreport.next_request(returns, [])])
-        alone = runreport.rejudge_lines(fixed_run(fix=fix))
+        self.assertEqual([x for x in self.rejudge_lines(returns) if x.startswith("再審されずに残った異議")], [])
+        self.assertNotIn(runreport.REJUDGE_LEFT_WHERE, [r["where"] for r in self.next_request(returns, [])])
+        alone = self.rejudge_lines(fixed_run(fix=fix))
         self.assertEqual(len(alone), 1)
         self.assertTrue(alone[0].startswith("再審されずに残った異議: 判定が違う") and "u2 の判定も違う" in alone[0], alone)
 
@@ -758,7 +767,7 @@ class CarryCase(Base):
         self.assertEqual(runreport.rejudge_changes(returns), [
             '再審（rejudge）で異議に名指された単位が変わった: a の disposition: "fix" → "later"',
             "再審（rejudge）で争点でない単位が消えた: b", "再審（rejudge）で争点でない単位が足された: c"])
-        self.assertEqual(runreport.rejudge_opened(returns), ["c"])
+        self.assertEqual(runreport.rejudge_opened(returns, runreport.rejudge_exit(returns)[0]), ["c"])
         got, text, _ = self.build(returns)
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn("  - 再審が直す単位にした（この run では直していない——次の run に渡す）: c", body)
@@ -766,7 +775,8 @@ class CarryCase(Base):
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         self.assertIn({"where": "c", "text": "c（再審が直す単位にした——この run では直していない）"}, doc["findings"])
         fix = {**fix, "units": [*fix["units"], {"unit_id": "c", "status": "fixed", "reason": ""}]}
-        self.assertEqual(runreport.rejudge_opened(fixed_run(judge=judge, rejudge=rejudge, fix=fix)), [], "修正の段が受けた単位は運ばない")
+        returns = fixed_run(judge=judge, rejudge=rejudge, fix=fix)
+        self.assertEqual(runreport.rejudge_opened(returns, runreport.rejudge_exit(returns)[0]), [], "修正の段が受けた単位は運ばない")
         self.assertEqual(runreport.rejudge_changes(fixed_run(judge=judge)), [])
 
     def test_rejudge_lowered_block_units_are_shown_and_carried(self):
@@ -776,13 +786,13 @@ class CarryCase(Base):
         after = [{"key": "a", "label": "suggest", "disposition": "defer"}, {"key": "b", "label": "block"}]
         judge, rejudge = self.rejudged(before, after, "異議", verdicts=("一部採る",))
         returns = fixed_run(judge=judge, rejudge=rejudge)
-        self.assertEqual(runreport.rejudge_lowered(returns), [("a", "suggest")])
+        self.assertEqual(runreport.rejudge_lowered(returns, runreport.rejudge_exit(returns)[0]), [("a", "suggest")])
         got, text, _ = self.build(returns)
         self.assertIn("  - 再審が block から suggest に下げた（拒まずに見せる——人が確かめる）: a",
                       self.section(text, report.DECISIONS_HEADING))
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         self.assertIn({"where": "a", "text": "a（再審が block から suggest に下げた——人が確かめる）"}, doc["findings"])
-        self.assertEqual(runreport.rejudge_lowered(fixed_run(judge=judge)), [], "再審が無ければ下げた単位も無い")
+        self.assertEqual(runreport.rejudge_lowered(fixed_run(judge=judge), None), [], "再審が無ければ下げた単位も無い")
 
     def test_unproven_queries_are_listed_from_the_current_judgment(self):
         """元 querytest.unproven_lines: 今の判定の開いた単位（block か do-now の suggest）のうち class_query に例の無い物を、
@@ -806,9 +816,9 @@ class CarryCase(Base):
         rows = [{"unit_key": "u2", "between": ["案"], "ruling": {"decision": "fix_plan_item", "text": "案を直す", "plan_units": ["u2"]},
                  "replan": "waiting"}]
         fix = {**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": rows})}
-        cut = runreport.next_request(fixed_run(fix=fix), [], closed=False)
+        cut = self.next_request(fixed_run(fix=fix), [], closed=False)
         self.assertEqual(cut, [{"where": "u2", "text": f"u2（{outcome.PENDING_WHY}。裁定の文: 案を直す。名指し 案。{conflict.HELD_WORK_KEPT}）"}])
-        closed = runreport.next_request(fixed_run(fix=fix), [])
+        closed = self.next_request(fixed_run(fix=fix), [])
         self.assertIn(f"案の直し: {outcome.CLOSE_WHY}", closed[0]["text"])
         facts = runreport.transcript_facts([start("fix__write", "2026-10-12T00:00:00Z"),
                                             done("fix__write", "2026-10-12T00:01:00Z", kind="node_error")])
@@ -888,7 +898,8 @@ class LedgerCase(Base):
         returns = self.returns(FORK)
         state = runreport.ledger_state(returns, {"gate-before-fix": gate}, {"run_id": RUN})
         self.assertEqual(state["held"], [])
-        lines, _ = runreport._decisions(returns, {"gate-before-fix": gate}, {"run_id": RUN}, "fixed", [], closed=True)
+        lines, _ = runreport._decisions(returns, {"gate-before-fix": gate}, {"run_id": RUN}, "fixed", [], closed=True,
+                                          beside=runreport.fix_beside(returns), exit_=runreport.rejudge_exit(returns))
         row = next(x for x in lines if "読めなかった保留" in x)
         self.assertIn("「保留: q-typo」", row)
         self.assertIn(FORK["key"], row)
