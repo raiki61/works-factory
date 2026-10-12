@@ -24,6 +24,8 @@ INVENTORY_FILES = ("line.md", "judge.md", "plan.md", "fix.md", "tail.md")
 WIRING = ROOT / "docs" / "plans" / "2026-10-13-line-wiring.md"
 ROW_ID = r"(?:L-[EGWD]|[JPFTERM])\d+[a-z]?"
 SCENARIO_ONLY = "筋書きでのみ"
+# 基準で seen から移した scenario-only の行の why の頭（棚卸しの字でなく移した訳を持つ）
+OUT_OF_REAL_RUN = "本物の通しの照らしの外（#261 の決め直し）: "
 # 照らしの where の run の記録 → その run の工程（親は線、子は fix の組ごとの子の run）
 RECORDS = {"record/parent.json": "works-factory-line", "record/child-*.json": "works-factory-fix"}
 OUTSIDE = "この文書の外"
@@ -217,17 +219,20 @@ class EvidenceTableCase(unittest.TestCase):
         never = {i for i, real in self.inventory.items() if SCENARIO_ONLY not in real}
         self.assertEqual(says - scenario_only, set(), "棚卸しが筋書きでのみと書く行が scenario-only でない")
         self.assertEqual(scenario_only & never, set(), "棚卸しが筋書きでのみと書かない行が scenario-only")
-        self.assertEqual({i for i in self.kind_of("waits-part") if SCENARIO_ONLY in self.inventory[i]}, set(),
-                         "棚卸しが筋書きでのみと書く行が部分を待っている")
+        self.assertEqual(self.kind_of("waits-part") - never, set(), "棚卸しが筋書きでのみと書く行が部分を待っている")
+        for i in sorted(scenario_only):
+            with self.subTest(row=i):
+                if not self.by_id[i]["why"].startswith(OUT_OF_REAL_RUN):
+                    self.assertEqual(self.by_id[i]["why"], self.inventory[i], "欄 why が棚卸しの字でない")
 
     def test_waits_part_rows_are_closing_rows_of_that_part(self):
-        """部分の閉じる行のうち、本物の run の記録で置き場を決めるまでの行だけが waits-part に残る"""
+        """部分の閉じる行のうち scenario-only でない行は全部 waits-part（本物の run の記録で置き場を決めた行を移す時に、この試験を直す）"""
         parts, _ = wiring()
         for part in evidence.PARTS:
             with self.subTest(part=part):
                 waiting = {row["id"] for row in self.rows if row["kind"] == "waits-part" and row["part"] == part}
                 self.assertTrue(parts.get(part))
-                self.assertLessEqual(waiting, parts[part])
+                self.assertEqual(waiting, parts[part] - self.kind_of("scenario-only"))
 
     def test_node_rules_name_node_ids_the_workflow_makes(self):
         """run の記録の節を照らす行は node-completed で、node はその run の工程の YAML から組んだ節の id そのもの（include の頭は
