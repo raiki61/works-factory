@@ -5,7 +5,6 @@
 - script の振る舞い: scripts/<名>.py を子のプロセスで走らせる（Archon が渡す INPUTS_<名>・ARTIFACTS_DIR・WORKFLOW_ID と、
   boundary.lib_root() が届く WORKS_FACTORY_ROOT を置く。作業ツリーは tests/e2e/target-seed/ の写し）
 """
-import hashlib
 import json
 import os
 import pathlib
@@ -20,6 +19,7 @@ import yaml
 
 from tests import archon
 from tests.bin.gitkit import committed_copy, git
+from tests.workflows.copied import assert_is_original
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
@@ -1437,11 +1437,7 @@ class CopiedTextsCase(unittest.TestCase):
         for name in sorted(on_disk & set(COPIED_TEXTS)):
             source, sha256, edits = COPIED_TEXTS[name]
             with self.subTest(command=name, source=source):
-                text = (COMMANDS / name).read_text(encoding="utf-8")
-                for original, copied in reversed(edits):
-                    self.assertEqual(text.count(copied), 1, copied)
-                    text = text.replace(copied, original)
-                self.assertEqual(hashlib.sha256(text.encode("utf-8")).hexdigest(), sha256)
+                assert_is_original(self, (COMMANDS / name).read_text(encoding="utf-8"), sha256, edits)
 
 
 if __name__ == "__main__":
