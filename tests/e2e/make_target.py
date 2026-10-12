@@ -10,6 +10,7 @@
 仕込んだ種と依頼を渡す。--no-ledger は控えに載せない（teardown が今の works の家に works-factory の殻を当てないため）。
 run は殻 bin/works-factory の workflow cancel（止まらなければ abandon）で止める。プロセスを名で止めない。
 """
+import argparse
 import json
 import os
 import shutil
@@ -113,36 +114,33 @@ def launch(home: Path, target: Path, *args: str) -> subprocess.CompletedProcess:
                           stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8")
 
 
-def make_args(args: list[str]) -> dict | None:
-    """make の引数を make の引数の dict に。形が違えば None"""
-    made: dict = {}
-    rest = list(args)
-    while rest:
-        word = rest.pop(0)
-        if word == "--no-ledger" and "listed" not in made:
-            made["listed"] = False
-        elif word in ("--seed", "--request") and rest and word[2:] not in made:
-            made[word[2:]] = Path(rest.pop(0)).resolve()
-        elif not word.startswith("--") and "attempt" not in made:
-            made["attempt"] = Path(word)
-        else:
-            return None
-    return made if "attempt" in made else None
+class Once(argparse.Action):
+    """2 度目を使い方の誤り（終わりの番号 2）にする。argparse の素の旗は繰り返しを黙って後の値で上書きする"""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if getattr(namespace, self.dest) is not self.default:
+            parser.error(f"{option_string} は 1 度だけ")
+        setattr(namespace, self.dest, self.const if self.nargs == 0 else values)
 
 
 def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="通しの対象を作り、後で片付ける")
+    sub = parser.add_subparsers(dest="command", required=True)
+    made = sub.add_parser("make")
+    made.add_argument("attempt", type=Path)
+    made.add_argument("--seed", type=lambda p: Path(p).resolve(), default=SEED, action=Once)
+    made.add_argument("--request", type=lambda p: Path(p).resolve(), default=SEED / REQUEST, action=Once)
+    made.add_argument("--no-ledger", dest="listed", nargs=0, const=False, default=True, action=Once)
+    sub.add_parser("teardown")
+    args = parser.parse_args(argv)
     try:
-        if argv[:1] == ["make"] and (made := make_args(argv[1:])) is not None:
-            print(json.dumps(make(**made)))
+        if args.command == "make":
+            print(json.dumps(make(args.attempt, args.seed, args.request, args.listed)))
             return 0
-        if argv == ["teardown"]:
-            return 1 if teardown() else 0
+        return 1 if teardown() else 0
     except Stop as stop:
         print(f"make_target: {stop}", file=sys.stderr)
         return 1
-    print("使い方: make_target.py make <試みのフォルダ> [--seed <dir>] [--request <file>] [--no-ledger] | make_target.py teardown",
-          file=sys.stderr)
-    return 2
 
 
 if __name__ == "__main__":

@@ -163,6 +163,12 @@ class MakeTargetTest(unittest.TestCase):
             with self.subTest(args=args):
                 self.assertEqual(self.make_target("make", *args).returncode, 2)
 
+    def test_make_refuses_repeated_flags(self):
+        for args in (["a", "--no-ledger", "--no-ledger"], ["a", "--request", "x", "--request", "y"]):
+            with self.subTest(args=args):
+                self.assertEqual(self.make_target("make", *args).returncode, 2)
+        self.assertFalse((self.tmp / "a").exists())
+
     def test_make_refuses_non_empty_or_inside_checkout(self):
         full = self.tmp / "full"
         full.mkdir()
