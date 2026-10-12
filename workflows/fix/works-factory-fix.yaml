@@ -1402,7 +1402,8 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [done, units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, delta_review]
+      required: [done, units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, delta_review, handoffs,
+                 mismatched]
       properties:
         done: {type: boolean}
         units:
@@ -1461,7 +1462,6 @@ nodes:
           properties:
             rounds: {type: integer, minimum: 0, maximum: 2}
             pass: {type: boolean}
-        # 最後の関所を開ける理由の 2 欄（修正役が人に回した物・申告と数え直しが合わない単位）。collect はいつも書くが、線の筋書きの
-        # 代わりの返りが持たないので required に入れない（線が読む配線と一緒に入れる）
+        # 最後の承認ノードを開ける理由の 2 欄（修正役が人に回した物・申告と数え直しが合わない単位）
         handoffs: {type: array, items: {type: string}}
         mismatched: {type: array, items: {type: string}}

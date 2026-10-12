@@ -394,6 +394,8 @@ nodes:
       got_allowed_test_changes: "$fix.output.allowed_test_changes"
       got_changed: "$fix.output.changed"
       got_delta_review: "$fix.output.delta_review"
+      got_handoffs: "$fix.output.handoffs"
+      got_mismatched: "$fix.output.mismatched"
 
   - id: after-fix
     script: after_fix

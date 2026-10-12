@@ -89,9 +89,6 @@ ALLOWED = {
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
         "workflows/plan-review/works-factory-plan-review.yaml#units",  # 区分 P #120
         "workflows/merge/works-factory-merge.yaml#diff",               # 区分 M #125（受けるが読まない。封じるのは今の木から組み直した差分）
-        # メイングラフがまだ読まない出力の欄。メイングラフの最後の承認ノードの配線（#211 の B2）が読む時に外す
-        "workflows/fix/works-factory-fix.yaml#handoffs",      # 区分 F #121（修正役が人に回した物）
-        "workflows/fix/works-factory-fix.yaml#mismatched",    # 区分 F #121（申告と数え直しが合わない単位）
     ),
     "E4": (
         # script どうしの import（K8）。今 import している script を 1 本ずつ名指す。外す区分の issue は fix が区分 F #121・report が区分 R #124

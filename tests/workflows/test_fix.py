@@ -19,7 +19,7 @@ import yaml
 from tests import archon
 from tests.bin import hermetic
 from tests.bin.gitkit import git
-from tests.workflows.copied import assert_is_original
+from tests.workflows.copied import REWRITES, assert_text_is_original
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "fix"
@@ -35,9 +35,6 @@ from engine.schema import validate_schema  # noqa: E402  （output_format の照
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
                    "changed", "delta_review", "handoffs", "mismatched"}
-# 最後の関所を開ける理由の 2 欄。collect はいつも返すが、線の筋書きの代わりの返り（workflows/line/fixtures/）が持たないので
-# required に入れない（線が読む配線と一緒に入れる）
-FINAL_REASON_FIELDS = {"handoffs", "mismatched"}
 CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "world", "plan", "ripple", "depth", "answers"}
 EXTRA_INPUTS = {"only_items", "mode", "group", "from_tree", "out_dir"}
 CHANGED_MARKS = {"mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
@@ -135,7 +132,7 @@ class ContractCase(unittest.TestCase):
 
     def test_exact_fields_all_required_and_closed(self):
         self.assertEqual(set(self.fmt["properties"]), CONTRACT_FIELDS)
-        self.assertEqual(set(self.fmt["required"]), CONTRACT_FIELDS - FINAL_REASON_FIELDS)
+        self.assertEqual(set(self.fmt["required"]), CONTRACT_FIELDS)
         self.assertIs(self.fmt["additionalProperties"], False)
         self.assertEqual(self.fmt["properties"]["done"], {"type": "boolean"})
 
@@ -2708,14 +2705,19 @@ def copied_texts() -> dict:
 
 
 class CopiedTextsCase(unittest.TestCase):
-    """役の指示書の写しの台帳（K9）: 全部の指示書と YAML の役の prompt: が、元の works の文に台帳の直しだけを当てた物"""
+    """役の指示書の写しの台帳（K9）: 全部の指示書と YAML の役の prompt: が、元の works の文に台帳の直しと書き直しの記録
+    （copied.REWRITES。PR #221 の語と初見の読み手の書き直し）だけを当てた物"""
 
     def test_every_command_is_its_original_with_only_ledgered_edits(self):
-        """許した直しを逆に当てると元のバイト（元の sha256）に戻る。台帳に無い指示書・prompt と、写しの無い台帳の行は赤"""
+        """許した直しと書き直しを逆に当てると元のバイト（元の sha256）に戻る。台帳に無い指示書・prompt・書き直しと、写しの無い
+        台帳の行は赤"""
         texts = copied_texts()
+        here = BLOCK.relative_to(ROOT).as_posix()
         with self.subTest(ledger="台帳と指示書・prompt の一覧"):
             self.assertEqual(sorted(COPIED_TEXTS), sorted(texts))
+            self.assertLessEqual({k for k in REWRITES if k.startswith(f"{here}/")}, {f"{here}/{k}" for k in COPIED_TEXTS},
+                                 "台帳に無い指示書・prompt の書き直し")
         for key in sorted(set(texts) & set(COPIED_TEXTS)):
             source, sha256, edits = COPIED_TEXTS[key]
             with self.subTest(text=key, source=source):
-                assert_is_original(self, texts[key], sha256, edits)
+                assert_text_is_original(self, f"{here}/{key}", texts[key], sha256, edits)
