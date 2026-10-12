@@ -142,13 +142,9 @@ def main(argv: list[str]) -> int:
     found = suites(ROOT)
     if args.paths:
         names = pick(sorted(found), args.paths)
-        if names:
-            print(f"名指しのパスに当たる {len(names)} モジュールを回す（回さない: {len(found) - len(names)} モジュール。"
-                  f"全部は CI が回す）:")
-            print("\n".join(f"  {name}" for name in names))
-        else:
-            print("選んだ試験も層の柵も無い。全部の試験を回す")
-            names = sorted(found)
+        print(f"名指しのパスに当たる {len(names)} モジュールを回す（回さない: {len(found) - len(names)} モジュール。"
+              f"全部は CI が回す）:")
+        print("\n".join(f"  {name}" for name in names))
         sys.stdout.flush()
         return run({name: found[name] for name in names}, args.record)
     index, count = args.shard

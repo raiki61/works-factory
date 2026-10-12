@@ -4,7 +4,7 @@
 - (b) 秒数の表に無いモジュールも入る
 - (c) 分けの秒数の最大と最小の差が、表の 1 モジュールの最大より小さい
 - (d) 新しい試験のファイルを足すと、どれかの分けに入る
-- (e) --paths の選び（pick）は、名指しのファイルと、名指しのフォルダの下のモジュールだけを取る
+- (e) --paths の選び（pick）は、名指しのファイルと、名指しのフォルダの下のモジュールだけを取る。何も取らなければ全部に広げず赤（終了の値 5）
 """
 import contextlib
 import io
@@ -157,6 +157,10 @@ class RunExitTest(unittest.TestCase):
             self.assertEqual(run_quietly({f"{pkg}.test_ok": found[f"{pkg}.test_ok"]}), 0)
             self.assertEqual(run_quietly({f"{pkg}.test_fail": found[f"{pkg}.test_fail"]}), 1)
             self.assertEqual(run_quietly({}), 5)
+
+    def test_paths_that_pick_nothing_are_red_not_everything(self):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(shard.main(["--paths", "no/such/dir"]), 5)
 
 
 if __name__ == "__main__":
