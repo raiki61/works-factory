@@ -6,7 +6,7 @@
 
 変更（origin/main との merge-base からの差と、未追跡を含む作業ツリーの差）に直に当たる試験のモジュールと、層の柵
 （tests/layers/）だけを unittest で回す。全部の試験は CI（.github/workflows/tests.yml）が回す。持ち主の決め 2026-10-12（#130）。
-- 選び: lib/impact.py の map と select_tests（direct_only。起点か深さ 1 と、変わった試験のファイルの名指し）
+- 選び: lib/impact.py の map と select_tests（direct_only。起点か深さ 1。変わった試験のファイルは起点なので選ばれる）
 - 全部を回す: 選びが全部が要ると言った時・WHOLE と WHOLE_DIRS の変更・起点が取れない時・選びが落ちた時（緑を仮定しない）
 - 出力: 選んだモジュール・回さないモジュールの数・訳を先に標準出力へ出し、最後は unittest の数え（Ran N tests）のまま
 """
@@ -56,7 +56,7 @@ def choose():
         whole = [p for p in changed if p in WHOLE or p.startswith(WHOLE_DIRS)]
         if whole:
             return [], [f"試験の全体に効く物が変わった: {p}" for p in whole]
-        sel = impact.select_tests(m, direct_only=True, named=[p for p in changed if impact.is_test(p) == "module"])
+        sel = impact.select_tests(m, direct_only=True)
     except Exception as e:   # 選びが落ちたら緑を仮定せず全部を回す
         return [], [f"選びが落ちた: {type(e).__name__}: {e}"]
     if sel["run_all"]:
