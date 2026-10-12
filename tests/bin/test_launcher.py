@@ -15,6 +15,7 @@ import sys
 import tempfile
 import unittest
 
+from bin._lib import place
 from lib import answer
 from tests.bin import fakelaunch, hermetic
 from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
@@ -189,6 +190,12 @@ class LauncherTest(unittest.TestCase):
                                         os.path.realpath(self.target)])
                 self.assertIn(shlex.join(["bin/works-factory", *head[1:-1]]), answer.HOLE)
                 self.assertNotIn(answer.WHO_ENV, env)
+
+    def test_child_gets_the_archon_source_it_runs(self):
+        """線の節が殻を入れ子にせず同じ Archon を起こせるよう、殻が起こした源のパスを子に渡す"""
+        reached = self.reached(self.launch("workflow", "status"))
+        source = reached["env"][place.SOURCE_ENV]
+        self.assertIn(str(pathlib.Path(source) / ENTRY), reached["argv"])
 
     def test_user_values_are_taken_before_isolation(self):
         """利用者の HOME と生の CLAUDE_CONFIG_DIR（相対なら打った場所から絶対に直した物）で認証を引き、埋めた値でプラグインを探す"""

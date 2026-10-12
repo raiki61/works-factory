@@ -1,5 +1,5 @@
 """Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・
-tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行）を、写した元の字に照らす。
+bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行）を、写した元の字に照らす。
 
 行ごとに「写しの値」と「元の中のその値の在り処（ファイルと正規表現）」を持ち、正規表現で引いた値と写しの値を比べる。
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
@@ -18,7 +18,7 @@ from collections.abc import Callable
 from typing import Any, NamedTuple
 from unittest import mock
 
-from bin._lib import launcher, pack, place
+from bin._lib import childsweep, launcher, pack, place
 from lib import answer
 from tests import archon
 from tests.archon import CACHE_ENV, pinned_source
@@ -208,6 +208,23 @@ ARCHON_ROWS = (
     Row("答えの行の旗は上の段の値を取る旗", _answer_options, "packages/cli/src/args.ts",
         r"export const cliArgOptions: CliArgOptions = \{\n(.*?)\n\};",
         lambda m: [name for name in _answer_options() if name in _string_options(m[1])]),
+    Row("子の枝の頭", lambda: childsweep.BRANCH_HEAD, "packages/isolation/src/providers/worktree.ts",
+        r"return `(archon/task-)\$\{this\.slugify\(request\.identifier\)\}`;"),
+    Row("子の枝の名の親の run の id の長さ", lambda: childsweep.RUN_HEAD,
+        "packages/core/src/workflows/child-isolation-resolver.ts",
+        r"return \[parentRunId\.slice\(0, (\d+)\), nodeSlug", lambda m: int(m[1])),
+    Row("子の run の枝の名の鍵", lambda: childsweep.BRANCH_KEY, "packages/workflows/src/executor.ts",
+        r"^\s*(branch_name): childIsolationEnv\.branchName,$"),
+    Row("子の run の親の節の鍵", lambda: childsweep.NODE_KEY, "packages/workflows/src/schemas/workflow-run.ts",
+        r"^\s*parentNodeId: '(\w+)',$"),
+    Row("complete が消せた行", lambda: childsweep.COMPLETED, "packages/cli/src/commands/isolation.ts",
+        r"console\.log\(`  (Completed: )\$\{branch\}`\);"),
+    Row("complete の警告の行", lambda: childsweep.WARNING, "packages/cli/src/commands/isolation.ts",
+        r"console\.warn\(`  (Warning: )\$\{warning\}`\);"),
+    Row("子の run の親の run の鍵", lambda: childsweep.PARENT_KEY, "packages/workflows/src/schemas/workflow-run.ts",
+        r"^\s*(parent_run_id): z\.string\(\)\.nullable\(\),$"),
+    Row("run が終わった status", lambda: childsweep.DONE, "packages/workflows/src/schemas/workflow-run.ts",
+        r"export const workflowRunStatusSchema = z\.enum\(\[[^\]]*'(completed)',"),
 )
 
 
