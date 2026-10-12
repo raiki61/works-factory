@@ -380,6 +380,7 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(fmt["properties"]["resolved"], converge.RESOLVED_SCHEMA)
         self.assertEqual(fmt["properties"]["items"], converge.ITEMS_SCHEMA)
         self.assertEqual(fmt["properties"]["design_map"], converge.DESIGN_MAP_SCHEMA)
+        self.assertEqual(fmt["properties"]["origins"], converge.ORIGIN_SCHEMA)
         self.assertEqual(sorted(fmt["required"]), ["faces", "reason", "shrink"])
         self.assertLessEqual(set(boardview.HUMAN_FACE_KINDS), set(row["kind"]["enum"]), "人の関所に回す穴の種類が役の返りの kind に無い")
 
@@ -934,10 +935,10 @@ class ConvergeCase(RunCase):
         text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
         self.assertNotIn(converge.REREVIEW_ASK, text)
 
-    def test_other_block_on_the_fence_is_unsettled(self):
-        """3 往復目に別の block が残る → 柵の往復で止めた（UNSETTLED）"""
+    def test_other_block_not_fewer_is_unsettled(self):
+        """2 往復目に別の block が 1 つ残る → 開いた block が 1 → 1 で減らないので止めた（UNSETTLED）"""
         r = self.run_
-        keys = ["mean-block-first-000", "mean-block-second-00", "mean-block-third-000"]
+        keys = ["mean-block-first-000", "mean-block-second-00"]
         for n, key in enumerate(keys, 1):
             if n > 1:
                 r.plan([item(UNIT_MEAN, 1, approach=f"mean の直し {n} 回目"), item(UNIT_CLAMP, 2)], rnd=n,
@@ -945,6 +946,38 @@ class ConvergeCase(RunCase):
             got = r.pass_(review(face(key), resolved=keys[:n - 1]))
         self.assertEqual((got["pass"], got["stalled"]), (False, True), got)
         self.assertEqual(converge.read(r.view())["outcome"], converge.UNSETTLED)
+
+    def decay(self, rnd):
+        """1 往復目に 2 項目へ block を 1 つずつ、計画の周 rnd の 2 往復目に項目 1 へ新しい block を 1 つ（開いた block が 2 → 1）"""
+        r = self.run_
+        got = r.pass_(review(MEAN_BLOCK, CLAMP_BLOCK))
+        self.assertEqual((got["pass"], got["stalled"]), (False, False), got)
+        r.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾いて分母を直す"),
+                item(UNIT_CLAMP, 2, approach="clamp の上限の枝で hi を返す")], rnd=rnd,
+               answers=[{"key": f["key"], "handled": "fixed", "how": "項目の手順を書き直して確かめた"} for f in (MEAN_BLOCK, CLAMP_BLOCK)])
+        return r.pass_(review(face("mean-block-after-fix-0"), resolved=[MEAN_BLOCK["key"], CLAMP_BLOCK["key"]]))
+
+    def test_decreasing_blocks_go_again(self):
+        """開いた block が 2 → 1 に減った往復は、止めずに修正案の役へ返す（関所の止まりの行は無い）"""
+        got = self.decay(2)
+        self.assertEqual((got["pass"], got["stalled"]), (False, False), got)
+        doc = converge.read(self.run_.view())
+        self.assertEqual([p["outcome"] for p in doc["passes"]], [converge.AGAIN, converge.AGAIN])
+        self.assertNotIn("capped", doc["passes"][-1])
+
+    def test_capped_decay_stops_at_loop_max(self):
+        """開いた block が 2 → 1 と減り続けていても、線の往復の輪の上限の周（計画の周 boardview.LOOP_CAP）の往復は止まる: 抜け方は
+        again → unsettled で、最後の行に capped が在る。関所の止まりの行の理由は上限に届いた事実を仕組みの異常として言う"""
+        got = self.decay(boardview.LOOP_CAP)
+        self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, True, True), got)
+        doc = converge.read(self.run_.view())
+        self.assertEqual([p["outcome"] for p in doc["passes"]], [converge.AGAIN, converge.UNSETTLED])
+        self.assertIs(doc["passes"][-1].get("capped"), True)
+        self.assertNotIn("capped", doc["passes"][0])
+        stuck = [q for q in got["questions"] if q.startswith(gatemarks.STUCK_ITEM + "。理由: ")]
+        self.assertEqual(len(stuck), 1, got["questions"])
+        self.assertIn(converge.CAP_WHY.split("（")[0].format(n=2), stuck[0])
+        self.assertIn("仕組みの異常として止めた", stuck[0])
 
 
 class TreeCase(RunCase):
@@ -1240,6 +1273,81 @@ class TreeCase(RunCase):
         self.assertFalse(got["ok"])
         self.assertIn(f"先行例の出典 {own[0]} の確かめの行が無い", got["reason"])
         self.assertNotIn("開く出典でない", got["reason"])
+
+    def test_item_and_synergy_schema_take_origins(self):
+        """項目の下請けの答えの型と相乗りの下請けの答えの型は、任意の欄 origins（converge.ORIGIN_SCHEMA）を持つ"""
+        self.prepped()
+        b = self.run_.view()
+        for schema in (planblk.item_schema(b), planblk.synergy_schema(b)):
+            self.assertEqual(schema["properties"][converge.ORIGINS], converge.ORIGIN_SCHEMA)
+            self.assertNotIn(converge.ORIGINS, schema["required"])
+
+    def test_origin_ask_only_where_writers_are(self):
+        """出自の頼みは書き手の居る層にだけ置く: 1 往復目はどのファイルにも頼みが無く、2 往復目の束ね役の指示書は ORIGIN_ASK を
+        持たない。項目の下請けのファイルは REREVIEW_ASK と ORIGIN_ASK を、相乗りのファイルは ORIGIN_ASK を持つ。
+        下請けの答えの origins は往復の行に照らして入り、束ね役の返答の origins は拒む"""
+        r = self.run_
+        main = self.prepped()
+        for text in (main, *(p.read_text(encoding="utf-8") for p in sorted(self.items_dir().glob("*.md")))):
+            self.assertNotIn(converge.ORIGIN_ASK, text)
+            self.assertNotIn(converge.REREVIEW_ASK, text)
+        self.write_answers(1, {1: answer(1, faces=[MEAN_BLOCK]), 2: answer(2, faces=[CLAMP_BLOCK])})
+        self.assertTrue(r.accept(summary({1: [MEAN_BLOCK["key"]], 2: [CLAMP_BLOCK["key"]]}))["ok"])
+        r.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾き、分母を len(xs) に直す"),
+                item(UNIT_CLAMP, 2, approach="clamp の上限の枝で hi を返す", adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}])],
+               rnd=2, answers=[{"key": f["key"], "handled": "fixed", "how": "項目の手順を書き直して確かめた"} for f in (MEAN_BLOCK, CLAMP_BLOCK)])
+        self.assertTrue(r.open()["tree"])
+        main = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertNotIn(converge.ORIGIN_ASK, main, "束ね役の指示書に書き手の居ない頼みを貼らない")
+        for name in ("item-1.md", "item-2.md"):
+            text = (self.items_dir(2) / name).read_text(encoding="utf-8")
+            self.assertIn(converge.REREVIEW_ASK, text, name)
+            self.assertIn(converge.ORIGIN_ASK, text, name)
+        self.assertIn(converge.ORIGIN_ASK, (self.items_dir(2) / "synergy.md").read_text(encoding="utf-8"))
+        again = face("item1-mean-new-hole-0")
+        claim = [{"key": again["key"], "origin": converge.ORIGIN_INTRODUCED}]
+        self.write_answers(2, {1: {**answer(1, faces=[again], resolved=[MEAN_BLOCK["key"]]), converge.ORIGINS: claim},
+                               2: answer(2, resolved=[CLAMP_BLOCK["key"]])})
+        got = r.accept({**summary({1: [again["key"]], 2: []}), converge.ORIGINS: claim})
+        self.assertFalse(got["ok"])
+        self.assertTrue(got["reason"].startswith(planblk.TREE_REJECT), got["reason"])
+        self.assertIn("origins", got["reason"])
+        self.assertEqual(len(converge.read(r.view())["passes"]), 1)
+        self.assertTrue(r.accept(summary({1: [again["key"]], 2: []}))["ok"])
+        row = converge.read(r.view())["passes"][-1]
+        self.assertEqual((row["outcome"], row["origins"], row["origins_claimed"]),
+                         (converge.AGAIN, {again["key"]: converge.ORIGIN_INTRODUCED}, []))   # 開いた block は 2 → 1 に減る
+
+    def test_review_tree_off_second_pass_takes_checked_origins(self):
+        """審査役 1 つ（木にしない）の 2 往復目: 材料に出自の頼み ORIGIN_ASK が在る（1 往復目には無い）。返答の origins は役の型
+        （converge.ORIGIN_SCHEMA）で確かめ、型の外れは出し直させて往復も記録しない。正しい申告は往復の行に照らして入る"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        self.assertFalse(r.open()["tree"])
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertNotIn(converge.ORIGIN_ASK, text)
+        self.assertTrue(r.accept(review(MEAN_BLOCK))["ok"])
+        r.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾いて分母を直す"), item(UNIT_CLAMP, 2)], rnd=2,
+               answers=[{"key": MEAN_BLOCK["key"], "handled": "fixed", "how": "空の列を先に弾く手順を案に足した"}])
+        self.assertFalse(r.open()["tree"])
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(converge.REREVIEW_ASK, text)
+        self.assertIn(converge.ORIGIN_ASK, text)
+        new = face("mean-boundary-value-0")
+
+        def send(claim):
+            return r.accept(review(new, resolved=[MEAN_BLOCK["key"]], origins=claim))
+
+        for claim in ([{"key": new["key"], "origin": "guessed"}], [{"key": [new["key"]], "origin": converge.ORIGIN_MISSED}]):
+            with self.subTest(claim=claim):
+                got = send(claim)
+                self.assertFalse(got["ok"], got)
+                self.assertIn(converge.ORIGINS, got["reason"])
+                self.assertEqual(len(converge.read(r.view())["passes"]), 1)
+        got = send([{"key": new["key"], "origin": converge.ORIGIN_REPHRASED, "of": MEAN_BLOCK["key"]}])
+        self.assertTrue(got["ok"], got)
+        row = converge.read(r.view())["passes"][-1]
+        self.assertEqual((row["origins"], row["origins_claimed"]), ({new["key"]: converge.ORIGIN_REPHRASED}, []))
 
     def test_review_tree_off_is_one_reviewer(self):
         """元 test_review_tree_off_is_one_reviewer: 始めの記録の features_off の review_tree なら 2 項目でも審査役 1 つ"""
@@ -2326,7 +2434,7 @@ class ConvergeGateCase(GateBase):
         faces = [{"key": k, "kind": "regression", "where": "stats.py", "why": "穴", "severity": "block"} for k in blocks]
         reviews = {converge.CLEAN: [[]], converge.AGAIN: [faces], converge.PERSISTED: [faces, faces]}[outcome]
         for review in reviews:
-            row = converge.record_pass(fake, {"faces": review}, resolved=[], fence=9, files={})
+            row = converge.record_pass(fake, {"faces": review}, resolved=[], files={})
         self.assertEqual(row["outcome"], outcome)
 
     start = DesignOnlyCase.start
@@ -2388,7 +2496,7 @@ class ConvergeGateCase(GateBase):
         fake = self.fake()
         face = {"key": "b-key-002", "kind": "regression", "where": "stats.py", "why": "別の穴", "severity": "block"}
         for _ in range(2):
-            converge.record_pass(fake, {"faces": [face]}, resolved=[], fence=9, files={})
+            converge.record_pass(fake, {"faces": [face]}, resolved=[], files={})
         self.assertEqual(converge.read(fake)["outcome"], converge.PERSISTED)
         again = gatemarks.plan_gate_items(b)   # 別の key で止まった: 理由が変わったのでもう一度聞く
         self.assertEqual([k for k, _ in again], ["design_only"])

@@ -177,7 +177,7 @@ nodes:
           mutates_checkout: false
           idle_timeout: 1728000000
           # 差し込みの頭の script（scripts/pass_open.py の node_schema）が読むので JSON の形で書く。faces の行の決め手の欄は gatemarks.MARK_SCHEMA、
-          # resolved・items・design_map は converge の壁打ちと束ね役の欄
+          # resolved・items・design_map・origins は converge の壁打ちと束ね役と出自の欄
           output_format: {
                 "type": "object",
                 "additionalProperties": false,
@@ -264,6 +264,19 @@ nodes:
                         "name": {"type": "string", "minLength": 1},
                         "design_quote": {"type": ["string", "null"]},
                         "why": {"type": "string", "minLength": 10}
+                      }
+                    }
+                  },
+                  "origins": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["key", "origin"],
+                      "properties": {
+                        "key": {"type": "string"},
+                        "origin": {"type": "string", "enum": ["missed", "introduced", "rephrased"]},
+                        "of": {"type": "string"}
                       }
                     }
                   }

@@ -57,7 +57,7 @@ SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 RUN = "run-1"
 LINE = yaml.safe_load((SCRIPTS.parent / "works-factory-line.yaml").read_text(encoding="utf-8"))
 BLOCKS = ("judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
-ROUND_LIMIT = 3
+ROUND_LIMIT = 20
 
 
 def block_doc(include: str) -> dict:
@@ -456,7 +456,7 @@ class AskBeforeFixCase(unittest.TestCase):
                             (planned(questions=["0 を返すか"]), "0 を返すか"),
                             (planned(ask_human=True), "直す前の関所"),
                             (planned(**{"pass": False, "stalled": True}), gatemarks.STUCK_ITEM),
-                            (planned(**{"pass": False, "round": 3}), ask_before_fix.UNSETTLED_ITEM)):
+                            (planned(**{"pass": False, "round": ROUND_LIMIT}), "仕組みの異常として止めた")):
             with self.subTest(words=words):
                 got = self.ask(plan)
                 self.assertEqual((got["open"], got["go"]), (True, True))
@@ -655,9 +655,10 @@ class PlanOutCase(unittest.TestCase):
 
     def test_done_rules(self):
         self.assertFalse(self.got()["done"])
-        for kw in ({"ready": False}, {"pass": True}, {"stalled": True}, {"round": 3}):
+        for kw in ({"ready": False}, {"pass": True}, {"stalled": True}, {"round": ROUND_LIMIT}):
             with self.subTest(kw=kw):
                 self.assertTrue(self.got(**kw)["done"])
+        self.assertFalse(self.got(round=3)["done"], "往復は数でなく開いた block の減り方で止まる（converge.decide）")
 
     def test_every_field_is_returned(self):
         self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"done", "stop_reason"})
@@ -1305,8 +1306,9 @@ class LineWiringCase(unittest.TestCase):
         self.assertEqual(includes & body_ids(LINE["nodes"]), set())
 
     def test_round_limit_is_the_loop_limit(self):
+        """往復の輪の上限は 1 つの数: 線の max_iterations・plan-out の round_limit・事前審査が上限の周を知る boardview.LOOP_CAP"""
         nodes = line_nodes()
-        self.assertEqual({nodes[key]["with"]["round_limit"] for key in ("plan-out", "ask-before-fix")},
+        self.assertEqual({nodes[key]["with"]["round_limit"] for key in ("plan-out", "ask-before-fix")} | {boardview.LOOP_CAP},
                          {nodes["plan-rounds"]["loop_group"]["max_iterations"]})
 
 

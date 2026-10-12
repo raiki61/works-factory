@@ -7,7 +7,8 @@
 入力（with:）は計画の往復の返り（plan-rounds の ready・pass・stalled・round・ask_human・gate_axes・questions）と、始めの節の
 unattended・design_only と、往復の上限 round_limit。
 - 計画ができていない（ready が false）: 関所を開かず、修正へも進まない（go: false。結末は report が計画と判定の返りから決める）
-- 必ず開く: 事前審査の壁打ちが止まった（stalled）・往復が 3 周で決着しなかった・設計だけの run（design_only）
+- 必ず開く: 事前審査の壁打ちが止まった（stalled）・往復が安全の上限（round_limit 周）に届いても決着しなかった・
+  設計だけの run（design_only）
 - 開く: 4 つの軸のどれかが ok でない・事前審査が人に聞くと言った（ask_human）・人への問いが在る
 - 無人の run: 人への問い（台帳の問い）は関所に載せず、deferred で返す（report に受ける入力が無く、まだ報告には届かない。
   docs/design.md の「report の返り」）。それでも開くはずの時は開かずに止める
@@ -26,7 +27,8 @@ with boundary.guarded_imports():
 
 AXES = {"obvious": "自明", "world": "世界の解", "clean": "汚くない", "not_overkill": "やりすぎでない"}
 AXIS_KIND = "plan_review"
-UNSETTLED_ITEM = "事前審査が 3 往復で決着しなかった案: 修正に進まない（continue で修正へ進む・stop で報告へ）"
+UNSETTLED_ITEM = ("事前審査の往復が安全の上限の周に届いたのに決着していない案（仕組みの異常として止めた）: "
+                  "修正に進まない（continue で修正へ進む・stop で報告へ）")
 QUESTION = "事前審査の 4 つの軸と人への問い。通すなら通す範囲と条件を一言に"
 RECORD = "run の置き場の gates/gate-before-fix.json"
 

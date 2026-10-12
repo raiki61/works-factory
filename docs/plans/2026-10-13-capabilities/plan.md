@@ -816,18 +816,18 @@
   - 本物の run: plan-review/pass-2/prompt.md。種の run では pass-1/prompt.md に REREVIEW_ASK が無いことだけ見える
   - 狭め: 無し
 
-- P113 again（1 往復目の block）では止めず関所も決めず、計画に返す。同じ block が 2 度続いた（persisted）・柵でも消えない（unsettled）時は止めて、修正前の関所に止まりの行（STUCK_ITEM と理由）と block の穴を載せる
+- P113 again（開いた block が前の往復より減った往復）では止めず関所も決めず、計画に返す。同じ block が 2 度続いた（persisted）・開いた block が減らない（unsettled）・安全の上限の周（capped）の時は止めて、修正前の関所に止まりの行（STUCK_ITEM と理由）と block の穴を載せる
   - 元: works/blk-plan/lib/planblk.py:1178 `with_converge`（again は rewind_roles）・:1341 `converge_check`、works/.shared/core/converge.py:571 `stuck_reason`
-  - 今: lib/boardview.py:919 `collect`（stalled = outcome in STUCK）、P74 workflows/line/scripts/plan_out.py `plan_out`（done = ready 偽・pass・stalled・round ≥ 3）、P74 workflows/line/works-factory-line.yaml:182-237 の loop_group `plan-rounds`
-  - 証: tests/workflows/test_plan_review.py::ConvergeCase.test_first_block_is_not_stalled（assert: :855-857）・test_same_block_again_stalls_with_a_design_item（:879-880）・test_other_block_on_the_fence_is_unsettled（:926）。線の側 P74 tests/workflows/test_line.py::PlanOutCase.test_done_rules（assert: P74 tests/workflows/test_line.py:413-416）・test_round_limit_is_the_loop_limit（:751）・筋書き P74 workflows/line/fixtures/plan-stalled.stubs.yaml・plan-unsettled.stubs.yaml
+  - 今: lib/boardview.py:919 `collect`（stalled = outcome in STUCK）、P74 workflows/line/scripts/plan_out.py `plan_out`（done = ready 偽・pass・stalled・round ≥ ROUND_LIMIT（20））、P74 workflows/line/works-factory-line.yaml:182-237 の loop_group `plan-rounds`
+  - 証: tests/workflows/test_plan_review.py::ConvergeCase.test_first_block_is_not_stalled（assert: :855-857）・test_same_block_again_stalls_with_a_design_item（:879-880）・test_other_block_not_fewer_is_unsettled・test_decreasing_blocks_go_again・test_capped_decay_stops_at_loop_max。線の側 P74 tests/workflows/test_line.py::PlanOutCase.test_done_rules（assert: P74 tests/workflows/test_line.py:413-416）・test_round_limit_is_the_loop_limit（:751）・筋書き P74 workflows/line/fixtures/plan-stalled.stubs.yaml・plan-unsettled.stubs.yaml
   - 本物の run: `$plan-rounds.output.stalled`・plan-review の返り `stalled`（種の run では false）
   - 狭め: 無し
 
-- P114 往復の柵（3）を、事前審査の往復の数と線の loop_group の上限の両方で同じ数に縛る。上限に当たって落ちずに抜ける
+- P114 往復の安全の上限（20）を、事前審査が上限の周を知る数と線の loop_group の上限の両方で同じ数に縛る。止め時は数でなく converge.decide。上限に当たって落ちずに抜ける
   - 元: works/blk-plan/blk-plan.yaml:543（converge-loop の max_iterations 3）と works/tests/test_blk_plan.py::YamlCase.test_converge_loop_wraps_revise_and_review（GIVE_UP_AFTER と突き合わせ）
-  - 今: lib/boardview.py:81 `FENCE = rolekit.GIVE_UP_AFTER`、P74 workflows/line/scripts/plan_out.py `ROUND_LIMIT = 3`、P74 works-factory-line.yaml:186 `max_iterations: 3`
-  - 証: P74 tests/workflows/test_line.py::PlanOutCase.test_round_limit_is_the_loop_limit（assert: :751）。FENCE と ROUND_LIMIT の一致は照らされていない → 要追加: P74 tests/workflows/test_line.py::PlanOutCase.test_round_limit_is_the_review_fence — plan_out.ROUND_LIMIT == boardview.FENCE == rolekit.GIVE_UP_AFTER
-  - 本物の run: plan/r*/ の数が 3 を越えない。筋書きでのみ
+  - 今: lib/boardview.py `LOOP_CAP = 20`（converge.record_pass の at_cap）、P74 workflows/line/scripts/plan_out.py `ROUND_LIMIT = 20`、P74 works-factory-line.yaml `max_iterations: 20`
+  - 証: P74 tests/workflows/test_line.py::LineWiringCase.test_round_limit_is_the_loop_limit（max_iterations == plan_out.ROUND_LIMIT == boardview.LOOP_CAP）
+  - 本物の run: plan/r*/ の数が 20 を越えない。筋書きでのみ
   - 狭め: 無し
 
 - P115 往復の数え: 計画の周 r<k> は往復と案の直しを通して数え、事前審査の往復の控えは差し込みをまたいで 1 つの周（見え方の周はいつも 1）に積む。案の直しの周は往復に数えない

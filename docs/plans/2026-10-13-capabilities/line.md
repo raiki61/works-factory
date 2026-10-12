@@ -1184,7 +1184,7 @@
   - 証: RedepthCase.test_replanned_depth_wins（:523）は狭めた形を縛る → 要追加: RedepthCase.test_replanned_depth_merges_by_unit
   - 本物の run: 筋書きでのみ
   - 狭め: #74（小さい。不可でない → unit_id で合わせて戻す）
-- L-D16 計画と事前審査の往復は最大 3 周で、上限でも輪は落ちずに抜ける（計画ができない・通った・stalled・3 周目）
+- L-D16 計画と事前審査の往復は安全の上限 20 周で、上限でも輪は落ちずに抜ける（計画ができない・通った・stalled・上限の周）
   - 元: works/.shared/core/converge.py:148 `decide`
   - 今: yaml:187-188、scripts/plan_out.py:25-28（ROUND_LIMIT）。Archon は上限に達した輪を落とす（packages/workflows/src/dag-executor.ts:5222）ので done で先に抜ける
   - 証: PlanOutCase.test_done_rules（:413-416）・LineWiringCase.test_round_limit_is_the_loop_limit（:751）、筋書き plan-unsettled
@@ -1208,10 +1208,10 @@
   - 証: AskBeforeFixCase.test_reasons_that_open_the_gate（:234-235）は字だけ（弱い）。ブロック側 tests/workflows/test_plan_review.py::ConvergeGateCase.test_stuck_opens_design_item_with_reason（:2275）→ 要追加: AskBeforeFixCase.test_stalled_has_one_row_with_the_reason
   - 本物の run: 筋書き plan-stalled
   - 狭め: #74（不可でない → 戻す）
-- L-D20 3 往復でも決着しない案は修正前の関所を開ける
+- L-D20 往復の安全の上限に届いても決着しない案は、仕組みの異常として修正前の関所を開ける
   - 元: works/.shared/core/converge.py:83 UNSETTLED_WHY
   - 今: scripts/ask_before_fix.py:48-49（UNSETTLED_ITEM）
-  - 証: AskBeforeFixCase.test_reasons_that_open_the_gate（subTest round 3。:235）、筋書き plan-unsettled
+  - 証: AskBeforeFixCase.test_reasons_that_open_the_gate（subTest round ROUND_LIMIT）、筋書き plan-unsettled
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - L-D21 無人の run で往復が止まったら、関所を開かずに止める
