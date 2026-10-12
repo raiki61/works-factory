@@ -7,9 +7,6 @@ inputs:
   start:
     required: true
     description: 始めの記録のポインタ（base_rev を読む）
-  diff:
-    required: true
-    description: fix の累積差分のポインタ。受けるが読まない（封じるのは今の木から組み直した差分）
   fingerprint:
     default: ""
     description: test-gate final の緑の認証の指紋 {head, diff_hash}
@@ -39,7 +36,6 @@ nodes:
     with:
       mode: $INPUTS.mode
       start: $INPUTS.start
-      diff: $INPUTS.diff
       fingerprint: $INPUTS.fingerprint
       green_ok: $INPUTS.green_ok
       eyes_ok: $INPUTS.eyes_ok

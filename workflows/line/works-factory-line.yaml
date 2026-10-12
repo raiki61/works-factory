@@ -870,7 +870,6 @@ nodes:
     with:
       mode: seal
       start: "$start.output.record"
-      diff: "$fixed.output.diff"
       fingerprint: "$test-gate-final.output.fingerprint"
       green_ok: "$test-gate-final.output.ok"
       eyes_ok: "$eyes.output.ok"
@@ -992,7 +991,6 @@ nodes:
     with:
       mode: apply
       start: "$start.output.record"
-      diff: "$fixed.output.diff"
       fingerprint: "$test-gate-final.output.fingerprint"
       green_ok: "$test-gate-final.output.ok"
       eyes_ok: "$eyes.output.ok"
