@@ -15,7 +15,8 @@ k 往復目の行の answers と resolved は、k-1 往復目の block への修
 origins は 2 往復目からの新しい block（前のどの往復の block の key とも違う物）ごとの出自で、審査の申告を控えの事実（項目の行の
 hash・前の往復の項目の id・resolved）で照らして機械が決めた語（ORIGIN_MISSED・ORIGIN_INTRODUCED・ORIGIN_REPHRASED・
 ORIGIN_UNSPLIT）。lines の頭の行の数は origins だけから数え、採らなかった申告（origins_claimed）は数えない。見落としを数えるのは
-後の往復が審査した所だけで、閉じて後の往復が見ない項目の取りこぼしは数に出ない（1 回目に出た割合はその上限）。
+後の往復が審査した所だけで、閉じて後の往復が見ない項目の取りこぼしは数に出ない（1 回目に出た割合はその上限）。run の後で
+見つかった穴は割合に入らない。
 
 項目ごとの壁打ち（線の木の段 1。設計 docs/plans/2026-10-06-tree-line.md の 2.3 の 5）: 受けた案の項目を note_plan が控えの
 "plan"（[{id, unit_keys, hash}]。id は unit_keys の組・hash は名前に戻した項目の行の sha256）に置くと、往復の行に
@@ -104,7 +105,7 @@ LINE_HEAD = ("事前審査の壁打ち: {n} 往復・抜け方は{word}（記録
 # 分母に入れないのは、直しが後で作った穴が 1 回目の見つける力を下げて見せるから（止めた全部のうちの割合には入れる）
 LINE_SHARE = ("1 回目の block {first} 件・後の回の新しい block: 見落とし {missed}・持ち込み {introduced}・言い換え {rephrased}・"
               "分けられない {unsplit}。1 回目に出た割合は {share}（後の回が審査した所の見落としだけを数えるので、閉じた項目の取りこぼしは"
-              "数えない上限）、止めた全部のうちでは {total}")
+              "数えない上限。run の後で見つかった穴は割合に入らない）、止めた全部のうちでは {total}")
 LINE_NO_BLOCK = "止めた block なし"
 LINE_PASS = ("  - {k} 往復目: block {keys}・修正案の役の答え fixed {f} 件・disputed {d} 件・審査が消えたと言った key {resolved}"
              "・審査が suggest に下げた key {down}")
@@ -711,7 +712,7 @@ def _share_text(passes: list) -> str:
     """頭の行の割合の句: 1 回目の block の数と、後の回の新しい block の出自ごとの数（往復の行の origins だけから数える）。
     1 回目に出た割合の分母は 1 回目・見落とし・分けられない（持ち込みと言い換えは入れない）、止めた全部のうちの割合の分母は
     それに持ち込みを足した数。止めた block が 0 件なら割らない。見落としは後の往復が審査した所の物だけなので、閉じて後の往復が
-    見ない項目の取りこぼしは分母に入らず、1 回目に出た割合は実際より高く出うる（上限）"""
+    見ない項目の取りこぼしは分母に入らず、1 回目に出た割合は実際より高く出うる（上限）。run の後で見つかった穴も割合に入らない"""
     first = len(passes[0].get("blocks", []))
     made = [w for p in passes[1:] for w in (p.get("origins") or {}).values()]
     n = {w: made.count(w) for w in ORIGIN_WORDS}

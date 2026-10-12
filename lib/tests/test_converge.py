@@ -295,7 +295,8 @@ class TextCase(BoardCase):
         converge.record_pass(self.b, {"faces": [face("key-b1")]}, resolved=["key-a1", "key-a2"], files={},
                              origins=[{"key": "key-b1", "origin": converge.ORIGIN_MISSED}])
         head = converge.lines(self.b)[0]
-        for part in ("1 回目の block 2 件", "見落とし 1", "1 回目に出た割合は 2/3", "閉じた項目の取りこぼしは数えない上限"):
+        for part in ("1 回目の block 2 件", "見落とし 1", "1 回目に出た割合は 2/3", "閉じた項目の取りこぼしは数えない上限",
+                     "run の後で見つかった穴は割合に入らない"):
             self.assertIn(part, head)
 
     def test_lines_head_without_blocks_says_none(self):
