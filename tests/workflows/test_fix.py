@@ -245,6 +245,17 @@ class RolesCase(unittest.TestCase):
         self.assertEqual(first["properties"]["compliance"]["properties"]["verdict"]["enum"], list(deltamarks.COMPLIANCE))
         self.assertEqual(first["properties"]["quality"]["properties"]["verdict"]["enum"], ["pass", "fail"])
 
+    def test_tdd_loop_bound_is_the_lib_budget(self):
+        """TDD の輪の max_iterations は lib の回数の上限 tddloop.MAX_ITERATIONS と同じ値で、輪は tdd-step の done で抜ける
+        （上限に届く周で tddloop.step が残りを direct（gave_up budget）にして done を立てるので、max_iterations に当てて run を
+        落とさない。元 works/blk-fix/lib/tddloop.py:131・works/blk-fix/blk-fix.yaml:157、旧試験 TestYaml.test_node_order）"""
+        import tddloop
+        loop = self.nodes["tdd-loop"]["loop_group"]
+        self.assertEqual(loop["max_iterations"], tddloop.MAX_ITERATIONS)
+        self.assertEqual(refs(loop["until_bash"]), {"tdd-step"})
+        self.assertIn("$tdd-step.output.done", loop["until_bash"])
+        self.assertIn("done", self.nodes["tdd-step"]["output_format"]["required"])
+
 
 class FilesCase(unittest.TestCase):
     def setUp(self):

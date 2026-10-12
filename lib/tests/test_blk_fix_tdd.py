@@ -219,6 +219,17 @@ class TestStart(LoopCase):
         self.assertIn("`test-driven-development`", full)
         self.assertIn((seat.BORROW_DIR / seat.OVERLAY_FILE).read_text(encoding="utf-8").strip(), full)
 
+    def test_seat_failure_stops_with_broken(self):
+        """座を組めない（写しが固定と違う）時は座の無い指示書に逃げず Broken で止め、指示書を書かない
+        （元 works/blk-fix/lib/tddloop.py:807 prep、旧試験 works/tests/test_blk_fix_tdd.py:536 test_tdd_seat_failure_stops_with_broken）"""
+        import seat
+        with mock.patch.object(seat, "section", side_effect=ValueError("写しが固定と違う")):
+            with self.assertRaises(tddloop.Broken) as got:
+                tddloop.prep(self.state)
+        self.assertIn("座を組めない", str(got.exception))
+        self.assertIn("写しが固定と違う", str(got.exception))
+        self.assertFalse((pathlib.Path(self.st()["work"]) / tddloop.PROMPT).exists(), "座の無い指示書を書かない")
+
     def test_prompt_is_composed_from_the_shared_rules(self):
         """tdd-prep の指示書: 修正の決まりの正本の核・TDD の読み替え・今の段の約束（今の段だけ）・今の段の指示。next.md は毎回
         決まりを全部載せる（全文版・差分版の控えは書かない）"""
@@ -493,6 +504,26 @@ class TestUnitLoop(LoopCase):
         ruler = "\n".join(fixrules.sections("ruler.md").values())
         self.assertIn(conflict.GAVE_UP_SOURCE, ruler, "裁定役の指示書は機械の申し出を出どころの欄 source で名指す")
         self.assertNotIn(tddloop.GAVE_UP_WHY, ruler, "理由の頭の文の写しで見分けない")
+
+    def test_role_claim_and_machine_give_up_carry_their_sources(self):
+        """役の申し出（phase conflict）は source tdd、3 回拒まれて機械が止めた単位の申し出は source tdd-gave-up で未送に積まれ、
+        flush_unsent が積む口にその欄のまま渡す（理由の文の写しでなく欄で見分ける。元 works/.shared/core/conflict.py:138-141、
+        旧試験 works/tests/test_blk_fix_tdd.py:690 test_red_give_up_parks_machine_claim_with_source）"""
+        self.route(clamp="tdd")
+        got = self.step({"phase": "conflict", "unit_key": MEAN, "between": ["stats.py:9", "test_stats.py:9"],
+                         "why_both_cannot_hold": "期待値と依頼の分母が食い違い、どちらを正とするか決められない",
+                         "which_is_right": "unknown", "kind": "needs_context"})
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(self.st()["queue"][self.st()["cur"]], CLAMP)
+        for _ in range(tddloop.retry_max()):
+            got = self.step({"phase": "test", "unit_key": CLAMP, "test_files": [], "tests": []})
+            self.assertFalse(got["ok"])
+        self.assertTrue(got["done"])
+        parked = []
+        tddloop.flush_unsent(self.state, parked.extend)
+        self.assertEqual([(r["source"], r["item"]["unit_key"]) for r in parked],
+                         [(conflict.TDD_SOURCE, MEAN), (conflict.GAVE_UP_SOURCE, CLAMP)])
+        self.assertEqual(self.st()[tddloop.UNSENT], [], "渡せた行は未送から外す")
 
     def test_give_up_reads_briefs_before_moving_tree(self):
         """止める前に置き場の brief を読む。読めずに落ちた周は、作業ツリーを単位の頭に戻さず、状態も進めない"""
