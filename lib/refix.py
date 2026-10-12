@@ -51,6 +51,7 @@ import protect  # noqa: E402
 import recount  # noqa: E402
 import seat  # noqa: E402  （借りたスキルの座。1 回目の審査役の task-review）
 import stopby  # noqa: E402  （L1。止めの理由の住処）
+import writelog  # noqa: E402
 import writes  # noqa: E402
 
 PASS_KEYS = ("cut", "review", "owed", "fix", "state_key", "owed_key")
@@ -65,7 +66,6 @@ FIX_ROLE = {1: "refix", 2: "refix2"}        # 手直しの役の名
 SCOPE_REJECT = ("手直しが承認済みの修正案の項目の範囲から外れた（項目の範囲の外で変えてよいのは、材料の ruled_paths と、範囲の相談で"
                 "合意したパス・テストの変更の許しのパスだけ。外れた変更を戻して返答を丸ごと出し直せ。試験を回して出来たファイル"
                 "（キャッシュ・結果の XML）も消せ。範囲の外が要る穴は直さずに declared で残し、how に理由を書け）: ")
-WRITES_LOG = "writes.jsonl"   # 書き込みの記録（Edit・Write の行）の置き場の既定の名。無ければ記録の無い run（writes.NO_RECORD）
 PLAN_REVIEW = "p2.plan_review"   # 事前審査の節（穴の unit_keys。塞がっていない検算を枝に結ぶ）
 
 
@@ -244,7 +244,7 @@ def accept_fix(reply: dict, board: pathlib.Path, base_rev: str, repo: pathlib.Pa
     うち修正の段が触ったファイル（1 回目の差分の files。その段の受け付けが照らした）の外を、承認済みの修正案の項目（items）の
     範囲で照らす（planrange.check_paths。修正の段と同じ決まり。この役は単位を申告しないので全部の項目の範囲の和と out_of_scope で
     見る。修正案の範囲の欄が無い run は照らさない）。外れが在れば受けずに {ok: False, reason}（同じ会話で直させる）。次に変更を
-    書き込みの記録 log（Edit・Write の行。既定は置き場の WRITES_LOG）と申告（欄 bash_writes）に突き合わせ（writes.check。skip は
+    書き込みの記録 log（Edit・Write の行。既定は置き場の writelog.LOG）と申告（欄 bash_writes）に突き合わせ（writes.check。skip は
     除くパスの頭）、どちらにも無い変更を拒む（keep-essence の 5。修正の段と同じ）。通れば欄 bash_writes を外した返答を置き場に受け、
     記録の無い run は知らせを置き場の trace.jsonl に残す"""
     rev = fixboard.base_rev(None, base_rev)
@@ -253,7 +253,7 @@ def accept_fix(reply: dict, board: pathlib.Path, base_rev: str, repo: pathlib.Pa
     bad, _note = planrange.check_paths(board, [p for p in paths if p not in fixed], items=items, ruled=True, by=stopby.REFIX)
     if bad:
         return {"ok": False, "reason": SCOPE_REJECT + "\n" + "\n".join(f"  - {x}" for x in bad)}
-    got = writes.check(reply, repo, paths, pathlib.Path(log) if log else pathlib.Path(board) / WRITES_LOG, skip=tuple(skip))
+    got = writes.check(reply, repo, paths, pathlib.Path(log) if log else pathlib.Path(board) / writelog.LOG, skip=tuple(skip))
     if got["problems"]:
         return {"ok": False, "reason": "\n".join(got["problems"])}
     out = fixboard.take(board, _pass(n)["fix"], got["reply"], repo)

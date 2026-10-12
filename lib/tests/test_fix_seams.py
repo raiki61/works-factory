@@ -34,6 +34,7 @@ import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
 import lens  # noqa: E402
 import unittrees  # noqa: E402
+import writelog  # noqa: E402
 import writes  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"
@@ -1043,7 +1044,7 @@ class FactchecksSeamCase(TempCase):
         self.assertTrue(lines[0].startswith(planscope.REJECT_ASK), lines)
 
     def test_writes_use_the_log_and_skip(self):
-        log = self.place / self.fc.WRITES_LOG
+        log = self.place / writelog.LOG
         log.write_text("", encoding="utf-8")   # 記録の在る run（Edit・Write の行は無い）
         (self.repo / "vendored").mkdir()
         (self.repo / "vendored" / "x.py").write_text("x = 1\n", encoding="utf-8")
@@ -1240,7 +1241,7 @@ class LaneChecksSeamCase(TempCase):
 
     def test_writes_look_only_after_since(self):
         fc, since, _, reply = self.since_case()
-        log = self.place / fc.WRITES_LOG
+        log = self.place / writelog.LOG
         log.write_text("", encoding="utf-8")
         got = fc.check_writes(reply, self.place, self.rev, self.repo, "")
         self.assertTrue(any("NOTES.md" in p for p in got["problems"]), got)

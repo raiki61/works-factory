@@ -5,7 +5,7 @@ TDD の輪の状態 tdd-<k>/ を置く所）。返答の番号を名前に戻す
 
 口（受け付けの手順の番号）:
 - fix_unit_keys(reply, board, owed, ...): 返答の changes の単位の名前と直す義務（fixboard.fix_duty）（手順 0）
-- check_writes: 書き込みの出どころ（-2）。log は書き込みの記録（既定は置き場の WRITES_LOG）、skip は除くパスの頭
+- check_writes: 書き込みの出どころ（-2）。log は書き込みの記録（既定は置き場の writelog.LOG）、skip は除くパスの頭
 - check_frozen: TDD の輪で凍ったテストのファイル（1b）。agreed は範囲の相談の合意の行（None は置き場の trace。conflict.agreed）
 - check_plan_scope: 承認済みの修正案の範囲（1d）。agreed は同じ。items は承認済みの修正案の項目（planmarks.approved_items の
   形の値か口。None は照らさない）。ask は拒否の頭で相談を先の道に言うか（None は consult_place の相談の控えで決める）
@@ -38,9 +38,9 @@ import fixboard  # noqa: E402  （直す義務・突き合わせの起点の版�
 import planmarks  # noqa: E402  （承認済みの修正案の項目の読み口）
 import planscope  # noqa: E402
 import tddloop  # noqa: E402
+import writelog  # noqa: E402
 import writes  # noqa: E402
 
-WRITES_LOG = "writes.jsonl"   # 書き込みの記録（Edit・Write の行）の置き場の既定の名（refix.WRITES_LOG と同じ）。無ければ記録の無い run（writes.NO_RECORD）
 
 
 def fix_unit_keys(reply: dict, board: Path, owed, *, withheld_by=None, returned=()):
@@ -60,14 +60,14 @@ def check_writes(reply: dict, board: Path, base_rev: str, repo: Path, state: str
                  made=(), skip: tuple = ()) -> dict:
     """書き込みの出どころ（writes.check。欄 bash_writes を外した返答は reply に）。実行器が作ったファイルは run の全部の輪の物を
     外す（tddloop.suite_made_all）。盤面は書かない（申告の記録は writes.check が足す）。
-    書き込みの記録は log（既定は置き場の WRITES_LOG）。skip は除くパスの頭（writes.check）。
+    書き込みの記録は log（既定は置き場の writelog.LOG）。skip は除くパスの頭（writes.check）。
     修正役の並べの枝（fixlanes）は repo に単位の worktree を渡し、log（run の作業ツリーの記録。単位の worktree の
     書き込みも run の作業ツリーの記録に載る）と since（見る変更の起点。枝の今の項目の頭の木。前の段が run の作業ツリーで書いた物は
     単位の worktree の実パスの記録を持たず、同じ枝の前の項目が書いた物はその項目の確かめが見たので見ない）と made（枝の実行器が作ったファイル）を渡す"""
     made = set(tddloop.suite_made(state)) | tddloop.suite_made_all(board) | set(made)
     rev = fixboard.base_rev(None, base_rev)
     return writes.check(reply, repo, [p for p in _changed(repo, rev, since) if p not in made],
-                        Path(board) / WRITES_LOG if log is None else Path(log), skip=tuple(skip))
+                        Path(board) / writelog.LOG if log is None else Path(log), skip=tuple(skip))
 
 
 def _changed(repo, rev: str, since=None) -> list:

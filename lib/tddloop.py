@@ -112,6 +112,7 @@ from planmarks import test_functions  # noqa: E402,F401  （.shared/core。テ�
 import rolekit  # noqa: E402  （lib。諦めの回数 GIVE_UP_AFTER）
 import seat  # noqa: E402  （lib。借りたスキルの座）
 import tree_run  # noqa: E402
+import writelog  # noqa: E402
 import writes  # noqa: E402  （.shared/core。書き込みの出どころの突き合わせ）
 import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
@@ -127,7 +128,6 @@ UNSENT = "unsent"   # 状態の欄: 盤面へまだ積んでいない止めた�
 SESSION_KEY = "session_key"   # 状態の欄: 前の周の支度が組んだ単位の鍵（prep の new_unit の元。元 write_key の鍵）
 GAVE_UP_WHY = "機械が書いた申し出（TDD の確認が回数の上限まで通らなかった）: "   # 3 回拒まれた単位の申し出の why の頭
 STATE, PROMPT, SUMMARY = "state.json", "next.md", "summary.md"
-WRITES_LOG = "writes-log.jsonl"   # 書き込みの記録（tdd-<k>/ の下。記録を取る包みが無い run は無い。step の log の既定。無ければ writes.NO_RECORD）
 NO_SUITE = "テストの実行器（入力 tdd_suite）が無い run——全部の単位を今どおり直す"
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
@@ -1469,7 +1469,7 @@ def step(state_file, reply, repo, try_query=None, log=None) -> dict:
     申し出でない返答は、前の段の後から変わったファイルを書き込みの記録と欄 bash_writes に突き合わせてから段を確かめる。
     輪を抜けた状態（済んだ）に返答 None（支度が go: false を返して役が飛ばされた周。resume）なら、何も動かさずに
     {ok: True, done: True, reason: "", phase}。返答が在れば今どおり Broken。
-    log は書き込みの記録（既定は状態の置き場の WRITES_LOG。記録を取る包みの無い run は無いので writes.NO_RECORD の知らせ）。
+    log は書き込みの記録（既定は状態の置き場の writelog.LOG。記録を取る包みの無い run は無いので writes.NO_RECORD の知らせ）。
     止めた申し出は、保存と同じ 1 回の書き込みで状態の未送の並び UNSENT（行 {source, item}）に積む（止めた申し出の
     出口はこの 1 つ。盤面へ積むのは節 tdd-step が flush_unsent で。保存と積みの間で落ちても、次の呼びが積み直す）。
     前の段の印（handoff）は突き合わせを通った時と、機械が木を単位の頭に戻して次の単位へ移った時（申し出・諦め）だけ進める（拒まれた
@@ -1489,7 +1489,7 @@ def step(state_file, reply, repo, try_query=None, log=None) -> dict:
     got = None
     if isinstance(reply, dict) and reply.get("phase") != "conflict":
         moved = sorted(set(touched(repo, st["handoff"], snapshot(repo))) - set(st["suite_made"]))
-        got = writes.check(reply, repo, moved, pathlib.Path(st["work"]) / WRITES_LOG if log is None else pathlib.Path(log))
+        got = writes.check(reply, repo, moved, pathlib.Path(st["work"]) / writelog.LOG if log is None else pathlib.Path(log))
         reply = got.pop("reply")
     if not isinstance(reply, dict):
         probs = ["返答が JSON のオブジェクトでない"]
