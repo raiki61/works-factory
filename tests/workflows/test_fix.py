@@ -780,7 +780,8 @@ class DeltaScriptsCase(unittest.TestCase):
             spec.loader.exec_module(module)
             return module
         collect, fixio = load("collect"), load("fixio")
-        self.assertEqual((collect.LENSES_FILE, collect.ALLOWED_TESTS), (fixboard.LENSES_FILE, fixboard.ALLOWED_TESTS_FILE))
+        self.assertEqual((collect.LENSES_FILE, collect.ALLOWED_TESTS, collect.ACCEPT_TRACE),
+                         (fixboard.LENSES_FILE, fixboard.ALLOWED_TESTS_FILE, fixboard.ACCEPT_TRACE_FILE))
         self.assertEqual(collect.NO_COLLECTOR, fixboard.LENS_NOT_DONE.format(why=collect.NO_COLLECTOR.partition(": ")[2]))
         collect.fixio = fixio
         with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.art),
@@ -1420,6 +1421,7 @@ class BlockScriptsCase(unittest.TestCase):
             self.assertEqual((code, out["done"]), (0, False), err)
             beside = (self.art / out["diff"]["path"]).parent / fixboard.ALLOWED_TESTS_FILE
             self.assertEqual(json.loads(beside.read_text(encoding="utf-8")), [])
+            self.assertEqual(json.loads((beside.parent / fixboard.ACCEPT_TRACE_FILE).read_text(encoding="utf-8")), [])
         with self.subTest("lib の無い道"):
             __import__("shutil").rmtree(self.art, ignore_errors=True)
             lone = self.tmp / "lone" / "fix" / "scripts"
@@ -1432,6 +1434,7 @@ class BlockScriptsCase(unittest.TestCase):
             self.assertEqual(done.returncode, 0, done.stderr)
             beside = (self.art / json.loads(done.stdout)["diff"]["path"]).parent / fixboard.ALLOWED_TESTS_FILE
             self.assertEqual(json.loads(beside.read_text(encoding="utf-8")), [])
+            self.assertEqual(json.loads((beside.parent / fixboard.ACCEPT_TRACE_FILE).read_text(encoding="utf-8")), [])
 
     def test_collect_returns_handoffs_and_mismatched_units(self):
         """最後の関所を開ける理由の 2 欄（元 works/darkfactory/lib/line_edge.py:800 _final_needs の handoffs・mismatched）:
@@ -2029,7 +2032,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "allowed_test_changes", "allowed_tests", "verified", "reply_file",
-                                       "tdd_state", "worktree", "handoffs", "mismatched"})
+                                       "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace"})
         self.assertEqual(result["tdd_state"], "", "輪の無い組")
         self.assertEqual(result["worktree"], os.path.realpath(self.repo))
         self.assertEqual(result["units"], [{"unit_id": _GRP_MEAN, "status": "fixed", "reason": ""}])
@@ -2040,6 +2043,51 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((result["objection"], result["allowed_test_changes"], result["verified"], result["conflicts"]),
                          ("単位の見立てが違う", ["test_stats.py"], [], []))
         self.assertEqual(result["reply_file"], str(self.place / "fix-reply.json"))
+
+    def test_group_end_carries_permits_mismatches_and_accept_notices_to_the_parent_collect(self):
+        """組の子の置き場の許しの訳（F429）・申告と数え直しが合わない単位（追記 00:00）・受け付けが選んだ試験の知らせ（F014）は
+        group-end が組の結果に載せ、親の collect が返りの diff の隣の allowed-tests.json・返りの mismatched・accept-trace.json に集める
+        （組の子でだけ走る受け付けの知らせが親の diff の隣に届く）"""
+        import conflict
+        import fixboard
+        import querytest
+        self._grp_run("group_start", "group-start")
+        conflict.park(self.place, [{"unit_key": _GRP_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE, ruling={"decision": "fix_test_scope", "text": "期待を直してよい",
+                                                          "limits": ["test_stats.py:8"]})
+        (self.place / querytest.CLOSURE_FILE).write_text(json.dumps({"round": 1, "rows": [
+            {"unit_key": _GRP_MEAN, "closed": True, "discrepancies": ["申告の数が問いの数と合わない"]}]}, ensure_ascii=False),
+            encoding="utf-8")
+        notice = {"op": "fix_tests_selected", "node": "fix-accept", "pass": "first", "attempt": 1,
+                  "note": "選んだ試験が 0 件しか走らなかった", "ci_left": [], "final_left": [], "final_far": []}
+        (self.place / fixboard.ACCEPT_TRACE_FILE).write_text(json.dumps([notice], ensure_ascii=False), encoding="utf-8")
+        result = json.loads(pathlib.Path(self._grp_run("group_end", "group-end")["result_file"]).read_text(encoding="utf-8"))
+        permit = {"path": "test_stats.py", "permit": f"{conflict.RULED_TEST_ID}-c1-1", "source": "ruling"}
+        self.assertEqual(result["allowed_tests"], [permit])
+        self.assertEqual(len(result["mismatched"]), 1, result["mismatched"])
+        self.assertIn("合わない: 申告の数が問いの数と合わない", result["mismatched"][0])
+        child_notice = {**notice, "group_id": "g1"}
+        self.assertEqual(result["accept_trace"], [child_notice])
+
+        parent_art = self.parent.parent.parent
+        start = result["start_tree"]
+        _blk_write(self.parent / fixboard.GROUPS_FILE, {"groups": [_GRP_GROUP], "count": 1, "par": False, "start_tree": start,
+                                                       "out_dir": str(self.out_dir)})
+        _blk_write(self.parent / fixboard.JOIN_FILE, {"par": False, "groups": [
+            {"group_id": "g1", "unit_ids": [_GRP_MEAN], "returned": True, "reason": ""}],
+            "units": [{"unit_id": _GRP_MEAN, "group_id": "g1", "status": "fixed", "reason": ""}]})
+        own = {**notice, "pass": "ruled", "node": "fix-ruled-accept"}
+        _blk_write(self.parent / fixboard.ACCEPT_TRACE_FILE, [own])
+        for _ in range(2):   # 回し直しても行を重ねない
+            code, out, err = _blk_run("collect", self.repo, parent_art)
+            self.assertEqual(code, 0, err)
+            beside = (parent_art / out["diff"]["path"]).parent
+            self.assertEqual(json.loads((beside / fixboard.ACCEPT_TRACE_FILE).read_text(encoding="utf-8")), [child_notice, own])
+            self.assertEqual(json.loads((beside / fixboard.ALLOWED_TESTS_FILE).read_text(encoding="utf-8")), [permit])
+            self.assertEqual(out["allowed_test_changes"], ["test_stats.py"])
+            self.assertEqual(out["mismatched"], result["mismatched"])
 
     def test_group_child_starts_its_log_and_reports_where_join_finds_it(self):
         """並べた子は自分の作業ツリーの記録を group-start で空で作り、group-end の結果の worktree から join が同じ記録を引く"""

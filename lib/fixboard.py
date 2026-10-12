@@ -64,6 +64,20 @@ def tests_trace(place, state_file, note: str, *, pass_: str, attempt: int) -> No
     write_json(path, rows)
 
 
+def accept_trace_rows(place, results=()) -> list:
+    """返りの diff の隣の ACCEPT_TRACE_FILE の行: 組の子の結果 results の accept_trace の行（組の順。子の行は group_id を持つ）と、
+    置き場 place の行（裁定の後の受け付けの回）を重ねずに並べた物。置き場の並びが行の配列でなければ ValueError"""
+    path = pathlib.Path(place) / ACCEPT_TRACE_FILE
+    own = read_json(path, [])
+    if not isinstance(own, list):
+        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    out: list = []
+    for row in [*(x for r in results for x in (r or {}).get("accept_trace") or []), *own]:
+        if isinstance(row, dict) and row not in out:
+            out.append(row)
+    return out
+
+
 def base_rev(state, given: str = "") -> str:
     """突き合わせの起点の版: state["inputs"]["review_rev"]（修正前に固めた版）。無ければ given、それも空なら HEAD。
     元 works/.shared/core/writes.py:88（盤面の b.state を読んだ）。state は同じ形の dict（{"inputs": {...}}）か None"""
@@ -1381,11 +1395,13 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
-                 reply_file: str = "", allowed=(), allowed_rows=(), conflicts=(), worktree: str = "", mismatched=()) -> dict:
+                 reply_file: str = "", allowed=(), allowed_rows=(), conflicts=(), worktree: str = "", mismatched=(),
+                 accept_trace=()) -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed,
-    allowed_test_changes, allowed_tests, verified, reply_file, tdd_state, worktree, handoffs, mismatched}。allowed_rows は許しの訳
-    （allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の mismatched_lines（最後の関所を開ける理由）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
+    allowed_test_changes, allowed_tests, verified, reply_file, tdd_state, worktree, handoffs, mismatched, accept_trace}。allowed_rows は
+    許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の mismatched_lines（最後の関所を
+    開ける理由）、accept_trace は子の置き場の ACCEPT_TRACE_FILE の行（group_id を足す。親の collect が diff の隣に集める）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
     writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
@@ -1405,7 +1421,8 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "allowed_tests": [r for r in allowed_rows or [] if isinstance(r, dict)],
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
             "worktree": str(worktree or ""), "handoffs": handoff_lines([reply] if reply else []),
-            "mismatched": final_lines([], "", mismatched)}
+            "mismatched": final_lines([], "", mismatched),
+            "accept_trace": [{**r, "group_id": gid} for r in accept_trace or [] if isinstance(r, dict)]}
 
 
 def adopt_tdd_states(place, results, repo) -> list:

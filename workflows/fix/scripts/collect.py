@@ -11,12 +11,13 @@ fix_plan_item の項目、objection・changed・allowed_test_changes は戻せ�
 形 group（組の子）: 自分の組の結果（out_dir/<group_id>/result.json。out_dir が空なら自分の置き場の groups/ の下）の行だけを同じ形で返す。
 レンズの集め役の事実は diff の隣の lenses.json（{collector: {ok, reason}}。集め役が書かずに落ちた・走らなかった時は ok: false）。
 累積差分（修正前の版 fixboard.base_rev_of から。未追跡を含み .archon/ の下は除く）は置き場の fix.diff に書いて指し札にする（空なら理由のファイルを指す）。
-diff の隣（置き場）に許したテストの変更の訳 allowed-tests.json = [{path, permit, source}]（fixboard.allowed_test_rows）を置く。
+diff の隣（置き場）に許したテストの変更の訳 allowed-tests.json = [{path, permit, source}]（fixboard.allowed_test_rows）と、
+受け付けが選んだ試験を走らせた回の行 accept-trace.json（戻せた組の子の結果の行と親の置き場の行。fixboard.accept_trace_rows）を置く。
 最後の関所を開ける理由の 2 欄（元 works/darkfactory/lib/line_edge.py:800 _final_needs）: handoffs は修正役が人に回した物
 （子の結果の handoffs と裁定の後の返答の changes[].breaks.accepted。fixboard.handoff_lines）、mismatched は直したという申告と
 機械の数え直しが合わない単位（子の結果の mismatched と親の置き場の閉鎖の表。fixboard.mismatched_lines）。形 group は自分の結果の行だけ。
 この節は落ちない: 中の誤りは全部捕まえ、done: false・理由（units と groups の reason）・ほかは空の値で返し、終了の値は 0
-（diff は理由のファイル fix-collect-error.txt を指し、その隣の allowed-tests.json は空の []）。
+（diff は理由のファイル fix-collect-error.txt を指し、その隣の allowed-tests.json は空の []、accept-trace.json は無ければ []）。
 """
 import json
 import os
@@ -31,6 +32,7 @@ LENSES_FILE = "lenses.json"   # fixboard.LENSES_FILE と同じ名（lib が読�
 NO_COLLECTOR = "レンズの集め役が終わらなかった: 集め役の出口が無い（集め役が落ちたか走らなかった）"   # fixboard.LENS_NOT_DONE の形
 GROUP_LENSES = "組の子の run はレンズを起こさない（差分の審査は親の run が回す）"
 ALLOWED_TESTS = "allowed-tests.json"   # fixboard.ALLOWED_TESTS_FILE と同じ名（lib を読めない時も diff の隣に [] を置く）
+ACCEPT_TRACE = "accept-trace.json"     # fixboard.ACCEPT_TRACE_FILE と同じ名（lib を読めない時も diff の隣に無ければ [] を置く）
 boundary = fixio = None   # 境の口と fixio。読めない時は fallback が stdlib だけで返す
 
 
@@ -53,12 +55,13 @@ def diff_pointer(fixboard, place: Path, why: str = "") -> dict:
     return boundary.pointer(rel(place, "fix-diff-none.txt"))
 
 
-def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review, done, final) -> dict:
+def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review, done, final, results) -> dict:
     """返りの欄（組と単位の行は rows_groups = (組の行, 単位の行)。groups は組の分け、extras は子の結果と修正役の返答、final は
-    最後の関所を開ける理由の行 (handoffs, mismatched)）"""
+    最後の関所を開ける理由の行 (handoffs, mismatched)、results は受け付けの行を親の置き場に集める組の子の結果）"""
     rows = conflict.items(place)
     groups_rows, units_rows = rows_groups
     fixboard.write_json(place / fixboard.ALLOWED_TESTS_FILE, fixboard.allowed_test_rows(place, extras))
+    fixboard.write_json(place / fixboard.ACCEPT_TRACE_FILE, fixboard.accept_trace_rows(place, results))
     return {"done": done, "units": units_rows, "groups": groups_rows,
             "conflicts": boundary.pointer(rel(place, conflict.FILE)) if rows else None,
             "replan_items": fixboard.replan_items(rows, groups),
@@ -90,7 +93,7 @@ def block(fixboard, conflict) -> dict:
     done = isinstance(joined, dict) and checked.get("ok") is True and review["pass"]
     final = (fixboard.final_lines(results, "handoffs", fixboard.handoff_lines([ruled])),
              fixboard.final_lines(results, "mismatched", fixboard.mismatched_lines(place)))
-    return fields(fixboard, conflict, place, rows_groups, plan["groups"], extras, review, done, final)
+    return fields(fixboard, conflict, place, rows_groups, plan["groups"], extras, review, done, final, results)
 
 
 def group(fixboard, conflict) -> dict:
@@ -104,7 +107,7 @@ def group(fixboard, conflict) -> dict:
     rows_groups = fixboard.join_rows([g], {gid: (result, result is not None, "" if result else fixboard.NO_RESULT)})
     extras = [result] if result else []
     final = (fixboard.final_lines(extras, "handoffs"), fixboard.final_lines(extras, "mismatched"))
-    return fields(fixboard, conflict, place, rows_groups, [g], extras, dict(NO_REVIEW), result is not None, final)
+    return fields(fixboard, conflict, place, rows_groups, [g], extras, dict(NO_REVIEW), result is not None, final, [])
 
 
 def place_rel() -> str:
@@ -124,6 +127,8 @@ def error_pointer(why: str) -> dict:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(why + "\n", encoding="utf-8")
         (target.parent / ALLOWED_TESTS).write_text("[]\n", encoding="utf-8")
+        if not (target.parent / ACCEPT_TRACE).exists():
+            (target.parent / ACCEPT_TRACE).write_text("[]\n", encoding="utf-8")
     except Exception:
         pass
     return {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel_path}

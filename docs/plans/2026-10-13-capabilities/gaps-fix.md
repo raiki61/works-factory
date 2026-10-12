@@ -4,10 +4,10 @@
 
 - F014〔戻〕受け付けで選んだ試験が 1 件も走らなければ「新しい赤なし」と言わず知らせる（fail-open にしない）
   - 元: works/blk-fix/lib/tddloop.py の `selected_problems`（docstring 116 行）
-  - 今: lib/fixboard.py `accept_reply` が `tddloop.selected_problems` の知らせを `tests_trace` で diff の隣の `accept-trace.json`（受け付けの回ごとの行 `{op: fix_tests_selected, node, pass, attempt, note, ci_left, final_left, final_far}`）に積む（#121）
-  - 証: lib/tests/test_tdd_outside.py::TestAcceptOutsideTier.test_zero_selected_cases_are_not_reported_as_no_new_red（accept_reply の tests_trace の呼び出しを消すと赤）
+  - 今: lib/fixboard.py `accept_reply` が `tddloop.selected_problems` の知らせを `tests_trace` で diff の隣の `accept-trace.json`（受け付けの回ごとの行 `{op: fix_tests_selected, node, pass, attempt, note, ci_left, final_left, final_far}`）に積む。組の子の行は group-end が組の結果の `accept_trace` に `group_id` つきで載せ、親の collect が親の行と合わせて親の diff の隣の `accept-trace.json` に置く（止めの道・lib の無い道は無ければ `[]`）（#121）
+  - 証: lib/tests/test_tdd_outside.py::TestAcceptOutsideTier.test_zero_selected_cases_are_not_reported_as_no_new_red（accept_reply の tests_trace の呼び出しを消すと赤）・tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_end_carries_permits_mismatches_and_accept_notices_to_the_parent_collect（group-end の accept_trace・collect の子の行の集めを消すと赤）
   - 本物の run: 筋書きでのみ
-  - 狭め: 戻した（#121）。読み手（最後の関所と報告）と組の子から親への写しは配線の部分 D2（#211）
+  - 狭め: 戻した（#121）。読み手（最後の関所と報告）は配線の部分 D2（#211）
 - F016〔試〕テストの凍結（輪の後）: 輪の後の修正役が、輪で緑にした単位のテストのファイルを変えたら受け付けが拒む。許すのは conflict.test_permits の 1 本道（裁定 fix_test_scope の範囲の行・承認済みの修正案の rewrite_tests・相談の合意）だけで、範囲は輪が済んだ木の行で見る。既存の文を変えずに足しただけ（新しい関数・クラス・import）は数えない
   - 元: works/blk-fix/lib/tddloop.py:1662 `frozen_problems`・:1679 `_frozen_rows`・:1976 `_without_additions`、works/blk-fix/scripts/accept.py の 1b `check_frozen`
   - 今: lib/tddloop.py:1605 `frozen_problems`、lib/factchecks.py:94 `check_frozen`、lib/fixboard.py:1643 `accept_reply`（`note("frozen", factchecks.check_frozen(...))`）
