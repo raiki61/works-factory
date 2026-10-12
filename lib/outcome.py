@@ -74,7 +74,6 @@ PENDING_WHY = replan.PENDING_WHY
 MATERIALS_FILE = gatemarks.MATERIALS_FILE
 UNMEASURED = gatemarks.UNMEASURED
 MATERIAL_WHERE = "素材"
-ASKING = gatemarks.ASKING   # 問いの台帳で人に聞く状態
 
 # 返りの続き (前の段, 前の段の欄（None は返りが在るだけ）, 後の段, 文)。前の段が欄を真にしたのに後の段の出力が無い run は途中で終わった
 CHAIN = (("judge", "ready", "plan", "判定が直す単位を出したのに計画の出力が無い"),
@@ -246,7 +245,7 @@ def questions(returns: dict) -> list:
 
 def ledger(returns: dict) -> list:
     """問いの台帳のうち人に聞く状態の問い"""
-    return [q for q in questions(returns) if q.get("status") in ASKING]
+    return [q for q in questions(returns) if q.get("status") in gatemarks.ASKING]
 
 
 def origin_of(q: dict, missing: dict) -> str:

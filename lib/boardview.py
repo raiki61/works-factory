@@ -234,8 +234,7 @@ def plan_review_output(b, nid, out, item):
 # このブロックの部品が読む blocks（gatemarks.unmeasured）だけ。状態の語の持ち主は gatemarks.MATERIAL_WORDS
 BLOCKING = gatemarks.UNMEASURED
 STATUS = {s: types.SimpleNamespace(blocks=s in BLOCKING) for s in gatemarks.MATERIAL_WORDS}
-ASKING = gatemarks.ASKING
-VALIDATOR = types.SimpleNamespace(STATUS=STATUS, ASKING=ASKING)
+VALIDATOR = types.SimpleNamespace(STATUS=STATUS, ASKING=gatemarks.ASKING)
 
 
 def validator_module(b):

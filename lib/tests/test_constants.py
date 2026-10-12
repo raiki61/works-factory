@@ -106,6 +106,16 @@ class ConstantsCase(unittest.TestCase):
         self.assertEqual(overlaps(found, allowed), {}, "同じファイルの名の字を 2 か所で定義する")
         self.assertEqual(idle_rows(found, allowed), [], "表の行が今の木の重なりに当たらない")
 
+    def test_asking_states_are_written_once(self):
+        """問いの台帳で人に聞く状態の組（held・escalate）を字で並べるのは gatemarks.ASKING の 1 か所（#248）"""
+        copies = []
+        for path in sorted(LIB.glob("*.py")):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                words = {e.value for e in getattr(node, "elts", ()) if isinstance(e, ast.Constant)}
+                if isinstance(node, (ast.Tuple, ast.List, ast.Set)) and {"held", "escalate"} <= words:
+                    copies.append(f"{path.name}:{node.lineno}")
+        self.assertEqual([c.partition(":")[0] for c in copies], ["gatemarks.py"], copies)
+
     def test_every_allowed_row_has_a_reason(self):
         self.assertFalse(FALLBACKS.keys() & OVERLAPS.keys())
         for row, reason in {**FALLBACKS, **OVERLAPS}.items():
