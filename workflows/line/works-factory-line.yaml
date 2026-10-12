@@ -1131,7 +1131,7 @@ nodes:
       optional: "$collect.output.optional"
 
   # 後始末。fix の並べ（groups-par）の子の run が残した作業ツリーと枝を消す（issue #113）。消すのはこの run の子で status が
-  # completed の物だけ。落ちない（返りの error に畳む）ので run の結末を変えず、返り {cleaned, left, error} は result が線の返りに載せる
+  # completed の物で、子を起こした fan_out の節と join が済んだ物だけ（再開が join を走らせ直しうる間は残す）。落ちない（返りの error に畳む）ので run の結末を変えず、返り {cleaned, left, error} は result が線の返りに載せる
   - id: sweep-children
     script: sweep_children
     runtime: uv
