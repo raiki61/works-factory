@@ -13,8 +13,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 
-ROLE = "plan-review"            # 道具を持つ役の節（YAML の review-loop の中）
-QUIET = ("r2-design",)          # 道具を持たない役の節（読む物が無い）
+ROLE = "plan-review"            # 道具を持つ役の節（YAML の review-loop の中。道具を持たない役は独立設計 planblk.DESIGN_ROLE だけ）
 
 
 def collected() -> None:
@@ -22,10 +21,11 @@ def collected() -> None:
     import boundary
     sys.path.append(str(boundary.lib_root()))
     import boardview
+    import planblk
     import reads
 
     got = boardview.collect_reads(Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER,
-                                  reads.log_here(), role=ROLE, quiet=QUIET, repo=Path.cwd())
+                                  reads.log_here(), role=ROLE, quiet=(planblk.DESIGN_ROLE,), repo=Path.cwd())
     boundary.returns({**got, "reason": ""})
 
 

@@ -438,6 +438,21 @@ class ShapeCase(unittest.TestCase):
                 self.assertTrue(text.startswith("# /// script\n"), n["script"])
                 self.assertIn("sys.dont_write_bytecode = True", text, n["script"])
 
+    def test_reads_roles_are_the_role_nodes_by_their_tools(self):
+        """読んだ証拠の節が名指す役は YAML の役の節と同じ: 道具を持つ役は plan_reads.ROLE、持たない役は QUIET（役が道具を得たのに
+        null と書く黙った緩みを赤にする）"""
+        spec = importlib.util.spec_from_file_location("plan_script_plan_reads", SCRIPTS / "plan_reads.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        def every(body):
+            for n in body:
+                yield n
+                yield from every(n.get("loop_group", {}).get("nodes", []))
+        roles = [n for n in every(load()["nodes"]) if "command" in n or "prompt" in n]
+        self.assertEqual({n["id"] for n in roles if n.get("allowed_tools")}, {mod.ROLE})
+        self.assertEqual({n["id"] for n in roles if not n.get("allowed_tools")}, set(mod.QUIET))
+
     def test_fallback_names_match_lib(self):
         """落ちない 2 つの節（round・plan）は lib を読めない時に標準ライブラリだけで同じ置き場に書く。その字が lib と同じ"""
         def loaded(name):

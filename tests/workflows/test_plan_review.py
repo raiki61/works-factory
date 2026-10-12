@@ -337,6 +337,13 @@ def env_names(text: str) -> set:
 class YamlCase(unittest.TestCase):
     """ブロックの YAML の形（元 tests/test_blk_plan.py の YamlCase の事前審査と独立設計の側）"""
 
+    def test_reads_roles_are_the_role_nodes_by_their_tools(self):
+        """読んだ証拠の節が名指す役は YAML の役の節と同じ: 道具を持つ役は review_reads.ROLE、持たない役は planblk.DESIGN_ROLE
+        （役が道具を得たのに null と書く黙った緩みを赤にする）"""
+        roles = [n for n in nodes().values() if "command" in n or "prompt" in n]
+        self.assertEqual({n["id"] for n in roles if n.get("allowed_tools")}, {load_script("review_reads").ROLE})
+        self.assertEqual({n["id"] for n in roles if not n.get("allowed_tools")}, {planblk.DESIGN_ROLE})
+
     def test_returns_review_and_outcome_pass(self):
         doc = workflow()
         self.assertEqual((doc["name"], doc["returns"], doc["outcome_field"]), ("works-factory-plan-review", "review", "pass"))
