@@ -104,7 +104,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 ## 殻を続けて打つ時の決まり（実装の役・運び役・筋書きの確かめの役に共通）
 
 - 環境変数は道具の呼び出しをまたいで残らないので、`bin/works-factory` と `bin/apply` の呼び出しには毎回 `WORKS_FACTORY_HOME=<家>` を前に付ける。
-- 起こす: `WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow run works-factory-line --cwd <target> --detach --json --input request=<request> --input test_cmd='python3 -m unittest -v' --input tdd_suite=junit-suite.sh --input thickness=標準`。返った確認の `runId` が、この run の id（fix の組の子の run の id は別に在る）。
+- 起こす: `WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow run works-factory-line --cwd <target> --input request=<request> --input test_cmd='python3 -m unittest -v' --input tdd_suite=junit-suite.sh --input thickness=標準` を前で打つ。`--detach` を付けない: 線は `interactive: true` で、止めた Archon は切り離した新しい起こしを拒む（`packages/cli/src/commands/workflow.ts` 2306-2326 行の `assertInteractiveClassNotBackgrounded`。issue #187）。命令は最初の関所 `gate-start`（人の居る run では必ず開く。棚卸しの L-G01）で止まって返る（その前に走るのは `start` の節だけ）ので、道具の呼び出しの上限（600 秒に上げて呼ぶ）に収まる。返りは JSON でないので、run の id は `WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow runs --json --all --cwd <target>` の `runs` のうち `parent_run_id` の無い行の `id` から取る（fix の組の子の run は `parent_run_id` を持つ）。続き（関所の答え）の `--detach` は Archon が拒まない（同じ源の `!isContinuation`）。
 - 待つ: `WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow wait <run> --json --timeout 540 --cwd <target>` を繰り返す。`--timeout` は、道具の 1 回の呼び出しの上限（Claude Code の Bash は既定 120 秒・最大 600 秒）より短くして、呼び出しを有限にするための区切りで、run に期限を置く物ではない（run は区切りで止まらない。持ち主の決め `no-timeouts` の外）。道具の呼び出しの上限は 600 秒に上げて呼ぶ。終了の値 3（区切りが来た）なら同じ命令をもう一度打つ。
 - `wait` の返りの `attention.kind` で分ける（`reference/cli.md` の `workflow wait`）:
   - `terminal`: 終わり。
@@ -198,7 +198,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
    - U1（`resume` の後の run の id は同じか）: 文書で決める（`workflow resume` は id を指して同じ run を続ける。`--adopt` は新しい run を起こす。`reference/cli.md` の `workflow resume`・`--adopt`）。加えて、使い捨ての run を 1 つ起こし、最初の関所で `workflow approve <run> --json`（答えを記録するだけで続きを走らせない形）の後に `workflow resume <run> --detach --json` を打ち、続いた run の id が同じかを見る。
    - P1（持ち主の居ない `running` の run）: 別の使い捨ての run で、役の節が走っている間に、`--detach` の子のプロセスを pid で止める。pid は `workflow abandon --json` の `recordedPid` の案内か、`ps` を家のパスで絞って見つける（名で止めない・`pkill -f` の広い形を使わない）。`workflow get`・`workflow wait` が何を言うか（`owner_lost`）、`workflow resume` が拒むか、`workflow abandon` が run の作った作業ツリー（書きかけを含む）を消すこと（`reference/cli.md` の `workflow abandon`）と、`workflow run --adopt <run>` で新しい run として続きを起こせるか、その時に報告の節が走るか（L-W60）を書く。結果で P1 の「埋め」の行を「足りる（埋め無し）」か「足りない（置き場の予定）」に直す。
    - U2 の残り（型つきの成果物が include ごとに分かれて見えるか）: 通しの run の `$ARTIFACTS_DIR/.archon/` の型つきの成果物の一覧で、`test-gate-base` と `test-gate-final` の `green-cert` が別の鍵で載るかを書く。
-   - U6: 止めた Archon の `workflow get --events --json` と run の transcript（`--detach --json` の確認の `transcriptPath` の JSONL）に、役の道具の呼び出し（読んだ・書いたファイルのパス・web の取得）が載るか。載る形を 1 例引き、今の works の包みが取っていた読んだ証拠と書き込みの記録（棚卸しの J40・P057・P211〜P213・F102・F147）がそこから取れるかを書く。取れると分かっても、この PR では戻さない（後の issue）と書く。
+   - U6: 止めた Archon の `workflow get --events --json` と run の transcript（`workflow get <run> --json` の `transcript_path` の JSONL）に、役の道具の呼び出し（読んだ・書いたファイルのパス・web の取得）が載るか。載る形を 1 例引き、今の works の包みが取っていた読んだ証拠と書き込みの記録（棚卸しの J40・P057・P211〜P213・F102・F147）がそこから取れるかを書く。取れると分かっても、この PR では戻さない（後の issue）と書く。
    - U7: 下の「筋書きの入力」と、運び役の確かめの run の id で閉じる。
    - U8: fix の組ごとの子の run が自分の作業ツリーを持ち、差分が親に戻ったかを、run の記録（子の run の id と作業ツリーのパス・戻した組）で書く。fix の PR #94 が書いた事（remote の無い対象では子の作業ツリーが切れず、1 つずつ回す）と食い違えば、両方を書く。
    - P2: 通しの run で、線の返しの節が飛ばされた値を `null` で受けたことを 1 例引く。
@@ -229,7 +229,7 @@ lifecycle の入力のうち、このリポジトリが決める物:
 
 - `environment`: `setup`・`start` は空（対象は主張の手順の中で試みごとに作る）。`teardown` は `python3 tests/e2e/make_target.py teardown`（確かめの節が落ちても切り離した run が走り続けないよう、その checkout が作った家の run を止める。`ownership: external` の約束「Consumers must provide a lifetime owner」）。`candidate_command` は今のまま。
 - 主張は次の 5 つ。どれも、確かめの役が道具の出力を証拠のファイルに残す前提で書く（`W/verify-runtime/commands/verify-runtime.md`）。試みのフォルダは、この試みの置き場（attempt directory）の下に新しく作る。
-  1. `request-to-report`: `make_target.py make` で対象・依頼・家を作り、run を起こし、関所で止まるたびに関所の文を見て `approve` で答え、終わりまで運ぶ。期待: `run --detach --json` の確認が `runId` をちょうど 1 つ返す・`workflow get <run> --json` の `terminal_record.status` が `completed`・`returns.value.outcome` が report の結末の 10 語の 1 つ・`returns.value.report` の先の報告の本文が空でない・当てる前の対象の `git status --porcelain` が空。認証が拾えずに殻が止まった時は `inconclusive` にし、殻の 1 行を reason に書く（製品の不具合ではない）。
+  1. `request-to-report`: `make_target.py make` で対象・依頼・家を作り、run を起こし、関所で止まるたびに関所の文を見て `approve` で答え、終わりまで運ぶ。期待: 起こした後の `workflow runs --json` に `parent_run_id` の無い run がちょうど 1 つ在る・`workflow get <run> --json` の `terminal_record.status` が `completed`・`returns.value.outcome` が report の結末の 10 語の 1 つ・`returns.value.report` の先の報告の本文が空でない・当てる前の対象の `git status --porcelain` が空。認証が拾えずに殻が止まった時は `inconclusive` にし、殻の 1 行を reason に書く（製品の不具合ではない）。
   2. `every-block-ran`: 1 の run の `workflow get <run> --json --verbose` で、線の中の include の id（`test-gate-base`・`judge`・`plan`・`plan-review-run`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`。`plan` と `plan-review-run` は計画の往復の中に在り、節の id に `plan-rounds.` の頭が付く。止めた Archon の `dag-executor.ts` 4322-4331 行）ごとに、節の id の中に `<include の id>__` の区切りを含む節が 1 つ以上 `completed`。案の直しの道の include（`rejudge`・`replan`・`replan-review`・`refix`）は、通った run だけ見る。fix の役の節は組ごとの子の run に在るので、`workflow runs` で親の子の run を引き、子ごとの `get --json --verbose` で見る。期待: 全部の id が満たす。eyes の R1〜R4 の役の節が `completed`（深さを標準で回したので省かれない）。
   3. `capabilities-evidenced`: 1 の run で `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせる。期待: `check` が終了の値 0（`absent` が 0 件）。`unexpected` の行は失敗にしないが、行を全部 reason に写す。
   4. `changed-diff-refused`: 1 の run で、当てる前に、`returns.value.apply.diff` の先（`terminal_record.artifacts.root` の下）を試みのフォルダに写して控え、1 バイト変えてから `./bin/apply <run> --cwd <対象>` を呼ぶ。期待: 0 以外で終わり、hash が合わないことを言い、対象の `git status --porcelain` が空のまま。その後で控えから元に戻す。
@@ -293,7 +293,7 @@ ASF の工程の中から ASF の工程を起こさない（入れ子の SDLC）
 
 ## 層の E11 の 3 つ
 
-1. Archon が持つ物: run の記録と返す節の値（`workflow get --json` の `terminal_record`）・出来事の記録（`--events`）・待ち（`workflow wait`）・関所の答え（`workflow respond`）・切り離した起動と答え（`--detach`）・run ごとの作業ツリー・止めと片付け（`cancel`・`abandon`）。全部そのまま使う。
+1. Archon が持つ物: run の記録と返す節の値（`workflow get --json` の `terminal_record`）・出来事の記録（`--events`）・待ち（`workflow wait`）・関所の答え（`workflow respond`）・切り離した関所の答え（`--detach`）・run ごとの作業ツリー・止めと片付け（`cancel`・`abandon`）。全部そのまま使う。
 2. ASF が持つ物: `archon-verify-runtime`（筋書きの読みと、証拠つきの主張の判定）と `archon-lifecycle`（候補の版の照らし・1 度の直し・別筋）。筋書きの形と照らしは ASF の物をそのまま使い、コードは写さない（層の E8）。
 3. 本当に要るか: 照らしの道具 `tests/e2e/evidence.py` は、ブロックの PR が審査を通った後に能力が黙って落ちていた事実（持ち主の側の目が毎回見つけた）から要る。Archon にも ASF にも「今の works の能力が run で働いたか」を照らす口は無い。口は `collect` と `check` の 2 つだけで、表は棚卸しの行をそのまま写す。
 
