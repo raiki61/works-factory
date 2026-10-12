@@ -303,7 +303,7 @@ class StartCase(Artifacts):
         for kw, words in (({}, "直す物も審査する物も無い"),
                           ({"request": "request_ok.json", "base": "base", "pr": "1"}, "両方"),
                           ({"request": "request_ok.json", "spec": "on", "unattended": "true"}, "組めない"),
-                          ({"request": "request_ok.json", "thickness": "重厚"}, "足す工程がまだ無い"),
+                          ({"request": "request_ok.json", "thickness": "重厚"}, "足すノードがまだ無い"),
                           ({"request": "request_ok.json", "thickness": "xx"}, "知らない値"),
                           ({"request": "request_ok.json", "features_off": "nope"}, "nope"),
                           ({"request": "request_ok.json", "features_off": "judge_verify", "features_on": "judge_verify"}, "両方"),
@@ -1248,7 +1248,7 @@ class AskFinalReadsCase(Artifacts):
                                                                   "design_file": "", "wall_s": 0})
         missing = ask_final.structure_missing(ptr)
         self.assertEqual(missing, "構造の目の行なしで計画した（理由: 構造の目の役が落ちた）")
-        self.assertIn(f"- 構造のブロック: {missing}", ask_final.final_text(final_got(structure_missing=missing), [], RUN))
+        self.assertIn(f"- 構造のサブグラフ: {missing}", ask_final.final_text(final_got(structure_missing=missing), [], RUN))
         ok = self.place("plan/structure/structure-state.json", {"status": "ok", "reason": "", "design_file": "", "wall_s": 0})
         self.assertEqual(ask_final.structure_missing(ok), "")
         self.assertEqual(line_nodes()["ask-final"]["with"]["structure"], {"from": "$plan-rounds.output.structure", "if_skipped": None})
@@ -1264,7 +1264,7 @@ class AskFinalReadsCase(Artifacts):
         with mock.patch.dict(os.environ, env):
             out = ask_final.ask(**ask_final.from_env())
         self.assertTrue(out["open"], out)
-        self.assertIn("- 構造のブロック: 構造の目の行なしで計画した（理由: 構造の目の役が落ちた）", out["text"])
+        self.assertIn("- 構造のサブグラフ: 構造の目の行なしで計画した（理由: 構造の目の役が落ちた）", out["text"])
 
     def test_fix_beside_files_reach_the_final_gate(self):
         """F013・F041・F312・F329・L-W20・L-W21（S03・S28・S29）: 最後の関所は修正の段ごとの diff の隣の控え（fixed の diffs。
@@ -1340,7 +1340,7 @@ class AskFinalReadsCase(Artifacts):
             self.assertIn(want, text)
         self.assertLess(text.index("（R2）: 上限が渡されていない"), text.index("R3"))
         self.assertEqual(ask_final.eye_notes(None)["r2_inputs"],
-                         ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の返り notes が null）"])
+                         ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の出力 notes が null）"])
         self.assertEqual(line_nodes()["ask-final"]["with"]["eye_notes"], "$eyes.output.notes")
         self.assertEqual(line_nodes()["eyes-out"]["with"]["got_notes"], "$eyes.output.notes")
 

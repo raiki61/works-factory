@@ -1,7 +1,7 @@
-"""線の後始末（issue #113）: fix の並べ（groups-par）の子の run が残した作業ツリーと枝を、止めた Archon の complete --force で消す。
+"""メイングラフの後始末（issue #113）: fix の並べ（groups-par）の子の run が残した作業ツリーと枝を、止めた Archon の complete --force で消す。
 
 Archon は fan_out の子の作業ツリーを子が終わっても消さない（Archon の authoring-workflows.md の「It is not removed when the child
-finishes」）。この部品は線の最後の節から呼ばれ、この run の子だけを選んで消し、返り {cleaned, left, error} に消した物と残した物を
+finishes」）。この部品はメイングラフの最後のノードから呼ばれ、この run の子だけを選んで消し、出力 {cleaned, left, error} に消した物と残した物を
 名と理由つきで書く。落ちる代わりに error に書く（何も消さずに返す）。
 
 - 選び: workflow runs --json --all の行の parent_run_id がこの run（WORKFLOW_ID）で、metadata の branch_name（作業ツリーを
@@ -43,10 +43,10 @@ Run = Callable[..., subprocess.CompletedProcess]
 
 
 def select(run_id: str, listing: object) -> tuple[list[dict], list[dict]]:
-    """workflow runs --json の返りから、この run の作業ツリーを持つ子を（消す物, 理由つきで残す物）に分ける。読めなければ ValueError"""
+    """workflow runs --json の出力から、この run の作業ツリーを持つ子を（消す物, 理由つきで残す物）に分ける。読めなければ ValueError"""
     runs = listing.get("runs") if isinstance(listing, dict) and listing.get("ok") is not False else None
     if not isinstance(runs, list):
-        raise ValueError(f"workflow runs の返りに runs の一覧が無い: {_clip(json.dumps(listing, ensure_ascii=False))}")
+        raise ValueError(f"workflow runs の出力に runs の一覧が無い: {_clip(json.dumps(listing, ensure_ascii=False))}")
     if not any(r.get("id") == run_id for r in runs):
         raise ValueError(f"一覧にこの run が無い（新しい順の {LIST_LIMIT} 件を越えた）")
     remove, left = [], []
@@ -77,7 +77,7 @@ def outcome(branch: str, stdout: str, stderr: str) -> str | None:
 
 
 def sweep(run_id: str, checkout: str, env: Mapping[str, str], run: Run = subprocess.run) -> dict:
-    """この run の completed の子の作業ツリーと枝を消し、{cleaned, left, error} を返す。checkout は run の作業ツリー（節の cwd）"""
+    """この run の completed の子の作業ツリーと枝を消し、{cleaned, left, error} を返す。checkout は run の作業ツリー（ノードの cwd）"""
     result = {"cleaned": [], "left": [], "error": ""}
     source = env.get(place.SOURCE_ENV)
     if not source:

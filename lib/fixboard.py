@@ -1303,7 +1303,7 @@ def delta_review_problems(place, n: int, reply: dict, repo, *, fix_reply=None) -
     for i, f in enumerate(faces):
         kind, where, cite = f.get("kind"), str(f.get("where") or ""), str(f.get("cite") or "")
         if kind in HUMAN_FACE_KINDS:
-            errs.append(f"faces[{i}] の kind '{kind}' は事前審査だけの語——修正の後の後退・方針とのぶつかりは後の工程が人に聞く")
+            errs.append(f"faces[{i}] の kind '{kind}' は事前審査だけの語——修正の後の後退・方針とのぶつかりは後の段が人に聞く")
             continue
         if kind in PLAN_ONLY_FACE_KINDS:
             errs.append(f"faces[{i}] の kind '{kind}' は事前審査だけの語——判定者の先行例はこのノードに渡っていない")
@@ -1772,7 +1772,7 @@ BOUND_PARKED = ("修正のループの最後の回も、この単位に結んだ
 GAVE_UP = "修正のループの {n} 回目の拒否で諦めた（直しは段の頭の木に戻し、控え {patch} に移した）: {why}"
 NOT_SETTLED = "修正のループの最後の回に、止める単位が残らないのに拒否が残った（受けずに諦めた）: "
 ABSORBED_OP = "fix_excused_dropped"   # 最後の回に、義務の外の単位の行を changes から外した・数えなかった拒否の文の trace の行（元 accept.py:158）
-PACK_COPY = ("修正役は除くパスの頭 {skip} の下を変えてはいけない（実行基盤の置き場で、この run を動かしている工程の写しが在りうる。"
+PACK_COPY = ("修正役は除くパスの頭 {skip} の下を変えてはいけない（実行基盤の置き場で、この run を動かしているグラフの写しが在りうる。"
              "写しは次の run が作り直す）: ")   # 元 accept.py:175 の PACK_COPY（頭の字は呼び手が渡す）
 SKIP_BEFORE_FILE = "skip-before.json"   # 修正の段の頭の、除くパスの頭の下の姿 {パス: 中身の sha256}（fix-prep・fix-ruled-prep が 1 回目に書く）
 PARKED_FOR_RULING = "食い違いの申し出を裁定へ回した（裁定の後の修正役が受け付け直す）"

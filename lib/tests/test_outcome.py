@@ -100,7 +100,7 @@ class TableCase(unittest.TestCase):
         """判定と計画が ready なのに修正も最後のテストも無い run は直したと名乗らない"""
         returns = fixed_run(fix=None, **{"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None})
         self.assertEqual(decide(returns, facts={**OK_FACTS, "failed": None}), ("interrupted", "fix:chain-cut"))
-        self.assertIn("計画が修正案を出したのに修正の返りが無い", outcome.chain_notes(returns))
+        self.assertIn("計画が修正案を出したのに修正の出力が無い", outcome.chain_notes(returns))
 
     def test_fix_without_final_test_or_seal_is_not_fixed(self):
         self.assertEqual(decide(fixed_run(**{"test-gate-final": None})), ("interrupted", "test-gate-final:chain-cut"))

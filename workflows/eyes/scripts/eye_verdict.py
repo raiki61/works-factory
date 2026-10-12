@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""目の返りの全体を置き場の eyes/<eye>.json に書き、型つきの成果物の行 {eye, status, reason} を返す"""
+"""目の出力の全体を置き場の eyes/<eye>.json に書き、型つきの成果物の行 {eye, status, reason} を返す"""
 import json
 import os
 import sys

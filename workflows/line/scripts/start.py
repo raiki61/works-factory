@@ -87,7 +87,7 @@ def words(raw: dict, repo: Path) -> dict:
         raise Refused(f"design_only={raw['design_only']!r} は知らない値（空か {gatemarks.DESIGN_ONLY}）")
     thickness = raw["thickness"].strip()
     if thickness == HEAVY:
-        raise Refused(f"thickness={HEAVY} で足す工程がまだ無い（{' / '.join(t for t in THICKNESS if t)}）")
+        raise Refused(f"thickness={HEAVY} で足すノードがまだ無い（{' / '.join(t for t in THICKNESS if t)}）")
     if thickness not in THICKNESS:
         raise Refused(f"thickness={raw['thickness']!r} は知らない値（{' / '.join(t for t in THICKNESS if t)}）")
     if raw["fix_fixture"].strip():

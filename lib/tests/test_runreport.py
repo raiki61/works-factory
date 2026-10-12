@@ -1085,7 +1085,7 @@ class LinesCase(Base):
     def test_world_null_says_the_stage_gave_nothing(self):
         """元 worldmark.report_lines の「世界の解の段が落ちた（行なしで進んだ）」: 判定が返ったのに world が null"""
         _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "world": None}))
-        self.assertIn("世界の解の行が無い（判定の返りの world が null", self.section(text, report.WORLD_HEADING))
+        self.assertIn("世界の解の行が無い（判定の出力の world が null", self.section(text, report.WORLD_HEADING))
         _, text, _ = self.build(fixed_run(judge=None), )
         self.assertNotIn(report.WORLD_HEADING, text)
 
@@ -1159,14 +1159,14 @@ class LinesCase(Base):
         _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
         body = self.section(text, report.ENTRY_HEADING)
         self.assertIn("- 走った段: test-gate-base・judge・plan・", body)
-        self.assertIn("- 飛ばされた・返りの無い段: rejudge・replan・replan-review\n", body)
+        self.assertIn("- 飛ばされた・出力の無い段: rejudge・replan・replan-review\n", body)
         self.assertIn("直す前のテスト: 赤", body)
         self.assertIn("赤の原因 inherited", body)
 
         _, text, _ = self.build(fixed_run(**{"test-gate-base": None}))
         body = self.section(text, report.ENTRY_HEADING)
         self.assertNotIn("直す前のテスト", body)
-        self.assertIn("- 飛ばされた・返りの無い段: test-gate-base・rejudge・replan・replan-review", body)
+        self.assertIn("- 飛ばされた・出力の無い段: test-gate-base・rejudge・replan・replan-review", body)
 
     def test_outside_purpose_rows_and_wrong_name(self):
         """目的の外の所見は節に 1 件ずつ、人が決めることの節に件数と置き場の 1 行（次の run に渡す物の行の前）。名の違う控えは読まない"""

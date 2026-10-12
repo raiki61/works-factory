@@ -5,13 +5,13 @@
   python3 toolset.py vendor [--user-config <利用者の設定の置き場>] <superpowers の版>
   python3 toolset.py contract [--user-config <利用者の設定の置き場>] [<superpowers の版>]
 
-AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CLAUDE_CONFIG_DIR（isolate.py）を読む。
+AI ノードは全部 settingSources: [user] で、bin/ の起動が隔離した CLAUDE_CONFIG_DIR（isolate.py）を読む。
 そこに置くのは許す一覧 bin/_lib/borrow/borrow.json の物だけ。借りる物の取り元は 2 つに分かれる:
 - superpowers（kind "skills"）: works に写した固定の版（bin/_lib/borrow/superpowers/<版>/。下の vendor が作る）から入れる。
   利用者の installed_plugins.json の superpowers の行は読まない（入れた版は run に使わず、開発の再開の確かめが比べるだけ）。
   写しの包むファイルが borrow.json の superpowers.pin の sha256 と合わなければ（spseam.pin_problems）、違うファイルを 1 行ずつ
   名指して、何も写さずに止まる。
-- coldwrite・pr-review-toolkit（kind "plugin"）: 利用者が Claude Code に入れたプラグインから取る（本線の graphloops と同じ。版は
+- coldwrite・pr-review-toolkit（kind "plugin"）: 利用者が Claude Code に入れたプラグインから取る（元の graphloops と同じ。版は
   Claude Code が今に保ち、入れた版をそのまま使う）。
 - coldwrite の marketplace の名と repo は borrow.json に書かず、利用者の設定（WORKS_FACTORY_COLDWRITE_MARKETPLACE・
   WORKS_FACTORY_COLDWRITE_MARKETPLACE_REPO）から読む（user_borrow）。どちらかが無ければ install は 1 行で名指して見送り、止めない。
@@ -26,7 +26,7 @@ AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CL
   並べ、何も写さずに止まる（AI を起こさない）。写しが pin と合わない superpowers の行も同じ 1 つの止まりにまとめる。
 - kind "skills"（superpowers）: 写しの skills/<スキル>/ の一覧のスキルだけを <置き場>/skills/<スキル>/ へ、部品（parts。スキル
   としては使わず、中の文を役の指示書に使うファイル）を <置き場>/works-parts/superpowers/<相対パス> へ、バイトのまま・権限つきで
-  写す。プラグインとしては入れない（有効にすると SessionStart の hook が using-superpowers を差し込み、無人の役の約束が崩れる）。
+  写す。プラグインとしては入れない（有効にすると SessionStart の hook が using-superpowers を注入し、無人の役の約束が崩れる）。
   中身と実行の権限が同じなら何もしない。違えば一時の置き場に写してから入れ替える。
 - kind "plugin" で borrow の hooks を持たない物（pr-review-toolkit。素材集めの局所レビューのレンズの agent）: 入れた置き場を
   <置き場>/works-marketplace/<名>/ に写し、手元の marketplace works-local を書いて、Claude Code の CLI
@@ -35,8 +35,8 @@ AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CL
   enabledPlugins に載らなければ止まる。--no-plugins（認証の要らない道。validate・テスト）は CLI を呼ばない（探して名前を確かめるのは
   同じ）。
 - kind "plugin" で borrow の hooks を持つ物（coldwrite。書く散文の初見検査のフック）: プラグインとしては入れず、入れた置き場の
-  hooks/hooks.json の hooks の表をそのまま隔離した設定の settings.json の hooks に足す（hooked）。Archon は節が plugins: で名指さない
-  プラグインを切り、名指すと入っていない利用者の run の節が落ちる（E14）が、settingSources: [user] の節は利用者の設定のフックを
+  hooks/hooks.json の hooks の表をそのまま隔離した設定の settings.json の hooks に足す（hooked）。Archon はノードが plugins: で名指さない
+  プラグインを切り、名指すと入っていない利用者の run のノードが落ちる（E14）が、settingSources: [user] のノードは利用者の設定のフックを
   読むので、全部の役で効く。表がプラグインの置き場を指す字（PLUGIN_PLACE）を持てば、置かずに名指して止まる。前の版が
   プラグインとして入れた物は、CLI を呼ぶ道で外す。
 - 書き込みの記録のフック: 同じ置き場の record-write.py を PostToolUse:Edit|Write|NotebookEdit（WRITE_MATCHER）で settings.json の
@@ -44,8 +44,8 @@ AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CL
   受け付け（lib/writes.py）が、記録を役の申告と作業ツリーの変更に突き合わせる。
   Claude Code がキャッシュの版の置き場に置く印（MARKERS）は写さず、比べもしない。
 - 読んだ証拠のフック: 同じ置き場の record-read.py を PostToolUse:Read|Agent|WebFetch|WebSearch（READ_MATCHER）で同じ所に置き、
-  記録の根 <置き場>/works-reads/（lib/reads.ROOT）を作る。計画と事前審査の読んだ証拠の節（lib/reads.collect）が読む。
-- 借りる MCP は無い（kind "mcp" の Context7 は持ち主 2026-10-09 の決めで消した。Archon の役の節は周りの MCP を読まない——
+  記録の根 <置き場>/works-reads/（lib/reads.ROOT）を作る。計画と事前審査の読んだ証拠のノード（lib/reads.collect）が読む。
+- 借りる MCP は無い（kind "mcp" の Context7 は持ち主 2026-10-09 の決めで消した。Archon のAI ノードは周りの MCP を読まない——
   strictMcpConfig——ので、役は MCP を持たない）。前の版が置き場に書いた works-mcp.json は誰も読まないので、柵も数えず消しもしない。
 - 柵（guard）: 一覧の外を名前で並べる。CLAUDE.md・rules/・agents/・commands/・output-styles/・settings.json 以外の
   settings*.json・一覧の外のスキル・works-parts/ の下の部品の外のファイル・settings.json の鍵が {enabledPlugins,
@@ -66,7 +66,7 @@ AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CL
   書き直す。commit は installed_plugins.json の行のうち installPath がその版の置き場の行の gitCommitSha（無ければ写さずに止まる）。
   使用許諾のファイルが MIT License で borrow.json の licence と合う時だけ写す（外れなら何も書かずに止まる）。写しは直さない。
   写しを変えるのはこの口だけで、写し・台帳・pin を同じ 1 つの commit に入れる。
-- 契約の確かめ（contract）: 版のフォルダに、固定との食い違い（spseam.pin_problems）と、包む節の表 bin/_lib/borrow/seams.json の
+- 契約の確かめ（contract）: 版のフォルダに、固定との食い違い（spseam.pin_problems）と、包む継ぎ目の表 bin/_lib/borrow/seams.json の
   契約の破れ（spseam.contract_problems。錨・読み替えの決まり・穴・出口の語）を当てて 1 行ずつ出す。版を名指さなければ写しに、
   名指せば利用者のキャッシュのその版の置き場（vendor と同じ所。版を上げる前に、新しい版で何が崩れるかを見る）に当てる。
   破れが無ければ 1 行で終了コード 0、在れば 1、版のフォルダが無い・borrow.json に pin が無ければ 2。何も書かない。
@@ -74,7 +74,7 @@ AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CL
   持たないので、起動の成果を塞がない最後に置く）:利用者のキャッシュの superpowers の版のフォルダ・
   installed_plugins.json の行の版・marketplace の一覧（plugins/known_marketplaces.json の installLocation の
   .claude-plugin/marketplace.json）の版を、写した固定の版と数の組（6.10.0 → (6, 10, 0)）で比べる。決まりは 1 つで、数で読めて
-  固定より古い版だけを飛ばし、ほかの版のフォルダ（数で読めない版の名も）には固定との食い違い・節の契約の破れ・包むファイルに
+  固定より古い版だけを飛ばし、ほかの版のフォルダ（数で読めない版の名も）には固定との食い違い・継ぎ目の契約の破れ・包むファイルに
   増えた人に聞く文（human partner を含む行）を出す（固定と同じ版か数で読めない名の版で違いが無ければ黙る）。フォルダの無い版（一覧にだけ在る物
   など）は同じ決まりで 1 行を出す。入っていない・読めない JSON は 1 行で名指して続ける。版を上げるかは人が決める（上げる道は最後の行の案内）。
   上流（UPSTREAM_URL）の tag（git ls-remote --tags の refs/tags/v<数>）も同じ決まりで比べ、固定より新しい tag を 1 行ずつ名指す。
@@ -413,7 +413,7 @@ def _writes_root(cfg) -> pathlib.Path:
 
 
 def _reads_root(cfg) -> pathlib.Path:
-    """設定の置き場 cfg の下の読んだ証拠の記録の根（名の持ち主は lib/reads。record-read.py と計画・事前審査の読んだ証拠の節が同じ物を読む）"""
+    """設定の置き場 cfg の下の読んだ証拠の記録の根（名の持ち主は lib/reads。record-read.py と計画・事前審査の読んだ証拠のノードが同じ物を読む）"""
     return _lib()[0].root(os.path.abspath(cfg))
 
 
@@ -650,11 +650,11 @@ def _install_plugins(cfg: pathlib.Path, srcs: dict, claude_bin: str, retired=())
 
 def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin, plugins: bool = True,
             versions: "dict | None" = None, enabled: "dict | None" = None) -> dict:
-    """隔離した設定を組む。chosen・versions は installed_sources の返り（versions に無い名は置き場の名・plugin.json の version）。
+    """隔離した設定を組む。chosen・versions は installed_sources の出力（versions に無い名は置き場の名・plugin.json の version）。
     chosen は installed_sources を通った物だけを渡す（superpowers の写しを pin と照らし直さずに写す）。
     enabled は 名 → source_enabled の値（渡された kind "plugin" の名だけ記録に source_enabled として載せる）。
     hooked の物はフックの行を、記録のフックの行と一緒に settings.json の hooks に置く（_place_hooks）。
-    返りと <置き場>/.works-toolset.json は {名: {version, source, sha256, loaded[, commit][, source_enabled][, hooks]}}"""
+    出力と <置き場>/.works-toolset.json は {名: {version, source, sha256, loaded[, commit][, source_enabled][, hooks]}}"""
     versions = versions or {}
     enabled_src = enabled or {}
     cfg = pathlib.Path(config_dir)
@@ -871,7 +871,7 @@ def _vendor_cli(pack: pathlib.Path, user_cfg: "pathlib.Path | None", version: st
 
 
 def _contract_cli(pack: pathlib.Path, user_cfg: "pathlib.Path | None", version: "str | None") -> int:
-    """版のフォルダ（version が無ければ写し、在れば利用者のキャッシュのその版）に固定と節の契約を当てて行を出す。
+    """版のフォルダ（version が無ければ写し、在れば利用者のキャッシュのその版）に固定と継ぎ目の契約を当てて行を出す。
     破れが無ければ 0、在れば 1、版のフォルダが無い・borrow.json に pin が無ければ 2"""
     borrow_dir = pack / "borrow"
     item = load_borrow(pack)[VENDORED]
@@ -1028,7 +1028,7 @@ def _newer_cli(pack: pathlib.Path, user_cfg: "pathlib.Path | None") -> int:
     if not folders and not homeless:
         print(f"{VENDORED} が入っていない（{user_cfg / 'plugins' / 'cache' / mp / VENDORED} に版のフォルダが無く、"
               f"installed_plugins.json に {VENDORED}@{mp} の行も無い）")
-    # 決まりは 1 つ: 数で読めて固定より古い版だけを飛ばし、ほかは全部（数で読めない版の名も）pin と節の契約を当てる。
+    # 決まりは 1 つ: 数で読めて固定より古い版だけを飛ばし、ほかは全部（数で読めない版の名も）pin と継ぎ目の契約を当てる。
     # 固定と同じ版か数で読めない版の名で、pin・契約・人に聞く文のどれにも違いが無い物だけは知らせることが無い
     def older(v):
         key = _version_key(v)

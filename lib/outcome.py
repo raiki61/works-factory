@@ -76,11 +76,11 @@ UNMEASURED = gatemarks.UNMEASURED
 MATERIAL_WHERE = "素材"
 ASKING = gatemarks.ASKING   # 問いの台帳で人に聞く状態
 
-# 返りの続き (前の段, 前の段の欄（None は返りが在るだけ）, 後の段, 文)。前の段が欄を真にしたのに後の段の返りが無い run は途中で終わった
-CHAIN = (("judge", "ready", "plan", "判定が直す単位を出したのに計画の返りが無い"),
-         ("plan", "ready", "fix", "計画が修正案を出したのに修正の返りが無い"),
-         ("fix", None, "test-gate-final", "修正の段が走ったのに最後のテストの返りが無い"),
-         ("test-gate-final", "ok", "merge-seal", "最後のテストが通ったのに差分を封じた返りが無い"))
+# 返りの続き (前の段, 前の段の欄（None は返りが在るだけ）, 後の段, 文)。前の段が欄を真にしたのに後の段の出力が無い run は途中で終わった
+CHAIN = (("judge", "ready", "plan", "判定が直す単位を出したのに計画の出力が無い"),
+         ("plan", "ready", "fix", "計画が修正案を出したのに修正の出力が無い"),
+         ("fix", None, "test-gate-final", "修正の段が走ったのに最後のテストの出力が無い"),
+         ("test-gate-final", "ok", "merge-seal", "最後のテストが通ったのに差分を封じた出力が無い"))
 
 
 def as_dict(v) -> dict:
@@ -299,7 +299,7 @@ def _eye_rows(returns: dict, eyes_skip=None) -> list:
             rows.append({"where": f"{report.EYES_WHERE} {label}", "text": f"{label} {MISSING_EYE}"})
     if eyes.get("ok") is False and not rows:
         rows.append({"where": report.EYES_WHERE,
-                     "text": "独立の目のブロックが ok でない: 目ごとの返り（r1〜r4）に阻害も確かめられない目も無い"})
+                     "text": "独立の目のサブグラフが ok でない: 目ごとの出力（r1〜r4）に阻害も確かめられない目も無い"})
     return rows
 
 
