@@ -9,7 +9,7 @@ keychain は HOME から探すので、隔離した HOME では login の keycha
 利用者の gh がログインしていなければ gh の言葉と終了コードのまま（run の中は今どおり人待ち）。
 
 環境変数だけで gh にログインする利用者（GH_TOKEN など。Linux・CI に多い）のために、起動は子の環境から 4 つのトークンの名を
-外したまま（TOKENS。RELAY の拾う名から出す）、値を gh も他の道具も自動では読まない名（RELAY の渡しの名）で子に渡す（持ち主の決め 2026-10-11、#132）。読むのは
+外したまま（TOKENS。RELAY の拾う名から出す）、値を gh も他の道具も自動では読まない名（RELAY の渡しの名）で子に渡す（#131 のコメントの運び役の決め。持ち主の決め others-may-use・auth-middleware・roles-read-only-gh から導いた。#132）。読むのは
 この口だけで、本物の gh を起こす時だけ gh の名へ戻し、渡しの名は本物の gh に見せない。子に gh の名が既に在れば（Archon が節に
 トークンを渡した時）上書きしない。役は自分の環境の渡しの名を読めるので、これも事故の柵で、堅い境ではない。
 
@@ -36,7 +36,8 @@ import sys
 NO_POST_BIN = pathlib.Path(__file__).resolve().parent / "no-post-bin"
 SHIM = "gh"
 # (渡しの名, 起動が拾う名を gh の先後で)。口は頭の名へ戻す。gh は GH_TOKEN・GITHUB_TOKEN を github.com と *.ghe.com にだけ、
-# GH_ENTERPRISE_TOKEN・GITHUB_ENTERPRISE_TOKEN をほかのホスト（GHES）にだけ使うので、行を分ける
+# GH_ENTERPRISE_TOKEN・GITHUB_ENTERPRISE_TOKEN をほかのホスト（GHES）にだけ使うので、行を分ける。渡しの名は _TOKEN で終える
+# （Archon の記録の伏せ字は名の末尾で値を拾う）
 RELAY = (("WORKS_FACTORY_HOST_GH_TOKEN", ("GH_TOKEN", "GITHUB_TOKEN")),
          ("WORKS_FACTORY_HOST_GH_ENTERPRISE_TOKEN", ("GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")))
 # 起動が子の環境から外す gh のトークンの名。外す名と渡す名を 1 つの表から出す

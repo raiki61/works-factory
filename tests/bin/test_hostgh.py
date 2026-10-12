@@ -81,6 +81,11 @@ class RelayCase(unittest.TestCase):
         for relay, _ in hostgh.RELAY:
             self.assertFalse(relay.startswith(("GH_", "GITHUB_")), relay)
 
+    def test_relay_names_end_with_token(self):
+        """Archon の記録の伏せ字は名が TOKEN で終わる値に効く。名を変えると黙って伏せ字から外れる"""
+        for relay, _ in hostgh.RELAY:
+            self.assertTrue(relay.endswith("_TOKEN"), relay)
+
 
 class ShimCase(unittest.TestCase):
     def setUp(self):
