@@ -18,7 +18,7 @@ p2.fix_plan）が案を直す。直しの役が起きるかは壁打ちの控え
             案の形では閉じないので盤面を止める）
 - 事前審査の木: 事前審査の役は束ね役。tree_part が開いた項目（converge.open_items）ごとの下請けのファイルと、項目が 2 つ以上なら相乗りの
             審査のファイルを今の周の plan-review-items/pass-<k>/ に書き、束ね役の頼み（AGG_HEAD）でそれを Agent で並べて起こさせる。
-            下請けは答えを盤面の外の run ごとの置き場（answers_dir。盤面は守る場所で役が書けない）の機械が決めたファイルに Write で
+            下請けは答えを作業ツリーの外の run の置き場（answers_dir。作業ツリーは役が変えてはいけない）の機械が決めたファイルに Write で
             書く。受け付け（tree_merge）がそのファイルを項目ごとに確かめ（check_item。型・覆っていない当たりの全部の答え・自分の項目の単位だけ・
             前の block の行き先・独立設計が立つ時は穴の引用と対応表 design_map。design_gaps）、faces・shrink・resolved・当たりの答え・
             相乗りを審査の返答にまとめる（相乗りの審査の答えは穴の引用だけを照らす）。束ね役の返答は項目ごとの判定の
@@ -71,7 +71,22 @@ EXCLUDED_HEAD = "並行 PR の範囲。触らず、単位に入れない"
 RIPPLE_UNITS = "ripple/units.json"      # 今の周の作業ファイル（manifest の produces ripple/**）
 RIPPLE_PASS = "ripple/pass-{k}.json"
 ITEMS_DIR = "plan-review-items/pass-{k}"   # 事前審査の下請けのファイル（manifest の produces plan-review-items/**）
-# 下請けの答えのファイルの置き場（run ごとの置き場 adapter.run_place_of の今の scope の下。盤面の外——盤面は守る場所で役が書けない。
+# 入力 review_tree が auto の時に木にする開いた項目の数の下限
+TREE_AUTO_MIN = 2
+# 受け付けの拒みの頭（plan の受け付け planfile と事前審査の受け付け boardview が読む）
+NO_NARROW_REJECT = (f"narrows の行に狭めない案を探した結果（{gatemarks.NO_NARROW}）が無いか短い（直して出し直せ）。狭めを避ける形が"
+                    "在ればそれを案に採ってその行を消し、無い時だけ、どの形を当たりなぜ採れないかを書け:")
+RECOMMEND_REJECT = (f"関所の項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている（直して出し直せ）。書くなら "
+                    f"{{answer: {' か '.join(gatemarks.RECOMMEND_ANSWERS)}, note: {gatemarks.RECOMMEND_MIN} 字以上, "
+                    f"why: {gatemarks.RECOMMEND_MIN} 字以上}}:")
+NOT_OWED_REJECT = "案に、直す義務の無い単位が入っている（nit・info・defer など。受け付けが受けない）。案から外せ。案に入れてよい no（必ず入れる物を含む）は"
+RESOLVED_REJECT = "前の往復の block の行き先が書かれていない（下の行を全部直して出し直せ）:"
+ANSWERS_REJECT = "block への答えに誤りが在る（下の行を全部直して出し直せ）:"
+TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る（下の行を全部直して出し直せ）:"
+CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
+DESIGN_QUOTE_REJECT = ("独立設計の引用か design_map に誤りが在る（下の行を全部直して出し直せ。「」は独立設計と案の行の引用だけに使い、"
+                       "ほかの引用は『』か `…` で書く）:")
+# 下請けの答えのファイルの置き場（作業ツリーの外の run の置き場 adapter.run_place_of の今の scope の下。作業ツリーは役が変えてはいけない。
 # 受け付けが確かめたファイルは往復の控え plan-converge/pass-<k>/ に写す）
 ANSWERS_DIR = "plan-review/r{r}/pass-{k}"
 ANSWER_FILE = "item-{n}.json"
@@ -189,7 +204,7 @@ HEAD = {
              "作業ツリーの写しと比べ、変わっていれば拒む）。下の指示書に従い、指示書の JSON Schema に合う JSON だけを返せ。"
              "\n\n" + planmarks.HEAD + "\n\n" + ITEMS_RULE + "\n\n" + REUSE_RULE + "\n\n" + concepthome.PLAN_RULE),
     "plan-review": ("お前は修正案の事前審査の役（読むだけ。判定をした役とは別の目）。道具は Read・Grep・Glob と web を引く WebSearch・WebFetch と、"
-                    "項目ごとの下請けを起こす Agent と、下請けが答えのファイル（盤面の外の run ごとの置き場）を書く Write だけで、作業ツリーを"
+                    "項目ごとの下請けを起こす Agent と、下請けが答えのファイル（作業ツリーの外の run の置き場）を書く Write だけで、作業ツリーを"
                     " 1 文字も変えてはいけない（受け付けは起こす前の作業ツリーの写しと比べ、変わっていれば拒む）。下の指示書に従い、指示書の"
                     " JSON Schema に合う JSON だけを返せ。\n\n" + REUSE_REVIEW + "\n\n" + HANDOFF_REVIEW + "\n\n" + concepthome.REVIEW_ASK),
 }

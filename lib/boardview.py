@@ -78,17 +78,7 @@ REVIEW_FILE = "review.json"
 PASSES_FILE = "gate-passes.json"
 GATE_FILE = "gate.json"
 FENCE = rolekit.GIVE_UP_AFTER           # 往復の柵（線の loop_group の 3 回と同じ数）
-# 入力 review_tree が auto の時に木にする開いた項目の数の下限（元 works/blk-plan/lib/planblk.py:128 の TREE_AUTO_MIN）
-TREE_AUTO_MIN = 2
 TREE_FEATURE = "review_tree"
-# 受け付けの拒みの頭（元 works/blk-plan/lib/planblk.py:114-121。前提の lib/planblk.py に無い）
-RECOMMEND_REJECT = (f"関所の項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている（直して出し直せ）。書くなら "
-                    f"{{answer: {' か '.join(gatemarks.RECOMMEND_ANSWERS)}, note: {gatemarks.RECOMMEND_MIN} 字以上, "
-                    f"why: {gatemarks.RECOMMEND_MIN} 字以上}}:")
-RESOLVED_REJECT = "前の往復の block の行き先が書かれていない（下の行を全部直して出し直せ）:"
-TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る（下の行を全部直して出し直せ）:"
-DESIGN_QUOTE_REJECT = ("独立設計の引用か design_map に誤りが在る（下の行を全部直して出し直せ。「」は独立設計と案の行の引用だけに使い、"
-                       "ほかの引用は『』か `…` で書く）:")
 # 元 works/.shared/core/entry.py:1228 と works/.shared/core/design.py:104
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "
 PREMISE_MISS = "premise_invalid_reason の名指しが固めた版の実物に当たらない（追跡されたファイルと、その行の範囲を名指せ）: "
@@ -594,10 +584,10 @@ def _copy_structure(d: pathlib.Path, structure) -> None:
 
 
 def _tree_on(b, word: str) -> bool:
-    """事前審査を木にするか（on・off、auto は開いた項目が TREE_AUTO_MIN 以上。元 planblk.prep の review_tree）"""
+    """事前審査を木にするか（on・off、auto は開いた項目が planblk.TREE_AUTO_MIN 以上。元 planblk.prep の review_tree）"""
     if word != "auto":
         return word == "on"
-    return len(planblk._opened(b, planblk._item_rows(b))) >= TREE_AUTO_MIN
+    return len(planblk._opened(b, planblk._item_rows(b))) >= planblk.TREE_AUTO_MIN
 
 
 def r2_due(b) -> bool:
@@ -827,7 +817,7 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo) -> dict:
         accept.type_errors(reply, inputs["review_schema"], "事前審査の返答")
     gaps = gatemarks.recommend_gaps(REVIEW_NODE, reply)
     if gaps:
-        raise Reject(_lines(RECOMMEND_REJECT, gaps))
+        raise Reject(_lines(planblk.RECOMMEND_REJECT, gaps))
     accept.type_errors(reply, inputs["review_schema"], "事前審査の返答")
     b = view(d, inputs)
     bare, resolved = converge.split("plan-review", reply)
@@ -836,17 +826,17 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo) -> dict:
     if inputs["form"] == "review":
         merged = planblk.tree_merge(b, bare, tree, resolved)
         if merged["gaps"]:
-            raise Reject(_lines(TREE_REJECT, merged["gaps"]))
+            raise Reject(_lines(planblk.TREE_REJECT, merged["gaps"]))
     if merged.get("off"):
         items = inputs.get("ruled") if inputs["form"] == "replan" else converge.open_items(b)
         gaps = planblk.design_gaps(b, merged["review"].get("faces"), items, tree.get(converge.DESIGN_MAP) or [])
         if gaps:
-            raise Reject(_lines(DESIGN_QUOTE_REJECT, gaps))
+            raise Reject(_lines(planblk.DESIGN_QUOTE_REJECT, gaps))
     review = named(b, merged["review"])
     if inputs["form"] == "review":
         gaps = converge.resolved_gaps(b, review["faces"], merged["resolved"])
         if gaps:
-            raise Reject(_lines(RESOLVED_REJECT, gaps))
+            raise Reject(_lines(planblk.RESOLVED_REJECT, gaps))
     rules.plan_review_output(b, REVIEW_NODE, review, None)
     bare_review, marks = gatemarks.split(REVIEW_NODE, review)
     out = place(d)

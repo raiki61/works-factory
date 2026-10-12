@@ -84,14 +84,6 @@ KEY_LEN = 12
 ASKING = ("held", "escalate")      # まだ人に聞く気がある問いの status（元 review-record.py:343）
 BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテストを読み損ねた trace の行 {rev, unread}（元 writes.py:52）
 
-# 拒否の文（元 planblk.py:112-120。前提の lib/planblk.py には take と一緒に外れて入った）
-NO_NARROW_REJECT = (f"narrows の行に狭めない案を探した結果（{gatemarks.NO_NARROW}）が無いか短い（直して done し直す）。狭めを避ける形が"
-                    "在ればそれを案に採ってその行を消し、無い時だけ、どの形を当たりなぜ採れないかを書け:")
-RECOMMEND_REJECT = (f"関所の項目の行の推し（{gatemarks.RECOMMEND}）の形が崩れている（直して done し直す）。書くなら "
-                    "{answer: continue か stop, note: 関所の一言に写せる通す範囲と条件か止める理由, why: 推す理由} の形で:")
-NOT_OWED_REJECT = "案に、直す義務の無い単位が入っている（nit・info・defer など。受け付けが受けない）。案から外せ。案に入れてよい no（必ず入れる物を含む）は"
-ANSWERS_REJECT = "block への答えに誤りが在る（下の行を全部直して出し直せ）:"
-CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
 COVERS_REJECT = "単位の網羅に誤りが在る（直す義務の単位は全部、どれか 1 つの項目にちょうど 1 度入れる）。案に入れてよい no は"
 MALFORMED_REJECT = "修正案の返答の形が崩れている（plan は項目の object の配列で、各項目の narrows は配列）。指示書の JSON Schema に合う形で出し直せ"
 # 役に読ませる文の組み立て（元 works/.shared/core/rolekit.py:64・:67 と board.py:96。前提の lib/rolekit.py に無い）
@@ -796,11 +788,11 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     shut = set(_shut(judgment, plan))
     allowed = list(range(1, len(slots(judgment)) + 1))
     reasons = [
-        _section(ANSWERS_REJECT, converge.answer_gaps(record, answers)),
-        _section(CLOSED_REJECT, closed),
-        _section(NO_NARROW_REJECT, gatemarks.narrow_gaps(planmarks.NODE, plan)),
-        _section(RECOMMEND_REJECT, gatemarks.recommend_gaps(planmarks.NODE, plan)),
-        _section(f"{NOT_OWED_REJECT} {allowed}。外す単位:", not_allowed(judgment, plan)),
+        _section(planblk.ANSWERS_REJECT, converge.answer_gaps(record, answers)),
+        _section(planblk.CLOSED_REJECT, closed),
+        _section(planblk.NO_NARROW_REJECT, gatemarks.narrow_gaps(planmarks.NODE, plan)),
+        _section(planblk.RECOMMEND_REJECT, gatemarks.recommend_gaps(planmarks.NODE, plan)),
+        _section(f"{planblk.NOT_OWED_REJECT} {allowed}。外す単位:", not_allowed(judgment, plan)),
         _section(f"{COVERS_REJECT} {allowed}:", fix_plan_covers_units(
             [{**p, "unit_keys": [k for k in p["unit_keys"] if k not in shut]} if isinstance(p.get("unit_keys"), list) else p
              for p in whole], owed, opened)),
