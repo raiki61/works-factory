@@ -393,7 +393,6 @@ class ShapeCase(unittest.TestCase):
         for nid, accept, fresh in (("structure-eye-loop", "structure-eye-accept", False), ("plan-loop", "plan-accept", True)):
             lg = node(doc, nid)["loop_group"]
             self.assertEqual(lg["max_iterations"], rolekit.GIVE_UP_AFTER, nid)
-            self.assertEqual(lg["max_iterations"], eye.MAX_ATTEMPTS, nid)
             self.assertIs(lg["fresh_context"], fresh, nid)
             self.assertEqual(lg["until_bash"], f'done=${accept}.output.done; test "$done" = true', nid)
 

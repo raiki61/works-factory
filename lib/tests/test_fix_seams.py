@@ -832,7 +832,7 @@ class LanekitSeamCase(TempCase):
 
 
 class RulingSeamCase(TempCase):
-    """ruling の継ぎ目: prep・accept_rule は置き場（pathlib.Path(board)）の conflicts.json・rule-tree.json・rule-prep.json・
+    """ruling の継ぎ目: prep・accept_rule は置き場（pathlib.Path(board)）の conflicts.json・rule-tree.json・rejects-rule.json・
     prompt-rule.md で回る。作業ツリーの控えは fixboard.snapshot、前の拒否の理由のファイルと言語の行と輪の回は引数、
     配線の誤りは ValueError"""
 
@@ -865,6 +865,8 @@ class RulingSeamCase(TempCase):
             self.assertIn(w, text)
         self.assertFalse(text.split("\n")[1].startswith(fixboard.REJECT_LINE[:10]), "1 回目は拒否の理由を名指さない")
         self.assertTrue((self.place / r.TREE).is_file(), "作業ツリーの姿の控えは置き場")
+        bad = {"rulings": [{"id": "c9-9", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": []}]}
+        self.assertFalse(r.accept_rule(bad, self.place, self.rev, self.repo)["ok"])   # 回の数えは拒否の控え（rolekit）
         again = r.prep(self.place, self.repo, self.VALUES, reject_file="/home/x/reject.md")
         self.assertEqual(again["iteration"], 2)
         self.assertEqual((self.place / r.PROMPT).read_text(encoding="utf-8").split("\n")[1],

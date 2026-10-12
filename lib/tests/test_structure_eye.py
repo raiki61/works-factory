@@ -176,7 +176,7 @@ class EyeAcceptCase(unittest.TestCase):
             design = pathlib.Path(d) / "design.jsonl"
             design.write_bytes(b"")
             got = []
-            for _ in range(eye.MAX_ATTEMPTS):
+            for _ in range(eye.rolekit.GIVE_UP_AFTER):
                 self.assertEqual(eye.prep(s)["attempt"], len(got) + 1)
                 got.append(eye.accept(s, design, {"rows": []}))
             self.assertEqual([(g["ok"], g["done"], g["give_up"]) for g in got],

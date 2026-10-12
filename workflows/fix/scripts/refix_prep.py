@@ -34,7 +34,7 @@ rulebook.CANON = RULES / "common.md"
 def main(n: int) -> None:
     accept = f"{refix.FIX_ROLE[n]}-accept"   # 受け付けの節（拒否の控えの名）
     place = boundary.place("fix")
-    iteration = len(rolekit.rejected(place, accept)) + 1
+    iteration = rolekit.attempt(place, accept)
     record = fixboard.read_json(place / fixboard.DELTA_DIR / fixboard.DELTA_REVIEW.format(n))
     if not isinstance(record, dict) or record.get("pass") is not False or record.get("gave_up"):
         boundary.returns({"prompt_file": "", "go": False, "iteration": iteration})

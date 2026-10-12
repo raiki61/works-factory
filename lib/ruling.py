@@ -32,13 +32,13 @@ import fixboard  # noqa: E402   置き場への作業ツリーの姿の控え（
 import fixrules  # noqa: E402
 import planbrief  # noqa: E402   今の周の brief の行（fix_plan_item を brief の在る単位に限る）
 import querytest  # noqa: E402
+import rolekit  # noqa: E402   輪の回の数え（拒否の控え rejects-rule.json）
 import stopby  # noqa: E402  （L1。止めの理由の住処）
 
 ROLE = "rule"
 TREE = "rule-tree.json"          # 役を起こす前の作業ツリーの姿（置き場）
 PROMPT = "prompt-rule.md"        # 指示書（置き場）
-LEDGER = "rule-prep.json"        # この輪の回の数え {iterations}
-GIVE_UP_AFTER = 3                # 輪 rule-loop の max_iterations と同じ（試験が YAML と突き合わせる）
+GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER   # 輪 rule-loop の max_iterations と同じ（試験が YAML と突き合わせる）
 BY_ROLE = "role:rule"
 BY_GIVE_UP = stopby.declare("rule-give-up", "裁定の by: 裁定役の返答が受け付けを通らず、決められない物として人に回した")
 GIVE_UP_TEXT = f"裁定役の返答が {GIVE_UP_AFTER} 回とも受け付けを通らなかった——材料から決められない物として人に回した"
@@ -62,8 +62,7 @@ def prep(board_dir, repo, values: dict, *, reject_file: str = "", lang: str = ""
     todo = conflict.unruled(b)
     if not todo:
         raise ValueError("裁く申し出が無い（conflict-check の go が偽なのに裁定のループを回した）")
-    ledger = pathlib.Path(b) / LEDGER
-    n = ((_read_json(ledger) or {}).get("iterations") or 0) + 1
+    n = rolekit.attempt(b, ROLE)
     fixboard.snapshot(board_dir, TREE, pathlib.Path(repo))
     vals = {**values, "conflicts_file": str(pathlib.Path(b) / conflict.FILE), "ids": ", ".join(i["id"] for i in todo),
             "request_file": conflict.request_file(board_dir)}
@@ -71,7 +70,6 @@ def prep(board_dir, repo, values: dict, *, reject_file: str = "", lang: str = ""
                                  lang=lang)
     path = pathlib.Path(b) / PROMPT
     path.write_text(text, encoding="utf-8")
-    ledger.write_text(json.dumps({"iterations": n}) + "\n", encoding="utf-8")
     return {"prompt_file": str(path), "iteration": n}
 
 
@@ -196,11 +194,11 @@ def query_problems(r: dict, item: dict) -> list:
 
 def accept_rule(reply, board, base_rev, repo, *, iteration=None, keys=TREE_KEYS) -> dict:
     """節 rule-accept の中身。{ok, done, reason, rulings_file, counts}。裁定の文は置き場に書く。iteration は輪の今の回
-    （None なら prep が置き場に書いた回の数え）。keys は作業ツリーの控えと比べる欄（tree_moved）。作業ツリーの控えが無い・形が違うのは
+    （None なら拒否の控えから数えた今の回 rolekit.attempt）。keys は作業ツリーの控えと比べる欄（tree_moved）。作業ツリーの控えが無い・形が違うのは
     ValueError（rule-prep が先に走る）"""
     b = pathlib.Path(board)
     todo = {i["id"]: i for i in conflict.unruled(b)}
-    it = int(iteration) if iteration is not None else ((_read_json(b / LEDGER) or {}).get("iterations") or 1)
+    it = int(iteration) if iteration is not None else rolekit.attempt(b, ROLE)
     snap = _read_json(b / TREE)
     if not (isinstance(snap, dict) and set(TREE_KEYS) <= set(snap)):
         raise ValueError(f"{b / TREE} が無い・形が違う——rule-prep が先に走る")
@@ -217,6 +215,7 @@ def accept_rule(reply, board, base_rev, repo, *, iteration=None, keys=TREE_KEYS)
         path = conflict.apply_rulings(b, {r["id"]: stored(r) for r in reply["rulings"]}, by=BY_ROLE)
         return {"ok": True, "done": True, "reason": "", "rulings_file": str(path), "counts": conflict.counts(b)}
     out = {"ok": False, "done": False, "reason": " / ".join(errs), "rulings_file": "", "counts": conflict.counts(b)}
+    rolekit.with_done(b, ROLE, out)   # 拒否を控えに積む（次の rule-prep の回の数え）
     if it >= GIVE_UP_AFTER:
         path = conflict.apply_rulings(b, {i: {"decision": conflict.ASK, "text": GIVE_UP_TEXT, "limits": []} for i in todo},
                                       by=BY_GIVE_UP)

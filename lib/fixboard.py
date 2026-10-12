@@ -1429,7 +1429,7 @@ def accept_out(place, name: str, got: dict) -> dict:
     if got.get("ok") is True:
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
     reason = str(got.get("reason") or "受け付けが理由を書かずに拒んだ")
-    k = len(rolekit.rejected(place, name)) + 1
+    k = rolekit.attempt(place, name)
     f = write_text(pathlib.Path(place) / REJECT_NAME.format(name=name, k=k), reason + "\n")
     out = rolekit.with_done(pathlib.Path(place), name, {"ok": False, "reason": reason})
     return {"ok": False, "done": bool(out["done"]), "reason": reason, "reason_file": str(f)}

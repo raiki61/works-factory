@@ -585,7 +585,7 @@ def measure(out_dir, units, root, policy_path: str) -> dict:
     _write_json(out_dir / SKIPPED_FILE, skipped)
     t0, started = time.monotonic(), _now()
     design.write_bytes(b"")
-    (out_dir / eye.EYE_FILE).unlink(missing_ok=True)
+    eye.reset(out_dir)
     root = pathlib.Path(root).resolve()
     doc = {"status": "ok", "reason": "", "root": str(root), "policy_path": policy_path, "units": []}
     try:

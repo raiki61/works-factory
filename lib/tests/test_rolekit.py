@@ -55,6 +55,16 @@ class RejectWordsCase(unittest.TestCase):
         hits = [f"{p.name}:{n}" for p in sorted(LIB.glob("*.py"))
                 for n, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if "done し直す" in line]
         self.assertEqual(hits, [])
+class RejectLedgerCase(Base):
+    def test_attempt_counts_the_kept_rejects(self):
+        """輪の今の回は控え rejects-<名>.json の拒否の数 + 1。控えはファイルなので、同じ置き場で数え直さない。通った返答は積まない"""
+        self.assertEqual(rolekit.attempt(self.tmp, "eye"), 1)
+        for n in range(1, rolekit.GIVE_UP_AFTER + 1):
+            got = rolekit.with_done(self.tmp, "eye", {"ok": False, "reason": f"拒否 {n}"})
+            self.assertEqual((got["done"], rolekit.attempt(self.tmp, "eye")), (n == rolekit.GIVE_UP_AFTER, n + 1))
+        self.assertTrue(rolekit.with_done(self.tmp, "other", {"ok": True})["done"])
+        self.assertEqual(rolekit.attempt(self.tmp, "other"), 1)
+        self.assertIn(f"拒否 {rolekit.GIVE_UP_AFTER}", rolekit.given_up_reason(self.tmp, "eye"))
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@
                   clear_rejects で消す）
 - rejected:       盤面の節でない受け付けの拒否の文の並び（古い順。指示書の番号と、輪が落ちた周の最後の拒否の文に使う）
 - given_up_reason: 盤面の節でない受け付けの出口が、控えの最後の拒否の文を引く
+- attempt:        盤面の節でない受け付けの輪の今の回（控えの拒否の数 + 1）
 - last_reject(folder): 置き場の下の受け付けの最後の拒否の本文（報告の前の失敗の行が読む）
 - parse_reply:    役の返答（$<役>.output の JSON の文字列）を dict に
 - LANG_RULE・LANG_DEFAULT・lang_line(start): 役の文の頭に足す言語の 1 行（元 rolekit.py 67-68 行・147-150 行。言語は始めの記録の
@@ -134,6 +135,12 @@ def reject_rows(board: pathlib.Path, name: str) -> list:
 def rejected(board: pathlib.Path, name: str) -> list:
     """盤面の節でない受け付け name の拒否の文の並び（古い順。控えが無ければ空）"""
     return [r["reason"] for r in reject_rows(board, name)]
+
+
+def attempt(board: pathlib.Path, name: str) -> int:
+    """盤面の節でない受け付け name の輪の今の回（控えの拒否の数 + 1）。控えはファイルなので、輪を 1 周目から回し直す resume を
+    跨いでも数え直さない"""
+    return len(rejected(board, name)) + 1
 
 
 def given_up_reason(board: pathlib.Path, name: str, *, give_up_after: int = GIVE_UP_AFTER) -> str:
