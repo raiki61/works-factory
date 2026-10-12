@@ -36,7 +36,7 @@ YAML = BLOCK / "works-factory-merge.yaml"
 SCRIPT = BLOCK / "scripts" / "merge.py"
 NAME = "works-factory-merge"
 RUN = "run-merge"
-INPUTS = ("mode", "start", "diff", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2")
+INPUTS = ("mode", "start", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2")
 RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "reason")
 NO_DEADLINE = 1728000000
 PASS = json.dumps({"decision": "continue", "text": ""})
@@ -72,9 +72,9 @@ class ShapeTest(unittest.TestCase):
     def test_inputs_are_the_contract(self):
         inputs = self.doc["inputs"]
         self.assertEqual(sorted(inputs), sorted(INPUTS))
-        for name in ("mode", "start", "diff"):
+        for name in ("mode", "start"):
             self.assertIs(inputs[name].get("required"), True, name)
-        for name in set(INPUTS) - {"mode", "start", "diff"}:
+        for name in set(INPUTS) - {"mode", "start"}:
             self.assertEqual(inputs[name].get("default"), "", name)
         self.assertEqual(self.node["with"], {name: f"$INPUTS.{name}" for name in INPUTS})
 
@@ -110,7 +110,6 @@ class ScriptCase(unittest.TestCase):
         self.artifacts = self.tmp / "artifacts"
         self.artifacts.mkdir()
         self.start = self.place("start.json", json.dumps({"base_rev": self.base}))
-        self.fix_diff = self.place("fix/diff.patch", "x\n")
 
     def place(self, rel: str, text: str) -> str:
         path = self.artifacts / rel
@@ -143,12 +142,12 @@ class ScriptCase(unittest.TestCase):
         return done.stdout if done.returncode == 0 else None
 
     def seal(self, **over) -> dict:
-        inputs = {"mode": "seal", "start": self.start, "diff": self.fix_diff, "fingerprint": self.fingerprint(),
+        inputs = {"mode": "seal", "start": self.start, "fingerprint": self.fingerprint(),
                   "green_ok": "true", "eyes_ok": "true", "sealed_hash": "null", "answer": "null", "r2": "null"}
         return self.run_script(**{**inputs, **over})
 
     def apply(self, sealed_hash: str, **over) -> dict:
-        inputs = {"mode": "apply", "start": self.start, "diff": self.fix_diff, "fingerprint": self.fingerprint(),
+        inputs = {"mode": "apply", "start": self.start, "fingerprint": self.fingerprint(),
                   "green_ok": "true", "eyes_ok": "true", "sealed_hash": sealed_hash, "answer": PASS, "r2": "null"}
         return self.run_script(**{**inputs, **over})
 

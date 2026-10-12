@@ -5,8 +5,11 @@ import subprocess
 import tempfile
 import unittest
 
+import yaml
+
 from bin._lib import childsweep, place
 
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 RUN = "1a2b3c4d-0000-4000-8000-000000000001"
 OTHER = "9f8e7d6c-0000-4000-8000-000000000002"
 CHECKOUT = "/runs/checkout"
@@ -25,12 +28,21 @@ def child(n: int, status: str = "completed", branch: str | None = None, as_text:
     return found
 
 
-class FakeArchon:
-    """起こした引数・環境・cwd を記録し、workflow runs には listing を、complete には枝ごとの出力を返す"""
+def nodes(**states: str) -> dict:
+    return {"id": RUN, "status": "running", "nodes": [{"nodeId": node, "state": state} for node, state in states.items()]}
 
-    def __init__(self, listing, completes: dict[str, tuple[str, str]] | None = None):
+
+JOINED = nodes(**{"fix__groups-par": "completed", "fix__join": "completed"})
+
+
+class FakeArchon:
+    """起こした引数・環境・cwd を記録し、workflow runs には listing を、workflow get には got（既定は fan_out と join が completed）を、
+    complete には枝ごとの出力を返す"""
+
+    def __init__(self, listing, completes: dict[str, tuple[str, str]] | None = None, got=JOINED):
         self.listing = listing
         self.completes = completes or {}
+        self.got = got
         self.calls: list[dict] = []
 
     def __call__(self, argv, **kwargs):
@@ -38,6 +50,9 @@ class FakeArchon:
         command = argv[3:-2]
         if command[:2] == ["workflow", "runs"]:
             stdout = self.listing if isinstance(self.listing, str) else json.dumps(self.listing) + "\n"
+            return subprocess.CompletedProcess(argv, 0, stdout, "")
+        if command[:2] == ["workflow", "get"]:
+            stdout = self.got if isinstance(self.got, str) else json.dumps(self.got) + "\n"
             return subprocess.CompletedProcess(argv, 0, stdout, "")
         branch = command[-1]
         stdout, stderr = self.completes.get(branch, (f"\n  Completed: {branch}\n", ""))
@@ -79,6 +94,11 @@ class ChildSweepTest(unittest.TestCase):
         self.assertIn("この run の子の形でない", got["left"][0]["reason"])
         self.assertEqual(got["error"], "")
 
+    def test_run_without_children_removes_nothing(self):
+        archon = FakeArchon({"runs": [row(RUN, "running"), row("human", branch_name="feature/x")]})
+        self.assertEqual(self.sweep(archon), {"cleaned": [], "left": [], "error": ""})
+        self.assertEqual([c["argv"][3:5] for c in archon.calls], [["workflow", "runs"]])
+
     def test_metadata_stored_as_text_is_read(self):
         archon = FakeArchon({"runs": [child(0, as_text=True), row(RUN, "running")]})
         self.assertEqual([c["branch"] for c in self.sweep(archon)["cleaned"]], [f"{OURS}0"])
@@ -113,6 +133,55 @@ class ChildSweepTest(unittest.TestCase):
         self.assertEqual(list(reasons), [f"{OURS}0", f"{OURS}1", f"{OURS}2"])
         for n, status in enumerate(("running", "pending", "cancelled")):
             self.assertIn(status, reasons[f"{OURS}{n}"])
+
+    def test_keeps_children_while_resume_may_rerun_the_join(self):
+        """fan_out の節か join が completed でない run は再開でき、再開した join が子の作業ツリーから書き込みの記録を写すので残す"""
+        listing = {"runs": [child(0), child(1), row(RUN, "running")]}
+        for states in ({"fix__groups-par": "completed", "fix__join": "failed"},
+                       {"fix__groups-par": "failed", "fix__join": "completed"},
+                       {"fix__groups-par": "completed"}):
+            with self.subTest(states=states):
+                archon = FakeArchon(listing, got=nodes(**states))
+                got = self.sweep(archon)
+                self.assertEqual(archon.completed(), [])
+                self.assertEqual(got["cleaned"], [])
+                self.assertEqual([left["branch"] for left in got["left"]], [f"{OURS}0", f"{OURS}1"])
+                open_nodes = [n for n in ("fix__groups-par", "fix__join") if states.get(n) != "completed"]
+                for left in got["left"]:
+                    for node in open_nodes:
+                        self.assertIn(node, left["reason"])
+                self.assertEqual(got["error"], "")
+
+    def test_join_is_read_per_include(self):
+        """2 度目の修正（refix-run）の子は refix-run__join を見る。1 回目の join が済んでも 2 度目の join が落ちれば 2 度目の子を残す"""
+        refix = {"parent_node_id": "refix-run__groups-par", "branch_name": f"{OURS}9"}
+        archon = FakeArchon({"runs": [child(0), row("child-9", "completed", RUN, **refix), row(RUN, "running")]},
+                            got=nodes(**{"fix__groups-par": "completed", "fix__join": "completed",
+                                         "refix-run__groups-par": "completed", "refix-run__join": "failed"}))
+        got = self.sweep(archon)
+        self.assertEqual(archon.completed(), [f"{OURS}0"])
+        self.assertEqual([left["branch"] for left in got["left"]], [f"{OURS}9"])
+        self.assertIn("refix-run__join", got["left"][0]["reason"])
+
+    def test_reader_is_the_fix_join_after_every_worktree_fan_out(self):
+        """READER は fix の節の id で、作業ツリーを切る fan_out の節を全部待ち、子の作業ツリーから記録を写す script join を走らせる"""
+        fix = yaml.safe_load((ROOT / "workflows/fix/works-factory-fix.yaml").read_text(encoding="utf-8"))
+        nodes = {node["id"]: node for node in fix["nodes"]}
+        isolated = {key for key, node in nodes.items() if "fan_out" in node and node.get("isolation") == "worktree"}
+        self.assertTrue(isolated)
+        self.assertLessEqual(isolated, set(nodes[childsweep.READER]["depends_on"]))
+        self.assertEqual(nodes[childsweep.READER]["script"], "join")
+        self.assertIn("carry_children", (ROOT / "workflows/fix/scripts/join.py").read_text(encoding="utf-8"))
+        self.assertEqual(childsweep.reader_of("fix__groups-par"), "fix__join")
+
+    def test_unreadable_node_states_remove_nothing(self):
+        for answer in ("not json\n", {"ok": False, "runId": RUN, "error": "not_found"}, {"id": RUN}):
+            with self.subTest(answer=answer):
+                archon = FakeArchon({"runs": [child(0), row(RUN, "running")]}, got=answer)
+                got = self.sweep(archon)
+                self.assertEqual(archon.completed(), [])
+                self.assertEqual([left["branch"] for left in got["left"]], [f"{OURS}0"])
+                self.assertIn("ノードの状態が読めない", got["left"][0]["reason"])
 
     def test_branch_left_behind_after_the_worktree_is_reported(self):
         warning = f"Unexpected error deleting branch '{OURS}0': Command failed: git branch -D"
@@ -152,9 +221,10 @@ class ChildSweepTest(unittest.TestCase):
         archon = FakeArchon({"runs": [child(0), row(RUN, "running")]})
         self.sweep(archon)
         head = [str(self.bun), f"--config={self.source / 'bunfig.toml'}", str(self.source / place.ENTRY)]
-        listing, complete = archon.calls
+        listing, states, complete = archon.calls
         self.assertEqual(listing["argv"], [*head, "workflow", "runs", "--json", "--all", "--limit",
                                            str(childsweep.LIST_LIMIT), "--cwd", CHECKOUT])
+        self.assertEqual(states["argv"], [*head, "workflow", "get", RUN, "--json", "--verbose", "--cwd", CHECKOUT])
         self.assertEqual(complete["argv"], [*head, "complete", "--force", f"{OURS}0", "--cwd", CHECKOUT])
         for call in archon.calls:
             self.assertEqual(call["env"]["GIT_TERMINAL_PROMPT"], "0")

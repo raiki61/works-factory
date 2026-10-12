@@ -87,7 +87,6 @@ ALLOWED = {
     "E5": (
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
         "workflows/plan-review/works-factory-plan-review.yaml#units",  # 区分 P #120
-        "workflows/merge/works-factory-merge.yaml#diff",               # 区分 M #125（受けるが読まない。封じるのは今の木から組み直した差分）
     ),
     "E4": (
         # script どうしの import（K8）。今 import している script を 1 本ずつ名指す。外す区分の issue は report が区分 R #124
