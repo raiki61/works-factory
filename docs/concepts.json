@@ -1,0 +1,122 @@
+{
+ "about": "考えの住処の地図（docs/concepts.md）の柵の表。読むのは lib/conceptfence.py だけ（works-factory 自身には試験 tests/layers/test_concept_fences.py、run の中では構造の目が対象の表として当てる）",
+ "exclude": [
+  "tests/**",
+  "lib/tests/**",
+  "docs/**",
+  "README.md",
+  "**/fixtures/**",
+  "lib/graphloops/**",
+  "factory/**",
+  "harness/**",
+  ".github/**",
+  "*.md"
+ ],
+ "concepts": {
+  "entry-kind": {
+   "status": "住処あり",
+   "fences": [
+    {
+     "what": "入口の生の入力（差分の根の名指し base・pr）を読む・渡す形",
+     "pattern": "_word\\(raw, [\\\"'](base|pr)[\\\"']\\)|\\bINPUTS_(BASE|PR)\\b|\\$INPUTS\\.(base|pr)\\b|\\bCHANGE_INPUT\\b|--(base|pr)\\b",
+     "allowed": [
+      "lib/entryshape.py",
+      "workflows/line/scripts/start.py"
+     ],
+     "known": {}
+    },
+    {
+     "what": "入口の種類で分かれる形と消した種の名（差分の根の出どころ base.from での分岐ほか）",
+     "pattern": "\\bentry_words\\b|\\bENTRIES\\b|\\bchange_only\\b|add_pending_request|PENDING_WAIT_NODE|PENDING_REQUEST_BY|\\[[\\\"']from[\\\"']\\]\\s*[!=]=\\s*[\\\"'](head|base|pr)[\\\"']|\\.get\\([\\\"']from[\\\"']\\)\\s*[!=]=\\s*[\\\"'](head|base|pr)[\\\"']|kind == [\\\"'](request|change|both)[\\\"']",
+     "allowed": [
+      "lib/entryshape.py"
+     ],
+     "known": {}
+    }
+   ]
+  },
+  "web-get": {
+   "status": "住処あり",
+   "fences": [
+    {
+     "what": "網の素の口（機械が web を取る所）",
+     "pattern": "\\burllib\\.request\\b|\\bfrom\\s+urllib\\s+import\\b[^\\n]*\\brequest\\b|\\bhttp\\.client\\b|\\bfrom\\s+http\\s+import\\b[^\\n]*\\bclient\\b|\\bHTTPRedirectHandler\\b|\\burlopen\\b",
+     "allowed": [
+      "lib/webget.py"
+     ],
+     "known": {}
+    }
+   ]
+  },
+  "cite": {
+   "status": "住処あり",
+   "fences": [
+    {
+     "what": "名指しの形・場所の文の読みを別の場所に持ち直す形（住処の定数を別の名に写す・包みの定義・場所の文の読みの定義）",
+     "pattern": "^\\s*[A-Z][A-Z0-9_]*\\s*=\\s*cite\\.[A-Z]|^\\s*from cite import|^\\s*import cite as|def cite_problem\\b|def lead_path|CITE_IN_WHERE|conflict\\.CITE|conflict\\.cite_problem",
+     "allowed": [
+      "lib/cite.py"
+     ],
+     "known": {}
+    },
+    {
+     "what": "引用の照らしの式を住処の外で組む形（cite.fold で両側を畳んで部分文字列かを見る。照らしは quoted_in・missing_quotes を呼ぶ）",
+     "pattern": "\\bcite\\.fold\\(",
+     "allowed": [
+      "lib/cite.py"
+     ],
+     "known": {}
+    }
+   ]
+  },
+  "prompt-sections": {
+   "status": "住処あり",
+   "fences": [
+    {
+     "what": "指示書のセクションの宣言の型と宣言を並べる口の定義（住処の外に写さない）",
+     "pattern": "\\bclass (Section|Receive)\\b|\\bdef declared_sections\\b",
+     "allowed": [
+      "lib/promptsection.py"
+     ],
+     "known": {}
+    }
+   ]
+  },
+  "ledger": {
+   "status": "散らばり",
+   "fences": [
+    {
+     "what": "費用と時間の帳簿の欄の名（Archon の出来事の costUsd・会話の result の total_cost_usd・段ごとの時間 wall_s・包みの費用の控えの置き場 SPEND_DIR）",
+     "pattern": "\\b(costUsd|total_cost_usd|wall_s)\\b|\\bSPEND_DIR\\b",
+     "allowed": [],
+     "known": {
+      "lib/boardview.py": [
+       1,
+       "散らばり（まとめる計画はまだ無い）: 計画の記録の表示が構造の目の控えの時間 wall_s を読む"
+      ],
+      "lib/declared_checks.py": [
+       3,
+       "散らばり（まとめる計画はまだ無い）: 宣言した確かめの段ごとの時間 wall_s を記録して要約に出す"
+      ],
+      "lib/eye.py": [
+       2,
+       "散らばり（まとめる計画はまだ無い）: 構造の目の時間の欄の名 WALL と目の控えの形"
+      ],
+      "lib/planfile.py": [
+       4,
+       "散らばり（まとめる計画はまだ無い）: 計画が構造の目の控えに時間 wall_s を書く"
+      ],
+      "lib/structmark.py": [
+       4,
+       "散らばり（まとめる計画はまだ無い）: 構造の目の控えの時間 wall_s を書いて報告の行に出す"
+      ],
+      "workflows/plan/scripts/plan_collect.py": [
+       1,
+       "散らばり（まとめる計画はまだ無い）: 構造の目が走らなかった周の控えに時間 wall_s を 0 で書く"
+      ]
+     }
+    }
+   ]
+  }
+ }
+}

@@ -1,4 +1,4 @@
-"""考えの住処の柵の道具（試験 tests/test_concept_fences は works 自身の表に、run の中の構造のブロックは対象の表に当てる）。
+"""考えの住処の柵の道具（試験 tests/layers/test_concept_fences.py は works-factory 自身の表に、run の中の構造のブロックは対象の表に当てる）。
 
 表 docs/concepts.json（地図 docs/concepts.md の隣）が、住処の在る考えごとに柵を持つ: 語の形（pattern。正規表現）・
 知ってよい所（allowed。fnmatch の形で `*` は `/` もまたぐ）・既知の漏れ（known。"<表の持ち主のフォルダからのパス>" → [行の数, 理由]）・
@@ -23,7 +23,7 @@
   ファイル（持ち主のフォルダの中だけ）を各柵で数え、住処の外で行の数が増えた物（path は repo からの相対）
 - fork_ref(root, ref=MAIN_REF)・main_table(root, ref=MAIN_REF, rel=TABLE)・growth(main, now): 散らばり（住処の無い考え）の柵は知ってよい所が空で、今の知る場所を全部
   既知の漏れに置く数の歯止め。表そのものも増えない: main の表（ref の同じパス）と比べ、考えごとの既知の漏れの件数の和が増えた・
-  main に無いパスが出た所を growth が名指す（main で柵を持たない考えは比べない）
+  main に無いパスが出た所を growth が名指す（main で柵を持たない考えは比べない。main の版に表が無ければ main_table は空の表を返す）
 
 標準ライブラリと concepthome（探し方）だけを使う。
 """
@@ -38,7 +38,7 @@ import subprocess
 import concepthome
 
 TABLE = concepthome.TABLE_NAME
-MAIN_REF = "origin/main"   # 表の件数を比べる相手（CI の works の job は全履歴で取るので在る）
+MAIN_REF = "origin/main"   # 表の件数を比べる相手（CI の tests の job は全履歴で取るので在る）
 HEADING = re.compile(r"^### `([^`]+)`")
 STATUS_WORD = re.compile(r"[^\s（(]+")
 CODE = re.compile(r"`([^`]+)`")
@@ -63,11 +63,16 @@ def fork_ref(root, ref=MAIN_REF):
 
 
 def main_table(root, ref=MAIN_REF, rel=TABLE):
-    """(ref の柵の表, None) か (None, 引けない理由)。表のパス rel は root からの相対で引く（git の「<ref>:./<パス>」）"""
+    """(ref の柵の表, None) か (None, 版を引けない理由)。表のパス rel は root からの相対で引く（git の「<ref>:./<パス>」）。
+    版は在って表のファイルだけが無ければ、main にまだ柵が無いので空の表 {"concepts": {}}（growth はどの考えも比べない）"""
+    rev = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+                         capture_output=True, text=True)
+    if rev.returncode != 0:
+        return None, rev.stderr.strip()[-200:] or f"版 {ref} を引けない（浅い clone か ref が無い）"
     got = subprocess.run(["git", "-C", str(root), "show", f"{ref}:./{rel}"],
                          capture_output=True, text=True, encoding="utf-8")
     if got.returncode != 0:
-        return None, got.stderr.strip()[-200:] or f"git show の終了コード {got.returncode}"
+        return {"concepts": {}}, None
     return json.loads(got.stdout), None
 
 

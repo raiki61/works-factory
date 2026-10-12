@@ -335,7 +335,7 @@
   - 狭め: 無し
 - L-E55 入口の種類（依頼・base・PR）を知るのは入口の変換だけ（柵 entry-kind）
   - 元: works/tests/test_entry_block.py::ConversionLayerCase.test_only_conversion_layer_knows_entry_kind
-  - 今: lib/entryshape.py と workflows/line/scripts/start.py だけ（柵 entry-kind）（部分 A で閉じた）
+  - 今: lib/entryshape.py と workflows/line/scripts/start.py だけ（柵 entry-kind）（部分 A で閉じた）。柵の正本は表 docs/concepts.json の entry-kind
   - 証: lib/tests/test_concept_fences.py::FenceCase.test_entry_kind_read_only_by_entryshape
   - 本物の run: 筋書きでのみ
   - 狭め: #74 で柵が落ちた（宣言なし。不可でない → 戻す） → 部分 A で戻した
