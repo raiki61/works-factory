@@ -232,6 +232,19 @@ class RolesCase(unittest.TestCase):
         for nid, bound in ORIGINAL_LOOPS.items():
             self.assertEqual(self.nodes[nid]["loop_group"]["max_iterations"], bound, nid)
 
+    def test_verdicts_only_on_the_first_review(self):
+        """準拠（compliance）と品質（quality）の 2 判定は 1 回目の審査役 delta-review の型だけが要り、2 回目の review2 の型には
+        欄が無い（元 works/tests/test_delta_marks.py の DeltaMarksCase.test_role_schema_carries_verdicts_on_first_review_only）"""
+        import deltamarks
+        first, second = self.nodes["delta-review"]["output_format"], self.nodes["review2"]["output_format"]
+        for k in ("compliance", "quality"):
+            self.assertIn(k, first["required"], k)
+            self.assertIn(k, first["properties"], k)
+            self.assertNotIn(k, second.get("required") or [], k)
+            self.assertNotIn(k, second["properties"], k)
+        self.assertEqual(first["properties"]["compliance"]["properties"]["verdict"]["enum"], list(deltamarks.COMPLIANCE))
+        self.assertEqual(first["properties"]["quality"]["properties"]["verdict"]["enum"], ["pass", "fail"])
+
 
 class FilesCase(unittest.TestCase):
     def setUp(self):
@@ -500,6 +513,66 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertFalse(self._run("cut2", "cut2")["go"])
         self.assertFalse(self._run("refix2_prep", "refix2-prep")["go"])
         self.assertFalse((self.place / "delta" / "review-2.json").exists())
+
+    def test_declared_only_refix_skips_review2(self):
+        """1 回目の手直しが全部の穴を declared で答えて受けられたら、fixed が無いので cut2 は go: false で 2 回目の審査を回さない
+        （元 review-loop.py:628 delta_review2_due。元の試験 works/tests/test_blk_refix.py:397）"""
+        self._cut()
+        self._run("delta_accept", "delta-accept", reply=json.dumps(_RV_REVIEW, ensure_ascii=False))
+        self.assertTrue(self._run("refix_prep", "refix-prep")["go"])
+        declared = {"handled": [{"key": _RV_FACE, "handled": "declared",
+                                 "how": "docstring の定義は呼び手の文書が持つので、ここでは足さずに残す"}]}
+        ok = self._run("refix_accept", "refix-accept", reply=json.dumps(declared, ensure_ascii=False), iteration="1")
+        self.assertEqual((ok["ok"], ok["done"]), (True, True), ok)
+        self.assertEqual(self._run("cut2", "cut2"), {"go": False, "files": [], "diff_file": "", "brief_file": ""})
+        self.assertFalse((self.place / "loop-fix_delta2.json").exists())
+        self.assertFalse((self.place / "review2-brief.json").exists())
+
+    def test_second_refix_takes_a_real_reply_on_the_second_round(self):
+        """2 回目の手直し（p3.delta_fix2）を本物の 2 周目で回す: 1 回目の審査・手直し（fixed）・2 回目の審査（塞がっていない検算と
+        新しい穴）を受けた置き場で、refix2-prep が 2 回目の義務の指示書を書き、役の本物の返答を refix2-accept が照らす。義務の key に
+        答えない返答は拒み、答えた返答を受けて置き場に 2 回目の手直しの返答を控える"""
+        p = self.repo / "stats.py"
+        self._cut()
+        self.assertTrue(self._run("delta_accept", "delta-accept", reply=json.dumps(_RV_REVIEW, ensure_ascii=False))["ok"])
+        self.assertTrue(self._run("refix_prep", "refix-prep")["go"])
+        p.write_text(p.read_text(encoding="utf-8").replace("def mean(xs):\n", 'def mean(xs):\n    """算術平均"""\n'),
+                     encoding="utf-8")
+        self.assertTrue(self._run("refix_accept", "refix-accept", reply=json.dumps(_RV_HANDLED, ensure_ascii=False),
+                                  iteration="1")["ok"])
+        cut2 = self._run("cut2", "cut2")
+        self.assertEqual((cut2["go"], cut2["files"]), (True, ["stats.py"]), cut2)
+        face2 = "stats.py mean: docstring が空の並びの扱いを書いていない"
+        review2 = {"faces": [{"key": face2, "kind": "contract_drift", "where": "stats.py", "cite": '"""算術平均"""',
+                              "why": "空の並びで 0 で割るのに docstring が平均の定義しか書かず、呼び手が空を渡してよいと読む"}],
+                   "checks": [{"key": _RV_FACE, "closed": False, "why": "docstring は足したが平均の定義を書いておらず、穴が残る"}]}
+        acc2 = self._run("review2_accept", "review2-accept", reply=json.dumps(review2, ensure_ascii=False))
+        self.assertEqual((acc2["ok"], acc2["done"]), (True, True), acc2)
+        self.assertEqual(json.loads((self.place / "delta" / "review-2.json").read_text(encoding="utf-8"))["pass"], False)
+        prep = self._run("refix2_prep", "refix2-prep")
+        self.assertEqual((prep["go"], prep["iteration"]), (True, 1), prep)
+        self.assertIn(str(self.place / "refix2-brief.json"), pathlib.Path(prep["prompt_file"]).read_text(encoding="utf-8"))
+        owed = json.loads((self.place / "refix2-brief.json").read_text(encoding="utf-8"))["owed"]
+        self.assertEqual(sorted(r["key"] for r in owed), sorted([face2, _RV_FACE]))
+        p.write_text(p.read_text(encoding="utf-8").replace('"""算術平均"""', '"""算術平均（空の並びは渡さない）"""'),
+                     encoding="utf-8")
+        handled = {"handled": [{"key": face2, "handled": "fixed", "how": "docstring に空の並びを渡さない約束を書いた",
+                                "files": ["stats.py"]},
+                               {"key": _RV_FACE, "handled": "fixed", "how": "docstring に算術平均の定義を書いた",
+                                "files": ["stats.py"]}]}
+        half = {"handled": handled["handled"][:1]}
+        bad = self._run("refix2_accept", "refix2-accept", reply=json.dumps(half, ensure_ascii=False), iteration="1")
+        self.assertEqual((bad["ok"], bad["done"]), (False, False), bad)
+        self.assertIn("応答が無い", pathlib.Path(bad["reason_file"]).read_text(encoding="utf-8"))
+        again = self._run("refix2_prep", "refix2-prep")
+        self.assertEqual(again["iteration"], 2)
+        self.assertIn(bad["reason_file"], pathlib.Path(again["prompt_file"]).read_text(encoding="utf-8"))
+        ok = self._run("refix2_accept", "refix2-accept", reply=json.dumps(handled, ensure_ascii=False), iteration="2")
+        self.assertEqual((ok["ok"], ok["done"]), (True, True), ok)
+        import fixboard
+        import refix
+        got = fixboard.output(self.place, refix.passes()[2]["fix"])
+        self.assertEqual([r["key"] for r in got["handled"]], [face2, _RV_FACE])
 
     def test_lens_prep_without_the_role_definition_is_go_false(self):
         """利用者が silent-failure-hunter の役の定義を入れていなければ go: false で、理由を lens.json の行に残す。集めは
@@ -1004,6 +1077,24 @@ class BlockScriptsCase(unittest.TestCase):
         self.assert_contract(out)
         self.assertEqual(out["units"], [{"unit_id": "B", "group_id": "g2", "status": "fixed", "reason": ""}])
         self.assertTrue(out["done"])
+
+    def test_collect_group_mode_returns_no_review(self):
+        """組の子の run は差分の審査を回さず、返りの delta_review は {rounds: 0, pass: false}。子の置き場に審査を省いた印や審査の
+        控えが在っても読まない（親は子の返りのこの欄を読まない）"""
+        start = self.snapshot(self.repo)
+        out_dir = self.tmp / "parent" / "groups"
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], start, start))
+        group = json.dumps({"group_id": "g2", "unit_ids": ["B"], "items": []})
+        for name, doc in (("delta/skipped.json", {"reason": "全部の単位が軽量"}), ("delta/review-1.json", {"pass": True})):
+            with self.subTest(name):
+                __import__("shutil").rmtree(self.place / "delta", ignore_errors=True)
+                _blk_write(self.place / name, doc)
+                code, out, err = _blk_run("collect", self.repo, self.art,
+                                          {"mode": "group", "group": group, "out_dir": str(out_dir)}, "collect")
+                self.assertEqual(code, 0, err)
+                self.assert_contract(out)
+                self.assertEqual(out["delta_review"], {"rounds": 0, "pass": False})
+                self.assertTrue(out["done"], "組の子の done は審査に依らない")
 
     def test_collect_never_fails(self):
         cases = {
