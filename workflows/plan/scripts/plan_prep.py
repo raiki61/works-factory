@@ -5,7 +5,7 @@
 """修正案の役の材料を plan/r<k>/brief-<n>.md に組み（lib/planfile.write_brief）、役を起こす前の作業ツリーの姿を tree.json に置き直す
 （planfile.snap_tree。受け付けが比べる）。返り {brief, attempt}
 
-ライブラリの文書の run をまたぐ控えは、Archon が project ごとに渡す run をまたぐ置き場 STATE_DIR の下 works-factory/ に置く"""
+ライブラリの文書の run をまたぐ控えは、境の控えの根（boundary.shared_cache）に置く"""
 import os
 import sys
 from pathlib import Path
@@ -17,11 +17,6 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import planfile  # noqa: E402
 import policy  # noqa: E402
-
-
-def shared_cache() -> Path | None:
-    state = os.environ.get("STATE_DIR")
-    return Path(state) / "works-factory" if state else None
 
 
 def main() -> None:
@@ -45,7 +40,7 @@ def main() -> None:
         units=units, structure_dir_=plan_dir / rnd["structure"], world_rows=world, spec=spec,
         repo=repo, base_rev=start.get("base_rev") or "", review_md=str(boundary.lib_root() / "REVIEW.md"),
         lang=start.get("lang"), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys,
-                                                                     shared=shared_cache()),
+                                                                     shared=boundary.shared_cache()),
         conflicts=conflicts, policy_md=policy.frozen_copy(start), prior_failures=prior, unread=unread)
     planfile.snap_tree(round_dir / planfile.TREE_FILE, repo)
     boundary.returns({"brief": str(path), "attempt": n})

@@ -14,7 +14,6 @@ import json
 import os
 
 NO_VALUE = ("", "null")
-RUNTIME_COPY = (".archon/",)
 
 
 def broken(mode: str, reason: str) -> dict:
@@ -60,7 +59,7 @@ def main() -> None:
     fingerprint = value(os.environ["INPUTS_FINGERPRINT"])
     repo = Path.cwd()
 
-    data = green_cert.diff_bytes(repo, base_rev, skip=RUNTIME_COPY)
+    data = green_cert.diff_bytes(repo, base_rev, skip=(boundary.RUNTIME_COPY_PREFIX,))
     if not data:
         boundary.returns(broken(mode, f"差分が空（{base_rev} から今の作業ツリーまで変わった物が無い）"))
         return
