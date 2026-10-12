@@ -133,6 +133,17 @@ class OrderCase(unittest.TestCase):
         got = decide(facts={"start_ok": False, "record_problems": [], "failed": ["plan__write"]})
         self.assertEqual(got[0], "record_invalid")
 
+    def test_needs_human_before_record_invalid(self):
+        """人に回した食い違いは、始めの記録が読めない run でも人待ちの語で返る（元 report.py:672-686 の表の 3 が 4 より先）"""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        conflicts = pathlib.Path(tmp.name) / "fix" / "conflicts.json"
+        conflicts.parent.mkdir()
+        conflicts.write_text(json.dumps({"items": [{"unit_key": "u1", "ruling": {"decision": "ask_human"}}]}), encoding="utf-8")
+        returns = fixed_run(fix={**fixed_run()["fix"], "conflicts": str(conflicts)})
+        got = decide(returns, facts={"start_ok": False, "record_problems": [], "failed": []})
+        self.assertEqual(got, ("needs_human", f"fix:{stopby.CONFLICT}"))
+
     def test_unknown_answer_word_is_a_record_problem(self):
         gates = {"gate-final": {"decision": "maybe", "text": ""}}
         problems = outcome.unknown_answers(gates)
