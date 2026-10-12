@@ -18,10 +18,14 @@ SEEDS = ("tests/e2e/target-seed", "tests/calibration/seed")
 
 
 def root_names(agents_md):
-    """木の根の直下の名の集まり。名の欄（2 つ以上の空白の前）は ・ で並べてよく、/ より後は根の名に関わらない。
+    return set(root_entries(agents_md))
+
+
+def root_entries(agents_md):
+    """木の根の直下の名の並び（木に書いた順・重なりも残す）。名の欄（2 つ以上の空白の前）は ・ で並べてよく、/ より後は根の名に関わらない。
     根の直下の欄が空白を含む行は名でなく組の見出しで、その下の 1 段が根の直下の名"""
     lines = TREE.search(agents_md).group(1).splitlines()[1:]
-    names, group = set(), False
+    names, group = [], False
     for line in lines:
         m = BRANCH.match(line)
         if not m:
@@ -34,14 +38,15 @@ def root_names(agents_md):
                 continue
         elif not (depth == 1 and group):
             continue
-        names.update(part.split("/")[0] for part in field.split("・"))
+        names.extend(part.split("/")[0] for part in field.split("・"))
     return names
 
 
 def problems(paths, agents_md):
     """パスの一覧（根からの相対・/ 区切り）が木と食い違う所を 1 行ずつ返す（無ければ空）"""
-    out = []
-    allowed = root_names(agents_md)
+    entries = root_entries(agents_md)
+    out = [f"木の根の直下の {name} が 2 度在る" for name in sorted({n for n in entries if entries.count(n) > 1})]
+    allowed = set(entries)
     for top in sorted({p.split("/")[0] for p in paths} - allowed):
         out.append(f"根の直下の {top} が木に無い")
     blocks = set(scan.BLOCKS) | {".shared"}
@@ -122,6 +127,12 @@ class LayoutTest(unittest.TestCase):
 
     def test_calibration_seed_with_init(self):
         self.check("tests/calibration/seed/__init__.py", "tests/calibration/seed")
+
+    def test_root_name_listed_twice(self):
+        tree = agents_md()
+        line = next(ln for ln in tree.splitlines() if ln.startswith("├── pack.json "))
+        found = problems(GOOD, tree.replace(line, f"{line}\n{line}", 1))
+        self.assertEqual(found, ["木の根の直下の pack.json が 2 度在る"])
 
 
 if __name__ == "__main__":

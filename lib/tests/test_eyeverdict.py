@@ -5,6 +5,7 @@
 - 落ちた筋: test_blk_eyes_lanes.py の FallenLaneCase（R1・R2 の筋が落ちても R4 を回し、落ちた筋を名指す）と fell_text の場
 - 『渡されていない』の照らし: test_blk_eyes.py の claims_given の場（design の試験）を、出口が控えに並べる所で写す
 """
+import ast
 import json
 import pathlib
 import sys
@@ -530,6 +531,25 @@ class WriteNotesCase(unittest.TestCase):
             notes = json.loads((eyes / eyeverdict.PREMISE_INPUTS).read_text(encoding="utf-8"))
             self.assertEqual(notes, {"design": None, "compare": None, "claims": []})
             self.assertEqual(json.loads((eyes / eyeverdict.GATE_PASSES).read_text(encoding="utf-8")), [])
+
+
+class StatusOwnerCase(unittest.TestCase):
+    """目の状態の語の持ち主は seal だけ。目の判定（eyeverdict）・結末の分け（outcome）・関所の文の語（gatemarks）は語を写さず持ち主から読む"""
+
+    def test_readers_do_not_restate_the_words(self):
+        words = set(seal.STATUSES) - {seal.PASSED}
+        for name in ("eyeverdict.py", "outcome.py", "gatemarks.py"):
+            with self.subTest(name=name):
+                tree = ast.parse((LIB / name).read_text(encoding="utf-8"))
+                restated = {n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and n.value in words}
+                self.assertEqual(restated, set())
+
+    def test_apply_refusal_follows_the_owner(self):
+        with mock.patch.object(seal, "REDESIGN", "renamed"):
+            got = seal.apply_refusal(sealed_hash="h", current_hash="h", answer={"decision": "continue", "text": ""},
+                                     green_ok=True, eyes_ok=True, r2={"status": "renamed", "reason": "r"},
+                                     fingerprint_ok=True, protected=[])
+        self.assertIn("R2 が作り直し", got)
 
 
 if __name__ == "__main__":

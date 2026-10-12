@@ -286,9 +286,9 @@ class ShapeCase(unittest.TestCase):
         names = {*eyeverdict.EYES, eyeverdict.PREMISE}
         self.assertEqual({n["with"]["eye"] for n in NODES.values() if n.get("output_type") == "eye-verdict"}, names)
         self.assertEqual(set(eye_fmt["eye"]["enum"]), names)
-        self.assertEqual(verdict_fmt["r1"]["properties"]["status"]["enum"], list(eyeverdict.STATUSES))
+        self.assertEqual(verdict_fmt["r1"]["properties"]["status"]["enum"], list(seal.STATUSES))
         self.assertEqual(verdict_fmt["premise_check"]["properties"]["verdict"]["enum"], list(eyeverdict.VERDICTS))
-        self.assertEqual(eye_fmt["status"]["enum"], [*eyeverdict.STATUSES, *eyeverdict.VERDICTS])
+        self.assertEqual(eye_fmt["status"]["enum"], [*seal.STATUSES, *eyeverdict.VERDICTS])
 
     def test_retry_gives_three_tries(self):
         for nid, node in ROLES.items():
@@ -390,7 +390,7 @@ class ScriptCase(unittest.TestCase):
         self.passing_eyes()
         (self.artifacts / "eyes" / "r1.json").unlink()
         got = self.run_script("verdict")
-        self.assertEqual(got["r1"]["status"], "unverifiable")
+        self.assertEqual(got["r1"]["status"], seal.UNVERIFIABLE)
         self.assertIn("R1 の筋が落ちた", got["r1"]["reason"])
         self.assertFalse(got["ok"])
 
@@ -484,6 +484,7 @@ class ScriptCase(unittest.TestCase):
         got = json.loads(done.stdout.strip().splitlines()[-1])
         self.assertEqual(conforms(got, NODES["verdict"]["output_format"]), [])
         self.assertFalse(got["ok"])
+        self.assertEqual(got["r1"]["status"], seal.UNVERIFIABLE)   # lib を読めない時の約束の形（fallen）は語を写すしかない
         self.assertIn("出口が落ちた", got["r1"]["reason"])
         self.assertTrue(got["protected_hits"])
 

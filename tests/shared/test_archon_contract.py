@@ -110,8 +110,9 @@ def _workflow_run_shape() -> list[str]:
 
 def _answer_argv() -> list[str]:
     """関所の答えの行のうち、殻が Archon にそのまま渡す引数（殻のパスの後ろ）"""
-    env = {answer.ENV: launcher.answer_head(pathlib.Path("/T"))}
-    return shlex.split(answer.line("RUN", "continue", "TEXT", env=env))[1:]
+    env = {answer.ENV: launcher.answer_head(pathlib.Path("/H"), pathlib.Path("/T"))}
+    argv = shlex.split(answer.line("RUN", "continue", "TEXT", env=env))
+    return argv[argv.index(str(launcher.ROOT / "bin" / launcher.NAME)) + 1:]
 
 
 def _answer_options() -> list[str]:

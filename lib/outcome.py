@@ -36,6 +36,7 @@ if str(_HERE) not in sys.path:
 import answer  # noqa: E402
 import gatemarks  # noqa: E402
 import report  # noqa: E402
+import seal  # noqa: E402
 import stopby  # noqa: E402
 import structmark  # noqa: E402
 
@@ -45,7 +46,7 @@ STOP_WORDS = report.FINAL_GATE_STOPS   # stop は answer.VERBS の止める語�
 PASS_WORDS = ("approve", *(v for v in answer.VERBS if v not in STOP_WORDS))   # approve は関所の decisions に要る語
 WAIT_WORDS = (stopby.CONFLICT, stopby.REPLAN, stopby.TDD_REPEAT)   # 線の止めでなく、人の答えを待つ語
 FIX_STATUS_LEFT = ("given_up", "not_done")
-EYE_STATUS_LEFT = ("redesign-needed", "unverifiable")
+EYE_STATUS_LEFT = (seal.REDESIGN, seal.UNVERIFIABLE)
 EYE_NAMES = tuple(e.lower() for e in report.EYES)
 GIVE_UP = "give-up"
 NOT_OK = "not-ok"
