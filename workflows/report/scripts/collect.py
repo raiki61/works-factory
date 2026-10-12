@@ -29,7 +29,7 @@ def main() -> dict:
     sys.path.append(str(boundary.lib_root()))
     import runreport
 
-    facts = json.loads(FACTS) if FACTS.strip() not in ("", "null") else None
+    facts = boundary.parsed(FACTS)
     if not isinstance(facts, dict) or not isinstance(facts.get("report"), dict):
         raise ValueError("facts の出力が無いか、機械の報告のポインタを持たない")
     machine = boundary.resolve(facts["report"])
@@ -41,7 +41,7 @@ def main() -> dict:
 def facts_pointers() -> dict:
     """facts の返りの機械の報告と持ち越しの指し札（形の合う物だけ。読めなければ空）"""
     try:
-        got = json.loads(FACTS)
+        got = boundary.parsed(FACTS)
     except ValueError:
         return {}
     if not isinstance(got, dict):

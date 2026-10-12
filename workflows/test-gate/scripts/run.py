@@ -78,7 +78,7 @@ def main() -> int:
     if mode not in declared_checks.MODES:
         print(f"mode は {'・'.join(declared_checks.MODES)} のどれか: {mode!r}", file=sys.stderr)
         return 1
-    start = json.loads(boundary.resolve(json.loads(os.environ["INPUTS_START"])).read_text(encoding="utf-8"))
+    start = json.loads(boundary.needed(os.environ["INPUTS_START"], "start").read_text(encoding="utf-8"))
     root = Path(util.repo_root() or os.getcwd())
     artifacts = Path(os.environ["ARTIFACTS_DIR"])
     gate = artifacts / "test-gate" / mode

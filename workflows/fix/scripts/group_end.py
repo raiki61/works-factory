@@ -18,7 +18,6 @@ TDD の輪の状態が済んでいなければ tdd を ran: false と理由に�
 書く先: 入力 out_dir が在ればその下の <group_id>/result.json、空の単独の run は自分の置き場の groups/<group_id>/result.json。
 返り {result_file}。入力 group が読めない・git が効かない・置き場のファイルが壊れた: 標準エラーに 1 行で 1。
 """
-import json
 import os
 import sys
 from pathlib import Path
@@ -48,7 +47,7 @@ def tdd_exit(started) -> dict:
 
 
 def main() -> dict:
-    group = json.loads(os.environ["INPUTS_GROUP"])
+    group = boundary.parsed(os.environ["INPUTS_GROUP"])
     if not isinstance(group, dict) or not group.get("group_id"):
         raise ValueError("入力 group に group_id が無い")
     out_dir = os.environ.get("INPUTS_OUT_DIR", "").strip()

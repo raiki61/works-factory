@@ -58,7 +58,7 @@ def line_top(out_dir: str) -> Path | None:
 
 
 def read_group() -> dict:
-    g = json.loads(os.environ["INPUTS_GROUP"])
+    g = boundary.parsed(os.environ["INPUTS_GROUP"])
     if not isinstance(g, dict) or not isinstance(g.get("group_id"), str) or not g["group_id"] \
             or not isinstance(g.get("unit_ids"), list):
         raise ValueError(f"入力 group が {{group_id, unit_ids, items}} の形でない（{os.environ['INPUTS_GROUP'][:200]!r}）")

@@ -153,20 +153,21 @@ def _rows(doc, key: str) -> list:
 
 
 # ---------------------------------------------------------------- 入力
-def pointed(raw: str, resolve) -> tuple:
-    """(指し札の字 raw が指すファイルのパス, 読めない訳)。空の字・null は (None, "")。resolve は指し札をパスに戻す口"""
-    if raw is None or raw.strip() in ("", "null"):
-        return None, ""
+def pointed(raw: str, locate) -> tuple:
+    """(指し札の字 raw が指すファイルのパス, 読めない訳)。locate は指し札の字をパスに戻す口（境の口の pointed。空の字・null は
+    None）で、None なら (None, "")"""
     try:
-        path = resolve(json.loads(raw))
+        path = locate(raw)
     except (ValueError, TypeError, AttributeError, KeyError) as e:
         return None, f"ポインタが読めない: {e}"
+    if path is None:
+        return None, ""
     return (path, "") if pathlib.Path(path).is_file() else (None, f"ポインタの先が無い: {path}")
 
 
-def read_pointed(raw: str, resolve, *, text: bool = False) -> tuple:
+def read_pointed(raw: str, locate, *, text: bool = False) -> tuple:
     """(指し札の先の JSON, 読めない訳)。text なら JSON でない中身を字のまま返す"""
-    path, why = pointed(raw, resolve)
+    path, why = pointed(raw, locate)
     if path is None:
         return None, why
     try:
@@ -182,22 +183,22 @@ def read_pointed(raw: str, resolve, *, text: bool = False) -> tuple:
 LEDGER = "_ledger"   # read_judgment が判定の dict に添える問いの台帳の値の見え方（gatemarks.Ledger）の鍵。判定の欄ではない
 
 
-def read_judgment(raw: str, start, resolve) -> tuple:
+def read_judgment(raw: str, start, locate) -> tuple:
     """(判定の dict, 読めない訳)。判定に、直す義務の数え（gatemarks.duty）が読む問いの台帳の見え方を添える: 始めの記録 start
     （dict か None）の依頼の answers と、判定の隣の結び・素材の状態（gatemarks.ledger_beside）。plan に関所の答えは届かない（行き止まりの
     判定は 1 回目の周で、修正前の関所より前に走る）。判定が読めなければ (None, 訳)"""
-    doc, why = read_pointed(raw, resolve)
+    doc, why = read_pointed(raw, locate)
     if not isinstance(doc, dict):
         return doc, why
-    path, _ = pointed(raw, resolve)
+    path, _ = pointed(raw, locate)
     answers = (start or {}).get("answers") if isinstance(start, dict) else None
     return {**doc, LEDGER: gatemarks.ledger_beside(pathlib.Path(path).parent, doc,
                                                    answers=answers if isinstance(answers, list) else [])}, why
 
 
-def world_rows(raw: str, resolve) -> tuple:
+def world_rows(raw: str, locate) -> tuple:
     """(定石の行の並び, 読めない訳)。指し札が無い（null）なら ([], "")"""
-    path, why = pointed(raw, resolve)
+    path, why = pointed(raw, locate)
     if path is None:
         return [], why
     try:

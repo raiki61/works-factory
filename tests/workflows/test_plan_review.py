@@ -2068,7 +2068,7 @@ class ResultCase(RunCase):
         終了の値 0 で、pass: false・ask_human: true・訳を名指す questions の、output_format に合う JSON を返す"""
         other = json.dumps({"type": "archon_artifact", "run_id": "other-run", "path": "judge/judgment.json"})
         missing = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "judge/no-such.json"})
-        for label, value, word in (("空の字", "", "JSONDecodeError"), ("JSON でない字", "{壊れた", "JSONDecodeError"),
+        for label, value, word in (("空の字", "", "入力 judgment のポインタが無い"), ("JSON でない字", "{壊れた", "JSONDecodeError"),
                                    ("ほかの run の札", other, "ほかの run のポインタ"), ("在らない先", missing, "no-such.json"),
                                    ("ポインタでない", json.dumps({"path": "x"}), "ポインタでない")):
             with self.subTest(label):

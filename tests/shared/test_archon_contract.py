@@ -213,6 +213,17 @@ ARCHON_ROWS = (
     Row("入力の環境変数の鍵", lambda: re.search(r"入力は環境変数 (\w+)<UPPER_SNAKE>", boundary.__doc__)[1],
         "packages/workflows/src/schemas/dag-node.ts",
         r"export function inputEnvKey\(name: string\): string \{\n\s*return `(\w+)\$\{name\.replace\(/-/g, '_'\)\.toUpperCase\(\)\}`;"),
+    Row("output_format で宣言した欄の null は空の解決（境の口は空の字を null と読む）", lambda: boundary.value("") is None,
+        "packages/workflows/src/output-ref.ts",
+        r"if \(paths !== undefined && \(value === undefined \|\| value === null\)\) return \{ kind: 'empty' \};",
+        lambda m: True),
+    Row("include の入力は節の返りの欄を字に差し込み、空の解決は空の字で届く（境の口はそれを null と読む）", lambda: None,
+        "packages/workflows/src/dag-executor.ts",
+        r"readComposedMeta\(node\)\?\.inputs \?\? \{\}\)\) \{\n.*?\? substituteNodeOutputRefs\(\n"
+        r".*?^export function substituteNodeOutputRefs\(\n"
+        r".*?resolution = resolveNodeOutputField\(nodeOutput, nodeId, field, match\);\n"
+        r".*?if \(resolution\.kind === 'empty'\) return escapedForBash \? \"''\" : '([^']*)';",
+        lambda m: boundary.value(m[1])),
     Row("工程の置き場 WORKFLOW_FOLDER", lambda: place.WORKFLOW_FOLDER, "packages/paths/src/archon-paths.ts",
         r"export function getWorkflowFolderSearchPaths\(\): string\[\] \{\n\s*return \['([^']+)'\];"),
     Row("工程を走らせる命令", lambda: sorted(launcher.EXECUTING - launcher.CONTINUING), "packages/cli/src/cli.ts",

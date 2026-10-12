@@ -16,7 +16,6 @@ recount.accept_fix・tddloop.selected_problems。除くパスの頭 boundary.SKI
 前の控えと論理和で重ねた物）・granted-tests.json（許したテストの変更のパス）。
 返り {ok, done, reason, reason_file}。回す側の誤り（返答・回の番号が読めない・判定の写しが無い）は標準エラーに 1 行で非 0。
 """
-import json
 import os
 import sys
 from pathlib import Path
@@ -42,8 +41,8 @@ def main() -> dict:
     if consulted:
         return {"ok": False, "done": False, "reason": fixboard.CONSULTED, "reason_file": ""}
     place, repo = boundary.place("fix"), boundary.work_tree()
-    group = os.environ.get("INPUTS_GROUP", "").strip()
-    owed = fixboard.group_owed(place, json.loads(group)["unit_ids"] if group else None)
+    group = boundary.parsed(os.environ.get("INPUTS_GROUP"))
+    owed = fixboard.group_owed(place, group["unit_ids"] if group else None)
     if raw.strip() in ("", "null"):
         _, excused = fixboard.fix_duty(place, owed)
         fixboard.write_json(place / fixboard.FIX_UNITS_FILE, fixboard.unit_outcomes(owed, {}, excused=excused))

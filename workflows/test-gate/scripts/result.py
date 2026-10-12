@@ -15,7 +15,6 @@ import sys
 import traceback
 from pathlib import Path
 
-NONE_WORDS = ("", "null")   # 入力 baseline の「無い」
 
 
 def rel(mode: str, name: str) -> str:
@@ -78,7 +77,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     snap_path = artifacts / rel(mode, "ci-snapshot.json")
     if snap_path.is_file():
         declared_checks.drop_copy(read_json(snap_path).get("top"))
-    start = read_json(boundary.resolve(json.loads(start_raw)))
+    start = read_json(boundary.needed(start_raw, "start"))
     run_path = artifacts / rel(mode, "run.json")
     if not run_path.is_file():
         raise ValueError(f"{rel(mode, 'run.json')} が無い——ノード run が落ちたか飛ばされた")
@@ -91,8 +90,8 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     root = Path(util.repo_root() or os.getcwd())
     now = green_cert.fingerprint(root)
     base = None
-    if mode == "final" and baseline_raw.strip() not in NONE_WORDS:
-        base = baseline_red.read_baseline(boundary.resolve(json.loads(baseline_raw)))
+    if mode == "final" and (base_file := boundary.pointed(baseline_raw)) is not None:
+        base = baseline_red.read_baseline(base_file)
     if material is None:   # 3 回とも拒まれて諦めた時は最後の拒否の文を人に見える証拠に出す（T45。元 ci_role.collect :349-356）
         red_cause = "incomplete"
         summary = (rolekit.given_up_reason(artifacts / rel(mode, ""), declared_checks.CI_ROLE)
