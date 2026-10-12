@@ -1908,6 +1908,15 @@ class FixAcceptSeamCase(TempCase):
                        granted_tests=["tests/test_b.py:3"], granted_new_tests=[{"id": "tests/test_c.py::T::t", "red_kind": "red"}],
                        reason="足してよい")
         self.assertEqual(fixboard.allowed_tests(self.place), ["test_stats.py", "tests/test_b.py", "tests/test_c.py"])
+        import planmarks
+        planmarks.save(self.place, 1, [{"unit_keys": ["a"], "rewrite_tests": [
+            {"id": "tests/test_d.py::test_d", "new": "hi を期待する", "limit": "tests/test_d.py:1"}]}])
+        self.assertEqual(fixboard.allowed_test_rows(self.place), [
+            {"path": "test_stats.py", "permit": f"{conflict.RULED_TEST_ID}-c1-1", "source": "ruling"},
+            {"path": "tests/test_b.py", "permit": f"{conflict.AGREED_TEST_ID}-1", "source": "consult"},
+            {"path": "tests/test_c.py", "permit": f"{conflict.AGREED_TEST_ID}-1", "source": "consult"},
+            {"path": "tests/test_d.py", "permit": f"{conflict.PLAN_TEST_ID}-1", "source": "plan"}],
+            "許しの出どころは許しの行が持つ（id の頭から引き直さない）")
 
     def test_ruled_owed_reads_the_join(self):
         (self.place / "judgment.json").write_text(json.dumps({"units": [{"key": k, "label": "block"} for k in "abc"]}),

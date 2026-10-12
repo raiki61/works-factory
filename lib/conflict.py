@@ -801,7 +801,8 @@ def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_ro
     合意（agreed_permits）・承認済みの修正案の項目の removes を本体で名指す既存テスト（planmarks.removes_permits。書き換えも関数の
     丸ごとの消しも許す）・rulings が真なら裁定 fix_test_scope の範囲（ruled_fix の順）・案の直しで直した項目の単位（amended_keys。
     前の輪の受け入れのテストの関数を、直した案で書き直してよい）。
-    行は {limit: 範囲の文字列, id: 守りのファイルの行の id の頭, why: 許した理由}。修正案の行は名指しのテストの id（test）も持つ
+    行は {limit: 範囲の文字列, id: 守りのファイルの行の id の頭, why: 許した理由, source: 許しの出どころの語（fixboard.ALLOWED_SOURCES。
+    allowed-tests.json の source）}。修正案の行は名指しのテストの id（test）も持つ
     （id で許す事後の関門が読む）。案の直しの行だけは limit を持たず units（単位の key の並び）を持つ（テストの関数の幅は TDD の輪の
     状態が知る。tddloop.test_spans）。source（パス → 中身か None）を渡すと、修正案の行の範囲をその木でテストの id から
     引き直し、引けない行は捨てる（凍結の検査が読む輪の後の木。tddloop.frozen_source）。skip_ids（修正案の行の id そのまま）に
@@ -810,21 +811,23 @@ def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_ro
     合意の範囲の行は修正前の版の行で、source を渡す読み手には base（パス → 修正前の版の中身）も渡して、その木の行へ移す（_in_tree。
     移せない範囲は捨てる）。裁定の範囲は書いた木のまま。
     修正案の欄の控えが凍結の印と食い違えば、ValueError（止めるのは呼び手）（_plan_rewrites）"""
+    plan, consult, ruling = fixboard.ALLOWED_SOURCES
     out = []
     skip = set(skip_ids)
     for r in _plan_rewrites(b, round_):
         lim = _plan_limit(r, source) if r["id"] not in skip else None
         if lim:
-            out.append({"limit": lim, "id": f"{PLAN_TEST_ID}-{r['item']}", "test": r["id"],
+            out.append({"limit": lim, "id": f"{PLAN_TEST_ID}-{r['item']}", "test": r["id"], "source": plan,
                         "why": f"承認済みの修正案の項目 {r['item']} が名指した既存テストの書き換え（{r['id']}）: {r['new']}"})
     for r in _plan_removes(b, round_):
         lim = _plan_limit(r, source)
         if lim:
-            out.append({"limit": lim, "id": f"{REMOVES_TEST_ID}-{r['item']}", "test": r["id"],
+            out.append({"limit": lim, "id": f"{REMOVES_TEST_ID}-{r['item']}", "test": r["id"], "source": plan,
                         "why": f"承認済みの修正案の項目 {r['item']} が消す名を本体で名指す既存テスト（{r['id']}）: 消す仕組みを縛るので書き換え・消しを許す"})
-    out += agreed_permits(agreed(b) if agreed_rows is None else agreed_rows, source=source, base=base)
+    out += [{**p, "source": consult} for p in agreed_permits(agreed(b) if agreed_rows is None else agreed_rows, source=source,
+                                                             base=base)]
     if rulings:
-        out += [{"limit": lim, "id": f"{RULED_TEST_ID}-{r['id']}",
+        out += [{"limit": lim, "id": f"{RULED_TEST_ID}-{r['id']}", "source": ruling,
                  "why": f"{HEAD}の裁定 {r['id']}（{r['unit_key']}）が許したテストの変更: {r['ruling']['text']}"}
                 for r, lim in ruled_limits(b, decisions=("fix_test_scope",))]
     out += [{"units": sorted(ruled_units(i)), "id": f"{AMENDED_TEST_ID}-{i['id']}",

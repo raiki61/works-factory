@@ -722,15 +722,6 @@ def replan_items(rows, groups=()) -> list:
     return out
 
 
-def _permit_source(permit: str) -> str:
-    """許しの id（conflict.test_permits の id）の頭から出どころの語（ALLOWED_SOURCES のどれか。知らない頭は ""）"""
-    import conflict
-    plan, consult, ruling = ALLOWED_SOURCES
-    heads = ((conflict.PLAN_TEST_ID, plan), (conflict.REMOVES_TEST_ID, plan), (conflict.AGREED_TEST_ID, consult),
-             (conflict.RULED_TEST_ID, ruling))
-    return next((src for head, src in heads if str(permit).startswith(head + "-")), "")
-
-
 def allowed_test_rows(place, results=()) -> list:
     """許したテストの変更の訳 [{path, permit, source}]（返りの diff の隣の allowed-tests.json の中身。パスと許しの id の順・重ねない）:
     置き場 place のテストの変更の許し（conflict.test_permits の範囲の在る行。承認済みの修正案の rewrite_tests・removes・範囲の相談の
@@ -748,7 +739,7 @@ def allowed_test_rows(place, results=()) -> list:
     for p in conflict.test_permits(place):
         got = conflict.parse_limit(p["limit"]) if "limit" in p else None
         if got:
-            add(got[0], p["id"], _permit_source(p["id"]))
+            add(got[0], p["id"], p["source"])
     for r in conflict.agreed(place):
         for g in r.get("granted_new_tests") or []:
             tid = g.get("id") if isinstance(g, dict) else None
