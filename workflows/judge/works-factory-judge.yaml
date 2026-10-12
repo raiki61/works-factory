@@ -292,7 +292,6 @@ nodes:
     script: spec_freeze
     runtime: uv
     timeout: 1728000000
-    mutates_checkout: false
     depends_on: [spec-ask, spec-gate]
     trigger_rule: all_done
     when: $intake.output.spec == true

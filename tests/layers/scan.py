@@ -627,9 +627,10 @@ READONLY_NODES = {
         "test-gate-base-out", "judge-out", "plan-rounds-out", "plan-rounds-review-out", "fix-out", "rejudge-run-out", "replan-out",
         "replan-review-out", "test-gate-final-out", "eyes-out", "merge-seal-out", "merge-apply-out",
     ),
-    # 受け付けと材料の組み立てと世界の解の段の script（run の置き場に書くだけ。作業ツリーの姿は比べるだけで変えない）
+    # 受け付けと材料の組み立てと世界の解の段の script（run の置き場に書くだけ。作業ツリーの姿は比べるだけで変えない）。
+    # spec-freeze は外す: 人が通した受け入れ条件を作業ツリーで /bin/sh -c で走らせる（lib/judge_accept._spec_run）
     "judge": (
-        "spec-accept", "spec-review-accept", "spec-revise-accept", "spec-freeze", "pr-check-accept", "premises-accept",
+        "spec-accept", "spec-review-accept", "spec-revise-accept", "pr-check-accept", "premises-accept",
         "purpose-accept", "world-intake", "world-classes-accept", "world-plan", "world-judge-accept", "world-finish",
         *(f"{role}-{step}" for role in ("prior-decisions", "purpose-review", "local-review", "consistency-bypass", "hygiene",
                                         "external-standards", "procedure-trace", "gate-efficacy", "test-double-fidelity",

@@ -259,7 +259,7 @@
 
 - K1・K13・K16: `tests/workflows/test_returns_never_fail.py::ReturnScriptCase`（返す節の単独の実行・表 `NEVER_FAIL`・落ちた時の指し札の先・境の口の外の標準出力の表 `LIBLESS_EXITS`）
 - K2: `tests/workflows/test_uv_scripts.py::HeaderTest.test_every_named_script_archon_can_find_declares_itself`（issue #96）
-- K3・K18: 層の E7（`tests/layers/scan.py` の `_readonly_nodes`・`_role_settings`。印を道具から導き、表 `KEEP_CHECKOUT`・`ROLE_TOOLS`。`loop:` の節は赤。種 `tests/layers/seeds/k18-*`・`k3-*`）。judge の読むだけの script の節 36 個は `READONLY_NODES` に在る
+- K3・K18: 層の E7（`tests/layers/scan.py` の `_readonly_nodes`・`_role_settings`。印を道具から導き、表 `KEEP_CHECKOUT`・`ROLE_TOOLS`。`loop:` の節は赤。種 `tests/layers/seeds/k18-*`・`k3-*`）。judge の読むだけの script の節 35 個は `READONLY_NODES` に在る（issue の 36 個のうち `spec-freeze` は人が通した受け入れ条件を作業ツリーで走らせる（`lib/judge_accept._spec_run`）ので印を持たない）
 - K4: `tests/workflows/test_role_texts.py::RoleSkillsCase.test_prompt_naming_a_skill_or_agent_declares_it`
 - K5: 層の E5（`_loop_roles`。種 `k5-loop-role-with`）と `tests/layers/test_archon_validate.py::ArchonValidateTest.test_every_block_loads_when_included_inside_a_loop_group`
 - K6: `tests/workflows/test_fixture_claims.py::FixtureClaimsCase.test_fixtures_do_not_claim_per_round_values`
