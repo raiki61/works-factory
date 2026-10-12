@@ -42,7 +42,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 - 線の PR #74（issue #60）と 8 つのブロック（PR #66・#69・#67・#75・#73・#68・#76・#94）と PR #100（judge と report の輪の拒否の理由を輪の頭の script の節で渡す形）。
 - issue #101: `bin/apply`（封じた差分を当てる口。土台の計画 Task 7）・`tests/e2e/make_target.py`（`make` と `teardown`）・種の実行器 `tests/e2e/target-seed/junit-suite.sh`。この issue はそれらを使うだけで作らない。
 - 線の配線の文書 `docs/plans/2026-10-13-line-wiring.md` の部分 0（配線の網と落とし穴の機械）と部分 A（入口・始めの記録・今壊れている物・線の返りの欄）。`bin/apply` は線の返りの欄を読む。
-- 線の配線の部分 B1・B2・C・D1・D2 は、段 1 の後に回す（線の配線の文書の「置き方と issue の切り方」の順）。だから段 1 の時、それらの「閉じる行」は照らしの表で「部分 X 待ち」（`waits-part`）と名指す（見えなくても不具合に数えない。その部分の issue が戻し、表の行を移す）。段 1 は、その部分が直すファイル（`workflows/line/scripts/ask_final.py`・`collect.py`・`lib/runreport.py` ほか）を、不具合の直しの外では触らない。
+- 照らしの表は、線の配線の部分 A・B1・B2・C・D1・D2（#211）が main に入る前に作る（#258）。だから、それらの「閉じる行」は照らしの表で「部分 X 待ち」（`waits-part`）と名指す（見えなくても不具合に数えない。その部分の issue が戻し、表の行を移す）。段 1 は、その部分が直すファイル（`workflows/line/scripts/ask_final.py`・`collect.py`・`lib/runreport.py` ほか）を、不具合の直しの外では触らない。
 - 依存しない: issue #65（役が利用者の gh を通して GitHub の資格を読める件）。通しの種は GitHub を使わない。
 - 入った YAML の節の id がこの文書と食い違えば、YAML を正として読み替え、PR に書く。
 
@@ -120,9 +120,9 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 能力の棚卸しの区分 L・J・P・F・T・E・R・M の全部の行を、1 行ずつ次のどれかの種類で載せる（`pitfalls.md` の K1〜K20 と、`line.md` の線への申し送り S01〜S68 は能力の行でないので載せない）。棚卸しに在って表に無い行が 1 つでも在れば `tests/e2e/test_evidence.py` が赤。
 
 - `seen`: 本物の run で見えるはずの行。欄は `id`・`where`（置き場の中の相対パスの glob。親の run の置き場は `parent/`、fix の組の子の run の置き場は `child-*/` で始める。run の記録 `workflow get --json --verbose` の出力は `record/parent.json`・`record/child-<n>.json`）・`check`（次の 4 つの 1 つ: `exists`〔在って空でない〕・`json-has`〔JSON の欄の道 `path` が在って null でも空でもない〕・`json-equals`〔欄の値が `value`〕・`text-contains`〔字 `text` を含む〕）。棚卸しの「本物の run」の欄の名指しをそのまま形にする。
-- `scenario-only`: 棚卸しの「本物の run」が「筋書きでのみ」の行。欄 `why` は棚卸しの字。
+- `scenario-only`: 棚卸しの「本物の run」が「筋書きでのみ」で始まる行（`waits-part` の行を除く）。欄 `why` は棚卸しの字。欄の途中に「筋書きでのみ」を含む行（例 L-E01「拒みは筋書きでのみ」）は行ごとに決める。
 - `seed-cannot`: 棚卸しは置き場を名指すが、この種では通らない道の行（種に `.review-checks.json` が無い・PR も forge も無い・申し出や 3 回目の拒否が起きない、など）。欄 `why` に、通らない訳を 1 句。
-- `waits-part`: 線の配線の部分 B1・B2・C・D1・D2 の「閉じる行」。欄 `part`（`B1`・`B2`・`C`・`D1`・`D2`）。
+- `waits-part`: 線の配線の部分 A・B1・B2・C・D1・D2 の「閉じる行」。欄 `part`（`A`・`B1`・`B2`・`C`・`D1`・`D2`）。棚卸しが「筋書きでのみ」と書く行でも、閉じる行なら `waits-part` にする（その部分が入った時に `scenario-only` へ移す。線の配線の文書の共通の決まり 10）。
 - `backlog`: 線の配線の文書の「この文書の外」（「決めた物」「持ち主の答え待ち」「ブロックの中だけの穴」）に名指された行。欄 `why` に、その節の名。
 - `handed-off`: 本物の run の中で働かなかったが、この PR では直さずに渡した行（下の「見えなかった行の扱い」の 3）。欄 `why`（働かなかった事実。run の記録の節の id と状態）と `to`（渡した先: 線の配線の部分の名か、区分の issue の番号）。
 
@@ -131,25 +131,27 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 ### 照らしの道具 `tests/e2e/evidence.py`
 
 - `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>`: 家と対象から、親の run と fix の組の子の run（`workflow runs` で引く）の置き場（`terminal_record.artifacts.root`）を試みのフォルダの `evidence/parent/`・`evidence/child-<n>/` に写し、`workflow get <run> --json --verbose` の出力を `evidence/record/` に置く（後で消える作業ツリーに依らない）。
-- `python3 tests/e2e/evidence.py check <試みのフォルダ>`: 照らしの表を読み、行ごとに `seen`・`absent`（`seen` の行で照らしが通らない）・`unexpected`（`seed-cannot`・`backlog`・`waits-part`・`handed-off` の行なのに見えた）を 1 行ずつ出し、最後に区分ごとの数を出す。`absent` が 1 つでも在れば終了の値 1。読めないファイルは黙って `absent` にせず、読めなかった訳を出す（K15）。
+- `python3 tests/e2e/evidence.py check <試みのフォルダ>`: 照らしの表を読み、行ごとに `seen`・`absent`（`seen` の行で照らしが通らない）・`unexpected`（`seed-cannot`・`backlog`・`waits-part`・`handed-off` の行なのに見えた）・`unreadable`（照らしの当たったファイルが在るが読めない。黙って `absent` にせず、読めなかった訳を出す。K15）を 1 行ずつ出し、最後に区分ごとの数を出す。`absent` か `unreadable` が 1 つでも在れば終了の値 1。
 - 標準ライブラリだけで書く（筋書きの確かめの役が対象の外から呼ぶため）。期限を置かない。
 - 試験 `tests/e2e/test_evidence.py`（先に赤）:
   - `EvidenceTableCase.test_every_inventory_row_is_in_the_table`（棚卸しの `line.md`・`judge.md`・`plan.md`・`fix.md`・`tail.md` の区分 L・J・P・F・T・E・R・M の行の ID の集合 = 表の ID の集合）
   - `EvidenceTableCase.test_every_row_has_a_known_kind_and_fields`
-  - `EvidenceTableCase.test_scenario_only_rows_match_the_inventory`（棚卸しが「筋書きでのみ」と書く行は `scenario-only`、そうでない行は `scenario-only` でない）
+  - `EvidenceTableCase.test_scenario_only_rows_match_the_inventory`（棚卸しが「筋書きでのみ」で始まる行は、`waits-part` でなければ `scenario-only`。「筋書きでのみ」を含まない行は `scenario-only` でない）
   - `EvidenceTableCase.test_waits_part_rows_are_closing_rows_of_that_part`（`waits-part` の行が線の配線の文書のその部分の「閉じる行」に在り、その部分の閉じる行は全部 `waits-part`）
+  - `EvidenceTableCase.test_node_rules_name_node_ids_the_workflow_makes`（run の記録の節の id を照らす行が、線と fix の YAML から組んだ節の id のどれかに当たる）
   - `EvidenceTableCase.test_backlog_and_handed_off_rows_name_their_place`（`backlog` の行が線の配線の文書の「この文書の外」に在り、`handed-off` の行が `why` と `to` を持つ）
   - `EvidenceCheckCase.test_each_check_kind_passes_and_fails`（一時のフォルダに作った置き場で 4 つの照らしの通る形と通らない形）
   - `EvidenceCheckCase.test_absent_row_exits_one_and_unreadable_file_is_named`
   - `EvidenceCheckCase.test_unexpected_seen_is_reported`
+  - `EvidenceCheckCase.test_cli_exits_one_on_an_absent_row`（命令の終了の値。筋書きが読むのはこれだけ）
 
 ### 見えなかった行の扱い（手順 4 の中で）
 
-`check` が `absent` と言った行は、1 行ずつ次のどれかに決めて PR 本文に書く（数の表のセルは短い値だけ。訳は表の下に行 ID ごとの箇条書き）。
+`check` が `absent` か `unreadable` と言った行は、1 行ずつ次のどれかに決めて PR 本文に書く（数の表のセルは短い値だけ。訳は表の下に行 ID ごとの箇条書き）。
 
 1. 棚卸しの見立ての誤り（その能力は走ったが、置き場の名が違った）: run の記録で実際の置き場を示し、表の `where` を直す。
 2. 種では通らない道だった: run の記録で、その道の入口が通らなかった事実（例: 節が `skipped`）を示し、`seed-cannot` に移す。
-3. 不具合（その能力の道を通ったのに、能力が働かなかった）: 手順 4 の不具合の直し方で直す。ただし、その行が線の配線の部分 B1〜D2 の「閉じる行」か「この文書の外」の行なら直さずに `handed-off` で渡す（この PR の範囲を広げない）。渡すのは run を止める不具合でない時だけ。run が先へ進めない不具合は、どの行でもこの PR で直す。
+3. 不具合（その能力の道を通ったのに、能力が働かなかった）: 手順 4 の不具合の直し方で直す。ただし、その行が線の配線の部分 A〜D2 の「閉じる行」か「この文書の外」の行なら直さずに `handed-off` で渡す（この PR の範囲を広げない）。渡すのは run を止める不具合でない時だけ。run が先へ進めない不具合は、どの行でもこの PR で直す。
 4. 能力を削る直しが要る・約束（`docs/design.md` の「ブロックの返りの約束」）の欄を変える・持ち主の決めとぶつかる: 直さずに止めて PR に書き、持ち主の答えを待つ（`superset`・`no-narrow`）。
 
 ## 落とし穴の確かめ（K1〜K20）
@@ -263,11 +265,11 @@ lifecycle の入力のうち、このリポジトリが決める物:
    - 最初の `check` で `absent` だった行ごとの決め（見立ての誤り・種では通らない・不具合・持ち主待ち）と訳（表の下に箇条書き）
    - 通しで見つけて直した不具合の一覧（1 件ごとに: 落ちた節・原因・先に赤にした試験の名・直したファイル・当たった能力の行 ID・K1〜K20 への答え）
    - 段ごとの費用と時間の表
-3. 最後の通しで `evidence.py check` が終了の値 0（`absent` が 0 件）。`seed-cannot` と `handed-off` の行はどれも、run の記録の事実（節の id と状態）を訳に持つ。
+3. 最後の通しで `evidence.py check` が終了の値 0（`absent` も `unreadable` も 0 件）。`seed-cannot` と `handed-off` の行はどれも、run の記録の事実（節の id と状態）を訳に持つ。
 4. 手順 6 の K6・K10・L-W60 の確かめの出力が PR に在る。K6 の `test_loop_prev_real` を本物で 1 度回した出力（1 周目が空、2 周目が前の理由）が在る。
 5. `docs/design.md` の U1・U2 の残り・U6・U7 が「決めた」になり、U8・P2・P1・層の E3 の `deps:` に実物の事実と run の id が書いてある。決めは事実から 1 つに決まる物だけで、決まらない物は「持ち主の答え待ち」と書いて PR の冒頭に並べる。
 6. 層の試験（各階層の `AGENTS.md` の機械の行）が全部緑。`bin/` に持ち主の環境の字が無い（層の E14）。
-7. 範囲の外のファイルに差分が無い。直した能力の行が、線の配線の部分 B1〜D2 の「閉じる行」か「この文書の外」に入っていない（入っていれば、run を止める不具合だった事を PR に書く）。
+7. 範囲の外のファイルに差分が無い。直した能力の行が、線の配線の部分 A〜D2 の「閉じる行」か「この文書の外」に入っていない（入っていれば、run を止める不具合だった事を PR に書く）。
 
 ### PR の後に運び役が行う確かめ（この PR を merge する前の受け入れ）
 
@@ -285,7 +287,7 @@ ASF の工程の中から ASF の工程を起こさない（入れ子の SDLC）
 
 - 線とブロックの返りの約束の欄（`docs/design.md` の「ブロックの返りの約束」）は変えない。変える要が出たら止めて PR に書く。
 - `bin/` の全部（`bin/apply` と殻。issue #101 と層の E15）と `tests/e2e/make_target.py`・種（issue #101）。不具合は別の issue にする。
-- 線の配線の文書の部分 B1〜D2 の「閉じる行」と「この文書の外」の行を直すこと（run を止める不具合の外は `handed-off` で渡す）。
+- 線の配線の文書の部分 A〜D2 の「閉じる行」と「この文書の外」の行を直すこと（run を止める不具合の外は `handed-off` で渡す）。
 - ASF の取り付け命令が置いた物のうち `factory/`・`FACTORY.md`・`FACTORY_RULES.md`、`harness/` の中の書くと決めた 4 つ以外（`harness/mutations/` は段 3 の較正 `tests/calibration/` で扱う）。
 - 周の鎖（段 3 の鎖の issue）と、関所の間で走っている run を報告つきで止める札（持ち主の決め `stop-at-gates` で持ち込まない。関所の答えの文が `request:` で始まる止め `stopped_by_request` は今の形のまま）。
 - 段 3 の物: 受け入れの一覧の全部の行の証・graph の節の表・較正・今の works との比べ。この issue の照らしの表は「本物の run で見えるか」だけで、能力の正しさの全部の証ではない。

@@ -60,7 +60,7 @@
 7. 写した指示書と役の定義（`workflows/*/commands/**`・`lib/agents/*.md`）を触る時は、`tests/workflows/test_prompt_contracts.py` の 4 つの約束を保つ。今の形に合わせて直す字は「元の字 → 写しの字」の組で試験に持たせる（K9）。持ち主の決め `prompts-coldread`（2026-10-12、`docs/owner-decisions.md`）で、初見の読み手での書き直しも元の字に戻さず、許した直しとして組に足す。
 8. 期限・タイムアウトを新しく足さない（持ち主の決め `no-timeouts`。層の E12）。
 9. 試験は `WORKS_FACTORY_ARCHON_REQUIRED=1 uv run --isolated python3 -m unittest discover -s . -t .` が全部緑（層の試験 `tests/layers/` と筋書き `tests/e2e/test_line_scenarios.py` を含む）。`archon validate` は線と全部のブロックで誤りも警告も無い。
-10. 段 1 の照らしの表: 段 1 が main に入った後の部分（B1〜D2）は、`tests/e2e/evidence.json` で自分の「閉じる行」が `waits-part` の物を、`seen`（置き場と照らしを書く）か `scenario-only`・`seed-cannot`（訳つき）に移す。
+10. 段 1 の照らしの表: 照らしの表が main に入った後の部分（A〜D2）は、`tests/e2e/evidence.json` で自分の「閉じる行」が `waits-part` の物を、`seen`（置き場と照らしを書く）か `scenario-only`・`seed-cannot`（訳つき）に移す。
 
 ## 落とし穴の確かめ（K1〜K20。どの部分の PR も全部に答える）
 
