@@ -14,7 +14,10 @@
   行は waiting と読む
 - 1 回目に受け付けた返答の控え（置き場の fix-held-reply.json）: その単位を直す義務から外し（fixboard.fix_duty）、
   2 回目の返答に単位ごとに合わせる。役が申告した bash_writes を残す
-盤面・git・子のプロセスは使わない（関数を直に呼ぶ。一時の置き場に種のファイルと控えを書くだけ）。
+- 修正役の受け付け（fixboard.accept_reply）は、直す義務の外の単位の申し出と、申し出た単位を changes にも書いた返答を
+  食い違いの申し出の拒否（check conflict）にし、積まない（FixAcceptSeamCase。元 works/blk-fix/scripts/accept.py:319-333）
+盤面・子のプロセスは使わない（関数を直に呼ぶ。一時の置き場に種のファイルと控えを書くだけ。git は FixAcceptSeamCase の
+受け付けが段の頭の木と版を引く小さなリポジトリだけ）。
 """
 import json
 import pathlib
@@ -540,6 +543,50 @@ class TestReplanWords(unittest.TestCase):
         parts = [i for i, _, _ in fixrules.fix_parts({k: "" for k in fixrules.FIX_VALUES}, held="x")]
         self.assertLess(parts.index("fix-head"), parts.index("held"))
         self.assertIn("直す義務の単位の key", fixrules.sections(fixrules.DIRECT)["fix-head"])
+
+
+class FixAcceptSeamCase(unittest.TestCase):
+    """修正役の受け付け（fixboard.accept_reply）の申し出の照らし（take_conflicts）: 直す義務の外の単位の申し出と、申し出た
+    単位を changes にも書いた返答を拒む（元 works/blk-fix/scripts/accept.py:319-333。元 test_blk_fix_conflict.py:152
+    test_conflict_outside_owed_units_is_rejected）"""
+
+    def setUp(self):
+        from tests.bin.gitkit import committed_copy
+        tmp = tempfile.TemporaryDirectory(prefix="works-conflict-accept-")
+        self.addCleanup(tmp.cleanup)
+        root = pathlib.Path(tmp.name)
+        self.repo, self.place = root / "repo", root / "place"
+        self.rev = committed_copy(self.repo, LIB.parent / "tests" / "e2e" / "target-seed")
+        self.place.mkdir()
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": [{"key": MEAN}, {"key": CLAMP}]}),
+                                                         encoding="utf-8")
+
+    def accept(self, conflicts, changes=()):
+        import leftovers
+        reply = {"changes": [{"unit_key": k, "what": "直した", "files": ["stats.py"]} for k in changes],
+                 "conflicts": conflicts}
+        return fixboard.accept_reply(reply, self.place, self.repo, pass_="first", iteration=1, owed=[MEAN, CLAMP], judged=[],
+                                     head=leftovers.snapshot(self.repo), base_rev=self.rev)
+
+    def claim(self, key=MEAN):
+        return {"unit_key": key, "between": ["stats.py:9", "test_stats.py:9"],
+                "why_both_cannot_hold": "テストは分母 len(xs) - 1 の値を期待しているが、依頼は算術平均を求めている",
+                "which_is_right": "request", "kind": "unnamed_test_broke"}
+
+    def conflict_rejects(self, got) -> str:
+        return " ".join(r["text"] for r in got["rejects"] if r["check"] == "conflict")
+
+    def test_conflict_unit_also_in_changes_is_rejected(self):
+        got = self.accept([self.claim()], changes=[MEAN, CLAMP])
+        self.assertEqual((got["ok"], got["conflicted"]), (False, False), got)
+        self.assertIn(f"申し出た単位を changes にも書いた: {MEAN}", self.conflict_rejects(got))
+        self.assertEqual(conflict.items(self.place), [], "拒んだ申し出は積まない")
+        got = self.accept([self.claim("stats.py ghost: 作り話の単位")])
+        self.assertFalse(got["ok"], got)
+        self.assertIn("今の直す義務の単位に無い", self.conflict_rejects(got))
+        self.assertEqual(conflict.items(self.place), [])
+        got = self.accept([self.claim()])
+        self.assertEqual((got["ok"], got["conflicted"]), (True, True), got)
 
 
 if __name__ == "__main__":
