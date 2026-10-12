@@ -2592,12 +2592,9 @@ class VerdictPublicCase(unittest.TestCase):
             self.assertEqual(ja.read_json(jdir / "purpose-review.json"), {})
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class PublicFileReadersCase(unittest.TestCase):
-    OWNERS = {"judge_accept.py", "premises.py", "judgeverify.py", "marks.py"}
+    OWNERS = {"judge_accept.py", "premises.py", "judgeverify.py", "marks.py", "gatemarks.py", "purpose.py"}
+    READERS = ("outcome", "runreport", "boardview", "planfile")
 
     def test_readers_take_the_names_from_the_owner(self):
         """判定の隣の公開のファイルの名（PUBLIC_FILES）を、持ち主の外の lib と script の節が字で書かない（持ち主が名を変えると、
@@ -2608,3 +2605,17 @@ class PublicFileReadersCase(unittest.TestCase):
                 for n in ast.walk(ast.parse(p.read_text(encoding="utf-8")))
                 if isinstance(n, ast.Constant) and n.value in ja.PUBLIC_FILES]
         self.assertEqual(hits, [])
+
+    def test_readers_do_not_load_judge_accept(self):
+        """名だけを読む読み手は名の軽い持ち主を読み、判定の受け付け（judge_accept と、それが読む数十のモジュール）を読み込まない"""
+        for mod in self.READERS:
+            with self.subTest(mod=mod):
+                got = subprocess.run([sys.executable, "-c", f"import sys, {mod}; print('judge_accept' in sys.modules)"],
+                                     cwd=LIB, capture_output=True, text=True, check=True)
+                self.assertEqual(got.stdout.strip(), "False")
+        prep = LIB.parent / "workflows" / "eyes" / "scripts" / "prep.py"
+        self.assertNotIn("judge_accept", prep.read_text(encoding="utf-8"))
+
+
+if __name__ == "__main__":
+    unittest.main()

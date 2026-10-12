@@ -315,7 +315,7 @@ REQUEST_STOP = stopby.declare("request", "依頼の型が通らない・始め�
 DIAGNOSE_NODE = "p2.diagnose"                # 判定役の節の写しの graph の名（querytest・outpurpose・gatemarks の足し欄の表の鍵）
 DIAGNOSE_ROLE = "diagnose"                   # 拒否の控え rejects-<役>.json の名（rolekit.with_done）
 JUDGMENT_FILE = "judgment.json"              # 元 accept.py:57 の JUDGMENT_FILE（受けた判定。judge_output が整えた返答に例と目的の外の行を戻した物）
-MATERIALS_FILE = "materials.json"            # 素材の状態（素材の名 → {status, …}。材料の支度が組む）
+MATERIALS_FILE = gatemarks.MATERIALS_FILE
 # 置き場のファイルの名は書くモジュールの物を引く
 PURPOSE_FILE = _purpose.PURPOSE_FILE
 PREMISES_FILE = _premises.PREMISES_FILE
@@ -4158,7 +4158,7 @@ EMPTY_JUDGMENT = {"units": [], "questions": [], "framing": "", "one_shot": "", "
                   "one_shot_closes": [], "precedents": []}
 EMPTY_PURPOSE = {"purpose_text": "", "source": "", "known_weaknesses": [], "source_files": []}
 OUT_OF_PURPOSE_FILE = "out-of-purpose.json"
-PURPOSE_REVIEW_FILE = "purpose-review.json"   # 目的の監査の役の受けた返答（plan-review が独立設計を回すかを決める）
+PURPOSE_REVIEW_FILE = _purpose.PURPOSE_REVIEW_FILE
 PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE,
                 PURPOSE_REVIEW_FILE)   # 判定の指し札の隣に必ず置く（ほかのブロックが名で開く）
 

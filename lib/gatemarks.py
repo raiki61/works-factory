@@ -102,6 +102,7 @@ import structmark  # 構造の目の行（汚れる・人に上げる）
 import worldmark   # 世界の解の行と、関所の軸「世界の解か」（world_ok）
 
 MARKS_FILE = marks.KINDS["gate"].file
+MATERIALS_FILE = "materials.json"   # 判定の隣の素材の状態（素材の名 → {status, …}。材料の支度が組み、判定と報告が読む）
 RECOMMEND = "recommend"   # 人に回す行の推し（欄は RECOMMEND_KEYS。実の利用者の run ac9e02ab。機械が読める推しが無かった）
 FIELDS = ("decided_by", "undecided_because", "fences", "world", RECOMMEND)
 RECOMMEND_KEYS = ("answer", "note", "why")   # 頭が答え、残りが RECOMMEND_MIN 字以上の文
