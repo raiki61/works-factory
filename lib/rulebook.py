@@ -27,7 +27,8 @@ import fixboard  # noqa: E402  （指示書の組み立て compose。元 rolekit
 CANON = _CORE / "writerules" / "common.md"
 EMPTY = "（空）"
 HOLE = re.compile(r"<<([a-z_]+)>>")
-MARK = re.compile(r"^<!-- セクション ([a-z0-9-]+) -->$")
+MARK_HEAD = "<!-- セクション"
+MARK = re.compile("^" + re.escape(MARK_HEAD) + r" ([a-z0-9-]+) -->$")
 HEADER = "<!-- works-prompt {} -->"
 
 

@@ -310,7 +310,7 @@ class TestCompose(unittest.TestCase):
             self.assertNotIn("$INPUTS", text)
             self.assertNotIn("$LOOP_PREV", text)
             self.assertNotIn("{{", text)
-            self.assertNotIn("<!-- 節", text)
+            self.assertNotIn(rulebook.MARK_HEAD, text)
         for k in fixrules.FIX_VALUES:
             if VALUES[k]:
                 self.assertIn(f"`{VALUES[k]}`", fix, k)
