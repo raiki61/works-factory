@@ -43,6 +43,7 @@ works-factory/
 ├── workflows/                   グラフ（エッセンス。AGENTS.md がグラフの決まり）。置かずに --workflow-source で Archon に読ませる（E1）
 │   ├── line/
 │   │   ├── works-factory-line.yaml   線。ブロックを並べ、人の関所を置く
+│   │   ├── scripts/                  線の script の節。lib/ と境の口を呼ぶだけ
 │   │   └── fixtures/                 線の筋書きの試験
 │   ├── <ブロック>/              judge・plan・plan-review・fix・test-gate・eyes・report・merge の 8 つ
 │   │   ├── works-factory-<ブロック>.yaml   ブロックの工程（工程の名もこれ。E9）

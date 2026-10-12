@@ -14,11 +14,14 @@
 - requests(doc): 依頼の行の数。入力の形が無ければ None
 - words(shape): 頭の行と報告の冒頭 2 の入口の文（例: 差分なし（HEAD）・依頼 2 件——P1 の役は起こさない）。出どころは
   base.label（入口の変換が書いた文）で、入口の種類で分岐しない
+- cli_version(command): 始めの記録の版の控えに置く、PATH の上の命令の `--version` の 1 行（無い・落ちたら空の字）
 """
 from __future__ import annotations
 
 import json
 import pathlib
+import shutil
+import subprocess
 
 NAME = "start.json"
 REL = f"r1/{NAME}"
@@ -69,3 +72,14 @@ def words(s: dict) -> str:
     else:
         out = f"差分 {base['rev'][:12]}..HEAD（{diff['files']} ファイル・{base['label']}）・依頼 {s['requests']} 件"
     return out + (f"・{SPEC_WORDS}" if s.get("spec") else "")
+
+
+def cli_version(command: str) -> str:
+    found = shutil.which(command)
+    if found is None:
+        return ""
+    try:
+        said = subprocess.run([found, "--version"], capture_output=True, text=True)
+    except OSError:
+        return ""
+    return said.stdout.strip() if said.returncode == 0 else ""

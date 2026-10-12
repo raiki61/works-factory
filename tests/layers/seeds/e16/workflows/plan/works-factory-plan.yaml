@@ -1,0 +1,6 @@
+name: works-factory-plan
+interactive: true
+nodes:
+  - id: round
+    script: round
+    runtime: uv

@@ -1,0 +1,1013 @@
+name: works-factory-line
+description: |
+  works-factory の線。修正依頼か差分を受け、8 つのブロック（judge・plan・plan-review・fix・test-gate・eyes・report・merge）を
+  include: で並べ、人の関所・計画の往復・一度だけの差し込み（案の直しと 2 度目の修正・再審）・深さの上げ直し・無人の方針を持ち、
+  どの道でも報告を出す。順と関所は docs/design.md の「線」、ブロックとの受け渡しは同じ文書の「ブロックの返りの約束」。
+  YAML は配線だけで、決めは線の script（workflows/line/scripts/）、確かめは lib/ が持つ。
+  ブロックに渡す飛ばされうる値は、返しの節（埋め P2: answer-*・collect）が `{from, if_skipped: null}` で受けて明示の値で返し直す。
+  ブロックと計画の往復の返りは受け皿の節（<include の id>-out・plan-rounds-out）が受け直し、collect はそこからだけ読む
+  （受ける節が落ちても受け皿が飛ばされるだけで、報告まで届く）。
+  返りは線の節 result（結末の語と、結末が fixed・fixed_needs_check の時に真の fixed）。
+
+interactive: true
+
+inputs:
+  request:
+    default: ""
+    description: 修正依頼のファイル（findings の JSON の配列か、{findings, pr, issue, answers, prior_failures} の形）のパス。相対なら対象の根から。依頼の行か差分の少なくとも 1 つが要る（どちらも無ければ start が AI の前で止める）
+  base:
+    default: ""
+    description: 差分の根を名指す版（枝・タグ・commit）。差分の根は base と HEAD の merge-base。pr と一緒には名指さない
+  pr:
+    default: ""
+    description: PR の番号。base の版と head は start が run の中で gh で読み、読めなければ・head が対象の HEAD と違えば止める。base と一緒には名指さない
+  spec:
+    default: ""
+    description: 仕様の段を挟むか（空か on）。依頼の文が要り、無人の run・固定材料とは組めない
+  test_cmd:
+    default: ""
+    description: テストのコマンド（対象の根で走らせる 1 行）。test-gate が読む
+  tdd_suite:
+    default: ""
+    description: テストの実行器（JUnit XML の書き先を第 1 引数に受ける実行ファイル。対象の根から）。空なら修正の段の TDD の輪を飛ばす
+  final_gate:
+    default: ""
+    description: 最後の関所の開き方。always（空の既定）・when_needed・protected_only（lib/gatepolicy.py）。守りのパスの当たりと申し出はどれでも開く
+  unattended:
+    default: ""
+    description: 無人の run か（空か true）。true は人が答えない run で、台帳の問いは関所に載せず、関所を開くはずの時は開かずに止める（needs-human）
+  design_only:
+    default: ""
+    description: 設計だけの run か（空か true）。true は修正前の関所を必ず開く
+  thickness:
+    default: ""
+    description: 手厚さ（深さ）。空・自動は機械が単位ごとに決める。軽量・標準は全部の単位をその深さに固定する。重厚は受けない
+  features_off:
+    default: ""
+    description: 切る機能（語をカンマか空白で区切った 1 行。語と既定は lib/entry.py の FEATURES・FEATURE_DEFAULTS）。知らない語は start が止める
+  features_on:
+    default: ""
+    description: 入れる機能（features_off と同じ語）。features_off と同じ語を名指せば start が止める
+  policy_md:
+    default: ""
+    description: 人の方針の文書のパス（空なら既定の置き場）。相対なら対象の根から。名指した文書が無ければ start が止める
+  fix_fixture:
+    default: ""
+    description: 固定材料のフォルダ（前の run の修正の前の写し）。その道はまだ無く、空でなければ start が止める
+  lang:
+    default: ""
+    description: 報告と、関所・報告に載る役の文の言語。空は依頼文の言語
+
+returns: result
+outcome_field: fixed
+
+nodes:
+  # 1 始め。入力をそろえ、始めの記録を書く。受けなければ ok: false で、後ろは when: で飛ぶ（AI を起こす前に止める）
+  - id: start
+    script: start
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        ok: { type: boolean }
+        stop_reason: { type: string }
+        reason: { type: string }
+        record: { type: [object, "null"] }
+        prior_failures: { type: [object, "null"] }
+        ask: { type: boolean }
+        gate_text: { type: string }
+        unattended: { type: boolean }
+        design_only: { type: boolean }
+        final_gate: { type: string }
+      required: [ok, stop_reason, reason, record, prior_failures, ask, gate_text, unattended, design_only, final_gate]
+
+  # 2 起動の関所
+  - id: gate-start
+    approval:
+      message: "$start.output.gate_text"
+      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
+    idle_timeout: 1728000000
+    depends_on: [start]
+    when: "$start.output.ask == true"
+
+  - id: answer-start
+    script: gate_answer
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        go: { type: boolean }
+        answer: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [go, answer, stop_reason]
+    mutates_checkout: false
+    depends_on: [start, gate-start]
+    trigger_rule: none_failed_min_one_success
+    with:
+      gate: { from: "$gate-start.output", if_skipped: null }
+      go: "$start.output.ok"
+      stop_reason: "$start.output.stop_reason"
+      place: gate-start
+
+  # 3 直す前の結末
+  - id: test-gate-base
+    include: works-factory-test-gate
+    depends_on: [answer-start]
+    when: "$answer-start.output.go == true"
+    with:
+      mode: base
+      start: "$start.output.record"
+      baseline: null
+
+  - id: test-gate-base-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [test-gate-base]
+    with:
+      block: test_gate
+      mode: "$test-gate-base.output.mode"
+      ok: "$test-gate-base.output.ok"
+      green: "$test-gate-base.output.green"
+      red_cause: "$test-gate-base.output.red_cause"
+      baseline: "$test-gate-base.output.baseline"
+      fingerprint: "$test-gate-base.output.fingerprint"
+      evidence: "$test-gate-base.output.evidence"
+
+  # 4 判定
+  - id: judge
+    include: works-factory-judge
+    depends_on: [test-gate-base]
+    when: "$test-gate-base.output.ok == true"
+    with:
+      start: "$start.output.record"
+      baseline: "$test-gate-base.output.baseline"
+      objection: ""
+      prior_failures: "$start.output.prior_failures"
+
+  - id: judge-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [judge]
+    with:
+      block: judge
+      ready: "$judge.output.ready"
+      stop_reason: "$judge.output.stop_reason"
+      units: "$judge.output.units"
+      judgment: "$judge.output.judgment"
+      purpose: "$judge.output.purpose"
+      world: "$judge.output.world"
+      spec: "$judge.output.spec"
+      out_of_purpose: "$judge.output.out_of_purpose"
+      rejudge_verdict: "$judge.output.rejudge_verdict"
+
+  # 5 計画の往復。中の節は外から見えないので、本体の終わりの返しの節 plan-out が返りを欄ごとに受けて返す
+  - id: plan-rounds
+    depends_on: [judge]
+    when: "$judge.output.ready == true"
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 3
+      until_bash: 'done=$plan-out.output.done; [ "$done" = "true" ]'
+      nodes:
+        - id: plan
+          include: works-factory-plan
+          with:
+            start: "$start.output.record"
+            units: "$judge.output.units"
+            judgment: "$judge.output.judgment"
+            world: "$judge.output.world"
+            spec: "$judge.output.spec"
+            review: "$LOOP_PREV.plan-out.output.review"
+            ruling: []
+            conflicts: null
+            prior_failures: "$start.output.prior_failures"
+
+        - id: plan-review-run
+          include: works-factory-plan-review
+          depends_on: [plan]
+          when: "$plan.output.ready == true"
+          with:
+            start: "$start.output.record"
+            units: "$judge.output.units"
+            judgment: "$judge.output.judgment"
+            purpose: "$judge.output.purpose"
+            world: "$judge.output.world"
+            plan: "$plan.output.plan"
+            structure: "$plan.output.structure"
+            ripple: "$plan.output.ripple"
+            answers: "$answer-start.output.answer"
+            ruling: []
+
+        - id: plan-out
+          script: plan_out
+          runtime: uv
+          timeout: 1728000000
+          output_format:
+            type: object
+            properties:
+              ready: {}
+              plan: {}
+              structure: {}
+              ripple: {}
+              depth: {}
+              round: {}
+              pass: {}
+              stalled: {}
+              review: {}
+              design: {}
+              gate_axes: {}
+              ask_human: {}
+              questions: {}
+              done: { type: boolean }
+              stop_reason: { type: string }
+            required: [ready, plan, structure, ripple, depth, round, pass, stalled, review, design, gate_axes, ask_human, questions, done,
+                       stop_reason]
+          mutates_checkout: false
+          depends_on: [plan, plan-review-run]
+          trigger_rule: none_failed_min_one_success
+          with:
+            ready: "$plan.output.ready"
+            plan: "$plan.output.plan"
+            structure: "$plan.output.structure"
+            ripple: "$plan.output.ripple"
+            depth: "$plan.output.depth"
+            round: "$plan.output.round"
+            pass: { from: "$plan-review-run.output.pass", if_skipped: null }
+            stalled: { from: "$plan-review-run.output.stalled", if_skipped: null }
+            review: { from: "$plan-review-run.output.review", if_skipped: null }
+            design: { from: "$plan-review-run.output.design", if_skipped: null }
+            gate_axes: { from: "$plan-review-run.output.gate_axes", if_skipped: null }
+            ask_human: { from: "$plan-review-run.output.ask_human", if_skipped: null }
+            questions: { from: "$plan-review-run.output.questions", if_skipped: null }
+
+  - id: plan-rounds-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [plan-rounds]
+    with:
+      block: plan_rounds
+      ready: "$plan-rounds.output.ready"
+      plan: "$plan-rounds.output.plan"
+      structure: "$plan-rounds.output.structure"
+      ripple: "$plan-rounds.output.ripple"
+      depth: "$plan-rounds.output.depth"
+      round: "$plan-rounds.output.round"
+      pass: "$plan-rounds.output.pass"
+      stalled: "$plan-rounds.output.stalled"
+      review: "$plan-rounds.output.review"
+      design: "$plan-rounds.output.design"
+      gate_axes: "$plan-rounds.output.gate_axes"
+      ask_human: "$plan-rounds.output.ask_human"
+      questions: "$plan-rounds.output.questions"
+      stop_reason: "$plan-rounds.output.stop_reason"
+
+  # 6 修正前の関所
+  - id: ask-before-fix
+    script: ask_before_fix
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        open: { type: boolean }
+        go: { type: boolean }
+        stop_reason: { type: string }
+        text: { type: string }
+        deferred: { type: array }
+      required: [open, go, stop_reason, text, deferred]
+    mutates_checkout: false
+    depends_on: [plan-rounds]
+    with:
+      ready: "$plan-rounds.output.ready"
+      pass: "$plan-rounds.output.pass"
+      stalled: "$plan-rounds.output.stalled"
+      round: "$plan-rounds.output.round"
+      ask_human: "$plan-rounds.output.ask_human"
+      gate_axes: "$plan-rounds.output.gate_axes"
+      questions: "$plan-rounds.output.questions"
+      unattended: "$start.output.unattended"
+      design_only: "$start.output.design_only"
+
+  - id: gate-before-fix
+    approval:
+      message: "$ask-before-fix.output.text"
+      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
+    idle_timeout: 1728000000
+    depends_on: [ask-before-fix]
+    when: "$ask-before-fix.output.open == true"
+
+  - id: answer-before-fix
+    script: before_fix_answer
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        go: { type: boolean }
+        answer: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [go, answer, stop_reason]
+    mutates_checkout: false
+    depends_on: [ask-before-fix, gate-before-fix]
+    trigger_rule: none_failed_min_one_success
+    with:
+      gate: { from: "$gate-before-fix.output", if_skipped: null }
+      go: "$ask-before-fix.output.go"
+      stop_reason: "$ask-before-fix.output.stop_reason"
+      place: gate-before-fix
+      asked: "$plan-rounds.output.questions"
+
+  # 7 修正。裁定が計画の項目の誤りとしたら案の直しとその後の 2 度目の修正を、修正役の異議が在れば再審を、1 度ずつ差し込む
+  - id: fix
+    include: works-factory-fix
+    depends_on: [answer-before-fix]
+    when: "$answer-before-fix.output.go == true"
+    with:
+      start: "$start.output.record"
+      baseline: "$test-gate-base.output.baseline"
+      units: "$judge.output.units"
+      judgment: "$judge.output.judgment"
+      world: "$judge.output.world"
+      plan: "$plan-rounds.output.plan"
+      ripple: "$plan-rounds.output.ripple"
+      depth: "$plan-rounds.output.depth"
+      answers: "$answer-before-fix.output.answer"
+
+  - id: fix-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [fix]
+    with:
+      block: fix
+      done: "$fix.output.done"
+      units: "$fix.output.units"
+      groups: "$fix.output.groups"
+      conflicts: "$fix.output.conflicts"
+      replan_items: "$fix.output.replan_items"
+      objection: "$fix.output.objection"
+      diff: "$fix.output.diff"
+      allowed_test_changes: "$fix.output.allowed_test_changes"
+      changed: "$fix.output.changed"
+      delta_review: "$fix.output.delta_review"
+
+  - id: after-fix
+    script: after_fix
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        replan: { type: boolean }
+        rejudge: { type: boolean }
+        stop_reason: { type: string }
+      required: [replan, rejudge, stop_reason]
+    mutates_checkout: false
+    depends_on: [fix]
+    with:
+      replan_items: "$fix.output.replan_items"
+      objection: "$fix.output.objection"
+
+  - id: rejudge-run
+    include: works-factory-judge
+    depends_on: [after-fix]
+    when: "$after-fix.output.rejudge == true"
+    with:
+      start: "$start.output.record"
+      baseline: "$test-gate-base.output.baseline"
+      objection: "$fix.output.objection"
+      prior_failures: "$start.output.prior_failures"
+
+  - id: rejudge-run-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [rejudge-run]
+    with:
+      block: judge
+      ready: "$rejudge-run.output.ready"
+      stop_reason: "$rejudge-run.output.stop_reason"
+      units: "$rejudge-run.output.units"
+      judgment: "$rejudge-run.output.judgment"
+      purpose: "$rejudge-run.output.purpose"
+      world: "$rejudge-run.output.world"
+      spec: "$rejudge-run.output.spec"
+      out_of_purpose: "$rejudge-run.output.out_of_purpose"
+      rejudge_verdict: "$rejudge-run.output.rejudge_verdict"
+
+  - id: judged
+    script: judged
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        units: {}
+        judgment: {}
+        purpose: {}
+        world: {}
+        rejudge_verdict: {}
+        rejudged: { type: boolean }
+        new_open_units: { type: array }
+        lowered: { type: array }
+        unnamed_changed: { type: array }
+        unread: { type: string }
+        stop_reason: { type: string }
+      required: [units, judgment, purpose, world, rejudge_verdict, rejudged, new_open_units, lowered, unnamed_changed, unread,
+                 stop_reason]
+    mutates_checkout: false
+    depends_on: [after-fix, rejudge-run]
+    trigger_rule: none_failed_min_one_success
+    with:
+      judge_units: "$judge.output.units"
+      judge_judgment: "$judge.output.judgment"
+      judge_purpose: "$judge.output.purpose"
+      judge_world: "$judge.output.world"
+      judge_rejudge_verdict: "$judge.output.rejudge_verdict"
+      rejudge_units: { from: "$rejudge-run.output.units", if_skipped: null }
+      rejudge_judgment: { from: "$rejudge-run.output.judgment", if_skipped: null }
+      rejudge_purpose: { from: "$rejudge-run.output.purpose", if_skipped: null }
+      rejudge_world: { from: "$rejudge-run.output.world", if_skipped: null }
+      rejudge_rejudge_verdict: { from: "$rejudge-run.output.rejudge_verdict", if_skipped: null }
+      objection: "$fix.output.objection"
+
+  - id: replan
+    include: works-factory-plan
+    depends_on: [after-fix]
+    when: "$after-fix.output.replan == true"
+    with:
+      start: "$start.output.record"
+      units: "$judge.output.units"
+      judgment: "$judge.output.judgment"
+      world: "$judge.output.world"
+      spec: "$judge.output.spec"
+      review: ""
+      ruling: "$fix.output.replan_items"
+      conflicts: "$fix.output.conflicts"
+      prior_failures: "$start.output.prior_failures"
+
+  - id: replan-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [replan]
+    with:
+      block: plan
+      ready: "$replan.output.ready"
+      plan: "$replan.output.plan"
+      structure: "$replan.output.structure"
+      ripple: "$replan.output.ripple"
+      depth: "$replan.output.depth"
+      round: "$replan.output.round"
+
+  - id: replan-review
+    include: works-factory-plan-review
+    depends_on: [replan]
+    when: "$replan.output.ready == true"
+    with:
+      start: "$start.output.record"
+      units: "$judge.output.units"
+      judgment: "$judge.output.judgment"
+      purpose: "$judge.output.purpose"
+      world: "$judge.output.world"
+      plan: "$replan.output.plan"
+      structure: "$replan.output.structure"
+      ripple: "$replan.output.ripple"
+      answers: "$answer-start.output.answer"
+      ruling: "$fix.output.replan_items"
+      conflicts: "$fix.output.conflicts"
+      gate_answers: "$answer-before-fix.output.answer"
+
+  - id: replan-review-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [replan-review]
+    with:
+      block: plan_review
+      pass: "$replan-review.output.pass"
+      stalled: "$replan-review.output.stalled"
+      review: "$replan-review.output.review"
+      design: "$replan-review.output.design"
+      gate_axes: "$replan-review.output.gate_axes"
+      ask_human: "$replan-review.output.ask_human"
+      questions: "$replan-review.output.questions"
+
+  - id: ask-replan
+    script: ask_replan
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        open: { type: boolean }
+        go: { type: boolean }
+        stop_reason: { type: string }
+        text: { type: string }
+        widened: { type: array }
+      required: [open, go, stop_reason, text, widened]
+    mutates_checkout: false
+    depends_on: [replan-review]
+    with:
+      old_plan: "$plan-rounds.output.plan"
+      new_plan: "$replan.output.plan"
+      items: "$fix.output.replan_items"
+      ask_human: "$replan-review.output.ask_human"
+      questions: "$replan-review.output.questions"
+      unattended: "$start.output.unattended"
+
+  - id: gate-replan
+    approval:
+      message: "$ask-replan.output.text"
+      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
+    idle_timeout: 1728000000
+    depends_on: [ask-replan]
+    when: "$ask-replan.output.open == true"
+
+  - id: answer-replan
+    script: replan_answer
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        go: { type: boolean }
+        answer: { type: [object, "null"] }
+        stop_reason: { type: string }
+        fix_answers: { type: [object, "null"] }
+      required: [go, answer, stop_reason, fix_answers]
+    mutates_checkout: false
+    depends_on: [ask-replan, gate-replan]
+    trigger_rule: none_failed_min_one_success
+    with:
+      gate: { from: "$gate-replan.output", if_skipped: null }
+      go: "$ask-replan.output.go"
+      stop_reason: "$ask-replan.output.stop_reason"
+      place: gate-replan
+      before_fix: "$answer-before-fix.output.answer"
+
+  - id: refix-run
+    include: works-factory-fix
+    depends_on: [answer-replan]
+    when: "$answer-replan.output.go == true"
+    with:
+      start: "$start.output.record"
+      baseline: "$test-gate-base.output.baseline"
+      units: "$judge.output.units"
+      judgment: "$judge.output.judgment"
+      world: "$judge.output.world"
+      plan: "$replan.output.plan"
+      ripple: "$replan.output.ripple"
+      depth: "$replan.output.depth"
+      answers: "$answer-replan.output.fix_answers"
+      only_items: "$fix.output.replan_items"
+
+  - id: fixed
+    script: fixed
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        units: { type: array }
+        groups: {}
+        conflicts: { type: array }
+        replan_items: {}
+        objection: {}
+        refix_objection: { type: string }
+        diff: {}
+        allowed_test_changes: {}
+        changed: {}
+        delta_review: {}
+        done: { type: boolean }
+        go: { type: boolean }
+        refixed: { type: boolean }
+        stop_reason: { type: string }
+      required: [units, groups, conflicts, replan_items, objection, refix_objection, diff, allowed_test_changes, changed, delta_review,
+                 done, go, refixed, stop_reason]
+    mutates_checkout: false
+    depends_on: [after-fix, judged, refix-run]
+    trigger_rule: none_failed_min_one_success
+    with:
+      fix_done: "$fix.output.done"
+      fix_units: "$fix.output.units"
+      fix_groups: "$fix.output.groups"
+      fix_conflicts: "$fix.output.conflicts"
+      fix_replan_items: "$fix.output.replan_items"
+      fix_objection: "$fix.output.objection"
+      fix_diff: "$fix.output.diff"
+      fix_allowed_test_changes: "$fix.output.allowed_test_changes"
+      fix_changed: "$fix.output.changed"
+      fix_delta_review: "$fix.output.delta_review"
+      refix_done: { from: "$refix-run.output.done", if_skipped: null }
+      refix_units: { from: "$refix-run.output.units", if_skipped: null }
+      refix_groups: { from: "$refix-run.output.groups", if_skipped: null }
+      refix_conflicts: { from: "$refix-run.output.conflicts", if_skipped: null }
+      refix_replan_items: { from: "$refix-run.output.replan_items", if_skipped: null }
+      refix_objection: { from: "$refix-run.output.objection", if_skipped: null }
+      refix_diff: { from: "$refix-run.output.diff", if_skipped: null }
+      refix_allowed_test_changes: { from: "$refix-run.output.allowed_test_changes", if_skipped: null }
+      refix_changed: { from: "$refix-run.output.changed", if_skipped: null }
+      refix_delta_review: { from: "$refix-run.output.delta_review", if_skipped: null }
+      replan: "$after-fix.output.replan"
+      stop_after_fix: "$after-fix.output.stop_reason"
+      stop_judged: "$judged.output.stop_reason"
+
+  - id: redepth
+    script: redepth
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        depth: { type: array }
+        skip_optional: { type: string }
+        raised: { type: array }
+        stop_reason: { type: string }
+      required: [depth, skip_optional, raised, stop_reason]
+    mutates_checkout: false
+    depends_on: [fixed]
+    with:
+      depth: "$plan-rounds.output.depth"
+      replan_depth: { from: "$replan.output.depth", if_skipped: null }
+      units: "$fixed.output.units"
+      conflicts: "$fixed.output.conflicts"
+      questions: "$plan-rounds.output.questions"
+      answer: "$answer-before-fix.output.answer"
+      replanned: "$after-fix.output.replan"
+      rejudged: "$after-fix.output.rejudge"
+
+  # 8 試験の関門（final）
+  - id: test-gate-final
+    include: works-factory-test-gate
+    depends_on: [redepth]
+    when: "$fixed.output.go == true && $redepth.output.stop_reason == ''"
+    with:
+      mode: final
+      start: "$start.output.record"
+      baseline: "$test-gate-base.output.baseline"
+
+  - id: test-gate-final-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [test-gate-final]
+    with:
+      block: test_gate
+      mode: "$test-gate-final.output.mode"
+      ok: "$test-gate-final.output.ok"
+      green: "$test-gate-final.output.green"
+      red_cause: "$test-gate-final.output.red_cause"
+      baseline: "$test-gate-final.output.baseline"
+      fingerprint: "$test-gate-final.output.fingerprint"
+      evidence: "$test-gate-final.output.evidence"
+
+  # 9 独立の目
+  - id: eyes
+    include: works-factory-eyes
+    depends_on: [test-gate-final]
+    with:
+      start: "$start.output.record"
+      units: "$judged.output.units"
+      judgment: "$judged.output.judgment"
+      purpose: "$judged.output.purpose"
+      world: "$judged.output.world"
+      plan: "$plan-rounds.output.plan"
+      ripple: "$plan-rounds.output.ripple"
+      depth: "$redepth.output.depth"
+      design: "$plan-rounds.output.design"
+      diff: "$fixed.output.diff"
+      changed: "$fixed.output.changed"
+      fix_units: "$fixed.output.units"
+      green_ok: "$test-gate-final.output.ok"
+      plan_questions: "$plan-rounds.output.questions"
+      answers: "$answer-before-fix.output.answer"
+      start_answers: "$answer-start.output.answer"
+
+  - id: eyes-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [eyes]
+    with:
+      block: eyes
+      ok: "$eyes.output.ok"
+      r1: "$eyes.output.r1"
+      r2: "$eyes.output.r2"
+      r3: "$eyes.output.r3"
+      r4: "$eyes.output.r4"
+      questions: "$eyes.output.questions"
+      premise_check: "$eyes.output.premise_check"
+      structure_after: "$eyes.output.structure_after"
+      protected_hits: "$eyes.output.protected_hits"
+
+  # 10 封じる
+  - id: merge-seal
+    include: works-factory-merge
+    depends_on: [eyes]
+    with:
+      mode: seal
+      start: "$start.output.record"
+      diff: "$fixed.output.diff"
+      fingerprint: "$test-gate-final.output.fingerprint"
+      green_ok: "$test-gate-final.output.ok"
+      eyes_ok: "$eyes.output.ok"
+
+  - id: merge-seal-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [merge-seal]
+    with:
+      block: merge
+      mode: "$merge-seal.output.mode"
+      ok: "$merge-seal.output.ok"
+      hash: "$merge-seal.output.hash"
+      diff: "$merge-seal.output.diff"
+      protected_hits: "$merge-seal.output.protected_hits"
+      reason: "$merge-seal.output.reason"
+
+  # 11 最後の関所
+  - id: ask-final
+    script: ask_final
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        open: { type: boolean }
+        go: { type: boolean }
+        stop_reason: { type: string }
+        text: { type: string }
+        reasons: { type: array }
+      required: [open, go, stop_reason, text, reasons]
+    mutates_checkout: false
+    depends_on: [merge-seal]
+    with:
+      final_gate: "$start.output.final_gate"
+      unattended: "$start.output.unattended"
+      tests_ok: "$test-gate-final.output.ok"
+      green: "$test-gate-final.output.green"
+      red_cause: "$test-gate-final.output.red_cause"
+      protected_hits: "$merge-seal.output.protected_hits"
+      conflicts: "$fixed.output.conflicts"
+      allowed_test_changes: "$fixed.output.allowed_test_changes"
+      r1: "$eyes.output.r1"
+      r2: "$eyes.output.r2"
+      r3: "$eyes.output.r3"
+      r4: "$eyes.output.r4"
+      premise_check: "$eyes.output.premise_check"
+      questions: "$eyes.output.questions"
+      objection: "$fixed.output.objection"
+      refix_objection: "$fixed.output.refix_objection"
+      rejudge_verdict: "$judged.output.rejudge_verdict"
+      sealed: "$merge-seal.output.ok"
+      seal_reason: "$merge-seal.output.reason"
+      hash: "$merge-seal.output.hash"
+      structure_after: "$eyes.output.structure_after"
+      judgment: "$judged.output.judgment"
+      start: "$start.output.record"
+      before_fix_answer: "$answer-before-fix.output.answer"
+      before_fix_asked: "$plan-rounds.output.questions"
+
+  - id: gate-final
+    approval:
+      message: "$ask-final.output.text"
+      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
+    idle_timeout: 1728000000
+    depends_on: [ask-final]
+    when: "$ask-final.output.open == true"
+
+  - id: answer-final
+    script: gate_answer
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        go: { type: boolean }
+        answer: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [go, answer, stop_reason]
+    mutates_checkout: false
+    depends_on: [ask-final, gate-final]
+    trigger_rule: none_failed_min_one_success
+    with:
+      gate: { from: "$gate-final.output", if_skipped: null }
+      go: "$ask-final.output.go"
+      stop_reason: "$ask-final.output.stop_reason"
+      place: gate-final
+
+  # 12 外へ 1 度だけ書く（既定は差分を run の置き場に置くだけ。E17）
+  - id: merge-apply
+    include: works-factory-merge
+    depends_on: [answer-final]
+    when: "$answer-final.output.go == true"
+    with:
+      mode: apply
+      start: "$start.output.record"
+      diff: "$fixed.output.diff"
+      fingerprint: "$test-gate-final.output.fingerprint"
+      green_ok: "$test-gate-final.output.ok"
+      eyes_ok: "$eyes.output.ok"
+      sealed_hash: "$merge-seal.output.hash"
+      answer: "$answer-final.output.answer"
+      r2: "$eyes.output.r2"
+
+  - id: merge-apply-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [merge-apply]
+    with:
+      block: merge
+      mode: "$merge-apply.output.mode"
+      ok: "$merge-apply.output.ok"
+      hash: "$merge-apply.output.hash"
+      diff: "$merge-apply.output.diff"
+      protected_hits: "$merge-apply.output.protected_hits"
+      reason: "$merge-apply.output.reason"
+
+  # 13 報告。前の段が落ちても飛ばされても走る
+  - id: collect
+    script: collect
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        start: {}
+        test_gate_base: {}
+        judge: {}
+        rejudge: {}
+        plan: {}
+        plan_review: {}
+        replan: {}
+        replan_review: {}
+        fix: {}
+        test_gate_final: {}
+        eyes: {}
+        merge_seal: {}
+        merge_apply: {}
+        gate_start: {}
+        gate_before_fix: {}
+        gate_replan: {}
+        gate_final: {}
+      required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final]
+    mutates_checkout: false
+    depends_on: [start, answer-start, test-gate-base-out, judge-out, plan-rounds-out, answer-before-fix, fix-out, rejudge-run-out,
+                 replan-out, replan-review-out, answer-replan, fixed, test-gate-final-out, eyes-out, merge-seal-out, answer-final,
+                 merge-apply-out]
+    trigger_rule: all_done
+    with:
+      start: { from: "$start.output.record", if_skipped: null }
+      fixed: { from: "$fixed.output", if_skipped: null }
+      gate_start: { from: "$answer-start.output.answer", if_skipped: null }
+      gate_before_fix: { from: "$answer-before-fix.output.answer", if_skipped: null }
+      gate_replan: { from: "$answer-replan.output.answer", if_skipped: null }
+      gate_final: { from: "$answer-final.output.answer", if_skipped: null }
+      test_gate_base: { from: "$test-gate-base-out.output", if_skipped: null }
+      judge: { from: "$judge-out.output", if_skipped: null }
+      rejudge: { from: "$rejudge-run-out.output", if_skipped: null }
+      plan_rounds: { from: "$plan-rounds-out.output", if_skipped: null }
+      replan: { from: "$replan-out.output", if_skipped: null }
+      replan_review: { from: "$replan-review-out.output", if_skipped: null }
+      fix: { from: "$fix-out.output", if_skipped: null }
+      test_gate_final: { from: "$test-gate-final-out.output", if_skipped: null }
+      eyes: { from: "$eyes-out.output", if_skipped: null }
+      merge_seal: { from: "$merge-seal-out.output", if_skipped: null }
+      merge_apply: { from: "$merge-apply-out.output", if_skipped: null }
+
+  - id: report
+    include: works-factory-report
+    depends_on: [collect]
+    trigger_rule: all_done
+    with:
+      start: "$collect.output.start"
+      test-gate-base: "$collect.output.test_gate_base"
+      judge: "$collect.output.judge"
+      rejudge: "$collect.output.rejudge"
+      plan: "$collect.output.plan"
+      plan-review: "$collect.output.plan_review"
+      replan: "$collect.output.replan"
+      replan-review: "$collect.output.replan_review"
+      fix: "$collect.output.fix"
+      test-gate-final: "$collect.output.test_gate_final"
+      eyes: "$collect.output.eyes"
+      merge-seal: "$collect.output.merge_seal"
+      merge-apply: "$collect.output.merge_apply"
+      gate-start: "$collect.output.gate_start"
+      gate-before-fix: "$collect.output.gate_before_fix"
+      gate-replan: "$collect.output.gate_replan"
+      gate-final: "$collect.output.gate_final"
+
+  # 線の返す節
+  - id: result
+    script: result
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        fixed: { type: boolean }
+        ok: {}
+        outcome: {}
+        stop_reason: {}
+        report: {}
+        report_ai: {}
+        next_request: {}
+        prior_failures: {}
+      required: [fixed, ok, outcome, stop_reason, report, report_ai, next_request, prior_failures]
+    mutates_checkout: false
+    depends_on: [report]
+    trigger_rule: all_done
+    with:
+      ok: { from: "$report.output.ok", if_skipped: null }
+      outcome: { from: "$report.output.outcome", if_skipped: null }
+      stop_reason: { from: "$report.output.stop_reason", if_skipped: null }
+      report: { from: "$report.output.report", if_skipped: null }
+      report_ai: { from: "$report.output.report_ai", if_skipped: null }
+      next_request: { from: "$report.output.next_request", if_skipped: null }
+      prior_failures: { from: "$report.output.prior_failures", if_skipped: null }

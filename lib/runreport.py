@@ -418,6 +418,12 @@ def _rejudge(returns: dict) -> tuple[str, str]:
     return (verdict if isinstance(verdict, str) else "", report._one_line(objection) if isinstance(objection, str) else "")
 
 
+def _refix_objection(returns: dict) -> str:
+    """2 度目の修正の修正役の異議の文（線の節 fixed の refix_objection）。再審は 2 度目の修正の前に走るので、いつも再審されずに残る"""
+    objection = as_dict(returns.get("fix")).get("refix_objection")
+    return report._one_line(objection) if isinstance(objection, str) else ""
+
+
 def _unit_map(ret) -> dict:
     return {u["id"]: u for u in _list(as_dict(ret).get("units")) if isinstance(u, dict) and isinstance(u.get("id"), str)}
 
@@ -486,15 +492,16 @@ def _changed_fields(who: str, key: str, before: dict, after: dict, fields) -> li
 
 
 def rejudge_lines(returns: dict) -> list:
-    """決着した再審の結果の行（元 report.rejudge_lines。再審が直す単位にした単位を下に並べる）と、再審されずに残った異議"""
+    """決着した再審の結果の行（元 report.rejudge_lines。再審が直す単位にした単位を下に並べる）と、再審されずに残った異議（2 度目の
+    修正の異議も）"""
     verdict, objection = _rejudge(returns)
+    left = [f"再審されずに残った異議: {o}" for o in ("" if verdict else objection, _refix_objection(returns)) if o]
     if verdict:
         return [f"再審の結果: {verdict}" + (f"（異議: {objection}）" if objection else ""),
                 *[f"  - 再審が直す単位にした（この run では直していない——次の run に渡す）: {k}" for k in rejudge_opened(returns)],
-                *[f"  - 再審が block から {label} に下げた（拒まずに見せる——人が確かめる）: {k}" for k, label in rejudge_lowered(returns)]]
-    if objection:
-        return [f"再審されずに残った異議: {objection}"]
-    return []
+                *[f"  - 再審が block から {label} に下げた（拒まずに見せる——人が確かめる）: {k}" for k, label in rejudge_lowered(returns)],
+                *left]
+    return left
 
 
 def _asked_rows(returns: dict, closed: bool) -> list:
@@ -531,6 +538,8 @@ def next_request(returns: dict, left: list, closed: bool = True) -> list:
         items.append({"where": report.REJUDGE_WHERE, "text": f"再審: {verdict}" + (f"（異議: {objection}）" if objection else "")})
     elif objection:
         items.append({"where": REJUDGE_LEFT_WHERE, "text": objection})
+    if _refix_objection(returns):
+        items.append({"where": REJUDGE_LEFT_WHERE, "text": _refix_objection(returns)})
     items += [{"where": k, "text": f"{k}（再審が直す単位にした——この run では直していない）"} for k in rejudge_opened(returns)]
     items += [{"where": k, "text": f"{k}（再審が block から {label} に下げた——人が確かめる）"} for k, label in rejudge_lowered(returns)]
     items += asked

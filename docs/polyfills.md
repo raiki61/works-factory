@@ -38,8 +38,8 @@
 ### P2 include の入力に if_skipped を通せない
 
 - 穴: 線がブロックを `include:` で呼ぶ時、`with:` に `{from, if_skipped}` の束ねを書いても、飛ばされた前の節の代わりの値がブロックの中まで運ばれない。
-- 証拠: 2026-10-11 のソースの読み。`packages/workflows/src/include-expander.ts` 619 行で、include の展開は `binding.if_skipped` の欄を置き換えずにそのまま残す（`if (slot.surface === 'binding_from' || slot.name === 'binding.if_skipped') return slot.value;`）。実物の振る舞いは歩く骨組みで確かめる。
-- 埋め: 線の YAML の形の決まり（予定）。include の前に、飛ばされうる値を `if_skipped` で受けて明示の値（`null` など）で返す小さな `script:` の節を線の中に置き、ブロックにはその節の返りを渡す。script は `workflows/.shared/skip_value`（予定）。
+- 証拠: 止めた Archon の `packages/workflows/src/schemas/dag-node.ts` 270-282 行（束ね `{from, if_skipped}` は `command:`・`script:` の `with:` だけの形で、「Include/workflow `with:` maps have no directive, so objects there stay ordinary JSON literals.」）と、`packages/workflows/src/include-expander.ts` 619 行（include の展開は `binding.if_skipped` の欄を置き換えずにそのまま残す。`if (slot.surface === 'binding_from' || slot.name === 'binding.if_skipped') return slot.value;`）。書いた束ねは黙って JSON の値として渡り、書けたように見えて効かない。
+- 埋め: 線の返しの節。飛ばされうる値を、線の `script:` の節の `with:` で欄ごとに `{from: "$<節>.output.<欄>", if_skipped: null}` で受け、明示の値で返し直す。ブロックにはその節の返りを渡す。P2 のために在る返しの節は `workflows/line/works-factory-line.yaml` の `answer-*`（関所の答えを fix・merge に渡す）と `collect`（全部の返りを report に渡す）だけ。Archon が `INPUTS_<名>` に渡した字を値に戻す部品は `workflows/.shared/skip_value.py`。
 - 使うブロック: 線
 - 外す条件: include の `with:` に書いた `if_skipped` が子の中まで効く版が出たら
 
