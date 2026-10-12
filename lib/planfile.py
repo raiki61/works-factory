@@ -53,6 +53,7 @@ import depth  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
 import impact  # noqa: E402
+import judge_accept  # noqa: E402
 import libdocs  # noqa: E402
 import planblk  # noqa: E402
 import planmarks  # noqa: E402
@@ -694,7 +695,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
         rf = round_dir / REJECT_FILE.format(n=len(rejected))
         rf.write_text(rejected[-1], encoding="utf-8")
         reject_file = str(rf)
-    head = planblk.head("plan", _neighbor(judgment_dir, "pr-excluded.json"), lib_docs)
+    head = planblk.head("plan", _neighbor(judgment_dir, judge_accept.PR_EXCLUDED_FILE), lib_docs)
     rev = base_rev or "HEAD"
     try:
         carried = prior_section(round_dir, prior_failures)
@@ -720,7 +721,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
                  structmark.plan_section(structure_dir_),
                  f"{world}\n{worldmark.PLAN_ASK}\n" if world else "",
                  ripple.units_section(doc) if isinstance(doc, dict) else "",
-                 planblk.verify_part(_neighbor(judgment_dir, "judge-verify.json")),
+                 planblk.verify_part(_neighbor(judgment_dir, judge_accept.VERIFY_FILE)),
                  f"{SPEC_HEAD}\n\n" + "\n".join(replan._json_block(spec)) if spec is not None else "",
                  _prior_section(round_dir, plan_dir, record),
                  POLICY_PART.format(path=policy_md) if policy_md else ""]

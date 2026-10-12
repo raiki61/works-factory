@@ -35,6 +35,7 @@ if str(_HERE) not in sys.path:
 
 import answer  # noqa: E402
 import gatemarks  # noqa: E402
+import judge_accept  # noqa: E402
 import report  # noqa: E402
 import seal  # noqa: E402
 import stopby  # noqa: E402
@@ -83,7 +84,7 @@ UNSET = "unset"
 
 # 判定の judgment の隣の素材の測りの状態 {<素材の名>: {status, …}}（docs/design.md の「書き方の決め」の名指しの隣のファイル）。
 # 測れていない status は元の写しの検証器の STATUS で阻害になる物（gatemarks.unmeasured。works/.shared/core/gatemarks.py:708-716）
-MATERIALS_FILE = "materials.json"
+MATERIALS_FILE = judge_accept.MATERIALS_FILE
 UNMEASURED = ("not_run", "awaiting_human")
 MATERIAL_WHERE = "素材"
 ASKING = ("held", "escalate")   # 問いの台帳で人に聞く状態（元の写しの検証器 review-record.py:343 の ASKING）

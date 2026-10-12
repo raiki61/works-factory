@@ -2574,3 +2574,17 @@ class VerdictPublicCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PublicFileReadersCase(unittest.TestCase):
+    OWNERS = {"judge_accept.py", "premises.py", "judgeverify.py", "marks.py"}
+
+    def test_readers_take_the_names_from_the_owner(self):
+        """判定の隣の公開のファイルの名（PUBLIC_FILES）を、持ち主の外の lib と script の節が字で書かない（持ち主が名を変えると、
+        字で書いた読み手は黙って何も読まなくなる）"""
+        import ast
+        files = [p for p in LIB.glob("*.py") if p.name not in self.OWNERS] + sorted(LIB.parent.glob("workflows/*/scripts/*.py"))
+        hits = [f"{p.relative_to(LIB.parent)}:{n.lineno} {n.value}" for p in files
+                for n in ast.walk(ast.parse(p.read_text(encoding="utf-8")))
+                if isinstance(n, ast.Constant) and n.value in ja.PUBLIC_FILES]
+        self.assertEqual(hits, [])

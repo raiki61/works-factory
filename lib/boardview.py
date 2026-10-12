@@ -41,6 +41,7 @@ import design
 import gate_axes
 import gatemarks
 import gatepolicy
+import judge_accept
 import planblk
 import planmarks
 import policy
@@ -59,8 +60,8 @@ FOLDER = "plan-review"                  # run の置き場の中のこのブロ�
 OPEN_FILE = "open.json"                 # open_pass が置く見え方の材料（後の支度・受け付け・返りが読む）
 OPEN_ERROR = "open-error.txt"           # 差し込みの頭の節が落ちた訳（返す節の訳に載る。節が書く）
 JUDGMENT_COPY = "judgment.json"         # 判定の写し（planblk.lib_section が state.outputs から引く）
-EXCLUDED_FILE = "pr-excluded.json"      # 判定の隣の並行 PR の外した範囲（在れば写して役の頭に名指す）
-PURPOSE_REVIEW_FILE = "purpose-review.json"  # 判定の隣の目的の監査の受けた返答（judge が必ず置く。無い・読めない時は {} で読む）
+EXCLUDED_FILE = judge_accept.PR_EXCLUDED_FILE   # 判定の隣の並行 PR の外した範囲（在れば写して役の頭に名指す）
+PURPOSE_REVIEW_FILE = judge_accept.PURPOSE_REVIEW_FILE   # 判定の隣の目的の監査の受けた返答（judge が必ず置く。無い・読めない時は {} で読む）
 POLICY_FILE = "policy.json"             # 方針の文書を固めた版 {named, path, sha256, copy, amendments}（始めの記録の欄 policy から置く）
 POLICY_DIR = policy.DIR
 POLICY_CHANGED = "policy_changed"       # 関所の項目の種類（方針の文書が固めた版から変わった）
@@ -416,7 +417,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     gate_rows = take_gate_answers(d, gate_answers)
     judged = _read_json(judgment)
     shutil.copyfile(judgment, d / JUDGMENT_COPY)
-    mats = _sibling(judgment, "materials.json")
+    mats = _sibling(judgment, judge_accept.MATERIALS_FILE)
     excluded = _sibling(judgment, EXCLUDED_FILE)
     purpose_review, review_unread = _purpose_review(judgment)
     if excluded is not None:
@@ -613,7 +614,7 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     d.mkdir(parents=True, exist_ok=True)
     start_doc = _read_json(start) if start else None
     text = _read_json(purpose).get("purpose_text") or ""
-    premises = _sibling(judgment, "premises.json")
+    premises = _sibling(judgment, judge_accept.PREMISES_FILE)
     constraints = (_read_json(premises).get("constraints") or []) if premises else []
     req, request, unread = _request(start_doc)
     parts, ledger = design.premises(r2_view(request, answers), cwd)
@@ -626,7 +627,7 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     if answers is None:
         ledger["withheld"].append({"kind": "human_answer", "what": "answers", "why": DEFAULT_ANSWERS})
     if premises is None:
-        ledger["withheld"].append({"kind": "constraint", "what": "premises.json", "why": "判定の隣に実測した制約のファイルが無い"})
+        ledger["withheld"].append({"kind": "constraint", "what": judge_accept.PREMISES_FILE, "why": "判定の隣に実測した制約のファイルが無い"})
     body = (f"{PURPOSE_HEAD}\n{text}\n\n{CONSTRAINTS_HEAD} "
             f"{json.dumps(constraints, ensure_ascii=False)}")
     if parts:

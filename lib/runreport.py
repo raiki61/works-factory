@@ -33,6 +33,7 @@ import carry  # noqa: E402
 import changemap  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
+import judge_accept  # noqa: E402
 import outcome as oc  # noqa: E402
 import outpurpose  # noqa: E402
 import planmarks  # noqa: E402
@@ -79,7 +80,6 @@ PLAN_GAVE_UP_WHERE = "受け付け 計画"          # 元 report.ACCEPT_WHERE（
 STOPPED_WHERE = "止めた段"                     # 前の失敗の、止めの語で止めた段の行（元 accept-last.json の ok でない行の代わり）
 GATE_PASSES = "gate-passes.json"
 FIX_PLAN = "p2.fix_plan.json"                 # 計画の隣の修正案の役の返答（関所の決め手の欄つき）
-PREMISES = "premises.json"                    # 判定の隣の実測した制約 {constraints}
 HYPOTHESIS = "仮説"                           # 前提の役が実測でなく仮説で書いた制約の kind
 HUMAN_FACE_KINDS = ("regression", "policy")   # 事前審査の穴のうち人に回す種類（元の写しの規則 review-loop.py:4084）
 GROUP_WHERE = "組"
@@ -678,7 +678,7 @@ def inner_word_lines(diff_path, known) -> list:
 
 def verify_lines(returns: dict) -> list:
     """判定の単位の裏取りの申し送り（判定の隣の judge-verify.json）の行（元 report.verify_lines の 1 周分）"""
-    doc, why = _read_beside(returns, "judge", "judgment", report.VERIFY_NOTES)
+    doc, why = _read_beside(returns, "judge", "judgment", judge_accept.VERIFY_FILE)
     if why or (doc is not None and not (isinstance(doc, dict) and isinstance(doc.get("units"), list))):
         return [f"判定の単位の裏取り: 申し送りが読めない（{why or '欄 units の配列が無い'}）"]
     if doc is None:
@@ -713,7 +713,7 @@ def verify_lines(returns: dict) -> list:
 
 def pr_lines(returns: dict) -> list:
     """並行 PR と重なるので外した範囲（判定の隣の pr-excluded.json。元 report._pr_lines の外した範囲の側）"""
-    doc, why = _read_beside(returns, "judge", "judgment", report.PR_EXCLUDED)
+    doc, why = _read_beside(returns, "judge", "judgment", judge_accept.PR_EXCLUDED_FILE)
     if why:
         return [f"並行 PR と重なるので外した範囲: {why}"]
     return [f"並行 PR #{x.get('pr')} と重なるので外した範囲: {x.get('file')}:{x.get('start')}-{x.get('end')}（{x.get('why') or ''}）"
@@ -723,7 +723,7 @@ def pr_lines(returns: dict) -> list:
 def premise_lines(returns: dict, start: dict) -> list:
     """依頼が実測（measured）を持っていたのに、前提の役が仮説でしか書けなかった制約（判定の隣の premises.json。元
     report._premise_hypotheses。依頼の行は始めの記録の依頼のファイルから）"""
-    doc, why = _read_beside(returns, "judge", "judgment", PREMISES)
+    doc, why = _read_beside(returns, "judge", "judgment", judge_accept.PREMISES_FILE)
     if why:
         return [f"前提の制約: {why}"]
     hyp = [c for c in _list(as_dict(doc).get("constraints")) if isinstance(c, dict) and c.get("kind") == HYPOTHESIS]
