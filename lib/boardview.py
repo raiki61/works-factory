@@ -75,8 +75,8 @@ R2_PROMPT = "r2-prompt.md"
 TREE_FILE = "tree.json"                 # 事前審査の役を起こす前の作業ツリーの姿（pass-<k>/ の中）
 PROMPT_FILE = "prompt.md"
 REVIEW_FILE = "review.json"
-PASSES_FILE = "gate-passes.json"
-GATE_FILE = "gate.json"
+PASSES_FILE = gatemarks.PASSES_FILE
+GATE_FILE = gatemarks.GATE_RECORD_FILE
 FENCE = rolekit.GIVE_UP_AFTER           # 往復の柵（線の loop_group の 3 回と同じ数）
 TREE_FEATURE = "review_tree"
 # 元 works/.shared/core/entry.py:1228 と works/.shared/core/design.py:104

@@ -4,20 +4,32 @@
 - 修正前の関所（ask_before_fix.gate_text）は 1〜3 行目が 起きたこと・決めてほしいこと・推し
 - 最後の関所の冒頭（ask_final.final_head）は開けた理由（ask_final.final_needs）を 1 行目に並べ、守りのパスはそこで名指す
 - 推しは判定の役が問いの理由に書いた物だけ（機械は作らない）。3 行を足しても中身は 1 つも落ちない
-盤面に届く物（残りの行・報告の冒頭 report.head3・仕様の関所）を読む元の試験は持ってこない。保留にしたままの問いは判定の指し札の
-先から読む（ask_final.held_questions。tests/workflows/test_line.py の AskFinalReadsCase）。
+- 最後の関所の文の本文は元 line_edge.final_edge・_final_text の節の並び（FinalSectionsCase。部分 B2）
+- 元 works/tests/test_plan_gate.py の 3 本を元の名で写した（LedgerAsksCase。S27）
+盤面に届く物（仕様の関所）を読む元の試験は持ってこない。保留にしたままの問いは判定の指し札の先から読む（ask_final.ledger。
+tests/workflows/test_line.py の AskFinalReadsCase）。
 """
+import json
+import os
+import pathlib
 import re
+import tempfile
 import unittest
+from unittest import mock
 
+from lib.tests.test_outcome import fixed_run
 from tests.bin.linescripts import load
 
 ask_before_fix = load("ask_before_fix")
 ask_final = load("ask_final")
 
 import answer  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
+import conflict  # noqa: E402
+import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
 import protect  # noqa: E402
+import querytest  # noqa: E402
+import runreport  # noqa: E402
 import seal  # noqa: E402
 
 HEADS = [gatemarks.HAPPENED, gatemarks.DECIDE, gatemarks.PUSH]
@@ -25,6 +37,8 @@ NARROW_ITEM = "修正案 1 が狭める能力: 空の列の mean——0 割り�
 
 # 元 works/tests/test_plan_gate.py 324-327 行
 FORK_UNIT = "stats.py mean: 空の列の扱いが決まらない"
+OTHER_UNIT = "stats.py clamp: 上限を超えた値に lo を返す"
+UNITS = [{"key": FORK_UNIT, "label": "block"}, {"key": OTHER_UNIT, "label": "block"}]
 FORK = {"key": "q-empty-mean", "kind": "fork", "status": "held", "origin": FORK_UNIT, "options": ["例外", "0 を返す"],
         "reason": "空の列の意味が 2 つに割れる。推し: 例外——呼び手が既に例外を捕まえている"}
 
@@ -107,9 +121,12 @@ class AskGateCase(unittest.TestCase):
 def final_got(**kw) -> dict:
     """最後の関所の材料（ask_final.got_of_env の形）。既定は緑で、目は全部通り、申し出も守りのパスの当たりも無い"""
     eye = {"status": "pass", "reason": ""}
-    got = {"tests_ok": True, "green": True, "red_cause": "", "protected_hits": [], "conflicts": [], "allowed_test_changes": [],
-           "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [], "objection": "",
-           "refix_objection": "", "rejudge_verdict": "", "sealed": True, "seal_reason": "", "hash": "a" * 64, "fenced": [], "held": [], "unread": []}
+    got = {"tests_ok": True, "green": True, "red_cause": "", "evidence": {"suites": "", "baseline": "", "log": "", "why": "", "unread": ""},
+           "worktree": "/tmp/tree", "base_rev": "0123456789abcdef", "protected_hits": [], "asked": [], "conflicts_unread": [],
+           "allowed_test_changes": [], "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [],
+           "objection": "", "refix_objection": "", "rejudge_verdict": "", "rejudge": [], "split": "", "unproven": [], "amend": [],
+           "delta_review": None, "branch_rows": [], "sealed": True, "seal_reason": "", "hash": "a" * 64, "deleted": [], "fenced": [],
+           "after": [], "passes": [], "converge": [], "held": [], "answered": [], "unmatched": [], "unread_holds": [], "unread": []}
     got.update(kw)
     return got
 
@@ -120,10 +137,10 @@ class FinalHeadCase(unittest.TestCase):
 
     def test_three_lines_and_reasons(self):
         blocked = {"status": "redesign-needed", "reason": ""}
-        got = self.head(final_got(green=False, red_cause="introduced", conflicts=[{"path": "fix/conflicts.json"}],
+        got = self.head(final_got(green=False, red_cause="introduced", asked=["u1: 裁定の文（名指し a.py:1, t.py:2・種類 not_red・正しいと見た側 unknown・c1）"],
                                   eyes={**final_got()["eyes"], "r3": blocked}))
         self.assertEqual(heads("\n".join(got)), HEADS)
-        for want in ("テストは赤", "申し出の控えが在る（1 件）", "独立の目が阻害を返した（R3）"):
+        for want in ("テストは赤", "食い違いの申し出を人に回した（1 件）", "独立の目が阻害を返した（R3）"):
             self.assertIn(want, got[0])
         self.assertEqual(got[2], gatemarks.PUSH + gatemarks.NO_PUSH)
         self.assertEqual(internal_subjects("\n".join(got)), [])
@@ -152,8 +169,8 @@ class FinalHeadCase(unittest.TestCase):
                               {"path": "lib/x.bin", "id": "lib", "glob": "lib/**", "why": "芯", "added": None, "deleted": None}])
         lines = ask_final.final_text(final_got(protected_hits=rows), ["理由"], "run-1").splitlines()
         self.assertTrue(lines[4].startswith("## " + ask_final.PROTECTED_HEAD), lines[4])
-        self.assertEqual(lines[5:7], [f"- {row}" for row in rows])
-        self.assertIn("（+2 −1）: 規則 seal（lib/seal.py）", lines[5])
+        self.assertEqual(lines[5:8], ["", *[f"- {row}" for row in rows]])   # 見出しの下は元 line_edge._protected_text と同じく空行
+        self.assertIn("（+2 −1）: 規則 seal（lib/seal.py）", lines[6])
 
     def test_final_text_names_the_sealed_hash(self):
         self.assertIn(f"封じた差分の hash: {'a' * 64}", ask_final.final_text(final_got(), ["理由"], "run-1"))
@@ -191,6 +208,176 @@ class FinalHeadCase(unittest.TestCase):
         row = {"where": "a.py", "text": "考えの住処: 止め（語）を知る場所が a.py で増えた"}
         self.assertEqual(ask_final.final_needs(final_got(fenced=[row])),
                          ["考えの住処の柵の数が増えた（1 件。住処へ寄せるか、増やすなら地図と柵の表を直す）"])
+
+
+def every_section() -> dict:
+    """最後の関所の文の節が全部在る材料（L-G51・L-W28〜L-W37 の節ごとに 1 行ずつ）"""
+    ev = {"suites": "engine・走らせた: suite（exit 0）／走らせなかった: 無い", "log": "test-gate/final/logs/checks.log",
+          "baseline": "緑（元の結末（入力 baseline）の status clean）——最後のテストの赤は修正の後に出た赤でありうる", "why": "", "unread": ""}
+    return final_got(
+        evidence=ev, protected_hits=["tests/test_stats.py（+1 −0）: 規則 tests（tests/**）——試験"],
+        asked=["u1: 人が決める（名指し a.py:1, t.py:2・種類 not_red・正しいと見た側 unknown・c1）"],
+        allowed_test_changes=["tests/test_mean.py"], unproven=["u1: 例が無い"], amend=["案の項目 1: 直した——人が承認した"],
+        delta_review={"rounds": 2, "pass": True}, branch_rows=["差分の審査の穴の枝: 見本の 1 行", "  - k: 項目 1"],
+        objection="異議の文", rejudge=["再審の結果: 退ける（異議: 異議の文）"],
+        after=["直した後の実測: 表 1", "  - 新しい名 mean_or_zero（現れる所 2 か所）"],
+        passes=["直す前の関所（記録の名 p2.human_gate）（周 1）で決め手が在るので聞かずに通した: 行（決め手: docs/adr.md:3）"],
+        converge=["事前審査の壁打ち: 1 往復で clean"], deleted=["old.py"], questions=["R4 が聞く問い"],
+        held=[gatemarks.ask_text(FORK)], answered=["答えた行"], unmatched=["依頼の答えに当たる問いが台帳に無い: x"],
+        unread_holds=["読めなかった保留: 「q-typo」"], unread=["読めない訳"])
+
+
+class FinalSectionsCase(unittest.TestCase):
+    """最後の関所の文の本文を元 line_edge.final_edge・_final_text の節の並びに戻した（L-G51・L-W28〜L-W37・T35・T41・M29・M38）"""
+
+    def text(self, got):
+        return ask_final.final_text(got, ask_final.final_needs(got), "run-1")
+
+    def test_final_text_keeps_every_section(self):
+        """L-G51: 節が元の並びで全部在る（冒頭 3 行 → 守りのパス → 許したテスト → 申し出 → 例で試していない単位 → 直した案の項目 →
+        テスト・ログ・作業ツリー → 差分の審査 → 異議・再審 → 実測 → 通した行・往復 → 消えるファイル → 目 → 問い → 控え → 答え方）"""
+        text = self.text(every_section())
+        order = ["## " + ask_final.PROTECTED_HEAD, "## " + ask_final.ALLOWED_TESTS_HEAD, "## " + conflict.HEAD,
+                 "## " + querytest.UNPROVEN_HEAD, "## " + ask_final.AMEND_HEAD, "最後の人の関所（", "- テストの一式: ",
+                 "- 修正前のテスト: ", "- ログ: ", "- run の作業ツリー: ", "- 差分の審査: 2 回", "差分の審査の穴の枝: 見本の 1 行",
+                 "- 止めずに残った異議: 異議の文", "- 再審で決着した結果:", "直した後の実測: 表 1", "- 直す前の関所で通した項目",
+                 "事前審査の壁打ち: 1 往復", f"- {seal.DELETED_HEAD}: old.py", "- 独立の目の判定", "- 残り（最後の関所で数えられる分）",
+                 "が人に聞いている問い（記録のまま引く", "- 判定の役が人に聞くと保留にしたままの問い", gatemarks.ANSWERED_HEAD,
+                 "依頼の答えに当たる問いが台帳に無い", "読めなかった保留", "- 読めない訳", "- 封じた差分の hash", "- この文の控え: ",
+                 "答え方（"]
+        at = [text.find(x) for x in order]
+        self.assertNotIn(-1, at, [x for x, i in zip(order, at) if i < 0])
+        self.assertEqual(at, sorted(at), text)
+
+    def test_final_text_subjects_are_plain(self):
+        """L-G25: 文の全体で、主語は平易な名で、盤面の節・目・状態の語は括弧に回す（元 gatemarks.named・eye_named）"""
+        blocked = {"status": "redesign-needed", "reason": "独立設計と食い違う"}
+        got = every_section()
+        got["eyes"] = {**got["eyes"], "r2": blocked, "r4": None}
+        got["questions"] = []
+        self.assertEqual(internal_subjects(self.text(got)), [])
+
+    def test_final_text_carries_suites_and_baseline_lines(self):
+        """T35: 最後のテストの一式の行と修正前のテストの行を、証拠の字のまま出す"""
+        text = self.text(every_section())
+        self.assertIn("- テストの一式: engine・走らせた: suite（exit 0）／走らせなかった: 無い", text)
+        self.assertIn("- 修正前のテスト: 緑（元の結末（入力 baseline）の status clean）——最後のテストの赤は修正の後に出た赤でありうる", text)
+        self.assertIn("- ログ: test-gate/final/logs/checks.log", text)
+
+    def test_self_reported_green_names_how_to_declare(self):
+        """T41: 任せ先の自己申告の緑は、engine が走らせた結果でないことと、宣言 .review-checks.json に書く次の手と、確かめて続けるか
+        止めるかを添える"""
+        got = every_section()
+        got["evidence"] = {**got["evidence"], "suites": "role_needed・走らせた: 任せ先の CI の役 blk-ci が選んだ一式（素材の status clean）",
+                           "why": "任せ先の自己申告の緑（機械が走らせていない）"}
+        text = self.text({**got, "tests_ok": False})
+        line = next(x for x in text.splitlines() if declared_checks.DECL_NAME in x)
+        for want in ("engine が走らせた結果ではない", "次の run から engine が走らせる", "continue", "stop"):
+            self.assertIn(want, line)
+        self.assertIn("- 走れなかった・認証しなかった理由: 任せ先の自己申告の緑", text)
+        self.assertNotIn(declared_checks.DECL_NAME, self.text(every_section()))
+
+    def test_protected_section_says_how_to_see_the_diff(self):
+        """M29: 当たりの在る節に差分の見方（git -C <作業ツリー> diff <起点> -- <パス>）と一覧の置き場。確かめられない時は理由と一覧"""
+        text = self.text(every_section())
+        self.assertIn("- 差分: git -C /tmp/tree diff 0123456789ab -- <パス>（未追跡は新しいファイル）", text)
+        self.assertIn(f"- 一覧: {protect.MANIFEST}", text)
+        unknown = self.text(final_got(protected_hits=[seal.unknown_row("一覧が読めない")]))
+        self.assertIn(f"## {ask_final.PROTECTED_UNKNOWN}", unknown)
+        self.assertIn("- 理由: 一覧が読めない", unknown)
+        self.assertIn(f"- 一覧: {protect.MANIFEST}", unknown)
+        self.assertNotIn("git -C", unknown)
+
+    def test_gate_passes_are_listed(self):
+        """L-G19: 修正前の関所が聞かずに通した行（と R4 で聞き直さなかった行）を最後の関所の文に 1 件 1 行で載せる"""
+        text = self.text(every_section())
+        self.assertIn("  - 直す前の関所（記録の名 p2.human_gate）（周 1）で決め手が在るので聞かずに通した: 行", text)
+        self.assertNotIn("直す前の関所で通した項目", self.text(final_got()))
+
+    def test_answered_and_unmatched_are_listed(self):
+        """L-G37: 答えた問い（ANSWERED_HEAD）とどの問いにも当たらなかった依頼の答えを並べ、「盤面の問い: 無い」と書かない"""
+        text = self.text(final_got(answered=["答えた行"], unmatched=["依頼の答えに当たる問いが台帳に無い: x"]))
+        self.assertIn(f"- {gatemarks.ANSWERED_HEAD}（問いの台帳・1 件。保留の件数には数えない）:", text)
+        self.assertIn("  - 答えた行", text)
+        self.assertIn("- 依頼の答えに当たる問いが台帳に無い: x", text)
+        self.assertNotIn("盤面の問い: 無い", text)
+        self.assertIn("盤面の問い: 無い", self.text(final_got()))
+
+    def test_conflict_section_comes_first_without_protected(self):
+        """L-G49: 守りのパスが無ければ、申し出の節が冒頭 3 行の直後の最初の節（1 行目でも名指す）"""
+        got = final_got(asked=["u1: 人が決める"])
+        lines = self.text(got).splitlines()
+        self.assertTrue(lines[4].startswith("## " + conflict.HEAD), lines[4])
+        self.assertIn(f"{conflict.HEAD}を人に回した（1 件）", lines[0])
+
+
+class LedgerAsksCase(unittest.TestCase):
+    """元 works/tests/test_plan_gate.py の LedgerAsksCase・EscalateAsksCase の 3 本を元の名で写した（S27）。元は盤面の記録から
+    line_edge._final_text と report.head_decisions を組んだ。ここは判定の judgment.json と始めの記録と修正前の関所の答えを置き、
+    最後の関所の文は ask_final（ledger・ledger_rows・final_text）、報告の冒頭は runreport._decisions（「1. 人が決めること」の行）で組む"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.artifacts = pathlib.Path(tmp.name)
+        env = mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": "run-1"})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def place(self, rel, doc):
+        path = self.artifacts / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        return {"type": "archon_artifact", "run_id": "run-1", "path": rel}
+
+    def gate(self, questions=(), units=UNITS, answer=None):
+        """(最後の関所の文, 報告の冒頭の行)。answer は修正前の関所の答え {decision, text, asked}"""
+        judgment = self.place("judge/judgment.json", {"questions": list(questions), "units": list(units)})
+        start = self.place("start.json", {"answers": []})
+        b, notes = ask_final.ledger(judgment, start, answer)
+        self.assertEqual(notes, [])
+        got = final_got(**ask_final.ledger_rows(b))
+        final = ask_final.final_text(got, ask_final.final_needs(got), "run-1")
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": str(self.artifacts / "judge/judgment.json"),
+                                   "units": [{"id": u["key"], "label": u["label"]} for u in units]})
+        head, _ = runreport._decisions(returns, {"gate-before-fix": answer} if answer else {}, {"answers": []}, "fixed", [], closed=True)
+        return final, "\n".join(head)
+
+    def test_branch_rows_in_final_text_and_head(self):
+        """差分の審査の穴と目の行の枝の名札（元 report.branch_rows。線の木の段 4a）は最後の関所の文に出る。写した字の差: 元は
+        report.branch_rows を差し替えて最後の関所の文と報告の冒頭の両方を照らした。修正の返りに穴の名札の控えが無い（S29。部分 D2）
+        ので、最後の関所の文の材料 branch_rows に行を置いて照らし、報告の冒頭の側は照らさない"""
+        rows = ["差分の審査の穴の枝: 見本の 1 行", "  - k: 項目 1"]
+        got = final_got(branch_rows=rows, delta_review={"rounds": 1, "pass": True})
+        text = ask_final.final_text(got, [], "run-1")
+        self.assertIn("差分の審査の穴の枝: 見本の 1 行", text)
+        self.assertIn("  - k: 項目 1", text)
+
+    def test_held_questions_are_listed_not_none(self):
+        """最後の関所の文と報告の冒頭: 台帳の保留（fork でない awaiting も）を並べ、『盤面の問い: 無い』と書かない"""
+        awaiting = {"key": "q-awaiting-pr", "kind": "awaiting", "status": "held", "origin": "parallel_pr", "reason": "人が確かめる"}
+        for name, text in zip(("最後の関所", "報告の冒頭"), self.gate(questions=[FORK, awaiting])):
+            with self.subTest(name):
+                self.assertNotIn("盤面の問い: 無い", text)
+                self.assertIn(FORK["key"], text)
+                self.assertIn(awaiting["key"], text)
+        final, head = self.gate()
+        self.assertIn("盤面の問い: 無い", final)
+        self.assertNotIn(gatemarks.ASK_HEAD, head)
+
+    def test_answered_question_is_not_counted_as_held(self):
+        """関所で continue を受けた問いは、報告の冒頭と最後の関所の文の「保留にしたままの問い」の件数に数えない（行は答えた問いとして
+        並べたまま）。関所に載らない台帳の問いは今どおり数える。写した字の差: 元の報告の冒頭 report.head3 の「保留にしたままの問い
+        1 件」は、runreport._decisions の「保留にしたままの問い: 1 件」"""
+        awaiting = {"key": "q-awaiting-pr", "kind": "awaiting", "status": "held", "origin": "parallel_pr", "reason": "人が確かめる"}
+        passed = {"decision": "continue", "text": "例外で", "asked": [gatemarks.ask_text(FORK)]}
+        final, head = self.gate(questions=[FORK], answer=passed)
+        self.assertIn("保留にしたままの問い: 0 件", head)
+        self.assertNotIn("保留にしたままの問い", final)
+        self.assertIn("関所で continue を受けた", final)
+        final, head = self.gate(questions=[FORK, awaiting], answer=passed)
+        self.assertIn("保留にしたままの問い: 1 件", head)
+        self.assertIn("保留にしたままの問い（問いの台帳・1 件", final)
 
 
 if __name__ == "__main__":

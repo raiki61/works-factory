@@ -210,6 +210,8 @@ GIVEN_UP_KIND = "given_up"            # 関所の項目の kinds（事前審査�
 ROW_FIELDS = ("kind", "text")         # 事前審査の返り questions の 1 行 {kind, text}（関所の項目の種類と文）
 ASKING = ("held", "escalate")         # 問いの台帳で人に聞く状態（元の写しの検証器 review-record.py:343 の ASKING）
 UNMEASURED = ("not_run", "awaiting_human")   # 素材の状態のうち今の周に測れていない物（写しの検証器の STATUS で阻害になる物）
+PASSES_FILE = "gate-passes.json"     # 事前審査の返り review の隣の、決め手で通した行と人が通したので聞き直さなかった行（passes の並び）
+GATE_RECORD_FILE = "gate.json"        # 事前審査の返り review の隣の、関所の項目 {kind, text} と壁打ちの往復の行（converge.lines）
 MATERIALS_FILE = "materials.json"     # 判定の隣の素材の状態 {名: {status, …}}（docs/design.md の隣のファイル）
 BESIDE = (marks.KINDS["answers"].file, MATERIALS_FILE)   # ledger_beside が判定の隣から読む結びと素材の状態
 _NO_FIX = "修正に進まない（continue で修正へ進む・stop で報告へ。判定・修正案・事前審査・独立設計は報告の見る所に並ぶ）"
@@ -1406,9 +1408,15 @@ def _pass_line(p) -> str:
         at = p.get("passed_at") or {}
         return (f"{named(p['node'])}（周 {p['round']}）で聞き直さなかった——人が通した（周 {at.get('round')}・"
                 f"{PLAIN.get(str(at.get('node')), at.get('node'))}）狭まりと同じ: {p['item']}")
-    return f"{named(p['node'])}（周 {p['round']}）で決め手が在るので聞かずに通した: {p['item']}（決め手: {p['decided_by']}）"
+    return f"{named(p['node'])}（周 {p['round']}）で決め手が在るので聞かずに通した: {p['item']}（決め手: {p.get('decided_by')}）"
 
 
 def lines(b) -> list:
     """最後の関所の文と報告に載せる、決め手で通した行と、修正前の関所で人が通したので聞き直さなかった行（1 件 1 行）"""
-    return [_pass_line(p) for p in passes(b)]
+    return pass_lines(passes(b))
+
+
+def pass_lines(rows) -> list:
+    """passes の行の並び（事前審査の隣の PASSES_FILE の中身）を lines の行に（形の違う行は字のまま 1 行に）"""
+    return [_pass_line(p) if isinstance(p, dict) and {"node", "round", "item"} <= set(p) else json.dumps(p, ensure_ascii=False)
+            for p in rows or []]

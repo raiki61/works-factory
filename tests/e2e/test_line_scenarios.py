@@ -6,7 +6,11 @@
 Archon の源か bun が無ければ名前つきで見送る。
 """
 import json
+import os
 import pathlib
+import subprocess
+import sys
+import tempfile
 import unittest
 
 import yaml
@@ -18,7 +22,7 @@ SCENARIOS = (
     "standard", "start-refused", "no-fix", "policy-continue", "policy-stop", "plan-stalled", "plan-unsettled", "replan",
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
     "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "rejudge-stop", "unattended-questions",
-    "unattended-policy-change",
+    "unattended-policy-change", "eyes-failed-protected",
 )
 
 
@@ -75,7 +79,8 @@ def line_traces(names) -> dict:
             done = archon.archon(tree, "workflow", "run", archon.PACK["ours"]["line"], "--dry-run", "--exec-code", "--stubs", str(stubs),
                                  "--json", *args, "--cwd", str(tree))
             try:
-                out[name] = {n["nodeId"]: n for n in json.loads(done.stdout)["trace"]}
+                # 落ちた dry-run は trace の後ろに {ok: false, error} を足して出すので、頭の 1 つの JSON だけを読む
+                out[name] = {n["nodeId"]: n for n in json.JSONDecoder().raw_decode(done.stdout.lstrip())[0]["trace"]}
             except (json.JSONDecodeError, KeyError, TypeError) as error:
                 raise AssertionError(f"{name} の dry-run の trace が読めない（{error}）: {done.stdout[-2000:]}{done.stderr[-2000:]}") from None
     return out
@@ -145,6 +150,91 @@ class UnattendedGateTest(unittest.TestCase):
         self.assertFalse(self.ran(trace, "gate-before-fix"))
         self.assertFalse(self.ran(trace, "fix__fix"))
         self.assertTrue(self.ran(trace, "report__report"))
+
+
+class ProtectedNotAppliedTest(unittest.TestCase):
+    """L-G50: 独立の目のブロックが落ち、目の守りのパスの照らしが当たりを返した run は、最後の関所が開かない（封じる段から先が飛ぶ）
+    まま差分を当てない（merge-apply に届かない）。報告と線の返りは出る"""
+
+    def test_eyes_failed_with_protected_hits_never_applies(self):
+        trace = line_traces(("eyes-failed-protected",))["eyes-failed-protected"]
+        ran = UnattendedGateTest.ran
+        self.assertTrue(ran(trace, "eyes__protected"))
+        for node in ("merge-seal__merge", "ask-final", "gate-final", "answer-final", "merge-apply__merge"):
+            self.assertFalse(ran(trace, node), node)
+        self.assertTrue(ran(trace, "report__report"))
+        self.assertIsNone(json.loads(trace["result"]["output"])["apply"])
+
+
+def bound(trace: dict, value):
+    """線の節の with: の 1 つの値を、dry-run の trace の出力で結ぶ（`$<id>.output.<欄>` と `{from, if_skipped}`。差し込んだブロックの
+    返りは trace に include の id の行が無いので、受け皿 `<id>-out` の got から読む）"""
+    if isinstance(value, dict) and "from" in value:
+        node = value["from"].split(".", 1)[0].lstrip("$")
+        if node not in trace or trace[node]["state"] == "skipped":
+            return value.get("if_skipped")
+        value = value["from"]
+    if not (isinstance(value, str) and value.startswith("$") and ".output." in value):
+        return value
+    node, field = value[1:].split(".output.", 1)
+    if node in trace:
+        return json.loads(trace[node]["output"]).get(field)
+    return (json.loads(trace[f"{node}-out"]["output"])["got"] or {}).get(field)
+
+
+def rerun(trace: dict, node: str, artifacts: pathlib.Path, run_id: str) -> dict:
+    """線の script の節 node を、dry-run が結んだのと同じ with: の値で、置き場 artifacts と run の id を替えて走らせ直した返り（dry-run は
+    置き場にファイルを置けないので、stub の指し札の先を試験が置いて読ませる）"""
+    with_ = {n["id"]: n for n in yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]}[node]
+    env = {**os.environ, "ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": run_id}
+    for key, value in with_["with"].items():
+        got = bound(trace, value)
+        env[f"INPUTS_{key.upper()}"] = got if isinstance(got, str) else json.dumps(got, ensure_ascii=False)
+    script = archon.WORKFLOWS / "line" / "scripts" / f"{with_['script']}.py"
+    done = subprocess.run([sys.executable, str(script)], env=env, capture_output=True, text=True, cwd=artifacts)
+    return json.loads(done.stdout)
+
+
+LINE = archon.WORKFLOWS / "line" / "works-factory-line.yaml"
+
+
+class ConflictGateTest(unittest.TestCase):
+    """筋書き conflict-ask の最後の関所（L-W24・F426。部分 B2 の受け入れ）: 申し出は人に回した行（ask_human・諦めた fix_plan_item）
+    だけを数え、裁定が直す裁定だけなら protected_only の関所は開かず、ask_human の行が 1 つ在れば開いて文にその行が出る。dry-run は
+    置き場にファイルを書けず（止めた Archon の packages/workflows/src/dry-run.ts 614・798 行）、run の id も dry-run（同 791 行）なので、
+    stub の conflicts.json の指し札は筋書きの中では読めない: 筋書きでは読めない控えを名指して開くことを照らし、裁定の中身で開くかは、
+    筋書きが ask-final に結んだ値のまま script を走らせ直し、指し札の先に控えを置いて照らす"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.trace = line_traces(("conflict-ask",))["conflict-ask"]
+
+    def ask_final(self, *decisions) -> dict:
+        ptr = bound(self.trace, "$fixed.output.conflicts")[0]
+        rows = [{"id": f"c{i}", "unit_key": "u1", "between": ["stats.py:3", "test_stats.py:2"], "why_both_cannot_hold": "両方は立たない",
+                 "which_is_right": "unknown", "kind": "needs_context",
+                 "ruling": {"decision": d, "text": f"裁定の文 {i}（{d}）", "limits": []}} for i, d in enumerate(decisions, 1)]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / ptr["path"]
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({"items": rows}, ensure_ascii=False), encoding="utf-8")
+            return rerun(self.trace, "ask-final", pathlib.Path(tmp), ptr["run_id"])
+
+    def test_unreadable_conflicts_open_and_are_named_in_the_scenario(self):
+        got = json.loads(self.trace["ask-final"]["output"])
+        self.assertTrue(got["open"], got)
+        self.assertIn("食い違いの申し出の控えを読めない（1 件。", got["text"].splitlines()[0])
+
+    def test_fix_rulings_only_keep_the_gate_shut(self):
+        got = self.ask_final("fix_code_as", "fix_test_scope")
+        self.assertEqual((got["open"], got["go"]), (False, True), got)
+
+    def test_one_asked_row_opens_and_is_shown(self):
+        got = self.ask_final("fix_code_as", "ask_human")
+        self.assertTrue(got["open"], got)
+        self.assertIn("食い違いの申し出を人に回した（1 件）", got["text"].splitlines()[0])
+        self.assertIn("- u1: 裁定の文 2（ask_human）（名指し stats.py:3, test_stats.py:2・種類 needs_context・", got["text"])
+        self.assertNotIn("裁定の文 1", got["text"])
 
 
 if __name__ == "__main__":

@@ -74,11 +74,13 @@ GATE_RUNS = (("test-gate-base", "直す前のテスト"), ("test-gate-final", "�
 # test-gate の証拠の文（返りの evidence の先）の行の頭。test-gate の result.py の evidence() と同じ字であることを
 # tests/workflows/test_report.py が縛る
 EVIDENCE_ROWS = (("走らせ方", "- 走らせ方: "), ("ログ", "- ログ: "))
+BASELINE_ROW = ("修正前のテスト", "- 修正前のテスト: ")   # final の証拠だけに在る行（test-gate の result.py が declared_checks.baseline_line を書く）
+OK_ROW = "- ok: "                                         # 証拠の頭の行（false なら括弧に認証しなかった訳）
 EYE_KEYS = ("eye", "status", "reason")
 GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
 PLAN_GAVE_UP_WHERE = "受け付け 計画"          # 元 report.ACCEPT_WHERE（受け付け <名>）の計画の行
 STOPPED_WHERE = "止めた段"                     # 前の失敗の、止めの語で止めた段の行（元 accept-last.json の ok でない行の代わり）
-GATE_PASSES = "gate-passes.json"
+GATE_PASSES = gatemarks.PASSES_FILE
 FIX_PLAN = "p2.fix_plan.json"                 # 計画の隣の修正案の役の返答（関所の決め手の欄つき）
 PREMISES = "premises.json"                    # 判定の隣の実測した制約 {constraints}
 HYPOTHESIS = "仮説"                           # 前提の役が実測でなく仮説で書いた制約の kind
@@ -238,10 +240,12 @@ def ledger(returns: dict, gates: dict, start: dict):
 
 def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
     """問いの台帳の読み（gatemarks の held_lines・answered_lines・unmatched_answer_lines・answer_tie_lines を ledger の見え方で引いた物）:
-    {held: [(問い（直す単位に入れられなかった行は None）, 行)], answered: [行], unmatched: [行], ties: [行], drafts: [(保留の問い, answer_key)]}。
+    {held: [(問い（直す単位に入れられなかった行は None）, 行)], answered: [行], unmatched: [行], ties: [行], unread_holds: [行],
+    drafts: [(保留の問い, answer_key)]}。
     関所に載る問いは fork と escalate だけで、答えたのは依頼の answers がこの問いだけに当たるか（字の一致・判定の結び・測れていない素材の
     名）、修正前の関所が通す語を受けてこの問いの行を聞き（答えの asked）、一言が「保留: <key>」と名指していない物。依頼の答えが当たった
-    測れていない素材は、命令と出力が在れば残りに数えない。ties は判定が単位にしなかった作り直しの行（answer_tie_lines）"""
+    測れていない素材は、命令と出力が在れば残りに数えない。ties は判定が単位にしなかった作り直しの行（answer_tie_lines）、unread_holds は
+    修正前の関所の一言の「保留」で台帳の key を拾えなかった断片（gatemarks.unread_hold_lines。元は報告の冒頭 1 の関所の答えの直後）"""
     b = ledger(returns, gates, start)
     held_qs = gatemarks.held_questions(b)
     lines = gatemarks.held_lines(b)
@@ -254,7 +258,7 @@ def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
                    else "command と output が無いので測りの代わりにせず、測れていないまま残りに数える")
             done.append(f"素材 {n}（{st}）: {how}——{gatemarks.answer_note(a)}")
     return {"held": held, "answered": done, "unmatched": gatemarks.unmatched_answer_lines(b), "ties": gatemarks.answer_tie_lines(b),
-            "drafts": [(q, gatemarks.answer_key(b, q)) for q in held_qs]}
+            "unread_holds": gatemarks.unread_hold_lines(b), "drafts": [(q, gatemarks.answer_key(b, q)) for q in held_qs]}
 
 
 # ---------------------------------------------------------------- 答えの下書き
@@ -749,6 +753,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
         lines.append(f"{gatemarks.ANSWERED_HEAD}（問いの台帳・{len(done)} 件。保留の件数には数えない）:")
         lines += [f"  - {x}" for x in done]
     lines += ledger["unmatched"]
+    lines += ledger["unread_holds"]
     lines += ledger["ties"]
     counted = [(w, len(i)) for w, i in parts if i]
     decide = (f"{sum(n for _, n in counted)} 件——" + "・".join(f"{w} {n} 件" for w, n in counted) + f"（下の「{report.DECISIONS_HEADING.lstrip('# ')}」）"
@@ -800,7 +805,8 @@ def _tdd_lines(typed: dict, returns: dict) -> tuple[list, list, list]:
 
 
 def _evidence_lines(returns: dict) -> list:
-    """試験の関所の段ごとの、走らせた一式の行とログの置き場（元 report.py:1042-1050。返りの evidence の先の行から）"""
+    """試験の関所の段ごとの、走らせた一式の行とログの置き場（元 report.py:1042-1050。返りの evidence の先の行から）と、最後のテストの
+    修正前のテストの行（BASELINE_ROW。元の報告の冒頭の entry.baseline_line）"""
     out = []
     for rid, label in GATE_RUNS:
         ret = _ret(returns, rid)
@@ -816,7 +822,7 @@ def _evidence_lines(returns: dict) -> list:
         except (OSError, UnicodeDecodeError) as e:
             out.append(f"{head}の走らせ方とログ: 読めない（{report._one_line(e)}）")
             continue
-        for name, prefix in EVIDENCE_ROWS:
+        for name, prefix in (*EVIDENCE_ROWS, *((BASELINE_ROW,) if rid == "test-gate-final" else ())):
             got = next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
             out.append(f"{head}の{name}: " + (got if got is not None else f"証拠に「{name}」の行が無い（返す節が誤りで落ちた時の証拠か）"))
     return out

@@ -269,10 +269,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T35 一式の行と修正前のテストの行を、最後の人の関所の文と報告の冒頭に字のまま出す（何を根拠にした緑か・最後の赤が修正前から在りうるかを、ファイルを開かずに人が見る）。
   - 元: works/darkfactory/lib/line_edge.py:569-571 `_final_text`・報告の冒頭（entry.baseline_line・suites_line）
-  - 今: 無し（字は evidence.md だけ。最後の関所 workflows/line/scripts/ask_final.py（#74 の head）:39-60 は tests_ok・green・red_cause だけを読み、報告は lib/runreport.py:92 の指し札「試験の記録（最後）」と :818-826 の green-cert の 1 行だけ）
-  - 証: 要追加: tests/workflows/test_gate_head.py::FinalHeadCase.test_final_text_carries_suites_and_baseline_lines（#74 の head）— 最後の関所の文に evidence.md の「走らせ方」と「修正前のテスト」の行が在る。報告の側も lib/tests の report の試験に同じ照らしを 1 本
+  - 今: 最後の関所は workflows/line/scripts/ask_final.py の evidence_rows・tests_lines（evidence.md の走らせ方と修正前のテストの行を字のまま）。報告は lib/runreport.py の _evidence_lines（BASELINE_ROW。緑の認証の節）
+  - 証: tests/workflows/test_gate_head.py::FinalSectionsCase.test_final_text_carries_suites_and_baseline_lines・tests/workflows/test_line.py::AskFinalReadsCase.test_final_text_lists_suites_baseline_and_left_tests・tests/workflows/test_report.py::FactsCase.test_green_cert_section_carries_the_baseline_line
   - 本物の run: gates/gate-final.json の text（関所はいつも開く）に行が在るか。report/report.md の「試験の記録（最後）」の指し札
-  - 狭め: #69 はブロックの範囲で evidence.md に戻したが、線（#74）と報告が受けていない。Archon で不可でない → 戻す（線と報告への申し送り）
+  - 狭め: #69 と #74 の間 → 部分 B2 で戻した。報告では冒頭でなく緑の認証の節に出す（報告の冒頭の並びは部分 C）
 
 ### G 赤の原因と緑の認証
 
@@ -313,10 +313,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T41 自己申告の緑・走らせなかった CI を人に諮る時、「engine が走らせた結果ではない。走らせる語を宣言 .review-checks.json に書けば次から engine が走らせる」と次の手を添え、確かめて続けるか止めるかを聞く。
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2093-2115（ask ci_unverified）
-  - 今: 無し（evidence.md の SELF_REPORTED の句だけ。最後の関所 workflows/line/scripts/ask_final.py（#74 の head）:39-44 は「認証できなかった」としか言わず、宣言を書く手がかりが無い）
-  - 証: 要追加: tests/workflows/test_gate_head.py::FinalHeadCase.test_self_reported_green_names_how_to_declare（#74 の head）— 自己申告で認証しなかった最後の関所の文に `.review-checks.json` の名と次の手が在る
+  - 今: workflows/line/scripts/ask_final.py の tests_lines（証拠の走らせ方が role_needed なら、engine が走らせていないこと・宣言 .review-checks.json に書く次の手・確かめて続けるか止めるか）
+  - 証: tests/workflows/test_gate_head.py::FinalSectionsCase.test_self_reported_green_names_how_to_declare
   - 本物の run: test_cmd を渡さない run の gates/gate-final.json の text
-  - 狭め: #69 と #74 の間で落ちた（どの PR も挙げていない）。Archon で不可でない → 戻す
+  - 狭め: #69 と #74 の間で落ちた → 部分 B2 で戻した。報告の側は部分 C
 
 - T42 base の認証: 素材が clean・found・not_applicable なら ok（直す前の赤は控えるのが仕事）、not_run・awaiting_human・素材が無いなら ok false（緑を仮定しない）。base の任せ先の緑は ok にする。
   - 元: works/blk-ci/prompts/p0.local_checks.md（awaiting_human）・works/.shared/core/ci_role.py:331 `collect`
@@ -2018,17 +2018,17 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - M29 守りのパスの節に、差分の見方（`git -C <作業ツリー> diff <起点> -- <パス>`）と一覧の置き場を書く
   - 元: works/darkfactory/lib/line_edge.py:676-678 `_protected_text`（「差分: git -C … diff <rev> -- <パス>（未追跡は新しいファイル）」「一覧: <MANIFEST>」）・確かめられない時は「理由」「一覧」の 2 行（:672-674）
-  - 今: 無し（pr74 ask_final.py:98-99 は当たりの行だけ）
-  - 証: 要追加: pr74 tests/workflows/test_gate_head.py::FinalHeadCase.test_protected_section_says_how_to_see_the_diff — 当たりの在る文の節に「git -C」と起点の版と一覧のパスが載る。確かめられない時は理由と一覧のパスが載る
+  - 今: workflows/line/scripts/ask_final.py の protected_section（差分の見方 git -C <作業ツリー> diff <始めの記録の base_rev> -- <パス> と protect.MANIFEST。確かめられない時は理由と一覧）
+  - 証: tests/workflows/test_gate_head.py::FinalSectionsCase.test_protected_section_says_how_to_see_the_diff
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で狭めた（Archon で不可でない: 起点は `start.output.record` の base_rev、一覧のパスは `protect.MANIFEST` で、線の節から読める）→ 戻す
+  - 狭め: #74 で狭めた → 部分 B2 で戻した
 
 - M30 承認済みの案と裁定が書き換えを許したテストのファイル（許したテストの変更）を触った run も、守りのパスと同じに扱う: 関所を開き方に関わらず開き、答えが無ければ置かない
   - 元: works/darkfactory/lib/line_edge.py:640-651 `_protected`（`conflict.ruled_test_doc` を 2 つ目の一覧として `protect.touched` に通した）・works/.shared/core/conflict.py:983-1001 `ruled_test_doc`
-  - 今: 無し（pr74 ask_final.py:103-104 は「許したテストの変更」を節に並べるだけ。:124 の `must` に入らず、wf lib/seal.py:115-124 の答え無しの拒みにも入らない）
-  - 証: 要追加: pr74 tests/workflows/test_line.py::AskFinalCase.test_allowed_test_changes_open_in_every_mode — `allowed_test_changes` が在れば when_needed・protected_only でも open。あわせて wf lib/tests/test_seal.py::ApplyNoAnswerCase.test_allowed_test_change_refuses_without_answer（merge-apply に渡す口を足すか、線が `protected_hits` に混ぜるかは線の範囲で決める）
+  - 今: workflows/line/scripts/ask_final.py の needs（許したテストを触った: must）と protected_section（ALLOWED_TESTS_HEAD）。無人の run は開かずに止め merge-apply が飛ぶ
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_allowed_test_changes_open_in_every_mode。lib/tests/test_seal.py::ApplyNoAnswerCase.test_allowed_test_change_refuses_without_answer は置かない（線が関所を必ず開き、開かなければ merge-apply が飛ぶので、merge-apply に渡す口を足さない道を採った）
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で狭めた（Archon で不可でない: `fixed.output.allowed_test_changes` は ask-final に既に届いている。works-factory-line.yaml:824）→ 戻す
+  - 狭め: #74 で狭めた → 部分 B2 で戻した
 
 - M31 無人の run（unattended）で守りのパスに当たり関所が開くはずなら、開かずに needs-human で止まり、merge-apply を飛ばす
   - 元: works/darkfactory/lib/line_edge.py:1186-1191（答えの無い守りの行で止める）
@@ -2081,10 +2081,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - M38 差分の中で消えるファイルを、当てる前に 1 本ずつ名指す（「取り込むと消えるファイル: <パス>」）
   - 元: works/dev/lib.sh:595-597・622-623（`diff --cached --diff-filter=D --name-only`）
-  - 今: 無し（報告にも merge の返りにも無い。`bin/apply` は拒む時だけ並べる計画: M42）
-  - 証: 要追加: wf lib/tests/test_runreport.py::LinesCase.test_deleted_files_named — 封じた差分が消すファイルを報告の置き場の節に 1 本ずつ並べる（あるいは merge の返りに足す。どちらにするかは report の範囲）
+  - 今: lib/seal.py の deleted_paths・DELETED_HEAD。最後の関所は workflows/line/scripts/ask_final.py の deleted_files（封じた差分 $merge-seal.output.diff）
+  - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_deleted_files_named（lib/tests/test_runreport.py::LinesCase.test_deleted_files_named → 最後の関所の側）
   - 本物の run: 筋書きでのみ（種の直しは消さない）
-  - 狭め: 不可でない → 戻す
+  - 狭め: 不可でない → 戻す → 部分 B2 で戻した（最後の関所）。報告の置き場の節は部分 C
 
 ### D. 対象へ当てる（bin/apply。今の works の use.sh apply の後継）
 

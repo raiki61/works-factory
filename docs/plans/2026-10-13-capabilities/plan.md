@@ -1721,10 +1721,10 @@
 
 - P238 key を拾えなかった「保留」の文と並べ書きの打ち間違いの key を「読めなかった保留: …（答えたものとして推しで直す問い: …）」の行にして、報告の冒頭と最後の関所の文に並べる（直す義務は変えない）
   - 元: works/.shared/core/gatemarks.py:1101 `unread_hold_lines`（報告の冒頭 1 と line_edge の最後の関所の文が読んだ）
-  - 今: lib/gatemarks.py:1086 `unread_hold_lines`（関数は在る）。読む側は 無し（lib/runreport.py の ledger_state にも #74 の head の workflows/line/scripts/ask_final.py にも無い）
-  - 証: tests/workflows/test_plan_review.py::LedgerAsksCase.test_unread_hold_is_shown_to_the_human・test_unread_hold_beside_a_read_key_is_shown（lib の行の在ることだけ。見せる側は縛らない）→ 要追加: lib/tests/test_runreport.py::LedgerCase.test_unread_hold_is_named_in_the_head — 修正前の関所の答えの文が「保留: q-typo」の時、報告の冒頭に「読めなかった保留」の行が在ること（最後の関所の側は #74 の head の tests/workflows/test_line.py に同じ形の 1 本）
+  - 今: lib/gatemarks.py の unread_hold_lines。報告は lib/runreport.py の ledger_state の unread_holds → _decisions、最後の関所は workflows/line/scripts/ask_final.py の ledger_rows
+  - 証: lib/tests/test_runreport.py::LedgerCase.test_unread_hold_is_named_in_the_head・tests/workflows/test_line.py::AskFinalReadsCase.test_unread_hold_is_shown
   - 本物の run: 筋書きでのみ
-  - 狭め: #73 が報告・線へ渡したが、渡し先（#68・#74）が持っていない。Archon で不可でない → 戻す
+  - 狭め: #73 が報告・線へ渡したが渡し先が持っていなかった → 部分 B2 で戻した
 
 - P239 関所で答えた fork・escalate の問いの出どころ・depends（今の周の units に在る物だけ）は直す義務に戻り、修正役への約束の行（returned_lines）に載る。開いていない単位（suggest の defer）でも戻す。今の周の units に無い出どころは約束しない（戻せなかった単位の行に回す）。stop や別の関所の答えでは戻さない
   - 元: works/.shared/core/gatemarks.py:1172 `returned`・:1178 `returned_lines`・`unreturned_lines`
@@ -1798,10 +1798,10 @@
 
 - P249 関所に載る行は 1 件 1 行で重ならない（設計だけの行と止まりの行は 1 行、決め手の揃わない行の訳は行の尾に 1 度）
   - 元: works/.shared/core/graphloops/rules/review-loop.py:4116 `human_gate`（plan_gate_items の行をそのまま項目にした）
-  - 今: workflows/line/scripts/ask_before_fix.py:37-51 が plan-review の questions（gatemarks の設計だけの行・止まりの行を既に含む）に、自分で STUCK_ITEM・DESIGN_ONLY_ITEM の行と、軸ごとの「…の軸が通らない: <行の頭>: <訳>」の行を足す。設計だけの run と止まりの案は同じ事実が 2〜3 行、決め手の揃わない狭めは項目の行と軸の行の 2 回並ぶ
-  - 証: 要追加: tests/workflows/test_line.py::AskBeforeFixCase.test_plan_review_rows_are_not_repeated — questions に `gatemarks.STUCK_ITEM + "。理由: x"` と design_only が在る時、関所の文の項目に止まり・設計だけの行が 1 行だけ（元 ConvergeGateCase.test_design_only_and_stuck_give_one_line の線の側）
+  - 今: workflows/line/scripts/ask_before_fix.py の ask: 軸の行は事前審査の項目が無い時だけ足し、設計だけの行・止まりの行は事前審査の 1 行のまま
+  - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_plan_review_rows_are_not_repeated
   - 本物の run: 筋書きでのみ
-  - 狭め: #74（線）で重なった。Archon で不可でない → 線は plan-review が出した行を足し直さない
+  - 狭め: #74（線）で重なった → 部分 B2 で戻した
 
 - P250 関所の項目の種類（regression・policy・policy_changed・fork・escalate・world・design・design_only）を関所の文の冒頭（何の項目が何件か）・台帳の問いへの答え方の段落（ASK_GATE_HEAD）・無人の run の振る舞いに使う
   - 元: works/.shared/core/graphloops/rules/review-loop.py:4122-4124（ask.kinds）・works/.shared/core/gatemarks.py:301 `gate_text`（KIND_WORDS・ASK_GATE_HEAD は kinds に fork・escalate が在る時だけ）
@@ -1840,10 +1840,10 @@
 
 - P255 最後の関所の文と報告の冒頭に、関所で答えていない台帳の問い（fork でない awaiting も）を「無い」と書かずに並べ、関所で答えた問いは保留の件数に数えず答えた行に並べ、決め手で通した行も並べる
   - 元: works/.shared/core/gatemarks.py:1216 `held_lines`・`answered_lines`・:1298 `lines`（line_edge._final_text と report.head_decisions が読んだ）
-  - 今: lib/runreport.py:228 `ledger_state`・:600-612（通した行）・#74 の head/workflows/line/scripts/ask_final.py:134（保留の問い）。最後の関所の文に決め手で通した行（gatemarks.lines）は 無し
-  - 証: lib/tests/test_runreport.py::LedgerCase の 6 件・test_gate_passes_follow_decisions・#74 の head/tests/workflows/test_line.py::…test_held_questions_are_every_asking_question_not_answered。最後の関所の通した行は 要追加: tests/workflows/test_line.py::AskFinalCase.test_final_gate_lists_gate_passes — plan-review の隣の gate-passes.json に 1 行在る時、最後の関所の文にその行が在ること（元 works/tests/test_plan_gate.py:397・:515・:575 の final_text の断言）
+  - 今: 報告は lib/runreport.py の ledger_state・_gate_passes。最後の関所は workflows/line/scripts/ask_final.py の review_rows（gate-passes.json）・ledger_rows・question_lines
+  - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_final_gate_lists_gate_passes（AskFinalCase → AskFinalReadsCase）・tests/workflows/test_gate_head.py::LedgerAsksCase.test_held_questions_are_listed_not_none・test_answered_question_is_not_counted_as_held
   - 本物の run: 最後の関所の文（種では常に開く）と報告の冒頭
-  - 狭め: #73 が報告・線へ渡し、報告は持つが線の最後の関所は通した行を持たない（Archon で不可でない → 線の区分で戻す）
+  - 狭め: #73 が報告・線へ渡し、線の最後の関所は通した行を持たなかった → 部分 B2 で戻した
 
 - P256 無人の run で関所に止まった項目と保留の台帳の問い・問いの無い測れていない素材に、答えの下書き（draft: true・出どころつき）を作り、次の依頼の answers に置く
   - 元: works/.shared/core/gatemarks.py `answer_drafts`・`draft_line`

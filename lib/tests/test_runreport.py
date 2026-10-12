@@ -715,6 +715,18 @@ class LedgerCase(Base):
             gatemarks._ledger_line(other, "・関所で continue を受けた")])
         self.assertIn("人が手元で実行: `pytest -k mean`", state["answered"][0])
 
+    def test_unread_hold_is_named_in_the_head(self):
+        """P238・L-G31: 修正前の関所の答えの文が「保留: q-typo」（台帳の key を拾えない）の時、報告の冒頭に「読めなかった保留」の行が
+        在り、問いは答えたものとして扱う（直す義務は変えない）"""
+        gate = {"decision": "continue", "text": "保留: q-typo", "asked": [gatemarks.ask_text(FORK)]}
+        returns = self.returns(FORK)
+        state = runreport.ledger_state(returns, {"gate-before-fix": gate}, {"run_id": RUN})
+        self.assertEqual(state["held"], [])
+        lines, _ = runreport._decisions(returns, {"gate-before-fix": gate}, {"run_id": RUN}, "fixed", [], closed=True)
+        row = next(x for x in lines if "読めなかった保留" in x)
+        self.assertIn("「保留: q-typo」", row)
+        self.assertIn(FORK["key"], row)
+
     def test_answer_ties_bind_answers(self):
         """R77: 判定の隣の answer-ties.json の結びで、字の当たらない依頼の答えが問いに当たり（答えた行・保留から外れる）、結びの宛て先が
         今の問いに無ければ字の一致に落ちる。結ばないと判定が名乗った答えは訳つきで並び、判定が単位にしなかった作り直しの行が報告に出る"""

@@ -475,6 +475,23 @@ class FactsCase(Run):
         self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: engine・{suites}\n", green)
         self.assertIn(f"- 最後のテスト（test-gate-final）のログ: {log}\n", green)
 
+    def test_green_cert_section_carries_the_baseline_line(self):
+        """T35: 最後のテストの証拠の修正前のテストの行（declared_checks.baseline_line）が、緑の認証の節に字のまま届く"""
+        result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
+        run = {"by": "engine", "log": "", "junit_steps": [], "junit_unran": [], "suite": None, "fingerprint_before": None,
+               "fingerprint_after": None}
+        base = "修正前のテスト: 緑（元の結末（入力 baseline）の status clean）——最後のテストの赤は修正の後に出た赤でありうる"
+        text = result.evidence("final", {"ok": True, "green": True, "red_cause": ""}, run, None, "", "", "一式", base)
+        (self.artifacts / "test-gate" / "final").mkdir(parents=True)
+        (self.artifacts / "test-gate" / "final" / "evidence.md").write_text(text, encoding="utf-8")
+        final = {"mode": "final", "ok": True, "green": True, "red_cause": "",
+                 "evidence": {"type": "archon_artifact", "run_id": RUN, "path": "test-gate/final/evidence.md"}}
+        code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}),
+                                    INPUTS_TEST_GATE_FINAL=json.dumps(final))
+        self.assertEqual(code, 0)
+        green = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8").split(f"{runreport.GREEN_HEADING}\n\n", 1)[1]
+        self.assertIn(f"- 最後のテスト（test-gate-final）の{base}\n", green)
+
     def test_returns_with_pointers_reach_the_report(self):
         judgment = self.pointer("judge/judgment.json", {})
         judge = json.dumps({"ready": True, "stop_reason": "", "units": [{"id": "u1"}], "judgment": json.loads(judgment)})

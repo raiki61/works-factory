@@ -458,10 +458,10 @@
   - 狭め: 無し
 - L-G19 聞かずに通した行（と R4 で聞き直さなかった行）を、報告と最後の関所の文の両方に 1 件 1 行で載せる
   - 元: works/.shared/core/gatemarks.py:1286-1300 `lines`・works/darkfactory/lib/line_edge.py:604-607
-  - 今: 報告は lib/runreport.py:593-612 `_gate_passes`。最後の関所の文（scripts/ask_final.py:96-119）には無い
-  - 証: lib/tests/test_runreport.py::DecisionsCase.test_gate_passes_follow_decisions（assert: :291）。要追加: tests/workflows/test_gate_head.py::FinalHeadCase.test_gate_passes_are_listed
+  - 今: 報告は lib/runreport.py の `_gate_passes`。最後の関所は workflows/line/scripts/ask_final.py の `review_rows`（事前審査の review の隣の gatemarks.PASSES_FILE を gatemarks.pass_lines で）と `final_text` の「直す前の関所で通した項目」
+  - 証: lib/tests/test_runreport.py::DecisionsCase.test_gate_passes_follow_decisions・tests/workflows/test_gate_head.py::FinalSectionsCase.test_gate_passes_are_listed・tests/workflows/test_line.py::AskFinalReadsCase.test_passed_items_and_converge_rounds_are_listed
   - 本物の run: report.md の「修正前の関所が聞かずに通した行」
-  - 狭め: #74 で最後の関所の文から落とした（不可でない → 戻す）
+  - 狭め: #74 で最後の関所の文から落とした（不可でない → 戻す） → 部分 B2 で戻した。R4 で聞き直さなかった行（eyes の gate-passes.json）は部分 D2（E66）
 - L-G20 人に回す行は 1 行ずつ、世界の解・狭めない案・人に聞く訳・推しの尾を付けて載せる
   - 元: works/.shared/core/gatemarks.py:484-487 `_item`・:456 `_push`
   - 今: lib/gatemarks.py:469 → scripts/ask_before_fix.py:39-41
@@ -470,10 +470,10 @@
   - 狭め: 無し
 - L-G21 関所の項目の種類（regression・policy・policy_changed・fork・escalate・design・world・design_only）を平易な名で頭に並べ、台帳の答え方（ASK_GATE_HEAD）は台帳の問いが在る時だけ出す
   - 元: works/.shared/core/gatemarks.py:250-255 `KIND_WORDS`・:301-325 `gate_text`
-  - 今: scripts/ask_before_fix.py:41 が plan-review の questions を全部 `fork` にして渡す。狭め・穴・方針の変化も「判定の役が人に聞くと保留にした問い」と名乗り、ASK_GATE_HEAD が毎回出る
-  - 証: 要追加: tests/workflows/test_line.py::AskBeforeFixCase.test_item_kinds_are_kept — 狭めの行の頭が「今ある能力を減らす・狭める変更（regression）」になる
+  - 今: workflows/line/scripts/ask_before_fix.py の ask は plan-review の questions の行 {kind, text} の種類のまま関所の文の頭に並べ（gatemarks.gate_text の KIND_WORDS）、ASK_GATE_HEAD は台帳の問い（fork・escalate）が在る時だけ（部分 B1）
+  - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_item_kinds_are_kept（部分 B2）・test_kinds_come_from_the_gate_record（部分 B1）
   - 本物の run: gate-before-fix の message の 1 行目
-  - 狭め: #74・#73 の返りの形で狭めた（不可でない → 戻す。plan-review の返りに種類を足す）
+  - 狭め: #74・#73 の返りの形で狭めた（不可でない → 戻す） → 部分 B1 で種類を残し、部分 B2 で試験を足した
 - L-G22 判定の台帳の人に聞く問い（fork・escalate）を選択肢・推し・答えが無いと直さない単位つきで載せる
   - 元: works/.shared/core/gatemarks.py:674-700 `asks`・`ask_text`
   - 今: lib/gatemarks.py:678 → scripts/ask_before_fix.py:41
@@ -482,8 +482,8 @@
   - 狭め: 無し
 - L-G23 問いの文は記録のまま引用し、読み替えの行（QUOTE_NOTE）を添える
   - 元: works/.shared/core/gatemarks.py:240-244・:316-318
-  - 今: lib/gatemarks.py:235・:286。scripts/ask_before_fix.py:27 の問いの文は決まり文句 `QUESTION`
-  - 証: AskGateCase.test_nothing_is_dropped_behind_the_head（assert: test_gate_head.py:90）。tests/workflows/test_plan_review.py::QuotedQuestionCase.test_plan_gate_quotes_mainline_question は assert が無い → 要追加: 同じ名で `> ` の引用行と QUOTE_NOTE を assert
+  - 今: lib/gatemarks.py の gate_text（引用と QUOTE_NOTE）。workflows/line/scripts/ask_before_fix.py の問いの文は決まり文句 QUESTION を引用する
+  - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_question_is_quoted_with_the_note（部分 B2）・tests/workflows/test_plan_review.py::QuotedQuestionCase.test_plan_gate_quotes_mainline_question（check_gate が引用の行と読み替えの 1 行を assert する。QUOTE_NOTE を外すと赤を部分 B2 で確かめた）
   - 本物の run: gate-before-fix の message
   - 狭め: 無し
 - L-G24 関所の文の冒頭 3 行（起きたこと・決めてほしいこと・推し）。推しは記録に書かれた物だけで、機械は作らない
@@ -494,10 +494,10 @@
   - 狭め: 無し
 - L-G25 関所の文と報告の主語は平易な名で、盤面の節・目・状態の語は括弧に回す
   - 元: works/.shared/core/gatemarks.py:216-226 `PLAIN`・`named`・`eye_named`
-  - 今: lib/gatemarks.py（同じ）。scripts/ask_final.py:105 の目の行は `R1: pass（…）` で内部の語がそのまま出る
-  - 証: FinalHeadCase.test_three_lines_and_reasons（assert: test_gate_head.py:127 は冒頭 3 行だけ）→ 要追加: tests/workflows/test_gate_head.py::FinalHeadCase.test_final_text_subjects_are_plain — final_text の全体で internal_subjects が空
+  - 今: lib/gatemarks.py の PLAIN・named・eye_named。workflows/line/scripts/ask_final.py の eye_lines が目の行を eye_named で書く
+  - 証: tests/workflows/test_gate_head.py::FinalSectionsCase.test_final_text_subjects_are_plain（final_text の全体で internal_subjects が空）
   - 本物の run: gate-final の message の「## 独立の目」
-  - 狭め: #74 で狭めた（不可でない → 戻す）
+  - 狭め: #74 で狭めた（不可でない → 戻す） → 部分 B2 で戻した
 - L-G26 設計だけの run は、項目が無くても修正前の関所を必ず開く
   - 元: works/.shared/core/gatemarks.py:644-663 `design_only`・`design_item`
   - 今: scripts/ask_before_fix.py:46-47
@@ -530,10 +530,10 @@
   - 狭め: 無し
 - L-G31 key を拾えなかった「保留」の文を「読めなかった保留」として報告の冒頭と最後の関所に並べる
   - 元: works/.shared/core/gatemarks.py:1089-1111 `unread_holds`・`unread_hold_lines`・works/darkfactory/lib/line_edge.py:631
-  - 今: lib/gatemarks.py:1074-1100 は在るが、scripts/ask_final.py にも lib/runreport.py にも呼び手が無い
-  - 証: tests/workflows/test_plan_review.py::LedgerAsksCase.test_unread_hold_is_shown_to_the_human（:2112）は lib だけ → 要追加: tests/workflows/test_line.py::AskFinalReadsCase.test_unread_hold_is_shown（report の側も同じ形）
+  - 今: lib/gatemarks.py の unread_hold_lines。最後の関所は workflows/line/scripts/ask_final.py の ledger_rows → final_text、報告は lib/runreport.py の ledger_state の unread_holds → _decisions
+  - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_unread_hold_is_shown・lib/tests/test_runreport.py::LedgerCase.test_unread_hold_is_named_in_the_head
   - 本物の run: 筋書きでのみ
-  - 狭め: #74・#68 で落とした（不可でない → 戻す）
+  - 狭め: #74・#68 で落とした（不可でない → 戻す） → 部分 B2 で戻した
 - L-G32 関所で答えた問いの出どころ・depends は直す義務に戻り、修正役に「答えで直す義務に戻った単位」の行（returned_lines）が届く
   - 元: works/.shared/core/gatemarks.py:1172-1198 `returned`・`returned_lines`・works/darkfactory/lib/line_edge.py:1218
   - 今: lib/gatemarks.py の returned・returned_lines・duty（値の見え方 ledger）。fix は lib/fixboard.py の gate_view・group_owed・write_notes が置き場の answers.json（{decision, text, asked}。asked は $ask-before-fix.output.asked）から引く
@@ -566,10 +566,10 @@
   - 狭め: 無し
 - L-G37 最後の関所と報告に、答えた問い（ANSWERED_HEAD）とどの問いにも当たらなかった依頼の答えを並べる
   - 元: works/.shared/core/gatemarks.py:1036-1060・:1226-1230、works/darkfactory/lib/line_edge.py:625-630
-  - 今: 報告は lib/runreport.py:262-283。最後の関所の文には無い
-  - 証: tests/workflows/test_plan_review.py::RequestAnswersCase.test_unmatched_answer_is_shown_and_question_stays_held（:2405。lib だけ）→ 要追加: tests/workflows/test_gate_head.py::FinalHeadCase.test_answered_and_unmatched_are_listed
+  - 今: 報告は lib/runreport.py の _decisions。最後の関所は workflows/line/scripts/ask_final.py の ledger_rows（gatemarks.answered_lines・unmatched_answer_lines）→ question_lines
+  - 証: tests/workflows/test_gate_head.py::FinalSectionsCase.test_answered_and_unmatched_are_listed・LedgerAsksCase.test_answered_question_is_not_counted_as_held
   - 本物の run: report.md
-  - 狭め: #74 で最後の関所から落とした（不可でない → 戻す）
+  - 狭め: #74 で最後の関所から落とした（不可でない → 戻す） → 部分 B2 で戻した
 - L-G38 無人の run は台帳の問いだけでは修正前の関所を開かない（問いは報告へ回す）
   - 元: works/.shared/core/gatemarks.py:637-638
   - 今: scripts/ask_before_fix.py の ask（無人の run は種類 fork・escalate の行だけを deferred にする）
@@ -608,16 +608,16 @@
   - 狭め: 無し
 - L-G44 案の直しの関所の文: 項目ごとに約束の欄の変化・人に聞く穴・申し出の文・裁定の文・前と後の項目の JSON
   - 元: works/.shared/core/replan.py:593-605 `_gate_section`
-  - 今: scripts/ask_replan.py:66-71（欄の名と事前審査の問いの文だけ）
-  - 証: 要追加: tests/workflows/test_line.py::AskReplanCase.test_gate_text_shows_claim_ruling_and_both_items（L-D31 と同じ）
+  - 今: workflows/line/scripts/ask_replan.py の section（元 replan._gate_section。約束の欄の変化・項目を誤りとした申し出の文と裁定の文・前と後の項目の JSON）。ask-replan の入力 conflicts ← $fix.output.conflicts
+  - 証: tests/workflows/test_line.py::AskReplanCase.test_gate_text_shows_claim_ruling_and_both_items
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で狭めた（不可でない → 戻す）
+  - 狭め: #74 で狭めた（不可でない → 戻す） → 部分 B2 で戻した。人に聞く穴は項目ごとでなく事前審査の問いの行（replan-review の questions は項目ごとの穴を持たない。区分 P）
 - L-G45 無人の run は範囲を広げるだけの直しを聞かずに通し、足した・外した glob を trace と報告に残す
   - 元: works/.shared/core/replan.py:42-45・:770-772 `WIDEN_OP`・:775-780 `_widen_text`
-  - 今: scripts/ask_replan.py:55-57（`widened` を返すが報告に届かない）
-  - 証: AskReplanCase.test_unattended_passes_widening_only_and_records_it（assert: :279。返りまで）
+  - 今: workflows/line/scripts/ask_replan.py の widen_text（元 replan._widen_text の字で widened を返す）
+  - 証: tests/workflows/test_line.py::AskReplanCase.test_unattended_passes_widening_only_and_records_it（元の字を assert）
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で名指し済み（S50。不可でない → 戻す）
+  - 狭め: #74 で名指し済み（S50。不可でない → 戻す）。部分 B2 で字を元の形に戻した。報告へ届けるのは部分 C（S50）。無人の run は最後の関所が開かないので関所の文には出ない
 - L-G46 案の直しの関所の答え: continue で 2 度目の修正へ、stop で止める。読めない計画は聞く側に倒す
   - 元: works/.shared/core/replan.py:699-772 `answer`
   - 今: scripts/replan_answer.py:37-39、yaml:600-603、scripts/ask_replan.py:51-52
@@ -629,31 +629,31 @@
   - 今: scripts/replan_answer.py:23-34 `fix_answers`・yaml:613
   - 証: tests/workflows/test_line.py::ReplanAnswerCase.test_refix_answers_carry_the_before_fix_conditions_and_the_replan_note（assert: :165）、筋書き replan-answers
   - 本物の run: 筋書きでのみ
-  - 狭め: `_notes` の 3 つ目（FACES_HEAD）は #74 が後へ回した（L-D35・S58。不可でない → 戻す）
+  - 狭め: `_notes` の 3 つ目（FACES_HEAD）は #74 が後へ回した（L-D35・S58。不可でない → 戻す）。部分 B2 で確かめた: 頭の 2 つ（FIX_NOTES_HEAD・NOTE_HEAD）は見出しの下に条件が先の順で並び、ReplanAnswerCase が縛る。3 つ目は部分 D1
 - L-G48 最後の関所を開ける理由の列（1 件 1 句）。開くかと 1 行目は同じ列から作る
   - 元: works/darkfactory/lib/line_edge.py:800-827 `_final_needs`
-  - 今: scripts/ask_final.py:47-74 `final_needs`
-  - 証: tests/workflows/test_gate_head.py::FinalHeadCase.test_when_needed_opens_on_the_same_reasons_as_the_first_line（:150）・test_three_lines_and_reasons（:124）・test_unknown_eye_status_opens_when_needed（:159）・test_fence_rise_is_a_reason（:178）、tests/workflows/test_line.py::AskFinalCase.test_objection_left_after_the_rejudge_is_a_reason（:316）
+  - 今: workflows/line/scripts/ask_final.py の needs（[(1 句, must)] の 1 つの列。final_needs・ask・final_head はこれだけを読む）
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_open_and_first_line_come_from_one_list（部分 B2）・tests/workflows/test_gate_head.py::FinalHeadCase.test_when_needed_opens_on_the_same_reasons_as_the_first_line・test_three_lines_and_reasons・test_unknown_eye_status_opens_when_needed・test_fence_rise_is_a_reason、tests/workflows/test_line.py::AskFinalCase.test_objection_left_after_the_rejudge_is_a_reason
   - 本物の run: `ask-final.output.reasons`
-  - 狭め: 「修正役が人に回した物」と「申告と数え直しが合わない単位」が無い（元 line_edge.py:814-816。L-W20・L-W21・S03）。reasons も報告に届かない（S51）。不可でない → 戻す
+  - 狭め: 「修正役が人に回した物」と「申告と数え直しが合わない単位」が無い（元 line_edge.py:814-816。L-W20・L-W21・S03。部分 D2）。reasons も報告に届かない（S51。部分 C）。申し出の数えと許したテストの変更は部分 B2 で戻した
 - L-G49 守りのパスに当たった・確かめられなかった時と申し出は、開き方に依らず最後の関所を開き、1 行目と最初の節で名指す
   - 元: works/darkfactory/lib/line_edge.py:785-798 `_guard`・:670-680・:712-717
-  - 今: scripts/ask_final.py:77-81・:98-102・:124
-  - 証: tests/workflows/test_line.py::AskFinalCase.test_protected_hits_and_conflicts_open_in_every_mode（:305）、tests/workflows/test_gate_head.py::FinalHeadCase.test_protected_named_in_the_first_line（:132）・test_final_edge_puts_the_head_before_the_sections（:144）、筋書き conflict-ask
+  - 今: workflows/line/scripts/ask_final.py の needs の must（守りのパス・確かめられなかった・許したテスト・人に回した申し出・読めない申し出の控え）と protected_section・conflict_section
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_protected_hits_and_conflicts_open_in_every_mode・test_allowed_test_changes_open_in_every_mode、tests/workflows/test_gate_head.py::FinalHeadCase.test_protected_named_in_the_first_line・test_final_edge_puts_the_head_before_the_sections・FinalSectionsCase.test_conflict_section_comes_first_without_protected・test_protected_section_says_how_to_see_the_diff、筋書き conflict-ask と tests/e2e/test_line_scenarios.py::ConflictGateTest
   - 本物の run: gate-final の message の「## 守りのパスを触った」
-  - 狭め: 申し出の数え方は名指し済みで後へ（L-W24・S55）。守りの節の行数・規則の id・差分の見方の命令・一覧のパス（元 :670-680）は無い（不可でない → 戻す）
+  - 狭め: 申し出の数え方（L-W24・S55）と守りの節の差分の見方・一覧のパス（M29）は部分 B2 で戻した
 - L-G50 守りのパスか申し出が在るのに最後の関所が開かなかった run は、差分を当てずに止める
   - 元: works/darkfactory/lib/line_edge.py:1187-1201
-  - 今: scripts/ask_final.py:124（must）。ask-final が飛ばされれば answer-final と merge-apply も飛ぶ（yaml:871-874）
-  - 証: 要追加: tests/e2e の筋書き `eyes-failed-protected` — 目のブロックが落ち守りのパスに当たった run で merge-apply に届かない
+  - 今: ask-final の must。ask-final が飛ばされれば answer-final と merge-apply も飛ぶ（merge-apply の when: $answer-final.output.go == true）
+  - 証: 筋書き eyes-failed-protected と tests/e2e/test_line_scenarios.py::ProtectedNotAppliedTest.test_eyes_failed_with_protected_hits_never_applies（部分 B2）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - L-G51 最後の関所の文の本文（テストの一式とログ・修正前のテスト・手元で回さなかった試験・差分の審査の穴・手直しの結果・再審で決着した結果・往復・残りの件数・例で試していない単位・数え直しの表・案の直しの項目の行）
   - 元: works/darkfactory/lib/line_edge.py:560-637 `_final_text`・:878-885
-  - 今: scripts/ask_final.py:96-119（守りのパス・申し出・許したテストの変更・目・柵・保留の問い・読めなかった訳・封じた hash だけ）
-  - 証: 要追加: tests/workflows/test_gate_head.py::FinalHeadCase.test_final_text_keeps_every_section（節ごとの細目は L-W28〜L-W37）
+  - 今: workflows/line/scripts/ask_final.py の final_text（元 final_edge・_final_text の節の並び）
+  - 証: tests/workflows/test_gate_head.py::FinalSectionsCase.test_final_text_keeps_every_section（部分 B2）
   - 本物の run: gate-final の message
-  - 狭め: #74 で狭めた（不可でない → 戻す）
+  - 狭め: #74 で狭めた（不可でない → 戻す） → 部分 B2 で戻した。手元で回さなかった試験・差分の審査の穴の名札・手直しの結果・数え直しの表は fix の返りの約束に控えが無いので「取れない」と書く（F013・S29・S28。部分 D2）
 - L-G52 線の script は落ちない（例外も lib の import の失敗も `works:line-script` の返りにして報告まで届く）
   - 元: 該当無し（元は BoardGap で落ちた）
   - 今: scripts/linekit.py:42-62
@@ -828,10 +828,10 @@
   - 狭め: 無し
 - L-W24 申し出は人に回した行（ask_human と案の直しを諦めた行）だけを数え、関所の文に単位ごとの行（conflict.human_lines）を並べる
   - 元: works/darkfactory/lib/line_edge.py:785 `_guard`・:712 `_conflict_text`・:697 `_record_conflict`。試験 works/tests/test_blk_fix_conflict.py::test_forces_final_gate_report_and_next_request（:387）
-  - 今: scripts/ask_final.py:58-59・:100-102（指し札が在れば開け、文には指し札のパスを並べる）
-  - 証: 要追加: tests/workflows/test_line.py::AskFinalReadsCase.test_only_asked_conflict_rows_open_and_are_named
+  - 今: workflows/line/scripts/ask_final.py の asked_conflicts（fixed の conflicts の指し札の先ごとに lib/conflict.py の human_lines）と needs・conflict_section
+  - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_only_asked_conflict_rows_open_and_are_named・FinalGateCase.test_final_gate_lists_asked_lines_not_pointers、tests/e2e/test_line_scenarios.py::ConflictGateTest
   - 本物の run: fix/conflicts.json と ask-final の text
-  - 狭め: #74 で狭めた（名指し済み。lib/conflict は main に在るので戻せる。S55）
+  - 狭め: #74 で狭めた（名指し済み。S55） → 部分 B2 で戻した
 - L-W25 守りのファイル・申し出が答えを待つのに最後の関所が開かなかった時は、通さずに止める
   - 元: works/darkfactory/lib/line_edge.py:1184-1197。試験 works/tests/test_edge.py::ProtectedGateCase.test_no_gate_answer_stops（:736）・test_final_skipped_still_stops（:746）
   - 今: scripts/ask_final.py:124-129。eyes が落ちれば merge-seal・ask-final・merge-apply が飛ぶ（yaml:768・:801・:871）
@@ -852,64 +852,64 @@
   - 狭め: 無し
 - L-W28 最後の関所の文に、最後のテストの一式・修正前のテスト（baseline_line）・ログ・走れなかった理由・作業ツリー・手元で回さなかった試験・赤緑を確かめずに通した回を並べる
   - 元: works/darkfactory/lib/line_edge.py:572-589。試験 works/tests/test_report_head.py の :339・:350・:361・:384-424
-  - 今: 無し（scripts/ask_final.py:96-119 はテストの語だけ）
-  - 証: 要追加: tests/workflows/test_line.py::AskFinalCase.test_final_text_lists_suites_baseline_and_left_tests
+  - 今: workflows/line/scripts/ask_final.py の evidence_rows（test-gate の evidence.md の走らせ方・修正前のテスト・ログ・ok の訳の行を字のまま）と tests_lines（作業ツリーは節の cwd）
+  - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_final_text_lists_suites_baseline_and_left_tests
   - 本物の run: test-gate-final の evidence と ask-final の text
-  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻す）
+  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻す） → 部分 B2 で戻した。手元で回さなかった試験（ci_left・final_left・final_far）と赤緑を確かめずに通した回は fix の返りの約束に控えが無い（F013・F041。部分 D2）
 - L-W29 最後の関所の文に、差分の審査の穴の数（1・2 回目）・穴と目の行の枝の名札・手直しの結果を並べる
   - 元: works/darkfactory/lib/line_edge.py:590-595
-  - 今: 無し（fix の返りは delta_review {rounds, pass} だけ）
-  - 証: 要追加（S29 の欄が入ってから。#73 が渡した test_branch_rows_in_final_text_and_head）
+  - 今: workflows/line/scripts/ask_final.py の delta_lines（fix の delta_review の回数と通ったか）。穴の数と枝の名札・手直しの結果は got の branch_rows（今は空）で「取れない」と書く
+  - 証: tests/workflows/test_gate_head.py::LedgerAsksCase.test_branch_rows_in_final_text_and_head（S27。最後の関所の側だけ）
   - 本物の run: fix の置き場の差分の審査の控え
-  - 狭め: #74 で狭めた。持ち主の答え待ち（手直しの穴の名札の欄。S29）
+  - 狭め: #74 で狭めた。穴の名札の欄は部分 D2（S29 の delta-holes.json）
 - L-W30 最後の関所の文に、決着した再審の結果（rejudge_lines）を並べる
   - 元: works/darkfactory/lib/line_edge.py:597-599
-  - 今: 無し（scripts/ask_final.py:70 は rejudge_verdict を異議の消しにだけ使う）
-  - 証: 要追加: tests/workflows/test_line.py::AskFinalCase.test_settled_rejudge_lines_are_shown
+  - 今: workflows/line/scripts/ask_final.py の judged_returns・rejudge_rows（lib/runreport.py の rejudge_lines。ask-final の入力 units・rejudged・first_units・fix_units）
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_settled_rejudge_lines_are_shown
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻す）
+  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻す） → 部分 B2 で戻した
 - L-W31 最後の関所の文に、直した後の実測（数・柵の増え・新しい名・修正案の外れの訳）を並べる
   - 元: works/darkfactory/lib/line_edge.py:602（structmark.after_lines）。試験 works/tests/test_edge.py::FinalGateCase.test_final_gate_lists_fence_up_and_deviations（:427）
-  - 今: scripts/ask_final.py:109-110 は柵の増えだけ
-  - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_fence_rows_come_from_the_structure_after（:388-390）。残りは要追加: test_final_text_lists_new_names_and_deviations
+  - 今: workflows/line/scripts/ask_final.py の after_rows（structmark.after_lines: 数・柵の増え・新しい名・修正案の外れの訳）
+  - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_fence_rows_come_from_the_structure_after・test_final_text_lists_new_names_and_deviations
   - 本物の run: eyes/structure-after.json
-  - 狭め: #74 で一部狭めた（不可でない → 戻す）
+  - 狭め: #74 で一部狭めた（不可でない → 戻す） → 部分 B2 で戻した
 - L-W32 最後の関所の文に、修正前の関所で通した項目（gatemarks.lines）と事前審査の往復（converge.lines）を並べる
   - 元: works/darkfactory/lib/line_edge.py:603-607。試験 works/tests/test_edge.py::FinalGateCase.test_final_text_lists_converge_lines（:412）
-  - 今: 無し
-  - 証: 要追加: tests/workflows/test_line.py::AskFinalCase.test_passed_items_and_converge_rounds_are_listed（L-G19・L-D22 と同じ穴）
+  - 今: workflows/line/scripts/ask_final.py の review_rows（plan-rounds と replan-review の review の隣の gate-passes.json と gate.json の converge）
+  - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_passed_items_and_converge_rounds_are_listed（AskFinalCase → AskFinalReadsCase。置き場が要る）
   - 本物の run: plan-review の pass-<k>/gate.json・gate-passes.json
-  - 狭め: #74 で狭めた（不可でない → 戻す）
+  - 狭め: #74 で狭めた（不可でない → 戻す） → 部分 B2 で戻した
 - L-W33 最後の関所の文に、独立の目の行（平易な名）と R2 に渡した前提・渡していない物・「渡されていない」と言われた物・独立設計の後に来た答え・落ちた筋を並べる
   - 元: works/darkfactory/lib/line_edge.py:505 `_eyes`・:529 `_r2_inputs`。試験 works/tests/test_edge.py::FinalGateEyesCase.test_gate_text_lists_eye_verdicts（:1626）
-  - 今: scripts/ask_final.py:105-108 は status・reason だけ。R2 の材料は無い
-  - 証: 要追加（S12 の指し札が入ってから）: tests/workflows/test_line.py::AskFinalReadsCase.test_r2_inputs_are_listed
+  - 今: workflows/line/scripts/ask_final.py の eye_lines（平易な名の目の行・前提の検算の語・残りの数え）
+  - 証: tests/workflows/test_gate_head.py::FinalSectionsCase.test_final_text_subjects_are_plain
   - 本物の run: eyes/premise-inputs.json
-  - 狭め: #74・#67 で狭めた。持ち主の答え待ち（eyes の返りの欄。S12）
+  - 狭め: #74・#67 で狭めた。目の行の平易な名は部分 B2 で戻した。R2 に渡した前提・渡していない物・渡されていないと言われた物・独立設計の後の答え・落ちた筋は eyes の返りの notes（S12）が要るので部分 D2（E45）
 - L-W34 最後の関所の文に、clean が消したファイル・レンズ・仕組みの異常・残りの件数・持ち越した単位（split_line）・例で証明できない単位・数え直しの表・止まった単位・同じ run で直した案の項目（replan.AMEND_HEAD）を並べる
   - 元: works/darkfactory/lib/line_edge.py:612・:840・:873-885。試験 works/tests/test_replan.py:1104-1109
-  - 今: 無し
-  - 証: 要追加: tests/workflows/test_line.py::AskFinalCase.test_final_text_sections_match_the_original
+  - 今: workflows/line/scripts/ask_final.py の final_text: 例で証明できない判定の問い（runreport.unproven_lines）・同じ run で直した修正案の項目（amend_rows・AMEND_HEAD）・持ち越した単位（runreport.split_line を 1 行目に）・残りの数え（eye_lines）
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_final_text_sections_match_the_original
   - 本物の run: ask-final の text
-  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻す）
+  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻す） → 部分 B2 で戻した。clean が消したファイル・レンズ・仕組みの異常・数え直しの表・止まった単位は fix の返りの約束に控えが無いので「取れない」と書く（部分 D2。R38・R72）
 - L-W35 最後の関所の文に、人に聞いている問いを記録のまま引き「この関所の答えは問いに答えない」と添える
   - 元: works/darkfactory/lib/line_edge.py:613-619
-  - 今: scripts/ask_final.py:108（「- 問い: q」だけ）
-  - 証: 要追加: tests/workflows/test_line.py::AskFinalCase.test_questions_say_the_answer_does_not_answer_them
+  - 今: workflows/line/scripts/ask_final.py の question_lines（gatemarks.quote で引き、この関所の答えは問いに答えないと添える）
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_questions_say_the_answer_does_not_answer_them
   - 本物の run: ask-final の text
-  - 狭め: #74 で一部狭めた（不可でない → 戻す）
+  - 狭め: #74 で一部狭めた（不可でない → 戻す） → 部分 B2 で戻した
 - L-W36 保留の問いと答え方を並べ（開ける理由には数えない）、答えた問い・当たらなかった依頼の答え・読めなかった保留も並べる
   - 元: works/darkfactory/lib/line_edge.py:620-635・:831-844
-  - 今: scripts/ask_final.py:111-115・:133 `held_questions`（answered_lines・unmatched_answer_lines・answer_ties の結びが無い）
-  - 証: FinalHeadCase.test_held_questions_shown_but_not_a_reason（:164-168）、AskFinalReadsCase.test_request_answers_answer_by_key_or_origin（:369-372）。残りは L-G31・L-G34・L-G37 の要追加
+  - 今: workflows/line/scripts/ask_final.py の ledger・ledger_rows（held_lines・answered_lines・unmatched_answer_lines・unread_hold_lines）と question_lines
+  - 証: tests/workflows/test_gate_head.py::FinalHeadCase.test_held_questions_shown_but_not_a_reason・LedgerAsksCase.test_held_questions_are_listed_not_none・test_answered_question_is_not_counted_as_held、tests/workflows/test_line.py::AskFinalReadsCase.test_request_answers_answer_by_key_or_origin・test_unread_hold_is_shown
   - 本物の run: judge/judgment.json の questions と ask-final の text
-  - 狭め: #74 で狭めた（answer_ties は名指し済み。不可でない → 戻す）
+  - 狭め: #74 で狭めた（不可でない → 戻す） → 部分 B1（結び）と部分 B2 で戻した
 - L-W37 最後の関所の文の控えを置き場に残し（final-gate.md）、message はそのパスを名指す
   - 元: works/darkfactory/lib/line_edge.py:101・:887、works/darkfactory/darkfactory.yaml:1252-1256
-  - 今: 本文は approval の message に直に入れる（yaml:844）。答えだけが gates/gate-final.json に残る
-  - 証: 要追加: tests/workflows/test_line.py::AskFinalCase.test_gate_text_is_kept_in_the_artifacts（か、無いことを名指す）
+  - 今: workflows/line/scripts/ask_final.py の keep（開いた文を run の置き場の gates/final-gate.md に書く）。文の末尾が控えのパスを名指す
+  - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_gate_text_is_kept_in_the_artifacts
   - 本物の run: Archon の approval の出来事
-  - 狭め: #74 で狭めた（名指し無し。小さい）
+  - 狭め: #74 で狭めた（名指し無し。小さい） → 部分 B2 で戻した
 - L-W38 修正前の関所は人に聞く物が在る時だけ開き、文を冒頭 3 行で始め、答え方の行を付ける
   - 元: works/darkfactory/lib/line_edge.py:1210-1215・:149 `gate_text`。試験 works/tests/test_edge.py::GateCase.test_gate_asks_with_text（:228）・test_gate_not_asking_leaves_closed（:245）
   - 今: scripts/ask_before_fix.py:31-60（細目は L-G17〜L-G28）
@@ -1204,10 +1204,10 @@
   - 狭め: #75 で狭めた（Archon で不可: packages/workflows/src/loader.ts:1174「context.resume inside a loop_group body … not supported」、include-expander.ts:404-406）。持ち主の persona の答え待ち（S19） 決め: 継がない。保存した返答を読む新しい会話で回す（docs/owner-decisions.md の「導いた事」の 2026-10-12 の推しの決め。Archon loader.ts:1173-1175）。狭めとして確定（線の配線の文書の「この文書の外」の「決めた物」）
 - L-D19 壁打ちが止まった案は修正前の関所を必ず開け、行は 1 つで尾に止まった理由（続いた block の key と往復の数）を付ける
   - 元: works/.shared/core/converge.py:571 `stuck_reason`、gatemarks の design_item
-  - 今: scripts/ask_before_fix.py:46-47 は理由の無い STUCK_ITEM を足し、plan-review の questions にも理由つきの行が在るので行が 2 つになる
-  - 証: AskBeforeFixCase.test_reasons_that_open_the_gate（:234-235）は字だけ（弱い）。ブロック側 tests/workflows/test_plan_review.py::ConvergeGateCase.test_stuck_opens_design_item_with_reason（:2275）→ 要追加: AskBeforeFixCase.test_stalled_has_one_row_with_the_reason
+  - 今: workflows/line/scripts/ask_before_fix.py の ask: 事前審査が設計だけの行（種類 design_only。止まった理由つき）を返していれば STUCK_ITEM・DESIGN_ONLY_ITEM を足し直さない
+  - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_stalled_has_one_row_with_the_reason（部分 B2）・tests/workflows/test_plan_review.py::ConvergeGateCase.test_stuck_opens_design_item_with_reason
   - 本物の run: 筋書き plan-stalled
-  - 狭め: #74（不可でない → 戻す）
+  - 狭め: #74（不可でない → 戻す） → 部分 B2 で戻した
 - L-D20 3 往復でも決着しない案は修正前の関所を開ける
   - 元: works/.shared/core/converge.py:83 UNSETTLED_WHY
   - 今: scripts/ask_before_fix.py:48-49（UNSETTLED_ITEM）
@@ -1276,10 +1276,10 @@
   - 狭め: 無し
 - L-D31 案の直しの関所の文に、項目ごとの申し出の文・裁定の文・前と後の項目（JSON）を見せる
   - 元: works/.shared/core/replan.py:593 `_gate_section`・:145-148 GATE_HEAD・DECIDE・HOW
-  - 今: scripts/ask_replan.py:66-72（約束の欄の名と問いだけ）
-  - 証: AskReplanCase.test_changed_contract_asks（:270）は "out_of_scope" だけ → 要追加: AskReplanCase.test_gate_text_shows_ruling_and_both_items（L-G44 と同じ）
+  - 今: workflows/line/scripts/ask_replan.py の section（L-G44 と同じ）
+  - 証: tests/workflows/test_line.py::AskReplanCase.test_gate_text_shows_claim_ruling_and_both_items（AskReplanCase.test_gate_text_shows_ruling_and_both_items → L-G44 と同じ試験）
   - 本物の run: 筋書きでのみ
-  - 狭め: #74（不可でない → 戻す）
+  - 狭め: #74（不可でない → 戻す） → 部分 B2 で戻した
 - L-D32 案の直しの関所で stop したら止め、1 回目の差分は報告に残すが試験の関門から先へは進めない
   - 元: works/.shared/core/replan.py:724-735
   - 今: scripts/fixed.py:39、yaml:693（止めの語 human:gate-replan）
@@ -1497,7 +1497,7 @@
 - S24「約束を変える頼み」3: 始めの記録に、方針の文書を固めた版（sha256 と写しのパス）を載せる。→ **開いている**（`LS/start.py:88-98` は `policy_md` の絶対パスだけを置く）
 - S25「約束を変える頼み」4: 判定の `judgment` の隣に目的の監査（`purpose_review`）を置く。→ **開いている**（judge の約束の件）
 - S26「既定で動いた事実（no-silent-loosen）」: 線から `start`・`answers` を渡す。→ **済み**（`LY:207`・`:214`（往復の中）、`:514`・`:522`（`replan-review`））
-- S27「plan-review の外に置いた場面と渡し先」: `AskGateCase` の関所の文の頭 3 行は線へ → **済み**（`tests/workflows/test_gate_head.py:72-92`）。`FinalHeadCase` は線へ → **済み**（S16）。答えで直す義務に戻る単位の場面（`test_branch_rows_in_final_text_and_head`・`test_held_questions_are_listed_not_none`・`test_answered_question_is_not_counted_as_held`。元 `works/tests/test_plan_gate.py`）は fix と report へ → **開いている**（#74 の head にも main にも同じ名の試験が無い）
+- S27「plan-review の外に置いた場面と渡し先」: `AskGateCase` の関所の文の頭 3 行は線へ → **済み**（`tests/workflows/test_gate_head.py:72-92`）。`FinalHeadCase` は線へ → **済み**（S16）。答えで直す義務に戻る単位の場面（`test_branch_rows_in_final_text_and_head`・`test_held_questions_are_listed_not_none`・`test_answered_question_is_not_counted_as_held`。元 `works/tests/test_plan_gate.py`）は fix と report へ → 部分 B2 で閉じた（`tests/workflows/test_gate_head.py::LedgerAsksCase` に元の名で写した。最後の関所は `ask_final`、報告の冒頭は `lib/runreport.py` の `_decisions`。`test_branch_rows_in_final_text_and_head` は穴の名札の控えが無い〔S29〕ので最後の関所の側だけ）
 
 ### #68 report
 
@@ -1540,7 +1540,7 @@
 - S52 同 5: 再審の前後の比べ（`judged` の `rejudged`・`new_open_units`・`lowered`・`unnamed_changed`・`unread`）を report に届ける。→ **開いている**
 - S53 同 6: 直した後の深さの上げ直し（`redepth` の `skip_optional`・`raised`）を report に届ける。→ **開いている**（S30 と同じ）。S48〜S53 はどれも、`collect`（`LY:908-955`）が report の 17 の入力の形しか組まないことが根
 - S54「今の works から狭めた物」1 `fix_fixture`: 空でない値を `start` が止める（`LS/start.py:84-86`）。→ **狭めたまま**（持ち主の確かめ待ち） 決め: 固定材料は戻すと決めた。独立の issue（線の配線の文書の「この文書の外」の「決めた物」）
-- S55 同 2: 最後の関所で、申し出を人に回した行（行の `ruling`）だけを数える絞り。→ **開いている**（`lib/conflict.py` は main に入ったので、もう戻せる: `lib/conflict.py`。今の `LS/ask_final.py:58-59` は申し出の控えが在るだけで開く）
+- S55 同 2: 最後の関所で、申し出を人に回した行（行の `ruling`）だけを数える絞り。→ 部分 B2 で閉じた（`LS/ask_final.py` の `asked_conflicts` が fix と refix-run の `conflicts.json` を `lib/conflict.py` の `human_lines` で読み、人に回した行だけを数えて並べる。読めない控えは訳を出して開く）
 - S56 同 3: 版の控え `versions.json`。→ **狭めたまま**（`LS/start.py:120-126` は Archon の commit と Claude Code の版だけ）
 - S57 同 4: 止めの語の改名（`answer` → `human:<関所>`、`works:replan` → `human:gate-replan`）。→ 済み（名乗った狭め。持ち主の確かめ待ち） 決め: 認める（docs/design.md の約束が人の止めを human:<所> と決めている。結末の語は変わらない）（線の配線の文書の「この文書の外」の「決めた物」）
 - S58 同 5: plan-review が入った後に別の issue で戻す 3 つ。依頼の答えの結び（`answer_ties`）、素材の出どころの結び、`_notes` の 3 つ目（2 度目の修正に渡す、人に聞く種類でない事前審査の穴）。→ 頭の 2 つは部分 B1 で閉じた（依頼の答えの結びと素材の出どころの結びを `lib/gatemarks.py` の `binds` の 1 つの式で、最後の関所（`ask-final` の `ties_judgment`）・報告（`lib/runreport.py` の `ledger`）・fix（prep が判定の隣の `answer-ties.json`・`materials.json` を写す）が読む）。3 つ目は部分 D1（`LS/replan_answer.py` の `fix_answers` は頭の 2 つだけ）

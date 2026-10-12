@@ -571,6 +571,7 @@ nodes:
       items: "$fix.output.replan_items"
       ask_human: "$replan-review.output.ask_human"
       questions: "$replan-review.output.questions"
+      conflicts: "$fix.output.conflicts"
       unattended: "$start.output.unattended"
 
   - id: gate-replan
@@ -832,6 +833,7 @@ nodes:
       tests_ok: "$test-gate-final.output.ok"
       green: "$test-gate-final.output.green"
       red_cause: "$test-gate-final.output.red_cause"
+      evidence: "$test-gate-final.output.evidence"
       protected_hits: "$merge-seal.output.protected_hits"
       conflicts: "$fixed.output.conflicts"
       allowed_test_changes: "$fixed.output.allowed_test_changes"
@@ -847,9 +849,21 @@ nodes:
       sealed: "$merge-seal.output.ok"
       seal_reason: "$merge-seal.output.reason"
       hash: "$merge-seal.output.hash"
+      sealed_diff: "$merge-seal.output.diff"
       structure_after: "$eyes.output.structure_after"
       judgment: "$judged.output.judgment"
+      units: "$judged.output.units"
+      rejudged: "$judged.output.rejudged"
       ties_judgment: "$judge.output.judgment"
+      first_units: "$judge.output.units"
+      fix_units: "$fixed.output.units"
+      groups: "$fixed.output.groups"
+      delta_review: "$fixed.output.delta_review"
+      replan_items: "$fixed.output.replan_items"
+      refixed: "$fixed.output.refixed"
+      replan_open: { from: "$ask-replan.output.open", if_skipped: null }
+      plan_review: "$plan-rounds.output.review"
+      replan_review: { from: "$replan-review.output.review", if_skipped: null }
       start: "$start.output.record"
       before_fix_answer: "$answer-before-fix.output.answer"
 

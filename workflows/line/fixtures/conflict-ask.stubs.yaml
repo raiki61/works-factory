@@ -1,9 +1,11 @@
-# 申し出が在る。protected_only でも最後の関所が開く。
+# 申し出の控え（fix/conflicts.json）が在る。dry-run の置き場には控えが無いので、ask-final は読めない控えを名指して protected_only
+# でも最後の関所を開く（黙って 0 にしない）。裁定の中身で開くか（直す裁定だけなら開かず、ask_human の行が在れば開いてその行を出す）は
+# tests/e2e/test_line_scenarios.py の ConflictGateTest が、この筋書きの値で ask-final を走らせ直して照らす。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json", "final_gate": "protected_only"}
   reached: ["gate-final", "merge-apply__merge"]
-  resolved-text-contains: {"gate-final": "申し出の控え（"}
+  resolved-text-contains: {"gate-final": "## 食い違いの申し出の控えを読めない（1 件。"}
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}

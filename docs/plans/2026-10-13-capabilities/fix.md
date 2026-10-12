@@ -1330,10 +1330,10 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
 
 - F426 最後の人の関所に、人に回した食い違いの申し出（ask_human と、案の直しを諦めた fix_plan_item）だけを、裁定の文・名指し・種類・正しいと見た側・id の 1 行ずつで並べ、それが在る時だけ関所を開ける
   - 元: works/.shared/core/conflict.py:1004 `human_lines`、works/darkfactory/lib/line_edge.py:790・852（最後の関所の文と開ける理由）
-  - 今: fix は conflicts.json の指し札だけを返し（workflows/fix/scripts/collect.py:51。行が 1 つでも在れば、全部 fix_code_as で直した後でも非 null）、線の最後の関所は指し札のパスだけを並べ、指し札が在れば必ず開ける（workflows/line/scripts/ask_final.py:58-59・100-102・124）。ask_human の行の文は関所に載らない。fix_code_as・fix_test_scope・replace_query で済んだ申し出でも関所が開く
-  - 証: tests/workflows/test_line.py::*.test_protected_hits_and_conflicts_open_in_every_mode（tests/workflows/test_line.py:301-304）は指し札が在れば開くことだけを縛る。要追加: (fix 側) tests/workflows/test_fix.py::BlockScriptsCase.test_collect_returns_asked_lines — 返りに人に回す行（conflict.human_lines の文）を載せ、fix_code_as だけの run では空であること。(線側) tests/workflows/test_line.py::FinalGateCase.test_final_gate_lists_asked_lines_not_pointers — ask_human の行の文が関所の文に並び、直す裁定だけの run では開けないこと
+  - 今: workflows/line/scripts/ask_final.py の asked_conflicts（fix と refix-run の conflicts.json を lib/conflict.py の human_lines で読む）・needs の must・conflict_section。fix の返りの約束は変えない（線が conflicts.json を読む側を採った）
+  - 証: tests/workflows/test_line.py::FinalGateCase.test_final_gate_lists_asked_lines_not_pointers・AskFinalReadsCase.test_only_asked_conflict_rows_open_and_are_named、tests/e2e/test_line_scenarios.py::ConflictGateTest。fix 側の要追加 tests/workflows/test_fix.py::BlockScriptsCase.test_collect_returns_asked_lines は、返りに欄を足さない道を採ったので置かない
   - 本物の run: 筋書きでのみ（申し出が出る run）。起きれば最後の関所の文（線の ask-final の出力 text）
-  - 狭め: #94 と #74 の約束の形で狭めた（返りの約束に人に回す行の欄が無い）。Archon で不可でない（返りの欄を足すか、線が conflicts.json を読んで human_lines を組めばよい）→ 戻す。直す所は fix の返りの約束（docs/design.md「ブロックの返りの約束」）に asked の行の欄を足す、か線の ask_final が指し札を読んで asked だけを数える
+  - 狭め: #94 と #74 の約束の形で狭めた → 部分 B2 で戻した
 
 - F427 修正役が「壊すと分かって受け入れた」理由（changes[].breaks.accepted）を、報告の冒頭と最後の人の関所に 1 件 1 行で届け、在れば関所を開ける
   - 元: works/.shared/core/report.py:301-314 `handoff_lines`、works/darkfactory/lib/line_edge.py:720・803・868（関所の文と開ける理由）、report.py:906・991（報告の冒頭）

@@ -3,6 +3,7 @@
 筋書き（tests/e2e/test_line_scenarios.py）は関所の答えを stub で差し、往復を 1 周で終えるので、関所の答えの読み・往復の抜け方・
 入口の拒み・返りの合わせ方はここで照らす。種の git は gitkit の型の写し。
 """
+import importlib.util
 import json
 import os
 import pathlib
@@ -43,6 +44,8 @@ import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
 import policy  # noqa: E402
+import querytest  # noqa: E402
+import seal  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
 
@@ -50,6 +53,15 @@ SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 RUN = "run-1"
 LINE = yaml.safe_load((SCRIPTS.parent / "works-factory-line.yaml").read_text(encoding="utf-8"))
 BLOCKS = ("judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
+
+
+def load_block_script(block: str, name: str):
+    """ブロックの script を試験から読む（書き手の関数の字を線の読み手と結ぶため）"""
+    folder = SCRIPTS.parents[1] / block / "scripts"
+    spec = importlib.util.spec_from_file_location(f"{block.replace('-', '_')}_block_{name}", folder / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def block_doc(include: str) -> dict:
@@ -691,6 +703,41 @@ class AskBeforeFixCase(unittest.TestCase):
         self.assertEqual(got["asked"], [changed["text"], "0 を返すか"])
 
 
+    def test_item_kinds_are_kept(self):
+        """L-G21: 関所の項目の種類を平易な名で頭に並べる（狭めの行の頭が「今ある能力を減らす・狭める変更（regression）」）。台帳の
+        答え方（ASK_GATE_HEAD）は台帳の問いが在る時だけ"""
+        got = self.ask(planned(questions=[gatemarks.question_row("regression", "修正案 1 が狭める能力: x")], ask_human=True))
+        head = got["text"].splitlines()[0]
+        self.assertIn(f"{gatemarks.KIND_WORDS['regression']}（regression）", head)
+        self.assertNotIn(gatemarks.KIND_WORDS["fork"], head)
+        self.assertNotIn(gatemarks.ASK_GATE_HEAD, got["text"])
+
+    def test_question_is_quoted_with_the_note(self):
+        """L-G23: 問いの文は記録のまま引用し（> の行）、読み替えの行（QUOTE_NOTE）を添える"""
+        text = self.ask(planned(questions=[gatemarks.question_row("regression", "修正案 1 が狭める能力: x")]))["text"]
+        self.assertIn(f"> {ask_before_fix.QUESTION}\n{gatemarks.QUOTE_NOTE}", text)
+
+    def test_stalled_has_one_row_with_the_reason(self):
+        """L-D19: 壁打ちが止まった案は必ず開け、行は 1 つで、尾に止まった理由（事前審査の design_item の行のまま）"""
+        stuck = gatemarks.STUCK_ITEM + "。理由: 3 往復続いた block の key: k1（往復 3）"
+        got = self.ask(planned(**{"pass": False, "stalled": True}, questions=[gatemarks.question_row(gatemarks.DESIGN_ONLY_KIND, stuck)]))
+        self.assertTrue(got["open"])
+        self.assertEqual(got["asked"], [stuck])
+        self.assertEqual(got["text"].count(gatemarks.STUCK_ITEM), 1)
+
+    def test_plan_review_rows_are_not_repeated(self):
+        """P249: 関所に載る行は 1 件 1 行で重ならない: 設計だけの行と止まりの行は事前審査の 1 行、決め手の揃わない行の訳は項目の尾に
+        1 度（軸の行を足し直さない）。項目の無い時だけ軸の訳が行になる"""
+        both = gatemarks.DESIGN_ONLY_ITEM + "。理由: x"
+        narrow = "修正案 1 が狭める能力: x（人に聞く訳: 決め手の欄が揃わない（decided_by が無いか、undecided_because が在る））"
+        failing = {**planned()["gate_axes"], "obvious": {"ok": False, "note": "修正案 1 が狭める能力: x: 決め手の欄が揃わない"}}
+        got = self.ask(planned(**{"pass": False, "stalled": True}, gate_axes=failing,
+                               questions=[gatemarks.question_row("regression", narrow),
+                                          gatemarks.question_row(gatemarks.DESIGN_ONLY_KIND, both)]), design_only=True)
+        self.assertEqual(got["asked"], [narrow, both])
+        self.assertEqual(self.ask(planned(gate_axes=failing))["asked"], ["自明（obvious）の軸が通らない: 修正案 1 が狭める能力: x: 決め手の欄が揃わない"])
+
+
 class AskReplanCase(Artifacts):
     ITEM = {"unit_keys": ["u1"], "narrows": [], "removes": [], "allowed_paths": ["stats.py"], "out_of_scope": [], "rewrite_tests": [],
             "tests": [{"id": "t1", "behavior": "空の列で例外"}]}
@@ -720,7 +767,29 @@ class AskReplanCase(Artifacts):
     def test_unattended_passes_widening_only_and_records_it(self):
         got = self.ask({**self.ITEM, "allowed_paths": ["stats.py", "util.py"]}, unattended=True)
         self.assertEqual((got["open"], got["go"]), (False, True))
-        self.assertIn("util.py", got["widened"][0])
+        self.assertEqual(got["widened"], ["項目 1: 直した——無人の run なので人に聞かずに範囲を広げた（allowed_paths に足した: util.py）"])
+
+    def test_gate_text_shows_claim_ruling_and_both_items(self):
+        """L-G44・L-D31: 案の直しの関所の文は聞く項目ごとに、約束の欄の変化・その項目を誤りとした申し出の文と裁定の文（字のまま）・
+        前の項目と直した項目の JSON を見せる（元 replan._gate_section）"""
+        rows = [{"id": "c1", "unit_key": "u1", "between": ["stats.py:3", "t.py:2"], "why_both_cannot_hold": "案の範囲では直らない",
+                 "which_is_right": "request", "ruling": {"decision": conflict.REPLAN, "text": "項目 1 の範囲が誤り。cli.py も要る",
+                                                         "limits": [], conflict.PLAN_ITEMS: [1]}},
+                {"id": "c2", "unit_key": "u9", "between": ["x.py:1", "y.py:2"], "why_both_cannot_hold": "別の項目",
+                 "which_is_right": "code", "ruling": {"decision": conflict.REPLAN, "text": "項目 2 の誤り", "limits": [], conflict.PLAN_ITEMS: [2]}}]
+        (self.artifacts / "fix").mkdir()
+        (self.artifacts / "fix" / conflict.FILE).write_text(json.dumps({"items": rows}, ensure_ascii=False), encoding="utf-8")
+        ptr = {"type": "archon_artifact", "run_id": RUN, "path": f"fix/{conflict.FILE}"}
+        new = {**self.ITEM, "out_of_scope": ["cli.py"]}
+        got = ask_replan.ask(self.plan("old.json", self.ITEM), self.plan("new.json", new), ["1"], ask_human=False, questions=[],
+                             unattended=False, run_id=RUN, conflicts=ptr)
+        text = got["text"]
+        for want in ("## 人に聞く直した項目 1（単位 u1）", "- 約束の欄の変化: out_of_scope", "- 申し出の文（c1・単位 u1）: 案の範囲では直らない",
+                     "- 裁定の文（c1）: 項目 1 の範囲が誤り。cli.py も要る", ask_replan.OLD_HEAD, ask_replan.NEW_HEAD,
+                     json.dumps(self.ITEM, ensure_ascii=False, indent=1), json.dumps(new, ensure_ascii=False, indent=1)):
+            self.assertIn(want, text)
+        self.assertNotIn("c2", text)
+        self.assertEqual(line_nodes()["ask-replan"]["with"]["conflicts"], "$fix.output.conflicts")
 
     def test_unattended_stops_on_a_contract_change(self):
         got = self.ask({**self.ITEM, "out_of_scope": ["cli.py"]}, unattended=True)
@@ -743,8 +812,9 @@ class AskFinalCase(unittest.TestCase):
 
     def test_protected_hits_and_conflicts_open_in_every_mode(self):
         for mode in ("when_needed", "protected_only"):
-            for got in (self.got(protected_hits=["tests/x.py"]), self.got(conflicts=[{"path": "fix/conflicts.json"}])):
-                with self.subTest(mode=mode, got=got["protected_hits"] or got["conflicts"]):
+            for got in (self.got(protected_hits=["tests/x.py"]), self.got(asked=["u1: 人に回した"]),
+                        self.got(conflicts_unread=["fix/conflicts.json: 読めない"]), self.got(allowed_test_changes=["tests/t.py"])):
+                with self.subTest(mode=mode, got=got["protected_hits"] or got["asked"] or got["conflicts_unread"] or got["allowed_test_changes"]):
                     self.assertTrue(self.ask(got, mode)["open"])
 
     def test_protected_only_ignores_other_reasons(self):
@@ -774,6 +844,67 @@ class AskFinalCase(unittest.TestCase):
         self.assertEqual(ask_final.final_needs(self.got(objection="異議", rejudge_verdict="採る")), [])
         self.assertIn("止めずに残った異議が在る",
                       ask_final.final_needs(self.got(objection="異議", rejudge_verdict="採る", refix_objection="2 度目の異議")))
+
+
+    def test_allowed_test_changes_open_in_every_mode(self):
+        """M30: 承認済みの案と裁定が書き換えを許したテストを触った run も、守りのパスと同じに開き方に依らず開き、1 行目と最初の節で
+        名指す。無人の run なら開かずに止める（merge-apply は飛ぶ）"""
+        got = self.got(allowed_test_changes=["tests/test_mean.py"])
+        for mode in ("when_needed", "protected_only", "always"):
+            with self.subTest(mode=mode):
+                out = self.ask(got, mode)
+                self.assertTrue(out["open"])
+                self.assertIn(f"{ask_final.ALLOWED_TESTS_HEAD}（1 件。人の確かめが要る）", out["text"].splitlines()[0])
+                self.assertTrue(out["text"].splitlines()[4].startswith("## " + ask_final.ALLOWED_TESTS_HEAD))
+        self.assertEqual(self.ask(got, "protected_only", unattended=True)["stop_reason"], linekit.NEEDS_HUMAN)
+
+    def test_open_and_first_line_come_from_one_list(self):
+        """L-G48: 開くかと 1 行目の開けた理由は同じ 1 つの列（ask_final.needs）。開き方に依らず開く理由は列の印 must だけで決まる"""
+        cases = (self.got(protected_hits=["tests/x.py"]), self.got(asked=["u1: 人に回した"]), self.got(green=False),
+                 self.got(conflicts_unread=["fix/conflicts.json: 読めない"]), self.got(allowed_test_changes=["tests/t.py"]),
+                 self.got(questions=["q"]), self.got(sealed=False))
+        for got in cases:
+            rows = ask_final.needs(got)
+            with self.subTest(rows=rows):
+                out = self.ask(got, "protected_only")
+                self.assertEqual(out["open"], any(must for _, must in rows))
+                self.assertEqual(out["reasons"], [phrase for phrase, _ in rows])
+                opened = self.ask(got, "when_needed")
+                self.assertIn("開けた理由: " + "・".join(opened["reasons"]), opened["text"].splitlines()[0])
+
+    def test_settled_rejudge_lines_are_shown(self):
+        """L-W30: 決着した再審の結果（runreport.rejudge_lines）を並べ、再審が無ければ「再審: 無い」"""
+        rows = ["再審の結果: 退ける（異議: 異議）", "  - 再審が直す単位にした（この run では直していない——次の run に渡す）: u2"]
+        text = ask_final.final_text(self.got(rejudge=rows), [], RUN)
+        self.assertIn("- 再審で決着した結果:\n  - 再審の結果: 退ける（異議: 異議）\n    - 再審が直す単位にした", text)
+        self.assertIn("- 再審: 無い", ask_final.final_text(self.got(), [], RUN))
+        returns = ask_final.judged_returns({"units": [{"id": "u1"}, {"id": "u2"}], "first_units": [{"id": "u1"}], "judgment": None,
+                                            "ties_judgment": None, "rejudged": True, "rejudge_verdict": "退ける", "objection": "異議",
+                                            "refix_objection": "", "fix_units": [{"unit_id": "u1"}], "groups": []})
+        self.assertEqual(ask_final.rejudge_rows(returns), rows)
+
+    def test_questions_say_the_answer_does_not_answer_them(self):
+        """L-W35: 人に聞いている問いを記録のまま引き（> の行）、「この関所の答えはこの問いに答えない」と添える"""
+        text = ask_final.final_text(self.got(questions=["範囲の外の cli.py を変えてよいか\n（R4）"]), [], RUN)
+        self.assertIn("  > 範囲の外の cli.py を変えてよいか\n  > （R4）", text)
+        self.assertIn("この関所の答えはこの問いに答えない", text)
+        self.assertNotIn("- 問い: ", text)
+
+    def test_final_text_sections_match_the_original(self):
+        """L-W34: 例で試していない単位・同じ run で直した案の項目（AMEND_HEAD）・持ち越した単位（split_line）・取り込むと消える
+        ファイル・残りの件数（目の阻害と結果が無い目）と、数えられない clean・レンズ・仕組みの異常の訳を並べる"""
+        got = self.got(unproven=["u1: 例が無い"], amend=["案の項目 1: 直した——人が承認した"],
+                       split="修正の段は 1 単位（u1）を受け、1 単位（u2）を止めて持ち越した", deleted=["old.py"],
+                       eyes={**self.got()["eyes"], "r3": {"status": "redesign-needed", "reason": ""}, "r4": None})
+        text = ask_final.final_text(got, [], RUN)
+        for want in (f"## {querytest.UNPROVEN_HEAD}（1 件）", "- u1: 例が無い", f"## {ask_final.AMEND_HEAD}（1 件）", "- 案の項目 1: 直した",
+                     f"- {seal.DELETED_HEAD}: old.py", "独立の目の阻害 1 件（R3）・結果が無い目 1 件（R4）", ask_final.NOT_COUNTED):
+            self.assertIn(want, text)
+        self.assertIn("1 単位（u2）を止めて持ち越した", text.splitlines()[0])
+        self.assertEqual(ask_final.amend_rows(["1"], None, False),
+                         ["案の項目 1: 直さずに諦めた: 2 度目の修正が走らなかった（案を直せなかったか、案の直しの関所で止めた）"])
+        self.assertEqual(ask_final.amend_rows(["2"], True, True), ["案の項目 2: 直した——人が承認した"])
+        self.assertEqual(ask_final.amend_rows(["2"], False, True), ["案の項目 2: 直した——聞かずに通した（約束の欄が変わらなかった）"])
 
 
 class AskFinalReadsCase(Artifacts):
@@ -877,6 +1008,134 @@ class AskFinalReadsCase(Artifacts):
     def test_unread_is_shown_in_the_gate_text(self):
         text = ask_final.final_text(final_got(unread=["読めない訳"]), [], RUN)
         self.assertIn("- 読めない訳", text)
+
+
+    def conflicts(self, rel, *decisions):
+        """conflicts.json（conflict の形 {items}）に、裁定 decisions の行を 1 つずつ置いた指し札"""
+        rows = [{"id": f"c{i}", "unit_key": f"u{i}", "between": ["stats.py:3", "test_stats.py:2"], "why_both_cannot_hold": "両方は立たない",
+                 "which_is_right": "unknown", "kind": "needs_context",
+                 "ruling": {"decision": d, "text": f"裁定の文 {i}（{d}）", "limits": []}} for i, d in enumerate(decisions, 1)]
+        return self.place(f"{rel}/{conflict.FILE}", {"items": rows})
+
+    def test_only_asked_conflict_rows_open_and_are_named(self):
+        """L-W24: 申し出は人に回した行（ask_human と案の直しを諦めた行）だけを数え、文は conflict.human_lines の行（1 回目と 2 度目の
+        修正の控えの両方）。直す裁定だけの控えは数えない。読めない控えは黙って 0 にせず訳を返す"""
+        first = self.conflicts("fix/fix", "fix_code_as", "ask_human")
+        second = self.conflicts("fix/refix-run", "fix_test_scope")
+        rows, unread = ask_final.asked_conflicts([first, second])
+        self.assertEqual((len(rows), unread), (1, []))
+        self.assertTrue(rows[0].startswith("u2: 裁定の文 2（ask_human）（名指し stats.py:3, test_stats.py:2・種類 needs_context・"), rows[0])
+        self.assertEqual(ask_final.asked_conflicts([second]), ([], []))
+        gone = {"type": "archon_artifact", "run_id": RUN, "path": "fix/gone/conflicts.json"}
+        rows, unread = ask_final.asked_conflicts([gone])
+        self.assertEqual(rows, [])
+        self.assertIn("fix/gone/conflicts.json", unread[0])
+
+    def test_unread_hold_is_shown(self):
+        """L-G31・P238: 台帳の key を拾えない「保留」（打ち間違いの key）は答えた扱いのまま、最後の関所の文に「読めなかった保留」として
+        一言の断片と、答えたものとして推しで直す問いの key を並べる"""
+        judgment = self.judgment([self.FORK])
+        start = self.place("start.json", {"answers": []})
+        b, _ = ask_final.ledger(judgment, start, {"decision": "continue", "text": "保留: q-typo", "asked": [gatemarks.ask_text(self.FORK)]})
+        rows = ask_final.ledger_rows(b)
+        self.assertEqual(rows["held"], [])
+        text = ask_final.final_text(final_got(**rows), [], RUN)
+        line = next(x for x in text.splitlines() if "読めなかった保留" in x)
+        self.assertIn("「保留: q-typo」", line)
+        self.assertIn("答えたものとして推しで直す問い: q1", line)
+
+    def test_final_text_lists_new_names_and_deviations(self):
+        """L-W31: 直した後の実測（数・柵の増え・新しい名・修正案の外れの訳。structmark.after_lines）を並べる"""
+        rise = {"concept": "止め", "what": "語", "path": "a.py", "before": 1, "after": 2}
+        ptr = self.place("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [{"item": 1, "answer": "外れた", "why": "訳"}],
+                                                       "after": {"tables": ["t"], "fence_up": [rise], "new_names": [{"name": "mean_or_zero", "sites": 2}]}})
+        fenced, after, unread = ask_final.after_rows(ptr)
+        text = ask_final.final_text(final_got(fenced=fenced, after=after), [], RUN)
+        self.assertEqual(unread, "")
+        self.assertIn("  - 新しい名 mean_or_zero（現れる所 2 か所）", text)
+        self.assertIn("を知る場所が a.py で増えた", text)
+        self.assertIn("  - 修正案の", text)
+
+    def test_passed_items_and_converge_rounds_are_listed(self):
+        """L-W32: 修正前の関所で通した項目（gatemarks.pass_lines。事前審査の review の隣の gate-passes.json）と事前審査の往復
+        （gate.json の converge）を最後の関所の文に並べる。案の直しの事前審査の物も足す"""
+        row = {"node": gatemarks.GATE_NODE, "round": 1, "by": gatemarks.PASSED_BY, "item": "修正案 1 が狭める能力: x", "decided_by": "docs/adr.md:3"}
+        self.place(f"plan-review/pass-1/{gatemarks.PASSES_FILE}", [row])
+        self.place(f"plan-review/pass-1/{gatemarks.GATE_RECORD_FILE}", {"items": [], "converge": ["壁打ち: 2 往復で clean", "  - 往復 1: …"]})
+        review = self.place("plan-review/pass-1/review.json", {})
+        passes, rounds, unread = ask_final.review_rows((review, None))
+        self.assertEqual((passes, rounds, unread), ([gatemarks.pass_lines([row])[0]], ["壁打ち: 2 往復で clean", "  - 往復 1: …"], []))
+        text = ask_final.final_text(final_got(passes=passes, converge=rounds), [], RUN)
+        self.assertIn(f"  - {gatemarks.named(gatemarks.GATE_NODE)}（周 1）で決め手が在るので聞かずに通した: 修正案 1 が狭める能力: x", text)
+        self.assertIn("- 壁打ち: 2 往復で clean\n  - 往復 1: …", text)
+        _, _, unread = ask_final.review_rows(({"type": "archon_artifact", "run_id": RUN, "path": "gone/review.json"},))
+        self.assertIn("事前審査の隣の控え（通した行・往復）を読めない", unread[0])
+
+    def test_final_gate_lists_gate_passes(self):
+        """P255: 事前審査の隣の gate-passes.json に 1 行在る時、最後の関所の文にその行が在る（元 works/tests/test_plan_gate.py:397・
+        :515・:575 の final_text の断言の、決め手で通した行の分）"""
+        row = {"node": gatemarks.GATE_NODE, "round": 1, "by": gatemarks.PASSED_BY, "item": "決め手で通した行", "decided_by": "x.md:1"}
+        self.place(f"plan-review/pass-1/{gatemarks.PASSES_FILE}", [row])
+        self.place(f"plan-review/pass-1/{gatemarks.GATE_RECORD_FILE}", {"items": [], "converge": []})
+        passes, _, _ = ask_final.review_rows((self.place("plan-review/pass-1/review.json", {}),))
+        self.assertIn("決め手で通した行（決め手: x.md:1）", ask_final.final_text(final_got(passes=passes), [], RUN))
+
+    def test_final_text_lists_suites_baseline_and_left_tests(self):
+        """L-W28・T35: 最後のテストの証拠（test-gate の result.py の evidence が書く evidence.md）から、一式・修正前のテスト・ログ・
+        認証しなかった訳を字のまま読み、作業ツリーと並べる。手元で回さなかった試験（ci_left・final_left・final_far）は修正の返りに
+        控えが無い（F013。部分 D2）"""
+        result = load_block_script("test-gate", "result")
+        run = {"by": "role_needed", "log": "test-gate/final/logs/checks.log", "junit_steps": [], "junit_unran": [], "suite": None,
+               "fingerprint_before": None, "fingerprint_after": None}
+        text = result.evidence("final", {"ok": False, "green": True, "red_cause": ""}, run, None, "", "任せ先の自己申告の緑", "一式 X",
+                               "修正前のテスト: 緑（元の結末）")
+        ptr = self.place("test-gate/final/evidence.md", {})
+        (self.artifacts / "test-gate/final/evidence.md").write_text(text, encoding="utf-8")
+        got = ask_final.evidence_rows(ptr)
+        self.assertEqual(got, {"suites": "role_needed・一式 X", "baseline": "緑（元の結末）", "log": "test-gate/final/logs/checks.log",
+                               "why": "任せ先の自己申告の緑", "unread": ""})
+        self.assertIn("最後のテストの証拠を読めない", ask_final.evidence_rows({"type": "archon_artifact", "run_id": "x", "path": "e.md"})["unread"])
+        text = ask_final.final_text(final_got(evidence=got, tests_ok=False), [], RUN)
+        for want in ("- テストの一式: role_needed・一式 X", "- 修正前のテスト: 緑（元の結末）", "- ログ: test-gate/final/logs/checks.log",
+                     "- 走れなかった・認証しなかった理由: 任せ先の自己申告の緑", "- run の作業ツリー: /tmp/tree"):
+            self.assertIn(want, text)
+
+    def test_deleted_files_named(self):
+        """M38: 封じた差分の中で消えるファイルを、当てる前に 1 本ずつ名指す（「取り込むと消えるファイル: <パス>」）"""
+        diff = ("diff --git a/old.py b/old.py\ndeleted file mode 100644\nindex 1..0\n--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n"
+                "diff --git a/keep.py b/keep.py\nindex 1..2 100644\n--- a/keep.py\n+++ b/keep.py\n@@ -1 +1 @@\n-a\n+b\n")
+        ptr = self.place("merge/sealed.diff", {})
+        (self.artifacts / "merge/sealed.diff").write_text(diff, encoding="utf-8")
+        self.assertEqual(ask_final.deleted_files(ptr), (["old.py"], ""))
+        self.assertIn(f"- {seal.DELETED_HEAD}: old.py", ask_final.final_text(final_got(deleted=["old.py"]), [], RUN))
+        self.assertIn("封じた差分を読めない", ask_final.deleted_files({"type": "archon_artifact", "run_id": "x", "path": "d"})[1])
+
+    def test_gate_text_is_kept_in_the_artifacts(self):
+        """L-W37: 開いた関所の文の控えを run の置き場の gates/final-gate.md に残し、文はそのパスを名指す"""
+        out = ask_final.keep(ask_final.ask(final_got(), mode="", unattended=False, run_id=RUN), self.artifacts)
+        self.assertEqual((self.artifacts / ask_final.FINAL_GATE_FILE).read_text(encoding="utf-8"), out["text"])
+        self.assertIn(f"この文の控え: run の置き場の {ask_final.FINAL_GATE_FILE}", out["text"])
+        shut = ask_final.keep(ask_final.ask(final_got(), mode="when_needed", unattended=False, run_id=RUN), self.tmp / "none")
+        self.assertFalse((self.tmp / "none").exists())
+        self.assertFalse(shut["open"])
+
+
+class FinalGateCase(Artifacts):
+    """最後の人の関所に、人に回した食い違いの申し出（ask_human と案の直しを諦めた fix_plan_item）だけを 1 行ずつ並べ、それが在る時
+    だけ開ける（F426）"""
+    place, conflicts = AskFinalReadsCase.place, AskFinalReadsCase.conflicts
+
+    def test_final_gate_lists_asked_lines_not_pointers(self):
+        for mode in ("when_needed", "protected_only"):
+            with self.subTest(mode=mode):
+                rows, unread = ask_final.asked_conflicts([self.conflicts("fix/fix", "fix_code_as", "fix_test_scope")])
+                fixed_only = ask_final.ask(final_got(asked=rows, conflicts_unread=unread), mode=mode, unattended=False, run_id=RUN)
+                self.assertFalse(fixed_only["open"], fixed_only)
+                rows, unread = ask_final.asked_conflicts([self.conflicts("fix/fix", "fix_code_as", "ask_human")])
+                asked = ask_final.ask(final_got(asked=rows, conflicts_unread=unread), mode=mode, unattended=False, run_id=RUN)
+                self.assertTrue(asked["open"])
+                self.assertIn(f"- {rows[0]}", asked["text"])
+                self.assertNotIn("conflicts.json", asked["text"])
 
 
 class PlanOutCase(unittest.TestCase):
