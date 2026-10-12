@@ -172,7 +172,7 @@
 {"id": "L-W59", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
 {"id": "L-W60", "kind": "waits-part", "part": "A"},
 {"id": "L-W61", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
-{"id": "L-W62", "kind": "seen", "writer": "workflows/line/scripts/result.py:47", "check": "json-equals", "where": "record/parent.json", "path": "terminal_record.returns.value.fixed", "value": true},
+{"id": "L-W62", "kind": "seen", "writer": "workflows/line/scripts/result.py:46", "check": "json-equals", "where": "record/parent.json", "path": "terminal_record.returns.value.fixed", "value": true},
 {"id": "L-W63", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-W64", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-W65", "kind": "scenario-only", "why": "筋書きでのみ"},

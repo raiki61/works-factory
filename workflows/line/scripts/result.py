@@ -34,7 +34,6 @@ LINE_SCRIPT = "works:line-script"
 APPLY = ("ok", "hash", "diff", "reason")
 SEALED = ("ok", "hash", "diff")
 COLLECTED = ("merge_apply", "merge_seal", "eyes", "gate_final")
-CHILDREN = ("cleaned", "left", "error")
 
 
 def pick(got, keys) -> dict | None:
@@ -46,7 +45,8 @@ def result(got: dict, line: dict, children) -> dict:
     answer = line.get("gate_final")
     return {**got, "fixed": got["outcome"] in FIXED, "apply": pick(line.get("merge_apply"), APPLY),
             "sealed": pick(line.get("merge_seal"), SEALED), "r2_status": r2.get("status") if isinstance(r2, dict) else None,
-            "final_answer": answer if isinstance(answer, dict) else None, "children": pick(children, CHILDREN)}
+            "final_answer": answer if isinstance(answer, dict) else None,
+            "children": children if isinstance(children, dict) else None}
 
 
 def from_env() -> dict:
