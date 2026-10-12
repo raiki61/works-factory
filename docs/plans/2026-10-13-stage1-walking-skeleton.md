@@ -80,11 +80,11 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 `bin/apply <run-id> [--cwd <対象>] [--allow-delete] [--allow-stopped]`
 
 1. 対象を決める: `--cwd` の値、無ければ打った場所。`bin/_lib/launcher.py` の `target_root` で git の根に直す（殻と同じ関数で、同じ対象から同じ家を引く。決め方を 2 か所に持たない）。
-2. run を読む: 子のプロセスで `bin/works-factory workflow get <run-id> --json --cwd <対象>` を走らせ、JSON を読む（家・隔離・Archon の起こし方は殻の物を使う。`get` は工程を回す命令でないので、殻は認証の確かめもプラグインの選びもしない）。読めない・0 でない終わり・`terminal_record` が `null`（終わっていない run）・`returns.availability` が `available` でない（`unavailable` も `truncated` も）なら、終了の値 2 で 1 行言って止まる。
+2. run を読む: 子のプロセスで `bin/works-factory workflow get <run-id> --json --cwd <対象>` を走らせ、JSON を読む（家・隔離・Archon の起こし方は殻の物を使う。`get` は工程を回す命令でないので、殻は認証の確かめもプラグインの選びもしない）。読めない・0 でない終わり・`terminal_record` が `null`（終わっていない run）・`returns.availability` が `available` でない（`unavailable` も `truncated` も）なら、終了の値 2 で 1 行言って止まる。`returns` が読めない run では、置き場に `merge/apply.diff`（無ければ `merge/sealed.diff`）が在れば、その 1 行にそのパスと「確かめずに当てるなら `git -C <対象> apply <パス>`」を書く（M45）。
 3. 当てる差分を選ぶ（`returns.value` は線の返す節 `result` の値。止めた Archon の `terminal-record.ts`）:
    - `value.apply` が在り `ok` が真なら、`value.apply.diff` と `value.apply.hash`。人が最後の関所を通した（か関所が開かなかった）run。
    - そうでなく `--allow-stopped` が在れば、`value.sealed.diff` と `value.sealed.hash`（`merge-seal` が封じた差分）。ただし `value.r2_status` が `redesign-needed` なら当てない（持ち主の決め `small-core`。merge の apply と同じ決まり）。最後の関所で止めた run の差分を、人が明示して当てる道（今の works の `WORKS_USE_ALLOW_STOPPED`。`use.sh` 409-424 行）。
-   - どちらでもなければ、終了の値 1 で「置いた差分が無い」と結末の語（`value.outcome`）を言って止まる。封じていない差分（`merge-seal` より前で止まった run）は当てない（README の「約束すること」の「関所を通らなかった物は取り込まない」）。
+   - どちらでもなければ、終了の値 1 で「置いた差分が無い」と結末の語（`value.outcome`）・止めた所（`value.stop_reason`）・最後の関所の人の一言（`value.final_answer.text`）を言って止まる（M43）。`--allow-stopped` で封じた差分を当てた時は、同じ訳と「--allow-stopped が在るので当てた」を標準エラーに 1 行出す（M44）。封じていない差分（`merge-seal` より前で止まった run）は当てない（README の「約束すること」の「関所を通らなかった物は取り込まない」）。その 1 行に、run の作業ツリー（`workflow get --json` の `working_path`）と始めの commit（同じく `checkout_baseline.commit`。線の始めの記録の `base_rev` と同じ HEAD）から `git -C <作業ツリー> diff <commit> | git -C <対象> apply` を書く。`r2_status` が `redesign-needed` の run には書かない（M46）。
 4. 指し札を照らす: 指し札の `run_id` が `terminal_record.run_id` と同じ（`<run-id>` は短い id でもよいので、引数と比べない）。`path` が相対で、`terminal_record.artifacts.root` と `path` を結んだ実のパス（realpath）が `artifacts.root` の実のパスの下の、在る普通のファイル。違えば終了の値 1。
 5. hash を照らす: ファイルの sha256 が 3 で選んだ hash と同じ。`apply` の道では、加えて `value.apply.hash` が `value.sealed.hash` と同じ。違えば終了の値 1 で「封じた hash と合わない」と両方の hash を言って止まり、対象は変えない。hash の正本は Archon の DB の run の記録で、置き場のファイルではない（ファイルを書き換えても記録の hash は変わらない）。
 6. 消す行: `git apply --numstat --summary` に ` delete mode` が在れば、`--allow-delete` が無い限り終了の値 1 で消すファイルを並べて止まる（今の works の `WORKS_USE_ALLOW_DELETE` と同じ）。
@@ -95,8 +95,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 今の works から狭まる所（PR に名指す。どれも封じた hash を DB の記録から読む形と、README の約束から来る）:
 
 - 鎖の最後の差分を当てる口（`use.sh apply <鎖の id>`）は持たない。周の鎖はまだ無い（`docs/design.md` の「周の鎖」）。鎖を作る issue が足す。
-- 報告の節か線の `result` が落ちた run は当てられない（今の works は作業ツリーから差分を組み直して当てた）。封じた hash が記録に無い差分を当てない向きに落とす。run の作業ツリーは残るので、人は `git -C <作業ツリー> diff` で中身を見られる。
-- 止まったかを言える記録が無い run を当てない（今の works は 1 行出して当てた）。上と同じ訳。
+- 報告の節か線の `result` が落ちた run・止まったかを言える記録が無い run・封じる前に止まった run は、`bin/apply` では当てない（今の works は作業ツリーから組み直すか、1 行出して当てた）。封じた hash が記録に無い差分を当てない向きに落とす。能力は、拒む 1 行が書く素の `git apply` の道で残す（上の 2・3。新しい旗は足さない。`docs/plans/2026-10-13-line-wiring.md` の M45・M46 の決め）。
 
 ### 線の返りに足す欄
 
@@ -106,6 +105,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 - `sealed`（object・null 可）: `merge-seal` の返りの `ok`・`hash`・`diff`。飛ばされたら `null`。
 - `r2_status`（string・null 可）: eyes の返りの `r2.status`。省いた・飛ばされたら `null`。
 - `report`（指し札・null 可）: report の返りの `report`（人が `workflow get` から報告の本文を開くため）。
+- `final_answer`（object・null 可）: 最後の関所の答え `answer-final` の `answer`（`decision`・`text`）。関所が開かなかったら `null`。`bin/apply` が止まった run を拒む 1 行に人の一言を載せる（M43）。
 
 ### 種の入力
 
