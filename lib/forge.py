@@ -10,6 +10,9 @@ core は git だけで動き、gh・GitHub は外側の forge の層（持ち主
   （GitHub でないホスト。GitLab・自前のホストなど）。where はホスト（userinfo とポートを落とす）かパス。トークンは載せない
 - detect(repo) -> {kind, remote, where}: upstream の remote を先に、無ければ origin（写しの rules の _github_repo と同じ選び方）。
   git が remote を引けない（リポジトリでない・git が無い）は UNKNOWN（決めない）
+- repo_of(url) -> {kind, host, owner, name}|None: GITHUB・OTHER_HOST の URL から gh が名指せる [HOST/]OWNER/REPO の部品。
+  GitHub の別名（www・ssh の下・github.com で始まる ssh の別名）の host は github.com、<名>.ghe.com はそのまま。パスが
+  <owner>/<name>（末尾の .git は落とす）でなければ None。userinfo は載せない
 - redact(text) -> str: 文の中の URL の userinfo（トークン）を落とす
 - reason(d) -> str: forge の無い種類なら "no_forge: <種類>（…）"、それ以外（GitHub・UNKNOWN・形の崩れた値・None）は ""
 
@@ -77,6 +80,33 @@ def _classify(url) -> dict:
     if m:
         return {"kind": _host_kind(m.group(1), ssh=True), "where": m.group(1).lower()}
     return {"kind": LOCAL_PATH, "where": u}
+
+
+SEGMENT = re.compile(r"[A-Za-z0-9_.-]+\Z")
+HOST = re.compile(r"[a-z0-9.-]+\Z")
+
+
+def repo_of(url):
+    """URL の形から {kind, host, owner, name}。GitHub でもほかのホストでもない URL・<owner>/<name> でないパスは None"""
+    try:
+        got = _classify(url)
+        if got["kind"] not in (GITHUB, OTHER_HOST) or "::" in url.split("/", 1)[0]:
+            return None
+        u = url.strip()
+        path = urllib.parse.urlsplit(u).path if "://" in u else u.split(":", 1)[1]
+    except ValueError:
+        return None
+    if got["kind"] == GITHUB:
+        host = got["where"] if GHE_CLOUD.match(got["where"]) else "github.com"
+    elif HOST.match(got["where"]):
+        host = got["where"]
+    else:
+        return None
+    path = path.strip("/")
+    parts = (path[:-len(".git")] if path.endswith(".git") else path).split("/")
+    if len(parts) != 2 or not all(SEGMENT.match(p) for p in parts):
+        return None
+    return {"kind": got["kind"], "host": host, "owner": parts[0], "name": parts[1]}
 
 
 USERINFO = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/@\s]+@")
