@@ -4,10 +4,13 @@
 workflow get で読み（家・隔離・Archon の起こし方は殻の物）、線の返す節 result の値（terminal_record.returns.value）から当てる差分を選ぶ。
 hash の正本は Archon の DB の run の記録で、置き場のファイルではない。今の works の確かめ（works/dev/use.sh の apply_checked:
 消す行の許し・止まった run の許し・git apply --check）に、封じた hash と指し札の照らし・読み戻しを足す。commit はしない。
+封じた hash で確かめられない差分（線の返りが読めない run・封じる前に止まった run）は当てず、拒む 1 行に素の git apply で当てる道を書く
+（docs/plans/2026-10-13-line-wiring.md の M45・M46 の決め。新しい旗は足さない）。
 """
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import sys
 from collections.abc import Callable
@@ -26,6 +29,7 @@ SHELL = Path(__file__).resolve().parents[1] / "works-factory"
 UNREADABLE = 2
 REFUSED = 1
 POINTER_TYPE = "archon_artifact"   # merge の返りの diff の型（試験が workflows/merge の output_format と縛る）
+APPLY_DIFF, SEALED_DIFF = "merge/apply.diff", "merge/sealed.diff"   # merge が置き場に置く差分（同じく output_format の enum と縛る）
 
 Get = Callable[[str, Path], subprocess.CompletedProcess[str]]
 
@@ -54,56 +58,99 @@ def main(argv: list[str], here: Path | None = None, get: Get = ask_launcher) -> 
     here = here or Path.cwd()
     try:
         target = launcher.target_root(Path(args.cwd or here), here)
-        record = read_run(get(args.run_id, target), args.run_id)
-        diff, sealed_hash = choose(record, args.allow_stopped)
-        data = diff.read_bytes()
+        run = read_run(get(args.run_id, target), args.run_id, target)
+        diff, sealed_hash, stopped = choose(run, target, args.allow_stopped)
+        try:
+            data = diff.read_bytes()
+        except OSError as e:
+            raise Refuse(f"差分のファイルを読めない（{e.strerror}: {diff}）") from None
         if seal.digest(data) != sealed_hash:
             raise Refuse(f"封じた hash と合わない（記録 {sealed_hash}・置き場のファイル {seal.digest(data)}: {diff}）。当てない")
         files = put(target, data, args.allow_delete)
     except (launcher.Stop, Refuse) as stop:
-        print(f"{NAME}: {stop}", file=sys.stderr)
+        print(f"{NAME}: {one_line(str(stop))}", file=sys.stderr)
         return stop.code
-    print(f"run {record['run_id']} の封じた差分を {target} に当てた: {' '.join(files)}")
+    if stopped:
+        print(f"{NAME}: {one_line(stopped)}で止まった run。--allow-stopped が在るので当てた", file=sys.stderr)
+    print(f"run {run['terminal_record']['run_id']} の封じた差分を {target} に当てた: {' '.join(files)}")
     print("commit はしていない。試験を回してから commit する")
     return 0
 
 
-def read_run(done: subprocess.CompletedProcess[str], run_id: str) -> dict:
-    """workflow get --json の答えから、終わった run の記録（terminal_record）を取る。読めなければ終了の値 2"""
+def read_run(done: subprocess.CompletedProcess[str], run_id: str, target: Path) -> dict:
+    """workflow get --json の答え（run の記録の欄と、終わった run の terminal_record）。読めなければ終了の値 2"""
     if done.returncode != 0:
         raise Refuse(f"run {run_id} を読めない（workflow get が終了の値 {done.returncode}）", UNREADABLE)
     try:
-        record = json.loads(done.stdout).get("terminal_record")
+        run = json.loads(done.stdout)
+        record = run.get("terminal_record")
     except (json.JSONDecodeError, AttributeError):
         raise Refuse(f"run {run_id} を読めない（workflow get の答えが JSON の object でない）", UNREADABLE) from None
     if record is None:
         raise Refuse(f"run {run_id} は終わっていない（terminal_record が null）。終わってから当てる", UNREADABLE)
     returns = record.get("returns") or {}
     if returns.get("availability") != "available":
-        raise Refuse(f"run {run_id} の線の返りが読めない（returns.availability が {returns.get('availability')}）",
-                     UNREADABLE)
+        raise Refuse(f"run {run_id} の線の返りが読めない（returns.availability が {returns.get('availability')}）"
+                     f"{unchecked(record, target)}", UNREADABLE)
     if not isinstance(returns.get("value"), dict):
-        raise Refuse(f"run {run_id} の線の返り（returns.value）が object でない", UNREADABLE)
-    return record
+        raise Refuse(f"run {run_id} の線の返り（returns.value）が object でない{unchecked(record, target)}", UNREADABLE)
+    return run
 
 
-def choose(record: dict, allow_stopped: bool) -> tuple[Path, str]:
-    """当てる差分のファイルと、記録の封じた hash"""
+def unchecked(record: dict, target: Path) -> str:
+    """線の返りが読めない run の、置き場に在る差分を確かめずに当てる道（置き場に差分が無ければ空）"""
+    root = (record.get("artifacts") or {}).get("root")
+    if not isinstance(root, str) or not root:
+        return ""
+    for rel in (APPLY_DIFF, SEALED_DIFF):
+        path = Path(root, rel)
+        if path.is_file():
+            return f"。置き場の差分 {path} を確かめずに当てるなら {shlex.join(['git', '-C', str(target), 'apply', str(path)])}"
+    return ""
+
+
+def choose(run: dict, target: Path, allow_stopped: bool) -> tuple[Path, str, str]:
+    """当てる差分のファイルと、記録の封じた hash と、止まった run を許しで当てるならその訳（ほかは空）"""
+    record = run["terminal_record"]
     value = record["returns"]["value"]
     placed, sealed = value.get("apply"), value.get("sealed")
     if isinstance(placed, dict) and placed.get("ok") is True:
         if not isinstance(sealed, dict) or placed.get("hash") != sealed.get("hash"):
             raise Refuse(f"置いた差分の hash が封じた hash と合わない（apply {placed.get('hash')}・"
                          f"sealed {sealed.get('hash') if isinstance(sealed, dict) else None}）。当てない")
-        return pointed(record, placed.get("diff")), placed["hash"]
-    nothing = f"置いた差分が無い（結末 {value.get('outcome')}）"
+        return pointed(record, placed.get("diff")), placed["hash"], ""
+    why = stopped_why(value)
+    nothing = f"置いた差分が無い（{why}）"
     if not (isinstance(sealed, dict) and sealed.get("ok") is True):
-        raise Refuse(f"{nothing}。封じていない差分は当てない")
+        by_hand = "" if value.get("r2_status") == seal.REDESIGN else from_worktree(run, target)
+        raise Refuse(f"{nothing}。封じていない差分は当てない{by_hand}")
     if not allow_stopped:
         raise Refuse(f"{nothing}。最後の関所で止めた run の封じた差分を当てるなら --allow-stopped を付けて打ち直す")
     if value.get("r2_status") == seal.REDESIGN:
         raise Refuse(f"R2 が {seal.REDESIGN} を言った run の差分は、--allow-stopped でも当てない")
-    return pointed(record, sealed.get("diff")), sealed["hash"]
+    return pointed(record, sealed.get("diff")), sealed["hash"], why
+
+
+def stopped_why(value: dict) -> str:
+    """結末の語と、止めた所と、最後の関所で人が書いた一言"""
+    parts = [f"結末 {value.get('outcome')}"]
+    if value.get("stop_reason"):
+        parts.append(f"止めた所 {value['stop_reason']}")
+    said = value.get("final_answer")
+    if isinstance(said, dict) and isinstance(said.get("text"), str) and said["text"].strip():
+        parts.append(f"人の一言「{said['text']}」")
+    return "・".join(parts)
+
+
+def from_worktree(run: dict, target: Path) -> str:
+    """封じる前に止まった run の作業ツリーの差分を確かめずに当てる道（作業ツリーか始めの commit が記録に無ければ空）。
+    始めの commit は、線の始めの記録の base_rev（始めの節が読む HEAD）と同じ、Archon が最初の節の前に見た checkout"""
+    path, start = run.get("working_path"), run.get("checkout_baseline") or {}
+    base = start.get("commit") if start.get("kind") == "git" else None
+    if not (isinstance(path, str) and path and isinstance(base, str) and base):
+        return ""
+    return (f"。run の作業ツリーの差分を確かめずに当てるなら {shlex.join(['git', '-C', path, 'diff', base])} | "
+            f"{shlex.join(['git', '-C', str(target), 'apply'])}")
 
 
 def pointed(record: dict, ptr) -> Path:
@@ -148,6 +195,11 @@ def put(target: Path, data: bytes, allow_delete: bool) -> list[str]:
     if back.returncode != 0:
         raise Refuse(f"当てたが読み戻せない（git apply -R --check）: {back.stderr}")
     return files
+
+
+def one_line(text: str) -> str:
+    """拒む文は 1 行（git の標準エラーや人の一言の改行を畳む）"""
+    return " ".join(text.split())
 
 
 def git_apply(target: Path, data: bytes, *flags: str) -> subprocess.CompletedProcess[str]:

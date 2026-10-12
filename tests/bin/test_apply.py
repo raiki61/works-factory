@@ -29,6 +29,7 @@ MERGE = ROOT / "workflows" / "merge" / "works-factory-merge.yaml"
 
 RUN = "0123456789abcdef0123456789abcdef"
 SHORT = RUN[:8]
+BASE = "fedcba9876543210fedcba9876543210fedcba98"
 FIXED = "def mean(xs):\n    return sum(xs) / len(xs)\n"
 
 
@@ -51,6 +52,7 @@ class ApplyTest(unittest.TestCase):
         git(self.target, "add", "-A")
         git(self.target, "commit", "-q", "-m", "seed")
         self.root = self.tmp / "artifacts"
+        self.worktree = self.tmp / "run-worktree"
         self.diff = self.make_diff(lambda: (self.target / "stats.py").write_text(FIXED, encoding="utf-8"))
         self.place("merge/sealed.diff", self.diff)
         self.place("merge/apply.diff", self.diff)
@@ -80,7 +82,10 @@ class ApplyTest(unittest.TestCase):
         return value
 
     def record(self, value=None, *, returns=None, run_id=RUN) -> dict:
-        return {"run": {"id": run_id}, "terminal_record": {
+        """workflow get --json の答え: run の記録の欄（止めた Archon の workflowGetCommand が run を広げて出す）と terminal_record"""
+        return {"id": run_id, "status": "completed", "working_path": str(self.worktree),
+                "checkout_baseline": {"kind": "git", "commit": BASE, "tree": "0" * 40, "worktree": {"status": "clean"}},
+                "terminal_record": {
             "run_id": run_id, "status": "completed", "outcome": "success", "error": None, "first_failed_node": None,
             "nodes": [],
             "returns": returns or {"availability": "available", "node_id": "result",
@@ -106,9 +111,14 @@ class ApplyTest(unittest.TestCase):
         rc, out, err = done
         self.assertEqual(rc, code, out + err)
         self.assertEqual(self.status(), "", "対象が変わった")
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
         for word in words:
             self.assertIn(word, err)
         return err
+
+    def by_hand(self) -> str:
+        """封じる前に止まった run の作業ツリーの差分を、確かめずに当てる道"""
+        return f"git -C {self.worktree} diff {BASE} | git -C {self.target} apply"
 
     def assert_applied(self, done):
         rc, out, err = done
@@ -142,14 +152,28 @@ class ApplyTest(unittest.TestCase):
         for value in (self.value(apply=None, sealed=None, outcome="stopped_by_line"), self.value(apply=failed)):
             with self.subTest(value=value):
                 self.assert_refused(self.run_apply(self.record(value)), 1, "置いた差分が無い", value["outcome"])
-        with self.subTest("封じていない差分は --allow-stopped でも当てない"):
-            value = self.value(apply=None, sealed=None, outcome="stopped_by_line")
-            self.assert_refused(self.run_apply(self.record(value), "--allow-stopped"), 1, "置いた差分が無い")
+        refused = {"ok": False, "hash": sha(self.diff), "diff": pointer("merge/refused.diff")}
+        for name, sealed in (("封じる前に止まった", None), ("merge-seal が拒んだ", refused)):
+            with self.subTest(f"{name}差分は --allow-stopped でも当てず、作業ツリーから当てる道を言う"):
+                value = self.value(apply=None, sealed=sealed, outcome="stopped_by_line")
+                self.assert_refused(self.run_apply(self.record(value), "--allow-stopped"), 1, "置いた差分が無い",
+                                    self.by_hand())
+        with self.subTest("R2 が作り直しと言った run には当てる道を言わない"):
+            value = self.value(apply=None, sealed=None, outcome="stopped_by_line", r2_status="redesign-needed")
+            err = self.assert_refused(self.run_apply(self.record(value), "--allow-stopped"), 1, "置いた差分が無い")
+            self.assertNotIn(str(self.worktree), err)
+            self.assertNotIn("git -C", err)
 
     def test_apply_stopped_run_needs_flag(self):
-        value = self.value(apply=None, outcome="stopped_by_human")
-        self.assert_refused(self.run_apply(self.record(value)), 1, "--allow-stopped", "stopped_by_human")
-        self.assert_applied(self.run_apply(self.record(value), "--allow-stopped"))
+        value = self.value(apply=None, outcome="stopped_by_human", stop_reason="human:gate-final",
+                           final_answer={"decision": "stop", "text": "まだ早い。\n境界の試験が無い"})
+        self.assert_refused(self.run_apply(self.record(value)), 1, "--allow-stopped", "stopped_by_human",
+                            "human:gate-final", "まだ早い。 境界の試験が無い")
+        rc, out, err = self.run_apply(self.record(value), "--allow-stopped")
+        self.assert_applied((rc, out, err))
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        for word in ("stopped_by_human", "human:gate-final", "まだ早い。 境界の試験が無い", "--allow-stopped が在るので当てた"):
+            self.assertIn(word, err)
 
     def test_apply_stopped_run_refuses_redesign(self):
         value = self.value(apply=None, outcome="stopped_by_human", r2_status="redesign-needed")
@@ -167,8 +191,21 @@ class ApplyTest(unittest.TestCase):
         }
         for name, (got, rc) in cases.items():
             with self.subTest(name):
-                err = self.assert_refused(self.run_apply(got, rc=rc), 2)
-                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assert_refused(self.run_apply(got, rc=rc), 2)
+        unknown = {"unavailable": cases["unavailable"][0], "truncated": cases["truncated"][0],
+                   "object でない": self.record(returns={"availability": "available", "node_id": "result", "value": "x"})}
+        for name, got in unknown.items():
+            with self.subTest(f"{name}: 置き場の差分を確かめずに当てる道を言う"):
+                place = self.root / "merge" / "apply.diff"
+                self.assert_refused(self.run_apply(got), 2, str(place), f"git -C {self.target} apply {place}")
+        (self.root / "merge" / "apply.diff").unlink()
+        with self.subTest("置いた差分が無ければ封じた差分を名指す"):
+            place = self.root / "merge" / "sealed.diff"
+            self.assert_refused(self.run_apply(cases["unavailable"][0]), 2, f"git -C {self.target} apply {place}")
+        (self.root / "merge" / "sealed.diff").unlink()
+        with self.subTest("置き場に差分が無ければ道を言わない"):
+            err = self.assert_refused(self.run_apply(cases["unavailable"][0]), 2)
+            self.assertNotIn("git -C", err)
 
     def test_apply_refuses_pointer_outside_root(self):
         outside = self.place("../outside.diff", self.diff)
@@ -230,6 +267,7 @@ class ApplyTest(unittest.TestCase):
         """result の apply・sealed は merge の返りの欄を写した物（計画「線の返りに足す欄」）。試験の形が merge の output_format に合う"""
         returns = yaml.safe_load(MERGE.read_text(encoding="utf-8"))["nodes"][0]["output_format"]["properties"]
         self.assertEqual(returns["diff"]["properties"]["type"]["enum"], [apply.POINTER_TYPE])
+        self.assertLessEqual({apply.APPLY_DIFF, apply.SEALED_DIFF}, set(returns["diff"]["properties"]["path"]["enum"]))
         for name, member in ((n, self.value()[n]) for n in ("apply", "sealed")):
             with self.subTest(name):
                 shape = {"type": "object", "properties": {k: returns[k] for k in member}, "required": list(member)}
@@ -247,8 +285,59 @@ class ApplyTest(unittest.TestCase):
         before = self.status()
         rc, out, err = self.run_apply(self.record())
         self.assertEqual(rc, 1, out + err)
+        self.assertIn("手元の変更", err)
         self.assertEqual(self.status(), before)
         self.assertEqual((self.target / "stats.py").read_text(encoding="utf-8"), "def mean(xs):\n    return 0\n")
+
+    def test_every_refusal_is_one_line_and_leaves_target(self):
+        def dirty():
+            (self.target / "stats.py").write_text("def mean(xs):\n    return 0\n", encoding="utf-8")
+
+        def unreadable():
+            (self.root / "merge" / "apply.diff").chmod(0)
+
+        def changed():
+            self.place("merge/apply.diff", self.diff + b"\n")
+
+        stopped = self.value(apply=None, outcome="stopped_by_human", final_answer={"decision": "stop", "text": "a\nb"})
+        cases = {"手元の変更とぶつかる": (dirty, self.record()),
+                 "差分のファイルが読めない": (unreadable, self.record()),
+                 "封じた hash と合わない": (changed, self.record()),
+                 "止まった run": (None, self.record(stopped)),
+                 "封じる前に止まった run": (None, self.record(self.value(apply=None, sealed=None))),
+                 "読めない run": (None, self.record(returns={"availability": "unavailable", "node_id": None}))}
+        for name, (spoil, got) in cases.items():
+            with self.subTest(name):
+                if spoil:
+                    spoil()
+                before = {p: p.read_bytes() for p in self.target.iterdir() if p.is_file()}
+                status = self.status()
+                rc, out, err = self.run_apply(got)
+                self.assertNotEqual(rc, 0, out + err)
+                self.assertEqual(out, "")
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertEqual(self.status(), status)
+                self.assertEqual({p: p.read_bytes() for p in self.target.iterdir() if p.is_file()}, before)
+                git(self.target, "checkout", "-q", "--", ".")
+                (self.root / "merge" / "apply.diff").chmod(0o644)
+                self.place("merge/apply.diff", self.diff)
+
+    def test_apply_ignores_env_allowances(self):
+        """今の works の許しの環境変数（WORKS_USE_ALLOW_DELETE・WORKS_USE_ALLOW_STOPPED）は効かない。許しは 1 回の打ち方の旗だけ"""
+        gone = self.make_diff(lambda: (self.target / "old.txt").unlink())
+        self.place("merge/apply.diff", gone)
+        self.place("merge/sealed.diff", gone)
+        deletes = self.value(apply={"ok": True, "hash": sha(gone), "diff": pointer("merge/apply.diff"), "reason": ""},
+                             sealed={"ok": True, "hash": sha(gone), "diff": pointer("merge/sealed.diff")})
+        stopped = self.value(apply=None, sealed=deletes["sealed"], outcome="stopped_by_human")
+        with mock.patch.dict(os.environ, {"WORKS_USE_ALLOW_DELETE": "1", "WORKS_USE_ALLOW_STOPPED": "1"}):
+            self.assert_refused(self.run_apply(self.record(deletes)), 1, "--allow-delete")
+            self.assert_refused(self.run_apply(self.record(stopped)), 1, "--allow-stopped")
+
+    def test_apply_does_not_need_the_run_worktree(self):
+        """当てる物は置き場の封じた差分だけで、run の作業ツリーを読まない（作業ツリーが片付いた後でも当たる）"""
+        self.assertFalse(self.worktree.exists())
+        self.assert_applied(self.run_apply(self.record()))
 
 
 KEY = "sk-ant-api03-fake-for-apply"
