@@ -8,6 +8,7 @@
 import ast
 import pathlib
 import sys
+import tempfile
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -15,7 +16,9 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import fixboard  # noqa: E402
 import fixrules  # noqa: E402
+import policy  # noqa: E402
 import rulebook  # noqa: E402
 
 # 決まりの文の本体の置き場（scripts が import の後にする置き替えと同じ。lib/ の字にパスを書かない）
@@ -54,6 +57,22 @@ class TestFixPrompt(unittest.TestCase):
             self.assertNotIn(gone, body)
         again = fixrules.fix_prompt({k: f"/b/{k}" for k in fixrules.FIX_VALUES}, reject_file="/b/reject-accept_fix-1.txt")
         self.assertIn("/b/reject-accept_fix-1.txt", again.split("\n")[1])
+
+
+class TestPolicyBrief(unittest.TestCase):
+    def test_policy_brief_reads_frozen_copy(self):
+        """修正の役に貼る方針と渡すパスは始めの記録の固めた版の写し（始めの後に policy_md の文書を書き換えても固めた版）"""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = pathlib.Path(tmp.name)
+        pmd = root / "policy.md"
+        pmd.write_text("方針の印: 固めた版\n", encoding="utf-8")
+        frozen = policy.freeze(root / "run", root, str(pmd))
+        start = {"policy_md": str(pmd), "policy": frozen}
+        pmd.write_text("方針の印: 書き換えた版\n", encoding="utf-8")
+        self.assertEqual(fixboard.policy_brief(start), {"paste": "方針の印: 固めた版\n", "path": frozen["copy"]})
+        self.assertEqual(fixboard.fix_values(root, [], start=start)["policy_path"], frozen["copy"])
+        self.assertEqual(fixboard.policy_brief({}), {"paste": "", "path": ""})
 
 
 class TestLeftoversModule(unittest.TestCase):

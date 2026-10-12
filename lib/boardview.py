@@ -11,9 +11,10 @@
 - rules: 見え方が b.rules で渡す、写しの rules と検証器の表のうち、このブロックの部品が読む物の書き直し（元の名のまま）
 - open_pass: 差し込みの頭（元 planblk.snap と design.due・design.snap。works/blk-plan/lib/planblk.py:1062・
   works/.shared/core/design.py:492）。形 replan の項目（replan_items。元 works/.shared/core/replan.py:291 の material）と、
-  修正前の関所の答えの控え（take_gate_answers。元 graphloops/rules/review-loop.py:4134 の human_gate_answered）
-- 方針の文書: 置き場（名指しか git の共通の置き場の graphloops/policy.md）・固めた版・変化（policy_change・change_row。元
-  graphloops/rules/policy_input.py）。役に貼る節は policy.section
+  修正前の関所の答えの控え（take_gate_answers。元 graphloops/rules/review-loop.py:4134 の human_gate_answered）と、それを受けた後の
+  方針の文書の版（passed_version。線の節 answer-before-fix が呼ぶ）
+- 方針の文書: 固めた版（始めの記録の欄 policy。置き場と写しは policy.locate・snapshot）・変化（policy_change・change_row。元
+  graphloops/rules/policy_input.py）。役に貼る節は固めた版の写しの policy.section
 - r2_prompt・check_design: 独立設計の支度と受け付け（元 works/.shared/core/design.py:528 の prep・:586 の check_design・
   :603 の accept_reply）
 - review_material・take_review: 事前審査の支度と受け付け（元 works/blk-plan/lib/planblk.py:1085 の prep・:1134 の take・
@@ -26,7 +27,6 @@ from __future__ import annotations
 import copy
 import datetime
 import difflib
-import hashlib
 import json
 import pathlib
 import re
@@ -48,7 +48,6 @@ import rolekit
 import startrec
 import structmark
 import worldmark
-from engine import util
 from engine.util import Reject
 
 PLAN_NODE = "p2.fix_plan"
@@ -61,10 +60,9 @@ OPEN_ERROR = "open-error.txt"           # 差し込みの頭の節が落ちた�
 JUDGMENT_COPY = "judgment.json"         # 判定の写し（planblk.lib_section が state.outputs から引く）
 EXCLUDED_FILE = "pr-excluded.json"      # 判定の隣の並行 PR の外した範囲（在れば写して役の頭に名指す）
 PURPOSE_REVIEW_FILE = "purpose-review.json"  # 判定の隣の目的の監査の受けた返答（judge が必ず置く。無い・読めない時は {} で読む）
-POLICY_FILE = "policy.json"             # 方針の文書を固めた版 {named, path, sha256, copy, amendments}（run の最初の差し込みで固める）
-POLICY_DIR = "policy"
+POLICY_FILE = "policy.json"             # 方針の文書を固めた版 {named, path, sha256, copy, amendments}（始めの記録の欄 policy から置く）
+POLICY_DIR = policy.DIR
 POLICY_CHANGED = "policy_changed"       # 関所の項目の種類（方針の文書が固めた版から変わった）
-POLICY_DEFAULT = ("graphloops", "policy.md")   # 名指しが無い時の方針の文書の置き場（git の共通の置き場の下。元 policy_input.py:19）
 GATE_ASKED_FILE = "gate-asked.json"     # 返した関所の項目 {文: {kind, policy_change?}}（入力 gate_answers の通した行の種類と方針の変化を引く）
 GATE_ANSWERS_FILE = "gate-answers.json"  # 入力 gate_answers を写した人の関所の答えの行（gatemarks が読む process.human_items の形）
 PASS_WORDS = ("continue", "approve")    # 関所を通す答えの語（docs/design.md の人の関所の語）
@@ -375,6 +373,17 @@ def take_gate_answers(folder, gate_answers) -> list:
     return have
 
 
+def passed_version(folder, gate_answers) -> dict | None:
+    """修正前の関所の答えを受けた後の方針の文書の版 {named, path, sha256, copy}。答えを take_gate_answers で控えに積み（通した方針の
+    変化はここで固め直す）、置き場の POLICY_FILE を読む。この run の差し込みが版を置いていなければ None（線の節 answer-before-fix
+    が始めの記録の欄 policy をこの版で書き直す）"""
+    d = pathlib.Path(folder)
+    if not (d / POLICY_FILE).is_file():
+        return None
+    take_gate_answers(d, gate_answers)
+    return policy.version({"policy": _read_json(d / POLICY_FILE)})
+
+
 def tree_word(start: dict | None) -> str:
     """始めの記録の機能の切り替えから事前審査の木の語（on・off・auto。名指しが無ければ auto）"""
     doc = start or {}
@@ -442,8 +451,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     converge.note_plan(out, rows)
     if form == "review" and answered:
         converge.note_answers(out, answered)
-    named = (start_doc or {}).get("policy_md") or ""
-    frozen = _frozen_policy(d, named, _policy_path(cwd, named))
+    frozen = _frozen_policy(d, start_doc, cwd)
     units = [u for u in judged.get("units") or [] if isinstance(u, dict)]
     _, request, unread = _request(start_doc)
     defaults = [x for x, given in ((DEFAULT_START, start is not None), (DEFAULT_ANSWERS, answers is not None)) if not given]
@@ -514,42 +522,12 @@ def replan_items(b, approved, marked_rows: list, ruled: list, conflicts: list) -
     return out
 
 
-def _policy_path(cwd, named: str) -> str:
-    """方針の文書の置き場: 名指しが在ればそれ、無ければ git の共通の置き場の graphloops/policy.md が在ればそれ、どちらでもなければ
-    空（元 graphloops/rules/policy_input.py:22・:52 の default_path と locate）"""
-    if named:
-        return str(named)
-    common = (util.git("-C", str(pathlib.Path(cwd).resolve()), "rev-parse", "--git-common-dir") or "").strip()
-    if not common:
-        return ""
-    root = pathlib.Path(common)
-    if not root.is_absolute():
-        root = pathlib.Path(cwd) / root
-    p = root.resolve().joinpath(*POLICY_DEFAULT)
-    return str(p) if p.is_file() else ""
-
-
-def _policy_snapshot(d: pathlib.Path, path) -> tuple:
-    """方針の文書を 1 回だけ読み (sha256, 写しの置き場)。無ければ (None, None)（元 graphloops/rules/policy_input.py:38 の snapshot）"""
-    p = pathlib.Path(path) if path else None
-    if not (p and p.is_file()):
-        return None, None
-    data = p.read_bytes()
-    sha = hashlib.sha256(data).hexdigest()
-    copy_of = d / POLICY_DIR / f"{sha}.md"
-    if not copy_of.is_file():
-        copy_of.parent.mkdir(parents=True, exist_ok=True)
-        copy_of.write_bytes(data)
-    return sha, str(copy_of)
-
-
-def _frozen_policy(d: pathlib.Path, named: str, path: str) -> dict:
-    """run の最初の差し込みで固めた方針の文書の版 {named, path, sha256, copy}（今の works は盤面を作る時に固めた。始めの記録は版を
-    持たないので、この run でこのブロックが最初に読んだ版を固める。関所で方針の変化を通すと take_gate_answers が固め直す）"""
+def _frozen_policy(d: pathlib.Path, start_doc, cwd) -> dict:
+    """この run の方針の文書の版 {named, path, sha256, copy}。始めの記録の欄 policy（run の始めに固めた版）をそのまま置き、文書を
+    読み直さない。欄の無い・壊れた記録は、最初の差し込みで読んだ版を固める。関所で方針の変化を通すと take_gate_answers が固め直す"""
     if (d / POLICY_FILE).is_file():
         return _read_json(d / POLICY_FILE)
-    sha, copy_of = _policy_snapshot(d, path)
-    doc = {"named": str(named or ""), "path": str(path or ""), "sha256": sha, "copy": copy_of}
+    doc = policy.version(start_doc) or policy.freeze(d, cwd, (start_doc or {}).get("policy_md") or "")
     _write_json(d / POLICY_FILE, doc)
     return doc
 
@@ -562,8 +540,8 @@ def policy_change(folder, cwd) -> dict | None:
     if not (d / POLICY_FILE).is_file():
         return None
     pol = _read_json(d / POLICY_FILE)
-    path = _policy_path(cwd, pol.get("named") or "") or pol.get("path") or ""
-    to, to_copy = _policy_snapshot(d, path)
+    path = policy.locate(cwd, pol.get("named") or "") or pol.get("path") or ""
+    to, to_copy = policy.snapshot(d, path)
     frm = pol.get("sha256")
     if to == frm:
         return None
@@ -665,7 +643,7 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     if parts:
         body = f"{design.DESIGN_PREMISE_HEAD}\n\n{DESIGN_PREMISE_REREAD}\n\n" + "\n\n".join(parts) + f"\n\n---\n\n{body}"
     pol = _read_json(d / POLICY_FILE) if (d / POLICY_FILE).is_file() else {}
-    prompt = "\n\n".join(x for x in (body, policy.section(pol.get("path"))) if x)
+    prompt = "\n\n".join(x for x in (body, policy.section(pol.get("copy"))) if x)
     rows = rolekit.rejected(d, design.NODE)
     if rows:
         prompt = rolekit.with_reject(prompt, rows[-1])
@@ -774,7 +752,7 @@ def review_material(folder, repo, command_text: str, review_md) -> pathlib.Path:
     p.mkdir(parents=True, exist_ok=True)
     rev, base = inputs.get("rev") or "HEAD", inputs.get("base") or inputs.get("rev") or "HEAD"
     inputs = {**inputs, "review_body": review_body(command_text, repo=repo, rev=rev, base=base, review_md=review_md,
-                                                   policy_md=inputs.get("policy_md") or "")}
+                                                   policy_md=inputs.get("policy_copy") or "")}
     b = view(d, inputs)
     main = p / PROMPT_FILE
     if inputs["form"] == "replan":
@@ -794,7 +772,7 @@ def review_material(folder, repo, command_text: str, review_md) -> pathlib.Path:
         ("判定者の先行例（世界の解）: " + json.dumps(b.record["process"]["precedents"], ensure_ascii=False))
         if b.record["process"]["precedents"] else "",
         REPO_LINE.format(repo=repo, rev=rev, base=base, review_md=review_md),
-        policy.section(inputs.get("policy_md")), concepthome.section(pathlib.Path(repo))) if x)
+        policy.section(inputs.get("policy_copy")), concepthome.section(pathlib.Path(repo))) if x)
     last = rolekit.rejected(p, REVIEW_NODE)
     if last:
         body = rolekit.with_reject(body, last[-1])

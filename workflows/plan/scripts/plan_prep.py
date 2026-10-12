@@ -13,6 +13,7 @@ import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
 import planfile  # noqa: E402
+import policy  # noqa: E402
 
 
 def main() -> None:
@@ -36,7 +37,7 @@ def main() -> None:
         units=units, structure_dir_=plan_dir / rnd["structure"], world_rows=world, spec=spec,
         repo=repo, base_rev=start.get("base_rev") or "", review_md=str(boundary.lib_root() / "REVIEW.md"),
         lang=start.get("lang"), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys),
-        conflicts=conflicts, policy_md=start.get("policy_md") or "", prior_failures=prior, unread=unread)
+        conflicts=conflicts, policy_md=policy.frozen_copy(start), prior_failures=prior, unread=unread)
     boundary.returns({"brief": str(path), "attempt": n})
 
 

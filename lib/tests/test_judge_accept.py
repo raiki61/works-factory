@@ -1010,6 +1010,15 @@ class BriefCase(_RepoCase):
                 self.assertEqual(tail == body.strip(), whole)
                 self.assertEqual(ja._rejudge_brief(self.jdir, "異議", {}, start).split(ja.POLICY_HEAD)[1].strip(), tail)
 
+    def test_policy_text_reads_frozen_copy(self):
+        """貼る方針は始めの記録の固めた版の写し（policy.copy）。始めの後に policy_md の文書を書き換えても固めた版を貼る"""
+        pmd = self.tmp / "policy.md"
+        pmd.write_text("方針の印: 固めた版\n", encoding="utf-8")
+        start = self.start(policy_md=str(pmd), policy=ja.policy.freeze(self.tmp / "run", self.repo, str(pmd)))
+        pmd.write_text("方針の印: 書き換えた版\n", encoding="utf-8")
+        self.assertEqual(ja.policy_text(start).strip(), "方針の印: 固めた版")
+        self.assertEqual(ja.policy_text(ja.start_view({"policy_md": str(pmd), "policy": "壊れた"})).strip(), "方針の印: 書き換えた版")
+
     def test_baseline_that_cannot_be_read_leaves_local_checks_not_run(self):
         """直す前の結末が読めない・素材の欄が欠けた時は、素材 local_checks を not_run と理由にする（clean と読まない）"""
         path = self.tmp / "baseline.json"
