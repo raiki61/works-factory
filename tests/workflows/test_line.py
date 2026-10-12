@@ -653,6 +653,28 @@ class AskFinalReadsCase(Artifacts):
         self.assertEqual(rows, [])
         self.assertIn("控え structure-after.json を読めない", unread)
 
+    def test_allowed_tests_come_from_beside_both_diffs(self):
+        """許したテストの変更は fix と refix-run の差分の隣の allowed-tests.json を読み、許しの id と出どころつきで並べる（重ねない）"""
+        row = {"path": "tests/test_a.py", "permit": "plan-1", "source": "plan"}
+        fix = self.place("fix/fix/fix.diff", "")
+        self.place("fix/fix/allowed-tests.json", [row])
+        refix = self.place("fix/refix/fix.diff", "")
+        self.place("fix/refix/allowed-tests.json", [row, {"path": "tests/test_b.py", "permit": "r-2", "source": "ruling"}])
+        rows, unread = ask_final.allowed_tests((fix, refix))
+        self.assertEqual(([r["path"] for r in rows], unread), (["tests/test_a.py", "tests/test_b.py"], ""))
+        self.assertEqual(ask_final.allowed_tests((fix, None)), ([row], ""))
+        text = ask_final.final_text(final_got(allowed_tests=rows), [], RUN)
+        self.assertIn("## 許したテストの変更（2 件）", text)
+        self.assertIn("- tests/test_b.py（許し r-2・ruling）", text)
+
+    def test_unreadable_allowed_tests_is_said(self):
+        """collect は落ちた道でも [] を置くので、無い・形の違う allowed-tests.json は読めなかった訳を返す（黙って空にしない）"""
+        rows, unread = ask_final.allowed_tests((self.place("fix/fix/fix.diff", ""),))
+        self.assertEqual(rows, [])
+        self.assertIn("allowed-tests.json を読めない", unread)
+        self.place("fix/fix/allowed-tests.json", {"path": "x"})
+        self.assertIn("行の配列でない", ask_final.allowed_tests((self.place("fix/fix/fix.diff", ""),))[1])
+
     def test_unread_is_shown_in_the_gate_text(self):
         text = ask_final.final_text(final_got(unread=["読めない訳"]), [], RUN)
         self.assertIn("- 読めない訳", text)
@@ -1129,12 +1151,16 @@ class LineWiringCase(unittest.TestCase):
         "design.jsonl": (("plan", "structure"), "lib/boardview.py"),
         "gate-passes.json": (("plan-review", "review"), "lib/eyeverdict.py"),
         "design-premises.json": (("plan-review", "design"), "lib/eyeverdict.py"),
+        "allowed-tests.json": (("fix", "diff"), "workflows/line/scripts/ask_final.py"),
+        "lenses.json": (("fix", "diff"), "lib/runreport.py"),
+        "accept-trace.json": (("fix", "diff"), "lib/runreport.py"),
     }
     # 書き手の返す節を空の置き場で走らせる時の入力（ブロックの YAML がその節に渡す with: と、Archon がブロックの入力を渡す INPUTS_*）
     RETURN_INPUTS = {
         "judge": {"INPUTS_OBJECTION": ""},
         "plan": {"INPUTS_DIR": "plan/r1", "INPUTS_START": "", "INPUTS_JUDGMENT": ""},
         "plan-review": {},
+        "fix": {"INPUTS_MODE": ""},
     }
     # 今の木で照らしが通らない所（named: 書き手の script と lib が名を持つ・stop: lib の在る返す節が空の置き場でも書く・bare: lib も
     # 境の口も無い返す節が書く・read: 読み手が名を開く）。表に無い新しい穴と、通るようになったのに残る行は赤
@@ -1148,6 +1174,8 @@ class LineWiringCase(unittest.TestCase):
         ("answer-ties.json", "read"): "区分の issue で外す（ほかのブロックが判定の隣のこの名を開かない。部分 B1 の S58・部分 C の S31）",
         ("local-review-lenses.json", "read"): "区分の issue で外す（report が開かない。部分 C の S41）",
         ("pr-downgrades.json", "read"): "区分の issue で外す（report が開かない。部分 C の S41）",
+        ("lenses.json", "read"): "メイングラフの配線の部分 D2（#211）で外す（report が開かない）",
+        ("accept-trace.json", "read"): "メイングラフの配線の部分 D2（#211）で外す（report が開かない）",
     }
 
     def written_beside(self, block: str, field: str, bare: bool) -> set:

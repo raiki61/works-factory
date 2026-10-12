@@ -833,7 +833,8 @@ nodes:
       red_cause: "$test-gate-final.output.red_cause"
       protected_hits: "$merge-seal.output.protected_hits"
       conflicts: "$fixed.output.conflicts"
-      allowed_test_changes: "$fixed.output.allowed_test_changes"
+      fix_diff: "$fix.output.diff"
+      refix_diff: { from: "$refix-run.output.diff", if_skipped: null }
       r1: "$eyes.output.r1"
       r2: "$eyes.output.r2"
       r3: "$eyes.output.r3"

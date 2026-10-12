@@ -5,8 +5,8 @@
 """1 回目の修正（fix）と 2 度目の修正（refix-run）の返りを合わせて後の段へ渡す節 fixed。
 
 done・diff・changed・delta_review は refix-run が走ればその物（diff はどちらも run の始めからの累積）。units は unit_id ごとに後の物、
-groups・allowed_test_changes は和。申し出 conflicts は走った方の指し札を全部並べた配列にし、1 回目の申し出と許したテストの変更が
-最後の関所と報告から消えないようにする。replan_items・objection は 1 回目の物（差し込みを決めたのは 1 回目。再審が受けるのも
+groups・allowed_test_changes は和。申し出 conflicts は走った方の指し札を全部並べた配列にし、1 回目の申し出が最後の関所と報告から、
+1 回目の許したテストの変更が報告から消えないようにする（最後の関所は fix と refix-run の差分の隣の allowed-tests.json を読む）。replan_items・objection は 1 回目の物（差し込みを決めたのは 1 回目。再審が受けるのも
 1 回目の異議）。refix-run の異議は refix_objection に置く（再審は refix-run の前に走るので、再審されずに残った異議として最後の関所と報告が読む）。
 done は、案の直しが要ったのに 2 度目の修正が走らなかった時（案の直しの関所の stop・無人の止め・案ができなかった・refix-run の中が
 落ちた）と、前の線の script（after-fix・judged）が止めた時は偽（held）。go は試験の関門（final）へ進めるか: held でなく、done か、
