@@ -51,7 +51,6 @@ import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
 import planfile  # noqa: E402
 import policy  # noqa: E402
-import rolekit  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
 
@@ -675,12 +674,6 @@ class PlanOutCase(unittest.TestCase):
 
     def test_every_field_is_returned(self):
         self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"done", "stop_reason"})
-
-    def test_round_limit_is_the_review_fence(self):
-        """往復の柵は 1 つの数: 線の往復の上限（plan-rounds の max_iterations）・往復を抜ける周（plan_out.ROUND_LIMIT）・
-        事前審査の往復の柵（boardview.FENCE）・役の諦め（rolekit.GIVE_UP_AFTER）"""
-        rounds = next(n for n in LINE["nodes"] if n["id"] == "plan-rounds")["loop_group"]["max_iterations"]
-        self.assertEqual({rounds, plan_out.ROUND_LIMIT, boardview.FENCE, rolekit.GIVE_UP_AFTER}, {3})
 
 
 class AfterFixAndJudgedCase(Artifacts):

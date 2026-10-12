@@ -273,12 +273,13 @@
   - 証: tests/workflows/test_plan_review.py::ConvergeCase.test_answers_written_by_the_plan_block_reach_the_record（#120 で足した。消すと赤: take_plan が block_answers を脇に残さないと赤）
   - 本物の run: plan/r2/p2.fix_plan.json の `block_answers` と plan-review/plan-converge.json の `passes[1].answers`。筋書きでのみ
   - 狭め: 無し
-- P114〔試〕往復の柵（3）を、事前審査の往復の数と線の loop_group の上限の両方で同じ数に縛る。上限に当たって落ちずに抜ける
+- P114〔試〕往復の安全の上限（20）を、事前審査が上限の周を知る数と線の loop_group の上限の両方で同じ数に縛る。止め時は数でなく converge.decide。上限に当たって落ちずに抜ける
   - 元: works/blk-plan/blk-plan.yaml:543（converge-loop の max_iterations 3）と works/tests/test_blk_plan.py::YamlCase.test_converge_loop_wraps_revise_and_review（GIVE_UP_AFTER と突き合わせ）
-  - 今: lib/boardview.py:81 `FENCE = rolekit.GIVE_UP_AFTER`、P74 workflows/line/scripts/plan_out.py `ROUND_LIMIT = 3`、P74 works-factory-line.yaml:186 `max_iterations: 3`
-  - 証: tests/workflows/test_line.py::PlanOutCase.test_round_limit_is_the_review_fence（#120 で足した。消すと赤: plan_out.ROUND_LIMIT を 4 にすると赤）
-  - 本物の run: plan/r*/ の数が 3 を越えない。筋書きでのみ
+  - 今: P74 works-factory-line.yaml の `max_iterations: 20` と、plan-out・plan-review-run の `with:` の `round_limit: 20`（正本は線。lib/boardview.py `_at_cap` は入力の round_limit で converge.record_pass の at_cap を決め、数を持たない）
+  - 証: P74 tests/workflows/test_line.py::LineWiringCase.test_round_limit_is_the_loop_limit（max_iterations == plan-out と plan-review-run の round_limit）
+  - 本物の run: plan/r*/ の数が 20 を越えない。筋書きでのみ
   - 狭め: 無し
+
 - P118〔試〕again の時、計画の役は独立設計の節を受けない（修正案の役の頭と指示書は会話に在る）
   - 元: works/tests/test_blk_plan.py:1976 `test_revise_prompt_names_blocks_and_keys`（「=====独立設計ここから=====」が無い）
   - 今: lib/planfile.py:824 `write_brief`（形 plan の材料に独立設計の節は元から無い。2 周目は会話が新しいので planmarks.HEAD を含む頭を貼り直す）

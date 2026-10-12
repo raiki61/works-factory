@@ -1888,7 +1888,7 @@ class ReplanCase(RunCase):
         """形 replan の事前審査が 3 回とも拒まれたら、裁かれた項目ごとの諦めの訳と裁定の文（字のまま）を review.json の隣に置く"""
         r = self.run_
         self.replan()
-        for _ in range(boardview.FENCE):
+        for _ in range(rolekit.GIVE_UP_AFTER):
             got = r.accept({"faces": "x"})
         self.assertTrue(got["give_up"], got)
         out = r.out("result")
@@ -1998,7 +1998,7 @@ class ResultCase(RunCase):
         r.open()
         pol.write_text("# 方針\n- 公開の口を減らさない\n- 足した\n", encoding="utf-8")
         got = r.pass_(review())
-        gate = json.loads((r.pointed(got["review"]).parent / boardview.GATE_FILE).read_text(encoding="utf-8"))
+        gate = json.loads((r.pointed(got["review"]).parent / gatemarks.PLAN_GATE_FILE).read_text(encoding="utf-8"))
         self.assertEqual([x["kind"] for x in gate["items"]], ["regression", boardview.POLICY_CHANGED])
         self.assertEqual([x["text"] for x in gate["items"]], got["questions"])
         self.assertIn("converge", gate)
@@ -2103,7 +2103,7 @@ class FailSafeCase(RunCase):
         r.open()
         r.out("review_prep")
         (r.folder / (converge.RECORD + ".tmp")).mkdir()
-        for _ in range(boardview.FENCE):
+        for _ in range(rolekit.GIVE_UP_AFTER):
             got = r.accept(review())
         self.assertEqual((got["ok"], got["give_up"]), (False, True), got)
         self.assertIn(converge.RECORD, got["reason"])
