@@ -1690,6 +1690,29 @@ class FixLoopScriptsCase(unittest.TestCase):
         units = json.loads((self.place / "fix-units.json").read_text(encoding="utf-8"))
         self.assertEqual(units[_FX_MEAN]["status"], "not_done")
 
+    def test_ruled_new_claim_is_parked_as_ask_human(self):
+        """F207: 裁定の後の受け付け（fix-ruled-accept）の新しい申し出は、裁定の輪がもう無いので機械が ask_human に裁いて積み
+        （by fix-accept）、返答がほかの確かめで拒まれても積んだまま残す（元 works/blk-fix/scripts/accept.py:18-24・:340-344）"""
+        import conflict
+        import fixboard
+        self._fx_json("join.json", {"groups": [{"group_id": "g1", "unit_ids": [_FX_MEAN, _FX_BOUND], "returned": True,
+                                                "reason": ""}],
+                                    "units": [{"unit_id": _FX_MEAN, "group_id": "g1", "status": "not_done", "reason": ""},
+                                              {"unit_id": _FX_BOUND, "group_id": "g1", "status": "not_done", "reason": ""}]})
+        (self.repo / "bounds.py").write_text("def bound(x):\n    return x\n", encoding="utf-8")
+        reply = {"changes": [_fx_change(_FX_BOUND, ["bounds.py"])],
+                 "conflicts": [{"unit_key": _FX_MEAN, "between": ["stats.py:9", "test_stats.py:9"],
+                                "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                "which_is_right": "request", "kind": "unnamed_test_broke"}]}
+        out = self._fx_accept("fix_ruled_accept", reply, 1)
+        self.assertEqual((out["ok"], out["done"]), (False, False), out)
+        self.assertIn(_FX_BOUND, out["reason"], "ほかの確かめの拒否")
+        rows = conflict.items(self.place)
+        self.assertEqual([(r["unit_key"], r["ruling"]["decision"], r["ruling"]["by"], r["ruling"]["text"]) for r in rows],
+                         [(_FX_MEAN, conflict.ASK, fixboard.FIX_ACCEPT_BY, fixboard.SECOND_CONFLICT)], "拒否の後も積んだまま残す")
+        self.assertEqual(conflict.unruled(self.place), [])
+        self.assertTrue((self.place / conflict.RULINGS_FILE).is_file())
+
     def test_consult_check_launches_the_answer_on_an_ask(self):
         """返答の consult の頼みで答えの役の指示書を書いて go: true、答えを受けて答えのファイルを書く"""
         import planmarks
