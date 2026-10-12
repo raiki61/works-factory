@@ -59,7 +59,7 @@ def resolve(argv: list[str]) -> list[str]:
     return [shutil.which(argv[0]) or argv[0], *argv[1:]]
 
 
-def run(step: str, cmd: str | list[str], timeout: int = 600) -> tuple[int, str]:
+def run(step: str, cmd: str | list[str], timeout: int | None = 600) -> tuple[int, str]:
     """One rung. A TIMEOUT IS A FAILURE, not a skip -- a hung check reports nothing."""
     argv = resolve(shlex.split(cmd, posix=False) if isinstance(cmd, str) else list(cmd))
     try:
@@ -120,7 +120,11 @@ def main() -> int:
     if not unit_cmd:
         skipped("unit", "UNIT")
     else:
-        rc, out = run("unit", unit_cmd)
+        # NO CAP ON UNIT. Running every test in one process takes about 1064s
+        # (CI's tests/shard-seconds.json), so a 600s cap failed every run that
+        # fell back to "run everything" whatever the results were (#168). This
+        # repository adds no new deadline; the outer run's limits bound this rung.
+        rc, out = run("unit", unit_cmd, timeout=None)
         if rc != 0:
             return fail("unit", out)
         pattern = (CONFIG.get("unit_count_pattern") or "").strip()
