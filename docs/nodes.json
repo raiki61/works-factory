@@ -97,6 +97,8 @@
   "line/answer-start": "始めの関所の答えを読む節",
   "line/judge": "判定のブロックを差し込む節",
   "line/judge-out": "判定の返りを線の形に直す節",
+  "line/design-only": "直す物が無い周に、事前審査のブロックを形 design で差し込み、独立設計だけを作る節（L-W07。元 line_edge.plan_edge 1107-1119）",
+  "line/design-only-out": "直す物が無い周の独立設計の差し込みの返りを線の形に直す節",
   "line/plan-rounds": "計画の往復（plan → plan-review。lib/converge の壁打ち）の輪。review-graph の converge（周の収束）とは別物",
   "line/plan": "計画のブロックを差し込む節",
   "line/plan-review-run": "事前審査のブロックを差し込む節",

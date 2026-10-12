@@ -8,6 +8,7 @@
 ブロックと計画の往復の返りは受け皿の節（returned.py。<include の id>-out・plan-rounds-out）の出力を
 `{from: "$<受け皿>.output", if_skipped: null}` で受ける。受けた物の got が、include の id ごとの返りの欄の object になる。
 飛ばされた（受ける節が落ちたか飛ばされた）受け皿は null。計画の往復の返りは plan と plan-review の欄に分け、欄が全部 null の方は null。
+直す物が無い周（計画の往復が飛び、独立設計だけを作る design-only が走った）は、plan-review の欄に design-only の返りを置く（L-W07）。
 fix は 1 回目と 2 度目の修正を合わせた節 fixed の返り（申し出は段ごとの指し札の配列。report の約束の fix の形）。fixed が飛ばされた
 （2 度目の修正の中が落ちた）時は 1 回目の返り。2 度目の修正の段の行（refixed・2 度目の異議をつないだ objection・1 回目の行を写した 2 度目の申し出）も fixed の返りが運ぶ。
 
@@ -19,7 +20,7 @@ fix は 1 回目と 2 度目の修正を合わせた節 fixed の返り（申し
 - prior_failures: 依頼の前の失敗の指し札（start の返り）・redepth: 直した後の深さの上げ直しの返り（飛ばされた節は null）
 - optional: 受け止める段の宣言（線の YAML の collect の with: の 1 か所。落ちても線が先へ進めてよい段の節の id の頭の並び）
 
-入力（with:）: <include の id>（受け皿の出力）・plan_rounds・start・fixed・gate_<関所>・stop_<節>・deferred・widened・final_reasons・
+入力（with:）: <include の id>（受け皿の出力）・plan_rounds・design_only・start・fixed・gate_<関所>・stop_<節>・deferred・widened・final_reasons・
 prior_failures・redepth・optional
 """
 import os
@@ -42,15 +43,16 @@ def group(got: dict | None, keys) -> dict | None:
 
 
 def collect(received: dict, line: dict) -> dict:
-    got = {name: (linekit.value(received.get(name)) or {}).get("got") for name in (*RECEIVED, "plan_rounds")}
+    got = {name: (linekit.value(received.get(name)) or {}).get("got") for name in (*RECEIVED, "plan_rounds", "design_only")}
     rounds = got.pop("plan_rounds")
+    design_only = got.pop("design_only")
     fixed = linekit.value(line["fixed"])
     stops = {node: linekit.text((line.get("stops") or {}).get(node)) for node in STOPS}
     return {
         **got,
         "fix": None if got["fix"] is None else fixed if isinstance(fixed, dict) else got["fix"],
         "plan": group(rounds, plan_out.PLAN),
-        "plan_review": group(rounds, plan_out.REVIEW),
+        "plan_review": group(rounds, plan_out.REVIEW) or design_only,
         "start": linekit.value(line["start"]),
         **{name: linekit.value(line["gates"][name]) for name in GATES},
         "stops": {node: word for node, word in stops.items() if word},
@@ -60,7 +62,7 @@ def collect(received: dict, line: dict) -> dict:
 
 
 def received_of_env() -> dict:
-    return {name: os.environ.get(f"INPUTS_{name.upper()}") for name in (*RECEIVED, "plan_rounds")}
+    return {name: os.environ.get(f"INPUTS_{name.upper()}") for name in (*RECEIVED, "plan_rounds", "design_only")}
 
 
 def stop_key(node: str) -> str:

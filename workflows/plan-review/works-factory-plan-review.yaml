@@ -42,6 +42,11 @@ inputs:
   conflicts:
     default: "null"
     description: 修正の段の申し出と裁定の指し札（conflicts.json。案の直しの事前審査の時だけ。項目ごとの申し出と裁定の文を貼る）か null
+  mode:
+    default: ""
+    description: >-
+      差し込みの形。空は事前審査、design は直す物が無い周（判定が直す単位を出さなかった）の差し込みで、修正案（plan・structure・
+      ripple は null）を読まずに独立設計だけを作り、事前審査を回さず、通った形と design の指し札を返す（最後の R2 が要る設計）
   gate_answers:
     default: "null"
     description: >-
@@ -68,7 +73,7 @@ nodes:
         r2_go: {type: boolean}
         tree: {type: boolean}
         k: {type: integer}
-        form: {type: string, enum: [review, replan, ""]}
+        form: {type: string, enum: [review, replan, design, ""]}
         reason: {type: string}
 
   # 独立設計（道具ゼロの役。目的の文と実測した制約と人が決めた前提だけを受ける）。3 回とも拒まれても止めない
@@ -147,7 +152,7 @@ nodes:
   - id: review-loop
     depends_on: [open, r2-design-loop]
     trigger_rule: all_done
-    when: "$open.output.ok == true"
+    when: "$open.output.ok == true && $open.output.form != 'design'"
     timeout: 1728000000
     loop_group:
       max_iterations: 3

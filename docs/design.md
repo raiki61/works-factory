@@ -109,7 +109,7 @@ flowchart TB
 2. 起動の関所（人）: 何を始めるかを見せて止まる。
 3. test-gate（base）: テストの走らせ方を見つけ、直す前の結末（元から赤のテスト）を控える。
 4. judge: 前提・目的・定石・素材・判定。`--spec` の時は中に仕様の関所（人）を持つ。
-5. 計画の往復: plan → plan-review を 3 往復まで。同じ所で 2 度続けて止められたら止める。
+5. 計画の往復: plan → plan-review を 3 往復まで。同じ所で 2 度続けて止められたら止める。直す物が無い周（judge が ready: false で止めの語も無い）は計画の往復・修正前の関所・fix を飛ばし、plan-review を形 design（入力 `mode: design`。修正案は null）で 1 度差し込んで（`design-only`）最後の R2 が要る独立設計だけを作る。線の節 `fixed` が直す物の無い形（`no_fix`・`go`・差分も申し出も無い・設計は `design-only` の物）で受けて、最後のテスト（8）と独立の目（9）で周を締め、差分が無いので封じも当てもしない（`merge-seal`・`merge-apply` の `when` が `no_fix` を読む。最後の関所は封じの節が飛んでも開く: `ask-final` は `depends_on: [eyes, merge-seal]`・`none_failed_min_one_success`）。結末は残りが無ければ `no_fix_needed`（R2 が直す物が在ると言えば残りに数える）。今の works の `line_edge.plan_edge`（1107-1119 行）。飛びうる節を後ろの節が結ぶ所は `{from, if_skipped}`（Archon は飛んだ節の出力を直に結んだ節を落とす: `output-ref.ts` 272・344 行）
 6. 修正前の関所（人）: 事前審査の 4 つの軸（自明・世界の解・汚くない・やりすぎでない）で人に聞く物がある時だけ開く。関所の項目は事前審査の返り `questions` の行（種類と文。揃わない軸の訳は行の尾に 1 度）で、線は軸の行を項目の無い時だけ足し、事前審査が設計だけの行・止まりの行（止まった理由つき）を返していれば足し直さない（1 件 1 行）。無人の run では、事前審査の項目のうち台帳の問い（種類 `fork`・`escalate`）だけは関所に載せずに報告へ回し（問いの出どころは直す義務から外れたまま修正へ進む）、ほかの種類（狭め・事前審査の穴・方針の文書の変化・事前審査の諦め・設計の問い・世界の解の外れ・設計だけの行）が在れば開かずに止める（`works:needs-human`）。
 7. fix: 組ごとの並べ（`fan_out:`）・TDD の輪・修正役・裁定・差分の審査と手直し。裁定が計画の項目の誤りとした時は、1 run に 1 度だけ plan と plan-review をもう一度差し込み、案の直しの関所（人）を通る（文は聞く項目ごとに約束の欄の変化・その項目を誤りとした申し出の文と裁定の文〔`ask-replan` の入力 `conflicts` ← `$fix.output.conflicts`〕・前と後の項目の JSON。今の works の `replan._gate_section`）。2 度目の修正が走らなかった時（関所の stop・無人の止め・直した案ができなかった）は、1 回目の修正の差分も試験の関門から先へ進めない。差分の審査が 2 往復で通らなかった run は、今の works の最後のテスト（`p4.ci` は手直しの段が済むのを待つだけで、審査の通りを待たない）と同じく試験の関門・独立の目・最後の関所へ進め、通らなかった審査は報告の残りに載る（線の節 `fixed` の `go`）。修正役の異議（1 回目と 2 度目の修正の両方。線の節 `fixed` の `objection` がつなぐ）は、2 度目の修正の後に judge を再審の入力でもう一度差し込む（1 度。`fixed` の `rejudge`。今の works の `h-rejudge` が refit の後に走った形。`works/darkfactory/darkfactory.yaml:827`）。再審が採らなかった異議は再審されずに残った異議として最後の関所を開け（11）、報告と次の依頼に載る。再審の止め（`judged` の `stop_reason`）は試験の関門（final）の `when` が読み、後ろへ進めない。2 度目の修正は 1 回目の申し出と裁定（`prior_conflicts`）・案の直しの事前審査の返り（`plan_review`）・機械の申し送り（`notes`。`answer-replan` の `fix_notes`）を受ける（fix の返りの節）。
 8. test-gate（final）: テスト一式と CI。緑を作業ツリーの指紋つきで認証する。
@@ -224,6 +224,7 @@ flowchart TB
   - `answers` ← `$answer-start.output.answer`（R2 に貼る人の関所の答え `{decision, text, asked}`。起動の関所が開かなかった run は null）
   - `ruling` ← `$fix.output.replan_items`（`replan-review` の時だけ。`plan-review` では `[]`。裁かれた項目（`replan_items` と同じ番号の字）だけを審査する。番号でない行と案の外の番号は拒む）
   - `conflicts` ← `$fix.output.conflicts`（`replan-review` の時だけ。`plan-review` では渡さない（既定 null）。裁かれた項目ごとに申し出と裁定の文を事前審査に貼る）
+  - `mode`（既定 `""`。部分 D2・L-W07）: `design` は直す物が無い周の差し込み（線の `design-only`）。修正案（`plan`・`structure`・`ripple` は `"null"`）を読まずに独立設計の輪だけを回し、事前審査の輪を飛ばし、返す節は通った形（`pass: true`・関所の項目と問い無し・4 つの軸は ok）と `design` の指し札と、faces の無い `review`（置き場の `design-only/review.json`。隣に空の `gate-passes.json` と `gate.json`）を返す（`lib/boardview.py` の `open_design`・`DESIGN_FORM`）
   - `gate_answers` ← `$answer-before-fix.output.answer`（`replan-review` の時だけ。`plan-review` では渡さない（既定 null。往復は修正前の関所の前）。修正前の関所の答え `{decision, text, asked}`、`asked` は関所に載せた項目の行（`questions` の `text` と関所の軸・止まりの行）。関所が開かなかった run は null）。通した行を次の差し込みで聞き直さず、方針の文書の変化を通したらその版を固め直す
 - 返り:
   - `pass`（boolean）: 止める指摘が無い（通し）→ 線 5（往復を抜ける）
@@ -287,11 +288,11 @@ flowchart TB
   - `units`・`judgment`・`purpose`・`world` ← `$judged.output.<同じ名>`（再審が走ればその返り）
   - `plan`・`ripple` ← `$fixed.output.<同じ名>`（計画の往復の物。案の直しの後に 2 度目の修正が走った run は案の直しの物に差し替えた承認済みの物。元 `works/darkfactory/lib/line_edge.py` 1058-1064 行）
   - `depth` ← `$redepth.output.depth`（plan の深さを直した後に上げ直した物）
-  - `design` ← `$plan-rounds.output.design`
+  - `design` ← `$fixed.output.design`（計画の往復の設計。直す物が無い周は `design-only` の設計）
   - `diff`・`changed`・`x_scalars` ← `$fixed.output.<同じ名>`（`changed` の `premise_drift_note` を比較役の頭に貼り、`x_scalars` を規模の数値に足す）、`fix_units` ← `$fixed.output.units`
   - `green_ok` ← `$test-gate-final.output.ok`
   - `start` ← `$start.output.record`（直した後の実測の数える版・守りのパスの当たり・方針の文書の置き場）
-  - `plan_questions` ← `$plan-rounds.output.questions`（修正前の関所の項目 `{kind, text}`）、`answers` ← `$answer-before-fix.output.answer`（修正前の関所で人が通した行を R4 に渡し、同じ行を聞き直さない。持ち主の決め `decision-records`）
+  - `plan_questions` ← `$fixed.output.plan_questions`（修正前の関所の項目 `{kind, text}`。fixed が計画の往復の `questions` をそのまま渡す。直す物が無い周は `[]`）、`answers` ← `$fixed.output.answer`（fixed が修正前の関所の答えをそのまま渡す。直す物が無い周は null。修正前の関所で人が通した行を R4 に渡し、同じ行を聞き直さない。持ち主の決め `decision-records`）
   - `start_answers` ← `$answer-start.output.answer`（始めの関所の答え `{decision, text, asked}`。開かなかった run は null。前提の検算に貼る人の答えの頭。plan-review の `answers` と同じ源）
 - 返り:
   - `ok`（boolean）: R1〜R4 が全部 pass。深さで省いた目は数えない → 線 10・merge
@@ -330,7 +331,7 @@ flowchart TB
 - 返す節 `report`・`outcome_field: ok`（Archon の `outcome_field` は `required` の boolean だけを受けるので、結末の語 `outcome` とは別の欄にする。線は自分の返す節 `result` で report の返りを受けて返す）
 - 入力（`with:`）: report の YAML の `inputs:` の 24 個（名は下の id の字のまま。どれも既定値 `""`）。値は全部 `$collect.output.<名の - を _ に>`（線の返しの節 `collect` が、飛ばされうる全部の返りを `{from, if_skipped: null}` で受けて組み直した物。飛ばされた段は null）:
   - `start`（始めの記録の指し札）
-  - ブロックの返り（返りの欄の object か null）: `test-gate-base`・`judge`・`rejudge`・`plan`・`plan-review`・`replan`・`replan-review`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`。`plan`・`plan-review` は計画の往復の受け皿 `plan-rounds-out` の欄を分けた物。`fix` は 1 回目と 2 度目の修正を合わせた線の節 `fixed` の返り（段ごとの diff の指し札の配列 `diffs` の先に段の約束の隣のファイル〔fix の返りの `diff`〕が在り、報告は両方を読む。申し出 `conflicts` は指し札の配列で、2 度目の修正が走れば 1 回目の行を写して持つ 2 度目の控え 1 つ。`objection` は 1 回目と 2 度目の修正役の異議をつないだ文で、再審は両方を受ける。再審が無いか答えの無い run の異議を report は再審されずに残った異議として読む）で、`fixed` が飛ばされた時は 1 回目の返り
+  - ブロックの返り（返りの欄の object か null）: `test-gate-base`・`judge`・`rejudge`・`plan`・`plan-review`・`replan`・`replan-review`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`。`plan`・`plan-review` は計画の往復の受け皿 `plan-rounds-out` の欄を分けた物（直す物が無い周は `plan-review` に `design-only` の受け皿 `design-only-out` の返り）。`fix` は 1 回目と 2 度目の修正を合わせた線の節 `fixed` の返り（段ごとの diff の指し札の配列 `diffs` の先に段の約束の隣のファイル〔fix の返りの `diff`〕が在り、報告は両方を読む。申し出 `conflicts` は指し札の配列で、2 度目の修正が走れば 1 回目の行を写して持つ 2 度目の控え 1 つ。`objection` は 1 回目と 2 度目の修正役の異議をつないだ文で、再審は両方を受ける。再審が無いか答えの無い run の異議を report は再審されずに残った異議として読む）で、`fixed` が飛ばされた時は 1 回目の返り
   - 人の関所の答え `{decision, text, asked}` か null: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`（`gate-before-fix` の `asked` で、報告は関所が聞いた台帳の問いを答えたと読む）
   - 線の値（部分 C。線の `collect` が線の節の返りを `{from, if_skipped: null}` で受けて渡す）: `stops`（線の script の節の止めの語 `{節: 語}`。入口の拒み `works:start-refused`・無人の run の `works:needs-human`・線の script の例外 `works:line-script`・人の止め `human:<関所>`。語の住処は `lib/stopby.py` の表。`lib/outcome` が結末に入れる: `works:start-refused`・`works:line-script` は `stopped_by_line`、`works:needs-human` は `needs_human`、`human:` は `stopped_by_human`）・`prior-failures`（依頼の前の失敗の指し札 `$start.output.prior_failures`。報告の入口の節に行を出す）・`deferred`（`ask-before-fix` の無人の run で関所に載せなかった問い）・`widened`（`ask-replan` の聞かずに通した範囲を広げるだけの直し。字は `lib/replan.widen_text`）・`final-reasons`（`ask-final` の `reasons`）・`redepth`（`redepth` の返り。報告の入口の節の深さの行 `lib/depth.lines`）・`optional`（受け止める段の宣言。線の YAML の `collect` の `with:` の 1 か所に節の id の頭の並びで書き、宣言の外で落ちた節は後に線が進んでも途中で終わった落ち `interrupted` に数える。元 `report.split_fallen`）。2 度目の修正の段の行は `fix`（線の節 `fixed` の返り）が運ぶ
   - 型つきの成果物の一覧（`tdd-unit`・`green-cert`・`eye-verdict`）は `with:` でなく report の中で `$TYPED_ARTIFACTS_FILE` から読む（E5）
@@ -353,7 +354,7 @@ flowchart TB
   - `r2_status`（string・null 可）: 独立の目の R2 の `status`。省いた・飛ばされたら null → `bin/apply`（`redesign-needed` の run は当てない）
   - `final_answer`（object・null 可）: 最後の関所の答え `{decision, text, asked}`（`answer-final` の `answer`）。関所が開かなかったら null → `bin/apply`（止まった run を拒む 1 行に人の一言を載せる。M43）
 - `apply`・`sealed`・`r2_status`・`final_answer` は `$collect.output.<欄>`（`merge_apply`・`merge_seal`・`eyes`・`gate_final`）だけから組む。merge・eyes の返りを直に読むと、その返す節が落ちた時に線の返りまで落ちる
-- 線の中の節の返りで約束を変えた物（部分 A・D1）: `judged` は再審の止めの理由（`rejudge-run` の `stop_reason`）を `stop_reason` で返し、試験の関門（final）の `when` が後ろへ進めない（部分 D1 で再審を 2 度目の修正の後に置いた。`fixed` は再審の前の節で、`rejudge`〔異議が在り止めていない〕・`objection`〔両方の修正役の異議〕・`x_scalars`〔名ごとに 2 度目の値を優先〕を返す。`after-fix` は案の直しだけを決める `{replan, stop_reason}`。`answer-replan` は 2 度目の修正の機械の申し送り `fix_notes` と波及の一覧の指し札 `fix_ripple` を返す）。`fixed` は独立の目が照らす修正案と波及 `plan`・`ripple`（2 度目の修正が走った run は案の直しの受け皿 `replan-out` の物、ほかは計画の往復の物）を返し、eyes の `plan`・`ripple` は `$fixed.output.<欄>`。部分 D2: `fixed` は段ごとの diff の指し札の配列 `diffs`（1 回目・2 度目の順）を返し、`ask-final` は `fix_diffs` ← `$fixed.output.diffs` と計画の構造の目の控え `structure` ← `$plan-rounds.output.structure` を受ける
+- 線の中の節の返りで約束を変えた物（部分 A・D1）: `judged` は再審の止めの理由（`rejudge-run` の `stop_reason`）を `stop_reason` で返し、試験の関門（final）の `when` が後ろへ進めない（部分 D1 で再審を 2 度目の修正の後に置いた。`fixed` は再審の前の節で、`rejudge`〔異議が在り止めていない〕・`objection`〔両方の修正役の異議〕・`x_scalars`〔名ごとに 2 度目の値を優先〕を返す。`after-fix` は案の直しだけを決める `{replan, stop_reason}`。`answer-replan` は 2 度目の修正の機械の申し送り `fix_notes` と波及の一覧の指し札 `fix_ripple` を返す）。`fixed` は独立の目が照らす修正案と波及 `plan`・`ripple`（2 度目の修正が走った run は案の直しの受け皿 `replan-out` の物、ほかは計画の往復の物）を返し、eyes の `plan`・`ripple` は `$fixed.output.<欄>`。部分 D2: `fixed` は独立の目へ渡す `design`・`plan_questions`・`answer` と直す物が無い周の印 `no_fix`（L-W07。fix が走らず `design-only` が走った時に真で、差分も申し出も無い形）を返し、段ごとの diff の指し札の配列 `diffs`（1 回目・2 度目の順）を返し、`ask-final` は `fix_diffs` ← `$fixed.output.diffs` と計画の構造の目の控え `structure` ← `$plan-rounds.output.structure` を受ける
 
 ## ブロック
 

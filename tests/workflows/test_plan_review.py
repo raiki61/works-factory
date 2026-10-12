@@ -65,7 +65,7 @@ CONTRACT_INPUTS = ("units", "judgment", "purpose", "world", "plan", "structure",
 # 元 works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md:4（sha256 4f400ecf39c7347e5c45c62cdf2446278816202653b5c6f132b56d16eade5068）
 ORIGINAL_UNITS_LINE = ("直す単位（各行の `no` は engine が振った番号。**key を写さず no の整数で指せ**——engine が名前に戻して記録する）: "
                        "{{record.units | pick key,label,disposition,reason}}")
-ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts": "null", "gate_answers": "null"}
+ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts": "null", "gate_answers": "null", "mode": ""}
 RETURN_FIELDS = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
 RUN_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 
@@ -668,6 +668,28 @@ class DesignCase(RunCase):
         self.assertTrue(got["ok"], got)
         claims = json.loads((r.folder / boardview.PREMISES_FILE).read_text(encoding="utf-8"))["claims"]
         self.assertTrue(claims and all(c["kind"] == "repo_map" for c in claims), claims)
+
+
+class NoFixDesignCase(RunCase):
+    """L-W07（元 works/darkfactory/lib/line_edge.py:1107-1119 の plan_edge と works/tests/test_line_a.py::LineCase.test_no_fix_path）:
+    直す物が無い周は修正案を作らず、最後の R2 が要る独立設計だけを作る。入力 mode が design の差し込みは、修正案（plan・structure・
+    ripple は null）を読まずに独立設計の輪だけを回し、事前審査を回さず、返す節は通った形（関所の項目・問い無し）と design の指し札を返す"""
+
+    def test_design_mode_makes_only_the_design(self):
+        r = self.run_
+        r.inputs.update(plan="null", structure="null", ripple="null", mode="design")
+        got = r.open()
+        self.assertEqual((got["form"], got["r2_go"]), ("design", True), got)
+        self.assertEqual(nodes()["review-loop"]["when"], "$open.output.ok == true && $open.output.form != 'design'")
+        prompt = r.out("r2_prep")["prompt"]
+        self.assertIn(PURPOSE_MARK, prompt)
+        self.assertTrue(r.accept(DESIGN_OK, "r2_accept")["ok"])
+        out = r.out("result")
+        self.assertEqual((out["pass"], out["stalled"], out["ask_human"], out["questions"]), (True, False, False, []), out)
+        self.assertEqual(json.loads(r.pointed(out["design"]).read_text(encoding="utf-8")), DESIGN_OK)
+        self.assertEqual(json.loads(r.pointed(out["review"]).read_text(encoding="utf-8"))["faces"], [])
+        self.assertTrue(all(axis["ok"] for axis in out["gate_axes"].values()), out["gate_axes"])
+        self.assertEqual(workflow()["inputs"]["mode"]["default"], "")
 
 
 class ReviewAcceptCase(RunCase):

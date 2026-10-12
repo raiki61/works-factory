@@ -269,6 +269,29 @@ class RefixHandoffTest(unittest.TestCase):
         self.assertIn("- u1: 壊すと分かって通した——段 1 で既定が変わる\n- u1: 壊すと分かって通した——段 2 で既定が変わる", got["text"])
 
 
+class NoFixRoundTest(unittest.TestCase):
+    """L-W07（筋書き no-fix）: 直す物が無い周も周を締める。独立設計だけを作る差し込み design-only の設計が fixed を通って独立の目に
+    届き、最後のテストと独立の目が走り、差分が無いので封じも当てもせず、報告は design-only の返りを事前審査の欄で読む"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.trace = line_traces(("no-fix",))["no-fix"]
+
+    @staticmethod
+    def ran(trace, node) -> bool:
+        return node in trace and trace[node]["state"] != "skipped"
+
+    def test_the_round_is_closed_without_sealing(self):
+        got = json.loads(self.trace["fixed"]["output"])
+        self.assertEqual((got["no_fix"], got["go"], got["design"]["path"]), (True, True, "plan-review/design.json"), got)
+        for node in ("test-gate-final-out", "eyes-out", "ask-final"):
+            self.assertTrue(self.ran(self.trace, node), node)
+        for node in ("plan-rounds", "fix", "merge-seal-out", "merge-apply-out"):
+            self.assertFalse(self.ran(self.trace, node), node)
+        collected = json.loads(self.trace["collect"]["output"])
+        self.assertEqual((collected["fix"], collected["plan_review"]["design"]["path"]), (None, "plan-review/design.json"))
+
+
 class RefixInputsTest(unittest.TestCase):
     """部分 D1 の受け入れ: 筋書き replan で 2 度目の修正（refix-run）に 1 回目の申し出と裁定（prior_conflicts）・案の直しの事前審査の
     返り（plan_review）・機械の申し送り（notes）・直す項目の JSON の配列（only_items。S44）が届き、筋書き standard で独立の目に

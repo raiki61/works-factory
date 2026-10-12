@@ -468,6 +468,50 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     return {"k": k, "form": form, "tree": inputs["tree"], "r2_go": r2_due(b)}
 
 
+DESIGN_FORM = "design"   # 直す物が無い周の差し込みの形（修正案を読まずに独立設計だけを作る。元 line_edge.plan_edge 1107-1119）
+DESIGN_ONLY_DIR = "design-only"   # 形 design の返りの置き場（事前審査の返答の代わりの空の控えと聞かずに通した行・関所の控え）
+DESIGN_ONLY_WHY = "直す物が無い周（判定が直す単位を出さなかった）——修正案も事前審査も無く、最後の R2 が要る独立設計だけを作った"
+
+
+def open_design(folder, *, cwd, judgment, purpose, world=None, start=None, answers=None, design_schema: dict) -> dict:
+    """直す物が無い周の差し込みの頭（形 design）: 修正案を読まずに、独立設計の支度と受け付けと返す節が読む材料だけを置く。
+    返り {k: 0, form: DESIGN_FORM, tree: False, r2_go}（事前審査は回さない）"""
+    d = pathlib.Path(folder)
+    d.mkdir(parents=True, exist_ok=True)
+    start_doc = startrec.adopt(d, start) if start else None
+    judged = _read_json(judgment)
+    shutil.copyfile(judgment, d / JUDGMENT_COPY)
+    _copy_world(d, world)
+    frozen = _frozen_policy(d, start_doc, cwd)
+    units = [u for u in judged.get("units") or [] if isinstance(u, dict)]
+    _, request, unread = _request(start_doc)
+    purpose_review, review_unread = _purpose_review(judgment)
+    inputs = {"k": 0, "form": DESIGN_FORM, "ruled": [], "cwd": str(cwd), "rev": (start_doc or {}).get("base_rev") or "HEAD",
+              "base": (start_doc or {}).get("base_rev") or "", "request": request, "policy_md": frozen.get("path") or "",
+              "policy_copy": frozen.get("copy") or "", "excluded_file": "", "units": units,
+              "names": [u["key"] for u in units if isinstance(u.get("key"), str)], "questions": judged.get("questions") or [],
+              "materials": {}, "precedents": [], "diagnosis": {}, "purpose_review": purpose_review,
+              "purpose": _read_json(purpose), "plan": {"plan": []}, "human_items": human_items(answers),
+              "tree_word": tree_word(start_doc), "review_schema": {}, "design_schema": design_schema,
+              "defaults": [x for x in (review_unread, unread) if x], "tree": False}
+    _write_json(d / OPEN_FILE, inputs)
+    return {"k": 0, "form": DESIGN_FORM, "tree": False, "r2_go": r2_due(view(d, inputs))}
+
+
+def _collect_design(d: pathlib.Path, inputs: dict) -> dict:
+    """形 design の返す節の中身: 通った形（関所の項目・問い無し・4 つの軸は ok）と独立設計の控え（無ければ訳の控え）。事前審査の
+    返答の代わりに faces の無い控えを DESIGN_ONLY_DIR に置き、隣に聞かずに通した行（空）と関所の控えを置く"""
+    p = d / DESIGN_ONLY_DIR
+    b = view(d, inputs)
+    review = _write_json(p / REVIEW_FILE, {"faces": [], "shrink": [], "reason": DESIGN_ONLY_WHY})
+    _write_json(p / PASSES_FILE, [])
+    _write_json(p / GATE_FILE, {"items": [], "converge": []})
+    got, _ = design.made(d, b.design_schema)
+    design_file = d / design.DESIGN_FILE if got is not None else _write_json(p / design.DESIGN_FILE, {"missing": design.missing(b)})
+    return {"pass": True, "stalled": False, "review": review, "design": design_file,
+            "gate_axes": {axis: {"ok": True, "note": ""} for axis in gatemarks.AXES}, "ask_human": False, "questions": []}
+
+
 def _approved(d: pathlib.Path) -> list | None:
     """置き場に残る承認済みの修正案の項目（前の差し込みの往復の控えの案の行と、凍結した欄。planmarks.approved_items の形）。
     どちらか無ければ None"""
@@ -906,9 +950,11 @@ def collect(folder) -> dict:
     受け付けが諦めた往復は pass: false・stalled: true で、諦めた訳を questions に載せる。関所の項目は、形 review なら
     gatemarks.plan_gate_items、形 replan なら約束の欄が変わったか人に聞く穴の在る直した項目だけ（replan_asks）で、どちらも方針の
     文書の変化を足す。聞かずに通した行は pass-<k>/gate-passes.json、4 つの軸は gate_axes.gather。返した項目の種類と方針の変化を
-    GATE_ASKED_FILE に積む（次の差し込みが入力 gate_answers の通した行を引く）"""
+    GATE_ASKED_FILE に積む（次の差し込みが入力 gate_answers の通した行を引く）。形 design（直す物が無い周）は _collect_design"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
+    if inputs.get("form") == DESIGN_FORM:
+        return _collect_design(d, inputs)
     p = pass_dir(d, inputs["k"])
     gave = rolekit.given_up_reason(p, REVIEW_NODE)
     review = _read_json(p / REVIEW_FILE) if (p / REVIEW_FILE).is_file() else None

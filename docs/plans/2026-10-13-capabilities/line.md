@@ -726,10 +726,10 @@
   - 狭め: 無し
 - L-W07 直す物が無い周も周を締める（独立設計だけを作り、最後のテストを走らせ、R2 で「直す物が無い」判定を確かめる）
   - 元: works/darkfactory/lib/line_edge.py:1107-1119 `plan_edge`。試験 works/tests/test_line_a.py::LineCase.test_no_fix_path（:162）
-  - 今: 無し。judge が ready:false なら後ろが全部飛ぶ（workflows/line/fixtures/no-fix.stubs.yaml:1-5）
-  - 証: 要追加: 筋書き no-fix に、独立設計・eyes の R2・最後のテストの節を reached で縛る
+  - 今: 線の design-only（plan-review の形 design。lib/boardview.py の open_design・_collect_design）→ workflows/line/scripts/fixed.py の no_fix（独立設計・go・差分無し）→ judged・redepth・test-gate-final・eyes（設計は $fixed.output.design）→ ask-final（封じの節が飛んでも開く）。merge-seal・merge-apply は no_fix で飛ぶ。結末は lib/outcome.py（残りが無ければ no_fix_needed、封じの返りが無いのを切れ目と読まない）
+  - 証: 筋書き no-fix（reached: design-only__review・r2-design・fixed・test-gate-final__result・eyes__r2-compare・eyes__verdict・ask-final ほか）・tests/e2e/test_line_scenarios.py::NoFixRoundTest.test_the_round_is_closed_without_sealing・tests/workflows/test_plan_review.py::NoFixDesignCase.test_design_mode_makes_only_the_design・tests/workflows/test_line.py::FixedCase.test_no_fix_round_goes_on_with_the_design・NoFixWiringCase.test_no_fix_round_closes_the_round・lib/tests/test_outcome.py::ReadingCase.test_no_fix_round_closes_with_the_final_test_and_the_eyes・tests/workflows/test_eyes.py::ScriptCase.test_no_fix_round_has_no_diff
   - 本物の run: 筋書きでのみ（種は欠陥 2 つ）
-  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻すか持ち主へ） → 部分 D2 では戻していない（狭めではない。直す物が無い周は judge の ready: false で計画の往復・修正前の関所・fix が飛び、後ろの fixed・judged・redepth・test-gate-final・eyes・merge・ask-final の with: が飛んだ節の出力を直に結ぶので、Archon は結んだ節を落とす〔workflows/src/output-ref.ts 272・344 行の producer-not-run〕。戻すには plan-review に独立設計だけを作る形を足し、直す物の無い周の道を fixed から最後の関所まで {from, if_skipped} か新しい節で通し、merge が空の差分を封じない形を決める作りの直しが要る。部分 D2 の台帳に BLOCKED として残した）
+  - 狭め: #74 で狭めた（名指し無し。不可でない → 戻すか持ち主へ） → 部分 D2 で戻した
 - L-W08 判定の開いた単位を構造の目の入力 {id, paths, summary} に写し、パスの取れない単位・捨てたパスを記録に残す
   - 元: works/darkfactory/lib/line_edge.py:361 `structure_units`・:343 `_unit_file_paths`・:134 STRUCTURE_UNITS_OP
   - 今: lib/judge_accept.py `structure_units`（record に {units, paths} を書く）・`verdict` が判定の置き場の `structure-units-dropped.json`（`STRUCTURE_DROPPED_FILE`）に書く

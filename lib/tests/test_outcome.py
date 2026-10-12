@@ -232,6 +232,15 @@ class ReadingCase(unittest.TestCase):
         fixbeside.write(folder, [{"closure": [{"unit_key": "u1", "closed": True}]}])
         self.assertEqual(decide(fixed_run(fix=fix))[0], "fixed")
 
+    def test_no_fix_round_closes_with_the_final_test_and_the_eyes(self):
+        """L-W07: 直す物が無い周（判定が ready でなく止めの語も無い。修正は走らず封じもしない）は、最後のテストと独立の目が済んでも
+        no_fix_needed。封じた返りが無いのを途中で切れたと読まない。R2 が直す物が在ると言えば（残りが在れば）直す物が無いと名乗らない"""
+        judge = {"ready": False, "stop_reason": "", "units": [], "judgment": None}
+        run = {**fixed_run(judge=judge), "plan": None, "plan-review": None, "fix": None, "merge-seal": None, "merge-apply": None}
+        self.assertEqual(decide(run), ("no_fix_needed", ""))
+        eyes = {**run["eyes"], "r2": {"status": "redesign-needed", "reason": "直す物が在る"}}
+        self.assertNotEqual(decide({**run, "eyes": eyes})[0], "no_fix_needed")
+
     def test_skipped_eyes_are_not_left(self):
         eyes = {**fixed_run()["eyes"], "r1": None, "r2": None}
         self.assertEqual(decide(fixed_run(eyes=eyes))[0], "fixed")

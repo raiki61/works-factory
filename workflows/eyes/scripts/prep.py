@@ -39,7 +39,7 @@ purpose = read(json.loads(os.environ["INPUTS_PURPOSE"])) or {}
 design_file = opened(json.loads(os.environ["INPUTS_DESIGN"]))
 design = eyeverdict.read_design(design_file)
 diff_file = opened(json.loads(os.environ["INPUTS_DIFF"]))
-diff_text = diff_file.read_text(encoding="utf-8", errors="replace")
+diff_text = diff_file.read_text(encoding="utf-8", errors="replace") if diff_file else ""   # 直す物が無い周は差分が無い（L-W07）
 answer = json.loads(os.environ["INPUTS_ANSWERS"])
 changed = json.loads(os.environ["INPUTS_CHANGED"])
 premises = judgment_file.with_name("premises.json") if judgment_file else None
@@ -64,7 +64,7 @@ out = {
     "purpose_text": purpose_text,
     "design_text": design.get("design") or "",
     "design_reply": json.dumps(design, ensure_ascii=False, indent=1),
-    "diff_file": str(diff_file),
+    "diff_file": str(diff_file or ""),
     "diff_lines": len(diff_text.splitlines()),
     "changed_files": "、".join(eyeverdict.changed_files(diff_text)),
     "scalars": eyeverdict.scalars_text(eyeverdict.scalars(diff_text, json.loads(os.environ["INPUTS_X_SCALARS"]))),

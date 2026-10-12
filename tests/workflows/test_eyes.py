@@ -556,6 +556,18 @@ class ScriptCase(unittest.TestCase):
         merged = judge_accept.with_carried({"constraints": [{"text": "a", "measured_how": "m", "kind": "仮説"}]}, jdir)
         self.assertEqual([c["text"] for c in merged["constraints"]], ["a", "上限は config.py:3 の 10"])
 
+    def test_no_fix_round_has_no_diff(self):
+        """L-W07: 直す物が無い周（線の fixed の no_fix）は差分が無い（diff・plan・ripple が null、changed が {}）。目の支度は落ちずに
+        差分 0 行で組み、R2 は独立設計と「直す物が無い」判定を比べる"""
+        self.start()
+        self.inputs.update({"judgment": self.pointer("judge/judgment.json", {"units": []}),
+                            "purpose": self.pointer("judge/purpose.json", {"purpose_text": "目的"}),
+                            "diff": "null", "answers": "null", "start_answers": "null", "changed": "{}", "x_scalars": "{}",
+                            "units": "[]", "fix_units": "[]", "depth": "[]", "plan_questions": "[]"})
+        self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
+        got = self.run_script("prep")
+        self.assertEqual((got["diff_lines"], got["diff_file"], got["run_eyes"], got["compare_due"]), (0, "", True, True))
+
     def test_carried_constraints_keep_the_eyes(self):
         """E37（R2 を省かない）: 前の run が運んだ実測が判定の制約に在る run は、深さが目を省く軽量の単位でも run_eyes を真にする
         （元 review-loop.py:3755 の r2_refire_forced）"""

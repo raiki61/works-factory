@@ -429,6 +429,8 @@ def _chain_cuts(returns: dict) -> list:
     """返りの続きが切れている所 [(後の段, 文)]"""
     out = []
     for before, flag, after, text in CHAIN:
+        if after == "merge-seal" and returns.get("fix") is None:   # 直す物が無い周（L-W07）は差分が無いので封じない
+            continue
         got = latest(returns, before)
         if got and (flag is None or got.get(flag) is True) and latest(returns, after) is None:
             out.append((after, text))
@@ -478,7 +480,7 @@ def decide_outcome(returns: dict, gates: dict, facts: dict) -> tuple[str, str]:
        record_problems が在る）
     5. 元に無い: 途中で終わった → interrupted（記録の落ちて線が進まなかった節か、返りの続きの切れ目 CHAIN。線が受け止めた落ちは
        ここでなく 7 の残り）
-    6. 直す物が無い周 → no_fix_needed
+    6. 直す物が無い周 → no_fix_needed（周を締めた最後のテストと独立の目の残りが無い時。残りが在れば 7）
     7. 残り（residue。依頼の答えが命令と出力つきで答えた素材を除き、受け止めた落ちを含む）が測れていない素材の行だけで最後の
        テストが緑 → fixed_needs_check、ほかの残り → round_limit
     8. 他 → fixed。fixed・fixed_needs_check は最後のテストの ok と green と封じの ok が真の時だけ（_proved。返りが無ければ
@@ -500,9 +502,9 @@ def decide_outcome(returns: dict, gates: dict, facts: dict) -> tuple[str, str]:
         return "record_invalid", f"{'start' if not facts.get('start_ok') else 'report'}:{RECORD_INVALID}"
     if cut:
         return "interrupted", cut
-    if _no_fix(returns):
-        return "no_fix_needed", ""
     left = residue(returns, facts)
+    if _no_fix(returns) and not left:   # 直す物が無い周は最後のテストと独立の目（R2）が確かめてから名乗る（L-W07）
+        return "no_fix_needed", ""
     if left and all(_is_material_row(r) for r in left) and _proved(returns):
         return "fixed_needs_check", ""
     if left or not _proved(returns):

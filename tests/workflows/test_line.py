@@ -903,7 +903,7 @@ class AskFinalCase(unittest.TestCase):
         self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
         nodes = line_nodes()
         self.assertEqual(nodes["gate-final"]["when"], "$ask-final.output.open == true")
-        self.assertEqual(nodes["merge-apply"]["when"], "$answer-final.output.go == true")
+        self.assertEqual(nodes["merge-apply"]["when"], "$answer-final.output.go == true && $fixed.output.no_fix == false")
 
     def test_unsealed_is_a_reason(self):
         got = self.got(sealed=False, seal_reason="緑の認証の指紋が今の木と違う")
@@ -1139,7 +1139,7 @@ class AskFinalReadsCase(Artifacts):
         self.assertIn(f"- 構造のブロック: {missing}", ask_final.final_text(final_got(structure_missing=missing), [], RUN))
         ok = self.place("plan/structure/structure-state.json", {"status": "ok", "reason": "", "design_file": "", "wall_s": 0})
         self.assertEqual(ask_final.structure_missing(ok), "")
-        self.assertEqual(line_nodes()["ask-final"]["with"]["structure"], "$plan-rounds.output.structure")
+        self.assertEqual(line_nodes()["ask-final"]["with"]["structure"], {"from": "$plan-rounds.output.structure", "if_skipped": None})
 
     def test_fix_beside_files_reach_the_final_gate(self):
         """F013・F041・F312・F329・L-W20・L-W21（S03・S28・S29）: 最後の関所は修正の段ごとの diff の隣の約束のファイル（fixed の diffs。
@@ -1485,6 +1485,23 @@ class FixedCase(unittest.TestCase):
         self.assertEqual((got["conflicts"], got["refixed"], got["diff"]), ([{"path": "fix/conflicts.json"}], False, {"path": "fix/diff"}))
         self.assertTrue(got["done"])
 
+    def test_no_fix_round_goes_on_with_the_design(self):
+        """L-W07: 直す物が無い周（fix が走らず、独立設計だけを作る差し込み design-only が走った）は、fixed が直す物の無い形
+        （no_fix・go・差分も申し出も無い）と独立設計の指し札を返し、最後のテスト・独立の目へ進める。普段の周は計画の往復の設計と
+        修正前の問い・答えをそのまま渡す"""
+        design = {"path": "plan-review/design.json"}
+        plans = {"plan": None, "ripple": None, "replanned": None, "design": None, "no_fix_design": design,
+                 "plan_questions": None, "answer": None}
+        got = fixed.fixed({key: None for key in fixed.FIELDS}, None, replan=False, stops=("",), plans=plans)
+        self.assertEqual((got["no_fix"], got["go"], got["done"], got["design"], got["diff"], got["diffs"], got["units"],
+                          got["conflicts"], got["rejudge"], got["plan_questions"], got["answer"]),
+                         (True, True, True, design, None, [], [], [], False, [], None))
+        normal = fixed.fixed(self.fix(), None, replan=False, stops=("",),
+                             plans={"design": {"path": "pr/design.json"}, "plan_questions": [{"kind": "fork", "text": "q"}],
+                                    "answer": {"decision": "continue"}})
+        self.assertEqual((normal["no_fix"], normal["design"], normal["plan_questions"], normal["answer"]),
+                         (False, {"path": "pr/design.json"}, [{"kind": "fork", "text": "q"}], {"decision": "continue"}))
+
     def test_diffs_name_both_passes(self):
         """部分 D2: fixed は段ごとの diff の指し札の並び diffs（1 回目・2 度目の順。どちらの隣にも段の約束のファイル）を返し、最後の
         関所と報告が両方を読む。2 度目が走らなければ 1 回目だけ"""
@@ -1542,7 +1559,8 @@ class FixedCase(unittest.TestCase):
         self.assertEqual({k: nodes["eyes"]["with"][k] for k in ("plan", "ripple")},
                          {"plan": "$fixed.output.plan", "ripple": "$fixed.output.ripple"})
         self.assertEqual({k: nodes["fixed"]["with"][k] for k in (*fixed.PLANS, "replanned")},
-                         {"plan": "$plan-rounds.output.plan", "ripple": "$plan-rounds.output.ripple",
+                         {"plan": {"from": "$plan-rounds.output.plan", "if_skipped": None},
+                          "ripple": {"from": "$plan-rounds.output.ripple", "if_skipped": None},
                           "replanned": {"from": "$replan-out.output.got", "if_skipped": None}})
         self.assertIn("replan-out", nodes["fixed"]["depends_on"])
 
@@ -1658,7 +1676,8 @@ class RedepthCase(Artifacts):
         with_ = line_nodes()["redepth"]["with"]
         self.assertEqual({k: with_[k] for k in ("judgment", "start", "answer", "ties_judgment", "plan", "diff")},
                          {"judgment": "$judged.output.judgment", "start": "$start.output.record",
-                          "answer": "$answer-before-fix.output.answer", "ties_judgment": "$judge.output.judgment",
+                          "answer": {"from": "$answer-before-fix.output.answer", "if_skipped": None},
+                          "ties_judgment": "$judge.output.judgment",
                           "plan": "$fixed.output.plan", "diff": "$fixed.output.diff"})
         self.assertIn("counted", line_nodes()["redepth"]["output_format"]["required"])
 
@@ -1697,6 +1716,13 @@ class CollectAndResultCase(unittest.TestCase):
         got = collect.collect({"plan_rounds": json.dumps({"got": rounds, "stop_reason": ""})}, self.line())
         self.assertEqual(got["plan"], {key: rounds[key] for key in plan_out.PLAN})
         self.assertIsNone(got["plan_review"])
+
+    def test_no_fix_design_is_the_plan_review(self):
+        """L-W07: 直す物が無い周（計画の往復が飛んだ）は、report の plan-review の欄に design-only の受け皿の返りを置く"""
+        only = {"pass": True, "design": {"path": "plan-review/design.json"}}
+        got = collect.collect({"design_only": json.dumps({"got": only, "stop_reason": ""})}, self.line())
+        self.assertEqual((got["plan"], got["plan_review"]), (None, only))
+        self.assertEqual(line_nodes()["collect"]["with"]["design_only"], {"from": "$design-only-out.output", "if_skipped": None})
 
     def test_fix_is_the_first_and_second_fix_merged(self):
         """report の入力 fix は 1 回目と 2 度目の修正を合わせた物（申し出 conflicts は段ごとの指し札の配列）。合わせる節 fixed が
@@ -1881,6 +1907,32 @@ class GateDecisionsCase(unittest.TestCase):
                                  set(linekit.GO_WORDS) | set(answer.VERBS) | {linekit.REJECT})
 
 
+class NoFixWiringCase(unittest.TestCase):
+    def test_no_fix_round_closes_the_round(self):
+        """L-W07（元 line_edge.plan_edge 1107-1119）: 判定が直す単位を出さず止めてもいない周は、plan-review を形 design で差し込み
+        （design-only。修正案は null）、fixed がそれを受けて最後のテスト・独立の目（設計は fixed の design）へ進める。差分が無いので
+        封じず当てない（merge-seal・merge-apply の when）。最後の関所は封じの節が飛んでも開ける。飛びうる節は {from, if_skipped}"""
+        nodes = line_nodes()
+        only = nodes["design-only"]
+        self.assertEqual((only["include"], only["when"], only["with"]["mode"], only["with"]["plan"]),
+                         ("works-factory-plan-review", "$judge.output.ready == false && $judge.output.stop_reason == ''", "design", "null"))
+        self.assertIn("design-only", nodes["fixed"]["depends_on"])
+        for key in ("fix_done", "fix_units", "plan", "ripple", "replan", "stop_after_fix", "design", "no_fix_design",
+                    "plan_questions", "answer"):
+            self.assertIsInstance(nodes["fixed"]["with"][key], dict, key)
+        self.assertEqual(nodes["eyes"]["with"]["design"], "$fixed.output.design")
+        self.assertEqual(nodes["eyes"]["with"]["plan_questions"], "$fixed.output.plan_questions")
+        self.assertEqual(nodes["eyes"]["with"]["answers"], "$fixed.output.answer")
+        self.assertIn("$fixed.output.no_fix == false", nodes["merge-seal"]["when"])
+        self.assertIn("$fixed.output.no_fix == false", nodes["merge-apply"]["when"])
+        self.assertEqual((nodes["ask-final"]["depends_on"], nodes["ask-final"]["trigger_rule"]),
+                         (["eyes", "merge-seal"], "none_failed_min_one_success"))
+        for key in ("protected_hits", "sealed", "seal_reason", "hash", "sealed_diff", "plan_review", "structure", "before_fix_answer"):
+            self.assertIsInstance(nodes["ask-final"]["with"][key], dict, key)
+        for key in ("depth", "answer", "replanned"):
+            self.assertIsInstance(nodes["redepth"]["with"][key], dict, key)
+
+
 class Recorded(dict):
     """読まれた環境変数の名を控える os.environ の代わり"""
 
@@ -1958,7 +2010,9 @@ class LineWiringCase(unittest.TestCase):
                     self.assertEqual(node["with"].get(name), from_the_start[name])
 
     UNPASSED = {
-        "plan-review-run": {"conflicts", "gate_answers"},   # 計画の往復は修正の前。申し出も修正前の関所の答えもまだ無い
+        "plan-review-run": {"conflicts", "gate_answers", "mode"},   # 計画の往復は修正の前。申し出も修正前の関所の答えもまだ無い
+        "replan-review": {"mode"},   # 形 design は直す物が無い周の design-only だけ
+        "design-only": {"ruling", "conflicts", "gate_answers"},   # 修正案を読まない形 design
         "fix": {"only_items", "prior_conflicts", "notes", "mode", "group", "from_tree", "out_dir"},   # docs/design.md の「約束に無い入力（線は渡さない）」と 2 度目だけの入力
         "refix-run": {"mode", "group", "from_tree", "out_dir"},
         "merge-seal": {"answer", "r2", "sealed_hash"},   # apply の時だけ
@@ -2038,8 +2092,8 @@ class LineWiringCase(unittest.TestCase):
         nodes = line_nodes()
         self.assertLessEqual({"conflicts", "gate_answers"}, set(nodes["replan-review"]["with"]))
         self.assertFalse({"conflicts", "gate_answers"} & set(nodes["plan-review-run"]["with"]))
-        self.assertEqual(self.UNPASSED["plan-review-run"], {"conflicts", "gate_answers"})
-        self.assertNotIn("replan-review", self.UNPASSED)
+        self.assertEqual(self.UNPASSED["plan-review-run"], {"conflicts", "gate_answers", "mode"})
+        self.assertEqual(self.UNPASSED["replan-review"], {"mode"}, "申し出と関所の答えは渡す（mode は直す物が無い周の design-only だけ）")
 
     def test_include_ids_are_not_loop_body_ids(self):
         """展開した後の節の id が重ならない: Archon は差し込んだブロックの頭の段の節にだけ `<include の id>__` を付け、輪の中の節の id は
@@ -2058,7 +2112,7 @@ class LineWiringCase(unittest.TestCase):
             return got
 
         includes = {key for key, node in line_nodes().items() if "include" in node}
-        self.assertEqual(len(includes), 14)
+        self.assertEqual(len(includes), 15)
         self.assertEqual(includes & body_ids(LINE["nodes"]), set())
 
     def test_report_reruns_on_resume(self):

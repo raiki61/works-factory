@@ -19,9 +19,13 @@ held の時は 1 回目の修正の差分を試験の関門から先へ進めな
 plan・ripple は独立の目が照らす修正案と波及: 2 度目の修正が走った run は案の直し（replan）の物、ほかは計画の往復の物
 （元 works/darkfactory/lib/line_edge.py 1058-1064 行。案の直しの後は承認済みの案を差し替えた）。
 
-入力（with:）: fix_<欄>（fix の返り）・refix_<欄>（refix-run の返り。`{from, if_skipped: null}`）・replan（after-fix の返り）・
-stop_after_fix（after-fix の止めの理由）・plan・ripple（計画の往復の返り）・replanned（案の直しの返りの受け皿
-replan-out の got。`{from, if_skipped: null}`。案の直しの返す節が落ちても fixed が落ちないように、replan を直に読まない）
+design・plan_questions・answer は独立の目へ渡す計画の往復の設計と修正前の関所の問いと答え（そのまま渡す）。直す物が無い周（fix が
+走らず design-only が走った。fix の欄が null）は no_fix の形（no_fix）を返す（L-W07）。
+
+入力（with:）: fix_<欄>（fix の返り）・refix_<欄>（refix-run の返り）・replan（after-fix の返り）・stop_after_fix（after-fix の止めの理由）・
+plan・ripple・design・plan_questions（計画の往復の返り）・answer（修正前の関所の答え）・no_fix_design（design-only の design）・replanned
+（案の直しの返りの受け皿 replan-out の got。案の直しの返す節が落ちても fixed が落ちないように、replan を直に読まない）。直す物が
+無い周に飛ぶ節を結ぶので、どれも `{from, if_skipped: null}`
 """
 import json
 import os
@@ -31,6 +35,17 @@ import linekit
 FIELDS = ("done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes", "changed",
           "x_scalars", "delta_review")
 PLANS = ("plan", "ripple")
+PASSED = ("design", "plan_questions", "answer")   # 独立の目へ渡す計画の往復の設計・修正前の関所の問いと答え（飛ばされた周は null）
+
+
+def no_fix(plans: dict) -> dict:
+    """直す物が無い周（fix が走らず、独立設計だけを作る差し込み design-only が走った。元 works/darkfactory/lib/line_edge.py:1107-1119
+    の plan_edge）の形: 直す物も差分も申し出も無く、最後のテストと独立の目へ進める（go）。独立の目の設計は design-only の物、
+    修正前の関所は開いていない（問い []・答え null）。差分が無いので封じず当てない（線の merge-seal・merge-apply の when が no_fix を読む）"""
+    return {"done": True, "go": True, "units": [], "groups": [], "conflicts": [], "replan_items": [], "objection": "", "diff": None,
+            "diffs": [], "allowed_test_changes": [], "changed": {}, "x_scalars": {}, "delta_review": None, "refixed": False,
+            "rejudge": False, "plan": None, "ripple": None, "design": plans.get("no_fix_design"), "plan_questions": [],
+            "answer": None, "no_fix": True, "stop_reason": ""}
 
 
 def union(*lists) -> list:
@@ -49,8 +64,10 @@ def review_failed(returned: dict) -> bool:
 
 
 def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: dict | None = None) -> dict:
-    last = refix if refix is not None else fix
     plans = plans or {}
+    if fix.get("done") is None and refix is None:
+        return no_fix(plans)
+    last = refix if refix is not None else fix
     again = plans.get("replanned") if refix is not None and isinstance(plans.get("replanned"), dict) else None
     held = (replan and refix is None) or any(stops)
     done = last.get("done") is True and not held
@@ -79,6 +96,10 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
         "delta_review": last.get("delta_review"),
         "refixed": refix is not None,
         **{key: (again or plans).get(key) for key in PLANS},
+        "design": plans.get("design"),
+        "plan_questions": plans.get("plan_questions") or [],
+        "answer": plans.get("answer"),
+        "no_fix": False,
         "stop_reason": "",
     }
 
@@ -91,14 +112,15 @@ def from_env() -> dict:
     refix = of_env("REFIX")
     return {"fix": of_env("FIX"), "refix": None if refix["done"] is None else refix,
             "replan": linekit.flag(os.environ.get("INPUTS_REPLAN")),
-            "plans": {key: linekit.value(os.environ.get(f"INPUTS_{key.upper()}")) for key in (*PLANS, "replanned")},
+            "plans": {key: linekit.value(os.environ.get(f"INPUTS_{key.upper()}"))
+                      for key in (*PLANS, "replanned", *PASSED, "no_fix_design")},
             "stops": (linekit.text(os.environ.get("INPUTS_STOP_AFTER_FIX")),)}
 
 
 def fallback(reason: str) -> dict:
     return {**{key: None for key in FIELDS}, "done": False, "go": False, "units": [], "groups": [], "conflicts": [], "diffs": [], "replan_items": [],
             "objection": "", "rejudge": False, "allowed_test_changes": [], "x_scalars": {}, "refixed": False, "plan": None, "ripple": None,
-            "stop_reason": linekit.LINE_SCRIPT}
+            "design": None, "plan_questions": [], "answer": None, "no_fix": False, "stop_reason": linekit.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
