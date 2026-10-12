@@ -2,8 +2,8 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""構造の目の控え structure-state.json を書く（lib/planfile.write_state。使い回しの周は書き直さない。役を起こさない周は測らなかった訳で
-failed）。返り {state_file}"""
+"""構造の目の控え structure-state.json を書く（lib/planfile.keep_state。使い回しの周は書き直さない。役を起こさない周は測らなかった訳で
+failed。構造の置き場に書けない周は周のフォルダに「控えを書けない」の訳で failed を置いて計画へ進む）。返り {state_file}"""
 import os
 import sys
 from pathlib import Path
@@ -18,8 +18,7 @@ import planfile  # noqa: E402
 
 def main() -> None:
     art = Path(os.environ["ARTIFACTS_DIR"])
-    rnd = planfile.read_round(art / os.environ["INPUTS_DIR"])
-    state = planfile.write_state(art / planfile.PLAN_DIR / rnd["structure"], skipped="" if rnd["go"] else rnd["why"])
+    state = planfile.keep_state(art / planfile.PLAN_DIR, art / os.environ["INPUTS_DIR"])
     boundary.returns({"state_file": state.relative_to(art).as_posix()})
 
 

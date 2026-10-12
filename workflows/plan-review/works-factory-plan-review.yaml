@@ -306,6 +306,25 @@ nodes:
               give_up: {type: boolean}
               reason: {type: string}
 
+  # 読んだ証拠: この差し込みの事前審査の役が、機械が渡したパス（材料・方針の文書）を読んだかを、隔離した設定のフックの記録から
+  # 集めて pass-<k>/ に書き、束ね役が起こした下請けの数を trace に残す（受け付けの条件にしない。返す節に結ばない。落ちない）
+  - id: review-reads
+    script: review_reads
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [open, review-loop]
+    trigger_rule: all_done
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, missing, index_file, reason]
+      properties:
+        ok: {type: boolean}
+        missing: {type: array, items: {type: string}}
+        index_file: {type: string}
+        reason: {type: string}
+
   # 返す節。往復の控え・受けた返答・設計の控え・拒みの控えだけを読む。落ちない（中の誤りは偽の結末と訳で返す）
   - id: review
     script: result

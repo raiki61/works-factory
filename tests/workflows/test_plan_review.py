@@ -24,6 +24,7 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.workflows import copied
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 
@@ -43,8 +44,11 @@ import design  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
 import planblk  # noqa: E402
+import planfile  # noqa: E402
 import planmarks  # noqa: E402
 import policy  # noqa: E402
+import reads  # noqa: E402
+import rolekit  # noqa: E402
 import startrec  # noqa: E402
 import structmark  # noqa: E402
 import worldmark  # noqa: E402
@@ -70,6 +74,55 @@ ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts":
                 "round_limit": "null"}
 RETURN_FIELDS = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
 RUN_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
+
+
+# 役の指示書の写しの台帳（K9。tests/workflows/copied.py）。元は今の works（raiki61/claude-plugins の
+# 2aa7c66cf7abe1fe09699ac2942d107123214168）の works/ の下。plan-review.md は役 judge の定義（engine が本文を前付けした）と
+# p2.plan_review.md を順に繋いだ物
+JUDGE_HEAD = ("---\nname: judge\ndescription: 呼び出し側が覆せない判定を下す上位の目。リポジトリと web は読めるが書けず、shell を持たない。\n"
+              "model: opus\neffort: high\ntools: Read, Glob, Grep, WebSearch, WebFetch\n---\n\n")
+REVIEW_TITLE = "修正案の事前審査（別の judge。書く前の案を叩く）\n\n"
+R2_TAKEN = ("元の目的:\n{{out.p0.purpose.purpose_text}}\n\n実測した制約（kind=仮説 のものは所与にするな）: {{record.process.constraints}}\n"
+            "前提のドリフト（あれば）: {{?loop.drift_notes}}\n"
+            "裏取りを通っていない目的の判定（あれば）: {{?loop.purpose_review_stale}}——この周の『狭めている』は根拠が数え直されていないので、"
+            "目的を独立に取れない理由としては使えない\n")
+COPIED = {
+    "plan-review.md": (
+        [("works/.shared/core/agents/judge.md", "078d6834af474542db794660277ea99673c1df7791e797ac2b6a17932fcb181c", 3225),
+         ("works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md",
+          "4f400ecf39c7347e5c45c62cdf2446278816202653b5c6f132b56d16eade5068", 4520)],
+        [(JUDGE_HEAD + "お前は judge。", "お前は judge。", "役の定義の頭（name・model・tools）を外し、本文だけを前付けする"),
+         ("規律の外。\n# P2-11 " + REVIEW_TITLE, "規律の外。\n\n# " + REVIEW_TITLE,
+          "見出しの段の番号 P2-11 を外し、役の本文との間を空ける"),
+         ("修正役の案: {{out.p2.fix_plan.plan}}\n" + ORIGINAL_UNITS_LINE + "\n判定者の見立て: {{record.process.diagnosis | pick framing,one_shot}}\n"
+          "判定者の先行例（世界の解）: {{?record.process.precedents}}\n"
+          "リポジトリ: {{inputs.cwd}}（読む版: `{{inputs.review_rev}}`）\u3000BASE: `{{record.base}}`\u3000観点の正本: {{inputs.review_md}}\n",
+          "材料のファイル `$review-prep.output.prompt_file` を Read で読め。役の頭の決まり（関所の項目の決め手・既にある物を量ったか・"
+          "人に回す物の挙げ方・独立設計との突き合わせ・項目の works の欄）、前の往復の block（2 往復目から）、項目ごとの下請けを並べる"
+          "束ね役の頼み（在れば）、修正役の案・直す単位・判定者の見立て・先行例・リポジトリと読む版・人の方針は、全部そこに在る。"
+          "束ね役の頼みが在れば、それに従って下請けを起こし、返答はその頼みの形にせよ。返すのは下の決まりと返し方に合う JSON だけ。\n\n"
+          "リポジトリ: 材料のファイルの『リポジトリ』の行が名指す所（読む版と観点の正本も同じ行）\n",
+          "engine の雛形の 5 行を材料のファイルへ移す（下請けに貼る『リポジトリ: 』の行は残す）"),
+         ("を P3 で答える", "を修正の段で答える", "段の番号 P3 を言い換える")]),
+    "r2-design.md": (
+        [("works/.shared/core/gl-prompts/prompts/review-loop/r2.design.md",
+          "135fe61e6a01f7632b60b9df548d5508a1066c453295bf0fe0a6553159cbc6ac", 1731)],
+        [("お前は blind-judge（",
+          "お前は独立の目の 1 つ（R2 ゼロベース再導出（独立設計の半分））として、新しい会話で起きている。修正案も、判定の経緯も、"
+          "実装も引き継いでいない。\nお前は道具を一切持たない。ファイルもリポジトリも開けない——下の囲みの中が渡された物の全部である。\n\n"
+          "お前は blind-judge（",
+          "新しい会話・道具なし・囲みの中が全部の 2 行を頭に"),
+         (R2_TAKEN,
+          "囲みの中に、元の目的と、実測した制約（kind=仮説 のものは所与にするな）と、前提のドリフトと裏取りを通っていない目的の判定"
+          "（あれば）の 2 行が在る。囲みの頭に「人が決めた前提」の節が在れば、それも渡した物である。\n囲みの頭に「前の回の受け付けが"
+          "拒んだ理由」の節が在れば、お前の前の返答は受け付けで拒まれている。そこに書かれた所を直した返答を丸ごと出し直せ（直した所"
+          "だけを返すな）。\n\n=====渡した物ここから=====\n$r2-prep.output.prompt\n=====渡した物ここまで=====\n",
+          "雛形の差し込み（目的・制約・前提のドリフト・裏取りを通っていない目的の判定）を支度の材料の囲みへ移す（4 つとも r2_prep が貼る）"),
+         ("人へ）。\n", "人へ）。根拠に実物を名指すなら `<パス>:<行>` の形で書け（受け付けが依頼を固めた版で検算する）。\n",
+          "問いが立たない根拠の名指しの形（受け付けが固めた版で照らす）"),
+         ("比較役がやる。\n", "比較役がやる。\n\n返すのは JSON だけ: question_stands（問いが立つか）・reason（判断の理由）・"
+          "premise_invalid_reason（問いが立たない時の根拠）・design（独立設計）。\n", "返し方の 1 行")]),
+}
 
 
 def workflow() -> dict:
@@ -284,6 +337,13 @@ def env_names(text: str) -> set:
 class YamlCase(unittest.TestCase):
     """ブロックの YAML の形（元 tests/test_blk_plan.py の YamlCase の事前審査と独立設計の側）"""
 
+    def test_reads_roles_are_the_role_nodes_by_their_tools(self):
+        """読んだ証拠の節が名指す役は YAML の役の節と同じ: 道具を持つ役は review_reads.ROLE、持たない役は planblk.DESIGN_ROLE
+        （役が道具を得たのに null と書く黙った緩みを赤にする）"""
+        roles = [n for n in nodes().values() if "command" in n or "prompt" in n]
+        self.assertEqual({n["id"] for n in roles if n.get("allowed_tools")}, {load_script("review_reads").ROLE})
+        self.assertEqual({n["id"] for n in roles if not n.get("allowed_tools")}, {planblk.DESIGN_ROLE})
+
     def test_returns_review_and_outcome_pass(self):
         doc = workflow()
         self.assertEqual((doc["name"], doc["returns"], doc["outcome_field"]), ("works-factory-plan-review", "review", "pass"))
@@ -387,6 +447,18 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(sorted(fmt["required"]), ["faces", "reason", "shrink"])
         self.assertLessEqual(set(boardview.HUMAN_FACE_KINDS), set(row["kind"]["enum"]), "人の関所に回す穴の種類が役の返りの kind に無い")
 
+    def test_recommend_is_optional_on_both_roles(self):
+        """元 tests/test_gate_drafts.py の SchemaCase.test_gate_rows_have_the_recommend_field: 推しの欄は事前審査の faces の行と
+        修正案の narrows の行の型に在り、どちらも required に入れない"""
+        faces = nodes()["plan-review"]["output_format"]["properties"]["faces"]["items"]
+        plan_doc = yaml.safe_load((ROOT / "workflows" / "plan" / "works-factory-plan.yaml").read_text(encoding="utf-8"))
+        writer = next(n for g in plan_doc["nodes"] for n in [g, *g.get("loop_group", {}).get("nodes", [])] if n["id"] == "plan-writer")
+        narrows = writer["output_format"]["properties"]["plan"]["items"]["properties"]["narrows"]["items"]
+        for name, row in (("faces", faces), ("narrows", narrows)):
+            with self.subTest(name):
+                self.assertIn(gatemarks.RECOMMEND, row["properties"])
+                self.assertNotIn(gatemarks.RECOMMEND, row["required"])
+
     def test_scripts_read_role_formats_from_the_yaml(self):
         """script は外のパッケージ無しで走るので、役の節の型は JSON の形で書き、差し込みの頭の script の node_schema で読む
         （節の id と YAML の並びの読みは script の側に置く。lib/AGENTS.md の E3）"""
@@ -419,9 +491,19 @@ class YamlCase(unittest.TestCase):
                      "## 返し方", "faces_none", "根拠は読む版で取れ"):
             self.assertIn(word, rules)
 
+    def test_r2_command_is_the_original_with_only_the_allowed_edits(self):
+        """独立設計の指示書は元の r2.design.md の字のまま: 許した直しを逆に当てると元のバイトに戻る"""
+        self.assertEqual(copied.restore_problems((BLOCK / "commands" / "r2-design.md").read_text(encoding="utf-8"),
+                                                 *COPIED["r2-design.md"]), [])
+
+    def test_review_command_is_the_original_with_only_the_allowed_edits(self):
+        """事前審査の指示書は役 judge の定義と元の p2.plan_review.md を繋いだ字のまま: 許した直しを逆に当てると元のバイトに戻る"""
+        self.assertEqual(copied.restore_problems((BLOCK / "commands" / "plan-review.md").read_text(encoding="utf-8"),
+                                                 *COPIED["plan-review.md"]), [])
+
     def test_script_names_do_not_hide_lib_modules(self):
         names = {p.stem for p in (BLOCK / "scripts").glob("*.py")}
-        self.assertEqual(names, {"pass_open", "r2_prep", "r2_accept", "review_prep", "review_accept", "result"})
+        self.assertEqual(names, {"pass_open", "r2_prep", "r2_accept", "review_prep", "review_accept", "review_reads", "result"})
         self.assertEqual(names & {p.stem for p in LIB.glob("*.py")}, set())
 
     def test_scripts_read_only_declared_inputs(self):
@@ -454,6 +536,18 @@ class YamlCase(unittest.TestCase):
                 self.assertEqual(mine & body_ids(yaml.safe_load(other.read_text(encoding="utf-8"))), set())
 
 
+class CopiedTextsCase(unittest.TestCase):
+    """指示書の写しの台帳（K9）: commands/ の全部が台帳に在り、許した直しを逆に当てると元のバイトに戻る"""
+
+    def test_every_command_is_its_original_with_only_ledgered_edits(self):
+        names = sorted(p.name for p in (BLOCK / "commands").glob("*.md"))
+        self.assertEqual(names, sorted(COPIED), "台帳に無い指示書か、指示書の無い台帳の行")
+        for name in names:
+            with self.subTest(name):
+                self.assertEqual(copied.restore_problems((BLOCK / "commands" / name).read_text(encoding="utf-8"),
+                                                         *COPIED[name]), [])
+
+
 class IsolationCase(RunCase):
     """独立設計に禁じた入力が届かない（持ち主の決め independent-verdict・premises-purpose。元 tests/test_blk_plan.py の
     ScriptCase.test_design_before_plan_reaches_plan_review・test_independent_design_input_has_no_means）"""
@@ -482,6 +576,20 @@ class IsolationCase(RunCase):
         premises = (r.folder / boardview.PREMISES_FILE).read_text(encoding="utf-8")
         for leak in (PLAN_MARK, FRAMING_MARK, RIPPLE_MARK):
             self.assertNotIn(leak, premises)
+
+    def test_prompt_carries_drift_and_unvetted_purpose_lines(self):
+        """元の指示書の 2 行（前提のドリフト・裏取りを通っていない目的の判定）を材料に持つ。R2 は修正の前に 1 度だけ走るのでドリフトは
+        無い。目的の監査の『狭めている』が裏取り（cite）の無い findings に乗っていれば、その行を名指す（元 review-loop.py:1838）"""
+        r = self.run_
+        r.open()
+        prompt = r.out("r2_prep")["prompt"]
+        self.assertIn(boardview.DRIFT_LINE.format(notes=boardview.NONE_YET), prompt)
+        self.assertIn(boardview.STALE_LINE.format(stale=boardview.NONE_YET), prompt)
+        r.judgment(purpose_review={"verdict": "狭めている", "reason": "要約が狭い", "findings": ["素の文字列"]})
+        r.open()
+        prompt = r.out("r2_prep")["prompt"]
+        self.assertIn(boardview.STALE_WHY, prompt)
+        self.assertNotIn(boardview.STALE_LINE.format(stale=boardview.NONE_YET), prompt)
 
     def test_purpose_means_do_not_reach_the_design(self):
         """目的の役が分けた依頼の解き方 means（purpose.json の隣）は独立設計に渡らない"""
@@ -598,6 +706,33 @@ class DesignCase(RunCase):
         missing = json.loads(r.pointed(got["design"]).read_text(encoding="utf-8"))
         self.assertIn("拒まれた", missing["missing"])
 
+    def test_off_schema_reply_names_the_type_error(self):
+        """独立設計の返答は役の型（差し込みの頭が YAML から控えた物）で照らし、拒みの訳は型の誤りの欄を名指す"""
+        r = self.run_
+        r.open()
+        _, got = self.designed({"reason": "x"})
+        self.assertFalse(got["ok"], got)
+        self.assertIn("独立設計の返答", got["reason"])
+        self.assertIn("question_stands", got["reason"])
+
+    def test_design_handoff_is_traced(self):
+        """返す節は設計の控えを返り design で渡した・渡せなかったを trace に残す（元 design.hand の r2_design_handed・r2_design_missing）"""
+        def ops(r):
+            rows = [json.loads(x) for x in (r.folder / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+            return [(x["op"], x.get("file"), bool(x.get("reason"))) for x in rows if x["op"] in (design.HANDED_OP, design.MISSING_OP)]
+
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        self.designed()
+        self.assertTrue(r.pass_(review(design_map=ReviewAcceptCase.full_map()))["pass"])
+        self.assertEqual(ops(r), [(design.HANDED_OP, str(r.folder / design.DESIGN_FILE), False)])
+        self.setUp()
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.pass_(review())
+        self.assertEqual(ops(r), [(design.MISSING_OP, None, True)])
+
     def test_tree_change_rejected(self):
         """元 test_design_tree_change_rejected: 道具ゼロの役でも、起こす前の作業ツリーの姿と比べて変わっていれば拒む"""
         r = self.run_
@@ -606,7 +741,7 @@ class DesignCase(RunCase):
         (r.repo / "stats.py").write_text("# 変えた\n", encoding="utf-8")
         got = r.accept(DESIGN_OK, "r2_accept")
         self.assertFalse(got["ok"])
-        self.assertTrue(got["reason"].startswith(boardview.READONLY_MOVED), got["reason"])
+        self.assertTrue(got["reason"].startswith(planblk.READONLY_MOVED), got["reason"])
         self.assertFalse((r.folder / design.DESIGN_FILE).exists())
 
     def test_skipped_when_purpose_unusable(self):
@@ -722,7 +857,7 @@ class ReviewAcceptCase(RunCase):
         (r.repo / "stats.py").write_text("# 変えた\n", encoding="utf-8")
         got = r.accept(review(MEAN_BLOCK))
         self.assertFalse(got["ok"])
-        self.assertTrue(got["reason"].startswith(boardview.READONLY_MOVED), got["reason"])
+        self.assertTrue(got["reason"].startswith(planblk.READONLY_MOVED), got["reason"])
         git(r.repo, "commit", "-qam", "役が commit した")
         got = r.accept(review())
         self.assertFalse(got["ok"])
@@ -774,6 +909,36 @@ class ReviewAcceptCase(RunCase):
         self.assertNotIn(planblk.PLAN_SLOTS_HEAD, text)
         self.assertNotIn("{{", text)
         self.assertIn(boardview.DEFAULT_ANSWERS, text.splitlines()[0])
+
+    def test_material_carries_plan_fields(self):
+        """元 tests/test_blk_plan.py の test_plan_review_prompt_carries_fields: 項目ごとの works の欄（受け入れテストの id・道・
+        書いてよいパス）を JSON で貼り、見る点を頼む"""
+        r = self.run_
+        test = {"id": "test_stats.py::TestStats::test_mean_of_two", "behavior": "2 つの値の平均がその真ん中の値になる",
+                "path": "本物の経路: stats.mean を本物のまま呼ぶ", "red_kind": "assertion", "red_why": "分母が 1 少ない"}
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)],
+               field_rows=[{**fields(UNIT_MEAN), "route": "tdd", "tests": [test]}, fields(UNIT_CLAMP)])
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        for want in (planmarks.REVIEW_HEAD, planmarks.REVIEW_ASK, planmarks.FIELDS_ITEM_HEAD.format(n=1), '"route": "tdd"',
+                     test["id"], "本物の経路: stats.mean を本物のまま呼ぶ", '"allowed_paths"'):
+            self.assertIn(want, text)
+
+    def test_material_lists_deviations(self):
+        """元 tests/test_blk_plan.py の test_plan_review_sees_deviations・test_world_deviation_listed_for_review: 欄 structure の外れの
+        訳を DEVIATION_HEAD の節に並べ、世界の解の類には依頼の解き方との比べの文を添える"""
+        r = self.run_
+        r.world({**TP.WORLD_ROW, "versus": {**TP.WORLD_ROW["versus"], "challenge": "WC-8841 定石は分母を要素の数にする"}})
+        row_dev = {"row": UNIT_MEAN, "deviation": "既存の関数の中で直すと呼び手の約束が変わるので外す（DEV-MARK-1）"}
+        world_dev = {"world": TP.WORLD_ROW["class_id"], "deviation": "依頼の解き方に従い分母を変えない（https://example.org/a）"}
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)],
+               field_rows=[{**fields(UNIT_MEAN), "structure": [row_dev, world_dev]}, fields(UNIT_CLAMP)])
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        at = text.index(planmarks.DEVIATION_HEAD)
+        self.assertLess(at, text.index(planmarks.REVIEW_HEAD))
+        self.assertIn("DEV-MARK-1", text[at:])
+        self.assertIn("WC-8841", text[at:])
 
     def test_excluded_range_named(self):
         """元 ScriptCase.test_excluded_range_named: 判定の隣の並行 PR の外した範囲が在れば、役の頭に名指す"""
@@ -922,6 +1087,55 @@ class ConvergeCase(RunCase):
         doc = converge.read(r.view())
         self.assertEqual((len(doc["passes"]), doc["outcome"], doc["passes"][1]["resolved"]), (2, converge.CLEAN, [MEAN_BLOCK["key"]]))
         self.assertEqual(doc["passes"][1]["answers"], self.ANSWERS)
+
+    def test_pass_row_keeps_each_pass_rejections(self):
+        """往復の行に、その往復の計画の周の拒否（plan-fields.json の隣の rejects-plan.json）と事前審査の拒否の行を残す。拒否の控えは
+        周・差し込みごとなので、次の往復は 0 から数える（元 planblk.with_converge の converge.stash_rejects）"""
+        r = self.run_
+        r.put("plan/r1/" + rolekit.rejects_path(pathlib.Path("."), planfile.ROLE).name,
+              [{"at": "t1", "reason": "計画の 1 回目の拒否"}])
+        r.open()
+        r.out("review_prep")
+        self.assertFalse(r.accept(review(face("x" * 20, kind="不明")))["ok"])
+        self.assertTrue(r.accept(review(MEAN_BLOCK))["ok"])
+        r.out("result")
+        r.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾いて分母を直す"), item(UNIT_CLAMP, 2)], rnd=2,
+               answers=self.ANSWERS)
+        r.pass_(review(resolved=[MEAN_BLOCK["key"]]))
+        rows = [[(x["role"], x["reason"]) for x in p["rejects"]] for p in converge.read(r.view())["passes"]]
+        self.assertEqual(rows[0][0], (planfile.ROLE, "計画の 1 回目の拒否"))
+        self.assertEqual([role for role, _ in rows[0]], [planfile.ROLE, boardview.REVIEW_NODE])
+        self.assertEqual(rows[1], [], "2 往復目は拒否を数え直す")
+
+    def test_answers_written_by_the_plan_block_reach_the_record(self):
+        """計画のブロックが 2 周目に書いた block への答え（p2.fix_plan.json の脇の block_answers）が、指し札で渡ると往復の控えの
+        2 往復目の answers に入る（2 つのブロックの script を続けて回す。K6）"""
+        from tests.workflows import test_plan as plan_block
+        r = self.run_
+        plan_run = plan_block.Run(self)
+        first = plan_run.include()
+        self.assertIs(first["ready"], True, first)
+
+        def hand(out):
+            shutil.copytree(plan_run.art / "plan", r.art / "plan", dirs_exist_ok=True)
+            for key in ("plan", "structure", "ripple"):
+                r.inputs[key] = json.dumps({**out[key], "run_id": RUN_ID})
+
+        hand(first)
+        got = r.pass_(review(MEAN_BLOCK))
+        self.assertEqual(got["pass"], False, got)
+        review_rel = got["review"]["path"]
+        (plan_run.art / review_rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(r.art / review_rel, plan_run.art / review_rel)
+        answers = [{"key": MEAN_BLOCK["key"], "handled": "fixed", "how": "空の列を先に弾く手順を案に足した"}]
+        second = plan_run.include(
+            review=json.dumps({**got["review"], "run_id": plan_block.RUN_ID}),
+            writer=plan_block.writer_of({"plan": [plan_block.item(1, 2, approach="空の列を先に弾いて mean の分母を直す案にした")],
+                                         "block_answers": answers}))
+        self.assertIs(second["ready"], True, second)
+        hand(second)
+        r.pass_(review(resolved=[MEAN_BLOCK["key"]]))
+        self.assertEqual(converge.read(r.view())["passes"][1]["answers"], answers)
 
     def test_rereview_material_carries_previous_blocks_and_answers(self):
         r = self.run_
@@ -1395,6 +1609,149 @@ class TreeCase(RunCase):
         self.assertEqual(converge.read(r.view())["outcome"], converge.CLEAN)
 
 
+RECORDER = ROOT / "bin" / "_lib" / "record-read.py"
+
+
+class ReadsCase(RunCase):
+    """読んだ証拠（review-reads の節。lib/reads・boardview.collect_reads）: 隔離した設定のフック（bin/_lib/record-read.py を実物で
+    起こす）が作業の場ごとに書いた記録から、事前審査の役が材料を読んだか・束ね役が下請けを何人起こしたか・web を引いたかを集める
+    （元 planblk.collect_reads。元は実行基盤の出来事 tool_called からも引いた）"""
+
+    def setUp(self):
+        super().setUp()
+        self.config = self.run_.tmp / "claude"
+        (self.config / reads.ROOT).mkdir(parents=True)
+
+    def hook(self, tool, session="s-1", **tool_input):
+        event = {"session_id": session, "tool_name": tool, "tool_input": tool_input, "tool_use_id": f"toolu_{tool}",
+                 "cwd": str(self.run_.repo), "hook_event_name": "PostToolUse"}
+        done = subprocess.run([sys.executable, str(RECORDER), str(self.config / reads.ROOT)], input=json.dumps(event),
+                              text=True, encoding="utf-8", capture_output=True, cwd=str(self.run_.repo),
+                              env=hermetic.child_env(PYTHONDONTWRITEBYTECODE="1", CLAUDE_PROJECT_DIR=str(self.run_.repo)))
+        self.assertEqual(done.returncode, 0, done.stderr)
+
+    def collect(self):
+        got = self.run_.out("review_reads", CLAUDE_CONFIG_DIR=str(self.config))
+        self.assertTrue(got["ok"], got)
+        return got, json.loads(pathlib.Path(got["index_file"]).read_text(encoding="utf-8"))
+
+    def test_reads_collected_from_the_hook_records(self):
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        prompt = r.out("review_prep")["prompt_file"]
+        self.hook("Read", file_path=prompt)
+        got, index = self.collect()
+        self.assertEqual(pathlib.Path(got["index_file"]).name, reads.index_name("plan-review"))
+        self.assertEqual(index["r2-design"], None, "道具を持たない役は名指して null")
+        doc = json.loads(pathlib.Path(index["plan-review"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["rows"], [{"path": prompt, "hook": "read"}])
+        self.assertEqual((doc["sources"]["hook"], got["missing"]), ("recorded", []))
+
+    def test_unread_material_is_missing_and_no_root_is_named(self):
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        prompt = r.out("review_prep")["prompt_file"]
+        self.hook("Read", file_path=str(r.repo / "stats.py"))
+        got, _ = self.collect()
+        self.assertEqual(got["missing"], [prompt])
+        got = r.out("review_reads", CLAUDE_CONFIG_DIR=str(r.tmp / "no-config"))
+        doc = json.loads(pathlib.Path(json.loads(pathlib.Path(got["index_file"]).read_text(encoding="utf-8"))["plan-review"])
+                         .read_text(encoding="utf-8"))
+        self.assertEqual((doc["sources"]["hook"], got["missing"]), ("none", []))
+        self.assertEqual(doc["sources"]["why"], reads.NO_ROOT)
+
+    def test_agent_launches_counted_against_item_files(self):
+        """束ね役の Agent の起動の数と subagent_type を、この差し込みで書いた下請けのファイルの数と並べて trace に残す（拒まない）"""
+        r = self.run_
+        r.judgment(precedents=PRECEDENTS)
+        r.ripple(RIPPLE)
+        self.assertTrue(r.open()["tree"])
+        self.hook("Read", file_path=r.out("review_prep")["prompt_file"])
+        for _ in range(3):
+            self.hook("Agent", subagent_type=planblk.SUBAGENT_TYPE, prompt="項目を見よ")
+        self.collect()
+        rows = [json.loads(x) for x in (r.folder / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        got = [{k: x[k] for k in ("launched", "types", "item_files", "synergy_files")} for x in rows if x["op"] == planblk.AGENT_OP]
+        self.assertEqual(got, [{"launched": 3, "types": {planblk.SUBAGENT_TYPE: 3}, "item_files": 2, "synergy_files": 1}])
+
+    def test_web_calls_recorded(self):
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        self.hook("Read", file_path=r.out("review_prep")["prompt_file"])
+        self.hook("WebFetch", url="https://docs.python.org/3/library/statistics.html", prompt="空の列")
+        self.hook("WebSearch", query="statistics.mean empty")
+        _, index = self.collect()
+        doc = json.loads(pathlib.Path(index["plan-review"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["web"], {"fetches": ["https://docs.python.org/3/library/statistics.html"],
+                                      "searches": ["statistics.mean empty"]})
+
+    def test_records_before_the_pass_opened_are_not_counted(self):
+        """K14: 記録は差し込みを開いた時刻から後の行で切る。前の差し込みの読みと下請けの起動を、今の差し込みの物に数えない"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        prompt = r.out("review_prep")["prompt_file"]
+        self.hook("Read", file_path=prompt)
+        self.hook("Agent", subagent_type=planblk.SUBAGENT_TYPE, prompt="項目を見よ")
+        log = reads.reads_path(self.config / reads.ROOT, r.repo)
+        rows = [json.loads(x) for x in log.read_text(encoding="utf-8").splitlines()]
+        log.write_text("".join(json.dumps({**x, "ts": "2000-01-01T00:00:00"}) + "\n" for x in rows), encoding="utf-8")
+        got, _ = self.collect()
+        self.assertEqual(got["missing"], [prompt])
+        trace = [json.loads(x) for x in (r.folder / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([x["launched"] for x in trace if x["op"] == planblk.AGENT_OP], [0])
+
+    def test_other_sessions_in_the_same_checkout_are_not_the_roles(self):
+        """同じ作業の場で並んで走る別の役（線の判定のやり直し）の web と下請けを、事前審査の役の物に数えない"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        self.hook("Read", file_path=r.out("review_prep")["prompt_file"])
+        self.hook("WebFetch", session="S-judge", url="https://judge.example/")
+        self.hook("Agent", session="S-judge", subagent_type="general-purpose")
+        _, index = self.collect()
+        doc = json.loads(pathlib.Path(index["plan-review"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["web"], {"fetches": [], "searches": []})
+        trace = [json.loads(x) for x in (r.folder / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([x["launched"] for x in trace if x["op"] == planblk.AGENT_OP], [0])
+
+    def test_session_that_read_only_the_policy_is_not_the_roles(self):
+        """役の session を決めるのは役だけに渡した材料 prompt.md。方針の写しは別の役も読むので、それだけを読んだ session の
+        読みと web を事前審査の役の物に数えない"""
+        r = self.run_
+        pol = r.tmp / "policy.md"
+        pol.write_text("# 方針\n", encoding="utf-8")
+        r.start(features_off=["review_tree"], policy_md=str(pol), policy=policy.freeze(r.tmp / "frozen", r.repo, str(pol)))
+        r.open()
+        copy = boardview.read_open(r.folder)["policy_copy"]
+        self.assertTrue(copy)
+        self.hook("Read", file_path=r.out("review_prep")["prompt_file"])
+        self.hook("Read", session="S-judge", file_path=copy)
+        self.hook("WebFetch", session="S-judge", url="https://judge.example/")
+        got, index = self.collect()
+        self.assertEqual(got["missing"], [copy])
+        doc = json.loads(pathlib.Path(index["plan-review"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["web"], {"fetches": [], "searches": []})
+
+    def test_replan_reads_are_named_apart(self):
+        """案の直しの差し込みの読んだ証拠は reads-replan-<役>.json と reads-replan-block.json（1 回目の物と名を分ける）"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        self.assertTrue(r.pass_(review())["pass"])
+        first, _ = self.collect()
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, approach=f"{PLAN_MARK} 直した項目 2")], rnd=2)
+        r.inputs.update(ruling=json.dumps(["2"]), conflicts=r.put("fix/conflicts.json", {"items": [ReplanCase.CONFLICT]}))
+        r.open()
+        r.out("review_prep")
+        got, index = self.collect()
+        self.assertEqual(pathlib.Path(got["index_file"]).name, reads.index_name(reads.REPLAN))
+        self.assertEqual(pathlib.Path(index["replan-plan-review"]).name, reads.evidence_name("replan-plan-review"))
+        self.assertTrue(pathlib.Path(first["index_file"]).is_file())
+
+
 class ReplanCase(RunCase):
     """形 replan（案の直しの事前審査。ruling が空でない）: 壁打ちを回さず 1 回で返り、stalled はいつも偽（元
     works/blk-plan/lib/planblk.py:25 の『replan では壁打ちを回さない』）。材料は裁かれた項目ごとに、置き場の往復の控えから
@@ -1430,6 +1787,51 @@ class ReplanCase(RunCase):
         got = r.out("result")
         self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, False, False), got["questions"])
         self.assertEqual(len(converge.read(r.view())["passes"]), 1)
+
+    def designed_replan(self):
+        """設計の立った review の形の往復の後に、項目 2 を直した案で形 replan の支度まで回す。返りは材料の本文"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        DesignCase.designed(self)
+        r.out("review_prep")
+        self.assertTrue(r.accept(review(design_map=ReviewAcceptCase.full_map()))["ok"])
+        r.out("result")
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, approach=f"{PLAN_MARK} 直した項目 2")], rnd=2)
+        r.inputs.update(ruling=json.dumps(["2"]), conflicts=r.put("fix/conflicts.json", {"items": [self.CONFLICT]}))
+        self.assertEqual(r.open()["form"], "replan")
+        return pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+
+    def test_replan_material_carries_the_independent_design(self):
+        """元 replan.prep の plan-review の頼み: 独立設計の節（design_only）・REVIEW_ASK_REPLAN・planmarks.REVIEW_ASK・項目ごとの節"""
+        text = self.designed_replan()
+        at = [text.index(w) for w in (planblk.DESIGN_HEAD, DESIGN_TEXT, boardview.REVIEW_ASK_REPLAN, planmarks.REVIEW_ASK,
+                                      boardview.ITEM_HEAD.format(n=2))]
+        self.assertEqual(at, sorted(at))
+
+    def test_replan_material_shows_only_ruled_items(self):
+        """元 tests/test_replan.py の test_review_role_sees_design_only_and_both_forms: 案の直しの事前審査は裁かれた項目だけを見る
+        （直していない項目の案・欄を貼らない）"""
+        text = self.replan()
+        self.assertIn("直した項目 2", text)
+        self.assertNotIn(f"{PLAN_MARK} 項目 1 の直し", text)
+        self.assertNotIn(planmarks.REVIEW_HEAD, text)
+
+    def test_replan_drift_quotes_checked_and_extra_fields_dropped(self):
+        """形 replan の受け付け: 壁打ちと束ね役の任意の欄（resolved・items。synergy は役の型に無い）は外してから照らし、独立設計が立つ時は穴の
+        引用と design_map を直した項目の行と照らす（元 replan._take の drop_fields と design.quote_gaps）"""
+        r = self.run_
+        self.designed_replan()
+        drift = face("clamp-drift-no-quote", UNIT_CLAMP, why=design.DRIFT_HEAD + "設計と継ぎ目の置き方が違う、という穴だ")
+        fresh = [{"item": 2, "name": "helper_2", "design_quote": None, "why": "設計に対の無い助け手の名だけを足す"}]
+        got = r.accept(review(drift, design_map=fresh))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
+        got = r.accept(review(design_map=fresh, resolved=[], items=[{"item": 2, "verdict": "clean", "blocks": []}]))
+        self.assertTrue(got["ok"], got)
+        kept = json.loads((r.folder / "pass-2" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
+        for key in ("resolved", "items", "design_map"):
+            self.assertNotIn(key, kept)
 
     def test_contract_change_or_human_face_asks(self):
         """約束の欄（allowed_paths）を変えた直しと、人に聞く種類の穴（regression）が在る直しは人に聞く"""
@@ -1481,6 +1883,19 @@ class ReplanCase(RunCase):
         self.assertTrue(got["reason"].startswith(planblk.DESIGN_QUOTE_REJECT), got["reason"])
         fresh = [{"item": 2, "name": "clamp_entry", "design_quote": "上限は入口 1 箇所で掛け", "why": "設計の入口の上限に案の名が当たる"}]
         self.assertTrue(r.accept(review(design_map=fresh))["ok"])
+
+    def test_replan_review_gave_up_names_each_item(self):
+        """形 replan の事前審査が 3 回とも拒まれたら、裁かれた項目ごとの諦めの訳と裁定の文（字のまま）を review.json の隣に置く"""
+        r = self.run_
+        self.replan()
+        for _ in range(rolekit.GIVE_UP_AFTER):
+            got = r.accept({"faces": "x"})
+        self.assertTrue(got["give_up"], got)
+        out = r.out("result")
+        self.assertIs(out["pass"], False)
+        rows = json.loads(r.pointed(out["review"]).with_name(planblk.REPLAN_GAVE_UP_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([(x["item"], x["ruling"]) for x in rows], [(2, self.CONFLICT["ruling"]["text"])])
+        self.assertTrue(rows[0]["why"].startswith(planblk.REVIEW_GAVE_UP_WHY.split("{")[0]), rows[0]["why"])
 
     def test_replan_without_block_passes(self):
         r = self.run_
@@ -1535,6 +1950,14 @@ class GateFromPlanCase(RunCase):
         self.assertFalse(got["gate_axes"]["obvious"]["ok"])
 
 
+    def test_non_human_face_kinds_are_not_asked(self):
+        """関所に載るのは人に聞く種類の穴（HUMAN_FACE_KINDS）だけ: contract_drift の block の穴だけの返答は人に聞かない"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        got = r.pass_(review(face("mean-contract-drift", kind="contract_drift")))
+        self.assertEqual((got["pass"], got["ask_human"], got["questions"]), (False, False, []), got)
+
+
 class ResultCase(RunCase):
     """返す節は落ちない（元に無い。持ち主の決めと docs/design.md の『返す節は落ちない』）と、返りが output_format を満たす"""
 
@@ -1548,6 +1971,41 @@ class ResultCase(RunCase):
         got = self.run_.pass_(review(face("regression-face-ask", kind="regression", severity="suggest")))
         self.check(got)
         self.assertTrue(got["ask_human"])
+
+    def test_tampered_fields_reason_reaches_the_return(self):
+        """凍結の欄の控えが受け付けの後に書き換わった差し込みは、支度の節が落ちた訳を置き場に残し、返す節がそれを読んで
+        questions に控えの名と「凍結と食い違う」を載せ、pass: false で返す（元は盤面を止めて訳を残した）"""
+        r = self.run_
+        r.open()
+        p = r.folder / planmarks.FIELDS_FILE
+        doc = json.loads(p.read_text(encoding="utf-8"))
+        doc["fields"][0]["route"] = "tdd"
+        p.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        self.assertNotEqual(r.script("review_prep").returncode, 0)
+        got = r.out("result")
+        self.check(got)
+        self.assertIs(got["pass"], False)
+        self.assertTrue(any(planmarks.FIELDS_FILE in q and "凍結と食い違う" in q for q in got["questions"]),
+                        got["questions"])
+
+    def test_gate_files_carry_kinds_and_items(self):
+        """返した関所の項目の種類と方針の変化を gate-asked.json に積み、項目の全部と壁打ちの行を pass-<k>/gate.json に残す"""
+        r = self.run_
+        pol = r.tmp / "policy.md"
+        pol.write_text("# 方針\n- 公開の口を減らさない\n", encoding="utf-8")
+        r.start(features_off=["review_tree"], policy_md=str(pol))
+        r.plan([item(UNIT_MEAN, 1, narrows=[dict(TP.NARROW)]), item(UNIT_CLAMP, 2)])
+        r.open()
+        pol.write_text("# 方針\n- 公開の口を減らさない\n- 足した\n", encoding="utf-8")
+        got = r.pass_(review())
+        gate = json.loads((r.pointed(got["review"]).parent / gatemarks.PLAN_GATE_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([x["kind"] for x in gate["items"]], ["regression", boardview.POLICY_CHANGED])
+        self.assertEqual([x["text"] for x in gate["items"]], got["questions"])
+        self.assertIn("converge", gate)
+        asked = json.loads((r.folder / boardview.GATE_ASKED_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(sorted(asked), sorted(got["questions"]))
+        self.assertEqual({t: (v["kind"], "policy_change" in v) for t, v in asked.items()},
+                         {got["questions"][0]: ("regression", False), got["questions"][1]: (boardview.POLICY_CHANGED, True)})
 
     def test_broken_inputs_never_fail_the_return_node(self):
         """壊れた入力（読めない指し札・空の字・JSON でない字・ほかの run の札・在らない先）で open が ok: false を返し、返す節は
@@ -1636,6 +2094,22 @@ class FailSafeCase(RunCase):
         got = r.out("result")
         self.assertFalse(got["pass"])
         self.assertEqual(json.loads(r.pointed(got["review"]).with_name(boardview.PASSES_FILE).read_text(encoding="utf-8")), [])
+
+    def test_unwritable_converge_record_is_named(self):
+        """往復の控えを書けない往復は黙って進めない: 受け付けが拒みに数え、3 回目で諦め、返りの questions が控えの名を持ち pass は偽
+        （元 tests/test_blk_plan.py の with_converge の halt_unsaved）"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        r.out("review_prep")
+        (r.folder / (converge.RECORD + ".tmp")).mkdir()
+        for _ in range(rolekit.GIVE_UP_AFTER):
+            got = r.accept(review())
+        self.assertEqual((got["ok"], got["give_up"]), (False, True), got)
+        self.assertIn(converge.RECORD, got["reason"])
+        out = r.out("result")
+        self.assertIs(out["pass"], False)
+        self.assertTrue(any(converge.RECORD in q for q in out["questions"]), out["questions"])
 
     def test_open_without_the_lib_drops_the_previous_material(self):
         """前の差し込みが通った後、差し込みの頭が lib を読めずに落ちても、返す節は前の差し込みの結末を今回の物として返さない"""
@@ -1935,6 +2409,14 @@ class PlanGateCase(GateBase):
                 self.assertTrue(got["ask"]["items"][0].endswith(tail), got["ask"]["items"])
         got, _ = self.gate(narrows=[dict(TP.NARROW)])
         self.assertNotIn("世界の解", got["ask"]["items"][0])
+
+    def test_asked_row_shows_the_no_narrow(self):
+        """人に回す行は、役が書いた狭めない案の 1 文を項目の尾に載せる（no_narrow を書いた行だけ）"""
+        no_narrow = "空の列に 0 を返す形を当たったが、呼び手が例外を捕まえて別の道に進むので採れない"
+        got, _ = self.gate(narrows=[{**TP.NARROW, **TP.DECIDED, "undecided_because": "置き場が割れる", "no_narrow": no_narrow}])
+        self.assertIn(f"（狭めない案: {no_narrow}）", got["ask"]["items"][0])
+        got, _ = self.gate(narrows=[{**TP.NARROW, **TP.DECIDED, "undecided_because": "置き場が割れる"}])
+        self.assertNotIn("狭めない案", got["ask"]["items"][0])
 
     def test_rule_points_at_world_rows(self):
         """元 tests/test_plan_gate.py の PlanGateCase.test_rule_points_at_world_rows。関所の決め手の頼みは、世界の調べを役に

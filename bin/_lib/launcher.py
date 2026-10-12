@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from bin._lib import hostgh, isolate, pack, place
-from lib import answer, writelog
+from lib import answer, reads, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
@@ -107,7 +107,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     if executing or argv[:1] == ["validate"]:
         install_toolset(user, child, target, filled_config, plugins=executing and not no_auth)
     if executing:
-        sweep_write_logs(child["CLAUDE_CONFIG_DIR"])
+        sweep_logs(child["CLAUDE_CONFIG_DIR"])
 
     if workflow is None:
         args = argv
@@ -255,18 +255,20 @@ def install_toolset(user: Mapping[str, str], child: dict[str, str], target: Path
         raise Stop(code=done.returncode)
 
 
-def sweep_write_logs(config: str) -> None:
-    """作業の場が無くなった run の書き込みの記録を片付ける（writelog.sweep）。片付けは run の正しさに効かないので、しくじっても止めない"""
-    try:
-        gone, failed = writelog.sweep(writelog.root(config))
-    except OSError as error:
-        print(f"{NAME}: 前の run の書き込みの記録を片付けられなかった（{error}）。run は続ける", file=sys.stderr)
-        return
-    if failed:
-        print(f"{NAME}: 前の run の書き込みの記録を {len(failed)} 件片付けられなかった（初めの 1 件: {failed[0]}）。run は続ける",
-              file=sys.stderr)
-    if gone:
-        print(f"{NAME}: 作業の場が無くなった run の書き込みの記録を {len(gone)} 件片付けた", file=sys.stderr)
+def sweep_logs(config: str) -> None:
+    """作業の場が無くなった run の書き込みと読んだ証拠の記録を片付ける（writelog.sweep）。片付けは run の正しさに効かないので、
+    しくじっても止めない"""
+    for what, root in (("書き込みの記録", writelog.root(config)), ("読んだ証拠の記録", reads.root(config))):
+        try:
+            gone, failed = writelog.sweep(root)
+        except OSError as error:
+            print(f"{NAME}: 前の run の{what}を片付けられなかった（{error}）。run は続ける", file=sys.stderr)
+            continue
+        if failed:
+            print(f"{NAME}: 前の run の{what}を {len(failed)} 件片付けられなかった（初めの 1 件: {failed[0]}）。run は続ける",
+                  file=sys.stderr)
+        if gone:
+            print(f"{NAME}: 作業の場が無くなった run の{what}を {len(gone)} 件片付けた", file=sys.stderr)
 
 
 def on_absolute_path(name: str, path: str) -> str | None:

@@ -3,6 +3,7 @@
 ブロックを通しで回す試験は test_blk_structure の EyeCase、計画の頭は test_blk_plan の StructureHeadCase が見る"""
 import json
 import pathlib
+import re
 import sys
 import tempfile
 import unittest
@@ -22,7 +23,56 @@ DIRTY = {"unit_id": "u-1", "verdict": "汚れる", "faces": [2], "evidence": ["/
          "chosen": "1 か所に固める", "chosen_reason": "読み直しを割らない"}
 
 
+# 今の works の設計書 works/docs/specs/2026-09-29-structure-block-design.md:63-68（pack.json の works.commit の版
+# 2aa7c66cf7abe1fe09699ac2942d107123214168）の 4 節「構造の目」の番号つきの一覧を字のまま（works-factory に設計書の 4 節は無い）
+DESIGN_DOC_FORMS = """\
+  1. 共有の物を run や呼び手ごとに書き換える
+  2. 責務を 2 か所に割る
+  3. 既存の仕組みを横から曲げる
+  4. ブロックの境をまたいで、他のブロックの中身を前提にする
+  5. 骨組みの無いまま新しい名前や口を足す
+  6. 外の道具の事情を名指しで抱え込む
+"""
+
+
+class EyeLoopGateCase(unittest.TestCase):
+    """元 tests/test_structure_eye.py の EyeLoopGateCase: 目は実測が ok で測れた単位が 1 つ以上の周だけ起こす"""
+
+    def test_due_needs_ok_and_a_measured_unit(self):
+        self.assertEqual((eye.due(DOC), eye.due({**DOC, "status": "failed"}), eye.due({**DOC, "units": DOC["units"][1:]})),
+                         (True, False, False))
+
+
 class EyeAcceptCase(unittest.TestCase):
+    def test_six_forms_match_the_design_doc(self):
+        """6 つの形の文は設計書の番号つきの一覧と一字も違わない（faces の 1〜6 の意味の正本は設計書）"""
+        self.assertEqual(tuple(re.findall(r"^  \d\. (.+)$", DESIGN_DOC_FORMS, re.M)), eye.FORMS)
+
+    def test_prompt_carries_only_measured_units_and_the_forms(self):
+        prompt = eye.render(DOC)
+        self.assertIn("u-1", prompt)
+        self.assertNotIn("u-2", prompt)
+        self.assertIn(eye.concepthome.EYE_ASK, prompt)
+        for i, f in enumerate(eye.FORMS, 1):
+            self.assertIn(f"{i}. {f}", prompt)
+        self.assertNotIn(eye.REJECT_HEAD, prompt)
+        again = eye.render(DOC, "evidence が空")
+        self.assertTrue(again.startswith(f"{eye.REJECT_HEAD}\n\nevidence が空\n\nここを直した返答を丸ごと出し直せ"), again[:200])
+
+    def test_own_decision_row_must_not_carry_undecided(self):
+        got = eye.problems(DOC, {"rows": [{**DIRTY, "undecided_because": "人の前の決定が 2 つの置き場を別々に推している"}]})
+        self.assertEqual(got, [f"行 0（u-1）: undecided_because は {eye.ROUTE_UP}行だけに書く"])
+
+    def test_own_decision_row_gets_default_route(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = pathlib.Path(d) / "structure.json"
+            s.write_text(json.dumps(DOC, ensure_ascii=False), encoding="utf-8")
+            design = pathlib.Path(d) / "design.jsonl"
+            design.write_bytes(b"")
+            eye.prep(s)
+            self.assertTrue(eye.accept(s, design, {"rows": [DIRTY]})["ok"])
+            row = json.loads(design.read_text(encoding="utf-8"))
+        self.assertEqual((row["route"], row["route_reason"]), (eye.ROUTE, eye.ROUTE_REASON))
     def test_prompt_asks_chosen_to_follow_world_practice(self):
         """単位の要約の尾の世界の解の要点を読み、避け方 chosen を定石の作りに沿わせ、沿わないなら訳を chosen_reason に書けと頼む
         （計画 world-solution の W8・5.3 節の 3。入力の契約は 3 つのまま）"""

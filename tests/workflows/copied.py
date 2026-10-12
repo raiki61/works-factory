@@ -1,4 +1,5 @@
-"""役の指示書の写しの照らし（写しの台帳を持つブロックの試験が共に使う）"""
+"""役の指示書の写しの照らし（写しの台帳を持つブロックの試験が共に使う）。元は今の works（pack.json の works.commit の版の
+works/ の下）。写しに許した直しを後ろから逆に当てると、元のバイトに戻る"""
 import hashlib
 import pathlib
 import sys
@@ -25,3 +26,24 @@ def assert_is_original(case, text: str, sha256: str, edits) -> None:
         case.assertEqual(text.count(copied), 1, copied)
         text = text.replace(copied, original)
     case.assertEqual(hashlib.sha256(text.encode("utf-8")).hexdigest(), sha256)
+
+
+def restore_problems(text: str, origins: list, edits: list) -> list:
+    """写しの字 text が台帳の行（K9。元 origins は [(元のパス, 元の sha256, 元のバイト数)]、直し edits は [(元の字, 写しの字, 訳)]）に
+    合わない訳の並び（合えば空）。元が 2 つ以上なら、逆に当てた後をバイト数で切って 1 つずつ sha256 を見る"""
+    out = []
+    for original, copied, why in reversed(edits):
+        n = text.count(copied)
+        if n != 1:
+            out.append(f"許した直し「{why}」の写しの字が {n} 回在る（1 回のはず）: {copied[:80]!r}")
+            continue
+        text = text.replace(copied, original)
+    raw, at = text.encode("utf-8"), 0
+    for path, sha, size in origins:
+        got = hashlib.sha256(raw[at:at + size]).hexdigest()
+        if got != sha:
+            out.append(f"元 {path} に戻らない（sha256 {got}）")
+        at += size
+    if at != len(raw):
+        out.append(f"元を全部繋いだ {at} バイトの後ろに {len(raw) - at} バイトが残る")
+    return out

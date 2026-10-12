@@ -43,7 +43,7 @@ class LibBlindTest(unittest.TestCase):
 
     def test_named_word_allowance_hides_only_that_word(self):
         """ALLOWED の `<パス>#<字>` の行は、そのファイルのその字だけを外す（同じファイルのほかの字は赤のまま）"""
-        with tree({"lib/stage_a.py": 'A = "INPUTS_UNITS"\nB = "INPUTS_OTHER"\n'}) as root:
+        with tree({"lib/tree_run.py": 'A = "INPUTS_CMD"\nB = "INPUTS_OTHER"\n'}) as root:
             got = scan.problems("E3", root)
         self.assertEqual(len(got), 1, got)
         self.assertIn("INPUTS_OTHER", got[0])

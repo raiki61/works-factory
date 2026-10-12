@@ -10,7 +10,8 @@
 往復の行: {"pass": k, "blocks": [key], "faces": [{key, kind, where, why}], "suggests": [key],
           "answers": [{key, handled, how}], "resolved": [key], "persists": [key], "outcome": 語,
           "origins": {key: 出自の語}, "origins_claimed": [採らなかった申告の行],
-          "files": {名: 写した先}, "rejects": [行]}（輪の上限の周で止めた行だけ "capped": true が付く）
+          "files": {名: 写した先}, "rejects": [{role, at, reason}（その往復の計画と事前審査の拒否の行。stash_rejects）]}
+          （輪の上限の周で止めた行だけ "capped": true が付く）
 k 往復目の行の answers と resolved は、k-1 往復目の block への修正案の役の答えと、直した案を読んだ審査の言い分。
 origins は 2 往復目からの新しい block（前のどの往復の block の key とも違う物）ごとの出自で、審査の申告を控えの事実（項目の行の
 hash・前の往復の項目の id・resolved）で照らして機械が決めた語（ORIGIN_MISSED・ORIGIN_INTRODUCED・ORIGIN_REPHRASED・
