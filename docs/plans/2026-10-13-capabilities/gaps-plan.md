@@ -95,10 +95,10 @@
   - 狭め: 無し（試験だけ欠け）
 - P035〔試〕リポジトリ・読む版・BASE・観点の正本（REVIEW.md）の行を材料に描く。
   - 元: p2.fix_plan.md の雛形の行（inputs.cwd・inputs.review_rev・record.base・inputs.review_md）
-  - 今: lib/planfile.py:108 `REPO_LINE`・:860
-  - 証: tests/workflows/test_plan.py::BriefCase.test_repo_line_names_base_and_review_md（#120 で足した。消すと赤: write_brief の REPO_LINE を外すと赤）
+  - 今: lib/planfile.py `REPO_LINE`・`write_brief`、lib/boardview.py `REPO_LINE`・`open_pass`、lib/startrec.py `read_rev`・`diff_base`（読む版は始めの記録の review_rev、BASE は入口の差分の根 input.base.rev）
+  - 証: tests/workflows/test_plan.py::BriefCase.test_repo_line_names_base_and_review_md・tests/workflows/test_plan_review.py::ReviewAcceptCase.test_repo_line_reads_review_rev_apart_from_base（#120 で足し、#207 で差分の run にした。消すと赤: write_brief の REPO_LINE を外すと赤、読む版を差分の根に替えると両方赤）
   - 本物の run: plan/r1/brief-1.md の「リポジトリ:」の行
-  - 狭め: 読む版を BASE と同じ値にした（元は review_rev と base を別に持てた）。Archon で不可でない。差分の run（base と review の版が違う run）で効くかは持ち主に
+  - 狭め: 無し（#207 で戻した。前は読む版を BASE と同じ値にしていた）
 - P036〔試〕並行 PR の外した範囲（判定の隣の pr-excluded.json）を頭で名指し、無ければ貼らない。
   - 元: planblk.py:299 `head`（EXCLUDED_HEAD :111）、試験 works/tests/test_blk_plan.py:1042 test_excluded_range_named
   - 今: lib/planfile.py:842（`_neighbor(judgment_dir, "pr-excluded.json")`）
