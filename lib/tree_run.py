@@ -354,7 +354,8 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
             os.killpg(p.pid, signal.SIGSTOP)
         except OSError:
             pass
-    for i, sigs in enumerate(((first, signal.SIGTERM), (signal.SIGKILL,), ())):   # 空の回は送らずに数え直して判定だけ
+    cont = (signal.SIGCONT,) if frozen else ()   # 止めた仲間に、溜まった信号を受けさせる
+    for i, sigs in enumerate(((first, signal.SIGTERM) + cont, (signal.SIGKILL,), ())):   # 空の回は送らずに数え直して判定だけ
         sigs = tuple(dict.fromkeys(sigs))
         end = t0 + KILL_GRACE if i == 0 else None
         if blind is None:
@@ -378,8 +379,6 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
             targets = [(os.killpg, g) for g in sorted(groups)] + [(os.kill, pid) for pid, m in live.items() if m.pgid not in groups]
             pending = set(live)
             done = watch(pending)
-        if i == 0 and frozen:
-            sigs += (signal.SIGCONT,)   # 止めた仲間に、溜まった信号を受けさせる
         for sig in sigs:
             for send, target in targets:
                 try:
