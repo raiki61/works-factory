@@ -277,6 +277,14 @@ class PrescriptionCase(unittest.TestCase):
         self.assertEqual(planfile.prescription_section([CLAMP], {}), "")
 
 
+class RepoLineCase(unittest.TestCase):
+    """P035 のリポジトリの行（修正役の brief と事前審査の材料が同じ物を貼る）"""
+
+    def test_blank_base_falls_back_to_review_rev(self):
+        self.assertIn("BASE: `abc`", planfile.repo_line("/r", "abc", "", "m"))
+        self.assertIn("BASE: `def`", planfile.repo_line("/r", "abc", "def", "m"))
+
+
 class BaseTestsCase(TmpCase):
     """元 writes.base_test_texts（修正前の版のテストのファイルの中身。読めない物は含めず、返りの 2 つ目に名指す）"""
 

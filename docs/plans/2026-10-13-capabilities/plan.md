@@ -260,7 +260,7 @@
 - P035 リポジトリ・読む版・BASE・観点の正本（REVIEW.md）の行を材料に描く。
   - 元: p2.fix_plan.md の雛形の行（inputs.cwd・inputs.review_rev・record.base・inputs.review_md）
   - 今: lib/planfile.py `REPO_LINE`・`repo_line`・`write_brief`、lib/boardview.py `open_pass`・`review_body`、lib/startrec.py `read_rev`・`diff_base`（読む版は始めの記録の review_rev、BASE は入口の差分の根 input.base.rev。どちらも無い前の版の控えは base_rev。行は repo_line の 1 か所が描く）
-  - 証: tests/workflows/test_plan.py::BriefCase.test_repo_line_names_base_and_review_md・tests/workflows/test_plan_review.py::ReviewAcceptCase.test_repo_line_reads_review_rev_apart_from_base（#120 で足し、#207 で差分の run にした。消すと赤: write_brief の REPO_LINE を外すと赤、読む版を差分の根に替えると両方赤）
+  - 証: tests/workflows/test_plan.py::BriefCase.test_repo_line_names_base_and_review_md・tests/workflows/test_plan_review.py::ReviewAcceptCase.test_repo_line_reads_review_rev_apart_from_base（#120 で足し、#207 で差分の run にした。消すと赤: write_brief の repo_line を外すと赤、読む版を差分の根に替えると両方赤）
   - 本物の run: plan/r1/brief-1.md の「リポジトリ:」の行
   - 狭め: 無し（#207 で戻した。前は読む版を BASE と同じ値にしていた）
 
@@ -1316,7 +1316,7 @@
 
 - P182 材料の差し込み: 修正役の案・直す単位（番号つき。元の行「no の整数で指せ」を engine を機械に読み替えた字）・判定者の見立て（framing・one_shot）・先行例（在れば）・リポジトリと読む版と BASE と観点の正本（REVIEW.md）
   - 元: works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md:3-7・works/tests/test_blk_plan.py:951 `test_prompt_rendered_from_mainline`
-  - 今: lib/boardview.py:127-128（UNITS_LINE・REPO_LINE）・:771-781
+  - 今: lib/boardview.py:129（UNITS_LINE）・:791-799、lib/planfile.py `repo_line`（リポジトリ・読む版・BASE・観点の正本の行）
   - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_material_carries_the_mainline_inputs（assert: :745-750）・PortedMaterialCase.test_units_line_is_the_original_instruction_line（assert: :1582-1586）・PortedMaterialCase.test_material_carries_policy_base_units_and_concept_map（assert: :1570）
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/pass-1/prompt.md` の「## 差し込み」の節と `"no": 1`）
   - 狭め: 無し
