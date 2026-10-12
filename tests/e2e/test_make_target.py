@@ -163,6 +163,23 @@ class MakeTargetTest(unittest.TestCase):
             with self.subTest(args=args):
                 self.assertEqual(self.make_target("make", *args).returncode, 2)
 
+    def test_make_refuses_flags_argparse_would_bend(self):
+        for args in (["a", "--no"], ["a", "--se", "x"], ["a", "--req", "x"], ["a", "--seed=x"], ["a", "--request=x"],
+                     ["--", "a"], ["a", "--"], ["a", "--help"], ["a", "-h"]):
+            with self.subTest(args=args):
+                self.assertEqual(self.make_target("make", *args).returncode, 2)
+        self.assertFalse((self.tmp / "a").exists())
+        self.assertFalse(self.ledger(self.repo).exists())
+
+    def test_refuses_help_and_missing_command_without_teardown(self):
+        self.make(self.tmp / "attempt")
+        listed = self.ledger(self.repo).read_text(encoding="utf-8")
+        for args in ((), ("tear",), ("--help",), ("-h",), ("teardown", "--help"), ("teardown", "-h"), ("teardown", "--")):
+            with self.subTest(args=args):
+                self.assertEqual(self.make_target(*args).returncode, 2)
+        self.assertEqual(self.calls(), [])
+        self.assertEqual(self.ledger(self.repo).read_text(encoding="utf-8"), listed)
+
     def test_make_refuses_repeated_flags(self):
         for args in (["a", "--no-ledger", "--no-ledger"], ["a", "--request", "x", "--request", "y"]):
             with self.subTest(args=args):

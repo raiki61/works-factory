@@ -123,15 +123,21 @@ class Once(argparse.Action):
         setattr(namespace, self.dest, self.const if self.nargs == 0 else values)
 
 
+FLAGS = ("--seed", "--request", "--no-ledger")
+
+
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="通しの対象を作り、後で片付ける")
+    parser = argparse.ArgumentParser(description="通しの対象を作り、後で片付ける", add_help=False)
     sub = parser.add_subparsers(dest="command", required=True)
-    made = sub.add_parser("make", argument_default=argparse.SUPPRESS)
+    made = sub.add_parser("make", add_help=False, argument_default=argparse.SUPPRESS)
     made.add_argument("attempt", type=Path)
     made.add_argument("--seed", type=lambda p: Path(p).resolve(), action=Once)
     made.add_argument("--request", type=lambda p: Path(p).resolve(), action=Once)
     made.add_argument("--no-ledger", dest="listed", nargs=0, const=False, action=Once)
-    sub.add_parser("teardown")
+    sub.add_parser("teardown", add_help=False)
+    # argparse は旗の略し・--seed=値・区切りの -- も受けるので、FLAGS そのものでない -- の語は先に拒む
+    if strange := [word for word in argv if word.startswith("--") and word not in FLAGS]:
+        parser.error(f"知らない旗 {strange[0]}")
     args = vars(parser.parse_args(argv))
     try:
         if args.pop("command") == "make":
