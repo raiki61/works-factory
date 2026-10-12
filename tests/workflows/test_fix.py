@@ -2186,6 +2186,8 @@ COPIED_TEXTS = {
     ]),
     "works-factory-fix.yaml#tdd": ("works/blk-fix/blk-fix.yaml:183（節 tdd）",
                                    "e0f08ddf808130be63ceb2841b823757d376d510ff11aae84aab2739b55b0a7f", []),
+    "works-factory-fix.yaml#tdd-new": ("works/blk-fix/blk-fix.yaml:183（節 tdd。単位が替わる周の新しい会話の節で、字は tdd と同じ）",
+                                       "e0f08ddf808130be63ceb2841b823757d376d510ff11aae84aab2739b55b0a7f", []),
     "works-factory-fix.yaml#fixer": ("works/blk-fix/blk-fix.yaml:1585（節 fix）",
                                      "7d362884bfc6bb2ab759c6fe3d4fcec869ced370248dd66777db3c4fc7c66506", []),
     "works-factory-fix.yaml#consult-answer": ("works/blk-fix/blk-fix.yaml:1632（節 plan-answer）",
