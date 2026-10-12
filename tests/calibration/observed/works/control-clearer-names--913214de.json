@@ -1,0 +1,61 @@
+{
+ "id": "control-clearer-names",
+ "factory": "works",
+ "run_id": "913214de-f7b8-4c89-9e50-abbc3d00b232",
+ "outcome": "fixed",
+ "flagged": [
+  "converge",
+  "p1.external_standards",
+  "p1.local_review",
+  "p2.diagnose",
+  "p4.record"
+ ],
+ "child_run_ids": [],
+ "unread": [
+  "p0.parallel_pr",
+  "p0.purpose_review",
+  "p1.procedure_trace",
+  "p2.rejudge",
+  "p3.delta_review2",
+  "spec.check",
+  "spec.review",
+  "stop.premise_check"
+ ],
+ "flag_evidence": {
+  "converge": "board/out/r1/converge.json: decision = \"next_round\"",
+  "p0.parallel_pr": "board/out/r*/p0.parallel_pr.json: 無い; board/out/r*/p0.parallel_pr.json: 無い",
+  "p0.purpose_review": "board/out/r*/p0.purpose_review.json: 無い; board/out/r*/p0.purpose_review.json: 無い",
+  "p1.external_standards": "board/out/r1/p1.external_standards.json: material.status = \"found\"",
+  "p1.local_review": "board/out/r1/p1.local_review.json: material.status = \"found\"",
+  "p1.procedure_trace": "board/out/r*/p1.procedure_trace.json: 無い; board/out/r*/p1.procedure_trace.json: 無い",
+  "p2.diagnose": "board/out/r1/p2.diagnose.json: units.*.label = \"suggest\"",
+  "p2.rejudge": "board/out/r*/p2.rejudge.json: 無い; board/out/r*/p2.rejudge.json: 無い",
+  "p3.delta_review2": "board/out/r*/p3.delta_review2.json: 無い; board/out/r*/p3.delta_review2.json: 無い",
+  "p4.record": "board/out/r1/p4.record.json: exit = 1",
+  "report.cold_check": "skipped",
+  "spec.check": "board/out/r*/spec.check.json: 無い",
+  "spec.review": "board/out/r*/spec.review.json: 無い",
+  "stop.premise_check": "board/out/r*/stop.premise_check.json: 無い; board/out/r*/stop.premise_check.json: 無い"
+ },
+ "cost": {
+  "usd": null,
+  "seconds": 788.0,
+  "why_null": "usd: 出来事 workflow_completed の data.cost_usd が読めない"
+ },
+ "provenance": {
+  "factory_commit": "2aa7c66cf7abe1fe09699ac2942d107123214168",
+  "archon": "v0.11.1",
+  "claude_code": "2.1.296 (Claude Code)",
+  "run_inputs": {
+   "request": "request.json",
+   "base": "19d2654ae4629708a535d8e3cfb9356601412256",
+   "test_cmd": "python3 -m unittest -v",
+   "tdd_suite": "junit-suite.sh",
+   "unattended": "true",
+   "final_gate": "when_needed",
+   "thickness": "標準"
+  },
+  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80",
+  "date": "2026-10-12T08:47:23+00:00"
+ }
+}
