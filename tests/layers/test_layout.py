@@ -14,7 +14,7 @@ from tests.layers import scan
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TREE = re.compile(r"^## リポジトリの形\n.*?^```text\n(.*?)^```", re.M | re.S)
 BRANCH = re.compile(r"^((?:│   |    )*)(?:├── |└── )(.*)$")
-SEED = "tests/e2e/target-seed"
+SEEDS = ("tests/e2e/target-seed", "tests/calibration/seed")
 
 
 def root_names(agents_md):
@@ -58,15 +58,16 @@ def problems(paths, agents_md):
     homes = {p.rpartition("/")[0] for p in paths if re.fullmatch(r"test_.*\.py", p.rpartition("/")[2])}
     need = set()
     for home in homes:
-        if home == SEED or home.startswith(SEED + "/"):
+        if any(home == seed or home.startswith(seed + "/") for seed in SEEDS):
             continue
         parts = home.split("/")
         need.update("/".join(parts[:i]) for i in range(1, len(parts) + 1))
     for folder in sorted(need):
         if f"{folder}/__init__.py" not in have:
             out.append(f"試験のフォルダ {folder}/ に __init__.py が無い")
-    if f"{SEED}/__init__.py" in have:
-        out.append(f"{SEED}/ に __init__.py が在る（置かない）")
+    for seed in SEEDS:
+        if f"{seed}/__init__.py" in have:
+            out.append(f"{seed}/ に __init__.py が在る（置かない）")
     return out
 
 
@@ -80,7 +81,7 @@ def agents_md():
 
 GOOD = ["AGENTS.md", "lib/__init__.py", "lib/tests/__init__.py", "lib/tests/test_a.py",
         "workflows/AGENTS.md", "workflows/judge/works-factory-judge.yaml", "workflows/.shared/boundary.py",
-        f"{SEED}/tests/test_x.py"]
+        *(f"{seed}/tests/test_x.py" for seed in SEEDS)]
 
 
 class LayoutTest(unittest.TestCase):
@@ -117,7 +118,10 @@ class LayoutTest(unittest.TestCase):
         self.check("lib/tests/deep/test_b.py", "lib/tests/deep/")
 
     def test_target_seed_with_init(self):
-        self.check(f"{SEED}/__init__.py", SEED)
+        self.check("tests/e2e/target-seed/__init__.py", "tests/e2e/target-seed")
+
+    def test_calibration_seed_with_init(self):
+        self.check("tests/calibration/seed/__init__.py", "tests/calibration/seed")
 
 
 if __name__ == "__main__":
