@@ -952,8 +952,8 @@ class BlockScriptsCase(unittest.TestCase):
     def test_collect_plan_item_ruling_and_objection(self):
         row = {"id": "c1-1", "round": 1, "source": "fix", "unit_key": "A", "between": ["stats.py:9", "test_stats.py:1"],
                "why_both_cannot_hold": "案の項目が判定と食い違う", "which_is_right": "request", "kind": "brief_vs_judgment",
-               "status": "ruled", "ruling": {"decision": "fix_plan_item", "text": "項目 1 が誤り", "limits": []},
-               "plan_items": [1], "replan": "waiting"}
+               "status": "ruled", "ruling": {"decision": "fix_plan_item", "text": "項目 1 が誤り", "limits": [], "plan_items": [1]},
+               "replan": "waiting"}
         self.collect_place(conflicts=[row], result_extra={"objection": "判定の単位 A は前提が違う",
                                                           "changed": {**{k: False for k in _BLK_MARKS}, "premise_drift": True}})
         code, out, err = _blk_run("collect", self.repo, self.art)

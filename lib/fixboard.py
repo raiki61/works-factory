@@ -666,14 +666,14 @@ def changed_problem(declared, touched, excused=None) -> tuple:
 
 
 def replan_items(rows, groups=()) -> list:
-    """裁定 fix_plan_item が誤りとした計画の項目の id（字。重ねない・現れた順）: 行の欄 plan_items（apply が足す brief の項目の
-    番号）。欄の無い行は、その単位を持つ組の項目（groups の items）。rows は conflict の申し出の行"""
+    """裁定 fix_plan_item が誤りとした計画の項目の id（字。重ねない・現れた順）: conflict.ruled_items（裁定の欄 plan_items）。
+    欄の無い行は、その単位を持つ組の項目（groups の items）。rows は conflict の申し出の行"""
     import conflict
     out: list = []
     for r in rows or []:
         if (r.get("ruling") or {}).get("decision") != conflict.REPLAN:
             continue
-        nums = r.get(conflict.PLAN_ITEMS)
+        nums = conflict.ruled_items(r)
         if not nums:
             nums = [n for g in groups if r.get("unit_key") in g.get("unit_ids", []) for n in g.get("items", [])]
         for n in nums or []:

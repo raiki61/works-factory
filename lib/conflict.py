@@ -468,6 +468,11 @@ def ruled_units(row) -> list:
     return list(dict.fromkeys([row["unit_key"], *((row.get("ruling") or {}).get(PLAN_UNITS) or [])]))
 
 
+def ruled_items(row) -> list:
+    """1 件の裁定が誤りとした案の項目の番号（ruling が裁定の中に足す欄 PLAN_ITEMS。無ければ空）"""
+    return (row.get("ruling") or {}).get(PLAN_ITEMS) or []
+
+
 def replan_rows(rows, n: int, unit_keys) -> list:
     """申し出の行 rows のうち、裁定が REPLAN で案の項目 n を名指す物（裁定の PLAN_ITEMS が n を持つか、申し出の単位が項目の
     unit_keys に在る。単位は字で比べる）。案の直しの材料（planfile の brief・boardview の事前審査）が読む 1 つの選び"""
@@ -476,7 +481,7 @@ def replan_rows(rows, n: int, unit_keys) -> list:
     for c in rows or []:
         ru = c.get("ruling") if isinstance(c, dict) else None
         if isinstance(ru, dict) and ru.get("decision") == REPLAN and (
-                n in (ru.get(PLAN_ITEMS) or []) or str(c.get("unit_key")) in keys):
+                n in ruled_items(c) or str(c.get("unit_key")) in keys):
             out.append(c)
     return out
 
@@ -494,7 +499,7 @@ def held_by_rulings(b) -> dict:
     out = {}
     for i in rows:
         ru = i["ruling"]
-        nums = ", ".join(map(str, ru.get(PLAN_ITEMS) or []))
+        nums = ", ".join(map(str, ruled_items(i)))
         why = f"{ru['decision']} の裁定 {i.get('id') or '（id 無し）'}" + (f"（案の項目 {nums}）" if nums else "")
         for k in ruled_units(i):
             out.setdefault(k, why)
