@@ -163,6 +163,11 @@ class ReadNamedCase(unittest.TestCase):
         self.read([7], [], GH_REPO="ghe.corp.example/o/r")
         self.assertEqual(self.targets(), ["ghe.corp.example/o/r", "ghe.corp.example repos/o/r/pulls/7/comments"])
 
+    def test_edge_names_pass_the_read_only_gh(self):
+        """forge.SEGMENT・forge.HOST が通す名の端（点・下線・大文字の owner・ホストの数字とハイフン）を works-gh の名の形も通す"""
+        doc = self.read([7], [9], GH_REPO="ghe-2.corp.example/Up.Org_1/my_repo.js-x")
+        self.assertEqual((doc["pr"]["7"]["status"], doc["issue"]["9"]["status"]), ("ok", "ok"))
+
     def test_malformed_gh_repo_is_unreadable_without_gh(self):
         doc = self.read([7], [9], GH_REPO="a/b/c/d")
         for got in (doc["pr"]["7"], doc["issue"]["9"]):
