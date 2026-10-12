@@ -7,7 +7,8 @@
                  bytecode=False はバイトコード（_is_bytecode）を姿から除く（測るためにコマンドを走らせる実測役の見張り。premises）
 - guard・in_repo・resolve_rev・read_board・write_board・type_errors: 受け付けの部品の公開の名（ブロックのモジュールの受け付けが使う）
 - touched_files: 修正が触ったファイル（バイトコードは除く。index の印に隠れた物も入れる。protect が数える）
-- flag_free_env: 本物の index の assume-unchanged・skip-worktree の印を外して git に作業ツリーを見せる env（protect も使う）
+- flag_free_env: 本物の index の assume-unchanged・skip-worktree の印を外して git に作業ツリーを見せる env（protect も使う。
+                 sparse checkout の範囲外の印は残す）。copy_flag_free_index はその写しの index を作る（judge_accept の版の固定も使う）
 
 git は全部 repo を cwd にして呼ぶ。HEAD をその場で読むのは base_rev が空のときだけ（空なら repo の HEAD を版にする）。
 """
@@ -315,35 +316,51 @@ def _names(repo, cmd, *args, env=None) -> list:
     return [os.fsdecode(n) for n in _git(repo, cmd, "-z", *args, binary=True, env=env).split(b"\0") if n]
 
 
-def _marked(repo, env=None) -> list:
-    """index（env の GIT_INDEX_FILE。無ければ本物）で assume-unchanged・skip-worktree の印が付いたパス（バイト）"""
-    return [rec[2:] for rec in _git(repo, "ls-files", "-v", "-z", binary=True, env=env).split(b"\0")
-            if rec and (rec[:1].islower() or rec[:1] == b"S")]
+def _marks(repo, env=None) -> tuple:
+    """index（env の GIT_INDEX_FILE。無ければ本物）で外す印の付いたパス（バイト）: (assume-unchanged の物, skip-worktree の物)。
+    skip-worktree は作業ツリーに実物が在る物だけ——実物の無い物は sparse checkout の範囲外の普通の姿で、印を外すと
+    消した物に見える（git add -A も範囲外を消さない。green_cert.fresh_tree と同じ見え方）"""
+    assumed, skipped = [], []
+    for rec in _git(repo, "ls-files", "-v", "-z", binary=True, env=env).split(b"\0"):
+        tag, path = rec[:1], rec[2:]
+        if tag.islower():
+            assumed.append(path)
+        if tag in (b"S", b"s") and os.path.lexists(os.path.join(repo, os.fsdecode(path))):
+            skipped.append(path)
+    return assumed, skipped
 
 
 def clear_marks(repo, env) -> None:
-    """env の GIT_INDEX_FILE が指す index（本物の index の写し）から assume-unchanged・skip-worktree の印を外す"""
-    marked = _marked(repo, env)
-    if not marked:
+    """env の GIT_INDEX_FILE が指す index（本物の index の写し）から印を外す（外す物は _marks）"""
+    for flag, paths in zip(("--no-assume-unchanged", "--no-skip-worktree"), _marks(repo, env)):
+        if paths:
+            _git(repo, "update-index", "-z", flag, "--stdin", env=env, stdin=b"\0".join(paths) + b"\0")
+
+
+def copy_flag_free_index(repo, index) -> None:
+    """本物の index を index（パス）に写し、写しの印を外す（clear_marks）。本物の index が無ければ（まだ何も add していない
+    リポジトリ）写さない。本物の index は読むだけ。git が効かなければ Reject"""
+    real = _git(repo, "rev-parse", "--path-format=absolute", "--git-path", "index").strip()
+    try:
+        shutil.copy2(real, index)
+    except FileNotFoundError:
         return
-    # 1 回の update-index に 2 つの旗を渡すと片方しか効かない。--stdin は最後の引数
-    for flag in ("--no-assume-unchanged", "--no-skip-worktree"):
-        _git(repo, "update-index", "-z", flag, "--stdin", env=env, stdin=b"\0".join(marked) + b"\0")
+    except OSError as e:
+        raise Reject(f"本物の index を写せない: {e}")
+    clear_marks(repo, {"GIT_INDEX_FILE": str(index)})
 
 
 @contextlib.contextmanager
 def flag_free_env(repo):
-    """git に渡す env の差分。本物の index の assume-unchanged・skip-worktree の印を外して作業ツリーを見せる
-    （印の付いた物が在る時だけ、本物の index の写しの一時の index を指す。本物の index は触らない）"""
-    if not _marked(repo):
+    """git に渡す env の差分。本物の index の印（_marks）を外して作業ツリーを見せる
+    （外す印が在る時だけ、印を外した写しの一時の index を指す。本物の index は触らない）"""
+    if not any(_marks(repo)):
         yield {}
         return
     with tempfile.TemporaryDirectory(prefix="works-touched-") as tmp:
         index = os.path.join(tmp, "index")
-        shutil.copy2(_git(repo, "rev-parse", "--path-format=absolute", "--git-path", "index").strip(), index)
-        env = {"GIT_INDEX_FILE": index}
-        clear_marks(repo, env)
-        yield env
+        copy_flag_free_index(repo, index)
+        yield {"GIT_INDEX_FILE": index}
 
 
 def _is_bytecode(name: str) -> bool:

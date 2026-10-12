@@ -2063,24 +2063,17 @@ def _unfrozen(what, why, hint=None):
 
 def _worktree_tree(repo):
     """元 rules:1501。作業ツリーの今の姿の木の id（未追跡の新規ファイルも含め、追跡していない .gitignore の対象は除く）。
-    本物の index を一時 index に写し、assume-unchanged・skip-worktree の印を外して（accept.touched_files と同じ見え方）から
+    本物の index を一時 index に写して印を外し（accept.copy_flag_free_index。accept.touched_files と同じ見え方）てから
     add -A する（本物の index は読むだけで書かない）。固められなければ Reject"""
     tmp = tempfile.mkdtemp(prefix="graphloops-index-")
     idx = pathlib.Path(tmp) / "index"
     env = {"GIT_INDEX_FILE": str(idx)}
     why = []
     try:
-        real = git("rev-parse", "--path-format=absolute", "--git-path", "index", why=why)
-        if real is None or not real.strip():
-            raise _unfrozen("本物の index の場所を git rev-parse --git-path で引けない", why,
-                            "git 2.31 以上か、リポジトリの中で呼んでいるかを確かめよ")
         try:
-            shutil.copy2(real.strip(), idx)
-        except FileNotFoundError:
-            pass
-        except OSError as e:
-            raise Reject(f"この周に採点する版を固定できない（本物の index を写せない: {e}）")
-        core_accept.clear_marks(repo, env)
+            core_accept.copy_flag_free_index(repo, idx)
+        except Reject as e:
+            raise Reject(f"この周に採点する版を固定できない（本物の index を印を外して写せない: {e}）")
         if git("update-index", "-q", "--really-refresh", env=env, why=why) is None or git("add", "-A", env=env, why=why) is None:
             raise _unfrozen("一時 index への git update-index / add -A が失敗した", why)
         tree = git("write-tree", env=env, why=why)
