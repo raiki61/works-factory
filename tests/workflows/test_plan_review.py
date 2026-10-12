@@ -26,7 +26,7 @@ import yaml
 
 from tests import archon
 from tests.workflows import copied
-from tests.bin import hermetic
+from tests.bin import hermetic, trimmed
 from tests.bin.gitkit import committed_copy, git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -329,6 +329,12 @@ def synergy(faces=()) -> dict:
     return {"why": "2 つの項目は stats.py の別の関数を直し、順番の依存も重複も無い", "faces": list(faces)}
 
 
+def fetch_ids(brief: str) -> list:
+    """下請けのファイルが開けと言う先行例の出典の id（planblk.PRECEDENT_FETCH の行の頭の `- P<i>`）"""
+    return [line.split(":", 1)[0][2:] for line in brief.splitlines()
+            if line.startswith("- P") and planblk.PRECEDENT_FETCH in line]
+
+
 def summary(verdicts) -> dict:
     """束ね役の返答（項目ごとの判定の要約だけ。verdicts は {項目: [block の key]}）"""
     return {"faces": [], "shrink": [], "reason": SUMMARY_REASON,
@@ -442,15 +448,15 @@ class YamlCase(unittest.TestCase):
         strip = lambda d: {k: v for k, v in d.items() if k != "note"}  # noqa: E731
         for name, schema in {**gatemarks.MARK_SCHEMA, gatemarks.NO_NARROW: gatemarks.NO_NARROW_SCHEMA}.items():
             with self.subTest(name):
-                got = row[name]
+                got = trimmed.without_trimmed(row[name])
                 want = strip(schema)
                 if name == gatemarks.RECOMMEND:
                     want = {**want, "properties": schema["properties"]}
                 self.assertEqual(got, want)
-        self.assertEqual(fmt["properties"]["resolved"], converge.RESOLVED_SCHEMA)
-        self.assertEqual(fmt["properties"]["items"], converge.ITEMS_SCHEMA)
-        self.assertEqual(fmt["properties"]["design_map"], converge.DESIGN_MAP_SCHEMA)
-        self.assertEqual(fmt["properties"]["origins"], converge.ORIGIN_SCHEMA)
+        self.assertEqual(trimmed.without_trimmed(fmt["properties"]["resolved"]), converge.RESOLVED_SCHEMA)
+        self.assertEqual(trimmed.without_trimmed(fmt["properties"]["items"]), converge.ITEMS_SCHEMA)
+        self.assertEqual(trimmed.without_trimmed(fmt["properties"]["design_map"]), converge.DESIGN_MAP_SCHEMA)
+        self.assertEqual(trimmed.without_trimmed(fmt["properties"]["origins"]), converge.ORIGIN_SCHEMA)
         self.assertEqual(sorted(fmt["required"]), ["faces", "reason", "shrink"])
         self.assertLessEqual(set(boardview.HUMAN_FACE_KINDS), set(row["kind"]["enum"]), "人の関所に回す穴の種類が役の返りの kind に無い")
 
@@ -465,6 +471,13 @@ class YamlCase(unittest.TestCase):
             with self.subTest(name):
                 self.assertIn(gatemarks.RECOMMEND, row["properties"])
                 self.assertNotIn(gatemarks.RECOMMEND, row["required"])
+
+    def test_trimmed_min_length_kept_by_pattern(self):
+        """事前審査と独立設計の返答の型は節の output_format だけが持ち、前後の空白を除いた長さの下限は pattern が持つ"""
+        got = nodes()
+        for nid in ("plan-review", "r2-design"):
+            with self.subTest(nid):
+                self.assertEqual(trimmed.missing_patterns(got[nid]["output_format"]), [])
 
     def test_scripts_read_role_formats_from_the_yaml(self):
         """script は外のパッケージ無しで走るので、役の節の型は JSON の形で書き、差し込みの頭の script の node_schema で読む
@@ -712,13 +725,10 @@ class DesignCase(RunCase):
         self.assertIn("拒まれた", missing["missing"])
 
     def test_off_schema_reply_names_the_type_error(self):
-        """独立設計の返答は役の型（差し込みの頭が YAML から控えた物）で照らし、拒みの訳は型の誤りの欄を名指す"""
-        r = self.run_
-        r.open()
-        _, got = self.designed({"reason": "x"})
-        self.assertFalse(got["ok"], got)
-        self.assertIn("独立設計の返答", got["reason"])
-        self.assertIn("question_stands", got["reason"])
+        """独立設計の返答の型は節 r2-design の output_format だけが持ち（Claude Code が節の中で照らして出し直させる）、型の誤りは
+        欠けた欄を名指す。受け付け（boardview.check_design）は型を照らし直さない"""
+        errs = validate_schema({"reason": "x"}, nodes()["r2-design"]["output_format"])
+        self.assertTrue(any("question_stands" in e for e in errs), errs)
 
     def test_design_handoff_is_traced(self):
         """返す節は設計の控えを返り design で渡した・渡せなかったを trace に残す（元 design.hand の r2_design_handed・r2_design_missing）"""
@@ -1157,7 +1167,7 @@ class ConvergeCase(RunCase):
               [{"at": "t1", "reason": "計画の 1 回目の拒否"}])
         r.open()
         r.out("review_prep")
-        self.assertFalse(r.accept(review(face("x" * 20, kind="不明")))["ok"])
+        self.assertFalse(r.accept(review(face("entrance-without-no-add", kind="entrance")))["ok"])
         self.assertTrue(r.accept(review(MEAN_BLOCK))["ok"])
         r.out("result")
         r.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾いて分母を直す"), item(UNIT_CLAMP, 2)], rnd=2,
@@ -1560,7 +1570,7 @@ class TreeCase(RunCase):
         one, two = ((self.items_dir() / f"item-{n}.md").read_text(encoding="utf-8") for n in (1, 2))
         self.assertIn("statistics.mean", one)
         self.assertNotIn("numpy.clip", one)
-        self.assertEqual((len(planblk.fetch_ids(one)), len(planblk.fetch_ids(two))), (1, 1))
+        self.assertEqual((len(fetch_ids(one)), len(fetch_ids(two))), (1, 1))
         self.write_answers(1, {1: answer(1), 2: answer(2, faces=[CLAMP_BLOCK])}, fetched=False)
         got = r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))
         self.assertFalse(got["ok"])
@@ -1577,7 +1587,7 @@ class TreeCase(RunCase):
         brief = (self.items_dir(2) / "item-2.md").read_text(encoding="utf-8")
         self.assertIn("numpy.clip", brief)
         self.assertIn(planblk.PRECEDENT_CACHED, brief)
-        self.assertEqual(planblk.fetch_ids(brief), [])
+        self.assertEqual(fetch_ids(brief), [])
 
     def test_surplus_rows_dropped(self):
         """元 test_surplus_precedent_row_dropped・test_surplus_hit_dropped: 余りの行は拒まずに trace に残して捨てる"""
@@ -1663,8 +1673,8 @@ class TreeCase(RunCase):
                          (converge.AGAIN, {again["key"]: converge.ORIGIN_INTRODUCED}, []))   # 開いた block は 2 → 1 に減る
 
     def test_review_tree_off_second_pass_takes_checked_origins(self):
-        """審査役 1 つ（木にしない）の 2 往復目: 材料に出自の頼み ORIGIN_ASK が在る（1 往復目には無い）。返答の origins は役の型
-        （converge.ORIGIN_SCHEMA）で確かめ、型の外れは出し直させて往復も記録しない。正しい申告は往復の行に照らして入る"""
+        """審査役 1 つ（木にしない）の 2 往復目: 材料に出自の頼み ORIGIN_ASK が在る（1 往復目には無い）。返答の origins の型
+        （converge.ORIGIN_SCHEMA）は節の output_format が持ち、型の外れはそこで出し直させる。正しい申告は往復の行に照らして入る"""
         r = self.run_
         r.start(features_off=["review_tree"])
         self.assertFalse(r.open()["tree"])
@@ -1679,16 +1689,15 @@ class TreeCase(RunCase):
         self.assertIn(converge.ORIGIN_ASK, text)
         new = face("mean-boundary-value-0")
 
-        def send(claim):
-            return r.accept(review(new, resolved=[MEAN_BLOCK["key"]], origins=claim))
+        def sent(claim):
+            return review(new, resolved=[MEAN_BLOCK["key"]], origins=claim)
 
+        fmt = nodes()["plan-review"]["output_format"]
         for claim in ([{"key": new["key"], "origin": "guessed"}], [{"key": [new["key"]], "origin": converge.ORIGIN_MISSED}]):
             with self.subTest(claim=claim):
-                got = send(claim)
-                self.assertFalse(got["ok"], got)
-                self.assertIn(converge.ORIGINS, got["reason"])
-                self.assertEqual(len(converge.read(r.view())["passes"]), 1)
-        got = send([{"key": new["key"], "origin": converge.ORIGIN_REPHRASED, "of": MEAN_BLOCK["key"]}])
+                errs = validate_schema(sent(claim), fmt)
+                self.assertTrue(any(converge.ORIGINS in e for e in errs), errs)
+        got = r.accept(sent([{"key": new["key"], "origin": converge.ORIGIN_REPHRASED, "of": MEAN_BLOCK["key"]}]))
         self.assertTrue(got["ok"], got)
         row = converge.read(r.view())["passes"][-1]
         self.assertEqual((row["origins"], row["origins_claimed"]), ({new["key"]: converge.ORIGIN_REPHRASED}, []))
@@ -2436,13 +2445,10 @@ class PortedMaterialCase(RunCase):
         self.assertIn(policy.RULE, prompt)
 
     def test_reply_out_of_the_role_format_is_rejected(self):
-        r = self.run_
-        r.start(features_off=["review_tree"])
-        r.open()
-        r.out("review_prep")
-        got = r.accept(review(face("bad-kind-face", kind="taste")))
-        self.assertFalse(got["ok"])
-        self.assertIn("事前審査の返答の型が合わない", got["reason"])
+        """型の外の返答（知らない kind）は事前審査の節の output_format が拒む（受け付けは型を照らし直さない）"""
+        fmt = nodes()["plan-review"]["output_format"]
+        self.assertEqual(validate_schema(review(face("good-kind-face")), fmt), [])
+        self.assertTrue(validate_schema(review(face("bad-kind-face", kind="taste")), fmt))
 
 
 class QuoteFoldCase(unittest.TestCase):
@@ -3234,20 +3240,15 @@ class RequestAnswersCase(GateBase):
         self.answers({"question": TP.FORK_UNIT, "text": "例外のまま"})
         got, b = self.gate(questions=[TP.FORK, TP.ESCALATE], units=TP.UNITS)
         self.assertEqual(got.get("decision"), "ask", "どちらの問いも関所に載る")
-        self.assertEqual(gatemarks.answered_lines(b), [])
         self.assertEqual(gatemarks.returned_lines(b), [])
         self.assertEqual(len(gatemarks.held_lines(b)), 2)
-        line = "\n".join(gatemarks.unmatched_answer_lines(b))
-        self.assertIn(f"複数の問いに当たった: {TP.FORK_UNIT} → {TP.FORK['key']}・{TP.ESCALATE['key']}", line)
 
     def test_answer_by_key_is_not_ambiguous(self):
         """元 tests/test_plan_gate.py の RequestAnswersCase.test_answer_by_key_is_not_ambiguous。key で当てた答えは、同じ出どころの
         問いが他に在ってもその問いだけに当たる"""
         self.answers({"question": TP.ESCALATE["key"], "text": "直さない"})
         _, b = self.gate(questions=[TP.FORK, TP.ESCALATE], units=TP.UNITS)
-        self.assertIn("依頼者の答え: 直さない", "\n".join(gatemarks.answered_lines(b)))
         self.assertEqual(len(gatemarks.held_lines(b)), 1)
-        self.assertEqual(gatemarks.unmatched_answer_lines(b), [])
 
     def test_answer_hitting_settled_question_is_shown(self):
         """元 tests/test_plan_gate.py の RequestAnswersCase.test_answer_hitting_settled_question_is_shown。決着済みの問いに当たった
@@ -3272,8 +3273,6 @@ class RequestAnswersCase(GateBase):
         self.assertEqual(got, {"ok": True}, "答えた問いは修正前の関所に載せない")
         self.assertTrue(gatemarks.answered(b, ledger(b, q7)))
         self.assertEqual(gatemarks.answer_binds(b, gatemarks.request_answers(b)[0]), [q7], "結びが当てる問いは key q-7 の 1 つ")
-        self.assertEqual(gatemarks.unmatched_answer_lines(b), [])
-        self.assertIn("依頼者の答え: 例外のまま", "\n".join(gatemarks.answered_lines(b)))
 
     def test_tie_to_unit_and_none_rows(self):
         """元 tests/test_plan_gate.py の RequestAnswersCase.test_tie_to_unit_and_none_rows。単位に結んだ答えはその単位の答えとして
@@ -3287,18 +3286,12 @@ class RequestAnswersCase(GateBase):
         returned = "\n".join(gatemarks.returned_lines(b))
         self.assertIn(f"依頼で答えた単位 {TP.OTHER_UNIT}", returned)
         self.assertIn("依頼者の答え: 上限は 10", returned)
-        unmatched = "\n".join(gatemarks.unmatched_answer_lines(b))
-        self.assertIn("もう無い問い", unmatched)
-        self.assertIn("その問いは前の run で決着して今の台帳に無い", unmatched)
-        self.assertNotIn("単位への答え", unmatched)
-        self.assertNotIn(TP.FORK["key"], unmatched)
         # 判定が none に結んでも、台帳に key が字のまま等しい問いが在れば答えた扱いのまま、当たらない行にも並ばない
         # （判定の後に機械が立てる問いの key で書かれた答え）
         self.answers({"question": TP.FORK["key"], "text": "例外のまま"})
         self.ties({"answer": TP.FORK["key"], "none": "判定の返答にその問いが無く、後で機械が台帳に立てる問い"})
         _, b = self.gate(questions=[TP.FORK], units=TP.UNITS)
         self.assertTrue(gatemarks.answered(b, ledger(b, TP.FORK)))
-        self.assertEqual(gatemarks.unmatched_answer_lines(b), [])
 
 
 class MaterialAnswersCase(GateBase):
@@ -3312,8 +3305,6 @@ class MaterialAnswersCase(GateBase):
         self.answers({"question": "parallel_pr", "text": "並行する PR は無い"})
         _, b = self.gate(questions=[TP.FIELD_PR], units=TP.UNITS, materials=TP.PR_NOT_RUN)
         self.assertEqual(gatemarks.held_lines(b), [])
-        self.assertIn("依頼者の答え: 並行する PR は無い", "\n".join(gatemarks.answered_lines(b)))
-        self.assertEqual(gatemarks.unmatched_answer_lines(b), [])
         self.assertEqual(gatemarks.origin_of(b, TP.FIELD_PR), "parallel_pr")
 
     def test_key_prefix_needs_a_word_boundary_and_an_unmeasured_material(self):
@@ -3362,7 +3353,6 @@ class MaterialAnswersCase(GateBase):
         _, b = self.gate(units=TP.UNITS, materials={"parallel_pr": {"status": "clean", "reason": "交差なし"}})
         self.assertEqual(gatemarks.measured_materials(b), set())
         self.assertIn("parallel_pr", "\n".join(gatemarks.unmatched_answer_lines(b)))
-
 
 class PushCase(GateBase):
     """関所の項目の推し（gatemarks の recommend）が人に回す行の尾と関所の文に載るか"""

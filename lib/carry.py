@@ -29,7 +29,7 @@ findings だけにする（容器の形を規則の側へ漏らさない）。
 - is_redesign(row): 行が独立の目 R2 の作り直しの行か（where が REDESIGN_WHERE）
 - row_key(row): 行の鍵（where と、text の最初の「（」までを空白を詰めて \\t でつないだ物。理由の尾だけ違う行を同じ物と見る）
 - schema(name)・errors(doc, name): 約束の Schema（NEXT_SCHEMA・PRIOR_SCHEMA）と、それに照らした誤りの一覧
-- save(board_dir, doc, prior)・place_prior(board_dir, rows)・prior_section(board_dir, gap=ValueError):
+- place_prior(board_dir, rows)・prior_section(board_dir, gap=ValueError):
   盤面の根に照らしてから書く口と、依頼の前の失敗を役の材料に貼る節（受け付けの拒否の行の注意の節と、作り直しの行の直す穴の
   節の 2 つ。読めなければ呼び手が渡した例外の型 gap）
 """
@@ -242,18 +242,6 @@ def _checked(doc, name: str, what: str):
     if errs:
         raise ValueError(f"{what} が約束 {name} に合わない（works の不具合。置かない）: {'; '.join(errs)}")
     return doc
-
-
-def save(board_dir, doc: dict, prior: list) -> tuple:
-    """報告が書く 2 つ: この run で最後まで通らなかった物 prior を PRIOR_FAILURES_FILE に、次の run の依頼の下書き doc を
-    NEXT_REQUEST_FILE に、この順で盤面の根に置き、(下書きのパス, 前の失敗のパス) を返す。先に両方を約束の Schema に照らし、
-    どちらかが合わなければ ValueError で 1 つも置かない（片方だけが残る盤面を作らない）"""
-    d = pathlib.Path(board_dir)
-    _checked(prior, PRIOR_SCHEMA, PRIOR_FAILURES_FILE)
-    _checked(doc, NEXT_SCHEMA, NEXT_REQUEST_FILE)
-    write(d / PRIOR_FAILURES_FILE, prior)
-    write(d / NEXT_REQUEST_FILE, doc)
-    return d / NEXT_REQUEST_FILE, d / PRIOR_FAILURES_FILE
 
 
 def place_prior(board_dir, rows: list) -> None:

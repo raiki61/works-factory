@@ -25,6 +25,7 @@ if str(LIB) not in sys.path:
 import conflict  # noqa: E402
 import consult  # noqa: E402
 import gatemarks  # noqa: E402
+import jsonfile  # noqa: E402
 import planrange  # noqa: E402
 
 OOS_WHY = "README の節は別の依頼で書き直す"
@@ -62,7 +63,7 @@ def put_asked(place, asks, pass_="first", node=NODE, items=ITEMS, unavailable=""
             r.update(status=consult.UNAVAILABLE, why_unavailable=unavailable)
         asked = []
     doc = {"turns": turn, "turn_state": consult.ASKED, "rows": rows, "question_file": "", "session": None, "node": node, "items": items}
-    consult._write_json(consult.state_path(place, pass_), doc)
+    jsonfile.write(consult.state_path(place, pass_), doc)
     return doc, consult.question(items, asked) if asked else ""
 
 

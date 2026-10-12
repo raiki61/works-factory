@@ -4,7 +4,7 @@
 今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の関数を元の名で写した物（各関数の docstring の末尾に元の `<パス>:<行>`）。
 盤面の引数 b・記録への控え（process.checks）・機械全体の試験の枠（tree_run.slotted_run の slotwrap.sh）・台帳の人待ちは外した。
 同じ run の中の使い回しは、置き場を呼び手が引数 reuse（tree_run.reuse_place の返り）で渡す形で tree_run.reuse_run に残す。
-- 字のまま（継ぎ目の直しだけ）: TEST_CMD_STEP・local_checks_material・_launched・_cmd_material・_same_step・env_only_red・
+- 字のまま（継ぎ目の直しだけ）: TEST_CMD_STEP・local_checks_material・_launched・_cmd_material・_same_step・
   _suite_kind・suites_line・CiRefused（InputRefused ごと）・_with_test_cmd・_junit_unran・_tail（TAIL_LINES・TAIL_BYTES ごと）・
   _reused_material・_reused_note
 - 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci・baseline_line
@@ -166,11 +166,6 @@ def _with_test_cmd(runner, test_cmd: str, note: dict, reuse: dict | None = None)
 
 
 # ---------------------------------------------------------------- 一式の結末の読み方
-def env_only_red(tests: dict | None) -> bool:
-    """最後のテストの赤が、全部起こせなかった段（tree_run.launch_kind の broken）だけから来ているか（元 works/.shared/core/entry.py:768-772）"""
-    kinds = [_suite_kind(s) for s in (tests or {}).get("suites") or []]
-    bad = [k for k in kinds if k != "clean"]
-    return bool(bad) and all(k == "broken" for k in bad)
 
 
 def _suite_kind(s: dict) -> str:

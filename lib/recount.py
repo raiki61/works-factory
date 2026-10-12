@@ -4,18 +4,17 @@
 数え直しに替える。今の works では盤面の done("p3.fix") の検査（写しの fix_covers_open_units）が当てた物のうち、数え直しの欄を
 ここで当てる: 直す義務の単位（[block] と do-now）を全部覆うか・判定役の class_query を修正前の版（base_rev）と修正後の作業ツリーで
 数え直し、closure.sites の数と母数が合うか・欠陥の形の数が減ったか。
-数え直した件数は置き場の coverage-after.json（COVERAGE_FILE。fixboard._coverage が読む）に残る。
+数え直した件数は置き場の coverage-after.json（COVERAGE_FILE）に残る。
 
 ここに在る物:
 - FIX_NODE・ROLE・RULED_ROLE: 節の名前、役の名前（印の名）。RULED_ROLE は裁定の後の 2 回目の修正役
-- SITE_PATH・SITE_PATH_SCHEMA・PRECEDENT_MIN_LEN・_precedent_conditions: 修正役の返答の型に足す欄（closure.sites[] の欄 path・
+- SITE_PATH・SITE_PATH_SCHEMA・PRECEDENT_MIN_LEN: 修正役の返答の型に足す欄（closure.sites[] の欄 path・
   changes[].precedent の条件付き必須 allOf）。型は呼び手（ブロックの型の定義）が貼る
 - accept_fix(reply, place, base_rev, repo, *, judged=, owed=, ...): 受け付けの時の数え直し。1 本目の出口のための changes を足す（v1_changes）
 - recount_problems の照らし: 直す義務の覆い・返答の自己申告の形（閉鎖の状態・interactions・bypass_tried・breaks.result・先行例・
   root_or_symptom）・coverage の数え直し・赤を見ない clean・修正が書いた指し（wrote_refs）・差分が足した Markdown のリンク
   （md_link_errors）。元の写しの fix_covers_open_units の照らしの全部
-- 修正の返答を読む口（fix_reply・_fix_output）・集める節の中身（collect）・数え直した件数の読み口（_coverage）は、盤面を読んだ所を
-  置き場のファイルのパスで受ける形にして lib/fixboard.py に置いた
+- 修正の返答を読む口（fix_reply・_fix_output）は、盤面を読んだ所を置き場のファイルのパスで受ける形にして lib/fixboard.py に置いた
 """
 import json
 import os
@@ -46,23 +45,7 @@ SITE_PATH_SCHEMA = {"type": "string"}
 PRECEDENT_MIN_LEN = 4 # 写しの _precedent_gap・blank(problem, 4) の下限（テストが写しと突き合わせる）
 
 
-def _precedent_conditions() -> list:
-    """changes[].precedent の条件付き必須（draft-07 の if/then）。写しの受け付け（_precedent_gap）と同じ決まり:
-    from_judge_row が真でない限り problem を求め、verdict が not_found なら searched、それ以外なら source を求める。
-    写しの engine の型検査は if/then を読まないので、役に渡る型（claude の起動の引数で渡る型）にだけ効く"""
-    not_judge_row = {"not": {"required": ["from_judge_row"], "properties": {"from_judge_row": {"const": True}}}}
-    is_not_found = {"required": ["verdict"], "properties": {"verdict": {"const": "not_found"}}}
-    isnt_not_found = {"required": ["verdict"], "properties": {"verdict": {"not": {"const": "not_found"}}}}
-
-    def needs(field: str) -> dict:
-        return {"required": [field], "properties": {field: {"type": "string", "minLength": PRECEDENT_MIN_LEN}}}
-    return [{"if": not_judge_row, "then": needs("problem")},
-            {"if": {"allOf": [not_judge_row, is_not_found]}, "then": needs("searched")},
-            {"if": {"allOf": [not_judge_row, isnt_not_found]}, "then": needs("source")}]
-
-
 V1_CHANGE_KEYS = ("unit_key", "files", "what")   # 1 本目の出口の changes の欄（assert-changed・changes.json が読む）
-CHANGES_FILE = "changes.json"
 COVERAGE_FILE = "coverage-after.json"   # 受け付けが数え直した件数 {"round", "items": [{unit_key, how, counts, total, closed, after}]}
 COUNT_CACHE_FILE = "count-cache.json"
 COUNT_BUDGET_FILE = "count-budget.json"

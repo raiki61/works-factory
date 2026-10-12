@@ -22,7 +22,7 @@ def end_tree(repo) -> str:
 
 
 def diff_since(repo, from_tree: str, end_tree: str) -> str:
-    """木 from_tree から木 end_tree への差分。unittrees.diff と同じ形（unittrees._DIFF: a/・b/ の頭・--binary・改名なし・
+    """木 from_tree から木 end_tree への差分。unittrees._DIFF の形（a/・b/ の頭・--binary・改名なし・
     外の diff と textconv なし）で取るので、unittrees.apply がそのまま当てられる。木は repo の git の物から読む
     （同じ clone の worktree の間なら共有）。git が落ちれば unittrees.UnitTreeError"""
     return unittrees._git(repo, *unittrees._DIFF, from_tree, end_tree).stdout.decode("utf-8", "surrogateescape")

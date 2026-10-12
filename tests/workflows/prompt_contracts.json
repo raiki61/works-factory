@@ -2122,7 +2122,7 @@
       "nodes": [
         "workflows/fix/works-factory-fix.yaml#ruler"
       ],
-      "output_format_sha256": "4d05c68808dcd94815a980c888eb3ed1ca96737db6b7e673a4423905fd515dc1",
+      "output_format_sha256": "047f453cf81ee8446ce05b671fdf6a8cef14baa28e9a0432d3008eb9fe408b6a",
       "json_keys": []
     },
     "forbidden": [],
@@ -2198,7 +2198,7 @@
       "nodes": [
         "workflows/judge/works-factory-judge.yaml#diagnose"
       ],
-      "output_format_sha256": "76bcf00a05165467f36f93a29021a19183bd56f34a556c983e0c18710ff2c01c",
+      "output_format_sha256": "b61ed7b874b9d424b822240e4ebf8b2b941d317c0d7be21b9b5073454b2857a9",
       "json_keys": []
     },
     "forbidden": [
@@ -3941,7 +3941,7 @@
       "nodes": [
         "workflows/judge/works-factory-judge.yaml#pr-check"
       ],
-      "output_format_sha256": "cc1a520b7a377dae1f2090f4b322c3cf7587110ad3f6502204d39034e3cd0ee0",
+      "output_format_sha256": "a8b4882e08d9319c864f2646393dd364901b73691f84335bbee67c4bd60e4bcb",
       "json_keys": []
     },
     "forbidden": [
@@ -4098,7 +4098,7 @@
       "nodes": [
         "workflows/judge/works-factory-judge.yaml#premises"
       ],
-      "output_format_sha256": "e06807b5192b1da2afc3b79efde66e342192214cdebe116b428de7c7c94a57f9",
+      "output_format_sha256": "7c4cf8cfce068cfa996bf2801fb4f512cfdab6317d091ffe8864ce0e7be558ac",
       "json_keys": []
     },
     "forbidden": [
@@ -4218,7 +4218,7 @@
       "nodes": [
         "workflows/judge/works-factory-judge.yaml#purpose"
       ],
-      "output_format_sha256": "715be4a3bcbeb2c80bdef4061323305b33819fd6fb5c271a86e20d88ec8e4cce",
+      "output_format_sha256": "6dfbe505570f1a310e5c25eac9d25f6ca5f4181b7dac4f75d907788bd280bca8",
       "json_keys": [
         "findings",
         "issue",
@@ -4354,7 +4354,7 @@
       "nodes": [
         "workflows/judge/works-factory-judge.yaml#rejudge"
       ],
-      "output_format_sha256": "eb87b5eb2e4d816905aade4347b16f5b80051bfec4810d83ffd38cd3f27da170",
+      "output_format_sha256": "fd82f607aba5892f7b897ee029811e2d5fe842fa434666d76b2f1ca6bff06d47",
       "json_keys": []
     },
     "forbidden": [
@@ -4984,7 +4984,7 @@
       "nodes": [
         "workflows/plan-review/works-factory-plan-review.yaml#plan-review"
       ],
-      "output_format_sha256": "7e42ce01a818591649a04563ab9da10e9f1bd52c0fd5d57391e64fafb7256c13",
+      "output_format_sha256": "07d0125ebbb8093b044bcfd04fd2647513452f82354dd17a40b8ad44f78b08c0",
       "json_keys": []
     },
     "forbidden": [
@@ -5114,7 +5114,7 @@
       "nodes": [
         "workflows/plan-review/works-factory-plan-review.yaml#r2-design"
       ],
-      "output_format_sha256": "49657559c5fd37b6057a6f487e6d311903735a4baa44bca2a2b2a1159d349da7",
+      "output_format_sha256": "d7df1e2a60a3ecabccf0d91087dbed1ea2f8a9e15a668ee36e7de47a191aaea5",
       "json_keys": []
     },
     "forbidden": [
@@ -5174,7 +5174,7 @@
       "nodes": [
         "workflows/plan-review/works-factory-plan-review.yaml#r2-design"
       ],
-      "output_format_sha256": "49657559c5fd37b6057a6f487e6d311903735a4baa44bca2a2b2a1159d349da7",
+      "output_format_sha256": "d7df1e2a60a3ecabccf0d91087dbed1ea2f8a9e15a668ee36e7de47a191aaea5",
       "json_keys": []
     },
     "forbidden": [
@@ -5290,7 +5290,7 @@
       "nodes": [
         "workflows/plan/works-factory-plan.yaml#structure-eye"
       ],
-      "output_format_sha256": "f24bcc3a07732991b05eb9815aeef7aa88d3d8ddfc7777fd50be0723eb468f78",
+      "output_format_sha256": "8e4d525700dcb43b8c79ec1e7a5ed977be5873cf9c12f9905b70f3937460c7c1",
       "json_keys": []
     },
     "forbidden": [

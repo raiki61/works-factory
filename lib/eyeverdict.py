@@ -25,6 +25,7 @@ import types
 import changemap
 import design
 import gatemarks
+import jsonfile
 import seal
 
 R2_PREMISE_HEAD = "前提不成立: "
@@ -255,12 +256,7 @@ def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_fil
 
 def read_json(path):
     """置き場の JSON（パスが無い・ファイルが無い・読めなければ None）"""
-    if path is None:
-        return None
-    try:
-        return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+    return None if path is None else jsonfile.read_or(path)
 
 
 def read_design(path) -> dict:

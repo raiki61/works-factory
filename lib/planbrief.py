@@ -14,7 +14,7 @@
 - 切り直し（RECUT_OP。依頼 226）: 今の周の trace で、承認済みの項目の差し替えの印（planmarks.AMEND_OP）の行が最後の CUT_OP の行
   より後に在る時だけ、その行（後に在る物全部）の items の項目を今の承認済みの項目（planmarks.plan_items と凍結した欄）から描き
   直し、文が変わった項目だけファイルを書き、控えを置き直して trace に RECUT_OP {round, items} と CUT_OP の行を書く。行の前後は
-  trace の行の並びで決める（時刻で比べない）。amend を通らない save し直しでは切り直さない（凍結のまま）
+  trace の行の並びで決める（時刻で比べない）。差し替えの印の無い save し直しでは切り直さない（凍結のまま）
 - 呼ぶ時: cut・cut_at は今の周の承認済みの修正案（差し替えを重ねた物）を凍結する。事前審査（p2.plan_review）と人の関所（p2.human_gate）を
   抜けた後にだけ呼ぶ（前に呼ぶと、承認されていない案がその周の正本になる）
 
@@ -46,10 +46,6 @@ import pathlib
 import sys
 
 sys.dont_write_bytecode = True
-
-_CORE = pathlib.Path(__file__).resolve().parents[2] / ".shared" / "core"
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
 
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行・planmarks に渡す読み口）
 import planmarks  # noqa: E402

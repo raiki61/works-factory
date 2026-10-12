@@ -39,9 +39,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   （閉じた項目を変えた行は拒み、前と同じ行は捨てる）
 - answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（項目の在る
   控えでは、今の往復で開いている項目の分だけ）
-- with_fields(role, schema)・split(role, reply): 役の型に欄を足す・返答から欄を外す（事前審査の型には項目ごとの審査の欄
-  ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との対応表）・出自 ORIGINS も任意で足す。tree_split が外す・drop_fields が
-  壁打ちの欄を全部外す。下請けの答えのファイルの当たりの答えの型は HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
+- split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
+  対応表）・出自 ORIGINS は tree_split が外す。下請けの答えのファイルの当たりの答えの型は HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
 - item_blocks(b, n): 項目 n が答える前の往復の block の key（受け付けが下請けの答えの resolved を確かめる）
 - prev_row(b, n)・answered_hits(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答えと、suggest の穴（往復の行の
   notes。項目を開き直さず、直しの役に参考として渡り、受け付けが後の往復の返答に引き継ぐ）
@@ -162,8 +161,7 @@ ORIGIN_SCHEMA = {"type": "array", "items": {
     "type": "object", "additionalProperties": False, "required": ["key", "origin"],
     "properties": {"key": {"type": "string"}, "origin": {"type": "string", "enum": list(CLAIMED)},
                    "of": {"type": "string"}}}}
-TREE_FIELDS = {"plan-review": {ITEMS: ITEMS_SCHEMA, DESIGN_MAP: DESIGN_MAP_SCHEMA, ORIGINS: ORIGIN_SCHEMA}}
-TREE_KEYS = (*TREE_FIELDS["plan-review"], SYNERGY)   # 事前審査の返答から外す木の欄
+TREE_KEYS = (ITEMS, DESIGN_MAP, ORIGINS, SYNERGY)   # 事前審査の返答から外す木の欄
 
 
 # ---------------------------------------------------------------- 決まり
@@ -460,7 +458,7 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
     """控え doc に事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて doc と行の outcome に置く（ファイルの写し・
     書き込み・trace はしない）。at_cap（呼び手が渡す、輪がもう 1 周回せない事実）が真で decide が AGAIN の往復は、行に
     capped: true を立てて UNSETTLED（保留の項目が在れば PERSISTED）で止める（決まりは decide のまま。CLEAN と止める往復は
-    変えない）。origins（審査の出自の申告の行。型は受け付けが ORIGIN_SCHEMA の写しの役の型・答えのファイルの型で照らし済み）は
+    変えない）。origins（審査の出自の申告の行。型は節の output_format か、受け付けが答えのファイルの型（ORIGIN_SCHEMA の写し）で照らし済み）は
     _origins が照らして、2 往復目からの新しい block の出自を行の origins に置く（採らなかった申告は origins_claimed）。返りは足した行"""
     passes = doc["passes"]
     k = len(passes) + 1
@@ -593,15 +591,6 @@ def resolved_gaps(b, faces: list, resolved: list) -> list[str]:
     return gaps
 
 
-def with_fields(role: str, schema: dict) -> dict:
-    """役の型に壁打ちの欄を足した写し（plan-revise は必須の block_answers、plan-review は任意の resolved。ほかの役はそのまま）"""
-    if role not in FIELDS:
-        return schema
-    name, field, required = FIELDS[role]
-    # TREE_FIELDS は任意（同じ役の型を案の直しの事前審査も使う）
-    return marks.add("converge", role, schema, {name: field, **TREE_FIELDS.get(role, {})}, required=(name,) if required else ())
-
-
 def split(role: str, reply: dict) -> tuple[dict, list]:
     """（壁打ちの欄を外した返答の写し, 外した値（無ければ []））"""
     if role not in FIELDS:
@@ -615,19 +604,6 @@ def tree_split(reply: dict) -> tuple[dict, dict]:
     """（木の欄 TREE_KEYS（束ね役の欄 ITEMS・SYNERGY と対応表 DESIGN_MAP・出自 ORIGINS）を外した返答の写し, {欄: 値 | None}）"""
     out, got = marks.split("converge", "plan-review", reply, TREE_KEYS)
     return out, {name: got.get(name) for name in TREE_KEYS}
-
-
-def with_design_map(schema: dict) -> dict:
-    """事前審査の型の写しに対応表の欄 DESIGN_MAP（任意）だけを足した写し（案の直しの事前審査の指示書が、独立設計の立つ時に見せる）"""
-    return marks.add("converge", "plan-review", schema, {DESIGN_MAP: DESIGN_MAP_SCHEMA})
-
-
-def drop_fields(reply):
-    """事前審査の返答から壁打ちの欄（RESOLVED と TREE_KEYS）を外した写し（案の直しの事前審査は写しの型で受ける。
-    対応表は外す前に呼び手が取り出して照らす）"""
-    if not isinstance(reply, dict):
-        return reply
-    return marks.split("converge", "plan-review", reply, (RESOLVED, *TREE_KEYS))[0]
 
 
 # ---------------------------------------------------------------- 文

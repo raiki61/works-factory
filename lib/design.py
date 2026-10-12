@@ -9,7 +9,6 @@
 
 - unusable(b):   目的の出典が R2 に使えない理由（目的不明・狭めている。無ければ None）。式は写しの rules の purpose_unusable
                  （p4.assemble と同じ 1 本）を呼ぶ
-- due(b):        設計の役を今起こすか（表に役として在り・控えが無く・諦めていず・盤面で済んでいず・再発火の周で・目的が使える）と理由
 - premises:      R2 の 2 つの役（r2.design・r2.compare）に共通して貼る節の並び（人の答え → 名指しの節 → 地図）と、貼った入力の控え {given, withheld, seen}（kind は PREMISE_KINDS の中だけ）。
                  human_answers（人の関所の答え。asked は写さず、answer の無い機械の行は withheld。seen は貼った答えの数と
                  最後の round の印で、突き合わせの側が独立設計の後に来た答えを分けて並べる）と named_sections（依頼が
@@ -475,28 +474,6 @@ def made(board_dir, schema) -> tuple:
         return read_design(board_dir, schema), ""
     except Reject as e:
         return None, f"{MISSING}: {e}"
-
-
-def due(b) -> tuple:
-    """(起こすか, 理由)"""
-    row = b.table.nodes.get(NODE) if b.table is not None else None
-    if row is None or row.by != "role":
-        return False, f"ノードの表に {NODE} の AI ノードが無い"
-    got, broken = made(b.dir, b.design_schema)
-    if got is not None or broken:
-        return False, broken or f"独立設計はもう {DESIGN_FILE} に在る"   # 壊れた控えも作り直さない（設計を 2 度作らない）
-    gave = rolekit.given_up_reason(b.dir, NODE, give_up_after=GIVE_UP_AFTER)
-    if gave:
-        return False, gave
-    st = b.node_state(NODE)
-    if st != "pending":   # 済んだ・条件外（na）・省いた。まだ依存を待つ節も pending
-        return False, f"共有ボードで {NODE} はこの周に {st}"
-    if b.loop_state.get("r2_refire", True) is not True:
-        return False, "R2 の再発火条件に当たらない"
-    why = unusable(b)
-    if why:
-        return False, UNUSABLE[why]
-    return True, f"{NODE} をこの周の修正の前に作る"
 
 
 def _anchor_matches(text) -> list:

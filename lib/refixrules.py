@@ -11,10 +11,6 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parents[2] / ".shared" / "core"
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
-
 import refix  # noqa: E402  （差分の往復の役の名 FIX_ROLE・REVIEW_ROLE）
 import rulebook  # noqa: E402
 

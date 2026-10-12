@@ -28,6 +28,7 @@ import rolekit  # noqa: E402
 import planfile  # noqa: E402
 import planmarks  # noqa: E402
 import replan  # noqa: E402
+import rolekit  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"
 MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
@@ -593,26 +594,29 @@ class StateCase(TmpCase):
     MEASURED = {"status": "ok", "reason": "", "units": [{"id": "u-1", "status": "measured", "measure": {"churn": 3}}],
                 "timing": {"wall_s": 0.5}}
 
-    def state(self, structure, kept=None):
+    def state(self, structure, kept=None, rejects=()):
         d = self.tmp / f"s{len(list(self.tmp.iterdir()))}"
         d.mkdir()
         (d / planfile.STRUCTURE_FILE).write_text(json.dumps(structure, ensure_ascii=False), encoding="utf-8")
         if kept is not None:
             (d / eye.EYE_FILE).write_text(json.dumps(kept, ensure_ascii=False), encoding="utf-8")
+        for why in rejects:
+            rolekit.with_done(d, eye.NAME, {"ok": False, "reason": why})
         return json.loads(planfile.write_state(d).read_text(encoding="utf-8"))
 
     def test_each_failure_names_the_reason(self):
+        """3 回拒まれた周の回の数と最後の拒否の文は、目の拒否の控え（rolekit の rejects-<eye.NAME>.json）から読む"""
         cases = {
-            "目が通った": (self.MEASURED, {"status": "ok"}, "ok", ""),
-            "目を起こさない周": ({**self.MEASURED, "units": []}, None, "ok", ""),
-            "会話が落ちた": (self.MEASURED, None, "failed", "構造の目の会話が落ちたか走らなかった（目の受け付けの控えが無いか途中のまま）"),
-            "3 回拒まれた": (self.MEASURED, {"status": "gave_up", "attempt": 3, "reason": "行が無い"}, "failed",
+            "目が通った": (self.MEASURED, {"status": "ok"}, (), "ok", ""),
+            "目を起こさない周": ({**self.MEASURED, "units": []}, None, (), "ok", ""),
+            "会話が落ちた": (self.MEASURED, None, (), "failed", "構造の目の会話が落ちたか走らなかった（目の受け付けの控えが無いか途中のまま）"),
+            "3 回拒まれた": (self.MEASURED, {"status": "gave_up"}, ("欠け", "型", "行が無い"), "failed",
                          "構造の目の返答が 3 回とも受け付けで拒まれた: 行が無い"),
-            "実測が落ちた": ({**self.MEASURED, "status": "failed", "reason": "git が無い"}, None, "failed", "実測が落ちた: git が無い"),
+            "実測が落ちた": ({**self.MEASURED, "status": "failed", "reason": "git が無い"}, None, (), "failed", "実測が落ちた: git が無い"),
         }
-        for name, (structure, kept, status, reason) in cases.items():
+        for name, (structure, kept, rejects, status, reason) in cases.items():
             with self.subTest(name):
-                got = self.state(structure, kept)
+                got = self.state(structure, kept, rejects)
                 self.assertEqual((got["status"], got["reason"]), (status, reason))
 
     def test_wall_adds_the_eye_time(self):

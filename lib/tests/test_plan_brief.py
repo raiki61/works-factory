@@ -297,13 +297,18 @@ class BriefFreezeEdgeCase(PlaceCase):
 
 
 class TestRecutAfterAmend(PlaceCase):
-    """承認済みの項目の差し替え（planmarks.amend の AMEND_OP の印）の後の cut だけが、差し替えた項目の brief を切り直す"""
+    """承認済みの項目の差し替え（AMEND_OP の印。書くのは planfile.take_replan）の後の cut だけが、差し替えた項目の brief を切り直す"""
 
     def amend_first(self):
+        """項目 1 を差し替えて凍結し直した控えと印を置く（planfile.take_replan が置く形）"""
         view = fixboard.plan_view(self.place, **self.src)
         new = {k: v for k, v in planmarks.approved_items(view)[0].items() if k != "item"}
         new["tests"] = [{**new["tests"][0], "red_kind": "exception", "red_why": "今は ZeroDivisionError が出ない"}]
-        planmarks.amend(view, {1: new}, self.repo)
+        fields = planmarks.frozen(view)
+        fields[0] = planmarks.split({"plan": [new]}, self.repo)[1][0]
+        core = {k: new[k] for k in planmarks.CORE_KEYS if k in new}
+        planmarks.save(view.dir, view.round, fields, amended={1: core}, trace=view.trace)
+        view.trace(planmarks.AMEND_OP, round=view.round, items=[1])
 
     def test_recut_after_amend(self):
         self.ready()

@@ -177,18 +177,15 @@ class SuitesLineCase(unittest.TestCase):
         """元 EnvFailureLineCase.test_unlaunchable_step_is_named_apart_from_code_red"""
         tests = {"by": "engine", "suites": [{"name": "suite", "exit": 0}, {"name": "test_cmd", "exit": None}]}
         self.assertIn("環境で起こせなかった（コードの赤ではない）: test_cmd（起こせない）", dc.suites_line(tests))
-        self.assertTrue(dc.env_only_red(tests))
 
     def test_missing_command_127_is_red_like_the_material(self):
         """元 EnvFailureLineCase.test_missing_command_127_is_red_like_the_material"""
         tests = {"by": "engine", "suites": [{"name": "suite", "exit": 0}, {"name": "test_cmd", "exit": 127}]}
-        self.assertFalse(dc.env_only_red(tests))
         self.assertIn("test_cmd（exit 127）", dc.suites_line(tests))
 
     def test_code_red_is_not_env(self):
         """元 EnvFailureLineCase.test_code_red_is_not_env"""
         tests = {"by": "engine", "suites": [{"name": "suite", "exit": 1}, {"name": "test_cmd", "exit": None}]}
-        self.assertFalse(dc.env_only_red(tests))
         self.assertIn("suite（exit 1）", dc.suites_line(tests))
 
     def test_suites_line_reads_shell_exit_127_as_code_red(self):
@@ -200,7 +197,6 @@ class SuitesLineCase(unittest.TestCase):
                 line = dc.suites_line(tests)
                 self.assertIn(f"{dc.TEST_CMD_STEP}（exit 127・shell）", line)
                 self.assertNotIn("環境で起こせなかった", line)
-                self.assertFalse(dc.env_only_red(tests))
 
     def test_role_status_words(self):
         """元 entry.suites_line の書き分け: 任せ先の役の素材が clean・found なら役が選んだ一式を走らせたと書き、ほかの status・素材が

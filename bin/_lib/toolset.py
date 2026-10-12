@@ -962,10 +962,16 @@ def _upstream_versions(pin_key: tuple) -> tuple:
     git ls-remote --tags の refs/tags/v<数> の <数>。固定の版（pin_key）の commit は、注釈つきの tag なら ^{} の行の oid
     （tag の指す commit。tag の行の oid は tag 自身の物）、軽量 tag なら tag の行の oid。写した固定の版の tag すら一覧に無い時
     （tag が 1 本も無い空のリポジトリ・向け先の誤りを含む）は、正本として読めていないので理由を返す（commit は None）"""
-    import changemap   # newer だけが使う。install・vendor・contract は git の口を読み込まない
-    rc, out, err = changemap.run("ls-remote", "--tags", UPSTREAM_URL, env={"GIT_TERMINAL_PROMPT": "0"})
-    if rc is None:
-        return [], err.strip() or "git を起こせない", None
+    exe = shutil.which("git")
+    if not exe:
+        return [], "git が見つからない", None
+    try:
+        # git は認証を標準入力でなく端末に聞くので、標準入力を閉じるだけでなく GIT_TERMINAL_PROMPT=0 も渡す
+        r = subprocess.run([exe, "ls-remote", "--tags", UPSTREAM_URL], stdin=subprocess.DEVNULL, capture_output=True,
+                           encoding="utf-8", errors="replace", env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+    except (OSError, subprocess.SubprocessError) as e:
+        return [], str(e).strip() or "git を起こせない", None
+    rc, out, err = r.returncode, r.stdout, r.stderr
     if rc != 0:
         tail = next((ln.strip() for ln in reversed(err.splitlines()) if ln.strip()), "")
         return [], f"git ls-remote が終了コード {rc} で終わった" + (f": {tail}" if tail else ""), None

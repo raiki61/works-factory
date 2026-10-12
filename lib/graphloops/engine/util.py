@@ -17,52 +17,11 @@ class Reject(Exception):
     """受け付けない（exit 1）。直して呼び直せる。"""
 
 
-class AnswerReject(Reject):
-    """**返答の中身・形**が受け付けられない（読めない・型に合わない・記録の整合が取れない）。役に理由を返せば直せる
-    ——engine が起こした役なら、同じ会話に続きを頼む（loop.py launch）。それ以外の Reject（節が待っていない・
-    作業ツリーが変わった・前段が済んでいない）は役に返しても直らないので、続きを頼まずに回す側へ上げる。
-    problems は誤りを 1 誤り 1 要素で運ぶ欄（省略時は空）——文を行に割り直さずに受け付けが単位に結べる。"""
-
-    def __init__(self, msg="", problems=None):
-        super().__init__(msg)
-        self.problems = list(problems or [])
-
-
 FIX_REJECT_HEADING = "下の行を直した返答を丸ごと出し直せ:"
-
-
-def reject_with_problems(heading, problems):
-    """見出しの下に 1 誤り 1 行（'  - '）で並べた文と、誤りの配列 problems を持つ AnswerReject（人に見せる文の形の唯一の置き場）"""
-    return AnswerReject(heading + "\n" + "\n".join(f"  - {p}" for p in problems), problems)
-
-
-class BoardConflict(SystemExit):
-    """盤面を読んだ後に別のプロセスが盤面を進めていた（Board.save）。die と同じく exit 2 で終わる。別の型にしたのは、
-    読み直して当て直してよい失敗（版の衝突）を、ほかの die（記録の書き込みの失敗など）と見分けるため（commands._board_update・
-    launch の受け付け）。**文はここで出さない**——当て直して成功した回に失敗の文を残さないよう、最後に負けた回だけ
-    入口（loop.py の main）が msg を出す"""
-
-    def __init__(self, msg):
-        super().__init__(2)
-        self.msg = msg
-
-    def __str__(self):   # 捕まえて理由の文に載せる口（run_role の受け付けの検査）でも本文が読めるように——code は 2 のまま
-        return self.msg
 
 
 def now():
     return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
-
-
-def waiting(inst):
-    """待っている instance の経過と試行の回数——{elapsed_min, attempts}。**その場で計算し、盤面には書かない**"""
-    t = datetime.datetime.fromisoformat(now())
-    return {"elapsed_min": int((t - datetime.datetime.fromisoformat(inst["emitted_at"])).total_seconds() // 60),
-            "attempts": inst.get("attempts", 1)}
-
-
-def sha(text):
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
 
 
 LAST_DIE = None   # 最後に die した文面（loop.py の最上段が非 0 の終わりに記録器へ渡す。行に残すのは利用者が環境変数で選んだときだけ）
@@ -155,18 +114,6 @@ def git(*args, env=None, why=None):
     return None
 
 
-def git_bytes(*args):
-    """成功なら stdout の**生バイト**、失敗なら None。突合（sha）に使う——git() の errors=replace は復号できない
-    バイトを種類に依らず U+FFFD 1 文字に写すので、等長の非 UTF-8 書き換えが同じ文字列＝同じ sha になる
-    （実測 2026-09-13: b"caf\xe9 \xff" と b"caf\xc3 \xfe" が一致）。貼る用は落としてよい／突合用は落としてはいけない。"""
-    args = (*_repo_args(), *args)
-    try:
-        r = subprocess.run(["git", *args], capture_output=True)
-    except OSError:
-        return None
-    return r.stdout if r.returncode == 0 else None
-
-
 def porcelain():
     """作業ツリーの写し。None = git が効かない（作業ツリーの保護はできない——呼ぶ側が止める）。"""
     out = git("status", "--porcelain")
@@ -174,14 +121,7 @@ def porcelain():
 
 
 def _step(cur, parts, i, upto):
-    """`cur` の中で `parts[i:upto]` の先頭に最長一致する鍵を探し、`(次の cur, 次の i)` を返す。無ければ None。
-
-    **読む側（get_path）と書く側（set_path）はこの 1 本を共有する。** 以前は同じ走査が 2 本在り、
-    書く側だけ最後の区切りを候補から外していた——`outputs.p1.local_review` のように**点を含む鍵が
-    最後に来る綴り**が最長一致に当たらず、`cur.setdefault("p1", {})` へ落ちて新しい入れ子が生まれた。
-    読む側は元の場所を読み続けるので、`patch` は ok を印字しながら手当てが当たらない（実測 2026-09-16:
-    独立した 4 レンズが同じ所を指し、2 本は実走の盤面で ok が返ることまで測った）。
-    """
+    """`cur` の中で `parts[i:upto]` の先頭に最長一致する鍵を探し、`(次の cur, 次の i)` を返す。無ければ None。"""
     if isinstance(cur, dict):
         for j in range(upto, i, -1):
             key = ".".join(parts[i:j])
@@ -203,66 +143,6 @@ def get_path(obj, path):
             raise KeyError(path)
         cur, i = nxt
     return cur
-
-
-def set_path(obj, path, value):
-    """`a.b.c` と `a.2.b` で辿って書く。**get_path と同じ綴りを受ける**——読める形に書けないと、
-    手当ての口が黙って別の場所を作る（実測 2026-09-16: `questions[1]` を渡すと配列の要素ではなく
-    その名前の鍵が新設され、patch は ok を返した。当たっていない手当てが 2 回成功と報告され、
-    検証器が別の理由で落ちて初めて分かった）。
-
-    辿り方は `_step`＝get_path と同じ 1 本。**作ってよいのは葉 1 つだけ**——親が辿れない綴りは
-    落とす。以前は途中の辞書を何段でも作ったので、点を含む鍵を指す綴りが「既存の鍵の隣に
-    新しい入れ子」を黙って生やす形だった（どちらの読みも成り立つ綴りで、機械が片方を勝手に選んでいた）。
-    リストの添字は**既に在る要素だけ**を指せる——リストを伸ばす手当ては、順序の意味を回す側が決める。
-    """
-    # **角括弧は受けない。** `questions[1]` は get_path が読めない綴りで、黙って通すと
-    # その名前の鍵が新設される（今回の事故そのもの）。書けない綴りはここで落とす。
-    if "[" in path or "]" in path:
-        raise KeyError(f"{path}: 添字は角括弧でなく点で書く（questions.1）——get_path が読める綴りだけを受ける")
-    parts = path.split(".")
-    cur = obj
-    i = 0
-    while i < len(parts) - 1:
-        # 残り全部が 1 つの鍵（点を含む鍵）なら、ここが親。**この枝が無かったのが今回の欠陥**
-        # ——`outputs.p1.local_review` は最後の区切りを候補から外す走査に当たらず、`p1` の入れ子を
-        # 新設していた。get_path は元の場所を読み続けるので、当たらない手当てが ok を返した。
-        rest = ".".join(parts[i:])
-        if isinstance(cur, dict) and rest in cur:
-            cur[rest] = value
-            return
-        nxt = _step(cur, parts, i, len(parts) - 1)
-        if nxt is not None:
-            cur, i = nxt
-            continue
-        if not isinstance(cur, dict):
-            raise KeyError(path)
-        if i != len(parts) - 2:
-            # 作るのは葉 1 つまで。2 段以上の新設は「点を含む 1 つの鍵」との区別が付かない
-            raise KeyError(f"{path}: '{'.'.join(parts[:i + 1])}' から先が辿れない——"
-                           f"作ってよいのは葉 1 つだけ（親を先に作るか、既に在る綴りを指せ）。"
-                           f"2 段以上を黙って作ると、点を含む 1 つの鍵と区別が付かない")
-        cur = cur.setdefault(parts[i], {})
-        i += 1
-    last = parts[-1]
-    if isinstance(cur, list):
-        if not (last.isdigit() and int(last) < len(cur)):
-            raise KeyError(path)
-        cur[int(last)] = value
-    elif isinstance(cur, dict):
-        cur[last] = value
-    else:
-        raise KeyError(path)
-
-
-def has_path(obj, path):
-    if path in (None, "$"):
-        return True
-    try:
-        get_path(obj, path)
-        return True
-    except KeyError:
-        return False
 
 
 def pick(value, fields):
@@ -316,9 +196,9 @@ COUNT_MAX = {"patterns": 20, "paths": 50}
 # 読んでいた頃、読了の台本が READ_CAP を一時的に 1 へ書き換える間に並列の台本の数える問いが『上限超え』で落ちた
 COUNT_CAP = 4_000_000
 _TEXT = {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"}
-# **数える問いの欄の正本**（graph の schema は "$ref": "engine#/count_how" でこれを引き、count_argv も同じ schema で型を当てる）。
-# 節ごとに schema を手で写していた頃は、写しの 1 つだけが古い形のまま残り、揃いを見る検出器を足してもその検出器が拾う形の外で崩れた
-# （2026-09-24 の review-graph 2 周目の一撃）
+# **数える問いの欄の正本**（count_argv がこの schema で型を当てる）。役の節の output_format は手で写し、
+# tests/workflows/test_count_how_copies.py が写しを全部これと突き合わせる（写しの 1 つだけが古い形のまま残った事が在る。
+# 2026-09-24 の review-graph 2 周目の一撃）
 COUNT_HOW_SCHEMA = {
     "type": "object", "required": ["patterns", "paths", "count"], "additionalProperties": False,
     "properties": {
@@ -336,8 +216,6 @@ COUNT_HOW_SCHEMA = {
     "note": "同じ形を全部引く問いを欄で書く。argv は engine が決まった形で組む（git grep -I --no-color -c|-l -F|-E [-i] [-w] [--untracked] "
             "-e <語>… [版] -- <パス>…）。数える版は書かない（版は呼び元が決める）。シェルもパイプも通らない",
 }
-# graph の schema が "$ref" で引ける engine の定義（engine/schema.py の expand_refs が展開する）
-ENGINE_DEFS = {"count_how": COUNT_HOW_SCHEMA}
 
 
 def count_argv(how, rev=None):
@@ -419,33 +297,6 @@ def repo_root(git_fn=None):
     return ((git_fn or git)("rev-parse", "--show-toplevel") or "").strip() or None
 
 
-# 任せ先に書かせない、利用者の手元の置き場（作業ツリーの外から本物の git と engine に入る道）。git の設定は core.hooksPath・
-# core.fsmonitor・alias を持てるので、書き換えられると sandbox の外で回す側と engine が打つ git がそれを走らせる。シェルの起動ファイルも
-# 同じく外で走る。engine 自身（プラグインの置き場）と Claude Code の設定は柵そのもの。sandbox の組み込みの保護は作業ディレクトリの
-# 中のこれらしか守らない（公式の sandboxing 文書の Protected paths）ので、任せ先の作業ディレクトリを外に置く形では名指しが要る
-HOME_PROTECTED = (".gitconfig", ".config/git", ".bashrc", ".bash_profile", ".profile", ".zshrc", ".zprofile", ".zshenv")
-
-
-def protected_paths(extra=()):
-    """任せ先（delegate）の sandbox が書き込みを拒む場所の一覧（並びは決まった順）。引けなければ None——柵を組めないので起こさない。
-    extra は呼び元が足す場所（盤面の置き場。--dir で作業ツリーの外に置いた盤面は git からは引けない）。
-
-    **正本は git** で、engine は値を持たない: 作業ツリーのルート（--show-toplevel）・この作業ツリーの gitdir の実体
-    （--absolute-git-dir。linked worktree なら本体の .git/worktrees/<名前>）・共通の .git（--git-common-dir）・同じリポジトリの
-    全部の作業ツリー（worktree list）。既定の盤面（gitdir の下）もこれで覆われる。綴りと実体（realpath）を両方入れる——macOS の
-    /var と /private/var のように、同じ場所を 2 つの綴りで指せるので、片方だけだと別の綴りで書かれる"""
-    top = git("rev-parse", "--show-toplevel")
-    gd = git("rev-parse", "--absolute-git-dir")
-    common = git("rev-parse", "--path-format=absolute", "--git-common-dir")
-    wl = git("worktree", "list", "--porcelain")
-    if not all(x and x.strip() for x in (top, gd, common)) or wl is None:
-        return None
-    got = [top.strip(), gd.strip(), common.strip()]
-    got += [line[len("worktree "):] for line in wl.splitlines() if line.startswith("worktree ")]
-    home = pathlib.Path.home()
-    got += [str(home / x) for x in HOME_PROTECTED]
-    got += [str(PLUGIN_ROOT), os.environ.get("CLAUDE_CONFIG_DIR") or str(home / ".claude"), *map(str, extra)]
-    return sorted({q for p in got for q in (os.path.abspath(p), os.path.realpath(p))})
 
 
 def copy_worktree(dst):

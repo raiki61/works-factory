@@ -131,11 +131,11 @@ nodes:
                   required: [unit_id, verdict, faces, evidence, reason]
                   additionalProperties: false
                   properties:
-                    unit_id: {type: string, minLength: 1}
+                    unit_id: {type: string, minLength: 1, pattern: '\S'}
                     verdict: {type: string, enum: [汚れる, 汚れない]}
                     faces: {type: array, items: {type: integer, minimum: 1, maximum: 6}}
                     evidence: {type: array, items: {type: string}}
-                    reason: {type: string, minLength: 1}
+                    reason: {type: string, minLength: 1, pattern: '\S'}
                     chosen: {type: string}
                     rejected:
                       type: array

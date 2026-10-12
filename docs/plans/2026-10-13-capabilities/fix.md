@@ -637,7 +637,7 @@
 - F143 TDD の輪が緑にしていない単位があれば、修正役は項目ごとに下請け（実装役 implementer と審査役 task-reviewer）を Agent で起こし、実装役・審査役のファイル（g1-impl-<n>.md・g1-review-<n>.md）と差分のコマンド・works の決まり（下請け）・検索語の規律を渡す。全部緑なら implementer の座だけ（下請けの道）
   - 元: works/blk-fix/lib/fixrules.py の `SEAT_棚卸しの決まりS`・`g1_values`・`implementer_values`・`_g1_task`、works/.shared/core/seat.py の `g1_prompt`・`g1_section`
   - 今: lib/fixrules.py:100 `G1_IMPL`・`G1_REVIEW` と prep（輪が緑にしていない単位が在れば seat.g1_section）、lib/seat.py:381 `g1_prompt`・:393 `g1_section`・:403 `g1_diff_cmd`。修正役に Agent の道具（works-factory-fix.yaml:1295）
-  - 証: tests/workflows/test_fix.py::FixLoopScriptsCase.test_fix_prep_writes_the_prompt_and_skips_without_duty（assert: tests/workflows/test_fix.py:1462「## 下請けを回す」・1464-1466）、lib/tests/test_seat.py::SeatCase.test_g1_files_carry_the_works_rules_and_the_query_rule（assert: lib/tests/test_seat.py:46-51）、lib/tests/test_fix_rules.py::LanesAndItemsCase.test_dispatched_leaves_out_green_units、tests/workflows/test_fix.py::RolesCase.test_borrowed_skills_sit_on_the_seat_roles（assert: tests/workflows/test_fix.py:213-214 Agent）
+  - 証: tests/workflows/test_fix.py::FixLoopScriptsCase.test_fix_prep_writes_the_prompt_and_skips_without_duty（assert: tests/workflows/test_fix.py:1462「## 下請けを回す」・1464-1466）、lib/tests/test_seat.py::SeatCase.test_g1_files_carry_the_works_rules_and_the_query_rule（assert: lib/tests/test_seat.py:46-51）、lib/tests/test_fix_rules.py::BriefUnitsCase.test_dispatched_leaves_out_green_units、tests/workflows/test_fix.py::RolesCase.test_borrowed_skills_sit_on_the_seat_roles（assert: tests/workflows/test_fix.py:213-214 Agent）
   - 本物の run: 組の子の置き場の `g1-impl-1.md`・`g1-review-1.md`・`g1-1.patch`（TDD の輪が緑にしない単位が在る時。種に実行器が在れば輪が両方を緑にしやすく、下請けの道は通らないこともある）
   - 狭め: #94 で一度外し、マージ前の独立の目の指摘 8 で戻した（9a78226）。修正役の並べの枝の `REVIEW_EARLIER`・単位の worktree の引数は外したまま（枝が無い）。失う能力は無い
 
@@ -671,9 +671,9 @@
 
 - F148 受け付けた changes と単位ごとの件数を置き場に書き、空の changes は外れた単位の無い置き場では止める（直す義務が残らず外れた単位だけの run だけ空を通す）
   - 元: works/.shared/core/recount.py:150 `collect`
-  - 今: lib/fixboard.py:168 `collect`、lib/recount.py:65 `CHANGES_FILE`
-  - 証: lib/tests/test_fix_seams.py::RecountSeamCase.test_collect_writes_changes_and_needs_accepted（assert: lib/tests/test_fix_seams.py:609-613）
-  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 組の子の置き場の `fix-units.json`（単位ごとの status）と `fix-reply.json` の changes（changes.json を書く fixboard.collect は呼び手が無い））
+  - 今: 無し（`changes.json` を書く lib/fixboard.py の `collect` と lib/recount.py の `CHANGES_FILE` は届かず読み手も無かったので #232 で消した）。受け付けた changes は workflows/fix/scripts/fix_accept.py:66-68 `finish` が置き場の fix-reply.json（lib/fixboard.py:1005 `FIX_REPLY_FILE`）に、単位ごとの件数は lib/recount.py:346 `accept_fix` が coverage-after.json（:49 `COVERAGE_FILE`）に書く。空の changes を止めるのは workflows/fix/scripts/assert_changed.py:43-47 → lib/fixboard.py:813 `changed_problem`・:162 `nothing_owed_but_excused`
+  - 証: tests/workflows/test_fix.py::FixLoopScriptsCase.test_third_reject_gives_up_only_the_named_unit（assert: tests/workflows/test_fix.py:2649-2650 の fix-reply.json）・lib/tests/test_fix_seams.py::RecountSeamCase.test_accepts_real_fix_and_keeps_counts（assert: :577-580）・tests/workflows/test_fix.py::BlockScriptsCase.test_assert_changed_refuses_empty_declaration（assert: tests/workflows/test_fix.py:1996）・lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_changed_problem_and_declared_files（assert: lib/tests/test_fix_seams.py:1548-1555）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 組の子の置き場の `fix-reply.json`・`coverage-after.json`・`assert-changed.json`）
   - 狭め: 無し
 
 - F149 修正役の返答の型（changes の行の欄・fix_closure・interactions・6 つの印・plan_faces・wrote_refs・conflicts・consult・bash_writes）を Archon の出力の型で照らす

@@ -19,13 +19,8 @@
 - run_depth(doc): 切った後の run 全体の段の深さ（全部の単位が軽量の時だけ軽量。単位が無ければ標準）
 - skip_reason(doc): run が軽量なら省く理由の文、標準なら空（ブロックの平の入力 skip・skip_optional に渡す）
 - lines(doc): 報告の冒頭 2 の行（単位ごとの深さの数・上げた理由・run の広さの数え・軽量で省いた物）
-- unit_map(doc): {単位: 深さ} の JSON の文字列（修正のブロックへのつなぎ目。計画の「blk-fix へのつなぎ目」）
-- write(board_dir, doc)・read(board_dir): 盤面の根の控え depth.json
-- decide(b, open_units, *, tdd_suite): 盤面を読む口（修正の前の節 h-depth）。修正案の項目の欄（planmarks.read）・start の控えの
-  thickness と test_cmd・入力 tdd_suite から決めて控えを書く。open_units は h-fix の出口の JSON の配列の文字列（読めなければ単位なし）
 """
 import json
-import os
 import pathlib
 import sys
 
@@ -37,11 +32,9 @@ if str(_CORE) not in sys.path:
 
 import impact  # noqa: E402
 import planmarks  # noqa: E402
-import startrec  # noqa: E402  （始めの記録の読み口）
 
 LIGHT = "軽量"
 STANDARD = "標準"
-FILE = "depth.json"   # 盤面の根の控え {"units": {key: {"depth", "why": [...]}}, "forced", "raised": [...], "counted": "run の広さの数え 1 行"}
 MAX_PATHS = 3         # 測り: 何も見つけなかった単位は allowed_paths 1〜3 個、見つけた単位は 4 個（MAX_PATHS を超える）
 MAX_TESTS = 2         # 測り: 同じく受け入れのテストと書き換える既存のテストが合わせて 1 本、見つけた単位は 4 本（MAX_TESTS を超える）
 CONTRACT_SUFFIXES = (".json", ".yaml", ".yml", ".toml")
@@ -192,45 +185,4 @@ def lines(doc) -> list:
     return out
 
 
-def unit_map(doc) -> str:
-    return json.dumps({k: r.get("depth") for k, r in ((doc or {}).get("units") or {}).items()}, ensure_ascii=False)
-
-
-def write(board_dir, doc: dict) -> pathlib.Path:
-    path = pathlib.Path(board_dir) / FILE
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
-    return path
-
-
-def read(board_dir):
-    """控え（無ければ None。読めない・形が違えば ValueError）"""
-    path = pathlib.Path(board_dir) / FILE
-    try:
-        doc = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return None
-    except (OSError, UnicodeDecodeError, ValueError) as e:
-        raise ValueError(f"深さの控え {path} が読めない: {e}") from None
-    if not isinstance(doc, dict) or not isinstance(doc.get("units"), dict):
-        raise ValueError(f"深さの控え {path} の形が違う（units が要る）")
-    return doc
-
-
 # ---------------------------------------------------------------- 盤面を読む口（線の節 h-depth・h-redepth）
-def _open_units(raw) -> list:
-    try:
-        got = json.loads(raw) if isinstance(raw, str) else raw
-    except ValueError:
-        return []
-    return [k for k in got if isinstance(k, str)] if isinstance(got, list) else []
-
-
-def decide(b, open_units, *, tdd_suite: str) -> dict:
-    start = startrec.read(b.dir)
-    checked = bool((tdd_suite or "").strip() or str(start.get("test_cmd") or "").strip())
-    doc = decide_doc(planmarks.read(b), _open_units(open_units), forced=str(start.get("thickness") or ""), checked=checked)
-    write(b.dir, doc)
-    return doc
-

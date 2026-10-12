@@ -46,12 +46,6 @@ class PlanFieldsCase(unittest.TestCase):
         return planmarks.gaps({"plan": list(items)}, self.repo)
 
 
-class TestRoleSchema(PlanFieldsCase):
-    def test_with_fields_leaves_other_nodes(self):
-        schema = {"type": "object", "properties": {"x": {"type": "string"}}}
-        self.assertIs(planmarks.with_fields("p2.plan_review", schema), schema)
-
-
 class TestGaps(PlanFieldsCase):
     def test_gaps_tdd_item_needs_a_test(self):
         self.assertEqual(self.gaps(item()), [])
@@ -598,79 +592,6 @@ class TestWidened(PlanFieldsCase):
         before = copy.deepcopy((old, new))
         planmarks.widened(old, new)
         self.assertEqual((old, new), before)
-
-
-class TestAmend(PlanFieldsCase):
-    """承認済みの項目の差し替え（amend）: 直した項目の欄の行を split で作り直し、核の欄を控えの amended に置いて凍結し直す"""
-
-    def board(self):
-        reply = {"plan": [item(), item(unit_keys=[CLAMP], allowed_paths=["stats.py", "test_stats.py"])]}
-        bare, fields = planmarks.split(reply, self.repo)
-        planmarks.save(self.tmp, 1, fields)
-        plan = bare["plan"]
-        def trace(op, **kw):   # 盤面の書き口（DiskBoard.trace）と同じ行の形
-            with open(self.tmp / "trace.jsonl", "a", encoding="utf-8") as f:
-                f.write(json.dumps({"t": "now", "op": op, **kw}, ensure_ascii=False) + "\n")
-
-        return types.SimpleNamespace(dir=self.tmp, round=1, trace=trace,
-                                     output_of_round=lambda node, rnd: {"plan": copy.deepcopy(plan)} if rnd == 1 else None)
-
-    def fixed(self, b, n, **over):
-        it = {k: v for k, v in planmarks.approved_items(b)[n - 1].items() if k != "item"}
-        return {**copy.deepcopy(it), **over}
-
-    def trace_ops(self):
-        rows = [json.loads(x) for x in (self.tmp / "trace.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
-        return [r for r in rows if r.get("op") in (planmarks.SAVED_OP, planmarks.AMEND_OP)]
-
-    def test_amend_swaps_one_item_and_refreezes(self):
-        b = self.board()
-        before = planmarks.approved_items(b)
-        new = self.fixed(b, 2, approach="直した手立て" * 4)
-        new["tests"] = [dict(new["tests"][0], red_kind="exception")]
-        planmarks.amend(b, {2: new}, self.repo)
-        got = planmarks.approved_items(b)
-        self.assertEqual(got[0], before[0])
-        self.assertEqual((got[1]["approach"], got[1]["tests"][0]["red_kind"]), ("直した手立て" * 4, "exception"))
-        self.assertEqual(got[1]["unit_keys"], [CLAMP])
-        self.assertIsNotNone(planmarks.frozen(b))
-        ops = self.trace_ops()
-        self.assertEqual([r["op"] for r in ops], [planmarks.SAVED_OP, planmarks.SAVED_OP, planmarks.AMEND_OP])
-        self.assertEqual((ops[2]["round"], ops[2]["items"]), (1, [2]))
-        doc = json.loads((self.tmp / planmarks.FIELDS_FILE).read_text(encoding="utf-8"))
-        self.assertEqual(set(doc[planmarks.AMENDED_KEY]), {"2"})
-        self.assertNotIn("item", doc[planmarks.AMENDED_KEY]["2"])
-        self.assertEqual(set(doc[planmarks.AMENDED_KEY]["2"]), PLAN_KEYS)
-        self.assertEqual(planmarks.amended(b)[2]["approach"], "直した手立て" * 4)
-        doc[planmarks.AMENDED_KEY]["2"]["approach"] = "手で書き換えた"
-        (self.tmp / planmarks.FIELDS_FILE).write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-        for fn in (planmarks.approved_items, planmarks.amended, planmarks.plan_items):
-            with self.subTest(fn.__name__), self.assertRaises(planmarks.FieldsBroken):
-                fn(b)
-
-    def test_amend_rebuilds_rewrite_limit_and_adds(self):
-        b = self.board()
-        add = {"kind": "function", "name": "clamp_hi", "source": "x" * 10}
-        planmarks.amend(b, {2: self.fixed(b, 2, rewrite_tests=[REWRITE], adds=[add])}, self.repo)
-        self.assertEqual(planmarks.rewrites(b), [{"item": 2, "unit_keys": [CLAMP], "id": REWRITE["id"], "new": REWRITE["new"],
-                                                  "limit": "test_stats.py:11"}])
-        self.assertEqual(planmarks.frozen(b)[1]["adds"], ["clamp_hi"])
-        self.assertEqual(planmarks.plan_items(b)[1]["adds"], [add])
-
-    def test_amend_refuses_changed_unit_keys(self):
-        b = self.board()
-        with self.assertRaisesRegex(ValueError, "unit_keys"):
-            planmarks.amend(b, {2: self.fixed(b, 2, unit_keys=[CLAMP + "（別）"])}, self.repo)
-        with self.assertRaises(ValueError):
-            planmarks.amend(b, {3: self.fixed(b, 2)}, self.repo)
-        self.assertEqual([r["op"] for r in self.trace_ops()], [planmarks.SAVED_OP])   # 拒んだ時は控えも trace も変えない
-
-    def test_old_fields_file_has_no_amendments(self):
-        """鍵 amended の無い控え（この版の前の盤面）は直しの無い案と読む（落ちない）"""
-        b = self.board()
-        self.assertNotIn(planmarks.AMENDED_KEY, json.loads((self.tmp / planmarks.FIELDS_FILE).read_text(encoding="utf-8")))
-        self.assertEqual(planmarks.amended(b), {})
-        self.assertEqual(planmarks.plan_items(b), b.output_of_round(planmarks.NODE, 1)["plan"])
 
 
 class TestStructure(PlanFieldsCase):
