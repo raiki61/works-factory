@@ -229,6 +229,16 @@ class EvidenceCheckCase(unittest.TestCase):
         self.assertNotIn("Traceback", done.stderr)
 
 
+    def test_cli_exits_one_on_an_absent_row(self):
+        """筋書きの capabilities-evidenced が読むのは check の終了の値だけ。記録だけの試みのフォルダでは seen の行が absent"""
+        self.put("record/parent.json", "{}")
+        done = subprocess.run([sys.executable, str(E2E / "evidence.py"), "check", str(self.ev.parent)], capture_output=True,
+                              text=True, encoding="utf-8", env=hermetic.child_env(), timeout=60)
+        self.assertEqual(done.returncode, 1, done.stderr)
+        self.assertRegex(done.stdout, r"(?m)^absent\t")
+        self.assertRegex(done.stdout, r"(?m)^区分 L\t")
+
+
 class EvidenceCollectCase(unittest.TestCase):
     def test_collect_copies_parent_children_and_records(self):
         tmp = hermetic.tmpdir(self)
