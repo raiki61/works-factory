@@ -36,6 +36,7 @@ if str(LIB / "graphloops") not in sys.path:
 
 import converge  # noqa: E402
 import declared_checks  # noqa: E402
+import gatemarks  # noqa: E402
 import outcome  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
@@ -475,6 +476,26 @@ class FactsCase(Run):
         self.assertIn("* 走らせ方= engine・一式", text)
         self.assertIn("最後のテスト（test-gate-final）の走らせ方: engine・一式", got)
         self.assertIn("最後のテスト（test-gate-final）のログ: /tmp/test.log", got)
+
+    def test_evidence_rows_stay_one_line_each(self):
+        """役の素材の reason の改行は証拠の行を切らず、次の行の頭にも化けない: 修正前のテストの行は reason の終わりまで届き、ログの
+        行は本物の置き場のまま"""
+        result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
+        run = {"by": "engine", "log": "/tmp/test.log", "junit_steps": [], "junit_unran": [], "suite": None,
+               "fingerprint_before": None, "fingerprint_after": None}
+        base_line = declared_checks.baseline_line({"material": {"status": "not_run", "reason": "見た物:\n- ログ: ci/output.txt"}})
+        text = result.evidence("final", {"ok": False, "green": False, "red_cause": "incomplete"}, run, None,
+                               "落ちた:\n- 走らせ方: 偽", "訳:\n- ログ: 偽", "一式", base_line)
+        path = self.dir / "evidence.md"
+        path.write_text(text, encoding="utf-8")
+        returns = {"test-gate-final": {"evidence": str(path)}}
+        got = runreport._evidence_lines(returns)
+        self.assertIn("最後のテスト（test-gate-final）のログ: /tmp/test.log", got)
+        self.assertIn("最後のテスト（test-gate-final）の走らせ方: engine・一式", got)
+        base = next(x for x in got if x.startswith("最後のテスト（test-gate-final）の修正前のテスト: "))
+        self.assertIn("見た物: - ログ: ci/output.txt", base)
+        self.assertIn(gatemarks.BASELINE_NOT_RUN, base)
+        self.assertIn("最後のテストの一式: engine・一式・ログ /tmp/test.log", runreport._tests_head_lines(returns))
 
     def test_green_cert_section_reads_the_test_gate_evidence(self):
         """test-gate の result.py が書く証拠の文の走らせ方とログの行が、緑の認証の節に届く"""

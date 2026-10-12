@@ -55,11 +55,27 @@ MATERIAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": 
                                   **{k: {"type": "integer", "minimum": 0} if k in NUMERIC_FIELDS else {"type": "string"}
                                      for k in FIELDS}}}
 MODES = ("base", "final")   # 形: 判定の前・修正の後
-# 証拠の文（evidence.md）の行の頭（名, 行の頭）。書くのは試験の関門の返す節、行のまま読むのはメイングラフの最後の関所の文
-EVIDENCE_ROWS = (("走らせ方", "- 走らせ方: "), ("ログ", "- ログ: "))
+
+
+def row_prefix(name: str) -> str:
+    """証拠の文（evidence.md）の行の頭"""
+    return f"- {name}: "
+
+
+def one_line(text) -> str:
+    return " ".join(str(text).split())
+
+
+def evidence_value(rows: list, prefix: str):
+    """証拠の文の行の並び rows のうち、頭 prefix で始まる最初の行の値（頭を外した物）。無ければ None"""
+    return next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
+
+
+# 証拠の文の行の頭（名, 行の頭）。書くのは試験の関門の返す節、行のまま読むのはメイングラフの最後の関所の文
+EVIDENCE_ROWS = tuple((name, row_prefix(name)) for name in ("走らせ方", "ログ"))
 BASELINE_HEAD = "修正前のテスト"
-BASELINE_ROW = (BASELINE_HEAD, f"- {BASELINE_HEAD}: ")   # final の証拠だけに在る行（baseline_line）
-OK_ROW = "- ok: "                                         # 証拠の頭の行（false なら括弧に認証しなかった訳）
+BASELINE_ROW = (BASELINE_HEAD, row_prefix(BASELINE_HEAD))   # final の証拠だけに在る行（baseline_line）
+OK_ROW = row_prefix("ok")                                   # 証拠の頭の行（false なら括弧に認証しなかった訳）
 CANT = {False: "awaiting_human", True: "not_run"}   # 走らせられない時の status（判定の前・後。after_judge か mode == "final" で引く）
 
 
@@ -67,7 +83,7 @@ class InputRefused(Exception):
     """入力を受けない（AI を起こす前に run を止める）。文は人に向けた 1 行（元 works/.shared/core/entry.py:445-449）"""
 
     def __init__(self, msg):
-        super().__init__(" ".join(str(msg).split()))
+        super().__init__(one_line(msg))
 
 
 class CiRefused(InputRefused):

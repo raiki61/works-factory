@@ -44,18 +44,20 @@ def suite_exit(run: dict):
 
 
 def evidence(mode: str, out: dict, run: dict, material, summary: str, why: str, suites: str, base_line: str) -> str:
+    """証拠の文。読み手は行の頭で 1 行ずつ読むので、自由な文の値（役の素材の reason が入る）は 1 行に畳む"""
     import declared_checks
+    one = declared_checks.one_line
     (_, run_row), (_, log_row) = declared_checks.EVIDENCE_ROWS
     lines = [f"# test-gate（{mode}）",
              "",
-             f"{declared_checks.OK_ROW}{str(out['ok']).lower()}{'（' + why + '）' if why else ''}",
+             f"{declared_checks.OK_ROW}{str(out['ok']).lower()}{'（' + one(why) + '）' if why else ''}",
              f"- green: {str(out['green']).lower()}",
-             f"- red_cause: {out['red_cause'] or '無し'}{'（' + summary + '）' if summary else ''}",
-             f"{run_row}{run['by']}・{suites}",
-             *([f"- engine の結果を任せ先へ落とした訳: {run['fell_back']}"] if run.get("fell_back") else []),
-             *([f"- {base_line}"] if base_line else []),
+             f"- red_cause: {out['red_cause'] or '無し'}{'（' + one(summary) + '）' if summary else ''}",
+             f"{run_row}{one(run['by'])}・{one(suites)}",
+             *([f"- engine の結果を任せ先へ落とした訳: {one(run['fell_back'])}"] if run.get("fell_back") else []),
+             *([f"- {one(base_line)}"] if base_line else []),
              f"- 素材: {json.dumps(material, ensure_ascii=False) if material is not None else '無い（任せ先の CI の役が素材を渡さなかった）'}",
-             f"{log_row}{run['log'] or '無い'}",
+             f"{log_row}{one(run['log'] or '無い')}",
              f"- JUnit の報告を宣言した段: {'・'.join(run['junit_steps']) or '無い'}"
              + (f"（試験を走らせなかった段: {'・'.join(run['junit_unran'])}）" if run["junit_unran"] else ""),
              f"- 一式（tdd_suite）: {json.dumps(run['suite'], ensure_ascii=False) if run.get('suite') else '無い'}",

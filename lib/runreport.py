@@ -965,11 +965,9 @@ def _tests_head_lines(returns: dict) -> list:
     out = []
     rows, why = _evidence_rows(returns, "test-gate-final")
     if rows is not None:
-        def row(prefix):
-            return next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
         (_, run_prefix), (_, log_prefix) = declared_checks.EVIDENCE_ROWS
         base_name, base_prefix = declared_checks.BASELINE_ROW
-        suites, log, base = row(run_prefix), row(log_prefix), row(base_prefix)
+        suites, log, base = (declared_checks.evidence_value(rows, x) for x in (run_prefix, log_prefix, base_prefix))
         out.append(f"最後のテストの一式: {suites or '証拠に走らせ方の行が無い'}・ログ {log or '（無い）'}")
         out.append(f"{base_name}: {base or '証拠に修正前のテストの行が無い'}")
         if (suites or "").startswith(declared_checks.ROLE_NEEDED):
@@ -1047,17 +1045,15 @@ def _evidence_lines(returns: dict) -> list:
         if not ret:
             continue
         head = f"{label}（{rid}）"
-        p = ret.get("evidence")
-        if not (isinstance(p, str) and p):
+        rows, why = _evidence_rows(returns, rid)
+        if why:
+            out.append(f"{head}の走らせ方とログ: 読めない（{why}）")
+            continue
+        if rows is None:
             out.append(f"{head}の走らせ方とログ: 取れない（証拠のポインタが無いか開けなかった）")
             continue
-        try:
-            rows = pathlib.Path(p).read_text(encoding="utf-8").splitlines()
-        except (OSError, UnicodeDecodeError) as e:
-            out.append(f"{head}の走らせ方とログ: 読めない（{report._one_line(e)}）")
-            continue
         for name, prefix in (*declared_checks.EVIDENCE_ROWS, *((declared_checks.BASELINE_ROW,) if rid == "test-gate-final" else ())):
-            got = next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
+            got = declared_checks.evidence_value(rows, prefix)
             out.append(f"{head}の{name}: " + (got if got is not None else f"証拠に「{name}」の行が無い"))
     return out
 

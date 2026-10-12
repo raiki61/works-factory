@@ -49,7 +49,7 @@ NAMED_BY_PATTERN = {
     "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py:802",
     "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py:92",
     "parent/fix/fix/review1-brief.json": "lib/refix.py:163",
-    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:474",
+    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:490",
 }
 
 
