@@ -184,6 +184,16 @@ class TouchedCase(unittest.TestCase):
         for want in ("stats.py", "+1", "−", "stats", "種の芯"):
             self.assertIn(want, line)
 
+    def test_lines_say_no_count_for_binary(self):
+        """行数の数えられない物（未追跡のバイナリ）の行は「行数なし」と書き、「+None」を書かない"""
+        (self.repo / "guards").mkdir()
+        (self.repo / "guards" / "blob.bin").write_bytes(b"\0\1\2")
+        rows = protect.touched(self.repo, self.rev, self.doc)
+        self.assertEqual([(r["path"], r["added"], r["deleted"]) for r in rows], [("guards/blob.bin", None, None)])
+        line = protect.lines(rows)[0]
+        self.assertIn("行数なし", line)
+        self.assertNotIn("None", line)
+
     def test_default_manifest_used(self):
         """doc を渡さなければ MANIFEST を読む（試験は MANIFEST を差し替えて見る）"""
         with tempfile.TemporaryDirectory() as tmp:
