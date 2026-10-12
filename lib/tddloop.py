@@ -8,7 +8,7 @@
   run のテストのコマンド（線の入力 test_cmd）の関門（test_cmd_gate）もここで 1 回だけ決める: 空なら off、実行器のファイルが
   そのコマンドの文字列をそのまま含むなら same_as_suite（一式と同じなので 2 度走らせない）、ほかは 1 回走らせて緑なら on、
   赤・走らないなら off にして理由を test_cmd_note に残す（元から赤の test_cmd で毎単位を拒まない）。test_cmd は baseline_red.run_suite と
-  同じ起こし方（tree_run.run）で走らせ、既存のファイルを書き換えた回はいつも赤（書き換えた物は戻す。_cmd_run）。関門が on なら
+  同じ起こし方（tree_run.reuse_run）で走らせ、既存のファイルを書き換えた回はいつも赤（書き換えた物は戻す。_cmd_run）。関門が on なら
   直し・整えの段の指示書にそのコマンドを書く。
 - tdd-loop の中: tdd-prep → prep（今の段の指示書を fixrules で組んで書く。頭に brief の節: 振り分けの段は
   直す義務の単位の全部、ほかの段は今の単位の brief。brief の控えの無い置き場・平の run は無し）→ 役 tdd（修正役。
@@ -493,7 +493,8 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     board_dir は fix の run の置き場（状態は board_dir/tdd-<k>/）。owed・withheld_by・returned は直す義務の値（_duty）、round_ は
     凍結した欄の周（plan_contract）。
     test_cmd は run のテストのコマンド（線の入力）で、元の結末を取った後に関門を決める（_test_cmd_gate）。reuse（tree_run.reuse_place の
-    返り）を渡せば、関門を決める test_cmd は同じ run の中の控え（入口の確かめが置いた緑）から使い回す。
+    返り）を渡せば、元の結末の一式と関門を決める test_cmd は同じ run の中の控え（前の輪の頭・入口の確かめが置いた緑）から使い回し、
+    元の結末を使い回した回はその出どころの句を状態の reused.suite に置く。
     unit_depths は単位ごとの深さ（_light_units）。LIGHT の単位は関門が on でも緑の後の test_cmd を走らせない（状態の light）。
     ほかの単位と空は今どおり。
     lanes は並べの周を使うかの切り替えの語（on か off。空・null は on）。off なら状態の lanes_on を偽にする（並べずに
@@ -523,7 +524,8 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
         k += 1
     work = board_dir / f"tdd-{k}"
     work.mkdir()
-    cases, code, why = run_suite(str(exe), repo, work, 0)
+    suite_note = {}
+    cases, code, why = run_suite(str(exe), repo, work, 0, reuse=reuse, note=suite_note)
     if cases is None:
         return {**off, "reason": f"元の結末が取れない（{'; '.join(why)}）——全部の単位を今どおり直す"}
     test_cmd = (test_cmd or "").strip()
@@ -534,7 +536,7 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
           "runs": 1, "order": [], "units": {}, "queue": [], "cur": 0, "unit_head": "", "green_tree": "",
           "done": False, "note": "", "frozen": {}, "parked": [], "parked_why": {}, "contract": contract,
           "test_cmd": test_cmd, "test_cmd_gate": gate, "test_cmd_note": note, "light": light, "calls": [],
-          "lanes_on": lanes_ok,
+          "lanes_on": lanes_ok, "reused": {"suite": t} if (t := tree_run.reused_text(suite_note)) else {},
           "lanes_off": None if lanes_ok else {"reason": "switch", "why": "入力 tdd_lanes が off（並べの周を切った run）"}}
     state_file = work / STATE
     _save(state_file, st)
@@ -567,7 +569,7 @@ def _cmd_run(repo, cmd: str, log: pathlib.Path, *, reuse: dict | None = None) ->
     決まりは 1 つ: 既存のファイルを書き換えた（変えた・消した）test_cmd は緑でない。書き換えたパスは走らせる前の木に戻し
     （restore_paths。緑を出した木と残る木を違えない）、素材を赤（found）にして、書き換えたパスと戻したことを rewrote の文に載せる。
     suite_made に積んでよいのは新しく出来たパスだけ（積むと書き込みの出どころの照合・凍結の照らしから外れる）。
-    起こし方は baseline_red.run_suite と同じ tree_run.run（自分のプロセスグループ・標準入力は空・環境は tree_run.outside_env・
+    起こし方は baseline_red.run_suite と同じ tree_run.reuse_run（自分のプロセスグループ・標準入力は空・環境は tree_run.outside_env・
     出力は log）で、コマンドの 1 行は tree_run.command_argv の形（direct か shell）。元は entry.local_checks_material（試験の枠
     tree_run.slotted_run・nice・同じ run の控えの使い回し）で走らせた。枠と nice は外し、使い回しは reuse を渡した呼び（輪の頭）だけ"""
     pre = snapshot(repo)
@@ -2253,7 +2255,7 @@ def exit_fields(start_out: dict) -> dict:
     refactor_why（整えの申告の理由）}]}。refactor は ""・skipped（申告が無く整えの段を飛ばした）・none・ok・reverted。
     ran: true の出口には test_cmd: {gate（GATE_ON・GATE_SAME・GATE_OFF）, note（off の理由）} と calls（step 1 回ごとの
     {n, phase, unit_key, ok, runs, secs}。役の費用は実行基盤の出来事に在り、この行の順（tdd の節の起動の順）で後から結べる）も載る。
-    状態に reused（元の形の輪の頭の使い回しの句）が在れば載せる（この形の start は書かない）"""
+    状態の reused（輪の頭で元の結末を控えから使い回した出どころの句 {suite}）が空でなければ載せる"""
     if not isinstance(start_out, dict) or not start_out.get("go"):
         so = start_out if isinstance(start_out, dict) else {}
         return {"ran": False, "suite": so.get("suite", ""), "reason": so.get("reason", ""), "units": []}

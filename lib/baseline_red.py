@@ -2,7 +2,7 @@
 
 今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の `works/.shared/core/graphloops/rules/review-loop-tdd.py`
 と `works/blk-fix/lib/tddloop.py` の関数を、元の名のまま字のとおり写した物（各関数の docstring の末尾に元の `<パス>:<行>`）。
-run_suite だけは元の nice -n 19 の頭と、試験の枠と控え（tree_run.slotted_run）を外し、tree_run.run で走らせる。
+run_suite だけは元の nice -n 19 の頭と試験の枠（tree_run.slotted_run の枠）を外し、tree_run.reuse_run で走らせる。
 元の結末のファイルの口（write_baseline・read_baseline・outcomes）は新しい関数。
 
 元の結末のファイルの必須の欄: {"suite": str, "test_cmd": str, "rev": str, "exit": int | None, "cases": [{classname, name, outcome（OUTCOMES の語）, …}]}。
@@ -123,14 +123,16 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0):
     return probs
 
 
-def run_suite(exe: str, repo, work: pathlib.Path, n, args=(), only=False):
+def run_suite(exe: str, repo, work: pathlib.Path, n, args=(), only=False, reuse=None, note=None):
     """実行器を 1 回走らせる ——（結末の一覧, 終了コード, 問題）。結末が取れなければ一覧は None。
     .py はこの Python で走らせる（写しの rules の run_suite と同じ）。出力は work/suite-<n>.log に丸ごと。
     args は JUnit の書き先の後ろに足す（段の外の試験のファイル・node id を絶対パスで・受け付けの -k。works/dev/tdd-suite.sh は
     試験の実行器に渡し、試験の根（conftest.py の置き場）が違う名指しは根ごとに別のプロセスで流して JUnit を 1 つに合わせる）。同じ鍵の行は 1 つにまとめる（段のファイルと足した node id が重なっても 1 件）。
     only なら env に合図 ONLY_ENV=1 を付ける（後ろの試験だけでよい。輪の赤・緑の回）。付けない回は外の env の合図も落とす。
-    （元 works/blk-fix/lib/tddloop.py:296-333。nice -n 19 の頭と試験の枠と控え（tree_run.slotted_run・reuse_phrase・待った秒）を外し、
-    tree_run.run で自分のプロセスグループで走らせる。rules().parse_junit は同じファイルの parse_junit）"""
+    reuse（tree_run.reuse_place の返り）を渡した呼びは、同じ run の中で同じ木・同じ引数の緑の回を控えから使い回して子を起こさない
+    （JUnit XML は書き戻す）。note（dict）を渡せば、呼び手が出どころ（reused）と理由（reuse_off）を読める。
+    （元 works/blk-fix/lib/tddloop.py:296-333。nice -n 19 の頭と試験の枠（slotted_run の枠・待った秒）を外し、tree_run.reuse_run で
+    自分のプロセスグループで走らせる。使い回しの句はログでなく note に置く。rules().parse_junit は同じファイルの parse_junit）"""
     argv = ([sys.executable] if exe.endswith(".py") else []) + [exe]
     junit = work / f"junit-{n}.xml"
     log = work / f"suite-{n}.log"
@@ -138,8 +140,8 @@ def run_suite(exe: str, repo, work: pathlib.Path, n, args=(), only=False):
     env.update({"PYTHONDONTWRITEBYTECODE": "1", **({ONLY_ENV: "1"} if only else {})})
     with open(log, "wb") as out:
         try:
-            rc = tree_run.run([*argv, str(junit), *args], env=env, stdin=subprocess.DEVNULL,
-                              stdout=out, stderr=subprocess.STDOUT, cwd=str(repo))
+            rc = tree_run.reuse_run([*argv, str(junit), *args], env, place=reuse, outputs=(junit,), note=note,
+                                    stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, cwd=str(repo))
         except OSError as e:
             return None, None, [f"テストの実行器を起こせない（{type(e).__name__}: {e}。ログ {log}）"]
     if not junit.is_file():
