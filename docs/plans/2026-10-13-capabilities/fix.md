@@ -190,7 +190,7 @@
 - F026 手元の試験の起こし方: 実行器と test_cmd を nice -n 19 で起こし、機械全体の試験の枠（slotwrap）を通し、同じ run の中の元の結末と test_cmd の結果を使い回して出どころの句（reused）を残す
   - 元: works/blk-fix/lib/tddloop.py:296 `run_suite`（slotwrap・nice）・:565 `start`（reused）、旧試験 works/tests/test_blk_fix_tdd.py:2441 `TestRunSuiteSlot`・TestTestCmdGate の使い回しと nice の 5 本
   - 今: lib/baseline_red.py `niced`（起こす argv の頭 `nice -n 19` の 1 か所。nice が無ければ素で起こしログの頭に NO_NICE の 1 行）を `run_suite` と lib/tddloop.py `_cmd_material` が呼ぶ（#121）
-  - 証: lib/tests/test_baseline_red.py::RunSuiteSeedCase.test_runner_is_niced・test_runner_without_nice_runs_bare_and_says_so、lib/tests/test_blk_fix_tdd.py::TestTestCmdGate.test_test_cmd_is_niced
+  - 証: lib/tests/test_baseline_red.py::RunSuiteSeedCase.test_runner_is_niced・test_runner_without_nice_runs_bare_and_says_so、lib/tests/test_blk_fix_tdd.py::TestTestCmdGate.test_test_cmd_is_niced・test_shell_test_cmd_that_cannot_launch_is_not_run_under_nice（shell の形の先頭の語が無いコマンドは nice の下でも not_run）
   - 本物の run: 筋書きでのみ（プロセスの優先度は成果物に残らない）
   - 狭め: nice は戻した（#121）。試験の枠と同じ run の中の使い回しは持ち主の決め no-queue で戻さない
 
@@ -204,7 +204,7 @@
 - F028 輪の回数の上限 40（max_iterations と同じ値）に届く周で、残りを direct（gave_up budget）にして done で抜ける（max_iterations に当てて run を落とさない）
   - 元: works/blk-fix/lib/tddloop.py:131 `MAX_ITERATIONS`、works/blk-fix/blk-fix.yaml:157 付近
   - 今: lib/tddloop.py `MAX_ITERATIONS`、workflows/fix/works-factory-fix.yaml:1153（`max_iterations: 40`・`until_bash: done=$tdd-step.output.done`）
-  - 証: tests/workflows/test_fix.py::RolesCase.test_tdd_loop_bound_is_the_lib_budget（max_iterations と tddloop.MAX_ITERATIONS の一致と until_bash が tdd-step の done を読むこと）
+  - 証: tests/workflows/test_fix.py::RolesCase.test_tdd_loop_bound_is_the_lib_budget（max_iterations と tddloop.MAX_ITERATIONS の一致と until_bash が tdd-step の done を読むこと）、lib/tests/test_blk_fix_tdd.py::TestUnitLoop.test_budget_ends_loop_before_max_iterations（上限の周で残りを direct にして抜ける lib の側。lib/tddloop.py の budget の _abort を消すと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -385,7 +385,7 @@
 - F107 .archon/ の下（自分食いの run の pack の写し）を申告した・変えた返答を拒む（check_pack_copy）
   - 元: works/blk-fix/scripts/accept.py:38 `check_pack_copy`・:653
   - 今: lib/fixboard.py `check_pack_copy`・`skip_digests`・`record_skipped`（確かめ pack。除くパスの頭は accept_reply の skip で受け、段の頭の姿は fix_prep.py・fix_ruled_prep.py が skip-before.json に控える）（#121）
-  - 証: lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_pack_copy_change_is_rejected、tests/workflows/test_fix.py::GroupChildScriptsCase.test_fix_accept_rejects_a_change_under_the_skip_head
+  - 証: lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_pack_copy_change_is_rejected、tests/workflows/test_fix.py::GroupChildScriptsCase.test_fix_accept_rejects_a_change_under_the_skip_head・FixLoopScriptsCase.test_prep_snapshots_the_skip_head_before_marking_the_stage_head（控えを段の頭の印より先に書く）
   - 本物の run: 筋書きでのみ
   - 狭め: 戻した（#121）。控えの無い置き場（lib だけで呼ぶ時）は申告だけを見る（元は止めた）
 
@@ -539,7 +539,7 @@
 - F129 差分が足した Markdown のリンクを、申告に依らず差分から拾い、指し先のファイル（版に在る物）と見出しに届くかを確かめる
   - 元: review-loop.py:2804-2809・`_added_md_links` :2852・`_walk_as_written` :2896・`_md_link_errors` :2915
   - 今: lib/recount.py:198・236・250、:190-194 `_after_problems`
-  - 証: lib/tests/test_recount_links.py::MdLinkCase（未追跡・symlink・綴りの大小・外・空ディレクトリ・囲いの中・URL の 7 本。綴りの大小の変異は大小を区別しないファイルシステムでだけ赤。10 件を超えた分の 1 行は縛っていない）
+  - 証: lib/tests/test_recount_links.py::MdLinkCase（未追跡・symlink・綴りの大小・外・空ディレクトリ・囲いの中・URL の 7 本。綴りの大小の変異は大小を区別しないファイルシステムでだけ赤。10 件を超えた分の 1 行は縛っていない）、lib/tests/test_fix_seams.py::RecountSeamCase.test_rejects_wrote_refs_and_added_links_that_do_not_resolve（受け付けから md_link_errors を呼ぶ所を消すと赤）
   - 本物の run: 筋書きでのみ（種の修正は .md を足さない）
   - 狭め: 無し（試験の欠け）。起点の版が元の `b.record["base"]`（run の始め）から `base_rev` に変わった（lib/recount.py:190）。組の子では親の HEAD（base-rev.json）なので同じ意味
 
@@ -1226,7 +1226,7 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
 - F411 当てた後に、前の組とも重なったファイルの名指しのテストの中身が子の終わりの木と同じかを照らし、その組で赤 → 緑を確かめた名指しと変えたファイルに当たる試験を親の木で走らせ直す。走らない・名指しが結末に居ない・赤なら、その組の当てたパスを戻して returned: false
   - 元: works/blk-fix/lib/tddlanes.py:688 `_green_after`（当てた単位の名指し全部と変更に直に関わる試験。重なりのファイルが在れば地図が届く試験の全部も足す。test_cmd の関門が on なら test_cmd も 1 回）
   - 今: lib/fixboard.py `rerun_problem`・`rerun_cmd`、workflows/fix/scripts/join.py `merge_one`（名指しの無い組も変えたファイルに当たる試験を走らせ、前に戻せた組の名指しと重なりのファイルから届く試験を足し、子の関門が on で軽量でない単位が在れば test_cmd を 1 回）（#121）
-  - 証: lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_rerun_problem_names_red_unrunnable_and_unreported_tests、tests/workflows/test_fix.py::BlockScriptsCase.test_join_reruns_fixer_only_group_against_the_earlier_group
+  - 証: lib/tests/test_fix_seams.py::GroupScriptsSeamCase.test_rerun_problem_names_red_unrunnable_and_unreported_tests、tests/workflows/test_fix.py::BlockScriptsCase.test_join_reruns_fixer_only_group_against_the_earlier_group・test_join_does_not_carry_a_backed_out_groups_named_tests（戻した組の名指しを持ち越さない）
   - 本物の run: 親の置き場の `rerun-<group_id>/`（走らせ直しの状態とログ）と join.json の reason
   - 狭め: (1)(2) は戻した（#121）。(3) 当てた後の赤で今の組だけを戻す形は残し、持ち主の答え待ち
 
@@ -1352,7 +1352,7 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
 - F429 許したテストの変更（承認済みの修正案の rewrite_tests・相談の合意・裁定 fix_test_scope の範囲）を、最後の人の関所に理由（許しの id と出どころ）つきで守りのファイルの行として並べる（keep-essence の 10）
   - 元: works/.shared/core/conflict.py `ruled_test_doc`、works/darkfactory/lib/line_edge.py:649（protect.touched で守りのファイルの行にした）
   - 今: lib/fixboard.py `allowed_test_rows`・`ALLOWED_SOURCES`（許しの id と出どころ）を collect が diff の隣の `allowed-tests.json`（`[{path, permit, source}]`。止めの道と lib の無い道でも `[]`）に置く。返りの allowed_test_changes はパスのまま（#121）
-  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_collect_allowed_test_changes_from_rulings_and_groups
+  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_collect_allowed_test_changes_from_rulings_and_groups、lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_allowed_tests_take_rulings_and_agreements（plan・consult・ruling の行）、tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_end_carries_permits_mismatches_and_accept_notices_to_the_parent_collect（子から親への写し）
   - 本物の run: 節 fix の出力 allowed_test_changes（健全な run で [] か、修正案の rewrite_tests のパス）と線の最後の関所の文
   - 狭め: 訳はブロックの側に戻した（#121）。最後の関所の文に並べるのは線（workflows/line/scripts/ask_final.py。守りのパス）で、持ち主の手に渡した
 
