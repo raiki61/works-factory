@@ -131,6 +131,17 @@ class TestTouchedFiles(AcceptCase):
         self.assertEqual(touched_files(self.repo, "HEAD"), ["f", "g"])
         self.assertEqual(git(self.repo, "ls-files", "-v", "f", "g").splitlines(), ["h f", "S g"])
 
+    def test_sparse_checkout_leaves_out_of_cone_files_untouched(self):
+        """sparse checkout の範囲外（skip-worktree の印が付き disk に無い）のファイルは、消したと数えない"""
+        for name in ("x/a", "y/b"):
+            (self.repo / name).parent.mkdir()
+            (self.repo / name).write_text("1\n", encoding="utf-8")
+        git(self.repo, "add", "x", "y")
+        git(self.repo, "commit", "-q", "-m", "xy")
+        git(self.repo, "sparse-checkout", "set", "y")
+        self.assertFalse((self.repo / "x" / "a").exists())
+        self.assertEqual(touched_files(self.repo, "HEAD"), [])
+
 
 class TestTreeState(AcceptCase):
     """読むだけの任せ先の役（blk-pr・blk-ci）の前後の作業ツリーの姿（tree_state）と、その違いの文（tree_change）"""

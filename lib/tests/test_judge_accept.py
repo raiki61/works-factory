@@ -774,6 +774,22 @@ class MaterialCase(_RepoCase):
         self.assertEqual(gitkit.git(self.repo, "ls-files", "-v", "README.md", "app.txt").splitlines(),
                          ["h README.md", "S app.txt"])
 
+    def test_sparse_checkout_out_of_cone_files_are_not_changes(self):
+        """sparse checkout の範囲外（skip-worktree の印が付き disk に無い）のファイルは、変更ファイルにも diff.patch にも入らない"""
+        for name in ("x/a.txt", "y/b.txt"):
+            (self.repo / name).parent.mkdir()
+            (self.repo / name).write_text("元\n", encoding="utf-8")
+        gitkit.git(self.repo, "add", "x", "y")
+        gitkit.git(self.repo, "commit", "-q", "-m", "xy")
+        self.head = gitkit.git(self.repo, "rev-parse", "HEAD").strip()
+        gitkit.git(self.repo, "sparse-checkout", "set", "y")
+        (self.repo / "y" / "b.txt").write_text("直した\n", encoding="utf-8")
+        self.view()
+        doc = ja.read_json(self.jdir / ja.MATERIAL_VIEW_FILE)
+        self.assertEqual(doc["changed_files"], ["y/b.txt"])
+        self.assertNotIn("x/a.txt", (self.jdir / "diff.patch").read_text(encoding="utf-8"))
+        self.assertTrue(doc["stat"].startswith("1 files changed"), doc["stat"])
+
     def test_stop_turns_every_role_off(self):
         ja.write_stop(self.jdir, ja.MATERIAL_STOP, "止めた")
         got = self.view()
