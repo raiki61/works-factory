@@ -642,14 +642,16 @@ class CarryCase(Base):
         returns = fixed_run(fix={**fixed_run()["fix"], "objection": "判定が違う"})
         self.assertIn({"where": runreport.REJUDGE_LEFT_WHERE, "text": "判定が違う"}, runreport.next_request(returns, []))
 
-    def test_refix_objection_is_left_even_after_a_rejudge(self):
-        """2 度目の修正の異議（線の fixed の refix_objection）は再審の後に出るので、再審の結果に関わらず再審されずに残った異議"""
-        fix = {**fixed_run()["fix"], "objection": "判定が違う", "refix_objection": "u2 の判定も違う"}
+    def test_refix_objection_is_rejudged_with_the_first(self):
+        """L-D42: 2 度目の修正の異議は、1 回目の異議とつないだ線の fixed の objection で 2 度目の修正の後の再審に渡る（元
+        works/darkfactory/darkfactory.yaml:827）。再審の答えが在れば再審されずに残った異議に数えず、再審の無い run は両方が残る"""
+        fix = {**fixed_run()["fix"], "objection": "判定が違う\nu2 の判定も違う"}
         returns = fixed_run(fix=fix, rejudge={**fixed_run()["judge"], "rejudge_verdict": "退ける"})
-        self.assertEqual(runreport.rejudge_lines(returns)[-1], "再審されずに残った異議: u2 の判定も違う")
-        self.assertIn({"where": runreport.REJUDGE_LEFT_WHERE, "text": "u2 の判定も違う"}, runreport.next_request(returns, []))
-        alone = fixed_run(fix={**fixed_run()["fix"], "refix_objection": "u2 の判定も違う"})
-        self.assertEqual(runreport.rejudge_lines(alone), ["再審されずに残った異議: u2 の判定も違う"])
+        self.assertEqual([x for x in runreport.rejudge_lines(returns) if x.startswith("再審されずに残った異議")], [])
+        self.assertNotIn(runreport.REJUDGE_LEFT_WHERE, [r["where"] for r in runreport.next_request(returns, [])])
+        alone = runreport.rejudge_lines(fixed_run(fix=fix))
+        self.assertEqual(len(alone), 1)
+        self.assertTrue(alone[0].startswith("再審されずに残った異議: 判定が違う") and "u2 の判定も違う" in alone[0], alone)
 
     def test_plan_give_up_is_a_prior_failure(self):
         returns = fixed_run(plan={"ready": False, "stop_reason": "", "depth": []}, fix=None)

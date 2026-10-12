@@ -7,7 +7,8 @@
 
 - 入力 from_tree が在れば、作業ツリーと index をその木の姿にする（groups.adopt_tree）
 - 入力の写し: 入力 out_dir が在る（親が起こした子）なら、親の置き場（out_dir の 1 つ上）の写しを自分の置き場に写す
-  （fixboard.adopt_inputs。親の指し札は親の run の物で、この run では引けない）。out_dir が空の単独の run は、指し札を自分で
+  （fixboard.adopt_inputs。親の指し札は親の run の物で、この run では引けない。2 回目の修正の段なら 1 回目の段の申し出と裁定と輪の
+  状態も）。out_dir が空の単独の run は、指し札を自分で
   引いて節 prep と同じ写しを置く（prep.main）
 - 親の作業ツリーで 1 つずつ回る子（out_dir が在り from_tree が空）は、前の組の子が結果を書かずに落ちて残した変更を、その子の
   始めの木に戻してから始める（fixboard.drop_unreturned。最後の組の分は join が戻す）
@@ -59,7 +60,7 @@ def main() -> dict:
     if from_tree:
         groups.adopt_tree(repo, from_tree)
     if out_dir:
-        fixboard.adopt_inputs(Path(out_dir).parent, place)
+        fixboard.adopt_inputs(Path(out_dir).parent, place, repo)
         if not from_tree:
             for gdir in sorted(p for p in Path(out_dir).glob("*") if p.is_dir()):
                 fixboard.drop_unreturned(repo, gdir, fixio.SKIP)

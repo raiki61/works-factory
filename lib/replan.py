@@ -53,6 +53,37 @@ NOT_RUN_WHY = "2 度目の修正が走らなかった（直した案ができな
 NO_NOTE = "（一言なし）"                          # 元 replan.NO_NOTE
 GATE_STOPS = ("stop", "reject")                   # 案の直しの関所の止める語（元 replan.DECISIONS の stop に当たる語）
 PENDING_WHY = "未完了（前の run が途中で落ちて、案の直しを終えていない）"   # 元 replan.PENDING_WHY（途中で落ちた run の待つ行）
+CLOSE_WHY = "同じ run の中で案の直しを終えられなかった（案の段に戻るのは 1 run に 1 回）"   # 元 replan.CLOSE_WHY
+FACES_HEAD = promptsection.Section("## 直した項目 {item}（単位 {units}）の事前審査の穴", source="fn:replan.fix_notes")   # 元 replan.FACES_HEAD
+NO_REVIEW_WHY = "（案の直しの事前審査の返答を読めない——採った項目の事前審査の穴を渡していない: {why}）"
+
+
+def close(b, why: str) -> list[str]:
+    """置き場 b の案の直しを待つ行（conflict.waiting）の全部を諦めた行（GAVE_UP・理由 why）にし、その id を返す。待つ行が無ければ
+    何もせず []（元 replan.close :159。修正の段を抜ける所の締め replan.settle が CLOSE_WHY で呼んだ）"""
+    import conflict
+    ids = [r["id"] for r in conflict.waiting(b)]
+    if ids:
+        conflict.set_replan(b, ids, conflict.GAVE_UP, why=why)
+    return ids
+
+
+def fix_notes(review, plan, items, human_kinds) -> str:
+    """2 度目の修正に渡す機械の申し送り: 採った項目 items（計画の項目の番号の字）ごとに、案の直しの事前審査の返答 review（faces を
+    持つ dict）の穴のうち人に聞く種類 human_kinds でない物を、見出し FACES_HEAD の下に `- [kind] key（where）: why` で並べた文
+    （元 replan._notes :688-693 の 3 つ目の節）。項目の単位は修正案の役の返答 plan（{plan: [{unit_keys}]}。番号は 1 から）から引き、
+    穴の unit_keys がその単位に当たる物をその項目の穴にする（unit_keys の無い穴はどの項目にも載る）。無ければ ""。"""
+    rows = (plan or {}).get("plan") if isinstance(plan, dict) else None
+    faces = [f for f in (review or {}).get("faces") or [] if isinstance(f, dict) and f.get("kind") not in human_kinds]
+    parts = []
+    for item in items or []:
+        n = int(item) if str(item).isdigit() else 0
+        units = [str(k) for k in ((rows[n - 1] or {}).get("unit_keys") or [])] if isinstance(rows, list) and 0 < n <= len(rows) else []
+        mine = [f for f in faces if not f.get("unit_keys") or set(units) & {str(k) for k in f.get("unit_keys") or []}]
+        if mine:
+            parts.append(f"{FACES_HEAD.format(item=item, units='、'.join(units))}\n\n"
+                         + "\n".join(f"- [{f.get('kind')}] {f.get('key')}（{f.get('where')}）: {f.get('why')}" for f in mine) + "\n")
+    return "\n".join(parts)
 
 
 def amend_lines(items, *, refixed: bool, answer=None, widened=(), whys=None, pending: bool = False) -> list[str]:

@@ -471,8 +471,37 @@ class ReplanAnswerCase(Artifacts):
 
     def test_answer_is_the_gate_answer_with_the_fix_answers(self):
         got = replan_answer.answer(json.dumps({"decision": "continue", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts)
+        notes = got.pop("fix_notes")
         self.assertEqual(got, {"go": True, "answer": {"decision": "continue", "text": "x", "asked": []}, "stop_reason": "",
                                "fix_answers": {"decision": "continue", "text": f"{replan_answer.NOTE_HEAD}\n\nx\n", "asked": []}})
+        self.assertTrue(notes.startswith(replan.NO_REVIEW_WHY.split("{")[0]), "事前審査の返りが無ければ訳を 1 行")
+
+    def test_refix_answers_carry_the_non_human_faces_of_taken_items(self):
+        """P144・L-D35・L-W17: 2 度目の修正に、採った項目ごとの事前審査の穴のうち人に聞く種類でない物を見出しつきで渡す（元
+        works/.shared/core/replan.py:688-693 の _notes の 3 つ目）。人に聞く種類（regression・policy）は関所が聞くので渡さず、人の答え
+        fix_answers には混ぜない。止める答えでは渡さない"""
+        (self.artifacts / "replan").mkdir()
+        (self.artifacts / "replan" / "p2.fix_plan.json").write_text(json.dumps(
+            {"plan": [{"unit_keys": ["u1", "u2"]}, {"unit_keys": ["u3"]}]}), encoding="utf-8")
+        (self.artifacts / "replan-review").mkdir()
+        faces = [{"key": "穴-分母", "kind": "contract_drift", "where": "stats.py", "why": "空の列で割れる", "unit_keys": ["u2"]},
+                 {"key": "穴-後退", "kind": "regression", "where": "stats.py", "why": "前の呼び手が壊れる", "unit_keys": ["u1"]},
+                 {"key": "穴-ほかの項目", "kind": "entrance", "where": "bounds.py", "why": "入口が増える", "unit_keys": ["u3"]}]
+        (self.artifacts / "replan-review" / "review.json").write_text(json.dumps({"faces": faces}, ensure_ascii=False), encoding="utf-8")
+        ptr = lambda rel: json.dumps({"type": "archon_artifact", "run_id": RUN, "path": rel})
+        got = replan_answer.answer(json.dumps({"decision": "continue", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts,
+                                   None, ptr("replan-review/review.json"), ptr("replan/plan-fields.json"), '["1"]')
+        self.assertEqual(got["fix_notes"], f"{replan.FACES_HEAD.format(item='1', units='u1、u2')}\n\n"
+                                           "- [contract_drift] 穴-分母（stats.py）: 空の列で割れる\n")
+        self.assertNotIn("穴-分母", got["fix_answers"]["text"])
+        stopped = replan_answer.answer(json.dumps({"decision": "stop", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts,
+                                       None, ptr("replan-review/review.json"), ptr("replan/plan-fields.json"), '["1"]')
+        self.assertEqual(stopped["fix_notes"], "")
+        nodes = line_nodes()
+        self.assertEqual(nodes["refix-run"]["with"]["notes"], "$answer-replan.output.fix_notes")
+        self.assertEqual({k: nodes["answer-replan"]["with"][k] for k in ("review", "plan", "items")},
+                         {"review": {"from": "$replan-review.output.review", "if_skipped": None}, "plan": "$replan.output.plan",
+                          "items": "$fix.output.replan_items"})
 
 
 class FixGateAnswersCase(Artifacts):
@@ -860,7 +889,8 @@ class AskFinalCase(unittest.TestCase):
         self.assertIn("止めずに残った異議が在る", ask_final.final_needs(self.got(objection="異議", rejudge_verdict="退ける")))
         self.assertEqual(ask_final.final_needs(self.got(objection="異議", rejudge_verdict="採る")), [])
         self.assertIn("止めずに残った異議が在る",
-                      ask_final.final_needs(self.got(objection="異議", rejudge_verdict="採る", refix_objection="2 度目の異議")))
+                      ask_final.final_needs(self.got(objection="異議\n2 度目の異議", rejudge_verdict="一部採る")),
+                      "2 度目の修正の異議も同じ再審を受け、採られなければ残る")
 
 
     def test_allowed_test_changes_open_in_every_mode(self):
@@ -903,7 +933,7 @@ class AskFinalCase(unittest.TestCase):
             ptr = {"type": "archon_artifact", "run_id": RUN, "path": "rejudge/judgment.json"}
             returns = ask_final.judged_returns({"units": [{"id": "u1"}, {"id": "u2"}], "first_units": [{"id": "u1"}], "judgment": ptr,
                                                 "ties_judgment": None, "rejudged": True, "rejudge_verdict": "退ける", "objection": "異議",
-                                                "refix_objection": "", "fix_units": [{"unit_id": "u1"}], "groups": []})
+                                                "fix_units": [{"unit_id": "u1"}], "groups": []})
             self.assertEqual(ask_final.rejudge_rows(returns), rows)
 
     def test_questions_say_the_answer_does_not_answer_them(self):
@@ -1160,6 +1190,36 @@ class FinalGateCase(Artifacts):
                 self.assertIn(f"- {rows[0]}", asked["text"])
                 self.assertNotIn("conflicts.json", asked["text"])
 
+    def test_refix_replan_rows_reach_the_final_gate(self):
+        """L-W48: 2 度目の修正の段で新しく fix_plan_item と裁いた行は、段を抜ける時に諦めた行になり（fix の返す節 collect の replan.close。
+        tests/workflows/test_fix.py の test_refix_place_reads_the_first_pass_rulings）、fixed が運ぶ 2 度目の控えから最後の関所の申し出に
+        1 行で並ぶ（元 works/darkfactory/lib/line_edge.py:1159-1160）。1 回目の段の案を直した行は並べず、2 度数えない"""
+        first, second = self.artifacts / "fix" / "fix", self.artifacts / "fix" / "refix-run"
+        first.mkdir(parents=True)
+        second.mkdir(parents=True)
+        body = {"between": ["stats.py:9", "test_stats.py:8"], "why_both_cannot_hold": "案の項目が判定と食い違う",
+                "which_is_right": "request", "kind": "brief_vs_judgment", "round": 1, "source": "fix", "status": "ruled"}
+        (first / conflict.FILE).write_text(json.dumps({"items": [
+            {**body, "id": "c1-1", "unit_key": "u1", "replan": "waiting",
+             "ruling": {"decision": "fix_plan_item", "text": "項目 1 が誤り", "limits": [], "plan_items": [1], "by": "ruler"}}]},
+            ensure_ascii=False), encoding="utf-8")
+        conflict.adopt_prior(second, first, ["1"])
+        new = conflict.park(second, [{**{k: body[k] for k in conflict.FIELDS if k != "unit_key"}, "unit_key": "u2"}], source=conflict.FIX_SOURCE)
+        conflict.apply_rulings(second, {new[0]: {"decision": "fix_plan_item", "text": "項目 2 も誤り", "limits": [],
+                                                 "plan_items": [2]}}, by="ruler")
+        replan.close(second, replan.CLOSE_WHY)
+        ptr = lambda rel: {"type": "archon_artifact", "run_id": RUN, "path": rel}
+        got = fixed.fixed(FixedCase.fix(FixedCase()), FixedCase.fix(FixedCase(), conflicts=ptr("fix/refix-run/conflicts.json")),
+                          replan=True, stops=("",))
+        rows, unread = ask_final.asked_conflicts(got["conflicts"])
+        self.assertEqual(unread, [])
+        self.assertEqual(len(rows), 1, rows)
+        self.assertTrue(rows[0].startswith("u2: 項目 2 も誤り"), rows)
+        self.assertIn(replan.CLOSE_WHY, rows[0])
+        opened = ask_final.ask(final_got(asked=rows), mode="when_needed", unattended=False, run_id=RUN)
+        self.assertTrue(opened["open"])
+        self.assertIn(f"- {rows[0]}", opened["text"])
+
 
 class PlanOutCase(unittest.TestCase):
     def got(self, **kw):
@@ -1180,8 +1240,8 @@ class PlanOutCase(unittest.TestCase):
 
 class AfterFixAndJudgedCase(Artifacts):
     def test_after_fix_counts(self):
-        self.assertEqual(after_fix.decide([], ""), {"replan": False, "rejudge": False, "stop_reason": ""})
-        self.assertEqual(after_fix.decide(["1"], " 異議 "), {"replan": True, "rejudge": True, "stop_reason": ""})
+        self.assertEqual(after_fix.decide([]), {"replan": False, "stop_reason": ""})
+        self.assertEqual(after_fix.decide(["1"]), {"replan": True, "stop_reason": ""})
 
     def judgment(self, rel, units):
         (self.artifacts / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -1241,15 +1301,14 @@ class AfterFixAndJudgedCase(Artifacts):
         stopped = {**self.returned(judge["judgment"]), "units": []}
         got = judged.judged(judge, stopped, "異議", "works:rejudge")
         self.assertEqual(got["stop_reason"], "works:rejudge")
-        fix = FixedCase.fix(FixedCase())
-        self.assertEqual((lambda f: (f["done"], f["go"]))(fixed.fixed(fix, None, replan=False, stops=("", got["stop_reason"]))),
-                         (False, False))
         self.assertEqual(judged.judged(judge, self.returned(judge["judgment"], "採る"), "異議", "")["stop_reason"], "")
         self.assertEqual(judged.judged(judge, None, "", "works:rejudge")["stop_reason"], "", "再審が走らなければ止めの理由は無い")
         nodes = line_nodes()
         self.assertEqual(nodes["judged"]["with"]["rejudge_stop_reason"], {"from": "$rejudge-run.output.stop_reason", "if_skipped": None})
-        self.assertEqual(nodes["fixed"]["with"]["stop_judged"], "$judged.output.stop_reason")
+        # 再審は 2 度目の修正の後（L-D42）なので、judged の止めは fixed でなく試験の関門（final）の when が読む。独立の目・merge はその後ろ
+        self.assertIn("$judged.output.stop_reason == ''", nodes["test-gate-final"]["when"])
         self.assertIn("$fixed.output.go == true", nodes["test-gate-final"]["when"])
+        self.assertEqual(nodes["redepth"]["depends_on"], ["judged"])
 
     def test_unreadable_judgments_are_said(self):
         judge = self.returned({"type": "archon_artifact", "run_id": "another", "path": "judge/judgment.json"})
@@ -1327,11 +1386,41 @@ class FixedCase(unittest.TestCase):
                           "replanned": {"from": "$replan-out.output.got", "if_skipped": None}})
         self.assertIn("replan-out", nodes["fixed"]["depends_on"])
 
-    def test_refix_objection_is_kept_beside_the_first(self):
-        """再審が受けるのは 1 回目の異議。2 度目の修正の異議は捨てず、再審されずに残った異議として refix_objection で運ぶ"""
-        got = fixed.fixed(self.fix(objection="u1 は誤り"), self.fix(objection="u2 も誤り"), replan=True, stops=("", ""))
-        self.assertEqual((got["objection"], got["refix_objection"]), ("u1 は誤り", "u2 も誤り"))
-        self.assertEqual(fixed.fixed(self.fix(), None, replan=False, stops=("", ""))["refix_objection"], "")
+    def test_refix_objection_is_kept(self):
+        """L-D42: 再審は 2 度目の修正の後に 1 度だけ走り、1 回目と 2 度目の修正役の異議の両方を受ける（元 works/darkfactory/darkfactory.yaml:827
+        の h-rejudge は refit の後）。異議の文は最後の関所と報告にも同じ objection で届く。止めた run（held）は再審しない"""
+        got = fixed.fixed(self.fix(objection="u1 は誤り"), self.fix(objection="u2 も誤り"), replan=True, stops=("",))
+        self.assertEqual((got["objection"], got["rejudge"]), ("u1 は誤り\nu2 も誤り", True))
+        alone = fixed.fixed(self.fix(), self.fix(objection="u2 も誤り"), replan=True, stops=("",))
+        self.assertEqual((alone["objection"], alone["rejudge"]), ("u2 も誤り", True))
+        self.assertFalse(fixed.fixed(self.fix(), None, replan=False, stops=("",))["rejudge"])
+        self.assertFalse(fixed.fixed(self.fix(objection="u1 は誤り"), None, replan=True, stops=("",))["rejudge"], "held は再審しない")
+        nodes = line_nodes()
+        self.assertEqual((nodes["rejudge-run"]["depends_on"], nodes["rejudge-run"]["when"], nodes["rejudge-run"]["with"]["objection"]),
+                         (["fixed"], "$fixed.output.rejudge == true", "$fixed.output.objection"))
+        self.assertIn("fixed", nodes["judged"]["depends_on"])
+        self.assertEqual((nodes["judged"]["with"]["objection"], nodes["ask-final"]["with"]["objection"]),
+                         ("$fixed.output.objection", "$fixed.output.objection"))
+        self.assertNotIn("judged", nodes["fixed"]["depends_on"])
+
+    def test_second_ruling_in_refix_is_not_dropped(self):
+        """L-D38: 2 度目の修正の控え（1 回目の段の行を写して持つ）を 1 つの指し札で運び、2 度目の段の申し出を捨てず、1 回目の行を
+        2 度数えない。2 度目の修正が控えを返さなければ 1 回目の物"""
+        got = fixed.fixed(self.fix(), self.fix(conflicts={"path": "fix/refix-run/conflicts.json"}), replan=True, stops=("",))
+        self.assertEqual(got["conflicts"], [{"path": "fix/refix-run/conflicts.json"}])
+        self.assertEqual(fixed.fixed(self.fix(), self.fix(conflicts=None), replan=True, stops=("",))["conflicts"],
+                         [{"path": "fix/conflicts.json"}])
+
+    def test_eyes_gets_the_fix_x_scalars(self):
+        """E17・L-W57: 修正役が足した x_ の規模の数値は fix の返り x_scalars から fixed（2 度目の値を優先して名ごとに合わせる）を通って
+        独立の目に届く"""
+        got = fixed.fixed(self.fix(x_scalars={"x_a": 1, "x_b": 2}), self.fix(x_scalars={"x_b": 5}), replan=True, stops=("",))
+        self.assertEqual(got["x_scalars"], {"x_a": 1, "x_b": 5})
+        self.assertEqual(fixed.fixed(self.fix(x_scalars={"x_a": 1}), None, replan=False, stops=("",))["x_scalars"], {"x_a": 1})
+        nodes = line_nodes()
+        self.assertEqual(nodes["eyes"]["with"]["x_scalars"], "$fixed.output.x_scalars")
+        self.assertEqual(nodes["fixed"]["with"]["refix_x_scalars"], {"from": "$refix-run.output.x_scalars", "if_skipped": None})
+        self.assertIn("x_scalars", block_doc("works-factory-fix")["nodes"][-1]["output_format"]["required"])
 
 
 class RedepthCase(Artifacts):
@@ -1710,10 +1799,9 @@ class LineWiringCase(unittest.TestCase):
 
     UNPASSED = {
         "plan-review-run": {"conflicts", "gate_answers"},   # 計画の往復は修正の前。申し出も修正前の関所の答えもまだ無い
-        "fix": {"only_items", "mode", "group", "from_tree", "out_dir"},   # docs/design.md の「約束に無い入力（線は渡さない）」
+        "fix": {"only_items", "prior_conflicts", "notes", "mode", "group", "from_tree", "out_dir"},   # docs/design.md の「約束に無い入力（線は渡さない）」と 2 度目だけの入力
         "refix-run": {"mode", "group", "from_tree", "out_dir"},
         "merge-seal": {"answer", "r2", "sealed_hash"},   # apply の時だけ
-        "eyes": {"x_scalars"},   # issue #110
     }
 
     def test_includes_pass_every_declared_input_but_the_named(self):
@@ -1741,6 +1829,14 @@ class LineWiringCase(unittest.TestCase):
         self.assertEqual({k: nodes["refix-run"]["with"][k] for k in ("plan", "ripple", "depth", "answers", "only_items")},
                          {"plan": "$replan.output.plan", "ripple": "$replan.output.ripple", "depth": "$replan.output.depth",
                           "answers": "$answer-replan.output.fix_answers", "only_items": "$fix.output.replan_items"})
+
+    def test_refix_gets_only_the_ruled_items(self):
+        """L-D36: 2 度目の修正の直す義務は、案を直して戻った項目だけ（only_items ← 1 回目の replan_items。fix は項目の単位だけを直す:
+        tests/workflows/test_fix.py の test_prep_only_items_keeps_their_units）。1 回目の修正には渡さない"""
+        nodes = line_nodes()
+        self.assertEqual(nodes["refix-run"]["with"]["only_items"], "$fix.output.replan_items")
+        self.assertNotIn("only_items", nodes["fix"]["with"])
+        self.assertEqual(nodes["refix-run"]["when"], "$answer-replan.output.go == true")
 
     def test_second_round_plan_gets_the_review(self):
         """L-D17: 計画の往復の 2 周目の plan は、前の周の事前審査の返り review（plan-out が plan-review-run から受け直した物）を

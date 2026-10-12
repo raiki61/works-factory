@@ -9,7 +9,7 @@
 `{from: "$<受け皿>.output", if_skipped: null}` で受ける。受けた物の got が、include の id ごとの返りの欄の object になる。
 飛ばされた（受ける節が落ちたか飛ばされた）受け皿は null。計画の往復の返りは plan と plan-review の欄に分け、欄が全部 null の方は null。
 fix は 1 回目と 2 度目の修正を合わせた節 fixed の返り（申し出は段ごとの指し札の配列。report の約束の fix の形）。fixed が飛ばされた
-（2 度目の修正の中が落ちた）時は 1 回目の返り。2 度目の修正の段の行（refixed・refix_objection・2 度目の申し出）も fixed の返りが運ぶ。
+（2 度目の修正の中が落ちた）時は 1 回目の返り。2 度目の修正の段の行（refixed・2 度目の異議をつないだ objection・1 回目の行を写した 2 度目の申し出）も fixed の返りが運ぶ。
 
 線の節の値（docs/design.md の report の返りの「線の値」）:
 - stops: 線の script の節（STOPS）の止めの語 {節: 語}（入口の拒み・無人の関所の止め・線の script の例外・人の止め。空と飛ばされた節は

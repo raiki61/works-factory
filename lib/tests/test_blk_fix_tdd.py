@@ -1852,6 +1852,32 @@ class TestCrossLoopFreeze(LoopCase):
         self.assertTrue(got and "test_stats.py" in got[0], got)
         self.assertEqual(tddloop.frozen_problems(state2, self.repo), [], "tdd-2 は何も凍らせていない")
 
+    def test_second_place_sees_the_first_place_loops(self):
+        """F018: 2 度目の修正の差し込み（線の include refix-run）は置き場が 1 回目と分かれるが、1 回目の段の置き場の輪（tdd-1）が凍らせた
+        テストは 2 回目の段の受け付けでも変えられない。prep が入力 prior_conflicts の先から輪の状態を写し（fixboard.adopt_prior_pass）、
+        組の子も親から写す（fixboard.adopt_inputs）。写した輪は今の段の輪に数えない（fixboard.ruled_states）"""
+        import factchecks
+        import fixboard
+        self.first_loop()
+        second, child = self.board.parent / "refix-run", self.board.parent / "child"
+        second.mkdir()
+        child.mkdir()
+        fixboard.adopt_prior_pass(second, self.board, ["1"], self.repo)
+        fixboard.adopt_inputs(second, child, self.repo)
+        for place in (second, child):
+            with self.subTest(place=place.name):
+                got = tddloop.start(place, self.repo, str(self.suite), json.dumps([CLAMP]))
+                self.assertTrue(got["go"], got)
+                rows = [{"unit_key": CLAMP, "route": "direct", "why": "2 回目の段で先にテストを書かない単位"}]
+                self.assertTrue(tddloop.step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
+                self.assertEqual(len(tddloop.states(place)), 2)
+                self.assertEqual(fixboard.ruled_states(place), (got["state_file"], got["state_file"]))
+                self.assertEqual(factchecks.check_frozen(place, got["state_file"], self.repo, "first"), [])
+                self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 2 回目の修正役が tdd-1 の凍ったテストを変えた
+                problems = factchecks.check_frozen(place, got["state_file"], self.repo, "first")
+                self.assertTrue(problems and "test_stats.py" in problems[0], problems)
+                self.edit("test_stats.py", "mean([2, 4]), 3.0", "mean([2, 4]), 3")
+
     def test_second_loop_may_add_test_to_first_loop_file(self):
         self.first_loop()
         state2 = self.second_loop([CLAMP], route="tdd")

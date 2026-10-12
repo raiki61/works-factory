@@ -1039,10 +1039,10 @@
 
 - P144 2 度目の修正に渡す答えの文: 修正前の関所で人が答えた条件・案の直しの関所の一言に加え、採った項目の事前審査の穴のうち人に聞く種類でない物を見出しつきで渡す
   - 元: works/.shared/core/replan.py:677 `_notes`（FIX_NOTES_HEAD・NOTE_HEAD・FACES_HEAD）
-  - 今: P74 workflows/line/scripts/replan_answer.py `fix_answers`（前の 2 つだけ。FACES_HEAD の節が無い。refix の with: P74 works-factory-line.yaml:592-607 にも事前審査の返りが無い）
-  - 証: P74 tests/workflows/test_line.py::ReplanAnswerCase.test_refix_answers_carry_the_before_fix_conditions_and_the_replan_note（assert: P74 tests/workflows/test_line.py:164-168）。穴の節は無い → 要追加: P74 tests/workflows/test_line.py::ReplanAnswerCase.test_refix_answers_carry_the_non_human_faces_of_taken_items — replan-review の review の人に聞く種類でない穴が FACES_HEAD の見出しの下で fix_answers の text に載る
+  - 今: workflows/line/scripts/replan_answer.py の fix_answers（頭の 2 つ）と fix_notes（FACES_HEAD の節。lib/replan.py の fix_notes）→ refix-run の answers・notes
+  - 証: tests/workflows/test_line.py::ReplanAnswerCase.test_refix_answers_carry_the_before_fix_conditions_and_the_replan_note・ReplanAnswerCase.test_refix_answers_carry_the_non_human_faces_of_taken_items・tests/e2e/test_line_scenarios.py::RefixInputsTest.test_refix_notes_carry_the_replan_review_faces
   - 本物の run: 筋書きでのみ
-  - 狭め: 不可でない → 戻す（#74 に記載無し）
+  - 狭め: 不可でない → 戻す（#74 に記載無し） → 部分 D1 で戻した
 
 - P145 無人の run で範囲を広げるだけの直しを聞かずに通した時、trace に `replan_widened_unattended` を 1 度だけ書き、報告に「直した——無人の run なので人に聞かずに範囲を広げた（…）」の行を載せる
   - 元: works/.shared/core/replan.py:152-154 `WIDEN_OP`・`WIDEN_LINE`・:761 `_widen_text`・:767 `lines`

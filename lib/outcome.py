@@ -63,7 +63,7 @@ MUST_OPEN = (("fix", "conflicts"),)
 # fix の conflicts の先（今の works の conflicts.json の包み）を読む欄の名と語は lib/conflict.py の物を引く（S34。自分の定数に写さない）。
 # 元は works/.shared/core/conflict.py:91-160 と asked:388・ruled_units:470・counts:517・kind_counts:529
 # 案の直しを待つ行の締め（元 works/.shared/core/replan.py:99-101）。途中で落ちた run は締めずに次の依頼へ未完了で運ぶ
-CLOSE_WHY = "同じ run の中で案の直しを終えられなかった（案の段に戻るのは 1 run に 1 回）"
+CLOSE_WHY = replan.CLOSE_WHY
 PENDING_WHY = replan.PENDING_WHY
 
 # 判定の judgment の隣の素材の測りの状態 {<素材の名>: {status, …}}（docs/design.md の「書き方の決め」の名指しの隣のファイル）。

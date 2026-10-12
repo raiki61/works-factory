@@ -686,9 +686,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E17 修正役が足した x_ の数値（x_scalars）を規模の数値に足し、形の外の欄（x_ で始まらない名・数でない値・object でない）は名指して落とす。
   - 元: review-loop.py:2175-2176（p3.fix の x_scalars）、review-loop.json:4077 p3.fix の x_scalars の patternProperties
   - 今: lib/eyeverdict.py:98-104、workflows/eyes/works-factory-eyes.yaml:25（入力 x_scalars、既定 null）
-  - 証: lib/tests/test_eyeverdict.py::ScalarsCase.test_fix_x_scalars_are_added（assert: :99-101）、test_x_scalars_outside_the_graph_shape_are_named（:114-118）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:559）。線の配線は要追加: tests/workflows/test_line.py::…test_eyes_gets_the_fix_x_scalars — 線の eyes の with に x_scalars が在り、fix の返りの型に x_scalars が在る
-  - 本物の run: 届かない。#74 の head/workflows/line/works-factory-line.yaml:722-740 の eyes の with に x_scalars が無く、fix の返りの型（workflows/fix/works-factory-fix.yaml:1368 以降）にも x_scalars が無い（役の返りの :528 に在るだけ）。eyes/prep.json の scalars に x_ が載らない
-  - 狭め: #67 の「約束を変える頼み 1」が fix と線（#74）で未だ。Archon で不可でない → 戻す
+  - 証: lib/tests/test_eyeverdict.py::ScalarsCase.test_fix_x_scalars_are_added（assert: :99-101）、test_x_scalars_outside_the_graph_shape_are_named（:114-118）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:559）。線の配線は要追加: tests/workflows/test_line.py::…test_eyes_gets_the_fix_x_scalars — 線の eyes の with に x_scalars が在り、fix の返りの型に x_scalars が在る 線の配線: tests/workflows/test_line.py::FixedCase.test_eyes_gets_the_fix_x_scalars・tests/workflows/test_fix.py::BlockScriptsCase.test_changed_carries_the_premise_drift_note_and_the_x_scalars・tests/e2e/test_line_scenarios.py::RefixInputsTest.test_eyes_get_the_fix_x_scalars（部分 D1）
+  - 本物の run: eyes/prep.json の scalars（部分 D1 で fix の返り x_scalars → 線の fixed → eyes の with: x_scalars をつないだ）
+  - 狭め: #67 の「約束を変える頼み 1」が fix と線（#74）で未だ。Archon で不可でない → 戻す → 部分 D1 で戻した
 
 - E18 測れなかった規模の値は 0 にせず unmeasured に訳を置き、測れた分は返す。
   - 元: review-loop.py:2160-2178（process.scalars_unmeasured）
@@ -867,9 +867,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E42 前提のずれの申告の本文（premise_drift_note）を比較役の頭に貼る。
   - 元: review-loop.py:1848（loop.drift_notes）、works/blk-eyes/lib/eyes.py:395
   - 今: lib/eyeverdict.py:231-236
-  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_pastes_every_premise_in_the_original_order（assert: :434-436「入口は 2 つあった」）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:555）。fix の返りの型は要追加: tests/workflows/test_fix.py::…test_changed_carries_the_premise_drift_note — fix の返りの changed に premise_drift_note が在る
-  - 本物の run: 届かない。fix の返りの changed（workflows/fix/works-factory-fix.yaml:1419-1428、additionalProperties: false）に premise_drift_note が無く、premise_drift: true の run では「（申告の文なし）」になる
-  - 狭め: #67 の「約束を変える頼み 2」が fix で未決。Archon で不可でない → 戻す
+  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_pastes_every_premise_in_the_original_order（assert: :434-436「入口は 2 つあった」）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:555）。fix の返りの型は要追加: tests/workflows/test_fix.py::…test_changed_carries_the_premise_drift_note — fix の返りの changed に premise_drift_note が在る fix の返りの changed の premise_drift_note: tests/workflows/test_fix.py::BlockScriptsCase.test_changed_carries_the_premise_drift_note_and_the_x_scalars・ContractCase.test_nested_shapes・lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_reply_marks_or_over_the_previous（部分 D1）
+  - 本物の run: eyes の比較役の頭（部分 D1 で fix の返りの changed に premise_drift_note を足した）
+  - 狭め: #67 の「約束を変える頼み 2」が fix で未決。Archon で不可でない → 戻す → 部分 D1 で戻した
 
 - E43 記録の制約（判定の隣の premises.json の constraints）を、比較役の頭と前提の検算に同じ字で渡す。
   - 元: works/blk-eyes/lib/eyes.py:396-397（record.process.constraints）

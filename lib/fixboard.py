@@ -442,6 +442,8 @@ DELTA_REVIEW = "review-{}.json"           # n 回目の審査の控え {pass: bo
 DELTA_SKIPPED = "skipped.json"            # 全部の単位が軽量で審査を飛ばした印 {reason}（delta-cut が書く）
 CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
                  "path_changed")
+DRIFT_NOTE = "premise_drift_note"   # 修正役の返答と返りの changed の欄: 前提のずれの申告の文（premise_drift が真の時の測り直した制約）
+X_SCALARS = "x_scalars"             # 修正役の返答と返りの欄: 修正役が足した x_ の規模の数値
 NOT_CHANGED = "修正役は済んだと言ったが、申告したファイル {files} は run の始めから何も変わっていない（変わった物: {moved}）"
 NOT_DECLARED = ("修正役は済んだと言ったが、触ったファイルを 1 つも申告していない（changes[].files が空。直す義務の単位が残って"
                 "いるか、答え待ち・直さない裁定で外れた単位が 1 つも無い）")
@@ -659,14 +661,14 @@ def changed_problem(declared, touched, excused=None) -> tuple:
 
 
 def replan_items(rows, groups=()) -> list:
-    """裁定 fix_plan_item が誤りとした計画の項目の id（字。重ねない・現れた順）: 行の欄 plan_items（apply が足す brief の項目の
-    番号）。欄の無い行は、その単位を持つ組の項目（groups の items）。rows は conflict の申し出の行"""
+    """裁定 fix_plan_item が誤りとした計画の項目の id（字。重ねない・現れた順）: 行の案の項目の番号（conflict.plan_items。裁定の
+    欄 plan_items は受け付けた機械が足す brief の項目の番号）。欄の無い行は、その単位を持つ組の項目（groups の items）。rows は conflict の申し出の行"""
     import conflict
     out: list = []
     for r in rows or []:
         if (r.get("ruling") or {}).get("decision") != conflict.REPLAN:
             continue
-        nums = r.get(conflict.PLAN_ITEMS)
+        nums = conflict.plan_items(r)
         if not nums:
             nums = [n for g in groups if r.get("unit_key") in g.get("unit_ids", []) for n in g.get("items", [])]
         for n in nums or []:
@@ -690,8 +692,28 @@ def allowed_tests(place, results=()) -> list:
 
 
 def changed_marks(results) -> dict:
-    """修正役の 6 つの印（CHANGED_MARKS）の論理和。results は印 changed を持つ dict の並び（組の子の結果・修正役の返答）"""
-    return {k: any(((r or {}).get("changed") or {}).get(k) is True for r in results) for k in CHANGED_MARKS}
+    """修正役の 6 つの印（CHANGED_MARKS）の論理和と、前提のずれの申告の文 DRIFT_NOTE（組の順に改行でつなぐ。同じ文は 1 度。無ければ
+    ""。比較役の頭に貼る。元 review-loop.py:1848 の loop.drift_notes）。results は印 changed を持つ dict の並び（組の子の結果・修正役の返答）"""
+    marks = [((r or {}).get("changed") or {}) for r in results]
+    notes = [str(m.get(DRIFT_NOTE) or "").strip() for m in marks]
+    return {**{k: any(m.get(k) is True for m in marks) for k in CHANGED_MARKS},
+            DRIFT_NOTE: "\n".join(dict.fromkeys(n for n in notes if n))}
+
+
+def x_scalars(results) -> dict:
+    """修正役が足した規模の数値 x_scalars（x_ で始まる名 → 数）を名ごとに足した物（組ごとの値の和。results は欄 x_scalars を持つ
+    dict の並び）。数でない値は足さずに最初の値のまま残す（独立の目が形の外の欄として名指して落とす。eyeverdict.scalars）。
+    object でない欄は読まない。無ければ {}（元 review-loop.py:2175 の p3.fix の x_scalars）"""
+    out: dict = {}
+    for r in results:
+        got = (r or {}).get(X_SCALARS)
+        for k, v in (got.items() if isinstance(got, dict) else ()):
+            num = isinstance(v, (int, float)) and not isinstance(v, bool)
+            if k not in out:
+                out[k] = v
+            elif num and isinstance(out[k], (int, float)) and not isinstance(out[k], bool):
+                out[k] = out[k] + v
+    return out
 
 
 def objection(results) -> str:
@@ -741,6 +763,8 @@ RESULT_FILE = "result.json"            # 組の子の結果 <out_dir>/<group_id>
 DEPTH_FILE = "depth.json"              # 単位ごとの深さ [{unit_id, depth, why}]（plan の返り depth の写し）
 DEPTH_RAISED_FILE = "depth-raised.json"   # 修正の後の信号で上げた深さの控え（depth.raise_doc の形。redepth が書く）
 PLAN_REPLY_FILE = "p2.fix_plan.json"   # 修正案の役の返答の写し（{"plan": [...]}。承認済みの項目の unit_keys の出どころ）
+PLAN_REVIEW_FILE = "p2.plan_review.json"   # 事前審査の返答の写し（faces・shrink。修正役の plan_faces と差分の審査の材料 out.p2.plan_review が読む。
+                                           # 修正役の指示書は修正案 PLAN_REPLY_FILE と同じフォルダに在ると書く）
 JUDGMENT_FILE = "judgment.json"        # 判定の写し
 RIPPLE_FILE = "ripple.json"            # 波及の一覧の写し
 WORLD_FILE = "world.json"              # 周りの事実の写し
@@ -931,6 +955,32 @@ def _keys_once(rows, label) -> list:
         if k in seen:
             errs.append(f"{label}[{i}] の key が重複: {str(k)[:60]}")
         seen.add(k)
+    return errs
+
+
+def plan_review_file(place):
+    """置き場の事前審査の返答の写し PLAN_REVIEW_FILE のパス（差分の審査の材料 out.p2.plan_review。無ければ None＝事前審査の無い run）"""
+    p = pathlib.Path(place) / PLAN_REVIEW_FILE
+    return p if p.is_file() else None
+
+
+def plan_face_errors(place, reply, units) -> list:
+    """修正役は事前審査の穴（faces）と別案（shrink）に key ごとに 1 度だけ答える（absorbed＝取り込んだ／declared＝残す理由）。置き場の
+    事前審査の返答の写し PLAN_REVIEW_FILE の行のうち、unit_keys が units（組の子の受け付けの直す義務の単位）に当たる行と unit_keys の
+    無い行が問う key（units が None なら全部の行。裁定の後の受け付けの返答は周の全体の欄を書く）。返答の plan_faces の重複・問いに無い key・答えの無い key を 1 行ずつ。写しが無ければ空（事前審査の無い run）。
+    元 works/.shared/core/graphloops/rules/review-loop.py:3115 の _plan_face_errors（1 つの p3.fix が全部に答えた。組に分けた修正役は
+    自分の単位の穴に答える）"""
+    rv = read_json(pathlib.Path(place) / PLAN_REVIEW_FILE)
+    if not isinstance(rv, dict):
+        return []
+    rows = [r for r in (rv.get("faces") or []) + (rv.get("shrink") or []) if isinstance(r, dict)]
+    asked = {r.get("key") for r in rows
+             if units is None or not r.get("unit_keys") or set(units) & set(r.get("unit_keys") or [])}
+    answered = [r for r in (reply or {}).get("plan_faces") or [] if isinstance(r, dict)]
+    errs = _keys_once(answered, "plan_faces")
+    errs += [f"plan_faces の key '{str(r.get('key'))[:40]}' は事前審査に無い" for r in answered if r.get("key") not in asked]
+    errs += [f"事前審査の '{str(k)[:40]}' に応答が無い——absorbed（どう取り込んだか）か declared（残す理由）で答えろ"
+             for k in sorted(asked - {r.get("key") for r in answered}, key=str)]
     return errs
 
 
@@ -1170,21 +1220,25 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 
 # ---------------------------------------------------------------- 形 group の子の run（group-start・tdd-loop・group-end の scripts が呼ぶ）
 # 子が親の置き場から自分の置き場に写す入力の写し（prep が書く物。plan-fields.json と凍結の印は adopt_inputs が別に置き直す）
-ADOPTED = (startrec.REL, JUDGMENT_FILE, *JUDGMENT_BESIDE, PLAN_REPLY_FILE, RIPPLE_FILE, WORLD_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
+ADOPTED = (startrec.REL, JUDGMENT_FILE, *JUDGMENT_BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, WORLD_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
            ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 修正の輪が許したテストの変更のパス [str]（fix-accept が書く）
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
 DROPPED_FILE = "dropped.json"           # 落ちた子の変更を戻した控え {start_tree, paths}（drop_unreturned が組の置き場に書く）
 ADOPTED_FROM = "adopted_from"           # 親の置き場に写した TDD の輪の状態の、写し元の子の状態のパスの欄（adopt_tdd_states）
+PRIOR_LOOP = "prior_pass"               # 2 回目の修正の段の置き場に写した 1 回目の段の輪の状態の印（adopt_prior_pass。新しい）
 UNIT_STATUSES = ("fixed", "given_up", "not_done")
 NO_UNIT_RESULT = "修正の輪がこの単位の結末を残さなかった"
 
 
-def adopt_inputs(parent, place) -> list:
+def adopt_inputs(parent, place, repo=None) -> list:
     """組の子の置き場 place に、親の置き場 parent の入力の写し（ADOPTED のうち在る物）を写し、凍結した修正案の欄
-    （plan-fields.json）は親の凍結の印で確かめてから planmarks.save で置き直す（子の trace に印を書く）。写した名の並びを返す。
-    親の欄の控えが印と食い違えば conflict.frozen_fields の ValueError。新しい（元に無い。今の works は 1 つの盤面を枝が共に読んだ）"""
+    （plan-fields.json）は親の凍結の印で確かめてから planmarks.save で置き直す（子の trace に印を書く）。2 回目の修正の段の親が
+    adopt_prior_pass で置いた 1 回目の段の申し出と裁定（conflict.FILE）も写し、repo（子の作業ツリー）を渡せば 1 回目の段の輪の状態
+    （PRIOR_LOOP の印つき）も子の輪の前の輪として写す（子の受け付けの凍結・事後の関門・機械の諦めが 1 回目の段を見る）。写した名の
+    並びを返す。親の欄の控えが印と食い違えば conflict.frozen_fields の ValueError。新しい（元に無い。今の works は 1 つの盤面を枝が
+    共に読んだ）"""
     import conflict
     import planmarks
     src, dst = pathlib.Path(parent), pathlib.Path(place)
@@ -1200,12 +1254,33 @@ def adopt_inputs(parent, place) -> list:
             tmp.write_bytes(p.read_bytes())
             os.replace(tmp, q)
             out.append(name)
+    if (src / conflict.FILE).is_file() and not (dst / conflict.FILE).is_file():
+        write_text(dst / conflict.FILE, (src / conflict.FILE).read_text(encoding="utf-8"))
+        out.append(conflict.FILE)
+    if repo is not None:
+        import tddloop
+        prior = [str(p) for p in tddloop.states(src) if read_json(p, {}).get(PRIOR_LOOP)]
+        out += adopt_tdd_states(dst, [{"tdd_state": p} for p in prior], repo, prior=True)
     if conflict.frozen_fields(src, 1) is not None:
         doc = read_json(marks_path(src))
         amended = doc.get(planmarks.AMENDED_KEY) if isinstance(doc, dict) else None
         planmarks.save(dst, 1, doc["fields"], {int(n): c for n, c in amended.items()} if isinstance(amended, dict) else None)
         out.append(marks_path(src).name)
     return out
+
+
+def adopt_prior_pass(place, prior, items, repo) -> dict:
+    """2 回目の修正の段（同じブロックの 2 度目の差し込み。置き場が分かれる）の置き場 place に、1 回目の段の置き場 prior（入力
+    prior_conflicts の指し札の先のフォルダ）の申し出と裁定（conflict.adopt_prior。直す項目 items の待つ行は AMENDED）と TDD の輪の
+    状態（印 PRIOR_LOOP つき。実行器は作業ツリー repo で解き直す）を写す。元は 1 つの盤面に両方の段が在り、conflict.second_pass・
+    輪をまたぐ凍結（factchecks.check_frozen）・2 回目の機械の諦め（conflict.park_claims）・事後の関門（fixgates）が 1 回目の段を見た
+    （元 works/.shared/core/conflict.py:411・works/blk-fix/lib/fixgates.py:103・works/blk-fix/lib/tddloop.py:1816）。
+    返り {rows: 写した行の id, loops: 写した状態のパス}。新しい"""
+    import conflict
+    import tddloop
+    rows = conflict.adopt_prior(place, prior, items)
+    loops = adopt_tdd_states(place, [{"tdd_state": str(p)} for p in tddloop.states(prior)], repo, prior=True)
+    return {"rows": rows, "loops": loops}
 
 
 def marks_path(place) -> pathlib.Path:
@@ -1251,7 +1326,7 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
                  reply_file: str = "", allowed=(), conflicts=(), worktree: str = "") -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
-    {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed,
+    {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
     allowed_test_changes, verified, reply_file, tdd_state, worktree}。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
     writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
@@ -1266,18 +1341,19 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "units": [_unit_row(k, fix_units or {}, rows) for k in keys], "tdd": tdd,
             "conflicts": [r for r in conflicts or [] if isinstance(r, dict)],
             "objection": objection([reply] if reply else []),
-            "changed": changed_marks([{"changed": reply}] if reply else []),
+            "changed": changed_marks([{"changed": reply}] if reply else []), X_SCALARS: x_scalars([reply] if reply else []),
             "allowed_test_changes": sorted({p for p in allowed or [] if isinstance(p, str) and p}),
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
             "worktree": str(worktree or "")}
 
 
-def adopt_tdd_states(place, results, repo) -> list:
+def adopt_tdd_states(place, results, repo, *, prior: bool = False) -> list:
     """戻せた組の子の結果 results（組の順）が名指す TDD の輪の状態（tdd_state）を、親の置き場 place の次の tdd-<k>/ に写す
     （state.json の work を写した先に、exe を親の作業ツリー repo で解き直した実行器に替え、輪の要約 summary.md も写す。
     並べた子の exe は子の作業ツリーの中を指し、自分の置き場から根を引く実行器だと親の試験を子の木で走らせるため）。写した状態は tddloop.states(place) に run の全部の輪として
     載り、裁定の後の修正の受け付けが凍結・範囲・変更に当たる試験に使う（ruled_states）。もう写した子の状態（状態の
-    ADOPTED_FROM）は写し直さない。写した状態のパスを返す。新しい（元は 1 つの盤面に輪の状態が在った）"""
+    ADOPTED_FROM）は写し直さない。prior が真なら写した状態に印 PRIOR_LOOP を置く（1 回目の修正の段の輪。ruled_states が今の段の輪から
+    外す）。写した状態のパスを返す。新しい（元は 1 つの盤面に輪の状態が在った）"""
     import tddloop
     place = pathlib.Path(place)
     have = {str(read_json(p, {}).get(ADOPTED_FROM) or "") for p in tddloop.states(place)}
@@ -1292,7 +1368,7 @@ def adopt_tdd_states(place, results, repo) -> list:
         dst = place / f"tdd-{k}"
         st = read_json(pathlib.Path(src))
         write_json(dst / tddloop.STATE, {**st, "work": str(dst), "exe": str(tddloop.exe_path(repo, st["suite"])),
-                                         ADOPTED_FROM: src})
+                                         ADOPTED_FROM: src, **({PRIOR_LOOP: True} if prior else {})})
         summary = pathlib.Path(src).parent / tddloop.SUMMARY
         if summary.is_file():
             write_text(dst / tddloop.SUMMARY, summary.read_text(encoding="utf-8"))
@@ -1301,11 +1377,12 @@ def adopt_tdd_states(place, results, repo) -> list:
 
 
 def ruled_states(place) -> tuple:
-    """裁定の後の修正の受け付けに渡す (今の輪の状態, 変更に当たる試験の輪の状態)。置き場の輪（adopt_tdd_states が写した組ごとの輪）が
+    """裁定の後の修正の受け付けに渡す (今の輪の状態, 変更に当たる試験の輪の状態)。1 回目の段の輪（PRIOR_LOOP）は数えない（凍結の検査は
+    前の輪として見る。factchecks.check_frozen）。置き場の輪（adopt_tdd_states が写した組ごとの輪）が
     1 つならそれを今の輪に（元の 1 つの輪の run と同じ）。幾つも在れば今の輪は無し（どの輪も同じ段に並んで走ったので、凍結は全部の輪を
     輪の後の木で見る。factchecks.check_frozen）、試験は最後の輪の実行器で走らせる。無ければ ("", "")"""
     import tddloop
-    loops = [str(p) for p in tddloop.states(place)]
+    loops = [str(p) for p in tddloop.states(place) if not read_json(p, {}).get(PRIOR_LOOP)]
     if len(loops) == 1:
         return loops[0], loops[0]
     return "", loops[-1] if loops else ""
@@ -1361,6 +1438,7 @@ FIX_CHECKS = {
     "tests": "変更に当たる試験の赤",
     "gates": "事後の関門の束",
     "copy": "数え直しの受け付け",
+    "plan_faces": "修正案の事前審査への応答",
 }
 FIX_REJECT_HEAD = ("受け付けは確かめを全部回した。見出しごとに並べた行を全部直した返答を丸ごと出し直せ（直した所だけを返すな。"
                    "1 回の出し直しで全部を直せ）:")   # 元 accept.py:195
@@ -1465,7 +1543,7 @@ def undeclared_refix(reply: dict, repo, tree: str, *, skip=()) -> list:
 
 def reply_marks(reply, before=None) -> dict:
     """返答 reply に、修正役の 6 つの印（CHANGED_MARKS）を前の控え before（同じ形の dict か None）の印と論理和で重ね、異議
-    rejudge_requested を前の物とつないだ dict（fix-reply.json・fix-ruled-reply.json の中身）"""
+    rejudge_requested と前提のずれの申告の文 DRIFT_NOTE を前の物とつないだ dict（fix-reply.json・fix-ruled-reply.json の中身）"""
     out = dict(reply or {})
     prev = before if isinstance(before, dict) else {}
     for k in CHANGED_MARKS:
@@ -1474,7 +1552,9 @@ def reply_marks(reply, before=None) -> dict:
             if isinstance(v, str) and v.strip()]
     if asks:
         out["rejudge_requested"] = "\n".join(dict.fromkeys(asks))
-    out["changed"] = {k: out[k] for k in CHANGED_MARKS}
+    notes = [str(v).strip() for v in (prev.get(DRIFT_NOTE), out.get(DRIFT_NOTE)) if isinstance(v, str) and v.strip()]
+    out[DRIFT_NOTE] = "\n".join(dict.fromkeys(notes))
+    out["changed"] = {**{k: out[k] for k in CHANGED_MARKS}, DRIFT_NOTE: out[DRIFT_NOTE]}
     return out
 
 
@@ -1703,6 +1783,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         duty, excused = fix_duty(place, owed)
     red, _ = tddloop.selected_problems(state or tests_state, repo, rev)
     note("tests", red)
+    note("plan_faces", plan_face_errors(place, reply, duty if pass_ == "first" else None))
     gates = fixgates.problems(place, repo, rev, suite, iteration, pass_=pass_, owed=set(duty))
     note("gates", fixgates.reject_lines(gates) if gates else [])
     shaped, closure, zero = closure_reply(reply, place, repo, rev, judged)
@@ -1831,13 +1912,15 @@ def gate_asks(place) -> tuple:
     return gatemarks.withheld_by(view), gatemarks.returned(view)
 
 
-def write_notes(place) -> str:
-    """修正前の関所の一言と、答えで直す義務に戻った単位の行（gatemarks.returned_lines）を置き場の NOTES_FILE に書き、パスを返す。
-    どちらも無ければ書かずに ""。元 works/darkfactory/lib/line_edge.py:1218 の h-fix の notes_file"""
+def write_notes(place, machine: str = "") -> str:
+    """修正前の関所の一言と、答えで直す義務に戻った単位の行（gatemarks.returned_lines）と、機械の申し送り machine（2 度目の修正の
+    段に線が渡す、採った項目の事前審査の穴のうち人に聞く種類でない物の節。元 replan._notes の FACES_HEAD の節）を置き場の NOTES_FILE
+    に書き、パスを返す。どれも無ければ書かずに ""。元 works/darkfactory/lib/line_edge.py:1218 の h-fix の notes_file と
+    works/.shared/core/replan.py:677 の notes_file"""
     import gatemarks
     view = gate_view(place)
     said = [h["note"] for h in view.record["process"]["human_items"] if h["note"]]
-    notes = "\n".join([*said, *gatemarks.returned_lines(view)])
+    notes = "\n".join([*said, *gatemarks.returned_lines(view), *([machine.strip()] if machine.strip() else [])])
     if not notes:
         return ""
     return str(write_text(pathlib.Path(place) / NOTES_FILE, notes))

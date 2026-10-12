@@ -114,9 +114,9 @@ def final_needs(got: dict) -> list:
 
 
 def left_objection(got: dict) -> str:
-    """止めずに残った異議（再審が採らなかった 1 回目の異議と、再審の後の 2 度目の修正の異議）。無ければ空"""
-    left = [got["objection"] if got["objection"] and got["rejudge_verdict"] != "採る" else "", got["refix_objection"]]
-    return "／".join(o for o in left if o)
+    """止めずに残った異議（再審が採らなかった修正役の異議。線の fixed の objection は 1 回目と 2 度目の修正の異議をつないだ文で、
+    再審は 2 度目の修正の後に両方を受ける）。無ければ空"""
+    return got["objection"] if got["objection"] and got["rejudge_verdict"] != "採る" else ""
 
 
 def final_head(got: dict, why: list) -> list:
@@ -415,7 +415,7 @@ def judged_returns(raw: dict) -> dict:
     rejudge = ({"units": raw["units"], "judgment": path_of(raw["judgment"]), "rejudge_verdict": raw["rejudge_verdict"]}
                if raw["rejudged"] else None)
     return {"judge": {"units": raw["first_units"], "judgment": path_of(raw["ties_judgment"])}, "rejudge": rejudge,
-            "fix": {"objection": raw["objection"], "refix_objection": raw["refix_objection"], "units": raw["fix_units"],
+            "fix": {"objection": raw["objection"], "units": raw["fix_units"],
                     "groups": raw["groups"]}}
 
 
@@ -457,7 +457,6 @@ def got_of_env() -> dict:
            "judgment": env("JUDGMENT"), "ties_judgment": env("TIES_JUDGMENT"), "rejudged": linekit.flag(os.environ.get("INPUTS_REJUDGED")),
            "rejudge_verdict": linekit.text(os.environ.get("INPUTS_REJUDGE_VERDICT")),
            "objection": linekit.text(os.environ.get("INPUTS_OBJECTION")),
-           "refix_objection": linekit.text(os.environ.get("INPUTS_REFIX_OBJECTION")),
            "fix_units": linekit.items(os.environ.get("INPUTS_FIX_UNITS")), "groups": linekit.items(os.environ.get("INPUTS_GROUPS"))}
     returns = judged_returns(raw)
     return {
@@ -477,7 +476,6 @@ def got_of_env() -> dict:
         },
         "questions": [q for q in linekit.items(os.environ.get("INPUTS_QUESTIONS")) if isinstance(q, str)],
         "objection": raw["objection"],
-        "refix_objection": raw["refix_objection"],
         "rejudge_verdict": raw["rejudge_verdict"],
         "rejudge": rejudge_rows(returns),
         "split": runreport.split_line(returns),

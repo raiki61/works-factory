@@ -36,5 +36,6 @@ fix:
   objection: ""
   diff: {type: archon_artifact, run_id: r, path: fix/fix/diff.patch}
   allowed_test_changes: []
-  changed: {mechanism_changed: false, premise_drift: false, gates_changed: false, seams_changed: false, security_surface_changed: false, path_changed: false}
+  changed: {mechanism_changed: false, premise_drift: false, gates_changed: false, seams_changed: false, security_surface_changed: false, path_changed: false, premise_drift_note: ""}
+  x_scalars: {}
   delta_review: {rounds: 0, pass: true}

@@ -433,12 +433,6 @@ def _rejudge(returns: dict) -> tuple[str, str]:
     return (verdict if isinstance(verdict, str) else "", report._one_line(objection) if isinstance(objection, str) else "")
 
 
-def _refix_objection(returns: dict) -> str:
-    """2 度目の修正の修正役の異議の文（線の節 fixed の refix_objection）。再審は 2 度目の修正の前に走るので、いつも再審されずに残る"""
-    objection = as_dict(returns.get("fix")).get("refix_objection")
-    return report._one_line(objection) if isinstance(objection, str) else ""
-
-
 def _judgment_units(ret) -> dict:
     """段の返りの judgment の指し札の先（今の works の judgment.json）の units {key: 単位}。指し札が無い・読めなければ空"""
     p = as_dict(ret).get("judgment")
@@ -514,10 +508,10 @@ def rejudge_changes(returns: dict) -> list:
 
 def rejudge_lines(returns: dict) -> list:
     """決着した再審の結果の行（元 report.rejudge_lines・_settled_rounds。再審の judgment の隣の rejudge-exit.json の往復の数と答えの
-    並び・異議の文、再審が直す単位にした単位と block から下げた単位）と、再審されずに残った異議（2 度目の修正の異議も）。出口が
+    並び・異議の文、再審が直す単位にした単位と block から下げた単位）と、再審されずに残った異議（線の fixed の objection は 1 回目と 2 度目の修正の異議をつないだ文）。出口が
     読めない再審は 1 行で名指す"""
     verdict, objection = _rejudge(returns)
-    left = [f"再審されずに残った異議: {o}" for o in ("" if verdict else objection, _refix_objection(returns)) if o]
+    left = [f"再審されずに残った異議: {objection}"] if objection and not verdict else []
     if not isinstance(returns.get("rejudge"), dict):
         return left
     doc, why = _rejudge_exit(returns)
@@ -569,8 +563,6 @@ def next_request(returns: dict, left: list, closed: bool = True) -> list:
         items.append({"where": report.REJUDGE_WHERE, "text": f"再審: {verdict}" + (f"（異議: {objection}）" if objection else "")})
     elif objection:
         items.append({"where": REJUDGE_LEFT_WHERE, "text": objection})
-    if _refix_objection(returns):
-        items.append({"where": REJUDGE_LEFT_WHERE, "text": _refix_objection(returns)})
     items += [{"where": k, "text": f"{k}（再審が直す単位にした——この run では直していない）"} for k in rejudge_opened(returns)]
     items += [{"where": k, "text": f"{k}（再審が block から {label} に下げた——人が確かめる）"} for k, label in rejudge_lowered(returns)]
     items += asked

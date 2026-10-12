@@ -38,7 +38,7 @@ def main() -> dict:
     place, repo = fixio.place(), fixio.repo()
     prompt = place / (fixrules.PROMPT_NAME[:-len(".md")] + fixrules.RULED_TAIL)
     n = fixrules.iteration_next(prompt)
-    if not conflict.ruled_fix(place):
+    if not [r for r in conflict.ruled_fix(place) if not r.get(conflict.PRIOR)]:   # 1 回目の段の裁定（2 回目の段が写した行）は直し直さない
         return {"prompt_file": "", "go": False, "iteration": n}
     if not (place / fixboard.RULED_HEAD_FILE).is_file():
         fixboard.write_json(place / fixboard.RULED_HEAD_FILE, {"tree": groups.end_tree(repo)})

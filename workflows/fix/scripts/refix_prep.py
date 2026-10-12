@@ -45,7 +45,7 @@ def main() -> None:
         fixboard.write_json(head, {"tree": groups.end_tree(fixio.repo())})
     start = startrec.read(place)
     fix_reply = place / fixboard.FIX_REPLY_FILE
-    got = fixboard.prep_fix(place, N, items=functools.partial(fixboard.place_items, place), plan_review=None,
+    got = fixboard.prep_fix(place, N, items=functools.partial(fixboard.place_items, place), plan_review=fixboard.plan_review_file(place),
                             fix_reply=fix_reply if fix_reply.is_file() else None, policy=fixboard.policy_brief(start))
     if not got["ok"]:
         raise ValueError(got["reason"])

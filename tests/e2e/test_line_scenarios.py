@@ -171,9 +171,12 @@ def bound(trace: dict, value):
     返りは trace に include の id の行が無いので、受け皿 `<id>-out` の got から読む）"""
     if isinstance(value, dict) and "from" in value:
         node = value["from"].split(".", 1)[0].lstrip("$")
+        node = node if node in trace else f"{node}-out"   # 差し込んだブロックは受け皿の行で見る
         if node not in trace or trace[node]["state"] == "skipped":
             return value.get("if_skipped")
         value = value["from"]
+    if isinstance(value, str) and value.startswith("$") and value.endswith(".output") and value[1:-len(".output")] in trace:
+        return trace[value[1:-len(".output")]].get("output")   # 節の出力の丸ごと（関所の答えの字）
     if not (isinstance(value, str) and value.startswith("$") and ".output." in value):
         return value
     node, field = value[1:].split(".output.", 1)
@@ -235,6 +238,53 @@ class ConflictGateTest(unittest.TestCase):
         self.assertIn("食い違いの申し出を人に回した（1 件）", got["text"].splitlines()[0])
         self.assertIn("- u1: 裁定の文 2（ask_human）（名指し stats.py:3, test_stats.py:2・種類 needs_context・", got["text"])
         self.assertNotIn("裁定の文 1", got["text"])
+
+
+class RefixInputsTest(unittest.TestCase):
+    """部分 D1 の受け入れ: 筋書き replan で 2 度目の修正（refix-run）に 1 回目の申し出と裁定（prior_conflicts）・案の直しの事前審査の
+    返り（plan_review）・機械の申し送り（notes）・直す項目の JSON の配列（only_items。S44）が届き、筋書き standard で独立の目に
+    修正役の規模の数値（x_scalars）が届く。dry-run は include の入力を名前の script に渡さず（docs/design.md の U3。止めた Archon の
+    packages/workflows/src/dry-run.ts 757-766 行）、resolved-text-contains は script の節の with: を写さないので、筋書きが include の
+    with: に結んだ値を trace から引いて照らす。notes は dry-run が置き場にファイルを置けないので、筋書きが answer-replan に結んだ値の
+    まま script を走らせ直し、指し札の先に事前審査の返りと修正案の役の返答を置いて照らす"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.traces = line_traces(("replan", "standard"))
+        cls.nodes = {n["id"]: n for n in yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]}
+
+    def stub(self, scenario: str, node: str):
+        doc = yaml.safe_load((archon.WORKFLOWS / "line" / "fixtures" / f"{scenario}.stubs.yaml").read_text(encoding="utf-8"))
+        return doc[node]
+
+    def test_refix_gets_the_first_conflicts_the_replan_review_and_the_items(self):
+        trace, with_ = self.traces["replan"], self.nodes["refix-run"]["with"]
+        self.assertEqual(bound(trace, with_["prior_conflicts"]), self.stub("replan", "fix__fix")["conflicts"])
+        self.assertEqual(bound(trace, with_["plan_review"]), self.stub("replan", "replan-review__review")["review"])
+        self.assertEqual(bound(trace, with_["only_items"]), ["1"])
+        notes = bound(trace, with_["notes"])
+        self.assertTrue(isinstance(notes, str) and notes, notes)   # 筋書きの中では事前審査の返りが読めず、訳の 1 行
+
+    def test_refix_notes_carry_the_replan_review_faces(self):
+        trace = self.traces["replan"]
+        review = bound(trace, self.nodes["answer-replan"]["with"]["review"])
+        plan = bound(trace, self.nodes["answer-replan"]["with"]["plan"])
+        with tempfile.TemporaryDirectory() as tmp:
+            art = pathlib.Path(tmp)
+            (art / review["path"]).parent.mkdir(parents=True, exist_ok=True)
+            (art / review["path"]).write_text(json.dumps({"faces": [
+                {"key": "穴-空の列", "kind": "contract_drift", "where": "stats.py", "why": "空の列で割れる", "unit_keys": ["u1"]}]},
+                ensure_ascii=False), encoding="utf-8")
+            (art / plan["path"]).parent.mkdir(parents=True, exist_ok=True)
+            (art / plan["path"]).parent.joinpath("p2.fix_plan.json").write_text(json.dumps({"plan": [{"unit_keys": ["u1"]}]}),
+                                                                                encoding="utf-8")
+            got = rerun(trace, "answer-replan", art, review["run_id"])
+        self.assertIn("## 直した項目 1（単位 u1）の事前審査の穴\n\n- [contract_drift] 穴-空の列（stats.py）: 空の列で割れる",
+                      got["fix_notes"])
+
+    def test_eyes_get_the_fix_x_scalars(self):
+        trace = self.traces["standard"]
+        self.assertEqual(bound(trace, self.nodes["eyes"]["with"]["x_scalars"]), {"x_moved_lines": 3})
 
 
 class ReportOutcomeTest(unittest.TestCase):

@@ -53,7 +53,10 @@
 - human_lines(b): 最後の関所と報告に載せる ask_human の行（諦めた fix_plan_item の行も。案の直しの理由を末尾に添える）
 - 案の直しの状態（依頼 226。裁定 fix_plan_item の行の欄 REPLAN_STATE）: apply_rulings が WAITING に置き、set_replan の 1 か所だけが
   AMENDED（項目を直した。held_by_rulings が外さず直す義務に戻す）か GAVE_UP（諦めた。asked に入り ask_human の行として並ぶ）に
-  移す（trace の行 REPLAN_OP）。読む口は replan_state(row)・waiting(b)・amended_keys(b)
+  移す（trace の行 REPLAN_OP）。読む口は replan_state(row)・waiting(b)・amended_keys(b)・plan_items(row)（行の案の項目の番号の字）
+- 2 回目の修正の段（同じブロックの 2 度目の差し込み。置き場が分かれる）は、1 回目の段の行を adopt_prior(b, prior, items) で自分の
+  置き場に写して読む（元は 1 つの盤面に両方の段の行が在った。second_pass・amended_rows_by_unit・test_permits・write_rulings が
+  1 回目の裁定と案を直した行を見る）。写した行は印 PRIOR を持ち、this_pass(b) はそれを外した今の段の行（組の子の結果に載せる行）
 - 1 回目に受け付けた返答の控え（HELD_REPLY。待つ単位が在る間、受け付けが盤面に渡さずに置いた返答で、役の bash_writes を残す）:
   held_reply(b)（置き場の控え）・accepted_units(b)（fixboard.fix_duty が直す義務から外す）・held_writes(b)・
   with_held(b, reply, as_handed=)（2 回目の返答に単位ごとに合わせる）・handed(held)（盤面に渡す形）。控えの changes は役が書いた形
@@ -165,6 +168,7 @@ LATE_REPLAN_PROMISE = ("案の項目そのものが誤りと裁いたが、こ�
                        "行にし、最後の人の関所で人が決める。changes に書くな。この段までに直した項目の単位の直しは作業ツリーに"
                        "そのまま残す（戻すな・触るな。最後の人の関所で人が見る）")   # 2 回目の修正の段で新しく fix_plan_item と裁いた行（状態 WAITING）の約束（write_rulings）
 _HELD_ROWS = ("changes", "not_done")    # 控えと返答を単位で合わせる欄
+PRIOR = "prior_pass"                    # 2 回目の修正の段の置き場に写した 1 回目の段の行の印（adopt_prior が置く。新しい）
 
 ITEM_SCHEMA = {
     "type": "object",
@@ -406,6 +410,35 @@ def waiting(b) -> list:
     return [i for i in items(b) if replan_state(i) == WAITING]
 
 
+def plan_items(row) -> list:
+    """裁定 fix_plan_item の行の案の項目の番号の字（裁定の欄 PLAN_ITEMS。前の形の行は行の欄。無ければ空）"""
+    nums = (row.get("ruling") or {}).get(PLAN_ITEMS) or row.get(PLAN_ITEMS) or []
+    return [str(n) for n in nums]
+
+
+def this_pass(b) -> list:
+    """今の段の行（adopt_prior が写した 1 回目の段の行 PRIOR を外す）"""
+    return [i for i in items(b) if not i.get(PRIOR)]
+
+
+def adopt_prior(b, prior, todo) -> list:
+    """2 回目の修正の段の置き場 b に、1 回目の段の置き場 prior の申し出と裁定の行を印 PRIOR つきで写し（元 conflict.py:411 の
+    second_pass が 1 つの盤面で 1 回目の行を見た形）、案の直しを待つ行（WAITING）のうち 2 回目の段が直す計画の項目 todo（項目の
+    番号の字）に載る行を AMENDED へ移す（set_replan。元 replan.answer が採った項目の行を移した所）。項目の番号を持たない行（組の
+    項目から数えた行）は todo が空でなければ移す。b に行が在れば写さない（再開で 2 度写さない）。prior に FILE が無ければ何もしない。
+    写した行の id を返す。prior の FILE が読めなければ ValueError"""
+    if _path(b).is_file() or not _path(prior).is_file():
+        return []
+    rows = [{**r, PRIOR: True} for r in _load(prior)["items"]]
+    _save(b, {"items": rows})
+    want = {str(n) for n in todo or []}
+    moved = [r["id"] for r in rows if replan_state(r) == WAITING and want
+             and (not plan_items(r) or want & set(plan_items(r)))]
+    if moved:
+        set_replan(b, moved, AMENDED)
+    return [r["id"] for r in rows]
+
+
 def second_pass(b) -> bool:
     """今の周が 2 回目の修正の段か: 今の周の裁定の行に案を直した行（状態 AMENDED）が 1 つでも在る（案を直して直す義務に戻った
     単位を直すのは 2 回目の修正の段だけ。1 回目の段の行は WAITING か裁定が fix_plan_item でない）"""
@@ -549,7 +582,10 @@ def park(b, rows, *, source: str, ruling: dict | None = None, round_: int = 1) -
         if same is not None:
             ids.append(same["id"])
             continue
-        row = {"id": f"c{round_}-{len(doc['items']) + 1}", "round": round_, "source": source, **body,
+        n, taken = len(doc["items"]) + 1, {r.get("id") for r in doc["items"]}
+        while f"c{round_}-{n}" in taken:   # 写した 1 回目の段の行（adopt_prior）の id と重ねない
+            n += 1
+        row = {"id": f"c{round_}-{n}", "round": round_, "source": source, **body,
                **({CORRECT: list(it[CORRECT])} if it.get(CORRECT) else {}),
                "status": "ruled" if ruling else "parked", "ruling": ruling}
         doc["items"].append(row)

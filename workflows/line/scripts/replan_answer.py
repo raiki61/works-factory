@@ -11,13 +11,26 @@
 答え {decision, text, asked} の asked は案の直しの関所に見せた項目の行（ask-replan の asked。「項目 <id>: …」の行で、報告と最後の関所が
 項目ごとに人が承認したかを読む。lib/replan.amend_lines）。
 
-入力（with:）: gate_answer の入力と before_fix（修正前の関所の答え）・asked（関所に見せた項目の行）
+fix_notes は 2 度目の修正に渡す機械の申し送り（元 replan._notes の 3 つ目の節。fix の入力 notes）: 採った項目（2 度目の修正が走る
+時は直した項目の全部。関所の答えは 1 つの語で聞いた項目の全部に効く）ごとに、案の直しの事前審査の返り review の穴のうち人に聞く種類
+（lib/boardview.py の HUMAN_FACE_KINDS）でない物を lib/replan.fix_notes の見出しの下に並べる。人の答え fix_answers には混ぜない。
+事前審査が飛ばされた・読めない時は訳を 1 行（replan.NO_REVIEW_WHY）。止める答えの時は ""。
+
+入力（with:）: gate_answer の入力と before_fix（修正前の関所の答え）・asked（関所に見せた項目の行）・review（replan-review の review。
+`{from, if_skipped: null}`）・plan（案の直しの修正案の指し札。項目の単位を隣の修正案の役の返答から引く）・items（直した項目の id）
 """
+import json
 import os
 from pathlib import Path
 
 import gate_answer
 import linekit
+from linekit import boundary
+
+with linekit.guarded_imports():
+    import boardview
+    import planfile
+    import replan
 
 FIX_NOTES_HEAD = "## 修正前の関所（gate-before-fix）で人が答えた条件（1 回目の修正の段と同じく、この段にも効く）"   # 元 replan.FIX_NOTES_HEAD
 NOTE_HEAD = "## 人の一言（関所 gate-replan）"   # 元 replan.NOTE_HEAD
@@ -38,17 +51,35 @@ def fix_answers(before_fix, replan) -> dict | None:
     return {"decision": answered[-1]["decision"], "text": "\n".join(parts), "asked": asked if isinstance(asked, list) else []}
 
 
-def answer(gate_raw, go_raw, stop_raw, before_fix_raw, place: str, artifacts: Path, asked_raw=None) -> dict:
+def fix_notes(review_raw, plan_raw, items_raw) -> str:
+    """2 度目の修正に渡す機械の申し送り（replan.fix_notes）。事前審査の返りが無い・読めない時は訳の 1 行"""
+    review = linekit.value(review_raw)
+    try:
+        if review is None:
+            raise ValueError("案の直しの事前審査が飛ばされた（返りが無い）")
+        doc = json.loads(boundary.resolve(review).read_text(encoding="utf-8"))
+        ptr = linekit.value(plan_raw)
+        reply = boundary.resolve(ptr).parent / planfile.FIX_PLAN_FILE if ptr is not None else None
+        plan = json.loads(reply.read_text(encoding="utf-8")) if reply is not None and reply.is_file() else None
+    except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
+        return replan.NO_REVIEW_WHY.format(why=" ".join(f"{type(error).__name__}: {error}".split()))
+    return replan.fix_notes(doc if isinstance(doc, dict) else {}, plan, linekit.items(items_raw), boardview.HUMAN_FACE_KINDS)
+
+
+def answer(gate_raw, go_raw, stop_raw, before_fix_raw, place: str, artifacts: Path, asked_raw=None, review_raw=None, plan_raw=None,
+           items_raw=None) -> dict:
     got = gate_answer.answer(gate_raw, go_raw, stop_raw, place, artifacts, asked_raw)
-    return {**got, "fix_answers": fix_answers(linekit.value(before_fix_raw), got["answer"])}
+    return {**got, "fix_answers": fix_answers(linekit.value(before_fix_raw), got["answer"]),
+            "fix_notes": fix_notes(review_raw, plan_raw, items_raw) if got["go"] else ""}
 
 
 def fallback(reason: str) -> dict:
-    return {**gate_answer.fallback(reason), "fix_answers": None}
+    return {**gate_answer.fallback(reason), "fix_answers": None, "fix_notes": ""}
 
 
 if __name__ == "__main__":
     linekit.run(lambda: answer(os.environ.get("INPUTS_GATE"), os.environ.get("INPUTS_GO"), os.environ.get("INPUTS_STOP_REASON"),
                                os.environ.get("INPUTS_BEFORE_FIX"), os.environ["INPUTS_PLACE"], Path(os.environ["ARTIFACTS_DIR"]),
-                               os.environ.get("INPUTS_ASKED")),
+                               os.environ.get("INPUTS_ASKED"), os.environ.get("INPUTS_REVIEW"), os.environ.get("INPUTS_PLAN"),
+                               os.environ.get("INPUTS_ITEMS")),
                 fallback)
