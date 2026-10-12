@@ -1328,6 +1328,92 @@ class DeltaSeamCase(TempCase):
         self.assertIn("日本語", fixboard.lang_line({"lang": "日本語"}))
         self.assertIn(fixboard.LANG_DEFAULT, fixboard.lang_line({}))
 
+    def test_delta_review_rejects_every_plan_only_kind(self):
+        """差分の審査の穴の kind が事前審査だけの語なら 1 行で拒む: regression・policy は後の工程が人に聞く、precedent は判定者の
+        先行例が渡っていない（元 review-loop.py:3152-3160 の HUMAN_FACE_KINDS・PLAN_ONLY_FACE_KINDS。元の試験
+        works/tests/test_blk_tests_delta.py:683 test_review_policy_kind_rejected）"""
+        fixboard.write_json(fixboard.loop_file(self.place, "fix_delta"), {"file": "", "files": ["stats.py"]})
+        face = {"key": self.FACE, "kind": "contract_drift", "where": "stats.py", "cite": "def mean(xs):", "why": "w" * 20}
+        self.assertEqual(fixboard.delta_review_problems(self.place, 1, {"faces": [face], "checks": []}, self.repo), [])
+        for kind, why in (("regression", "後の工程が人に聞く"), ("policy", "後の工程が人に聞く"), ("precedent", "先行例")):
+            with self.subTest(kind):
+                got = fixboard.delta_review_problems(self.place, 1, {"faces": [{**face, "kind": kind}], "checks": []},
+                                                     self.repo)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(f"'{kind}' は事前審査だけの語", got[0])
+                self.assertIn(why, got[0])
+
+    def test_redepth_raises_on_parked_given_up_unanswered_and_broken_store(self):
+        """修正の後の信号のうち、受け付けが最後の回に止めた単位（trace の conflict.ACCEPT_PARKED_OP）・組の結末 given_up（join.json）・
+        答えていない修正前の関所の問い（gatemarks.pending）・読めない食い違いの控えで、軽量の単位を標準へ上げて審査を省かない
+        （元 works/darkfactory/lib/depth.py:268 の signals。元の試験 works/tests/test_depth.py の BoardReadCase の
+        test_signals_conflicts_and_parked・test_signals_broken_conflicts_raise_all・test_signals_unanswered_questions_raise_all）"""
+        import conflict
+        import depth
+        light = [{"unit_id": "a", "depth": depth.LIGHT, "why": "x"}, {"unit_id": "b", "depth": depth.LIGHT, "why": "y"}]
+        fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "out_dir": str(self.place / "groups"),
+                                                                "start_tree": leftovers.snapshot(self.repo)})
+
+        def raised(why_part, units=("a", "b")):
+            fixboard.write_json(self.place / fixboard.DEPTH_FILE, light)
+            self.assertEqual(fixboard.redepth(self.place, self.repo), "")
+            doc = fixboard.read_json(self.place / fixboard.DEPTH_RAISED_FILE)
+            for k in ("a", "b"):
+                want = depth.STANDARD if k in units else depth.LIGHT
+                self.assertEqual(doc["units"][k]["depth"], want, (why_part, k, doc))
+            for k in units:
+                self.assertTrue(any(why_part in w for w in doc["units"][k]["why"]), doc)
+
+        fixboard.write_json(self.place / fixboard.DEPTH_FILE, light)
+        self.assertTrue(fixboard.redepth(self.place, self.repo).startswith("軽量で省いた"), "信号が無ければ省く")
+        fixboard.trace(self.place, conflict.ACCEPT_PARKED_OP, unit_keys=["a"])
+        raised("最後の回に止めた", units=("a",))
+        (self.place / "trace.jsonl").unlink()
+        fixboard.write_json(self.place / fixboard.JOIN_FILE, {"groups": [], "units": [
+            {"unit_id": "b", "group_id": "g1", "status": "given_up", "reason": "3 回目の拒否で諦めた"}]})
+        raised("最後の回に止めた", units=("b",))
+        (self.place / fixboard.JOIN_FILE).unlink()
+        fixboard.write_json(self.place / fixboard.JUDGMENT_FILE, {"units": [], "questions": [
+            {"key": "q1", "kind": "fork", "status": "held", "origin": "zz", "reason": "決まらない"}]})
+        raised("答えていない問い q1")
+        (self.place / fixboard.JUDGMENT_FILE).unlink()
+        (self.place / conflict.FILE).write_text("{壊れた", encoding="utf-8")
+        raised("食い違いの控えが読めない")
+
+    def test_refix_prompt_names_the_policy_and_ends_with_the_language_line(self):
+        """手直しの役の指示書の並び: 1 行目の機械の頭 → 前の回の拒否の 1 行 → 始めの記録の 2 行 → 役の頭（人の方針の文書の置き場を
+        名指す）→ 書く役の決まりの正本（申し出の決まりは載せない）→ 読み替え → 手直しだけの決まり → receiving-code-review の座 →
+        返す形 → 返答の後に当たる物 → 末尾に言語の 1 行。1 回目の役の頭だけが plan_items・compliance・ruled_paths を読ませる
+        （元 works/blk-refix/lib/refixrules.py:36 の parts と、元の試験 works/tests/test_blk_refix.py:613
+        test_refix_head_names_plan_items_and_compliance）"""
+        import fixrules
+        import refixrules
+        import rulebook
+        real = rulebook.sections(LIB.parent / "workflows" / "fix" / "commands" / "fix-rules" / "refix.md")
+        for w in ("`plan_items`", "`compliance`", "`ruled_paths`"):
+            self.assertIn(w, real["refix-head-1"])
+            self.assertNotIn(w, real["refix-head-2"])
+        rules, canon = self.tmp / "refix.md", self.tmp / "common.md"
+        rules.write_text("".join(f"<!-- 節 {s} -->\n{s} の本文 方針 <<policy_path>>\n" if s.startswith("refix-head") else
+                                 f"<!-- 節 {s} -->\n{s} の本文\n"
+                                 for s in ("refix-head-1", "refix-head-2", "refix-remap", "refix-keep", "refix-reply",
+                                           "refix-tail-1", "refix-tail-2")), encoding="utf-8")
+        canon.write_text("<!-- 節 core-fix -->\n直し方\n<!-- 節 core-conflict -->\n申し出\n", encoding="utf-8")
+        values = {"brief_file": "/b.json", "diff_file": "/d.patch", "policy_path": "/frozen/policy.md",
+                  "request_file": "/req.md"}
+        with mock.patch.object(refixrules, "RULES", rules), mock.patch.object(rulebook, "CANON", canon):
+            text = fixboard.refix_prompt(1, values, reject_file="/r.md", iteration=2, lang="言語の 1 行")
+        lines = text.splitlines()
+        self.assertTrue(lines[0].startswith(rulebook.HEADER.split("{")[0]), lines[0])
+        self.assertEqual(lines[1], fixboard.REJECT_LINE.format(path="/r.md"), "前の回の拒否は頭の次の 1 行目で名指す")
+        self.assertEqual(lines[-1], "言語の 1 行", "指示書の末尾は言語の 1 行")
+        self.assertIn("refix-head-1 の本文 方針 `/frozen/policy.md`", text)
+        marks = [*fixrules.start_lines(values), "refix-head-1 の本文", "直し方", "refix-remap の本文", "refix-keep の本文",
+                 "`receiving-code-review`", "refix-reply の本文", "refix-tail-1 の本文", "言語の 1 行"]
+        at = [text.index(m) for m in marks]
+        self.assertEqual(at, sorted(at), list(zip(marks, at)))
+        self.assertNotIn("\n申し出\n", text)
+
 
 
 
