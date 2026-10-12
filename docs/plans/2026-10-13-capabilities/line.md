@@ -799,13 +799,13 @@
 - L-W19 修正役が事前審査の返答（faces・shrink）に plan_faces で key ごとに 1 度だけ答え、答えない key を機械が拒む。差分の審査役も out.p2.plan_review を受ける
   - 元: works/.shared/core/graphloops/rules/review-loop.py:3115-3128 `_plan_face_errors`（呼び元 :2803）、works/.shared/core/graphloops/graphs/review-loop.json:4163（p3.delta_review の inputs）、works/blk-delta/commands/delta-review.md:8
   - 今: fix の入力 plan_review（線の fix に `$plan-rounds.output.review`、refix-run に `$replan-review.output.review`）。prep が置き場の p2.plan_review.json に写し（組の子も写す）、受け付け（lib/fixboard.py の accept_reply の plan_faces の照らし plan_face_errors）が答えの無い key・事前審査に無い key・重複を拒む。差分の審査の材料（delta_cut.py・refix_prep.py・refix2_prep.py が fixboard.plan_review_file を渡す）の out.p2.plan_review が埋まる。指示書 direct.md は元の字
-  - 証: tests/workflows/test_fix.py::FixAcceptCase.test_unanswered_plan_face_is_rejected・DeltaScriptsCase.test_delta_cut_passes_the_plan_review_to_the_brief・InputsCase.test_plan_review_is_an_input・ShapeCase.test_direct_rules_are_the_original_with_only_the_allowed_edits
+  - 証: tests/workflows/test_fix.py::FixAcceptCase.test_unanswered_plan_face_is_rejected・DeltaScriptsCase.test_delta_cut_passes_the_plan_review_to_the_brief・InputsCase.test_plan_review_is_an_input・CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits（許した直しは tests/workflows/copied_rewrites.json）
   - 本物の run: fix の置き場の差分の審査の材料 `out.p2.plan_review`（今は null）
   - 狭め: #94 で狭めた（「能力の狭め」・「約束を変える頼み」3。不可でない → 戻す。S02） → 部分 D1 で戻した
 - L-W20 修正役が受け入れた壊れ（breaks.accepted）を人に回す（最後の関所を開け、節に並べ、報告の冒頭にも出す）
   - 元: works/.shared/core/report.py:304-314 `handoff_lines`、works/darkfactory/lib/line_edge.py:814-815（`_final_needs`）・:868・:719-723 `_handoff_text`。試験 works/tests/test_report_head.py::HandoffCase.test_final_gate_opens_and_shows_them（:867）
   - 今: fix の diff の隣の handoffs.json（lib/fixbeside.py。書き手は fix の collect、子の結果の handoffs で運ぶ）を workflows/line/scripts/ask_final.py の `needs`（HANDOFF_REASON）と節（fixbeside.HANDOFF_HEAD）、lib/runreport.py の `_decisions`（冒頭 2 行目の件数）が読む
-  - 証: tests/workflows/test_line.py::AskFinalCase.test_accepted_breaks_open_and_are_listed・tests/workflows/test_fix.py::BlockScriptsCase.test_collect_writes_accepted_breaks_beside_the_diff・lib/tests/test_runreport.py::DecisionsCase.test_accepted_breaks_are_counted_as_decision・tests/e2e/test_line_scenarios.py::RefixHandoffTest と筋書き refix-handoff
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_accepted_breaks_open_and_are_listed・tests/workflows/test_fix.py::BlockScriptsCase.test_collect_returns_accepted_breaks・lib/tests/test_runreport.py::DecisionsCase.test_accepted_breaks_are_counted_as_decision・tests/e2e/test_line_scenarios.py::RefixHandoffTest と筋書き refix-handoff
   - 本物の run: 筋書きでのみ
   - 狭め: #94 で狭めた（「約束を変える頼み」1。不可でない → 戻す。S03） → 部分 D2 で戻した
 - L-W21 「直した」という申告と機械の数え直しが合わない単位が在れば最後の関所を開ける

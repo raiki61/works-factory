@@ -546,7 +546,7 @@
 - F130 修正案の事前審査の穴（faces）と別案（shrink）に、修正役が plan_faces で key ごとに 1 度だけ答え（absorbed / declared）、答えない key・余る key・重複を機械が拒む（元 `_plan_face_errors`）
   - 元: review-loop.py:3115 `_plan_face_errors`・:2803、works/blk-fix/rules/direct.md:10・95
   - 今: fix の入力 plan_review → prep が置き場の p2.plan_review.json に写す（組の子は fixboard.ADOPTED で写す）→ 受け付け lib/fixboard.py の accept_reply が plan_face_errors を照らす（検査の id plan_faces）。指示書 workflows/fix/commands/fix-rules/direct.md は元の字（10・95 行を戻した）
-  - 証: tests/workflows/test_fix.py::FixAcceptCase.test_unanswered_plan_face_is_rejected・InputsCase.test_plan_review_is_an_input・ShapeCase.test_direct_rules_are_the_original_with_only_the_allowed_edits
+  - 証: tests/workflows/test_fix.py::FixAcceptCase.test_unanswered_plan_face_is_rejected・InputsCase.test_plan_review_is_an_input・CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits（許した直しは tests/workflows/copied_rewrites.json）
   - 本物の run: 受けた返答の plan_faces が常に [] であること（組の子の reply_file）。事前審査が穴を挙げた run でも修正役は答えない
   - 狭め: #94 で狭めた（「能力の狭め」の plan_faces の行、「約束を変える頼み」3）。Archon で不可でない（include の `with:` に入力を 1 つ足すだけ。Archon packages/workflows/src/schemas/dag-node.ts:1325-1330 の `with:` は include の入力の写像）→ 戻す（fix の入力と線の配線を足す） → 部分 D1 で戻した（組に分けた修正役は自分の単位の穴と単位の無い行に答える。元は 1 つの p3.fix が全部に答えた。裁定の後の受け付けは全部）
 
@@ -1338,7 +1338,7 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
 - F427 修正役が「壊すと分かって受け入れた」理由（changes[].breaks.accepted）を、報告の冒頭と最後の人の関所に 1 件 1 行で届け、在れば関所を開ける
   - 元: works/.shared/core/report.py:301-314 `handoff_lines`、works/darkfactory/lib/line_edge.py:720・803・868（関所の文と開ける理由）、report.py:906・991（報告の冒頭）
   - 今: fix の diff の隣の handoffs.json（lib/fixbeside.py。子の結果の handoffs と裁定の後の返答から）→ 最後の関所の開ける理由と節・報告の冒頭
-  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_collect_writes_accepted_breaks_beside_the_diff（棚卸しの名は test_collect_returns_accepted_breaks）・ShapeCase.test_common_rules_breaks_promise_reaches_the_decisions・tests/workflows/test_line.py::AskFinalCase.test_accepted_breaks_open_and_are_listed・tests/e2e/test_line_scenarios.py::RefixHandoffTest
+  - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_collect_returns_accepted_breaks・HandoffCase.test_common_rules_breaks_promise_reaches_the_decisions・tests/workflows/test_line.py::AskFinalCase.test_accepted_breaks_open_and_are_listed・tests/e2e/test_line_scenarios.py::RefixHandoffTest
   - 本物の run: 無し（今は記録の上で人に届かない。修正役の返答 reply_file の changes[].breaks.accepted にだけ残る）
   - 狭め: #94 で狭めた（「能力の狭め」5 行目、「約束を変える頼み」1）。Archon で不可でない（返りの欄を 1 つ足すだけ）→ 戻す → 部分 D2 で戻した（返りの欄は足さず diff の隣の約束のファイル）
 
