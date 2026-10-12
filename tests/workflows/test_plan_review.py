@@ -624,17 +624,17 @@ class DesignCase(RunCase):
         self.assertTrue(r.open()["r2_go"])
 
     def test_unreadable_purpose_review_sibling_is_named(self):
-        """判定の隣の purpose-review.json が無い・壊れている時は監査無しとして読み、その訳を事前審査の材料の頭に残す
+        """判定の隣の purpose-review.json が無い・壊れている・object でない時は監査無しとして読み、その訳を事前審査の材料の頭に残す
         （持ち主の決め no-silent-loosen）"""
         r = self.run_
         r.start(features_off=["review_tree"])
         sibling = r.art / "judge" / "purpose-review.json"
-        for label, why in (("無い", "FileNotFoundError"), ("壊れている", "JSONDecodeError")):
-            with self.subTest(label):
-                if label == "無い":
+        for body, why in ((None, "FileNotFoundError"), ("{broken", "JSONDecodeError"), ("[1]", "object でなく list")):
+            with self.subTest(why):
+                if body is None:
                     sibling.unlink()
                 else:
-                    sibling.write_text("{broken", encoding="utf-8")
+                    sibling.write_text(body, encoding="utf-8")
                 self.assertTrue(r.open()["r2_go"])
                 text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
                 self.assertIn(boardview.PURPOSE_REVIEW_UNREAD.format(why=why), text.splitlines()[0])

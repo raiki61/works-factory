@@ -60,6 +60,7 @@ OPEN_FILE = "open.json"                 # open_pass が置く見え方の材料�
 OPEN_ERROR = "open-error.txt"           # 差し込みの頭の節が落ちた訳（返す節の訳に載る。節が書く）
 JUDGMENT_COPY = "judgment.json"         # 判定の写し（planblk.lib_section が state.outputs から引く）
 EXCLUDED_FILE = "pr-excluded.json"      # 判定の隣の並行 PR の外した範囲（在れば写して役の頭に名指す）
+PURPOSE_REVIEW_FILE = "purpose-review.json"  # 判定の隣の目的の監査の受けた返答（judge が必ず置く。無い・読めない時は {} で読む）
 POLICY_FILE = "policy.json"             # 方針の文書を固めた版 {named, path, sha256, copy, amendments}（run の最初の差し込みで固める）
 POLICY_DIR = "policy"
 POLICY_CHANGED = "policy_changed"       # 関所の項目の種類（方針の文書が固めた版から変わった）
@@ -104,7 +105,7 @@ DEFAULTS_HEAD = "線が渡していない入力を既定で読んだ: "
 DEFAULT_START = ("start（始めの記録）が null——無人でない・設計だけでない・依頼のファイル無し（依頼の引用の決め手は照らせないので"
                  "人に回る）・方針の文書無し・事前審査の木は auto として読んだ")
 DEFAULT_ANSWERS = "answers（人の関所の答え）が null——独立設計に貼る人の答えは無い"
-PURPOSE_REVIEW_UNREAD = ("判定の隣の purpose-review.json（目的の監査の受けた返答）を読めない（{why}）——監査は無かったとして読み、"
+PURPOSE_REVIEW_UNREAD = (f"判定の隣の {PURPOSE_REVIEW_FILE}（目的の監査の受けた返答）を読めない（{{why}}）——監査は無かったとして読み、"
                          "独立設計を目的の『狭めている』では止めない")
 REQUEST_UNREAD = "依頼のファイル {path} を読めない（{why}）——依頼の本文は空として読み、依頼が名指した設計書の節は渡っていない"
 # 案の直しの事前審査の頼みと項目の節（元 works/.shared/core/replan.py:121・126-129）
@@ -304,7 +305,7 @@ def _sibling(pointed, name: str):
 def _purpose_review(judgment) -> tuple[dict, str]:
     """判定の隣の purpose-review.json（目的の監査の受けた返答。judge が必ず置く）と、読めなかった訳（読めれば ""）。
     無い・読めない・object でない時は {} で読む"""
-    p = pathlib.Path(judgment).parent / "purpose-review.json"
+    p = pathlib.Path(judgment).parent / PURPOSE_REVIEW_FILE
     try:
         doc = _read_json(p)
     except (OSError, ValueError) as e:
