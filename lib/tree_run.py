@@ -8,7 +8,8 @@ engine/role_run.py（_tree_members・_stop_tree。本線 9f91687 = graphloops 0.
 - 止めるときは **数え上げ→送る→数え直し**。木の仲間は ps の全プロセスの表から拾う: グループの番号かセッションの番号が
   長の番号のもの（setpgid で出た孫もセッションは抜けない）と、それらと前の回に数えた仲間から親子の鎖で辿れる子孫（setsid で
   別のセッションへ出た孫）。送り先は生きた仲間から作り（ゾンビだけのグループへは送らない——macOS は EPERM で拒む）、
-  送った後は数えた生きた仲間が消えるまで待つ
+  送った後は数えた生きた仲間が消えるまで待つ。長が回収前なら、数える前にグループを SIGSTOP で凍らせる: ps が固まっても
+  グループは走らず（期限は置かない）、凍った仲間は死なないので、数える間に親子の鎖が切れて setsid で出た孫を見失わない
 - SIGINT・SIGTERM・SIGHUP を受けたら、受けた信号と SIGTERM を仲間へ送り、KILL_GRACE 秒の内に消えなければ SIGKILL を送る。
   **止めたと数えるのは、数え直して生きた仲間が居ない時**。ps が読めない回はグループへだけ送り、グループが空になるまで待つ
 - 殻の直下の親（節では uv）が替わったら（kill -9 で消えて孤児になった）同じく木ごと止める（POLL 秒ごとに見る）。
@@ -316,6 +317,10 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
     回ごとに仲間を数え上げ、生きた仲間が居なければ戻る。居れば、生きた仲間が属するグループのうち長が仲間のグループと
     p のグループへは killpg（数えた後に増えた子にも届く）、残りの仲間へは 1 本ずつ送り、数えた生きた仲間が消えるまで
     待つ（長は待つ間に回収する）。SIGKILL の後に数え直して生きた仲間が残れば名指しの理由を返す。
+    長が回収前なら、最初に数える前に p のグループへ SIGSTOP を送り、最初の回の送り先へ (first と SIGTERM) の後に SIGCONT を
+    送る。ps が固まってもグループは凍って走らない。先に SIGTERM を送らないのは、送ると長（sh）が数える前に死に、setsid で
+    出た孫が親子の鎖から外れて拾えなくなるから（凍った仲間は死なない）。ps が固まったまま殻が殺されると、グループは凍ったまま残る。
+    回収した後は番号が再利用されうるので凍らせず、数えてから送る（ps が固まれば送らない）。
     **上限**: 最初の回の待ちは止め始めから KILL_GRACE 秒で切る（ps を待った分も含める）。ps は待ちに止まらない形で呼ぶ（PS）。
     1 度でも表を読めなければ（ps を起こせない・表を返さない）、以後の回は ps を起こさずに直ちに送る——送り先は p のグループと、
     前の回に数えて待ち終えても消えたのを見ていない仲間（番号は同じ相手のまま）。これで SIGKILL は止め始めから KILL_GRACE と
@@ -342,6 +347,13 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
 
     known = {} if known is None else known
     blind, pending = None, set()   # blind: 表を読めなかった理由（以後は ps を起こさない）
+    p.poll()
+    frozen = p.returncode is None   # 回収前の長のグループの番号は再利用されないので、ps を待たずに送ってよい
+    if frozen:
+        try:
+            os.killpg(p.pid, signal.SIGSTOP)
+        except OSError:
+            pass
     for i, sigs in enumerate(((first, signal.SIGTERM), (signal.SIGKILL,), ())):   # 空の回は送らずに数え直して判定だけ
         sigs = tuple(dict.fromkeys(sigs))
         end = t0 + KILL_GRACE if i == 0 else None
@@ -366,6 +378,8 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
             targets = [(os.killpg, g) for g in sorted(groups)] + [(os.kill, pid) for pid, m in live.items() if m.pgid not in groups]
             pending = set(live)
             done = watch(pending)
+        if i == 0 and frozen:
+            sigs += (signal.SIGCONT,)   # 止めた仲間に、溜まった信号を受けさせる
         for sig in sigs:
             for send, target in targets:
                 try:

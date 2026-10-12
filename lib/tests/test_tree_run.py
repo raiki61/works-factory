@@ -6,6 +6,7 @@
 - コマンドが終わった後に背景に残した孫も止める
 - 自分で setsid して別のセッション（= 別のグループ）へ出た孫も、殻が SIGTERM を受けたら止める（SIGTERM を無視しても
   実行基盤の猶予の内に SIGKILL で）
+- 名指しの ps そのものが固まっても、ps より前にグループを凍らせ、ps が戻れば消す
 - 生きた仲間の居ないグループ（ゾンビだけ）に惑わされず、別のグループへ出た生きた仲間を止めて、猶予を使い切らずに戻る
 - 殻の直下の親（節では uv）が kill -9 で消えたら（親が替わったら）木ごと止める。起きた時に既に孤児（親が 1）なら走らせない
 - 終わりを待ち終えた直後に届いた止める信号も落とさない
@@ -438,6 +439,36 @@ class TreeRunCase(unittest.TestCase):
             self.assertIn("数え上げられない", why or "")
             self.assertTrue(self.group_gone(p.pid, host_grace), "ps が失敗する場で、実行基盤の猶予の内に孫が消えなかった")
             self.assertLess(time.monotonic() - t0, host_grace)
+
+    def test_group_is_frozen_before_ps_even_if_ps_hangs(self):
+        # 名指しの PS そのものが固まっても（期限は置かない。E12）、長が回収前なら ps より前にグループを SIGSTOP で止めるので、
+        # グループの子は ps を待つ間も走らない（作業ツリーに書かない）。ps が戻れば SIGTERM と SIGCONT で消える。
+        # stop_group は固まった ps を待つので別の糸で呼び、子の状態を本物の /bin/ps で見る
+        fake = self.tmp / "hanging-ps"
+        ps_pidf = self.tmp / "ps-pid"
+        fake.write_text(f"#!/bin/sh\necho $$ > {ps_pidf}\nexec sleep 300\n")
+        fake.chmod(0o755)
+        child = self.tmp / "child"
+        p = subprocess.Popen(["/bin/sh", "-c", f"sleep 300 & echo $! > {child}; wait"], start_new_session=True,
+                             stdin=subprocess.DEVNULL)
+        self.started.extend([("popen", p), ("pg", p.pid)])
+        cpid = read_int(child)
+        with mock.patch.object(tree_run, "PS", str(fake)):
+            stopper = threading.Thread(target=tree_run.stop_group, args=(p,), daemon=True)
+            stopper.start()
+            ps_pid = None
+            try:
+                ps_pid = read_int(ps_pidf)
+                state = subprocess.run(["/bin/ps", "-o", "stat=", "-p", str(cpid)], capture_output=True, text=True,
+                                       timeout=30).stdout.strip()
+                self.assertTrue(state.startswith("T"), f"ps が固まる間、グループの子が止まっていない（stat {state!r}）")
+            finally:
+                if ps_pid is not None:
+                    os.kill(ps_pid, signal.SIGKILL)
+                stopper.join(10)
+        self.assertFalse(stopper.is_alive(), "固まった ps を殺した後も stop_group が戻らない")
+        self.assertTrue(self.pid_gone(cpid, 1), "ps が戻った後、止めたグループの子が消えない")
+        self.assertTrue(self.group_gone(p.pid, 1))
 
     # ------------------------------------------------ pack を汚さない
     def test_no_bytecode_in_pack(self):
