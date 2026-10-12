@@ -503,35 +503,70 @@ def parallel(groups, features_cut, repo) -> bool:
     return len(groups) >= 2 and not cut & set(LANE_SWITCHES) and bool(leftovers.git(repo, "remote").strip())
 
 
-def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun", rev: str = "HEAD") -> str:
-    """組で赤 → 緑を確かめた名指しのテスト named を、親の作業ツリー repo で走らせ直した問題の文（空なら通った。実行器 suite の
-    無い run・名指しの無い組も空）。先に名指しだけを走らせ、実行器が走らない・名指しが結末に居ない（0 件を含む）・緑でなければ
-    その文（元 works/blk-fix/lib/tddlanes.py:688-703 の _green_after。_RunnerDown を戻す理由にした所）。名指しが緑なら、変えた
-    ファイルに当たる試験の新しい赤を tddloop.selected_problems で見る（元の結末 cases に無い赤は版 rev の写しで確かめる）。
-    走らせ直しの状態とログは置き場の <name>/ に置く。元 works/blk-fix/lib/tddlanes.py の join の「当てた後の木で緑をもう 1 度
-    確かめる」所（盤面の輪の状態を読んだ所を値で受ける）"""
+SEMANTIC_CLASH = ("意味の食い違い: 前に戻した組と同じファイル {files} を変え、字では合ったが当てた後の木の試験が赤（{why}）。"
+                  "後の組だけを戻す")   # 元 works/blk-fix/lib/tddlanes.py:684-685 の back の理由
+
+
+def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun", rev: str = "HEAD", shared=(),
+                  test_cmd: str = "") -> str:
+    """組を親の作業ツリー repo へ当てた後の確かめ直しの問題の文（空なら通った。実行器 suite の無い run も空）。元
+    works/blk-fix/lib/tddlanes.py:688-711 の _green_after（当てた単位の名指し全部と変更に直に関わる試験を 1 回走らせ、重なりの
+    ファイルが在れば地図が届く試験の全部も足し、test_cmd の関門が on なら test_cmd も 1 回）を、組ごとの確かめにした物。
+    1. 名指し named（前に戻せた組とこの組が赤 → 緑を確かめた名指し）が在れば先にそれだけを走らせ、実行器が走らない・名指しが結末に
+       居ない（0 件を含む）・緑でなければその文（_RunnerDown を戻す理由にした所）。
+    2. 名指しの無い組（修正役だけが直した組）も、変えたファイルに当たる試験の新しい赤を tddloop.selected_problems で見る（元の
+       結末 cases に無い赤は版 rev の写しで確かめる）。前に戻した組とも重なったファイル shared が在れば、それを起点に地図が届く
+       試験の全部（tddloop._reached の direct_only 偽。地図が一式を求める時は足さない）を選びに足す（元 tddlanes.py:695-698）。
+    3. 赤が無く test_cmd（関門が on の時だけ呼び手が渡す。rerun_cmd）が在れば 1 回走らせ、緑でなければその文。
+    shared の在る組の赤は意味の食い違い（SEMANTIC_CLASH）と名指す。走らせ直しの状態とログは置き場の <name>/ に置く"""
     import baseline_red
     import tddloop
     suite = (suite or "").strip()
     named = sorted({t for t in named or [] if isinstance(t, str) and t.strip()})
-    if not suite or not named:
+    shared = sorted({f for f in shared or () if isinstance(f, str) and f})
+    if not suite:
         return ""
     exe = pathlib.Path(suite) if pathlib.Path(suite).is_absolute() else pathlib.Path(repo) / suite
     work = pathlib.Path(place) / name
     work.mkdir(parents=True, exist_ok=True)
-    ran, _, why = baseline_red.run_suite(str(exe), repo, work, "named", tddloop._abs_ids(repo, named), only=True)
-    if ran is None:
-        return f"当てた後の木で名指しのテストを走らせられない（{'; '.join(why)}）"
-    hit = [c for t in named if (c := baseline_red.match_case(t, ran)) is not None]
-    probs = baseline_red.green_problems(named, hit, 0)
-    if probs:
-        return "当てた後の木で名指しのテストが緑でない: " + "；".join(probs)
-    st = {"exe": str(exe), "work": str(work), "suite_made": [], "contract": {},
-          "baseline": {tddloop._key(c): c.get("outcome") for c in cases or [] if isinstance(c, dict)},
-          "units": {name: {"tests": named, "test_files": []}}}
-    state = write_json(work / tddloop.STATE, st)
-    probs, _ = tddloop.selected_problems(str(state), repo, rev)
-    return "；".join(probs)
+    probs = []
+    if named:
+        ran, _, why = baseline_red.run_suite(str(exe), repo, work, "named", tddloop._abs_ids(repo, named), only=True)
+        if ran is None:
+            return f"当てた後の木で名指しのテストを走らせられない（{'; '.join(why)}）"
+        hit = [c for t in named if (c := baseline_red.match_case(t, ran)) is not None]
+        probs = baseline_red.green_problems(named, hit, 0)
+        if probs:
+            probs = ["当てた後の木で名指しのテストが緑でない: " + "；".join(probs)]
+    if not probs:
+        st = {"exe": str(exe), "work": str(work), "suite_made": [], "contract": {}, "unit_head": "",
+              "baseline": {tddloop._key(c): c.get("outcome") for c in cases or [] if isinstance(c, dict)},
+              "units": {name: {"tests": named, "test_files": []}}}
+        if shared:
+            wide, everything = tddloop._reached(st, repo, seeds=shared, direct_only=False)
+            if not everything:
+                st["units"][name]["test_files"] = wide
+        state = write_json(work / tddloop.STATE, st)
+        probs, _ = tddloop.selected_problems(str(state), repo, rev)
+    if not probs and (test_cmd or "").strip():
+        log = work / "test-cmd.log"
+        mat, _ = tddloop._cmd_run(repo, test_cmd.strip(), log)
+        if mat["status"] != "clean":
+            probs = [f"run の test_cmd（{test_cmd.strip()}）が当てた後の木で緑でない（"
+                     f"{mat.get('rewrote') or mat.get('reason') or f'ログ {log}'}）"]
+    why = "；".join(probs)
+    return SEMANTIC_CLASH.format(files="・".join(shared), why=why[:300]) if why and shared else why
+
+
+def rerun_cmd(place, result, test_cmd: str) -> str:
+    """当てた後に走らせ直す test_cmd（rerun_problem に渡す）: 組の子の TDD の輪が決めた関門（結果の tdd.test_cmd.gate）が on で、
+    組に軽量でない単位（置き場の深さの控え。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）"""
+    import tddloop
+    gate = (((result or {}).get("tdd") or {}).get("test_cmd") or {}).get("gate")
+    if gate != tddloop.GATE_ON or not (test_cmd or "").strip():
+        return ""
+    light = set(tddloop._light_units(unit_depths(place)))
+    return test_cmd.strip() if set((result or {}).get("unit_ids") or []) - light else ""
 
 
 def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=None):

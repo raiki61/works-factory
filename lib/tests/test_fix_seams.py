@@ -1625,6 +1625,36 @@ class GroupScriptsSeamCase(TempCase):
         empty.write_text("import sys\nopen(sys.argv[1], 'w').write('<testsuite/>')\n", encoding="utf-8")
         self.assertIn("test_mean_of_three", fixboard.rerun_problem(self.place, self.repo, str(empty), [], named),
                       "0 件の結末は通ったと数えない")
+        import baseline_red
+        cases, _, why = baseline_red.run_suite(str(suite), self.repo, self.tmp, "base")
+        self.assertIsNotNone(cases, why)
+        with self.subTest("名指しの無い組も、変えたファイルに当たる試験を走らせ直す（F411 の 1）"):
+            src = stats.read_text(encoding="utf-8")
+            stats.write_text(src.replace("    return x\n", "    return lo\n"), encoding="utf-8")
+            self.assertIn("test_clamp_within_range", fixboard.rerun_problem(self.place, self.repo, str(suite), cases, [],
+                                                                            name="fixer-only"))
+            stats.write_text(src, encoding="utf-8")
+            self.assertEqual(fixboard.rerun_problem(self.place, self.repo, str(suite), cases, [], name="fixer-only-green"), "")
+        with self.subTest("前の組と重なったファイルから地図が届く試験を足す（F411 の 2）"):
+            self.assertEqual(fixboard.rerun_problem(self.place, self.repo, str(suite), cases, named, name="wide",
+                                                    shared=["stats.py"]), "")
+            st = json.loads((self.place / "wide" / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(st["units"]["wide"]["test_files"], ["test_stats.py"])
+        with self.subTest("重なりの在る組の赤は意味の食い違いと名指す"):
+            stats.write_text(src.replace("    return x\n", "    return lo\n"), encoding="utf-8")
+            got = fixboard.rerun_problem(self.place, self.repo, str(suite), cases, named, name="clash", shared=["stats.py"])
+            self.assertTrue(got.startswith(fixboard.SEMANTIC_CLASH.split("{")[0]), got)
+            self.assertIn("stats.py", got)
+            self.assertIn("test_clamp_within_range", got)
+            stats.write_text(src, encoding="utf-8")
+        with self.subTest("test_cmd が渡れば緑の後に 1 回走らせ、赤なら戻す理由（F411 の 2）"):
+            red = f"{sys.executable} -c \"import sys; sys.exit(3)\""
+            got = fixboard.rerun_problem(self.place, self.repo, str(suite), cases, named, name="cmd-red", test_cmd=red)
+            self.assertIn("test_cmd", got)
+            self.assertTrue((self.place / "cmd-red" / "test-cmd.log").is_file())
+            green = f"{sys.executable} -c \"import sys; sys.exit(0)\""
+            self.assertEqual(fixboard.rerun_problem(self.place, self.repo, str(suite), cases, named, name="cmd-green",
+                                                    test_cmd=green), "")
 
 
 class SmallGapsSeamCase(unittest.TestCase):

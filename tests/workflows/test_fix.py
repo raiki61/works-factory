@@ -1105,6 +1105,79 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(json.loads((out_dir / "g2" / "dropped.json").read_text(encoding="utf-8"))["paths"],
                          ["half.py", "stats.py"])
 
+    def rerun_seed(self, files, *, test_cmd=""):
+        """走らせ直しの種: files を commit し、実行器（lib/tests/test_blk_fix_tdd.py の SUITE）を指す始めの記録と、その実行器で
+        取った直す前の結末を置き場に置く。返りは始めの木"""
+        import baseline_red
+        from lib.tests.test_blk_fix_tdd import SUITE
+        for name, text in files.items():
+            (self.repo / name).write_text(text, encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-qm", "走らせ直しの種")
+        suite = self.tmp / "suite.py"
+        suite.write_text(SUITE, encoding="utf-8")
+        _blk_write(self.place / "r1" / "start.json", {"tdd_suite": str(suite), "test_cmd": test_cmd, "features_cut": []})
+        cases, code, why = baseline_red.run_suite(str(suite), self.repo, self.tmp, "base")
+        self.assertIsNotNone(cases, why)
+        _blk_write(self.place / "baseline.json", {"cases": cases, "exit": code})
+        return self.snapshot(self.repo)
+
+    def test_join_reruns_fixer_only_group_against_the_earlier_group(self):
+        """F411: TDD の名指しの無い組（修正役だけが直した組 g2）も親の木で走らせ直す。前に戻した組 g1 が赤 → 緑を確かめた名指しを
+        g2 が赤にすれば、g2 だけを戻して returned: false（元 works/blk-fix/lib/tddlanes.py:688 _green_after は当てた全部の単位の
+        名指しを走らせた）"""
+        start = self.rerun_seed({
+            "e.py": "LIMIT = 10\n",
+            "a.py": "from e import LIMIT\n\n\ndef cap(x):\n    return min(x, LIMIT + 1)\n",
+            "test_a.py": "import unittest\n\nfrom a import cap\n\n\nclass TestA(unittest.TestCase):\n"
+                         "    def test_cap(self):\n        self.assertEqual(cap(15), 10)\n"})
+        t1 = self.tree_with({"a.py": "from e import LIMIT\n\n\ndef cap(x):\n    return min(x, LIMIT)\n"})
+        t2 = self.tree_with({"e.py": "LIMIT = 20\n"})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start, verified=["test_a.py::TestA::test_cap"]))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out, {"groups": 2, "returned": 1})
+        g1, g2 = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["groups"]
+        self.assertTrue(g1["returned"], g1)
+        self.assertFalse(g2["returned"])
+        self.assertIn("test_cap", g2["reason"])
+        self.assertEqual((self.repo / "e.py").read_text(encoding="utf-8"), "LIMIT = 10\n", "後の組の直しは戻す")
+        self.assertIn("min(x, LIMIT)\n", (self.repo / "a.py").read_text(encoding="utf-8"), "前の組の直しは残す")
+
+    def test_join_backs_out_the_later_group_on_a_semantic_clash(self):
+        """F412: 2 つの組が同じファイル e.py を違う行で変え、字では合うが、後の組 g2 の直しが前の組 g1 の変えた定数を当てにして
+        いて親の木で g2 の名指しが赤: 後の組だけを意味の食い違いとして戻す（元 works/tests/test_tdd_lanes.py:828
+        test_semantic_clash_backs_out_only_the_later_lane の写し）"""
+        filler = "".join(f"# {i}\n" for i in range(10))
+        start = self.rerun_seed({
+            "e.py": f"E1 = 1\n{filler}E8 = 8\n",
+            "b.py": "def triple(x):\n    return x * 3 + 1\n",
+            "test_b.py": "import unittest\n\nfrom b import triple\n\n\nclass TestB(unittest.TestCase):\n"
+                         "    def test_triple(self):\n        self.assertEqual(triple(2), 6)\n"})
+        t1 = self.tree_with({"e.py": f"E1 = 10\n{filler}E8 = 8\n"})
+        t2 = self.tree_with({"e.py": f"E1 = 1\n{filler}E8 = 80\n",
+                             "b.py": "from e import E1\n\n\ndef triple(x):\n    return x * 3 + E1 - 1\n"})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, verified=["test_b.py::TestB::test_triple"]))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out, {"groups": 2, "returned": 1})
+        g1, g2 = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["groups"]
+        self.assertTrue(g1["returned"], g1)
+        self.assertFalse(g2["returned"])
+        self.assertIn("意味の食い違い", g2["reason"])
+        self.assertIn("e.py", g2["reason"])
+        self.assertIn("test_triple", g2["reason"])
+        e = (self.repo / "e.py").read_text(encoding="utf-8")
+        self.assertIn("E1 = 10\n", e, "前の組は残す")
+        self.assertIn("E8 = 8\n", e, "後の組の直しは戻す")
+        self.assertEqual((self.repo / "b.py").read_text(encoding="utf-8"), "def triple(x):\n    return x * 3 + 1\n")
+
     # ---- tdd_unit.py
     def test_tdd_unit_writes_one_body_for_all_groups(self):
         start = self.snapshot(self.repo)
