@@ -510,9 +510,9 @@
   - 証: tests/workflows/test_plan_review.py::DesignOnlyCase.test_design_only_opens_even_when_unattended は lib だけ → 要追加: tests/workflows/test_line.py::AskBeforeFixCase.test_unattended_design_only_stops — open 偽・go 偽・`works:needs-human`
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
-- L-G28 壁打ちが止まった案と 3 往復で決着しない案は必ず関所に載る（止まった理由つき）
+- L-G28 壁打ちが止まった案（同じ block が続いた・開いた block が減らなかった・往復の安全の上限の周に届いた）は必ず関所に載る（止まった理由つき）
   - 元: works/.shared/core/gatemarks.py:649-655 `design_item`（`converge.stuck_reason`）
-  - 今: scripts/ask_before_fix.py:42-45（STUCK_ITEM・UNSETTLED_ITEM）。理由の尾は plan-review の questions 側に在り、行が 2 度出うる（L-D19）
+  - 今: scripts/ask_before_fix.py の stalled の枝（STUCK_ITEM）。上限の周も plan-review が stalled で返す。理由の尾は plan-review の questions 側に在り、行が 2 度出うる（L-D19）
   - 証: AskBeforeFixCase.test_reasons_that_open_the_gate（assert: :234）、tests/workflows/test_plan_review.py::ConvergeGateCase.test_stuck_opens_design_item_with_reason（:2271）
   - 本物の run: 筋書き plan-stalled・plan-unsettled
   - 狭め: 無し
@@ -754,7 +754,7 @@
   - 証: tests/workflows/test_line.py::HandoffCase.test_handoff_table（fix と refix-run の plan・ripple・depth の行）
   - 本物の run: fix の置き場の prep が読む plan-fields.json・ripple.json
   - 狭め: 無し
-- L-W12 計画の往復（plan → plan-review を 3 往復まで。事前審査の返答を次の周の plan に渡す）
+- L-W12 計画の往復（plan → plan-review を止め時の converge.decide まで、安全の上限 20 周。事前審査の返答を次の周の plan に渡す）
   - 元: works/blk-plan の輪と works/.shared/core/converge.py
   - 今: yaml:182-259（loop_group。`review: $LOOP_PREV.plan-out.output.review` は :198）、scripts/plan_out.py:25 `plan_out`
   - 証: tests/workflows/test_line.py::HandoffCase.test_handoff_table（plan の review ＝ $LOOP_PREV.plan-out.output.review）、PlanOutCase.test_done_rules、LineWiringCase.test_round_limit_is_the_loop_limit
@@ -1210,8 +1210,8 @@
   - 狭め: #74（不可でない → 戻す）
 - L-D20 往復の安全の上限に届いても決着しない案は、仕組みの異常として修正前の関所を開ける
   - 元: works/.shared/core/converge.py:83 UNSETTLED_WHY
-  - 今: scripts/ask_before_fix.py:48-49（UNSETTLED_ITEM）
-  - 証: AskBeforeFixCase.test_reasons_that_open_the_gate（subTest round ROUND_LIMIT）、筋書き plan-unsettled
+  - 今: lib/boardview.py `_take` が上限の周（`LOOP_CAP`）に converge の at_cap を渡し、plan-review は stalled と理由の行（converge の CAP_WHY）を questions で返す。scripts/ask_before_fix.py の stalled の枝が関所を開ける
+  - 証: tests/workflows/test_plan_review.py::ConvergeCase.test_capped_decay_stops_at_loop_max、AskBeforeFixCase.test_reasons_that_open_the_gate（上限の周の返りの subTest）、筋書き plan-unsettled
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - L-D21 無人の run で往復が止まったら、関所を開かずに止める

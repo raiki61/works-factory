@@ -739,10 +739,10 @@
 
 ### A. 計画と事前審査の往復（壁打ち）
 
-- P102 往復の決め: 最後の往復に block（直しへ進めない穴）が無ければ clean、前のどれかの往復と同じ block が残れば persisted、柵（3 往復）に着けば unsettled、ほかは again。数の定数をモジュールに持たない
+- P102 往復の決め: 最後の往復に block（直しへ進めない穴）が無ければ clean、前のどれかの往復と同じ block が残れば persisted、2 往復目から開いた block の数が前の往復より減らなければ unsettled、ほかは again（往復の数では止めない）。数の定数をモジュールに持たない
   - 元: works/.shared/core/converge.py:148 `decide`・:161 `_decide_items`
-  - 今: lib/converge.py:148 `decide`（字のままの写し）。計画の側の写し lib/planfile.py:469 `_record_pass` も同じ decide を呼ぶ
-  - 証: lib/tests/test_converge.py::DecideCase.test_no_block_is_clean（assert: lib/tests/test_converge.py:56）・test_block_from_any_earlier_pass_persists（:62）・test_fence_with_new_blocks_is_unsettled（:67）・test_module_has_no_count_constant（:71）
+  - 今: lib/converge.py:182 `decide`・`not_fewer`（古い works 0.2.65 の e9a82061 の写し）。計画の側の写し lib/planfile.py:447 `converge_record` も同じ add_pass → decide を呼ぶ
+  - 証: lib/tests/test_converge.py::DecideCase.test_no_block_is_clean（assert: lib/tests/test_converge.py:56）・test_block_from_any_earlier_pass_persists（:70）・test_new_blocks_stop_before_fence_when_not_fewer（:58）・test_open_blocks_not_fewer_than_last_pass_is_unsettled（:63）・test_decreasing_blocks_go_on_regardless_of_pass_count（:75）・test_module_has_no_count_constant（:81）
   - 本物の run: plan-review/plan-converge.json の `outcome`（種の run では `clean`）
   - 狭め: 無し
 
