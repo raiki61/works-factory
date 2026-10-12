@@ -415,7 +415,7 @@
 
 - P057 この周に描いた役ごとに、機械が渡したパス（描いた指示書・方針の文書）を読んだ証拠を集めて索引に書く（受け付けの条件にはしない）。
   - 元: works/blk-plan/lib/planblk.py:1393 `collect_reads`・blk-plan.yaml:978 plan-reads、試験 works/tests/test_reads.py（25 件）
-  - 今: lib/reads.py・lib/planfile.py `collect_reads`・workflows/plan/scripts/plan_reads.py（節 plan-reads）・bin/_lib/record-read.py（#120）
+  - 今: lib/reads.py・lib/planfile.py `collect_reads`・workflows/plan/scripts/plan_reads.py（節 plan-reads）・bin/_lib/record-read.py・bin/_lib/toolset.py（隔離した設定にフックを置く）（#120）
   - 証: tests/workflows/test_plan.py::ReadsCase.test_writer_reads_its_brief_are_recorded（#120 で足した。消すと赤: collect_reads が索引に役の証拠を置かないと赤）
   - 本物の run: Archon の run の記録 <logDir>/<run_id>.jsonl の type provider_event・step plan-writer の Read の行（今は誰も集めない）
   - 狭め: #75・#73 で狭めた（当時の docs/design.md の U6「取れるか未決」）。Archon で不可でない: Archon は役の道具の呼びを step 名つきで run の記録に残す（packages/workflows/src/logger.ts:129-130 `getLogPath` が <logDir>/<runId>.jsonl、:298-310 `logProviderEvent`、packages/workflows/src/store.ts:156 provider_event、packages/core/src/db/workflow-events.ts:257-262 で tool_call {name, rawInput} に読める）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:` → 戻す
@@ -1525,21 +1525,21 @@
 
 - P211 役ごとに、機械が渡したパス（描いた指示書・材料のファイル・方針の文書）を役が本当に読んだかを、Archon の出来事の道具の呼び（tool_called の Read の file_path）と包みのフックの記録で集め、reads-<役>.json と索引 reads-plan-block.json に書き、欠けを報告の冒頭に出す（受け付けの条件にはしない）
   - 元: works/.shared/core/reads.py（collect・events_for・main_for）・works/blk-plan/blk-plan.yaml:978 `plan-reads`・works/blk-plan/lib/planblk.py:400 `collect_reads`・works/tests/test_reads.py の 25 件
-  - 今: lib/reads.py `collect`・lib/boardview.py `collect_reads`・workflows/plan-review/scripts/review_reads.py（節 review-reads）・bin/_lib/record-read.py（#120）
+  - 今: lib/reads.py `collect`・lib/boardview.py `collect_reads`・workflows/plan-review/scripts/review_reads.py（節 review-reads）・bin/_lib/record-read.py・bin/_lib/toolset.py（隔離した設定にフックを置く）（#120）
   - 証: tests/workflows/test_plan_review.py::ReadsCase.test_reads_collected_from_the_hook_records（旧 test_reads_collected_from_archon_events）（#120 で足した。消すと赤: reads.collect がフックの行を索引にしないと赤）
   - 本物の run: 筋書きでのみ（今は記録が無い。戻せば `plan-review/reads-plan-review.json`）
   - 狭め: #73・#75 で狭めた（「Archon の出来事から役の道具の呼びを引く口が無い（U6）」）。Archon で不可でない: 止めた Archon は provider_event（packages/provider-contract/src/events.ts:30-44 の tool_call。name と rawInput を持つ）を run の出来事に積み、CLI の `workflow get --verbose --events --json` が生の行を出す（packages/cli/src/commands/workflow.ts:4076-4091 `listRunEvents` の rawEvents・packages/cli/src/help.ts:751 `--events`）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:` → 戻す
 
 - P212 束ね役が下請けを本当に起こしたか（Agent の道具の呼びの数と subagent_type）を、下請けのファイルの数と突き合わせて trace（plan_review_agents）に残す
   - 元: works/.shared/core/reads.py `tool_count`・`tool_inputs`・works/blk-plan/lib/planblk.py:134 `AGENT_OP`・works/tests/test_blk_plan.py:2674 `test_reads_trace_agent_launches_against_item_files`
-  - 今: lib/boardview.py `collect_reads`（trace の planblk.AGENT_OP）・bin/_lib/record-read.py（Agent の行）（#120）
+  - 今: lib/boardview.py `collect_reads`（trace の planblk.AGENT_OP）・bin/_lib/record-read.py（Agent の行）・bin/_lib/toolset.py（隔離した設定にフックを置く）（#120）
   - 証: tests/workflows/test_plan_review.py::ReadsCase.test_agent_launches_counted_against_item_files（#120 で足した。消すと赤: record-read.py が Agent の行を書かないと赤）
   - 本物の run: 筋書きでのみ（戻せば `plan-review/trace.jsonl` の op=plan_review_agents）
   - 狭め: #73 で狭めた（当時は U6 待ち）。Archon で不可でない（P211 と同じ出どころ。段 1b の U6 の決めで、Agent の呼びは `provider_event` から取れると確かめた）→ 戻す
 
 - P213 役が web を引いた記録（WebFetch の URL・WebSearch の問い）を読んだ証拠のファイルに残す
   - 元: works/.shared/core/reads.py `web_fetches`・`web_searches`・works/tests/test_reads.py:227・:245・:254
-  - 今: lib/reads.py `web_fetches`・`web_searches`・bin/_lib/record-read.py（WebFetch・WebSearch の行）（#120）
+  - 今: lib/reads.py `web_fetches`・`web_searches`・bin/_lib/record-read.py（WebFetch・WebSearch の行）・bin/_lib/toolset.py（隔離した設定にフックを置く）（#120）
   - 証: tests/workflows/test_plan_review.py::ReadsCase.test_web_calls_recorded（#120 で足した。消すと赤: record-read.py が WebFetch・WebSearch の行を書かないと赤）
   - 本物の run: 筋書きでのみ（戻せば reads-plan-review.json の web。先行例の出典を開いた URL が見える）
   - 狭め: #73 で狭めた（U6）。Archon で不可でない（P211 と同じ。WebFetch・WebSearch の行の形は段 1b の U6 でも確かめていない）→ 戻す

@@ -224,7 +224,7 @@ class LauncherTest(unittest.TestCase):
         self.assertIn("書き込みの記録を 1 件片付けた", done.stderr)
         with self.subTest("読んだ証拠の記録も同じ決め方で片付ける"):
             reads_root = root.parent / reads.ROOT
-            reads_root.mkdir()
+            reads_root.mkdir(exist_ok=True)
             w = self.tmp / "gone-reader"
             w.mkdir()
             gone, kept = reads.open_log(reads_root, w), reads.open_log(reads_root, self.target)
