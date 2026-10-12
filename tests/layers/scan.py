@@ -98,7 +98,6 @@ ALLOWED = {
             "lens_collect", "lens_prep", "prep", "refix2_accept", "refix2_prep", "refix_accept", "refix_prep", "review2_accept",
             "route", "rule_accept", "rule_prep", "tdd_prep", "tdd_step", "tdd_unit",
         )),
-        "workflows/fix/scripts/group_start.py#prep",
         "workflows/report/scripts/collect.py#place",
         "workflows/report/scripts/facts.py#place",
         "workflows/report/scripts/facts.py#typed",
