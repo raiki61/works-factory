@@ -408,7 +408,7 @@
 
 - P056 案を書く前に、単位の key が名指す名の呼び出し元と試験の一覧を作って材料に貼る（案の直しでは作らない）。文書・CHANGELOG・実行基盤の写し（.archon）は当たりに数えず、git が無くても落ちずに error を書く。
   - 元: planblk.py:478 `make_ripple`（stage units）・:574 `units_ripple_part`・ripple.py:184 `for_units`・:246 `units_section`
-  - 今: lib/planfile.py:1003 `ripple_units`・:867・workflows/plan/scripts/ripple_units.py:17（SKIP_DIRS .archon）
+  - 今: lib/planfile.py:1003 `ripple_units`・:867・workflows/plan/scripts/ripple_units.py（境の boundary.RUNTIME_COPY_DIRS）
   - 証: tests/workflows/test_plan.py::BriefCase.test_units_ripple_reaches_the_brief（#120 で足した。消すと赤: write_brief の ripple.units_section を外すと赤）
   - 本物の run: plan/r1/ripple-units.json と plan/r1/brief-1.md の「## 波及の一覧（…単位の key が名指す名…）」
   - 狭め: 無し

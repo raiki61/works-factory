@@ -3,6 +3,7 @@
 止めた Archon（docs/design.md の「語」）が script の節に渡す物（packages/workflows/src/exec-environment.ts・schemas/dag-node.ts の inputEnvKey）:
 入力は環境変数 INPUTS_<UPPER_SNAKE>、run の id は WORKFLOW_ID、run の成果物の置き場は ARTIFACTS_DIR。
 入力は口を通さず、script が os.environ["INPUTS_<名>"] を字のまま読む（工程が inputs: を宣言していると、Archon は読み込みで script の字を走査して宣言の無い入力を拒むので、組み立てた名はその走査に見えない）。
+外れは prev_reason の 1 つだけ（輪の頭の節が自分の with: の reason を返すだけの形を、ブロックごとに写さない）。
 指し札の決まりは Archon の artifact-pointer.ts に合わせる。返りに入った指し札の先（在る・空でない・置き場の中）は Archon が節の終わりに照らすので、
 ここでは札の形を組むだけにする。
 
@@ -15,6 +16,13 @@
 - LINE_SCRIPT: fallback の返りの止めの理由。lib/stopby.py の LINE_SCRIPT の写し（lib を読めない時の fallback も引くので lib から
   読めない。lib/tests/test_stopby.py が突き合わせる）
 - value・text・flag・items・field: Archon が渡した入力の字を値に戻す（埋め skip_value の上の読み方）
+
+Archon に向いた事実（lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、script がここから引いて lib/ へ引数で渡す）:
+- RUNTIME_COPY・RUNTIME_COPY_PREFIX・RUNTIME_COPY_DIRS: Archon が run の作業ツリーに写す工程の置き場。修正の変更でないので、
+  差分・後始末・波及で数えない・消さない（パスの頭の字と、フォルダの名の組の形）
+- shared_cache(): run をまたぐ控えの根
+- RUNNER_PREFIXES・RUNNER_NAMES・drop_runner_env(): Archon が script の節に立てる変数
+- prev_reason(): 輪の頭の節の返り（前の周の受け付けの理由）
 """
 import contextlib
 import json
@@ -30,6 +38,11 @@ LINE_SCRIPT = "works:line-script"
 TEXT_FIELDS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason", "unread")   # JSON として読まない欄
 
 _import_error = None
+
+RUNTIME_COPY = ".archon"
+RUNTIME_COPY_PREFIX = f"{RUNTIME_COPY}/"
+RUNTIME_COPY_DIRS = ((RUNTIME_COPY,),)
+SHARED_CACHE = "works-factory"
 
 # Archon が script の節に立てる変数（exec-environment.ts の buildExecNodeEnvironment。tests/shared/test_archon_contract.py が照らす）。
 # 頭の一致は ARCHON_・INPUTS_ だけで、ほかは名の完全一致（CONTEXT などを頭で落とすと利用者の変数まで落とす）
@@ -121,6 +134,19 @@ def drop_runner_env() -> None:
     から継いで子を起こす。節ごと・子の run ごとに値が違うので、残すと同じ run の中の試験の結果の使い回しの指紋も割れる）"""
     for name in [n for n in os.environ if n.startswith(RUNNER_PREFIXES) or n in RUNNER_NAMES]:
         del os.environ[name]
+
+
+def shared_cache() -> Path | None:
+    """run をまたぐ控えの根（Archon が project ごとに渡す run をまたぐ置き場 STATE_DIR の下 works-factory/）。渡されなければ None で、
+    控えを使わない"""
+    state = os.environ.get("STATE_DIR")
+    return Path(state) / SHARED_CACHE if state else None
+
+
+def prev_reason() -> dict:
+    """輪の頭の節の返り {reason}: 節の with: の reason（前の周の受け付けが拒んだ理由。1 周目は空の字）をそのまま返す。
+    輪の中の役の節は自分の with: を結べない（workflows/AGENTS.md の E5）ので、役はこの節の返りを読む"""
+    return {"reason": os.environ["INPUTS_REASON"]}
 
 
 def _run_id() -> str:

@@ -121,7 +121,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T15 範囲と照らす変更は base_rev から今の作業ツリーまでに触ったファイル（追跡の変更・消した物・未追跡）で、Archon が作業ツリーに置く `.archon/` の下は数えない。
   - 元: works/.shared/core/entry.py:907 `scope_changed`・works/tests/test_blk_tests_delta.py:364 test_final_does_not_count_archon_workspace_as_change
-  - 今: workflows/test-gate/scripts/run.py `changed`（WORKSPACE_PREFIX の除き）・lib/accept.py `touched_files`
+  - 今: workflows/test-gate/scripts/run.py `changed`（境の boundary.RUNTIME_COPY_PREFIX の除き）・lib/accept.py `touched_files`
   - 証: tests/workflows/test_test_gate.py::RunScriptCase.test_archon_workspace_is_not_a_change（#122）
   - 本物の run: 筋書きでのみ（種に範囲の宣言が無い）
   - 狭め: 無し（試験だけが欠け）

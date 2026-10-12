@@ -14,13 +14,11 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import planfile  # noqa: E402
 
-SKIP_DIRS = ((".archon",),)   # 実行基盤が対象に置く工程の写し（呼び出し元でない）
-
 
 def main() -> None:
     art = Path(os.environ["ARTIFACTS_DIR"])
     judgment, _ = planfile.read_pointed(os.environ["INPUTS_JUDGMENT"], boundary.resolve)
-    path = planfile.ripple_units(art / os.environ["INPUTS_DIR"], judgment, Path.cwd(), skip_dirs=SKIP_DIRS)
+    path = planfile.ripple_units(art / os.environ["INPUTS_DIR"], judgment, Path.cwd(), skip_dirs=boundary.RUNTIME_COPY_DIRS)
     boundary.returns({"ripple_file": path.relative_to(art).as_posix()})
 
 

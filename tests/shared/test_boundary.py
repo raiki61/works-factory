@@ -1,4 +1,5 @@
 """境の口（workflows/.shared/boundary.py）を、偽の環境と偽の run の置き場で確かめる。lib_root は止めた Archon の run の中でも確かめる（tests/archon.py）。"""
+import ast
 import contextlib
 import importlib.util
 import io
@@ -34,6 +35,68 @@ def load_boundary():
 
 
 boundary = load_boundary()
+
+
+def archon_spellings(source: str) -> list[str]:
+    """script の字の定数のうち、境が持つ Archon の事実を写した物（作業ツリーの中の工程の写し .archon・控えの根の STATE_DIR と
+    works-factory・Archon の変数の名の 2 つ以上の並び）。docstring（式だけの文の字）は除く。注は ast に残らない"""
+    tree = ast.parse(source)
+    prose = {id(n.value) for n in ast.walk(tree) if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant)}
+    runner = boundary.RUNNER_NAMES | set(boundary.RUNNER_PREFIXES)
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in prose:
+            if node.value.rstrip("/") == ".archon" or node.value.startswith(".archon/") or node.value in ("STATE_DIR", "works-factory"):
+                found.append(f"{node.lineno}: {node.value!r}")
+        elif isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+            names = [e.value for e in node.elts if isinstance(e, ast.Constant) and e.value in runner]
+            if len(names) >= 2:
+                found.append(f"{node.lineno}: {names!r}")
+    return found
+
+
+class ArchonFactsCase(unittest.TestCase):
+    """Archon に向いた事実（工程の写しの置き場・run をまたぐ控えの根・Archon の変数・輪の頭の前の周の理由）は境の 1 か所が持つ"""
+    maxDiff = None
+
+    def test_runtime_copy_prefix_and_dirs_come_from_one_name(self):
+        self.assertEqual(boundary.RUNTIME_COPY, ".archon")
+        self.assertEqual(boundary.RUNTIME_COPY_PREFIX, boundary.RUNTIME_COPY + "/")
+        self.assertEqual(boundary.RUNTIME_COPY_DIRS, ((boundary.RUNTIME_COPY,),))
+
+    def test_shared_cache_is_under_state_dir_or_none(self):
+        with mock.patch.dict(os.environ, {"STATE_DIR": "/state"}):
+            self.assertEqual(boundary.shared_cache(), pathlib.Path("/state/works-factory"))
+        for absent in ({"STATE_DIR": ""}, {}):
+            with mock.patch.dict(os.environ, absent):
+                if not absent:
+                    os.environ.pop("STATE_DIR", None)
+                self.assertIsNone(boundary.shared_cache())
+
+    def test_drop_runner_env_drops_named_and_prefixed_only(self):
+        runner = {"ARCHON_NODE_EXECUTION": "{}", "INPUTS_REASON": "r", "CONTEXT": "c", "WORKFLOW_ID": "run-1", "STATE_DIR": "/s"}
+        user = {"CONTEXT_PATH": "u", "MY_CONTEXT": "u", "ARCHONISH": "u", "INPUTS": "u"}
+        with mock.patch.dict(os.environ, {**runner, **user}):
+            boundary.drop_runner_env()
+            self.assertEqual([n for n in runner if n in os.environ], [])
+            self.assertEqual({n: os.environ.get(n) for n in user}, user)
+
+    def test_prev_reason_returns_the_inputs_reason(self):
+        for reason in ("前の周の拒みの理由", ""):
+            with mock.patch.dict(os.environ, {"INPUTS_REASON": reason}):
+                self.assertEqual(boundary.prev_reason(), {"reason": reason})
+
+    def test_block_scripts_do_not_spell_archon_facts(self):
+        seeded = 'SKIP = (".archon/",)\nD = ((".archon",),)\nS = os.environ.get("STATE_DIR")\nR = Path(s) / "works-factory"\n' \
+                 'N = ("ARCHON_", "CONTEXT")\n'
+        self.assertEqual(len(archon_spellings(seeded)), 5, archon_spellings(seeded))
+        self.assertEqual(archon_spellings('"""STATE_DIR の下 works-factory/ と .archon/"""\nX = ("WORKFLOW_ID",)\n'), [])
+        found = {}
+        for path in sorted((ROOT / "workflows").glob("*/scripts/**/*.py")):
+            got = archon_spellings(path.read_text(encoding="utf-8"))
+            if got:
+                found[path.relative_to(ROOT).as_posix()] = got
+        self.assertEqual(found, {})
 
 
 class FakeRunTest(unittest.TestCase):

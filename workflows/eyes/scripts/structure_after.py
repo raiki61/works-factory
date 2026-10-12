@@ -20,14 +20,12 @@ import planmarks  # noqa: E402
 import stage_b  # noqa: E402
 import structmark  # noqa: E402
 
-RUNTIME_COPY = ".archon/"   # 作業ツリーの中の実行基盤の写しは差分に数えない
-
 after, devs, problems = {}, [], []
 try:
     start_ptr = json.loads(os.environ["INPUTS_START"])
     start = json.loads(boundary.resolve(start_ptr).read_text(encoding="utf-8")) if start_ptr else {}
     t0 = time.monotonic()
-    after = stage_b.run(Path.cwd(), start.get("base_rev") or "", skip_prefix=RUNTIME_COPY)
+    after = stage_b.run(Path.cwd(), start.get("base_rev") or "", skip_prefix=boundary.RUNTIME_COPY_PREFIX)
     eye.stamp(after, t0)
     if after["status"] != "ok":
         problems.append(after["reason"])

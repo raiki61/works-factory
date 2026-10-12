@@ -4,17 +4,19 @@
 # ///
 """fix のブロックの script が共に読む、Archon との出入りの助け（置き場の場所・作業ツリー・控えのファイル）。
 
-lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、Archon に届く事（ARTIFACTS_DIR・ARCHON_NODE_EXECUTION・STATE_DIR・
-CLAUDE_CONFIG_DIR・.archon/）は
-ここと script の側だけが持ち、lib/ へは値を引数で渡す。節の script ではない（工程の YAML は名指さない）。
+lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、Archon に届く事（ARTIFACTS_DIR・ARCHON_NODE_EXECUTION・
+CLAUDE_CONFIG_DIR）はここと script の側と境（boundary）だけが持ち、lib/ へは値を引数で渡す。節の script ではない
+（工程の YAML は名指さない）。読む script は境の置き場を sys.path に足してから import する。
 """
 import json
 import os
 import pathlib
 import subprocess
 
-# Archon が run の作業ツリーに写す工程の置き場。後始末・変更の確かめ・書き込みの出どころの照らしで数えない・消さないパスの頭
-SKIP = (".archon/",)
+import boundary
+
+# 後始末・変更の確かめ・書き込みの出どころの照らしで数えない・消さないパスの頭（境の工程の写しの置き場）
+SKIP = (boundary.RUNTIME_COPY_PREFIX,)
 BLOCK_NAME = "fix"
 MODES = {"": False, "group": True}   # 入力 mode の語 → 組の子の run か（route が振り分け、collect が返りの形を選ぶ）
 
@@ -35,12 +37,6 @@ def place() -> pathlib.Path:
     folder = pathlib.Path(os.environ["ARTIFACTS_DIR"]) / BLOCK_NAME / include_name()
     folder.mkdir(parents=True, exist_ok=True)
     return folder
-
-
-def shared_cache() -> pathlib.Path | None:
-    """run をまたぐ控えの根（Archon が project ごとに渡す STATE_DIR の下 works-factory/。渡されなければ None で、控えを使わない）"""
-    state = os.environ.get("STATE_DIR")
-    return pathlib.Path(state) / "works-factory" if state else None
 
 
 def _writes_root() -> pathlib.Path | None:
