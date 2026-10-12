@@ -102,6 +102,14 @@ def workflow_source(pack: dict, root: Path, cache: Path) -> Path:
     return shim
 
 
+def archon(bun: str, source: Path) -> list[str]:
+    """源の Archon の本体を起こす命令の頭。後ろに Archon の引数を足す。
+
+    bun は打った場所の bunfig.toml の preload を走らせる。対象の物を Archon の中で走らせないよう、源の物を名指す。
+    """
+    return [bun, f"--config={source / 'bunfig.toml'}", str(source / ENTRY)]
+
+
 def workflow_run(source: Path, workflow_dir: Path, cwd: Path, name: str, *args: str) -> list[str]:
     """工程 name を workflow_dir から読み、cwd に対して回す命令。
 

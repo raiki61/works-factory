@@ -85,7 +85,7 @@ def sweep(run_id: str, checkout: str, env: Mapping[str, str], run: Run = subproc
     child_env = {**env, "GIT_TERMINAL_PROMPT": "0"}
     if "GIT_SSH_COMMAND" not in env and "GIT_SSH" not in env:
         child_env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes"
-    head = [bun, f"--config={Path(source) / 'bunfig.toml'}", str(Path(source) / place.ENTRY)]
+    head = place.archon(bun, Path(source))
 
     def archon(*args: str) -> subprocess.CompletedProcess:
         return run([*head, *args, "--cwd", checkout], env=child_env, cwd=env.get("ARTIFACTS_DIR") or None,
