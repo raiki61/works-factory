@@ -1,7 +1,7 @@
 """文書・役の指示書・lib が人や役に見せる字に、グラフの語にそろえる前の旧い語が無い（`docs/design.md` の「語」。
 持ち主の決め `graph-words`）。
 
-見る字（`scope`）: `docs/` の直下の `*.md`・`AGENTS.md`（ASF の物を除く）・根の `README.md`・`lib/` の直下の `*.md`・`*.json`・
+見る字（`scope`）: `docs/` の直下の `*.md`・`AGENTS.md`（ASF の物を除く）・根の `README.md`・`MISSION.md`・`engineering.md`・`lib/` の直下の `*.md`・`*.json`・
 役の指示書（`workflows/*/commands/` の下の全部・`lib/agents/*.md`・`bin/_lib/borrow/unattended.md`）・グラフの YAML の `description`・`prompt`・`systemPrompt`・`message` の値・
 `lib/` の直下・`workflows/*/scripts/`・境 `workflows/.shared/` の Python の文字列（docstring とコメントは開発者の字なので見ない）。
 旧い語は部分一致で探す。外す規則は `EXCEPT` の 1 か所。
@@ -23,6 +23,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 BANNED = ("節", "線", "輪", "関所", "指し札", "盤面", "お前")
 YAML_TEXT_KEYS = frozenset({"description", "prompt", "systemPrompt", "message"})
 ASF_DIRS = ("factory", "harness", ".factory")
+ROOT_DOCS = ("README.md", "MISSION.md", "engineering.md")
 BORROWED_PROMPT = "bin/_lib/borrow/unattended.md"   # 局所レビューの役の指示書の末尾に全文で載る
 
 # 外す規則の全部。ここの外で字を外さない。
@@ -58,7 +59,7 @@ def scope(root):
     found = []
     found += [p for p in root.glob("docs/*.md")]
     found += [p for p in root.rglob("AGENTS.md") if p.relative_to(root).parts[0] not in ASF_DIRS]
-    found += [p for p in root.glob("README.md")]
+    found += [p for name in ROOT_DOCS for p in root.glob(name)]
     found += [p for p in root.glob("lib/*.md")] + [p for p in root.glob("lib/*.json")]
     found += [p for p in root.glob(BORROWED_PROMPT)]
     found += [p for p in root.glob("workflows/*/commands/**/*") if p.is_file()]
