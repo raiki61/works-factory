@@ -12,4 +12,3 @@ fixture:
   inputs:
     mode: seal
     start: '{"type":"archon_artifact","run_id":"fixture-run","path":"start.json"}'
-    diff: '{"type":"archon_artifact","run_id":"fixture-run","path":"fix/diff.patch"}'
