@@ -565,15 +565,30 @@ class LaunchProofShapeCase(unittest.TestCase):
                 tree_run.prove_launchable(["bash", "-c", cmd])
 
     def test_slow_proof_is_waited_out_without_deadline(self):
-        # 証明が長くかかっても（時計が何時間進んでも）期限で捨てて起こさず、command -v の答えを待つ（E12）
+        # 証明が何回 POLL を数えても、時計が何時間進んでも、期限で捨てて起こさず、command -v の答えを待つ（E12）。
+        # 回数・monotonic・壁時計のどの形の上限でも、BASH_ENV が放されるより前に捨てて戻り、この試験は赤になる
+        polls = 1000
         with tempfile.TemporaryDirectory() as tmp:
+            release = pathlib.Path(tmp) / "release"
             slow = pathlib.Path(tmp) / "slow-env.sh"
-            slow.write_text("sleep 0.6\n")
+            slow.write_text(f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.01; done\n")
             env = {**os.environ, "BASH_ENV": str(slow)}
+            calls = itertools.count(1)
+
+            def halted():
+                if next(calls) == polls:
+                    release.touch()
+                return False
+
             clock = itertools.count(0, 3600)
-            with mock.patch.object(tree_run.time, "monotonic", lambda: float(next(clock))), \
-                    self.assertRaises(FileNotFoundError):
-                tree_run.prove_launchable(["bash", "-c", "no-such-command-xyz"], env=env)
+
+            def leap():
+                return float(next(clock))
+
+            with mock.patch.object(tree_run, "POLL", 0.001), mock.patch.object(tree_run.time, "monotonic", leap), \
+                    mock.patch.object(tree_run.time, "time", leap), self.assertRaises(FileNotFoundError):
+                tree_run.prove_launchable(["bash", "-c", "no-such-command-xyz"], env=env, halted=halted)
+            self.assertGreaterEqual(next(calls) - 1, polls)
         self.assertFalse(hasattr(tree_run, "PROOF_TIMEOUT"))
 
 
