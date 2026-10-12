@@ -92,12 +92,34 @@ class ChangedTest(unittest.TestCase):
         self.assertEqual(self.ran(out), 2, out)
         self.assertIn("lib.tests.test_gamma", stdout)
 
+    def test_changed_test_file_outside_the_impact_name_rule_runs(self):
+        self.write("tests/testzz.py", ONE_TEST)
+        rc, stdout, out = self.run_changed()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.ran(out), 2, out)
+        self.assertIn("tests.testzz", stdout)
+
     def test_archon_helper_change_runs_everything(self):
         self.write("tests/archon.py", "# changed\n")
         rc, stdout, out = self.run_changed()
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.ran(out), 4, out)
         self.assertIn("tests/archon.py", stdout)
+
+    def test_ci_change_runs_everything(self):
+        self.write(".github/workflows/tests.yml", "name: tests\n")
+        rc, stdout, out = self.run_changed()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.ran(out), 4, out)
+        self.assertIn(".github/workflows/tests.yml", stdout)
+
+    def test_unanalysable_change_runs_everything(self):
+        self.write("lib/alpha.py", "import importlib\n\n\ndef value():\n    return 1\n\n\n"
+                                   "def load(name):\n    return importlib.import_module(name)\n")
+        rc, stdout, out = self.run_changed()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.ran(out), 4, out)
+        self.assertIn("dynamic-import", stdout)
 
     def test_no_base_runs_everything(self):
         git(self.repo, "update-ref", "-d", "refs/remotes/origin/main")

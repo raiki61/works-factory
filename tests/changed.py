@@ -6,7 +6,7 @@
 
 変更（origin/main との merge-base からの差と、未追跡を含む作業ツリーの差）に直に当たる試験のモジュールと、層の柵
 （tests/layers/）だけを unittest で回す。全部の試験は CI（.github/workflows/tests.yml）が回す。持ち主の決め 2026-10-12（#130）。
-- 選び: lib/impact.py の map と select_tests（direct_only。起点か深さ 1。変わった試験のファイルは起点なので選ばれる）
+- 選び: lib/impact.py の map と select_tests（direct_only。起点か深さ 1）。変わった試験のファイルは discover の名の規則で足す
 - 全部を回す: 選びが全部が要ると言った時・WHOLE と WHOLE_DIRS の変更・起点が取れない時・選びが落ちた時（緑を仮定しない）
 - 出力: 選んだモジュール・回さないモジュールの数・訳を先に標準出力へ出し、最後は unittest の数え（Ran N tests）のまま
 """
@@ -62,7 +62,7 @@ def choose():
     if sel["run_all"]:
         return [], sel["reasons"]
     fence = [str(p.relative_to(ROOT)) for p in (ROOT / FENCE).glob("test*.py")]
-    mods = sorted({mod for mod in map(module, [*sel["selected"], *fence]) if mod})
+    mods = sorted({mod for mod in map(module, [*sel["selected"], *changed, *fence]) if mod})
     if not mods:
         return [], ["選んだ試験も層の柵も無い"]
     return mods, []
@@ -71,13 +71,13 @@ def choose():
 def main():
     started = time.monotonic()
     mods, reasons = choose()
-    every = {mod for mod in map(module, impact.tree_files(ROOT) or []) if mod}
     print(f"changed.py: 選びに {time.monotonic() - started:.1f} 秒")
     if reasons:
         print("全部の試験を回す。訳:")
         print("\n".join(f"  {r}" for r in reasons))
         cmd = ["discover", "-s", ".", "-t", "."]
     else:
+        every = {mod for mod in map(module, impact.tree_files(ROOT)) if mod}
         print(f"変更に直に当たる試験と層の柵の {len(mods)} モジュールを回す（回さない: {len(every - set(mods))} モジュール。"
               f"全部は CI が回す）:")
         print("\n".join(f"  {mod}" for mod in mods))
