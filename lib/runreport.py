@@ -110,7 +110,7 @@ EYE_PASSES_HEAD = "人が通した行（修正前の承認ノードで人が通�
 DEFERRED_HEAD = "無人の run で修正前の承認ノードに載せずに報告へ回した問い（承認ノードを開かずに修正へ進めた）"
 FINAL_REASONS_HEAD = "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）"
 PRIOR_IN_HEAD = "依頼が運んだ前の run の失敗（prior_failures）"
-NO_REDEPTH = "直した後の深さの上げ直しの返りが無い（上げ直しのノードが走っていない）。計画の深さのまま"
+NO_REDEPTH = "直した後の深さの上げ直しの出力が無い（上げ直しのノードが走っていない）。計画の深さのまま"
 NO_REJECT = "受け付けの最後の拒否の控えが置き場に無い"
 # 止めた段の拒否の控えを探す置き場（段の返りの指し札の欄。指し札の先と同じフォルダの下に受け付けが拒否を残す）
 REJECT_PLACES = {"judge": "judgment", "rejudge": "judgment", "plan": "plan", "replan": "plan", "plan-review": "review",
@@ -1092,7 +1092,7 @@ def _eye_lines(returns: dict, typed: dict, eyes_skip=None) -> tuple[list, list]:
                                              else "深さで省いた"))
             if name == "r2" and isinstance(e, dict):   # E45: R2 に渡した前提と『渡されていない』と言われた物（元 line_edge._r2_inputs）
                 out += [f"  - {x}" for x in (eyeverdict.r2_input_lines(at) if at is not None
-                                             else ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の返り notes が無い）"])]
+                                             else ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の出力 notes が無い）"])]
     premise = as_dict(as_dict(eyes).get("premise_check"))
     if premise:
         out.append(f"前提の検算: {premise.get('verdict') or '語が無い'}（{report._one_line(premise.get('reason') or '')}）")

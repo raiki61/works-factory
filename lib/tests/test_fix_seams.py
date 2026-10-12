@@ -1449,13 +1449,13 @@ class DeltaSeamCase(TempCase):
         self.assertIn(rolekit.LANG_DEFAULT, rolekit.lang_line({}))
 
     def test_delta_review_rejects_every_plan_only_kind(self):
-        """差分の審査の穴の kind が事前審査だけの語なら 1 行で拒む: regression・policy は後の工程が人に聞く、precedent は判定者の
+        """差分の審査の穴の kind が事前審査だけの語なら 1 行で拒む: regression・policy は後の段が人に聞く、precedent は判定者の
         先行例が渡っていない（元 review-loop.py:3152-3160 の HUMAN_FACE_KINDS・PLAN_ONLY_FACE_KINDS。元の試験
         works/tests/test_blk_tests_delta.py:683 test_review_policy_kind_rejected）"""
         fixboard.write_json(fixboard.loop_file(self.place, "fix_delta"), {"file": "", "files": ["stats.py"]})
         face = {"key": self.FACE, "kind": "contract_drift", "where": "stats.py", "cite": "def mean(xs):", "why": "w" * 20}
         self.assertEqual(fixboard.delta_review_problems(self.place, 1, {"faces": [face], "checks": []}, self.repo), [])
-        for kind, why in (("regression", "後の工程が人に聞く"), ("policy", "後の工程が人に聞く"), ("precedent", "先行例")):
+        for kind, why in (("regression", "後の段が人に聞く"), ("policy", "後の段が人に聞く"), ("precedent", "先行例")):
             with self.subTest(kind):
                 got = fixboard.delta_review_problems(self.place, 1, {"faces": [{**face, "kind": kind}], "checks": []},
                                                      self.repo)
