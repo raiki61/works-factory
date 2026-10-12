@@ -299,9 +299,16 @@ def prep_reads(text: str) -> set:
     return set(re.findall(r"\$prep\.output\.([A-Za-z0-9_]+)", text))
 
 
+SCHEMA_KEYS = {"type", "enum", "const", "minLength", "required", "properties", "additionalProperties", "items", "if", "then"}
+
+
 def conforms(value, schema, where="$") -> list:
     """試験に要る分だけの JSON Schema（Draft 2020-12。止めた Archon が output_format を照らす Ajv と同じ意味）の照らし
-    （type・enum・const・minLength・required・properties・additionalProperties・items・if/then）。ほかの鍵は読み飛ばす"""
+    （type・enum・const・minLength・required・properties・additionalProperties・items・if/then）。照らせない鍵が型に在れば
+    読み飛ばさずに落とす"""
+    unknown = set(schema) - SCHEMA_KEYS
+    if unknown:
+        raise ValueError(f"{where}: 照らせない鍵 {sorted(unknown)}")
     kinds = schema.get("type")
     kinds = [kinds] if isinstance(kinds, str) else kinds or []
     py = {"object": dict, "array": list, "string": str, "boolean": bool, "null": type(None), "integer": int}
@@ -378,8 +385,6 @@ class ShapeCase(unittest.TestCase):
         for ask in DIFF_ASK.split("\n\n")[1].replace("リポジトリや盤面のほかの", "リポジトリやほかの").splitlines():
             with self.subTest(ask):
                 self.assertIn(ask, text)
-        for word in ("最後の行まで読み切れ", "開いてよいのはこのファイルだけ", "推し量って埋めずに"):
-            self.assertIn(word, text)
 
     def test_r2_compare_says_premise_changed(self):
         self.assertIn(f"{PREMISE_HEAD}\n\n{PREMISE_ASK}\n\n$prep.output.premises_text",
@@ -397,10 +402,7 @@ class ShapeCase(unittest.TestCase):
                 self.assertIn(ask + "\n", text)
 
     def test_minimality_knows_where_handoffs_go(self):
-        text = (BLOCK / "commands" / "r1-minimality.md").read_text(encoding="utf-8")
-        self.assertIn(HANDOFFS, text)
-        for word in ("`breaks.accepted`", "人に見せる一覧", "台帳に無いことだけ", "中身で見よ"):
-            self.assertIn(word, text)
+        self.assertIn(HANDOFFS, (BLOCK / "commands" / "r1-minimality.md").read_text(encoding="utf-8"))
 
     def test_concept_map_only_on_r1_and_r3(self):
         """考えの地図の節と住処の観点は R1（最小性）と R3 にだけ貼る（元 works/blk-eyes/lib/eyes.py:91-92 CONCEPT_HEADS・CONCEPT_FLAG）"""
@@ -440,9 +442,7 @@ class ShapeCase(unittest.TestCase):
 
     def test_r1_comments_carries_the_comment_analyzer_definition_verbatim(self):
         import hashlib
-        text = (BLOCK / "commands" / "r1-comments.md").read_text(encoding="utf-8")
-        head = "## お前の役の定義（pr-review-toolkit:comment-analyzer）\n\n"
-        body = text[text.index(head) + len(head):text.index("\n\n---\n\n", text.index(head))]
+        body = agent_body("comment-analyzer")
         self.assertEqual(hashlib.sha256((COMMENT_ANALYZER_FRONT + body + "\n").encode("utf-8")).hexdigest(), COMMENT_ANALYZER_SHA256)
 
     def test_every_command_binds_the_language_and_returns_json(self):
