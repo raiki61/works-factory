@@ -53,8 +53,9 @@ BY_KINDS = {
 }
 BY = (*BY_KINDS, "absent")
 FALLBACKS = ("role", "absent")
-GRAPH_FIELDS = {"by", "where", "fallback", "fallback_where", "skippable", "proof", "reason"}
-KEEP_FIELDS = {"name", "by", "where", "proof", "reason"}
+GRAPH_FIELDS = {"by", "where", "fallback", "fallback_where", "skippable", "proof", "reason", "gaps"}
+KEEP_FIELDS = {"name", "by", "where", "proof", "reason", "gaps"}
+GAP = re.compile(r"^#\d+ \S")
 FIXTURE = re.compile(r"^workflows/[^/]+/fixtures/[^/]+\.stubs\.yaml$")
 DESIGN_ID = re.compile(r"`([a-z][a-z0-9]*(?:\.[a-z0-9_]+)?)`")
 
@@ -216,6 +217,18 @@ class _Check:
             return f"メソッド {method} が無い"
         return None
 
+    def _gaps(self, label, row):
+        """在る行の能力のうち証が無い・落ちている所。どれも戻す issue を名指す"""
+        if "gaps" not in row:
+            return
+        gaps = row["gaps"]
+        if not _strings(gaps) or not gaps:
+            self.out.append(f"{label}: gaps が空か文字列の配列でない")
+            return
+        for gap in gaps:
+            if not GAP.match(gap):
+                self.out.append(f"{label}: gaps の値 {gap!r} が #<issue の番号> と欠けで始まらない")
+
     def _source(self, source, works):
         if source.get("graph_sha") != GRAPH_SHA:
             self.out.append(f"source.graph_sha: {source.get('graph_sha')!r} は固めた {GRAPH_SHA} と違う")
@@ -253,7 +266,7 @@ class _Check:
     def _absent(self, label, row):
         if _blank(row.get("reason")):
             self.out.append(f"{label}: absent に理由が無い")
-        for field in ("where", "fallback", "fallback_where", "proof"):
+        for field in ("where", "fallback", "fallback_where", "proof", "gaps"):
             if field in row:
                 self.out.append(f"{label}: absent の行が {field} を持つ")
 
@@ -268,6 +281,7 @@ class _Check:
                        f"by {by} なのに where に {'・'.join(sorted(BY_KINDS[by]))} の節が無い")
         self._fallback(label, by, row)
         self._proofs(label, row.get("proof"))
+        self._gaps(label, row)
 
     def _fallback(self, label, by, row):
         fallback, fb_where = row.get("fallback"), row.get("fallback_where")
@@ -312,6 +326,7 @@ class _Check:
             self.where_keys.update(where)
             self._where(label, where)
             self._proofs(label, row.get("proof"))
+            self._gaps(label, row)
 
     def _support(self, support):
         for key, why in support.items():
