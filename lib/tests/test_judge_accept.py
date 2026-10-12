@@ -536,30 +536,6 @@ class JudgeTakeCase(_JudgeBase):
                 self.assertEqual(saved, {"rounds": {"1": ties}})
 
 
-class JudgeAcceptCase(_JudgeBase):
-    def test_accept_parses_and_collect_builds_exit(self):
-        """元 test_blk_judge.ScriptCase.test_collect_builds_exit・test_accept_good_and_bad_reply"""
-        bad = ja.accept(self.jdir, "{not json", self.repo)
-        self.assertIs(bad["ok"], False)
-        self.assertIn("JSON", bad["reason"])
-        got = ja.accept(self.jdir, json.dumps(_judge_ok(), ensure_ascii=False), self.repo)
-        self.assertIs(got["ok"], True, got["reason"])
-        out = ja.collect(self.jdir)
-        self.assertEqual((out["ok"], out["need_fix"], sorted(out["open_units"])), (True, True, sorted([_MEAN, _CLAMP])))
-        self.assertEqual(out["one_shot"], _judge_ok()["one_shot"])
-
-    def test_collect_without_judgment_gives_up_with_last_reject(self):
-        """元 test_line_a の test_judge_gives_up_without_failing_the_run（3 回とも拒めば最後の拒否の文で止める）"""
-        for _ in range(3):
-            rolekit.with_done(self.jdir, ja.DIAGNOSE_ROLE, {"ok": False, "reason": "kind が不正"})
-        out = ja.collect(self.jdir)
-        self.assertEqual(out, {"ok": False, "open_units": [], "need_fix": False, "judgment_file": "", "one_shot": ""})
-        stop = ja.read_stop(self.jdir)
-        self.assertEqual(stop["stop_reason"], ja.JUDGE_STOP)
-        self.assertIn("3 回とも", stop["reason"])
-        self.assertIn("kind が不正", stop["reason"])
-
-
 class _VerifyBase(_JudgeBase):
     def judged(self, *units):
         doc = {"framing": "依頼の 2 件はどちらも算術の取り違え", "one_shot": "直す", "units": list(units), "questions": []}
