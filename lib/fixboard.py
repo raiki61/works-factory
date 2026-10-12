@@ -1383,6 +1383,7 @@ NOT_OPENED = ("今の周に直す単位に無い unit_key を changes に書い�
 EXCUSED = ("直す義務から外れた単位を changes に書いた（答えが届くまで・人が決めるまで直さない。changes から外し、not_done に"
            "理由を書け）: ")
 CONFLICT_BAD = "食い違いの申し出を受けない（名指した所が現物に無いか、形が違う。直して丸ごと出し直せ）: "
+JUDGE_UNREAD = f"置き場の判定の写し {JUDGMENT_FILE} が読めない（{{why}}）——判定者の問いを correct_lines に当てて試せない"
 SECOND_CONFLICT = ("裁定の後の出し直しで新しく申し出た食い違い——裁定のループは 1 周に 1 回だけなので、機械が人に回した"
                    "（最後の承認ノードで人が決める）")
 CONSULT_SPENT = ("範囲の相談の枠（この段のループで {n} 回）を使い切った後の consult を受けない。consult の欄を外し、範囲の中で直すか、"
@@ -1528,11 +1529,29 @@ def unit_outcomes(owed, reply, *, excused=None, parked=None, conflicted=()) -> d
     return out
 
 
+def judge_query(place):
+    """食い違いの申し出の確かめ（conflict.problems_by_entry）の try_query: 置き場の判定の写し judgment.json の units から
+    querytest.judge_hits を組む（TDD の輪の道 tdd-step と同じ）。写しが無い・読めない・dict でなければ、query の申し出ごとに
+    JUDGE_UNREAD の文を返す口（読めないと名指して拒む。黙って試さずに通さない。元は盤面の判定 b.record["units"] を引き、
+    無ければ落ちた）"""
+    import querytest
+    try:
+        judgment = read_json(pathlib.Path(place) / JUDGMENT_FILE)
+        why = "" if isinstance(judgment, dict) else ("無い" if judgment is None else "dict でない")
+    except ValueError as e:
+        judgment, why = None, str(e)
+    if why:
+        return lambda key, lines: JUDGE_UNREAD.format(why=why)
+    return querytest.judge_hits(judgment.get("units") or [])
+
+
 def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
     """食い違いの申し出（欄 conflicts）を外した返答と、拒否の結果か止めた印。返り (返答, 結果 | None)。元
     works/blk-fix/scripts/accept.py:306（盤面の代わりに置き場 place、直す義務は値 owed で受ける）:
     - 裁定がもう外した単位（conflict.held_by_rulings）の申し出は先に外す
-    - 申し出は機械が確かめ（conflict.problems_by_entry）、外れれば {ok: False, reason, lines: [(key|None, 文)]}
+    - 申し出は機械が確かめ（conflict.problems_by_entry）、外れれば {ok: False, reason, lines: [(key|None, 文)]}。which_is_right:
+      query の申し出は置き場の判定の写し judgment.json の単位の class_query を correct_lines に当てて試す（judge_query。元
+      accept.py:325-326 の try_query=querytest.judge_hits(b.record["units"])）
     - first: 通った申し出を置き場の conflicts.json に積み、裁かれていない申し出が在れば（TDD の輪の分も）
       {ok: True, parked: True, units: [申し出た単位]}（返答は conflict.PARKED_REPLY に控える）
     - ruled: 裁定の後の新しい申し出は機械が ask_human に裁いて積む"""
@@ -1545,7 +1564,8 @@ def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
         items = [i for i in items if not (isinstance(i, dict) and i.get("unit_key") in known)]
     owed = owed_units_but_asked(place, owed)
     if items:
-        entries = conflict.problems_by_entry(items, repo=repo, board_dir=place, owed=owed, briefs=planbrief.by_unit_at(place))
+        entries = conflict.problems_by_entry(items, repo=repo, board_dir=place, owed=owed, try_query=judge_query(place),
+                                             briefs=planbrief.by_unit_at(place))
         lines = [(key, CONFLICT_BAD + " / ".join(texts)) for _, key, texts in entries if key and texts] \
             + [(None, CONFLICT_BAD + t) for _, key, texts in entries if not key for t in texts]
         both = sorted({i.get("unit_key") for i in items if isinstance(i, dict)}

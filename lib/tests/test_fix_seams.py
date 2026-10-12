@@ -1721,6 +1721,81 @@ class FixAcceptSeamCase(TempCase):
         got = self._accept_fixed(reply, precedents=[{"key": R_MEAN}])
         self.assertTrue(got["ok"], got["reason"])
 
+    # ---- 食い違いの申し出の道（take_conflicts）を accept_reply から通す（元 works/tests/test_blk_fix_conflict.py の写し）
+    def _claim(self, *cites, **over):
+        return {"unit_key": R_MEAN, "between": list(cites or ("stats.py:9", "test_stats.py:9")),
+                "why_both_cannot_hold": "テストは分母 len(xs) - 1 の値を期待しているが、依頼は算術平均を求めている",
+                "which_is_right": "request", "kind": "unnamed_test_broke", **over}
+
+    def _accept_claims(self, conflicts, *, pass_="first", iteration=1, judgment=True, changes=()):
+        """判定の写し（R_JUDGED。judgment が偽なら置かない）の置き場で、申し出 conflicts を持つ返答を受け付けに通す"""
+        if judgment:
+            (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        return fixboard.accept_reply({"changes": list(changes), "conflicts": conflicts}, self.place, self.repo, pass_=pass_,
+                                     iteration=iteration, owed=[R_MEAN, R_CLAMP], judged=R_JUDGED, head=head,
+                                     base_rev=self.rev, skip=SKIP)
+
+    def _conflict_rejects(self, got) -> list:
+        return [r["text"] for r in got["rejects"] if r["check"] == "conflict"]
+
+    def test_fake_citation_is_a_normal_reject(self):
+        """F202: 名指しの行がファイルに無い・無いファイルの申し出は普通の拒否（check conflict。3 回の枠に数える）で、置き場の
+        conflicts.json に積まない。依頼の行（run の依頼のファイルの絶対パス:行）は名指せ、行が無ければ拒む（元
+        test_blk_fix_conflict.py:141 test_fake_citation_is_a_normal_reject・:162 test_request_line_citation_resolves）"""
+        import conflict
+        got = self._accept_claims([self._claim("stats.py:900", "no_such_test.py:1")])
+        self.assertEqual((got["ok"], got["conflicted"]), (False, False), got)
+        bad = " ".join(self._conflict_rejects(got))
+        for w in ("stats.py:900", "行がファイルに無い", "no_such_test.py:1", "ファイルが無い"):
+            self.assertIn(w, bad)
+        self.assertEqual(conflict.items(self.place), [], "拒んだ申し出は積まない")
+        req = self.tmp / "request.json"
+        req.write_text('{"request": "平均を直す"}\n', encoding="utf-8")
+        (self.place / "r1").mkdir()
+        (self.place / "r1" / "start.json").write_text(json.dumps({"request_file": str(req)}), encoding="utf-8")
+        got = self._accept_claims([self._claim(f"{req}:999", "test_stats.py:9")], iteration=2)
+        self.assertFalse(got["ok"], got)
+        self.assertIn("行がファイルに無い", " ".join(self._conflict_rejects(got)))
+        got = self._accept_claims([self._claim(f"{req}:1", "test_stats.py:9")], iteration=3)
+        self.assertEqual((got["ok"], got["conflicted"]), (True, True), got)
+        self.assertEqual([r["unit_key"] for r in conflict.unruled(self.place)], [R_MEAN])
+
+    def test_fixer_query_claim_tries_the_judge_query(self):
+        """F205: 修正役の which_is_right: query の申し出も、置き場の判定の写し judgment.json の単位の class_query を correct_lines に
+        当てて試す。当たらなければ拒み、当たれば積む。判定の写しが読めなければ「読めない」と名指して拒む（黙って試さずに通さない）
+        （元 works/blk-fix/scripts/accept.py:325-326 の try_query。元 test_blk_fix_conflict.py:470 の修正役の版）"""
+        import conflict
+        query = dict(which_is_right="query", kind="query_hits_fixed")
+        got = self._accept_claims([self._claim(**query, correct_lines=["    return sum(xs) / len(xs)"])])
+        self.assertEqual((got["ok"], got["conflicted"]), (False, False), got)
+        self.assertIn("どの行にも当たらない", " ".join(self._conflict_rejects(got)))
+        self.assertEqual(conflict.items(self.place), [])
+        (self.place / "judgment.json").unlink()
+        got = self._accept_claims([self._claim(**query, correct_lines=["    return sum(xs) / (len(xs) - 1)"])],
+                                  iteration=2, judgment=False)
+        self.assertFalse(got["ok"], got)
+        self.assertIn("judgment.json が読めない", " ".join(self._conflict_rejects(got)))
+        got = self._accept_claims([self._claim(**query, correct_lines=["    return sum(xs) / (len(xs) - 1)"])], iteration=2)
+        self.assertEqual((got["ok"], got["conflicted"]), (True, True), got)
+        self.assertEqual([r["which_is_right"] for r in conflict.unruled(self.place)], ["query"])
+
+    def test_resent_claim_on_a_ruled_unit_is_dropped(self):
+        """F206: 裁定がもう外した単位（conflict.held_by_rulings）の申し出は、出し直されても知っている申し出として確かめずに外し、
+        積み増さない（名指しが現物に無くても拒否の行にしない）（元 test_blk_fix_conflict.py:339
+        test_resent_conflict_on_parked_unit_does_not_halt_last_round）"""
+        import conflict
+        conflict.park(self.place, [self._claim()], source=conflict.FIX_SOURCE,
+                      ruling={"decision": conflict.ASK, "text": fixboard.SECOND_CONFLICT, "limits": [],
+                              "by": fixboard.FIX_ACCEPT_BY})
+        self.assertIn(R_MEAN, conflict.held_by_rulings(self.place))
+        again = self._claim("stats.py:900", "test_stats.py:9", why_both_cannot_hold="裁定の後にもう一度、同じ単位を申し出た")
+        got = self._accept_claims([again], pass_="ruled", iteration=2)
+        self.assertEqual(self._conflict_rejects(got), [], got["rejects"])
+        self.assertFalse(got["conflicted"])
+        self.assertEqual([(r["unit_key"], r["ruling"]["decision"]) for r in conflict.items(self.place)], [(R_MEAN, conflict.ASK)],
+                         "積み増さない")
+
 
 class OverflowTraceSeamCase(TempCase):
     """受けた回の impact.ACCEPT_OVERFLOW_OP の行（fixboard.overflow_trace。元 works/blk-fix/scripts/accept.py:715）が、守りのテストと
