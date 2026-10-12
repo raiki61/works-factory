@@ -9,10 +9,10 @@ finishes」）。この部品はメイングラフの最後のノードから呼
   （packages/core/src/workflows/child-isolation-resolver.ts）。一覧は新しい順なので、この run の行が一覧に在れば子は全部入っている。
 - status が completed の子だけを消す。再開は completed の子を起こし直さず記録だけを使うが、failed などの子は作業ツリーを
   使い回して起こし直す（packages/workflows/src/dag-executor.ts の fan_out の再開）。
-- completed の子でも、子を起こした fan_out の節と、同じ include の join（子の作業ツリーから書き込みの記録を写す。
+- completed の子でも、子を起こした fan_out のノードと、同じ include の join（子の作業ツリーから書き込みの記録を写す。
   workflows/fix/scripts/join.py の writes.carry_children）の両方がこの run で completed になるまでは残す。どちらかが落ちた run は
-  再開でき、再開は前に成功した節だけを飛ばし、依存が走り直した節も走らせ直す（dag-executor.ts の node_skipped_prior_success・
-  node_prior_cache_invalidated）ので、join が消えた作業ツリーを読みに行く。節の状態は workflow get --json --verbose の nodes で読む。
+  再開でき、再開は前に成功したノードだけを飛ばし、依存が走り直したノードも走らせ直す（dag-executor.ts の node_skipped_prior_success・
+  node_prior_cache_invalidated）ので、join が消えた作業ツリーを読みに行く。ノードの状態は workflow get --json --verbose の nodes で読む。
 - --force は commit していない変更の照らしを越えるために要る（子は修正を commit せず木の sha で親へ渡す）。越えないのは
   Archon が作った証の照らしで、人の作業ツリーは Archon が拒む（packages/isolation/src/providers/worktree.ts）。
   complete は終了の値で成否を言わないので、標準出力の「  Completed: <枝>」の行で読む（packages/cli/src/commands/isolation.ts）。
@@ -77,22 +77,22 @@ def select(run_id: str, listing: object) -> tuple[list[dict], list[dict]]:
 
 
 def reader_of(node: str) -> str:
-    """fan_out の節（<include の id>__groups-par）の子の作業ツリーを読む、同じ include の join の節の id"""
+    """fan_out のノード（<include の id>__groups-par）の子の作業ツリーを読む、同じ include の join のノードの id"""
     head, sep, _ = node.rpartition(INCLUDE_SEP)
     return f"{head}{sep}{READER}"
 
 
 def unread(remove: list[dict], got: object) -> tuple[list[dict], list[dict]]:
-    """workflow get --json --verbose の返りの節の状態から、消す物を（消す物, 理由つきで残す物）に分け直す。読めなければ ValueError"""
+    """workflow get --json --verbose の出力のノードの状態から、消す物を（消す物, 理由つきで残す物）に分け直す。読めなければ ValueError"""
     nodes = got.get(NODES) if isinstance(got, dict) and got.get("ok") is not False else None
     if not isinstance(nodes, list):
-        raise ValueError(f"workflow get の返りに {NODES} の一覧が無い: {_clip(json.dumps(got, ensure_ascii=False))}")
+        raise ValueError(f"workflow get の出力に {NODES} の一覧が無い: {_clip(json.dumps(got, ensure_ascii=False))}")
     states = {n.get(NODE_ID): n.get(STATE) for n in nodes if isinstance(n, dict)}
     keep, left = [], []
     for found in remove:
         open_nodes = [n for n in (found["node"], reader_of(found["node"])) if states.get(n) != DONE]
         if open_nodes:
-            reason = f"節 {'・'.join(open_nodes)} が completed でない。再開が join を走らせ直し子の作業ツリーを読みうるので残す"
+            reason = f"ノード {'・'.join(open_nodes)} が completed でない。再開が join を走らせ直し子の作業ツリーを読みうるので残す"
             left.append({**found, "reason": reason})
         else:
             keep.append(found)
@@ -139,7 +139,7 @@ def sweep(run_id: str, checkout: str, env: Mapping[str, str], run: Run = subproc
         try:
             remove, held = unread(remove, _last_json(states.stdout))
         except ValueError as error:
-            reason = _clip(f"この run の節の状態が読めない: {error}（終了の値 {states.returncode}）")
+            reason = _clip(f"この run のノードの状態が読めない: {error}（終了の値 {states.returncode}）")
             remove, held = [], [{**found, "reason": reason} for found in remove]
         result["left"] += held
     for found in remove:

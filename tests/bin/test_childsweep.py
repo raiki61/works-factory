@@ -181,7 +181,7 @@ class ChildSweepTest(unittest.TestCase):
                 got = self.sweep(archon)
                 self.assertEqual(archon.completed(), [])
                 self.assertEqual([left["branch"] for left in got["left"]], [f"{OURS}0"])
-                self.assertIn("節の状態が読めない", got["left"][0]["reason"])
+                self.assertIn("ノードの状態が読めない", got["left"][0]["reason"])
 
     def test_branch_left_behind_after_the_worktree_is_reported(self):
         warning = f"Unexpected error deleting branch '{OURS}0': Command failed: git branch -D"
