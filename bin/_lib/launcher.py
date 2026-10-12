@@ -258,10 +258,13 @@ def install_toolset(user: Mapping[str, str], child: dict[str, str], target: Path
 def sweep_write_logs(config: str) -> None:
     """作業の場が無くなった run の書き込みの記録を片付ける（writelog.sweep）。片付けは run の正しさに効かないので、しくじっても止めない"""
     try:
-        gone = writelog.sweep(writelog.root(config))
+        gone, failed = writelog.sweep(writelog.root(config))
     except OSError as error:
         print(f"{NAME}: 前の run の書き込みの記録を片付けられなかった（{error}）。run は続ける", file=sys.stderr)
         return
+    if failed:
+        print(f"{NAME}: 前の run の書き込みの記録を {len(failed)} 件片付けられなかった（初めの 1 件: {failed[0]}）。run は続ける",
+              file=sys.stderr)
     if gone:
         print(f"{NAME}: 作業の場が無くなった run の書き込みの記録を {len(gone)} 件片付けた", file=sys.stderr)
 

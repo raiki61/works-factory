@@ -734,6 +734,8 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual(json.loads((self.place / "groups.json").read_text(encoding="utf-8")), {"mark": "first"})
 
     def test_prep_starts_an_empty_log_when_recorder_root_exists(self):
+        import shutil
+
         import writelog
         env, root = _recorder_root(self.tmp)
         log = writelog.log_path(root, self.repo)
@@ -744,6 +746,10 @@ class BlockScriptsCase(unittest.TestCase):
         code, out, err = _blk_run("prep", self.repo, self.art, self.prep_inputs(), "fix__prep", env_extra=env)
         self.assertEqual(code, 0, err)
         self.assertEqual(len(log.read_text(encoding="utf-8").splitlines()), 1, "在る記録は空にしない")
+        self.assertEqual((log.parent / writelog.WHERE).read_text(encoding="utf-8"), os.path.realpath(self.repo),
+                         "作業の場の控えが無いと、作業の場が消えても起動の片付け（writelog.sweep）が残す")
+        shutil.rmtree(self.repo)
+        self.assertEqual(writelog.sweep(root), ([log.parent], []))
 
     def test_join_carries_child_records_to_parent(self):
         """並べた子の記録（子の作業ツリーのパス）を、子の差分を当てた親の作業ツリーの記録へ写す。記録の無い子の変更は写さない"""

@@ -7,7 +7,8 @@
 - root(config_dir) -> Path: Claude の設定の置き場 config_dir の下の記録の根
 - log_path(root, cwd) -> Path: 根 root の下の、役の作業の場 cwd（実パス）ごとの記録のファイル
 - open_log(root, cwd) -> Path: log_path の置き場を作り、作業の場の実パスを控え（WHERE）に書いて記録のファイルを返す
-- sweep(root) -> list[Path]: 控えの作業の場がもう無い置き場を消し、消した置き場を返す（控えの無い・控えが名と合わない置き場は残す）
+- sweep(root) -> (list[Path], list[OSError]): 控えの作業の場がもう無い置き場を消し、消した置き場と消せなかった置き場の誤りを返す
+  （控えの無い・控えが名と合わない置き場は残す。1 つ消せなくても残りは片付ける）
 """
 import hashlib
 import os
@@ -41,11 +42,11 @@ def open_log(root, cwd) -> pathlib.Path:
     return log
 
 
-def sweep(root) -> list[pathlib.Path]:
+def sweep(root) -> tuple[list[pathlib.Path], list[OSError]]:
     root = pathlib.Path(root)
     if not root.is_dir():
-        return []
-    gone = []
+        return [], []
+    gone, failed = [], []
     for entry in root.iterdir():
         if entry.is_symlink() or not entry.is_dir():
             continue
@@ -55,6 +56,12 @@ def sweep(root) -> list[pathlib.Path]:
             continue
         if _key(owner) != entry.name or os.path.isdir(owner):
             continue
-        shutil.rmtree(entry)
+        try:
+            shutil.rmtree(entry)
+        except FileNotFoundError:
+            continue  # 並んだ起動の sweep が先に消した
+        except OSError as error:
+            failed.append(error)
+            continue
         gone.append(entry)
-    return gone
+    return gone, failed

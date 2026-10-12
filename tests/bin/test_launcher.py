@@ -229,6 +229,27 @@ class LauncherTest(unittest.TestCase):
             self.assertTrue(later.exists())
             self.assertNotIn("片付けた", done.stderr)
 
+    @unittest.skipIf(os.geteuid() == 0, "root は書けないフォルダの中も消せる")
+    def test_write_log_sweep_failure_does_not_stop_the_run(self):
+        """片付けがしくじっても（記録の根が読めない・置き場が消せない）、1 行で言って run は起こす"""
+        root = self.default_home(self.target) / "claude-config" / writelog.ROOT
+        root.mkdir(parents=True)
+        w = self.tmp / "gone-run"
+        w.mkdir()
+        dead = writelog.open_log(root, w)
+        dead.touch()
+        w.rmdir()
+        for mode, said in ((0o000, "書き込みの記録を片付けられなかった"), (0o500, "書き込みの記録を 1 件片付けられなかった")):
+            with self.subTest(mode=oct(mode)):
+                root.chmod(mode)
+                self.addCleanup(root.chmod, 0o700)
+                done = self.launch("workflow", "run", "works-factory-line")
+                root.chmod(0o700)
+                self.reached(done)
+                self.assertIn(said, done.stderr)
+                self.assertIn("run は続ける", done.stderr)
+                self.assertTrue(dead.parent.exists())
+
     def test_child_is_isolated(self):
         env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
         home = self.default_home(self.target)
