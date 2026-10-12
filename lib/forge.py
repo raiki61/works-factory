@@ -10,6 +10,11 @@ core は git だけで動き、gh・GitHub は外側の forge の層（持ち主
   （GitHub でないホスト。GitLab・自前のホストなど）。where はホスト（userinfo とポートを落とす）かパス。トークンは載せない
 - detect(repo) -> {kind, remote, where}: upstream の remote を先に、無ければ origin（写しの rules の _github_repo と同じ選び方）。
   git が remote を引けない（リポジトリでない・git が無い）は UNKNOWN（決めない）
+- repo_of(url) -> {kind, host, owner, name}|None: GITHUB・OTHER_HOST の URL から gh が名指せる [HOST/]OWNER/REPO の部品。
+  GitHub の別名（www・ssh の下・github.com で始まる ssh の別名）の host は github.com、<名>.ghe.com はそのまま。パスが
+  <owner>/<name>（末尾の .git は落とす）でなければ None。userinfo は載せない
+- remote_repos(repo, first) -> repo_of の値の並び: remote を gh が読む先に選ぶ順（gh repo set-default の物・first・upstream・
+  github・origin・残り）で。set-default が OWNER/REPO を記した remote はその名（ホストは remote の物）。repo_of が None の remote は飛ばす
 - redact(text) -> str: 文の中の URL の userinfo（トークン）を落とす
 - reason(d) -> str: forge の無い種類なら "no_forge: <種類>（…）"、それ以外（GitHub・UNKNOWN・形の崩れた値・None）は ""
 
@@ -79,6 +84,33 @@ def _classify(url) -> dict:
     return {"kind": LOCAL_PATH, "where": u}
 
 
+SEGMENT = re.compile(r"[A-Za-z0-9_.-]+\Z")
+HOST = re.compile(r"[a-z0-9.-]+\Z")
+
+
+def repo_of(url):
+    """URL の形から {kind, host, owner, name}。GitHub でもほかのホストでもない URL・<owner>/<name> でないパスは None"""
+    try:
+        got = _classify(url)
+        if got["kind"] not in (GITHUB, OTHER_HOST):
+            return None
+        u = url.strip()
+        path = urllib.parse.urlsplit(u).path if "://" in u else u.split(":", 1)[1]
+    except ValueError:
+        return None
+    if got["kind"] == GITHUB:
+        host = got["where"] if GHE_CLOUD.match(got["where"]) else "github.com"
+    elif HOST.match(got["where"]):
+        host = got["where"]
+    else:
+        return None
+    path = path.strip("/")
+    parts = (path[:-len(".git")] if path.endswith(".git") else path).split("/")
+    if len(parts) != 2 or not all(SEGMENT.match(p) for p in parts):
+        return None
+    return {"kind": got["kind"], "host": host, "owner": parts[0], "name": parts[1]}
+
+
 USERINFO = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/@\s]+@")
 
 
@@ -94,6 +126,21 @@ def _git(repo, *args):
     except OSError:
         return None
     return r.stdout.strip() if r.returncode == 0 else None
+
+
+def remote_repos(repo, first: str):
+    """gh repo set-default は remote.<名>.gh-resolved に base（その remote）か OWNER/REPO（フォークの clone で親を名指した時など）を記す"""
+    names = (_git(repo, "remote") or "").split()
+    keys = (_git(repo, "config", "--get-regexp", r"^remote\..*\.gh-resolved$") or "").splitlines()
+    resolved = {k[len("remote."):-len(".gh-resolved")]: v for k, _, v in (line.partition(" ") for line in keys)}
+    for name in dict.fromkeys([*resolved, first, "upstream", "github", "origin", *names]):
+        got = repo_of(_git(repo, "remote", "get-url", name) or "") if name in names else None
+        if not got:
+            continue
+        parts = resolved.get(name, "base").split("/")
+        if len(parts) == 2 and all(map(SEGMENT.match, parts)):
+            got = {**got, "owner": parts[0], "name": parts[1]}
+        yield got
 
 
 def detect(repo) -> dict:

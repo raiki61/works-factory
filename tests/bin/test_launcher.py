@@ -23,8 +23,10 @@ from tests.bin.test_toolset import make_user_config, write_fake_claude
 
 TOKEN = "sk-ant-oat01-fake-for-launcher"
 API_KEY = "sk-ant-api03-fake-for-launcher"
+GH_FAKE = "ghp_fake-for-launcher"
+GITHUB_TOKENS = ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")
 # 利用者の場から漏れると照らしが揺れる名（hermetic が外さない物）
-USER_SPECIFIC = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "GH_CONFIG_DIR", "GH_TOKEN", "GITHUB_TOKEN",
+USER_SPECIFIC = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "GH_CONFIG_DIR", *GITHUB_TOKENS,
                  "MISE_TRUSTED_CONFIG_PATHS")
 
 FAKE_GH = "#!/bin/sh\nexit 0\n"
@@ -231,18 +233,54 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(gh_log.read_text(encoding="utf-8").splitlines(), ["pr view 1 -R o/r"])
 
     def test_no_gh_without_a_real_gh(self):
-        """gh の無い利用者の子に読むだけの口も置かない（並行 PR の確かめの「gh が無い → 役に任せる」を、口の拒否の人待ちに変えない）"""
+        """gh の無い利用者の子に読むだけの口も置かない（並行 PR の確かめの「gh が無い → 役に任せる」を、口の拒否の人待ちに変えない）。
+        トークンを読む口も無いので、トークンも渡さない"""
         self.gh.unlink()
-        env = self.reached(self.launch("workflow", "status"))["env"]
+        env = self.reached(self.launch("workflow", "status", GH_TOKEN=GH_FAKE))["env"]
         self.assertIsNone(shutil.which("gh", path=env["PATH"]))
+        self.assertEqual([n for n in env if n.startswith("WORKS_FACTORY_HOST_")], [])
 
     def test_child_env_has_no_github_tokens(self):
-        tokens = dict.fromkeys(("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"),
-                               "ghp_fake-for-launcher")
+        """子の環境に gh の 4 つのトークンの名は無い。値は gh の読まない渡しの名で在る（在るかだけを見る）"""
+        tokens = dict.fromkeys(GITHUB_TOKENS, GH_FAKE)
         for args in (["workflow", "status"], ["workflow", "run", "works-factory-line"]):
             with self.subTest(args=args):
                 env = self.reached(self.launch(*args, **tokens))["env"]
                 self.assertEqual([n for n in tokens if n in env], [])
+                self.assertEqual(sorted(n for n in env if n.startswith("WORKS_FACTORY_HOST_")),
+                                 ["WORKS_FACTORY_HOST_GH_ENTERPRISE_TOKEN", "WORKS_FACTORY_HOST_GH_TOKEN"])
+
+    def token_probe(self):
+        """利用者の gh を、受けた GH_TOKEN が GH_FAKE かだけを記録する偽物に替える（値は書かない）。記録のファイルを返す"""
+        log = self.tmp / "gh-token.txt"
+        put(self.gh, f'#!/bin/sh\nif [ "${{GH_TOKEN-}}" = "{GH_FAKE}" ]; then echo token-ok; else echo token-missing; fi >> "{log}"\n')
+        return log
+
+    def test_env_only_login_reaches_the_users_gh(self):
+        """環境変数だけで gh にログインする利用者: 役が打つ読む gh が、利用者の gh に GH_TOKEN 付きで届く（#132）"""
+        log = self.token_probe()
+        for name in ("GH_TOKEN", "GITHUB_TOKEN"):
+            with self.subTest(name=name):
+                env = self.reached(self.launch("workflow", "status", **{name: GH_FAKE}))["env"]
+                done = subprocess.run(["gh", "pr", "view", "1", "-R", "o/r"], env=env, capture_output=True, text=True,
+                                      encoding="utf-8", timeout=60)
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertEqual(log.read_text(encoding="utf-8").splitlines()[-1], "token-ok")
+
+    def test_token_readout_is_refused_without_the_value(self):
+        """役の gh の auth token は拒まれ、トークンの値は出ない"""
+        env = self.reached(self.launch("workflow", "status", GH_TOKEN=GH_FAKE))["env"]
+        done = subprocess.run(["gh", "auth", "token"], env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(done.returncode, 2, done.stderr)
+        self.assertNotIn(GH_FAKE, done.stdout + done.stderr)
+
+    def test_login_outside_env_gets_no_token(self):
+        """keychain・hosts.yml でログインする利用者（トークンの環境変数が無い）は今のまま: 渡しの名も無く、口は値を足さない"""
+        log = self.token_probe()
+        env = self.reached(self.launch("workflow", "status"))["env"]
+        self.assertEqual([n for n in env if n.startswith("WORKS_FACTORY_HOST_")], [])
+        subprocess.run(["gh", "pr", "view", "1", "-R", "o/r"], env=env, capture_output=True, timeout=60)
+        self.assertEqual(log.read_text(encoding="utf-8").splitlines(), ["token-missing"])
 
     def test_toolset_and_auth_check_only_for_workflow_executing_commands(self):
         def config_of(env):
