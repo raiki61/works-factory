@@ -11,6 +11,7 @@
   引いて節 prep と同じ写しを置く（prep.main）
 - 親の作業ツリーで 1 つずつ回る子（out_dir が在り from_tree が空）は、前の組の子が結果を書かずに落ちて残した変更を、その子の
   始めの木に戻してから始める（fixboard.drop_unreturned。最後の組の分は join が戻す）
+- 記録の根が在れば、自分の作業ツリーの書き込みの記録を空で作る（fixio.start_writes_log。並べた子は自分の作業ツリーを持つ）
 - 控え（leftovers.record_ignored）と始めの木（groups.end_tree）。自分の組だけの groups.json（{groups: [組], count: 1, par: false,
   start_tree, out_dir}）
 - TDD の輪（tddloop.start）: 実行器は始めの記録の tdd_suite（空は実行器の無い run）。輪の頭で一式を 1 回走らせて元の結末を取る
@@ -54,6 +55,7 @@ def main() -> dict:
     out_dir = os.environ.get("INPUTS_OUT_DIR", "").strip()
     place = fixio.place()
     repo = fixio.repo()
+    fixio.start_writes_log()
     if from_tree:
         groups.adopt_tree(repo, from_tree)
     if out_dir:

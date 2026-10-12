@@ -207,11 +207,11 @@ def read_round(round_dir) -> dict:
     return doc
 
 
-def lib_section(cache, repo, judgment_file, keys) -> str:
+def lib_section(cache, repo, judgment_file, keys, *, shared=None) -> str:
     """判定の単位のファイルが使うライブラリの文書の節（元 works/blk-plan/lib/planblk.py の lib_section。盤面の判定の出力の代わりに
-    判定のファイルのパスを受ける。控えは cache の下）"""
+    判定のファイルのパスを受ける。控えは cache の下、run をまたぐ控えは根 shared の下（None なら使わない））"""
     files, why = libdocs.unit_files(repo, judgment_file, keys) if judgment_file else ([], "判定のファイルが無い")
-    text = libdocs.section(cache, repo, files)
+    text = libdocs.section(cache, repo, files, shared=shared)
     return text + (f"\n- 単位のファイルの引き: {why}" if why else "")
 
 

@@ -11,6 +11,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
+import accept  # noqa: E402
 import judge_accept as ja  # noqa: E402
 
 stage = os.environ.get("INPUTS_STAGE", "")
@@ -35,7 +36,7 @@ if stage == "prep":
     boundary.returns(out)
 else:
     try:
-        out = ja.merge_on(jdir, Path.cwd())
+        out = ja.merge_on(jdir, Path.cwd(), keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")))
     except Exception as e:
         reason = f"判定の裏取りのまとめの中で例外（{type(e).__name__}: {e}）"
         ja.verify_not_run(jdir, reason)

@@ -14,7 +14,8 @@ import tempfile
 # ANTHROPIC_ は起こし役（bin/_lib/auth_launch.py）が受け継いだ認証として先に拾い、keychain の段の試験を素通りさせる。
 # HERDR_ は herdr の枠の中で試験を回すと、殻が控えに本物の枠とサーバを残して本物の herdr へ送る（枠の試験は名指しで渡す）
 DROPPED_PREFIXES = ("WORKS_FACTORY_", "CLAUDE_", "ARCHON_", "ANTHROPIC_", "HERDR_")
-DROPPED = frozenset({"CLAUDECODE", "GRAPHLOOPS_ENGINE_CHILD"})
+# STATE_DIR は Archon が script の節に渡す run をまたぐ置き場（試験の子が本物の置き場を読み書きしない）
+DROPPED = frozenset({"CLAUDECODE", "GRAPHLOOPS_ENGINE_CHILD", "STATE_DIR"})
 
 
 def dropped(name: str) -> bool:

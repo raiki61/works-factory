@@ -97,6 +97,17 @@ class DiffBytesCase(RepoCase):
         with self.assertRaises(ValueError):
             green_cert.diff_bytes(self.repo, "no-such-rev")
 
+    def test_diff_bytes_skips_given_prefixes(self):
+        (self.repo / "stats.py").write_text("x = 3\n", encoding="utf-8")
+        (self.repo / "run" / "deep").mkdir(parents=True)
+        (self.repo / "run" / "deep" / "copy.yaml").write_text("RUNTIME = 1\n", encoding="utf-8")
+        whole = green_cert.diff_bytes(self.repo, "HEAD")
+        self.assertIn(b"RUNTIME = 1", whole)
+        skipped = green_cert.diff_bytes(self.repo, "HEAD", skip=("run/",))
+        self.assertNotIn(b"run/deep/copy.yaml", skipped)
+        self.assertIn(b"x = 3", skipped)
+        self.assertEqual(green_cert.diff_bytes(self.repo, "HEAD", skip=()), whole)
+
     def test_fingerprint_hash_is_of_diff_bytes(self):
         (self.repo / "stats.py").write_text("x = 2\n", encoding="utf-8")
         self.assertEqual(green_cert.fingerprint(self.repo)["diff_hash"],

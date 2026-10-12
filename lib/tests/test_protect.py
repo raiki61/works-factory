@@ -206,5 +206,50 @@ class TouchedCase(unittest.TestCase):
 
 
 
+class TargetCase(unittest.TestCase):
+    """対象のリポジトリの根の宣言（protect.TARGET_FILE）を始めの版から読み、自分の一覧と合わせる"""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.repo = pathlib.Path(self._tmp.name) / "repo"
+        committed_copy(self.repo, SEED)
+        self.own = {"rules": [{"id": "own", "glob": "own.txt", "why": "自分の柵"}], "copies": []}
+
+    def declare(self, doc) -> str:
+        (self.repo / protect.TARGET_FILE).write_text(doc if isinstance(doc, str) else json.dumps(doc), encoding="utf-8")
+        git(self.repo, "add", protect.TARGET_FILE)
+        git(self.repo, "commit", "-q", "-m", "declare")
+        return git(self.repo, "rev-parse", "HEAD").strip()
+
+    def test_target_rules_are_read_at_base_rev(self):
+        rev = self.declare({"rules": [{"id": "core", "glob": "stats.py", "why": "対象の芯"}]})
+        (self.repo / protect.TARGET_FILE).unlink()
+        (self.repo / "stats.py").write_text("x\n", encoding="utf-8")
+        (self.repo / "own.txt").write_text("y\n", encoding="utf-8")
+        rows = protect.touched(self.repo, rev, protect.merged(self.repo, rev, self.own))
+        self.assertEqual({r["path"]: r["id"] for r in rows},
+                         {"stats.py": protect.TARGET_ID + "core", "own.txt": "own",
+                          protect.TARGET_FILE: protect.TARGET_SELF["id"]})
+        self.assertTrue(all(set(r) == {"path", "id", "glob", "why", "added", "deleted"} for r in rows), rows)
+
+    def test_target_declaration_itself_is_protected(self):
+        rev = git(self.repo, "rev-parse", "HEAD").strip()
+        self.assertIsNone(protect.target_doc(self.repo, rev))
+        doc = protect.merged(self.repo, rev, self.own)
+        self.assertEqual(protect.hits([protect.TARGET_FILE, "stats.py"], doc),
+                         [{"path": protect.TARGET_FILE, **{k: protect.TARGET_SELF[k] for k in ("id", "glob", "why")}}])
+        self.assertEqual(doc["rules"][0], self.own["rules"][0], "自分の一覧は残す")
+
+    def test_broken_target_declaration_raises(self):
+        for name, doc in (("JSON でない", "{"), ("rules が空", {"rules": []}),
+                          ("鍵が足りない", {"rules": [{"id": "a", "glob": "a.py"}]})):
+            with self.subTest(name):
+                rev = self.declare(doc)
+                with self.assertRaises(protect.Broken):
+                    protect.merged(self.repo, rev, self.own)
+        with self.assertRaises(protect.Broken):
+            protect.target_doc(self.repo, "no-such-rev")
+
 if __name__ == "__main__":
     unittest.main()

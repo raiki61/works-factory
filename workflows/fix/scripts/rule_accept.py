@@ -17,6 +17,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import fixio  # noqa: E402
 
+import accept  # noqa: E402
 import fixboard  # noqa: E402
 import rolekit  # noqa: E402
 import ruling  # noqa: E402
@@ -30,7 +31,8 @@ def main() -> dict:
         raise ValueError(why)
     iteration = int(os.environ["INPUTS_ITERATION"])
     place, repo = fixio.place(), fixio.repo()
-    got = ruling.accept_rule(reply, place, fixboard.base_rev_of(place), repo, iteration=iteration)
+    got = ruling.accept_rule(reply, place, fixboard.base_rev_of(place), repo, iteration=iteration,
+                             keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")))
     if got["ok"]:
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
     path = fixboard.write_text(place / fixboard.REJECT_NAME.format(name=NAME, k=iteration), str(got["reason"]) + "\n")

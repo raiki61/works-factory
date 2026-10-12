@@ -238,6 +238,18 @@ class SealTest(ScriptCase):
         self.assertIn("守りのパスを確かめられない", got["reason"])
         self.assertFalse(self.artifact("merge/apply.diff").exists())
 
+    def test_sealed_diff_has_no_runtime_folder(self):
+        copy = self.repo / ".archon" / "workflows" / "works-factory" / "x.yaml"
+        copy.parent.mkdir(parents=True)
+        copy.write_text("RUNTIME = 1\n", encoding="utf-8")
+        got = self.seal()
+        written = self.artifact("merge/sealed.diff").read_bytes()
+        self.assertNotIn(b".archon/", written)
+        self.assertIn(b"a.txt", written)
+        applied = self.apply(got["hash"])
+        self.assertIs(applied["ok"], True, applied)
+        self.assertEqual(self.artifact("merge/apply.diff").read_bytes(), written)
+
     def test_empty_diff_is_null(self):
         (self.repo / "a.txt").write_text("one\n", encoding="utf-8")
         got = self.seal()
@@ -300,6 +312,19 @@ class ApplyTest(ScriptCase):
         self.touch_protected()
         sealed = self.seal(fingerprint=self.fingerprint())["hash"]
         self.assertRefused(self.apply(sealed, answer="", fingerprint=self.fingerprint()), "守りのパス")
+
+    def test_apply_refuses_target_protected_hit_without_answer(self):
+        (self.repo / ".works-protected.json").write_text(
+            json.dumps({"rules": [{"id": "core", "glob": "a.txt", "why": "対象の芯"}]}), encoding="utf-8")
+        git(self.repo, "add", ".works-protected.json")
+        git(self.repo, "commit", "-q", "-m", "declare")
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        self.start = self.place("start.json", json.dumps({"base_rev": self.base}))
+        (self.repo / ".works-protected.json").unlink()
+        sealed = self.seal(fingerprint=self.fingerprint())
+        self.assertEqual([h.split("（")[0] for h in sealed["protected_hits"]], [".works-protected.json", "a.txt"], sealed)
+        self.assertRefused(self.apply(sealed["hash"], answer="", fingerprint=self.fingerprint()), "守りのパス")
+        self.assertIs(self.apply(sealed["hash"], fingerprint=self.fingerprint())["ok"], True)
 
     def test_unverifiable_r2_with_approve_applies(self):
         got = self.apply(self.sealed, eyes_ok="false", answer=json.dumps({"decision": "approve", "text": ""}),
@@ -366,6 +391,7 @@ class FixturesTest(unittest.TestCase):
         for name in fixtures:
             self.assertIn(f"merge/fixtures/{name}", done.stdout)
         self.assertIn(f"{len(fixtures)} passed, 0 failed", done.stdout)
+
 
 
 if __name__ == "__main__":

@@ -210,16 +210,17 @@ def query_problems(r: dict, item: dict) -> list:
     return errs
 
 
-def accept_rule(reply, board, base_rev, repo, *, iteration=None) -> dict:
+def accept_rule(reply, board, base_rev, repo, *, iteration=None, keys=TREE_KEYS) -> dict:
     """節 rule-accept の中身。{ok, done, reason, rulings_file, counts}。裁定の文は置き場に書く。iteration は輪の今の回
-    （None なら prep が置き場に書いた回の数え）。作業ツリーの控えが無い・形が違うのは ValueError（rule-prep が先に走る）"""
+    （None なら prep が置き場に書いた回の数え）。keys は作業ツリーの控えと比べる欄（tree_moved）。作業ツリーの控えが無い・形が違うのは
+    ValueError（rule-prep が先に走る）"""
     b = pathlib.Path(board)
     todo = {i["id"]: i for i in conflict.unruled(b)}
     it = int(iteration) if iteration is not None else ((_read_json(b / LEDGER) or {}).get("iterations") or 1)
     snap = _read_json(b / TREE)
     if not (isinstance(snap, dict) and set(TREE_KEYS) <= set(snap)):
         raise ValueError(f"{b / TREE} が無い・形が違う——rule-prep が先に走る")
-    moved = tree_moved({k: snap[k] for k in TREE_KEYS}, pathlib.Path(repo))
+    moved = tree_moved({k: snap[k] for k in TREE_KEYS}, pathlib.Path(repo), keys=keys)
     request = conflict.request_file(board)
     briefs = planbrief.by_unit_at(board)
     errs = [READONLY + "・".join(moved)] if moved else problems(reply, todo, repo, request, (request, str(board)), briefs)

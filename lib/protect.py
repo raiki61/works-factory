@@ -7,9 +7,14 @@ works 自身の試験・柵を書き換えられる（run 24 の修正役は Bas
 
 一覧は run の作業ツリーでなく、走っている pack の物を読む（修正役が作業ツリーの一覧を空にしても、確かめは緩まない）。
 一覧の行のパスはリポジトリの根からの相対（works の元のリポジトリの形）。別のリポジトリの run では、ふつうどの行にも当たらない。
+対象のリポジトリが守ると宣言したファイル（根の TARGET_FILE。形は一覧と同じ）は、同じ訳で作業ツリーでなく始めの版の中身を読み、
+自分の一覧に足す。宣言のファイル自身も、宣言が無い対象でも、守りのパスに数える（足した宣言・消した宣言も人が見る）。
 
 - MANIFEST:            一覧のファイル（これ自身も一覧に入る）
 - load(path=None):     一覧を読んで形を確かめる。崩れていれば Broken（黙って空にしない）
+- TARGET_FILE:         対象のリポジトリの根の宣言のファイルの名
+- target_doc(repo, rev): 版 rev の宣言（形を確かめた物）。宣言が無ければ None、読めない・崩れていれば Broken
+- merged(repo, rev, doc=None): 自分の一覧（doc。無ければ MANIFEST）と rev の宣言と宣言のファイル自身の行を合わせた一覧（hits・touched の doc）
 - rules(doc):          当てる行（rules と copies）の並び
 - match(path, pattern): git の :(glob) と同じ当たり方（** は 0 個以上のフォルダ・* と ? と [..] は / を跨がない。正本は
                        planmarks.glob_match）
@@ -35,6 +40,10 @@ import accept  # noqa: E402
 import planmarks  # noqa: E402   glob の当て方の正本
 
 MANIFEST = _CORE / "protected.json"
+TARGET_FILE = ".works-protected.json"
+TARGET_ID = "target:"   # 宣言の行の id の頭（自分の一覧の id と混ざらない）
+TARGET_SELF = {"id": TARGET_ID + TARGET_FILE, "glob": TARGET_FILE,
+               "why": "対象のリポジトリの守りの宣言そのもの（書き換えると守りが緩む）"}
 RULE_KEYS = {"id", "glob", "why"}
 COPY_KEYS = RULE_KEYS | {"made_by"}
 
@@ -85,6 +94,31 @@ def load(path=None) -> dict:
     if bad:
         raise Broken(f"守りのファイルの一覧 {p} の形が崩れている: {'／'.join(bad)}")
     return doc
+
+
+def target_doc(repo, rev: str):
+    """版 rev（commit）の根の TARGET_FILE を読んで形を確かめた物。rev に宣言が無ければ None。rev が引けない・読めない・
+    形が崩れていれば Broken"""
+    listed = _git(repo, "ls-tree", "-z", "--full-tree", "--name-only", f"{rev}^{{commit}}", "--", TARGET_FILE)
+    if not listed.strip(b"\0"):
+        return None
+    where = f"対象のリポジトリの守りの宣言 {rev}:{TARGET_FILE}"
+    try:
+        doc = json.loads(_git(repo, "show", f"{rev}:{TARGET_FILE}").decode("utf-8"))
+    except ValueError as e:
+        raise Broken(f"{where} が読めない（{type(e).__name__}: {e}）") from None
+    bad = _problems(doc)
+    if bad:
+        raise Broken(f"{where} の形が崩れている: {'／'.join(bad)}")
+    return doc
+
+
+def merged(repo, rev: str, doc=None) -> dict:
+    """自分の一覧 doc（無ければ MANIFEST）の後ろに、宣言のファイル自身の行と rev の宣言の行（id に TARGET_ID を頭に付ける）を足した一覧"""
+    own = load() if doc is None else doc
+    target = target_doc(repo, rev)
+    theirs = [{**r, "id": TARGET_ID + r["id"]} for r in rules(target)] if target else []
+    return {"rules": [*own["rules"], TARGET_SELF, *theirs], "copies": list(own.get("copies") or [])}
 
 
 def rules(doc) -> list:

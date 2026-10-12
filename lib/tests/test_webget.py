@@ -2,7 +2,7 @@
 
 - 控え（Store）: 名ごとに 1 本の JSON。schema が揃い、状態が求める物で、取った時刻 at から ttl の内の物だけを返す。書く時は
   一時のファイルに書いて置き換え、書けなければ理由の 1 行を返す（落とさない）。置き場が無い（None）なら読まず・書かない
-- 置き場（shared_root）: 包みの家の env が絶対のパスの時だけ、その下の sub。無い・相対なら None（使わない）
+- 置き場（shared_root）: 呼ぶ側が渡す根が絶対のパスの時だけ、その下の sub。無い・相対なら None（使わない）
 - 網に出ない切り替え（is_off）: 値の前後の空白と大小を無視して off の時だけ真
 - 転送（SafeRedirect）: https・公の host の名（safe_url）の先にだけ付いていく。http・IP の字は 3xx のまま返す
 - 取得（http_get）: 網に届かない時は FetchError（1 行）。期限は持たない
@@ -80,11 +80,15 @@ class StoreCase(unittest.TestCase):
 
 
 class PlaceCase(unittest.TestCase):
-    def test_shared_root_only_for_absolute_home(self):
-        self.assertEqual(webget.shared_root({webget.SHARED_ENV: "/h/home"}, "sub"), pathlib.Path("/h/home/sub"))
-        for env in ({}, {webget.SHARED_ENV: ""}, {webget.SHARED_ENV: "rel/home"}):
-            with self.subTest(env=env):
-                self.assertIsNone(webget.shared_root(env, "sub"))
+    def test_shared_cache_root_is_an_argument(self):
+        self.assertEqual(webget.shared_root("/h/home", "sub"), pathlib.Path("/h/home/sub"))
+        self.assertEqual(webget.shared_root(pathlib.Path("/h/home"), "sub"), pathlib.Path("/h/home/sub"))
+        self.assertFalse(hasattr(webget, "SHARED_ENV"), "根は環境変数から読まない")
+
+    def test_no_root_no_shared_cache(self):
+        for home in (None, "", "rel/home"):
+            with self.subTest(home=home):
+                self.assertIsNone(webget.shared_root(home, "sub"))
 
     def test_is_off(self):
         for v, want in (("off", True), (" OFF ", True), ("", False), ("on", False), ("0", False)):

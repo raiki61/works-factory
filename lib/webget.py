@@ -15,9 +15,9 @@ W1）も同じ口を使うので寄せた。振る舞いは前の libdocs の物
   （libdocs は WORKS_LIBDOCS_WEB）。off の時に控えも読まないかは呼ぶ側が決める
 
 run をまたぐ控え:
-- shared_root(env, sub) -> Path | None: 置き場は包みの家（SHARED_ENV。開発の殻が利用の家ごとに export する）の
-  下の sub。利用の家ごとに分かれ、run を重ねても残り、切符が役に書かせない場所なので、役が控えを書き換えて後の run に混ぜることは
-  できない。env に無い・相対なら None（包みを外した run・試験。run をまたぐ控えは使わない）
+- shared_root(home, sub) -> Path | None: 置き場は呼ぶ側が渡す run をまたぐ根 home の下の sub。根は対象のリポジトリごとに分かれ、
+  run を重ねても残り、役の作業ツリーの外（役の sandbox の Bash が書けない所）に置く物なので、役が控えを書き換えて後の run に混ぜる
+  ことはできない。根が無い・相対なら None（run をまたぐ控えは使わない）
 - Store(root, schema, ttl): 名ごとに 1 本の JSON（dict）。get(name, now, statuses=None) は schema が揃い、状態 status が statuses
   のどれか（None なら問わない）で、取った時刻 at（数）から ttl 秒の内（0 <= now - at < ttl）の物だけを返す。put(name, doc) は
   同じ置き場を同時に走る run と読み合うので一時のファイルに書いて置き換え、書けなければ理由の 1 行を返す。
@@ -34,9 +34,6 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
-
-SHARED_ENV = "WORKS_ADAPTER_HOME"
-
 
 class FetchError(Exception):
     """網に届かない・答えが読めない（文は 1 行）"""
@@ -86,10 +83,9 @@ def is_off(env, switch: str) -> bool:
     return str(env.get(switch, "")).strip().lower() == "off"
 
 
-def shared_root(env, sub: str) -> pathlib.Path | None:
-    """run をまたぐ控えの置き場（SHARED_ENV の絶対パスの下の sub）。env に無い・相対なら None（使わない）"""
-    home = env.get(SHARED_ENV) or ""
-    return pathlib.Path(home) / sub if os.path.isabs(home) else None
+def shared_root(home, sub: str) -> pathlib.Path | None:
+    """run をまたぐ控えの置き場（根 home の絶対パスの下の sub）。根が無い・相対なら None（使わない）"""
+    return pathlib.Path(home) / sub if home and os.path.isabs(home) else None
 
 
 class Store:

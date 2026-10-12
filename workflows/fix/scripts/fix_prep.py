@@ -58,8 +58,8 @@ def main() -> dict:
                                                          answer_node=ANSWER_NODE),
                         "first", owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
                         reject_file=str(reject) if n > 1 and reject.is_file() else "", lang=fixboard.lang_line(start),
-                        green=tddloop.green_units(summary))
-    fixboard.consult_skip(place, fixio.SKIP)
+                        green=tddloop.green_units(summary), shared=fixio.shared_cache())
+    fixboard.consult_skip(place, fixio.SKIP, fixio.writes_log())
     return {"prompt_file": got["prompt_file"], "go": True, "iteration": got["iteration"]}
 
 

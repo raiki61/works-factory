@@ -1,17 +1,19 @@
 """作業ツリーの書き込みの出どころの突き合わせ（書く役の受け付け: blk-fix の fix-accept・tdd-step、blk-refix の手直しの受け付け）。
 
-包み（claude-adapter）の PostToolUse:Edit|Write|NotebookEdit のフック（record-write.py）が、書いた後の中身の sha を
-adapter.writes_path（読んだ記録と同じ置き場の writes.jsonl）に 1 行ずつ残す。ここは版からの変更を、その記録と役の申告
+隔離した設定の PostToolUse:Edit|Write|NotebookEdit のフック（bin/_lib/record-write.py）が、書いた後の中身の sha を
+作業の場ごとの writes.jsonl（writelog.log_path）に 1 行ずつ残す。ここは版からの変更を、その記録と役の申告
 （返答の欄 bash_writes: [{path, why}]）に突き合わせる。
 射程: 見るのは「今の中身と同じ中身を、編集の道具が書いたか役が申告したことがあるか」まで。Bash で書いた後に同じ中身を
 Edit で書き直した物は区別しない（出どころの全部は証さない）。
-- writes.jsonl が無い run（包みが無い起動。包みは印のある起動の前に空のファイルを作る）は拒否の理由にせず通し、NO_RECORD を
+- writes.jsonl が無い run（記録の根の無い起動。fix の始めの節が根の在る時だけ空のファイルを作る）は拒否の理由にせず通し、NO_RECORD を
   返す（呼び手が置き場の trace.jsonl に NO_RECORD_OP で 1 行残し、報告に出る。fixboard.trace）
 - 通った申告は記録に tool_name "declared" の行で足す（後ろの受け付け——fix の後の refix など——が同じ申告を求めない）
 - 除くパスの頭（check・unrecorded の引数 skip。既定 ()。呼び手の script が実行基盤の工程の写しの置き場を渡す）の下は数えない
 - 単位の worktree（依頼 243 の並べ。修正役の下請けが run の作業ツリーの外で書く所）の記録は、機械が差分を run の作業ツリーへ
   当てた後に carry で写す。写すのは、run の作業ツリーの今の中身が単位の worktree の今の中身と同じで、その中身に記録が在る物だけ
   （tool_name CARRY_TOOL と元の実パス from。2 つの差分を合わせて中身が違う物は写さず、役が申告する）
+- 並べた組の子の run（自分の作業ツリーで直し、自分の記録を持つ）の記録は、join が子の差分を当てた後に carry_children で写す
+  （子の記録の行を足してから carry・carry_merged と同じ決まり）
 - TDD の輪の並べ（依頼 243 の並べの 3 段目）で sandbox の外の機械が 2 つ以上の単位の worktree の差分を 3 方向で合わせたファイルは、
   carry_merged が合わせた中身に 1 行を足す（合わせたどの単位の worktree の中身にも記録が在る時だけ。from は元の実パスの並び）。
   合わせたのは機械なので、機械が出どころを請け負う（役の sandbox の中の当てるコマンドの結果には使わない）
@@ -45,7 +47,7 @@ ITEM_SCHEMA = {
     "properties": {"path": {"type": "string", "minLength": 1}, "why": {"type": "string", "minLength": MIN_WHY}},
 }
 BASH_WRITES_SCHEMA = {"type": "array", "items": ITEM_SCHEMA}
-NO_RECORD = "書き込みの記録が無い run（包みが無い起動）——書き込みの出どころを突き合わせずに通した"
+NO_RECORD = "書き込みの記録が無い run（記録の根の無い起動）——書き込みの出どころを突き合わせずに通した"
 NO_RECORD_OP = "writes_unrecorded_run"   # 置き場の trace.jsonl の行（報告が数える）
 CARRY_TOOL = "unit-merge"               # 単位の worktree の記録を写した行の tool_name（carry）
 BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテストを読み損ねた（base_test_texts。盤面の trace の行 {rev, unread}）
@@ -203,6 +205,32 @@ def carry_merged(log: pathlib.Path, dst, srcs) -> bool:
         f.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "tool_name": CARRY_TOOL, "path": dst_real,
                             "file_sha": sha, "from": reals}, ensure_ascii=False) + "\n")
     return True
+
+
+def carry_children(log: pathlib.Path, repo, children) -> list:
+    """並べた組の子の run の記録を、子の差分を当てた run の作業ツリーの記録 log へ写す。children は [(子の作業ツリー, 子の記録の
+    ファイル, 当てたパスの並び)]。子の記録の行を log の後ろに足してから、1 つの子だけが当てたパスは carry、2 つ以上の子が当てた
+    パスは carry_merged で写す（当てた後の中身が子の今の中身と同じか、合わせた全部の子の中身に記録が在る物だけ）。足した行先の
+    実パスの並び"""
+    copied, pairs, srcs = [], [], {}
+    for tree, child_log, names in children:
+        if pathlib.Path(child_log) == pathlib.Path(log) or not pathlib.Path(child_log).is_file():
+            continue
+        copied.append(pathlib.Path(child_log).read_text(encoding="utf-8"))
+        for n in names:
+            srcs.setdefault(n, []).append(pathlib.Path(tree) / n)
+    if copied:
+        with open(log, "a", encoding="utf-8") as f:
+            f.write("".join(t if t.endswith("\n") or not t else t + "\n" for t in copied))
+    for n, found in srcs.items():
+        if len(found) == 1:
+            pairs.append((found[0], pathlib.Path(repo) / n))
+    out = carry(log, pairs) if pairs else []
+    for n, found in sorted(srcs.items()):
+        if len(found) > 1 and carry_merged(log, pathlib.Path(repo) / n, found):
+            out.append(os.path.realpath(str(pathlib.Path(repo) / n)))
+    return out
+
 
 def keep_declared(log: pathlib.Path, repo, declared) -> None:
     rows = [json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "tool_name": "declared",
