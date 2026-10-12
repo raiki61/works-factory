@@ -44,41 +44,41 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/entry.py:716 `_engine_log`・works/.shared/core/board.py:379 `tree_runner`
   - 今: lib/declared_checks.py:234 `_engine_log`・:206 `tree_runner`
   - 証: lib/tests/test_declared_checks.py::RunCiTestCmdRulesCase.test_different_command_runs_both_with_separate_logs（assert: :123-125）・RunEngineCase.test_broken_declaration_is_blocked_without_running（assert: :398）
-  - 本物の run: test_cmd を渡す run は test-gate/base/logs/test_cmd.log・test-gate/final/logs/test_cmd.log。checks.log は宣言の在る run だけ
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば test_cmd を渡す run は test-gate/base/logs/a<k>/test_cmd.log・test-gate/final/logs/a<k>/test_cmd.log。checks.log は宣言の在る run だけ（logs/a<k>/checks.log））
   - 狭め: 無し
 
 - T5 宣言が無く test_cmd が在れば test_cmd だけを走らせ（by role）、0 は clean・ほかは found（count 1）にする。
   - 元: works/.shared/core/entry.py:925 `_ci_by_cmd`・:650 `local_checks_material`
   - 今: lib/declared_checks.py:383-389・:72 `local_checks_material`
   - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_no_declaration_runs_test_cmd_by_role（assert: :388-389）
-  - 本物の run: test_cmd を渡す run の test-gate/base/run.json の by="role"・material.status="found"（種は 3 件中 2 件赤）と、直した後の test-gate/final/run.json の material.status="clean"
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば test_cmd を渡す run の test-gate/base/run.json の by="role"・material.status="found"（種は 3 件中 2 件赤）と、直した後の test-gate/final/run.json の material.status="clean"）
   - 狭め: 無し
 
 - T6 宣言も test_cmd も無ければ何も走らせず by role_needed・素材 null を返し（前の結果を緑に使わない）、任せ先の CI の役の輪だけがその時に回る。
   - 元: works/.shared/core/entry.py:858 `run_ci`（role_needed）・works/blk-tests/scripts/run_tests.py:67-68・works/blk-ci/blk-ci.yaml
   - 今: lib/declared_checks.py:384-385・workflows/test-gate/works-factory-test-gate.yaml:86-88（ci-loop の when）
   - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_no_declaration_falls_back（assert: :381）・tests/workflows/test_test_gate.py::YamlCase.test_loop_matches_give_up（assert: tests/workflows/test_test_gate.py:134）
-  - 本物の run: test_cmd を渡さない run の test-gate/base/run.json の by="role_needed" と、節 test-gate-base__ci が走ること
+  - 本物の run: test_cmd を渡さない run の test-gate/base/run.json の by="role_needed" と、節 test-gate-base__ci-loop.ci が走ること
   - 狭め: 無し
 
 - T7 宣言の書式の誤りは走らせず、走らせられない素材（判定の前の base は awaiting_human・修正の後の final は not_run）の reason に宣言の名と誤りを書く。
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2199 `checks_plan`（blocked）・:2236
-  - 今: lib/declared_checks.py:258 `checks_plan`・:299-301
-  - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_broken_declaration_is_blocked_without_running（assert: :396-397）。弱い: final（after_judge 真）だけを照らす。要追加: 同じ試験に after_judge 偽で status awaiting_human の場合を足す
+  - 今: lib/declared_checks.py `checks_plan`・`checks_reply`
+  - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_broken_declaration_is_blocked_without_running（判定の前の awaiting_human と後の not_run の両方。#122）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - T8 宣言が計画の後に変わったら（宣言の sha の照合）1 度だけ計画し直し、2 度目も変われば CiRefused で止める。
   - 元: works/.shared/core/entry.py:886-890 `run_ci`（relaunch）・works/.shared/core/graphloops/engine/commands.py:522 `engine_run_refusal`
-  - 今: 無し（lib/declared_checks.py:258-268 は sha を返すが、:391 で控えるだけで照らさない）
-  - 証: 要追加: lib/tests/test_declared_checks.py::RunEngineCase.test_declaration_changed_after_plan_is_replanned_once — 計画の後に宣言を書き換える runner で、1 度目は計画し直し、2 度目も変われば CiRefused
+  - 今: lib/declared_checks.py `run_ci`・`_planned_run`・`_declaration_moved`（走らせた後の宣言の sha を照らし、違えば計画から 1 度だけやり直す。ログは logs/…/replan。#122）
+  - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_declaration_changed_after_plan_is_replanned_once・test_declaration_changing_twice_is_refused
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で外した（PR の「外した物」の盤面の部分）。Archon で不可でない → 戻すか、計画と走りが同じ関数の中で続くので目的が消えたことを持ち主に諮る
 
 - T9 engine が組んだ素材を受け付けの規則で照らし、通らなければ任せ先に落とす。その時 engine が既に走らせた test_cmd の段の結果を使い、test_cmd を 2 度走らせない。
   - 元: works/.shared/core/board.py:1145 `_accept_engine_reply`・:1413 `_fall_back`・works/.shared/core/entry.py:925 `_ci_by_cmd`（ran）・works/tests/test_ci_test_cmd.py:113 test_fallback_after_run_reuses_test_cmd_result
-  - 今: 無し（run の素材は output_format の型だけ。素材の決まり material_problems は任せ先の役の素材にだけ当たる: workflows/test-gate/scripts/ci_accept.py:34）
-  - 証: 要追加: lib/tests/test_declared_checks.py::RunEngineCase.test_engine_material_meets_material_problems — run_ci が返す素材が全部の道で declared_checks.material_problems(mode) に空を返す
+  - 今: lib/declared_checks.py `run_ci`（material_problems を engine の素材にも当てる）・`_fall_back`（engine が走らせた test_cmd の段の結果から素材を組む。落とした訳 fell_back は workflows/test-gate/scripts/result.py `evidence` が証拠の文にも出す）・`_cant_status`（#122）
+  - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_engine_material_meets_material_problems・test_engine_material_that_breaks_the_rules_falls_back_without_rerunning_test_cmd
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で外した（盤面の部分）。Archon で不可でない → 戻す（少なくとも engine の素材にも material_problems を当てる）
 
@@ -107,8 +107,8 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T13 run の変更が全部ある段の paths_ignore の下（glob でなくパスの頭の一致。ファイルかフォルダ）に在れば、その段を回さない。外に 1 本でも在れば全段を回す。
   - 元: works/.shared/core/board.py:481 `skipped_steps`
-  - 今: lib/checkscope.py:48 `skipped_steps`・lib/declared_checks.py:397-399
-  - 証: lib/tests/test_checkscope.py::SkippedStepsCase.test_change_all_under_ignored_skips_step_and_names_it（assert: :73）・test_change_outside_ignored_runs_every_step（assert: :79）・test_ignored_path_matches_file_or_folder_head（assert: :82）・lib/tests/test_declared_checks.py::ScopedStepsCase.test_final_skips_step_whose_ignored_paths_hold_every_change（assert: :427-430）・test_final_runs_step_when_change_touches_outside_ignored（assert: :439-440）。弱い: 頭の字だけが同じ隣のパス（works2/a.py と works）を下と読まないことを照らしていない。要追加: lib/tests/test_checkscope.py::SkippedStepsCase.test_sibling_with_same_prefix_is_not_under — ignores {"far": ["works"]} で changed ["works2/a.py"] なら []
+  - 今: lib/checkscope.py `skipped_steps`・lib/declared_checks.py `_planned_run`
+  - 証: lib/tests/test_checkscope.py::SkippedStepsCase.test_change_all_under_ignored_skips_step_and_names_it・test_change_outside_ignored_runs_every_step・test_ignored_path_matches_file_or_folder_head・test_sibling_with_same_prefix_is_not_under（#122）・lib/tests/test_declared_checks.py::ScopedStepsCase.test_final_skips_step_whose_ignored_paths_hold_every_change・test_final_runs_step_when_change_touches_outside_ignored
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -121,15 +121,15 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T15 範囲と照らす変更は base_rev から今の作業ツリーまでに触ったファイル（追跡の変更・消した物・未追跡）で、Archon が作業ツリーに置く `.archon/` の下は数えない。
   - 元: works/.shared/core/entry.py:907 `scope_changed`・works/tests/test_blk_tests_delta.py:364 test_final_does_not_count_archon_workspace_as_change
-  - 今: workflows/test-gate/scripts/run.py:30-39 `changed`（:39 で `.archon/` を除く）・lib/accept.py:323 `touched_files`
-  - 証: 要追加: tests/workflows/test_test_gate.py::RunScriptCase.test_archon_workspace_is_not_a_change — 範囲の宣言で far を外す種に works/a.py と .archon/x.yaml を足して run を走らせ、run.json の skipped_steps に far が在る
+  - 今: workflows/test-gate/scripts/run.py `changed`（境の boundary.RUNTIME_COPY_PREFIX の除き）・lib/accept.py `touched_files`
+  - 証: tests/workflows/test_test_gate.py::RunScriptCase.test_archon_workspace_is_not_a_change（#122）
   - 本物の run: 筋書きでのみ（種に範囲の宣言が無い）
   - 狭め: 無し（試験だけが欠け）
 
 - T16 判定から入る run の入口の確かめでは、依頼の where が名指す追跡中のパスも変更に足して範囲と照らす（works だけを直す依頼で、works を見ない段を入口から回さない）。
   - 元: works/.shared/core/entry.py:907-922 `scope_changed`（b.rules._pr_files）
-  - 今: 無し（workflows/test-gate/scripts/run.py:30 は touched_files だけ。lib/declared_checks.py:373-374 の docstring が外したと書く）
-  - 証: 要追加: tests/workflows/test_test_gate.py::RunScriptCase.test_base_reads_request_where_as_change — 差分の無い base で、始めの記録の依頼の where が全部 paths_ignore の下なら、その段が skipped_steps に載る
+  - 今: workflows/test-gate/scripts/run.py `request_wheres`（判定から入る run の base で始めの記録の依頼の where）・`changed`・lib/checkscope.py `request_files`（元 `_pr_files` の式。#122）
+  - 証: tests/workflows/test_test_gate.py::RunScriptCase.test_base_reads_request_where_as_change
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で狭めた（PR の「能力の狭め」2 つ目）。Archon で不可でない（依頼は始めの記録に在る）。落ちるのは速さだけで確かめは減らない → 持ち主の確かめ 決め: 戻すと決めた（superset）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
 
@@ -149,8 +149,8 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T19 test_cmd が範囲で外した段と同じコマンドなら、外さずに test_cmd の段として走らせる（入力で名指した一式は外さない）。
   - 元: works/.shared/core/entry.py:858 `run_ci` の docstring（範囲の項）
-  - 今: lib/declared_checks.py:405（_with_test_cmd に外した後の段 todo を渡すので、_same_step は外した段と比べない）
-  - 証: 要追加: lib/tests/test_declared_checks.py::ScopedStepsCase.test_test_cmd_same_as_skipped_step_still_runs — far を外す変更で test_cmd が far の argv と同じ時、runs に test_cmd の段が在り same_as は None
+  - 今: lib/declared_checks.py `_planned_run`（_with_test_cmd に外した後の段を渡すので、_same_step は外した段と比べない）
+  - 証: lib/tests/test_declared_checks.py::ScopedStepsCase.test_test_cmd_same_as_skipped_step_still_runs（#122）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -160,7 +160,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/entry.py:650・:750・works/.shared/core/tree_run.py:129 `command_argv`
   - 今: lib/declared_checks.py:87-89・:140-147・lib/tree_run.py:116 `command_argv`
   - 証: lib/tests/test_declared_checks.py::LaunchHowRecordedCase.test_launch_wrapper_stamps_how_on_rows_it_ran（assert: :141）・test_engine_runs_carry_how_decided_at_launch（assert: :148-150）・test_role_material_reads_how_decided_at_launch（assert: :156-159）・CmdMaterialCase.test_test_cmd_callers_launch_by_command_argv（assert: :266・:269）・tests/workflows/test_test_gate.py::ResultScriptCase.test_shell_test_cmd_names_how_it_was_launched（assert: tests/workflows/test_test_gate.py:533）
-  - 本物の run: test_cmd を渡す run の test-gate/base/run.json の material.checked か detail の「（起こし方 direct）」と、test-gate/base/evidence.md の「走らせた: test_cmd（direct）」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば test_cmd を渡す run の test-gate/base/run.json の material.checked か detail の「（起こし方 direct）」と、test-gate/base/evidence.md の「走らせた: test_cmd（direct）」）
   - 狭め: 無し
 
 - T21 起こせない test_cmd（先頭の語が無い・実行できないファイル・env の前置きの後・パイプの中）は起こす前に確かめて not_run（環境の失敗）にし、直に起こした回は bash -c で包む手がかり（DIRECT_HINT）を添える。
@@ -181,7 +181,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/entry.py:689-703・:650-662
   - 今: lib/declared_checks.py:122-123・:82-84
   - 証: lib/tests/test_declared_checks.py::CmdMaterialCase.test_test_cmd_red_says_unverified（assert: :230-231）・test_empty_test_cmd_is_not_run_without_launching（assert: :273）
-  - 本物の run: test_cmd を渡す run の test-gate/base/run.json の material.detail の末尾（種の 2 件の赤）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば test_cmd を渡す run の test-gate/base/run.json の material.detail の末尾（種の 2 件の赤））
   - 狭め: 無し
 
 - T24 テストは別のプロセスグループで、標準入力は空・期限なし・uv run が足した環境（VIRTUAL_ENV・UV_* と PATH の頭）を外し PYTHONDONTWRITEBYTECODE=1 を立てて走らせる。段の行は {name, argv, out, err, started, exit, wall_s, tail}、起こせない段は exit None と error。
@@ -232,15 +232,15 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T30 一式の行が、任せ先の役の素材に合わせて書き分ける: clean・found なら「走らせた: 任せ先の CI の役 blk-ci が選んだ一式（素材の status X）」、ほかは「走らせなかった: 宣言の段・test_cmd（任せ先の CI の役 blk-ci が走らせなかった: 素材の status X）」、宣言が読めない engine は「宣言が読めないので engine が走らせなかった」、test_cmd が無ければ「test_cmd（渡されていない）」。
   - 元: works/.shared/core/entry.py:819 `suites_line`・works/tests/test_line_a.py:324
-  - 今: lib/declared_checks.py:186-198・workflows/test-gate/scripts/result.py:114
-  - 証: 要追加: lib/tests/test_declared_checks.py::SuitesLineCase.test_role_status_words — role_status の clean・not_run・None と、by engine で suites が空・test_cmd の段が無い場合の字を照らす（今の試験は「渡されていない」が出ない場合だけ: :114）
+  - 今: lib/declared_checks.py `suites_line`・workflows/test-gate/scripts/result.py `certified`
+  - 証: lib/tests/test_declared_checks.py::SuitesLineCase.test_role_status_words（#122）
   - 本物の run: test_cmd を渡さない run の test-gate/final/evidence.md の「- 走らせ方: role_needed・走らせた: 任せ先の CI の役 blk-ci が選んだ一式（…）」
   - 狭め: 無し
 
 - T31 clean の checked に、走らせた宣言の sha の頭 12 字と段ごとの終了コードと秒を書く（何を根拠にした緑かを残す）。
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2271
-  - 今: lib/declared_checks.py:302・:318
-  - 証: 要追加: lib/tests/test_declared_checks.py::RunEngineCase.test_clean_names_declaration_sha_and_steps — clean の checked に sha[:12] と「suite: exit 0（」が在る
+  - 今: lib/declared_checks.py `checks_reply`（clean の checked）
+  - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_clean_names_declaration_sha_and_steps（#122）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -250,7 +250,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: 盤面の記録 process.baseline_checks（works/.shared/core/entry.py:792 `baseline_line` が読む）
   - 今: workflows/test-gate/scripts/result.py:103-109・:92-93・lib/baseline_red.py:216 `write_baseline`・:230 `read_baseline`
   - 証: tests/workflows/test_test_gate.py::ResultScriptCase.test_final_inherited_red_is_not_certified（base の中の assert: tests/workflows/test_test_gate.py:399-401）・lib/tests/test_baseline_red.py::BaselineFileCase.test_round_trip_with_extra（assert: lib/tests/test_baseline_red.py:195）・test_missing_field_is_value_error（assert: :210-211）
-  - 本物の run: test-gate/base/baseline.json（rev は種の HEAD、material.status、exit_codes）と節 test-gate-base__result の baseline の指し札
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば test-gate/base/baseline.json（rev は種の HEAD、material.status、exit_codes）と節 test-gate-base__result の baseline の指し札）
   - 狭め: 無し
 
 - T33 始めの記録の tdd_suite が在れば、一式を 1 回走らせて 1 件ごとの結末と終了コードを元の結末に置く。結末を返さずに落ちた一式は exit を残さず、final はそれを「元の結末が無い」と読んで今の赤を今回入れた物に数えない。
@@ -271,7 +271,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/darkfactory/lib/line_edge.py:569-571 `_final_text`・報告の冒頭（entry.baseline_line・suites_line）
   - 今: 最後の関所は workflows/line/scripts/ask_final.py の evidence_rows・tests_lines（evidence.md の走らせ方と修正前のテストの行を字のまま）。報告は lib/runreport.py の _evidence_lines（BASELINE_ROW。緑の認証の節） 。報告の側は人が決めることの節にも（lib/runreport.py の _tests_head_lines。部分 C）
   - 証: tests/workflows/test_gate_head.py::FinalSectionsCase.test_final_text_carries_suites_and_baseline_lines・tests/workflows/test_line.py::AskFinalReadsCase.test_final_text_lists_suites_baseline_and_left_tests・tests/workflows/test_report.py::FactsCase.test_green_cert_section_carries_the_baseline_line ・lib/tests/test_runreport.py::LinesCase.test_tests_head_lines_and_deleted_files（報告の冒頭）
-  - 本物の run: gates/gate-final.json の text（関所はいつも開く）に行が在るか。report/report.md の「試験の記録（最後）」の指し札
+  - 本物の run: 最後の関所の文（ask-final の text。置き場の控えは部分 B2 の final-gate.md。gates/gate-final.json は人の答え）に行が在るか。report/report.md の「試験の記録（最後）」の指し札
   - 狭め: #69 と #74 の間 → 部分 B2 で戻した。報告では冒頭でなく緑の認証の節に出す（報告の冒頭の並びは部分 C）
 
 ### G 赤の原因と緑の認証
@@ -280,7 +280,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: 無し（新。元は修正前のテストの行で人に見分けさせた）
   - 今: lib/green_cert.py:70-90 `classify`
   - 証: lib/tests/test_green_cert.py::ClassifyCase.test_clean（assert: :142）・test_environment_wins_over_not_run（assert: :150）・test_incomplete（assert: :155-158）・test_incomplete_comes_before_the_baseline（assert: :164）・test_broken_mixed_with_red_is_not_environment（assert: :168）・tests/workflows/test_test_gate.py::ResultScriptCase.test_final_not_run_is_incomplete（assert: tests/workflows/test_test_gate.py:473）
-  - 本物の run: 節 test-gate-final__result の red_cause（種で直しが通れば ""）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 test-gate-final__result の red_cause（種で直しが通れば ""））
   - 狭め: 無し
 
 - T37 元の結末の 1 件ごとの結末と比べ、今落ちた試験に元で通っていたか元に無かった物が在れば introduced、落ちた物が全部元でも落ちていて赤の段が全部 JUnit の段なら inherited、ほか（JUnit の無い赤の段・shell の test_cmd の赤・元の結末が無い）は原因の無い赤 "" と BASELINE_UNVERIFIED。
@@ -292,8 +292,8 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T38 赤の原因の要約に落ちた試験の鍵を 10 件まで並べ、超えた分は「ほか N 件」と数える。
   - 元: 無し（新）
-  - 今: lib/green_cert.py:20・:64-67 `_keys`
-  - 証: 要追加: lib/tests/test_green_cert.py::ClassifyCase.test_summary_lists_ten_keys_and_counts_the_rest — 12 件落ちた introduced の要約に 10 個の鍵と「ほか 2 件」
+  - 今: lib/green_cert.py HEAD_LIMIT・`_keys`
+  - 証: lib/tests/test_green_cert.py::ClassifyCase.test_summary_lists_ten_keys_and_counts_the_rest（#122）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -301,7 +301,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: 無し（新。ASF の型 A3）
   - 今: lib/green_cert.py:35 `fingerprint`・:110 `certify`
   - 証: lib/tests/test_green_cert.py::CertifyCase（assert: :218・:222-227・:231-232・:235・:241）・FingerprintCase（assert: :40-42・:48-49・:54・:61・:68）・tests/workflows/test_test_gate.py::ResultScriptCase.test_final_green_is_certified_with_fingerprint_and_tree_change_voids_it（assert: tests/workflows/test_test_gate.py:437-442）
-  - 本物の run: 節 test-gate-final__result の ok と fingerprint、test-gate/final/evidence.md の「- 指紋: 走らせる前 …・後 …」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 test-gate-final__result の ok と fingerprint、test-gate/final/evidence.md の「- 指紋: 走らせる前 …・後 …」）
   - 狭め: 無し
 
 - T40 final で任せ先の役が書いた緑は、機械が走らせていない自己申告として認証しない（ok false。証拠に「任せ先の自己申告の緑（機械が走らせていない）」）。役の指示書にも「自己申告として人に諮られる」と書く。
@@ -315,7 +315,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2093-2115（ask ci_unverified）
   - 今: workflows/line/scripts/ask_final.py の tests_lines（証拠の走らせ方が role_needed なら、engine が走らせていないこと・宣言 .review-checks.json に書く次の手・確かめて続けるか止めるか） 。報告の側は lib/runreport.py の _tests_head_lines（字は lib/declared_checks.py の SELF_REPORTED_NOTE を最後の関所と共に読む。部分 C）
   - 証: tests/workflows/test_gate_head.py::FinalSectionsCase.test_self_reported_green_names_how_to_declare ・lib/tests/test_runreport.py::LinesCase.test_tests_head_lines_and_deleted_files（報告）
-  - 本物の run: test_cmd を渡さない run の gates/gate-final.json の text
+  - 本物の run: test_cmd を渡さない run の最後の関所の文（置き場の控えは部分 B2 の final-gate.md）
   - 狭め: #69 と #74 の間で落ちた → 部分 B2 で戻した。報告の側は部分 C
 
 - T42 base の認証: 素材が clean・found・not_applicable なら ok（直す前の赤は控えるのが仕事）、not_run・awaiting_human・素材が無いなら ok false（緑を仮定しない）。base の任せ先の緑は ok にする。
@@ -355,8 +355,8 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T47 止められた後の呼び直し（resume）で、前の走りのログを上書きしない（空いた番号の置き場 runs/r<N>/<節>.a<k>/）。
   - 元: works/.shared/core/board.py:1404 `_log_dir`・works/tests/test_board_engine_run.py:321 test_rerun_keeps_earlier_logs
-  - 今: 無し（workflows/test-gate/scripts/run.py:50 が test-gate/<mode>/ を丸ごと消してから logs/ に書く）
-  - 証: 要追加: tests/workflows/test_test_gate.py::RunScriptCase.test_rerun_keeps_earlier_logs — 2 度走らせた後に 1 度目のログが残る（T46 の素材と拒否の掃除は保つ）
+  - 今: workflows/test-gate/scripts/run.py `fresh_gate`（logs/ のほかを消し、今回のログは空いた番号の logs/a<k>/。#122）
+  - 証: tests/workflows/test_test_gate.py::RunScriptCase.test_rerun_keeps_earlier_logs
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で落ちた（T46 の副作用。挙げていない）。Archon で不可でない → 戻す（ログだけ番号で分ける）
 
@@ -366,13 +366,13 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-ci/blk-ci.yaml:87-105
   - 今: workflows/test-gate/works-factory-test-gate.yaml:86-135
   - 証: tests/workflows/test_test_gate.py::YamlCase.test_role_node_reads_only（assert: :109-113）・test_role_node_matches_works_blk_ci（assert: :119-124）・test_loop_matches_give_up（assert: :134）
-  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci・test-gate-final__ci の記録
+  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci-loop.ci・test-gate-final__ci-loop.ci の記録
   - 狭め: 無し
 
 - T49 本物の作業ツリーへの書き込みを、包み（adapter）が印の旗 no-tree-write を見て起動ごとに denyWrite に足して塞ぐ。切符の無い起動は起こさない。包みを宣言した run は受け付けが包みの起動の記録で柵が掛かったかを見て、無ければ止める。包み無しの run は知らせ NO_ADAPTER_NOTE を出す。宣言が読めなければ役を起こさずに止める。
   - 元: works/.shared/core/ci_role.py:150 `fence`・:274-298 `take`・:76 NO_ADAPTER_NOTE・works/blk-ci/blk-ci.yaml:28-42
-  - 今: 無し（workflows/test-gate/works-factory-test-gate.yaml:122 の mutates_checkout: false と受け付けの作業ツリーの比べ（T51）だけ。allowWrite ['/'] のまま）
-  - 証: 要追加: tests/workflows/test_test_gate.py::YamlCase.test_role_cannot_write_the_checkout — 役の節の sandbox に作業ツリーを塞ぐ denyWrite が在る（形を決めた後に）
+  - 今: workflows/test-gate/works-factory-test-gate.yaml の節 ci の sandbox.filesystem `{allowWrite: ['/'], denyWrite: ['.']}`（役の cwd = run の作業ツリーを塞ぐ。止めた Archon は節の sandbox をそのまま SDK に渡す: dag-executor.ts:1847・providers/src/claude/provider.ts:801-803。実測は #217（段 1a・#154）。#122）と、mutates_checkout: false・受け付けの作業ツリーの比べ（T51）
+  - 証: tests/workflows/test_test_gate.py::YamlCase.test_role_cannot_write_the_checkout・test_role_node_matches_works_blk_ci
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で狭めた（PR の「能力の狭め」1 つ目）。Archon で不可でない（packages/workflows/src/schemas/dag-node.ts:109 に sandbox.filesystem.denyWrite が在る。run ごとの場所を書けるかは要実測）→ 持ち主の確かめ 決め: 戻すと決めた。run ごとの作業ツリーを denyWrite で塞げないと実測で分かった時だけ源の行つきで狭め。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
 
@@ -380,7 +380,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/ci_role.py:177 `_make_copy`・:189 `snapshot`
   - 今: workflows/test-gate/scripts/ci_prep.py:35-38
   - 証: tests/workflows/test_test_gate.py::CiRoleCase.test_prep_copies_tree_and_passes_reject（assert: :283-285）
-  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci-prep の copy_dir・tmp_dir
+  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci-loop.ci-prep の copy_dir・tmp_dir
   - 狭め: 無し
 
 - T51 受け付けは役を起こす前の本物の作業ツリーの姿（porcelain・HEAD からの差分・git が無視するパス・HEAD・枝）と今を比べ、変わっていれば変わった物を名指して「読むだけの役が作業ツリーを変えた…写しの上で走らせ直せ」と拒む。元に戻せば通る。
@@ -399,8 +399,8 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T53 前の回の拒否の理由を次の回の指示書の頭に置き、「理由のところを直した返答を丸ごと出し直せ」と言う。拒否の文の中の `$<節>.output.<欄>` を Archon が置き換え直して輪が落ちないように渡す（元の裁定 R44: $LOOP_PREV で指示書に直に貼らない）。
   - 元: works/.shared/core/ci_role.py:236-241 `prep`（REJECT_HEADING）
-  - 今: workflows/test-gate/works-factory-test-gate.yaml:103（ci-prep の with: に `$LOOP_PREV.ci-accept.output.reason`）・workflows/test-gate/scripts/ci_prep.py:41・workflows/test-gate/commands/ci.md:3-7
-  - 証: tests/workflows/test_test_gate.py::YamlCase.test_prep_takes_previous_reject（assert: :140）・CiRoleCase.test_prep_copies_tree_and_passes_reject（assert: :283）。弱い: 字と受け渡しだけで、R44 の落ち方を照らしていない。Archon は with: の値に $LOOP_PREV を生のまま継ぐ（packages/workflows/src/dag-executor.ts:5288-5296）。要追加: workflows/test-gate/fixtures/role-reject-with-ref.stubs.yaml — 1 回目の拒否の文に `$ci.output.material` を含めても 2 回目の ci-prep と ci が走る
+  - 今: workflows/test-gate/scripts/ci_prep.py（前の回の拒否を rolekit.rejected の控えの最後の 1 件から読む。with: の $LOOP_PREV は外した: Archon は with: に $LOOP_PREV を生のまま貼った後に節の出力の参照をもう 1 度置き換える。dag-executor.ts:5279-5306・:464-493。#122）・workflows/test-gate/commands/ci.md
+  - 証: tests/workflows/test_test_gate.py::YamlCase.test_loop_does_not_paste_previous_reject_by_loop_prev（旧 test_prep_takes_previous_reject）・CiRoleCase.test_reject_with_a_reference_reaches_the_prompt_verbatim・test_prep_copies_tree_and_passes_reject
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（形を変えた。落ちないかは未確かめ）
 
@@ -414,7 +414,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - T55 読めない返答（JSON でない・オブジェクトでない）は受け付けの拒否として数え、理由を次の回へ渡す。
   - 元: works/.shared/core/ci_role.py:313 `refuse`・works/tests/test_blk_ci.py:570 test_unreadable_reply_is_a_reject
   - 今: workflows/test-gate/scripts/ci_accept.py:31-33・lib/rolekit.py:118 `parse_reply`
-  - 証: 要追加: tests/workflows/test_test_gate.py::CiRoleCase.test_unreadable_reply_is_a_reject — reply "not json" で ok false・done false、理由に「JSON」
+  - 証: tests/workflows/test_test_gate.py::CiRoleCase.test_unreadable_reply_is_a_reject（#122）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（試験だけが欠け）
 
@@ -449,8 +449,8 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - T60 役の指示書の決まり: 走らせられなければ緑を仮定しない（base は awaiting_human・final は not_run）。実行器が起動を拒んだ・試験が 0 件・起動の前のエラーは走っていない扱いで、走ったかは件数で決める。終わるまで待つ（572 件の途中の 537 件で clean と書いた実測）。複数の系統は全部走らせ、checked に系統ごとの終了コード。結果は自己申告として人に諮られる。本物を 1 文字も変えない。
   - 元: works/blk-ci/prompts/p0.local_checks.md・works/blk-ci/prompts/p4.ci.md・works/blk-ci/commands/ci.md・works/tests/test_blk_ci.py:176 test_command_is_thin_and_prompts_keep_the_rules
   - 今: workflows/test-gate/commands/ci.md:22-30
-  - 証: 要追加: tests/workflows/test_test_gate.py::YamlCase.test_ci_command_keeps_the_rules — ci.md に各決まりの句（「緑を仮定するな」「件数で決めよ」「終わるまで待て」「系統ごとの終了コード」「自己申告」）が在る。今の YamlCase.test_role_node_reads_only は ci.md が在るかだけ（assert: :114）
-  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci の指示書（Archon の記録）
+  - 証: tests/workflows/test_test_gate.py::YamlCase.test_ci_command_keeps_the_rules（#122）・CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits（元の 3 つと台帳 5 組）
+  - 本物の run: test_cmd を渡さない run の節 test-gate-base__ci-loop.ci の指示書（Archon の記録）
   - 狭め: 無し（字は在る。縛る試験が無い）
 
 - T61 修正の後の役の指示書に、前の周で人へ諮った答えと、台帳の kind=awaiting・origin=local_checks の未決の問いを渡し、未決の問いが在る間は CI を走らせても awaiting_human のまま書かせる（人に諮っている最中の欄を clean で上書きしない）。
@@ -464,24 +464,24 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T62 同じ run の中で、同じ作業ツリーの木・同じ命令・同じ環境の緑の一式の結果を使い回す（一式の全段が当たった時だけ子を起こさずに全段を使い、JUnit も書き戻す。走らせている間に木が変わった回は置かない。run をまたがない）。直す前の確かめと TDD の輪の頭が同じ test_cmd を 2 度走らせない。
   - 元: works/.shared/core/tree_run.py:670 `replay_group`・:750 `keep_group`・:779 `slotted_run`・works/.shared/core/board.py:379-433・works/CHANGELOG.md:30・:53（0.2.64）
-  - 今: 無し（lib/declared_checks.py:211-212 が外したと書く。base の baseline.json を fix が読む形だけが残る: workflows/fix/works-factory-fix.yaml:14-16）
-  - 証: 要追加: lib/tests/test_declared_checks.py::ReuseCase.test_same_tree_same_suite_runs_once — base で緑の一式を走らせた後、同じ木の 2 度目の呼びは子を起こさない（final は T65 のとおり引かない）
+  - 今: lib/tree_run.py `replay_group`・`keep_group`・`reuse_run`（元 slotted_run から枠を外した物）・`reuse_place`・lib/declared_checks.py `tree_runner`・lib/tddloop.py `_test_cmd_gate`・`start`（元の結末の一式）・lib/baseline_red.py `run_suite`。控えは線の run の置き場の直下 test-reuse/（run の名は始めの記録の run_id）。test-gate の base（workflows/test-gate/scripts/run.py）が引いて置き、fix の組の子の run の TDD の輪の頭（workflows/fix/scripts/group_start.py・fixio.line_top）が test_cmd と元の結末の一式を引いて置く。final は引かない（#122）
+  - 証: lib/tests/test_declared_checks.py::ReuseCase.test_same_tree_same_suite_runs_once・test_other_run_or_moved_tree_is_not_reused・test_tdd_head_test_cmd_reads_the_base_keep・test_reused_suite_writes_its_junit_back・TestModesCase.test_final_never_reads_reuse_store・lib/tests/test_tree_run.py::ReuseRunCase・tests/workflows/test_test_gate.py::RunScriptCase.test_base_rerun_reuses_the_green_suite_and_final_does_not・tests/workflows/test_fix.py::GroupChildScriptsCase.test_tdd_head_reuses_the_test_gate_base_test_cmd・lib/tests/test_blk_fix_tdd.py::TestStart.test_head_reuses_the_green_baseline_of_the_same_run・tests/shared/test_archon_contract.py::ArchonContractTest（script の節に立つ変数の名）
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で外した。PR は持ち主の決め no-queue を理由に挙げるが、no-queue（docs/owner-decisions.md:62-66）は修正の並べの待ちの列の決めで、使い回しは reuse-results（:263-268「使い回すのは入力が変わらない時だけ」「最後のテストは省かない」）に当たる。Archon で不可でない → 持ち主の確かめ 決め: 戻すと決めた（reuse-results）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
 
 - T63 使い回した段の出どころ（run・時刻・鍵）を素材の checked・段の行・報告に出し、使い回さなかった理由（reuse_off）を段の行・trace に出す。旗 GRAPHLOOPS_RERUN_CHECKS=1 で必ず走らせる。
   - 元: works/.shared/core/board.py:436 `_reused_note`・works/.shared/core/entry.py:706 `_reused_material`・works/.shared/core/tree_run.py:433 RERUN_ENV・:496 `note_fields`・:501 `reused_text`
-  - 今: 無し
-  - 証: 要追加（T62 を戻す時）: lib/tests/test_declared_checks.py::ReuseCase.test_reused_steps_named_in_material_and_rows
+  - 今: lib/tree_run.py `note_fields`・`reused_text`・RERUN_ENV・lib/declared_checks.py `_reused_note`・`_reused_material`・`_row`（段の行の reused・reuse_off。trace の代わりに test-gate/<mode>/run.json の runs）。旗は script が読む（#122）
+  - 証: lib/tests/test_declared_checks.py::ReuseCase.test_reused_steps_named_in_material_and_rows・test_rerun_flag_runs_again
   - 本物の run: 筋書きでのみ
   - 狭め: T62 と同じ 決め: 戻すと決めた（reuse-results）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
 
 - T64 機械全体の試験の枠（slotwrap.sh・TESTSLOT_N）を通してテストを走らせ、枠を待った秒 wait_s を段の行に、待ちを状態の表示と herdr に見せる（並べすぎない）。
   - 元: works/.shared/core/tree_run.py:779 `slotted_run`・works/tests/test_tiers.py:923 RunSlotCase・:987 SlotWaitShownCase
   - 今: 無し（lib/declared_checks.py:223 は tree_run.run を直に呼ぶ）
-  - 証: 要追加（戻す時）: lib/tests/test_declared_checks.py::TreeRunnerCase.test_step_takes_machine_slot
   - 本物の run: 筋書きでのみ
-  - 狭め: #69 で外した（理由 no-queue）。Archon で不可でない。no-queue の字は修正の並べの決めなので、run をまたぐ試験の数の歯止めに当たるかは持ち主の確かめ 決め: 持ち主の答え待ち（no-queue がどちらにも読める。推しは戻す）（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #69 で外した。absent: 戻さない（持ち主の決め `no-queue`。docs/owner-decisions.md の 2026-10-12 の決め。#118）
+  - 証: 要らない（戻さないと決めた能力）
 
 - T65 最後のテストは同じ run の中の前の結果を使い回さない（同じ木で 2 度呼べば 2 度走らせる）。
   - 元: works/blk-tests/scripts/run_tests.py:49-66（RERUN_ENV）
@@ -496,14 +496,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-tests/blk-tests.yaml:4-5・works/blk-tests/scripts/run_tests.py:78
   - 今: workflows/test-gate/scripts/result.py:139-146・線 workflows/line/works-factory-line.yaml（#74 の head）:722-738（eyes は test-gate-final の後にいつも走る）・:819-821（ask-final が tests_ok・green・red_cause を読む）
   - 証: lib/tests/test_declared_checks.py::TestModesCase.test_final_red_suite_is_ok（assert: :458-459）・tests/workflows/test_test_gate.py::FixtureCase.test_fixtures_pass_in_archon（筋書き final-red。assert: :584）・tests/workflows/test_gate_head.py::FinalHeadCase.test_three_lines_and_reasons（#74 の head。assert: :125）
-  - 本物の run: 節 test-gate-final__result の ok・green・red_cause と gates/gate-final.json
+  - 本物の run: 筋書きでのみ（種は最後のテストが緑の見込みで、赤で止めずに進む道を通らない。在れば節 test-gate-final__result の ok・green・red_cause と gates/gate-final.json）
   - 狭め: 無し
 
 - T67 最後の関所の 1 行目のテストの語が、緑・赤（原因）・認証できなかった（原因）を区別する。
   - 元: works/darkfactory/lib/line_edge.py:567（rest.tests_word）
   - 今: workflows/line/scripts/ask_final.py（#74 の head）:39-44 `tests_word`
   - 証: tests/workflows/test_gate_head.py::FinalHeadCase.test_three_lines_and_reasons（#74 の head。assert: :125）。弱い: final_got の既定 tests_ok=True と green=False の組は test-gate の final が返さない（final の赤は必ず ok false）。本物の赤は「認証できなかった（introduced）」と出て「赤」にならず、「赤」の枝は届かない。要追加: FinalHeadCase.test_red_final_says_red — tests_ok=False・green=False・red_cause=introduced で 1 行目が「テストは赤（introduced）」
-  - 本物の run: gates/gate-final.json の text の 1 行目
+  - 本物の run: 最後の関所の文の 1 行目（置き場の控えは部分 B2 の final-gate.md）
   - 狭め: 無し（字の誤り）
 
 - T68 報告の「直す前のテスト」の行が、走らせられなかった base（incomplete）を「赤」と言わない（元は MATERIAL_WORDS で状態の語を出した）。
@@ -549,7 +549,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 狭めで Archon のせいでない物: 14（「無し」の 14 行の全部。Archon のせいで不可と言える行は 1 つも無い）
   - 字の誤り（狭めではない）: 2（T67・T68）
 - 持ち主に聞く物（前の決め・定石・元の作りのどれでも 1 つに決まらない）
-  1. T62・T63・T64 同じ run の中の使い回しと機械全体の試験の枠。→ 決めた: T62・T63 は戻す（reuse-results）。T64 だけ持ち主の答え待ち（no-queue がどちらにも読める）
+  1. T62・T63・T64 同じ run の中の使い回しと機械全体の試験の枠。→ 決めた: T62・T63 は戻す（reuse-results）。T64 は戻さない（`no-queue`。#118）
   2. T49 任せ先の役の書き込みの守り（包みの柵）。→ 決めた: 戻す（denyWrite で塞げないと実測で分かった時だけ源の行つきで狭め）
   3. T16 依頼の where を入口の範囲の照らしに足す。→ 決めた: 戻す（superset）
   4. T61 人に諮っている最中の CI の欄を clean で上書きさせない決まり。台帳が無いので、線の問いで持つか
@@ -572,63 +572,63 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E1 目の役の節は全部、読むだけ（作業ツリーを変えない宣言）で、毎回新しい会話で起きる。
   - 元: works/blk-eyes/blk-eyes.yaml:133-143 `r1-comments`（ほかの目も同じ形。輪の 1 回目は新しい会話）・works/blk-eyes/lib/eyes.py:474 `accept`
   - 今: workflows/eyes/works-factory-eyes.yaml:96-108 ほか役の節 6 つ（`mutates_checkout: false`・`context: fresh`）
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_every_role_node_is_read_only（assert: tests/workflows/test_eyes.py:150,152）
-  - 本物の run: 節 eyes__r1-minimality・eyes__r2-compare・eyes__r3-coherence・eyes__r4-scope が completed（Archon の checkout の照らしに当たっていない）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_every_role_node_is_read_only（assert: tests/workflows/test_eyes.py:343,345）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 eyes__r1-minimality・eyes__r2-compare・eyes__r3-coherence・eyes__r4-scope が completed（Archon の checkout の照らしに当たっていない））
   - 狭め: 無し
 
 - E2 役ごとの道具は元の表のとおり: 最小性と前提の検算（judge）と削除候補（comment-analyzer）は Read・Grep・Glob・WebSearch・WebFetch、R3・R4（inspector）は Read・Grep・Glob、比較役は Read だけ。書く道具と shell は持たない。
   - 元: works/blk-eyes/lib/eyes.py:78-81 `TOOLS`・`NODE_TOOLS`、works/tests/test_tool_parity.py:41 `NARROWED`
   - 今: workflows/eyes/works-factory-eyes.yaml:105,162,198,230,258,282
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_no_eye_has_shell_or_writer_tools（assert: tests/workflows/test_eyes.py:157,158）は弱い。R3・R4 に WebSearch を足しても、R1 から WebFetch を外しても赤にならない。要追加: tests/workflows/test_eyes.py::ShapeCase.test_eye_tools_are_the_role_tools — 役ごとの allowed_tools が元の TOOLS（＋NODE_TOOLS）と字のまま一致する
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_eye_tools_are_the_role_tools（assert: tests/workflows/test_eyes.py:354,357。元の TOOLS・NODE_TOOLS・run_by を試験の表 WORKS_TOOLS に字で持つ）
   - 本物の run: 筋書きでのみ（YAML の静的な事実）
   - 狭め: 無し
 
 - E3 役ごとのモデルと effort は元の表のとおり（削除候補 sonnet/medium、最小性・比較役・前提の検算 opus/high、R3・R4 sonnet/medium）。
   - 元: works/blk-eyes/blk-eyes.yaml:135-136,292-293,452-453,602-603,753-754,888-889、works/tests/test_tool_parity.py:312 `RoleModelCase`
   - 今: workflows/eyes/works-factory-eyes.yaml:100-101,157-158,193-194,225-226,253-254,277-278
-  - 証: 要追加: tests/workflows/test_eyes.py::ShapeCase.test_role_model_and_effort_match_the_works_table — 役ごとの (model, effort) が元の表と一致する（今はどの試験も model を見ない）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_role_model_and_effort_match_the_works_table（assert: tests/workflows/test_eyes.py:360。元の表は試験の WORKS_MODEL）
   - 本物の run: 節 eyes__r1-minimality などの記録のモデル名
   - 狭め: 無し
 
 - E4 役は利用者の設定だけを読み（対象の CLAUDE.md を読まない）、sandbox を有効にして抜けを許さない。
   - 元: works/blk-eyes/blk-eyes.yaml:139,296,456,606,757,892（`settingSources: [user]`・sandbox）
   - 今: workflows/eyes/works-factory-eyes.yaml:103-104 ほか
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_role_settings_copied（assert: tests/workflows/test_eyes.py:301,302）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_role_settings_copied（assert: tests/workflows/test_eyes.py:566,567）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - E5 比較役（R2）は既定の system prompt（cwd と git status の写しを持つ）を使わない（元の旗 isolated）。
   - 元: works/blk-eyes/lib/eyes.py:82-84 `ISOLATED_RUN_BY`・`ISOLATED_FLAG`、:187-190 `output_format`
   - 今: workflows/eyes/works-factory-eyes.yaml:200 `systemPrompt`
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r2_compare_runs_without_the_default_system_prompt（assert: tests/workflows/test_eyes.py:172,173）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r2_compare_runs_without_the_default_system_prompt（assert: tests/workflows/test_eyes.py:439,440）
   - 本物の run: 筋書きでのみ（PR #67 も「モデルを本当に走らせた回ではまだ見ていない」と書く。seed の run で eyes__r2-compare の返りが git の状態に触れていないかを見る）
   - 狭め: 無し（Archon の packages/workflows/src/schemas/dag-node.ts:226 の systemPrompt で戻した）
 
 - E6 比較役に届くのは目的・独立設計・設計の後に分かった前提・累積差分（と行数・変わったファイル・言語の 1 行）だけで、調査の経緯と判定の一覧は渡さない。
   - 元: works/.shared/core/graphloops/graphs/review-loop.json:4887 `r2.compare` の forbidden_inputs と reads
   - 今: workflows/eyes/commands/r2-compare.md:18-45
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r2_compare_gets_no_forbidden_input（assert: tests/workflows/test_eyes.py:162,164,166-168）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r2_compare_gets_no_forbidden_input（assert: tests/workflows/test_eyes.py:429,431,433-435）
   - 本物の run: 筋書きでのみ（節 eyes__r2-compare に送った本文）
   - 狭め: 無し
 
 - E7 累積差分は本文を貼らず、ファイルの置き場・行の数・変わったファイルを名指し、Read で最後の行まで読み切らせる。開いてよいのはそのファイルだけで、読めなければ推し量らずに reason に書かせる。
-  - 元: works/blk-eyes/lib/eyes.py:102-114 `DIFF_ASK`、:363 `diff_section`
+  - 元: works/blk-eyes/lib/eyes.py:109 `DIFF_ASK`、:363 `diff_section`
   - 今: workflows/eyes/commands/r2-compare.md:16-22、workflows/eyes/scripts/prep.py:62-64
-  - 証: tests/workflows/test_eyes.py::ScriptCase.test_prep_resolves_diff_pointer（assert: tests/workflows/test_eyes.py:536,538）は置き場と行の数だけを見る。指示の文は縛っていない。要追加: tests/workflows/test_eyes.py::ShapeCase.test_r2_compare_reads_the_whole_diff_file — r2-compare.md に「最後の行まで読み切れ」「開いてよいのはこのファイルだけ」「推し量って埋めずに」が在る
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r2_compare_reads_the_whole_diff_file（assert: tests/workflows/test_eyes.py:387。元の DIFF_ASK の 3 つの文）、tests/workflows/test_eyes.py::CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits（assert: tests/workflows/test_eyes.py:969。指示書の字の台帳）
   - 本物の run: eyes/prep.json の diff_file・diff_lines・changed_files（seed では stats.py）
   - 狭め: 無し
 
 - E8 R4 は R1・R2 の筋（最小性・比較・前提の検算）の後に起き、前の筋が落ちても飛ばない。
   - 元: works/blk-eyes/lib/eyes.py:72-74 `LANE_AFTER`、works/blk-eyes/blk-eyes.yaml:815-826 `r4-scope-route`（all_done）
   - 今: workflows/eyes/works-factory-eyes.yaml:272-276
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r4_waits_for_r1_and_r2_lanes（assert: tests/workflows/test_eyes.py:195,196）、lib/tests/test_eyeverdict.py::CollectCase.test_fallen_r2_lane_still_runs_r4_and_is_named（assert: lib/tests/test_eyeverdict.py:284-286）
-  - 本物の run: 節 eyes__r4-scope の始まりが eyes__r1-minimality と eyes__r2-compare の終わりより後
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r4_waits_for_r1_and_r2_lanes（assert: tests/workflows/test_eyes.py:460,461）、lib/tests/test_eyeverdict.py::CollectCase.test_fallen_r2_lane_still_runs_r4_and_is_named（assert: lib/tests/test_eyeverdict.py:284-286）
+  - 本物の run: 筋書きでのみ（前の筋が落ちても R4 が飛ばない道は種で通らず、節の順は nodes[] で照らせない。在れば節 eyes__r4-scope の始まりが eyes__r1-minimality と eyes__r2-compare の終わりより後）
   - 狭め: 無し
 
 - E9 R1 の前段・比較役・前提の検算・R3 は互いを待たず、支度の後に並んで走る。
   - 元: works/blk-eyes/lib/eyes.py:26-27（並び）、works/tests/test_blk_eyes.py:1134 `test_four_eyes_in_parallel_processes`
   - 今: workflows/eyes/works-factory-eyes.yaml:98,191,223,251（depends_on は prep だけ）
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_commands_read_only_declared_prep_fields（assert: tests/workflows/test_eyes.py:260）は prep への依存が在ることだけで弱い。要追加: tests/workflows/test_eyes.py::ShapeCase.test_eyes_run_side_by_side — r1-comments・r2-compare・premise-check・r3-coherence の depends_on がちょうど {prep}
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_eyes_run_side_by_side（assert: tests/workflows/test_eyes.py:366）
   - 本物の run: 節 eyes__r1-comments・eyes__r2-compare・eyes__r3-coherence の走った時間が重なる
   - 狭め: 無し
 
@@ -637,35 +637,35 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E10 コメントの削除候補が取れなくても R1 の本体を止めない（verdict を not_run に倒さない）。候補はファイルで渡り、無ければ前段は取れなかったと読み、candidates_note に訳を書かせる。
   - 元: works/blk-eyes/lib/eyes.py:85-88 `GIVE_UP_SKIPS`・:453-468 `_reject`（3 回拒まれたら省く）、review-loop.json:4574 `r1.comment_candidates` の does
   - 今: workflows/eyes/works-factory-eyes.yaml:135-156（r1-comments-save と r1-minimality の all_done）、workflows/eyes/commands/r1-minimality.md:35
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r1_minimality_runs_without_the_comment_candidates（assert: tests/workflows/test_eyes.py:200-202）、ScriptCase.test_save_reply_writes_the_reply（assert: :515,516）、ScriptCase.test_prep_names_the_file_r1_comments_save_writes（assert: :570）
-  - 本物の run: eyes/r1-comments.json（候補と kept）、eyes/r1.json の candidates_note（前段が落ちた時）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r1_minimality_runs_without_the_comment_candidates（assert: tests/workflows/test_eyes.py:465-467）、ScriptCase.test_save_reply_writes_the_reply（assert: :780,781）、ScriptCase.test_prep_names_the_file_r1_comments_save_writes（assert: :835）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば eyes/r1-comments.json（候補と kept）、eyes/r1.json の candidates_note（前段が落ちた時））
   - 狭め: 無し
 
 - E11 削除候補の役の定義は comment-analyzer の元の本文のまま（版 ce721c1f の sha256）。
   - 元: works/blk-eyes/lib/eyes.py:440 `rolekit.with_role_definition`（plugin の agents/comment-analyzer.md を頭に置く）
   - 今: workflows/eyes/commands/r1-comments.md:4-79
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r1_comments_carries_the_comment_analyzer_definition_verbatim（assert: tests/workflows/test_eyes.py:181）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r1_comments_carries_the_comment_analyzer_definition_verbatim（assert: tests/workflows/test_eyes.py:446）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - E12 削除候補の役に 3 つの指示を足す: 削る物は同じ内容の在り処を名指す、残す物も運ぶ事実を一文で言う、コメントアウトしたコード・編集の実況・名前の言い直しを引き金として探す。
   - 元: review-loop.json:4574 `r1.comment_candidates` の inputs「追加の 3 指示」
   - 今: workflows/eyes/commands/r1-comments.md:86-89
-  - 証: 要追加: tests/workflows/test_eyes.py::ShapeCase.test_r1_comments_keeps_the_three_added_asks — 3 つの文が r1-comments.md に在る
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r1_comments_keeps_the_three_added_asks（assert: tests/workflows/test_eyes.py:402）、tests/workflows/test_eyes.py::CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits（assert: tests/workflows/test_eyes.py:969。指示書の字の台帳）
   - 本物の run: eyes/r1-comments.json の candidates[].same_content_at・kept[].fact
   - 狭め: 無し
 
 - E13 最小性の役は、修正の返答の breaks.accepted の行が人に見せる一覧に載ることを知り、台帳に無いことだけを逃げ道の理由にしない（中身で見る）。
   - 元: works/blk-eyes/commands/r1-minimality.md（描いた写しの頭）、works/tests/test_blk_eyes.py:1414 `test_minimality_knows_where_handoffs_go`
   - 今: workflows/eyes/commands/r1-minimality.md:4
-  - 証: 要追加: tests/workflows/test_eyes.py::ShapeCase.test_minimality_knows_where_handoffs_go — 元の 4 語（`breaks.accepted`・人に見せる一覧・台帳に無いことだけ・中身で見よ）が在る
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_minimality_knows_where_handoffs_go（assert: tests/workflows/test_eyes.py:405。元の commands/r1-minimality.md の 4 行目を字のまま）、tests/workflows/test_eyes.py::CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits（assert: tests/workflows/test_eyes.py:969。指示書の字の台帳）
   - 本物の run: eyes/r1.json の ledger_audit
   - 狭め: 無し
 
 - E14 最小性の役は問いの台帳を監査する（split の origin が目的の内側、fork に零処方が無いまま人に回した → redesign-needed）。台帳は判定の judgment.json の questions。
   - 元: review-loop.json:4672 `r1.minimality` の does・reads（record.questions）
   - 今: workflows/eyes/commands/r1-minimality.md:40,49、workflows/eyes/scripts/prep.py:76
-  - 証: 要追加: tests/workflows/test_eyes.py::ScriptCase.test_r1_minimality_reads_the_question_ledger — prep の judgment_file が判定の指し札の先のファイルで、r1-minimality.md がそれを名指す（今は prep の欄が宣言に在ることしか見ない）
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_r1_minimality_reads_the_question_ledger（assert: tests/workflows/test_eyes.py:904,905）、tests/workflows/test_eyes.py::CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits（assert: tests/workflows/test_eyes.py:969。指示書の字の台帳）
   - 本物の run: eyes/prep.json の judgment_file、eyes/r1.json の ledger_audit
   - 狭め: 無し
 
@@ -673,20 +673,20 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2153-2178 `scalars`（doc_lines は numstat）
   - 今: lib/eyeverdict.py:85-113 `scalars`・`scalars_text`、workflows/eyes/scripts/prep.py:65
   - 証: lib/tests/test_eyeverdict.py::ScalarsCase.test_counts_lines_and_files_from_the_diff（assert: lib/tests/test_eyeverdict.py:74）、test_hunk_lines_that_look_like_file_heads_are_counted（:83）、test_quoted_non_ascii_path_is_read（:88,89）
-  - 本物の run: eyes/prep.json の scalars（seed では stats.py の足した行と消した行）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば eyes/prep.json の scalars（seed では stats.py の足した行と消した行））
   - 狭め: 無し（コードとコメントの比は E16）
 
 - E16 コードとコメントの比（comment_lines・comment_ratio_pct）を測って R1 に渡す。
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2128-2150 `SCALARS_FIXED`・`_comment_ratio`（comment-ratio.sh）
   - 今: 無し
-  - 証: 要追加: lib/tests/test_eyeverdict.py::ScalarsCase.test_comment_ratio_is_measured — 足したコメントの行と比が scalars に載り、測れない言語は unmeasured に訳が残る
   - 本物の run: eyes/prep.json の scalars に comment_ratio_pct が無い
-  - 狭め: #67 で狭めた（理由は言語依存）。Archon で不可でない → 戻すか持ち主の決め 決め: 持ち主の答え待ち（lang-neutral と superset がぶつかる。推しは戻す）（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #67 で狭めた。absent: 戻さない（持ち主の決め `no-comment-ratio`。docs/owner-decisions.md の 2026-10-12 の決め。#118）
+  - 証: 要らない（戻さないと決めた能力）
 
 - E17 修正役が足した x_ の数値（x_scalars）を規模の数値に足し、形の外の欄（x_ で始まらない名・数でない値・object でない）は名指して落とす。
   - 元: review-loop.py:2175-2176（p3.fix の x_scalars）、review-loop.json:4077 p3.fix の x_scalars の patternProperties
   - 今: lib/eyeverdict.py:98-104、workflows/eyes/works-factory-eyes.yaml:25（入力 x_scalars、既定 null）
-  - 証: lib/tests/test_eyeverdict.py::ScalarsCase.test_fix_x_scalars_are_added（assert: :99-101）、test_x_scalars_outside_the_graph_shape_are_named（:114-118）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:559）。線の配線は要追加: tests/workflows/test_line.py::…test_eyes_gets_the_fix_x_scalars — 線の eyes の with に x_scalars が在り、fix の返りの型に x_scalars が在る 線の配線: tests/workflows/test_line.py::FixedCase.test_eyes_gets_the_fix_x_scalars・tests/workflows/test_fix.py::BlockScriptsCase.test_changed_carries_the_premise_drift_note_and_the_x_scalars・tests/e2e/test_line_scenarios.py::RefixInputsTest.test_eyes_get_the_fix_x_scalars（部分 D1）
+  - 証: lib/tests/test_eyeverdict.py::ScalarsCase.test_fix_x_scalars_are_added（assert: :99-101）、test_x_scalars_outside_the_graph_shape_are_named（:114-118）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:559）。線の配線は要追加: tests/workflows/test_line.py::…test_eyes_gets_the_fix_x_scalars — 線の eyes の with に x_scalars が在り、fix の返りの型に x_scalars が在る 線の配線: tests/workflows/test_line.py::FixedCase.test_eyes_gets_the_fix_x_scalars・tests/workflows/test_fix.py::BlockScriptsCase.test_changed_carries_the_premise_drift_note_and_the_x_scalars・tests/e2e/test_line_scenarios.py::RefixInputsTest.test_eyes_get_the_fix_x_scalars（部分 D1）。部分 0 の時の証（そのまま残す）: lib/tests/test_eyeverdict.py::ScalarsCase.test_fix_x_scalars_are_added（assert: :99-101）、test_x_scalars_outside_the_graph_shape_are_named（:114-118）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:824）。線の配線は
   - 本物の run: eyes/prep.json の scalars（部分 D1 で fix の返り x_scalars → 線の fixed → eyes の with: x_scalars をつないだ）
   - 狭め: #67 の「約束を変える頼み 1」が fix と線（#74）で未だ。Archon で不可でない → 戻す → 部分 D1 で戻した
 
@@ -709,49 +709,49 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E20 R1・R3 の頭に考えの住処の観点（concepthome.R1_HEAD・R3_HEAD）を貼り、そこに直した後の実測の数の 1 文（structmark.after_counts。控えが無ければ NO_AFTER）を入れる。
   - 元: works/blk-eyes/lib/eyes.py:90-93 `CONCEPT_HEADS`・`NO_AFTER`、:437-439 `prep`
   - 今: workflows/eyes/scripts/prep.py:48,72,73、lib/eyeverdict.py:58 `NO_AFTER`
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_concept_map_is_pasted_after_the_concept_head（assert: :250,252）は文と並びだけで弱い。after_counts を外しても赤にならない。要追加: tests/workflows/test_eyes.py::ScriptCase.test_r1_head_carries_after_counts — eyes/structure-after.json を置いた後の prep の r1_head・r3_head に「増えた写しの塊 2 個」、置かない時に NO_AFTER（元 works/tests/test_blk_eyes.py:464 と同じ照らし）
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_r1_head_carries_after_counts（assert: tests/workflows/test_eyes.py:913,919-921。控えが無い時の NO_AFTER と、置いた後の「増えた写しの塊 2 個」）
   - 本物の run: eyes/prep.json の r1_head・r3_head（seed では「柵の表は無い（知る場所の増えは数えていない）」と「変わったファイル 1 本」）
   - 狭め: 無し
 
 - E21 考えの地図の節（concepthome.section）は R1・R3 にだけ、観点の後ろに貼る。R2・R4 には貼らない。
   - 元: works/blk-eyes/lib/eyes.py:91-92 `CONCEPT_FLAG`、works/tests/test_blk_eyes.py:480 `test_heads_only_on_r1_minimality_and_r3`
   - 今: workflows/eyes/commands/r1-minimality.md:29、workflows/eyes/commands/r3-coherence.md:20、workflows/eyes/scripts/prep.py:74
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_concept_map_is_pasted_after_the_concept_head（assert: :252）、test_r2_compare_gets_no_forbidden_input（:164）。R4 に貼らないことは縛っていない。要追加: tests/workflows/test_eyes.py::ShapeCase.test_concept_map_only_on_r1_and_r3 — concept_map を読む指示書が r1-minimality.md と r3-coherence.md だけ
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_concept_map_only_on_r1_and_r3（assert: tests/workflows/test_eyes.py:410-412）
   - 本物の run: eyes/prep.json の concept_map（seed は地図が無い形の節）
   - 狭め: 無し
 
 - E22 目の指示書は版を git で読ませず、止めた cwd を Read・Grep・Glob で読ませる。
   - 元: works/blk-eyes/lib/eyes.py:142-151 `GIT_SHOW_SENTENCE`・`FROZEN_READ`
   - 今: workflows/eyes/commands/r1-comments.md:91 ほか 4 本
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_frozen_read_in_commands（assert: :233,236）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_frozen_read_in_commands（assert: :498,501）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - E23 同梱の観点の正本 REVIEW.md（処方の最小性・導線を作る手段の優先順位・横断リスク観点）を R1 の前段・R1・R3・R4 に名指す。
   - 元: works/.shared/core/graphloops/rules/review-loop.py:35-38 `review_md_path`・:46-48 `on_init`
   - 今: workflows/eyes/scripts/prep.py:68（lib/REVIEW.md）
-  - 証: 要追加: tests/workflows/test_eyes.py::ScriptCase.test_prep_names_the_bundled_review_md — prep の review_md が在るファイルを指し、3 つの見出しを持つ
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_prep_names_the_bundled_review_md（assert: tests/workflows/test_eyes.py:928,930。3 つの見出しと、名指す指示書が R1 の前段・R1・R3・R4）
   - 本物の run: eyes/prep.json の review_md
   - 狭め: 無し
 
 - E24 R3 に対象のリポジトリの REVIEW.md（在ればパス、無ければ無いと書いた文）を渡す。
   - 元: review-loop.py:47-48 `on_init`（repo_review_md）
   - 今: workflows/eyes/scripts/prep.py:45,69、workflows/eyes/commands/r3-coherence.md:27
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r3_names_the_target_repo_review_md（assert: :190）、ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:554,566）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r3_names_the_target_repo_review_md（assert: :455）、ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:819,831）
   - 本物の run: eyes/prep.json の repo_review_md（seed に REVIEW.md は無いので「無い」の文）
   - 狭め: 無し
 
 - E25 R1・R3・R4 に人の方針の文書を読ませ、方針とぶつかる物を役が自分で通さない。R4 はぶつかりを policy_conflicts に挙げ、status に数えない。R2 と前提の検算には貼らない。
   - 元: review-loop.json:4672,4973,5036 の prompt_append（policy-paste.md・policy.md）
   - 今: workflows/eyes/commands/r1-minimality.md:58-62、r3-coherence.md:36-40、r4-scope.md:29,37-41、workflows/eyes/scripts/prep.py:70
-  - 証: 要追加: tests/workflows/test_eyes.py::ShapeCase.test_policy_section_on_r1_r3_r4 — 3 本に「## 人の方針」と $prep.output.policy_path、r2-compare.md・premise-check.md には無い
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_policy_section_on_r1_r3_r4（assert: tests/workflows/test_eyes.py:420,422-424）、tests/workflows/test_eyes.py::CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits（assert: tests/workflows/test_eyes.py:969。指示書の字の台帳）
   - 本物の run: eyes/prep.json の policy_path（seed は空）
   - 狭め: 無し
 
 - E26 どの指示書も言語の 1 行（人が読む欄は始めの記録の lang、key・enum の値は訳さない）で終わり、返りは JSON だけと言う。
   - 元: works/.shared/core/rolekit.py:67 `LANG_RULE`・:147 `lang_line`
   - 今: lib/eyeverdict.py:45-47,241-243、workflows/eyes/scripts/prep.py:71
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_every_command_binds_the_language_and_returns_json（assert: :187）、lib/tests/test_eyeverdict.py::PromptTextsCase.test_lang_line_keeps_keys_untranslated（:400-402）、ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:558）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_every_command_binds_the_language_and_returns_json（assert: :452）、lib/tests/test_eyeverdict.py::PromptTextsCase.test_lang_line_keeps_keys_untranslated（:410-412）、ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:823）
   - 本物の run: eyes/prep.json の lang_line
   - 狭め: 無し
 
@@ -760,28 +760,28 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E27 役の返りの型は元の graph の schema のとおり（R3・R4 には見た範囲と見ていない範囲 seen・unseen を足した）。R1 の削除の where は空文字を許さない。
   - 元: review-loop.json:4574,4672,4887,4973,5036,5189 の各節の schema
   - 今: workflows/eyes/works-factory-eyes.yaml:109-133,166-187,204-219,234-247,262-270,286-317
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_role_schemas_match_graph（assert: :268,273。正本は同じファイルの :53-111、where の minLength は :72）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_role_schemas_match_graph（assert: :533,538。正本は同じファイルの :58-116、where の minLength は :77）
   - 本物の run: eyes/r1.json・r2.json・r3.json・r4.json の欄
   - 狭め: 無し
 
 - E28 R4 の棚卸しが発火したら（fired: true）、消えた能力 lost を必ず明示させる（元の post_check r4_inventory）。
   - 元: review-loop.py:2993-2996 `r4_inventory`
   - 今: workflows/eyes/works-factory-eyes.yaml:316-317（if/then）
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_role_schemas_match_graph（assert: :271,272）は形だけ。Archon の照らしが if/then で返りを落とすかは見ない。要追加: tests/workflows/test_eyes.py::ShapeCase.test_r4_inventory_requires_lost — Draft 2020-12 の検証器で、fired: true・lost 無しの返りが output_format に外れ、lost: [] なら通る
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r4_inventory_requires_lost（assert: tests/workflows/test_eyes.py:379-381。照らしの関数 conforms に Draft 2020-12 の if/then・const を足した）
   - 本物の run: eyes/r4.json の capability_inventory.fired・lost
   - 狭め: 無し
 
 - E29 型に外れた返り・JSON でない返りは、拒んだ理由を同じ会話に返して出し直させ、3 回目で諦める。
   - 元: works/blk-eyes/lib/eyes.py:85 `GIVE_UP_AFTER`・:412-485 `_reject`・`accept`、works/blk-eyes/blk-eyes.yaml:92-99（loop_group、fresh_context: false、until_bash）
   - 今: workflows/eyes/works-factory-eyes.yaml:108,165,203,233,261,285（`retry: {max_attempts: 2, on_error: all}`。新しい試みで、理由は渡らない）
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_retry_gives_three_tries（assert: :296）は回数だけ
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_retry_gives_three_tries（assert: :561）は回数だけ
   - 本物の run: 筋書きでのみ（Archon の node_retry_scheduled の事象。健やかな seed では起きにくい）
   - 狭め: #67 で狭めた（拒んだ理由が役に渡らない）。Archon の retry は同じ run() を呼び直すだけ（packages/workflows/src/dag-executor.ts:1055）で、Claude の構造化出力は reask しない（同 :2341-2348）。ただし元の blk-eyes 自身が同じ Archon の loop_group で同じ会話の出し直しをしていた（works/blk-eyes/blk-eyes.yaml:92-99）ので不可でない → 持ち主の決め（owner-decisions の仮の判断）
 
 - E30 読むだけの役が作業ツリーを変えたら、その返りを受けない。
   - 元: works/blk-eyes/lib/eyes.py:482 `entry.take`（入口の写しと比べて拒み、出し直させる）、works/tests/test_blk_eyes.py:975 `test_tree_change_is_rejected`
   - 今: 役の節の `mutates_checkout: false` で Archon が節を落とし、返す節がその目を unverifiable にする
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_every_role_node_is_read_only（assert: :150）、lib/tests/test_eyeverdict.py::CollectCase.test_missing_eye_file_is_unverifiable_and_named（:274-277）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_every_role_node_is_read_only（assert: :343）、lib/tests/test_eyeverdict.py::CollectCase.test_missing_eye_file_is_unverifiable_and_named（:274-277）
   - 本物の run: 筋書きでのみ
   - 狭め: #67 で狭めた（出し直しが無くなった）。Archon で不可: packages/workflows/src/dag-executor.ts:1243-1249（checkout の照らしの違反は retry の外で、出し直さない）
 
@@ -791,41 +791,41 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: review-loop.py:1228-1235 `r2_compare_due`
   - 今: lib/eyeverdict.py:67-69 `r2_compare_due`、workflows/eyes/scripts/prep.py:57、workflows/eyes/works-factory-eyes.yaml:192
   - 証: lib/tests/test_eyeverdict.py::DueCase.test_compare_is_due_only_when_the_question_stands_and_purpose_is_known（assert: :55-58）
-  - 本物の run: eyes/prep.json の compare_due、eyes/r2.json が在ること
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば eyes/prep.json の compare_due、eyes/r2.json が在ること）
   - 狭め: 無し
 
 - E32 独立設計が「問いは立たない」と言った時は比べず、別の judge が前提を実態で検算する。
   - 元: review-loop.py:1248-1251 `r2_premise_invalid`・:2988-2990 `r2_design`
   - 今: lib/eyeverdict.py:72-74、workflows/eyes/works-factory-eyes.yaml:224
-  - 証: lib/tests/test_eyeverdict.py::DueCase.test_premise_is_invalid_only_when_the_design_says_no_question（assert: :61-64）、筋書き workflows/eyes/fixtures/premise.stubs.yaml（tests/workflows/test_eyes.py::FixtureCase.test_fixtures_pass_in_archon :321-325。Archon の源が無ければ見送る）
+  - 証: lib/tests/test_eyeverdict.py::DueCase.test_premise_is_invalid_only_when_the_design_says_no_question（assert: :61-64）、筋書き workflows/eyes/fixtures/premise.stubs.yaml（tests/workflows/test_eyes.py::FixtureCase.test_fixtures_pass_in_archon :586-590。Archon の源が無ければ見送る）
   - 本物の run: 筋書きでのみ（seed の依頼は問いが立つ）
   - 狭め: 無し
 
 - E33 前提の検算の役に、独立設計の返答の全体・目的・記録の制約・リポジトリを渡し、仮定を実態で検算させる（偽と示せたら resolved、真か反証できないなら escalate）。この run では R2 を回し直さないと言う。
   - 元: review-loop.json:5189 `stop.premise_check` の reads・does
   - 今: workflows/eyes/commands/premise-check.md:23-31、workflows/eyes/scripts/prep.py:61
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_restored_command_sentences_stay（assert: :242,243）、ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:560）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_restored_command_sentences_stay（assert: :507,508）、ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:825）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - E34 前提不成立の道では r2 を unverifiable にし、訳は「前提不成立: 」＋独立設計の premise_invalid_reason（無ければ reason）。検算の結果 {verdict, reason} を返りに載せる。
   - 元: review-loop.py:2988-2990 `r2_design`（reviews.R2 を premise-invalid に）
   - 今: lib/eyeverdict.py:77-78 `premise_reason`・:345-350 `collect`
-  - 証: lib/tests/test_eyeverdict.py::CollectCase.test_premise_path_makes_r2_unverifiable_and_carries_the_check（assert: :307,308）、DueCase.test_premise_reason_prefers_the_named_field_then_the_reason（:67-69）
+  - 証: lib/tests/test_eyeverdict.py::CollectCase.test_premise_path_makes_r2_unverifiable_and_carries_the_check（assert: :317,318）、DueCase.test_premise_reason_prefers_the_named_field_then_the_reason（:67-69）
   - 本物の run: 筋書きでのみ（節 eyes__verdict の r2・premise_check）
   - 狭め: 無し（元の語 premise-invalid は訳の頭に移した。約束 docs/design.md:287 のとおり）
 
 - E35 前提の検算の節が落ちた・判定の語が約束の外なら escalate にし、落ちた筋を名指す（R4 を回した後なら「まま R4 を回した」）。
   - 元: works/blk-eyes/lib/eyes.py:291-310 `fallen`・`fell_text`
   - 今: lib/eyeverdict.py:347-350
-  - 証: lib/tests/test_eyeverdict.py::CollectCase.test_fallen_premise_check_escalates（assert: :314-316）
+  - 証: lib/tests/test_eyeverdict.py::CollectCase.test_fallen_premise_check_escalates（assert: :324-326）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - E36 前提の検算が escalate なら、他の阻害に依らず人に聞く。
   - 元: review-loop.json:5189 `stop.premise_check` の does（件数に依らず止めて聞く）、works/.shared/core/scripts/review-record.py:183
   - 今: workflows/line/scripts/ask_final.py:63-65 `final_needs`（「前提の検算が人に上げた」を関所を開ける理由に足す）
-  - 証: 要追加: tests/workflows/test_line.py::…test_escalated_premise_check_opens_the_final_gate — premise_check の verdict が escalate の時 final_needs に「前提の検算が人に上げた」が入り、when_needed でも開く（今は線の試験に無い）
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_escalated_premise_check_opens_the_final_gate（assert: tests/workflows/test_line.py:556-558）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（止める代わりに最後の関所で人が決める）
 
@@ -839,56 +839,56 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E38 比較役の頭に、独立設計の後に分かった前提を元の並びで貼る（人の関所の答え・依頼が名指した設計書の節・対象のリポジトリの地図・独立設計の後に来た答え・前提のずれの申告・記録の制約）。どれかが設計の前提を崩していれば、比べずに redesign-needed にし「設計の前提が変わった: 」で始めて書かせる。
   - 元: works/blk-eyes/lib/eyes.py:96-101 `PREMISE_HEAD`・`PREMISE_ASK`、:389-409 `premise_section`
   - 今: lib/eyeverdict.py:213-238 `premise_section`、workflows/eyes/commands/r2-compare.md:26-30
-  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_pastes_every_premise_in_the_original_order（assert: :433-437）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:555-557）。指示の文は縛っていない。要追加: tests/workflows/test_eyes.py::ShapeCase.test_r2_compare_says_premise_changed — r2-compare.md に「設計の前提が変わった: 」で始めよという元の PREMISE_ASK の文が在る
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_r2_compare_says_premise_changed（assert: tests/workflows/test_eyes.py:390。元の PREMISE_HEAD・PREMISE_ASK を字のまま）、lib/tests/test_eyeverdict.py::PremiseSectionCase.test_pastes_every_premise_in_the_original_order、tests/workflows/test_eyes.py::CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits（assert: tests/workflows/test_eyes.py:969。指示書の字の台帳）
   - 本物の run: eyes/prep.json の premises_text、eyes/r2.json の reason
   - 狭め: 無し
 
 - E39 人の答えのうち、独立設計の控えの seen.count より後に来た物だけを「独立設計の後に来た人の答え」に分けて貼り、設計の漏れに数えさせない。人の答えの行は独立設計の控えと同じ形（始めの関所 → 修正前の関所の順）。
   - 元: works/blk-eyes/lib/eyes.py:115-117 `LATE_HEAD`・`LATE_ASK`、:399-405
   - 今: lib/eyeverdict.py:36-38,197-201 `human_items`、:226-230
-  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_only_answers_after_the_design_are_late（assert: :459-468）、test_human_answer_rows_are_design_human_answers_rows（:444-446）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:562-564）
-  - 本物の run: eyes/r2-premises.json の after_design（seed で修正前の関所に答えが無ければ空）
+  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_only_answers_after_the_design_are_late（assert: :469-478）、test_human_answer_rows_are_design_human_answers_rows（:454-456）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:827-829）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば eyes/r2-premises.json の after_design（seed で修正前の関所に答えが無ければ空））
   - 狭め: 無し
 
 - E40 渡せなかった前提は黙らず書く（依頼のファイルが無い・修正の印が無い・申告の文が無い・記録の制約が無い）。依頼が名指したのに引けなかった設計書の節も名指す。
   - 元: works/blk-eyes/lib/eyes.py:389-409、works/.shared/core/design.py の premises（依頼の節が引けない時）
   - 今: lib/eyeverdict.py:41-42,223-225,233-237
-  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_says_what_was_not_passed（assert: :481-490）、PromptTextsCase.test_constraints_text_says_when_not_passed（:395）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:555-557「依頼が名指したが引けなかった」）
+  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_says_what_was_not_passed（assert: :507-516）、PromptTextsCase.test_constraints_text_says_when_not_passed（:405）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:820-822「依頼が名指したが引けなかった」）
   - 本物の run: eyes/prep.json の premises_text、eyes/r2-premises.json の withheld
   - 狭め: 無し
 
 - E41 依頼の文の Markdown の名指し（リンクの節のアンカー・コードの囲いの外だけ）を元の読みで引く。
   - 元: review-loop.py:2822-2850 `MD_LINK`・`_md_lines`・`_md_slugs`、works/tests/test_blk_eyes.py:736 `test_md_named_section_skips_fence_with_info_string`
   - 今: lib/eyeverdict.py:163-194
-  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_link_anchor_finds_the_heading_by_its_slug（assert: :472）。囲いの中を読まないことは縛っていない。要追加: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_link_inside_a_code_fence_is_not_named — ``` の中のリンクは named_section にならない
+  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_link_anchor_finds_the_heading_by_its_slug と test_heading_inside_a_code_fence_is_not_an_anchor（assert: lib/tests/test_eyeverdict.py:495-499。名指された文書の囲い（情報文字列つきを含む）の中の # 行はアンカーにならず、節も切らない）。#123 で名を test_link_inside_a_code_fence_is_not_named から替えた（元も依頼の文の囲いの中のリンクは名指しに数える）
   - 本物の run: eyes/r2-premises.json の given の named_section（seed の依頼は設計書を名指さない）
   - 狭め: 無し
 
 - E42 前提のずれの申告の本文（premise_drift_note）を比較役の頭に貼る。
   - 元: review-loop.py:1848（loop.drift_notes）、works/blk-eyes/lib/eyes.py:395
   - 今: lib/eyeverdict.py:231-236
-  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_pastes_every_premise_in_the_original_order（assert: :434-436「入口は 2 つあった」）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:555）。fix の返りの型は要追加: tests/workflows/test_fix.py::…test_changed_carries_the_premise_drift_note — fix の返りの changed に premise_drift_note が在る fix の返りの changed の premise_drift_note: tests/workflows/test_fix.py::BlockScriptsCase.test_changed_carries_the_premise_drift_note_and_the_x_scalars・ContractCase.test_nested_shapes・lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_reply_marks_or_over_the_previous（部分 D1）
+  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_pastes_every_premise_in_the_original_order（assert: :434-436「入口は 2 つあった」）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:555）。fix の返りの型は要追加: tests/workflows/test_fix.py::…test_changed_carries_the_premise_drift_note — fix の返りの changed に premise_drift_note が在る fix の返りの changed の premise_drift_note: tests/workflows/test_fix.py::BlockScriptsCase.test_changed_carries_the_premise_drift_note_and_the_x_scalars・ContractCase.test_nested_shapes・lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_reply_marks_or_over_the_previous（部分 D1）。部分 0 の時の証（そのまま残す）: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_pastes_every_premise_in_the_original_order（assert: :444-446「入口は 2 つあった」）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:820）。fix の返りの型は
   - 本物の run: eyes の比較役の頭（部分 D1 で fix の返りの changed に premise_drift_note を足した）
   - 狭め: #67 の「約束を変える頼み 2」が fix で未決。Archon で不可でない → 戻す → 部分 D1 で戻した
 
 - E43 記録の制約（判定の隣の premises.json の constraints）を、比較役の頭と前提の検算に同じ字で渡す。
   - 元: works/blk-eyes/lib/eyes.py:396-397（record.process.constraints）
-  - 今: workflows/eyes/scripts/prep.py:42-43、lib/eyeverdict.py:204-210
-  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_constraints_read_the_same_in_the_compare_head_and_the_premise_check（assert: :497-500）。prep が判定の隣の premises.json を開くことは縛っていない（ScriptCase の prep_inputs は premises.json を置かない）。要追加: tests/workflows/test_eyes.py::ScriptCase.test_prep_reads_constraints_next_to_the_judgment — judge/premises.json の constraints が premises_text と constraints_text に載る
-  - 本物の run: eyes/prep.json の constraints_text（judge/premises.json から）。壊れる余地だけ在る（今壊れているかは未確認）: 再審が走った run で judgment の指し札が再審の置き場を指すと、隣に premises.json が無く「渡っていない」になる（workflows/line/scripts/judged.py の judgment の選びを要確かめ）
+  - 今: workflows/eyes/scripts/prep.py:42-43、lib/eyeverdict.py:204-210。再審が走った run も、判定のブロックが再審の置き場に premises.json を写す（lib/judge_accept.py:4231-4234。tests/workflows/test_judge.py の test_rejudge_returns_its_own_units_and_keeps_the_first_judgment）
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_prep_reads_constraints_next_to_the_judgment（assert: tests/workflows/test_eyes.py:944,945,948,949。judge/ と rejudge/ の judgment の隣の premises.json、無ければ「渡っていない」）、lib/tests/test_eyeverdict.py::PremiseSectionCase.test_constraints_read_the_same_in_the_compare_head_and_the_premise_check
+  - 本物の run: eyes/prep.json の constraints_text（judge/premises.json から。再審の run は rejudge/premises.json から）
   - 狭め: 無し
 
 - E44 比較役に貼った前提の控え（given・withheld・seen・after_design）を eyes/r2-premises.json に残す。
   - 元: works/blk-eyes/lib/eyes.py:136 `PREMISES_NAME`・:430-431
   - 今: workflows/eyes/scripts/prep.py:89
-  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_ledger_lists_what_was_given_and_withheld（assert: :450-454）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:561-564）
+  - 証: lib/tests/test_eyeverdict.py::PremiseSectionCase.test_ledger_lists_what_was_given_and_withheld（assert: :460-464）、tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_the_premises_and_names_the_target_review_md（:826-829）
   - 本物の run: eyes/r2-premises.json
   - 狭め: 無し
 
 - E45 比較役が「渡されていない」と書いた文と、そのうち実は渡していた物（claims_given）と、R2 の 2 つの役に渡した前提の控えを、最後の関所の R2 の行の下に並べる。
   - 元: works/blk-eyes/lib/eyes.py:527-533（出口の premise_inputs）、works/darkfactory/lib/line_edge.py:529-557 `_r2_inputs`
   - 今: eyes の返り notes（premise-inputs.json）を lib/eyeverdict.py `r2_input_lines` で最後の関所（ask_final の `eye_notes`）と報告（runreport の `_eye_lines`）が R2 の行の下に並べる
-  - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_final_gate_lists_the_r2_premise_inputs・lib/tests/test_runreport.py::FixBesideLinesCase.test_eyes_gate_passes_are_listed
+  - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_final_gate_lists_the_r2_premise_inputs・lib/tests/test_runreport.py::FixBesideLinesCase.test_eyes_gate_passes_are_listed。部分 0 の時の証（そのまま残す）: lib/tests/test_eyeverdict.py::WriteNotesCase.test_writes_premise_inputs_and_gate_passes（assert: :546-549）、tests/workflows/test_eyes.py::ScriptCase.test_verdict_writes_the_notes_for_the_final_gate（:764-767）、lib/tests/test_blk_eyes.py::PathCase（:59,65）。関所に出ることは
   - 本物の run: eyes/premise-inputs.json は書かれるが、最後の関所の文（gate-final の message）には出ない
   - 狭め: #67 は読み手を線と report に頼んだ（「約束を変える頼み 4」）が、#74 でも未だ。Archon で不可でない → 戻す → 部分 D2 で戻した
 
@@ -897,21 +897,21 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E46 目の指示書に、単位の目録・この run の修正の結末・波及と定石の置き場・修正の印（R4 の r4_context）を渡す。
   - 元: review-loop.json:4672 `r1.minimality` の reads（record.units・record.process.fixes）、:5036 `r4.hidden_scope`
   - 今: lib/eyeverdict.py:246-263 `prompt_texts`
-  - 証: lib/tests/test_eyeverdict.py::PromptTextsCase.test_units_fixes_and_context_are_listed（assert: :382-386）
-  - 本物の run: eyes/prep.json の units_text・fixes_text・r4_context
+  - 証: lib/tests/test_eyeverdict.py::PromptTextsCase.test_units_fixes_and_context_are_listed（assert: :392-396）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば eyes/prep.json の units_text・fixes_text・r4_context）
   - 狭め: 無し
 
 - E47 最後のテストが認証されていない時だけ、目の指示書に「赤は最後の関所で人が見る」の 1 行を足す。
   - 元: なし（今で足した物。元は目を回す前に緑を待った）
   - 今: lib/eyeverdict.py:59,262
-  - 証: lib/tests/test_eyeverdict.py::PromptTextsCase.test_green_line_only_when_not_certified（assert: :389-392）
-  - 本物の run: eyes/prep.json の green_line（seed は緑なので空）
+  - 証: lib/tests/test_eyeverdict.py::PromptTextsCase.test_green_line_only_when_not_certified（assert: :399-402）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば eyes/prep.json の green_line（seed は緑なので空））
   - 狭め: 無し
 
 - E48 全部の単位が軽量の run は目を起こさず、r1〜r4 は null。ok は守りのパスを確かめられた時だけ true。
   - 元: works/blk-eyes/blk-eyes.yaml:22-24 `skip_optional`、works/darkfactory/darkfactory.yaml:1201、works/.shared/core/scripts/review-record.py:179（skipped は理由つき）
   - 今: workflows/eyes/scripts/prep.py:56、lib/eyeverdict.py:329-331
-  - 証: tests/workflows/test_eyes.py::ScriptCase.test_prep_all_light_turns_eyes_off（assert: :575）、lib/tests/test_eyeverdict.py::CollectCase.test_light_run_has_null_eyes_and_is_ok（:244,245）、test_light_run_with_an_unconfirmed_protected_check_is_not_ok（:251）、筋書き all-light
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_prep_all_light_turns_eyes_off（assert: :840）、lib/tests/test_eyeverdict.py::CollectCase.test_light_run_has_null_eyes_and_is_ok（:244,245）、test_light_run_with_an_unconfirmed_protected_check_is_not_ok（:251）、筋書き all-light
   - 本物の run: 筋書きでのみ（seed は標準の厚さ）
   - 狭め: 省いた理由（元の reviews の skipped の reason）は eyes の返りに無い（約束 docs/design.md:287「省いた目は null」）。理由が報告に出るか（redepth の返りから）を要確かめ。Archon で不可でない
 
@@ -927,21 +927,21 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E50 返りが無い・読めない・JSON の object でない目は unverifiable にし、落ちた筋と状態を名指す（R4 の後なら「まま R4 を回した」）。
   - 元: works/blk-eyes/lib/eyes.py:291-310 `fallen`・`fell_text`、:516-519
   - 今: lib/eyeverdict.py:287-303 `fell_text`・`_read_eye`、:336-342
-  - 証: lib/tests/test_eyeverdict.py::CollectCase.test_missing_eye_file_is_unverifiable_and_named（assert: :274-277）、test_unreadable_eye_file_is_unverifiable（:293,294）、FellTextCase（:199,200,203）、tests/workflows/test_eyes.py::ScriptCase.test_verdict_names_fallen_eye（:393-395）
+  - 証: lib/tests/test_eyeverdict.py::CollectCase.test_missing_eye_file_is_unverifiable_and_named（assert: :274-277）、test_unreadable_eye_file_is_unverifiable（:293,294）、FellTextCase（:199,200,203）、tests/workflows/test_eyes.py::ScriptCase.test_verdict_names_fallen_eye（:658-660）
   - 本物の run: 筋書きでのみ（落ちた目が在る run の eyes__verdict の rN.reason）
   - 狭め: 無し
 
 - E51 判定の語が約束の外の返りは「返りの判定の語が約束の外」と名指して unverifiable にする。
   - 元: works/.shared/core/scripts/review-record.py:443-454（status が不正なら落とす）
   - 今: lib/eyeverdict.py:376-383 `_off_contract`・`_row`
-  - 証: 要追加: lib/tests/test_eyeverdict.py::CollectCase.test_off_contract_status_is_named — r3.json の status が "ok" の時、r3 が unverifiable で reason に「約束の外」
+  - 証: lib/tests/test_eyeverdict.py::CollectCase.test_off_contract_status_is_named（assert: lib/tests/test_eyeverdict.py:302-305）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - E52 独立設計が無い・読めない・object でない時、r2 は unverifiable で「独立設計が取れなかった: <訳>」。
   - 元: works/blk-eyes/lib/eyes.py:513-515（盤面を止めて『独立の目 R2: 独立設計が取れなかった…』）
   - 今: lib/eyeverdict.py:276-284 `read_design`・:343-344
-  - 証: lib/tests/test_eyeverdict.py::CollectCase.test_missing_design_makes_r2_unverifiable（assert: :299,300）、DesignReadCase.test_missing_or_unreadable_design_names_why（:363-369）
+  - 証: lib/tests/test_eyeverdict.py::CollectCase.test_missing_design_makes_r2_unverifiable（assert: :309,310）、DesignReadCase.test_missing_or_unreadable_design_names_why（:373-379）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（元は run を止め、今は ok: false で最後の関所が人に聞く。止めるかは線の決め）
 
@@ -955,35 +955,35 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E54 返す節は落ちない。入力が壊れていても、lib を読めなくても、置き場が無くても、NaN が混じっても約束の形で ok: false を返す。
   - 元: works/blk-eyes/lib/eyes.py:539-542（配線の誤りは終了コード 2）
   - 今: workflows/eyes/scripts/verdict.py:14-55、lib/eyeverdict.py:313-317 `unverified`
-  - 証: tests/workflows/test_eyes.py::ScriptCase.test_verdict_never_fails（assert: :462）、test_verdict_never_fails_when_lib_cannot_be_read（:470-475）、test_verdict_returns_strict_json（:484,485）、lib/tests/test_eyeverdict.py::CollectCase.test_unverified_fills_the_contract_shape（:345-349）
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_verdict_never_fails（assert: :727）、test_verdict_never_fails_when_lib_cannot_be_read（:735-740）、test_verdict_returns_strict_json（:749,750）、lib/tests/test_eyeverdict.py::CollectCase.test_unverified_fills_the_contract_shape（:355-359）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - E55 支度の節が落ちた時は r1〜r4 を「支度の節…が落ちた」で unverifiable にし、守りのパスの確かめはそのまま運ぶ（確かめた空は空のまま）。
   - 元: なし（今の形で足した物）
   - 今: workflows/eyes/scripts/verdict.py:33-35
-  - 証: tests/workflows/test_eyes.py::ScriptCase.test_verdict_without_prep_keeps_a_clean_protected_check_empty（assert: :428-430）、lib/tests/test_eyeverdict.py::CollectCase.test_unverified_keeps_a_clean_protected_check_empty（:352）、test_unverified_fallen_or_malformed_protected_is_a_hit（:357,358）
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_verdict_without_prep_keeps_a_clean_protected_check_empty（assert: :693-695）、lib/tests/test_eyeverdict.py::CollectCase.test_unverified_keeps_a_clean_protected_check_empty（:362）、test_unverified_fallen_or_malformed_protected_is_a_hit（:367,368）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - E56 目が落ちても柵（eyes-complete、all_done）で待ち合わせてから、返す節がファイルを読んでまとめる（落ちた節への with: を持たない）。
   - 元: works/blk-eyes/blk-eyes.yaml:991-997 `eyes-collect`（all_done）
   - 今: workflows/eyes/works-factory-eyes.yaml:403-418
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_barrier_before_verdict（assert: :206-212）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_barrier_before_verdict（assert: :471-477）
   - 本物の run: 節 eyes__eyes-complete の後に eyes__verdict
   - 狭め: 無し
 
 - E57 目ごとに型つきの成果物 eye-verdict {eye, status, reason} を出し、返りの全体を eyes/<目>.json に書く。目の名と判定の語は YAML と lib で同じ。
   - 元: なし（今で足した物）
   - 今: workflows/eyes/works-factory-eyes.yaml:320-386、workflows/eyes/scripts/eye_verdict.py:14-19
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_eye_verdict_typed（assert: :216-226）、ScriptCase.test_eye_verdict_writes_file_and_returns_row（:509,510）、ShapeCase.test_eye_names_and_status_words_match_eyeverdict（:287-291）
-  - 本物の run: Archon の型つきの成果物 eye-verdict、eyes/r1.json〜r4.json
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_eye_verdict_typed（assert: :481-491）、ScriptCase.test_eye_verdict_writes_file_and_returns_row（:774,775）、ShapeCase.test_eye_names_and_status_words_match_eyeverdict（:552-556）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば Archon の型つきの成果物 eye-verdict、eyes/r1.json〜r4.json）
   - 狭め: 無し
 
 - E58 ブロックの返りは ok・r1〜r4・questions・premise_check・structure_after・protected_hits の固定の並び。
   - 元: works/blk-eyes/lib/eyes.py:152-155 `EXIT_FIELDS`（ok・reason・reviews・premise_inputs）
   - 今: workflows/eyes/works-factory-eyes.yaml:419-451、lib/eyeverdict.py:54
-  - 証: tests/workflows/test_eyes.py::ShapeCase.test_returns_contract（assert: :276-280）
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_returns_contract（assert: :541-545）
   - 本物の run: 節 eyes__verdict の返り（線の eyes-out の got）
   - 狭め: 無し（premise_inputs はファイルに移した。読み手の穴は E45）
 
@@ -992,21 +992,21 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E59 始めの版から今の作業ツリーまで（未追跡を含む）の差分が守りの一覧に当たれば、当たったパスと行を返す。
   - 元: works/darkfactory/lib/line_edge.py:640-651 `_protected`（protect.touched）
   - 今: workflows/eyes/scripts/protected.py:19-23
-  - 証: tests/workflows/test_eyes.py::ScriptCase.test_protected_names_touched_guarded_paths（assert: :451,452）、筋書き protected-hit
-  - 本物の run: eyes/protected.json の hits（seed の直しは stats.py だけなので []）。最後の関所が使うのは merge-seal の protected_hits（workflows/line/works-factory-line.yaml:799）
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_protected_names_touched_guarded_paths（assert: :716,717）、筋書き protected-hit
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば eyes/protected.json の hits（seed の直しは stats.py だけなので []）。最後の関所が使うのは merge-seal の protected_hits（workflows/line/works-factory-line.yaml:799））
   - 狭め: 無し（承認したテストの変更の許しの範囲の当て（元 conflict.ruled_test_doc）は M の範囲）
 
 - E60 一覧・git・始めの記録が読めない時、守りの節が落ちた時、返りの形が崩れた時は、黙って空にせず「確かめられなかった」の行（seal.unknown_row）を当たりにし、ok を false にする。
   - 元: works/darkfactory/lib/line_edge.py:651-652（fail closed）
   - 今: workflows/eyes/scripts/protected.py:24-26、lib/eyeverdict.py:306-310 `_protected`
-  - 証: tests/workflows/test_eyes.py::ScriptCase.test_protected_broken_is_a_hit（assert: :435,436,443,444）、lib/tests/test_eyeverdict.py::CollectCase.test_unverified_protected_is_a_hit_and_not_ok（:327-329）、test_fallen_protected_node_is_a_hit（:334,335）
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_protected_broken_is_a_hit（assert: :700,701,708,709）、lib/tests/test_eyeverdict.py::CollectCase.test_unverified_protected_is_a_hit_and_not_ok（:337-339）、test_fallen_protected_node_is_a_hit（:344,345）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - E61 守りのパスに当たっても目の ok は落とさない（当たりは返りで運び、関所が人に聞く）。
   - 元: works/darkfactory/lib/line_edge.py:786-794（関所で人に聞く）
   - 今: lib/eyeverdict.py:356
-  - 証: lib/tests/test_eyeverdict.py::CollectCase.test_protected_hits_are_carried_without_failing_the_eyes（assert: :340,341）、tests/workflows/test_eyes.py::ScriptCase.test_verdict_carries_protected_hits（:412,413）
+  - 証: lib/tests/test_eyeverdict.py::CollectCase.test_protected_hits_are_carried_without_failing_the_eyes（assert: :350,351）、tests/workflows/test_eyes.py::ScriptCase.test_verdict_carries_protected_hits（:677,678）
   - 本物の run: 節 eyes__verdict の protected_hits
   - 狭め: 無し
 
@@ -1022,7 +1022,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E63 修正前の関所で人が通した（approve・continue）狭まりと事前審査の穴と、種類も本文も同じ R4 の行は聞き直さない。stop・reject・答え無しは何も通さず、種類が違えば聞き直す。
   - 元: review-loop.py:4107、works/.shared/core/gatemarks.py:1244-1281
   - 今: lib/eyeverdict.py:116-129 `_human_passed`・:145-148 `r4_gate_items`
-  - 証: lib/tests/test_eyeverdict.py::R4GateCase.test_r4_does_not_reask_narrow_the_human_passed（assert: :163,164）、test_r4_reasks_other_kind_or_unpassed（:174,175）、HumanPassedCase（:128,133）、CollectCase.test_questions_drop_the_rows_the_human_passed（:321）、tests/workflows/test_eyes.py::ScriptCase.test_verdict_drops_passed_questions（:404）
+  - 証: lib/tests/test_eyeverdict.py::R4GateCase.test_r4_does_not_reask_narrow_the_human_passed（assert: :163,164）、test_r4_reasks_other_kind_or_unpassed（:174,175）、HumanPassedCase（:128,133）、CollectCase.test_questions_drop_the_rows_the_human_passed（:331）、tests/workflows/test_eyes.py::ScriptCase.test_verdict_drops_passed_questions（:669）
   - 本物の run: 筋書きでのみ（seed では修正前の関所に通す行が出にくい）
   - 狭め: 無し
 
@@ -1036,14 +1036,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E65 R4 の頭に人が通した行を貼り、同じ物を見たらその本文をそのまま写させる。
   - 元: works/blk-eyes/lib/eyes.py:435-436（gatemarks.carried_section）
   - 今: lib/eyeverdict.py:132-135,257、workflows/eyes/commands/r4-scope.md:16,30
-  - 証: lib/tests/test_eyeverdict.py::R4GateCase.test_carried_section_lists_passed_rows_under_the_gatemarks_head（assert: :187-190）、tests/workflows/test_eyes.py::ShapeCase.test_restored_command_sentences_stay（:244）。prep が通した行を carried に入れることは縛っていない。要追加: tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_passed_rows_at_the_r4_head — answers continue と plan_questions の狭める行で、prep の carried が gatemarks.CARRIED_HEAD で始まり本文を持つ
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_prep_pastes_passed_rows_at_the_r4_head（assert: tests/workflows/test_eyes.py:954,958,959）、lib/tests/test_eyeverdict.py::R4GateCase.test_carried_section_lists_passed_rows_under_the_gatemarks_head
   - 本物の run: eyes/prep.json の carried
   - 狭め: 無し
 
 - E66 人が通したので R4 の問いから外した行を、通した印つきで残し、最後の関所と報告が「人が通した行」として並べる。
   - 元: works/.shared/core/gatemarks.py:1276-1281、works/darkfactory/lib/line_edge.py:604-607（_final_text の gatemarks.lines）
   - 今: eyes の返り notes の隣の gate-passes.json（eyeverdict.gate_pass_rows）を最後の関所（修正前の関所で通した項目の行）と報告（runreport `_gate_passes` の EYE_PASSES_HEAD）が並べる
-  - 証: lib/tests/test_runreport.py::FixBesideLinesCase.test_eyes_gate_passes_are_listed（棚卸しの名は …test_eyes_gate_passes_are_listed）・tests/workflows/test_line.py::AskFinalReadsCase.test_final_gate_lists_the_r2_premise_inputs
+  - 証: lib/tests/test_runreport.py::FixBesideLinesCase.test_eyes_gate_passes_are_listed（棚卸しの名は …test_eyes_gate_passes_are_listed）・tests/workflows/test_line.py::AskFinalReadsCase.test_final_gate_lists_the_r2_premise_inputs。部分 0 の時の証（そのまま残す）: lib/tests/test_eyeverdict.py::WriteNotesCase.test_writes_premise_inputs_and_gate_passes（assert: :550）、tests/workflows/test_eyes.py::ScriptCase.test_verdict_writes_the_notes_for_the_final_gate（:768,769）。読み手は
   - 本物の run: eyes/gate-passes.json は書かれるが、報告と最後の関所には出ない
   - 狭め: #67 の「約束を変える頼み 4」が #74・report で未決。Archon で不可でない → 戻す → 部分 D2 で戻した
 
@@ -1057,38 +1057,38 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 ### 直した後の構造の実測（元の段 B）
 
 - E68 直した後の構造を、始めの版から今の作業ツリーまでの差分で測る（変わったファイル・柵の表で住処の外の知る場所の増え・新しい名・増えた写しの塊・直しが変えた表）。柵は直しの前の版の表で数え、表の無い対象は数えず作らない。run の作業ツリーの実行基盤の写し（.archon/）は数えない。UTF-8 でないファイルも落とさない。
-  - 元: works/blk-structure/scripts/stage_b.py:87-121 `run`、works/darkfactory/lib/line_edge.py:456-480 `after_edge`
-  - 今: lib/stage_b.py:89-120 `run`、workflows/eyes/scripts/structure_after.py:20-26
-  - 証: 部品だけ: lib/tests/test_concept_change.py::ChangeCase.test_scan_change_reports_only_increase（assert: :69,72）、test_changed_skips_the_prefix_and_refuses_an_empty_one（:79）。stage_b.run の振る舞いの試験が main に無い（元 works/tests/test_blk_structure.py:633-720 AfterCase の 6 本が来ていない）。要追加: lib/tests/test_stage_b.py::AfterCase.test_after_stage_counts_real_diff・test_no_table_reports_only・test_non_utf8_diff_is_measured・test_runtime_copy_is_not_measured・test_table_widened_by_fix_still_counts・test_unknown_base_does_not_stop_the_line（元と同じ照らし）
+  - 元: works/blk-structure/scripts/stage_b.py:100 `run`、works/darkfactory/lib/line_edge.py:456-480 `after_edge`
+  - 今: lib/stage_b.py:89-120 `run`、workflows/eyes/scripts/structure_after.py:26-35
+  - 証: lib/tests/test_stage_b.py::AfterCase の 6 本 test_after_stage_counts_real_diff・test_no_table_reports_only・test_non_utf8_diff_is_measured・test_runtime_copy_is_not_measured・test_table_widened_by_fix_still_counts・test_unknown_base_does_not_stop_the_line（assert: lib/tests/test_stage_b.py:72-77,85-87,95-97,105,116-117,121-122。元 works/tests/test_blk_structure.py:633-720 と同じ照らし）
   - 本物の run: eyes/structure-after.json の after.changed（seed では ["stats.py"]）・tables（[]）・fence_up（[]）・new_names・dup_blocks_added
   - 狭め: 無し（試験だけが欠けた）
 
 - E69 実測が落ちても線を止めない（status: failed と理由を返す）。
   - 元: works/blk-structure/scripts/stage_b.py:92-120（failed と reason）、works/darkfactory/lib/line_edge.py:456-459
   - 今: workflows/eyes/scripts/structure_after.py:22-42
-  - 証: tests/workflows/test_eyes.py::ScriptCase.test_structure_after_never_fails_the_line（assert: :580,581,584,585）
-  - 本物の run: 節 eyes__structure-after の status・reason、eyes/structure-after.json
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_structure_after_never_fails_the_line（assert: :845,846,849,850）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 eyes__structure-after の status・reason、eyes/structure-after.json）
   - 狭め: 無し
 
 - E70 実測の控えに、修正案の外れの訳（構造の目の避け方と処方から外れた訳）を並べる。
   - 元: works/darkfactory/lib/line_edge.py:456-479 `after_edge`（deviations）、works/.shared/core/structmark.py:172,184
-  - 今: workflows/eyes/scripts/structure_after.py:31-36（planmarks.deviations）
-  - 証: 要追加: tests/workflows/test_eyes.py::ScriptCase.test_structure_after_carries_plan_deviations — plan-fields.json の外れの訳が structure-after.json の deviations に入る（planmarks.deviations の単体は lib/tests/test_plan_fields.py:716 に在る）
+  - 今: workflows/eyes/scripts/structure_after.py:36-41（planmarks.deviations）
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_structure_after_carries_plan_deviations（assert: tests/workflows/test_eyes.py:898）
   - 本物の run: eyes/structure-after.json の deviations
   - 狭め: 無し
 
 - E71 全部の単位が軽量の run でも、直した後の実測と守りのパスの照らしは省かない。
   - 元: works/tests/test_structure_eye.py:295-312 `AfterWiringCase.test_light_run_still_measures`
   - 今: workflows/eyes/works-factory-eyes.yaml:31-50,388-401（structure-after と protected に when が無い）、#74 の head/workflows/line/works-factory-line.yaml:722-724（eyes の include に when が無い）
-  - 証: 要追加: tests/workflows/test_eyes.py::ShapeCase.test_structure_after_runs_in_a_light_run — structure-after と protected が when を持たず、prep に依らない
+  - 証: tests/workflows/test_eyes.py::ShapeCase.test_structure_after_runs_in_a_light_run（assert: tests/workflows/test_eyes.py:372,373）
   - 本物の run: eyes/structure-after.json が軽い run でも在る（seed は標準なので筋書きでのみ）
   - 狭め: 無し
 
 - E72 返す節は直した後の実測の控えを指し札で返し、控えが無ければ null。
   - 元: works/blk-structure/blk-structure.yaml:73-81（after_file の指し札）
   - 今: workflows/eyes/scripts/verdict.py:44
-  - 証: tests/workflows/test_eyes.py::ScriptCase.test_verdict_points_at_the_structure_measured_after_the_fix（assert: :421,423）
-  - 本物の run: 節 eyes__verdict の structure_after（eyes/structure-after.json）
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_verdict_points_at_the_structure_measured_after_the_fix（assert: :686,688）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 eyes__verdict の structure_after（eyes/structure-after.json））
   - 狭め: 無し
 
 - E73 実測の数の 1 文と、増えた所・新しい名・外れの訳を最後の関所と報告に並べる。柵の増えは関所を開ける理由にし、結末を fixed にしない残りに数える。
@@ -1099,11 +1099,11 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 狭め: #74 で最後の関所の文が after_lines の数・新しい名・外れの訳を落とした。Archon で不可でない → 戻す → 部分 B2 で戻っていた。部分 D2 で縛った
 
 - E74 実測にかかった時間（timing の wall_s）を控えに残す。
-  - 元: works/blk-structure/scripts/stage_b.py:154-161（eye.stamp）
-  - 今: 無し（structure_after.py は timing を書かない）
-  - 証: 要追加: tests/workflows/test_eyes.py::ScriptCase.test_structure_after_stamps_wall_time — structure-after.json の after.timing.wall_s が数
-  - 本物の run: eyes/structure-after.json の after.timing が無い
-  - 狭め: #67 で黙って落ちた（小）。Archon で不可でない → 戻す
+  - 元: works/blk-structure/scripts/stage_b.py:150（eye.stamp）
+  - 今: workflows/eyes/scripts/structure_after.py:29-31（lib/eye.py の stamp）
+  - 証: tests/workflows/test_eyes.py::ScriptCase.test_structure_after_stamps_wall_time（assert: tests/workflows/test_eyes.py:883-889。測れなかった時も after.timing.wall_s が在る）
+  - 本物の run: eyes/structure-after.json の after.timing.wall_s
+  - 狭め: #67 で黙って落ちた（小）→ #123 で戻した
 
 ### 構造の目の行の形（design-row。直す前の構造の目。P の範囲と重なる）
 
@@ -1111,14 +1111,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-structure/lib/eye.py（problems）、works/tests/test_structure_eye.py:64-84
   - 今: lib/eye.py:184-241 `problems`
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_good_rows_pass（assert: lib/tests/test_structure_eye.py:36,37）、test_bad_rows_are_named（:52,53）、test_evidence_indexes_the_units_the_prompt_showed（:103-105）
-  - 本物の run: plan の置き場の design.jsonl（構造の目は直す前に走る）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan の置き場の design.jsonl（構造の目は直す前に走る））
   - 狭め: 無し
 
 - E76 人に上げる行は決まらない訳 undecided_because（20 字以上）と捨てた案 rejected が要り、受け付けた行は design-row.schema.json の形で route_reason をつけて書く。3 回目の拒否で諦め、行を書かない。
   - 元: works/blk-structure/lib/eye.py（accept）、works/blk-structure/design-row.schema.json
   - 今: lib/eye.py:224-262、lib/design-row.schema.json
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_route_up_needs_reason（assert: :59,64,65）、test_route_up_row_written（:77,79,84）、test_third_rejection_gives_up（:127-130）
-  - 本物の run: plan の置き場の design.jsonl・eye.json
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan の置き場の design.jsonl・eye.json）
   - 狭め: 無し
 
 - E77 構造の目に見せる写しの塊の一致は先頭 5 件に切り、全件の数を duplicates_total に置く（支度の出力が実行基盤の上限を越えないように）。
@@ -1139,10 +1139,11 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - 証が弱い（在るが外しても赤にならない）: 10（E2・E7・E9・E20・E21・E28・E38・E41・E43・E65）。うち E20（after_counts）と E68（stage_b.run）は元に在った試験が来ていない
 - Archon に強いられていない狭め: 12（E16・E17・E19・E29・E37・E42・E45・E48・E66・E67・E73・E74）。うち持ち主の決めが要る物 4（E16・E19・E29・E48）、聞かずに戻せる物 8
 - Archon に強いられた狭め: 1（E30。packages/workflows/src/dag-executor.ts:1243-1249）
+- #123 で閉じた: 22（E2・E3・E7・E9・E12・E13・E14・E20・E21・E23・E25・E28・E36・E38・E41・E43・E51・E65・E68・E70・E71・E74。E74 は戻し、ほかは外すと赤になる試験を足した。指示書の字は写しの台帳 tests/workflows/test_eyes.py::CopiedTextsCase が縛る）。E16 は戻さない（持ち主の決め `no-comment-ratio`。#118）
 
 持ち主に聞くこと:
 
-1. E16 コードとコメントの比を戻すか（#67 は言語依存を理由に外した）。
+1. E16 コードとコメントの比を戻すか（#67 は言語依存を理由に外した）。→ 決めた: 戻さない（`no-comment-ratio`。#118）
 2. E29 型に外れた返りを、拒んだ理由つきで同じ会話に出し直させる元の形を戻すか（元の blk-eyes は同じ Archon の loop_group でやっていたので Archon の制約ではない。owner-decisions の仮の判断のまま行くか）。
 3. E19 規模の数値の推移（前の周の値と行数の伸び）を run をまたいで運ぶか（1 run 1 周で値が無い）。
 4. E48 軽い run で省いた目の理由を、eyes の返りか報告のどちらかに残すか（今は null だけ）。
@@ -1160,7 +1161,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - 関所: 人が答える節（Archon の approval）。答えの語は通す approve・continue と止める stop・reject
 - 本物の run: 種の対象（tests/e2e/target-seed/。stats.py に欠陥 2 つ）を標準の厚さで回し、最後の関所は開いて通す run。報告の置き場は `$ARTIFACTS_DIR/report/`（`workflows/report/scripts/place.py:13` の `OUT = "report"`）、返す節は `report__report`
 - #68: 報告のブロックを入れた PR（本文と、持ち主側の独立の目の指摘のコメント 3 つ）。#100: 書き手の輪の拒否の訳を script の節で渡す直しの PR
-- U6・U8: docs/design.md:570-572 の未決の問い（U6 は前の包みが取っていた読んだ証拠と書き込みの記録をどこで取るか）
+- U6・U8: docs/design.md の「未決」の節の問い（U6 は前の包みが取っていた読んだ証拠と書き込みの記録をどこで取るか。段 1b で決めた。U8 は分かった）
 - 「約束の隣のファイル」: docs/design.md:162 が名指す、返りの指し札の先と同じフォルダに置き、ほかのブロックも開いてよいファイル
 
 種の run では結末は `fixed` か、判定の素材が not_run なら `fixed_needs_check` になる見込み。止め・落ち・申し出・再審は起きないので、その行は「筋書きでのみ」。
@@ -1299,7 +1300,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:618-622 `gatemarks.measured_materials`・:701 `_unmeasured_row`
   - 今: lib/outcome.py:280 `measured_materials`・:356-357
   - 証: lib/tests/test_outcome.py::ReadingCase.test_material_answered_with_command_and_output_is_not_left（assert: :226-232）・tests/workflows/test_report.py::FactsCase.test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome（assert: :321）
-  - 本物の run: judge/materials.json の status、report/report.md「1. 人が決めること」の「人が確かめる物」
+  - 本物の run: judge/materials.json の素材ごとの status、report/report.md「1. 人が決めること」の「人が確かめる物」の素材の行
   - 狭め: 無し
 
 - R19 落ちたが線が受け止めた節を残りに（返りの在るブロックの中の落ちは重ねない）
@@ -1392,7 +1393,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1225 `verify_lines`・:1282-1287（`_pr_lines` の後半）・:1209 `_premise_hypotheses`
   - 今: lib/runreport.py:664 `verify_lines`・:699 `pr_lines`・:708 `premise_lines`
   - 証: lib/tests/test_runreport.py::LinesCase.test_verify_pr_excluded_and_premise_hypotheses（assert: :736-738）・test_broken_verify_notes_say_so（assert: :743）
-  - 本物の run: judge/judge-verify.json、report/report.md「判定の単位の裏取り: N 単位とも根本・証拠・場所が合った…」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば judge/judge-verify.json、report/report.md「判定の単位の裏取り: N 単位とも根本・証拠・場所が合った…」）
   - 狭め: 無し（元は周ごと。今は 1 周の線なので同じ）
 
 - R32 直しが対象に足した行の works の内側の語（対象が直す前の版で既に使う語は除く）
@@ -1413,7 +1414,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:964 `gatemarks.lines`
   - 今: lib/runreport.py:593 `_gate_passes`
   - 証: lib/tests/test_runreport.py::DecisionsCase.test_gate_passes_follow_decisions（assert: :290-291）・test_gate_passes_missing_or_broken_is_one_line（assert: :300-305）
-  - 本物の run: plan-review/gate-passes.json、report/report.md「修正前の関所が聞かずに通した行（plan-review）: N 件」
+  - 本物の run: plan-review/pass-<k>/gate-passes.json、report/report.md「修正前の承認ノードが聞かずに通した行（plan-review）: N 件」
   - 狭め: 無し
 
 - R35 事前審査の壁打ちの往復の行（往復の数・結末・残った key と、往復ごとの block・fixed・disputed・下げた key・項目の閉じ・開き・保留）
@@ -1457,14 +1458,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1302 `head_entry`・entry.baseline_line（works/.shared/core/entry.py:792）
   - 今: lib/runreport.py `_entry_lines`
   - 証: lib/tests/test_runreport.py::LinesCase.test_entry_gate_words・test_entry_lists_ran_and_skipped_stages_and_baseline（返りが null の段が「飛ばされた・返りの無い段」に、test-gate-base の赤の原因が「直す前のテスト: 赤（赤の原因 …）」に出る。3 行のどれを消しても赤）
-  - 本物の run: start/start.json と report/report.md「## 2. 入口・段・決めた人」
+  - 本物の run: start.json（run の置き場の直下）と report/report.md「## 2. 入口・段・決めた人」
   - 狭め: 下の R41
 
 - R41 段（thickness）・機能の on/off（features_off・features_on と既定）・決めた人（関所の答えの数）・forge が無い時の並行 PR の条件外
   - 元: works/.shared/core/report.py:1308-1338 `head_entry`・:1339 `forge_line`
   - 今: lib/runreport.py の _entry_lines（段・entry.features_part・決めた人の関所の答えの数・FORGE_HEAD の forge.reason(forge.detect(repo))）
   - 証: lib/tests/test_runreport.py::LinesCase.test_entry_names_thickness_and_features
-  - 本物の run: start/start.json の thickness（標準）・features
+  - 本物の run: start.json（run の置き場の直下）の thickness（標準）・features
   - 狭め: #68 で書かれずに落ちた。不可でない → 戻す（元の「下げている所 downgrades.json」と「このラインに無い節」は線の形が変わったので対象が無い） → 部分 C で戻した（下げている所は J41。このラインに無い節は対象が無い）
 
 - R42 線が渡した深さの行（単位ごとの深さ・標準へ上げた信号・軽量で省いた物）
@@ -1487,7 +1488,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1346 `head_stop`
   - 今: lib/runreport.py:899 `_stop_lines`
   - 証: lib/tests/test_runreport.py::BuildCase.test_stopped_by_request_still_writes_report（assert: :113）・LinesCase.test_seal_not_ok_says_why（assert: :778-781）・TranscriptCase.test_rows_give_cost_time_failed_and_retried（assert: :208-209）・TranscriptCase.test_fall_the_line_went_past_is_absorbed_not_interrupted（assert: :238-243）・tests/workflows/test_report.py::FactsCase.test_unknown_answer_word_is_record_invalid_with_its_reason（assert: :291）
-  - 本物の run: report/report.md「## 3. 止めたか」の「関所 gate-final: approve（…）」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report.md「## 3. 止めたか」の「承認ノード gate-final: approve（…）」）
   - 狭め: 止め札の行は R2
 
 - R45 run の記録の読み: 最後が node_error の節を、後にほかの節（自分の include を除く）が始まったかで落ち（failed）と受け止めた落ち（absorbed）に分け、node_error の後に済んだ節を retried に
@@ -1501,16 +1502,16 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R46 役ごとの読んだ証拠（渡した・読んだ跡の無い件数）・包みが通ったか・会話を継いだ起動の数・起動の即時の失敗
   - 元: works/.shared/core/report.py:1385 `head_reads`
-  - 今: lib/runreport.py:84 `UNSEEN`（「取れない（U6）」の 1 行だけ）
+  - 今: lib/runreport.py:84 `UNSEEN`（「取れない（読んだ証拠を集める口を戻していない。docs/design.md の U6）」の 1 行だけ）
   - 証: 要追加（U6 が決まった後）: lib/tests/test_runreport.py::BuildCase.test_reads_section_says_unseen — 今は UNSEEN の 1 行を縛る程度
   - 本物の run: report/report.md「## 4. 読んだ証拠と包み」
-  - 狭め: 包み（前の起こし方の殻 adapter）を落としたので対象が変わった。U6（docs/design.md:570）→ 持ち主（Archon で不可とする源は示されていない）
+  - 狭め: 包み（前の起こし方の殻 adapter）を落としたので対象が変わった。U6（当時は未決）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:` → 持ち主（戻すか）
 
 - R47 見る所: 判定・目的・定石・仕様・目的の外の所見・計画・構造の目・波及・事前審査・独立設計・差分・申し出と裁定・直す前と最後の試験の記録・直した後の構造・封じた差分・置いた差分のパス
   - 元: works/.shared/core/report.py:1706 `head_where`
   - 今: lib/runreport.py:919 `_where_lines`・:86 `POINTERS`
   - 証: tests/workflows/test_report.py::FactsCase.test_returns_with_pointers_reach_the_report（assert: :331）
-  - 本物の run: report/report.md「## 5. 見る所」の「判定（judge.judgment）: …/judge/judgment.json」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report.md「## 5. 見る所」の「判定（judge.judgment）: …/judge/judgment.json」）
   - 狭め: 元の「run の作業ツリー」の行が無い（線の作業ツリーは Archon が持つ）。軽い差
 
 ### 本文の節
@@ -1519,7 +1520,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1961 `tdd_lines`・:1926 `_red_evidence`
   - 今: lib/report.py:194 `tdd_lines`・lib/runreport.py:784 `_tdd_stages`・:804 `_tdd_lines`
   - 証: lib/tests/test_report.py::TddLinesCase.test_each_unit_gets_its_outcome（assert: :37-45）・test_tdd_unit_shows_red_quotes_stub_files_and_unchecked（assert: :65-69）・lib/tests/test_runreport.py::TddCase.test_second_fix_stage_is_named_apart（assert: :142）・test_units_without_artifact（assert: :148-149）
-  - 本物の run: 型つきの成果物の一覧の tdd-unit、report/report.md「## TDD の輪の単位ごとの結末」の「修正の段（組 g1）: 2 単位（赤→緑 2…）」
+  - 本物の run: 型つきの成果物の一覧の tdd-unit、report/report.md「## TDD のループの単位ごとの結末」の「修正の段（組 g1）: 2 単位（赤→緑 2…）」
   - 狭め: 無し
 
 - R49 緑の認証（全部の周）: green-cert ごとに緑か・ok・赤の原因、認証が通した赤（inherited・environment）を名指す
@@ -1533,21 +1534,21 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/darkfactory/lib/line_edge.py:505-523 の目の行
   - 今: lib/runreport.py:831 `_eye_lines`
   - 証: lib/tests/test_runreport.py::TypedCase.test_eye_verdict_of_other_shape_is_a_note（assert: :167-168）
-  - 本物の run: report/report.md「## 独立の目」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report.md「## 独立の目」）
   - 狭め: 無し
 
 - R51 構造の目の行と直した後の構造の実測
   - 元: works/.shared/core/report.py:2066-2068 `structmark.report_lines`
   - 今: lib/runreport.py:865 `_structure_lines`
   - 証: lib/tests/test_runreport.py::LinesCase.test_structure_rows_and_after（assert: :807-808）
-  - 本物の run: plan/ の design.jsonl、report/report.md「## 構造の目」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば plan/ の design.jsonl、report/report.md「## 構造の目」）
   - 狭め: 無し
 
 - R52 世界の解: 依頼の行ごとの定石・web で確かめたかの印・依頼の解き方との比べ・類の数。判定の world が null なら段が何も返さなかった 1 行
   - 元: works/.shared/core/worldmark.py:265 `report_lines`
   - 今: lib/runreport.py:850 `_world_lines`
   - 証: lib/tests/test_runreport.py::LinesCase.test_world_rows_keep_mark_and_versus（assert: :787-789）・test_world_null_says_the_stage_gave_nothing（assert: :802-804）
-  - 本物の run: judge/world.jsonl、report/report.md「## 世界の解」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば judge/world.jsonl、report/report.md「## 世界の解」）
   - 狭め: 段が落ちた訳と落とした抜き書きの数は R79
 
 - R53 判定が目的の外とした所見: 1 件ずつの行を本文の節に、行を次の依頼に（下書きの印つき）
@@ -1561,7 +1562,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1769 `cost_rows`・:1806 `head_cost`・:1878 `head_models`
   - 今: lib/runreport.py:182 `cost_rows`・:198 `head_cost`・:208 `_model_lines`
   - 証: lib/tests/test_runreport.py::TranscriptCase.test_none_transcript_cost_cannot_be_taken（assert: :181）・test_rows_give_cost_time_failed_and_retried（assert: :199-215）
-  - 本物の run: report/report.md「## 費用」の「費用の合計: $X（途中。…」と「## 模型」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report.md「## 費用」の「費用の合計: $X（途中。…」と「## 模型」）
   - 狭め: 元の「取れない節の理由（source unavailable の reason と Archon の版）」は件数だけになった。会話を継いだ起動の印は包みが無いので無い（U6）
 
 - R55 注意（読めなかった物）: 型つきの一覧の errors と読めない一覧・開けなかった指し札・素材の状態が読めない・run の記録が読めない訳を 1 行ずつ。無ければ「無い」
@@ -1607,49 +1608,49 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-report/blk-report.yaml（書き手の輪）、works/blk-report/lib/report_roles.py:290 `prep`・:328 `write_cold_prep`
   - 今: workflows/report/works-factory-report.yaml:52-153、workflows/report/commands/report.md・cold-check.md
   - 証: tests/workflows/test_report.py::ShapeCase.test_roles（assert: :116-124）・test_writer_receives_the_reject_file_through_the_reject_node（assert: :131-139）・test_loop_gives_up_with_the_roles_count（assert: :151-152）
-  - 本物の run: 節 `report__write`・`report__cold`・`report__accept` の出力、report/reject-<n>.md
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__write-loop.write`・`report__write-loop.cold`・`report__write-loop.accept` の出力、report/reject-<n>.md（拒んだ回だけ））
   - 狭め: 無し（輪の頭の script の節は #100 の直し。Archon の include の読み込みが with: で結んだ名を入力の欠けと数えるため: packages/workflows/src/include-expander.ts:566-579）
 
 - R61 受け付けの順: 読む → terms の型 → 表のセルの書式（「。」か 50 字超で拒む。`コード` は数えない）→ 初見の判定。拒否の行に種類（cold・format・answer）。3 回拒めば受け取れなかった訳。初見だけが通さない時は 3 回目に受け取り「初見の確かめを通っていない」の印
   - 元: works/blk-report/lib/report_roles.py:429 `accept`・:381 `format_problems`・:510 `count_rejects`
   - 今: lib/runreport.py:1044 `accept`、lib/report_roles.py:96 `format_problems`・:120 `count_rejects`
   - 証: lib/tests/test_runreport.py::AcceptCase.test_pass_is_taken（assert: :449-451）・test_cold_rejects_twice_then_takes_with_mark（assert: :455-462）・test_format_and_terms_rejected_first（assert: :466-472）・lib/tests/test_report_roles.py::FormatCase（assert: :22-41）・RejectCountRowsCase.test_rows_without_kind_count_as_unknown（assert: :79-83）・tests/workflows/test_report.py::AcceptScriptCase.test_cold_redesign_three_times（assert: :345-354）
-  - 本物の run: report/report-rejects.json・report/ai.json の not_passed
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report-rejects.json・report/ai.json の not_passed）
   - 狭め: 元の「作業ツリーを変えた返答を拒む」は Archon の `mutates_checkout: false`（packages/workflows/src/dag-executor.ts:1244-1280。変えた節を落とす）と書き手の道具の制限に置き換わった。拒んで書き直させる代わりに輪が落ちて AI の報告が出ない。書き手は書く道具を持たない（works-factory-report.yaml:78）ので実害は無い
 
 - R62 初見の読み手に貼る本文は書き手の頭（見出しの前と「人が決めること」の節）と語の定義の節だけ。読み手には機械の事実の見出しの名を知らせる
   - 元: works/blk-report/lib/report_roles.py:316 `head_of`・:328 `write_cold_prep`
   - 今: lib/report_roles.py:81 `head_of`・lib/runreport.py:1031 `cold_body`、workflows/report/commands/cold-check.md
   - 証: lib/tests/test_runreport.py::ColdBodyCase.test_head_and_glossary_only（assert: :518-520）・test_unreadable_reply_says_so（assert: :523）・lib/tests/test_report_roles.py::HeadCase（assert: :48-53）・tests/workflows/test_report.py::ShapeCase.test_cold_reader_is_told_the_machine_heading（assert: :148）
-  - 本物の run: 節 `report__cold-prep` の出力 body、`report__cold` の出力 verdict
+  - 本物の run: 節 `report__write-loop.cold-prep` の出力 body、`report__write-loop.cold` の出力 verdict
   - 狭め: 無し
 
 - R63 AI の報告: 来歴の 1 行・（通っていなければ）印・本文・語の定義・初見の拒否の回数・機械の事実（見出しを 1 段下げ、「人が決めること」を機械の数えの見出しに言い換えて節を 1 つに）。受け取れなかった時は訳と機械の事実
   - 元: works/blk-report/lib/report_roles.py:537 `collect`
   - 今: lib/runreport.py:1114 `collect`・:1103 `embedded`
   - 証: lib/tests/test_runreport.py::CollectCase.test_taken_reply_becomes_ai_report（assert: :483-487）・test_not_passed_mark_is_on_top（assert: :493）・test_given_up_reply_still_reports（assert: :499-501）・test_decisions_section_is_one_place（assert: :509-511）
-  - 本物の run: report/report-ai.md、`report__report.output.report_ai`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report-ai.md、`report__report.output.report_ai`）
   - 狭め: 無し
 
 - R64 来歴の行: 工程の名・run・周（計画の round）・工程のファイルの sha256 の頭 12 字（読めなければ訳）
   - 元: works/blk-report/lib/report_roles.py:476 `stamp`（線・run・周・graph と規則の表の版）
   - 今: lib/runreport.py:1092 `stamp`
   - 証: lib/tests/test_runreport.py::StampCase.test_stamp_names_workflow_run_and_version（assert: :828-830）・tests/workflows/test_report.py::FactsCase.test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome（assert: :322）
-  - 本物の run: 節 `report__facts` の出力 stamp、report/report-ai.md の 1 行目
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__facts` の出力 stamp、report/report-ai.md の 1 行目）
   - 狭め: 表の版と線の版は R81
 
 - R65 語の定義の節: pack の一覧と書き手の terms のうち本文と機械の事実に現れる語だけ（同じ語は pack を採る）。pack の一覧が読めなければ例外
   - 元: works/blk-report/lib/report_roles.py:240 `glossary_section`・:236 `_pack_terms`
   - 今: lib/runreport.py:578 `glossary_section`・:568 `pack_terms`、lib/glossary.json（バイト一致）
   - 証: lib/tests/test_runreport.py::GlossaryCase.test_only_terms_in_text（assert: :429-432）・test_pack_terms_come_from_lib（assert: :435）・StampCase.test_pack_terms_raise_when_unreadable（assert: :838-841）
-  - 本物の run: report/report-ai.md「## 語の定義（機械が付けた。本文の外）」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report-ai.md「## 語の定義（機械が付けた。本文の外）」）
   - 狭め: 無し
 
 - R66 AI の報告は record_invalid でない run なら回す（途中で終わった run も）
   - 元: works/.shared/core/report.py:2031 `ai_go`（途中で終わった run は回さない）
   - 今: lib/runreport.py:980、workflows/report/works-factory-report.yaml:54
   - 証: lib/tests/test_runreport.py::BuildCase.test_record_invalid_has_no_ai（assert: :106）・test_writes_report_and_only_present_carries（assert: :88）
-  - 本物の run: 節 `report__facts` の出力 ai_go == true と `report__write` が走ったこと
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__facts` の出力 ai_go == true と `report__write-loop.write` が走ったこと）
   - 狭め: 無し（上位）
 
 ### 落ちない・前の段が落ちても走る
@@ -1658,7 +1659,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/darkfactory/darkfactory.yaml:1314-1325（all_done・always_run）、works/darkfactory/scripts/report.py
   - 今: workflows/report/works-factory-report.yaml:155-161、workflows/report/scripts/facts.py:148 `fallen`・collect.py:47 `fallen`・place.py `unwritten`、#74 の head/workflows/line/works-factory-line.yaml:957-960（trigger_rule: all_done）
   - 証: tests/workflows/test_report.py::ShapeCase.test_return_node_runs_whatever_came_before（assert: :142-143）・CollectScriptCase.test_fallen_keeps_facts_report_and_carries（assert: :417-419）・test_fallen_without_facts_report_writes_another_name（assert: :425-427）・test_without_lib_still_returns（assert: :434-437）・test_unwritable_place_is_record_invalid（assert: :444）・FactsCase.test_unexpected_error_still_returns（assert: :274-276）・FixtureCase.test_all_empty_and_request_stop_reach_their_words（assert: :477）
-  - 本物の run: 節 `report__report` の出力（どの run でも在る）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__report` の出力（どの run でも在る））
   - 狭め: 元の always_run（resume のたびに回し直す。元 works/darkfactory/darkfactory.yaml:1310-1313 の canary run 7d95d3bc で前の試みの interrupted が使い回された件の対策）は今の YAML に無い。Archon の resume で同じことが起きるかは確かめていない → 要追加: 本物の run の resume の筋書き（筋書きでのみ）
 
 - R68 返す節の約束の 7 欄（outcome・stop_reason・report・report_ai・next_request・prior_failures・ok）と入力の 17 の名
@@ -1679,7 +1680,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:648 `stopped_run`（works/dev/lib.sh:631 が呼ぶ）
   - 今: workflows/line/works-factory-line.yaml:871-874（merge-apply は answer-final の go が真の時だけ）
   - 証: tests/e2e/test_line_scenarios.py::LineScenariosTest.test_every_scenario_passes（筋書き final-stop の reached に merge-apply が無いことを Archon の workflow test が照らす。assert: tests/e2e/test_line_scenarios.py:77 以下）
-  - 本物の run: 節 `merge-apply__merge` が走ったか
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `merge-apply__merge` が走ったか）
   - 狭め: 無し（線に置き換わった）
 
 ### #68 の「今の入力に読む先が無いので取り戻せない物」の 1 件ずつ
@@ -1827,7 +1828,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/darkfactory/lib/line_edge.py:640-651 `_protected`（state.inputs.review_rev を起点）
   - 今: pr74 workflows/line/scripts/start.py（始めの記録の base_rev）→ wf merge.py:54
   - 証: pr74 tests/workflows/test_line.py::StartCase.test_base_alone_is_a_change_entry（assert: test_line.py:112-113）
-  - 本物の run: `start.json` の base_rev（`start.output.record` の先）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `start.json` の base_rev（`start.output.record` の先））
   - 狭め: 無し
 
 - M3 封じた差分は書いた後に読み戻し、その sha256 を hash として返す。読み戻しが合わなければ書けたと言わず、前のファイルを残し一時ファイルも残さない
@@ -1855,14 +1856,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: 今の works の取り込みには無い（新しい強め。指紋の考えは works の test-gate の緑の認証）
   - 今: wf lib/seal.py:70-75 `seal_refusal`・lib/green_cert.py:53-61 `matches`
   - 証: wf test_merge.py::SealTest.test_changed_fingerprint_refuses_but_writes（assert: test_merge.py:188-190）・test_seal.py::SealRefusalCase（assert: test_seal.py:107・110・113）・test_green_cert.py::MatchesCase（assert: test_green_cert.py:110・118・124）
-  - 本物の run: `merge-seal.output.ok == true`・`reason == ""`（test-gate final の後に木が動いていない）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `merge-seal.output.ok == true`・`reason == ""`（test-gate final の後に木が動いていない））
   - 狭め: 無し（計画の「今の木の指紋が取れない」の補足文は出なくなった。拒む事は同じ。PR #66 の「計画からのずれ」）
 
 - M7 封じた差分の守りのパスの当たりを、置く差分のバイトそのもの（`git apply --numstat -z`）から数え、1 行ずつ「<パス>（+足した −消した）: 規則 <id>（<glob>）——<理由>」で返す
   - 元: works/.shared/core/protect.py:146-173 `touched`・`lines`（line_edge._protected が呼ぶ）
   - 今: wf merge.py:65-68・lib/seal.py:54-67 `diff_files`・lib/protect.py:98-107 `hits`・:167-173 `lines`
   - 証: wf test_merge.py::SealTest.test_protected_hit_is_named（assert: test_merge.py:195-196）・test_index_marks_do_not_hide_a_protected_hit（assert: :205「（+1 −1）」）・wf lib/tests/test_protect.py::TouchedCase.test_lines_name_file_stat_and_rule（assert: test_protect.py:164-165）
-  - 本物の run: `merge-seal.output.protected_hits`（種では `[]`）。当たる道は筋書きでのみ
+  - 本物の run: 筋書きでのみ（種は守りのパスに当たらない。在れば `merge-seal.output.protected_hits`（種では `[]`））
   - 狭め: 無し
 
 - M8 assume-unchanged・skip-worktree の印の付いた守りのファイルの変更も当たりとして数える（本物の index を通さない）
@@ -1948,7 +1949,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: 今の works の use.sh apply には無い（持ち主の決め small-core から来た新しい強め）
   - 今: wf lib/seal.py:25・113-114
   - 証: wf test_seal.py::ApplyRefusalOrderCase.test_4_r2_redesign_even_with_pass（assert: test_seal.py:143）・ApplyR2Case.test_r2_shapes（assert: :195）・wf test_merge.py::ApplyTest.test_redesign_r2_with_continue_refuses（assert: test_merge.py:310-311）
-  - 本物の run: `eyes.output.r2.status`（種の run では pass の見込み）と `merge-apply.output.ok`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `eyes.output.r2.status`（種の run では pass の見込み）と `merge-apply.output.ok`）
   - 狭め: 無し
 
 - M20 拒む理由の順は上から 1→5 で最初の 1 つ（hash の食い違いは答えより先、答えは R2 より先）
@@ -1976,14 +1977,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/dev/use.sh:396-433（止まりでなければ赤でも当てた）・works/tests/test_edge.py::ProtectedGateCase.test_continue_passes_and_marks_row
   - 今: wf lib/seal.py:104・109-112
   - 証: wf test_seal.py::ApplyAnswerCase.test_pass_words_apply_even_when_red_or_eyes_blocked（assert: test_seal.py:162-163）・wf test_merge.py::ApplyTest.test_unverifiable_r2_with_approve_applies（assert: test_merge.py:307）
-  - 本物の run: `gates/gate-final.json` の decision と `merge-apply.output.ok == true`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `gates/gate-final.json` の decision と `merge-apply.output.ok == true`）
   - 狭め: 無し
 
 - M24 置くと決めた差分は `merge/apply.diff` に書いて読み戻し、hash は封じた hash と同じ。merge は対象のリポジトリにも run の作業ツリーにも当てない（当てるのは人）
   - 元: works/dev/use.sh:950-971（run の差分は家の diffs/run-<id>.diff に書き、人が apply で当てた）
   - 今: wf merge.py:94-95・works-factory-merge.yaml:36（`mutates_checkout: false`）
   - 証: wf test_merge.py::ApplyTest.test_same_tree_applies_the_sealed_diff（assert: test_merge.py:255-258）・ShapeTest.test_one_script_node（assert: :68）・ScriptCase.run_script（全部の走りで作業ツリーの status が前後で同じ。assert: :135）
-  - 本物の run: run の置き場の `merge/apply.diff` と `merge-apply.output.hash`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば run の置き場の `merge/apply.diff` と `merge-apply.output.hash`）
   - 狭め: 無し
 
 - M25 返す節は落ちない: 知らない mode・壊れた start・別の run の指し札・base_rev の無い記録・JSON でない answer/r2・lib が無い・git の木でない、のどれでも終了の値 0 で ok: false と理由を返す
@@ -2055,7 +2056,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/dev/use.sh:409-426（記録が止まりの run は当てない）
   - 今: pr74 works-factory-line.yaml:871-884・workflows/line/scripts/gate_answer.py:31-40 `answer`
   - 証: 筋書き pr74 workflows/line/fixtures/final-stop.stubs.yaml（merge-apply の stub を持たず、走れば赤）と final-when-needed-green.stubs.yaml（reached に merge-apply__merge）を tests/e2e/test_line_scenarios.py::LineScenariosTest.test_every_scenario_passes が回す
-  - 本物の run: `merge-apply` の節が completed（種の run は continue で通す）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `merge-apply` の節が completed（種の run は continue で通す））
   - 狭め: 無し
 
 - M35 merge-seal・merge-apply が ok でない run は、報告で結末を stopped_by_line（<節>:not-ok）にし、止めの節に「<節> が ok でない: <理由>」を書く。守りのパスの当たりは報告の冒頭に数える
@@ -2241,7 +2242,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/tests/test_protect.py::TouchedCase
   - 今: wf lib/protect.py:146-164 `touched`・wf workflows/eyes/scripts/protected.py:22
   - 証: wf test_protect.py::TouchedCase.test_changed_deleted_untracked_committed（assert: test_protect.py:150-158）・test_untouched_is_empty（assert: :137-139）・test_default_manifest_used（assert: :174）
-  - 本物の run: run の置き場の `eyes/protected.json`（種では hits が空）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば run の置き場の `eyes/protected.json`（種では hits が空））
   - 狭め: 無し
 
 - M61 持ち主が名指した守り（各ブロックの受け付けの節・ブロックの YAML・線の YAML と境の口・修正役の TDD の輪とその試験・修正役が木を変えたかの確かめ・試験の枠 tree_run・役の隔離の包みとその試験・写しの照らしの試験）が一覧に当たる
@@ -2295,10 +2296,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - 壊れる余地だけ: E43（再審の後、judgment の指し札の隣に premises.json が無い道）
 
 持ち主に聞く物（前の決め・定石・元の作りのどれでも 1 つに決まらない物）:
-1. T62〜T64 同じ run の中の試験の結果の使い回しと、機械全体の試験の枠。→ 決めた: T62・T63 は戻す（reuse-results）。T64 は持ち主の答え待ち
+1. T62〜T64 同じ run の中の試験の結果の使い回しと、機械全体の試験の枠。→ 決めた: T62・T63 は戻す（reuse-results）。T64 は戻さない（`no-queue`。#118）
 2. T49 任せ先の CI の役の書き込みの守り → 決めた: 戻す（塞げないと実測で分かった時だけ狭め）
 3. T16 依頼の where を範囲の照らしに足すか → 決めた: 戻す。T61 人に諮っている間の CI の欄を clean で上書きさせない決まりの住処。T69 直す前に試験を走らせられない run を人に聞いて続けるか。T8・T9 宣言の sha の照合と engine の素材の受け付け
-4. E16 コードとコメントの比を戻すか（#67 は言語依存を理由に外した。持ち主の答え待ちのまま。推しは戻す）。E29 型に外れた返りを、拒んだ理由つきで同じ会話に出し直させる元の形を戻すか（元は同じ Archon の loop_group でしていた）。E19 規模の数値の推移を run をまたいで運ぶか。E48 軽い run で省いた目の理由をどこに残すか。E67 方針の文書の変化を修正の後に聞く仕組みの住処
+4. E16 コードとコメントの比を戻すか（#67 は言語依存を理由に外した）→ 決めた: 戻さない（`no-comment-ratio`。#118）。E29 型に外れた返りを、拒んだ理由つきで同じ会話に出し直させる元の形を戻すか（元は同じ Archon の loop_group でしていた）。E19 規模の数値の推移を run をまたいで運ぶか。E48 軽い run で省いた目の理由をどこに残すか。E67 方針の文書の変化を修正の後に聞く仕組みの住処
 5. R2 と M18 止め札（走っている run を関所の間で止める口）が無い。→ 決めた: 持ち込まない（持ち主の決め `stop-at-gates`）
 6. R46・R38 の一部 読んだ証拠・包み・仕組みの異常（docs/design.md の U6）。R71 gates_deferred と変異の検算。R82 受け止めた落ちの決め方を元の宣言の形に戻すか（→ 決めた: 戻す。線の配線の部分 C）。R71 は段 3 で変異の検算と一緒に聞く。R81 来歴に線の版を足すか（→ 決めた: 報告の側は #124 で入れた。線の側の start.py は持ち主の手に渡した）
 7. 黙って落ちた報告の行（R5b・R14・R16・R20・R23・R24・R35〜R39・R41・R49）を、線の issue と報告の直しのどちらで戻すか → 決めた: 線の配線の文書が割り当てた（R5b・R14・R20・R24・R35・R36・R41 は部分 C、R16・R23・R37〜R39 は部分 D2、R49 は区分 R の issue）

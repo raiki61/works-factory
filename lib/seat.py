@@ -44,9 +44,10 @@ FENCE, PROMPT_LINE = "```", "  prompt: |"
 QUERY_RULE_SOURCE = pathlib.Path(__file__).resolve().parent / "agents" / "judge.md"   # 検索語の規律の正本（写し）
 QUERY_RULE_HEAD = "- **検索語に対象の名前を載せるな。**"
 
-SEATS = {"tdd": "tdd", "fix": "implementer", "fix-ruled": "implementer", "review": "task-review",   # 役の名 → 節の名
+SEATS = {"tdd": "tdd", "tdd-new": "tdd", "fix": "implementer", "fix-ruled": "implementer", "review": "task-review",   # 役の名 → 節の名
          "refix": "receiving-review", "refix2": "receiving-review"}
-SKILL_NODES = frozenset({"tdd", "refix", "refix2"})   # 座が skill の役（YAML の skills: を持つ節。試験が一致を縛る）
+SKILL_NODES = frozenset({"tdd", "tdd-new", "refix", "refix2"})   # 座が skill の役（YAML の skills: を持つ節。試験が一致を縛る。
+# tdd と tdd-new は TDD の輪の同じ役を同じ単位の続きと新しい単位に分けた 2 つの節。元も tdd・tdd-rest・tdd-lane-<n> を並べた）
 NONE = "（無し）"   # 型の穴に入れる物が無い時の値（人の方針の文書が無い run の [GLOBAL_CONSTRAINTS] など）
 # 差分の審査役の型（task-review）の出口の語（216 の works の語）→ 差分の審査の返答の 2 判定の欄（deltamarks.KEYS）と欄の語
 # （deltamarks.COMPLIANCE・QUALITY）。審査役の座の型の後ろに words_table の表で載り、役は型の語をこの欄に書く
@@ -65,7 +66,7 @@ DIVERGENCE_SCENES = {
     conflict.BRIEF_VS_JUDGMENT: "brief と、判定・依頼・修正の前に人が答えた条件が食い違う（`between` にその単位の brief の行）",
     conflict.UNNAMED_TEST_BROKE: "修正案にも裁定にも名指されていない既存のテストが、直すと落ちる・外すしかない",
     conflict.NOT_RED: "受け入れのテスト・名指しの書き換えが、案どおりに書いても赤にならない・赤の種類が案と違う",
-    conflict.SCOPE_NEEDED: ("brief や案の範囲の外を触らないと緑にならない・判定者の問いの数え直しが閉じない（範囲の相談の節が"
+    conflict.SCOPE_NEEDED: ("brief や案の範囲の外を触らないと緑にならない・判定者の問いの数え直しが閉じない（範囲の相談のセクションが"
                             "在れば、先に返答の consult で相談して許されなかった時。下請けは相談が要ることをまとめ役に報告する）"),
     conflict.QUERY_HITS_FIXED: (f"判定者の問いが直した後の正しい形にも当たる（`{conflict.WHICH_FIELD}` は {conflict.QUERY}・"
                                 f"`{conflict.CORRECT}` が要る）"),
@@ -75,10 +76,10 @@ DIVERGENCE_SCENES = {
 DIVERGENCE_HINT = "\n".join([
     f"実装役の型の状態の語 NEEDS_CONTEXT・BLOCKED（works の語 {conflict.WORD}）に当たる時は、その単位を直したことにせず、"
     f"食い違いの申し出 conflicts の 1 件で返す。`{conflict.KIND_FIELD}` は起きた場面で次のどれか（欄の決まりは指示書の"
-    "『食い違いの申し出』の節）:",
+    "『食い違いの申し出』のセクション）:",
     *(f"- `{k}`: {DIVERGENCE_SCENES[k]}" for k in conflict.DIV_KINDS)])
 HEAD = promptsection.Section("## 借りたスキルの座", source="fn:seat.section")
-SCENE = "works の修正の段。流れ・機械の関門・commit は線が持つ。TDD の輪で直した単位は輪の要約に在る"
+SCENE = "works の修正の段。流れ・機械の関門・commit はメイングラフが持つ。TDD のループで直した単位はループの要約に在る"
 NO_REPORT_FILE = "ファイルに書かない。返答は指示書の『返答の欄』の JSON"
 WINS = "この指示書の段の約束（返す JSON・機械の関門・段の順）と下の読み替えは、借りた文に勝つ"   # どちらの種類の座も同じ 1 段落
 # 座のファイルを指示書と別に読む役（座の中の「この指示書」が座のファイルを指して読める）は、勝つ指示書を名指す段落に替える
@@ -86,17 +87,17 @@ WINS_OF = {"review": "役の指示書 commands/delta-review.md の約束（返�
                      "借りた文に勝つ"}
 SKILL_LEAD = "Skill の道具で `{skill}` を読み、その手順で進めよ。"   # skill の座だけが WINS の前に足す 1 文
 APPLIES, NOT_APPLIES = "効く所:", "効かない所（従わない）:"
-PROMPT_HEAD = promptsection.Section("### 下請けの型（superpowers の {file}。works の節で包んだ物）", source="fn:seat.section")
+PROMPT_HEAD = promptsection.Section("### 下請けの型（superpowers の {file}。works のセクションで包んだ物）", source="fn:seat.section")
 ITEM = "superpowers"   # borrow.json の借りる物の名
 
 # 下請けを回す修正役の節（依頼 243 の 2）
 G1_HEAD = promptsection.Section("## 下請けを回す", source="fn:seat.g1_section")
 # 2 つ目からの項目の実装役の prompt の後ろに修正役が足す節の見出し（前の項目の会話の履歴の代わりの引き継ぎ。依頼 243 の 2）
 G1_HANDOFF_HEAD = promptsection.Section("## 前の項目の引き継ぎ（修正役が前の項目の実装役の報告から書いた物）",
-                                        human="修正役が下請けの頼みに自分で足す節の見出し（機械は貼らず、手順の文が名指す）")
+                                        human="修正役が下請けの頼みに自分で足すセクションの見出し（機械は貼らず、手順の文が名指す）")
 # 修正役の節に載る 1 段落（修正役の前に TDD の輪が単位を直す。輪で直した単位は項目に載らない。fixrules.prep）
-G1_LOOP_NOTE = ("TDD の輪で直した単位（輪の要約のファイルの「輪で直した単位」）は下の項目に載らない。その単位には下請けを"
-                "起こさず、指示書の『読む物』の TDD の輪の結果のとおり changes に 1 行を書く")
+G1_LOOP_NOTE = ("TDD のループで直した単位（ループの要約のファイルの「ループで直した単位」）は下の項目に載らない。その単位には下請けを"
+                "起こさず、指示書の『読む物』の TDD のループの結果のとおり changes に 1 行を書く")
 G1_REPORT = "実装役の最後のメッセージを、この型の後ろに貼る"   # 審査役の型の [REPORT_FILE]
 # 審査役の型の [HEAD_SHA]。works は commit しないので差分は作業ツリーと base の間。型の `git diff [BASE_SHA]..[HEAD_SHA]` は
 # g1_prompt が `git diff <base>` に直す（commit の範囲は空になる。コマンドに文を残さない。Preflight F20）。Head の行にだけ残る
@@ -113,7 +114,7 @@ G1_PATCH = ('p={patch}; top="$(git rev-parse --show-toplevel)"; '
 G1_STEPS = (
     "下の項目の順に、Agent の道具で実装役の下請けを 1 つ起こし、prompt に実装役のファイルの中身を全部、字を変えずに渡す。"
     "下請けは項目ごとに新しい会話で起きる（前の項目の会話の履歴は持たない）。2 つ目からの項目では、ファイルの中身の後ろに見出し "
-    f"`{G1_HANDOFF_HEAD}` の節を足し、済んだ項目ごとに 1 行（項目の番号・実装役の報告に在る変えたファイルと緑にしたテスト）を"
+    f"`{G1_HANDOFF_HEAD}` のセクションを足し、済んだ項目ごとに 1 行（項目の番号・実装役の報告に在る変えたファイルと緑にしたテスト）を"
     "書く。前の項目の直しは作業ツリーに在るので、戻したり作り直したりさせない。",
     "実装役の最後のメッセージを受けたら、その項目の差分のコマンドを Bash で走らせ（run ごとの置き場の絶対パスに書く。未追跡の"
     "新しいファイルも全文の差分で入る）、別の Agent で審査役の下請けを起こす。prompt には審査役のファイルの中身を全部と、その後ろに"
@@ -129,11 +130,11 @@ G1_STEPS = (
     "全部の項目が済んだら、作業ツリーの差分を自分で確かめ（下請けの報告を信じない。読み替えの DELEGATE）、自分は返答の欄の JSON "
     "だけを返す。下請けが Bash で書いたと報告したファイルは、パスと理由を返答の bash_writes に書く（Edit・Write の書き込みは記録に"
     "載る）。",
-    "機械の関門は返答の後に線が当てる: 受け入れのテストの赤→緑と既存のテストの凍結は修正の受け付けの束、変更に当たる試験は"
-    "受け付け、test_cmd は線の最後のテストの段。下請けの「commit」「人に聞く」は下請けのファイルの末尾の works の決まりに従う。",
+    "機械の関門は返答の後にメイングラフが当てる: 受け入れのテストの赤→緑と既存のテストの凍結は修正の受け付けの束、変更に当たる試験は"
+    "受け付け、test_cmd はメイングラフの最後のテストの段。下請けの「commit」「人に聞く」は下請けのファイルの末尾の works の決まりに従う。",
 )
 G1_OVERRIDES = ("下の読み替えの DISPATCH（下請けを起こさない・ほかの役の道具に Agent は無い）と DELEGATE の「役がほかの"
-                "エージェントに仕事を任せることは無い」は、この修正役には効かない: この節の手順のとおり Agent で"
+                "エージェントに仕事を任せることは無い」は、この修正役には効かない: このセクションの手順のとおり Agent で"
                 "下請けを起こす。下請けがさらに下請けを起こすことは無い（どちらの型も禁じる）。読み替えの頭の行の「その prompt に、"
                 "このファイル … を Read せよと書け」も下請けには書かない: 下請けのファイルの末尾の works の決まりが、その代わりに"
                 "下請けの読み替えを持つ")
@@ -148,7 +149,7 @@ G1_SUB_RULES = (
     "報告はファイルに書かず、最後のメッセージに書く。",
     "作業ツリーへの書き込みは Edit・Write の道具で（書き込みの記録に載る）。Bash で書いたファイルは、パスと Bash で書いた理由を"
     "最後のメッセージに書く。",
-    "一式は回さない（一式と test_cmd は線が回す）。回すのは変えたファイルに当たる試験だけ。",
+    "一式は回さない（一式と test_cmd はメイングラフが回す）。回すのは変えたファイルに当たる試験だけ。",
     "下請けを起こさない。",
 )
 G1_EXTRA = {   # 節ごとに G1_SUB_RULES の後ろへ足す決まり（審査役だけ）
@@ -174,7 +175,7 @@ def skill_of(seam: dict) -> str:
     files = seam.get("files") or []
     parts = pathlib.PurePosixPath(files[0]).parts if files else ()
     if seam.get("use_as") != "skill" or len(parts) < 3 or parts[0] != "skills":
-        raise ValueError(f"スキルの節でない（use_as {seam.get('use_as')!r}・files {files}）")
+        raise ValueError(f"スキルのセクションでない（use_as {seam.get('use_as')!r}・files {files}）")
     return parts[1]
 
 
@@ -306,7 +307,7 @@ def fill(seam_id: str, values: dict[str, str]) -> str:
     _, src = pinned()
     sec = load_seams().get(seam_id)
     if not sec or sec.get("use_as") != "prompt":
-        raise ValueError(f"{seam_id}: 部品の節でない")
+        raise ValueError(f"{seam_id}: 部品のセクションでない")
     holes = list(sec.get("placeholders", []))
     lack, extra = sorted(set(holes) - set(values)), sorted(set(values) - set(holes))
     if lack or extra:
@@ -348,7 +349,7 @@ def words_table(seam_id: str) -> str:
     words = load_seams()[seam_id].get("words") or {}
     lack = sorted(w for w in words.values() if w not in VERDICT_WORDS)
     if lack:
-        raise ValueError(f"節 {seam_id} の語 {lack} が判定の欄の語の対応（seat.VERDICT_WORDS）に無い")
+        raise ValueError(f"セクション {seam_id} の語 {lack} が判定の欄の語の対応（seat.VERDICT_WORDS）に無い")
     rows = [f"| {said} | {w} | `{VERDICT_WORDS[w][0]}.verdict`: `{VERDICT_WORDS[w][1]}` |" for said, w in words.items()]
     notes = [f"| （{case}） | — | {value}（型の語に依らない） |" for case, value in NOTE_ROWS]
     return "\n".join([WORDS_HEAD, "", "| 型の語 | works の語 | 欄の値 |", "| --- | --- | --- |", *rows, *notes])
@@ -362,10 +363,10 @@ def section(node: str, values: dict[str, str] | None = None) -> str:
     seams = load_seams()
     sid = SEATS[node]
     if sid not in seams:
-        raise ValueError(f"座 {node} の節 {sid} が {SEAMS_FILE} に無い")
+        raise ValueError(f"座 {node} のセクション {sid} が {SEAMS_FILE} に無い")
     sec = seams[sid]
     if sec.get("use_as") == "prompt" and values is None:
-        raise ValueError(f"座 {node}（節 {sid}）の型の穴の値が無い")
+        raise ValueError(f"座 {node}（セクション {sid}）の型の穴の値が無い")
     pinned()
     if sec.get("use_as") == "skill":
         body = [SKILL_LEAD.format(skill=skill_of(sec)) + WINS_OF.get(node, WINS),

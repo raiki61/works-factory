@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""修正の後に、案の直しを差し込むかを決める節 after-fix（docs/design.md の「線」の「順と関所」の 7）。
+"""修正の後に、案の直しを差し込むかを決めるノード after-fix（docs/design.md の「メイングラフ」の「順と承認ノード」の 7）。
 
 when: は配列が空かを比べられないので、ここで数える。fix の返りの replan_items（裁定が誤りとした計画の項目）が空でなければ案の直し。
 線に差し込みが 1 つしか無いので、1 run に 1 度。再審を差し込むかは、2 度目の修正の後の節 fixed が両方の修正役の異議で決める
@@ -12,8 +12,11 @@ when: は配列が空かを比べられないので、ここで数える。fix �
 入力（with:）: replan_items（fix の返り）
 """
 import os
+import sys
+from pathlib import Path
 
-import linekit
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
 
 def decide(replan_items: list) -> dict:
@@ -21,8 +24,8 @@ def decide(replan_items: list) -> dict:
 
 
 def fallback(reason: str) -> dict:
-    return {"replan": False, "stop_reason": linekit.LINE_SCRIPT}
+    return {"replan": False, "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: decide(linekit.items(os.environ.get("INPUTS_REPLAN_ITEMS"))), fallback)
+    boundary.run(lambda: decide(boundary.items(os.environ.get("INPUTS_REPLAN_ITEMS"))), fallback)

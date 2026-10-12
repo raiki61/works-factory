@@ -4,7 +4,8 @@
 書く役の受け付け（lib/writes.py）が、版からの変更をこの記録と突き合わせ、編集の道具で書いていない変更（Bash の python - <<・
 cat >・sed -i など）を拒む。
 置き場はコマンドの 1 つ目の引数の根の下の、役の作業の場ごとのファイル（lib/writelog.log_path。作業の場は Claude Code が
-フックに渡す CLAUDE_PROJECT_DIR、無ければ入力の cwd）。根が無ければ 1 バイトも書かない。
+フックに渡す CLAUDE_PROJECT_DIR、無ければ入力の cwd）。横に作業の場の実パスを控え（writelog.WHERE）、作業の場が
+無くなった後の起動が片付ける（writelog.sweep）。根が無ければ 1 バイトも書かない。
 残すのは書いた後の中身の sha で、中身は写さない。読めない入力・書けない置き場でも道具は止めない。
 """
 import hashlib
@@ -45,9 +46,8 @@ def main():
     row = json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "session_id": d.get("session_id"),
                       "agent_id": d.get("agent_id"), "tool_name": d["tool_name"], "path": real, "file_sha": sha,
                       "tool_use_id": d.get("tool_use_id")}, ensure_ascii=False)
-    log = writelog.log_path(sys.argv[1], where)
     try:
-        log.parent.mkdir(exist_ok=True)
+        log = writelog.open_log(sys.argv[1], where)
         with open(log, "a", encoding="utf-8") as f:
             f.write(row + "\n")
     except OSError:

@@ -4,7 +4,8 @@
 - with_reject:    道具ゼロの役の指示書の頭に前の拒否の文を貼る（ファイルを名指さない。裁定 R44）
 - agent_def:      engine の agent_def（役の定義 agents/<役>.md）を、写しの plugin の役は pack の写し（core/agents/）から引く
 - with_done:      盤面の節でない受け付け（script_io.main の finish）に done を足す。拒否は盤面の根の控え rejects-<名>.json に
-                  積み、通った時か give_up_after 回目の拒否で done（控えは intake が clear_rejects で消す）
+                  積み、通った時か give_up_after 回目の拒否で done（出し直しても直らない拒みは 1 回目で。控えは intake が
+                  clear_rejects で消す）
 - rejected:       盤面の節でない受け付けの拒否の文の並び（古い順。指示書の番号と、輪が落ちた周の最後の拒否の文に使う）
 - given_up_reason: 盤面の節でない受け付けの出口が、控えの最後の拒否の文を引く
 - last_reject(folder): 置き場の下の受け付けの最後の拒否の本文（報告の前の失敗の行が読む）
@@ -60,7 +61,7 @@ def agent_def(agent_type: str):
 
 
 # 役の文は関所と報告に機械が字のまま載せるので、書き手に言語を縛る（元 works/.shared/core/rolekit.py 67-68 行。機械で訳さない）
-LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、関所と報告に載る文）は {lang} で書け。"
+LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、承認ノードと報告に載る文）は {lang} で書け。"
              "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
 LANG_DEFAULT = "依頼文の言語（利用者の言語）"   # 元 works/.shared/core/board.py 96 行
 
@@ -89,7 +90,7 @@ REJECT_HEADING = promptsection.Section("## 前の回の受け付けが拒んだ�
 
 
 def with_reject(prompt: str, reason: str) -> str:
-    """道具ゼロの役の指示書の頭に、前の拒否の文を貼る（役はファイルを読めない。$LOOP_PREV で貼ると実行基盤が文の中の $… を
+    """道具ゼロの役の指示書の頭に、前の拒否の文を貼る（役はファイルを読めない。前の周の値の差し込みで貼ると実行基盤が文の中の $… を
     置き換え直す。裁定 R44）"""
     return (f"{REJECT_HEADING}\n\n前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ"
             f"（直した所だけを返すな）:\n\n```text\n{reason}\n```\n\n---\n\n{prompt}")
@@ -111,9 +112,12 @@ def _write_json(path: pathlib.Path, doc) -> None:
     os.replace(tmp, path)
 
 
-def _gave_up_text(name: str, count: int, last: str) -> str:
-    """諦めた理由の 1 行（gave_up と given_up_reason が共に使う文の正本）"""
-    return f"{name} の返答が {count} 回とも受け付けで拒まれた（最後の拒否: {' '.join(str(last).split())}）"
+def _gave_up_text(name: str, count: int, last: str, *, at_once: bool = False) -> str:
+    """given_up_reason が返す諦めた理由の 1 行の文。at_once は出し直させずに諦めた時（with_done の give_up）"""
+    last = " ".join(str(last).split())
+    if at_once:
+        return f"{name} の返答を受け付けが出し直させずに諦めた（拒否: {last}）"
+    return f"{name} の返答が {count} 回とも受け付けで拒まれた（最後の拒否: {last}）"
 
 
 # ---------------------------------------------------------------- 盤面の節でない受け付けの done
@@ -122,27 +126,42 @@ def rejects_path(board: pathlib.Path, name: str) -> pathlib.Path:
     return pathlib.Path(board) / f"rejects-{safe_name(name)}.json"
 
 
-def with_done(board: pathlib.Path, name: str, out: dict, *, give_up_after: int = GIVE_UP_AFTER) -> dict:
-    """script_io.main の finish: 通れば done。拒否は控えに積み、give_up_after 回目で done（輪はそこで抜け、出口が諦めを扱う）"""
+def with_done(board: pathlib.Path, name: str, out: dict, *, give_up_after: int = GIVE_UP_AFTER, give_up: bool = False) -> dict:
+    """script_io.main の finish: 通れば done。拒否は控えに積み、give_up_after 回目で done（輪はそこで抜け、出口が諦めを扱う）。
+    give_up 真の拒否は回数を待たずに done（出し直しても直らない拒み。元 material.py の _reject(give_up=True)）"""
     if out.get("ok") is True:
         return {**out, "done": True}
     path = rejects_path(board, name)
     rows = _read_json(path, [])
-    rows.append({"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "reason": str(out.get("reason", ""))})
+    row = {"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "reason": str(out.get("reason", ""))}
+    rows.append({**row, "give_up": True} if give_up else row)
     _write_json(path, rows)
-    return {**out, "done": len(rows) >= give_up_after}
+    return {**out, "done": give_up or len(rows) >= give_up_after}
+
+
+def _reject_rows(board: pathlib.Path, name: str) -> list:
+    rows = _read_json(rejects_path(board, name), [])
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+
+
+def reject_rows(board: pathlib.Path, name: str) -> list:
+    """盤面の節でない受け付け name の拒否の控えの行 {at, reason} の並び（古い順。控えが無ければ空）"""
+    return [{"at": r.get("at"), "reason": str(r.get("reason", ""))} for r in _reject_rows(board, name)]
 
 
 def rejected(board: pathlib.Path, name: str) -> list:
     """盤面の節でない受け付け name の拒否の文の並び（古い順。控えが無ければ空）"""
-    rows = _read_json(rejects_path(board, name), [])
-    return [str(r.get("reason", "")) for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+    return [r["reason"] for r in reject_rows(board, name)]
 
 
 def given_up_reason(board: pathlib.Path, name: str, *, give_up_after: int = GIVE_UP_AFTER) -> str:
-    """控えの拒否が give_up_after 件あれば、諦めた理由の 1 行（最後の拒否の文）。届いていなければ空"""
-    got = rejected(board, name)
-    return _gave_up_text(name, len(got), got[-1]) if len(got) >= give_up_after else ""
+    """控えの拒否が give_up_after 件あるか、出し直さずに諦めた拒否（with_done の give_up）が在れば、諦めた理由の 1 行（最後の拒否の文）。
+    届いていなければ空"""
+    rows = _reject_rows(board, name)
+    at_once = any(r.get("give_up") is True for r in rows)
+    if not rows or not (at_once or len(rows) >= give_up_after):
+        return ""
+    return _gave_up_text(name, len(rows), str(rows[-1].get("reason", "")), at_once=at_once)
 
 
 def last_reject(folder) -> str:

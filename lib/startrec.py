@@ -10,6 +10,8 @@
 - path(board_dir): 盤面の根からの始めの記録のパス。置き場はこの 1 つで、線の start は run の置き場の根を盤面の根として
   ここに書き（write）、ブロックは指し札の先を自分の置き場の同じ所へ字のまま写す（adopt）。読み手は全部 read で読む
 - read(board_dir): 始めの記録の dict（無い・読めない・dict でなければ {}。読み手が欠けを欄ごとに扱う）
+- load(file): 始めの記録のファイル file（指し札の先）の dict。無い・読めなければ OSError・ValueError、dict でなければ ValueError
+  （読めないことを訳にする読み手の口。read はこれを {} に落とす）
 - write(board_dir, doc): 始めの記録を path(board_dir) に置いてパスを返す
 - adopt(board_dir, src): 線の始めの記録のファイル src を path(board_dir) へ字のまま写し、その dict を返す（欄を足さず・既定で
   埋めない。写しが元と食い違って機能の切り替えが黙って変わらないように。JSON のオブジェクトでなければ ValueError）
@@ -41,10 +43,17 @@ def path(board_dir) -> pathlib.Path:
 def read(board_dir) -> dict:
     """始めの記録（無い・読めない・dict でなければ空の dict）"""
     try:
-        doc = json.loads(path(board_dir).read_text(encoding="utf-8"))
+        return load(path(board_dir))
     except (OSError, ValueError):
         return {}
-    return doc if isinstance(doc, dict) else {}
+
+
+def load(file) -> dict:
+    """始めの記録のファイル file の dict（無い・読めなければ OSError・ValueError、dict でなければ ValueError）"""
+    doc = json.loads(pathlib.Path(file).read_text(encoding="utf-8"))
+    if not isinstance(doc, dict):
+        raise ValueError(f"始めの記録 {file} が JSON のオブジェクトでない")
+    return doc
 
 
 def write(board_dir, doc: dict) -> pathlib.Path:

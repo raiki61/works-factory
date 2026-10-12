@@ -6,58 +6,40 @@
 answer-replan。埋め P2）。
 
 関所が方針で飛ばされても走る（trigger_rule: none_failed_min_one_success）。関所の出力は `{from, if_skipped: null}` で受ける。
-返り {go, answer, stop_reason}: 関所が飛ばされたら前の節が決めた go と止めの理由をそのまま返し、answer は null。
-関所が開いたら答え {decision, text, asked} を返し、通す語なら go、通す語でない語（stop・reject・知らない語）なら go: false と止めの理由
-human:<関所>。止める答えの一言が空なら既定の文（STOP_NOTE・最後の関所は FINAL_STOP_NOTE。元 works/darkfactory/lib/line_edge.py 98・
-104 行）を一言にする（報告の止めの理由が空にならない）。
-asked は関所が人に見せた項目の行（asked_raw。before_fix_answer だけが ask-before-fix の asked を渡す）で、項目を持たない関所は []。
-答えの形はどの関所も同じで、読み手（fix・plan-review・eyes・report）は asked の無い答えを別に読まない。
+返り {go, answer, stop_reason}（lib/answer.py の taken）: 関所が飛ばされたら前のノードが決めた go と止めの理由をそのまま返し、answer は
+null。関所が開いたら答え {decision, text, asked} を返し、通す語なら go、通す語でない語（stop・reject・知らない語）なら go: false と
+止めの理由 human:<関所>。止める答えの一言が空なら既定の文（answer.STOP_NOTE・最後の関所は FINAL_STOP_NOTE）を一言にする。
+asked は関所が人に見せた項目の行（before_fix_answer だけが ask-before-fix の asked を渡す）で、項目を持たない関所は []。
 答えは run の置き場の gates/<関所>.json に書く（同じ関所の答えは書き直す。人が読む控えで、関所の文が名指す）。
 報告へは返りの answer が collect を通って届く。
 
 入力（with:）: gate（関所の出力）・go・stop_reason（関所の前の節の決め）・place（関所の節の id）
 """
-import json
 import os
+import sys
 from pathlib import Path
 
-import linekit
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-ANSWERS = "gates"
-STOP_NOTE = "関所で止めた"
-FINAL_STOP_NOTE = "最後の関所で止めた"
-FINAL = "gate-final"
-
-
-def decision_of(raw) -> dict:
-    """関所の出力の字を {decision, text} に（asked は answer が足す）。決めの語を持つ関所は {decision, text} の JSON を返す。筋書きの関所はいつも approved の字"""
-    got = linekit.value(raw)
-    if isinstance(got, dict) and isinstance(got.get("decision"), str):
-        return {"decision": got["decision"], "text": str(got.get("text") or "")}
-    if got == linekit.DRY_RUN_APPROVED:
-        return {"decision": "approve", "text": ""}
-    return {"decision": str(got), "text": ""}
+with boundary.guarded_imports():
+    import answer
 
 
-def answer(gate_raw, go_raw, stop_raw, place: str, artifacts: Path, asked_raw=None) -> dict:
-    if linekit.text(gate_raw) == "":
-        return {"go": linekit.flag(go_raw), "answer": None, "stop_reason": linekit.text(stop_raw)}
-    got = decision_of(gate_raw)
-    go = got["decision"] in linekit.GO_WORDS
-    if not go and not got["text"].strip():
-        got["text"] = FINAL_STOP_NOTE if place == FINAL else STOP_NOTE
-    got["asked"] = [line for line in linekit.items(asked_raw) if isinstance(line, str)]
-    folder = artifacts / ANSWERS
-    folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{place}.json").write_text(json.dumps(got, ensure_ascii=False) + "\n", encoding="utf-8")
-    return {"go": go, "answer": got, "stop_reason": "" if go else linekit.HUMAN + place}
+def take(gate_raw, go_raw, stop_raw, place: str, artifacts: Path) -> dict:
+    return answer.taken(boundary.value(gate_raw), go=boundary.flag(go_raw), stop_reason=boundary.text(stop_raw), place=place,
+                        folder=artifacts)
+
+
+def from_env() -> dict:
+    """take の引数のうち with: の欄（全部を読む）"""
+    return {"gate_raw": os.environ.get("INPUTS_GATE"), "go_raw": os.environ.get("INPUTS_GO"),
+            "stop_raw": os.environ.get("INPUTS_STOP_REASON"), "place": os.environ.get("INPUTS_PLACE")}
 
 
 def fallback(reason: str) -> dict:
-    return {"go": False, "answer": None, "stop_reason": linekit.LINE_SCRIPT}
+    return {"go": False, "answer": None, "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: answer(os.environ.get("INPUTS_GATE"), os.environ.get("INPUTS_GO"), os.environ.get("INPUTS_STOP_REASON"),
-                               os.environ["INPUTS_PLACE"], Path(os.environ["ARTIFACTS_DIR"])),
-                fallback)
+    boundary.run(lambda: take(**from_env(), artifacts=Path(os.environ["ARTIFACTS_DIR"])), fallback)

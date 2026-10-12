@@ -37,7 +37,7 @@ REPLAN_ASK = ("承認済みの修正案の項目のうち、下に貼った項�
               "fix_plan_item（案の項目そのものの誤り）と裁いた。申し出の文と裁定の文を読み、裁定の文が名指した所を直した項目を"
               "返せ。plan は下に貼った項目と同じ数・同じ順で、各項目の unit_keys は貼った文字列を一字も変えずに写せ（番号で書かない）。"
               "ほかの項目は返すな。直した項目は事前審査に掛かり、約束の欄（unit_keys・narrows・removes・allowed_paths・out_of_scope・"
-              "rewrite_tests・tests の behavior）を変えた時は人の関所に出る。")
+              "rewrite_tests・tests の behavior）を変えた時は承認ノードに出る。")
 REPLAN_REJECT = "直した項目の返答に誤りが在る（下の行を全部直して出し直せ）:"
 ITEM_HEAD = promptsection.Section("## 直す項目 {n}（承認済みの修正案の項目の番号）", source="fn:replan._section")
 OLD_HEAD = promptsection.Section("### 前の項目（承認済み。機械が貼った）", source="fn:replan._section")
@@ -49,8 +49,8 @@ WIDEN_PARTS = {"allowed_paths": "allowed_paths に足した", "out_of_scope": "o
 AMEND_HEAD = "同じ run の中で直した修正案の項目"   # 報告と最後の関所の文の見出し（元 replan.AMEND_HEAD）
 APPROVED = "直した——人が承認した"                  # 元 replan.lines の項目ごとの結末の語
 PASSED = "直した——聞かずに通した（手段の欄だけ）"
-STOPPED_WHY = "人が関所 gate-replan で run を止めた: {text}"   # 元 replan.STOPPED_WHY（関所の名は線の節の id）
-NOT_RUN_WHY = "2 度目の修正が走らなかった（直した案ができなかったか、案の直しの関所が開かずに止めた）"
+STOPPED_WHY = "人が承認ノード gate-replan で run を止めた: {text}"   # 元 replan.STOPPED_WHY（承認ノードの名はメイングラフのノードの id）
+NOT_RUN_WHY = "2 度目の修正が走らなかった（直した案ができなかったか、案の直しの承認ノードが開かずに止めた）"
 NO_NOTE = "（一言なし）"                          # 元 replan.NO_NOTE
 PENDING_WHY = "未完了（前の run が途中で落ちて、案の直しを終えていない）"   # 元 replan.PENDING_WHY（途中で落ちた run の待つ行）
 CLOSE_WHY = "同じ run の中で案の直しを終えられなかった（案の段に戻るのは 1 run に 1 回）"   # 元 replan.CLOSE_WHY

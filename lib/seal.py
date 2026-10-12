@@ -82,16 +82,10 @@ def unknown_row(reason: str) -> str:
 
 
 def deleted_paths(text: str) -> list:
-    """git の差分の字（diff --git の節）のうち、ファイルを消す節（deleted file mode）のパス（現れた順）。元 works/dev/lib.sh:595-597 の
-    diff --diff-filter=D --name-only と同じ物を、封じた差分そのものから読む"""
-    out, path = [], None
-    for line in text.splitlines():
-        if line.startswith("diff --git "):
-            head = line[len("diff --git "):]
-            path = head.split(" b/", 1)[0].removeprefix("a/") if head.startswith("a/") else head
-        elif line.startswith("deleted file mode") and path is not None and path not in out:
-            out.append(path)
-    return out
+    """git の差分の字のうち、ファイルを消す節（deleted file mode）のパス（現れた順。changemap.deleted_paths。元 works/dev/lib.sh:595-597 の
+    diff --diff-filter=D --name-only と同じ物を、封じた差分そのものから読む）"""
+    import changemap
+    return changemap.deleted_paths(text)
 
 
 def _answer_refusal(answer: dict) -> str:
@@ -105,7 +99,7 @@ def _answer_refusal(answer: dict) -> str:
         kind = ""
     else:
         kind = f"（通す語 {'・'.join(PASS)} のどれでもない）"
-    return f"最後の関所で {word or '語なし'} と答えた{kind}"
+    return f"最後の承認ノードで {word or '語なし'} と答えた{kind}"
 
 
 def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, fingerprint_ok, protected) -> str:

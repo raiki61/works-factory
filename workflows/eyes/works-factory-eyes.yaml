@@ -1,27 +1,27 @@
 name: works-factory-eyes
 description: |
-  独立の目のブロック。直しを作った役と別の新しい会話で、読むだけで直しを確かめる: R1 最小性（コメントの削除候補 → 最小性）・
+  独立の目のサブグラフ。直しを作った役と別の新しい会話で、読むだけで直しを確かめる: R1 最小性（コメントの削除候補 → 最小性）・
   R2 独立設計との比較（独立設計が問いは立たないと言えば前提の検算）・R3 全体の整合・R4 見えていない範囲（R1・R2 の筋の後）。
-  直した後の構造の実測と守りのパスの当たりも出す。目の返りは返った時だけ走る script の節が置き場のファイルに書き、
-  返す節 verdict はそのファイルを読んで lib/eyeverdict.py でまとめる（落ちた節への with: は誤りで止まるため）。
+  直した後の構造の実測と守りのパスの当たりも出す。目の出力は返った時だけ走る script ノードが置き場のファイルに書き、
+  出力ノード verdict はそのファイルを読んで lib/eyeverdict.py でまとめる（落ちたノードへの with: は誤りで止まるため）。
 
 inputs:
   units: {required: true, description: "$judge.output.units（単位の目録。JSON の配列）"}
-  judgment: {required: true, description: "$judge.output.judgment（judgment.json の指し札）"}
-  purpose: {required: true, description: "$judge.output.purpose（purpose.json の指し札）"}
-  world: {required: true, description: "$judge.output.world（定石の行の指し札。null 可）"}
-  plan: {required: true, description: "$plan.output.plan（plan-fields.json の指し札）"}
-  ripple: {required: true, description: "$plan.output.ripple（ripple.json の指し札）"}
+  judgment: {required: true, description: "$judge.output.judgment（judgment.json のポインタ）"}
+  purpose: {required: true, description: "$judge.output.purpose（purpose.json のポインタ）"}
+  world: {required: true, description: "$judge.output.world（定石の行のポインタ。null 可）"}
+  plan: {required: true, description: "$plan.output.plan（plan-fields.json のポインタ）"}
+  ripple: {required: true, description: "$plan.output.ripple（ripple.json のポインタ）"}
   depth: {required: true, description: "$redepth.output.depth（単位ごとの深さ。JSON の配列）"}
-  design: {required: true, description: "$plan-review.output.design（design.json の指し札）"}
-  diff: {required: true, description: "$fix.output.diff（累積差分の指し札）"}
+  design: {required: true, description: "$plan-review.output.design（design.json のポインタ）"}
+  diff: {required: true, description: "$fix.output.diff（累積差分のポインタ）"}
   changed: {required: true, description: "$fix.output.changed（修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む）"}
   fix_units: {required: true, description: "$fix.output.units（単位ごとの結末。JSON の配列）"}
   green_ok: {required: true, description: "$test-gate-final.output.ok"}
-  start: {default: "null", description: "$start.output.record（始めの記録の指し札）"}
-  plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の関所の項目 {kind, text}）"}
-  answers: {default: "null", description: "{ from: $gate-before-fix.output, if_skipped: null }（修正前の関所の答え）"}
-  start_answers: {default: "null", description: "{ from: $gate-start.output, if_skipped: null }（始めの関所の答え。plan-review が独立設計に貼った人の答えと同じ源）"}
+  start: {default: "null", description: "$start.output.record（始めの記録のポインタ）"}
+  plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の承認ノードの項目 {kind, text}）"}
+  answers: {default: "null", description: "{ from: $gate-before-fix.output, if_skipped: null }（修正前の承認ノードの答え）"}
+  start_answers: {default: "null", description: "{ from: $gate-start.output, if_skipped: null }（始めの承認ノードの答え。plan-review が独立設計に貼った人の答えと同じ源）"}
   x_scalars: {default: "null", description: "$fix.output.x_scalars（修正役が足した x_ の規模の数値。JSON の object）"}
 
 returns: verdict
@@ -197,7 +197,7 @@ nodes:
     sandbox: {enabled: true, allowUnsandboxedCommands: false}
     allowed_tools: [Read]
     # 元の旗 isolated（Git の外で起こし、git status の写しを system prompt に入れない）。既定の claude_code の system prompt を替える
-    systemPrompt: お前は独立の目の 1 つ（R2 の比較役）。指示は依頼の本文に全部在る。道具は Read だけで、開いてよいのは本文が名指す累積差分のファイルだけ。
+    systemPrompt: この役は独立の目の 1 つ（R2 の比較役）。指示は依頼の本文に全部在る。道具は Read だけで、開いてよいのは本文が名指す累積差分のファイルだけ。
     mutates_checkout: false
     idle_timeout: 1728000000
     retry: {max_attempts: 2, on_error: all}

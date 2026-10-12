@@ -41,12 +41,12 @@ VERDICTS = ("root", "not_root", "unsure")
 PLACES = ("same", "apart")              # 関わりの行の place: 同じ行・同じ塊（か前提を変える）・同じファイルの別の所だけ
 WAITING = "裏取りの答えがまだ無い（束ね役が落ちたか、下請けを起こさなかった）"
 
-UNIT_HEAD = promptsection.Section("## お前の単位: 単位 {n}", source="fn:judgeverify.prep_on")   # 下請けのファイルの共通の頭（全部の単位と相乗りで同じバイト）とその単位の節の境
+UNIT_HEAD = promptsection.Section("## この下請けの単位: 単位 {n}", source="fn:judgeverify.prep_on")   # 下請けのファイルの共通の頭（全部の単位と相乗りで同じバイト）とその単位の節の境
 ANSWER_AT = "Write の道具でファイル {answer} に書け"   # 下請けのファイルが答えの置き場を名指す句（answer_in が引く）
 TITLE = promptsection.Section("# 判定の単位の裏取りの下請け", source="fn:judgeverify._head")
-SUB_HEAD = ("お前は判定の単位の裏取りの下請け（読むだけ。Read・Grep・Glob で根拠のコードを調べ、Write は最後の節が名指す答えの"
+SUB_HEAD = ("この役は判定の単位の裏取りの下請け（読むだけ。Read・Grep・Glob で根拠のコードを調べ、Write は最後のセクションが名指す答えの"
             "ファイルにだけ使う。Edit・Bash を使わず、作業ツリーを 1 文字も変えない）。判定役が人の修正依頼を根本の単位に切った。"
-            "お前はその切り方を判定役とは別の目で確かめる。ほかのファイルの指示書を読みに行かなくてよい（根拠のコードは読め）。")
+            "その切り方を判定役とは別の目で確かめる。ほかのファイルの指示書を読みに行かなくてよい（根拠のコードは読め）。")
 RULES = promptsection.Section("## 決まり（全部の下請けで同じ）\n\n"
                               "- 直し方は書かない（案は別の役が作る）。\n"
                               "- 単位を消す・足す・ラベルを変える提案はしない。単位は直す義務で、この確かめでは減らない。根本でないと出ても、"
@@ -60,8 +60,8 @@ UNIT_ASK = ("見ること: (1) 根本か（verdict）: この単位を直せば�
             "（合っていれば同じ場所）。答えは下の JSON Schema に合う JSON 1 つにして、" + ANSWER_AT + "（このファイルのほかに書かない）。"
             "書いたら最後のメッセージに 1 行だけ返せ: `単位 {n}: <verdict>`。\n\n```json\n{schema}\n```")
 VIEW_HEAD = promptsection.Section("## 判定者の見立て", source="fn:judgeverify._head")
-SYNERGY_HEAD = promptsection.Section("## お前の確かめ: 単位どうしの相乗り", source="fn:judgeverify.prep_on")
-SYNERGY_ASK = ("1 つの単位の中の確かめは別の下請けがする。お前は単位どうしの関わりだけを見る: duplicates（同じ根の別の現れ・同じ直しで"
+SYNERGY_HEAD = promptsection.Section("## この下請けの確かめ: 単位どうしの相乗り", source="fn:judgeverify.prep_on")
+SYNERGY_ASK = ("1 つの単位の中の確かめは別の下請けがする。この下請けは単位どうしの関わりだけを見る: duplicates（同じ根の別の現れ・同じ直しで"
                "閉じる）・relations（place で 2 つに分ける。same＝同じ行・同じ塊を変える、か片方の直しがもう片方の前提（名・型・"
                "呼び方）を変える。apart＝同じファイル・同じ試験のファイルの別の所（別の関数・別のクラス・別のクラスに足すテスト）を"
                "触るだけで、直しどうしは重ならない。同じファイルだけを理由に same にしない）・order（片方を先に"
@@ -69,10 +69,10 @@ SYNERGY_ASK = ("1 つの単位の中の確かめは別の下請けがする。�
                "書く。答えは下の JSON Schema に合う JSON 1 つにして、" + ANSWER_AT + "（このファイルのほかに書かない）。書いたら"
                "最後のメッセージに 1 行だけ返せ: `相乗り: 重複 <数>・関わり <数>・順番 <数>`。\n\n```json\n{schema}\n```")
 AGG = promptsection.Section("# 判定の単位の裏取りの束ね役（機械が書いた）\n\n"
-                            "お前は束ね役。単位を自分で見ずに、下の下請けのファイルごとに Agent の道具で下請けを 1 つずつ起こせ。下請けの呼びは"
+                            "この役は束ね役。単位を自分で見ずに、下の下請けのファイルごとに Agent の道具で下請けを 1 つずつ起こせ。下請けの呼びは"
                             " 1 つのメッセージに全部並べよ（同時に走る）。subagent_type は全部 " + SUBAGENT_TYPE + "（ほかの型を使わない）。各下請けへの"
                             "頼みは「<ファイル> を Read で読み、その指示に従え」の 1 行でよい。下請けは読むだけで、答えはファイルに書き（どこに書くかは"
-                            "ファイルが名指す。作業ツリーは変えない）、最後に 1 行の要約を返す。答えのファイルは機械が確かめてまとめるので、お前は"
+                            "ファイルが名指す。作業ツリーは変えない）、最後に 1 行の要約を返す。答えのファイルは機械が確かめてまとめるので、"
                             "答えの中身を写さない。", source="fn:judgeverify.prep_on")
 AGG_REPLY = "下請けが全部返ったら、返答は次の JSON Schema に合う JSON だけにせよ（summary に下請けの 1 行の要約を並べる）:"
 

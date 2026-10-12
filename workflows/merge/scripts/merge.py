@@ -14,7 +14,6 @@ import json
 import os
 
 NO_VALUE = ("", "null")
-RUNTIME_COPY = (".archon/",)
 
 
 def broken(mode: str, reason: str) -> dict:
@@ -53,14 +52,14 @@ def main() -> None:
         boundary.resolve(boundary.pointer("merge/apply.diff")).unlink(missing_ok=True)
     start = object_or_none(os.environ["INPUTS_START"], "start")
     if start is None:
-        raise ValueError("start の指し札が無い")
+        raise ValueError("start のポインタが無い")
     base_rev = json.loads(boundary.resolve(start).read_text(encoding="utf-8")).get("base_rev")
     if not isinstance(base_rev, str) or not base_rev:
         raise ValueError(f"始めの記録に base_rev が無い: {base_rev!r}")
     fingerprint = value(os.environ["INPUTS_FINGERPRINT"])
     repo = Path.cwd()
 
-    data = green_cert.diff_bytes(repo, base_rev, skip=RUNTIME_COPY)
+    data = green_cert.diff_bytes(repo, base_rev, skip=(boundary.RUNTIME_COPY_PREFIX,))
     if not data:
         boundary.returns(broken(mode, f"差分が空（{base_rev} から今の作業ツリーまで変わった物が無い）"))
         return
@@ -101,5 +100,5 @@ def main() -> None:
 try:
     main()
 except Exception as e:
-    print(json.dumps(broken(mode_of(os.environ.get("INPUTS_MODE", "")), f"{type(e).__name__}: {e}"), ensure_ascii=False),
-          flush=True)
+    print(json.dumps(broken(mode_of(os.environ.get("INPUTS_MODE", "")), f"{type(e).__name__}: {e}"), ensure_ascii=False,
+                     allow_nan=False), flush=True)

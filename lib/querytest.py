@@ -15,6 +15,7 @@
 - split(reply, is_open): 例と理由を外した返答の写しと {単位の key: {例・理由・unproven}}
 - save(board, examples, replace)・restore(doc, board): 盤面の query-examples.json に置く・判定の写しの class_query に戻す（印は戻さない）
 - save_closure(b, rows): 修正の受け付けが問いを数え直した単位ごとの閉鎖の表を置く
+- closure_rows(b): 今の周の閉鎖の表の行（save_closure が置いた表。読めなければ空）
 - closure_lines(rows, *, mismatched_only, stuck_only, claimed): 表の行から最後の関所と報告に並べる閉鎖の数え直しの行
 """
 import json
@@ -226,6 +227,19 @@ def save_closure(b, rows: list) -> pathlib.Path:
     tmp.write_text(json.dumps({"round": b.round, "rows": rows}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     tmp.replace(p)
     return p
+
+
+def closure_rows(b) -> list:
+    """今の周の閉鎖の表の行（表が無い・読めない・前の周の物なら空）。表は save_closure が置いた b.scope_root の物（元
+    works/.shared/core/querytest.py:239 は盤面の根と登録した scope の根の表から今の周の最後の物を読んだ。置き場は include ごとに
+    分かれるので、渡された置き場の 1 つだけを読む）"""
+    try:
+        doc = json.loads((pathlib.Path(b.scope_root) / CLOSURE_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    if not isinstance(doc, dict) or doc.get("round") != getattr(b, "round", None):
+        return []
+    return [r for r in doc.get("rows") or [] if isinstance(r, dict)]
 
 
 def _stuck(r: dict) -> bool:

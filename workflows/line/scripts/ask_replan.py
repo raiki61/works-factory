@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""案の直しの関所を開くかと、見せる文を決める節 ask-replan（docs/design.md の「線」の「順と関所」の 7）。
+"""案の直しの関所を開くかと、見せる文を決める節 ask-replan（docs/design.md の「メイングラフ」の「順と承認ノード」の 7）。
 
 直した項目ごとに、承認済みの項目（計画の往復の plan）と直した項目（replan の plan）の約束の欄を比べる（lib/planmarks.py の
 contract_diff）。約束の欄が変わった項目と、事前審査（replan-review）が人に聞くと言った時は聞く。無人の run では、範囲を広げるだけの
@@ -17,18 +17,21 @@ asked は関所に見せた項目の行（「項目 <id>: …」と事前審査�
 """
 import json
 import os
+import sys
+from pathlib import Path
 
-import linekit
-from linekit import boundary
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
     import answer
     import conflict
     import gatemarks
     import planmarks
     import replan
+    import stopby
 
-HEAD = "案の直しの関所"
+HEAD = "案の直しの承認ノード"
 RECORD = "run の置き場の gates/gate-replan.json"
 ITEM_HEAD = "## 人に聞く直した項目 {n}（単位 {units}）"   # 元 replan.GATE_ITEM_HEAD
 NEW_HEAD = "### 直した項目（修正案の役が返した形。機械が貼った）"   # 元 replan.NEW_HEAD
@@ -61,10 +64,10 @@ def ruled_rows(ptr) -> tuple:
         return [], f"申し出と裁定の控えを読めない（{type(error).__name__}: {' '.join(str(error).split())}）"
 
 
-def item_rows(rows: list, ident: str) -> list:
-    """項目 ident を誤りとした申し出の行（裁定 fix_plan_item で、機械が足した項目の番号 conflict.plan_items が ident を含む）"""
-    return [r for r in rows if (r.get(conflict.RULING) or {}).get(conflict.DECISION) == conflict.REPLAN
-            and ident in conflict.plan_items(r)]
+def item_rows(rows: list, ident: str, old, new) -> list:
+    """項目 ident を誤りとした申し出の行（conflict.replan_rows。裁定 fix_plan_item が項目の番号を名指すか、申し出の単位が項目の単位）"""
+    keys = (new or old or {}).get("unit_keys") or []
+    return conflict.replan_rows(rows, int(ident), keys) if str(ident).isdigit() else []
 
 
 def section(ident: str, old, new, changed: list, rows: list) -> list:
@@ -89,7 +92,7 @@ def ask(old_ptr, new_ptr, ids: list, *, ask_human: bool, questions: list, unatte
         old, new = item(old_fields, ident), item(new_fields, ident)
         if old is None or new is None:
             rows.append(f"項目 {ident}: 承認済みの項目か直した項目を読めない（聞く側に倒す）")
-            sections += section(ident, old, new, [], item_rows(ruled, ident))
+            sections += section(ident, old, new, [], item_rows(ruled, ident, old, new))
             continue
         changed = planmarks.contract_diff(old, new)
         wide = planmarks.widened(old, new) if unattended and changed and not ask_human else None
@@ -97,32 +100,32 @@ def ask(old_ptr, new_ptr, ids: list, *, ask_human: bool, questions: list, unatte
             widened.append(f"項目 {ident}: {replan.widen_text(wide)}")
         elif changed:
             rows.append(f"項目 {ident}: 約束の欄が変わった（{'・'.join(changed)}）")
-            sections += section(ident, old, new, changed, item_rows(ruled, ident))
+            sections += section(ident, old, new, changed, item_rows(ruled, ident, old, new))
     if ask_human:
         rows += [f"事前審査の問い: {q}" for q in gatemarks.row_texts(questions)] or ["事前審査が人に聞くと言った"]
     if not rows:
         return {"open": False, "go": True, "stop_reason": "", "text": "", "widened": widened, "asked": []}
     if unattended:
-        return {"open": False, "go": False, "stop_reason": linekit.NEEDS_HUMAN, "text": "", "widened": widened, "asked": []}
+        return {"open": False, "go": False, "stop_reason": stopby.NEEDS_HUMAN, "text": "", "widened": widened, "asked": []}
     lines = gatemarks.head3(f"{HEAD}が開いた。修正の段が誤りとした計画の項目を直した案に、人が決める物が {len(rows)} 件ある",
                             "直した案で 2 度目の修正へ進めるか、止めるか（打つ行は末尾の答え方）", gatemarks.push_of(rows))
     lines += ["", f"項目（{len(rows)} 件）:", *[f"- {row}" for row in rows], *[f"- {w}" for w in widened],
               *([f"- {unread}"] if unread else []), "", *sections,
               "答え方:",
-              f"- 修正に戻る: {answer.line(run_id, 'continue', '<一言>')}（一言は {RECORD} に残り、修正前の関所の答えの条件と共に 2 度目の修正に届く）",
+              f"- 修正に戻る: {answer.line(run_id, 'continue', '<一言>')}（一言は {RECORD} に残り、修正前の承認ノードの答えの条件と共に 2 度目の修正に届く）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]
     return {"open": True, "go": True, "stop_reason": "", "text": "\n".join(lines) + "\n", "widened": widened, "asked": rows}
 
 
 def fallback(reason: str) -> dict:
-    return {"open": False, "go": False, "stop_reason": linekit.LINE_SCRIPT, "text": "", "widened": [], "asked": []}
+    return {"open": False, "go": False, "stop_reason": boundary.LINE_SCRIPT, "text": "", "widened": [], "asked": []}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: ask(linekit.value(os.environ.get("INPUTS_OLD_PLAN")), linekit.value(os.environ.get("INPUTS_NEW_PLAN")),
-                            [str(x) for x in linekit.items(os.environ.get("INPUTS_ITEMS"))],
-                            ask_human=linekit.flag(os.environ.get("INPUTS_ASK_HUMAN")),
-                            questions=linekit.items(os.environ.get("INPUTS_QUESTIONS")),
-                            unattended=linekit.flag(os.environ.get("INPUTS_UNATTENDED")), run_id=os.environ["WORKFLOW_ID"],
-                            conflicts=linekit.value(os.environ.get("INPUTS_CONFLICTS"))),
+    boundary.run(lambda: ask(boundary.value(os.environ.get("INPUTS_OLD_PLAN")), boundary.value(os.environ.get("INPUTS_NEW_PLAN")),
+                            [str(x) for x in boundary.items(os.environ.get("INPUTS_ITEMS"))],
+                            ask_human=boundary.flag(os.environ.get("INPUTS_ASK_HUMAN")),
+                            questions=boundary.items(os.environ.get("INPUTS_QUESTIONS")),
+                            unattended=boundary.flag(os.environ.get("INPUTS_UNATTENDED")), run_id=os.environ["WORKFLOW_ID"],
+                            conflicts=boundary.value(os.environ.get("INPUTS_CONFLICTS"))),
                 fallback)

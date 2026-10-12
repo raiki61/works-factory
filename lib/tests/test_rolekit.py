@@ -37,6 +37,20 @@ class ScriptMainCase(Base):
         self.assertIn("オブジェクトでない", rolekit.parse_reply("[1]")[1])
 
 
+class GivenUpCase(Base):
+    def test_count_and_at_once_give_up_lines(self):
+        """回数で諦めた時と出し直させずに諦めた時（with_done の give_up）で、諦めの 1 行の文が分かれる"""
+        for _ in range(2):
+            rolekit.with_done(self.tmp, "a", {"ok": False, "reason": "欠け"}, give_up_after=3)
+        self.assertEqual(rolekit.given_up_reason(self.tmp, "a", give_up_after=3), "")
+        rolekit.with_done(self.tmp, "a", {"ok": False, "reason": "欠け\n2 行目"}, give_up_after=3)
+        self.assertEqual(rolekit.given_up_reason(self.tmp, "a", give_up_after=3),
+                         "a の返答が 3 回とも受け付けで拒まれた（最後の拒否: 欠け 2 行目）")
+        out = rolekit.with_done(self.tmp, "b", {"ok": False, "reason": "無い"}, give_up=True)
+        self.assertTrue(out["done"])
+        self.assertEqual(rolekit.given_up_reason(self.tmp, "b"), "b の返答を受け付けが出し直させずに諦めた（拒否: 無い）")
+
+
 class AgentDefCase(unittest.TestCase):
     """agent_def: 写しの plugin（rolekit.AGENTS_PLUGIN）の役は lib の agents/<役>.md から本文を引き、無い役は None。
     置き場の環境変数は呼びの間だけ置く"""
@@ -64,6 +78,14 @@ class AgentDefCase(unittest.TestCase):
         self.assertIsNone(rolekit.agent_def(f"{rolekit.AGENTS_PLUGIN}:no-such-role"))
         self.assertIsNone(rolekit.agent_def("no-plugin-role"))
         self.assertNotIn(rolekit.env_root(rolekit.AGENTS_PLUGIN), os.environ)
+
+
+class RejectWordsCase(unittest.TestCase):
+    def test_no_board_done_in_lib(self):
+        """役に返る拒みの文は「出し直せ」と言う（works-factory に盤面の命令 done は無い。古い「直して done し直す」を残さない）"""
+        hits = [f"{p.name}:{n}" for p in sorted(LIB.glob("*.py"))
+                for n, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if "done し直す" in line]
+        self.assertEqual(hits, [])
 
 
 if __name__ == "__main__":

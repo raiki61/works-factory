@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""直した後に深さを上げ直す節 redepth（docs/design.md の「線」の「順と関所」の 7 の後。元 works/darkfactory/lib/depth.py:302 raise_）。
+"""直した後に深さを上げ直す節 redepth（docs/design.md の「メイングラフ」の「順と承認ノード」の 7 の後。元 works/darkfactory/lib/depth.py:302 raise_）。
 
 計画の深さを、案の直しが走れば直した案の単位の行で単位ごとに置き換え（1 回目の単位の行は残す。元は全部の単位の控えを残して
 上げた）、修正の後の信号で標準へ上げる（lib/depth.py の raise_doc。下げない）。信号は、単位ごとに: 修正の段が止めた単位
@@ -17,14 +17,17 @@ start（始めの記録）・answer（修正前の関所の答え）・ties_judg
 """
 import json
 import os
+import sys
+from pathlib import Path
 
-import linekit
-from linekit import boundary
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
     import changemap
     import depth as depthlib
     import gatemarks
+    import startrec
 
 PLAN_ORIGIN = "計画の allowed_paths"   # 元 depth.PLAN_ORIGIN（修正の差分を読めない時の数えの起点）
 
@@ -39,7 +42,7 @@ def pending_signals(judgment, start, answer, ties_judgment) -> list:
     if judgment is None:
         return []
     try:
-        b = gatemarks.ledger_at(boundary.resolve(judgment), boundary.resolve(start) if start is not None else None, answer,
+        b = gatemarks.ledger_at(boundary.resolve(judgment), startrec.load(boundary.resolve(start)) if start is not None else None, answer,
                                 boundary.resolve(ties_judgment) if ties_judgment is not None else None)
         return [f"答えていない問い {q.get('key')}" for q in gatemarks.pending(b)]
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
@@ -90,26 +93,28 @@ def redepth(planned, replanned_depth, units, conflicts, signals, *, replanned: b
 
 def from_env() -> dict:
     def value(name):
-        return linekit.value(os.environ.get(f"INPUTS_{name}"))
+        return boundary.value(os.environ.get(f"INPUTS_{name}"))
     planned, replanned_depth = value("DEPTH"), value("REPLAN_DEPTH")
     keys = [r["unit_id"] for r in merged(planned if isinstance(planned, list) else [],
                                         replanned_depth if isinstance(replanned_depth, list) else []) if r.get("unit_id")]
     wide, counted = wide_signals(value("PLAN"), value("DIFF"), keys)
     pending = pending_signals(value("JUDGMENT"), value("START"), value("ANSWER"), value("TIES_JUDGMENT"))
-    return {"planned": planned, "replanned_depth": replanned_depth, "units": linekit.items(os.environ.get("INPUTS_UNITS")),
-            "conflicts": linekit.items(os.environ.get("INPUTS_CONFLICTS")), "signals": [*pending, *wide],
-            "replanned": linekit.flag(os.environ.get("INPUTS_REPLANNED")), "rejudged": linekit.flag(os.environ.get("INPUTS_REJUDGED")),
+    return {"planned": planned, "replanned_depth": replanned_depth, "units": boundary.items(os.environ.get("INPUTS_UNITS")),
+            "conflicts": boundary.items(os.environ.get("INPUTS_CONFLICTS")), "signals": [*pending, *wide],
+            "replanned": boundary.flag(os.environ.get("INPUTS_REPLANNED")), "rejudged": boundary.flag(os.environ.get("INPUTS_REJUDGED")),
             "counted": counted}
+
+
+def compute() -> dict:
+    got = from_env()
+    return redepth(got["planned"], got["replanned_depth"], got["units"], got["conflicts"], got["signals"],
+                   replanned=got["replanned"], rejudged=got["rejudged"], counted=got["counted"])
 
 
 def fallback(reason: str) -> dict:
     return {"depth": [], "skip_optional": "", "raised": [f"深さを上げ直せなかった（{reason}）"], "counted": "",
-            "stop_reason": linekit.LINE_SCRIPT}
+            "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
-    def compute():
-        got = from_env()
-        return redepth(got["planned"], got["replanned_depth"], got["units"], got["conflicts"], got["signals"],
-                       replanned=got["replanned"], rejudged=got["rejudged"], counted=got["counted"])
-    linekit.run(compute, fallback)
+    boundary.run(compute, fallback)

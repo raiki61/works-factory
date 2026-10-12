@@ -8,7 +8,6 @@
   成果物の一覧を読む部品に読ませる
 """
 import ast
-import hashlib
 import importlib.util
 import json
 import os
@@ -22,6 +21,8 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.workflows import test_plan_review as plan_review
+from tests.workflows.copied import assert_is_original, rewritten
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "report"
@@ -32,11 +33,13 @@ if str(LIB) not in sys.path:
 if str(LIB / "graphloops") not in sys.path:
     sys.path.append(str(LIB / "graphloops"))
 
+import converge  # noqa: E402
 import outcome  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
 import runreport  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
+from lib.tests.test_outcome import fixed_run  # noqa: E402
 
 WORKFLOW = yaml.safe_load((BLOCK / "works-factory-report.yaml").read_text(encoding="utf-8"))
 NODES = {n["id"]: n for n in WORKFLOW["nodes"]}
@@ -251,13 +254,10 @@ class CopiedTextsCase(unittest.TestCase):
     def test_every_command_is_its_original_with_only_ledgered_edits(self):
         """役の指示書は元の works の指示書の文のまま: 台帳の直しを逆に当てると元のバイトに戻る"""
         self.assertEqual({p.name for p in (BLOCK / "commands").glob("*.md")}, set(COPIED))
+        self.assertLessEqual(rewritten(BLOCK / "commands"), set(COPIED))
         for name, (original, sha, edits) in COPIED.items():
             with self.subTest(name, original=original):
-                text = (BLOCK / "commands" / name).read_text(encoding="utf-8")
-                for before, after, _why in reversed(edits):
-                    self.assertEqual(text.count(after), 1, after)
-                    text = text.replace(after, before)
-                self.assertEqual(hashlib.sha256(text.encode("utf-8")).hexdigest(), sha)
+                assert_is_original(self, BLOCK / "commands" / name, sha, edits)
 
 
 class TypedCase(unittest.TestCase):
@@ -370,7 +370,7 @@ class FactsCase(Run):
         self.assertIs(out["ai_go"], False)
         text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
         self.assertIn("始めの記録（入力 start）が届いていない", text)
-        self.assertTrue(out["stamp"].endswith(" / 線の版 読めない（始めの記録が読めない）"), out["stamp"])
+        self.assertTrue(out["stamp"].endswith(" / メイングラフの版 読めない（始めの記録が読めない）"), out["stamp"])
         self.assertIn("TYPED_ARTIFACTS_FILE が空", text)
         self.assertIn("LOG_DIR", text)
 
@@ -384,7 +384,7 @@ class FactsCase(Run):
         self.assertIn("入力 judge が JSON でない", text)
         self.assertIn("入力 plan が JSON のオブジェクトでない", text)
         self.assertIn("始めの記録を開けない", text)
-        self.assertTrue(out["stamp"].endswith(" / 線の版 読めない（始めの記録が読めない）"), out["stamp"])
+        self.assertTrue(out["stamp"].endswith(" / メイングラフの版 読めない（始めの記録が読めない）"), out["stamp"])
         self.assertIn(f"run の記録 {self.dir / RUN}.jsonl が読めない", text)
 
     def test_unexpected_error_still_returns(self):
@@ -425,7 +425,7 @@ class FactsCase(Run):
         self.assertEqual(code, 0)
         self.assertEqual((out["outcome"], out["stop_reason"], out["ok"]), ("record_invalid", "report:record-invalid", False))
         text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
-        self.assertIn("結果を名乗れない訳: 関所 gate-final の知らない答えの語 'maybe'", text)
+        self.assertIn("結果を名乗れない訳: 承認ノード gate-final の知らない答えの語 'maybe'", text)
 
     def test_unreadable_or_missing_conflicts_are_record_invalid(self):
         """人に回した申し出が読めない run は結果を名乗らない（読めなければ人に聞いた申し出が無いと数えて fixed に落ちる）"""
@@ -433,7 +433,7 @@ class FactsCase(Run):
         broken = self.pointer("fix/conflicts.json", {})
         (self.artifacts / "fix/conflicts.json").write_text("{not json", encoding="utf-8")
         missing = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "fix/none.json"})
-        for name, conflicts, word in (("JSON でない", broken, "申し出と裁定のファイル"), ("先が無い", missing, "指し札の先")):
+        for name, conflicts, word in (("JSON でない", broken, "申し出と裁定のファイル"), ("先が無い", missing, "ポインタの先")):
             with self.subTest(name):
                 fix = json.dumps({"done": True, "units": [], "conflicts": json.loads(conflicts)})
                 code, out = self.run_script("facts", INPUTS_START=start, INPUTS_FIX=fix)
@@ -443,9 +443,9 @@ class FactsCase(Run):
                 self.assertIn(f"結果を名乗れない訳: {word}", text)
 
     def test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome(self):
-        """来歴の行の周は計画（案の直しが在ればそちら）の round、線の版は始めの記録の versions.line。依頼が命令と出力つきで答えた素材は残りに数えない（始めの記録の
+        """来歴の行の周は計画（案の直しが在ればそちら）の round、メイングラフの版は始めの記録の versions.works.rev。依頼が命令と出力つきで答えた素材は残りに数えない（始めの記録の
         answers が結末の決め方に届く）"""
-        start = self.pointer("start/start.json", {"run_id": RUN, "versions": {"line": "c" * 64}, "answers": [
+        start = self.pointer("start/start.json", {"run_id": RUN, "versions": {"works": {"rev": "c" * 64, "dirty": False}}, "answers": [
             {"question": "ci", "text": "緑", "command": "make ci", "output": "ok"}]})
         judgment = self.pointer("judge/judgment.json", {})
         self.pointer("judge/materials.json", {"ci": {"status": "awaiting_human"}})
@@ -456,7 +456,7 @@ class FactsCase(Run):
         code, out = self.run_script("facts", **env)
         self.assertEqual(code, 0)
         self.assertEqual(out["outcome"], "fixed", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
-        self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / 工程の版 [0-9a-f]{{12}} / 線の版 cccccccccccc$")
+        self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / グラフの版 [0-9a-f]{{12}} / メイングラフの版 cccccccccccc$")
 
     def test_green_cert_section_reads_the_test_gate_evidence(self):
         """test-gate の result.py が書く証拠の文の走らせ方とログの行が、緑の認証の節に届く（runreport.EVIDENCE_ROWS と test-gate の字の結び）"""
@@ -510,7 +510,7 @@ class FactsCase(Run):
         text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
         for line in (f"- {runreport.DEFERRED_HEAD}: 1 件\n  - [fork] q1", "  - 案の項目 1: 直した——広げた",
                      f"- {runreport.FINAL_REASONS_HEAD}: 1 件\n  - 守りのパスに当たった", f"- {runreport.PRIOR_IN_HEAD}: 1 件\n  - 受け付け 計画: 前の run の拒否",
-                     "  - 標準へ上げた信号: 再審が走った", "- 線の節の止め: ask-final が works:needs-human"):
+                     "  - 標準へ上げた信号: 再審が走った", "- メイングラフのノードの止め: ask-final が works:needs-human"):
             with self.subTest(line=line):
                 self.assertIn(line, text)
         code, out = self.run_script("facts", INPUTS_START=start, INPUTS_STOPS=json.dumps({"start": "works:start-refused"}))
@@ -539,6 +539,32 @@ class FactsCase(Run):
         self.assertEqual(out["outcome"], "interrupted", "計画の返りが無い")
         text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
         self.assertIn(str(self.artifacts / "judge" / "judgment.json"), text)
+
+
+class ReplanGiveUpCase(Run):
+    """案の直しを終えられなかった項目（計画の役の諦め・事前審査の諦め）は、項目ごとに諦めの訳と裁定の文（字のまま）を前の失敗の行
+    （報告と次の run に渡す prior-failures.json）に載せる（元 tests/test_replan.py の test_gave_up_paths_reach_ask_human_verbatim）"""
+
+    def test_gave_up_replan_names_ruling_text_and_reason(self):
+        import planblk
+        ruling = "RULING-7310 項目 1 の allowed_paths に request_ok.json を足せ"
+        why = planblk.PLAN_GAVE_UP_WHY.format(reason="plan の受け付けが 3 回とも拒んだ: 一字も変えずに写す")
+        plan = self.pointer("plan/r2/plan-fields.json", {"round": 2, "fields": []})
+        self.pointer(f"plan/r2/{planblk.REPLAN_GAVE_UP_FILE}", [{"item": 1, "why": why, "ruling": ruling}])
+        judgment = self.pointer("judge/judgment.json", {})
+        judge = {"ready": True, "stop_reason": "", "units": [{"id": "u1"}], "judgment": json.loads(judgment)}
+        replan = {"ready": False, "round": 2, "plan": json.loads(plan)}
+        code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}),
+                                    INPUTS_JUDGE=json.dumps(judge), INPUTS_PLAN='{"ready": true, "round": 1}',
+                                    INPUTS_REPLAN=json.dumps(replan))
+        self.assertEqual(code, 0)
+        rows = json.loads((self.artifacts / out["prior_failures"]["path"]).read_text(encoding="utf-8"))
+        hit = [r for r in rows if r["where"] == runreport.REPLAN_GAVE_UP_WHERE.format(item=1)]
+        self.assertEqual(len(hit), 1, rows)
+        self.assertIn(f"裁定の文: {ruling}", hit[0]["text"])
+        self.assertIn(why, hit[0]["text"])
+        text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
+        self.assertIn(ruling, text)
 
 
 class AcceptScriptCase(Run):
@@ -598,7 +624,7 @@ class CollectScriptCase(Run):
         runreport.accept(AcceptScriptCase.REPLY, AcceptScriptCase.PASS, out_dir=self.artifacts / "report")
         out = self.collect(json.dumps(facts))
         text = (self.artifacts / out["report_ai"]["path"]).read_text(encoding="utf-8")
-        self.assertTrue(text.startswith(f"works-factory-report / run {RUN} / 周 — / 工程の版 "))
+        self.assertTrue(text.startswith(f"works-factory-report / run {RUN} / 周 — / グラフの版 "))
         self.assertIn(report_roles.MACHINE_HEADING, text)
 
     def test_ok_is_passed_through_from_facts(self):
@@ -652,6 +678,32 @@ class CollectScriptCase(Run):
         blocker.write_text("", encoding="utf-8")
         out = self.collect(json.dumps({**good, "report": None}), ARTIFACTS_DIR=str(blocker))
         self.assertEqual(out["outcome"], "record_invalid")
+
+
+class ConvergeLinesCase(unittest.TestCase):
+    """事前審査の往復の報告の行（棚卸しの P119。元 works/tests/test_report.py の test_head_lists_converge_lines）"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = pathlib.Path(os.path.realpath(tmp.name))
+
+    def test_head_carries_plan_converge_lines(self):
+        """plan-review の返りの review の隣の gate.json の converge の行（1 回目に出た割合の句を含む頭の行）が、報告の冒頭の決めの節に
+        載る。事前審査のブロックの script を本当に回して返りを作る"""
+        r = plan_review.Run(self.dir / "plan-review")
+        r.start(features_off=["review_tree"])
+        got = r.pass_(plan_review.review(plan_review.MEAN_BLOCK))
+        lines = converge.lines(r.view())
+        self.assertIn("1 回目の block 1 件", lines[0])
+        returns = fixed_run(**{"plan-review": {**got, "review": str(r.pointed(got["review"]))}})
+        decided = outcome.decide_outcome(returns, {}, {"start_ok": True, "record_problems": [], "failed": []})
+        built = runreport.build(returns, {}, {}, None, *decided, out_dir=self.dir / "report", start={"run_id": RUN}, run_id=RUN)
+        text = pathlib.Path(built["report"]).read_text(encoding="utf-8")
+        body = text.split(f"{report.DECISIONS_HEADING}\n\n", 1)[1].split("\n## ", 1)[0]
+        self.assertIn(f"- {lines[0]}\n", body)
+        for line in lines[1:]:
+            self.assertIn(f"{line}\n", body)
 
 
 class FixtureCase(unittest.TestCase):

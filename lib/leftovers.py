@@ -115,16 +115,16 @@ def _write_json(path: pathlib.Path, data) -> str:
 def _read_before(board, before_name: str = IGNORED_BEFORE_FILE) -> dict:
     path = _board_path(board, before_name)
     if not path.is_file():
-        raise Unreadable(f"盤面に {before_name} が無い——修正役の前の控えが無いので、どれが修正役の生成物か分からない")
+        raise Unreadable(f"共有ボードに {before_name} が無い——修正役の前の控えが無いので、どれが修正役の生成物か分からない")
     try:
         before = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        raise Unreadable(f"盤面の {before_name} が読めない（{e}）")
+        raise Unreadable(f"共有ボードの {before_name} が読めない（{e}）")
     # 古い形（dirs・ignored_dirs の無い控え）も拒む。フォルダの控えが無いと、前から在った空のフォルダや .venv の中身を消しうる
     for key in ("ignored", "ignored_dirs", "dirs"):
         v = before.get(key) if isinstance(before, dict) else None
         if not isinstance(v, list) or not all(isinstance(s, str) for s in v):
-            raise Unreadable(f"盤面の {before_name} の型が合わない（{key} が文字列の配列でない）")
+            raise Unreadable(f"共有ボードの {before_name} の型が合わない（{key} が文字列の配列でない）")
     return before
 
 
@@ -132,7 +132,7 @@ def head_tree(board, before_name: str = IGNORED_BEFORE_FILE) -> str:
     """record_ignored が控えた段の頭の木（欄 head_tree）。控えが無い・読めない・欄が空でない文字列でなければ Unreadable"""
     tree = _read_before(board, before_name).get("head_tree")
     if not isinstance(tree, str) or not tree:
-        raise Unreadable(f"盤面の {before_name} に段の頭の木（head_tree）が無い")
+        raise Unreadable(f"共有ボードの {before_name} に段の頭の木（head_tree）が無い")
     return tree
 
 
@@ -180,7 +180,7 @@ def removed(board, removed_name: str = REMOVED_FILE) -> dict:
     try:
         found = sorted(p for p in [board / removed_name, *board.glob(f"*/{removed_name}")] if p.is_file())
     except OSError as e:
-        return {**out, "ran": True, "readable": False, "reason": f"盤面の {removed_name} を探せない（{e}）"}
+        return {**out, "ran": True, "readable": False, "reason": f"共有ボードの {removed_name} を探せない（{e}）"}
     bad = []
     for p in found:
         scope = "" if p.parent == board else p.parent.name

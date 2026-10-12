@@ -6,12 +6,16 @@
 - コマンドが終わった後に背景に残した孫も止める
 - 自分で setsid して別のセッション（= 別のグループ）へ出た孫も、殻が SIGTERM を受けたら止める（SIGTERM を無視しても
   実行基盤の猶予の内に SIGKILL で）
+- 名指しの ps そのものが固まっても、ps より前にグループを凍らせ、ps が戻れば消す
+- 凍らせたグループは SIGTERM の後に SIGCONT で起こすので、子の SIGTERM の受け手が走る
+- 長を回収した後は（番号が再利用されうるので）ps より前に凍らせない
 - 生きた仲間の居ないグループ（ゾンビだけ）に惑わされず、別のグループへ出た生きた仲間を止めて、猶予を使い切らずに戻る
 - 殻の直下の親（節では uv）が kill -9 で消えたら（親が替わったら）木ごと止める。起きた時に既に孤児（親が 1）なら走らせない
 - 終わりを待ち終えた直後に届いた止める信号も落とさない
 - pack の中に __pycache__ を作らない（試験が持つ写しの pack で見る）
 孫の生死はプロセスグループ（コマンドの sh の pid と同じ番号）が空かで見る。グループの外へ出た孫は、孫が書いた pid で見る。
 """
+import itertools
 import os
 import pathlib
 import shlex
@@ -32,6 +36,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import tree_run  # noqa: E402
+from tests.bin import gitkit  # noqa: E402
 
 
 def group_gone(pgid, within):
@@ -351,11 +356,23 @@ class TreeRunCase(unittest.TestCase):
 
     # ------------------------------------------------ 止めた後に抜ける前の待ち（試し P17 の Ctrl-C の穴）
     def test_stop_budget_is_under_host_grace(self):
-        # 信号に気づくまで POLL、SIGKILL まで KILL_GRACE + PS_TIMEOUT、抜けるまで LINGER。和が 実行基盤の cancel の猶予
-        # （5 秒）より短いこと（0.2 + 2 + 1 + 1 = 4.2 秒）
+        # 信号に気づくまで POLL、SIGKILL まで KILL_GRACE と ps の 1 回、抜けるまで LINGER。期限の無い ps の回の分を残して、
+        # 和が 実行基盤の cancel の猶予（5 秒）より短いこと（0.2 + 2 + 1 = 3.2 秒）。ps に期限を置かない（E12）
         host_grace = 5.0
         self.assertGreaterEqual(tree_run.LINGER, 1.0)
-        self.assertLess(tree_run.POLL + tree_run.KILL_GRACE + tree_run.PS_TIMEOUT + tree_run.LINGER, host_grace)
+        self.assertLess(tree_run.POLL + tree_run.KILL_GRACE + tree_run.LINGER, host_grace)
+        self.assertFalse(hasattr(tree_run, "PS_TIMEOUT"))
+
+    def test_ps_is_named_by_path_without_timeout(self):
+        # 期限の替わりに、止まらない形を命令の選びで持つ: PATH から引かずに /bin/ps を名指し、期限を渡さない
+        with mock.patch.object(tree_run.subprocess, "run", wraps=subprocess.run) as run:
+            rows, why = tree_run._ps_all()
+        self.assertIsNone(why)
+        self.assertIn(os.getpid(), rows)
+        call = run.call_args
+        self.assertEqual(call.args[0][0], tree_run.PS)
+        self.assertEqual(tree_run.PS, "/bin/ps")
+        self.assertNotIn("timeout", call.kwargs)
 
     def test_stopped_run_lingers_before_exit_within_host_grace(self):
         # 止める信号で木を止めた後、殻は LINGER 秒待ってから抜ける（節がすぐ死ぬと 実行基盤の run が running のまま固まる。
@@ -389,29 +406,115 @@ class TreeRunCase(unittest.TestCase):
             self.assertLess(time.monotonic() - t0, 10)
 
     # ------------------------------------------------ ps が遅い・壊れている
-    def test_slow_or_failing_ps_still_stops_before_host_kills_tree_run(self):
+    def test_hanging_or_failing_ps_still_stops_before_host_kills_tree_run(self):
         # ps が固まる・失敗する場でも、止める手順は 実行基盤の cancel の猶予（5 秒）の内に SIGTERM を無視する孫へ SIGKILL を
-        # 届ける。ps を待つのは PS_TIMEOUT 秒までで、読めなければグループへ直ちに送り、以後の回は ps を起こさない
+        # 届ける。固まる ps は PATH の替え玉で、殻は /bin/ps を名指すので拾わない。失敗する ps（表を読めない）ではグループへ
+        # 直ちに送り、以後の回は ps を起こさない
         host_grace = 5.0
-        for name, body in (("slow", "exec sleep 8"), ("failing", "echo 壊れた >&2; exit 1")):
-            with self.subTest(name):
-                fake = self.tmp / f"bin-{name}"
-                fake.mkdir()
-                (fake / "ps").write_text(f"#!/bin/sh\n{body}\n")
-                (fake / "ps").chmod(0o755)
-                pidf = self.tmp / f"pgid-{name}"
-                env = {**self.env, "PATH": f"{fake}{os.pathsep}{self.env.get('PATH', '')}"}
-                p = subprocess.Popen(self.cli("--", f"echo $$ > {pidf}; (trap '' TERM; sleep 300) & wait"), env=env,
-                                     cwd=str(self.tmp), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                     stderr=subprocess.DEVNULL)
-                self.started.append(("popen", p))
-                pgid = read_int(pidf)
-                self.started.append(("pg", pgid))
-                t0 = time.monotonic()
-                p.send_signal(signal.SIGTERM)
-                self.assertTrue(self.group_gone(pgid, host_grace), "ps が使えない場で、実行基盤の猶予の内に孫が消えなかった")
-                self.assertLess(time.monotonic() - t0, host_grace)
-                self.assertEqual(p.wait(15), 128 + signal.SIGTERM)
+        with self.subTest("hanging ps on PATH"):
+            fake = self.tmp / "bin-hanging"
+            fake.mkdir()
+            (fake / "ps").write_text("#!/bin/sh\nexec sleep 300\n")
+            (fake / "ps").chmod(0o755)
+            env = {**self.env, "PATH": f"{fake}{os.pathsep}{self.env.get('PATH', '')}"}
+            p = subprocess.Popen(self.cli("--", f"echo $$ > {self.pidf}; (trap '' TERM; sleep 300) & wait"), env=env,
+                                 cwd=str(self.tmp), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
+            self.started.append(("popen", p))
+            pgid = self.wait_pgid()
+            t0 = time.monotonic()
+            p.send_signal(signal.SIGTERM)
+            self.assertTrue(self.group_gone(pgid, host_grace), "PATH に固まる ps が在る場で、実行基盤の猶予の内に孫が消えなかった")
+            self.assertEqual(p.wait(host_grace), 128 + signal.SIGTERM)
+            self.assertLess(time.monotonic() - t0, host_grace, "PATH に固まる ps が在る場で、実行基盤の猶予の内に抜けなかった")
+        with self.subTest("failing ps"):
+            fake = self.tmp / "failing-ps"
+            fake.write_text("#!/bin/sh\necho 壊れた >&2; exit 1\n")
+            fake.chmod(0o755)
+            child = self.tmp / "child"
+            p = subprocess.Popen(["/bin/sh", "-c", f"(trap '' TERM; echo $$ > {child}; sleep 300) & wait"],
+                                 start_new_session=True, stdin=subprocess.DEVNULL)
+            self.started.extend([("popen", p), ("pg", p.pid)])
+            read_int(child)
+            t0 = time.monotonic()
+            with mock.patch.object(tree_run, "PS", str(fake)):
+                why = tree_run.stop_group(p)
+            self.assertIn("数え上げられない", why or "")
+            self.assertTrue(self.group_gone(p.pid, host_grace), "ps が失敗する場で、実行基盤の猶予の内に孫が消えなかった")
+            self.assertLess(time.monotonic() - t0, host_grace)
+
+    def test_group_is_frozen_before_ps_even_if_ps_hangs(self):
+        # 名指しの PS そのものが固まっても（期限は置かない。E12）、長が回収前なら ps より前にグループを SIGSTOP で止めるので、
+        # グループの子は ps を待つ間も走らない（作業ツリーに書かない）。ps が戻れば SIGTERM と SIGCONT で消える。
+        # stop_group は固まった ps を待つので別の糸で呼び、子の状態を本物の /bin/ps で見る
+        fake = self.tmp / "hanging-ps"
+        ps_pidf = self.tmp / "ps-pid"
+        fake.write_text(f"#!/bin/sh\necho $$ > {ps_pidf}\nexec sleep 300\n")
+        fake.chmod(0o755)
+        child = self.tmp / "child"
+        p = subprocess.Popen(["/bin/sh", "-c", f"sleep 300 & echo $! > {child}; wait"], start_new_session=True,
+                             stdin=subprocess.DEVNULL)
+        self.started.extend([("popen", p), ("pg", p.pid)])
+        cpid = read_int(child)
+        with mock.patch.object(tree_run, "PS", str(fake)):
+            stopper = threading.Thread(target=tree_run.stop_group, args=(p,), daemon=True)
+            stopper.start()
+            ps_pid = None
+            try:
+                ps_pid = read_int(ps_pidf)
+                state = subprocess.run(["/bin/ps", "-o", "stat=", "-p", str(cpid)], capture_output=True, text=True,
+                                       timeout=30).stdout.strip()
+                self.assertTrue(state.startswith("T"), f"ps が固まる間、グループの子が止まっていない（stat {state!r}）")
+            finally:
+                if ps_pid is not None:
+                    os.kill(ps_pid, signal.SIGKILL)
+                stopper.join(10)
+        self.assertFalse(stopper.is_alive(), "固まった ps を殺した後も stop_group が戻らない")
+        self.assertTrue(self.pid_gone(cpid, 1), "ps が戻った後、止めたグループの子が消えない")
+        self.assertTrue(self.group_gone(p.pid, 1))
+
+    def test_frozen_group_is_continued_so_its_sigterm_handler_runs(self):
+        # 凍らせたグループへは SIGTERM の後に SIGCONT を送るので、子の SIGTERM の受け手が走る（後始末ができる）。
+        # SIGCONT が無いと子は凍ったまま SIGKILL で消え、受け手は走らない
+        ready, handled = self.tmp / "ready", self.tmp / "handled"
+        p = subprocess.Popen(["/bin/sh", "-c", f"(trap 'echo 1 > {handled}; exit 0' TERM; echo 1 > {ready}; "
+                                               "while :; do sleep 0.05; done) & wait"],
+                             start_new_session=True, stdin=subprocess.DEVNULL)
+        self.started.extend([("popen", p), ("pg", p.pid)])
+        read_int(ready)
+        self.assertIsNone(tree_run.stop_group(p))
+        self.assertTrue(handled.exists(), "凍らせたグループの子の SIGTERM の受け手が走らなかった")
+        self.assertTrue(self.group_gone(p.pid, 1))
+
+    def test_group_is_not_frozen_after_leader_is_reaped(self):
+        # 長を回収した後は番号が再利用されうるので、ps より前に凍らせない（数えてから送る）。固まる ps を待つ間、
+        # 長が残した子は止まっていない。ps が戻れば子は消える
+        fake = self.tmp / "hanging-ps"
+        ps_pidf = self.tmp / "ps-pid"
+        fake.write_text(f"#!/bin/sh\necho $$ > {ps_pidf}\nexec sleep 300\n")
+        fake.chmod(0o755)
+        child = self.tmp / "child"
+        p = subprocess.Popen(["/bin/sh", "-c", f"sleep 300 & echo $! > {child}; exit 0"], start_new_session=True,
+                             stdin=subprocess.DEVNULL)
+        self.started.extend([("popen", p), ("pg", p.pid)])
+        cpid = read_int(child)
+        self.started.append(("pid", cpid))
+        p.wait(10)
+        with mock.patch.object(tree_run, "PS", str(fake)):
+            stopper = threading.Thread(target=tree_run.stop_group, args=(p,), daemon=True)
+            stopper.start()
+            ps_pid = None
+            try:
+                ps_pid = read_int(ps_pidf)
+                state = subprocess.run(["/bin/ps", "-o", "stat=", "-p", str(cpid)], capture_output=True, text=True,
+                                       timeout=30).stdout.strip()
+                self.assertFalse(state.startswith("T"), f"回収した長のグループを ps より前に凍らせた（stat {state!r}）")
+            finally:
+                if ps_pid is not None:
+                    os.kill(ps_pid, signal.SIGKILL)
+                stopper.join(10)
+        self.assertFalse(stopper.is_alive(), "固まった ps を殺した後も stop_group が戻らない")
+        self.assertTrue(self.pid_gone(cpid, 1), "ps が戻った後、回収した長が残した子が消えない")
 
     # ------------------------------------------------ pack を汚さない
     def test_no_bytecode_in_pack(self):
@@ -461,6 +564,33 @@ class LaunchProofShapeCase(unittest.TestCase):
                 self.assertEqual(subprocess.run(["bash", "-c", cmd], stdout=subprocess.DEVNULL).returncode, 0)
                 tree_run.prove_launchable(["bash", "-c", cmd])
 
+    def test_slow_proof_is_waited_out_without_deadline(self):
+        # 証明が何回 POLL を数えても、時計が何時間進んでも、期限で捨てて起こさず、command -v の答えを待つ（E12）。
+        # 回数・monotonic・壁時計のどの形の上限でも、BASH_ENV が放されるより前に捨てて戻り、この試験は赤になる
+        polls = 1000
+        with tempfile.TemporaryDirectory() as tmp:
+            release = pathlib.Path(tmp) / "release"
+            slow = pathlib.Path(tmp) / "slow-env.sh"
+            slow.write_text(f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.01; done\n")
+            env = {**os.environ, "BASH_ENV": str(slow)}
+            calls = itertools.count(1)
+
+            def halted():
+                if next(calls) == polls:
+                    release.touch()
+                return False
+
+            clock = itertools.count(0, 3600)
+
+            def leap():
+                return float(next(clock))
+
+            with mock.patch.object(tree_run, "POLL", 0.001), mock.patch.object(tree_run.time, "monotonic", leap), \
+                    mock.patch.object(tree_run.time, "time", leap), self.assertRaises(FileNotFoundError):
+                tree_run.prove_launchable(["bash", "-c", "no-such-command-xyz"], env=env, halted=halted)
+            self.assertGreaterEqual(next(calls) - 1, polls)
+        self.assertFalse(hasattr(tree_run, "PROOF_TIMEOUT"))
+
 
 class CommandArgvCase(unittest.TestCase):
     def test_simple_words_are_direct(self):
@@ -490,6 +620,93 @@ class CommandArgvCase(unittest.TestCase):
     def test_launch_kind_reads_126_127_as_red(self):
         self.assertEqual([tree_run.launch_kind(c) for c in (None, 0, 1, 126, 127)],
                          ["broken", "clean", "red", "red", "red"])
+
+
+class ReuseRunCase(unittest.TestCase):
+    """reuse_run の結果の使い回しの要（元 test_tree_run.py の SlotReuseCase の test_broken_entry_runs_child_and_says_why・
+    test_writeback_failure_restores_log・test_red_or_tree_changing_run_is_not_kept）。本物の git と本物の子のプロセスで試す"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        self.repo = self.tmp / "repo"
+        self.repo.mkdir()
+        (self.repo / "a.txt").write_text("1\n", encoding="utf-8")
+        gitkit.git(self.repo, "init", "-q")
+        gitkit.git(self.repo, "add", "-A")
+        gitkit.git(self.repo, "commit", "-q", "-m", "seed")
+        self.count = self.tmp / "count"
+        self.report = self.tmp / "report.xml"
+        self.place = tree_run.reuse_place(self.tmp / "art", "run-a", rerun=False)
+        self.n = 0
+
+    def launch(self, argv=None, outputs=None):
+        """reuse_run を 1 回呼ぶ ——（終了コード, 出力, note）。argv の既定は count に 1 行足して out を書き、報告を書く sh"""
+        argv = argv or ["sh", "-c", f'echo 1 >> {self.count}; echo out; [ -d {self.report} ] || echo "<r/>" > {self.report}']
+        note = {}
+        self.n += 1
+        log = self.tmp / f"log-{self.n}"
+        with open(log, "wb") as f:
+            rc = tree_run.reuse_run(argv, {"PATH": os.environ["PATH"]}, place=self.place,
+                                    outputs=(self.report,) if outputs is None else outputs, note=note,
+                                    stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT, cwd=str(self.repo))
+        return rc, log.read_bytes(), note
+
+    def launched(self):
+        return len(self.count.read_text(encoding="utf-8").split()) if self.count.exists() else 0
+
+    def test_broken_entry_runs_child_and_says_why(self):
+        self.launch()
+        _, _, note = self.launch()
+        self.assertEqual(self.launched(), 1)
+        pathlib.Path(note["reused"]["entry"]).write_text("{", encoding="utf-8")
+        rc, log, note = self.launch()
+        self.assertEqual((rc, self.launched(), log), (0, 2, b"out\n"))
+        self.assertNotIn("reused", note)
+        self.assertIn("控えが読めない", note["reuse_off"])
+
+    def test_writeback_failure_restores_log(self):
+        """書き戻しは全部か無し: 書き戻せなければ書いた分を戻して子を起こし、ログに控えの出力を残さない"""
+        self.launch()
+        self.report.unlink()
+        self.report.mkdir()   # 書き戻し先がディレクトリ: IsADirectoryError
+        rc, log, note = self.launch()
+        self.assertEqual((rc, self.launched(), log), (0, 2, b"out\n"))
+        self.assertNotIn("reused", note)
+        self.assertIn("書き戻しに失敗した", note["reuse_off"])
+
+    def test_report_written_right_after_launch_is_kept(self):
+        """起こした時刻はファイルの時刻の時計で取る: time.time() がファイルの時刻より進んでいても（Linux の粗いファイルの時刻）、
+        起こした後に書いた報告を控え、書き戻す"""
+        real = time.time
+        with mock.patch.object(time, "time", lambda: real() + 5):
+            self.launch()
+            self.report.unlink()
+            _, _, note = self.launch()
+        self.assertEqual((self.launched(), self.report.read_text(encoding="utf-8")), (1, "<r/>\n"))
+        self.assertIn("reused", note)
+
+    def test_red_or_tree_changing_run_is_not_kept(self):
+        red = ["sh", "-c", f"echo 1 >> {self.count}; exit 1"]
+        self.assertEqual(self.launch(red, ())[0], 1)
+        rc, _, note = self.launch(red, ())
+        self.assertEqual((rc, self.launched()), (1, 2))
+        self.assertIn("緑の回だけ控える", note["reuse_off"])
+        make = ["sh", "-c", f"echo 1 >> {self.count}; echo x > made.txt"]
+        _, _, note = self.launch(make, ())
+        self.assertIn("作業ツリーが変わった", note["reuse_off"])
+        (self.repo / "made.txt").unlink()
+        self.launch(make, ())
+        self.assertEqual(self.launched(), 4)   # 置かれていれば 2 度目は控えから使われ、子が起きない
+
+    def test_no_place_always_launches(self):
+        """置き場の無い呼び（reuse_place が None。top か run が空）は控えを読まず書かず、note に何も置かない"""
+        self.assertIsNone(tree_run.reuse_place("", "run-a", rerun=False))
+        self.assertIsNone(tree_run.reuse_place(self.tmp, "", rerun=False))
+        self.place = None
+        notes = [self.launch()[2] for _ in range(2)]
+        self.assertEqual((self.launched(), notes), (2, [{}, {}]))
 
 
 if __name__ == "__main__":

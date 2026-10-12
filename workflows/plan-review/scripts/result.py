@@ -5,20 +5,21 @@
 """返す節（boardview.collect）。
 落ちない: 境の口と lib の import から先の誤りは全部捕まえ、終了の値 0 で、偽の結末と訳を返りの約束の形で返す（返す節が落ちると線が
 先へ進めない）。その時は境の口を通さず、置き場の plan-review/failed/ に事前審査の返答・設計の控え・聞かずに通した行（空。report が
-review.json の隣を名で開く）を素の json で書き、指し札も字で組む"""
+review.json の隣を名で開く）と承認ノードの項目と壁打ちの行（gate.json）を素の json で書き、指し札も字で組む"""
 import json
 import os
 import sys
 from pathlib import Path
 
-# boardview.FOLDER・REVIEW_FILE・PASSES_FILE と design.DESIGN_FILE、gate_axes.AXES、gatemarks.GIVEN_UP_KIND（境の口と lib を読めない時にも
+# boardview.FOLDER・REVIEW_FILE・PASSES_FILE・GATE_FILE と design.DESIGN_FILE、gate_axes.AXES、gatemarks.GIVEN_UP_KIND（境の口と lib を読めない時にも
 # 書けるよう字で持つ。試験が一致を縛る）
 FAILED = "plan-review/failed"
 REVIEW_FILE = "review.json"
 DESIGN_FILE = "design.json"
 PASSES_FILE = "gate-passes.json"
+GATE_FILE = "gate.json"
 AXES = ("obvious", "world", "clean", "not_overkill")
-FAILED_HEAD = "返す節が落ちた: "
+FAILED_HEAD = "出力ノードが落ちた: "
 FAILED_KIND = "given_up"
 
 
@@ -40,7 +41,7 @@ def failed(error: BaseException) -> dict:
     note = FAILED_HEAD + f"{type(error).__name__}: {' '.join(str(error).split())}"
     folder = Path(os.environ.get("ARTIFACTS_DIR", ".")) / FAILED
     for name, doc in ((REVIEW_FILE, {"faces": [], "shrink": [], "reason": note}), (DESIGN_FILE, {"missing": note}),
-                      (PASSES_FILE, [])):
+                      (PASSES_FILE, []), (GATE_FILE, {"items": [{"kind": FAILED_KIND, "text": note}], "converge": []})):
         try:
             folder.mkdir(parents=True, exist_ok=True)
             (folder / name).write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
@@ -56,7 +57,7 @@ def main() -> int:
         boundary, out = collected()
         boundary.returns(out)
     except Exception as e:
-        print(json.dumps(failed(e), ensure_ascii=False), flush=True)
+        print(json.dumps(failed(e), ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 

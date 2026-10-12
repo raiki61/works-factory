@@ -181,7 +181,7 @@ def _answers(rows) -> list:
             raise ValueError(f"answers[{i}] は前の run の報告が書いた答えの下書き（draft・source の欄が在る。機械は答えていない）——"
                              "見直して、台帳の問いの行（question が問いの key）は採るなら draft と source（と note）の欄を消し"
                              "（text は直してよい。推しの無い行は text が空なので、note の材料から答えを書く）、"
-                             "採らないなら行を消す。関所の項目の行（question が関所の項目の文）は次の run の関所の continue の一言の材料で、"
+                             "採らないなら行を消す。承認ノードの項目の行（question が承認ノードの項目の文）は次の run の承認ノードの continue の一言の材料で、"
                              "依頼ではどの問いにも当たらないので、一言に写してから行を消す")
         extra = sorted(set(a) - set(ANSWER_KEYS))
         if extra:

@@ -14,7 +14,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 import fixboard  # noqa: E402
 import rolekit  # noqa: E402
 import startrec  # noqa: E402
@@ -23,7 +22,7 @@ LENS = "silent-failure-hunter"   # 工程の節 lens が受けるレンズ（len
 
 
 def main() -> None:
-    place = fixio.place()
+    place = boundary.place("fix")
     got = fixboard.lens_route(place, rolekit.lang_line(startrec.read(place)))[LENS]
     boundary.returns({"go": bool(got["go"]), "prompt_file": got["prompt_file"]})
 

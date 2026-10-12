@@ -20,11 +20,13 @@ stop_reason で返し、fixed が試験の関門・独立の目・merge へ進�
 （rejudge-run の止めの理由。`{from, if_skipped: null}`）・objection（fix の異議）
 """
 import os
+import sys
+from pathlib import Path
 
-import linekit
-from linekit import boundary
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
     import report
 
 FIELDS = ("units", "judgment", "purpose", "world", "rejudge_verdict")
@@ -39,7 +41,7 @@ def compared(rejudge: dict | None) -> dict:
     try:
         folder = boundary.resolve(rejudge.get("judgment")).parent
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
-        return {**empty, "unread": f"再審の前後を比べられない（再審の判定の指し札を開けない。{type(error).__name__}: {error}）"}
+        return {**empty, "unread": f"再審の前後を比べられない（再審の判定のポインタを開けない。{type(error).__name__}: {error}）"}
     doc, why = report.rejudge_exit(folder)
     if doc is None:
         return {**empty, "unread": f"再審の前後を比べられない（{why}）"}
@@ -53,19 +55,19 @@ def judged(judge: dict, rejudge: dict | None, objection: str, rejudge_stop: str 
 
 
 def of_env(prefix: str) -> dict:
-    return {key: linekit.field(key, os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
+    return {key: boundary.field(key, os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
 
 
 def from_env() -> tuple:
     rejudge = of_env("REJUDGE")
-    return (of_env("JUDGE"), (None if rejudge["units"] is None else rejudge), linekit.text(os.environ.get("INPUTS_OBJECTION")),
-            linekit.text(os.environ.get("INPUTS_REJUDGE_STOP_REASON")))
+    return (of_env("JUDGE"), (None if rejudge["units"] is None else rejudge), boundary.text(os.environ.get("INPUTS_OBJECTION")),
+            boundary.text(os.environ.get("INPUTS_REJUDGE_STOP_REASON")))
 
 
 def fallback(reason: str) -> dict:
     return {**{key: None for key in FIELDS}, "rejudged": False, "new_open_units": [], "lowered": [], "unnamed_changed": [],
-            "unread": "", "stop_reason": linekit.LINE_SCRIPT}
+            "unread": "", "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: judged(*from_env()), fallback)
+    boundary.run(lambda: judged(*from_env()), fallback)

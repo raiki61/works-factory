@@ -1,8 +1,8 @@
 # 借りた superpowers のスキルを無人の役で読むときの読み替え
 
-対象は、works に写した superpowers（`.shared/borrow/superpowers/<版>/`。版・commit・ファイルごとの sha256 は `borrow.json` の `pin`）のスキルのうち、借りる 5 本（`.shared/borrow/borrow.json` の `skills`。`dev/toolset.py` が隔離した設定の `skills/` に写す）と、部品（スキルとしては使わず、中の型を役の指示書の骨に使うファイル。`borrow.json` の `parts`）。写しは直さない。版を上げるのは `dev/toolset.py vendor` だけ。借りた物を役に載せる時の包み方（節ごとの使い道・錨・穴・出口の語）は、包む節の表 `.shared/borrow/seams.json` が持つ。スキルの文が人（your human partner）や調整役（下請けの AI を起こす親の会話）を前提にしている所は、works の無人の役ではこのファイルの決まりで読み替える。スキルの文とこのファイルがぶつかったら、このファイルが勝つ。さらに、役の指示書（`blk-*/commands/*.md` と、支度の節が組んで役に読ませる指示書）と節の `output_format` は、このファイルより勝つ。
+対象は、works に写した superpowers（`.shared/borrow/superpowers/<版>/`。版・commit・ファイルごとの sha256 は `borrow.json` の `pin`）のスキルのうち、借りる 5 本（`.shared/borrow/borrow.json` の `skills`。`dev/toolset.py` が隔離した設定の `skills/` に写す）と、部品（スキルとしては使わず、中の型を役の指示書の骨に使うファイル。`borrow.json` の `parts`）。写しは直さない。版を上げるのは `dev/toolset.py vendor` だけ。借りた物を役に載せる時の包み方（セクションごとの使い道・錨・穴・出口の語）は、包むセクションの表 `.shared/borrow/seams.json` が持つ。スキルの文が人（your human partner）や調整役（下請けの AI を起こす親の会話）を前提にしている所は、works の無人の役ではこのファイルの決まりで読み替える。スキルの文とこのファイルがぶつかったら、このファイルが勝つ。さらに、役の指示書（`blk-*/commands/*.md` と、支度のノードが組んで役に読ませる指示書）とノードの `output_format` は、このファイルより勝つ。
 
-このファイルは、借りたスキルを読める役（道具に Skill を持つ役。素材集めの局所レビューと、TDD の役・手直しの役（`tdd`・`refix`・`refix2`））の指示書の末尾と、借りた型を骨にする座（修正役（下請けを起こす項目が無い周）と 1 回目の差分の審査役。`.shared/core/seat.py` の `section`）と、下請けを回す修正役の節（`seat.g1_section`）の末尾に、機械が全文を載せる（`.shared/core/rolekit.py` の `skill_overlay`。superpowers の using-superpowers は、役への直の指示がスキルに勝つと定める）。載ることは `tests/test_sp_skills.py` の `OverlayDeliveryCase` が見張る。
+このファイルは、借りたスキルを読める役（道具に Skill を持つ役。素材集めの局所レビューと、TDD の役・手直しの役（`tdd`・`refix`・`refix2`））の指示書の末尾と、借りた型を骨にする座（修正役（下請けを起こす項目が無い周）と 1 回目の差分の審査役。`.shared/core/seat.py` の `section`）と、下請けを回す修正役のセクション（`seat.g1_section`）の末尾に、機械が全文を載せる（`.shared/core/rolekit.py` の `skill_overlay`。superpowers の using-superpowers は、役への直の指示がスキルに勝つと定める）。載ることは `tests/test_sp_skills.py` の `OverlayDeliveryCase` が見張る。
 
 ## 読み方
 
@@ -11,24 +11,24 @@
 
 ## 義務の単位の行き先（修正役。どの決まりもこれに従う）
 
-修正の決まりの正本 [`.shared/core/writerules/common.md`](../core/writerules/common.md)（機械が修正役・TDD の輪の役・手直しの役の指示書に組み込む）と同じ行。受け付け（`fix_covers_open_units`）は、直す義務の単位が `changes` に無ければ、`not_done` に理由を書いても拒む。
+修正の決まりの正本 [`.shared/core/writerules/common.md`](../core/writerules/common.md)（機械が修正役・TDD のループの役・手直しの役の指示書に組み込む）と同じ行。受け付け（`fix_covers_open_units`）は、直す義務の単位が `changes` に無ければ、`not_done` に理由を書いても拒む。
 
 - **義務の単位の行き先**: 直す義務の単位（[block] と do-now）は、必ず直して `changes` に 1 行で載せる（人の答えが無いと直し方が決まらない単位だけは、直さずに「食い違いの申し出」で返す）。判定の前提・直し方に疑いが残っても、方針に反しない範囲で一番ましな直しを載せ（根を塞げなければ `root_or_symptom` を symptom にして why に理由を書く）、それが判定のフレーミングへの異議なら `rejudge_requested` に書く（判定役が次に読み直す）。`not_done` に書けるのは、受け付けが免除する単位（問いの台帳で、修正の前に人がまだ答えていない fork の出どころか depends に挙がった単位。status が escalate の問いも同じ。答えた問いの出どころ・depends は免除されない）と、義務の外の単位だけ。
 
 ## ASK 人に聞く・確かめてもらう・許しを得る
 
-無人の役には聞く相手が居ない。止まって答えを待たない（待っても答えは来ず、受け付けの輪が上限まで回って run が落ちる）。
+無人の役には聞く相手が居ない。止まって答えを待たない（待っても答えは来ず、受け付けのループが上限まで回って run が落ちる）。
 
-- 修正役（`blk-fix` の `fix`）は、上の「義務の単位の行き先」に従う。直す義務の単位は、分かる範囲で一番ましな直しを `changes` に載せる。人の答えが無いと直し方が決まらない単位は、直さずに食い違いの申し出（`conflicts`。`which_is_right` は unknown・`kind` は `needs_context`）で返す——裁定役が人に回し、最後の人の関所に届く（正本 [`.shared/core/writerules/common.md`](../core/writerules/common.md) の「食い違いの申し出」）。`rejudge_requested` は判定のフレーミングへの異議だけで、人への問いを書かない（読むのは判定役）。義務の外の単位は `not_done` に理由を書いてよい（`unit_key`・`why`）。
+- 修正役（`blk-fix` の `fix`）は、上の「義務の単位の行き先」に従う。直す義務の単位は、分かる範囲で一番ましな直しを `changes` に載せる。人の答えが無いと直し方が決まらない単位は、直さずに食い違いの申し出（`conflicts`。`which_is_right` は unknown・`kind` は `needs_context`）で返す——裁定役が人に回し、最後の承認ノードに届く（正本 [`.shared/core/writerules/common.md`](../core/writerules/common.md) の「食い違いの申し出」）。`rejudge_requested` は判定のフレーミングへの異議だけで、人への問いを書かない（読むのは判定役）。義務の外の単位は `not_done` に理由を書いてよい（`unit_key`・`why`）。
 - 差分の審査への手直し（`blk-refix`）は、その穴を `declared` で残し、`how` に何が分からないかを書く。
 - 読むだけの役（判定・審査）は、分からないまま置いた前提を、返答の型の中の理由の欄に書く。
-- TDD の例外（使い捨ての試作・生成したコード・設定のファイル）に当たるかどうかは、役は決めない。役は先のテストを省かない。省いてよい単位は線の側（修正案の route と機械の決まり。TDD の節が入ったら本線 fix-tdd の `route: direct`）が決める。
+- TDD の例外（使い捨ての試作・生成したコード・設定のファイル）に当たるかどうかは、役は決めない。役は先のテストを省かない。省いてよい単位はメイングラフの側（修正案の route と機械の決まり。TDD のノードが入ったら元の graphloops の fix-tdd の `route: direct`）が決める。
 - 分からない項目があるうちは実装を始めない、という原則（receiving-code-review）はそのまま効く。分からない項目は上のとおり返答に書き、分かった項目だけを直す。
 - test-driven-development の「Ask your human partner」と、部品の実装役の型の「Ask them now」「ask questions」は、止まらずに食い違いの申し出で返す。状態の語「NEEDS_CONTEXT」・「BLOCKED」も申し出に当たる（`seams.json` の `words`）。
 
 ## THREE-FAILS 3 回直して効かなければ、人と構成を話す
 
-4 回目の直しを打たない。「義務の単位の行き先」に従い、試した 3 つのうち一番ましな直しを残して `changes` に載せ（根を塞げていなければ `root_or_symptom` を symptom にする）、試した 3 つの直し、それぞれがどこに新しい症状を出したか、構成を疑う理由を `rejudge_requested` に書く。義務の外の単位なら、同じ理由を `not_done` に書いて直しを打ち切ってよい。ここで数えるのは 1 つの会話の中の直しの試み。受け付けの輪（`loop_group` の `max_iterations: 3`）の出し直しとは別に数える。
+4 回目の直しを打たない。「義務の単位の行き先」に従い、試した 3 つのうち一番ましな直しを残して `changes` に載せ（根を塞げていなければ `root_or_symptom` を symptom にする）、試した 3 つの直し、それぞれがどこに新しい症状を出したか、構成を疑う理由を `rejudge_requested` に書く。義務の外の単位なら、同じ理由を `not_done` に書いて直しを打ち切ってよい。ここで数えるのは 1 つの会話の中の直しの試み。受け付けのループ（`loop_group` の `max_iterations: 3`）の出し直しとは別に数える。
 
 ## POLICY 人の決めたこと・方針とぶつかる
 
@@ -36,25 +36,25 @@
 
 ## COMMIT commit・push・PR・merge
 
-修正役は commit しない。`git add`・`git commit`・`git stash`・`git reset`・`git checkout` で作業ツリーや履歴を動かさず、差分は作業ツリーに残したまま返す（正本 [`.shared/core/writerules/common.md`](../core/writerules/common.md) と同じ）。push・PR・merge は役の仕事ではない（線の後ろのブロックと人の関所が持つ）。「commit の前に確かめる」は「返答を返す前に確かめる」と読む。
+修正役は commit しない。`git add`・`git commit`・`git stash`・`git reset`・`git checkout` で作業ツリーや履歴を動かさず、差分は作業ツリーに残したまま返す（正本 [`.shared/core/writerules/common.md`](../core/writerules/common.md) と同じ）。push・PR・merge は役の仕事ではない（メイングラフの後ろのサブグラフと承認ノードが持つ）。「commit の前に確かめる」は「返答を返す前に確かめる」と読む。
 
-部品の型の「Commit your work」と worktree を作る指示は線が持つ。役は差分を作業ツリーに残して返す。
+部品の型の「Commit your work」と worktree を作る指示はメイングラフが持つ。役は差分を作業ツリーに残して返す。
 
 ## SUITE 一式（project's suite・full suite）を回せと言われる
 
-役は一式を回さない。一式は線が渡す `test_cmd`（速い段）を機械が関門として回す。重い段・変異テストは CI だけが回す。役が回すのは、変えたファイルに当たる試験だけ（絞る手が無い時だけ、返答の直前に一式を 1 回だけ回す）。正本 [`.shared/core/writerules/common.md`](../core/writerules/common.md) の一式の行と同じ行き先。
+役は一式を回さない。一式はメイングラフが渡す `test_cmd`（速い段）を機械が関門として回す。重い段・変異テストは CI だけが回す。役が回すのは、変えたファイルに当たる試験だけ（絞る手が無い時だけ、返答の直前に一式を 1 回だけ回す）。正本 [`.shared/core/writerules/common.md`](../core/writerules/common.md) の一式の行と同じ行き先。
 
 ## SP-REF `superpowers:` の名前での参照
 
-無視する。Archon はプラグインを読まないので、`superpowers:` の付いた名前では何も読まれない。同じ名前のスキルが隔離した設定に在り、節が `skills:` に宣言していれば、`superpowers:` を除いた名前で Skill の道具から読める。宣言されていなければ読まない。
+無視する。Archon はプラグインを読まないので、`superpowers:` の付いた名前では何も読まれない。同じ名前のスキルが隔離した設定に在り、ノードが `skills:` に宣言していれば、`superpowers:` を除いた名前で Skill の道具から読める。宣言されていなければ読まない。
 
 ## DISPATCH 下請けの AI を起こす・調整役として振る舞う
 
-スキルの文に従って下請けを起こさない。Agent を持つ役（素材集めの局所レビュー）が起こすのは、指示書が名指すレンズだけ。ほかの役の道具に Agent は無い。別の目の審査は、線の別の節（`blk-delta` の審査役など）が新しい会話で受け持つ。`requesting-code-review/code-reviewer.md` をテストの審査役の手引きに使うときは、`Subagent (general-purpose):` の枠と `description:` の行を読み飛ばし、`prompt: |` の中身だけを手引きとして読む。「DESCRIPTION」などの角括弧の埋め草は、engine が渡す材料で埋まる。
+スキルの文に従って下請けを起こさない。Agent を持つ役（素材集めの局所レビュー）が起こすのは、指示書が名指すレンズだけ。ほかの役の道具に Agent は無い。別の目の審査は、メイングラフの別のノード（`blk-delta` の審査役など）が新しい会話で受け持つ。`requesting-code-review/code-reviewer.md` をテストの審査役の手引きに使うときは、`Subagent (general-purpose):` の枠と `description:` の行を読み飛ばし、`prompt: |` の中身だけを手引きとして読む。「DESCRIPTION」などの角括弧の埋め草は、engine が渡す材料で埋まる。
 
 ## DELEGATE エージェントの報告を信じない
 
-役の返答は、engine（受け付けの節）が差分と試験を自分で確かめ直す。役は「確かめた」と書くなら、走らせたコマンドとその結果を返答に書く。役がほかのエージェントに仕事を任せることは無い。
+役の返答は、engine（受け付けのノード）が差分と試験を自分で確かめ直す。役は「確かめた」と書くなら、走らせたコマンドとその結果を返答に書く。役がほかのエージェントに仕事を任せることは無い。
 
 ## GIT-RANGE git で審査の範囲を取る・差分を出す
 
@@ -66,7 +66,7 @@
 
 ## GITHUB GitHub のスレッドに返信する
 
-しない。返答は節の `output_format` の JSON だけで、外へ書き込まない。
+しない。返答はノードの `output_format` の JSON だけで、外へ書き込まない。
 
 ## PUSHBACK 審査の指摘に反論する
 
@@ -78,7 +78,7 @@
 
 ## OUTPUT 返答の形
 
-`code-reviewer.md` の出力の形（Strengths・Issues・Assessment の「Ready to merge?」）より、節の `output_format` の JSON の型が勝つ。merge してよいかは役が決めない。
+`code-reviewer.md` の出力の形（Strengths・Issues・Assessment の「Ready to merge?」）より、ノードの `output_format` の JSON の型が勝つ。merge してよいかは役が決めない。
 
 ## SCENARIO スキルの作者の試験の台本と、作った記録
 

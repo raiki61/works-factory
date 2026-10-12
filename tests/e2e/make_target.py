@@ -1,11 +1,14 @@
 """通しの対象を作り、後で片付ける（筋書きが命令として呼ぶ。試験が import する助けではない）。
 
-  python3 tests/e2e/make_target.py make <試みのフォルダ>   対象・その origin・依頼・家を作り、絶対パスを JSON 1 行で出す
+  python3 tests/e2e/make_target.py make <試みのフォルダ> [--seed <dir>] [--request <file>] [--no-ledger]
+                                                             対象・その origin・依頼・家を作り、絶対パスを JSON 1 行で出す
   python3 tests/e2e/make_target.py teardown                  控えの家ごとに、終わっていない run を止めて控えから消す
 
 約束は docs/plans/2026-10-13-stage1-walking-skeleton.md の「対象の作り方」。試みのフォルダはリポジトリの外に置き、作業ツリーには
 何も書かない。控えは、この checkout の git の私用の置き場（git rev-parse --git-dir の下）に置くので、同じ機械のほかの checkout の
-控えには触らない。run は殻 bin/works-factory の workflow cancel（止まらなければ abandon）で止める。プロセスを名で止めない。
+控えには触らない。種と依頼の既定は target-seed/ とその中の request_ok.json で、較正のランナー tests/calibration/run.py は
+仕込んだ種と依頼を渡す。--no-ledger は控えに載せない（teardown が今の works の家に works-factory の殻を当てないため）。
+run は殻 bin/works-factory の workflow cancel（止まらなければ abandon）で止める。プロセスを名で止めない。
 """
 import json
 import os
@@ -39,7 +42,7 @@ def ledger() -> Path:
     return Path(git("-C", str(ROOT), "rev-parse", "--absolute-git-dir")).joinpath(*LEDGER)
 
 
-def make(attempt: Path) -> dict:
+def make(attempt: Path, seed: Path = SEED, request: Path = SEED / REQUEST, listed: bool = True) -> dict:
     attempt = Path(os.path.realpath(attempt))
     if attempt.is_relative_to(Path(git("-C", str(ROOT), "rev-parse", "--show-toplevel")).resolve()):
         raise Stop(f"試みのフォルダ {attempt} がリポジトリの中に在る。リポジトリの外に置く")
@@ -51,18 +54,19 @@ def make(attempt: Path) -> dict:
     attempt.mkdir(parents=True, exist_ok=True)
     git("init", "-q", "--bare", "-b", "main", str(made["origin"]))
     target = str(made["target"])
-    shutil.copytree(SEED, made["target"], ignore=shutil.ignore_patterns(REQUEST, "__pycache__", "*.pyc"))
+    shutil.copytree(seed, made["target"], ignore=shutil.ignore_patterns(REQUEST, "__pycache__", "*.pyc"))
     git("init", "-q", "-b", "main", target)
     git("-C", target, "add", "-A")
     git("-C", target, "commit", "-q", "-m", "seed")
     git("-C", target, "remote", "add", "origin", str(made["origin"]))
     git("-C", target, "push", "-q", "-u", "origin", "main")
     git("-C", target, "remote", "set-head", "origin", "main")
-    shutil.copyfile(SEED / REQUEST, made["request"])
+    shutil.copyfile(request, made["request"])
     made["home"].mkdir()
-    book.parent.mkdir(parents=True, exist_ok=True)
-    with book.open("a", encoding="utf-8") as f:
-        f.write(f"{made['home']}\t{made['target']}\n")
+    if listed:
+        book.parent.mkdir(parents=True, exist_ok=True)
+        with book.open("a", encoding="utf-8") as f:
+            f.write(f"{made['home']}\t{made['target']}\n")
     return {k: str(v) for k, v in made.items()}
 
 
@@ -109,17 +113,35 @@ def launch(home: Path, target: Path, *args: str) -> subprocess.CompletedProcess:
                           stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8")
 
 
+def make_args(args: list[str]) -> dict | None:
+    """make の引数を make の引数の dict に。形が違えば None"""
+    made: dict = {}
+    rest = list(args)
+    while rest:
+        word = rest.pop(0)
+        if word == "--no-ledger" and "listed" not in made:
+            made["listed"] = False
+        elif word in ("--seed", "--request") and rest and word[2:] not in made:
+            made[word[2:]] = Path(rest.pop(0)).resolve()
+        elif not word.startswith("--") and "attempt" not in made:
+            made["attempt"] = Path(word)
+        else:
+            return None
+    return made if "attempt" in made else None
+
+
 def main(argv: list[str]) -> int:
     try:
-        if len(argv) == 2 and argv[0] == "make":
-            print(json.dumps(make(Path(argv[1]))))
+        if argv[:1] == ["make"] and (made := make_args(argv[1:])) is not None:
+            print(json.dumps(make(**made)))
             return 0
         if argv == ["teardown"]:
             return 1 if teardown() else 0
     except Stop as stop:
         print(f"make_target: {stop}", file=sys.stderr)
         return 1
-    print("使い方: make_target.py make <試みのフォルダ> | make_target.py teardown", file=sys.stderr)
+    print("使い方: make_target.py make <試みのフォルダ> [--seed <dir>] [--request <file>] [--no-ledger] | make_target.py teardown",
+          file=sys.stderr)
     return 2
 
 

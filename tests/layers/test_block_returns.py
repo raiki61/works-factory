@@ -33,7 +33,10 @@ class BlockReturnsTest(unittest.TestCase):
         self.assertIn("unread", got[0])
 
     def problems(self, block, line):
-        with tree({BLOCK: block, LINE: line}) as root:
+        return self.files({BLOCK: block, LINE: line})
+
+    def files(self, files):
+        with tree(files) as root:
             return scan.problems("E5", root)
 
     def test_every_field_read_by_the_line_is_clean(self):
@@ -108,6 +111,45 @@ class BlockReturnsTest(unittest.TestCase):
         line = "name: works-factory-line\nreturns: result\nnodes: []\n"
         with tree({LINE: line}) as root:
             self.assertEqual(scan.problems("E5", root), [])
+
+
+    def test_declared_input_without_a_reader_is_red(self):
+        """ブロックの入力は、その script の INPUTS_<名> か役の指示書の $INPUTS.<名> に読み手を持つ（K12）"""
+        block = RETURNING.replace("nodes:\n", "inputs:\n  plan: {default: ''}\n  ripple-list: {default: ''}\nnodes:\n", 1)
+        files = {BLOCK: block, LINE: "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
+                                     "  - id: r\n    script: r\n    with: {a: $judge.output.ready, b: $judge.output.units}\n"}
+        got = self.files(files)
+        self.assertEqual(sorted(line.split("入力 ")[1].split(" ")[0] for line in got), ["plan", "ripple-list"], got)
+        files["workflows/judge/scripts/s.py"] = 'P = os.environ["INPUTS_PLAN"]\n'
+        files["workflows/judge/commands/c.md"] = "波及は $INPUTS.ripple-list\n"
+        self.assertEqual(self.files(files), [])
+
+    def test_input_passed_by_with_only_is_red(self):
+        """YAML の with: で script へ渡すだけの $INPUTS.<名> は読み手に数えない（merge の diff を merge.py が読まないと赤）。
+        YAML の役の節の prompt: の $INPUTS.<名> は数える"""
+        block = RETURNING.replace("nodes:\n", "inputs:\n  diff: {default: ''}\nnodes:\n", 1)
+        block += "  - id: s\n    script: s\n    with: {diff: $INPUTS.diff}\n"
+        files = {BLOCK: block, LINE: "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
+                                     "  - id: r\n    script: r\n    with: {a: $judge.output.ready, b: $judge.output.units}\n"}
+        got = self.files(files)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("入力 diff に読み手が無い", got[0])
+        files[BLOCK] = block + "  - id: role\n    prompt: 差分は $INPUTS.diff\n"
+        self.assertEqual(self.files(files), [])
+
+    def test_role_in_a_loop_group_binding_its_own_with_is_red(self):
+        """輪の中の役は自分の with: を結ばない（K5）。script の節は結んでよい"""
+        yaml = ("name: works-factory-plan\nnodes:\n  - id: g\n    loop_group:\n      nodes:\n"
+                "        - id: head\n          script: head\n          with: {reason: $LOOP_PREV.take.output.reason}\n"
+                "        - id: role\n          prompt: x\n          with: {reason: $LOOP_PREV.take.output.reason}\n")
+        got = self.files({"workflows/plan/works-factory-plan.yaml": yaml})
+        self.assertTrue(any("輪の中の役 role" in line for line in got), got)
+        self.assertFalse(any("head" in line for line in got), got)
+
+    def test_loop_role_seed_is_one_violation(self):
+        got = scan.problems("E5", SEEDS / "k5-loop-role-with")
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("輪の中の役", got[0])
 
 
 if __name__ == "__main__":

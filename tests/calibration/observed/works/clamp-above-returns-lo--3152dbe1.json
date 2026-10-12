@@ -1,0 +1,83 @@
+{
+ "id": "clamp-above-returns-lo",
+ "factory": "works",
+ "run_id": "3152dbe1-2ffe-4a22-86ea-0b7fe7d0a573",
+ "outcome": "stopped_by_human",
+ "flagged": [
+  "converge",
+  "p0.local_checks",
+  "p2.diagnose",
+  "p4.record",
+  "r4.hidden_scope"
+ ],
+ "child_run_ids": [],
+ "unread": [
+  "p0.parallel_pr",
+  "p0.purpose_review",
+  "p1.consistency_bypass",
+  "p1.external_standards",
+  "p1.gate_efficacy",
+  "p1.hygiene",
+  "p1.local_review",
+  "p1.main_path_observation",
+  "p1.procedure_trace",
+  "p1.provenance",
+  "p1.test_double_fidelity",
+  "p2.rejudge",
+  "p3.delta_review2",
+  "spec.check",
+  "spec.review",
+  "stop.premise_check"
+ ],
+ "flag_evidence": {
+  "converge": "board/out/r1/converge.json: decision = \"next_round\"",
+  "p0.local_checks": "board/out/r1/p0.local_checks.json: material.status = \"found\"",
+  "p0.parallel_pr": "board/out/r*/p0.parallel_pr.json: 無い; board/out/r*/p0.parallel_pr.json: 無い",
+  "p0.purpose_review": "board/out/r*/p0.purpose_review.json: 無い; board/out/r*/p0.purpose_review.json: 無い",
+  "p1.consistency_bypass": "board/out/r*/p1.consistency_bypass.json: 無い; board/out/r*/p1.consistency_bypass.json: 無い; board/out/r*/p1.consistency_bypass.json: 無い; board/out/r*/p1.consistency_bypass.json: 無い",
+  "p1.external_standards": "board/out/r*/p1.external_standards.json: 無い; board/out/r*/p1.external_standards.json: 無い",
+  "p1.gate_efficacy": "board/out/r*/p1.gate_efficacy.json: 無い; board/out/r*/p1.gate_efficacy.json: 無い",
+  "p1.hygiene": "board/out/r*/p1.hygiene.json: 無い",
+  "p1.local_review": "board/out/r*/p1.local_review.json: 無い; board/out/r*/p1.local_review.json: 無い",
+  "p1.main_path_observation": "board/out/r*/p1.main_path_observation.json: 無い",
+  "p1.procedure_trace": "board/out/r*/p1.procedure_trace.json: 無い; board/out/r*/p1.procedure_trace.json: 無い",
+  "p1.provenance": "board/out/r*/p1.provenance.json: 無い",
+  "p1.test_double_fidelity": "board/out/r*/p1.test_double_fidelity.json: 無い; board/out/r*/p1.test_double_fidelity.json: 無い",
+  "p2.diagnose": "board/out/r1/p2.diagnose.json: units.*.label = \"block\"",
+  "p2.rejudge": "board/out/r*/p2.rejudge.json: 無い; board/out/r*/p2.rejudge.json: 無い",
+  "p3.delta_review2": "board/out/r*/p3.delta_review2.json: 無い; board/out/r*/p3.delta_review2.json: 無い",
+  "p4.record": "board/out/r1/p4.record.json: exit = 1",
+  "r4.hidden_scope": "board/out/r1/r4.hidden_scope.json: surfaced.0 = {\"where\": \"stats.py:23 clamp\", \"text\": \"[suggest] 既存かつ無関係: x・lo・hi に NaN が渡されると比",
+  "report.cold_check": "skipped",
+  "spec.check": "board/out/r*/spec.check.json: 無い",
+  "spec.review": "board/out/r*/spec.review.json: 無い",
+  "stop.premise_check": "board/out/r*/stop.premise_check.json: 無い; board/out/r*/stop.premise_check.json: 無い"
+ },
+ "units": [
+  "stats.py clamp: x が上限 hi を超えたとき hi でなく lo を返す"
+ ],
+ "asks": [
+  "entering__launch",
+  "final-gate"
+ ],
+ "cost": {
+  "usd": null,
+  "seconds": 142.0,
+  "why_null": "usd: 出来事 workflow_completed の data.cost_usd が読めない"
+ },
+ "provenance": {
+  "factory_commit": "2aa7c66cf7abe1fe09699ac2942d107123214168",
+  "archon": "v0.11.1",
+  "claude_code": "2.1.296 (Claude Code)",
+  "run_inputs": {
+   "request": "request.json",
+   "test_cmd": "python3 -m unittest -v",
+   "tdd_suite": "junit-suite.sh",
+   "unattended": "true",
+   "final_gate": "when_needed",
+   "thickness": "標準"
+  },
+  "date": "2026-10-12T09:01:58+00:00",
+  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80"
+ }
+}

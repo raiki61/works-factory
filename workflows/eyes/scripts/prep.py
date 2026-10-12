@@ -19,6 +19,7 @@ import concepthome  # noqa: E402
 import depth  # noqa: E402
 import eyeverdict  # noqa: E402
 import policy  # noqa: E402
+import premises as _premises  # noqa: E402
 import rolekit  # noqa: E402
 import structmark  # noqa: E402
 
@@ -43,7 +44,7 @@ diff_file = opened(json.loads(os.environ["INPUTS_DIFF"]))
 diff_text = diff_file.read_text(encoding="utf-8", errors="replace") if diff_file else ""   # 直す物が無い周は差分が無い（L-W07）
 answer = json.loads(os.environ["INPUTS_ANSWERS"])
 changed = json.loads(os.environ["INPUTS_CHANGED"])
-premises = judgment_file.with_name("premises.json") if judgment_file else None
+premises = judgment_file.with_name(_premises.PREMISES_FILE) if judgment_file else None
 constraints = json.loads(premises.read_text(encoding="utf-8")).get("constraints") if premises and premises.is_file() else None
 request = Path(start["request_file"]) if start.get("request_file") else None
 repo_review = Path.cwd() / "REVIEW.md"

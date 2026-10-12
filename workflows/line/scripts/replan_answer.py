@@ -4,7 +4,7 @@
 # ///
 """案の直しの関所の答えを受ける返しの節 answer-replan（埋め P2）。
 
-関所の答えの読みと返り {go, answer, stop_reason} は gate_answer と同じ。加えて、2 度目の修正に渡す answers（fix_answers）を返す:
+関所の答えの読みと返り {go, answer, stop_reason} は gate_answer と同じ（lib/answer.py の taken）。加えて、2 度目の修正に渡す answers（fix_answers）を返す:
 修正前の関所の答えの条件と案の直しの関所の一言を見出しの下に並べた文（元 works/.shared/core/replan.py の _notes。人が修正前の
 関所で答えた条件は 2 度目の修正にも効く）と、修正前の関所で見せた問いの行 asked（人が通した問いの単位を 2 度目の修正も直す）。
 
@@ -24,19 +24,20 @@ ripple（案の直しの波及の一覧の指し札）・first_ripple（計画�
 """
 import json
 import os
+import sys
 from pathlib import Path
 
-import gate_answer
-import linekit
-from linekit import boundary
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
+    import answer
     import boardview
     import planfile
     import replan
 
-FIX_NOTES_HEAD = "## 修正前の関所（gate-before-fix）で人が答えた条件（1 回目の修正の段と同じく、この段にも効く）"   # 元 replan.FIX_NOTES_HEAD
-NOTE_HEAD = "## 人の一言（関所 gate-replan）"   # 元 replan.NOTE_HEAD
+FIX_NOTES_HEAD = "## 修正前の承認ノード（gate-before-fix）で人が答えた条件（1 回目の修正の段と同じく、この段にも効く）"   # 元 replan.FIX_NOTES_HEAD
+NOTE_HEAD = "## 人の一言（承認ノード gate-replan）"   # 元 replan.NOTE_HEAD
 
 
 def fix_answers(before_fix, replan) -> dict | None:
@@ -56,44 +57,51 @@ def fix_answers(before_fix, replan) -> dict | None:
 
 def fix_notes(review_raw, plan_raw, items_raw) -> str:
     """2 度目の修正に渡す機械の申し送り（replan.fix_notes）。事前審査の返りが無い・読めない時は訳の 1 行"""
-    review = linekit.value(review_raw)
+    review = boundary.value(review_raw)
     try:
         if review is None:
             raise ValueError("案の直しの事前審査が飛ばされた（返りが無い）")
         doc = json.loads(boundary.resolve(review).read_text(encoding="utf-8"))
-        ptr = linekit.value(plan_raw)
+        ptr = boundary.value(plan_raw)
         reply = boundary.resolve(ptr).parent / planfile.FIX_PLAN_FILE if ptr is not None else None
         plan = json.loads(reply.read_text(encoding="utf-8")) if reply is not None and reply.is_file() else None
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return replan.NO_REVIEW_WHY.format(why=" ".join(f"{type(error).__name__}: {error}".split()))
-    return replan.fix_notes(doc if isinstance(doc, dict) else {}, plan, linekit.items(items_raw), boardview.HUMAN_FACE_KINDS)
+    return replan.fix_notes(doc if isinstance(doc, dict) else {}, plan, boundary.items(items_raw), boardview.HUMAN_FACE_KINDS)
 
 
 def fix_ripple(ripple_raw, first_raw):
     """2 度目の修正に渡す波及の一覧の指し札（replan.remade_ripple。作り直せなかった時だけ 1 回目の物）"""
-    again = linekit.value(ripple_raw)
+    again = boundary.value(ripple_raw)
     try:
         doc = json.loads(boundary.resolve(again).read_text(encoding="utf-8")) if again is not None else None
     except (OSError, ValueError, TypeError, AttributeError, KeyError):
         doc = None
-    return again if replan.remade_ripple(doc) else linekit.value(first_raw)
+    return again if replan.remade_ripple(doc) else boundary.value(first_raw)
 
 
-def answer(gate_raw, go_raw, stop_raw, before_fix_raw, place: str, artifacts: Path, asked_raw=None, review_raw=None, plan_raw=None,
-           items_raw=None, ripple_raw=None, first_ripple_raw=None) -> dict:
-    got = gate_answer.answer(gate_raw, go_raw, stop_raw, place, artifacts, asked_raw)
-    return {**got, "fix_answers": fix_answers(linekit.value(before_fix_raw), got["answer"]),
+def take(gate_raw, go_raw, stop_raw, before_fix_raw, place: str, artifacts: Path, asked_raw=None, review_raw=None, plan_raw=None,
+         items_raw=None, ripple_raw=None, first_ripple_raw=None) -> dict:
+    got = answer.taken(boundary.value(gate_raw), go=boundary.flag(go_raw), stop_reason=boundary.text(stop_raw), place=place,
+                       folder=artifacts, asked=boundary.items(asked_raw))
+    return {**got, "fix_answers": fix_answers(boundary.value(before_fix_raw), got["answer"]),
             "fix_notes": fix_notes(review_raw, plan_raw, items_raw) if got["go"] else "",
             "fix_ripple": fix_ripple(ripple_raw, first_ripple_raw) if got["go"] else None}
 
 
+def from_env() -> dict:
+    """take の引数のうち with: の欄（全部を読む）"""
+    return {"gate_raw": os.environ.get("INPUTS_GATE"), "go_raw": os.environ.get("INPUTS_GO"),
+            "stop_raw": os.environ.get("INPUTS_STOP_REASON"), "before_fix_raw": os.environ.get("INPUTS_BEFORE_FIX"),
+            "place": os.environ.get("INPUTS_PLACE"), "asked_raw": os.environ.get("INPUTS_ASKED"),
+            "review_raw": os.environ.get("INPUTS_REVIEW"), "plan_raw": os.environ.get("INPUTS_PLAN"),
+            "items_raw": os.environ.get("INPUTS_ITEMS"), "ripple_raw": os.environ.get("INPUTS_RIPPLE"),
+            "first_ripple_raw": os.environ.get("INPUTS_FIRST_RIPPLE")}
+
+
 def fallback(reason: str) -> dict:
-    return {**gate_answer.fallback(reason), "fix_answers": None, "fix_notes": "", "fix_ripple": None}
+    return {"go": False, "answer": None, "stop_reason": boundary.LINE_SCRIPT, "fix_answers": None, "fix_notes": "", "fix_ripple": None}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: answer(os.environ.get("INPUTS_GATE"), os.environ.get("INPUTS_GO"), os.environ.get("INPUTS_STOP_REASON"),
-                               os.environ.get("INPUTS_BEFORE_FIX"), os.environ["INPUTS_PLACE"], Path(os.environ["ARTIFACTS_DIR"]),
-                               os.environ.get("INPUTS_ASKED"), os.environ.get("INPUTS_REVIEW"), os.environ.get("INPUTS_PLAN"),
-                               os.environ.get("INPUTS_ITEMS"), os.environ.get("INPUTS_RIPPLE"), os.environ.get("INPUTS_FIRST_RIPPLE")),
-                fallback)
+    boundary.run(lambda: take(**from_env(), artifacts=Path(os.environ["ARTIFACTS_DIR"])), fallback)

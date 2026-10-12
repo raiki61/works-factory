@@ -3,7 +3,8 @@
 # dependencies = []
 # ///
 """素材集めの役（with: の role）の返答を受け付ける（lib/judge_accept.material_take）。通れば judge/material-<役>.json。
-拒否は judge/rejects-<役>.json に積み、3 回目で done（諦めても止めない。素材の状態は diagnose-prep が組む）。{ok, done, reason}"""
+拒否は judge/rejects-<役>.json に積み、3 回目で done。出し直しても直らない拒み（レンズのプラグインが無い）は 1 回目で done
+（諦めても止めない。素材の状態は diagnose-prep が組む）。{ok, done, reason}"""
 import os
 import sys
 from pathlib import Path

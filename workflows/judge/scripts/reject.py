@@ -28,4 +28,4 @@ def lang_line() -> str:
         return f"（言語の 1 行を組めない: {type(error).__name__}: {error}。人が読む文の欄は依頼文の言語で書け）"
 
 
-boundary.returns({"reason": os.environ["INPUTS_REASON"], "lang_line": lang_line()})
+boundary.returns({**boundary.prev_reason(), "lang_line": lang_line()})

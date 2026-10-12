@@ -43,7 +43,7 @@ def check(final, unattended, *, spec) -> dict:
     if alone not in UNATTENDED_WORDS:
         raise Refused(f"{UNATTENDED_KEY}={unattended!r} は知らない値（空か {UNATTENDED}）")
     if spec and alone:
-        raise Refused(f"spec=on と無人の run（{UNATTENDED_KEY}）は組めない——仕様の承認は人の関所で、無人の run は関所で止めるので"
+        raise Refused(f"spec=on と無人の run（{UNATTENDED_KEY}）は組めない——仕様の承認は承認ノードで、無人の run は承認ノードで止めるので"
                       "仕様が固まらずに止まる（人の居る run で回す）")
     return {FINAL_KEY: mode, UNATTENDED_KEY: alone}
 
@@ -73,4 +73,4 @@ def opens(mode: str, *, reasons, guarded: bool) -> bool:
 def head_words(doc: dict) -> str:
     """報告の頭の行の句（始めの記録の dict の開き方。無ければ空）"""
     mode = doc.get(FINAL_KEY) if isinstance(doc, dict) else None
-    return f"最後の関所: {mode}" if mode else ""
+    return f"最後の承認ノード: {mode}" if mode else ""

@@ -1,9 +1,9 @@
 name: works-factory-plan-review
 description: >-
-  事前審査のブロック。書く前に修正案を叩く。目的の文だけから作る独立設計（R2）を 1 度だけ作り、修正案と構造で突き合わせ、
+  事前審査のサブグラフ。書く前に修正案を叩く。目的の文だけから作る独立設計（R2）を 1 度だけ作り、修正案と構造で突き合わせ、
   写し・塞がない入口・契約のずれ・死んだ道・範囲の膨張・後退・方針とのぶつかり・先行例の出典の当たりを、書かれる前に予測する。
-  1 回の差し込みが線の計画の往復（plan → plan-review）の 1 往復で、block（直しへ進めない穴）が無ければ通し、同じ所で 2 度続けて
-  止めたら止めた（stalled）と返す。修正前の関所（線 6）の 4 つの軸と人への問いを返す。盤面は持たず、入力の指し札の先を run の
+  1 回の include がメイングラフの計画の往復（plan → plan-review）の 1 往復で、block（直しへ進めない穴）が無ければ通し、同じ block が続くか
+  開いた block が前の往復より減らないか往復の安全の上限の周に届いたら止めた（stalled）と返す。修正前の承認ノード（メイングラフの 6）の 4 つの軸と人への問いを返す。共有ボードは持たず、入力のポインタの先を run の
   置き場の plan-review/ に写して lib/boardview.py の見え方で今の works の部品に渡す。
 
 # 値は線の with: が渡す JSON の字（指し札と配列は JSON の字）。start・answers・ruling・conflicts・gate_answers は約束に足した入力で、
@@ -11,47 +11,52 @@ description: >-
 inputs:
   units:
     required: true
-    description: 単位の目録（配列）。判定の単位は judgment の指し札の先から読む
+    description: 単位の目録（配列）。判定の単位は judgment のポインタの先から読む
   judgment:
     required: true
-    description: 判定の指し札（judgment.json。隣の premises.json・materials.json・purpose-review.json を名で開く）
+    description: 判定のポインタ（judgment.json。隣の premises.json・materials.json・purpose-review.json を名で開く）
   purpose:
     required: true
-    description: 目的の固定の指し札（purpose.json）
+    description: 目的の固定のポインタ（purpose.json）
   world:
     required: true
-    description: 世界の解の行の指し札か null
+    description: 世界の解の行のポインタか null
   plan:
     required: true
-    description: 修正案の指し札（plan-fields.json。隣の p2.fix_plan.json を名で開く）
+    description: 修正案のポインタ（plan-fields.json。隣の p2.fix_plan.json を名で開く）
   structure:
     required: true
-    description: 構造の目の控えの指し札（structure-state.json。隣の design.jsonl を名で開く）
+    description: 構造の目の控えのポインタ（structure-state.json。隣の design.jsonl を名で開く）
   ripple:
     required: true
-    description: 波及の一覧の指し札（ripple.json）
+    description: 波及の一覧のポインタ（ripple.json）
   start:
     default: "null"
-    description: 始めの記録の指し札（無人の印・設計だけ・依頼のファイル・方針の文書・事前審査の木・固めた版）
+    description: 始めの記録のポインタ（無人の印・設計だけ・依頼のファイル・方針の文書・事前審査の木・固めた版）
   answers:
     default: "null"
-    description: 始めの人の関所の答え（独立設計に貼る）
+    description: 始めの承認ノードの答え（独立設計に貼る）
   ruling:
     default: "[]"
     description: 裁かれた計画の項目の番号の字の並び（fix の replan_items。承認済みの修正案の 1 から数えた番号。番号でない行と案の外の番号は拒む）。案の直しの事前審査の時だけ空でない
   conflicts:
     default: "null"
-    description: 修正の段の申し出と裁定の指し札（conflicts.json。案の直しの事前審査の時だけ。項目ごとの申し出と裁定の文を貼る）か null
+    description: 修正の段の申し出と裁定のポインタ（conflicts.json。案の直しの事前審査の時だけ。項目ごとの申し出と裁定の文を貼る）か null
   mode:
     default: ""
     description: >-
-      差し込みの形。空は事前審査、design は直す物が無い周（判定が直す単位を出さなかった）の差し込みで、修正案（plan・structure・
-      ripple は null）を読まずに独立設計だけを作り、事前審査を回さず、通った形と design の指し札を返す（最後の R2 が要る設計）
+      include の形。空は事前審査、design は直す物が無い周（判定が直す単位を出さなかった）の include で、修正案（plan・structure・
+      ripple は null）を読まずに独立設計だけを作り、事前審査を回さず、通った形と design のポインタを返す（最後の R2 が要る設計）
   gate_answers:
     default: "null"
     description: >-
-      修正前の関所の答え {decision, text, asked: [通した行の文…]} か、その並びか null（通した行を聞き直さず、方針の変化を通したら
+      修正前の承認ノードの答え {decision, text, asked: [通した行の文…]} か、その並びか null（通した行を聞き直さず、方針の変化を通したら
       その版を固め直す）
+  round_limit:
+    default: "null"
+    description: >-
+      メイングラフの計画の往復のループの安全の上限（ループの max_iterations と同じ数）か null（ループの外の案の直しの事前審査）。計画の周 round がこの数の
+      往復は、ループがもう 1 周回せないので開いた block が減っていても止める
 
 returns: review
 outcome_field: pass
@@ -110,11 +115,11 @@ nodes:
           # 既定の system prompt（claude_code）は作業ツリーの git の様子（枝・最近の commit）を入れるので、役の前付けだけに替える
           # （r2.design の禁: リポジトリ・履歴。今の works の包みは道具ゼロの役を Git の外の置き場で起こしていた）
           systemPrompt: |-
-            お前は blind-judge。渡されたものだけから独立に導出する、または渡された 2 つを突き合わせる役である。
+            この役は blind-judge。渡されたものだけから独立に導出する、または渡された 2 つを突き合わせる役である。
 
-            - お前は道具を一切持たない。実装・文書・履歴・web のどれも開けない。渡されたものが世界の全部である。道具を呼ぼうとするな。
+            - この役は道具を一切持たない。実装・文書・履歴・web のどれも開けない。渡されたものが世界の全部である。道具を呼ぼうとするな。
             - 渡されていないものを推測で再構成するな。「現状はこうなっているはずだ」と補った瞬間、独立導出は追認になる。
-            - 導出に入る前に、問いそのものの実在を疑え。問いが立っていないと判断したら、導出に進まずその旨を返せ。
+            - 導出に入る前に、問いそのものの実在を疑え。問いが立っていない（前提が偽か、答えが要らない）と判断したら、導出に進まず、問いが立たないことと根拠を、呼び出し側が指示した返答の型の中の当たる欄（無ければ理由の欄）に書いて返せ。
             - 突合を任されたときは構造を比べろ。表現の違いは差ではない。
             - 返答に無言の省略を作るな。判定は指示された語彙だけで書き、理由を必ず添えろ。
           # 差し込みの頭の script（scripts/pass_open.py の node_schema）が読むので JSON の形で書く
@@ -182,7 +187,7 @@ nodes:
           mutates_checkout: false
           idle_timeout: 1728000000
           # 差し込みの頭の script（scripts/pass_open.py の node_schema）が読むので JSON の形で書く。faces の行の決め手の欄は gatemarks.MARK_SCHEMA、
-          # resolved・items・design_map は converge の壁打ちと束ね役の欄
+          # resolved・items・design_map・origins は converge の壁打ちと束ね役と出自の欄
           output_format: {
                 "type": "object",
                 "additionalProperties": false,
@@ -271,6 +276,19 @@ nodes:
                         "why": {"type": "string", "minLength": 10}
                       }
                     }
+                  },
+                  "origins": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["key", "origin"],
+                      "properties": {
+                        "key": {"type": "string"},
+                        "origin": {"type": "string", "enum": ["missed", "introduced", "rephrased"]},
+                        "of": {"type": "string"}
+                      }
+                    }
                   }
                 }
               }
@@ -292,6 +310,25 @@ nodes:
               done: {type: boolean}
               give_up: {type: boolean}
               reason: {type: string}
+
+  # 読んだ証拠: この差し込みの事前審査の役が、機械が渡したパス（材料・方針の文書）を読んだかを、隔離した設定のフックの記録から
+  # 集めて pass-<k>/ に書き、束ね役が起こした下請けの数を trace に残す（受け付けの条件にしない。返す節に結ばない。落ちない）
+  - id: review-reads
+    script: review_reads
+    runtime: uv
+    timeout: 1728000000
+    depends_on: [open, review-loop]
+    trigger_rule: all_done
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, missing, index_file, reason]
+      properties:
+        ok: {type: boolean}
+        missing: {type: array, items: {type: string}}
+        index_file: {type: string}
+        reason: {type: string}
 
   # 返す節。往復の控え・受けた返答・設計の控え・拒みの控えだけを読む。落ちない（中の誤りは偽の結末と訳で返す）
   - id: review

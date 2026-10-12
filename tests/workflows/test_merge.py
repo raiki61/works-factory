@@ -293,7 +293,7 @@ class ApplyTest(ScriptCase):
 
     def test_stop_answer_refuses(self):
         self.assertRefused(self.apply(self.sealed, answer=json.dumps({"decision": "stop", "text": ""})),
-                           "最後の関所で stop と答えた")
+                           "最後の承認ノードで stop と答えた")
 
     def test_no_answer_and_red_refuses(self):
         self.assertRefused(self.apply(self.sealed, answer="null", green_ok="false"), "人の通しの答えが無いのに")

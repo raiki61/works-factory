@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""線の始めの節 start（docs/design.md の「線」の「順と関所」の 1）。
+"""線の始めの節 start（docs/design.md の「メイングラフ」の「順と承認ノード」の 1）。
 
 入口の入力を 1 つの形にそろえ（lib/entryshape.py）、始めの記録（lib/startrec.py の start.json の形）を run の置き場に書き、
 指し札で返す。差分も依頼の行も無い・入力の組み合わせが拒まれる時は、落ちずに ok: false と止めの理由の語を返す。後ろの節は
@@ -12,12 +12,13 @@ when: で飛び、collect・report・result だけが走る（AI を起こす前
 """
 import json
 import os
+import sys
 from pathlib import Path
 
-import linekit
-from linekit import boundary
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
     import answer
     import carry
     import declared_checks
@@ -29,6 +30,7 @@ with linekit.guarded_imports():
     import ghreads
     import policy
     import startrec
+    import stopby
     import versions
 
     DESIGN_ONLY_WORDS = ("", gatemarks.DESIGN_ONLY)
@@ -38,7 +40,7 @@ SPEC_WORDS = ("", SPEC_ON)
 HEAVY = "重厚"
 AUTO = "自動"   # thickness の既定（元 works/.shared/core/entry.py 412 行の THICKNESS_DEFAULT）
 PIN = ("factory/pack.json", "integration_revision_required")   # 止めた Archon の commit（ASF の止め。Archon の版の正本）
-MODEL_UNKNOWN = ("run 全体の模型の 1 つの値は無い——Archon が役の節ごとに model・provider から決める"
+MODEL_UNKNOWN = ("run 全体の模型の 1 つの値は無い——Archon が役のノードごとに model・provider から決める"
                  "（止めた Archon の packages/workflows/src/node-model-resolution.ts）")
 GATE = "gate-start"
 
@@ -90,7 +92,7 @@ def words(raw: dict, repo: Path) -> dict:
         raise Refused(f"thickness={raw['thickness']!r} は知らない値（{' / '.join(t for t in THICKNESS if t)}）")
     if raw["fix_fixture"].strip():
         raise Refused("固定材料（fix_fixture）から修正を始める道はまだ無い（判定と修正案を作り直さずに修正から始めるには、"
-                      "fix のブロックが固定材料を受ける形が要る）。fix_fixture を空にして回す")
+                      "fix のサブグラフが固定材料を受ける形が要る）。fix_fixture を空にして回す")
     return {**gate, "spec": spec, "design_only": design_only, "thickness": thickness, "features_off": off, "features_on": on,
             "policy_md": policy_md(raw["policy_md"], repo)}
 
@@ -188,7 +190,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         shape = entryshape.build(inp, repo)
     except (Refused, entryshape.Refused) as error:
         record["refused"] = str(error)
-        return {"ok": False, "stop_reason": linekit.START_REFUSED, "reason": str(error),
+        return {"ok": False, "stop_reason": stopby.START_REFUSED, "reason": str(error),
                 "record": write(artifacts, record), "prior_failures": None, "ask": False, "gate_text": "",
                 "unattended": False, "design_only": False, "final_gate": ""}
     parts = asked["parts"]
@@ -216,10 +218,10 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
 
 
 def fallback(reason: str) -> dict:
-    return {"ok": False, "stop_reason": linekit.LINE_SCRIPT, "reason": reason, "record": None, "prior_failures": None,
+    return {"ok": False, "stop_reason": boundary.LINE_SCRIPT, "reason": reason, "record": None, "prior_failures": None,
             "ask": False, "gate_text": "", "unattended": False, "design_only": False, "final_gate": ""}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: start(raw_inputs(), Path.cwd(), Path(os.environ["ARTIFACTS_DIR"]), os.environ["WORKFLOW_ID"]),
+    boundary.run(lambda: start(raw_inputs(), Path.cwd(), Path(os.environ["ARTIFACTS_DIR"]), os.environ["WORKFLOW_ID"]),
                 fallback)

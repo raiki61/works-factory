@@ -6,9 +6,11 @@ FAST: test_plan_gate の偽の盤面で写しの RL の human_gate を直に呼�
 役が関所に回す行に構造の推し recommend {answer, note, why} を書き、無人の run が関所で止まったら、項目ごとの答えの下書きを
 next-request.json の answers に draft: true と出どころ source つきで置く。機械は関所に答えない（下書きを使う前に人が見直す）。
 """
+import json
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
@@ -17,6 +19,7 @@ if str(LIB) not in sys.path:
 from lib.tests import test_plan_gate as TP  # noqa: E402
 import gatemarks  # noqa: E402
 import carry  # noqa: E402
+import planblk  # noqa: E402
 
 REC = {"answer": "continue", "note": "daemon だけを Recreate にする範囲で通す", "why": "Dagster 公式の chart が同じ分け方"}
 NO_NARROW = "daemon を別の Deployment に分け、webserver は RollingUpdate に残す形を当たったが、決着済みの配置を組み替える"
@@ -26,6 +29,31 @@ class SchemaCase(unittest.TestCase):
     def test_rule_text_asks_for_recommend(self):
         for node in gatemarks.NODES:
             self.assertIn(gatemarks.RECOMMEND, gatemarks.HEAD[node])
+
+    def test_recommend_schema_is_built_from_the_keys(self):
+        """推しの欄の名は RECOMMEND_KEYS の 1 か所（頭が答えの enum、残りが RECOMMEND_MIN 字以上の文）"""
+        schema = gatemarks.MARK_SCHEMA[gatemarks.RECOMMEND]
+        self.assertEqual((schema["required"], list(schema["properties"])), (list(gatemarks.RECOMMEND_KEYS),) * 2)
+        self.assertEqual(schema["properties"][gatemarks.RECOMMEND_KEYS[0]]["enum"], list(gatemarks.RECOMMEND_ANSWERS))
+
+    def test_check_and_tail_read_the_keys(self):
+        rec = {"pick": "stop", "scope": "daemon だけを止める", "because": "chart が同じ分け方"}
+        with mock.patch.object(gatemarks, "RECOMMEND_KEYS", tuple(rec)):
+            self.assertEqual(gatemarks._recommend_gap(rec), "")
+            self.assertIn("（stop）——daemon だけを止める（理由: chart が同じ分け方）", gatemarks._push({gatemarks.RECOMMEND: rec}))
+            draft = gatemarks._gate_draft("t", {gatemarks.RECOMMEND: rec}, gatemarks.NODES[0])
+            self.assertIn("stop: daemon だけを止める（推す理由: chart が同じ分け方）", json.dumps(draft, ensure_ascii=False))
+
+    def test_shape_text_is_built_from_the_keys(self):
+        """役への頭と受け付けの拒み（planblk の 1 つを planfile・boardview が読む）が書かせる推しの形は 1 つの文 RECOMMEND_SHAPE
+        で、その文は欄の名・答え・字の下限を持ち主から組む"""
+        shape = gatemarks.RECOMMEND_SHAPE
+        for word in (*gatemarks.RECOMMEND_KEYS, *gatemarks.RECOMMEND_ANSWERS, f"{gatemarks.RECOMMEND_MIN} 字以上"):
+            self.assertIn(word, shape)
+        for node in gatemarks.NODES:
+            self.assertIn(shape, gatemarks.HEAD[node])
+        self.assertIn(shape, planblk.RECOMMEND_REJECT)
+        self.assertFalse(hasattr(gatemarks, "RECOMMEND_REJECT"))
 
 
 class GapsCase(unittest.TestCase):
@@ -72,7 +100,7 @@ class IntakeCase(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             carry.parts({"findings": [], "answers": [{"question": "q", "text": "t", "draft": True, "source": "s"}]})
         self.assertIn("台帳の問い", str(cm.exception))
-        self.assertIn("関所の項目", str(cm.exception))
+        self.assertIn("承認ノードの項目", str(cm.exception))
 
     def test_carry_ci_keeps_drafts_as_they_are(self):
         """CI の赤を足す口（carry_ci）は下書きの行で止まらず、そのまま残す（審査の再現: 無人の run の下書きで exit 2 だった）"""

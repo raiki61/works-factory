@@ -1,6 +1,6 @@
 """判定のブロック（workflows/judge/）の YAML の形・筋書き・script の振る舞いの試験（計画 docs/plans/2026-10-12-blocks/judge.md の「試験」）。
 
-- YAML の形: PyYAML で読み、Archon を起こさない。返す節の約束（docs/design.md の「judge の返り」）・関所・輪・役の節の設定の表
+- YAML の形: PyYAML で読み、Archon を起こさない。返す節の約束（docs/design.md の「judge の出力」）・関所・輪・役の節の設定の表
 - 筋書き: tests/archon.py の使い捨ての木で `archon workflow test` と `archon validate workflows` を回す。源か bun が無ければ見送る
 - script の振る舞い: scripts/<名>.py を子のプロセスで走らせる（Archon が渡す INPUTS_<名>・ARTIFACTS_DIR・WORKFLOW_ID と、
   boundary.lib_root() が届く WORKS_FACTORY_ROOT を置く。作業ツリーは tests/e2e/target-seed/ の写し）
@@ -19,11 +19,13 @@ import yaml
 
 from tests import archon
 from tests.bin.gitkit import committed_copy, git
+from tests.workflows.copied import agent_body, assert_is_original, rewritten, role_definition
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
 import judge_accept as ja  # noqa: E402
 import rolekit  # noqa: E402
+import seat  # noqa: E402
 
 BLOCK = ROOT / "workflows" / "judge"
 YAML_FILE = BLOCK / "works-factory-judge.yaml"
@@ -34,7 +36,7 @@ NAME = "works-factory-judge"
 NO_DEADLINE = 1728000000
 RUN_ID = "run-judge"
 
-# 返す節の欄（docs/design.md の「ブロックの返りの約束」の judge の返り）
+# 返す節の欄（docs/design.md の「サブグラフの出力の約束」の judge の返り）
 RETURNS = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spec", "out_of_purpose", "rejudge_verdict")
 INPUTS = {"start": "null", "baseline": "null", "objection": "", "prior_failures": "null"}
 RUN_OWNED = ("worktree", "container", "evidence_policy", "mutates_checkout")
@@ -176,6 +178,11 @@ class GateTest(unittest.TestCase):
         self.assertEqual(gate["idle_timeout"], NO_DEADLINE)
         self.assertEqual(by["spec-freeze"]["with"]["answer"], {"from": "$spec-gate.output", "if_skipped": None})
 
+    def test_spec_freeze_may_change_the_checkout(self):
+        """spec-freeze は人が通した受け入れ条件を作業ツリーで走らせる（lib/judge_accept._spec_run）。走らせた命令がファイルを
+        残しても節が落ちないように、作業ツリーを変えない印を持たない"""
+        self.assertNotIn("mutates_checkout", nodes()["spec-freeze"])
+
 
 class LoopTest(unittest.TestCase):
     def test_every_loop_retries_three_times_until_its_accept_is_done(self):
@@ -287,12 +294,10 @@ class RoleSettingsTest(unittest.TestCase):
                     self.assertIn(rule, (COMMANDS / f"{by[nid]['command']}.md").read_text(encoding="utf-8"))
 
     def test_dropped_sentences_are_back(self):
-        """元の役の指示書から落ちていた文: 仕様の審査役の前付け（judge）・仕様の役の実装に触れない決まり・局所レビューの無人の読み替え
-        （元 rolekit.skill_overlay が末尾に載せた全文）"""
-        judge = (ROOT / "lib" / "agents" / "judge.md").read_text(encoding="utf-8").split("---\n", 2)[2].strip()
+        """元の役の指示書から落ちていた文: 仕様の審査役の前付け（judge）・局所レビューの無人の読み替え（元 rolekit.skill_overlay が
+        末尾に載せた全文）。仕様の役の実装に触れない決まりは tests/workflows/prompt_contracts.json が照らす"""
+        judge = agent_body("judge")
         self.assertIn(judge, (COMMANDS / "spec-review.md").read_text(encoding="utf-8"))
-        for name in ("spec", "spec-revise"):
-            self.assertIn("実装のファイルは 1 文字も変えるな", (COMMANDS / f"{name}.md").read_text(encoding="utf-8"))
         unattended = (ROOT / "bin" / "_lib" / "borrow" / "unattended.md").read_text(encoding="utf-8")
         self.assertTrue((COMMANDS / "material-local-review.md").read_text(encoding="utf-8").endswith(unattended),
                         "局所レビューの指示書の末尾に bin/_lib/borrow/unattended.md の全文")
@@ -819,7 +824,7 @@ class BaselineTest(unittest.TestCase):
                     inputs["baseline"] = {"type": "archon_artifact", "run_id": RUN_ID, "path": rel}
                 self.assertTrue(r.returned("diagnose_prep", **inputs)["go"])
                 got = json.loads((r.judge / "materials.json").read_text(encoding="utf-8"))["local_checks"]
-                self.assertEqual(got, material or {"status": "not_run", "reason": "走っていない（どの節も返していない）"})
+                self.assertEqual(got, material or {"status": "not_run", "reason": "走っていない（どのノードも返していない）"})
 
 
 class PriorFailuresTest(unittest.TestCase):
@@ -896,6 +901,542 @@ class VerdictNeverFailsTest(unittest.TestCase):
         self.assertFalse(out["ready"])
         self.assertTrue(out["stop_reason"])
 
+
+# ---------------------------------------------------------------- 役の指示書の写しの台帳（issue #119 の直し 6。K9）
+# 元: 今の works（raiki61/claude-plugins の 2aa7c66cf7abe1fe09699ac2942d107123214168。pack.json の works.commit）。
+# 指示書ごとに、元のパス・元の sha256・持ち主が許した直し（元の字, 写しの字）を持つ。直しは前から当てると元が写しになる順に
+# 並べ、試験は後ろから逆に当てる。元の名の指示書の無い役は、元の文を組んだ関数と行を元として書く（issue #119 の D6）。
+# 素材集めの 11 本・再審・仕様の 3 本の元は、prep が描いた本線の指示書（graphloops の写し gl-prompts）と blk-spec/prompts/。
+# 元の commands/<役>.md の短い指示（「指示書を Read で読め」）は、写しの頭の文に直した直しとして持つ
+
+# 外への問い合わせの決まりの塊。元は包みが system prompt に足した物（works/.shared/core/adapter.py:1538 query_rule_block が
+# QUERY_RULE_LEAD（:294）と works/.shared/core/agents/judge.md:16-22 を組む）。写しは役の指示書の頭に字のまま置く（PR #76 の 9）。
+# 塊は写しの lib/agents/judge.md から seat.query_rule が切り出す
+QUERY_RULE_LEAD = ("外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent "
+                  "で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:")
+QUERY_RULE = seat.query_rule()
+QUERY_HEAD = QUERY_RULE_LEAD + "\n" + QUERY_RULE + "\n\n---\n\n"
+# 役の定義の本文。元は rolekit.with_role_definition（rolekit.py:208）が描いた指示書の頭に「## お前の役の定義（<役>）」の見出しで置いた
+JUDGE_BODY, INVESTIGATOR_BODY, INSPECTOR_BODY, COLD_READER_BODY = (
+    agent_body(role) for role in ("judge", "investigator", "inspector", "cold-reader"))
+
+
+# 拒否の理由の節。元は rolekit.with_reject（works/.shared/core/rolekit.py:219-223）と material.prep（works/blk-material/lib/material.py:388-391）が
+# 指示書の頭に置いた段で、写しは線の <役>-reject の節の出力を結ぶ（PR #100）。見出しの後ろの 1 文（下の 4 つ）だけが役ごとに違う
+REJECT_LEAD = ("## 前の回の受け付けが拒んだ理由\n\n前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ"
+               "（直した所だけを返すな）。")
+FIRST_IS = "下の理由が空なら、これは 1 回目の返答である。"
+FIRST_NOT = "下の理由が空なら、これは 1 回目の返答で、拒まれていない。"
+FIRST_SKIP = "下の理由が空なら、これは 1 回目の返答で、この節は読み飛ばしてよい:"
+FIRST_NOFIX = "下の理由が空なら、これは 1 回目の返答で、直す所は無い。"
+
+
+def reject_section(node: str, first: str) -> str:
+    return f"{REJECT_LEAD}{first}\n\n```text\n${node}-reject.output.reason\n```\n\n---\n\n"
+
+
+# 素材集めの役の頭: 元の works/blk-material/commands/<役>.md の指示を、材料のファイル（brief_file）を読む形に直した物
+MATERIAL_REREAD = ("頭の「前の回の受け付けが拒んだ理由」の節の理由が空でなければ、お前の前の返答は受け付けで拒まれている。"
+                   "そこに書かれた理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。\n")
+TOOLS_READ = "道具は Read・Grep・Glob だけ。"
+RO_GH_RULE = ("Bash は sandbox の中で走り、網は閉じている（どの宛先にも出られない）。"
+             "GitHub の PR とリポジトリは読むだけの口 `works-gh` を素の名で、1 "
+             "つだけのコマンドとして打て（例 `works-gh pr view 12 -R "
+             "OWNER/REPO`）。通るのは pr list・pr view・pr diff（-R "
+             "<OWNER/REPO> 付き）と repo view <OWNER/REPO> だけで、"
+             "この形だけが sandbox の外で走る。`gh` の名や変数に入れた口のパス、"
+             "パイプ・`&&`・`;`・`$(…)`、前に置く変数の代入を付けると sandbox "
+             "の中で走り、網に出られない。issue・検索・Web のページは "
+             "WebFetch・WebSearch で読め。書く gh は包みが止める。")
+TOOLS_GH = "道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。" + RO_GH_RULE
+TOOLS_TMP = ("道具は Read・Grep・Glob・Bash・WebSearch・WebFetch。"
+            "Bash は sandbox の中で走り、写しは一時の置き場（mktemp -d）に作れ。"
+            "対象の作業ツリーへの書き込みは包みが止める。")
+KEEP_TREE = ("対象の作業ツリー・HEAD・枝・git が無視するファイルを 1 "
+            "文字も変えるな（受け付けは、起こす前に取った作業ツリーの姿と今の姿を比べ、"
+            "変わっていれば拒む。同じ時に別の素材集めの役も走っている）。\n")
+
+
+def material_head(role: str, who: str, node: str, tools: str, *more: str, review: bool = True) -> str:
+    """素材集めの役の写しの頭（材料を読め・拒否の理由・道具・観点の正本・本線の指示書の見出し）"""
+    head = (f"お前は{who}。graphloops の節 {node} を、下の本線の指示書のとおりに行う。\n\n"
+            f"1. まず材料 `${role}-prep.output.brief_file` を Read で読め。下の指示書の「［材料: 〜］」は、そのファイルの同じ名の節の値"
+            "（対象差分・変更ファイルの一覧・観点の正本のパスと、この run の値。engine と同じ描き方で機械が描いた物）。"
+            "末尾の『条件に当たらない』の節も読め。\n"
+            + "2. " + MATERIAL_REREAD + "3. " + tools + KEEP_TREE + "".join(f"{n}. {m}\n" for n, m in enumerate(more, 4)) + "\n")
+    if review:
+        head += (f"---\n\n観点の正本: `${role}-prep.output.review_md` を Read せよ（対象リポジトリ側: `${role}-prep.output.repo_review_md`。"
+                 "空でなければそれも Read せよ）。ラベルと観点はここが正本。\n\n")
+    return head + f"---\n\n## 本線の指示書（graphloops の節 {node}）\n\n"
+
+
+def slots(*names: str) -> list:
+    """engine の差し込みの印 {{名}}（{{?名}} は在れば）を、材料のファイルの節の名 ［材料: 名］ に（値は材料のファイルが持つ）"""
+    return [("{{" + n + "}}", f"［材料: {n.lstrip('?')}］") for n in names]
+
+
+# 所見の場所の書き方（works/blk-material/lib/material.py:160 LOCATION_NOTE。prep が :396 で全部の素材の役の末尾に足した）
+LOCATION_NOTE = ("## 所見の場所の書き方（works の受け付けより）\n"
+                "\n"
+                "所見の場所（`where`）の `<パス>:<行>` は、"
+                "作業ツリーの今のファイルの行番号で書け。差分のファイル（patch）"
+                "の中の行番号を書くな——差分の行はファイルの行と違い、人が場所を開けない。"
+                "差分で見つけた所見は、ファイルを読める役ならそのファイルをRead "
+                "して行を確かめてから書け（読めない役は、"
+                "確かめられない行番号を書かずにパスと関数名などで書け）。受け付けは、"
+                "在るファイルの行の外を指す場所を拒んで出し直させる。")
+# 必須のレンズの読み替え 2 つ（material.py:129 LENS_RETRY_NOTE・:142 LENS_FORK_NOTE。prep が :395 で局所レビューだけに足した）
+LENS_RETRY_NOTE = ("## 必須のレンズの呼び出しの失敗（works の受け付けより。上の指示書の読み替え）\n"
+                  "\n"
+                  "上の『skill の呼び出し自体が失敗したら…material を "
+                  "awaiting_human にして理由を書け』は、`required` が false "
+                  "のレンズにだけ当てる。`required` が true のレンズの呼び出しが失敗したら、"
+                  "この回のうちに起こし直して `invoked: true` を書け。起こせないまま返すなら "
+                  "`failed` に理由を書き、material を awaiting_human "
+                  f"にするな——受け付けが拒んで同じ会話で起こし直させ、拒みが {rolekit.GIVE_UP_AFTER} 回に届いた時と、"
+                  "レンズのプラグインが隔離した設定に無い時だけ人に渡す。\n"
+                  "\n"
+                  "上の『直前の周から対象差分にロジック変更が無いなら /simplify "
+                  "の再実行は持ち越してよい』は狭めて読め: `simplify_carried: true` "
+                  "を受けるのは、この周の頭に固めた版が前の周の頭の版と 1 ファイルも違わない周だけ。"
+                  "どれかのファイルが変わった周（ロジックでない変更でも）と 1 周目は "
+                  "`/simplify` を起こして `invoked: true` を書け。")
+LENS_FORK_NOTE = ("## /code-review の返り方（works の受け付けより。上の指示書の読み替え）\n"
+                 "\n"
+                 "/code-review は別の会話（fork）で走る。所見を本文で返したら、それを "
+                 "/code-review の行の `items` に写せ（どの所見も落とさない）。"
+                 "Skill の結果が『Skill execution completed』"
+                 "だけで所見の本文が無い時は、fork が所見を別の口（返答の道具）"
+                 "に書いて親に届かなかった形で、works の受け付けがこの行を『見ていない』と報告に出す。"
+                 "どちらでも /code-review を起こし直すな（同じ形で返り、時間だけ掛かる）。"
+                 "本文が無かった行は `items` を空、`invoked: true` にして、"
+                 "`failed` に『本文が届かなかった』と渡した対象を書け（『起こしたが所見なし』"
+                 "と書くな——見ていない物を 0 件に見せる）。\n"
+                 "\n"
+                 "args に旗の綴り（`--comment`・`--fix`）を書くな——『付けない』"
+                 "と否定の文の中に書いても skill は旗として読む（実測: 『--comment も "
+                 "--fix も付けない』の --fix が旗に取られた）。"
+                 "修正を禁じるのは『作業ツリーを変えるな』の文で言え。")
+MATERIAL_ANSWER = "返すのは節の output_format の形に合う JSON だけ。\n"
+MATERIAL_END = "欄と値の正本は review-record.py。"   # 本線の素材の指示書の多くの終わりの 1 文
+
+
+def material_tail(last: str, *notes: str, after: str = MATERIAL_ANSWER) -> tuple:
+    """元の本線の指示書の終わり last の後ろに、prep が足した段（notes と LOCATION_NOTE）と返答の形の 1 行を足す直し"""
+    return (last, last.rstrip("\n") + "".join(f"\n\n---\n\n{n}" for n in (*notes, LOCATION_NOTE)) + "\n\n" + after)
+
+
+# 借りたスキルの無人の読み替え（rolekit.skill_overlay（works/.shared/core/rolekit.py:74-77）が Skill を持つ役に足した段）。頭の 1 行は
+# 元の OVERLAY_HEAD（:70）の「このファイル {path} を Read せよと書け」を、段をそのまま含めよに直した物。本文は
+# works/.shared/borrow/unattended.md の字のまま（写しの bin/_lib/borrow/unattended.md から読む）
+OVERLAY_LEAD = ("借りたスキル（superpowers）を読む時は、下の読み替えに従え。"
+               "これは役への直の指示で、スキルの文より勝つ。Agent で下請けを起こすなら、その "
+               "prompt に、この下の読み替えの段をそのまま含めよ——下請けにはこの段が届かない。")
+UNATTENDED = (ROOT / "bin" / "_lib" / "borrow" / "unattended.md").read_text(encoding="utf-8")
+# 仕様と再審の役の写しが足した返答の形の 1 行
+DECIDED_ANSWER = "\n返すのは決められた JSON の形に合う JSON だけ。\n"
+REQUEST_ROWS = "依頼: `$ARTIFACTS_DIR/judge/request.json` を Read で読め"
+REJECT_IN_HEAD = "- 前の回の受け付けが拒んだ理由は、この指示書の頭の節に在る（1 回目は空）。空でなければ、"
+WORLD_REREAD = ("- 指示書の頭に「前の回の受け付けが拒んだ理由」の節が在れば、お前の前の返答は機械の受け付けで拒まれている。",
+                "- この指示書の頭の「前の回の受け付けが拒んだ理由」の節に理由が在れば、お前の前の返答は機械の受け付けで拒まれている。")
+
+# 素材集めの役の写しの頭（元の works/blk-material/commands/<役>.md の指示を、材料のファイルを読む形に直した物）
+MATERIAL_HEADS = {
+    "consistency-bypass": material_head("consistency-bypass", "整合性と標準機構の迂回を見る役（inspector）", "p1.consistency_bypass", TOOLS_READ),
+    "external-standards": material_head("external-standards", "外部標準照合の役（investigator。作る前に既製の定番解が無いかを疑う目）",
+        "p1.external_standards", TOOLS_GH,
+        "目的の欄に「目的の文はこの run に無い」と書かれていたら、目的を推し量って補うな。差分と依存から問題クラスを引け。"),
+    "gate-efficacy": material_head("gate-efficacy", "ゲートの実効性確認の役（任せ先）", "p1.gate_efficacy", TOOLS_TMP, review=False),
+    "hygiene": ("お前は文脈を持たない読み手（cold-reader）。差分を読む役。道具は 1 つも無い。下の指示書と、囲いの中の材料（観点の本文と差分の全部を含む）"
+        "だけを読んで答えろ。\n\n" + MATERIAL_REREAD + "\n---\n\n"
+        "観点の正本は `$hygiene-prep.output.review_md`（対象リポジトリ側: `$hygiene-prep.output.repo_review_md`。空なら無い）。"
+        "お前は Read を持たないので、その「コード衛生観点」の節を下の材料に貼ってある。\n\n---\n\n## 本線の指示書（graphloops の節 p1.hygiene）\n\n"),
+    "local-review": material_head("local-review", "局所レビューの役（skill と agent のレンズを起こして findings を集める）", "p1.local_review",
+        "道具は Read・Grep・Glob・Bash・WebSearch・WebFetch と、skill を起こす Skill・agent を起こす Agent。" + RO_GH_RULE,
+        "組み込みの skill（code-review・simplify・security-review）は Skill で、pr-review-toolkit の agent のレンズは Agent で、"
+        "指示書が名指す物を 1 本ずつ起こせ。simplify は修正を禁じた形でだけ呼べ（指摘だけを返させる）。"),
+    "main-path-observation": material_head("main-path-observation", "主経路の実行観測の役（任せ先）",
+        "p1.main_path_observation", TOOLS_TMP, review=False),
+    "prior-decisions": material_head("prior-decisions", "先行議論の突合の役（investigator）", "p0.prior_decisions", TOOLS_GH, review=False),
+    "procedure-trace": material_head("procedure-trace", "手順トレースの役（investigator）", "p1.procedure_trace", TOOLS_GH),
+    "provenance": material_head("provenance", "根拠の出所検査の役（任せ先）", "p1.provenance", TOOLS_TMP, review=False),
+    "purpose-review": material_head("purpose-review", "目的の審査の役（inspector）", "p0.purpose_review", TOOLS_READ, review=False),
+    "test-double-fidelity": material_head("test-double-fidelity", "代役の忠実性の役（任せ先）", "p1.test_double_fidelity", TOOLS_TMP, review=False),
+}
+
+# 指示書の名 → (元のパス, 元の sha256, 許した直し)。本線の指示書の写しの置き場:
+WORKS_GL = "works/.shared/core/gl-prompts/prompts/review-loop/"
+COPIED_TEXTS = {
+    # 判定役。元の名の指示書 blk-judge/commands/diagnose.md
+    "diagnose.md": ("works/blk-judge/commands/diagnose.md", "90d37a8f85819931b05c7185387e00b44309647bfd76413d76a2de0539a2d184", [
+        ("", reject_section("diagnose", FIRST_NOFIX)),   # 拒否の理由を指示書の頭の節で受ける（線の diagnose-reject。PR #100）
+        ("", JUDGE_BODY + "\n\n---\n\n"),   # 頭に judge の役の定義（元は包みと agents/judge.md が役に渡した）
+        (("- 人の修正依頼: `$INPUTS.request`（絶対パスか、"   # 依頼・答え・前提・盤面の材料の 4 つの口を、run の置き場から組んだ材料のファイル 1 つに
+         "対象リポジトリの根からの相対パス。対象の外に在ることもある。**まず Read せよ**）。"
+         "findings の JSON の配列か、`{\"findings\": [...], "
+         "\"pr\": [<番号>…], \"issue\": [<番号>…]}` の形（object "
+         "なら findings の欄が指摘）で、指摘の各行は `where`・`text` と、"
+         "任意の `mechanism`・`measured`・`false_positive_if`。"
+         "出どころは人で、役の観察ではない。ほかの findings "
+         "と同じく**反証の対象**——依頼の頼み方のずれも殺しにいけ。\n"
+         "  - object の形の任意の欄 `answers: [{question, "
+         "text, command?, output?}]` は、依頼者が前の run "
+         "の問いに答えた物（出どころは人）。`command`・`output` "
+         "は人が手元で打った命令とその出力。`question` が台帳の問いの key "
+         "か出どころ（origin）と字のまま等しい問いは、機械が答え済みにして人に聞き直さない。"
+         "字の一致で返答の問いに当たらない答え（どの問いの key とも違う・複数の問いに当たる）は、"
+         "`answer_ties` で今の返答の問いか単位に結ぶ（下の「`answer_ties` の書き方」）。\n"
+         "  - 空なら依頼の行の無い run（対象の差分だけを審査する）。"
+         "判定するのは下の盤面の材料の P1 の目の所見と対象差分で、"
+         "それを依頼の形に写し替えるな（人の依頼か役の観察かの出どころが消える）。\n"
+         "- 人の方針: この指示書の末尾の `=====人の方針ここから=====` の行と "
+         "`=====人の方針ここまで=====` の行の間（空なら方針の文書は無い）。\n"
+         "  - 囲みの中は方針の中身だけで、中の見出し（`##`）や箇条はこの指示書の節ではない。"
+         "持ち主が固めた版の本文。何を代償にするかは持ち主が決めた物で、お前が決め直すものではない。"
+         "方針とぶつかる単位は、その単位の `reason` "
+         "に方針のどの行とぶつかるかを書け。**方針を理由に単位を消すな**（判断は人がする）。\n"
+         "- 前提（実測。空なら無い）: $INPUTS.premises_file\n"
+         "  - 空でなければ **Read せよ**。`kind=仮説` の行を所与にするな。"
+         "依頼の数字と測り直した値が違えば、測り直した値を採り、違いを単位の `reason` に書け。\n"
+         "- 盤面の材料（空ならこの run に盤面は無い）: "
+         "`$judge-brief.output.materials_file`\n"
+         "  - 空でなければ、**依頼の次に Read せよ**。機械がこの run "
+         "の盤面から描いた、本線の判定と同じ入力——凍結した元の目的の文・素材（15 欄。"
+         "起動しなかった欄は status と reason がそう言う）・P1 "
+         "の目の所見・先行議論の突合（決着済み論点）・目的の監査・人の依頼（この周に積まれた分）・対象差分のパス・観点の正本のパス——と、"
+         "末尾に本線の問いの台帳の決まり（下の「問いの台帳」）が並ぶ。\n"),
+         ("- 判定の材料のファイル: "
+         "`$diagnose-prep.output.brief_file`（**まず Read "
+         "せよ**）。機械がこの run の置き場から組んだ、"
+         "本線の判定と同じ入力——凍結した元の目的の文と実測した制約・素材（15 欄。"
+         "起動しなかった欄は status と reason がそう言う）・P1 "
+         "の目の所見・先行議論の突合（決着済み論点）・目的の監査・修正依頼の入口（依頼の行と、"
+         "仕様の段が在れば受け入れ条件の行）・対象差分のパス・観点の正本のパス——と、"
+         "頭に世界の解の行の節（在る時）、末尾に本線の問いの台帳の決まり（下の「問いの台帳」）、"
+         "依頼と PR の題と本文（在る時）、依頼の answers（在る時）、前の run の行（在る時）が並ぶ。\n"
+         "  - 修正依頼の入口の行は findings の型で、各行は "
+         "`where`・`text` と、任意の "
+         "`mechanism`・`measured`・`false_positive_if`。"
+         "出どころは人で、役の観察ではない。ほかの findings "
+         "と同じく**反証の対象**——依頼の頼み方のずれも殺しにいけ。\n"
+         "  - 依頼の行が無い run は、対象の差分だけを審査する。判定するのは材料の P1 "
+         "の目の所見と対象差分で、それを依頼の形に写し替えるな（人の依頼か役の観察かの出どころが消える）。\n"
+         "  - 材料の「依頼の answers」の節は、依頼者が前の run "
+         "の問いに答えた物（出どころは人。各行は `{question, text, "
+         "command?, output?}`）。`command`・`output` "
+         "は人が手元で打った命令とその出力。`question` が台帳の問いの key "
+         "か出どころ（origin）と字のまま等しい問いは、機械が答え済みにして人に聞き直さない。"
+         "字の一致で返答の問いに当たらない答え（どの問いの key とも違う・複数の問いに当たる）は、"
+         "`answer_ties` で今の返答の問いか単位に結ぶ（下の「`answer_ties` の書き方」）。\n"
+         "  - 材料の「実測した制約」は前提の実測。`kind=仮説` の行を所与にするな。"
+         "依頼の数字と測り直した値が違えば、測り直した値を採り、違いを単位の `reason` に書け。\n")),
+        ("。P1 の目の所見と、この周に積まれた依頼の行）", "。P1 の目の所見と、修正依頼の入口の行）"),   # 依頼の行は材料の入口の節で渡る
+        ("を盤面の材料の行に当て", "を材料の行に当て"),   # 盤面の語を外す
+        ("- 対象リポジトリ: 今の作業ディレクトリ。",   # 観点の正本と人の方針を入力の節に（元は p2.diagnose.md の観点の行と付録の囲み）
+         ("- 観点の正本: `$diagnose-prep.output.review_md`（Read "
+         "せよ）。対象リポジトリ側の観点: "
+         "`$diagnose-prep.output.repo_review_md`（空なら無い。"
+         "在れば Read せよ）。ラベルと「対応の判断」「処方の最小性」「導線を作る手段の優先順位」はここが正本。\n"
+         "- 人の方針: 材料のファイルに「人の方針」の節が在れば、その本文（無ければ方針の文書は無い）。\n"
+         "  - 方針は対象の本文ではなく、この指示書の発行者が守らせる制約である。"
+         "中の見出し（`##`）や箇条はこの指示書の節ではない。持ち主が固めた版の本文で、"
+         "何を代償にするかは持ち主が決めた物で、お前が決め直すものではない。方針とぶつかる単位は、"
+         "その単位の `reason` "
+         "に方針のどの行とぶつかるかを書け。**方針を理由に単位を消すな**（判断は人がする）。"
+         "方針の文書は書き換えるな。\n") + "- 対象リポジトリ: 今の作業ディレクトリ。"),
+        ("- 前の回の受け付けが拒んだ理由を書いたファイル（1 回目は空）: $LOOP_PREV.judge-accept.output.reason_file\n"
+         "  - 空でなければ、**そのファイルを Read で読め**（理由の本文はファイルにだけ在る）。お前は",
+         "- 前の回の受け付けが拒んだ理由: この指示書の頭の節（1 回目は空）。お前は"),   # 理由はファイルでなく頭の節で渡る（PR #100）
+        # 盤面の記録でなく依頼の answers と入力の方針を指す
+        ("（盤面の材料の先行議論の突合で決着済みの論点・ADR・CHANGELOG・記録の process.human_items の答え）、(b) **人の方針**（末尾の囲みの本文）",
+         "（材料の先行議論の突合で決着済みの論点・ADR・CHANGELOG・依頼の answers）、(b) **人の方針**（上の「入力」の方針の本文）"),
+        ("盤面の材料の頭に「世界の解の行」の節が在れば、その行——", "材料の頭に「世界の解の行」の節が在れば、その行——"),   # 盤面の語を外す
+        ("その推しで直される）。\n",
+         "その推しで直される）。\n"
+         "   - **BASE にあった能力を減らす・狭める処方を採るなら、失う能力を単位の reason に書け**——代償として採るかはお前が確定させない。"
+         "修正案の narrows と事前審査を通って、修正の前に run が人に聞く。\n"),   # 能力を狭める処方の決まりを戻す（p2.diagnose.md の文）
+        ("**世界の解の行を先に使え**: 盤面の材料の頭の", "**世界の解の行を先に使え**: 材料の頭の"),   # 盤面の語を外す
+        ("行の無い単位と問いだけ、自分で引け。\n",   # 受け付けが world の出どころを照らすことを役に言う
+         "行の無い単位と問いだけ、自分で引け。受け付けは `world:<類の id>` が世界の解の行に無ければ拒む。\n"),
+        ("- **盤面の材料が在る時**: kind・status・書ける欄の決まりは、材料のファイルの末尾の「問いの台帳」の段（本線の判定の指示書を盤面から描いた物。"
+         "検証器の表から描いた kind の全部と、",
+         "- kind・status・書ける欄の決まりは、材料のファイルの「問いの台帳」の段（本線の判定の指示書の同じ段を、検証器の表から描いた物。"
+         "kind の全部と、"),   # 盤面の無い道が無くなったので、材料が在る時の 1 本に
+        ("受け付けは本線と同じ規則で盤面が数える。\n- **盤面の材料が無い時**（ブロックを単独で回した）は下の箇条のとおり。\n",
+         "受け付けは本線と同じ規則で数える。\n"),   # 同上（盤面の材料が無い時の 1 句を外す）
+        ("- kind: fork（origin", "- kind の要点: fork（origin"),   # 下の箇条は材料の段の要約になった
+        ("盤面の材料が無い時は、出どころになる素材も R1〜R4 も無いので premise・unverifiable・awaiting は使わない。",
+         "awaiting（origin は素材名）・premise・unverifiable（origin は R1〜R4）は材料の段のとおり。"),   # 材料はいつも在るので 3 つの kind も使える
+        ("- **問いは阻害要因を消さない**",
+         "- 素材が awaiting_human なら、その素材を origin にする kind=awaiting の問いを必ず載せろ（受け付けは無い返答を拒む）。\n"
+         "- **問いは阻害要因を消さない**"),   # 受け付けが拒む決まりを役に言う
+        ("`materials_missing` は、盤面の材料が無いか、材料の全部の欄", "`materials_missing` は、材料の全部の欄"),   # 盤面の無い道を外す
+        ("`carried_r1` は空の配列にせよ。\n\n## 付録: 人の方針（囲みの中が本文。上の「入力」の決まりで読め）\n\n"
+         "=====人の方針ここから=====\n$INPUTS.policy_paste\n=====人の方針ここまで=====\n",
+         "`carried_r1` は空の配列にせよ。\n"),   # 方針は材料のファイルの「人の方針」の節で渡る（PR #76 の 6）
+    ]),
+    # 判定の裏取りの束ね役。元の名の指示書は無い。元は works/blk-judge/blk-judge.yaml:313 の節 judge-verify の prompt の値（と行末の改行）
+    "judge-verify.md": ("works/blk-judge/blk-judge.yaml:313", "f5ac6c890ba88e38059ec2cdc166888e1df0bfb7c4078cac2aa3c617bfcec782", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+    ]),
+    # 素材集めの 11 本。元の名の指示書は blk-material/commands/<役>.md の短い指示だけで、役が読む本文は prep（material.py:376-405）が
+    # 本線の指示書（gl-prompts の p0・p1）から描いた。その本線の指示書を元とし、prep が足した段と元の短い指示を直しとして持つ
+    "material-consistency-bypass.md": (WORKS_GL + "p1.consistency_bypass.md", "464aa8023cab8a9c65511ccbac2557d51f96ad07bc669bf7706cca547f102f57", [
+        ("", role_definition("inspector", INSPECTOR_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
+        ("", reject_section("consistency-bypass", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", MATERIAL_HEADS["consistency-bypass"]),   # 元の commands/consistency-bypass.md の指示を材料を読む形に
+        # 差し込みの印を材料の節の名に
+        *slots("loop.diff_file", "record.base", "loop.changed_files", "inputs.cwd", "inputs.review_rev", "inputs.review_md",
+               "?inputs.repo_review_md"),
+        material_tail("同じ版を数える。\n"),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
+    ]),
+    "material-external-standards.md": (WORKS_GL + "p1.external_standards.md", "cb1c148f374e16868188d9688fc303669ee84352fcb64ac048bebff778f75d1d", [
+        ("", role_definition("investigator", INVESTIGATOR_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
+        ("", reject_section("external-standards", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", MATERIAL_HEADS["external-standards"]),   # 元の commands/external-standards.md の指示を材料を読む形に
+        # 差し込みの印を材料の節の名に
+        *slots("loop.diff_file", "loop.changed_files", "inputs.cwd", "out.p0.purpose.purpose_text", "out.p0.purpose.known_weaknesses",
+               "inputs.review_md"),
+        material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
+    ]),
+    "material-gate-efficacy.md": (WORKS_GL + "p1.gate_efficacy.md", "025cd10531b664e19c2d38b7217cbbac3541b7b05402d842ed063b9935720ad0", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+        ("", reject_section("gate-efficacy", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", MATERIAL_HEADS["gate-efficacy"]),   # 元の commands/gate-efficacy.md の指示を材料を読む形に
+        *slots("loop.diff_file", "loop.changed_files_file", "record.base", "inputs.cwd", "loop.mutation_decl.text"),   # 差し込みの印を材料の節の名に
+        material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
+    ]),
+    "material-hygiene.md": (WORKS_GL + "p1.hygiene.md", "e8847b1b1d66c5a1962f6d2898e7dd521d14d1436e7851f441ac462e60f91327", [
+        ("", role_definition("cold-reader", COLD_READER_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
+        ("", reject_section("hygiene", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", MATERIAL_HEADS["hygiene"]),   # 元の commands/hygiene.md の指示を材料を読む形に
+        *slots("section:inputs.review_md#コード衛生観点", "file:loop.diff_file"),   # 差し込みの印を材料の節の名に
+        material_tail("欠陥ではない）。\n",   # 末尾に prep が足した段（所見の場所）と、材料を貼る囲いと返答の形（道具の無い役）
+                      after="---\n\n=====材料ここから=====\n$hygiene-prep.output.brief\n=====材料ここまで=====\n\n" + MATERIAL_ANSWER),
+    ]),
+    "material-local-review.md": (WORKS_GL + "p1.local_review.md", "963bdd993d7c3f849b5884af3488aba5422105f1002539d54dda3968db50a2c3", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+        ("", reject_section("local-review", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", MATERIAL_HEADS["local-review"]),   # 元の commands/local-review.md の指示を材料を読む形に
+        *slots("record.base", "loop.changed_files_file", "inputs.review_md", "?inputs.repo_review_md",
+               "node.skills"),   # 差し込みの印を材料の節の名に
+        ("対象差分: {{loop.diff_file}}", "対象差分: ［材料: loop.diff_file］"),   # 同上（同じ印が 2 か所に在る）
+        ("`{{loop.diff_file}}` をそのまま渡す", "`［材料: loop.diff_file］` をそのまま渡す"),   # 同上
+        material_tail(MATERIAL_END + "\n", LENS_RETRY_NOTE, LENS_FORK_NOTE,   # 末尾に prep が足した段（レンズの読み替え 2 つ・所見の場所）
+                      after=MATERIAL_ANSWER + "\n---\n\n" + OVERLAY_LEAD + "\n\n" + UNATTENDED),   # と返答の形と借りたスキルの読み替え
+    ]),
+    "material-main-path-observation.md": (WORKS_GL + "p1.main_path_observation.md", "e5a0c6fc7d907610f59a970aaf6b85440365ec166d89011b5831e88fb99e8123", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+        ("", reject_section("main-path-observation", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", MATERIAL_HEADS["main-path-observation"]),   # 元の commands/main-path-observation.md の指示を材料を読む形に
+        *slots("loop.diff_file", "loop.changed_files_file", "inputs.cwd"),   # 差し込みの印を材料の節の名に
+        material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
+    ]),
+    "material-prior-decisions.md": (WORKS_GL + "p0.prior_decisions.md", "8a2ee67bd45607d808337299f604a6c9d16ce9b03b81256d04aa91dbee7bddf8", [
+        ("", role_definition("investigator", INVESTIGATOR_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
+        ("", reject_section("prior-decisions", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", MATERIAL_HEADS["prior-decisions"]),   # 元の commands/prior-decisions.md の指示を材料を読む形に
+        *slots("inputs.cwd", "record.base", "loop.changed_files", "loop.request_wheres"),   # 差し込みの印を材料の節の名に
+        material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
+    ]),
+    "material-procedure-trace.md": (WORKS_GL + "p1.procedure_trace.md", "1eed8dc4ab7bdebcffbbe895c097f84478f956b523a792fba9031d28ee38a04d", [
+        ("", role_definition("investigator", INVESTIGATOR_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
+        ("", reject_section("procedure-trace", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", MATERIAL_HEADS["procedure-trace"]),   # 元の commands/procedure-trace.md の指示を材料を読む形に
+        *slots("loop.diff_file", "loop.changed_files", "inputs.cwd", "inputs.review_md"),   # 差し込みの印を材料の節の名に
+        material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
+    ]),
+    "material-provenance.md": (WORKS_GL + "p1.provenance.md", "a973ef69ef00eb0d918f67e2a1762d0431484001fb75929c049efb596afe0a06", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+        ("", reject_section("provenance", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", MATERIAL_HEADS["provenance"]),   # 元の commands/provenance.md の指示を材料を読む形に
+        *slots("loop.diff_file", "record.base", "inputs.cwd"),   # 差し込みの印を材料の節の名に
+        material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
+    ]),
+    "material-purpose-review.md": (WORKS_GL + "p0.purpose_review.md", "bf736d08a0e647a8bb1e2c81379fbec4291ceeb66127bc8b40a4f823e555f317", [
+        ("", role_definition("inspector", INSPECTOR_BODY)),   # 頭に役の定義（rolekit.with_role_definition）
+        ("", reject_section("purpose-review", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", MATERIAL_HEADS["purpose-review"]),   # 元の commands/purpose-review.md の指示を材料を読む形に
+        *slots("out.p0.purpose.purpose_text", "inputs.cwd", "inputs.review_rev"),   # 差し込みの印を材料の節の名に
+        material_tail("同じ版を数える。\n"),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
+    ]),
+    "material-test-double-fidelity.md": (WORKS_GL + "p1.test_double_fidelity.md", "1a7c246902fcba7f1ffc21a9173b7a32091e191a34d9f7a5bb2058ba181a3cc9", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+        ("", reject_section("test-double-fidelity", FIRST_NOT)),   # 拒否の理由を頭の節で（material.prep:388-391。PR #100）
+        ("", MATERIAL_HEADS["test-double-fidelity"]),   # 元の commands/test-double-fidelity.md の指示を材料を読む形に
+        *slots("loop.diff_file", "loop.changed_files_file", "inputs.cwd"),   # 差し込みの印を材料の節の名に
+        material_tail(MATERIAL_END),   # 末尾に prep が足した段（所見の場所の書き方）と返答の形
+    ]),
+    # 並行 PR の任せ先の役。元の名の指示書 blk-pr/commands/pr-check.md
+    "pr-check.md": ("works/blk-pr/commands/pr-check.md", "a8cd72d17da5ae7d7b4637227d8366fea6b7f8977de4a59a6184344e500bd373", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+        ("", reject_section("pr-check", FIRST_IS)),   # 拒否の理由を頭の節で受ける（線の pr-check-reject。PR #100）
+        ("`$pr-snap.output.brief_file`（Read せよ。JSON）", "`$ARTIFACTS_DIR/judge/pr-brief.json`（Read せよ。JSON）"),   # 材料は run の置き場の pr-brief.json
+        ("網に出られない。素の `gh` は包みが拒む。`command -v", "網に出られない。`command -v"),   # 包みの無い run でも同じ文で済むように包みの語を外す
+        ("（reason に「包みの読む口が無い」）", "（reason に「読むだけの口が無い」）"),   # 同上
+        ("`base`: BASE（周の頭で固めた版）", "`base`: 差分の根（始めの記録で固めた版）"),   # 周の語でなく、run の始めの記録が固めた根
+        # engine と parallel-pr.py でなく lib の機械の読み。落ちる場合を 1 つ足す
+        ("engine は 1〜5 段を同梱の parallel-pr.py で済ませようとして、交差が在った・gh が無いのどれかで",
+         "機械は 1〜5 段を gh の読みだけで済ませようとして、交差が在った・gh が無い・remote から owner/repo を導けないのどれかで"),
+        ("機械が run の初めに条件外", "機械が条件外"),   # 条件外にするのは並行 PR の節の機械（run の初めではない）
+        ("届くのは、engine が 1〜5 段", "届くのは、機械が 1〜5 段"),   # engine の語を外す
+        ("書き込みの gh は包みが拒む——gh で打ってよいのは読むだけの口の `works-gh",
+         "書き込みの gh は読むだけの口が拒む——gh で打ってよいのは `works-gh"),   # 拒むのは包みでなく読むだけの口
+        ("拒まれる）。欄と値の正本は review-record.py。\n\n## 前の返答が拒まれたとき\n\n"
+         "前の回の受け付けが拒んだ理由を書いたファイル（1 回目は空）: $LOOP_PREV.pr-accept.output.reason_file\n\n"
+         "空でなければ、**そのファイルを Read で読め**（理由の本文はファイルにだけ在る）。そこに挙がった所だけを直して、同じ型でもう一度返せ。\n",
+         "拒まれる）。\n"),   # 理由は頭の節で渡る。review-record.py は写しに無い
+    ]),
+    # 前提の役。元の名の指示書 blk-premises/commands/premises.md
+    "premises.md": ("works/blk-premises/commands/premises.md", "1a6663b687d1ecc22175615c94e99827f0f5684d0cc0f132f729de2c47e17dbe", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+        ("", reject_section("premises", FIRST_NOT)),   # 拒否の理由を頭の節で受ける（線の premises-reject。PR #100）
+        ("作業ツリーの写しと今の作業ツリー", "作業ツリーの姿と今の作業ツリー"),   # 受け付けが比べるのはファイルの写しでなく作業ツリーの姿
+        # 依頼は入口が容器を解いて run の置き場に置いた行の配列
+        ("- 人の修正依頼: `$INPUTS.request`（絶対パスか、対象リポジトリの根からの相対パス。対象の外に在ることもある。**まず Read せよ**）。"
+         "findings の JSON の配列か、`{\"findings\": [...], \"pr\": [<番号>…], \"issue\": [<番号>…]}` の形（object なら findings の欄が指摘）で、指摘の各行は",
+         "- 人の修正依頼の行: `$ARTIFACTS_DIR/judge/request.json`（入口が型を確かめた依頼の行の JSON の配列。**まず Read せよ**）。各行は"),
+        ("空なら依頼の行の無い run", "空の配列なら依頼の行の無い run"),   # 同上（空はファイルの無しでなく空の配列）
+        ("- 前の回の受け付けが拒んだ理由のファイル（1 回目は空）: $LOOP_PREV.premises-accept.output.reason_file\n"
+         "  - 空でなければ、お前は同じ会話の続きで起きている。**そのファイルを Read せよ。** 前の返答",
+         REJECT_IN_HEAD + "お前は同じ会話の続きで起きている。前の返答"),   # 理由はファイルでなく頭の節で渡る（PR #100）
+        ("拒んだ理由のファイルのパスが次の回の上に届く。", "拒んだ理由が次の回の指示書の頭に届く。"),   # 同上
+    ]),
+    # 目的の役。元の名の指示書 blk-purpose/commands/purpose.md
+    "purpose.md": ("works/blk-purpose/commands/purpose.md", "21b974734fadaed9f3bc5db88fea242447feeccf9d629e27f6da87dd41e73237", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+        ("", reject_section("purpose", FIRST_NOT)),   # 拒否の理由を頭の節で受ける（線の purpose-reject。PR #100）
+        ("受け付けは盤面に目的の文", "受け付けは run の置き場に目的の文"),   # 盤面の語を置き場の語に
+        ("- 依頼: `$intake.output.request`（絶対パスか、対象リポジトリの根からの相対パス。対象の外に在ることもある。**まず Read せよ**）。"
+         "空なら依頼の行の無い run（対象の差分だけを審査する）で、",
+         "- 材料: `$purpose-prep.output.brief_file`（**まず Read せよ**）。機械が組んだ物で、次の 3 つが在る:\n"
+         "  - 依頼（依頼のファイルの写し。findings の JSON の配列か、`{\"findings\": [...], \"pr\": [...], \"issue\": [...]}` の形）。"
+         "依頼の行の無い run なら空で、"),   # 依頼・PR・前提の 3 つの口を、支度が組む材料のファイル 1 つに
+        ("探せ。前の run の判断は機械が外してから渡している（目的の文は前の run の判断を知らない別の目の入力になる）。目的の出典",
+         "探せ。目的の出典"),   # 前の run の判断はこの材料に来ない（支度が初めから載せない）
+        ("- PR の説明: `$INPUTS.pr_file`（PR の番号・題・本文を書いたファイル。空なら PR の無い run）。空でなければ Read せよ。",
+         "  - PR の説明（PR の番号・題・本文。PR の無い run はそう書いてある）。"),   # 材料の節の 1 つに
+        ("- 前提の実測: `$INPUTS.constraints_file`（空なら前提の実測は無い）。空でなければ Read せよ。`constraints` の各行は",
+         "  - 前提の実測（`constraints` の各行は"),   # 同上
+        ("（実行したコマンドとその出力）を持つ。", "（実行したコマンドとその出力））。"),   # 同上（括弧を閉じる）
+        ("- 前の回の受け付けが拒んだ理由を書いたファイル（1 回目は空）: $LOOP_PREV.purpose-accept.output.reason_file\n"
+         "  - 空でなければ、**そのファイルを Read で読め**（理由の本文はファイルにだけ在る）。",
+         REJECT_IN_HEAD),   # 理由はファイルでなく頭の節で渡る（PR #100）
+        ("（盤面に書いた名前は", "（書いた名前は"),   # 盤面の語を外す
+    ]),
+    # 再審の役。元の名の指示書 blk-rejudge/commands/rejudge.md は短い指示だけで、役が読む本文は本線の p2.rejudge.md
+    "rejudge.md": (WORKS_GL + "p2.rejudge.md", "5f68952b5f931221b2d740dcc7a39332e0dd2a4ced979b5c980dd1a223a4d0da", [
+        ("", JUDGE_BODY + "\n\n---\n\n"),   # 頭に judge の役の定義
+        ("", ("お前は判定役（judge）として、この run の判定を考え直すために起きている。この "
+             "run の 1 回目の判定（判定役が書いた物）と、"
+             "その判定役が読んだ材料は置き場のファイルに保存してある。修正役がその判定に異議を出したので、"
+             "保存した判定と材料を読んで考え直す（判定役の会話は継がず、新しい会話で起きている。"
+             "前の会話の記憶は無いので、判定の中身はファイルから読め）。\n"
+             "\n"
+             "1. まず再審の材料 `$rejudge-prep.output.brief_file` "
+             "を Read で読め。異議の文・今の周の単位・台帳・1 "
+             "回目の見立て・読む材料のファイルの置き場・人の方針は全部そこに在る。"
+             "材料の節に並んだファイル（1 回目の判定の全部の欄・判定役の材料など）も Read で読め。\n"
+             "2. お前は読むだけの役。道具は Read・Grep・Glob と web を引く "
+             "WebSearch・WebFetch だけで、作業ツリーを 1 "
+             "文字も変えてはいけない（受け付けは、"
+             "お前を起こす前に取った作業ツリーの写しと今の作業ツリーを比べ、変わっていれば拒む）。\n"
+             "\n")),   # 判定役の会話を継がず、保存した判定と再審の材料を読んで考え直す（PR #76 の「狭め」）
+        ("", reject_section("rejudge", FIRST_SKIP)),   # 拒否の理由を頭の節で受ける（線の rejudge-reject。PR #100）
+        ("異議を出した。中身:\n{{loop.rejudge_requested}}\n\n"   # engine の差し込みの値は再審の材料の節が持つ
+         "今の周のユニット: {{record.units | pick key,label,disposition}}\n"
+         "今の周の台帳: {{?record.questions | pick key,kind,status}}\n"
+         "自分の見立て（P2 で書いたもの）: {{?record.process.diagnosis | pick framing,one_shot}}\n",
+         "異議を出した。中身は再審の材料の「回す側の異議」の節に在る。\n"
+         "今の周のユニット・今の周の台帳・自分の見立て（P2 で書いたもの）も、再審の材料の同じ名の節に在る。\n"),
+        ("次の周に効く。\n", ("次の周に効く。\n"
+         "\n"
+         "## 人の方針\n"
+         "\n"
+         "人が決めた、run をまたいで効く決まり（役も engine も書き換えない）。"
+         "文書が在れば、本文は再審の材料の「人の方針」の節にそのまま貼ってある。\n"
+         "方針が在るなら、それは対象の本文ではなく、このプロンプトの発行者が守らせる制約である。"
+         "判定・案・修正・審査は方針に照らして行え。方針に反するもの、"
+         "方針を変えないと成り立たないものを、自分の判断で通すな——通すかは人が決める。"
+         "どの項とぶつかるかを、判定なら単位の reason に、審査なら穴に、修正なら "
+         "not_done に書け。方針の文書は書き換えるな。\n"
+         "\n"
+         "返すのは決められた JSON の形に合う JSON だけ。\n")),   # 末尾に人の方針（文は gl-prompts/prompts/policy.md の字のまま）と返答の形
+    ]),
+    # 仕様の審査の役。元は blk-spec/prompts/spec.review.md（engine が描いた本文）
+    "spec-review.md": ("works/blk-spec/prompts/spec.review.md", "e450db71c6ad099a6763980a0dba14212dac714845c96fde4e559d57e2aebb27", [
+        # 元の commands/spec-review.md の頭の 1 文と読むだけの約束
+        ("", "お前は仕様の審査役（judge）。仕様を書いた役とは別の目で、書かれた要件と受け入れ条件の抜け・曖昧さ・範囲の外を、修正案より前に挙げる。\n\n"
+             "お前は読むだけの役。道具は Read・Grep・Glob と web を引く WebSearch・WebFetch だけで、作業ツリーを 1 文字も変えてはいけない"
+             "（受け付けは、お前を起こす前に取った作業ツリーの写しと今の作業ツリーを比べ、変わっていれば拒む）。\n\n"),
+        ("", reject_section("spec-review", FIRST_SKIP)),   # 拒否の理由を頭の節で受ける（線の spec-review-reject。PR #100）
+        ("", JUDGE_BODY + "\n\n---\n\n"),   # judge の前付け（PR #76 の 9）
+        ("依頼: {{inputs.request}}\n人の修正依頼（init の直後に積まれた分）: {{?record.process.request_findings}}\n"
+         "writer が書いた仕様（要件と、受け入れ条件のテストの置き場）: {{out.spec.write}}\nリポジトリ: {{inputs.cwd}}（",
+         REQUEST_ROWS + "（依頼の行の並び。人の修正依頼もここに在る）\n"
+         "writer が書いた仕様（要件と、受け入れ条件のテストの置き場）: `$ARTIFACTS_DIR/judge/spec-write.json` を Read で読め\n"
+         "リポジトリ: 今の作業ディレクトリ（"),   # engine の差し込みの値を run の置き場のファイルで渡す
+        ("仕様を承認する。\n", "仕様を承認する。\n" + DECIDED_ANSWER),   # 末尾に返答の形
+    ]),
+    # 仕様を直す役。元は blk-spec/prompts/spec.revise.md
+    "spec-revise.md": ("works/blk-spec/prompts/spec.revise.md", "8385832dc15b4d1b7c8ab199544ea890ad6cc8b7e18cfb5ab832366aa758192c", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+        # 元の commands/spec-revise.md の頭の 1 文
+        ("", "お前は仕様を直す役（writer）。仕様の審査が挙げた穴に key ごとに 1 度だけ答え、直した仕様の全体を返す。\n\n"),
+        ("", reject_section("spec-revise", FIRST_SKIP)),   # 拒否の理由を頭の節で受ける（線の spec-revise-reject。PR #100）
+        # engine の差し込みの値を run の置き場のファイルで渡す
+        ("最初に書いた仕様: {{out.spec.write}}\n仕様の審査が挙げた穴: {{out.spec.review}}\n依頼: {{inputs.request}}\nリポジトリ: {{inputs.cwd}}\n",
+         "最初に書いた仕様: `$ARTIFACTS_DIR/judge/spec-write.json` を Read で読め\n"
+         "仕様の審査が挙げた穴: `$ARTIFACTS_DIR/judge/spec-review.json` を Read で読め\n"
+         + REQUEST_ROWS + "\nリポジトリ: 今の作業ディレクトリ（対象リポジトリの作業ツリーの根）\n"),
+        ("承認の後に `run` を走らせる。\n",   # 元の commands/spec-revise.md の書いてよい物の約束と返答の形
+         "承認の後に `run` を走らせる。\n\n作業ツリーに書いてよいのはテストのファイルだけ。実装のファイルは 1 文字も変えるな。\n" + DECIDED_ANSWER),
+    ]),
+    # 仕様を書く役。元は blk-spec/prompts/spec.write.md
+    "spec.md": ("works/blk-spec/prompts/spec.write.md", "751fa48d67b5e76752bea475c98bc25d0e0508cdda0e286717d68674c0fa5ddd", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+        ("", "お前は仕様を書く役（writer）。依頼が完成と言える要件を 1 件ずつ書き、要件ごとの受け入れ条件を実行できるテストとして対象リポジトリに書く。"
+             "修正（実装）はまだ書かない。\n\n"),   # 元の commands/spec-write.md の頭の 1 文
+        # 拒否の理由を頭の節で受ける（元の commands/spec-write.md の 2 の文。PR #100）
+        ("", reject_section("spec", "テストのファイルが無い・名前が無い・Given/When/Then が無いと言われたら、"
+                                    "先に対象リポジトリのテストのファイルを直してから返せ。" + FIRST_SKIP)),
+        # engine の差し込みの値を run の置き場のファイルで渡す
+        ("依頼: {{inputs.request}}\n人の修正依頼（init の直後に積まれた分。無ければ「無い」と出る）: {{?record.process.request_findings}}\n"
+         "リポジトリ: {{inputs.cwd}}\n",
+         REQUEST_ROWS + "（依頼の行の並び。人の修正依頼もここに在る）\nリポジトリ: 今の作業ディレクトリ（対象リポジトリの作業ツリーの根）\n"),
+        ("実装はまだ書くな。\n",
+         "実装はまだ書くな——実装のファイルは 1 文字も変えるな。受け入れ条件の `run` のコマンドは、承認の前には誰も走らせない"
+         "（人が字面を見て承認した後に機械が走らせる）。\n" + DECIDED_ANSWER),   # 元の commands/spec-write.md の 3 の文（PR #76 の 9）と返答の形
+    ]),
+    # 世界の解の言い直す役。元の名の指示書 blk-world/commands/world-classes.md
+    "world-classes.md": ("works/blk-world/commands/world-classes.md", "54a5f00af282aa8f91e0384555f99394a61bd69370b4c5a426b05fcbe00af13b", [
+        ("", reject_section("world-classes", FIRST_IS)),   # 拒否の理由を頭の節で受ける（線の world-classes-reject。PR #100）
+        WORLD_REREAD,   # 理由は頭の節にいつも在り、空なら 1 回目
+        ("$world-classes-prep.output.prompt", "$world-intake.output.prompt"),   # 指示書を描く節の名が world-intake
+    ]),
+    # 世界の解の web の役。元の名の指示書 blk-world/commands/world-judge.md
+    "world-judge.md": ("works/blk-world/commands/world-judge.md", "4a1f99e4146aff139394727da6e3423ae6c915a2ec25711f67461503ff2a4e35", [
+        ("", QUERY_HEAD),   # 頭に外への問い合わせの決まり（PR #76 の 9）
+        ("", reject_section("world-judge", FIRST_IS)),   # 拒否の理由を頭の節で受ける（線の world-judge-reject。PR #100）
+        WORLD_REREAD,   # 理由は頭の節にいつも在り、空なら 1 回目
+        ("$world-judge-prep.output.prompt", "$world-plan.output.prompt"),   # 指示書を描く節の名が world-plan
+    ]),
+}
+
+
+class CopiedTextsCase(unittest.TestCase):
+    """役の指示書の写しの台帳（K9）: 全部の指示書が、元の works の文に台帳の直しだけを当てた物"""
+
+    def test_every_command_is_its_original_with_only_ledgered_edits(self):
+        """許した直しを逆に当てると元のバイト（元の sha256）に戻る。台帳に無い指示書・指示書の無い台帳の行は赤"""
+        on_disk = {p.name for p in COMMANDS.glob("*.md")}
+        with self.subTest(ledger="台帳と指示書の一覧"):
+            self.assertEqual(sorted(COPIED_TEXTS), sorted(on_disk))
+            self.assertLessEqual(rewritten(COMMANDS), set(COPIED_TEXTS))
+        for name in sorted(on_disk & set(COPIED_TEXTS)):
+            source, sha256, edits = COPIED_TEXTS[name]
+            with self.subTest(command=name, source=source):
+                assert_is_original(self, COMMANDS / name, sha256, edits)
 
 
 if __name__ == "__main__":

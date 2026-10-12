@@ -18,9 +18,10 @@
 - residue(returns, facts) -> fixed を名乗らせない残りの行 [{where, text}]（報告と次の依頼が同じ行を読む）
 - conflict_rows(returns)・asked_conflicts(returns, closed)・waiting_conflicts(returns)・conflict_counts(returns): 申し出と裁定の行・
   人に回した行・案の直しを待つ行・裁定と種類の内訳
-- materials(returns)・unmeasured(returns)・measured_materials(returns, answers): 判定の隣の素材の状態と、今の周に測れていない素材
-  {名: status}と、そのうち依頼の答えが命令と出力つきで答えた素材
-- questions(returns)・ledger(returns)・answer_binds(questions, answer, missing)・origin_of(question, missing): 問いの台帳の全部と
+- materials(returns)・unmeasured(returns)・answers_ledger(returns, answers)・measured_materials(returns, answers): 判定の隣の素材の
+  状態と、今の周に測れていない素材 {名: status}と、依頼の答えを当てる台帳の見え方と、そのうち依頼の答えが命令と出力つきで答えた素材
+- judgment_doc(returns)・questions(returns)・ledger(returns)・answer_binds(questions, answer, missing)・origin_of(question, missing):
+  判定の judgment.json の中身と問いの台帳の全部と
   人に聞く状態の問いと、依頼の答えの当て方
 - unknown_answers(gates) -> 通しにも止めにも数えない答えの語の行
 """
@@ -46,9 +47,9 @@ import structmark  # noqa: E402
 
 OK_OUTCOMES = ("fixed", "fixed_needs_check", "no_fix_needed")   # 返す節の ok が true になる結末（docs/design.md の report の返り）
 GATES = ("gate-start", "gate-before-fix", "gate-replan", "gate-final")
-STOP_WORDS = report.FINAL_GATE_STOPS   # stop は answer.VERBS の止める語、reject は今の works の最後の関所の止める語
-PASS_WORDS = ("approve", *(v for v in answer.VERBS if v not in STOP_WORDS))   # approve は関所の decisions に要る語
-WAIT_WORDS = (stopby.CONFLICT, stopby.REPLAN, stopby.TDD_REPEAT, stopby.NEEDS_HUMAN)   # 線の止めでなく、人の答えを待つ語
+STOP_WORDS = answer.STOP_WORDS
+PASS_WORDS = answer.GO_WORDS
+WAIT_WORDS = stopby.WAITING
 FIX_STATUS_LEFT = ("given_up", "not_done")
 NOT_CLOSED = "直したと申告したが、機械が判定の問いで数え直すと閉じていない"   # 元 report._closed_units が残りから外さなかった単位
 EYE_STATUS_LEFT = (seal.REDESIGN, seal.UNVERIFIABLE)
@@ -70,7 +71,8 @@ PENDING_WHY = replan.PENDING_WHY
 
 # 判定の judgment の隣の素材の測りの状態 {<素材の名>: {status, …}}（docs/design.md の「書き方の決め」の名指しの隣のファイル）。
 # 測れていない status は元の写しの検証器の STATUS で阻害になる物（gatemarks.unmeasured。works/.shared/core/gatemarks.py:708-716）
-MATERIALS_FILE = "materials.json"
+MATERIALS_FILE = gatemarks.MATERIALS_FILE
+UNMEASURED = gatemarks.UNMEASURED
 MATERIAL_WHERE = "素材"
 ASKING = gatemarks.ASKING   # 問いの台帳で人に聞く状態
 
@@ -227,14 +229,18 @@ def unmeasured(returns: dict) -> dict:
     return gatemarks.unmeasured_of(doc)
 
 
-def questions(returns: dict) -> list:
-    """判定の judgment の問いの台帳の全部（読めない・無ければ空。依頼の答えはこの全部に当てる）"""
+def judgment_doc(returns: dict) -> dict:
+    """判定（再審が在ればその）の judgment.json の中身（読めない・無ければ空）"""
     jf = as_dict(judged(returns)).get("judgment")
     try:
-        doc = read_json(jf) if isinstance(jf, str) and jf else {}
+        return as_dict(read_json(jf) if isinstance(jf, str) and jf else {})
     except (OSError, ValueError):
-        return []
-    qs = as_dict(doc).get("questions")
+        return {}
+
+
+def questions(returns: dict) -> list:
+    """判定の judgment の問いの台帳の全部（読めない・無ければ空。依頼の答えはこの全部に当てる）"""
+    qs = judgment_doc(returns).get("questions")
     return [q for q in qs if isinstance(q, dict)] if isinstance(qs, list) else []
 
 
@@ -253,22 +259,17 @@ def answer_binds(questions: list, a: dict, missing: dict) -> list:
     return gatemarks.binds(a, questions, missing=missing)
 
 
-def material_answer(returns: dict, answers: list, name: str) -> dict | None:
-    """依頼の答えのうち question が今の周に測れていない素材の名 name で、台帳の問いに 2 つ以上当たらない最初の物（元
-    gatemarks.material_answer。複数の問いに当たる答えは素材にも当てない）"""
-    missing = unmeasured(returns)
-    if name not in missing:
-        return None
-    qs = questions(returns)
-    return next((a for a in answers if isinstance(a, dict) and a.get("question") == name and len(answer_binds(qs, a, missing)) <= 1),
-                None)
+def answers_ledger(returns: dict, answers) -> "gatemarks.Ledger":
+    """判定の問いの台帳と素材の状態に依頼の答え answers を当てる値の見え方（gatemarks.ledger。結びはここでは当てない——結びを当てる
+    読みは runreport.ledger）。素材の当ての式は gatemarks.material_answer・measured_materials の 1 か所"""
+    doc, _ = materials(returns)
+    return gatemarks.ledger(judgment_doc(returns), answers=answers or [], materials=doc)
 
 
 def measured_materials(returns: dict, answers) -> set:
-    """依頼の答えが命令と出力つきで答えた、今の周に測れていない素材の名（元 gatemarks.measured_materials。残りに数えない。
+    """依頼の答えが命令と出力つきで答えた、今の周に測れていない素材の名（gatemarks.measured_materials。残りに数えない。
     実測とは書かず、人が手元で確かめたと名乗る）"""
-    answers = [a for a in answers or [] if isinstance(a, dict)]
-    return {n for n in unmeasured(returns) if (a := material_answer(returns, answers, n)) is not None and gatemarks._measured(a)}
+    return gatemarks.measured_materials(answers_ledger(returns, answers))
 
 
 def _material_row(name: str, status: str) -> dict:
@@ -317,7 +318,7 @@ def absorbed_rows(returns: dict, absorbed) -> list:
     """落ちたが線が受け止めて先へ進んだ節の残りの行（元 report.absorbed_rows。その段が見るはずだった物は確かめていない）。返りの
     在るブロックの中の落ちは、そのブロックが返りで言うので重ねない（元の seen）"""
     return [{"where": f"{report.ABSORBED_WHERE} {a.get('node')}",
-             "text": f"{a.get('node')} が落ちた（誤り: {report._first_error(a)}）——線は受け止めて先へ進んだが、その段の結果は確かめていない（再実行の要あり）"}
+             "text": f"{a.get('node')} が落ちた（誤り: {report._first_error(a)}）——メイングラフは受け止めて先へ進んだが、その段の結果は確かめていない（再実行の要あり）"}
             for a in absorbed or [] if isinstance(a, dict) and not isinstance(returns.get(_include(a.get("node"))), dict)]
 
 
@@ -341,9 +342,11 @@ def residue(returns: dict, facts: dict | None = None) -> list:
                 rows.append({"where": f"修正 {u.get('unit_id')}",
                              "text": f"単位 {u.get('unit_id')} が {u['status']}: {report._one_line(u.get('reason') or '理由なし')}"})
         left = {u.get("unit_id") for u in fix.get("units") or [] if isinstance(u, dict) and u.get("status") in FIX_STATUS_LEFT}
-        for k in fixbeside.not_closed(facts.get("beside") or fixbeside.read(fix_folders(returns))):   # 元 report._closed_units: 申告しても表で閉じていない
+        beside = facts.get("beside") or fixbeside.read(fix_folders(returns))
+        for k in fixbeside.not_closed(beside):   # 元 report._closed_units: 申告しても表で閉じていない
             if k not in left:
                 rows.append({"where": f"修正 {k}", "text": f"単位 {k} が閉鎖の表で閉じていない（{NOT_CLOSED}）"})
+        rows += [{"where": "修正", "text": line} for line in beside["closure_unread"]]   # 読めない表を閉じたと数えない
         if fix.get("done") is False:
             rows.append({"where": "修正", "text": "修正の段が直し終えていない（done が false）"})
         if as_dict(fix.get("delta_review")).get("pass") is False:
@@ -360,18 +363,18 @@ def unknown_answers(gates: dict) -> list:
     for gid in GATES:
         g = gates.get(gid)
         if isinstance(g, dict) and g.get("decision") not in (*PASS_WORDS, *STOP_WORDS):
-            out.append(f"関所 {gid} の知らない答えの語 {g.get('decision')!r}（通す語 {'・'.join(PASS_WORDS)}・止める語 {'・'.join(STOP_WORDS)}）")
+            out.append(f"承認ノード {gid} の知らない答えの語 {g.get('decision')!r}（通す語 {'・'.join(PASS_WORDS)}・止める語 {'・'.join(STOP_WORDS)}）")
     return out
 
 
-def stop_reasons(returns: dict, facts: dict | None = None) -> list:
+def stop_reasons(returns: dict, facts: dict | None) -> list:
     """止めの語 [(段か線の節の id, 語)]: ブロックの返りの stop_reason と、facts の stops（線の節の止めの語）"""
     got = [(rid, r["stop_reason"]) for rid, r in returns.items() if isinstance(r, dict) and isinstance(r.get("stop_reason"), str)
            and r["stop_reason"]]
     return got + [(str(node), word) for node, word in as_dict(facts).get("stops") or () if isinstance(word, str) and word]
 
 
-def _human_stop(returns: dict, gates: dict, facts: dict | None = None) -> tuple:
+def _human_stop(returns: dict, gates: dict, facts: dict | None) -> tuple:
     """1. 人の止め: 関所の止める語か、返りの stop_reason が human:・request: で始まる。文が request: で始まれば止め札"""
     for gid in GATES:
         g = gates.get(gid)
@@ -386,7 +389,7 @@ def _human_stop(returns: dict, gates: dict, facts: dict | None = None) -> tuple:
     return ()
 
 
-def _line_stop(returns: dict, facts: dict | None = None) -> str:
+def _line_stop(returns: dict, facts: dict | None) -> str:
     """2. 線の止め: stopby の語（人待ちの語を除く。線の節の語も）・事前審査の往復が進まない・計画が諦めた・封じと置きが ok でない"""
     for rid, sr in stop_reasons(returns, facts):
         if stopby.is_line(sr) and sr not in WAIT_WORDS:
@@ -408,7 +411,7 @@ def plan_gave_up(returns: dict) -> bool:
     return bool(plan) and plan.get("ready") is False and bool(_units(returns))
 
 
-def _waits(returns: dict, gates: dict, closed: bool, facts: dict | None = None) -> str:
+def _waits(returns: dict, gates: dict, closed: bool, facts: dict | None) -> str:
     """3. 人待ち: 人に回した申し出（closed なら締めた案の直しの行も）・返りの人待ちの語・前提の検算の escalate・無人の run が
     残した修正前の問い"""
     if asked_conflicts(returns, closed):

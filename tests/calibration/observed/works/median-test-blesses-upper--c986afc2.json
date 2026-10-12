@@ -1,0 +1,90 @@
+{
+ "id": "median-test-blesses-upper",
+ "factory": "works",
+ "run_id": "c986afc2-d5e2-46ef-a1b4-d1d953bf7fa1",
+ "outcome": "stopped_by_human",
+ "flagged": [
+  "converge",
+  "p0.prior_decisions",
+  "p1.consistency_bypass",
+  "p1.external_standards",
+  "p1.gate_efficacy",
+  "p1.hygiene",
+  "p1.local_review",
+  "p1.main_path_observation",
+  "p2.diagnose",
+  "p2.plan_review",
+  "p4.record",
+  "r1.minimality",
+  "r2.design",
+  "r4.hidden_scope",
+  "stop.premise_check"
+ ],
+ "child_run_ids": [],
+ "unread": [
+  "p0.parallel_pr",
+  "p0.purpose_review",
+  "p1.procedure_trace",
+  "p2.rejudge",
+  "p3.delta_review2",
+  "r2.compare",
+  "spec.check",
+  "spec.review"
+ ],
+ "flag_evidence": {
+  "converge": "board/out/r1/converge.json: decision = \"ask\"",
+  "p0.parallel_pr": "board/out/r*/p0.parallel_pr.json: 無い; board/out/r*/p0.parallel_pr.json: 無い",
+  "p0.prior_decisions": "board/out/r1/p0.prior_decisions.json: settled.0 = {\"topic\": \"median の偶数個の扱い（仕様の記述）\", \"decision\": \"README.md は『偶数個は中の 2 つの平均』と書いている",
+  "p0.purpose_review": "board/out/r*/p0.purpose_review.json: 無い; board/out/r*/p0.purpose_review.json: 無い",
+  "p1.consistency_bypass": "board/out/r1/p1.consistency_bypass.json: consistency.status = \"found\"",
+  "p1.external_standards": "board/out/r1/p1.external_standards.json: material.status = \"found\"",
+  "p1.gate_efficacy": "board/out/r1/p1.gate_efficacy.json: material.status = \"found\"",
+  "p1.hygiene": "board/out/r1/p1.hygiene.json: findings.0 = {\"where\": \"stats.py:median\", \"text\": \"偶数個のときに上側の中央値 ordered[mid] を返すよう変更されており、統計",
+  "p1.local_review": "board/out/r1/p1.local_review.json: material.status = \"found\"",
+  "p1.main_path_observation": "board/out/r1/p1.main_path_observation.json: material.status = \"found\"",
+  "p1.procedure_trace": "board/out/r*/p1.procedure_trace.json: 無い; board/out/r*/p1.procedure_trace.json: 無い",
+  "p2.diagnose": "board/out/r1/p2.diagnose.json: units.*.label = \"block\"",
+  "p2.plan_review": "board/out/r1/p2.plan_review.json: faces.0 = {\"key\": \"mutation-target-even-branch-removed\", \"unit_keys\": [\"stats.py median: 奇",
+  "p2.rejudge": "board/out/r*/p2.rejudge.json: 無い; board/out/r*/p2.rejudge.json: 無い",
+  "p3.delta_review2": "board/out/r*/p3.delta_review2.json: 無い; board/out/r*/p3.delta_review2.json: 無い",
+  "p4.record": "board/out/r1/p4.record.json: exit = 1",
+  "r1.minimality": "board/out/r1/r1.minimality.json: deletions.0 = {\"where\": \"stats.py:14 median の docstring の括弧内「statistics.median_high と同じ定義」\", \"",
+  "r2.compare": "board/out/r*/r2.compare.json: 無い",
+  "r2.design": "board/design.json: question_stands = false",
+  "r4.hidden_scope": "board/out/r1/r4.hidden_scope.json: surfaced.0 = {\"where\": \"stats.py:17\", \"text\": \"[suggest] 既存の挙動で、この変更が導入したものではない。NaN や、比較できない型",
+  "report.cold_check": "skipped",
+  "spec.check": "board/out/r*/spec.check.json: 無い",
+  "spec.review": "board/out/r*/spec.review.json: 無い",
+  "stop.premise_check": "board/out/r1/stop.premise_check.json: verdict = \"escalate\""
+ },
+ "units": [
+  "stats.py+README.md median: 偶数個の契約文が「中の 2 つの平均」のままで上側の値を返す挙動と食い違う",
+  "stats.py median: 奇偶の分岐が両方 ordered[mid] を返す死んだ分岐（statistics.median_high の手書き）",
+  "test_stats.py test_median_of_even: 偶数個の期待値を == だけで比べ「整数のまま返す」が柵に入っていない"
+ ],
+ "asks": [
+  "entering__launch",
+  "final-gate"
+ ],
+ "cost": {
+  "usd": null,
+  "seconds": 110.0,
+  "why_null": "usd: 出来事 workflow_completed の data.cost_usd が読めない"
+ },
+ "provenance": {
+  "factory_commit": "2aa7c66cf7abe1fe09699ac2942d107123214168",
+  "archon": "v0.11.1",
+  "claude_code": "2.1.296 (Claude Code)",
+  "run_inputs": {
+   "request": "request.json",
+   "base": "62476b9a589fcb73cc7014e2909bbaef0482608f",
+   "test_cmd": "python3 -m unittest -v",
+   "tdd_suite": "junit-suite.sh",
+   "unattended": "true",
+   "final_gate": "when_needed",
+   "thickness": "標準"
+  },
+  "date": "2026-10-12T08:52:13+00:00",
+  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80"
+ }
+}

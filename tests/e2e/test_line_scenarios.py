@@ -21,8 +21,8 @@ from tests.layers import scan
 SCENARIOS = (
     "standard", "start-refused", "no-fix", "policy-continue", "policy-stop", "plan-stalled", "plan-unsettled", "replan",
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
-    "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "rejudge-stop", "unattended-questions",
-    "unattended-policy-change", "eyes-failed-protected", "refix-handoff",
+    "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "test-gate-failed", "rejudge-stop",
+    "unattended-questions", "unattended-policy-change", "eyes-failed-protected", "refix-handoff",
 )
 
 

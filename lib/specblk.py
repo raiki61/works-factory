@@ -28,7 +28,7 @@ SPEC_FILE = "spec.json"                 # 出口が書く record.process.spec �
 NULL = "null"                           # 飛ばされた節の出力（if_skipped: null）が届く字
 GATE_GO = ("approve", "continue")       # approve は continue と、reject は stop と同じ（台帳 R32）
 GATE_STOP = ("stop", "reject")
-GATE_STOP_NOTE = "関所で止めた"          # stop・reject に一言が無い時の理由
+GATE_STOP_NOTE = "承認ノードで止めた"          # stop・reject に一言が無い時の理由
 FLAG_BY_PREFIX = "request:"             # 止め札で止めた盤面の state.stop.by は "request:<札の by>"（報告の stopped_by_request）
 RUN_ID_HOLE = "<id>"                    # run の id を知らない時の文の穴
 
@@ -51,18 +51,18 @@ def parse_gate(raw: str):
     try:
         gate = json.loads(raw)
     except json.JSONDecodeError as e:
-        raise BoardGap(f"関所の答えが JSON として読めない（{e}）: {raw[:200]!r}") from None
+        raise BoardGap(f"承認ノードの答えが JSON として読めない（{e}）: {raw[:200]!r}") from None
     if gate is None:
         return None
     if not isinstance(gate, dict):
-        raise BoardGap(f"関所の答えが JSON のオブジェクトでない: {type(gate).__name__}")
+        raise BoardGap(f"承認ノードの答えが JSON のオブジェクトでない: {type(gate).__name__}")
     decision = gate.get("decision")
     if decision not in GATE_GO + GATE_STOP:
-        raise BoardGap(f"関所の答えの語 {decision!r} を知らない（{' / '.join(GATE_GO + GATE_STOP)}）")
+        raise BoardGap(f"承認ノードの答えの語 {decision!r} を知らない（{' / '.join(GATE_GO + GATE_STOP)}）")
     text = gate.get("text")
     if text is None:
         text = ""
     if not isinstance(text, str):
-        raise BoardGap(f"関所の一言が文字列でない: {type(text).__name__}")
+        raise BoardGap(f"承認ノードの一言が文字列でない: {type(text).__name__}")
     return {"decision": decision, "text": text}
 

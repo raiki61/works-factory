@@ -56,6 +56,8 @@ NODE = "r2.design"
 DESIGN_FILE = "design.json"             # 受け付けた設計の返答（盤面の根。run に 1 つ）
 GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER
 MISSING = "独立設計が取れなかった"
+HANDED_OP = "r2_design_handed"         # 設計の控えを後段に渡した trace の行（元 works/.shared/core/design.py:74）
+MISSING_OP = "r2_design_missing"       # 設計が無いまま先へ進んだ trace の行（元 :75）
 REJECT_HEADING = rolekit.REJECT_HEADING
 UNUSABLE = {"目的不明": "目的の出典が取れない（目的不明）——独立設計を回さない",
             "狭めている": "目的の文を監査が『狭めている』と判定した——狭められた目的で独立設計を回さない"}
@@ -64,13 +66,13 @@ UNPAIRED_HEAD = "独立設計に対の無い仕組み: "
 QUOTE_HEADS = (DRIFT_HEAD, UNPAIRED_HEAD)
 ROW_QUOTE_KEYS = ("approach", "adds", "allowed_paths", "shrink_first")   # 案の行のうち、引用の照らしが読む欄
 TEXT_SEP = "\x00"   # 引用の照らしで文を継ぐ字（畳みの空白に化けないので、欄をまたぐ引用は字のままと数えない）
-HUMAN_HEAD = promptsection.Section("### 人の関所の答え", source="fn:design.human_answers")
-HUMAN_ASK = ("人が関所で答えた前提（run の中で人が決めた物）。ほかの節より先に読め。答えが目的の文や前の要求を取り下げ・変えていれば、"
+HUMAN_HEAD = promptsection.Section("### 承認ノードの答え", source="fn:design.human_answers")
+HUMAN_ASK = ("人が承認ノードで答えた前提（run の中で人が決めた物）。ほかのセクションより先に読め。答えが目的の文や前の要求を取り下げ・変えていれば、"
              "取り下げ・変えた後の要求を前提にせよ（取り下げた要求を固定の契約にしない）。設計が取り下げた要求を置いていても、"
              "そのことだけでは差にも前提の崩れにも数えず、答えに照らした目的で突き合わせよ。")
 DESIGN_PREMISE_HEAD = promptsection.Section("## 人が決めた前提（機械が貼った）", source="fn:design.prep")
-NAMED_HEAD = promptsection.Section("### 依頼が名指した設計書の節", source="fn:design.named_sections")
-NAMED_ASK = "依頼が名指した設計書の節の本文（依頼を固めた版のファイルから機械が抜いた）。目的の文と同じく依頼の一部として読め。"
+NAMED_HEAD = promptsection.Section("### 依頼が名指した設計書のセクション", source="fn:design.named_sections")
+NAMED_ASK = "依頼が名指した設計書のセクションの本文（依頼を固めた版のファイルから機械が抜いた）。目的の文と同じく依頼の一部として読め。"
 CODE_SPAN_ANCHOR = re.compile(r"`([^`\s]+\.[A-Za-z0-9]+#[^`\s]+)`")
 # 持ち主の地の文の名指し: 「`<path>` 3 節」「`<path>` の §3」（見出しの頭の番号で引く。パスは拡張子つき）
 CODE_SPAN_NUM = re.compile(r"`([^`\s#]+\.[A-Za-z0-9]+)`\s*(?:の\s*)?(?:§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節)")
@@ -97,7 +99,7 @@ UNPASSED = re.compile(r"渡されていない|渡っていない")
 # 地の文によく出て無関係の行まで当たるので語では当てず、what そのものが文に在る時だけ当てる。設計書の節も「設計書」の語は
 # 別の設計書の文にも出るので語では当てず、what のパスか節番号が文に在る時だけ当てる（_named_hit）
 # 地図は「地図」の語か、what のパスの部分（`:` の前）が文に在る時に当てる
-CLAIM_WORDS = {"human_answer": ("人の答え", "関所"), "repo_map": ("地図",)}
+CLAIM_WORDS = {"human_answer": ("人の答え", "承認ノード"), "repo_map": ("地図",)}
 # 独立設計の指示書の頭に機械が貼ってよい前提の種類（premises の控えの kind の許す一覧）。一覧の外（ほかのブロックの出力など）を
 # 貼る口は作らない（独立設計の隔て。設計書 structure-block-design 7 節）。graph の reads で描く本文はこの柵の外（graph の reads が縛り、
 # その reads と prompt_append などの入口は tests/test_blk_eyes.py の test_r2_design_inputs_are_exactly_the_allowlist が許可の一覧の等式で縛る）
@@ -463,7 +465,7 @@ def read_design(board_dir, schema):
     """盤面の根の design.json（無ければ None）。読めない・型 schema（r2.design の役の型。ブロックが渡す）に合わなければ Reject"""
     obj = accept.read_board(board_dir, DESIGN_FILE)
     if obj is not None:
-        accept.type_errors(obj, schema, f"盤面の {DESIGN_FILE} ")
+        accept.type_errors(obj, schema, f"共有ボードの {DESIGN_FILE} ")
     return obj
 
 
@@ -479,7 +481,7 @@ def due(b) -> tuple:
     """(起こすか, 理由)"""
     row = b.table.nodes.get(NODE) if b.table is not None else None
     if row is None or row.by != "role":
-        return False, f"節の表に {NODE} の役が無い"
+        return False, f"ノードの表に {NODE} の AI ノードが無い"
     got, broken = made(b.dir, b.design_schema)
     if got is not None or broken:
         return False, broken or f"独立設計はもう {DESIGN_FILE} に在る"   # 壊れた控えも作り直さない（設計を 2 度作らない）
@@ -488,7 +490,7 @@ def due(b) -> tuple:
         return False, gave
     st = b.node_state(NODE)
     if st != "pending":   # 済んだ・条件外（na）・省いた。まだ依存を待つ節も pending
-        return False, f"盤面で {NODE} はこの周に {st}"
+        return False, f"共有ボードで {NODE} はこの周に {st}"
     if b.loop_state.get("r2_refire", True) is not True:
         return False, "R2 の再発火条件に当たらない"
     why = unusable(b)

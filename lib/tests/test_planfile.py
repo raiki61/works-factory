@@ -20,7 +20,9 @@ if str(LIB) not in sys.path:
 
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import carry  # noqa: E402
+import conflict  # noqa: E402
 import converge  # noqa: E402
+import eye  # noqa: E402
 import planblk  # noqa: E402
 import rolekit  # noqa: E402
 import planfile  # noqa: E402
@@ -85,6 +87,22 @@ class TmpCase(unittest.TestCase):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         return p
+
+
+class RippleItemsCase(TmpCase):
+    def test_ripple_items_sees_removes(self):
+        """受け付けた案の項目の removes（planmarks.split が欄に写す）が波及の一覧に届き、残る名指しが kind removed で名指される"""
+        repo = self.tmp / "repo"
+        committed_copy(repo, SEED)
+        item = {"unit_keys": [MEAN], "approach": "x" * 20, "adds": [], "removes": ["stats.clamp"], "shrink_first": "y" * 20,
+                "narrows": [], "route": "tdd", "route_why": "", "tests": [], "rewrite_tests": [],
+                "refactor": {"declared": False, "why": ""}, "allowed_paths": ["stats.py"], "out_of_scope": []}
+        rnd = self.tmp / "plan" / "r1"
+        self.write(f"plan/r1/{planfile.REPLY_FILE}", {"plan": [item]})
+        self.write(f"plan/r1/{planmarks.FIELDS_FILE}", {"round": 1, "fields": planmarks.split({"plan": [item]}, repo)[1]})
+        doc = json.loads(planfile.ripple_items(rnd, repo, skip_dirs=()).read_text(encoding="utf-8"))
+        got = [(h["kind"], h["at"]) for h in doc["items"][0]["uncovered"]]
+        self.assertIn(("removed_test", "test_stats.py::TestStats::test_clamp_within_range"), got)
 
 
 class OwedCase(unittest.TestCase):
@@ -405,6 +423,16 @@ class ReplanInputsCase(TmpCase):
         got = planfile.conflict_rows({"items": rows}, 1, item(MEAN))
         self.assertEqual([c["id"] for c in got], ["c1"])
 
+    def test_conflict_rows_compare_unit_keys_as_text(self):
+        rows = [{"id": "c1", "unit_key": 7, "ruling": {"decision": "fix_plan_item"}}]
+        self.assertEqual([c["id"] for c in planfile.conflict_rows({"items": rows}, 1, item("7"))], ["c1"])
+
+    def test_conflict_rows_read_the_replan_decision_from_conflict(self):
+        rows = [{"id": "c1", "unit_key": MEAN, "ruling": {"decision": "renamed"}}]
+        with mock.patch.object(conflict, "REPLAN", "renamed"):
+            self.assertEqual([c["id"] for c in planfile.conflict_rows({"items": rows}, 1, item(MEAN))], ["c1"])
+        self.assertFalse(hasattr(planfile, "REPLAN_DECISION"))
+
     def test_replan_structure_is_the_source_rounds(self):
         """直す元の周の round.json の structure を使う（後から書いたほかの鍵の控えに倒れない）"""
         plan = self.tmp / "plan"
@@ -501,6 +529,86 @@ class RoundCase(TmpCase):
         self.assertEqual(key, planfile.structure_key(json.loads(json.dumps(units)), "a" * 40))
         self.assertNotEqual(key, planfile.structure_key(units, "b" * 40))
         self.assertNotEqual(key, planfile.structure_key([], "a" * 40))
+
+
+class TakePlanCase(TmpCase):
+    """修正案の役の返答の受け付け（元 planblk.take・with_plan_fields。元 tests/test_blk_plan.py の test_take_malformed_plan_resubmits_not_raises・
+    test_save_failure_after_board_took_plan_halts）"""
+
+    def setUp(self):
+        super().setUp()
+        self.repo = self.tmp / "repo"
+        committed_copy(self.repo, SEED)
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        self.plan_dir = self.tmp / "plan"
+        self.round = self.plan_dir / "r1"
+        self.write("plan/r1/round.json", {"round": 1, "mode": "plan", "go": True, "why": "", "items": [],
+                                          "structure": "structure/k"})
+        self.write("plan/r1/slots.json", planfile.slots(judgment()))
+        planfile.snap_tree(self.round / planfile.TREE_FILE, self.repo)
+
+    def take(self, reply, *, base_rev=None):
+        return planfile.take_plan(self.round, self.plan_dir, judgment=judgment(), reply=reply, repo=self.repo,
+                                  tables=[], base_rev=self.base if base_rev is None else base_rev)
+
+    def trace(self):
+        return [json.loads(x) for x in (self.round / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+
+    def test_malformed_reply_is_a_rejection_not_an_exception(self):
+        for reply in ({"plan": "s"}, {"plan": ["x"]}, {"plan": [item(MEAN, CLAMP, narrows=3)]}):
+            with self.subTest(reply=reply):
+                self.assertEqual(self.take(reply), {"ok": False, "reason": planfile.MALFORMED_REJECT})
+        self.assertFalse((self.round / planfile.REPLY_FILE).exists())
+
+    def test_unreadable_base_is_traced(self):
+        self.assertEqual(self.take({"plan": [item(MEAN, CLAMP)]}, base_rev="0" * 40), {"ok": True, "reason": ""})
+        rows = [r for r in self.trace() if r["op"] == planfile.BASE_TESTS_UNREAD_OP]
+        self.assertEqual([(r["rev"], r["unread"]) for r in rows], [("0" * 40, ["<版>"])])
+
+    def test_save_failure_leaves_no_accepted_plan(self):
+        """受けた後に欄の控えを置けなければ、置いた控えを消し、置けなかった控えの名を round.json の why に残す（欄の無い案で進ませない）"""
+        with mock.patch.object(planmarks, "save", side_effect=OSError("書けない")):
+            out = self.take({"plan": [item(MEAN, CLAMP)]})
+        self.assertEqual((out["ok"], out["halt"]), (False, True))
+        self.assertIn(planmarks.FIELDS_FILE, out["reason"])
+        for name in (planfile.FIX_PLAN_FILE, planmarks.FIELDS_FILE, planfile.REPLY_FILE):
+            self.assertFalse((self.round / name).exists(), name)
+        self.assertIsNone(planfile.accepted_fields(self.round))
+        why = planfile.why_not_ready(self.round)
+        self.assertIn(planmarks.FIELDS_FILE, why)
+        self.assertIn("書けない", why)
+
+
+class StateCase(TmpCase):
+    """構造の目の控え structure-state.json（元 tests/test_structure_eye.py の CollectCase。元 blk-structure/scripts/collect.py）"""
+
+    MEASURED = {"status": "ok", "reason": "", "units": [{"id": "u-1", "status": "measured", "measure": {"churn": 3}}],
+                "timing": {"wall_s": 0.5}}
+
+    def state(self, structure, kept=None):
+        d = self.tmp / f"s{len(list(self.tmp.iterdir()))}"
+        d.mkdir()
+        (d / planfile.STRUCTURE_FILE).write_text(json.dumps(structure, ensure_ascii=False), encoding="utf-8")
+        if kept is not None:
+            (d / eye.EYE_FILE).write_text(json.dumps(kept, ensure_ascii=False), encoding="utf-8")
+        return json.loads(planfile.write_state(d).read_text(encoding="utf-8"))
+
+    def test_each_failure_names_the_reason(self):
+        cases = {
+            "目が通った": (self.MEASURED, {"status": "ok"}, "ok", ""),
+            "目を起こさない周": ({**self.MEASURED, "units": []}, None, "ok", ""),
+            "会話が落ちた": (self.MEASURED, None, "failed", "構造の目の会話が落ちたか走らなかった（目の受け付けの控えが無いか途中のまま）"),
+            "3 回拒まれた": (self.MEASURED, {"status": "gave_up", "attempt": 3, "reason": "行が無い"}, "failed",
+                         "構造の目の返答が 3 回とも受け付けで拒まれた: 行が無い"),
+            "実測が落ちた": ({**self.MEASURED, "status": "failed", "reason": "git が無い"}, None, "failed", "実測が落ちた: git が無い"),
+        }
+        for name, (structure, kept, status, reason) in cases.items():
+            with self.subTest(name):
+                got = self.state(structure, kept)
+                self.assertEqual((got["status"], got["reason"]), (status, reason))
+
+    def test_wall_adds_the_eye_time(self):
+        self.assertEqual(self.state(self.MEASURED, {"status": "ok", "wall_s": 2.25})["wall_s"], 2.75)
 
 
 class ReplanModuleCase(unittest.TestCase):

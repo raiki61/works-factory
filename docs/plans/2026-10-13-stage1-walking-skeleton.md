@@ -42,7 +42,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 - 線の PR #74（issue #60）と 8 つのブロック（PR #66・#69・#67・#75・#73・#68・#76・#94）と PR #100（judge と report の輪の拒否の理由を輪の頭の script の節で渡す形）。
 - issue #101: `bin/apply`（封じた差分を当てる口。土台の計画 Task 7）・`tests/e2e/make_target.py`（`make` と `teardown`）・種の実行器 `tests/e2e/target-seed/junit-suite.sh`。この issue はそれらを使うだけで作らない。
 - 線の配線の文書 `docs/plans/2026-10-13-line-wiring.md` の部分 0（配線の網と落とし穴の機械）と部分 A（入口・始めの記録・今壊れている物・線の返りの欄）。`bin/apply` は線の返りの欄を読む。
-- 線の配線の部分 B1・B2・C・D1・D2 は、段 1 の後に回す（線の配線の文書の「置き方と issue の切り方」の順）。だから段 1 の時、それらの「閉じる行」は照らしの表で「部分 X 待ち」（`waits-part`）と名指す（見えなくても不具合に数えない。その部分の issue が戻し、表の行を移す）。段 1 は、その部分が直すファイル（`workflows/line/scripts/ask_final.py`・`collect.py`・`lib/runreport.py` ほか）を、不具合の直しの外では触らない。
+- 照らしの表は、線の配線の部分 A・B1・B2・C・D1・D2（#211）が main に入る前に作る（#258）。だから、それらの「閉じる行」は照らしの表で「部分 X 待ち」（`waits-part`）と名指す（見えなくても不具合に数えない。その部分の issue が戻し、表の行を移す）。段 1 は、その部分が直すファイル（`workflows/line/scripts/ask_final.py`・`collect.py`・`lib/runreport.py` ほか）を、不具合の直しの外では触らない。
 - 依存しない: issue #65（役が利用者の gh を通して GitHub の資格を読める件）。通しの種は GitHub を使わない。
 - 入った YAML の節の id がこの文書と食い違えば、YAML を正として読み替え、PR に書く。
 
@@ -104,7 +104,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 ## 殻を続けて打つ時の決まり（実装の役・運び役・筋書きの確かめの役に共通）
 
 - 環境変数は道具の呼び出しをまたいで残らないので、`bin/works-factory` と `bin/apply` の呼び出しには毎回 `WORKS_FACTORY_HOME=<家>` を前に付ける。
-- 起こす: `WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow run works-factory-line --cwd <target> --detach --json --input request=<request> --input test_cmd='python3 -m unittest -v' --input tdd_suite=junit-suite.sh --input thickness=標準`。返った確認の `runId` が、この run の id（fix の組の子の run の id は別に在る）。
+- 起こす: `WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow run works-factory-line --cwd <target> --input request=<request> --input test_cmd='python3 -m unittest -v' --input tdd_suite=junit-suite.sh --input thickness=標準` を前で打つ。`--detach` を付けない: 線は `interactive: true` で、止めた Archon は切り離した新しい起こしを拒む（`packages/cli/src/commands/workflow.ts` 2306-2326 行の `assertInteractiveClassNotBackgrounded`。issue #187）。命令は最初の関所 `gate-start`（人の居る run では必ず開く。棚卸しの L-G01）で止まって返る（その前に走るのは `start` の節だけ）ので、道具の呼び出しの上限（600 秒に上げて呼ぶ）に収まる。返りは JSON でないので、run の id は `WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow runs --json --all --cwd <target>` の `runs` のうち `parent_run_id` の無い行の `id` から取る（fix の組の子の run は `parent_run_id` を持つ）。続き（関所の答え）の `--detach` は Archon が拒まない（同じ源の `!isContinuation`）。
 - 待つ: `WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow wait <run> --json --timeout 540 --cwd <target>` を繰り返す。`--timeout` は、道具の 1 回の呼び出しの上限（Claude Code の Bash は既定 120 秒・最大 600 秒）より短くして、呼び出しを有限にするための区切りで、run に期限を置く物ではない（run は区切りで止まらない。持ち主の決め `no-timeouts` の外）。道具の呼び出しの上限は 600 秒に上げて呼ぶ。終了の値 3（区切りが来た）なら同じ命令をもう一度打つ。
 - `wait` の返りの `attention.kind` で分ける（`reference/cli.md` の `workflow wait`）:
   - `terminal`: 終わり。
@@ -119,10 +119,12 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 
 能力の棚卸しの区分 L・J・P・F・T・E・R・M の全部の行を、1 行ずつ次のどれかの種類で載せる（`pitfalls.md` の K1〜K20 と、`line.md` の線への申し送り S01〜S68 は能力の行でないので載せない）。棚卸しに在って表に無い行が 1 つでも在れば `tests/e2e/test_evidence.py` が赤。
 
-- `seen`: 本物の run で見えるはずの行。欄は `id`・`where`（置き場の中の相対パスの glob。親の run の置き場は `parent/`、fix の組の子の run の置き場は `child-*/` で始める。run の記録 `workflow get --json --verbose` の出力は `record/parent.json`・`record/child-<n>.json`）・`check`（次の 4 つの 1 つ: `exists`〔在って空でない〕・`json-has`〔JSON の欄の道 `path` が在って null でも空でもない〕・`json-equals`〔欄の値が `value`〕・`text-contains`〔字 `text` を含む〕）。棚卸しの「本物の run」の欄の名指しをそのまま形にする。
-- `scenario-only`: 棚卸しの「本物の run」が「筋書きでのみ」の行。欄 `why` は棚卸しの字。
-- `seed-cannot`: 棚卸しは置き場を名指すが、この種では通らない道の行（種に `.review-checks.json` が無い・PR も forge も無い・申し出や 3 回目の拒否が起きない、など）。欄 `why` に、通らない訳を 1 句。
-- `waits-part`: 線の配線の部分 B1・B2・C・D1・D2 の「閉じる行」。欄 `part`（`B1`・`B2`・`C`・`D1`・`D2`）。
+- `seen`: 本物の run で見えるはずの行で、下の 3 つの基準を全部満たす行だけ。欄は `id`・`where`（置き場の中の相対パスの glob。親の run の置き場は `parent/`、fix の組の子の run の置き場は `child-*/` で始める。run の記録 `workflow get --json --verbose` の出力は `record/parent.json`・`record/child-<n>.json`）・`check`（次の 5 つの 1 つ: `exists`〔在って空でない〕・`json-has`〔JSON の欄の道 `path` が在って null でも空でもない〕・`json-equals`〔欄の値が `value`〕・`text-contains`〔字 `text` を含む〕・`node-completed`〔run の記録の `nodes[]` に、節の id がちょうど `node` の節が `completed` で在る。`nodes[]` は飛ばされた節・落ちた節も載せるので、節の名だけを照らさない。include の頭は差し込んだ節のどれか 1 つが走れば通るので名指さない〕）・`writer`（その行の能力の決める行〔拒み・止め・既定でない側・値を作る行。保存の行でない〕の「パス:行」。run の記録の行はその節を置く YAML の行）。棚卸しの「本物の run」の欄の名指しを形にし、書き手のコードで確かめる。
+  - 基準（3 つを全部満たす行だけを `seen` にする）: (1) 能力の決める行を消したら照らしが落ちる。(2) 何も働かなかった run の 2 つの形（全部の節が飛んだ run と、`start` は通り必ず走る節〔`start`・`answer-start`・`collect`・報告のブロック・`result`〕だけが走った run。走らなくても空の形を書く出口・支度がいつも書く欄・報告の見出しと 0 件の行・入力のこだまを含む）のどちらにも当たらない。(3) 健やかな種の run で必ず通る道の能力である。棚卸しの行の多くは拒む・止める・既定でない側の能力で、健やかな種の run では働かないので `seen` にしない。
+  - 本物の通しの役目は、本物の役で各ブロック（線・judge・plan・plan-review・fix・test-gate・eyes・merge・report）が埋め物でない中身を作ったかを見ること。どのブロックにも `seen` の行を 1 つ以上置く。
+- `scenario-only`: 既定。棚卸しの「本物の run」が「筋書きでのみ」で始まる行（`waits-part` の行を除く）。`seen` の 3 つの基準を満たさない行は、棚卸しの欄を「筋書きでのみ（本物の通しの照らしの外。在れば <元の名指し>）」に直してここに置く（能力は棚卸しの「証」の欄の試験が縛るので落ちない）。欄 `why` は棚卸しの字（基準で移した行は移した訳）。欄の途中に「筋書きでのみ」を含む行（例 L-E01「拒みは筋書きでのみ」）は行ごとに決める。
+- `seed-cannot`: 棚卸しは置き場を名指すが、この種では通らない道の行（種に `.review-checks.json` が無い・PR も forge も無い・申し出や 3 回目の拒否が起きない、など）と、種の run でも働かなかった run と同じ跡しか残さない行（上の基準。返りの型・関所の文・節の出力は run の記録に載らない、など）。欄 `why` に、通らない訳を 1 句。照らしを持つなら、働いた時だけ当たる物にする。
+- `waits-part`: 線の配線の部分 A・B1・B2・C・D1・D2 の「閉じる行」。欄 `part`（`A`・`B1`・`B2`・`C`・`D1`・`D2`）。棚卸しが「筋書きでのみ」と書く行でも、閉じる行なら `waits-part` にする（その部分が入った時に `scenario-only` へ移す。線の配線の文書の共通の決まり 10）。
 - `backlog`: 線の配線の文書の「この文書の外」（「決めた物」「持ち主の答え待ち」「ブロックの中だけの穴」）に名指された行。欄 `why` に、その節の名。
 - `handed-off`: 本物の run の中で働かなかったが、この PR では直さずに渡した行（下の「見えなかった行の扱い」の 3）。欄 `why`（働かなかった事実。run の記録の節の id と状態）と `to`（渡した先: 線の配線の部分の名か、区分の issue の番号）。
 
@@ -131,25 +133,30 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 ### 照らしの道具 `tests/e2e/evidence.py`
 
 - `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>`: 家と対象から、親の run と fix の組の子の run（`workflow runs` で引く）の置き場（`terminal_record.artifacts.root`）を試みのフォルダの `evidence/parent/`・`evidence/child-<n>/` に写し、`workflow get <run> --json --verbose` の出力を `evidence/record/` に置く（後で消える作業ツリーに依らない）。
-- `python3 tests/e2e/evidence.py check <試みのフォルダ>`: 照らしの表を読み、行ごとに `seen`・`absent`（`seen` の行で照らしが通らない）・`unexpected`（`seed-cannot`・`backlog`・`waits-part`・`handed-off` の行なのに見えた）を 1 行ずつ出し、最後に区分ごとの数を出す。`absent` が 1 つでも在れば終了の値 1。読めないファイルは黙って `absent` にせず、読めなかった訳を出す（K15）。
+- `python3 tests/e2e/evidence.py check <試みのフォルダ>`: 照らしの表を読み、行ごとに `seen`・`absent`（`seen` の行で照らしが通らない）・`unexpected`（`seed-cannot`・`backlog`・`waits-part`・`handed-off` の行なのに見えた）・`unreadable`（照らしの当たったファイルが在るが読めない。黙って `absent` にせず、読めなかった訳を出す。K15）を 1 行ずつ出し、最後に区分ごとの数を出す。`absent` か `unreadable` が 1 つでも在れば終了の値 1。
 - 標準ライブラリだけで書く（筋書きの確かめの役が対象の外から呼ぶため）。期限を置かない。
 - 試験 `tests/e2e/test_evidence.py`（先に赤）:
   - `EvidenceTableCase.test_every_inventory_row_is_in_the_table`（棚卸しの `line.md`・`judge.md`・`plan.md`・`fix.md`・`tail.md` の区分 L・J・P・F・T・E・R・M の行の ID の集合 = 表の ID の集合）
   - `EvidenceTableCase.test_every_row_has_a_known_kind_and_fields`
-  - `EvidenceTableCase.test_scenario_only_rows_match_the_inventory`（棚卸しが「筋書きでのみ」と書く行は `scenario-only`、そうでない行は `scenario-only` でない）
+  - `EvidenceTableCase.test_scenario_only_rows_match_the_inventory`（棚卸しが「筋書きでのみ」で始まる行は、`waits-part` でなければ `scenario-only`。「筋書きでのみ」を含まない行は `scenario-only` でない）
   - `EvidenceTableCase.test_waits_part_rows_are_closing_rows_of_that_part`（`waits-part` の行が線の配線の文書のその部分の「閉じる行」に在り、その部分の閉じる行は全部 `waits-part`）
+  - `EvidenceTableCase.test_node_rules_name_node_ids_the_workflow_makes`（run の記録の節を照らす行が `node-completed` で、node が線と fix の YAML から組んだ節の id そのもの）
+  - `EvidenceTableCase.test_seen_rows_name_a_writer_in_the_repository`（`seen` の行の `writer` が `lib/`・`workflows/`・`bin/` のコードの行で、そのファイルのコードの字（コメント・docstring・`.md` を除く）に where のファイル名かその名を作る定数が在る。決める行は保存の行から離れうるので、行の近くでなくファイルで見る。where の頭のフォルダの名も書き手かそのブロックのコードに在る。名を組んで書く・名の表から引く置き場は名を作る行を名指し、名の照らしだけを外す。run の記録の節の行の writer はその節の id を置く YAML の行）
+  - `IdleRunCase.test_no_row_holds_on_a_run_where_nothing_worked`（基準の (2) を縛る。何も働かなかった run の 2 つの形の試みのフォルダ（1 つ目: 線と fix の組の子の全部の節が `skipped`、`start` は入力を受けずこだまと版の控えだけを書く。2 つ目: `start` は種の入力を受けて書く欄を全部書き、必ず走る節が `completed`。どちらも、各ブロックとメイングラフの落ちない返す節と目の `prep` を上流が全部飛んだ形で今の書き手のまま走らせた物を置く）に `check` を当て、`seen` も `unexpected` も 0 件）
+  - `EvidenceTableCase.test_every_block_has_a_seen_row`（線と 8 つのブロックのどれにも `seen` の行が在る。ブロックは where の `parent/` の次のフォルダ、`child-*/` は fix、ほかは線）
   - `EvidenceTableCase.test_backlog_and_handed_off_rows_name_their_place`（`backlog` の行が線の配線の文書の「この文書の外」に在り、`handed-off` の行が `why` と `to` を持つ）
-  - `EvidenceCheckCase.test_each_check_kind_passes_and_fails`（一時のフォルダに作った置き場で 4 つの照らしの通る形と通らない形）
+  - `EvidenceCheckCase.test_each_check_kind_passes_and_fails`（一時のフォルダに作った置き場で 5 つの照らしの通る形と通らない形）
   - `EvidenceCheckCase.test_absent_row_exits_one_and_unreadable_file_is_named`
   - `EvidenceCheckCase.test_unexpected_seen_is_reported`
+  - `EvidenceCheckCase.test_cli_exits_one_on_an_absent_row`（命令の終了の値。筋書きが読むのはこれだけ）
 
 ### 見えなかった行の扱い（手順 4 の中で）
 
-`check` が `absent` と言った行は、1 行ずつ次のどれかに決めて PR 本文に書く（数の表のセルは短い値だけ。訳は表の下に行 ID ごとの箇条書き）。
+`check` が `absent` か `unreadable` と言った行は、1 行ずつ次のどれかに決めて PR 本文に書く（数の表のセルは短い値だけ。訳は表の下に行 ID ごとの箇条書き）。
 
 1. 棚卸しの見立ての誤り（その能力は走ったが、置き場の名が違った）: run の記録で実際の置き場を示し、表の `where` を直す。
 2. 種では通らない道だった: run の記録で、その道の入口が通らなかった事実（例: 節が `skipped`）を示し、`seed-cannot` に移す。
-3. 不具合（その能力の道を通ったのに、能力が働かなかった）: 手順 4 の不具合の直し方で直す。ただし、その行が線の配線の部分 B1〜D2 の「閉じる行」か「この文書の外」の行なら直さずに `handed-off` で渡す（この PR の範囲を広げない）。渡すのは run を止める不具合でない時だけ。run が先へ進めない不具合は、どの行でもこの PR で直す。
+3. 不具合（その能力の道を通ったのに、能力が働かなかった）: 手順 4 の不具合の直し方で直す。ただし、その行が線の配線の部分 A〜D2 の「閉じる行」か「この文書の外」の行なら直さずに `handed-off` で渡す（この PR の範囲を広げない）。渡すのは run を止める不具合でない時だけ。run が先へ進めない不具合は、どの行でもこの PR で直す。
 4. 能力を削る直しが要る・約束（`docs/design.md` の「ブロックの返りの約束」）の欄を変える・持ち主の決めとぶつかる: 直さずに止めて PR に書き、持ち主の答えを待つ（`superset`・`no-narrow`）。
 
 ## 落とし穴の確かめ（K1〜K20）
@@ -163,7 +170,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 - K5 `loop_group` の中の役の節は自分の `with:` を結ばない（輪の頭の script の節。PR #100）
 - K6 周ごとの値は本物の run でしか確かめられない
 - K7 E3・E4・E13 の層の決まり・K8 script どうしの import と循環 import を作らない
-- K9 写した指示書と役の定義は元の字のまま、許した直しを試験で縛る
+- K9 写した指示書と役の定義は元の字のまま、許した直しを試験で縛る（持ち主の決め `prompts-coldread`（2026-10-12、`docs/owner-decisions.md`）で、初見の読み手での書き直しも許した直しとして足す。4 つの約束は `tests/workflows/test_prompt_contracts.py` が別に照らす）
 - K10 どの関所の `reject` も報告へ流す（Archon は `decisions` に `reject` が無いと run を取り消す。`workflow-operations.ts` 1625-1700 行）
 - K11 ブロックに足す入力は既定値つき・K12 新しい入力と隣のファイルは読み手と配線の試験を持つ
 - K13 返りの指し札の先は在って空でない・K14 2 度差し込むブロックの 2 度目が 1 度目の物を拾わない・K15 読めない入力を名指す・K16 返りの JSON は `allow_nan=False`
@@ -174,11 +181,11 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 - K6 周ごとの値: 手順 6 の使い捨ての工程で、輪の頭の script の節が 1 周目は空、2 周目は前の周の受け付けの `reason` を返し、役の文にそれが載ることを本物で見る。通しの run でも、拒みが起きた輪が在れば、その輪の `<役>-reject` の節の出力を照らしの表に載せる（起きなければ「拒みが起きなかった」と PR に書く）。
 - K10 関所の `reject`: 使い捨ての run の最初の関所（`gate-start`）に `reject` で答え、run が取り消されず（`terminal_record.status` が `completed`）、報告が走り、結末の語が `stopped_by_human` になることを見る。
 - 報告がいつも走る（棚卸しの L-W60）の resume の半分: 手順 6 の P1 の確かめで、`--adopt` で続けた run の報告の節が走ることを見る。
-- K1・K13: 通しの run の記録で、全部の include の返す節が `completed` で、返りの指し札の先が在って空でないことを、照らしの表の `seen` の行（各ブロックの返す節の行）で見る。
+- K1・K13: 通しの run の記録で、全部の include の返す節が `completed` で、返りの指し札の先が在って空でないことを、筋書きの every-block-ran（include ごとの節の `completed`）と、照らしの表の各ブロックの `seen` の行（埋め物でない中身）で見る。
 
 ## 手順（試験が先に赤）
 
-1. `tests/e2e/test_evidence.py` を書いて赤を見る（`tests/e2e/evidence.py` と表が無い）。表は、棚卸しの「本物の run」の欄から作る（行の欄の字を読んで `where` と `check` に移す。迷う行は `seen` の `exists` で置き、手順 4 で直す）。
+1. `tests/e2e/test_evidence.py` を書いて赤を見る（`tests/e2e/evidence.py` と表が無い）。表は、棚卸しの「本物の run」の欄から作る（行の欄の字を読んで `where` と `check` に移す。迷う行は `scenario-only` に置く）。
 2. `tests/e2e/test_scenario.py` を書いて赤を見る: 止めた Archon の源の `W/verify-runtime/scripts/read-scenario.py` に `INPUTS_SCENARIO=harness/runtime.scenario.json` で渡して 0 で終わる（源が無ければ `tests/archon.py` の名前つきの見送り。CI では見送らない）。`harness/END-TO-END.md` の節の見出しに、筋書きの主張の `id` が全部、同じ順で在る。
 3. `tests/e2e/evidence.py`・表・筋書きの JSON（下の「筋書きの入力」）を書いて 1・2 を緑にする。全部の試験 `WORKS_FACTORY_ARCHON_REQUIRED=1 uv run --isolated python3 -m unittest discover -s . -t .` が緑。
 4. 通しを本物で回す（この PR の芯。費用は問わない）。「殻を続けて打つ時の決まり」に従う:
@@ -198,7 +205,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
    - U1（`resume` の後の run の id は同じか）: 文書で決める（`workflow resume` は id を指して同じ run を続ける。`--adopt` は新しい run を起こす。`reference/cli.md` の `workflow resume`・`--adopt`）。加えて、使い捨ての run を 1 つ起こし、最初の関所で `workflow approve <run> --json`（答えを記録するだけで続きを走らせない形）の後に `workflow resume <run> --detach --json` を打ち、続いた run の id が同じかを見る。
    - P1（持ち主の居ない `running` の run）: 別の使い捨ての run で、役の節が走っている間に、`--detach` の子のプロセスを pid で止める。pid は `workflow abandon --json` の `recordedPid` の案内か、`ps` を家のパスで絞って見つける（名で止めない・`pkill -f` の広い形を使わない）。`workflow get`・`workflow wait` が何を言うか（`owner_lost`）、`workflow resume` が拒むか、`workflow abandon` が run の作った作業ツリー（書きかけを含む）を消すこと（`reference/cli.md` の `workflow abandon`）と、`workflow run --adopt <run>` で新しい run として続きを起こせるか、その時に報告の節が走るか（L-W60）を書く。結果で P1 の「埋め」の行を「足りる（埋め無し）」か「足りない（置き場の予定）」に直す。
    - U2 の残り（型つきの成果物が include ごとに分かれて見えるか）: 通しの run の `$ARTIFACTS_DIR/.archon/` の型つきの成果物の一覧で、`test-gate-base` と `test-gate-final` の `green-cert` が別の鍵で載るかを書く。
-   - U6: 止めた Archon の `workflow get --events --json` と run の transcript（`--detach --json` の確認の `transcriptPath` の JSONL）に、役の道具の呼び出し（読んだ・書いたファイルのパス・web の取得）が載るか。載る形を 1 例引き、今の works の包みが取っていた読んだ証拠と書き込みの記録（棚卸しの J40・P057・P211〜P213・F102・F147）がそこから取れるかを書く。取れると分かっても、この PR では戻さない（後の issue）と書く。
+   - U6: 止めた Archon の `workflow get --events --json` と run の transcript（`workflow get <run> --json` の `transcript_path` の JSONL）に、役の道具の呼び出し（読んだ・書いたファイルのパス・web の取得）が載るか。載る形を 1 例引き、今の works の包みが取っていた読んだ証拠と書き込みの記録（棚卸しの J40・P057・P211〜P213・F102・F147）がそこから取れるかを書く。取れると分かっても、この PR では戻さない（後の issue）と書く。
    - U7: 下の「筋書きの入力」と、運び役の確かめの run の id で閉じる。
    - U8: fix の組ごとの子の run が自分の作業ツリーを持ち、差分が親に戻ったかを、run の記録（子の run の id と作業ツリーのパス・戻した組）で書く。fix の PR #94 が書いた事（remote の無い対象では子の作業ツリーが切れず、1 つずつ回す）と食い違えば、両方を書く。
    - P2: 通しの run で、線の返しの節が飛ばされた値を `null` で受けたことを 1 例引く。
@@ -229,9 +236,9 @@ lifecycle の入力のうち、このリポジトリが決める物:
 
 - `environment`: `setup`・`start` は空（対象は主張の手順の中で試みごとに作る）。`teardown` は `python3 tests/e2e/make_target.py teardown`（確かめの節が落ちても切り離した run が走り続けないよう、その checkout が作った家の run を止める。`ownership: external` の約束「Consumers must provide a lifetime owner」）。`candidate_command` は今のまま。
 - 主張は次の 5 つ。どれも、確かめの役が道具の出力を証拠のファイルに残す前提で書く（`W/verify-runtime/commands/verify-runtime.md`）。試みのフォルダは、この試みの置き場（attempt directory）の下に新しく作る。
-  1. `request-to-report`: `make_target.py make` で対象・依頼・家を作り、run を起こし、関所で止まるたびに関所の文を見て `approve` で答え、終わりまで運ぶ。期待: `run --detach --json` の確認が `runId` をちょうど 1 つ返す・`workflow get <run> --json` の `terminal_record.status` が `completed`・`returns.value.outcome` が report の結末の 10 語の 1 つ・`returns.value.report` の先の報告の本文が空でない・当てる前の対象の `git status --porcelain` が空。認証が拾えずに殻が止まった時は `inconclusive` にし、殻の 1 行を reason に書く（製品の不具合ではない）。
-  2. `every-block-ran`: 1 の run の `workflow get <run> --json --verbose` で、線の中の include の id（`test-gate-base`・`judge`・`plan`・`plan-review-run`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`。`plan` と `plan-review-run` は計画の往復の中に在り、節の id に `plan-rounds.` の頭が付く。止めた Archon の `dag-executor.ts` 4322-4331 行）ごとに、節の id の中に `<include の id>__` の区切りを含む節が 1 つ以上 `completed`。案の直しの道の include（`rejudge`・`replan`・`replan-review`・`refix`）は、通った run だけ見る。fix の役の節は組ごとの子の run に在るので、`workflow runs` で親の子の run を引き、子ごとの `get --json --verbose` で見る。期待: 全部の id が満たす。eyes の R1〜R4 の役の節が `completed`（深さを標準で回したので省かれない）。
-  3. `capabilities-evidenced`: 1 の run で `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせる。期待: `check` が終了の値 0（`absent` が 0 件）。`unexpected` の行は失敗にしないが、行を全部 reason に写す。
+  1. `request-to-report`: `make_target.py make` で対象・依頼・家を作り、run を起こし、関所で止まるたびに関所の文を見て `approve` で答え、終わりまで運ぶ。期待: 起こした後の `workflow runs --json` に `parent_run_id` の無い run がちょうど 1 つ在る・`workflow get <run> --json` の `terminal_record.status` が `completed`・`returns.value.outcome` が report の結末の 10 語の 1 つ・`returns.value.report` の先の報告の本文が空でない・当てる前の対象の `git status --porcelain` が空。認証が拾えずに殻が止まった時は `inconclusive` にし、殻の 1 行を reason に書く（製品の不具合ではない）。
+  2. `every-block-ran`: 1 の run の `workflow get <run> --json --verbose` の `nodes` を読む。線の include の id は `test-gate-base`・`judge`・`plan`・`plan-review-run`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`。include の中の節の id は `<include の id>__<節の id>`（止めた Archon の `include-expander.ts` の `inlineInclude`）、輪の中の節には `<輪の id>.` の頭が付く（`dag-executor.ts` 4322-4331 行）。`plan` と `plan-review-run` は計画の往復の輪 `plan-rounds` の中に在るので、その節の id は `plan-rounds.plan__`・`plan-rounds.plan-review-run__` で始まる。案の直しの道の include（`rejudge-run`・`replan`・`replan-review`・`refix-run`）は、通った run だけ見る。fix の組は子の run として起きるので、`workflow runs` で親の子の run を引き、子ごとの `get --json --verbose` を読む（子の run の節の id には頭が付かない）。期待: include の id ごとに、親の run の `nodes` に `<include の id>__` を含む節が 1 つ以上 `completed`（fix も親の run で見る）。子の run が 1 つ以上在り、子のどれかで修正の役の節（`tdd-loop.tdd`・`tdd-loop.tdd-new`・`fix-loop.fixer`）のどれかが `completed`。eyes の R1〜R4 の役の節（`eyes__r1-comments`・`eyes__r1-minimality`・`eyes__r2-compare`・`eyes__r3-coherence`・`eyes__r4-scope`）が `completed`（深さを標準で回したので省かれない）。include の id・修正の役・eyes の役の名が線とブロックの YAML と合うことは `tests/e2e/test_scenario.py` が見る。
+  3. `capabilities-evidenced`: 1 の run で `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせる。期待: `check` が終了の値 0（`absent` も `unreadable` も 0 件）。`unexpected` の行は失敗にしないが、行を全部 reason に写す。
   4. `changed-diff-refused`: 1 の run で、当てる前に、`returns.value.apply.diff` の先（`terminal_record.artifacts.root` の下）を試みのフォルダに写して控え、1 バイト変えてから `./bin/apply <run> --cwd <対象>` を呼ぶ。期待: 0 以外で終わり、hash が合わないことを言い、対象の `git status --porcelain` が空のまま。その後で控えから元に戻す。
   5. `sealed-diff-fixes-seed`: 4 の後、対象で `python3 -m unittest -v` を走らせて控え、`./bin/apply <run> --cwd <対象>` で当て、もう一度走らせる。期待: 当てる前は依頼が名指した 2 件（`test_mean_of_three`・`test_clamp_above_range`）が落ち、当てた後は 3 件全部が通る。対象の `git diff --stat` は空でなく、変わったファイルは報告が挙げたファイルの中だけ。
 - 消す: 今の筋書きの「`workflows/*/scripts/stub.py` が在る間は inconclusive」の前提と、「線が無い間は inconclusive」の前提。
@@ -263,11 +270,11 @@ lifecycle の入力のうち、このリポジトリが決める物:
    - 最初の `check` で `absent` だった行ごとの決め（見立ての誤り・種では通らない・不具合・持ち主待ち）と訳（表の下に箇条書き）
    - 通しで見つけて直した不具合の一覧（1 件ごとに: 落ちた節・原因・先に赤にした試験の名・直したファイル・当たった能力の行 ID・K1〜K20 への答え）
    - 段ごとの費用と時間の表
-3. 最後の通しで `evidence.py check` が終了の値 0（`absent` が 0 件）。`seed-cannot` と `handed-off` の行はどれも、run の記録の事実（節の id と状態）を訳に持つ。
+3. 最後の通しで `evidence.py check` が終了の値 0（`absent` も `unreadable` も 0 件）。`seed-cannot` と `handed-off` の行はどれも、run の記録の事実（節の id と状態）を訳に持つ。
 4. 手順 6 の K6・K10・L-W60 の確かめの出力が PR に在る。K6 の `test_loop_prev_real` を本物で 1 度回した出力（1 周目が空、2 周目が前の理由）が在る。
 5. `docs/design.md` の U1・U2 の残り・U6・U7 が「決めた」になり、U8・P2・P1・層の E3 の `deps:` に実物の事実と run の id が書いてある。決めは事実から 1 つに決まる物だけで、決まらない物は「持ち主の答え待ち」と書いて PR の冒頭に並べる。
 6. 層の試験（各階層の `AGENTS.md` の機械の行）が全部緑。`bin/` に持ち主の環境の字が無い（層の E14）。
-7. 範囲の外のファイルに差分が無い。直した能力の行が、線の配線の部分 B1〜D2 の「閉じる行」か「この文書の外」に入っていない（入っていれば、run を止める不具合だった事を PR に書く）。
+7. 範囲の外のファイルに差分が無い。直した能力の行が、線の配線の部分 A〜D2 の「閉じる行」か「この文書の外」に入っていない（入っていれば、run を止める不具合だった事を PR に書く）。
 
 ### PR の後に運び役が行う確かめ（この PR を merge する前の受け入れ）
 
@@ -285,7 +292,7 @@ ASF の工程の中から ASF の工程を起こさない（入れ子の SDLC）
 
 - 線とブロックの返りの約束の欄（`docs/design.md` の「ブロックの返りの約束」）は変えない。変える要が出たら止めて PR に書く。
 - `bin/` の全部（`bin/apply` と殻。issue #101 と層の E15）と `tests/e2e/make_target.py`・種（issue #101）。不具合は別の issue にする。
-- 線の配線の文書の部分 B1〜D2 の「閉じる行」と「この文書の外」の行を直すこと（run を止める不具合の外は `handed-off` で渡す）。
+- 線の配線の文書の部分 A〜D2 の「閉じる行」と「この文書の外」の行を直すこと（run を止める不具合の外は `handed-off` で渡す）。
 - ASF の取り付け命令が置いた物のうち `factory/`・`FACTORY.md`・`FACTORY_RULES.md`、`harness/` の中の書くと決めた 4 つ以外（`harness/mutations/` は段 3 の較正 `tests/calibration/` で扱う）。
 - 周の鎖（段 3 の鎖の issue）と、関所の間で走っている run を報告つきで止める札（持ち主の決め `stop-at-gates` で持ち込まない。関所の答えの文が `request:` で始まる止め `stopped_by_request` は今の形のまま）。
 - 段 3 の物: 受け入れの一覧の全部の行の証・graph の節の表・較正・今の works との比べ。この issue の照らしの表は「本物の run で見えるか」だけで、能力の正しさの全部の証ではない。
@@ -293,7 +300,7 @@ ASF の工程の中から ASF の工程を起こさない（入れ子の SDLC）
 
 ## 層の E11 の 3 つ
 
-1. Archon が持つ物: run の記録と返す節の値（`workflow get --json` の `terminal_record`）・出来事の記録（`--events`）・待ち（`workflow wait`）・関所の答え（`workflow respond`）・切り離した起動と答え（`--detach`）・run ごとの作業ツリー・止めと片付け（`cancel`・`abandon`）。全部そのまま使う。
+1. Archon が持つ物: run の記録と返す節の値（`workflow get --json` の `terminal_record`）・出来事の記録（`--events`）・待ち（`workflow wait`）・関所の答え（`workflow respond`）・切り離した関所の答え（`--detach`）・run ごとの作業ツリー・止めと片付け（`cancel`・`abandon`）。全部そのまま使う。
 2. ASF が持つ物: `archon-verify-runtime`（筋書きの読みと、証拠つきの主張の判定）と `archon-lifecycle`（候補の版の照らし・1 度の直し・別筋）。筋書きの形と照らしは ASF の物をそのまま使い、コードは写さない（層の E8）。
 3. 本当に要るか: 照らしの道具 `tests/e2e/evidence.py` は、ブロックの PR が審査を通った後に能力が黙って落ちていた事実（持ち主の側の目が毎回見つけた）から要る。Archon にも ASF にも「今の works の能力が run で働いたか」を照らす口は無い。口は `collect` と `check` の 2 つだけで、表は棚卸しの行をそのまま写す。
 

@@ -101,6 +101,30 @@ def split_diff(text):
     return files, renames
 
 
+def deleted_paths(text: str) -> list:
+    """unified diff のうちファイルを消す節（見出しに deleted file mode）のパス（現れた順・重ねない）。パスは '--- a/…' 行を正とし、
+    中身の無いファイルの削除のように '---' 行の無い節は 'diff --git' の見出しから引く（どちらも git の引用を解く）"""
+    out, head, gone, path = [], None, False, None
+
+    def close():
+        name = path or head
+        if gone and name is not None and name not in out:
+            out.append(name)
+    for line in text.split("\n"):
+        if line.startswith("diff --git "):
+            close()
+            m = re.match(r'diff --git ("?)a/(.*?)\1 ("?)b/(.*?)\3$', line)
+            head = unquote_git_path(m.group(1) + m.group(2) + m.group(1)) if m else None
+            gone, path = False, None
+        elif line.startswith("deleted file mode"):
+            gone = True
+        elif line.startswith("--- ") and not line.startswith("--- /dev/null") and path is None:
+            got = unquote_git_path(line[4:].strip())
+            path = got[2:] if got.startswith("a/") else got
+    close()
+    return out
+
+
 def added_lines(hunk_lines):
     return [ln[1:] for ln in hunk_lines if ln.startswith("+")]
 

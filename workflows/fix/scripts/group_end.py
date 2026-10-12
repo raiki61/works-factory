@@ -7,10 +7,12 @@
 読む物（無ければ空で読む）: 組の置き場（fixboard.group_dir）の group-start.json（始めの木）と、自分の置き場の
 tdd-start.json（TDD の輪の頭の返り。輪の結果は tddloop.exit_fields、輪の状態のパスは tdd_state として結果に載せる）・fix-units.json（修正の輪の単位ごとの結末
 {unit_key: {status, reason}}）・fix-reply.json（最後に受け付けた修正役の返答。異議 rejudge_requested と 6 つの印）・
-allowed-tests.json（許したテストの変更のパス）・conflicts.json（今の段の申し出。conflict.this_pass。2 回目の修正の段が写した 1 回目の段の行は載せない）・
-fix-unit-rows.json（閉鎖の表）・trace.jsonl の受け付けの行（fixbeside.trace_rows。親の collect が diff の隣の約束のファイルに合わせる）。終わりの木は作業ツリーの今の姿
+granted-tests.json（許したテストの変更のパス）・conflicts.json（今の段の申し出。conflict.this_pass。2 回目の修正の段が写した 1 回目の
+段の行は載せない）・閉鎖の表（fixbeside.closure_rows。親の collect が diff の隣の約束のファイルに合わせる）。終わりの木は作業ツリーの今の姿
 （groups.end_tree）。子の作業ツリーの実パスも載せる（join がそこから子の書き込みの記録を引き、
-親の記録へ写す。fixio.writes_log）。
+親の記録へ写す。writelog.log_here）。許したテストの変更の訳（fixboard.allowed_test_rows。親の collect が allowed-tests.json に集める）と、
+最後の関所を開ける理由の行（修正役が人に回した物 handoffs と、自分の置き場の閉鎖の表で申告と数え直しが合わない単位 mismatched。
+fixboard.mismatched_lines）と、受け付けが選んだ試験を走らせた回の行（accept-trace.json。親の collect が diff の隣に集める）も載せる。
 TDD の輪の状態が済んでいなければ tdd を ran: false と理由にする。前の節が落ちた子ではこの節は走らず、結果のファイルは無い
 （並べない run は、その子が親の作業ツリーに残した変更を次の組の group-start か join が戻す。fixboard.drop_unreturned）。
 書く先: 入力 out_dir が在ればその下の <group_id>/result.json、空の単独の run は自分の置き場の groups/<group_id>/result.json。
@@ -25,7 +27,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import conflict  # noqa: E402
 import fixbeside  # noqa: E402
@@ -43,7 +44,7 @@ def tdd_exit(started) -> dict:
         return tddloop.exit_fields(started)
     except tddloop.Broken as e:
         return {"ran": False, "suite": str(started.get("suite") or ""),
-                "reason": f"TDD の輪が済まずに抜けた（{' '.join(str(e).split())}）", "units": []}
+                "reason": f"TDD のループが済まずに抜けた（{' '.join(str(e).split())}）", "units": []}
 
 
 def main() -> dict:
@@ -51,8 +52,8 @@ def main() -> dict:
     if not isinstance(group, dict) or not group.get("group_id"):
         raise ValueError("入力 group に group_id が無い")
     out_dir = os.environ.get("INPUTS_OUT_DIR", "").strip()
-    place = fixio.place()
-    repo = fixio.repo()
+    place = boundary.place("fix")
+    repo = boundary.work_tree()
     gdir = fixboard.group_dir(place, out_dir, group["group_id"])
     began = fixboard.read_json(gdir / fixboard.GROUP_START_FILE) or {}
     reply_path = place / fixboard.FIX_REPLY_FILE
@@ -61,8 +62,10 @@ def main() -> dict:
         tdd=tdd_exit(fixboard.read_json(place / fixboard.TDD_START_FILE)), tdd_state=fixboard.loop_files(place)[0],
         fix_units=fixboard.read_json(place / fixboard.FIX_UNITS_FILE, {}), reply=fixboard.read_json(reply_path),
         reply_file=str(reply_path) if reply_path.is_file() else "",
-        allowed=fixboard.read_json(place / fixboard.ALLOWED_TESTS_FILE, []) or [], conflicts=conflict.this_pass(place),
-        worktree=os.path.realpath(repo), closure=fixbeside.closure_rows(place), accept_trace=fixbeside.trace_rows(place))
+        allowed=fixboard.read_json(place / fixboard.GRANTED_TESTS_FILE, []) or [],
+        allowed_rows=fixboard.allowed_test_rows(place), conflicts=conflict.this_pass(place),
+        worktree=os.path.realpath(repo), mismatched=fixboard.mismatched_lines(place),
+        accept_trace=fixboard.accept_trace_rows(place), closure=fixbeside.closure_rows(place))
     target = gdir / fixboard.RESULT_FILE
     fixboard.write_json(target, result)
     return {"result_file": str(target)}

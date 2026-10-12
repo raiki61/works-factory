@@ -3,6 +3,7 @@
 # dependencies = []
 # ///
 """返す節（返りの約束の欄を組む。lib/planfile.collect・placeholders）。深さは直す義務の単位（planfile.owed_order）だけを決める。
+案の直しの周で役が諦めた時は、項目ごとの諦めの行を plan-fields.json の隣に置く（planfile.note_gave_up）。
 落ちない: 境の口と lib の import から先の誤りは全部捕まえ、標準ライブラリだけで ready: false と訳を周のフォルダの collect-error.txt に
 書き、指し札の先（plan-fields.json・structure-state.json・ripple.json）が在って空でない形で返す（線は落ちた返す節の先へ進めない）"""
 import json
@@ -38,6 +39,9 @@ def collected() -> dict:
     judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.resolve)
     got = planfile.collect(round_dir, unit_ids=planfile.owed_order(judgment) if isinstance(judgment, dict) else [],
                            thickness=start.get("thickness") or "", checked=bool(start.get("test_cmd") or start.get("tdd_suite")))
+    if not got["ready"]:
+        conflicts, _ = planfile.read_pointed(os.environ["INPUTS_CONFLICTS"], boundary.resolve)
+        planfile.note_gave_up(round_dir, art / planfile.PLAN_DIR, conflicts)
     reason = "" if got["ready"] else planfile.why_not_ready(round_dir)
     paths = planfile.placeholders(round_dir, art / planfile.PLAN_DIR / rnd["structure"], reason)
     return {"ready": got["ready"], **{k: boundary.pointer(p.relative_to(art).as_posix()) for k, p in paths.items()},
@@ -58,7 +62,7 @@ def failed(error: BaseException) -> dict:
     """ready: false と、在って空でない指し札の先。境の口が読めなかった時にも出せるよう、札は境の口を通さずに組む"""
     art = Path(os.environ["ARTIFACTS_DIR"])
     round_dir = art / os.environ.get("INPUTS_DIR", "")
-    reason = f"返す節の中で誤りが起きた: {type(error).__name__}: {' '.join(str(error).split())}"
+    reason = f"出力ノードの中で誤りが起きた: {type(error).__name__}: {' '.join(str(error).split())}"
     try:
         rnd = json.loads((round_dir / ROUND_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -86,7 +90,7 @@ def main() -> int:
         out = collected()
     except Exception as e:  # noqa: BLE001  返す節は落ちない（誤りは訳に残して ready: false）
         out = failed(e)
-    print(json.dumps(out, ensure_ascii=False), flush=True)
+    print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 

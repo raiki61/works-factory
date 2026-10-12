@@ -39,7 +39,7 @@ def key(row) -> str:
     return row["lens"].replace("-", "_")
 
 
-TASK_HEAD = promptsection.Section("## この節での仕事", source="fn:lenses.render")
+TASK_HEAD = promptsection.Section("## このセクションでの仕事", source="fn:lenses.render")
 REPLY_HEAD = promptsection.Section("## 返答の書き方", source="fn:lenses.render")
 
 
@@ -47,13 +47,13 @@ def render(row, body: str, diff_file: str, files: list, lang: str) -> str:
     return "\n".join([
         fixboard.ROLE_DEF_HEAD.format(agent=row['agent']), "", body.strip(), "", "---", "",
         TASK_HEAD, "",
-        f"お前は修正の後の局所レビューのレンズ（{row['lens']}）として、新しい会話で起きている。上の定義の観点だけで、"
+        f"この役は修正の後の局所レビューのレンズ（{row['lens']}）として、新しい会話で起きている。上の定義の観点だけで、"
         "この周の修正が作った差分を見る。修正を書いた役の会話も、判定の経緯も引き継いでいない。",
-        "お前は読むだけの役。使えるのは Read・Grep・Glob だけで、作業ツリーを 1 文字も変えない。子（Agent）は起こせない——"
+        "この役は読むだけの役。使えるのは Read・Grep・Glob だけで、作業ツリーを 1 文字も変えない。子（Agent）は起こせない——"
         "定義がほかの道具や子に触れていても、自分で読んで答えよ。", "",
         f"- 修正の差分: `{diff_file}`（Read せよ。周の頭に固めた版と修正後の姿の差）",
         f"- 変わったファイル: {json.dumps(files, ensure_ascii=False)}", "",
-        "差分は起点であって線ではない——呼び元・読む側まで読め。指摘は変わったファイルの中の物だけを挙げる。"
+        "差分は起点であって境ではない——呼び元・読む側まで読め。指摘は変わったファイルの中の物だけを挙げる。"
         "指摘は差分の審査役が検算してから穴にする。",
         "",
         REPLY_HEAD, "",

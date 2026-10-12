@@ -322,6 +322,21 @@ class TestAcceptOutsideTier(OutsideCase):
         probs, note = tddloop.selected_problems(state, self.repo, "HEAD")
         self.assertNotIn("新しい赤なし", note, "選んだ試験が 1 件も走らないのを緑に見せる（fail-open）")
         self.assertIn("0 件", " ".join(probs) + note)
+        # 修正の受け付けはその知らせを捨てず、置き場の隣のファイル accept-trace.json に盤面の trace の行の形で積む
+        # （元 works/blk-fix/scripts/accept.py:708 の TESTS_OP の行。読むのは最後の関所と報告）
+        import fixboard
+        import impact
+        place = pathlib.Path(state).parent.parent
+        for attempt in (1, 2):
+            fixboard.accept_reply({"changes": []}, place, self.repo, pass_="first", iteration=attempt, owed=[], state=state,
+                                  base_rev="HEAD")
+        rows = json.loads((place / fixboard.ACCEPT_TRACE_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([(r["op"], r["pass"], r["attempt"]) for r in rows],
+                         [(impact.ACCEPT_TRACE_OP, "first", 1), (impact.ACCEPT_TRACE_OP, "first", 2)], "回ごとに足す（上書きしない）")
+        self.assertIn("0 件", rows[0]["note"])
+        self.assertNotIn("新しい赤なし", rows[0]["note"])
+        self.assertEqual({k for k in ("ci_left", "final_left", "final_far") if isinstance(rows[0].get(k), list)},
+                         {"ci_left", "final_left", "final_far"})
 
     def test_unchanged_test_outside_tier_is_left_out_of_local_run(self):
         # ADR 0071 の 3 の 1: 手元は速い段と変えた・足した試験だけ。届いただけで変えていない段の外の試験は走らせない

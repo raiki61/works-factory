@@ -39,7 +39,7 @@ def listing(listing_file: str, artifacts_dir: str, run_id: str, execution: str =
     out = {"by_type": {}, "warnings": []}
     warn = out["warnings"].append
     if not listing_file:
-        warn("型つきの成果物の一覧がこの節に届いていない（TYPED_ARTIFACTS_FILE が空。dry-run か、一覧の無い節）")
+        warn("型つきの成果物の一覧がこのノードに届いていない（TYPED_ARTIFACTS_FILE が空。dry-run か、一覧の無いノード）")
         return out
     try:
         listing = json.loads(Path(listing_file).read_text(encoding="utf-8"))

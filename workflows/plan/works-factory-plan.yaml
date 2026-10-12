@@ -1,42 +1,42 @@
 name: works-factory-plan
 description: |
-  計画のブロック（線が include で差し込む部品。単独では回さない）。判定（judge）が切った単位を、直す前に設計として固める:
+  計画のサブグラフ（メイングラフが include する部品。単独では回さない）。判定（judge）が切った単位を、直す前に設計として固める:
   単位が名指すファイルを機械で実測して構造の目（道具なしの別の会話）が直しが構造を汚すかを判定し、修正案の役が項目ごとに
   書いてよい範囲・受け入れテスト・定石と構造の行への従うか外れの訳を書き、受け付けが機械で照らし、波及の一覧（変える名の
-  呼び出し元と試験）を機械で出す。案の直し（fix の裁定の後の 1 度）は同じブロックを ruling の入力つきで差し込む（形 replan）。
-  事前審査との往復は線が持ち、このブロックは 1 回の案を作って返す。2 往復目からは受けた review を周のフォルダに写し、
+  呼び出し元と試験）を機械で出す。案の直し（fix の裁定の後の 1 度）は同じサブグラフを ruling の入力つきで include する（形 replan）。
+  事前審査との往復はメイングラフが持ち、このサブグラフは 1 回の案を作って返す。2 往復目からは受けた review を周のフォルダに写し、
   前の周の案と指摘を材料のファイルで渡して新しい会話で直させる（会話の続きでは起こさない）。
   置き場は run の置き場の plan/ の下だけ（周ごとの plan/r<k>/ と、使い回す構造の実測の plan/structure/<鍵>/）。
-  返す節 plan は落ちない（中の誤りを捕まえて ready: false と、在って空でない指し札を返す）。
+  出力ノード plan は落ちない（中の誤りを捕まえて ready: false と、在って空でないポインタを返す）。
 
 inputs:
   start:
     default: ""
-    description: 始めの記録の指し札（線の start の record）。欄 policy_md・thickness・test_cmd・tdd_suite・base_rev・lang を読む
+    description: 始めの記録のポインタ（メイングラフの start の record）。欄 policy_md・thickness・test_cmd・tdd_suite・base_rev・lang を読む
   units:
     default: "[]"
     description: 単位の目録（judge の units。[{id, paths, summary}]）
   judgment:
     default: ""
-    description: 受け付けた判定の指し札（judge の judgment。judgment.json と、隣の judge-verify.json・pr-excluded.json）
+    description: 受け付けた判定のポインタ（judge の judgment。judgment.json と、隣の judge-verify.json・pr-excluded.json）
   world:
     default: "null"
-    description: 定石の行の指し札（judge の world。world-row の行の並び）。無ければ null
+    description: 定石の行のポインタ（judge の world。world-row の行の並び）。無ければ null
   spec:
     default: "null"
-    description: 仕様の指し札（judge の spec）。無ければ null
+    description: 仕様のポインタ（judge の spec）。無ければ null
   review:
     default: ""
-    description: 事前審査の指摘の指し札（plan-review の review。往復の 2 回目から。空の字と null は事前審査がまだ無い）
+    description: 事前審査の指摘のポインタ（plan-review の review。往復の 2 回目から。空の字と null は事前審査がまだ無い）
   ruling:
     default: "[]"
     description: 案の直しで直す項目の番号の字の並び（fix の replan_items）。空でなければ形 replan
   conflicts:
     default: "null"
-    description: 申し出と裁定の行の指し札（fix の conflicts。conflicts.json）。案の直しの時だけ
+    description: 申し出と裁定の行のポインタ（fix の conflicts。conflicts.json）。案の直しの時だけ
   prior_failures:
     default: "null"
-    description: 前の run で最後まで通らなかった物の行の指し札（[{where, text}]。lib/carry の prior-failures-in.json の形）。無ければ null
+    description: 前の run で最後まで通らなかった物の行のポインタ（[{where, text}]。lib/carry の prior-failures-in.json の形）。無ければ null
 
 returns: plan
 outcome_field: ready
@@ -499,6 +499,7 @@ nodes:
           timeout: 1728000000
           depends_on: [plan-writer]
           with:
+            status_guarded: true
             dir: $round.output.dir
             reply: $plan-writer.output
           output_format:
@@ -528,6 +529,28 @@ nodes:
       required: [ripple_file]
       properties:
         ripple_file: {type: string}
+
+  # 読んだ証拠: この周に起こした修正案の役が、機械が渡したパス（材料・前の拒否の理由・方針の文書）を読んだかを、隔離した設定の
+  # フックの記録から集めて周のフォルダに書く（受け付けの条件にしない。返す節に結ばない。役を起こさない周も、輪が落ちた周も走って
+  # 書く。周を開く節が落ちた周は dir が無いので飛ぶ（one_success）。落ちない）
+  - id: plan-reads
+    script: plan_reads
+    runtime: uv
+    mutates_checkout: false
+    timeout: 1728000000
+    depends_on: [round, plan-loop]
+    trigger_rule: one_success
+    with:
+      dir: $round.output.dir
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, missing, index_file, reason]
+      properties:
+        ok: {type: boolean}
+        missing: {type: array, items: {type: string}}
+        index_file: {type: string}
+        reason: {type: string}
 
   # 返す節。落ちない（中の誤りを捕まえて ready: false と、在って空でない指し札の先を返す。誤りの訳は plan/r<k>/collect-error.txt）
   - id: plan

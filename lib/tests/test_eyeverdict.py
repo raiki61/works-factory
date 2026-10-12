@@ -296,6 +296,16 @@ class CollectCase(unittest.TestCase):
         self.assertEqual(got["r3"]["status"], "unverifiable")
         self.assertIn(eyeverdict.FELL_MARK, got["r3"]["reason"])
 
+    def test_off_contract_status_is_named(self):
+        """判定の語が約束の外の返りは、落ちた筋と「返りの判定の語が約束の外」を名指して unverifiable にする（元 review-record.py:443-454）"""
+        self.all_pass()
+        self.put("r3", {"status": "ok", "reason": "整合", "seen": [], "unseen": []})
+        got = self.collect()
+        self.assertEqual(got["r3"]["status"], "unverifiable")
+        self.assertIn("約束の外", got["r3"]["reason"])
+        self.assertTrue(got["r3"]["reason"].startswith("R3 "), got["r3"]["reason"])
+        self.assertFalse(got["ok"])
+
     def test_missing_design_makes_r2_unverifiable(self):
         self.all_pass(r2=False)
         got = self.collect(design=MISSING, compare_due=False)
@@ -475,6 +485,22 @@ class PremiseSectionCase(unittest.TestCase):
     def test_link_anchor_finds_the_heading_by_its_slug(self):
         _, ledger = self.section(request_text="[入口](docs/d.md#2-入口) のとおりに直す")
         self.assertIn({"kind": "named_section", "what": "docs/d.md#2-入口"}, ledger["given"])
+
+    def test_heading_inside_a_code_fence_is_not_an_anchor(self):
+        """名指された文書の見出しは囲い（``` と ~~~。情報文字列つきも）の外だけを読む: 囲いの中の # 行はアンカーにならず、節も切らない
+        （元 review-loop.py:2822-2850 の _md_lines・_md_slugs。works/tests/test_blk_eyes.py:736）"""
+        for fence in ("```", "```js title=x", "~~~"):
+            with self.subTest(fence):
+                (self.repo / "docs" / "f.md").write_text(
+                    f"# 設計\n\n## 2 入口\n\n{fence}\n## 9 偽\n{fence[:3]}\n\nBODY-2-TAIL\n\n## 3 出口\n\nS3\n", encoding="utf-8")
+                git(self.repo, "add", "-A")
+                git(self.repo, "commit", "-q", "-m", fence)
+                text, ledger = self.section(request_text="[偽](docs/f.md#9-偽) と [入口](docs/f.md#2-入口) のとおりに直す")
+                self.assertIn({"kind": "named_section", "what": "docs/f.md#2-入口"}, ledger["given"])
+                self.assertNotIn({"kind": "named_section", "what": "docs/f.md#9-偽"}, ledger["given"])
+                self.assertIn("docs/f.md#9-偽", [w["what"] for w in ledger["withheld"]])
+                self.assertIn("BODY-2-TAIL", text)
+                self.assertNotIn("S3", text)
 
     def test_premise_kinds_fence_is_design_premises(self):
         with mock.patch.object(design, "PREMISE_KINDS", ("named_section", "repo_map")):

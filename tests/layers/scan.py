@@ -18,7 +18,10 @@ from bin._lib.place import WORKFLOW_FOLDER
 BOUNDARY = "boundary.py"
 POLYFILL_ROW = re.compile(r"workflows/\.shared/([^\s`（）()、・。]+)(`?（予定）)?")
 
-ARCHON_WORDS = re.compile(r"(?i:archon)|ARTIFACTS_DIR|TYPED_ARTIFACTS_FILE|output_type")
+ARCHON_WORDS = re.compile(
+    r"(?i:archon)|ARTIFACTS_DIR|TYPED_ARTIFACTS_FILE|output_type|(?<![A-Za-z0-9_])INPUTS_[A-Z0-9_]+|WORKFLOW_ID|\$LOOP_PREV"
+    r"|loop_group|\$[A-Za-z_][\w-]*\.output\b"
+)
 LAYER_IMPORT = re.compile(r"^\s*(from|import)\s+(workflows|bin)\b")
 
 # まだ木に無いブロックを指す字も捕まえるための名の表。根の AGENTS.md の「リポジトリの形」の木との一致は test_block_paths が縛る。木に在るブロックは木から読む。
@@ -64,9 +67,35 @@ LANG_WORD = re.compile(
 
 OWNER_ENV = ("raiki61", "claude-code-oauth-", "/Users/")
 
-# 決まりごとに照らしから外すパス。`/` で終わる行はそのフォルダの下の全部。どの行も本物の木の何かに当たる（stale_allowances）。
+# 決まりごとに照らしから外すパス。`/` で終わる行はそのフォルダの下の全部。`<パス>#<字>` の行は、そのパスの問題のうちその字を名指す物
+# だけ。どの行も本物の木の何かに当たる（stale_allowances）。
 ALLOWED = {
-    "E3": ("lib/AGENTS.md",),
+    "E3": (
+        "lib/AGENTS.md",
+        # 今の works から写した lib が実行基盤の名を字で持つ（K7）。行ごとに外す区分の issue
+        "lib/tree_run.py#INPUTS_CMD",               # 区分 T #122（test-gate の run が走らせるコマンドの口）
+        "lib/report_roles.py#loop_group",           # 区分 R #124（受け付けの諦めの数の注）
+        "lib/specblk.py#$spec-gate.output",         # 区分 J #119（仕様の関所の出口の字）
+        "lib/judge_accept.py#$spec-gate.output",    # 区分 J #119（仕様の関所の答えの字）
+        "lib/judge_accept.py#$material-route.output",  # 区分 J #119（素材の振り分けの返りの欄の注）
+        # 役に届く文に $LOOP_PREV が無いことを確かめる試験の字。語の不在を試すので区分の issue の後も残る
+        "lib/tests/test_blk_fix.py#$LOOP_PREV",
+        "lib/tests/test_blk_plan.py#$LOOP_PREV",
+        "lib/tests/test_fix_rules.py#$LOOP_PREV",
+        "lib/tests/test_tree_run.py#INPUTS_CMD",    # 区分 T #122（lib/tree_run.py の INPUTS_CMD の口を試す。口と一緒に外す）
+    ),
+    "E5": (
+        # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
+        "workflows/plan-review/works-factory-plan-review.yaml#units",  # 区分 P #120
+        "workflows/merge/works-factory-merge.yaml#diff",               # 区分 M #125（受けるが読まない。封じるのは今の木から組み直した差分）
+    ),
+    "E4": (
+        # script どうしの import（K8）。今 import している script を 1 本ずつ名指す。外す区分の issue は report が区分 R #124
+        "workflows/report/scripts/collect.py#place",
+        "workflows/report/scripts/facts.py#place",
+        "workflows/report/scripts/facts.py#typed",
+        "workflows/report/scripts/report_accept.py#place",
+    ),
     "E13": (
         "lib/AGENTS.md",
         "lib/tests/",
@@ -97,26 +126,35 @@ def problems(rule: str, root: Path) -> list[str]:
         check = RULES[rule]
     except KeyError:
         raise ValueError(f"知らない決まり: {rule}（{', '.join(RULES)} のどれか）") from None
-    return [line for line in check(Path(root)) if not _allowed(rule, line.split(":", 1)[0])]
+    return [line for line in check(Path(root)) if not _allowed(rule, line)]
 
 
 def stale_allowances(root: Path) -> list[str]:
     """`ALLOWED` の行のうち、木の何にも当たらない物"""
     root = Path(root)
-    return [
-        f"{rule}: {entry} が木の何にも当たらない"
-        for rule, entries in ALLOWED.items()
-        for entry in entries
-        if not (any(_files(root, entry)) if entry.endswith("/") else (root / entry).is_file())
-    ]
+    found = {}
+
+    def hits(rule: str, entry: str) -> bool:
+        path, _, word = entry.partition("#")
+        if word:
+            found.setdefault(rule, RULES[rule](root))
+            return any(_matches(entry, line) for line in found[rule])
+        return any(_files(root, path)) if path.endswith("/") else (root / path).is_file()
+
+    return [f"{rule}: {entry} が木の何にも当たらない" for rule, entries in ALLOWED.items() for entry in entries if not hits(rule, entry)]
 
 
-def _allowed(rule: str, rel: str) -> bool:
-    return any(_matches(entry, rel) for entry in ALLOWED.get(rule, ()))
+def _allowed(rule: str, line: str) -> bool:
+    return any(_matches(entry, line) for entry in ALLOWED.get(rule, ()))
 
 
-def _matches(entry: str, rel: str) -> bool:
-    return rel.startswith(entry) if entry.endswith("/") else rel == entry
+def _matches(entry: str, line: str) -> bool:
+    """問題の行 `<パス>:<行>: <何が>` が許しの行に当たるか"""
+    path, _, word = entry.partition("#")
+    rel, _, rest = line.partition(":")
+    if not (rel.startswith(path) if path.endswith("/") else rel == path):
+        return False
+    return not word or re.search(rf"(?<!\S){re.escape(word)}(?!\S)", rest.partition(": ")[2]) is not None
 
 
 def _files(root: Path, *parts: str):
@@ -208,17 +246,17 @@ def _line(node) -> int:
     return node.start_mark.line + 1
 
 
-def includes(root: Path, rel: str) -> list[str]:
-    """root/rel の工程の `include:` の先の工程の名（`loop_group` の中も）。読めない YAML は ValueError"""
+def nodes(root: Path, rel: str) -> list:
+    """root/rel の工程の節の node（`loop_group` の中も）。読めない YAML は ValueError"""
     documents, broken = _documents(root, root / rel)
     if broken:
         raise ValueError(broken[0])
-    return [
-        value.value
-        for document in documents
-        for node in _nodes(document)
-        if isinstance(value := _top(node, "include"), yaml.ScalarNode)
-    ]
+    return [node for document in documents for node in _nodes(document)]
+
+
+def includes(root: Path, rel: str) -> list[str]:
+    """root/rel の工程の `include:` の先の工程の名（`loop_group` の中も）。読めない YAML は ValueError"""
+    return [value.value for node in nodes(root, rel) if isinstance(value := _top(node, "include"), yaml.ScalarNode)]
 
 
 def _polyfills_listed(root: Path) -> list[str]:
@@ -251,12 +289,17 @@ def _lib_blind(root: Path) -> list[str]:
     )
 
 
+IMPORT_NAMES = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+(?:\s*,\s*[\w.]+)*))")
+
+
 def _block_paths(root: Path) -> list[str]:
     """ブロックの `scripts/` の字と、YAML の字（直に書いた script）を照らす。
 
     YAML の中の script は Archon が写し取った所のどこから走るかが字から分からないので、相対パスは行き先のブロックの名だけを見る。
+    script は同じ `scripts/` の別の script を import せず（K8）、script の名は lib のモジュールの名と重ならない（script のフォルダが
+    sys.path の頭に来るので、`import <名>` が lib の物でなく script を読む。K19）。
     """
-    out = []
+    out = _script_imports(root) + _script_names(root)
     blocks = [p.name for p in _blocks(root)]
     for own in blocks:
         others = sorted((set(BLOCKS) | set(blocks)) - {own})
@@ -283,6 +326,45 @@ def _block_paths(root: Path) -> list[str]:
                         out.append(f"{rel}:{number}: 相対パス {target} がほかのブロック {pointed} を指す")
                     elif is_script and not resolved.startswith(allowed):
                         out.append(f"{rel}:{number}: 相対パス {target} が lib/・workflows/.shared/・自分のブロックの外を指す")
+    return out
+
+
+def sibling_imports(root: Path) -> tuple[list[tuple[Path, int, str]], list[str]]:
+    """ブロックの scripts/ の script が同じ scripts/ のほかの script を import する所（script、行、import する script の名）と、
+    読めないファイルの問題の行。K8 と、節の script どうしの import の試験（tests/workflows/test_script_imports.py）が共に読む"""
+    found, broken = [], []
+    for folder in _blocks(root):
+        scripts = folder / "scripts"
+        siblings = {p.stem for p in scripts.glob("*.py")} if scripts.is_dir() else set()
+        for path in sorted(scripts.glob("*.py")) if scripts.is_dir() else []:
+            lines, unread = _lines(root, path)
+            broken += unread
+            for number, line in enumerate(lines, 1):
+                match = IMPORT_NAMES.match(line)
+                if not match:
+                    continue
+                names = [match[1]] if match[1] else [name.strip() for name in match[2].split(",")]
+                for name in names:
+                    head = name.split(".")[0]
+                    if head in siblings - {path.stem}:
+                        found.append((path, number, head))
+    return found, broken
+
+
+def _script_imports(root: Path) -> list[str]:
+    found, broken = sibling_imports(root)
+    return broken + [f"{_rel(root, path)}:{number}: 同じ scripts/ の script {head} を import する" for path, number, head in found]
+
+
+def _script_names(root: Path) -> list[str]:
+    lib = root / "lib"
+    modules = {p.stem for p in lib.glob("*.py")} if lib.is_dir() else set()
+    out = []
+    for folder in _blocks(root):
+        scripts = folder / "scripts"
+        for path in sorted(scripts.glob("*.py")) if scripts.is_dir() else []:
+            if path.stem in modules:
+                out.append(f"{_rel(root, path)}:1: script の名 {path.stem} が lib/{path.stem}.py と同じ")
     return out
 
 
@@ -427,7 +509,8 @@ def _line_reads(root: Path) -> dict:
 
 
 def _block_returns(root: Path) -> list[str]:
-    out = []
+    """返りの欄の読み手に加えて、ブロックの入力の読み手（K12）と、輪の中の役が自分の with: を結ばないこと（K5）も照らす"""
+    out = _inputs_read(root) + _loop_roles(root)
     reads = _line_reads(root)
     for folder in _blocks(root):
         if folder.name == LINE_FOLDER:
@@ -454,6 +537,54 @@ def _block_returns(root: Path) -> list[str]:
         for key, value in _pairs(_top(schema, "properties")):
             if key not in read:
                 out.append(f"{rel}:{_line(value)}: 返りの欄 {key} に読み手が無い（線の with:・when:・返しの節の from の誰も読まない）")
+    return out
+
+
+def script_reads(text: str, name: str) -> bool:
+    """script の字が入力 name を読むか。Archon は名の - を _ にして大文字の INPUTS_<名> で渡す。`INPUTS_{…}` を組んで読む script は
+    名の字を持つ物を読み手に数える"""
+    if re.search(rf"INPUTS_{re.escape(name.replace('-', '_').upper())}(?![A-Z0-9_])", text):
+        return True
+    return "INPUTS_{" in text and re.search(rf"[\"']{re.escape(name)}[\"']", text) is not None
+
+
+def _role_reads(text: str, name: str) -> bool:
+    return re.search(rf"\$INPUTS\.{re.escape(name)}(?![\w-])", text) is not None
+
+
+def _inputs_read(root: Path) -> list[str]:
+    """ブロックの inputs: の名は、そのブロックの script が INPUTS_<名> で読むか、役の指示書（commands/ と YAML の prompt:）が
+    $INPUTS.<名> で読む（宣言しただけで誰も読まない入力を残さない）。YAML の with: で script へ渡すだけの字は読み手に数えない"""
+    out = []
+    for folder in _blocks(root):
+        if folder.name == LINE_FOLDER:
+            continue
+        path, document = _workflow_doc(folder)
+        if document is None:
+            continue
+        scripts = ["\n".join(_lines(root, p)[0]) for p in _files(folder, "scripts") if p.suffix == ".py"]
+        roles = [p.read_text(encoding="utf-8", errors="replace") for p in _files(folder, "commands")]
+        roles += [value.value for node in _nodes(document) if isinstance(value := _top(node, "prompt"), yaml.ScalarNode)]
+        for key, value in _pairs(_top(document, "inputs")):
+            if not any(script_reads(text, key) for text in scripts) and not any(_role_reads(text, key) for text in roles):
+                env = "INPUTS_" + key.replace("-", "_").upper()
+                out.append(f"{_rel(root, path)}:{_line(value)}: 入力 {key} に読み手が無い（script の {env} も指示書の $INPUTS.{key} も無い）")
+    return out
+
+
+def _loop_roles(root: Path) -> list[str]:
+    """輪（loop_group）の中の役の節は自分の with: を結ばない。前の周の値は輪の頭の script の節が $LOOP_PREV で結んで返し、役はその
+    出力を読む（PR #100。Archon の include-expander.ts 566・579・596・627 行: 役の with: は include の時に既定の字で固まる）"""
+    out = []
+    for path in _workflow_yamls(root):
+        documents, broken = _documents(root, path)
+        out += broken
+        for document in documents:
+            for group in _nodes(document):
+                for node in getattr(_top(_top(group, "loop_group"), "nodes"), "value", []):
+                    if any(_top(node, kind) is not None for kind in ROLE_KINDS) and _top(node, "with") is not None:
+                        ident = getattr(_top(node, "id"), "value", "?")
+                        out.append(f"{_rel(root, path)}:{_line(node)}: 輪の中の役 {ident} が自分の with: を結ぶ")
     return out
 
 
@@ -487,24 +618,36 @@ def _outward_write(root: Path) -> list[str]:
     return out
 
 
-# 読むだけの節（E7）。ROLE_BLOCKS の役の節は全部、ほかは READONLY_NODES で名指した節が mutates_checkout: false を書く。
-ROLE_BLOCKS = ("judge", "plan", "plan-review", "eyes", "report")
-# loop: の節は数えない（Archon は loop: の節の mutates_checkout を無視して警告を出す。止めた Archon の schemas/dag-node.ts 1025-1030 行）
+# 読むだけの節と役の節の決まり（E7）。
+# 役の節（prompt:・command:）の印は道具から導く: allowed_tools に作業ツリーを変える道具（TREE_CHANGERS）が無い役は
+# mutates_checkout: false を書き、在る役は書かない（元 works/tests/test_yaml_rules.py の TREE_CHANGERS と keep_checkout）。
+# 外れは KEEP_CHECKOUT の役だけ（変える道具を持つが作業ツリーは変えない役で、false で Archon に守らせる）。
+# script・bash の節は全部 false を書く。外れは CHANGE_CHECKOUT の節だけ（作業ツリーを変えるか、印を足すと振る舞いが変わる節）。
 ROLE_KINDS = ("prompt", "command")
-# judge の役のうち、作業ツリーに書く役（spec・spec-revise）と、対象のリポジトリでコマンドを走らせる役（受け付けの script が作業ツリーの姿を比べる）
-JUDGE_WRITERS = (
-    "spec", "spec-revise", "pr-check", "premises", "prior-decisions", "local-review", "external-standards",
-    "procedure-trace", "gate-efficacy", "test-double-fidelity", "main-path-observation", "provenance",
-)
-READONLY_NODES = {
-    "line": (
-        "answer-start", "plan-out", "ask-before-fix", "answer-before-fix", "after-fix", "judged", "ask-replan",
-        "answer-replan", "fixed", "redepth", "ask-final", "answer-final", "collect", "result",
-        # 受け皿（workflows/line/scripts/returned.py）
-        "test-gate-base-out", "judge-out", "design-only-out", "plan-rounds-out", "fix-out", "rejudge-run-out", "replan-out", "replan-review-out",
-        "test-gate-final-out", "eyes-out", "merge-seal-out", "merge-apply-out",
-    ),
+CODE_KINDS = ("script", "bash")
+TREE_CHANGERS = frozenset({"Bash", "Edit", "Write"})
+KEEP_CHECKOUT = {
+    ("judge", "judge-verify"): "単位ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout）",
+    ("plan-review", "plan-review"): "項目ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout）",
+    ("test-gate", "ci"): "Bash でテストを走らせるが作業ツリーは書かない。今の works は包みが作業ツリーを守り、ここでは false と ci-accept の"
+                         "作業ツリーの比べが守る（#69）",
 }
+CHANGE_CHECKOUT = {
+    ("line", "start"): "始めの記録を run の置き場に書くだけだが、今の線は印を持たない。足すと Archon の照らしが増えて振る舞いが変わるので部分 0 では足さない",
+    ("judge", "spec-freeze"): "人が通した受け入れ条件を作業ツリーで /bin/sh -c で走らせる（lib/judge_accept._spec_run）",
+    ("fix", "group-start"): "親の姿の木を作業ツリーと index に写す（groups.adopt_tree）",
+    ("fix", "join"): "並べた組の子の差分を親の作業ツリーへ当て、当たらない組は戻す（unittrees.apply）",
+    ("fix", "clean"): "修正役が残した git の無視するファイルを消す（leftovers.remove_new_ignored）",
+    ("fix", "tdd-step"): "諦めた単位を単位の頭の木に戻す（tddloop.step）",
+    ("fix", "fix-accept"): "3 回目の拒否で名指しの単位を戻す（fixboard.accept_reply）",
+    ("fix", "fix-ruled-accept"): "3 回目の拒否で名指しの単位を戻す（fixboard.accept_reply の ruled）",
+    ("fix", "refix-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
+    ("fix", "refix2-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
+    ("test-gate", "run"): "対象のテストを作業ツリーで走らせる（declared_checks.run_ci）",
+}
+# 役の節に要る鍵（K18。元 works/tests/test_yaml_rules.py の決まり）: settingSources: [user]・閉じた sandbox・道具の表の中の allowed_tools
+ROLE_TOOLS = frozenset({"Read", "Grep", "Glob", "Edit", "Write", "Bash", "WebSearch", "WebFetch", "Agent", "Skill"})
+CLOSED_SANDBOX = (("enabled", "true"), ("allowUnsandboxedCommands", "false"))
 YAML_BOOL = "tag:yaml.org,2002:bool"
 
 
@@ -519,20 +662,48 @@ def _readonly_nodes(root: Path) -> list[str]:
         if document is None:
             continue
         rel = _rel(root, path)
-        named = READONLY_NODES.get(folder.name, ())
         seen = set()
         for node in _nodes(document):
             ident = getattr(_top(node, "id"), "value", "")
             seen.add(ident)
-            role = any(_top(node, kind) is not None for kind in ROLE_KINDS)
-            due = ident in named or (
-                folder.name in ROLE_BLOCKS and role and not (folder.name == "judge" and ident in JUDGE_WRITERS)
-            )
-            if due and not _is_bool(_top(node, "mutates_checkout"), "false"):
-                out.append(f"{rel}:{_line(node)}: 読むだけの節 {ident} に mutates_checkout: false が無い")
-        for ident in named:
-            if ident not in seen:
-                out.append(f"{rel}:1: 表 READONLY_NODES が名指した節 {ident} が工程に無い")
+            at = f"{rel}:{_line(node)}"
+            marked = _is_bool(_top(node, "mutates_checkout"), "false")
+            if _top(node, "loop") is not None:
+                out.append(f"{at}: 節 {ident} が loop: で書かれた（Archon は loop: の節の mutates_checkout を無視する。loop_group で書く）")
+            if any(_top(node, kind) is not None for kind in ROLE_KINDS):
+                tools = _top(node, "allowed_tools")
+                names = {item.value for item in tools.value if isinstance(item, yaml.ScalarNode)} if isinstance(tools, yaml.SequenceNode) else None
+                out += _role_settings(at, ident, node, names)
+                changer = names is None or bool(names & TREE_CHANGERS)
+                keep = (folder.name, ident) in KEEP_CHECKOUT
+                if marked and changer and not keep:
+                    out.append(f"{at}: 作業ツリーを変える道具を持つ役 {ident} に mutates_checkout: false が在る")
+                elif not marked and (not changer or keep):
+                    out.append(f"{at}: 読むだけの役 {ident} に mutates_checkout: false が無い")
+            elif any(_top(node, kind) is not None for kind in CODE_KINDS):
+                changes = (folder.name, ident) in CHANGE_CHECKOUT
+                if marked and changes:
+                    out.append(f"{at}: 表 CHANGE_CHECKOUT の節 {ident} に mutates_checkout: false が在る")
+                elif not marked and not changes:
+                    out.append(f"{at}: script の節 {ident} に mutates_checkout: false が無い（作業ツリーを変えるなら表 CHANGE_CHECKOUT に訳を書く）")
+        for block, ident in KEEP_CHECKOUT:
+            if block == folder.name and ident not in seen:
+                out.append(f"{rel}:1: 表 KEEP_CHECKOUT が名指した役 {ident} が工程に無い")
+    return out
+
+
+def _role_settings(at: str, ident: str, node, tools) -> list[str]:
+    out = []
+    sources = _top(node, "settingSources")
+    if not (isinstance(sources, yaml.SequenceNode) and [getattr(i, "value", None) for i in sources.value] == ["user"]):
+        out.append(f"{at}: 役 {ident} に settingSources: [user] が無い")
+    sandbox = _top(node, "sandbox")
+    if not all(_is_bool(_top(sandbox, key), word) for key, word in CLOSED_SANDBOX):
+        out.append(f"{at}: 役 {ident} の sandbox が閉じていない（enabled: true・allowUnsandboxedCommands: false）")
+    if tools is None:
+        out.append(f"{at}: 役 {ident} に allowed_tools が無い（無いと全部の道具を持つ）")
+    elif tools - ROLE_TOOLS:
+        out.append(f"{at}: 役 {ident} の allowed_tools に表 ROLE_TOOLS の外の道具 {sorted(tools - ROLE_TOOLS)}")
     return out
 
 
@@ -569,6 +740,32 @@ def _gates(root: Path) -> list[str]:
         elif gated(name):
             if not _is_bool(_top(document, "interactive"), "true"):
                 out.append(f"{rel}:1: 人の関所を持つ一番上の工程に interactive: true が無い")
+    return out + _gate_words(root)
+
+
+def _gate_words(root: Path) -> list[str]:
+    """関所（approval:）は decisions に reject を持ち、on_reject を持たない（K10。止めた Archon の core/src/operations/
+    workflow-operations.ts 1625-1700 行: decisions に reject が無いか on_reject が在る関所の reject は run の取り消しになり、報告が出ない）。
+    輪（loop_group）の本体に関所を置かない（K18。本体が関所で終わる輪の再開は会話を引き継がない。元 works/tests/test_yaml_rules.py 43-45 行）"""
+    out = []
+    for path in _workflow_yamls(root):
+        rel = _rel(root, path)
+        documents, broken = _documents(root, path)
+        out += broken
+        for document in documents:
+            for node in _nodes(document):
+                for inner in getattr(_top(_top(node, "loop_group"), "nodes"), "value", []):
+                    if _top(inner, "approval") is not None:
+                        out.append(f"{rel}:{_line(inner)}: 輪の本体に関所 {getattr(_top(inner, 'id'), 'value', '?')} を置いた")
+                gate = _top(node, "approval")
+                if gate is None:
+                    continue
+                ident = getattr(_top(node, "id"), "value", "?")
+                words = {getattr(_top(d, "id"), "value", None) for d in getattr(_top(gate, "decisions"), "value", [])}
+                if "reject" not in words:
+                    out.append(f"{rel}:{_line(node)}: 関所 {ident} の decisions に reject が無い")
+                if _top(gate, "on_reject") is not None or _top(node, "on_reject") is not None:
+                    out.append(f"{rel}:{_line(node)}: 関所 {ident} が on_reject を持つ")
     return out
 
 

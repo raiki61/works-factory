@@ -13,7 +13,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
@@ -31,7 +30,7 @@ ACCEPT = "rule-accept"
 
 
 def main() -> dict:
-    place, repo = fixio.place(), fixio.repo()
+    place, repo = boundary.place("fix"), boundary.work_tree()
     judgment = place / fixboard.JUDGMENT_FILE
     if not judgment.is_file():
         raise ValueError(f"置き場に判定の写し {judgment.name} が無い")

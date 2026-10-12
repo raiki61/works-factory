@@ -25,7 +25,7 @@ try:
     start_ptr = json.loads(os.environ.get("INPUTS_START") or "null")
     lang = {"lang_line": rolekit.record_lang_line(None if start_ptr is None else boundary.resolve(start_ptr))}
 except (ValueError, AttributeError) as e:
-    lang = {"lang_line": f"{rolekit.lang_line({})}（始めの記録の指し札を読めない: {e}。言語は既定にした）"}
+    lang = {"lang_line": f"{rolekit.lang_line({})}（始めの記録のポインタを読めない: {e}。言語は既定にした）"}
 if objection.strip():   # 再審の道: 判定の道の裏取りは走らせず、置き場に触らない
     boundary.returns({"go": False, "prompt_file": "", "reason": "再審の道（入力 objection が空でない）", **lang} if stage == "prep"
                      else {"ok": True, "reason": "再審の道（入力 objection が空でない）"})

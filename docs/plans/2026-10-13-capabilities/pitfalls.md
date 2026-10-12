@@ -128,6 +128,7 @@
     - `lib/tests/test_imports.py::LibImportCase.test_every_module_imports_first_in_a_fresh_interpreter`: lib/ の各モジュールを、新しい interpreter で 1 本ずつ最初に `import` し、全部が終了の値 0 になること
 
 - K9 役の指示書と役の定義は、元の works から字のまま写す。写しの文を縛る試験を置く（許した直しだけを差として持つ）
+  - 決めとの両立: 持ち主の決め `prompts-coldread`（2026-10-12、`docs/owner-decisions.md`）で、役の指示書は初見の読み手で書き直してよい。書き直しは元の字に戻さず、台帳の許した直しとして足す。今の台帳は judge・eyes・report の指示書と `fix-plan.md`・test-gate の `ci.md` で、書き直しの直しは `tests/workflows/copied_rewrites.json`（`tests/workflows/copied.py` の `assert_is_original` が台帳の直しの後ろに当てる）。4 つの約束は `tests/workflows/test_prompt_contracts.py` が別に照らす。
   - 根拠:
     - 能力の落ち: PR #67 の 1 回目の 3（comment-analyzer の定義が 1 文の要約に）・2 回目の 2（「戻した指示書の文に、消すと赤になる試験を足す」）、#73 の 1 回目の 7・3 回目の 2（「今は外しても緑」）、#75 の 1 回目の 6・2 回目の 2（「`commands/fix-plan.md` を元の `p2.fix_plan.md` と突き合わせる試験を足す」。写しの台帳 `bin/_lib/copyledger.py` の `!` の行で許した直しを書ける形）、#68 の 1 回目の 5、#76 の 1 回目の 9、#94 の 1 回目の 5（`delta-review.md` の落ちた 1 行）・2 回目の 2
     - 根の決まり: `AGENTS.md` の E18（元と同じファイル名で置く）
@@ -151,8 +152,8 @@
 - K10 どの関所の `reject` も `stop` も、run の取り消しにせず報告へ流す。Archon は `decisions` に `reject` が無い関所の reject を run の取り消しとして扱う
   - 根拠: Archon `core/src/operations/workflow-operations.ts:1625-1640`（`willResolveNewMode` は `decisions` に `reject` が在り `on_reject` が無い時だけ）・`:1665-1677`（`{decision: 'reject'}` で関所を終える）・`:1690-1700`（それ以外は `resolveAndCancelApprovalGate` で run を取り消す）。PR #74 の 1 回目の 1（「Archon は decisions に無い `reject` を取り消しとして扱う。`workflow-operations.ts:1638-1700`」）・本文「計画とずれた所」1
   - 今の機械:
-    - #74 の head: `tests/workflows/test_line.py::GateDecisionsCase.test_gates_take_the_words_their_text_prints`（:652-665。線の 4 つの関所の `decisions` が `GO_WORDS ∪ VERBS ∪ {reject}` と等しい）と `GateAnswerCase.test_reject_stops_like_stop`（:199。`gate_answer` が reject を止めと読む）
-    - main: `tests/workflows/test_judge.py::GateTest.test_spec_gate_is_an_approval_with_the_four_words`（:143-146。judge の `spec-gate` が `[approve, continue, stop, reject]`）
+    - #74 の head: `tests/workflows/test_line.py::GateDecisionsCase.test_gates_take_the_words_their_text_prints`（:660-673。線の 4 つの関所の `decisions` が `GO_WORDS ∪ VERBS ∪ {reject}` と等しい）と `GateAnswerCase.test_reject_stops_like_stop`（:199。`gate_answer` が reject を止めと読む）
+    - main: `tests/workflows/test_judge.py::GateTest.test_spec_gate_is_an_approval_with_the_four_words`（:142-145。judge の `spec-gate` が `[approve, continue, stop, reject]`）
   - 穴:
     - 関所を横に通す決まりが無い。E16 の走査（#74 の head `scan.py:542` の `_gates`）は `interactive` と頭の鍵だけを見て、`decisions` の `reject` と `on_reject` の有無を見ない。新しいブロックに関所を足すと、どの試験にも掛からない
     - 線の筋書きは関所の答えの節（`answer-*`）を stub で差すので、Archon の reject から報告までを通しで走らせた筋書きは無い（`workflows/line/fixtures/` に `reject` は 0 件）
@@ -184,7 +185,7 @@
       - 返す節が `output_format` を持ち、`outcome_field` がその `required` に在る
       - 返りの欄のどれもが、線の YAML のどこかで `$<include の id>.output.<欄>`（`$LOOP_PREV.` つきも。`:383`）として字で現れる
     - 配線（#74 の head）: `tests/workflows/test_line.py::LineWiringCase.test_with_keys_are_what_the_script_reads`。`READERS` の 5 つの節（`plan-out`・`judged`・`fixed`・`collect`・`ask-final`）と受け皿の節で、`with:` の鍵 = script が読む `INPUTS_<名>`
-    - 隣のファイルの書き手（main）: judge だけ。`tests/workflows/test_judge.py::StopPathTest` が `StopPathFilesMixin.assert_pointers_filled`（:490-503）で `judge_accept.PUBLIC_FILES` の 4 本が在り、空でなく、JSON であることを止めの道でも照らす
+    - 隣のファイルの書き手（main）: judge だけ。`tests/workflows/test_judge.py::StopPathTest` が `StopPathFilesMixin.assert_pointers_filled`（:489-502）で `judge_accept.PUBLIC_FILES` の 4 本が在り、空でなく、JSON であることを止めの道でも照らす
     - plan と plan-review の落ちた時の名は `test_plan.py::ShapeCase.test_fallback_names_match_lib`・`test_plan_review.py::FailSafeCase.test_script_literals_match_the_lib` が照らす
   - 穴:
     - E5 は返りの欄しか見ない。隣のファイルも、ブロックの入力も見ない
@@ -215,7 +216,7 @@
 
 - K16 （一覧に無い物）返りの JSON は `allow_nan=False` で書く。Archon は返りを `JSON.parse` で読むので、NaN が混じると節が落ちる
   - 根拠: PR #67 の 2 回目の 3（「`verdict.py` の最後の print に `allow_nan=False` を戻す」）。`workflows/.shared/boundary.py` の `returns` の docstring
-  - 今の機械: `tests/workflows/test_eyes.py::ScriptCase.test_verdict_returns_strict_json`（:477。eyes だけ）
+  - 今の機械: `tests/workflows/test_eyes.py::ScriptCase.test_verdict_returns_strict_json`（:742。eyes だけ）
   - 穴: 境の口を通さずに直に `print(json.dumps(…))` する返りが、`allow_nan=False` 無しで残る。`workflows/plan/scripts/plan_collect.py:89` と `round.py:67` は通常の道で、`merge.py:101`・`plan-review/scripts/pass_open.py:80`・`result.py:58`・`test-gate/scripts/result.py:145` は落ちた時の道
   - 要る試験: `tests/layers/test_block_paths.py::BlockPathsTest.test_scripts_print_returns_only_through_strict_json`（`scripts/` の `json.dumps(` が `allow_nan=False` を持つか、`boundary.returns` を使う）
 
@@ -254,3 +255,19 @@
   - K3: judge の script の節 36 個に `mutates_checkout: false` を足すか（読むだけかの見極めが要る）
   - K7: 役の指示書の Python の言及（`fix-rules/common.md` ほか 6 か所）を E13 の例外にするか直すか。script どうしの import（fix の `fixio`、report の `place`・`typed`、線の `linekit`）を E4 違反として直すか、決まりの側を変えるか
   - K11: 線が渡していない、宣言済みで既定値つきの入力のうち、どれが今の works から落ちた能力か（plan-review の `conflicts`・`gate_answers`、eyes の `x_scalars`、merge-seal の `answer`・`r2`・`sealed_hash`）
+
+## 部分 0 で足した機械（線の配線の部分 0。上の「今の機械」「要る試験」より新しい）
+
+- K1・K13・K16: `tests/workflows/test_returns_never_fail.py::ReturnScriptCase`（返す節の単独の実行・表 `NEVER_FAIL`・落ちた時の指し札の先・境の口の外の標準出力の表 `LIBLESS_EXITS`）
+- K2: `tests/workflows/test_uv_scripts.py::HeaderTest.test_every_named_script_archon_can_find_declares_itself`（issue #96）
+- K3・K18: 層の E7（`tests/layers/scan.py` の `_readonly_nodes`・`_role_settings`。印を道具から導き、表 `KEEP_CHECKOUT`・`ROLE_TOOLS`。`loop:` の節は赤。種 `tests/layers/seeds/k18-*`・`k3-*`）。script・bash の節は全部印を書き、外れは表 `CHANGE_CHECKOUT` の 11 節（訳つき。judge の `spec-freeze` は人が通した受け入れ条件を作業ツリーで走らせる（`lib/judge_accept._spec_run`）ので印を持たない）
+- K4: `tests/workflows/test_role_texts.py::RoleSkillsCase.test_prompt_naming_a_skill_or_agent_declares_it`
+- K5: 層の E5（`_loop_roles`。種 `k5-loop-role-with`）と `tests/layers/test_archon_validate.py::ArchonValidateTest.test_every_block_loads_when_included_inside_a_loop_group`
+- K6: `tests/workflows/test_fixture_claims.py::FixtureClaimsCase.test_fixtures_do_not_claim_per_round_values`
+- K7: 層の E3 の語の表 `ARCHON_WORDS` と `ALLOWED["E3"]` の `<パス>#<字>` の行
+- K8: 層の E4（`_script_imports`。今の物は `ALLOWED["E4"]` に script を 1 本ずつ）・線の script どうしの import は 0・`lib/tests/test_imports.py::LibImportCase.test_every_module_imports_first_in_a_fresh_interpreter`
+- K10・K18 の関所: 層の E16（`_gate_words`。種 `k10-*`・`k18-gate-in-loop`）
+- K11・K12・K14: `tests/workflows/test_line.py::LineWiringCase` の `test_every_declared_block_input_is_wired_or_listed`・`test_block_inputs_outside_the_contract_have_defaults`・`test_every_contract_neighbour_file_has_a_writer_and_a_reader`・`test_twice_included_blocks_use_their_own_place` と、層の E5 の入力の読み手（`_inputs_read`）
+- K15: `tests/workflows/test_unread_named.py::UnreadNamedCase.test_every_pointer_input_unreadable_is_named`
+- K19: 層の E4（`_script_names`）
+- K20: `lib/tests/test_constants.py::ConstantsCase.test_same_file_name_literal_is_defined_once`

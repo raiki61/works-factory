@@ -232,6 +232,27 @@ class ReadingCase(unittest.TestCase):
         fixbeside.write(folder, [{"closure": [{"unit_key": "u1", "closed": True}]}])
         self.assertEqual(decide(fixed_run(fix=fix))[0], "fixed")
 
+    def test_unreadable_closure_table_is_left(self):
+        """errors F2: 閉鎖の表の控え（closure.json）が無い・壊れた・組めなかった（{"error"}）時は、閉じたかを数えていないので残りに
+        数え、結末を fixed にしない（round_limit）。書き手は組の子と親の置き場の表が読めなければ {"error"} を置く（0 件の表にしない）"""
+        import fixbeside
+        import querytest
+        folder = self.dir / "fix" / "fix"
+        folder.mkdir(parents=True)
+        (folder / "fix.diff").write_text("x", encoding="utf-8")
+        fix = {**fixed_run()["fix"], "diff": str(folder / "fix.diff"), "diffs": [str(folder / "fix.diff")]}
+        (folder / fixbeside.CLOSURE_FILE).write_text('{"rows": [{"unit_key": "U1", "closed": false}', encoding="utf-8")
+        self.assertEqual(decide(fixed_run(fix=fix))[0], "round_limit")
+        self.assertTrue([r for r in outcome.residue(fixed_run(fix=fix)) if fixbeside.CLOSURE_UNREAD in r["text"]])
+        (folder / querytest.CLOSURE_FILE).write_text("{壊れた", encoding="utf-8")
+        fixbeside.write(folder, [])
+        self.assertIn("error", json.loads((folder / fixbeside.CLOSURE_FILE).read_text(encoding="utf-8")))
+        self.assertEqual(decide(fixed_run(fix=fix))[0], "round_limit")
+        fixbeside.write(folder, [{"group_id": "g1", "closure": None}])
+        (folder / querytest.CLOSURE_FILE).unlink()
+        fixbeside.write(folder, [{"group_id": "g1", "closure": None}])
+        self.assertIn("組 g1", json.loads((folder / fixbeside.CLOSURE_FILE).read_text(encoding="utf-8"))["error"])
+
     def test_no_fix_round_closes_with_the_final_test_and_the_eyes(self):
         """L-W07: 直す物が無い周（判定が ready でなく止めの語も無い。修正は走らず封じもしない）は、最後のテストと独立の目が済んでも
         no_fix_needed。封じた返りが無いのを途中で切れたと読まない。R2 が直す物が在ると言えば（残りが在れば）直す物が無いと名乗らない"""

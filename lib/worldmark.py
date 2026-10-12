@@ -58,7 +58,7 @@ VERDICT_WORDS = {SAME: "定石と同じ", DIFFERS: "定石と違う", NONE: "依
 HEAD = promptsection.Section("## 世界の解の行（依頼の行ごとの問題の類・世の中の定石・依頼の解き方との比べ）", source="fn:worldmark.section")
 PLAN_ASK = ("当たる所の在る行（答えの要る行）は、行ごとにどれかの項目が、定石に従う（{world: <類の id>, follows: true}）"
             "か、従わない訳（{world: <類の id>, deviation: <訳と出どころ>}）を項目の works の欄 structure に書け（どの項目も"
-            "答えていない行は受け付けが拒む）。依頼の解き方は定石と比べて疑う案で、決め手にならない——依頼そのものを出どころにした外れは修正前の関所で人に回る。"
+            "答えていない行は受け付けが拒む）。依頼の解き方は定石と比べて疑う案で、決め手にならない——依頼そのものを出どころにした外れは修正前の承認ノードで人に回る。"
             f"「{NOT_WEB}」の行も同じに答える")
 STATES = ("ok", "failed")
 MEANS = "means"

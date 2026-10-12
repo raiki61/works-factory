@@ -5,10 +5,12 @@
 """1 回目の修正（fix）と 2 度目の修正（refix-run）の返りを合わせて後の段へ渡す節 fixed。
 
 done・diff・changed・delta_review は refix-run が走ればその物（diff はどちらも run の始めからの累積）。units は unit_id ごとに後の物、
-groups・allowed_test_changes は和、x_scalars（修正役が足した規模の数値）は名ごとに 2 度目の値を優先して合わせる。申し出 conflicts は
+groups・allowed_test_changes と、最後の承認ノードを開ける理由の行 handoffs（修正役が人に回した物）・mismatched（申告と
+数え直しが合わない単位）は和、x_scalars（修正役が足した規模の数値）は名ごとに 2 度目の値を優先して合わせる。申し出 conflicts は
 指し札の配列: refix-run が返した控えは 1 回目の段の行を写して持つ（fix の入力 prior_conflicts。元は 1 つの盤面）ので、在ればそれ 1 つ、
 無ければ 1 回目の物（1 回目の申し出が最後の関所と報告から消えず、同じ行を 2 度数えない）。diffs は段ごとの diff の指し札の並び
-（1 回目・2 度目の順。どちらの隣にも段の約束のファイル lib/fixbeside.py が在り、最後の関所と報告が両方を読む）。replan_items は 1 回目の物（差し込みを
+（1 回目・2 度目の順。どちらの隣にも段の約束のファイル lib/fixbeside.py と許したテストの変更の訳 allowed-tests.json が在り、
+最後の承認ノードと報告が両方を読む）。replan_items は 1 回目の物（差し込みを
 決めたのは 1 回目）。objection は 1 回目と 2 度目の修正役の異議をつないだ文で、rejudge は異議が在り held でない時に真（再審は 2 度目の
 修正の後に 1 度だけ両方の異議を受ける。元 works/darkfactory/darkfactory.yaml:827 の h-rejudge は refit の後）。
 done は、案の直しが要ったのに 2 度目の修正が走らなかった時（案の直しの関所の stop・無人の止め・案ができなかった・refix-run の中が
@@ -29,11 +31,14 @@ plan・ripple・design・plan_questions（計画の往復の返り）・answer�
 """
 import json
 import os
+import sys
+from pathlib import Path
 
-import linekit
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
 FIELDS = ("done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes", "changed",
-          "x_scalars", "delta_review")
+          "x_scalars", "delta_review", "handoffs", "mismatched")
 PLANS = ("plan", "ripple")
 PASSED = ("design", "plan_questions", "answer")   # 独立の目へ渡す計画の往復の設計・修正前の関所の問いと答え（飛ばされた周は null）
 
@@ -43,7 +48,7 @@ def no_fix(plans: dict) -> dict:
     の plan_edge）の形: 直す物も差分も申し出も無く、最後のテストと独立の目へ進める（go）。独立の目の設計は design-only の物、
     修正前の関所は開いていない（問い []・答え null）。差分が無いので封じず当てない（線の merge-seal・merge-apply の when が no_fix を読む）"""
     return {"done": True, "go": True, "units": [], "groups": [], "conflicts": [], "replan_items": [], "objection": "", "diff": None,
-            "diffs": [], "allowed_test_changes": [], "changed": {}, "x_scalars": {}, "delta_review": None, "refixed": False,
+            "diffs": [], "allowed_test_changes": [], "handoffs": [], "mismatched": [], "changed": {}, "x_scalars": {}, "delta_review": None, "refixed": False,
             "rejudge": False, "plan": None, "ripple": None, "design": plans.get("no_fix_design"), "plan_questions": [],
             "answer": None, "no_fix": True, "stop_reason": ""}
 
@@ -91,6 +96,8 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
         "diff": last.get("diff"),
         "diffs": [d for d in (fix.get("diff"), (refix or {}).get("diff")) if d],
         "allowed_test_changes": union(fix.get("allowed_test_changes"), (refix or {}).get("allowed_test_changes")),
+        "handoffs": union(fix.get("handoffs"), (refix or {}).get("handoffs")),
+        "mismatched": union(fix.get("mismatched"), (refix or {}).get("mismatched")),
         "changed": last.get("changed"),
         "x_scalars": scalars,
         "delta_review": last.get("delta_review"),
@@ -105,23 +112,24 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
 
 
 def of_env(prefix: str) -> dict:
-    return {key: linekit.field(key, os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
+    return {key: boundary.field(key, os.environ.get(f"INPUTS_{prefix}_{key.upper()}")) for key in FIELDS}
 
 
 def from_env() -> dict:
     refix = of_env("REFIX")
     return {"fix": of_env("FIX"), "refix": None if refix["done"] is None else refix,
-            "replan": linekit.flag(os.environ.get("INPUTS_REPLAN")),
-            "plans": {key: linekit.value(os.environ.get(f"INPUTS_{key.upper()}"))
+            "replan": boundary.flag(os.environ.get("INPUTS_REPLAN")),
+            "plans": {key: boundary.value(os.environ.get(f"INPUTS_{key.upper()}"))
                       for key in (*PLANS, "replanned", *PASSED, "no_fix_design")},
-            "stops": (linekit.text(os.environ.get("INPUTS_STOP_AFTER_FIX")),)}
+            "stops": (boundary.text(os.environ.get("INPUTS_STOP_AFTER_FIX")),)}
 
 
 def fallback(reason: str) -> dict:
     return {**{key: None for key in FIELDS}, "done": False, "go": False, "units": [], "groups": [], "conflicts": [], "diffs": [], "replan_items": [],
+            "handoffs": [], "mismatched": [],
             "objection": "", "rejudge": False, "allowed_test_changes": [], "x_scalars": {}, "refixed": False, "plan": None, "ripple": None,
-            "design": None, "plan_questions": [], "answer": None, "no_fix": False, "stop_reason": linekit.LINE_SCRIPT}
+            "design": None, "plan_questions": [], "answer": None, "no_fix": False, "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: fixed(**from_env()), fallback)
+    boundary.run(lambda: fixed(**from_env()), fallback)

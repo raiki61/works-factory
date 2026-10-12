@@ -178,7 +178,7 @@ def github_reads(board_dir: pathlib.Path, repo: pathlib.Path, raw: dict):
     try:
         kept = ghreads.load_board(board_dir)
     except (OSError, ValueError) as e:
-        raise Refused(f"盤面の {ghreads.BOARD_FILE} を読めない（{type(e).__name__}: {e}）") from None
+        raise Refused(f"共有ボードの {ghreads.BOARD_FILE} を読めない（{type(e).__name__}: {e}）") from None
     if kept is not None:
         return kept
     prs, issues = named(raw, repo)

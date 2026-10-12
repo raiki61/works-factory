@@ -49,6 +49,7 @@ def evidence(mode: str, out: dict, run: dict, material, summary: str, why: str, 
              f"- green: {str(out['green']).lower()}",
              f"- red_cause: {out['red_cause'] or '無し'}{'（' + summary + '）' if summary else ''}",
              f"- 走らせ方: {run['by']}・{suites}",
+             *([f"- engine の結果を任せ先へ落とした訳: {run['fell_back']}"] if run.get("fell_back") else []),
              *([f"- {base_line}"] if base_line else []),
              f"- 素材: {json.dumps(material, ensure_ascii=False) if material is not None else '無い（任せ先の CI の役が素材を渡さなかった）'}",
              f"- ログ: {run['log'] or '無い'}",
@@ -80,7 +81,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     start = read_json(boundary.resolve(json.loads(start_raw)))
     run_path = artifacts / rel(mode, "run.json")
     if not run_path.is_file():
-        raise ValueError(f"{rel(mode, 'run.json')} が無い——節 run が落ちたか飛ばされた")
+        raise ValueError(f"{rel(mode, 'run.json')} が無い——ノード run が落ちたか飛ばされた")
     run = read_json(run_path)
     ci_path = artifacts / rel(mode, "ci-material.json")
     role = run["by"] == declared_checks.ROLE_NEEDED
@@ -95,7 +96,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     if material is None:   # 3 回とも拒まれて諦めた時は最後の拒否の文を人に見える証拠に出す（T45。元 ci_role.collect :349-356）
         red_cause = "incomplete"
         summary = (rolekit.given_up_reason(artifacts / rel(mode, ""), declared_checks.CI_ROLE)
-                   or "任せ先の CI の役が素材を渡さなかった（受け付けが拒み続けた・輪が回らなかった）")
+                   or "任せ先の CI の役が素材を渡さなかった（受け付けが拒み続けた・ループが回らなかった）")
     else:
         cases = base["cases"] if base and base["exit"] is not None and suite_exit(run) is not None else None
         red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=run["cases"], baseline_cases=cases,
@@ -127,7 +128,7 @@ def failed(mode: str, error: BaseException) -> dict:
     line = f"{type(error).__name__}: {' '.join(str(error).split())}"
     name = "evidence.md"
     try:
-        write(rel(mode, name), f"# test-gate（{mode}）\n\n- ok: false（返す節の中の誤り）\n- 誤り: {line}\n\n```text\n"
+        write(rel(mode, name), f"# test-gate（{mode}）\n\n- ok: false（出力ノードの中の誤り）\n- 誤り: {line}\n\n```text\n"
               + "".join(traceback.format_exception(error)) + "```\n")
     except Exception:
         name = "failure.txt"
@@ -145,7 +146,7 @@ def main() -> int:
         boundary, out = certified(raw_mode, os.environ["INPUTS_START"], os.environ["INPUTS_BASELINE"])
         boundary.returns(out)
     except Exception as e:
-        print(json.dumps(failed(raw_mode if raw_mode == "base" else "final", e), ensure_ascii=False), flush=True)
+        print(json.dumps(failed(raw_mode if raw_mode == "base" else "final", e), ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 

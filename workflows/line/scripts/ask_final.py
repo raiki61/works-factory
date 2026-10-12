@@ -2,18 +2,20 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""最後の関所を開くかと、見せる文を決める節 ask-final（docs/design.md の「線」の「順と関所」の 11）。
+"""最後の関所を開くかと、見せる文を決めるノード ask-final（docs/design.md の「メイングラフ」の「順と承認ノード」の 11）。
 
 開ける理由（needs。今の works の works/darkfactory/lib/line_edge.py の _final_needs の理由のうち、線が返りから読める物）を
 test-gate（final）・fixed・eyes・merge（seal）・judged の返りから 1 つの列に並べ、開くかと冒頭の 1 行目をこの列だけから作る
 （元 _final_needs。開き方 final_gate で開くかは lib/gatepolicy.py の opens）。列の行のうち、守りのパスの当たり（確かめられなかった
-時も）・書き換えを許したテストに触った・人に回した食い違いの申し出・申し出の控えを読めない、は開き方に依らず開く（must。通すのは
-人の答えだけ。元 _guard と line_edge.py:1184-1197）。無人の run で開くはずの時は開かずに止め（needs-human）、merge（apply）を飛ばす。
+時も）・書き換えを許したテストに触った・人に回した食い違いの申し出・申し出の控えを読めない・修正の段の隣の控えを読めない、は開き方に
+依らず開く（must。通すのは人の答えだけ。元 _guard と line_edge.py:1184-1197）。無人の run で開くはずの時は開かずに止め（needs-human）、merge（apply）を飛ばす。
 申し出は fix・refix-run の conflicts.json（fixed の conflicts の指し札の並び）を lib/conflict.py の asked で数え、文は human_lines の
 行のまま（ask_human と案の直しを諦めた fix_plan_item だけ。直す裁定だけなら開けない）。控えを読めなければ黙って 0 にせず、開ける理由と
 文に訳を出す。判定の役が人に聞くと保留にしたままの問い（held）は冒頭と本文に見せるが、開ける理由には数えない（元 _final_head）。
 「修正役が人に回した物が在る」（元 report.handoff_lines）と「直したという申告と機械の数え直しが合わない単位が在る」（元
-querytest.closure_lines の mismatched_only）は、修正の段ごとの diff の隣の約束のファイル（fixed の diffs の先。lib/fixbeside.py）から読む。
+querytest.closure_lines の mismatched_only）は、fix の出力の handoffs・mismatched（fixed が 1 回目と 2 度目の修正の分を合わせた物）を読む。
+許したテストの変更は、修正の段ごとの diff（fixed の diffs）の隣の allowed-tests.json（[{path, permit, source}]）を読んで、許しの id と
+出どころつきで並べる。ほかの段の控え（閉鎖の表・穴の名札と手直し・受け付けの trace・レンズ）は同じ diff の隣から lib/fixbeside.py で読む。
 
 文は冒頭 3 行（final_head。lib/gatemarks.py の head3）で始め、元 line_edge.final_edge・_final_text の節の並びに戻す: 守りのパス
 （差分の見方と一覧）・食い違いの申し出・修正役が人に回した物・減っていない単位・例で試していない単位・閉鎖の数え直し・同じ run で
@@ -25,39 +27,41 @@ querytest.closure_lines の mismatched_only）は、修正の段ごとの diff �
 """
 import json
 import os
+import sys
 from pathlib import Path
 
-import linekit
-from linekit import boundary
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
     import answer
     import conflict
     import declared_checks
     import eyeverdict
     import fixbeside
+    import fixboard
     import gatemarks
     import gatepolicy
+    import judge_accept
     import protect
     import querytest
     import replan
     import runreport
     import seal
+    import startrec
+    import stopby
     import structmark
 
-EYES = ("r1", "r2", "r3", "r4")
-PASS = "pass"
-ESCALATE = "escalate"
 PROTECTED_HEAD = "守りのパスを触った"
 PROTECTED_UNKNOWN = "守りのパスを確かめられなかった"   # 元 line_edge.py 111 行。merge が確かめられなかった行（lib/seal.py の UNKNOWN_HEAD）の見出し
 ALLOWED_TESTS_HEAD = "書き換えを許したテストを触った"   # 元は conflict.ruled_test_doc を 2 つ目の一覧として守りのパスに通した（line_edge.py:640-651）
 CONFLICT_UNREAD = "食い違いの申し出の控えを読めない"
+BESIDE_UNREAD = "修正の段の控えを読めない"
 RECORD = "run の置き場の gates/gate-final.json"
 FINAL_GATE_FILE = "gates/final-gate.md"   # 開いた関所の文の控え（元 line_edge.FINAL_GATE_FILE）
 HANDOFF_REASON = "修正役が人に回した物が在る"
 MISMATCH_REASON = "直したという申告と機械の数え直しが合わない単位が在る"
-NO_AFTER = "直した後の構造の実測: 無い（独立の目の structure_after が null——実測の節が落ちたか走らなかった。線は止めずに進めた）"
-EYE_QUESTION_NODE = "r4.human_gate"
+NO_AFTER = "直した後の構造の実測: 無い（独立の目の structure_after が null——実測のノードが落ちたか走らなかった。メイングラフは止めずに進めた）"
 
 
 def tests_word(ok: bool, green: bool, red_cause: str) -> str:
@@ -76,7 +80,7 @@ def protected(got: dict) -> tuple:
 
 
 def blocked_eyes(got: dict) -> list:
-    return [name.upper() for name in EYES if isinstance(got["eyes"].get(name), dict) and got["eyes"][name].get("status") != PASS]
+    return [name.upper() for name in eyeverdict.EYES if isinstance(got["eyes"].get(name), dict) and got["eyes"][name].get("status") != seal.PASSED]
 
 
 def needs(got: dict) -> list:
@@ -87,8 +91,8 @@ def needs(got: dict) -> list:
         why.append((f"{PROTECTED_UNKNOWN}（人の確かめが要る）", True))
     if hits:
         why.append((f"{PROTECTED_HEAD}（{len(hits)} 件。人の確かめが要る）", True))
-    if got["allowed_test_changes"]:
-        why.append((f"{ALLOWED_TESTS_HEAD}（{len(got['allowed_test_changes'])} 件。人の確かめが要る）", True))
+    if got["allowed_tests"]:
+        why.append((f"{ALLOWED_TESTS_HEAD}（{len(got['allowed_tests'])} 件。人の確かめが要る）", True))
     word = tests_word(got["tests_ok"], got["green"], got["red_cause"])
     if word != "緑":
         why.append((f"最後のテストが{word}", False))
@@ -96,13 +100,15 @@ def needs(got: dict) -> list:
         why.append((f"{CONFLICT_UNREAD}（{len(got['conflicts_unread'])} 件。人に回した申し出を数えられない）", True))
     if got["asked"]:
         why.append((f"{conflict.HEAD}を人に回した（{len(got['asked'])} 件）", True))
+    if got["beside_unread"]:
+        why.append((f"{BESIDE_UNREAD}（{len(got['beside_unread'])} 件。人に回した物・数え直しの食い違いを数えられない）", True))
     if got["handoffs"]:
         why.append((f"{HANDOFF_REASON}（{len(got['handoffs'])} 件）", False))
     blocked = blocked_eyes(got)
     if blocked:
         why.append((f"独立の目が阻害を返した（{'・'.join(blocked)}）", False))
     premise = got["eyes"].get("premise_check")
-    if isinstance(premise, dict) and premise.get("verdict") == ESCALATE:
+    if isinstance(premise, dict) and premise.get("verdict") == eyeverdict.VERDICTS[1]:
         why.append(("前提の検算が人に上げた", False))
     if got["mismatched"]:
         why.append((f"{MISMATCH_REASON}（{len(got['mismatched'])} 件）", False))
@@ -125,19 +131,19 @@ def final_needs(got: dict) -> list:
 def left_objection(got: dict) -> str:
     """止めずに残った異議（再審が採らなかった修正役の異議。線の fixed の objection は 1 回目と 2 度目の修正の異議をつないだ文で、
     再審は 2 度目の修正の後に両方を受ける）。無ければ空"""
-    return got["objection"] if got["objection"] and got["rejudge_verdict"] != "採る" else ""
+    return got["objection"] if got["objection"] and got["rejudge_verdict"] != judge_accept.ADOPTED else ""
 
 
 def final_head(got: dict, why: list) -> list:
-    guarded = bool(got["protected_hits"]) or bool(got["allowed_test_changes"])
+    guarded = bool(got["protected_hits"]) or bool(got["allowed_tests"])
     held = got["held"]
     happened = (f"最後のテストと独立の目が済み、報告の前で止まった。テストは{tests_word(got['tests_ok'], got['green'], got['red_cause'])}。"
                 + ("開けた理由: " + "・".join(why) if why else
-                   f"関所はいつも開く設定（{gatepolicy.head_words({gatepolicy.FINAL_KEY: gatepolicy.ALWAYS})}）で、ほかに開けた理由は無い")
-                + (f"。判定の役が人に聞くと保留にしたままの問いも在る（{len(held)} 件。関所を開ける理由には数えない）" if held else "")
+                   f"承認ノードはいつも開く設定（{gatepolicy.head_words({gatepolicy.FINAL_KEY: gatepolicy.ALWAYS})}）で、ほかに開けた理由は無い")
+                + (f"。判定の役が人に聞くと保留にしたままの問いも在る（{len(held)} 件。承認ノードを開ける理由には数えない）" if held else "")
                 + (f"。{got['split']}" if got["split"] else ""))
     decide = ("報告へ進めて run を終えるか、止めるか（打つ行は末尾の答え方）"
-              + ("。守りのパスと許したテストの変更は下の最初の節を確かめてから通す" if guarded else ""))
+              + ("。守りのパスと許したテストの変更は下の最初のセクションを確かめてから通す" if guarded else ""))
     return gatemarks.head3(happened, decide, gatemarks.pushes([*held, *got["questions"]]))
 
 
@@ -153,9 +159,10 @@ def protected_section(got: dict) -> list:
                   *[f"- {p}" for p in hits],
                   f"- 差分: git -C {got['worktree']} diff {got['base_rev'][:12] or '<起点の版が記録に無い>'} -- <パス>（未追跡は新しいファイル）",
                   f"- 一覧: {protect.MANIFEST}", ""]
-    if got["allowed_test_changes"]:
-        lines += [f"## {ALLOWED_TESTS_HEAD}（{len(got['allowed_test_changes'])} 件。承認済みの案と裁定が書き換えを許したテスト。"
-                  "通すのは人の答えだけ）", "", *[f"- {p}" for p in got["allowed_test_changes"]], ""]
+    if got["allowed_tests"]:
+        lines += [f"## {ALLOWED_TESTS_HEAD}（{len(got['allowed_tests'])} 件。承認済みの案と範囲の相談と裁定が書き換えを許したテスト。"
+                  "通すのは人の答えだけ）", "",
+                  *[f"- {row.get('path')}（許し {row.get('permit')}・{row.get('source')}）" for row in got["allowed_tests"]], ""]
     return lines
 
 
@@ -168,6 +175,9 @@ def conflict_section(got: dict) -> list:
     if got["conflicts_unread"]:
         lines += [f"## {CONFLICT_UNREAD}（{len(got['conflicts_unread'])} 件。人に回した行かを数えられない。通すのは人の答えだけ）", "",
                   *[f"- {row}" for row in got["conflicts_unread"]], ""]
+    if got["beside_unread"]:
+        lines += [f"## {BESIDE_UNREAD}（{len(got['beside_unread'])} 件。人に回した物と数え直しの食い違いを数えられない。通すのは人の答えだけ）",
+                  "", *[f"- {row}" for row in got["beside_unread"]], ""]
     return lines
 
 
@@ -206,7 +216,7 @@ def eye_lines(got: dict) -> list:
     """独立の目の判定（元 line_edge._eyes。主語は平易な名、目の名と状態の語は括弧に回す: gatemarks.eye_named）と残りの数え"""
     lines = [f"- 独立の目の判定（阻害: {'・'.join(blocked_eyes(got)) or '無い'}）:"]
     missing = []
-    for name in EYES:
+    for name in eyeverdict.EYES:
         row = got["eyes"].get(name)
         if not isinstance(row, dict):
             missing.append(name.upper())
@@ -221,7 +231,7 @@ def eye_lines(got: dict) -> list:
         lines.append(f"  - 前提の検算: {premise.get('verdict') or '語が無い'}（{' '.join(str(premise.get('reason') or '').split())}）")
         lines += [f"    - {x}" for x in got["premise_facts"]]
     blocked = blocked_eyes(got)
-    lines.append(f"- 残り（最後の関所で数えられる分）: 独立の目の阻害 {len(blocked)} 件（{'・'.join(blocked) or '無し'}）・"
+    lines.append(f"- 残り（最後の承認ノードで数えられる分）: 独立の目の阻害 {len(blocked)} 件（{'・'.join(blocked) or '無し'}）・"
                  f"結果が無い目 {len(missing)} 件（{'・'.join(missing) or '無し'}）・最後のテストが緑でない "
                  f"{0 if tests_word(got['tests_ok'], got['green'], got['red_cause']) == '緑' else 1} 件・柵の増え {len(got['fenced'])} 件")
     lines += [x if x[:1].isspace() else f"- {x}" for x in got["always"]]
@@ -233,12 +243,12 @@ def question_lines(got: dict) -> list:
     答え・読めなかった保留。どれも無い時だけ「盤面の問い: 無い」"""
     lines = []
     if got["questions"]:
-        lines.append(f"- {gatemarks.named(EYE_QUESTION_NODE)}が人に聞いている問い（記録のまま引く。{len(got['questions'])} 件）:")
+        lines.append(f"- {gatemarks.named(gatemarks.R4_GATE_NODE)}が人に聞いている問い（記録のまま引く。{len(got['questions'])} 件）:")
         for q in got["questions"]:
             lines += [f"  {x}" for x in gatemarks.quote(q)]
-        lines.append("  - この関所の答えはこの問いに答えない。問いは報告の冒頭と次の run の依頼の下書きへ渡る")
+        lines.append("  - この承認ノードの答えはこの問いに答えない。問いは報告の冒頭と次の run の依頼の下書きへ渡る")
     if got["held"]:
-        lines.append(f"- 判定の役が人に聞くと保留にしたままの問い（問いの台帳・{len(got['held'])} 件。この関所の答えは問いに答えない。"
+        lines.append(f"- 判定の役が人に聞くと保留にしたままの問い（問いの台帳・{len(got['held'])} 件。この承認ノードの答えは問いに答えない。"
                      "問いは報告の冒頭に並ぶ）:")
         lines += [f"  - {q}" for q in got["held"]]
         lines.append(f"  {gatemarks.ANSWER_HOW}")
@@ -248,7 +258,7 @@ def question_lines(got: dict) -> list:
     lines += [f"- {x}" for x in got["unmatched"]]
     lines += [f"- {x}" for x in got["unread_holds"]]
     if not (got["questions"] or got["held"] or got["answered"] or got["unmatched"]):
-        lines.append("- 盤面の問い: 無い")
+        lines.append("- 共有ボードの問い: 無い")
     return lines
 
 
@@ -256,12 +266,12 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     lines = [*final_head(got, why), ""]
     lines += protected_section(got)
     lines += conflict_section(got)
-    lines += rows_section(fixbeside.HANDOFF_HEAD, got["handoffs"], "。通すのは人の continue だけ")
+    lines += rows_section(fixboard.HANDOFF_HEAD, got["handoffs"], "。通すのは人の continue だけ")
     lines += rows_section(querytest.STUCK_HEAD, got["stuck"])
     lines += rows_section(querytest.UNPROVEN_HEAD, got["unproven"])
     lines += rows_section(querytest.CLOSURE_HEAD, got["closure"])
     lines += rows_section(replan.AMEND_HEAD, got["amend"])
-    lines += [f"最後の人の関所（最後のテストと独立の目の後・報告の前）: テストは{tests_word(got['tests_ok'], got['green'], got['red_cause'])}", ""]
+    lines += [f"最後の承認ノード（最後のテストと独立の目の後・報告の前）: テストは{tests_word(got['tests_ok'], got['green'], got['red_cause'])}", ""]
     lines += tests_lines(got)
     lines += delta_lines(got)
     lines.append(f"- 止めずに残った異議: {left_objection(got) or '無い'}")
@@ -270,7 +280,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     lines += [f"- 構造のブロック: {got['structure_missing']}"] if got["structure_missing"] else []
     lines += [x if x[:1].isspace() else f"- {x}" for x in got["after"]]
     if got["passes"]:
-        lines.append(f"- 直す前の関所で通した項目（決め手が在るので聞かずに通した行と、人が通したので後の関所で聞き直さなかった行。"
+        lines.append(f"- 直す前の承認ノードで通した項目（決め手が在るので聞かずに通した行と、人が通したので後の承認ノードで聞き直さなかった行。"
                      f"{len(got['passes'])} 件）:")
         lines += [f"  - {x}" for x in got["passes"]]
     lines += [x if x[:1].isspace() else f"- {x}" for x in got["converge"]]
@@ -279,7 +289,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     lines += question_lines(got)
     lines += [f"- {why_}" for why_ in got["unread"]]
     lines += [f"- 封じた差分の hash: {got['hash'] or '（無い）'}", f"- この文の控え: run の置き場の {FINAL_GATE_FILE}", "",
-              "答え方（人が決める関所。依頼者に聞いて、その言葉で答える）:",
+              "答え方（人が決める承認ノード。依頼者に聞いて、その言葉で答える）:",
               f"- 報告へ進める: {answer.line(run_id, 'continue', '<一言>')}（一言は {RECORD} に残る）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]
     return "\n".join(lines) + "\n"
@@ -292,7 +302,7 @@ def ask(got: dict, *, mode: str, unattended: bool, run_id: str) -> dict:
     if not opens:
         return {"open": False, "go": True, "stop_reason": "", "text": "", "reasons": why}
     if unattended:
-        return {"open": False, "go": False, "stop_reason": linekit.NEEDS_HUMAN, "text": "", "reasons": why}
+        return {"open": False, "go": False, "stop_reason": stopby.NEEDS_HUMAN, "text": "", "reasons": why}
     return {"open": True, "go": True, "stop_reason": "", "text": final_text(got, why, run_id), "reasons": why}
 
 
@@ -326,13 +336,13 @@ def asked_conflicts(pointers) -> tuple:
 
 def ledger(judgment, start, before_fix, ties_judgment=None) -> tuple:
     """(問いの台帳の見え方（gatemarks.ledger_beside）か None, 添える行)。判定の指し札の先（judgment.json の questions・units と隣の
-    materials.json）・始めの記録の answers（依頼の答え）・修正前の関所の答え {decision, text, asked}・判定の結び（answer-ties.json。
+    materials.json）・始めの記録 start（start_doc で読んだ dict）の answers（依頼の答え）・修正前の関所の答え {decision, text, asked}・判定の結び（answer-ties.json。
     再審の判定の隣には無いので、1 回目の判定の指し札 ties_judgment の隣から読む）。結びの宛て先の key が今の問いにも単位にも無ければ
     字の一致に落とし、そのことを添える行に 1 行出す（gatemarks.lost_ties）。判定が無い（null）時は None、読めなければ添える行に訳"""
     if judgment is None:
         return None, []
     try:
-        b = gatemarks.ledger_at(boundary.resolve(judgment), boundary.resolve(start) if start is not None else None, before_fix,
+        b = gatemarks.ledger_at(boundary.resolve(judgment), start, before_fix,
                                 boundary.resolve(ties_judgment) if ties_judgment is not None else None)
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return None, [f"判定の問いの控えか始めの記録を読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"]
@@ -357,7 +367,7 @@ def after_rows(structure_after) -> tuple:
     try:
         folder = boundary.resolve(structure_after).parent
     except (ValueError, TypeError, AttributeError, KeyError) as error:
-        return [], [], f"直した後の実測の指し札を読めない（柵の増えを数えていない。{type(error).__name__}: {error}）"
+        return [], [], f"直した後の実測のポインタを読めない（柵の増えを数えていない。{type(error).__name__}: {error}）"
     if structmark.read_after(folder) is None:
         return [], [], f"直した後の実測の控え {structmark.AFTER_FILE} を読めない（柵の増えを数えていない）"
     return structmark.after_rows(folder), structmark.after_lines(folder), ""
@@ -371,31 +381,48 @@ def structure_missing(structure) -> str:
     try:
         folder = boundary.resolve(structure).parent
     except (ValueError, TypeError, AttributeError, KeyError) as error:
-        return f"構造の目の控えの指し札を読めない（{type(error).__name__}: {error}）"
+        return f"構造の目の控えのポインタを読めない（{type(error).__name__}: {error}）"
     return structmark.note(structmark.read(folder))
 
 
 def fix_beside(pointers) -> dict:
-    """修正の段ごとの diff の隣の約束のファイル（fixed の diffs の先のフォルダ。lib/fixbeside.py）から関所に並べる行: 修正役が
-    人に回した物・申告と数え直しが合わない単位・減っていない単位・閉鎖の数え直し・回さなかった試験・赤緑を確かめずに受けた回・
-    差分の審査の穴の名札と手直しの結果・clean とレンズと仕組みの異常、と読めなかった訳"""
+    """修正の段ごとの diff の隣の控え（fixed の diffs の先のフォルダ。lib/fixbeside.py と許したテストの変更の訳）から関所に並べる行:
+    減っていない単位・閉鎖の数え直し・回さなかった試験・赤緑を確かめずに受けた回・差分の審査の穴の名札と手直しの結果・clean と
+    レンズと仕組みの異常・許したテストの変更、と読めなかった訳（beside_unread。開ける理由になる）"""
     folders, unread = [], []
     for ptr in pointers or []:
         try:
             folders.append(boundary.resolve(ptr).parent)
         except (ValueError, TypeError, AttributeError, KeyError) as error:
-            unread.append(f"修正の差分の指し札を読めない（隣の控えを読んでいない。{type(error).__name__}: {error}）")
+            unread.append(f"修正の差分のポインタを読めない（隣の控えを読んでいない。{type(error).__name__}: {error}）")
     got = fixbeside.read(folders)
-    return {"handoffs": fixbeside.handoff_lines(got), "mismatched": fixbeside.closure_lines(got, mismatched_only=True),
-            "stuck": fixbeside.closure_lines(got, stuck_only=True), "closure": fixbeside.closure_lines(got),
+    allowed, allowed_unread = allowed_tests(folders)
+    return {"stuck": fixbeside.closure_lines(got, stuck_only=True), "closure": fixbeside.closure_lines(got),
             "tests_left": fixbeside.tests_left_lines(got), "gates": fixbeside.gates_lines(got),
-            "branch_rows": fixbeside.branch_rows(got), "always": fixbeside.always_rows(got),
-            "beside_unread": [*unread, *got["unread"]]}
+            "branch_rows": fixbeside.branch_rows(got), "always": fixbeside.always_rows(got), "allowed_tests": allowed,
+            "beside_unread": [*unread, *got["unread"], *allowed_unread]}
+
+
+def allowed_tests(folders) -> tuple:
+    """(許したテストの変更の訳の行 {path, permit, source}, 読めなかった訳)。fix の collect が差分の隣に置く
+    fixboard.ALLOWED_TESTS_FILE を段の順に読む。collect は落ちた道でも [] を置くので、無い・読めない・行の配列でないファイルは訳を
+    返す（黙って空にしない）"""
+    rows, unread = [], []
+    for folder in folders:
+        try:
+            doc = json.loads((folder / fixboard.ALLOWED_TESTS_FILE).read_text(encoding="utf-8"))
+            if not isinstance(doc, list) or not all(isinstance(row, dict) for row in doc):
+                raise ValueError("行の配列でない")
+        except (OSError, ValueError) as error:
+            unread.append(f"許したテストの変更の訳 {folder / fixboard.ALLOWED_TESTS_FILE} を読めない（{type(error).__name__}: {error}）")
+            continue
+        rows += [row for row in doc if row not in rows]
+    return rows, unread
 
 
 def eye_notes(notes) -> dict:
     """独立の目の返り notes（premise-inputs.json の指し札）の隣の材料: R2 の行の下の前提の入力と『渡されていない』の照らし
-    （eyeverdict.r2_input_lines。元 line_edge._r2_inputs）・人が通したので R4 で聞き直さなかった行（gate-passes.json。元
+    （eyeverdict.r2_input_lines。元 line_edge._r2_inputs）・人が通したので R4 で聞き直さなかった行（r4-gate-passes.json。元
     _final_text の gatemarks.lines）・前提の検算で偽と分かった仮定の問いと次の run の制約に足す実測（premise-check.json）。null は
     目のブロックが材料を書けなかった道（訳の 1 行）"""
     if notes is None:
@@ -405,7 +432,7 @@ def eye_notes(notes) -> dict:
         folder = boundary.resolve(notes).parent
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         return {"r2_inputs": [], "eye_passes": [], "premise_facts": [],
-                "notes_unread": [f"独立の目の材料の指し札を読めない（R2 の前提・人が通した行を並べていない。{type(error).__name__}: {error}）"]}
+                "notes_unread": [f"独立の目の材料のポインタを読めない（R2 の前提・人が通した行を並べていない。{type(error).__name__}: {error}）"]}
     rows = eyeverdict.gate_pass_rows(folder)
     return {"r2_inputs": eyeverdict.r2_input_lines(folder), "eye_passes": gatemarks.pass_lines(rows or []),
             "premise_facts": eyeverdict.premise_fact_lines(folder),
@@ -436,7 +463,7 @@ def evidence_rows(ptr) -> dict:
 
 def review_rows(reviews) -> tuple:
     """(修正前の関所で通した行, 壁打ちの往復の行, 読めなかった訳)。事前審査の返り review（計画の往復と案の直しの事前審査）の隣の
-    gatemarks.PASSES_FILE と GATE_RECORD_FILE の converge から"""
+    gatemarks.PASSES_FILE と PLAN_GATE_FILE の converge から"""
     passes, rounds, unread = [], [], []
     for ptr in reviews:
         if ptr is None:
@@ -483,63 +510,66 @@ def deleted_files(diff) -> tuple:
         return [], f"封じた差分を読めない（取り込むと消えるファイルを数えていない。{type(error).__name__}: {error}）"
 
 
-def start_doc(start) -> dict:
+def start_doc(ptr) -> tuple:
+    """(始めの記録の dict か None, 読めなかった訳)。指し札が無ければ (None, "")"""
+    if ptr is None:
+        return None, ""
     try:
-        doc = json.loads(boundary.resolve(start).read_text(encoding="utf-8")) if start is not None else {}
-    except (OSError, ValueError, TypeError, AttributeError, KeyError):
-        return {}
-    return doc if isinstance(doc, dict) else {}
+        return startrec.load(boundary.resolve(ptr)), ""
+    except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
+        return None, f"始めの記録を読めない（保留の問いと起点の版を読んでいない。{type(error).__name__}: {error}）"
 
 
 def env(name: str):
-    return linekit.value(os.environ.get(f"INPUTS_{name}"))
+    return boundary.value(os.environ.get(f"INPUTS_{name}"))
 
 
 def got_of_env() -> dict:
-    start = env("START")
+    start, start_unread = start_doc(env("START"))
     b, ledger_notes = ledger(env("JUDGMENT"), start, env("BEFORE_FIX_ANSWER"), env("TIES_JUDGMENT"))
     fenced, after, after_unread = after_rows(env("STRUCTURE_AFTER"))
-    asked, conflicts_unread = asked_conflicts(linekit.items(os.environ.get("INPUTS_CONFLICTS")))
+    asked, conflicts_unread = asked_conflicts(boundary.items(os.environ.get("INPUTS_CONFLICTS")))
     passes, rounds, review_unread = review_rows((env("PLAN_REVIEW"), env("REPLAN_REVIEW")))
     deleted, deleted_unread = deleted_files(env("SEALED_DIFF"))
-    beside = fix_beside(linekit.items(os.environ.get("INPUTS_FIX_DIFFS")))
+    beside = fix_beside(boundary.items(os.environ.get("INPUTS_FIX_DIFFS")))
     noted = eye_notes(env("EYE_NOTES"))
-    raw = {"units": linekit.items(os.environ.get("INPUTS_UNITS")), "first_units": linekit.items(os.environ.get("INPUTS_FIRST_UNITS")),
-           "judgment": env("JUDGMENT"), "ties_judgment": env("TIES_JUDGMENT"), "rejudged": linekit.flag(os.environ.get("INPUTS_REJUDGED")),
-           "rejudge_verdict": linekit.text(os.environ.get("INPUTS_REJUDGE_VERDICT")),
-           "objection": linekit.text(os.environ.get("INPUTS_OBJECTION")),
-           "fix_units": linekit.items(os.environ.get("INPUTS_FIX_UNITS")), "groups": linekit.items(os.environ.get("INPUTS_GROUPS"))}
+    raw = {"units": boundary.items(os.environ.get("INPUTS_UNITS")), "first_units": boundary.items(os.environ.get("INPUTS_FIRST_UNITS")),
+           "judgment": env("JUDGMENT"), "ties_judgment": env("TIES_JUDGMENT"), "rejudged": boundary.flag(os.environ.get("INPUTS_REJUDGED")),
+           "rejudge_verdict": boundary.text(os.environ.get("INPUTS_REJUDGE_VERDICT")),
+           "objection": boundary.text(os.environ.get("INPUTS_OBJECTION")),
+           "fix_units": boundary.items(os.environ.get("INPUTS_FIX_UNITS")), "groups": boundary.items(os.environ.get("INPUTS_GROUPS"))}
     returns = judged_returns(raw)
     return {
-        "tests_ok": linekit.flag(os.environ.get("INPUTS_TESTS_OK")),
-        "green": linekit.flag(os.environ.get("INPUTS_GREEN")),
-        "red_cause": linekit.text(os.environ.get("INPUTS_RED_CAUSE")),
+        "tests_ok": boundary.flag(os.environ.get("INPUTS_TESTS_OK")),
+        "green": boundary.flag(os.environ.get("INPUTS_GREEN")),
+        "red_cause": boundary.text(os.environ.get("INPUTS_RED_CAUSE")),
         "evidence": evidence_rows(env("EVIDENCE")),
         "worktree": str(Path.cwd().resolve()),
-        "base_rev": str(start_doc(start).get("base_rev") or ""),
-        "protected_hits": linekit.items(os.environ.get("INPUTS_PROTECTED_HITS")),
+        "base_rev": str((start or {}).get("base_rev") or ""),
+        "protected_hits": boundary.items(os.environ.get("INPUTS_PROTECTED_HITS")),
         "asked": asked,
         "conflicts_unread": conflicts_unread,
-        "allowed_test_changes": linekit.items(os.environ.get("INPUTS_ALLOWED_TEST_CHANGES")),
+        "handoffs": [x for x in boundary.items(os.environ.get("INPUTS_HANDOFFS")) if isinstance(x, str)],
+        "mismatched": [x for x in boundary.items(os.environ.get("INPUTS_MISMATCHED")) if isinstance(x, str)],
         "eyes": {
             "r1": env("R1"), "r2": env("R2"), "r3": env("R3"), "r4": env("R4"),
             "premise_check": env("PREMISE_CHECK"),
         },
-        "questions": [q for q in linekit.items(os.environ.get("INPUTS_QUESTIONS")) if isinstance(q, str)],
+        "questions": [q for q in boundary.items(os.environ.get("INPUTS_QUESTIONS")) if isinstance(q, str)],
         "objection": raw["objection"],
         "rejudge_verdict": raw["rejudge_verdict"],
         "rejudge": rejudge_rows(returns),
         "split": runreport.split_line(returns),
         "unproven": [x.removeprefix("  - ") for x in runreport.unproven_lines(returns)[1:]],
-        "amend": replan.amend_lines(linekit.items(os.environ.get("INPUTS_REPLAN_ITEMS")),
-                                    refixed=linekit.flag(os.environ.get("INPUTS_REFIXED")), answer=env("REPLAN_ANSWER"),
-                                    widened=linekit.items(os.environ.get("INPUTS_WIDENED"))),
+        "amend": replan.amend_lines(boundary.items(os.environ.get("INPUTS_REPLAN_ITEMS")),
+                                    refixed=boundary.flag(os.environ.get("INPUTS_REFIXED")), answer=env("REPLAN_ANSWER"),
+                                    widened=boundary.items(os.environ.get("INPUTS_WIDENED"))),
         "delta_review": env("DELTA_REVIEW"),
-        **{key: value for key, value in beside.items() if key != "beside_unread"},
+        **beside,
         "structure_missing": structure_missing(env("STRUCTURE")),
-        "sealed": linekit.flag(os.environ.get("INPUTS_SEALED")),
-        "seal_reason": linekit.text(os.environ.get("INPUTS_SEAL_REASON")),
-        "hash": linekit.text(os.environ.get("INPUTS_HASH")),
+        "sealed": boundary.flag(os.environ.get("INPUTS_SEALED")),
+        "seal_reason": boundary.text(os.environ.get("INPUTS_SEAL_REASON")),
+        "hash": boundary.text(os.environ.get("INPUTS_HASH")),
         "deleted": deleted,
         "fenced": fenced,
         "after": after,
@@ -548,21 +578,20 @@ def got_of_env() -> dict:
         "premise_facts": noted["premise_facts"],
         "converge": rounds,
         **ledger_rows(b),
-        "unread": [*ledger_notes, *([after_unread] if after_unread else []), *review_unread,
-                   *([deleted_unread] if deleted_unread else []), *beside["beside_unread"],
-                   *noted["notes_unread"]],
+        "unread": [*([start_unread] if start_unread else []), *ledger_notes, *([after_unread] if after_unread else []),
+                   *review_unread, *([deleted_unread] if deleted_unread else []), *noted["notes_unread"]],
     }
 
 
 def from_env() -> dict:
     """ask の引数（with: の欄の全部を読む）"""
-    return {"got": got_of_env(), "mode": linekit.text(os.environ.get("INPUTS_FINAL_GATE")),
-            "unattended": linekit.flag(os.environ.get("INPUTS_UNATTENDED")), "run_id": os.environ["WORKFLOW_ID"]}
+    return {"got": got_of_env(), "mode": boundary.text(os.environ.get("INPUTS_FINAL_GATE")),
+            "unattended": boundary.flag(os.environ.get("INPUTS_UNATTENDED")), "run_id": os.environ["WORKFLOW_ID"]}
 
 
 def fallback(reason: str) -> dict:
-    return {"open": False, "go": False, "stop_reason": linekit.LINE_SCRIPT, "text": "", "reasons": [reason]}
+    return {"open": False, "go": False, "stop_reason": boundary.LINE_SCRIPT, "text": "", "reasons": [reason]}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: keep(ask(**from_env()), Path(os.environ["ARTIFACTS_DIR"])), fallback)
+    boundary.run(lambda: keep(ask(**from_env()), Path(os.environ["ARTIFACTS_DIR"])), fallback)

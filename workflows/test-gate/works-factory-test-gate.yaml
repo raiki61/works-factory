@@ -1,10 +1,10 @@
 name: works-factory-test-gate
 description: |
-  試験の関門。線に 2 つの形で差し込む。base（判定の前）は対象のテストの走らせ方を見つけて 1 度走らせ、直す前の結末
+  試験の関門。メイングラフに 2 つの形で include する。base（判定の前）は対象のテストの走らせ方を見つけて 1 度走らせ、直す前の結末
   （段ごとの結末と、JUnit の報告が在れば 1 件ごとの結末）を控える。final（修正の後）はテスト一式を走らせ、赤の原因を分けて
   証拠と一緒に返し、緑を作業ツリーの指紋（HEAD と差分の hash）つきで認証する。赤は原因が何でも認証しない。
   走らせ方は機械が決める（対象の宣言 .review-checks.json の段と test_cmd）。どちらも無ければ任せ先の CI の役が CI の定義を読み、
-  作業ツリーの写しの上で走らせる。返りは 1 つの節 result で、mode で形が分かれる（docs/design.md の「test-gate の返り」）。
+  作業ツリーの写しの上で走らせる。出力は 1 つのノード result で、mode で形が分かれる（docs/design.md の「test-gate の出力」）。
 
 inputs:
   mode:
@@ -12,10 +12,10 @@ inputs:
     description: 形。base（判定の前）か final（修正の後）
   start:
     required: true
-    description: 始めの記録の指し札の JSON の字（線の $start.output.record）
+    description: 始めの記録のポインタの JSON の字（メイングラフの $start.output.record）
   baseline:
     default: ""
-    description: final の時だけ、base の返りの baseline の指し札の JSON の字。"" と null は「無い」と読む
+    description: final の時だけ、base の出力の baseline のポインタの JSON の字。"" と null は「無い」と読む
 
 returns: result
 outcome_field: ok
@@ -55,6 +55,17 @@ nodes:
               exit: {type: [integer, "null"]}   # null は起こせなかった段
               how: {type: string, enum: [direct, shell]}
               launch: {type: string, enum: [broken]}
+              reused:   # 同じ run の中の控えから使った段の出どころ（tree_run.reuse_run の note）
+                type: object
+                additionalProperties: false
+                required: [at, key, from]
+                properties:
+                  at: {type: number}
+                  took_s: {type: [number, "null"]}
+                  key: {type: string}
+                  entry: {type: string}
+                  from: {type: string}
+              reuse_off: {type: string}   # 控えを使わなかった・置かなかった理由
         skipped_steps:
           type: array
           items:
@@ -100,7 +111,6 @@ nodes:
           with:
             mode: $INPUTS.mode
             start: $INPUTS.start
-            reject: $LOOP_PREV.ci-accept.output.reason
           output_format:
             type: object
             additionalProperties: false
@@ -123,7 +133,8 @@ nodes:
           mutates_checkout: false
           settingSources: [user]
           allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]   # Bash はテストを走らせるため
-          # 依存の導入（~/.cache・網）と localhost のテストを通す（今の works の blk-ci と同じ形）。本物の作業ツリーの守りは
+          # 依存の導入（~/.cache・網）と localhost のテストを通す（今の works の blk-ci と同じ形）。本物の作業ツリーへの書き込みは
+          # denyWrite で塞ぐ（相対のパスは役の cwd = run の作業ツリーから読む。写しは一時の置き場の直下で書ける）。その上に
           # mutates_checkout: false と ci-accept の作業ツリーの比べ
           sandbox:
             enabled: true
@@ -131,7 +142,7 @@ nodes:
             failIfUnavailable: true
             enableWeakerNetworkIsolation: true
             network: {allowedDomains: ['*'], allowLocalBinding: true}
-            filesystem: {allowWrite: ['/']}
+            filesystem: {allowWrite: ['/'], denyWrite: ['.']}
           idle_timeout: 1728000000
           output_format:
             type: object

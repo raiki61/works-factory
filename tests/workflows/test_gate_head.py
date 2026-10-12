@@ -93,7 +93,7 @@ class AskGateCase(unittest.TestCase):
         text = ask_before_fix.gate_text(self.asking([NARROW_ITEM]), run_id="run-1")
         self.assertEqual(heads(text), HEADS)
         first = text.splitlines()[0]
-        self.assertIn("直す前の関所", first)
+        self.assertIn("直す前の承認ノード", first)
         self.assertIn("1 件", first)
         self.assertEqual(internal_subjects("\n".join(text.splitlines()[:3])), [])
 
@@ -124,7 +124,7 @@ def final_got(**kw) -> dict:
     eye = {"status": "pass", "reason": ""}
     got = {"tests_ok": True, "green": True, "red_cause": "", "evidence": {"suites": "", "baseline": "", "log": "", "why": "", "unread": ""},
            "worktree": "/tmp/tree", "base_rev": "0123456789abcdef", "protected_hits": [], "asked": [], "conflicts_unread": [],
-           "allowed_test_changes": [], "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [],
+           "allowed_tests": [], "beside_unread": [], "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [],
            "objection": "", "rejudge_verdict": "", "rejudge": [], "split": "", "unproven": [], "amend": [],
            "delta_review": None, "branch_rows": [], "handoffs": [], "mismatched": [], "stuck": [], "closure": [], "tests_left": [],
            "gates": [], "always": [], "structure_missing": "", "r2_inputs": [], "premise_facts": [], "sealed": True, "seal_reason": "", "hash": "a" * 64, "deleted": [], "fenced": [],
@@ -196,7 +196,7 @@ class FinalHeadCase(unittest.TestCase):
         got = final_got(held=[gatemarks.ask_text(FORK)])
         self.assertEqual(ask_final.final_needs(got), [])
         first = self.head(got)[0]
-        self.assertIn("保留にしたままの問いも在る（1 件。関所を開ける理由には数えない）", first)
+        self.assertIn("保留にしたままの問いも在る（1 件。承認ノードを開ける理由には数えない）", first)
         self.assertNotIn("開けた理由: ", first)
         self.assertFalse(ask_final.ask(got, mode="when_needed", unattended=False, run_id="run-1")["open"])
 
@@ -219,7 +219,7 @@ def every_section() -> dict:
     return final_got(
         evidence=ev, protected_hits=["tests/test_stats.py（+1 −0）: 規則 tests（tests/**）——試験"],
         asked=["u1: 人が決める（名指し a.py:1, t.py:2・種類 not_red・正しいと見た側 unknown・c1）"],
-        allowed_test_changes=["tests/test_mean.py"], unproven=["u1: 例が無い"], amend=["案の項目 1: 直した——人が承認した"],
+        allowed_tests=[{"path": "tests/test_mean.py", "permit": "plan-1", "source": "plan"}], unproven=["u1: 例が無い"], amend=["案の項目 1: 直した——人が承認した"],
         delta_review={"rounds": 2, "pass": True}, branch_rows=["差分の審査の穴の枝: 見本の 1 行", "  - k: 項目 1"],
         objection="異議の文", rejudge=["再審の結果: 退ける（異議: 異議の文）"],
         after=["直した後の実測: 表 1", "  - 新しい名 mean_or_zero（現れる所 2 か所）"],
@@ -240,10 +240,10 @@ class FinalSectionsCase(unittest.TestCase):
         テスト・ログ・作業ツリー → 差分の審査 → 異議・再審 → 実測 → 通した行・往復 → 消えるファイル → 目 → 問い → 控え → 答え方）"""
         text = self.text(every_section())
         order = ["## " + ask_final.PROTECTED_HEAD, "## " + ask_final.ALLOWED_TESTS_HEAD, "## " + conflict.HEAD,
-                 "## " + querytest.UNPROVEN_HEAD, "## " + replan.AMEND_HEAD, "最後の人の関所（", "- テストの一式: ",
+                 "## " + querytest.UNPROVEN_HEAD, "## " + replan.AMEND_HEAD, "最後の承認ノード（", "- テストの一式: ",
                  "- 修正前のテスト: ", "- ログ: ", "- run の作業ツリー: ", "- 差分の審査: 2 回", "差分の審査の穴の枝: 見本の 1 行",
-                 "- 止めずに残った異議: 異議の文", "- 再審で決着した結果:", "直した後の実測: 表 1", "- 直す前の関所で通した項目",
-                 "事前審査の壁打ち: 1 往復", f"- {seal.DELETED_HEAD}: old.py", "- 独立の目の判定", "- 残り（最後の関所で数えられる分）",
+                 "- 止めずに残った異議: 異議の文", "- 再審で決着した結果:", "直した後の実測: 表 1", "- 直す前の承認ノードで通した項目",
+                 "事前審査の壁打ち: 1 往復", f"- {seal.DELETED_HEAD}: old.py", "- 独立の目の判定", "- 残り（最後の承認ノードで数えられる分）",
                  "が人に聞いている問い（記録のまま引く", "- 判定の役が人に聞くと保留にしたままの問い", gatemarks.ANSWERED_HEAD,
                  "依頼の答えに当たる問いが台帳に無い", "読めなかった保留", "- 読めない訳", "- 封じた差分の hash", "- この文の控え: ",
                  "答え方（"]
@@ -294,7 +294,7 @@ class FinalSectionsCase(unittest.TestCase):
         """L-G19: 修正前の関所が聞かずに通した行（と R4 で聞き直さなかった行）を最後の関所の文に 1 件 1 行で載せる"""
         text = self.text(every_section())
         self.assertIn("  - 直す前の関所（記録の名 p2.human_gate）（周 1）で決め手が在るので聞かずに通した: 行", text)
-        self.assertNotIn("直す前の関所で通した項目", self.text(final_got()))
+        self.assertNotIn("直す前の承認ノードで通した項目", self.text(final_got()))
 
     def test_answered_and_unmatched_are_listed(self):
         """L-G37: 答えた問い（ANSWERED_HEAD）とどの問いにも当たらなかった依頼の答えを並べ、「盤面の問い: 無い」と書かない"""
@@ -302,8 +302,8 @@ class FinalSectionsCase(unittest.TestCase):
         self.assertIn(f"- {gatemarks.ANSWERED_HEAD}（問いの台帳・1 件。保留の件数には数えない）:", text)
         self.assertIn("  - 答えた行", text)
         self.assertIn("- 依頼の答えに当たる問いが台帳に無い: x", text)
-        self.assertNotIn("盤面の問い: 無い", text)
-        self.assertIn("盤面の問い: 無い", self.text(final_got()))
+        self.assertNotIn("共有ボードの問い: 無い", text)
+        self.assertIn("共有ボードの問い: 無い", self.text(final_got()))
 
     def test_conflict_section_comes_first_without_protected(self):
         """L-G49: 守りのパスが無ければ、申し出の節が冒頭 3 行の直後の最初の節（1 行目でも名指す）"""
@@ -336,7 +336,7 @@ class LedgerAsksCase(unittest.TestCase):
         """(最後の関所の文, 報告の冒頭の行)。answer は修正前の関所の答え {decision, text, asked}"""
         judgment = self.place("judge/judgment.json", {"questions": list(questions), "units": list(units)})
         start = self.place("start.json", {"answers": []})
-        b, notes = ask_final.ledger(judgment, start, answer)
+        b, notes = ask_final.ledger(judgment, ask_final.start_doc(start)[0], answer)
         self.assertEqual(notes, [])
         got = final_got(**ask_final.ledger_rows(b))
         final = ask_final.final_text(got, ask_final.final_needs(got), "run-1")
@@ -361,11 +361,11 @@ class LedgerAsksCase(unittest.TestCase):
         awaiting = {"key": "q-awaiting-pr", "kind": "awaiting", "status": "held", "origin": "parallel_pr", "reason": "人が確かめる"}
         for name, text in zip(("最後の関所", "報告の冒頭"), self.gate(questions=[FORK, awaiting])):
             with self.subTest(name):
-                self.assertNotIn("盤面の問い: 無い", text)
+                self.assertNotIn("共有ボードの問い: 無い", text)
                 self.assertIn(FORK["key"], text)
                 self.assertIn(awaiting["key"], text)
         final, head = self.gate()
-        self.assertIn("盤面の問い: 無い", final)
+        self.assertIn("共有ボードの問い: 無い", final)
         self.assertNotIn(gatemarks.ASK_HEAD, head)
 
     def test_answered_question_is_not_counted_as_held(self):
@@ -377,7 +377,7 @@ class LedgerAsksCase(unittest.TestCase):
         final, head = self.gate(questions=[FORK], answer=passed)
         self.assertIn("保留にしたままの問い: 0 件", head)
         self.assertNotIn("保留にしたままの問い", final)
-        self.assertIn("関所で continue を受けた", final)
+        self.assertIn(gatemarks.GATE_CONTINUED.lstrip("・"), final)
         final, head = self.gate(questions=[FORK, awaiting], answer=passed)
         self.assertIn("保留にしたままの問い: 1 件", head)
         self.assertIn("保留にしたままの問い（問いの台帳・1 件", final)

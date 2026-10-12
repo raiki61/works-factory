@@ -46,7 +46,7 @@ class TestFixPrompt(unittest.TestCase):
         """0.21.0 の p3.fix.md から書き直した指示書: 修正案・人の答え・方針の文書・TDD の輪の結果を run の値のパスから読む。
         前の回の拒否の理由は reason_file（パス）で指示書の頭に（裁定 R44）。返答の欄を名指し、判定の prescriptions（零処方）を先に採らせる"""
         body = self.fix_prompt()
-        for s in ("修正案", "人が関所で答えたこと", "人の方針の文書", "TDD の輪の結果"):
+        for s in ("修正案", "人が承認ノードで答えたこと", "人の方針の文書", "TDD のループの結果"):
             self.assertIn(s, body)
         for field in ("closure", "coverage", "precedent", "root_or_symptom", "bypass_tried", "breaks"):
             self.assertIn(f"`{field}`", body, field)

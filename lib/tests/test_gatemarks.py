@@ -56,7 +56,7 @@ class DutyCase(unittest.TestCase):
         place = self.tmp / "fix"
         place.mkdir(exist_ok=True)
         startrec.write(place, self.start)
-        for name in ("judgment.json", *fixboard.JUDGMENT_BESIDE):
+        for name in ("judgment.json", *gatemarks.BESIDE):
             (place / name).write_bytes((self.jdir / name).read_bytes())
         if answers is not None:
             (place / fixboard.ANSWERS_FILE).write_text(json.dumps(answers, ensure_ascii=False), encoding="utf-8")
@@ -70,7 +70,6 @@ class DutyCase(unittest.TestCase):
         want = {"D", "E", "F", "G"}
         self.assertEqual(self.plan_duty(), want)
         self.assertEqual(self.fix_duty(), want)
-        self.assertEqual(fixboard.JUDGMENT_BESIDE, gatemarks.BESIDE)
 
     def test_gate_continue_returns_what_it_was_asked(self):
         """P241: 関所の continue は asked に載った問いだけに答え、その出どころ・depends を直す義務に戻す（fix だけに届く）"""

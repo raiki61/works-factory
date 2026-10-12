@@ -38,6 +38,8 @@ HEAD_FIELDS = {"about": str, "seed": str, "run_inputs": dict, "rows": list, "dro
 ROW_FIELDS = {"id": str, "kind": str, "entry": str, "visible": str, "edits": list, "red": list,
               "witness": (str, type(None)), "request": list, "catcher": (str, type(None)), "outcome": str, "why": str}
 OBSERVED_FIELDS = ("id", "factory", "run_id", "outcome", "flagged")
+INCONCLUSIVE = "INCONCLUSIVE"
+VERDICTS = ("CAUGHT", "ESCAPED", "CLEAN", "FALSE_ALARM", INCONCLUSIVE)
 COPY_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc")
 
 
@@ -271,14 +273,14 @@ def score(row, observed) -> dict:
     aims = _aims(row)
     problem = _observed_problem(row, observed)
     if problem:
-        return {"id": row["id"], "verdict": "INCONCLUSIVE", "aimed_hit": False, "caught_by": [], "missed_by": [],
+        return {"id": row["id"], "verdict": INCONCLUSIVE, "aimed_hit": False, "caught_by": [], "missed_by": [],
                 "outcome_as_expected": False, "detail": problem}
     flagged, outcome = observed["flagged"], observed["outcome"]
     caught_by = [a for a in aims if a in flagged]
     out = {"id": row["id"], "aimed_hit": row["catcher"] in flagged, "caught_by": caught_by,
            "missed_by": [a for a in aims if a not in flagged], "outcome_as_expected": outcome == row["outcome"]}
     if outcome in UNREACHED or outcome not in OUTCOMES:
-        return {**out, "verdict": "INCONCLUSIVE", "missed_by": [], "detail": f"結末 {outcome} は判定まで届いていない run"}
+        return {**out, "verdict": INCONCLUSIVE, "missed_by": [], "detail": f"結末 {outcome} は判定まで届いていない run"}
     if row["kind"] == "none":
         if flagged:
             return {**out, "verdict": "FALSE_ALARM", "detail": f"対照に所見か赤: {flagged}"}

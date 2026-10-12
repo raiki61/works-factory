@@ -4,7 +4,8 @@
 # ///
 """報告のブロックの最初の節: 入力・型つきの成果物の一覧・run の記録を読み、結末を決め、機械の報告と持ち越しを run の置き場の
 report/ に書く。0 以外で終わらない（落ちると線は報告の返りを受けられない）: lib/ を読めない時も含めて思わぬ誤りを捕まえ、
-record_invalid で返す。lib/ は main の中で読む（読めない時の受け皿は place.unwritten）。
+record_invalid で返す。lib/ は main の中で読む（読めない時の受け皿は place.unwritten）。境の口か隣の typed・place を読めない時も、
+返す節が結ぶので、標準ライブラリだけで同じ形を返す。
 書き手の役の文の頭に足す言語の 1 行（始めの記録の lang から rolekit.lang_line。元 works/.shared/core/rolekit.py 147-150 行）も
 lang_line で返す（読めない記録・思わぬ誤りの時は既定の言語の 1 行）。"""
 import json
@@ -12,11 +13,18 @@ import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
+UNWRITTEN = "report-unwritten.md"   # place.UNWRITTEN の写し。隣の place を読めない時の bare も同じ名へ書く
+LANG_FALLBACK = "人が読む文の欄は依頼文の言語で書け（言語の 1 行を組めなかった）"   # 言語の 1 行を組めない道の 1 行
 
-import typed  # noqa: E402
-from place import UNWRITTEN, failed_line, out_dir, rel, unwritten  # noqa: E402
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+    import boundary
+
+    import typed
+    from place import failed_line, out_dir, rel, unwritten
+    unread = None
+except Exception as error:  # noqa: BLE001 — 返す節が結ぶので落ちない（下の bare で返す）
+    boundary, unread = None, error
 
 RETURNS = {
     "test-gate-base": os.environ.get("INPUTS_TEST_GATE_BASE", ""),
@@ -71,10 +79,10 @@ def opened(value, unopened: list, rid: str, field: str = ""):
         try:
             path = boundary.resolve(value)
         except (KeyError, ValueError) as e:
-            unopened.append((rid, field, f"指し札 {value.get('path')} を開けない: {e}"))
+            unopened.append((rid, field, f"ポインタ {value.get('path')} を開けない: {e}"))
             return None
         if not path.is_file():
-            unopened.append((rid, field, f"指し札の先 {path} が無い"))
+            unopened.append((rid, field, f"ポインタの先 {path} が無い"))
             return None
         return str(path)
     if isinstance(value, dict):
@@ -167,10 +175,7 @@ def main() -> dict:
     facts = runreport.transcript_facts(rows, exclude_prefix=typed.own_prefix(os.environ.get("ARCHON_NODE_EXECUTION", "")),
                                        optional=[x for x in line["optional"] if isinstance(x, str)])
     decided = outcome.decide_outcome(returns, gates, {"start_ok": bool(start), "record_problems": problems,
-                                                      "failed": facts["failed"],
-                                                      "absorbed": facts["absorbed"], "answers": start.get("answers") or [],
-                                                      "stops": list(line["stops"].items()),
-                                                      "eyes_skip": runreport.eyes_skip(line)})
+                                                      "failed": facts["failed"], **runreport.outcome_facts(start, facts, line)})
     built = runreport.build(returns, gates, listing, facts, *decided, out_dir=out_dir(), start=start, problems=problems,
                             run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd(), line=line)
     report = rel(built["report"])
@@ -188,7 +193,7 @@ def fallen(error: BaseException) -> dict:
     why = failed_line("報告の事実", error)
     out = {"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "report": None,
            "next_request": None, "prior_failures": None, "ai_go": False, "facts_file": "", "stamp": "",
-           "lang_line": "人が読む文の欄は依頼文の言語で書け（言語の 1 行を組めなかった）"}
+           "lang_line": LANG_FALLBACK}
     try:
         import rolekit
         out["lang_line"] = rolekit.lang_line({})
@@ -200,7 +205,26 @@ def fallen(error: BaseException) -> dict:
     return out
 
 
-if __name__ == "__main__":
+def bare(what: str, error: BaseException) -> tuple:
+    """境の口か隣の部品を読めない時の訳と、訳だけを書いたファイルの指し札（place.failed_line・unwritten の標準ライブラリだけの写し）"""
+    why = f"{what}を組めなかった（{type(error).__name__}: {' '.join(str(error).split())}）"
+    rel_path = f"report/{UNWRITTEN}"
+    try:
+        path = Path(os.environ["ARTIFACTS_DIR"]) / rel_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# 報告（run {os.environ.get('WORKFLOW_ID', '—')}）\n\n報告を組めなかった: {why}\n", encoding="utf-8")
+    except (OSError, KeyError):
+        pass
+    return why, {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel_path}
+
+
+if __name__ == "__main__" and boundary is None:   # 境の口を読めない時
+    why, ptr = bare("報告の事実", unread)
+    print(json.dumps({"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "report": ptr,
+                      "next_request": None, "prior_failures": None, "ai_go": False, "facts_file": ptr["path"], "stamp": "",
+                      "lang_line": LANG_FALLBACK},
+                     ensure_ascii=False, allow_nan=False), flush=True)
+elif __name__ == "__main__":
     try:
         result = main()
     except Exception as error:  # noqa: BLE001 — 0 以外で終わると線が報告の返りを受けられない

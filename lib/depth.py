@@ -127,7 +127,7 @@ def unit_depth(items, key: str, *, checked: bool) -> tuple:
         out.append("機械の確かめが無い（tdd_suite も test_cmd も空）")
     if out:
         return STANDARD, out
-    shape = "配線だけ（線とブロックの YAML と manifest.json）" if wired else "約束の形のファイルなし"
+    shape = "配線だけ（メイングラフとサブグラフの YAML と manifest.json）" if wired else "約束の形のファイルなし"
     return LIGHT, [f"触るファイル {len(paths)} 個・テスト {tests} 本・{shape}・機械の確かめあり"]
 
 

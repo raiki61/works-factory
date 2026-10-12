@@ -4,9 +4,9 @@
 # ///
 """修正前の関所の答えを受ける返しの節 answer-before-fix（埋め P2）。
 
-関所の答えの読みと返り {go, answer, stop_reason} は gate_answer と同じ。答えの asked は ask-before-fix が関所に載せた項目の行
-（$ask-before-fix.output.asked）。fix の置き場の読み（lib/gatemarks.py の gate_items）は asked の行が問いの頭で始まる時だけ、その問いを
-人が答えたと読み、問いの単位を直す義務に戻す。事前審査（replan-review の gate_answers）は asked の行を聞き直さない。
+関所の答えの読みと返り {go, answer, stop_reason} は gate_answer と同じ（lib/answer.py の taken）。答えの asked は ask-before-fix が
+関所に載せた項目の行（$ask-before-fix.output.asked）。fix の置き場の読み（lib/gatemarks.py の gate_items）は asked の行が問いの頭で
+始まる時だけ、その問いを人が答えたと読み、問いの単位を直す義務に戻す。事前審査（replan-review の gate_answers）は asked の行を聞き直さない。
 
 関所を通した答えは、始めの記録の欄 policy を事前審査が固め直した版（boardview.passed_version。人が方針の文書の変化を通した時だけ
 変わる）で書き直す。fix・eyes・judge の再審は始めの記録の写し（policy.frozen_copy）を読むので、ブロックの入力を足さずに人が通した版が
@@ -16,29 +16,31 @@
 """
 import json
 import os
+import sys
 from pathlib import Path
 
-import gate_answer
-import linekit
-from linekit import boundary
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
+    import answer
     import boardview
     import policy
 
 
-def from_env() -> dict:
-    """answer の引数のうち with: の欄（全部を読む）"""
-    return {"gate_raw": os.environ.get("INPUTS_GATE"), "go_raw": os.environ.get("INPUTS_GO"),
-            "stop_raw": os.environ.get("INPUTS_STOP_REASON"), "place": os.environ.get("INPUTS_PLACE"),
-            "asked_raw": os.environ.get("INPUTS_ASKED"), "start_raw": os.environ.get("INPUTS_START")}
-
-
-def answer(start_raw, artifacts: Path, **gate) -> dict:
-    got = gate_answer.answer(**gate, artifacts=artifacts)
+def take(gate_raw, go_raw, stop_raw, place: str, asked_raw, start_raw, artifacts: Path) -> dict:
+    got = answer.taken(boundary.value(gate_raw), go=boundary.flag(go_raw), stop_reason=boundary.text(stop_raw), place=place,
+                       folder=artifacts, asked=boundary.items(asked_raw))
     if got["go"] and got["answer"] is not None:
         carry_policy(start_raw, got["answer"], artifacts)
     return got
+
+
+def from_env() -> dict:
+    """take の引数のうち with: の欄（全部を読む）"""
+    return {"gate_raw": os.environ.get("INPUTS_GATE"), "go_raw": os.environ.get("INPUTS_GO"),
+            "stop_raw": os.environ.get("INPUTS_STOP_REASON"), "place": os.environ.get("INPUTS_PLACE"),
+            "asked_raw": os.environ.get("INPUTS_ASKED"), "start_raw": os.environ.get("INPUTS_START")}
 
 
 def carry_policy(start_raw, passed: dict, artifacts: Path) -> None:
@@ -46,7 +48,7 @@ def carry_policy(start_raw, passed: dict, artifacts: Path) -> None:
     got = boardview.passed_version(artifacts / boardview.FOLDER, passed)
     if got is None:
         return
-    path = boundary.resolve(linekit.value(start_raw))
+    path = boundary.resolve(boundary.value(start_raw))
     doc = json.loads(path.read_text(encoding="utf-8"))
     if got == policy.version(doc):
         return
@@ -55,8 +57,8 @@ def carry_policy(start_raw, passed: dict, artifacts: Path) -> None:
 
 
 def fallback(reason: str) -> dict:
-    return gate_answer.fallback(reason)
+    return {"go": False, "answer": None, "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: answer(**from_env(), artifacts=Path(os.environ["ARTIFACTS_DIR"])), fallback)
+    boundary.run(lambda: take(**from_env(), artifacts=Path(os.environ["ARTIFACTS_DIR"])), fallback)

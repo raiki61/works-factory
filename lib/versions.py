@@ -13,6 +13,8 @@ run の記録は実行基盤の記録と run の置き場が正本で、版だ�
   - given: 呼び手が引いた値 {鍵: (値か None, 引けない訳)}。値が None なら null と unknown[鍵] に訳（実行基盤の版のように
     lib が知らない物は呼び手が引く。lib/AGENTS.md の E3）
 - pinned(path, key) -> (値か None, 訳): JSON のファイル path の字の欄 key（引けなければ None と訳）
+- LINE_REV・line_rev(versions): メイングラフの版（works-factory の版 works.rev）の欄の道と、版の控えからそれを引く口（snapshot が
+  書き、報告の来歴の行が読む。鍵の持ち主はここ 1 つ）
 """
 from __future__ import annotations
 
@@ -28,7 +30,16 @@ from typing import Mapping
 import startrec
 
 SCHEMA = 1
+LINE_REV = ("works", "rev")   # 版の控えの中のメイングラフの版の欄の道（グラフは works-factory の木に在る）
 TOOLSET_RECORD = ".works-toolset.json"   # 起動の殻 bin/_lib/toolset.py の RECORD と同じ名（lib は bin を読まない。試験が突き合わせる）
+
+
+def line_rev(versions) -> str | None:
+    """版の控え versions（snapshot の返り）のメイングラフの版（LINE_REV の道の字。無い・空なら None）"""
+    got = versions
+    for key in LINE_REV:
+        got = got.get(key) if isinstance(got, dict) else None
+    return got if isinstance(got, str) and got else None
 
 
 def _git(root: pathlib.Path, *args):

@@ -1,0 +1,12 @@
+name: works-factory-line
+nodes:
+  - id: rounds
+    loop_group:
+      max_iterations: 3
+      until_bash: 'true'
+      nodes:
+        - id: ask
+          prompt: 前の理由は $INPUTS.reason
+          with: { reason: $LOOP_PREV.take.output.reason }
+          idle_timeout: 1728000000
+    timeout: 1728000000

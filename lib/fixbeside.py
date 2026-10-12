@@ -1,22 +1,26 @@
-"""修正のブロックの返り diff の隣の約束のファイル（docs/design.md の「ブロックの返りの約束」の隣のファイル）の書き手と読み手。
+"""修正のブロックの返り diff の隣の約束のファイル（docs/design.md の「サブグラフの出力の約束」の隣のファイル）のうち、閉鎖の表と
+差分の審査の穴の名札の書き手と、diff の隣の控えの全部の読み手。
 
-書き手は修正の返す節（write。止めた時は empty で訳つきの空の形）。読み手は最後の関所と報告（read で読み、行の口で文にする）。
-返りの欄は増やさず、diff の指し札の先と同じフォルダ（修正の段ごとの置き場）に置く。組の子の run は子の置き場に書くので、子の
-結果（fixboard.group_result）の欄 handoffs・closure・claimed・accept_trace で親へ運び、親の置き場の分（裁定の後の修正の段）と合わせる。
+書き手は修正の出力ノード（write）。読み手は最後の承認ノードと報告（read で読み、行の口で文にする）。出力の欄は増やさず、diff の
+ポインタの先と同じフォルダ（修正の段ごとの置き場）に置く。組の子の run は子の置き場に書くので、子の結果（fixboard.group_result）の
+欄 closure・claimed で親へ運び、親の置き場の分（裁定の後の修正の段）と合わせる。
 
-- HANDOFFS_FILE: [{unit_key, accepted}]。修正役が壊すと分かって通した理由（返答の changes[].breaks.accepted。空白だけは除く）
 - CLOSURE_FILE: {rows: [閉鎖の表の行（querytest.save_closure の行）], claimed: [修正役が changes に載せた単位の key]}
 - DELTA_HOLES_FILE: {ties: {"1": [名札（holeties.tie の行）] か組めない訳の字, "2": …}, handled: {"1": [手直しの handled の行], "2": …}}
-- LENSES_FILE: {summary: lens.summary の返り, lines: lens.report_lines の返り}
-- ACCEPT_TRACE_FILE: {rows: [受け付けの trace の行（trace_rows の行）]}
-- leftovers.REMOVED_FILE（fix-removed.json）: clean が消したパス（書き手は修正の節 clean。読みは leftovers.removed）
-どのファイルも、書けなかった・組めなかった時は {"error": 訳} を置き、読み手は訳を名指す（0 件に見せない）。
+どちらも、書けなかった・組めなかった時は {"error": 訳} を置き、読み手は訳を名指す（0 件に見せない）。
+修正役が人に回した物（handoffs）と申告と数え直しが合わない単位（mismatched）は fix の出力の欄が正本で、ここでは読まない。
+read が同じ diff の隣から一緒に読む物（書き手は fix のほかの所）:
+- fixboard.ACCEPT_TRACE_FILE（accept-trace.json）: 受け付けの行の並び（選んだ試験の知らせ・赤緑を確かめずに受けた回・はみ出しの
+  決着・範囲の相談。fixboard.accept_trace_rows）
+- fixboard.LENSES_FILE（lenses.json）: レンズの集め役の事実 {collector: {ok, reason}}。レンズの数え（lens.summary）は置き場の
+  lens.json と差分の審査の 1 回目の出力から読む時に数える
+- leftovers.REMOVED_FILE（fix-removed.json）: clean が消したパス（読みは leftovers.removed）
 
-- handoffs_of(reply)・claimed_of(reply)・trace_rows(place)・closure_rows(place): 置き場と返答から欄を組む口（子の結果と親が使う）
-- write(place, results, ruled_reply, *, items, plan_review, fix_reply)・empty(place, why): 書く
+- claimed_of(reply)・closure_rows(place): 子の結果と親が欄を組む口
+- write(place, results, ruled_reply, *, items, plan_review, fix_reply): 書く
 - read(folders): 段ごとの置き場（fix と 2 度目の修正）の全部を読み合わせた見え方
-- handoff_lines・closure_lines・tests_left_lines・gates_lines・plan_ask_lines・branch_rows・always_rows・lens_lines・next_items:
-  最後の関所と報告が同じ行を出す口（元 works/.shared/core/report.py の handoff_lines・branch_rows・gates_lines・plan_ask_lines・
+- closure_lines・not_closed・tests_left_lines・gates_lines・plan_ask_lines・branch_rows・always_rows・lens_lines・next_items:
+  最後の承認ノードと報告が同じ行を出す口（元 works/.shared/core/report.py の branch_rows・gates_lines・plan_ask_lines・
   always_rows・lens_next_items・next_request の手直しの行、works/darkfactory/lib/line_edge.py の _ci_left）
 """
 from __future__ import annotations
@@ -30,22 +34,34 @@ _HERE = pathlib.Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-HANDOFFS_FILE = "handoffs.json"
+import fixboard  # noqa: E402
+import impact  # noqa: E402  （受け付けの trace の op の住処）
+import querytest  # noqa: E402
+
 CLOSURE_FILE = "closure.json"
 DELTA_HOLES_FILE = "delta-holes.json"
-LENSES_FILE = "lenses.json"
-ACCEPT_TRACE_FILE = "accept-trace.json"
-FILES = (HANDOFFS_FILE, CLOSURE_FILE, DELTA_HOLES_FILE, LENSES_FILE, ACCEPT_TRACE_FILE)
-import impact  # noqa: E402  （受け付けの trace の op の住処）
-
+FILES = (CLOSURE_FILE, DELTA_HOLES_FILE)
 TESTS_OP, SKIPPED_OP, OVERFLOW_OP = impact.ACCEPT_TRACE_OP, impact.ACCEPT_GATES_SKIPPED_OP, impact.ACCEPT_OVERFLOW_OP
-PASSES = (1, 2)                                  # 差分の審査と手直しの往復（refix.passes の番号）
-HANDOFF_HEAD = "修正役が人に回した物（壊すと分かって通した理由 breaks.accepted。役だけで決めた代償なので人が確かめる）"
-BRANCH_HEAD = {1: "差分の審査の穴の枝（機械が修正案の項目に結んだ名札。手直しの役にも同じ名札を渡した）",
-               2: "2 回目の審査の穴の枝"}
-HANDLED_HEAD = {1: "手直しの結果", 2: "2 回目の手直しの結果"}
-ANOMALY_LINE = "仕組みの異常: 取れない（元は盤面の trace と包みの記録から数えた。docs/design.md の U6）"
+BRANCH_HEAD = "差分の審査の穴の枝（機械が修正案の項目に結んだ名札。手直しの役にも同じ名札を渡した）"   # 1 回目の往復の頭
+ANOMALY_LINE = "仕組みの異常: 取れない（元は共有ボードの trace と包みの記録から数えた。docs/design.md の U6）"
 LENS_WHERE = "レンズ"
+CLOSURE_UNREAD = "閉じたかを数えていない"   # 閉鎖の表の控えを読めない行の尾（outcome.residue が修正の残りにする）
+
+
+def passes() -> tuple:
+    """差分の審査と手直しの往復の番号（refix.passes の 1 か所から引く）"""
+    import refix
+    return tuple(refix.passes())
+
+
+def branch_head(n: int) -> str:
+    """n 回目の往復の穴の枝の頭"""
+    return BRANCH_HEAD if n == passes()[0] else f"{n} 回目の審査の穴の枝"
+
+
+def handled_head(n: int) -> str:
+    """n 回目の往復の手直しの結果の頭"""
+    return "手直しの結果" if n == passes()[0] else f"{n} 回目の手直しの結果"
 
 
 def _one_line(text) -> str:
@@ -53,47 +69,31 @@ def _one_line(text) -> str:
 
 
 # ---------------------------------------------------------------- 欄を組む口（子の結果と親の書き手）
-def handoffs_of(reply) -> list:
-    """返答の changes[].breaks.accepted（空白だけの行は除く）を [{unit_key, accepted}] に。返答が無い・形が違えば []"""
-    out = []
-    for c in (reply.get("changes") if isinstance(reply, dict) else None) or []:
-        breaks = c.get("breaks") if isinstance(c, dict) else None
-        got = breaks.get("accepted") if isinstance(breaks, dict) else None
-        if isinstance(got, str) and got.strip():
-            out.append({"unit_key": str(c.get("unit_key")), "accepted": _one_line(got)})
-    return out
-
-
 def claimed_of(reply) -> list:
     """修正役が changes に載せた単位の key（申告。閉じたかは閉鎖の表が決める）"""
     return [str(c["unit_key"]) for c in (reply.get("changes") if isinstance(reply, dict) else None) or []
             if isinstance(c, dict) and isinstance(c.get("unit_key"), str)]
 
 
-def trace_rows(place) -> list:
-    """置き場の trace のうち受け付けの行（選んだ試験・赤緑を確かめずに受けた回・はみ出しの決着・範囲の相談の op）。trace が無ければ []。
-    壊れた行は飛ばす"""
-    import conflict
-    import fixboard
-    ops = (TESTS_OP, SKIPPED_OP, OVERFLOW_OP, conflict.ASKED_OP)
-    return fixboard.trace_rows(place, lambda row: row.get("op") in ops)
-
-
-def closure_rows(place) -> list:
-    """置き場の閉鎖の表（querytest.CLOSURE_FILE）の行。無い・読めなければ []"""
-    import marks
-    import querytest
-    doc = marks.load(pathlib.Path(place) / querytest.CLOSURE_FILE)
-    return [r for r in (doc.get("rows") if isinstance(doc, dict) else None) or [] if isinstance(r, dict)]
+def closure_rows(place) -> list | None:
+    """置き場の閉鎖の表（querytest.CLOSURE_FILE）の行。表が無ければ []、在るのに読めない・形が違えば None（書き手が訳にする）"""
+    path = pathlib.Path(place) / querytest.CLOSURE_FILE
+    if not path.is_file():
+        return []
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    rows = doc.get("rows") if isinstance(doc, dict) else None
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else None
 
 
 # ---------------------------------------------------------------- 書く
 def _ties(place, *, items, plan_review, fix_reply) -> tuple:
     """({往復: 名札 | 組めない訳}, {往復: handled の行})"""
-    import fixboard
     import refix
     ties, handled = {}, {}
-    for n in PASSES:
+    for n in passes():
         try:
             ties[str(n)] = fixboard.hole_ties(place, n, items=items, plan_review=plan_review, fix_reply=fix_reply)
         except Exception as e:   # 名札は材料。組めない訳を置いて先へ（元 report._ties）
@@ -103,33 +103,28 @@ def _ties(place, *, items, plan_review, fix_reply) -> tuple:
     return ties, handled
 
 
-def _lenses(place) -> dict:
-    import fixboard
-    import lens
-    import refix
-    review = fixboard.out_file(place, refix._pass(1)["review"])
-    review = review if review.is_file() else None
-    return {"summary": lens.summary(place, review), "lines": lens.report_lines(place, review)}
-
-
 def write(place, results, ruled_reply=None, *, items=None, plan_review=None, fix_reply=None) -> None:
-    """置き場 place に 5 つのファイルを書く。results は戻せた組の子の結果（欄 handoffs・closure・claimed・accept_trace）、ruled_reply は
-    裁定の後の修正役の返答（親の置き場の段。無ければ None）。items・plan_review・fix_reply は手直しの穴の名札の材料
+    """置き場 place に FILES を書く。results は戻せた組の子の結果（欄 closure・claimed。closure が None の子は表を読めなかった）、
+    ruled_reply は裁定の後の修正役の返答（親の置き場の段。無ければ None）。items・plan_review・fix_reply は手直しの穴の名札の材料
     （fixboard.hole_ties の引数）。1 つのファイルが組めなくても、ほかは書く（組めない物は {"error": 訳}）"""
-    import fixboard
     place = pathlib.Path(place)
     results = [r for r in results or [] if isinstance(r, dict)]
 
     def put(name, build):
         try:
             doc = build()
-        except Exception as e:   # 隣のファイルは材料。組めない訳を置き、返す節は落とさない
+        except Exception as e:   # 隣のファイルは材料。組めない訳を置き、出力ノードは落とさない
             doc = {"error": f"{type(e).__name__}: {_one_line(e)}"}
         fixboard.write_json(place / name, doc)
 
     def closure():
+        own = closure_rows(place)
+        broken = [str(res.get("group_id")) for res in results if "closure" in res and res["closure"] is None]
+        if own is None or broken:
+            raise ValueError("閉鎖の表を読めない（" + "・".join([*(f"組 {g}" for g in broken), *(["この置き場"] if own is None else [])])
+                             + "）")
         rows = {}
-        for r in [*(x for res in results for x in res.get("closure") or []), *closure_rows(place)]:
+        for r in [*(x for res in results for x in res.get("closure") or []), *own]:
             if isinstance(r, dict):
                 rows[r.get("unit_key")] = r   # 裁定の後の段の表がその単位の 1 回目の表を上書きする
         claimed = [*(k for res in results for k in res.get("claimed") or []), *claimed_of(ruled_reply)]
@@ -138,75 +133,88 @@ def write(place, results, ruled_reply=None, *, items=None, plan_review=None, fix
     def holes():
         ties, handled = _ties(place, items=items, plan_review=plan_review, fix_reply=fix_reply)
         return {"ties": ties, "handled": handled}
-    put(HANDOFFS_FILE, lambda: [*(h for res in results for h in res.get("handoffs") or [] if isinstance(h, dict)),
-                                *handoffs_of(ruled_reply)])
     put(CLOSURE_FILE, closure)
     put(DELTA_HOLES_FILE, holes)
-    put(LENSES_FILE, lambda: _lenses(place))
-    put(ACCEPT_TRACE_FILE, lambda: {"rows": [*(t for res in results for t in res.get("accept_trace") or [] if isinstance(t, dict)),
-                                             *trace_rows(place)]})
-
-
-def empty(place, why: str) -> None:
-    """止めた・返りを組めなかった時の空の形（どのファイルも {"error": why}。在る物は上書きしない）"""
-    import fixboard
-    place = pathlib.Path(place)
-    for name in FILES:
-        if not (place / name).is_file():
-            fixboard.write_json(place / name, {"error": why})
 
 
 # ---------------------------------------------------------------- 読む
+def _load(path: pathlib.Path, unread: list, *, rows: bool = False):
+    """控え 1 つ（無い・読めない・{"error"}・形が違う物は unread に訳を足して None）。rows なら行の配列を求める"""
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        unread.append(f"修正の控え {path} が無い")
+        return None
+    except (OSError, ValueError) as e:
+        unread.append(f"修正の控え {path} が読めない（{type(e).__name__}: {_one_line(e)}）")
+        return None
+    if isinstance(doc, dict) and "error" in doc:
+        unread.append(f"修正の控え {path} を組めなかった（{_one_line(doc['error'])}）")
+        return None
+    if not isinstance(doc, list if rows else dict):
+        unread.append(f"修正の控え {path} の形が違う（{'行の配列' if rows else 'オブジェクト'}でない）")
+        return None
+    return doc
+
+
+def _lens_summary(folder: pathlib.Path, unread: list) -> dict:
+    """置き場のレンズの数え（lens.summary）と報告の行（lens.report_lines）と集め役の事実（fixboard.LENSES_FILE。読めなければ unread に訳）"""
+    import lens
+    import refix
+    review = fixboard.out_file(folder, refix._pass(passes()[0])["review"])
+    review = review if review.is_file() else None
+    doc = _load(folder / fixboard.LENSES_FILE, unread)
+    collector = doc.get("collector") if isinstance(doc, dict) else None
+    return {"summary": lens.summary(folder, review), "lines": lens.report_lines(folder, review),
+            "collector": collector if isinstance(collector, dict) else None}
+
+
 def read(folders) -> dict:
-    """段ごとの置き場（diff の指し札の先のフォルダ。fix と 2 度目の修正の順）を読み合わせる。返り {handoffs, closure, claimed, ties,
-    handled, lenses, trace, removed, unread, folders}。ties・handled・lenses・removed は段ごとの並び [(フォルダ, 中身)]。読めない・無い
-    ファイルと {"error"} は unread に訳（0 件に見せない）"""
+    """段ごとの置き場（diff のポインタの先のフォルダ。fix と 2 度目の修正の順）を読み合わせる。返り {closure, claimed, ties, handled,
+    lenses, trace, tests, removed, unread, closure_unread, folders}。ties・handled・lenses・removed は段ごとの並び [(フォルダ, 中身)]。
+    trace は受け付けの行（accept-trace.json）、tests はそのうち段・組・受け付けの段ごとに最後の回の選んだ試験の行。読めない・無いファイルと {"error"} は unread に訳（0 件に見せない）。閉鎖の表の控えの
+    訳は closure_unread にも置く（閉じたかを数えていない。outcome.residue が修正の残りに数える）"""
     import leftovers
-    got = {"handoffs": [], "closure": {}, "claimed": [], "ties": [], "handled": [], "lenses": [], "trace": [], "removed": [],
-           "unread": [], "folders": []}
+    got = {"closure": {}, "claimed": [], "ties": [], "handled": [], "lenses": [], "trace": [], "tests": [], "removed": [], "unread": [],
+           "closure_unread": [], "folders": []}
     for folder in folders or []:
         folder = pathlib.Path(folder)
         got["folders"].append(folder)
-        docs = {}
-        for name in FILES:
-            try:
-                doc = json.loads((folder / name).read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                got["unread"].append(f"修正の控え {folder / name} が無い")
-                continue
-            except (OSError, ValueError) as e:
-                got["unread"].append(f"修正の控え {folder / name} が読めない（{type(e).__name__}: {_one_line(e)}）")
-                continue
-            if isinstance(doc, dict) and "error" in doc:
-                got["unread"].append(f"修正の控え {folder / name} を組めなかった（{_one_line(doc['error'])}）")
-                continue
-            docs[name] = doc
-        got["handoffs"] += [h for h in docs.get(HANDOFFS_FILE) or [] if isinstance(h, dict)]
-        closure = docs.get(CLOSURE_FILE) or {}
+        closure_unread: list = []
+        closure = _load(folder / CLOSURE_FILE, closure_unread) or {}
+        got["unread"] += closure_unread
+        got["closure_unread"] += [f"{x}——{CLOSURE_UNREAD}" for x in closure_unread]
         for r in closure.get("rows") or []:
             if isinstance(r, dict):
                 got["closure"][r.get("unit_key")] = r   # 2 度目の修正の段の表がその単位の前の表を上書きする
         got["claimed"] += [k for k in closure.get("claimed") or [] if isinstance(k, str) and k not in got["claimed"]]
-        holes = docs.get(DELTA_HOLES_FILE) or {}
+        holes = _load(folder / DELTA_HOLES_FILE, got["unread"]) or {}
         got["ties"].append((folder, holes.get("ties") or {}))
         got["handled"].append((folder, holes.get("handled") or {}))
-        if LENSES_FILE in docs:
-            got["lenses"].append((folder, docs[LENSES_FILE]))
-        got["trace"] += [r for r in (docs.get(ACCEPT_TRACE_FILE) or {}).get("rows") or [] if isinstance(r, dict)]
+        trace = [r for r in _load(folder / fixboard.ACCEPT_TRACE_FILE, got["unread"], rows=True) or [] if isinstance(r, dict)]
+        got["trace"] += trace
+        got["tests"] += _accepted_tests(trace)
+        got["lenses"].append((folder, _lens_summary(folder, got["unread"])))
         got["removed"].append((folder, leftovers.removed(folder)))
     got["closure"] = list(got["closure"].values())
     return got
 
 
+def _accepted_tests(trace: list) -> list:
+    """1 つの修正の段の受け付けの選んだ試験の行（TESTS_OP）のうち、組と受け付けの段（pass）ごとの最後の回の物（回ごとに足した行の
+    うち受けた回。fixboard.tests_trace）"""
+    last: dict = {}
+    for row in trace:
+        if row.get("op") == TESTS_OP:
+            key = (row.get("group_id"), row.get("pass"))
+            if key not in last or (row.get("attempt") or 0) >= (last[key].get("attempt") or 0):
+                last[key] = row
+    return list(last.values())
+
+
 # ---------------------------------------------------------------- 行の口（最後の関所と報告が同じ行を出す）
-def handoff_lines(got: dict) -> list:
-    """修正役が人に回した物（1 件 1 行。元 report.handoff_lines）"""
-    return [f"{h.get('unit_key')}: 壊すと分かって通した——{_one_line(h.get('accepted'))}" for h in got["handoffs"]]
-
-
 def closure_lines(got: dict, *, mismatched_only: bool = False, stuck_only: bool = False) -> list:
     """閉鎖の数え直しの行（querytest.closure_lines。既定の列は表に行の無い申告の単位も名指す）"""
-    import querytest
     return querytest.closure_lines(got["closure"], mismatched_only=mismatched_only, stuck_only=stuck_only,
                                    claimed=() if (mismatched_only or stuck_only) else got["claimed"])
 
@@ -217,8 +225,7 @@ def not_closed(got: dict) -> list:
 
 
 def _left(got: dict, field: str) -> list:
-    return list(dict.fromkeys(t for row in got["trace"] if row.get("op") == TESTS_OP for t in row.get(field) or []
-                              if isinstance(t, str)))
+    return list(dict.fromkeys(t for row in got["tests"] for t in row.get(field) or [] if isinstance(t, str)))
 
 
 def tests_left_lines(got: dict) -> list:
@@ -258,7 +265,7 @@ def gates_lines(got: dict) -> list:
     if agreed:
         out.append(f"はみ出しを相談で認めた: {'・'.join(agreed)}（範囲に入れ、新しいテストは赤緑を確かめた）")
     if gated:
-        out.append(f"人の関所の条件の相談で認めた新しいテスト: {'・'.join(gated)}（今の木に在る物を赤緑か守りで確かめた）")
+        out.append(f"承認ノードの条件の相談で認めた新しいテスト: {'・'.join(gated)}（今の木に在る物を赤緑か守りで確かめた）")
     out += [f"守りのテストを認めた（今の木で緑だけを確かめた）: {g}" for g in guards]
     for x in undone:
         what = "・".join([*(x.get("paths") or []), *(x.get("tests") or []), *(x.get("new_tests") or [])]) or "（無し）"
@@ -301,23 +308,23 @@ def branch_rows(got: dict) -> list:
     import holeties
     rows = []
     for (_, ties), (_, handled) in zip(got["ties"], got["handled"]):
-        for n in PASSES:
+        for n in passes():
             t = ties.get(str(n))
             if isinstance(t, str):
-                rows.append(f"{BRANCH_HEAD[n]}: 組めない（{t}）")
+                rows.append(f"{branch_head(n)}: 組めない（{t}）")
             elif t:
-                rows.append(f"{BRANCH_HEAD[n]}: {holeties.count_line(t)}")
+                rows.append(f"{branch_head(n)}: {holeties.count_line(t)}")
                 rows += [f"  - {x}" for x in holeties.lines(t)]
             h = handled.get(str(n)) or []
             if h:
-                rows.append(f"{HANDLED_HEAD[n]}（{len(h)} 件）:")
+                rows.append(f"{handled_head(n)}（{len(h)} 件）:")
                 rows += [f"  - {x.get('key')}: {gatemarks.HANDLED_WORDS.get(x.get('handled'), '')}（{x.get('handled')}）——{_one_line(x.get('how') or '')}"
                          for x in h]
     return rows
 
 
 def lens_lines(got: dict) -> list:
-    """報告の「未確認のレンズ」の節の行（lens.report_lines の控え。段ごと）"""
+    """報告の「未確認のレンズ」のセクションの行（lens.report_lines。段ごと）"""
     out = []
     for folder, doc in got["lenses"]:
         out += [str(x) for x in doc.get("lines") or []]
@@ -357,6 +364,9 @@ def always_rows(got: dict) -> list:
                 taken = "調べていない" if r.get("adopted") is None else f"採った {r['adopted']}・採らなかった {r['not_adopted']}"
                 rows.append(f"  - {r.get('lens')}: {taken}・形の誤りで捨てた {r.get('dropped')}（出した発見 {r.get('findings')}）")
             rows += [f"  - 落ちたレンズ {f.get('lens')}（再実行の要あり）: {_one_line(f.get('reason'))}" for f in s.get("failed") or []]
+        collector = doc.get("collector")
+        if isinstance(collector, dict) and collector.get("ok") is False:
+            rows.append(f"レンズの集め役{where}: {_one_line(collector.get('reason') or '訳が無い')}")
     if not seen:
         rows.append("レンズ: 控えが無い（修正の段が無い run か、控えが読めない。下の読めなかった控えの訳）")
     rows.append(ANOMALY_LINE)
@@ -370,7 +380,7 @@ def next_items(got: dict) -> list:
     import holeties
     items = []
     for (_, ties), (_, handled) in zip(got["ties"], got["handled"]):
-        for n in PASSES:
+        for n in passes():
             t = ties.get(str(n))
             tags = {x["key"]: holeties.note(x) for x in t if isinstance(x, dict) and "key" in x} if isinstance(t, list) else {}
             for h in handled.get(str(n)) or []:
@@ -380,9 +390,10 @@ def next_items(got: dict) -> list:
                 tag = f"（枝: {tags[h['key']]}）" if h["key"] in tags else ""
                 if h.get("handled") == "declared":
                     items.append({"where": str(where), "text": f"{h['key']}（手直しが declared で残した穴: {h.get('how') or ''}）{tag}"})
-                elif h.get("handled") == "fixed" and n == PASSES[-1]:
+                elif h.get("handled") == "fixed" and n == passes()[-1]:
                     items.append({"where": str(where),
-                                  "text": f"{h['key']}（手直し 2 回目が fixed と言ったが、3 回目の審査は無い——検算が要る: {h.get('how') or ''}）{tag}"})
+                                  "text": f"{h['key']}（手直し {n} 回目が fixed と言ったが、{n + 1} 回目の審査は無い——検算が要る: "
+                                          f"{h.get('how') or ''}）{tag}"})
     for folder, doc in got["lenses"]:
         s = doc.get("summary") if isinstance(doc.get("summary"), dict) else {}
         if s and not s.get("readable"):

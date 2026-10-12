@@ -15,8 +15,8 @@ import sys
 import tempfile
 import unittest
 
-from bin._lib import place
-from lib import answer
+from bin._lib import launcher, place
+from lib import answer, reads, writelog
 from tests.bin import fakelaunch, hermetic
 from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
 from tests.bin.gitkit import git
@@ -60,6 +60,9 @@ def short(path) -> str:
 class LauncherTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        if launcher.sandbox_writable(tempfile.gettempdir()):
+            raise unittest.SkipTest("一時の置き場が /tmp/claude-* の下（Claude の sandbox の中）で、ここの起動は殻が全部拒む。"
+                                    "CI か、TMPDIR をほかへ向けて走らせる")
         cls._tmp = tempfile.TemporaryDirectory(prefix="works-launcher-")
         tree = fakelaunch.build(pathlib.Path(os.path.realpath(cls._tmp.name)))
         cls.repo, cls.cache_home, cls.source, cls.tools = tree.repo, tree.cache_home, tree.source, tree.tools
@@ -167,6 +170,97 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(home_of(WORKS_FACTORY_HOME=str(chosen)), str(chosen / "home"))
         err = self.stopped(self.launch("workflow", "status", WORKS_FACTORY_HOME="relative/home"))
         self.assertIn("WORKS_FACTORY_HOME", err)
+
+    def test_sandbox_writable_home_and_target_are_refused(self):
+        """役の sandbox の Bash が書ける /tmp/claude-* の下（実パスで照らす）の家・対象・Archon の源の取り置きは、どの命令でも起こさずに拒む
+        （今の works の dev/guard.sh の works_dev_refuse_claude_tmp と同じ形）"""
+        # 直しが無い時に作られても他と混ざらず後で消えるように、試験ごとの名にする
+        sandbox = f"/tmp/claude-works-test-{self.tmp.name}"
+        self.addCleanup(shutil.rmtree, sandbox, ignore_errors=True)
+        link = self.tmp / "to-claude-tmp"
+        link.symlink_to(sandbox)
+        for name, value in (("WORKS_FACTORY_HOME", f"{sandbox}/h"), ("WORKS_FACTORY_HOME", f"/private{sandbox}/h2"),
+                            ("XDG_STATE_HOME", f"{sandbox}/state"), ("WORKS_FACTORY_HOME", str(link / "h3")),
+                            ("XDG_CACHE_HOME", f"{sandbox}/cache")):
+            with self.subTest(name=name, value=value):
+                err = self.stopped(self.launch("workflow", "status", **{name: value}))
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertIn(name, err)
+                self.assertFalse(os.path.lexists(value), "拒んだ置き場に物を作った")
+        target = pathlib.Path(sandbox) / "t"
+        target.mkdir(parents=True)
+        err = self.stopped(self.launch("workflow", "status", "--cwd", str(target)))
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertIn("対象", err)
+        self.assertFalse(self.default_home(pathlib.Path(os.path.realpath(target))).exists(), "拒んだ対象の家を作った")
+        for path in (self.tmp, "/tmp/claudex", "/tmp/other/claude-1"):
+            with self.subTest(path=path):
+                self.assertFalse(launcher.sandbox_writable(path))
+        self.assertTrue(launcher.sandbox_writable("/private/tmp/claude-501/x/y"))
+
+    def test_executing_launch_sweeps_write_logs_of_gone_workspaces(self):
+        """工程を走らせる命令は、作業の場が無くなった run の書き込みと読んだ証拠の記録だけを片付ける（生きた run・控えの無い記録は残す）"""
+        root = self.default_home(self.target) / "claude-config" / writelog.ROOT
+        root.mkdir(parents=True)
+
+        def dead_log(name):
+            w = self.tmp / name
+            w.mkdir()
+            log = writelog.open_log(root, w)
+            log.touch()
+            w.rmdir()
+            return log
+
+        dead, live = dead_log("gone-run"), writelog.open_log(root, self.target)
+        live.touch()
+        legacy = writelog.log_path(root, self.tmp / "legacy-run")
+        legacy.parent.mkdir()
+        legacy.touch()
+        done = self.launch("workflow", "run", "works-factory-line")
+        self.reached(done)
+        self.assertFalse(dead.parent.exists(), "作業の場の無い記録が残った")
+        self.assertTrue(live.exists())
+        self.assertTrue(legacy.exists())
+        self.assertIn("書き込みの記録を 1 件片付けた", done.stderr)
+        with self.subTest("読んだ証拠の記録も同じ決め方で片付ける"):
+            reads_root = root.parent / reads.ROOT
+            reads_root.mkdir(exist_ok=True)
+            w = self.tmp / "gone-reader"
+            w.mkdir()
+            gone, kept = reads.open_log(reads_root, w), reads.open_log(reads_root, self.target)
+            w.rmdir()
+            done = self.launch("workflow", "run", "works-factory-line")
+            self.reached(done)
+            self.assertFalse(gone.parent.exists(), "作業の場の無い読んだ証拠の記録が残った")
+            self.assertTrue(kept.parent.exists())
+            self.assertIn("読んだ証拠の記録を 1 件片付けた", done.stderr)
+        with self.subTest("工程を走らせない命令は片付けない"):
+            later = dead_log("gone-later")
+            done = self.launch("workflow", "status")
+            self.reached(done)
+            self.assertTrue(later.exists())
+            self.assertNotIn("片付けた", done.stderr)
+
+    @unittest.skipIf(os.geteuid() == 0, "root は書けないフォルダの中も消せる")
+    def test_write_log_sweep_failure_does_not_stop_the_run(self):
+        """片付けがしくじっても（記録の根が読めない・置き場が消せない）、1 行で言って run は起こす"""
+        root = self.default_home(self.target) / "claude-config" / writelog.ROOT
+        root.mkdir(parents=True)
+        w = self.tmp / "gone-run"
+        w.mkdir()
+        dead = writelog.open_log(root, w)
+        dead.touch()
+        w.rmdir()
+        for mode, said in ((0o000, "書き込みの記録を片付けられなかった"), (0o500, "書き込みの記録を 1 件片付けられなかった")):
+            with self.subTest(mode=oct(mode)):
+                root.chmod(mode)
+                self.addCleanup(root.chmod, 0o700)
+                done = self.launch("workflow", "run", "works-factory-line")
+                root.chmod(0o700)
+                self.reached(done)
+                self.assertIn(said, done.stderr)
+                self.assertIn("run は続ける", done.stderr)
+                self.assertTrue(dead.parent.exists())
 
     def test_child_is_isolated(self):
         env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]

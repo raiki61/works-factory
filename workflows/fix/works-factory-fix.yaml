@@ -1,55 +1,55 @@
 name: works-factory-fix
 description: |
-  修正のブロック。判定と承認済みの修正案の単位を組に分け、組ごとに子の run で直し（TDD の輪と修正役）、直しを親の作業ツリーへ
+  修正のサブグラフ。判定と承認済みの修正案の単位を組に分け、組ごとに子の run で直し（TDD のループと修正役）、直しを親の作業ツリーへ
   戻し、食い違いの申し出を裁き、後始末と変更の確かめの後に、修正だけの差分を審査役とレンズに見せて手直しを 2 往復まで回す。
-  1 つの YAML が 2 つの形で走る。入力 mode が空（既定）は線が include するブロックの形で、組ごとに自分（works-factory-fix）を
+  1 つの YAML が 2 つの形で走る。入力 mode が空（既定）はメイングラフが include するサブグラフの形で、組ごとに自分（works-factory-fix）を
   workflow: と fan_out: で子の run として起こす。子の run の名が先祖の run に在ると Archon が循環として拒むので、
-  この形は線の include の中でだけ回す。mode が group は組 1 つを直す子の run の形で、単独の run でも回る。
-  返す節はどちらの形でも fix（docs/design.md の「ブロックの返りの約束」の fix の返り）。
+  この形はメイングラフの include の中でだけ回す。mode が group は組 1 つを直す子の run の形で、単独の run でも回る。
+  出力ノードはどちらの形でも fix（docs/design.md の「サブグラフの出力の約束」の fix の出力）。
 
 inputs:
   start:
     required: true
-    description: 始めの記録の指し札（線の $start.output.record）
+    description: 始めの記録のポインタ（メイングラフの $start.output.record）
   baseline:
     default: ""
-    description: 直す前の結末の指し札（$test-gate-base.output.baseline）。空・null は実行器の無い run
+    description: 直す前の結末のポインタ（$test-gate-base.output.baseline）。空・null は実行器の無い run
   units:
     required: true
     description: 単位の目録の JSON（$judge.output.units）
   judgment:
     required: true
-    description: 判定の指し札（$judge.output.judgment）
+    description: 判定のポインタ（$judge.output.judgment）
   world:
     default: ""
-    description: 定石の行の指し札（$judge.output.world）
+    description: 定石の行のポインタ（$judge.output.world）
   plan:
     default: ""
-    description: 修正案の指し札（$plan.output.plan。plan-fields.json）。空は修正案の無い run
+    description: 修正案のポインタ（$plan.output.plan。plan-fields.json）。空は修正案の無い run
   ripple:
     default: ""
-    description: 波及の一覧の指し札（$plan.output.ripple）
+    description: 波及の一覧のポインタ（$plan.output.ripple）
   depth:
     default: ""
     description: 単位ごとの深さの JSON の配列（$plan.output.depth）
   answers:
     default: ""
-    description: 修正前の関所の答え（$gate-before-fix.output。飛ばされれば null）
+    description: 修正前の承認ノードの答え（$gate-before-fix.output。飛ばされれば null）
   prior_conflicts:
     default: "null"
-    description: 1 回目の修正の申し出と裁定の指し札（線の include refix-run だけに $fix.output.conflicts）。その先のフォルダの申し出と裁定と TDD の輪の状態を写し、2 回目の段が 1 回目の裁定と凍結を見る。null は 1 回目
+    description: 前の修正の段の申し出と裁定のポインタ（前の段の出力 conflicts。2 度目の修正の段だけに渡す）。その先のフォルダの申し出と裁定と TDD のループの状態を写し、この段が前の段の裁定と凍結を見る。null は 1 回目の段
   plan_review:
     default: "null"
-    description: 事前審査の返答の指し札（$plan-rounds.output.review。refix-run は $replan-review.output.review）。修正役が plan_faces で穴と別案に答え、差分の審査の材料 out.p2.plan_review になる。null は事前審査の無い run
+    description: 事前審査の返答のポインタ（plan-review の出力 review）。修正役が plan_faces で穴と別案に答え、差分の審査の材料 out.p2.plan_review になる。null は事前審査の無い run
   notes:
     default: ""
-    description: 機械の申し送りの文（refix-run だけに $answer-replan.output.fix_notes。採った項目の事前審査の穴のうち人に聞く種類でない物）。修正役と TDD の役の notes_file に足す
+    description: 機械の申し送りの文（案の直しを受けた 2 度目の修正の段だけに渡す、採った項目の事前審査の穴のうち人に聞く種類でない物）。修正役と TDD の役の notes_file に足す
   only_items:
     default: ""
-    description: 案の直しの後の 2 回目の修正（線の include refix）で直す計画の項目の id の JSON の配列。空は直す義務の単位の全部
+    description: 案の直しの後の 2 回目の修正（メイングラフの include refix）で直す計画の項目の id の JSON の配列。空は直す義務の単位の全部
   mode:
     default: ""
-    description: 空はブロックの形（線の include の中だけ）、group は組ごとの子の run
+    description: 空はサブグラフの形（メイングラフの include の中だけ）、group は組ごとの子の run
   group:
     default: ""
     description: 組 1 つの JSON（{group_id, unit_ids, items}。形 group の時に親の fan_out が渡す）
@@ -1155,14 +1155,18 @@ nodes:
         reason: {type: string}
 
   # 単位ごとの TDD の輪（route → 単位ごとに test（赤）→ fix（緑）→ refactor）。赤・緑は tdd-step が JUnit XML で機械が決める。
-  # 単位が替わる周だけ新しい会話にする口が Archon に無いので、周ごとに新しい会話にし、前の周の引き継ぎは指示書が渡す
+  # 同じ単位の段は 1 つの会話で続け、単位が替わる周だけ新しい会話にする（元 blk-fix.yaml:142・:157 の fresh_context: false と
+  # 包みが単位の鍵で会話を切る tddloop.py:880 write_key）。Archon は fresh_context: false の輪で前の周の最後の会話を次の周の体の
+  # AI の節へ渡し、節の context: fresh だけがそれを切る（止めた Archon の dag-executor.ts の lastSequentialSession）。tdd-prep が
+  # 単位が替わったかを new_unit で返し、続きの役 tdd と新しい単位の役 tdd-new を when: で振り分ける。並んだ層（2 つ以上の節の層）は
+  # 会話を渡さないので、tdd-new は tdd の後ろの層に置く。前の単位の物は指示書の引き継ぎの節でも渡す
   - id: tdd-loop
     depends_on: [group-start]
     when: "$group-start.output.tdd == true"
     timeout: 1728000000
     loop_group:
       max_iterations: 40
-      fresh_context: true
+      fresh_context: false
       until_bash: done=$tdd-step.output.done; test "$done" = true
       nodes:
         - id: tdd-prep
@@ -1173,24 +1177,26 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [prompt_file, go]
+            required: [prompt_file, go, new_unit]
             properties:
               prompt_file: {type: string}
               go: {type: boolean}
+              new_unit: {type: boolean}   # 前の周と単位（振り分けの段は route）が替わった周（tdd-new が新しい会話で起きる）
 
+        # 同じ単位の続き（前の周の会話を継ぐ）。字・道具・skills は tdd-new と同じ（anchor）
         - id: tdd
-          description: 'TDD の役（今の単位を直す）'
-          model: sonnet
-          effort: high
-          prompt: 指示書 `$tdd-prep.output.prompt_file` を Read で毎回全部読み（回ごとに中身が替わる）、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
+          description: 'TDD の役（今の単位を直す。同じ単位の続き）'
+          model: &tdd_model sonnet
+          effort: &tdd_effort high
+          prompt: &tdd_prompt 指示書 `$tdd-prep.output.prompt_file` を Read で毎回全部読み（回ごとに中身が替わる）、その指示に従え。返すのは指示書の「返す JSON」の形の JSON だけ。
           depends_on: [tdd-prep]
-          when: "$tdd-prep.output.go == true"
-          settingSources: [user]
-          skills: [test-driven-development]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          when: "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == false"
+          settingSources: &tdd_sources [user]
+          skills: &tdd_skills [test-driven-development]
+          allowed_tools: &tdd_tools [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
+          sandbox: &tdd_sandbox {enabled: true, allowUnsandboxedCommands: false}
           idle_timeout: 1728000000
-          output_format:
+          output_format: &tdd_reply
             type: object
             additionalProperties: false
             required: [phase]
@@ -1252,14 +1258,32 @@ nodes:
                     path: {type: string, minLength: 1}
                     why: {type: string, minLength: 10}
 
+        # 新しい単位（1 周目と単位が替わる周。新しい会話）。tdd の後ろの層（同じ層に置くと Archon は並んだ層として会話を切る）
+        - id: tdd-new
+          description: 'TDD の役（今の単位を直す。新しい単位）'
+          model: *tdd_model
+          effort: *tdd_effort
+          prompt: *tdd_prompt
+          depends_on: [tdd-prep, tdd]
+          trigger_rule: none_failed_min_one_success
+          when: "$tdd-prep.output.go == true && $tdd-prep.output.new_unit == true"
+          context: fresh
+          settingSources: *tdd_sources
+          skills: *tdd_skills
+          allowed_tools: *tdd_tools
+          sandbox: *tdd_sandbox
+          idle_timeout: 1728000000
+          output_format: *tdd_reply
+
         - id: tdd-step
           script: tdd_step
           runtime: uv
-          depends_on: [tdd-prep, tdd]
+          depends_on: [tdd-prep, tdd, tdd-new]
           trigger_rule: none_failed_min_one_success
           timeout: 1728000000
           with:
             reply: {from: "$tdd.output", if_skipped: null}
+            reply_new: {from: "$tdd-new.output", if_skipped: null}
           output_format:
             type: object
             additionalProperties: false
@@ -1297,7 +1321,7 @@ nodes:
               iteration: {type: integer, minimum: 1}
 
         - id: fixer
-          description: '修正役: TDD の輪で直していない単位を直す'
+          description: '修正役: TDD のループで直していない単位を直す'
           model: sonnet
           effort: high
           prompt: 指示書 `$fix-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書が名指す欄の JSON だけ。
@@ -1373,6 +1397,26 @@ nodes:
       properties:
         result_file: {type: string}
 
+  # 読んだ証拠（受け付けの条件にしない。返す節に結ばない）。修正役（組の子の run）と裁定の後の修正役（ブロックの形）が、機械が
+  # 渡したパス（指示書・判定の写し・brief）を読んだかを、フックの記録から集めて置き場の reads-<役>.json と索引に書く。前の節が
+  # 落ちても飛ばされても走り、落ちない
+  - id: fix-reads
+    script: fix_reads
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [fix-loop, fix-ruled-loop]
+    trigger_rule: all_done
+    timeout: 1728000000
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, missing, index_file, reason]
+      properties:
+        ok: {type: boolean}
+        missing: {type: array, items: {type: string}}
+        index_file: {type: string}
+        reason: {type: string}
+
   # ---- 返す節（両方の形） ----
 
   # 前の節の返りを with: で束ねず、各節が置き場に書いたファイルを読んで返りの約束の欄を組む。前の節が落ちても飛ばされても走り、
@@ -1381,13 +1425,14 @@ nodes:
     script: collect
     runtime: uv
     mutates_checkout: false
-    depends_on: [route, prep, join, tdd-unit, conflict-check, rule-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end]
+    depends_on: [route, prep, join, tdd-unit, conflict-check, rule-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end, fix-reads]
     trigger_rule: all_done
     timeout: 1728000000
     output_format:
       type: object
       additionalProperties: false
-      required: [done, units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, x_scalars, delta_review]
+      required: [done, units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, x_scalars, delta_review,
+                 handoffs, mismatched]
       properties:
         done: {type: boolean}
         units:
@@ -1449,3 +1494,6 @@ nodes:
           properties:
             rounds: {type: integer, minimum: 0, maximum: 2}
             pass: {type: boolean}
+        # 最後の承認ノードを開ける理由の 2 欄（修正役が人に回した物・申告と数え直しが合わない単位）
+        handoffs: {type: array, items: {type: string}}
+        mismatched: {type: array, items: {type: string}}

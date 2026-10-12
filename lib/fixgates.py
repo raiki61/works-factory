@@ -48,7 +48,7 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
 飛ばした理由は拒まない（受け付けの回数を使わない）が、見えなくしない: 受け付けが受けた時に unchecked(…)（skipped から
 OUT_OF_DUTY を除いた物。義務の外の項目は確かめる物でなく、ほかの項目は確かめた）を置き場の trace の SKIPPED_OP の行に載せ
 （呼び手が fixboard.trace で書く）、報告と最後の人の関所の文が「確かめずに通した」回を数える。OUT_OF_DUTY は帳面にだけ残る。
-期限は持たない（実行器は baseline_red.run_suite が tree_run.run で走らせる。元の枠と nice は外れた）。
+期限は持たない（実行器は baseline_red.run_suite が nice -n 19 の頭で tree_run.run で走らせる。元の枠は外れた）。
 """
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ LEDGER = "fix-gates.json"
 SECTIONS = ("rows", "skipped", "guards")   # 帳面の節（読み込み・組み直し・積み増しの数えは全部これを回る）
 GATES = ("red_green", "test_edits")
 NO_SUITE = "テストの実行器（入力 tdd_suite）が無い run——受け入れのテストの事後の赤緑は確かめない"
-REJECT = "修正の後の木に、輪の中の関門が通さない物が在る（事後の関門の束）: "
+REJECT = "修正の後の木に、ループの中の関門が通さない物が在る（事後の関門の束）: "
 REDO = ("——red_green の行を全部直してから、返答を丸ごと出し直せ（受け入れのテストは base で failure の赤・今の木で緑。"
         "案の前提が誤りなら conflicts で申し出よ）")   # 出し直しの頼みは成り立たない行（red_green）にだけ。test_edits の行は相談に回る（overflow_asks）
 NO_RUN = "受け入れのテストの事後の赤緑を確かめられない"   # skipped の頭（実行器が走らない・base の木を作れない）
@@ -81,7 +81,7 @@ OUT_OF_DUTY = "直す義務の外の単位（止めた・答え待ち・人に�
 SKIPPED_OP = impact.ACCEPT_GATES_SKIPPED_OP   # 受けた受け付けの回に飛ばした理由を載せる置き場の trace の行（報告が数える）
 BASE_CACHE = "fixgates-base.json"   # base の木の結末の控え {鍵: JUnit の行か null}（_base_keys。置き場の根）
 RUN = "gates"   # 一式のログ・JUnit の名（suite-gates-<回>-now.log・…-base.log・…-red-<n>.log）
-RED_TREE_HEAD = "輪の赤の木で "   # 赤の木で走らせ直した名指しの行の detail の頭（base の木の行は『base で 』）
+RED_TREE_HEAD = "ループの赤の木で "   # 赤の木で走らせ直した名指しの行の detail の頭（base の木の行は『base で 』）
 
 
 def problems(board_dir, repo, base_rev: str, suite: str, attempt: int, *, pass_: str = "first", state=None,
@@ -301,7 +301,7 @@ def _red_green(repo: pathlib.Path, rev: str, suite: str, tests: list, work: path
         return [], [f"{NO_RUN}（今の木で実行器が走らない: {'; '.join(why)}）"], []
     red, why = _red_tree_probs(repo, rev, suite, [i for i in ids if tddloop._norm_id(i) in (loop or {})], loop or {}, work, cache)
     if red is None:
-        return [], [f"{NO_RUN}（輪の赤の木: {'; '.join(why)}）"], []
+        return [], [f"{NO_RUN}（ループの赤の木: {'; '.join(why)}）"], []
     copy = sorted(set(_test_files(repo, rev, tree, ids)) | {tddloop.id_path(i) for i in ids})
     keys = _base_keys(repo, rev, suite, ids, copy)
     seen = tddloop.load_json(cache, {})

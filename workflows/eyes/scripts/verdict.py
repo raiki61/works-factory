@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """ブロックの返す節。返った節が置き場の eyes/ に書いたファイルを読み、lib の eyeverdict.collect でまとめる。返りの欄の外で
-最後の関所に出す材料（eyeverdict.write_notes）も置き場に書き、返りの notes でその premise-inputs.json を指す（隣の gate-passes.json・
+最後の関所に出す材料（eyeverdict.write_notes）も置き場に書き、返りの notes でその premise-inputs.json を指す（隣の r4-gate-passes.json・
 premise-check.json と一緒に、最後の関所と報告が読む約束の隣のファイル。書けなかった道は null）。
 決して落ちない: 境の口と lib を読む所から中の誤りを全部捕まえ、ok: false と r1〜r4 の unverifiable（理由に誤りの 1 行）を返す"""
 import json
@@ -33,7 +33,7 @@ try:
     protected = eyeverdict.read_json(eyes / "protected.json")
     prep = eyeverdict.read_json(eyes / "prep.json")
     if prep is None:
-        out = eyeverdict.unverified("支度の節（prep か、その前の直しの後の実測）が落ちた", protected)
+        out = eyeverdict.unverified("支度のノード（prep か、その前の直しの後の実測）が落ちた", protected)
     else:
         design_ptr = json.loads(os.environ["INPUTS_DESIGN"])
         design_file = boundary.resolve(design_ptr) if design_ptr else None
@@ -50,8 +50,8 @@ try:
 except Exception as e:  # noqa: BLE001  返す節は落ちない（落ちると線が先へ進めない）
     why = f"出口が落ちた: {type(e).__name__}: {e}"
     out = eyeverdict.unverified(why, protected) if eyeverdict else fallen(why)
-try:   # boundary.returns と同じ形（境の口を読めなかった時も返す）。Archon の JSON.parse が読めない NaN・Infinity は落ちた返りにする
-    text = json.dumps(out, ensure_ascii=False, allow_nan=False)
+try:   # Archon の JSON.parse が読めない NaN・Infinity は落ちた返りにする
+    print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
 except ValueError as e:
-    text = json.dumps(fallen(f"出口が落ちた: 返りが JSON に書けない: {e}"), ensure_ascii=False)
-print(text, flush=True)
+    print(json.dumps(fallen(f"出口が落ちた: 出力が JSON に書けない: {e}"), ensure_ascii=False, allow_nan=False),
+          flush=True)

@@ -6,8 +6,8 @@
 
 支度が go: false で役を起こさなかった（with: reply が null）時は、受ける物が無いので done: true。返答が在れば、義務の key に
 1 度ずつ答えたかを照らし（fixboard.delta_fix_problems）、run の始めの木からの変更のうち修正の段が触ったファイルの外を承認済みの
-修正案の項目の範囲で照らして外れを拒み（planrange.check_paths）、書き込みの出どころ（段の頭の木からの変更が全部 handled[].files か bash_writes に在るか。未決 U6。と writes の記録）を照らして
-受ける（refix.accept_fix。除くパスの頭 fixio.SKIP）。拒否は理由のファイルを置いて done: false、3 回目の拒否で done: true（諦め）。
+修正案の項目の範囲で照らして外れを拒み（planrange.check_paths）、書き込みの出どころ（段の頭の木からの変更が全部 handled[].files か bash_writes に在るか。U6 の狭め。と writes の記録）を照らして
+受ける（refix.accept_fix。除くパスの頭 boundary.SKIP）。拒否は理由のファイルを置いて done: false、3 回目の拒否で done: true（諦め）。
 返り {ok, done, reason, reason_file}。回す側の誤り（返答・回の番号が読めない・修正案の欄の控えが壊れた）は標準エラーに 1 行で非 0。
 """
 import functools
@@ -19,10 +19,10 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 import fixboard  # noqa: E402
 import refix  # noqa: E402
 import rolekit  # noqa: E402
+import writelog  # noqa: E402
 
 N = 2
 NAME = "refix2-accept"
@@ -38,12 +38,12 @@ def main() -> None:
     reply, why = rolekit.parse_reply(raw)
     if reply is None:
         raise ValueError(why)
-    place, repo = fixio.place(), fixio.repo()
+    place, repo = boundary.place("fix"), boundary.work_tree()
     bad = fixboard.delta_fix_problems(place, N, reply) + fixboard.undeclared_refix(
-        reply, repo, fixboard.stage_head(place, fixboard.REFIX_HEAD_FILE.format(N)), skip=fixio.SKIP)
+        reply, repo, fixboard.stage_head(place, fixboard.REFIX_HEAD_FILE.format(N)), skip=boundary.SKIP)
     got = {"ok": False, "reason": "手直しの返答の照らしに通らない:\n" + "\n".join(f"  - {x}" for x in bad)} if bad else \
         refix.accept_fix(reply, place, fixboard.start_tree(place), repo, n=N,
-                         items=functools.partial(fixboard.place_items, place), skip=fixio.SKIP, log=fixio.writes_log())
+                         items=functools.partial(fixboard.place_items, place), skip=boundary.SKIP, log=writelog.log_here())
     out = fixboard.accept_out(place, NAME, got)
     fixboard.trace(place, "refix_accepted" if out["ok"] else "refix_rejected", node=NAME, iteration=iteration,
                    done=out["done"])

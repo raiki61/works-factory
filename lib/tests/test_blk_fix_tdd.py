@@ -219,6 +219,35 @@ class TestStart(LoopCase):
         self.assertIn("`test-driven-development`", full)
         self.assertIn((seat.BORROW_DIR / seat.OVERLAY_FILE).read_text(encoding="utf-8").strip(), full)
 
+    def test_prep_marks_a_new_unit_only_when_the_unit_changes(self):
+        """支度の返りの new_unit は、前の周の支度と単位の鍵（振り分けの段は route、ほかの段は今の単位）が違う周だけ真（YAML が
+        新しい会話の役と続きの役を振り分ける。元 works/blk-fix/lib/tddloop.py:880 write_key の鍵と同じ切れ目）。拒まれた出し直し・
+        同じ単位の次の段は偽、単位が替われば真"""
+        def new_unit():
+            return tddloop.prep(self.state)["new_unit"]
+        self.assertTrue(new_unit(), "1 周目は新しい会話")
+        self.assertFalse(new_unit(), "同じ振り分けの段の出し直し")
+        self.route(clamp="tdd")
+        self.assertTrue(new_unit(), "振り分けから単位の段へ")
+        self.assertFalse(self.step({"phase": "test", "unit_key": MEAN, "test_files": [], "tests": []})["ok"])
+        self.assertFalse(new_unit(), "拒まれた出し直しは同じ会話")
+        self.red()
+        self.assertFalse(new_unit(), "同じ単位の次の段（fix）は同じ会話")
+        self.fix_mean()
+        self.assertEqual(self.st()["queue"][self.st()["cur"]], CLAMP)
+        self.assertTrue(new_unit(), "次の単位は新しい会話")
+
+    def test_seat_failure_stops_with_broken(self):
+        """座を組めない（写しが固定と違う）時は座の無い指示書に逃げず Broken で止め、指示書を書かない
+        （元 works/blk-fix/lib/tddloop.py:807 prep、旧試験 works/tests/test_blk_fix_tdd.py:536 test_tdd_seat_failure_stops_with_broken）"""
+        import seat
+        with mock.patch.object(seat, "section", side_effect=ValueError("写しが固定と違う")):
+            with self.assertRaises(tddloop.Broken) as got:
+                tddloop.prep(self.state)
+        self.assertIn("座を組めない", str(got.exception))
+        self.assertIn("写しが固定と違う", str(got.exception))
+        self.assertFalse((pathlib.Path(self.st()["work"]) / tddloop.PROMPT).exists(), "座の無い指示書を書かない")
+
     def test_prompt_is_composed_from_the_shared_rules(self):
         """tdd-prep の指示書: 修正の決まりの正本の核・TDD の読み替え・今の段の約束（今の段だけ）・今の段の指示。next.md は毎回
         決まりを全部載せる（全文版・差分版の控えは書かない）"""
@@ -227,7 +256,7 @@ class TestStart(LoopCase):
         out = tddloop.prep(self.state, {"judgment_file": "/b/j.json"}, self.repo)
         prompt = pathlib.Path(out["prompt_file"])
         full = prompt.read_text(encoding="utf-8")
-        for s in (core, fixrules.sections(fixrules.SHARED)["core-keep"], "## この輪での読み替え", "- **route**:",
+        for s in (core, fixrules.sections(fixrules.SHARED)["core-keep"], "## このループでの読み替え", "- **route**:",
                   "## この段ですること", "`/b/j.json`"):
             self.assertIn(s, full)
         self.assertNotIn("- **test**:", full, "今の段の約束だけ")
@@ -256,6 +285,23 @@ class TestStart(LoopCase):
     def test_second_start_gets_its_own_state(self):
         again = tddloop.start(self.board, self.repo, str(self.suite), OPEN)
         self.assertNotEqual(again["state_file"], self.state)
+
+    def test_head_reuses_the_green_baseline_of_the_same_run(self):
+        """元 works/blk-fix/lib/tddloop.py:598 の run_suite(note=reuse["suite"]): 同じ run の中で同じ木の輪の頭は、緑の元の結末を
+        控えから使い回して実行器を起こさない（JUnit は書き戻すので元の結末は同じ）。出どころは状態の reused.suite に出る（tdd の出口の reused に載る）"""
+        import tree_run
+        count = self.board.parent / "suite-count"
+        green = self.board.parent / "green.py"
+        green.write_text(f"import sys\nopen({str(count)!r}, 'a').write('1\\n')\nopen(sys.argv[1], 'w').write("
+                         "'<testsuite><testcase classname=\"c\" name=\"t\"/></testsuite>')\n", encoding="utf-8")
+        place = tree_run.reuse_place(self.board.parent, "run-1", rerun=False)
+        first = tddloop.start(self.board, self.repo, str(green), OPEN, reuse=place)
+        again = tddloop.start(self.board, self.repo, str(green), OPEN, reuse=place)
+        states = [json.loads(pathlib.Path(s["state_file"]).read_text(encoding="utf-8")) for s in (first, again)]
+        self.assertEqual(len(count.read_text(encoding="utf-8").split()), 1)
+        self.assertEqual(states[1]["baseline"], {"c::t": "passed"})
+        self.assertEqual(states[0]["reused"], {})
+        self.assertIn("run run-1", states[1]["reused"]["suite"])
 
     def test_tdd_prep_puts_brief_of_current_unit(self):
         """振り分けの段は直す義務の単位の全部の brief、ほかの段は今の単位の brief だけを頭で名指す"""
@@ -476,6 +522,26 @@ class TestUnitLoop(LoopCase):
         ruler = "\n".join(fixrules.sections("ruler.md").values())
         self.assertIn(conflict.GAVE_UP_SOURCE, ruler, "裁定役の指示書は機械の申し出を出どころの欄 source で名指す")
         self.assertNotIn(tddloop.GAVE_UP_WHY, ruler, "理由の頭の文の写しで見分けない")
+
+    def test_role_claim_and_machine_give_up_carry_their_sources(self):
+        """役の申し出（phase conflict）は source tdd、3 回拒まれて機械が止めた単位の申し出は source tdd-gave-up で未送に積まれ、
+        flush_unsent が積む口にその欄のまま渡す（理由の文の写しでなく欄で見分ける。元 works/.shared/core/conflict.py:138-141、
+        旧試験 works/tests/test_blk_fix_tdd.py:690 test_red_give_up_parks_machine_claim_with_source）"""
+        self.route(clamp="tdd")
+        got = self.step({"phase": "conflict", "unit_key": MEAN, "between": ["stats.py:9", "test_stats.py:9"],
+                         "why_both_cannot_hold": "期待値と依頼の分母が食い違い、どちらを正とするか決められない",
+                         "which_is_right": "unknown", "kind": "needs_context"})
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(self.st()["queue"][self.st()["cur"]], CLAMP)
+        for _ in range(tddloop.retry_max()):
+            got = self.step({"phase": "test", "unit_key": CLAMP, "test_files": [], "tests": []})
+            self.assertFalse(got["ok"])
+        self.assertTrue(got["done"])
+        parked = []
+        tddloop.flush_unsent(self.state, parked.extend)
+        self.assertEqual([(r["source"], r["item"]["unit_key"]) for r in parked],
+                         [(conflict.TDD_SOURCE, MEAN), (conflict.GAVE_UP_SOURCE, CLAMP)])
+        self.assertEqual(self.st()[tddloop.UNSENT], [], "渡せた行は未送から外す")
 
     def test_give_up_reads_briefs_before_moving_tree(self):
         """止める前に置き場の brief を読む。読めずに落ちた周は、作業ツリーを単位の頭に戻さず、状態も進めない"""
@@ -1214,8 +1280,8 @@ class TestOneItemTwoUnits(ContractCase):
         self.assertIn(MEAN, c["why"], "どの単位の段で一緒に直したかを残す")
         self.assertEqual(st["units"][CLAMP]["covered_by"], [MEAN])
         summary = pathlib.Path(self.start["summary_file"]).read_text(encoding="utf-8")
-        done = summary.split("## 輪で直した単位", 1)[1].split("\n## ", 1)[0]
-        self.assertIn(f"- {CLAMP}", done, "閉じた単位は輪で直した単位に並ぶ（direct に並べない）")
+        done = summary.split("## ループで直した単位", 1)[1].split("\n## ", 1)[0]
+        self.assertIn(f"- {CLAMP}", done, "閉じた単位はループで直した単位に並ぶ（direct に並べない）")
         self.assertEqual(tddloop.frozen_problems(self.state, self.repo), [])
 
     def test_later_unit_is_not_closed_when_its_tests_are_not_verified(self):
@@ -1509,6 +1575,44 @@ class TestTestCmdGate(LoopCase):
 
     def test_unit_not_named_runs_test_cmd(self):
         self.standard_mean_rejected(json.dumps({CLAMP: "軽量"}))
+
+    def test_test_cmd_is_niced(self):
+        """run の test_cmd も実行器と同じ口（baseline_red.lowered）で優先度を下げて起こす（元 works/.shared/core/entry.py:680 の
+        _nice19）。argv は command_argv の形のまま"""
+        seen = []
+        log = pathlib.Path(self.st()["work"]) / "test-cmd-niced.log"
+        with mock.patch.object(tddloop.tree_run, "run", side_effect=lambda argv, **kw: seen.append((argv, kw)) or 0):
+            mat = tddloop._cmd_material(self.repo, self.lint(), log)
+        self.assertEqual(mat["status"], "clean", mat)
+        self.assertEqual([(argv, kw.get("preexec_fn")) for argv, kw in seen],
+                         [(tddloop.tree_run.command_argv(self.lint())[0], tddloop.baseline_red.nice19)])
+
+    def test_shell_test_cmd_that_cannot_launch_is_not_run_under_nice(self):
+        """shell の形の test_cmd の先頭の語が無ければ、優先度を下げても起こす前の証明（tree_run.prove_launchable）を通らず
+        not_run（証明を飛ばすと exit 127 の赤やパイプの後ろの緑に化ける）"""
+        log = pathlib.Path(self.st()["work"]) / "test-cmd-missing.log"
+        for cmd in ("no_such_cmd_xyz --x | cat", "no_such_cmd_xyz --x"):
+            with self.subTest(cmd=cmd):
+                mat = tddloop._cmd_material(self.repo, cmd, log)
+                self.assertEqual(mat["status"], "not_run", mat)
+                self.assertIn("no_such_cmd_xyz", mat["reason"])
+
+    def test_command_only_on_the_uv_run_path_is_not_run(self):
+        """起こせるかの証明は走らせる時と同じ環境で行う: 実行基盤は script を uv run で起こし、uv は PATH の頭に自分の python の bin
+        を足すが、test_cmd には外した環境（tree_run.outside_env）を渡す。そこにしか無い語（uv の下の python など）を先頭に持つ
+        shell の形の test_cmd は、パイプの後ろが緑でも clean でなく not_run（review が再現した `python … | cat` の偽の clean）"""
+        uv_bin = pathlib.Path(self._tmp.name) / "uv-bin"
+        uv_bin.mkdir()
+        only = uv_bin / "only_on_uv_path"
+        only.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        only.chmod(0o755)
+        env = {"PATH": f"{uv_bin}{os.pathsep}{os.environ.get('PATH', '')}", "UV_RUN_RECURSION_DEPTH": "1"}
+        log = pathlib.Path(self.st()["work"]) / "test-cmd-uv.log"
+        with mock.patch.dict(os.environ, env), mock.patch.object(tddloop.tree_run.sys, "executable", str(uv_bin / "python3")):
+            self.assertIsNotNone(__import__("shutil").which("only_on_uv_path"), "この process からは見える")
+            mat = tddloop._cmd_material(self.repo, "only_on_uv_path --x | cat", log)
+        self.assertEqual(mat["status"], "not_run", mat)
+        self.assertIn("only_on_uv_path", mat["reason"])
 
     def test_unit_depths_of_wrong_shape_is_broken(self):
         for raw in ("{", "[]", json.dumps({MEAN: 1})):
@@ -1969,7 +2073,7 @@ class TestResume(LoopCase):
     def test_done_loop_ends_without_the_role(self):
         self.done_loop()
         before = self.snap()
-        self.assertEqual(tddloop.prep(self.state), {"prompt_file": "", "go": False})
+        self.assertEqual(tddloop.prep(self.state), {"prompt_file": "", "go": False, "new_unit": False})
         got = self.step(None)
         self.assertEqual((got["ok"], got["done"], got["phase"], got["reason"]), (True, True, "done", ""), got)
         self.assertEqual(self.snap(), before, "済んだ輪の周は状態と作業ツリーを動かさない")

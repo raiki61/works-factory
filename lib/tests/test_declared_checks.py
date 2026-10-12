@@ -3,14 +3,16 @@ docstring に元の試験の名を書く（見比べられるように）。元�
 tests/test_blk_tests_delta.py（TestTestsModes）。
 
 対象のリポジトリは tests/e2e/target-seed/ の写し（committed_copy）。宣言の段は子のプロセスを本当に起こす（この Python）。
-盤面の記録（process.checks）・同じ run の中の控え（slotted_run・reused）・任せ先に落ちた後の test_cmd の使い回しの場合は、
-その仕組みを持ってこないので写さない。
+盤面の記録（process.checks）と機械全体の試験の枠（slotted_run の slotwrap.sh）の場合は、その仕組みを持ってこないので写さない。
+同じ run の中の控えの使い回し（ReuseCase）と、任せ先に落ちた後の test_cmd の使い回し（RunEngineCase）は盤面なしで書き直した。
 """
 import json
 import os
 import pathlib
+import shlex
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -23,6 +25,7 @@ import checkscope  # noqa: E402
 import declared_checks as dc  # noqa: E402
 import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
+import tddloop  # noqa: E402
 import tree_run  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 
@@ -38,7 +41,7 @@ MISSING = "works-no-such-command-4f1c"
 def fake_runner(calls, batches=None):
     """子のプロセスを起こさない runner: tree_runner と同じく log_dir/<段の番号>.out・.err を書く。argv に 'exit 1' で exit 1。
     calls に段の argv を、batches に呼ばれた 1 回ごとの段の名を積む（元 test_ci_test_cmd.py の _runner）"""
-    def run(steps, cwd, log_dir):
+    def run(steps, cwd, log_dir, **_):
         if batches is not None:
             batches.append([s["name"] for s in steps])
         log_dir = pathlib.Path(log_dir)
@@ -76,9 +79,9 @@ class RepoCase(unittest.TestCase):
     def scope(self, scope):
         (self.repo / checkscope.SCOPE_DECL).write_text(json.dumps(scope), encoding="utf-8")
 
-    def run_ci(self, test_cmd="", *, changed=None, after_judge=False, report=True):
+    def run_ci(self, test_cmd="", *, changed=None, after_judge=False, report=True, reuse=None):
         return dc.run_ci(self.repo, test_cmd=test_cmd, log_dir=self.work / "logs", changed=changed, after_judge=after_judge,
-                         report_dir=self.work / "junit" if report else None)
+                         report_dir=self.work / "junit" if report else None, reuse=reuse)
 
 
 class RunCiTestCmdRulesCase(RepoCase):
@@ -199,6 +202,22 @@ class SuitesLineCase(unittest.TestCase):
                 self.assertNotIn("環境で起こせなかった", line)
                 self.assertFalse(dc.env_only_red(tests))
 
+    def test_role_status_words(self):
+        """元 entry.suites_line の書き分け: 任せ先の役の素材が clean・found なら役が選んだ一式を走らせたと書き、ほかの status・素材が
+        無い・役がまだ渡していない回は走らせなかった側に書く。宣言が読めない engine と、test_cmd の段が無い engine も名指す"""
+        role = {"by": "role_needed", "suites": []}
+        for status, ran, unran in (
+                ("clean", "任せ先の CI の役 blk-ci が選んだ一式（素材の status clean）", "無い"),
+                ("found", "任せ先の CI の役 blk-ci が選んだ一式（素材の status found）", "無い"),
+                ("not_run", "無い", f"宣言の段・{dc.TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせなかった: 素材の status not_run）"),
+                ("", "無い", f"宣言の段・{dc.TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせなかった: 素材の status 無い）"),
+                (None, "無い", f"宣言の段・{dc.TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせる）")):
+            with self.subTest(status=status):
+                self.assertEqual(dc.suites_line(role, role_status=status), f"走らせた: {ran}／走らせなかった: {unran}")
+        self.assertIn(f"宣言の段・{dc.TEST_CMD_STEP}（宣言が読めないので engine が走らせなかった）",
+                      dc.suites_line({"by": "engine", "suites": []}))
+        self.assertIn(f"{dc.TEST_CMD_STEP}（渡されていない）", dc.suites_line({"by": "engine", "suites": [{"name": "suite", "exit": 0}]}))
+
     def test_unlaunched_direct_step_names_how_to_wrap_in_bash(self):
         """元 LaunchKindCase.test_unlaunched_direct_step_names_how_to_wrap_in_bash（行の分）"""
         tests = {"by": "engine", "suites": [{"name": dc.TEST_CMD_STEP, "exit": None, "how": "direct", "launch": "broken"}]}
@@ -265,7 +284,7 @@ class CmdMaterialCase(unittest.TestCase):
                     m = dc.local_checks_material(self.tmp, cmd, self.log)["material"]
                 self.assertEqual((seen, m["status"]), ([argv], "clean"))
                 steps = []
-                dc._with_test_cmd(lambda s, *_: steps.extend(s) or [], cmd, {})([], self.tmp, self.tmp)
+                dc._with_test_cmd(lambda s, *_, **__: steps.extend(s) or [], cmd, {})([], self.tmp, self.tmp)
                 self.assertEqual(steps, [{"name": dc.TEST_CMD_STEP, "argv": argv, "how": how}])
 
     def test_empty_test_cmd_is_not_run_without_launching(self):
@@ -391,11 +410,95 @@ class RunEngineCase(RepoCase):
     def test_broken_declaration_is_blocked_without_running(self):
         """元 test_blocked_builds_reply_without_running: 宣言の書式の誤りは走らせず、走らせられない素材に誤りを書く"""
         (self.repo / dc.DECL_NAME).write_text('{"suite": []}', encoding="utf-8")
-        with mock.patch.object(dc, "tree_runner", never):
-            got = self.run_ci(after_judge=True)
-        self.assertEqual((got["by"], got["material"]["status"], got["runs"]), ("engine", "not_run", []))
-        self.assertIn(dc.DECL_NAME, got["material"]["reason"])
-        self.assertIn("走らせなかった", pathlib.Path(got["log"]).read_text(encoding="utf-8"))
+        for after_judge, status in ((False, "awaiting_human"), (True, "not_run")):
+            with self.subTest(after_judge=after_judge), mock.patch.object(dc, "tree_runner", never):
+                got = self.run_ci(after_judge=after_judge)
+                self.assertEqual((got["by"], got["material"]["status"], got["runs"]), ("engine", status, []))
+                self.assertIn(dc.DECL_NAME, got["material"]["reason"])
+                self.assertIn("走らせなかった", pathlib.Path(got["log"]).read_text(encoding="utf-8"))
+
+
+    def rewriting_step(self, once: bool) -> dict:
+        """走ると宣言のファイルに段を 1 つ足して書き換える段（対象の木の外の script）。once なら 1 度目だけ書き換える"""
+        script = self.tmp / "rewrite.py"
+        script.write_text(
+            "import json, os, sys\n"
+            f"mark = {str(self.tmp / 'rewrote')!r}\n"
+            f"if {once!r} and os.path.exists(mark):\n    sys.exit(0)\n"
+            "open(mark, 'a').write('1')\n"
+            f"path = {str(self.repo / dc.DECL_NAME)!r}\n"
+            "doc = json.load(open(path))\n"
+            f"doc['suite'].append({{'name': 'added%d' % len(doc['suite']), 'argv': [{PY!r}, '-c', 'pass']}})\n"
+            "json.dump(doc, open(path, 'w'))\n", encoding="utf-8")
+        return {"name": "suite", "argv": [PY, str(script)]}
+
+    def test_declaration_changed_after_plan_is_replanned_once(self):
+        """元 entry.run_ci の relaunch: 走らせた段が宣言を書き換えたら（計画の sha と違う）計画し直して 1 度だけ走らせ直す。素材は
+        書き換えた後の宣言から組み、前の走りのログは上書きしない"""
+        self.decl([self.rewriting_step(once=True)])
+        got = self.run_ci()
+        self.assertEqual([r["name"] for r in got["runs"]], ["suite", "added1"])
+        self.assertEqual(got["material"]["status"], "clean")
+        self.assertIn(f"sha {dc.declared.read(self.repo)['sha'][:12]}", got["material"]["checked"])
+        self.assertTrue((self.work / "logs" / "1.out").is_file())
+        self.assertTrue((self.work / "logs" / "replan" / "2.out").is_file())
+
+    def test_declaration_changing_twice_is_refused(self):
+        """元 entry.run_ci の relaunch の 2 度目: 計画し直しても宣言がまた変われば CiRefused（止める理由に宣言の名）"""
+        self.decl([self.rewriting_step(once=False)])
+        with self.assertRaises(dc.CiRefused) as cm:
+            self.run_ci()
+        self.assertIn("2 度変わった", str(cm.exception))
+        self.assertIn(dc.DECL_NAME, str(cm.exception))
+
+    def test_clean_names_declaration_sha_and_steps(self):
+        """元 review-loop.py の checks_reply の clean: 何を根拠にした緑かを残す——走らせた宣言の sha の頭 12 字と段ごとの終了コードと秒"""
+        self.decl(GREEN)
+        checked = self.run_ci()["material"]["checked"]
+        self.assertIn(f"sha {dc.declared.read(self.repo)['sha'][:12]}", checked)
+        self.assertIn("suite: exit 0（", checked)
+
+    def all_materials(self):
+        """run_ci の道ごとの (名, after_judge, 返り): engine の clean・found・宣言の誤り・起こせない段・JUnit の走らなかった段・範囲で外した段、
+        by role の clean・found・起こせない test_cmd"""
+        missing = [self.tmp / "no-such-command"]
+        cases = [("clean", GREEN, ""), ("found", RED, ""), ("broken", '{"suite": []}', ""),
+                 ("unlaunchable", [{"name": "suite", "argv": [str(m) for m in missing]}], ""),
+                 ("unran", [self.reported_step("", 0)], ""), ("scoped", SCOPED, ""),
+                 ("role clean", None, "true"), ("role found", None, "exit 2"), ("role unlaunchable", None, f"{MISSING} -q")]
+        for name, steps, cmd in cases:
+            for after_judge in (False, True):
+                (self.repo / dc.DECL_NAME).unlink(missing_ok=True)
+                (self.repo / checkscope.SCOPE_DECL).unlink(missing_ok=True)
+                if isinstance(steps, str):
+                    (self.repo / dc.DECL_NAME).write_text(steps, encoding="utf-8")
+                elif steps is not None:
+                    self.decl(steps)
+                if name == "scoped":
+                    self.scope(SCOPE)
+                yield name, after_judge, self.run_ci(cmd, changed=lambda: ["works/a.py"], after_judge=after_judge)
+
+    def test_engine_material_meets_material_problems(self):
+        """run_ci が組む素材は、どの道でも任せ先の役の素材と同じ欄の決まり（material_problems）を通る（走らせられない status も形に合う）"""
+        for name, after_judge, got in self.all_materials():
+            with self.subTest(name, after_judge=after_judge):
+                self.assertIsNotNone(got["material"])
+                self.assertEqual(dc.material_problems(got["material"], mode=dc.MODES[after_judge]), [], got["material"])
+
+    def test_engine_material_that_breaks_the_rules_falls_back_without_rerunning_test_cmd(self):
+        """元 board._accept_engine_reply・_fall_back・entry._ci_by_cmd: engine の素材が決まりに外れれば任せ先に落とす。engine が既に
+        走らせた test_cmd の段の結果から素材を組み、test_cmd を 2 度走らせない。test_cmd が無ければ任せ先の役が渡す（素材 None）"""
+        count = self.tmp / "count"
+        cmd = f"{PY} -c \"open({str(count)!r}, 'a').write('1')\""
+        self.decl(GREEN)
+        with mock.patch.object(dc, "checks_reply", return_value={"status": "clean"}):
+            got = self.run_ci(cmd)
+            self.assertEqual((got["by"], got["material"]["status"]), ("role", "clean"))
+            self.assertEqual(count.read_text(encoding="utf-8"), "1", "test_cmd を 2 度走らせた")
+            self.assertIn("checked", got["fell_back"])
+            empty = self.run_ci("")
+        self.assertEqual((empty["by"], empty["material"]), ("role_needed", None))
+        self.assertIn("checked", empty["fell_back"])
 
 
 class ScopedStepsCase(RepoCase):
@@ -439,6 +542,18 @@ class ScopedStepsCase(RepoCase):
                 self.assertEqual([r["name"] for r in got["runs"]], ["far", "near"])
                 self.assertEqual(got["skipped_steps"], [])
 
+    def test_test_cmd_same_as_skipped_step_still_runs(self):
+        """元 run_ci の docstring の範囲の項: test_cmd が範囲で外した段と同じコマンドなら、外さずに test_cmd の段として走る
+        （入力で名指した一式は外さない）"""
+        far = {"name": "far", "argv": [PY, "-c", "pass"]}
+        self.decl([far, SCOPED[1]])
+        self.scope(SCOPE)
+        self.assertEqual(tree_run.command_argv(shlex.join(far["argv"])), (far["argv"], "direct"))
+        got = self.run_ci(shlex.join(far["argv"]), changed=lambda: ["works/a.py"])
+        self.assertEqual(got["skipped_steps"], FAR_SKIPPED)
+        self.assertEqual([r["name"] for r in got["runs"]], ["near", dc.TEST_CMD_STEP])
+        self.assertIsNone(got["same_as"])
+
     def test_red_material_names_skipped_step_too(self):
         """元 test_red_material_names_skipped_step_too"""
         self.decl([SCOPED[0], {"name": "near", "argv": RED[0]["argv"]}])
@@ -465,6 +580,92 @@ class TestModesCase(RepoCase):
         for expected in (1, 2):
             got = self.run_ci(after_judge=True)
             self.assertEqual((got["material"]["status"], len(count.read_text(encoding="utf-8").split())), ("clean", expected))
+
+
+class ReuseCase(RepoCase):
+    """同じ run の中の試験の結果の使い回し（元 test_board_engine_run.py・test_ci_test_cmd.py・test_blk_fix_tdd.py の使い回しの場合）。
+    段は対象の木の外の数えのファイルに 1 行足す本物の子のプロセスで、木の中に何も書かない（書く段は前後の木が違って置かれない）"""
+
+    def setUp(self):
+        super().setUp()
+        self.count = self.tmp / "count"
+        self.cmd = f"{PY} -c \"open({str(self.count)!r}, 'a').write('1\\n')\""
+        self.step = {"name": "suite", "argv": [PY, "-c", f"open({str(self.count)!r}, 'a').write('1\\n')"]}
+
+    def place(self, run="run-1", rerun=False):
+        return tree_run.reuse_place(self.work / "art", run, rerun=rerun)
+
+    def launched(self):
+        return len(self.count.read_text(encoding="utf-8").split()) if self.count.exists() else 0
+
+    def test_same_tree_same_suite_runs_once(self):
+        """元 test_board_engine_run.py の使い回しの場合: 同じ木・同じ一式の 2 度目は子を起こさない。行の reused に出どころ"""
+        self.decl([self.step])
+        self.run_ci(reuse=self.place())
+        got = self.run_ci(reuse=self.place())
+        self.assertEqual((self.launched(), got["material"]["status"]), (1, "clean"))
+        self.assertEqual(got["runs"][0]["reused"]["from"], "run-1")
+
+    def test_reused_suite_writes_its_junit_back(self):
+        """JUnit を宣言した段の使い回しは報告を書き戻し、段の起動を書き戻す前に取るので、報告は今の段の物として数える。
+        段の起動はファイルの時刻の時計で取る: time.time() がファイルの時刻より進んでいても（Linux の粗いファイルの時刻）、報告を落とさない"""
+        (self.repo / ".gitignore").write_text("out/\n", encoding="utf-8")
+        report = self.repo / "out" / "r.xml"
+        write = (f"open({str(self.count)!r}, 'a').write('1\\n'); import os; os.makedirs('out', exist_ok=True); "
+                 "open('out/r.xml', 'w').write('<testsuite><testcase classname=\"c\" name=\"t\"/></testsuite>')")
+        self.decl([{"name": "suite", "argv": [PY, "-c", write], "junit": "out/r.xml"}])
+        real = time.time
+        with mock.patch.object(time, "time", lambda: real() + 5):
+            fresh = self.run_ci(reuse=self.place())
+            report.unlink(missing_ok=True)
+            got = self.run_ci(reuse=self.place())
+        self.assertEqual((fresh["material"]["status"], fresh["junit_unran"]), ("clean", []))
+        self.assertEqual((self.launched(), got["material"]["status"], len(got["cases"]), got["junit_unran"]), (1, "clean", 1, []))
+        self.assertIn("reused", got["runs"][0])
+
+    def test_reused_steps_named_in_material_and_rows(self):
+        """使い回した段の出どころは素材の checked と段の行に、使い回さなかった理由は段の行の reuse_off に出る。宣言の無い test_cmd も
+        同じく素材の checked に出どころ"""
+        self.decl([self.step])
+        first = self.run_ci(reuse=self.place())
+        self.assertIn("同じ指紋の控えが無い", first["runs"][0]["reuse_off"])
+        self.assertNotIn("控えから使った", first["material"]["checked"])
+        second = self.run_ci(reuse=self.place())
+        self.assertIn("控えから使った段: suite（run run-1・", second["material"]["checked"])
+        (self.repo / dc.DECL_NAME).unlink()
+        self.run_ci(self.cmd, reuse=self.place())
+        role = self.run_ci(self.cmd, reuse=self.place())
+        self.assertEqual((role["by"], self.launched()), ("role", 2))
+        self.assertIn(f"{dc.TEST_CMD_STEP} は控えから使った（run run-1・", role["material"]["checked"])
+
+    def test_rerun_flag_runs_again(self):
+        """旗 GRAPHLOOPS_RERUN_CHECKS（reuse_place の rerun）が立てば引かずに走らせ、行の reuse_off に旗の名"""
+        self.decl([self.step])
+        self.run_ci(reuse=self.place())
+        got = self.run_ci(reuse=self.place(rerun=True))
+        self.assertEqual(self.launched(), 2)
+        self.assertIn(tree_run.RERUN_ENV, got["runs"][0]["reuse_off"])
+
+    def test_other_run_or_moved_tree_is_not_reused(self):
+        """別の run の控えは引かない。作業ツリーの木が変われば引かない"""
+        self.decl([self.step])
+        self.run_ci(reuse=self.place())
+        other = self.run_ci(reuse=self.place("run-2"))
+        self.assertEqual(self.launched(), 2)
+        self.assertIn("別の run の控えは使わない", other["runs"][0]["reuse_off"])
+        (self.repo / "moved.txt").write_text("x\n", encoding="utf-8")
+        self.run_ci(reuse=self.place("run-2"))
+        self.assertEqual(self.launched(), 3)
+
+    def test_tdd_head_test_cmd_reads_the_base_keep(self):
+        """元 test_blk_fix_tdd.py の test_loop_head_reuses_test_cmd_step_of_entry_checks: 入口の確かめが宣言の一式の段として走らせた
+        test_cmd の緑を、TDD の輪の頭の test_cmd が同じ run の中で引く（子を起こさない）"""
+        self.decl(GREEN)
+        self.assertEqual(self.run_ci(self.cmd, reuse=self.place())["material"]["status"], "clean")
+        exe = self.tmp / "suite.sh"
+        exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        gate, why, _ = tddloop._test_cmd_gate(exe, self.cmd, self.repo, self.work / "head.log", reuse=self.place())
+        self.assertEqual((gate, why, self.launched()), (tddloop.GATE_ON, "", 1))
 
 
 class TreeRunnerCase(unittest.TestCase):
@@ -543,7 +744,7 @@ class JunitReportCase(RepoCase):
         """段が報告を書いた後に止められても（tree_run.Stopped）、走らせる前に無かった報告は対象の木に残らない"""
         self.decl([self.step()])
 
-        def stopped(steps, cwd, log_dir):
+        def stopped(steps, cwd, log_dir, **_):
             (self.repo / "out").mkdir()
             (self.repo / "out" / "report.xml").write_text(self.REPORT, encoding="utf-8")
             raise tree_run.Stopped(15)
