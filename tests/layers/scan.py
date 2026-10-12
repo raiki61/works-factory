@@ -74,7 +74,6 @@ ALLOWED = {
         "lib/AGENTS.md",
         # 今の works から写した lib が実行基盤の名を字で持つ（K7）。行ごとに外す区分の issue
         "lib/tree_run.py#INPUTS_CMD",               # 区分 T #122（test-gate の run が走らせるコマンドの口）
-        "lib/refixrules.py#$LOOP_PREV",             # 区分 F #121（手直しの指示書の docstring）
         "lib/report_roles.py#loop_group",           # 区分 R #124（受け付けの諦めの数の注）
         "lib/specblk.py#$spec-gate.output",         # 区分 J #119（仕様の関所の出口の字）
         "lib/judge_accept.py#$spec-gate.output",    # 区分 J #119（仕様の関所の答えの字）
