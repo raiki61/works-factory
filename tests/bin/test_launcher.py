@@ -352,6 +352,17 @@ class LauncherTest(unittest.TestCase):
                 env = self.reached(self.launch(*args, WORKS_FACTORY_HOME=str(self.tmp / "home-of" / args[1]), **login))["env"]
                 self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))
 
+    def test_commands_not_known_to_only_read_carry_the_login_to_archon(self):
+        """AI を走らせる上の命令（trigger・chat・serve）と殻の知らない命令は、前どおり認証を通してトークンを Archon に渡す"""
+        (self.home / ".claude" / ".credentials.json").write_text(
+            json.dumps({"claudeAiOauth": {"accessToken": TOKEN}}), encoding="utf-8")
+        login = {"ANTHROPIC_API_KEY": None, "FAKE_SECURITY_HOME": str(self.home), "FAKE_SECURITY_VALUE": TOKEN,
+                 "FAKE_SECURITY_SERVICE": "Claude Code-credentials"}
+        for args in (["trigger", "x"], ["chat", "x"], ["serve"], ["unknown-command"]):
+            with self.subTest(args=args):
+                env = self.reached(self.launch(*args, **login))["env"]
+                self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))
+
     def test_claude_on_relative_path_is_not_used(self):
         """PATH の相対の置き場（打った場所の下）の claude は、隔離した設定にプラグインを入れる本物として使わない"""
         (self.fake / "claude").unlink()
@@ -393,7 +404,7 @@ class LauncherTest(unittest.TestCase):
 
     def test_reading_commands_reach_archon_without_auth(self):
         """工程を走らせない命令（run を読む・一覧を見る）は認証を通さない。認証の無い利用者も bin/apply で run を読める"""
-        for args in (["workflow", "get", "run-1"], ["workflow", "status"], ["validate", "workflows"]):
+        for args in (["workflow", "get", "run-1"], ["workflow", "status"], ["validate", "workflows"], ["version"], ["help"]):
             with self.subTest(args=args):
                 env = self.reached(self.launch(*args, ANTHROPIC_API_KEY=None))["env"]
                 self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))

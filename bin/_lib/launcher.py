@@ -23,6 +23,8 @@ NAME = "works-factory"
 # tests/shared/test_archon_contract.py が照らす）
 CONTINUING = frozenset({"wake", "signal"})
 EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"}) | CONTINUING
+# 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
+READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
 
 
@@ -108,9 +110,16 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         args = place.workflow_run(source, workflows, target, workflow, *without_flag(argv[3:], "--cwd"))[2:]
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     command = [*place.archon(bun, source), *args]
-    if executing:
+    if not reads_only(argv):
         command = [*auth, "exec", *auth_user, "--", *command]
     os.execve(command[0], command, child)
+
+
+def reads_only(argv: list[str]) -> bool:
+    """認証を通さずに Archon を起こしてよい命令か: workflow の走らせない命令と、読むだけと分かった上の命令"""
+    if argv[:1] == ["workflow"]:
+        return argv[1:2] != [] and argv[1] not in EXECUTING
+    return argv[:1] != [] and argv[0] in READING
 
 
 def answer_head(home: Path, target: Path) -> str:
