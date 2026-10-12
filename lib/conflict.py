@@ -370,7 +370,7 @@ def asked(b) -> list:
 
 
 def ruled_fix(b) -> list:
-    return [i for i in items(b) if (i.get("ruling") or {}).get("decision") in FIX_DECISIONS]
+    return [i for i in items(b) if decision(i) in FIX_DECISIONS]
 
 
 def replan_state(row) -> str | None:
@@ -486,8 +486,7 @@ def replan_rows(rows, n: int, unit_keys) -> list:
     keys = {str(k) for k in unit_keys or []}
     out = []
     for c in rows or []:
-        ru = c.get("ruling") if isinstance(c, dict) else None
-        if isinstance(ru, dict) and ru.get("decision") == REPLAN and (
+        if isinstance(c, dict) and decision(c) == REPLAN and (
                 n in ruled_items(c) or str(c.get("unit_key")) in keys):
             out.append(c)
     return out
@@ -500,9 +499,8 @@ def held_by_rulings(b) -> dict:
     「<decision> の裁定 <id>」に、在れば案の項目を添える。1 単位に 2 つ当たれば DECISIONS の順で先の裁定の理由（並べ替えで
     決める）"""
     rank = {d: n for n, d in enumerate(DECISIONS)}
-    rows = sorted((i for i in items(b) if (i.get("ruling") or {}).get("decision") not in (None, *FIX_DECISIONS)
-                   and replan_state(i) != AMENDED),
-                  key=lambda i: rank.get(i["ruling"]["decision"], len(rank)))
+    rows = sorted((i for i in items(b) if decision(i) not in (None, *FIX_DECISIONS) and replan_state(i) != AMENDED),
+                  key=lambda i: rank.get(decision(i), len(rank)))
     out = {}
     for i in rows:
         ru = i["ruling"]
@@ -532,7 +530,7 @@ def held_item(unit_keys, held: dict) -> str:
 def replaced_queries(b) -> dict:
     """裁定 replace_query が置き換えた問い {unit_key: {id, how, counts, hits, misses}}（閉鎖の数え直しが判定者の問いの代わりに使う）"""
     return {i["unit_key"]: {"id": i["id"], **i["ruling"]["query"]} for i in items(b)
-            if (i.get("ruling") or {}).get("decision") == REPLACE and isinstance(i["ruling"].get("query"), dict)}
+            if decision(i) == REPLACE and isinstance(i["ruling"].get("query"), dict)}
 
 
 def counts_of(rows) -> dict:
