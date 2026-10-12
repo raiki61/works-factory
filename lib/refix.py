@@ -51,6 +51,7 @@ import protect  # noqa: E402
 import recount  # noqa: E402
 import seat  # noqa: E402  （借りたスキルの座。1 回目の審査役の task-review）
 import stopby  # noqa: E402  （L1。止めの理由の住処）
+import unittrees  # noqa: E402
 import writelog  # noqa: E402
 import writes  # noqa: E402
 
@@ -128,7 +129,7 @@ def _cut_delta(b, n: int, repo: pathlib.Path, rev: str, skip=()) -> dict:
     元 works/.shared/core/graphloops/rules/review-loop.py:1567 の fix_delta（盤面の機械の節。周の頭に固めた版から）"""
     key = _pass(n)["state_key"]
     snap = leftovers.snapshot(repo)
-    spec = fixboard.pathspec_without(skip)
+    spec = unittrees.pathspec_without(skip)
     raw = leftovers.git(repo, "diff", rev, snap, "--", *spec, text=False)
     files = leftovers.git_names(repo, "diff", "--name-only", rev, snap, "--", *spec)
     f = pathlib.Path(b) / f"{key.replace('_', '-')}.patch"

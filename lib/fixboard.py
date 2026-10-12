@@ -973,17 +973,12 @@ def delta_review(place) -> tuple:
     return {"rounds": rounds, "pass": passed}, False
 
 
-def pathspec_without(skip) -> list:
-    """git の pathspec: リポジトリの根の全部から、除くパスの頭 skip の下を外す"""
-    return [":/", *[f":(top,exclude){s.rstrip('/')}" for s in skip]]
-
-
 def run_diff(repo, base: str = "HEAD", skip=()) -> str:
     """版 base から作業ツリーの今の姿（未追跡の新しいファイルも・無視される物を除く。leftovers.snapshot）への累積差分
     （unittrees._DIFF の形）。除くパスの頭 skip の下は載せない。git が落ちれば unittrees.UnitTreeError"""
     import leftovers
     import unittrees
-    out = unittrees._git(repo, *unittrees._DIFF, base, leftovers.snapshot(repo), "--", *pathspec_without(skip))
+    out = unittrees._git(repo, *unittrees._DIFF, base, leftovers.snapshot(repo), "--", *unittrees.pathspec_without(skip))
     return out.stdout.decode("utf-8", "surrogateescape")
 
 

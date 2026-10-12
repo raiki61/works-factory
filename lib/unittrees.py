@@ -34,6 +34,11 @@ _DIFF = ["-c", "diff.noprefix=false", "-c", "diff.mnemonicPrefix=false", "diff",
          "--no-textconv", "--no-color", "--src-prefix=a/", "--dst-prefix=b/"]
 
 
+def pathspec_without(skip) -> list:
+    """git の pathspec: リポジトリの根の全部から、除くパスの頭 skip の下を外す"""
+    return [":/", *[f":(top,exclude){s.rstrip('/')}" for s in skip]]
+
+
 class UnitTreeError(RuntimeError):
     """git が落ちた（どのコマンドかと標準エラーを文に載せる）"""
 
