@@ -1521,7 +1521,9 @@ class GroupChildSeamCase(TempCase):
                                     end_tree="t1", tdd=tdd, fix_units={"a": {"status": "fixed", "reason": ""}},
                                     reply=reply, reply_file="/r.json", allowed=["t.py", "t.py"], conflicts=[{"id": 1}])
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
-                                    "objection", "changed", "allowed_test_changes", "verified", "reply_file", "tdd_state"})
+                                    "objection", "changed", "allowed_test_changes", "verified", "reply_file", "tdd_state",
+                                    "worktree", "writes_log"})
+        self.assertEqual((got["worktree"], got["writes_log"]), ("", ""), "渡さなければ空（記録の無い子）")
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
         self.assertEqual(got["units"][2]["reason"], fixboard.NO_UNIT_RESULT)

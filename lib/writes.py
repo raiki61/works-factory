@@ -206,6 +206,7 @@ def carry_merged(log: pathlib.Path, dst, srcs) -> bool:
                             "file_sha": sha, "from": reals}, ensure_ascii=False) + "\n")
     return True
 
+
 def carry_children(log: pathlib.Path, repo, children) -> list:
     """並べた組の子の run の記録を、子の差分を当てた run の作業ツリーの記録 log へ写す。children は [(子の作業ツリー, 子の記録の
     ファイル, 当てたパスの並び)]。子の記録の行を log の後ろに足してから、1 つの子だけが当てたパスは carry、2 つ以上の子が当てた
