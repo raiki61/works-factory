@@ -77,6 +77,13 @@ class PickTest(unittest.TestCase):
     def test_path_that_is_not_a_test_module_picks_nothing(self):
         self.assertEqual(shard.pick(self.NAMES, ["lib/alpha.py"]), [])
 
+    def test_package_that_fails_to_import_is_picked_by_a_path_under_it(self):
+        names = [*self.NAMES, "tests.e2e"]
+        self.assertEqual(shard.pick(names, ["tests/e2e/test_x.py"]), ["tests.e2e"])
+        self.assertEqual(shard.pick(names, ["tests/e2e/__init__.py"]), ["tests.e2e"])
+        self.assertEqual(shard.pick(names, ["tests/e2e"]), ["tests.e2e"])
+        self.assertEqual(shard.pick(names, ["tests/e2ex/test_x.py"]), [])
+
 
 TEST_CASE = "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_ok(self):\n        pass\n"
 

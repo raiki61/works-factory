@@ -6,8 +6,9 @@
 
 変更（origin/main との merge-base からの差と、未追跡を含む作業ツリーの差）に直に当たる試験のモジュールと、層の柵
 （tests/layers/）だけを unittest で回す。全部の試験は CI（.github/workflows/tests.yml）が回す。持ち主の決め 2026-10-12（#130）。
-- 選び: lib/impact.py の map と select_tests（direct_only。起点か深さ 1）が選んだパス・変わったファイル・層の柵のフォルダを候補にし、
-  どれが試験のモジュールかは tests/shard.py --paths が CI と同じ集め方（discover の規則）で決める
+- 選び: lib/impact.py の map が変更に直に当てたファイル（direct。起点か深さ 1）・変わったファイル・層の柵のフォルダを候補にし、
+  どれが試験のモジュールかは tests/shard.py --paths が CI と同じ集め方（discover の規則）で決める。
+  impact の select_tests は全部を回すかとその訳だけに使う（impact の試験の名の規則で候補を絞らない）
 - 全部を回す: 選びが全部が要ると言った時・WHOLE と WHOLE_DIRS の変更・起点が取れない時・選びが落ちた時（緑を仮定しない）。
   全部は CI と同じ集め方（tests/shard.py。discover の規則）を 1 つの分けで回す
 - 出力: 選んだモジュール・回さないモジュールの数・訳を先に標準出力へ出し、最後は unittest の数え（Ran N tests）のまま
@@ -53,7 +54,8 @@ def choose():
         return [], [f"選びが落ちた: {type(e).__name__}: {e}"]
     if sel["run_all"]:
         return [], sel["reasons"]
-    return sorted({*sel["selected"], *changed}) + [FENCE], []
+    reached = [p for p in [*m["seeds"]["files"], *m["reach"]] if impact.direct(m, p)]
+    return sorted({*reached, *changed}) + [FENCE], []
 
 
 def main():

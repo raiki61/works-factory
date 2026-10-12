@@ -55,7 +55,13 @@ def source(name: str) -> str:
 
 def pick(names: list[str], paths: list[str]) -> list[str]:
     dirs = tuple(p.rstrip("/") + "/" for p in paths)
-    return sorted(name for name in names if source(name) in paths or source(name).startswith(dirs))
+
+    def named(name: str) -> bool:
+        # 頭（__init__.py）で読み込めないパッケージは、discover がパッケージ名の 1 件にするので、その下のパスでも選ぶ
+        package = name.replace(".", "/") + "/"
+        return source(name) in paths or source(name).startswith(dirs) or any(d.startswith(package) for d in dirs)
+
+    return sorted(name for name in names if named(name))
 
 
 def load_seconds(path: pathlib.Path) -> dict[str, float]:
