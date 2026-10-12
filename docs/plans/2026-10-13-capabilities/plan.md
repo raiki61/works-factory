@@ -1316,7 +1316,7 @@
 
 - P182 材料の差し込み: 修正役の案・直す単位（番号つき。元の行「no の整数で指せ」を engine を機械に読み替えた字）・判定者の見立て（framing・one_shot）・先行例（在れば）・リポジトリと読む版と BASE と観点の正本（REVIEW.md）
   - 元: works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md:3-7・works/tests/test_blk_plan.py:951 `test_prompt_rendered_from_mainline`
-  - 今: lib/boardview.py:129（UNITS_LINE）・:791-799、lib/planfile.py `repo_line`（リポジトリ・読む版・BASE・観点の正本の行）
+  - 今: lib/boardview.py:130（UNITS_LINE）・:834-842、lib/planfile.py `repo_line`（リポジトリ・読む版・BASE・観点の正本の行）
   - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_material_carries_the_mainline_inputs（assert: :745-750）・PortedMaterialCase.test_units_line_is_the_original_instruction_line（assert: :1582-1586）・PortedMaterialCase.test_material_carries_policy_base_units_and_concept_map（assert: :1570）
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `plan-review/pass-1/prompt.md` の「## 差し込み」の節と `"no": 1`）
   - 狭め: 無し
