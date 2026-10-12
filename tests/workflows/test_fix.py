@@ -1170,6 +1170,34 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual((self.repo / "e.py").read_text(encoding="utf-8"), "LIMIT = 10\n", "後の組の直しは戻す")
         self.assertIn("min(x, LIMIT)\n", (self.repo / "a.py").read_text(encoding="utf-8"), "前の組の直しは残す")
 
+    def test_join_does_not_carry_a_backed_out_groups_named_tests(self):
+        """F411 (1): 戻した組（g2）が赤 → 緑を確かめた名指しは、後の組（g3）の走らせ直しに持ち越さない（g2 の直しは親の木に無いので
+        その名指しは赤のまま。持ち越すと関わりの無い g3 まで戻る）"""
+        start = self.rerun_seed({
+            "e.py": "LIMIT = 10\n",
+            "a.py": "from e import LIMIT\n\n\ndef cap(x):\n    return min(x, LIMIT + 1)\n",
+            "test_a.py": "import unittest\n\nfrom a import cap\n\n\nclass TestA(unittest.TestCase):\n"
+                         "    def test_cap(self):\n        self.assertEqual(cap(15), 10)\n",
+            "b.py": "def double(x):\n    return x * 2 + 1\n",
+            "test_b.py": "import unittest\n\nfrom b import double\n\n\nclass TestB(unittest.TestCase):\n"
+                         "    def test_double(self):\n        self.assertEqual(double(2), 4)\n",
+            "c.py": "C = 1\n"})
+        t1 = self.tree_with({"a.py": "from e import LIMIT\n\n\ndef cap(x):\n    return min(x, LIMIT)\n"})
+        t2 = self.tree_with({"e.py": "LIMIT = 20\n", "b.py": "def double(x):\n    return x * 2\n"})
+        t3 = self.tree_with({"c.py": "C = 2\n"})
+        out_dir = self.groups_file([{"group_id": g, "unit_ids": [k], "items": [n]}
+                                    for n, (g, k) in enumerate((("g1", "A"), ("g2", "B"), ("g3", "C")), 1)], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start, verified=["test_a.py::TestA::test_cap"]))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start,
+                                                               verified=["test_b.py::TestB::test_double"]))
+        _blk_write(out_dir / "g3" / "result.json", _blk_result("g3", ["C"], t3, start))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        rows = {g["group_id"]: g for g in json.loads((self.place / "join.json").read_text(encoding="utf-8"))["groups"]}
+        self.assertEqual({k: g["returned"] for k, g in rows.items()}, {"g1": True, "g2": False, "g3": True}, rows)
+        self.assertIn("test_cap", rows["g2"]["reason"])
+        self.assertEqual((self.repo / "c.py").read_text(encoding="utf-8"), "C = 2\n", "関わりの無い後の組の直しは親の木に残る")
+
     def test_join_backs_out_the_later_group_on_a_semantic_clash(self):
         """F412: 2 つの組が同じファイル e.py を違う行で変え、字では合うが、後の組 g2 の直しが前の組 g1 の変えた定数を当てにして
         いて親の木で g2 の名指しが赤: 後の組だけを意味の食い違いとして戻す（元 works/tests/test_tdd_lanes.py:828
