@@ -18,6 +18,7 @@ import fixio  # noqa: E402
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
 import policy  # noqa: E402
+import rolekit  # noqa: E402
 import rulebook  # noqa: E402
 import ruling  # noqa: E402
 import startrec  # noqa: E402
@@ -38,7 +39,7 @@ def main() -> dict:
     reject = place / fixboard.REJECT_NAME.format(name=ACCEPT, k=done)
     start = startrec.read(place)
     got = ruling.prep(place, repo, {"judgment_file": str(judgment), "policy_path": policy.frozen_copy(start)},
-                      reject_file=str(reject) if done and reject.is_file() else "", lang=fixboard.lang_line(start))
+                      reject_file=str(reject) if done and reject.is_file() else "", lang=rolekit.lang_line(start))
     return {"prompt_file": got["prompt_file"], "iteration": int(got["iteration"])}
 
 

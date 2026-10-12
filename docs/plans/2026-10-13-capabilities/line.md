@@ -548,13 +548,13 @@
   - 狭め: #74・#94 の間で落ちた（不可でない → 戻す。元より危ない側に倒れている） → 部分 B1 で戻した
 - L-G34 依頼の answers は、key か出どころの字の一致で 1 つの問いだけに当たる時に答えとして数える。判定の結び（answer_ties）と測れていない素材の名も読む
   - 元: works/.shared/core/gatemarks.py:702-750 `request_answers`・`unmeasured`・`origin_of`・`answer_binds`・:923 `request_answer`
-  - 今: lib/gatemarks.py の binds・origin（値で受ける 1 つの式。gatemarks.answer_binds・outcome.answer_binds・judge_accept.answer_binds は呼ぶだけ）。最後の関所は scripts/ask_final.py の held_questions が gatemarks.ledger_beside（判定の隣の materials.json と、ties_judgment: $judge.output.judgment の隣の answer-ties.json）で引く。報告は lib/runreport.py の ledger
+  - 今: lib/gatemarks.py の binds・origin（値で受ける 1 つの式。gatemarks.answer_binds・outcome.answer_binds・judge_accept.answer_binds は呼ぶだけ）。最後の関所は scripts/ask_final.py の ledger が gatemarks.ledger_at（ledger_beside をファイルから。判定の隣の materials.json と、ties_judgment: $judge.output.judgment の隣の answer-ties.json）で引く。報告は lib/runreport.py の ledger
   - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_request_answers_answer_by_key_or_origin（結びと素材の名と宛て先の落ちを足した。部分 B1）・lib/tests/test_gatemarks.py::DutyCase.test_binds_is_the_one_formula・tests/workflows/test_plan_review.py::RequestAnswersCase.test_tie_to_question_key_answers_it
   - 本物の run: 筋書きでのみ
   - 狭め: #74 で最後の関所の側を狭めた（名指し済み。不可でない → 戻す。S58） → 部分 B1 で最後の関所の側を戻した
 - L-G35 保留のままの問い（kind を問わず人に聞く状態の物）を、answers の question と答えが無いと直さない単位つきで最後の関所と報告に並べる
   - 元: works/.shared/core/gatemarks.py:1201-1222 `held_lines`
-  - 今: scripts/ask_final.py:133-174 `held_questions`、lib/runreport.py:228 `ledger_state`
+  - 今: scripts/ask_final.py `ledger`・`ledger_rows`（gatemarks.held_lines）、lib/runreport.py `ledger_state`
   - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_held_questions_are_every_asking_question_not_answered（assert: :345）、lib/tests/test_runreport.py::LedgerCase.test_held_line_names_units_left_and_answer_key（:661）
   - 本物の run: report.md の保留の問いの節と gate-final の message
   - 狭め: 無し

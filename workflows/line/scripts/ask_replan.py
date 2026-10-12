@@ -31,7 +31,6 @@ with linekit.guarded_imports():
 HEAD = "案の直しの関所"
 RECORD = "run の置き場の gates/gate-replan.json"
 ITEM_HEAD = "## 人に聞く直した項目 {n}（単位 {units}）"   # 元 replan.GATE_ITEM_HEAD
-OLD_HEAD = "### 前の項目（承認済み。機械が貼った）"         # 元 replan.OLD_HEAD
 NEW_HEAD = "### 直した項目（修正案の役が返した形。機械が貼った）"   # 元 replan.NEW_HEAD
 
 
@@ -63,9 +62,9 @@ def ruled_rows(ptr) -> tuple:
 
 
 def item_rows(rows: list, ident: str) -> list:
-    """項目 ident を誤りとした申し出の行（裁定 fix_plan_item で、機械が足した項目の番号 conflict.PLAN_ITEMS が ident を含む）"""
-    return [r for r in rows if (r.get("ruling") or {}).get("decision") == conflict.REPLAN
-            and ident in [str(n) for n in r.get(conflict.PLAN_ITEMS) or (r.get("ruling") or {}).get(conflict.PLAN_ITEMS) or []]]
+    """項目 ident を誤りとした申し出の行（裁定 fix_plan_item で、機械が足した項目の番号 conflict.plan_items が ident を含む）"""
+    return [r for r in rows if (r.get(conflict.RULING) or {}).get(conflict.DECISION) == conflict.REPLAN
+            and ident in conflict.plan_items(r)]
 
 
 def section(ident: str, old, new, changed: list, rows: list) -> list:
@@ -77,7 +76,7 @@ def section(ident: str, old, new, changed: list, rows: list) -> list:
                   f"- 裁定の文（{r.get('id')}）: {(r.get('ruling') or {}).get('text')}"]
     if not rows:
         lines.append("- 申し出の文と裁定の文: この項目を名指す裁定の行が控えに無い")
-    for head, doc in ((OLD_HEAD, old), (NEW_HEAD, new)):
+    for head, doc in ((replan.OLD_HEAD, old), (NEW_HEAD, new)):
         lines += ["", head, "", "```json", json.dumps(doc, ensure_ascii=False, indent=1) if doc is not None else "（読めない）", "```"]
     return lines + [""]
 

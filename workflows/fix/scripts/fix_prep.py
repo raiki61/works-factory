@@ -28,6 +28,7 @@ import factchecks  # noqa: E402
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
 import groups  # noqa: E402
+import rolekit  # noqa: E402
 import rulebook  # noqa: E402
 import startrec  # noqa: E402
 import tddloop  # noqa: E402
@@ -57,7 +58,7 @@ def main() -> dict:
     got = fixrules.prep(place, repo, fixboard.fix_values(place, owed, start=start, state=state, summary=summary,
                                                          answer_node=ANSWER_NODE),
                         "first", owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
-                        reject_file=str(reject) if n > 1 and reject.is_file() else "", lang=fixboard.lang_line(start),
+                        reject_file=str(reject) if n > 1 and reject.is_file() else "", lang=rolekit.lang_line(start),
                         green=tddloop.green_units(summary), shared=fixio.shared_cache())
     fixboard.consult_skip(place, fixio.SKIP, fixio.writes_log())
     return {"prompt_file": got["prompt_file"], "go": True, "iteration": got["iteration"]}

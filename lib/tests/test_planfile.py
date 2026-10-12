@@ -22,6 +22,7 @@ from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import carry  # noqa: E402
 import converge  # noqa: E402
 import planblk  # noqa: E402
+import rolekit  # noqa: E402
 import planfile  # noqa: E402
 import planmarks  # noqa: E402
 import replan  # noqa: E402
@@ -456,7 +457,7 @@ class VerifyNeighborCase(TmpCase):
         rd.mkdir(parents=True)
         path, _ = planfile.write_brief(rd, self.tmp / "plan", mode="plan", judgment=judgment, judgment_dir=jdir, units=[],
                                        structure_dir_=self.tmp / "s", world_rows=None, spec=None, repo=self.tmp, base_rev="",
-                                       review_md="", lang=None)
+                                       review_md="", lang_line=rolekit.lang_line({}))
         text = path.read_text(encoding="utf-8")
         self.assertIn(f"{planblk.VERIFY_HEAD}\n\n{planblk.VERIFY_ASK}", text)
         self.assertIn("- 単位 1 `a.py 分母`: ", text)

@@ -22,6 +22,7 @@ if str(LIB) not in sys.path:
 import design  # noqa: E402
 import eyeverdict  # noqa: E402
 import gatemarks  # noqa: E402
+import rolekit  # noqa: E402
 import seal  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
 
@@ -399,9 +400,11 @@ class PromptTextsCase(unittest.TestCase):
                       self.texts(constraints=[{"kind": "measured", "text": "1 デプロイは 2 リポジトリ"}])["constraints_text"])
 
     def test_lang_line_keeps_keys_untranslated(self):
-        self.assertIn("依頼文の言語", eyeverdict.lang_line(""))
-        self.assertIn("English で書け", eyeverdict.lang_line("English"))
-        self.assertIn("key・enum の値", eyeverdict.lang_line(None))
+        """目の支度は始めの記録を丸ごと rolekit.lang_line に渡す（inputs.lang への代わりの取り方も効く）"""
+        self.assertIn("依頼文の言語", rolekit.lang_line({"lang": ""}))
+        self.assertIn("English で書け", rolekit.lang_line({"lang": "English"}))
+        self.assertIn("English で書け", rolekit.lang_line({"inputs": {"lang": "English"}}))
+        self.assertIn("key・enum の値", rolekit.lang_line({}))
 
 
 class PremiseSectionCase(unittest.TestCase):

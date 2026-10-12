@@ -332,14 +332,10 @@ def ledger(judgment, start, before_fix, ties_judgment=None) -> tuple:
     if judgment is None:
         return None, []
     try:
-        path = boundary.resolve(judgment)
-        doc = json.loads(path.read_text(encoding="utf-8"))
-        rows = json.loads(boundary.resolve(start).read_text(encoding="utf-8")).get("answers") if start is not None else []
-        ties_dir = boundary.resolve(ties_judgment).parent if ties_judgment is not None else path.parent
+        b = gatemarks.ledger_at(boundary.resolve(judgment), boundary.resolve(start) if start is not None else None, before_fix,
+                                boundary.resolve(ties_judgment) if ties_judgment is not None else None)
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return None, [f"判定の問いの控えか始めの記録を読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"]
-    b = gatemarks.ledger_beside(path.parent, doc if isinstance(doc, dict) else {}, answers=rows if isinstance(rows, list) else [],
-                                gate=before_fix, ties_dir=ties_dir)
     units = [u.get("key") for u in b.record["units"]]
     return b, gatemarks.lost_ties(b.ties, b.record["questions"], units)
 
@@ -447,7 +443,7 @@ def review_rows(reviews) -> tuple:
             continue
         try:
             folder = boundary.resolve(ptr).parent
-            passes += gatemarks.pass_lines(json.loads((folder / gatemarks.PASSES_FILE).read_text(encoding="utf-8")))
+            passes += gatemarks.passes_of(folder)
             rounds += gatemarks.converge_of(folder)
         except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
             unread.append(f"事前審査の隣の控え（通した行・往復）を読めない（{type(error).__name__}: {' '.join(str(error).split())}）")

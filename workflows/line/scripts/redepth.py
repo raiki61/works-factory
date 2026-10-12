@@ -39,12 +39,8 @@ def pending_signals(judgment, start, answer, ties_judgment) -> list:
     if judgment is None:
         return []
     try:
-        path = boundary.resolve(judgment)
-        doc = _doc(judgment)
-        answers = _doc(start).get("answers") if start is not None else []
-        ties_dir = boundary.resolve(ties_judgment).parent if ties_judgment is not None else path.parent
-        b = gatemarks.ledger_beside(path.parent, doc if isinstance(doc, dict) else {},
-                                    answers=answers if isinstance(answers, list) else [], gate=answer, ties_dir=ties_dir)
+        b = gatemarks.ledger_at(boundary.resolve(judgment), boundary.resolve(start) if start is not None else None, answer,
+                                boundary.resolve(ties_judgment) if ties_judgment is not None else None)
         return [f"答えていない問い {q.get('key')}" for q in gatemarks.pending(b)]
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return [f"問いの台帳が読めない（{type(error).__name__}）"]
@@ -63,8 +59,8 @@ def wide_signals(plan, diff, keys) -> tuple:
         origin = f"修正の差分 {diff['path']}"
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         touched, origin = [], f"{PLAN_ORIGIN}（修正の差分を読めない: {type(error).__name__}）"
-    return (depthlib.run_wide(items, keys, touched),
-            f"触るファイル {len(depthlib._wide(items, keys, touched)[0])} 個（起点: {origin}）")
+    wide, paths = depthlib.run_wide(items, keys, touched)
+    return wide, f"触るファイル {paths} 個（起点: {origin}）"
 
 
 def merged(planned, replanned) -> list:

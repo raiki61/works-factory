@@ -812,12 +812,6 @@ def write_text(path, text: str) -> pathlib.Path:
     return path
 
 
-def lang_line(start) -> str:
-    """役に言語を縛る 1 行（住処は rolekit.lang_line。元 works/.shared/core/rolekit.py:147。写しを持たない）"""
-    import rolekit
-    return rolekit.lang_line(start)
-
-
 def policy_brief(start) -> dict:
     """人の方針 {paste, path}（policy.brief。path は始めの記録の固めた版の写し。空なら両方空）。文書が読めなければ ValueError。
     元 works/.shared/core/policy.py:26（盤面の record.process.policy.copy を読んだ）"""
@@ -906,8 +900,9 @@ def redepth(place, repo, skip=()) -> str:
     tree = start_tree(place)
     touched = [f for f in writes.changed_from(repo, tree) if not f.startswith(tuple(skip))] if tree else []
     origin = f"修正の差分 {tree[:12]}" if tree else "計画の allowed_paths（修正の差分の起点が無い）"
-    run += depth.run_wide(items, doc["units"], touched)
-    doc["counted"] = f"触るファイル {len(depth._wide(items, doc['units'], touched)[0])} 個（起点: {origin}）"
+    wide, paths = depth.run_wide(items, doc["units"], touched)
+    run += wide
+    doc["counted"] = f"触るファイル {paths} 個（起点: {origin}）"
     doc = depth.raise_doc(doc, units=units, run=run)
     write_json(pathlib.Path(place) / DEPTH_RAISED_FILE, doc)
     return depth.skip_reason(doc)

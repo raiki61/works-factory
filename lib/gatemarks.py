@@ -743,7 +743,7 @@ def unmeasured(b) -> dict:
 
 
 def unmeasured_of(materials) -> dict:
-    """素材の状態 materials（materials.json の値）のうち今の周に測れていない素材 {名: status}（UNMEASURED。盤面の無い読み手の口）"""
+    """素材の状態 materials（materials.json の値）のうち今の周に測れていない素材 {名: status}（UNMEASURED。盤面の無い読み手の口。判定の受け付けと報告の読みもこれを呼ぶ）"""
     if not isinstance(materials, dict):
         return {}
     return {n: m["status"] for n, m in materials.items() if isinstance(m, dict) and m.get("status") in UNMEASURED}
@@ -1270,6 +1270,24 @@ def ledger_beside(judgment_dir, judgment, *, answers=(), gate=None, ties_dir=Non
     ties = ties_of(marks.load(pathlib.Path(ties_dir) / BESIDE[0])) if ties_dir is not None else []
     materials = marks.load(pathlib.Path(judgment_dir) / MATERIALS_FILE) if judgment_dir is not None else None
     return ledger(judgment, answers=answers, gate=gate, ties=ties, materials=materials)
+
+
+def ledger_at(judgment_path, start_path, gate=None, ties_path=None) -> Ledger:
+    """ledger_beside をファイルから: 判定 judgment_path（judgment.json）・始めの記録 start_path（answers を読む。None は記録の無い run）・
+    修正前の関所の答え gate・結びを読む判定 ties_path（再審の判定の隣には結びが無いので 1 回目の判定。None なら judgment_path の隣）。
+    読めなければ OSError・ValueError・AttributeError（読み手が訳を名指す）"""
+    path = pathlib.Path(judgment_path)
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    answers = json.loads(pathlib.Path(start_path).read_text(encoding="utf-8")).get("answers") if start_path is not None else []
+    return ledger_beside(path.parent, doc if isinstance(doc, dict) else {}, answers=answers if isinstance(answers, list) else [],
+                         gate=gate, ties_dir=pathlib.Path(ties_path).parent if ties_path is not None else path.parent)
+
+
+def passes_of(folder) -> list:
+    """事前審査の返り review の隣の PASSES_FILE の行（pass_lines。最後の関所と報告が同じ行を出す）。無い・読めなければ OSError・
+    ValueError（読み手が訳を名指す）"""
+    rows = json.loads((pathlib.Path(folder) / PASSES_FILE).read_text(encoding="utf-8"))
+    return pass_lines(rows if isinstance(rows, list) else [rows])
 
 
 def converge_of(folder) -> list:

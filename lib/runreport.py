@@ -656,15 +656,14 @@ def _gate_passes(returns: dict) -> list:
         if not (isinstance(p, str) and p):
             out.append(f"修正前の関所が聞かずに通した行（{rid}）: 無い（{'返りが無い' if r is None else '事前審査の指し札が無い'}）")
             continue
-        path = pathlib.Path(p).with_name(GATE_PASSES)
         try:
-            rows = oc.read_json(path)
+            rows = gatemarks.passes_of(pathlib.Path(p).parent)
         except (OSError, ValueError) as e:
-            out.append(f"修正前の関所が聞かずに通した行（{rid}）: 無い（{path} が読めない: {report._one_line(e)}）")
+            out.append(f"修正前の関所が聞かずに通した行（{rid}）: 無い（{pathlib.Path(p).with_name(GATE_PASSES)} が読めない: "
+                       f"{report._one_line(e)}）")
             continue
-        rows = rows if isinstance(rows, list) else [rows]
         out.append(f"修正前の関所が聞かずに通した行（{rid}）: {len(rows)} 件")
-        out += [f"  - {report._one_line(json.dumps(x, ensure_ascii=False) if not isinstance(x, str) else x)}" for x in rows]
+        out += [f"  - {report._one_line(x)}" for x in rows]
     at = eye_notes_dir(returns)
     if at is not None:   # E66: 人が通したので R4 の問いから外した行（元 gatemarks.lines の by human の行）
         rows = eyeverdict.gate_pass_rows(at)
@@ -815,9 +814,9 @@ def _amend_lines(returns: dict, gates: dict, line: dict, closed: bool) -> list:
     whys = {}
     for r in oc.conflict_rows(returns)[0]:
         why = r.get(conflict.REPLAN_WHY)
-        for n in _list(r.get(conflict.PLAN_ITEMS)) or _list(as_dict(r.get(conflict.RULING)).get(conflict.PLAN_ITEMS)):
+        for n in conflict.plan_items(r):
             if isinstance(why, str) and why:
-                whys.setdefault(str(n), why)
+                whys.setdefault(n, why)
     rows = replan.amend_lines(items, refixed=fix.get("refixed") is True, answer=gates.get("gate-replan"),
                               widened=_list(as_dict(line).get("widened")), whys=whys, pending=not closed)
     return _counted(replan.AMEND_HEAD, rows)

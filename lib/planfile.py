@@ -634,11 +634,6 @@ def compose(parts, *, reject_file: str = "") -> str:
     return "\n\n".join(out + [s for s in parts if s])
 
 
-def lang_line(lang) -> str:
-    """役に言語を縛る 1 行（元 works/.shared/core/rolekit.py の lang_line。言語は始めの記録の lang）"""
-    return rolekit.lang_line({"lang": lang})
-
-
 def _dump(doc) -> str:
     return json.dumps(doc, ensure_ascii=False)
 
@@ -685,7 +680,7 @@ def _neighbor(judgment_dir, name: str) -> str:
 
 
 def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units, structure_dir_, world_rows, spec,
-                repo, base_rev: str, review_md: str, lang, lib_docs: str = "", conflicts=None, policy_md: str = "",
+                repo, base_rev: str, review_md: str, lang_line: str, lib_docs: str = "", conflicts=None, policy_md: str = "",
                 prior_failures=None, unread=()) -> tuple:
     """修正案の役の材料のファイル brief-<n>.md を書き、(パス, 回の番号 n) を返す。前の回の拒否が在れば、その理由を reject-<n>.txt に
     置いて頭の 1 行で名指す。両方の形に役の定義・並行 PR の外した範囲・ライブラリの文書・前の run で通らなかった物（prior_failures。
@@ -734,7 +729,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
                  POLICY_PART.format(path=policy_md) if policy_md else ""]
     notes = "\n".join([UNREAD_INPUTS_HEAD, "", *(f"- {u}" for u in unread)]) if unread else ""
     path = round_dir / BRIEF_FILE.format(n=n)
-    path.write_text(compose([*parts, notes, lang_line(lang)], reject_file=reject_file), encoding="utf-8")
+    path.write_text(compose([*parts, notes, lang_line], reject_file=reject_file), encoding="utf-8")
     return path, n
 
 

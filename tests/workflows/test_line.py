@@ -856,7 +856,7 @@ class AskReplanCase(Artifacts):
                              unattended=False, run_id=RUN, conflicts=ptr)
         text = got["text"]
         for want in ("## 人に聞く直した項目 1（単位 u1）", "- 約束の欄の変化: out_of_scope", "- 申し出の文（c1・単位 u1）: 案の範囲では直らない",
-                     "- 裁定の文（c1）: 項目 1 の範囲が誤り。cli.py も要る", ask_replan.OLD_HEAD, ask_replan.NEW_HEAD,
+                     "- 裁定の文（c1）: 項目 1 の範囲が誤り。cli.py も要る", replan.OLD_HEAD, ask_replan.NEW_HEAD,
                      json.dumps(self.ITEM, ensure_ascii=False, indent=1), json.dumps(new, ensure_ascii=False, indent=1)):
             self.assertIn(want, text)
         self.assertNotIn("c2", text)

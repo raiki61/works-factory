@@ -23,6 +23,7 @@ import factchecks  # noqa: E402
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
 import groups  # noqa: E402
+import rolekit  # noqa: E402
 import rulebook  # noqa: E402
 import startrec  # noqa: E402
 
@@ -48,7 +49,7 @@ def main() -> dict:
     reject = place / fixboard.REJECT_NAME.format(name=ACCEPT, k=n - 1)
     got = fixrules.prep(place, repo, fixboard.fix_values(place, owed, start=start, answer_node=ANSWER_NODE), "ruled",
                         owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
-                        reject_file=str(reject) if n > 1 and reject.is_file() else "", lang=fixboard.lang_line(start),
+                        reject_file=str(reject) if n > 1 and reject.is_file() else "", lang=rolekit.lang_line(start),
                         shared=fixio.shared_cache())
     if Path(got["prompt_file"]) == prompt and saved is not None:
         fixboard.ruled_reply_line(prompt, str(saved))

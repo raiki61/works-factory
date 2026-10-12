@@ -7,7 +7,7 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
 - _human_passed(questions, answer)・carried_section(passed)・r4_gate_items(r4, passed)・gate_passes(r4, passed): 修正前の関所で
   人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
-- prompt_texts(...)・lang_line(lang): 目の指示書に差し込む文
+- prompt_texts(...): 目の指示書に差し込む文
 - read_design(path)・read_json(path): 独立設計の控え（無ければ {"missing": 訳}）と、置き場の JSON（無い・読めなければ None）
 - premise_reason(design): 独立設計が問いが立たないとした訳
 - fell_text(fell, ran)・collect(...)・unverified(reason, protected): ブロックの返り
@@ -25,7 +25,6 @@ import types
 import changemap
 import design
 import gatemarks
-import rolekit
 import seal
 
 R2_PREMISE_HEAD = "前提不成立: "
@@ -232,11 +231,6 @@ def premise_section(*, human_items, request_text, repo, changed, constraints, de
     parts.append(f"{DRIFT_HEAD}\n\n" + (_lines(drift) if drift_flag is not None else "（修正の印が渡っていない）"))
     parts.append(f"{CONSTRAINT_HEAD}\n\n{constraints_text(constraints)}")
     return "\n\n".join(parts), {"node": "r2.compare", **ledger}
-
-
-def lang_line(lang) -> str:
-    """元 .shared/core/rolekit.py:147 の lang_line。言語は始めの記録の lang（空なら依頼文の言語）"""
-    return rolekit.lang_line({"lang": lang})
 
 
 def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_file: str, world_file: str, passed: dict) -> dict:
