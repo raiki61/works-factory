@@ -44,11 +44,13 @@ class TestScore(unittest.TestCase):
             with self.subTest(outcome=outcome):
                 got = score(DEFECT, observed(DEFECT, outcome, ["p1.test_double_fidelity"]))
                 self.assertEqual(got["verdict"], "INCONCLUSIVE")
+                self.assertEqual(got["missed_by"], [])
                 self.assertIn(outcome, got["detail"])
                 control = score(CONTROL, observed(CONTROL, outcome, []))
                 self.assertEqual(control["verdict"], "INCONCLUSIVE")
         unknown = score(DEFECT, observed(DEFECT, "done", ["p1.test_double_fidelity"]))
         self.assertEqual(unknown["verdict"], "INCONCLUSIVE")
+        self.assertEqual(unknown["missed_by"], [])
         self.assertIn("done", unknown["detail"])
 
     def test_score_control_clean(self):
@@ -86,6 +88,7 @@ class TestScore(unittest.TestCase):
                 self.assertEqual(got["verdict"], "INCONCLUSIVE")
                 self.assertFalse(got["aimed_hit"])
                 self.assertEqual(got["caught_by"], [])
+                self.assertEqual(got["missed_by"], [])
                 self.assertFalse(got["outcome_as_expected"])
                 self.assertTrue(got["detail"])
 

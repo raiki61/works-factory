@@ -256,17 +256,18 @@ def _observed_problem(row, observed):
 
 
 def score(row, observed) -> dict:
+    """INCONCLUSIVE の run は測れていないので missed_by を空にする（足し合わせて見逃しの関門を数えられるように）"""
     aims = _aims(row)
     problem = _observed_problem(row, observed)
     if problem:
-        return {"id": row["id"], "verdict": "INCONCLUSIVE", "aimed_hit": False, "caught_by": [], "missed_by": aims,
+        return {"id": row["id"], "verdict": "INCONCLUSIVE", "aimed_hit": False, "caught_by": [], "missed_by": [],
                 "outcome_as_expected": False, "detail": problem}
     flagged, outcome = observed["flagged"], observed["outcome"]
     caught_by = [a for a in aims if a in flagged]
     out = {"id": row["id"], "aimed_hit": row["catcher"] in flagged, "caught_by": caught_by,
            "missed_by": [a for a in aims if a not in flagged], "outcome_as_expected": outcome == row["outcome"]}
     if outcome in UNREACHED or outcome not in OUTCOMES:
-        return {**out, "verdict": "INCONCLUSIVE", "detail": f"結末 {outcome} は判定まで届いていない run"}
+        return {**out, "verdict": "INCONCLUSIVE", "missed_by": [], "detail": f"結末 {outcome} は判定まで届いていない run"}
     if row["kind"] == "none":
         if flagged:
             return {**out, "verdict": "FALSE_ALARM", "detail": f"対照に所見か赤: {flagged}"}
