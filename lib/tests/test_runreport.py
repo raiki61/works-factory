@@ -175,6 +175,29 @@ class TypedCase(Base):
         _, text, _ = self.build(typed=typed)
         self.assertIn("赤のまま通した", self.section(text, runreport.GREEN_HEADING))
 
+    def test_green_cert_names_suites_and_log(self):
+        """元 report.py:1042-1050 の最後のテストの一式の行とログ: test-gate の返りの evidence の先の行から。取れなければ黙らずにその旨"""
+        suites = "一式: run-tests（make test）"
+        final = self.put("test-gate-final/evidence.md", f"# test-gate（final）\n\n- ok: true\n- 走らせ方: engine・{suites}\n"
+                                                        "- ログ: /tmp/x/test.log\n")
+        _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": final}}))
+        green = self.section(text, runreport.GREEN_HEADING)
+        self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: engine・{suites}\n", green)
+        self.assertIn("- 最後のテスト（test-gate-final）のログ: /tmp/x/test.log\n", green)
+        self.assertIn("- 直す前のテスト（test-gate-base）の走らせ方とログ: 取れない", green)
+
+        fell = self.put("fell/evidence.md", "# test-gate（final）\n\n- ok: false（返す節の中の誤り）\n- 誤り: KeyError: 'by'\n")
+        _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": fell}}))
+        green = self.section(text, runreport.GREEN_HEADING)
+        self.assertIn("- 最後のテスト（test-gate-final）の走らせ方: 証拠に「走らせ方」の行が無い", green)
+        self.assertIn("- 最後のテスト（test-gate-final）のログ: 証拠に「ログ」の行が無い", green)
+
+        _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": str(self.dir)}}))
+        self.assertIn("- 最後のテスト（test-gate-final）の走らせ方とログ: 読めない（", self.section(text, runreport.GREEN_HEADING))
+
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": None, "test-gate-final": None}))
+        self.assertNotIn("走らせ方", self.section(text, runreport.GREEN_HEADING))
+
 
 class TranscriptCase(Base):
     def test_none_transcript_cost_cannot_be_taken(self):

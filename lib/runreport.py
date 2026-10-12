@@ -69,6 +69,10 @@ NOTES_HEADING = promptsection.Section("## 注意（読めなかった物）", hu
 # AI の報告に機械の事実を付ける時の、機械の「人が決めること」の見出しの言い換え（判断は書き手の頭の 1 か所に集める）
 MACHINE_DECISIONS = promptsection.Section("## 1. 人の判断を待つ物の機械の数え（判断の本文は報告の頭）", human=report.FOR_READERS)
 RED_KEPT = ("inherited", "environment")       # 認証が通した赤（元から赤・環境の赤）
+GATE_RUNS = (("test-gate-base", "直す前のテスト"), ("test-gate-final", "最後のテスト"))
+# test-gate の証拠の文（返りの evidence の先）の行の頭。test-gate の result.py の evidence() と同じ字であることを
+# tests/workflows/test_report.py が縛る
+EVIDENCE_ROWS = (("走らせ方", "- 走らせ方: "), ("ログ", "- ログ: "))
 EYE_KEYS = ("eye", "status", "reason")
 GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
 PLAN_GAVE_UP_WHERE = "受け付け 計画"          # 元 report.ACCEPT_WHERE（受け付け <名>）の計画の行
@@ -832,7 +836,30 @@ def _tdd_lines(typed: dict, returns: dict) -> tuple[list, list, list]:
     return lines, [], notes
 
 
-def _green_lines(typed: dict) -> list:
+def _evidence_lines(returns: dict) -> list:
+    """試験の関所の段ごとの、走らせた一式の行とログの置き場（元 report.py:1042-1050。返りの evidence の先の行から）"""
+    out = []
+    for rid, label in GATE_RUNS:
+        ret = _ret(returns, rid)
+        if not ret:
+            continue
+        head = f"{label}（{rid}）"
+        p = ret.get("evidence")
+        if not (isinstance(p, str) and p):
+            out.append(f"{head}の走らせ方とログ: 取れない（証拠の指し札が無いか開けなかった）")
+            continue
+        try:
+            rows = pathlib.Path(p).read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError) as e:
+            out.append(f"{head}の走らせ方とログ: 読めない（{report._one_line(e)}）")
+            continue
+        for name, prefix in EVIDENCE_ROWS:
+            got = next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
+            out.append(f"{head}の{name}: " + (got if got is not None else f"証拠に「{name}」の行が無い（返す節が誤りで落ちた時の証拠か）"))
+    return out
+
+
+def _green_lines(typed: dict, returns: dict) -> list:
     out = []
     for e in _list(as_dict(as_dict(typed).get("by_type")).get("green-cert")):
         b = as_dict(e.get("body"))
@@ -842,7 +869,7 @@ def _green_lines(typed: dict) -> list:
         if b.get("ok") is True and cause in RED_KEPT:
             line += f"——赤のまま通した（{cause} の赤。直しが起こした赤でないと認証が見た）"
         out.append(line)
-    return out or ["型つきの成果物 green-cert が一覧に無い"]
+    return (out or ["型つきの成果物 green-cert が一覧に無い"]) + _evidence_lines(returns)
 
 
 def _eye_lines(returns: dict, typed: dict) -> tuple[list, list]:
@@ -985,7 +1012,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
         (report.READS_HEADING, [f"読んだ証拠: {UNSEEN}"]),
         (report.WHERE_HEADING, _where_lines(returns)),
         (report.TDD_HEADING, tdd or ["修正の段が走っていない（TDD の単位の行が無い）"]),
-        (GREEN_HEADING, _green_lines(typed)),
+        (GREEN_HEADING, _green_lines(typed, returns)),
         (EYES_HEADING, eye_lines),
         (report.STRUCTURE_HEADING, _structure_lines(returns)),
         (report.WORLD_HEADING, _world_lines(returns)),

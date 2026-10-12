@@ -48,8 +48,8 @@ SANDBOX = {"enabled": True, "allowUnsandboxedCommands": False}
 RUN = "run-test"
 
 
-def load_script(name: str):
-    spec = importlib.util.spec_from_file_location(f"report_block_{name}", SCRIPTS / f"{name}.py")
+def load_script(name: str, scripts: pathlib.Path = SCRIPTS):
+    spec = importlib.util.spec_from_file_location(f"{scripts.parent.name}_block_{name}", scripts / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True
     try:
@@ -334,6 +334,24 @@ class FactsCase(Run):
         self.assertEqual(code, 0)
         self.assertEqual(out["outcome"], "fixed", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
         self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / 工程の版 [0-9a-f]{{12}} / 線の版 cccccccccccc$")
+
+    def test_green_cert_section_reads_the_test_gate_evidence(self):
+        """test-gate の result.py が書く証拠の文の走らせ方とログの行が、緑の認証の節に届く（runreport.EVIDENCE_ROWS と test-gate の字の結び）"""
+        result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
+        suites, log = "一式: run-tests（make test）", str(self.dir / "test.log")
+        run = {"by": "engine", "log": log, "junit_steps": [], "junit_unran": [], "suite": None,
+               "fingerprint_before": None, "fingerprint_after": None}
+        text = result.evidence("final", {"ok": True, "green": True, "red_cause": ""}, run, None, "", "", suites, "")
+        (self.artifacts / "test-gate" / "final").mkdir(parents=True)
+        (self.artifacts / "test-gate" / "final" / "evidence.md").write_text(text, encoding="utf-8")
+        final = {"mode": "final", "ok": True, "green": True, "red_cause": "",
+                 "evidence": {"type": "archon_artifact", "run_id": RUN, "path": "test-gate/final/evidence.md"}}
+        code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}),
+                                    INPUTS_TEST_GATE_FINAL=json.dumps(final))
+        self.assertEqual(code, 0)
+        green = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8").split(f"{runreport.GREEN_HEADING}\n\n", 1)[1]
+        self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: engine・{suites}\n", green)
+        self.assertIn(f"- 最後のテスト（test-gate-final）のログ: {log}\n", green)
 
     def test_returns_with_pointers_reach_the_report(self):
         judgment = self.pointer("judge/judgment.json", {})
