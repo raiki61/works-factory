@@ -2441,7 +2441,10 @@ class GroupChildScriptsCase(unittest.TestCase):
                                                                "rejudge_requested": "単位の見立てが違う",
                                                                "premise_drift_note": "上限を測り直した", "x_scalars": {"x_moved": 2}},
                                                               ensure_ascii=False), encoding="utf-8")
-        (self.place / "granted-tests.json").write_text(json.dumps(["test_stats.py"]), encoding="utf-8")
+        import conflict
+        agreed = {"op": conflict.ASKED_OP, "id": 1, "item": "1", "status": "answered", "decision": "allow",
+                  "granted_paths": [], "granted_tests": ["test_stats.py"], "granted_new_tests": [], "reason": "許した"}
+        (self.place / "trace.jsonl").write_text(json.dumps(agreed, ensure_ascii=False) + "\n", encoding="utf-8")
         closure = {"unit_key": _GRP_MEAN, "closed": True, "discrepancies": []}
         (self.place / "fix-unit-rows.json").write_text(json.dumps({"round": 1, "rows": [closure]}), encoding="utf-8")
         import fixbeside
@@ -2458,7 +2461,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         # F427・F428・F013: 子の置き場の受け入れた壊れ・閉鎖の表・受け付けの知らせを、親の collect へ結果で運ぶ
         self.assertEqual((result["handoffs"], result["claimed"], result["closure"]),
                          ([f"{_GRP_MEAN}: 壊すと分かって通した——空の列の平均の値が変わる"], [_GRP_MEAN], [closure]))
-        self.assertEqual(result["accept_trace"], [{**notice, "group_id": "g1"}])
+        self.assertEqual(result["accept_trace"], [{**notice, "group_id": "g1"}, {**agreed, "group_id": "g1"}])
         self.assertEqual(result["tdd_state"], "", "輪の無い組")
         self.assertEqual(result["worktree"], os.path.realpath(self.repo))
         self.assertEqual(result["units"], [{"unit_id": _GRP_MEAN, "status": "fixed", "reason": ""}])
@@ -2470,6 +2473,18 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((result["objection"], result["allowed_test_changes"], result["verified"], result["conflicts"]),
                          ("単位の見立てが違う", ["test_stats.py"], [], []))
         self.assertEqual(result["reply_file"], str(self.place / "fix-reply.json"))
+
+    def test_group_end_lists_allowed_tests_only_for_an_accepted_reply(self):
+        """受け付けが通らず fix-reply.json が無い組は、置き場に許しが在っても allowed_test_changes を空にする（許しの訳は載せる）"""
+        import conflict
+        self._grp_run("group_start", "group-start")
+        agreed = {"op": conflict.ASKED_OP, "id": 1, "item": "1", "status": "answered", "decision": "allow",
+                  "granted_paths": [], "granted_tests": ["test_stats.py"], "granted_new_tests": [], "reason": "許した"}
+        (self.place / "trace.jsonl").write_text(json.dumps(agreed, ensure_ascii=False) + "\n", encoding="utf-8")
+        out = self._grp_run("group_end", "group-end")
+        result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
+        self.assertEqual((result["allowed_test_changes"], result["reply_file"]), ([], ""))
+        self.assertEqual([r["path"] for r in result["allowed_tests"]], ["test_stats.py"])
 
     def test_refix_child_sees_the_first_pass_and_returns_only_its_rows(self):
         """L-W18・F023: 2 度目の修正の段の組の子は、親の置き場が写した 1 回目の段の申し出と裁定（印 prior_pass）を写して読み

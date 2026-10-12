@@ -6,12 +6,12 @@
 
 読む物（無ければ空で読む）: 組の置き場（fixboard.group_dir）の group-start.json（始めの木）と、自分の置き場の
 tdd-start.json（TDD の輪の頭の返り。輪の結果は tddloop.exit_fields、輪の状態のパスは tdd_state として結果に載せる）・fix-units.json（修正の輪の単位ごとの結末
-{unit_key: {status, reason}}）・fix-reply.json（最後に受け付けた修正役の返答。異議 rejudge_requested と 6 つの印）・
-granted-tests.json（許したテストの変更のパス）・conflicts.json（今の段の申し出。conflict.this_pass。2 回目の修正の段が写した 1 回目の
+{unit_key: {status, reason}}）・fix-reply.json（最後に受け付けた修正役の返答。異議 rejudge_requested と 6 つの印）・conflicts.json（今の段の申し出。conflict.this_pass。2 回目の修正の段が写した 1 回目の
 段の行は載せない）・閉鎖の表（fixbeside.closure_rows。親の collect が diff の隣の約束のファイルに合わせる）。終わりの木は作業ツリーの今の姿
 （groups.end_tree）。子の作業ツリーの実パスも載せる（join がそこから子の書き込みの記録を引き、
 親の記録へ写す。writelog.log_here）。許したテストの変更の訳（fixboard.allowed_test_rows。親の collect が allowed-tests.json に集める）と、
-最後の関所を開ける理由の行（修正役が人に回した物 handoffs と、自分の置き場の閉鎖の表で申告と数え直しが合わない単位 mismatched。
+返答を受け付けた組だけ許したテストの変更のパス（fixboard.allowed_tests。受け付けが通れば修正の輪が抜けてこの節が続き、
+間に許しを足す節は無い）と、最後の関所を開ける理由の行（修正役が人に回した物 handoffs と、自分の置き場の閉鎖の表で申告と数え直しが合わない単位 mismatched。
 fixboard.mismatched_lines）と、受け付けが選んだ試験を走らせた回の行（accept-trace.json。親の collect が diff の隣に集める）も載せる。
 TDD の輪の状態が済んでいなければ tdd を ran: false と理由にする。前の節が落ちた子ではこの節は走らず、結果のファイルは無い
 （並べない run は、その子が親の作業ツリーに残した変更を次の組の group-start か join が戻す。fixboard.drop_unreturned）。
@@ -57,12 +57,13 @@ def main() -> dict:
     gdir = fixboard.group_dir(place, out_dir, group["group_id"])
     began = fixboard.read_json(gdir / fixboard.GROUP_START_FILE) or {}
     reply_path = place / fixboard.FIX_REPLY_FILE
+    accepted = reply_path.is_file()
     result = fixboard.group_result(
         group, start_tree=str(began.get("start_tree") or fixboard.start_tree(place)), end_tree=groups.end_tree(repo),
         tdd=tdd_exit(fixboard.read_json(place / fixboard.TDD_START_FILE)), tdd_state=fixboard.loop_files(place)[0],
         fix_units=fixboard.read_json(place / fixboard.FIX_UNITS_FILE, {}), reply=fixboard.read_json(reply_path),
-        reply_file=str(reply_path) if reply_path.is_file() else "",
-        allowed=fixboard.read_json(place / fixboard.GRANTED_TESTS_FILE, []) or [],
+        reply_file=str(reply_path) if accepted else "",
+        allowed=fixboard.allowed_tests(place) if accepted else [],
         allowed_rows=fixboard.allowed_test_rows(place), conflicts=conflict.this_pass(place),
         worktree=os.path.realpath(repo), mismatched=fixboard.mismatched_lines(place),
         accept_trace=fixboard.accept_trace_rows(place), closure=fixbeside.closure_rows(place))

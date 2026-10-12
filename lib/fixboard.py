@@ -1468,7 +1468,6 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, WORLD_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
            ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
-GRANTED_TESTS_FILE = "granted-tests.json"   # 受け付けが通った回の allowed_tests [str]（fix-accept が書き、group-end が子の結果に載せる）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 返りの diff の隣: 許したテストの変更の訳 [{path, permit, source}]（collect が書く。allowed_test_rows）
 ALLOWED_SOURCES = ("plan", "consult", "ruling")   # allowed-tests.json の source の語: 承認済みの修正案・範囲の相談の合意・裁定
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
@@ -1584,7 +1583,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
     writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
-    を持つ。無ければ None）、allowed は修正の輪の受け付けが通った回の許したテストの変更のパス（GRANTED_TESTS_FILE）、conflicts は
+    を持つ。無ければ None）、allowed は修正の輪の受け付けが通った組の許したテストの変更のパス（allowed_tests）、conflicts は
     置き場の申し出の行（conflict.items）。新しい"""
     import fixbeside
     gid = str(group["group_id"])
