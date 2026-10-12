@@ -43,8 +43,10 @@ import design  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
 import planblk  # noqa: E402
+import planfile  # noqa: E402
 import planmarks  # noqa: E402
 import policy  # noqa: E402
+import rolekit  # noqa: E402
 import startrec  # noqa: E402
 import structmark  # noqa: E402
 import worldmark  # noqa: E402
@@ -923,6 +925,55 @@ class ConvergeCase(RunCase):
         self.assertEqual((len(doc["passes"]), doc["outcome"], doc["passes"][1]["resolved"]), (2, converge.CLEAN, [MEAN_BLOCK["key"]]))
         self.assertEqual(doc["passes"][1]["answers"], self.ANSWERS)
 
+    def test_pass_row_keeps_each_pass_rejections(self):
+        """往復の行に、その往復の計画の周の拒否（plan-fields.json の隣の rejects-plan.json）と事前審査の拒否の行を残す。拒否の控えは
+        周・差し込みごとなので、次の往復は 0 から数える（元 planblk.with_converge の converge.stash_rejects）"""
+        r = self.run_
+        r.put("plan/r1/" + rolekit.rejects_path(pathlib.Path("."), planfile.ROLE).name,
+              [{"at": "t1", "reason": "計画の 1 回目の拒否"}])
+        r.open()
+        r.out("review_prep")
+        self.assertFalse(r.accept(review(face("x" * 20, kind="不明")))["ok"])
+        self.assertTrue(r.accept(review(MEAN_BLOCK))["ok"])
+        r.out("result")
+        r.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾いて分母を直す"), item(UNIT_CLAMP, 2)], rnd=2,
+               answers=self.ANSWERS)
+        r.pass_(review(resolved=[MEAN_BLOCK["key"]]))
+        rows = [[(x["role"], x["reason"]) for x in p["rejects"]] for p in converge.read(r.view())["passes"]]
+        self.assertEqual(rows[0][0], (planfile.ROLE, "計画の 1 回目の拒否"))
+        self.assertEqual([role for role, _ in rows[0]], [planfile.ROLE, boardview.REVIEW_NODE])
+        self.assertEqual(rows[1], [], "2 往復目は拒否を数え直す")
+
+    def test_answers_written_by_the_plan_block_reach_the_record(self):
+        """計画のブロックが 2 周目に書いた block への答え（p2.fix_plan.json の脇の block_answers）が、指し札で渡ると往復の控えの
+        2 往復目の answers に入る（2 つのブロックの script を続けて回す。K6）"""
+        from tests.workflows import test_plan as plan_block
+        r = self.run_
+        plan_run = plan_block.Run(self)
+        first = plan_run.include()
+        self.assertIs(first["ready"], True, first)
+
+        def hand(out):
+            shutil.copytree(plan_run.art / "plan", r.art / "plan", dirs_exist_ok=True)
+            for key in ("plan", "structure", "ripple"):
+                r.inputs[key] = json.dumps({**out[key], "run_id": RUN_ID})
+
+        hand(first)
+        got = r.pass_(review(MEAN_BLOCK))
+        self.assertEqual(got["pass"], False, got)
+        review_rel = got["review"]["path"]
+        (plan_run.art / review_rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(r.art / review_rel, plan_run.art / review_rel)
+        answers = [{"key": MEAN_BLOCK["key"], "handled": "fixed", "how": "空の列を先に弾く手順を案に足した"}]
+        second = plan_run.include(
+            review=json.dumps({**got["review"], "run_id": plan_block.RUN_ID}),
+            writer=plan_block.writer_of({"plan": [plan_block.item(1, 2, approach="空の列を先に弾いて mean の分母を直す案にした")],
+                                         "block_answers": answers}))
+        self.assertIs(second["ready"], True, second)
+        hand(second)
+        r.pass_(review(resolved=[MEAN_BLOCK["key"]]))
+        self.assertEqual(converge.read(r.view())["passes"][1]["answers"], answers)
+
     def test_rereview_material_carries_previous_blocks_and_answers(self):
         r = self.run_
         self.first()
@@ -1636,6 +1687,22 @@ class FailSafeCase(RunCase):
         got = r.out("result")
         self.assertFalse(got["pass"])
         self.assertEqual(json.loads(r.pointed(got["review"]).with_name(boardview.PASSES_FILE).read_text(encoding="utf-8")), [])
+
+    def test_unwritable_converge_record_is_named(self):
+        """往復の控えを書けない往復は黙って進めない: 受け付けが拒みに数え、3 回目で諦め、返りの questions が控えの名を持ち pass は偽
+        （元 tests/test_blk_plan.py の with_converge の halt_unsaved）"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        r.out("review_prep")
+        (r.folder / (converge.RECORD + ".tmp")).mkdir()
+        for _ in range(boardview.FENCE):
+            got = r.accept(review())
+        self.assertEqual((got["ok"], got["give_up"]), (False, True), got)
+        self.assertIn(converge.RECORD, got["reason"])
+        out = r.out("result")
+        self.assertIs(out["pass"], False)
+        self.assertTrue(any(converge.RECORD in q for q in out["questions"]), out["questions"])
 
     def test_open_without_the_lib_drops_the_previous_material(self):
         """前の差し込みが通った後、差し込みの頭が lib を読めずに落ちても、返す節は前の差し込みの結末を今回の物として返さない"""

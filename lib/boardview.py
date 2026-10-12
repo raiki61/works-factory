@@ -42,6 +42,7 @@ import gate_axes
 import gatemarks
 import gatepolicy
 import planblk
+import planfile
 import planmarks
 import policy
 import prcheck
@@ -463,6 +464,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
         "human_items": human_items(answers) + gate_rows, "tree_word": tree_word(start_doc),
         "review_schema": review_schema, "design_schema": design_schema,
         "defaults": defaults,
+        "plan_rejects": rolekit.reject_rows(pathlib.Path(plan).parent, planfile.ROLE),
     }
     b = view(d, inputs)
     if form == "replan":
@@ -856,12 +858,21 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo, keys) -> di
         files = {**merged["files"], PROMPT_FILE: str(p / PROMPT_FILE)}
         converge.record_pass(out, bare_review, resolved=merged["resolved"], files=files, synergy=merged["synergy"],
                              hits=merged["hits"], origins=merged["origins"], at_cap=_at_cap(inputs))
+        converge.stash_rejects(out, _pass_rejects(inputs, p))
     _write_json(p / REVIEW_FILE, review)
     return {"ok": True, "reason": ""}
 
 
 def _at_cap(inputs: dict) -> bool:
     return inputs["round_limit"] is not None and inputs["k"] >= inputs["round_limit"]
+
+
+def _pass_rejects(inputs: dict, p: pathlib.Path) -> list:
+    """往復の行に残す、この往復の拒否の行 {role, at, reason}: 計画の周の拒否（open_pass が plan-fields.json の隣の控えから写した物）と、
+    この差し込みの事前審査の拒否。拒否の控えは周・差し込みごとに分かれるので、往復ごとに 0 から数え直す（元 planblk.with_converge の
+    converge.stash_rejects と rolekit.take_rejects）"""
+    return ([{"role": planfile.ROLE, **r} for r in inputs.get("plan_rejects") or []]
+            + [{"role": REVIEW_NODE, **r} for r in rolekit.reject_rows(p, REVIEW_NODE)])
 
 
 # ---------------------------------------------------------------- 返す節

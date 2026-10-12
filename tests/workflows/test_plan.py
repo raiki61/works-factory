@@ -779,6 +779,15 @@ class AcceptCase(unittest.TestCase):
                 self.assertTrue(why[0].startswith(planblk.READONLY_MOVED), why[0])
                 self.assertTrue((run.art / "plan" / "r1" / planfile.TREE_FILE).is_file())
 
+    def test_accepted_plan_has_item_ripple(self):
+        """種の 1 回目の受け付けの後の ripple.json: 項目ごとに、変える名の呼び出し元と試験の覆っていない当たり"""
+        run = Run(self)
+        out = run.include()
+        doc = run.json(out["ripple"])
+        self.assertEqual(doc["error"], "")
+        self.assertEqual(doc["items"][0]["unit_keys"], [MEAN, CLAMP])
+        self.assertIn("request_ok.json:8", [h["at"] for h in doc["items"][0]["uncovered"]])
+
     def test_three_rejections_give_up_with_every_pointer(self):
         """元 tests/test_blk_plan.py の test_give_up_ends_loop: 3 回目の拒否で done・give_up。until_bash で輪を抜ける"""
         run = Run(self)
@@ -965,6 +974,44 @@ class CollectCase(unittest.TestCase):
         self.assertIn(planfile.PRIOR_HEAD, brief)
         self.assertTrue(brief.startswith(planblk.HEAD["plan"]))
         self.assertNotIn(planblk.DESIGN_HEAD, brief)
+
+    def test_depth_follows_start_thickness_and_checks(self):
+        """深さは直す義務の単位だけ。始めの記録の thickness が言えば全部その深さ、試験の命令が無ければ軽量にしない（訳つき）"""
+        run = Run(self, start={"thickness": "軽量", "test_cmd": "python3 -m unittest"}, judge=judgment(unit(NIT, "nit", None)))
+        out = run.include()
+        self.assertEqual([(d["unit_id"], d["depth"], d["why"]) for d in out["depth"]],
+                         [(k, "軽量", "入力 thickness の名指し（軽量）") for k in (MEAN, CLAMP)])
+        run = Run(self)
+        out = run.include()
+        self.assertEqual({d["depth"] for d in out["depth"]}, {"標準"})
+        self.assertTrue(all(d["why"] for d in out["depth"]), out["depth"])
+
+    def test_second_round_changing_a_closed_item_is_rejected(self):
+        run = Run(self)
+        self.assertIs(run.include(writer=writer_of({"plan": [item(1), item(2)]}))["ready"], True)
+        review = run.pointer("review/p2.plan_review.json", {"faces": [
+            {"key": "key-a1-mean", "kind": "regression", "where": "stats.py", "why": "空の列が落ちる", "severity": "block",
+             "unit_keys": [MEAN]}]})
+        answers = [{"key": "key-a1-mean", "handled": "fixed", "how": "空の列を先に返す枝を足した"}]
+        changed = item(2, approach="閉じた項目 2 の手順を書き換えた形をここに書いた")
+        out = run.include(review=review, writer=writer_of(
+            {"plan": [item(1, approach="空の列も直す形にした案の手順をここに書いた"), changed], "block_answers": answers},
+            {"plan": [item(1, approach="空の列も直す形にした案の手順をここに書いた")], "block_answers": answers}))
+        self.assertIs(out["ready"], True, out)
+        why = rolekit.rejected(run.art / "plan" / "r2", "plan")[0]
+        self.assertTrue(why.startswith(planblk.CLOSED_REJECT), why)
+
+    def test_second_round_counts_its_own_rejections(self):
+        """拒否の控えは周ごと: 1 周目に 2 回拒まれても、2 周目は 0 から数えて 3 回まで出し直せる"""
+        run = Run(self)
+        bad = {"plan": [item(1)]}
+        self.assertIs(run.include(writer=writer_of(bad, bad, {"plan": [item(1, 2)]}))["ready"], True)
+        self.assertEqual(len(rolekit.rejected(run.art / "plan" / "r1", "plan")), 2)
+        out = run.include(review=run.pointer("review/p2.plan_review.json", {"faces": []}),
+                          writer=writer_of(bad, bad, {"plan": [item(1, 2)]}))
+        self.assertIs(out["ready"], True, out)
+        self.assertEqual(run.out["plan-accept"]["attempt"], 3)
+        self.assertEqual(len(rolekit.rejected(run.art / "plan" / "r2", "plan")), 2)
 
     def test_route_up_row_keeps_ready(self):
         run = Run(self)

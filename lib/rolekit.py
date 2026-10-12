@@ -114,9 +114,14 @@ def _reject_rows(board: pathlib.Path, name: str) -> list:
     return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
 
+def reject_rows(board: pathlib.Path, name: str) -> list:
+    """盤面の節でない受け付け name の拒否の控えの行 {at, reason} の並び（古い順。控えが無ければ空）"""
+    return [{"at": r.get("at"), "reason": str(r.get("reason", ""))} for r in _reject_rows(board, name)]
+
+
 def rejected(board: pathlib.Path, name: str) -> list:
     """盤面の節でない受け付け name の拒否の文の並び（古い順。控えが無ければ空）"""
-    return [str(r.get("reason", "")) for r in _reject_rows(board, name)]
+    return [r["reason"] for r in reject_rows(board, name)]
 
 
 def given_up_reason(board: pathlib.Path, name: str, *, give_up_after: int = GIVE_UP_AFTER) -> str:
