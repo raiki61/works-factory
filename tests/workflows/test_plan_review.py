@@ -241,7 +241,7 @@ class Run:
                                         "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), raw=True)
 
     def start(self, **doc):
-        self.inputs["start"] = self.put("start/start.json", {"run_id": RUN_ID, "base_rev": "HEAD", **doc})
+        self.inputs["start"] = self.put("start/start.json", {"run_id": RUN_ID, "base_rev": "HEAD", "review_rev": "HEAD", **doc})
 
     def env(self, **extra) -> dict:
         names = {f"INPUTS_{k.upper()}": v for k, v in self.inputs.items()}
@@ -935,6 +935,18 @@ class ReviewAcceptCase(RunCase):
         self.assertNotIn(planblk.PLAN_SLOTS_HEAD, text)
         self.assertNotIn("{{", text)
         self.assertIn(boardview.DEFAULT_ANSWERS, text.splitlines()[0])
+
+    def test_repo_line_reads_review_rev_apart_from_base(self):
+        """P035: 差分の run（入口の差分の根 input.base.rev が読む版 review_rev と違う）では、材料のリポジトリの行が読む版と BASE を
+        別の値で描く（元 p2.plan_review.md の雛形の inputs.review_rev と record.base）"""
+        r = self.run_
+        head = git(r.repo, "rev-parse", "HEAD")
+        fork = "f0" * 20
+        r.start(features_off=["review_tree"], review_rev=head,
+                input={"base": {"rev": fork, "from": "base", "name": "fork", "label": "base fork"}})
+        r.open()
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(f"リポジトリ: {r.repo}（読む版: `{head}`）　BASE: `{fork}`", text)
 
     def test_material_carries_plan_fields(self):
         """元 tests/test_blk_plan.py の test_plan_review_prompt_carries_fields: 項目ごとの works の欄（受け入れテストの id・道・

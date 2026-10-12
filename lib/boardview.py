@@ -471,7 +471,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     defaults += [x for x in (review_unread, unread) if x]
     inputs = {
         "k": k, "form": form, "ruled": ruled, "round_limit": round_limit, "cwd": str(cwd),
-        "rev": (start_doc or {}).get("base_rev") or "HEAD", "base": (start_doc or {}).get("base_rev") or "",
+        "rev": startrec.read_rev(start_doc), "base": startrec.diff_base(start_doc),
         "request": request, "policy_md": frozen.get("path") or "",
         "policy_copy": frozen.get("copy") or "", "excluded_file": str(d / EXCLUDED_FILE) if excluded is not None else "",
         "units": units, "names": [u["key"] for u in units if isinstance(u.get("key"), str)],

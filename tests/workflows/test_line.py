@@ -242,6 +242,7 @@ class StartCase(Artifacts):
         self.assertGreaterEqual(doc["input"]["diff"]["files"], 1)
         self.assertEqual(doc["base_rev"], git(self.repo, "rev-parse", "HEAD"),
                          "base_rev は修正の前の HEAD（今の works の entry.py 1203 行。merge と test-gate が差分の起点に読む）")
+        self.assertEqual(doc["review_rev"], doc["base_rev"], "review_rev は役の材料の読む版。差分の根 input.base.rev とは別に持つ")
 
     def test_request_file_is_on_the_top_of_the_record(self):
         """issue #89: 始めの記録の上の欄 request_file は input.request_file と同じ絶対パス（今の works の entry.py 605 行）。
