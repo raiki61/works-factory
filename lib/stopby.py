@@ -29,6 +29,8 @@ REASONS = {
     "empty-fix": "止めでなく trace の行の by: 直す義務 0 件の周で、機械が修正の節に空の返答を渡した",
     "fix": "修正の段が止めた（受け付けた返答が作業ツリーを変えていない・brief の控えが壊れた・修正案の欄の控えが凍結と食い違った）",
     "lens": "レンズの集め役が終わらなかった",
+    "line-script": "線の script の中で例外が起きた（後ろを飛ばして報告へ進めた）",
+    "needs-human": "無人の run で人の関所を開くはずだった（開かずに止めた）",
     "plan-converge": "事前審査の壁打ちが収まらずに止めた・案の節を巻き戻した",
     "pr": "並行 PR の任せ先の役が 3 回とも拒まれて輪を抜けた",
     "premises": "前提の実測が盤面に無い・実測の役が諦めた",
@@ -38,6 +40,7 @@ REASONS = {
     "rejudge-session": "判定役の会話が見つからず、再審せずに止めた",
     "replan": "同じ run の中の案の直しで止めた（その答えの行の node も同じ語）",
     "scope-check": "窓の照らし（部品の置き場と宣言）が誤りを見て止めた",
+    "start-refused": "入口が入力を受けなかった（AI を起こす前に止めた）",
     "tdd-repeat": "同じ単位がまた TDD の確認の上限まで落ちたので、機械が裁定に回さず人に回した（裁定の by）",
 }
 _DECLARED = {}
@@ -81,6 +84,8 @@ DELTA = word("delta")
 EMPTY_FIX = word("empty-fix")
 FIX = word("fix")
 LENS = word("lens")
+LINE_SCRIPT = word("line-script")
+NEEDS_HUMAN = word("needs-human")
 PLAN_CONVERGE = word("plan-converge")
 PR = word("pr")
 PREMISES = word("premises")
@@ -90,4 +95,5 @@ REJUDGE = word("rejudge")
 REJUDGE_SESSION = word("rejudge-session")
 REPLAN = word("replan")
 SCOPE_CHECK = word("scope-check")
+START_REFUSED = word("start-refused")
 TDD_REPEAT = word("tdd-repeat")

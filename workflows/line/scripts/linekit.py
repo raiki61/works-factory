@@ -9,7 +9,7 @@
   （止めた Archon の dag-executor.ts の resolveBindingDirective は落ちた節を if_skipped に落とさない）、報告まで届かないので、
   中の例外は fallback(理由) の返りにして返す
 - guarded_imports(): script の lib/ の import を囲む。import が落ちた訳は run が fallback の返りにする（lib/ の誤りでも節は落ちない）。
-  だからこの口は lib/ を import せず、線が足す止めの理由の語も字で持つ（lib/stopby.py の declare の形。試験が突き合わせる）
+  だからこの口は lib/ を import せず、線が返す止めの理由の語も字で持つ（住処 lib/stopby.py の REASONS の写し。試験が突き合わせる）
 - 関所の答えの語
 """
 import contextlib
@@ -25,7 +25,7 @@ sys.path.append(str(boundary.lib_root()))
 START_REFUSED = "works:start-refused"
 NEEDS_HUMAN = "works:needs-human"
 LINE_SCRIPT = "works:line-script"
-DECLARED = {   # 線が足す止めの理由の語と意味（lib/stopby.py の declare に渡す物）
+DECLARED = {   # 線が返す止めの理由の語と意味（住処は lib/stopby.py の REASONS。報告も読む。試験が字を突き合わせる）
     START_REFUSED: "入口が入力を受けなかった（AI を起こす前に止めた）",
     NEEDS_HUMAN: "無人の run で人の関所を開くはずだった（開かずに止めた）",
     LINE_SCRIPT: "線の script の中で例外が起きた（後ろを飛ばして報告へ進めた）",

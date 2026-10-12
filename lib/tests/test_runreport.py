@@ -64,13 +64,14 @@ class Base(unittest.TestCase):
         path.write_text(doc if isinstance(doc, str) else json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         return str(path)
 
-    def build(self, returns=None, gates=None, typed=None, transcript=None, start=None, problems=()):
+    def build(self, returns=None, gates=None, typed=None, transcript=None, start=None, problems=(), line=None):
         returns = fixed_run() if returns is None else returns
         gates = gates or {}
         decided = outcome.decide_outcome(returns, gates, {"start_ok": True, "record_problems": list(problems),
-                                                          "failed": (transcript or {}).get("failed", [])})
+                                                          "failed": (transcript or {}).get("failed", []),
+                                                          "stops": list(((line or {}).get("stops") or {}).items())})
         got = runreport.build(returns, gates, typed or {}, transcript, *decided, out_dir=self.out, start=start or {"run_id": RUN},
-                              problems=problems, run_id=RUN)
+                              problems=problems, run_id=RUN, line=line)
         return got, pathlib.Path(got["report"]).read_text(encoding="utf-8"), decided
 
     @staticmethod
@@ -239,11 +240,11 @@ class TranscriptCase(Base):
 
 
     def test_fall_the_line_went_past_is_absorbed_not_interrupted(self):
-        """元 report.split_fallen・head_stop: 落ちた後にほかの節が始まった節は受け止めた落ち（止めたかの節に名と誤り、残りに 1 行）で、
-        run を途中で終わらせた落ちと分ける。再試行の回と最後の誤りの文も出す"""
+        """元 report.split_fallen・head_stop: 線が受け止めると宣言した段（optional）の中で落ちた節は受け止めた落ち（止めたかの節に名と
+        誤り、残りに 1 行）で、run を途中で終わらせた落ちと分ける。再試行の回と最後の誤りの文も出す"""
         rows = rows_of(
-            start("redepth", "2026-10-12T00:00:00Z"),
-            {**done("redepth", "2026-10-12T00:01:00Z", kind="node_error"), "error": "深さが読めない\n詳しい行"},
+            start("world-judge", "2026-10-12T00:00:00Z"),
+            {**done("world-judge", "2026-10-12T00:01:00Z", kind="node_error"), "error": "網が無い\n詳しい行"},
             start("eyes__r1", "2026-10-12T00:02:00Z"),
             done("eyes__r1", "2026-10-12T00:03:00Z"),
             start("fix__write", "2026-10-12T00:04:00Z"),
@@ -251,8 +252,8 @@ class TranscriptCase(Base):
             {**done("fix__write", "2026-10-12T00:06:00Z", kind="node_error"), "error": "2 回目"},
             done("fix__write", "2026-10-12T00:07:00Z"),
         )
-        facts = runreport.transcript_facts(rows)
-        self.assertEqual((facts["failed"], facts["absorbed"]), ([], [{"node": "redepth", "error": "深さが読めない\n詳しい行"}]))
+        facts = runreport.transcript_facts(rows, optional=("world-judge", "eyes__"))
+        self.assertEqual((facts["failed"], facts["absorbed"]), ([], [{"node": "world-judge", "error": "網が無い\n詳しい行"}]))
         self.assertEqual(facts["retried"], [{"node": "fix__write", "failures": 2, "error": "2 回目"}])
         got = outcome.decide_outcome(fixed_run(), {}, {**{"start_ok": True, "record_problems": []}, "failed": facts["failed"],
                                                        "absorbed": facts["absorbed"]})
@@ -260,10 +261,31 @@ class TranscriptCase(Base):
         got = runreport.build(fixed_run(), {}, {}, facts, *got, out_dir=self.out, start={"run_id": RUN}, run_id=RUN)
         text = pathlib.Path(got["report"]).read_text(encoding="utf-8")
         stop = self.section(text, report.STOP_HEADING)
-        self.assertIn(f"{report.ABSORBED_HEAD}: redepth（誤り: 深さが読めない）", stop)
+        self.assertIn(f"{report.ABSORBED_HEAD}: world-judge（誤り: 網が無い）", stop)
         self.assertIn(f"{report.RETRIED_HEAD}: fix__write（落ちた回 2。最後の誤り: 2 回目）", stop)
         self.assertNotIn(report.INTERRUPTED_HEAD, stop)
-        self.assertIn(f"{report.ABSORBED_WHERE} redepth: redepth が落ちた", self.section(text, report.DECISIONS_HEADING))
+        self.assertIn(f"{report.ABSORBED_WHERE} world-judge: world-judge が落ちた",
+                      self.section(text, report.DECISIONS_HEADING))
+
+    def test_fall_outside_declared_optional_stays_interrupted(self):
+        """R82（元 works/tests/test_report_head.py::AbsorbedFailureCase.test_fix_lane_fall_still_interrupts_beside_absorbed_eye :149）:
+        宣言の無い段の落ちは、後に線の節が始まっても（実行基盤が依存の無い枝を先へ進めただけでも）途中で終わった落ちに数え、宣言した段の
+        落ちだけを受け止めた落ちにする。宣言が無い（optional が空）run は落ちを全部途中で終わった落ちに数える"""
+        rows = rows_of(
+            start("fix__write", "2026-10-12T00:00:00Z"),
+            {**done("fix__write", "2026-10-12T00:01:00Z", kind="node_error"), "error": "修正の筋が落ちた"},
+            start("eyes__r1", "2026-10-12T00:02:00Z"),
+            {**done("eyes__r1", "2026-10-12T00:03:00Z", kind="node_error"), "error": "目が落ちた"},
+            start("collect", "2026-10-12T00:04:00Z"),
+            done("collect", "2026-10-12T00:05:00Z"),
+        )
+        facts = runreport.transcript_facts(rows, optional=("eyes__",))
+        self.assertEqual(facts["failed"], ["fix__write"])
+        self.assertEqual(facts["absorbed"], [{"node": "eyes__r1", "error": "目が落ちた"}])
+        got = outcome.decide_outcome(fixed_run(), {}, {"start_ok": True, "record_problems": [], "failed": facts["failed"],
+                                                       "absorbed": facts["absorbed"]})
+        self.assertEqual(got, ("interrupted", "fix__write:node-error"))
+        self.assertEqual(runreport.transcript_facts(rows)["failed"], ["fix__write", "eyes__r1"])
 
 
 class DecisionsCase(Base):
@@ -934,6 +956,50 @@ class LinesCase(Base):
         _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "out_of_purpose": other}))
         self.assertIn(f"の名が {outpurpose.FILE} でない（読まなかった）", self.section(text, report.OUTSIDE_HEADING))
         self.assertNotIn(outpurpose.COUNT_HEAD, self.section(text, report.DECISIONS_HEADING))
+
+    def test_line_values_reach_their_sections(self):
+        """L-W39・S49〜S51・R5b: 線の値（無人の run で関所に載せなかった問い・聞かずに通した直し・最後の関所を開ける理由・依頼の前の失敗・
+        線の節の止めの語）が報告の節に出る"""
+        prior = self.put("start/prior-failures-in.json", [{"where": "受け付け 計画", "text": "前の run で計画が通らなかった"}])
+        line = {"deferred": ["[fork] u1: どちらに寄せるか"], "widened": ["項目 1: 直した——無人の run なので人に聞かずに範囲を広げた（allowed_paths に足した: b.py）"],
+                "final_reasons": ["守りのパスに当たった差分が在る"], "prior_failures": prior,
+                "stops": {"ask-final": stopby.NEEDS_HUMAN}}
+        _, text, decided = self.build(fixed_run(**{"merge-apply": None}), line=line)
+        self.assertEqual(decided, ("needs_human", f"ask-final:{stopby.NEEDS_HUMAN}"))
+        decisions = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn(f"- {runreport.DEFERRED_HEAD}: 1 件\n  - [fork] u1: どちらに寄せるか\n", decisions)
+        self.assertIn("  - 項目 1: 直した——無人の run なので人に聞かずに範囲を広げた（allowed_paths に足した: b.py）", decisions)
+        self.assertIn(f"- {runreport.FINAL_REASONS_HEAD}: 1 件\n  - 守りのパスに当たった差分が在る\n", decisions)
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"- {runreport.PRIOR_IN_HEAD}: 1 件\n  - 受け付け 計画: 前の run で計画が通らなかった\n", entry)
+        self.assertIn(f"- 線の節の止め: ask-final が {stopby.NEEDS_HUMAN}（{stopby.REASONS['needs-human']}）",
+                      self.section(text, report.STOP_HEADING))
+        self.put("start/prior-failures-in.json", "{壊れた")
+        _, text, _ = self.build(line={"prior_failures": prior})
+        self.assertIn(f"- {runreport.PRIOR_IN_HEAD}: 読めない（", self.section(text, report.ENTRY_HEADING))
+
+    def test_depth_lines_name_raised_and_skipped(self):
+        """L-D13・L-W51・R74: 報告の入口の節の深さの行は、直した後に上げ直した深さ（線の redepth の返り）を元 depth.lines の形で出す
+        （単位ごとの数・単位ごとの深さと訳・標準へ上げた信号・run の広さの数え・軽量で省いた物）。上げ直しの返りが無い run は計画の深さと、
+        上げ直しが無い訳"""
+        redepth = {"depth": [{"unit_id": "u1", "depth": "標準", "why": "触るファイル 1 個 / 標準へ上げた: 再審が走った"}],
+                   "skip_optional": "", "raised": ["再審が走った"], "counted": "触るファイル 1 個（起点: 修正の差分）", "stop_reason": ""}
+        _, text, _ = self.build(line={"redepth": redepth})
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn("- 深さ: 標準（単位ごと: 軽量 0 個・標準 1 個。機械が決めた）\n", entry)
+        self.assertIn("  - 標準へ上げた信号: 再審が走った\n", entry)
+        self.assertIn("- run の広さの数え: 触るファイル 1 個（起点: 修正の差分）", entry)
+        light = {"depth": [{"unit_id": "u1", "depth": "軽量", "why": "触るファイル 1 個"}], "skip_optional": "軽量で省いた",
+                 "raised": [], "counted": "", "stop_reason": ""}
+        _, text, _ = self.build(line={"redepth": light}, start={"run_id": RUN, "thickness": "軽量"})
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn("- 深さ: 軽量（単位ごと: 軽量 1 個・標準 0 個。入力 thickness の名指し 軽量）", entry)
+        self.assertIn("- 軽量で省いた: 差分の審査", entry)
+        plan = {**fixed_run()["plan"], "depth": [{"unit_id": "u1", "depth": "軽量", "why": "w"}]}
+        _, text, _ = self.build(fixed_run(plan=plan))
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn("- 深さ: 軽量（単位ごと: 軽量 1 個・標準 0 個。機械が決めた）", entry)
+        self.assertIn(runreport.NO_REDEPTH, entry)
 
     def test_every_line_is_a_bullet(self):
         """元 build の行の組み方: 節の行は「- 」か、字下げした内訳の行"""

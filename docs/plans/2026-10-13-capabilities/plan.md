@@ -1046,10 +1046,10 @@
 
 - P145 無人の run で範囲を広げるだけの直しを聞かずに通した時、trace に `replan_widened_unattended` を 1 度だけ書き、報告に「直した——無人の run なので人に聞かずに範囲を広げた（…）」の行を載せる
   - 元: works/.shared/core/replan.py:152-154 `WIDEN_OP`・`WIDEN_LINE`・:761 `_widen_text`・:767 `lines`
-  - 今: P74 workflows/line/scripts/ask_replan.py が `widened` を返すだけ（docstring に「report に受ける入力が無く、まだ報告には届かない」）
-  - 証: P74 tests/workflows/test_line.py::AskReplanCase.test_unattended_passes_widening_only_and_records_it（assert: :280。返りに載るだけ）→ 要追加: tests/workflows/test_report.py::ReplanLinesCase.test_widened_without_asking_is_reported — `$ask-replan.output.widened` が報告の案の直しの節に載る
+  - 今: lib/replan.py の WIDEN_OP・WIDEN_LINE・WIDEN_PARTS・widen_text（ask-replan が引く）→ collect → report の入力 widened → lib/runreport.py の _line_lines
+  - 証: tests/workflows/test_line.py::AskReplanCase.test_unattended_passes_widening_only_and_records_it・tests/workflows/test_report.py::FactsCase.test_line_values_reach_the_outcome_and_the_report（ReplanLinesCase.test_widened_without_asking_is_reported の名を変えた）
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 が自分で書いた未配線。不可でない → 戻す
+  - 狭め: #74 が自分で書いた未配線。不可でない → 戻す → 部分 C で戻した
 
 - P146 報告と最後の関所の文に、案の直しの項目ごとの 1 行（直した——人が承認した／聞かずに通した（手段の欄だけ）／直さずに諦めた: 訳／未完了）を見出し AMEND_HEAD の下に並べる
   - 元: works/.shared/core/replan.py:767 `lines`・:144 `AMEND_HEAD`、works/tests/test_replan.py:1097-1124

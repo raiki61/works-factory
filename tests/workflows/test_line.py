@@ -1367,6 +1367,62 @@ class CollectAndResultCase(unittest.TestCase):
         got = collect.collect({}, self.line(start=json.dumps(ptr), gates=gates))
         self.assertEqual((got["start"], got["gate_final"], got["gate_start"]), (ptr, stop, None))
 
+    def test_line_stop_reasons_reach_report(self):
+        """R5b・S48: 線の script の節（受け皿・collect・result と、往復の中の節の外）が返す止めの語は、collect が全部
+        {from: $<節>.output.stop_reason, if_skipped: null} で受け、report の入力 stops に {節: 語} で渡す（空の語と飛ばされた節は載せない）。
+        元は線の境の節が盤面の state.stop に書き、どの節の止めも結末が読んだ（works/.shared/core/report.py:328 _stop_info）"""
+        nodes = line_nodes()
+        inside = {node["id"] for node in nodes["plan-rounds"]["loop_group"]["nodes"]}
+        stopping = {key for key, node in script_nodes().items() if "stop_reason" in node["output_format"]["properties"]
+                    and node["script"] not in ("returned", "collect", "result") and key not in inside}
+        self.assertLessEqual({"start", "ask-before-fix", "ask-replan", "ask-final", "judged", "fixed", "redepth", "after-fix"}, stopping)
+        with_ = nodes["collect"]["with"]
+        self.assertEqual({k for k in with_ if k.startswith("stop_")}, {f"stop_{k.replace('-', '_')}" for k in stopping})
+        for key in sorted(stopping):
+            with self.subTest(node=key):
+                self.assertEqual(with_[f"stop_{key.replace('-', '_')}"], {"from": f"${key}.output.stop_reason", "if_skipped": None})
+                self.assertIn(key, nodes["collect"]["depends_on"])
+        got = collect.collect({}, self.line(stops={"start": "", "ask-final": "works:needs-human", "redepth": "null"}))
+        self.assertEqual(got["stops"], {"ask-final": "works:needs-human"})
+        self.assertEqual(nodes["report"]["with"]["stops"], "$collect.output.stops")
+
+    def test_deferred_widened_reasons_reach_report(self):
+        """L-W39・S49〜S51・S53: 無人の run で関所に載せなかった問い（ask-before-fix の deferred）・聞かずに通した範囲を広げるだけの直し
+        （ask-replan の widened）・最後の関所を開ける理由（ask-final の reasons）・依頼の前の失敗の指し札（start の prior_failures）・
+        直した後の深さの上げ直し（redepth の返り）を、collect が受けて report の入力に渡す。飛ばされた節は空の並びか null"""
+        with_ = line_nodes()["collect"]["with"]
+        self.assertEqual({k: with_[k] for k in ("deferred", "widened", "final_reasons", "prior_failures", "redepth")}, {
+            "deferred": {"from": "$ask-before-fix.output.deferred", "if_skipped": None},
+            "widened": {"from": "$ask-replan.output.widened", "if_skipped": None},
+            "final_reasons": {"from": "$ask-final.output.reasons", "if_skipped": None},
+            "prior_failures": {"from": "$start.output.prior_failures", "if_skipped": None},
+            "redepth": {"from": "$redepth.output", "if_skipped": None}})
+        ptr = {"type": "archon_artifact", "run_id": "r", "path": "start/prior-failures-in.json"}
+        depth = {"depth": [{"unit_id": "u1", "depth": "標準", "why": "w"}], "skip_optional": "", "raised": ["再審が走った"], "stop_reason": ""}
+        got = collect.collect({}, self.line(deferred=json.dumps(["[fork] q1"]), widened=json.dumps(["項目 1: 直した——…"]),
+                                            final_reasons=json.dumps(["申し出を人に回した"]), prior_failures=json.dumps(ptr),
+                                            redepth=json.dumps(depth)))
+        self.assertEqual((got["deferred"], got["widened"], got["final_reasons"], got["prior_failures"], got["redepth"]),
+                         (["[fork] q1"], ["項目 1: 直した——…"], ["申し出を人に回した"], ptr, depth))
+        got = collect.collect({}, self.line())
+        self.assertEqual((got["deferred"], got["widened"], got["final_reasons"], got["prior_failures"], got["redepth"]),
+                         ([], [], [], None, None))
+        report_with = line_nodes()["report"]["with"]
+        for key in ("deferred", "widened", "final-reasons", "prior-failures", "redepth"):
+            with self.subTest(input=key):
+                self.assertEqual(report_with[key], f"$collect.output.{key.replace('-', '_')}")
+
+    def test_absorbed_stages_are_declared_once_in_the_line(self):
+        """R82: 受け止める段（落ちても線が先へ進めてよい段。元は線の YAML の節の description の [optional]）の宣言は線の YAML の 1 か所
+        （collect の with: の optional）で、report の入力 optional に届く。元の宣言は世界の解・構造の実測・レンズ・直した後の構造・独立の目
+        （works/darkfactory/darkfactory.yaml 347・445・946・1124・1196 行）"""
+        declared = json.loads(line_nodes()["collect"]["with"]["optional"])
+        self.assertEqual(collect.collect({}, self.line(optional=json.dumps(declared)))["optional"], declared)
+        for stage in ("judge__world", "plan__structure", "fix__lens", "eyes__"):
+            with self.subTest(stage=stage):
+                self.assertIn(stage, declared)
+        self.assertEqual(line_nodes()["report"]["with"]["optional"], "$collect.output.optional")
+
     def test_result_carries_what_apply_reads(self):
         """線の返りの欄 apply・sealed・r2_status・final_answer（bin/apply と段 1 が読む）は collect が集めた返りから組み、飛ばされた段は
         null。result は merge・eyes・関所の返りを直に読まず collect を通す"""
@@ -1402,9 +1458,10 @@ class LinekitCase(unittest.TestCase):
         returns.assert_called_once_with({"stop_reason": linekit.LINE_SCRIPT, "reason": "ValueError: 壊れた 入力"})
 
     def test_line_stop_words_are_what_stopby_declares(self):
-        for word, meaning in linekit.DECLARED.items():
-            with self.subTest(word=word):
-                self.assertEqual(stopby.declare(word.removeprefix(stopby.HEAD), meaning), word)
+        """線の止めの語は報告（lib/outcome）も読むので住処 stopby の表に在る。linekit は lib を読まずに字で持つので、字と意味を表と突き合わせる"""
+        self.assertEqual(linekit.DECLARED, {stopby.START_REFUSED: stopby.REASONS["start-refused"],
+                                            stopby.NEEDS_HUMAN: stopby.REASONS["needs-human"],
+                                            stopby.LINE_SCRIPT: stopby.REASONS["line-script"]})
 
     def test_skipped_values(self):
         self.assertEqual((linekit.value("null"), linekit.text("null"), linekit.flag("true"), linekit.items("[1]")), (None, "", True, [1]))

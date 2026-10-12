@@ -24,6 +24,13 @@ inputs:
   gate-before-fix: {default: ""}
   gate-replan: {default: ""}
   gate-final: {default: ""}
+  stops: {default: ""}
+  prior-failures: {default: ""}
+  deferred: {default: ""}
+  widened: {default: ""}
+  final-reasons: {default: ""}
+  redepth: {default: ""}
+  optional: {default: ""}
 
 returns: report
 outcome_field: ok

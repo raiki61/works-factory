@@ -918,10 +918,10 @@
   - 狭め: 無し
 - L-W39 無人の run では、関所を開くはずの時に止め（needs-human）、問いと聞かずに通した直しを報告へ回す
   - 元: works/tests/test_line_a.py::ConvergeLineCase.test_unattended_same_block_stops（:882）、gatepolicy
-  - 今: scripts/ask_before_fix.py:51-52・ask_replan.py:64-65・ask_final.py:128-129。deferred・widened・reasons は collect に無く報告に届かない
-  - 証: AskBeforeFixCase.test_unattended_stops_where_the_gate_would_open（:249）・test_unattended_moves_questions_to_the_report（:244）、筋書き unattended-needs-human。要追加: CollectAndResultCase.test_deferred_widened_reasons_reach_report
+  - 今: scripts/ask_before_fix.py・ask_replan.py・ask_final.py が止め（needs-human）と deferred・widened・reasons を返し、collect が report の入力 stops・deferred・widened・final-reasons に渡す。lib/runreport.py の _line_lines・_stop_lines
+  - 証: AskBeforeFixCase.test_unattended_stops_where_the_gate_would_open・test_unattended_moves_questions_to_the_report、筋書き unattended-needs-human、CollectAndResultCase.test_deferred_widened_reasons_reach_report・lib/tests/test_runreport.py::LinesCase.test_line_values_reach_their_sections・tests/e2e/test_line_scenarios.py::ReportOutcomeTest
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で名指し済み（S50・S51。不可でない → 戻す）
+  - 狭め: #74 で名指し済み（S50・S51。不可でない → 戻す） → 部分 C で戻した
 - L-W40 修正役の異議がある時だけ再審を回し、最後の試験は再審を待つ
   - 元: works/darkfactory/lib/line_edge.py:1043 `rejudge_edge`、works/darkfactory/darkfactory.yaml:823-870。試験 works/tests/test_edge.py::RejudgeEdgeCase.test_tests_wait_for_rejudge（:895）・test_rejudge_edge_go（:867）
   - 今: scripts/after_fix.py:18、yaml:403-435（rejudge と受け皿）、fixed は judged の後（yaml:616-663）
@@ -990,10 +990,10 @@
   - 狭め: 無し（深さの決め方は L-D）
 - L-W51 深さを上げ直した行を報告の冒頭 2 に出す
   - 元: works/darkfactory/darkfactory.yaml:1330（report の depth ＝ h-redepth）
-  - 今: 無し（collect が redepth を読まない）
-  - 証: 要追加: CollectAndResultCase.test_redepth_reaches_report（L-D13 と同じ）
-  - 本物の run: 節 redepth の output（報告には届かない）
-  - 狭め: #74 で名指し済み（S30・S53。不可でない → 戻す）
+  - 今: collect の with: redepth（$redepth.output）→ report の入力 redepth → lib/runreport.py の _depth_lines（lib/depth.lines）
+  - 証: CollectAndResultCase.test_deferred_widened_reasons_reach_report・lib/tests/test_runreport.py::LinesCase.test_depth_lines_name_raised_and_skipped
+  - 本物の run: report/report.md の「2. 入口・段・決めた人」の深さの行
+  - 狭め: #74 で名指し済み（S30・S53。不可でない → 戻す） → 部分 C で戻した
 - L-W52 最後の試験は、修正が済み前の線の script が止めていない時だけ走る
   - 元: works/darkfactory/lib/line_edge.py:1258
   - 今: yaml:693
@@ -1264,10 +1264,10 @@
   - 狭め: 無し（粗くしたが聞く側）
 - L-D29 無人の run は範囲を広げるだけの直しを聞かずに通し、trace（WIDEN_OP）と報告の行（WIDEN_LINE）に残す
   - 元: works/.shared/core/replan.py:152-154・:756-759・:761
-  - 今: scripts/ask_replan.py:55-57 は widened を返すだけ
-  - 証: AskReplanCase.test_unattended_passes_widening_only_and_records_it（:279-280。返りまで）→ 要追加: CollectAndResultCase.test_widened_reaches_the_report
+  - 今: scripts/ask_replan.py が widened（lib/replan.widen_text の字。元 WIDEN_OP の trace の代わりにこの節の返りが run の記録に 1 度残る）→ collect → report の入力 widened → lib/runreport.py の _line_lines
+  - 証: AskReplanCase.test_unattended_passes_widening_only_and_records_it・CollectAndResultCase.test_deferred_widened_reasons_reach_report・lib/tests/test_runreport.py::LinesCase.test_line_values_reach_their_sections
   - 本物の run: 筋書きでのみ
-  - 狭め: #74（名指し済み。S50。不可でない → 戻す）
+  - 狭め: #74（名指し済み。S50。不可でない → 戻す） → 部分 C で戻した（trace の行は ask-replan の返りが run の記録に残る形）
 - L-D30 無人の run で約束の欄が変わったら、関所を開かずに止める
   - 元: works/.shared/core/replan.py:625 と無人の方針
   - 今: scripts/ask_replan.py:64-65
@@ -1503,7 +1503,7 @@
 
 - S28「約束を変える頼み」1: fix の返りに、修正の後に問いを数え直した結果（閉鎖の数え直し）の欄か指し札を足す。→ **開いている**（`FX:1378`）
 - S29「約束を変える頼み」2: fix の返りに、手直しの穴の名札（差分の審査の穴と、手直しが `handled` とした行）の指し札を足す。→ **開いている**
-- S30「約束を変える頼み」3: 線の `redepth` の返りを report の入力に足す。→ **開いている**（report の入力 `workflows/report/works-factory-report.yaml:9-27` は 17 個で、`redepth` が無い。`collect`（`LY:939-955`）も渡さない）
+- S30「約束を変える頼み」3: 線の `redepth` の返りを report の入力に足す。→ **部分 C で閉じた**（report の入力 redepth ← collect ← $redepth.output）
 - S31「約束を変える頼み」4: 判定の `judgment` の隣に `answer-ties.json`・`world-state.json` を置く。→ **開いている**
 - S32「約束を変える頼み」5: 受け付けの最後の拒否の本文と、並行 PR への申し送りの下書きを、各ブロックの返りの指し札にする。→ **開いている**
 - S33「後の issue に渡す物」1: 最後の関所に並べる行の場面（元 `test_gate_head.py` の FinalHeadCase ほか）。→ **済み**（`tests/workflows/test_gate_head.py:116-176`）
@@ -1533,12 +1533,12 @@
 
 ### #74 線（本文とコメント）
 
-- S48「約束を変える頼み（report の入力）」1: 線の止めの語（`works:start-refused`・`works:needs-human`・`works:line-script`。`LS/linekit.py:25-27`）を report に届ける。→ **開いている**（report に受け口が無い）。今は、無人の run が最後の関所で止まっても、report はそれを止めと見ない
-- S49 同 2: 依頼の前の失敗の指し札（`$start.output.prior_failures`）を report に届ける。→ **開いている**
-- S50 同 3: 無人の run で関所に載せなかった問い（`ask-before-fix` の `deferred`）と、聞かずに通した範囲を広げるだけの直し（`ask-replan` の `widened`）を report に届ける。→ **開いている**
-- S51 同 4: 最後の関所を開けた理由（`ask-final` の `reasons`）を report に届ける。→ **開いている**
+- S48「約束を変える頼み（report の入力）」1: 線の止めの語（`works:start-refused`・`works:needs-human`・`works:line-script`。`LS/linekit.py:25-27`）を report に届ける。→ **部分 C で閉じた**（report の入力 stops。語は lib/stopby.py の表、結末は lib/outcome.py）
+- S49 同 2: 依頼の前の失敗の指し札（`$start.output.prior_failures`）を report に届ける。→ **部分 C で閉じた**（report の入力 prior-failures ← $start.output.prior_failures。報告の入口の節）
+- S50 同 3: 無人の run で関所に載せなかった問い（`ask-before-fix` の `deferred`）と、聞かずに通した範囲を広げるだけの直し（`ask-replan` の `widened`）を report に届ける。→ **部分 C で閉じた**（report の入力 deferred・widened）
+- S51 同 4: 最後の関所を開けた理由（`ask-final` の `reasons`）を report に届ける。→ **部分 C で閉じた**（report の入力 final-reasons ← $ask-final.output.reasons）
 - S52 同 5: 再審の前後の比べ（`judged` の `rejudged`・`new_open_units`・`lowered`・`unnamed_changed`・`unread`）を report に届ける。→ **開いている**
-- S53 同 6: 直した後の深さの上げ直し（`redepth` の `skip_optional`・`raised`）を report に届ける。→ **開いている**（S30 と同じ）。S48〜S53 はどれも、`collect`（`LY:908-955`）が report の 17 の入力の形しか組まないことが根
+- S53 同 6: 直した後の深さの上げ直し（`redepth` の `skip_optional`・`raised`）を report に届ける。→ **部分 C で閉じた**（S30 と同じ入力 redepth）
 - S54「今の works から狭めた物」1 `fix_fixture`: 空でない値を `start` が止める（`LS/start.py:84-86`）。→ **狭めたまま**（持ち主の確かめ待ち） 決め: 固定材料は戻すと決めた。独立の issue（線の配線の文書の「この文書の外」の「決めた物」）
 - S55 同 2: 最後の関所で、申し出を人に回した行（行の `ruling`）だけを数える絞り。→ 部分 B2 で閉じた（`LS/ask_final.py` の `asked_conflicts` が fix と refix-run の `conflicts.json` を `lib/conflict.py` の `human_lines` で読み、人に回した行だけを数えて並べる。読めない控えは訳を出して開く）
 - S56 同 3: 版の控え `versions.json`。→ **狭めたまま**（`LS/start.py:120-126` は Archon の commit と Claude Code の版だけ）

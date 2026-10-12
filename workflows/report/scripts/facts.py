@@ -39,6 +39,16 @@ GATES = {
     "gate-final": os.environ.get("INPUTS_GATE_FINAL", ""),
 }
 START = os.environ.get("INPUTS_START", "")
+LINE = {   # 線の値（線の collect が渡す。docs/design.md の report の返り）
+    "stops": os.environ.get("INPUTS_STOPS", ""),
+    "prior-failures": os.environ.get("INPUTS_PRIOR_FAILURES", ""),
+    "deferred": os.environ.get("INPUTS_DEFERRED", ""),
+    "widened": os.environ.get("INPUTS_WIDENED", ""),
+    "final-reasons": os.environ.get("INPUTS_FINAL_REASONS", ""),
+    "redepth": os.environ.get("INPUTS_REDEPTH", ""),
+    "optional": os.environ.get("INPUTS_OPTIONAL", ""),
+}
+LISTS = ("deferred", "widened", "final-reasons", "optional")
 WORKFLOW_FILE = Path(__file__).resolve().parents[1] / "works-factory-report.yaml"   # 来歴の行の版を測る自分の工程
 
 
@@ -72,6 +82,29 @@ def opened(value, unopened: list, rid: str, field: str = ""):
     if isinstance(value, list):
         return [opened(v, unopened, rid, field) for v in value]
     return value
+
+
+def line_values(unread: list, unopened: list) -> dict:
+    """線の値を {stops, prior_failures, deferred, widened, final_reasons, redepth, optional} に（欄の名は - を _ に）。並びの入力は
+    配列でなければ空にし、JSON でない入力は訳を unread に積む（黙って空にしない）。依頼の前の失敗の指し札は開けたパスの字にする"""
+    out = {}
+    for name, raw in LINE.items():
+        key = name.replace("-", "_")
+        if raw.strip() in ("", "null"):
+            out[key] = [] if name in LISTS else None
+            continue
+        try:
+            value = json.loads(raw)
+        except ValueError as e:
+            unread.append(f"入力 {name} が JSON でない（{e}）")
+            value = None
+        if name in LISTS and not isinstance(value, list):
+            unread += [f"入力 {name} が配列でない"] if value is not None else []
+            value = []
+        out[key] = value
+    out["stops"] = out["stops"] if isinstance(out["stops"], dict) else {}
+    out["prior_failures"] = opened(out["prior_failures"], unopened, "prior-failures")
+    return out
 
 
 def start_record(problems: list) -> dict | None:
@@ -124,18 +157,21 @@ def main() -> dict:
     for gid, raw in GATES.items():
         gates[gid], why = parse(gid, raw)
         unread += [why] if why else []
+    line = line_values(unread, unopened)
     problems, notes = outcome.record_problems(returns, gates, unread=unread, unopened=unopened)
     record = start_record(problems)
     start = record or {}
     rows, transcript_why = transcript()
     listing = typed.read_listing()
     listing["warnings"] = [*notes, *listing["warnings"], *([transcript_why] if transcript_why else [])]
-    facts = runreport.transcript_facts(rows, exclude_prefix=typed.own_prefix(os.environ.get("ARCHON_NODE_EXECUTION", "")))
+    facts = runreport.transcript_facts(rows, exclude_prefix=typed.own_prefix(os.environ.get("ARCHON_NODE_EXECUTION", "")),
+                                       optional=[x for x in line["optional"] if isinstance(x, str)])
     decided = outcome.decide_outcome(returns, gates, {"start_ok": bool(start), "record_problems": problems,
                                                       "failed": facts["failed"],
-                                                      "absorbed": facts["absorbed"], "answers": start.get("answers") or []})
+                                                      "absorbed": facts["absorbed"], "answers": start.get("answers") or [],
+                                                      "stops": list(line["stops"].items())})
     built = runreport.build(returns, gates, listing, facts, *decided, out_dir=out_dir(), start=start, problems=problems,
-                            run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd())
+                            run_id=os.environ.get("WORKFLOW_ID", ""), transcript_why=transcript_why, repo=Path.cwd(), line=line)
     report = rel(built["report"])
     run_id = os.environ.get("WORKFLOW_ID", "")
     return {"outcome": decided[0], "ok": decided[0] in outcome.OK_OUTCOMES, "stop_reason": decided[1],

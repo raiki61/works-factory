@@ -958,11 +958,19 @@ nodes:
         gate_before_fix: {}
         gate_replan: {}
         gate_final: {}
-      required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final]
+        stops: { type: object }
+        deferred: { type: array }
+        widened: { type: array }
+        final_reasons: { type: array }
+        optional: { type: array }
+        prior_failures: {}
+        redepth: {}
+      required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final,
+                 stops, deferred, widened, final_reasons, optional, prior_failures, redepth]
     mutates_checkout: false
-    depends_on: [start, answer-start, test-gate-base-out, judge-out, plan-rounds-out, answer-before-fix, fix-out, rejudge-run-out,
-                 replan-out, replan-review-out, answer-replan, fixed, test-gate-final-out, eyes-out, merge-seal-out, answer-final,
-                 merge-apply-out]
+    depends_on: [start, answer-start, test-gate-base-out, judge-out, plan-rounds-out, ask-before-fix, answer-before-fix, fix-out,
+                 after-fix, rejudge-run-out, judged, replan-out, replan-review-out, ask-replan, answer-replan, fixed, redepth,
+                 test-gate-final-out, eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out]
     trigger_rule: all_done
     always_run: true
     with:
@@ -983,6 +991,26 @@ nodes:
       eyes: { from: "$eyes-out.output", if_skipped: null }
       merge_seal: { from: "$merge-seal-out.output", if_skipped: null }
       merge_apply: { from: "$merge-apply-out.output", if_skipped: null }
+      stop_start: { from: "$start.output.stop_reason", if_skipped: null }
+      stop_answer_start: { from: "$answer-start.output.stop_reason", if_skipped: null }
+      stop_ask_before_fix: { from: "$ask-before-fix.output.stop_reason", if_skipped: null }
+      stop_answer_before_fix: { from: "$answer-before-fix.output.stop_reason", if_skipped: null }
+      stop_after_fix: { from: "$after-fix.output.stop_reason", if_skipped: null }
+      stop_judged: { from: "$judged.output.stop_reason", if_skipped: null }
+      stop_ask_replan: { from: "$ask-replan.output.stop_reason", if_skipped: null }
+      stop_answer_replan: { from: "$answer-replan.output.stop_reason", if_skipped: null }
+      stop_fixed: { from: "$fixed.output.stop_reason", if_skipped: null }
+      stop_redepth: { from: "$redepth.output.stop_reason", if_skipped: null }
+      stop_ask_final: { from: "$ask-final.output.stop_reason", if_skipped: null }
+      stop_answer_final: { from: "$answer-final.output.stop_reason", if_skipped: null }
+      deferred: { from: "$ask-before-fix.output.deferred", if_skipped: null }
+      widened: { from: "$ask-replan.output.widened", if_skipped: null }
+      final_reasons: { from: "$ask-final.output.reasons", if_skipped: null }
+      prior_failures: { from: "$start.output.prior_failures", if_skipped: null }
+      redepth: { from: "$redepth.output", if_skipped: null }
+      # 受け止める段の宣言（ここが 1 か所。落ちても線が先へ進めてよい段の節の id の頭。宣言の外の落ちは途中で終わった run に数える。
+      # 元は線の YAML の節の description の [optional]: 世界の解・構造の実測・レンズ・直した後の構造・独立の目）
+      optional: '["judge__world", "rejudge-run__world", "world-classes", "world-judge", "plan__structure", "replan__structure", "structure-eye", "fix__lens", "refix-run__lens", "eyes__"]'
 
   - id: report
     include: works-factory-report
@@ -1006,6 +1034,13 @@ nodes:
       gate-before-fix: "$collect.output.gate_before_fix"
       gate-replan: "$collect.output.gate_replan"
       gate-final: "$collect.output.gate_final"
+      stops: "$collect.output.stops"
+      prior-failures: "$collect.output.prior_failures"
+      deferred: "$collect.output.deferred"
+      widened: "$collect.output.widened"
+      final-reasons: "$collect.output.final_reasons"
+      redepth: "$collect.output.redepth"
+      optional: "$collect.output.optional"
 
   # 線の返す節
   - id: result

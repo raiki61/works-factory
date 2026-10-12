@@ -8,9 +8,10 @@
 - returns: 差し込んだブロックの id → 返りの dict か None（飛ばされた・落ちた・読めない）。指し札の欄は開けたファイルのパスの字
   （開けなければ None）。conflicts だけは段ごとのパスの配列もよい
 - gates: 関所の id → {decision, text} か None（開かなかった）
-- facts: {start_ok, record_problems, failed, absorbed, answers}。failed は run の記録で最後が誤りで、後に線が進まなかった節の id の
-  並び（記録が読めなければ空）、absorbed は落ちたが線が受け止めて先へ進んだ節 [{node, error}]、answers は依頼の answers（始めの
-  記録の欄）。record_problems は record_problems() の返り
+- facts: {start_ok, record_problems, failed, absorbed, answers, stops}。failed は run の記録で落ちて、線が受け止めると宣言した段の
+  外の節の id の並び（記録が読めなければ空）、absorbed は宣言した段の中で落ちた節 [{node, error}]、answers は依頼の answers（始めの
+  記録の欄）、stops は線の節が返した止めの語 [(節の id, 語)]（線の collect が集めた物。入口の拒み・無人の関所の止め・線の script の
+  例外・人の止め）。record_problems は record_problems() の返り
 - decide_outcome(returns, gates, facts) -> (結末の語, stop_reason)。stop_reason は「<段の id>:<語>」、止まらなければ ""
 - record_problems(returns, gates, *, unread, unopened) -> (結果を名乗れない訳, 注意): 入力の読めなかった訳・開けなかった指し札・
   申し出と裁定の読めなかった訳・知らない答えの語を、結果を名乗らせない物と注意に分ける
@@ -44,7 +45,7 @@ OK_OUTCOMES = ("fixed", "fixed_needs_check", "no_fix_needed")   # 返す節の o
 GATES = ("gate-start", "gate-before-fix", "gate-replan", "gate-final")
 STOP_WORDS = report.FINAL_GATE_STOPS   # stop は answer.VERBS の止める語、reject は今の works の最後の関所の止める語
 PASS_WORDS = ("approve", *(v for v in answer.VERBS if v not in STOP_WORDS))   # approve は関所の decisions に要る語
-WAIT_WORDS = (stopby.CONFLICT, stopby.REPLAN, stopby.TDD_REPEAT)   # 線の止めでなく、人の答えを待つ語
+WAIT_WORDS = (stopby.CONFLICT, stopby.REPLAN, stopby.TDD_REPEAT, stopby.NEEDS_HUMAN)   # 線の止めでなく、人の答えを待つ語
 FIX_STATUS_LEFT = ("given_up", "not_done")
 EYE_STATUS_LEFT = (seal.REDESIGN, seal.UNVERIFIABLE)
 EYE_NAMES = tuple(e.lower() for e in report.EYES)
@@ -362,19 +363,21 @@ def unknown_answers(gates: dict) -> list:
     return out
 
 
-def stop_reasons(returns: dict) -> list:
-    return [(rid, r["stop_reason"]) for rid, r in returns.items() if isinstance(r, dict) and isinstance(r.get("stop_reason"), str)
-            and r["stop_reason"]]
+def stop_reasons(returns: dict, facts: dict | None = None) -> list:
+    """止めの語 [(段か線の節の id, 語)]: ブロックの返りの stop_reason と、facts の stops（線の節の止めの語）"""
+    got = [(rid, r["stop_reason"]) for rid, r in returns.items() if isinstance(r, dict) and isinstance(r.get("stop_reason"), str)
+           and r["stop_reason"]]
+    return got + [(str(node), word) for node, word in as_dict(facts).get("stops") or () if isinstance(word, str) and word]
 
 
-def _human_stop(returns: dict, gates: dict) -> tuple:
+def _human_stop(returns: dict, gates: dict, facts: dict | None = None) -> tuple:
     """1. 人の止め: 関所の止める語か、返りの stop_reason が human:・request: で始まる。文が request: で始まれば止め札"""
     for gid in GATES:
         g = gates.get(gid)
         if isinstance(g, dict) and g.get("decision") in STOP_WORDS:
             word = "stopped_by_request" if str(g.get("text") or "").startswith(report.REQUEST_BY) else "stopped_by_human"
             return word, f"{gid}:{g['decision']}"
-    for rid, sr in stop_reasons(returns):
+    for rid, sr in stop_reasons(returns, facts):
         if sr.startswith(report.REQUEST_BY):
             return "stopped_by_request", f"{rid}:{sr}"
         if sr.startswith(report.HUMAN_BY):
@@ -382,9 +385,9 @@ def _human_stop(returns: dict, gates: dict) -> tuple:
     return ()
 
 
-def _line_stop(returns: dict) -> str:
-    """2. 線の止め: stopby の語（人待ちの語を除く）・事前審査の往復が進まない・計画が諦めた・封じと置きが ok でない"""
-    for rid, sr in stop_reasons(returns):
+def _line_stop(returns: dict, facts: dict | None = None) -> str:
+    """2. 線の止め: stopby の語（人待ちの語を除く。線の節の語も）・事前審査の往復が進まない・計画が諦めた・封じと置きが ok でない"""
+    for rid, sr in stop_reasons(returns, facts):
         if stopby.is_line(sr) and sr not in WAIT_WORDS:
             return f"{rid}:{sr}"
     if as_dict(plan_reviewed(returns)).get("stalled") is True:
@@ -404,12 +407,12 @@ def plan_gave_up(returns: dict) -> bool:
     return bool(plan) and plan.get("ready") is False and bool(_units(returns))
 
 
-def _waits(returns: dict, gates: dict, closed: bool) -> str:
+def _waits(returns: dict, gates: dict, closed: bool, facts: dict | None = None) -> str:
     """3. 人待ち: 人に回した申し出（closed なら締めた案の直しの行も）・返りの人待ちの語・前提の検算の escalate・無人の run が
     残した修正前の問い"""
     if asked_conflicts(returns, closed):
         return f"fix:{stopby.CONFLICT}"
-    for rid, sr in stop_reasons(returns):
+    for rid, sr in stop_reasons(returns, facts):
         if sr in WAIT_WORDS:
             return f"{rid}:{sr}"
     if as_dict(as_dict(returns.get("eyes")).get("premise_check")).get("verdict") == "escalate":
@@ -464,10 +467,10 @@ def decide_outcome(returns: dict, gates: dict, facts: dict) -> tuple[str, str]:
     """結末の語と止めの語。表の各行は元の docstring（works/.shared/core/report.py:672-686）の次の語に当たる:
 
     1. 止め札（by request:）→ stopped_by_request、関所の stop・reject（by human:）→ stopped_by_human
-    2. 機械の止め（by works:）→ stopped_by_line（元は盤面の state.stop.by。ここは返りの stop_reason と、往復の止まり・計画の諦め・
-       封じの失敗を返りの欄で読む）
+    2. 機械の止め（by works:）→ stopped_by_line（元は盤面の state.stop.by。ここは返りの stop_reason と線の節の止めの語 facts の stops
+       と、往復の止まり・計画の諦め・封じの失敗を返りの欄で読む）
     3. 人に聞いたまま（pending_human）か食い違いの申し出を人に回した（conflict.asked）→ needs_human（元は盤面の pending_human。
-       ここは返りの人待ちの語・前提の検算の escalate・関所が開かなかった修正前の問い。途中で終わっていない run は、案の直しを
+       ここは返りの人待ちの語（無人の run の関所の止め works:needs-human も）・前提の検算の escalate・関所が開かなかった修正前の問い。途中で終わっていない run は、案の直しを
        待つ行も元の build の締めと同じく諦めた行として人に回す）
     4. 関所が通らない（accepted か round_closed が偽）→ record_invalid（元は検証器の関所。ここは始めの記録が読めない・
        record_problems が在る）
@@ -481,14 +484,14 @@ def decide_outcome(returns: dict, gates: dict, facts: dict) -> tuple[str, str]:
     returns = returns or {}
     gates = gates or {}
     facts = facts or {}
-    stopped = _human_stop(returns, gates)
+    stopped = _human_stop(returns, gates, facts)
     if stopped:
         return stopped
-    line = _line_stop(returns)
+    line = _line_stop(returns, facts)
     if line:
         return "stopped_by_line", line
     cut = cut_at(returns, facts.get("failed"))
-    wait = _waits(returns, gates, closed=not cut)
+    wait = _waits(returns, gates, closed=not cut, facts=facts)
     if wait:
         return "needs_human", wait
     if not facts.get("start_ok") or facts.get("record_problems"):

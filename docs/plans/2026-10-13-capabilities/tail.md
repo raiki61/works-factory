@@ -1204,10 +1204,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R5b 線の節が返す止めの語（works:line-script・works:needs-human・redepth の止め）を結末に入れる
   - 元: works/.shared/core/report.py:328 `_stop_info`（線の境の節は盤面の state.stop に書き、どの節の止めも結末が読んだ）
-  - 今: 無し。線の collect（workflows/line/scripts/collect.py:31-42）は線の script の stop_reason を集めず、report の inputs（workflows/report/works-factory-report.yaml:9-26）にも欄が無い。#74 の head/tests/workflows/test_line.py:624 が「report に止めの理由の入力が無い」と自ら書く。redepth が落ちると最後のテストが飛び、報告は続きの切れ目で interrupted と名乗る（元なら stopped_by_line）。無人の run で関所が開くはずだった所の止め（workflows/line/scripts/linekit.py:26 `NEEDS_HUMAN`）も届かない
-  - 証: 要追加: tests/workflows/test_line.py::CollectCase.test_line_stop_reasons_reach_report — 線の節（judged・fixed・after-fix・redepth・ask-*）の stop_reason が collect の返りに載り、report が stopped_by_line / needs_human を返す
+  - 今: lib/stopby.py の表の start-refused・needs-human・line-script と、線の collect（workflows/line/scripts/collect.py の STOPS・stop_<節> の with:）→ report の入力 stops → workflows/report/scripts/facts.py → lib/outcome.py の stop_reasons(returns, facts)・WAIT_WORDS（needs-human は needs_human）
+  - 証: tests/workflows/test_line.py::CollectAndResultCase.test_line_stop_reasons_reach_report・lib/tests/test_outcome.py::LineStopCase.test_line_stop_words_reach_the_outcome・tests/workflows/test_report.py::FactsCase.test_line_values_reach_the_outcome_and_the_report・tests/e2e/test_line_scenarios.py::ReportOutcomeTest.test_real_report_names_the_outcome
   - 本物の run: 筋書きでのみ
-  - 狭め: #74（線）と #68 の境で落ちた。Archon で不可でない（線の with: で集めれば足りる）→ 戻す
+  - 狭め: #74（線）と #68 の境で落ちた。Archon で不可でない（線の with: で集めれば足りる）→ 戻す → 部分 C で戻した
 
 - R6 record_invalid: 始めの記録が読めない・結果を名乗れない訳（入力が JSON でない・申し出と裁定が読めない・知らない答えの語・開けないと名乗れない指し札が開けない）が在る
   - 元: works/.shared/core/report.py:376 `gate_record`・:691（検証器の accepted と round_closed）
@@ -1709,10 +1709,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R74 直した後の深さの上げ直しの行（depth_lines）
   - 元: works/darkfactory/scripts/report.py:126、works/darkfactory/lib/depth.py:192
-  - 今: 無し（R42）
-  - 証: 要追加: R42 の試験と、#74 の head/tests/workflows/test_line.py::CollectCase.test_redepth_reaches_report
+  - 今: lib/runreport.py の _depth_lines（redepth の返りを lib/depth.lines の形で）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_depth_lines_name_raised_and_skipped・tests/workflows/test_line.py::CollectAndResultCase.test_deferred_widened_reasons_reach_report
   - 本物の run: 線の節 `redepth` の出力
-  - 狭め: 判定: 戻せる。線（workflows/line/works-factory-line.yaml:665-686）が redepth の返り {depth, skip_optional, raised} を作る。線の collect（workflows/line/scripts/collect.py:31-42）と report の inputs に欄を足すだけ。Archon で不可でない → 戻す（線の issue に入れる）
+  - 狭め: 判定: 戻せる。線（workflows/line/works-factory-line.yaml:665-686）が redepth の返り {depth, skip_optional, raised} を作る。線の collect（workflows/line/scripts/collect.py:31-42）と report の inputs に欄を足すだけ。Archon で不可でない → 戻す（線の issue に入れる） → 部分 C で戻した
 
 - R75 方針の文書が始めに固定した版から変わったまま終わった run の行（書き手の指示書の構成 2 の 3 つ目）
   - 元: works/blk-report/prompts/COPIED_FROM の手直しの行（process.policy_change）
@@ -1765,10 +1765,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R82 受け止めた落ちの決め方（元は線の YAML の [optional] の宣言と出口の印。今は落ちた後にほかの節が始まったか）
   - 元: works/.shared/core/report.py:533 `_optional`・:545 `split_fallen`（宣言の外の落ちと、出口の印が欠けた run の落ちは全部中断）
-  - 今: lib/runreport.py:173-175
-  - 証: 要追加: lib/tests/test_runreport.py::TranscriptCase.test_fall_outside_declared_optional_stays_interrupted — 宣言の無い段の落ちは、後に並びの節が始まっても途中で終わった落ちに数える（元 works/tests/test_report_head.py::AbsorbedFailureCase.test_fix_lane_fall_still_interrupts_beside_absorbed_eye :149）
+  - 今: 線の YAML の collect の with: optional（宣言の 1 か所）→ report の入力 optional → lib/runreport.py の transcript_facts(optional=)・_declared（宣言の外の落ちは failed）
+  - 証: lib/tests/test_runreport.py::TranscriptCase.test_fall_outside_declared_optional_stays_interrupted・test_fall_the_line_went_past_is_absorbed_not_interrupted・tests/workflows/test_line.py::CollectAndResultCase.test_absorbed_stages_are_declared_once_in_the_line・tests/workflows/test_report.py::RealRunCase
   - 本物の run: `$LOG_DIR/<run>.jsonl`
-  - 狭め: 判定: 狭め（#68 が書いたとおり）。今の決め方は Archon が依存の無い枝を先へ進めただけでも「受け止めた」と数え、宣言していない段の落ちを残り（round_limit）に回して interrupted を名乗らない。Archon で不可でない（線の節の description か報告の inputs に受け止める段の名を宣言すれば元の決め方になる）→ 持ち主の確かめ待ち（戻すなら宣言の置き場を線の issue で決める） 決め: 戻すと決めた。部分 C のやる事 8（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: 判定: 狭め（#68 が書いたとおり）。今の決め方は Archon が依存の無い枝を先へ進めただけでも「受け止めた」と数え、宣言していない段の落ちを残り（round_limit）に回して interrupted を名乗らない。Archon で不可でない（線の節の description か報告の inputs に受け止める段の名を宣言すれば元の決め方になる）→ 持ち主の確かめ待ち（戻すなら宣言の置き場を線の issue で決める） 決め: 戻すと決めた。部分 C のやる事 8（線の配線の文書の「この文書の外」の「決めた物」） → 部分 C で戻した（出口の印: 報告は線の出口の後に走るので在るものと読む）
 
 ### R の穴
 

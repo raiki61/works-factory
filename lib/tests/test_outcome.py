@@ -120,6 +120,28 @@ class TableCase(unittest.TestCase):
         self.assertEqual(outcome.residue(fixed_run(**{"merge-seal": {"mode": "seal"}})), [])
 
 
+class LineStopCase(unittest.TestCase):
+    """R5b・S48: 線の節が返す止めの語（facts の stops。線の collect が集めた {節: 語}）を結末に入れる（元 report._stop_info は線の境の
+    節が盤面に書いた止めも読んだ）: 入口の拒みと線の script の例外は stopped_by_line、無人の run の関所の止めは needs_human、人の止め
+    human:<関所> は stopped_by_human"""
+
+    def test_line_stop_words_reach_the_outcome(self):
+        refused = {"start_ok": False, "record_problems": [], "failed": [], "stops": [("start", stopby.START_REFUSED)]}
+        self.assertEqual(decide(fixed_run(judge=None, plan=None, fix=None), facts=refused), ("stopped_by_line", f"start:{stopby.START_REFUSED}"))
+        broken = {**OK_FACTS, "stops": [("redepth", stopby.LINE_SCRIPT)]}
+        self.assertEqual(decide(fixed_run(**{"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None}),
+                                facts=broken), ("stopped_by_line", f"redepth:{stopby.LINE_SCRIPT}"))
+        waiting = {**OK_FACTS, "stops": [("ask-final", stopby.NEEDS_HUMAN)]}
+        self.assertEqual(decide(fixed_run(**{"merge-apply": None}), facts=waiting), ("needs_human", f"ask-final:{stopby.NEEDS_HUMAN}"))
+        human = {**OK_FACTS, "stops": [("answer-final", "human:gate-final")]}
+        self.assertEqual(decide(fixed_run(**{"merge-apply": None}), facts=human), ("stopped_by_human", "answer-final:human:gate-final"))
+
+    def test_line_words_are_the_stopby_words(self):
+        self.assertEqual((stopby.START_REFUSED, stopby.NEEDS_HUMAN, stopby.LINE_SCRIPT),
+                         ("works:start-refused", "works:needs-human", "works:line-script"))
+        self.assertIn(stopby.NEEDS_HUMAN, outcome.WAIT_WORDS)
+
+
 class OrderCase(unittest.TestCase):
     def test_request_before_line_stop(self):
         returns = fixed_run(**{"merge-seal": {"ok": False}})

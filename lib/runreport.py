@@ -5,14 +5,14 @@
 開けたファイルのパスの字にして渡す（開けなければ None）。指し札の隣のファイル（docs/design.md の「書き方の決め」の名指しの
 隣のファイル）は指し札の先と同じフォルダから読む。
 
-- transcript_facts(rows, *, exclude_prefix) -> {ok, failed, absorbed, errors, retried, cost, uncosted, minutes, models}（run の記録の行の読み）
+- transcript_facts(rows, *, exclude_prefix, optional) -> {ok, failed, absorbed, errors, retried, cost, uncosted, minutes, models}（run の記録の行の読み）
 - cost_rows(facts)・head_cost(facts, why): 節ごとの費用と時間の行と、費用の節の行（元 report.py:1769・1806）
 - next_request(returns, left, closed)・prior_failures(returns, left): 次の依頼の findings と前の失敗の行（元 report.py:784・720）
 - ledger_state(returns, gates, start): 問いの台帳の保留の行と答えた行（元 gatemarks.held_lines・answered_lines）
 - answer_drafts(returns, gates, start): 人の判断を待つ項目への答えの下書き（元 gatemarks.answer_drafts）
 - glossary_section(text, terms, pack)・pack_terms(): 本文と機械の事実に現れる語だけの定義の節（元 report_roles.py の glossary_section）
 - build(returns, gates, typed, transcript, outcome, stop_reason, *, out_dir, start, problems, run_id, transcript_why, repo,
-  report_name) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000）
+  report_name, line) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000。line は線の値）
 - fallback_report(out_dir, why, name): 思わぬ誤りの時の機械の報告（名は呼び手が渡す。facts の報告を上書きしない名）
 - cold_body(raw)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd, start): 書き手の
   返答の受け付けと AI の報告（元 report_roles.py の write_cold_prep・accept・collect・stamp）
@@ -31,6 +31,7 @@ if str(_HERE) not in sys.path:
 
 import carry  # noqa: E402
 import changemap  # noqa: E402
+import depth as depthlib  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
 import marks  # noqa: E402
@@ -89,6 +90,12 @@ GROUP_WHERE = "組"
 REJUDGE_LEFT_WHERE = "判定（再審されずに残った異議）"
 JUDGED_FIELDS = ("label", "disposition")         # 再審の前後で比べる judgment の単位の欄（元 rejudge.diff_units の欄のうち人が決める物）
 UNSEEN = "取れない（docs/design.md の U6。読んだ証拠を run の記録から取り出す口が無い）"
+# 線の値（線の collect が report の入力で渡す物。docs/design.md の report の返り）の行の頭
+DEFERRED_HEAD = "無人の run で修正前の関所に載せずに報告へ回した問い（関所を開かずに修正へ進めた）"
+WIDENED_HEAD = "無人の run で聞かずに通した範囲を広げるだけの直し"
+FINAL_REASONS_HEAD = "最後の関所を開ける理由（無人の run では開かずに止めた理由）"
+PRIOR_IN_HEAD = "依頼が運んだ前の run の失敗（prior_failures）"
+NO_REDEPTH = "直した後の深さの上げ直しの返りが無い（上げ直しの節が走っていない）。計画の深さのまま"
 
 POINTERS = (("judge", "judgment", "判定"), ("judge", "purpose", "目的"), ("judge", "world", "定石"),
             ("judge", "spec", "仕様"), ("judge", "out_of_purpose", "目的の外の所見"),
@@ -132,10 +139,17 @@ def _read_beside(returns: dict, rid: str, field: str, name: str):
 
 
 # ---------------------------------------------------------------- run の記録
-def transcript_facts(rows, *, exclude_prefix: str = "") -> dict:
+def _declared(step: str, optional) -> bool:
+    """受け止めると宣言した段の中の節か（宣言は節の id の頭の並び）"""
+    return any(isinstance(head, str) and head and step.startswith(head) for head in optional or ())
+
+
+def transcript_facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
     """run の記録の行（実行基盤の logger の JSONL を 1 行ずつ読んだ dict）から、節ごとの事実。rows が None なら ok: False。
-    最後の行が node_error の節は、その誤りの後にほかの節が始まっていれば線が受け止めて先へ進んだ落ち（absorbed。元
-    report.split_fallen の受け止めた落ち）、始まっていなければ run を終わらせた落ち（failed）。errors は落ちた節の最後の誤りの文、
+    最後の行が node_error の節は、線が受け止めると宣言した段（optional。線の YAML の 1 か所が宣言する節の id の頭の並び）の中なら
+    受け止めた落ち（absorbed）、宣言の外なら後にほかの節が始まっていても run を途中で終わらせた落ち（failed）。元 report.split_fallen
+    （:545。宣言は元 _optional :533 の線の YAML の [optional]）。報告は線の出口（collect の後）で走るので、元の出口の印は在るものと
+    読む。errors は落ちた節の最後の誤りの文、
     retried は node_error の後に済んだ節 [{node, failures, error}]（落ちた回と最後の誤り。元 reads.retried_nodes）。
     exclude_prefix で始まる節（報告のブロック自身）は数えない。費用は自分の費用を言う行（execution.accounting が node か無い）の
     cost_usd の和。cost_usd の無い行は 0 と数えず uncosted に件数を積む。時間は node_start から最後の node_complete・node_error まで（分）"""
@@ -145,21 +159,19 @@ def transcript_facts(rows, *, exclude_prefix: str = "") -> dict:
 
     def ours(step):
         return bool(exclude_prefix) and step.startswith(exclude_prefix)
-    last, falls, errors, began, ended, erred_at = {}, {}, {}, {}, {}, {}
-    cost, uncosted, models, started = {}, {}, {}, []
-    for i, r in enumerate(rows):
+    last, falls, errors, began, ended = {}, {}, {}, {}, {}
+    cost, uncosted, models = {}, {}, {}
+    for r in rows:
         if not isinstance(r, dict) or not isinstance(r.get("step"), str):
             continue
         step, kind = r["step"], r.get("type")
         if kind == "node_start":
             began.setdefault(step, report._time(r.get("ts")))
-            started.append((i, step))
         if kind in (*COST_ROWS, "node_skipped"):
             last[step] = kind
         if kind == "node_error":
             falls[step] = falls.get(step, 0) + 1
             errors[step] = str(r.get("error") or "")
-            erred_at[step] = i
         if kind in COST_ROWS:
             ended[step] = report._time(r.get("ts"))
             execution = as_dict(r.get("execution"))
@@ -177,9 +189,8 @@ def transcript_facts(rows, *, exclude_prefix: str = "") -> dict:
     minutes = {s: round((ended[s] - began[s]).total_seconds() / 60, 1) for s in ended
                if began.get(s) is not None and ended[s] is not None}
     fell = [s for s, k in last.items() if k == "node_error" and not ours(s)]
-    went_on = {s for s in fell if any(i > erred_at[s] and t != s and not ours(t) for i, t in started)}
-    return {"ok": True, "failed": [s for s in fell if s not in went_on],
-            "absorbed": [{"node": s, "error": errors.get(s, "")} for s in fell if s in went_on],
+    return {"ok": True, "failed": [s for s in fell if not _declared(s, optional)],
+            "absorbed": [{"node": s, "error": errors.get(s, "")} for s in fell if _declared(s, optional)],
             "errors": {s: errors.get(s, "") for s in fell},
             "retried": [{"node": s, "failures": n, "error": errors.get(s, "")} for s, n in falls.items()
                         if last.get(s) in DONE_ROWS and not ours(s)],
@@ -721,7 +732,21 @@ def _hits(returns: dict) -> list:
     return list(dict.fromkeys(got))
 
 
-def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, repo=None) -> tuple[list, str]:
+def _counted(head: str, rows: list) -> list:
+    """見出しの件数の行と 1 件 1 行（rows が空なら何も出さない）"""
+    return [f"{head}: {len(rows)} 件", *[f"  - {report._one_line(x)}" for x in rows]] if rows else []
+
+
+def _line_lines(line: dict) -> list:
+    """線の値の行: 無人の run で修正前の関所に載せなかった問い（ask-before-fix の deferred）・聞かずに通した範囲を広げるだけの直し
+    （ask-replan の widened。元 replan.WIDEN_LINE の字）・最後の関所を開ける理由（ask-final の reasons）"""
+    line = as_dict(line)
+    return [*_counted(DEFERRED_HEAD, _list(line.get("deferred"))), *_counted(WIDENED_HEAD, _list(line.get("widened"))),
+            *_counted(FINAL_REASONS_HEAD, _list(line.get("final_reasons")))]
+
+
+def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, repo=None,
+               line: dict | None = None) -> tuple[list, str]:
     """人が決めることの行と、冒頭の 2 行目（件数）。数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは
     直す義務に戻せなかった単位の行を重ねて数えない。closed は途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
     plan_qs = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions")))
@@ -767,7 +792,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     lines += pr_lines(returns)
     lines += premise_lines(returns, start)
     lines += inner_word_lines(as_dict(returns.get("fix")).get("diff"), lambda w: _target_uses(repo, rev, w))
-    return lines + _gate_passes(returns), decide
+    return lines + _gate_passes(returns) + _line_lines(line), decide
 
 
 def _tdd_stages(typed: dict) -> tuple[list, list]:
@@ -883,7 +908,34 @@ def _structure_lines(returns: dict) -> list:
     return [*lines, *(x for x in after if x not in lines)]
 
 
-def _entry_lines(start: dict, returns: dict, tdd_freeze: list) -> list:
+def _depth_lines(start: dict, returns: dict, line: dict) -> list:
+    """深さの行（元 depth.lines。報告の冒頭 2）: 直した後に上げ直した深さ（線の redepth の返り {depth, raised, counted}）。上げ直しの
+    返りが無ければ計画の深さと、上げ直しが無い訳"""
+    redepth = as_dict(as_dict(line).get("redepth"))
+    rows = _list(redepth.get("depth")) if redepth else _list(_ret(returns, "plan").get("depth"))
+    if not rows and not redepth:
+        return []
+    doc = {"units": {str(d.get("unit_id")): {"depth": d.get("depth"), "why": [str(d["why"])] if d.get("why") else []}
+                     for d in rows if isinstance(d, dict)},
+           "forced": as_dict(start).get("thickness") or "", "raised": _list(redepth.get("raised")),
+           "counted": redepth.get("counted") or ""}
+    return [*depthlib.lines(doc), *([] if redepth else [NO_REDEPTH])]
+
+
+def _prior_in_lines(line: dict) -> list:
+    """依頼が運んだ前の run の失敗の行（始めの節が置いた prior-failures-in.json。指し札が無ければ何も出さない）"""
+    p = as_dict(line).get("prior_failures")
+    if not (isinstance(p, str) and p):
+        return []
+    try:
+        rows = oc.read_json(p)
+    except (OSError, ValueError) as e:
+        return [f"{PRIOR_IN_HEAD}: 読めない（{report._one_line(e)}）"]
+    rows = [r for r in _list(rows) if isinstance(r, dict)]
+    return [f"{PRIOR_IN_HEAD}: {len(rows)} 件", *[f"  - {r.get('where')}: {report._one_line(r.get('text'))}" for r in rows]]
+
+
+def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None = None) -> list:
     s = as_dict(start)
     out = [f"始めの記録: run {s.get('run_id') or '—'}・元の版 {s.get('base_rev') or '—'}・テストの命令 {s.get('test_cmd') or '—'}・"
            f"TDD の実行ファイル {s.get('tdd_suite') or '—'}・無人 {s.get(gatepolicy.UNATTENDED_KEY) or '—'}"]
@@ -900,17 +952,19 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list) -> list:
     skipped = [k for k, v in returns.items() if v is None]
     out.append(f"走った段: {'・'.join(ran) or '無い'}")
     out.append(f"飛ばされた・返りの無い段: {'・'.join(skipped) or '無い'}")
-    depth = _list(_ret(returns, "plan").get("depth"))
-    if depth:
-        out.append("深さ: " + "・".join(f"{d.get('unit_id')} {d.get('depth')}" for d in depth if isinstance(d, dict)))
+    out += _depth_lines(start, returns, line)
+    out += _prior_in_lines(line)
     base = returns.get("test-gate-base")
     if isinstance(base, dict):
         out.append(f"直す前のテスト: {'緑' if base.get('green') else '赤'}" + (f"（赤の原因 {base.get('red_cause')}）" if base.get("red_cause") else ""))
     return out + list(tdd_freeze)
 
 
-def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, returns: dict, problems: list) -> list:
+def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, returns: dict, problems: list,
+                line: dict | None = None) -> list:
     out = [f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", f"止めた段と理由の語: {stop_reason or '止めていない'}"]
+    out += [f"線の節の止め: {node} が {word}（{stopby.REASONS.get(str(word).removeprefix(stopby.HEAD), '語の意味の記録が無い')}）"
+            for node, word in as_dict(as_dict(line).get("stops")).items()]
     for gid in oc.GATES:
         g = gates.get(gid)
         out.append(f"関所 {gid}: " + (f"{g.get('decision')}（{report._one_line(g.get('text') or '')}）" if isinstance(g, dict) else "開かなかった"))
@@ -944,12 +998,13 @@ def _bullets(lines: list) -> list:
 
 def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: str, stop_reason: str, *, out_dir,
           start: dict | None = None, problems=(), run_id: str = "", transcript_why: str = "", repo=None,
-          report_name: str = report.REPORT_FILE) -> dict:
+          report_name: str = report.REPORT_FILE, line: dict | None = None) -> dict:
     """機械の報告（report_name）・次の依頼（next-request.json。空なら書かない）・前の失敗（prior-failures.json。空なら書かない）を
     out_dir に書き、{report, next_request, prior_failures, ai_go} のパスを返す（元 report.py:2000。元は盤面を読み、
     検証器の関所を踏んだ）。書き手に渡す事実のファイルは機械の報告そのもの（元の facts_text が線 A の機械の報告を字のまま使った形）。
     transcript は transcript_facts の返り、typed は型つきの成果物の読み {by_type, warnings}、repo は直しの内側の語を直す前の版と
-    比べる対象の置き場（無ければ比べずに全部並べる）"""
+    比べる対象の置き場（無ければ比べずに全部並べる）、line は線の値 {stops, deferred, widened, final_reasons, prior_failures（開けた
+    ファイルのパスの字か None）, redepth}（線の collect が report の入力で渡す物。無ければ空）"""
     out_dir = pathlib.Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     returns, gates, typed, start = returns or {}, gates or {}, typed or {}, start or {}
@@ -959,7 +1014,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     findings = next_request(returns, left, closed)
     prior = prior_failures(returns, left)
     drafts = answer_drafts(returns, gates, start)
-    decisions, decide = _decisions(returns, gates, start, outcome, left, closed=closed, repo=repo)
+    decisions, decide = _decisions(returns, gates, start, outcome, left, closed=closed, repo=repo, line=line)
     tdd, freeze, tdd_notes = _tdd_lines(typed, returns)
     eye_lines, eye_notes = _eye_lines(returns, typed)
     _, material_note = oc.materials(returns)
@@ -976,8 +1031,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
         (report.DECISIONS_HEADING, [*decisions, *([outside_count] if outside_count else []),
                                     f"次の run に渡す物: {len(findings) + len(drafts)} 件" + (f"（{next_file}）" if next_file else ""),
                                     *([draft] if draft else [])]),
-        (report.ENTRY_HEADING, _entry_lines(start, returns, freeze)),
-        (report.STOP_HEADING, _stop_lines(outcome, stop_reason, gates, tfacts, returns, list(problems))),
+        (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line)),
+        (report.STOP_HEADING, _stop_lines(outcome, stop_reason, gates, tfacts, returns, list(problems), line)),
         (report.READS_HEADING, [f"読んだ証拠: {UNSEEN}"]),
         (report.WHERE_HEADING, _where_lines(returns)),
         (report.TDD_HEADING, tdd or ["修正の段が走っていない（TDD の単位の行が無い）"]),

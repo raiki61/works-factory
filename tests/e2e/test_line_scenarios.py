@@ -237,5 +237,51 @@ class ConflictGateTest(unittest.TestCase):
         self.assertNotIn("裁定の文 1", got["text"])
 
 
+class ReportOutcomeTest(unittest.TestCase):
+    """部分 C の受け入れ: 筋書き start-refused・unattended-needs-human・final-stop の道で、本物の report（facts）が結末の語を
+    返す（入口の拒み → stopped_by_line、無人の run の最後の関所の止め → needs_human、人の最後の関所の stop → stopped_by_human）。
+    dry-run は include の入力を名前の script に渡さない（docs/design.md の U3）ので筋書きの中の report は stub のまま、筋書きが
+    report の with: に結んだ collect の値のまま facts を走らせ直す（始めの記録は dry-run が置き場に書けないので、指し札の先に試験が置く）"""
+
+    WANT = {"start-refused": ("stopped_by_line", "start:works:start-refused"),
+            "unattended-needs-human": ("needs_human", "ask-final:works:needs-human"),
+            "final-stop": ("stopped_by_human", "gate-final:stop")}
+
+    @classmethod
+    def setUpClass(cls):
+        cls.traces = line_traces(tuple(cls.WANT))
+
+    def facts(self, trace: dict) -> dict:
+        with_ = {n["id"]: n for n in yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]}["report"]["with"]
+        start = bound(trace, with_["start"])
+        with tempfile.TemporaryDirectory() as tmp:
+            artifacts = pathlib.Path(tmp)
+            run_id = (start or {}).get("run_id") or "dry-run"
+            if start:
+                (artifacts / start["path"]).parent.mkdir(parents=True, exist_ok=True)
+                (artifacts / start["path"]).write_text(json.dumps({"run_id": run_id}), encoding="utf-8")
+            env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
+            env.update({"ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": run_id, "TYPED_ARTIFACTS_FILE": "", "LOG_DIR": "",
+                        "WORKS_FACTORY_ROOT": str(archon.WORKFLOWS.parent)})
+            for key, value in with_.items():
+                got = bound(trace, value)
+                env[f"INPUTS_{key.upper().replace('-', '_')}"] = got if isinstance(got, str) else json.dumps(got, ensure_ascii=False)
+            script = archon.WORKFLOWS / "report" / "scripts" / "facts.py"
+            done = subprocess.run([sys.executable, str(script)], env=env, capture_output=True, text=True, cwd=artifacts)
+            out = json.loads(done.stdout)
+            out["text"] = (artifacts / out["facts_file"]).read_text(encoding="utf-8")
+            return out
+
+    def test_real_report_names_the_outcome(self):
+        for name, want in self.WANT.items():
+            with self.subTest(scenario=name):
+                got = self.facts(self.traces[name])
+                self.assertEqual((got["outcome"], got["stop_reason"]), want, got["text"])
+
+    def test_line_stop_reaches_the_report_text(self):
+        got = self.facts(self.traces["unattended-needs-human"])
+        self.assertIn("- 線の節の止め: ask-final が works:needs-human", got["text"])
+
+
 if __name__ == "__main__":
     unittest.main()

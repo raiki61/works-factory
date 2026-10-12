@@ -324,11 +324,11 @@ flowchart TB
 ### report の返り
 
 - 返す節 `report`・`outcome_field: ok`（Archon の `outcome_field` は `required` の boolean だけを受けるので、結末の語 `outcome` とは別の欄にする。線は自分の返す節 `result` で report の返りを受けて返す）
-- 入力（`with:`）: report の YAML の `inputs:` の 17 個（名は下の id の字のまま）。値は全部 `$collect.output.<名の - を _ に>`（線の返しの節 `collect` が、飛ばされうる全部の返りを `{from, if_skipped: null}` で受けて組み直した物。飛ばされた段は null）:
+- 入力（`with:`）: report の YAML の `inputs:` の 24 個（名は下の id の字のまま。どれも既定値 `""`）。値は全部 `$collect.output.<名の - を _ に>`（線の返しの節 `collect` が、飛ばされうる全部の返りを `{from, if_skipped: null}` で受けて組み直した物。飛ばされた段は null）:
   - `start`（始めの記録の指し札）
   - ブロックの返り（返りの欄の object か null）: `test-gate-base`・`judge`・`rejudge`・`plan`・`plan-review`・`replan`・`replan-review`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`。`plan`・`plan-review` は計画の往復の受け皿 `plan-rounds-out` の欄を分けた物。`fix` は 1 回目と 2 度目の修正を合わせた線の節 `fixed` の返り（申し出 `conflicts` は段ごとの指し札の配列。`objection` は 1 回目の異議で、2 度目の修正の異議は `refix_objection`。report は `refix_objection` をいつも再審されずに残った異議として読む）で、`fixed` が飛ばされた時は 1 回目の返り
   - 人の関所の答え `{decision, text, asked}` か null: `gate-start`・`gate-before-fix`・`gate-replan`・`gate-final`（`gate-before-fix` の `asked` で、報告は関所が聞いた台帳の問いを答えたと読む）
-  - 線が持つが report に入力が無い物（約束を変える頼みとして PR #74 に書いた）: 線の止めの語（入口の拒み `works:start-refused`・無人の run の `works:needs-human`・線の script の例外 `works:line-script`）・依頼の前の失敗の指し札・無人の run で報告へ回した問い（`ask-before-fix` の `deferred`）と聞かずに通した直し（`ask-replan` の `widened`）・最後の関所を開ける理由（`ask-final` の `reasons`）・再審の前後の比べ（`judged` の `rejudged`・`new_open_units`・`lowered`・`unnamed_changed`・`unread`）・深さの上げ直し（`redepth` の `skip_optional`・`raised`）
+  - 線の値（部分 C。線の `collect` が線の節の返りを `{from, if_skipped: null}` で受けて渡す）: `stops`（線の script の節の止めの語 `{節: 語}`。入口の拒み `works:start-refused`・無人の run の `works:needs-human`・線の script の例外 `works:line-script`・人の止め `human:<関所>`。語の住処は `lib/stopby.py` の表。`lib/outcome` が結末に入れる: `works:start-refused`・`works:line-script` は `stopped_by_line`、`works:needs-human` は `needs_human`、`human:` は `stopped_by_human`）・`prior-failures`（依頼の前の失敗の指し札 `$start.output.prior_failures`。報告の入口の節に行を出す）・`deferred`（`ask-before-fix` の無人の run で関所に載せなかった問い）・`widened`（`ask-replan` の聞かずに通した範囲を広げるだけの直し。字は `lib/replan.widen_text`）・`final-reasons`（`ask-final` の `reasons`）・`redepth`（`redepth` の返り。報告の入口の節の深さの行 `lib/depth.lines`）・`optional`（受け止める段の宣言。線の YAML の `collect` の `with:` の 1 か所に節の id の頭の並びで書き、宣言の外で落ちた節は後に線が進んでも途中で終わった落ち `interrupted` に数える。元 `report.split_fallen`）。2 度目の修正の段の行は `fix`（線の節 `fixed` の返り）が運ぶ
   - 型つきの成果物の一覧（`tdd-unit`・`green-cert`・`eye-verdict`）は `with:` でなく report の中で `$TYPED_ARTIFACTS_FILE` から読む（E5）
 - 返り:
   - `ok`（boolean）: `outcome` が `fixed`・`fixed_needs_check`・`no_fix_needed` の時 true → 線の返り
@@ -423,7 +423,7 @@ flowchart TB
 
 - 目的: 結末の語（10 語）を決め、機械の報告と AI の報告を書き、段ごとの費用と時間を Archon の出来事の記録から作って載せ、文脈を持たない読み手に確かめさせる。次の run への持ち越し（次の依頼・前の失敗の行）を書く。人の関所の答えと TDD の単位の行（引用と理由）を載せる。
 - ASF で読む物: `W/ship/scripts/outcome.ts`（どの道でも 1 つの返り）と `W/.shared/report.ts`（型つきの成果物の `errors` を注意として出す）。
-- 入力: 全ブロックの返り（飛ばされた物は `null`）。
+- 入力: 全ブロックの返り（飛ばされた物は `null`）と線の値（止めの語・無人の run で回した問い・最後の関所を開ける理由・深さの上げ直し・受け止める段の宣言ほか。「report の返り」）。
 - 役（`commands/`）: `report`・`cold-check`。
 - lib: `outcome`・`carry`。結末の 10 語は report の返す節の `output_format` の enum が正本で、`lib/outcome` は決め方だけを持つ。次の依頼と前の失敗の行の形（run をまたぐ控え）は `lib/carry` が持つ。
 - 埋め: 無し。

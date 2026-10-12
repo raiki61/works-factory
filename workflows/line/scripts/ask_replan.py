@@ -6,8 +6,8 @@
 
 直した項目ごとに、承認済みの項目（計画の往復の plan）と直した項目（replan の plan）の約束の欄を比べる（lib/planmarks.py の
 contract_diff）。約束の欄が変わった項目と、事前審査（replan-review）が人に聞くと言った時は聞く。無人の run では、範囲を広げるだけの
-直し（planmarks.widened）は聞かずに通し、通したことを元 replan._widen_text の字（足した glob・外した glob）で返す（widened。report に
-受ける入力が無く、まだ報告には届かない。S50）。読めない計画は聞く側に倒す。無人の run で聞くはずの時は開かずに止める（needs-human）。
+直し（planmarks.widened）は聞かずに通し、通したことを元 replan._widen_text の字（lib/replan.widen_text。足した glob・外した glob）で
+返す（widened。元の trace の行 replan.WIDEN_OP の代わりにこの節の返りが run の記録に 1 度だけ残り、線の collect が report へ渡す）。読めない計画は聞く側に倒す。無人の run で聞くはずの時は開かずに止める（needs-human）。
 関所の文は聞く項目ごとの節（元 replan._gate_section）: 約束の欄の変化・人に聞く穴（事前審査の問い）・その項目を誤りとした申し出の文と
 裁定の文（fix の conflicts.json の、裁定 fix_plan_item が項目の番号を名指す行。字のまま）・前の項目と直した項目の JSON。
 
@@ -25,14 +25,13 @@ with linekit.guarded_imports():
     import conflict
     import gatemarks
     import planmarks
+    import replan
 
 HEAD = "案の直しの関所"
 RECORD = "run の置き場の gates/gate-replan.json"
 ITEM_HEAD = "## 人に聞く直した項目 {n}（単位 {units}）"   # 元 replan.GATE_ITEM_HEAD
 OLD_HEAD = "### 前の項目（承認済み。機械が貼った）"         # 元 replan.OLD_HEAD
 NEW_HEAD = "### 直した項目（修正案の役が返した形。機械が貼った）"   # 元 replan.NEW_HEAD
-WIDEN_LINE = "直した——無人の run なので人に聞かずに範囲を広げた（{what}）"   # 元 replan.WIDEN_LINE
-WIDEN_PARTS = {"allowed_paths": "allowed_paths に足した", "out_of_scope": "out_of_scope から外した"}   # 元 replan.WIDEN_PARTS
 
 
 def plan_items(ptr) -> list | None:
@@ -50,12 +49,6 @@ def item(fields, ident: str):
         return None
     got = fields[int(ident) - 1]
     return got if isinstance(got, dict) else None
-
-
-def widen_text(widened: dict) -> str:
-    """範囲を広げるだけの直しを無人の run で聞かずに通した項目の文（元 replan._widen_text）"""
-    parts = [f"{WIDEN_PARTS[k]}: {', '.join(str(g) for g in widened.get(k) or [])}" for k in WIDEN_PARTS if widened.get(k)]
-    return WIDEN_LINE.format(what="／".join(parts))
 
 
 def ruled_rows(ptr) -> tuple:
@@ -101,7 +94,7 @@ def ask(old_ptr, new_ptr, ids: list, *, ask_human: bool, questions: list, unatte
         changed = planmarks.contract_diff(old, new)
         wide = planmarks.widened(old, new) if unattended and changed and not ask_human else None
         if wide:
-            widened.append(f"項目 {ident}: {widen_text(wide)}")
+            widened.append(f"項目 {ident}: {replan.widen_text(wide)}")
         elif changed:
             rows.append(f"項目 {ident}: 約束の欄が変わった（{'・'.join(changed)}）")
             sections += section(ident, old, new, changed, item_rows(ruled, ident))

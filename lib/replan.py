@@ -9,6 +9,8 @@
 - new_item(row): 控えの行の直した項目に、外した決め手の欄を narrows の行ごとに戻した形
 - _bare(item): 項目から関所の決め手の欄を外した写し（約束の欄の比べに使う）
 - _json_block(doc)・_malformed(reply): 項目を指示書に貼る JSON の段と、修正案の返答の形の崩れ
+- WIDEN_OP・WIDEN_LINE・WIDEN_PARTS・widen_text(widened)・AMEND_HEAD: 無人の run で聞かずに通した範囲を広げるだけの直しの文と、
+  同じ run の中で直した項目の行の見出し（線の ask-replan・ask-final と報告が読む）
 """
 from __future__ import annotations
 
@@ -39,6 +41,17 @@ REPLAN_REJECT = "直した項目の返答に誤りが在る（下の行を全部
 ITEM_HEAD = promptsection.Section("## 直す項目 {n}（承認済みの修正案の項目の番号）", source="fn:replan._section")
 OLD_HEAD = promptsection.Section("### 前の項目（承認済み。機械が貼った）", source="fn:replan._section")
 ROW_HEAD = promptsection.Section("### 修正の段の申し出と裁定（{id}）", source="fn:replan._section")
+# 無人の run で範囲を広げるだけの直しを聞かずに通した項目の文（元 replan.py:152-154。案の直しの関所の節と報告が同じ字を読む）
+WIDEN_OP = "replan_widened_unattended"
+WIDEN_LINE = "直した——無人の run なので人に聞かずに範囲を広げた（{what}）"
+WIDEN_PARTS = {"allowed_paths": "allowed_paths に足した", "out_of_scope": "out_of_scope から外した"}
+AMEND_HEAD = "同じ run の中で直した修正案の項目"   # 報告と最後の関所の文の見出し（元 replan.AMEND_HEAD）
+
+
+def widen_text(widened: dict) -> str:
+    """範囲を広げるだけの直しを無人の run で聞かずに通した項目の文（元 replan._widen_text :761。足した glob・外した glob を並べる）"""
+    parts = [f"{WIDEN_PARTS[k]}: {', '.join(str(g) for g in widened.get(k) or [])}" for k in WIDEN_PARTS if widened.get(k)]
+    return WIDEN_LINE.format(what="／".join(parts))
 
 
 def new_item(row: dict) -> dict:
