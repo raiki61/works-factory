@@ -7,6 +7,8 @@
 - 自分で setsid して別のセッション（= 別のグループ）へ出た孫も、殻が SIGTERM を受けたら止める（SIGTERM を無視しても
   実行基盤の猶予の内に SIGKILL で）
 - 名指しの ps そのものが固まっても、ps より前にグループを凍らせ、ps が戻れば消す
+- 凍らせたグループは SIGTERM の後に SIGCONT で起こすので、子の SIGTERM の受け手が走る
+- 長を回収した後は（番号が再利用されうるので）ps より前に凍らせない
 - 生きた仲間の居ないグループ（ゾンビだけ）に惑わされず、別のグループへ出た生きた仲間を止めて、猶予を使い切らずに戻る
 - 殻の直下の親（節では uv）が kill -9 で消えたら（親が替わったら）木ごと止める。起きた時に既に孤児（親が 1）なら走らせない
 - 終わりを待ち終えた直後に届いた止める信号も落とさない
@@ -469,6 +471,49 @@ class TreeRunCase(unittest.TestCase):
         self.assertFalse(stopper.is_alive(), "固まった ps を殺した後も stop_group が戻らない")
         self.assertTrue(self.pid_gone(cpid, 1), "ps が戻った後、止めたグループの子が消えない")
         self.assertTrue(self.group_gone(p.pid, 1))
+
+    def test_frozen_group_is_continued_so_its_sigterm_handler_runs(self):
+        # 凍らせたグループへは SIGTERM の後に SIGCONT を送るので、子の SIGTERM の受け手が走る（後始末ができる）。
+        # SIGCONT が無いと子は凍ったまま SIGKILL で消え、受け手は走らない
+        ready, handled = self.tmp / "ready", self.tmp / "handled"
+        p = subprocess.Popen(["/bin/sh", "-c", f"(trap 'echo 1 > {handled}; exit 0' TERM; echo 1 > {ready}; "
+                                               "while :; do sleep 0.05; done) & wait"],
+                             start_new_session=True, stdin=subprocess.DEVNULL)
+        self.started.extend([("popen", p), ("pg", p.pid)])
+        read_int(ready)
+        self.assertIsNone(tree_run.stop_group(p))
+        self.assertTrue(handled.exists(), "凍らせたグループの子の SIGTERM の受け手が走らなかった")
+        self.assertTrue(self.group_gone(p.pid, 1))
+
+    def test_group_is_not_frozen_after_leader_is_reaped(self):
+        # 長を回収した後は番号が再利用されうるので、ps より前に凍らせない（数えてから送る）。固まる ps を待つ間、
+        # 長が残した子は止まっていない。ps が戻れば子は消える
+        fake = self.tmp / "hanging-ps"
+        ps_pidf = self.tmp / "ps-pid"
+        fake.write_text(f"#!/bin/sh\necho $$ > {ps_pidf}\nexec sleep 300\n")
+        fake.chmod(0o755)
+        child = self.tmp / "child"
+        p = subprocess.Popen(["/bin/sh", "-c", f"sleep 300 & echo $! > {child}; exit 0"], start_new_session=True,
+                             stdin=subprocess.DEVNULL)
+        self.started.extend([("popen", p), ("pg", p.pid)])
+        cpid = read_int(child)
+        self.started.append(("pid", cpid))
+        p.wait(10)
+        with mock.patch.object(tree_run, "PS", str(fake)):
+            stopper = threading.Thread(target=tree_run.stop_group, args=(p,), daemon=True)
+            stopper.start()
+            ps_pid = None
+            try:
+                ps_pid = read_int(ps_pidf)
+                state = subprocess.run(["/bin/ps", "-o", "stat=", "-p", str(cpid)], capture_output=True, text=True,
+                                       timeout=30).stdout.strip()
+                self.assertFalse(state.startswith("T"), f"回収した長のグループを ps より前に凍らせた（stat {state!r}）")
+            finally:
+                if ps_pid is not None:
+                    os.kill(ps_pid, signal.SIGKILL)
+                stopper.join(10)
+        self.assertFalse(stopper.is_alive(), "固まった ps を殺した後も stop_group が戻らない")
+        self.assertTrue(self.pid_gone(cpid, 1), "ps が戻った後、回収した長が残した子が消えない")
 
     # ------------------------------------------------ pack を汚さない
     def test_no_bytecode_in_pack(self):
