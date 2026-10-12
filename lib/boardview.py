@@ -397,19 +397,13 @@ def _request(start: dict | None) -> tuple:
         return req, "", REQUEST_UNREAD.format(path=req, why=type(e).__name__)
 
 
-def _ruled(ruling, plan_rows: list) -> list:
-    """裁かれた項目の番号（ruling の行が項目の番号の字か、項目の id＝converge.item_id(unit_keys) に当たる物）"""
-    want = {str(r) for r in ruling or []}
-    return [n for n, row in enumerate(plan_rows, 1)
-            if str(n) in want or converge.item_id((row or {}).get("unit_keys")) in want]
-
-
 # ---------------------------------------------------------------- 差し込みの頭
 def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=None, start=None, answers=None,
               ruling=(), conflicts=None, gate_answers=None, review_schema: dict, design_schema: dict) -> dict:
     """入力の指し札の先を置き場に写し、見え方の材料 OPEN_FILE を置く。judgment・purpose・plan・structure・ripple・world・start・
     conflicts は指し札の先のパス（world・start・conflicts は null 可）、answers は始めの人の関所の答え・gate_answers は修正前の
-    関所の答え（JSON の値。take_gate_answers）、ruling は裁かれた項目、review_schema・design_schema は事前審査と独立設計の役の型
+    関所の答え（JSON の値。take_gate_answers）、ruling は裁かれた項目の番号の字（planmarks.handed。番号でない行と案の外の番号は
+    訳つきの Missing）、review_schema・design_schema は事前審査と独立設計の役の型
     （ブロックの YAML の役の節の output_format）。形 replan では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、
     直した項目と申し出と裁定の行と並べて材料に置く（replan_items）。
     返り {k（plan-fields.json の round）, form（ruling が空なら review、在れば replan）, tree, r2_go}"""
@@ -442,7 +436,9 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     bare, plan_marks = gatemarks.split(PLAN_NODE, bare)
     gatemarks.save(out, PLAN_NODE, out.round, plan_marks)
     rows = [r for r in bare.get("plan") or [] if isinstance(r, dict)]
-    ruled = _ruled(ruling, rows)
+    ruled, why = planmarks.handed(ruling, len(rows)) if form == "replan" else ([], "")
+    if why:
+        raise Missing(why)
     converge.note_plan(out, rows)
     if form == "review" and answered:
         converge.note_answers(out, answered)

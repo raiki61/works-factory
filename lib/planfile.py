@@ -493,18 +493,6 @@ def structure_key(units, head: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:KEY_LEN]
 
 
-def handed(ruling, items: int) -> tuple:
-    """(案の直しで渡す項目の番号の並び, 渡せない訳)。ruling は項目の番号の字の並び（fix の replan_items）"""
-    out = []
-    for r in ruling if isinstance(ruling, list) else []:
-        n = int(r) if isinstance(r, str) and r.strip().isdigit() else r if isinstance(r, int) and not isinstance(r, bool) else None
-        if n is None or not 1 <= n <= items:
-            return [], f"ruling の項目 {r!r} が承認済みの修正案（{items} 項目）の番号でない"
-        if n not in out:
-            out.append(n)
-    return out, "" if out else "ruling に直す項目が無い"
-
-
 def open_round(plan_dir, *, ruling, judgment, review, units, repo, why: str = "") -> dict:
     """周のフォルダ r<k> を作り、round.json に周の事実を置く。形は ruling が空でなければ replan。周の中の節が読む構造の置き場
     （structure_dir。置き場からの相対のパス。役を起こさない周は周のフォルダの中の structure/ で、使い回す実測の控えに書かない）を
@@ -529,7 +517,7 @@ def open_round(plan_dir, *, ruling, judgment, review, units, repo, why: str = ""
         if prev is None:
             why = "直す元の承認済みの修正案が無い"
         else:
-            items, why = handed(ruling, len(_rows(_read_json(prev / REPLY_FILE), "plan")))
+            items, why = planmarks.handed(ruling, len(_rows(_read_json(prev / REPLY_FILE), "plan")))
     structure = (f"{d.name}/{STRUCTURE_DIR}" if why
                  else structure_dir(plan_dir, units, repo, prev).relative_to(plan_dir).as_posix())
     doc = {"round": k, "mode": mode, "go": not why, "why": why, "items": items, "structure": structure}
