@@ -680,6 +680,11 @@ def _dump(doc) -> str:
     return json.dumps(doc, ensure_ascii=False)
 
 
+def repo_line(repo, rev: str, base: str, review_md) -> str:
+    """役の材料のリポジトリの行（修正役の brief と事前審査の材料が同じ物を貼る）。BASE が空（入口の差分の根が無い）なら読む版"""
+    return REPO_LINE.format(repo=repo, rev=rev, base=base or rev, review_md=review_md)
+
+
 def units_section(judgment, units, skipped, filled=()) -> str:
     """修正案の材料に貼る、案に入れる単位の no と、判定の単位・問いの台帳・見立て・先行例（元の指示書 p2.fix_plan.md の頭の雛形の
     字を、単位の目録 units の paths・summary と構造の目が見ていない単位 skipped つきで機械が描いた物）。filled（filled_units）の
@@ -763,7 +768,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
         doc = _read_json(round_dir / RIPPLE_UNITS_FILE)
         record = converge_record(plan_dir)
         parts = [*common, units_section(judgment, units, skipped, converge.filled_units(record)),
-                 REPO_LINE.format(repo=repo, rev=review_rev, base=base or review_rev, review_md=review_md),
+                 repo_line(repo, review_rev, base, review_md),
                  prescription_section([k for k in slots(judgment) if k in owed | opened], prescriptions(judgment)),
                  structmark.plan_section(structure_dir_),
                  f"{world}\n{worldmark.PLAN_ASK}\n" if world else "",

@@ -102,16 +102,20 @@ def requests(doc: dict):
 
 
 def read_rev(doc: dict) -> str:
-    """役の材料の読む版（欄 review_rev）。無い前の版の控えは HEAD"""
-    got = doc.get("review_rev") if isinstance(doc, dict) else None
-    return got if isinstance(got, str) and got else "HEAD"
+    """役の材料の読む版（欄 review_rev）。無い前の版の控えは base_rev、それも無ければ HEAD"""
+    return _text(doc, "review_rev") or _text(doc, "base_rev") or "HEAD"
 
 
 def diff_base(doc: dict) -> str:
-    """役の材料の BASE（入口の差分の根 input.base.rev）。入力の形が無ければ空の字"""
+    """役の材料の BASE（入口の差分の根 input.base.rev）。入力の形が無い前の版の控えは base_rev、それも無ければ空の字"""
     s = shape(doc)
     base = s.get("base") if s is not None else None
     got = base.get("rev") if isinstance(base, dict) else None
+    return got if isinstance(got, str) and got else _text(doc, "base_rev")
+
+
+def _text(doc: dict, key: str) -> str:
+    got = doc.get(key) if isinstance(doc, dict) else None
     return got if isinstance(got, str) else ""
 
 

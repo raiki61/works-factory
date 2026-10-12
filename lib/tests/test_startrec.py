@@ -46,6 +46,14 @@ class StartRecCase(unittest.TestCase):
                 self.assertIsNone(startrec.diff_empty(old))
                 self.assertIsNone(startrec.requests(old))
 
+    def test_read_rev_and_diff_base(self):
+        """読む版は review_rev・BASE は input.base.rev。どちらも無い前の版の控えは base_rev に倒す（前は両方が base_rev）。
+        judge の start_view の diff_base も同じ読み口を通る"""
+        doc = {"input": shape(empty=False), "base_rev": "c" * 40, "review_rev": "b" * 40}
+        self.assertEqual((startrec.read_rev(doc), startrec.diff_base(doc)), ("b" * 40, "a" * 40))
+        self.assertEqual((startrec.read_rev({"base_rev": "abc"}), startrec.diff_base({"base_rev": "abc"})), ("abc", "abc"))
+        self.assertEqual((startrec.read_rev({}), startrec.diff_base({})), ("HEAD", ""))
+
     def test_cli_version_reads_the_first_line_or_nothing(self):
         self.assertTrue(startrec.cli_version(sys.executable).startswith("Python "))
         self.assertEqual(startrec.cli_version("no-such-command-for-works-factory"), "")
