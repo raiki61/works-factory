@@ -100,7 +100,8 @@ class ReadNamedCase(unittest.TestCase):
     def read(self, prs, issues, logged_in=True, **extra):
         env = {name: None for name in GH_ENV}
         env.update(PATH=os.pathsep.join([str(READ_ONLY_GH), str(self.bin), os.environ.get("PATH", "")]),
-                   HOME=str(self.tmp / "home"), **extra)
+                   HOME=str(self.tmp / "home"))
+        env.update(extra)
         if logged_in:
             env["GH_CONFIG_DIR"] = str(self.login)
         with gh_env(env):
@@ -125,8 +126,8 @@ class ReadNamedCase(unittest.TestCase):
         self.assertTrue(calls)
         self.assertEqual({cwd for cwd, _ in calls}, {str(self.repo)})
         self.assertEqual(sorted(a.split(" --json")[0] for _, a in calls),
-                         ["api --paginate --hostname github.com repos/o/r/pulls/7/comments", "issue view 9 -R o/r",
-                          "pr view 7 -R o/r"])
+                         ["api --paginate --hostname github.com repos/o/r/pulls/7/comments", "issue view 9 -R github.com/o/r",
+                          "pr view 7 -R github.com/o/r"])
 
     def remote(self, name, url, *, add=False):
         subprocess.run(["git", "-C", str(self.repo), "remote", "add" if add else "set-url", name, url], check=True,
@@ -144,7 +145,19 @@ class ReadNamedCase(unittest.TestCase):
         """GH_REPO が在れば remote に依らずそれを名指す（gh 自身と同じく remote より先）"""
         doc = self.read([7], [9], GH_REPO="other/x")
         self.assertEqual((doc["pr"]["7"]["status"], doc["issue"]["9"]["status"]), ("ok", "ok"))
-        self.assertEqual(self.targets(), ["other/x", "github.com repos/other/x/pulls/7/comments", "other/x"])
+        self.assertEqual(self.targets(), ["github.com/other/x", "github.com repos/other/x/pulls/7/comments",
+                                          "github.com/other/x"])
+
+    def test_gh_repo_without_host_takes_gh_host(self):
+        """HOST の無い GH_REPO は gh 自身と同じく GH_HOST のホストの名（-R と api の --hostname が同じホストを読む）"""
+        self.read([7], [], GH_REPO="o/r", GH_HOST="ghe.corp.example")
+        self.assertEqual(self.targets(), ["ghe.corp.example/o/r", "ghe.corp.example repos/o/r/pulls/7/comments"])
+
+    def test_gh_host_with_github_remote_names_github_in_both_reads(self):
+        """GH_HOST を立てても GitHub の remote を読むなら、-R も api の --hostname も github.com（-R を o/r にすると gh は
+        GH_HOST で解き、本文と行コメントが別のホストから来る）"""
+        self.read([7], [], GH_HOST="ghe.corp.example")
+        self.assertEqual(self.targets(), ["github.com/o/r", "github.com repos/o/r/pulls/7/comments"])
 
     def test_gh_repo_with_host(self):
         self.read([7], [], GH_REPO="ghe.corp.example/o/r")
@@ -157,14 +170,20 @@ class ReadNamedCase(unittest.TestCase):
             self.assertIn("GH_REPO", got["reason"])
         self.assertEqual(gh_calls(self.calls), [])
 
-    def test_other_host_without_gh_host_is_not_applicable_without_gh(self):
-        """GitHub でないホストの remote（forge の無い対象）では gh を起こさず、名指した項は条件外"""
-        self.remote("origin", "https://gitlab.example/o/r.git")
+    def test_undecided_target_is_left_to_gh(self):
+        """GitHub の URL も GH_HOST のホストも無い remote では、読む先を gh に決めさせる打ち方（-R 無し）で gh を起こす（自前の
+        ドメインの GHES は gh が hosts.yml で読める）。run の中ではそれを読むだけの口が拒み、項は口の言葉で unreadable"""
+        self.remote("origin", "https://ghe.example.com/o/r.git")
+        doc = self.read([7], [9], PATH=os.pathsep.join([str(self.bin), os.environ.get("PATH", "")]))
+        self.assertEqual((doc["pr"]["7"]["status"], doc["issue"]["9"]["status"]), ("ok", "ok"))
+        self.assertEqual(sorted(a.split(" --json")[0] for _, a in gh_calls(self.calls)),
+                         ["api --paginate repos/{owner}/{repo}/pulls/7/comments", "issue view 9", "pr view 7"])
+        self.calls.unlink()
         doc = self.read([7], [9])
         for got in (doc["pr"]["7"], doc["issue"]["9"]):
-            self.assertEqual(got["status"], "not_applicable")
-            self.assertTrue(got["reason"].startswith("no_forge: other_host"), got["reason"])
-            self.assertIn("GH_HOST", got["reason"])
+            self.assertEqual(got["status"], "unreadable")
+            self.assertIn("works-gh", got["reason"])
+            self.assertTrue(got["forge"].startswith("no_forge: other_host"), got)
         self.assertEqual(gh_calls(self.calls), [])
 
     def test_gh_host_reads_a_custom_domain_host(self):
@@ -180,7 +199,19 @@ class ReadNamedCase(unittest.TestCase):
         self.remote("upstream", "git@github.com:up/r.git", add=True)
         doc = self.read([], [9])
         self.assertEqual(doc["issue"]["9"]["status"], "ok")
-        self.assertEqual(self.targets(), ["up/r"])
+        self.assertEqual(self.targets(), ["github.com/up/r"])
+
+    def test_tracking_remote_wins_over_upstream(self):
+        """set-default が無ければ、forge.detect の選んだ remote（枝の追う remote）を upstream・github・origin より先に読む"""
+        self.remote("origin", "git@github.com:me/r.git")
+        self.remote("upstream", "git@github.com:up/r.git", add=True)
+        self.remote("mine", "git@github.com:mine/r.git", add=True)
+        git = ["git", "-C", str(self.repo), "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+        subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "x"], check=True, capture_output=True)
+        subprocess.run([*git, "update-ref", "refs/remotes/mine/main", "HEAD"], check=True, capture_output=True)
+        subprocess.run([*git, "branch", "-q", "--set-upstream-to=mine/main"], check=True, capture_output=True)
+        self.read([], [9])
+        self.assertEqual(self.targets(), ["github.com/mine/r"])
 
     def test_gh_resolved_default_wins(self):
         """gh repo set-default の remote（remote.<名>.gh-resolved = base）を先に選ぶ（gh 自身と同じ）"""
@@ -188,7 +219,15 @@ class ReadNamedCase(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.repo), "config", "remote.fork.gh-resolved", "base"], check=True,
                        capture_output=True)
         self.read([], [9])
-        self.assertEqual(self.targets(), ["me/r"])
+        self.assertEqual(self.targets(), ["github.com/me/r"])
+
+    def test_gh_resolved_names_the_repo(self):
+        """set-default が OWNER/REPO を記した remote（フォークの clone で親を名指した）は、その名をその remote のホストで読む"""
+        self.remote("origin", "git@github.com:me/r.git")
+        subprocess.run(["git", "-C", str(self.repo), "config", "remote.origin.gh-resolved", "up/r"], check=True,
+                       capture_output=True)
+        self.read([7], [])
+        self.assertEqual(self.targets(), ["github.com/up/r", "github.com repos/up/r/pulls/7/comments"])
 
     def test_nothing_named_calls_nothing(self):
         self.remote("origin", "https://gitlab.example/o/r.git")
