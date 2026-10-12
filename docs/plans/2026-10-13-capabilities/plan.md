@@ -399,10 +399,10 @@
   - 本物の run: plan の節の出力
   - 狭め: asks_human・gate_kinds・review_file は plan-review の返りへ移した（PE・PD）。gave_up・reason_file は P047。reads_file は P057
 
-- P055 受け付けた案の項目ごとに、変える名の呼び出し元と試験の当たり（覆っていない当たりを含む）を波及の一覧 ripple.json に作って返す。案が無い周は {items: [], error: <訳>}。
+- P055 受け付けた案の項目ごとに、変える名の呼び出し元と試験の当たり（覆っていない当たりを含む）と、消す名（removes）の残る名指し（kind removed・removed_test。docs/plans も数える）を波及の一覧 ripple.json に作って返す。案が無い周は {items: [], error: <訳>}。
   - 元: works/blk-plan/lib/planblk.py:478 `make_ripple`（stage items・RIPPLE_LATEST）・works/blk-plan/lib/ripple.py:171 `build`
   - 今: lib/planfile.py:1028 `ripple_items`・lib/ripple.py:171・workflows/plan/scripts/ripple_items.py
-  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends（assert: tests/workflows/test_plan.py:655 の request_ok.json:8 が 1 回目の覆っていない当たり）・AcceptCase.test_three_rejections_give_up_with_every_pointer（:600・:601）・lib/tests/test_ripple.py::RippleCase.test_literal_test_not_in_rewrite_is_uncovered（:92）・test_caller_outside_scope_is_uncovered（:101）。1 回目の差し込みで中身を見る試験は AcceptCase.test_accepted_plan_files の error が空（:528）だけで弱い → 要追加: AcceptCase.test_accepted_plan_has_item_ripple — 種の 1 回目の ripple.json の items[0] の uncovered に request_ok.json:8 が在る
+  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends（assert: tests/workflows/test_plan.py:655 の request_ok.json:8 が 1 回目の覆っていない当たり）・AcceptCase.test_three_rejections_give_up_with_every_pointer（:600・:601）・lib/tests/test_ripple.py::RippleCase.test_literal_test_not_in_rewrite_is_uncovered（:92）・test_caller_outside_scope_is_uncovered（:101）。消す名は RippleCase.test_removes_names_hits_are_uncovered ほか removed の 7 本と lib/tests/test_planfile.py::RippleItemsCase.test_ripple_items_sees_removes（planmarks.split が removes を欄に写す）。1 回目の差し込みで中身を見る試験は AcceptCase.test_accepted_plan_files の error が空（:528）だけで弱い → 要追加: AcceptCase.test_accepted_plan_has_item_ripple — 種の 1 回目の ripple.json の items[0] の uncovered に request_ok.json:8 が在る
   - 本物の run: plan/r1/ripple.json の items[].uncovered（返りの ripple の指し札の先）
   - 狭め: 無し
 

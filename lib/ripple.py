@@ -9,8 +9,11 @@ NON_CODE_FILES）の当たりは捨てる（run 68f35d6b: adds の試験の id �
 覆っていない当たりの大半で、下請けが全部 no_effect と答えていた）。
 当たりのファイルが多い名（COMMON_FILES を超える）は数だけを載せ、覆っていない当たりに入れない（下請けが判断する。持ち主の決定
 2026-10-06）。2 つ以上の項目の allowed_paths・当たりに出たファイルを「項目どうしの重なり」として並べる（相乗りの審査が読む）。
+項目が消す名（removes。識別子・.py のファイルの名・ファイルのパス）の残る名指しも同じに引き、kind removed（本体）・removed_test（試験）で
+名指す（消した後に壊れる参照。変える名の当たり code・test とは別の行で、同じ行に両方当たれば両方残る）。消す名に限り設計書の置き場
+docs/plans の当たりも数える（今の設計書に残る古さ。non_code の keep_plans）。CHANGELOG・docs-archive・skip_dirs は捨てたまま。
 
-- names(unit_keys, adds)・build(repo, fields, common_files=, skip_dirs=)・for_units(repo, unit_keys, skip_dirs=)・uncovered(doc, n):
+- names(unit_keys, adds, removes=())・build(repo, fields, common_files=, skip_dirs=)・for_units(repo, unit_keys, skip_dirs=)・uncovered(doc, n):
   一覧を作る・読む（fields は盤面の plan-fields.json の項目の欄の並び。planmarks.split の形）
 - section(doc, n=None)・units_section(doc): 指示書に貼る節
 
@@ -20,6 +23,7 @@ from __future__ import annotations
 
 import ast
 import pathlib
+import posixpath
 import re
 import subprocess
 import sys
@@ -30,6 +34,7 @@ if str(_CORE) not in sys.path:
 
 import impact  # noqa: E402  （.shared/core。テストのファイルの名の慣習 is_test の正本）
 import planmarks  # noqa: E402
+import planrange  # noqa: E402  （項目の範囲に入るかの決まり inside の 1 か所）
 import promptsection  # noqa: E402
 
 # 当たりのファイルがこの数を超える名は数だけ（run 195g の一番広い本物の波及は edge.py の入力の組を共有する 17 の節と試験で、
@@ -50,11 +55,29 @@ SCOPE_ASK = ("覆っていない当たりは、項目の書いてよいパス（
              "相談して許しを得る道しか無い）。触らない物は入れない（事前審査が当たりごとに、覆っている・影響しない・穴のどれかを確かめる）。")
 COMMON_NOTE = "当たりのファイルが多い名（数だけ。呼び出し元を全部は並べない。直しが触るかは読んで決めよ）"
 ERROR_NOTE = "波及の一覧を作れなかった（{error}）。呼び出し元と試験は自分で引け"
+REMOVED_MARK = "（消す名の残り（消した後に壊れる参照））"
+REMOVED_KINDS = {"code": "removed", "test": "removed_test"}   # 変える名の当たりの kind → 消す名の当たりの kind
 
 
-def names(unit_keys, adds) -> list[str]:
-    """変える名の候補（現れた順・重なりは 1 つ）: 単位の key の `+` の後から `:` までの ASCII の名と、adds の名の ASCII の語。
-    adds の試験の id（`::` を含む）・パス（`/` を含むかファイルの拡張子 _FILE_EXT で終わる）は丸ごと飛ばし、試験の名（_TEST_NAME）は数えない"""
+def _removed_names(removes) -> list[str]:
+    """removes の 1 行ごとの名: 識別子は探す語（planmarks.search_word）か .py のファイルの名のモジュールの名（planmarks.module_name）。
+    / を含む行（ファイルのパス）は字のままと、.py ならモジュールの名・.py でなければ最後の段のファイルの名（3 字以上の時）"""
+    out = []
+    for r in removes or []:
+        if not isinstance(r, str) or not r.strip():
+            continue
+        if "/" in r:
+            path = r.strip()
+            out += [path, planmarks.declared_name(path) if path.endswith(".py") else posixpath.basename(path.rstrip("/"))]
+        else:
+            out.append(planmarks.module_name(r) or planmarks.search_word(r) or "")
+    return [n for n in out if len(n) >= 3 and not _TEST_NAME.match(n)]
+
+
+def names(unit_keys, adds, removes=()) -> list[str]:
+    """変える名・消す名の候補（現れた順・重なりは 1 つ）: 単位の key の `+` の後から `:` までの ASCII の名と、adds の名の ASCII の語と、
+    removes の名（_removed_names）。adds の試験の id（`::` を含む）・パス（`/` を含むかファイルの拡張子 _FILE_EXT で終わる）は丸ごと
+    飛ばし、試験の名（_TEST_NAME）は数えない"""
     out = []
     for k in unit_keys or []:
         if isinstance(k, str) and "+" in k:
@@ -62,18 +85,21 @@ def names(unit_keys, adds) -> list[str]:
     for a in adds or []:
         if isinstance(a, str) and not ("::" in a or "/" in a or _FILE_EXT.search(a)):
             out += _NAME.findall(a)
-    return list(dict.fromkeys(n for n in out if len(n) >= 3 and not _TEST_NAME.match(n)))
+    out = [n for n in out if len(n) >= 3 and not _TEST_NAME.match(n)] + _removed_names(removes)
+    return list(dict.fromkeys(out))
 
 
-def non_code(path: str, *, skip_dirs) -> bool:
-    """呼び出し元でない文書・生成物のパスか（NON_CODE_DIRS と skip_dirs の並びがパスのどこかに在る・名が NON_CODE_FILES）"""
+def non_code(path: str, *, skip_dirs, keep_plans: bool = False) -> bool:
+    """呼び出し元でない文書・生成物のパスか（NON_CODE_DIRS と skip_dirs の並びがパスのどこかに在る・名が NON_CODE_FILES）。keep_plans
+    なら設計書の置き場 ('docs', 'plans') の並びは捨てない（消す名の残りは今の設計書にも在る）"""
     parts = pathlib.PurePosixPath(path).parts
     dirs = parts[:-1]
-    return (any(dirs[i:i + len(seq)] == seq for seq in (*NON_CODE_DIRS, *skip_dirs) for i in range(len(dirs)))
+    skip = tuple(seq for seq in (*NON_CODE_DIRS, *skip_dirs) if not (keep_plans and seq == ("docs", "plans")))
+    return (any(dirs[i:i + len(seq)] == seq for seq in skip for i in range(len(dirs)))
             or (parts[-1] if parts else "") in NON_CODE_FILES)
 
 
-def _git_grep(repo: pathlib.Path, name: str, skip_dirs) -> list[tuple[str, int]]:
+def _git_grep(repo: pathlib.Path, name: str, skip_dirs, keep_plans: bool = False) -> list[tuple[str, int]]:
     p = subprocess.run(["git", "-C", str(repo), "grep", "-n", "-w", "-I", "-F", "-e", name],
                        capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
     if p.returncode not in (0, 1):
@@ -81,7 +107,7 @@ def _git_grep(repo: pathlib.Path, name: str, skip_dirs) -> list[tuple[str, int]]
     out = []
     for line in p.stdout.splitlines():
         parts = line.split(":", 2)
-        if len(parts) >= 2 and parts[1].isdigit() and not non_code(parts[0], skip_dirs=skip_dirs):
+        if len(parts) >= 2 and parts[1].isdigit() and not non_code(parts[0], skip_dirs=skip_dirs, keep_plans=keep_plans):
             out.append((parts[0], int(parts[1])))
     return out
 
@@ -112,12 +138,15 @@ def _test_id(repo: pathlib.Path, path: str, line: int, cache: dict) -> str:
     return f"{path}:{line}"
 
 
-def _name_row(repo: pathlib.Path, name: str, common_files: int, cache: dict, skip_dirs) -> dict | None:
-    hits = _git_grep(repo, name, skip_dirs)
+def _name_row(repo: pathlib.Path, name: str, common_files: int, cache: dict, skip_dirs,
+              keep_plans: bool = False) -> dict | None:
+    hits = _git_grep(repo, name, skip_dirs, keep_plans)
     if not hits:
         return None
     files = sorted({p for p, _ in hits})
-    row = {"name": name, "files": len(files), "common": len(files) > common_files, "code": [], "tests": []}
+    # 多い名かは設計書の置き場の当たりを除いて数える（消す名で数え入れた計画書が、本体の残りの列挙を数だけに落とさない）
+    common = len([p for p in files if not non_code(p, skip_dirs=skip_dirs)]) > common_files
+    row = {"name": name, "files": len(files), "common": common, "code": [], "tests": []}
     if row["common"]:
         return row
     for path, line in hits:
@@ -135,26 +164,31 @@ def _path_of(at: str) -> str:
 
 
 def _covered(f: dict, kind: str, at: str) -> bool:
-    path = _path_of(at)
     ids = {r.get("id") for key in ("tests", "rewrite_tests") for r in f.get(key) or [] if isinstance(r, dict)}
-    if kind == "test" and "::" in at:
+    if kind in ("test", "removed_test") and "::" in at:
         return at in ids
-    if path in planmarks.test_paths(f):
-        return True
-    return any(isinstance(g, str) and planmarks.glob_match(path, g) for g in f.get("allowed_paths") or [])
+    return planrange.inside(_path_of(at), f)
 
 
 def _item(repo: pathlib.Path, n: int, f: dict, common_files: int, cache: dict, skip_dirs) -> dict:
-    rows = [r for r in (_name_row(repo, nm, common_files, cache, skip_dirs) for nm in names(f.get("unit_keys"), f.get("adds")))
-            if r is not None]
+    changed = set(names(f.get("unit_keys"), f.get("adds")))
+    removed = set(names((), (), f.get("removes")))
+    rows = [r for r in (_name_row(repo, nm, common_files, cache, skip_dirs, keep_plans=nm in removed)
+                        for nm in names(f.get("unit_keys"), f.get("adds"), f.get("removes"))) if r is not None]
     out, seen = [], set()
+
+    def add(hit):
+        if (hit["kind"], hit["at"]) not in seen:
+            seen.add((hit["kind"], hit["at"]))
+            out.append({"id": f"h{len(out) + 1}", **hit})
+
     for r in rows:
         for kind, key in (("code", "code"), ("test", "tests")):
             for at in r[key]:
-                if (kind, at) in seen or _covered(f, kind, at):
-                    continue
-                seen.add((kind, at))
-                out.append({"id": f"h{len(out) + 1}", "name": r["name"], "kind": kind, "at": at})
+                if r["name"] in changed and not non_code(_path_of(at), skip_dirs=skip_dirs) and not _covered(f, kind, at):
+                    add({"name": r["name"], "kind": kind, "at": at})
+                if r["name"] in removed and not _covered(f, REMOVED_KINDS[kind], at):
+                    add({"name": r["name"], "kind": REMOVED_KINDS[kind], "at": at})
     return {"item": n, "unit_keys": list(f.get("unit_keys") or []), "names": rows, "uncovered": out}
 
 
@@ -225,7 +259,8 @@ def item_text(doc: dict, n: int) -> str:
     lines = [ITEM_KEYS_HEAD.format(n=n, keys='、'.join(map(str, it['unit_keys']))), "", "変える名と当たり:"]
     lines += _names_text(it["names"]) or ["- 対象に在る名が無い"]
     lines += ["", "覆っていない当たり:"]
-    lines += [f"- {h['id']}: {h['kind']} {h['at']}（名 {h['name']}）" for h in it["uncovered"]] or ["- 無い"]
+    lines += [f"- {h['id']}: {h['kind']} {h['at']}（名 {h['name']}）{REMOVED_MARK if h['kind'] in REMOVED_KINDS.values() else ''}"
+              for h in it["uncovered"]] or ["- 無い"]
     return "\n".join(lines)
 
 

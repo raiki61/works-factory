@@ -87,6 +87,22 @@ class TmpCase(unittest.TestCase):
         return p
 
 
+class RippleItemsCase(TmpCase):
+    def test_ripple_items_sees_removes(self):
+        """受け付けた案の項目の removes（planmarks.split が欄に写す）が波及の一覧に届き、残る名指しが kind removed で名指される"""
+        repo = self.tmp / "repo"
+        committed_copy(repo, SEED)
+        item = {"unit_keys": [MEAN], "approach": "x" * 20, "adds": [], "removes": ["stats.clamp"], "shrink_first": "y" * 20,
+                "narrows": [], "route": "tdd", "route_why": "", "tests": [], "rewrite_tests": [],
+                "refactor": {"declared": False, "why": ""}, "allowed_paths": ["stats.py"], "out_of_scope": []}
+        rnd = self.tmp / "plan" / "r1"
+        self.write(f"plan/r1/{planfile.REPLY_FILE}", {"plan": [item]})
+        self.write(f"plan/r1/{planmarks.FIELDS_FILE}", {"round": 1, "fields": planmarks.split({"plan": [item]}, repo)[1]})
+        doc = json.loads(planfile.ripple_items(rnd, repo, skip_dirs=()).read_text(encoding="utf-8"))
+        got = [(h["kind"], h["at"]) for h in doc["items"][0]["uncovered"]]
+        self.assertIn(("removed_test", "test_stats.py::TestStats::test_clamp_within_range"), got)
+
+
 class OwedCase(unittest.TestCase):
     """元 conflict.py:676 の owed_units_but_asked（開いた単位から、答えていない関所の問い——人に聞く状態の fork と status が escalate の
     問い——の出どころ・depends を除く）と元 review-record.py:624 の is_open"""
