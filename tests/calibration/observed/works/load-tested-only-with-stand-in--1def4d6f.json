@@ -1,0 +1,77 @@
+{
+ "id": "load-tested-only-with-stand-in",
+ "factory": "works",
+ "run_id": "1def4d6f-be8d-4709-a71b-16f350a4e1da",
+ "outcome": "fixed",
+ "flagged": [
+  "converge",
+  "p1.consistency_bypass",
+  "p1.external_standards",
+  "p1.gate_efficacy",
+  "p1.hygiene",
+  "p1.local_review",
+  "p1.main_path_observation",
+  "p1.test_double_fidelity",
+  "p2.diagnose",
+  "p4.record",
+  "r1.comment_candidates",
+  "r1.minimality",
+  "r4.hidden_scope"
+ ],
+ "child_run_ids": [],
+ "unread": [
+  "p0.parallel_pr",
+  "p0.purpose_review",
+  "p1.procedure_trace",
+  "p2.rejudge",
+  "p3.delta_review2",
+  "spec.check",
+  "spec.review",
+  "stop.premise_check"
+ ],
+ "flag_evidence": {
+  "converge": "board/out/r1/converge.json: decision = \"next_round\"",
+  "p0.parallel_pr": "board/out/r*/p0.parallel_pr.json: 無い; board/out/r*/p0.parallel_pr.json: 無い",
+  "p0.purpose_review": "board/out/r*/p0.purpose_review.json: 無い; board/out/r*/p0.purpose_review.json: 無い",
+  "p1.consistency_bypass": "board/out/r1/p1.consistency_bypass.json: consistency.status = \"found\"",
+  "p1.external_standards": "board/out/r1/p1.external_standards.json: material.status = \"found\"",
+  "p1.gate_efficacy": "board/out/r1/p1.gate_efficacy.json: material.status = \"found\"",
+  "p1.hygiene": "board/out/r1/p1.hygiene.json: findings.0 = {\"where\": \"stats.py: load_scores / _read_text\", \"text\": \"load_scores は parse_sco",
+  "p1.local_review": "board/out/r1/p1.local_review.json: material.status = \"found\"",
+  "p1.main_path_observation": "board/out/r1/p1.main_path_observation.json: material.status = \"found\"",
+  "p1.procedure_trace": "board/out/r*/p1.procedure_trace.json: 無い; board/out/r*/p1.procedure_trace.json: 無い",
+  "p1.test_double_fidelity": "board/out/r1/p1.test_double_fidelity.json: material.status = \"found\"",
+  "p2.diagnose": "board/out/r1/p2.diagnose.json: units.*.label = \"block\"",
+  "p2.rejudge": "board/out/r*/p2.rejudge.json: 無い; board/out/r*/p2.rejudge.json: 無い",
+  "p3.delta_review2": "board/out/r*/p3.delta_review2.json: 無い; board/out/r*/p3.delta_review2.json: 無い",
+  "p4.record": "board/out/r1/p4.record.json: exit = 1",
+  "r1.comment_candidates": "board/out/r1/r1.comment_candidates.json: candidates.0 = {\"where\": \"stats.py:1 モジュール docstring「較正の緑の種（全部の試験が緑）」\", \"comment\": \"点数の小さな統計。較正",
+  "r1.minimality": "board/out/r1/r1.minimality.json: deletions.0 = {\"where\": \"README.md:9 の前半「ファイルを読み、」\", \"why\": \"同じ行の後半「既定はファイルを読む」が同じ事実を運んでいる。しかも",
+  "r4.hidden_scope": "board/out/r1/r4.hidden_scope.json: surfaced.0 = {\"where\": \"stats.py load_scores / README.md\", \"text\": \"[suggest] read は呼び出し側が渡す任",
+  "report.cold_check": "skipped",
+  "spec.check": "board/out/r*/spec.check.json: 無い",
+  "spec.review": "board/out/r*/spec.review.json: 無い",
+  "stop.premise_check": "board/out/r*/stop.premise_check.json: 無い; board/out/r*/stop.premise_check.json: 無い"
+ },
+ "cost": {
+  "usd": null,
+  "seconds": 1784.0,
+  "why_null": "usd: 出来事 workflow_completed の data.cost_usd が読めない"
+ },
+ "provenance": {
+  "factory_commit": "2aa7c66cf7abe1fe09699ac2942d107123214168",
+  "archon": "v0.11.1",
+  "claude_code": "2.1.296 (Claude Code)",
+  "run_inputs": {
+   "request": "request.json",
+   "base": "0bca16f9a2f5d58c80cbed3dd44442da456a47b2",
+   "test_cmd": "python3 -m unittest -v",
+   "tdd_suite": "junit-suite.sh",
+   "unattended": "true",
+   "final_gate": "when_needed",
+   "thickness": "標準"
+  },
+  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80",
+  "date": "2026-10-12T09:22:42+00:00"
+ }
+}
