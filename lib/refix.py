@@ -121,15 +121,16 @@ def _drop_stale(b, *names):
         p.unlink(missing_ok=True)
 
 
-def _cut_delta(b, n: int, repo: pathlib.Path, rev: str) -> dict:
+def _cut_delta(b, n: int, repo: pathlib.Path, rev: str, skip=()) -> dict:
     """n 回目の差分（版 rev → 今の作業ツリーの姿）を切って置き場に置く: 作業ツリーの姿（未追跡の新しいファイルも。.gitignore に
-    当たる物は除く）を木に固め（leftovers.snapshot）、git diff を <state_key>.patch に、{file, files, rev（固めた木）, base}
+    当たる物は除く）を木に固め（leftovers.snapshot）、除くパスの頭 skip の下を外した git diff を <state_key>.patch に、{file, files, rev（固めた木）, base}
     を loop-<state_key>.json に書いて返す。git が効かなければ leftovers.Unreadable。
     元 works/.shared/core/graphloops/rules/review-loop.py:1567 の fix_delta（盤面の機械の節。周の頭に固めた版から）"""
     key = _pass(n)["state_key"]
     snap = leftovers.snapshot(repo)
-    raw = leftovers.git(repo, "diff", rev, snap, text=False)
-    files = leftovers.git_names(repo, "diff", "--name-only", rev, snap)
+    spec = fixboard.pathspec_without(skip)
+    raw = leftovers.git(repo, "diff", rev, snap, "--", *spec, text=False)
+    files = leftovers.git_names(repo, "diff", "--name-only", rev, snap, "--", *spec)
     f = pathlib.Path(b) / f"{key.replace('_', '-')}.patch"
     f.write_bytes(raw)
     d = {"file": str(f), "files": files, "rev": snap, "base": rev}
@@ -139,8 +140,8 @@ def _cut_delta(b, n: int, repo: pathlib.Path, rev: str) -> dict:
 
 # ---------------------------------------------------------------- 支度（役を起こす前）
 def cut(board: pathlib.Path, n: int, repo: pathlib.Path, base_rev: str = "", *, plan_review=None, fix_reply=None,
-        items=None, policy=None) -> dict:
-    """n 回目の差分の審査役を起こす前の支度。差分の起点（1 回目は run の始めの版 base_rev、2 回目は 1 回目に固めた修正後の姿）が
+        items=None, policy=None, skip: tuple = ()) -> dict:
+    """n 回目の差分の審査役を起こす前の支度。除くパスの頭 skip（実行基盤の写しの置き場）の下は差分に載せない。差分の起点（1 回目は run の始めの版 base_rev、2 回目は 1 回目に固めた修正後の姿）が
     無い・差分を切れないなら {ok: False, reason}（配線の誤り）。在れば、前の試みの自分の出力を消し、差分を切って置き場に置き
     （_cut_delta）、役に見せる材料を review<n>-brief.json に書き、作業ツリーの写し（review<n>-snapshot.json）を撮って
     {ok: True, files, diff_file, rev, brief_file, must} を返す。材料の値は呼び手が渡す（値か、置き場に置いた JSON のパス）:
@@ -164,7 +165,7 @@ def cut(board: pathlib.Path, n: int, repo: pathlib.Path, base_rev: str = "", *, 
     if n == 1:
         (pathlib.Path(board) / deltamarks.VERDICTS_FILE).unlink(missing_ok=True)
     try:
-        d = _cut_delta(board, n, pathlib.Path(repo), rev)
+        d = _cut_delta(board, n, pathlib.Path(repo), rev, skip)
     except leftovers.Unreadable as e:
         return {"ok": False, "reason": f"差分を切れない: {e}"}
     values = {f"loop.{p['state_key']}": d, f"out.{PLAN_REVIEW}": fixboard._given(plan_review),
