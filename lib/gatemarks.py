@@ -561,6 +561,7 @@ def _answered_rows(b) -> set | None:
 
 AXES = ("obvious", "world", "clean", "not_overkill")
 NOT_DECIDED = "決め手の欄が揃わない（decided_by が無いか、undecided_because が在る）"
+NOT_DECIDED_OR_FENCED = "決め手の欄が揃わない（decided_by が無いか、undecided_because か柵の印が在る）"
 FENCED = "柵の印が在る（{fences}）"
 NO_WORLD = "世界の解を当たった結果（world）が無い"
 
@@ -597,7 +598,7 @@ def axis_reasons(b, mark: dict, units) -> dict:
 def axes(b, mark: dict, units) -> list:
     """グラフの中で決めてよいかの 4 つの軸のうち揃わない物の訳（空なら揃う＝聞かずに通す）"""
     if not decided(mark):
-        return ["決め手の欄が揃わない（decided_by が無いか、undecided_because か柵の印が在る）"]
+        return [NOT_DECIDED_OR_FENCED]
     reasons = axis_reasons(b, mark, units)
     return [w for axis in AXES for w in reasons[axis]]
 
