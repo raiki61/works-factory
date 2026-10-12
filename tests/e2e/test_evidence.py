@@ -211,19 +211,23 @@ class EvidenceTableCase(unittest.TestCase):
                 self.assertIsNotNone(evidence.row_problem(broken))
 
     def test_scenario_only_rows_match_the_inventory(self):
-        scenario_only, waiting = self.kind_of("scenario-only"), self.kind_of("waits-part")
+        """線の配線の部分は全部 main に入ったので、閉じる行も棚卸しが筋書きでのみと書けば scenario-only（部分を待たない）"""
+        scenario_only = self.kind_of("scenario-only")
         says = {i for i, real in self.inventory.items() if real.startswith(SCENARIO_ONLY)}
         never = {i for i, real in self.inventory.items() if SCENARIO_ONLY not in real}
-        self.assertEqual(says - waiting - scenario_only, set(), "棚卸しが筋書きでのみと書く行が scenario-only でない")
+        self.assertEqual(says - scenario_only, set(), "棚卸しが筋書きでのみと書く行が scenario-only でない")
         self.assertEqual(scenario_only & never, set(), "棚卸しが筋書きでのみと書かない行が scenario-only")
+        self.assertEqual({i for i in self.kind_of("waits-part") if SCENARIO_ONLY in self.inventory[i]}, set(),
+                         "棚卸しが筋書きでのみと書く行が部分を待っている")
 
     def test_waits_part_rows_are_closing_rows_of_that_part(self):
+        """部分の閉じる行のうち、本物の run の記録で置き場を決めるまでの行だけが waits-part に残る"""
         parts, _ = wiring()
         for part in evidence.PARTS:
             with self.subTest(part=part):
                 waiting = {row["id"] for row in self.rows if row["kind"] == "waits-part" and row["part"] == part}
                 self.assertTrue(parts.get(part))
-                self.assertEqual(waiting, parts[part])
+                self.assertLessEqual(waiting, parts[part])
 
     def test_node_rules_name_node_ids_the_workflow_makes(self):
         """run の記録の節を照らす行は node-completed で、node はその run の工程の YAML から組んだ節の id そのもの（include の頭は
