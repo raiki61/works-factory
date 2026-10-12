@@ -258,6 +258,22 @@ class RunScriptCase(ScriptCase):
         self.assertEqual((out["by"], out["material"]["status"], out["junit_steps"]), ("engine", "clean", ["suite"]))
         self.assertEqual(sorted(out), sorted(node("run")["output_format"]["required"]))
 
+    def scoped(self):
+        """種に far・near の宣言と、far が works/ を見ない範囲の宣言を commit する"""
+        (self.repo / ".works-checks.json").write_text('{"far": {"paths_ignore": ["works/"]}}', encoding="utf-8")
+        self.decl([{"name": "far", "argv": [PY, "-c", "print('far')"]}, {"name": "near", "argv": [PY, "-c", "print('near')"]}])
+
+    def test_archon_workspace_is_not_a_change(self):
+        """元 test_blk_tests_delta.py の test_final_does_not_count_archon_workspace_as_change: Archon が作業ツリーに置く .archon/ の下は
+        範囲と照らす変更に数えない"""
+        self.scoped()
+        (self.repo / "works").mkdir()
+        (self.repo / "works" / "a.py").write_text("x\n", encoding="utf-8")
+        (self.repo / ".archon").mkdir()
+        (self.repo / ".archon" / "x.yaml").write_text("x: 1\n", encoding="utf-8")
+        out = self.ok("run", mode="base", start=self.start)
+        self.assertEqual(out["skipped_steps"], [{"name": "far", "paths_ignore": ["works/"]}])
+
     def test_scope_declaration_without_review_declaration_stops(self):
         """範囲の宣言だけが在れば走らせずに 1 で止め、理由を標準エラーに出す"""
         (self.repo / ".works-checks.json").write_text('{"far": {"paths_ignore": ["works/"]}}', encoding="utf-8")

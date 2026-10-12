@@ -9,6 +9,7 @@ tests/test_blk_tests_delta.py（TestTestsModes）。
 import json
 import os
 import pathlib
+import shlex
 import sys
 import tempfile
 import unittest
@@ -391,11 +392,12 @@ class RunEngineCase(RepoCase):
     def test_broken_declaration_is_blocked_without_running(self):
         """元 test_blocked_builds_reply_without_running: 宣言の書式の誤りは走らせず、走らせられない素材に誤りを書く"""
         (self.repo / dc.DECL_NAME).write_text('{"suite": []}', encoding="utf-8")
-        with mock.patch.object(dc, "tree_runner", never):
-            got = self.run_ci(after_judge=True)
-        self.assertEqual((got["by"], got["material"]["status"], got["runs"]), ("engine", "not_run", []))
-        self.assertIn(dc.DECL_NAME, got["material"]["reason"])
-        self.assertIn("走らせなかった", pathlib.Path(got["log"]).read_text(encoding="utf-8"))
+        for after_judge, status in ((False, "awaiting_human"), (True, "not_run")):
+            with self.subTest(after_judge=after_judge), mock.patch.object(dc, "tree_runner", never):
+                got = self.run_ci(after_judge=after_judge)
+                self.assertEqual((got["by"], got["material"]["status"], got["runs"]), ("engine", status, []))
+                self.assertIn(dc.DECL_NAME, got["material"]["reason"])
+                self.assertIn("走らせなかった", pathlib.Path(got["log"]).read_text(encoding="utf-8"))
 
 
 class ScopedStepsCase(RepoCase):
@@ -438,6 +440,18 @@ class ScopedStepsCase(RepoCase):
                 got = self.run_ci(changed=lambda: changed, after_judge=True)
                 self.assertEqual([r["name"] for r in got["runs"]], ["far", "near"])
                 self.assertEqual(got["skipped_steps"], [])
+
+    def test_test_cmd_same_as_skipped_step_still_runs(self):
+        """元 run_ci の docstring の範囲の項: test_cmd が範囲で外した段と同じコマンドなら、外さずに test_cmd の段として走る
+        （入力で名指した一式は外さない）"""
+        far = {"name": "far", "argv": [PY, "-c", "pass"]}
+        self.decl([far, SCOPED[1]])
+        self.scope(SCOPE)
+        self.assertEqual(tree_run.command_argv(shlex.join(far["argv"])), (far["argv"], "direct"))
+        got = self.run_ci(shlex.join(far["argv"]), changed=lambda: ["works/a.py"])
+        self.assertEqual(got["skipped_steps"], FAR_SKIPPED)
+        self.assertEqual([r["name"] for r in got["runs"]], ["near", dc.TEST_CMD_STEP])
+        self.assertIsNone(got["same_as"])
 
     def test_red_material_names_skipped_step_too(self):
         """元 test_red_material_names_skipped_step_too"""
