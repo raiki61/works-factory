@@ -5,7 +5,7 @@
 """CI の試験を秒数で釣り合う分けに割って、1 つの分けだけを走らせる（テストのモジュールではない。test_*.py に当たらない）。
 
 - 走らせる: リポジトリの根から `uv run --isolated python3 -m tests.shard --shard 1/4 --record <秒数の置き場>`。
-  モジュールは `unittest discover -s . -t .` と同じ規則で集め（`__init__.py` の在るフォルダだけ降り、`test*.py` を拾う）、
+  モジュールは `unittest discover -s . -t .` が見つける試験のモジュールを集め、
   秒数の表 `tests/shard-seconds.json` で重い順に一番軽い分けへ置く。表に無いモジュールは表の中央値の秒数とみなす。
   置いた後で、どの分けにも入らないモジュールと 2 つの分けに入ったモジュールが 0 かを確かめ、0 でなければ落ちる。
   表が古くても分けが偏るだけで、試験は漏れない。
@@ -13,10 +13,8 @@
   `python3 -m tests.shard --merge <置き場>...` で表を作り直して、PR で入れる。
 """
 import argparse
-import fnmatch
 import json
 import pathlib
-import re
 import statistics
 import sys
 import time
@@ -24,22 +22,22 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TABLE = ROOT / "tests" / "shard-seconds.json"
-PATTERN = "test*.py"
-VALID_MODULE_NAME = re.compile(r"[_a-z]\w*\.py$", re.IGNORECASE)   # unittest.loader と同じ
+
+
+def module_names(suite: unittest.TestSuite) -> set[str]:
+    found = set()
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            found |= module_names(item)
+        elif type(item).__module__ == "unittest.loader":
+            found.add(item._testMethodName)   # 読み込めないモジュールは discover が _FailedTest（名はモジュール名）にする
+        else:
+            found.add(type(item).__module__)
+    return found
 
 
 def modules(root: pathlib.Path) -> list[str]:
-    found = []
-
-    def walk(folder: pathlib.Path, prefix: tuple[str, ...]) -> None:
-        for path in sorted(folder.iterdir()):
-            if path.is_file() and VALID_MODULE_NAME.match(path.name) and fnmatch.fnmatchcase(path.name, PATTERN):
-                found.append(".".join(prefix + (path.stem,)))
-            elif path.is_dir() and (path / "__init__.py").is_file():
-                walk(path, prefix + (path.name,))
-
-    walk(root, ())
-    return found
+    return sorted(module_names(unittest.TestLoader().discover(str(root), top_level_dir=str(root))))
 
 
 def load_seconds(path: pathlib.Path) -> dict[str, float]:

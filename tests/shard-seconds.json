@@ -54,7 +54,6 @@
   "lib.tests.test_outcome": 0.0,
   "lib.tests.test_plan_brief": 1.0,
   "lib.tests.test_plan_fields": 0.2,
-  "lib.tests.test_plan_gate": 0.0,
   "lib.tests.test_plan_scope": 0.0,
   "lib.tests.test_planfile": 0.7,
   "lib.tests.test_policy": 0.0,
