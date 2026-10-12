@@ -161,7 +161,7 @@ class FenceCase(unittest.TestCase):
 
 
 class MainTableCase(unittest.TestCase):
-    """main_table: 版は在って表のファイルが無ければ空の表（表を置く最初の差分は比べない）。版を引けない時の (None, 理由) は
+    """main_table: 版は在って表のファイルが無ければ空の表（表を置く最初の差分は比べない）・表が読めなければ (None, 理由)。版を引けない時の (None, 理由) は
     tests/layers/test_concept_fences.py の NotAboveMain が見る"""
 
     def test_missing_table_is_empty_and_present_table_is_read(self):
@@ -178,6 +178,19 @@ class MainTableCase(unittest.TestCase):
             git(root, "add", "-A")
             git(root, "commit", "-q", "-m", "table")
             self.assertEqual(cf().main_table(root, "HEAD"), (table, None))
+
+    def test_unreadable_table_is_none_not_empty(self):
+        """表のファイルは在るのに読めなければ (None, 理由)（空の表にすると比べずに通る）"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            git(root, "init", "-q")
+            (root / "docs").mkdir()
+            (root / "docs" / "concepts.json").write_text("{ 壊れた", encoding="utf-8")
+            git(root, "add", "-A")
+            git(root, "commit", "-q", "-m", "broken table")
+            got, why = cf().main_table(root, "HEAD")
+            self.assertIsNone(got)
+            self.assertIn("JSON", why)
 
     def test_fork_ref_is_none_without_fork_point(self):
         """分かれ目を引けなければ None（ref の頭に比べ直さない。比べ直すと別の版か空の表と比べて黙って通る）"""

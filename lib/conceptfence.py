@@ -64,16 +64,22 @@ def fork_ref(root, ref=MAIN_REF):
 
 def main_table(root, ref=MAIN_REF, rel=TABLE):
     """(ref の柵の表, None) か (None, 版を引けない理由)。表のパス rel は root からの相対で引く（git の「<ref>:./<パス>」）。
-    版は在って表のファイルだけが無ければ、main にまだ柵が無いので空の表 {"concepts": {}}（growth はどの考えも比べない）"""
+    版は在って表のファイルだけが無ければ（git cat-file -e で確かめる）、main にまだ柵が無いので空の表 {"concepts": {}}
+    （growth はどの考えも比べない）。表は在るのに読めない・JSON でない時も (None, 理由)（空の表にすると比べずに通る）"""
     rev = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
                          capture_output=True, text=True)
     if rev.returncode != 0:
         return None, rev.stderr.strip()[-200:] or f"版 {ref} を引けない（浅い clone か ref が無い）"
-    got = subprocess.run(["git", "-C", str(root), "show", f"{ref}:./{rel}"],
-                         capture_output=True, text=True, encoding="utf-8")
-    if got.returncode != 0:
+    blob = f"{ref}:./{rel}"
+    if subprocess.run(["git", "-C", str(root), "cat-file", "-e", blob], capture_output=True).returncode != 0:
         return {"concepts": {}}, None
-    return json.loads(got.stdout), None
+    got = subprocess.run(["git", "-C", str(root), "show", blob], capture_output=True, text=True, encoding="utf-8")
+    if got.returncode != 0:
+        return None, got.stderr.strip()[-200:] or f"{blob} を読めない"
+    try:
+        return json.loads(got.stdout), None
+    except json.JSONDecodeError as e:
+        return None, f"{blob} が JSON でない: {e}"
 
 
 def _known_of(concept):
