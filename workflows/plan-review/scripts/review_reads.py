@@ -34,7 +34,7 @@ def main() -> int:
         collected()
     except Exception as e:  # noqa: BLE001  読んだ証拠は受け付けの条件でない（線を止めない。境の口を読めない時も返す）
         print(json.dumps({"ok": False, "missing": [], "index_file": "", "reason": f"{type(e).__name__}: {' '.join(str(e).split())}"},
-                         ensure_ascii=False), flush=True)
+                         ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 
