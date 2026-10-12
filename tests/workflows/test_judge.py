@@ -39,7 +39,7 @@ RETURNS = ("ready", "stop_reason", "units", "judgment", "purpose", "world", "spe
 INPUTS = {"start": "null", "baseline": "null", "objection": "", "prior_failures": "null"}
 RUN_OWNED = ("worktree", "container", "evidence_policy", "mutates_checkout")
 MATERIALS = tuple(ja.MATERIAL_ROLES)
-PUBLIC = ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.json")
+PUBLIC = ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.json", "purpose-review.json")
 
 # 役の節の設定（今の works の旧 YAML の値。works/blk-*/blk-*.yaml と darkfactory/darkfactory.yaml の 174〜400 行・866 行）
 BASE = {"enabled": True, "allowUnsandboxedCommands": False}

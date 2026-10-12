@@ -1922,5 +1922,28 @@ class StopFileCase(unittest.TestCase):
             self.assertTrue(word.startswith("works:"), word)
 
 
+class VerdictPublicCase(unittest.TestCase):
+    REPLY = {"verdict": "狭めている", "reason": "依頼は 2 件を名指すが目的は 1 件だけを書く",
+             "findings": [{"text": "clamp の件が目的から落ちた", "cite": "request.json:2", "hits": 1}]}
+
+    def test_verdict_places_purpose_review_sibling(self):
+        """目的の監査の受けた返答は判定の指し札の隣の purpose-review.json に返答のまま置く（plan-review が名で開く）。
+        監査が走らない・止めの道では {}。再審では最初の置き場から写る"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            jdir, rdir = root / "judge", root / "rejudge"
+            jdir.mkdir()
+            ja.write_json(jdir / "material-purpose-review.json",
+                          {"role": "purpose-review", "materials": {}, "reply": self.REPLY})
+            ja.verdict(jdir, rdir, root, "", lambda rel: rel)
+            self.assertEqual(ja.read_json(jdir / "purpose-review.json"), self.REPLY)
+            ja.verdict(jdir, rdir, root, "異議", lambda rel: rel)
+            self.assertEqual(ja.read_json(rdir / "purpose-review.json"), self.REPLY)
+        with tempfile.TemporaryDirectory() as tmp:
+            jdir = pathlib.Path(tmp) / "judge"
+            ja.verdict(jdir, pathlib.Path(tmp) / "rejudge", tmp, "", lambda rel: rel)
+            self.assertEqual(ja.read_json(jdir / "purpose-review.json"), {})
+
+
 if __name__ == "__main__":
     unittest.main()

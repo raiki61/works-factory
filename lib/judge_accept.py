@@ -4121,14 +4121,17 @@ EMPTY_JUDGMENT = {"units": [], "questions": [], "framing": "", "one_shot": "", "
                   "one_shot_closes": [], "precedents": []}
 EMPTY_PURPOSE = {"purpose_text": "", "source": "", "known_weaknesses": [], "source_files": []}
 OUT_OF_PURPOSE_FILE = "out-of-purpose.json"
-PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE)   # 判定の指し札の隣に必ず置く（ほかのブロックが名で開く）
+PURPOSE_REVIEW_FILE = "purpose-review.json"   # 目的の監査の役の受けた返答（plan-review が独立設計を回すかを決める）
+PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE,
+                PURPOSE_REVIEW_FILE)   # 判定の指し札の隣に必ず置く（ほかのブロックが名で開く）
 
 
 def _empty_public(name: str):
     """公開の隣のファイルの空の形（その段が走らなかった・止めの道）"""
     return {PREMISES_FILE: lambda: {"constraints": []},
             PR_EXCLUDED_FILE: lambda: {"node": prcheck.NODE, "excluded": []},
-            MATERIALS_FILE: lambda: {}}[name]()
+            MATERIALS_FILE: lambda: {},
+            PURPOSE_REVIEW_FILE: lambda: {}}[name]()
 
 
 def _fill(path: pathlib.Path, empty) -> pathlib.Path:
@@ -4184,6 +4187,10 @@ def verdict(jdir, rdir, repo, objection: str, ptr) -> dict:
     _fill(here / JUDGMENT_FILE, EMPTY_JUDGMENT)
 
     reason = stop["reason"] if stop else ""
+    if not rejudging:
+        audit = _reply_of(_accepted(jdir), "purpose-review")
+        if isinstance(audit, dict):
+            write_json(jdir / PURPOSE_REVIEW_FILE, audit)
     for name in PUBLIC_FILES:
         first = jdir / name
         if rejudging and first.is_file() and not (rdir / name).is_file():
