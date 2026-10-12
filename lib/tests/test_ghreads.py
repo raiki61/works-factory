@@ -29,7 +29,10 @@ if str(LIB) not in sys.path:
 import ghreads  # noqa: E402
 
 GHREADS = LIB / "ghreads.py"
-GH_ENV = ("GH_CONFIG_DIR", "XDG_CONFIG_HOME", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")
+GH_ENV = ("GH_CONFIG_DIR", "XDG_CONFIG_HOME", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN",
+          "GH_REPO", "GH_HOST", "WORKS_FACTORY_GH_ACTIVE")
+# run の中で PATH の頭に在る読むだけの口（works-gh）の置き場。lib/ は bin/ を import しない（パスの字だけを使う）
+READ_ONLY_GH = LIB.parent / "bin" / "_lib" / "no-post-bin"
 
 
 def fake_gh(tmp: pathlib.Path, *, base="b" * 40, head="h" * 40):
@@ -80,7 +83,7 @@ def gh_calls(calls: pathlib.Path):
 
 
 class ReadNamedCase(unittest.TestCase):
-    """ghreads.read_named を、偽の gh を PATH の頭に置いて同じプロセスで呼ぶ"""
+    """ghreads.read_named を、run の中と同じく読むだけの口 works-gh を PATH の頭に、その後ろに偽の gh を置いて同じプロセスで呼ぶ"""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -94,9 +97,10 @@ class ReadNamedCase(unittest.TestCase):
                        capture_output=True)
         self.bin, self.calls, self.login = fake_gh(self.tmp)
 
-    def read(self, prs, issues, logged_in=True):
+    def read(self, prs, issues, logged_in=True, **extra):
         env = {name: None for name in GH_ENV}
-        env.update(PATH=f"{self.bin}{os.pathsep}{os.environ.get('PATH', '')}", HOME=str(self.tmp / "home"))
+        env.update(PATH=os.pathsep.join([str(READ_ONLY_GH), str(self.bin), os.environ.get("PATH", "")]),
+                   HOME=str(self.tmp / "home"), **extra)
         if logged_in:
             env["GH_CONFIG_DIR"] = str(self.login)
         with gh_env(env):
@@ -104,7 +108,7 @@ class ReadNamedCase(unittest.TestCase):
 
     def test_reads_named_pr_and_issue_with_user_login(self):
         """利用者のログインが見える env で、名指した PR の本文・コメント・レビュー・行コメントと issue の本文・コメントが載る。
-        gh は対象の根を cwd にして呼び、行コメントは gh api --paginate の {owner}/{repo} で引く"""
+        gh は対象の根を cwd にして、読むだけの口が通す形（-R <OWNER/REPO>・api --paginate --hostname の 1 つのパス）で呼ぶ"""
         doc = self.read([7], [9])
         self.assertEqual(doc["version"], ghreads.GITHUB_READS_VERSION)
         pr = doc["pr"]["7"]
@@ -120,7 +124,76 @@ class ReadNamedCase(unittest.TestCase):
         calls = gh_calls(self.calls)
         self.assertTrue(calls)
         self.assertEqual({cwd for cwd, _ in calls}, {str(self.repo)})
-        self.assertTrue(any("repos/{owner}/{repo}/pulls/7/comments" in a and "--paginate" in a for _, a in calls), calls)
+        self.assertEqual(sorted(a.split(" --json")[0] for _, a in calls),
+                         ["api --paginate --hostname github.com repos/o/r/pulls/7/comments", "issue view 9 -R o/r",
+                          "pr view 7 -R o/r"])
+
+    def remote(self, name, url, *, add=False):
+        subprocess.run(["git", "-C", str(self.repo), "remote", "add" if add else "set-url", name, url], check=True,
+                       capture_output=True)
+
+    def targets(self):
+        """記録した呼び出しの -R の値と api のパスの組（呼び出しの順）"""
+        got = []
+        for _, args in gh_calls(self.calls):
+            a = args.split()
+            got.append(a[a.index("-R") + 1] if "-R" in a else " ".join(a[a.index("--hostname") + 1:]))
+        return got
+
+    def test_gh_repo_names_the_target(self):
+        """GH_REPO が在れば remote に依らずそれを名指す（gh 自身と同じく remote より先）"""
+        doc = self.read([7], [9], GH_REPO="other/x")
+        self.assertEqual((doc["pr"]["7"]["status"], doc["issue"]["9"]["status"]), ("ok", "ok"))
+        self.assertEqual(self.targets(), ["other/x", "github.com repos/other/x/pulls/7/comments", "other/x"])
+
+    def test_gh_repo_with_host(self):
+        self.read([7], [], GH_REPO="ghe.corp.example/o/r")
+        self.assertEqual(self.targets(), ["ghe.corp.example/o/r", "ghe.corp.example repos/o/r/pulls/7/comments"])
+
+    def test_malformed_gh_repo_is_unreadable_without_gh(self):
+        doc = self.read([7], [9], GH_REPO="a/b/c/d")
+        for got in (doc["pr"]["7"], doc["issue"]["9"]):
+            self.assertEqual(got["status"], "unreadable")
+            self.assertIn("GH_REPO", got["reason"])
+        self.assertEqual(gh_calls(self.calls), [])
+
+    def test_other_host_without_gh_host_is_not_applicable_without_gh(self):
+        """GitHub でないホストの remote（forge の無い対象）では gh を起こさず、名指した項は条件外"""
+        self.remote("origin", "https://gitlab.example/o/r.git")
+        doc = self.read([7], [9])
+        for got in (doc["pr"]["7"], doc["issue"]["9"]):
+            self.assertEqual(got["status"], "not_applicable")
+            self.assertTrue(got["reason"].startswith("no_forge: other_host"), got["reason"])
+            self.assertIn("GH_HOST", got["reason"])
+        self.assertEqual(gh_calls(self.calls), [])
+
+    def test_gh_host_reads_a_custom_domain_host(self):
+        """GH_HOST が remote のホストを名指せば（自前のドメインの GitHub Enterprise Server）、そのホストで読む"""
+        self.remote("origin", "https://gitlab.example/o/r.git")
+        doc = self.read([7], [], GH_HOST="GitLab.example")
+        self.assertEqual(doc["pr"]["7"]["status"], "ok")
+        self.assertEqual(self.targets(), ["gitlab.example/o/r", "gitlab.example repos/o/r/pulls/7/comments"])
+
+    def test_another_remote_on_github_is_read(self):
+        """origin がローカルのパスでも、別の remote が GitHub を指せばそれを読む"""
+        self.remote("origin", str(self.tmp / "origin.git"))
+        self.remote("upstream", "git@github.com:up/r.git", add=True)
+        doc = self.read([], [9])
+        self.assertEqual(doc["issue"]["9"]["status"], "ok")
+        self.assertEqual(self.targets(), ["up/r"])
+
+    def test_gh_resolved_default_wins(self):
+        """gh repo set-default の remote（remote.<名>.gh-resolved = base）を先に選ぶ（gh 自身と同じ）"""
+        self.remote("fork", "git@github.com:me/r.git", add=True)
+        subprocess.run(["git", "-C", str(self.repo), "config", "remote.fork.gh-resolved", "base"], check=True,
+                       capture_output=True)
+        self.read([], [9])
+        self.assertEqual(self.targets(), ["me/r"])
+
+    def test_nothing_named_calls_nothing(self):
+        self.remote("origin", "https://gitlab.example/o/r.git")
+        self.assertEqual(self.read([], []), {"version": ghreads.GITHUB_READS_VERSION, "pr": {}, "issue": {}})
+        self.assertEqual(gh_calls(self.calls), [])
 
     def test_without_login_marks_unreadable(self):
         """利用者のログインが見えない（gh は exit 4）と、名指した項に status unreadable と 1 行の理由を残す（止めない）"""

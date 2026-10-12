@@ -5,13 +5,18 @@
 （dev/hostgh.py の口）が利用者の gh のログインを継がせる（2026-10-08 から。それより前は隔離した実行基盤の中から利用者の
 ログインが見えず、殻が隔離の前に読んでファイルで渡していた）。名指しは依頼の欄 pr・issue と入力 pr に限る（本文の中の URL は
 拾わない）。トークンの値は読まない（gh 自身の設定に任せる）。殻の口は持たない（前の carry-ci は carry.py へ移った）。
+run の中の gh の前には読むだけの口が在るので、gh はその口が通す形だけで打つ: 読む先の repo は cwd の remote に任せず -R で
+名指し（pr view・issue view）、行コメントは api --paginate --hostname <host> repos/<owner>/<repo>/pulls/<番号>/comments。読む先は
+GH_REPO（[HOST/]OWNER/REPO）、無ければ remote（gh repo set-default の物・forge.detect の選んだ物・upstream・github・origin・残り
+の順）の最初の GitHub の URL か、ホストが GH_HOST の URL（自前のドメインの GitHub Enterprise Server は GH_HOST か GH_REPO で
+名指す）。決められなければ gh を起こさず、名指した項は gh が GitHub のホストを見つけなかった時と同じに扱う。
 
 - read_named(repo, prs, issues) -> 読み出し: 名指した物を gh で読む（gh の cwd は repo）。読めない項も記録して返す（止めない）
 - load_board(board_dir) -> 読み出し|None: 盤面の根の github.json（実行基盤の再開で読み直さない）。無ければ None
 - place(board_dir, doc): 読み出しを盤面の根の github.json に 0600 で置く（非公開の本文を持つ）
 - 読み出しの形: {version, pr: {<番号>: {...}}, issue: {<番号>: {...}}}。読めない項は {status: unreadable, reason}。
-  対象の remote に forge（PR を持つホスト。forge.py）が無くても、利用者が名指した項は gh で読む（GH_REPO・別の remote・自前の
-  ドメインの GitHub Enterprise Server なら gh は読める。名指した物を黙って落とさない）。forge の無い対象で、gh も GitHub の
+  対象の remote に forge（PR を持つホスト。forge.py）が無くても、利用者が名指した項は gh で読む（GH_REPO・別の remote・GH_HOST
+  の名指す自前のドメインの GitHub Enterprise Server なら gh は読める。名指した物を黙って落とさない）。forge の無い対象で、gh も GitHub の
   ホストを見つけなかった項（GH_NO_HOST の言葉か exit 4。gh が起きない時も）は unreadable でなく {status: not_applicable, reason: no_forge: …。gh でも
   読めなかった: …}。gh が GitHub のホストとして読みに行って読めなかった項（自前のドメインの GHES でログインが切れた・HTTP 401
   など）は forge の無い対象でも {status: unreadable, reason: gh の言葉, forge: no_forge: …}。入力 pr の base・head が読めない時に
@@ -41,6 +46,8 @@ NOT_APPLICABLE = "not_applicable"   # forge の無い対象（forge.reason）で
 # exit 4（gh help exit-codes の Authentication required）。これらのほか（HTTP 401・404・網）は、gh が GitHub のホストとして
 # 読みに行って読めなかった物（自前のドメインの GitHub Enterprise Server でログインが切れた、など）
 GH_NO_HOST = ("point to a known GitHub host", "no git remotes found")
+NO_TARGET = ("gh で読む GitHub のリポジトリを GH_REPO・remote から決められない（自前のドメインの GitHub Enterprise Server なら"
+             " GH_HOST か GH_REPO を立てる）")
 GH_EXIT_AUTH = 4
 
 
@@ -72,18 +79,53 @@ def _gh(repo: pathlib.Path, *args):
     return (parts[0] if parts else None), None, False
 
 
-def _read_pr(repo: pathlib.Path, n: int) -> dict:
-    doc, why, no_host = _gh(repo, "pr", "view", str(n), "--json", PR_FIELDS)
+def _target(repo: pathlib.Path, remote: str):
+    """gh で読む先 (host, owner, name) か、決められない時の読めない項（_unreadable）。GH_REPO（[HOST/]OWNER/REPO）が在ればそれ。
+    無ければ remote を gh repo set-default の物（remote.<名>.gh-resolved = base）・remote（forge.detect の選んだ物）・upstream・
+    github・origin・残りの順に見て、最初の GitHub の URL か、ホストが GH_HOST の URL"""
+    named = os.environ.get("GH_REPO", "")
+    if named:
+        parts = named.split("/")
+        if len(parts) == 2:
+            parts = ["github.com", *parts]
+        if len(parts) != 3 or not (forge.HOST.match(parts[0].lower()) and all(map(forge.SEGMENT.match, parts[1:]))):
+            return _unreadable(f"GH_REPO が [HOST/]OWNER/REPO の形でない（{_line(named)}）", False)
+        return parts[0].lower(), parts[1], parts[2]
+    gh_host = os.environ.get("GH_HOST", "").lower()
+    for url in _remote_urls(repo, remote):
+        got = forge.repo_of(url)
+        if got and (got["kind"] == forge.GITHUB or got["host"] == gh_host):
+            return got["host"], got["owner"], got["name"]
+    return _unreadable(NO_TARGET, True)
+
+
+def _remote_urls(repo: pathlib.Path, remote: str):
+    names = (forge._git(repo, "remote") or "").split()
+    keys = (forge._git(repo, "config", "--get-regexp", r"^remote\..*\.gh-resolved$") or "").splitlines()
+    chosen = [k[len("remote."):-len(".gh-resolved")] for k, _, v in (line.partition(" ") for line in keys) if v == "base"]
+    for name in dict.fromkeys([*chosen, remote, "upstream", "github", "origin", *names]):
+        if name in names:
+            yield forge._git(repo, "remote", "get-url", name)
+
+
+def _slug(target) -> str:
+    host, owner, name = target
+    return f"{owner}/{name}" if host == "github.com" else f"{host}/{owner}/{name}"
+
+
+def _read_pr(repo: pathlib.Path, target, n: int) -> dict:
+    doc, why, no_host = _gh(repo, "pr", "view", str(n), "-R", _slug(target), "--json", PR_FIELDS)
     if not isinstance(doc, dict):
         return _unreadable(why or "gh pr view の返りが object でない", no_host)
-    lines, why, _ = _gh(repo, "api", "--paginate", f"repos/{{owner}}/{{repo}}/pulls/{n}/comments")
+    host, owner, name = target
+    lines, why, _ = _gh(repo, "api", "--paginate", "--hostname", host, f"repos/{owner}/{name}/pulls/{n}/comments")
     if not isinstance(lines, list):
         return {**doc, "status": "partial", "reason": why or "行コメントの返りが配列でない", "review_comments": []}
     return {**doc, "status": "ok", "review_comments": lines}
 
 
-def _read_issue(repo: pathlib.Path, n: int) -> dict:
-    doc, why, no_host = _gh(repo, "issue", "view", str(n), "--json", ISSUE_FIELDS)
+def _read_issue(repo: pathlib.Path, target, n: int) -> dict:
+    doc, why, no_host = _gh(repo, "issue", "view", str(n), "-R", _slug(target), "--json", ISSUE_FIELDS)
     if not isinstance(doc, dict):
         return _unreadable(why or "gh issue view の返りが object でない", no_host)
     return {**doc, "status": "ok"}
@@ -132,12 +174,16 @@ def read_named(repo, prs, issues) -> dict:
     """名指した PR（番号の並び prs）と issue（issues）を gh で 1 回ずつ読み、読み出しの形で返す（何も書かない）。
     読めない項も理由つきで載せて返す。gh の cwd は対象の根 repo"""
     repo = pathlib.Path(repo)
-    no_forge = forge.reason(forge.detect(repo))
+    detected = forge.detect(repo)
+    no_forge = forge.reason(detected)
     doc = {"version": GITHUB_READS_VERSION, "pr": {}, "issue": {}}
+    if not prs and not issues:
+        return doc
+    target = _target(repo, detected["remote"])
     for n in dict.fromkeys(prs):
-        doc["pr"][str(n)] = _settle(_read_pr(repo, n), no_forge)
+        doc["pr"][str(n)] = _settle(target if isinstance(target, dict) else _read_pr(repo, target, n), no_forge)
     for n in dict.fromkeys(issues):
-        doc["issue"][str(n)] = _settle(_read_issue(repo, n), no_forge)
+        doc["issue"][str(n)] = _settle(target if isinstance(target, dict) else _read_issue(repo, target, n), no_forge)
     return doc
 
 
