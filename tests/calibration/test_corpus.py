@@ -92,10 +92,11 @@ class TestCorpusShape(unittest.TestCase):
         self.assertReported(self.refusal(lambda d, r: d.pop("about")), "頭の欄 about が無い")
         lines = self.refusal(lambda d, r: r[0]["request"][0].update(where=5),
                              lambda d, r: r[1].update(id=["unhashable"]),
+                             lambda d, r: r[2].update(id=["unhashable"]),
                              lambda d, r: r[2].update(entry=["unhashable"]))
         self.assertReported(lines, rows[0]["id"], "request[0]")
         self.assertReported(lines, "rows[1]", "id")
-        self.assertReported(lines, rows[2]["id"], "entry")
+        self.assertReported(lines, "rows[2]", "entry")
 
     def test_load_reports_every_problem(self):
         rows = _raw()["rows"]
