@@ -259,7 +259,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 今: 無し（workflows/judge/commands/pr-check.md:26 が Read を頼むだけ。docs/design.md の能力の棚卸しは `lib/reads` と書く）
   - 証: 要追加（U6 の決めの後）: tests/workflows/test_judge.py::ReadsTest.test_pr_check_must_read_its_brief — 渡し物を読まない返答を拒むか、読んだ証拠の欠けを返りと報告に出す
   - 本物の run: 筋書きでのみ
-  - 狭め: #76 で入れていない（未決 U6。Archon で不可という源の証は示されていない——不可でない可能性が高い → 持ち主へ）
+  - 狭め: #76 で入れていない（当時は未決 U6。段 1b で U6 を決めた: 読んだ証拠は Archon の `provider_event` の Read の `file_path` から取れる（docs/design.md の U6）。入れるのは後の issue）
 - J41 並行 PR を投稿しない形に下げたことを宣言し（`downgrades.json` の p0.parallel_pr と r2.design）、報告の頭に「下げている所: N 個」を出す
   - 元: works/.shared/core/prcheck.py:322 `downgrades`・:345 `head_downgrades`・works/darkfactory/downgrades.json・works/.shared/core/entry.py:1107
   - 今: 無し（lib/report.py:19 に `declared_downgrades` の注は在るが、宣言のファイルも呼び手も無い）

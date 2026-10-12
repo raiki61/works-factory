@@ -439,7 +439,7 @@ flowchart TB
 - 部品の宣言と書き込みの照らし（manifest）: `.shared/core/scopes.py` → manifest は落とす。入出力の宣言は YAML の `with:`・`returns:` と型が持つ（E4・E5）。宣言の外の書き込みは、読むだけの節は `mutates_checkout: false`（E7。Archon が落とす）、書く役は書き込みの出どころの突き合わせ（fix）で落とす。読み手の無い返りの欄は層の試験で赤（持ち主の決め `declared-io`）
 - 境の節（`h-*`）: `darkfactory/lib/line_edge.py` → line の `when:` と小さな script の節
 - 工程の地図: `.shared/core/graphmap.py` → 落とす。Archon の YAML がそのまま地図
-- AI の起こし方の包み（模型・effort・道具・隔離・返答の契約・system prompt の塊）: `.shared/core/adapter.py` ほか → 落とす。Archon の役の節の `model:`・`effort:`・`allowed_tools:`・`output_format:` で書く。包みが取っていた読んだ証拠と書き込みの記録をどこで取るかは未決（U6）
+- AI の起こし方の包み（模型・effort・道具・隔離・返答の契約・system prompt の塊）: `.shared/core/adapter.py` ほか → 落とす。Archon の役の節の `model:`・`effort:`・`allowed_tools:`・`output_format:` で書く。包みが取っていた読んだ証拠と書き込みの記録は Archon の出来事の記録（`provider_event`）から取れる（U6。決めた。戻すのは後の issue）
 - 返答の足し欄: `.shared/core/marks.py` → `lib/marks.py`（planmarks・worldmark・converge などが頼るので依存として持ってくる。返りの欄は役の節の `output_format` に直に書き、掃除の段で見直す）
 - graphloops の写し（engine・rules・検証器）: `.shared/core/graphloops/` → 線は Archon が回すので、engine の盤面・rules・検証器は持ってこない。lib の部品が頼る engine の小道具（`util`・`schema`・`pointers`・`render`）だけを `lib/graphloops/engine/` に置き、掃除の段で見直す
 
