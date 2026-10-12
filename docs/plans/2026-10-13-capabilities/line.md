@@ -518,10 +518,10 @@
   - 狭め: 無し
 - L-G29 定石から外れた項目と、構造の目が上げた設計の問いは関所で 1 度だけ聞き、人が continue した同じ文は聞き直さない
   - 元: works/.shared/core/gatemarks.py:546-563 `world_items`・:604-622 `design_items`・`_continued`
-  - 今: lib/gatemarks.py:589・:610。案の直しの往復（replan-review。yaml:509-523）に `gate_answers` が渡らないので、2 度目に聞き直す
-  - 証: tests/workflows/test_plan_review.py::WorldGateCase.test_world_deviation_becomes_gate_item（:1917）・FourAxesCase.test_eye_route_up_becomes_gate_item（:1832）。要追加: tests/workflows/test_line.py::LineWiringCase.test_replan_review_gets_the_before_fix_answer
+  - 今: lib/gatemarks.py の world_items・design_items・_continued。案の直しの事前審査（replan-review）は gate_answers を受けて人が continue した行を聞き直さない
+  - 証: tests/workflows/test_plan_review.py::WorldGateCase.test_world_deviation_becomes_gate_item・FourAxesCase.test_eye_route_up_becomes_gate_item、tests/workflows/test_line.py::LineWiringCase.test_replan_review_gets_the_before_fix_answer（部分 B1）
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で配線を欠いた（#73 が入力を宣言済み。不可でない → 戻す。S22）
+  - 狭め: #74 で配線を欠いた（#73 が入力を宣言済み。不可でない → 戻す。S22） → 部分 B1 で配線を縛った
 - L-G30 一言の「保留: <key>」で名指した問いは答えに数えない（台帳の key を最長一致で拾い、並べ書きも読む）
   - 元: works/.shared/core/gatemarks.py:1070-1140 `answered`・`hold_keys`・`_hold_scan`
   - 今: lib/gatemarks.py:1055・:1103、scripts/ask_final.py:150、lib/runreport.py:241
@@ -954,10 +954,10 @@
   - 狭め: 無し
 - L-W45 案の直しの事前審査に申し出と裁定・修正前の関所の答えを貼り、通した行を聞き直さない
   - 元: 盤面の共有（planblk が conflict と gatemarks を読む）
-  - 今: 無し。yaml:509-523 の replan-review に conflicts・gate_answers が無い（plan-review は宣言済み: main workflows/plan-review/works-factory-plan-review.yaml:32・:35）
-  - 証: 要追加: test_handoff_table（replan-review.conflicts ＝ `$fix.output.conflicts`、gate_answers ＝ `$answer-before-fix.output.answer`）
+  - 今: 線の replan-review の with: の conflicts・gate_answers（申し出と裁定・修正前の関所の答え）。往復の中の plan-review-run には渡さない（修正前の関所より前）
+  - 証: tests/workflows/test_line.py::LineWiringCase.test_plan_review_gets_conflicts_and_gate_answers（部分 B1。test_handoff_table は部分 0）
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で狭めた（#73「約束を変える頼み」1。不可でない → 戻す。S21・S22）
+  - 狭め: #74 で狭めた（#73「約束を変える頼み」1。不可でない → 戻す。S21・S22） → 部分 B1 で配線を縛った
 - L-W46 案の直しの関所は、約束の欄が変わったか事前審査が人に聞くと言った時に開く
   - 元: works/darkfactory/lib/line_edge.py:1230（replan.gate）
   - 今: scripts/ask_replan.py:46-72
@@ -1234,22 +1234,22 @@
   - 狭め: 無し
 - L-D24 案の直しの役に、裁かれた項目（ruling）と申し出・裁定の文（conflicts）を渡す
   - 元: works/.shared/core/replan.py:116 REPLAN_ASK・:387 `_section`
-  - 今: yaml:484-485
-  - 証: 筋書き replan は replan__plan に届いたことしか見ない（弱い）→ 要追加: LineWiringCase.test_replan_gets_ruling_and_conflicts
+  - 今: 線 workflows/line/works-factory-line.yaml の replan の with:（ruling: $fix.output.replan_items・conflicts: $fix.output.conflicts）
+  - 証: tests/workflows/test_line.py::LineWiringCase.test_replan_gets_ruling_and_conflicts（部分 B1）と筋書き replan
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - L-D25 案の直しの事前審査（replan-review）に申し出と裁定の行（conflicts）を渡す
   - 元: works/.shared/core/replan.py:593 `_gate_section`・REVIEW_ASK_REPLAN
-  - 今: 無し（plan-review は宣言: main workflows/plan-review/works-factory-plan-review.yaml:32。線の yaml:509-523 は渡さない）
-  - 証: 要追加: LineWiringCase.test_replan_review_gets_the_conflicts
+  - 今: 線の replan-review の with: の conflicts: $fix.output.conflicts（boardview.open_pass が項目ごとの申し出と裁定の行を貼る）
+  - 証: tests/workflows/test_line.py::LineWiringCase.test_replan_review_gets_the_conflicts（部分 B1）
   - 本物の run: 筋書きでのみ
-  - 狭め: #74（S21。不可でない → 戻す）
+  - 狭め: #74（S21。不可でない → 戻す） → 部分 B1 で配線を縛った
 - L-D26 事前審査に修正前の関所の答え（gate_answers）を渡し、通した行を聞き直さない
   - 元: works/.shared/core/graphloops/rules/review-loop.py:4134 `human_gate_answered`
-  - 今: 無し（plan-review の入力 gate_answers: works-factory-plan-review.yaml:35 を、線は plan-review-run にも replan-review にも渡さない）
-  - 証: 要追加: LineWiringCase.test_replan_review_gets_the_before_fix_answer
+  - 今: 線の replan-review の with: の gate_answers: $answer-before-fix.output.answer（{decision, text, asked}。boardview.take_gate_answers が human_items に積む）
+  - 証: tests/workflows/test_line.py::LineWiringCase.test_replan_review_gets_the_before_fix_answer（部分 B1）・lib/tests/test_boardview.py::GateAnswersCase.test_continued_rows_are_not_asked_again
   - 本物の run: 筋書きでのみ
-  - 狭め: #74（S22。不可でない → 戻す）
+  - 狭め: #74（S22。不可でない → 戻す） → 部分 B1 で配線を縛った
 - L-D27 直した項目の約束の欄が承認済みと同じなら聞かずに通し、変われば開く。読めない計画は聞く側に倒す
   - 元: works/.shared/core/replan.py:625 `gate`
   - 今: scripts/ask_replan.py:48-59
@@ -1487,11 +1487,11 @@
 - S17「持ち主の判断が要る所」1・「約束を変える頼み」: plan に `prior_failures` を渡す。→ **済み**（`LY:200`（往復の中の `plan`）・`:486`（`replan`））
 - S18「持ち主の判断が要る所」2（行き止まり）と「能力を狭める直し」2・3: 関所の答え（元 `gatemarks.returned`）が plan に届かない。そのため、答えで直す義務に戻した単位がまだ開いていない時の行き止まり（`stuck_reason`）が起きず、直す裁定でない裁定で単位を外す処理（`held_by_rulings`）もできない。→ **開いている**（plan の入力 `workflows/plan/works-factory-plan.yaml:1-27` にも、線の `plan` の `with:`（`LY:192-201`）にも関所の答えが無い。持ち主の判断待ち。`線の issue の前の下書き` の C3 の案は、依頼の answers を始めの記録から読む形）
 - S19「持ち主の判断が要る所」3: 直しの役を新しい会話で起こす（`persona` の決め待ち）。→ **開いている**（持ち主の判断待ち。線で直せる物ではない） 決め: 継がない。保存した返答を読む新しい会話で回す（docs/owner-decisions.md の「導いた事」の 2026-10-12 の推しの決め。Archon loader.ts:1173-1175）。狭めとして確定（線の配線の文書の「この文書の外」の「決めた物」）
-- S20「約束を変える頼み・使いたかった埋め」の「読めなかった鍵」: plan が他のブロックの控えを読む時の鍵（判定の `units[].prescriptions`・`questions[].{kind,status,origin,depends}`、事前審査の `faces[].{key,severity,unit_keys}`・`resolved`、申し出の `ruling.{decision,plan_items}`）が、本物の書き手の形と合うかを確かめる。→ **開いている**（ブロックをまたいで照らす試験が無い。要追加: `lib/tests/test_cross_block_keys.py::CrossKeysCase.test_plan_reads_what_judge_review_fix_write`）
+- S20「約束を変える頼み・使いたかった埋め」の「読めなかった鍵」: plan が他のブロックの控えを読む時の鍵（判定の `units[].prescriptions`・`questions[].{kind,status,origin,depends}`、事前審査の `faces[].{key,severity,unit_keys}`・`resolved`、申し出の `ruling.{decision,plan_items}`）が、本物の書き手の形と合うかを確かめる。→ **開いている**→ 部分 B1 で閉じた（`lib/tests/test_cross_block_keys.py::CrossKeysCase.test_plan_reads_what_judge_review_fix_write`。事前審査の review.json が壁打ちの欄 `resolved` を落としていたので、`lib/boardview.py` の `_take` が書くように直した）
 
 ### #73 plan-review
 
-- S21「約束を変える頼み」1（conflicts）: `replan-review` の `with:` に `conflicts: $fix.output.conflicts` を足す。→ **開いている**（`LY:509-523` に無い）
+- S21「約束を変える頼み」1（conflicts）: `replan-review` の `with:` に `conflicts: $fix.output.conflicts` を足す。→ 済み（線に在る。部分 B1 が `LineWiringCase.test_replan_review_gets_the_conflicts` で縛った）
 - S22「約束を変える頼み」1（gate_answers）: plan-review に修正前の関所の答え `{decision, text, asked}` を `gate_answers` で渡す。→ **開いている**（`LY:203-214`・`:509-523` に無い。そもそも返しの節 `LS/gate_answer.py:31-38` は `{decision, text}` しか返さず、`asked` を持たない）
 - S23「約束を変える頼み」2: `ruling`（fix の `replan_items`）の項目の id の形（番号か `converge.item_id`）を決める。→ **開いている**（持ち主の決め待ち。issue #82〜#84 の群） 決め: PR #105 で決まった（replan_items は承認済みの修正案の plan[] の 1 から数えた位置の字）（線の配線の文書の「この文書の外」の「決めた物」）
 - S24「約束を変える頼み」3: 始めの記録に、方針の文書を固めた版（sha256 と写しのパス）を載せる。→ **開いている**（`LS/start.py:88-98` は `policy_md` の絶対パスだけを置く）

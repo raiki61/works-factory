@@ -1207,6 +1207,32 @@ class LineWiringCase(unittest.TestCase):
                          {"plan": "$replan.output.plan", "ripple": "$replan.output.ripple", "depth": "$replan.output.depth",
                           "answers": "$answer-replan.output.fix_answers", "only_items": "$fix.output.replan_items"})
 
+    def test_replan_gets_ruling_and_conflicts(self):
+        """L-D24: 案の直しの役に、裁かれた項目（ruling）と申し出・裁定の文（conflicts）を渡す（元 works/.shared/core/replan.py:116
+        REPLAN_ASK・:387 _section）"""
+        got = line_nodes()["replan"]["with"]
+        self.assertEqual((got["ruling"], got["conflicts"]), ("$fix.output.replan_items", "$fix.output.conflicts"))
+
+    def test_replan_review_gets_the_conflicts(self):
+        """L-D25・P139: 案の直しの事前審査に申し出と裁定の行（fix の conflicts.json の指し札）を渡す（元 replan.py:593 _gate_section）。
+        事前審査は項目ごとの申し出と裁定の文を材料に貼る（boardview.open_pass の conflicts）"""
+        got = line_nodes()["replan-review"]["with"]
+        self.assertEqual((got["conflicts"], got["ruling"]), ("$fix.output.conflicts", "$fix.output.replan_items"))
+
+    def test_replan_review_gets_the_before_fix_answer(self):
+        """L-D26・L-G29・P244: 事前審査の 2 度目の差し込みに修正前の関所の答え {decision, text, asked} を渡し、人が continue で通した行
+        （狭め・穴・世界の解の外れ・構造の設計の問い・方針の変化）を聞き直さない（元 review-loop.py:4134 human_gate_answered）"""
+        self.assertEqual(line_nodes()["replan-review"]["with"]["gate_answers"], "$answer-before-fix.output.answer")
+
+    def test_plan_review_gets_conflicts_and_gate_answers(self):
+        """P152・L-W45: 事前審査の差し込みのうち、修正の後に走る replan-review には申し出と関所の答えの両方が届き、修正前の関所より前に
+        走る往復の中の plan-review-run には渡さない（まだ無い。UNPASSED に訳つき）"""
+        nodes = line_nodes()
+        self.assertLessEqual({"conflicts", "gate_answers"}, set(nodes["replan-review"]["with"]))
+        self.assertFalse({"conflicts", "gate_answers"} & set(nodes["plan-review-run"]["with"]))
+        self.assertEqual(self.UNPASSED["plan-review-run"], {"conflicts", "gate_answers"})
+        self.assertNotIn("replan-review", self.UNPASSED)
+
     def test_include_ids_are_not_loop_body_ids(self):
         """展開した後の節の id が重ならない: Archon は差し込んだブロックの頭の段の節にだけ `<include の id>__` を付け、輪の中の節の id は
         そのまま残す。線の差し込みの名（頭の段と線の輪の中）は、輪の中の `$<名>.output` までブロックの返す節へ書き換わる

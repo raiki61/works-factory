@@ -1004,10 +1004,10 @@
 
 - P139 案の直しの事前審査の申し出と裁定の行は、線が渡す conflicts（fix の conflicts.json）から引く
   - 元: works/.shared/core/replan.py:387 `_section`（盤面の食い違いの控え）
-  - 今: lib/boardview.py:392 `open_pass(conflicts=…)`。ただし P74 works-factory-line.yaml:507-523 `replan-review` の with: に `conflicts` が無い（計画の `replan` には在る :485）。既定 null なので、本物の run では事前審査に申し出と裁定の行が届かない
-  - 証: lib/tests/test_boardview.py::ReplanItemsCase（lib の水準）。線の配線を縛る試験は無い（P74 tests/workflows/test_line.py::…test_includes_pass_only_what_the_real_block_declares は required の入力しか見ない :735-746）→ 要追加: P74 tests/workflows/test_line.py::WiringCase.test_replan_review_gets_the_fix_conflicts — `replan-review` の with に `conflicts: $fix.output.conflicts`
+  - 今: lib/boardview.py の open_pass(conflicts=…)。線の replan-review の with: に conflicts: $fix.output.conflicts
+  - 証: lib/tests/test_boardview.py::ReplanItemsCase・tests/workflows/test_line.py::LineWiringCase.test_replan_review_gets_the_conflicts（部分 B1。旧 WiringCase.test_replan_review_gets_the_fix_conflicts）
   - 本物の run: plan-review/pass-<k>/prompt.md の「### 修正の段の申し出と裁定」節（今の線では出ない）。筋書きでのみ
-  - 狭め: #74（線）の配線の欠け。不可でない → 戻す
+  - 狭め: #74（線）の配線の欠け。不可でない → 戻す → 部分 B1 で配線を縛った
 
 - P140 案の直しの事前審査の返答を受け付ける: 壁打ちと束ね役の任意の欄（resolved・items・synergy）は外してから照らし、独立設計が立つ時は穴の引用（DRIFT_HEAD）と design_map を直した項目の行と照らす
   - 元: works/.shared/core/replan.py:511 `_take`（plan-review: drop_fields・design.quote_gaps）
@@ -1102,10 +1102,10 @@
 
 - P152 線が conflicts と gate_answers を渡さない（#74 の head の線は plan-review の 2 つの差し込みのどちらにも渡していない）ので、案の直しの事前審査に申し出と裁定の文が載らず、修正前の関所で人が通した行が次の差し込みで聞き直される
   - 元: works/darkfactory/darkfactory.yaml:687 `replanning`（盤面が conflicts と process.human_items を持った）
-  - 今: lib/boardview.py:392 `open_pass`（conflicts・gate_answers を受ける口は在る）・#74 の head/workflows/line/works-factory-line.yaml:204-217・:510-524（with に conflicts・gate_answers が無い）
-  - 証: 要追加: tests/workflows/test_line.py::LineWiringCase.test_plan_review_gets_conflicts_and_gate_answers — 線の replan-review の with に `conflicts: $fix.output.conflicts`、両方の差し込みに `gate_answers: $answer-before-fix.output.answer` 相当が在ること（線の持ち物。PB・PE と共有）
+  - 今: lib/boardview.py の open_pass（conflicts・gate_answers を受ける口）・線の replan-review の with: の conflicts・gate_answers（plan-review-run は修正前の関所より前なので渡さない）
+  - 証: tests/workflows/test_line.py::LineWiringCase.test_plan_review_gets_conflicts_and_gate_answers（部分 B1）
   - 本物の run: `plan-review/open.json` の `human_items` に修正前の関所の答えの行が在るか（今は無い）
-  - 狭め: #74 の線（5 回目の直しの中）で未配線。Archon で不可でない → 線に足す
+  - 狭め: #74 の線（5 回目の直しの中）で未配線。Archon で不可でない → 線に足す → 部分 B1 で配線を縛った
 
 - P153 全部の節（役も script も）が mutates_checkout: false。script は全部 uv の script の宣言を頭に持ち、対象に pyproject.toml が在っても .venv・uv.lock を作らない
   - 元: works/blk-plan/blk-plan.yaml（役の節の mutates_checkout: false）
@@ -1763,10 +1763,10 @@
 
 - P244 修正前の関所の答え（入力 gate_answers {decision, text, asked}）を gatemarks が読む human_items の行に積み（approve は continue に揃え、同じ行は積み増さない、種類は前の差し込みが返した項目の控え gate-asked.json から引く）、人が continue で通した行（狭め・穴・世界の解の外れ・構造の設計の問い・設計だけの行・止まりの行・台帳の問い）を次の差し込みで聞き直さない
   - 元: works/.shared/core/graphloops/rules/review-loop.py:4134 `human_gate_answered`（盤面の record.process.human_items に積んだ）
-  - 今: lib/boardview.py:332 `take_gate_answers`・:912 `_note_asked`・workflows/plan-review/scripts/pass_open.py（入力 gate_answers）。線は渡さない: workflows/line/works-factory-line.yaml:203-216（plan-review-run の with に gate_answers が無い）・:509-523（replan-review も無い）
-  - 証: lib/tests/test_boardview.py::GateAnswersCase.test_continued_rows_are_not_asked_again（assert: lib/tests/test_boardview.py:317-321）・tests/workflows/test_plan_review.py::PortedMaterialCase.test_gate_answers_reach_the_lib_through_the_open_script（assert: :1594）。線の配線は 要追加: tests/workflows/test_line.py::WiringCase.test_replan_review_gets_the_before_fix_answer — replan-review の with に `gate_answers: $answer-before-fix.output.answer`（項目の文の asked つき。P241 と同じ穴）が在ること
+  - 今: lib/boardview.py の take_gate_answers・_note_asked・workflows/plan-review/scripts/pass_open.py（入力 gate_answers）。線の replan-review の with: に gate_answers: $answer-before-fix.output.answer
+  - 証: lib/tests/test_boardview.py::GateAnswersCase.test_continued_rows_are_not_asked_again・tests/workflows/test_plan_review.py::PortedMaterialCase.test_gate_answers_reach_the_lib_through_the_open_script・tests/workflows/test_line.py::LineWiringCase.test_replan_review_gets_the_before_fix_answer（部分 B1。旧 WiringCase.…）
   - 本物の run: `plan-review/gate-answers.json`（今の線では書かれない。直れば案の直しの run で見える）
-  - 狭め: #73 は入力を足したが、#74 の線が渡さない。今の線で同じ run の 2 度目の差し込みは案の直しの事前審査だけで、そこでは方針の変化の行を聞き直す（P246）。Archon で不可でない → 線に配線する
+  - 狭め: #73 は入力を足したが、#74 の線が渡さない。今の線で同じ run の 2 度目の差し込みは案の直しの事前審査だけで、そこでは方針の変化の行を聞き直す（P246）。Archon で不可でない → 線に配線する → 部分 B1 で配線を縛った
 
 - P245 返した関所の項目の種類と方針の変化を gate-asked.json に積み、関所の項目の全部と壁打ちの行を pass-<k>/gate.json に残す（次の差し込みが通した行の種類を引く・人が読む控え）
   - 元: 盤面の state.pending_human（{node, kinds, items}）と loop_state.policy_change

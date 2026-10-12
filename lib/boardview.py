@@ -846,7 +846,8 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo, keys) -> di
         files = {**merged["files"], PROMPT_FILE: str(p / PROMPT_FILE)}
         converge.record_pass(out, bare_review, resolved=merged["resolved"], fence=FENCE, files=files,
                              synergy=merged["synergy"], hits=merged["hits"])
-    _write_json(p / REVIEW_FILE, review)
+    # 壁打ちの欄 resolved は写しの型の外なので外して照らしたが、plan の往復の控え（planfile.converge_record）が review.json から読む
+    _write_json(p / REVIEW_FILE, {**review, converge.RESOLVED: merged["resolved"]} if merged["resolved"] else review)
     return {"ok": True, "reason": ""}
 
 
