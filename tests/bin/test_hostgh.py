@@ -78,7 +78,7 @@ class RelayCase(unittest.TestCase):
 
     def test_relay_names_are_not_read_by_gh(self):
         """渡しの名は gh の読む名（GH_・GITHUB_ で始まる）でない"""
-        for relay, _, _ in hostgh.RELAY:
+        for relay, _ in hostgh.RELAY:
             self.assertFalse(relay.startswith(("GH_", "GITHUB_")), relay)
 
 
@@ -148,7 +148,7 @@ class ShimCase(unittest.TestCase):
 
     def test_shim_holds_paths_only(self):
         """口はパスと名だけを持つ（トークンの値は env のどの名に在っても書かない）"""
-        names = ("GH_TOKEN_PROBE", *GITHUB_TOKENS, *(relay for relay, _, _ in hostgh.RELAY))
+        names = ("GH_TOKEN_PROBE", *GITHUB_TOKENS, *(relay for relay, _ in hostgh.RELAY))
         with mock.patch.dict(os.environ, dict.fromkeys(names, "ghp_SHOULDNOTAPPEAR")):
             text = pathlib.Path(self.write()).read_text(encoding="utf-8")
         self.assertNotIn("ghp_", text)

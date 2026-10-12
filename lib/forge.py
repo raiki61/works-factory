@@ -90,7 +90,7 @@ def repo_of(url):
     """URL の形から {kind, host, owner, name}。GitHub でもほかのホストでもない URL・<owner>/<name> でないパスは None"""
     try:
         got = _classify(url)
-        if got["kind"] not in (GITHUB, OTHER_HOST) or "::" in url.split("/", 1)[0]:
+        if got["kind"] not in (GITHUB, OTHER_HOST):
             return None
         u = url.strip()
         path = urllib.parse.urlsplit(u).path if "://" in u else u.split(":", 1)[1]
