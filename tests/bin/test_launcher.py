@@ -181,15 +181,35 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(env["WORKS_FACTORY_ROOT"], str(self.repo))
 
     def test_child_env_carries_answer_head(self):
-        """関所の答えの行の頭は殻を通す respond（答えた者の欄は Archon に無いので置かない）。利用者の値より殻の値"""
-        for user_value in ({}, {answer.ENV: "sh use.sh answer x", answer.WHO_ENV: "someone"}):
+        """関所の答えの行の頭は家を名指して殻を通す respond。利用者の値より殻の値"""
+        chosen = self.tmp / "chosen-home"
+        for user_value, home in (({}, self.default_home(self.target)),
+                                 ({answer.ENV: "sh use.sh answer x", "WORKS_FACTORY_HOME": str(chosen)}, chosen)):
             with self.subTest(user=user_value):
                 env = self.reached(self.launch("workflow", "status", cwd=self.target / "sub", **user_value))["env"]
                 head = shlex.split(env[answer.ENV])
-                self.assertEqual(head, [str(self.repo / "bin" / "works-factory"), "workflow", "respond", "--cwd",
-                                        os.path.realpath(self.target)])
-                self.assertIn(shlex.join(["bin/works-factory", *head[1:-1]]), answer.HOLE)
-                self.assertNotIn(answer.WHO_ENV, env)
+                self.assertEqual(head, ["env", f"WORKS_FACTORY_HOME={home}", str(self.repo / "bin" / "works-factory"),
+                                        "workflow", "respond", "--cwd", os.path.realpath(self.target)])
+                self.assertIn(shlex.join(["bin/works-factory", *head[3:-1]]), answer.HOLE)
+
+    def test_answer_line_reaches_the_run_home_from_another_shell(self):
+        """一度だけ選んだ家（WORKS_FACTORY_HOME・XDG_STATE_HOME）で起こした run の答えの行は、その値の無いシェルで打っても同じ家に届く"""
+        chosen = self.tmp / "chosen-home"
+        for chooses, home in (({"WORKS_FACTORY_HOME": str(chosen)}, chosen),
+                              ({"XDG_STATE_HOME": str(self.tmp / "state")},
+                               self.tmp / "state" / "works-factory" / "targets" / short(self.target))):
+            with self.subTest(chooses=chooses):
+                got = self.reached(self.launch("workflow", "run", "works-factory-line", **chooses))
+                self.assertEqual(got["env"]["HOME"], str(home / "home"))
+                line = answer.line("run-1", "continue", "x", env=got["env"])
+                self.bun_log.unlink()
+                argv = shlex.split(line)
+                done = subprocess.run([shutil.which(argv[0]), *argv[1:]], env=self.env, cwd=self.tmp,
+                                      capture_output=True, text=True, encoding="utf-8", timeout=120)
+                answered = self.reached(done)
+                self.assertEqual(answered["env"]["HOME"], str(home / "home"))
+                self.assertEqual(answered["argv"][3:], ["workflow", "respond", "--cwd", str(self.target), "run-1",
+                                                        "continue", "x"])
 
     def test_child_gets_the_archon_source_it_runs(self):
         """線の節が殻を入れ子にせず同じ Archon を起こせるよう、殻が起こした源のパスを子に渡す"""

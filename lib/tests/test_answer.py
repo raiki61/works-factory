@@ -26,13 +26,9 @@ class LineCase(unittest.TestCase):
     def test_line(self):
         self.assertEqual(answer.line("r", "continue", "n", env={answer.ENV: "H"}), 'H r continue "n"')
 
-    def test_who_is_appended(self):
-        got = answer.line("r", "stop", "n", env={answer.ENV: "H", answer.WHO_ENV: "w"})
-        self.assertEqual(got, 'H r stop "n" "w"')
-
-    def test_blank_who_adds_nothing(self):
-        self.assertEqual(answer.line("r", "continue", "n", env={answer.ENV: "H", answer.WHO_ENV: "  "}),
-                         'H r continue "n"')
+    def test_nothing_follows_the_note(self):
+        """実行基盤の respond は一言の後ろを一言に繋ぐので、答えた者などを末尾に足さない（利用者の env に昔の名が在っても）"""
+        self.assertEqual(answer.line("r", "stop", "n", env={answer.ENV: "H", "WORKS_ANSWER_WHO": "w"}), 'H r stop "n"')
 
     def test_unknown_verb_raises(self):
         with self.assertRaises(ValueError):
