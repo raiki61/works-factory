@@ -914,7 +914,7 @@ def _pass_rejects(inputs: dict, p: pathlib.Path) -> list:
 def collect_reads(folder, log, *, role: str, quiet: tuple, repo) -> dict:
     """この差し込みの事前審査の役 role が、機械が渡したパス（材料 pass-<k>/prompt.md・方針の文書の固めた写し）を読んだ証拠を
     reads.collect で集め、{役: 役ごとの証拠のパス} の索引を pass-<k>/ に書く（元 planblk.collect_reads の事前審査の側）。記録は差し込みを
-    開いた時刻（OPEN_FILE を置いた時）から後の行で切る。道具を持たない役 quiet は null で名指す。束ね役の Agent の起動の数と型ごとの数を、
+    開いた時刻（OPEN_FILE を置いた時）から後の、材料 pass-<k>/prompt.md を読んだ session の行で切る。道具を持たない役 quiet は null で名指す。束ね役の Agent の起動の数と型ごとの数を、
     この差し込みで書いた下請けのファイルの数と並べて trace に planblk.AGENT_OP で残す（拒まない。測る。記録が読めなければ launched は
     null と訳）。形 replan は役の名と索引を reads の案の直しの名にする。返り {ok: True, missing, index_file}"""
     d = pathlib.Path(folder)
@@ -924,8 +924,9 @@ def collect_reads(folder, log, *, role: str, quiet: tuple, repo) -> dict:
     again = inputs["form"] == "replan"
     opened = (d / OPEN_FILE).stat().st_mtime
     since = reads.stamp(opened)
-    must = [str(p / PROMPT_FILE)] + ([inputs["policy_copy"]] if inputs.get("policy_copy") else [])
-    got = reads.collect(p, role, must, log, since=since, repo=repo, replan=again)
+    prompt = str(p / PROMPT_FILE)
+    must = [prompt] + ([inputs["policy_copy"]] if inputs.get("policy_copy") else [])
+    got = reads.collect(p, role, must, log, own=[prompt], since=since, repo=repo, replan=again)
     index = {reads.role_key(r, again): None for r in quiet}
     index[reads.role_key(role, again)] = got["reads_file"]
     out = _write_json(p / reads.index_name(role, again), index)

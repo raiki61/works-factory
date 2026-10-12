@@ -969,6 +969,20 @@ class ReadsCase(unittest.TestCase):
         rnd = run.art / "plan" / "r1"
         self.assertEqual(run.out["plan-reads"]["missing"], [str(rnd / "brief-1.md"), str(rnd / "brief-2.md"), str(rnd / "reject-1.txt")])
 
+    def test_reads_before_the_round_opened_are_not_counted(self):
+        """K14: 記録は周を開いた時刻（round.json の at）から後の行で切る。前の周・前の差し込みの読みを今の周の物に数えない"""
+        run = self.run_with_root()
+
+        def writer(n, brief):
+            self.hook(run, run.out["plan-prep"]["brief"])
+            log = reads.reads_path(run.config / reads.ROOT, run.repo)
+            rows = [json.loads(x) for x in log.read_text(encoding="utf-8").splitlines()]
+            log.write_text("".join(json.dumps({**r, "ts": "2000-01-01T00:00:00"}) + "\n" for r in rows), encoding="utf-8")
+            return {"plan": [item(1, 2)]}
+
+        self.assertIs(run.include(writer=writer)["ready"], True)
+        self.assertEqual(run.out["plan-reads"]["missing"], [str(run.art / "plan" / "r1" / "brief-1.md")])
+
     def test_round_without_the_role_names_it(self):
         run = Run(self, judge={"units": [unit(NIT, "nit", None)], "questions": []})
         run.include(writer=lambda n, brief: self.fail("役を起こした"))

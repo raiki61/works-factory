@@ -1,13 +1,16 @@
 """読んだ証拠（lib/reads.py）の検査。元の works/tests/test_reads.py の CollectTest・WebTest・NamesTest の場合を、出どころを
 フックの記録だけにして写す（行は試験が記録の形で書く。フックを実物で起こすのは tests/bin/test_record_read.py）。
-足した場合: 差し込みの始まりの時刻 since より前の行を数えない・記録が無い・読めない時の名指し。
+足した場合: 差し込みの始まりの時刻 since より前の行と、役だけに渡した材料を読んでいない session の行を数えない・記録が無い・
+読めない時の名指し。
 """
 import hashlib
 import json
+import os
 import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
@@ -38,17 +41,18 @@ class Case(unittest.TestCase):
             for r in rows:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-    def read_row(self, path, ts=SINCE, **more):
+    def read_row(self, path, ts=SINCE, session="s", **more):
         raw = pathlib.Path(path).read_bytes()
-        return {"ts": ts, "session_id": "s", "agent_id": None, "path": str(pathlib.Path(path).resolve()),
+        return {"ts": ts, "session_id": session, "agent_id": None, "path": str(pathlib.Path(path).resolve()),
                 "file_sha": hashlib.sha256(raw).hexdigest(), "bytes": len(raw), "partial": False, "partial_why": None,
                 "tool_use_id": "toolu_r", **more}
 
-    def call(self, tool, value, ts=SINCE):
-        return {"ts": ts, "session_id": "s", "agent_id": None, "tool_use_id": "toolu_c", "tool_name": tool, "input": value}
+    def call(self, tool, value, ts=SINCE, session="s"):
+        return {"ts": ts, "session_id": session, "agent_id": None, "tool_use_id": "toolu_c", "tool_name": tool, "input": value}
 
     def collect(self, must, **kw):
-        got = reads.collect(self.place, "plan-writer", must, self.log, since=kw.pop("since", SINCE), repo=self.repo, **kw)
+        got = reads.collect(self.place, "plan-writer", must, self.log, own=kw.pop("own", [str(self.doc)]),
+                            since=kw.pop("since", SINCE), repo=self.repo, **kw)
         return got, json.loads(pathlib.Path(got["reads_file"]).read_text(encoding="utf-8"))
 
 
@@ -81,14 +85,48 @@ class CollectTest(Case):
 
     def test_relative_must_resolves_against_repo(self):
         self.write(self.read_row(self.doc))
-        _, doc = self.collect(["brief.md"])
+        _, doc = self.collect(["brief.md"], own=["brief.md"])
         self.assertEqual(doc["rows"], [{"path": "brief.md", "hook": "read"}])
 
-    def test_missing_record_is_named_none(self):
+    def test_other_sessions_rows_are_not_the_roles(self):
+        """同じ作業の場で並んで走る別の役（線の判定のやり直しなど）の読み・web・Agent を、役 role の物に数えない。役の session は
+        役だけに渡した材料 own を読んだ session"""
+        policy = self.repo / "policy.md"
+        policy.write_text("方針\n", encoding="utf-8")
+        self.write(self.read_row(policy, session="S-judge"), self.call("WebFetch", "https://judge.example/", session="S-judge"),
+                   self.call("Agent", "general-purpose", session="S-judge"),
+                   self.read_row(self.doc), self.call("WebSearch", "mean 空の列"))
+        got, doc = self.collect([str(self.doc), str(policy)])
+        self.assertEqual([r["hook"] for r in doc["rows"]], ["read", "absent"])
+        self.assertEqual(got["missing"], [str(policy)])
+        self.assertEqual(doc["web"], {"fetches": [], "searches": ["mean 空の列"]})
+        self.assertEqual(reads.tool_count(got["records"], "Agent"), 0)
+
+    def test_role_that_read_none_of_its_own_material_has_no_rows(self):
+        self.write(self.read_row(self.doc, session="S-judge"), self.call("WebFetch", "https://judge.example/", session="S-judge"))
+        got, doc = self.collect([str(self.doc)], own=[])
+        self.assertEqual((got["missing"], got["records"]), ([str(self.doc)], []))
+        self.assertEqual(doc["web"], {"fetches": [], "searches": []})
+
+    def test_missing_record_file_is_named_none(self):
+        self.log.parent.mkdir(parents=True)
         got, doc = self.collect([str(self.doc)])
         self.assertEqual(got["sources"]["hook"], "none")
         self.assertIn(str(self.log), got["sources"]["why"])
         self.assertEqual((got["missing"], doc["rows"][0]["hook"]), ([], None))
+
+    def test_missing_root_and_missing_config_are_named_apart(self):
+        """記録が無い訳を取り違えない（K15）: 設定の置き場が渡っていない起動と、渡ったが記録の根が無い（フックを置いていない）起動"""
+        got, _ = self.collect([str(self.doc)])
+        self.assertEqual((got["sources"]["hook"], got["sources"]["why"]), ("none", reads.NO_ROOT))
+        got = reads.collect(self.place, "plan-writer", [str(self.doc)], None, own=[], since=SINCE, repo=self.repo)
+        self.assertEqual(got["sources"]["why"], reads.NO_CONFIG)
+
+    def test_log_here_follows_the_config_dir(self):
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(self.tmp)}):
+            self.assertEqual(reads.log_here(), reads.reads_path(self.tmp / reads.ROOT, pathlib.Path.cwd()))
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertIsNone(reads.log_here())
 
     def test_unreadable_record_is_named_unreadable(self):
         """読めない記録を「読んでいない」と取り違えない（元の EVENTS_VERIFIED の扱い）"""
@@ -104,8 +142,9 @@ class CollectTest(Case):
         self.assertEqual(doc["role"], "replan-plan-writer")
 
     def test_collect_records_web_of_the_role(self):
-        self.write(self.call("WebFetch", "https://example.org/a", ts=BEFORE), self.call("WebFetch", "https://example.org/b"),
-                   self.call("WebFetch", "https://example.org/b"), self.call("WebSearch", "mean 空の列"))
+        self.write(self.read_row(self.doc), self.call("WebFetch", "https://example.org/a", ts=BEFORE),
+                   self.call("WebFetch", "https://example.org/b"), self.call("WebFetch", "https://example.org/b"),
+                   self.call("WebSearch", "mean 空の列"))
         _, doc = self.collect([])
         self.assertEqual(doc["web"], {"fetches": ["https://example.org/b"], "searches": ["mean 空の列"]})
 

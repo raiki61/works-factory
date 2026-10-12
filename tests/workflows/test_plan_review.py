@@ -1615,8 +1615,8 @@ class ReadsCase(RunCase):
         self.config = self.run_.tmp / "claude"
         (self.config / reads.ROOT).mkdir(parents=True)
 
-    def hook(self, tool, **tool_input):
-        event = {"session_id": "s-1", "tool_name": tool, "tool_input": tool_input, "tool_use_id": f"toolu_{tool}",
+    def hook(self, tool, session="s-1", **tool_input):
+        event = {"session_id": session, "tool_name": tool, "tool_input": tool_input, "tool_use_id": f"toolu_{tool}",
                  "cwd": str(self.run_.repo), "hook_event_name": "PostToolUse"}
         done = subprocess.run([sys.executable, str(RECORDER), str(self.config / reads.ROOT)], input=json.dumps(event),
                               text=True, encoding="utf-8", capture_output=True, cwd=str(self.run_.repo),
@@ -1661,7 +1661,7 @@ class ReadsCase(RunCase):
         r.judgment(precedents=PRECEDENTS)
         r.ripple(RIPPLE)
         self.assertTrue(r.open()["tree"])
-        r.out("review_prep")
+        self.hook("Read", file_path=r.out("review_prep")["prompt_file"])
         for _ in range(3):
             self.hook("Agent", subagent_type=planblk.SUBAGENT_TYPE, prompt="項目を見よ")
         self.collect()
@@ -1673,13 +1673,43 @@ class ReadsCase(RunCase):
         r = self.run_
         r.start(features_off=["review_tree"])
         r.open()
-        r.out("review_prep")
+        self.hook("Read", file_path=r.out("review_prep")["prompt_file"])
         self.hook("WebFetch", url="https://docs.python.org/3/library/statistics.html", prompt="空の列")
         self.hook("WebSearch", query="statistics.mean empty")
         _, index = self.collect()
         doc = json.loads(pathlib.Path(index["plan-review"]).read_text(encoding="utf-8"))
         self.assertEqual(doc["web"], {"fetches": ["https://docs.python.org/3/library/statistics.html"],
                                       "searches": ["statistics.mean empty"]})
+
+    def test_records_before_the_pass_opened_are_not_counted(self):
+        """K14: 記録は差し込みを開いた時刻から後の行で切る。前の差し込みの読みと下請けの起動を、今の差し込みの物に数えない"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        prompt = r.out("review_prep")["prompt_file"]
+        self.hook("Read", file_path=prompt)
+        self.hook("Agent", subagent_type=planblk.SUBAGENT_TYPE, prompt="項目を見よ")
+        log = reads.reads_path(self.config / reads.ROOT, r.repo)
+        rows = [json.loads(x) for x in log.read_text(encoding="utf-8").splitlines()]
+        log.write_text("".join(json.dumps({**x, "ts": "2000-01-01T00:00:00"}) + "\n" for x in rows), encoding="utf-8")
+        got, _ = self.collect()
+        self.assertEqual(got["missing"], [prompt])
+        trace = [json.loads(x) for x in (r.folder / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([x["launched"] for x in trace if x["op"] == planblk.AGENT_OP], [0])
+
+    def test_other_sessions_in_the_same_checkout_are_not_the_roles(self):
+        """同じ作業の場で並んで走る別の役（線の判定のやり直し）の web と下請けを、事前審査の役の物に数えない"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        self.hook("Read", file_path=r.out("review_prep")["prompt_file"])
+        self.hook("WebFetch", session="S-judge", url="https://judge.example/")
+        self.hook("Agent", session="S-judge", subagent_type="general-purpose")
+        _, index = self.collect()
+        doc = json.loads(pathlib.Path(index["plan-review"]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["web"], {"fetches": [], "searches": []})
+        trace = [json.loads(x) for x in (r.folder / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([x["launched"] for x in trace if x["op"] == planblk.AGENT_OP], [0])
 
     def test_replan_reads_are_named_apart(self):
         """案の直しの差し込みの読んだ証拠は reads-replan-<役>.json と reads-replan-block.json（1 回目の物と名を分ける）"""
