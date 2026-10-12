@@ -13,6 +13,8 @@
      "why": "最後の関所・止め札・境の節の試験"},
     {"id": "test-runner", "glob": ".github/workflows/tests.yml",
      "why": "試験の入口。段の選び方・discover の型を変えれば回る試験が減る"},
+    {"id": "test-shard", "glob": "tests/shard.py",
+     "why": "CI の試験の分け。モジュールの集め方・漏れの確かめを緩めれば回る試験が減る"},
     {"id": "accept", "glob": "lib/accept.py",
      "why": "受け付けの口（役の返答を写しの規則と検証器に通す・作業ツリーの柵 tree_state・tree_moved・差分の切り方）"},
     {"id": "baseline-red", "glob": "lib/baseline_red.py",
