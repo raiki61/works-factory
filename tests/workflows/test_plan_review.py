@@ -24,6 +24,7 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.workflows import copied
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 
@@ -72,6 +73,55 @@ ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts":
                 "round_limit": "null"}
 RETURN_FIELDS = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
 RUN_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
+
+
+# 役の指示書の写しの台帳（K9。tests/workflows/copied.py）。元は今の works（raiki61/claude-plugins の
+# 2aa7c66cf7abe1fe09699ac2942d107123214168）の works/ の下。plan-review.md は役 judge の定義（engine が本文を前付けした）と
+# p2.plan_review.md を順に繋いだ物
+JUDGE_HEAD = ("---\nname: judge\ndescription: 呼び出し側が覆せない判定を下す上位の目。リポジトリと web は読めるが書けず、shell を持たない。\n"
+              "model: opus\neffort: high\ntools: Read, Glob, Grep, WebSearch, WebFetch\n---\n\n")
+REVIEW_TITLE = "修正案の事前審査（別の judge。書く前の案を叩く）\n\n"
+R2_TAKEN = ("元の目的:\n{{out.p0.purpose.purpose_text}}\n\n実測した制約（kind=仮説 のものは所与にするな）: {{record.process.constraints}}\n"
+            "前提のドリフト（あれば）: {{?loop.drift_notes}}\n"
+            "裏取りを通っていない目的の判定（あれば）: {{?loop.purpose_review_stale}}——この周の『狭めている』は根拠が数え直されていないので、"
+            "目的を独立に取れない理由としては使えない\n")
+COPIED = {
+    "plan-review.md": (
+        [("works/.shared/core/agents/judge.md", "078d6834af474542db794660277ea99673c1df7791e797ac2b6a17932fcb181c", 3225),
+         ("works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md",
+          "4f400ecf39c7347e5c45c62cdf2446278816202653b5c6f132b56d16eade5068", 4520)],
+        [(JUDGE_HEAD + "お前は judge。", "お前は judge。", "役の定義の頭（name・model・tools）を外し、本文だけを前付けする"),
+         ("規律の外。\n# P2-11 " + REVIEW_TITLE, "規律の外。\n\n# " + REVIEW_TITLE,
+          "見出しの段の番号 P2-11 を外し、役の本文との間を空ける"),
+         ("修正役の案: {{out.p2.fix_plan.plan}}\n" + ORIGINAL_UNITS_LINE + "\n判定者の見立て: {{record.process.diagnosis | pick framing,one_shot}}\n"
+          "判定者の先行例（世界の解）: {{?record.process.precedents}}\n"
+          "リポジトリ: {{inputs.cwd}}（読む版: `{{inputs.review_rev}}`）\u3000BASE: `{{record.base}}`\u3000観点の正本: {{inputs.review_md}}\n",
+          "材料のファイル `$review-prep.output.prompt_file` を Read で読め。役の頭の決まり（関所の項目の決め手・既にある物を量ったか・"
+          "人に回す物の挙げ方・独立設計との突き合わせ・項目の works の欄）、前の往復の block（2 往復目から）、項目ごとの下請けを並べる"
+          "束ね役の頼み（在れば）、修正役の案・直す単位・判定者の見立て・先行例・リポジトリと読む版・人の方針は、全部そこに在る。"
+          "束ね役の頼みが在れば、それに従って下請けを起こし、返答はその頼みの形にせよ。返すのは下の決まりと返し方に合う JSON だけ。\n\n"
+          "リポジトリ: 材料のファイルの『リポジトリ』の行が名指す所（読む版と観点の正本も同じ行）\n",
+          "engine の雛形の 5 行を材料のファイルへ移す（下請けに貼る『リポジトリ: 』の行は残す）"),
+         ("を P3 で答える", "を修正の段で答える", "段の番号 P3 を言い換える")]),
+    "r2-design.md": (
+        [("works/.shared/core/gl-prompts/prompts/review-loop/r2.design.md",
+          "135fe61e6a01f7632b60b9df548d5508a1066c453295bf0fe0a6553159cbc6ac", 1731)],
+        [("お前は blind-judge（",
+          "お前は独立の目の 1 つ（R2 ゼロベース再導出（独立設計の半分））として、新しい会話で起きている。修正案も、判定の経緯も、"
+          "実装も引き継いでいない。\nお前は道具を一切持たない。ファイルもリポジトリも開けない——下の囲みの中が渡された物の全部である。\n\n"
+          "お前は blind-judge（",
+          "新しい会話・道具なし・囲みの中が全部の 2 行を頭に"),
+         (R2_TAKEN,
+          "囲みの中に、元の目的と、実測した制約（kind=仮説 のものは所与にするな）と、前提のドリフトと裏取りを通っていない目的の判定"
+          "（あれば）の 2 行が在る。囲みの頭に「人が決めた前提」の節が在れば、それも渡した物である。\n囲みの頭に「前の回の受け付けが"
+          "拒んだ理由」の節が在れば、お前の前の返答は受け付けで拒まれている。そこに書かれた所を直した返答を丸ごと出し直せ（直した所"
+          "だけを返すな）。\n\n=====渡した物ここから=====\n$r2-prep.output.prompt\n=====渡した物ここまで=====\n",
+          "雛形の差し込み（目的・制約・前提のドリフト・裏取りを通っていない目的の判定）を支度の材料の囲みへ移す（4 つとも r2_prep が貼る）"),
+         ("人へ）。\n", "人へ）。根拠に実物を名指すなら `<パス>:<行>` の形で書け（受け付けが依頼を固めた版で検算する）。\n",
+          "問いが立たない根拠の名指しの形（受け付けが固めた版で照らす）"),
+         ("比較役がやる。\n", "比較役がやる。\n\n返すのは JSON だけ: question_stands（問いが立つか）・reason（判断の理由）・"
+          "premise_invalid_reason（問いが立たない時の根拠）・design（独立設計）。\n", "返し方の 1 行")]),
+}
 
 
 def workflow() -> dict:
@@ -421,6 +471,16 @@ class YamlCase(unittest.TestCase):
                      "## 返し方", "faces_none", "根拠は読む版で取れ"):
             self.assertIn(word, rules)
 
+    def test_r2_command_is_the_original_with_only_the_allowed_edits(self):
+        """独立設計の指示書は元の r2.design.md の字のまま: 許した直しを逆に当てると元のバイトに戻る"""
+        self.assertEqual(copied.restore_problems((BLOCK / "commands" / "r2-design.md").read_text(encoding="utf-8"),
+                                                 *COPIED["r2-design.md"]), [])
+
+    def test_review_command_is_the_original_with_only_the_allowed_edits(self):
+        """事前審査の指示書は役 judge の定義と元の p2.plan_review.md を繋いだ字のまま: 許した直しを逆に当てると元のバイトに戻る"""
+        self.assertEqual(copied.restore_problems((BLOCK / "commands" / "plan-review.md").read_text(encoding="utf-8"),
+                                                 *COPIED["plan-review.md"]), [])
+
     def test_script_names_do_not_hide_lib_modules(self):
         names = {p.stem for p in (BLOCK / "scripts").glob("*.py")}
         self.assertEqual(names, {"pass_open", "r2_prep", "r2_accept", "review_prep", "review_accept", "result"})
@@ -456,6 +516,18 @@ class YamlCase(unittest.TestCase):
                 self.assertEqual(mine & body_ids(yaml.safe_load(other.read_text(encoding="utf-8"))), set())
 
 
+class CopiedTextsCase(unittest.TestCase):
+    """指示書の写しの台帳（K9）: commands/ の全部が台帳に在り、許した直しを逆に当てると元のバイトに戻る"""
+
+    def test_every_command_is_its_original_with_only_ledgered_edits(self):
+        names = sorted(p.name for p in (BLOCK / "commands").glob("*.md"))
+        self.assertEqual(names, sorted(COPIED), "台帳に無い指示書か、指示書の無い台帳の行")
+        for name in names:
+            with self.subTest(name):
+                self.assertEqual(copied.restore_problems((BLOCK / "commands" / name).read_text(encoding="utf-8"),
+                                                         *COPIED[name]), [])
+
+
 class IsolationCase(RunCase):
     """独立設計に禁じた入力が届かない（持ち主の決め independent-verdict・premises-purpose。元 tests/test_blk_plan.py の
     ScriptCase.test_design_before_plan_reaches_plan_review・test_independent_design_input_has_no_means）"""
@@ -484,6 +556,20 @@ class IsolationCase(RunCase):
         premises = (r.folder / boardview.PREMISES_FILE).read_text(encoding="utf-8")
         for leak in (PLAN_MARK, FRAMING_MARK, RIPPLE_MARK):
             self.assertNotIn(leak, premises)
+
+    def test_prompt_carries_drift_and_unvetted_purpose_lines(self):
+        """元の指示書の 2 行（前提のドリフト・裏取りを通っていない目的の判定）を材料に持つ。R2 は修正の前に 1 度だけ走るのでドリフトは
+        無い。目的の監査の『狭めている』が裏取り（cite）の無い findings に乗っていれば、その行を名指す（元 review-loop.py:1838）"""
+        r = self.run_
+        r.open()
+        prompt = r.out("r2_prep")["prompt"]
+        self.assertIn(boardview.DRIFT_LINE.format(notes=boardview.NONE_YET), prompt)
+        self.assertIn(boardview.STALE_LINE.format(stale=boardview.NONE_YET), prompt)
+        r.judgment(purpose_review={"verdict": "狭めている", "reason": "要約が狭い", "findings": ["素の文字列"]})
+        r.open()
+        prompt = r.out("r2_prep")["prompt"]
+        self.assertIn(boardview.STALE_WHY, prompt)
+        self.assertNotIn(boardview.STALE_LINE.format(stale=boardview.NONE_YET), prompt)
 
     def test_purpose_means_do_not_reach_the_design(self):
         """目的の役が分けた依頼の解き方 means（purpose.json の隣）は独立設計に渡らない"""
@@ -599,6 +685,33 @@ class DesignCase(RunCase):
         self.assertTrue(got["pass"], got)
         missing = json.loads(r.pointed(got["design"]).read_text(encoding="utf-8"))
         self.assertIn("拒まれた", missing["missing"])
+
+    def test_off_schema_reply_names_the_type_error(self):
+        """独立設計の返答は役の型（差し込みの頭が YAML から控えた物）で照らし、拒みの訳は型の誤りの欄を名指す"""
+        r = self.run_
+        r.open()
+        _, got = self.designed({"reason": "x"})
+        self.assertFalse(got["ok"], got)
+        self.assertIn("独立設計の返答", got["reason"])
+        self.assertIn("question_stands", got["reason"])
+
+    def test_design_handoff_is_traced(self):
+        """返す節は設計の控えを返り design で渡した・渡せなかったを trace に残す（元 design.hand の r2_design_handed・r2_design_missing）"""
+        def ops(r):
+            rows = [json.loads(x) for x in (r.folder / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+            return [(x["op"], x.get("file"), bool(x.get("reason"))) for x in rows if x["op"] in (design.HANDED_OP, design.MISSING_OP)]
+
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.open()
+        self.designed()
+        self.assertTrue(r.pass_(review(design_map=ReviewAcceptCase.full_map()))["pass"])
+        self.assertEqual(ops(r), [(design.HANDED_OP, str(r.folder / design.DESIGN_FILE), False)])
+        self.setUp()
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        r.pass_(review())
+        self.assertEqual(ops(r), [(design.MISSING_OP, None, True)])
 
     def test_tree_change_rejected(self):
         """元 test_design_tree_change_rejected: 道具ゼロの役でも、起こす前の作業ツリーの姿と比べて変わっていれば拒む"""

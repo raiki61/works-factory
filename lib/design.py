@@ -56,6 +56,8 @@ NODE = "r2.design"
 DESIGN_FILE = "design.json"             # 受け付けた設計の返答（盤面の根。run に 1 つ）
 GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER
 MISSING = "独立設計が取れなかった"
+HANDED_OP = "r2_design_handed"         # 設計の控えを後段に渡した trace の行（元 works/.shared/core/design.py:74）
+MISSING_OP = "r2_design_missing"       # 設計が無いまま先へ進んだ trace の行（元 :75）
 REJECT_HEADING = rolekit.REJECT_HEADING
 UNUSABLE = {"目的不明": "目的の出典が取れない（目的不明）——独立設計を回さない",
             "狭めている": "目的の文を監査が『狭めている』と判定した——狭められた目的で独立設計を回さない"}

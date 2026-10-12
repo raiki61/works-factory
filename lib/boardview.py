@@ -91,6 +91,13 @@ DESIGN_PREMISE_REREAD = ("下の指示書の「渡すのは元の目的と実測
                          "依頼が名指した設計書の節・対象のリポジトリの地図）も渡していると読み替えよ。")
 PURPOSE_HEAD = "元の目的:"
 CONSTRAINTS_HEAD = "実測した制約（kind=仮説 のものは所与にするな）:"
+# 元 works/.shared/core/gl-prompts/prompts/review-loop/r2.design.md:7-8 の 2 行（値は機械が埋める。前提のドリフトは修正の前に 1 度だけ
+# 走る R2 では元の 1 周目と同じく無い）と、元 review-loop.py:1840 の訳
+DRIFT_LINE = "前提のドリフト（あれば）: {notes}"
+STALE_LINE = ("裏取りを通っていない目的の判定（あれば）: {stale}——この周の『狭めている』は根拠が数え直されていないので、"
+              "目的を独立に取れない理由としては使えない")
+NONE_YET = "（無い）"
+STALE_WHY = "裏取りを通っていない形の findings（旧形の素の文字列、または cite 無し）に乗った『狭めている』なので、R2 を止める根拠には使わない"
 NOT_GIVEN_START = "依頼が名指した設計書の節: 渡っていない（線が始めの記録を渡していない。依頼の本文を読めない）"
 DEFAULTS_HEAD = "線が渡していない入力を既定で読んだ: "
 DEFAULT_START = ("start（始めの記録）が null——無人でない・設計だけでない・依頼のファイル無し（依頼の引用の決め手は照らせないので"
@@ -170,8 +177,19 @@ def blank(s, min_len):
 
 def purpose_findings_vetted(b):
     """記録の目的監査の findings が裏取りの柵を通った形（全部 cite を持つ。空は偽）か（元 review-loop.py:398）"""
-    rows = ((b.record.get("process", {}).get("purpose_review", {}) or {}).get("findings")) or []
+    return _vetted(b.record.get("process", {}).get("purpose_review", {}) or {})
+
+
+def _vetted(pr: dict) -> bool:
+    rows = pr.get("findings") or []
     return all(isinstance(r, dict) and r.get("cite") for r in rows) if rows else False
+
+
+def stale_purpose_review(pr: dict) -> list:
+    """裏取りを通っていない『狭めている』の判定の行（元 review-loop.py:1838 の loop.purpose_review_stale。R2 は 1 度だけ走るので周は 1）"""
+    if pr.get("verdict") == "狭めている" and not _vetted(pr):
+        return [{"round": 1, "why": STALE_WHY}]
+    return []
 
 
 def purpose_unusable(b):
@@ -613,7 +631,8 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     """独立設計の役に貼る本文: 人が決めた前提の節（人の関所の答え・依頼が名指した設計書の節・対象のリポジトリの地図）と、元の目的
     （purpose.json の purpose_text）と、実測した制約（judgment の隣の premises.json の constraints だけ。判定の中身は読まない）と、
     人の方針（差し込みの頭が固めた方針の文書の置き場。run をまたいで人が決めた前提なので実測した制約と同じく渡す。元の
-    graphloops の r2.design の prompt_append）。前の回の拒みは頭に貼る。貼った物の控えを PREMISES_FILE、役を起こす前の作業ツリーの姿を R2_TREE に置く"""
+    graphloops の r2.design の prompt_append）と、元の指示書の前提のドリフトと裏取りを通っていない目的の判定の 2 行（DRIFT_LINE・
+    STALE_LINE）。前の回の拒みは頭に貼る。貼った物の控えを PREMISES_FILE、役を起こす前の作業ツリーの姿を R2_TREE に置く"""
     d = pathlib.Path(folder)
     d.mkdir(parents=True, exist_ok=True)
     start_doc = _read_json(start) if start else None
@@ -632,8 +651,10 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
         ledger["withheld"].append({"kind": "human_answer", "what": "answers", "why": DEFAULT_ANSWERS})
     if premises is None:
         ledger["withheld"].append({"kind": "constraint", "what": _premises.PREMISES_FILE, "why": "判定の隣に実測した制約のファイルが無い"})
+    stale = stale_purpose_review(_purpose_review(judgment)[0])
     body = (f"{PURPOSE_HEAD}\n{text}\n\n{CONSTRAINTS_HEAD} "
-            f"{json.dumps(constraints, ensure_ascii=False)}")
+            f"{json.dumps(constraints, ensure_ascii=False)}\n{DRIFT_LINE.format(notes=NONE_YET)}\n"
+            + STALE_LINE.format(stale=json.dumps(stale, ensure_ascii=False) if stale else NONE_YET))
     if parts:
         body = f"{design.DESIGN_PREMISE_HEAD}\n\n{DESIGN_PREMISE_REREAD}\n\n" + "\n\n".join(parts) + f"\n\n---\n\n{body}"
     pol = _read_json(d / POLICY_FILE) if (d / POLICY_FILE).is_file() else {}
@@ -938,10 +959,12 @@ def collect(folder) -> dict:
     gatemarks.plan_gate_items、形 replan なら約束の欄が変わったか人に聞く穴の在る直した項目だけ（replan_asks）で、どちらも方針の
     文書の変化を足す。聞かずに通した行は pass-<k>/gate-passes.json、4 つの軸は gate_axes.gather。返した項目の種類と方針の変化を
     GATE_ASKED_FILE に積む（次の差し込みが入力 gate_answers の通した行を引く）。形 replan で受け付けが諦めた時は、裁かれた項目
-    ごとの諦めの行を review.json の隣の planblk.REPLAN_GAVE_UP_FILE に置く"""
+    ごとの諦めの行を review.json の隣の planblk.REPLAN_GAVE_UP_FILE に置く。返り design に設計の控えを渡したか・無いまま進んだかを
+    trace に design.HANDED_OP・MISSING_OP で残す（元 works/.shared/core/design.py の hand）"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
     p = pass_dir(d, inputs["k"])
+    out = place(d)
     gave = rolekit.given_up_reason(p, REVIEW_NODE)
     review = _read_json(p / REVIEW_FILE) if (p / REVIEW_FILE).is_file() else None
     if review is None:
@@ -971,6 +994,12 @@ def collect(folder) -> dict:
     _write_json(p / PASSES_FILE, gatemarks.passes(b))
     _write_json(p / gatemarks.PLAN_GATE_FILE, {"items": [{"kind": k, "text": t} for k, t in items], "converge": converge.lines(b)})
     got, _ = design.made(d, b.design_schema)
-    design_file = d / design.DESIGN_FILE if got is not None else _write_json(p / design.DESIGN_FILE, {"missing": design.missing(b)})
+    if got is not None:
+        design_file = d / design.DESIGN_FILE
+        out.trace(design.HANDED_OP, file=str(design_file))
+    else:
+        why = design.missing(b)
+        design_file = _write_json(p / design.DESIGN_FILE, {"missing": why})
+        out.trace(design.MISSING_OP, reason=why)
     return {"pass": ok, "stalled": stalled, "review": p / REVIEW_FILE, "design": design_file,
             "gate_axes": gate_axes.gather(b), "ask_human": bool(questions), "questions": questions}
