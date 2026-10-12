@@ -213,6 +213,7 @@ nodes:
             ripple: "$plan.output.ripple"
             answers: "$answer-start.output.answer"
             ruling: []
+            round_limit: 20
 
         - id: plan-out
           script: plan_out

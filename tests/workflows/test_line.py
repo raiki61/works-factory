@@ -1061,6 +1061,7 @@ class LineWiringCase(unittest.TestCase):
         ("fix", "only_items"): "1 回目は全部の項目（refix-run だけが 1 回目の replan_items を渡す）",
         ("plan-review-run", "conflicts"): "修正の前なので申し出が無い",
         ("plan-review-run", "gate_answers"): "修正前の関所より前に走る",
+        ("replan-review", "round_limit"): "案の直しの事前審査は往復の輪の外で、輪の上限が無い",
         ("eyes", "x_scalars"): "部分 D1 で配線する。D1 で表から消す",
     }
 
@@ -1310,9 +1311,9 @@ class LineWiringCase(unittest.TestCase):
         self.assertEqual(includes & body_ids(LINE["nodes"]), set())
 
     def test_round_limit_is_the_loop_limit(self):
-        """往復の輪の上限は 1 つの数: 線の max_iterations・plan-out の round_limit・事前審査が上限の周を知る boardview.LOOP_CAP"""
+        """往復の輪の上限は線の 1 つの数: max_iterations と、plan-out と事前審査（上限の周を知る）に with: で渡す round_limit"""
         nodes = line_nodes()
-        self.assertEqual({nodes["plan-out"]["with"]["round_limit"], boardview.LOOP_CAP},
+        self.assertEqual({nodes[key]["with"]["round_limit"] for key in ("plan-out", "plan-review-run")},
                          {nodes["plan-rounds"]["loop_group"]["max_iterations"]})
 
 

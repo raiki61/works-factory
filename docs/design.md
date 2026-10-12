@@ -143,7 +143,7 @@ flowchart TB
 ### 繰り返し
 
 - 判定の受け付けが拒めば、判定役に 3 回まで出し直させる（judge の中の `loop:`）。
-- 計画の往復は線の `loop_group` の `plan-rounds`（plan と plan-review の 2 つの include（id は `plan`・`plan-review-run`。輪の中の id は差し込まれても頭が付かず、plan-review のブロックの輪の中の節 `plan-review` とぶつかるので、線の側を替える）と、終わりの返しの節 `plan-out`）で、安全の上限 20 回（`max_iterations`）。止め時は回数でなく事前審査の壁打ちの `converge.decide`（同じ block が続く・開いた block が減らない）で、`plan-out` の `stalled` が真になって抜ける。`loop_group` の中の節は外から見えないので、外の節は `plan-out` が返し直した `$plan-rounds.output.<欄>` を読む（U4）。ただし `collect` は往復の後ろの受け皿 `plan-rounds-out`（plan の欄）と `plan-rounds-review-out`（plan-review の欄）から読む（往復の中の節が落ちると `$plan-rounds.output` は読めず、`collect` も落ちるため）。往復の上限は `plan-out` に `with:` の `round_limit` で渡す（試験が `max_iterations` と同じ値を縛る）。上限の周の往復は事前審査が `at_cap` で止め（関所の理由は「仕組みの異常として止めた」）、`plan-out` の `done` も上限の周の終わりで必ず真になるので、往復は上限に当たって落ちずに修正前の関所へ回る。
+- 計画の往復は線の `loop_group` の `plan-rounds`（plan と plan-review の 2 つの include（id は `plan`・`plan-review-run`。輪の中の id は差し込まれても頭が付かず、plan-review のブロックの輪の中の節 `plan-review` とぶつかるので、線の側を替える）と、終わりの返しの節 `plan-out`）で、安全の上限 20 回（`max_iterations`）。止め時は回数でなく事前審査の壁打ちの `converge.decide`（同じ block が続く・開いた block が減らない）で、`plan-out` の `stalled` が真になって抜ける。`loop_group` の中の節は外から見えないので、外の節は `plan-out` が返し直した `$plan-rounds.output.<欄>` を読む（U4）。ただし `collect` は往復の後ろの受け皿 `plan-rounds-out`（plan の欄）と `plan-rounds-review-out`（plan-review の欄）から読む（往復の中の節が落ちると `$plan-rounds.output` は読めず、`collect` も落ちるため）。往復の上限は `plan-out` と事前審査（`plan-review-run`）に `with:` の `round_limit` で渡す（試験が `max_iterations` と同じ値を縛る。正本は線で、lib に数を写さない）。上限の周の往復は事前審査が `at_cap` で止め（関所の理由は「仕組みの異常として止めた」）、`plan-out` の `done` も上限の周の終わりで必ず真になるので、往復は上限に当たって落ちずに修正前の関所へ回る。
 - 並べ: 単位を組にし（組は分けない）、fix は組ごとに `fan_out:` で並べる。幅は計画の組の数から run の時に決まり、並べの数の上限だけを持つ。固定の枝の数・待ちの列・錠は持たない（持ち主の決め `no-queue`。今の works の固定の 3 本と待ちの列（commit `ab9b9f17`）は持ち込まない）。結果は `fan_out:` が入力の順に集める。組の差分は決めた順に親の木へ戻し、戻せなかった組は理由つきで報告と次の run に回す。組ごとの作業ツリーの持ち方は未決 U8。
 - 修正役が 3 回拒まれた単位は、その単位を始めた時の版に戻し、理由を残して裁定に回し、ほかの単位は先へ進む。
 - 差分の審査 → 手直しは 2 往復まで。
@@ -225,6 +225,7 @@ flowchart TB
   - `ruling` ← `$fix.output.replan_items`（`replan-review` の時だけ。`plan-review` では `[]`。裁かれた項目（`replan_items` と同じ番号の字）だけを審査する。番号でない行と案の外の番号は拒む）
   - `conflicts` ← `$fix.output.conflicts`（`replan-review` の時だけ。`plan-review` では渡さない（既定 null）。裁かれた項目ごとに申し出と裁定の文を事前審査に貼る）
   - `gate_answers` ← `$answer-before-fix.output.answer`（`replan-review` の時だけ。`plan-review` では渡さない（既定 null。往復は修正前の関所の前）。修正前の関所の答え `{decision, text, asked}`、`asked` は人が見た `questions` の行。関所が開かなかった run は null）。通した行を次の差し込みで聞き直さず、方針の文書の変化を通したらその版を固め直す
+  - `round_limit`（`plan-review` の時だけ。線の往復の輪の安全の上限 20 で、`max_iterations` と同じ数。`replan-review` では渡さない（既定 null。輪の外））。計画の周 `round` がこの数の往復は、開いた block が減っていても止める（`at_cap`）
 - 返り:
   - `pass`（boolean）: 止める指摘が無い（通し）→ 線 5（往復を抜ける）
   - `stalled`（boolean）: 壁打ちを止めた（同じ block が続いた・開いた block が前の往復より減らなかった・往復の安全の上限の周に届いた。`lib/converge`）、または受け付けが諦めた → 線 5（往復を止める）・report

@@ -1186,7 +1186,7 @@
   - 狭め: #74（小さい。不可でない → unit_id で合わせて戻す）
 - L-D16 計画と事前審査の往復は安全の上限 20 周で、上限でも輪は落ちずに抜ける（計画ができない・通った・stalled・上限の周）
   - 元: works/.shared/core/converge.py:148 `decide`
-  - 今: yaml:187-188、scripts/plan_out.py:25-28（ROUND_LIMIT）。Archon は上限に達した輪を落とす（packages/workflows/src/dag-executor.ts:5222）ので done で先に抜ける
+  - 今: works-factory-line.yaml の `max_iterations: 20` と plan-out の `with:` の `round_limit: 20`、scripts/plan_out.py `plan_out`（round ≥ round_limit で done）。Archon は上限に達した輪を落とす（packages/workflows/src/dag-executor.ts:5222）ので done で先に抜ける
   - 証: PlanOutCase.test_done_rules（:413-416）・LineWiringCase.test_round_limit_is_the_loop_limit（:751）、筋書き plan-unsettled
   - 本物の run: 節 plan-out の出力 done・round、置き場 plan/r<k>/round.json
   - 狭め: 無し
@@ -1210,7 +1210,7 @@
   - 狭め: #74（不可でない → 戻す）
 - L-D20 往復の安全の上限に届いても決着しない案は、仕組みの異常として修正前の関所を開ける
   - 元: works/.shared/core/converge.py:83 UNSETTLED_WHY
-  - 今: lib/boardview.py `_take` が上限の周（`LOOP_CAP`）に converge の at_cap を渡し、plan-review は stalled と理由の行（converge の CAP_WHY）を questions で返す。scripts/ask_before_fix.py の stalled の枝が関所を開ける
+  - 今: 線が plan-review-run に `with:` の `round_limit: 20` を渡し、lib/boardview.py `_take` が上限の周（計画の周 ≥ round_limit）に converge の at_cap を渡し、plan-review は stalled と理由の行（converge の CAP_WHY）を questions で返す。scripts/ask_before_fix.py の stalled の枝が関所を開ける
   - 証: tests/workflows/test_plan_review.py::ConvergeCase.test_capped_decay_stops_at_loop_max、AskBeforeFixCase.test_reasons_that_open_the_gate（上限の周の返りの subTest）、筋書き plan-unsettled
   - 本物の run: 筋書きでのみ
   - 狭め: 無し

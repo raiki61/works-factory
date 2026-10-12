@@ -52,6 +52,7 @@ from engine.schema import validate_schema  # noqa: E402
 
 DEADLINE = 1728000000
 RUN_ID = "run-plan-review"
+ROUND_LIMIT = 20   # 線の plan-rounds の max_iterations
 UNIT_MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 UNIT_CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 PURPOSE_MARK = "PURPOSE-MARK-7731"
@@ -65,7 +66,8 @@ CONTRACT_INPUTS = ("units", "judgment", "purpose", "world", "plan", "structure",
 # 元 works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md:4（sha256 4f400ecf39c7347e5c45c62cdf2446278816202653b5c6f132b56d16eade5068）
 ORIGINAL_UNITS_LINE = ("直す単位（各行の `no` は engine が振った番号。**key を写さず no の整数で指せ**——engine が名前に戻して記録する）: "
                        "{{record.units | pick key,label,disposition,reason}}")
-ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts": "null", "gate_answers": "null"}
+ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts": "null", "gate_answers": "null",
+                "round_limit": "null"}
 RETURN_FIELDS = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
 RUN_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 
@@ -137,7 +139,8 @@ class Run:
         self.structure()
         self.ripple({"items": [], "overlaps": [], "note": RIPPLE_MARK})
         self.inputs.update(units=json.dumps([{"id": UNIT_MEAN, "paths": ["stats.py"], "summary": "mean"}]), world="null",
-                           start="null", answers="null", ruling="[]", conflicts="null", gate_answers="null")
+                           start="null", answers="null", ruling="[]", conflicts="null", gate_answers="null",
+                           round_limit=str(ROUND_LIMIT))
 
     def put(self, rel: str, doc, raw: bool = False) -> str:
         """置き場の rel に doc を書き、その指し札の JSON の字を返す"""
@@ -966,9 +969,9 @@ class ConvergeCase(RunCase):
         self.assertNotIn("capped", doc["passes"][-1])
 
     def test_capped_decay_stops_at_loop_max(self):
-        """開いた block が 2 → 1 と減り続けていても、線の往復の輪の上限の周（計画の周 boardview.LOOP_CAP）の往復は止まる: 抜け方は
+        """開いた block が 2 → 1 と減り続けていても、線の往復の輪の上限の周（計画の周が入力 round_limit）の往復は止まる: 抜け方は
         again → unsettled で、最後の行に capped が在る。関所の止まりの行の理由は上限に届いた事実を仕組みの異常として言う"""
-        got = self.decay(boardview.LOOP_CAP)
+        got = self.decay(ROUND_LIMIT)
         self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, True, True), got)
         doc = converge.read(self.run_.view())
         self.assertEqual([p["outcome"] for p in doc["passes"]], [converge.AGAIN, converge.UNSETTLED])
