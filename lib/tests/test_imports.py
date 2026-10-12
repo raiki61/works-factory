@@ -33,6 +33,12 @@ class LibImportCase(unittest.TestCase):
         self.assertTrue(list(LIB.glob("*.py")), "lib/*.py が 1 本も無い")
         self.assertEqual(first_import_failures(LIB), {})
 
+    def test_answer_imports_as_a_member_of_lib(self):
+        """起動の殻（bin/_lib/launcher.py）は lib を sys.path に足さず from lib import answer で読む"""
+        done = subprocess.run([sys.executable, "-I", "-B", "-c", "import sys; sys.path.insert(0, '.'); from lib import answer"],
+                              cwd=LIB.parent, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, done.stderr)
+
     def test_a_cycle_that_fails_by_order_is_named(self):
         """読み込みの時に相手の名を引く循環は、先に読んだ方の名で落ちる。循環の無い方は落ちない。"""
         with tempfile.TemporaryDirectory() as tmp:

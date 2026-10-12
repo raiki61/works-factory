@@ -7,7 +7,7 @@
 
 - head(env=None) -> str: 答えの行の頭
 - line(run_id, verb, note, env=None) -> str: 打つ行 1 本（verb は continue か stop）
-- GO_WORDS・REJECT・DRY_RUN_APPROVED: 関所の決めの語。通す語でない答えは止める語と読む
+- GO_WORDS・STOP_WORDS・REJECT・DRY_RUN_APPROVED: 関所の決めの語。通す語でない答えは止める語と読む
 - decision(got) -> dict: 関所の出力の値を {decision, text} に
 - taken(got, *, go, stop_reason, place, folder, asked=None) -> dict: 関所の答えの行 {go, answer, stop_reason}。関所が開かなかった
   （got が None か空の字）時は前の決め go・stop_reason をそのまま返す。開いた時は答えを folder/gates/<place>.json に書き（同じ関所の
@@ -16,14 +16,19 @@
 import json
 import os
 import pathlib
+import sys
 
-import stopby
+_HERE = str(pathlib.Path(__file__).resolve().parent)
+if _HERE not in sys.path:   # 殻（bin/_lib/launcher.py）は from lib import answer で読み、置き場を sys.path に持たない
+    sys.path.append(_HERE)
+import stopby  # noqa: E402
 
 ENV = "WORKS_ANSWER_CMD"
 HOLE = "<答えの殻（bin/works-factory workflow respond --cwd <対象リポジトリ>）>"
 VERBS = ("continue", "stop")
-GO_WORDS = ("approve", "continue")   # approve は関所の選び肢に要る語
+GO_WORDS = ("approve", VERBS[0])   # approve は関所の選び肢に要る語
 REJECT = "reject"   # 今の works の関所の語で、stop と同じ。関所の選び肢に無いと、この答えは run の取り消しになる
+STOP_WORDS = (VERBS[1], REJECT)
 DRY_RUN_APPROVED = "approved"   # 筋書きの関所がいつも返す字。決めの語の approve と読む
 ANSWERS = "gates"
 

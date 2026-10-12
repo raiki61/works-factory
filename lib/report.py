@@ -24,6 +24,7 @@ CORE = pathlib.Path(__file__).resolve().parent
 if str(CORE) not in sys.path:
     sys.path.insert(0, str(CORE))
 
+import answer  # noqa: E402
 import carry  # noqa: E402  （L1。次の run への持ち越しの形の住処: ファイルの名・欄の名・約束の Schema）
 import promptsection  # noqa: E402
 import stopby  # noqa: E402
@@ -45,7 +46,7 @@ TDD_HEADING = promptsection.Section("## TDD の輪の単位ごとの結末", hum
 TDD_STAGES = ("修正の段", "案を直した後の修正の段")   # build の tdd の並び（ラインの report の with の fix_tdd・refit_tdd の順）
 FREEZE_OFF_HEAD = "テストの凍結"   # 冒頭 2 の行の頭（TDD の輪を回していない修正の段は、凍結が効いていないと言う。freeze_lines）
 R2_REDESIGN = "R2 が redesign-needed"      # 検証器と独立の目が R2 の作り直しの行に付ける頭（findings から外し prior_failures にだけ載せる）
-FINAL_GATE_STOPS = ("stop", "reject")           # 最後の関所の答えのうち止める語（書き手 line_edge の GATE_STOP）
+FINAL_GATE_STOPS = answer.STOP_WORDS            # 最後の関所の答えのうち止める語（書き手 line_edge の GATE_STOP）
 REQUEST_BY = "request:"                        # 止め札で止めた盤面の state.stop.by の頭
 HUMAN_BY = stopby.HUMAN
 DECISIONS_HEADING = promptsection.Section("## 1. 人が決めること", human=FOR_READERS)

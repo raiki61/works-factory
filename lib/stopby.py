@@ -12,7 +12,7 @@ process.human_items の行の node（conflict・replan・守りのファイル�
   line-script）は、線の script が書き report が読むのでここに置く。定数（ADAPTER など）はこの表の名に HEAD を
   付けた語で、呼び手はその定数を引く（自分の定数に写さない）
 - HUMAN: 人が関所で止めた時の止めの理由の頭（後ろは関所の所）。機械の語ではない（is_line は偽）
-- WAITING・is_waiting(by): 線の止めでなく、人の答えを待つ語か
+- WAITING: 線の止めでなく、人の答えを待つ語
 - declare(name, meaning): ブロックとラインが自分だけの語を足す口（表の名と、ほかの持ち主が別の意味で足した名は拒む）。
   返りの語を自分の定数に置いてよい（ほかのブロックの語は引かない。ブロックの独立）
 - declared(): declare で足された語の表の写し（名 → 意味。走る時は誰も読まない。試験が足し方を確かめる口）
@@ -79,11 +79,6 @@ def declared() -> dict:
 def is_line(by) -> bool:
     """機械（線・ブロック・core）が書いた語か"""
     return isinstance(by, str) and by.startswith(HEAD)
-
-
-def is_waiting(by) -> bool:
-    """人の答えを待つ語か"""
-    return by in WAITING
 
 
 ADAPTER = word("adapter")
