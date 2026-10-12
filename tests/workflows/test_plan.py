@@ -784,6 +784,24 @@ class AcceptCase(unittest.TestCase):
                 self.assertTrue(why[0].startswith(planblk.READONLY_MOVED), why[0])
                 self.assertTrue((run.art / "plan" / "r1" / planfile.TREE_FILE).is_file())
 
+    def test_unsavable_plan_halts_without_counting_a_rejection(self):
+        """P025: 受けた案の控えを置けない周は、役の拒否に数えず（出し直させず）に輪を止める（plan_accept の halt の道）"""
+        run = Run(self)
+        calls = []
+
+        def writer(n, brief):
+            calls.append(n)
+            (run.art / "plan" / "r1" / (planmarks.FIELDS_FILE + ".tmp")).mkdir(exist_ok=True)
+            return {"plan": [item(1, 2)]}
+
+        out = run.include(writer=writer)
+        self.assertEqual({k: run.out["plan-accept"][k] for k in ("ok", "done", "give_up")},
+                         {"ok": False, "done": True, "give_up": True})
+        self.assertIn(planmarks.FIELDS_FILE, run.out["plan-accept"]["reason"])
+        self.assertEqual(calls, [1])
+        self.assertEqual(self.reasons(run), [])
+        self.assertIs(out["ready"], False)
+
     def test_accepted_plan_has_item_ripple(self):
         """種の 1 回目の受け付けの後の ripple.json: 項目ごとに、変える名の呼び出し元と試験の覆っていない当たり"""
         run = Run(self)
@@ -876,6 +894,25 @@ class ReplanCase(unittest.TestCase):
         rows = json.loads((run.file(out["plan"]).parent / planblk.REPLAN_GAVE_UP_FILE).read_text(encoding="utf-8"))
         self.assertEqual([(r["item"], r["ruling"]) for r in rows], [(1, "項目 1 の allowed_paths に request_ok.json を足せ")])
         self.assertTrue(rows[0]["why"].startswith(planblk.PLAN_GAVE_UP_WHY.split("{")[0]), rows[0]["why"])
+
+    def test_replan_writer_that_moved_the_tree_is_refused(self):
+        """P049 の形 replan: 案の直しの役が作業ツリーを書き換えれば、直した項目を照らす前に拒み、直した案を置かない"""
+        run = self.run_
+
+        def writer(n, brief):
+            stats = run.repo / "stats.py"
+            stats.write_text(stats.read_text(encoding="utf-8") + f"\n# 役が書いた {n}\n", encoding="utf-8")
+            return {"plan": [self.fixed()]}
+
+        out = run.include(ruling='["1"]', conflicts=self.conflicts, writer=writer)
+        self.assertIs(out["ready"], False)
+        rnd = run.art / "plan" / "r2"
+        why = rolekit.rejected(rnd, "plan")
+        self.assertEqual(len(why), 3, why)
+        for w in why:
+            self.assertTrue(w.startswith(planblk.READONLY_MOVED), w)
+        for name in (planfile.REPLY_FILE, replan.TRIP_FILE):
+            self.assertFalse((rnd / name).exists(), name)
 
     def test_brief_of_the_item_is_named(self):
         """元 replan._section の「この項目の brief」の行: 案の直しの材料が、承認済みの項目と判定から組んだ項目の brief を名指す"""
