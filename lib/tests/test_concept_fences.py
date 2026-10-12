@@ -1,5 +1,5 @@
 """考えの住処の柵の道具 lib/conceptfence.py の試験（仮の置き場で数え方・歯止め・地図の読みを見る Synthetic、表 docs/concepts.json の
-柵 entry-kind を本物の木に当てる FenceCase、main の表を引く main_table の MainTableCase）。
+柵 entry-kind が住処ありで既知の漏れを持たず、本当に当たることを見る FenceCase、main の表を引く main_table の MainTableCase）。
 
 works-factory 自身の地図と表の全部を本物の木に当てる試験は tests/layers/test_concept_fences.py。
 """
@@ -129,7 +129,8 @@ class Synthetic(unittest.TestCase):
 class FenceCase(unittest.TestCase):
     def test_entry_kind_read_only_by_entryshape(self):
         """L-E55: 入口の種類（依頼・base・PR）を知るのは入口の変換（lib/entryshape.py とメイングラフの start）だけ（元 works/tests/
-        test_entry_block.py の ConversionLayerCase.test_only_conversion_layer_knows_entry_kind）。外の当たりは 0 件。
+        test_entry_block.py の ConversionLayerCase.test_only_conversion_layer_knows_entry_kind）。既知の漏れは 0 件（本物の木の
+        当たりが既知と揃うことは tests/layers/test_concept_fences.py の FencesHold が照らす）。
         柵の正本は表 docs/concepts.json の entry-kind（2 つ目の「base.from での分岐」の形は、比べる相手を入口の種の語
         （head・base・pr）に限る: 元の形は判定の受け付けの写しの道の指し先 lib/judge_accept.py の w["from"] != "$" にも当たる）"""
         table = cf().load(LIB.parent)
@@ -137,11 +138,6 @@ class FenceCase(unittest.TestCase):
         self.assertEqual(concept["status"], "住処あり")
         fences = concept["fences"]
         self.assertEqual([f["known"] for f in fences], [{}, {}])
-        paths = cf().tracked(LIB.parent)
-        self.assertIn("lib/entryshape.py", paths)
-        for fence in fences:
-            with self.subTest(fence["what"]):
-                self.assertEqual(cf().scan(LIB.parent, paths, fence, table["exclude"]), {})
         with tempfile.TemporaryDirectory() as tmp:   # 柵が本当に当たる: 入口の種類で分かれる行と生の入力の読みを数える
             (pathlib.Path(tmp) / "x.py").write_text('if base["from"] == "pr":\n    pass\nb = _word(raw, "base")\n'
                                                      'w = step["from"] != "$"\n', encoding="utf-8")
@@ -149,7 +145,8 @@ class FenceCase(unittest.TestCase):
 
 
 class MainTableCase(unittest.TestCase):
-    """main_table: 版を引けなければ (None, 理由)。版は在って表のファイルが無ければ空の表（表を置く最初の差分は比べない）"""
+    """main_table: 版は在って表のファイルが無ければ空の表（表を置く最初の差分は比べない）。版を引けない時の (None, 理由) は
+    tests/layers/test_concept_fences.py の NotAboveMain が見る"""
 
     def test_missing_table_is_empty_and_present_table_is_read(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -165,9 +162,6 @@ class MainTableCase(unittest.TestCase):
             git(root, "add", "-A")
             git(root, "commit", "-q", "-m", "table")
             self.assertEqual(cf().main_table(root, "HEAD"), (table, None))
-            got, why = cf().main_table(root, "refs/heads/no-such-ref")
-            self.assertIsNone(got)
-            self.assertTrue(why)
 
 
 if __name__ == "__main__":
