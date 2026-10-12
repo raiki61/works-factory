@@ -20,6 +20,7 @@ works 自身の試験・柵を書き換えられる（run 24 の修正役は Bas
 標準ライブラリと core の accept・planmarks だけ。git は repo を cwd にして呼ぶ（期限は足さない）。
 """
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -107,10 +108,10 @@ def hits(paths, doc=None) -> list:
     return out
 
 
-def _git(repo, *args) -> bytes:
+def _git(repo, *args, env=None) -> bytes:
     try:
         r = subprocess.run(["git", "-c", "core.quotePath=false", *args], cwd=str(repo), capture_output=True,
-                           stdin=subprocess.DEVNULL)
+                           stdin=subprocess.DEVNULL, env={**os.environ, **(env or {})})
     except OSError as e:
         raise Broken(f"git {' '.join(args)} を呼べない（{e}）") from None
     if r.returncode != 0:
@@ -122,8 +123,12 @@ def _numstat(repo, rev, names) -> dict:
     """追跡しているファイルの {パス: (足した行, 消した行)}。バイナリは (None, None)"""
     if not names:
         return {}
-    raw = _git(repo, "diff", "--numstat", "-z", "--no-renames", "--no-ext-diff", rev, "--",
-               *[f":(top,literal){n}" for n in names]).decode("utf-8", "replace")
+    try:
+        with accept.flag_free_env(repo) as env:
+            raw = _git(repo, "diff", "--numstat", "-z", "--no-renames", "--no-ext-diff", rev, "--",
+                       *[f":(top,literal){n}" for n in names], env=env).decode("utf-8", "replace")
+    except accept.Reject as e:
+        raise Broken(f"index の印を外せない: {e}") from None
     out = {}
     for rec in raw.split("\0"):
         if not rec:
@@ -145,7 +150,8 @@ def _new_file_lines(path: pathlib.Path):
 
 def touched(repo, rev: str, doc=None) -> list:
     """数える版 rev（commit）から今の作業ツリーまでの差分（accept.touched_files と同じ集め方: 追跡の変更・消した物・
-    commit した物・未追跡。バイトコードは除く）のうち一覧に当たる物と行数。git が呼べなければ Broken"""
+    commit した物・未追跡。バイトコードは除く。本物の index の assume-unchanged・skip-worktree の印に隠れた物も挙げて数える）の
+    うち一覧に当たる物と行数。git が呼べなければ Broken"""
     repo = pathlib.Path(repo)
     try:
         names = accept.touched_files(repo, rev)

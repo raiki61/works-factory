@@ -1,4 +1,4 @@
-"""Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py）を、写した元の字に照らす。
+"""Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・tests/workflows/test_uv_scripts.py）を、写した元の字に照らす。
 
 行ごとに「写しの値」と「元の中のその値の在り処（ファイルと正規表現）」を持ち、正規表現で引いた値と写しの値を比べる。
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
@@ -21,6 +21,7 @@ from tests import archon
 from tests.archon import CACHE_ENV, pinned_source
 from tests.bin.gitkit import git
 from tests.shared.test_boundary import boundary
+from tests.workflows import test_uv_scripts
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -174,6 +175,8 @@ ARCHON_ROWS = (
     Row("工程を続ける命令", lambda: sorted(launcher.CONTINUING), "packages/cli/src/cli.ts",
         r"if \(command === 'workflow' && \(subcommand === '(\w+)' \|\| subcommand === '(\w+)'\)\) \{\n"
         r"\s*const schedule", lambda m: sorted(m.groups())),
+    Row("script を探すフォルダの深さ", lambda: test_uv_scripts.DISCOVERY_DEPTH, "packages/workflows/src/script-discovery.ts",
+        r"^const MAX_SCRIPT_DISCOVERY_DEPTH = (\d+);$", lambda m: int(m[1])),
 )
 
 

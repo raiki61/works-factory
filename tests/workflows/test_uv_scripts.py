@@ -1,4 +1,4 @@
-"""ブロックの script（workflows/*/scripts/*.py）の頭の uv の script の宣言の試験。
+"""ブロックの script（workflows/*/scripts/*.py と、Archon が見つける 1 段下のフォルダの物）の頭の uv の script の宣言の試験。
 
 Archon は script の節（runtime: uv）を対象の作業ツリーを cwd に `uv run <ファイル>` で起こす。宣言が無いと uv は対象の
 pyproject.toml を拾い、作業ツリーに .venv と uv.lock を作る（作業ツリーを変えない約束が破れる）。
@@ -17,7 +17,17 @@ from tests.bin.gitkit import committed_copy, git
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEED = ROOT / "tests" / "e2e" / "target-seed"
-SCRIPTS = sorted((ROOT / "workflows").glob("*/scripts/*.py"))
+
+
+# Archon の MAX_SCRIPT_DISCOVERY_DEPTH の写し（tests/shared/test_archon_contract.py が止めた Archon の源に照らす）
+DISCOVERY_DEPTH = 1
+
+
+def scripts(workflows: pathlib.Path) -> list[pathlib.Path]:
+    return sorted(p for depth in range(DISCOVERY_DEPTH + 1) for p in workflows.glob("*/scripts/" + "*/" * depth + "*.py"))
+
+
+SCRIPTS = scripts(ROOT / "workflows")
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
 
@@ -29,8 +39,17 @@ WAIT = 120   # uv が script の環境を初めて組む回も入る上限（秒
 
 
 class HeaderTest(unittest.TestCase):
+    def test_one_subfolder_down_is_collected_two_is_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            flows = pathlib.Path(tmp)
+            for rel in ("b/scripts/a.py", "b/scripts/g/c.py", "b/scripts/g/h/d.py"):
+                (flows / rel).parent.mkdir(parents=True, exist_ok=True)
+                (flows / rel).write_text("", encoding="utf-8")
+            self.assertEqual([p.relative_to(flows).as_posix() for p in scripts(flows)],
+                             ["b/scripts/a.py", "b/scripts/g/c.py"])
+
     def test_scripts_exist(self):
-        self.assertTrue(SCRIPTS, "workflows/*/scripts/*.py が 1 本も無い")
+        self.assertTrue(SCRIPTS, "workflows/*/scripts/ に script が 1 本も無い")
 
     def test_every_script_declares_itself(self):
         for script in SCRIPTS:
@@ -59,7 +78,7 @@ class UvRunTest(unittest.TestCase):
         env.pop("VIRTUAL_ENV", None)
         for script in SCRIPTS:
             with self.subTest(script=str(script.relative_to(ROOT))):
-                artifacts = self.tmp / "artifacts" / script.parent.parent.name / script.stem
+                artifacts = self.tmp / "artifacts" / script.relative_to(ROOT / "workflows").with_suffix("")
                 artifacts.mkdir(parents=True)
                 before = self.status()
                 done = subprocess.run(["uv", "run", str(script)], cwd=self.repo, stdin=subprocess.DEVNULL,

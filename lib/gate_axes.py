@@ -1,8 +1,9 @@
 """修正前の関所の 4 つの軸を軸ごとに分ける（能力の名 gate_axes。元に無い部品）。
 
 今の works の gatemarks.axes（works/.shared/core/gatemarks.py:576）は、関所の行を聞かずに通してよいかの 4 つの軸のうち揃わない物の
-訳を 1 つの並びで返す。線の修正前の関所（線 6）は軸ごとの {ok, note} を読むので、同じ部品を同じ順に呼んで軸ごとに分ける。軸の
-決まりは書き足さない（gatemarks.py の頭の文と今の works の CHANGELOG の 2026-10-09 の行）:
+訳を 1 つの並びで返す。線の修正前の関所（線 6）は軸ごとの {ok, note} を読むので、軸ごとの訳（gatemarks.axis_reasons。axes も
+これを並べる。軸の決まりの持ち主）を {ok, note} にまとめる。軸の決まりは書き足さない（gatemarks.py の頭の文と今の works の
+CHANGELOG の 2026-10-09 の行）:
 - obvious（自明）: 決め手の出どころ decided_by が在り、決まらない訳 undecided_because が空で、出どころが現物に在る
 - world（世界の解）: 世界の解の段の行の在る run はこの軸で見ない（外れは world_items が聞く）。行の無い run は world か URL の決め手
 - clean（汚くない）: 行の単位に構造の目が人に上げた行が無く、汚れると見た単位には修正案の欄 structure の答えが在る
@@ -14,59 +15,25 @@
 """
 from __future__ import annotations
 
-import cite
 import gatemarks
-import structmark
 
-AXES = ("obvious", "world", "clean", "not_overkill")
-NOT_DECIDED = "決め手の欄が揃わない（decided_by が無いか、undecided_because が在る）"
-FENCED = "柵の印が在る（{fences}）"
-NO_WORLD = "世界の解を当たった結果（world）が無い"
+AXES = gatemarks.AXES
 
 
 def _note(notes: list) -> dict:
     return {"ok": not notes, "note": "／".join(dict.fromkeys(notes))}
 
 
-def _reasons(b, mark: dict, units) -> dict:
-    """軸ごとの揃わない訳の並び（gatemarks.axes と同じ部品を同じ順に呼ぶ）"""
-    out = {axis: [] for axis in AXES}
-    decided_by = str(mark.get("decided_by") or "").strip()
-    if not decided_by or str(mark.get("undecided_because") or "").strip():
-        out["obvious"].append(NOT_DECIDED)
-    elif problem := gatemarks._cite_check(b)[0](decided_by):
-        out["obvious"].append(problem)
-    if mark.get("fences"):
-        out["not_overkill"].append(FENCED.format(fences="・".join(map(str, mark["fences"]))))
-    if (gatemarks._world_rows(b) is None and not str(mark.get("world") or "").strip()
-            and not cite.URL.search(decided_by)):
-        out["world"].append(NO_WORLD)
-    ups = {r.get("unit_id") for r in gatemarks._design_rows(b) if r.get("route") == structmark.ROUTE_UP}
-    hit = sorted(set(units) & ups)
-    if hit:
-        out["clean"].append(f"構造の目が人に上げた単位（{'・'.join(hit)}）に当たる")
-    dirty = structmark.dirty(b.dir)
-    answered = gatemarks._answered_rows(b)
-    if answered is not None:
-        miss = sorted(k for k in units if k in dirty and k not in answered)
-        if miss:
-            out["clean"].append(f"構造の目が汚れると見た単位（{'・'.join(miss)}）に修正案の答えが無い")
-    outside = sorted(set(units) - gatemarks._plan_keys(b))
-    if outside:
-        out["not_overkill"].append(f"修正案の単位の外を名指す（{'・'.join(outside)}）")
-    return out
-
-
 def split(b, mark: dict, units) -> dict:
     """関所の行 1 つ（決め手の欄 mark・行の単位 units）の軸ごとの {ok, note}。全部 ok の時だけ gatemarks.axes が空"""
-    return {axis: _note(notes) for axis, notes in _reasons(b, mark, units).items()}
+    return {axis: _note(notes) for axis, notes in gatemarks.axis_reasons(b, mark, units).items()}
 
 
 def gather(b) -> dict:
     """関所の全部の行の軸ごとの {ok, note}（note は行の頭と訳）"""
     notes = {axis: [] for axis in AXES}
     for _, text, mark, _, units in gatemarks._gate_rows(b):
-        for axis, why in _reasons(b, mark, units).items():
+        for axis, why in gatemarks.axis_reasons(b, mark, units).items():
             notes[axis] += [f"{text}: {w}" for w in why]
     notes["world"] += [f"{text}: {' / '.join(why)}" for text, _, why in gatemarks.world_items(b) if why]
     notes["clean"] += [text for _, text in gatemarks.design_items(b)]

@@ -332,47 +332,47 @@ class ConvergeCase(TmpCase):
 
     def test_answer_gaps_need_one_answer_per_open_block(self):
         record = self.blocked_first()
-        self.assertEqual(planfile.answer_gaps(record, [answer("key-a1")]), [])
-        gaps = planfile.answer_gaps(record, [answer("key-a1", handled="ignored"), answer("key-z")])
+        self.assertEqual(converge.answer_gaps(record, [answer("key-a1")]), [])
+        gaps = converge.answer_gaps(record, [answer("key-a1", handled="ignored"), answer("key-z")])
         self.assertTrue(any("handled" in g for g in gaps), gaps)
         self.assertIn("key-z は前の往復の block に無い", gaps)
-        self.assertIn("block の key key-a1 への答えが無い", planfile.answer_gaps(record, []))
+        self.assertIn("block の key key-a1 への答えが無い", converge.answer_gaps(record, []))
 
     def test_no_answers_asked_on_first_round(self):
         self.plan_round(1, [item("u1")])
         record = planfile.converge_record(self.tmp)
-        self.assertEqual(planfile.answer_gaps(record, []), [])
-        self.assertEqual(planfile.answer_gaps(record, [answer("key-x")]), ["key-x は前の往復の block に無い"])
+        self.assertEqual(converge.answer_gaps(record, []), [])
+        self.assertEqual(converge.answer_gaps(record, [answer("key-x")]), ["key-x は前の往復の block に無い"])
 
     def test_splice_fills_closed_item_and_refuses_changed_one(self):
         record = self.blocked_first()
         fixed = item("u1", approach="直した案の手順をここに書いた")
-        whole, rejects, dropped = planfile.splice(record, [fixed])
+        whole, rejects, dropped = converge.splice(record, [fixed])
         self.assertEqual((rejects, dropped), ([], []))
         self.assertEqual(whole, [fixed, item("u2")])
-        _, rejects, dropped = planfile.splice(record, [fixed, item("u2")])
+        _, rejects, dropped = converge.splice(record, [fixed, item("u2")])
         self.assertEqual((rejects, dropped), ([], ["u2"]), "閉じた項目を前のまま書いた行は捨てる")
-        _, rejects, _ = planfile.splice(record, [fixed, item("u2", approach="閉じた項目を書き換えてしまった")])
+        _, rejects, _ = converge.splice(record, [fixed, item("u2", approach="閉じた項目を書き換えてしまった")])
         self.assertEqual(len(rejects), 1, rejects)
         self.assertIn("閉じた項目 2 を変えた", rejects[0])
 
     def test_splice_refuses_missing_open_item(self):
-        _, rejects, _ = planfile.splice(self.blocked_first(), [])
+        _, rejects, _ = converge.splice(self.blocked_first(), [])
         self.assertEqual(len(rejects), 1, rejects)
         self.assertIn("開いた項目 1 の行が無い", rejects[0])
 
     def test_splice_without_passes_takes_reply(self):
         self.plan_round(1, [item("u1")])
         rows = [item("u1"), item("u9")]
-        self.assertEqual(planfile.splice(planfile.converge_record(self.tmp), rows), (rows, [], []))
+        self.assertEqual(converge.splice(planfile.converge_record(self.tmp), rows), (rows, [], []))
 
     def test_revise_section_names_blocks_and_closed_items(self):
-        sec = planfile.revise_section(self.blocked_first())
+        sec = converge.revise_section(self.blocked_first())
         self.assertIn(converge.REVISE_ASK, sec)
         self.assertIn("### key-a1", sec)
         self.assertIn(converge.CLOSED_ASK, sec)
         self.assertIn("項目 2（u2）", sec)
-        self.assertEqual(planfile.revise_section(planfile.converge_record(self.tmp / "none")), "")
+        self.assertEqual(converge.revise_section(planfile.converge_record(self.tmp / "none")), "")
 
 
 class UnitsSectionCase(TmpCase):
@@ -384,7 +384,7 @@ class UnitsSectionCase(TmpCase):
         self.write(f"r1/{planfile.REPLY_FILE}", {"plan": [item(MEAN), item(CLAMP)]})
         self.write("r2/round.json", {"round": 2, "mode": "plan"})
         self.write(f"r2/{planfile.REVIEW_FILE}", {"faces": [face("key-a1", [MEAN])]})
-        filled = planfile.filled_units(planfile.converge_record(self.tmp))
+        filled = converge.filled_units(planfile.converge_record(self.tmp))
         self.assertEqual(filled, [CLAMP])
         text = planfile.units_section(judgment(), [], [], filled)
         self.assertIn(f"- no 1 `{MEAN}`: label=block・disposition=do-now・必ず案に入れる", text)

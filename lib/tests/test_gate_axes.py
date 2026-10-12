@@ -38,12 +38,16 @@ class AxesBase(unittest.TestCase):
         structmark.write(self.tmp, status="ok", reason="", design_file=str(design), wall_s=0)
 
     def check(self, mark, units=("u",), **view):
-        """(軸ごとの {ok, note}, gatemarks.axes の訳)。2 か所が食い違えば赤"""
+        """(軸ごとの {ok, note}, gatemarks.axes の訳)。2 か所が食い違えば赤。決め手の欄が揃う行では、axes の訳が
+        axis_reasons（軸の決まりの持ち主）を軸の順に並べた物と同じ"""
         b = self.view(**view)
         got = gate_axes.split(b, mark, list(units))
         old = gatemarks.axes(b, mark, list(units))
         self.assertEqual(set(got), set(gate_axes.AXES))
         self.assertEqual(all(a["ok"] for a in got.values()), not old, (got, old))
+        if gatemarks.decided(mark):
+            reasons = gatemarks.axis_reasons(b, mark, list(units))
+            self.assertEqual(old, [w for a in gatemarks.AXES for w in reasons[a]])
         return got, old
 
     def bad(self, got) -> list:
@@ -60,7 +64,7 @@ class SplitCase(AxesBase):
     def test_no_decided_by_is_not_obvious(self):
         got, _ = self.check({**TP.DECIDED, "decided_by": ""})
         self.assertEqual(self.bad(got), ["obvious"])
-        self.assertIn(gate_axes.NOT_DECIDED, got["obvious"]["note"])
+        self.assertIn(gatemarks.NOT_DECIDED, got["obvious"]["note"])
 
     def test_undecided_because_is_not_obvious(self):
         got, _ = self.check({**TP.DECIDED, "undecided_because": "世界の解が 2 つに割れる"})
@@ -98,7 +102,7 @@ class SplitCase(AxesBase):
         (self.tmp / "keep.md").write_text("空の列は例外のまま\n", encoding="utf-8")
         got, _ = self.check({**TP.DECIDED, "decided_by": "keep.md:1", "world": ""})
         self.assertEqual(self.bad(got), ["world"])
-        self.assertEqual(got["world"]["note"], gate_axes.NO_WORLD)
+        self.assertEqual(got["world"]["note"], gatemarks.NO_WORLD)
 
     def test_world_rows_take_the_axis_off_the_row(self):
         """世界の解の段の行の在る run は、行の world が空でもこの軸で見ない（外れは world_items が聞く）"""

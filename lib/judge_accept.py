@@ -2061,24 +2061,19 @@ def _unfrozen(what, why, hint=None):
     return Reject(f"この周に採点する版を固定できない（{what}。git の言い分: {said}）" + (f"——{hint}" if hint else ""))
 
 
-def _worktree_tree():
+def _worktree_tree(repo):
     """元 rules:1501。作業ツリーの今の姿の木の id（未追跡の新規ファイルも含め、追跡していない .gitignore の対象は除く）。
-    本物の index を一時 index に写してから add -A する（本物の index は読むだけで書かない）。固められなければ Reject"""
+    本物の index を一時 index に写して印を外し（accept.copy_flag_free_index。accept.touched_files と同じ見え方）てから
+    add -A する（本物の index は読むだけで書かない）。固められなければ Reject"""
     tmp = tempfile.mkdtemp(prefix="graphloops-index-")
     idx = pathlib.Path(tmp) / "index"
     env = {"GIT_INDEX_FILE": str(idx)}
     why = []
     try:
-        real = git("rev-parse", "--path-format=absolute", "--git-path", "index", why=why)
-        if real is None or not real.strip():
-            raise _unfrozen("本物の index の場所を git rev-parse --git-path で引けない", why,
-                            "git 2.31 以上か、リポジトリの中で呼んでいるかを確かめよ")
         try:
-            shutil.copy2(real.strip(), idx)
-        except FileNotFoundError:
-            pass
-        except OSError as e:
-            raise Reject(f"この周に採点する版を固定できない（本物の index を写せない: {e}）")
+            core_accept.copy_flag_free_index(repo, idx)
+        except Reject as e:
+            raise Reject(f"この周に採点する版を固定できない（本物の index を印を外して写せない: {e}）")
         if git("update-index", "-q", "--really-refresh", env=env, why=why) is None or git("add", "-A", env=env, why=why) is None:
             raise _unfrozen("一時 index への git update-index / add -A が失敗した", why)
         tree = git("write-tree", env=env, why=why)
@@ -2089,9 +2084,9 @@ def _worktree_tree():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def _snapshot(msg):
+def _snapshot(repo, msg):
     """元 rules:1550。作業ツリーの今の姿を commit 1 つに固めて返す（枝も index も動かさない）。固められなければ Reject"""
-    tree = _worktree_tree()
+    tree = _worktree_tree(repo)
     head = git("rev-parse", "HEAD")
     parent = ["-p", head.strip()] if head and head.strip() else []
     why, snap = [], None
@@ -2112,7 +2107,7 @@ def _take_diff(jdir, repo, start: dict) -> dict:
     j, repo_p = pathlib.Path(jdir), pathlib.Path(repo)
     with core_accept.in_repo(repo_p):
         base = core_accept.resolve_rev(repo_p, start.get("diff_base") or "")
-        snap = _snapshot("works-factory judge")
+        snap = _snapshot(repo_p, "works-factory judge")
         raw = core_accept._git(repo_p, "diff", "--binary", base, snap, binary=True)
         numstat = core_accept._git(repo_p, "diff", "--numstat", "-z", base, snap)
         commits = core_accept._git(repo_p, "rev-list", "--count", f"{base}..HEAD").strip()
