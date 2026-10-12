@@ -51,6 +51,33 @@ class TestDeltaPlace(RF.DeltaPlaceCase):
         self.assertEqual(snap, accept.tree_state(self.repo))
         self.assertEqual(self.cut()["diff_file"], d["file"])   # 呼び直しても同じ置き場の名
 
+    def test_cut_writes_the_seat_file(self):
+        """1 回目の審査の支度は task-review の型を埋めた座を review1-seat.md に書き、brief の seat_file と must に名指す（型の穴は
+        brief・方針・直した側の返答のファイル・切った版・差分のファイル。無い物は seat.NONE）。2 回目の審査には座が無い
+        （元 works/tests/test_blk_tests_delta.py:563 の test_cut_writes_seat_file の写し）"""
+        import seat
+        self.fixed()
+        reply = self.tmp / "fix-reply.json"
+        reply.write_text(json.dumps(RF.fix_reply(), ensure_ascii=False), encoding="utf-8")
+        got = self.cut(fix_reply=str(reply))
+        brief = self.brief(got)
+        path = pathlib.Path(brief["seat_file"])
+        self.assertEqual(path, self.place / "review1-seat.md")
+        self.assertIn(str(path), got["must"])
+        text = path.read_text(encoding="utf-8")
+        d = refix.fix_delta(self.place)
+        for w in (seat.HEAD, got["brief_file"], d["file"], d["rev"], self.base, str(reply), seat.NONE,
+                  seat.words_table("task-review")):
+            self.assertIn(w, text)
+        self.assertNotRegex(text.split(seat.skill_overlay().strip())[0], r"\[[A-Z][A-Z_]+\]", "型の穴が残らない")
+        RF.apply_refix(self.repo)
+        refix.accept_review(RF.review_none(), self.place, self.base, self.repo, n=1)
+        self.assertTrue(refix.accept_fix(RF.fix_ok(), self.place, self.base, self.repo, n=1)["ok"])
+        got2 = self.cut(2)
+        self.assertEqual(self.brief(got2)["seat_file"], "")
+        self.assertFalse((self.place / "review2-seat.md").exists())
+        self.assertEqual(len(got2["must"]), 2)
+
     def test_cut_reads_values_from_files(self):
         """審査の材料の値は、呼び手が置き場に置いたファイルのパスでも渡せる。方針が無ければ両方空"""
         self.fixed()
