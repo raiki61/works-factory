@@ -828,6 +828,21 @@ class LinesCase(Base):
         _, text, _ = self.build(start={"run_id": RUN, "final_gate": "when_needed"})
         self.assertIn("- 最後の関所: when_needed", self.section(text, report.ENTRY_HEADING))
 
+    def test_entry_lists_ran_and_skipped_stages_and_baseline(self):
+        """入口の節に走った段・飛ばされた段・直す前のテストの色と赤の原因（元 report.py の入口の行）"""
+        base = {"mode": "base", "ok": True, "green": False, "red_cause": "inherited"}
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        body = self.section(text, report.ENTRY_HEADING)
+        self.assertIn("- 走った段: test-gate-base・judge・plan・", body)
+        self.assertIn("- 飛ばされた・返りの無い段: rejudge・replan・replan-review\n", body)
+        self.assertIn("直す前のテスト: 赤", body)
+        self.assertIn("赤の原因 inherited", body)
+
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": None}))
+        body = self.section(text, report.ENTRY_HEADING)
+        self.assertNotIn("直す前のテスト", body)
+        self.assertIn("- 飛ばされた・返りの無い段: test-gate-base・rejudge・replan・replan-review", body)
+
     def test_every_line_is_a_bullet(self):
         """元 build の行の組み方: 節の行は「- 」か、字下げした内訳の行"""
         fix = {**fixed_run()["fix"], "units": [{"unit_id": "u1", "status": "given_up", "reason": "通らない"}]}
