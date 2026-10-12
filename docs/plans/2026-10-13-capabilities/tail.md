@@ -479,9 +479,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - T64 機械全体の試験の枠（slotwrap.sh・TESTSLOT_N）を通してテストを走らせ、枠を待った秒 wait_s を段の行に、待ちを状態の表示と herdr に見せる（並べすぎない）。
   - 元: works/.shared/core/tree_run.py:779 `slotted_run`・works/tests/test_tiers.py:923 RunSlotCase・:987 SlotWaitShownCase
   - 今: 無し（lib/declared_checks.py:223 は tree_run.run を直に呼ぶ）
-  - 証: 要追加（戻す時）: lib/tests/test_declared_checks.py::TreeRunnerCase.test_step_takes_machine_slot
   - 本物の run: 筋書きでのみ
-  - 狭め: #69 で外した（理由 no-queue）。Archon で不可でない。no-queue の字は修正の並べの決めなので、run をまたぐ試験の数の歯止めに当たるかは持ち主の確かめ 決め: 持ち主の答え待ち（no-queue がどちらにも読める。推しは戻す）（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #69 で外した。absent: 戻さない（持ち主の決め `no-queue`。docs/owner-decisions.md の 2026-10-12 の決め。#118）
+  - 証: 要らない（戻さないと決めた能力）
 
 - T65 最後のテストは同じ run の中の前の結果を使い回さない（同じ木で 2 度呼べば 2 度走らせる）。
   - 元: works/blk-tests/scripts/run_tests.py:49-66（RERUN_ENV）
@@ -679,9 +679,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - E16 コードとコメントの比（comment_lines・comment_ratio_pct）を測って R1 に渡す。
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2128-2150 `SCALARS_FIXED`・`_comment_ratio`（comment-ratio.sh）
   - 今: 無し
-  - 証: 要追加: lib/tests/test_eyeverdict.py::ScalarsCase.test_comment_ratio_is_measured — 足したコメントの行と比が scalars に載り、測れない言語は unmeasured に訳が残る
   - 本物の run: eyes/prep.json の scalars に comment_ratio_pct が無い
-  - 狭め: #67 で狭めた（理由は言語依存）。Archon で不可でない → 戻すか持ち主の決め 決め: 持ち主の答え待ち（lang-neutral と superset がぶつかる。推しは戻す）（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #67 で狭めた。absent: 戻さない（持ち主の決め `no-comment-ratio`。docs/owner-decisions.md の 2026-10-12 の決め。#118）
+  - 証: 要らない（戻さないと決めた能力）
 
 - E17 修正役が足した x_ の数値（x_scalars）を規模の数値に足し、形の外の欄（x_ で始まらない名・数でない値・object でない）は名指して落とす。
   - 元: review-loop.py:2175-2176（p3.fix の x_scalars）、review-loop.json:4077 p3.fix の x_scalars の patternProperties
