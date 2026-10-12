@@ -38,7 +38,8 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
   含む関数の全体に広げ、`<行>-<行>` は書いたとおり（base との差分の塊の旧い側の行が範囲の外なら、その塊に掛かる関数は
   許さない。tddloop.hunks_outside）。ファイルだけの範囲はそのファイルの全部
 
-帳面（LEDGER。置き場の作業ファイル）: {"rows": [{pass, attempt, gate, id, detail, unit_keys}], "skipped": [{pass, attempt, why}]}。
+帳面（LEDGER。置き場の作業ファイル）: {"rows": [{pass, attempt, gate, id, detail, unit_keys}], "skipped": [{pass, attempt, why}],
+"guards": [{pass, attempt, id, base}]}。
 受け付けの回の印は (pass, attempt)（裁定の後の輪は回を 1 から数え直す）。2 回目の修正の段（依頼 226。同じブロックの 2 度目の
 差し込み。線の include refix）の帳面と一式のログは、その段の置き場（fix/refix/）に分かれる。conflict.second_pass（置き場の裁定の行に
 案を直した行が在る段）の test_edits は、base からの差分に 1 回目の段で裁定 fix_test_scope の範囲として直したテストが在るので、裁定の範囲を
@@ -483,10 +484,9 @@ def _record(b, mark: dict, rows: list, skipped: list, guards: list = ()) -> None
         doc = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         doc = {}
-    doc = {"rows": list(doc.get("rows") or []), "skipped": list(doc.get("skipped") or [])}
-    if doc_guards := list(doc.get("guards") or []):
-        doc["guards"] = doc_guards
-    before = (len(doc["rows"]), len(doc["skipped"]), len(doc_guards))
+    doc = {"rows": list(doc.get("rows") or []), "skipped": list(doc.get("skipped") or []),
+           "guards": list(doc.get("guards") or [])}
+    before = (len(doc["rows"]), len(doc["skipped"]), len(doc["guards"]))
     for r in rows:
         row = {**mark, **r}
         if row not in doc["rows"]:
@@ -497,9 +497,9 @@ def _record(b, mark: dict, rows: list, skipped: list, guards: list = ()) -> None
             doc["skipped"].append(row)
     for g in guards:
         row = {**mark, **g}
-        if row not in doc.setdefault("guards", []):
+        if row not in doc["guards"]:
             doc["guards"].append(row)
-    if (len(doc["rows"]), len(doc["skipped"]), len(doc.get("guards") or [])) == before:
+    if (len(doc["rows"]), len(doc["skipped"]), len(doc["guards"])) == before:
         return
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
