@@ -7,6 +7,7 @@
 - 下請け（Agent の子）の書き込みも同じ記録に載り、突き合わせ（lib/writes.py）を申告なしに通る
 """
 import hashlib
+import importlib.util
 import json
 import os
 import pathlib
@@ -15,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CORE = ROOT / "bin" / "_lib"
@@ -59,7 +61,11 @@ class TestHook(unittest.TestCase):
 
     def test_hook_settings_record_edit_and_write(self):
         row = toolset.recorder_row(self.tmp / "cfg")
-        self.assertEqual(row["matcher"], "Edit|Write|NotebookEdit")
+        spec = importlib.util.spec_from_file_location("record_write", RECORDER)
+        hook = importlib.util.module_from_spec(spec)
+        with mock.patch.object(sys, "path", list(sys.path)):   # フックは lib/ を sys.path の頭に足す
+            spec.loader.exec_module(hook)
+        self.assertEqual(row["matcher"], "|".join(hook.TOOLS), "フックが掛かる道具とフックが書く道具は同じ")
         self.assertEqual(row["hooks"], [{"type": "command", "command": shlex.join(
             (sys.executable, str(RECORDER), str(self.tmp / "cfg" / writelog.ROOT)))}])
 
