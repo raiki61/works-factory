@@ -107,7 +107,10 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             raise Stop(str(error)) from None
         args = place.workflow_run(source, workflows, target, workflow, *without_flag(argv[3:], "--cwd"))[2:]
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
-    os.execve(sys.executable, [*auth, "exec", *auth_user, "--", *place.archon(bun, source), *args], child)
+    command = [*place.archon(bun, source), *args]
+    if executing:
+        command = [*auth, "exec", *auth_user, "--", *command]
+    os.execve(command[0], command, child)
 
 
 def answer_head(home: Path, target: Path) -> str:

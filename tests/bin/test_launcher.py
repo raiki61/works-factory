@@ -378,6 +378,13 @@ class LauncherTest(unittest.TestCase):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None))
         self.assertIn("認証が無い", err)
 
+    def test_reading_commands_reach_archon_without_auth(self):
+        """工程を走らせない命令（run を読む・一覧を見る）は認証を通さない。認証の無い利用者も bin/apply で run を読める"""
+        for args in (["workflow", "get", "run-1"], ["workflow", "status"], ["validate", "workflows"]):
+            with self.subTest(args=args):
+                env = self.reached(self.launch(*args, ANTHROPIC_API_KEY=None))["env"]
+                self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))
+
     def test_no_auth_runs_without_auth_check_or_plugins(self):
         done = self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None, WORKS_FACTORY_NO_AUTH="1")
         env = self.reached(done)["env"]
