@@ -26,7 +26,7 @@ from tests.calibration import corpus
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
 RUNNER = HERE / "run.py"
-COPIED = ["pack.json", "factory/pack.json", "docs/design.md", "docs/nodes.json", "tests/__init__.py",
+COPIED = ["pack.json", "factory/pack.json", "bin/_lib/pack.py", "docs/design.md", "docs/nodes.json", "tests/__init__.py",
           "tests/calibration/__init__.py", "tests/calibration/corpus.py", "tests/calibration/corpus.json",
           "tests/calibration/run.py", "tests/calibration/flags.json", "tests/e2e/__init__.py",
           "tests/e2e/make_target.py", "tests/e2e/evidence.py"]
@@ -155,7 +155,7 @@ class RunnerCase(unittest.TestCase):
         shutil.copytree(ROOT / "lib", cls.repo / "lib", ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
         cls.shell = base / "fake-shell.py"
         cls.shell.write_text(FAKE_SHELL.replace("WATCHED", repr(WATCHED)), encoding="utf-8")
-        (cls.repo / "bin").mkdir()
+        (cls.repo / "bin").mkdir(exist_ok=True)
         shutil.copy2(cls.shell, cls.repo / "bin" / "works-factory")
         cls.old = base / "claude-plugins"
         dev = cls.old / "works" / "dev"

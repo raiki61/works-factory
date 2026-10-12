@@ -65,13 +65,19 @@ def children(rows: list[dict], run_id: str) -> list[str]:
     return [r["id"] for r in sorted(mine, key=lambda r: (str(r.get("started_at") or ""), str(r.get("id"))))]
 
 
-def collect(attempt: Path, run_id: str, shell: Path = SHELL) -> dict:
-    """親と子の run の置き場と記録を attempt/evidence/ に写す。写せなかった置き場は limits に名指す（黙って空にしない）"""
-    attempt = Path(attempt)
-    out = attempt / EVIDENCE
+def fresh(attempt: Path) -> Path:
+    """attempt/evidence/ を前の写しを消して空の record/ だけにし、その置き場を返す"""
+    out = Path(attempt) / EVIDENCE
     if out.exists():
         shutil.rmtree(out)
     (out / "record").mkdir(parents=True)
+    return out
+
+
+def collect(attempt: Path, run_id: str, shell: Path = SHELL) -> dict:
+    """親と子の run の置き場と記録を attempt/evidence/ に写す。写せなかった置き場は limits に名指す（黙って空にしない）"""
+    attempt = Path(attempt)
+    out = fresh(attempt)
     kids = children(runs(attempt, shell), run_id)
     limits = []
     for name, rid in [("parent", run_id), *((f"child-{n}", kid) for n, kid in enumerate(kids, 1))]:

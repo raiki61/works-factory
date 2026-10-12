@@ -48,6 +48,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+from bin._lib import pack  # noqa: E402
 from tests.calibration import corpus  # noqa: E402
 from tests.e2e import evidence, make_target  # noqa: E402
 
@@ -67,6 +68,7 @@ SKIPPED = "skipped"
 UNREAD_VERDICT = "INCONCLUSIVE"
 VERDICTS = ("CAUGHT", "ESCAPED", "CLEAN", "FALSE_ALARM", UNREAD_VERDICT)
 WAIT_RUNNING = 3
+STATES = {"running": "running", "pending": "running", "paused": "paused", "completed": DONE}   # Archon の run の status → run_one の分かれ
 
 
 class Stop(Exception):
@@ -130,7 +132,7 @@ class WorksFactory:
 
     def state(self, attempt: Path, run_id: str) -> str:
         status = self._get(attempt, run_id).get("status")
-        return {"running": "running", "pending": "running", "paused": "paused", "completed": DONE}.get(status, "failed")
+        return _state(status)
 
     def gate(self, attempt: Path, run_id: str) -> str:
         for rid in [run_id, *evidence.children(self._runs(attempt), run_id)]:
@@ -159,9 +161,8 @@ class WorksFactory:
                 "usd_from": "run の記録の metadata.total_cost_usd（fix の組の子の run の費用を含む）"}
 
     def provenance(self) -> dict:
-        pack = json.loads((ROOT / "factory" / "pack.json").read_text(encoding="utf-8"))
         return {"factory_commit": make_target.git("-C", str(ROOT), "rev-parse", "HEAD"),
-                "archon": pack["integration_revision_required"]}
+                "archon": pack.load(ROOT)["archon"]["commit"]}
 
     @staticmethod
     def skipped(evidence_dir: Path) -> set[str]:
@@ -202,7 +203,7 @@ class OldWorks:
     def check(self):
         if self.dir is None:
             raise Stop(REFUSED, f"{OLD_WORKS_ENV} に今の works の置き場（works.commit を取り出した claude-plugins の works/）を渡す")
-        want = _pack()["works"]["commit"]
+        want = pack.load(ROOT)["works"]["commit"]
         try:
             have = make_target.git("-C", str(self.dir), "rev-parse", "HEAD")
         except make_target.Stop as e:
@@ -266,7 +267,7 @@ class OldWorks:
 
     def state(self, attempt: Path, run_id: str) -> str:
         status = self._row(attempt, run_id)[0].get("status")
-        return {"running": "running", "pending": "running", "paused": "paused", "completed": DONE}.get(status, "failed")
+        return _state(status)
 
     def gate(self, attempt: Path, run_id: str) -> str:
         approval = (_json_or_text(self._row(attempt, run_id)[0].get("metadata")) or {})
@@ -281,10 +282,7 @@ class OldWorks:
     def finish(self, attempt: Path, run_id: str) -> dict:
         row, events = self._row(attempt, run_id)
         board = Path(row.get("output_root") or "") / "artifacts" / "runs" / run_id / "board"
-        out = attempt / evidence.EVIDENCE
-        if out.exists():
-            shutil.rmtree(out)
-        (out / "record").mkdir(parents=True)
+        out = evidence.fresh(attempt)
         (out / "record" / "parent.json").write_text(
             json.dumps({"run": row, "events": events}, ensure_ascii=False, indent=1, default=str) + "\n", encoding="utf-8")
         if board.is_dir():
@@ -300,7 +298,7 @@ class OldWorks:
 
     def provenance(self) -> dict:
         found = re.search(r'^ARCHON_VERSION="([^"]+)"', (self.dev / "archon.sh").read_text(encoding="utf-8"), re.M)
-        return {"factory_commit": _pack()["works"]["commit"], "archon": found[1] if found else None}
+        return {"factory_commit": pack.load(ROOT)["works"]["commit"], "archon": found[1] if found else None}
 
     @staticmethod
     def skipped(evidence_dir: Path) -> set[str]:
@@ -349,8 +347,8 @@ def _number(value) -> float | None:
     return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-def _pack() -> dict:
-    return json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))
+def _state(status) -> str:
+    return STATES.get(status, "failed")
 
 
 FACTORY = {"works": OldWorks, "works-factory": WorksFactory}
