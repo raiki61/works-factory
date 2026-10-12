@@ -4,6 +4,7 @@
 """
 import copy
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -305,6 +306,21 @@ class TestMaterialize(unittest.TestCase):
             self.assertEqual(refused.stdout, "")
             self.assertEqual(len(refused.stderr.strip().splitlines()), 1)
             self.assertIn("stats.py", refused.stderr)
+
+
+class TestSeedSuite(unittest.TestCase):
+    """種の TDD の実行器は通しの種の物と同じ字で、実行でき、写しにも実行できるまま載る（持ち主の決め one-source）"""
+
+    def test_seed_junit_suite_matches_e2e_seed(self):
+        mine, theirs = SEED / "junit-suite.sh", ROOT / "tests" / "e2e" / "target-seed" / "junit-suite.sh"
+        self.assertEqual(mine.read_bytes(), theirs.read_bytes())
+        self.assertTrue(os.access(mine, os.X_OK))
+        self.assertTrue(git(ROOT, "ls-files", "-s", "tests/calibration/seed/junit-suite.sh").startswith("100755 "))
+        with tempfile.TemporaryDirectory() as tmp:
+            made = corpus.materialize(corpus.load()["rows"][0]["id"], tmp)
+            for tree in (made["base"], made["head"]):
+                self.assertTrue(os.access(pathlib.Path(tree) / "junit-suite.sh", os.X_OK), tree)
+            self.assertEqual(corpus.seed_results(made["base"])["errors"], [])
 
 
 if __name__ == "__main__":

@@ -2,7 +2,9 @@
  "about": "欠陥を仕込んだ較正の束。緑の種 seed/ に欠陥を 1 行に 1 つずつ仕込み、工場の関門（当てる先 catcher は docs/design.md の受け入れの一覧の id）が見つけるかを、今の works と works-factory の両方で同じ物差しで測る。測られる側の工場がこの束（corpus.json と seed/）を変えて通してはいけない。自分の束を変えられる作り手は、その束を通せてしまう。",
  "seed": "seed",
  "run_inputs": {
-  "unattended": "true"
+  "unattended": "true",
+  "final_gate": "when_needed",
+  "thickness": "標準"
  },
  "rows": [
   {
