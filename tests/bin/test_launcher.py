@@ -16,7 +16,7 @@ import tempfile
 import unittest
 
 from bin._lib import launcher, place
-from lib import answer, writelog
+from lib import answer, reads, writelog
 from tests.bin import fakelaunch, hermetic
 from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
 from tests.bin.gitkit import git
@@ -199,7 +199,7 @@ class LauncherTest(unittest.TestCase):
         self.assertTrue(launcher.sandbox_writable("/private/tmp/claude-501/x/y"))
 
     def test_executing_launch_sweeps_write_logs_of_gone_workspaces(self):
-        """工程を走らせる命令は、作業の場が無くなった run の書き込みの記録だけを片付ける（生きた run・控えの無い記録は残す）"""
+        """工程を走らせる命令は、作業の場が無くなった run の書き込みと読んだ証拠の記録だけを片付ける（生きた run・控えの無い記録は残す）"""
         root = self.default_home(self.target) / "claude-config" / writelog.ROOT
         root.mkdir(parents=True)
 
@@ -222,6 +222,18 @@ class LauncherTest(unittest.TestCase):
         self.assertTrue(live.exists())
         self.assertTrue(legacy.exists())
         self.assertIn("書き込みの記録を 1 件片付けた", done.stderr)
+        with self.subTest("読んだ証拠の記録も同じ決め方で片付ける"):
+            reads_root = root.parent / reads.ROOT
+            reads_root.mkdir()
+            w = self.tmp / "gone-reader"
+            w.mkdir()
+            gone, kept = reads.open_log(reads_root, w), reads.open_log(reads_root, self.target)
+            w.rmdir()
+            done = self.launch("workflow", "run", "works-factory-line")
+            self.reached(done)
+            self.assertFalse(gone.parent.exists(), "作業の場の無い読んだ証拠の記録が残った")
+            self.assertTrue(kept.parent.exists())
+            self.assertIn("読んだ証拠の記録を 1 件片付けた", done.stderr)
         with self.subTest("工程を走らせない命令は片付けない"):
             later = dead_log("gone-later")
             done = self.launch("workflow", "status")

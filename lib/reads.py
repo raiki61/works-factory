@@ -11,22 +11,26 @@
 受け付けの条件にはしない（欠けは報告が出す）。
 
 フックが import するので、頭は標準ライブラリだけを読む（記録の状態を測る hook_evidence は collect の中で読む）。
-- ROOT・LOG・root(config_dir)・reads_path(root, cwd)・log_here(): 記録の根（Claude の設定の置き場の下）と、作業の場ごとの記録のファイル
+- ROOT・LOG・root(config_dir)・reads_path(root, cwd)・open_log(root, cwd)・log_here(): 記録の根（Claude の設定の置き場の下）と、作業の場
+  ごとの記録のファイル（置き場の鍵・作業の場の控え・片付けは lib/writelog と同じ物）
 - EVIDENCE_GLOB・REPLAN・role_key(role, replan)・evidence_name(role)・index_name(owner, replan)・is_index(name): 置き場の読んだ証拠と索引の名
 - stamp()・records(log, since): 記録の時刻の形と、since から後の行（読めなければ None と訳。記録が無い訳は NO_CONFIG・NO_ROOT・ファイルが無いを分ける）
 - tool_count・tool_inputs・web_fetches・web_searches: 記録の行の道具の呼びの数と入力
 - collect(place, role, must_read, log, *, own, since, repo, replan): 役ごとの reads-<役>.json（案の直しは reads-replan-<役>.json）を書く
 """
-import hashlib
 import json
 import os
 import pathlib
 import sys
 import time
 
+_HERE = str(pathlib.Path(__file__).resolve().parent)
+if _HERE not in sys.path:   # 殻（bin/_lib/launcher.py）は from lib import reads で読み、置き場を sys.path に持たない
+    sys.path.append(_HERE)
+import writelog  # noqa: E402
+
 ROOT = "works-reads"
 LOG = "reads.jsonl"            # engine.util.hook_evidence が置き場の下に読む名（record-read.py が書く名）
-KEY_LEN = 16                   # cwd の実パスの sha256 の頭の字数（置き場のフォルダの名。lib/writelog.py と同じ決め方）
 TS_FORMAT = "%Y-%m-%dT%H:%M:%S"   # 記録の行の ts（地方時。秒で切る）
 EVIDENCE_GLOB = "reads-*.json"
 _INDEX_SUFFIX = "-block.json"
@@ -43,8 +47,12 @@ def root(config_dir) -> pathlib.Path:
 
 
 def reads_path(root, cwd) -> pathlib.Path:
-    key = hashlib.sha256(os.path.realpath(str(cwd)).encode("utf-8", "surrogateescape")).hexdigest()[:KEY_LEN]
-    return pathlib.Path(root) / key / LOG
+    return writelog.log_path(root, cwd, LOG)
+
+
+def open_log(root, cwd) -> pathlib.Path:
+    """reads_path の置き場を作り、作業の場の実パスを控えて（writelog.sweep が片付ける）記録のファイルを返す"""
+    return writelog.open_log(root, cwd, LOG)
 
 
 def role_key(role: str, replan: bool = False) -> str:

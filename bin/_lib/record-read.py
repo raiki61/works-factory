@@ -19,13 +19,14 @@
 この 3 点目が、転写の走査では原理的に取れなかったもの——親の転写に subagent の読みは残らないので、
 engine は「どこまで読みに行くか」を未決のまま抱えていた。
 
-**書く先は run の隔離した設定の下で、起動の殻が根を作った時だけ。** 最初は利用者ごとの置き場
+**書く先は works の隔離した設定の下で、toolset.install が根を作った時だけ。** 最初は利用者ごとの置き場
 （`$CLAUDE_CONFIG_DIR/graphloops/reads/<session>.jsonl`）へ session 単位で永久に書く形にしたが、
 それは **graphloops を使っていない session の読み取り履歴まで、寿命を決めずに溜める**形だった。
 参照した実装（spotify/portal-ai-plugins の shunt、Apache-2.0）のフックは**ディスクに 1 バイトも
 書かず**、一時ファイルを使う所は `trap … EXIT` で必ず消し、README にも「何も残らない」と明記している。
-起動の殻が run ごとに作る隔離した設定の下に書けば寿命は run の寿命になり、保持期限も削除処理も上限も要らなくなる
-——**溜めないので、消す仕掛けが要らない**。根が無ければ何も書かない。
+works の隔離した設定の下に作業の場ごとに書けば、works を使っていない session の読みは溜まらない。隔離した設定は
+run をまたいで残るので、作業の場の実パスを横に控え、作業の場が無くなった後の起動が片付ける（lib/writelog.sweep。
+書き込みの記録と同じ）。根が無ければ何も書かない。
 
 **残す証拠は「その時のファイルの sha」と「部分読みか」。** 読んだ中身そのものを残さないのは、
 文書の本文をこちらのディスクへ写すことになるため。engine は後から同じファイルの sha を取って
@@ -52,21 +53,19 @@ def boards(cwd):
     """**works-factory で替えたのはこの関数と、Read の外の道具の行（main の頭）だけ**（元は今の works の
     works/.shared/core/record-read.py。その元は graphloops a1202d0:graphloops/hooks/record-read.py）。
 
-    書く先はコマンドの 1 つ目の引数の根（起動の殻が隔離した設定の下に作る works-reads）の下の、役の作業の場ごとの置き場
-    （lib/reads.reads_path。作業の場は Claude Code がフックに渡す CLAUDE_PROJECT_DIR、無ければ入力の cwd）。根が無ければ
-    1 バイトも書かない（bin/_lib/record-write.py と同じ決め方）。
+    書く先はコマンドの 1 つ目の引数の根（toolset.install が隔離した設定の下に作る works-reads）の下の、役の作業の場ごとの置き場
+    （lib/reads.open_log。作業の場は Claude Code がフックに渡す CLAUDE_PROJECT_DIR、無ければ入力の cwd）。横に作業の場の実パスを
+    控え、作業の場が無くなった後の起動が片付ける。根が無ければ 1 バイトも書かない（bin/_lib/record-write.py と同じ決め方）。
     """
     if len(sys.argv) < 2 or not sys.argv[1] or not pathlib.Path(sys.argv[1]).is_dir():
         return []
     where = os.environ.get("CLAUDE_PROJECT_DIR") or cwd
     if not isinstance(where, str) or not where:
         return []
-    b = reads.reads_path(sys.argv[1], where).parent
     try:
-        b.mkdir(exist_ok=True)
+        return [reads.open_log(sys.argv[1], where).parent]
     except OSError:
         return []
-    return [b]
 
 
 READ_CAP = 4_000_000  # engine/util.py の READ_CAP の写し（根拠はあちらの注記。一致は tests/bin/test_record_read.py が見る）

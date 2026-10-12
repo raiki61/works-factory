@@ -26,6 +26,7 @@ for p in (ROOT / "lib", ROOT / "lib" / "graphloops"):
         sys.path.append(str(p))
 
 import reads  # noqa: E402
+import writelog  # noqa: E402
 from engine import util  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
 
@@ -103,13 +104,18 @@ class TestHook(unittest.TestCase):
         self.assertEqual(list(self.root.iterdir()), [])
 
     def test_reads_path_is_the_one_lib_rule(self):
-        """書く先は CLAUDE_PROJECT_DIR（無ければ入力の cwd）の lib/reads.reads_path。読む側（plan-reads・review-reads）も同じ口で引く"""
+        """書く先は CLAUDE_PROJECT_DIR（無ければ入力の cwd）の lib/reads.reads_path。読む側（plan-reads・review-reads）も同じ口で引く。
+        置き場の鍵と作業の場の控えは lib/writelog の物"""
         project = self.tmp / "project"
         project.mkdir()
         self.run_recorder(self.event(), project=project)
         self.assertEqual(len(self.rows(project)), 1)
         self.assertFalse(reads.reads_path(self.root, self.work).exists())
         self.assertEqual(reads.reads_path(self.root, project).parent.parent, self.root)
+        self.assertEqual(reads.reads_path(self.root, project), writelog.log_path(self.root, project, reads.LOG),
+                         "置き場の鍵は書き込みの記録と同じ 1 か所")
+        self.assertEqual((reads.reads_path(self.root, project).parent / writelog.WHERE).read_text(encoding="utf-8"),
+                         str(project), "作業の場を控える（片付けが読む）")
 
     def test_record_read_copy_differs_only_in_sink(self):
         """record-read.py は今の works の record-read.py の写しで、書く先を決める boards() と Read の外の道具の行だけを替えた"""
