@@ -22,7 +22,7 @@ engine/role_run.py（_tree_members・_stop_tree。本線 9f91687 = graphloops 0.
   上限の勘定: 信号に気づくまで POLL、SIGKILL まで KILL_GRACE + ps の 1 回、抜けるまで LINGER で 0.2 + 2 + 1 = 3.2 秒と
   ps の回の分。ps は PS（/bin/ps を名指し、カーネルの表の欄だけを求める）で待ちに止まらないので、実行基盤の cancel の
   猶予 5 秒より前に抜ける。コマンドが自分で終わった回は待たない。起こす前の証明（prove_launchable）の間に
-  届いた信号は POLL の内に証明を捨て、コマンドを起こさずに LINGER 待って抜ける（PROOF_TIMEOUT は勘定に入らない）
+  届いた信号は POLL の内に証明を捨て、コマンドを起こさずに LINGER 待って抜ける（証明に期限は置かない。E12）
 - コマンドが自分で終わった後も、背景に残した孫を同じ手順で止める（節が終わった後に作業ツリーを書く物を残さない）
 抜け道: 数える前に親が消えて親子の鎖が切れ、かつ setsid でセッションも抜けた子孫（二重 fork の daemon 化。コマンドが
 終わった後の `setsid … &` もこの形）は拾えない（本線と同じ限界）。止め切れなかった仲間は標準エラーに名指しする。
@@ -112,7 +112,6 @@ def outside_env(environ):
     return env
 
 
-PROOF_TIMEOUT = 5.0   # 起こす前の証明（command -v）を待つ上限（秒）。超えたら証明できない回として起こす
 _ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 _UNPROVABLE = set("$`*?[{~")   # 展開される語は字面から引けない
 # シェルを通す字: 展開（_UNPROVABLE。証明が引けない字と同じ表から作る）に、区切り・向け直し・引用・注釈・履歴と、shlex が bash と
@@ -175,6 +174,7 @@ def prove_launchable(argv, cwd=None, env=None, halted=lambda: False):
     引き、引けなければ起こさずに FileNotFoundError（パスの語でファイルは在る時は PermissionError）を上げる。呼ぶ側の OSError の道
     （exit None → broken → not_run）にそのまま乗る。bash -c でない argv は Popen 自身が起こせなさを OSError で上げるので見ない。
     引く間は POLL 秒ごとに halted() を見て、真なら引くのをやめて戻る（止める判断は呼ぶ側。run は証明の待ちを cancel の勘定に足さない）。
+    command -v が終わらない間（遅い BASH_ENV など）は期限を置かずに待ち、止め札だけで止める（E12）。
     限界: 見るのは先頭の語だけ（パイプの後ろ・&& の後ろ・sh に渡したスクリプトの有無は見ない）。展開を含む語は引かずに起こす"""
     if list(argv[:2]) != ["bash", "-c"] or len(argv) < 3:
         return
@@ -185,13 +185,12 @@ def prove_launchable(argv, cwd=None, env=None, halted=lambda: False):
     q = subprocess.Popen(["bash", "-c", 'command -v -- "$1" >/dev/null', "_", word], stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=cwd, start_new_session=True,
                          env={**(os.environ if env is None else env), **assigns})
-    deadline = time.monotonic() + PROOF_TIMEOUT
     while True:
         try:
             rc = q.wait(POLL)
             break
         except subprocess.TimeoutExpired:
-            if halted() or time.monotonic() >= deadline:
+            if halted():
                 try:
                     os.killpg(q.pid, signal.SIGKILL)   # BASH_ENV が起こした子も残さない
                 except OSError:
