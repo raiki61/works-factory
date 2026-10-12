@@ -878,16 +878,20 @@ def _run(st, repo, named=(), files=(), full=False):
     return cases, code
 
 
-def _reached(st, repo) -> tuple[list, bool]:
+def _reached(st, repo, seeds=None, direct_only=True) -> tuple[list, bool]:
     """緑の回に足す試験 ——（根からの相対の pytest の試験のファイル, 一式を回すか）。単位の頭からの変更（走らせて出来たファイルを
     除く）を起点に地図を引き（impact.map の seeds。置き場は work/impact）、直に関わる試験（impact.select_tests の direct_only。
     起点か深さ 1。先の試験は受け付けと同じく線の最後のテストの段に任せる）のうち作業ツリーに在り、
     元の結末に載ったモジュール（元の一式が走らせた物。元で赤だった試験が届いただけで拒まれない）のファイル。地図が引けない・
-    run_all なら ([], True)（合図なしの一式）"""
-    seeds = sorted(set(touched(repo, st["unit_head"], snapshot(repo))) - set(st["suite_made"]))
+    run_all なら ([], True)（合図なしの一式）。
+    seeds（根からの相対のパス）を渡せばそれを起点にし、direct_only が偽なら地図が届く試験の全部を選ぶ（組を当てた後の確かめ直し
+    fixboard.rerun_problem が、前の組と重なったファイルを起点に広げる口。F411 の 2）"""
+    if seeds is None:
+        seeds = set(touched(repo, st["unit_head"], snapshot(repo))) - set(st["suite_made"])
+    seeds = sorted(seeds)
     try:
         sel = impact.select_tests(impact.map(repo, seeds=seeds, cache_dir=pathlib.Path(st["work"]) / "impact"),
-                                  direct_only=True)
+                                  direct_only=direct_only)
     except (RuntimeError, OSError, ValueError):
         return [], True
     if sel["run_all"]:
