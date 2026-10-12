@@ -365,7 +365,7 @@ class ReplanItemsCase(Base):
     def test_ruling_must_be_item_numbers(self):
         """ruling の行は案の項目の 1 から数えた番号の字だけ（項目の id・0・案の外の番号・数でない字は訳つきで拒み、黙って落とさない）"""
         self.open(plan_rows=[self.ROW])
-        for bad in (converge.item_id([UNIT]), "0", "2", "x"):
+        for bad in (converge.item_id([UNIT]), "0", "2", "x", "²", "١"):
             with self.subTest(bad):
                 with self.assertRaises(boardview.Missing) as cm:
                     self.open(plan_rows=[self.ROW], rnd=3, ruling=["1", bad])

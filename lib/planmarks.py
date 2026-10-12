@@ -905,7 +905,7 @@ def handed(ruling, items: int) -> tuple:
     """(案の直しで渡す項目の番号の並び, 渡せない訳)。ruling は項目の番号の字の並び（fix の replan_items）"""
     out = []
     for r in ruling if isinstance(ruling, list) else []:
-        n = int(r) if isinstance(r, str) and r.strip().isdigit() else r if isinstance(r, int) and not isinstance(r, bool) else None
+        n = int(r) if isinstance(r, str) and re.fullmatch(r"[0-9]+", r.strip()) else r if isinstance(r, int) and not isinstance(r, bool) else None
         if n is None or not 1 <= n <= items:
             return [], f"ruling の項目 {r!r} が承認済みの修正案（{items} 項目）の番号でない"
         if n not in out:

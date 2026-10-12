@@ -38,7 +38,7 @@ inputs:
     description: 始めの人の関所の答え（独立設計に貼る）
   ruling:
     default: "[]"
-    description: 裁かれた計画の項目の id の配列（案の直しの事前審査の時だけ空でない）
+    description: 裁かれた計画の項目の番号の字の並び（fix の replan_items。承認済みの修正案の 1 から数えた番号。番号でない行と案の外の番号は拒む）。案の直しの事前審査の時だけ空でない
   conflicts:
     default: "null"
     description: 修正の段の申し出と裁定の指し札（conflicts.json。案の直しの事前審査の時だけ。項目ごとの申し出と裁定の文を貼る）か null
