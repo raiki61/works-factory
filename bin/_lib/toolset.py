@@ -410,7 +410,8 @@ def recorder_row(cfg) -> dict:
 
 
 def _is_recorder_row(row, cfg) -> bool:
-    """row が設定の置き場 cfg の記録のフックの行か（python は絶対パスならどれでもよい。柵を別の python で回しても通す）"""
+    """row が設定の置き場 cfg の記録のフックの行か。python と record-write.py は絶対パスならどれでもよい（柵を別の python で
+    回しても、同じ対象を別の works-factory の置き場から起動しても通す。次の install が今の置き場の行に書き直す）"""
     if not (isinstance(row, dict) and set(row) == {"matcher", "hooks"} and row["matcher"] == WRITE_MATCHER
             and isinstance(row["hooks"], list) and len(row["hooks"]) == 1):
         return False
@@ -422,7 +423,8 @@ def _is_recorder_row(row, cfg) -> bool:
         argv = shlex.split(hook["command"])
     except ValueError:
         return False
-    return len(argv) == 3 and os.path.isabs(argv[0]) and argv[1:] == [str(RECORDER), str(_writes_root(cfg))]
+    return (len(argv) == 3 and os.path.isabs(argv[0]) and os.path.isabs(argv[1])
+            and pathlib.PurePath(argv[1]).name == RECORDER.name and argv[2] == str(_writes_root(cfg)))
 
 
 def borrowed_hooks(name: str, src: pathlib.Path) -> dict:

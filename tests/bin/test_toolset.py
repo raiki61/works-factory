@@ -961,6 +961,25 @@ class HooksCase(Base):
         self.assertEqual(toolset.guard(self.cfg, self.borrow), ["settings.json の hooks の行 PreToolUse:Write"],
                          "記録に載っていない借りる物の行は知らない行")
 
+    def test_install_over_recorder_row_of_another_checkout(self):
+        """同じ対象を別の works-factory の置き場（clone・worktree）から起動した後でも、柵は記録のフックの行を通し、
+        install が今の置き場の行に書き直す"""
+        self.install()
+        settings = json.loads((self.cfg / "settings.json").read_text())
+        other = shlex.join([sys.executable, str(self.tmp / "other-checkout" / "bin" / "_lib" / "record-write.py"),
+                            str(self.cfg / "works-writes")])
+        settings["hooks"]["PostToolUse"] = [{"matcher": toolset.WRITE_MATCHER,
+                                             "hooks": [{"type": "command", "command": other}]}]
+        (self.cfg / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+        self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
+        self.install()
+        self.assertEqual(self.hooks()["PostToolUse"], [toolset.recorder_row(self.cfg)])
+        settings["hooks"]["PostToolUse"][0]["hooks"][0]["command"] = shlex.join(
+            [sys.executable, "other-checkout/record-write.py", str(self.cfg / "works-writes")])
+        (self.cfg / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+        self.assertEqual(toolset.guard(self.cfg, self.borrow),
+                         ["settings.json の hooks の行 PostToolUse:Edit|Write|NotebookEdit"], "相対パスの記録器は通さない")
+
 
 class GuardCase(Base):
     def put(self, rel, body="x\n"):
