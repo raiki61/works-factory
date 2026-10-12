@@ -18,7 +18,8 @@ import yaml
 
 from tests import archon
 from tests.bin.gitkit import git
-from tests.workflows.copied import assert_is_original
+from tests.workflows import copied
+from tests.workflows.copied import assert_is_original, role_definition
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "eyes"
@@ -30,6 +31,7 @@ VERDICT_NODES = {f"{n}-verdict": eye for n, eye in zip(EYE_NODES, ("r1", "r2", "
 sys.path.append(str(ROOT / "lib"))
 import concepthome  # noqa: E402
 import eyeverdict  # noqa: E402
+import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import seal  # noqa: E402
 import structmark  # noqa: E402
@@ -152,18 +154,13 @@ HANDOFFS = ("修正の返答の `breaks.accepted`（壊すと分かって通し�
 COMMENT_ANALYZER = "pr-review-toolkit:comment-analyzer"
 
 
-def role_definition(agent: str, body: str) -> str:
-    """rolekit.with_role_definition（works/.shared/core/rolekit.py:208-212）が本文の頭に置いた段"""
-    return f"## お前の役の定義（{agent}）\n\n{body}\n\n---\n\n"
-
-
 def agent_body(role: str) -> str:
     """役の定義の本文。graphloops の役は写しの lib/agents/<役>.md の前付けの後ろ。comment-analyzer は r1-comments.md に置いた本文
     （字は ShapeCase.test_r1_comments_carries_the_comment_analyzer_definition_verbatim が sha256 で縛る）"""
     if role == "comment-analyzer":
         text = (BLOCK / "commands" / "r1-comments.md").read_text(encoding="utf-8")
-        return text.partition(f"## お前の役の定義（{COMMENT_ANALYZER}）\n\n")[2].partition("\n\n---\n\n")[0]
-    return (ROOT / "lib" / "agents" / f"{role}.md").read_text(encoding="utf-8").split("---\n", 2)[2].strip()
+        return text.partition(fixboard.ROLE_DEF_HEAD.format(agent=COMMENT_ANALYZER) + "\n\n")[2].partition("\n\n---\n\n")[0]
+    return copied.agent_body(role)
 
 
 def head_of(who: str, agent: str, *more: str, read_only: str = READ_ONLY) -> str:

@@ -19,12 +19,11 @@ import yaml
 
 from tests import archon
 from tests.bin.gitkit import committed_copy, git
-from tests.workflows.copied import assert_is_original
+from tests.workflows.copied import agent_body, assert_is_original, role_definition
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
 import judge_accept as ja  # noqa: E402
-import fixboard  # noqa: E402
 import rolekit  # noqa: E402
 import seat  # noqa: E402
 
@@ -297,7 +296,7 @@ class RoleSettingsTest(unittest.TestCase):
     def test_dropped_sentences_are_back(self):
         """元の役の指示書から落ちていた文: 仕様の審査役の前付け（judge）・仕様の役の実装に触れない決まり・局所レビューの無人の読み替え
         （元 rolekit.skill_overlay が末尾に載せた全文）"""
-        judge = (ROOT / "lib" / "agents" / "judge.md").read_text(encoding="utf-8").split("---\n", 2)[2].strip()
+        judge = agent_body("judge")
         self.assertIn(judge, (COMMANDS / "spec-review.md").read_text(encoding="utf-8"))
         for name in ("spec", "spec-revise"):
             self.assertIn("実装のファイルは 1 文字も変えるな", (COMMANDS / f"{name}.md").read_text(encoding="utf-8"))
@@ -916,16 +915,9 @@ QUERY_RULE_LEAD = ("外のサービスへ問い合わせる時の決まり（wor
                   "で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:")
 QUERY_RULE = seat.query_rule()
 QUERY_HEAD = QUERY_RULE_LEAD + "\n" + QUERY_RULE + "\n\n---\n\n"
-# 役の定義の本文（works/.shared/core/agents/<役>.md の前付けの後ろ。写しの lib/agents/<役>.md から読む）。元は rolekit.with_role_definition（rolekit.py:208）が
-# 描いた指示書の頭に「## お前の役の定義（<役>）」の見出しで置いた
+# 役の定義の本文。元は rolekit.with_role_definition（rolekit.py:208）が描いた指示書の頭に「## お前の役の定義（<役>）」の見出しで置いた
 JUDGE_BODY, INVESTIGATOR_BODY, INSPECTOR_BODY, COLD_READER_BODY = (
-    (ROOT / "lib" / "agents" / f"{role}.md").read_text(encoding="utf-8").split("---\n", 2)[2].strip()
-    for role in ("judge", "investigator", "inspector", "cold-reader"))
-
-
-def role_definition(agent: str, text: str) -> str:
-    """rolekit.with_role_definition（works/.shared/core/rolekit.py:208-212）の頭の段"""
-    return f"{fixboard.ROLE_DEF_HEAD.format(agent=agent)}\n\n{text}\n\n---\n\n"
+    agent_body(role) for role in ("judge", "investigator", "inspector", "cold-reader"))
 
 
 # 拒否の理由の節。元は rolekit.with_reject（works/.shared/core/rolekit.py:219-223）と material.prep（works/blk-material/lib/material.py:388-391）が
