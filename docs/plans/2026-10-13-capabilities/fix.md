@@ -1286,7 +1286,7 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
   - 本物の run: 親の置き場の `assert-changed.json`（健全な run で {ok: true, reason: ""}）
   - 狭め: 無し（試験の欠け）
 
-- F420 返りの約束: 返す節 fix は約束の 10 欄（done・units・groups・conflicts・replan_items・objection・diff・allowed_test_changes・changed・delta_review）だけを、全部必須・追加の欄なしで返す。outcome_field は done
+- F420 返りの約束: 返す節 fix は約束の 12 欄（done・units・groups・conflicts・replan_items・objection・diff・allowed_test_changes・changed・delta_review・handoffs・mismatched）だけを、全部必須・追加の欄なしで返す。outcome_field は done
   - 元: works/blk-fix/blk-fix.yaml:2046-2082 の collect（ok・files・changes_file・removed・tdd・fix_file・not_done・coverage・reads_file・reason）
   - 今: workflows/fix/works-factory-fix.yaml:1368-1436（節 fix）・:54-55
   - 証: tests/workflows/test_fix.py::ContractCase.test_exact_fields_all_required_and_closed（assert: tests/workflows/test_fix.py:104・105・106）、::ContractCase.test_returns_fix_with_outcome_done
@@ -1374,7 +1374,7 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
   - 元: 無し（元は 1 つの盤面）
   - 今: workflows/line/scripts/fixed.py:8・21・46
   - 証: tests/workflows/test_line.py:468-495（conflicts の配列と allowed_test_changes の和）
-  - 本物の run: 線の節 fixed の出力
+  - 本物の run: 筋書きでのみ（2 回目の refix が要る。在れば線の節 fixed の出力）
   - 狭め: 無し（線の範囲。ここでは F426・F429 の材料として挙げる）
 
 - F433 並べた run の子の worktree と枝の片付け

@@ -11,8 +11,8 @@ workflow runs の started_at の順で 1 から。
 
 照らしは 5 種（exists・json-has・json-equals・text-contains・node-completed）。where は evidence/ からの glob で、当たったファイルの
 どれか 1 つで通れば通る。path は欄の道（. で区切る。数は並びの番目、* はどの要素・値でも）。node-completed は run の記録の nodes[]
-に、節の id が node か <node>__ で始まる（include の頭）節が completed で在れば通る（nodes[] は飛ばされた節・落ちた節も載せるので、
-節の名だけでは走ったと言えない）。判じは pass・fail・missing（where に当たる
+に、節の id がちょうど node の節が completed で在れば通る（nodes[] は飛ばされた節・落ちた節も載せるので、節の名だけでは走ったと
+言えない。include の頭で照らすと、差し込んだ節のどれか 1 つが走れば通ってしまう）。判じは pass・fail・missing（where に当たる
 ファイルが無い）・unreadable（在るが読めない。黙って fail にしない。落とし穴 K15）の 4 つ。標準ライブラリだけ。期限を置かない。
 
 check は照らしの表 evidence.json（能力の棚卸しの 1 行 = 表の 1 行）を読み、行ごとに判じを 1 行出し、最後に区分（L・J・P・F・T・
@@ -152,7 +152,7 @@ def _completed(record, name: str) -> str | None:
     nodes = record.get("nodes") if isinstance(record, dict) else None
     for node in nodes if isinstance(nodes, list) else ():
         ident = node.get("nodeId") if isinstance(node, dict) else None
-        if isinstance(ident, str) and (ident == name or ident.startswith(name + "__")) and node.get("state") == COMPLETED:
+        if ident == name and node.get("state") == COMPLETED:
             return f"{ident} = {COMPLETED}"
     return None
 

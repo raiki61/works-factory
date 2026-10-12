@@ -4,15 +4,18 @@ collect の後ろの Archon は偽の殻で、家の fake-runs.json の run を 
 表の試験は、表を能力の棚卸し docs/plans/2026-10-13-capabilities/ と線の配線の文書 docs/plans/2026-10-13-line-wiring.md に
 照らす。棚卸しの行は、区分の ID で始まる頭の箇条で「本物の run」の欄を持つ物（ほかの行を指すだけの参照の行と、穴の要約の再掲は
 欄を持たない）。"""
+import ast
+import io
 import json
 import pathlib
 import re
 import subprocess
 import sys
+import tokenize
 import unittest
 
 from tests.bin import hermetic, stepnames
-from tests.e2e import evidence
+from tests.e2e import evidence, make_target
 
 E2E = pathlib.Path(__file__).resolve().parent
 ROOT = E2E.parents[1]
@@ -25,10 +28,18 @@ SCENARIO_ONLY = "筋書きでのみ"
 RECORDS = {"record/parent.json": "works-factory-line", "record/child-*.json": "works-factory-fix"}
 OUTSIDE = "この文書の外"
 WRITERS = ("lib", "workflows", "bin")
-# 名を組んで書くので字で引けない置き場 → 名を組む所（Archon が書く物は、その節を置く YAML の行）
+# writer の行から名を探す前後の行の数（書く関数の頭の定数の読みと、名を組んで書く行が届く幅）
+WRITER_REACH = 30
+# 名を組んで書く・名の表から引いて書くので字で引けない置き場 → 名を組む所・表の行（Archon が書く物は、その節を置く YAML の行）
 NAMED_BY_PATTERN = {
     "parent/gates/gate-start.json": "lib/answer.py:64",
+    "parent/gates/gate-final.json": "lib/answer.py:64",
     "parent/gates/gate-*.json": "lib/answer.py:64",
+    "parent/plan/r1/plan-fields.json": "lib/marks.py:45",
+    "parent/fix/fix/plan-fields.json": "lib/marks.py:45",
+    "parent/judge/purpose-means.json": "lib/marks.py:58",
+    "parent/eyes/r1.json": "workflows/eyes/scripts/eye_verdict.py:18",
+    "parent/eyes/r1-comments.json": "workflows/eyes/works-factory-eyes.yaml:142",
     "parent/nodes/*.meta.json": "workflows/fix/works-factory-fix.yaml:175",
     "parent/judge/material-prior-decisions-brief.md": "lib/judge_accept.py:2396",
     "parent/judge/material-prior-decisions.json": "lib/judge_accept.py:2883",
@@ -39,6 +50,77 @@ NAMED_BY_PATTERN = {
     "parent/fix/fix/review1-brief.json": "lib/refix.py:155",
     "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:474",
 }
+
+
+class CodeText:
+    """リポジトリのコードの字（コメント・Python の docstring を空の行にし、行の番号を保つ）と、コードの全部の定数（大文字の名 = 字）"""
+
+    def __init__(self):
+        self._lines: dict[str, list[str]] = {}
+        sources = [p for top in WRITERS for p in (ROOT / top).rglob("*") if p.is_file() and p.suffix in (".py", ".yaml", ".sh")
+                   and not {"tests", "fixtures"} & set(p.relative_to(ROOT).parts)]
+        self.constants: dict[str, list[str]] = {}
+        for p in sources:
+            if p.suffix == ".py":
+                for ident, value in _constants(p.read_text(encoding="utf-8")):
+                    self.constants.setdefault(ident, []).append(value)
+
+    def lines(self, rel: str) -> list[str]:
+        if rel not in self._lines:
+            path = ROOT / rel
+            text = path.read_text(encoding="utf-8")
+            self._lines[rel] = _python_code(text) if path.suffix == ".py" else [re.sub(r"(^|\s)#.*$", "", line)
+                                                                             for line in text.splitlines()]
+        return self._lines[rel]
+
+    def text(self, rel: str) -> str:
+        return "\n".join(self.lines(rel))
+
+    def names(self, text: str, name: str) -> bool:
+        """text が name を字のまま持つか、name を作る定数（{…} の差し込みはどの字でも）の名を持つか"""
+        if name in text:
+            return True
+        return any(re.fullmatch(".+".join(map(re.escape, re.split(r"\{[^}]*\}", value))), name)
+                   for ident in set(re.findall(r"\b[A-Z][A-Z0-9_]{2,}\b", text)) for value in self.constants.get(ident, ()))
+
+
+def _constants(text: str):
+    """Python の字の大文字の名に結んだ字（字の並び・f 字列の差し込みは {} にした字）の (名, 字) の並び"""
+    def strings(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            yield node.value
+        elif isinstance(node, ast.JoinedStr):
+            yield "".join(v.value if isinstance(v, ast.Constant) else "{}" for v in node.values)
+        elif isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+            for elt in node.elts:
+                yield from strings(elt)
+
+    for node in ast.walk(ast.parse(text)):
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            pairs = (zip(target.elts, node.value.elts) if isinstance(target, ast.Tuple) and isinstance(node.value, ast.Tuple)
+                     else [(target, node.value)])
+            for name, value in pairs:
+                if isinstance(name, ast.Name) and name.id.isupper():
+                    yield from ((name.id, v) for v in strings(value))
+
+
+def _python_code(text: str) -> list[str]:
+    """Python の字の行の並び。コメントと docstring（モジュール・クラス・関数の頭の字の式）を空にする"""
+    lines = text.splitlines()
+    for node in ast.walk(ast.parse(text)):
+        body = getattr(node, "body", None)
+        if isinstance(body, list) and body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+                and isinstance(body[0].value.value, str):
+            for n in range(body[0].lineno - 1, body[0].end_lineno):
+                lines[n] = ""
+    for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+        if tok.type == tokenize.COMMENT:
+            row, col = tok.start
+            lines[row - 1] = lines[row - 1][:col]
+    return lines
+
 
 FAKE_SHELL = """#!/usr/bin/env python3
 import json, os, pathlib, sys
@@ -135,9 +217,9 @@ class EvidenceTableCase(unittest.TestCase):
                 self.assertEqual(waiting, parts[part])
 
     def test_node_rules_name_node_ids_the_workflow_makes(self):
-        """run の記録の節を照らす行は node-completed で、node はその run の工程の YAML から組んだ節の id か、その include の頭。
-        種類を問わない（seen でない行も、当たらなければ unexpected を言えない）。nodes[] は飛ばされた節も載せるので、節の名を
-        json-equals や text-contains で照らす行を置かない"""
+        """run の記録の節を照らす行は node-completed で、node はその run の工程の YAML から組んだ節の id そのもの（include の頭は
+        差し込んだ節のどれか 1 つが走れば通るので名指さない）。種類を問わない（seen でない行も、当たらなければ unexpected を言えない）。
+        nodes[] は飛ばされた節も載せるので、節の名を json-equals や text-contains で照らす行を置かない"""
         names = {where: stepnames.step_names(flow) for where, flow in RECORDS.items()}
         for row in self.rows:
             if not row.get("where", "").startswith("record/"):
@@ -148,29 +230,42 @@ class EvidenceTableCase(unittest.TestCase):
                 self.assertFalse(row["check"] == "text-contains" and ("nodeId" in row["text"] or row["text"].endswith('"')),
                                  "節の名だけの照らし")
                 if row["check"] == "node-completed":
-                    node, made = row["node"], names[row["where"]]
-                    self.assertTrue(node in made or any(n.startswith(node + "__") for n in made), node)
+                    self.assertIn(row["node"], names[row["where"]])
 
     def test_seen_rows_name_a_writer_in_the_repository(self):
-        """seen の行の writer はリポジトリの在る行で、where のファイル名（glob の無い名）を lib・workflows・bin のどれかが書く。
-        名を組んで書く置き場は NAMED_BY_PATTERN に名を組む行と名指す"""
-        sources = [p for top in WRITERS for p in (ROOT / top).rglob("*") if p.is_file()
-                   and (p.suffix in (".py", ".yaml", ".md", ".sh") or p.parent.name == "bin")
-                   and not {"tests", "fixtures"} & set(p.relative_to(ROOT).parts)]
-        written = "\n".join(p.read_text(encoding="utf-8") for p in sources)
-        for writer in [row["writer"] for row in self.rows if row["kind"] == "seen"] + list(NAMED_BY_PATTERN.values()):
-            with self.subTest(writer=writer):
-                path, line = writer.rsplit(":", 1)
-                self.assertLessEqual(int(line), len((ROOT / path).read_text(encoding="utf-8").splitlines()))
-        for row in self.rows:
-            if row["kind"] != "seen":
-                continue
+        """seen の行の writer は lib・workflows・bin のコードの在る行で、その行の近く（前後 WRITER_REACH 行）のコードの字（コメント・
+        docstring・.md を除く）に where のファイル名か、その名を作る定数が在る。where の置き場の頭のフォルダ（parent/・child-*/ の次）
+        の名も、書き手のファイルかそのブロックの script と YAML のコードの字に在る。名を組んで書く置き場は NAMED_BY_PATTERN に名を
+        組む行と名指し、名の照らしだけを外す。run の記録の節の行の writer は、その節の id を置く YAML の行"""
+        code = CodeText()
+        for row in [r for r in self.rows if r["kind"] == "seen"] + [{"id": w, "where": w, "writer": v}
+                                                                     for w, v in NAMED_BY_PATTERN.items()]:
             with self.subTest(row=row["id"]):
-                name = row["where"].rsplit("/", 1)[-1]
-                if row["where"].startswith("record/") or row["where"] in NAMED_BY_PATTERN:
+                path, line = row["writer"].rsplit(":", 1)
+                self.assertIn(pathlib.PurePosixPath(path).parts[0], WRITERS)
+                lines = code.lines(path)
+                self.assertLessEqual(int(line), len(lines))
+                self.assertTrue(lines[int(line) - 1].strip(), f"{row['writer']} がコードの行でない（空かコメント）")
+                near = "\n".join(lines[max(0, int(line) - 1 - WRITER_REACH):int(line) + WRITER_REACH])
+                if row.get("check") == "node-completed":
+                    steps = {row["node"].split("__", 1)[0], row["node"].rsplit("__", 1)[-1].rsplit(".", 1)[-1]}
+                    placed = re.findall(r"\bid: (\S+)", "\n".join(lines[int(line) - 1:int(line) + 1]))
+                    self.assertTrue(steps & set(placed), f"{row['writer']} が節 {row['node']} を置く行でない")
                     continue
+                if row["where"].startswith("record/"):
+                    continue
+                rest = row["where"].split("/")[1:]
+                folder = rest[0] if len(rest) > 1 and not re.search(r"[*?\[]", rest[0]) else ""
+                if folder:
+                    block = ROOT / "workflows" / folder
+                    here = [code.text(path), *(code.text(p.relative_to(ROOT).as_posix()) for p in sorted(block.rglob("*"))
+                                               if p.suffix in (".py", ".yaml") and "fixtures" not in p.parts)]
+                    self.assertTrue(any(code.names(t, folder) for t in here), f"{row['where']} のフォルダ {folder} を書き手が作らない")
+                if row["where"] in NAMED_BY_PATTERN:
+                    continue
+                name = rest[-1]
                 self.assertNotRegex(name, r"[*?\[]", "glob の名は NAMED_BY_PATTERN に名指す")
-                self.assertTrue(name in written, f"{row['where']} の名を書くコードが無い")
+                self.assertTrue(code.names(near, name), f"{row['writer']} の近くに {name} の名もその名を作る定数も無い")
 
     def test_backlog_and_handed_off_rows_name_their_place(self):
         _, outside = wiring()
@@ -180,6 +275,98 @@ class EvidenceTableCase(unittest.TestCase):
                     self.assertEqual(row["why"], outside.get(row["id"]), "backlog の行は「この文書の外」のその節の名を持つ")
                 if row["kind"] == "handed-off":
                     self.assertTrue(row["why"].strip() and row["to"].strip())
+
+
+SCENARIO = ROOT / "harness" / "runtime.scenario.json"
+SCRIPTS = ROOT / "workflows"
+IDLE_RUN = "idle"
+SKIPPED = "skipped"
+# start に入力を受けさせない名指し（固定材料から始める道はまだ無い）。受けない start は入力のこだまと版の控えだけを書く
+REFUSED_INPUT = "fixture"
+
+
+def seed_inputs(request: str) -> dict[str, str]:
+    """筋書きが線を起こす命令の --input（<request> は種の依頼のパス）"""
+    text = json.loads(SCENARIO.read_text(encoding="utf-8"))["assertions"][0]["description"]
+    launch = re.search(r"`[^`]* workflow run works-factory-line [^`]*`", text).group(0)
+    return {k: request if v == "<request>" else v.strip("'") for k, v in re.findall(r"--input (\w+)=('[^']*'|[^\s`]+)", launch)}
+
+
+def idle_run(tmp: pathlib.Path) -> pathlib.Path:
+    """何も働かなかった run の試みのフォルダ。run の記録は線と fix の組の子の全部の節が skipped。置き場は、どの能力も働かなくても
+    書かれる物だけ: 種の入力を受けなかった線の始めの節 start（入力のこだまと版の控え）と、各ブロックとメイングラフの落ちない返す節・
+    目の prep を、上流が全部飛んだ形（入力が null）で今の書き手のまま走らせた物（判定・計画の空の埋め物、目の prep がいつも書く欄、
+    報告の見出しと 0 件の行など）"""
+    made = make_target.make(tmp / "attempt", listed=False)
+    target, attempt = pathlib.Path(made["target"]), tmp / "attempt"
+    ev = attempt / evidence.EVIDENCE
+    (ev / "record").mkdir(parents=True)
+
+    def ptr(rel):
+        return json.dumps({"type": "archon_artifact", "run_id": IDLE_RUN, "path": rel})
+
+    def script(folder, rel, node="", unset="null", /, **inputs):
+        """rel を節として走らせた返り。渡さない入力は unset（飛んだ節の返りは null、線の渡さない入力は空の字）"""
+        path = SCRIPTS / rel
+        env = hermetic.child_env(ARTIFACTS_DIR=str(folder), WORKFLOW_ID=IDLE_RUN)
+        env.update({n: unset for n in re.findall(r"INPUTS_[A-Z0-9_]+", path.read_text(encoding="utf-8"))})
+        env.update({f"INPUTS_{k.upper()}": v for k, v in inputs.items()})
+        if node:
+            env["ARCHON_NODE_EXECUTION"] = json.dumps({"path": node})
+        done = subprocess.run([sys.executable, str(path)], cwd=target, env=env, capture_output=True, text=True,
+                              encoding="utf-8", timeout=300)
+        if done.returncode != 0:
+            raise AssertionError(f"{rel} が落ちた: {done.stderr[-500:]}")
+        return json.loads(done.stdout)
+
+    parent = ev / "parent"
+    parent.mkdir()
+    start = ptr("start.json")
+    refused = script(parent, "line/scripts/start.py", "", "", **seed_inputs(made["request"]), fix_fixture=REFUSED_INPUT)
+    if refused["ok"]:
+        raise AssertionError("start が固定材料の名指しを受けた（入力を受けない道で走らせられない）")
+    for mode in ("base", "final"):
+        script(parent, "test-gate/scripts/result.py", f"test-gate-{mode}__result", mode=mode, start=start)
+    script(parent, "judge/scripts/verdict.py", objection="")
+    judgment = ptr("judge/judgment.json")
+    opened = script(parent, "plan/scripts/round.py", ruling="", start=start, judgment=judgment)
+    script(parent, "plan/scripts/plan_collect.py", dir=opened["dir"], start=start, judgment=judgment)
+    script(parent, "plan-review/scripts/result.py", start=start)
+    script(parent, "fix/scripts/collect.py", "fix__fix", mode="")
+    (parent / "empty.diff").write_text("", encoding="utf-8")
+    script(parent, "eyes/scripts/prep.py", "eyes__prep", start=start, judgment=judgment, purpose=ptr("judge/purpose.json"),
+           diff=ptr("empty.diff"), changed="[]", depth="[]", x_scalars="[]", units="[]", fix_units="[]", green_ok="false",
+           plan_questions="[]")
+    script(parent, "eyes/scripts/verdict.py", "eyes__verdict", start=start, plan_questions="[]")
+    for mode in ("seal", "apply"):
+        script(parent, "merge/scripts/merge.py", f"merge-{mode}__merge", mode=mode, start=start, sealed_hash="")
+    script(parent, "line/scripts/collect.py", start=start)
+    facts = script(parent, "report/scripts/facts.py", start=start)
+    returned = script(parent, "line/scripts/result.py",
+                      **{k: json.dumps(facts[k]) for k in ("ok", "outcome", "stop_reason", "report", "next_request",
+                                                           "prior_failures")})
+    child = ev / "child-1"
+    child.mkdir()
+    script(child, "fix/scripts/collect.py", mode="group", group=json.dumps({"group_id": "g1", "unit_ids": ["stats.py"]}))
+    for name, flow, value in (("parent", "works-factory-line", returned), ("child-1", "works-factory-fix", None)):
+        nodes = [{"nodeId": n, "state": SKIPPED} for n in sorted(stepnames.step_names(flow))]
+        record = {"id": name, "status": "completed", "nodes": nodes,
+                  "terminal_record": {"status": "completed", "nodes": nodes, "returns": {"value": value},
+                                      "artifacts": {"root": str(ev / name)}}}
+        (ev / "record" / f"{name}.json").write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+    return attempt
+
+
+class IdleRunCase(unittest.TestCase):
+    """照らしの基準: その能力が働かなかった run では当たらない照らしだけを seen にする。何も働かなかった run に当たる行は、照らしを
+    種の run の中身でしか当たらない字や値に替えるか、scenario-only・seed-cannot に移す。seen でない行も、当たれば unexpected と
+    言えなくなるので同じ"""
+
+    def test_no_row_holds_on_a_run_where_nothing_worked(self):
+        got = evidence.check(idle_run(hermetic.tmpdir(self)))
+        held = [f"{r['id']}（{r['kind']}）: {r['detail']}" for r in got if r["state"] in (evidence.SEEN, evidence.UNEXPECTED)]
+        self.assertEqual(held, [], "\n".join(held))
+        self.assertEqual([r["id"] for r in got if r["state"] == evidence.UNREADABLE], [])
 
 
 class EvidenceCheckCase(unittest.TestCase):
@@ -209,7 +396,7 @@ class EvidenceCheckCase(unittest.TestCase):
             ({"check": "text-contains", "where": "parent/b.md", "text": "green: false"}, evidence.PASS),
             ({"check": "text-contains", "where": "parent/b.md", "text": "green: true"}, evidence.FAIL),
             ({"check": "node-completed", "where": "record/parent.json", "node": "fix__prep"}, evidence.PASS),
-            ({"check": "node-completed", "where": "record/parent.json", "node": "fix"}, evidence.PASS),
+            ({"check": "node-completed", "where": "record/parent.json", "node": "fix"}, evidence.FAIL),
             ({"check": "node-completed", "where": "record/parent.json", "node": "fix__pre"}, evidence.FAIL),
             ({"check": "node-completed", "where": "record/parent.json", "node": "start"}, evidence.FAIL),
         ]

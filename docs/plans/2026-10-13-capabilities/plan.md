@@ -389,7 +389,7 @@
   - 元: planblk.py:1441 `collect`（ok・plan_file・ripple_file ほか）
   - 今: workflows/plan/scripts/plan_collect.py:57-90・lib/planfile.py:1056 `placeholders`
   - 証: tests/workflows/test_plan.py::CollectCase.test_broken_inputs_still_return_the_contract（assert: tests/workflows/test_plan.py:704・:705・:712・:717）・SurvivesCase（:828・:829・:833）
-  - 本物の run: plan の節の出力の plan・structure・ripple の指し札（plan と ripple は plan/r1/…、structure は plan/structure/<鍵>/structure-state.json。出力は run の記録に載らないので、照らしは節 plan-rounds.plan__plan の completed）
+  - 本物の run: 筋書きでのみ（落ちない返す節の誤りの道は種で通らない。在れば plan の節の出力の plan・structure・ripple の指し札（plan と ripple は plan/r1/…、structure は plan/structure/<鍵>/structure-state.json）と周のフォルダの collect-error.txt）
   - 狭め: 無し
 
 - P054 返りの約束: ready・plan・structure・ripple の指し札（archon_artifact）・depth・round を、ちょうどこの 6 つで返す。
@@ -1288,7 +1288,7 @@
   - 元: works/.shared/core/design.py:648 `_map_gaps`・works/tests/test_blk_plan.py:1849
   - 今: lib/design.py:572 `_map_gaps`
   - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_design_map_must_cover_every_added_name（assert: :828-834）
-  - 本物の run: `plan-review/pass-1/review.json` に design_map が無い
+  - 本物の run: 筋書きでのみ（design_map の誤りを拒む道は種で通らない。在れば `plan-review/pass-1/review.json` に design_map が無い）
   - 狭め: 無し
 
 - P179 設計が無い run では引用の照らしをしない
@@ -1432,7 +1432,7 @@
   - 元: works/blk-plan/lib/planblk.py:141 `take`（engine の型の照らし）
   - 今: lib/boardview.py:830-837
   - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_unreadable_reply_goes_back_to_the_role（assert: :710-711）・PortedMaterialCase.test_reply_out_of_the_role_format_is_rejected（assert: :1633-1634）
-  - 本物の run: 節 `review-accept` の reason
+  - 本物の run: 筋書きでのみ（返答を拒む道は、種の役が型の合う返答を返すと通らない。在れば節 `review-accept` の reason）
   - 狭め: 無し
 
 - P199 関所の項目の行の推し（recommend）の形が崩れていれば RECOMMEND_REJECT で拒む
@@ -1446,7 +1446,7 @@
   - 元: works/.shared/core/graphloops/rules/review-loop.py:3096 `plan_review_output`・:3067 `_keys_once`・:480 `blank`
   - 今: lib/boardview.py:201 `plan_review_output`・:191・:171
   - 証: lib/tests/test_boardview.py::RulesCase.test_plan_review_output（assert: lib/tests/test_boardview.py:213-217）・tests/workflows/test_plan_review.py::ReviewAcceptCase.test_entrance_needs_no_add（assert: :661-664）・ReviewAcceptCase.test_faces_none_and_units_and_keys（assert: :681-682）
-  - 本物の run: `plan-review/pass-1/review.json` の faces_none か faces
+  - 本物の run: 筋書きでのみ（穴の向きを拒む道は種で通らず、受けた返答の faces_none の中身は照らしで言えない。在れば `plan-review/pass-1/review.json` の faces_none か faces）
   - 狭め: 無し
 
 - P201 3 回とも拒まれたら done・give_up で輪を抜け、review.json に空の穴と最後の拒みの訳を書き、返す節は pass: false・stalled: true・ask_human: true と「事前審査の受け付けが諦めた: …」を questions に返す
@@ -1660,7 +1660,7 @@
   - 元: works/.shared/core/gatemarks.py:576 `axes`
   - 今: lib/gatemarks.py:561 `axes`・lib/gate_axes.py:40-42・lib/boardview.py:578 `_copy_world`（world が null なら控えを消して今どおりの軸に戻す）
   - 証: tests/workflows/test_plan_review.py::FourAxesCase.test_no_world_asks・lib/tests/test_gate_axes.py::SplitCase.test_no_world_is_not_world・test_world_rows_take_the_axis_off_the_row（assert: lib/tests/test_gate_axes.py:110）
-  - 本物の run: `plan-review/world-state.json` の在る無しと `gate_axes.world`
+  - 本物の run: 筋書きでのみ（軸の値は返す節 review の出力にだけ在り置き場に書かれない。在れば `plan-review/world-state.json` の在る無しと `gate_axes.world`）
   - 狭め: 無し
 
 - P230 軸「汚くない」: 行の単位に構造の目が人に上げた行が無く、構造の目が汚れると見た単位には修正案の欄 structure の答えが在る（控えが読めなければ照らさない）

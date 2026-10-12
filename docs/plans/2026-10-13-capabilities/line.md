@@ -448,7 +448,7 @@
   - 元: works/.shared/core/gatemarks.py:625-642 `plan_gate_items`・works/darkfactory/darkfactory.yaml:491-547 `h-gate`
   - 今: scripts/ask_before_fix.py:31-55、main lib/boardview.py:942-955 `collect`
   - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_clean_plan_goes_to_fix_without_the_gate（assert: :223）・test_no_plan_goes_nowhere（:220）・test_reasons_that_open_the_gate（:234）
-  - 本物の run: `ask-before-fix.output.open`
+  - 本物の run: 筋書きでのみ（種は人に回す項目が無く、開かずに修正へ進むことは節の名で言えない。在れば `ask-before-fix.output.open`）
   - 狭め: 無し
 - L-G18 決め手が揃い 4 つの軸が揃う行は聞かずに通し、出どころつきで通した行として残す
   - 元: works/.shared/core/gatemarks.py:576-602 `axes`・:1239-1242 `_record`
@@ -914,7 +914,7 @@
   - 元: works/darkfactory/lib/line_edge.py:1210-1215・:149 `gate_text`。試験 works/tests/test_edge.py::GateCase.test_gate_asks_with_text（:228）・test_gate_not_asking_leaves_closed（:245）
   - 今: scripts/ask_before_fix.py:31-60（細目は L-G17〜L-G28）
   - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_reasons_that_open_the_gate（:234-235）・test_clean_plan_goes_to_fix_without_the_gate（:223）
-  - 本物の run: 節 ask-before-fix の output.open・text
+  - 本物の run: 筋書きでのみ（種は人に聞く物が無く、修正前の関所が開く道を通らない。在れば節 ask-before-fix の output.open・text）
   - 狭め: 無し
 - L-W39 無人の run では、関所を開くはずの時に止め（needs-human）、問いと聞かずに通した直しを報告へ回す
   - 元: works/tests/test_line_a.py::ConvergeLineCase.test_unattended_same_block_stops（:882）、gatepolicy
@@ -980,7 +980,7 @@
   - 元: 盤面に積んでいた
   - 今: scripts/fixed.py:35 `fixed`
   - 証: tests/workflows/test_line.py::FixedCase.test_refix_is_merged_without_losing_the_first（:491-497）
-  - 本物の run: 節 fixed の output
+  - 本物の run: 筋書きでのみ（2 回目の修正が要る。在れば節 fixed の output）
   - 狭め: 無し
 - L-W50 単位ごとの深さを修正へ渡し、修正の後の信号で上げ直して独立の目が省くかを決める
   - 元: works/darkfactory/darkfactory.yaml:596-620（h-depth）・:636・:875-899（h-redepth）・:1201（skip_optional）。試験 works/tests/test_line.py::DepthWiringCase.test_depth_nodes_wired（:430）
@@ -1314,7 +1314,7 @@
   - 元: works/.shared/core/replan.py:184 `hand_held`・:202 `settle`
   - 今: scripts/fixed.py:37-58
   - 証: FixedCase.test_refix_is_merged_without_losing_the_first（:490-496）
-  - 本物の run: 節 fixed の出力（種では refixed が false）
+  - 本物の run: 筋書きでのみ（2 度目の修正が要る。種では refixed が false。在れば節 fixed の出力）
   - 狭め: 無し
 - L-D38 2 度目の修正でまた案の誤りと裁かれたら、案の段には戻らずに諦め（CLOSE_WHY）、人に回す行にする
   - 元: works/.shared/core/replan.py:159 `close`・:99 CLOSE_WHY（works/tests/test_replan.py:1431）

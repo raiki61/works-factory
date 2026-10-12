@@ -496,7 +496,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-tests/blk-tests.yaml:4-5・works/blk-tests/scripts/run_tests.py:78
   - 今: workflows/test-gate/scripts/result.py:139-146・線 workflows/line/works-factory-line.yaml（#74 の head）:722-738（eyes は test-gate-final の後にいつも走る）・:819-821（ask-final が tests_ok・green・red_cause を読む）
   - 証: lib/tests/test_declared_checks.py::TestModesCase.test_final_red_suite_is_ok（assert: :458-459）・tests/workflows/test_test_gate.py::FixtureCase.test_fixtures_pass_in_archon（筋書き final-red。assert: :584）・tests/workflows/test_gate_head.py::FinalHeadCase.test_three_lines_and_reasons（#74 の head。assert: :125）
-  - 本物の run: 節 test-gate-final__result の ok・green・red_cause と gates/gate-final.json
+  - 本物の run: 筋書きでのみ（種は最後のテストが緑の見込みで、赤で止めずに進む道を通らない。在れば節 test-gate-final__result の ok・green・red_cause と gates/gate-final.json）
   - 狭め: 無し
 
 - T67 最後の関所の 1 行目のテストの語が、緑・赤（原因）・認証できなかった（原因）を区別する。
@@ -622,7 +622,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/blk-eyes/lib/eyes.py:72-74 `LANE_AFTER`、works/blk-eyes/blk-eyes.yaml:815-826 `r4-scope-route`（all_done）
   - 今: workflows/eyes/works-factory-eyes.yaml:272-276
   - 証: tests/workflows/test_eyes.py::ShapeCase.test_r4_waits_for_r1_and_r2_lanes（assert: tests/workflows/test_eyes.py:460,461）、lib/tests/test_eyeverdict.py::CollectCase.test_fallen_r2_lane_still_runs_r4_and_is_named（assert: lib/tests/test_eyeverdict.py:284-286）
-  - 本物の run: 節 eyes__r4-scope の始まりが eyes__r1-minimality と eyes__r2-compare の終わりより後
+  - 本物の run: 筋書きでのみ（前の筋が落ちても R4 が飛ばない道は種で通らず、節の順は nodes[] で照らせない。在れば節 eyes__r4-scope の始まりが eyes__r1-minimality と eyes__r2-compare の終わりより後）
   - 狭め: 無し
 
 - E9 R1 の前段・比較役・前提の検算・R3 は互いを待たず、支度の後に並んで走る。
@@ -1863,7 +1863,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/protect.py:146-173 `touched`・`lines`（line_edge._protected が呼ぶ）
   - 今: wf merge.py:65-68・lib/seal.py:54-67 `diff_files`・lib/protect.py:98-107 `hits`・:167-173 `lines`
   - 証: wf test_merge.py::SealTest.test_protected_hit_is_named（assert: test_merge.py:195-196）・test_index_marks_do_not_hide_a_protected_hit（assert: :205「（+1 −1）」）・wf lib/tests/test_protect.py::TouchedCase.test_lines_name_file_stat_and_rule（assert: test_protect.py:164-165）
-  - 本物の run: `merge-seal.output.protected_hits`（種では `[]`）。当たる道は筋書きでのみ
+  - 本物の run: 筋書きでのみ（種は守りのパスに当たらない。在れば `merge-seal.output.protected_hits`（種では `[]`））
   - 狭め: 無し
 
 - M8 assume-unchanged・skip-worktree の印の付いた守りのファイルの変更も当たりとして数える（本物の index を通さない）

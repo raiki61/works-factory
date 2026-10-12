@@ -108,7 +108,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 元: works/.shared/core/purpose.py:57 `_tree_unchanged`
   - 今: lib/judge_accept.py:1492 `check_purpose`
   - 証: lib/tests/test_judge_accept.py::PurposeCase.test_purpose_role_changed_the_tree_rejected（assert: :937）・PurposeCase.test_prep_snapshots_the_tree_the_accept_compares（assert: :991）
-  - 本物の run: judge/purpose-tree.json
+  - 本物の run: 筋書きでのみ（写し purpose-tree.json は支度がどの run でも書き、役が読むだけだったかは比べの拒みでしか見えない。在れば judge/purpose-tree.json）
   - 狭め: 無し
 - J17 source_files は作業ツリーの根からの相対の正規形で版に在るファイルだけ（根の外・無い・入れ子・無視されるファイル・サブディレクトリからの道も拒む）
   - 元: works/.shared/core/purpose.py:77 `_source_files_errors`（test_blk_purpose.py:447・460・472・505・512）
@@ -153,7 +153,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 元: works/blk-world/lib/worldblk.py:288 `judge_prep`・worldcheck.py:72 `banned_tokens`・blk-world.yaml の役の道具
   - 今: lib/worldblk.py:293・lib/worldcheck.py:72・workflows/judge/works-factory-judge.yaml の world-classes・world-judge の節
   - 証: lib/tests/test_blk_world.py::Judge.test_prompt_asks_for_excerpts_without_target_text（assert: :364-368）・Judge.test_practice_with_target_identifier_is_refused（assert: :389）・lib/tests/test_world_check.py::Banned.*・tests/workflows/test_judge.py::RoleSettingsTest.test_roles_keep_the_old_settings（assert: tests/workflows/test_judge.py:235）
-  - 本物の run: world-judge の節の指示書（`$world-plan.output.prompt`）
+  - 本物の run: 筋書きでのみ（対象の名を渡さないことは指示書の字の事で、指示書は run の記録にも置き場にも写らない。在れば world-judge の節の指示書（`$world-plan.output.prompt`））
   - 狭め: 無し
 - J24 定石の行の basis は機械だけが付け、differs は challenge を要り、verdict none は依頼が解き方を示さない時だけ、判定の行は類の全部
   - 元: works/blk-world/lib/worldblk.py:343 `judge_problems`
