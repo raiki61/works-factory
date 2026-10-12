@@ -4,6 +4,7 @@
 - 返す JSON の形（`returns`）: その指示書を使うノードの並びと、その `output_format` の正規の JSON の sha256 と、本文が `"欄":` の形で
   書く欄の名の集まりが表と同じ。
 - 禁じた入力（`forbidden`）・手順の順（`steps`）・止める条件（`stops`）: 各項目の `quote` が本文に在り、`steps` は表の順に並ぶ。
+  `forbidden` の `quote` は否定・限定の語か命令の結びまで含む（`POLARITY`）。
   `what` が凍った意味で、書き直しで変えてよいのは `quote` だけ（`what` が変わっていないことは、約束を置いた commit との差分を人が見る）。
 
 表の鍵は、`workflows/*/commands/` の下の全部・`lib/agents/*.md`・グラフの YAML のノードの `prompt`・`systemPrompt`
@@ -29,6 +30,8 @@ INLINE_KEYS = ("prompt", "systemPrompt")
 INSERT = re.compile(r"(?a:\$[A-Za-z_][\w-]*(?:\.[\w-]+)*)|\{\{[^}]*\}\}|［材料:[^］]*］|" + rulebook.HOLE.pattern)
 JSON_KEY = re.compile(r'"([A-Za-z_]\w*)"\s*:', re.ASCII)
 SPACE = re.compile(r"\s")
+# 禁じた入力の quote は否定・限定の語か命令の結びまで含む。否定が quote の外に在ると、禁止を許可に裏返しても quote は本文に残る
+POLARITY = re.compile(r"ない|無[いく]|禁|ず|だけ|のみ|止|しか|拒|でなく|な(?![ぁ-ん])|[けせれろよ](?=[。）*]|$)|\bnot\b", re.IGNORECASE)
 
 
 def _nodes(nodes):
@@ -95,13 +98,15 @@ def measured(root, key, text):
 
 
 def quote_problems(key, text, contract):
-    """`forbidden`・`steps`・`stops` の `quote` が本文に無い・`steps` が順に並ばない。空白は比べない"""
+    """`forbidden`・`steps`・`stops` の `quote` が本文に無い・`steps` が順に並ばない・`forbidden` の `quote` が否定を含まない。空白は比べない"""
     flat = SPACE.sub("", text)
     out = []
     for kind in ("forbidden", "steps", "stops"):
         pos = 0
         for item in contract[kind]:
             quote = SPACE.sub("", item["quote"])
+            if kind == "forbidden" and not POLARITY.search(item["quote"]):
+                out.append(f"{key}: forbidden の「{item['what']}」の quote が否定・限定の語を含まない: {item['quote']!r}")
             at = flat.find(quote, pos) if quote else -1
             if at < 0:
                 where = "の後ろ" if kind == "steps" and pos else ""
@@ -133,6 +138,17 @@ class PromptContractsTest(unittest.TestCase):
         got = quote_problems("a.md", "道具は使わない。", contract)
         self.assertEqual(len(got), 1)
         self.assertIn("道具を呼ばない", got[0])
+
+    def test_forbidden_quote_must_carry_its_negation(self):
+        text = "使える道具は与えられたものだけで、それ以外——ファイルの作成・編集・削除を含む——もできる。"
+        bare = {"forbidden": [{"what": "作成・編集・削除しない", "quote": "ファイルの作成・編集・削除を含む"}], "steps": [], "stops": []}
+        self.assertEqual(len(quote_problems("a.md", text, bare)), 1)
+        held = {"forbidden": [{"what": "作成・編集・削除しない", "quote": "ファイルの作成・編集・削除を含む——はできない"}],
+                "steps": [], "stops": []}
+        self.assertEqual(len(quote_problems("a.md", text, held)), 1, "否定を裏返すと quote が本文に無い")
+        for quote in ("道具を呼ぶな", "写しは一時の置き場に作れ", "Do not modify code"):
+            contract = {"forbidden": [{"what": "x", "quote": quote}], "steps": [], "stops": []}
+            self.assertEqual(quote_problems("a.md", quote, contract), [], quote)
 
     def test_quote_ignores_whitespace(self):
         contract = {"forbidden": [{"what": "道具を呼ばない", "quote": "道具を 呼ぶな"}], "steps": [], "stops": []}
