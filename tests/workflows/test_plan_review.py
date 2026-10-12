@@ -1627,6 +1627,22 @@ class PortedMaterialCase(RunCase):
         rows = json.loads((r.folder / boardview.GATE_ANSWERS_FILE).read_text(encoding="utf-8"))
         self.assertEqual([(x["answer"], x["note"], x["asked"]) for x in rows], [("continue", "GATE-MARK-5151 通す", ["問いの行"])])
 
+    def test_role_prompts_paste_the_frozen_copy(self):
+        """役に貼る方針は始めの記録の固めた版の写し（始めの後に文書を書き換えても、事前審査・下請け・独立設計は固めた版を読む）"""
+        r = self.run_
+        r.ripple(RIPPLE)
+        pol = self.policy()
+        r.start(policy_md=str(pol), policy=policy.freeze(r.tmp / "frozen", r.repo, str(pol)))
+        pol.write_text("# 方針\n- POLICY-MARK-9191 書き換えた\n", encoding="utf-8")
+        got = r.open()
+        self.assertTrue(got["tree"] and got["r2_go"])
+        texts = [pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8"), r.out("r2_prep")["prompt"],
+                 *(p.read_text(encoding="utf-8") for p in sorted((r.folder / planblk.ITEMS_DIR.format(k=1)).glob("item-*.md")))]
+        self.assertGreater(len(texts), 2)
+        for text in texts:
+            self.assertIn("POLICY-MARK-8080", text)
+            self.assertNotIn("POLICY-MARK-9191", text)
+
     def test_no_policy_no_section(self):
         r = self.run_
         r.open()

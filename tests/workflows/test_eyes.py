@@ -538,6 +538,14 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(got["diff_lines"], 6)
         self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), got)
 
+    def test_policy_path_is_frozen_copy(self):
+        """独立の目に渡す方針のパスは始めの記録の固めた版の写し（policy_md の生の文書ではない）"""
+        self.prep_inputs()
+        self.start(policy_md=str(self.repo / "POLICY.md"),
+                   policy={"named": "POLICY.md", "path": str(self.repo / "POLICY.md"), "sha256": "a" * 64,
+                           "copy": "/run/policy/frozen.md"})
+        self.assertEqual(self.run_script("prep")["policy_path"], "/run/policy/frozen.md")
+
     def test_prep_pastes_the_premises_and_names_the_target_review_md(self):
         self.prep_inputs()
         (self.repo / "REVIEW.md").write_text("# 観点\n", encoding="utf-8")

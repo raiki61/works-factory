@@ -7,20 +7,50 @@
 関所の答えの読みと返り {go, answer, stop_reason} は gate_answer と同じ。加えて答えに関所で見せた問いの行 asked を足す。fix の置き場の
 読み（lib/fixboard.py の gate_items）は asked の行が問いの頭で始まる時だけ、その問いを人が答えたと読み、問いの単位を直す義務に戻す。
 
-入力（with:）: gate_answer の入力と asked（関所で見せた問いの行。$plan-rounds.output.questions）
+関所を通した答えは、始めの記録の欄 policy を事前審査が固め直した版（boardview.passed_version。人が方針の文書の変化を通した時だけ
+変わる）で書き直す。fix・eyes・judge の再審は始めの記録の写し（policy.frozen_copy）を読むので、ブロックの入力を足さずに人が通した版が
+届く。止めた答え・関所が開かなかった run は書き直さない。
+
+入力（with:）: gate_answer の入力と asked（関所で見せた問いの行。$plan-rounds.output.questions）と start（始めの記録の指し札）
 """
+import json
 import os
 from pathlib import Path
 
 import gate_answer
 import linekit
+from linekit import boundary
+
+with linekit.guarded_imports():
+    import boardview
+    import policy
 
 
 def from_env() -> dict:
-    """gate_answer.answer の引数のうち with: の欄（全部を読む）"""
+    """answer の引数のうち with: の欄（全部を読む）"""
     return {"gate_raw": os.environ.get("INPUTS_GATE"), "go_raw": os.environ.get("INPUTS_GO"),
             "stop_raw": os.environ.get("INPUTS_STOP_REASON"), "place": os.environ.get("INPUTS_PLACE"),
-            "asked_raw": os.environ.get("INPUTS_ASKED")}
+            "asked_raw": os.environ.get("INPUTS_ASKED"), "start_raw": os.environ.get("INPUTS_START")}
+
+
+def answer(start_raw, artifacts: Path, **gate) -> dict:
+    got = gate_answer.answer(**gate, artifacts=artifacts)
+    if got["go"] and got["answer"] is not None:
+        carry_policy(start_raw, got["answer"], artifacts)
+    return got
+
+
+def carry_policy(start_raw, passed: dict, artifacts: Path) -> None:
+    """始めの記録の欄 policy を、関所の答えを受けた事前審査の版で書き直す（事前審査が版を置いていない・版が変わらなければ書かない）"""
+    got = boardview.passed_version(artifacts / boardview.FOLDER, passed)
+    if got is None:
+        return
+    path = boundary.resolve(linekit.value(start_raw))
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    if got == policy.version(doc):
+        return
+    doc["policy"] = got
+    path.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def fallback(reason: str) -> dict:
@@ -28,4 +58,4 @@ def fallback(reason: str) -> dict:
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: gate_answer.answer(**from_env(), artifacts=Path(os.environ["ARTIFACTS_DIR"])), fallback)
+    linekit.run(lambda: answer(**from_env(), artifacts=Path(os.environ["ARTIFACTS_DIR"])), fallback)

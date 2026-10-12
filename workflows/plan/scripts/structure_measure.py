@@ -14,6 +14,7 @@ import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
 import planfile  # noqa: E402
+import policy  # noqa: E402
 
 
 def main() -> None:
@@ -21,8 +22,7 @@ def main() -> None:
     start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
     units = planfile.units_of(os.environ["INPUTS_UNITS"])
     out_dir = art / planfile.PLAN_DIR / planfile.read_round(art / os.environ["INPUTS_DIR"])["structure"]
-    policy = start.get("policy_md") if isinstance(start, dict) else ""
-    boundary.returns(planfile.measure(out_dir, units, Path.cwd(), policy or ""))
+    boundary.returns(planfile.measure(out_dir, units, Path.cwd(), policy.frozen_copy(start)))
 
 
 if __name__ == "__main__":
