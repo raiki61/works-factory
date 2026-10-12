@@ -2,11 +2,11 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
-"""直しの後の実測（段 B。計画 2026-10-09-clean-whole の Task 2.5）。直しの前の版（INPUTS_BASE_REV）と対象の根（INPUTS_ROOT。空なら
-cwd）の今の作業ツリーの差分を、同じフォルダの measure.py の差分の形（--diff。コマンド 1 つの口。import しない）と、対象の柵の表
-（在れば。core の conceptfence.scan_change）で測る（ブロックの script が run の置き場の structure/after.json に書く）。
+"""直しの後の実測（段 B。計画 2026-10-09-clean-whole の Task 2.5）。直しの前の版 base と対象の根 root の今の作業ツリーの
+差分を、同じフォルダの measure.py の差分の形（--diff。コマンド 1 つの口。import しない）と、対象の柵の表（在れば。core の
+conceptfence.scan_change）で測る（ブロックの script が run の置き場の eyes/structure-after.json の after に書く）。
 
-after.json: {status: ok|failed, reason, base_rev, changed: [パス], tables: [表のパス], tables_changed: [直しが変えた表のパス],
+after: {status: ok|failed, reason, base_rev, changed: [パス], tables: [表のパス], tables_changed: [直しが変えた表のパス],
 fence_up: [{concept, what, path, before, after}],
 new_names: [{name, sites}], dup_blocks_added: int, timing: {秒（lib/eye の WALL）}}
 - fence_up は柵の表を持つ対象だけ（表の無い対象は空。表を作らない）。住処の外で知る場所の行が増えた所。数えは直しの前の版の表で
@@ -15,7 +15,7 @@ new_names: [{name, sites}], dup_blocks_added: int, timing: {秒（lib/eye の WA
 - 差分の前の像は、対象を変えない一時の clone（--shared。対象の .git は書き換えない）を直しの前の版で取り出した物。差分は
   `git diff --binary <版>` と、まだ追跡されていないファイルの足しの patch
 - 実測が落ちても例外にしない（status: failed と reason）
-- run(root, base, *, skip_prefix) が after.json の中身を返す。書き出しはブロックの script。skip_prefix は差分に数えない実行基盤の
+- run(root, base, *, skip_prefix) が after の中身を返す。書き出しはブロックの script。skip_prefix は差分に数えない実行基盤の
   写しのパスの頭（ブロックが渡す。conceptfence.changed）
 """
 import json
@@ -32,7 +32,6 @@ if str(_CORE) not in sys.path:
 import concepthome  # noqa: E402
 import conceptfence  # noqa: E402
 
-BASE_ENV = "INPUTS_BASE_REV"
 MEASURE = Path(__file__).resolve().parent / "measure.py"
 REASON_TAIL = 2000
 
@@ -90,7 +89,7 @@ def run(root: Path, base: str, *, skip_prefix: str) -> dict:
     doc = {"status": "ok", "reason": "", "base_rev": base, "changed": [], "tables": [], "tables_changed": [], "fence_up": [],
            "new_names": [], "dup_blocks_added": 0}
     if not base:
-        doc.update(status="failed", reason=f"{BASE_ENV} が空（直しの前の版が無い）")
+        doc.update(status="failed", reason="base_rev が空（直しの前の版が無い）")
         return doc
     try:
         _git(root, "rev-parse", "--verify", "-q", f"{base}^{{commit}}")
