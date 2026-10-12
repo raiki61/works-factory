@@ -22,7 +22,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J03 依頼のファイルの形（行の配列か `{findings, pr, issue}` の容器）・根からの相対か根の外の絶対パスを受け、無い・JSON でない・形が違えば AI を 1 つも起こさずに止める（works:request）
   - 元: works/blk-judge/scripts/intake.py:47-63 `main`（test_blk_judge.py:300・313・322・328 が場面）
-  - 今: lib/judge_accept.py:4103 `request_container`・:4119 `intake`
+  - 今: lib/judge_accept.py:4099 `request_container`・:4115 `intake`
   - 証: lib/tests/test_judge_accept.py::IntakeCase.test_request_file_shapes（assert: lib/tests/test_judge_accept.py:825-832）。無いファイル・壊れた JSON・形の違う容器は go: false と works:request、容器の形と根の外の絶対パスは go: true で request.json に行が入る
   - 本物の run: judge/intake.json
   - 狭め: 無し
@@ -34,7 +34,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: #76 で狭めた（不可でない → 戻す）
 - J05 機能の切り替え: features_cut の world で世界の解の段を、judge_verify で判定の裏取りを切り、input.spec で仕様の段を入れる
   - 元: works/.shared/core/entry.py の FEATURES・works/darkfactory/lib/line_edge.py:1026 `_world_due`・works/blk-judge/lib/judgeverify.py:306 `prep`
-  - 今: lib/judge_accept.py:4150-4152 `intake`
+  - 今: lib/judge_accept.py:4146-4147 `intake`
   - 証: lib/tests/test_judge_accept.py::IntakeCase.test_features_cut_and_spec_set_the_stage_flags（assert: lib/tests/test_judge_accept.py:846-847）
   - 本物の run: judge/intake.json の world: true・verify: false・spec: false
   - 狭め: 無し
@@ -301,13 +301,13 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J47 材料の末尾に『条件に当たらない』を書けるかの段（条件の真偽・na_self_ok の宣言・ゲートの役の判定を受ける時）を足す
   - 元: works/blk-material/lib/material.py:350 `_na_note`（test_blk_material.py:885・892・898・903 の 4 場面）
-  - 今: lib/judge_accept.py:2318 `_na_note`
+  - 今: lib/judge_accept.py:2312 `_na_note`
   - 証: lib/tests/test_judge_accept.py::MaterialCase.test_na_note_for_each_kind_of_node（assert: lib/tests/test_judge_accept.py:1227-1236。条件の偽・条件の真・役の判定を受けるゲートの役・条件の無い節・na_self_ok の節）
   - 本物の run: judge/material-prior-decisions-brief.md の末尾の段
   - 狭め: 無し
 - J48 目的の文が無い run の素材の材料は「目的の文が無い」と書き、目的を作らない
   - 元: works/blk-material/lib/material.py:320 `_purpose`（test_blk_material.py:527）
-  - 今: lib/judge_accept.py:2359 `_purpose_or_missing`・:1479 `PURPOSE_MISSING`
+  - 今: lib/judge_accept.py:2337 `_purpose_or_missing`・:1478 `PURPOSE_MISSING`
   - 証: lib/tests/test_judge_accept.py::MaterialCase.test_missing_purpose_is_said_not_invented（assert: lib/tests/test_judge_accept.py:1243）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
@@ -358,7 +358,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J56 局所レビューは宣言のレンズ 1 本に findings の行 1 本（宣言の外の名・重なり・items も failed も無い行を拒み、条件の真のレンズは invoked）
   - 元: works/.shared/core/graphloops/rules/review-loop.py:3214 `local_review_covers_lenses`・graph の skills（7 本のレンズ）
-  - 今: lib/judge_accept.py:2451・:1957 `LOCAL_REVIEW_SKILLS`
+  - 今: lib/judge_accept.py:2451・:1956 `LOCAL_REVIEW_SKILLS`
   - 証: lib/tests/test_judge_accept.py::MaterialCase.test_local_review_rows_cover_the_declared_lenses（assert: lib/tests/test_judge_accept.py:1283-1285。行の欠け・宣言の外の名・同じレンズの 2 行・空の行）
   - 本物の run: 筋書きでのみ（判定から入る run は局所レビューを回さない）
   - 狭め: 無し
@@ -430,13 +430,13 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 
 - J67 判定役は読むだけ: 役を起こす前の写し diagnose-tree.json と比べる（無ければ綺麗な木と HEAD が版のまま）。無視されるファイルの増減・未追跡の中身の変化も拒み、素材の役が残したキャッシュは判定役の物と数えない
   - 元: works/.shared/core/accept.py:481 `_judge_tree_unchanged`（test_accept.py:171・178・186、test_blk_judge.py:437・447・454）
-  - 今: lib/judge_accept.py:606 `_judge_tree_unchanged`・:1338 `snap_tree`（:3124 で判定役の前に置く）
+  - 今: lib/judge_accept.py:605 `_judge_tree_unchanged`・:1337 `snap_tree`（:3118 で判定役の前に置く）
   - 証: lib/tests/test_judge_accept.py::JudgeTakeCase.test_judge_that_changed_the_tree_is_rejected・test_judge_that_moved_head_is_rejected・test_without_tree_record_the_tree_must_be_clean・JudgeTakeCase.test_ignored_file_added_by_the_judge_is_rejected（lib/tests/test_judge_accept.py:341）・tests/workflows/test_judge.py::AcceptLoopTest.test_cache_left_by_a_material_role_is_not_the_judges
   - 本物の run: judge/diagnose-tree.json
   - 狭め: 無し
 - J68 判定の返答を写しの p2.diagnose の schema（足し欄 out_of_purpose・answer_ties と例の欄つき）の字のまま照らし、key・reason の改行を落として 1 行にする
   - 元: works/.shared/core/accept.py:504 `check_judge`・review-loop.py:2497 の ONE_LINE_FIELDS
-  - 今: lib/judge_accept.py:360 `DIAGNOSE_SCHEMA`・:752-755
+  - 今: lib/judge_accept.py:359 `DIAGNOSE_SCHEMA`・:752-755
   - 証: tests/workflows/test_judge.py::ReturnsShapeTest.test_reply_types_are_the_acceptance_schemas・lib/tests/test_judge_accept.py::JudgeTakeCase.test_open_unit_why_chain_must_be_lines・JudgeTakeCase.test_newlines_in_key_and_reason_are_folded（lib/tests/test_judge_accept.py:366。改行の畳みだけ）
   - 本物の run: judge/judgment.json
   - 狭め: 無し
@@ -448,7 +448,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J70 開いた単位は class_query（how と total）を持ち、engine が判定役の読んだ版で数え直して total を置き換える（0 件は置き換えずに note。数えは 300 回・900 秒の予算と控え）
   - 元: works/.shared/core/graphloops/rules/review-loop.py:2532-2560・:3304 `COUNT_BUDGET`・:3307 `_run_query`
-  - 今: lib/judge_accept.py:770-788・:269 `_run_query`
+  - 今: lib/judge_accept.py:770-788・:268 `_run_query`
   - 証: lib/tests/test_judge_accept.py::JudgeTakeCase.test_open_unit_without_class_query_is_rejected・JudgeTakeCase.test_engine_recounts_the_class_query_total（lib/tests/test_judge_accept.py:397。違う total は置き換えて note、0 件は残して note）
   - 本物の run: judge/judgment.json の units[].class_query.total・note、judge/count-cache.json
   - 狭め: 無し（元の loop.engine_zero への書き込みは、修正の側が同じ版で数え直す形に移った: lib/fixboard.py:1766 `closure_reply`）
