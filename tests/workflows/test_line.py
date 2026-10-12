@@ -553,6 +553,14 @@ class AskFinalCase(unittest.TestCase):
         self.assertEqual(nodes["gate-final"]["when"], "$ask-final.output.open == true")
         self.assertEqual(nodes["merge-apply"]["when"], "$answer-final.output.go == true")
 
+    def test_escalated_premise_check_opens_the_final_gate(self):
+        """前提の検算が escalate なら、ほかの阻害に依らず最後の関所で人に聞く（元 review-loop.json:5189 stop.premise_check の does）"""
+        eyes = final_got()["eyes"]
+        got = self.got(eyes={**eyes, "premise_check": {"verdict": "escalate", "reason": "実測で反証できない"}})
+        self.assertEqual(ask_final.final_needs(got), ["前提の検算が人に上げた"])
+        self.assertTrue(self.ask(got, "when_needed")["open"])
+        self.assertEqual(ask_final.final_needs(self.got(eyes={**eyes, "premise_check": {"verdict": "resolved", "reason": "偽と示した"}})), [])
+
     def test_unsealed_is_a_reason(self):
         got = self.got(sealed=False, seal_reason="緑の認証の指紋が今の木と違う")
         self.assertEqual(ask_final.final_needs(got), ["差分を封じられなかった（緑の認証の指紋が今の木と違う）"])
