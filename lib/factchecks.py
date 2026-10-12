@@ -62,18 +62,13 @@ def fix_unit_keys(reply: dict, board: Path, owed, *, withheld_by=None, returned=
 def check_writes(reply: dict, board: Path, base_rev: str, repo: Path, state: str, *, log=None, since=None,
                  made=(), skip: tuple = ()) -> dict:
     """書き込みの出どころ（writes.check。欄 bash_writes を外した返答は reply に）。実行器が作ったファイルは run の全部の輪の物を
-    外す（tddloop.suite_made_all）。1 回目に受け付けた返答の控えの bash_writes（conflict.held_writes）を役の申告に足す（役の欄の
-    形が崩れていれば足さずに形の拒否に任せる）。盤面は書かない（申告の記録は writes.check が足す）。
+    外す（tddloop.suite_made_all）。盤面は書かない（申告の記録は writes.check が足す）。
     書き込みの記録は log（既定は置き場の WRITES_LOG）。skip は除くパスの頭（writes.check）。
     修正役の並べの枝（fixlanes）は repo に単位の worktree を渡し、log（run の作業ツリーの記録。単位の worktree の
     書き込みも run の作業ツリーの記録に載る）と since（見る変更の起点。枝の今の項目の頭の木。前の段が run の作業ツリーで書いた物は
     単位の worktree の実パスの記録を持たず、同じ枝の前の項目が書いた物はその項目の確かめが見たので見ない）と made（枝の実行器が作ったファイル）を渡す"""
     made = set(tddloop.suite_made(state)) | tddloop.suite_made_all(board) | set(made)
-    b = board
     rev = fixboard.base_rev(None, base_rev)
-    held, own = conflict.held_writes(b), reply.get(writes.FIELD)
-    if held and (own is None or isinstance(own, list)):
-        reply = {**reply, writes.FIELD: [*(own or []), *(w for w in held if w not in (own or []))]}
     return writes.check(reply, repo, [p for p in _changed(repo, rev, since) if p not in made],
                         Path(board) / WRITES_LOG if log is None else Path(log), skip=tuple(skip))
 

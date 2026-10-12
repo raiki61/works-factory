@@ -596,21 +596,14 @@ class RecountSeamCase(TempCase):
         self.accept(_fix_ok(), commit=False)
         self.assertEqual(self.calls() - first, 2, "修正前の版の 2 つは取り置きから読み、修正後の 2 つだけ数える")
 
-    def test_fix_reply_reads_the_reply_file_or_the_held_reply(self):
-        import conflict
+    def test_fix_reply_reads_the_reply_file(self):
         import fixboard
         f = self.place / "fix-reply.json"
         f.write_text(json.dumps(_fix_ok(), ensure_ascii=False), encoding="utf-8")
-        got, path = fixboard.fix_reply(self.place, f)
+        got, path = fixboard.fix_reply(f)
         self.assertEqual((len(got["changes"]), path), (2, f.resolve()))
         with self.assertRaises(self.recount.Unreadable):
-            fixboard.fix_reply(self.place, None)
-        board_row = {"unit_key": R_CLAMP, "what": "直した", "files": ["stats.py"]}
-        held = {"changes": [{**board_row, "coverage": {}}], "not_done": [], "bash_writes": [], conflict.HANDED: [board_row]}
-        (self.place / conflict.HELD_REPLY).write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
-        got, path = fixboard.fix_reply(self.place, None)
-        self.assertEqual(got, {"changes": [board_row], "not_done": []})
-        self.assertEqual(path.name, conflict.HELD_REPLY)
+            fixboard.fix_reply(None)
 
     def test_collect_writes_changes_and_needs_accepted(self):
         import fixboard
@@ -995,22 +988,9 @@ class FactchecksSeamCase(TempCase):
         self.assertEqual(got["problems"], [], got)
         self.assertNotIn(writes.FIELD, got["reply"])
 
-    def test_held_writes_join_the_declaration(self):
-        import conflict
-        log = self.place / self.fc.WRITES_LOG
-        log.write_text("", encoding="utf-8")
-        held = {"changes": [], "not_done": [], "bash_writes": [{"path": "stats.py", "why": WHY}], conflict.HANDED: []}
-        (self.place / conflict.HELD_REPLY).write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
-        self.assertEqual(self.fc.check_writes(self.reply, self.place, self.rev, self.repo, "")["problems"], [])
-
     def test_fix_unit_keys_and_duty(self):
-        import conflict
         got = self.fc.fix_unit_keys(self.reply, self.place, {R_MEAN, R_CLAMP})
         self.assertEqual(got, ([R_MEAN], {R_MEAN, R_CLAMP}, {}))
-        held = {"changes": [{"unit_key": R_CLAMP}], "not_done": [], "bash_writes": [], conflict.HANDED: []}
-        (self.place / conflict.HELD_REPLY).write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
-        keys, owed, excused = self.fc.fix_unit_keys(self.reply, self.place, {R_MEAN, R_CLAMP})
-        self.assertEqual((keys, owed, set(excused)), ([R_MEAN], {R_MEAN}, {R_CLAMP}))
         self.assertIsNone(self.fc.fix_unit_keys({"changes": "x"}, self.place, set()))
         self.assertIsNone(self.fc.fix_unit_keys({"changes": [{"unit_key": 1}]}, self.place, set()))
 

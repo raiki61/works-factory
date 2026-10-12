@@ -15,7 +15,7 @@
 - owed_units_but_asked(place, owed, withheld=, returned=)・fix_duty(place, owed, withheld_by=, returned=)・
   nothing_owed_but_excused(place, owed, withheld_by=, returned=): 直す義務（元 works/.shared/core/conflict.py:676・696・787。
   盤面の写しの規則と問いの台帳を読んだ所を、値の引数で受ける）
-- _fix_output(reply_file)・fix_reply(place, reply_file=None)・_coverage(place, round_=1)・
+- _fix_output(reply_file)・fix_reply(reply_file=None)・_coverage(place, round_=1)・
   collect(place, accepted, changed, reply_file=, owed=, withheld_by=, returned=, reads_file=): 修正の返答の読み口と集める節の中身
   （元 works/.shared/core/recount.py:89・101・142・149。盤面の p3.fix の出力と loop.coverage_after を読んだ所を、置き場と
   返答のファイルのパスで受ける）
@@ -94,8 +94,7 @@ def fix_duty(place, owed, *, withheld_by=None, returned=()) -> tuple:
     """(直す義務 owed_units_but_asked, 直す義務から外れた単位 {key: 理由})。外れた単位は、答えていない fork・escalate の問いの
     出どころ・depends（withheld_by {key: 問い}。元は gatemarks.withheld_by。理由はそこが組にした問い）と、直す裁定でない裁定を
     受けた単位（conflict.held_by_rulings。理由はその裁定）。1 単位が withheld と裁定の両方に当たれば裁定の理由。控えが読めなければ
-    裁定の単位を外さない。1 回目に受け付けた返答の控え（conflict.held_reply）が在れば、その単位を直す義務から引き、理由
-    conflict.ACCEPTED_WHY で外れた単位に足す（ほかの理由より先）。控えが壊れていれば held_reply の ValueError。
+    裁定の単位を外さない。
     withheld_by が None なら置き場の判定の写しと関所の答えから引く（gate_asks）。
     元 works/.shared/core/conflict.py:696（盤面の記録と問いの台帳を読んだ）"""
     import conflict
@@ -106,10 +105,6 @@ def fix_duty(place, owed, *, withheld_by=None, returned=()) -> tuple:
         out.update(conflict.held_by_rulings(place))
     except ValueError:
         pass
-    held, path = conflict.held_reply(place)
-    accepted = conflict._held_keys(held)
-    owed = owed - accepted
-    out.update({k: conflict.ACCEPTED_WHY.format(path=path) for k in accepted})
     return owed, {k: why for k, why in out.items() if k not in owed}
 
 
@@ -137,19 +132,11 @@ def _fix_output(reply_file) -> tuple:
         raise recount.Unreadable(f"{recount.FIX_NODE} の返答 {f} が読めない: {e}") from None
 
 
-def fix_reply(place, reply_file=None) -> tuple:
-    """(修正の返答, そのファイルの絶対パス)。今の周の返答のファイル reply_file（_fix_output）か、無ければ置き場 place の
-    1 回目に受け付けた返答の控え（conflict.held_reply を conflict.handed の形にした物）。どちらも無ければ recount.Unreadable。
-    控えが壊れていれば held_reply の ValueError。元 works/.shared/core/recount.py:101（盤面の p3.fix を読んだ）"""
-    import conflict
-    import recount
-    try:
-        return _fix_output(reply_file)
-    except recount.Unreadable as e:
-        held, path = conflict.held_reply(place)
-        if held is None:
-            raise recount.Unreadable(f"{e}。1 回目に受け付けた返答の控え {path} も無い") from None
-    return conflict.handed(held), path
+def fix_reply(reply_file=None) -> tuple:
+    """(修正の返答, そのファイルの絶対パス)。今の周の返答のファイル reply_file（_fix_output）。無ければ recount.Unreadable。
+    元 works/.shared/core/recount.py:101（盤面の p3.fix を読んだ。2 回目の修正の段が 1 回目の段の控え fix-held-reply.json に
+    倒れる道は、控えを書く節が無いので持たない。1 回目の返答を失わないのは線の fixed）"""
+    return _fix_output(reply_file)
 
 
 def _coverage(place, round_: int = 1) -> dict:
@@ -186,7 +173,7 @@ def collect(place, accepted: dict, changed: dict, *, reply_file=None, owed=(), w
         raise recount.Unreadable(f"assert-changed の出力に files が無い（{changed!r}）")
     if not changes and not nothing_owed_but_excused(place, owed, withheld_by=withheld_by, returned=returned):
         raise recount.Unreadable("受け付けの出力に changes が無い")
-    out, fix_file = fix_reply(place, reply_file)
+    out, fix_file = fix_reply(reply_file)
     path = write_json(pathlib.Path(place) / recount.CHANGES_FILE, {"changes": changes})
     reads_p = pathlib.Path(reads_file) if reads_file else None
     return {"ok": True, "files": files, "changes_file": str(path), "fix_file": str(fix_file),
