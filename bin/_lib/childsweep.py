@@ -13,7 +13,9 @@ finishes」）。この部品は線の最後の節から呼ばれ、この run �
   Archon が作った証の照らしで、人の作業ツリーは Archon が拒む（packages/isolation/src/providers/worktree.ts）。
   complete は終了の値で成否を言わないので、標準出力の「  Completed: <枝>」の行で読む（packages/cli/src/commands/isolation.ts）。
 - 起こし方: 入口の殻を入れ子にすると別の ARCHON_HOME を開き源を取り直しに行くので、殻が渡す源のパス（SOURCE_ENV）の
-  CLI を bun で直に起こす。complete は遠くの枝も消しにいく（子の枝は push されないので遠くは変わらない）ため、git の資格の
+  CLI を bun で直に起こす。Archon の CLI は git の木の中でしか動かない（packages/cli/src/cli.ts の requiresGitRepo）ので
+  --cwd に run の作業ツリーを渡し、打つ場所は ARTIFACTS_DIR にする（Archon は打った場所の .archon/.env を読む。
+  packages/cli/src/load-cli-env.ts）。complete は遠くの枝も消しにいく（子の枝は push されないので遠くは変わらない）ため、git の資格の
   問い合わせで止まらないよう GIT_TERMINAL_PROMPT=0 と ssh の BatchMode を付ける。
 """
 import json
@@ -69,8 +71,8 @@ def outcome(branch: str, stdout: str, stderr: str) -> str | None:
     return _clip(said) or "complete が何も言わなかった"
 
 
-def sweep(run_id: str, env: Mapping[str, str], run: Run = subprocess.run) -> dict:
-    """この run の completed の子の作業ツリーと枝を消し、{cleaned, left, error} を返す"""
+def sweep(run_id: str, checkout: str, env: Mapping[str, str], run: Run = subprocess.run) -> dict:
+    """この run の completed の子の作業ツリーと枝を消し、{cleaned, left, error} を返す。checkout は run の作業ツリー（節の cwd）"""
     result = {"cleaned": [], "left": [], "error": ""}
     source = env.get(SOURCE_ENV)
     if not source:
@@ -86,8 +88,8 @@ def sweep(run_id: str, env: Mapping[str, str], run: Run = subprocess.run) -> dic
     head = [bun, f"--config={Path(source) / 'bunfig.toml'}", str(Path(source) / place.ENTRY)]
 
     def archon(*args: str) -> subprocess.CompletedProcess:
-        return run([*head, *args], env=child_env, cwd=env.get("ARTIFACTS_DIR") or None, capture_output=True,
-                   text=True, encoding="utf-8")
+        return run([*head, *args, "--cwd", checkout], env=child_env, cwd=env.get("ARTIFACTS_DIR") or None,
+                   capture_output=True, text=True, encoding="utf-8")
 
     listed = archon("workflow", "runs", "--json", "--all", "--limit", str(LIST_LIMIT))
     try:
@@ -106,11 +108,13 @@ def sweep(run_id: str, env: Mapping[str, str], run: Run = subprocess.run) -> dic
 
 
 def _last_json(stdout: str) -> object:
-    lines = [line for line in stdout.splitlines() if line.startswith("{")]
-    if not lines:
+    """標準出力の最後の JSON（ログの行の後ろに 1 行で出る物も、字下げして複数行で出る誤りの物も読む）"""
+    lines = stdout.splitlines()
+    starts = [i for i, line in enumerate(lines) if line.startswith("{")]
+    if not starts:
         raise ValueError(f"workflow runs が JSON を出さなかった: {_clip(stdout)}")
     try:
-        return json.loads(lines[-1])
+        return json.loads("\n".join(lines[starts[-1]:]))
     except json.JSONDecodeError as error:
         raise ValueError(f"workflow runs の JSON が読めない: {error}") from None
 

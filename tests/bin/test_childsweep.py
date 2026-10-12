@@ -9,6 +9,7 @@ from bin._lib import childsweep, place
 
 RUN = "1a2b3c4d-0000-4000-8000-000000000001"
 OTHER = "9f8e7d6c-0000-4000-8000-000000000002"
+CHECKOUT = "/runs/checkout"
 OURS = f"archon/task-{RUN[:8]}-fix-groups-par-a1b2c3d4-child-"
 
 
@@ -34,7 +35,7 @@ class FakeArchon:
 
     def __call__(self, argv, **kwargs):
         self.calls.append({"argv": argv, **kwargs})
-        command = argv[3:]
+        command = argv[3:-2]
         if command[:2] == ["workflow", "runs"]:
             stdout = self.listing if isinstance(self.listing, str) else json.dumps(self.listing) + "\n"
             return subprocess.CompletedProcess(argv, 0, stdout, "")
@@ -43,7 +44,7 @@ class FakeArchon:
         return subprocess.CompletedProcess(argv, 0, stdout, stderr)
 
     def completed(self) -> list[str]:
-        return [c["argv"][-1] for c in self.calls if c["argv"][3] == "complete"]
+        return [c["argv"][-3] for c in self.calls if c["argv"][3] == "complete"]
 
 
 class ChildSweepTest(unittest.TestCase):
@@ -60,7 +61,7 @@ class ChildSweepTest(unittest.TestCase):
         self.env = {"PATH": str(bin_dir), childsweep.SOURCE_ENV: str(self.source), "ARTIFACTS_DIR": str(self.tmp)}
 
     def sweep(self, archon: FakeArchon, env: dict | None = None) -> dict:
-        return childsweep.sweep(RUN, self.env if env is None else env, run=archon)
+        return childsweep.sweep(RUN, CHECKOUT, self.env if env is None else env, run=archon)
 
     def test_selects_only_this_runs_children(self):
         archon = FakeArchon({"runs": [
@@ -80,6 +81,11 @@ class ChildSweepTest(unittest.TestCase):
 
     def test_metadata_stored_as_text_is_read(self):
         archon = FakeArchon({"runs": [child(0, as_text=True), row(RUN, "running")]})
+        self.assertEqual([c["branch"] for c in self.sweep(archon)["cleaned"]], [f"{OURS}0"])
+
+    def test_list_after_log_lines_is_read(self):
+        listing = {"runs": [child(0), row(RUN, "running")]}
+        archon = FakeArchon('{"level":40,"msg":"warn"}\n' + json.dumps(listing, indent=2) + "\n")
         self.assertEqual([c["branch"] for c in self.sweep(archon)["cleaned"]], [f"{OURS}0"])
 
     def test_reports_what_could_not_be_removed(self):
@@ -112,7 +118,8 @@ class ChildSweepTest(unittest.TestCase):
         self.assertIn(str(childsweep.LIST_LIMIT), got["error"])
 
     def test_unreadable_list_removes_nothing(self):
-        for listing in ("not json\n", {"ok": False, "error": "db locked"}, {"runs": "x"}):
+        refused = '{\n  "ok": false,\n  "error": "Error: Not in a git repository."\n}\n'
+        for listing in ("not json\n", refused, {"ok": False, "error": "db locked"}, {"runs": "x"}):
             with self.subTest(listing=listing):
                 archon = FakeArchon(listing)
                 got = self.sweep(archon)
@@ -126,8 +133,8 @@ class ChildSweepTest(unittest.TestCase):
         head = [str(self.bun), f"--config={self.source / 'bunfig.toml'}", str(self.source / place.ENTRY)]
         listing, complete = archon.calls
         self.assertEqual(listing["argv"], [*head, "workflow", "runs", "--json", "--all", "--limit",
-                                           str(childsweep.LIST_LIMIT)])
-        self.assertEqual(complete["argv"], [*head, "complete", "--force", f"{OURS}0"])
+                                           str(childsweep.LIST_LIMIT), "--cwd", CHECKOUT])
+        self.assertEqual(complete["argv"], [*head, "complete", "--force", f"{OURS}0", "--cwd", CHECKOUT])
         for call in archon.calls:
             self.assertEqual(call["env"]["GIT_TERMINAL_PROMPT"], "0")
             self.assertEqual(call["env"]["GIT_SSH_COMMAND"], "ssh -o BatchMode=yes")
