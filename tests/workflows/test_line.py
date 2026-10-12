@@ -629,7 +629,7 @@ class AskFinalReadsCase(Artifacts):
 
     def test_answered_unit_missing_from_the_judgment_is_said(self):
         got = self.held([self.FORK], answers=[{"question": "q1", "text": "a"}], units=())
-        self.assertEqual(got, ["承認ノードで答えたが直す単位に入れられなかった: q1・u1（理由: 今の周の判定に無い）"])
+        self.assertEqual(got, [gatemarks.unreturned_line("q1", "u1")])
 
     def test_unreadable_judgment_is_said(self):
         held, unread = ask_final.held_questions({"type": "archon_artifact", "run_id": "another", "path": "x.json"}, None, None, [])

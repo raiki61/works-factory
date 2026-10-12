@@ -3037,7 +3037,7 @@ class RequestAnswersCase(GateBase):
         self.assertEqual(gatemarks.held_lines(b), [])
         done = "\n".join(gatemarks.answered_lines(b))
         self.assertIn("依頼者の答え: 並行する PR は無い", done)
-        self.assertNotIn("関所で continue を受けた", done)
+        self.assertNotIn(gatemarks.GATE_CONTINUED, done)
 
     def test_requester_answer_by_key_skips_gate_and_returns_origin(self):
         """元 tests/test_plan_gate.py の RequestAnswersCase.test_requester_answer_by_key_skips_gate_and_returns_origin。key で当てた

@@ -718,7 +718,7 @@ class LedgerCase(Base):
         self.assertEqual(state["held"], [])
         self.assertEqual(state["answered"], [
             gatemarks._ledger_line(FORK, "・" + gatemarks.answer_note(answers[0])),
-            gatemarks._ledger_line(other, "・承認ノードで continue を受けた")])
+            gatemarks._ledger_line(other, gatemarks.GATE_CONTINUED)])
         self.assertIn("人が手元で実行: `pytest -k mean`", state["answered"][0])
 
     def test_answer_hitting_two_questions_answers_neither(self):
@@ -743,7 +743,7 @@ class LedgerCase(Base):
     def test_answered_but_unit_gone_is_held(self):
         returns = self.returns(FORK, units=[], review=[gatemarks.ask_text(FORK)])
         state = runreport.ledger_state(returns, {"gate-before-fix": {"decision": "continue", "text": ""}}, {"run_id": RUN})
-        self.assertEqual(state["held"], [(None, f"承認ノードで答えたが直す単位に入れられなかった: {FORK['key']}・{FORK_UNIT}（理由: 今の周の判定に無い）")])
+        self.assertEqual(state["held"], [(None, gatemarks.unreturned_line(FORK["key"], FORK_UNIT))])
 
     def test_material_answer_lines(self):
         materials = {"ci": {"status": "awaiting_human"}, "lint": {"status": "not_run"}}

@@ -1208,10 +1208,17 @@ def returned_lines(b) -> list:
     return out
 
 
+GATE_CONTINUED = "・承認ノードで continue を受けた"   # 答えた台帳の行の印。依頼の answers の答えでなく関所の continue で答えた物
+
+
+def unreturned_line(key, unit) -> str:
+    """関所で答えたが、今の周の判定の units に無いので直す義務に戻せなかった単位の 1 行（runreport も同じ行を組む）"""
+    return f"承認ノードで答えたが直す単位に入れられなかった: {key}・{unit}（理由: 今の周の判定に無い）"
+
+
 def unreturned_lines(b) -> list:
     """関所で答えたが、今の周の判定の units に無いので直す義務に戻せなかった単位（1 件 1 行）"""
-    return [f"承認ノードで答えたが直す単位に入れられなかった: {q.get('key')}・{k}（理由: 今の周の判定に無い）"
-            for q, _, gone in _answered_skips(b) for k in gone]
+    return [unreturned_line(q.get("key"), k) for q, _, gone in _answered_skips(b) for k in gone]
 
 
 def _gate_answered(b, q) -> bool:
@@ -1237,7 +1244,7 @@ def held_lines(b) -> list:
 def answered_lines(b) -> list:
     """held_lines と同じ所に別の見出し（ANSWERED_HEAD）で並べ、保留の件数に数えない行: 関所で continue を受けたか、依頼の
     answers が答えた台帳の問い（印は答えの出どころを名乗る）"""
-    return [_ledger_line(q, "・" + answer_note(a) if (a := request_answer(b, q)) is not None else "・承認ノードで continue を受けた")
+    return [_ledger_line(q, "・" + answer_note(a) if (a := request_answer(b, q)) is not None else GATE_CONTINUED)
             for q in _asking(b) if _gate_answered(b, q)] + material_lines(b)
 
 

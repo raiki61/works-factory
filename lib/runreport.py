@@ -267,9 +267,9 @@ def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
     held = [(q, gatemarks._ledger_line(q, skip=[k for k in gatemarks._skips(q) if k in withheld] if q in pending else [])
              + f"／{gatemarks.ANSWER_KEY_HEAD}: {json.dumps(answer_key(q), ensure_ascii=False)}")
             for q in qs if not answered(q)]
-    held += [(None, f"承認ノードで答えたが直す単位に入れられなかった: {q.get('key')}・{k}（理由: 今の周の判定に無い）")
+    held += [(None, gatemarks.unreturned_line(q.get("key"), k))
              for q in qs if asked(q) and answered(q) for k in gatemarks._skips(q) if k not in units]
-    done = [gatemarks._ledger_line(q, "・" + gatemarks.answer_note(a) if (a := request_answer(q)) is not None else "・承認ノードで continue を受けた")
+    done = [gatemarks._ledger_line(q, "・" + gatemarks.answer_note(a) if (a := request_answer(q)) is not None else gatemarks.GATE_CONTINUED)
             for q in qs if answered(q)]
     for n, st in missing.items() if answers else ():
         a = oc.material_answer(returns, answers, n)
