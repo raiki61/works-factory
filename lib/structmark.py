@@ -10,7 +10,8 @@
 - note(state):         落ちた周の 1 文（ok の周・控えが無い周は ""）
 - plan_section(board_dir): 修正案の指示書の頭に貼る節（行が在れば行と守り方の指示、落ちた周は note、控えが無い・行が無い周は ""）
 - dirty(board_dir):    汚れると見た行（単位の id → 行）。控えが無い・落ちた周・行が読めない周は {}（修正案の欄 structure の要る行）
-- report_lines(board_dir): 報告の「構造の目」の節の行（判定の行か落ちの印と、増えた時間と、直しの後の実測の行。控えが無い run は []）
+- report_lines(board_dir, after_dir=None): 報告の「構造の目」の節の行（判定の行か落ちの印と、構造のブロックで増えた時間（段 A と目の秒に、
+  after_dir（既定は board_dir）の直しの後の実測の段 B の秒を足す）と、直しの後の実測の行。控えが無い run は []）
 
 直しの後の実測の控え（盤面の根の structure-after.json。計画 2026-10-09-clean-whole の Task 2.5）: 線の直しの後の境の節が 1 回書き、
 報告・最後の関所・独立の目の頭・結末の残りの数え（report.rest_outside_validator）がこの 1 つのファイルだけを読む。
@@ -25,6 +26,7 @@ import json
 import pathlib
 
 import concepthome
+import eye   # ブロックの時間の欄（eye.wall）
 import planmarks   # 修正案の外れの訳の文の住処（answer_line）
 import promptsection
 
@@ -117,14 +119,17 @@ def plan_section(board_dir) -> str:
     return f"{PLAN_HEAD}\n\n{PLAN_ASK}\n\n" + "\n".join(f"- {_row_line(r)}" for r in got)
 
 
-def report_lines(board_dir) -> list:
+def report_lines(board_dir, after_dir=None) -> list:
+    after_dir = board_dir if after_dir is None else after_dir
+    after = after_lines(after_dir)
     state, got, missing = _state_rows(board_dir)
     if state is None:
-        return after_lines(board_dir)
-    wall = f"構造の目で増えた時間: {state.get('wall_s', 0)} 秒"
+        return after
+    stage_b = eye.wall((read_after(after_dir) or {}).get("after"))
+    wall = f"構造のブロックで増えた時間: {round(state.get('wall_s', 0) + stage_b, 3)} 秒"
     if missing:
-        return [missing, wall, *after_lines(board_dir)]
-    return [*(_row_line(r) for r in got), wall, *after_lines(board_dir)] if got else ["構造の目の行は無い", wall, *after_lines(board_dir)]
+        return [missing, wall, *after]
+    return [*(_row_line(r) for r in got), wall, *after] if got else ["構造の目の行は無い", wall, *after]
 
 
 # ---------------------------------------------------------------- 直しの後の実測

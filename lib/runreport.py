@@ -1155,9 +1155,10 @@ def _downgrade_lines() -> list:
 def _structure_lines(returns: dict) -> list:
     """構造の目の行（計画の structure の隣の design.jsonl）と、直した後の構造の実測（eyes の structure_after。元 structmark.report_lines）"""
     sp, ap = _ret(returns, "plan").get("structure"), as_dict(returns.get("eyes")).get("structure_after")
-    lines = structmark.report_lines(pathlib.Path(sp).parent) if isinstance(sp, str) and sp else []
-    after = structmark.after_lines(pathlib.Path(ap).parent) if isinstance(ap, str) and ap else []
-    return [*lines, *(x for x in after if x not in lines)]
+    after_dir = pathlib.Path(ap).parent if isinstance(ap, str) and ap else None
+    if isinstance(sp, str) and sp:
+        return structmark.report_lines(pathlib.Path(sp).parent, after_dir)
+    return structmark.after_lines(after_dir) if after_dir is not None else []
 
 
 def _depth_lines(start: dict, returns: dict, line: dict) -> list:
