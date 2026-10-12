@@ -31,7 +31,6 @@
 import json
 import os
 import pathlib
-import posixpath
 import types
 
 import startrec
@@ -1579,11 +1578,6 @@ def check_excused_units(keys: list, owed: set, excused: dict) -> dict:
     return {k: excused[k] for k in keys if k not in owed and k in excused}
 
 
-def _under(path: str, skip) -> bool:
-    """path が除くパスの頭 skip（`<名>/` の形の並び）のフォルダそのものか、その下か"""
-    return any(path == top.rstrip("/") or path.startswith(top) for top in skip)
-
-
 def skip_digests(repo, skip) -> dict:
     """repo の除くパスの頭 skip の下の全部のファイルの {根からの相対パス: 中身の sha256}（symlink は辿らず "link:<先>"。
     __pycache__/ の下と .pyc は数えない。git の追跡・無視に依らない。無ければ空）。元 works/.shared/core/leftovers.py:110
@@ -1616,6 +1610,7 @@ def record_skipped(place, repo, skip) -> pathlib.Path:
 def check_pack_copy(reply: dict, place, repo, skip) -> str:
     """除くパスの頭 skip の下を changes[].files に申告した・修正の段の頭の控え（record_skipped。無ければ申告だけを見る）から
     その下の中身が変わった・足した・消した返答を拒む文（通れば空。skip が空なら照らさない）。元 works/blk-fix/scripts/accept.py:234"""
+    import parking
     if not skip:
         return ""
     declared = set()
@@ -1623,8 +1618,8 @@ def check_pack_copy(reply: dict, place, repo, skip) -> str:
         for f in (c.get("files") if isinstance(c, dict) else None) or []:
             if isinstance(f, str) and f.strip():
                 f = f.strip()
-                f = posixpath.normpath(os.path.relpath(f, repo) if os.path.isabs(f) else f)
-                if _under(f, skip):
+                f = parking._rel(f, repo)
+                if not parking._ours(f, tuple(skip)):
                     declared.add(f)
     before = read_json(pathlib.Path(place) / SKIP_BEFORE_FILE)
     now = skip_digests(repo, skip) if isinstance(before, dict) else {}
