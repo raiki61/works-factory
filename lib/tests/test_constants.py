@@ -47,6 +47,7 @@ OVERLAPS = {
     ("lib/runreport.py", "GATE_PASSES"): "boardview.PASSES_FILE の写し。区分 R。区分の issue で外す",
     ("lib/report.py", "VERIFY_NOTES"): "judgeverify.VERIFY_FILE の写し。区分 R。区分の issue で外す",
     ("lib/boardview.py", "JUDGMENT_COPY"): "judge_accept.JUDGMENT_FILE の写し。区分 P。区分の issue で外す",
+    ("lib/boardview.py", "PURPOSE_REVIEW_FILE"): "judge_accept.PURPOSE_REVIEW_FILE（書き手）の写し。区分 P。区分の issue で外す",
     ("lib/fixboard.py", "JUDGMENT_FILE"): "judge_accept.JUDGMENT_FILE の写し。区分 F。区分の issue で外す",
     ("lib/outcome.py", "MATERIALS_FILE"): "judge_accept.MATERIALS_FILE（書き手）の写し。区分 R。区分の issue で外す",
     ("lib/fixboard.py", "PLAN_REPLY_FILE"): "planfile.FIX_PLAN_FILE の写し。区分 F。区分の issue で外す",

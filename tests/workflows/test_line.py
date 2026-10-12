@@ -1093,7 +1093,7 @@ class LineWiringCase(unittest.TestCase):
         "judge-verify.json": (("judge", "judgment"), "lib/planfile.py"),
         "pr-excluded.json": (("judge", "judgment"), "lib/planfile.py"),
         "materials.json": (("judge", "judgment"), "lib/boardview.py"),
-        "purpose-review.json": (("judge", "judgment"), "lib/runreport.py"),
+        "purpose-review.json": (("judge", "judgment"), "lib/boardview.py"),
         "answer-ties.json": (("judge", "judgment"), "lib/gatemarks.py"),
         "local-review-lenses.json": (("judge", "judgment"), "lib/runreport.py"),
         "pr-downgrades.json": (("judge", "judgment"), "lib/runreport.py"),
@@ -1113,9 +1113,7 @@ class LineWiringCase(unittest.TestCase):
     # 境の口も無い返す節が書く・read: 読み手が名を開く）。表に無い新しい穴と、通るようになったのに残る行は赤
     UNPROVEN = {
         **{(name, "bare"): "区分の issue で外す（judge の返す節 verdict.py の lib の無い道 fallen は judgment.json・purpose.json だけを書く）"
-           for name in ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.json")},
-        **{("purpose-review.json", check): "区分の issue で外す（judge に名の定数が無く、書く所も読む所も無い。部分 C の S25）"
-           for check in ("named", "stop", "bare", "read")},
+           for name in ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.json", "purpose-review.json")},
         **{("p2.fix_plan.json", check): "区分の issue で外す（plan の返す節の止めの道と lib の無い道が修正案の役の返答の写しを置かない）"
            for check in ("stop", "bare")},
         **{("design-premises.json", check): "区分の issue で外す（plan-review の返す節の止めの道と lib の無い道が独立設計の控えを置かない）"
