@@ -27,8 +27,9 @@ EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"}) | CONTI
 # 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
 READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
-# 役の sandbox の Bash が書ける置き場（Claude の一時の置き場）。家や対象がこの下だと、役が書き込みの記録・控え・DB・対象の .git を
-# 書き換えられる。形は今の works の dev/guard.sh の works_dev_refuse_claude_tmp と同じ（実パスで照らす。* は / も越える）
+# 役の sandbox の Bash が書ける置き場（Claude の一時の置き場）。家・対象・取り置きがこの下だと、役が書き込みの記録・控え・DB・
+# 対象の .git・取り置いた Archon の源（次の起動が sandbox の外で起こす）を書き換えられる。形は今の works の dev/guard.sh の
+# works_dev_refuse_claude_tmp と同じ（実パスで照らす。* は / も越える）
 SANDBOX_WRITABLE = ("/tmp/claude-*", "/private/tmp/claude-*")
 
 
@@ -68,6 +69,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     refuse_sandbox_writable("対象", target)
     home = run_home(user, target)
     cache = place.cache_dir(user)
+    refuse_sandbox_writable("XDG_CACHE_HOME" if user.get("XDG_CACHE_HOME") else "HOME", cache)
     try:
         loaded = pack.load(ROOT)
         source = place.archon_source(loaded, cache)

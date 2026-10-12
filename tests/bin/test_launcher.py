@@ -172,7 +172,7 @@ class LauncherTest(unittest.TestCase):
         self.assertIn("WORKS_FACTORY_HOME", err)
 
     def test_sandbox_writable_home_and_target_are_refused(self):
-        """役の sandbox の Bash が書ける /tmp/claude-* の下（実パスで照らす）の家と対象は、どの命令でも起こさずに拒む
+        """役の sandbox の Bash が書ける /tmp/claude-* の下（実パスで照らす）の家・対象・Archon の源の取り置きは、どの命令でも起こさずに拒む
         （今の works の dev/guard.sh の works_dev_refuse_claude_tmp と同じ形）"""
         # 直しが無い時に作られても他と混ざらず後で消えるように、試験ごとの名にする
         sandbox = f"/tmp/claude-works-test-{self.tmp.name}"
@@ -180,7 +180,8 @@ class LauncherTest(unittest.TestCase):
         link = self.tmp / "to-claude-tmp"
         link.symlink_to(sandbox)
         for name, value in (("WORKS_FACTORY_HOME", f"{sandbox}/h"), ("WORKS_FACTORY_HOME", f"/private{sandbox}/h2"),
-                            ("XDG_STATE_HOME", f"{sandbox}/state"), ("WORKS_FACTORY_HOME", str(link / "h3"))):
+                            ("XDG_STATE_HOME", f"{sandbox}/state"), ("WORKS_FACTORY_HOME", str(link / "h3")),
+                            ("XDG_CACHE_HOME", f"{sandbox}/cache")):
             with self.subTest(name=name, value=value):
                 err = self.stopped(self.launch("workflow", "status", **{name: value}))
                 self.assertEqual(len(err.strip().splitlines()), 1, err)
