@@ -15,6 +15,7 @@ import sys
 import tempfile
 import unittest
 
+from lib import answer
 from tests.bin import fakelaunch, hermetic
 from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
 from tests.bin.gitkit import git
@@ -178,13 +179,14 @@ class LauncherTest(unittest.TestCase):
 
     def test_child_env_carries_answer_head(self):
         """関所の答えの行の頭は殻を通す respond（答えた者の欄は Archon に無いので置かない）。利用者の値より殻の値"""
-        for user_value in ({}, {"WORKS_ANSWER_CMD": "sh use.sh answer x", "WORKS_ANSWER_WHO": "someone"}):
+        for user_value in ({}, {answer.ENV: "sh use.sh answer x", answer.WHO_ENV: "someone"}):
             with self.subTest(user=user_value):
                 env = self.reached(self.launch("workflow", "status", cwd=self.target / "sub", **user_value))["env"]
-                self.assertEqual(shlex.split(env["WORKS_ANSWER_CMD"]),
-                                 [str(self.repo / "bin" / "works-factory"), "workflow", "respond", "--cwd",
-                                  os.path.realpath(self.target)])
-                self.assertNotIn("WORKS_ANSWER_WHO", env)
+                head = shlex.split(env[answer.ENV])
+                self.assertEqual(head, [str(self.repo / "bin" / "works-factory"), "workflow", "respond", "--cwd",
+                                        os.path.realpath(self.target)])
+                self.assertIn(shlex.join(["bin/works-factory", *head[1:-1]]), answer.HOLE)
+                self.assertNotIn(answer.WHO_ENV, env)
 
     def test_user_values_are_taken_before_isolation(self):
         """利用者の HOME と生の CLAUDE_CONFIG_DIR（相対なら打った場所から絶対に直した物）で認証を引き、埋めた値でプラグインを探す"""
