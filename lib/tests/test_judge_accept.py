@@ -21,6 +21,7 @@ if str(LIB) not in sys.path:
 import accept as core_accept  # noqa: E402
 import carry  # noqa: E402
 import diverted  # noqa: E402
+import gatemarks  # noqa: E402
 import judge_accept as ja  # noqa: E402
 import judgeverify as jv  # noqa: E402
 import rolekit  # noqa: E402
@@ -40,6 +41,10 @@ class TablesCase(unittest.TestCase):
         self.assertTrue(ja.is_open({"label": "suggest", "disposition": "do-now"}))
         self.assertFalse(ja.is_open({"label": "suggest", "disposition": "defer"}))
         self.assertFalse(ja.is_open({"label": "nit"}))
+
+    def test_unmeasured_states_are_the_blocking_states(self):
+        """測れていない素材の状態の語（gatemarks.UNMEASURED。値で読む口の住処）は、写しの検証器の表 STATUS で阻害になる状態と同じ"""
+        self.assertEqual(set(gatemarks.UNMEASURED), {k for k, r in ja.STATUS.items() if r.blocks})
 
 
 # ================================================================ 依頼と判定

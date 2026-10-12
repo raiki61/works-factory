@@ -935,11 +935,8 @@ def request_answers(jdir) -> list:
 
 def unmeasured(materials) -> dict:
     """元 works/.shared/core/gatemarks.py:693。今の周に測れていない素材 {名: status}: 素材のうち、検証器の表 STATUS で阻害になる
-    status（not_run・awaiting_human）の物"""
-    if not isinstance(materials, dict) or not materials:
-        return {}
-    return {n: m["status"] for n, m in materials.items()
-            if isinstance(m, dict) and m.get("status") in STATUS and STATUS[m["status"]].blocks}
+    status（gatemarks.UNMEASURED。表との一致は試験が縛る）の物"""
+    return gatemarks.unmeasured_of(materials)
 
 
 def origin_of(q, materials) -> str:

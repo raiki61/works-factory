@@ -71,7 +71,6 @@ PENDING_WHY = replan.PENDING_WHY
 # 判定の judgment の隣の素材の測りの状態 {<素材の名>: {status, …}}（docs/design.md の「書き方の決め」の名指しの隣のファイル）。
 # 測れていない status は元の写しの検証器の STATUS で阻害になる物（gatemarks.unmeasured。works/.shared/core/gatemarks.py:708-716）
 MATERIALS_FILE = "materials.json"
-UNMEASURED = gatemarks.UNMEASURED
 MATERIAL_WHERE = "素材"
 ASKING = gatemarks.ASKING   # 問いの台帳で人に聞く状態
 
@@ -225,7 +224,7 @@ def materials(returns: dict) -> tuple[dict, str]:
 def unmeasured(returns: dict) -> dict:
     """今の周に測れていない素材 {名: status}"""
     doc, _ = materials(returns)
-    return {n: m["status"] for n, m in doc.items() if isinstance(m, dict) and m.get("status") in UNMEASURED}
+    return gatemarks.unmeasured_of(doc)
 
 
 def questions(returns: dict) -> list:

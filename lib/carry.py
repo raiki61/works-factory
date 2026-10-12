@@ -57,7 +57,6 @@ ANSWER_KEYS = ("question", "text", "command", "output")   # 人が見直した�
 DRAFT, SOURCE, NOTE = "draft", "source", "note"
 DRAFT_KEYS = (DRAFT, SOURCE)   # 前の run の報告が next-request.json の answers・findings に置く下書きの印（人が見直して消すまで拒む）
 PRIOR_KEYS = ("where", "text")   # prior_failures の行の欄（前の run の報告が next-request.json に書いた形）
-CONSTRAINT_KEYS = ("text", "measured_how", "kind")   # constraints の行の欄（今の works が盤面の制約に足した行の形。review-loop.py:253-257）
 MEASURED = "実測"   # constraints の行の kind（前提の検算が実態で確かめた事実だけを運ぶ）
 CARRIED_HOW = "前の run の前提の検算（run {run}）"   # 報告が書く行の measured_how（元 review-loop.py:255 の「stop.premise_check の検算」）
 CARRIED_HOW_HEAD = CARRIED_HOW.split("（", 1)[0]   # 運ばれた制約の行の見分け（独立の目が R2 を省かない印）
@@ -126,21 +125,11 @@ def parts(doc) -> dict:
 
 
 def _constraints(rows) -> list:
-    """依頼の constraints（前の run の前提の検算が実態で示した事実。前の run の報告が書いた next-request.json の欄）を確かめてそのまま
-    返す。行は {text, measured_how, kind: MEASURED} で、text・measured_how は空でない文字列。知らない欄は拒む（ValueError。1 行）"""
-    if not isinstance(rows, list):
-        raise ValueError(f"constraints が配列でない（{type(rows).__name__}）")
-    for i, r in enumerate(rows):
-        if not isinstance(r, dict):
-            raise ValueError(f"constraints[{i}] が {{text, measured_how, kind}} の object でない（{type(r).__name__}）")
-        extra = sorted(set(r) - set(CONSTRAINT_KEYS))
-        if extra:
-            raise ValueError(f"constraints[{i}] の知らない欄 {extra}（使えるのは {list(CONSTRAINT_KEYS)}）")
-        for key in ("text", "measured_how"):
-            if not (isinstance(r.get(key), str) and r[key].strip()):
-                raise ValueError(f"constraints[{i}] の {key} が空でない文字列でない（{r.get(key)!r}）")
-        if r.get("kind") != MEASURED:
-            raise ValueError(f"constraints[{i}] の kind が {MEASURED!r} でない（{r.get('kind')!r}。運ぶのは実測だけ）")
+    """依頼の constraints（前の run の前提の検算が実態で示した事実。前の run の報告が書いた next-request.json の欄）を約束の Schema の
+    constraints の部分（行は {text, measured_how, kind: MEASURED}。知らない欄を拒む）で照らしてそのまま返す。合わなければ ValueError（1 行）"""
+    errs = validate_schema(rows, schema(NEXT_SCHEMA)["properties"][CONSTRAINTS], CONSTRAINTS)
+    if errs:
+        raise ValueError(f"constraints が約束の形でない（{'・'.join(errs)}。運ぶのは {{text, measured_how, kind: {MEASURED!r}}} の実測だけ）")
     return rows
 
 

@@ -28,6 +28,7 @@ if str(_CORE) not in sys.path:
 import gatemarks  # noqa: E402
 import planmarks  # noqa: E402
 import promptsection  # noqa: E402
+import report  # noqa: E402  （関所の止める語 FINAL_GATE_STOPS。案の直しの関所も同じ語で止める）
 
 TRIP_FILE = "replan.json"
 TRIP_KEYS = ("item", "units", "rows", "old", "brief", "new", "new_marks", "review", "contract_changed", "human_faces", "widened",
@@ -51,7 +52,6 @@ PASSED = "直した——聞かずに通した（手段の欄だけ）"
 STOPPED_WHY = "人が関所 gate-replan で run を止めた: {text}"   # 元 replan.STOPPED_WHY（関所の名は線の節の id）
 NOT_RUN_WHY = "2 度目の修正が走らなかった（直した案ができなかったか、案の直しの関所が開かずに止めた）"
 NO_NOTE = "（一言なし）"                          # 元 replan.NO_NOTE
-GATE_STOPS = ("stop", "reject")                   # 案の直しの関所の止める語（元 replan.DECISIONS の stop に当たる語）
 PENDING_WHY = "未完了（前の run が途中で落ちて、案の直しを終えていない）"   # 元 replan.PENDING_WHY（途中で落ちた run の待つ行）
 CLOSE_WHY = "同じ run の中で案の直しを終えられなかった（案の段に戻るのは 1 run に 1 回）"   # 元 replan.CLOSE_WHY
 FACES_HEAD = promptsection.Section("## 直した項目 {item}（単位 {units}）の事前審査の穴", source="fn:replan.fix_notes")   # 元 replan.FACES_HEAD
@@ -105,7 +105,7 @@ def amend_lines(items, *, refixed: bool, answer=None, widened=(), whys=None, pen
         if sep:
             wide[head.removeprefix("項目").strip()] = text.strip()
     stop = (STOPPED_WHY.format(text=" ".join(str(answer.get("text") or "").split()) or NO_NOTE)
-            if answer.get("decision") in GATE_STOPS else "")
+            if answer.get("decision") in report.FINAL_GATE_STOPS else "")
     out = []
     for item in items or ():
         ident = str(item)
