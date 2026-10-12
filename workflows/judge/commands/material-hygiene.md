@@ -1,3 +1,5 @@
+$hygiene-reject.output.lang_line
+
 ## お前の役の定義（cold-reader）
 
 お前は cold-reader。文脈を持たない初見の読み手である。

@@ -112,6 +112,9 @@ REPORT_EDITS = [
     ("判定の役が台帳の options・reason に書いた推しだけを",
      "判定の役が書いた推しだけを",
      "推しの出どころ（問いの文の推しの尾と台帳の欄）は構成の ④ が名指す"),
+    ("お前はレビューの最終報告を書く役（writer）。",
+     "$facts.output.lang_line\n\nお前はレビューの最終報告を書く役（writer）。",
+     "役の文の頭に言語の 1 行を足す（元は包みが rolekit.lang_line を役の文に足した: works/.shared/core/rolekit.py 147-150 行。L-E37）"),
 ]
 COLD_CHECK_EDITS = [
     ("機械が盤面から組んだ事実の節（数・置き場・状態の一覧。見出しは「機械が盤面から組んだ事実（AI は書き換えていない）」）",
@@ -391,6 +394,22 @@ class FactsCase(Run):
         self.assertEqual(code, 0)
         self.assertEqual(out["outcome"], "record_invalid")
         self.assertTrue(out["stop_reason"].startswith("report:報告の事実を組めなかった"))
+
+    def test_lang_line_reaches_the_writer(self):
+        """L-E37: 始めの記録の lang が、報告の書き手の役の文の頭に言語の 1 行（rolekit.lang_line。判定・計画・修正・独立の目と同じ口）
+        として届く。始めの記録が読めない・思わぬ誤りの時も既定の言語の 1 行を返す"""
+        import rolekit
+        start = self.pointer("start/start.json", {"run_id": RUN, "lang": "English"})
+        code, out = self.run_script("facts", INPUTS_START=start)
+        self.assertEqual((code, out["lang_line"]), (0, rolekit.lang_line({"lang": "English"})))
+        self.assertIn("English", out["lang_line"])
+        self.assertEqual(self.run_script("facts")[1]["lang_line"], rolekit.lang_line({}))
+        blocker = self.dir / "file"
+        blocker.write_text("", encoding="utf-8")
+        self.assertEqual(self.run_script("facts", ARTIFACTS_DIR=str(blocker))[1]["lang_line"], rolekit.lang_line({}))
+        first = (BLOCK / "commands" / "report.md").read_text(encoding="utf-8").splitlines()[0]
+        self.assertEqual(first, "$facts.output.lang_line")
+        self.assertIn("lang_line", WORKFLOW["nodes"][0]["output_format"]["required"])
 
     def test_request_stop_with_dry_run_environment(self):
         start = self.pointer("start/start.json", {"run_id": RUN})

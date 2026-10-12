@@ -37,7 +37,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [outcome, ok, stop_reason, report, next_request, prior_failures, ai_go, facts_file, stamp]
+      required: [outcome, ok, stop_reason, report, next_request, prior_failures, ai_go, facts_file, stamp, lang_line]
       properties:
         outcome: {type: string}
         ok: {type: boolean}
@@ -48,6 +48,7 @@ nodes:
         ai_go: {type: boolean}
         facts_file: {type: string}
         stamp: {type: string}
+        lang_line: {type: string}
 
   - id: write-loop
     depends_on: [facts]

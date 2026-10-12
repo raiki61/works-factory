@@ -1,3 +1,5 @@
+$purpose-review-reject.output.lang_line
+
 ## お前の役の定義（inspector）
 
 お前は inspector。このループを回している側とは別の context に居る採点者である。

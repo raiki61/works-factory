@@ -227,10 +227,10 @@
   - 狭め: 無し（住処が移った）
 - L-E37 lang を記録し、全部の役の文に言語の 1 行を足す
   - 元: works/.shared/core/entry.py:1149 → rolekit.lang_line（judge・fix・refix の役も読む）
-  - 今: scripts/start.py:170 で記録。読むのは plan（plan_prep.py:38）・eyes（prep.py:71）・fix（main fixboard.lang_line）。judge の役と report は読まない
-  - 証: 要追加: tests/workflows/test_judge.py::BriefCase.test_lang_line_reaches_judge_roles
+  - 今: lib/rolekit.py `LANG_RULE`・`lang_line`・`record_lang_line`（住処を 1 つにし、fixboard・planfile・eyeverdict の写しはそれを引く）。judge は輪の頭の拒否の節 workflows/judge/scripts/reject.py と判定の裏取りの支度 verify.py が `lang_line` を返し、全部の役の指示書の頭が `$<節>.output.lang_line`。report は facts が返し commands/report.md の頭（部分 A で閉じた）
+  - 証: tests/workflows/test_judge.py::BriefCase.test_lang_line_reaches_judge_roles・tests/workflows/test_report.py::FactsCase.test_lang_line_reaches_the_writer
   - 本物の run: start.json の lang
-  - 狭め: #76 で judge の役に届かない（宣言なし。不可でない → 戻す） 決め: 戻すと決めた。部分 A のやる事 11（今の works の 1 行は人が読む欄だけその言語で、lang-one の当て方そのもの）（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #76 で judge の役に届かない（宣言なし。不可でない → 戻す） 決め: 戻すと決めた。部分 A のやる事 11（今の works の 1 行は人が読む欄だけその言語で、lang-one の当て方そのもの）（線の配線の文書の「この文書の外」の「決めた物」） → 部分 A で戻した
 - L-E38 test_cmd・tdd_suite を記録し、test-gate と fix が読む
   - 元: works/.shared/core/entry.py:606 `check_inputs`
   - 今: workflows/line/scripts/start.py `start`（部分 A で閉じた）

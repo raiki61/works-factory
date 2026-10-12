@@ -1275,7 +1275,8 @@ class DeltaSeamCase(TempCase):
         fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "start_tree": "abc"})
         self.assertEqual(fixboard.start_tree(self.place), "abc")
         self.assertIn("日本語", fixboard.lang_line({"lang": "日本語"}))
-        self.assertIn(fixboard.LANG_DEFAULT, fixboard.lang_line({}))
+        import rolekit
+        self.assertIn(rolekit.LANG_DEFAULT, fixboard.lang_line({}))
 
 
 

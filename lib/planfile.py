@@ -89,9 +89,6 @@ MALFORMED_REJECT = "修正案の返答の形が崩れている（plan は項目�
 # 役に読ませる文の組み立て（元 works/.shared/core/rolekit.py:64・:67 と board.py:96。前提の lib/rolekit.py に無い）
 REJECT_LINE = ("前の回の返答は受け付けで拒まれた。理由はファイル {path} に在る。先に Read で読み、そこを直した返答を丸ごと"
                "出し直せ（直した所だけを返すな）。")
-LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、関所と報告に載る文）は {lang} で書け。"
-             "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
-LANG_DEFAULT = "依頼文の言語（利用者の言語）"
 NOTHING_OWED = "直す義務の単位が無い（開いた単位が無いか、全部が人の答え待ちの問いの出どころ・depends）"
 NO_PLAN = "受け付けを通った修正案が無い（修正案の輪が回らなかったか、途中で落ちた）"
 UNITS_HEAD = promptsection.Section("## 今の周に直す単位（機械が判定から貼った。案の unit_keys は下の no で指せ）", source="fn:planfile.units_section")
@@ -631,7 +628,7 @@ def compose(parts, *, reject_file: str = "") -> str:
 
 def lang_line(lang) -> str:
     """役に言語を縛る 1 行（元 works/.shared/core/rolekit.py の lang_line。言語は始めの記録の lang）"""
-    return LANG_RULE.format(lang=str(lang or "").strip() or LANG_DEFAULT)
+    return rolekit.lang_line({"lang": lang})
 
 
 def _dump(doc) -> str:

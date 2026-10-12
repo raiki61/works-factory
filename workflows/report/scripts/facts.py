@@ -4,7 +4,9 @@
 # ///
 """報告のブロックの最初の節: 入力・型つきの成果物の一覧・run の記録を読み、結末を決め、機械の報告と持ち越しを run の置き場の
 report/ に書く。0 以外で終わらない（落ちると線は報告の返りを受けられない）: lib/ を読めない時も含めて思わぬ誤りを捕まえ、
-record_invalid で返す。lib/ は main の中で読む（読めない時の受け皿は place.unwritten）。"""
+record_invalid で返す。lib/ は main の中で読む（読めない時の受け皿は place.unwritten）。
+書き手の役の文の頭に足す言語の 1 行（始めの記録の lang から rolekit.lang_line。元 works/.shared/core/rolekit.py 147-150 行）も
+lang_line で返す（読めない記録・思わぬ誤りの時は既定の言語の 1 行）。"""
 import json
 import os
 import sys
@@ -111,6 +113,7 @@ def transcript() -> tuple:
 def main() -> dict:
     sys.path.append(str(boundary.lib_root()))
     import outcome
+    import rolekit
     import runreport
 
     unread, unopened, returns, gates = [], [], {}, {}
@@ -139,15 +142,19 @@ def main() -> dict:
             "report": report, "next_request": rel(built["next_request"]),
             "prior_failures": rel(built["prior_failures"]), "ai_go": built["ai_go"], "facts_file": report["path"],
             "stamp": runreport.stamp(run_id, WORKFLOW_FILE, outcome.as_dict(outcome.planned(returns)).get("round"),
-                                     record)}
+                                     record),
+            "lang_line": rolekit.lang_line(start)}
 
 
 def fallen(error: BaseException) -> dict:
     """思わぬ誤りでも返る形（結末 record_invalid と誤りの 1 行を載せた機械の報告。lib/ を読めない・それも書けなければ訳だけの 1 ファイル）"""
     why = failed_line("報告の事実", error)
     out = {"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "report": None,
-           "next_request": None, "prior_failures": None, "ai_go": False, "facts_file": "", "stamp": ""}
+           "next_request": None, "prior_failures": None, "ai_go": False, "facts_file": "", "stamp": "",
+           "lang_line": "人が読む文の欄は依頼文の言語で書け（言語の 1 行を組めなかった）"}
     try:
+        import rolekit
+        out["lang_line"] = rolekit.lang_line({})
         import runreport
         out["report"] = rel(runreport.fallback_report(out_dir(), why, UNWRITTEN))
     except Exception:  # noqa: BLE001 — lib/ を読めなくても、置き場に書けなくても返る

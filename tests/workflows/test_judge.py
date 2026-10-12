@@ -207,7 +207,7 @@ class LoopTest(unittest.TestCase):
                     self.assertEqual((node["script"], node["runtime"], node["timeout"], node["mutates_checkout"]),
                                      ("reject", "uv", NO_DEADLINE, False))
                     self.assertEqual(node["with"], {"reason": f"$LOOP_PREV.{accept}.output.reason"})
-                    self.assertEqual(node["output_format"]["required"], ["reason"])
+                    self.assertEqual(node["output_format"]["required"], ["reason", "lang_line"])   # 言語の 1 行は BriefCase
                     self.assertNotIn("with", role)
                     self.assertIn(reject, role["depends_on"])
                     text = (COMMANDS / f"{role['command']}.md").read_text(encoding="utf-8")
@@ -218,11 +218,11 @@ class LoopTest(unittest.TestCase):
                     self.assertIn(f"```text\n${reject}.output.reason\n```", section)
 
     def test_reject_script_returns_the_reason_as_is(self):
-        """reject は受けた理由を 1 字も変えずに返す（1 周目は空の字。改行・引用符・バッククォートも残す）"""
+        """reject は受けた理由を 1 字も変えずに返す（1 周目は空の字。改行・引用符・バッククォートも残す）。言語の 1 行も返す（BriefCase）"""
         r = Run(self)
         for reason in ("", '一行目 "引用" `x`\n二行目'):
             with self.subTest(reason=reason):
-                self.assertEqual(r.returned("reject", reason=reason), {"reason": reason})
+                self.assertEqual(r.returned("reject", reason=reason), {"reason": reason, "lang_line": rolekit.lang_line({})})
 
     def test_materials_are_eleven_loops_one_per_command(self):
         material_loops = sorted(lid.removesuffix("-loop") for lid in loops() if lid.removesuffix("-loop") in MATERIALS)
@@ -897,3 +897,34 @@ class VerdictNeverFailsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BriefCase(unittest.TestCase):
+    def lang_source(self, node_id: str) -> str:
+        """役の節が言語の 1 行を読む節: 輪の中の役は同じ輪の頭の拒否の節、輪の外の判定の裏取りは支度の節"""
+        for loop in loops().values():
+            ids = [n["id"] for n in loop["loop_group"]["nodes"]]
+            if node_id in ids:
+                return next(i for i in ids if i.endswith("-reject"))
+        return "verify-prep"
+
+    def test_lang_line_reaches_judge_roles(self):
+        """L-E37: 始めの記録の lang が、判定の全部の役の文の頭に言語の 1 行（rolekit.lang_line。元 works/.shared/core/rolekit.py
+        67-68 行・147-150 行）として届く。plan・eyes・fix と同じ口で、写しを作らない"""
+        roles = {k: n for k, n in nodes().items() if "command" in n}
+        self.assertGreaterEqual(len(roles), 22)
+        for key, node in roles.items():
+            with self.subTest(role=key):
+                source = self.lang_source(key)
+                first = (COMMANDS / f"{node['command']}.md").read_text(encoding="utf-8").splitlines()[0]
+                self.assertEqual(first, f"${source}.output.lang_line")
+                self.assertIn("lang_line", nodes()[source]["output_format"]["required"])
+        r = Run(self, lang="English")
+        want = rolekit.lang_line({"lang": "English"})
+        self.assertIn("English", want)
+        self.assertEqual(r.returned("reject", reason="")["lang_line"], want)
+        self.assertEqual(r.returned("verify", stage="prep")["lang_line"], want)
+        self.assertEqual(r.returned("verify", stage="prep", objection="異議")["lang_line"], want)
+        self.assertEqual(Run(self).returned("reject", reason="x"), {"reason": "x", "lang_line": rolekit.lang_line({})})
+        broken = r.returned("reject", reason="", start=json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "no.json"}))
+        self.assertIn("読めない", broken["lang_line"])

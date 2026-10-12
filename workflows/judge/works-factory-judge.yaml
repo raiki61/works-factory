@@ -45,8 +45,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: spec
           command: spec
           depends_on: [spec-reject]
@@ -120,8 +120,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: spec-review
           command: spec-review
           depends_on: [spec-review-reject]
@@ -185,8 +185,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: spec-revise
           command: spec-revise
           depends_on: [spec-revise-reject]
@@ -335,8 +335,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: pr-check
           command: pr-check
           depends_on: [pr-check-reject]
@@ -431,8 +431,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: premises
           command: premises
           depends_on: [premises-reject]
@@ -506,8 +506,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: purpose
           command: purpose
           depends_on: [purpose-reject]
@@ -582,8 +582,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: world-classes
           command: world-classes
           depends_on: [world-classes-reject]
@@ -660,8 +660,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: world-judge
           command: world-judge
           depends_on: [world-judge-reject]
@@ -793,8 +793,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: prior-decisions
           command: material-prior-decisions
           depends_on: [prior-decisions-prep, prior-decisions-reject]
@@ -890,8 +890,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: purpose-review
           command: material-purpose-review
           depends_on: [purpose-review-prep, purpose-review-reject]
@@ -967,8 +967,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: local-review
           command: material-local-review
           depends_on: [local-review-prep, local-review-reject]
@@ -1073,8 +1073,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: consistency-bypass
           command: material-consistency-bypass
           depends_on: [consistency-bypass-prep, consistency-bypass-reject]
@@ -1188,8 +1188,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: hygiene
           command: material-hygiene
           depends_on: [hygiene-prep, hygiene-reject]
@@ -1264,8 +1264,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: external-standards
           command: material-external-standards
           depends_on: [external-standards-prep, external-standards-reject]
@@ -1376,8 +1376,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: procedure-trace
           command: material-procedure-trace
           depends_on: [procedure-trace-prep, procedure-trace-reject]
@@ -1472,8 +1472,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: gate-efficacy
           command: material-gate-efficacy
           depends_on: [gate-efficacy-prep, gate-efficacy-reject]
@@ -1569,8 +1569,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: test-double-fidelity
           command: material-test-double-fidelity
           depends_on: [test-double-fidelity-prep, test-double-fidelity-reject]
@@ -1665,8 +1665,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: main-path-observation
           command: material-main-path-observation
           depends_on: [main-path-observation-prep, main-path-observation-reject]
@@ -1758,8 +1758,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: provenance
           command: material-provenance
           depends_on: [provenance-prep, provenance-reject]
@@ -1857,8 +1857,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: diagnose
           command: diagnose
           depends_on: [diagnose-reject]
@@ -2067,11 +2067,12 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [go, prompt_file, reason]
+      required: [go, prompt_file, reason, lang_line]
       properties:
         go: {type: boolean}
         prompt_file: {type: string}
         reason: {type: string}
+        lang_line: {type: string}
   - id: judge-verify
     command: judge-verify
     depends_on: [verify-prep]
@@ -2138,8 +2139,8 @@ nodes:
           output_format:
             type: object
             additionalProperties: false
-            required: [reason]
-            properties: {reason: {type: string}}
+            required: [reason, lang_line]
+            properties: {reason: {type: string}, lang_line: {type: string}}
         - id: rejudge
           command: rejudge
           depends_on: [rejudge-reject]

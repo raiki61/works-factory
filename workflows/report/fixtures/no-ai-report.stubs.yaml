@@ -12,6 +12,7 @@ facts:
   ai_go: false
   facts_file: report/report.md
   stamp: ""
+  lang_line: ""
 report:
   outcome: record_invalid
   stop_reason: "start:record-invalid"

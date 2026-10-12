@@ -9,5 +9,5 @@ test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause":
 judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "verify": false, "reason": ""}
 judge__verify-merge: {"ok": true, "reason": ""}
 judge__verdict: {"ready": false, "stop_reason": "", "units": [], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null}
-report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": ""}
+report__facts: {"outcome": "fixed", "ok": true, "stop_reason": "", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": "", "lang_line": ""}
 report__report: {"ok": true, "outcome": "no_fix_needed", "stop_reason": "", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}

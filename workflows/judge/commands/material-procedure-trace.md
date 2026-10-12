@@ -1,3 +1,5 @@
+$procedure-trace-reject.output.lang_line
+
 ## お前の役の定義（investigator）
 
 お前は investigator。調べて持ち帰る役で、判断を確定する役ではない。

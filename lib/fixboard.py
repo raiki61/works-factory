@@ -761,10 +761,6 @@ FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまと
 REJECT_NAME = "reject-{name}-{k}.md"   # 受け付けの k 回目の拒否の理由（役が Read で読む）
 REFIX_PROMPT = "prompt-{}.md"          # 手直しの役の指示書（節の名 p3.delta_fix・p3.delta_fix2）
 LENS_PROMPT = "prompt-lens-{}.md"      # レンズの節の指示書（lenses.key）
-# 役に言語を縛る 1 行（元 works/.shared/core/rolekit.py:67 の LANG_RULE と board.py:96 の LANG_DEFAULT の写し）
-LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、関所と報告に載る文）は {lang} で書け。"
-             "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
-LANG_DEFAULT = "依頼文の言語（利用者の言語）"
 # 差分の審査の受け付けが拒む穴の語（元 works/.shared/core/graphloops/rules/review-loop.py:4084-4087）
 HUMAN_FACE_KINDS = ("regression", "policy")
 PLAN_ONLY_FACE_KINDS = HUMAN_FACE_KINDS + ("precedent",)
@@ -782,11 +778,9 @@ def write_text(path, text: str) -> pathlib.Path:
 
 
 def lang_line(start) -> str:
-    """役に言語を縛る 1 行。言語は始めの記録 start の欄 lang（無ければ inputs.lang、どちらも空なら LANG_DEFAULT）。
-    元 works/.shared/core/rolekit.py:147 の lang_line（盤面の inputs を読んだ）"""
-    start = start if isinstance(start, dict) else {}
-    got = start.get("lang") or ((start.get("inputs") or {}).get("lang") if isinstance(start.get("inputs"), dict) else "")
-    return LANG_RULE.format(lang=str(got or "").strip() or LANG_DEFAULT)
+    """役に言語を縛る 1 行（住処は rolekit.lang_line。元 works/.shared/core/rolekit.py:147。写しを持たない）"""
+    import rolekit
+    return rolekit.lang_line(start)
 
 
 def policy_brief(start) -> dict:

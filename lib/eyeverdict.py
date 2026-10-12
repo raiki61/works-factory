@@ -24,6 +24,7 @@ import types
 import changemap
 import design
 import gatemarks
+import rolekit
 import seal
 
 R2_PREMISE_HEAD = "前提不成立: "
@@ -41,10 +42,6 @@ CONSTRAINT_HEAD = "### 記録の制約"                 # 元 同 :119
 NO_CONSTRAINTS = "（記録の制約 premises.json が渡っていない）"
 NO_REQUEST = "依頼のファイルが渡っていない"
 START_GATE_NODE = "gate-start"   # 線の始めの関所（plan-review が独立設計に貼る人の答えの源）
-# 元 .shared/core/rolekit.py:67 の LANG_RULE と board.py:96 の LANG_DEFAULT
-LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、関所と報告に載る文）は {lang} で書け。"
-             "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
-LANG_DEFAULT = "依頼文の言語（利用者の言語）"
 # 元 .shared/core/graphloops/rules/review-loop.py:4103 の R4_ROWS（種類・R4 の返りの欄・行の頭）
 R4_ROWS = (("regression", "lost", "R4 が BASE から消えたと見た能力: "), ("policy", "policy_conflicts", "R4 が見た人の方針とのぶつかり: "))
 X_SCALAR = re.compile(r"^x_[a-z0-9_]+$")   # 元 graphs/review-loop.json の p3.fix の x_scalars の patternProperties
@@ -239,7 +236,7 @@ def premise_section(*, human_items, request_text, repo, changed, constraints, de
 
 def lang_line(lang) -> str:
     """元 .shared/core/rolekit.py:147 の lang_line。言語は始めの記録の lang（空なら依頼文の言語）"""
-    return LANG_RULE.format(lang=str(lang or "").strip() or LANG_DEFAULT)
+    return rolekit.lang_line({"lang": lang})
 
 
 def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_file: str, world_file: str, passed: dict) -> dict:
