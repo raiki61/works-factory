@@ -769,6 +769,24 @@ class DeltaScriptsCase(unittest.TestCase):
             self.assertIs(got["ok"], True)
             self.assertIn("レンズは起こさない", got["reason"])
 
+    def test_collect_stdlib_copies_match_the_lib(self):
+        """返す節 collect が lib を読めない道のために写して持つ名と文と置き場のパスは、lib の正本と同じ（one-source。写しのずれは赤）"""
+        import importlib.util
+        import fixboard
+
+        def load(name):
+            spec = importlib.util.spec_from_file_location(f"fix_{name}", BLOCK / "scripts" / f"{name}.py")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+        collect, fixio = load("collect"), load("fixio")
+        self.assertEqual((collect.LENSES_FILE, collect.ALLOWED_TESTS), (fixboard.LENSES_FILE, fixboard.ALLOWED_TESTS_FILE))
+        self.assertEqual(collect.NO_COLLECTOR, fixboard.LENS_NOT_DONE.format(why=collect.NO_COLLECTOR.partition(": ")[2]))
+        collect.fixio = fixio
+        with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.art),
+                                          "ARCHON_NODE_EXECUTION": json.dumps({"path": "refix__fix"})}):
+            self.assertEqual(self.art / collect.place_rel(), fixio.place())
+
     def test_scripts_do_not_name_queues_or_take(self):
         for name in ("delta_cut", "delta_accept", "lens_prep", "lens_collect", "refix_prep", "refix_accept", "cut2",
                      "review2_accept", "refix2_prep", "refix2_accept"):

@@ -107,13 +107,18 @@ def group(fixboard, conflict) -> dict:
     return fields(fixboard, conflict, place, rows_groups, [g], extras, dict(NO_REVIEW), result is not None, final)
 
 
-def error_pointer(why: str) -> dict:
-    """理由を置き場の fix-collect-error.txt に書いた指し札（stdlib だけ。境の口と fixio を読めない時も置く）"""
+def place_rel() -> str:
+    """置き場の成果物の置き場からの相対パス（fixio.place() と同じ fix/<include の名>。fixio を読めない時は fix/fix）"""
     try:
         name = fixio.include_name()
     except Exception:
         name = "fix"
-    rel_path = f"fix/{name}/{ERROR_FILE}"
+    return f"fix/{name}"
+
+
+def error_pointer(why: str) -> dict:
+    """理由を置き場の fix-collect-error.txt に書いた指し札（stdlib だけ。境の口と fixio を読めない時も置く）"""
+    rel_path = f"{place_rel()}/{ERROR_FILE}"
     try:
         target = Path(os.environ["ARTIFACTS_DIR"]) / rel_path
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -129,11 +134,7 @@ def lenses_file() -> None:
     （lens-collect）か delta-cut が書いた行が読めればそのまま、無い・形が違えば ok: false と理由（集め役が何も書けずに落ちたか
     走らなかった）、組の子は ok: true（レンズを起こさない）。stdlib だけ（lib と境の口が読めない道でも書く）。書けなければ標準
     エラーに名指す（落ちない）"""
-    try:
-        name = fixio.include_name()
-    except Exception:
-        name = "fix"
-    path = Path(os.environ.get("ARTIFACTS_DIR", ".")) / "fix" / name / LENSES_FILE
+    path = Path(os.environ.get("ARTIFACTS_DIR", ".")) / place_rel() / LENSES_FILE
     if os.environ.get("INPUTS_MODE", "") == "group":
         doc = {"collector": {"ok": True, "reason": GROUP_LENSES}}
     else:
