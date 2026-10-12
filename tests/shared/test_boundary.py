@@ -46,7 +46,8 @@ def archon_spellings(source: str) -> list[str]:
     found = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in prose:
-            if node.value.rstrip("/") == ".archon" or node.value.startswith(".archon/") or node.value in ("STATE_DIR", "works-factory"):
+            if node.value.rstrip("/") == boundary.RUNTIME_COPY or node.value.startswith(boundary.RUNTIME_COPY_PREFIX) \
+                    or node.value in (boundary.SHARED_CACHE_ENV, boundary.SHARED_CACHE):
                 found.append(f"{node.lineno}: {node.value!r}")
         elif isinstance(node, (ast.Tuple, ast.List, ast.Set)):
             names = [e.value for e in node.elts if isinstance(e, ast.Constant) and e.value in runner]
@@ -65,6 +66,7 @@ class ArchonFactsCase(unittest.TestCase):
         self.assertEqual(boundary.RUNTIME_COPY_DIRS, ((boundary.RUNTIME_COPY,),))
 
     def test_shared_cache_is_under_state_dir_or_none(self):
+        self.assertIn(boundary.SHARED_CACHE_ENV, boundary.RUNNER_NAMES)
         with mock.patch.dict(os.environ, {"STATE_DIR": "/state"}):
             self.assertEqual(boundary.shared_cache(), pathlib.Path("/state/works-factory"))
         for absent in ({"STATE_DIR": ""}, {}):

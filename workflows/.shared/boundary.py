@@ -42,6 +42,7 @@ _import_error = None
 RUNTIME_COPY = ".archon"
 RUNTIME_COPY_PREFIX = f"{RUNTIME_COPY}/"
 RUNTIME_COPY_DIRS = ((RUNTIME_COPY,),)
+SHARED_CACHE_ENV = "STATE_DIR"
 SHARED_CACHE = "works-factory"
 
 # Archon が script の節に立てる変数（exec-environment.ts の buildExecNodeEnvironment。tests/shared/test_archon_contract.py が照らす）。
@@ -139,7 +140,7 @@ def drop_runner_env() -> None:
 def shared_cache() -> Path | None:
     """run をまたぐ控えの根（Archon が project ごとに渡す run をまたぐ置き場 STATE_DIR の下 works-factory/）。渡されなければ None で、
     控えを使わない"""
-    state = os.environ.get("STATE_DIR")
+    state = os.environ.get(SHARED_CACHE_ENV)
     return Path(state) / SHARED_CACHE if state else None
 
 
