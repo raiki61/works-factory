@@ -423,7 +423,7 @@ class TestDirectOnly(OutsideCase):
         probs, note = tddloop.selected_problems(self.state, self.repo, "HEAD")
         self.assertEqual(probs, [], note)
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_stats"]], "先の試験を -k に入れた")
-        self.assertEqual(tddloop.load_state(self.state)["final_left"], [FAR])
+        self.assertEqual(tddloop.final_left(self.state), [FAR])
         self.assertIn("最後のテストの段に任せた", note)
         self.assertIn(FAR, note.split("最後のテストの段に任せた", 1)[1])
 
@@ -436,7 +436,7 @@ class TestDirectOnly(OutsideCase):
         probs, note = tddloop.selected_problems(self.state, self.repo, "HEAD")
         self.assertEqual(probs, [], note)
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_stats"]], "遠くの分からない物で一式を回した")
-        self.assertEqual(tddloop.load_state(self.state)["final_far"], ["dynamic-import: far_loader.py:6"])
+        self.assertEqual(tddloop.final_far(self.state), ["dynamic-import: far_loader.py:6"])
         self.assertIn("far_loader.py", note.split("最後のテストの段に任せた", 1)[1])
 
     def test_accept_runs_tests_named_by_the_plan(self):
@@ -446,7 +446,7 @@ class TestDirectOnly(OutsideCase):
         self.fix_stats()
         tddloop.selected_problems(self.state, self.repo, "HEAD")
         self.assertEqual(self.runs()[-1], [None, ["-k", "test_far or test_stats"]], "修正案が名指す試験を回さない")
-        self.assertEqual(tddloop.load_state(self.state)["final_left"], [])
+        self.assertEqual(tddloop.final_left(self.state), [])
 
     def test_green_adds_only_direct_files_of_the_baseline(self):
         self.assertTrue(tddloop.step(self.state, {"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]},
