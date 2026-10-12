@@ -71,6 +71,15 @@ class FreezeCase(unittest.TestCase):
         named.write_bytes("- 名指した方針\n".encode("utf-8"))
         self.assert_copied(policy.freeze(self.run, self.repo, str(named)), str(named), str(named), named.read_bytes())
 
+    def test_version_reads_back_what_freeze_writes(self):
+        """書く側（freeze）と読む側（version）の欄が合う。合わないと version が None を返し、frozen_copy が黙って生の policy_md に戻る"""
+        named = self.tmp / "named.md"
+        named.write_text("- 名指した方針\n", encoding="utf-8")
+        for doc in (str(named), ""):
+            with self.subTest(named=doc):
+                frozen = policy.freeze(self.run, self.repo, doc)
+                self.assertEqual(policy.version({"policy": frozen}), frozen)
+
     def test_frozen_copy_reads_the_version_and_falls_back_to_policy_md(self):
         """欄 policy の在る記録は写し copy（文書が無い版は空）、欄の無い・壊れた記録は今どおり policy_md"""
         frozen = {"named": "/p.md", "path": "/p.md", "sha256": "a" * 64, "copy": "/run/policy/a.md"}

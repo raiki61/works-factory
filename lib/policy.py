@@ -33,7 +33,9 @@ import promptsection  # noqa: E402
 
 DIR = "policy"
 DEFAULT = ("graphloops", "policy.md")   # 元 policy_input.py:19
-VERSION_KEYS = ("named", "path", "sha256", "copy")
+TEXT_KEYS = ("named", "path")         # 固めた版の欄のうち、いつも字の物
+SNAPSHOT_KEYS = ("sha256", "copy")    # 固めた版の欄のうち、文書が無ければ None の物
+VERSION_KEYS = TEXT_KEYS + SNAPSHOT_KEYS
 PASTE_CAP = FILE_CAP   # 40000。engine の役に貼る本文の上限と同じ（バイトで測る。日本語は字数の約 3 倍）
 # 人の方針の節（元 works/.shared/core/gl-prompts/prompts/policy-paste.md と policy.md。方針の文書が在る時だけ貼る）
 HEAD = promptsection.Section("## 人の方針", source="fn:policy.section")
@@ -78,14 +80,14 @@ def freeze(folder, cwd, named: str) -> dict:
     copy は None"""
     path = locate(cwd, named)
     sha, copy_of = snapshot(folder, path)
-    return {"named": str(named or ""), "path": path, "sha256": sha, "copy": copy_of}
+    return dict(zip(VERSION_KEYS, (str(named or ""), path, sha, copy_of)))
 
 
 def version(start) -> dict | None:
     """始めの記録の欄 policy の固めた版。欄が無い・形が違えば None（読み手は落ちずに版の無い記録として扱う）"""
     got = start.get("policy") if isinstance(start, dict) else None
-    if not (isinstance(got, dict) and isinstance(got.get("named"), str) and isinstance(got.get("path"), str)
-            and all(got.get(k) is None or isinstance(got.get(k), str) for k in ("sha256", "copy"))):
+    if not (isinstance(got, dict) and all(isinstance(got.get(k), str) for k in TEXT_KEYS)
+            and all(got.get(k) is None or isinstance(got.get(k), str) for k in SNAPSHOT_KEYS)):
         return None
     return {k: got.get(k) for k in VERSION_KEYS}
 
