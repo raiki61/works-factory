@@ -28,7 +28,6 @@ import re  # noqa: E402
 import shutil  # noqa: E402
 import subprocess  # noqa: E402
 import tempfile  # noqa: E402
-import types  # noqa: E402
 
 import accept as core_accept  # noqa: E402  （lib/accept。このモジュールに受け付けの関数 accept が在るので別名で読む）
 import baseline_red  # noqa: E402
@@ -2952,11 +2951,11 @@ POLICY_HEAD = promptsection.Section("## 人の方針", source="fn:judge_accept.p
 
 def policy_text(start) -> str:
     """人の方針の文書（始めの記録の固めた版の写し。policy.frozen_copy）の役に貼る本文。元 policy.brief のとおり PASTE_CAP バイトで
-    先頭を切り、続きの置き場を末尾に書く。文書が無ければ空（policy.brief は盤面の record.process.policy.copy を読むので、その形で渡す）"""
+    先頭を切り、続きの置き場を末尾に書く。文書が無ければ空"""
     copy_of = policy.frozen_copy(start)
     if not copy_of or not pathlib.Path(copy_of).is_file():
         return ""
-    return policy.brief(types.SimpleNamespace(record={"process": {"policy": {"copy": copy_of}}}))["paste"]
+    return policy.brief(start)["paste"]
 
 
 def section(text: str, start_at: str = START, end_at: str = END) -> str:

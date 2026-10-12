@@ -98,9 +98,9 @@ def frozen_copy(start) -> str:
     return str(start.get("policy_md") or "") if isinstance(start, dict) else ""
 
 
-def brief(b) -> dict:
-    """record.process.policy.copy（固定した版の写し）から {paste, path}。写しが無い（方針の文書が無い run）なら両方空"""
-    copy = ((b.record.get("process") or {}).get("policy") or {}).get("copy")
+def brief(start) -> dict:
+    """始めの記録 start の固めた版の写し（frozen_copy）から {paste, path}。写しが無い（方針の文書が無い run）なら両方空"""
+    copy = frozen_copy(start)
     if not copy:
         return {"paste": "", "path": ""}
     return {"paste": _capped(pathlib.Path(copy).read_bytes(), copy), "path": copy}

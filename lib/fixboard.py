@@ -788,21 +788,14 @@ def lang_line(start) -> str:
     return LANG_RULE.format(lang=str(got or "").strip() or LANG_DEFAULT)
 
 
-def policy_path(start) -> str:
-    """役に渡す方針の文書のパス: 始めの記録 start の固めた版の写し（policy.frozen_copy。文書が無ければ空）"""
-    import policy
-    return policy.frozen_copy(start)
-
-
 def policy_brief(start) -> dict:
-    """人の方針 {paste, path}（policy.brief。path は policy_path。空なら両方空）。文書が読めなければ ValueError。
+    """人の方針 {paste, path}（policy.brief。path は始めの記録の固めた版の写し。空なら両方空）。文書が読めなければ ValueError。
     元 works/.shared/core/policy.py:26（盤面の record.process.policy.copy を読んだ）"""
     import policy
-    copy_of = policy_path(start)
     try:
-        return policy.brief(types.SimpleNamespace(record={"process": {"policy": {"copy": copy_of}}}))
+        return policy.brief(start)
     except OSError as e:
-        raise ValueError(f"人の方針の文書 {copy_of} が読めない: {e}") from None
+        raise ValueError(f"人の方針の文書 {policy.frozen_copy(start)} が読めない: {e}") from None
 
 
 def depth_doc(place):
@@ -1988,9 +1981,10 @@ def fix_values(place, owed, *, start, state: str = "", summary: str = "", answer
 
     def there(name):
         return str(p / name) if (p / name).is_file() else ""
+    import policy
     start = start if isinstance(start, dict) else {}
     return {"judgment_file": there(JUDGMENT_FILE), "open_units": json.dumps(list(owed), ensure_ascii=False),
-            "plan_file": there(PLAN_REPLY_FILE), "policy_path": policy_path(start),
+            "plan_file": there(PLAN_REPLY_FILE), "policy_path": policy.frozen_copy(start),
             "notes_file": there(NOTES_FILE), "summary_file": summary or "",
             "request_file": str(start.get("request_file") or ""), "plan_session": answer_node, "tdd_state": state or "",
             "ripple_file": there(RIPPLE_FILE), "base_rev": base_rev_of(place)}

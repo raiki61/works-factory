@@ -5,7 +5,6 @@ import pathlib
 import subprocess
 import sys
 import tempfile
-import types
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -40,8 +39,7 @@ class SectionCase(unittest.TestCase):
         self.assertLessEqual(len(body.encode("utf-8")), policy.PASTE_CAP)
         self.assertNotIn("TAIL-MARK", got)
         self.assertIn(f"{policy.PASTE_CAP} バイトまでを貼った。続きは {self.pol}", body)
-        self.assertEqual(body, policy.brief(types.SimpleNamespace(
-            record={"process": {"policy": {"copy": str(self.pol)}}}))["paste"])
+        self.assertEqual(body, policy.brief({"policy_md": str(self.pol)})["paste"])
         self.assertTrue(got.endswith(policy.RULE))
 
 

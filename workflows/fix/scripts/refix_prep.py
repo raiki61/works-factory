@@ -19,6 +19,7 @@ sys.path.append(str(boundary.lib_root()))
 import fixio  # noqa: E402
 import fixboard  # noqa: E402
 import groups  # noqa: E402
+import policy  # noqa: E402
 import refix  # noqa: E402
 import refixrules  # noqa: E402
 import rolekit  # noqa: E402
@@ -48,7 +49,7 @@ def main() -> None:
                             fix_reply=fix_reply if fix_reply.is_file() else None, policy=fixboard.policy_brief(start))
     if not got["ok"]:
         raise ValueError(got["reason"])
-    text = fixboard.refix_prompt(N, {"brief_file": got["brief_file"], "diff_file": got["diff_file"], "policy_path": fixboard.policy_path(start),
+    text = fixboard.refix_prompt(N, {"brief_file": got["brief_file"], "diff_file": got["diff_file"], "policy_path": policy.frozen_copy(start),
                                      "request_file": str(start.get("request_file") or "")},
                                  reject_file=fixboard.last_reject_file(place, ACCEPT), iteration=iteration,
                                  lang=fixboard.lang_line(start))

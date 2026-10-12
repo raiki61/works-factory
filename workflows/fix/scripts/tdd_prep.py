@@ -24,6 +24,7 @@ import fixio  # noqa: E402
 
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
+import policy  # noqa: E402
 import rulebook  # noqa: E402
 import startrec  # noqa: E402
 import tddloop  # noqa: E402
@@ -48,7 +49,7 @@ def main() -> dict:
     notes = place / fixboard.NOTES_FILE
     values = {"judgment_file": str(judgment_file) if judgment_file.is_file() else "",
               "plan_file": str(plan_file) if plan_file.is_file() else "",
-              "policy_path": fixboard.policy_path(start), "request_file": str(start.get("request_file") or ""),
+              "policy_path": policy.frozen_copy(start), "request_file": str(start.get("request_file") or ""),
               "notes_file": str(notes) if notes.is_file() else "", "base_rev": fixboard.base_rev_of(place)}
     sources = {"plan": fixboard.read_json(plan_file), "judgment": fixboard.read_json(judgment_file)}
     out = tddloop.prep(started["state_file"], values, repo, lang=fixboard.lang_line(start), sources=sources)
