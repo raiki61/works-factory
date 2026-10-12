@@ -855,6 +855,64 @@ class RulingSeamCase(TempCase):
         with self.assertRaises(ValueError):
             r.prep(self.place, self.repo, self.VALUES)   # 裁く申し出が無い
 
+    def _rule_errs(self, row, item, briefs=None):
+        """裁定 1 行 row を、申し出 item（id c1-1）への返答として ruling.problems に当てた文（grounds は置き場の中も名指せる。
+        accept_rule と同じ roots）"""
+        return self.ruling.problems({"rulings": [{"id": "c1-1", **row}]}, {"c1-1": {"id": "c1-1", **item}}, self.repo, "",
+                                    (str(self.place),), briefs=briefs)
+
+    def test_replace_query_is_tried_on_hits_misses_and_correct_lines(self):
+        """F212: 裁定 replace_query の新しい問いは、hits に全部当たり、misses にも申し出の correct_lines にも当たらない時だけ通る
+        （Semgrep の規則の試験の形）。which_is_right が query でない申し出には裁けない（元 works/tests/test_fix_rules.py:727
+        test_replace_query_ruling_is_tried_on_examples の写し）"""
+        item = {**CLAIM, "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
+
+        def row(patterns, hits, misses):
+            how = {"patterns": patterns, "fixed": True, "paths": ["stats.py"], "count": "lines"}
+            return {"decision": "replace_query", "limits": [], "text": "上限の枝だけに当たる問いに置き換える",
+                    "query": {"how": how, "counts": "defects", "hits": hits, "misses": misses}}
+        good = row(["return lo  # hi"], ["        return lo  # hi"], ["        return hi"])
+        self.assertEqual(self._rule_errs(good, item), [], "全部を満たす問いは通す")
+        cases = ((row(["return lo  # hi"], ["        return hi"], []), "hits に当たらない"),
+                 (row(["return lo  # hi"], ["        return lo  # hi"], ["        return lo  # hi"]), "misses に当たる"),
+                 (row(["return lo"], ["        return lo  # hi"], ["        return hi"]), "correct_lines"))
+        for bad, word in cases:
+            with self.subTest(word=word):
+                errs = self._rule_errs(bad, item)
+                self.assertTrue(any(word in e for e in errs), errs)
+        errs = self._rule_errs(good, {**CLAIM, "which_is_right": "request"})
+        self.assertTrue(any("which_is_right が query の申し出だけ" in e for e in errs), errs)
+
+    def test_fix_plan_item_needs_brief_grounds_and_no_limits(self):
+        """F213: 裁定 fix_plan_item は範囲 limits を持たず、grounds にその単位の brief の行を名指す時だけ通り、受けた裁定には機械が
+        plan_items（brief の項目の番号）と plan_units（その項目に載る単位の全部）を足す。機械が諦めた単位の申し出
+        （source tdd-gave-up）への fix_code_as は grounds を要る（元 works/tests/test_conflict_kinds.py:270・277
+        FixPlanItemRulingCase・:309 GaveUpRulingCase の写し）"""
+        c = self.conflict
+        brief = self.place / "brief-1.md"
+        brief.write_text("# brief 1\n受け入れのテストは assertion で赤\n", encoding="utf-8")
+        briefs = {KEY_A: [{"item": 1, "file": str(brief)}], KEY_B: [{"item": 1, "file": str(brief)}]}
+        row = {"decision": c.REPLAN, "text": "受け入れのテストの赤の種類を exception に直す", "limits": [],
+               "grounds": [f"{brief}:2"]}
+        self.assertEqual(self._rule_errs(row, CLAIM, briefs), [])
+        self.assertTrue(any("brief が無い" in e for e in self._rule_errs(row, CLAIM, {})))
+        self.assertTrue(any("範囲を持たない" in e for e in self._rule_errs({**row, "limits": ["test_stats.py:2"]}, CLAIM, briefs)))
+        for grounds in ([], ["stats.py:3"]):
+            errs = self._rule_errs({**row, "grounds": grounds}, CLAIM, briefs)
+            self.assertTrue(any(c.REPLAN in e and "grounds" in e and str(brief) in e for e in errs), (grounds, errs))
+        code_as = {"decision": "fix_code_as", "text": "コードの返り値を hi に直せ", "limits": []}
+        gave_up = {**CLAIM, "source": c.GAVE_UP_SOURCE, "which_is_right": "unknown", "kind": "needs_context"}
+        self.assertTrue(any("grounds" in e and "fix_code_as" in e for e in self._rule_errs(code_as, gave_up)))
+        self.assertEqual(self._rule_errs({**code_as, "grounds": ["stats.py:3", "test_stats.py:2"]}, gave_up), [])
+        self.assertEqual(self._rule_errs(code_as, {**gave_up, "source": c.TDD_SOURCE}), [], "役の申し出は grounds なしで通る")
+        self.ruling.prep(self.place, self.repo, self.VALUES)
+        with mock.patch.object(self.ruling.planbrief, "by_unit_at", return_value=briefs):
+            got = self.ruling.accept_rule({"rulings": [{"id": "c1-1", **row}]}, self.place, self.rev, self.repo)
+        self.assertTrue(got["ok"], got)
+        stored, = c.items(self.place)
+        self.assertEqual((stored["ruling"][c.PLAN_ITEMS], stored["ruling"][c.PLAN_UNITS]), ([1], [KEY_A, KEY_B]))
+        self.assertEqual(set(c.held_by_rulings(self.place)), {KEY_A, KEY_B}, "項目の単位の全部を直す義務から外す")
+
 
 class FactchecksSeamCase(TempCase):
     """factchecks の継ぎ目: 事前の確かめと受け付けの事実の確かめは、置き場（board）のファイルと引数の値で回り、置き場を書かない
