@@ -15,6 +15,7 @@
 - pack の中に __pycache__ を作らない（試験が持つ写しの pack で見る）
 孫の生死はプロセスグループ（コマンドの sh の pid と同じ番号）が空かで見る。グループの外へ出た孫は、孫が書いた pid で見る。
 """
+import itertools
 import os
 import pathlib
 import shlex
@@ -562,6 +563,18 @@ class LaunchProofShapeCase(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertEqual(subprocess.run(["bash", "-c", cmd], stdout=subprocess.DEVNULL).returncode, 0)
                 tree_run.prove_launchable(["bash", "-c", cmd])
+
+    def test_slow_proof_is_waited_out_without_deadline(self):
+        # 証明が長くかかっても（時計が何時間進んでも）期限で捨てて起こさず、command -v の答えを待つ（E12）
+        with tempfile.TemporaryDirectory() as tmp:
+            slow = pathlib.Path(tmp) / "slow-env.sh"
+            slow.write_text("sleep 0.6\n")
+            env = {**os.environ, "BASH_ENV": str(slow)}
+            clock = itertools.count(0, 3600)
+            with mock.patch.object(tree_run.time, "monotonic", lambda: float(next(clock))), \
+                    self.assertRaises(FileNotFoundError):
+                tree_run.prove_launchable(["bash", "-c", "no-such-command-xyz"], env=env)
+        self.assertFalse(hasattr(tree_run, "PROOF_TIMEOUT"))
 
 
 class CommandArgvCase(unittest.TestCase):
