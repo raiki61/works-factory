@@ -789,6 +789,14 @@ class LinesCase(Base):
         _, text, _ = self.build(fixed_run(**{"merge-seal": {"mode": "seal", "ok": False}, "merge-apply": None}))
         self.assertIn("merge-seal が ok でない: 訳の記録が無い", self.section(text, report.STOP_HEADING))
 
+    def test_where_lists_sealed_and_applied_diff(self):
+        merge = {"merge-seal": {"mode": "seal", "ok": True, "diff": "merge/sealed.diff"},
+                 "merge-apply": {"mode": "apply", "ok": True, "diff": "merge/apply.diff"}}
+        _, text, _ = self.build(fixed_run(**merge))
+        body = self.section(text, report.WHERE_HEADING)
+        self.assertIn("- 封じた差分（merge-seal.diff）: merge/sealed.diff", body)
+        self.assertIn("- 置いた差分（merge-apply.diff）: merge/apply.diff", body)
+
     def test_world_rows_keep_mark_and_versus(self):
         world = self.put("judge/world.jsonl", json.dumps({**WORLD_ROW, "basis": "knowledge"}, ensure_ascii=False))
         _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "world": world}))

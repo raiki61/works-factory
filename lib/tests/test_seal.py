@@ -130,6 +130,11 @@ class ApplyRefusalOrderCase(unittest.TestCase):
     def test_2_hash_mismatch(self):
         self.assertIn("封じた差分と今の差分が違う", refusal(current_hash=OTHER, answer=PASS))
 
+    def test_2_names_both_hashes(self):
+        got = refusal(current_hash=OTHER, answer=PASS)
+        self.assertIn(HASH, got)
+        self.assertIn(OTHER, got)
+
     def test_3_stop_answer(self):
         self.assertIn("最後の関所で stop と答えた", refusal(answer={"decision": "stop", "text": ""}))
 

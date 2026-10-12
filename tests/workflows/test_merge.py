@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -215,6 +216,24 @@ class SealTest(ScriptCase):
         self.assertEqual(len(sealed["protected_hits"]), 1)
         self.assertTrue(sealed["protected_hits"][0].startswith(seal.unknown_row("")))
         got = self.apply(sealed["hash"], root=root, answer="null")
+        self.assertIs(got["ok"], False)
+        self.assertIn("守りのパスを確かめられない", got["reason"])
+        self.assertFalse(self.artifact("merge/apply.diff").exists())
+
+    def test_uncountable_diff_is_an_unknown_hit(self):
+        """seal.diff_files が ValueError を投げる（PATH の頭の偽の git が git apply だけを落とす）と、守りの当たりは
+        確かめられなかった 1 行になり、答え無しの apply はそれで拒む"""
+        fake = self.tmp / "bin"
+        fake.mkdir()
+        (fake / "git").write_text(f'#!/bin/sh\n[ "$1" = apply ] && {{ echo "偽の git" >&2; exit 1; }}\n'
+                                  f'exec "{shutil.which("git")}" "$@"\n', encoding="utf-8")
+        (fake / "git").chmod(0o755)
+        with mock.patch.dict(os.environ, {"PATH": f"{fake}{os.pathsep}{os.environ['PATH']}"}):
+            sealed = self.seal()
+            self.assertEqual(len(sealed["protected_hits"]), 1, sealed)
+            self.assertTrue(sealed["protected_hits"][0].startswith(seal.unknown_row("")), sealed)
+            self.assertIn("偽の git", sealed["protected_hits"][0])
+            got = self.apply(sealed["hash"], answer="null")
         self.assertIs(got["ok"], False)
         self.assertIn("守りのパスを確かめられない", got["reason"])
         self.assertFalse(self.artifact("merge/apply.diff").exists())

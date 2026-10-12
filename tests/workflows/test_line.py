@@ -439,6 +439,23 @@ class AskFinalCase(unittest.TestCase):
         self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
         self.assertTrue(self.ask(self.got(), "when_needed", unattended=True)["go"])
 
+    def test_unattended_protected_hit_stops(self):
+        """守りのパスに当たった無人の run は、protected_only でも関所を開かずに人待ちで止め、answer-final が go を落として merge-apply が飛ぶ"""
+        got = self.ask(self.got(protected_hits=["lib/seal.py（+1 −0）: 規則 seal（lib/seal.py）——封印"]), "protected_only",
+                       unattended=True)
+        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
+        nodes = line_nodes()
+        self.assertEqual(nodes["gate-final"]["when"], "$ask-final.output.open == true")
+        self.assertEqual(nodes["merge-apply"]["when"], "$answer-final.output.go == true")
+        with tempfile.TemporaryDirectory() as tmp:
+            passed = gate_answer.answer(None, json.dumps(got["go"]), got["stop_reason"], "gate-final", pathlib.Path(tmp))
+        self.assertEqual((passed["go"], passed["stop_reason"]), (False, linekit.NEEDS_HUMAN))
+
+    def test_unsealed_is_a_reason(self):
+        got = self.got(sealed=False, seal_reason="緑の認証の指紋が今の木と違う")
+        self.assertEqual(ask_final.final_needs(got), ["差分を封じられなかった（緑の認証の指紋が今の木と違う）"])
+        self.assertTrue(self.ask(got, "when_needed")["open"])
+
     def test_objection_left_after_the_rejudge_is_a_reason(self):
         self.assertIn("止めずに残った異議が在る", ask_final.final_needs(self.got(objection="異議", rejudge_verdict="退ける")))
         self.assertEqual(ask_final.final_needs(self.got(objection="異議", rejudge_verdict="採る")), [])

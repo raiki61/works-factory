@@ -1882,7 +1882,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M10 バイナリのファイルは行数を数えず「行数なし（バイナリ・フォルダ）」と書く
   - 元: works/.shared/core/protect.py:167-173 `lines`
   - 今: wf lib/seal.py:66・lib/protect.py:171
-  - 証: wf test_seal.py::DiffFilesCase.test_counts_lines_and_binary（assert: test_seal.py:89。数の側だけ）。文の側は弱い → 要追加: wf lib/tests/test_protect.py::TouchedCase.test_lines_say_no_count_for_binary — added・deleted が None の行の文に「行数なし」が載り「+None」が載らない
+  - 証: wf test_seal.py::DiffFilesCase.test_counts_lines_and_binary（assert: test_seal.py:89。数の側）・lib/tests/test_protect.py::TouchedCase.test_lines_say_no_count_for_binary（assert: lib/tests/test_protect.py:194-195。文の側）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -1896,7 +1896,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M12 封じる差分が `git apply --numstat` で読めない時も、確かめられない行を当たりとして返す（ValueError の道）
   - 元: works/darkfactory/lib/line_edge.py:651（読めなければ理由で確かめられない扱い）
   - 今: wf merge.py:69-70（`except (protect.Broken, ValueError)`）
-  - 証: lib の側だけ wf test_seal.py::DiffFilesCase.test_unreadable_diff_is_value_error（assert: test_seal.py:99-100）。merge.py が ValueError を確かめられない行に変える所は縛られていない → 要追加: wf tests/workflows/test_merge.py::SealTest.test_uncountable_diff_is_an_unknown_hit — `seal.diff_files` が ValueError を投げる時（例: 偽の git を PATH の頭に置く）、protected_hits が `seal.unknown_row` の 1 行で、答え無しの apply が「守りのパスを確かめられない」で拒む
+  - 証: wf test_seal.py::DiffFilesCase.test_unreadable_diff_is_value_error（assert: test_seal.py:99-100。lib の側）・tests/workflows/test_merge.py::SealTest.test_uncountable_diff_is_an_unknown_hit（assert: tests/workflows/test_merge.py:233-239。偽の git で merge.py が確かめられない行に変え、答え無しの apply が拒む）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -1926,7 +1926,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M16 拒む理由 2: 今組み直した差分の hash が封じた hash と違う（封じた後に作業ツリーが動いた）。理由に両方の hash を書く。拒んだ差分は `merge/refused.diff` に置き、その hash を返す
   - 元: 無し（今の works は当てる時に差分を組み直すだけで、封じた物と照らさなかった。新しい強め）
   - 今: wf lib/seal.py:107-108・merge.py:94-95
-  - 証: wf test_seal.py::ApplyRefusalOrderCase.test_2_hash_mismatch（assert: test_seal.py:131）・wf test_merge.py::ApplyTest.test_tree_changed_after_seal_refuses（assert: test_merge.py:245-248）。両方の hash を書く所は縛られていない → 要追加: test_seal.py::ApplyRefusalOrderCase.test_2_names_both_hashes — 理由に HASH と OTHER の両方の字が載る
+  - 証: lib/tests/test_seal.py::ApplyRefusalOrderCase.test_2_hash_mismatch（assert: lib/tests/test_seal.py:131）・ApplyRefusalOrderCase.test_2_names_both_hashes（assert: :135-136。両方の hash）・tests/workflows/test_merge.py::ApplyTest.test_tree_changed_after_seal_refuses（assert: tests/workflows/test_merge.py:264-267。merge/refused.diff とその hash）
   - 本物の run: 筋書きでのみ（種の run では `merge-apply.output.hash == merge-seal.output.hash`）
   - 狭め: 無し
 
@@ -2012,7 +2012,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M28 守りのパスの節を冒頭 3 行の直後の最初の見出しに置き、当たりの行（パス・行数・規則・理由）を全部並べる
   - 元: works/darkfactory/lib/line_edge.py:670-678 `_protected_text`・works/tests/test_edge.py::ProtectedGateCase.test_touch_forces_gate_when_needed（stats.py・+1 −・規則・理由を照らした）
   - 今: pr74 ask_final.py:96-99 `final_text`
-  - 証: pr74 test_gate_head.py::FinalHeadCase.test_final_edge_puts_the_head_before_the_sections（assert: test_gate_head.py:146）。行の中身（規則・理由・行数）は関所の文の側で縛られていない（試験はパスの字だけを渡す）→ 要追加: pr74 tests/workflows/test_gate_head.py::FinalHeadCase.test_protected_section_keeps_rule_and_count — `protect.lines` の行（「x.py（+1 −0）: 規則 checker（lib/protect.py）——理由」）を渡すと節にその行が字のまま載る
+  - 証: tests/workflows/test_gate_head.py::FinalHeadCase.test_final_edge_puts_the_head_before_the_sections（assert: tests/workflows/test_gate_head.py:146）・FinalHeadCase.test_protected_section_keeps_rule_and_count（assert: :154-156。`protect.lines` の行がパス・行数・規則・理由の字のまま最初の節に載る）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -2033,21 +2033,21 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M31 無人の run（unattended）で守りのパスに当たり関所が開くはずなら、開かずに needs-human で止まり、merge-apply を飛ばす
   - 元: works/darkfactory/lib/line_edge.py:1186-1191（答えの無い守りの行で止める）
   - 今: pr74 ask_final.py:127-128・works-factory-line.yaml:874（`when: "$answer-final.output.go == true"`）
-  - 証: pr74 test_line.py::AskFinalCase.test_unattended_stops_instead_of_opening（assert: test_line.py:311。always の道だけ）・筋書き pr74 workflows/line/fixtures/unattended-needs-human.stubs.yaml（tests/e2e/test_line_scenarios.py::LineScenariosTest.test_every_scenario_passes）。守りのパスで開く道は縛られていない → 要追加: test_line.py::AskFinalCase.test_unattended_protected_hit_stops — `protected_hits` 在り・mode protected_only・unattended で go: false・stop_reason needs-human
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_unattended_protected_hit_stops（assert: tests/workflows/test_line.py:446-452。protected_only・unattended で go: false・needs-human、gate-final と merge-apply の when、answer-final が go を落とす）・AskFinalCase.test_unattended_stops_instead_of_opening（always の道）・筋書き workflows/line/fixtures/unattended-needs-human.stubs.yaml（tests/e2e/test_line_scenarios.py::LineScenariosTest.test_every_scenario_passes）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - M32 最後の関所の文に封じた差分の hash を載せる（人は自分が通す差分を hash で名指せる）
   - 元: 無し（新しい強め。元の関所の文は差分の置き場を言った）
   - 今: pr74 ask_final.py:117
-  - 証: 要追加: pr74 tests/workflows/test_gate_head.py::FinalHeadCase.test_final_text_names_the_sealed_hash — `final_text` に「封じた差分の hash: <hash>」、hash が空なら「（無い）」が載る（今は tests/ のどこにもこの字の照らしが無い）
+  - 証: tests/workflows/test_gate_head.py::FinalHeadCase.test_final_text_names_the_sealed_hash（assert: tests/workflows/test_gate_head.py:159-160）
   - 本物の run: `ask-final.output.text` の「封じた差分の hash:」の行が `merge-seal.output.hash` と同じ
   - 狭め: 無し
 
 - M33 封じが ok でない（指紋の食い違い・差分が空）時は、最後の関所を開ける理由に「差分を封じられなかった（<訳>）」を入れる
   - 元: 無し（新しい強め）
   - 今: pr74 ask_final.py:72-73
-  - 証: 要追加: pr74 tests/workflows/test_line.py::AskFinalCase.test_unsealed_is_a_reason — `sealed: False`・`seal_reason` で `final_needs` に「差分を封じられなかった」と訳が載り、when_needed で開く
+  - 証: tests/workflows/test_line.py::AskFinalCase.test_unsealed_is_a_reason（assert: tests/workflows/test_line.py:456-457）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -2068,7 +2068,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - M36 報告の置き場の節に、封じた差分と置いた差分の指し札を並べる
   - 元: works/dev/lib.sh:614（「修正の差分（…）: <パス>」）
   - 今: wf lib/runreport.py:85-93 `POINTERS`・`_where_lines`
-  - 証: 要追加: wf lib/tests/test_runreport.py::LinesCase.test_where_lists_sealed_and_applied_diff — merge-seal・merge-apply の diff の指し札から「封じた差分（merge-seal.diff）: merge/sealed.diff」「置いた差分（merge-apply.diff）: merge/apply.diff」が載る
+  - 証: lib/tests/test_runreport.py::LinesCase.test_where_lists_sealed_and_applied_diff（assert: lib/tests/test_runreport.py:797-798）
   - 本物の run: 報告の置き場の節の 2 行
   - 狭め: 無し
 
@@ -2270,7 +2270,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 数:
 - 行の総数: 63
 - 今: 無し: 21（M29・M30・M37・M38・M39〜M53 の bin/apply の 15 行・M61・M62）。このうち bin/apply の 15 行は段 1 で作る住処の行で、M62 は置き換えで要らない行
-- 証が要追加か弱い: 33（M10・M12・M16・M28・M29・M30・M31・M32・M33・M36・M37・M38・M39〜M53 の 15 行・M61・M63）
+- 証が要追加か弱い: 25（M29・M30・M37・M38・M39〜M53 の 15 行・M61・M63）。M10・M12・M16・M28・M31・M32・M33・M36 は issue #125 で試験を足して閉じた
 - 狭めたのに Archon が強いていない（戻す）: 6（M29・M30・M37・M38・M61・M63）
 
 持ち主に確かめてほしい物:
