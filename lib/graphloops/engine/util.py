@@ -121,14 +121,7 @@ def porcelain():
 
 
 def _step(cur, parts, i, upto):
-    """`cur` の中で `parts[i:upto]` の先頭に最長一致する鍵を探し、`(次の cur, 次の i)` を返す。無ければ None。
-
-    **読む側（get_path）と書く側（set_path）はこの 1 本を共有する。** 以前は同じ走査が 2 本在り、
-    書く側だけ最後の区切りを候補から外していた——`outputs.p1.local_review` のように**点を含む鍵が
-    最後に来る綴り**が最長一致に当たらず、`cur.setdefault("p1", {})` へ落ちて新しい入れ子が生まれた。
-    読む側は元の場所を読み続けるので、`patch` は ok を印字しながら手当てが当たらない（実測 2026-09-16:
-    独立した 4 レンズが同じ所を指し、2 本は実走の盤面で ok が返ることまで測った）。
-    """
+    """`cur` の中で `parts[i:upto]` の先頭に最長一致する鍵を探し、`(次の cur, 次の i)` を返す。無ければ None。"""
     if isinstance(cur, dict):
         for j in range(upto, i, -1):
             key = ".".join(parts[i:j])
@@ -203,9 +196,9 @@ COUNT_MAX = {"patterns": 20, "paths": 50}
 # 読んでいた頃、読了の台本が READ_CAP を一時的に 1 へ書き換える間に並列の台本の数える問いが『上限超え』で落ちた
 COUNT_CAP = 4_000_000
 _TEXT = {"type": "string", "minLength": 1, "pattern": "^[^\\n\\r\\x00]+$"}
-# **数える問いの欄の正本**（graph の schema は "$ref": "engine#/count_how" でこれを引き、count_argv も同じ schema で型を当てる）。
-# 節ごとに schema を手で写していた頃は、写しの 1 つだけが古い形のまま残り、揃いを見る検出器を足してもその検出器が拾う形の外で崩れた
-# （2026-09-24 の review-graph 2 周目の一撃）
+# **数える問いの欄の正本**（count_argv がこの schema で型を当てる）。役の節の output_format は手で写し、
+# tests/workflows/test_count_how_copies.py が写しを全部これと突き合わせる（写しの 1 つだけが古い形のまま残った事が在る。
+# 2026-09-24 の review-graph 2 周目の一撃）
 COUNT_HOW_SCHEMA = {
     "type": "object", "required": ["patterns", "paths", "count"], "additionalProperties": False,
     "properties": {

@@ -1194,6 +1194,7 @@ def check_premises(reply: dict, jdir, repo, items: list) -> dict:
 PURPOSE_RULE = "目的の役は読むだけの役で、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない"
 PURPOSE_MISSING = ("（目的の文はこの run に無い——目的のノード p0.purpose がこのラインに無く、目的のファイルも渡されていない。"
                    "目的を推し量って補うな）")   # 元 works/blk-material/lib/material.py:176
+PURPOSE_UNKNOWN = "目的不明"   # 目的の出典の語（目的の役の節の output_format の source の enum の 1 つ）
 
 
 def refuse_if_frozen(jdir):
@@ -2052,7 +2053,7 @@ def _na_note(view: DueView, nid: str, diff_file) -> str:
 
 def _purpose_or_missing(jdir) -> dict:
     """元 material.py:320 の _purpose。目的の文が無い run は PURPOSE_MISSING（目的を作らない）"""
-    return _purpose_of(jdir) or {"purpose_text": PURPOSE_MISSING, "source": "目的不明", "known_weaknesses": [], "source_files": []}
+    return _purpose_of(jdir) or {"purpose_text": PURPOSE_MISSING, "source": PURPOSE_UNKNOWN, "known_weaknesses": [], "source_files": []}
 
 
 def mutation_decl(root) -> dict:

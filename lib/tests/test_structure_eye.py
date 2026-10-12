@@ -187,6 +187,21 @@ class EyeAcceptCase(unittest.TestCase):
             self.assertEqual(json.loads(planfile.write_state(d).read_text(encoding="utf-8"))["reason"],
                              f"構造の目の返答が 3 回とも受け付けで拒まれた: {got[-1]['reason']}", "諦めの文は拒否の控えから読む")
 
+    def test_remeasure_counts_from_the_first_attempt(self):
+        """段 A の測り直し（planfile.measure）は構造の目の拒否の控えを消し、次の目は 1 回目から数える"""
+        with tempfile.TemporaryDirectory() as d:
+            s = pathlib.Path(d) / "structure.json"
+            s.write_text(json.dumps(DOC, ensure_ascii=False), encoding="utf-8")
+            design = pathlib.Path(d) / "design.jsonl"
+            design.write_bytes(b"")
+            for _ in range(2):
+                eye.prep(s)
+                eye.accept(s, design, {"rows": []})
+            self.assertEqual(eye.prep(s)["attempt"], 3)
+            planfile.measure(d, [], d, "")
+            self.assertEqual(eye.rolekit.rejected(d, eye.NAME), [])
+            self.assertEqual(eye.prep(s)["attempt"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

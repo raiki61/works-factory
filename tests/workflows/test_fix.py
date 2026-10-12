@@ -33,6 +33,8 @@ if str(LIB / "graphloops") not in sys.path:
 
 from engine.schema import validate_schema  # noqa: E402  （output_format の照らし。jsonschema に頼らない lib の小道具）
 import conflict  # noqa: E402
+import rolekit  # noqa: E402
+import ruling  # noqa: E402
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
                    "changed", "x_scalars", "delta_review", "handoffs", "mismatched"}
@@ -354,6 +356,12 @@ class RolesCase(unittest.TestCase):
                    "changes.required": set(row["required"]), "changes.properties": set(row["properties"])}
             for part, want in FIX_REPLY_ORIGINAL.items():
                 self.assertEqual(want - got[part], set(), (nid, part))
+
+    def test_give_up_counts_match_the_loop_bounds(self):
+        """受け付けが諦める拒否の回は、輪の max_iterations と同じ（ずれれば諦めの前に輪の上限で節が落ちる）"""
+        self.assertEqual(self.nodes["rule-loop"]["loop_group"]["max_iterations"], ruling.GIVE_UP_AFTER)
+        for nid in ("delta-loop", "refix-loop", "review2-loop", "refix2-loop"):
+            self.assertEqual(self.nodes[nid]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER, nid)
 
 
 class FilesCase(unittest.TestCase):

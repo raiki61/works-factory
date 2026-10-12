@@ -26,6 +26,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
 import judge_accept as ja  # noqa: E402
 import rolekit  # noqa: E402
+import runreport  # noqa: E402
 import seat  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （judge_accept が写しの engine を sys.path に足す）
 from lib.tests import test_judge_accept as TJ  # noqa: E402
@@ -214,6 +215,31 @@ class ReturnsShapeTest(unittest.TestCase):
         """受け付けの論理が使う再審の答えの語（ja.REJUDGE_VERDICTS）は、再審の役の節の output_format の verdict の enum と同じ。
         型の正本は output_format だけで、lib は語だけを持つ"""
         self.assertEqual(nodes()["rejudge"]["output_format"]["properties"]["verdict"]["enum"], list(ja.REJUDGE_VERDICTS))
+
+    def test_lib_vocabularies_match_output_format(self):
+        """受け付けの論理と指示書が使う語（judge_accept・runreport の語の表）は、それを返す役の節の output_format の enum と同じ。
+        型の正本は output_format で、lib は語だけを持つ"""
+        by = nodes()
+
+        def enum(nid, *path):
+            got = by[nid]["output_format"]
+            for key in path:
+                got = got["items"] if key == "[]" else got["properties"][key]
+            return got["enum"]
+
+        material = [(nid, f) for nid, n in by.items() if n.get("output_format")
+                    for f, v in n["output_format"].get("properties", {}).items()
+                    if isinstance(v, dict) and set(v.get("properties", {}).get("status", {}).get("enum", [])) & set(ja.STATUS)]
+        self.assertEqual(len(material), 11, "素材の状態の enum を持つ節の欄")
+        rows = [*((f"{nid} label", enum(nid, "units", "[]", "label"), list(ja.LABELS)) for nid in ("diagnose", "rejudge")),
+                ("diagnose kind", enum("diagnose", "questions", "[]", "kind"), list(ja.QUESTION_KINDS)),
+                ("diagnose status", enum("diagnose", "questions", "[]", "status"), list(ja.QUESTION_STATUS)),
+                *((f"{nid} {f}.status", enum(nid, f, "status"), list(ja.STATUS)) for nid, f in material)]
+        for name, got, want in rows:
+            with self.subTest(name):
+                self.assertEqual(got, want)
+        self.assertIn(runreport.HYPOTHESIS, enum("premises", "constraints", "[]", "kind"))
+        self.assertIn(ja.PURPOSE_UNKNOWN, enum("purpose", "source"))
 
     def test_inputs_are_the_contract_and_prior_failures(self):
         inputs = load()["inputs"]
