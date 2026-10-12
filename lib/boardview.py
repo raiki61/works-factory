@@ -764,13 +764,13 @@ def review_material(folder, repo, command_text: str, review_md, *, shared=None) 
     p.mkdir(parents=True, exist_ok=True)
     (p / PREP_ERROR).unlink(missing_ok=True)
     try:
-        return _review_material(d, p, inputs, repo, command_text, review_md)
+        return _review_material(d, p, inputs, repo, command_text, review_md, shared)
     except rolekit.BoardGap as e:
         (p / PREP_ERROR).write_text(str(e), encoding="utf-8")
         raise
 
 
-def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, command_text: str, review_md) -> pathlib.Path:
+def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, command_text: str, review_md, shared) -> pathlib.Path:
     rev, base = inputs.get("rev") or "HEAD", inputs.get("base") or inputs.get("rev") or "HEAD"
     inputs = {**inputs, "review_body": review_body(command_text, repo=repo, rev=rev, base=base, review_md=review_md,
                                                    policy_md=inputs.get("policy_copy") or "")}

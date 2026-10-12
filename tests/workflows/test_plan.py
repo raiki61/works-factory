@@ -8,6 +8,7 @@
 - 筋書き: Archon の `workflow test` で fixtures/*.stubs.yaml を回す（配線だけ。止めた Archon の源が無ければ見送る。tests/archon.py）。
 """
 import copy
+import hashlib
 import importlib.util
 import json
 import os
