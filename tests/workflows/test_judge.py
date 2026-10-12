@@ -1557,3 +1557,13 @@ class BriefCase(unittest.TestCase):
         self.assertEqual(Run(self).returned("reject", reason="x"), {"reason": "x", "lang_line": rolekit.lang_line({})})
         broken = r.returned("reject", reason="", start=json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "no.json"}))
         self.assertIn("読めない", broken["lang_line"])
+
+
+class CarriedConstraintsCase(unittest.TestCase):
+    def test_carried_rows_fit_the_premises_shape(self):
+        """seams F5: 報告が次の依頼に書く constraints の行（carry.carried_constraints）は、判定の側が premises.json に足す前提の実測の
+        型（節 premises の output_format の constraints の行）にそのまま合う（片方だけ欄を変えると、型の外の行が premises.json に入る）"""
+        import carry
+        rows = carry.carried_constraints(["上限は config.py:3 の 10", "  ", 3], "run-0")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(validate_schema({"constraints": rows}, nodes()["premises"]["output_format"]), [])

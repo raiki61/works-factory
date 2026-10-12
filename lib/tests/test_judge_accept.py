@@ -843,18 +843,6 @@ class CarriedConstraintsCase(_RepoCase):
         self.assertEqual(ja.read_json(self.jdir / "premises.json")["constraints"], [*PremisesCase.GOOD["constraints"], row])
 
 
-    def test_carried_rows_fit_the_premises_shape(self):
-        """seams F5: 報告が次の依頼に書く constraints の行（carry.carried_constraints）は、判定の側が premises.json に足す前提の実測の
-        型（PREMISES_SCHEMA の constraints の行）にそのまま合う（2 つの Schema の片方だけ欄を変えると、照らされない行が premises.json に
-        入り lib/premises.py が Broken で落ちる）"""
-        import carry
-        rows = carry.carried_constraints(["上限は config.py:3 の 10", "  ", 3], "run-0")
-        self.assertEqual(len(rows), 1)
-        item = ja.PREMISES_SCHEMA["properties"]["constraints"]["items"]
-        for row in rows:
-            self.assertFalse(core_accept.type_errors(row, item, "運んだ制約"))
-
-
 class PremisesCase(_RepoCase):
     GOOD = {"constraints": [{"text": "README.md の件数は 3 件", "measured_how": "grep", "kind": "実測",
                              "measured_output": "$ grep -c 件 README.md\n1"}]}
