@@ -128,7 +128,6 @@ UNIT_ROW_KEYS = ("key", "label", "disposition", "reason")
 REVIEW_MD = "REVIEW.md"
 # 元 works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md:4・:7
 UNITS_LINE = "直す単位（各行の `no` は機械が振った番号。**key を写さず no の整数で指せ**——機械が名前に戻して記録する）: "
-REPO_LINE = "リポジトリ: {repo}（読む版: `{rev}`）　BASE: `{base}`　観点の正本: {review_md}"
 DIFF_MISSING = "固定した版の写しが置き場に無い（消えた）——差分を作れない"   # 元 graphloops/rules/policy_input.py:94
 GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "
 
@@ -461,9 +460,11 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     ruled, why = planmarks.handed(ruling, len(rows)) if form == "replan" else ([], "")
     if why:
         raise Missing(why)
-    if len(rows) != len(fields["fields"]):
-        raise Missing(f"修正案の項目の数 {len(rows)} と {plan} の欄の数 {len(fields['fields'])} が違う（同じ受け付けが同じ並びで書く物）")
-    converge.note_plan(out, [planmarks.joined(r, f if isinstance(f, dict) else {}) for r, f in zip(rows, fields["fields"])])
+    try:
+        pairs = planmarks.paired(rows, fields["fields"], str(plan))
+    except planmarks.FieldsBroken as e:
+        raise Missing(str(e)) from None
+    converge.note_plan(out, [planmarks.joined(r, f) for r, f in pairs])
     if form == "review" and answered:
         converge.note_answers(out, answered)
     frozen = _frozen_policy(d, start_doc, cwd)
@@ -757,7 +758,7 @@ def review_body(command_text: str, *, repo, rev: str, base: str, review_md, poli
     line_end = rest.find("\n")
     tail = rest[line_end:].rstrip("\n") if line_end >= 0 else ""
     pol = policy.section(policy_md)
-    return "\n" + REPO_LINE.format(repo=repo, rev=rev, base=base, review_md=review_md) + tail + (f"\n\n{pol}" if pol else "")
+    return "\n" + planfile.repo_line(repo, rev, base, review_md) + tail + (f"\n\n{pol}" if pol else "")
 
 
 def _units_text(b) -> str:
@@ -816,7 +817,7 @@ def review_material(folder, repo, command_text: str, review_md, *, shared=None) 
 
 
 def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, command_text: str, review_md, shared) -> pathlib.Path:
-    rev, base = inputs.get("rev") or "HEAD", inputs.get("base") or inputs.get("rev") or "HEAD"
+    rev, base = inputs.get("rev") or "HEAD", inputs.get("base") or ""
     inputs = {**inputs, "review_body": review_body(command_text, repo=repo, rev=rev, base=base, review_md=review_md,
                                                    policy_md=inputs.get("policy_copy") or "")}
     b = view(d, inputs)
@@ -837,7 +838,7 @@ def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, comma
         "判定者の見立て: " + json.dumps(diag, ensure_ascii=False),
         ("判定者の先行例（世界の解）: " + json.dumps(b.record["process"]["precedents"], ensure_ascii=False))
         if b.record["process"]["precedents"] else "",
-        REPO_LINE.format(repo=repo, rev=rev, base=base, review_md=review_md),
+        planfile.repo_line(repo, rev, base, review_md),
         policy.section(inputs.get("policy_copy")), concepthome.section(pathlib.Path(repo))) if x)
     last = rolekit.rejected(p, REVIEW_NODE)
     if last:

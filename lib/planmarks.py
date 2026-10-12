@@ -947,15 +947,16 @@ def approved_items(b) -> list[dict] | None:
     plan = plan_items(b)
     if fields is None or plan is None:
         return None
+    return [{"item": n, **copy.deepcopy(joined(it, f))} for n, (it, f) in enumerate(paired(plan, fields, f"共有ボードの控え {FIELDS_FILE}"), 1)]
+
+
+def paired(plan: list, fields: list, where: str) -> list[tuple[dict, dict]]:
+    """案の項目の行の並び plan と欄の行の並び fields（where に在る物）を同じ番号で組んだ (項目, 欄) の並び（dict でない行は空の dict）。
+    数が違えば FieldsBroken（同じ周の受け付けが同じ並びで書くので、組めば番号がずれる）。承認済みの項目（approved_items）・
+    事前審査の往復の控えの行（boardview.open_pass）・項目ごとの brief（planbrief）が同じ物を呼ぶ"""
     if len(fields) != len(plan):
-        raise FieldsBroken(f"修正案の項目の数 {len(plan)} と共有ボードの控え {FIELDS_FILE} の欄の数 {len(fields)} が違う"
-                           "（同じ周の受け付けが同じ並びで書く物）")
-    out = []
-    for n, (it, f) in enumerate(zip(plan, fields), 1):
-        it = it if isinstance(it, dict) else {}
-        f = f if isinstance(f, dict) else {}
-        out.append({"item": n, **copy.deepcopy(joined(it, f))})
-    return out
+        raise FieldsBroken(f"修正案の項目の数 {len(plan)} と {where} の欄の数 {len(fields)} が違う（同じ周の受け付けが同じ並びで書く物）")
+    return [(it if isinstance(it, dict) else {}, f if isinstance(f, dict) else {}) for it, f in zip(plan, fields)]
 
 
 def joined(it: dict, f: dict) -> dict:
