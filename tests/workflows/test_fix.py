@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -736,9 +737,8 @@ class BlockScriptsCase(unittest.TestCase):
         _record(child_log, child / "stats.py")
         out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
                                     {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
-        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start, worktree=str(child),
-                                                               writes_log=str(child_log)))
-        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, worktree="", writes_log=""))
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start, worktree=str(child)))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, worktree=""))
         code, out, err = _blk_run("join", self.repo, self.art, env_extra=env)
         self.assertEqual(code, 0, err)
         self.assertEqual(out, {"groups": 2, "returned": 2})
@@ -1300,9 +1300,9 @@ class GroupChildScriptsCase(unittest.TestCase):
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "allowed_test_changes", "verified", "reply_file",
-                                       "tdd_state", "worktree", "writes_log"})
+                                       "tdd_state", "worktree"})
         self.assertEqual(result["tdd_state"], "", "輪の無い組")
-        self.assertEqual((result["worktree"], result["writes_log"]), (os.path.realpath(self.repo), ""), "記録の根の無い起動")
+        self.assertEqual(result["worktree"], os.path.realpath(self.repo))
         self.assertEqual(result["units"], [{"unit_id": _GRP_MEAN, "status": "fixed", "reason": ""}])
         self.assertEqual(result["end_tree"], leftovers.snapshot(self.repo))
         self.assertNotEqual(result["end_tree"], result["start_tree"])
@@ -1311,6 +1311,18 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((result["objection"], result["allowed_test_changes"], result["verified"], result["conflicts"]),
                          ("単位の見立てが違う", ["test_stats.py"], [], []))
         self.assertEqual(result["reply_file"], str(self.place / "fix-reply.json"))
+
+    def test_group_child_starts_its_log_and_reports_where_join_finds_it(self):
+        """並べた子は自分の作業ツリーの記録を group-start で空で作り、group-end の結果の worktree から join が同じ記録を引く"""
+        import writelog
+        env, root = _recorder_root(self.tmp)
+        with mock.patch.dict(os.environ, env):
+            self._grp_run("group_start", "group-start")
+            log = writelog.log_path(root, self.repo)
+            self.assertEqual(log.read_text(encoding="utf-8"), "")
+            result = json.loads(pathlib.Path(self._grp_run("group_end", "group-end")["result_file"]).read_text(
+                encoding="utf-8"))
+        self.assertEqual(writelog.log_path(root, result["worktree"]), log)
 
     def test_group_end_alone_writes_into_its_own_place(self):
         """out_dir が空の単独の run は自分の置き場の groups/<group_id>/ に書く（collect も同じ所を読む）"""

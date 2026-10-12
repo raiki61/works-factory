@@ -1261,11 +1261,11 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
-                 reply_file: str = "", allowed=(), conflicts=(), worktree: str = "", writes_log: str = "") -> dict:
+                 reply_file: str = "", allowed=(), conflicts=(), worktree: str = "") -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed,
-    allowed_test_changes, verified, reply_file, tdd_state, worktree, writes_log}。worktree は子の作業ツリーの実パス、writes_log は
-    その書き込みの記録のファイル（記録の無い run は空。join が子の記録を親の記録へ写す。writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
+    allowed_test_changes, verified, reply_file, tdd_state, worktree}。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
+    writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
     を持つ。無ければ None）、allowed は許したテストの変更のパス、conflicts は置き場の申し出の行（conflict.items）。新しい"""
@@ -1281,7 +1281,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "changed": changed_marks([{"changed": reply}] if reply else []),
             "allowed_test_changes": sorted({p for p in allowed or [] if isinstance(p, str) and p}),
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
-            "worktree": str(worktree or ""), "writes_log": str(writes_log or "")}
+            "worktree": str(worktree or "")}
 
 
 def adopt_tdd_states(place, results, repo) -> list:

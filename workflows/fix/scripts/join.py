@@ -76,8 +76,8 @@ def main() -> dict:
         for g, got in lanekit.merge_in_order(with_result, merge_one):
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)
             r = results[g["group_id"]]
-            if not got.why and r.get("worktree") and r.get("writes_log"):
-                applied.append((r["worktree"], r["writes_log"], got.names))
+            if not got.why and r.get("worktree") and log is not None:
+                applied.append((r["worktree"], fixio.writes_log(r["worktree"]), got.names))
         if log is not None and log.is_file():
             writes.carry_children(log, repo, applied)
     else:
