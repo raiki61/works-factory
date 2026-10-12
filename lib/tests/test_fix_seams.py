@@ -244,8 +244,7 @@ class TestWritesSeams(TempCase):
 
 
 class TestBaseTestTexts(TempCase):
-    """writes.base_test_texts: 修正前の版のテストを読み損ねたら、黙って空にせず置き場の trace.jsonl に残す
-    （元 tests/test_plan_fields.py の TestBaseTestTexts の場合を、版を引数で受ける形に写した）"""
+    """fixboard.base_rev は元の writes.base_rev と同じ順で修正前の版を選ぶ"""
 
     def test_base_rev_order(self):
         self.assertEqual(fixboard.base_rev({"inputs": {"review_rev": "abc"}}, "def"), "abc")
@@ -828,7 +827,7 @@ class RulebookSeamCase(unittest.TestCase):
 
 class LanekitSeamCase(TempCase):
     """lanekit.groups: 項目を共にする単位は同じ組（推移的）・組の順と組の中の順は入力の順。待ちの列と固定の枝の数は持たない
-    （持ち主の決め no-queue）。lanekit.merge: 除くパスの頭 skip の下は書き込みの記録と突き合わせない（既定 () は突き合わせる）"""
+    （持ち主の決め no-queue）"""
 
     def test_groups_units_sharing_items_transitively_in_input_order(self):
         import lanekit
