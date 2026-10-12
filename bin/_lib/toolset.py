@@ -43,12 +43,14 @@ AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CL
   hooks に置き、記録の根 <置き場>/works-writes/（lib/writelog.ROOT）を作る（どちらの道でも。期限の鍵は書かない）。書く役の
   受け付け（lib/writes.py）が、記録を役の申告と作業ツリーの変更に突き合わせる。
   Claude Code がキャッシュの版の置き場に置く印（MARKERS）は写さず、比べもしない。
+- 読んだ証拠のフック: 同じ置き場の record-read.py を PostToolUse:Read|Agent|WebFetch|WebSearch（READ_MATCHER）で同じ所に置き、
+  記録の根 <置き場>/works-reads/（lib/reads.ROOT）を作る。計画と事前審査の読んだ証拠の節（lib/reads.collect）が読む。
 - 借りる MCP は無い（kind "mcp" の Context7 は持ち主 2026-10-09 の決めで消した。Archon の役の節は周りの MCP を読まない——
   strictMcpConfig——ので、役は MCP を持たない）。前の版が置き場に書いた works-mcp.json は誰も読まないので、柵も数えず消しもしない。
 - 柵（guard）: 一覧の外を名前で並べる。CLAUDE.md・rules/・agents/・commands/・output-styles/・settings.json 以外の
   settings*.json・一覧の外のスキル・works-parts/ の下の部品の外のファイル・settings.json の鍵が {enabledPlugins,
   extraKnownMarketplaces, hooks} の外・hooks の行のうち記録のフックの行と記録（hooks）に載せた借りる物の行の外・フォルダでない
-  works-writes・一覧の外の有効な
+  works-writes・works-reads・一覧の外の有効な
   プラグイン・入れたプラグイン（plugins/installed_plugins.json）・marketplace（settings.json と plugins/known_marketplaces.json）。
   Claude Code が自分で書く状態（projects/・.claude.json・backups/・remote-settings.json・plugins/cache/ など）は見ない。
   install は組む前と後に柵を当て、当たれば何も写さずに止まる。CLI は 1 行を出して終了コード 2（入っていない物は 1 物 1 行）。
@@ -113,6 +115,8 @@ RECORD = ".works-toolset.json"
 SETTINGS_KEYS = frozenset({"enabledPlugins", "extraKnownMarketplaces", "hooks"})
 RECORDER = pathlib.Path(__file__).resolve().parent / "record-write.py"
 WRITE_MATCHER = "Edit|Write|NotebookEdit"   # 書き込みの記録のフックが掛かる道具（今の works の adapter.WRITE_MATCHER と同じ）
+READ_RECORDER = pathlib.Path(__file__).resolve().parent / "record-read.py"
+READ_MATCHER = "Read|Agent|WebFetch|WebSearch"   # 読んだ証拠のフックが掛かる道具（record-read.py が行を残す物）
 PLUGIN_PLACE = "CLAUDE_PLUGIN_"             # プラグインの置き場を指す字（${CLAUDE_PLUGIN_ROOT}・${CLAUDE_PLUGIN_DATA}）
 FOREIGN_FILES = ("CLAUDE.md",)
 FOREIGN_DIRS = ("rules", "agents", "commands", "output-styles")
@@ -396,24 +400,53 @@ def hooked(item: dict) -> bool:
     return item["kind"] == "plugin" and bool(item.get("hooks"))
 
 
+def _lib():
+    sys.path.append(str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
+    import reads
+    import writelog
+    return reads, writelog
+
+
 def _writes_root(cfg) -> pathlib.Path:
     """設定の置き場 cfg の下の書き込みの記録の根（名の持ち主は lib/writelog。record-write.py と fix の受け付けが同じ物を読む）"""
-    sys.path.append(str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
-    import writelog
-    return writelog.root(os.path.abspath(cfg))
+    return _lib()[1].root(os.path.abspath(cfg))
+
+
+def _reads_root(cfg) -> pathlib.Path:
+    """設定の置き場 cfg の下の読んだ証拠の記録の根（名の持ち主は lib/reads。record-read.py と計画・事前審査の読んだ証拠の節が同じ物を読む）"""
+    return _lib()[0].root(os.path.abspath(cfg))
+
+
+def _recorders(cfg) -> list:
+    """記録のフックの (記録器, matcher, 記録の根) の並び（settings.json の PostToolUse に置く順）"""
+    return [(RECORDER, WRITE_MATCHER, _writes_root(cfg)), (READ_RECORDER, READ_MATCHER, _reads_root(cfg))]
+
+
+def _row(recorder: pathlib.Path, matcher: str, root: pathlib.Path) -> dict:
+    """記録のフックの行（python は今の実行ファイルの絶対パス。期限の鍵は書かない）"""
+    return {"matcher": matcher, "hooks": [{"type": "command", "command": shlex.join([sys.executable, str(recorder), str(root)])}]}
 
 
 def recorder_row(cfg) -> dict:
-    """書き込みの記録のフックの行（python は今の実行ファイルの絶対パス。期限の鍵は書かない）"""
-    command = shlex.join([sys.executable, str(RECORDER), str(_writes_root(cfg))])
-    return {"matcher": WRITE_MATCHER, "hooks": [{"type": "command", "command": command}]}
+    """書き込みの記録のフックの行"""
+    return _row(*_recorders(cfg)[0])
+
+
+def read_recorder_row(cfg) -> dict:
+    """読んだ証拠のフックの行"""
+    return _row(*_recorders(cfg)[1])
+
+
+def recorder_rows(cfg) -> list:
+    """install が settings.json の PostToolUse に置く記録のフックの行の全部"""
+    return [_row(*r) for r in _recorders(cfg)]
 
 
 def _is_recorder_row(row, cfg) -> bool:
-    """row が設定の置き場 cfg の記録のフックの行か。python と record-write.py は絶対パスならどれでもよい（柵を別の python で
-    回しても、同じ対象を別の works-factory の置き場から起動しても通す。次の install が今の置き場の行に書き直す）"""
-    if not (isinstance(row, dict) and set(row) == {"matcher", "hooks"} and row["matcher"] == WRITE_MATCHER
-            and isinstance(row["hooks"], list) and len(row["hooks"]) == 1):
+    """row が設定の置き場 cfg の記録のフック（書き込みか読んだ証拠）の行か。python と記録器は絶対パスならどれでもよい（柵を別の
+    python で回しても、同じ対象を別の works-factory の置き場から起動しても通す。次の install が今の置き場の行に書き直す）"""
+    if not (isinstance(row, dict) and set(row) == {"matcher", "hooks"} and isinstance(row["hooks"], list)
+            and len(row["hooks"]) == 1):
         return False
     hook = row["hooks"][0]
     if not (isinstance(hook, dict) and set(hook) == {"type", "command"} and hook["type"] == "command"
@@ -423,8 +456,9 @@ def _is_recorder_row(row, cfg) -> bool:
         argv = shlex.split(hook["command"])
     except ValueError:
         return False
-    return (len(argv) == 3 and os.path.isabs(argv[0]) and os.path.isabs(argv[1])
-            and pathlib.PurePath(argv[1]).name == RECORDER.name and argv[2] == str(_writes_root(cfg)))
+    return len(argv) == 3 and os.path.isabs(argv[0]) and os.path.isabs(argv[1]) and any(
+        row["matcher"] == matcher and pathlib.PurePath(argv[1]).name == recorder.name and argv[2] == str(root)
+        for recorder, matcher, root in _recorders(cfg))
 
 
 def borrowed_hooks(name: str, src: pathlib.Path) -> dict:
@@ -481,9 +515,9 @@ def guard(config_dir: pathlib.Path, borrow: dict, record=None) -> list:
     elif sk.exists():
         out.append("skills（フォルダでない）")
     out += _foreign_parts(cfg, borrow)
-    writes_root = _writes_root(cfg)
-    if writes_root.is_symlink() or (writes_root.exists() and not writes_root.is_dir()):
-        out.append(f"{writes_root.name}（フォルダでない）")
+    for _, _, root in _recorders(cfg):
+        if root.is_symlink() or (root.exists() and not root.is_dir()):
+            out.append(f"{root.name}（フォルダでない）")
     st = _read_json(cfg / "settings.json")
     if st is _BAD:
         out.append("settings.json（JSON の表として読めない）")
@@ -630,7 +664,7 @@ def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin,
     if bad:
         raise ToolsetError(_refusal(cfg, bad))
     srcs = {n: pathlib.Path(chosen[n]) for n, i in borrow.items() if i["kind"] == "plugin" and not hooked(i)}
-    hooks, placed = {"PostToolUse": [recorder_row(cfg)]}, {}
+    hooks, placed = {"PostToolUse": recorder_rows(cfg)}, {}
     for name in sorted(n for n, i in borrow.items() if hooked(i)):   # 置けない表は何も写す前に名指す
         placed[name] = borrowed_hooks(name, pathlib.Path(chosen[name]))
         for event, rows in placed[name].items():
@@ -698,7 +732,8 @@ def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin,
 
 def _place_hooks(cfg: pathlib.Path, hooks: dict) -> None:
     """settings.json の hooks を hooks にし（ほかの鍵は残す）、記録の根を作る"""
-    _writes_root(cfg).mkdir(exist_ok=True)
+    for _, _, root in _recorders(cfg):
+        root.mkdir(exist_ok=True)
     st = _read_json(cfg / "settings.json")
     st = st if isinstance(st, dict) else {}
     _write_if_changed(cfg / "settings.json", json.dumps({**st, "hooks": hooks}, ensure_ascii=False, indent=2) + "\n")

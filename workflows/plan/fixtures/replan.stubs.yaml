@@ -20,6 +20,7 @@ plan-writer:
       out_of_scope: []
 plan-accept: {ok: true, done: true, give_up: false, reason: "", attempt: 1}
 ripple-items: {ripple_file: plan/r2/ripple.json}
+plan-reads: {ok: true, missing: [], index_file: plan/r2/reads-replan-block.json, reason: ""}
 plan:
   ready: true
   plan: {type: archon_artifact, run_id: fixture-run, path: plan/r2/plan-fields.json}

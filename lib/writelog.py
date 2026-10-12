@@ -1,12 +1,13 @@
-"""書き込みの記録（writes.jsonl）の置き場の決め方の 1 か所。
+"""書き込みの記録（writes.jsonl）の置き場の決め方の 1 か所。作業の場ごとの置き場の決め方（鍵・控え・片付け）は、読んだ証拠の
+記録（lib/reads.py の reads.jsonl。根は別の works-reads）も同じ物を使う。
 
 記録のフック（bin/_lib/record-write.py。Claude の設定の PostToolUse:Edit|Write|NotebookEdit）が書き、書く役の受け付け
 （writes.check）が読む。フックは道具の呼び出しのたびに起きるので、このモジュールは標準ライブラリだけを読む（重い部品を import しない）。
 
 - ROOT: 記録の根の名（Claude の設定の置き場の下。起動が作り、無ければ記録の無い run）
 - root(config_dir) -> Path: Claude の設定の置き場 config_dir の下の記録の根
-- log_path(root, cwd) -> Path: 根 root の下の、役の作業の場 cwd（実パス）ごとの記録のファイル
-- open_log(root, cwd) -> Path: log_path の置き場を作り、作業の場の実パスを控え（WHERE）に書いて記録のファイルを返す
+- log_path(root, cwd, name=LOG) -> Path: 根 root の下の、役の作業の場 cwd（実パス）ごとの記録のファイル name
+- open_log(root, cwd, name=LOG) -> Path: log_path の置き場を作り、作業の場の実パスを控え（WHERE）に書いて記録のファイルを返す
 - sweep(root) -> (list[Path], list[OSError]): 控えの作業の場がもう無い置き場を消し、消した置き場と消せなかった置き場の誤りを返す
   （控えの無い・控えが名と合わない置き場は残す。1 つ消せなくても残りは片付ける）
 """
@@ -29,12 +30,12 @@ def _key(cwd) -> str:
     return hashlib.sha256(os.path.realpath(str(cwd)).encode("utf-8", "surrogateescape")).hexdigest()[:KEY_LEN]
 
 
-def log_path(root, cwd) -> pathlib.Path:
-    return pathlib.Path(root) / _key(cwd) / LOG
+def log_path(root, cwd, name: str = LOG) -> pathlib.Path:
+    return pathlib.Path(root) / _key(cwd) / name
 
 
-def open_log(root, cwd) -> pathlib.Path:
-    log = log_path(root, cwd)
+def open_log(root, cwd, name: str = LOG) -> pathlib.Path:
+    log = log_path(root, cwd, name)
     log.parent.mkdir(exist_ok=True)
     where = log.parent / WHERE
     if not where.exists():

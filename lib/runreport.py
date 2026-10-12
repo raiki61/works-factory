@@ -36,6 +36,7 @@ import gatepolicy  # noqa: E402
 import judgeverify  # noqa: E402
 import outcome as oc  # noqa: E402
 import outpurpose  # noqa: E402
+import planblk  # noqa: E402
 import planmarks  # noqa: E402
 import prcheck  # noqa: E402
 import premises  # noqa: E402
@@ -79,6 +80,7 @@ EVIDENCE_ROWS = (("走らせ方", "- 走らせ方: "), ("ログ", "- ログ: "))
 EYE_KEYS = ("eye", "status", "reason")
 GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
 PLAN_GAVE_UP_WHERE = "受け付け 計画"          # 元 report.ACCEPT_WHERE（受け付け <名>）の計画の行
+REPLAN_GAVE_UP_WHERE = "案の直しを終えられなかった項目 {item}"
 STOPPED_WHERE = "止めた段"                     # 前の失敗の、止めの語で止めた段の行（元 accept-last.json の ok でない行の代わり）
 GATE_PASSES = "gate-passes.json"
 FIX_PLAN = "p2.fix_plan.json"                 # 計画の隣の修正案の役の返答（関所の決め手の欄つき）
@@ -560,13 +562,29 @@ def next_request(returns: dict, left: list, closed: bool = True) -> list:
     return out
 
 
+def replan_gave_up(returns: dict) -> list:
+    """案の直しを終えられなかった項目ごとの前の失敗の行（計画と事前審査の返りの指し札の隣の planblk.REPLAN_GAVE_UP_FILE。
+    元 works/.shared/core/replan.py の _give_up が待つ行に書いた諦めの訳と、裁定の文を字のまま）。読めない控えはその訳の行"""
+    rows = []
+    for rid, field in (("replan", "plan"), ("replan-review", "review")):
+        got, why = _read_beside(returns, rid, field, planblk.REPLAN_GAVE_UP_FILE)
+        if why:
+            rows.append({"where": REPLAN_GAVE_UP_WHERE.format(item="?"), "text": why})
+        rows += [{"where": REPLAN_GAVE_UP_WHERE.format(item=r.get("item")),
+                  "text": report._one_line(f"{r.get('why')}。裁定の文: {r.get('ruling')}")}
+                 for r in _list(got) if isinstance(r, dict)]
+    return rows
+
+
 def prior_failures(returns: dict, left: list) -> list:
     """前の失敗 [{where, text}]（元 report.py:720）: 受け付けを最後まで通らなかった物（修正の諦めた単位の理由と、計画が修正案を
     出せなかった訳と、止めの語で止めた段の語とその意味）と R2 の作り直しの訳"""
     rows = [{"where": f"{GAVE_UP_WHERE} {u.get('unit_id')}", "text": report._one_line(u.get("reason") or "理由の記録が無い")}
             for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict) and u.get("status") == "given_up"]
     gave_up = oc.plan_gave_up(returns)
-    if gave_up:
+    items = replan_gave_up(returns)
+    rows += items
+    if gave_up and not items:
         sr = oc.planned(returns).get("stop_reason")
         rows.append({"where": PLAN_GAVE_UP_WHERE,
                      "text": "計画が直す単位を受けたのに修正案を出せなかった（受け付けが 3 回とも拒んだか、行き止まりの単位が在る）"

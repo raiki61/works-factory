@@ -465,6 +465,32 @@ class FactsCase(Run):
         self.assertIn(str(self.artifacts / "judge" / "judgment.json"), text)
 
 
+class ReplanGiveUpCase(Run):
+    """案の直しを終えられなかった項目（計画の役の諦め・事前審査の諦め）は、項目ごとに諦めの訳と裁定の文（字のまま）を前の失敗の行
+    （報告と次の run に渡す prior-failures.json）に載せる（元 tests/test_replan.py の test_gave_up_paths_reach_ask_human_verbatim）"""
+
+    def test_gave_up_replan_names_ruling_text_and_reason(self):
+        import planblk
+        ruling = "RULING-7310 項目 1 の allowed_paths に request_ok.json を足せ"
+        why = planblk.PLAN_GAVE_UP_WHY.format(reason="plan の受け付けが 3 回とも拒んだ: 一字も変えずに写す")
+        plan = self.pointer("plan/r2/plan-fields.json", {"round": 2, "fields": []})
+        self.pointer(f"plan/r2/{planblk.REPLAN_GAVE_UP_FILE}", [{"item": 1, "why": why, "ruling": ruling}])
+        judgment = self.pointer("judge/judgment.json", {})
+        judge = {"ready": True, "stop_reason": "", "units": [{"id": "u1"}], "judgment": json.loads(judgment)}
+        replan = {"ready": False, "round": 2, "plan": json.loads(plan)}
+        code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}),
+                                    INPUTS_JUDGE=json.dumps(judge), INPUTS_PLAN='{"ready": true, "round": 1}',
+                                    INPUTS_REPLAN=json.dumps(replan))
+        self.assertEqual(code, 0)
+        rows = json.loads((self.artifacts / out["prior_failures"]["path"]).read_text(encoding="utf-8"))
+        hit = [r for r in rows if r["where"] == runreport.REPLAN_GAVE_UP_WHERE.format(item=1)]
+        self.assertEqual(len(hit), 1, rows)
+        self.assertIn(f"裁定の文: {ruling}", hit[0]["text"])
+        self.assertIn(why, hit[0]["text"])
+        text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
+        self.assertIn(ruling, text)
+
+
 class AcceptScriptCase(Run):
     REPLY = json.dumps({"text": "直した。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
     REDESIGN = json.dumps({"verdict": "redesign-needed", "stops": ["2 行目"], "guessed": [], "decidable": False}, ensure_ascii=False)

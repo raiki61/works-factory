@@ -2,7 +2,8 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""修正案の役の材料を plan/r<k>/brief-<n>.md に組む（lib/planfile.write_brief）。返り {brief, attempt}
+"""修正案の役の材料を plan/r<k>/brief-<n>.md に組み（lib/planfile.write_brief）、役を起こす前の作業ツリーの姿を tree.json に置き直す
+（planfile.snap_tree。受け付けが比べる）。返り {brief, attempt}
 
 ライブラリの文書の run をまたぐ控えは、Archon が project ごとに渡す run をまたぐ置き場 STATE_DIR の下 works-factory/ に置く"""
 import os
@@ -46,6 +47,7 @@ def main() -> None:
         lang=start.get("lang"), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys,
                                                                      shared=shared_cache()),
         conflicts=conflicts, policy_md=policy.frozen_copy(start), prior_failures=prior, unread=unread)
+    planfile.snap_tree(round_dir / planfile.TREE_FILE, repo)
     boundary.returns({"brief": str(path), "attempt": n})
 
 

@@ -14,7 +14,7 @@ AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CL
 - pr-review-toolkit を、設定の中の手元の marketplace works-local（works-marketplace/）に写し、Claude Code の CLI
   （claude plugin marketplace add・install）で入れる。Claude Code のキャッシュの印（.in_use/・.orphaned_at）は写さない。
 - coldwrite はプラグインとして入れず、hooks/hooks.json の表を settings.json の hooks に置く。書き込みの記録のフック
-  （record-write.py）の行も同じ所に置き、記録の根 works-writes/ を作る。
+  （record-write.py）と読んだ証拠のフック（record-read.py）の行も同じ所に置き、記録の根 works-writes/・works-reads/ を作る。
 柵（guard）は一覧の外（CLAUDE.md・rules/・agents/・commands/・output-styles/・settings.json 以外の settings*.json・
 一覧の外のスキル・settings.json の許す鍵の外・一覧の外のプラグインと marketplace）を名前で並べ、CLI は終了コード 2 で止まる。
 Claude Code が自分で書く状態（projects/・.claude.json・backups/・remote-settings.json など）は見ない。
@@ -672,7 +672,7 @@ class InstallCase(Base):
                          {"extraKnownMarketplaces": {MP: {"source": {"source": "directory",
                                                                      "path": str(self.cfg / "works-marketplace")}}},
                           "enabledPlugins": {f"{n}@{MP}": True for n in PLUGINS},
-                          "hooks": {"PostToolUse": [toolset.recorder_row(self.cfg)], **COLDWRITE_HOOKS}})
+                          "hooks": {"PostToolUse": toolset.recorder_rows(self.cfg), **COLDWRITE_HOOKS}})
         self.assertEqual(self.calls(), [["plugin", "marketplace", "add", str(self.cfg / "works-marketplace")]]
                          + [["plugin", "install", f"{n}@{MP}"] for n in PLUGINS])
         # 記録: 版は installed_plugins.json の行の物、source は利用者が入れた置き場（versions.json の borrowed に載る）。
@@ -891,7 +891,7 @@ class InstallCase(Base):
 
 
 class HooksCase(Base):
-    """フックの行（書き込みの記録のフックと coldwrite）は隔離した設定の settings.json の hooks に置く。Archon は節が plugins: で
+    """フックの行（書き込みの記録と読んだ証拠のフックと coldwrite）は隔離した設定の settings.json の hooks に置く。Archon は節が plugins: で
     名指さないプラグインを切るが、settingSources: [user] の節は利用者の設定のフックを読む"""
 
     def hooks(self):
@@ -899,11 +899,21 @@ class HooksCase(Base):
 
     def test_install_puts_recorder_hook_in_settings(self):
         self.install()
-        row = self.hooks()["PostToolUse"]
-        self.assertEqual(row, [{"matcher": "Edit|Write|NotebookEdit", "hooks": [{"type": "command", "command": shlex.join(
-            (sys.executable, str(LIB / "record-write.py"), str(self.cfg / "works-writes")))}]}])
+        row = self.hooks()["PostToolUse"][0]
+        self.assertEqual(row, {"matcher": "Edit|Write|NotebookEdit", "hooks": [{"type": "command", "command": shlex.join(
+            (sys.executable, str(LIB / "record-write.py"), str(self.cfg / "works-writes")))}]})
         self.assertNotIn("timeout", json.dumps(row), "期限の鍵を書かない（E12）")
         self.assertTrue((self.cfg / "works-writes").is_dir(), "記録の根を作る")
+
+    def test_install_puts_read_recorder_hook_in_settings(self):
+        """読んだ証拠のフック（record-read.py）を Read と Agent・WebFetch・WebSearch に掛け、記録の根 works-reads/ を作る。
+        無ければ計画と事前審査の読んだ証拠の節は「記録の根が無い」としか書けない"""
+        self.install()
+        row = self.hooks()["PostToolUse"][1]
+        self.assertEqual(row, {"matcher": "Read|Agent|WebFetch|WebSearch", "hooks": [{"type": "command", "command": shlex.join(
+            (sys.executable, str(LIB / "record-read.py"), str(self.cfg / "works-reads")))}]})
+        self.assertNotIn("timeout", json.dumps(row), "期限の鍵を書かない（E12）")
+        self.assertTrue((self.cfg / "works-reads").is_dir(), "記録の根を作る")
 
     def test_coldwrite_hooks_go_to_settings_not_plugin_names(self):
         """coldwrite の hooks.json の表を settings.json に置き、プラグインとしては入れない（前の版が入れた物は外す）。
@@ -934,7 +944,7 @@ class HooksCase(Base):
         self.install()
         r = self.cli("install", "--claude", str(self.claude), str(self.cfg), WORKS_FACTORY_COLDWRITE_MARKETPLACE="")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.hooks(), {"PostToolUse": [toolset.recorder_row(self.cfg)]})
+        self.assertEqual(self.hooks(), {"PostToolUse": toolset.recorder_rows(self.cfg)})
         self.assertNotIn("coldwrite", json.loads((self.cfg / toolset.RECORD).read_text()))
 
     def test_guard_allows_only_the_known_hooks(self):
@@ -961,6 +971,36 @@ class HooksCase(Base):
         self.assertEqual(toolset.guard(self.cfg, self.borrow), ["settings.json の hooks の行 PreToolUse:Write"],
                          "記録に載っていない借りる物の行は知らない行")
 
+    def test_guard_allows_the_read_recorder_hook(self):
+        """柵は読んだ証拠のフックの行を、別の works-factory の置き場の記録器でも通す。別の根・相対パスの記録器の行と、フォルダでない
+        works-reads は名指す"""
+        self.install()
+        self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
+        settings = json.loads((self.cfg / "settings.json").read_text())
+        row = toolset.read_recorder_row(self.cfg)
+
+        def with_command(*argv):
+            return {**row, "hooks": [{"type": "command", "command": shlex.join(argv)}]}
+
+        named = "settings.json の hooks の行 PostToolUse:Read|Agent|WebFetch|WebSearch"
+        cases = {
+            "別の置き場の記録器": (with_command(sys.executable, str(self.tmp / "other" / "bin" / "_lib" / "record-read.py"),
+                                              str(self.cfg / "works-reads")), []),
+            "別の根": (toolset.read_recorder_row(self.tmp / "elsewhere"), [named]),
+            "相対パスの記録器": (with_command(sys.executable, "other/record-read.py", str(self.cfg / "works-reads")), [named]),
+            "書き込みの根を指す": (with_command(sys.executable, str(LIB / "record-read.py"), str(self.cfg / "works-writes")),
+                                  [named]),
+        }
+        for name, (put, want) in cases.items():
+            with self.subTest(name):
+                hooks = {**settings["hooks"], "PostToolUse": [toolset.recorder_row(self.cfg), put]}
+                (self.cfg / "settings.json").write_text(json.dumps({**settings, "hooks": hooks}), encoding="utf-8")
+                self.assertEqual(toolset.guard(self.cfg, self.borrow), want)
+        (self.cfg / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+        (self.cfg / "works-reads").rmdir()
+        (self.cfg / "works-reads").write_text("x\n", encoding="utf-8")
+        self.assertEqual(toolset.guard(self.cfg, self.borrow), ["works-reads（フォルダでない）"])
+
     def test_install_over_recorder_row_of_another_checkout(self):
         """同じ対象を別の works-factory の置き場（clone・worktree）から起動した後でも、柵は記録のフックの行を通し、
         install が今の置き場の行に書き直す"""
@@ -968,12 +1008,12 @@ class HooksCase(Base):
         settings = json.loads((self.cfg / "settings.json").read_text())
         other = shlex.join([sys.executable, str(self.tmp / "other-checkout" / "bin" / "_lib" / "record-write.py"),
                             str(self.cfg / "works-writes")])
-        settings["hooks"]["PostToolUse"] = [{"matcher": toolset.WRITE_MATCHER,
-                                             "hooks": [{"type": "command", "command": other}]}]
+        settings["hooks"]["PostToolUse"][0] = {"matcher": toolset.WRITE_MATCHER,
+                                               "hooks": [{"type": "command", "command": other}]}
         (self.cfg / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
         self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
         self.install()
-        self.assertEqual(self.hooks()["PostToolUse"], [toolset.recorder_row(self.cfg)])
+        self.assertEqual(self.hooks()["PostToolUse"], toolset.recorder_rows(self.cfg))
         settings["hooks"]["PostToolUse"][0]["hooks"][0]["command"] = shlex.join(
             [sys.executable, "other-checkout/record-write.py", str(self.cfg / "works-writes")])
         (self.cfg / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
@@ -1071,7 +1111,7 @@ class CliCase(Base):
         self.assertEqual(self.calls(), [])
         self.assertEqual(sorted(p.name for p in (self.cfg / "skills").iterdir()), sorted(BORROW_SKILLS))
         self.assertEqual(json.loads((self.cfg / "settings.json").read_text()),
-                         {"hooks": {"PostToolUse": [toolset.recorder_row(self.cfg)], **COLDWRITE_HOOKS}},
+                         {"hooks": {"PostToolUse": toolset.recorder_rows(self.cfg), **COLDWRITE_HOOKS}},
                          "フックの行はプラグインでないので、CLI を呼ばない道でも置く")
         self.assertFalse((self.cfg / "works-marketplace").exists())
 

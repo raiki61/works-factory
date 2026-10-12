@@ -60,7 +60,7 @@ REJECT_HEADING = promptsection.Section("## 前の回の受け付けが拒んだ�
 
 
 def with_reject(prompt: str, reason: str) -> str:
-    """道具ゼロの役の指示書の頭に、前の拒否の文を貼る（役はファイルを読めない。$LOOP_PREV で貼ると実行基盤が文の中の $… を
+    """道具ゼロの役の指示書の頭に、前の拒否の文を貼る（役はファイルを読めない。前の周の値の差し込みで貼ると実行基盤が文の中の $… を
     置き換え直す。裁定 R44）"""
     return (f"{REJECT_HEADING}\n\n前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ"
             f"（直した所だけを返すな）:\n\n```text\n{reason}\n```\n\n---\n\n{prompt}")
@@ -114,9 +114,14 @@ def _reject_rows(board: pathlib.Path, name: str) -> list:
     return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
 
+def reject_rows(board: pathlib.Path, name: str) -> list:
+    """盤面の節でない受け付け name の拒否の控えの行 {at, reason} の並び（古い順。控えが無ければ空）"""
+    return [{"at": r.get("at"), "reason": str(r.get("reason", ""))} for r in _reject_rows(board, name)]
+
+
 def rejected(board: pathlib.Path, name: str) -> list:
     """盤面の節でない受け付け name の拒否の文の並び（古い順。控えが無ければ空）"""
-    return [str(r.get("reason", "")) for r in _reject_rows(board, name)]
+    return [r["reason"] for r in reject_rows(board, name)]
 
 
 def given_up_reason(board: pathlib.Path, name: str, *, give_up_after: int = GIVE_UP_AFTER) -> str:

@@ -18,7 +18,6 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように。必ず import より前
 
-UNITS_ENV = "INPUTS_UNITS"
 MEASURE = Path(__file__).resolve().parent / "measure.py"
 REASON_TAIL = 2000
 
@@ -26,7 +25,7 @@ REASON_TAIL = 2000
 def read_units(path: str) -> list:
     """単位のファイルを読み、形を確かめて返す。読めない・形が違うなら ValueError"""
     if not path:
-        raise ValueError(f"{UNITS_ENV} が空")
+        raise ValueError("単位のファイルのパスが空")
     try:
         rows = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:

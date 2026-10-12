@@ -71,6 +71,7 @@ EXCLUDED_HEAD = "並行 PR の範囲。触らず、単位に入れない"
 RIPPLE_UNITS = "ripple/units.json"      # 今の周の作業ファイル（manifest の produces ripple/**）
 RIPPLE_PASS = "ripple/pass-{k}.json"
 ITEMS_DIR = "plan-review-items/pass-{k}"   # 事前審査の下請けのファイル（manifest の produces plan-review-items/**）
+AGENT_OP = "plan_review_agents"         # 読んだ証拠の節が trace に書く、事前審査の下請けの起動の数の行（元 planblk.py:134）
 # 入力 review_tree が auto の時に木にする開いた項目の数の下限
 TREE_AUTO_MIN = 2
 # 受け付けの拒みの頭（plan の受け付け planfile と事前審査の受け付け boardview が読む）
@@ -83,6 +84,13 @@ RESOLVED_REJECT = "前の往復の block の行き先が書かれていない（
 ANSWERS_REJECT = "block への答えに誤りが在る（下の行を全部直して出し直せ）:"
 TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る（下の行を全部直して出し直せ）:"
 CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
+READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "   # 元 works/.shared/core/entry.py:1228
+NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度の節が走っていない）"
+# 案の直しを終えられなかった項目の諦めの訳（元 works/.shared/core/replan.py:139-140）と、その行 [{item, why, ruling}] を置く隣のファイル
+# （計画の返り plan と事前審査の返り review の指し札の先と同じフォルダ。報告が前の失敗の行に読む）
+PLAN_GAVE_UP_WHY = "修正案の役の直しが 3 回とも拒まれた: {reason}"
+REVIEW_GAVE_UP_WHY = "事前審査の役の返答が 3 回とも拒まれた: {reason}"
+REPLAN_GAVE_UP_FILE = "replan-gave-up.json"
 DESIGN_QUOTE_REJECT = ("独立設計の引用か design_map に誤りが在る（下の行を全部直して出し直せ。「」は独立設計と案の行の引用だけに使い、"
                        "ほかの引用は『』か `…` で書く）:")
 # 下請けの答えのファイルの置き場（作業ツリーの外の run の置き場 adapter.run_place_of の今の scope の下。作業ツリーは役が変えてはいけない。
