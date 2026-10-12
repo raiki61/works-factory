@@ -6,7 +6,7 @@
 
 支度が go: false で役を起こさなかった（with: reply が null）時は、受ける物が無いので done: true。返答が在れば、義務の key に
 1 度ずつ答えたかを照らし（fixboard.delta_fix_problems）、run の始めの木からの変更のうち修正の段が触ったファイルの外を承認済みの
-修正案の項目の範囲で照らして外れを拒み（planrange.check_paths）、書き込みの出どころ（段の頭の木からの変更が全部 handled[].files か bash_writes に在るか。未決 U6。と writes の記録）を照らして
+修正案の項目の範囲で照らして外れを拒み（planrange.check_paths）、書き込みの出どころ（段の頭の木からの変更が全部 handled[].files か bash_writes に在るか。U6 の狭め。と writes の記録）を照らして
 受ける（refix.accept_fix。除くパスの頭 fixio.SKIP）。拒否は理由のファイルを置いて done: false、3 回目の拒否で done: true（諦め）。
 返り {ok, done, reason, reason_file}。回す側の誤り（返答・回の番号が読めない・修正案の欄の控えが壊れた）は標準エラーに 1 行で非 0。
 """

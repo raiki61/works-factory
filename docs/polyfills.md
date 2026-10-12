@@ -31,14 +31,23 @@
 - 穴: Archon を動かしていた process が落ちると、run は `running` のまま残り、`resume` できない。
 - 証拠: `packages/core/src/operations/workflow-operations.ts` 948 行の文「Cannot resume run with status 'running'. Only failed or paused runs can be resumed.」（再開できるのは `failed`・`paused` だけ。`schemas/workflow-run.ts` 164-167 行）。cancel は、走らせている process が答えない時（`no_owner_answered`）に「If its process is gone, abandon the run to release it.」と abandon を案内する（同じファイル 1250-1251 行）。
 - 範囲: 長い待ち（CI・人の答え）は Archon の `wait:` の節と承認の節で書く。Archon 0.10.0 から待ちは持ちこたえる（CHANGELOG [0.10.0]「The database owns suspension and resume claims, so process restarts … cannot reset a wait」。server が期限の来た run を再開する）。だからこの穴に当たるのは、節を走らせている途中で process が落ちた run だけ。
-- 埋め: 無し（足りる。止めた Archon の命令で手放して続きを起こせる。入口に Archon の命令の別名を作らない。持ち主の決め `one-launcher`）。
-- 実測（段 1b、2026-10-12。止めた Archon に AI の無い使い捨ての工程。節 `write` が書きかけのファイルを書いて眠り、後ろに `trigger_rule: all_done` の節 `tail`。run `4300fc39121ab1838cc25c38fcf83e98`）: `write` が走っている間に `--detach` の子のプロセスを pid で止めた（`kill -9`）。
+- 埋め: `bin/apply`（#101。続けられない run の差分を取り出して対象に当てる。今の works の apply と同じ能力）。Archon の命令だけでは足りない: 下の実測のとおり `abandon` は書きかけごと作業ツリーを消し、`--adopt` は最初の節からやり直すので、持ち主の決め `carry`（止まった run の差分も捨てない。`docs/owner-decisions.md`）を満たさない。手放しと続きの起こしは止めた Archon の命令をそのまま打つ（入口に別名を作らない。持ち主の決め `one-launcher`）。
+  - 足りない残り: 節の途中で持ち主が落ちた run の、commit していない書きかけ。`bin/apply` は終わっていない run（`terminal_record` が null。手放す前の `running`）を拒み、手放した後は作業ツリーが消えている（commit 済みの物は残った枝に在る）。だから今は、手放す前に人が `workflow get <run> --json` の `working_path` で作業ツリーの変更（新しいファイルを含む）を取り出しておく。
+  - 持ち主に聞く項にしない: 持ち主の決め `carry` と既にある `bin/apply` で答えが 1 つに決まる（運び役の決め。PR #182 の 1 回目の修理）。
+- 実測（段 1b、2026-10-12。止めた Archon に AI の無い使い捨ての工程。節 `write` が書きかけのファイルを書いて眠り、後ろに `trigger_rule: all_done` の節 `tail`。run `4300fc39121ab1838cc25c38fcf83e98`）: `write` が走っている間に `--detach` の子のプロセスを pid で止めた（`kill -9`）。run の記録は使い捨ての Archon の家と一緒に消え、id から読み戻せない（下の「再現」で回し直す）。
   - `workflow get` は `running` のまま。`workflow wait --json` は終了の値 0 で `"result": "owner_lost"`・`"observedStatus": "running"`。
   - `workflow resume <run> --json` は拒む（「Cannot resume run with status 'running'. Only failed or paused runs can be resumed.」）。`workflow run --adopt <run>` も手放す前は拒む（「it is still running. … abandon it first」）。
   - `workflow abandon <run> --json` は `owner.outcome: no_owner_answered` と記録した pid を出し、run を `cancelled` にし、run が作った作業ツリーを書きかけのファイルごと消す（`releasedWorktrees`）。枝は残る。
   - その後の `workflow run <工程> --adopt <run> --detach --json` は新しい id の run（`a21aee649292b6b07be27e96aa8e6496`。`adopted_from_run_id` が前の run）を起こし、残った枝で同じパスに作業ツリーを作り直し、最初の節からやり直す（前の run の終わった節を飛ばさない）。後ろの `all_done` の節 `tail` は走った。
   - 持ち主を `kill -9` で止めても、走っていた節の子のプロセス（`bash -c …` と `sleep`）は残って走り続けた（親が 1 になる）。`abandon` は持ち主が答えない時はプロセスを止めない（「Nothing decides the run is dead from its age or pid」）。手放す前に、残った子を pid で止める。
   - 線は `interactive: true` なので、線の `--adopt` は `--detach` を付けずに打つ（`docs/design.md` の「Archon の分かっていること」）。線の報告の節が `--adopt` の run で走るか（棚卸しの L-W60 の resume の半分）は、AI の役を起こす認証が要るので運び役の確かめ待ち。
+- 再現（AI の役も認証も要らない。工程は `tests/e2e/owner-lost-probe/`。プロセスを止めるので試験にせず手で回す。形だけは `tests/e2e/test_resume_probe.py` が validate で照らす）:
+  1. 使い捨ての git の木に工程を `.archon/workflows/works-factory/owner-lost-probe/` の形で置いて commit し、空の bare のリポジトリを `origin` に足して push する（`remote` が無いと Archon は作業ツリーを切れずに落ちる）。`ARCHON_HOME` も使い捨てにする。
+  2. `workflow run works-factory-owner-lost-probe --detach --json` を打ち、`workflow get <run> --json` の `working_path` に `half-written.txt` が出るのを待つ。
+  3. `ps` を使い捨ての木のパスで絞って `workflow run … --internal-detached-run-id …` の持ち主の pid を見つけ、`kill -9 <pid>`。
+  4. `workflow wait <run> --json --timeout 10`（`owner_lost`）・`workflow resume <run> --json`（拒む）・`workflow run works-factory-owner-lost-probe --adopt <run> --detach --json`（拒む）を見る。
+  5. 残った節の子（`bash -c echo half > half-written.txt; sleep 600` と、それを親に持つ `sleep`）を pid で止め、`workflow abandon <run> --json` を打ち、作業ツリーが消えたことを見る。
+  6. `workflow run works-factory-owner-lost-probe --adopt <run> --detach --json` で新しい run を起こし、`write` が最初から走ることを見る。その `sleep` の pid と新しい持ち主の pid を止め、使い捨ての木と家を消す。
 - 使うブロック: 線（入口）
 - 外す条件: 持ち主の居ない `running` を Archon が自分で `failed` にするか、`resume` を受け付ける版が出たら
 

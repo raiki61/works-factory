@@ -245,10 +245,10 @@
 
 - F034 TDD の役の書き込みの出どころ: 段の頭からの変更が Edit・Write の記録か返答の bash_writes に在るかを照らし、無い書き込みを拒む（keep-essence 5 の輪の側）
   - 元: works/blk-fix/lib/tddloop.py:1528 `step`（`writes.check`。包みが記録を書いた）
-  - 今: lib/tddloop.py:1517（`writes.check(..., tdd-<k>/writes-log.jsonl)`）。本物の run には記録を書く物が無い（U6 は未決）ので `writes.NO_RECORD` で通る。修正役の側の代わりの縛り（lib/fixboard.py:1457 `undeclared_writes`）は TDD の輪が書いた物を求めない（#94 本文の U6 の節）
+  - 今: lib/tddloop.py:1517（`writes.check(..., tdd-<k>/writes-log.jsonl)`）。本物の run には記録を書く物が無い（段 1b の U6 の決めで、記録は Archon の出来事だけでは足りずフックが要ると分かった。フックはまだ無い）ので `writes.NO_RECORD` で通る。修正役の側の代わりの縛り（lib/fixboard.py:1457 `undeclared_writes`）は TDD の輪が書いた物を求めない（#94 本文の U6 の節）
   - 証: lib/tests/test_fix_seams.py::LaneChecksSeamCase.test_tdd_step_matches_writes_with_the_given_log（記録を渡した時だけ。assert: lib/tests/test_fix_seams.py:1084-1086）。記録の無い run で輪の書き込みを縛る試験は無い。要追加: tests/workflows/test_fix.py::GroupChildScriptsCase.test_tdd_step_rejects_writes_outside_the_declared_files — 記録の無い子の run で、test の段に宣言の外のテストでないファイルを書いた返答を tdd_step が拒むか、拒まないなら狭めとして書くこと
   - 本物の run: 筋書きでのみ
-  - 狭め: #94 で狭めた（U6 の節で TDD の輪の書き込みを申告に求めないと書いたが、能力の狭めの欄には無い）。Archon で不可でない（記録は U6 の決め次第）→ 持ち主に聞く
+  - 狭め: #94 で狭めた（U6 の節で TDD の輪の書き込みを申告に求めないと書いたが、能力の狭めの欄には無い）。Archon で不可でない（段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（PR #178 が書き込みの記録で戻す道）か節の `hooks:`）→ 持ち主に聞く
 
 - F035 resume で 1 周目から回し直された済んだ輪は、支度が役を起こさず go: false、確かめは返答 null で何も動かさず抜ける。済んでいない輪の空の返答は拒否に数える
   - 元: works/blk-fix/lib/tddloop.py:807 `prep`・:1528 `step`、旧試験 works/tests/test_blk_fix_tdd.py:2405 `test_scripts_on_resume`
@@ -352,7 +352,7 @@
   - 今: lib/writes.py `check`（記録の口は残る）と lib/factchecks.py:54 `check_writes`。記録を書く包み（record-write.py）は無い
   - 証: lib/tests/test_writes.py::TestProvenance.test_bash_write_without_record_is_rejected ほか 15 本（記録が在る時の照らし）
   - 本物の run: 置き場の `writes.jsonl` は作られない（包みが無い）ので、全 run が「記録の無い run」（writes.NO_RECORD）になり、下の F103 の道だけが効く。`trace.jsonl` に NO_RECORD の知らせの行
-  - 狭め: #94 で狭めた（記録を取る仕組みは U6 待ち。PR #94「U6 の結果」）。Archon で不可でない: 節に `hooks:` を書ける（Archon packages/workflows/src/schemas/dag-node.ts:193 `hooks: workflowNodeHooksSchema.optional()`）→ 戻すかどうかは U6 として持ち主へ
+  - 狭め: #94 で狭めた（当時は記録を取る仕組みが U6 待ち。PR #94「U6 の結果」）。Archon で不可でない: 節に `hooks:` を書ける（Archon packages/workflows/src/schemas/dag-node.ts:193 `hooks: workflowNodeHooksSchema.optional()`）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（PR #178 が書き込みの記録で戻す道）か節の `hooks:`。Bash で書いたファイルは出来事にもフックの Edit・Write にも載らず、bash_writes の申告に残る → 戻すかどうかは持ち主へ
 
 - F103 記録の無い run では、段の頭の木からの変更が全部、修正役の申告（changes[].files と bash_writes）に在ることを求め、無い変更を拒む（TDD の輪と実行器が作ったファイルは修正役に求めない）
   - 元: 無し（元は記録が在る前提。記録の無い run は通して trace に 1 行だけ。works/blk-fix/scripts/accept.py:12-17）
@@ -667,7 +667,7 @@
   - 今: 無し
   - 証: 無し（元 works/tests/test_reads.py は持ってこない）
   - 本物の run: 無し
-  - 狭め: #94 で狭めた（「能力の狭め」末行。U6 待ち）。Archon で不可でない（`hooks:` は Archon packages/workflows/src/schemas/dag-node.ts:193）→ U6 として持ち主へ
+  - 狭め: #94 で狭めた（「能力の狭め」末行。当時は U6 待ち）。Archon で不可でない（`hooks:` は Archon packages/workflows/src/schemas/dag-node.ts:193）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（PR #178 が書き込みの記録で戻す道）か節の `hooks:` → 戻すかどうかは持ち主へ
 
 - F148 受け付けた changes と単位ごとの件数を置き場に書き、空の changes は外れた単位の無い置き場では止める（直す義務が残らず外れた単位だけの run だけ空を通す）
   - 元: works/.shared/core/recount.py:150 `collect`
@@ -998,7 +998,7 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 今: lib/refix.py:254-258、lib/fixboard.py:1470 `undeclared_refix`、workflows/fix/scripts/refix_accept.py（段の頭の木 refix1-head.json）
   - 証: lib/tests/test_blk_refix.py::RefixCase.test_refix_unrecorded_write_rejected_and_declared_write_passes（assert: lib/tests/test_blk_refix.py:241-244）、::RefixCase.test_refix_without_record_notes_the_run、tests/workflows/test_fix.py::DeltaScriptsCase.test_refix_undeclared_write_is_rejected（assert: tests/workflows/test_fix.py:400・407・408）
   - 本物の run: 置き場の `refix1-head.json`。記録の包みが無いので常に記録の無い run の道（B の F102・F103 と同じ）
-  - 狭め: 記録の包みは U6 待ち（B の F102 と同じ。#94）
+  - 狭め: 記録の包みは #94 で落ちた（当時は U6 待ち。段 1b の U6 の決めで記録はフックが要ると分かった。B の F102 と同じ）
 
 - F311 手直しの brief の穴ごとの名札（hole ties）: 穴を修正案の項目・単位・修正の changes・準拠の落ちた行・前の往復の穴（2 回目）に結び、どの枝の直しかを手直しの役に見せる
   - 元: works/.shared/core/holeties.py:94 `tie`・:154 `note`、works/.shared/core/refix.py の tie_items・hole_ties
@@ -1433,7 +1433,7 @@ E の数: 36 行（F400〜F435。F435 は参照だけ） / 今が無し 4（F427
 
 ### 持ち主へ（答えが 1 つに決まらない物）
 
-1. 書き込みの記録と読んだ証拠（U6）: Edit・Write の記録の包みと読了の記録を戻すか（B F102・F147、A F034、D F310）。Archon の節は `hooks:` を持てる（dag-node.ts:193）ので不可ではない
+1. 書き込みの記録と読んだ証拠（U6）: Edit・Write の記録の包みと読了の記録を戻すか（B F102・F147、A F034、D F310）。Archon の節は `hooks:` を持てる（dag-node.ts:193）ので不可ではない。段 1b の U6 の決め: 役が自分で呼んだ道具は `provider_event` から取れ、下請けの中の呼びと読んだ時の sha はフックが要る
 2. 返りの約束（docs/design.md「ブロックの返りの約束」）を広げるか: 人に回す申し出の行（E F426）・受け入れた壊れ（E F427 は戻す側に数えた）・数え直しの食い違い（E F428）・許したテストの変更の理由（E F429）・単位ごとの前後の件数（E F431）・差分の審査の穴とレンズの結果（D F312・F329）。どれも fix の置き場には在り、返りに載らないだけ
 3. TDD の輪の同じ単位の段を同じ会話で続けるのを戻すか（A F032）。#94 は Archon で不可と書いたが、loop_group の fresh_context: false は前の周の会話を継ぐ（Archon dag-executor.ts:4773-4778、schemas/loop.ts:83）ので可能
 4. 実行器の nice -n 19（A F026）、2 回目の修正の段の base の使い回し（A F043、負荷だけの差）

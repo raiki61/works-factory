@@ -1,0 +1,16 @@
+name: works-factory-owner-lost-probe
+description: |
+  段 1b の P1 の使い捨ての工程（docs/polyfills.md の P1）。AI の役は無い。節 write が書きかけのファイルを書いて眠る間に
+  持ち主のプロセスを止め、手放し（abandon）と続きの起こし（run --adopt）を見る。後ろの tail は trigger_rule: all_done。
+  手で回す（手順は docs/polyfills.md の P1 の「再現」。プロセスを止めるので試験にしない）。
+
+nodes:
+  - id: write
+    bash: echo half > half-written.txt; sleep 600
+    timeout: 1728000000
+  - id: tail
+    bash: echo tail ran
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [write]
+    trigger_rule: all_done

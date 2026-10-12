@@ -1,0 +1,23 @@
+name: works-factory-resume-probe
+description: |
+  段 1b の U1 の使い捨ての工程（docs/design.md の U1）。AI の役は無い。関所の前と後に bash の節を置き、関所で止めて
+  approve・resume した後も run の id が変わらないかを見る。回すのは tests/e2e/test_resume_probe.py。
+
+interactive: true
+
+nodes:
+  - id: first
+    bash: echo first
+    timeout: 1728000000
+    mutates_checkout: false
+  - id: gate
+    approval:
+      message: U1 の確かめ
+      decisions: [{ id: approve }, { id: reject }]
+    idle_timeout: 1728000000
+    depends_on: [first]
+  - id: after
+    bash: echo after
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [gate]
