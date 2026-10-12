@@ -47,8 +47,8 @@ def main() -> dict:
     group = json.loads(raw) if raw else None
     owed = fixboard.group_owed(place, group["unit_ids"] if group else None)
     if not (place / fixboard.FIX_HEAD_FILE).is_file():
+        fixboard.record_skipped(place, repo, fixio.SKIP)   # 印より先に（落ちて回し直した prep が控えを飛ばさない）
         fixboard.write_json(place / fixboard.FIX_HEAD_FILE, {"tree": groups.end_tree(repo)})
-        fixboard.record_skipped(place, repo, fixio.SKIP)
     start = startrec.read(place)
     n = fixrules.iteration_next(fixrules.prompt_path(place))
     duty, _ = fixboard.fix_duty(place, owed)

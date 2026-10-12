@@ -42,8 +42,8 @@ def main() -> dict:
     if not conflict.ruled_fix(place):
         return {"prompt_file": "", "go": False, "iteration": n}
     if not (place / fixboard.RULED_HEAD_FILE).is_file():
+        fixboard.record_skipped(place, repo, fixio.SKIP)   # 印より先に（落ちて回し直した prep が控えを飛ばさない）
         fixboard.write_json(place / fixboard.RULED_HEAD_FILE, {"tree": groups.end_tree(repo)})
-        fixboard.record_skipped(place, repo, fixio.SKIP)
     owed = fixboard.ruled_owed(place)
     start = startrec.read(place)
     saved = fixboard.group_fix_reply(place)

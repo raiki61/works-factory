@@ -2337,6 +2337,39 @@ class FixLoopScriptsCase(unittest.TestCase):
         kept = json.loads((self.place / "fix-ruled-reply.json").read_text(encoding="utf-8"))
         self.assertEqual(set(kept["changed"]), set(CHANGED_MARKS))
 
+    @unittest.skipIf(os.geteuid() == 0, "root は読めない印のファイルも読める")
+    def test_prep_snapshots_the_skip_head_before_marking_the_stage_head(self):
+        """F107: 段の頭の印（fix-head.json・fix-ruled-head.json）は .archon/ の下の控え skip-before.json を書いた後に置く。控えを
+        書けずに落ちた prep を回し直すと控えも書く（印だけが残ると check_pack_copy が申告だけを見る形に黙って弱まる）"""
+        import conflict
+        import fixboard
+        copy = self.repo / ".archon" / "workflows" / "x.yaml"
+        copy.parent.mkdir(parents=True)
+        copy.write_text("a: 1\n", encoding="utf-8")
+        with open(self.repo / ".git" / "info" / "exclude", "a", encoding="utf-8") as f:
+            f.write(".archon/\n")   # 木の姿（git add）は読まず、控え（skip_digests）だけが読んで落ちる
+        conflict.park(self.place, [{"unit_key": _FX_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE, ruling={"decision": "fix_test_scope", "text": "テストの期待を直してよい",
+                                                          "limits": ["test_stats.py"]})
+        for script, head, extra in (("fix_prep", fixboard.FIX_HEAD_FILE, {"group": self._fx_group([_FX_MEAN])}),
+                                    ("fix_ruled_prep", fixboard.RULED_HEAD_FILE, {})):
+            with self.subTest(script=script):
+                (self.place / fixboard.SKIP_BEFORE_FILE).unlink(missing_ok=True)
+                copy.chmod(0)
+                try:
+                    code, _, err = _fx_run(script, self.repo, self.art, **extra)
+                finally:
+                    copy.chmod(0o644)
+                self.assertNotEqual(code, 0, "控えが書けない prep は落ちる")
+                self.assertIn("x.yaml", err)
+                self.assertFalse((self.place / head).exists(), "控えの無いまま段の頭の印を置かない")
+                code, _, err = _fx_run(script, self.repo, self.art, **extra)
+                self.assertEqual(code, 0, err)
+                self.assertIn(".archon/workflows/x.yaml", fixboard.read_json(self.place / fixboard.SKIP_BEFORE_FILE))
+                self.assertTrue((self.place / head).is_file())
+
     def test_fix_ruled_prep_without_fix_ruling_does_not_launch(self):
         import conflict
         code, out, err = _fx_run("fix_ruled_prep", self.repo, self.art)
