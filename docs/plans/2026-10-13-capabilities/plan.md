@@ -1770,7 +1770,7 @@
 
 - P245 返した関所の項目の種類と方針の変化を gate-asked.json に積み、関所の項目の全部と壁打ちの行を pass-<k>/gate.json に残す（次の差し込みが通した行の種類を引く・人が読む控え）
   - 元: 盤面の state.pending_human（{node, kinds, items}）と loop_state.policy_change
-  - 今: lib/boardview.py:912 `_note_asked`・:951（GATE_FILE）
+  - 今: lib/boardview.py:907 `_note_asked`・:946（gatemarks.PLAN_GATE_FILE）
   - 証: 要追加: tests/workflows/test_plan_review.py::ResultCase.test_gate_files_carry_kinds_and_items — 狭め 1 件と方針の変化 1 件の差し込みの後、gate.json の items が `[{kind: "regression", …}, {kind: "policy_changed", …}]` で、gate-asked.json が 2 つの文を種類つきで持ち、方針の行だけ policy_change を持つ（今は lib の試験が `_note_asked` を直に呼ぶだけで、collect が書くことを見ない）
   - 本物の run: `plan-review/pass-1/gate.json`・`plan-review/gate-asked.json`
   - 狭め: 無し

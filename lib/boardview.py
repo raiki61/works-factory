@@ -80,7 +80,6 @@ TREE_FILE = "tree.json"                 # 事前審査の役を起こす前の�
 PROMPT_FILE = "prompt.md"
 REVIEW_FILE = "review.json"
 PASSES_FILE = "gate-passes.json"
-GATE_FILE = "gate.json"
 TREE_FEATURE = "review_tree"
 # 元 works/.shared/core/entry.py:1228 と works/.shared/core/design.py:104
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "
@@ -944,7 +943,7 @@ def collect(folder) -> dict:
     if gave:
         questions.append(GIVEN_UP_FACES + gave)
     _write_json(p / PASSES_FILE, gatemarks.passes(b))
-    _write_json(p / GATE_FILE, {"items": [{"kind": k, "text": t} for k, t in items], "converge": converge.lines(b)})
+    _write_json(p / gatemarks.PLAN_GATE_FILE, {"items": [{"kind": k, "text": t} for k, t in items], "converge": converge.lines(b)})
     got, _ = design.made(d, b.design_schema)
     design_file = d / design.DESIGN_FILE if got is not None else _write_json(p / design.DESIGN_FILE, {"missing": design.missing(b)})
     return {"pass": ok, "stalled": stalled, "review": p / REVIEW_FILE, "design": design_file,

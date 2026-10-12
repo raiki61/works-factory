@@ -81,7 +81,6 @@ GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
 PLAN_GAVE_UP_WHERE = "受け付け 計画"          # 元 report.ACCEPT_WHERE（受け付け <名>）の計画の行
 STOPPED_WHERE = "止めた段"                     # 前の失敗の、止めの語で止めた段の行（元 accept-last.json の ok でない行の代わり）
 GATE_PASSES = "gate-passes.json"
-PLAN_GATE = "gate.json"                       # 事前審査の関所の項目と往復の報告の行 converge（lib/boardview.py の GATE_FILE）
 FIX_PLAN = "p2.fix_plan.json"                 # 計画の隣の修正案の役の返答（関所の決め手の欄つき）
 HYPOTHESIS = "仮説"                           # 前提の役が実測でなく仮説で書いた制約の kind
 HUMAN_FACE_KINDS = ("regression", "policy")   # 事前審査の穴のうち人に回す種類（元の写しの規則 review-loop.py:4084）
@@ -633,7 +632,7 @@ def _gate_passes(returns: dict) -> list:
 def _converge_lines(returns: dict) -> list:
     """事前審査の往復の報告の行（plan-review の review の隣の gate.json の converge。converge.lines の頭の行と往復ごとの行）。
     指し札かファイルが無ければ空（無いことは _gate_passes の行が言う）、読めなければその 1 行"""
-    doc, why = _read_beside(returns, "plan-review", "review", PLAN_GATE)
+    doc, why = _read_beside(returns, "plan-review", "review", gatemarks.PLAN_GATE_FILE)
     if why:
         return [f"事前審査の壁打ちの行: 無い（{why}）"]
     return [x for x in _list(as_dict(doc).get("converge")) if isinstance(x, str)]
