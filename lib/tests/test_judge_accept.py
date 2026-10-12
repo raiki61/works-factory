@@ -7,12 +7,14 @@ test_judge_verify・test_structure_units・test_accept の TestJudge・TestIntak
 import copy
 import hashlib
 import json
+import os
 import pathlib
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
@@ -863,6 +865,90 @@ class MaterialCase(_RepoCase):
         got = ja.material_take(self.jdir, "provenance", {"material": {"status": "clean", "checked": "x"}, "claims": []}, self.repo)
         self.assertFalse(got["ok"])
         self.assertIn("作業ツリー", got["reason"])
+
+    def test_tree_change_names_the_peer_roles(self):
+        """元 test_blk_material.test_tree_change_rejects_and_names_peers（_peers）: 拒みの文に、material-route.json で同じ時に回す
+        ほかの役を名指す。route が読めない時は読めないと言う"""
+        (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
+        self.view()
+        route = ja.read_json(self.jdir / ja.MATERIAL_ROUTE_FILE)
+        peers = [r for r, d in route["roles"].items() if d["run"] and r != "provenance"]
+        self.assertIn("hygiene", peers)
+        (self.repo / "tmp.out").write_text("x\n", encoding="utf-8")
+        reply = {"material": {"status": "clean", "checked": "x"}, "claims": []}
+        got = ja.material_take(self.jdir, "provenance", reply, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn("・".join(peers), got["reason"])
+        self.assertNotIn("provenance・", got["reason"])
+        (self.jdir / ja.MATERIAL_ROUTE_FILE).write_text("{", encoding="utf-8")
+        got = ja.material_take(self.jdir, "provenance", reply, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn(f"{ja.MATERIAL_ROUTE_FILE} が読めない", got["reason"])
+
+    def test_gate_prep_shows_the_declared_mutation_stage(self):
+        """元 review-loop.py:734 の mutation_decl: 対象の宣言の mutation の段を材料に貼る。段が無ければ探させる文、
+        壊れていれば読めないと名指す"""
+        (self.repo / "app.txt").write_text("一行目\n直した\n", encoding="utf-8")
+        (self.repo / "arms.txt").write_text("arm-1\n", encoding="utf-8")
+        decl = {"suite": [{"name": "t", "argv": ["true"]}], "mutation": {"argv": ["mutate", "--fast"], "arms": "arms.txt"}}
+        self.view()
+        cases = (
+            (decl, ['["mutate", "--fast"]', "arms.txt"], "探せ"),
+            ({"suite": decl["suite"]}, [ja.MUTATION_UNDECLARED.format(decl=ja.DECL_NAME)], "読めない"),
+            ({**decl, "mutation": {"argv": []}}, ["探せ", "mutation の段を読めない"], "mutate"),
+        )
+        for doc, said, unsaid in cases:
+            with self.subTest(doc=doc):
+                (self.repo / ja.DECL_NAME).write_text(json.dumps(doc), encoding="utf-8")
+                brief = ja.material_prep(self.jdir, "gate-efficacy", self.repo, "")["brief"]
+                for s in said:
+                    self.assertIn(s, brief)
+                self.assertNotIn(unsaid, brief)
+
+    def _lens_rows(self, invoked):
+        return [{"skill": e["skill"], "items": [], "invoked": invoked(e["skill"]), "failed": "起こしたが所見なし（差分を見た）"}
+                for e in ja._skills(ja.due_view(self.start(), {}, []), "local-review")]
+
+    def _plugins(self, names):
+        cfg = self.tmp / "claude-config"
+        ja.write_json(cfg / "plugins" / "installed_plugins.json", {"plugins": {f"{n}@market": [] for n in names}})
+        return mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(cfg)})
+
+    def test_missing_required_lens_is_refused(self):
+        """元 test_blk_material の必須のレンズの場面（_lens_gap）: 必須のレンズを起こしていない返答と、それを awaiting_human に
+        した返答を拒む。プラグインが入っていれば出し直させる（1 回目で諦めない）"""
+        self.view()
+        rows = self._lens_rows(lambda s: s != "pr-review-toolkit:code-reviewer")
+        with self._plugins(["pr-review-toolkit"]):
+            for status in ("clean", "awaiting_human"):
+                with self.subTest(status):
+                    mat = {"status": status, "checked": "差分を見た", "reason": "待つ"}
+                    reply = {"material": mat, "simplify_carried": False, "findings": rows}
+                    got = ja.accept_round(self.jdir, "local-review", json.dumps(reply),
+                                          lambda r: ja.material_take(self.jdir, "local-review", r, self.repo))
+                    self.assertFalse(got["ok"])
+                    self.assertFalse(got["done"], "プラグインが在れば出し直させる")
+                    self.assertIn("'pr-review-toolkit:code-reviewer' は必須のレンズ", got["reason"])
+                    self.assertEqual("awaiting_human にできない" in got["reason"], status == "awaiting_human")
+        self.assertEqual(ja.rolekit.given_up_reason(self.jdir, "local-review"), "")
+
+    def test_absent_plugin_gives_up_at_once(self):
+        """元 material.py:455 の _lens_gap の 2 つ目（出し直さないか）を _reject(give_up=True) に渡した: レンズのプラグインが
+        隔離した設定に無ければ、1 回目の拒みで done にして人に渡し、素材の欄と判定の支度がその理由を読む"""
+        self.view()
+        reply = {"material": {"status": "clean", "checked": "差分を見た"}, "simplify_carried": False,
+                 "findings": self._lens_rows(lambda s: not s.startswith("pr-review-toolkit:"))}
+        with self._plugins(["other-plugin"]):
+            got = ja.accept_round(self.jdir, "local-review", json.dumps(reply),
+                                  lambda r: ja.material_take(self.jdir, "local-review", r, self.repo))
+        self.assertFalse(got["ok"])
+        self.assertTrue(got["done"], "1 回目から諦める")
+        self.assertIn("プラグイン pr-review-toolkit が入っていない", got["reason"])
+        self.assertEqual(len(ja.rolekit.rejected(self.jdir, "local-review")), 1)
+        gave = ja.rolekit.given_up_reason(self.jdir, "local-review")
+        self.assertIn("pr-review-toolkit", gave)
+        self.assertEqual(ja.materials_given_up(self.jdir), [gave])
+        self.assertIn("pr-review-toolkit", ja.fill_materials(self.jdir)["local_review"]["reason"])
 
     def test_local_review_unseen_lens_is_marked(self):
         """元 test_diverted.TakeCase.test_unrecovered_loss_is_taken_but_said_unseen（受け付けは拒まず、見ていないと書く）"""
