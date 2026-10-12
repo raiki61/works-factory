@@ -53,6 +53,15 @@
   "spec.review": "board/out/r*/spec.review.json: 無い",
   "stop.premise_check": "board/out/r*/stop.premise_check.json: 無い; board/out/r*/stop.premise_check.json: 無い"
  },
+ "units": [
+  "stats.py load_scores: 既定の読み手の str を 1 文字ずつ int 化し parse_scores の分割を迂回する",
+  "test_stats.py test_load_scores: 読み手の代役が実物の _read_text と違う型（list）を返す",
+  "test_stats.py test_load_scores: 既定の読み手とファイル経路を通る試験が無い",
+  "README.md・stats.py・test_stats.py load_scores: 文書が読み手の差し替えと試験の追加に追従していない"
+ ],
+ "asks": [
+  "entering__launch"
+ ],
  "cost": {
   "usd": null,
   "seconds": 1784.0,
@@ -71,7 +80,7 @@
    "final_gate": "when_needed",
    "thickness": "標準"
   },
-  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80",
-  "date": "2026-10-12T09:22:42+00:00"
+  "date": "2026-10-12T09:22:42+00:00",
+  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80"
  }
 }

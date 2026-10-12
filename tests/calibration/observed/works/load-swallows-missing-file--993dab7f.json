@@ -56,6 +56,14 @@
   "spec.review": "board/out/r*/spec.review.json: 無い",
   "stop.premise_check": "board/out/r*/stop.premise_check.json: 無い; board/out/r*/stop.premise_check.json: 無い"
  },
+ "units": [
+  "stats.py load_scores: 捕まえる型が OSError だけで、不正な UTF-8・空や壊れた中身のファイルは例外のまま落ちる",
+  "stats.py load_scores / README.md: docstring と README が読めない時の契約を書いていない",
+  "test_stats.py: load_scores の読めない時の契約を縛る試験が無い"
+ ],
+ "asks": [
+  "entering__launch"
+ ],
  "cost": {
   "usd": null,
   "seconds": 1941.0,
@@ -74,7 +82,7 @@
    "final_gate": "when_needed",
    "thickness": "標準"
   },
-  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80",
-  "date": "2026-10-12T09:06:31+00:00"
+  "date": "2026-10-12T09:06:31+00:00",
+  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80"
  }
 }

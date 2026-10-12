@@ -23,6 +23,7 @@ import yaml
 from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.calibration import corpus
+from tests.calibration import run as runner
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
@@ -125,7 +126,9 @@ if who == "use.sh" and args[0] == "start":
                 "data TEXT, created_at TEXT, event_order INTEGER)")
     con.execute("INSERT INTO remote_agent_workflow_runs VALUES (?, 'running', ?, '2026-10-12 00:00:00', "
                 "'2026-10-12 02:00:00', ?)", (rid, str(home / "out"), json.dumps({"approval": {"nodeId": "r4.human_gate"}})))
-    con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'workflow_completed', '', ?, '', 1)",
+    for n, gate in enumerate(plan.get("asks", [])):
+        con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'approval_requested', ?, '{}', '', ?)", (rid, gate, n))
+    con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'workflow_completed', '', ?, '', 99)",
                 (rid, json.dumps({"cost_usd": plan.get("usd", 12.5)})))
     con.commit()
     con.close()
@@ -469,7 +472,7 @@ class RunTest(RunnerCase):
                 self.assertEqual(json.loads(done.stdout), observed)
                 self.assertEqual(path.name, f"{CHANGE}--{observed['run_id'][:8]}.json")
                 self.assertEqual(set(observed), {*corpus.OBSERVED_FIELDS, "child_run_ids", "unread", "flag_evidence",
-                                                 "cost", "provenance"})
+                                                 "units", "asks", "cost", "provenance"})
                 self.assertEqual(corpus.score(rows[CHANGE], observed)["verdict"], "CAUGHT")
                 self.assertIn("p0.local_checks", observed["flagged"])
                 self.assertNotIn("p0.local_checks", observed["unread"])
@@ -532,6 +535,12 @@ class RunTest(RunnerCase):
         self.assertIn("fixed", line["detail"])
         self.assertEqual(total["verdicts"]["FALSE_ALARM"], 1)
 
+    def test_unread_units_and_asks_keep_quiet_control_clean(self):
+        quiet = {"id": CONTROL, "factory": "works", "run_id": "q" * 12, "outcome": "no_fix_needed", "flagged": [],
+                 "unread": ["units", "asks"]}
+        [line, _] = self.score_lines("works", quiet=quiet)
+        self.assertEqual(line["verdict"], "CLEAN", line)
+
     def test_score_sums_missed_by_per_gate(self):
         row = next(r for r in corpus.load()["rows"] if r["id"] == REQUEST)
         base = {"id": REQUEST, "factory": "works", "outcome": "fixed", "unread": []}
@@ -541,21 +550,202 @@ class RunTest(RunnerCase):
         self.assertEqual(lines[-1]["verdicts"], {"CAUGHT": 1, "ESCAPED": 1, "CLEAN": 0, "FALSE_ALARM": 0, "INCONCLUSIVE": 0})
         self.assertEqual(lines[-1]["missed_by"], {row["catcher"]: 1, **{a: 2 for a in row["also"]}})
 
+    def compare_lines(self) -> list[dict]:
+        done = self.runner("compare", "--observed", str(self.observed))
+        self.assertRan(done)
+        return [json.loads(line) for line in done.stdout.splitlines()]
+
     def test_compare_names_stale_and_one_sided_rows(self):
         self.assertRan(self.run_rows("works-factory", CHANGE, REQUEST))
         self.set_plan(outcome="needs_human")
         self.assertRan(self.run_rows("works", CHANGE))
         stale = self.observed_files("works")[0] | {"id": CONTROL, "provenance": {"fingerprint": "0" * 64}}
         (self.observed / "works" / "stale.json").write_text(json.dumps(stale), encoding="utf-8")
-        done = self.runner("compare", "--observed", str(self.observed))
-        self.assertRan(done)
-        lines = [json.loads(line) for line in done.stdout.splitlines()]
+        older = {k: v for k, v in self.observed_files("works")[0].items() if k != "asks"} | {"id": CONTROL}
+        (self.observed / "works" / "older.json").write_text(json.dumps(older), encoding="utf-8")
+        lines = self.compare_lines()
         self.assertIn({"stale": "works/stale.json"}, lines)
-        self.assertIn({"one_sided": REQUEST, "only": "works-factory"}, lines)
-        [differs] = [line for line in lines if "differs" in line]
-        self.assertEqual(differs["differs"], CHANGE)
-        self.assertEqual(differs["works"][0]["outcome"], "needs_human")
+        self.assertIn({"stale": "works/older.json"}, lines)
+        [one] = [line for line in lines if "one_sided" in line]
+        self.assertEqual((one["one_sided"], one["only"]), (REQUEST, "works-factory"))
+        self.assertEqual(set(one["works-factory"][0]), {"verdict", "outcome", "units", "asks", "cost"})
+        [both] = [line for line in lines if "compare" in line]
+        self.assertEqual(both["compare"], CHANGE)
+        self.assertIn("outcome", both["differs"])
+        self.assertEqual(both["reason"], "")
+        self.assertEqual(both["works"][0]["outcome"], "needs_human")
+        self.assertEqual(both["works"][0]["cost"], {"usd": 12.5, "seconds": 7200.0})
         self.assertFalse([line for line in lines if CONTROL in json.dumps(line) and "stale" not in line])
+
+    def test_compare_names_each_field_that_differs(self):
+        self.set_plan(outcome="fixed", artifacts={"test-gate/base/baseline.json": '{"material": {"status": "found"}}',
+                                                  "fix/fix/groups.json": "{}", "fix/fix/join.json": json.dumps({"units": [{"unit_id": "u1", "status": "fixed"}]})},
+                      nodes=[{"node_id": "gate-final", "state": "completed"}])
+        self.assertRan(self.run_rows("works-factory", CHANGE))
+        self.set_plan(outcome="fixed", asks=["final-gate"],
+                      board={"out/r1/p0.local_checks.json": '{"material": {"status": "found"}}',
+                             "out/r1/p3.fix.json": json.dumps({"changes": [{"unit_key": "stats.py mean"}]})})
+        self.assertRan(self.run_rows("works", CHANGE))
+        [same] = [line for line in self.compare_lines() if "compare" in line]
+        self.assertEqual(same["differs"], [])
+        self.assertEqual(same["works"][0]["units"], {"count": 1, "names": ["stats.py mean"]})
+        self.assertEqual(same["works-factory"][0]["asks"], {"count": 1, "gates": ["gate-final"]})
+
+        [path] = (self.observed / "works").glob("*.json")
+        observed = json.loads(path.read_text(encoding="utf-8"))
+        path.write_text(json.dumps(observed | {"units": ["a", "b"], "asks": [], "unread": ["units"]}), encoding="utf-8")
+        [differs] = [line for line in self.compare_lines() if "compare" in line]
+        self.assertEqual(differs["differs"], ["units", "asks"])
+        self.assertEqual(differs["reason"], "")
+
+        path.write_text(json.dumps(observed | {"flagged": []}), encoding="utf-8")
+        [verdicts] = [line for line in self.compare_lines() if "compare" in line]
+        self.assertEqual(verdicts["differs"], ["verdict"])
+
+    FIXED = {
+        "works-factory": {"artifacts": {
+            "test-gate/base/baseline.json": '{"material": {"status": "found"}}',
+            "fix/fix/groups.json": "{}", "fix/refix-run/groups.json": "{}",
+            "fix/fix/join.json": json.dumps({"units": [{"unit_id": "u1", "status": "fixed"}, {"unit_id": "u2", "status": "not_done"},
+                                                       {"unit_id": "u3", "status": "given_up"}]}),
+            "fix/fix/fix-units.json": json.dumps({"u2": {"status": "fixed", "reason": ""}, "u3": {"status": "given_up"}}),
+            "fix/refix-run/join.json": json.dumps({"units": [{"unit_id": "u4", "status": "fixed"}, {"unit_id": "u1", "status": "fixed"}]})},
+            "nodes": [{"node_id": "gate-start", "state": "skipped"}, {"node_id": "judge", "state": "completed"},
+                      {"node_id": "gate-before-fix", "state": "completed"}, {"node_id": "gate-final", "state": "failed"}]},
+        "works": {"asks": ["entering__launch", "final-gate"], "board": {
+            "out/r1/p0.local_checks.json": '{"material": {"status": "found"}}',
+            "out/r1/p3.fix.json": json.dumps({"changes": [{"unit_key": "k1"}, {"unit_key": "k2"}]}),
+            "out/r10/p3.fix.json": json.dumps({"changes": [{"unit_key": "k4"}]}),
+            "out/r2/p3.fix.json": json.dumps({"changes": [{"unit_key": "k1"}, {"unit_key": "k3"}]})}},
+    }
+    UNITS = {"works-factory": (["u1", "u2", "u4"], ["gate-before-fix", "gate-final"]),
+             "works": (["k1", "k2", "k3", "k4"], ["entering__launch", "final-gate"])}
+    BROKEN = {"works-factory": "parent/fix/fix/join.json", "works": "board/out/r2/p3.fix.json"}
+
+    def test_run_writes_units_and_asks(self):
+        for factory in ("works-factory", "works"):
+            with self.subTest(factory=factory):
+                self.set_plan(**self.FIXED[factory])
+                self.assertRan(self.run_rows(factory, CHANGE))
+                [observed] = self.observed_files(factory)
+                self.assertEqual((observed["units"], observed["asks"]), self.UNITS[factory])
+                self.assertFalse({"units", "asks"} & set(observed["unread"]))
+
+    def reobserve(self, factory, *extra):
+        return self.runner("reobserve", factory, "--attempts", str(self.attempts), "--observed", str(self.observed), *extra)
+
+    def test_reobserve_reads_evidence_and_launches_nothing(self):
+        for factory in ("works-factory", "works"):
+            with self.subTest(factory=factory):
+                self.set_plan(**self.FIXED[factory])
+                self.assertRan(self.run_rows(factory, CHANGE, REQUEST))
+                paths = sorted((self.observed / factory).glob("*.json"))
+                for path in paths:
+                    old = json.loads(path.read_text(encoding="utf-8"))
+                    old = {k: v for k, v in old.items() if k not in ("units", "asks")}
+                    old["provenance"] |= {"claude_code": "1.0.0 (Claude Code)", "date": "2026-01-01T00:00:00+00:00",
+                                          "fingerprint": "0" * 64}
+                    path.write_text(json.dumps(old), encoding="utf-8")
+                self.log.unlink()
+                self.set_plan()
+                done = self.reobserve(factory, "--only", CHANGE)
+                self.assertRan(done)
+                self.assertEqual(self.calls(), [])
+                self.assertEqual(sorted((self.observed / factory).glob("*.json")), paths)
+                [new] = [o for o in self.observed_files(factory) if o["id"] == CHANGE]
+                self.assertEqual((new["units"], new["asks"]), self.UNITS[factory])
+                self.assertEqual(new["provenance"]["claude_code"], "1.0.0 (Claude Code)")
+                self.assertEqual(new["provenance"]["date"], "2026-01-01T00:00:00+00:00")
+                self.assertNotEqual(new["provenance"]["fingerprint"], "0" * 64)
+                self.assertEqual(new["outcome"], "fixed")
+                self.assertIn("p0.local_checks", new["flagged"])
+                self.assertEqual(json.loads(done.stdout), new)
+                [untouched] = [o for o in self.observed_files(factory) if o["id"] == REQUEST]
+                self.assertNotIn("units", untouched)
+
+    def test_reobserve_names_unreadable_fields_in_unread(self):
+        for factory in ("works-factory", "works"):
+            with self.subTest(factory=factory):
+                shutil.rmtree(self.attempts, ignore_errors=True)
+                self.set_plan(**self.FIXED[factory])
+                self.assertRan(self.run_rows(factory, CHANGE))
+                evidence = self.attempts / f"{CHANGE}--1" / "evidence"
+                (evidence / self.BROKEN[factory]).write_text("{", encoding="utf-8")
+                record = json.loads((evidence / "record" / "parent.json").read_text(encoding="utf-8"))
+                if factory == "works-factory":
+                    record["terminal_record"].pop("nodes")
+                else:
+                    record.pop("events")
+                (evidence / "record" / "parent.json").write_text(json.dumps(record), encoding="utf-8")
+                self.assertRan(self.reobserve(factory))
+                [observed] = self.observed_files(factory)
+                self.assertEqual((observed["units"], observed["asks"]), (None, None))
+                self.assertLessEqual({"units", "asks"}, set(observed["unread"]))
+                self.assertIn(self.BROKEN[factory], observed["flag_evidence"]["units"])
+                self.assertIn("record/parent.json", observed["flag_evidence"]["asks"])
+
+    def test_fix_place_without_join_names_units_unread(self):
+        artifacts = {k: v for k, v in self.FIXED["works-factory"]["artifacts"].items() if k != "fix/fix/join.json"}
+        self.set_plan(**self.FIXED["works-factory"] | {"artifacts": artifacts})
+        self.assertRan(self.run_rows("works-factory", CHANGE))
+        [observed] = self.observed_files("works-factory")
+        self.assertIsNone(observed["units"])
+        self.assertIn("units", observed["unread"])
+        self.assertIn("parent/fix/fix/join.json: 無い", observed["flag_evidence"]["units"])
+
+    MISSING = {"works-factory": "parent", "works": "board"}
+
+    def test_reobserve_names_missing_record_folder_in_unread(self):
+        for factory in ("works-factory", "works"):
+            with self.subTest(factory=factory):
+                shutil.rmtree(self.attempts, ignore_errors=True)
+                self.set_plan(**self.FIXED[factory])
+                self.assertRan(self.run_rows(factory, CHANGE))
+                shutil.rmtree(self.attempts / f"{CHANGE}--1" / "evidence" / self.MISSING[factory])
+                self.assertRan(self.reobserve(factory))
+                [observed] = self.observed_files(factory)
+                self.assertIsNone(observed["units"])
+                self.assertIn("units", observed["unread"])
+                self.assertIn(self.MISSING[factory], observed["flag_evidence"]["units"])
+
+    def test_reobserve_refuses_without_evidence_and_keeps_observed(self):
+        for factory in ("works-factory", "works"):
+            with self.subTest(factory=factory):
+                shutil.rmtree(self.attempts, ignore_errors=True)
+                shutil.rmtree(self.observed, ignore_errors=True)
+                self.set_plan(**self.FIXED[factory])
+                self.assertRan(self.run_rows(factory, CHANGE))
+                [path] = (self.observed / factory).glob("*.json")
+                before = path.read_bytes()
+                shutil.rmtree(self.attempts / f"{CHANGE}--1" / "evidence")
+                done = self.reobserve(factory)
+                self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+                self.assertIn(CHANGE, done.stderr)
+                self.assertEqual(path.read_bytes(), before)
+
+    def test_reobserve_keeps_child_run_ids(self):
+        self.set_plan(**self.FIXED["works-factory"], children=2)
+        self.assertRan(self.run_rows("works-factory", CHANGE))
+        [before] = self.observed_files("works-factory")
+        self.assertEqual(len(before["child_run_ids"]), 2)
+        self.assertRan(self.reobserve("works-factory"))
+        [after] = self.observed_files("works-factory")
+        self.assertEqual(after["child_run_ids"], before["child_run_ids"])
+
+    def test_reobserve_needs_an_earlier_observed(self):
+        self.assertRan(self.run_rows("works", REQUEST))
+        shutil.rmtree(self.observed)
+        self.log.unlink()
+        done = self.reobserve("works")
+        self.assertEqual(done.returncode, 1, done.stderr)
+        self.assertIn(REQUEST, done.stderr)
+        self.assertEqual(self.calls(), [])
+        self.assertFalse(self.observed.exists())
+
+    def test_works_factory_gates_are_the_main_graph_approvals(self):
+        graph = yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(encoding="utf-8"))
+        approvals = [n["id"] for n in graph["nodes"] if "approval" in n]
+        self.assertEqual(list(runner.WorksFactory.gates), approvals)
 
     def test_dry_run_launches_nothing(self):
         for factory in ("works-factory", "works"):
