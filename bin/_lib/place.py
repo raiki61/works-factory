@@ -19,6 +19,8 @@ from pathlib import Path
 
 ENTRY = "packages/cli/src/cli.ts"
 WORKFLOW_FOLDER = ".archon/workflows"
+# 入口の殻が run に渡す、起こした源のパス。run の中の節はこれで殻を入れ子にせず同じ Archon を起こす（bin/_lib/childsweep.py）
+SOURCE_ENV = "WORKS_FACTORY_ARCHON_SOURCE"
 
 Fetch = Callable[[str, str, Path], None]
 Install = Callable[[Path], None]

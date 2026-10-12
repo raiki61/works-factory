@@ -15,6 +15,7 @@ import sys
 import tempfile
 import unittest
 
+from bin._lib import place
 from lib import answer
 from tests.bin import fakelaunch, hermetic
 from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
@@ -193,7 +194,7 @@ class LauncherTest(unittest.TestCase):
     def test_child_gets_the_archon_source_it_runs(self):
         """線の節が殻を入れ子にせず同じ Archon を起こせるよう、殻が起こした源のパスを子に渡す"""
         reached = self.reached(self.launch("workflow", "status"))
-        source = reached["env"]["WORKS_FACTORY_ARCHON_SOURCE"]
+        source = reached["env"][place.SOURCE_ENV]
         self.assertIn(str(pathlib.Path(source) / ENTRY), reached["argv"])
 
     def test_user_values_are_taken_before_isolation(self):

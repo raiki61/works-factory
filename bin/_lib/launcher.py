@@ -78,8 +78,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     # gh の無い利用者には口も置かない（並行 PR の確かめが「gh が無い → 役に任せる」の道を通る）
     heads = [str(hostgh.NO_POST_BIN), str(Path(shim).parent)] if shim else []
     child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
-    child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", WORKS_FACTORY_ROOT=str(ROOT),
-                 WORKS_FACTORY_ARCHON_SOURCE=str(source))
+    child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", WORKS_FACTORY_ROOT=str(ROOT))
+    child[place.SOURCE_ENV] = str(source)
     child[answer.ENV] = answer_head(target)
     child.pop(answer.WHO_ENV, None)  # respond に答えた者の引数は無い
     if not no_auth and mise_trusts(user, target):
