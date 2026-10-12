@@ -15,7 +15,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import accept  # noqa: E402
 import fixboard  # noqa: E402
@@ -30,7 +29,7 @@ def main() -> dict:
     if reply is None:
         raise ValueError(why)
     iteration = int(os.environ["INPUTS_ITERATION"])
-    place, repo = fixio.place(), fixio.repo()
+    place, repo = boundary.place("fix"), boundary.work_tree()
     got = ruling.accept_rule(reply, place, fixboard.base_rev_of(place), repo, iteration=iteration,
                              keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")))
     if got["ok"]:

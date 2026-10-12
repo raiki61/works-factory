@@ -152,7 +152,9 @@ def fix(p: Place) -> dict:
                                                   {"suite": "", "test_cmd": "", "rev": p.head, "exit": 0, "cases": []}),
             "units": units(), "judgment": judgment(p), "world": world(p), "plan": plan_fields(p),
             "ripple": p.put("plan/ripple.json", {"items": [], "overlaps": []}), "depth": "[]", "answers": "null",
-            "only_items": "", "mode": "", "group": "", "from_tree": "", "out_dir": ""}
+            "only_items": "", "mode": "",
+            "group": json.dumps({"group_id": "g1", "unit_ids": ["stats.py mean: 分母"], "items": []}, ensure_ascii=False),
+            "from_tree": "", "out_dir": ""}
 
 
 def judge(p: Place) -> dict:
@@ -224,12 +226,12 @@ UNNAMED = {
     ("eyes", "design"): RENAMED.format(words="prep と verdict の「独立設計の控えが読めない」") + "。区分 E。区分の issue で外す",
     ("eyes", "diff"): f"prep が{FELL}。区分 E。区分の issue で外す",
     ("eyes", "start"): f"prep が{FELL}。protected・structure-after は例外の字だけを返す。区分 E。区分の issue で外す",
-    ("fix", "start"): f"prep が{FELL}。区分 F。区分の issue で外す",
-    ("fix", "baseline"): f"prep が{FELL}（「元の結末が読めない」も標準エラーだけ）。区分 F。区分の issue で外す",
-    ("fix", "judgment"): f"prep が{FELL}。区分 F。区分の issue で外す",
-    ("fix", "world"): f"prep が{FELL}。区分 F。区分の issue で外す",
-    ("fix", "plan"): f"prep が{FELL}。区分 F。区分の issue で外す",
-    ("fix", "ripple"): f"prep が{FELL}。区分 F。区分の issue で外す",
+    ("fix", "start"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
+    ("fix", "baseline"): f"prep と group-start（単独の run の組の子の頭）が{FELL}（「元の結末が読めない」も標準エラーだけ）。区分 F。区分の issue で外す",
+    ("fix", "judgment"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
+    ("fix", "world"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
+    ("fix", "plan"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
+    ("fix", "ripple"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
     ("judge", "start"): RENAMED.format(words="intake の「始めの記録か前の失敗の行が読めない」。2 つの入力のどちらかを言わない")
                         + "。区分 J。区分の issue で外す",
     ("judge", "baseline"): RENAMED.format(words="diagnose-prep の「直す前の結末が読めない」") + "。区分 J。区分の issue で外す",

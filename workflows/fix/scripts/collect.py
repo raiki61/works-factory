@@ -33,7 +33,7 @@ NO_COLLECTOR = "レンズの集め役が終わらなかった: 集め役の出�
 GROUP_LENSES = "組の子の run はレンズを起こさない（差分の審査は親の run が回す）"
 ALLOWED_TESTS = "allowed-tests.json"   # fixboard.ALLOWED_TESTS_FILE と同じ名（lib を読めない時も diff の隣に [] を置く）
 ACCEPT_TRACE = "accept-trace.json"     # fixboard.ACCEPT_TRACE_FILE と同じ名（lib を読めない時も diff の隣に無ければ [] を置く）
-boundary = fixio = None   # 境の口と fixio。読めない時は fallback が stdlib だけで返す
+boundary = None   # 境の口。読めない時は fallback が stdlib だけで返す
 
 
 def rel(place: Path, name: str) -> str:
@@ -44,7 +44,7 @@ def diff_pointer(fixboard, place: Path, why: str = "") -> dict:
     """累積差分のファイルの指し札。書けない・空なら理由を書いたファイルの指し札"""
     if not why:
         try:
-            text = fixboard.run_diff(fixio.repo(), fixboard.base_rev_of(place), fixio.SKIP)
+            text = fixboard.run_diff(boundary.work_tree(), fixboard.base_rev_of(place), boundary.SKIP)
         except Exception as e:
             text, why = "", f"累積差分が取れない（{type(e).__name__}: {' '.join(str(e).split())}）"
         if text.strip():
@@ -72,7 +72,7 @@ def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review,
 
 
 def block(fixboard, conflict) -> dict:
-    place = fixio.place()
+    place = boundary.place("fix")
     plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
     if not isinstance(plan, dict) or not isinstance(plan.get("groups"), list):
         raise ValueError(f"置き場に groups.json が無い（prep が走らなかった。{place}）")
@@ -97,7 +97,7 @@ def block(fixboard, conflict) -> dict:
 
 
 def group(fixboard, conflict) -> dict:
-    place = fixio.place()
+    place = boundary.place("fix")
     g = json.loads(os.environ["INPUTS_GROUP"])
     gid = g["group_id"]
     gdir = fixboard.group_dir(place, os.environ.get("INPUTS_OUT_DIR", ""), gid)
@@ -111,16 +111,16 @@ def group(fixboard, conflict) -> dict:
 
 
 def place_rel() -> str:
-    """置き場の成果物の置き場からの相対パス（fixio.place() と同じ fix/<include の名>。fixio を読めない時は fix/fix）"""
+    """置き場の成果物の置き場からの相対パス（boundary.place("fix") と同じ fix/<include の名>。境の口を読めない時は fix/fix）"""
     try:
-        name = fixio.include_name()
+        name = boundary.include_name("fix")
     except Exception:
         name = "fix"
     return f"fix/{name}"
 
 
 def error_pointer(why: str) -> dict:
-    """理由を置き場の fix-collect-error.txt に書いた指し札（stdlib だけ。境の口と fixio を読めない時も置く）"""
+    """理由を置き場の fix-collect-error.txt に書いた指し札（stdlib だけ。境の口を読めない時も置く）"""
     rel_path = f"{place_rel()}/{ERROR_FILE}"
     try:
         target = Path(os.environ["ARTIFACTS_DIR"]) / rel_path
@@ -162,7 +162,7 @@ def fallback(why: str) -> dict:
     groups_rows, units_rows = [], []
     try:
         import fixboard
-        plan = fixboard.read_json(fixio.place() / fixboard.GROUPS_FILE)
+        plan = fixboard.read_json(boundary.place("fix") / fixboard.GROUPS_FILE)
         gs = plan["groups"] if isinstance(plan, dict) and isinstance(plan.get("groups"), list) else []
         if not gs and os.environ.get("INPUTS_GROUP", "").strip():
             gs = [json.loads(os.environ["INPUTS_GROUP"])]
@@ -181,17 +181,16 @@ def fallback(why: str) -> dict:
 
 
 def main() -> dict:
-    global boundary, fixio
+    global boundary
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
     import boundary
     sys.path.append(str(boundary.lib_root()))
-    import fixio
 
     import conflict
     import fixboard
     mode = os.environ.get("INPUTS_MODE", "")
-    if mode not in fixio.MODES:
+    if mode not in fixboard.MODES:
         raise ValueError(f"入力 mode は空か group: {mode!r}")
     return group(fixboard, conflict) if mode == "group" else block(fixboard, conflict)
 

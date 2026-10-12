@@ -18,8 +18,10 @@
 - value・text・flag・items・field: Archon が渡した入力の字を値に戻す（埋め skip_value の上の読み方）
 
 Archon に向いた事実（lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、script がここから引いて lib/ へ引数で渡す）:
-- RUNTIME_COPY・RUNTIME_COPY_PREFIX・RUNTIME_COPY_DIRS: Archon が run の作業ツリーに写す工程の置き場。修正の変更でないので、
-  差分・後始末・波及で数えない・消さない（パスの頭の字と、フォルダの名の組の形）
+- RUNTIME_COPY・RUNTIME_COPY_PREFIX・RUNTIME_COPY_DIRS・SKIP: Archon が run の作業ツリーに写す工程の置き場。修正の変更でないので、
+  差分・後始末・波及で数えない・消さない（パスの頭の字と、フォルダの名の組の形と、パスの頭の組の形）
+- include_name(block)・place(block)・work_tree(): サブグラフ block の script のこの run の置き場（include ごとに分ける）と、
+  run の作業ツリーの根
 - shared_cache(): run をまたぐ控えの根
 - RUNNER_PREFIXES・RUNNER_NAMES・drop_runner_env(): Archon が script の節に立てる変数
 - prev_reason(): 輪の頭の節の返り（前の周の受け付けの理由）
@@ -28,6 +30,7 @@ import contextlib
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -42,6 +45,7 @@ _import_error = None
 RUNTIME_COPY = ".archon"
 RUNTIME_COPY_PREFIX = f"{RUNTIME_COPY}/"
 RUNTIME_COPY_DIRS = ((RUNTIME_COPY,),)
+SKIP = (RUNTIME_COPY_PREFIX,)
 SHARED_CACHE_ENV = "STATE_DIR"
 SHARED_CACHE = "works-factory"
 
@@ -135,6 +139,31 @@ def drop_runner_env() -> None:
     から継いで子を起こす。節ごと・子の run ごとに値が違うので、残すと同じ run の中の試験の結果の使い回しの指紋も割れる）"""
     for name in [n for n in os.environ if n.startswith(RUNNER_PREFIXES) or n in RUNNER_NAMES]:
         del os.environ[name]
+
+
+def include_name(block: str) -> str:
+    """この節を差し込んだ include の名（Archon が立てる節の実行の path ARCHON_NODE_EXECUTION の最初の __ より前）。同じサブグラフを
+    2 度差し込む run（fix と、案の直しの後の 2 回目の refix）で置き場を分ける。include の外（組の子の run・単独の run）と path が
+    読めない時は block"""
+    try:
+        path = json.loads(os.environ.get("ARCHON_NODE_EXECUTION") or "{}").get("path") or ""
+    except ValueError:
+        path = ""
+    head, sep, _ = path.partition("__")
+    return head if sep and head else block
+
+
+def place(block: str) -> Path:
+    """サブグラフ block の script のこの run の置き場（run の成果物の置き場の下 <block>/<include の名>/）。無ければ作る"""
+    folder = Path(os.environ["ARTIFACTS_DIR"]) / block / include_name(block)
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def work_tree() -> Path:
+    """run の作業ツリーの根（script の節は run の作業ツリーで起きる）"""
+    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True)
+    return Path(top.stdout.strip())
 
 
 def shared_cache() -> Path | None:

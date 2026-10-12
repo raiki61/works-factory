@@ -9,7 +9,7 @@ tdd-start.json（TDD の輪の頭の返り。輪の結果は tddloop.exit_fields
 {unit_key: {status, reason}}）・fix-reply.json（最後に受け付けた修正役の返答。異議 rejudge_requested と 6 つの印）・
 granted-tests.json（許したテストの変更のパス）・conflicts.json（申し出。conflict.items）。終わりの木は作業ツリーの今の姿
 （groups.end_tree）。子の作業ツリーの実パスも載せる（join がそこから子の書き込みの記録を引き、
-親の記録へ写す。fixio.writes_log）。許したテストの変更の訳（fixboard.allowed_test_rows。親の collect が allowed-tests.json に集める）と、
+親の記録へ写す。writelog.log_here）。許したテストの変更の訳（fixboard.allowed_test_rows。親の collect が allowed-tests.json に集める）と、
 最後の関所を開ける理由の行（修正役が人に回した物 handoffs と、自分の置き場の閉鎖の表で申告と数え直しが合わない単位 mismatched。
 fixboard.mismatched_lines）と、受け付けが選んだ試験を走らせた回の行（accept-trace.json。親の collect が diff の隣に集める）も載せる。
 TDD の輪の状態が済んでいなければ tdd を ran: false と理由にする。前の節が落ちた子ではこの節は走らず、結果のファイルは無い
@@ -26,7 +26,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
@@ -51,8 +50,8 @@ def main() -> dict:
     if not isinstance(group, dict) or not group.get("group_id"):
         raise ValueError("入力 group に group_id が無い")
     out_dir = os.environ.get("INPUTS_OUT_DIR", "").strip()
-    place = fixio.place()
-    repo = fixio.repo()
+    place = boundary.place("fix")
+    repo = boundary.work_tree()
     gdir = fixboard.group_dir(place, out_dir, group["group_id"])
     began = fixboard.read_json(gdir / fixboard.GROUP_START_FILE) or {}
     reply_path = place / fixboard.FIX_REPLY_FILE

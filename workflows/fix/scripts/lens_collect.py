@@ -18,7 +18,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 import fixboard  # noqa: E402
 import lens  # noqa: E402
 import lenses  # noqa: E402
@@ -28,7 +27,7 @@ NO_ROUTE = "レンズの支度（lens-prep）が振り分けの控えを書い�
 
 
 def main() -> None:
-    place = fixio.place()
+    place = boundary.place("fix")
     if lens.read(place) is None:
         lens.write_routes(place, [{"lens": r["lens"], "agent": r["agent"], "go": False, "reason": NO_ROUTE}
                                   for r in lenses.LENSES])
@@ -47,7 +46,7 @@ if __name__ == "__main__":
     except Exception as e:
         why = f"{type(e).__name__}: {' '.join(str(e).split())}"
         try:
-            fixboard.lens_collector(fixio.place(), False, fixboard.LENS_NOT_DONE.format(why=why))
+            fixboard.lens_collector(boundary.place("fix"), False, fixboard.LENS_NOT_DONE.format(why=why))
         except Exception as w:
             why += f"（集め役の事実 {fixboard.LENSES_FILE} を書けない: {type(w).__name__}: {' '.join(str(w).split())}）"
         sys.exit(f"lens-collect: {why}")

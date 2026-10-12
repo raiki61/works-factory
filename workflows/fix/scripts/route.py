@@ -11,9 +11,10 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
-import fixio  # noqa: E402
+sys.path.append(str(boundary.lib_root()))
+import fixboard  # noqa: E402
 
 mode = os.environ.get("INPUTS_MODE", "")
-if mode not in fixio.MODES:
+if mode not in fixboard.MODES:
     sys.exit(f"入力 mode は空か group: {mode!r}")
-boundary.returns({"group": fixio.MODES[mode]})
+boundary.returns({"group": fixboard.MODES[mode]})

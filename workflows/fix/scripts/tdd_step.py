@@ -24,11 +24,11 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
 import tddloop  # noqa: E402
+import writelog  # noqa: E402
 
 REJECT = "tdd-step-reject-{}.md"
 
@@ -47,8 +47,8 @@ def read_reply():
 
 def main() -> dict:
     reply = read_reply()
-    place = fixio.place()
-    repo = fixio.repo()
+    place = boundary.place("fix")
+    repo = boundary.work_tree()
     started = fixboard.read_json(place / fixboard.TDD_START_FILE)
     if not isinstance(started, dict):
         raise ValueError(f"置き場に {fixboard.TDD_START_FILE} が無い（group-start が走らなかった。{place}）")
@@ -56,7 +56,7 @@ def main() -> dict:
         return {"ok": True, "done": True, "reason": "", "reason_file": "", "phase": "done"}
     state = started["state_file"]
     hits = fixboard.judge_query(place)
-    log = fixio.writes_log()
+    log = writelog.log_here()
     boundary.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
     out = tddloop.step(state, reply, repo, try_query=hits, log=log)
     tddloop.flush_unsent(state, lambda rows: conflict.park_claims(place, rows))

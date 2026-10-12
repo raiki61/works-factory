@@ -27,12 +27,12 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import fixboard  # noqa: E402
 import lanekit  # noqa: E402
 import startrec  # noqa: E402
 import writes  # noqa: E402
+import writelog  # noqa: E402
 
 
 def result_of(out_dir: Path, gid: str):
@@ -45,7 +45,7 @@ def result_of(out_dir: Path, gid: str):
 
 
 def main() -> dict:
-    place = fixio.place()
+    place = boundary.place("fix")
     plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
     if not isinstance(plan, dict) or not isinstance(plan.get("groups"), list):
         raise ValueError(f"置き場に groups.json が無いか形が違う（{place}）")
@@ -53,8 +53,8 @@ def main() -> dict:
     results = {g["group_id"]: result_of(out_dir, g["group_id"]) for g in plan["groups"]}
     outcomes = {}
     if plan["par"]:
-        repo = fixio.repo()
-        log = fixio.writes_log()
+        repo = boundary.work_tree()
+        log = writelog.log_here()
         start = startrec.read(place)
         cases = (fixboard.read_json(place / fixboard.BASELINE_FILE, {}) or {}).get("cases") or []
         with_result = [g for g in plan["groups"] if results[g["group_id"]] is not None]
@@ -87,23 +87,23 @@ def main() -> dict:
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)
             r = results[g["group_id"]]
             if not got.why and r.get("worktree") and log is not None:
-                applied.append((r["worktree"], fixio.writes_log(r["worktree"]), got.names))
+                applied.append((r["worktree"], writelog.log_here(r["worktree"]), got.names))
         if log is not None and log.is_file():
             writes.carry_children(log, repo, applied)
     else:
-        repo = fixio.repo()
+        repo = boundary.work_tree()
         for g in plan["groups"]:
             r = results[g["group_id"]]
             if r is not None:
                 outcomes[g["group_id"]] = (r, True, "")
                 continue
-            dropped = fixboard.drop_unreturned(repo, out_dir / g["group_id"], fixio.SKIP)
+            dropped = fixboard.drop_unreturned(repo, out_dir / g["group_id"], boundary.SKIP)
             outcomes[g["group_id"]] = (None, False, fixboard.NO_RESULT + (
                 fixboard.DROPPED.format(paths="・".join(dropped)[:300]) if dropped else ""))
     for g in plan["groups"]:
         outcomes.setdefault(g["group_id"], (None, False, fixboard.NO_RESULT))
     fixboard.adopt_tdd_states(place, [outcomes[g["group_id"]][0] for g in plan["groups"] if outcomes[g["group_id"]][1]],
-                              fixio.repo())
+                              boundary.work_tree())
     rows, units = fixboard.join_rows(plan["groups"], outcomes)
     fixboard.write_json(place / fixboard.JOIN_FILE, {"par": bool(plan["par"]), "groups": rows, "units": units})
     return {"groups": len(rows), "returned": sum(1 for r in rows if r["returned"])}

@@ -1206,7 +1206,7 @@ class LineWiringCase(unittest.TestCase):
     def test_twice_included_blocks_use_their_own_place(self):
         """落とし穴 K14: 線が 2 度差し込むブロック（YAML から数える）の全部で、置き場を決める関数に 2 つの include の id か形（with: の
         値）を渡すと違う置き場が返る（2 度目が 1 度目の置き場の物を今回の物として拾わない）。関数: judge は lib/judge_accept.verdict
-        （異議の有無で judge/・rejudge/）、plan は lib/planfile.open_round（周ごとの plan/r<k>/）、fix は workflows/fix/scripts/fixio.place
+        （異議の有無で judge/・rejudge/）、plan は lib/planfile.open_round（周ごとの plan/r<k>/）、fix は workflows/.shared/boundary.place("fix")
         （include の名ごとの fix/<id>/）、test-gate は workflows/test-gate/scripts/result.rel（形ごとの test-gate/<mode>/）、merge は
         workflows/merge/scripts/merge.py の返す節（形ごとのファイル。フォルダ merge/ は同じ）。表 SHARED_PLACE のブロックは置き場を
         共にし、2 つの include が形の with: の値で分かれる"""
@@ -1244,13 +1244,13 @@ class LineWiringCase(unittest.TestCase):
                     for ruling in ([], ["1"])]
 
     def fix_places(self, includes, keys) -> list:
-        fixio = load_file("fix_fixio", SCRIPTS.parents[1] / "fix" / "scripts" / "fixio.py")
+        boundary = load_file("boundary", SCRIPTS.parents[1] / ".shared" / "boundary.py")
         with tempfile.TemporaryDirectory() as tmp:
             places = []
             for include in keys:
                 env = {"ARTIFACTS_DIR": tmp, "ARCHON_NODE_EXECUTION": json.dumps({"path": f"{include}__fix-prep"})}
                 with mock.patch.dict(os.environ, env):
-                    places.append(fixio.place())
+                    places.append(boundary.place("fix"))
             return places
 
     def gate_places(self, includes, keys) -> list:

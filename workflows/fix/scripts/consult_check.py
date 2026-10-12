@@ -16,7 +16,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import factchecks  # noqa: E402
 import fixboard  # noqa: E402
@@ -33,7 +32,7 @@ def main() -> dict:
     reply, why = rolekit.parse_reply(os.environ["INPUTS_REPLY"])
     if reply is None:
         raise ValueError(why)
-    place = fixio.place()
+    place = boundary.place("fix")
     try:
         items = factchecks.place_items(place)() or []
     except (planmarks.FieldsBroken, ValueError):   # 控えの壊れは受け付けが止める。頼みは全部断る側

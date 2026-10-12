@@ -771,19 +771,20 @@ class DeltaScriptsCase(unittest.TestCase):
         import importlib.util
         import fixboard
 
-        def load(name):
-            spec = importlib.util.spec_from_file_location(f"fix_{name}", BLOCK / "scripts" / f"{name}.py")
+        def load(path, name):
+            spec = importlib.util.spec_from_file_location(name, path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             return module
-        collect, fixio = load("collect"), load("fixio")
+        collect = load(BLOCK / "scripts" / "collect.py", "fix_collect")
+        boundary = load(ROOT / "workflows" / ".shared" / "boundary.py", "boundary")
         self.assertEqual((collect.LENSES_FILE, collect.ALLOWED_TESTS, collect.ACCEPT_TRACE),
                          (fixboard.LENSES_FILE, fixboard.ALLOWED_TESTS_FILE, fixboard.ACCEPT_TRACE_FILE))
         self.assertEqual(collect.NO_COLLECTOR, fixboard.LENS_NOT_DONE.format(why=collect.NO_COLLECTOR.partition(": ")[2]))
-        collect.fixio = fixio
+        collect.boundary = boundary
         with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.art),
                                           "ARCHON_NODE_EXECUTION": json.dumps({"path": "refix__fix"})}):
-            self.assertEqual(self.art / collect.place_rel(), fixio.place())
+            self.assertEqual(self.art / collect.place_rel(), boundary.place("fix"))
 
     def test_scripts_do_not_name_queues_or_take(self):
         for name in ("delta_cut", "delta_accept", "lens_prep", "lens_collect", "refix_prep", "refix_accept", "cut2",
@@ -912,7 +913,7 @@ class BlockScriptsCase(unittest.TestCase):
 
     # ---- route.py
     def test_route_returns_the_shape_of_the_mode(self):
-        """route は境の置き場だけを sys.path に足して fixio を読む（fixio の頭は lib/ を読まない）"""
+        """route は入力 mode の語を fixboard.MODES で引いて形を返す"""
         fmt = all_nodes(load())["route"]["output_format"]
         for mode, group in (("", False), ("group", True)):
             code, out, err = _blk_run("route", self.repo, self.art, {"mode": mode}, "fix__route")

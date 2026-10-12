@@ -15,13 +15,12 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import leftovers  # noqa: E402
 
 
 def main() -> dict:
-    out = leftovers.remove_new_ignored(fixio.place(), fixio.repo(), skip=fixio.SKIP)
+    out = leftovers.remove_new_ignored(boundary.place("fix"), boundary.work_tree(), skip=boundary.SKIP)
     return {"ok": True, "count": out["count"]}
 
 

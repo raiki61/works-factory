@@ -8,6 +8,8 @@
 - root(config_dir) -> Path: Claude の設定の置き場 config_dir の下の記録の根
 - log_path(root, cwd, name=LOG) -> Path: 根 root の下の、役の作業の場 cwd（実パス）ごとの記録のファイル name
 - open_log(root, cwd, name=LOG) -> Path: log_path の置き場を作り、作業の場の実パスを控え（WHERE）に書いて記録のファイルを返す
+- log_here(cwd=None)・open_here(): このプロセスの Claude の設定の置き場（CLAUDE_CONFIG_DIR）の下の、作業の場 cwd（既定は今の cwd）の
+  記録のファイルと、その記録を空で作る口。記録の根が無い起動は None・何もしない（記録の無い run）
 - sweep(root) -> (list[Path], list[OSError]): 控えの作業の場がもう無い置き場を消し、消した置き場と消せなかった置き場の誤りを返す
   （控えの無い・控えが名と合わない置き場は残す。1 つ消せなくても残りは片付ける）
 """
@@ -41,6 +43,26 @@ def open_log(root, cwd, name: str = LOG) -> pathlib.Path:
     if not where.exists():
         where.write_text(os.path.realpath(str(cwd)), encoding="utf-8", errors="surrogateescape")
     return log
+
+
+def _here_root() -> pathlib.Path | None:
+    config = os.environ.get("CLAUDE_CONFIG_DIR")
+    found = root(config) if config else None
+    return found if found is not None and found.is_dir() else None
+
+
+def log_here(cwd=None) -> pathlib.Path | None:
+    """書き込みの記録のフックが作業の場 cwd（既定は今の cwd）の Edit・Write を残すファイル。記録の根（起動が隔離した設定
+    CLAUDE_CONFIG_DIR の下に作る）が無い起動は None で、受け付けは記録の無い run の道（writes.NO_RECORD）を通る"""
+    found = _here_root()
+    return None if found is None else log_path(found, os.getcwd() if cwd is None else cwd)
+
+
+def open_here() -> None:
+    """記録の根が在れば、今の作業の場の記録を空で作る（在れば触らない。前の役の記録を残す）。置き場はフックと同じ open_log で作る"""
+    found = _here_root()
+    if found is not None:
+        open_log(found, os.getcwd()).touch()
 
 
 def sweep(root) -> tuple[list[pathlib.Path], list[OSError]]:

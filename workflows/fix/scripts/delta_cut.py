@@ -22,7 +22,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 import fixboard  # noqa: E402
 import refix  # noqa: E402
 import startrec  # noqa: E402
@@ -38,7 +37,7 @@ def no_go(place, why: str) -> None:
 
 
 def main() -> None:
-    place = fixio.place()
+    place = boundary.place("fix")
     skipped = place / fixboard.DELTA_DIR / fixboard.DELTA_SKIPPED
     skipped.unlink(missing_ok=True)
     (place / fixboard.LENSES_FILE).unlink(missing_ok=True)   # 前の試みの集め役の事実を返す節に読ませない
@@ -46,14 +45,14 @@ def main() -> None:
     if not isinstance(checked, dict) or checked.get("ok") is not True:
         no_go(place, str((checked.get("reason") if isinstance(checked, dict) else "") or NOT_CHECKED))
         return
-    repo = fixio.repo()
-    light = fixboard.redepth(place, repo, fixio.SKIP)
+    repo = boundary.work_tree()
+    light = fixboard.redepth(place, repo, boundary.SKIP)
     if light:
         fixboard.write_json(skipped, {"reason": light})
         no_go(place, light)
         return
     fix_reply = fixboard.group_fix_reply(place)
-    due, why = fixboard.delta_review_due(place, repo, fixio.SKIP, fix_reply)
+    due, why = fixboard.delta_review_due(place, repo, boundary.SKIP, fix_reply)
     if not due:
         fixboard.write_json(skipped, {"reason": why})
         no_go(place, why)

@@ -133,7 +133,7 @@
 
 - F018 輪をまたぐ凍結: 2 回目の修正の段（案の直しの後）の修正役も、1 回目の段の輪が凍らせたテストを変えられない。ただし案を直した項目の単位の、前の輪の受け入れのテストの関数の中だけは通す
   - 元: works/blk-fix/lib/tddloop.py:1816 `test_spans`・:1834 `frozen_source`、works/blk-fix/scripts/accept.py の 1b（盤面の tdd-<k> を run の全部の輪として読む）
-  - 今: lib/tddloop.py:1996 `states`・lib/factchecks.py:87 `_loop_states`。ただし置き場が include ごとに分かれ（workflows/fix/scripts/fixio.py:32 `place` が `fix/<include の名>/`）、2 回目の include（`fix/refix/`）の `states` は 1 回目の `fix/fix/tdd-<k>` を読まない。子は親の置き場からしか写さない（lib/fixboard.py:1184 `ADOPTED` に輪の状態は無い）。線の 2 回目の修正でこの能力は働かない
+  - 今: lib/tddloop.py:1996 `states`・lib/factchecks.py:87 `_loop_states`。ただし置き場が include ごとに分かれ（workflows/.shared/boundary.py `place` が `fix/<include の名>/`）、2 回目の include（`fix/refix/`）の `states` は 1 回目の `fix/fix/tdd-<k>` を読まない。子は親の置き場からしか写さない（lib/fixboard.py:1184 `ADOPTED` に輪の状態は無い）。線の 2 回目の修正でこの能力は働かない
   - 証: lib/tests/test_blk_fix_tdd.py::TestCrossLoopFreeze.test_second_pass_cannot_touch_first_loop_frozen_tests（assert: :1852）・test_amended_units_old_test_span_is_not_frozen（assert: :1884）は同じ置き場に 2 つの輪を作るので、include が分かれても緑のまま（外しても赤にならない形の穴）。要追加: tests/workflows/test_fix.py::GroupChildScriptsCase.test_refix_include_sees_the_first_include_loops — `ARCHON_NODE_EXECUTION` の path を `refix__…` にした fix_accept が、`fix/fix/tdd-1` の凍ったテストの書き換えを拒むこと
   - 本物の run: `fix/refix/` の受け付けの拒否の文（今は出ない）。筋書きでのみ（案の直しと 2 回目の修正が要る）
   - 狭め: #94 で狭めた（置き場を include ごとに分けた結果。#94 の本文は `conflict.second_pass` が偽になる件だけを「約束を変える頼み 2」に書き、凍結は書いていない）。Archon で不可でない（fix の入力に 1 回目の置き場の指し札か輪の状態を足せば読める）→ 戻す。約束の変更なので持ち主の確かめが要る
@@ -331,7 +331,7 @@
 
 ## B. 修正役と修正の受け付け（F100〜）
 
-置き場（本物の run の記録）の読み方: 組の子の run は自分の run の成果物の置き場の `fix/fix/` に書き（`workflows/fix/scripts/fixio.py:32` `place`）、結果を親の置き場の `out_dir/<group_id>/result.json` に書く。裁定の後の修正（fix-ruled）は親の置き場 `fix/fix/` で回る。2 回目の修正（線の include `refix`）は `fix/refix/`。受け付けの拒否の理由は置き場の `reject-<節>-<k>.md`（`lib/fixboard.py` の `REJECT_NAME`）、trace の行は `trace.jsonl`（`lib/fixboard.py:38`）。種（`tests/e2e/target-seed`、stats.py の mean と clamp の 2 つの欠陥）の健全な run は、修正役が 1 回で受け付けを通る筋になりやすく、拒否・諦め・はみ出しの道は通らない。
+置き場（本物の run の記録）の読み方: 組の子の run は自分の run の成果物の置き場の `fix/fix/` に書き（`workflows/.shared/boundary.py` `place`）、結果を親の置き場の `out_dir/<group_id>/result.json` に書く。裁定の後の修正（fix-ruled）は親の置き場 `fix/fix/` で回る。2 回目の修正（線の include `refix`）は `fix/refix/`。受け付けの拒否の理由は置き場の `reject-<節>-<k>.md`（`lib/fixboard.py` の `REJECT_NAME`）、trace の行は `trace.jsonl`（`lib/fixboard.py:38`）。種（`tests/e2e/target-seed`、stats.py の mean と clamp の 2 つの欠陥）の健全な run は、修正役が 1 回で受け付けを通る筋になりやすく、拒否・諦め・はみ出しの道は通らない。
 
 - F100 修正役が出す前に使う事前の確かめのコマンド（受け付けと同じ口で範囲・書き込み・凍結を乾いた形で当て、置き場を書かない）を持つ
   - 元: works/blk-fix/lib/factchecks.py:218 `precheck`・:238 `main`（rules/direct.md が名指す）
@@ -803,7 +803,7 @@ B の数: 50 行 / 今が無し 5（F106・F107・F130・F136・F147）/ 証が�
 
 - F216 2 回目の修正（線の include `refix`）が 1 回目の修正の申し出と裁定を見る（conflict.second_pass）: 1 回目の段で fix_test_scope の範囲として許したテストの変更を 2 回目の段の事後の関門と凍結も許す、2 回目の段で新しく fix_plan_item と裁いた行に「最後の人の関所で決める」の約束（LATE_REPLAN_PROMISE）を出す、直した項目の単位の前の輪の受け入れのテストを許す（AMENDED_TEST_ID）
   - 元: works/.shared/core/conflict.py:411 `second_pass`・:641 `write_rulings`（LATE_REPLAN_PROMISE）・:915 `test_permits`（amended の許し）、works/blk-fix/lib/fixgates.py（second_pass で裁定の範囲を引く）
-  - 今: lib/conflict.py:406 `second_pass` は残るが、2 回目の include は置き場が `fix/refix/` に分かれ（workflows/fix/scripts/fixio.py:21-29 `include_name`）、そこの conflicts.json には AMENDED の行が無いので常に偽。fix の入力に 1 回目の申し出・裁定を受ける欄が無く（workflows/fix/works-factory-fix.yaml:10-53）、線も渡さない（workflows/line/works-factory-line.yaml:600-614 の refix の with に conflicts が無い）
+  - 今: lib/conflict.py:406 `second_pass` は残るが、2 回目の include は置き場が `fix/refix/` に分かれ（workflows/.shared/boundary.py `include_name`）、そこの conflicts.json には AMENDED の行が無いので常に偽。fix の入力に 1 回目の申し出・裁定を受ける欄が無く（workflows/fix/works-factory-fix.yaml:10-53）、線も渡さない（workflows/line/works-factory-line.yaml:600-614 の refix の with に conflicts が無い）
   - 証: lib/tests/test_conflict_kinds.py::TestReplanWords.test_second_pass_new_replan_rows_promise_the_last_gate（assert: lib/tests/test_conflict_kinds.py:519-521）と lib/tests/test_fix_gates.py:615 の second_pass の試験は、AMENDED の行を手で置いた盤面で回るので、線の上で働かないことを捕まえない。要追加: tests/workflows/test_fix.py::BlockScriptsCase.test_refix_place_reads_the_first_pass_rulings — 1 回目の置き場に fix_test_scope の裁定と AMENDED の行を置き、refix の置き場の事後の関門がそのテストの変更を許し、新しい fix_plan_item に LATE_REPLAN_PROMISE が出ること。加えて線の側に、refix に 1 回目の conflicts を渡す配線の試験（tests/workflows/test_line.py）
   - 本物の run: 筋書きでのみ（申し出 → fix_plan_item → 案の直し → refix の筋。refix の置き場 `fix/refix/conflicts.json` に 1 回目の行が無いことで見える）
   - 狭め: #94 で狭めた（「約束を変える頼み」2、PR #94 の 2 回目の直しのコメント「線との約束の変えなので線の後の issue で扱う」）。Archon で不可でない（入力を 1 つ足して `$fix.output.conflicts` の指し札を渡すだけ。#74 の head/workflows/line/works-factory-line.yaml:484-485 は replan に既に同じ値を渡している）→ 戻す
@@ -1162,7 +1162,7 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
 
 - F402 案の直しの後の 2 回目の修正（線の include `refix`）は、入力 only_items の項目に載る単位だけを組にし、置き場を 1 回目と分ける（fix/refix）
   - 元: works/darkfactory/darkfactory.yaml の 2 回目の修正の段（同じブロックの 2 度目の include。scope の周の置き場を分けた）
-  - 今: lib/fixboard.py:471 `fix_groups` の only_items、workflows/fix/scripts/fixio.py:21 `include_name`・:32 `place`
+  - 今: lib/fixboard.py:471 `fix_groups` の only_items、workflows/.shared/boundary.py `include_name`・`place`
   - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_prep_only_items_keeps_their_units（assert: tests/workflows/test_fix.py:637）、::BlockScriptsCase.test_prep_under_refix_writes_its_own_place（assert: :644・645・646）
   - 本物の run: 筋書きでのみ（fix_plan_item の裁定が出る run だけ `fix/refix/` が在る）
   - 狭め: 置き場が分かれたので 2 回目は 1 回目の申し出・裁定・TDD の凍結を読めない（C の conflict.second_pass の行、A の F018・F023・F044）。この行の範囲では無し

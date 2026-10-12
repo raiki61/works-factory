@@ -14,7 +14,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 import fixboard  # noqa: E402
 import refix  # noqa: E402
 import startrec  # noqa: E402
@@ -23,13 +22,13 @@ N = 2
 
 
 def main() -> None:
-    place = fixio.place()
+    place = boundary.place("fix")
     handled = (fixboard.output(place, refix.passes()[N - 1]["fix"]) or {}).get("handled") or []
     if not any(isinstance(r, dict) and r.get("handled") == "fixed" for r in handled):
         boundary.returns({"go": False, "files": [], "diff_file": "", "brief_file": ""})
         return
     start = startrec.read(place)
-    got = refix.cut(place, N, fixio.repo(), policy=fixboard.policy_brief(start))
+    got = refix.cut(place, N, boundary.work_tree(), policy=fixboard.policy_brief(start))
     if not got.get("ok"):
         raise ValueError(got.get("reason") or "差分を切れない")
     boundary.returns({"go": True, "files": got["files"], "diff_file": got["diff_file"], "brief_file": got["brief_file"]})

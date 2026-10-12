@@ -4,7 +4,7 @@
 # ///
 """節 fix-accept（形 group の修正の輪の終わり）: 修正役の返答を受け付ける（fixboard.accept_reply。照らしは factchecks・fixgates・
 書き込みの出どころ（記録が無い run は段の頭の木からの変更が全部 changes[].files か bash_writes に在るか。U6 の狭め）・
-recount.accept_fix・tddloop.selected_problems。除くパスの頭 fixio.SKIP）。
+recount.accept_fix・tddloop.selected_problems。除くパスの頭 boundary.SKIP）。
 
 - 範囲の相談の周（入力 consulted が true）は受け付けを回さず done: false
 - 修正役を起こさなかった（入力 reply が null）周は done: true（直す義務が残らない）
@@ -25,11 +25,11 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import fixboard  # noqa: E402
 import rolekit  # noqa: E402
 import startrec  # noqa: E402
+import writelog  # noqa: E402
 
 NAME = "fix-accept"
 NOT_LAUNCHED = "修正役を起こさなかった（組の直す義務の単位が残らない）"
@@ -41,7 +41,7 @@ def main() -> dict:
     iteration = int(os.environ["INPUTS_ITERATION"])
     if consulted:
         return {"ok": False, "done": False, "reason": fixboard.CONSULTED, "reason_file": ""}
-    place, repo = fixio.place(), fixio.repo()
+    place, repo = boundary.place("fix"), boundary.work_tree()
     group = os.environ.get("INPUTS_GROUP", "").strip()
     owed = fixboard.group_owed(place, json.loads(group)["unit_ids"] if group else None)
     if raw.strip() in ("", "null"):
@@ -55,11 +55,11 @@ def main() -> dict:
     state, _ = fixboard.loop_files(place)
     judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
     head = fixboard.stage_head(place, fixboard.FIX_HEAD_FILE)
-    log = fixio.writes_log()
+    log = writelog.log_here()
     boundary.drop_runner_env()   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）
     got = fixboard.accept_reply(reply, place, repo, pass_="first", iteration=iteration, owed=owed,
                                 judged=judgment.get("units"), suite=str(start.get("tdd_suite") or ""), state=state,
-                                head=head, skip=fixio.SKIP, log=log)
+                                head=head, skip=boundary.SKIP, log=log)
     return finish(place, got, iteration)
 
 

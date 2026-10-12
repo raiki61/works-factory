@@ -21,7 +21,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
@@ -37,8 +36,8 @@ fixrules.RULES_DIR = RULES
 
 
 def main() -> dict:
-    place = fixio.place()
-    repo = fixio.repo()
+    place = boundary.place("fix")
+    repo = boundary.work_tree()
     started = fixboard.read_json(place / fixboard.TDD_START_FILE)
     if not isinstance(started, dict):
         raise ValueError(f"置き場に {fixboard.TDD_START_FILE} が無い（group-start が走らなかった。{place}）")

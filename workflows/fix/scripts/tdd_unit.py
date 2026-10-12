@@ -15,7 +15,6 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
-import fixio  # noqa: E402
 
 import fixboard  # noqa: E402
 
@@ -29,7 +28,7 @@ def result_of(out_dir: Path, gid: str):
 
 
 def main() -> list:
-    place = fixio.place()
+    place = boundary.place("fix")
     plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
     if not isinstance(plan, dict) or not isinstance(plan.get("groups"), list):
         raise ValueError(f"置き場に groups.json が無いか形が違う（{place}）")

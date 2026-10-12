@@ -453,6 +453,8 @@ def hole_ties(place, n: int, *, items=None, plan_review=None, fix_reply=None) ->
 # ---------------------------------------------------------------- 組の分けと戻し・返す節の欄（fix の prep・join・tdd-unit・
 # conflict-check・assert-changed・collect の scripts が呼ぶ。盤面の輪の配線だった所を、置き場のファイルと値の引数で受ける）
 
+MODES = {"": False, "group": True}       # 入力 mode の語 → 組の子の run か（route が振り分け、collect が出力の形を選ぶ）
+_START_DEFAULTS = {"tdd_suite": "", "test_cmd": "", "policy_md": "", "request_file": "", "features_cut": []}
 ASKING = ("held", "escalate")             # 人に諮っている問いの状態（元 works/.shared/core/scripts/review-record.py:343）
 LANE_SWITCHES = ("fix_lanes", "tdd_lanes")   # 機能の切り替えの語。どちらかが off なら組を並べない（元 works/.shared/core/entry.py:421-440）
 NO_RESULT = "組の子の run が結果のファイルを書かなかった（子が落ちたか、結果が読めない）"
@@ -466,6 +468,92 @@ NOT_CHANGED = "修正役は済んだと言ったが、申告したファイル {
 NOT_DECLARED = ("修正役は済んだと言ったが、触ったファイルを 1 つも申告していない（changes[].files が空。直す義務の単位が残って"
                 "いるか、答え待ち・直さない裁定で外れた単位が 1 つも無い）")
 
+
+
+def _input_value(raw: str, name: str):
+    """入力の字を JSON で読む（空・null は None）"""
+    if not (raw or "").strip() or raw.strip() == "null":
+        return None
+    try:
+        return json.loads(raw)
+    except ValueError as e:
+        raise ValueError(f"入力 {name} が JSON として読めない: {e}（頭: {raw[:120]!r}）") from None
+
+
+def prep(folder, worktree, raw: dict, resolve) -> dict:
+    """入力の字 raw（{入力の名: 字}。start・judgment・plan・ripple・world・depth・answers・units・only_items・baseline。無い名は空）を
+    置き場 folder に写し、始めの記録・git が無視するファイルの控え・
+    始めの木を取り、組を作って返す（置く物と返りの形は fix の節 prep の docstring）。resolve はポインタを置き場の中のパスに戻す口
+    （境の口の resolve）。fix の節 prep と、単独の run の組の子の頭（節 group-start。ポインタは自分の run の物）が同じ写しを置くのに
+    呼ぶ"""
+    import baseline_red
+    import groups
+    import leftovers
+    import planmarks
+
+    def value(name):
+        return _input_value(raw.get(name) or "", name)
+
+    def pointed(name):
+        ptr = value(name)
+        return None if ptr is None else resolve(ptr)
+
+    def read_pointed(name, required=False):
+        path = pointed(name)
+        if path is None and required:
+            raise ValueError(f"入力 {name} が無い")
+        return None if path is None else json.loads(path.read_text(encoding="utf-8"))
+
+    folder, worktree = pathlib.Path(folder), pathlib.Path(worktree)
+    start = read_pointed("start", required=True)
+    if not isinstance(start, dict):
+        raise ValueError("始めの記録が JSON のオブジェクトでない")
+    start = {**_START_DEFAULTS, **{k: v for k, v in start.items() if v is not None}}
+    write_json(startrec.path(folder), start)
+    judgment = read_pointed("judgment", required=True)
+    write_json(folder / JUDGMENT_FILE, judgment)
+
+    plan_file = pointed("plan")
+    plan = None
+    if plan_file is not None:
+        doc = json.loads(plan_file.read_text(encoding="utf-8"))
+        if not isinstance(doc, dict) or not isinstance(doc.get("fields"), list):
+            raise ValueError(f"修正案の欄 {plan_file.name} の形が違う（{{round, fields}}）")
+        amended = doc.get(planmarks.AMENDED_KEY)
+        planmarks.save(folder, 1, doc["fields"], {int(n): c for n, c in amended.items()} if isinstance(amended, dict) else None)
+        reply = plan_file.parent / PLAN_REPLY_FILE
+        if reply.is_file():
+            plan = json.loads(reply.read_text(encoding="utf-8"))
+            write_json(folder / PLAN_REPLY_FILE, plan)
+    for name, file in (("ripple", RIPPLE_FILE), ("world", WORLD_FILE)):
+        got = read_pointed(name)
+        if got is not None:
+            write_json(folder / file, got)
+    for name, file in (("depth", DEPTH_FILE), ("answers", ANSWERS_FILE), ("units", UNITS_FILE)):
+        got = value(name)
+        if got not in (None, "", [], {}) or name == "units":
+            write_json(folder / file, got if got is not None else [])
+    only = value("only_items") or []
+    if not isinstance(only, list):
+        raise ValueError("入力 only_items が配列でない")
+    write_json(folder / ONLY_ITEMS_FILE, only)
+    base = pointed("baseline")
+    if base is not None:
+        got = baseline_red.read_baseline(base)
+        write_json(folder / BASELINE_FILE, {"cases": got["cases"], "exit": got["exit"]})
+
+    leftovers.record_ignored(folder, worktree)
+    record_base_rev(folder, worktree)
+    start_tree = groups.end_tree(worktree)
+    items = planmarks.approved_items(plan_view(folder, plan, judgment)) if plan is not None else None
+    write_notes(folder)
+    grps = fix_groups(group_owed(folder), items, only)
+    out_dir = folder / "groups"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = {"groups": grps, "count": len(grps), "par": parallel(grps, start.get("features_cut"), worktree),
+           "start_tree": start_tree, "out_dir": str(out_dir)}
+    write_json(folder / GROUPS_FILE, out)
+    return out
 
 def owed_keys(judgment) -> list:
     """直す義務の単位の key の並び（判定の units の順）: 開いた単位（label が block か、label が suggest で disposition が do-now）
