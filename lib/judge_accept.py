@@ -3754,9 +3754,9 @@ WORLD_ROLES = {"world-classes": worldblk.CLASSES_ROLE, "world-judge": worldblk.J
 # ---------------------------------------------------------------- 並行 PR（機械の道）
 def _github_repo(repo):
     """元 works/.shared/core/graphloops/rules/review-loop.py:2280 の _github_repo（と works/.shared/core/entry.py の
-    github_repo_redacted の、理由の文から URL の userinfo を落とす包み）。並行 PR を引く gh -R の [HOST/]OWNER/REPO ——（値, 引けない
-    理由）。remote の選び（upstream を先に、無ければ origin）は forge.detect、URL の読みは forge.repo_of（github.com の別名は
-    OWNER/REPO、GitHub Enterprise Cloud はホストつき）。git は対象の根 repo で引く"""
+    github_repo_redacted の、理由の文から URL の userinfo を落とす包み）。並行 PR を引く gh -R の HOST/OWNER/REPO ——（値, 引けない
+    理由）。remote の選び（upstream を先に、無ければ origin）は forge.detect、URL の読みは forge.repo_of。-R はホストまで書く
+    （ghreads._repo_flag と同じ。ホストの無い名を gh は GH_HOST で解き、別のホストを読みうる）。git は対象の根 repo で引く"""
     remote = forge.detect(repo)["remote"] or "origin"
     url = forge._git(repo, "remote", "get-url", remote)
     if url is None:
@@ -3764,8 +3764,7 @@ def _github_repo(repo):
     got = forge.repo_of(url)
     if not got or got["kind"] != forge.GITHUB:
         return None, forge.redact(f"remote '{remote}' が GitHub でない（{url.strip()[:80]}）——同等のコマンドへの読み替えは役")
-    slug = f"{got['owner']}/{got['name']}"
-    return (slug if got["host"] == "github.com" else f"{got['host']}/{slug}"), None
+    return "/".join((got["host"], got["owner"], got["name"])), None
 
 
 def _pr_files(repo, diff_base: str, wheres) -> list:
