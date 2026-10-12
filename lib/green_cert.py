@@ -15,8 +15,10 @@ import gatemarks
 import tree_run
 import unittrees
 
-NOT_DONE = ("not_run", "awaiting_human", "not_applicable")
-BASE_OK = ("clean", "found", "not_applicable")
+MEASURED = ("clean", "found")
+# 素材の語の持ち主は gatemarks.MATERIAL_WORDS。測った結果でない語は全部未了で、落ちた先の分けで黙って認証しない
+NOT_DONE = tuple(w for w in gatemarks.MATERIAL_WORDS if w not in MEASURED)
+BASE_OK = MEASURED + ("not_applicable",)
 HEAD_LIMIT = 10   # summary に並べる鍵の数
 
 
@@ -72,7 +74,8 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
     1. 素材の status が clean → ("", "")
     2. 赤の段（exit が 0 でない段）が 1 つ以上在り、全部が起こせない段（tree_run.launch_kind が broken）→ environment
        （今の works の entry.env_only_red。entry.py:768-772。素材が not_run でもこちらが先）
-    3. status が not_run・awaiting_human・not_applicable か、junit_unran が空でない → incomplete
+    3. status が測った結果（MEASURED）でない素材の語（NOT_DONE。not_run・awaiting_human・not_applicable・carried_over）か、
+       junit_unran が空でない → incomplete
     4. baseline_cases が在り、今の落ちた物（failure・error）に、元で通っていたか元に無かった物（baseline_red._must_pass）が在る → introduced
     5. baseline_cases が在り、落ちた物が 1 つ以上在って全部が元でも落ちていて、broken を除く赤の段が全部 junit_steps に在る → inherited
     6. ほか（JUnit の無い赤の段・shell の test_cmd の赤・baseline_cases が None）→ ""（原因の無い赤）

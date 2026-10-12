@@ -243,6 +243,15 @@ class TestFrozenFields(PlanFieldsCase):
         self.assertEqual(len(got), 1)
         self.assertEqual((got[0]["round"], got[0]["sha256"]), (2, hashlib.sha256(raw).hexdigest()))
 
+    def test_append_trace_is_the_save_row_shape(self):
+        """trace を受けない save の印の行と append_trace の行は同じ形 {t, op, …}（t の書き方も同じ）"""
+        planmarks.save(self.tmp, 1, [])
+        planmarks.append_trace(self.tmp, "x", a=1)
+        rows = [json.loads(x) for x in (self.tmp / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([list(r)[:2] for r in rows], [["t", "op"], ["t", "op"]])
+        self.assertEqual(rows[1], {"t": rows[1]["t"], "op": "x", "a": 1})
+        self.assertEqual(len(rows[0]["t"]), len(rows[1]["t"]))
+
     def test_frozen_reads_saved_fields(self):
         b = self.saved()
         self.assertEqual(planmarks.frozen(b), planmarks.read(b))

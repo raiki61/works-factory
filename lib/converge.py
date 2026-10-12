@@ -21,12 +21,15 @@ k 往復目の行の answers と resolved は、k-1 往復目の block への修
 note_plan の無い控え（行に items が無い）は今までどおり全体で 1 つ。
 
 - block_faces(review)・decide(passes, fence=): block の face と、続けるか止めるかの語（CLEAN・AGAIN・PERSISTED・UNSETTLED）
-- read(b)・pass_no(b)・note_answers(b, answers)・record_pass(b, review, ...)・stash_rejects(b, rows)・held(b):
+- read(b)・pass_no(b)・note_answers(b, answers)・record_pass(b, review, ...)・stash_rejects(b, rows)・held(doc):
   控えの読み書き
-- note_plan(b, rows)・open_items(b)・filled_units(b)・splice(b, rows)・item_id・item_hash: 項目の控え・次に審査する項目の番号・
+- held・filled_units・splice・answer_gaps・revise_section は盤面でなく控え（read の形の dict）を取る（盤面を持つ呼び手は
+  read(b) を渡す）。add_pass（record_pass の往復の行を足す半分）・plan_rows（note_plan の行）と共に、盤面を持たない呼び手
+  （planfile。周ごとのファイルから控えを組み直す）も使う
+- note_plan(b, rows)・open_items(b)・filled_units(doc)・splice(doc, rows)・item_id・item_hash: 項目の控え・次に審査する項目の番号・
   機械が差し込む（閉じた・保留の）項目の単位・直しの役が返した開いた項目の行に前の往復の行を差し込んで案の全体を組む口
   （閉じた項目を変えた行は拒み、前と同じ行は捨てる）
-- answer_gaps(b, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（項目の在る
+- answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（項目の在る
   控えでは、今の往復で開いている項目の分だけ）
 - with_fields(role, schema)・split(role, reply): 役の型に欄を足す・返答から欄を外す（事前審査の型には項目ごとの審査の欄
   ITEMS（項目ごとの判定の要約）と DESIGN_MAP（独立設計との対応表）も任意で足す。tree_split が外す・drop_fields が壁打ちの欄を全部外す。下請けの答えのファイルの
@@ -34,7 +37,7 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - item_blocks(b, n): 項目 n が答える前の往復の block の key（受け付けが下請けの答えの resolved を確かめる）
 - prev_row(b, n)・answered_hits(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答えと、suggest の穴（往復の行の
   notes。項目を開き直さず、直しの役に参考として渡り、受け付けが後の往復の返答に引き継ぐ）
-- revise_section(b)・review_section(b)・stuck_reason(b)・lines(b): 指示書に足す文・関所の理由・報告の行（往復ごとの行は
+- revise_section(doc)・review_section(b)・stuck_reason(b)・lines(b): 指示書に足す文・関所の理由・報告の行（往復ごとの行は
   前の往復の block を審査が suggest に下げた key も名指す）
 
 役の型に欄を足す・返答から外す手順は住処 marks（種 converge）に任せる。外した欄は足し欄の控えでなく、この往復の控えに置く。
@@ -249,9 +252,14 @@ def note_plan(b, rows: list) -> None:
     """受けた案の項目（名前に戻した行の並び）を控えの plan に置く（次の record_pass が項目ごとに読む。行そのものも row に置き、
     次の往復の下請けが前の往復からの差分を見る元にする）"""
     doc = read(b)
-    doc["plan"] = [{"id": item_id(r.get("unit_keys")), "unit_keys": [str(k) for k in r.get("unit_keys") or []],
-                    "hash": item_hash(r), "row": copy.deepcopy(r)} for r in rows if isinstance(r, dict)]
+    doc["plan"] = plan_rows(rows)
     _write(b, doc)
+
+
+def plan_rows(rows: list) -> list[dict]:
+    """控えの plan の行 [{id, unit_keys, hash, row}]（受けた案の項目の行の並びから）"""
+    return [{"id": item_id(r.get("unit_keys")), "unit_keys": [str(k) for k in r.get("unit_keys") or []],
+             "hash": item_hash(r), "row": copy.deepcopy(r)} for r in rows if isinstance(r, dict)]
 
 
 def _last_items(doc: dict) -> dict:
@@ -323,20 +331,18 @@ def _filled_ids(doc: dict) -> dict:
             if (last.get(it["id"]) or {}).get("state") in (CLOSED, HELD)}
 
 
-def filled_units(b) -> list[str]:
+def filled_units(doc: dict) -> list[str]:
     """機械が前の往復の行を差し込む項目（最後の往復で閉じた・保留にした項目）の単位の key。項目の控えが無ければ []"""
-    doc = read(b)
     filled = _filled_ids(doc)
     return [k for it in doc.get("plan") or [] if it["id"] in filled for k in it["unit_keys"]]
 
 
-def splice(b, rows: list) -> tuple[list, list[str], list[str]]:
+def splice(doc: dict, rows: list) -> tuple[list, list[str], list[str]]:
     """直しの役が返した行（名前に戻した行の並び）に前の往復の行を差し込んだ案の全体, 拒む行, 捨てた id を返す。
     控えの案の順に、閉じた項目は控えの行、開いた項目と保留の項目は返答の同じ id の行を並べる。控えに当たらない返答の行（単位を
     組み替えた行・新しい項目の行）は返答の順で後ろに足す（捨てない）。保留の項目の行が返答に無く、その単位がどの返答の行にも
     無ければ控えの行を差し込む。閉じた項目の行が返答に在って控えと同じ hash なら捨て（捨てた id）、違えば拒む。閉じた項目の単位を
     別の行に入れた返答、開いた項目の行も単位も返答に無い返答も拒む"""
-    doc = read(b)
     given = [r for r in rows if isinstance(r, dict)]
     by_id = {}
     for r in given:
@@ -370,13 +376,10 @@ def splice(b, rows: list) -> tuple[list, list[str], list[str]]:
     return whole, rejects, dropped
 
 
-def record_pass(b, review: dict, *, resolved: list, fence: int, files: dict, synergy: list | None = None,
-                hits: dict | None = None) -> dict:
-    """事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて控えを書く。files（{名: パス}）の在るファイルを
-    pass-<k>/ に写し、写した先を行に置く。盤面の trace に OP の行を書く。控えに項目（note_plan）が在れば行に items・
-    synergy（相乗りの審査が挙げた key）・face_units を置き、hits（{項目の番号: 当たりの答えの行}。受け付けが下請けの答えの
-    ファイルから引いた物）を審査した項目の items の行に置く。返りは足した行"""
-    doc = read(b)
+def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, fence: int, synergy: list | None = None,
+             hits: dict | None = None) -> dict:
+    """控え doc に事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて doc と行の outcome に置く（ファイルの写し・
+    書き込み・trace はしない）。返りは足した行"""
     passes = doc["passes"]
     k = len(passes) + 1
     faces = block_faces(review)
@@ -384,7 +387,7 @@ def record_pass(b, review: dict, *, resolved: list, fence: int, files: dict, syn
     earlier = {key for p in passes for key in p.get("blocks", [])}
     suggests = [f.get("key") for f in _faces(review) if f.get("severity") != "block"]
     row = {"pass": k, "blocks": blocks, "faces": [{n: f.get(n, "") for n in FACE_KEYS} for f in faces],
-           "suggests": list(dict.fromkeys(suggests)), "answers": doc["open"].get("answers", []),
+           "suggests": list(dict.fromkeys(suggests)), "answers": answers,
            "notes": list({f.get("key"): copy.deepcopy(f) for f in _faces(review) if f.get("severity") != "block"}.values()),
            "resolved": list(resolved), "persists": [key for key in blocks if key in earlier], "outcome": None,
            "files": {}, "rejects": []}
@@ -397,17 +400,30 @@ def record_pass(b, review: dict, *, resolved: list, fence: int, files: dict, syn
                 it["hits"] = copy.deepcopy(hits[it["n"]])
         row["synergy"] = list(synergy or [])
     passes.append(row)
-    row["outcome"] = decide(passes, fence=fence)
+    row["outcome"] = doc["outcome"] = decide(passes, fence=fence)
+    return row
+
+
+def record_pass(b, review: dict, *, resolved: list, fence: int, files: dict, synergy: list | None = None,
+                hits: dict | None = None) -> dict:
+    """事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて控えを書く。files（{名: パス}）の在るファイルを
+    pass-<k>/ に写し、写した先を行に置く。盤面の trace に OP の行を書く。控えに項目（note_plan）が在れば行に items・
+    synergy（相乗りの審査が挙げた key）・face_units を置き、hits（{項目の番号: 当たりの答えの行}。受け付けが下請けの答えの
+    ファイルから引いた物）を審査した項目の items の行に置く。返りは足した行"""
+    doc = read(b)
+    row = add_pass(doc, review, answers=doc["open"].get("answers", []), resolved=resolved, fence=fence, synergy=synergy,
+                   hits=hits)
+    k = row["pass"]
     dest = b.work(PASS_DIR) / f"pass-{k}"
     for name, src in files.items():
         if os.path.isfile(src):
             dest.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dest / name)
             row["files"][name] = str(dest / name)
-    doc.update(outcome=row["outcome"], open={})
+    doc["open"] = {}
     _write(b, doc)
     extra = {"items": {it["n"]: it["state"] for it in row["items"]}} if "items" in row else {}
-    b.trace(OP, round=b.round, pass_=k, outcome=row["outcome"], blocks=blocks, persists=row["persists"], **extra)
+    b.trace(OP, round=b.round, pass_=k, outcome=row["outcome"], blocks=row["blocks"], persists=row["persists"], **extra)
     return row
 
 
@@ -419,10 +435,9 @@ def stash_rejects(b, rows: list) -> None:
         _write(b, doc)
 
 
-def held(b) -> dict | None:
+def held(doc: dict) -> dict | None:
     """抜け方が AGAIN（修正案の役に返す）時の最後の往復の行"""
-    doc = read(b)
-    return doc["passes"][-1] if doc["outcome"] == AGAIN and doc["passes"] else None
+    return doc["passes"][-1] if doc.get("outcome") == AGAIN and doc.get("passes") else None
 
 
 # ---------------------------------------------------------------- 返答の欄
@@ -434,10 +449,10 @@ def _open_blocks(row: dict) -> list:
     return [k for k in row["blocks"] if k in mine]
 
 
-def answer_gaps(b, answers) -> list[str]:
+def answer_gaps(doc: dict, answers) -> list[str]:
     """修正案の役の block_answers の欠けと誤り。返した block の key ごとに、key が一字違わず、handled が HANDLED のどれかで、
     how が 10 字以上の行がちょうど 1 つ要る"""
-    row = held(b)
+    row = held(doc)
     blocks = _open_blocks(row) if row else []
     rows = [a for a in answers if isinstance(a, dict)] if isinstance(answers, list) else []
     shaped = isinstance(answers, list) and len(rows) == len(answers)
@@ -535,9 +550,10 @@ def _face_text(f: dict) -> str:
     return "\n".join([FACE_HEAD.format(key=f['key']), *(f"- {n}: {f[n]}" for n in FACE_KEYS[1:])])
 
 
-def revise_section(b) -> str:
-    """修正案の役に返す時の指示書の節（REVISE_ASK と、返した block の face 1 件 1 節と、suggest の key）。返さない時は空"""
-    row = held(b)
+def revise_section(doc: dict) -> str:
+    """修正案の役に返す時の指示書の節（REVISE_ASK と、返した block の face 1 件 1 節と、suggest の key と、閉じた・保留の項目）。
+    返さない時は空"""
+    row = held(doc)
     if row is None:
         return ""
     mine = set(_open_blocks(row))

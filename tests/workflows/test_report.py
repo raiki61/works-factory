@@ -4,12 +4,15 @@
 - 部品と script: scripts/typed.py を一時の一覧で回し、facts.py・report_accept.py・collect.py を子のプロセスで走らせる
   （一時の ARTIFACTS_DIR と環境変数。Archon を起こさない）
 - 筋書き: tests/archon.py の使い捨ての木で fixtures/ を archon workflow test で回す。Archon の源か bun が無ければ名前つきで見送る
+- 本物の run: 同じ使い捨ての木で試しの工程を 1 回だけ本当に回し（dry-run でない）、実行基盤が書いた run の記録と型つきの
+  成果物の一覧を読む部品に読ませる
 """
 import ast
 import importlib.util
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -186,6 +189,17 @@ class TypedCase(unittest.TestCase):
                          [("fix", [("fix__loop", 1)]), ("fix", [("fix__loop", 2)]), ("refix", [])])
         self.assertEqual(units[0]["body"], [{"group_id": "g1"}])
         self.assertEqual(got["warnings"], [])
+
+    def test_nested_include_drops_only_its_own_rows(self):
+        """入れ子の include の節の id は outer__inner__node（Archon の include-expander の名前空間）"""
+        rows = [self.entry("outer__fix__tdd", "nodes/a.md", {}), self.entry("outer__report__x", "nodes/b.md", {})]
+        got = self.read(self.listing({"k": rows}), json.dumps({"path": "outer__report__facts"}))
+        self.assertEqual([u["node"] for u in got["by_type"]["k"]], ["outer__fix__tdd"])
+
+    def test_own_prefix_is_the_full_namespace(self):
+        self.assertEqual(typed.own_prefix(json.dumps({"path": "outer__report__facts"})), "outer__report__")
+        self.assertEqual(typed.own_prefix(json.dumps({"path": "report__facts"})), "report__")
+        self.assertEqual(typed.own_prefix(json.dumps({"path": "facts"})), "")
 
     def test_errors_each_become_a_warning(self):
         errors = [{"path": "nodes/x.meta.json", "kind": "invalid_metadata"}, {"path": "nodes", "kind": "unreadable_directory", "code": "EACCES"}]
@@ -476,6 +490,70 @@ class FixtureCase(unittest.TestCase):
                 trace = {n["nodeId"]: n for n in json.loads(done.stdout)["trace"]}
                 self.assertEqual(json.loads(trace["report"]["output"])["outcome"], word, done.stdout)
 
+
+
+PROBE_HEAD = '# /// script\n# requires-python = ">=3.12"\n# dependencies = []\n# ///\n'
+PROBE = {
+    "works-factory-probe.yaml": """name: works-factory-probe
+description: report の読み手に本物の run の記録と一覧を渡す試し
+nodes:
+  - id: make
+    script: make
+    runtime: uv
+    output_type: probe-kind
+  - id: boom
+    script: boom
+    runtime: uv
+    depends_on: [make]
+  - id: read
+    script: read
+    runtime: uv
+    depends_on: [boom]
+    trigger_rule: all_done
+""",
+    "scripts/make.py": PROBE_HEAD + 'import json\nprint(json.dumps({"a": 1}))\n',
+    "scripts/boom.py": PROBE_HEAD + 'import sys\nsys.exit("boom")\n',
+    "scripts/read.py": PROBE_HEAD + """import json, os, shutil
+out = os.environ["ARTIFACTS_DIR"]
+shutil.copy(os.environ["TYPED_ARTIFACTS_FILE"], os.path.join(out, "listing-copy.json"))
+keys = ("LOG_DIR", "WORKFLOW_ID", "ARCHON_NODE_EXECUTION")
+with open(os.path.join(out, "env.json"), "w", encoding="utf-8") as f:
+    json.dump({k: os.environ.get(k, "") for k in keys}, f)
+print("{}")
+""",
+}
+
+
+class RealRunCase(unittest.TestCase):
+    """止めた Archon で本物の run（dry-run でない）を 1 回回し、実行基盤が書いた run の記録と型つきの成果物の一覧を、
+    手で組んだ見本でなく本物の出力のまま runreport.transcript_facts と typed.listing に読ませる（欄の名が変われば赤）"""
+
+    def test_readers_read_a_real_run(self):
+        if shutil.which("uv") is None:
+            self.skipTest("uv が無い")
+        with tempfile.TemporaryDirectory() as tmp:
+            flows = pathlib.Path(tmp)
+            for rel, text in PROBE.items():
+                (flows / "probe" / rel).parent.mkdir(parents=True, exist_ok=True)
+                (flows / "probe" / rel).write_text(text, encoding="utf-8")
+            with archon.tree(["probe"], workflows=flows) as tree:
+                done = archon.archon(tree, "workflow", "run", "works-factory-probe", "--no-worktree", "--cwd", str(tree))
+                found = sorted((tree.parent / "archon-home").rglob("env.json"))
+                self.assertEqual(len(found), 1, f"{done.stdout}{done.stderr}")
+                artifacts = found[0].parent
+                env = json.loads(found[0].read_text(encoding="utf-8"))
+                lines = (pathlib.Path(env["LOG_DIR"]) / f"{env['WORKFLOW_ID']}.jsonl").read_text(encoding="utf-8").splitlines()
+                facts = runreport.transcript_facts([json.loads(x) for x in lines if x.strip()])
+                self.assertTrue(facts["ok"])
+                self.assertEqual(facts["failed"], [])
+                self.assertEqual([a["node"] for a in facts["absorbed"]], ["boom"])
+                self.assertIn("boom", facts["errors"]["boom"])
+                self.assertLessEqual({"make", "boom", "read"}, set(facts["minutes"]))
+                got = typed.listing(str(artifacts / "listing-copy.json"), str(artifacts), env["WORKFLOW_ID"],
+                                    env["ARCHON_NODE_EXECUTION"])
+                self.assertEqual(got["warnings"], [])
+                self.assertEqual([(r["node"], r["body"]) for r in got["by_type"]["probe-kind"]], [("make", {"a": 1})])
+                self.assertEqual(typed.own_prefix(env["ARCHON_NODE_EXECUTION"]), "")
 
 if __name__ == "__main__":
     unittest.main()

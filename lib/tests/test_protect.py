@@ -157,6 +157,26 @@ class TouchedCase(unittest.TestCase):
         again = {r["path"]: (r["id"], r["added"], r["deleted"]) for r in protect.touched(self.repo, self.rev, self.doc)}
         self.assertEqual(again, got)
 
+    def test_marked_protected_file_is_still_counted(self):
+        """本物の index で assume-unchanged の印を付けた一覧のファイルも、挙げて行数を数える"""
+        git(self.repo, "update-index", "--assume-unchanged", "stats.py")
+        src = (self.repo / "stats.py").read_text(encoding="utf-8")
+        (self.repo / "stats.py").write_text(src + "# a\n", encoding="utf-8")
+        rows = protect.touched(self.repo, self.rev, self.doc)
+        self.assertEqual([(r["path"], r["added"], r["deleted"]) for r in rows], [("stats.py", 1, 0)])
+
+    def test_sparse_checkout_out_of_cone_protected_file_is_untouched(self):
+        """sparse checkout の範囲外で disk に無い一覧のファイルは、触っていないので挙げない"""
+        (self.repo / "guards").mkdir()
+        (self.repo / "guards" / "g.py").write_text("x = 1\n", encoding="utf-8")
+        (self.repo / "keep").mkdir()
+        (self.repo / "keep" / "k.txt").write_text("k\n", encoding="utf-8")
+        git(self.repo, "add", "guards", "keep")
+        git(self.repo, "commit", "-q", "-m", "guards")
+        rev = git(self.repo, "rev-parse", "HEAD").strip()
+        git(self.repo, "sparse-checkout", "set", "keep")
+        self.assertEqual(protect.touched(self.repo, rev, self.doc), [])
+
     def test_lines_name_file_stat_and_rule(self):
         (self.repo / "stats.py").write_text("x\n", encoding="utf-8")
         rows = protect.touched(self.repo, self.rev, self.doc)

@@ -126,7 +126,7 @@ class RecordCase(BoardCase):
         row = self.record([], resolved=["a"])
         self.assertEqual((row["answers"], row["resolved"], row["outcome"]), ([answer("a")], ["a"], converge.CLEAN))
         self.assertEqual(converge.read(self.b)["open"], {})
-        self.assertIsNone(converge.held(self.b))
+        self.assertIsNone(converge.held(converge.read(self.b)))
 
     def test_stash_rejects_go_to_last_pass(self):
         self.record(["a"])
@@ -138,16 +138,16 @@ class RecordCase(BoardCase):
         self.record(["a"])
         self.record(["b"])
         self.assertEqual(self.record(["c"])["outcome"], converge.UNSETTLED)
-        self.assertIsNone(converge.held(self.b))
+        self.assertIsNone(converge.held(converge.read(self.b)))
 
 
 class FieldsCase(BoardCase):
     def test_answer_gaps_need_one_answer_per_block(self):
         self.record(["a", "b", "c", "d"])
-        self.assertEqual(converge.answer_gaps(self.b, [answer(k) for k in "abcd"]), [])
-        self.assertEqual(converge.answer_gaps(self.b, [answer("a", handled="disputed", how="前提が違うので直さない")] +
+        self.assertEqual(converge.answer_gaps(converge.read(self.b), [answer(k) for k in "abcd"]), [])
+        self.assertEqual(converge.answer_gaps(converge.read(self.b), [answer("a", handled="disputed", how="前提が違うので直さない")] +
                                               [answer(k) for k in "bcd"]), [])
-        gaps = converge.answer_gaps(self.b, [answer("b", handled="ignored"), answer("c", how="直した"),
+        gaps = converge.answer_gaps(converge.read(self.b), [answer("b", handled="ignored"), answer("c", how="直した"),
                                              answer("d"), answer("d"), answer("z")])
         self.assertEqual(len(gaps), 5, gaps)
         self.assertIn("block の key a への答えが無い", gaps)
@@ -248,9 +248,9 @@ class TextCase(BoardCase):
         self.assertIn("案の項目 1 の手順を直した", sec)
 
     def test_revise_section_lists_held_blocks(self):
-        self.assertEqual(converge.revise_section(self.b), "")
+        self.assertEqual(converge.revise_section(converge.read(self.b)), "")
         self.record(["key-alpha"], extra=[face("key-sugg", severity="suggest")])
-        sec = converge.revise_section(self.b)
+        sec = converge.revise_section(converge.read(self.b))
         self.assertTrue(sec.startswith(converge.REVISE_ASK), sec)
         for part in ("key-alpha", "regression", "key-alpha の場所", "key-alpha が穴である理由", "key-sugg"):
             self.assertIn(part, sec)
@@ -333,7 +333,7 @@ class ItemsCase(BoardCase):
 
     def splice(self, rows):
         self.assertTrue(hasattr(converge, "splice"), "converge.splice が無い")
-        return converge.splice(self.b, rows)
+        return converge.splice(converge.read(self.b), rows)
 
     def hold_second(self):
         """項目 2（u2）が保留・項目 1（u1）が開いた往復の後の控え"""
@@ -381,7 +381,7 @@ class ItemsCase(BoardCase):
     def test_answers_and_resolved_only_for_reviewed_items(self):
         self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"])])
         self.review([face("key-a1", units=["u1"]), face("key-b2", units=["u2"])])   # 項目 1 は保留
-        self.assertEqual(converge.answer_gaps(self.b, [answer("key-b2")]), [])
+        self.assertEqual(converge.answer_gaps(converge.read(self.b), [answer("key-b2")]), [])
         self.assertEqual(converge.resolved_gaps(self.b, [], ["key-b1", "key-b2"]), [])
         self.assertIn("前の block key-b2 を resolved に入れるか、同じ key で faces に挙げ直せ",
                       converge.resolved_gaps(self.b, [], ["key-b1"]))
@@ -399,14 +399,14 @@ class ItemsCase(BoardCase):
 
     def test_revise_section_names_closed_items(self):
         self.review([face("key-a1", units=["u1"])])
-        sec = converge.revise_section(self.b)
+        sec = converge.revise_section(converge.read(self.b))
         self.assertIn(converge.CLOSED_ASK, sec)
         self.assertIn("項目 2（u2）", sec)
 
     def test_revise_section_shows_only_open_item_blocks_and_closed_items(self):
         self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"])])
         self.review([face("key-a1", units=["u1"]), face("key-b2", units=["u2"])])
-        sec = converge.revise_section(self.b)
+        sec = converge.revise_section(converge.read(self.b))
         self.assertIn("key-b2", sec)
         self.assertNotIn("### key-a1", sec)
 
@@ -414,7 +414,7 @@ class ItemsCase(BoardCase):
         converge.note_plan(self.b, [row("u1"), row("u2"), row("u3")])
         self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"])])
         self.review([face("key-a1", units=["u1"]), face("key-b2", units=["u2"])])
-        sec = converge.revise_section(self.b)
+        sec = converge.revise_section(converge.read(self.b))
         self.assertIn(converge.REVISE_ASK, sec)
         self.assertIn("開いた項目の行", converge.REVISE_ASK)
         self.assertNotIn("丸ごと", converge.REVISE_ASK)
@@ -424,6 +424,21 @@ class ItemsCase(BoardCase):
         self.assertIn("書かなければ機械が差し込む", converge.HELD_NOTE)
         self.assertIn("項目 3（u3）", sec)
         self.assertIn("項目 1（u1）", sec)
+
+
+class AddPassCase(BoardCase):
+    def setUp(self):
+        super().setUp()
+        converge.note_plan(self.b, [row("u1"), row("u2")])
+
+    def test_add_pass_is_the_row_record_pass_writes(self):
+        doc = converge.read(self.b)
+        review = {"faces": [face("key-a1", units=["u1"]), face("key-s1", units=["u2"], severity="suggest")]}
+        want = converge.add_pass(doc, review, answers=[], resolved=[], fence=3)
+        got = converge.record_pass(self.b, review, resolved=[], fence=3, files={})
+        self.assertEqual(got, want)
+        self.assertEqual(converge.read(self.b)["outcome"], doc["outcome"])
+
 
 
 if __name__ == "__main__":

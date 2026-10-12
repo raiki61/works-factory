@@ -74,6 +74,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 控えが無い・段が落ちた run は今どおり world が在るか、決め手が URL）・汚くない（行の単位に構造の目が人に上げた行が無く、汚れる行には修正案の欄 structure の答えが在る）・やりすぎでない
 （柵の印が無く、行が修正案の単位の外を名指さない）。揃わない訳は人に回す行の尾「（人に聞く訳: …）」に載る。
 - axes(b, mark, units) -> [揃わない軸の訳]: 4 つの軸の確かめ（空ならグラフの中で決める）
+- axis_reasons(b, mark, units) -> {軸: [訳]}: 軸（AXES）ごとの揃わない訳。axes と関所の軸ごとの分け（gate_axes）の 1 つの持ち主
 世界の解の外れ（計画 2026-10-09-world-solution の W9）: 修正案の欄 structure の世界の解の答えのうち外れ（deviation）は、worldmark.world_ok
 が揃わなければ修正前の関所の項目（種類 WORLD_KIND。文は worldmark.gate_line と人に聞く訳）になり、揃えば聞かずに通して通した行に残す。
 依頼そのもの（依頼のファイル・目的の文の出典）を出どころにした外れと、web で確かめていない行からの外れは人に回る。人がいる run も
@@ -558,32 +559,48 @@ def _answered_rows(b) -> set | None:
     return {r.get("row") for f in fields if isinstance(f, dict) for r in f.get("structure") or [] if isinstance(r, dict)}
 
 
-def axes(b, mark: dict, units) -> list:
-    """グラフの中で決めてよいかの 4 つの軸のうち揃わない物の訳（空なら揃う＝聞かずに通す）"""
-    out = []
-    if not decided(mark):
-        return ["決め手の欄が揃わない（decided_by が無いか、undecided_because か柵の印が在る）"]
-    got = _cite_check(b)[0](str(mark.get("decided_by") or ""))
-    if got:
-        out.append(got)
+AXES = ("obvious", "world", "clean", "not_overkill")
+NOT_DECIDED = "決め手の欄が揃わない（decided_by が無いか、undecided_because が在る）"
+NOT_DECIDED_OR_FENCED = "決め手の欄が揃わない（decided_by が無いか、undecided_because か柵の印が在る）"
+FENCED = "柵の印が在る（{fences}）"
+NO_WORLD = "世界の解を当たった結果（world）が無い"
+
+
+def axis_reasons(b, mark: dict, units) -> dict:
+    """4 つの軸（AXES）ごとの揃わない訳の並び {軸: [訳]}。軸の決まりの持ち主（axes と gate_axes がこれを読む）"""
+    out = {axis: [] for axis in AXES}
+    decided_by = str(mark.get("decided_by") or "").strip()
+    if not decided_by or str(mark.get("undecided_because") or "").strip():
+        out["obvious"].append(NOT_DECIDED)
+    elif problem := _cite_check(b)[0](decided_by):
+        out["obvious"].append(problem)
+    if mark.get("fences"):
+        out["not_overkill"].append(FENCED.format(fences="・".join(map(str, mark["fences"]))))
     # 世界の解の段の行の在る run の世界の解の外れは world_items の項目が聞く（ここでは見ない）
-    if (_world_rows(b) is None and not str(mark.get("world") or "").strip()
-            and not cite.URL.search(str(mark.get("decided_by") or ""))):
-        out.append("世界の解を当たった結果（world）が無い")
+    if _world_rows(b) is None and not str(mark.get("world") or "").strip() and not cite.URL.search(decided_by):
+        out["world"].append(NO_WORLD)
     ups = {r.get("unit_id") for r in _design_rows(b) if r.get("route") == structmark.ROUTE_UP}
     hit = sorted(set(units) & ups)
     if hit:
-        out.append(f"構造の目が人に上げた単位（{'・'.join(hit)}）に当たる")
+        out["clean"].append(f"構造の目が人に上げた単位（{'・'.join(hit)}）に当たる")
     dirty = structmark.dirty(b.dir)
     answered = _answered_rows(b)
     if answered is not None:
         miss = sorted(k for k in units if k in dirty and k not in answered)
         if miss:
-            out.append(f"構造の目が汚れると見た単位（{'・'.join(miss)}）に修正案の答えが無い")
+            out["clean"].append(f"構造の目が汚れると見た単位（{'・'.join(miss)}）に修正案の答えが無い")
     outside = sorted(set(units) - _plan_keys(b))
     if outside:
-        out.append(f"修正案の単位の外を名指す（{'・'.join(outside)}）")
+        out["not_overkill"].append(f"修正案の単位の外を名指す（{'・'.join(outside)}）")
     return out
+
+
+def axes(b, mark: dict, units) -> list:
+    """グラフの中で決めてよいかの 4 つの軸のうち揃わない物の訳（空なら揃う＝聞かずに通す）"""
+    if not decided(mark):
+        return [NOT_DECIDED_OR_FENCED]
+    reasons = axis_reasons(b, mark, units)
+    return [w for axis in AXES for w in reasons[axis]]
 
 
 def design_items(b) -> list:

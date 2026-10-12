@@ -149,6 +149,15 @@ class ClassifyCase(unittest.TestCase):
     def test_environment_wins_over_not_run(self):
         self.assertEqual(classify("not_run", [BROKEN])[0], "environment")
 
+    def test_carried_over_is_incomplete(self):
+        self.assertEqual(classify("carried_over", [RED_UNIT])[0], "incomplete")
+
+    def test_every_material_word_is_decided(self):
+        """素材の語は全部、測った結果（MEASURED）か未了（NOT_DONE）のどちらかに決めて在る"""
+        for word in gatemarks.MATERIAL_WORDS:
+            with self.subTest(word):
+                self.assertIn(word, (*green_cert.MEASURED, *green_cert.NOT_DONE))
+
     def test_incomplete(self):
         for status in ("not_run", "awaiting_human", "not_applicable"):
             with self.subTest(status):
@@ -248,7 +257,7 @@ class CertifyCase(unittest.TestCase):
 
     def test_base(self):
         for status, want in (("clean", True), ("found", True), ("not_applicable", True),
-                             ("not_run", False), ("awaiting_human", False), (None, False)):
+                             ("not_run", False), ("awaiting_human", False), ("carried_over", False), (None, False)):
             with self.subTest(status):
                 ok, reason = green_cert.certify(mode="base", material_status=status, green=False, before=None, after=None, now=None)
                 self.assertEqual(ok, want)

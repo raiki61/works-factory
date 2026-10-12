@@ -15,6 +15,8 @@ import sys
 import tempfile
 import unittest
 
+from tests.bin.gitkit import GIT_ID
+
 LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
@@ -27,7 +29,7 @@ SECRET = "ghp_SECRETVALUE"
 
 
 def _git(repo, *args):
-    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+    subprocess.run(["git", *GIT_ID, "-C", str(repo), *args], check=True, capture_output=True)
 
 
 class ClassifyCase(unittest.TestCase):

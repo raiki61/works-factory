@@ -15,7 +15,8 @@ SEED = LIB.parent / "tests" / "e2e" / "target-seed"
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
-from accept import _ignored_entries, snapshot_tree, tree_change, tree_state  # noqa: E402
+import accept  # noqa: E402
+from accept import _ignored_entries, snapshot_tree, touched_files, tree_change, tree_state  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 
 class AcceptCase(unittest.TestCase):
@@ -99,6 +100,47 @@ class TestSnapshot(AcceptCase):
         (self.repo / "new.txt").write_text("b\n")
         self.assertEqual(before["porcelain"], snapshot_tree(self.repo)["porcelain"])
         self.assertNotEqual(before["diff_sha256"], snapshot_tree(self.repo)["diff_sha256"])
+
+
+    def test_bytecode_pathspec_agrees_with_predicate(self):
+        """差分を測る pathspec（_NO_BYTECODE）と未追跡を落とす _is_bytecode が同じ物を除く"""
+        names = ["__pycache__", "a/__pycache__", "b/__pycache__/x.py", "c.pyc", "d/e.pyc", "ok.py", "x/__pycache__y/z.py"]
+        for name in names:
+            (self.repo / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.repo / name).write_text("1\n", encoding="utf-8")
+        git(self.repo, "add", "-f", "--", *names)
+        git(self.repo, "commit", "-q", "-m", "names")
+        kept = git(self.repo, "ls-files", "-z", "--", *accept._NO_BYTECODE).split("\0")
+        self.assertEqual(sorted(n for n in kept if n in names), sorted(n for n in names if not accept._is_bytecode(n)))
+        before = snapshot_tree(self.repo, bytecode=False)["diff_sha256"]
+        (self.repo / "__pycache__").write_text("2\n", encoding="utf-8")
+        self.assertEqual(snapshot_tree(self.repo, bytecode=False)["diff_sha256"], before)
+
+
+class TestTouchedFiles(AcceptCase):
+    def test_touched_files_sees_files_hidden_by_index_marks(self):
+        """本物の index の assume-unchanged・skip-worktree の印を付けた変更済みのファイルも挙げ、印は消さない"""
+        for name in ("f", "g"):
+            (self.repo / name).write_text("1\n", encoding="utf-8")
+        git(self.repo, "add", "f", "g")
+        git(self.repo, "commit", "-q", "-m", "fg")
+        git(self.repo, "update-index", "--assume-unchanged", "f")
+        git(self.repo, "update-index", "--skip-worktree", "g")
+        for name in ("f", "g"):
+            (self.repo / name).write_text("2\n", encoding="utf-8")
+        self.assertEqual(touched_files(self.repo, "HEAD"), ["f", "g"])
+        self.assertEqual(git(self.repo, "ls-files", "-v", "f", "g").splitlines(), ["h f", "S g"])
+
+    def test_sparse_checkout_leaves_out_of_cone_files_untouched(self):
+        """sparse checkout の範囲外（skip-worktree の印が付き disk に無い）のファイルは、消したと数えない"""
+        for name in ("x/a", "y/b"):
+            (self.repo / name).parent.mkdir()
+            (self.repo / name).write_text("1\n", encoding="utf-8")
+        git(self.repo, "add", "x", "y")
+        git(self.repo, "commit", "-q", "-m", "xy")
+        git(self.repo, "sparse-checkout", "set", "y")
+        self.assertFalse((self.repo / "x" / "a").exists())
+        self.assertEqual(touched_files(self.repo, "HEAD"), [])
 
 
 class TestTreeState(AcceptCase):

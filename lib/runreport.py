@@ -950,7 +950,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     out_dir.mkdir(parents=True, exist_ok=True)
     returns, gates, typed, start = returns or {}, gates or {}, typed or {}, start or {}
     tfacts = transcript or transcript_facts(None)
-    closed = not oc.cut_at(returns, tfacts.get("failed") if tfacts.get("ok") else None)
+    closed = not oc.cut_at(returns, tfacts.get("failed"))
     left = oc.residue(returns, {"answers": _request_answers(start), "absorbed": tfacts.get("absorbed")})
     findings = next_request(returns, left, closed)
     prior = prior_failures(returns, left)

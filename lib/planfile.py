@@ -18,8 +18,8 @@
   replan_section（元 replan.py の _section）
 - 判定の処方: prescriptions（元 works/.shared/core/planmarks.py:804）・prescription_section（元 planblk.py:356）
 - 修正前の版のテスト: base_test_texts（元 works/.shared/core/writes.py:93）
-- 壁打ち: converge_record（元 works/.shared/core/converge.py:214 の read と :373 の record_pass）・answer_gaps（元 :437）・
-  splice（元 :333）・revise_section（元 converge.py の revise_section）・filled_units（元 converge.py の filled_units）
+- 壁打ち: converge_record（元 works/.shared/core/converge.py:214 の read と :373 の record_pass。往復の行は converge.add_pass）。
+  この控えを converge の answer_gaps・splice・revise_section・filled_units に渡す
 - 材料と受け付け: write_brief・prior_section・take_plan・take_replan（元 planblk の prep・prior_part・take・with_plan_fields・revise_take と
   replan の prep・_take）
 - 構造の実測: structure_dir・measure（元 works/blk-structure/scripts/stage_a.py の main）・write_state（元 blk-structure/scripts/collect.py）
@@ -44,7 +44,6 @@ if str(_CORE) not in sys.path:
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 
-from engine.util import now  # noqa: E402
 import carry  # noqa: E402
 import concepthome  # noqa: E402
 import context  # noqa: E402
@@ -75,7 +74,6 @@ BRIEF_FILE = "brief-{n}.md"
 REJECT_FILE = "reject-{n}.txt"
 RIPPLE_UNITS_FILE = "ripple-units.json"
 RIPPLE_FILE = "ripple.json"
-TRACE_FILE = "trace.jsonl"
 STRUCTURE_DIR = "structure"
 UNREAD_STRUCTURE = f"{STRUCTURE_DIR}/unread"
 UNITS_FILE = "units.json"
@@ -133,12 +131,6 @@ def _write_json(path, doc) -> pathlib.Path:
     tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     os.replace(tmp, path)
     return path
-
-
-def _trace(round_dir, op: str, **row) -> None:
-    """周のフォルダの trace.jsonl に 1 行足す（planmarks.save が trace を受けない時に書く行と同じ形 {t, op, …}）"""
-    with open(pathlib.Path(round_dir) / TRACE_FILE, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"t": now(), "op": op, **row}, ensure_ascii=False) + "\n")
 
 
 class _Unreadable(Exception):
@@ -460,34 +452,6 @@ def round_no(round_dir) -> int:
     return int(pathlib.Path(round_dir).name[1:])
 
 
-def _plan_rows(rows) -> list:
-    """受けた案の項目の控え（元 converge.note_plan と同じ形）"""
-    return [{"id": converge.item_id(r.get("unit_keys")), "unit_keys": [str(k) for k in r.get("unit_keys") or []],
-             "hash": converge.item_hash(r), "row": copy.deepcopy(r)} for r in rows if isinstance(r, dict)]
-
-
-def _record_pass(doc: dict, review: dict, answers: list) -> None:
-    """事前審査の返答 1 つを往復の行として足す（元 converge.record_pass。写し・trace は無い）"""
-    passes = doc["passes"]
-    faces = converge.block_faces(review)
-    blocks = [f.get("key") for f in faces]
-    earlier = {key for p in passes for key in p.get("blocks", [])}
-    others = [f for f in converge._faces(review) if f.get("severity") != "block"]
-    resolved = review.get(converge.RESOLVED) if isinstance(review.get(converge.RESOLVED), list) else []
-    row = {"pass": len(passes) + 1, "blocks": blocks, "faces": [{n: f.get(n, "") for n in converge.FACE_KEYS} for f in faces],
-           "suggests": list(dict.fromkeys(f.get("key") for f in others)), "answers": copy.deepcopy(answers),
-           "notes": list({f.get("key"): copy.deepcopy(f) for f in others}.values()),
-           "resolved": list(resolved), "persists": [key for key in blocks if key in earlier], "outcome": None,
-           "files": {}, "rejects": []}
-    if doc.get("plan"):
-        row["face_units"] = {f.get("key"): [str(k) for k in f.get("unit_keys") or []] for f in faces}
-        row["items"] = converge._item_states(doc["plan"], faces, row["face_units"],
-                                             list(converge._last_items(doc).values()), earlier)
-        row["synergy"] = []
-    passes.append(row)
-    row["outcome"] = doc["outcome"] = converge.decide(passes, fence=rolekit.GIVE_UP_AFTER)
-
-
 def converge_record(plan_dir) -> dict:
     """壁打ちの控え（converge.read の形 {round, passes, outcome, open, plan?}）を、置き場の周ごとの受け付けた案（reply.json）と
     受けた事前審査（review/p2.plan_review.json）の並びから組み直す（元 works/.shared/core/converge.py:214 の read と :373 の
@@ -500,93 +464,14 @@ def converge_record(plan_dir) -> dict:
         doc["round"] = round_no(d)
         review = _read_json(d / REVIEW_FILE)
         if isinstance(review, dict) and doc.get("plan"):
-            _record_pass(doc, review, answers)
+            resolved = review.get(converge.RESOLVED)
+            converge.add_pass(doc, review, answers=copy.deepcopy(answers),
+                              resolved=resolved if isinstance(resolved, list) else [], fence=rolekit.GIVE_UP_AFTER)
         reply = _read_json(d / REPLY_FILE)
         if isinstance(reply, dict) and isinstance(reply.get("plan"), list):
-            doc["plan"] = _plan_rows(reply["plan"])
+            doc["plan"] = converge.plan_rows(reply["plan"])
             answers = _rows(reply, converge.ANSWERS)
     return doc
-
-
-def _held(record: dict):
-    return record["passes"][-1] if record.get("outcome") == converge.AGAIN and record.get("passes") else None
-
-
-def answer_gaps(record: dict, answers) -> list:
-    """修正案の役の block_answers の欠けと誤り（元 works/.shared/core/converge.py:437。盤面の代わりに converge_record の控えを受ける）"""
-    row = _held(record)
-    blocks = converge._open_blocks(row) if row else []
-    rows = [a for a in answers if isinstance(a, dict)] if isinstance(answers, list) else []
-    shaped = isinstance(answers, list) and len(rows) == len(answers)
-    gaps = [] if shaped else ["block_answers の行の形が違う（{key, handled, how} の行の配列）"]
-    for key in blocks:
-        mine = [a for a in rows if a.get("key") == key]
-        if not mine:
-            gaps.append(f"block の key {key} への答えが無い")
-            continue
-        if len(mine) > 1:
-            gaps.append(f"block の key {key} への答えが {len(mine)} 行ある（1 行だけにせよ）")
-            continue
-        a = mine[0]
-        if a.get("handled") not in converge.HANDLED:
-            gaps.append(f"{key} の handled は fixed か disputed のどちらか（今は {a.get('handled')!r}）")
-        if not isinstance(a.get("how"), str) or len(a["how"]) < 10:
-            gaps.append(f"{key} の how が短い（10 字以上で、直した所か異を唱える根拠を書け）")
-    gaps += [f"{a.get('key')} は前の往復の block に無い" for a in rows if a.get("key") not in blocks]
-    return gaps
-
-
-def splice(record: dict, rows: list) -> tuple:
-    """直しの返答の行（id に戻した物）に前の往復の行を差し込んだ案の全体, 拒む行, 捨てた id（元 works/.shared/core/converge.py:333。
-    盤面の代わりに converge_record の控えを受ける）。閉じた項目は控えの行、開いた・保留の項目は返答の同じ id の行。閉じた項目を
-    変えた・閉じた項目の単位を別の行に入れた・開いた項目の行も単位も無い返答は拒む。控えに案が無ければ返答のまま"""
-    given = [r for r in rows if isinstance(r, dict)]
-    by_id = {}
-    for r in given:
-        by_id.setdefault(converge.item_id(r.get("unit_keys")), r)
-    in_rows = {str(k) for r in given for k in r.get("unit_keys") or []}
-    filled = converge._filled_ids(record)
-    whole, rejects, dropped, used = [], [], [], set()
-    for n, it in enumerate(record.get("plan") or [], 1):
-        mine = by_id.get(it["id"])
-        homeless = not {str(k) for k in it["unit_keys"]} & in_rows
-        if filled.get(it["id"]) == converge.CLOSED:
-            if mine is not None:
-                used.add(id(mine))
-                if converge.item_hash(mine) == it["hash"]:
-                    dropped.append(it["id"])
-                else:
-                    rejects.append(f"閉じた項目 {n} を変えた（書くな。機械が差し込む）")
-            elif not homeless:
-                rejects.append(f"閉じた項目 {n} の単位を別の行に入れた（書くな。機械が差し込む）")
-            whole.append(copy.deepcopy(it["row"]))
-        elif mine is not None:
-            used.add(id(mine))
-            whole.append(mine)
-        elif homeless and filled.get(it["id"]) == converge.HELD:
-            whole.append(copy.deepcopy(it["row"]))
-        elif homeless:
-            rejects.append(f"開いた項目 {n} の行が無い（変えないなら前のまま返せ・単位を移したなら移した行に入れよ）")
-    whole += [r for r in given if id(r) not in used]
-    return whole, rejects, dropped
-
-
-def revise_section(record: dict) -> str:
-    """修正案の役に返す時の材料の節（converge.REVISE_ASK と、返した block の face 1 件 1 節と、suggest の key と、閉じた・保留の項目）。
-    返さない時は空（元 converge.revise_section。盤面の代わりに converge_record の控えを受ける）"""
-    row = _held(record)
-    if row is None:
-        return ""
-    mine = set(converge._open_blocks(row))
-    parts = [converge.REVISE_ASK, *(converge._face_text(f) for f in row["faces"] if f["key"] in mine)]
-    notes = row.get("notes")
-    parts.append("\n\n".join([converge.NOTES_HEAD, *(converge._face_text(f) for f in notes)]) if notes
-                 else f"suggest の key: {converge._keys(row['suggests'])}")
-    for state, head in ((converge.CLOSED, converge.CLOSED_ASK), (converge.HELD, converge.HELD_NOTE)):
-        named_rows = [it for it in row.get("items") or [] if it.get("state") == state]
-        if named_rows:
-            parts.append("\n".join([head, *(f"- {converge._label(it)}" for it in named_rows)]))
-    return "\n\n".join(parts)
 
 
 # ---------------------------------------------------------------- 周
@@ -773,13 +658,6 @@ def _dump(doc) -> str:
     return json.dumps(doc, ensure_ascii=False)
 
 
-def filled_units(record: dict) -> list:
-    """機械が前の往復の行を差し込む項目（最後の往復で閉じた・保留にした項目）の単位の key（元 works/.shared/core/converge.py の
-    filled_units。盤面の代わりに converge_record の控えを受ける）"""
-    filled = converge._filled_ids(record)
-    return [k for it in record.get("plan") or [] if it["id"] in filled for k in it["unit_keys"]]
-
-
 def units_section(judgment, units, skipped, filled=()) -> str:
     """修正案の材料に貼る、案に入れる単位の no と、判定の単位・問いの台帳・見立て・先行例（元の指示書 p2.fix_plan.md の頭の雛形の
     字を、単位の目録 units の paths・summary と構造の目が見ていない単位 skipped つきで機械が描いた物）。filled（filled_units）の
@@ -859,7 +737,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
         world = worldmark.section(world_rows or [])
         doc = _read_json(round_dir / RIPPLE_UNITS_FILE)
         record = converge_record(plan_dir)
-        parts = [*common, units_section(judgment, units, skipped, filled_units(record)),
+        parts = [*common, units_section(judgment, units, skipped, converge.filled_units(record)),
                  REPO_LINE.format(repo=repo, rev=rev, review_md=review_md),
                  prescription_section([k for k in slots(judgment) if k in owed | opened], prescriptions(judgment)),
                  structmark.plan_section(structure_dir_),
@@ -886,7 +764,7 @@ def _prior_section(round_dir, plan_dir, record: dict) -> str:
              f"- 前の周の案: {prev / FIX_PLAN_FILE} と {prev / planmarks.FIELDS_FILE}（Read で読め。閉じた項目はこの形のまま変えない）",
              f"- 事前審査の指摘: {review}" if review.is_file() else "- 事前審査の指摘: 受けていない（読めなかったか、渡されなかった）"]
     rip = _read_json(prev / RIPPLE_FILE)
-    return "\n\n".join(x for x in ("\n".join(lines), revise_section(record) if review.is_file() else "",
+    return "\n\n".join(x for x in ("\n".join(lines), converge.revise_section(record) if review.is_file() else "",
                                     ripple.section(rip) if isinstance(rip, dict) else "") if x)
 
 
@@ -924,13 +802,13 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     bare, answers = converge.split("plan-revise", reply)
     slot_list = _read_json(round_dir / SLOTS_FILE)
     got = named(bare, slot_list if isinstance(slot_list, list) else slots(judgment))
-    whole, closed, dropped = splice(record, got["plan"])
+    whole, closed, dropped = converge.splice(record, got["plan"])
     plan = {**got, "plan": whole}
     owed, opened, _ = plan_slots(judgment)
     shut = set(_shut(judgment, plan))
     allowed = list(range(1, len(slots(judgment)) + 1))
     reasons = [
-        _section(ANSWERS_REJECT, answer_gaps(record, answers)),
+        _section(ANSWERS_REJECT, converge.answer_gaps(record, answers)),
         _section(CLOSED_REJECT, closed),
         _section(NO_NARROW_REJECT, gatemarks.narrow_gaps(planmarks.NODE, plan)),
         _section(RECOMMEND_REJECT, gatemarks.recommend_gaps(planmarks.NODE, plan)),
@@ -946,13 +824,13 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
         return {"ok": False, "reason": reason}
     texts, unread = base_test_texts(repo, base_rev or "HEAD")
     if unread:
-        _trace(round_dir, BASE_TESTS_UNREAD_OP, rev=base_rev or "HEAD", unread=unread)
+        planmarks.append_trace(round_dir, BASE_TESTS_UNREAD_OP, rev=base_rev or "HEAD", unread=unread)
     out, fields = planmarks.split(plan, pathlib.Path(repo), base_tests=texts)
     extra = {converge.ANSWERS: answers} if record["passes"] else {}
     k = round_no(round_dir)
     _save(round_dir, k, {**plan, **extra}, fields, {**out, **extra})
     for item_id in dropped:
-        _trace(round_dir, converge.DROPPED_OP, round=k, pass_=len(record["passes"]) + 1, id=item_id)
+        planmarks.append_trace(round_dir, converge.DROPPED_OP, round=k, pass_=len(record["passes"]) + 1, id=item_id)
     return {"ok": True, "reason": ""}
 
 
@@ -982,7 +860,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
         row["widened"] = planmarks.widened(before, after) if row["contract_changed"] else None
     texts, unread = base_test_texts(repo, rev)
     if unread:
-        _trace(round_dir, BASE_TESTS_UNREAD_OP, rev=rev, unread=unread)
+        planmarks.append_trace(round_dir, BASE_TESTS_UNREAD_OP, rev=rev, unread=unread)
     kept = _read_json(prev / planmarks.FIELDS_FILE, {})
     fields = revised_fields(kept.get("fields") or [], rows, repo, base_tests=texts)
     amended = {int(n): core for n, core in (kept.get(planmarks.AMENDED_KEY) or {}).items()}
@@ -994,7 +872,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
     out, _ = planmarks.split({"plan": whole}, pathlib.Path(repo))
     k = round_no(round_dir)
     _save(round_dir, k, {"plan": whole}, fields, out, amended=dict(sorted(amended.items())))
-    _trace(round_dir, planmarks.AMEND_OP, round=k, items=sorted(row["item"] for row in rows))
+    planmarks.append_trace(round_dir, planmarks.AMEND_OP, round=k, items=sorted(row["item"] for row in rows))
     _write_json(round_dir / replan.TRIP_FILE, {"round": k, "items": rows})
     return {"ok": True, "reason": ""}
 
