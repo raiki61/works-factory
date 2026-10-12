@@ -60,6 +60,7 @@ OPEN_FILE = "open.json"                 # open_pass が置く見え方の材料�
 OPEN_ERROR = "open-error.txt"           # 差し込みの頭の節が落ちた訳（返す節の訳に載る。節が書く）
 JUDGMENT_COPY = "judgment.json"         # 判定の写し（planblk.lib_section が state.outputs から引く）
 EXCLUDED_FILE = "pr-excluded.json"      # 判定の隣の並行 PR の外した範囲（在れば写して役の頭に名指す）
+PURPOSE_REVIEW_FILE = "purpose-review.json"  # 判定の隣の目的の監査の受けた返答（judge が必ず置く。無い・読めない時は {} で読む）
 POLICY_FILE = "policy.json"             # 方針の文書を固めた版 {named, path, sha256, copy, amendments}（run の最初の差し込みで固める）
 POLICY_DIR = "policy"
 POLICY_CHANGED = "policy_changed"       # 関所の項目の種類（方針の文書が固めた版から変わった）
@@ -104,6 +105,8 @@ DEFAULTS_HEAD = "線が渡していない入力を既定で読んだ: "
 DEFAULT_START = ("start（始めの記録）が null——無人でない・設計だけでない・依頼のファイル無し（依頼の引用の決め手は照らせないので"
                  "人に回る）・方針の文書無し・事前審査の木は auto として読んだ")
 DEFAULT_ANSWERS = "answers（人の関所の答え）が null——独立設計に貼る人の答えは無い"
+PURPOSE_REVIEW_UNREAD = (f"判定の隣の {PURPOSE_REVIEW_FILE}（目的の監査の受けた返答）を読めない（{{why}}）——監査は無かったとして読み、"
+                         "独立設計を目的の『狭めている』では止めない")
 REQUEST_UNREAD = "依頼のファイル {path} を読めない（{why}）——依頼の本文は空として読み、依頼が名指した設計書の節は渡っていない"
 # 案の直しの事前審査の頼みと項目の節（元 works/.shared/core/replan.py:121・126-129）
 REVIEW_ASK_REPLAN = ("下は承認済みの修正案の項目の前の形と、修正の段の申し出と裁定を受けて修正案の役が直した形。直した形が裁定の文の"
@@ -299,6 +302,19 @@ def _sibling(pointed, name: str):
     return p if p.is_file() else None
 
 
+def _purpose_review(judgment) -> tuple[dict, str]:
+    """判定の隣の purpose-review.json（目的の監査の受けた返答。judge が必ず置く）と、読めなかった訳（読めれば ""）。
+    無い・読めない・object でない時は {} で読む"""
+    p = pathlib.Path(judgment).parent / PURPOSE_REVIEW_FILE
+    try:
+        doc = _read_json(p)
+    except (OSError, ValueError) as e:
+        return {}, PURPOSE_REVIEW_UNREAD.format(why=type(e).__name__)
+    if not isinstance(doc, dict):
+        return {}, PURPOSE_REVIEW_UNREAD.format(why=f"object でなく {type(doc).__name__}")
+    return doc, ""
+
+
 def read_open(folder) -> dict:
     """open_pass が置いた材料（無い・読めなければ Missing。差し込みの頭の節が落ちた訳が在ればそれを載せる）"""
     p = pathlib.Path(folder) / OPEN_FILE
@@ -408,6 +424,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     shutil.copyfile(judgment, d / JUDGMENT_COPY)
     mats = _sibling(judgment, "materials.json")
     excluded = _sibling(judgment, EXCLUDED_FILE)
+    purpose_review, review_unread = _purpose_review(judgment)
     if excluded is not None:
         shutil.copyfile(excluded, d / EXCLUDED_FILE)
     fields = _read_json(plan)
@@ -434,6 +451,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     units = [u for u in judged.get("units") or [] if isinstance(u, dict)]
     _, request, unread = _request(start_doc)
     defaults = [x for x, given in ((DEFAULT_START, start is not None), (DEFAULT_ANSWERS, answers is not None)) if not given]
+    defaults += [x for x in (review_unread, unread) if x]
     inputs = {
         "k": k, "form": form, "ruled": ruled, "cwd": str(cwd),
         "rev": (start_doc or {}).get("base_rev") or "HEAD", "base": (start_doc or {}).get("base_rev") or "",
@@ -443,10 +461,10 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
         "questions": judged.get("questions") or [], "materials": _read_json(mats) if mats else {},
         "precedents": judged.get("precedents") or [],
         "diagnosis": {x: judged[x] for x in ("framing", "one_shot") if x in judged},
-        "purpose_review": judged.get("purpose_review") or {}, "purpose": _read_json(purpose), "plan": bare,
+        "purpose_review": purpose_review, "purpose": _read_json(purpose), "plan": bare,
         "human_items": human_items(answers) + gate_rows, "tree_word": tree_word(start_doc),
         "review_schema": review_schema, "design_schema": design_schema,
-        "defaults": defaults + ([unread] if unread else []),
+        "defaults": defaults,
     }
     b = view(d, inputs)
     if form == "replan":
