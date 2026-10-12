@@ -508,6 +508,54 @@ class RoundCase(TmpCase):
         self.assertNotEqual(key, planfile.structure_key([], "a" * 40))
 
 
+class TakePlanCase(TmpCase):
+    """修正案の役の返答の受け付け（元 planblk.take・with_plan_fields。元 tests/test_blk_plan.py の test_take_malformed_plan_resubmits_not_raises・
+    test_save_failure_after_board_took_plan_halts）"""
+
+    def setUp(self):
+        super().setUp()
+        self.repo = self.tmp / "repo"
+        committed_copy(self.repo, SEED)
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        self.plan_dir = self.tmp / "plan"
+        self.round = self.plan_dir / "r1"
+        self.write("plan/r1/round.json", {"round": 1, "mode": "plan", "go": True, "why": "", "items": [],
+                                          "structure": "structure/k"})
+        self.write("plan/r1/slots.json", planfile.slots(judgment()))
+        planfile.snap_tree(self.round, self.repo)
+
+    def take(self, reply, *, base_rev=None):
+        return planfile.take_plan(self.round, self.plan_dir, judgment=judgment(), reply=reply, repo=self.repo,
+                                  tables=[], base_rev=self.base if base_rev is None else base_rev)
+
+    def trace(self):
+        return [json.loads(x) for x in (self.round / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+
+    def test_malformed_reply_is_a_rejection_not_an_exception(self):
+        for reply in ({"plan": "s"}, {"plan": ["x"]}, {"plan": [item(MEAN, CLAMP, narrows=3)]}):
+            with self.subTest(reply=reply):
+                self.assertEqual(self.take(reply), {"ok": False, "reason": planfile.MALFORMED_REJECT})
+        self.assertFalse((self.round / planfile.REPLY_FILE).exists())
+
+    def test_unreadable_base_is_traced(self):
+        self.assertEqual(self.take({"plan": [item(MEAN, CLAMP)]}, base_rev="0" * 40), {"ok": True, "reason": ""})
+        rows = [r for r in self.trace() if r["op"] == planfile.BASE_TESTS_UNREAD_OP]
+        self.assertEqual([(r["rev"], r["unread"]) for r in rows], [("0" * 40, ["<版>"])])
+
+    def test_save_failure_leaves_no_accepted_plan(self):
+        """受けた後に欄の控えを置けなければ、置いた控えを消し、置けなかった控えの名を round.json の why に残す（欄の無い案で進ませない）"""
+        with mock.patch.object(planmarks, "save", side_effect=OSError("書けない")):
+            out = self.take({"plan": [item(MEAN, CLAMP)]})
+        self.assertEqual((out["ok"], out["halt"]), (False, True))
+        self.assertIn(planmarks.FIELDS_FILE, out["reason"])
+        for name in (planfile.FIX_PLAN_FILE, planmarks.FIELDS_FILE, planfile.REPLY_FILE):
+            self.assertFalse((self.round / name).exists(), name)
+        self.assertIsNone(planfile.accepted_fields(self.round))
+        why = planfile.why_not_ready(self.round)
+        self.assertIn(planmarks.FIELDS_FILE, why)
+        self.assertIn("書けない", why)
+
+
 class ReplanModuleCase(unittest.TestCase):
     """持ってきた replan.py の残り（盤面を受けない項目の小道具）"""
 

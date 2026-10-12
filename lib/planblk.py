@@ -83,6 +83,8 @@ RESOLVED_REJECT = "前の往復の block の行き先が書かれていない（
 ANSWERS_REJECT = "block への答えに誤りが在る（下の行を全部直して出し直せ）:"
 TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る（下の行を全部直して出し直せ）:"
 CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
+READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "   # 元 works/.shared/core/entry.py:1228
+NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度の節が走っていない）"
 DESIGN_QUOTE_REJECT = ("独立設計の引用か design_map に誤りが在る（下の行を全部直して出し直せ。「」は独立設計と案の行の引用だけに使い、"
                        "ほかの引用は『』か `…` で書く）:")
 # 下請けの答えのファイルの置き場（作業ツリーの外の run の置き場 adapter.run_place_of の今の scope の下。作業ツリーは役が変えてはいけない。

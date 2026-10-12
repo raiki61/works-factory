@@ -4,7 +4,8 @@
 置き場（計画のブロックの run の置き場の plan/）: 周ごとの r<k>/（k は往復と案の直しを通して 1 から数える）と、使い回す構造の
 実測の structure/<鍵>/。周のフォルダの中:
 - round.json {round, mode（plan・replan）, go（役を起こすか）, why（起こさない訳）, items（形 replan で渡す項目の番号）, structure（周の節が読む構造の置き場。plan/ からの相対のパス）}
-- slots.json（案に入れてよい単位の no の並び。no は 1 始まりの位置）・brief-<n>.md（修正案の役の材料）・rejects-plan.json（拒否の控え。rolekit）
+- slots.json（案に入れてよい単位の no の並び。no は 1 始まりの位置）・brief-<n>.md（修正案の役の材料）・rejects-plan.json（拒否の控え。rolekit）・
+  tree.json（役を起こす前の作業ツリーの姿）
 - review/p2.plan_review.json（この周に受けた事前審査の返答の写し）
 - reply.json（受け付けた返答。番号を id に戻した全体で、works の欄も決め手の欄も持つ。項目の同じさ converge.item_hash の元）
 - p2.fix_plan.json（reply.json から works の欄を外した物。2 往復目からは block_answers も）・plan-fields.json（planmarks.save の形）・
@@ -44,6 +45,7 @@ if str(_CORE) not in sys.path:
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 
+import accept  # noqa: E402
 import carry  # noqa: E402
 import concepthome  # noqa: E402
 import conflict  # noqa: E402
@@ -75,6 +77,7 @@ FIX_PLAN_FILE = "p2.fix_plan.json"
 REVIEW_FILE = "review/p2.plan_review.json"
 BRIEF_FILE = "brief-{n}.md"
 REJECT_FILE = "reject-{n}.txt"
+TREE_FILE = "tree.json"            # 修正案の役を起こす前の作業ツリーの姿（accept.tree_state。支度の節が回ごとに置き直す）
 RIPPLE_UNITS_FILE = "ripple-units.json"
 RIPPLE_FILE = "ripple.json"
 STRUCTURE_DIR = "structure"
@@ -763,18 +766,48 @@ def _section(head: str, lines) -> str:
     return head + "\n" + "\n".join(f"  - {g}" for g in lines) if lines else ""
 
 
-def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=None) -> None:
-    _write_json(round_dir / FIX_PLAN_FILE, bare)
-    planmarks.save(round_dir, k, fields, amended=amended)
-    _write_json(round_dir / REPLY_FILE, plan)
+def snap_tree(round_dir, repo) -> pathlib.Path:
+    """修正案の役を起こす前の作業ツリーの姿を TREE_FILE に置く（元 works/blk-plan/lib/planblk.py:1062 の snap）"""
+    return _write_json(pathlib.Path(round_dir) / TREE_FILE, accept.tree_state(pathlib.Path(repo)))
+
+
+def _moved(round_dir, repo) -> str:
+    """役が作業ツリーを変えた・HEAD や枝を動かした訳（変えていなければ空）。起こす前の姿が無ければその訳"""
+    before = _read_json(pathlib.Path(round_dir) / TREE_FILE)
+    if not isinstance(before, dict):
+        return planblk.NO_TREE.format(name=TREE_FILE)
+    moved = accept.tree_moved(before, pathlib.Path(repo))
+    return planblk.READONLY_MOVED + "；".join(moved) if moved else ""
+
+
+def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=None) -> dict:
+    """受けた案の控えを置く。置けなければ置いた控えを消し、置けなかった控えの名を round.json の why に残して、輪を止める返り
+    {ok: False, halt: True, reason}（拒否ではない。役に出し直させず、欄の無い案で進ませない。元 planblk.with_plan_fields の BoardGap）"""
+    steps = ((FIX_PLAN_FILE, lambda: _write_json(round_dir / FIX_PLAN_FILE, bare)),
+             (planmarks.FIELDS_FILE, lambda: planmarks.save(round_dir, k, fields, amended=amended)),
+             (REPLY_FILE, lambda: _write_json(round_dir / REPLY_FILE, plan)))
+    for name, step in steps:
+        try:
+            step()
+        except OSError as e:
+            for done, _ in steps:
+                (round_dir / done).unlink(missing_ok=True)
+            why = f"受けた修正案の控え {name} を置けない: {e}"
+            _write_json(round_dir / ROUND_FILE, {**read_round(round_dir), "why": why})
+            return {"ok": False, "halt": True, "reason": why}
+    return {"ok": True, "reason": ""}
 
 
 def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: str) -> dict:
-    """修正案の役の返答（形 plan）を受け付ける。拒否は理由を全部 1 回で並べて {ok: False, reason}。通れば no を id に戻した返答を
-    planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}。
-    2 往復目からは block_answers を外して前の往復の block への答えを照らし、閉じた・保留の項目の行を差し込んだ案の全体を照らす。
+    """修正案の役の返答（形 plan）を受け付ける。役が作業ツリーを動かしていれば先にそれだけで拒む（_moved）。拒否は理由を全部 1 回で
+    並べて {ok: False, reason}。通れば no を id に戻した返答を
+    planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}（置けなければ
+    _save の halt）。2 往復目からは block_answers を外して前の往復の block への答えを照らし、閉じた・保留の項目の行を差し込んだ案の全体を照らす。
     返答から捨てた閉じた項目の行は trace に converge.DROPPED_OP で残す（元 planblk.revise_take）"""
     round_dir = pathlib.Path(round_dir)
+    moved = _moved(round_dir, repo)
+    if moved:
+        return {"ok": False, "reason": moved}
     if replan._malformed(reply):
         return {"ok": False, "reason": MALFORMED_REJECT}
     record = converge_record(plan_dir)
@@ -807,17 +840,22 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     out, fields = planmarks.split(plan, pathlib.Path(repo), base_tests=texts)
     extra = {converge.ANSWERS: answers} if record["passes"] else {}
     k = round_no(round_dir)
-    _save(round_dir, k, {**plan, **extra}, fields, {**out, **extra})
-    for item_id in dropped:
-        planmarks.append_trace(round_dir, converge.DROPPED_OP, round=k, pass_=len(record["passes"]) + 1, id=item_id)
-    return {"ok": True, "reason": ""}
+    saved = _save(round_dir, k, {**plan, **extra}, fields, {**out, **extra})
+    if saved["ok"]:
+        for item_id in dropped:
+            planmarks.append_trace(round_dir, converge.DROPPED_OP, round=k, pass_=len(record["passes"]) + 1, id=item_id)
+    return saved
 
 
 def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_rev: str) -> dict:
     """修正案の役の直した項目の返答（形 replan）を受け付ける。拒否は REPLAN_REJECT と誤りの全部。通れば replan.json（行は
     replan.TRIP_KEYS の形。contract_changed・widened は事実だけ）と、直した項目を差し替えた案の全体を p2.fix_plan.json・
-    plan-fields.json（amended に直した項目の核の欄。planmarks.amend と同じ）・reply.json に書き、trace に planmarks.AMEND_OP を書く"""
+    plan-fields.json（amended に直した項目の核の欄。planmarks.amend と同じ）・reply.json に書き、trace に planmarks.AMEND_OP を書く。
+    作業ツリーの比べと控えを置けない時は take_plan と同じ"""
     round_dir = pathlib.Path(round_dir)
+    moved = _moved(round_dir, repo)
+    if moved:
+        return {"ok": False, "reason": moved}
     prev = latest(plan_dir, before=round_dir)
     if prev is None:
         return {"ok": False, "reason": f"{replan.REPLAN_REJECT}\n  - 直す元の承認済みの修正案が無い"}
@@ -850,10 +888,12 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
         amended[row["item"]] = {k: it[k] for k in planmarks.CORE_KEYS if k in it}
     out, _ = planmarks.split({"plan": whole}, pathlib.Path(repo))
     k = round_no(round_dir)
-    _save(round_dir, k, {"plan": whole}, fields, out, amended=dict(sorted(amended.items())))
+    saved = _save(round_dir, k, {"plan": whole}, fields, out, amended=dict(sorted(amended.items())))
+    if not saved["ok"]:
+        return saved
     planmarks.append_trace(round_dir, planmarks.AMEND_OP, round=k, items=sorted(row["item"] for row in rows))
     _write_json(round_dir / replan.TRIP_FILE, {"round": k, "items": rows})
-    return {"ok": True, "reason": ""}
+    return saved
 
 
 # ---------------------------------------------------------------- 波及の一覧と出口

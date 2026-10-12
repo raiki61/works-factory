@@ -584,9 +584,92 @@ class AcceptCase(unittest.TestCase):
         out = run.include(typed=False, writer=writer_of({"plan": [item(1, 2, narrows=[narrow(no_narrow=short)])]},
                                                         {"plan": [item(1, 2)]}))
         self.assertIs(out["ready"], True)
-        self.assertIn("narrows の行に狭めない案を探した結果", self.reasons(run)[0])
+        why = self.reasons(run)[0]
+        self.assertIn("narrows の行に狭めない案を探した結果", why)
         brief = (run.art / "plan" / "r1" / "brief-2.md").read_text(encoding="utf-8")
         self.assertTrue(brief.startswith("前の回の返答は受け付けで拒まれた。理由はファイル"), brief[:200])
+        self.assertNotIn(why.splitlines()[0], brief, "理由の本文は材料に貼らない")
+        self.assertEqual((run.art / "plan" / "r1" / "reject-1.txt").read_text(encoding="utf-8"), why)
+
+    def test_unit_in_two_items_rejected(self):
+        why = self.reject_once(Run(self), {"plan": [item(1, 2), item(2)]})
+        self.assertIn("2 つの案に入った単位", why)
+        self.assertIn(CLAMP[:40], why)
+
+    def test_string_number_is_a_name_and_asks_for_no(self):
+        """元 tests/test_blk_plan.py の test_plan_reply_by_number_string_rejected: 字の "1" は番号に戻さず、知らない名として拒む"""
+        why = self.reject_once(Run(self), {"plan": [item("1", "2")]})
+        self.assertIn("今の周に直す単位に無い key ['1', '2']", why)
+        self.assertIn("no で指せ", why)
+        self.assertNotIn("key を字面のまま写せ", why)
+
+    def test_info_defer_question_rejected_by_label(self):
+        info, defer, question = "stats.py: 補足の情報", "stats.py clamp: 引数の順が読みにくい", "stats.py: 空の列をどう扱うか"
+        run = Run(self, judge=judgment(unit(info, "info", None), unit(defer, "suggest", "defer"),
+                                       unit(question, "question", None)))
+        why = self.reject_once(run, {"plan": [item(1, 2, info, defer, question)]})
+        self.assertIn(planblk.NOT_OWED_REJECT, why)
+        for word in ("label=info", "label=suggest（disposition=defer）", "label=question"):
+            self.assertIn(word, why)
+        self.assertIn("案に入れてよい no（必ず入れる物を含む）は [1, 2]", why)
+
+    def test_every_reason_in_one_rejection(self):
+        """元は段ごとに最初の拒否で返した。今は網羅と works の欄の欠けを 1 回の拒否に並べる"""
+        why = self.reject_once(Run(self), {"plan": [item(1, tests=[])]})
+        self.assertIn(planfile.COVERS_REJECT, why)
+        self.assertIn(planmarks.REJECT, why)
+
+    def test_malformed_recommend_rejected(self):
+        run = Run(self)
+        bad = narrow(no_narrow="狭めない案として空の列に 0 を返す形を当たったが、呼び手が例外を捕まえている",
+                     recommend={"answer": "たぶん通す", "note": "空の列は残す", "why": "呼び手が捕まえる"})
+        out = run.include(typed=False, writer=writer_of({"plan": [item(1, 2, narrows=[bad])]}, {"plan": [item(1, 2)]}))
+        self.assertIs(out["ready"], True)
+        why = self.reasons(run)[0]
+        self.assertIn(planblk.RECOMMEND_REJECT, why)
+        self.assertIn("plan[0].narrows[0]", why)
+
+    def test_rewrite_limit_resolved(self):
+        rewrite = {"id": "test_stats.py::TestStats::test_clamp_above_range", "behavior": "上限を超えた値に上限を返す",
+                   "old": "lo を返す", "new": "上限を超えたら hi を返す"}
+        run = Run(self)
+        out = run.include(writer=writer_of({"plan": [item(1, 2, rewrite_tests=[rewrite])]}))
+        self.assertIs(out["ready"], True, out)
+        self.assertEqual(run.json(out["plan"])["fields"][0]["rewrite_tests"][0]["limit"], "test_stats.py:14")
+
+    def test_fields_are_frozen_in_the_round_trace(self):
+        run = Run(self)
+        out = run.include()
+        raw = run.file(out["plan"]).read_bytes()
+        trace = [json.loads(x) for x in (run.art / "plan" / "r1" / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
+        saved = [r for r in trace if r["op"] == planmarks.SAVED_OP]
+        self.assertEqual([(r["round"], r["sha256"]) for r in saved], [(1, hashlib.sha256(raw).hexdigest())])
+
+    def test_role_that_moved_the_tree_is_refused(self):
+        """元 tests/test_blk_plan.py の test_readonly_tree_changed_rejected: 役を起こす前の作業ツリーの姿と比べ、書き換え・commit を拒んで
+        出し直させる（次の回の支度が姿を取り直す）"""
+        def edit(repo):
+            (repo / "stats.py").write_text((repo / "stats.py").read_text(encoding="utf-8") + "\n# 役が書いた\n", encoding="utf-8")
+
+        def commit(repo):
+            edit(repo)
+            git(repo, "commit", "-qam", "役が commit した")
+
+        for name, move in (("書き換え", edit), ("commit", commit)):
+            with self.subTest(name):
+                run = Run(self)
+
+                def writer(n, brief, run=run, move=move):
+                    if n == 1:
+                        move(run.repo)
+                    return {"plan": [item(1, 2)]}
+
+                out = run.include(writer=writer)
+                self.assertIs(out["ready"], True, out)
+                why = self.reasons(run)
+                self.assertEqual(len(why), 1, why)
+                self.assertTrue(why[0].startswith(planblk.READONLY_MOVED), why[0])
+                self.assertTrue((run.art / "plan" / "r1" / planfile.TREE_FILE).is_file())
 
     def test_three_rejections_give_up_with_every_pointer(self):
         """元 tests/test_blk_plan.py の test_give_up_ends_loop: 3 回目の拒否で done・give_up。until_bash で輪を抜ける"""

@@ -81,10 +81,10 @@ PROMPT_FILE = "prompt.md"
 REVIEW_FILE = "review.json"
 PASSES_FILE = "gate-passes.json"
 TREE_FEATURE = "review_tree"
-# 元 works/.shared/core/entry.py:1228 と works/.shared/core/design.py:104
-READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "
+READONLY_MOVED = planblk.READONLY_MOVED
+# 元 works/.shared/core/design.py:104
 PREMISE_MISS = "premise_invalid_reason の名指しが固めた版の実物に当たらない（追跡されたファイルと、その行の範囲を名指せ）: "
-NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度の節が走っていない）"
+NO_TREE = planblk.NO_TREE
 # 元 works/.shared/core/design.py:82。指示書は「渡すのは元の目的と実測した制約だけ」と書くので、貼った前提をこの節で読み替える
 DESIGN_PREMISE_REREAD = ("下の指示書の「渡すのは元の目的と実測した制約だけである」は、この run では、この節（人の関所の答え・"
                          "依頼が名指した設計書の節・対象のリポジトリの地図）も渡していると読み替えよ。")
