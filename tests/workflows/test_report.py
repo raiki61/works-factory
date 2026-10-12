@@ -436,7 +436,7 @@ class FactsCase(Run):
         code, out = self.run_script("facts", **env)
         self.assertEqual(code, 0)
         self.assertEqual(out["outcome"], "fixed", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
-        self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / 工程の版 [0-9a-f]{{12}} / メイングラフの版 cccccccccccc$")
+        self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / グラフの版 [0-9a-f]{{12}} / メイングラフの版 cccccccccccc$")
 
     def test_green_cert_section_reads_the_test_gate_evidence(self):
         """test-gate の result.py が書く証拠の文の走らせ方とログの行が、緑の認証の節に届く（runreport.EVIDENCE_ROWS と test-gate の字の結び）"""
@@ -549,7 +549,7 @@ class CollectScriptCase(Run):
         runreport.accept(AcceptScriptCase.REPLY, AcceptScriptCase.PASS, out_dir=self.artifacts / "report")
         out = self.collect(json.dumps(facts))
         text = (self.artifacts / out["report_ai"]["path"]).read_text(encoding="utf-8")
-        self.assertTrue(text.startswith(f"works-factory-report / run {RUN} / 周 — / 工程の版 "))
+        self.assertTrue(text.startswith(f"works-factory-report / run {RUN} / 周 — / グラフの版 "))
         self.assertIn(report_roles.MACHINE_HEADING, text)
 
     def test_ok_is_passed_through_from_facts(self):

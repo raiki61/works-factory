@@ -914,16 +914,16 @@ class StampCase(Base):
         wf = self.put("works-factory-report.yaml", "name: x\n")
         sha = hashlib.sha256(b"name: x\n").hexdigest()[:12]
         start = {"versions": {"line": "ab" * 32}}
-        self.assertEqual(runreport.stamp("run-9", wf, 2, start), f"works-factory-report / run run-9 / 周 2 / 工程の版 {sha} / メイングラフの版 abababababab")
-        self.assertEqual(runreport.stamp("", wf, None, start), f"works-factory-report / run — / 周 — / 工程の版 {sha} / メイングラフの版 abababababab")
-        self.assertIn("工程の版 読めない（FileNotFoundError）", runreport.stamp("run-9", self.dir / "none.yaml", None, start))
+        self.assertEqual(runreport.stamp("run-9", wf, 2, start), f"works-factory-report / run run-9 / 周 2 / グラフの版 {sha} / メイングラフの版 abababababab")
+        self.assertEqual(runreport.stamp("", wf, None, start), f"works-factory-report / run — / 周 — / グラフの版 {sha} / メイングラフの版 abababababab")
+        self.assertIn("グラフの版 読めない（FileNotFoundError）", runreport.stamp("run-9", self.dir / "none.yaml", None, start))
 
     def test_stamp_names_line_version(self):
         """元 report_roles.stamp の works のメイングラフの版: 始めの記録の versions.line の頭 12 字。無ければ黙らずにその旨"""
         wf = self.put("works-factory-report.yaml", "name: x\n")
         sha = hashlib.sha256(b"name: x\n").hexdigest()[:12]
         got = runreport.stamp("run-9", wf, 2, {"versions": {"line": "ab" * 32}})
-        self.assertEqual(got, f"works-factory-report / run run-9 / 周 2 / 工程の版 {sha} / メイングラフの版 abababababab")
+        self.assertEqual(got, f"works-factory-report / run run-9 / 周 2 / グラフの版 {sha} / メイングラフの版 abababababab")
         for start in ({"versions": {}}, {}, {"versions": {"line": ""}}):
             with self.subTest(start=start):
                 self.assertTrue(runreport.stamp("run-9", wf, None, start).endswith(" / メイングラフの版 始めの記録に無い（versions.line）"))

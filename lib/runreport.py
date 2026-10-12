@@ -899,7 +899,7 @@ def _eye_lines(returns: dict, typed: dict) -> tuple[list, list]:
     eyes = returns.get("eyes")
     out, notes = [], []
     if eyes is None:
-        out.append("独立の目のブロックの返りが無い（飛ばされた・落ちた）")
+        out.append("独立の目のサブグラフの出力が無い（飛ばされた・落ちた）")
     for name in oc.EYE_NAMES:
         e = as_dict(eyes).get(name)
         if eyes is not None:
@@ -1158,15 +1158,15 @@ def accept(reply, cold, *, out_dir) -> dict:
 
 
 def stamp(run_id: str, workflow_file, rnd, start: dict | None) -> str:
-    """報告の頭の来歴の 1 行（機械が刻む。元 report_roles.stamp の works の線・run・周・graph の版を、工程の名（ファイルの名）・run・
-    周（計画の round。何回目の案か。無ければ —）・工程のファイルの sha256 の頭 12 字・メイングラフの版（始めの記録 start の versions.line の
-    頭 12 字）で。元の table の版は規則の表が無いので無い）。工程のファイルが読めなければ工程の版の所に、start が None（始めの記録が
+    """報告の頭の来歴の 1 行（機械が刻む。元 report_roles.stamp の works の線・run・周・graph の版を、グラフの名（ファイルの名）・run・
+    周（計画の round。何回目の案か。無ければ —）・グラフのファイルの sha256 の頭 12 字（グラフの版）・メイングラフの版（始めの記録 start の versions.line の
+    頭 12 字）で。元の table の版は規則の表が無いので無い）。グラフのファイルが読めなければグラフの版の所に、start が None（始めの記録が
     読めない）ならメイングラフの版の所にその旨。読めた記録に versions.line が無ければ「無い」と分けて書く"""
     try:
         sha = hashlib.sha256(pathlib.Path(workflow_file).read_bytes()).hexdigest()[:12]
     except OSError as e:
         sha = f"読めない（{type(e).__name__}）"
-    parts = [pathlib.Path(workflow_file).stem, f"run {run_id or '—'}", f"周 {rnd if rnd is not None else '—'}", f"工程の版 {sha}"]
+    parts = [pathlib.Path(workflow_file).stem, f"run {run_id or '—'}", f"周 {rnd if rnd is not None else '—'}", f"グラフの版 {sha}"]
     if start is None:
         parts.append("メイングラフの版 読めない（始めの記録が読めない）")
     else:

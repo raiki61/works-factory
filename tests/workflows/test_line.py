@@ -81,14 +81,14 @@ CONTRACT_HEAD = "## サブグラフの出力の約束"
 
 
 def contract_section(text: str) -> str:
-    """docs/design.md の「ブロックの返りの約束」の節（次の ## の前まで）。無ければ落ちる"""
+    """docs/design.md の「サブグラフの出力の約束」の節（次の ## の前まで）。無ければ落ちる"""
     start = text.index(CONTRACT_HEAD)
     end = text.find("\n## ", start + len(CONTRACT_HEAD))
     return text[start:] if end < 0 else text[start:end]
 
 
 def contract_inputs(text: str) -> dict:
-    """約束の節の「### <ブロック> の返り」ごとの、「入力（`with:`）:」の箇条の下の段の箇条が名指す入力の名の集まり。
+    """約束の節の「### <サブグラフ> の出力」ごとの、「入力（`with:`）:」の箇条の下の段の箇条が名指す入力の名の集まり。
     「←」の在る行は各「←」の直前の `名`（`a`・`b` ← の並びも）、無い行（`mode` の行・report の行）は行の中の `名` の全部（約束の外の
     名は呼び手が宣言と交わして落とす）。同じ節の上の段の箇条（fix の「`refix-run` の時」「約束に無い入力」）は約束の入力に数えない"""
     got = {}
@@ -1093,7 +1093,7 @@ class LineWiringCase(unittest.TestCase):
                 self.assertFalse([name for name in listed if declared[name].get("required")], "表の行の入力が required")
 
     def test_block_inputs_outside_the_contract_have_defaults(self):
-        """落とし穴 K11: ブロックの入力のうち docs/design.md の「ブロックの返りの約束」の入力（「入力（`with:`）:」の箇条）の外の物は
+        """落とし穴 K11: ブロックの入力のうち docs/design.md の「サブグラフの出力の約束」の入力（「入力（`with:`）:」の箇条）の外の物は
         既定値を持つ（既定値の無い入力は include する全部の工程の読み込みを落とす。Archon の include-expander.ts 576-580 行）"""
         contract = contract_inputs(DESIGN.read_text(encoding="utf-8"))
         self.assertEqual(set(contract), set(BLOCKS), "約束の節からブロックごとの入力の箇条を読めない")

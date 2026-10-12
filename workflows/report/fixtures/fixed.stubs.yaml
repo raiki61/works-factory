@@ -11,7 +11,7 @@ facts:
   prior_failures: null
   ai_go: true
   facts_file: report/report.md
-  stamp: "works-factory-report / run fixture-run / 周 1 / 工程の版 000000000000"
+  stamp: "works-factory-report / run fixture-run / 周 1 / グラフの版 000000000000"
 write-reject: {reason: ''}
 write:
   text: "直して、最後のテストまで通った。\n直した単位は 1 つ。\n次の run に渡す物は無い。"
