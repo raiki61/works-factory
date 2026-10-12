@@ -12,7 +12,10 @@ observed を <observed>/<factory>/<行の id>--<run の id の頭 8 字>.json �
 - 終了の値: 0 済んだ・1 行が止まった（後ろの行を起こさない。--resume で続ける）・2 何も起こさずに断った。
 - --resume は台帳で済んだ行を飛ばし、終わっていない run を持つ行をその run の続きから回す。--resume 無しは名指した行を全部新しい
   試みで回し（run 1 回につき observed が 1 つ足される）、終わっていない run を持つ行に当たれば断る（費用を二重に使わない）。
-- 期限を置かない（持ち主の決め no-timeouts）。自分を切り離さない。関所には答えない。run を止めない・取り消さない。
+- 期限を置かない（持ち主の決め no-timeouts）。自分を切り離さない。関所には答えない（今の works の続きだけは、use.sh start の無人の
+  末尾と同じく人が決める関所に stop と答えて報告へ進める。下の「続ける命令」）。run を止めない・取り消さない。
+- 錠は --attempts の置き場ごとに 1 つ（<置き場>/.lock）で、台帳も置き場ごと。束を分けて並べて回すなら、--only で行を分け、置き場を
+  行の組ごとに別にして起こす（同じ置き場に 2 つ目のランナーは断る）。observed は同じ --observed に書いてよい（名に run の id が入る）。
 - アカウントは各工場の起動の殻が読む環境変数（WORKS_FACTORY_KEYCHAIN_ITEM・WORKS_KEYCHAIN_ITEM）をそのまま子に継ぐ。値は読まず、出さない。
 - 試験の差し替え口は環境変数 WORKS_CALIBRATION_SHELL の 1 つだけ: works-factory の起動の殻（既定は bin/works-factory）を替える。
 
@@ -27,7 +30,8 @@ observed を <observed>/<factory>/<行の id>--<run の id の頭 8 字>.json �
   decide_outcome が決めて報告の頭に書く）。
 - use.sh wait の終了の値: 0 関所で待つ・3 まだ走る（決まった秒数で戻るだけで run の期限ではない）・5 終わった・1 落ちた・6 周の鎖。
 - 続ける命令は use.sh show の「失敗や中断から続ける」の行と同じ形（lib.sh の works_dev_go）: 対象で
-  WORKS_DEV_HOME=<家> sh dev/continue.sh dev/archon.sh workflow resume <run>。
+  WORKS_DEV_HOME=<家> sh dev/continue.sh dev/archon.sh workflow resume <run>。続きが人が決める関所で止まれば、use.sh start の無人の
+  末尾と同じ続きの口で workflow respond <run> stop <一言> と答えて終わりまで待つ（使用枠で止まった run を続けた時に paused で残さない）。
 """
 import argparse
 import datetime
@@ -66,6 +70,7 @@ DONE = "done"
 OPEN = ("started", "stopped", "paused")   # 台帳の状態のうち run を持ちうる物。prepared（試みを作る途中で落ちた）は新しい試みで回し直す
 SKIPPED = "skipped"
 WAIT_RUNNING = 3
+UNATTENDED_STOP = "無人の run（WORKS_USE_UNATTENDED=1）: 人が決める関所に着いたので止めて報告へ"   # use.sh start の無人の末尾の文
 STATES = {"running": "running", "pending": "running", "paused": "paused", "completed": DONE}   # Archon の run の status → run_one の分かれ
 
 
@@ -208,6 +213,12 @@ class OldWorks:
             raise Stop(REFUSED, f"{OLD_WORKS_ENV} の HEAD を読めない: {e}") from None
         if have != want:
             raise Stop(REFUSED, f"今の works の置き場の HEAD {have} が pack.json の works.commit {want} と違う")
+        changed = make_target.git("-C", str(self.dir), "status", "--porcelain", "--", ".")
+        if changed:
+            raise Stop(REFUSED, f"今の works の置き場に commit していない変更が在る（来歴の works.commit と回す物がずれる）: "
+                                f"{' '.join(line[3:] for line in changed.splitlines())}")
+        if not (self.dev / "use.sh").is_file():
+            raise Stop(REFUSED, f"今の works の置き場に dev/use.sh が無い（{self.dev / 'use.sh'}）")
 
     def env_names(self) -> list[str]:
         return ["WORKS_USE_HOME", *self.passes.values()]
@@ -220,8 +231,8 @@ class OldWorks:
         return ["sh", str(self.dev / "use.sh"), "start", *(["--base", base] if base else []), "--",
                 str(attempt / "target"), str(attempt / "request.json"), SEED_INPUTS["test_cmd"], SEED_INPUTS["tdd_suite"]]
 
-    def resume_command(self, attempt: Path, run_id: str) -> list[str]:
-        return ["sh", str(self.dev / "continue.sh"), str(self.dev / "archon.sh"), "workflow", "resume", run_id]
+    def continue_command(self, verb: str, run_id: str, *rest: str) -> list[str]:
+        return ["sh", str(self.dev / "continue.sh"), str(self.dev / "archon.sh"), "workflow", verb, run_id, *rest]
 
     def start(self, attempt: Path, base: str | None, inputs: dict) -> str | None:
         subprocess.run(self.start_command(attempt, base, inputs), cwd=attempt / "target", env=self._env(attempt, inputs),
@@ -273,7 +284,13 @@ class OldWorks:
         return node or "（記録に関所の名が無い）"
 
     def resume(self, attempt: Path, run_id: str):
-        subprocess.run(self.resume_command(attempt, run_id), cwd=attempt / "target",
+        """続きを回し、人が決める関所に着けば use.sh start の無人の末尾と同じく stop と答えて報告へ進める"""
+        self._continue(attempt, "resume", run_id)
+        if self.state(attempt, run_id) == "paused":
+            self._continue(attempt, "respond", run_id, "stop", UNATTENDED_STOP)
+
+    def _continue(self, attempt: Path, verb: str, run_id: str, *rest: str):
+        subprocess.run(self.continue_command(verb, run_id, *rest), cwd=attempt / "target",
                        env={**self._env(attempt, {}), "WORKS_DEV_HOME": str(attempt / "home")}, stdin=subprocess.DEVNULL)
         self._wait(attempt, run_id)
 

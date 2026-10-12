@@ -3,7 +3,8 @@
 ランナーは自分の在る checkout の git の私用の置き場に make_target.py の控えを書くので、本物の checkout では走らせない。ランナーが
 読む物（束・種・flags.json・make_target.py・evidence.py・lib/・docs/design.md・docs/nodes.json・pack.json・factory/pack.json）を
 一時の checkout に写し、そこで走らせる。偽の works-factory の殻（差し替え口 WORKS_CALIBRATION_SHELL で渡し、teardown のために
-bin/works-factory にも置く）と、偽の今の works（WORKS_FACTORY_OLD_WORKS で渡す。dev/use.sh・continue.sh・archon.sh）は、
+bin/works-factory にも置く）と、偽の今の works（WORKS_FACTORY_OLD_WORKS で渡す。dev/use.sh・continue.sh・archon.sh を commit した
+git の置き場で、写した pack.json の works.commit をその commit に替える）は、
 受けた引数と環境の名を FAKE_LOG に 1 行ずつ残し、FAKE_PLAN の JSON どおりに run の記録・置き場・盤面・archon.db を書く。
 """
 import ast
@@ -31,7 +32,6 @@ COPIED = ["pack.json", "factory/pack.json", "bin/_lib/pack.py", "docs/design.md"
           "tests/calibration/run.py", "tests/calibration/flags.json", "tests/e2e/__init__.py",
           "tests/e2e/make_target.py", "tests/e2e/evidence.py"]
 CHANGE, REQUEST, CONTROL = "mean-divides-by-n-minus-one", "clamp-above-returns-lo", "control-clearer-names"
-OLD_COMMIT = json.loads((ROOT / "pack.json").read_text(encoding="utf-8"))["works"]["commit"]
 ITEMS = {"WORKS_FACTORY_KEYCHAIN_ITEM": "item-of-works-factory-zq7", "WORKS_KEYCHAIN_ITEM": "item-of-old-works-zq7"}
 WATCHED = [*ITEMS, "WORKS_FACTORY_HOME", "WORKS_USE_HOME", "WORKS_USE_UNATTENDED", "WORKS_USE_FINAL_GATE",
            "WORKS_USE_THICKNESS", "WORKS_DEV_HOME"]
@@ -137,7 +137,7 @@ elif who == "use.sh" and args[0] == "wait":
     status(WAITS[rc])
     sys.exit(rc)
 elif who == "continue.sh":
-    queue.write_text(json.dumps(plan.get("resume_waits", [5])), encoding="utf-8")
+    queue.write_text(json.dumps(plan.get(f"{args[2]}_waits", [5])), encoding="utf-8")
     status("running")
 """
 
@@ -166,7 +166,12 @@ class RunnerCase(unittest.TestCase):
                                     encoding="utf-8")
         (dev / "archon.sh").write_text('#!/bin/sh\nARCHON_VERSION="v0.11.1"\n', encoding="utf-8")
         git(cls.old, "init", "-q", "-b", "main")
-        (cls.old / ".git" / "refs" / "heads" / "main").write_text(OLD_COMMIT + "\n", encoding="utf-8")
+        git(cls.old, "add", "-A")
+        git(cls.old, "commit", "-q", "-m", "works")
+        cls.old_commit = git(cls.old, "rev-parse", "HEAD")
+        data = json.loads((cls.repo / "pack.json").read_text(encoding="utf-8"))
+        data["works"]["commit"] = cls.old_commit
+        (cls.repo / "pack.json").write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         git(cls.repo, "init", "-q", "-b", "main")
         git(cls.repo, "add", "-A")
         git(cls.repo, "commit", "-q", "-m", "checkout")
@@ -404,9 +409,53 @@ class RunTest(RunnerCase):
         self.assertEqual(done.returncode, 2, done.stderr)
         [line] = done.stderr.strip().splitlines()
         self.assertIn("1" * 40, line)
-        self.assertIn(OLD_COMMIT, line)
+        self.assertIn(self.old_commit, line)
         self.assertEqual(self.calls(), [])
         self.assertFalse(self.attempts.exists())
+
+    def test_old_works_must_be_committed_and_have_use_sh(self):
+        copy = self.tmp / "copy-plugins"
+        shutil.copytree(self.old, copy)
+        (copy / "elsewhere.txt").write_text("outside works/\n", encoding="utf-8")
+        self.assertRan(self.runner("run", "works", "--attempts", str(self.attempts), "--observed", str(self.observed),
+                                   "--only", REQUEST, WORKS_FACTORY_OLD_WORKS=str(copy / "works")))
+        self.log.unlink()
+        changes = {"edited": lambda: (copy / "works" / "dev" / "archon.sh").write_text('ARCHON_VERSION="v9"\n', encoding="utf-8"),
+                   "untracked": lambda: (copy / "works" / "dev" / "extra.sh").write_text("", encoding="utf-8")}
+        for name, change in changes.items():
+            with self.subTest(change=name):
+                git(copy, "checkout", "-q", "--", ".")
+                git(copy, "clean", "-qfd", "works")
+                change()
+                done = self.runner("run", "works", "--attempts", str(self.tmp / name), "--only", REQUEST,
+                                   WORKS_FACTORY_OLD_WORKS=str(copy / "works"))
+                self.assertEqual(done.returncode, 2, done.stderr)
+                [line] = done.stderr.strip().splitlines()
+                self.assertIn("commit していない", line)
+                self.assertIn("dev/", line)
+                self.assertFalse((self.tmp / name).exists())
+        done = self.runner("run", "works", "--attempts", str(self.tmp / "root"), "--only", REQUEST,
+                           WORKS_FACTORY_OLD_WORKS=str(self.old))
+        self.assertEqual(done.returncode, 2, done.stderr)
+        [line] = done.stderr.strip().splitlines()
+        self.assertIn("dev/use.sh が無い", line)
+        self.assertEqual(self.calls(), [])
+        self.assertFalse((self.tmp / "root").exists())
+
+    def test_old_works_resume_answers_stop_at_human_gate(self):
+        self.set_plan(waits=[1])
+        self.assertEqual(self.run_rows("works", REQUEST).returncode, 1)
+        self.log.unlink()
+        self.set_plan(resume_waits=[3, 0], respond_waits=[3, 5])
+        self.assertRan(self.run_rows("works", REQUEST, extra=["--resume"]))
+        rid = "b5c6d7e8-0000-old"
+        self.assertEqual([c["args"][1:5] for c in self.calls("continue.sh")],
+                         [["workflow", "resume", rid], ["workflow", "respond", rid, "stop"]])
+        [respond] = [c for c in self.calls("continue.sh") if c["args"][2] == "respond"]
+        self.assertIn("WORKS_USE_UNATTENDED=1", respond["args"][5])
+        self.assertEqual(respond["env"]["WORKS_DEV_HOME"], str(self.attempts / f"{REQUEST}--1" / "home"))
+        self.assertEqual(self.verbs("use.sh").count("wait"), 4)
+        self.assertEqual([o["id"] for o in self.observed_files("works")], [REQUEST])
 
     def test_observed_shape_and_no_absolute_paths(self):
         rows = {r["id"]: r for r in corpus.load()["rows"]}
@@ -437,7 +486,7 @@ class RunTest(RunnerCase):
         self.assertEqual(new["provenance"]["factory_commit"], git(self.repo, "rev-parse", "HEAD"))
         [old] = self.observed_files("works")
         self.assertEqual((old["cost"]["usd"], old["cost"]["seconds"]), (12.5, 7200.0))
-        self.assertEqual(old["provenance"]["factory_commit"], OLD_COMMIT)
+        self.assertEqual(old["provenance"]["factory_commit"], self.old_commit)
         self.assertEqual(old["provenance"]["archon"], "v0.11.1")
 
     def test_unread_catcher_makes_row_inconclusive(self):
