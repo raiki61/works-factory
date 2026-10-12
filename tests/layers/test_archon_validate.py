@@ -16,6 +16,21 @@ from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEEDS = pathlib.Path(__file__).resolve().parent / "seeds"
+# loop_group の中で include すると validate が誤りか警告を出すブロック: 親の工程の名 -> (誤りと警告の行, 訳)
+IN_LOOP_REFUSED = {
+    f"{scan.OURS_PREFIX}probe-fix": (
+        ["error: loop_group 'rounds' body: 'workflow' (sub-run) is not supported inside a loop_group body"],
+        "fix は組の子の run を workflow: の節で起こす。Archon は loop_group の本体に workflow: の節を置けない（止めた Archon の "
+        "packages/workflows/src/loader.ts 1302-1311 行）。Archon で不可の形で、線は fix を輪の外でだけ include するので、"
+        "線の能力は落ちない（狭めでない）"),
+    f"{scan.OURS_PREFIX}probe-judge": (
+        ["warning: Node 'block__spec-gate': a gate node inside a loop_group body must be the body's sole terminal sink to "
+         "pause the enclosing loop (#2707 step 3) — this gate is not, so it will not stop loop iteration. Move it to the end "
+         "of the body with nothing else depending on it, and no other node left un-depended-on."],
+        "judge の関所 spec-gate は本体の終わりでないので、輪の中では輪を止めない（止めた Archon の packages/workflows/src/"
+        "loader.ts 492 行の警告）。線は judge を輪の外でだけ include する。輪の中で include できる形（関所を本体の終わりに"
+        "置く）にするかは区分 J。区分の issue で外す"),
+}
 
 
 def validate(tree: pathlib.Path) -> dict[str, list[str]]:
@@ -34,6 +49,8 @@ def validate(tree: pathlib.Path) -> dict[str, list[str]]:
 
 
 class ArchonValidateTest(unittest.TestCase):
+    maxDiff = None
+
     def test_own_workflows_have_no_errors_or_warnings(self):
         names = [folder.name for folder in scan._blocks(ROOT)]
         workflows = {f"{scan.OURS_PREFIX}{name}" for name in names}
@@ -46,6 +63,17 @@ class ArchonValidateTest(unittest.TestCase):
         """どのブロックも、線のように include された形で読み込める。ブロック 1 つを include するだけの親の工程を木に足し、必須の
         入力には仮の字を渡して validate する。ブロックを単独で照らすだけでは見えない、include の時だけの誤り（輪の中の節の with: の名を
         $INPUTS で読む指示書が「入力が無い」で止まる。止めた Archon の packages/workflows/src/include-expander.ts:566・627）を捕まえる"""
+        self.assertEqual(self.probe_includes(lambda include: [include]), {})
+
+    def test_every_block_loads_when_included_inside_a_loop_group(self):
+        """線の plan-rounds のように、親の工程の loop_group の中で include した形でも読み込める。輪の中の節は輪の外の節と同じ
+        走査で指示書の名を解く（止めた Archon の packages/workflows/src/include-expander.ts:566・579・596・627）"""
+        found = self.probe_includes(lambda include: [{
+            "id": "rounds", "loop_group": {"max_iterations": 2, "until_bash": 'test -n "x"', "nodes": [include]}}])
+        self.assertEqual(found, {name: issues for name, (issues, _) in IN_LOOP_REFUSED.items()})
+
+    def probe_includes(self, wrap) -> dict[str, list[str]]:
+        """ブロックごとに、include の節を wrap で包んだ親の工程を木に足して validate し、誤りか警告の在る親の工程を返す"""
         names = [folder.name for folder in scan._blocks(ROOT) if f"{scan.OURS_PREFIX}{folder.name}" != scan.OURS["line"]]
         with archon.tree(names) as tree:
             placed = tree / ".archon" / "workflows" / archon.PACK["ours"]["pack"]
@@ -53,8 +81,9 @@ class ArchonValidateTest(unittest.TestCase):
                 block = yaml.safe_load((placed / name / f"{scan.OURS_PREFIX}{name}.yaml").read_text(encoding="utf-8"))
                 needed = {key: "x" for key, spec in (block.get("inputs") or {}).items()
                           if not (isinstance(spec, dict) and "default" in spec)}
+                include = {"id": "block", "include": f"{scan.OURS_PREFIX}{name}", **({"with": needed} if needed else {})}
                 probe = {"name": f"{scan.OURS_PREFIX}probe-{name}", "description": "include の確かめ", "interactive": True,
-                         "nodes": [{"id": "block", "include": f"{scan.OURS_PREFIX}{name}", **({"with": needed} if needed else {})}]}
+                         "nodes": wrap(include)}
                 folder = placed / f"probe-{name}"
                 folder.mkdir()
                 (folder / f"{scan.OURS_PREFIX}probe-{name}.yaml").write_text(yaml.safe_dump(probe, allow_unicode=True), encoding="utf-8")
@@ -62,8 +91,8 @@ class ArchonValidateTest(unittest.TestCase):
             git(tree, "commit", "-q", "-m", "probes")
             found = validate(tree)
         probes = {f"{scan.OURS_PREFIX}probe-{name}" for name in names}
-        self.assertEqual({name: issues for name, issues in found.items() if name in probes and issues}, {})
         self.assertEqual(sorted(probes - set(found)), [])
+        return {name: issues for name, issues in found.items() if name in probes and issues}
 
     def test_named_script_and_shared_resolve_in_the_pack(self):
         """名前の script は pack の形の工程の時だけ工程のフォルダの scripts/ から探される（止めた Archon の

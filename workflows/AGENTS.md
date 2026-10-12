@@ -44,7 +44,7 @@
 - `loop:` の節を作らない（Archon は `loop:` の節の `mutates_checkout` を無視して警告を出す。止めた Archon の `packages/workflows/src/schemas/dag-node.ts` 1025-1030 行）。読むだけの役の繰り返しは `loop_group` で書く。
 - 役の節は `settingSources: [user]`・閉じた `sandbox`（`enabled: true`・`allowUnsandboxedCommands: false`）・道具の表（`scan.py` の `ROLE_TOOLS`）の中の `allowed_tools` を持つ（今の works の `works/tests/test_yaml_rules.py` の決まり）。
 - 機械: `tests/layers/test_readonly_nodes.py`（全部のブロックと線の役の節の印が道具に合う。script の節は試験の中の表 `READONLY_NODES` で名指した節に在る。`loop:` の節が無い。役の節が上の 3 つの鍵を持つ。違反の見本は `tests/layers/seeds/k18-*`・`k3-*` に 1 本 1 違反）。
-- `runtime: uv` の script は頭に uv の script の宣言（PEP 723 の 4 行 `# /// script`・`# requires-python = ">=3.12"`・`# dependencies = []`・`# ///`）を置く。Archon は script の節を対象の作業ツリーを cwd にして `uv run <ファイル>` で起こすので、宣言が無いと対象に `pyproject.toml` が在る時に uv が作業ツリーに `.venv`・`uv.lock` を作り、読むだけの節が落ちる（issue #92）。機械: `tests/workflows/test_uv_scripts.py`（`workflows/*/scripts/*.py` の頭の 4 行と、`pyproject.toml` の在る種で走らせても作業ツリーが変わらないこと。`scripts/` の 1 段下のフォルダはまだ見ない。issue #96）。
+- `runtime: uv` の script は頭に uv の script の宣言（PEP 723 の 4 行 `# /// script`・`# requires-python = ">=3.12"`・`# dependencies = []`・`# ///`）を置く。Archon は script の節を対象の作業ツリーを cwd にして `uv run <ファイル>` で起こすので、宣言が無いと対象に `pyproject.toml` が在る時に uv が作業ツリーに `.venv`・`uv.lock` を作り、読むだけの節が落ちる（issue #92）。機械: `tests/workflows/test_uv_scripts.py`（`workflows/*/scripts/` から Archon と同じく 1 段下のフォルダまでの `.py` の頭の 4 行・YAML の `script:` の名が全部その中のファイルに当たり、直に書いた `script:` が無いこと・`pyproject.toml` の在る種で走らせても作業ツリーが変わらないこと）。
 
 ## E12 期限・タイムアウトを置かない
 
