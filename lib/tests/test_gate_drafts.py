@@ -9,6 +9,7 @@ next-request.json の answers に draft: true と出どころ source つきで�
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
@@ -26,6 +27,18 @@ class SchemaCase(unittest.TestCase):
     def test_rule_text_asks_for_recommend(self):
         for node in gatemarks.NODES:
             self.assertIn(gatemarks.RECOMMEND, gatemarks.HEAD[node])
+
+    def test_recommend_schema_is_built_from_the_keys(self):
+        """推しの欄の名は RECOMMEND_KEYS の 1 か所（頭が答えの enum、残りが RECOMMEND_MIN 字以上の文）"""
+        schema = gatemarks.MARK_SCHEMA[gatemarks.RECOMMEND]
+        self.assertEqual((schema["required"], list(schema["properties"])), (list(gatemarks.RECOMMEND_KEYS),) * 2)
+        self.assertEqual(schema["properties"][gatemarks.RECOMMEND_KEYS[0]]["enum"], list(gatemarks.RECOMMEND_ANSWERS))
+
+    def test_check_and_tail_read_the_keys(self):
+        rec = {"pick": "stop", "scope": "daemon だけを止める", "because": "chart が同じ分け方"}
+        with mock.patch.object(gatemarks, "RECOMMEND_KEYS", tuple(rec)):
+            self.assertEqual(gatemarks._recommend_gap(rec), "")
+            self.assertIn("（stop）——daemon だけを止める（理由: chart が同じ分け方）", gatemarks._push({gatemarks.RECOMMEND: rec}))
 
 
 class GapsCase(unittest.TestCase):

@@ -121,9 +121,8 @@ MARK_SCHEMA = {
     "world": {"type": "string",
               "note": "人に回す行で、世の中の同じ問題の解き方を当たった結果の 1 文（出どころと割れ方、当たらなかったならその理由）"},
     RECOMMEND: {"type": "object", "additionalProperties": False, "required": list(RECOMMEND_KEYS),
-                "properties": {"answer": {"type": "string", "enum": list(RECOMMEND_ANSWERS)},
-                               "note": {"type": "string", "minLength": RECOMMEND_MIN},
-                               "why": {"type": "string", "minLength": RECOMMEND_MIN}},
+                "properties": {RECOMMEND_KEYS[0]: {"type": "string", "enum": list(RECOMMEND_ANSWERS)},
+                               **{k: {"type": "string", "minLength": RECOMMEND_MIN} for k in RECOMMEND_KEYS[1:]}},
                 "note": "人に回す行の推し: answer＝continue（通す）か stop（止める）・note＝関所の一言に写せる通す範囲と条件か止める理由・"
                         "why＝推す理由。人が答えるまでの下書きで、機械は関所に答えない"},
 }
@@ -343,8 +342,9 @@ def _recommend_gap(got) -> str:
     extra = sorted(set(got) - set(RECOMMEND_KEYS))
     if extra:
         return f"{RECOMMEND} の知らない欄 {extra}"
-    if got.get("answer") not in RECOMMEND_ANSWERS:
-        return f"{RECOMMEND}.answer が {'・'.join(RECOMMEND_ANSWERS)} のどれでもない（{got.get('answer')!r}）"
+    answer = RECOMMEND_KEYS[0]
+    if got.get(answer) not in RECOMMEND_ANSWERS:
+        return f"{RECOMMEND}.{answer} が {'・'.join(RECOMMEND_ANSWERS)} のどれでもない（{got.get(answer)!r}）"
     for k in RECOMMEND_KEYS[1:]:
         if not (isinstance(got.get(k), str) and len(got[k].strip()) >= RECOMMEND_MIN):
             return f"{RECOMMEND}.{k} が {RECOMMEND_MIN} 字に満たない（文字列で書く）"
@@ -447,8 +447,9 @@ def _push(mark: dict) -> str:
     if rec is None:
         return ""
     # 推しの文の「／」は「・」に替える（尾の区切り。PUSH_TAIL・PUSH_IN が尾の全文を読む）
-    note, why = (_squeeze(rec[k]).replace("／", "・") for k in ("note", "why"))
-    return f"／{PUSH}{RECOMMEND_WORDS[rec['answer']]}（{rec['answer']}）——{note}（理由: {why}）"
+    answer = rec[RECOMMEND_KEYS[0]]
+    note, why = (_squeeze(rec[k]).replace("／", "・") for k in RECOMMEND_KEYS[1:])
+    return f"／{PUSH}{RECOMMEND_WORDS[answer]}（{answer}）——{note}（理由: {why}）"
 
 
 def _gate_rows(b) -> list:
