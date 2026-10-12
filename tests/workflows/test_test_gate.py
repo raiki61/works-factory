@@ -113,6 +113,16 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(ci["command"], "ci")
         self.assertTrue((BLOCK / "commands" / "ci.md").is_file())
 
+    def test_ci_command_keeps_the_rules(self):
+        """元 test_blk_ci.py の test_command_is_thin_and_prompts_keep_the_rules: 役の指示書が今の works の決まりを持つ——走らせられなければ
+        緑を仮定しない（base は awaiting_human・final は not_run）・走ったかは試験の件数で決める・終わるまで待つ・系統ごとの終了コード・
+        自己申告・本物の作業ツリーを変えない"""
+        text = (BLOCK / "commands" / "ci.md").read_text(encoding="utf-8")
+        for phrase in ("緑を仮定するな", "awaiting_human", "not_run", "試験の件数", "で決めよ", "終わるまで待て", "系統ごとの終了コード",
+                       "自己申告", "本物の作業ツリーのファイルを書く・消す"):
+            with self.subTest(phrase):
+                self.assertIn(phrase, text)
+
     def test_role_node_matches_works_blk_ci(self):
         """今の works の blk-ci.yaml の役の節の settingSources・sandbox・context と同じ値"""
         ci = node("ci")
@@ -136,8 +146,12 @@ class YamlCase(unittest.TestCase):
         self.assertIn("$ci-accept.output.done", loop["loop_group"]["until_bash"])
         self.assertEqual(loop["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
 
-    def test_prep_takes_previous_reject(self):
-        self.assertEqual(node("ci-prep")["with"]["reject"], "$LOOP_PREV.ci-accept.output.reason")
+    def test_loop_does_not_paste_previous_reject_by_loop_prev(self):
+        """前の回の拒否の文は $LOOP_PREV で with: に貼らない（元の裁定 R44）: Archon は with: の値を $LOOP_PREV で置き換えた後に
+        もう 1 度 $<節>.output.<欄> を置き換えるので、拒否の文に節の参照の字が在ると輪が落ちる。ci-prep が拒否の控えから読む"""
+        for n in node("ci-loop")["loop_group"]["nodes"]:
+            with self.subTest(n["id"]):
+                self.assertNotIn("$LOOP_PREV", json.dumps(n.get("with") or {}))
 
     def test_script_inputs_match_with(self):
         for n in walk(self.y["nodes"]):
@@ -303,7 +317,12 @@ class CiRoleCase(ScriptCase):
     BAD = json.dumps({"material": {"status": "not_run", "reason": "走らせなかった"}})   # base では awaiting_human を求める
 
     def prep(self, reject=""):
-        out = self.ok("ci_prep", mode="base", start=self.start, reject=reject)
+        """ci_prep を回す。reject が在れば、前の回の受け付けが拒んだ控え（ci_accept が積む物）に先に積む"""
+        if reject:
+            gate = self.artifacts / "test-gate" / "base"
+            gate.mkdir(parents=True, exist_ok=True)
+            rolekit.with_done(gate, declared_checks.CI_ROLE, {"ok": False, "reason": reject})
+        out = self.ok("ci_prep", mode="base", start=self.start)
         top = pathlib.Path(out["copy_dir"]).parent
         self.addCleanup(lambda: top.exists() and __import__("shutil").rmtree(top, ignore_errors=True))
         return out
@@ -311,9 +330,30 @@ class CiRoleCase(ScriptCase):
     def test_prep_copies_tree_and_passes_reject(self):
         (self.repo / "new.txt").write_text("未追跡\n", encoding="utf-8")
         out = self.prep(reject="前の理由")
-        self.assertEqual((out["mode"], out["reject"], out["attempt"], out["root"]), ("base", "前の理由", 1, str(self.repo.resolve())))
+        self.assertEqual((out["mode"], out["reject"], out["attempt"], out["root"]), ("base", "前の理由", 2, str(self.repo.resolve())))
         self.assertEqual((pathlib.Path(out["copy_dir"]) / "new.txt").read_text(encoding="utf-8"), "未追跡\n")
         self.assertTrue(pathlib.Path(out["tmp_dir"]).is_dir())
+
+    def test_reject_with_a_reference_reaches_the_prompt_verbatim(self):
+        """前の回の拒否の文は、節の参照の字（$ci.output.material・$INPUTS.mode）を含んでも字のまま次の回の reject に載る。
+        1 回目は reject が空"""
+        first = self.prep()
+        self.assertEqual((first["reject"], first["attempt"]), ("", 1))
+        reason = "欄を直せ: $ci.output.material と $INPUTS.mode"
+        again = self.prep(reject=reason)
+        self.assertEqual((again["reject"], again["attempt"]), (reason, 2))
+
+    def test_unreadable_reply_is_a_reject(self):
+        """元 test_blk_ci.py の test_unreadable_reply_is_a_reject: 読めない返答（JSON でない・オブジェクトでない）は受け付けの拒否として
+        数え、理由を次の回へ渡す"""
+        for raw, word in (("not json", "JSON"), ("[1]", "オブジェクトでない")):
+            with self.subTest(raw):
+                self.prep()
+                got = self.ok("ci_accept", mode="base", reply=raw)
+                self.assertEqual((got["ok"], got["done"]), (False, False))
+                self.assertIn(word, got["reason"])
+                self.assertIn(word, self.prep()["reject"])
+                rolekit.rejects_path(self.artifacts / "test-gate" / "base", declared_checks.CI_ROLE).unlink()
 
     def test_gives_up_after_three_rejections(self):
         """元 test_gives_up_after_three_rejections: 3 回目の拒否で done・give_up（輪を max_iterations で落とさない）。写しを消す"""
@@ -544,7 +584,7 @@ class ResultScriptCase(ScriptCase):
     def test_role_clean_material_written_by_ci_accept_is_read(self):
         """任せ先の役の素材は ci-accept が書いた所から result が読む: 受け付けた clean の base は ok"""
         self.assertEqual(self.ok("run", mode="base", start=self.start)["by"], "role_needed")
-        prep = self.ok("ci_prep", mode="base", start=self.start, reject="")
+        prep = self.ok("ci_prep", mode="base", start=self.start)
         self.addCleanup(__import__("shutil").rmtree, pathlib.Path(prep["copy_dir"]).parent, True)
         clean = json.dumps({"material": {"status": "clean", "checked": "make test: exit 0"}})
         self.assertTrue(self.ok("ci_accept", mode="base", reply=clean)["ok"])
@@ -565,7 +605,7 @@ class ResultScriptCase(ScriptCase):
     def test_copy_left_by_a_fallen_role_is_removed(self):
         """役の節が落ちて ci-accept が回らなくても、返す節が ci-snapshot.json の写しの置き場を消す"""
         self.ok("run", mode="final", start=self.start)
-        top = pathlib.Path(self.ok("ci_prep", mode="final", start=self.start, reject="")["copy_dir"]).parent
+        top = pathlib.Path(self.ok("ci_prep", mode="final", start=self.start)["copy_dir"]).parent
         self.addCleanup(__import__("shutil").rmtree, top, True)
         self.result("final")
         self.assertFalse(top.exists())

@@ -100,7 +100,6 @@ nodes:
           with:
             mode: $INPUTS.mode
             start: $INPUTS.start
-            reject: $LOOP_PREV.ci-accept.output.reason
           output_format:
             type: object
             additionalProperties: false
