@@ -6,7 +6,8 @@
 
 変更（origin/main との merge-base からの差と、未追跡を含む作業ツリーの差）に直に当たる試験のモジュールと、層の柵
 （tests/layers/）だけを unittest で回す。全部の試験は CI（.github/workflows/tests.yml）が回す。持ち主の決め 2026-10-12（#130）。
-- 選び: lib/impact.py の map と select_tests（direct_only。起点か深さ 1）。変わった試験のファイルは discover の名の規則で足す
+- 選び: lib/impact.py の map と select_tests（direct_only。起点か深さ 1）が選んだパス・変わったファイル・層の柵のフォルダを候補にし、
+  どれが試験のモジュールかは tests/shard.py --paths が CI と同じ集め方（discover の規則）で決める
 - 全部を回す: 選びが全部が要ると言った時・WHOLE と WHOLE_DIRS の変更・起点が取れない時・選びが落ちた時（緑を仮定しない）。
   全部は CI と同じ集め方（tests/shard.py。discover の規則）を 1 つの分けで回す
 - 出力: 選んだモジュール・回さないモジュールの数・訳を先に標準出力へ出し、最後は unittest の数え（Ran N tests）のまま
@@ -28,16 +29,6 @@ WHOLE = ("tests/archon.py", "tests/AGENTS.md", "pyproject.toml")
 WHOLE_DIRS = (".github/",)
 
 
-def module(path):
-    """unittest の discover が見つける試験のファイルならモジュールの名（a.b.test_x）。そうでなければ None"""
-    parts = pathlib.PurePosixPath(path).parts
-    if not (parts[-1].startswith("test") and parts[-1].endswith(".py") and (ROOT / path).is_file()):
-        return None
-    if not all((ROOT.joinpath(*parts[:i]) / "__init__.py").is_file() for i in range(1, len(parts))):
-        return None
-    return ".".join(parts)[:-len(".py")]
-
-
 def merge_base():
     try:
         done = subprocess.run(["git", "-C", str(ROOT), "merge-base", BASE_REF, "HEAD"], capture_output=True, text=True)
@@ -47,7 +38,7 @@ def merge_base():
 
 
 def choose():
-    """(回すモジュール, 全部を回す訳)。訳が在れば全部を回す"""
+    """(試験の候補のパス, 全部を回す訳)。訳が在れば全部を回す"""
     base = merge_base()
     if not base:
         return [], [f"起点が取れない（git merge-base {BASE_REF} HEAD が失敗）"]
@@ -62,27 +53,19 @@ def choose():
         return [], [f"選びが落ちた: {type(e).__name__}: {e}"]
     if sel["run_all"]:
         return [], sel["reasons"]
-    fence = [str(p.relative_to(ROOT)) for p in (ROOT / FENCE).glob("test*.py")]
-    mods = sorted({mod for mod in map(module, [*sel["selected"], *changed, *fence]) if mod})
-    if not mods:
-        return [], ["選んだ試験も層の柵も無い"]
-    return mods, []
+    return sorted({*sel["selected"], *changed}) + [FENCE], []
 
 
 def main():
     started = time.monotonic()
-    mods, reasons = choose()
+    paths, reasons = choose()
     print(f"changed.py: 選びに {time.monotonic() - started:.1f} 秒")
     if reasons:
         print("全部の試験を回す。訳:")
         print("\n".join(f"  {r}" for r in reasons))
         cmd = ["-m", "tests.shard", "--shard", "1/1"]
     else:
-        every = {mod for mod in map(module, impact.tree_files(ROOT)) if mod}
-        print(f"変更に直に当たる試験と層の柵の {len(mods)} モジュールを回す（回さない: {len(every - set(mods))} モジュール。"
-              f"全部は CI が回す）:")
-        print("\n".join(f"  {mod}" for mod in mods))
-        cmd = ["-m", "unittest", *mods]
+        cmd = ["-m", "tests.shard", "--paths", *paths]
     sys.stdout.flush()
     return subprocess.run([sys.executable, *cmd], cwd=ROOT).returncode
 

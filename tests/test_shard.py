@@ -4,6 +4,7 @@
 - (b) 秒数の表に無いモジュールも入る
 - (c) 分けの秒数の最大と最小の差が、表の 1 モジュールの最大より小さい
 - (d) 新しい試験のファイルを足すと、どれかの分けに入る
+- (e) --paths の選び（pick）は、名指しのファイルと、名指しのフォルダの下のモジュールだけを取る
 """
 import contextlib
 import io
@@ -57,6 +58,24 @@ class PlanTest(unittest.TestCase):
             one.write_text(json.dumps({"a": 1.26}), encoding="utf-8")
             two.write_text(json.dumps({"b": 2.0}), encoding="utf-8")
             self.assertEqual(shard.merge([one, two]), {"a": 1.3, "b": 2.0})
+
+
+class PickTest(unittest.TestCase):
+    NAMES = ["lib.tests.test_alpha", "lib.tests.test_beta", "tests.layers.test_x"]
+
+    def test_exact_file_path(self):
+        self.assertEqual(shard.pick(self.NAMES, ["lib/tests/test_beta.py"]), ["lib.tests.test_beta"])
+
+    def test_directory_with_or_without_slash(self):
+        both = ["lib.tests.test_alpha", "lib.tests.test_beta"]
+        self.assertEqual(shard.pick(self.NAMES, ["lib/tests"]), both)
+        self.assertEqual(shard.pick(self.NAMES, ["lib/tests/"]), both)
+
+    def test_directory_prefix_stops_at_a_slash(self):
+        self.assertEqual(shard.pick(self.NAMES, ["tests/lay"]), [])
+
+    def test_path_that_is_not_a_test_module_picks_nothing(self):
+        self.assertEqual(shard.pick(self.NAMES, ["lib/alpha.py"]), [])
 
 
 TEST_CASE = "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_ok(self):\n        pass\n"

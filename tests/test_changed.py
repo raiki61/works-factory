@@ -5,6 +5,7 @@ unittest の最後の数え（Ran N tests）で何が回ったかを見る。木
 - lib の 1 ファイルを変えると、その試験のモジュールと層の柵だけが回る
 - 全部を回す: tests/archon.py などの変更・起点（origin/main との merge-base）が無い時・git が起こせない時
 - 選んだ物が 0 本でも層の柵は回り、選んだ試験の赤は殻の赤
+- 集め方の正本（tests/shard.py の PATTERN）を変えると、殻の選びと CI の分けの両方が変わる
 - 出力の最後は unittest の数えで、harness の unit_count_pattern が最初に当たるのもその行
 """
 import json
@@ -148,6 +149,23 @@ class ChangedTest(unittest.TestCase):
         rc, _stdout, out = self.run_changed()
         self.assertNotEqual(rc, 0, out)
         self.assertEqual(self.ran(out), 2, out)
+
+    def test_changing_the_collection_rule_changes_both_selections(self):
+        shard = self.repo / "tests/shard.py"
+        shard.write_text(shard.read_text(encoding="utf-8").replace('PATTERN = "test*.py"', 'PATTERN = "check*.py"'),
+                         encoding="utf-8")
+        git(self.repo, "commit", "-q", "-am", "rule")
+        git(self.repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+        self.write("lib/tests/check_alpha.py", LIB_TEST.format(name="alpha"))
+        rc, stdout, out = self.run_changed()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.ran(out), 1, out)
+        self.assertIn("lib.tests.check_alpha", stdout)
+        self.assertNotIn("tests.layers.test_fence", stdout)
+        done = subprocess.run([sys.executable, "-m", "tests.shard", "--shard", "1/1"], cwd=self.repo, capture_output=True,
+                              text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(self.ran(done.stderr), 1, done.stderr)
 
     def test_output_ends_with_the_unittest_count(self):
         self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
