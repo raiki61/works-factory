@@ -7,7 +7,8 @@
 done・diff・changed・delta_review は refix-run が走ればその物（diff はどちらも run の始めからの累積）。units は unit_id ごとに後の物、
 groups・allowed_test_changes は和、x_scalars（修正役が足した規模の数値）は名ごとに 2 度目の値を優先して合わせる。申し出 conflicts は
 指し札の配列: refix-run が返した控えは 1 回目の段の行を写して持つ（fix の入力 prior_conflicts。元は 1 つの盤面）ので、在ればそれ 1 つ、
-無ければ 1 回目の物（1 回目の申し出が最後の関所と報告から消えず、同じ行を 2 度数えない）。replan_items は 1 回目の物（差し込みを
+無ければ 1 回目の物（1 回目の申し出が最後の関所と報告から消えず、同じ行を 2 度数えない）。diffs は段ごとの diff の指し札の並び
+（1 回目・2 度目の順。どちらの隣にも段の約束のファイル lib/fixbeside.py が在り、最後の関所と報告が両方を読む）。replan_items は 1 回目の物（差し込みを
 決めたのは 1 回目）。objection は 1 回目と 2 度目の修正役の異議をつないだ文で、rejudge は異議が在り held でない時に真（再審は 2 度目の
 修正の後に 1 度だけ両方の異議を受ける。元 works/darkfactory/darkfactory.yaml:827 の h-rejudge は refit の後）。
 done は、案の直しが要ったのに 2 度目の修正が走らなかった時（案の直しの関所の stop・無人の止め・案ができなかった・refix-run の中が
@@ -71,6 +72,7 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
         "objection": objection,
         "rejudge": bool(objection) and not held,
         "diff": last.get("diff"),
+        "diffs": [d for d in (fix.get("diff"), (refix or {}).get("diff")) if d],
         "allowed_test_changes": union(fix.get("allowed_test_changes"), (refix or {}).get("allowed_test_changes")),
         "changed": last.get("changed"),
         "x_scalars": scalars,
@@ -94,7 +96,7 @@ def from_env() -> dict:
 
 
 def fallback(reason: str) -> dict:
-    return {**{key: None for key in FIELDS}, "done": False, "go": False, "units": [], "groups": [], "conflicts": [], "replan_items": [],
+    return {**{key: None for key in FIELDS}, "done": False, "go": False, "units": [], "groups": [], "conflicts": [], "diffs": [], "replan_items": [],
             "objection": "", "rejudge": False, "allowed_test_changes": [], "x_scalars": {}, "refixed": False, "plan": None, "ripple": None,
             "stop_reason": linekit.LINE_SCRIPT}
 

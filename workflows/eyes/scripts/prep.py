@@ -3,7 +3,8 @@
 # dependencies = []
 # ///
 """目の指示書に差し込む値を組み、置き場の eyes/prep.json にも書く（返す節 verdict がファイルで読む）。比較役に貼った前提の控えは
-eyes/r2-premises.json に書く"""
+eyes/r2-premises.json に書く。前の run の前提の検算が運んだ実測（判定の premises.json の制約のうち measured_how が
+carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に。R2 を回し直す）"""
 import json
 import os
 import sys
@@ -13,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
+import carry  # noqa: E402
 import concepthome  # noqa: E402
 import depth  # noqa: E402
 import eyeverdict  # noqa: E402
@@ -54,7 +56,9 @@ premises_text, r2_ledger = eyeverdict.premise_section(
     design_seen=(eyeverdict.read_json(design_file.with_name(eyeverdict.DESIGN_PREMISES)) or {}).get("seen") if design_file else None)
 
 out = {
-    "run_eyes": depth.skip_reason({"units": {r["unit_id"]: r for r in sorted(depth_rows, key=lambda r: r["unit_id"])}}) == "",
+    # 前の run の前提の検算が運んだ実測が制約に在る run は、深さで目を省かない（元 review-loop.py:3755 の r2_refire_forced。R2 を回し直す）
+    "run_eyes": depth.skip_reason({"units": {r["unit_id"]: r for r in sorted(depth_rows, key=lambda r: r["unit_id"])}}) == ""
+    or any(isinstance(c, dict) and str(c.get("measured_how") or "").startswith(carry.CARRIED_HOW_HEAD) for c in constraints or []),
     "compare_due": eyeverdict.r2_compare_due(design, purpose_text),
     "premise_due": eyeverdict.r2_premise_invalid(design),
     "purpose_text": purpose_text,

@@ -18,6 +18,8 @@ import carry  # noqa: E402
 import gatemarks  # noqa: E402
 import worldmark  # noqa: E402
 import conflict  # noqa: E402
+import fixbeside  # noqa: E402
+import fixboard  # noqa: E402
 import outcome  # noqa: E402
 import outpurpose  # noqa: E402
 import querytest  # noqa: E402
@@ -75,6 +77,18 @@ class Base(unittest.TestCase):
         got = runreport.build(returns, gates, typed or {}, transcript, *decided, out_dir=self.out, start=start or {"run_id": RUN},
                               problems=problems, run_id=RUN, line=line)
         return got, pathlib.Path(got["report"]).read_text(encoding="utf-8"), decided
+
+    def fix_place(self, name="fix", **result) -> str:
+        """修正の段の置き場（fix/<name>/）に diff と隣の約束のファイル（fixbeside.write。result は組の子の結果の欄）を置き、diff の
+        パスを返す"""
+        folder = self.dir / "fix" / name
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "fix.diff").write_text("diff --git a/x b/x\n", encoding="utf-8")
+        fixbeside.write(folder, [result])
+        return str(folder / "fix.diff")
+
+    def with_fix(self, *diffs, **over):
+        return fixed_run(fix={**fixed_run()["fix"], "diff": diffs[-1], "diffs": list(diffs)}, **over)
 
     @staticmethod
     def section(text: str, heading: str) -> str:
@@ -302,6 +316,42 @@ class DecisionsCase(Base):
         line = next(x for x in self.section(text, report.DECISIONS_HEADING).splitlines() if x.startswith(f"- {runreport.RESIDUE_HEAD}"))
         self.assertIn(": 1 件（", line)
         self.assertIn(runreport.MISSING_EYE_NOTE, line)
+
+    def test_accepted_breaks_are_counted_as_decision(self):
+        """R23・L-W20・F427（元 works/tests/test_report_head.py::HandoffCase :830-867）: 修正役が人に回した物（壊すと分かって通した理由。
+        修正の diff の隣の handoffs.json。1 回目と 2 度目の修正の両方）を人が決めることに数え、冒頭 2 行目の件数と節の 1 件 1 行に出す"""
+        first = self.fix_place("fix", handoffs=[{"unit_key": "u1", "accepted": "古い呼び手が壊れる"}])
+        second = self.fix_place("refix-run", handoffs=[{"unit_key": "u2", "accepted": "既定が変わる"}])
+        _, text, _ = self.build(self.with_fix(first, second))
+        self.assertTrue(text.splitlines()[3].startswith(gatemarks.DECIDE + "2 件"), text.splitlines()[3])
+        self.assertIn(f"{fixbeside.HANDOFF_HEAD} 2 件", text.splitlines()[3])
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn(f"- {fixbeside.HANDOFF_HEAD}: 2 件\n  - u1: 壊すと分かって通した——古い呼び手が壊れる\n"
+                      "  - u2: 壊すと分かって通した——既定が変わる", body)
+
+    def test_always_rows_name_clean_lens_and_not_run(self):
+        """R38・F329（元 works/tests/test_report.py::HeadCase.test_always_rows_show_zero_and_not_run :606）: clean が消したファイル・
+        レンズ・仕組みの異常を結末に依らず人が決めることの節に出し、0 件・走らせていない・読めないを分ける"""
+        import lens
+        diff = self.fix_place("fix")
+        folder = pathlib.Path(diff).parent
+        fixboard.write_json(folder / "fix-removed.json", {"removed": []})
+        lens.write_routes(folder, [{"lens": "silent-failure-hunter", "agent": "a", "go": True}])
+        lens.collect(folder, {"silent-failure-hunter": {"findings": []}})
+        fixbeside.write(folder, [{}])
+        _, text, _ = self.build(self.with_fix(diff))
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("- clean が消したファイル（fix）: 0 本", body)
+        self.assertIn("- レンズの発見: 差分の審査が走っていないので採った・採らなかったは調べていない・形の誤りで捨てた 0 件・落ちたレンズ 0 件（fix）", body)
+        self.assertIn(f"- {fixbeside.ANOMALY_LINE}", body)
+        (folder / "fix-removed.json").unlink()
+        (folder / fixbeside.LENSES_FILE).write_text("{", encoding="utf-8")
+        _, text, _ = self.build(self.with_fix(diff))
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("- clean が消したファイル（fix）: 走らせていない", body)
+        self.assertIn(f"- 修正の控え: 修正の控え {folder / fixbeside.LENSES_FILE} が読めない", body)
+        _, text, _ = self.build()
+        self.assertIn("- clean が消したファイル: 走らせていない（修正の段が無い run）", self.section(text, report.DECISIONS_HEADING))
 
     def test_nothing_to_decide_puts_next_items(self):
         """元 ReportHeadCase.test_nothing_to_decide_puts_next_items: 決めることが無い run は 2 行目に次の run に渡す物の件数"""
@@ -603,6 +653,44 @@ class CarryCase(Base):
         self.put(f"rejudge/{judge_accept.REJUDGE_DIFF}", rows)
         judge_accept.rejudge_collect(rdir)
         return judge, rejudge
+
+    def test_failed_lens_is_carried_as_rerun(self):
+        """R39・F329（元 report.lens_next_items）: 修正の diff の隣のレンズの控えで落ちたレンズを、次の依頼の findings に「再実行の要あり」
+        で運び、報告の「未確認のレンズ」の節に局所レビューの分の後に並べる"""
+        import lens
+        diff = self.fix_place("fix")
+        folder = pathlib.Path(diff).parent
+        lens.write_routes(folder, [{"lens": "silent-failure-hunter", "agent": "a", "go": True}])
+        lens.collect(folder, {})
+        fixbeside.write(folder, [{}])
+        got, text, _ = self.build(self.with_fix(diff))
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        rows = [r for r in doc["findings"] if r["where"] == "レンズ silent-failure-hunter"]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("再実行の要あり", rows[0]["text"])
+        self.assertIn("- silent-failure-hunter: 落ちた（レンズの節の出口が無い（落ちたか走らなかった））",
+                      self.section(text, report.UNSEEN_LENS_HEADING))
+
+    def test_refix_declared_and_second_fixed_holes_are_carried(self):
+        """R73・F312（元 report.next_request の手直しの行と branch_rows）: 手直しの返答の handled の declared と 2 回目の fixed を、枝の
+        名札つきで次の依頼の findings に載せ、穴の名札と手直しの結果の行を報告の人が決めることの節に出す"""
+        diff = self.fix_place("fix")
+        folder = pathlib.Path(diff).parent
+        doc = {"ties": {"1": [{"key": "穴1", "from": "p3.delta_review", "where": "stats.py", "branches": ["item:1"], "via": ["path"],
+                               "held": ""}], "2": "ValueError: 組めない"},
+               "handled": {"1": [{"key": "穴1", "handled": "declared", "how": "仕様どおり", "files": ["stats.py"]}],
+                           "2": [{"key": "穴2", "handled": "fixed", "how": "分母を直した", "files": ["stats.py"]}]}}
+        (folder / fixbeside.DELTA_HOLES_FILE).write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        got, text, _ = self.build(self.with_fix(diff))
+        findings = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))["findings"]
+        self.assertIn({"where": "stats.py", "text": "穴1（手直しが declared で残した穴: 仕様どおり）（枝: 項目 1）"}, findings)
+        self.assertIn({"where": "stats.py", "text": "穴2（手直し 2 回目が fixed と言ったが、3 回目の審査は無い——検算が要る: 分母を直した）"},
+                      findings)
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn(f"- {fixbeside.BRANCH_HEAD[1]}: 1 件（", body)
+        self.assertIn("  - 穴1: 項目 1", body)
+        self.assertIn(f"- {fixbeside.BRANCH_HEAD[2]}: 組めない（ValueError: 組めない）", body)
+        self.assertIn("  - 穴1: 直さずに残すと申告した（declared）——仕様どおり", body)
 
     def test_rejudge_passes_and_verdicts_are_listed(self):
         """R76・やる事 2: 再審の行は再審の judgment の隣の rejudge-exit.json（判定のブロックが書く）から、往復の数と答えの並びを出す
@@ -1258,6 +1346,62 @@ class LinesCase(Base):
         for line in body.splitlines():
             if line and not line.startswith("#"):
                 self.assertTrue(line.startswith(("- ", "  ")), line)
+
+
+class FixBesideLinesCase(Base):
+    """修正の diff の隣の約束のファイル（lib/fixbeside.py）から報告に出す行"""
+
+    def test_eyes_gate_passes_are_listed(self):
+        """E66・E45: 独立の目の返り notes の隣の gate-passes.json（人が通したので R4 の問いから外した行）を報告の「人が通した行」に並べ、
+        R2 の行の下に R2 に渡した前提と渡されていないと言われた物を並べる。読めなければ読めないと言う"""
+        import eyeverdict
+        notes = self.put(f"eyes/{eyeverdict.PREMISE_INPUTS}", {"design": {"given": [], "withheld": []}, "compare": {"given": []},
+                                                              "claims": ["上限が渡されていない"]})
+        self.put(f"eyes/{eyeverdict.GATE_PASSES}", [{"node": gatemarks.R4_GATE_NODE, "round": 1, "by": gatemarks.PASSED_BY_HUMAN,
+                                                     "item": "R4 が BASE から消えたと見た能力: 古い入口",
+                                                     "passed_at": {"node": gatemarks.GATE_NODE, "round": 1}}])
+        eyes = {**fixed_run()["eyes"], "r2": {"status": "pass", "reason": "同じ"}, "notes": notes}
+        _, text, _ = self.build(fixed_run(eyes=eyes))
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn(f"- {runreport.EYE_PASSES_HEAD}: 1 件\n  - ", body)
+        self.assertIn("R4 が BASE から消えたと見た能力: 古い入口", body)
+        self.assertIn("R2: pass（同じ）\n  - 独立の設計と比べる目が渡されていないと書いた（R2）: 上限が渡されていない",
+                      self.section(text, runreport.EYES_HEADING))
+        (self.dir / "eyes" / eyeverdict.GATE_PASSES).unlink()
+        _, text, _ = self.build(fixed_run(eyes=eyes))
+        self.assertIn(f"- {runreport.EYE_PASSES_HEAD}: 読めない", self.section(text, report.DECISIONS_HEADING))
+
+    def test_closure_recount_lines(self):
+        """R29・R72（元 querytest.closure_lines・STUCK_HEAD。元 report.py:990-997）: 閉鎖の表で減っていない単位を STUCK_HEAD の下に先に、
+        申告と合わない・閉じていない・表に行の無い申告の単位を CLOSURE_HEAD の下に出す"""
+        stuck = {"unit_key": "A", "counts": "defects", "total": 3, "after": 3, "claimed": 1, "covered": 1, "bound": True,
+                 "how_from": "判定", "closed": False, "discrepancies": [], "out_of_query": []}
+        open_ = {**stuck, "unit_key": "B", "total": 3, "after": 1, "discrepancies": ["申告 2 ≠ 数え直し 1"]}
+        diff = self.fix_place("fix", closure=[stuck, open_], claimed=["A", "B", "C"])
+        _, text, _ = self.build(self.with_fix(diff))
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn(f"- {querytest.STUCK_HEAD}: 1 件\n  - A: 閉じていない（defects・修正前 3・修正後 3", body)
+        self.assertIn(f"- {querytest.CLOSURE_HEAD}: 2 件\n  - B: 閉じていない（defects・修正前 3・修正後 1", body)
+        self.assertIn("  - C: 閉鎖の表に行が無い", body)
+
+    def test_fix_trace_rows_are_listed(self):
+        """R37・F041・F013（元 report.gates_lines・plan_ask_lines）: 修正の受け付けの trace の行（赤緑を確かめずに受けた回と理由・はみ出しを
+        相談で認めた／戻した・関所の条件で認めた新しいテスト・守りのテスト・範囲の相談の 1 問 1 答・回さなかった試験）を報告に出す"""
+        import conflict as conflictlib
+        rows = [{"op": fixbeside.SKIPPED_OP, "why": ["実行器が無い"]}, {"op": fixbeside.SKIPPED_OP, "why": ["実行器が無い"]},
+                {"op": fixbeside.OVERFLOW_OP, "agreed": [1], "reverted": [{"paths": ["x.py"], "patch": "p.patch"}], "guards": ["g: 守り"],
+                 "gate_tests": ["t（failure）"]},
+                {"op": conflictlib.ASKED_OP, "id": 1, "item": 2, "status": "answered", "decision": "allow", "granted_paths": ["x.py"],
+                 "reason": "要る"},
+                {"op": fixbeside.TESTS_OP, "ci_left": ["tests/test_slow.py"], "final_left": [], "final_far": []}]
+        diff = self.fix_place("fix", accept_trace=rows)
+        _, text, _ = self.build(self.with_fix(diff))
+        body = self.section(text, report.DECISIONS_HEADING)
+        for want in ("- 事後の関門の束: 受け付け 2 回が受け入れのテストの赤緑を確かめずに通した（理由: 実行器が無い）",
+                     "- はみ出しを相談で認めた: 相談 1", "- 人の関所の条件の相談で認めた新しいテスト: t（failure）",
+                     "- 守りのテストを認めた（今の木で緑だけを確かめた）: g: 守り", "- はみ出しを戻した（", "- 範囲の相談: 1 回（allow 1）",
+                     "  - 相談 1（項目 2）: allow（x.py）——要る", "- 修正の受け付けが手元で回さなかった試験（1 件", "  - tests/test_slow.py"):
+            self.assertIn(want, body)
 
 
 class StampCase(Base):

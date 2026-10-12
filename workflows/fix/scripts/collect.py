@@ -13,8 +13,11 @@
 （replan.close と CLOSE_WHY。案の段に戻るのは 1 run に 1 回。元 works/darkfactory/lib/line_edge.py:1159 の replan.settle）。
 形 group（組の子）: 自分の組の結果（out_dir/<group_id>/result.json。out_dir が空なら自分の置き場の groups/ の下）の行だけを同じ形で返す。
 累積差分（修正前の版 fixboard.base_rev_of から。未追跡を含み .archon/ の下は除く）は置き場の fix.diff に書いて指し札にする（空なら理由のファイルを指す）。
+diff の隣の約束のファイル（受け入れた壊れ・閉鎖の数え直し・差分の審査の穴の名札と手直しの結果・レンズ・受け付けの trace。lib/fixbeside.py）を
+同じ置き場に書く（戻せた組の子の結果が運んだ分と、裁定の後の修正の段の分を合わせる。返りを組めない時は訳つきの空の形）。
 この節は落ちない: 中の誤りは全部捕まえ、done: false・理由（units と groups の reason）・ほかは空の値で返し、終了の値は 0。
 """
+import functools
 import json
 import os
 import sys
@@ -25,7 +28,9 @@ CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_c
                  "path_changed")
 DRIFT_NOTE = "premise_drift_note"   # fixboard.DRIFT_NOTE の写し（lib を読めない時の返りの形）
 ERROR_FILE = "fix-collect-error.txt"
-boundary = fixio = None   # 境の口と fixio。読めない時は fallback が stdlib だけで返す
+# fixbeside.FILES の写し（lib を読めない時の隣の約束のファイルの名。試験が突き合わせる）
+BESIDE = ("handoffs.json", "closure.json", "delta-holes.json", "lenses.json", "accept-trace.json")
+boundary = fixio = fixbeside = None   # 境の口と fixio と隣の約束のファイルの口。読めない時は fallback が stdlib だけで返す
 
 
 def rel(place: Path, name: str) -> str:
@@ -80,6 +85,10 @@ def block(fixboard, conflict) -> dict:
     review, _ = fixboard.delta_review(place)
     checked = fixboard.read_json(place / fixboard.ASSERT_FILE) or {}
     done = isinstance(joined, dict) and checked.get("ok") is True and review["pass"]
+    reply = place / fixboard.FIX_REPLY_FILE
+    fixbeside.write(place, [r for r in results if isinstance(r, dict)], extras[-1],
+                    items=functools.partial(fixboard.place_items, place), plan_review=fixboard.plan_review_file(place),
+                    fix_reply=reply if reply.is_file() else None)
     return fields(fixboard, conflict, place, rows_groups, plan["groups"], [r for r in extras if r is not None], review, done)
 
 
@@ -93,11 +102,13 @@ def group(fixboard, conflict) -> dict:
         result = None
     rows_groups = fixboard.join_rows([g], {gid: (result, result is not None, "" if result else fixboard.NO_RESULT)})
     extras = [result] if result else []
+    fixbeside.write(place, extras)
     return fields(fixboard, conflict, place, rows_groups, [g], extras, dict(NO_REVIEW), result is not None)
 
 
 def error_pointer(why: str) -> dict:
-    """理由を置き場の fix-collect-error.txt に書いた指し札（stdlib だけ。境の口と fixio を読めない時も置く）"""
+    """理由を置き場の fix-collect-error.txt に書いた指し札（stdlib だけ。境の口と fixio を読めない時も置く）。隣の約束のファイル
+    （BESIDE）の無い物も訳つきの空の形 {"error": 訳} で置く（読み手が 0 件に見せない）"""
     try:
         name = fixio.include_name()
     except Exception:
@@ -107,6 +118,9 @@ def error_pointer(why: str) -> dict:
         target = Path(os.environ["ARTIFACTS_DIR"]) / rel_path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(why + "\n", encoding="utf-8")
+        for beside in BESIDE:
+            if not (target.parent / beside).is_file():
+                (target.parent / beside).write_text(json.dumps({"error": why}, ensure_ascii=False) + "\n", encoding="utf-8")
     except Exception:
         pass
     return {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel_path}
@@ -136,7 +150,7 @@ def fallback(why: str) -> dict:
 
 
 def main() -> dict:
-    global boundary, fixio
+    global boundary, fixio, fixbeside
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
     import boundary
@@ -144,6 +158,7 @@ def main() -> dict:
     import fixio
 
     import conflict
+    import fixbeside
     import fixboard
     mode = os.environ.get("INPUTS_MODE", "")
     if mode not in fixio.MODES:

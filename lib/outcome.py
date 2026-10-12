@@ -36,6 +36,7 @@ if str(_HERE) not in sys.path:
 
 import answer  # noqa: E402
 import conflict  # noqa: E402
+import fixbeside  # noqa: E402
 import gatemarks  # noqa: E402
 import replan  # noqa: E402
 import report  # noqa: E402
@@ -49,6 +50,7 @@ STOP_WORDS = report.FINAL_GATE_STOPS   # stop は answer.VERBS の止める語�
 PASS_WORDS = ("approve", *(v for v in answer.VERBS if v not in STOP_WORDS))   # approve は関所の decisions に要る語
 WAIT_WORDS = (stopby.CONFLICT, stopby.REPLAN, stopby.TDD_REPEAT, stopby.NEEDS_HUMAN)   # 線の止めでなく、人の答えを待つ語
 FIX_STATUS_LEFT = ("given_up", "not_done")
+NOT_CLOSED = "直したと申告したが、機械が判定の問いで数え直すと閉じていない"   # 元 report._closed_units が残りから外さなかった単位
 EYE_STATUS_LEFT = (seal.REDESIGN, seal.UNVERIFIABLE)
 EYE_NAMES = tuple(e.lower() for e in report.EYES)
 MISSING_EYE = "の結果が無い——再実行の要あり（深さは標準で、省いていない）"   # 元 rest_outside_validator の missing の行
@@ -122,6 +124,12 @@ def paths(v) -> list:
     if isinstance(v, list):
         return [p for p in v if isinstance(p, str) and p]
     return []
+
+
+def fix_folders(returns: dict) -> list:
+    """修正の段ごとの置き場（fix の返りの diffs の先のフォルダ。1 回目と 2 度目の修正の順。diffs の無い返りは diff の先）"""
+    fix = as_dict(returns.get("fix"))
+    return [pathlib.Path(p).parent for p in paths(fix.get("diffs") if "diffs" in fix else fix.get("diff"))]
 
 
 def record_problems(returns: dict, gates: dict, *, unread=(), unopened=()) -> tuple[list, list]:
@@ -333,6 +341,10 @@ def residue(returns: dict, facts: dict | None = None) -> list:
             if isinstance(u, dict) and u.get("status") in FIX_STATUS_LEFT:
                 rows.append({"where": f"修正 {u.get('unit_id')}",
                              "text": f"単位 {u.get('unit_id')} が {u['status']}: {report._one_line(u.get('reason') or '理由なし')}"})
+        left = {u.get("unit_id") for u in fix.get("units") or [] if isinstance(u, dict) and u.get("status") in FIX_STATUS_LEFT}
+        for k in fixbeside.not_closed(fixbeside.read(fix_folders(returns))):   # 元 report._closed_units: 申告しても表で閉じていない
+            if k not in left:
+                rows.append({"where": f"修正 {k}", "text": f"単位 {k} が閉鎖の表で閉じていない（{NOT_CLOSED}）"})
         if fix.get("done") is False:
             rows.append({"where": "修正", "text": "修正の段が直し終えていない（done が false）"})
         if as_dict(fix.get("delta_review")).get("pass") is False:

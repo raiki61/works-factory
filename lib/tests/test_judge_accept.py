@@ -520,6 +520,16 @@ class StructureUnitsCase(unittest.TestCase):
                           {"id": "上限を呼び手ごとに持つ", "paths": [], "summary": "r"}])
         self.assertEqual(ja.structure_units(None, self.repo), [])
 
+    def test_dropped_paths_are_recorded(self):
+        """L-W08（元 line_edge.structure_units の trace STRUCTURE_UNITS_OP）: パスの取れない単位と捨てたパスを記録に残す（黙って空の
+        実測にしない）。判定の返す節は判定の置き場の STRUCTURE_DROPPED_FILE に書く"""
+        doc = {"units": [self.unit(["b.py", "src", "gone.py"], key="b.py 一"), self.unit(key="上限を呼び手ごとに持つ")]}
+        record = self.repo / "judge" / ja.STRUCTURE_DROPPED_FILE
+        record.parent.mkdir()
+        ja.structure_units(doc, self.repo, record=record)
+        self.assertEqual(json.loads(record.read_text(encoding="utf-8")),
+                         {"units": ["上限を呼び手ごとに持つ"], "paths": ["src", "gone.py", "上限を呼び手ごとに持つ"]})
+
 
 # ================================================================ 材料・前提・目的・素材
 # ---------------------------------------------------------------- 試験の助け
@@ -566,6 +576,26 @@ class IntakeCase(_RepoCase):
         start["input"]["requests"] = 0
         shutil.rmtree(self.jdir)
         self.assertTrue(ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "")["go"], "依頼の無い run は空の行で通す")
+
+
+class CarriedConstraintsCase(_RepoCase):
+    def test_carried_constraints_join_the_premises(self):
+        """E37（次の run の側。S14）: 依頼の constraints（前の run の前提の検算の実測。carry.parts の鍵）を入口が置き場の
+        CARRIED_FILE に置き、前提の実測の受け付けが premises.json の constraints に足す（同じ字は 2 度足さない）。直す穴 findings にも
+        前の失敗 prior_failures にも混ぜない"""
+        import carry
+        row = {"text": "上限は config.py:3 の 10", "measured_how": carry.CARRIED_HOW.format(run="run-0"), "kind": carry.MEASURED}
+        (self.repo / "req.json").write_text(json.dumps({"findings": [{"where": "a.py:1", "text": "穴"}], "constraints": [row]},
+                                                       ensure_ascii=False), encoding="utf-8")
+        start = {"base_rev": self.head, "request_file": "req.json",
+                 "input": {"base": {"rev": self.head}, "diff": {"empty": False}, "requests": 1, "request_file": "req.json"}}
+        self.assertTrue(ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "")["go"])
+        self.assertEqual(ja.read_json(self.jdir / ja.CARRIED_FILE), [row])
+        self.assertEqual(ja.read_json(self.jdir / ja.REQUEST_FILE), [{"where": "a.py:1", "text": "穴"}])
+        self.assertEqual(ja.read_json(self.jdir / carry.PRIOR_IN_FILE), [])
+        got = ja.check_premises(PremisesCase.GOOD, self.jdir, self.repo, [])
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(ja.read_json(self.jdir / "premises.json")["constraints"], [*PremisesCase.GOOD["constraints"], row])
 
 
 class PremisesCase(_RepoCase):

@@ -7,7 +7,8 @@
 読む物（無ければ空で読む）: 組の置き場（fixboard.group_dir）の group-start.json（始めの木）と、自分の置き場の
 tdd-start.json（TDD の輪の頭の返り。輪の結果は tddloop.exit_fields、輪の状態のパスは tdd_state として結果に載せる）・fix-units.json（修正の輪の単位ごとの結末
 {unit_key: {status, reason}}）・fix-reply.json（最後に受け付けた修正役の返答。異議 rejudge_requested と 6 つの印）・
-allowed-tests.json（許したテストの変更のパス）・conflicts.json（今の段の申し出。conflict.this_pass。2 回目の修正の段が写した 1 回目の段の行は載せない）。終わりの木は作業ツリーの今の姿
+allowed-tests.json（許したテストの変更のパス）・conflicts.json（今の段の申し出。conflict.this_pass。2 回目の修正の段が写した 1 回目の段の行は載せない）・
+fix-unit-rows.json（閉鎖の表）・trace.jsonl の受け付けの行（fixbeside.trace_rows。親の collect が diff の隣の約束のファイルに合わせる）。終わりの木は作業ツリーの今の姿
 （groups.end_tree）。子の作業ツリーの実パスも載せる（join がそこから子の書き込みの記録を引き、
 親の記録へ写す。fixio.writes_log）。
 TDD の輪の状態が済んでいなければ tdd を ran: false と理由にする。前の節が落ちた子ではこの節は走らず、結果のファイルは無い
@@ -27,6 +28,7 @@ sys.path.append(str(boundary.lib_root()))
 import fixio  # noqa: E402
 
 import conflict  # noqa: E402
+import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import groups  # noqa: E402
 import tddloop  # noqa: E402
@@ -60,7 +62,7 @@ def main() -> dict:
         fix_units=fixboard.read_json(place / fixboard.FIX_UNITS_FILE, {}), reply=fixboard.read_json(reply_path),
         reply_file=str(reply_path) if reply_path.is_file() else "",
         allowed=fixboard.read_json(place / fixboard.ALLOWED_TESTS_FILE, []) or [], conflicts=conflict.this_pass(place),
-        worktree=os.path.realpath(repo))
+        worktree=os.path.realpath(repo), closure=fixbeside.closure_rows(place), accept_trace=fixbeside.trace_rows(place))
     target = gdir / fixboard.RESULT_FILE
     fixboard.write_json(target, result)
     return {"result_file": str(target)}

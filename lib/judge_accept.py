@@ -1111,17 +1111,26 @@ def _unit_file_paths(u: dict, repo) -> tuple:
     return list(dict.fromkeys(kept)), list(dict.fromkeys(dropped))
 
 
-def structure_units(judgment, repo) -> list:
+STRUCTURE_DROPPED_FILE = "structure-units-dropped.json"   # 構造の目の入力に写せなかったパスと paths の空の単位の記録（元 trace の STRUCTURE_UNITS_OP）
+
+
+def structure_units(judgment, repo, record=None) -> list:
     """元 works/darkfactory/lib/line_edge.py:361。判定の開いた単位（is_open）を全部、構造の目の入力の形 {id, paths, summary} に写した
     並び（判定の順）。summary は単位の reason だけ。元は paths が 1 本も残らない単位を写さなかったが、計画の決めで落とさない
-    （paths: [] で返す。構造の目に回すかは plan が決める）。元の書き出し（盤面の作業ファイル）と trace の行は持たない"""
-    rows = []
+    （paths: [] で返す。構造の目に回すかは plan が決める）。record（ファイルのパス）が在れば、パスの取れない単位と捨てたパスを
+    {units, paths} で書く（元は trace の STRUCTURE_UNITS_OP の 1 行。黙って空の実測にしない）"""
+    rows, empty, dropped = [], [], []
     for u in (judgment.get("units") if isinstance(judgment, dict) else None) or []:
         if not isinstance(u, dict) or not isinstance(u.get("key"), str) or not is_open(u):
             continue
-        paths, _ = _unit_file_paths(u, repo)
+        paths, bad = _unit_file_paths(u, repo)
+        dropped += bad
+        if not paths:
+            empty.append(u["key"])
         reason = u.get("reason") if isinstance(u.get("reason"), str) else ""
         rows.append({"id": u["key"], "paths": paths, "summary": reason})
+    if record is not None:
+        write_json(record, {"units": empty, "paths": list(dict.fromkeys(dropped))})
     return rows
 
 
@@ -1429,10 +1438,19 @@ PREMISES_SCHEMA = {
 }
 
 
+def with_carried(reply: dict, jdir) -> dict:
+    """前提の実測の返答の制約に、依頼が運んだ前の run の前提の検算の実測（CARRIED_FILE。carry.CONSTRAINTS の行）を足した物（同じ字の
+    制約は 2 度足さない）。元 review-loop.py:3751-3755 の finalize が facts_to_add を盤面の制約に足した形を run をまたいで戻す"""
+    carried = [c for c in read_json(pathlib.Path(jdir) / CARRIED_FILE, []) or [] if isinstance(c, dict)]
+    have = {c.get("text") for c in reply.get("constraints") or [] if isinstance(c, dict)}
+    return {**reply, "constraints": [*(reply.get("constraints") or []), *(c for c in carried if c.get("text") not in have)]}
+
+
 def check_premises(reply: dict, jdir, repo, items: list) -> dict:
     """元 works/.shared/core/premises.py:125（と blk-premises/scripts/accept.py:32 の accept_premises）。実測役の返答を受け付ける:
     型（PREMISES_SCHEMA）→ 依頼の実測を測り直したか（check_claims）→ 作業ツリーか HEAD が変わっていれば拒む（_tree_unchanged。
-    バイトコードは数えない）→ post_check（measured_needs_output）。通れば置き場の premises.json に返答を書く。
+    バイトコードは数えない）→ post_check（measured_needs_output）。通れば置き場の premises.json に返答を書く（依頼が運んだ前の run の
+    実測を制約に足す。with_carried）。
     items は依頼の行（judge/request.json）。{ok, reason}"""
     def run():
         core_accept.type_errors(reply, PREMISES_SCHEMA, "前提の実測の返答")
@@ -1447,7 +1465,7 @@ def check_premises(reply: dict, jdir, repo, items: list) -> dict:
             # 修正の差分は版からの差分で数える——ここで残った物は修正役の差分に混じる）
             _tree_unchanged(jdir, repo_p, PREMISES_RULE, TREE_FILE, bytecode=False, rev=rev)
             measured_needs_output(_purpose.PREMISES_NODE, copy.deepcopy(reply))
-        write_json(pathlib.Path(jdir) / _premises.PREMISES_FILE, reply)
+        write_json(pathlib.Path(jdir) / _premises.PREMISES_FILE, with_carried(reply, jdir))
         return {"ok": True, "reason": ""}
     return core_accept.guard(run)
 
@@ -4009,6 +4027,7 @@ def world_finish(jdir) -> dict:
 START_FILE = "start.json"          # 始めの記録を既定の値で読んだ物（start_view）
 INTAKE_FILE = "intake.json"        # 入口の返り {go, mode, spec, world, verify, reason}
 REQUEST_FILE = "request.json"      # 依頼の行（check_request が通した物。仕様の段が受け入れ条件の行を積む）
+CARRIED_FILE = "carried-constraints.json"   # 依頼が運んだ前の run の前提の検算の実測（carry.CONSTRAINTS の行。check_premises が制約に足す）
 TREE_FILE = "judge-tree.json"      # 入口の時（仕様の段が在れば承認の後）の作業ツリーの姿（accept.tree_state）。並行 PR と前提の受け付けが比べる
 STOP_FILE = "stop.json"            # 止めの控え {stop_reason, reason}。最初に止めた節の物だけ残す
 DEFAULT_FEATURES_CUT = ["judge_verify"]   # 今の works の入口の既定（判定の裏取りは既定で切）
@@ -4102,6 +4121,7 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None
             if checked.get("ok") is not True:
                 raise ValueError(checked.get("reason") or "依頼の行が型に通らない")
         write_json(jdir / REQUEST_FILE, rows)
+        write_json(jdir / CARRIED_FILE, container[carry.CONSTRAINTS])
         carry.place_prior(jdir, [*container[carry.PRIOR], *prior_of(prior)])
         snap_tree(jdir, TREE_FILE, repo)
     except (ValueError, OSError, Reject) as e:
@@ -4206,7 +4226,7 @@ def verdict(jdir, rdir, repo, objection: str, ptr) -> dict:
     spec = jdir / SPEC_FILE if (jdir / SPEC_FILE).is_file() else None
     outside = jdir / OUT_OF_PURPOSE_FILE if (jdir / OUT_OF_PURPOSE_FILE).is_file() else None
 
-    units = structure_units(judgment, repo) if stop is None else []
+    units = structure_units(judgment, repo, record=here / STRUCTURE_DROPPED_FILE) if stop is None else []
     rel = lambda p: None if p is None else ptr(f"{p.parent.name}/{p.name}")   # noqa: E731
     return {
         "ready": stop is None and bool(units),

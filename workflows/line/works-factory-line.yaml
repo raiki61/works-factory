@@ -574,6 +574,7 @@ nodes:
         replan_items: {}
         objection: {}
         diff: {}
+        diffs: { type: array }
         allowed_test_changes: {}
         changed: {}
         x_scalars: { type: object }
@@ -585,7 +586,7 @@ nodes:
         plan: {}
         ripple: {}
         stop_reason: { type: string }
-      required: [units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, x_scalars, delta_review,
+      required: [units, groups, conflicts, replan_items, objection, diff, diffs, allowed_test_changes, changed, x_scalars, delta_review,
                  done, go, rejudge, refixed, plan, ripple, stop_reason]
     mutates_checkout: false
     depends_on: [after-fix, refix-run, replan-out]
@@ -798,6 +799,7 @@ nodes:
       premise_check: "$eyes.output.premise_check"
       structure_after: "$eyes.output.structure_after"
       protected_hits: "$eyes.output.protected_hits"
+      notes: "$eyes.output.notes"
 
   # 10 封じる
   - id: merge-seal
@@ -857,6 +859,7 @@ nodes:
       evidence: "$test-gate-final.output.evidence"
       protected_hits: "$merge-seal.output.protected_hits"
       conflicts: "$fixed.output.conflicts"
+      fix_diffs: "$fixed.output.diffs"
       allowed_test_changes: "$fixed.output.allowed_test_changes"
       r1: "$eyes.output.r1"
       r2: "$eyes.output.r2"
@@ -864,6 +867,7 @@ nodes:
       r4: "$eyes.output.r4"
       premise_check: "$eyes.output.premise_check"
       questions: "$eyes.output.questions"
+      eye_notes: "$eyes.output.notes"
       objection: "$fixed.output.objection"
       rejudge_verdict: "$judged.output.rejudge_verdict"
       sealed: "$merge-seal.output.ok"
@@ -871,6 +875,7 @@ nodes:
       hash: "$merge-seal.output.hash"
       sealed_diff: "$merge-seal.output.diff"
       structure_after: "$eyes.output.structure_after"
+      structure: "$plan-rounds.output.structure"
       judgment: "$judged.output.judgment"
       units: "$judged.output.units"
       rejudged: "$judged.output.rejudged"

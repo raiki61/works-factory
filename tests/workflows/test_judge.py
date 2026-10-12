@@ -736,6 +736,9 @@ class JudgedVerdictTest(StopPathFilesMixin, unittest.TestCase):
         self.assertEqual([u["id"] for u in out["units"]], [KEY])
         self.assertEqual(out["units"][0]["paths"], ["stats.py"])
         self.assertEqual(out["units"][0]["summary"], open_reply()["units"][0]["reason"])
+        import judge_accept
+        self.assertEqual(json.loads((r.judge / judge_accept.STRUCTURE_DROPPED_FILE).read_text(encoding="utf-8")),
+                         {"units": [], "paths": []}, "L-W08: 捨てたパスの記録を判定の置き場に残す")
         self.assertIsNone(out["rejudge_verdict"])
         self.assertEqual(r.resolve(out["out_of_purpose"]), r.judge / "out-of-purpose.json")
         carried = json.loads((r.judge / "out-of-purpose.json").read_text(encoding="utf-8"))

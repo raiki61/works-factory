@@ -22,7 +22,7 @@ SCENARIOS = (
     "standard", "start-refused", "no-fix", "policy-continue", "policy-stop", "plan-stalled", "plan-unsettled", "replan",
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
     "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "rejudge-stop", "unattended-questions",
-    "unattended-policy-change", "eyes-failed-protected",
+    "unattended-policy-change", "eyes-failed-protected", "refix-handoff",
 )
 
 
@@ -238,6 +238,35 @@ class ConflictGateTest(unittest.TestCase):
         self.assertIn("食い違いの申し出を人に回した（1 件）", got["text"].splitlines()[0])
         self.assertIn("- u1: 裁定の文 2（ask_human）（名指し stats.py:3, test_stats.py:2・種類 needs_context・", got["text"])
         self.assertNotIn("裁定の文 1", got["text"])
+
+
+class RefixHandoffTest(unittest.TestCase):
+    """部分 D2 の受け入れ（筋書き refix-handoff。L-W20・F427・R23）: 1 回目と 2 度目の修正の段の diff の隣の handoffs.json（修正役が
+    壊すと分かって通した理由）が在ると、開き方 when_needed でも最後の関所が開き、1 行目に件数、節に 1 件 1 行で出る。dry-run は置き場に
+    ファイルを書けない（ConflictGateTest と同じ訳）ので、筋書きでは開かずに読めない控えを名指すことを照らし、開くかは筋書きが
+    ask-final に結んだ値（fixed の diffs）のまま script を走らせ直して照らす"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.trace = line_traces(("refix-handoff",))["refix-handoff"]
+
+    def test_scenario_names_the_unreadable_beside_files_without_opening(self):
+        got = json.loads(self.trace["ask-final"]["output"])
+        self.assertEqual((got["open"], got["go"], got["reasons"]), (False, True, []), got)
+        self.assertEqual(len(bound(self.trace, "$fixed.output.diffs")), 2, "1 回目と 2 度目の修正の diff")
+
+    def test_accepted_breaks_open_the_gate_and_are_listed(self):
+        diffs = bound(self.trace, "$fixed.output.diffs")
+        with tempfile.TemporaryDirectory() as tmp:
+            for n, ptr in enumerate(diffs, 1):
+                folder = (pathlib.Path(tmp) / ptr["path"]).parent
+                folder.mkdir(parents=True, exist_ok=True)
+                (folder / "handoffs.json").write_text(json.dumps([{"unit_key": "u1", "accepted": f"段 {n} で既定が変わる"}],
+                                                                 ensure_ascii=False), encoding="utf-8")
+            got = rerun(self.trace, "ask-final", pathlib.Path(tmp), diffs[0]["run_id"])
+        self.assertTrue(got["open"], got)
+        self.assertIn("修正役が人に回した物が在る（2 件）", got["text"].splitlines()[0])
+        self.assertIn("- u1: 壊すと分かって通した——段 1 で既定が変わる\n- u1: 壊すと分かって通した——段 2 で既定が変わる", got["text"])
 
 
 class RefixInputsTest(unittest.TestCase):

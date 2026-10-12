@@ -24,7 +24,7 @@ SHAPES = {
     "plan_review": plan_out.REVIEW,
     "plan_rounds": (*plan_out.PLAN, *plan_out.REVIEW, "stop_reason"),
     "fix": fixed.FIELDS,
-    "eyes": ("ok", "r1", "r2", "r3", "r4", "questions", "premise_check", "structure_after", "protected_hits"),
+    "eyes": ("ok", "r1", "r2", "r3", "r4", "questions", "premise_check", "structure_after", "protected_hits", "notes"),
     "merge": ("mode", "ok", "hash", "diff", "protected_hits", "reason"),
 }
 

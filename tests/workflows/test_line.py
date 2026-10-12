@@ -40,6 +40,7 @@ result = load("result")
 import answer  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
 import boardview  # noqa: E402
 import conflict  # noqa: E402
+import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
@@ -929,6 +930,28 @@ class AskFinalCase(unittest.TestCase):
                 self.assertTrue(out["text"].splitlines()[4].startswith("## " + ask_final.ALLOWED_TESTS_HEAD))
         self.assertEqual(self.ask(got, "protected_only", unattended=True)["stop_reason"], linekit.NEEDS_HUMAN)
 
+    def test_accepted_breaks_open_and_are_listed(self):
+        """L-W20・F427: 修正役が人に回した物（壊すと分かって通した理由）が在れば開ける理由にし（元 _final_needs の handoffs）、
+        1 行目に件数、節 HANDOFF_HEAD に 1 件 1 行で並べる。開き方 when_needed で開き、無ければ開かない"""
+        rows = ["u1: 壊すと分かって通した——古い呼び手の戻り値が変わる"]
+        out = self.ask(self.got(handoffs=rows), "when_needed")
+        self.assertTrue(out["open"])
+        self.assertIn(f"{ask_final.HANDOFF_REASON}（1 件）", out["text"].splitlines()[0])
+        self.assertIn(f"## {fixbeside.HANDOFF_HEAD}（1 件。通すのは人の continue だけ）\n\n- {rows[0]}", out["text"])
+        self.assertFalse(self.ask(self.got(), "when_needed")["open"])
+
+    def test_recount_mismatch_is_a_reason(self):
+        """L-W21・F428: 直したという申告と機械の数え直しが合わない単位（closure_lines の mismatched_only）が在れば開ける理由にし、
+        減っていない単位（STUCK_HEAD）と閉鎖の数え直しの節（CLOSURE_HEAD）を並べる"""
+        got = self.got(mismatched=["A: 閉じていない（defects・修正前 3・修正後 3）"], stuck=["A: 閉じていない（defects）"],
+                       closure=["C: 閉鎖の表に行が無い"])
+        out = self.ask(got, "when_needed")
+        self.assertTrue(out["open"])
+        self.assertIn(f"{ask_final.MISMATCH_REASON}（1 件）", out["text"].splitlines()[0])
+        self.assertIn(f"## {querytest.STUCK_HEAD}（1 件）", out["text"])
+        self.assertIn(f"## {querytest.CLOSURE_HEAD}（1 件）\n\n- C: 閉鎖の表に行が無い", out["text"])
+        self.assertFalse(self.ask(self.got(stuck=["A"], closure=["C"]), "when_needed")["open"], "閉じていないだけは見せるだけ")
+
     def test_open_and_first_line_come_from_one_list(self):
         """L-G48: 開くかと 1 行目の開けた理由は同じ 1 つの列（ask_final.needs）。開き方に依らず開く理由は列の印 must だけで決まる"""
         cases = (self.got(protected_hits=["tests/x.py"]), self.got(asked=["u1: 人に回した"]), self.got(green=False),
@@ -969,13 +992,15 @@ class AskFinalCase(unittest.TestCase):
 
     def test_final_text_sections_match_the_original(self):
         """L-W34: 例で試していない単位・同じ run で直した案の項目（AMEND_HEAD）・持ち越した単位（split_line）・取り込むと消える
-        ファイル・残りの件数（目の阻害と結果が無い目）と、数えられない clean・レンズ・仕組みの異常の訳を並べる"""
+        ファイル・残りの件数（目の阻害と結果が無い目）と、clean・レンズ・仕組みの異常の行（修正の diff の隣の控え。fixbeside.always_rows）を並べる"""
         got = self.got(unproven=["u1: 例が無い"], amend=["案の項目 1: 直した——人が承認した"],
                        split="修正の段は 1 単位（u1）を受け、1 単位（u2）を止めて持ち越した", deleted=["old.py"],
+                       always=["clean が消したファイル（fix）: 0 本", fixbeside.ANOMALY_LINE],
                        eyes={**self.got()["eyes"], "r3": {"status": "redesign-needed", "reason": ""}, "r4": None})
         text = ask_final.final_text(got, [], RUN)
         for want in (f"## {querytest.UNPROVEN_HEAD}（1 件）", "- u1: 例が無い", f"## {replan.AMEND_HEAD}（1 件）", "- 案の項目 1: 直した",
-                     f"- {seal.DELETED_HEAD}: old.py", "独立の目の阻害 1 件（R3）・結果が無い目 1 件（R4）", ask_final.NOT_COUNTED):
+                     f"- {seal.DELETED_HEAD}: old.py", "独立の目の阻害 1 件（R3）・結果が無い目 1 件（R4）",
+                     "- clean が消したファイル（fix）: 0 本", f"- {fixbeside.ANOMALY_LINE}"):
             self.assertIn(want, text)
         self.assertIn("1 単位（u2）を止めて持ち越した", text.splitlines()[0])
         self.assertEqual(replan.amend_lines(["1"], refixed=False), [f"案の項目 1: 直さずに諦めた: {replan.NOT_RUN_WHY}"])
@@ -1081,6 +1106,109 @@ class AskFinalReadsCase(Artifacts):
         rows, unread = ask_final.fenced_rows(self.place("eyes/structure-after.json", {"status": "?"}))
         self.assertEqual(rows, [])
         self.assertIn("控え structure-after.json を読めない", unread)
+
+    def test_null_structure_after_is_said(self):
+        """L-W54: 直した後の構造の実測が無い（eyes の structure_after が null。実測の節が落ちた）時は、線を止めずに、そう言う 1 行を
+        関所の文に出す。実測の一部が落ちた（status: failed）時は数の 1 文に理由を添える"""
+        fenced, after, unread = ask_final.after_rows(None)
+        self.assertEqual((fenced, after, unread), ([], [ask_final.NO_AFTER], ""))
+        self.assertIn(f"- {ask_final.NO_AFTER}", ask_final.final_text(final_got(after=after), [], RUN))
+        ptr = self.place("eyes/structure-after.json", {"status": "failed", "reason": "版が引けない", "deviations": [], "after": {}})
+        self.assertIn("（実測の一部が落ちた: 版が引けない）", ask_final.after_rows(ptr)[1][0])
+
+    def test_final_gate_shows_the_after_counts(self):
+        """E73: 直した後の実測の数の 1 文（structmark.after_counts）・増えた所・新しい名を最後の関所に並べ、柵の増えは開ける理由にする"""
+        rise = {"concept": "止め", "what": "語", "path": "a.py", "before": 1, "after": 2}
+        ptr = self.place("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
+                                                       "after": {"tables": ["t"], "fence_up": [rise], "changed": ["a.py"],
+                                                                 "new_names": [{"name": "n", "sites": 1}]}})
+        fenced, after, _ = ask_final.after_rows(ptr)
+        got = final_got(fenced=fenced, after=after)
+        text = ask_final.final_text(got, ask_final.final_needs(got), RUN)
+        self.assertIn("- 直しの後の実測（直しの前の版と今の作業ツリーの差分。機械が測った）: 変わったファイル 1 本", text)
+        self.assertIn("  - 新しい名 n（現れる所 1 か所）", text)
+        self.assertIn("考えの住処の柵の数が増えた（1 件", text.splitlines()[0])
+
+    def test_failed_structure_is_marked(self):
+        """L-W09: 計画の構造の目が落ちた周（計画の返り structure の先の structure-state.json が status: failed）は、計画を止めずに
+        進め、最後の関所に「構造のブロック: 構造の目の行なしで計画した（理由: …）」を出す"""
+        ptr = self.place("plan/structure/structure-state.json", {"status": "failed", "reason": "構造の目の役が落ちた",
+                                                                  "design_file": "", "wall_s": 0})
+        missing = ask_final.structure_missing(ptr)
+        self.assertEqual(missing, "構造の目の行なしで計画した（理由: 構造の目の役が落ちた）")
+        self.assertIn(f"- 構造のブロック: {missing}", ask_final.final_text(final_got(structure_missing=missing), [], RUN))
+        ok = self.place("plan/structure/structure-state.json", {"status": "ok", "reason": "", "design_file": "", "wall_s": 0})
+        self.assertEqual(ask_final.structure_missing(ok), "")
+        self.assertEqual(line_nodes()["ask-final"]["with"]["structure"], "$plan-rounds.output.structure")
+
+    def test_fix_beside_files_reach_the_final_gate(self):
+        """F013・F041・F312・F329・L-W20・L-W21（S03・S28・S29）: 最後の関所は修正の段ごとの diff の隣の約束のファイル（fixed の diffs。
+        1 回目と 2 度目の修正の両方）を読み、受け入れた壊れ・申告と合わない単位・回さなかった試験・確かめずに受けた回・穴の名札と
+        手直しの結果・clean とレンズを並べる。読めないファイルは訳にする"""
+        import fixboard
+        diffs = []
+        for name, accepted in (("fix", "古い呼び手が壊れる"), ("refix-run", "既定が変わる")):
+            diffs.append(self.place(f"fix/{name}/fix.diff", {}))
+            folder = self.artifacts / "fix" / name
+            fixbeside.write(folder, [{"handoffs": [{"unit_key": f"u-{name}", "accepted": accepted}],
+                                      "closure": [{"unit_key": f"u-{name}", "closed": False, "discrepancies": ["合わない"]}],
+                                      "accept_trace": [{"op": fixbeside.TESTS_OP, "ci_left": [f"t_{name}.py"], "final_left": [],
+                                                        "final_far": []},
+                                                       {"op": fixbeside.SKIPPED_OP, "why": ["実行器が無い"]}]}])
+            fixboard.write_json(folder / "fix-removed.json", {"removed": ["build/x.o"]})
+        (self.artifacts / "fix" / "refix-run" / fixbeside.LENSES_FILE).unlink()
+        fixboard.write_json(self.artifacts / "fix" / "fix" / fixbeside.DELTA_HOLES_FILE, {
+            "ties": {"1": [{"key": "穴1", "branches": ["item:1"], "via": ["path"], "held": ""}]},
+            "handled": {"1": [{"key": "穴1", "handled": "fixed", "how": "直した"}]}})
+        got = ask_final.fix_beside(diffs)
+        self.assertIn("  - 穴1: 項目 1", got["branch_rows"])
+        self.assertEqual(len(got["handoffs"]), 2)
+        self.assertEqual([x.split("（")[0] for x in got["mismatched"]], ["u-fix: 閉じていない", "u-refix-run: 閉じていない"])
+        self.assertIn("  - t_refix-run.py", got["tests_left"])
+        self.assertEqual(got["gates"], ["事後の関門の束: 受け付け 2 回が受け入れのテストの赤緑を確かめずに通した（理由: 実行器が無い）"])
+        self.assertIn("clean が消したファイル（refix-run）: 1 本", got["always"])
+        self.assertEqual(got["always"][-1], fixbeside.ANOMALY_LINE)
+        self.assertEqual(len(got["beside_unread"]), 1)
+        self.assertIn(fixbeside.LENSES_FILE, got["beside_unread"][0])
+        self.assertEqual(line_nodes()["ask-final"]["with"]["fix_diffs"], "$fixed.output.diffs")
+        text = ask_final.final_text(final_got(**{k: v for k, v in got.items() if k != "beside_unread"}), [], RUN)
+        for want in ("- 修正の受け付けが手元で回さなかった試験（2 件", "- 事後の関門の束: 受け付け 2 回", "- clean が消したファイル（fix）: 1 本",
+                     "  - build/x.o", "u-fix: 壊すと分かって通した——古い呼び手が壊れる", f"- {fixbeside.BRANCH_HEAD[1]}: 1 件（",
+                     "  - 穴1: 直した（fixed）——直した"):
+            self.assertIn(want, text)
+
+    def test_final_gate_lists_the_r2_premise_inputs(self):
+        """E45・E66・E37（S12）: 独立の目の返り notes（premise-inputs.json）の隣から、R2 の行の下に「渡されていない」と書いた文・
+        そのうち渡していた物（claims_given）・2 つの役に渡した前提と渡していない物・独立設計の後の答え（元 line_edge._r2_inputs）を、
+        修正前の関所で通した行に「人が通したので R4 で聞き直さなかった行」（gate-passes.json）を、前提の検算の行の下に偽と分かった
+        仮定の問いと次の run の制約に足す実測（premise-check.json）を並べる。notes が null なら控えが無いと言う"""
+        import eyeverdict
+        notes = self.place(f"eyes/{eyeverdict.PREMISE_INPUTS}", {
+            "design": {"given": [{"kind": "制約", "what": "上限 10"}], "withheld": [{"kind": "人の答え", "what": "x", "why": "後に来た"}]},
+            "compare": {"given": [], "claims_given": [{"claim": "上限", "kind": "制約", "what": "上限 10"}], "after_design": ["continue"]},
+            "claims": ["上限が渡されていない"]})
+        self.place(f"eyes/{eyeverdict.GATE_PASSES}", [{"node": gatemarks.R4_GATE_NODE, "round": 1, "by": gatemarks.PASSED_BY_HUMAN,
+                                                       "item": "R4 が BASE から消えたと見た能力: 古い入口",
+                                                       "passed_at": {"node": gatemarks.GATE_NODE, "round": 1}}])
+        self.place("eyes/premise-check.json", {"key": "上限を持つか", "verdict": "resolved", "reason": "在る", "resolution": "10",
+                                               "facts_to_add": ["上限は 10"]})
+        got = ask_final.eye_notes(notes)
+        self.assertEqual(got["notes_unread"], [])
+        self.assertEqual(len(got["eye_passes"]), 1)
+        eyes = {**final_got()["eyes"], "premise_check": {"verdict": "resolved", "reason": "在る"}}
+        text = ask_final.final_text(final_got(r2_inputs=got["r2_inputs"], premise_facts=got["premise_facts"], eyes=eyes,
+                                              passes=got["eye_passes"]), [], RUN)
+        for want in ("    - 独立の設計と比べる目が渡されていないと書いた（R2）: 上限が渡されていない",
+                     "    - 独立の設計と比べる目が渡されていないと書いたが、渡していた（R2）: 上限 ← 制約: 上限 10",
+                     "    - 独立設計の後に来た人の答え（独立の設計と差分を比べる役にだけ渡った）: continue",
+                     "    - 独立の設計を作る役に渡した前提の入力（design）: 制約: 上限 10", "    - run に在ったが渡していない: 人の答え: x（後に来た）",
+                     "    - 次の run の制約に足す実測: 上限は 10", "R4 が BASE から消えたと見た能力: 古い入口"):
+            self.assertIn(want, text)
+        self.assertLess(text.index("（R2）: 上限が渡されていない"), text.index("R3"))
+        self.assertEqual(ask_final.eye_notes(None)["r2_inputs"],
+                         ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の返り notes が null）"])
+        self.assertEqual(line_nodes()["ask-final"]["with"]["eye_notes"], "$eyes.output.notes")
+        self.assertEqual(line_nodes()["eyes-out"]["with"]["notes"], "$eyes.output.notes")
 
     def test_unread_is_shown_in_the_gate_text(self):
         text = ask_final.final_text(final_got(unread=["読めない訳"]), [], RUN)
@@ -1356,6 +1484,14 @@ class FixedCase(unittest.TestCase):
         got = fixed.fixed(self.fix(), None, replan=False, stops=("", ""))
         self.assertEqual((got["conflicts"], got["refixed"], got["diff"]), ([{"path": "fix/conflicts.json"}], False, {"path": "fix/diff"}))
         self.assertTrue(got["done"])
+
+    def test_diffs_name_both_passes(self):
+        """部分 D2: fixed は段ごとの diff の指し札の並び diffs（1 回目・2 度目の順。どちらの隣にも段の約束のファイル）を返し、最後の
+        関所と報告が両方を読む。2 度目が走らなければ 1 回目だけ"""
+        first = fixed.fixed(self.fix(), None, replan=False, stops=("", ""))
+        self.assertEqual(first["diffs"], [{"path": "fix/diff"}])
+        both = fixed.fixed(self.fix(), self.fix(diff={"path": "refix/diff"}), replan=True, stops=("", ""))
+        self.assertEqual((both["diff"], both["diffs"]), ({"path": "refix/diff"}, [{"path": "fix/diff"}, {"path": "refix/diff"}]))
 
     def test_replan_without_the_second_fix_is_not_done(self):
         """案の直しの関所の stop・無人の止め・案ができなかった時に、1 回目の修正の差分を試験の関門から先へ進めない"""

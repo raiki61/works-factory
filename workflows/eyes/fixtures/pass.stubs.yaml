@@ -136,3 +136,4 @@ verdict:
   premise_check: null
   structure_after: *id001
   protected_hits: []
+  notes: null

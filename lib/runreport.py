@@ -36,7 +36,9 @@ import depth as depthlib  # noqa: E402
 import declared_checks  # noqa: E402
 import design  # noqa: E402
 import diverted  # noqa: E402
+import fixbeside  # noqa: E402
 import entry as entrylib  # noqa: E402
+import eyeverdict  # noqa: E402
 import forge  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
@@ -99,6 +101,7 @@ HUMAN_FACE_KINDS = ("regression", "policy")   # 事前審査の穴のうち人�
 GROUP_WHERE = "組"
 REJUDGE_LEFT_WHERE = "判定（再審されずに残った異議）"
 UNSEEN = "取れない（docs/design.md の U6。読んだ証拠を run の記録から取り出す口が無い）"
+EYE_PASSES_HEAD = "人が通した行（修正前の関所で人が通したので、独立の目 R4 の問いから外して聞き直さなかった行）"
 # 線の値（線の collect が report の入力で渡す物。docs/design.md の report の返り）の行の頭
 DEFERRED_HEAD = "無人の run で修正前の関所に載せずに報告へ回した問い（関所を開かずに修正へ進めた）"
 FINAL_REASONS_HEAD = "最後の関所を開ける理由（無人の run では開かずに止めた理由）"
@@ -151,6 +154,17 @@ def _first_beside(returns: dict, name: str) -> pathlib.Path | None:
     再審の judgment の隣には無い（docs/design.md の隣のファイル）。指し札が無ければ None"""
     p = as_dict(returns.get("judge")).get("judgment")
     return pathlib.Path(p).with_name(name) if isinstance(p, str) and p else None
+
+
+def fix_beside(returns: dict) -> dict:
+    """修正の段ごとの diff の隣の約束のファイルの見え方（fixbeside.read。fix の返りの diffs の先のフォルダ。1 回目と 2 度目の修正）"""
+    return fixbeside.read(oc.fix_folders(returns))
+
+
+def eye_notes_dir(returns: dict) -> pathlib.Path | None:
+    """独立の目の返り notes（premise-inputs.json）のフォルダ（隣の gate-passes.json・premise-check.json と一緒の約束）。無ければ None"""
+    p = as_dict(returns.get("eyes")).get("notes")
+    return pathlib.Path(p).parent if isinstance(p, str) and p else None
 
 
 def _read_beside(returns: dict, rid: str, field: str, name: str):
@@ -550,7 +564,8 @@ def _asked_rows(returns: dict, closed: bool) -> list:
 def next_request(returns: dict, left: list, closed: bool = True) -> list:
     """次の依頼の findings（元 report.py:784）: 残りの行（R2 の作り直しの行は前の失敗にだけ載せる。人に回した単位の修正の行は
     その単位の行が持つ）・判定が目的の外とした所見・親の木へ戻せなかった組・再審の結果と再審されずに残った異議・再審が直す単位にした
-    単位・人に回した申し出の単位・途中で落ちた run（closed が偽）の案の直しを待つ単位"""
+    単位・手直しが declared で残した穴と 2 回目の手直しが fixed と言った穴（枝の名札つき）・落ちたレンズの「再実行の要あり」
+    （fixbeside.next_items）・人に回した申し出の単位・途中で落ちた run（closed が偽）の案の直しを待つ単位"""
     asked = _asked_rows(returns, closed)
     owned = {f"修正 {r['where']}" for r in asked}
     items = [r for r in left if not report._r2_redesign(r) and r["where"] not in owned]
@@ -565,6 +580,7 @@ def next_request(returns: dict, left: list, closed: bool = True) -> list:
         items.append({"where": REJUDGE_LEFT_WHERE, "text": objection})
     items += [{"where": k, "text": f"{k}（再審が直す単位にした——この run では直していない）"} for k in rejudge_opened(returns)]
     items += [{"where": k, "text": f"{k}（再審が block から {label} に下げた——人が確かめる）"} for k, label in rejudge_lowered(returns)]
+    items += fixbeside.next_items(fix_beside(returns))
     items += asked
     seen, out = set(), []
     for it in items:
@@ -649,6 +665,11 @@ def _gate_passes(returns: dict) -> list:
         rows = rows if isinstance(rows, list) else [rows]
         out.append(f"修正前の関所が聞かずに通した行（{rid}）: {len(rows)} 件")
         out += [f"  - {report._one_line(json.dumps(x, ensure_ascii=False) if not isinstance(x, str) else x)}" for x in rows]
+    at = eye_notes_dir(returns)
+    if at is not None:   # E66: 人が通したので R4 の問いから外した行（元 gatemarks.lines の by human の行）
+        rows = eyeverdict.gate_pass_rows(at)
+        out += ([f"{EYE_PASSES_HEAD}: {len(rows)} 件", *[f"  - {x}" for x in gatemarks.pass_lines(rows)]] if rows is not None
+                else [f"{EYE_PASSES_HEAD}: 読めない（{at / eyeverdict.GATE_PASSES}）"])
     return out
 
 
@@ -832,10 +853,13 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     premise = as_dict(as_dict(returns.get("eyes")).get("premise_check"))
     escalate = [premise] if premise.get("verdict") == "escalate" else []
     checks = left if outcome == "fixed_needs_check" else []
+    beside = fix_beside(returns)
+    handoffs = fixbeside.handoff_lines(beside)
     counted_units = {f"修正 {u.get('unit_id')}" for u in unreturned}
     rest = [r for r in left if r["where"] not in counted_units] if outcome == "round_limit" else []
     parts = [("修正前の問い", plan_qs), ("独立の目 R4 の問い", eye_qs), ("保留にしたままの問い", held_),
-             ("人に回した食い違いの申し出", asked), ("守りのパスに当たった差分", _hits(returns)), ("許したテストの変更", tests),
+             ("人に回した食い違いの申し出", asked), (fixbeside.HANDOFF_HEAD, handoffs),
+             ("守りのパスに当たった差分", _hits(returns)), ("許したテストの変更", tests),
              ("直す義務に戻せなかった単位", unreturned), ("前提の検算が人に上げた物", escalate), (report.CHECKS_LEFT, checks),
              ("直しきれずに残った物", rest), ("記録が通らないこと", [outcome] if outcome == "record_invalid" else [])]
     lines = []
@@ -868,7 +892,13 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     lines += _design_lines(returns)
     lines.append(f"{RESIDUE_HEAD}: {len(left)} 件（最後のテストが緑でない・独立の目の阻害と結果が無い目・修正の段の残り・直しの後の実測が"
                  "見た住処の外の知る場所の増え・測れていない素材・落ちたが線が受け止めた節）" + (f"。{MISSING_EYE_NOTE}" if left else ""))
+    lines += fixbeside.always_rows(beside)
     lines += _tests_head_lines(returns)
+    lines += [*fixbeside.tests_left_lines(beside), *fixbeside.gates_lines(beside), *fixbeside.plan_ask_lines(beside)]
+    lines += _counted(querytest.STUCK_HEAD, fixbeside.closure_lines(beside, stuck_only=True))
+    lines += _counted(querytest.CLOSURE_HEAD, fixbeside.closure_lines(beside))
+    lines += fixbeside.branch_rows(beside)
+    lines += [f"修正の控え: {x}" for x in beside["unread"]]
     return lines + _gate_passes(returns) + _converge_lines(returns) + _amend_lines(returns, gates, line, closed) + _line_lines(line), decide
 
 
@@ -1022,12 +1052,20 @@ def _eye_lines(returns: dict, typed: dict, eyes_skip=None) -> tuple[list, list]:
     out, notes = [], []
     if eyes is None:
         out.append("独立の目のブロックの返りが無い（飛ばされた・落ちた）")
+    at = eye_notes_dir(returns)
     for name in oc.EYE_NAMES:
         e = as_dict(eyes).get(name)
         if eyes is not None:
             out.append(f"{name.upper()}: " + (f"{e.get('status')}（{report._one_line(e.get('reason') or '理由なし')}）"
                                              if isinstance(e, dict) else oc.MISSING_EYE.removeprefix("の") if eyes_skip == ""
                                              else "深さで省いた"))
+            if name == "r2" and isinstance(e, dict):   # E45: R2 に渡した前提と『渡されていない』と言われた物（元 line_edge._r2_inputs）
+                out += [f"  - {x}" for x in (eyeverdict.r2_input_lines(at) if at is not None
+                                             else ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の返り notes が無い）"])]
+    premise = as_dict(as_dict(eyes).get("premise_check"))
+    if premise:
+        out.append(f"前提の検算: {premise.get('verdict') or '語が無い'}（{report._one_line(premise.get('reason') or '')}）")
+        out += [f"  - {x}" for x in (eyeverdict.premise_fact_lines(at) if at is not None else [])]
     for v in _list(as_dict(as_dict(typed).get("by_type")).get("eye-verdict")):
         b = v.get("body")
         if not (isinstance(b, dict) and set(b) == set(EYE_KEYS)):
@@ -1059,9 +1097,10 @@ def _world_lines(returns: dict) -> list:
 
 
 def _unseen_lens_lines(returns: dict) -> list:
-    """未確認のレンズの節（元 report.py:2069 の diverted.report_lines。1 回目の判定の隣の local-review-lenses.json）"""
+    """未確認のレンズの節（元 report.py:2069-2073: 局所レビューの戻した・見ていないレンズ diverted.report_lines を先に、修正の後の
+    レンズ lens.report_lines を後に。1 回目の判定の隣の local-review-lenses.json と、修正の diff の隣の lenses.json）"""
     at = _first_beside(returns, diverted.LENS_FILE)
-    return (diverted.report_lines(at.parent) if at is not None else []) or ["無い"]
+    return [*(diverted.report_lines(at.parent) if at is not None else []), *fixbeside.lens_lines(fix_beside(returns))] or ["無い"]
 
 
 def _pr_draft_lines(returns: dict) -> list:
@@ -1224,22 +1263,25 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     findings = next_request(returns, left, closed)
     prior = prior_failures(returns, left)
     drafts = answer_drafts(returns, gates, start)
+    notes_at = eye_notes_dir(returns)   # E37: 前提の検算が偽と示した仮定の実測を次の run の制約に運ぶ
+    constraints = carry.carried_constraints(eyeverdict.premise_facts(notes_at)["facts"] if notes_at is not None else [], run_id)
     decisions, decide = _decisions(returns, gates, start, outcome, left, closed=closed, repo=repo, line=line)
     tdd, freeze, tdd_notes = _tdd_lines(typed, returns)
     eye_lines, eye_notes = _eye_lines(returns, typed, redepth.get("skip_optional") if isinstance(redepth, dict) else None)
     _, material_note = oc.materials(returns)
     notes = [*_list(typed.get("warnings")), *tdd_notes, *eye_notes, *([material_note] if material_note else [])]
-    next_file = carry.NEXT_REQUEST_FILE if findings or drafts else ""
+    next_file = carry.NEXT_REQUEST_FILE if findings or drafts or constraints else ""
     draft = gatemarks.draft_line(drafts, next_file)
     _, outside, outside_count = _outside(returns, next_file)
     split = split_line(returns)
     asked_texts = [*gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))),
                    *[q for q in _list(_ret(returns, "eyes").get("questions")) if isinstance(q, str)]]
     head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）" + (f"。{split}" if split else ""),
-                           decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts)} 件")
+                           decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
         (report.DECISIONS_HEADING, [*decisions, *([outside_count] if outside_count else []),
-                                    f"次の run に渡す物: {len(findings) + len(drafts)} 件" + (f"（{next_file}）" if next_file else ""),
+                                    f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件" + (f"（{next_file}）" if next_file else ""),
+                                    *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],
                                     *([draft] if draft else []), *_apply_lines(returns, gates, outcome, stop_reason, run_id or "—")]),
         (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line, gates, repo)),
         (report.STOP_HEADING, _stop_lines(outcome, stop_reason, gates, tfacts, returns, list(problems), line)),
@@ -1260,8 +1302,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     text = "\n\n".join([report.TITLE_HEADING.format(run=run_id or "—") + "\n\n" + "\n".join(head),
                         *(f"{h}\n\n" + "\n".join(_bullets(lines)) for h, lines in sections if lines)]) + "\n"
     paths = {"report": _write_text(out_dir / report_name, text), "next_request": None, "prior_failures": None}
-    doc = carry.compose(findings, prior, drafts)
-    if findings or drafts:
+    doc = carry.compose(findings, prior, drafts, constraints)
+    if findings or drafts or constraints:
         errs = carry.errors(doc, carry.NEXT_SCHEMA)
         if errs:
             raise ValueError(f"次の依頼が約束の Schema に合わない: {errs}")

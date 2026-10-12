@@ -1324,14 +1324,17 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
-                 reply_file: str = "", allowed=(), conflicts=(), worktree: str = "") -> dict:
+                 reply_file: str = "", allowed=(), conflicts=(), worktree: str = "", closure=(), accept_trace=()) -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
-    allowed_test_changes, verified, reply_file, tdd_state, worktree}。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
+    allowed_test_changes, verified, reply_file, tdd_state, worktree, handoffs, closure, claimed, accept_trace}。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
     writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
-    を持つ。無ければ None）、allowed は許したテストの変更のパス、conflicts は置き場の申し出の行（conflict.items）。新しい"""
+    を持つ。無ければ None）、allowed は許したテストの変更のパス、conflicts は置き場の申し出の行（conflict.items）、closure は子の
+    置き場の閉鎖の表の行、accept_trace は子の置き場の受け付けの trace の行。handoffs（壊すと分かって通した理由）と claimed（changes の
+    単位）は reply から組む（fixbeside。親の collect が diff の隣の約束のファイルに合わせる）。新しい"""
+    import fixbeside
     gid = str(group["group_id"])
     keys = [str(k) for k in group.get("unit_ids") or []]
     tdd = tdd if isinstance(tdd, dict) else {"ran": False, "suite": "", "reason": "", "units": []}
@@ -1344,7 +1347,9 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "changed": changed_marks([{"changed": reply}] if reply else []), X_SCALARS: x_scalars([reply] if reply else []),
             "allowed_test_changes": sorted({p for p in allowed or [] if isinstance(p, str) and p}),
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
-            "worktree": str(worktree or "")}
+            "worktree": str(worktree or ""), "handoffs": fixbeside.handoffs_of(reply), "claimed": fixbeside.claimed_of(reply),
+            "closure": [r for r in closure or [] if isinstance(r, dict)],
+            "accept_trace": [r for r in accept_trace or [] if isinstance(r, dict)]}
 
 
 def adopt_tdd_states(place, results, repo, *, prior: bool = False) -> list:
@@ -1781,7 +1786,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         note("scope", scope)
     else:
         duty, excused = fix_duty(place, owed)
-    red, _ = tddloop.selected_problems(state or tests_state, repo, rev)
+    red, tests_note = tddloop.selected_problems(state or tests_state, repo, rev)
     note("tests", red)
     note("plan_faces", plan_face_errors(place, reply, duty if pass_ == "first" else None))
     gates = fixgates.problems(place, repo, rev, suite, iteration, pass_=pass_, owed=set(duty))
@@ -1812,6 +1817,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     if not found:
         units = unit_outcomes([k for k in owed if k not in parked], reply, excused=excused, parked=parked)
         overflow_trace(place, trail, repo, pass_=pass_, attempt=iteration)
+        accept_trace(place, state or tests_state, pass_=pass_, attempt=iteration, note=tests_note)
         return {"ok": True, "reason": "", "rejects": [], "reply": reply, "units": units, "parked": parked,
                 "conflicted": False}
     texts = [t for _, t in rest]   # 最後の回の止めは成り立たない行にだけ当てる（はみ出しは止めた後の通し直しが聞かずに戻す）
@@ -1833,6 +1839,21 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     return accept_reply(_without_units(whole, set(now)), place, repo, pass_=pass_, iteration=iteration, owed=owed,
                         judged=judged, suite=suite, state=state, tests_state=tests_state, base_rev=base_rev, head=head,
                         skip=skip, parked={**parked, **now}, reverted=reverted, trail=trail, log=log)
+
+
+def accept_trace(place, state: str, *, pass_: str, attempt: int, note: str = "") -> None:
+    """受けた回だけ置き場の trace に積む 2 行（元 works/blk-fix/scripts/accept.py:708-714 の traced）: 受け付けが手元で回さなかった
+    試験（tddloop.ci_left）と最後のテストの段に任せた試験（final_left・final_far）と選んだ試験の知らせ note を impact.ACCEPT_TRACE_OP の
+    行に、事後の関門の束が受け入れのテストの赤緑を確かめずに受けた理由（fixgates.unchecked。義務の外を除く）が在れば fixgates.SKIPPED_OP
+    の行に。state は変更に当たる試験を選んだ輪の状態のファイル（無ければ空で、試験の名は空）。読み手は fixbeside（最後の関所と報告）"""
+    import fixgates
+    import impact
+    import tddloop
+    trace(place, impact.ACCEPT_TRACE_OP, node=FIX_ACCEPT_BY, pass_=pass_, attempt=attempt, note=note or "",
+          ci_left=tddloop.ci_left(state), final_left=tddloop.final_left(state), final_far=tddloop.final_far(state))
+    gaps = fixgates.unchecked(place, pass_=pass_, attempt=attempt)
+    if gaps:
+        trace(place, fixgates.SKIPPED_OP, node=FIX_ACCEPT_BY, pass_=pass_, attempt=attempt, why=gaps)
 
 
 def closure_reply(reply: dict, place, repo, rev: str, judged) -> tuple:

@@ -125,3 +125,4 @@ verdict:
   structure_after: *id001
   protected_hits:
   - lib/protect.py
+  notes: null

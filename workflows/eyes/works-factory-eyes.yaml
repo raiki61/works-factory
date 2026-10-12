@@ -419,7 +419,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, r1, r2, r3, r4, questions, premise_check, structure_after, protected_hits]
+      required: [ok, r1, r2, r3, r4, questions, premise_check, structure_after, protected_hits, notes]
       properties:
         ok: {type: boolean}
         r1: &eye_row
@@ -449,3 +449,11 @@ nodes:
             run_id: {type: string}
             path: {type: string}
         protected_hits: {type: array, items: {type: string}}
+        notes:
+          type: [object, "null"]
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}

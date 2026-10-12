@@ -217,6 +217,21 @@ class ReadingCase(unittest.TestCase):
         path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         return str(path)
 
+    def test_unit_not_closed_in_the_closure_table_is_left(self):
+        """R16（元 works/tests/test_report_head.py::ResidueOutcomeCase.test_unit_in_changes_but_not_closed_in_the_table_is_not_fixed :630）:
+        修正の diff の隣の閉鎖の表で closed が偽の単位は、fix の units が fixed でも残りに数え、結末を fixed にしない（round_limit）"""
+        import fixbeside
+        folder = self.dir / "fix" / "fix"
+        folder.mkdir(parents=True)
+        (folder / "fix.diff").write_text("x", encoding="utf-8")
+        fixbeside.write(folder, [{"closure": [{"unit_key": "u1", "closed": False}]}])
+        fix = {**fixed_run()["fix"], "diff": str(folder / "fix.diff"), "diffs": [str(folder / "fix.diff")]}
+        self.assertEqual(decide(fixed_run(fix=fix))[0], "round_limit")
+        left = outcome.residue(fixed_run(fix=fix))
+        self.assertEqual([r["where"] for r in left], ["修正 u1"])
+        fixbeside.write(folder, [{"closure": [{"unit_key": "u1", "closed": True}]}])
+        self.assertEqual(decide(fixed_run(fix=fix))[0], "fixed")
+
     def test_skipped_eyes_are_not_left(self):
         eyes = {**fixed_run()["eyes"], "r1": None, "r2": None}
         self.assertEqual(decide(fixed_run(eyes=eyes))[0], "fixed")
