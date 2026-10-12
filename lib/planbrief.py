@@ -233,19 +233,7 @@ def _drawn(b, src: dict) -> list[tuple[list, str]] | None:
 
 def _trace_rows(b, round_: int = 1) -> list[dict]:
     """今の周（round_）の置き場の trace.jsonl の行（行の並びのまま。読めない行は飛ばす）"""
-    try:
-        lines = (pathlib.Path(b) / fixboard.TRACE_FILE).read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return []
-    out = []
-    for line in lines:
-        try:
-            row = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(row, dict) and row.get("round") == round_:
-            out.append(row)
-    return out
+    return fixboard.trace_rows(b, lambda row: row.get("round") == round_)
 
 
 def _mine(b, row: dict) -> bool:

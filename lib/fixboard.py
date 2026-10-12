@@ -46,6 +46,23 @@ def trace(place, op: str, **kw) -> None:
         f.write(json.dumps({"op": op, **kw}, ensure_ascii=False) + "\n")
 
 
+def trace_rows(place, keep) -> list[dict]:
+    """置き場 place の trace.jsonl の行のうち keep(行) が真の物（行の並びのまま）。trace が無い・読めなければ []。壊れた行は飛ばす"""
+    try:
+        lines = (pathlib.Path(place) / TRACE_FILE).read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return []
+    out = []
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict) and keep(row):
+            out.append(row)
+    return out
+
+
 def base_rev(state, given: str = "") -> str:
     """突き合わせの起点の版: state["inputs"]["review_rev"]（修正前に固めた版）。無ければ given、それも空なら HEAD。
     元 works/.shared/core/writes.py:88（盤面の b.state を読んだ）。state は同じ形の dict（{"inputs": {...}}）か None"""
