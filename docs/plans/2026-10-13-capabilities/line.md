@@ -1491,8 +1491,8 @@
 
 ### #73 plan-review
 
-- S21「約束を変える頼み」1（conflicts）: `replan-review` の `with:` に `conflicts: $fix.output.conflicts` を足す。→ **開いている**（`LY:509-523` に無い）
-- S22「約束を変える頼み」1（gate_answers）: plan-review に修正前の関所の答え `{decision, text, asked}` を `gate_answers` で渡す。→ **開いている**（`LY:203-214`・`:509-523` に無い。そもそも返しの節 `LS/gate_answer.py:31-38` は `{decision, text}` しか返さず、`asked` を持たない）
+- S21「約束を変える頼み」1（conflicts）: `replan-review` の `with:` に `conflicts: $fix.output.conflicts` を足す。→ **済み**（merge された #74 の線の `replan-review` が渡す。部分 0 の確かめで分かった。縛り: tests/workflows/test_line.py::HandoffCase.test_handoff_table と LineWiringCase.test_every_declared_block_input_is_wired_or_listed）
+- S22「約束を変える頼み」1（gate_answers）: plan-review に修正前の関所の答え `{decision, text, asked}` を `gate_answers` で渡す。→ **一部済み**（`replan-review` には `$answer-before-fix.output.answer` が渡り、修正前の関所の答えは `asked` を持つ: `LS/before_fix_answer.py`・`lib/answer.py` の `taken`。往復の中の `plan-review-run` は修正前の関所より前に走るので渡さない（表 UNPASSED）。ほかの 3 つの関所の答えに `asked` が無いのは部分 B1）
 - S23「約束を変える頼み」2: `ruling`（fix の `replan_items`）の項目の id の形（番号か `converge.item_id`）を決める。→ **開いている**（持ち主の決め待ち。issue #82〜#84 の群） 決め: PR #105 で決まった（replan_items は承認済みの修正案の plan[] の 1 から数えた位置の字）（線の配線の文書の「この文書の外」の「決めた物」）
 - S24「約束を変える頼み」3: 始めの記録に、方針の文書を固めた版（sha256 と写しのパス）を載せる。→ **開いている**（`LS/start.py:88-98` は `policy_md` の絶対パスだけを置く）
 - S25「約束を変える頼み」4: 判定の `judgment` の隣に目的の監査（`purpose_review`）を置く。→ **開いている**（judge の約束の件）

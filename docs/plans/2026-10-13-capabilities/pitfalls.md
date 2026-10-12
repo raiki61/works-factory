@@ -254,3 +254,19 @@
   - K3: judge の script の節 36 個に `mutates_checkout: false` を足すか（読むだけかの見極めが要る）
   - K7: 役の指示書の Python の言及（`fix-rules/common.md` ほか 6 か所）を E13 の例外にするか直すか。script どうしの import（fix の `fixio`、report の `place`・`typed`、線の `linekit`）を E4 違反として直すか、決まりの側を変えるか
   - K11: 線が渡していない、宣言済みで既定値つきの入力のうち、どれが今の works から落ちた能力か（plan-review の `conflicts`・`gate_answers`、eyes の `x_scalars`、merge-seal の `answer`・`r2`・`sealed_hash`）
+
+## 部分 0 で足した機械（線の配線の部分 0。上の「今の機械」「要る試験」より新しい）
+
+- K1・K13・K16: `tests/workflows/test_returns_never_fail.py::ReturnScriptCase`（返す節の単独の実行・表 `NEVER_FAIL`・落ちた時の指し札の先・境の口の外の標準出力の表 `LIBLESS_EXITS`）
+- K2: `tests/workflows/test_uv_scripts.py::HeaderTest.test_every_named_script_archon_can_find_declares_itself`（issue #96）
+- K3・K18: 層の E7（`tests/layers/scan.py` の `_readonly_nodes`・`_role_settings`。印を道具から導き、表 `KEEP_CHECKOUT`・`ROLE_TOOLS`。`loop:` の節は赤。種 `tests/layers/seeds/k18-*`・`k3-*`）。judge の読むだけの script の節 36 個は `READONLY_NODES` に在る
+- K4: `tests/workflows/test_role_texts.py::RoleSkillsCase.test_prompt_naming_a_skill_or_agent_declares_it`
+- K5: 層の E5（`_loop_roles`。種 `k5-loop-role-with`）と `tests/layers/test_archon_validate.py::ArchonValidateTest.test_every_block_loads_when_included_inside_a_loop_group`
+- K6: `tests/workflows/test_fixture_claims.py::FixtureClaimsCase.test_fixtures_do_not_claim_per_round_values`
+- K7: 層の E3 の語の表 `ARCHON_WORDS` と `ALLOWED["E3"]` の `<パス>#<字>` の行
+- K8: 層の E4（`_script_imports`。今の物は `ALLOWED["E4"]`）・線の script どうしの import は 0・`lib/tests/test_imports.py::LibImportCase.test_every_module_imports_first_in_a_fresh_interpreter`
+- K10・K18 の関所: 層の E16（`_gate_words`。種 `k10-*`・`k18-gate-in-loop`）
+- K11・K12・K14: `tests/workflows/test_line.py::LineWiringCase` の `test_every_declared_block_input_is_wired_or_listed`・`test_block_inputs_outside_the_contract_have_defaults`・`test_every_contract_neighbour_file_has_a_writer_and_a_reader`・`test_twice_included_blocks_use_their_own_place` と、層の E5 の入力の読み手（`_inputs_read`）
+- K15: `tests/workflows/test_unread_named.py::UnreadNamedCase.test_every_pointer_input_unreadable_is_named`
+- K19: 層の E4（`_script_names`）
+- K20: `lib/tests/test_constants.py::ConstantsCase.test_same_file_name_literal_is_defined_once`
