@@ -7,7 +7,6 @@
   任せ先の受け付けの拒みと諦め・返す節の赤の原因と認証・壊れた入力でも落ちない返す節
 - 筋書き: tests/archon.py の使い捨ての木で `archon workflow test` を fixtures/ の全部に走らせる（Archon の源が無ければ見送る）
 """
-import hashlib
 import json
 import os
 import pathlib
@@ -23,6 +22,7 @@ import yaml
 
 from tests import archon
 from tests.bin.gitkit import committed_copy, git
+from tests.workflows.copied import assert_is_original
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BLOCK = ROOT / "workflows" / "test-gate"
@@ -322,13 +322,7 @@ class YamlCase(unittest.TestCase):
 class CopiedTextsCase(unittest.TestCase):
     def test_every_command_is_its_original_with_only_ledgered_edits(self):
         """役の指示書は元の 3 つの文のまま: 台帳 CI_EDITS の直しを逆に当てると元のバイトに戻る（直しは 1 組ずつ訳つき）"""
-        text = (BLOCK / "commands" / "ci.md").read_text(encoding="utf-8")
-        for original, copied, why in reversed(CI_EDITS):
-            with self.subTest(why):
-                self.assertTrue(copied)
-                self.assertEqual(text.count(copied), 1, copied[:80])
-            text = text.replace(copied, original)
-        self.assertEqual(hashlib.sha256(text.encode("utf-8")).hexdigest(), CI_SHA256)
+        assert_is_original(self, (BLOCK / "commands" / "ci.md").read_text(encoding="utf-8"), CI_SHA256, CI_EDITS)
 
 
 class ScriptCase(unittest.TestCase):
