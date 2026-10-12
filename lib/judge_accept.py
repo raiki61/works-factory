@@ -315,7 +315,7 @@ REQUEST_STOP = stopby.declare("request", "依頼の型が通らない・始め�
 DIAGNOSE_NODE = "p2.diagnose"                # 判定役の節の写しの graph の名（querytest・outpurpose・gatemarks の足し欄の表の鍵）
 DIAGNOSE_ROLE = "diagnose"                   # 拒否の控え rejects-<役>.json の名（rolekit.with_done）
 JUDGMENT_FILE = "judgment.json"              # 元 accept.py:57 の JUDGMENT_FILE（受けた判定。judge_output が整えた返答に例と目的の外の行を戻した物）
-MATERIALS_FILE = "materials.json"            # 素材の状態（素材の名 → {status, …}。材料の支度が組む）
+MATERIALS_FILE = gatemarks.MATERIALS_FILE
 # 置き場のファイルの名は書くモジュールの物を引く
 PURPOSE_FILE = _purpose.PURPOSE_FILE
 PREMISES_FILE = _premises.PREMISES_FILE
@@ -3744,7 +3744,6 @@ PR_DOWNGRADES_FILE = "pr-downgrades.json"        # 申し送りの下書き [{pr
 MATERIAL_PR_FILE = f"material-{prcheck.ROLE}.json"   # 並行 PR の素材 {role, reply, materials: {parallel_pr}}
 PR_LIMIT = 100   # 元 works/.shared/core/graphloops/scripts/parallel-pr.py:16 の LIMIT（gh pr list の --limit）
 # 元 works/.shared/core/graphloops/rules/review-loop.py:2278
-GITHUB_REMOTE = re.compile(r"^(?:https?://github\.com/|ssh://git@github\.com[^/]*/|git@github\.com[^:]*:)([^/\s]+)/([^/\s]+?)(?:\.git)?/?$")
 # 元 works/blk-pr/scripts/accept.py:21
 NO_POST = "このラインは申し送りを投稿しない（持ち主の決定 2026-09-27）。下書きを note に書き handed_over を false にせよ: "
 WORLD_FEATURE = "world"   # 元 works/.shared/core/entry.py:420 の WORLD_FEATURE（始めの記録の features_cut の世界の解の語）
@@ -3755,17 +3754,17 @@ WORLD_ROLES = {"world-classes": worldblk.CLASSES_ROLE, "world-judge": worldblk.J
 # ---------------------------------------------------------------- 並行 PR（機械の道）
 def _github_repo(repo):
     """元 works/.shared/core/graphloops/rules/review-loop.py:2280 の _github_repo（と works/.shared/core/entry.py の
-    github_repo_redacted の、理由の文から URL の userinfo を落とす包み）。並行 PR を引く owner/repo ——（値, 引けない理由）。
-    upstream の remote を先に、無ければ origin。git は lib/forge の読みで、対象の根 repo で引く"""
-    up = forge._git(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
-    remote = up.strip().split("/", 1)[0] if up and up.strip() else "origin"
+    github_repo_redacted の、理由の文から URL の userinfo を落とす包み）。並行 PR を引く gh -R の HOST/OWNER/REPO ——（値, 引けない
+    理由）。remote の選び（upstream を先に、無ければ origin）は forge.detect、URL の読みは forge.repo_of。-R はホストまで書く
+    （ghreads._repo_flag と同じ。ホストの無い名を gh は GH_HOST で解き、別のホストを読みうる）。git は対象の根 repo で引く"""
+    remote = forge.detect(repo)["remote"] or "origin"
     url = forge._git(repo, "remote", "get-url", remote)
     if url is None:
         return None, f"remote '{remote}' の URL が引けない"
-    m = GITHUB_REMOTE.match(url.strip())
-    if not m:
+    got = forge.repo_of(url)
+    if not got or got["kind"] != forge.GITHUB:
         return None, forge.redact(f"remote '{remote}' が GitHub でない（{url.strip()[:80]}）——同等のコマンドへの読み替えは役")
-    return f"{m.group(1)}/{m.group(2)}", None
+    return "/".join((got["host"], got["owner"], got["name"])), None
 
 
 def _pr_files(repo, diff_base: str, wheres) -> list:
@@ -4159,7 +4158,7 @@ EMPTY_JUDGMENT = {"units": [], "questions": [], "framing": "", "one_shot": "", "
                   "one_shot_closes": [], "precedents": []}
 EMPTY_PURPOSE = {"purpose_text": "", "source": "", "known_weaknesses": [], "source_files": []}
 OUT_OF_PURPOSE_FILE = "out-of-purpose.json"
-PURPOSE_REVIEW_FILE = "purpose-review.json"   # 目的の監査の役の受けた返答（plan-review が独立設計を回すかを決める）
+PURPOSE_REVIEW_FILE = _purpose.PURPOSE_REVIEW_FILE
 PUBLIC_FILES = (PREMISES_FILE, VERIFY_FILE, PR_EXCLUDED_FILE, MATERIALS_FILE,
                 PURPOSE_REVIEW_FILE)   # 判定の指し札の隣に必ず置く（ほかのブロックが名で開く）
 

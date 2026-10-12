@@ -293,6 +293,19 @@ class ConflictSeamCase(unittest.TestCase):
         self.assertEqual(self.fixboard.nothing_owed_but_excused(self.place, {KEY_A, KEY_B}), {})
         self.assertEqual([r["op"] for r in _trace_rows(self.place)], [c.PARK_OP, c.PARK_OP, c.RULE_OP, c.RULE_OP])
 
+    def test_replan_readers_take_the_items_from_the_stored_ruling(self):
+        """apply_rulings が積んだ fix_plan_item の行から、fixboard.replan_items と conflict.replan_rows が同じ案の項目を読む
+        （項目の番号は裁定の欄の中。組の項目に落ちない）"""
+        c = self.conflict
+        c.park(self.place, [CLAIM], source=c.FIX_SOURCE)
+        c.apply_rulings(self.place, {"c1-1": {"decision": c.REPLAN, "text": "案の項目 1 の受け入れのテストが誤り",
+                                              "limits": [], "plan_items": [1], "plan_units": [KEY_A, KEY_B]}}, by="t")
+        rows = c.items(self.place)
+        self.assertEqual(self.fixboard.replan_items(rows, [{"unit_ids": [KEY_A, KEY_B], "items": [1, 2]}]), ["1"])
+        self.assertEqual(self.fixboard.replan_items(rows), ["1"])
+        self.assertEqual([r["id"] for r in c.replan_rows(rows, 1, [])], ["c1-1"])
+        self.assertEqual(c.replan_rows(rows, 2, [KEY_B]), [])
+
     def test_ask_human_is_asked_and_amended_returns_to_duty(self):
         c = self.conflict
         c.park(self.place, [CLAIM, {**CLAIM, "unit_key": KEY_B}], source=c.FIX_SOURCE)
@@ -1362,7 +1375,7 @@ class GroupScriptsSeamCase(TempCase):
         self.assertIn("vendored/w.txt", fixboard.run_diff(self.repo))
 
     def test_collect_fields(self):
-        rows = [{"unit_key": "A", "ruling": {"decision": "fix_plan_item"}, "plan_items": [2]},
+        rows = [{"unit_key": "A", "ruling": {"decision": "fix_plan_item", "plan_items": [2]}},
                 {"unit_key": "B", "ruling": {"decision": "fix_plan_item"}},
                 {"unit_key": "C", "ruling": {"decision": "ask_human"}}]
         self.assertEqual(fixboard.replan_items(rows, [{"unit_ids": ["B"], "items": [3]}]), ["2", "3"])

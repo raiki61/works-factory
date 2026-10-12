@@ -7,6 +7,7 @@
 盤面に置いて見る。版の一覧の行（Task 18・19）はこの枝に無いので試験も無い。
 """
 import pathlib
+import re
 import sys
 import unittest
 
@@ -87,6 +88,16 @@ class TddLinesCase(unittest.TestCase):
     def test_stages_that_did_not_run_are_left_out(self):
         self.assertEqual(report.tdd_lines([(report.TDD_STAGES[0], None), (report.TDD_STAGES[1], None)]), [])
         self.assertEqual(len(report.tdd_lines([(report.TDD_STAGES[0], None), (report.TDD_STAGES[1], TDD_OFF)])), 1)
+
+
+class DocCase(unittest.TestCase):
+    def test_listed_names_exist(self):
+        """docstring の一覧が挙げる名は、全部このモジュールに在る（移した・消した口を挙げ続けない）"""
+        listed = re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)(?=\()|\b([A-Z][A-Z0-9_]{3,})\b",
+                            "\n".join(line for line in report.__doc__.splitlines() if line.startswith(("- ", "  "))))
+        names = {a or b for a, b in listed}
+        self.assertTrue(names)
+        self.assertEqual(sorted(n for n in names if not hasattr(report, n)), [])
 
 
 if __name__ == "__main__":

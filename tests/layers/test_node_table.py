@@ -6,9 +6,9 @@ import json
 import pathlib
 import re
 import unittest
+from unittest import mock
 
-import yaml
-
+from tests.layers import scan
 from tests.layers.scan import NODE_KINDS
 from tests.layers.trees import tree
 
@@ -74,26 +74,17 @@ def _no_duplicate_keys(pairs):
 
 
 def block_nodes(root, prefix) -> tuple[dict[str, dict[str, str]], dict[str, set[str]]]:
-    """木のブロックの節（{ブロック: {節の鍵: 種類}}）と、ブロックごとの include: の値。
-    節の入れ子は loop_group.nodes だけを辿る（output_format・with: の中の同じ名の鍵を節と取り違えない）"""
+    """木のブロックの節（{ブロック: {節の鍵: 種類}}）と、ブロックごとの include: の値。節の歩き方と include: の集め方は
+    層の試験と 1 つ（scan.nodes・scan.includes）"""
     nodes, includes = {}, {}
     for path in sorted((root / "workflows").glob(f"*/{prefix}*.yaml")):
         block = path.parent.name
         if path.name != f"{prefix}{block}.yaml":
             continue
-        found, inc = {}, set()
-
-        def walk(items):
-            for node in items or []:
-                kind = next((k for k in NODE_KINDS if k in node), None)
-                found[f"{block}/{node['id']}"] = kind
-                if kind == "include":
-                    inc.add(node["include"])
-                if kind == "loop_group":
-                    walk(node["loop_group"].get("nodes"))
-
-        walk(yaml.safe_load(path.read_text(encoding="utf-8")).get("nodes"))
-        nodes[block], includes[block] = found, inc
+        rel = path.relative_to(root).as_posix()
+        nodes[block] = {f"{block}/{scan._top(node, 'id').value}": next((k for k in NODE_KINDS if scan._top(node, k) is not None), None)
+                        for node in scan.nodes(root, rel)}
+        includes[block] = set(scan.includes(root, rel))
     return nodes, includes
 
 
@@ -508,6 +499,13 @@ class NodeTableTest(unittest.TestCase):
         t = base_table()
         del t["support"]["a/inner"]
         self.one("a/inner: 木の節が表", t)
+
+    def test_nodes_walk_is_scans(self):
+        """節の歩き方は scan.nodes の 1 つ（scan だけが新しい入れ子を辿るようになっても、表の網羅の照らしがその節を求める）"""
+        extra = scan.nodes(ROOT, "workflows/judge/works-factory-judge.yaml")[0]
+        walk = scan.nodes
+        with mock.patch.object(scan, "nodes", lambda root, rel: [*walk(root, rel), extra] if "/a/" in rel else walk(root, rel)):
+            self.one(f"a/{scan._top(extra, 'id').value}: 木の節が表")
 
     def test_support_overlap_and_reason(self):
         t = use(base_table(), "graph", "p0.base", {"by": "machine", "where": ["a/x"], "proof": [OK_TEST]})
