@@ -49,7 +49,6 @@ BASH_WRITES_SCHEMA = {"type": "array", "items": ITEM_SCHEMA}
 NO_RECORD = "書き込みの記録が無い run（記録の根の無い起動）——書き込みの出どころを突き合わせずに通した"
 NO_RECORD_OP = "writes_unrecorded_run"   # 置き場の trace.jsonl の行（報告が数える）
 CARRY_TOOL = "unit-merge"               # 単位の worktree の記録を写した行の tool_name（carry）
-BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテストを読み損ねた（base_test_texts。盤面の trace の行 {rev, unread}）
 LEFT_OP = "writes_left"                  # 拒まずに残した記録の無い変更（欄 bash_writes を持たない手直しの役）
 REJECT = ("作業ツリーの変更に、書き込みの記録（Edit・Write）も申告（bash_writes）も無い——Edit・Write で書き直すか、返答の "
           "bash_writes にパスと、Bash で書いた理由（実行の権限・バイナリ・大量の機械的な置き換え）を書け（射程: 見るのは今の中身を"

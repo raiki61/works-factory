@@ -38,7 +38,7 @@ FEATURES = {
 # 0.6〜3 USD と 1〜2 分、事前審査の木は審査役 1 つの 2〜3 倍の費用で審査役 1 つが見逃した本物の穴を出さなかった）。ほかの機能は on。
 # auto はブロックが自分の材料で決める語（事前審査の木: 開いた項目が 2 つ以上の往復だけ木）。名指した語（features_on・features_off）は既定に勝つ
 FEATURE_DEFAULTS = {"judge_verify": SWITCH_OFF, "review_tree": SWITCH_AUTO}
-FEATURES_KEY = "features_off"   # check_inputs の返りと start の控えの欄（語の順の配列）
+FEATURES_KEY = "features_off"   # start の控えの欄（語の順の配列）
 FEATURES_ON_KEY = "features_on"   # 同じく入れる機能の欄（欄の無い控えは前の版の run。features_on_of が読む）
 # start の控えの実効で off の機能の欄（既定で off の機能を含む語の順の配列。包みが工程の地図で読む。欄の無い控えは前の版で、
 # 前の版の既定は全部 on なので features_off の語だけが off）
@@ -75,7 +75,7 @@ def features_on(word: str) -> list:
 def feature_words(off, on=()) -> dict:
     """start の出口の機能ごとの欄 {<機能>: on | off | auto}（線がブロックの切り替えの入力へ写す）。名指した語が既定に勝つ:
     features_on の語は on・features_off の語は off・どちらにも無ければ FEATURE_DEFAULTS（無ければ on）。両方に在る語は
-    check_inputs が拒むので届かない"""
+    入口の節（start）が拒むので届かない"""
     off, on = set(off or ()), set(on or ())
     return {name: SWITCH_ON if name in on else SWITCH_OFF if name in off
             else FEATURE_DEFAULTS.get(name, SWITCH_ON) for name in FEATURES}

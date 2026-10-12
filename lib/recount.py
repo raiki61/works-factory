@@ -14,8 +14,7 @@
 - recount_problems の照らし: 直す義務の覆い・返答の自己申告の形（閉鎖の状態・interactions・bypass_tried・breaks.result・先行例・
   root_or_symptom）・coverage の数え直し・赤を見ない clean・修正が書いた指し（wrote_refs）・差分が足した Markdown のリンク
   （md_link_errors）。元の写しの fix_covers_open_units の照らしの全部
-- 修正の返答を読む口（fix_reply・_fix_output）・集める節の中身（collect）・数え直した件数の読み口（_coverage）は、盤面を読んだ所を
-  置き場のファイルのパスで受ける形にして lib/fixboard.py に置いた
+- 修正の返答を読む口（fix_reply・_fix_output）は、盤面を読んだ所を置き場のファイルのパスで受ける形にして lib/fixboard.py に置いた
 """
 import json
 import os

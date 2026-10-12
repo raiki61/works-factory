@@ -123,7 +123,7 @@ SUB_FORMAT = promptsection.Section("## 答え方（全部の下請けで同じ�
                                    "resolved は前の往復の block のうち消えた key（無ければ []）。答えは下の JSON Schema に合う JSON 1 つにして、"
                                    "最後のセクションが名指すファイルに Write で書く（そのファイルのほかに書かない。書き直す時も同じファイル）。書いたら最後の"
                                    "メッセージに 1 行だけ返す（答えの中身を写さない）。\n\n```json\n{schema}\n```", source="fn:planblk.brief_head")
-ANSWER_AT = "Write の道具でファイル {answer} に書け"   # 下請けのファイルが答えの置き場を名指す句（answer_in が引く）
+ANSWER_AT = "Write の道具でファイル {answer} に書け"   # 下請けのファイルが答えの置き場を名指す句
 DIFF_HEAD = promptsection.Section("## 前の往復からのこの項目の案の差分", source="fn:planblk._diff_part")
 DIFF_ASK = ("前の往復でこの項目を見た審査は、下の前の block のほかに直しへ進めない穴を挙げなかった。今の往復で見るのは (1) 前の block が"
             "消えたか（消えたなら resolved、残れば同じ key で faces に block）と (2) 下の差分（- が前・+ が今）が作る新しい穴だけ。"
@@ -263,7 +263,7 @@ def plan_slots_section(b, filled=()) -> str:
     may = sorted(no[k] for k in opened - owed if k in no)
     shut = [f"no {no[k]}（label={u.get('label')}・disposition={u.get('disposition', '無し')}）"
             for k, u in units.items() if k not in opened and k not in owed and k in no]
-    if not shut and not filled:   # 本文の一覧が受け付けの集合と同じ（全部入れてよい）なら貼らない。行き止まりの盤面は役を起こす前に止める（halt_if_stuck）
+    if not shut and not filled:   # 本文の一覧が受け付けの集合と同じ（全部入れてよい）なら貼らない
         return ""
     lines = [f"- 必ず案に入れる no: {must}",
              f"- 入れてもよい no（人の答え待ちの問いの出どころ・depends。入れなくてもよい）: {may}"]

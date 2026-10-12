@@ -903,7 +903,7 @@ def material_lines(b) -> list:
 
 def request_answer(b, q):
     """依頼の答えのうち q だけに当たる（answer_binds が q 1 つ）最初の物（無ければ None）。複数の問いに当たる答えはどれにも答えない
-    （1 つの答えを別の問いの答えとして修正役に渡さない。unmatched_answer_lines が名指す）"""
+    （1 つの答えを別の問いの答えとして修正役に渡さない。runreport.ledger_state の unmatched が名指す）"""
     return next((a for a in request_answers(b) if (h := answer_binds(b, a)) and len(h) == 1 and h[0] is q), None)
 
 

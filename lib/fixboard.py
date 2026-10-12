@@ -111,7 +111,7 @@ def marks_view(place, round_: int = 1):
 
 
 def plan_view(place, plan=None, judgment=None, round_: int = 1):
-    """planmarks の承認済みの修正案の読み口（plan_items・approved_items・prescriptions・amend。読むのは b.dir・b.round・
+    """planmarks の承認済みの修正案の読み口（plan_items・approved_items・prescriptions。読むのは b.dir・b.round・
     b.output_of_round・b.latest_output・b.trace だけ）に渡す形: dir は置き場 place（plan-fields.json と凍結の印の行の在る
     trace.jsonl を置く所）、round は round_、output_of_round(node, rnd) は rnd が round_ の時だけ修正案の役の返答 plan
     （{"plan": [...]}。今の works の p2.fix_plan の出力・plan の隣の p2.fix_plan.json）、latest_output(node) は判定 judgment

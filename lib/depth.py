@@ -35,7 +35,6 @@ import planmarks  # noqa: E402
 
 LIGHT = "軽量"
 STANDARD = "標準"
-FILE = "depth.json"   # 盤面の根の控え {"units": {key: {"depth", "why": [...]}}, "forced", "raised": [...], "counted": "run の広さの数え 1 行"}
 MAX_PATHS = 3         # 測り: 何も見つけなかった単位は allowed_paths 1〜3 個、見つけた単位は 4 個（MAX_PATHS を超える）
 MAX_TESTS = 2         # 測り: 同じく受け入れのテストと書き換える既存のテストが合わせて 1 本、見つけた単位は 4 本（MAX_TESTS を超える）
 CONTRACT_SUFFIXES = (".json", ".yaml", ".yml", ".toml")

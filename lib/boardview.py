@@ -260,7 +260,7 @@ def _tracer(folder: pathlib.Path):
 
 
 def place(folder) -> types.SimpleNamespace:
-    """書き手（converge の note_plan・note_answers・record_pass・stash_rejects）の書き先: round（いつも 1）・dir・work(name)・
+    """書き手（converge の note_plan・note_answers・record_pass）の書き先: round（いつも 1）・dir・work(name)・
     trace(op, **row)。置き場 folder の本物のファイルに書く"""
     d = pathlib.Path(folder)
     return types.SimpleNamespace(round=1, dir=d, work=lambda name: d / name, trace=_tracer(d))

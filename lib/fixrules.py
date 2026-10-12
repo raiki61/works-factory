@@ -254,7 +254,7 @@ TDD_REJECT_HEAD = promptsection.Section("## 前の回の返答を機械が拒ん
 
 
 def tdd_render(values, phase, phase_text, *, title, reason="", kinds=None, iteration=1, lang="", brief="", seat="") -> dict:
-    """tdd_prompt の {text, head}（rulebook.render）。並び: 題 → [brief の節（planbrief.head_text）] → [拒んだ理由] → 始めの記録の値の
+    """TDD の段の指示書の {text, head}（rulebook.render）。並び: 題 → [brief の節（planbrief.head_text）] → [拒んだ理由] → 始めの記録の値の
     2 行（start_lines）→ 決まり → 今の段の約束 → 今の段（tddloop が書く）→ 結び → [言語の 1 行（呼び手が組む）]"""
     before = [title, *([brief] if brief else [])]
     if reason:

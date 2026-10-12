@@ -18,7 +18,6 @@ import pathlib
 LENS_FILE = "lens.json"
 STATES = ("pending", "ran", "failed", "not_routed")
 FINDING_KEYS = ("where", "cite", "why")
-UNSEEN = {"pending": "集め役が埋めていない", "failed": "落ちた", "not_routed": "起こさなかった"}
 
 
 def _write(b, rows: list):

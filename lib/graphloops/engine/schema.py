@@ -49,7 +49,7 @@ def _same(a, b):
 def validate_schema(value, schema, path="$"):
     if "$ref" in schema:
         # 展開されていない参照を「知らない語」として無視すると、その欄の型検査が丸ごと消えて何でも通る
-        return [f"{path}: schema の $ref {schema['$ref']!r} が展開されていない（graph は load_graph を通して読め）"]
+        return [f"{path}: schema の $ref {schema['$ref']!r} は展開しない（型を直に書け）"]
     errs = []
     types = schema.get("type")
     if types:
