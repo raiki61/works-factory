@@ -118,7 +118,7 @@ class Once(argparse.Action):
     """2 度目を使い方の誤り（終わりの番号 2）にする。argparse の素の旗は繰り返しを黙って後の値で上書きする"""
 
     def __call__(self, parser, namespace, values, option_string=None):
-        if getattr(namespace, self.dest) is not self.default:
+        if hasattr(namespace, self.dest):
             parser.error(f"{option_string} は 1 度だけ")
         setattr(namespace, self.dest, self.const if self.nargs == 0 else values)
 
@@ -126,16 +126,16 @@ class Once(argparse.Action):
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="通しの対象を作り、後で片付ける")
     sub = parser.add_subparsers(dest="command", required=True)
-    made = sub.add_parser("make")
+    made = sub.add_parser("make", argument_default=argparse.SUPPRESS)
     made.add_argument("attempt", type=Path)
-    made.add_argument("--seed", type=lambda p: Path(p).resolve(), default=SEED, action=Once)
-    made.add_argument("--request", type=lambda p: Path(p).resolve(), default=SEED / REQUEST, action=Once)
-    made.add_argument("--no-ledger", dest="listed", nargs=0, const=False, default=True, action=Once)
+    made.add_argument("--seed", type=lambda p: Path(p).resolve(), action=Once)
+    made.add_argument("--request", type=lambda p: Path(p).resolve(), action=Once)
+    made.add_argument("--no-ledger", dest="listed", nargs=0, const=False, action=Once)
     sub.add_parser("teardown")
-    args = parser.parse_args(argv)
+    args = vars(parser.parse_args(argv))
     try:
-        if args.command == "make":
-            print(json.dumps(make(args.attempt, args.seed, args.request, args.listed)))
+        if args.pop("command") == "make":
+            print(json.dumps(make(**args)))
             return 0
         return 1 if teardown() else 0
     except Stop as stop:
