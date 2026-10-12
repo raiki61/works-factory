@@ -2305,6 +2305,8 @@ class LineWiringCase(unittest.TestCase):
         "pr-downgrades.json": (("judge", "judgment"), "lib/prcheck.py"),
         "world-state.json": (("judge", "judgment"), "lib/worldmark.py"),
         "p2.fix_plan.json": (("plan", "plan"), "lib/fixboard.py"),
+        "rejects-plan.json": (("plan", "plan"), "lib/boardview.py"),
+        "replan-gave-up.json": (("plan", "plan"), "lib/runreport.py"),
         "design.jsonl": (("plan", "structure"), "lib/boardview.py"),
         "gate-passes.json": (("plan-review", "review"), "lib/gatemarks.py"),
         "gate.json": (("plan-review", "review"), "lib/gatemarks.py"),
@@ -2346,6 +2348,12 @@ class LineWiringCase(unittest.TestCase):
            for name in ("r4-gate-passes.json", "premise-check.json") for check in ("stop", "bare")},
         **{(name, check): "再審（rejudge-run）の判定の隣にだけ在り、判定の道では書かれない（読み手 report.rejudge_exit が「無い」を訳にする）"
            for name in ("rejudge-exit.json", "rejudge-diff.json") for check in ("stop", "bare")},
+        **{("rejects-plan.json", check): "拒んだ回にだけ書く（rolekit.reject）。空の置き場の返す節は書かない"
+           for check in ("stop", "bare")},
+        ("rejects-plan.json", "named"): "名は rolekit.rejects_path が役の名から組み（rejects-<役>.json）、字の定数が無い",
+        ("rejects-plan.json", "read"): "plan-review は rolekit.reject_rows で役の名から開き、名の字を持たない",
+        **{("replan-gave-up.json", check): "案の直しで役が諦めた項目が在る時だけ書く（planfile.note_gave_up）。空の置き場の返す節は書かない"
+           for check in ("stop", "bare")},
     }
 
     def written_beside(self, block: str, field: str, bare: bool) -> set:

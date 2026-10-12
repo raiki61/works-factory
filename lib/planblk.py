@@ -874,7 +874,7 @@ def _diff_part(b, n: int) -> str:
     差分に現れない読み直しを要る）が変わった項目（変わった欄の名を DIFF_FULL_ASK の前に言う）と、変わった字の割合が
     DIFF_FULL_SHARE を超えた項目は、差分に絞らず DIFF_FULL_ASK。字の数えは行の単位の比べで、置き換えた行の組は共通の頭と尾を
     除いた字、足した・消した行は全部の字を、前と今の字数の和で割る。前の行が無ければ空（全部を見る）
-    （元 raiki61/claude-plugins@d51cc183 の works/blk-plan/lib/planblk.py:982 _diff_part）"""
+    （元 今の works の commit d51cc183 の works/blk-plan/lib/planblk.py:982 _diff_part）"""
     old = converge.prev_row(b, n)
     plan = converge.read(b).get("plan") or []
     new = plan[n - 1].get("row") if 1 <= n <= len(plan) else None
