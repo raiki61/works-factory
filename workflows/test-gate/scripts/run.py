@@ -4,6 +4,9 @@
 # ///
 """節 run: 走らせる前の指紋を取り、走らせ方を機械で決めて走らせ（declared_checks.run_ci）、tdd_suite が在れば一式を 1 回走らせて
 1 件ごとの結末を足し、走らせた後の指紋を取る。結果の全部は test-gate/<mode>/run.json に書き、節の返りは output_format の欄だけ。
+base は同じ run の中の試験の結果の控え（run の置き場の直下の tree_run.REUSE_SUB。run の名は始めの記録の run_id）を引いて置く。
+fix の TDD の輪の頭が同じ控えを引く。final は引かず置かない（最後のテストは省かない）。旗 tree_run.RERUN_ENV が立てば引かない。
+テストを起こす前に Archon の変数を落とす（対象のテストに継がせず、節ごとに違う値で控えの指紋を割らない）。
 止められたら木を止め終えてから返りを出さずに 128+信号で抜ける。走らせられない（範囲の宣言の誤りなど）は 1 で、理由を標準エラーに 1 行"""
 import json
 import os
@@ -26,7 +29,14 @@ import tree_run  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
 
 LOGS = "logs"
-WORKSPACE_PREFIX = ".archon/"   # Archon が run の作業ツリーに置く物。修正の変更でない
+WORKSPACE_PREFIX = ".archon/"
+# Archon が script に渡す変数（fix の fixio.py と同じ 2 つ。試験が等しさを縛る）。頭の一致は ARCHON_・INPUTS_ だけで、ほかは名の完全一致。
+# 名は止めた Archon の packages/workflows/src/exec-environment.ts の buildExecNodeEnvironment
+RUNNER_PREFIXES = ("ARCHON_", "INPUTS_")
+RUNNER_NAMES = frozenset({
+    "ARTIFACTS_DIR", "STATE_DIR", "LOG_DIR", "ADOPTED_RUN_DIR", "WORKFLOW_ID", "BASE_BRANCH", "USER_MESSAGE", "ARGUMENTS",
+    "LOOP_USER_INPUT", "LOOP_PREV_OUTPUT", "REJECTION_REASON", "CONTEXT", "EXTERNAL_CONTEXT", "ISSUE_CONTEXT", "TYPED_ARTIFACTS_FILE",
+})   # Archon が run の作業ツリーに置く物。修正の変更でない
 OUTPUT = ("by", "material", "runs", "skipped_steps", "same_as", "log", "junit_steps", "fingerprint_before", "fingerprint_after")
 
 
@@ -54,6 +64,12 @@ def request_wheres(start: dict, mode: str) -> list:
     return [f["where"] for f in findings if isinstance(f, dict) and isinstance(f.get("where"), str)]
 
 
+def drop_runner_env() -> None:
+    """入力と置き場を読み終えた後、テストを走らせる lib/ の関数を呼ぶ前に呼ぶ"""
+    for name in [n for n in os.environ if n.startswith(RUNNER_PREFIXES) or n in RUNNER_NAMES]:
+        del os.environ[name]
+
+
 def fresh_gate(gate: Path) -> Path:
     """同じ run で同じ形をもう 1 度差し込んだ時に、前の回の素材・拒否・記録を読まないよう gate の中を logs/ のほかは消し、今回のログの
     置き場 logs/a<k>/（k は空いた最初の番号。前の走りのログを上書きしない）を返す（元 works/.shared/core/board.py:1404 _log_dir）"""
@@ -78,8 +94,12 @@ def main() -> int:
         return 1
     start = json.loads(boundary.resolve(json.loads(os.environ["INPUTS_START"])).read_text(encoding="utf-8"))
     root = Path(util.repo_root() or os.getcwd())
-    gate = Path(os.environ["ARTIFACTS_DIR"]) / "test-gate" / mode
+    artifacts = Path(os.environ["ARTIFACTS_DIR"])
+    gate = artifacts / "test-gate" / mode
     log_dir = fresh_gate(gate)
+    reuse = (tree_run.reuse_place(artifacts, start.get("run_id") or "", rerun=bool(os.environ.get(tree_run.RERUN_ENV)))
+             if mode == "base" else None)
+    drop_runner_env()
     base_rev = start.get("base_rev") or ""
     suite = start.get("tdd_suite") or ""
     wheres = request_wheres(start, mode)
@@ -87,7 +107,7 @@ def main() -> int:
         before = green_cert.fingerprint(root)
         ci = declared_checks.run_ci(root, test_cmd=start.get("test_cmd") or "", log_dir=log_dir,
                                     changed=lambda: changed(root, base_rev, wheres), after_judge=mode == "final",
-                                    report_dir=gate / "junit")
+                                    report_dir=gate / "junit", reuse=reuse)
         ran = None
         if suite:
             cases, code, problems = baseline_red.run_suite(suite, root, gate, "suite")

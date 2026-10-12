@@ -55,6 +55,17 @@ nodes:
               exit: {type: [integer, "null"]}   # null は起こせなかった段
               how: {type: string, enum: [direct, shell]}
               launch: {type: string, enum: [broken]}
+              reused:   # 同じ run の中の控えから使った段の出どころ（tree_run.reuse_run の note）
+                type: object
+                additionalProperties: false
+                required: [at, key, from]
+                properties:
+                  at: {type: number}
+                  took_s: {type: [number, "null"]}
+                  key: {type: string}
+                  entry: {type: string}
+                  from: {type: string}
+              reuse_off: {type: string}   # 控えを使わなかった・置かなかった理由
         skipped_steps:
           type: array
           items:

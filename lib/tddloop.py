@@ -488,11 +488,12 @@ def _light_units(raw: str) -> list:
 
 
 def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit_depths: str = "", lanes: str = "", *,
-          owed=None, withheld_by=None, returned=(), round_: int = 1) -> dict:
+          owed=None, withheld_by=None, returned=(), round_: int = 1, reuse: dict | None = None) -> dict:
     """節 tdd-start。{go, reason, suite, state_file, summary_file}。実行器が無ければ何も書かずに go: false（置き場を読まない）。
     board_dir は fix の run の置き場（状態は board_dir/tdd-<k>/）。owed・withheld_by・returned は直す義務の値（_duty）、round_ は
     凍結した欄の周（plan_contract）。
-    test_cmd は run のテストのコマンド（線の入力）で、元の結末を取った後に関門を決める（_test_cmd_gate）。
+    test_cmd は run のテストのコマンド（線の入力）で、元の結末を取った後に関門を決める（_test_cmd_gate）。reuse（tree_run.reuse_place の
+    返り）を渡せば、関門を決める test_cmd は同じ run の中の控え（入口の確かめが置いた緑）から使い回す。
     unit_depths は単位ごとの深さ（_light_units）。LIGHT の単位は関門が on でも緑の後の test_cmd を走らせない（状態の light）。
     ほかの単位と空は今どおり。
     lanes は並べの周を使うかの切り替えの語（on か off。空・null は on）。off なら状態の lanes_on を偽にする（並べずに
@@ -526,7 +527,7 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     if cases is None:
         return {**off, "reason": f"元の結末が取れない（{'; '.join(why)}）——全部の単位を今どおり直す"}
     test_cmd = (test_cmd or "").strip()
-    gate, note, made = _test_cmd_gate(exe, test_cmd, repo, work / "test-cmd-0.log")
+    gate, note, made = _test_cmd_gate(exe, test_cmd, repo, work / "test-cmd-0.log", reuse=reuse)
     st = {"suite": suite, "exe": str(exe), "work": str(work), "open_units": keys, "excused": excused,
           "baseline": {_key(c): c["outcome"] for c in cases}, "baseline_exit": code,
           "handoff": snapshot(repo), "suite_made": made, "phase": "route", "tries": 0, "reason": "", "iterations": 0,
@@ -540,10 +541,10 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     return {"go": True, "reason": "", "suite": suite, "state_file": str(state_file), "summary_file": str(work / SUMMARY)}
 
 
-def _test_cmd_gate(exe: pathlib.Path, cmd: str, repo, log: pathlib.Path) -> tuple[str, str, list]:
+def _test_cmd_gate(exe: pathlib.Path, cmd: str, repo, log: pathlib.Path, *, reuse: dict | None = None) -> tuple[str, str, list]:
     """(関門, 理由, 走らせて出来たファイル)。空は (off, "", [])。実行器のファイルの中身が cmd をそのまま含めば
     (same_as_suite, "", [])（use.sh が pytest の 1 コマンドから書いた実行器など。一式の緑が同じコマンドの緑）。ほかは
-    _cmd_run で 1 回走らせ、緑なら on、赤・走らないなら off と理由。
+    _cmd_run で 1 回走らせ（reuse は _cmd_material へ）、緑なら on、赤・走らないなら off と理由。
     既存のファイルを書き換えた回は赤（_cmd_run。書き換えた物は戻す）。出来たファイルは状態の suite_made の頭（段が触った数えから外す）"""
     if not cmd:
         return GATE_OFF, "", []
@@ -552,7 +553,7 @@ def _test_cmd_gate(exe: pathlib.Path, cmd: str, repo, log: pathlib.Path) -> tupl
             return GATE_SAME, "", []
     except OSError:
         pass   # 読めない実行器は包みと見なさず、走らせて決める
-    mat, made = _cmd_run(repo, cmd, log)
+    mat, made = _cmd_run(repo, cmd, log, reuse=reuse)
     if mat["status"] == "clean":
         return GATE_ON, "", made
     if mat["status"] == "found":
@@ -561,16 +562,16 @@ def _test_cmd_gate(exe: pathlib.Path, cmd: str, repo, log: pathlib.Path) -> tupl
     return GATE_OFF, f"run の test_cmd（{cmd}）を輪の頭で走らせられない（{mat.get('reason', '')}）——この輪では確かめない", made
 
 
-def _cmd_run(repo, cmd: str, log: pathlib.Path) -> tuple[dict, list[str]]:
+def _cmd_run(repo, cmd: str, log: pathlib.Path, *, reuse: dict | None = None) -> tuple[dict, list[str]]:
     """test_cmd を 1 回走らせる——（素材 {status: clean・found・not_run, reason, detail, count}, 新しく出来たパス）。
     決まりは 1 つ: 既存のファイルを書き換えた（変えた・消した）test_cmd は緑でない。書き換えたパスは走らせる前の木に戻し
     （restore_paths。緑を出した木と残る木を違えない）、素材を赤（found）にして、書き換えたパスと戻したことを rewrote の文に載せる。
     suite_made に積んでよいのは新しく出来たパスだけ（積むと書き込みの出どころの照合・凍結の照らしから外れる）。
     起こし方は baseline_red.run_suite と同じ tree_run.run（自分のプロセスグループ・標準入力は空・環境は tree_run.outside_env・
     出力は log）で、コマンドの 1 行は tree_run.command_argv の形（direct か shell）。元は entry.local_checks_material（試験の枠
-    tree_run.slotted_run・nice・同じ run の控えの使い回し）で走らせた"""
+    tree_run.slotted_run・nice・同じ run の控えの使い回し）で走らせた。枠と nice は外し、使い回しは reuse を渡した呼び（輪の頭）だけ"""
     pre = snapshot(repo)
-    mat = _cmd_material(repo, cmd, pathlib.Path(log))
+    mat = _cmd_material(repo, cmd, pathlib.Path(log), reuse=reuse)
     post = snapshot(repo)
     made = sorted(set(git_names(repo, "diff-tree", "-r", "--name-only", "--no-renames", "--diff-filter=A", pre, post)))
     rewrote = sorted(set(touched(repo, pre, post)) - set(made))
@@ -582,19 +583,21 @@ def _cmd_run(repo, cmd: str, log: pathlib.Path) -> tuple[dict, list[str]]:
     return mat, made
 
 
-def _cmd_material(repo, cmd: str, log: pathlib.Path) -> dict:
-    """test_cmd を対象の根で走らせた素材（_cmd_run の 1 か所の起こし）。終了コード 0 なら clean、ほかは found・count 1（detail は
-    ログの末尾）、起こせなければ not_run（reason）"""
+def _cmd_material(repo, cmd: str, log: pathlib.Path, *, reuse: dict | None = None) -> dict:
+    """test_cmd を対象の根で走らせた素材（_cmd_run の 1 か所の起こし。tree_run.reuse_run）。終了コード 0 なら clean、ほかは found・count 1
+    （detail はログの末尾）、起こせなければ not_run（reason）。reuse（tree_run.reuse_place の返り）の控えから使い回した回は、clean の
+    checked に出どころ（tree_run.reused_text）を足す"""
     cmd = (cmd or "").strip()
     if not cmd:
         return {"status": "not_run", "reason": "テストのコマンド（test_cmd）が空で、走らせる物が無い"}
     log.parent.mkdir(parents=True, exist_ok=True)
     argv, how = tree_run.command_argv(cmd)
     launched = f"{shlex.join(argv)}（起こし方 {how}）"
+    note = {}
     with open(log, "wb") as f:
         try:
-            code = tree_run.run(argv, env=tree_run.outside_env(os.environ), stdin=subprocess.DEVNULL, stdout=f,
-                                stderr=subprocess.STDOUT, cwd=str(repo))
+            code = tree_run.reuse_run(argv, tree_run.outside_env(os.environ), place=reuse, note=note, stdin=subprocess.DEVNULL,
+                                      stdout=f, stderr=subprocess.STDOUT, cwd=str(repo))
         except OSError as e:
             return {"status": "not_run", "reason": f"{launched} でテストのコマンドを起こせない: {e}"}
     kind = tree_run.launch_kind(code)
@@ -603,7 +606,8 @@ def _cmd_material(repo, cmd: str, log: pathlib.Path) -> dict:
     tail = " ".join(log.read_text(encoding="utf-8", errors="replace").split())[-2000:]
     ran = f"{launched} を対象の根で走らせた: exit {code}（ログ {log}）"
     if kind == "clean":
-        return {"status": "clean", "count": 0, "checked": ran, "detail": tail}
+        reused = tree_run.reused_text(note)
+        return {"status": "clean", "count": 0, "checked": f"{ran} ／ 控えから使った（{reused}）" if reused else ran, "detail": tail}
     return {"status": "found", "count": 1, "detail": f"{ran} ／ 末尾: {tail}"}
 
 

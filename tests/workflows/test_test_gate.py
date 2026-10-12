@@ -7,6 +7,7 @@
   任せ先の受け付けの拒みと諦め・返す節の赤の原因と認証・壊れた入力でも落ちない返す節
 - 筋書き: tests/archon.py の使い捨ての木で `archon workflow test` を fixtures/ の全部に走らせる（Archon の源が無ければ見送る）
 """
+import ast
 import json
 import os
 import pathlib
@@ -325,12 +326,44 @@ class RunScriptCase(ScriptCase):
         self.assertFalse((gate / "ci-material.json").exists())
         self.assertFalse((gate / "rejects-ci.json").exists())
 
+    def test_base_rerun_reuses_the_green_suite_and_final_does_not(self):
+        """同じ run（始めの記録の run_id）の base をもう 1 度呼べば、同じ木の緑の一式は控えから使って子を起こさない。final は引かず
+        置かない（最後のテストは省かない）"""
+        count = self.tmp / "count"
+        self.decl([{"name": "suite", "argv": [PY, "-c", f"open({str(count)!r}, 'a').write('1\\n')"]}])
+        self.write_start(run_id=RUN_ID)
+        launched = lambda: len(count.read_text(encoding="utf-8").split())   # noqa: E731
+        self.ok("run", mode="base", start=self.start)
+        again = self.ok("run", mode="base", start=self.start)
+        self.assertEqual(launched(), 1)
+        self.assertEqual(again["runs"][0]["reused"]["from"], RUN_ID)
+        self.assertEqual(schema_problems({"runs": again["runs"]}, {"required": ["runs"], "properties": {
+            "runs": node("run")["output_format"]["properties"]["runs"]}}), [])
+        for _ in range(2):
+            self.ok("run", mode="final", start=self.start)
+        self.assertEqual(launched(), 3)
+
     def test_scope_declaration_without_review_declaration_stops(self):
         """範囲の宣言だけが在れば走らせずに 1 で止め、理由を標準エラーに出す"""
         (self.repo / ".works-checks.json").write_text('{"far": {"paths_ignore": ["works/"]}}', encoding="utf-8")
         rc, out, err = self.script("run", mode="base", start=self.start)
         self.assertEqual((rc, out), (1, None))
         self.assertIn(".works-checks.json", err)
+
+
+class RunnerVarsCase(unittest.TestCase):
+    def test_test_gate_drops_the_same_runner_vars_as_fix(self):
+        """test-gate の run と fix の script が対象のテストの前に落とす Archon の変数は同じ（ブロックどうしは import しないので
+        2 か所に持つ。片方だけ足すと、同じ run の中の控えの指紋が test-gate と fix で割れて当たらない）"""
+        def consts(path):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            return {t.id: ast.literal_eval(n.value.args[0] if isinstance(n.value, ast.Call) else n.value)
+                    for n in tree.body if isinstance(n, ast.Assign) for t in n.targets
+                    if isinstance(t, ast.Name) and t.id in ("RUNNER_PREFIXES", "RUNNER_NAMES")}
+        gate = consts(SCRIPTS / "run.py")
+        fix = consts(ROOT / "workflows" / "fix" / "scripts" / "fixio.py")
+        self.assertEqual(set(gate), {"RUNNER_PREFIXES", "RUNNER_NAMES"})
+        self.assertEqual(gate, fix)
 
 
 class CiRoleCase(ScriptCase):

@@ -32,6 +32,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import tree_run  # noqa: E402
+from tests.bin import gitkit  # noqa: E402
 
 
 def group_gone(pgid, within):
@@ -515,6 +516,82 @@ class CommandArgvCase(unittest.TestCase):
     def test_launch_kind_reads_126_127_as_red(self):
         self.assertEqual([tree_run.launch_kind(c) for c in (None, 0, 1, 126, 127)],
                          ["broken", "clean", "red", "red", "red"])
+
+
+class ReuseRunCase(unittest.TestCase):
+    """reuse_run の結果の使い回しの要（元 test_tree_run.py の SlotReuseCase の test_broken_entry_runs_child_and_says_why・
+    test_writeback_failure_restores_log・test_red_or_tree_changing_run_is_not_kept）。本物の git と本物の子のプロセスで試す"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        self.repo = self.tmp / "repo"
+        self.repo.mkdir()
+        (self.repo / "a.txt").write_text("1\n", encoding="utf-8")
+        gitkit.git(self.repo, "init", "-q")
+        gitkit.git(self.repo, "add", "-A")
+        gitkit.git(self.repo, "commit", "-q", "-m", "seed")
+        self.count = self.tmp / "count"
+        self.report = self.tmp / "report.xml"
+        self.place = tree_run.reuse_place(self.tmp / "art", "run-a", rerun=False)
+        self.n = 0
+
+    def launch(self, argv=None, outputs=None):
+        """reuse_run を 1 回呼ぶ ——（終了コード, 出力, note）。argv の既定は count に 1 行足して out を書き、報告を書く sh"""
+        argv = argv or ["sh", "-c", f'echo 1 >> {self.count}; echo out; [ -d {self.report} ] || echo "<r/>" > {self.report}']
+        note = {}
+        self.n += 1
+        log = self.tmp / f"log-{self.n}"
+        with open(log, "wb") as f:
+            rc = tree_run.reuse_run(argv, {"PATH": os.environ["PATH"]}, place=self.place,
+                                    outputs=(self.report,) if outputs is None else outputs, note=note,
+                                    stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT, cwd=str(self.repo))
+        return rc, log.read_bytes(), note
+
+    def launched(self):
+        return len(self.count.read_text(encoding="utf-8").split()) if self.count.exists() else 0
+
+    def test_broken_entry_runs_child_and_says_why(self):
+        self.launch()
+        _, _, note = self.launch()
+        self.assertEqual(self.launched(), 1)
+        pathlib.Path(note["reused"]["entry"]).write_text("{", encoding="utf-8")
+        rc, log, note = self.launch()
+        self.assertEqual((rc, self.launched(), log), (0, 2, b"out\n"))
+        self.assertNotIn("reused", note)
+        self.assertIn("控えが読めない", note["reuse_off"])
+
+    def test_writeback_failure_restores_log(self):
+        """書き戻しは全部か無し: 書き戻せなければ書いた分を戻して子を起こし、ログに控えの出力を残さない"""
+        self.launch()
+        self.report.unlink()
+        self.report.mkdir()   # 書き戻し先がディレクトリ: IsADirectoryError
+        rc, log, note = self.launch()
+        self.assertEqual((rc, self.launched(), log), (0, 2, b"out\n"))
+        self.assertNotIn("reused", note)
+        self.assertIn("書き戻しに失敗した", note["reuse_off"])
+
+    def test_red_or_tree_changing_run_is_not_kept(self):
+        red = ["sh", "-c", f"echo 1 >> {self.count}; exit 1"]
+        self.assertEqual(self.launch(red, ())[0], 1)
+        rc, _, note = self.launch(red, ())
+        self.assertEqual((rc, self.launched()), (1, 2))
+        self.assertIn("緑の回だけ控える", note["reuse_off"])
+        make = ["sh", "-c", f"echo 1 >> {self.count}; echo x > made.txt"]
+        _, _, note = self.launch(make, ())
+        self.assertIn("作業ツリーが変わった", note["reuse_off"])
+        (self.repo / "made.txt").unlink()
+        self.launch(make, ())
+        self.assertEqual(self.launched(), 4)   # 置かれていれば 2 度目は控えから使われ、子が起きない
+
+    def test_no_place_always_launches(self):
+        """置き場の無い呼び（reuse_place が None。top か run が空）は控えを読まず書かず、note に何も置かない"""
+        self.assertIsNone(tree_run.reuse_place("", "run-a", rerun=False))
+        self.assertIsNone(tree_run.reuse_place(self.tmp, "", rerun=False))
+        self.place = None
+        notes = [self.launch()[2] for _ in range(2)]
+        self.assertEqual((self.launched(), notes), (2, [{}, {}]))
 
 
 if __name__ == "__main__":
