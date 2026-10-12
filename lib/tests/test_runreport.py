@@ -18,6 +18,7 @@ import carry  # noqa: E402
 import gatemarks  # noqa: E402
 import worldmark  # noqa: E402
 import outcome  # noqa: E402
+import outpurpose  # noqa: E402
 import querytest  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
@@ -173,6 +174,29 @@ class TypedCase(Base):
                                              "path": "nodes/r.md", "body": cert}]}, "warnings": []}
         _, text, _ = self.build(typed=typed)
         self.assertIn("赤のまま通した", self.section(text, runreport.GREEN_HEADING))
+
+    def test_green_cert_names_suites_and_log(self):
+        """元 report.py:1042-1050 の最後のテストの一式の行とログ: test-gate の返りの evidence の先の行から。取れなければ黙らずにその旨"""
+        suites = "一式: run-tests（make test）"
+        final = self.put("test-gate-final/evidence.md", f"# test-gate（final）\n\n- ok: true\n- 走らせ方: engine・{suites}\n"
+                                                        "- ログ: /tmp/x/test.log\n")
+        _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": final}}))
+        green = self.section(text, runreport.GREEN_HEADING)
+        self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: engine・{suites}\n", green)
+        self.assertIn("- 最後のテスト（test-gate-final）のログ: /tmp/x/test.log\n", green)
+        self.assertIn("- 直す前のテスト（test-gate-base）の走らせ方とログ: 取れない", green)
+
+        fell = self.put("fell/evidence.md", "# test-gate（final）\n\n- ok: false（返す節の中の誤り）\n- 誤り: KeyError: 'by'\n")
+        _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": fell}}))
+        green = self.section(text, runreport.GREEN_HEADING)
+        self.assertIn("- 最後のテスト（test-gate-final）の走らせ方: 証拠に「走らせ方」の行が無い", green)
+        self.assertIn("- 最後のテスト（test-gate-final）のログ: 証拠に「ログ」の行が無い", green)
+
+        _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": str(self.dir)}}))
+        self.assertIn("- 最後のテスト（test-gate-final）の走らせ方とログ: 読めない（", self.section(text, runreport.GREEN_HEADING))
+
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": None, "test-gate-final": None}))
+        self.assertNotIn("走らせ方", self.section(text, runreport.GREEN_HEADING))
 
 
 class TranscriptCase(Base):
@@ -828,6 +852,43 @@ class LinesCase(Base):
         _, text, _ = self.build(start={"run_id": RUN, "final_gate": "when_needed"})
         self.assertIn("- 最後の関所: when_needed", self.section(text, report.ENTRY_HEADING))
 
+    def test_entry_lists_ran_and_skipped_stages_and_baseline(self):
+        """入口の節に走った段・飛ばされた段・直す前のテストの色と赤の原因（元 report.py の入口の行）"""
+        base = {"mode": "base", "ok": True, "green": False, "red_cause": "inherited"}
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        body = self.section(text, report.ENTRY_HEADING)
+        self.assertIn("- 走った段: test-gate-base・judge・plan・", body)
+        self.assertIn("- 飛ばされた・返りの無い段: rejudge・replan・replan-review\n", body)
+        self.assertIn("直す前のテスト: 赤", body)
+        self.assertIn("赤の原因 inherited", body)
+
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": None}))
+        body = self.section(text, report.ENTRY_HEADING)
+        self.assertNotIn("直す前のテスト", body)
+        self.assertIn("- 飛ばされた・返りの無い段: test-gate-base・rejudge・replan・replan-review", body)
+
+    def test_outside_purpose_rows_and_wrong_name(self):
+        """目的の外の所見は節に 1 件ずつ、人が決めることの節に件数と置き場の 1 行（次の run に渡す物の行の前）。名の違う控えは読まない"""
+        p = self.put("judge/out-of-purpose.json", {"rounds": {"1": [{"source": "P1", "why_outside": "目的の外の所見",
+                                                                    "found": [{"where": "a.py:1", "text": "x"},
+                                                                              {"where": "b.py:2", "text": "y"}]}]}})
+        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "out_of_purpose": p}))
+        outside = self.section(text, report.OUTSIDE_HEADING)
+        self.assertIn(f"{outpurpose.REPORT_HEAD}: 2 件", outside)
+        self.assertIn("  - a.py:1（出どころ: P1・", outside)
+        lines = self.section(text, report.DECISIONS_HEADING).splitlines()
+        count = [i for i, x in enumerate(lines) if x.startswith(f"- {outpurpose.COUNT_HEAD}")]
+        carried = [i for i, x in enumerate(lines) if x.startswith("- 次の run に渡す物:")]
+        self.assertEqual(len(count), 1, lines)
+        self.assertLess(count[0], carried[0])
+        for word in ("2 件", carry.NEXT_REQUEST_FILE, report.OUTSIDE_HEADING.removeprefix("## ")):
+            self.assertIn(word, lines[count[0]])
+
+        other = self.put("judge/other.json", {})
+        _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "out_of_purpose": other}))
+        self.assertIn(f"の名が {outpurpose.FILE} でない（読まなかった）", self.section(text, report.OUTSIDE_HEADING))
+        self.assertNotIn(outpurpose.COUNT_HEAD, self.section(text, report.DECISIONS_HEADING))
+
     def test_every_line_is_a_bullet(self):
         """元 build の行の組み方: 節の行は「- 」か、字下げした内訳の行"""
         fix = {**fixed_run()["fix"], "units": [{"unit_id": "u1", "status": "given_up", "reason": "通らない"}]}
@@ -842,9 +903,21 @@ class StampCase(Base):
     def test_stamp_names_workflow_run_and_version(self):
         wf = self.put("works-factory-report.yaml", "name: x\n")
         sha = hashlib.sha256(b"name: x\n").hexdigest()[:12]
-        self.assertEqual(runreport.stamp("run-9", wf, 2), f"works-factory-report / run run-9 / 周 2 / 工程の版 {sha}")
-        self.assertEqual(runreport.stamp("", wf), f"works-factory-report / run — / 周 — / 工程の版 {sha}")
-        self.assertIn("工程の版 読めない（FileNotFoundError）", runreport.stamp("run-9", self.dir / "none.yaml"))
+        start = {"versions": {"line": "ab" * 32}}
+        self.assertEqual(runreport.stamp("run-9", wf, 2, start), f"works-factory-report / run run-9 / 周 2 / 工程の版 {sha} / 線の版 abababababab")
+        self.assertEqual(runreport.stamp("", wf, None, start), f"works-factory-report / run — / 周 — / 工程の版 {sha} / 線の版 abababababab")
+        self.assertIn("工程の版 読めない（FileNotFoundError）", runreport.stamp("run-9", self.dir / "none.yaml", None, start))
+
+    def test_stamp_names_line_version(self):
+        """元 report_roles.stamp の works の線の版: 始めの記録の versions.line の頭 12 字。無ければ黙らずにその旨"""
+        wf = self.put("works-factory-report.yaml", "name: x\n")
+        sha = hashlib.sha256(b"name: x\n").hexdigest()[:12]
+        got = runreport.stamp("run-9", wf, 2, {"versions": {"line": "ab" * 32}})
+        self.assertEqual(got, f"works-factory-report / run run-9 / 周 2 / 工程の版 {sha} / 線の版 abababababab")
+        for start in ({"versions": {}}, {}, {"versions": {"line": ""}}):
+            with self.subTest(start=start):
+                self.assertTrue(runreport.stamp("run-9", wf, None, start).endswith(" / 線の版 始めの記録に無い（versions.line）"))
+        self.assertTrue(runreport.stamp("run-9", wf, None, None).endswith(" / 線の版 読めない（始めの記録が読めない）"))
 
     def test_pack_terms_raise_when_unreadable(self):
         broken = self.dir / "glossary.json"
