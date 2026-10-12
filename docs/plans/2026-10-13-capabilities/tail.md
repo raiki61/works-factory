@@ -1552,7 +1552,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R53 判定が目的の外とした所見: 1 件ずつの行を本文の節に、行を次の依頼に（下書きの印つき）
   - 元: works/.shared/core/outpurpose.py:216 `report_lines`・:200 `next_items`・:229 `count_line`
-  - 今: lib/runreport.py `_outside`・`_outside_count`（count_line の 1 行を人が決めることの節の、次の run に渡す物の行の前に）
+  - 今: lib/runreport.py `_outside`（3 つ目の返りの count_line の 1 行を人が決めることの節の、次の run に渡す物の行の前に）
   - 証: lib/tests/test_runreport.py::DecisionsCase.test_nothing_to_decide_puts_next_items・LinesCase.test_outside_purpose_rows_and_wrong_name（節の 1 件ずつの行・件数と置き場の 1 行の位置・名が違うファイルを読まない注意）
   - 本物の run: judge/out-of-purpose.json
   - 狭め: 無し（件数と置き場の 1 行を戻した）
