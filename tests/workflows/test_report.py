@@ -366,6 +366,7 @@ class FactsCase(Run):
         self.assertIs(out["ai_go"], False)
         text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
         self.assertIn("始めの記録（入力 start）が届いていない", text)
+        self.assertTrue(out["stamp"].endswith(" / 線の版 読めない（始めの記録が読めない）"), out["stamp"])
         self.assertIn("TYPED_ARTIFACTS_FILE が空", text)
         self.assertIn("LOG_DIR", text)
 
@@ -379,6 +380,7 @@ class FactsCase(Run):
         self.assertIn("入力 judge が JSON でない", text)
         self.assertIn("入力 plan が JSON のオブジェクトでない", text)
         self.assertIn("始めの記録を開けない", text)
+        self.assertTrue(out["stamp"].endswith(" / 線の版 読めない（始めの記録が読めない）"), out["stamp"])
         self.assertIn(f"run の記録 {self.dir / RUN}.jsonl が読めない", text)
 
     def test_unexpected_error_still_returns(self):

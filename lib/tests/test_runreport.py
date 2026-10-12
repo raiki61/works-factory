@@ -903,19 +903,21 @@ class StampCase(Base):
     def test_stamp_names_workflow_run_and_version(self):
         wf = self.put("works-factory-report.yaml", "name: x\n")
         sha = hashlib.sha256(b"name: x\n").hexdigest()[:12]
-        self.assertEqual(runreport.stamp("run-9", wf, 2), f"works-factory-report / run run-9 / 周 2 / 工程の版 {sha}")
-        self.assertEqual(runreport.stamp("", wf), f"works-factory-report / run — / 周 — / 工程の版 {sha}")
-        self.assertIn("工程の版 読めない（FileNotFoundError）", runreport.stamp("run-9", self.dir / "none.yaml"))
+        start = {"versions": {"line": "ab" * 32}}
+        self.assertEqual(runreport.stamp("run-9", wf, 2, start), f"works-factory-report / run run-9 / 周 2 / 工程の版 {sha} / 線の版 abababababab")
+        self.assertEqual(runreport.stamp("", wf, None, start), f"works-factory-report / run — / 周 — / 工程の版 {sha} / 線の版 abababababab")
+        self.assertIn("工程の版 読めない（FileNotFoundError）", runreport.stamp("run-9", self.dir / "none.yaml", None, start))
 
     def test_stamp_names_line_version(self):
         """元 report_roles.stamp の works の線の版: 始めの記録の versions.line の頭 12 字。無ければ黙らずにその旨"""
         wf = self.put("works-factory-report.yaml", "name: x\n")
         sha = hashlib.sha256(b"name: x\n").hexdigest()[:12]
-        got = runreport.stamp("run-9", wf, 2, start={"versions": {"line": "ab" * 32}})
+        got = runreport.stamp("run-9", wf, 2, {"versions": {"line": "ab" * 32}})
         self.assertEqual(got, f"works-factory-report / run run-9 / 周 2 / 工程の版 {sha} / 線の版 abababababab")
         for start in ({"versions": {}}, {}, {"versions": {"line": ""}}):
             with self.subTest(start=start):
-                self.assertTrue(runreport.stamp("run-9", wf, start=start).endswith(" / 線の版 始めの記録に無い（versions.line）"))
+                self.assertTrue(runreport.stamp("run-9", wf, None, start).endswith(" / 線の版 始めの記録に無い（versions.line）"))
+        self.assertTrue(runreport.stamp("run-9", wf, None, None).endswith(" / 線の版 読めない（始めの記録が読めない）"))
 
     def test_pack_terms_raise_when_unreadable(self):
         broken = self.dir / "glossary.json"

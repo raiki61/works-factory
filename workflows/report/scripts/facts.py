@@ -72,19 +72,20 @@ def opened(value, unopened: list, rid: str, field: str = ""):
     return value
 
 
-def start_record(problems: list) -> dict:
+def start_record(problems: list) -> dict | None:
+    """始めの記録。届いていない・開けない・オブジェクトでない時は訳を problems に足して None（読めた空の記録 {} と分ける）"""
     ptr, why = parse("start", START)
     if ptr is None:
         problems.append(why or "始めの記録（入力 start）が届いていない")
-        return {}
+        return None
     try:
         doc = json.loads(boundary.resolve(ptr).read_text(encoding="utf-8"))
     except (OSError, KeyError, ValueError) as e:
         problems.append(f"始めの記録を開けない: {e}")
-        return {}
+        return None
     if not isinstance(doc, dict):
         problems.append("始めの記録が JSON のオブジェクトでない")
-        return {}
+        return None
     return doc
 
 
@@ -121,7 +122,8 @@ def main() -> dict:
         gates[gid], why = parse(gid, raw)
         unread += [why] if why else []
     problems, notes = outcome.record_problems(returns, gates, unread=unread, unopened=unopened)
-    start = start_record(problems)
+    record = start_record(problems)
+    start = record or {}
     rows, transcript_why = transcript()
     listing = typed.read_listing()
     listing["warnings"] = [*notes, *listing["warnings"], *([transcript_why] if transcript_why else [])]
@@ -137,7 +139,7 @@ def main() -> dict:
             "report": report, "next_request": rel(built["next_request"]),
             "prior_failures": rel(built["prior_failures"]), "ai_go": built["ai_go"], "facts_file": report["path"],
             "stamp": runreport.stamp(run_id, WORKFLOW_FILE, outcome.as_dict(outcome.planned(returns)).get("round"),
-                                     start=start)}
+                                     record)}
 
 
 def fallen(error: BaseException) -> dict:

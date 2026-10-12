@@ -1128,18 +1128,20 @@ def accept(reply, cold, *, out_dir) -> dict:
     return {"done": True, "ok": True, "reason": reason, "kind": "", "reason_file": ""}
 
 
-def stamp(run_id: str, workflow_file, rnd=None, start: dict | None = None) -> str:
+def stamp(run_id: str, workflow_file, rnd, start: dict | None) -> str:
     """報告の頭の来歴の 1 行（機械が刻む。元 report_roles.stamp の works の線・run・周・graph の版を、工程の名（ファイルの名）・run・
-    周（計画の round。何回目の案か。無ければ —）・工程のファイルの sha256 の頭 12 字で。元の table の版は規則の表が無いので無い）。
-    工程のファイルが読めなければ版の所にその旨。start（始めの記録）を渡せば、末尾に線の版（versions.line の頭 12 字。
-    無ければその旨）"""
+    周（計画の round。何回目の案か。無ければ —）・工程のファイルの sha256 の頭 12 字・線の版（始めの記録 start の versions.line の
+    頭 12 字）で。元の table の版は規則の表が無いので無い）。工程のファイルが読めなければ工程の版の所に、start が None（始めの記録が
+    読めない）なら線の版の所にその旨。読めた記録に versions.line が無ければ「無い」と分けて書く"""
     try:
         sha = hashlib.sha256(pathlib.Path(workflow_file).read_bytes()).hexdigest()[:12]
     except OSError as e:
         sha = f"読めない（{type(e).__name__}）"
     parts = [pathlib.Path(workflow_file).stem, f"run {run_id or '—'}", f"周 {rnd if rnd is not None else '—'}", f"工程の版 {sha}"]
-    if start is not None:
-        line = as_dict(as_dict(start).get("versions")).get("line")
+    if start is None:
+        parts.append("線の版 読めない（始めの記録が読めない）")
+    else:
+        line = as_dict(start.get("versions")).get("line")
         parts.append(f"線の版 {line[:12]}" if isinstance(line, str) and line else "線の版 始めの記録に無い（versions.line）")
     return " / ".join(parts)
 
