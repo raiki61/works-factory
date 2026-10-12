@@ -33,7 +33,7 @@ $provenance-reject.output.reason
 
 対象差分: ［材料: loop.diff_file］　BASE: ［材料: record.base］　リポジトリ: ［材料: inputs.cwd］
 
-対象差分の本文・PR 説明・docstring から「正本は X」「規約は X」「合意済み」等の事実の主張を抽出し、その X が対象差分の内側に無いかを確認しろ（`git log -S` 等で BASE 時点の実在を見る）。差分が自ら足したものを根拠として引用しているなら循環で、素材として P2 へ渡す。外部（他チーム・他システム・取り込み元）との合意を主張する箇所は、BASE に痕跡が無ければ「未確認の前提」として扱え。claims に主張・BASE 時点の実在・証拠。
+対象差分の本文・PR 説明・docstring から「正本は X」「規約は X」「合意済み」等の事実の主張を抽出し、その X が対象差分の内側に無いかを確認しろ（`git log -S` 等で BASE 時点の実在を見る）。差分が自ら足したものを根拠として引用しているなら循環で、素材として P2 へ渡す（P2 は素材を読んで判定する段で、この run では診断の役 diagnose がこの役の返答を読む。渡し方: claims のその行の exists_at_base を false にし、evidence に循環の証拠（X を足した差分の箇所と、打ったコマンドの結果）を書き、material を found にして count と detail に書く）。外部（他チーム・他システム・取り込み元）との合意を主張する箇所は、BASE に痕跡が無ければ「未確認の前提」として扱え。claims に主張・BASE 時点の実在・証拠を書け。claims は返答の頭の欄で material とは別。抽出した主張 1 件ごとに 1 行で、`claim`（主張の文）・`exists_at_base`（X が BASE 時点に在ったか。真偽）・`evidence`（確かめた方法と結果）を書く。
 素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は review-record.py。
 
 ---

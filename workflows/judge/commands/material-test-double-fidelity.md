@@ -33,7 +33,7 @@ $test-double-fidelity-reject.output.reason
 
 対象差分: ［材料: loop.diff_file］　変更ファイルの一覧: ［材料: loop.changed_files_file］（1 行 1 ファイル。要る所だけ Read）　リポジトリ: ［材料: inputs.cwd］
 
-対象差分が外部との継ぎ目（別プロセス・別サービス・ブラウザ・外部 API・プロトコル）に触れるなら、テストの代役（モック・スタブ・フェイク）の形が実物と一致するかを、**実物から取った値 1 件**で確認しろ。代役は本物の再現度でなく「実装の誤りが観測できるか」で区切るが、入力の形が実物と違う代役は誤りを観測できない——代役にだけ通る形でテストが緑になる。不一致は mismatches に。
+対象差分が外部との継ぎ目（別プロセス・別サービス・ブラウザ・外部 API・プロトコル）に触れるなら、テストの代役（モック・スタブ・フェイク）の形が実物と一致するかを、**実物から取った値 1 件**で確認しろ。代役は本物の再現度でなく「実装の誤りが観測できるか」で区切るが、入力の形が実物と違う代役は誤りを観測できない——代役にだけ通る形でテストが緑になる。不一致は mismatches に。`mismatches` は返答の頭の欄で material とは別。不一致 1 件ごとに 1 行で、where と text（任意で mechanism・measured・false_positive_if）を書く。不一致が在れば material は found にして、count に mismatches の行の数、detail に要約を書く。無ければ mismatches は空にし、material は clean（checked に何と何を比べたか）か、継ぎ目に触れない差分なら not_applicable（reason）。
 素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は review-record.py。
 
 ---

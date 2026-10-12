@@ -30,6 +30,10 @@ $prep.output.constraints_text
 
 仮定（assumption）を特定し、実態で偽と示せたら assumption_false=true・verdict=resolved・resolution に示した事実・facts_to_add に制約へ足す実測（目的は動かさない。1 run は 1 周なので、この run では R2 を回し直さない。実測を制約に足して R2 を回し直すのは次の run で、台帳の行はその run の judge が回し直した R2 を見て resolved にするまで held で残る）。仮定が真か、根拠が目的テキストの内側で閉じていて実測で反証できないなら verdict=escalate——このときだけは残る仕事が全てその答えに従属するので、他の阻害要因に依らず止めて聞く。key は問いの一文（何を決めるか）。
 
+- 仮定が複数混じるとき: assumption に書くのは、R2 の「問いが立っていない」という結論を支えている仮定のうち、偽なら結論が崩れるもの 1 つ。偽と示せた仮定があっても、残りの仮定だけで結論が立つなら resolved にせず verdict=escalate とし、どれを偽と示し、どれが残ったかを reason に書く。
+- evidence には、偽か真かを決めた実態（読んだファイルと行・読んだ一次情報）を書く。
+- 入力が足りないとき（R2 の返答が空・仮定が読み取れない・リポジトリが読めないなど）は、この返答の型に「足りない」の値が無いので、assumption_false=false・verdict=escalate とし、reason を「足りない: 」で始めて何が足りないかを書く。
+
 $prep.output.lang_line
 
 返すのは、このノードの出力の型（JSON Schema）に合う JSON だけ。

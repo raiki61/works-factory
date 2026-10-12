@@ -55,14 +55,14 @@ $local-review-reject.output.reason
 
 各 skill を呼ぶプロンプトには次を課せ（REVIEW.md に書くだけでは skill に届かない）: 指摘の提出基準（`REVIEW.md`「指摘の提出基準」）: 機構（なぜそうなるかのコード上の因果を一文）・実測（動かせるものは動かす。動かせないなら「未実測」と明記して仮説として出す）・提出前の自己反証（規則を引くならその条件節が当たるか・近傍の実態まで読み、殺せなかった指摘だけ提出する）・誤検出の見積もり（どんな場合に誤りになるかを一行）。
 
-skill の呼び出し自体が失敗したら（権限・実行時エラー）止めるな——その行の `failed` に書き、material を awaiting_human にして理由を書け。**無かったことを not_applicable にするな。** 直前の周から対象差分にロジック変更が無いなら /simplify の再実行は持ち越してよい（simplify_carried=true と理由。**持ち越しでも行は要る**——`failed` に持ち越しと書く）。
-素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は review-record.py。
+skill の呼び出し自体が失敗したら（権限・実行時エラー）止めるな——その行の `failed` に書き、material を awaiting_human にして理由を書け（返答の頭の欄は `material`・`findings`・`simplify_carried` の 3 つで、`material` は findings の行とは別の欄。status を awaiting_human にし、理由はその `reason` に書く）。**無かったことを not_applicable にするな。** 直前の周から対象差分にロジック変更が無いなら /simplify の再実行は持ち越してよい（返答の頭の欄 `simplify_carried` を true にする。持ち越しの理由は /simplify の行の `failed` に書く。**持ち越しでも行は要る**）。
+素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は受け付けが使う検証器 review-record.py だが、この役が探して読む必要は無い——上の status と欄に合わせれば足りる。
 
 ---
 
 ## 必須のレンズの呼び出しの失敗（works の受け付けより。上の指示書の読み替え）
 
-上の『skill の呼び出し自体が失敗したら…material を awaiting_human にして理由を書け』は、`required` が false のレンズにだけ当てる。`required` が true のレンズの呼び出しが失敗したら、この回のうちに起こし直して `invoked: true` を書け。起こせないまま返すなら `failed` に理由を書き、material を awaiting_human にするな——受け付けが拒んで同じ会話で起こし直させ、拒みが 3 回に届いた時と、レンズのプラグインが隔離した設定に無い時だけ人に渡す。
+上の『skill の呼び出し自体が失敗したら…material を awaiting_human にして理由を書け』は、`required` が false のレンズにだけ当てる。`required` が true のレンズの呼び出しが失敗したら、この回のうちに起こし直して `invoked: true` を書け。起こせないまま返すなら `failed` に理由を書き、material を awaiting_human にするな——受け付けが拒んで同じ会話で起こし直させ、拒みが 3 回に届いた時と、レンズのプラグインが隔離した設定に無い時だけ人に渡す。人に渡すのは受け付けと engine で、この役ではない——プラグインが設定に無いと分かった時も、この役は material を awaiting_human にせず、その行の `failed` に「隔離した設定に無い」と打った呼び出しと返った誤りを書いて返すだけ。
 
 上の『直前の周から対象差分にロジック変更が無いなら /simplify の再実行は持ち越してよい』は狭めて読め: `simplify_carried: true` を受けるのは、この周の頭に固めた版が前の周の頭の版と 1 ファイルも違わない周だけ。どれかのファイルが変わった周（ロジックでない変更でも）と 1 周目は `/simplify` を起こして `invoked: true` を書け。
 
