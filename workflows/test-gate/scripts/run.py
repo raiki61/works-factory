@@ -25,6 +25,7 @@ import green_cert  # noqa: E402
 import tree_run  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
 
+LOGS = "logs"
 WORKSPACE_PREFIX = ".archon/"   # Archon が run の作業ツリーに置く物。修正の変更でない
 OUTPUT = ("by", "material", "runs", "skipped_steps", "same_as", "log", "junit_steps", "fingerprint_before", "fingerprint_after")
 
@@ -53,6 +54,23 @@ def request_wheres(start: dict, mode: str) -> list:
     return [f["where"] for f in findings if isinstance(f, dict) and isinstance(f.get("where"), str)]
 
 
+def fresh_gate(gate: Path) -> Path:
+    """同じ run で同じ形をもう 1 度差し込んだ時に、前の回の素材・拒否・記録を読まないよう gate の中を logs/ のほかは消し、今回のログの
+    置き場 logs/a<k>/（k は空いた最初の番号。前の走りのログを上書きしない）を返す（元 works/.shared/core/board.py:1404 _log_dir）"""
+    gate.mkdir(parents=True, exist_ok=True)
+    for path in gate.iterdir():
+        if path.name == LOGS:
+            continue
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            path.unlink(missing_ok=True)
+    k = 1
+    while (gate / LOGS / f"a{k}").exists():
+        k += 1
+    return gate / LOGS / f"a{k}"
+
+
 def main() -> int:
     mode = os.environ["INPUTS_MODE"]
     if mode not in declared_checks.MODES:
@@ -61,14 +79,13 @@ def main() -> int:
     start = json.loads(boundary.resolve(json.loads(os.environ["INPUTS_START"])).read_text(encoding="utf-8"))
     root = Path(util.repo_root() or os.getcwd())
     gate = Path(os.environ["ARTIFACTS_DIR"]) / "test-gate" / mode
-    shutil.rmtree(gate, ignore_errors=True)   # 同じ run で同じ形をもう 1 度差し込んだ時に、前の回の素材と拒否を読まない
-    gate.mkdir(parents=True)
+    log_dir = fresh_gate(gate)
     base_rev = start.get("base_rev") or ""
     suite = start.get("tdd_suite") or ""
     wheres = request_wheres(start, mode)
     try:
         before = green_cert.fingerprint(root)
-        ci = declared_checks.run_ci(root, test_cmd=start.get("test_cmd") or "", log_dir=gate / "logs",
+        ci = declared_checks.run_ci(root, test_cmd=start.get("test_cmd") or "", log_dir=log_dir,
                                     changed=lambda: changed(root, base_rev, wheres), after_judge=mode == "final",
                                     report_dir=gate / "junit")
         ran = None

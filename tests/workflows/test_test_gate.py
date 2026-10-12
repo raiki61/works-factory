@@ -310,6 +310,21 @@ class RunScriptCase(ScriptCase):
         self.write_start(request_file=str(request), input={"diff": {"empty": False}})
         self.assertEqual(self.ok("run", mode="base", start=self.start)["skipped_steps"], [])
 
+    def test_rerun_keeps_earlier_logs(self):
+        """元 test_board_engine_run.py の test_rerun_keeps_earlier_logs: 同じ run で同じ形を呼び直しても前の走りのログを上書きしない
+        （空いた番号の置き場 logs/a<k>/）。前の回の素材・拒否・記録は消す（今回の物として読まない）"""
+        self.decl([{"name": "suite", "argv": [PY, "-c", "print('ran')"]}])
+        gate = self.artifacts / "test-gate" / "base"
+        first = self.ok("run", mode="base", start=self.start)
+        for name in ("ci-material.json", "rejects-ci.json"):
+            (gate / name).write_text("{}", encoding="utf-8")
+        second = self.ok("run", mode="base", start=self.start)
+        self.assertEqual((gate / "logs" / "a1" / "1.out").read_text(encoding="utf-8"), "ran\n")
+        self.assertEqual((gate / "logs" / "a2" / "1.out").read_text(encoding="utf-8"), "ran\n")
+        self.assertEqual((pathlib.Path(first["log"]).parent.name, pathlib.Path(second["log"]).parent.name), ("a1", "a2"))
+        self.assertFalse((gate / "ci-material.json").exists())
+        self.assertFalse((gate / "rejects-ci.json").exists())
+
     def test_scope_declaration_without_review_declaration_stops(self):
         """範囲の宣言だけが在れば走らせずに 1 で止め、理由を標準エラーに出す"""
         (self.repo / ".works-checks.json").write_text('{"far": {"paths_ignore": ["works/"]}}', encoding="utf-8")

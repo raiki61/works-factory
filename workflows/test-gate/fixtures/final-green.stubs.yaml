@@ -5,7 +5,7 @@ run:
   runs: [{name: suite, exit: 0, how: direct}]
   skipped_steps: []
   same_as: null
-  log: test-gate/final/logs/checks.log
+  log: test-gate/final/logs/a1/checks.log
   junit_steps: [suite]
   fingerprint_before: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
   fingerprint_after: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
