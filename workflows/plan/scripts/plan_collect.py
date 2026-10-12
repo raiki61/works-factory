@@ -35,7 +35,7 @@ def collected() -> dict:
     rnd = planfile.read_round(round_dir)
     start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
     start = start if isinstance(start, dict) else {}
-    judgment, _ = planfile.read_pointed(os.environ["INPUTS_JUDGMENT"], boundary.resolve)
+    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.resolve)
     got = planfile.collect(round_dir, unit_ids=planfile.owed_order(judgment) if isinstance(judgment, dict) else [],
                            thickness=start.get("thickness") or "", checked=bool(start.get("test_cmd") or start.get("tdd_suite")))
     reason = "" if got["ready"] else planfile.why_not_ready(round_dir)

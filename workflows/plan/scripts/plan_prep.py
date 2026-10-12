@@ -30,7 +30,7 @@ def main() -> None:
     start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
     start = start if isinstance(start, dict) else {}
     judgment_file, _ = planfile.pointed(os.environ["INPUTS_JUDGMENT"], boundary.resolve)
-    judgment, _ = planfile.read_pointed(os.environ["INPUTS_JUDGMENT"], boundary.resolve)
+    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.resolve)
     units = planfile.units_of(os.environ["INPUTS_UNITS"])
     world, bad_world = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.resolve)
     spec, bad_spec = planfile.read_pointed(os.environ["INPUTS_SPEC"], boundary.resolve, text=True)

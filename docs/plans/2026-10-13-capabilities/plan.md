@@ -15,17 +15,17 @@
 
 - P001 判定の開いた単位（block か、suggest で do-now）から、答えていない関所の問い（held・escalate の fork と、escalate の問い）の出どころ・depends を除いた物を「直す義務の単位」にする。
   - 元: works/.shared/core/conflict.py:676 `owed_units_but_asked`（entry の CORE_OVERRIDES で写しの rules/review-loop.py:2645 `_owed_units` を差し替え）
-  - 今: lib/planfile.py:246 `_owed_units`
-  - 証: lib/tests/test_planfile.py::OwedCase.test_owed_is_open_units_minus_asking_fork_origin_and_depends（assert: lib/tests/test_planfile.py:94）・test_escalated_non_fork_excuses_origin_and_depends（:113）・test_decided_fork_and_held_non_fork_do_not_excuse（:103）・test_depends_that_is_not_a_list_is_not_read（:122）
+  - 今: lib/gatemarks.py の duty（plan は lib/planfile.py の _owed_units・plan_slots が read_judgment の添えた問いの台帳の見え方で呼ぶ。fix の group_owed と同じ口）
+  - 証: lib/tests/test_planfile.py::OwedCase の 4 件・lib/tests/test_gatemarks.py::DutyCase.test_plan_and_fix_get_the_same_duty（部分 B1）
   - 本物の run: plan/r1/brief-1.md の単位の行の「必ず案に入れる」（種では mean・clamp の 2 つ）と plan/r1/slots.json
   - 狭め: 無し（関所の答えで戻す部分は P002）
 
 - P002 修正前の関所で人が答えた問い（gatemarks.returned）の出どころを義務に戻し、直す裁定でない裁定（held_by_rulings）の単位を義務から外す。
   - 元: works/.shared/core/conflict.py:676 `owed_units_but_asked`（returned・held_by_rulings の項）、試験 works/tests/test_blk_plan.py:557 ScriptCase.test_plan_slots_equal_copy_acceptance（answered_patch の q-back が must に入る）
-  - 今: 無し（lib/planfile.py:246 の docstring が「扱わない」と書く）
-  - 証: 要追加: tests/workflows/test_plan.py::OwedAnswersCase.test_answered_fork_origin_returns_to_duty — 入力に関所の答え（gate_answers の形）を渡すと、答えた fork の出どころが brief の「必ず案に入れる」に載り、外すと網羅の拒否になる
+  - 今: lib/gatemarks.py の duty が returned を戻す（plan は始めの記録の依頼の answers・判定の結び・素材の状態から。関所の答えは plan より後なので fix の側だけ）。held_by_rulings は fix の lib/fixboard.py の owed_units_but_asked
+  - 証: tests/workflows/test_plan.py::OwedAnswersCase.test_answered_fork_origin_returns_to_duty（関所の答えでなく依頼の answers で照らす。部分 B1）・lib/tests/test_gatemarks.py::DutyCase
   - 本物の run: 筋書きでのみ（関所の答えが plan より前に来る run の形が要る）
-  - 狭め: #75 で狭めた（Archon で不可でない → 戻すか持ち主の決め。線 workflows/line/works-factory-line.yaml:191-201 の plan の `with:` に答えを渡す口が無いだけで、Archon は節の出力を include の入力に渡せる。ただし今の線の順では関所 gate-before-fix は plan-rounds の後なので、戻すなら replan か fix の側の話になる。持ち主に: plan に関所の答えを渡すか、この能力を fix（conflict）だけに置くと決めるか）
+  - 狭め: #75 で狭めた（Archon で不可でない → 戻すか持ち主の決め。線 workflows/line/works-factory-line.yaml:191-201 の plan の `with:` に答えを渡す口が無いだけで、Archon は節の出力を include の入力に渡せる。ただし今の線の順では関所 gate-before-fix は plan-rounds の後なので、戻すなら replan か fix の側の話になる。持ち主に: plan に関所の答えを渡すか、この能力を fix（conflict）だけに置くと決めるか） → 部分 B1 で戻した（plan に関所の答えは渡さない: 線の配線の文書のやる事 2）
 
 - P003 案に入れてよい単位（開いた単位）に 1 から番号を振って周ごとに固め（slots.json）、役が no の整数で返した unit_keys を同じ並びで id に戻す。役の返答そのものは書き換えない。控え（plan-fields.json・p2.fix_plan.json）の unit_keys は名前。
   - 元: engine の pointers（works/.shared/core/graphloops/graphs/review-loop.json:3341 `pointers` の at plan[].unit_keys[] from record.units）と mark_launched の控え、works/blk-plan/lib/planblk.py:387 `_resolved`・:1236 `with_plan_fields`
@@ -78,10 +78,10 @@
 
 - P010 必ず入れるのに開いていない単位（行き止まり）が在れば、役を起こさずに止め、理由 PLAN_STUCK に no と key を書く。
   - 元: works/blk-plan/lib/planblk.py:366 `stuck_reason`・:379 `halt_if_stuck`・:1062 `snap`、試験 works/tests/test_blk_plan.py:590・:611
-  - 今: lib/planfile.py:272 `stuck_reason`・:623 `open_round`（go: false・why）
-  - 証: tests/workflows/test_plan.py::CollectCase.test_stuck_unit_skips_the_role（assert: tests/workflows/test_plan.py:791・:793）・lib/tests/test_planfile.py::SlotsCase.test_stuck_names_owed_unit_that_is_not_open（:150）。ただしブロックの試験は同じ key を開いた行と nit の行で 2 度持つ壊れた判定で道を通しているだけ（judge が重複の key を出さない限り本物では起きない）、lib の試験は `_owed_units` を mock で差し替えている
+  - 今: lib/planfile.py の stuck_reason・open_round（直す義務 gatemarks.duty が依頼の答えで開いていない単位を戻すと起きる）
+  - 証: tests/workflows/test_plan.py::OwedAnswersCase.test_answered_origin_that_is_not_open_is_stuck（部分 B1）・CollectCase.test_stuck_unit_skips_the_role・lib/tests/test_planfile.py::SlotsCase.test_stuck_names_owed_unit_that_is_not_open
   - 本物の run: 筋書きでのみ（今の配線では届かない）
-  - 狭め: #75 で狭めた（届かない道。owed は開いた単位からの引き算だけなので owed ⊆ opened が常に成り立つ。元は P002 の関所の答えで開いていない単位が義務に戻って起きた）。Archon で不可でない。持ち主の確かめ待ち（#75 本文の 2 つ目）: P002 を戻すか、この道を消すか
+  - 狭め: #75 で狭めた（届かない道。owed は開いた単位からの引き算だけなので owed ⊆ opened が常に成り立つ。元は P002 の関所の答えで開いていない単位が義務に戻って起きた）。Archon で不可でない。持ち主の確かめ待ち（#75 本文の 2 つ目）: P002 を戻すか、この道を消すか → 部分 B1 で届く道を戻した（P002）
 
 - P011 直す義務の単位が無い判定は、修正案の役も構造の実測も起こさずに抜ける。
   - 元: graphs/review-loop.json:3324 `cond: units_open`、planblk.py:1062 `snap`（go: false）・:1441 `collect`（ok: true・plan_file 空）、試験 works/tests/test_blk_plan.py:1074 test_no_fix_skips_both_loops
@@ -1708,9 +1708,9 @@
 - P236 無人の run では台帳の問いの行を関所に載せない（問いだけで関所を開かず、修正を飛ばさない）。狭めの在る関所は今どおり開く
   - 元: works/.shared/core/gatemarks.py:625 `plan_gate_items`（gatepolicy.unattended）
   - 今: lib/gatemarks.py:620-621・lib/boardview.py:403-404（始めの記録を置き場に写すので無人の印が届く）
-  - 証: tests/workflows/test_plan_review.py::LedgerAsksCase.test_unattended_run_does_not_open_the_gate_for_questions_only（assert: :2143-2145）。弱い: 元の「出どころは直す義務から外したまま・ほかの単位は残る」（owed の数え）と「報告の冒頭に答えの無い問いが並ぶ」の断言を落とした（#73）。報告の側は lib/tests/test_runreport.py::LedgerCase.test_held_line_names_units_left_and_answer_key が保留の行を見る。義務の数えは P241 の穴
+  - 証: tests/workflows/test_plan_review.py::LedgerAsksCase.test_unattended_run_does_not_open_the_gate_for_questions_only・tests/workflows/test_line.py::AskBeforeFixCase.test_unattended_stops_on_policy_change_rows・lib/tests/test_gatemarks.py::DutyCase.test_plan_and_fix_get_the_same_duty（義務の数え。部分 B1）
   - 本物の run: 筋書きでのみ
-  - 狭め: #73 で試験の断言を外した（Archon で不可でない → P241 の試験で戻す）
+  - 狭め: #73 で試験の断言を外した（Archon で不可でない → P241 の試験で戻す） → 部分 B1 で戻した
 
 - P237 一言の「保留: <key>」で名指した問いは答えに数えない。key は台帳の key を最長一致で拾い、key の後ろの言葉・区切りの字を含む key・並べた複数の key も読む。前後が key の字で続く一致は拾わない
   - 元: works/.shared/core/gatemarks.py:1118 `hold_keys`・`_hold_scan`・:1070 `answered`
@@ -1736,16 +1736,16 @@
 - P240 escalate の問いも fork と同じ 1 つの決まりで、答える前は出どころを直す義務から外し、無人の run でも外し、保留の問いと答えた問いが同じ出どころを持てば戻した単位を保留の行の「答えが無いと直さない単位」に並べない。関所の項目が名指す単位・外れる単位・戻る単位が同じ
   - 元: works/.shared/core/gatemarks.py:1154 `withheld_by`・`withheld`・:1216 `held_lines`
   - 今: lib/gatemarks.py:1139 `withheld_by`・:1151 `withheld`・`held_lines`
-  - 証: tests/workflows/test_plan_review.py::EscalateAsksCase の 7 件。弱い: test_gate_item_exemption_and_return_name_the_same_units は「外れる単位」の突き合わせを落とした（assert: :2211 は named と returned だけ。元 works/tests/test_plan_gate.py:602 は exempt も縛った）→ 要追加: 同じ試験に `gatemarks.withheld(b)` を答える前に取り `{FORK_UNIT}` と等しいことを戻す
+  - 証: tests/workflows/test_plan_review.py::EscalateAsksCase の 7 件（test_gate_item_exemption_and_return_name_the_same_units に withheld の突き合わせを戻した。部分 B1）
   - 本物の run: 筋書きでのみ
-  - 狭め: #73 で断言を外した（Archon で不可でない → 戻す）
+  - 狭め: #73 で断言を外した（Archon で不可でない → 戻す） → 部分 B1 で戻した
 
 - P241 直す義務の数え（開いた単位 − 答えの無い問いの出どころ・depends ＋ 関所で答えた問いの出どころ・depends − 直さない裁定の単位）が、関所の continue を受けると戻る
   - 元: works/.shared/core/conflict.py:676 `owed_units_but_asked`（entry.CORE_OVERRIDES）が gatemarks.withheld・returned を読む・works/tests/test_plan_gate.py:340 `owed` を使う断言 15 か所
-  - 今: lib/fixboard.py:79 `owed_units_but_asked`・:1826 `gate_view`・:1841 `gate_asks`・:1861 `gate_items`（修正の置き場の answers.json の `asked` で人が見た行を引く）。線は workflows/line/scripts/gate_answer.py:24-27 で答えを `{decision, text}` だけにし `asked` を渡さない（workflows/line/works-factory-line.yaml:325-343 の answer-before-fix）。そのため gatemarks._asked_in が偽になり、continue を受けても returned が空のまま、fork・escalate の出どころは直す義務から外れたまま
-  - 証: 無し（owed の断言は #73 で全部外れ、lib/tests/test_fix_seams.py::…test_withheld_and_returned_are_arguments は値を引数で渡すだけ。gate_view・gate_asks を通す試験が無い）→ 要追加: lib/tests/test_fix_seams.py::GateAsksCase.test_continue_returns_the_fork_origin — 判定の写しに held の fork、answers.json に `{decision: "approve", text: "", asked: [gatemarks.ask_text(FORK)]}` で gate_asks の returned が `{FORK_UNIT}`・withheld_by が空。あわせて #74 の head の tests/workflows/test_line.py::GateAnswerCase.test_before_fix_answer_carries_the_asked_items — answer-before-fix の答えが関所に載せた項目の文を `asked` に持つ
+  - 今: lib/gatemarks.py の duty・ledger・gate_items（fix は lib/fixboard.py の gate_view・gate_asks・group_owed が置き場の answers.json の asked で人が見た行を引く）。線は answer-before-fix の答えに $ask-before-fix.output.asked を付ける
+  - 証: lib/tests/test_fix_seams.py::GateAsksCase.test_continue_returns_the_fork_origin・tests/workflows/test_line.py::GateAnswerCase.test_before_fix_answer_carries_the_asked_items・lib/tests/test_gatemarks.py::DutyCase.test_gate_continue_returns_what_it_was_asked（部分 B1）
   - 本物の run: 筋書きでのみ（種の判定は fork を立てない見込み）
-  - 狭め: #73 が修正のブロックへ渡したが、線が `asked` を運ばず今の main と #74 の組で能力が落ちている（今壊れている。fork のある run で人が continue しても出どころが直されない）。Archon で不可でない（関所の前の節が項目の文を出し、返しの節がそれを答えに足せば済む）→ 戻す
+  - 狭め: #73 が修正のブロックへ渡したが、線が `asked` を運ばず今の main と #74 の組で能力が落ちている（今壊れている。fork のある run で人が continue しても出どころが直されない）。Archon で不可でない（関所の前の節が項目の文を出し、返しの節がそれを答えに足せば済む）→ 戻す → 部分 B1 で戻した
 
 - P242 依頼の answers（始めの記録の欄）が問いの key か出どころ origin と字のまま等しく、その問いだけに当たる時は答えた扱い（関所を飛ばし、出どころを直す義務に戻す、答えの文で直させる）。命令と出力つきの答えはそれを見せる。どの問いにも当たらない・複数の問いに当たる・決着済みの問いに当たる答えは答えた扱いにせず名指す。判定の answer_ties が問いの key・単位・none に結ぶ
   - 元: works/.shared/core/gatemarks.py:923 `request_answer`・:731 `answer_binds`・:1036 `unmatched_answer_lines`
@@ -1756,8 +1756,8 @@
 
 - P243 素材の名で答えた依頼の答え: field の問いは素材の名で答えられ、key の頭の一致は語の境と測れていない素材を要し、問いの無い素材への答えは名指しの対象にしない。命令と出力つきの答えは素材を「人が手元で確かめた」と閉じ、複数の問いに当たれば閉じない。測れている素材への答えは名指す
   - 元: works/.shared/core/gatemarks.py:893 `material_answer`・:901 `measured_materials`・`origin_of`
-  - 今: lib/gatemarks.py:878・:886・:704
-  - 証: tests/workflows/test_plan_review.py::MaterialAnswersCase の 6 件・lib/tests/test_runreport.py::LedgerCase.test_material_answer_lines（文の側）。元 works/tests/test_plan_gate.py:1081 test_material_row_matches_the_validator（報告の素材の行の頭と写しの検証器の字の照らし）は 無し → 要追加: lib/tests/test_runreport.py::MaterialRowCase.test_material_row_matches_the_judge_words — 報告が素材の行を見分ける字と判定の素材の行の字が揃うこと（報告の区分）
+  - 今: lib/gatemarks.py の material_answer・measured_materials・origin（値で受ける式）。報告は lib/runreport.py の ledger_state が gatemarks の見え方で引く
+  - 証: tests/workflows/test_plan_review.py::MaterialAnswersCase の 6 件・lib/tests/test_runreport.py::LedgerCase.test_material_answer_lines・lib/tests/test_gatemarks.py::DutyCase.test_binds_is_the_one_formula（素材の名の当て。部分 B1）。test_material_row_matches_the_judge_words は報告の区分の issue に残す
   - 本物の run: 筋書きでのみ
   - 狭め: #73 が報告へ渡した照らしが報告に無い（Archon で不可でない → 報告の区分で戻す）
 
@@ -1805,10 +1805,10 @@
 
 - P250 関所の項目の種類（regression・policy・policy_changed・fork・escalate・world・design・design_only）を関所の文の冒頭（何の項目が何件か）・台帳の問いへの答え方の段落（ASK_GATE_HEAD）・無人の run の振る舞いに使う
   - 元: works/.shared/core/graphloops/rules/review-loop.py:4122-4124（ask.kinds）・works/.shared/core/gatemarks.py:301 `gate_text`（KIND_WORDS・ASK_GATE_HEAD は kinds に fork・escalate が在る時だけ）
-  - 今: plan-review の返りの questions は文の並びだけで種類を落とす（workflows/plan-review/works-factory-plan-review.yaml の返す節 review の output_format・lib/boardview.py:946）。種類は置き場の pass-<k>/gate.json に在るが、線は読まず、#74 の head/workflows/line/scripts/ask_before_fix.py:43 が全部の問いを fork として並べる。その結果、狭め・方針の変化の行にも「判定の役が人に聞くと保留にした問い（fork）」の頭と ASK_GATE_HEAD が付く。無人の run では :42 が questions を全部「報告へ回す台帳の問い」として退け、関所を開かずに修正へ進む（台帳の問いは plan-review が無人の run では既に外しているので、ここで退くのは方針の変化の行などの人が決める行。元は無人の殻が関所で stop を返した）
-  - 証: 要追加: tests/workflows/test_plan_review.py::ResultCase.test_questions_carry_their_kinds（約束を変えるなら返りに種類を足す）か、#74 の head/tests/workflows/test_line.py::AskBeforeFixCase.test_kinds_come_from_the_gate_record — 方針の変化の行だけの返りで、関所の文の冒頭が「人の方針の文書が変わった（policy_changed）」を名乗り ASK_GATE_HEAD を含まない。無人の run で方針の変化の行が在れば stop_reason が needs-human
+  - 今: plan-review の返り questions の行 {kind, text}（lib/boardview.py の collect・lib/gatemarks.py の question_row）。線の scripts/ask_before_fix.py が種類で関所の文の冒頭・ASK_GATE_HEAD・無人の run の振る舞いを決める
+  - 証: tests/workflows/test_plan_review.py::ResultCase.test_questions_carry_their_kinds・tests/workflows/test_line.py::AskBeforeFixCase.test_kinds_come_from_the_gate_record（部分 B1）
   - 本物の run: 線の節 `ask-before-fix` の出力 `text` の 1 行目
-  - 狭め: #73 の返りの約束（questions は字の並び）と #74 の線の読みの組で狭めた（Archon で不可でない: 返りに kinds を足すか、線が隣の gate.json を読めば済む）→ 戻す。持ち主に「返りの約束に種類を足すか」を聞く
+  - 狭め: #73 の返りの約束（questions は字の並び）と #74 の線の読みの組で狭めた（Archon で不可でない: 返りに kinds を足すか、線が隣の gate.json を読めば済む）→ 戻す。持ち主に「返りの約束に種類を足すか」を聞く → 部分 B1 で返りに種類を足して戻した
 
 - P251 関所の文: 冒頭 3 行（起きたこと・決めてほしいこと・推し）を平易な名で書き、内部の名は括弧に回し、問いの文を引用（> の行）で載せ読み替えの 1 行を添え、答え方の continue は 1 通りだけ
   - 元: works/.shared/core/gatemarks.py:301 `gate_text`・works/darkfactory/lib/line_edge.py `gate_text`

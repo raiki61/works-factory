@@ -87,6 +87,7 @@ converge（L3。事前審査の壁打ち。標準ライブラリだけ）・plan
 import json
 import pathlib
 import re
+import types
 
 import answer
 import carry   # 下書きの印の付け方（次の run への持ち越しの形の住処）
@@ -205,6 +206,12 @@ DESIGN_ONLY_KIND = "design_only"      # 関所の項目の kinds（設計だけ�
 DESIGN_KIND = "design"                # 関所の項目の kinds（構造の目が決めきれなかった設計の問い）
 DESIGN_HEAD = "構造の目が決めきれない設計の問い"   # その行の頭
 WORLD_KIND = "world"                  # 関所の項目の kinds（世界の解から外れた修正案の項目。worldmark.ANSWER_KEY と同じ語）
+GIVEN_UP_KIND = "given_up"            # 関所の項目の kinds（事前審査の受け付けが諦めた・返す節が落ちた。案を審査できていない）
+ROW_FIELDS = ("kind", "text")         # 事前審査の返り questions の 1 行 {kind, text}（関所の項目の種類と文）
+ASKING = ("held", "escalate")         # 問いの台帳で人に聞く状態（元の写しの検証器 review-record.py:343 の ASKING）
+UNMEASURED = ("not_run", "awaiting_human")   # 素材の状態のうち今の周に測れていない物（写しの検証器の STATUS で阻害になる物）
+MATERIALS_FILE = "materials.json"     # 判定の隣の素材の状態 {名: {status, …}}（docs/design.md の隣のファイル）
+BESIDE = (marks.KINDS["answers"].file, MATERIALS_FILE)   # ledger_beside が判定の隣から読む結びと素材の状態
 _NO_FIX = "修正に進まない（continue で修正へ進む・stop で報告へ。判定・修正案・事前審査・独立設計は報告の見る所に並ぶ）"
 DESIGN_ONLY_ITEM = "設計だけの run: " + _NO_FIX
 STUCK_ITEM = "事前審査の壁打ちが止まった案: " + _NO_FIX   # 設計だけでない run の止まり（設計だけの run と名乗らない）
@@ -249,7 +256,18 @@ KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", "po
               "policy_changed": "人の方針の文書が変わった", ASK_KINDS[0]: "判定の役が人に聞くと保留にした問い",
               ASK_KINDS[1]: "人でないと決められない問い", DESIGN_ONLY_KIND: "修正に進まない行",
               DESIGN_KIND: "構造の目が決めきれなかった設計の問い", WORLD_KIND: "世界の解（定石）から外れる修正案の項目",
-              "spec_approval": "仕様（要件と受け入れ条件）の承認", "spec_changed": "承認の後に受け入れ条件のテストが変わった"}
+              "spec_approval": "仕様（要件と受け入れ条件）の承認", "spec_changed": "承認の後に受け入れ条件のテストが変わった",
+              GIVEN_UP_KIND: "事前審査が案を審査できなかった"}
+
+
+def question_row(kind: str, text: str) -> dict:
+    """事前審査の返り questions の 1 行（関所の項目の種類 kind と文 text）"""
+    return dict(zip(ROW_FIELDS, (kind, text)))
+
+
+def row_texts(rows) -> list:
+    """事前審査の返り questions の行 {kind, text} の文の並び（形の違う行は読まない）"""
+    return [r["text"] for r in rows or [] if isinstance(r, dict) and isinstance(r.get("text"), str)]
 
 
 def quote(question) -> list:
@@ -687,7 +705,9 @@ def _ask_kind(q) -> str:
 
 
 def _skips(q) -> list:
-    return [k for k in [q.get("origin"), *(q.get("depends") or [])] if isinstance(k, str) and k]
+    """問いの出どころと depends の単位の key（字でない物と、配列でない depends は読まない）"""
+    depends = q.get("depends")
+    return [k for k in [q.get("origin"), *(depends if isinstance(depends, list) else [])] if isinstance(k, str) and k]
 
 
 def _prefix(q) -> str:
@@ -704,8 +724,8 @@ def ask_text(q) -> str:
 
 
 def request_answers(b) -> list:
-    """依頼の answers（start の控えの欄。無い・配列でなければ空。dict でない行は読まない）"""
-    rows = startrec.read(b.dir).get("answers")
+    """依頼の answers（start の控えの欄。値の見え方 Ledger はその値。無い・配列でなければ空。dict でない行は読まない）"""
+    rows = b.answers if isinstance(b, Ledger) else startrec.read(b.dir).get("answers")
     return [a for a in rows if isinstance(a, dict)] if isinstance(rows, list) else []
 
 
@@ -720,32 +740,57 @@ def unmeasured(b) -> dict:
             if isinstance(m, dict) and m.get("status") in table and table[m["status"]].blocks}
 
 
-def origin_of(b, q) -> str:
-    """答えを結ぶ時の問いの出どころ: 台帳の origin。origin が空の問い（field は写しの型で origin を持てない）で、key が今の周に
-    測れていない素材の名で始まる（名の直後が終わりか KEY_CHAR でない字）物は、その素材の名（機械が読む出どころ。台帳は変えない。
-    判定役は素材から立てる問いの key を素材の名で始める——利用者の run 8cb2ee00 の key「parallel_pr: …」）"""
+def unmeasured_of(materials) -> dict:
+    """素材の状態 materials（materials.json の値）のうち今の周に測れていない素材 {名: status}（UNMEASURED。盤面の無い読み手の口）"""
+    if not isinstance(materials, dict):
+        return {}
+    return {n: m["status"] for n, m in materials.items() if isinstance(m, dict) and m.get("status") in UNMEASURED}
+
+
+def origin(q, missing) -> str:
+    """答えを結ぶ時の問いの出どころ（値で受ける式。missing は今の周に測れていない素材の名の集まり）: 台帳の origin。origin が空の問い
+    （field は写しの型で origin を持てない）で、key が測れていない素材の名で始まる（名の直後が終わりか KEY_CHAR でない字）物は、
+    その素材の名（判定役は素材から立てる問いの key を素材の名で始める——利用者の run 8cb2ee00 の key「parallel_pr: …」）"""
     got = q.get("origin")
     if isinstance(got, str) and got:
         return got
     key = str(q.get("key") or "")
-    return next((n for n in unmeasured(b)
-                 if key.startswith(n) and not KEY_CHAR.match(key[len(n):len(n) + 1])), "")
+    return next((n for n in missing if key.startswith(n) and not KEY_CHAR.match(key[len(n):len(n) + 1])), "")
 
 
-def answer_binds(b, a, questions=None, answer_rows=None) -> list:
-    """依頼の答え a が当たる問い（questions を渡せばそれ、渡さなければ台帳の問い）: 判定が answer_ties で a をこの問いの key に
-    結んでいればその問い（answer_rows は結びの行。渡さなければ控え answer_ties(b)、空の列なら字の一致だけ）、無ければ question と key が
-    字のまま等しい問い、それも無ければ出どころ（origin_of）が等しい問いの全部（同じ単位の fork と escalate のように複数に当たる
-    ことがある）。受け付け（返答の問いに当てる）と報告（台帳に当てる）が引く 1 つの式"""
-    qs = [q for q in (b.record.get("questions") or [] if questions is None else questions) if isinstance(q, dict)]
+def binds(a, questions, *, ties=(), missing=()) -> list:
+    """依頼の答え a が当たる問い（値で受ける 1 つの式。判定の受け付け・修正前の関所・最後の関所・報告が引く）: 判定が結びの行 ties
+    （answer-ties.json の行）で a をこの問いの key に結んでいればその問い、結んだ key が questions に無い（再審で問いが変わった）か結びが
+    無ければ question と key が字のまま等しい問い、それも無ければ出どころ（origin。missing は測れていない素材の名）が等しい問いの全部
+    （同じ単位の fork と escalate のように複数に当たることがある）"""
+    qs = [q for q in questions if isinstance(q, dict)]
     name = a.get("question")
-    tied = _tie_of(answer_ties(b) if answer_rows is None else answer_rows, a)
+    tied = _tie_of(ties, a)
     if tied is not None and isinstance(tied.get("to"), str):
         by_tie = [q for q in qs if q.get("key") == tied["to"]]
         if by_tie:
             return by_tie
     by_key = [q for q in qs if isinstance(q.get("key"), str) and q.get("key") and q.get("key") == name]
-    return by_key or [q for q in qs if name and origin_of(b, q) == name]
+    return by_key or [q for q in qs if name and origin(q, missing) == name]
+
+
+def lost_ties(ties, questions, units=()) -> list:
+    """結びの行のうち、宛て先の key が今の問いにも単位にも無い物（再審で問いが変わった。binds は字の一致に落とす）の 1 件 1 行"""
+    keys = {q.get("key") for q in questions if isinstance(q, dict)} | set(units)
+    return [f"判定の結びの宛て先 {r['to']} が今の問いにも単位にも無い（字の一致で当てた）: 依頼の答え {r.get('answer')}"
+            for r in ties if isinstance(r, dict) and "answer" in r and isinstance(r.get("to"), str) and r["to"] not in keys]
+
+
+def origin_of(b, q) -> str:
+    """答えを結ぶ時の問いの出どころ（origin。測れていない素材は盤面の記録から）"""
+    return origin(q, unmeasured(b))
+
+
+def answer_binds(b, a, questions=None, answer_rows=None) -> list:
+    """盤面の上の binds: questions を渡せばそれ、渡さなければ台帳の問いに、結びの行 answer_rows（渡さなければ控え answer_ties(b)、
+    空の列なら字の一致だけ）と盤面の記録の測れていない素材で当てる。受け付け（返答の問いに当てる）と報告（台帳に当てる）が引く"""
+    qs = b.record.get("questions") or [] if questions is None else questions
+    return binds(a, qs, ties=answer_ties(b) if answer_rows is None else answer_rows, missing=unmeasured(b))
 
 
 def _tie_of(rows, a):
@@ -769,8 +814,14 @@ def split_answer_ties(reply) -> tuple:
 
 
 def answer_ties(b) -> list:
-    """控え answer-ties.json の最後の周の結びの行（無い・読めない・形が違えば空）"""
-    doc = marks.load(marks.path_of("answers", b))
+    """控え answer-ties.json の最後の周の結びの行（値の見え方 Ledger はその値。無い・読めない・形が違えば空）"""
+    if isinstance(b, Ledger):
+        return list(b.ties)
+    return ties_of(marks.load(marks.path_of("answers", b)))
+
+
+def ties_of(doc) -> list:
+    """控え answer-ties.json の中身 doc の最後の周の結びの行（形が違えば空）"""
     rounds = doc.get("rounds") if isinstance(doc, dict) else None
     if not isinstance(rounds, dict) or not rounds:
         return []
@@ -1179,6 +1230,55 @@ def returned(b) -> set:
     return {k for _, keep, _ in _answered_skips(b) for k in keep}
 
 
+def duty(b) -> set:
+    """直す義務の単位（元 works/.shared/core/conflict.py:676 owed_units_but_asked の問いの台帳の項）: 開いた単位（block か、suggest で
+    do-now）から答えの無い問いの出どころ・depends（withheld）を除き、関所か依頼の answers で答えた問いの出どころ・depends（returned。
+    開いていない単位も）を戻した物。直す裁定でない裁定の単位（conflict.held_by_rulings）は裁定の控えを持つ修正のブロックが引く。
+    plan（1 回目の周の必ず入れる単位と行き止まり）と fix（直す義務）が同じこの口を呼ぶ"""
+    opened = {u.get("key") for u in b.record.get("units") or [] if isinstance(u, dict) and isinstance(u.get("key"), str)
+              and _fix_duty(u)}
+    return (opened - withheld(b)) | returned(b)
+
+
+class Ledger(types.SimpleNamespace):
+    """盤面の代わりに値で引く問いの台帳の見え方（ledger が作る。asks・answered・pending・withheld_by・withheld・returned・duty・
+    returned_lines・held_lines・answered_lines・unmatched_answer_lines・answer_key・answer_tie_lines が読む物だけを持つ）"""
+
+
+def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None) -> Ledger:
+    """問いの台帳の値の見え方: judgment は判定の dict（units・questions）、answers は依頼の answers（始めの記録の欄）、gate は修正前の
+    関所の答え {decision, text, asked}（か、その並び。無ければ None）、ties は判定の結びの行（answer-ties.json の最後の周）、materials は
+    素材の状態（materials.json）。人に聞く状態の語は ASKING、測れていない素材の状態は UNMEASURED"""
+    doc = judgment if isinstance(judgment, dict) else {}
+    status = {k: types.SimpleNamespace(blocks=True) for k in UNMEASURED}
+    validator = types.SimpleNamespace(ASKING=ASKING, STATUS=status)
+    record = {"questions": [q for q in doc.get("questions") or [] if isinstance(q, dict)],
+              "units": [u for u in doc.get("units") or [] if isinstance(u, dict)],
+              "materials": materials if isinstance(materials, dict) else {},
+              "process": {"human_items": [h for a in (gate if isinstance(gate, list) else [gate]) for h in gate_items(a)]}}
+    return Ledger(dir=None, round=1, record=record, answers=[a for a in answers or [] if isinstance(a, dict)],
+                  ties=[r for r in ties or [] if isinstance(r, dict)], rules=types.SimpleNamespace(validator_module=lambda b: validator))
+
+
+def ledger_beside(judgment_dir, judgment, *, answers=(), gate=None, ties_dir=None) -> Ledger:
+    """ledger の結びの行と素材の状態を、判定の隣のファイル（answer-ties.json・materials.json。docs/design.md の隣のファイル）から読んだ物。
+    結びは ties_dir（渡せば。再審の判定の隣には結びが無いので 1 回目の判定の置き場）から読む。フォルダが None か、ファイルが無い・
+    読めなければ結び無し・素材無し（字の一致だけ。今の works の結びの無い run と同じ）"""
+    ties_dir = judgment_dir if ties_dir is None else ties_dir
+    ties = ties_of(marks.load(pathlib.Path(ties_dir) / BESIDE[0])) if ties_dir is not None else []
+    materials = marks.load(pathlib.Path(judgment_dir) / MATERIALS_FILE) if judgment_dir is not None else None
+    return ledger(judgment, answers=answers, gate=gate, ties=ties, materials=materials)
+
+
+def gate_items(answer) -> list:
+    """修正前の関所の答え answer（{decision, text, asked}。飛ばされた時は None）を、人の関所の行 human_items
+    [{round, node, answer, note, asked}] にする。通す語の時だけ 1 行（answer は continue。asked は人が見た関所の行）"""
+    if not isinstance(answer, dict) or answer.get("decision") not in seal.PASS:
+        return []
+    return [{"round": 1, "node": GATE_NODE, "answer": "continue", "note": str(answer.get("text") or ""),
+             "asked": [a for a in answer.get("asked") or [] if isinstance(a, str)]}]
+
+
 def returned_lines(b) -> list:
     """修正役に渡す行: 関所か依頼の answers で答えた問いと、それで直す義務に戻った単位（1 問 1 行。今の周の units に無い単位は
     約束しない）。依頼の答えの問いは推しでなく答えの文で直させる。判定が answer_ties で今の周の単位に結んだ依頼の答えは、その単位の
@@ -1229,9 +1329,19 @@ def held_lines(b) -> list:
 
 def answered_lines(b) -> list:
     """held_lines と同じ所に別の見出し（ANSWERED_HEAD）で並べ、保留の件数に数えない行: 関所で continue を受けたか、依頼の
-    answers が答えた台帳の問い（印は答えの出どころを名乗る）"""
+    answers が答えた台帳の問い（印は答えの出どころを名乗る。answered_ledger_lines）と、依頼の答えが当たった測れていない素材の行"""
+    return answered_ledger_lines(b) + material_lines(b)
+
+
+def answered_ledger_lines(b) -> list:
+    """answered_lines のうち、関所で continue を受けたか依頼の answers が答えた台帳の問いの行（1 問 1 行）"""
     return [_ledger_line(q, "・" + answer_note(a) if (a := request_answer(b, q)) is not None else "・関所で continue を受けた")
-            for q in _asking(b) if _gate_answered(b, q)] + material_lines(b)
+            for q in _asking(b) if _gate_answered(b, q)]
+
+
+def held_questions(b) -> list:
+    """held_lines の頭の行の問い（同じ順。held_lines の後ろの unreturned_lines は問いを持たない）"""
+    return [q for q in _asking(b) if not _gate_answered(b, q)]
 
 
 def _keep(b, row: dict) -> None:

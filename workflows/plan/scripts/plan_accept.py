@@ -32,7 +32,7 @@ def main() -> None:
         out = planfile.take_replan(round_dir, plan_dir, items=rnd["items"], reply=reply, repo=repo, tables=tables,
                                    base_rev=base_rev)
     else:
-        judgment, _ = planfile.read_pointed(os.environ["INPUTS_JUDGMENT"], boundary.resolve)
+        judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.resolve)
         out = planfile.take_plan(round_dir, plan_dir, judgment=judgment, reply=reply, repo=repo, tables=tables,
                                  base_rev=base_rev)
     out = rolekit.with_done(round_dir, planfile.ROLE, out)

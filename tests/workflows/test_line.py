@@ -458,7 +458,7 @@ class ReplanAnswerCase(Artifacts):
 
     def test_answer_is_the_gate_answer_with_the_fix_answers(self):
         got = replan_answer.answer(json.dumps({"decision": "continue", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts)
-        self.assertEqual(got, {"go": True, "answer": {"decision": "continue", "text": "x"}, "stop_reason": "",
+        self.assertEqual(got, {"go": True, "answer": {"decision": "continue", "text": "x", "asked": []}, "stop_reason": "",
                                "fix_answers": {"decision": "continue", "text": f"{replan_answer.NOTE_HEAD}\n\nx\n", "asked": []}})
 
 
@@ -493,7 +493,49 @@ class FixGateAnswersCase(Artifacts):
             return before_fix_answer.from_env()
 
     def test_line_passes_the_shown_questions(self):
-        self.assertEqual(line_nodes()["answer-before-fix"]["with"]["asked"], "$plan-rounds.output.questions")
+        self.assertEqual(line_nodes()["answer-before-fix"]["with"]["asked"], "$ask-before-fix.output.asked")
+
+
+class FixWiringCase(FixGateAnswersCase):
+    """修正前の関所の答えが fix に届く道（ask-before-fix の asked → answer-before-fix の答え → fix の answers → 置き場の answers.json）"""
+
+    Q2 = {**FixGateAnswersCase.FORK, "key": "q2", "origin": "u2"}
+
+    def place_with(self, answers) -> pathlib.Path:
+        place = self.tmp / "fix-place"
+        place.mkdir(exist_ok=True)
+        (place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": [{"key": "u1", "label": "defer"}, {"key": "u2", "label": "block"}],
+                                                                "questions": [self.FORK, self.Q2]}), encoding="utf-8")
+        (place / fixboard.ANSWERS_FILE).write_text(json.dumps(answers, ensure_ascii=False), encoding="utf-8")
+        return place
+
+    def shown_and_answered(self, decision="continue", text="q1 は a"):
+        rows = [gatemarks.question_row("fork", gatemarks.ask_text(self.FORK))]
+        shown = ask_before_fix.ask(planned(questions=rows, ask_human=True), unattended=False, design_only=False, run_id=RUN)
+        return before_fix_answer.answer(**self.before_fix_inputs(json.dumps(shown["asked"], ensure_ascii=False)),
+                                        artifacts=self.artifacts)["answer"] if decision == "continue" else None
+
+    def test_gate_before_fix_answer_carries_asked(self):
+        """F225: 関所の continue を問いへの答えに数えるには、答えに人が見た関所の行 asked が要る。線は answer-before-fix の答えを
+        そのまま fix の answers に渡し、fix の置き場の読み（gatemarks.gate_items）がその asked を human_items の行に持つ"""
+        answer = self.shown_and_answered()
+        self.assertEqual(line_nodes()["fix"]["with"]["answers"], "$answer-before-fix.output.answer")
+        items = gatemarks.gate_items(answer)
+        self.assertEqual([h["asked"] for h in items], [[gatemarks.ask_text(self.FORK)]])
+
+    def test_fix_gets_returned_and_withheld_units(self):
+        """L-G32・L-G33: 関所で答えた問いの出どころ（開いていない defer の単位でも）は直す義務に戻り、修正役に「答えで直す義務に戻った
+        単位」の行（returned_lines）が届く。関所に載らなかった・答えていない問いの出どころは直す義務から外れ（withheld）、外れた訳を名指す"""
+        place = self.place_with(self.shown_and_answered())
+        withheld, back = fixboard.gate_asks(place)
+        self.assertEqual((set(withheld), back), ({"u2"}, {"u1"}))
+        self.assertEqual(fixboard.group_owed(place), ["u1"])
+        notes = pathlib.Path(fixboard.write_notes(place)).read_text(encoding="utf-8")
+        self.assertIn("q1 は a", notes)
+        self.assertIn(f"関所で答えた{gatemarks.ASK_HEAD} q1 の出どころ・depends は直す義務に戻った", notes)
+        owed, excused = fixboard.fix_duty(place, set(fixboard.group_owed(place)))
+        self.assertEqual((owed, set(excused)), ({"u1"}, {"u2"}))
+        self.assertIn("答え待ちの問い q2", excused["u2"])
 
 
 class GateAnswerCase(Artifacts):
@@ -509,7 +551,7 @@ class GateAnswerCase(Artifacts):
             with self.subTest(word=word):
                 got = gate_answer.answer(json.dumps({"decision": word, "text": "a.py だけ"}), "true", "", "gate-before-fix",
                                          self.artifacts)
-                self.assertEqual(got, {"go": True, "answer": {"decision": word, "text": "a.py だけ"}, "stop_reason": ""})
+                self.assertEqual(got, {"go": True, "answer": {"decision": word, "text": "a.py だけ", "asked": []}, "stop_reason": ""})
                 kept = json.loads((self.artifacts / "gates" / "gate-before-fix.json").read_text(encoding="utf-8"))
                 self.assertEqual(kept, got["answer"])
 
@@ -542,9 +584,35 @@ class GateAnswerCase(Artifacts):
         got = gate_answer.answer(json.dumps({"decision": "continue", "text": ""}), "true", "", "gate-final", self.artifacts)
         self.assertEqual(got["answer"]["text"], "")
 
+    def test_answer_carries_asked(self):
+        """L-W14・S46: どの関所の答えも {decision, text, asked} の 1 つの形。asked は関所が人に見せた項目の行で、項目を持たない関所は []。
+        一言は字のまま答えに残り、gates/<関所>.json にも同じ形で書く"""
+        for place in ("gate-start", "gate-replan", "gate-final"):
+            with self.subTest(place=place):
+                got = gate_answer.answer(json.dumps({"decision": "continue", "text": "範囲は\n a.py だけ"}), "true", "", place,
+                                         self.artifacts)["answer"]
+                self.assertEqual(got, {"decision": "continue", "text": "範囲は\n a.py だけ", "asked": []})
+        rows = ["汚くない（clean）の軸が通らない: 名前", gatemarks.ask_text(FixGateAnswersCase.FORK)]
+        got = gate_answer.answer(json.dumps({"decision": "approve", "text": "q1 は a"}), "true", "", "gate-before-fix", self.artifacts,
+                                 asked_raw=json.dumps(rows, ensure_ascii=False))["answer"]
+        self.assertEqual(got, {"decision": "approve", "text": "q1 は a", "asked": rows})
+        self.assertEqual(json.loads((self.artifacts / "gates" / "gate-before-fix.json").read_text(encoding="utf-8")), got)
+
+    def test_before_fix_answer_carries_the_asked_items(self):
+        """P241: answer-before-fix の答えは、ask-before-fix が関所に載せた項目の文を asked に持つ（線の with: が ask-before-fix の asked を
+        渡す）。無いと fix の置き場の読み（gatemarks._asked_in）が偽になり、continue を受けても問いの出どころが直す義務に戻らない"""
+        shown = ask_before_fix.ask(planned(questions=[gatemarks.question_row("fork", gatemarks.ask_text(FixGateAnswersCase.FORK))],
+                                           ask_human=True), unattended=False, design_only=False, run_id=RUN)
+        env = {"INPUTS_GATE": json.dumps({"decision": "continue", "text": ""}), "INPUTS_GO": "true", "INPUTS_STOP_REASON": "",
+               "INPUTS_PLACE": "gate-before-fix", "INPUTS_ASKED": json.dumps(shown["asked"], ensure_ascii=False)}
+        with mock.patch.dict(os.environ, env):
+            got = before_fix_answer.answer(**before_fix_answer.from_env(), artifacts=self.artifacts)
+        self.assertEqual(got["answer"]["asked"], [gatemarks.ask_text(FixGateAnswersCase.FORK)])
+        self.assertEqual(line_nodes()["answer-before-fix"]["with"]["asked"], "$ask-before-fix.output.asked")
+
     def test_dry_run_approval_reads_as_approve(self):
         got = gate_answer.answer(linekit.DRY_RUN_APPROVED, "true", "", "gate-start", self.artifacts)
-        self.assertEqual(got, {"go": True, "answer": {"decision": "approve", "text": ""}, "stop_reason": ""})
+        self.assertEqual(got, {"go": True, "answer": {"decision": "approve", "text": "", "asked": []}, "stop_reason": ""})
 
 
 def planned(**kw) -> dict:
@@ -559,15 +627,16 @@ class AskBeforeFixCase(unittest.TestCase):
         return ask_before_fix.ask(plan, unattended=unattended, design_only=design_only, run_id=RUN)
 
     def test_no_plan_goes_nowhere(self):
-        self.assertEqual(self.ask(planned(ready=False)), {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": []})
+        self.assertEqual(self.ask(planned(ready=False)), {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": [],
+                                                           "asked": []})
 
     def test_clean_plan_goes_to_fix_without_the_gate(self):
-        self.assertEqual(self.ask(planned()), {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": []})
+        self.assertEqual(self.ask(planned()), {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": [], "asked": []})
 
     def test_reasons_that_open_the_gate(self):
         failing = {**planned()["gate_axes"], "clean": {"ok": False, "note": "名前が合わない"}}
         for plan, words in ((planned(gate_axes=failing), "汚くない（clean）の軸が通らない: 名前が合わない"),
-                            (planned(questions=["0 を返すか"]), "0 を返すか"),
+                            (planned(questions=[gatemarks.question_row("fork", "0 を返すか")]), "0 を返すか"),
                             (planned(ask_human=True), "直す前の関所"),
                             (planned(**{"pass": False, "stalled": True}), gatemarks.STUCK_ITEM),
                             (planned(**{"pass": False, "round": 3}), ask_before_fix.UNSETTLED_ITEM)):
@@ -582,12 +651,44 @@ class AskBeforeFixCase(unittest.TestCase):
         self.assertIn("設計だけの run", got["text"])
 
     def test_unattended_moves_questions_to_the_report(self):
-        got = self.ask(planned(questions=["0 を返すか"], ask_human=True), unattended=True)
-        self.assertEqual(got, {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": ["0 を返すか"]})
+        got = self.ask(planned(questions=[gatemarks.question_row("fork", "0 を返すか")], ask_human=True), unattended=True)
+        self.assertEqual(got, {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": ["0 を返すか"], "asked": []})
 
     def test_unattended_stops_where_the_gate_would_open(self):
         got = self.ask(planned(**{"pass": False, "stalled": True}), unattended=True)
         self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
+
+    def test_unattended_design_only_stops(self):
+        """L-G27: 無人で設計だけの run は、関所で止まって報告へ進む（開かず・修正へ進まず・needs-human）"""
+        got = self.ask(planned(), unattended=True, design_only=True)
+        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
+
+    def test_unattended_stops_on_policy_change_rows(self):
+        """L-G40・L-G38・P236: 無人の run は台帳の問い（fork・escalate）だけなら関所を開かず報告へ回して修正へ進み、聞くはずだった
+        ほかの項目（方針の文書の変化・事前審査の諦め・狭め・事前審査の穴・世界の解の外れ）が在れば見落とさずに止まる"""
+        fork = gatemarks.question_row("fork", "0 を返すか")
+        for kind in ("policy_changed", gatemarks.GIVEN_UP_KIND, "regression", "policy", gatemarks.WORLD_KIND):
+            with self.subTest(kind=kind):
+                got = self.ask(planned(questions=[fork, gatemarks.question_row(kind, "人が決める行")], ask_human=True), unattended=True)
+                self.assertEqual((got["open"], got["go"], got["stop_reason"], got["deferred"]),
+                                 (False, False, linekit.NEEDS_HUMAN, ["0 を返すか"]))
+        got = self.ask(planned(questions=[fork, gatemarks.question_row("escalate", "人でないと決められない")], ask_human=True),
+                       unattended=True)
+        self.assertEqual((got["open"], got["go"], got["deferred"]), (False, True, ["0 を返すか", "人でないと決められない"]))
+
+    def test_kinds_come_from_the_gate_record(self):
+        """P250: 関所の文の冒頭の種類と台帳の問いへの答え方（ASK_GATE_HEAD）は、事前審査が返した項目の種類から決まる（方針の変化の行
+        だけなら台帳の問いと名乗らない）。関所に載せた項目の文は asked で返る"""
+        changed = gatemarks.question_row("policy_changed", "人の方針の文書が固定した版から変わった")
+        got = self.ask(planned(questions=[changed], ask_human=True))
+        head = got["text"].splitlines()[0]
+        self.assertIn(f"{gatemarks.KIND_WORDS['policy_changed']}（policy_changed）", head)
+        self.assertNotIn(gatemarks.KIND_WORDS["fork"], head)
+        self.assertNotIn(gatemarks.ASK_GATE_HEAD, got["text"])
+        self.assertEqual(got["asked"], [changed["text"]])
+        got = self.ask(planned(questions=[changed, gatemarks.question_row("fork", "0 を返すか")], ask_human=True))
+        self.assertIn(gatemarks.ASK_GATE_HEAD, got["text"])
+        self.assertEqual(got["asked"], [changed["text"], "0 を返すか"])
 
 
 class AskReplanCase(Artifacts):
@@ -687,10 +788,16 @@ class AskFinalReadsCase(Artifacts):
     def judgment(self, questions, units=("u1",)):
         return self.place("judge/judgment.json", {"units": [{"key": k} for k in units], "questions": questions})
 
-    def held(self, questions, *, answers=(), before_fix=None, asked=(), units=("u1",)):
+    def held(self, questions, *, answers=(), before_fix=None, asked=(), units=("u1",), ties=None, materials=None, notes=()):
         start_ptr = self.place("start.json", {"answers": list(answers)})
-        held, unread = ask_final.held_questions(self.judgment(questions, units), start_ptr, before_fix, list(asked))
-        self.assertEqual(unread, "")
+        before_fix = {**before_fix, "asked": list(asked)} if isinstance(before_fix, dict) else before_fix
+        if materials is not None:
+            self.place(f"judge/{gatemarks.MATERIALS_FILE}", materials)
+        first = None if ties is None else self.place("judge-first/judgment.json", {})
+        if ties is not None:
+            self.place(f"judge-first/{gatemarks.BESIDE[0]}", {"rounds": {"1": ties}})
+        held, unread = ask_final.held_questions(self.judgment(questions, units), start_ptr, before_fix, first)
+        self.assertEqual(unread, list(notes))
         return held
 
     FORK = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "割れる"}
@@ -724,20 +831,32 @@ class AskFinalReadsCase(Artifacts):
                 self.assertEqual(len(self.held([self.FORK], before_fix=before_fix, asked=[gatemarks.ask_text(self.FORK)])), 1)
 
     def test_request_answers_answer_by_key_or_origin(self):
+        """L-G34: 依頼の answers は key か出どころの字の一致で 1 つの問いだけに当たる時に答えに数える（gatemarks.binds の 1 つの式）。
+        判定の結び（1 回目の判定の隣の answer-ties.json。線は ties_judgment で渡す）と測れていない素材の名（判定の隣の materials.json）
+        も読み、結びの宛て先が今の（再審の）問いに無ければ字の一致に落として 1 行添える"""
         self.assertEqual(self.held([self.FORK], answers=[{"question": "q1", "text": "a"}]), [])
         self.assertEqual(self.held([self.FORK], answers=[{"question": "u1", "text": "a"}]), [])
         both = [self.FORK, {**self.FORK, "key": "q2"}]
         self.assertEqual(len(self.held(both, answers=[{"question": "u1", "text": "a"}])), 2, "2 つの問いに当たる答えはどれにも答えない")
+        loose = [{"question": "どちらでもよい", "text": "a"}]
+        self.assertEqual(len(self.held([self.FORK], answers=loose)), 1)
+        self.assertEqual(self.held([self.FORK], answers=loose, ties=[{"answer": "どちらでもよい", "to": "q1"}]), [])
+        lost = "判定の結びの宛て先 q-gone が今の問いにも単位にも無い（字の一致で当てた）: 依頼の答え どちらでもよい"
+        self.assertEqual(len(self.held([self.FORK], answers=loose, ties=[{"answer": "どちらでもよい", "to": "q-gone"}], notes=[lost])), 1)
+        field = {**self.FORK, "key": "parallel_pr: 重なり", "kind": "field", "status": "escalate", "origin": ""}
+        self.assertEqual(self.held([field], answers=[{"question": "parallel_pr", "text": "a"}],
+                                   materials={"parallel_pr": {"status": "not_run"}}), [])
+        self.assertEqual(line_nodes()["ask-final"]["with"]["ties_judgment"], "$judge.output.judgment")
 
     def test_answered_unit_missing_from_the_judgment_is_said(self):
         got = self.held([self.FORK], answers=[{"question": "q1", "text": "a"}], units=())
         self.assertEqual(got, ["関所で答えたが直す単位に入れられなかった: q1・u1（理由: 今の周の判定に無い）"])
 
     def test_unreadable_judgment_is_said(self):
-        held, unread = ask_final.held_questions({"type": "archon_artifact", "run_id": "another", "path": "x.json"}, None, None, [])
+        held, unread = ask_final.held_questions({"type": "archon_artifact", "run_id": "another", "path": "x.json"}, None, None)
         self.assertEqual(held, [])
-        self.assertIn("判定の問いの控えか始めの記録を読めない", unread)
-        self.assertEqual(ask_final.held_questions(None, None, None, []), ([], ""))
+        self.assertIn("判定の問いの控えか始めの記録を読めない", unread[0])
+        self.assertEqual(ask_final.held_questions(None, None, None), ([], []))
 
     def test_fence_rows_come_from_the_structure_after(self):
         rise = {"concept": "止め", "what": "語", "path": "a.py", "before": 1, "after": 2}

@@ -84,9 +84,9 @@ UNSET = "unset"
 # 判定の judgment の隣の素材の測りの状態 {<素材の名>: {status, …}}（docs/design.md の「書き方の決め」の名指しの隣のファイル）。
 # 測れていない status は元の写しの検証器の STATUS で阻害になる物（gatemarks.unmeasured。works/.shared/core/gatemarks.py:708-716）
 MATERIALS_FILE = "materials.json"
-UNMEASURED = ("not_run", "awaiting_human")
+UNMEASURED = gatemarks.UNMEASURED
 MATERIAL_WHERE = "素材"
-ASKING = ("held", "escalate")   # 問いの台帳で人に聞く状態（元の写しの検証器 review-record.py:343 の ASKING）
+ASKING = gatemarks.ASKING   # 問いの台帳で人に聞く状態
 
 # 返りの続き (前の段, 前の段の欄（None は返りが在るだけ）, 後の段, 文)。前の段が欄を真にしたのに後の段の返りが無い run は途中で終わった
 CHAIN = (("judge", "ready", "plan", "判定が直す単位を出したのに計画の返りが無い"),
@@ -251,20 +251,13 @@ def ledger(returns: dict) -> list:
 
 
 def origin_of(q: dict, missing: dict) -> str:
-    """問いの出どころ（元 gatemarks.origin_of: 台帳の origin。空なら key が測れていない素材の名 missing で始まる時のその名）"""
-    got = q.get("origin")
-    if isinstance(got, str) and got:
-        return got
-    key = str(q.get("key") or "")
-    return next((n for n in missing if key.startswith(n) and not gatemarks.KEY_CHAR.match(key[len(n):len(n) + 1])), "")
+    """問いの出どころ（gatemarks.origin。missing は測れていない素材）"""
+    return gatemarks.origin(q, missing)
 
 
 def answer_binds(questions: list, a: dict, missing: dict) -> list:
-    """依頼の答え a が当たる問い（元 gatemarks.answer_binds の字の一致だけの形。判定の answer_ties の結びは返りに無い）:
-    question と key が字のまま等しい問い、無ければ出どころが等しい問いの全部"""
-    name = a.get("question")
-    by_key = [q for q in questions if isinstance(q.get("key"), str) and q.get("key") and q.get("key") == name]
-    return by_key or [q for q in questions if name and origin_of(q, missing) == name]
+    """依頼の答え a が当たる問い（gatemarks.binds。判定の結びはここでは当てない——結びを当てる読みは runreport.ledger）"""
+    return gatemarks.binds(a, questions, missing=missing)
 
 
 def material_answer(returns: dict, answers: list, name: str) -> dict | None:

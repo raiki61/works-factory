@@ -281,7 +281,7 @@ class DecisionsCase(Base):
 
     def test_decisions_are_counted(self):
         """元 ReportHeadCase.test_decisions_are_counted"""
-        review = {"pass": True, "ask_human": True, "questions": ["どちらに寄せるか／推し: 通す（continue）——小さい方（理由: 速い）"]}
+        review = {"pass": True, "ask_human": True, "questions": [gatemarks.question_row("fork", "どちらに寄せるか／推し: 通す（continue）——小さい方（理由: 速い）")]}
         eyes = {**fixed_run()["eyes"], "questions": ["守りを触ってよいか"]}
         _, text, _ = self.build(fixed_run(eyes=eyes, **{"plan-review": review}), gates={"gate-before-fix": {"decision": "approve", "text": ""}})
         second = text.splitlines()[3]
@@ -333,7 +333,8 @@ class DraftsCase(Base):
         """元 DraftsCase.test_each_stopped_item_gets_a_marked_draft: 無人の run で関所が開かなかった問いごとに、下書きの印つきの
         答えの下書き。推しの尾が在れば推しを答えに"""
         review = {"pass": True, "ask_human": True,
-                  "questions": ["狭めるか／推し: 通す（continue）——狭めない（理由: 能力を落とさない）", "どの定石に寄せるか"]}
+                  "questions": [gatemarks.question_row("regression", "狭めるか／推し: 通す（continue）——狭めない（理由: 能力を落とさない）"),
+                                gatemarks.question_row("world", "どの定石に寄せるか")]}
         drafts = runreport.answer_drafts(fixed_run(**{"plan-review": review}), {}, UNATTENDED)
         self.assertEqual(len(drafts), 2, drafts)
         self.assertTrue(all(d["draft"] is True and d["source"] for d in drafts), drafts)
@@ -349,9 +350,9 @@ class DraftsCase(Base):
             {"world": "w-mean", "deviation": "呼び手の都合で 0 を返す形に寄せたい、と考えた"}]}]})
         self.put("plan/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "narrows": [{**NARROW, **DECIDED}]}]})
         line = worldmark.gate_line(WORLD_ROW, {"world": "w-mean", "deviation": "呼び手の都合で 0 を返す形に寄せたい、と考えた"})
-        review = {"pass": True, "ask_human": True, "questions": [f"修正案 1 の{line}（人に聞く訳: 依頼を出どころにした外れ）"]}
+        review = {"pass": True, "ask_human": True, "questions": [gatemarks.question_row("world", f"修正案 1 の{line}（人に聞く訳: 依頼を出どころにした外れ）")]}
         returns = fixed_run(judge={**fixed_run()["judge"], "world": world}, plan={**fixed_run()["plan"], "plan": plan},
-                            **{"plan-review": review}, eyes={**fixed_run()["eyes"], "questions": review["questions"]})
+                            **{"plan-review": review}, eyes={**fixed_run()["eyes"], "questions": gatemarks.row_texts(review["questions"])})
         drafts = runreport.answer_drafts(returns, {}, UNATTENDED)
         self.assertEqual(len(drafts), 1, drafts)
         self.assertIn("w-mean", drafts[0]["question"])
@@ -363,7 +364,7 @@ class DraftsCase(Base):
         rec = {"answer": "continue", "note": "例外にそろえる", "why": "呼び手が既に例外を捕まえている"}
         self.put("plan/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "narrows": [{**NARROW, "recommend": rec}]}]})
         q = f"修正案 1 が狭める能力: {NARROW['what']}——{NARROW['why']}（世界の解: 役が書いていない）"
-        returns = fixed_run(plan={**fixed_run()["plan"], "plan": plan}, **{"plan-review": {"ask_human": True, "questions": [q]}})
+        returns = fixed_run(plan={**fixed_run()["plan"], "plan": plan}, **{"plan-review": {"ask_human": True, "questions": [gatemarks.question_row("regression", q)]}})
         drafts = runreport.answer_drafts(returns, {}, UNATTENDED)
         self.assertEqual(drafts[0]["question"], f"修正案 1 が狭める能力: {NARROW['what']}——{NARROW['why']}")
         self.assertTrue(drafts[0]["text"].startswith("continue: 例外にそろえる"))
@@ -378,9 +379,9 @@ class DraftsCase(Base):
         self.assertEqual([(d["question"], d["text"]) for d in drafts], [(FORK["key"], "例外——呼び手が既に例外を捕まえている")])
         passed = {"gate-before-fix": {"decision": "continue", "text": ""}}
         self.assertEqual(len(runreport.answer_drafts(returns, passed, {"run_id": RUN})), 1, "関所が聞いていない問いは答えていない")
-        returns = fixed_run(judge=returns["judge"], **{"plan-review": {**fixed_run()["plan-review"], "questions": [gatemarks.ask_text(FORK)]}})
+        passed = {"gate-before-fix": {"decision": "continue", "text": "", "asked": [gatemarks.ask_text(FORK)]}}
         self.assertEqual(runreport.answer_drafts(returns, passed, {"run_id": RUN}), [])
-        held = {"gate-before-fix": {"decision": "continue", "text": f"保留: {FORK['key']}"}}
+        held = {"gate-before-fix": {"decision": "continue", "text": f"保留: {FORK['key']}", "asked": [gatemarks.ask_text(FORK)]}}
         self.assertEqual(len(runreport.answer_drafts(returns, held, {"run_id": RUN})), 1)
         returns = fixed_run(judge=returns["judge"])
         _, text, _ = self.build(returns)
@@ -400,13 +401,13 @@ class DraftsCase(Base):
 
     def test_row_with_nothing_still_gets_a_draft_saying_so(self):
         """元 DraftsCase.test_row_with_nothing_still_gets_a_draft_saying_so"""
-        drafts = runreport.answer_drafts(fixed_run(**{"plan-review": {"questions": ["どうするか"]}}), {}, UNATTENDED)
+        drafts = runreport.answer_drafts(fixed_run(**{"plan-review": {"questions": [gatemarks.question_row("regression", "どうするか")]}}), {}, UNATTENDED)
         self.assertEqual(drafts[0]["text"], "")
         self.assertIn("書いていない", drafts[0]["note"])
 
     def test_attended_run_gets_no_gate_item_drafts(self):
         """元 DraftsCase の人の居る run: 関所に人が答えた run は下書きを作らない"""
-        returns = fixed_run(**{"plan-review": {"questions": ["どうするか"]}})
+        returns = fixed_run(**{"plan-review": {"questions": [gatemarks.question_row("regression", "どうするか")]}})
         self.assertEqual(runreport.answer_drafts(returns, {"gate-before-fix": {"decision": "approve", "text": ""}},
                                                  {"run_id": RUN}), [])
         self.assertEqual(runreport.answer_drafts(returns, {"gate-before-fix": {"decision": "continue", "text": ""}}, UNATTENDED), [])
@@ -421,7 +422,8 @@ class DraftsCase(Base):
         narrow = f"修正案 1 が狭める能力: {NARROW['what']}——{NARROW['why']}"
         face = f"事前審査の穴 [regression] {FACE['key']}: {FACE['why']}"
         returns = fixed_run(plan={**fixed_run()["plan"], "plan": plan},
-                            **{"plan-review": {"review": review, "questions": [narrow, face, f"事前審査の穴 [style] 見た目: {FACE['why']}"]}})
+                            **{"plan-review": {"review": review, "questions": [gatemarks.question_row(k, t) for k, t in (
+                                ("regression", narrow), ("regression", face), ("style", f"事前審査の穴 [style] 見た目: {FACE['why']}"))]}})
         drafts = runreport.answer_drafts(returns, {}, UNATTENDED)
         self.assertEqual([d["text"] for d in drafts], ["", "", ""])
         self.assertIn("狭めない案: 例外にそろえて呼び手を直す", drafts[0]["note"])
@@ -438,7 +440,7 @@ class DraftsCase(Base):
         self.assertEqual(runreport.answer_drafts(returns, {"gate-final": {"decision": "approve", "text": ""}}, UNATTENDED), [])
 
     def test_drafts_reach_next_request(self):
-        returns = fixed_run(**{"plan-review": {"questions": ["どうするか"]}})
+        returns = fixed_run(**{"plan-review": {"questions": [gatemarks.question_row("regression", "どうするか")]}})
         got, _, _ = self.build(returns, start=UNATTENDED)
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
@@ -687,7 +689,8 @@ class LedgerCase(Base):
         if materials is not None:
             self.put("judge/materials.json", materials)
         judge = {**fixed_run()["judge"], "judgment": judgment, "units": units if units is not None else [{"id": FORK_UNIT}]}
-        return fixed_run(judge=judge, **{"plan-review": {**fixed_run()["plan-review"], "questions": list(review)}})
+        return fixed_run(judge=judge, **{"plan-review": {**fixed_run()["plan-review"],
+                                                        "questions": [gatemarks.question_row("fork", q) for q in review]}})
 
     def test_held_line_names_units_left_and_answer_key(self):
         state = runreport.ledger_state(self.returns(FORK), {}, {"run_id": RUN})
@@ -704,12 +707,30 @@ class LedgerCase(Base):
         other = {**FORK, "key": "q-other", "origin": "x"}
         returns = self.returns(FORK, other, units=[{"id": FORK_UNIT}, {"id": "x"}], review=[gatemarks.ask_text(other)])
         answers = [{"question": FORK["key"], "text": "例外", "command": "pytest -k mean", "output": "1 passed"}]
-        state = runreport.ledger_state(returns, {"gate-before-fix": {"decision": "continue", "text": ""}}, {"answers": answers})
+        gate = {"decision": "continue", "text": "", "asked": [gatemarks.ask_text(other)]}
+        state = runreport.ledger_state(returns, {"gate-before-fix": gate}, {"answers": answers})
         self.assertEqual(state["held"], [])
         self.assertEqual(state["answered"], [
             gatemarks._ledger_line(FORK, "・" + gatemarks.answer_note(answers[0])),
             gatemarks._ledger_line(other, "・関所で continue を受けた")])
         self.assertIn("人が手元で実行: `pytest -k mean`", state["answered"][0])
+
+    def test_answer_ties_bind_answers(self):
+        """R77: 判定の隣の answer-ties.json の結びで、字の当たらない依頼の答えが問いに当たり（答えた行・保留から外れる）、結びの宛て先が
+        今の問いに無ければ字の一致に落ちる。結ばないと判定が名乗った答えは訳つきで並び、判定が単位にしなかった作り直しの行が報告に出る"""
+        returns = self.returns(FORK)
+        answers = [{"question": "どちらでもよい", "text": "例外"}, {"question": "関係ない", "text": "x"}]
+        self.put("judge/answer-ties.json", {"rounds": {"1": [
+            {"answer": "どちらでもよい", "to": FORK["key"]}, {"answer": "関係ない", "none": "依頼のこの答えは今の判定のどの問いにも単位にも当たらない"},
+            {"redesign": "前の run の作り直しの行", "none": "反証で死んだ。今の判定では成り立たない作り直しの行だった"}]}})
+        state = runreport.ledger_state(returns, {}, {"answers": answers})
+        self.assertEqual(state["held"], [])
+        self.assertEqual(state["answered"], [gatemarks._ledger_line(FORK, "・" + gatemarks.answer_note(answers[0]))])
+        self.assertIn("結ばなかった依頼の答え（問いにも単位にも結ばれないと判定が名乗った）: 関係ない", state["unmatched"][0])
+        self.assertEqual(state["ties"][0], gatemarks.NO_CARRY_HEAD)
+        self.assertIn("前の run の作り直しの行——判定が単位にしなかった訳: 反証で死んだ", state["ties"][-1])
+        (self.dir / "judge" / "answer-ties.json").unlink()
+        self.assertEqual(len(runreport.ledger_state(returns, {}, {"answers": answers})["held"]), 1, "結びが無い run は字の一致のまま")
 
     def test_answer_hitting_two_questions_answers_neither(self):
         twin = {**FORK, "key": "q-twin", "status": "escalate"}
@@ -732,7 +753,8 @@ class LedgerCase(Base):
 
     def test_answered_but_unit_gone_is_held(self):
         returns = self.returns(FORK, units=[], review=[gatemarks.ask_text(FORK)])
-        state = runreport.ledger_state(returns, {"gate-before-fix": {"decision": "continue", "text": ""}}, {"run_id": RUN})
+        gate = {"decision": "continue", "text": "", "asked": [gatemarks.ask_text(FORK)]}
+        state = runreport.ledger_state(returns, {"gate-before-fix": gate}, {"run_id": RUN})
         self.assertEqual(state["held"], [(None, f"関所で答えたが直す単位に入れられなかった: {FORK['key']}・{FORK_UNIT}（理由: 今の周の判定に無い）")])
 
     def test_material_answer_lines(self):
@@ -756,6 +778,18 @@ class LinesCase(Base):
         for name, doc in beside.items():
             self.put(f"judge/{name}", doc)
         return {**fixed_run()["judge"], "judgment": judgment}
+
+    def test_answer_ties_reach_the_report(self):
+        """J109: 判定の隣の answer-ties.json を報告が読み、どの問いにも当たらなかった答え（結ばない訳つき）と判定が単位にしなかった
+        作り直しの行（none の訳）を人が決めることの節に出す"""
+        judge = self.judge_with(**{"answer-ties.json": {"rounds": {"1": [
+            {"answer": "関係ない", "none": "依頼のこの答えは今の判定のどの問いにも単位にも当たらない"},
+            {"redesign": "前の run の作り直しの行", "none": "反証で死んだ。今の判定では成り立たない作り直しの行だった"}]}}})
+        _, text, _ = self.build(fixed_run(judge=judge), start={"run_id": RUN, "answers": [{"question": "関係ない", "text": "x"}]})
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("結ばなかった依頼の答え（問いにも単位にも結ばれないと判定が名乗った）: 関係ない——訳: 依頼のこの答えは", body)
+        self.assertIn(gatemarks.NO_CARRY_HEAD, body)
+        self.assertIn("前の run の作り直しの行——判定が単位にしなかった訳: 反証で死んだ", body)
 
     def test_verify_pr_excluded_and_premise_hypotheses(self):
         verify = {"units": [{"key": "u1", "state": "checked", "verdict": "not_root", "real_root": "b.py", "why": "呼び手の側"}],

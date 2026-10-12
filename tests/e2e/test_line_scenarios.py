@@ -17,7 +17,8 @@ from tests.layers import scan
 SCENARIOS = (
     "standard", "start-refused", "no-fix", "policy-continue", "policy-stop", "plan-stalled", "plan-unsettled", "replan",
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
-    "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "rejudge-stop",
+    "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "rejudge-stop", "unattended-questions",
+    "unattended-policy-change",
 )
 
 
@@ -60,24 +61,34 @@ class LineScenariosTest(unittest.TestCase):
 
 
 
-def line_returns(names) -> dict:
-    """筋書きの名 → その筋書きの stub で線を dry-run（exec-code）した時の、線の返す節 result の出力。workflow test は節の出力を
-    返さないので、筋書きの stub と入力をそのまま `workflow run --dry-run` に渡して trace を読む（tests/workflows/test_report.py と同じ形）"""
+def line_traces(names) -> dict:
+    """筋書きの名 → その筋書きの stub で線を dry-run（exec-code）した trace（節の id → trace の行）。workflow test は節の出力を返さない
+    ので、筋書きの stub と入力をそのまま `workflow run --dry-run` に渡す（tests/workflows/test_report.py と同じ形）"""
     out = {}
     with archon.tree(["line", *blocks()]) as tree:
         for name in names:
             fixture = yaml.safe_load((archon.WORKFLOWS / "line" / "fixtures" / f"{name}.stubs.yaml").read_text(encoding="utf-8"))
             stubs = tree.parent / f"{name}.stubs.yaml"
-            stubs.write_text(yaml.safe_dump({k: v for k, v in fixture.items() if k not in ("fixture", "exec-code")}, allow_unicode=True),
-                             encoding="utf-8")
+            stubs.write_text(yaml.safe_dump({k: v for k, v in fixture.items() if k not in ("fixture", "exec-code")},
+                                            allow_unicode=True), encoding="utf-8")
             args = [arg for k, v in (fixture["fixture"].get("inputs") or {}).items() for arg in ("--input", f"{k}={v}")]
             done = archon.archon(tree, "workflow", "run", archon.PACK["ours"]["line"], "--dry-run", "--exec-code", "--stubs", str(stubs),
                                  "--json", *args, "--cwd", str(tree))
             try:
-                trace = {n["nodeId"]: n for n in json.loads(done.stdout)["trace"]}
-                out[name] = json.loads(trace["result"]["output"])
+                out[name] = {n["nodeId"]: n for n in json.loads(done.stdout)["trace"]}
             except (json.JSONDecodeError, KeyError, TypeError) as error:
-                raise AssertionError(f"{name} の dry-run の result が読めない（{error}）: {done.stdout[-2000:]}{done.stderr[-2000:]}") from None
+                raise AssertionError(f"{name} の dry-run の trace が読めない（{error}）: {done.stdout[-2000:]}{done.stderr[-2000:]}") from None
+    return out
+
+
+def line_returns(names) -> dict:
+    """筋書きの名 → 線の返す節 result の出力（line_traces の result の行）"""
+    out = {}
+    for name, trace in line_traces(names).items():
+        try:
+            out[name] = json.loads(trace["result"]["output"])
+        except (json.JSONDecodeError, KeyError, TypeError) as error:
+            raise AssertionError(f"{name} の dry-run の result が読めない（{error}）: {trace.get('result')}") from None
     return out
 
 
@@ -93,7 +104,7 @@ class LineReturnsTest(unittest.TestCase):
         self.assertIs(got["apply"]["ok"], True, got)
         self.assertEqual(got["apply"]["hash"], got["sealed"]["hash"])
         self.assertEqual(got["r2_status"], "pass")
-        self.assertEqual(got["final_answer"], {"decision": "approve", "text": ""})
+        self.assertEqual(got["final_answer"], {"decision": "approve", "text": "", "asked": []})
 
     def test_final_stop_keeps_the_seal_without_applying(self):
         got = self.returns["final-stop"]
@@ -105,6 +116,35 @@ class LineReturnsTest(unittest.TestCase):
         """L-D48: 再審が止まった run は試験の関門から先へ進まず、封じも当てもしない"""
         got = self.returns["rejudge-stop"]
         self.assertEqual((got["apply"], got["sealed"], got["r2_status"], got["final_answer"]), (None, None, None, None), got)
+
+
+class UnattendedGateTest(unittest.TestCase):
+    """無人の run の修正前の関所（L-G38・L-G40・P236）: 台帳の問いだけなら関所を開かず修正へ進み、方針の文書の変化が在れば修正へ
+    進まずに止まる。筋書きの宣言は節が走らなかったことを照らせない（止めた Archon の packages/workflows/src/fixture-runner.ts 70-77 行）
+    ので、dry-run の trace で照らす"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.traces = line_traces(("unattended-questions", "unattended-policy-change"))
+
+    @staticmethod
+    def ran(trace, node) -> bool:
+        return node in trace and trace[node]["state"] in ("completed", "stubbed")
+
+    def test_questions_only_go_to_fix_without_the_gate(self):
+        trace = self.traces["unattended-questions"]
+        asked = json.loads(trace["ask-before-fix"]["output"])
+        self.assertEqual((asked["open"], asked["go"], asked["stop_reason"], len(asked["deferred"])), (False, True, "", 1), asked)
+        self.assertFalse(self.ran(trace, "gate-before-fix"))
+        self.assertTrue(self.ran(trace, "fix__fix"))
+
+    def test_policy_change_stops_before_fix(self):
+        trace = self.traces["unattended-policy-change"]
+        asked = json.loads(trace["ask-before-fix"]["output"])
+        self.assertEqual((asked["open"], asked["go"], asked["stop_reason"]), (False, False, "works:needs-human"), asked)
+        self.assertFalse(self.ran(trace, "gate-before-fix"))
+        self.assertFalse(self.ran(trace, "fix__fix"))
+        self.assertTrue(self.ran(trace, "report__report"))
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ if str(LIB) not in sys.path:
 
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import fixboard  # noqa: E402
+import gatemarks  # noqa: E402
 import groups  # noqa: E402
 import leftovers  # noqa: E402
 import lens  # noqa: E402
@@ -54,6 +55,25 @@ class TempCase(unittest.TestCase):
         self.rev = committed_copy(self.repo, SEED)
         self.place = self.tmp / "place"
         self.place.mkdir()
+
+
+class GateAsksCase(TempCase):
+    """P241: 修正の置き場の判定の写しと関所の答え（answers.json の {decision, text, asked}）から引く、答えで戻る単位と外れる単位"""
+
+    FORK = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "割れる"}
+
+    def put(self, answers):
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": [{"key": "u1", "label": "block"}], "questions": [self.FORK]}),
+                                                         encoding="utf-8")
+        (self.place / fixboard.ANSWERS_FILE).write_text(json.dumps(answers, ensure_ascii=False), encoding="utf-8")
+
+    def test_continue_returns_the_fork_origin(self):
+        self.put({"decision": "approve", "text": "", "asked": [gatemarks.ask_text(self.FORK)]})
+        self.assertEqual(fixboard.gate_asks(self.place), ({}, {"u1"}))
+        self.assertEqual(fixboard.group_owed(self.place), ["u1"])
+        self.put({"decision": "approve", "text": "", "asked": []})
+        withheld, back = fixboard.gate_asks(self.place)
+        self.assertEqual((set(withheld), back, fixboard.group_owed(self.place)), ({"u1"}, set(), []))
 
 
 class TestGroups(TempCase):

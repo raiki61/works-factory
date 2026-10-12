@@ -353,6 +353,13 @@ nodes:
                 ok: {type: boolean}
                 note: {type: string}
         ask_human: {type: boolean}
+        # 関所の項目 {kind（lib/gatemarks.py の KIND_WORDS の種類）, text}
         questions:
           type: array
-          items: {type: string}
+          items:
+            type: object
+            additionalProperties: false
+            required: [kind, text]
+            properties:
+              kind: {type: string}
+              text: {type: string}

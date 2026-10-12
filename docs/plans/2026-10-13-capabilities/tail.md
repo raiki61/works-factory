@@ -1730,10 +1730,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R77 判定の answer_ties（依頼の答えを問いや単位に結ぶ行）と、単位に結んだ答えを修正役へ渡す行・結ばないと判定が名乗った答えの訳の行（answer_tie_lines）
   - 元: works/.shared/core/gatemarks.py:878 `answer_tie_lines`、works/.shared/core/report.py:2055
-  - 今: 無し（lib/outcome.py:261 `answer_binds` は字の一致だけ）
-  - 証: 要追加: lib/tests/test_runreport.py::LedgerCase.test_answer_ties_bind_answers — judgment の隣の answer-ties.json の結びで答えが問いに当たり、結ばなかった作り直しの行が報告に出る
+  - 今: lib/gatemarks.py の answer_ties・ties_of・answer_tie_lines・returned_lines（判定が単位に結んだ答えの行）。報告は lib/runreport.py の ledger が 1 回目の判定の隣の answer-ties.json を読む。fix は prep が判定の隣から写す
+  - 証: lib/tests/test_runreport.py::LedgerCase.test_answer_ties_bind_answers（部分 B1）
   - 本物の run: judge/answer-ties.json（依頼が answers を持つ時）
-  - 狭め: 判定: 戻せる。#68 の「約束の隣のファイルにも無い」は約束の一覧としては正しいが、判定のブロックは judge/answer-ties.json を judgment.json と同じフォルダに書く（lib/judge_accept.py:1015・:1034 `gatemarks.save_answer_ties(jdir, 1, …)`）。約束の隣のファイルに足せば足りる。Archon で不可でない → 戻す
+  - 狭め: 判定: 戻せる。#68 の「約束の隣のファイルにも無い」は約束の一覧としては正しいが、判定のブロックは judge/answer-ties.json を judgment.json と同じフォルダに書く（lib/judge_accept.py:1015・:1034 `gatemarks.save_answer_ties(jdir, 1, …)`）。約束の隣のファイルに足せば足りる。Archon で不可でない → 戻す → 部分 B1 で戻した
 
 - R78 受け付けの最後の拒否の本文を前の失敗に運ぶ（元 accept-last.json の reason_file）
   - 元: works/.shared/core/report.py:713 `_accept_last_files`・:732-749

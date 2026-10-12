@@ -185,7 +185,7 @@ PROMPT_TABLES = {
     "labels": "／".join(LABELS),
 }
 # 元 review-record.py:343
-ASKING = ("held", "escalate")
+ASKING = gatemarks.ASKING
 TRACKED = ("held", "escalate", "decided")
 
 
@@ -942,23 +942,13 @@ def unmeasured(materials) -> dict:
 
 
 def origin_of(q, materials) -> str:
-    """元 works/.shared/core/gatemarks.py:704。答えを結ぶ時の問いの出どころ: 台帳の origin。origin が空の問いで、key が今の周に測れていない
-    素材の名で始まる（名の直後が終わりか KEY_CHAR でない字）物は、その素材の名"""
-    got = q.get("origin")
-    if isinstance(got, str) and got:
-        return got
-    key = str(q.get("key") or "")
-    return next((n for n in unmeasured(materials)
-                 if key.startswith(n) and not gatemarks.KEY_CHAR.match(key[len(n):len(n) + 1])), "")
+    """元 works/.shared/core/gatemarks.py:704。答えを結ぶ時の問いの出どころ（gatemarks.origin。測れていない素材は materials から）"""
+    return gatemarks.origin(q, unmeasured(materials))
 
 
 def answer_binds(a, questions, materials) -> list:
-    """元 works/.shared/core/gatemarks.py:716 を受け付けの呼び方（answer_rows は空の列。字の一致だけ）で。依頼の答え a が当たる返答の
-    問い: question と key が字のまま等しい問い、無ければ出どころ（origin_of）が等しい問いの全部"""
-    qs = [q for q in questions if isinstance(q, dict)]
-    name = a.get("question")
-    by_key = [q for q in qs if isinstance(q.get("key"), str) and q.get("key") and q.get("key") == name]
-    return by_key or [q for q in qs if name and origin_of(q, materials) == name]
+    """元 works/.shared/core/gatemarks.py:716 を受け付けの呼び方（結びの行は空。字の一致だけ）で（gatemarks.binds）"""
+    return gatemarks.binds(a, questions, missing=unmeasured(materials))
 
 
 def redesign_rows(jdir) -> list:

@@ -211,7 +211,7 @@ def plan_review_output(b, nid, out, item):
 # このブロックの部品が読む blocks（gatemarks.unmeasured）だけ。状態の語の持ち主は gatemarks.MATERIAL_WORDS
 BLOCKING = ("awaiting_human", "not_run")
 STATUS = {s: types.SimpleNamespace(blocks=s in BLOCKING) for s in gatemarks.MATERIAL_WORDS}
-ASKING = ("held", "escalate")
+ASKING = gatemarks.ASKING
 VALIDATOR = types.SimpleNamespace(STATUS=STATUS, ASKING=ASKING)
 
 
@@ -899,7 +899,8 @@ def _note_asked(d: pathlib.Path, items: list, changed: dict | None) -> None:
 
 
 def collect(folder) -> dict:
-    """返す節の中身（パスは置き場の中の実物）: {pass, stalled, review, design, gate_axes, ask_human, questions}。
+    """返す節の中身（パスは置き場の中の実物）: {pass, stalled, review, design, gate_axes, ask_human, questions}。questions の行は
+    関所の項目の種類と文 {kind, text}（gatemarks.question_row。線が無人の run で台帳の問いだけを報告へ回し、ほかの種類で止まる）。
     抜け方は形 review なら往復の控えの converge.decide（record_pass が決めた語）、形 replan なら block の有無（stalled はいつも偽）。
     受け付けが諦めた往復は pass: false・stalled: true で、諦めた訳を questions に載せる。関所の項目は、形 review なら
     gatemarks.plan_gate_items、形 replan なら約束の欄が変わったか人に聞く穴の在る直した項目だけ（replan_asks）で、どちらも方針の
@@ -926,9 +927,9 @@ def collect(folder) -> dict:
     if changed:
         items.append((POLICY_CHANGED, change_row(changed)))
     _note_asked(d, items, changed)
-    questions = [text for _, text in items]
+    questions = [gatemarks.question_row(kind, text) for kind, text in items]
     if gave:
-        questions.append(GIVEN_UP_FACES + gave)
+        questions.append(gatemarks.question_row(gatemarks.GIVEN_UP_KIND, GIVEN_UP_FACES + gave))
     _write_json(p / PASSES_FILE, gatemarks.passes(b))
     _write_json(p / GATE_FILE, {"items": [{"kind": k, "text": t} for k, t in items], "converge": converge.lines(b)})
     got, _ = design.made(d, b.design_schema)

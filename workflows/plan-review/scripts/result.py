@@ -11,14 +11,15 @@ import os
 import sys
 from pathlib import Path
 
-# boardview.FOLDER・REVIEW_FILE・PASSES_FILE と design.DESIGN_FILE、gate_axes.AXES（境の口と lib を読めない時にも書けるよう字で持つ。
-# 試験が一致を縛る）
+# boardview.FOLDER・REVIEW_FILE・PASSES_FILE と design.DESIGN_FILE、gate_axes.AXES、gatemarks.GIVEN_UP_KIND（境の口と lib を読めない時にも
+# 書けるよう字で持つ。試験が一致を縛る）
 FAILED = "plan-review/failed"
 REVIEW_FILE = "review.json"
 DESIGN_FILE = "design.json"
 PASSES_FILE = "gate-passes.json"
 AXES = ("obvious", "world", "clean", "not_overkill")
 FAILED_HEAD = "返す節が落ちた: "
+FAILED_KIND = "given_up"
 
 
 def collected() -> tuple:
@@ -47,7 +48,7 @@ def failed(error: BaseException) -> dict:
             pass
     pointer = lambda name: {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": f"{FAILED}/{name}"}  # noqa: E731
     return {"pass": False, "stalled": False, "review": pointer(REVIEW_FILE), "design": pointer(DESIGN_FILE),
-            "gate_axes": {axis: {"ok": False, "note": note} for axis in AXES}, "ask_human": True, "questions": [note]}
+            "gate_axes": {axis: {"ok": False, "note": note} for axis in AXES}, "ask_human": True, "questions": [{"kind": FAILED_KIND, "text": note}]}
 
 
 def main() -> int:

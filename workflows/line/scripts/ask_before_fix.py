@@ -5,13 +5,16 @@
 """修正前の関所を開くかと、見せる文を決める節 ask-before-fix（docs/design.md の「線」の「順と関所」の 6）。
 
 入力（with:）は計画の往復の返り（plan-rounds の ready・pass・stalled・round・ask_human・gate_axes・questions）と、始めの節の
-unattended・design_only。
+unattended・design_only。questions の行は関所の項目の種類と文 {kind, text}（plan-review の返り。lib/gatemarks.py の question_row）。
 - 計画ができていない（ready が false）: 関所を開かず、修正へも進まない（go: false。結末は report が計画と判定の返りから決める）
 - 必ず開く: 事前審査の壁打ちが止まった（stalled）・往復が 3 周で決着しなかった・設計だけの run（design_only）
-- 開く: 4 つの軸のどれかが ok でない・事前審査が人に聞くと言った（ask_human）・人への問いが在る
-- 無人の run: 人への問い（台帳の問い）は関所に載せず、deferred で返す（report に受ける入力が無く、まだ報告には届かない。
-  docs/design.md の「report の返り」）。それでも開くはずの時は開かずに止める
-  （needs-human。今の works で無人の殻が関所に stop を返したのと同じ結末）
+- 開く: 4 つの軸のどれかが ok でない・事前審査が人に聞くと言った（ask_human）・関所の項目が在る
+- 無人の run: 台帳の問い（種類 fork・escalate。gatemarks.ASK_KINDS）だけは関所に載せず deferred で返し（問いの出どころは直す義務から
+  外れたまま修正へ進む。元 works/.shared/core/gatemarks.py:637-638）、ほかの種類（狭め・事前審査の穴・方針の文書の変化・事前審査の
+  諦め・設計の問い・世界の解の外れ・設計だけ）が在れば開かずに止める（needs-human。今の works で無人の殻が関所に stop を返したのと
+  同じ結末）
+返り asked は関所に載せた項目の文の並び（開かない時は []）。answer-before-fix がそれを答えの asked にし、fix・plan-review・eyes が人の
+通した行として読む。
 """
 import os
 
@@ -30,15 +33,18 @@ RECORD = "run の置き場の gates/gate-before-fix.json"
 
 def ask(plan: dict, *, unattended: bool, design_only: bool, run_id: str) -> dict:
     if not plan.get("ready"):
-        return {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": []}
-    rows = []
+        return {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": [], "asked": []}
+    rows, deferred = [], []
     for key, word in AXES.items():
         axis = (plan.get("gate_axes") or {}).get(key)
         if isinstance(axis, dict) and axis.get("ok") is False:
             rows.append((AXIS_KIND, f"{word}（{key}）の軸が通らない: {axis.get('note') or '（訳が無い）'}"))
-    questions = [str(q) for q in plan.get("questions") or []]
-    deferred = questions if unattended else []
-    rows += [] if unattended else [(gatemarks.ASK_KINDS[0], q) for q in questions]
+    for q in plan.get("questions") or []:
+        kind, text = (str(q.get("kind") or ""), str(q.get("text") or "")) if isinstance(q, dict) else ("", str(q))
+        if unattended and kind in gatemarks.ASK_KINDS:
+            deferred.append(text)
+        else:
+            rows.append((kind, text))
     if plan.get("stalled"):
         rows.append((gatemarks.DESIGN_ONLY_KIND, gatemarks.STUCK_ITEM))
     elif (plan.get("round") or 0) >= ROUND_LIMIT and not plan.get("pass"):
@@ -47,12 +53,13 @@ def ask(plan: dict, *, unattended: bool, design_only: bool, run_id: str) -> dict
         rows.append((gatemarks.DESIGN_ONLY_KIND, gatemarks.DESIGN_ONLY_ITEM))
     opens = bool(rows) or (bool(plan.get("ask_human")) and not unattended)
     if not opens:
-        return {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": deferred}
+        return {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": deferred, "asked": []}
     if unattended:
-        return {"open": False, "go": False, "stop_reason": linekit.NEEDS_HUMAN, "text": "", "deferred": deferred}
-    asking = {"node": gatemarks.GATE_NODE, "kinds": list(dict.fromkeys(kind for kind, _ in rows)) or [AXIS_KIND],
+        return {"open": False, "go": False, "stop_reason": linekit.NEEDS_HUMAN, "text": "", "deferred": deferred, "asked": []}
+    asking = {"node": gatemarks.GATE_NODE, "kinds": list(dict.fromkeys(kind for kind, _ in rows if kind)) or [AXIS_KIND],
               "question": QUESTION, "items": [item for _, item in rows]}
-    return {"open": True, "go": True, "stop_reason": "", "text": gate_text(asking, run_id=run_id), "deferred": deferred}
+    return {"open": True, "go": True, "stop_reason": "", "text": gate_text(asking, run_id=run_id), "deferred": deferred,
+            "asked": [item for _, item in rows]}
 
 
 def gate_text(asking: dict, *, run_id: str) -> str:
@@ -73,7 +80,7 @@ def plan_of_env() -> dict:
 
 
 def fallback(reason: str) -> dict:
-    return {"open": False, "go": False, "stop_reason": linekit.LINE_SCRIPT, "text": "", "deferred": []}
+    return {"open": False, "go": False, "stop_reason": linekit.LINE_SCRIPT, "text": "", "deferred": [], "asked": []}
 
 
 if __name__ == "__main__":

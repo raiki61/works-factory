@@ -33,6 +33,7 @@ import carry  # noqa: E402
 import changemap  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
+import marks  # noqa: E402
 import outcome as oc  # noqa: E402
 import outpurpose  # noqa: E402
 import planmarks  # noqa: E402
@@ -224,70 +225,36 @@ def _request_answers(start: dict) -> list:
     return [a for a in _list(as_dict(start).get("answers")) if isinstance(a, dict)]
 
 
-def _gate_asked(returns: dict, q: dict) -> bool:
-    """修正前の関所がこの問いの行を聞いたか（事前審査の questions に問いの行の頭が在る。元 gatemarks._asked_in）"""
-    return any(isinstance(x, str) and x.startswith(gatemarks._prefix(q)) for x in _list(_ret(returns, "plan-review").get("questions")))
+def ledger(returns: dict, gates: dict, start: dict):
+    """問いの台帳の値の見え方（gatemarks.ledger）: 判定（再審が在ればその）の judgment の問いと返りの単位、始めの記録の依頼の answers、
+    修正前の関所の答え {decision, text, asked}、1 回目の判定の隣の結び（answer-ties.json。再審の判定の隣には無い）、判定の隣の素材の状態"""
+    first = as_dict(returns.get("judge")).get("judgment")
+    ties = gatemarks.ties_of(marks.load(pathlib.Path(first).with_name(gatemarks.BESIDE[0]))) if isinstance(first, str) and first else []
+    units = [{"key": u.get("id"), "label": u.get("label")} for u in _list(_ret(returns, "judge").get("units")) if isinstance(u, dict)]
+    mats, _ = oc.materials(returns)
+    return gatemarks.ledger({"questions": oc.questions(returns), "units": units}, answers=_request_answers(start),
+                            gate=gates.get("gate-before-fix"), ties=ties, materials=mats)
 
 
 def ledger_state(returns: dict, gates: dict, start: dict) -> dict:
-    """問いの台帳の読み（元 gatemarks の held_lines・answered_lines・withheld・returned を返りと始めの記録で書き直した物）:
-    {held: [(問い（直す単位に入れられなかった行は None）, 行)], answered: [行], unmatched: [行], drafts: [(保留の問い, answer_key)]}。関所に載る問いは fork と escalate だけで、答えたのは依頼の answers が
-    この問いだけに当たるか、修正前の関所が通す語を受けてこの問いの行を聞き、一言が「保留: <key>」と名指していない物。保留の行は
-    答えが無いと直さない単位と、答える時の answers の question（answer_key）を後ろに持ち、関所で答えたが今の判定の単位に無い出どころ
-    （直す義務に戻せなかった単位）の行も並べる。答えた行は答えの出どころ（依頼者の答えか関所の continue）を名乗り、どの問いにも
-    答えなかった依頼の答え（元 gatemarks.unmatched_answer_lines。判定の answer_ties の結びは返りに無いので字の一致だけ）も並べる"""
-    every = oc.questions(returns)
-    qs = [q for q in every if q.get("status") in oc.ASKING]
-    missing = oc.unmeasured(returns)
-    answers = _request_answers(start)
-    units = {u.get("id") for u in _list(_ret(returns, "judge").get("units")) if isinstance(u, dict)}
-    gate = as_dict(gates.get("gate-before-fix"))
-    held_keys = gatemarks.hold_keys(str(gate.get("text") or ""), {str(q.get("key")) for q in qs if q.get("key")})
-
-    def request_answer(q):
-        return next((a for a in answers if (h := oc.answer_binds(every, a, missing)) and len(h) == 1 and h[0] is q), None)
-
-    def asked(q):
-        return q.get("kind") == "fork" or q.get("status") == "escalate"
-
-    def answered(q):
-        return request_answer(q) is not None or (asked(q) and gate.get("decision") in oc.PASS_WORDS and _gate_asked(returns, q)
-                                                 and str(q.get("key") or "") not in held_keys)
-
-    def answer_key(q):
-        name = oc.origin_of(q, missing)
-        return name if name in missing and oc.answer_binds(every, {"question": name}, missing) == [q] else str(q.get("key") or "")
-    pending = [q for q in qs if asked(q) and not answered(q)]
-    back = {k for q in qs if asked(q) and answered(q) for k in gatemarks._skips(q) if k in units}
-    withheld = {k for q in pending for k in gatemarks._skips(q) if k not in back}
-    held = [(q, gatemarks._ledger_line(q, skip=[k for k in gatemarks._skips(q) if k in withheld] if q in pending else [])
-             + f"／{gatemarks.ANSWER_KEY_HEAD}: {json.dumps(answer_key(q), ensure_ascii=False)}")
-            for q in qs if not answered(q)]
-    held += [(None, f"関所で答えたが直す単位に入れられなかった: {q.get('key')}・{k}（理由: 今の周の判定に無い）")
-             for q in qs if asked(q) and answered(q) for k in gatemarks._skips(q) if k not in units]
-    done = [gatemarks._ledger_line(q, "・" + gatemarks.answer_note(a) if (a := request_answer(q)) is not None else "・関所で continue を受けた")
-            for q in qs if answered(q)]
-    for n, st in missing.items() if answers else ():
-        a = oc.material_answer(returns, answers, n)
+    """問いの台帳の読み（gatemarks の held_lines・answered_lines・unmatched_answer_lines・answer_tie_lines を ledger の見え方で引いた物）:
+    {held: [(問い（直す単位に入れられなかった行は None）, 行)], answered: [行], unmatched: [行], ties: [行], drafts: [(保留の問い, answer_key)]}。
+    関所に載る問いは fork と escalate だけで、答えたのは依頼の answers がこの問いだけに当たるか（字の一致・判定の結び・測れていない素材の
+    名）、修正前の関所が通す語を受けてこの問いの行を聞き（答えの asked）、一言が「保留: <key>」と名指していない物。依頼の答えが当たった
+    測れていない素材は、命令と出力が在れば残りに数えない。ties は判定が単位にしなかった作り直しの行（answer_tie_lines）"""
+    b = ledger(returns, gates, start)
+    held_qs = gatemarks.held_questions(b)
+    lines = gatemarks.held_lines(b)
+    held = [*zip(held_qs, lines), *((None, line) for line in lines[len(held_qs):])]
+    done = gatemarks.answered_ledger_lines(b)
+    for n, st in gatemarks.unmeasured(b).items() if b.answers else ():
+        a = gatemarks.material_answer(b, n)
         if a is not None:
             how = (f"{gatemarks.HAND_CHECKED}。残りに数えない" if gatemarks._measured(a)
                    else "command と output が無いので測りの代わりにせず、測れていないまま残りに数える")
             done.append(f"素材 {n}（{st}）: {how}——{gatemarks.answer_note(a)}")
-    unmatched = []
-    for a in answers:
-        hits, note = oc.answer_binds(every, a, missing), gatemarks.answer_note(a)
-        if not hits and a.get("question") in missing:
-            continue
-        if not hits:
-            unmatched.append(f"依頼の答えに当たる問いが台帳に無い（判定が問いを立てなかったか、字が違う）: {a.get('question')}——{note}")
-        elif len(hits) > 1:
-            unmatched.append(f"依頼の答えが複数の問いに当たった: {a.get('question')} → {'・'.join(str(q.get('key')) for q in hits)}"
-                        f"（どれにも答えた扱いにしない。question に問いの key を書く）——{note}")
-        elif hits[0] not in qs:
-            unmatched.append(f"決着済みの問いに当たった答え: {a.get('question')} → {hits[0].get('key')}（{hits[0].get('status')}）"
-                        f"（答えは直しに使わない）——{note}")
-    return {"held": held, "answered": done, "unmatched": unmatched,
-            "drafts": [(q, answer_key(q)) for q in qs if not answered(q)]}
+    return {"held": held, "answered": done, "unmatched": gatemarks.unmatched_answer_lines(b), "ties": gatemarks.answer_tie_lines(b),
+            "drafts": [(q, gatemarks.answer_key(b, q)) for q in held_qs]}
 
 
 # ---------------------------------------------------------------- 答えの下書き
@@ -370,7 +337,8 @@ def answer_drafts(returns: dict, gates: dict, start: dict) -> list:
         for gid, rid in (("gate-before-fix", "plan-review"), ("gate-final", "eyes")):
             if as_dict(gates.get(gid)).get("decision") in oc.PASS_WORDS:
                 continue
-            out += [_gate_draft(q, rows) for q in _list(_ret(returns, rid).get("questions")) if isinstance(q, str) and q.strip()]
+            qs = _list(_ret(returns, rid).get("questions"))
+            out += [_gate_draft(q, rows) for q in (gatemarks.row_texts(qs) if rid == "plan-review" else qs) if isinstance(q, str) and q.strip()]
     missing = oc.unmeasured(returns)
     out += [_ask_draft(q, key) for q, key in ledger_state(returns, gates, start)["drafts"]]
     mats, _ = oc.materials(returns)
@@ -752,7 +720,7 @@ def _hits(returns: dict) -> list:
 def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, repo=None) -> tuple[list, str]:
     """人が決めることの行と、冒頭の 2 行目（件数）。数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは
     直す義務に戻せなかった単位の行を重ねて数えない。closed は途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
-    plan_qs = [q for q in _list(_ret(returns, "plan-review").get("questions")) if isinstance(q, str)]
+    plan_qs = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions")))
     eye_qs = [q for q in _list(as_dict(returns.get("eyes")).get("questions")) if isinstance(q, str)]
     ledger = ledger_state(returns, gates, start)
     held_ = [line for q, line in ledger["held"] if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_qs)]
@@ -781,6 +749,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
         lines.append(f"{gatemarks.ANSWERED_HEAD}（問いの台帳・{len(done)} 件。保留の件数には数えない）:")
         lines += [f"  - {x}" for x in done]
     lines += ledger["unmatched"]
+    lines += ledger["ties"]
     counted = [(w, len(i)) for w, i in parts if i]
     decide = (f"{sum(n for _, n in counted)} 件——" + "・".join(f"{w} {n} 件" for w, n in counted) + f"（下の「{report.DECISIONS_HEADING.lstrip('# ')}」）"
               if counted else "")
@@ -993,7 +962,8 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     draft = gatemarks.draft_line(drafts, next_file)
     _, outside, outside_count = _outside(returns, next_file)
     split = split_line(returns)
-    asked_texts = [q for rid in ("plan-review", "eyes") for q in _list(_ret(returns, rid).get("questions")) if isinstance(q, str)]
+    asked_texts = [*gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))),
+                   *[q for q in _list(_ret(returns, "eyes").get("questions")) if isinstance(q, str)]]
     head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）" + (f"。{split}" if split else ""),
                            decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts)} 件")
     sections = [

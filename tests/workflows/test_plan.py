@@ -815,6 +815,35 @@ class CollectCase(unittest.TestCase):
         self.assertIn("start が読めない", run.json(out["ripple"])["error"])
 
 
+class OwedAnswersCase(unittest.TestCase):
+    """依頼の answers（始めの記録の欄）が答えた関所の問いの出どころ・depends は、plan の直す義務に戻る（P002。fix と同じ gatemarks.duty
+    の口で数える。plan に関所の答えは届かない——行き止まりの判定は 1 回目の周で、修正前の関所より前に走る）"""
+
+    FORK = {"key": "q-mean", "kind": "fork", "status": "held", "origin": MEAN, "options": ["a", "b"], "reason": "割れる"}
+
+    def duty_line(self, run) -> str:
+        brief = (run.art / "plan" / "r1" / "brief-1.md").read_text(encoding="utf-8")
+        return next(line for line in brief.splitlines() if line.startswith("- no ") and f"`{MEAN}`" in line)
+
+    def test_answered_fork_origin_returns_to_duty(self):
+        """P002: 答えの無い fork の出どころは「入れてもよい」、依頼の answers がその fork に答えれば「必ず案に入れる」（外せば網羅の拒否）"""
+        for answers, duty in (([], "入れてもよい"), ([{"question": "q-mean", "text": "a を選ぶ"}], "必ず案に入れる")):
+            with self.subTest(answers=answers):
+                run = Run(self, start={"answers": answers}, judge={**judgment(), "questions": [self.FORK]})
+                self.assertIs(run.include()["ready"], True)
+                self.assertIn(duty, self.duty_line(run))
+
+    def test_answered_origin_that_is_not_open_is_stuck(self):
+        """P010: 依頼の答えで直す義務に戻った出どころが開いていない（defer）なら行き止まり。役を起こさず、理由 PLAN_STUCK に no と key"""
+        judge = {"units": [unit(MEAN), unit(CLAMP, "suggest", "defer")], "questions": [{**self.FORK, "origin": CLAMP}]}
+        run = Run(self, start={"answers": [{"question": "q-mean", "text": "a を選ぶ"}]}, judge=judge)
+        out = run.include(writer=lambda n, brief: self.fail("役を起こした"))
+        self.assertIs(out["ready"], False)
+        error = run.json(out["ripple"])["error"]
+        self.assertIn(planblk.PLAN_STUCK, error)
+        self.assertIn(CLAMP, error)
+
+
 class SurvivesCase(unittest.TestCase):
     """周を開く節と返す節は落ちない（返す節が周の dir を束ねる。線は落ちた返す節の先へ進めない）"""
 

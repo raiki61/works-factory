@@ -300,7 +300,8 @@ nodes:
         stop_reason: { type: string }
         text: { type: string }
         deferred: { type: array }
-      required: [open, go, stop_reason, text, deferred]
+        asked: { type: array }
+      required: [open, go, stop_reason, text, deferred, asked]
     mutates_checkout: false
     depends_on: [plan-rounds]
     with:
@@ -341,7 +342,7 @@ nodes:
       go: "$ask-before-fix.output.go"
       stop_reason: "$ask-before-fix.output.stop_reason"
       place: gate-before-fix
-      asked: "$plan-rounds.output.questions"
+      asked: "$ask-before-fix.output.asked"
       start: "$start.output.record"
 
   # 7 修正。裁定が計画の項目の誤りとしたら案の直しとその後の 2 度目の修正を、修正役の異議が在れば再審を、1 度ずつ差し込む
@@ -848,9 +849,9 @@ nodes:
       hash: "$merge-seal.output.hash"
       structure_after: "$eyes.output.structure_after"
       judgment: "$judged.output.judgment"
+      ties_judgment: "$judge.output.judgment"
       start: "$start.output.record"
       before_fix_answer: "$answer-before-fix.output.answer"
-      before_fix_asked: "$plan-rounds.output.questions"
 
   - id: gate-final
     approval:

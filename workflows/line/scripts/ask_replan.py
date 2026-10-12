@@ -9,7 +9,8 @@ contract_diff）。約束の欄が変わった項目と、事前審査（replan-
 直し（planmarks.widened）は聞かずに通し、通したことを返す（widened。report に受ける入力が無く、まだ報告には届かない）。読めない計画は聞く側に倒す。
 無人の run で聞くはずの時は開かずに止める（needs-human）。
 
-入力（with:）: old_plan・new_plan（指し札）・items（直す計画の項目の id。1 から数える番号）・ask_human・questions・unattended
+入力（with:）: old_plan・new_plan（指し札）・items（直す計画の項目の id。1 から数える番号）・ask_human・questions（事前審査の関所の
+項目 {kind, text}）・unattended
 """
 import json
 import os
@@ -58,7 +59,7 @@ def ask(old_ptr, new_ptr, ids: list, *, ask_human: bool, questions: list, unatte
         elif changed:
             rows.append(f"項目 {ident}: 約束の欄が変わった（{'・'.join(changed)}）")
     if ask_human:
-        rows += [f"事前審査の問い: {q}" for q in questions] or ["事前審査が人に聞くと言った"]
+        rows += [f"事前審査の問い: {q}" for q in gatemarks.row_texts(questions)] or ["事前審査が人に聞くと言った"]
     if not rows:
         return {"open": False, "go": True, "stop_reason": "", "text": "", "widened": widened}
     if unattended:

@@ -866,10 +866,10 @@ B の数: 50 行 / 今が無し 5（F106・F107・F130・F136・F147）/ 証が�
 
 - F225 関所の continue を問いへの答えに数えるには、関所の答えに「人が見た関所の行」（asked）が要る。線はこれを fix の answers に付けて渡す
   - 元: works/darkfactory/lib/line_edge.py（盤面の human_items に関所の行を記録した）
-  - 今: fix の側は lib/fixboard.py:1861-1870 `gate_items` が answers.asked を読む。線の側は付けない: workflows/line/scripts/gate_answer.py:34-42 は関所の出力をそのまま answer に返し、asked を足さない（workflows/line/works-factory-line.yaml:325-343・359）
-  - 証: 無し → 要追加: tests/workflows/test_line.py::FixWiringCase.test_gate_before_fix_answer_carries_asked — answer-before-fix の answer に関所の文の問いの行（asked）が載り、fix の answers に渡ること
+  - 今: 線: scripts/ask_before_fix.py が関所に載せた項目を asked で返し、scripts/before_fix_answer.py（gate_answer）が答え {decision, text, asked} に付けて fix の answers に渡す。fix の側は lib/gatemarks.py の gate_items
+  - 証: tests/workflows/test_line.py::FixWiringCase.test_gate_before_fix_answer_carries_asked（部分 B1）
   - 本物の run: 線の節 answer-before-fix の出力 answer に asked が無いこと（関所が開いた run）
-  - 狭め: #94 の申し送り（「人が入れる直しの頼み」4 つ目）。線（#74）で直す。Archon で不可でない（script の返りに欄を足すだけ）→ 戻す
+  - 狭め: #94 の申し送り（「人が入れる直しの頼み」4 つ目）。線（#74）で直す。Archon で不可でない（script の返りに欄を足すだけ）→ 戻す → 部分 B1 で戻した
 
 - F226 直す裁定でない裁定（ask_human・fix_plan_item）を受けた単位は、決まり 1 つ（held_by_rulings）で直す義務から外し、理由を並べる。人に回した単位を直そうとした返答は外れた理由を名指して拒む
   - 元: works/.shared/core/conflict.py:475 `held_by_rulings`・:696 `fix_duty`

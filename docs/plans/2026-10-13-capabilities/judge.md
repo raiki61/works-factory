@@ -700,10 +700,10 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J109 依頼の答えの結び answer-ties.json を報告が読み、どの問いにも当たらなかった答え・判定が単位にしなかった作り直しの行（none の訳）を人に出す
   - 元: works/.shared/core/gatemarks.py:878 `answer_tie_lines`・:1036 `unmatched_answer_lines`・works/.shared/core/report.py:989・:2062
-  - 今: 読み手が無い（lib/gatemarks.py:752 `answer_ties(b)` を呼ぶ関数は盤面を受ける形のままで、lib/runreport.py:234 は「answer_ties の結びは返りに無いので字の一致だけ」）
-  - 証: 要追加: lib/tests/test_runreport.py::LinesCase.test_answer_ties_reach_the_report — none の作り直しの行と結んだ答えが報告に出る
+  - 今: lib/runreport.py の ledger・ledger_state（gatemarks.unmatched_answer_lines・answer_tie_lines を 1 回目の判定の隣の answer-ties.json で引き、人が決めることの節に並べる）
+  - 証: lib/tests/test_runreport.py::LinesCase.test_answer_ties_reach_the_report（部分 B1）
   - 本物の run: 筋書きでのみ（種は answers が無い）
-  - 狭め: #68 で狭めた（不可でない。PR #68 本文 152・168 行が約束の隣に足す頼みとして持ち主に返している → 持ち主へ）
+  - 狭め: #68 で狭めた（不可でない。PR #68 本文 152・168 行が約束の隣に足す頼みとして持ち主に返している → 持ち主へ） → 部分 B1 で戻した
 - J110 局所レビューで見ていないレンズ（local-review-lenses.json）を報告の「未確認のレンズ」の節に出す
   - 元: works/.shared/core/diverted.py:52 `report_lines`・works/.shared/core/report.py:2069
   - 今: 読み手が無い（lib/diverted.py:12 が「report_lines は持ってこなかった」と書く。PR #76 の申し送りは report が読む前提と書いたが、PR #68 は読まない）

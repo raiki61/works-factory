@@ -399,7 +399,8 @@ class ScriptCase(unittest.TestCase):
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
         self.passing_eyes(r4_lost=("古い入口——使う人がいない", "別の能力"), policy=("方針の第 1 項",))
         self.inputs["answers"] = json.dumps({"decision": "continue", "text": ""})
-        self.inputs["plan_questions"] = json.dumps(["修正案 1 が狭める能力: 古い入口——使う人がいない"], ensure_ascii=False)
+        self.inputs["plan_questions"] = json.dumps([{"kind": "regression", "text": "修正案 1 が狭める能力: 古い入口——使う人がいない"}],
+                                                   ensure_ascii=False)
         got = self.run_script("verdict")
         self.assertEqual(got["questions"], ["R4 が BASE から消えたと見た能力: 別の能力", "R4 が見た人の方針とのぶつかり: 方針の第 1 項"])
 
@@ -507,7 +508,8 @@ class ScriptCase(unittest.TestCase):
         self.eye_file("r2", {"status": "pass", "reason": "人の答えが渡されていない", "differences": []})
         self.eye_file(eyeverdict.R2_PREMISES.removesuffix(".json"), {"node": "r2.compare", "given": [{"kind": "human_answer", "what": "修正前の関所: continue"}]})
         self.inputs["answers"] = json.dumps({"decision": "continue", "text": ""})
-        self.inputs["plan_questions"] = json.dumps(["修正案 1 が狭める能力: 古い入口——使う人がいない"], ensure_ascii=False)
+        self.inputs["plan_questions"] = json.dumps([{"kind": "regression", "text": "修正案 1 が狭める能力: 古い入口——使う人がいない"}],
+                                                   ensure_ascii=False)
         got = self.run_script("verdict")
         self.assertEqual(got["questions"], [])
         notes = json.loads((self.artifacts / "eyes" / eyeverdict.PREMISE_INPUTS).read_text(encoding="utf-8"))

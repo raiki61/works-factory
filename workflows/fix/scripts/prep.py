@@ -5,7 +5,7 @@
 """節 prep（形 ""）: 入力を置き場に写し、git が無視するファイルを控え（p1.worktree_before）、始めの木を取り、組を作る（lanekit.groups）。
 
 置き場（fixio.place() = $ARTIFACTS_DIR/fix/<include の名>/）に書く物: r1/start.json（始めの記録の字のままの写し。startrec.adopt）・
-judgment.json・plan-fields.json と凍結の印（planmarks.save）・p2.fix_plan.json（修正案の隣に在れば）・ripple.json・world.json・
+judgment.json と隣の answer-ties.json・materials.json（在れば）・plan-fields.json と凍結の印（planmarks.save）・p2.fix_plan.json（修正案の隣に在れば）・ripple.json・world.json・
 depth.json・answers.json・units.json・only-items.json・baseline.json（{cases, exit}）・fix-ignored-before.json・human-notes.md（関所の一言と答えで戻った単位の行。
 無ければ書かない）・base-rev.json
 （修正前の版。親の HEAD の sha。組の子が写して受け付けの起点にする）・groups.json
@@ -56,8 +56,13 @@ def main() -> dict:
     repo = fixio.repo()
     fixio.start_writes_log()
     start = startrec.adopt(place, pointed(os.environ["INPUTS_START"], "start"))
-    judgment = read_json(pointed(os.environ["INPUTS_JUDGMENT"], "judgment"))
+    judgment_file = pointed(os.environ["INPUTS_JUDGMENT"], "judgment")
+    judgment = read_json(judgment_file)
     fixboard.write_json(place / fixboard.JUDGMENT_FILE, judgment)
+    for name in fixboard.JUDGMENT_BESIDE:   # 判定の結びと素材の状態（直す義務の数え gatemarks.duty が読む。無い run は字の一致だけ）
+        (place / name).unlink(missing_ok=True)
+        if (judgment_file.parent / name).is_file():
+            fixboard.write_json(place / name, read_json(judgment_file.parent / name))
 
     plan_file = pointed(os.environ.get("INPUTS_PLAN", ""), "plan")
     plan = None

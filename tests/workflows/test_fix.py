@@ -676,7 +676,11 @@ class BlockScriptsCase(unittest.TestCase):
         _blk_write(self.art / "in" / "ripple.json", [{"path": "stats.py"}])
         _blk_write(self.art / "in" / "world.json", {"facts": []})
         _blk_write(self.art / "in" / "baseline.json", {"cases": [], "exit": 0, "suite": "", "test_cmd": "", "rev": "HEAD"})
-        inputs = {**self.prep_inputs(), "ripple": _blk_ptr("in/ripple.json"), "world": _blk_ptr("in/world.json"),
+        inputs = self.prep_inputs()
+        judgment_dir = self.art / json.loads(inputs["judgment"])["path"].rsplit("/", 1)[0]
+        _blk_write(judgment_dir / fixboard.JUDGMENT_BESIDE[0], {"rounds": {"1": []}})   # 判定の隣の結びと素材の状態
+        _blk_write(judgment_dir / fixboard.JUDGMENT_BESIDE[1], {"ci": {"status": "not_run"}})
+        inputs = {**inputs, "ripple": _blk_ptr("in/ripple.json"), "world": _blk_ptr("in/world.json"),
                   "baseline": _blk_ptr("in/baseline.json"), "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]',
                   "answers": '{"decision": "approve", "text": "stats.py の外は触らない"}', "units": '["A"]',
                   "only_items": '["1"]'}

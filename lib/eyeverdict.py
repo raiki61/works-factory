@@ -110,14 +110,13 @@ def scalars_text(s: dict) -> str:
 
 
 def _human_passed(questions: list, answer: dict | None) -> dict:
-    """元 .shared/core/gatemarks.py:1244。修正前の関所の答え answer（{decision, text}）が通す語なら、そこで聞いた行 questions の
-    うち狭める能力と事前審査の穴の行を {(種類, 頭と推しの尾を外した本文): 答えた周} で返す（台帳の問いの行は数えない。1 run 1 周）"""
+    """元 .shared/core/gatemarks.py:1244。修正前の関所の答え answer（{decision, text, asked}）が通す語なら、事前審査が関所の項目にした
+    行 questions（{kind, text}）のうち狭める能力と事前審査の穴の行を {(種類, 頭と推しの尾を外した本文): 答えた周} で返す（台帳の
+    問いの行は数えない。1 run 1 周）"""
     if not isinstance(answer, dict) or answer.get("decision") not in seal.PASS:
         return {}
     out = {}
-    for a in questions or []:
-        if not isinstance(a, str):
-            continue
+    for a in gatemarks.row_texts(questions):
         m = gatemarks.NARROW_HEAD.match(a)
         f = None if m else gatemarks.FACE_HEAD.match(a)
         if m or f:

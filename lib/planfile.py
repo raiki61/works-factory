@@ -81,7 +81,6 @@ SKIPPED_FILE = "skipped-units.json"
 STRUCTURE_FILE = "structure.json"
 DESIGN_FILE = "design.jsonl"
 KEY_LEN = 12
-ASKING = ("held", "escalate")      # まだ人に聞く気がある問いの status（元 review-record.py:343）
 BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテストを読み損ねた trace の行 {rev, unread}（元 writes.py:52）
 
 COVERS_REJECT = "単位の網羅に誤りが在る（直す義務の単位は全部、どれか 1 つの項目にちょうど 1 度入れる）。案に入れてよい no は"
@@ -168,6 +167,22 @@ def read_pointed(raw: str, resolve, *, text: bool = False) -> tuple:
         return (body, "") if text else (None, f"指し札の先が JSON でない: {e}")
 
 
+LEDGER = "_ledger"   # read_judgment が判定の dict に添える問いの台帳の値の見え方（gatemarks.Ledger）の鍵。判定の欄ではない
+
+
+def read_judgment(raw: str, start, resolve) -> tuple:
+    """(判定の dict, 読めない訳)。判定に、直す義務の数え（gatemarks.duty）が読む問いの台帳の見え方を添える: 始めの記録 start
+    （dict か None）の依頼の answers と、判定の隣の結び・素材の状態（gatemarks.ledger_beside）。plan に関所の答えは届かない（行き止まりの
+    判定は 1 回目の周で、修正前の関所より前に走る）。判定が読めなければ (None, 訳)"""
+    doc, why = read_pointed(raw, resolve)
+    if not isinstance(doc, dict):
+        return doc, why
+    path, _ = pointed(raw, resolve)
+    answers = (start or {}).get("answers") if isinstance(start, dict) else None
+    return {**doc, LEDGER: gatemarks.ledger_beside(pathlib.Path(path).parent, doc,
+                                                   answers=answers if isinstance(answers, list) else [])}, why
+
+
 def world_rows(raw: str, resolve) -> tuple:
     """(定石の行の並び, 読めない訳)。指し札が無い（null）なら ([], "")"""
     path, why = pointed(raw, resolve)
@@ -218,21 +233,14 @@ def is_open(u) -> bool:
     return u.get("label") == "block" or (u.get("label") == "suggest" and u.get("disposition") == "do-now")
 
 
-def _skips(q) -> list:
-    """問いの出どころと depends の単位の key（元 works/.shared/core/gatemarks.py の _skips。字でない物は読まない）"""
-    depends = q.get("depends")
-    return [k for k in [q.get("origin"), *(depends if isinstance(depends, list) else [])] if isinstance(k, str) and k]
-
-
 def _owed_units(judgment) -> set:
-    """今の周に直す義務の単位の key——開いた単位から、答えていない関所の問い（人に聞く状態の fork と、status が escalate の問い）の
-    出どころ・depends を除いた物（元の works が写しの RL の _owed_units を差し替えた works/.shared/core/conflict.py:676 の
-    owed_units_but_asked と、gatemarks.py:674 の asks・:1166 の withheld。判定の返答の units と questions を読む）。
-    元が関所の答え（gatemarks.returned）で義務に戻す単位と、直す裁定でない裁定の単位（held_by_rulings）は、このブロックに関所の答えも
-    裁定も届かないので扱わない（関所の問いは全部まだ答えていない物と読む）"""
-    exempt = {k for q in _rows(judgment, "questions") if q.get("status") in ASKING
-              and (q.get("kind") == "fork" or q.get("status") == "escalate") for k in _skips(q)}
-    return {u["key"] for u in _rows(judgment, "units") if isinstance(u.get("key"), str) and is_open(u)} - exempt
+    """今の周に直す義務の単位の key（gatemarks.duty。fix の直す義務と同じ口）: 開いた単位から、答えていない関所の問い（人に聞く状態の
+    fork と、status が escalate の問い）の出どころ・depends を除き、依頼の answers が答えた問いの出どころ・depends を戻した物（元の
+    works が写しの RL の _owed_units を差し替えた works/.shared/core/conflict.py:676 の owed_units_but_asked）。問いの台帳の見え方は
+    read_judgment が添えた物（無ければ判定だけの見え方）。直す裁定でない裁定の単位（held_by_rulings）は、このブロックに裁定が届かない
+    ので扱わない"""
+    got = judgment.get(LEDGER)
+    return gatemarks.duty(got if isinstance(got, gatemarks.Ledger) else gatemarks.ledger(judgment))
 
 
 def _units(judgment) -> dict:
