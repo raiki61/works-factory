@@ -351,11 +351,23 @@ class TreeRunCase(unittest.TestCase):
 
     # ------------------------------------------------ 止めた後に抜ける前の待ち（試し P17 の Ctrl-C の穴）
     def test_stop_budget_is_under_host_grace(self):
-        # 信号に気づくまで POLL、SIGKILL まで KILL_GRACE + PS_TIMEOUT、抜けるまで LINGER。和が 実行基盤の cancel の猶予
-        # （5 秒）より短いこと（0.2 + 2 + 1 + 1 = 4.2 秒）
+        # 信号に気づくまで POLL、SIGKILL まで KILL_GRACE と ps の 1 回、抜けるまで LINGER。期限の無い ps の回の分を残して、
+        # 和が 実行基盤の cancel の猶予（5 秒）より短いこと（0.2 + 2 + 1 = 3.2 秒）。ps に期限を置かない（E12）
         host_grace = 5.0
         self.assertGreaterEqual(tree_run.LINGER, 1.0)
-        self.assertLess(tree_run.POLL + tree_run.KILL_GRACE + tree_run.PS_TIMEOUT + tree_run.LINGER, host_grace)
+        self.assertLess(tree_run.POLL + tree_run.KILL_GRACE + tree_run.LINGER, host_grace)
+        self.assertFalse(hasattr(tree_run, "PS_TIMEOUT"))
+
+    def test_ps_is_named_by_path_without_timeout(self):
+        # 期限の替わりに、止まらない形を命令の選びで持つ: PATH から引かずに /bin/ps を名指し、期限を渡さない
+        with mock.patch.object(tree_run.subprocess, "run", wraps=subprocess.run) as run:
+            rows, why = tree_run._ps_all()
+        self.assertIsNone(why)
+        self.assertIn(os.getpid(), rows)
+        call = run.call_args
+        self.assertEqual(call.args[0][0], tree_run.PS)
+        self.assertEqual(tree_run.PS, "/bin/ps")
+        self.assertNotIn("timeout", call.kwargs)
 
     def test_stopped_run_lingers_before_exit_within_host_grace(self):
         # 止める信号で木を止めた後、殻は LINGER 秒待ってから抜ける（節がすぐ死ぬと 実行基盤の run が running のまま固まる。
@@ -389,29 +401,42 @@ class TreeRunCase(unittest.TestCase):
             self.assertLess(time.monotonic() - t0, 10)
 
     # ------------------------------------------------ ps が遅い・壊れている
-    def test_slow_or_failing_ps_still_stops_before_host_kills_tree_run(self):
+    def test_hanging_or_failing_ps_still_stops_before_host_kills_tree_run(self):
         # ps が固まる・失敗する場でも、止める手順は 実行基盤の cancel の猶予（5 秒）の内に SIGTERM を無視する孫へ SIGKILL を
-        # 届ける。ps を待つのは PS_TIMEOUT 秒までで、読めなければグループへ直ちに送り、以後の回は ps を起こさない
+        # 届ける。固まる ps は PATH の替え玉で、殻は /bin/ps を名指すので拾わない。失敗する ps（表を読めない）ではグループへ
+        # 直ちに送り、以後の回は ps を起こさない
         host_grace = 5.0
-        for name, body in (("slow", "exec sleep 8"), ("failing", "echo 壊れた >&2; exit 1")):
-            with self.subTest(name):
-                fake = self.tmp / f"bin-{name}"
-                fake.mkdir()
-                (fake / "ps").write_text(f"#!/bin/sh\n{body}\n")
-                (fake / "ps").chmod(0o755)
-                pidf = self.tmp / f"pgid-{name}"
-                env = {**self.env, "PATH": f"{fake}{os.pathsep}{self.env.get('PATH', '')}"}
-                p = subprocess.Popen(self.cli("--", f"echo $$ > {pidf}; (trap '' TERM; sleep 300) & wait"), env=env,
-                                     cwd=str(self.tmp), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                     stderr=subprocess.DEVNULL)
-                self.started.append(("popen", p))
-                pgid = read_int(pidf)
-                self.started.append(("pg", pgid))
-                t0 = time.monotonic()
-                p.send_signal(signal.SIGTERM)
-                self.assertTrue(self.group_gone(pgid, host_grace), "ps が使えない場で、実行基盤の猶予の内に孫が消えなかった")
-                self.assertLess(time.monotonic() - t0, host_grace)
-                self.assertEqual(p.wait(15), 128 + signal.SIGTERM)
+        with self.subTest("hanging ps on PATH"):
+            fake = self.tmp / "bin-hanging"
+            fake.mkdir()
+            (fake / "ps").write_text("#!/bin/sh\nexec sleep 300\n")
+            (fake / "ps").chmod(0o755)
+            env = {**self.env, "PATH": f"{fake}{os.pathsep}{self.env.get('PATH', '')}"}
+            p = subprocess.Popen(self.cli("--", f"echo $$ > {self.pidf}; (trap '' TERM; sleep 300) & wait"), env=env,
+                                 cwd=str(self.tmp), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
+            self.started.append(("popen", p))
+            pgid = self.wait_pgid()
+            t0 = time.monotonic()
+            p.send_signal(signal.SIGTERM)
+            self.assertTrue(self.group_gone(pgid, host_grace), "PATH に固まる ps が在る場で、実行基盤の猶予の内に孫が消えなかった")
+            self.assertEqual(p.wait(host_grace), 128 + signal.SIGTERM)
+            self.assertLess(time.monotonic() - t0, host_grace, "PATH に固まる ps が在る場で、実行基盤の猶予の内に抜けなかった")
+        with self.subTest("failing ps"):
+            fake = self.tmp / "failing-ps"
+            fake.write_text("#!/bin/sh\necho 壊れた >&2; exit 1\n")
+            fake.chmod(0o755)
+            child = self.tmp / "child"
+            p = subprocess.Popen(["/bin/sh", "-c", f"(trap '' TERM; echo $$ > {child}; sleep 300) & wait"],
+                                 start_new_session=True, stdin=subprocess.DEVNULL)
+            self.started.extend([("popen", p), ("pg", p.pid)])
+            read_int(child)
+            t0 = time.monotonic()
+            with mock.patch.object(tree_run, "PS", str(fake)):
+                why = tree_run.stop_group(p)
+            self.assertIn("数え上げられない", why or "")
+            self.assertTrue(self.group_gone(p.pid, host_grace), "ps が失敗する場で、実行基盤の猶予の内に孫が消えなかった")
+            self.assertLess(time.monotonic() - t0, host_grace)
 
     # ------------------------------------------------ pack を汚さない
     def test_no_bytecode_in_pack(self):
