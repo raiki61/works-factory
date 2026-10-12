@@ -2,7 +2,7 @@
 
 今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の `works/.shared/core/graphloops/rules/review-loop-tdd.py`
 と `works/blk-fix/lib/tddloop.py` の関数を、元の名のまま字のとおり写した物（各関数の docstring の末尾に元の `<パス>:<行>`）。
-run_suite だけは元の nice -n 19 の頭と試験の枠（tree_run.slotted_run の枠）を外し、tree_run.reuse_run で走らせる。
+run_suite だけは元の試験の枠（tree_run.slotted_run の枠）を外し、tree_run.reuse_run で走らせる（nice -n 19 の頭は niced が 1 か所で組む）。
 元の結末のファイルの口（write_baseline・read_baseline・outcomes）は新しい関数。
 
 元の結末のファイルの必須の欄: {"suite": str, "test_cmd": str, "rev": str, "exit": int | None, "cases": [{classname, name, outcome（OUTCOMES の語）, …}]}。
@@ -11,6 +11,7 @@ run_suite だけは元の nice -n 19 の頭と試験の枠（tree_run.slotted_ru
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -21,6 +22,11 @@ import tree_run
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
 # 元 works/blk-fix/lib/tddloop.py:142-144
 ONLY_ENV = "TDD_SUITE_ONLY"
+
+# 起こす argv の頭（実行器と run の test_cmd の両方。同じ機械で別の run も動くので優先度を下げる）。組むのは niced の 1 か所
+# 元 works/blk-fix/lib/tddloop.py:307（実行器）・works/.shared/core/entry.py:680 _nice19（test_cmd。preexec で同じだけ下げた）
+NICE = ("nice", "-n", "19")
+NO_NICE = "（nice が PATH に無い——優先度を下げずに素の argv で起こした）"   # 素で起こした回にログへ書く 1 行
 
 REQUIRED = ("suite", "test_cmd", "rev", "exit", "cases")
 # cases の行の outcome の語（parse_junit の出す 4 つ）と、そのうちの落ちた物。元の結末のファイルはこの語だけを持つ
@@ -123,22 +129,41 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0):
     return probs
 
 
+def niced(argv, cwd=None) -> tuple[list, str]:
+    """起こす argv の頭に NICE を付けた argv と、付けなかった訳（付けたら空）。実行器（run_suite）と run の test_cmd
+    （tddloop._cmd_material）の頭はここ 1 か所で組む。nice が PATH に無い環境（層の E14: 普通の利用者の機械）は素の argv と
+    NO_NICE（呼び手がログに 1 行書く）。argv[0] が起こせない（無い・実行できない）時も素の argv を返し、起こせなさは呼び手の
+    OSError のまま名指す（nice を挟むと exit 127 の赤に化ける）。cwd は相対の argv[0] を解く根（元 works/blk-fix/lib/tddloop.py:307
+    の頭と works/.shared/core/entry.py:680 の _nice19 を 1 つにした新しい関数）"""
+    argv = list(argv)
+    if shutil.which(NICE[0]) is None:
+        return argv, NO_NICE
+    head = argv[0] if cwd is None or "/" not in argv[0] else os.path.join(cwd, argv[0])
+    if shutil.which(head) is None:
+        return argv, ""
+    return [*NICE, *argv], ""
+
+
 def run_suite(exe: str, repo, work: pathlib.Path, n, args=(), only=False, reuse=None, note=None):
     """実行器を 1 回走らせる ——（結末の一覧, 終了コード, 問題）。結末が取れなければ一覧は None。
     .py はこの Python で走らせる（写しの rules の run_suite と同じ）。出力は work/suite-<n>.log に丸ごと。
     args は JUnit の書き先の後ろに足す（段の外の試験のファイル・node id を絶対パスで・受け付けの -k。works/dev/tdd-suite.sh は
     試験の実行器に渡し、試験の根（conftest.py の置き場）が違う名指しは根ごとに別のプロセスで流して JUnit を 1 つに合わせる）。同じ鍵の行は 1 つにまとめる（段のファイルと足した node id が重なっても 1 件）。
     only なら env に合図 ONLY_ENV=1 を付ける（後ろの試験だけでよい。輪の赤・緑の回）。付けない回は外の env の合図も落とす。
+    頭に nice -n 19 を付ける（niced。nice が無い環境は素で起こし、ログの頭に NO_NICE の 1 行）。
     reuse（tree_run.reuse_place の返り）を渡した呼びは、同じ run の中で同じ木・同じ引数の緑の回を控えから使い回して子を起こさない
     （JUnit XML は書き戻す）。note（dict）を渡せば、呼び手が出どころ（reused）と理由（reuse_off）を読める。
-    （元 works/blk-fix/lib/tddloop.py:296-333。nice -n 19 の頭と試験の枠（slotted_run の枠・待った秒）を外し、tree_run.reuse_run で
+    （元 works/blk-fix/lib/tddloop.py:296-333。試験の枠（slotted_run の枠・待った秒）を外し、tree_run.reuse_run で
     自分のプロセスグループで走らせる。使い回しの句はログでなく note に置く。rules().parse_junit は同じファイルの parse_junit）"""
-    argv = ([sys.executable] if exe.endswith(".py") else []) + [exe]
+    argv, bare = niced(([sys.executable] if exe.endswith(".py") else []) + [exe], cwd=str(repo))
     junit = work / f"junit-{n}.xml"
     log = work / f"suite-{n}.log"
     env = {k: v for k, v in tree_run.outside_env(os.environ).items() if k != ONLY_ENV}
     env.update({"PYTHONDONTWRITEBYTECODE": "1", **({ONLY_ENV: "1"} if only else {})})
     with open(log, "wb") as out:
+        if bare:
+            out.write(f"{bare}\n".encode("utf-8"))
+            out.flush()
         try:
             rc = tree_run.reuse_run([*argv, str(junit), *args], env, place=reuse, outputs=(junit,), note=note,
                                     stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, cwd=str(repo))

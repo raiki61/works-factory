@@ -109,6 +109,31 @@ class RunSuiteSeedCase(unittest.TestCase):
         self.assertEqual((cases, code), (None, None))
         self.assertTrue(why[0].startswith("テストの実行器を起こせない（"), why)
 
+    def launched(self, exe, n):
+        """tree_run.run を差し替えて run_suite を 1 回走らせ、起こした argv を返す（JUnit は書かれないので問題の文が返る）"""
+        seen = []
+        with mock.patch.object(baseline_red.tree_run, "run", side_effect=lambda argv, **kw: seen.append(argv) or 0):
+            baseline_red.run_suite(exe, self.repo, self.work, n)
+        self.assertEqual(len(seen), 1)
+        return seen[0]
+
+    def test_runner_is_niced(self):
+        """実行器は nice -n 19 の頭で起こす（元 works/blk-fix/lib/tddloop.py:307。同じ機械で別の run も動く）"""
+        exe = self.runner("exit 0\n")
+        argv = self.launched(exe, "niced")
+        self.assertEqual(argv[:3], ["nice", "-n", "19"])
+        self.assertEqual(argv[3], exe)
+        self.assertNotIn(baseline_red.NO_NICE, (self.work / "suite-niced.log").read_text(encoding="utf-8"))
+
+    def test_runner_without_nice_runs_bare_and_says_so(self):
+        """nice の無い環境では素の argv で起こし、その事実をログに 1 行残す（黙って優先度を下げずに走らせない）"""
+        exe = self.runner("exit 0\n")
+        real = baseline_red.shutil.which
+        with mock.patch.object(baseline_red.shutil, "which", side_effect=lambda name, *a, **kw: None if name == "nice" else real(name, *a, **kw)):
+            argv = self.launched(exe, "bare")
+        self.assertEqual(argv[0], exe)
+        self.assertIn(baseline_red.NO_NICE, (self.work / "suite-bare.log").read_text(encoding="utf-8"))
+
 
 def row(name, outcome, cls="test_a.TestA"):
     return {"classname": cls, "name": name, "outcome": outcome}

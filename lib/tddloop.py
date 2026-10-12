@@ -8,7 +8,7 @@
   run のテストのコマンド（線の入力 test_cmd）の関門（test_cmd_gate）もここで 1 回だけ決める: 空なら off、実行器のファイルが
   そのコマンドの文字列をそのまま含むなら same_as_suite（一式と同じなので 2 度走らせない）、ほかは 1 回走らせて緑なら on、
   赤・走らないなら off にして理由を test_cmd_note に残す（元から赤の test_cmd で毎単位を拒まない）。test_cmd は baseline_red.run_suite と
-  同じ起こし方（tree_run.reuse_run）で走らせ、既存のファイルを書き換えた回はいつも赤（書き換えた物は戻す。_cmd_run）。関門が on なら
+  同じ起こし方（tree_run.reuse_run・頭の nice -n 19 は baseline_red.niced）で走らせ、既存のファイルを書き換えた回はいつも赤（書き換えた物は戻す。_cmd_run）。関門が on なら
   直し・整えの段の指示書にそのコマンドを書く。
 - tdd-loop の中: tdd-prep → prep（今の段の指示書を fixrules で組んで書く。頭に brief の節: 振り分けの段は
   直す義務の単位の全部、ほかの段は今の単位の brief。brief の控えの無い置き場・平の run は無し）→ 役 tdd（修正役。
@@ -570,8 +570,9 @@ def _cmd_run(repo, cmd: str, log: pathlib.Path, *, reuse: dict | None = None) ->
     （restore_paths。緑を出した木と残る木を違えない）、素材を赤（found）にして、書き換えたパスと戻したことを rewrote の文に載せる。
     suite_made に積んでよいのは新しく出来たパスだけ（積むと書き込みの出どころの照合・凍結の照らしから外れる）。
     起こし方は baseline_red.run_suite と同じ tree_run.reuse_run（自分のプロセスグループ・標準入力は空・環境は tree_run.outside_env・
-    出力は log）で、コマンドの 1 行は tree_run.command_argv の形（direct か shell）。元は entry.local_checks_material（試験の枠
-    tree_run.slotted_run・nice・同じ run の控えの使い回し）で走らせた。枠と nice は外し、使い回しは reuse を渡した呼び（輪の頭）だけ"""
+    出力は log）で、コマンドの 1 行は tree_run.command_argv の形（direct か shell）、頭は実行器と同じ baseline_red.niced（nice -n 19）。
+    元は entry.local_checks_material（試験の枠 tree_run.slotted_run・nice・同じ run の控えの使い回し）で走らせた。枠は外し、
+    使い回しは reuse を渡した呼び（ループの頭）だけ"""
     pre = snapshot(repo)
     mat = _cmd_material(repo, cmd, pathlib.Path(log), reuse=reuse)
     post = snapshot(repo)
@@ -594,9 +595,13 @@ def _cmd_material(repo, cmd: str, log: pathlib.Path, *, reuse: dict | None = Non
         return {"status": "not_run", "reason": "テストのコマンド（test_cmd）が空で、走らせる物が無い"}
     log.parent.mkdir(parents=True, exist_ok=True)
     argv, how = tree_run.command_argv(cmd)
+    argv, bare = baseline_red.niced(argv, cwd=str(repo))   # 頭は実行器と同じ 1 か所（nice が無ければ素で、ログに 1 行）
     launched = f"{shlex.join(argv)}（起こし方 {how}）"
     note = {}
     with open(log, "wb") as f:
+        if bare:
+            f.write(f"{bare}\n".encode("utf-8"))
+            f.flush()
         try:
             code = tree_run.reuse_run(argv, tree_run.outside_env(os.environ), place=reuse, note=note, stdin=subprocess.DEVNULL,
                                       stdout=f, stderr=subprocess.STDOUT, cwd=str(repo))

@@ -1527,6 +1527,16 @@ class TestTestCmdGate(LoopCase):
     def test_unit_not_named_runs_test_cmd(self):
         self.standard_mean_rejected(json.dumps({CLAMP: "軽量"}))
 
+    def test_test_cmd_is_niced(self):
+        """run の test_cmd も実行器と同じ頭（baseline_red.niced。nice -n 19）で起こす（元 works/blk-fix/lib/tddloop.py:638 の niced）"""
+        seen = []
+        log = pathlib.Path(self.st()["work"]) / "test-cmd-niced.log"
+        with mock.patch.object(tddloop.tree_run, "run", side_effect=lambda argv, **kw: seen.append(argv) or 0):
+            mat = tddloop._cmd_material(self.repo, self.lint(), log)
+        self.assertEqual(mat["status"], "clean", mat)
+        self.assertEqual([a[:3] for a in seen], [["nice", "-n", "19"]])
+        self.assertIn("nice -n 19", mat["checked"], "起こした argv の写しにも頭が載る")
+
     def test_unit_depths_of_wrong_shape_is_broken(self):
         for raw in ("{", "[]", json.dumps({MEAN: 1})):
             with self.subTest(raw=raw), self.assertRaises(tddloop.Broken):
