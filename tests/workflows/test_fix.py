@@ -38,6 +38,17 @@ CHANGED_MARKS = {"mechanism_changed", "premise_drift", "gates_changed", "seams_c
                  "path_changed"}
 INCLUDED_HEAD_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 READ_ONLY_ROLES = ("ruler", "delta-review", "review2", "lens", "consult-answer", "ruled-consult-answer")
+
+
+def moved_policy(tmp: pathlib.Path) -> tuple:
+    """run の始めに固めた方針の文書の版を持つ始めの記録の欄と、その後に書き換えた生の文書: ({policy_md, policy}, 生の文書のパス)。
+    役の指示書が名指すのは固めた版の写しで、生の文書ではない（policy.frozen_copy）"""
+    import policy
+    doc = tmp / "policy.md"
+    doc.write_text("- 始めの版\n", encoding="utf-8")
+    fields = {"policy_md": str(doc), "policy": policy.freeze(tmp / "frozen", tmp, str(doc))}
+    doc.write_text("- 書き換えた版\n", encoding="utf-8")
+    return fields, str(doc)
 # 作業ツリーを変えない script の節（E7）。置き場（run の成果物の置き場）にだけ書く
 READ_ONLY_SCRIPTS = ("route", "prep", "tdd-unit", "conflict-check", "rule-prep", "rule-accept", "fix-ruled-prep",
                      "ruled-consult-check", "ruled-consult-accept", "assert-changed", "delta-cut", "lens-prep",
@@ -391,6 +402,30 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertEqual((ok["ok"], ok["done"]), (True, True), ok)
         cut2 = self._run("cut2", "cut2")
         self.assertEqual((cut2["go"], cut2["files"]), (True, ["stats.py"]), cut2)
+
+    def test_refix_prompts_name_the_frozen_policy_copy(self):
+        """1 回目と 2 回目の手直しの指示書が名指す方針の文書は、始めの記録の固めた版の写し（run の途中で書き換えた生の文書ではない）"""
+        fields, raw_doc = moved_policy(self.tmp)
+        self._json("r1/start.json", fields)
+        self._cut()
+        self._run("delta_accept", "delta-accept", reply=json.dumps(_RV_REVIEW, ensure_ascii=False))
+        prep = self._run("refix_prep", "refix-prep")
+        text = pathlib.Path(prep["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(fields["policy"]["copy"], text)
+        self.assertNotIn(raw_doc, text)
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("def mean(xs):\n", 'def mean(xs):\n    """算術平均"""\n'),
+                     encoding="utf-8")
+        self.assertTrue(self._run("refix_accept", "refix-accept", reply=json.dumps(_RV_HANDLED, ensure_ascii=False),
+                                  iteration="1")["ok"])
+        self.assertTrue(self._run("cut2", "cut2")["go"])
+        review2 = {**_RV_REVIEW, "checks": [{"key": _RV_FACE, "closed": False, "why": "docstring は足したが平均の定義を書いていない"}]}
+        self.assertTrue(self._run("review2_accept", "review2-accept", reply=json.dumps(review2, ensure_ascii=False))["ok"])
+        prep = self._run("refix2_prep", "refix2-prep")
+        self.assertTrue(prep["go"], prep)
+        text = pathlib.Path(prep["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(fields["policy"]["copy"], text)
+        self.assertNotIn(raw_doc, text)
 
     def test_refix_undeclared_write_is_rejected(self):
         """記録の無い run の書き込みの出どころ（U6）: 手直しの段の頭の木からの変更が handled[].files にも bash_writes にも無ければ拒む"""
@@ -966,11 +1001,11 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.place = self.art / "fix" / "fix"
         self._grp_parent_inputs("")
 
-    def _grp_parent_inputs(self, suite):
+    def _grp_parent_inputs(self, suite, **start):
         """親の置き場に prep が書く写し（始めの記録・判定・直す前の結末）を置く"""
         (self.parent / "r1").mkdir(parents=True, exist_ok=True)
         (self.parent / "r1" / "start.json").write_text(json.dumps(
-            {"tdd_suite": suite, "test_cmd": "", "policy_md": "", "request_file": "", "features_cut": []}), encoding="utf-8")
+            {"tdd_suite": suite, "test_cmd": "", "policy_md": "", "request_file": "", "features_cut": [], **start}), encoding="utf-8")
         (self.parent / "judgment.json").write_text(json.dumps(
             {"units": [{"key": _GRP_MEAN, "label": "block"}], "questions": []}, ensure_ascii=False), encoding="utf-8")
         (self.parent / "baseline.json").write_text(json.dumps({"cases": [], "exit": 1}), encoding="utf-8")
@@ -1114,6 +1149,15 @@ class GroupChildScriptsCase(unittest.TestCase):
         self._grp_parent_inputs(str(self.suite))
         self._grp_run("group_start", "group-start")
         self.assertIn(notes, self._grp_prompt())
+
+    def test_tdd_prep_names_the_frozen_policy_copy(self):
+        """TDD の役の指示書が名指す方針の文書は、始めの記録の固めた版の写し（run の途中で書き換えた生の文書ではない）"""
+        fields, raw_doc = moved_policy(self.tmp)
+        self._grp_parent_inputs(str(self.suite), **fields)
+        self._grp_run("group_start", "group-start")
+        text = self._grp_prompt()
+        self.assertIn(fields["policy"]["copy"], text)
+        self.assertNotIn(raw_doc, text)
 
     def test_group_start_in_order_drops_what_the_failed_child_before_left(self):
         """親の作業ツリーで 1 つずつ回る子は、前の組の子が結果を書かずに落ちて残した変更を戻してから始める"""
@@ -1513,6 +1557,21 @@ class FixLoopScriptsCase(unittest.TestCase):
         self.assertIn("sum(xs) / len(xs)", (self.repo / "stats.py").read_text(encoding="utf-8"))
         kept = json.loads((self.place / "fix-reply.json").read_text(encoding="utf-8"))
         self.assertEqual([c["files"] for c in kept["changes"]], [["stats.py"]])
+
+    def test_rule_prompt_names_the_frozen_policy_copy(self):
+        """裁定役の指示書が名指す方針の文書は、始めの記録の固めた版の写し（run の途中で書き換えた生の文書ではない）"""
+        import conflict
+        fields, raw_doc = moved_policy(self.tmp)
+        self._fx_json("r1/start.json", fields)
+        conflict.park(self.place, [{"unit_key": _FX_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE)
+        code, out, err = _fx_run("rule_prep", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        text = pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(fields["policy"]["copy"], text)
+        self.assertNotIn(raw_doc, text)
 
     def test_rule_loop_writes_the_reject_and_names_it_next(self):
         import conflict
