@@ -136,13 +136,26 @@ def failed(mode: str, error: BaseException) -> dict:
             "evidence": {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel(mode, name)}}
 
 
+def leave(out: dict) -> None:
+    """返りを境の口 boundary.returns で書く。境の口を読めない時だけ、同じ形（allow_nan=False）を標準ライブラリで書く"""
+    shared = str(Path(__file__).resolve().parents[2] / ".shared")
+    if shared not in sys.path:
+        sys.path.insert(0, shared)
+    try:
+        import boundary
+    except Exception:  # noqa: BLE001  境の口を読めない時（返す節は落ちない）
+        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
+        return
+    boundary.returns(out)
+
+
 def main() -> int:
     raw_mode = os.environ.get("INPUTS_MODE", "")
     try:
         boundary, out = certified(raw_mode, os.environ["INPUTS_START"], os.environ["INPUTS_BASELINE"])
         boundary.returns(out)
     except Exception as e:
-        print(json.dumps(failed(raw_mode if raw_mode == "base" else "final", e), ensure_ascii=False), flush=True)
+        leave(failed(raw_mode if raw_mode == "base" else "final", e))
     return 0
 
 

@@ -63,6 +63,19 @@ def opened() -> tuple:
     return boundary, {"ok": True, **got, "reason": ""}
 
 
+def leave(out: dict) -> None:
+    """返りを境の口 boundary.returns で書く。境の口を読めない時だけ、同じ形（allow_nan=False）を標準ライブラリで書く"""
+    shared = str(Path(__file__).resolve().parents[2] / ".shared")
+    if shared not in sys.path:
+        sys.path.insert(0, shared)
+    try:
+        import boundary
+    except Exception:  # noqa: BLE001  境の口を読めない時（返す節は落ちない）
+        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
+        return
+    boundary.returns(out)
+
+
 def main() -> int:
     folder = Path(os.environ.get("ARTIFACTS_DIR", ".")) / FOLDER
     try:
@@ -77,8 +90,7 @@ def main() -> int:
             (folder / OPEN_ERROR).write_text(why, encoding="utf-8")
         except OSError:
             pass
-        print(json.dumps({"ok": False, "r2_go": False, "tree": False, "k": 0, "form": "", "reason": why}, ensure_ascii=False),
-              flush=True)
+        leave({"ok": False, "r2_go": False, "tree": False, "k": 0, "form": "", "reason": why})
     return 0
 
 

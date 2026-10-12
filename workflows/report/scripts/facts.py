@@ -4,17 +4,22 @@
 # ///
 """報告のブロックの最初の節: 入力・型つきの成果物の一覧・run の記録を読み、結末を決め、機械の報告と持ち越しを run の置き場の
 report/ に書く。0 以外で終わらない（落ちると線は報告の返りを受けられない）: lib/ を読めない時も含めて思わぬ誤りを捕まえ、
-record_invalid で返す。lib/ は main の中で読む（読めない時の受け皿は place.unwritten）。"""
+record_invalid で返す。lib/ は main の中で読む（読めない時の受け皿は place.unwritten）。境の口か隣の typed・place を読めない時も、
+返す節が結ぶので、標準ライブラリだけで同じ形を返す。"""
 import json
 import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
-import boundary  # noqa: E402
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+    import boundary
 
-import typed  # noqa: E402
-from place import UNWRITTEN, failed_line, out_dir, rel, unwritten  # noqa: E402
+    import typed
+    from place import UNWRITTEN, failed_line, out_dir, rel, unwritten
+    unread = None
+except Exception as error:  # noqa: BLE001 — 返す節が結ぶので落ちない（下の bare で返す）
+    boundary, unread = None, error
 
 RETURNS = {
     "test-gate-base": os.environ.get("INPUTS_TEST_GATE_BASE", ""),
@@ -156,7 +161,25 @@ def fallen(error: BaseException) -> dict:
     return out
 
 
-if __name__ == "__main__":
+def bare(what: str, error: BaseException) -> tuple:
+    """境の口か隣の部品を読めない時の訳と、訳だけを書いたファイルの指し札（place.failed_line・unwritten の標準ライブラリだけの写し）"""
+    why = f"{what}を組めなかった（{type(error).__name__}: {' '.join(str(error).split())}）"
+    rel_path = "report/report-unwritten.md"
+    try:
+        path = Path(os.environ["ARTIFACTS_DIR"]) / rel_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# 報告（run {os.environ.get('WORKFLOW_ID', '—')}）\n\n報告を組めなかった: {why}\n", encoding="utf-8")
+    except (OSError, KeyError):
+        pass
+    return why, {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel_path}
+
+
+if __name__ == "__main__" and boundary is None:   # 境の口を読めない時
+    why, ptr = bare("報告の事実", unread)
+    print(json.dumps({"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "report": ptr,
+                      "next_request": None, "prior_failures": None, "ai_go": False, "facts_file": ptr["path"], "stamp": ""},
+                     ensure_ascii=False, allow_nan=False), flush=True)
+elif __name__ == "__main__":
     try:
         result = main()
     except Exception as error:  # noqa: BLE001 — 0 以外で終わると線が報告の返りを受けられない

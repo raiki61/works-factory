@@ -31,6 +31,19 @@ def fallen(objection: str) -> dict:
             "world": None, "spec": None, "out_of_purpose": None, "rejudge_verdict": None}
 
 
+def leave(out: dict) -> None:
+    """返りを境の口 boundary.returns で書く。境の口を読めない時だけ、同じ形（allow_nan=False）を標準ライブラリで書く"""
+    shared = str(Path(__file__).resolve().parents[2] / ".shared")
+    if shared not in sys.path:
+        sys.path.insert(0, shared)
+    try:
+        import boundary
+    except Exception:  # noqa: BLE001  境の口を読めない時（返す節は落ちない）
+        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
+        return
+    boundary.returns(out)
+
+
 objection = os.environ.get("INPUTS_OBJECTION", "")
 ja = None
 try:
@@ -51,9 +64,8 @@ try:
 except Exception as e:  # noqa: BLE001  境の口か lib を読めない
     print(f"verdict: {type(e).__name__}: {e}", file=sys.stderr)
     out = fallen(objection)
-try:   # boundary.returns と同じ形（境の口を読めなかった時も返す）
-    text = json.dumps(out, ensure_ascii=False, allow_nan=False)
+try:
+    leave(out)
 except ValueError as e:
     print(f"verdict: 返りが JSON に書けない: {e}", file=sys.stderr)
-    text = json.dumps(fallen(objection), ensure_ascii=False)
-print(text, flush=True)
+    leave(fallen(objection))

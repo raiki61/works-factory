@@ -12,6 +12,8 @@ Archon が作業ツリーに置く工程の写し（.archon/ の下）は修正�
 """
 import json
 import os
+import sys
+from pathlib import Path
 
 NO_VALUE = ("", "null")
 RUNTIME_COPY = (".archon/",)
@@ -19,6 +21,19 @@ RUNTIME_COPY = (".archon/",)
 
 def broken(mode: str, reason: str) -> dict:
     return {"mode": mode, "ok": False, "hash": "", "diff": None, "protected_hits": None, "reason": reason}
+
+
+def leave(out: dict) -> None:
+    """返りを境の口 boundary.returns で書く。境の口を読めない時だけ、同じ形（allow_nan=False）を標準ライブラリで書く"""
+    shared = str(Path(__file__).resolve().parents[2] / ".shared")
+    if shared not in sys.path:
+        sys.path.insert(0, shared)
+    try:
+        import boundary
+    except Exception:  # noqa: BLE001  境の口を読めない時（返す節は落ちない）
+        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
+        return
+    boundary.returns(out)
 
 
 def mode_of(raw: str) -> str:
@@ -37,8 +52,6 @@ def object_or_none(raw: str, name: str):
 
 
 def main() -> None:
-    import sys
-    from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
     import boundary
     sys.path.append(str(boundary.lib_root()))
@@ -101,5 +114,4 @@ def main() -> None:
 try:
     main()
 except Exception as e:
-    print(json.dumps(broken(mode_of(os.environ.get("INPUTS_MODE", "")), f"{type(e).__name__}: {e}"), ensure_ascii=False),
-          flush=True)
+    leave(broken(mode_of(os.environ.get("INPUTS_MODE", "")), f"{type(e).__name__}: {e}"))

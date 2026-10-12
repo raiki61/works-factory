@@ -18,6 +18,19 @@ def fallen(reason: str) -> dict:
             "structure_after": None, "protected_hits": [reason]}
 
 
+def leave(out: dict) -> None:
+    """返りを境の口 boundary.returns で書く。境の口を読めない時だけ、同じ形（allow_nan=False）を標準ライブラリで書く"""
+    shared = str(Path(__file__).resolve().parents[2] / ".shared")
+    if shared not in sys.path:
+        sys.path.insert(0, shared)
+    try:
+        import boundary
+    except Exception:  # noqa: BLE001  境の口を読めない時（返す節は落ちない）
+        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
+        return
+    boundary.returns(out)
+
+
 protected = None
 eyeverdict = None
 try:
@@ -48,8 +61,7 @@ try:
 except Exception as e:  # noqa: BLE001  返す節は落ちない（落ちると線が先へ進めない）
     why = f"出口が落ちた: {type(e).__name__}: {e}"
     out = eyeverdict.unverified(why, protected) if eyeverdict else fallen(why)
-try:   # boundary.returns と同じ形（境の口を読めなかった時も返す）。Archon の JSON.parse が読めない NaN・Infinity は落ちた返りにする
-    text = json.dumps(out, ensure_ascii=False, allow_nan=False)
+try:   # Archon の JSON.parse が読めない NaN・Infinity は落ちた返りにする
+    leave(out)
 except ValueError as e:
-    text = json.dumps(fallen(f"出口が落ちた: 返りが JSON に書けない: {e}"), ensure_ascii=False)
-print(text, flush=True)
+    leave(fallen(f"出口が落ちた: 返りが JSON に書けない: {e}"))
