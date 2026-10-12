@@ -1,4 +1,5 @@
-"""Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・tests/workflows/test_uv_scripts.py）を、写した元の字に照らす。
+"""Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・
+tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行）を、写した元の字に照らす。
 
 行ごとに「写しの値」と「元の中のその値の在り処（ファイルと正規表現）」を持ち、正規表現で引いた値と写しの値を比べる。
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
@@ -10,6 +11,7 @@ import os
 import pathlib
 import json
 import re
+import shlex
 import tempfile
 import unittest
 from collections.abc import Callable
@@ -17,6 +19,7 @@ from typing import Any, NamedTuple
 from unittest import mock
 
 from bin._lib import launcher, pack, place
+from lib import answer
 from tests import archon
 from tests.archon import CACHE_ENV, pinned_source
 from tests.bin.gitkit import git
@@ -105,6 +108,28 @@ def _workflow_run_shape() -> list[str]:
     return shape
 
 
+def _answer_argv() -> list[str]:
+    """関所の答えの行のうち、殻が Archon にそのまま渡す引数（殻のパスの後ろ）"""
+    env = {answer.ENV: launcher.answer_head(pathlib.Path("/T"))}
+    return shlex.split(answer.line("RUN", "continue", "TEXT", env=env))[1:]
+
+
+def _answer_options() -> list[str]:
+    return [arg.removeprefix("--") for arg in _answer_argv() if arg.startswith("--")]
+
+
+def _answer_positions() -> list[int]:
+    """Archon が旗とその値を抜いた位置引数の中の、run の id・答えの語・一言の位置"""
+    argv = _answer_argv()
+    values = {i + 1 for i, arg in enumerate(argv) if arg.startswith("--")}
+    positionals = [arg for i, arg in enumerate(argv) if i not in values and not arg.startswith("--")]
+    return [positionals.index(arg) for arg in ("RUN", "continue", "TEXT")]
+
+
+def _string_options(block: str) -> set[str]:
+    return set(re.findall(r"^\s*'?([\w-]+)'?: \{ type: 'string'", block, re.M))
+
+
 SEPARATOR_CANDIDATES = "/\\:"
 
 # consumer にあって写し（place.workflow_run は bun を固定し、いつも --workflow-source を付ける）に無い分かれ道。
@@ -177,6 +202,12 @@ ARCHON_ROWS = (
         r"\s*const schedule", lambda m: sorted(m.groups())),
     Row("script を探すフォルダの深さ", lambda: test_uv_scripts.DISCOVERY_DEPTH, "packages/workflows/src/script-discovery.ts",
         r"^const MAX_SCRIPT_DISCOVERY_DEPTH = (\d+);$", lambda m: int(m[1])),
+    Row("答えの行の run の id・答えの語・一言の位置", _answer_positions, "packages/cli/src/cli.ts",
+        r"case 'respond': \{\n\s*const respondRunId = positionals\[(\d+)\];\n\s*const decision = positionals\[(\d+)\];"
+        r".*?positionals\.slice\((\d+)\)\.join\(' '\)", lambda m: [int(n) for n in m.groups()]),
+    Row("答えの行の旗は上の段の値を取る旗", _answer_options, "packages/cli/src/args.ts",
+        r"export const cliArgOptions: CliArgOptions = \{\n(.*?)\n\};",
+        lambda m: [name for name in _answer_options() if name in _string_options(m[1])]),
 )
 
 
