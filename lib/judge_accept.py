@@ -3145,7 +3145,7 @@ SPEC_NODES = {"write": "spec.write", "review": "spec.review", "revise": "spec.re
 SPEC_ASK_FILE = "spec-ask.json"     # 関所に見せた仕様（受け入れ条件ごとの sha256 つき。元 loop_state.spec_pending）と文
 # 仕様の関所の止めの理由（今の works の report.py:173-174 の REQUEST_BY・HUMAN_BY の頭 + 関所の所。H5 の human:<所>・request:<所>）
 SPEC_GATE = "spec-gate"
-SPEC_GATE_HUMAN = "human:" + SPEC_GATE
+SPEC_GATE_HUMAN = stopby.HUMAN + SPEC_GATE
 SPEC_GATE_REQUEST = specblk.FLAG_BY_PREFIX + SPEC_GATE
 
 

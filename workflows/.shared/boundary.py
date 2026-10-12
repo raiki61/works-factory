@@ -5,13 +5,31 @@
 入力は口を通さず、script が os.environ["INPUTS_<名>"] を字のまま読む（工程が inputs: を宣言していると、Archon は読み込みで script の字を走査して宣言の無い入力を拒むので、組み立てた名はその走査に見えない）。
 指し札の決まりは Archon の artifact-pointer.ts に合わせる。返りに入った指し札の先（在る・空でない・置き場の中）は Archon が節の終わりに照らすので、
 ここでは札の形を組むだけにする。
+
+落ちない script の口（線の script が使う）:
+- run(compute, fallback): script は節として落ちない。落ちると、それを `{from, if_skipped}` で受ける節が読めず
+  （止めた Archon の dag-executor.ts の resolveBindingDirective は落ちた節を if_skipped に落とさない）、報告まで届かないので、
+  中の例外は fallback(理由) の返りにして返す
+- guarded_imports(): script の lib/ の import を囲む（lib/ の置き場を sys.path に足してから読む）。import が落ちた訳は run が
+  fallback の返りにする（lib/ の誤りでも節は落ちない）
+- LINE_SCRIPT: fallback の返りの止めの理由。lib/stopby.py の LINE_SCRIPT の写し（lib を読めない時の fallback も引くので lib から
+  読めない。lib/tests/test_stopby.py が突き合わせる）
+- value・text・flag・items・field: Archon が渡した入力の字を値に戻す（埋め skip_value の上の読み方）
 """
+import contextlib
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
+import skip_value
+
 POINTER_TYPE = "archon_artifact"
+LINE_SCRIPT = "works:line-script"
+TEXT_FIELDS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason", "unread")   # JSON として読まない欄
+
+_import_error = None
 
 
 def returns(obj: dict) -> None:
@@ -39,6 +57,55 @@ def lib_root() -> Path:
     Archon は run の始めに工程のフォルダを写し取り、script はその写しから走るので、run の中ではこのファイルから辿っても届かない（docs/design.md の U5）"""
     root = os.environ.get("WORKS_FACTORY_ROOT")
     return Path(root) / "lib" if root else Path(__file__).resolve().parents[2] / "lib"
+
+
+@contextlib.contextmanager
+def guarded_imports():
+    """lib/ の import を囲む。落ちたら訳を控え、後の run が compute を呼ばずに fallback の返りにする"""
+    global _import_error
+    lib = str(lib_root())
+    if lib not in sys.path:
+        sys.path.append(lib)
+    try:
+        yield
+    except Exception as error:   # script は落ちない（上の docstring）
+        _import_error = error
+
+
+def run(compute, fallback) -> None:
+    """compute() の返りを節の返りにする。lib/ の import が落ちていた時と compute の例外は fallback(理由の 1 行) の返りにする"""
+    try:
+        if _import_error is not None:
+            raise _import_error
+        out = compute()
+    except Exception as error:   # script は落ちない（上の docstring）
+        reason = " ".join(f"{type(error).__name__}: {error}".split())
+        print(reason, file=sys.stderr)
+        out = fallback(reason)
+    returns(out)
+
+
+def value(raw):
+    return skip_value.value(raw)
+
+
+def field(key: str, raw):
+    """ブロックの返りの 1 欄。字の欄（TEXT_FIELDS）は字のまま、ほかは JSON として読む。飛ばされた節（null）は None"""
+    return skip_value.text(raw) if key in TEXT_FIELDS else skip_value.value(raw)
+
+
+def text(raw) -> str:
+    """字の欄。飛ばされた節（null）と無い入力は空の字"""
+    return skip_value.text(raw) or ""
+
+
+def flag(raw) -> bool:
+    return skip_value.value(raw) is True
+
+
+def items(raw) -> list:
+    got = skip_value.value(raw)
+    return got if isinstance(got, list) else []
 
 
 def _run_id() -> str:

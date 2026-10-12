@@ -12,12 +12,13 @@ when: で飛び、collect・report・result だけが走る（AI を起こす前
 """
 import json
 import os
+import sys
 from pathlib import Path
 
-import linekit
-from linekit import boundary
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
     import answer
     import carry
     import depth
@@ -28,6 +29,7 @@ with linekit.guarded_imports():
     import ghreads
     import policy
     import startrec
+    import stopby
 
     DESIGN_ONLY_WORDS = ("", gatemarks.DESIGN_ONLY)
     THICKNESS = ("", "自動", depth.LIGHT, depth.STANDARD)
@@ -160,7 +162,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         shape = entryshape.build(inp, repo)
     except (Refused, entryshape.Refused) as error:
         record["refused"] = str(error)
-        return {"ok": False, "stop_reason": linekit.START_REFUSED, "reason": str(error),
+        return {"ok": False, "stop_reason": stopby.START_REFUSED, "reason": str(error),
                 "record": write(artifacts, startrec.NAME, record), "prior_failures": None, "ask": False, "gate_text": "",
                 "unattended": False, "design_only": False, "final_gate": ""}
     parts = asked["parts"]
@@ -188,10 +190,10 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
 
 
 def fallback(reason: str) -> dict:
-    return {"ok": False, "stop_reason": linekit.LINE_SCRIPT, "reason": reason, "record": None, "prior_failures": None,
+    return {"ok": False, "stop_reason": boundary.LINE_SCRIPT, "reason": reason, "record": None, "prior_failures": None,
             "ask": False, "gate_text": "", "unattended": False, "design_only": False, "final_gate": ""}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: start(raw_inputs(), Path.cwd(), Path(os.environ["ARTIFACTS_DIR"]), os.environ["WORKFLOW_ID"]),
+    boundary.run(lambda: start(raw_inputs(), Path.cwd(), Path(os.environ["ARTIFACTS_DIR"]), os.environ["WORKFLOW_ID"]),
                 fallback)

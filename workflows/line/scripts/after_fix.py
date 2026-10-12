@@ -11,8 +11,11 @@ objection（修正役の異議）が空でなければ再審。どちらも線�
 入力（with:）: replan_items・objection（fix の返り）
 """
 import os
+import sys
+from pathlib import Path
 
-import linekit
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
 
 def decide(replan_items: list, objection: str) -> dict:
@@ -20,9 +23,9 @@ def decide(replan_items: list, objection: str) -> dict:
 
 
 def fallback(reason: str) -> dict:
-    return {"replan": False, "rejudge": False, "stop_reason": linekit.LINE_SCRIPT}
+    return {"replan": False, "rejudge": False, "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: decide(linekit.items(os.environ.get("INPUTS_REPLAN_ITEMS")), linekit.text(os.environ.get("INPUTS_OBJECTION"))),
+    boundary.run(lambda: decide(boundary.items(os.environ.get("INPUTS_REPLAN_ITEMS")), boundary.text(os.environ.get("INPUTS_OBJECTION"))),
                 fallback)

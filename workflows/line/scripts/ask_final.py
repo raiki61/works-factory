@@ -19,16 +19,19 @@ opens）。守りのパスの当たり（確かめられなかった時も）と
 """
 import json
 import os
+import sys
+from pathlib import Path
 
-import linekit
-from linekit import boundary
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
     import answer
     import gatemarks
     import gatepolicy
     import seal
     import structmark
+    import stopby
 
 EYES = ("r1", "r2", "r3", "r4")
 PASS = "pass"
@@ -129,7 +132,7 @@ def ask(got: dict, *, mode: str, unattended: bool, run_id: str) -> dict:
     if not opens:
         return {"open": False, "go": True, "stop_reason": "", "text": "", "reasons": why}
     if unattended:
-        return {"open": False, "go": False, "stop_reason": linekit.NEEDS_HUMAN, "text": "", "reasons": why}
+        return {"open": False, "go": False, "stop_reason": stopby.NEEDS_HUMAN, "text": "", "reasons": why}
     return {"open": True, "go": True, "stop_reason": "", "text": final_text(got, why, run_id), "reasons": why}
 
 
@@ -148,7 +151,7 @@ def held_questions(judgment, start, before_fix, before_fix_asked: list) -> tuple
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return [], f"判定の問いの控えか始めの記録を読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"
     answers = [a for a in rows if isinstance(a, dict)] if isinstance(rows, list) else []
-    passed = isinstance(before_fix, dict) and before_fix.get("decision") in linekit.GO_WORDS
+    passed = isinstance(before_fix, dict) and before_fix.get("decision") in answer.GO_WORDS
     note = str(before_fix.get("text") or "") if passed else ""
     holds = gatemarks.hold_keys(note, {str(q.get("key")) for q in questions if q.get("key")})
 
@@ -193,32 +196,32 @@ def fenced_rows(structure_after) -> tuple:
 
 
 def got_of_env() -> dict:
-    held, held_unread = held_questions(linekit.value(os.environ.get("INPUTS_JUDGMENT")),
-                                       linekit.value(os.environ.get("INPUTS_START")),
-                                       linekit.value(os.environ.get("INPUTS_BEFORE_FIX_ANSWER")),
-                                       [str(q) for q in linekit.items(os.environ.get("INPUTS_BEFORE_FIX_ASKED"))])
-    fenced, fenced_unread = fenced_rows(linekit.value(os.environ.get("INPUTS_STRUCTURE_AFTER")))
+    held, held_unread = held_questions(boundary.value(os.environ.get("INPUTS_JUDGMENT")),
+                                       boundary.value(os.environ.get("INPUTS_START")),
+                                       boundary.value(os.environ.get("INPUTS_BEFORE_FIX_ANSWER")),
+                                       [str(q) for q in boundary.items(os.environ.get("INPUTS_BEFORE_FIX_ASKED"))])
+    fenced, fenced_unread = fenced_rows(boundary.value(os.environ.get("INPUTS_STRUCTURE_AFTER")))
     return {
-        "tests_ok": linekit.flag(os.environ.get("INPUTS_TESTS_OK")),
-        "green": linekit.flag(os.environ.get("INPUTS_GREEN")),
-        "red_cause": linekit.text(os.environ.get("INPUTS_RED_CAUSE")),
-        "protected_hits": linekit.items(os.environ.get("INPUTS_PROTECTED_HITS")),
-        "conflicts": linekit.items(os.environ.get("INPUTS_CONFLICTS")),
-        "allowed_test_changes": linekit.items(os.environ.get("INPUTS_ALLOWED_TEST_CHANGES")),
+        "tests_ok": boundary.flag(os.environ.get("INPUTS_TESTS_OK")),
+        "green": boundary.flag(os.environ.get("INPUTS_GREEN")),
+        "red_cause": boundary.text(os.environ.get("INPUTS_RED_CAUSE")),
+        "protected_hits": boundary.items(os.environ.get("INPUTS_PROTECTED_HITS")),
+        "conflicts": boundary.items(os.environ.get("INPUTS_CONFLICTS")),
+        "allowed_test_changes": boundary.items(os.environ.get("INPUTS_ALLOWED_TEST_CHANGES")),
         "eyes": {
-            "r1": linekit.value(os.environ.get("INPUTS_R1")),
-            "r2": linekit.value(os.environ.get("INPUTS_R2")),
-            "r3": linekit.value(os.environ.get("INPUTS_R3")),
-            "r4": linekit.value(os.environ.get("INPUTS_R4")),
-            "premise_check": linekit.value(os.environ.get("INPUTS_PREMISE_CHECK")),
+            "r1": boundary.value(os.environ.get("INPUTS_R1")),
+            "r2": boundary.value(os.environ.get("INPUTS_R2")),
+            "r3": boundary.value(os.environ.get("INPUTS_R3")),
+            "r4": boundary.value(os.environ.get("INPUTS_R4")),
+            "premise_check": boundary.value(os.environ.get("INPUTS_PREMISE_CHECK")),
         },
-        "questions": linekit.items(os.environ.get("INPUTS_QUESTIONS")),
-        "objection": linekit.text(os.environ.get("INPUTS_OBJECTION")),
-        "refix_objection": linekit.text(os.environ.get("INPUTS_REFIX_OBJECTION")),
-        "rejudge_verdict": linekit.text(os.environ.get("INPUTS_REJUDGE_VERDICT")),
-        "sealed": linekit.flag(os.environ.get("INPUTS_SEALED")),
-        "seal_reason": linekit.text(os.environ.get("INPUTS_SEAL_REASON")),
-        "hash": linekit.text(os.environ.get("INPUTS_HASH")),
+        "questions": boundary.items(os.environ.get("INPUTS_QUESTIONS")),
+        "objection": boundary.text(os.environ.get("INPUTS_OBJECTION")),
+        "refix_objection": boundary.text(os.environ.get("INPUTS_REFIX_OBJECTION")),
+        "rejudge_verdict": boundary.text(os.environ.get("INPUTS_REJUDGE_VERDICT")),
+        "sealed": boundary.flag(os.environ.get("INPUTS_SEALED")),
+        "seal_reason": boundary.text(os.environ.get("INPUTS_SEAL_REASON")),
+        "hash": boundary.text(os.environ.get("INPUTS_HASH")),
         "fenced": fenced,
         "held": held,
         "unread": [why for why in (held_unread, fenced_unread) if why],
@@ -227,13 +230,13 @@ def got_of_env() -> dict:
 
 def from_env() -> dict:
     """ask の引数（with: の欄の全部を読む）"""
-    return {"got": got_of_env(), "mode": linekit.text(os.environ.get("INPUTS_FINAL_GATE")),
-            "unattended": linekit.flag(os.environ.get("INPUTS_UNATTENDED")), "run_id": os.environ["WORKFLOW_ID"]}
+    return {"got": got_of_env(), "mode": boundary.text(os.environ.get("INPUTS_FINAL_GATE")),
+            "unattended": boundary.flag(os.environ.get("INPUTS_UNATTENDED")), "run_id": os.environ["WORKFLOW_ID"]}
 
 
 def fallback(reason: str) -> dict:
-    return {"open": False, "go": False, "stop_reason": linekit.LINE_SCRIPT, "text": "", "reasons": [reason]}
+    return {"open": False, "go": False, "stop_reason": boundary.LINE_SCRIPT, "text": "", "reasons": [reason]}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: ask(**from_env()), fallback)
+    boundary.run(lambda: ask(**from_env()), fallback)

@@ -8,8 +8,11 @@ process.human_items の行の node（conflict・replan・守りのファイル�
 
 - HEAD: 機械の語の頭。is_line(by): 機械が止めた語か（頭で見る）
 - REASONS: 決まりが core（.shared/core）に在る段の語と、2 つ以上の持ち主が共に書く語の表（名 → 意味）。止めを書くのが
-  ブロックだけでも、段の決まりが core に在れば表に置く（lens・pr・plan-converge）。定数（ADAPTER など）はこの表の名に HEAD を
+  ブロックだけでも、段の決まりが core に在れば表に置く（lens・pr・plan-converge）。線が足す語（start-refused・needs-human・
+  line-script）は、線の script が書き report が読むのでここに置く。定数（ADAPTER など）はこの表の名に HEAD を
   付けた語で、呼び手はその定数を引く（自分の定数に写さない）
+- HUMAN: 人が関所で止めた時の止めの理由の頭（後ろは関所の所）。機械の語ではない（is_line は偽）
+- WAITING・is_waiting(by): 線の止めでなく、人の答えを待つ語か
 - declare(name, meaning): ブロックとラインが自分だけの語を足す口（表の名と、ほかの持ち主が別の意味で足した名は拒む）。
   返りの語を自分の定数に置いてよい（ほかのブロックの語は引かない。ブロックの独立）
 - declared(): declare で足された語の表の写し（名 → 意味。走る時は誰も読まない。試験が足し方を確かめる口）
@@ -19,6 +22,7 @@ process.human_items の行の node（conflict・replan・守りのファイル�
 import re
 
 HEAD = "works:"
+HUMAN = "human:"
 NAME = re.compile(r"[a-z][a-z0-9]*(-[a-z0-9]+)*")   # 名の形（小文字と数字を - でつなぐ）
 
 REASONS = {
@@ -29,6 +33,8 @@ REASONS = {
     "empty-fix": "止めでなく trace の行の by: 直す義務 0 件の周で、機械が修正の節に空の返答を渡した",
     "fix": "修正の段が止めた（受け付けた返答が作業ツリーを変えていない・brief の控えが壊れた・修正案の欄の控えが凍結と食い違った）",
     "lens": "レンズの集め役が終わらなかった",
+    "line-script": "線の script の中で例外が起きた（後ろを飛ばして報告へ進めた）",
+    "needs-human": "無人の run で人の関所を開くはずだった（開かずに止めた）",
     "plan-converge": "事前審査の壁打ちが収まらずに止めた・案の節を巻き戻した",
     "pr": "並行 PR の任せ先の役が 3 回とも拒まれて輪を抜けた",
     "premises": "前提の実測が盤面に無い・実測の役が諦めた",
@@ -38,6 +44,7 @@ REASONS = {
     "rejudge-session": "判定役の会話が見つからず、再審せずに止めた",
     "replan": "同じ run の中の案の直しで止めた（その答えの行の node も同じ語）",
     "scope-check": "窓の照らし（部品の置き場と宣言）が誤りを見て止めた",
+    "start-refused": "入口が入力を受けなかった（AI を起こす前に止めた）",
     "tdd-repeat": "同じ単位がまた TDD の確認の上限まで落ちたので、機械が裁定に回さず人に回した（裁定の by）",
 }
 _DECLARED = {}
@@ -74,6 +81,11 @@ def is_line(by) -> bool:
     return isinstance(by, str) and by.startswith(HEAD)
 
 
+def is_waiting(by) -> bool:
+    """人の答えを待つ語か"""
+    return by in WAITING
+
+
 ADAPTER = word("adapter")
 CI = word("ci")
 CONFLICT = word("conflict")
@@ -81,6 +93,8 @@ DELTA = word("delta")
 EMPTY_FIX = word("empty-fix")
 FIX = word("fix")
 LENS = word("lens")
+LINE_SCRIPT = word("line-script")
+NEEDS_HUMAN = word("needs-human")
 PLAN_CONVERGE = word("plan-converge")
 PR = word("pr")
 PREMISES = word("premises")
@@ -90,4 +104,6 @@ REJUDGE = word("rejudge")
 REJUDGE_SESSION = word("rejudge-session")
 REPLAN = word("replan")
 SCOPE_CHECK = word("scope-check")
+START_REFUSED = word("start-refused")
 TDD_REPEAT = word("tdd-repeat")
+WAITING = frozenset({CONFLICT, NEEDS_HUMAN, REPLAN, TDD_REPEAT})

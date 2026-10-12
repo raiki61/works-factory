@@ -43,8 +43,8 @@ import structmark  # noqa: E402
 OK_OUTCOMES = ("fixed", "fixed_needs_check", "no_fix_needed")   # 返す節の ok が true になる結末（docs/design.md の report の返り）
 GATES = ("gate-start", "gate-before-fix", "gate-replan", "gate-final")
 STOP_WORDS = report.FINAL_GATE_STOPS   # stop は answer.VERBS の止める語、reject は今の works の最後の関所の止める語
-PASS_WORDS = ("approve", *(v for v in answer.VERBS if v not in STOP_WORDS))   # approve は関所の decisions に要る語
-WAIT_WORDS = (stopby.CONFLICT, stopby.REPLAN, stopby.TDD_REPEAT)   # 線の止めでなく、人の答えを待つ語
+PASS_WORDS = answer.GO_WORDS
+WAIT_WORDS = stopby.WAITING
 FIX_STATUS_LEFT = ("given_up", "not_done")
 EYE_STATUS_LEFT = (seal.REDESIGN, seal.UNVERIFIABLE)
 EYE_NAMES = tuple(e.lower() for e in report.EYES)

@@ -13,14 +13,17 @@ contract_diff）。約束の欄が変わった項目と、事前審査（replan-
 """
 import json
 import os
+import sys
+from pathlib import Path
 
-import linekit
-from linekit import boundary
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
     import answer
     import gatemarks
     import planmarks
+    import stopby
 
 HEAD = "案の直しの関所"
 RECORD = "run の置き場の gates/gate-replan.json"
@@ -62,7 +65,7 @@ def ask(old_ptr, new_ptr, ids: list, *, ask_human: bool, questions: list, unatte
     if not rows:
         return {"open": False, "go": True, "stop_reason": "", "text": "", "widened": widened}
     if unattended:
-        return {"open": False, "go": False, "stop_reason": linekit.NEEDS_HUMAN, "text": "", "widened": widened}
+        return {"open": False, "go": False, "stop_reason": stopby.NEEDS_HUMAN, "text": "", "widened": widened}
     lines = gatemarks.head3(f"{HEAD}が開いた。修正の段が誤りとした計画の項目を直した案に、人が決める物が {len(rows)} 件ある",
                             "直した案で 2 度目の修正へ進めるか、止めるか（打つ行は末尾の答え方）", gatemarks.push_of(rows))
     lines += ["", f"項目（{len(rows)} 件）:", *[f"- {row}" for row in rows], *[f"- {w}" for w in widened], "",
@@ -73,13 +76,13 @@ def ask(old_ptr, new_ptr, ids: list, *, ask_human: bool, questions: list, unatte
 
 
 def fallback(reason: str) -> dict:
-    return {"open": False, "go": False, "stop_reason": linekit.LINE_SCRIPT, "text": "", "widened": []}
+    return {"open": False, "go": False, "stop_reason": boundary.LINE_SCRIPT, "text": "", "widened": []}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: ask(linekit.value(os.environ.get("INPUTS_OLD_PLAN")), linekit.value(os.environ.get("INPUTS_NEW_PLAN")),
-                            [str(x) for x in linekit.items(os.environ.get("INPUTS_ITEMS"))],
-                            ask_human=linekit.flag(os.environ.get("INPUTS_ASK_HUMAN")),
-                            questions=linekit.items(os.environ.get("INPUTS_QUESTIONS")),
-                            unattended=linekit.flag(os.environ.get("INPUTS_UNATTENDED")), run_id=os.environ["WORKFLOW_ID"]),
+    boundary.run(lambda: ask(boundary.value(os.environ.get("INPUTS_OLD_PLAN")), boundary.value(os.environ.get("INPUTS_NEW_PLAN")),
+                            [str(x) for x in boundary.items(os.environ.get("INPUTS_ITEMS"))],
+                            ask_human=boundary.flag(os.environ.get("INPUTS_ASK_HUMAN")),
+                            questions=boundary.items(os.environ.get("INPUTS_QUESTIONS")),
+                            unattended=boundary.flag(os.environ.get("INPUTS_UNATTENDED")), run_id=os.environ["WORKFLOW_ID"]),
                 fallback)
