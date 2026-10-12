@@ -554,6 +554,51 @@ class _RepoCase(unittest.TestCase):
         return ja.start_view(doc)
 
 
+# ================================================================ 入口
+class IntakeCase(_RepoCase):
+    ROWS = [{"where": "app.txt", "text": "二行目が違う"}]
+
+    def intake(self, start):
+        return ja.intake(start, "", self.jdir, self.tmp / "artifacts" / ja.REJUDGE_DIR, self.repo, "")
+
+    def test_request_file_shapes(self):
+        """元 test_blk_judge.py:300・313・322・328（intake.py の main）: 無い・JSON でない・形の違う依頼のファイルは AI を 1 つも
+        起こさずに依頼の語で止める。容器の形と、根からの相対・根の外の絶対パスは受けて request.json に行を置く"""
+        outside = self.tmp / "outside.json"
+        outside.write_text(json.dumps(self.ROWS), encoding="utf-8")
+        (self.repo / "req.json").write_text(json.dumps({"findings": self.ROWS, "pr": [7]}), encoding="utf-8")
+        (self.repo / "broken.json").write_text("{", encoding="utf-8")
+        (self.repo / "odd.json").write_text(json.dumps({"rows": self.ROWS}), encoding="utf-8")
+        for name, go in (("req.json", True), (str(outside), True), ("nothing.json", False), ("broken.json", False),
+                         ("odd.json", False)):
+            with self.subTest(name):
+                shutil.rmtree(self.jdir)
+                got = self.intake(self.start(request_file=name))
+                self.assertIs(got["go"], go, got)
+                self.assertEqual(ja.read_json(self.jdir / ja.INTAKE_FILE), got)
+                if go:
+                    self.assertEqual(ja.read_json(self.jdir / ja.REQUEST_FILE), self.ROWS)
+                    self.assertFalse((self.jdir / ja.STOP_FILE).exists())
+                else:
+                    self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], ja.REQUEST_STOP)
+                    self.assertFalse((self.jdir / ja.REQUEST_FILE).exists())
+
+    def test_features_cut_and_spec_set_the_stage_flags(self):
+        """元 entry.py の FEATURES・line_edge.py:1026 の _world_due・judgeverify.py:306 の prep: 始めの記録の features_cut の world が
+        世界の解の段を、judge_verify が判定の裏取りを切り、input.spec が仕様の段を入れる（features_cut の無い記録は裏取りだけ切る）"""
+        cases = (({}, (False, True, False)),
+                 ({"features_cut": []}, (False, True, True)),
+                 ({"features_cut": ["world"]}, (False, False, True)),
+                 ({"features_cut": ["world", "judge_verify"]}, (False, False, False)),
+                 ({"input": {"base": {"rev": self.head}, "spec": True}}, (True, True, False)))
+        (self.repo / "req.json").write_text(json.dumps(self.ROWS), encoding="utf-8")
+        for over, flags in cases:
+            with self.subTest(over):
+                got = self.intake(self.start(request_file="req.json", **over))
+                self.assertTrue(got["go"], got)
+                self.assertEqual((got["spec"], got["world"], got["verify"]), flags)
+
+
 # ================================================================ 前提の実測
 class PremisesCase(_RepoCase):
     GOOD = {"constraints": [{"text": "README.md の件数は 3 件", "measured_how": "grep", "kind": "実測",
@@ -652,6 +697,34 @@ class PurposeCase(_RepoCase):
                 got = ja.check_purpose({**self.GOOD, "source_files": bad}, self.jdir, self.repo)
                 self.assertFalse(got["ok"], got)
                 self.assertIn("source_files", got["reason"])
+
+    def test_source_files_nested_ignored_and_subdir(self):
+        """元 test_blk_purpose.py:460・472・505・512（_source_files_errors）: 入れ子の綴り・git が無視するファイル・git の形でない名前を
+        拒み、未追跡の新規は通す。サブディレクトリで回しても根からの相対を通し、そこからの相対は拒む"""
+        (self.repo / "sub").mkdir()
+        for name in ("a.md", "new.md", "skip.log"):
+            (self.repo / "sub" / name).write_text("x\n", encoding="utf-8")
+        (self.repo / ".gitignore").write_text("*.log\n", encoding="utf-8")
+        gitkit.git(self.repo, "add", "sub/a.md", ".gitignore")
+        gitkit.git(self.repo, "commit", "-q", "-m", "sub")
+        for repo, good, bads in (
+                (self.repo, ["sub/a.md", "sub/new.md"],
+                 ("sub//a.md", "sub/./a.md", "sub/skip.log", "sub/a.md/", "Sub/a.md", "./sub/a.md")),
+                (self.repo / "sub", ["sub/a.md"], ("a.md",))):
+            for bad in bads:
+                with self.subTest(repo=repo.name, bad=bad):
+                    shutil.rmtree(self.jdir)
+                    ja.snap_tree(self.jdir, ja.PURPOSE_TREE_FILE, repo)
+                    got = ja.check_purpose({**self.GOOD, "source_files": [*good, bad]}, self.jdir, repo)
+                    self.assertFalse(got["ok"], got)
+                    self.assertIn(f"source_files に作業ツリーの根からの相対の正規形で版に在るファイルでない物が在る: {[bad]!r}",
+                                  got["reason"])
+            with self.subTest(repo=repo.name, good=good):
+                shutil.rmtree(self.jdir)
+                ja.snap_tree(self.jdir, ja.PURPOSE_TREE_FILE, repo)
+                got = ja.check_purpose({**self.GOOD, "source_files": good}, self.jdir, repo)
+                self.assertTrue(got["ok"], got)
+                self.assertEqual(ja.read_json(self.jdir / "purpose.json")["source_files"], good)
 
     def test_frozen_purpose_is_not_overwritten(self):
         """元 test_blk_purpose の test_accept_refuses_to_overwrite_frozen_purpose（p0.purpose の once）"""
@@ -865,6 +938,180 @@ class MaterialCase(_RepoCase):
         got = ja.material_take(self.jdir, "provenance", {"material": {"status": "clean", "checked": "x"}, "claims": []}, self.repo)
         self.assertFalse(got["ok"])
         self.assertIn("作業ツリー", got["reason"])
+
+    def changed(self, *names):
+        """app.txt と names を変えた差分で素材の道を分ける"""
+        for name in ("app.txt", *names):
+            with (self.repo / name).open("a", encoding="utf-8") as fh:
+                fh.write("直した\n")
+        return self.view()
+
+    def take_round(self, role, reply):
+        return ja.accept_round(self.jdir, role, json.dumps(reply, ensure_ascii=False),
+                               lambda r: ja.material_take(self.jdir, role, r, self.repo))
+
+    def test_route_keeps_the_first_tree_record(self):
+        """元 test_blk_material.py:471 の test_route_keeps_first_snapshot: 素材の役を起こす前の作業ツリーの姿は 1 度だけ置く
+        （run の再開で道分けが走り直しても、役が変えた後の姿で上書きしない）"""
+        self.changed()
+        first = ja.read_json(self.jdir / ja.MATERIAL_TREE_FILE)
+        (self.repo / "tmp.out").write_text("役が残した\n", encoding="utf-8")
+        self.view()
+        self.assertEqual(ja.read_json(self.jdir / ja.MATERIAL_TREE_FILE), first)
+        got = ja.material_take(self.jdir, "provenance", {"material": {"status": "clean", "checked": "x"}, "claims": []}, self.repo)
+        self.assertIn("tmp.out", got["reason"])
+
+    def test_na_note_for_each_kind_of_node(self):
+        """元 test_blk_material.py:885・892・898・903（NaNoteCase。_na_note）: 材料の末尾に、条件の偽・条件の真・役の判定を受ける
+        ゲートの役・条件の無い節・na_self_ok を宣言した節ごとに、not_applicable を書けるかの文を足す"""
+        refused = "`not_applicable` は受け付けが拒む"
+        allowed = "`not_applicable`（理由を reason に）を書いてよい"
+        cases = (("procedure-trace", (), ["`touches_procedures` はこの周に偽", allowed], refused),
+                 ("procedure-trace", ("run.sh",), ["`touches_procedures` はこの周に真", refused], allowed),
+                 ("gate-efficacy", (), ["`gates_touched` はこの周に真", "役の判定を受ける", allowed], refused),
+                 ("gate-efficacy", ("test_app.txt",), ["`gates_touched` はこの周に真", refused], allowed),
+                 ("consistency-bypass", (), ["条件（applies_cond）を持たず", "na_self_ok が無い", refused], allowed))
+        for role, files, said, unsaid in cases:
+            with self.subTest(role=role, files=files):
+                self.setUp()
+                self.changed(*files)
+                brief = ja.material_prep(self.jdir, role, self.repo, "")["brief"]
+                self.assertIn(str(ja.NA_HEADING), brief)
+                for text in said:
+                    self.assertIn(text, brief)
+                self.assertNotIn(unsaid, brief)
+        nid = ja.MATERIAL_ROLES["consistency-bypass"]
+        nodes = {**ja.MATERIAL_NODES, nid: {**ja.MATERIAL_NODES[nid], "na_self_ok": "差分にコードが無い"}}
+        with mock.patch.object(ja, "MATERIAL_NODES", nodes):
+            brief = ja.material_prep(self.jdir, "consistency-bypass", self.repo, "")["brief"]
+        self.assertIn("na_self_ok: 差分にコードが無い", brief)
+        self.assertIn(allowed, brief)
+
+    def test_missing_purpose_is_said_not_invented(self):
+        """元 test_blk_material.py:527: 目的の文が無い run の材料は PURPOSE_MISSING と書き、目的を作らない"""
+        self.changed()
+        self.assertFalse((self.jdir / "purpose.json").exists())
+        brief = ja.material_prep(self.jdir, "external-standards", self.repo, "")["brief"]
+        self.assertIn(f"## 材料: out.p0.purpose.purpose_text\n\n{ja.PURPOSE_MISSING}", brief)
+        self.assertFalse((self.jdir / "purpose.json").exists())
+
+    def test_purpose_review_findings_must_cite_the_version(self):
+        """元 rules:3274 の purpose_findings_cited（:3471 _cite_errors・:3612 _count_in_version）: 目的の監査の所見の引用を、
+        素材の道が固めた版で数え直す。版に無い引用・数の合わない申告・根拠の無い『狭めている』を拒む"""
+        self.changed()
+        def reply(*findings, verdict="狭めている"):
+            return {"verdict": verdict, "findings": [{"text": "目的が件数の数えに狭まっている", "cite": c, "hits": h}
+                                                     for c, h in findings]}
+        cases = ((reply(("件数は 3 件", 1)), ""),
+                 (reply(("どこにも無い字列", 1)), "'どこにも無い字列' が現物に 1 件も無い"),
+                 (reply(("件数は 3 件", 2)), "'件数は 3 件' の件数の申告 2 が数え直し 1 と違う"),
+                 (reply(), "『狭めている』のに findings が空"))
+        for got_reply, why in cases:
+            with self.subTest(why=why):
+                got = ja.material_take(self.jdir, "purpose-review", got_reply, self.repo)
+                self.assertEqual(got["ok"], not why, got)
+                if why:
+                    self.assertIn(why, got["reason"])
+        self.assertEqual(ja.read_json(self.jdir / "material-purpose-review.json")["reply"], cases[0][0])
+
+    def test_local_review_rows_cover_the_declared_lenses(self):
+        """元 rules:3214 の local_review_covers_lenses: 宣言のレンズ 1 本に findings の行 1 本。行の欠け・宣言の外の名・同じレンズの
+        2 行・items も failed も無い行をそれぞれ拒む"""
+        self.changed()
+        rows = self._lens_rows(lambda s: True)
+        hunter = "pr-review-toolkit:silent-failure-hunter"
+        def without(skill):
+            return [r for r in rows if r["skill"] != skill]
+        cases = ((rows, ""),
+                 (without("/security-review"), "宣言した '/security-review' の行が findings に無い"),
+                 ([*rows, {**rows[1], "skill": "my:lens"}], "findings[7] の skill 'my:lens' は宣言に無い"),
+                 ([*rows, rows[1]], "findings に同じ skill の行が 2 本: pr-review-toolkit:code-reviewer"),
+                 ([*without(hunter), {"skill": hunter, "items": [], "invoked": True, "failed": ""}],
+                  f"'{hunter}' の行が items も failed も持たない"))
+        for found, why in cases:
+            with self.subTest(why=why):
+                reply = {"material": {"status": "clean", "checked": "差分を見た"}, "simplify_carried": False, "findings": found}
+                got = ja.material_take(self.jdir, "local-review", reply, self.repo)
+                self.assertEqual(got["ok"], not why, got)
+                if why:
+                    self.assertIn(why, got["reason"])
+
+    def test_location_beyond_the_file_is_sent_back_then_marked(self):
+        """元 test_blk_material.py:610・627・640・650（_location_problems・_location_gap）: 所見の場所の行がファイルに無ければ
+        拒んで出し直させ、上限の 1 つ手前からは where に LOCATION_MARK を付けて受ける。作業ツリーの外とファイルの無い場所は照らさない"""
+        self.changed()
+        outside = self.tmp / "outside.txt"
+        outside.write_text("1 行\n", encoding="utf-8")
+        def hygiene(*wheres):
+            return {"findings": [{"where": w, "text": "所見の見本"} for w in wheres], "seen": "差分の全部"}
+        self.assertTrue(self.take_round("hygiene", hygiene("app.txt:1", f"{outside}:50", "infra/main.tf:184"))["ok"])
+        (self.jdir / "material-hygiene.json").unlink()
+        bad = hygiene("app.txt:1", "app.txt:99")
+        for n in range(1, ja.GIVE_UP_AFTER):
+            with self.subTest(round=n):
+                got = self.take_round("hygiene", bad)
+                self.assertEqual((got["ok"], got["done"]), (False, False), got)
+                self.assertIn(ja.LOCATION_HEAD, got["reason"])
+                self.assertIn("app.txt:99", got["reason"])
+        got = self.take_round("hygiene", bad)
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+        wheres = [f["where"] for f in ja.read_json(self.jdir / "material-hygiene.json")["reply"]["findings"]]
+        self.assertEqual(wheres, ["app.txt:1", "app.txt:99" + ja.LOCATION_MARK])
+
+    def test_prior_decisions_reply_is_taken_or_refused(self):
+        """素材の役の受け付け（先例の突合）: 見た返答は素材の欄に写して受け、名乗れない not_applicable は拒む"""
+        self.changed()
+        good = {"material": {"status": "clean", "checked": "PR と issue の議論を見た"}, "checked": "PR #1", "searched": "題で探した",
+                "settled": []}
+        self.assertFalse(self.take_round("prior-decisions", {**good, "material": {"status": "not_applicable", "reason": "無い"}})["ok"])
+        self.assertTrue(self.take_round("prior-decisions", good)["ok"])
+        self.assertEqual(ja.read_json(self.jdir / "material-prior-decisions.json")["materials"],
+                         {"prior_decisions": good["material"]})
+
+    def test_consistency_bypass_reply_is_taken_or_refused(self):
+        """素材の役の受け付け（整合と標準機構の迂回）: 2 つの素材を両方書いた返答だけ受ける"""
+        self.changed()
+        good = {"consistency": {"status": "clean", "checked": "呼び手を見た"}, "bypass": {"status": "clean", "checked": "標準の口を見た"},
+                "findings": [], "bypass_findings": []}
+        got = self.take_round("consistency-bypass", {k: v for k, v in good.items() if k != "bypass"})
+        self.assertFalse(got["ok"])
+        self.assertIn("素材 'bypass' が返答に無い", got["reason"])
+        self.assertTrue(self.take_round("consistency-bypass", good)["ok"])
+        self.assertEqual(ja.read_json(self.jdir / "material-consistency-bypass.json")["materials"],
+                         {"consistency": good["consistency"], "bypass": good["bypass"]})
+
+    def test_hygiene_reply_is_taken_or_refused(self):
+        """素材の役の受け付け（コード衛生）: findings と seen を素材 1 つに写す。何を見たかの無い clean は拒む"""
+        self.changed()
+        got = self.take_round("hygiene", {"findings": [], "seen": ""})
+        self.assertFalse(got["ok"])
+        self.assertIn("素材 'hygiene'（clean）に 'checked' が要る", got["reason"])
+        self.assertTrue(self.take_round("hygiene", {"findings": [{"where": "app.txt:2", "text": "名が短い"}], "seen": "差分"})["ok"])
+        self.assertEqual(ja.read_json(self.jdir / "material-hygiene.json")["materials"],
+                         {"hygiene": {"status": "found", "checked": "差分", "count": 1, "detail": "app.txt:2: 名が短い"}})
+
+    def test_procedure_trace_reply_is_taken_or_refused(self):
+        """素材の役の受け付け（手順の追跡）: 条件 touches_procedures が偽なら not_applicable を受け、真なら拒む"""
+        na = {"material": {"status": "not_applicable", "reason": "手順書の変更が無い"}, "findings": []}
+        for files, ok in (((), True), (("run.sh",), False)):
+            with self.subTest(files=files):
+                self.setUp()
+                self.changed(*files)
+                got = self.take_round("procedure-trace", na)
+                self.assertEqual(got["ok"], ok, got)
+                self.assertEqual((self.jdir / "material-procedure-trace.json").exists(), ok)
+
+    def test_test_double_fidelity_reply_is_taken_or_refused(self):
+        """素材の役の受け付け（代役の忠実性）: 見た返答は受け、走った節の流用（carried_over）は拒む"""
+        self.changed()
+        got = self.take_round("test-double-fidelity",
+                              {"material": {"status": "carried_over", "from_round": 1, "reason": "前の周と同じ"}})
+        self.assertFalse(got["ok"])
+        self.assertIn("素材 'test_double_fidelity'（節 p1.test_double_fidelity）は今の周に走ったのに carried_over", got["reason"])
+        good = {"material": {"status": "clean", "checked": "代役と本物の口を比べた"}}
+        self.assertTrue(self.take_round("test-double-fidelity", good)["ok"])
+        self.assertEqual(ja.read_json(self.jdir / "material-test-double-fidelity.json")["materials"],
+                         {"test_double_fidelity": good["material"]})
 
     def test_tree_change_names_the_peer_roles(self):
         """元 test_blk_material.test_tree_change_rejects_and_names_peers（_peers）: 拒みの文に、material-route.json で同じ時に回す
@@ -1572,6 +1819,20 @@ class SpecblkCase(unittest.TestCase):
         for verb, note in (("continue", "<通す範囲と条件>"), ("stop", "<理由>")):
             self.assertIn(specblk.gatemarks.answer.line("run-x", verb, note), text)
 
+    def test_gate_text_subjects_are_plain_and_quote_the_question(self):
+        """元 test_blk_spec_gate.py:34・41: 仕様の関所の文も平易な名を主語にし（記録の名は括弧の中の『記録の名』の後ろにだけ）、
+        本線の答え方で書かれた問いは引用（> の行）で載せて読み替えの 1 行を添え、答え方の continue は 1 通りだけ"""
+        from lib.tests.test_plan_gate import MAINLINE_Q, internal_subjects, unquoted_mainline
+        asking = {"node": "spec.approve", "kinds": ["declared"], "question": MAINLINE_Q, "items": ["A1"]}
+        text = specblk.gate_text(asking, run_id="run-x")
+        self.assertEqual(internal_subjects(text), [])
+        self.assertEqual(unquoted_mainline(text), [])
+        quoted = [x.lstrip()[1:].strip() for x in text.splitlines() if x.lstrip().startswith(">")]
+        self.assertEqual(quoted, [x.strip() for x in MAINLINE_Q.splitlines()])
+        after = text.split(quoted[-1], 1)[1].split("答え方", 1)[0]
+        self.assertEqual(len([x for x in after.splitlines() if "--note" in x and "--detail" in x]), 1, after)
+        self.assertEqual(text.count(specblk.gatemarks.answer.line("run-x", "continue", "<通す範囲と条件>")), 1)
+
     def test_parse_gate(self):
         self.assertIsNone(specblk.parse_gate("null"))
         self.assertIsNone(specblk.parse_gate(""))
@@ -1815,6 +2076,28 @@ class PrAcceptCase(_PrBase):
         (self.repo / "stats.py").write_text(_MEAN_SOURCE, encoding="utf-8")
         gitkit.git(self.repo, "checkout", "-q", "-b", "other")
         self.assertIn("ref", ja.prcheck_take(self.jdir, _PR_OK, self.repo)["reason"])
+
+    def test_head_move_and_ignored_paths_are_refused(self):
+        """元 test_blk_pr.py:442・467・557（prcheck.py:199 の take）: 作業ツリーの中身が同じままの別の commit への checkout と、
+        git が無視するパスの追加も拒み、拒みの文が変わった欄を名指す"""
+        (self.repo / ".gitignore").write_text("*.log\n", encoding="utf-8")
+        gitkit.git(self.repo, "add", ".gitignore")
+        gitkit.git(self.repo, "commit", "-q", "-m", "ignore")
+        self.snap()
+        tree = gitkit.git(self.repo, "rev-parse", "HEAD^{tree}").strip()
+        other = gitkit.git(self.repo, "commit-tree", tree, "-p", "HEAD", "-m", "same tree").strip()
+        gitkit.git(self.repo, "checkout", "-q", "--detach", other)
+        got = ja.prcheck_take(self.jdir, _PR_OK, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn(f"/ 今 {other}", got["reason"])
+        self.assertIn("ref: 役を起こす前 refs/heads/", got["reason"])
+        self.assertNotIn("git status --porcelain", got["reason"])
+        gitkit.git(self.repo, "checkout", "-q", "-")
+        (self.repo / "cache.log").write_text("x\n", encoding="utf-8")
+        got = ja.prcheck_take(self.jdir, _PR_OK, self.repo)
+        self.assertFalse(got["ok"])
+        self.assertIn("git が無視するパス: 増えた ['cache.log'] 消えた []", got["reason"])
+        self.assertFalse((self.jdir / ja.MATERIAL_PR_FILE).exists())
 
     def test_malformed_reply_bounced_not_crashed(self):
         """元 test_blk_pr の test_malformed_reply_bounced_not_crashed・test_accept_script_unreadable_reply: JSON でない・
