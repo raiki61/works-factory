@@ -19,7 +19,7 @@ ROOT = E2E.parents[1]
 INVENTORY = ROOT / "docs" / "plans" / "2026-10-13-capabilities"
 INVENTORY_FILES = ("line.md", "judge.md", "plan.md", "fix.md", "tail.md")
 WIRING = ROOT / "docs" / "plans" / "2026-10-13-line-wiring.md"
-ROW_ID = r"(?:L-[EGWD]|[JPFTERM])\d+"
+ROW_ID = r"(?:L-[EGWD]|[JPFTERM])\d+[a-z]?"
 SCENARIO_ONLY = "筋書きでのみ"
 OUTSIDE = "この文書の外"
 
