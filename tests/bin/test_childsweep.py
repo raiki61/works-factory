@@ -79,6 +79,11 @@ class ChildSweepTest(unittest.TestCase):
         self.assertIn("この run の子の形でない", got["left"][0]["reason"])
         self.assertEqual(got["error"], "")
 
+    def test_run_without_children_removes_nothing(self):
+        archon = FakeArchon({"runs": [row(RUN, "running"), row("human", branch_name="feature/x")]})
+        self.assertEqual(self.sweep(archon), {"cleaned": [], "left": [], "error": ""})
+        self.assertEqual(archon.completed(), [])
+
     def test_metadata_stored_as_text_is_read(self):
         archon = FakeArchon({"runs": [child(0, as_text=True), row(RUN, "running")]})
         self.assertEqual([c["branch"] for c in self.sweep(archon)["cleaned"]], [f"{OURS}0"])

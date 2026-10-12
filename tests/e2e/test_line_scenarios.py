@@ -116,6 +116,12 @@ class LineReturnsTest(unittest.TestCase):
         self.assertEqual(got["r2_status"], "pass")
         self.assertEqual(got["final_answer"], {"decision": "approve", "text": "", "asked": []})
 
+    def test_sweep_without_children_reaches_the_return(self):
+        """後始末の節は子の run の無い run（筋書きは fix を stub で差す）でも落ちず、返りが線の返りの欄 children に載る"""
+        children = self.returns["standard"]["children"]
+        self.assertEqual(sorted(children), ["cleaned", "error", "left"])
+        self.assertEqual(children["cleaned"], [])
+
     def test_final_stop_keeps_the_seal_without_applying(self):
         got = self.returns["final-stop"]
         self.assertIsNone(got["apply"], got)
