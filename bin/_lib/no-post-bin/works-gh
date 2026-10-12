@@ -3,10 +3,13 @@
 
 通すのは次の形だけで、ほかは本物の gh を起こさずに 1 行を出して終了コード 2:
 - `pr list -R <OWNER/REPO> …`・`pr view <番号か枝> -R <OWNER/REPO> …`・`pr diff <番号か枝> -R <OWNER/REPO> …`・
-  `issue view <番号> -R <OWNER/REPO> …`（`-R`・`--repo`・`--repo=` のどれか。対象の repo を名指しさせ、cwd の remote に頼らない）
+  `issue view <番号> -R <OWNER/REPO> …`（`-R`・`--repo`・`--repo=` のどれか 1 つ。対象の repo を名指しさせ、cwd の remote に頼らない。
+  gh は最後の `-R` を使うので、2 つ在れば照らした値と読む先が食い違う。拒む）
 - `repo view <OWNER/REPO> …`（gh の repo view は -R を持たないので、repo は位置の引数で名指しする）
 - `api [--paginate] [--hostname <HOST>] repos/<OWNER>/<REPO>/pulls/<番号>/comments`（PR の行コメントを読む 1 つの形。gh api は
   -f・-F・--input の 1 つで黙って POST になるので、拒む旗を数えず、この形の字だけを通す。{owner} の埋めも通さない）
+読むホスト（`-R HOST/…`・`--hostname`・URL の引数）は github.com・`<名>.ghe.com`・GH_HOST・GH_REPO のホストだけ（gh は
+GH_ENTERPRISE_TOKEN を github.com の外のどのホストにも付けるので、本文に在る別のホストのリンクを役が読んでトークンを送る事故を塞ぐ）。
 api の外の形では `-w`・`--web`（ブラウザを開く）を拒む。書く命令・`auth token` は表に無いので拒む。本物の gh は PATH の上の最初の gh（この口の置き場は飛ばす）。bin/ の起動の run では
 それが利用者のログインを継ぐ口（bin/_lib/hostgh.py が書く）。本物の gh のパスを env に置かない・断りの文に出さない（役がその値で本物の gh を
 打つ道を作らない。事故の柵で、堅い境ではない）。
@@ -18,10 +21,13 @@ api の外の形では `-w`・`--web`（ブラウザを開く）を拒む。書�
 import os
 import re
 import sys
+import urllib.parse
 
 ALLOWED = {("pr", "list"), ("pr", "view"), ("pr", "diff"), ("issue", "view"), ("repo", "view")}
-REPO_RE = re.compile(r"(?:[A-Za-z0-9.-]+/)?[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
-HOST_RE = re.compile(r"[A-Za-z0-9.-]+\Z")
+HOST = r"[A-Za-z0-9][A-Za-z0-9.-]*"
+REPO_RE = re.compile(rf"(?:({HOST})/)?[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
+HOST_RE = re.compile(rf"{HOST}\Z")
+GHE_CLOUD = re.compile(r"[a-z0-9][a-z0-9-]*\.ghe\.com\Z")
 API_RE = re.compile(r"repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pulls/[0-9]+/comments\Z")
 
 
@@ -32,6 +38,25 @@ def refuse(why):
     return 2
 
 
+def host_ok(host):
+    h = (host or "").lower()
+    named = os.environ.get("GH_REPO", "").split("/")
+    return bool(HOST_RE.match(h)) and (h == "github.com" or bool(GHE_CLOUD.match(h)) or h == os.environ.get("GH_HOST", "").lower()
+                                       or (len(named) == 3 and h == named[0].lower()))
+
+
+def repo_ok(repo):
+    m = REPO_RE.match(repo or "")
+    return bool(m) and (m.group(1) is None or host_ok(m.group(1)))
+
+
+def url_host(url):
+    try:
+        return urllib.parse.urlsplit(url).hostname
+    except ValueError:
+        return None
+
+
 def api_read(args):
     """api の後ろの引数が、--paginate と --hostname <HOST> を高々 1 つずつと、行コメントのパス 1 つだけか"""
     seen, path, i = set(), None, 0
@@ -39,10 +64,10 @@ def api_read(args):
         a = args[i]
         if a == "--paginate" and a not in seen:
             seen.add(a)
-        elif a == "--hostname" and a not in seen and i + 1 < len(args) and HOST_RE.match(args[i + 1]):
+        elif a == "--hostname" and a not in seen and i + 1 < len(args) and host_ok(args[i + 1]):
             seen.add(a)
             i += 1
-        elif a.startswith("--hostname=") and "--hostname" not in seen and HOST_RE.match(a.split("=", 1)[1]):
+        elif a.startswith("--hostname=") and "--hostname" not in seen and host_ok(a.split("=", 1)[1]):
             seen.add("--hostname")
         elif path is None and API_RE.match(a):
             path = a
@@ -52,15 +77,20 @@ def api_read(args):
     return path is not None
 
 
-def repo_flag(args):
-    for i, a in enumerate(args):
-        if a in ("-R", "--repo") and i + 1 < len(args):
-            return args[i + 1]
-        if a.startswith("--repo=") or a.startswith("-R="):
-            return a.split("=", 1)[1]
-        if a.startswith("-R") and len(a) > 2:
-            return a[2:]
-    return None
+def repo_flags(args):
+    """-R・--repo の値の全部（短い旗の束 -cR o/r・-cRo/r の R も数える。値の無い末尾の旗は空の値）"""
+    out, i = [], 0
+    while i < len(args):
+        a = args[i]
+        if a == "--repo" or (a.startswith("-") and not a.startswith("--") and a.endswith("R")):
+            out.append(args[i + 1] if i + 1 < len(args) else "")
+            i += 1
+        elif a.startswith("--repo="):
+            out.append(a.split("=", 1)[1])
+        elif a.startswith("-") and not a.startswith("--") and "R" in a:
+            out.append(a.split("R", 1)[1].removeprefix("="))
+        i += 1
+    return out
 
 
 def real_gh():
@@ -85,11 +115,16 @@ def form_error(argv):
     rest = argv[2:]
     if any(a in ("-w", "--web") or a.startswith("--web=") for a in rest):
         return "--web は使わない"
+    url = next((a for a in rest if "://" in a and not host_ok(url_host(a))), None)
+    if url:
+        return f"github.com・<名>.ghe.com・GH_HOST・GH_REPO の外のホストは読まない: {url}"
     if argv[0] == "repo":
         pos = [a for a in rest if not a.startswith("-")]
-        return None if pos and REPO_RE.match(pos[0]) else "gh repo view に <OWNER/REPO> が無い"
-    repo = repo_flag(rest)
-    return None if repo and REPO_RE.match(repo) else f"gh {argv[0]} {argv[1]} に -R <OWNER/REPO> が無い"
+        return None if pos and repo_ok(pos[0]) else "gh repo view に <OWNER/REPO>（読むホストの）が無い"
+    repos = repo_flags(rest)
+    if len(repos) > 1:
+        return f"gh {argv[0]} {argv[1]} の -R は 1 つだけ（gh は最後の値を読む）"
+    return None if repos and repo_ok(repos[0]) else f"gh {argv[0]} {argv[1]} に -R <OWNER/REPO>（読むホストの）が無い"
 
 
 def main(argv):
