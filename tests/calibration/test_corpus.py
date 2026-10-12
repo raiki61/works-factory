@@ -98,6 +98,14 @@ class TestCorpusShape(unittest.TestCase):
         self.assertReported(lines, "rows[1]", "id")
         self.assertReported(lines, "rows[2]", "entry")
 
+    def test_load_refuses_broken_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _corpus_dir(tmp, _raw())
+            path.write_text("{\"rows\": [", encoding="utf-8")
+            with self.assertRaises(corpus.CorpusError) as caught:
+                corpus.load(path)
+        self.assertIn(str(path), str(caught.exception))
+
     def test_load_reports_every_problem(self):
         rows = _raw()["rows"]
         lines = self.refusal(lambda d, r: r[0].pop("why"), lambda d, r: r[1].pop("outcome"))

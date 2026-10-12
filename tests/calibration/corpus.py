@@ -50,7 +50,10 @@ class NotInjected(Exception):
 
 def load(path=CORPUS) -> dict:
     path = pathlib.Path(path)
-    data = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise CorpusError(f"{path} が JSON として読めない: {e}") from None
     problems = _problems(data, path.parent)
     if problems:
         raise CorpusError(f"{path} の形が崩れている:\n" + "\n".join(problems))
