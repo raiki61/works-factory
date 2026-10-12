@@ -56,6 +56,12 @@
   "spec.review": "board/out/r*/spec.review.json: 無い",
   "stop.premise_check": "board/out/r*/stop.premise_check.json: 無い; board/out/r*/stop.premise_check.json: 無い"
  },
+ "units": [
+  "stats.py spread: 呼び出し元も試験も文書も無い先行追加の公開関数"
+ ],
+ "asks": [
+  "entering__launch"
+ ],
  "cost": {
   "usd": null,
   "seconds": 534.0,
@@ -74,7 +80,7 @@
    "final_gate": "when_needed",
    "thickness": "標準"
   },
-  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80",
-  "date": "2026-10-12T08:57:31+00:00"
+  "date": "2026-10-12T08:57:31+00:00",
+  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80"
  }
 }

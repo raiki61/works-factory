@@ -49,6 +49,12 @@
   "spec.review": "board/out/r*/spec.review.json: 無い",
   "stop.premise_check": "board/out/r*/stop.premise_check.json: 無い; board/out/r*/stop.premise_check.json: 無い"
  },
+ "units": [
+  "stats.py mean docstring: 空の入力で 0 を返すと書くが、実装は ValueError を上げる"
+ ],
+ "asks": [
+  "entering__launch"
+ ],
  "cost": {
   "usd": null,
   "seconds": 724.0,
@@ -67,7 +73,7 @@
    "final_gate": "when_needed",
    "thickness": "標準"
   },
-  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80",
-  "date": "2026-10-12T09:00:36+00:00"
+  "date": "2026-10-12T09:00:36+00:00",
+  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80"
  }
 }

@@ -167,8 +167,8 @@ class FlagTableTest(unittest.TestCase):
                 self.assertEqual(observed["factory"], path.parent.name)
                 self.assertIn(observed["id"], rows)
                 self.assertEqual(path.name, f"{observed['id']}--{observed['run_id'][:8]}.json")
-                self.assertLessEqual({*corpus.OBSERVED_FIELDS, "child_run_ids", "unread", "flag_evidence", "cost",
-                                      "provenance"}, set(observed))
+                self.assertLessEqual({*corpus.OBSERVED_FIELDS, "child_run_ids", "unread", "flag_evidence", "units", "asks",
+                                      "cost", "provenance"}, set(observed))
                 for word in OWNER_WORDS:
                     self.assertNotIn(word, text)
 

@@ -57,6 +57,15 @@
   "spec.review": "board/out/r*/spec.review.json: 無い",
   "stop.premise_check": "board/out/r1/stop.premise_check.json: verdict = \"escalate\""
  },
+ "units": [
+  "stats.py+README.md median: 偶数個の契約文が「中の 2 つの平均」のままで上側の値を返す挙動と食い違う",
+  "stats.py median: 奇偶の分岐が両方 ordered[mid] を返す死んだ分岐（statistics.median_high の手書き）",
+  "test_stats.py test_median_of_even: 偶数個の期待値を == だけで比べ「整数のまま返す」が柵に入っていない"
+ ],
+ "asks": [
+  "entering__launch",
+  "final-gate"
+ ],
  "cost": {
   "usd": null,
   "seconds": 110.0,
@@ -75,7 +84,7 @@
    "final_gate": "when_needed",
    "thickness": "標準"
   },
-  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80",
-  "date": "2026-10-12T08:52:13+00:00"
+  "date": "2026-10-12T08:52:13+00:00",
+  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80"
  }
 }
