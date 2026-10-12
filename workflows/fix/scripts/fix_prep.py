@@ -10,7 +10,8 @@ reject-fix-accept-<k>.md）を指示書の頭で名指す。段の頭の木（TD
 （受け付けの書き込みの出どころと、諦めた単位の戻し先。TDD の輪が書いた物を修正役の物に数えない）。範囲の相談の答えがまだ渡っていない周は、答えのファイルを名指す続きの指示書だけを
 書く（fixrules.prep の中の consult の引き）。TDD の輪が緑にした単位（tddloop.green_units）の外の単位には、修正役が項目ごとに
 Agent の新しい会話で下請け（実装役・審査役）を起こす節と下請けのファイルを置く（fixrules.g1_values・seat.g1_section）。輪が全部を
-緑にした周は借りたスキルの座（seat.section）。相談の控え（consult.json）には除くパスの頭 fixio.SKIP を足す。
+緑にした周は借りたスキルの座（seat.section）。相談の控え（consult.json）には除くパスの頭 fixio.SKIP を足す。段の頭の木と
+同じ時に、除くパスの頭 fixio.SKIP の下の姿を skip-before.json に控える（fixboard.record_skipped。受け付けがその下を変えた返答を拒む）。
 返り {prompt_file, go, iteration}。回す側の誤り（判定の写しが無い・brief の控えが壊れた）は標準エラーに 1 行で非 0。
 """
 import json
@@ -47,6 +48,7 @@ def main() -> dict:
     owed = fixboard.group_owed(place, group["unit_ids"] if group else None)
     if not (place / fixboard.FIX_HEAD_FILE).is_file():
         fixboard.write_json(place / fixboard.FIX_HEAD_FILE, {"tree": groups.end_tree(repo)})
+        fixboard.record_skipped(place, repo, fixio.SKIP)
     start = startrec.read(place)
     n = fixrules.iteration_next(fixrules.prompt_path(place))
     duty, _ = fixboard.fix_duty(place, owed)

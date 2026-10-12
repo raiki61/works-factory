@@ -31,6 +31,7 @@
 import json
 import os
 import pathlib
+import posixpath
 import types
 
 import startrec
@@ -1395,6 +1396,7 @@ FIX_CHECKS = {
     "frozen": "TDD のループで凍ったテストのファイル",
     "writes": "書き込みの出どころ",
     "conflict": "食い違いの申し出の形",
+    "pack": "除くパスの頭の下の変更",
     "duplicate": "同じ unit_key の重なり",
     "not_opened": "今の周に直す単位に無い unit_key",
     "excused": "直す義務から外れた単位",
@@ -1423,6 +1425,10 @@ BOUND_PARKED = ("修正のループの最後の回も、この単位に結んだ
                 "戻して控えの patch に移し、人に回し、ほかの単位の直しを受けた。拒否の文: ")
 GAVE_UP = "修正のループの {n} 回目の拒否で諦めた（直しは段の頭の木に戻し、控え {patch} に移した）: {why}"
 NOT_SETTLED = "修正のループの最後の回に、止める単位が残らないのに拒否が残った（受けずに諦めた）: "
+ABSORBED_OP = "fix_excused_dropped"   # 最後の回に、義務の外の単位の行を changes から外した・数えなかった拒否の文の trace の行（元 accept.py:158）
+PACK_COPY = ("修正役は除くパスの頭 {skip} の下を変えてはいけない（実行基盤の置き場で、この run を動かしている工程の写しが在りうる。"
+             "写しは次の run が作り直す）: ")   # 元 accept.py:175 の PACK_COPY（頭の字は呼び手が渡す）
+SKIP_BEFORE_FILE = "skip-before.json"   # 修正の段の頭の、除くパスの頭の下の姿 {パス: 中身の sha256}（fix-prep・fix-ruled-prep が 1 回目に書く）
 PARKED_FOR_RULING = "食い違いの申し出を裁定へ回した（裁定の後の修正役が受け付け直す）"
 UNDECLARED = ("書き込みの記録が無い run で、作業ツリーの変更が返答の changes[].files にも bash_writes にも無い——直したファイルなら "
               "changes の files に足し、Bash で書いたなら bash_writes にパスと理由を書き、要らない変更なら戻せ: ")
@@ -1467,6 +1473,65 @@ def check_opened_units(keys: list, opened: set) -> list:
 def check_excused_units(keys: list, owed: set, excused: dict) -> dict:
     """直す義務から外れた単位の unit_key と理由 {key: 理由}（現れた順）。元 works/blk-fix/scripts/accept.py:297"""
     return {k: excused[k] for k in keys if k not in owed and k in excused}
+
+
+def _under(path: str, skip) -> bool:
+    """path が除くパスの頭 skip（`<名>/` の形の並び）のフォルダそのものか、その下か"""
+    return any(path == top.rstrip("/") or path.startswith(top) for top in skip)
+
+
+def skip_digests(repo, skip) -> dict:
+    """repo の除くパスの頭 skip の下の全部のファイルの {根からの相対パス: 中身の sha256}（symlink は辿らず "link:<先>"。
+    __pycache__/ の下と .pyc は数えない。git の追跡・無視に依らない。無ければ空）。元 works/.shared/core/leftovers.py:110
+    の姿の関数（工程の写しの置き場の頭を引数に）"""
+    import hashlib
+    repo = pathlib.Path(repo)
+    out = {}
+    for head in skip:
+        top = repo / head.rstrip("/")
+        if top.is_symlink():
+            out[head.rstrip("/")] = "link:" + os.readlink(top)
+            continue
+        for dirpath, dirnames, filenames in os.walk(top):
+            here = pathlib.Path(dirpath)
+            for name in filenames + [d for d in dirnames if (here / d).is_symlink()]:
+                p = here / name
+                rel = p.relative_to(repo).as_posix()
+                if "/__pycache__/" in f"/{rel}" or rel.endswith(".pyc"):
+                    continue
+                out[rel] = "link:" + os.readlink(p) if p.is_symlink() else hashlib.sha256(p.read_bytes()).hexdigest()
+    return out
+
+
+def record_skipped(place, repo, skip) -> pathlib.Path:
+    """修正の段の頭の、除くパスの頭 skip の下の姿（skip_digests）を置き場の SKIP_BEFORE_FILE に控える（check_pack_copy が読む）。
+    元は修正役の前の控え（leftovers.record_ignored）の欄の 1 つ（元 works/.shared/core/leftovers.py:134）"""
+    return write_json(pathlib.Path(place) / SKIP_BEFORE_FILE, skip_digests(repo, skip))
+
+
+def check_pack_copy(reply: dict, place, repo, skip) -> str:
+    """除くパスの頭 skip の下を changes[].files に申告した・修正の段の頭の控え（record_skipped。無ければ申告だけを見る）から
+    その下の中身が変わった・足した・消した返答を拒む文（通れば空。skip が空なら照らさない）。元 works/blk-fix/scripts/accept.py:234"""
+    if not skip:
+        return ""
+    declared = set()
+    for c in reply.get("changes") or []:
+        for f in (c.get("files") if isinstance(c, dict) else None) or []:
+            if isinstance(f, str) and f.strip():
+                f = f.strip()
+                f = posixpath.normpath(os.path.relpath(f, repo) if os.path.isabs(f) else f)
+                if _under(f, skip):
+                    declared.add(f)
+    before = read_json(pathlib.Path(place) / SKIP_BEFORE_FILE)
+    now = skip_digests(repo, skip) if isinstance(before, dict) else {}
+    changed = sorted(k for k in set(before or {}) | set(now) if before.get(k) != now.get(k)) if isinstance(before, dict) else []
+    parts = []
+    if declared:
+        parts.append(f"changes[].files に申告した {sorted(declared)}（申告から外す）")
+    if changed:
+        parts.append(f"修正の段の頭の控えから変わった {changed[:20]}（元の姿に戻してから出し直す: 追跡している物は "
+                     "git checkout -- <パス>、足した物は消す）")
+    return PACK_COPY.format(skip="・".join(skip)) + " / ".join(parts) if parts else ""
 
 
 def fix_reject_rows(found: list) -> list:
@@ -1698,14 +1763,16 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     """修正役の返答の受け付け（fix-accept は pass_ first・fix-ruled-accept は ruled）。確かめは返さずに FIX_CHECKS の id で積み、
     最後に 1 回だけ拒む。順は 範囲の相談の枠 → 凍ったテスト（factchecks.check_frozen）→ 書き込みの出どころ（factchecks.check_writes。
     記録の無い run は undeclared_writes で段の頭の木 head からの変更を申告に縛る）→ 食い違いの申し出（take_conflicts。first で
-    裁かれていない申し出が在れば輪を抜ける {ok: True, conflicted: True}）→ 単位の行（check_unique_units・check_opened_units・
-    check_excused_units）→ 承認済みの修正案の範囲（factchecks.check_plan_scope）→ 変更に当たる試験（tddloop.selected_problems）→
+    裁かれていない申し出が在れば輪を抜ける {ok: True, conflicted: True}）→ 除くパスの頭の下の変更（check_pack_copy）→
+    単位の行（check_unique_units・check_opened_units・check_excused_units）→ 承認済みの修正案の範囲（factchecks.check_plan_scope）→ 変更に当たる試験（tddloop.selected_problems）→
     事後の関門の束（fixgates.problems）→ 閉鎖の数え直し（closure_reply。通れば表を querytest.save_closure）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
     拒まずに settle_overflow を通す（相談に積んだ回は {ok: False, queued: True}。戻した回は戻した返答で頭から通し直す。reverted・
     trail はその通し直しが渡す）。最後の回の単位への結びは、はみ出しでない行にだけ当てる（止めた後の通し直しのはみ出しは聞かずに戻す）。
-    iteration が GIVE_UP_AFTER 以上の拒否は、行を単位に結んで（last_settle）結んだ単位だけを head に戻して諦め（park_units）、残りの
-    単位で頭から通し直す。止める単位が残らないのに拒否が残れば、義務の残りを全部止めて通し直す（parking.park_owed）。それでも
-    残れば受けずに諦める。owed は直す義務の値（fixboard.fix_duty に渡す）、judged は判定の units、suite は実行器、state は今の段の
+    iteration が GIVE_UP_AFTER 以上の拒否は、写しでない行を単位に結んで（last_settle）結んだ単位だけを head に戻して諦め
+    （park_units）、残りの単位で頭から通し直す。義務の外の単位にだけ結んだ行は数えず、その単位の行を changes・not_done から外して
+    （直しは作業ツリーに残す）写しの照らしを当て直し、受ければ trace に ABSORBED_OP。写しの拒否が残れば同じく結び、止める単位が
+    残らなければ義務の残りを全部止めて通し直す（parking.park_owed。写しの拒否の時だけ）。それでも残れば受けずに諦める（NOT_SETTLED）。
+    owed は直す義務の値（fixboard.fix_duty に渡す）、judged は判定の units、suite は実行器、state は今の段の
     TDD の輪の状態のファイル（無ければ空）、tests_state は state が空の時に変更に当たる試験を走らせる輪の状態（実行器と名指し。
     裁定の後の段で組の輪が幾つも在る時。ruled_states）、base_rev は修正前の版（空なら base_rev_of）、skip は除くパスの頭、log は
     書き込みの記録のファイル（factchecks.check_writes。None なら置き場の既定）。
@@ -1755,6 +1822,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     scope_note = None   # 承認済みの修正案の項目と差分を照らした記録（はみ出しの行 overflow を持つ）
     got = factchecks.fix_unit_keys(reply, pathlib.Path(place), owed)
     if got is not None:
+        note("pack", check_pack_copy(reply, place, repo, skip))
         keys, duty, excused = got
         note("duplicate", [DUPLICATE + k for k in check_unique_units(keys)])
         note("not_opened", [NOT_OPENED + k for k in check_opened_units(keys, duty | set(excused))])
@@ -1769,49 +1837,88 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     tests_trace(place, state or tests_state, tests_note, pass_=pass_, attempt=iteration)   # 0 件の知らせも捨てない（F014）
     gates = fixgates.problems(place, repo, rev, suite, iteration, pass_=pass_, owed=set(duty))
     note("gates", fixgates.reject_lines(gates) if gates else [])
-    shaped, closure, zero = closure_reply(reply, place, repo, rev, judged)
     precedents = (read_json(pathlib.Path(place) / JUDGMENT_FILE, {}) or {}).get("precedents") or []
-    out = recount.accept_fix(shaped, place, rev, repo, judged=judged, owed=set(duty), zero_keys=zero,
-                             precedents=precedents, commit=not found)
-    if out.get("ok") is not True:
-        note("copy", out.get("problems") or [str(out.get("reason") or "")])
-    elif closure and not found:
-        import querytest
-        querytest.save_closure(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), closure)
+
+    def copy_rows(reply, commit):
+        """閉鎖の数え直し（closure_reply）を当てた返答の写しの照らし（recount.accept_fix）の誤りの行。commit が真で通れば表を
+        querytest.save_closure で置き場に置く"""
+        shaped, closure, zero = closure_reply(reply, place, repo, rev, judged)
+        out = recount.accept_fix(shaped, place, rev, repo, judged=judged, owed=set(duty), zero_keys=zero,
+                                 precedents=precedents, commit=commit)
+        if out.get("ok") is not True:
+            return out.get("problems") or [str(out.get("reason") or "")]
+        if closure and commit:
+            import querytest
+            querytest.save_closure(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), closure)
+        return []
+    note("copy", copy_rows(reply, not found))
+    kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, state=state,
+              tests_state=tests_state, base_rev=base_rev, head=head, skip=skip, parked=parked, log=log)
+
+    def again(r, gone):
+        return accept_reply(r, place, repo, **kw, reverted=gone, trail=trail)
     asks = gather_overflow(scope_note, frozen_over, gates, place, rev, repo)
     over, rest = split_rows(found, asks)
     if over and not rest:   # はみ出しの行だけ（写しの照らしは上で乾いた形に当ててある）: 拒まずに相談に積むか、戻して通し直す
-        kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, state=state,
-                  tests_state=tests_state, base_rev=base_rev, head=head, skip=skip, parked=parked, log=log)
         got = settle_overflow(asks, found, whole, place, repo, head=head or rev, reverted=reverted, trail=trail,
-                              pass_=pass_, ask=not parked, again=lambda r, gone: accept_reply(r, place, repo, **kw,
-                                                                                               reverted=gone, trail=trail))
+                              pass_=pass_, ask=not parked, again=again)
         if got is not None and got.get("queued"):   # 積んだ回: 拒否の形に単位の結末を足す（盤面の結末は前の拒否と同じ）
             return {**got, "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
                     "parked": parked}
         if got is not None:
             return got
         over, rest = split_rows(found, asks)
-    if not found:
+    absorbed = None   # 最後の回に数えなかった物 {dropped: 外した行の単位, absorbed: 数えなかった文}（受けた時に trace へ）
+
+    def accepted(reply):
         units = unit_outcomes([k for k in owed if k not in parked], reply, excused=excused, parked=parked)
         overflow_trace(place, trail, repo, pass_=pass_, attempt=iteration)
+        if absorbed:
+            trace(place, ABSORBED_OP, node=FIX_ACCEPT_BY, **absorbed)
         return {"ok": True, "reason": "", "rejects": [], "reply": reply, "units": units, "parked": parked,
                 "conflicted": False}
-    texts = [t for _, t in rest]   # 最後の回の止めは成り立たない行にだけ当てる（はみ出しは止めた後の通し直しが聞かずに戻す）
-    rejected = {"ok": False, "reason": fix_reject_text(found),
+
+    def rejected(head_text=""):
+        return {"ok": False, "reason": head_text + fix_reject_text(found),
                 "rejects": [{"check": c, "text": t} for c, t in fix_reject_rows(found)], "reply": reply,
                 "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
                 "parked": parked, "conflicted": False}
+    if not found:
+        return accepted(reply)
     if not last:
-        return rejected
+        return rejected()
+    # 最後の回の止めは成り立たない行にだけ当てる（はみ出しは止めた後の通し直しが聞かずに戻す）。写しでない行を先に結び、写しの
+    # 拒否は義務の外の単位の行を外した返答に当て直してから結ぶ（元 accept.py:687-697・:725-740）
     rows = [c for c in whole.get("changes") or [] if isinstance(c, dict)]
-    settled, out_of_duty, feet = last_settle(texts, rows, place, repo, rev, state, owed, excused, set(parked),
-                                             declared=declared, skip=skip)
-    if not settled.park and set(duty) - out_of_duty:   # 止める単位が残らない: 義務の残りを全部止める（受けた直しを黙って捨てない）
-        settled = parking.park_owed(texts, feet=feet, owed=set(duty), out_of_duty=out_of_duty, skip=tuple(skip))
+    plain = [t for c, t in rest if c != "copy"]
+    settled = None
+    if plain:
+        settled, out_of_duty, feet = last_settle(plain, rows, place, repo, rev, state, owed, excused, set(parked),
+                                                 declared=declared, skip=skip)
+        if not settled.park:   # 義務の外の単位にだけ結んだ行: 数えず、その単位の行を外して残りで先へ（直しは作業ツリーに残す。元 :636-645）
+            absorbed = {"dropped": [c.get("unit_key") for c in reply.get("changes") or []
+                                    if isinstance(c, dict) and c.get("unit_key") in out_of_duty],
+                        "absorbed": settled.absorbed}
+            reply = _without_units(reply, out_of_duty)
+            found = list(over)
+            note("copy", copy_rows(reply, not found))
+            over, rest = split_rows(found, asks)
+            if over and not rest:   # 残ったはみ出しは聞かずに戻して通し直す（元 :693-697）
+                got = settle_overflow(asks, found, whole, place, repo, head=head or rev, reverted=reverted, trail=trail,
+                                      pass_=pass_, ask=False, again=again)
+                if got is not None:
+                    return got
+                over, rest = split_rows(found, asks)
+            if not found:
+                return accepted(reply)
+    if settled is None or not settled.park:   # 写しの拒否（by_copy）: 止める単位が残らなければ義務の残りを全部止める（元 :738-740）
+        texts = [t for c, t in rest if c == "copy"]
+        settled, out_of_duty, feet = last_settle(texts, rows, place, repo, rev, state, owed, excused, set(parked),
+                                                 declared=declared, skip=skip)
+        if not settled.park and texts and set(duty) - out_of_duty:
+            settled = parking.park_owed(texts, feet=feet, owed=set(duty), out_of_duty=out_of_duty, skip=tuple(skip))
     if not settled.park:
-        rejected["reason"] = NOT_SETTLED + rejected["reason"]
-        return rejected
+        return rejected(NOT_SETTLED)
     now, _ = park_units(place, repo, settled, head or rev, iteration=iteration)
     return accept_reply(_without_units(whole, set(now)), place, repo, pass_=pass_, iteration=iteration, owed=owed,
                         judged=judged, suite=suite, state=state, tests_state=tests_state, base_rev=base_rev, head=head,

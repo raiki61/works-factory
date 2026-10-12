@@ -1618,6 +1618,46 @@ class GroupChildScriptsCase(unittest.TestCase):
     def _grp_prompt(self):
         return pathlib.Path(self._grp_run("tdd_prep", "tdd-prep")["prompt_file"]).read_text(encoding="utf-8")
 
+    def _grp_green_loop(self):
+        """実行器の在る子の run で TDD の輪を mean の単位の緑まで回し（route → test の赤 → fix の緑）、修正の輪の頭（fix-prep）を
+        回す。返りはテストのファイル"""
+        self._grp_parent_inputs(str(self.suite))
+        self._grp_run("group_start", "group-start")
+        self.assertEqual(self._grp_step({"phase": "route", "units": [{"unit_key": _GRP_MEAN, "route": "tdd"}]})["phase"], "test")
+        test_file = self.repo / "test_stats.py"
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("\n\nif __name__", _GRP_NEW_TEST + "\n\nif __name__"),
+                             encoding="utf-8")
+        got = self._grp_step({"phase": "test", "unit_key": _GRP_MEAN, "test_files": ["test_stats.py"],
+                              "tests": ["test_stats.py::TestStats::test_mean_of_two"]})
+        self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
+        stats = self.repo / "stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        got = self._grp_step({"phase": "fix", "unit_key": _GRP_MEAN, "files": ["stats.py"], "what": "分母を len(xs) にした"})
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+        self.assertTrue(self._grp_run("fix_prep", "fix-prep")["go"])
+        return test_file
+
+    def _grp_accept(self, reply):
+        return self._grp_run("fix_accept", "fix-accept", reply=json.dumps(reply, ensure_ascii=False), consulted="false",
+                             iteration="1")
+
+    def test_fix_accept_rejects_a_change_under_the_skip_head(self):
+        """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は fixio.SKIP）、fix-accept が
+        その下を変えた返答を拒む（元 works/blk-fix/scripts/accept.py:234 check_pack_copy・:663）"""
+        import fixboard
+        copy = self.repo / ".archon" / "workflows" / "x.yaml"
+        copy.parent.mkdir(parents=True)
+        copy.write_text("a: 1\n", encoding="utf-8")
+        self._grp_green_loop()
+        self.assertEqual(fixboard.read_json(self.place / fixboard.SKIP_BEFORE_FILE),
+                         {".archon/workflows/x.yaml": fixboard.skip_digests(self.repo, (".archon/",))[".archon/workflows/x.yaml"]})
+        copy.write_text("a: 2\n", encoding="utf-8")
+        out = self._grp_accept({"changes": [_fx_change(_GRP_MEAN, ["stats.py"])]})
+        self.assertFalse(out["ok"], out)
+        head = fixboard.FIX_CHECK_HEAD.format(head=fixboard.FIX_CHECKS["pack"], cid="pack", count=1)
+        self.assertIn(head, out["reason"])
+        self.assertIn(".archon/workflows/x.yaml", out["reason"].split(head, 1)[1])
+
     def test_group_end_writes_the_result(self):
         """組の結果を out_dir/<group_id>/result.json に約束の形で書く（修正の輪の結末・返答の写し・許したテストを読む）"""
         import leftovers

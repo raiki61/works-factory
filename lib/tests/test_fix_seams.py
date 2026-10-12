@@ -1920,6 +1920,110 @@ class FixAcceptSeamCase(TempCase):
         self.assertEqual([(r["unit_key"], r["ruling"]["decision"]) for r in conflict.items(self.place)], [(R_MEAN, conflict.ASK)],
                          "積み増さない")
 
+    def _hold_clamp(self) -> str:
+        """R_CLAMP を ask_human の裁定で直す義務から外し（conflict.held_by_rulings）、外れた理由を返す"""
+        import conflict
+        conflict.park(self.place, [{"unit_key": R_CLAMP, "between": [], "why_both_cannot_hold": "上限を超えた値の扱いを人が決める",
+                                    "which_is_right": conflict.UNKNOWN, "kind": conflict.NEEDS_CONTEXT}],
+                      source=conflict.FIX_SOURCE, ruling={"decision": conflict.ASK, "text": "人が決める", "limits": [], "by": "t"})
+        conflict.write_rulings(self.place)
+        return fixboard.fix_duty(self.place, [R_MEAN, R_CLAMP])[1][R_CLAMP]
+
+    def _held_turns(self, held_files: dict):
+        """判定の写しを置き、段の頭の木を控えてから MEAN を直し、外れた単位 CLAMP の直し held_files {パス: 中身} を書く。返りは
+        受け付けを回す口 accept(返答, iteration)"""
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        path = self.repo / "stats.py"
+        path.write_text(path.read_text(encoding="utf-8").replace("sum(xs) / (len(xs) - 1)", "sum(xs) / len(xs)"),
+                        encoding="utf-8")
+        for rel, text in held_files.items():
+            (self.repo / rel).write_text(text, encoding="utf-8")
+
+        def accept(reply, iteration):
+            return fixboard.accept_reply(reply, self.place, self.repo, pass_="first", iteration=iteration,
+                                         owed=[R_MEAN, R_CLAMP], judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+        return accept
+
+    def _held_row(self, files):
+        return {"unit_key": R_CLAMP, "what": "上限の枝を直した", "files": files, **SELF_REPORT}
+
+    def test_last_turn_drops_only_the_excused_row(self):
+        """最後の回: 外れた単位にだけ結んだ拒否の行は数えず、その単位の行を changes から外して残りで受ける。外れた単位の直しは
+        作業ツリーに残し、ほかの単位を止めない（trace に ABSORBED_OP）。元 works/blk-fix/scripts/accept.py:636-645・:725-726
+        （元の試験 works/tests/test_fix_duty.py:157 test_last_round_drops_only_the_excused_unit・:167 の bash_writes の申告）"""
+        import conflict
+        why = self._hold_clamp()
+        accept = self._held_turns({"held.txt": "上限の枝\n", "held-gen.txt": "生成\n"})
+        reply = {"changes": [_fix_row(R_MEAN, 1), self._held_row(["held.txt"])], "not_done": [],
+                 "bash_writes": [{"path": "held-gen.txt", "why": WHY}]}
+        excused = f"{fixboard.EXCUSED}{R_CLAMP}（{why}）"
+        got = accept(reply, 1)
+        self.assertEqual((got["ok"], got["rejects"]), (False, [{"check": "excused", "text": excused}]), got)
+        got = accept(reply, 3)
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual([c["unit_key"] for c in got["reply"]["changes"]], [R_MEAN])
+        self.assertEqual(got["parked"], {})
+        self.assertEqual(got["units"], {R_MEAN: {"status": "fixed", "reason": ""}, R_CLAMP: {"status": "not_done", "reason": why}})
+        self.assertIn("sum(xs) / len(xs)", (self.repo / "stats.py").read_text(encoding="utf-8"), "残りの単位の直しを戻さない")
+        self.assertEqual((self.repo / "held.txt").read_text(encoding="utf-8"), "上限の枝\n", "外れた単位の直しは作業ツリーに残す")
+        self.assertEqual([r["unit_key"] for r in conflict.items(self.place)], [R_CLAMP], "新しく止めた単位は無い")
+        rows = [r for r in _traced(self.place) if r["op"] in (fixboard.ABSORBED_OP, conflict.ACCEPT_PARKED_OP)]
+        self.assertEqual([(r["op"], r["dropped"], r["absorbed"]) for r in rows], [(fixboard.ABSORBED_OP, [R_CLAMP], [excused])])
+
+    def test_last_turn_parks_the_duplicate_and_absorbs_the_excused_row(self):
+        """最後の回: 重なりの行は MEAN に結んで止め（stats.py を戻す）、外れた単位の行は数えずに行だけを外す（held.txt は戻さない）。
+        元の試験 works/tests/test_fix_duty.py:181 test_last_round_duplicate_parks_and_excused_row_is_absorbed"""
+        import conflict
+        self._hold_clamp()
+        accept = self._held_turns({"held.txt": "上限の枝\n"})
+        reply = {"changes": [_fix_row(R_MEAN, 1), self._held_row(["held.txt"]), _fix_row(R_MEAN, 1)], "not_done": []}
+        got = accept(reply, 3)
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual((got["reply"]["changes"], list(got["parked"])), ([], [R_MEAN]))
+        self.assertIn("(len(xs) - 1)", (self.repo / "stats.py").read_text(encoding="utf-8"), "止めた単位の直しは戻した")
+        self.assertTrue((self.repo / "held.txt").is_file(), "外れた単位の直しは戻さない")
+        self.assertEqual([r["unit_key"] for r in conflict.items(self.place)], [R_CLAMP, R_MEAN])
+        self.assertEqual([r["dropped"] for r in _traced(self.place) if r["op"] == fixboard.ABSORBED_OP], [[R_CLAMP]])
+
+    def test_pack_copy_change_is_rejected(self):
+        """除くパスの頭（script が渡す実行基盤の工程の写しの置き場。ここでは SKIP）の下を changes[].files に申告した・修正の段の
+        頭の控え（record_skipped）から中身を変えた・足した返答を拒む。触れなければ通る。元 works/blk-fix/scripts/accept.py:234
+        check_pack_copy・:663（元の試験 works/tests/test_blk_fix.py:1154-1175）"""
+        copy = self.repo / "vendored" / "workflows" / "x.yaml"
+        copy.parent.mkdir(parents=True)
+        copy.write_text("a: 1\n", encoding="utf-8")
+        fixboard.record_skipped(self.place, self.repo, SKIP)
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        path = self.repo / "stats.py"
+        text = path.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        path.write_text(text, encoding="utf-8")
+
+        def accept(reply):
+            return fixboard.accept_reply(reply, self.place, self.repo, pass_="first", iteration=1, owed=[R_MEAN, R_CLAMP],
+                                         judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+        declared = _fix_ok()
+        declared["changes"][0]["files"].append("vendored/workflows/x.yaml")
+        got = accept(declared)
+        self.assertFalse(got["ok"], got)
+        packs = [r["text"] for r in got["rejects"] if r["check"] == "pack"]
+        self.assertEqual(len(packs), 1, got["rejects"])
+        self.assertIn("vendored/workflows/x.yaml", packs[0])
+        self.assertIn("vendored/", packs[0])
+        copy.write_text("a: 2\n", encoding="utf-8")
+        (copy.parent / "added.txt").write_text("x\n", encoding="utf-8")
+        got = accept(_fix_ok())
+        packs = [r["text"] for r in got["rejects"] if r["check"] == "pack"]
+        self.assertEqual(len(packs), 1, got["rejects"])
+        for word in ("vendored/workflows/x.yaml", "vendored/workflows/added.txt", "戻"):
+            self.assertIn(word, packs[0])
+        copy.write_text("a: 1\n", encoding="utf-8")
+        (copy.parent / "added.txt").unlink()
+        self.assertTrue(accept(_fix_ok())["ok"], "前から在る写しに触れない修正は通る")
+
 
 class OverflowTraceSeamCase(TempCase):
     """受けた回の impact.ACCEPT_OVERFLOW_OP の行（fixboard.overflow_trace。元 works/blk-fix/scripts/accept.py:715）が、守りのテストと
