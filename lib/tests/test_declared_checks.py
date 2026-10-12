@@ -400,6 +400,89 @@ class RunEngineCase(RepoCase):
                 self.assertIn("走らせなかった", pathlib.Path(got["log"]).read_text(encoding="utf-8"))
 
 
+    def rewriting_step(self, once: bool) -> dict:
+        """走ると宣言のファイルに段を 1 つ足して書き換える段（対象の木の外の script）。once なら 1 度目だけ書き換える"""
+        script = self.tmp / "rewrite.py"
+        script.write_text(
+            "import json, os, sys\n"
+            f"mark = {str(self.tmp / 'rewrote')!r}\n"
+            f"if {once!r} and os.path.exists(mark):\n    sys.exit(0)\n"
+            "open(mark, 'a').write('1')\n"
+            f"path = {str(self.repo / dc.DECL_NAME)!r}\n"
+            "doc = json.load(open(path))\n"
+            f"doc['suite'].append({{'name': 'added%d' % len(doc['suite']), 'argv': [{PY!r}, '-c', 'pass']}})\n"
+            "json.dump(doc, open(path, 'w'))\n", encoding="utf-8")
+        return {"name": "suite", "argv": [PY, str(script)]}
+
+    def test_declaration_changed_after_plan_is_replanned_once(self):
+        """元 entry.run_ci の relaunch: 走らせた段が宣言を書き換えたら（計画の sha と違う）計画し直して 1 度だけ走らせ直す。素材は
+        書き換えた後の宣言から組み、前の走りのログは上書きしない"""
+        self.decl([self.rewriting_step(once=True)])
+        got = self.run_ci()
+        self.assertEqual([r["name"] for r in got["runs"]], ["suite", "added1"])
+        self.assertEqual(got["material"]["status"], "clean")
+        self.assertIn(f"sha {dc.declared.read(self.repo)['sha'][:12]}", got["material"]["checked"])
+        self.assertTrue((self.work / "logs" / "1.out").is_file())
+        self.assertTrue((self.work / "logs" / "replan" / "2.out").is_file())
+
+    def test_declaration_changing_twice_is_refused(self):
+        """元 entry.run_ci の relaunch の 2 度目: 計画し直しても宣言がまた変われば CiRefused（止める理由に宣言の名）"""
+        self.decl([self.rewriting_step(once=False)])
+        with self.assertRaises(dc.CiRefused) as cm:
+            self.run_ci()
+        self.assertIn("2 度変わった", str(cm.exception))
+        self.assertIn(dc.DECL_NAME, str(cm.exception))
+
+    def test_clean_names_declaration_sha_and_steps(self):
+        """元 review-loop.py の checks_reply の clean: 何を根拠にした緑かを残す——走らせた宣言の sha の頭 12 字と段ごとの終了コードと秒"""
+        self.decl(GREEN)
+        checked = self.run_ci()["material"]["checked"]
+        self.assertIn(f"sha {dc.declared.read(self.repo)['sha'][:12]}", checked)
+        self.assertIn("suite: exit 0（", checked)
+
+    def all_materials(self):
+        """run_ci の道ごとの (名, after_judge, 返り): engine の clean・found・宣言の誤り・起こせない段・JUnit の走らなかった段・範囲で外した段、
+        by role の clean・found・起こせない test_cmd"""
+        missing = [self.tmp / "no-such-command"]
+        cases = [("clean", GREEN, ""), ("found", RED, ""), ("broken", '{"suite": []}', ""),
+                 ("unlaunchable", [{"name": "suite", "argv": [str(m) for m in missing]}], ""),
+                 ("unran", [self.reported_step("", 0)], ""), ("scoped", SCOPED, ""),
+                 ("role clean", None, "true"), ("role found", None, "exit 2"), ("role unlaunchable", None, f"{MISSING} -q")]
+        for name, steps, cmd in cases:
+            for after_judge in (False, True):
+                (self.repo / dc.DECL_NAME).unlink(missing_ok=True)
+                (self.repo / checkscope.SCOPE_DECL).unlink(missing_ok=True)
+                if isinstance(steps, str):
+                    (self.repo / dc.DECL_NAME).write_text(steps, encoding="utf-8")
+                elif steps is not None:
+                    self.decl(steps)
+                if name == "scoped":
+                    self.scope(SCOPE)
+                yield name, after_judge, self.run_ci(cmd, changed=lambda: ["works/a.py"], after_judge=after_judge)
+
+    def test_engine_material_meets_material_problems(self):
+        """run_ci が組む素材は、どの道でも任せ先の役の素材と同じ欄の決まり（material_problems）を通る（走らせられない status も形に合う）"""
+        for name, after_judge, got in self.all_materials():
+            with self.subTest(name, after_judge=after_judge):
+                self.assertIsNotNone(got["material"])
+                self.assertEqual(dc.material_problems(got["material"], mode=dc.MODES[after_judge]), [], got["material"])
+
+    def test_engine_material_that_breaks_the_rules_falls_back_without_rerunning_test_cmd(self):
+        """元 board._accept_engine_reply・_fall_back・entry._ci_by_cmd: engine の素材が決まりに外れれば任せ先に落とす。engine が既に
+        走らせた test_cmd の段の結果から素材を組み、test_cmd を 2 度走らせない。test_cmd が無ければ任せ先の役が渡す（素材 None）"""
+        count = self.tmp / "count"
+        cmd = f"{PY} -c \"open({str(count)!r}, 'a').write('1')\""
+        self.decl(GREEN)
+        with mock.patch.object(dc, "checks_reply", return_value={"status": "clean"}):
+            got = self.run_ci(cmd)
+            self.assertEqual((got["by"], got["material"]["status"]), ("role", "clean"))
+            self.assertEqual(count.read_text(encoding="utf-8"), "1", "test_cmd を 2 度走らせた")
+            self.assertIn("checked", got["fell_back"])
+            empty = self.run_ci("")
+        self.assertEqual((empty["by"], empty["material"]), ("role_needed", None))
+        self.assertIn("checked", empty["fell_back"])
+
+
 class ScopedStepsCase(RepoCase):
     """元 test_board_engine_run.py の ScopedStepsCase と test_blk_tests_delta.py の TestTestsModes の範囲の場合"""
 

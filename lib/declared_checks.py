@@ -6,7 +6,8 @@
 - 字のまま（継ぎ目の直しだけ）: TEST_CMD_STEP・local_checks_material・_nice19・_launched・_cmd_material・_same_step・env_only_red・
   _suite_kind・suites_line・CiRefused（InputRefused ごと）・_with_test_cmd・_junit_unran・_tail（TAIL_LINES・TAIL_BYTES ごと）
 - 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci・baseline_line
-- 新しい関数: material_problems・drop_copy
+- 元の盤面の部分を盤面なしで組み直した物: _planned_run・_declaration_moved（宣言の照合）・_fall_back（任せ先へ落とす）
+- 新しい関数: material_problems・drop_copy・_cant_status
 """
 import json
 import os
@@ -357,16 +358,34 @@ def _row(r: dict) -> dict:
     return {"name": r["name"], "exit": r.get("exit"), "how": r.get("how"), **({"launch": kind} if kind == "broken" else {})}
 
 
+def _no_runs() -> dict:
+    return {"material": None, "runs": [], "skipped_steps": [], "same_as": None, "test_cmd_how": None, "log": "", "cases": [],
+            "junit_steps": [], "junit_unran": []}
+
+
+def _cant_status(material: dict, after_judge: bool) -> dict:
+    """走らせられない素材の status を形に合わせる（判定の前は awaiting_human・後は not_run）。test_cmd の素材は起こせない時に
+    形を問わず not_run を返すので、判定の前の素材の決まり（material_problems）に外れないように置き換える"""
+    cant = CANT[bool(after_judge)]
+    return {**material, "status": cant} if material.get("status") in CANT.values() else material
+
+
 def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_dir=None) -> dict:
-    """CI の節を走らせる。返り {by, material, runs, skipped_steps, same_as, test_cmd_how, log, cases, junit_steps, junit_unran}。
+    """CI の節を走らせる。返り {by, material, runs, skipped_steps, same_as, test_cmd_how, log, cases, junit_steps, junit_unran, fell_back?}。
     - 範囲の宣言（checkscope.SCOPE_DECL）が在るのに対象の宣言（DECL_NAME）が無い・範囲の宣言の誤り・宣言に無い段の名は、
       走らせる前に CiRefused（範囲の宣言が黙って効かない形にしない）
     - 宣言が在れば by engine: 範囲の宣言の paths_ignore を changed（変更のパスを返す口。範囲を持つ段が在る時だけ呼ぶ）と照らし、
       変更が全部その下に在る段は回さず skipped_steps に名と範囲で残す。宣言の段の後に test_cmd の段を足し（宣言の段と同じ
       コマンドなら足さず same_as にその段の名）、素材は全部の段から組む——宣言の一式と test_cmd の両方が緑の時だけ clean。
       宣言の書式の誤りは走らせずに走らせられない素材（判定の前は awaiting_human・後は not_run）
+    - 走らせた段が宣言を書き換えた（走らせた後の宣言の sha が計画の sha と違う）なら、計画から 1 度だけやり直す（ログは
+      log_dir/replan）。やり直しの後も変わっていれば CiRefused
+    - engine の素材が素材の欄の決まり（material_problems）に外れれば任せ先に落とし、fell_back に訳を置く: engine が同じ呼び出しで
+      test_cmd の段を走らせていれば、その結果から by role の素材を組む（test_cmd を 2 度走らせない）。走らせていなければ test_cmd を
+      走らせて by role。test_cmd が無ければ by role_needed
     - 宣言が無く test_cmd が在れば by role: test_cmd だけを走らせた素材と、起こす前に決めた起こし方 test_cmd_how（direct・shell）
     - どちらも無ければ by role_needed: 素材は None（任せ先の CI の役が渡す。前の結果を使ってよい、ではない）
+    by role の素材の走らせられない status は形に合わせる（_cant_status）。
     runs は走った段ごとの {name, exit, how, launch?}。cases は JUnit の報告を宣言して走った段の 1 件ごとの結末（baseline_red.parse_junit
     の形）、junit_steps はその段の名、junit_unran はそのうち試験を走らせなかった段の名。段が対象の木の中に書いた報告は report_dir に
     段の番号で写し、走らせる前に無かった報告は対象の木から消す（止められた時も）。止められたら（tree_run.Stopped）捕まえない
@@ -378,16 +397,31 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
     if (root / checkscope.SCOPE_DECL).is_file() and not (root / DECL_NAME).is_file():
         raise CiRefused(f"範囲の宣言 {checkscope.SCOPE_DECL} が在るのに、それが段を名指す対象の宣言 {DECL_NAME} が無い"
                         "——範囲の宣言が効かない（宣言を置くか、範囲の宣言を消す）")
-    out = {"material": None, "runs": [], "skipped_steps": [], "same_as": None, "test_cmd_how": None, "log": "", "cases": [],
-           "junit_steps": [], "junit_unran": []}
+    got, ran, moved = _planned_run(root, test_cmd, log_dir, changed, after_judge, report_dir)
+    if moved:
+        got, ran, again = _planned_run(root, test_cmd, log_dir / "replan", changed, after_judge, report_dir)
+        if again:
+            raise CiRefused(f"宣言 {DECL_NAME} が計画の後に 2 度変わった（計画し直しても同じ）: {moved}／{again}")
+    if got["by"] != "engine":
+        return got
+    problems = material_problems(got["material"], mode=MODES[bool(after_judge)])
+    if not problems:
+        return got
+    why = "engine が組んだ素材が素材の欄の決まりに外れた: " + "；".join(problems)
+    return _fall_back(root, test_cmd, log_dir, after_judge, ran, got["same_as"], why)
+
+
+def _planned_run(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, changed, after_judge: bool, report_dir) -> tuple:
+    """計画から走らせて素材を組むまでの 1 回 ——（返り, 走った段の行（tree_runner の形）, 宣言が計画の後に変わった訳か ""）"""
+    out = _no_runs()
     plan = checks_plan(root)
     if "fallback" in plan:
         if not (test_cmd or "").strip():
-            return {**out, "by": "role_needed"}
+            return {**out, "by": "role_needed"}, [], ""
         log = log_dir / f"{TEST_CMD_STEP}.log"
         launched = {}
-        material = local_checks_material(root, test_cmd, log, launched=launched)["material"]
-        return {**out, "by": "role", "material": material, "log": str(log), "test_cmd_how": launched.get("how")}
+        material = _cant_status(local_checks_material(root, test_cmd, log, launched=launched)["material"], after_judge)
+        return {**out, "by": "role", "material": material, "log": str(log), "test_cmd_how": launched.get("how")}, [], ""
     steps = plan.get("steps") or []
     launch = {"steps": steps, "sha": plan.get("sha"), "blocked": plan.get("blocked")}
     runs, skipped, note, todo = [], [], {}, []
@@ -410,9 +444,42 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
         for path in new_reports:
             path.unlink(missing_ok=True)
     log = _engine_log(log_dir / "checks.log", runs, material.get("reason") or "")
-    return {**out, "by": "engine", "material": material, "runs": [_row(r) for r in runs], "skipped_steps": skipped,
-            "same_as": note.get("same_as"), "log": str(log), "cases": cases, "junit_steps": junit_steps,
-            "junit_unran": junit_unran}
+    got = {**out, "by": "engine", "material": material, "runs": [_row(r) for r in runs], "skipped_steps": skipped,
+           "same_as": note.get("same_as"), "log": str(log), "cases": cases, "junit_steps": junit_steps,
+           "junit_unran": junit_unran}
+    return got, runs, (_declaration_moved(root, launch["sha"]) if runs else "")
+
+
+def _declaration_moved(root: pathlib.Path, sha: str) -> str:
+    """走らせた後の宣言が計画の宣言（sha）と違えば、その訳（同じなら空）。読めない・誤りも違うと数える
+    （元 works/.shared/core/graphloops/engine/commands.py:522 engine_run_refusal の宣言の照合）"""
+    now = declared.read(root)
+    after = (now or {}).get("sha")
+    if after == sha:
+        return ""
+    return f"宣言 {DECL_NAME} が計画の後に変わった（sha {sha[:12]} → {after[:12] if after else (now or {}).get('error') or '無い'}）"
+
+
+def _fall_back(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, after_judge: bool, runs: list, same_as, why: str) -> dict:
+    """engine の結果を使えない CI の節を任せ先へ落とす。test_cmd の素材は、engine が同じ呼び出しで走らせた test_cmd の段（名
+    TEST_CMD_STEP か same_as の段で、起こせた物）が在ればその終了コードと標準出力・標準エラーと、走った行の argv・how から組み、
+    無ければ test_cmd を走らせる（元 works/.shared/core/board.py:1413 _fall_back と works/.shared/core/entry.py:925 _ci_by_cmd。
+    印 mark_launched と盤面の done を外し、素材を返りに置く）"""
+    out = {**_no_runs(), "fell_back": why}
+    if not (test_cmd or "").strip():
+        return {**out, "by": "role_needed"}
+    log = log_dir / f"{TEST_CMD_STEP}.log"
+    ran = next((r for r in runs if r["name"] in (TEST_CMD_STEP, same_as) and r.get("exit") is not None), None)
+    if ran:
+        log.write_bytes(b"".join(pathlib.Path(ran[k]).read_bytes() for k in ("out", "err")
+                                 if ran.get(k) and pathlib.Path(ran[k]).is_file()))
+        launched = {"how": ran.get("how")}
+        material = _cmd_material(ran["exit"], log, ran["argv"], launched["how"])["material"]
+    else:
+        launched = {}
+        material = local_checks_material(root, test_cmd, log, launched=launched)["material"]
+    return {**out, "by": "role", "material": _cant_status(material, after_judge), "log": str(log),
+            "test_cmd_how": launched.get("how")}
 
 
 # ---------------------------------------------------------------- 任せ先の役の素材
