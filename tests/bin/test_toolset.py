@@ -11,8 +11,10 @@ AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CL
   今に保つ）。探す所は利用者の設定の置き場の plugins/installed_plugins.json の <名>@<marketplace> の行（user の行、次に
   projectPath が cwd の project・local の行）。入っていない・works が名前で頼る物（agent・hook）が無い借りる物は、1 物 1 行の
   理由と入れるコマンドを並べて止まる。中身・版・バイトは確かめない（試験が中身を見るのは、ここで作った偽のプラグインだけ）。
-- coldwrite・pr-review-toolkit を、設定の中の手元の marketplace works-local（works-marketplace/）に写し、Claude Code の CLI
+- pr-review-toolkit を、設定の中の手元の marketplace works-local（works-marketplace/）に写し、Claude Code の CLI
   （claude plugin marketplace add・install）で入れる。Claude Code のキャッシュの印（.in_use/・.orphaned_at）は写さない。
+- coldwrite はプラグインとして入れず、hooks/hooks.json の表を settings.json の hooks に置く。書き込みの記録のフック
+  （record-write.py）の行も同じ所に置き、記録の根 works-writes/ を作る。
 柵（guard）は一覧の外（CLAUDE.md・rules/・agents/・commands/・output-styles/・settings.json 以外の settings*.json・
 一覧の外のスキル・settings.json の許す鍵の外・一覧の外のプラグインと marketplace）を名前で並べ、CLI は終了コード 2 で止まる。
 Claude Code が自分で書く状態（projects/・.claude.json・backups/・remote-settings.json など）は見ない。
@@ -26,6 +28,7 @@ import json
 import os
 import pathlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -92,8 +95,7 @@ def make_user_config(base: pathlib.Path, only=None, scope="user", project=None) 
                 _put(d / "skills" / "subagent-driven-development" / f, f"偽の {f}\n")
         elif name == "coldwrite":
             _put(d / ".claude-plugin" / "plugin.json", json.dumps({"name": name, "version": ver}))
-            _put(d / "hooks" / "hooks.json", json.dumps({"hooks": {"PreToolUse": [
-                {"matcher": "Write", "hooks": [{"type": "prompt", "prompt": "偽の初見検査"}]}]}}))
+            _put(d / "hooks" / "hooks.json", json.dumps({"hooks": COLDWRITE_HOOKS}))
         else:
             _put(d / ".claude-plugin" / "plugin.json", json.dumps({"name": name}))   # 本物と同じく version を持たない
             for a in LENSES + ["code-simplifier"]:
@@ -179,7 +181,8 @@ def upstream_redirect(to) -> dict:
     return gitkit.git_url_redirect(toolset.UPSTREAM_URL, to)
 
 
-PLUGINS = ("coldwrite", "pr-review-toolkit")   # 手元の marketplace に並ぶ名の順（sorted）
+PLUGINS = ("pr-review-toolkit",)   # 手元の marketplace に並ぶ名の順（sorted。coldwrite はフックの行で置く）
+COLDWRITE_HOOKS = {"PreToolUse": [{"matcher": "Write", "hooks": [{"type": "prompt", "prompt": "偽の初見検査"}]}]}
 
 
 class Base(unittest.TestCase):
@@ -639,11 +642,10 @@ class InstalledShapeCase(unittest.TestCase):
 
 class InstallCase(Base):
     def test_install_builds_exactly_the_chosen_config(self):
-        """一時の置き場に組んだ設定の中身が、ちょうど 5 つのスキル・2 つの部品・手元の marketplace の coldwrite と
-        pr-review-toolkit・その入れた状態だけ。superpowers の写す元は works の写し、ほかは利用者が入れた置き場で、キャッシュの印は
-        写さない"""
+        """一時の置き場に組んだ設定の中身が、ちょうど 5 つのスキル・2 つの部品・手元の marketplace の pr-review-toolkit・その入れた
+        状態・フックの行だけ。superpowers の写す元は works の写し、ほかは利用者が入れた置き場で、キャッシュの印は写さない"""
         rec = self.install()
-        srcs = {"coldwrite": installed_dir(self.user, "coldwrite"), "pr-review-toolkit": installed_dir(self.user, "pr-review-toolkit")}
+        srcs = {"pr-review-toolkit": installed_dir(self.user, "pr-review-toolkit")}
         sp = VENDORED
         want = sorted(
             [f"skills/{n}/{f}" for n in BORROW_SKILLS for f in files_under(sp / "skills" / n)]
@@ -669,7 +671,8 @@ class InstallCase(Base):
         self.assertEqual(json.loads((self.cfg / "settings.json").read_text()),
                          {"extraKnownMarketplaces": {MP: {"source": {"source": "directory",
                                                                      "path": str(self.cfg / "works-marketplace")}}},
-                          "enabledPlugins": {f"{n}@{MP}": True for n in PLUGINS}})
+                          "enabledPlugins": {f"{n}@{MP}": True for n in PLUGINS},
+                          "hooks": {"PostToolUse": [toolset.recorder_row(self.cfg)], **COLDWRITE_HOOKS}})
         self.assertEqual(self.calls(), [["plugin", "marketplace", "add", str(self.cfg / "works-marketplace")]]
                          + [["plugin", "install", f"{n}@{MP}"] for n in PLUGINS])
         # 記録: 版は installed_plugins.json の行の物、source は利用者が入れた置き場（versions.json の borrowed に載る）。
@@ -679,6 +682,7 @@ class InstallCase(Base):
                          {n: (ver, str(installed_dir(self.user, n)), True) for n, (_, ver) in FAKE_INSTALLED.items()
                           if n != "superpowers"}
                          | {"superpowers": (self.borrow["superpowers"]["pin"]["version"], str(VENDORED), True)})
+        self.assertEqual(rec["coldwrite"]["hooks"], COLDWRITE_HOOKS)
         self.assertEqual(json.loads((self.cfg / ".works-toolset.json").read_text()), rec)
         self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
 
@@ -687,23 +691,23 @@ class InstallCase(Base):
         self.install()
         before = {f: (self.cfg / f).read_bytes() for f in files_under(self.cfg)}
         self.log.unlink()
-        _put(installed_dir(self.user, "coldwrite") / ".in_use" / "9999", "{}")
+        _put(installed_dir(self.user, "pr-review-toolkit") / ".in_use" / "9999", "{}")
         self.install()
         self.assertEqual(self.calls(), [])
         self.assertEqual({f: (self.cfg / f).read_bytes() for f in files_under(self.cfg)}, before)
 
     def test_changed_plugin_is_recopied_and_reinstalled(self):
         """利用者のプラグインが新しい版になれば（Claude Code が今に保つ）、写し直して入れ直す"""
-        src = installed_dir(self.user, "coldwrite")
+        src = installed_dir(self.user, "pr-review-toolkit")
         self.install()
         self.log.unlink()
-        (src / "hooks" / "hooks.json").write_text('{"hooks": {"PreToolUse": [{"matcher": "Write"}]}}\n', encoding="utf-8")
+        (src / "agents" / "code-reviewer.md").write_text("新しい版\n", encoding="utf-8")
         self.install()
-        key = f"coldwrite@{MP}"
+        key = f"pr-review-toolkit@{MP}"
         self.assertEqual(self.calls(), [["plugin", "marketplace", "update", MP], ["plugin", "uninstall", key],
                                         ["plugin", "install", key]])
-        self.assertEqual((self.cfg / "works-marketplace" / "coldwrite" / "hooks" / "hooks.json").read_text(),
-                         '{"hooks": {"PreToolUse": [{"matcher": "Write"}]}}\n')
+        self.assertEqual((self.cfg / "works-marketplace" / "pr-review-toolkit" / "agents" / "code-reviewer.md").read_text(),
+                         "新しい版\n")
 
     def test_stale_skill_copy_and_exec_bit_are_fixed(self):
         sp = VENDORED
@@ -870,11 +874,11 @@ class InstallCase(Base):
         self.assertEqual(toolset.guard(self.cfg, self.borrow), ["works-parts/superpowers/skills/subagent-driven-development/SKILL.md"])
 
     def test_plugin_not_enabled_after_cli_fails_closed(self):
-        """CLI が 0 で終わっても coldwrite が有効になっていなければ、入ったことにしない（フックの効かない役を起こさない）"""
+        """CLI が 0 で終わっても pr-review-toolkit が有効になっていなければ、入ったことにしない（レンズの無い役を起こさない）"""
         with mock.patch.dict(os.environ, {"FAKE_CLAUDE_NOOP": "1"}):
             with self.assertRaises(toolset.ToolsetError) as cm:
                 self.install()
-        self.assertIn("coldwrite", str(cm.exception))
+        self.assertIn("pr-review-toolkit", str(cm.exception))
 
     def test_cli_error_is_reported(self):
         bad = self.tmp / "bin" / "claude-bad"
@@ -884,6 +888,78 @@ class InstallCase(Base):
         with self.assertRaises(toolset.ToolsetError) as cm:
             toolset.install(self.cfg, chosen, self.borrow, claude_bin=str(bad), versions=versions)
         self.assertIn("boom", str(cm.exception))
+
+
+class HooksCase(Base):
+    """フックの行（書き込みの記録のフックと coldwrite）は隔離した設定の settings.json の hooks に置く。Archon は節が plugins: で
+    名指さないプラグインを切るが、settingSources: [user] の節は利用者の設定のフックを読む"""
+
+    def hooks(self):
+        return json.loads((self.cfg / "settings.json").read_text())["hooks"]
+
+    def test_install_puts_recorder_hook_in_settings(self):
+        self.install()
+        row = self.hooks()["PostToolUse"]
+        self.assertEqual(row, [{"matcher": "Edit|Write|NotebookEdit", "hooks": [{"type": "command", "command": shlex.join(
+            (sys.executable, str(LIB / "record-write.py"), str(self.cfg / "works-writes")))}]}])
+        self.assertNotIn("timeout", json.dumps(row), "期限の鍵を書かない（E12）")
+        self.assertTrue((self.cfg / "works-writes").is_dir(), "記録の根を作る")
+
+    def test_coldwrite_hooks_go_to_settings_not_plugin_names(self):
+        """coldwrite の hooks.json の表を settings.json に置き、プラグインとしては入れない（前の版が入れた物は外す）。
+        表がプラグインの置き場を指す字を持てば、置かずに名指して止まる"""
+        stale = f"coldwrite@{MP}"
+        _put(self.cfg / "plugins" / "installed_plugins.json",
+             json.dumps({"version": 2, "plugins": {stale: [{"scope": "user", "installPath": "/x", "version": "0"}]}}))
+        _put(self.cfg / "works-marketplace" / "coldwrite" / ".claude-plugin" / "plugin.json", "{}")
+        rec = self.install()
+        self.assertEqual(self.hooks()["PreToolUse"], COLDWRITE_HOOKS["PreToolUse"])
+        self.assertNotIn(stale, json.loads((self.cfg / "settings.json").read_text()).get("enabledPlugins", {}))
+        self.assertIn(["plugin", "uninstall", stale], self.calls())
+        self.assertNotIn(["plugin", "install", stale], self.calls())
+        self.assertFalse((self.cfg / "works-marketplace" / "coldwrite").exists())
+        self.assertEqual((rec["coldwrite"]["loaded"], rec["coldwrite"]["hooks"]), (True, COLDWRITE_HOOKS))
+        hooks_json = installed_dir(self.user, "coldwrite") / "hooks" / "hooks.json"
+        hooks_json.write_text(json.dumps({"hooks": {"PreToolUse": [{"matcher": "Write", "hooks": [
+            {"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/check.sh"}]}]}}), encoding="utf-8")
+        before = (self.cfg / "settings.json").read_bytes()
+        with self.assertRaises(toolset.ToolsetError) as cm:
+            self.install()
+        self.assertIn("CLAUDE_PLUGIN_", str(cm.exception))
+        self.assertIn("coldwrite", str(cm.exception))
+        self.assertEqual((self.cfg / "settings.json").read_bytes(), before, "置かずに止める")
+
+    def test_coldwrite_skipped_leaves_no_hooks(self):
+        """coldwrite を見送る利用者（E14）の設定には coldwrite の行を置かない（前の起動が置いた行も消える）"""
+        self.install()
+        r = self.cli("install", "--claude", str(self.claude), str(self.cfg), WORKS_FACTORY_COLDWRITE_MARKETPLACE="")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.hooks(), {"PostToolUse": [toolset.recorder_row(self.cfg)]})
+        self.assertNotIn("coldwrite", json.loads((self.cfg / toolset.RECORD).read_text()))
+
+    def test_guard_allows_only_the_known_hooks(self):
+        """柵が通すのは記録のフックの行と、記録に載せた借りる物の行だけ。ほかの行は名指す"""
+        self.install()
+        self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
+        settings = json.loads((self.cfg / "settings.json").read_text())
+        other_root = dict(toolset.recorder_row(self.tmp / "elsewhere"))
+        cases = {
+            "settings.json の hooks の行 PostToolUse:Edit|Write|NotebookEdit": ("PostToolUse", other_root),
+            "settings.json の hooks の行 PreToolUse:Write": ("PreToolUse", {"matcher": "Write", "hooks": [
+                {"type": "prompt", "prompt": "別の判定"}]}),
+            "settings.json の hooks の行 SessionStart:（matcher なし）": ("SessionStart", {"hooks": [
+                {"type": "command", "command": "echo hi"}]}),
+        }
+        for name, (event, row) in cases.items():
+            with self.subTest(name):
+                hooks = {k: list(v) for k, v in settings["hooks"].items()}
+                hooks.setdefault(event, []).append(row)
+                (self.cfg / "settings.json").write_text(json.dumps({**settings, "hooks": hooks}), encoding="utf-8")
+                self.assertEqual(toolset.guard(self.cfg, self.borrow), [name])
+        (self.cfg / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+        (self.cfg / toolset.RECORD).unlink()
+        self.assertEqual(toolset.guard(self.cfg, self.borrow), ["settings.json の hooks の行 PreToolUse:Write"],
+                         "記録に載っていない借りる物の行は知らない行")
 
 
 class GuardCase(Base):
@@ -916,7 +992,10 @@ class GuardCase(Base):
                                                      (self.cfg / "works-parts" / "superpowers" / "link").symlink_to(
                                                          self.cfg / "target.md")),
             "settings.json の鍵 permissions": lambda: self.put("settings.json", '{"permissions": {"allow": []}}'),
-            "settings.json の鍵 hooks": lambda: self.put("settings.json", '{"hooks": {}}'),
+            "settings.json の hooks の行 PreToolUse:Bash": lambda: self.put(
+                "settings.json", '{"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": []}]}}'),
+            "settings.json の hooks（表でない）": lambda: self.put("settings.json", '{"hooks": []}'),
+            "works-writes（フォルダでない）": lambda: self.put("works-writes"),
             "有効なプラグイン other@x": lambda: self.put("settings.json", '{"enabledPlugins": {"other@x": true}}'),
             "marketplace x（settings.json）": lambda: self.put("settings.json", '{"extraKnownMarketplaces": {"x": {}}}'),
             "入れたプラグイン other@x": lambda: self.put("plugins/installed_plugins.json",
@@ -972,7 +1051,9 @@ class CliCase(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.calls(), [])
         self.assertEqual(sorted(p.name for p in (self.cfg / "skills").iterdir()), sorted(BORROW_SKILLS))
-        self.assertFalse((self.cfg / "settings.json").exists())
+        self.assertEqual(json.loads((self.cfg / "settings.json").read_text()),
+                         {"hooks": {"PostToolUse": [toolset.recorder_row(self.cfg)], **COLDWRITE_HOOKS}},
+                         "フックの行はプラグインでないので、CLI を呼ばない道でも置く")
         self.assertFalse((self.cfg / "works-marketplace").exists())
 
     def test_cli_missing_tools_stop_before_writing(self):

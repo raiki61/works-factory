@@ -28,23 +28,32 @@ AI の節は全部 settingSources: [user] で、bin/ の起動が隔離した CL
   としては使わず、中の文を役の指示書に使うファイル）を <置き場>/works-parts/superpowers/<相対パス> へ、バイトのまま・権限つきで
   写す。プラグインとしては入れない（有効にすると SessionStart の hook が using-superpowers を差し込み、無人の役の約束が崩れる）。
   中身と実行の権限が同じなら何もしない。違えば一時の置き場に写してから入れ替える。
-- kind "plugin"（coldwrite・pr-review-toolkit）: 入れた置き場を <置き場>/works-marketplace/<名>/ に写し、手元の marketplace
-  works-local を書いて、Claude Code の CLI（`claude plugin marketplace add`・`claude plugin install <名>@works-local`）で入れる
-  （試し plugin-hook-probe と同じ機構）。coldwrite は書く散文の初見検査のフック、pr-review-toolkit は素材集めの局所レビューの
-  レンズの agent。中身が同じで入っていれば CLI を呼ばない。変わっていれば marketplace を update し、入れ直す。CLI が 0 で
-  終わっても settings.json の enabledPlugins に載らなければ止まる（フックの効かない役を起こさない）。--no-plugins（認証の
-  要らない道。validate・テスト）は CLI を呼ばない（探して名前を確かめるのは同じ）。
+- kind "plugin" で borrow の hooks を持たない物（pr-review-toolkit。素材集めの局所レビューのレンズの agent）: 入れた置き場を
+  <置き場>/works-marketplace/<名>/ に写し、手元の marketplace works-local を書いて、Claude Code の CLI
+  （`claude plugin marketplace add`・`claude plugin install <名>@works-local`）で入れる（試し plugin-hook-probe と同じ機構）。
+  中身が同じで入っていれば CLI を呼ばない。変わっていれば marketplace を update し、入れ直す。CLI が 0 で終わっても settings.json の
+  enabledPlugins に載らなければ止まる。--no-plugins（認証の要らない道。validate・テスト）は CLI を呼ばない（探して名前を確かめるのは
+  同じ）。
+- kind "plugin" で borrow の hooks を持つ物（coldwrite。書く散文の初見検査のフック）: プラグインとしては入れず、入れた置き場の
+  hooks/hooks.json の hooks の表をそのまま隔離した設定の settings.json の hooks に足す（hooked）。Archon は節が plugins: で名指さない
+  プラグインを切り、名指すと入っていない利用者の run の節が落ちる（E14）が、settingSources: [user] の節は利用者の設定のフックを
+  読むので、全部の役で効く。表がプラグインの置き場を指す字（PLUGIN_PLACE）を持てば、置かずに名指して止まる。前の版が
+  プラグインとして入れた物は、CLI を呼ぶ道で外す。
+- 書き込みの記録のフック: 同じ置き場の record-write.py を PostToolUse:Edit|Write|NotebookEdit（WRITE_MATCHER）で settings.json の
+  hooks に置き、記録の根 <置き場>/works-writes/（lib/writelog.ROOT）を作る（どちらの道でも。期限の鍵は書かない）。書く役の
+  受け付け（lib/writes.py）が、記録を役の申告と作業ツリーの変更に突き合わせる。
   Claude Code がキャッシュの版の置き場に置く印（MARKERS）は写さず、比べもしない。
 - 借りる MCP は無い（kind "mcp" の Context7 は持ち主 2026-10-09 の決めで消した。Archon の役の節は周りの MCP を読まない——
   strictMcpConfig——ので、役は MCP を持たない）。前の版が置き場に書いた works-mcp.json は誰も読まないので、柵も数えず消しもしない。
 - 柵（guard）: 一覧の外を名前で並べる。CLAUDE.md・rules/・agents/・commands/・output-styles/・settings.json 以外の
   settings*.json・一覧の外のスキル・works-parts/ の下の部品の外のファイル・settings.json の鍵が {enabledPlugins,
-  extraKnownMarketplaces} の外・一覧の外の有効な
+  extraKnownMarketplaces, hooks} の外・hooks の行のうち記録のフックの行と記録（hooks）に載せた借りる物の行の外・フォルダでない
+  works-writes・一覧の外の有効な
   プラグイン・入れたプラグイン（plugins/installed_plugins.json）・marketplace（settings.json と plugins/known_marketplaces.json）。
   Claude Code が自分で書く状態（projects/・.claude.json・backups/・remote-settings.json・plugins/cache/ など）は見ない。
   install は組む前と後に柵を当て、当たれば何も写さずに止まる。CLI は 1 行を出して終了コード 2（入っていない物は 1 物 1 行）。
-- 記録 <置き場>/.works-toolset.json: {名: {version, source, sha256, loaded[, commit][, source_enabled]}}（見えるようにするだけ。
-  run ごとの versions.json の borrowed に載る）。kind "plugin" の version は installed_plugins.json の行の version、source は
+- 記録 <置き場>/.works-toolset.json: {名: {version, source, sha256, loaded[, commit][, source_enabled][, hooks]}}（run ごとの
+  versions.json の borrowed に載る。hooks は hooked の物が settings.json に置いた表で、柵が知っている行として読む）。kind "plugin" の version は installed_plugins.json の行の version、source は
   入れた置き場、source_enabled は利用者の側の enabledPlugins の値（CLI の install が載せる。source_enabled を見よ）。superpowers
   の version・commit は pin の物、source は写しのフォルダで、source_enabled は載せない（利用者の側の有効・無効に依らない）。
 - 写し（vendor）: 版を上げる道は newer の最後の行の案内（上流の tag の木から toolset.vendor を呼ぶ）。CLI の vendor は
@@ -80,6 +89,7 @@ import json
 import os
 import pathlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -100,7 +110,10 @@ def _official(name, entry) -> bool:
     return (name == OFFICIAL_MARKETPLACE[0] and isinstance(src, dict) and src.get("source") == "github"
             and src.get("repo") == OFFICIAL_MARKETPLACE[1])
 RECORD = ".works-toolset.json"
-SETTINGS_KEYS = frozenset({"enabledPlugins", "extraKnownMarketplaces"})
+SETTINGS_KEYS = frozenset({"enabledPlugins", "extraKnownMarketplaces", "hooks"})
+RECORDER = pathlib.Path(__file__).resolve().parent / "record-write.py"
+WRITE_MATCHER = "Edit|Write|NotebookEdit"   # 書き込みの記録のフックが掛かる道具（今の works の adapter.WRITE_MATCHER と同じ）
+PLUGIN_PLACE = "CLAUDE_PLUGIN_"             # プラグインの置き場を指す字（${CLAUDE_PLUGIN_ROOT}・${CLAUDE_PLUGIN_DATA}）
 FOREIGN_FILES = ("CLAUDE.md",)
 FOREIGN_DIRS = ("rules", "agents", "commands", "output-styles")
 IGNORED_IN_SKILLS = spseam.IGNORED
@@ -378,8 +391,80 @@ def _keys(v) -> set:
     return set(v) if isinstance(v, dict) else set()
 
 
-def guard(config_dir: pathlib.Path, borrow: dict) -> list:
-    """一覧の外の物の名前の一覧（空なら通る）"""
+def hooked(item: dict) -> bool:
+    """フックの行を settings.json に置く借りる物か（kind "plugin" で borrow の hooks を持つ。プラグインとしては入れない）"""
+    return item["kind"] == "plugin" and bool(item.get("hooks"))
+
+
+def _writes_root(cfg) -> pathlib.Path:
+    """設定の置き場 cfg の下の書き込みの記録の根（名の持ち主は lib/writelog。record-write.py と fix の受け付けが同じ物を読む）"""
+    sys.path.append(str(pathlib.Path(__file__).resolve().parents[2] / "lib"))
+    import writelog
+    return writelog.root(os.path.abspath(cfg))
+
+
+def recorder_row(cfg) -> dict:
+    """書き込みの記録のフックの行（python は今の実行ファイルの絶対パス。期限の鍵は書かない）"""
+    command = shlex.join([sys.executable, str(RECORDER), str(_writes_root(cfg))])
+    return {"matcher": WRITE_MATCHER, "hooks": [{"type": "command", "command": command}]}
+
+
+def _is_recorder_row(row, cfg) -> bool:
+    """row が設定の置き場 cfg の記録のフックの行か（python は絶対パスならどれでもよい。柵を別の python で回しても通す）"""
+    if not (isinstance(row, dict) and set(row) == {"matcher", "hooks"} and row["matcher"] == WRITE_MATCHER
+            and isinstance(row["hooks"], list) and len(row["hooks"]) == 1):
+        return False
+    hook = row["hooks"][0]
+    if not (isinstance(hook, dict) and set(hook) == {"type", "command"} and hook["type"] == "command"
+            and isinstance(hook["command"], str)):
+        return False
+    try:
+        argv = shlex.split(hook["command"])
+    except ValueError:
+        return False
+    return len(argv) == 3 and os.path.isabs(argv[0]) and argv[1:] == [str(RECORDER), str(_writes_root(cfg))]
+
+
+def borrowed_hooks(name: str, src: pathlib.Path) -> dict:
+    """入れた置き場 src の hooks/hooks.json の hooks の表（事象 → 行の並び）。表の形でない・プラグインの置き場を指す字を持てば
+    ToolsetError（隔離した設定の settings.json に置くと、その字は解けない）"""
+    path = pathlib.Path(src) / "hooks" / "hooks.json"
+    doc = _read_json(path)
+    table = doc.get("hooks") if isinstance(doc, dict) else None
+    if not (isinstance(table, dict) and all(isinstance(rows, list) and all(isinstance(r, dict) for r in rows)
+                                            for rows in table.values())):
+        raise ToolsetError(f"{name} の {path} の hooks が「事象 → 行の並び」の表でない。settings.json に置けないので止める")
+    if PLUGIN_PLACE in json.dumps(table, ensure_ascii=False):
+        raise ToolsetError(f"{name} の {path} の hooks がプラグインの置き場を指す字（{PLUGIN_PLACE}…）を持つ。隔離した設定の "
+                           "settings.json に置くと解けないので、置かずに止める")
+    return table
+
+
+def _foreign_hooks(cfg: pathlib.Path, hooks, rec=None) -> list:
+    """settings.json の hooks の行のうち、記録のフックの行と、記録 rec（無ければ置き場の RECORD）の hooks に載せた借りる物の行の外の物"""
+    if not isinstance(hooks, dict):
+        return ["settings.json の hooks（表でない）"]
+    rec = _read_json(cfg / RECORD) if rec is None else rec
+    known = {}
+    for entry in rec.values() if isinstance(rec, dict) else ():
+        table = entry.get("hooks") if isinstance(entry, dict) else None
+        for event, rows in table.items() if isinstance(table, dict) else ():
+            known.setdefault(event, []).extend(rows if isinstance(rows, list) else [])
+    out = []
+    for event, rows in sorted(hooks.items()):
+        if not isinstance(rows, list):
+            out.append(f"settings.json の hooks.{event}（配列でない）")
+            continue
+        for row in rows:
+            if (event == "PostToolUse" and _is_recorder_row(row, cfg)) or row in known.get(event, []):
+                continue
+            matcher = row.get("matcher") if isinstance(row, dict) else None
+            out.append(f"settings.json の hooks の行 {event}:{matcher or '（matcher なし）'}")
+    return out
+
+
+def guard(config_dir: pathlib.Path, borrow: dict, record=None) -> list:
+    """一覧の外の物の名前の一覧（空なら通る）。record は settings.json の借りる物のフックの行を知る記録（無ければ置き場の RECORD）"""
     cfg = pathlib.Path(config_dir)
     skills = {s for i in borrow.values() if i["kind"] == "skills" for s in i["skills"]}
     plugins = {f"{n}@{MARKETPLACE}" for n, i in borrow.items() if i["kind"] == "plugin"}
@@ -394,11 +479,15 @@ def guard(config_dir: pathlib.Path, borrow: dict) -> list:
     elif sk.exists():
         out.append("skills（フォルダでない）")
     out += _foreign_parts(cfg, borrow)
+    writes_root = _writes_root(cfg)
+    if writes_root.is_symlink() or (writes_root.exists() and not writes_root.is_dir()):
+        out.append(f"{writes_root.name}（フォルダでない）")
     st = _read_json(cfg / "settings.json")
     if st is _BAD:
         out.append("settings.json（JSON の表として読めない）")
     elif st is not None:
         out += [f"settings.json の鍵 {k}" for k in sorted(set(st) - SETTINGS_KEYS)]
+        out += _foreign_hooks(cfg, st["hooks"], record) if "hooks" in st else []
         out += [f"有効なプラグイン {k}" for k in sorted(_keys(st.get("enabledPlugins")) - plugins)]
         out += [f"marketplace {k}（settings.json）" for k in sorted(_keys(st.get("extraKnownMarketplaces")) - {MARKETPLACE})]
     ip = _read_json(cfg / "plugins" / "installed_plugins.json")
@@ -484,9 +573,15 @@ def _write_if_changed(p: pathlib.Path, body: str) -> bool:
     return True
 
 
-def _install_plugins(cfg: pathlib.Path, srcs: dict, claude_bin: str) -> None:
+def _install_plugins(cfg: pathlib.Path, srcs: dict, claude_bin: str, retired=()) -> None:
+    """srcs（名 → 入れた置き場）を手元の marketplace に写して CLI で入れる。retired は前の版がプラグインとして入れたが今は入れない
+    名（hooked）で、入っていれば外し、marketplace の写しも消す"""
     mp = cfg / MP_DIR
     changed = False
+    for name in retired:
+        if (mp / name).is_dir() and not (mp / name).is_symlink():
+            shutil.rmtree(mp / name)
+            changed = True
     for name, src in sorted(srcs.items()):
         if not (src / ".claude-plugin" / "plugin.json").is_file():
             raise ToolsetError(f"{name} の置き場（{src}）に .claude-plugin/plugin.json が無い")
@@ -502,6 +597,9 @@ def _install_plugins(cfg: pathlib.Path, srcs: dict, claude_bin: str) -> None:
         _claude(claude_bin, cfg, "plugin", "marketplace", "update", MARKETPLACE)
     installed = (_read_json(cfg / "plugins" / "installed_plugins.json") or {}).get("plugins") or {}
     enabled = (_read_json(cfg / "settings.json") or {}).get("enabledPlugins") or {}
+    for name in retired:
+        if installed.get(f"{name}@{MARKETPLACE}"):
+            _claude(claude_bin, cfg, "plugin", "uninstall", f"{name}@{MARKETPLACE}")
     for name, src in sorted(srcs.items()):
         key = f"{name}@{MARKETPLACE}"
         rows = installed.get(key) or []
@@ -519,7 +617,8 @@ def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin,
     """隔離した設定を組む。chosen・versions は installed_sources の返り（versions に無い名は置き場の名・plugin.json の version）。
     chosen は installed_sources を通った物だけを渡す（superpowers の写しを pin と照らし直さずに写す）。
     enabled は 名 → source_enabled の値（渡された kind "plugin" の名だけ記録に source_enabled として載せる）。
-    返りと <置き場>/.works-toolset.json は {名: {version, source, sha256, loaded[, commit][, source_enabled]}}"""
+    hooked の物はフックの行を、記録のフックの行と一緒に settings.json の hooks に置く（_place_hooks）。
+    返りと <置き場>/.works-toolset.json は {名: {version, source, sha256, loaded[, commit][, source_enabled][, hooks]}}"""
     versions = versions or {}
     enabled_src = enabled or {}
     cfg = pathlib.Path(config_dir)
@@ -528,6 +627,12 @@ def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin,
     bad = guard(cfg, borrow)
     if bad:
         raise ToolsetError(_refusal(cfg, bad))
+    srcs = {n: pathlib.Path(chosen[n]) for n, i in borrow.items() if i["kind"] == "plugin" and not hooked(i)}
+    hooks, placed = {"PostToolUse": [recorder_row(cfg)]}, {}
+    for name in sorted(n for n, i in borrow.items() if hooked(i)):   # 置けない表は何も写す前に名指す
+        placed[name] = borrowed_hooks(name, pathlib.Path(chosen[name]))
+        for event, rows in placed[name].items():
+            hooks.setdefault(event, []).extend(rows)
     rec = {}
     for name, item in borrow.items():
         if item["kind"] != "skills":
@@ -554,25 +659,32 @@ def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin,
                      "sha256": _digest(trees), "loaded": True}
         if "commit" in pin:
             rec[name]["commit"] = pin["commit"]
-    srcs = {n: pathlib.Path(chosen[n]) for n, i in borrow.items() if i["kind"] == "plugin"}
     if plugins and srcs:
         if not claude_bin:
             raise ToolsetError("プラグインを入れる claude の実行ファイルが渡されていない（--claude）")
-        _install_plugins(cfg, srcs, claude_bin)
-    enabled = (_read_json(cfg / "settings.json") or {}).get("enabledPlugins") or {}
-    for name, src in sorted(srcs.items()):
-        key = f"{name}@{MARKETPLACE}"
-        loaded = enabled.get(key) is True
-        if plugins and not loaded:
-            raise ToolsetError(f"{name} が隔離した設定で有効になっていない（claude plugin install の後の settings.json の "
-                               f"enabledPlugins に {key}: true が無い）。フックの効かない役を起こさないため止める")
+        _install_plugins(cfg, srcs, claude_bin, retired=sorted(placed))
+    _place_hooks(cfg, hooks)
+    st = _read_json(cfg / "settings.json") or {}
+    enabled, on = st.get("enabledPlugins") or {}, st.get("hooks") or {}
+    for name in sorted([*srcs, *placed]):
+        src = pathlib.Path(chosen[name])
+        if name in placed:
+            loaded = all(r in (on.get(event) or []) for event, rows in placed[name].items() for r in rows)
+        else:
+            key = f"{name}@{MARKETPLACE}"
+            loaded = enabled.get(key) is True
+            if plugins and not loaded:
+                raise ToolsetError(f"{name} が隔離した設定で有効になっていない（claude plugin install の後の settings.json の "
+                                   f"enabledPlugins に {key}: true が無い）。役に借りる物を渡せないため止める")
         meta = _read_json(src / ".claude-plugin" / "plugin.json")
         # 版は installed_plugins.json の行の物。plugin.json に version を持たないプラグイン（pr-review-toolkit）もあるので、
         # 無ければ plugin.json、それも無ければキャッシュの版の置き場の名
         version = versions.get(name) or (meta.get("version") if isinstance(meta, dict) else None) or src.name
         rec[name] = {"version": version, "source": str(src),
                      "sha256": _digest([name, _tree(src)]), "loaded": loaded}
-    bad = guard(cfg, borrow)
+        if name in placed:
+            rec[name]["hooks"] = placed[name]
+    bad = guard(cfg, borrow, record=rec)
     if bad:
         raise ToolsetError(_refusal(cfg, bad))
     for name in rec.keys() & enabled_src.keys():
@@ -580,6 +692,14 @@ def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin,
             rec[name]["source_enabled"] = enabled_src[name]
     _write_if_changed(cfg / RECORD, json.dumps(rec, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
     return rec
+
+
+def _place_hooks(cfg: pathlib.Path, hooks: dict) -> None:
+    """settings.json の hooks を hooks にし（ほかの鍵は残す）、記録の根を作る"""
+    _writes_root(cfg).mkdir(exist_ok=True)
+    st = _read_json(cfg / "settings.json")
+    st = st if isinstance(st, dict) else {}
+    _write_if_changed(cfg / "settings.json", json.dumps({**st, "hooks": hooks}, ensure_ascii=False, indent=2) + "\n")
 
 
 def _licence_notice(src: pathlib.Path, item: dict) -> str:
