@@ -382,12 +382,13 @@ class ShapeCase(unittest.TestCase):
 
     def test_r2_compare_reads_the_whole_diff_file(self):
         text = (BLOCK / "commands" / "r2-compare.md").read_text(encoding="utf-8")
-        for ask in DIFF_ASK.split("\n\n")[1].replace("リポジトリや盤面のほかの", "リポジトリやほかの").splitlines():
+        for ask in DIFF_ASK.split("\n\n")[1].replace("リポジトリや盤面のほかの", "リポジトリやほかの").replace("お前の", "この役の").splitlines():
             with self.subTest(ask):
                 self.assertIn(ask, text)
 
     def test_r2_compare_says_premise_changed(self):
-        self.assertIn(f"{PREMISE_HEAD}\n\n{PREMISE_ASK}\n\n$prep.output.premises_text",
+        ask = PREMISE_ASK.replace("人の関所の答え", "人が承認ノードで答えたこと").replace("設計書の節", "設計書のセクション")
+        self.assertIn(f"{PREMISE_HEAD}\n\n{ask}\n\n$prep.output.premises_text",
                       (BLOCK / "commands" / "r2-compare.md").read_text(encoding="utf-8"))
 
     def test_r1_comments_keeps_the_three_added_asks(self):
@@ -395,14 +396,15 @@ class ShapeCase(unittest.TestCase):
         text = (BLOCK / "commands" / "r1-comments.md").read_text(encoding="utf-8")
         for ask in ("1. 削除候補ごとに**同じ内容がどこにあるかを名指しせよ**（コード・他のコメント・文書・テスト名。名指しできないなら削らない）"
                     "——名指しは後から確かめられるので、提案が意見のまま残らない。",
-                    "2. **残すと判断したコメントにも、それが運んでいる事実を一文で言え**（kept）——削る側にだけ義務があると、黙って残す方が安くなる。",
+                    "2. **残すと判断したコメントにも、それが運んでいる事実を一文で言え**（kept。対象のコメントで candidates に入れなかったものは"
+                    "全部 kept に載せる）——削る側にだけ義務があると、黙って残す方が安くなる。",
                     "3. コメントアウトされたコード・編集の実況（「〜を追加した」）・名前のすぐ隣で名前を言い直しているものを、具体的な引き金として"
                     "明示的に探せ。"):
             with self.subTest(ask[:2]):
                 self.assertIn(ask + "\n", text)
 
     def test_minimality_knows_where_handoffs_go(self):
-        self.assertIn(HANDOFFS, (BLOCK / "commands" / "r1-minimality.md").read_text(encoding="utf-8"))
+        self.assertIn(HANDOFFS.rstrip("\n"), (BLOCK / "commands" / "r1-minimality.md").read_text(encoding="utf-8"))
 
     def test_concept_map_only_on_r1_and_r3(self):
         """考えの地図の節と住処の観点は R1（最小性）と R3 にだけ貼る（元 works/blk-eyes/lib/eyes.py:91-92 CONCEPT_HEADS・CONCEPT_FLAG）"""
@@ -416,8 +418,9 @@ class ShapeCase(unittest.TestCase):
         for path in sorted((BLOCK / "commands").glob("*.md")):
             text = path.read_text(encoding="utf-8")
             with self.subTest(path.stem):
-                if path.stem in ("r1-minimality", "r3-coherence", "r4-scope"):
-                    self.assertIn(POLICY, text)
+                if path.stem in ("r1-minimality", "r3-coherence", "r4-scope"):   # ぶつかりの書く先は役ごとの返答の欄に書き直した
+                    self.assertIn(POLICY.partition("どの項とぶつかるかを、")[0] + "どの項とぶつかるかを書け——", text)
+                    self.assertIn("方針の文書は書き換えるな。\n", text)
                 else:
                     self.assertNotIn("## 人の方針", text)
                     self.assertNotIn("policy_path", prep_reads(text))
