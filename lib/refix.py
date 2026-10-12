@@ -80,6 +80,13 @@ def passes() -> dict:
     return {n: dict(kv) for n, kv in _table()}
 
 
+def round_input(raw, script: str) -> int:
+    """手直しの節の入力 n（FIX_ROLE の鍵の字）を回の数に。外れた値は script の名つきの 1 行で止める"""
+    if raw not in tuple(str(k) for k in FIX_ROLE):
+        sys.exit(f"{script}: 入力 n は {' か '.join(str(k) for k in FIX_ROLE)}: {raw!r}")
+    return int(raw)
+
+
 def _pass(n) -> dict:
     ps = passes()
     if n not in ps:

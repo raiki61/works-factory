@@ -47,6 +47,17 @@ KIND_BULLET = {"docs": "- 文書:", "prompts": "- 指示書（プロンプト）
 PHASE_BULLET = {"route": "- **route**:", "test": "- **test**:", "fix": "- **fix**:", "refactor": "- **refactor**:"}
 
 
+def fix_prompt(values: dict, *, kinds=None, reject_file: str = "", iteration: int = 1, libdocs: str = "", seat: str = "") -> str:
+    """修正役の指示書の本文（fixrules.prep が組む形: 決まりの節 fix_parts を、始めの記録の値の 2 行を頭に描く）"""
+    return fixrules.render("fix", iteration, fixrules.fix_parts(values, kinds, libdocs, seat), reject_file=reject_file,
+                           before=fixrules.start_lines(values))["text"]
+
+
+def tdd_prompt(values: dict, phase: str, phase_text: str, **kw) -> str:
+    """TDD の輪の役の指示書の本文（tddloop.prep が組む形）"""
+    return fixrules.tdd_render(values, phase, phase_text, **kw)["text"]
+
+
 def shared_lines():
     return [ln for ln in SHARED.read_text(encoding="utf-8").splitlines() if not fixrules.MARK.match(ln)]
 
@@ -75,8 +86,8 @@ class TestSharedSource(unittest.TestCase):
         rule = "緑にするためにテスト・依頼・コードのどれかを曲げるくらいなら、食い違いとして返せ"
         self.assertIn(rule, fixrules.sections(fixrules.SHARED)["core-conflict"])
         self.assertEqual(sum(ln.count(rule) for ln in shared_lines()), 1, "正本に 1 か所だけ")
-        for text in (fixrules.fix_prompt(VALUES, kinds={}),
-                     fixrules.tdd_prompt({k: VALUES[k] for k in fixrules.TDD_VALUES}, "route", "## 今の段", title="# t", kinds={})):
+        for text in (fix_prompt(VALUES, kinds={}),
+                     tdd_prompt({k: VALUES[k] for k in fixrules.TDD_VALUES}, "route", "## 今の段", title="# t", kinds={})):
             self.assertIn(rule, text)
         ruler = fixrules.ruler_prompt({"conflicts_file": "/b/r1/conflicts.json", "ids": "c1-1", "judgment_file": "/b/j.json",
                                        "request_file": "", "policy_path": ""})
@@ -96,8 +107,8 @@ class TestSharedSource(unittest.TestCase):
         self.assertIn(only, sec["core-fix"])
         self.assertIn("`which_is_right` を unknown", sec["core-conflict"])
         old = re.compile(r"(疑い|疑いの理由|何が要るか|ぶつかるか|人に聞きたいこと)(は|を)\s*`rejudge_requested`\s*に書")
-        prompts = {"fix": fixrules.fix_prompt(VALUES, kinds={}),
-                   "tdd": fixrules.tdd_prompt({k: VALUES[k] for k in fixrules.TDD_VALUES}, "fix", "## 今の段", title="# t", kinds={})}
+        prompts = {"fix": fix_prompt(VALUES, kinds={}),
+                   "tdd": tdd_prompt({k: VALUES[k] for k in fixrules.TDD_VALUES}, "fix", "## 今の段", title="# t", kinds={})}
         for name, text in prompts.items():
             with self.subTest(name):
                 self.assertIn(ask, text)
@@ -115,8 +126,8 @@ class TestSharedSource(unittest.TestCase):
         line = next(ln for ln in shared_lines() if rule in ln)
         for w in ("方針の文書", "人に見せる一覧", "人に届かない"):
             self.assertIn(w, line)
-        for text in (fixrules.fix_prompt(VALUES, kinds={}),
-                     fixrules.tdd_prompt({k: VALUES[k] for k in fixrules.TDD_VALUES}, "fix", "## 今の段", title="# t", kinds={})):
+        for text in (fix_prompt(VALUES, kinds={}),
+                     tdd_prompt({k: VALUES[k] for k in fixrules.TDD_VALUES}, "fix", "## 今の段", title="# t", kinds={})):
             self.assertIn(rule, text)
         # plan_faces は直す役の返答だけの欄なので、その答え方は直す役の決まり（返答の欄の節）に置く
         faces = next(ln for ln in (FR / "direct.md").read_text(encoding="utf-8").splitlines() if ln.startswith("- `plan_faces`:"))
@@ -161,10 +172,10 @@ class TestSharedSource(unittest.TestCase):
 
 class TestCompose(unittest.TestCase):
     def fix(self, **kw):
-        return fixrules.fix_prompt(VALUES, **kw)
+        return fix_prompt(VALUES, **kw)
 
     def tdd(self, phase="fix", **kw):
-        return fixrules.tdd_prompt(tdd_values(), phase, PHASE_TEXT, title=TITLE, **kw)
+        return tdd_prompt(tdd_values(), phase, PHASE_TEXT, title=TITLE, **kw)
 
     def test_brief_rule_reaches_fixer_and_tdd_only(self):
         """brief の決まり（brief-canon）は修正役と TDD の役の頭の次にだけ載る。裁定役と手直しの役には載せない"""
@@ -269,20 +280,6 @@ class TestCompose(unittest.TestCase):
             self.assertEqual(got["evidence-code"]["why"], "判定 stats.py", "選んだ理由（機械の事実）が見出しに在る")
             self.assertNotIn("evidence-docs", got)
 
-    def test_tdd_lane_render_carries_three_phases_and_lane_overrides(self):
-        """並べの枝の単位の決まりのファイル（docs/plans/2026-10-07-lane-nodes.md）: 輪の役の決まりの全文・test・fix・refactor の
-        約束・枝の役の読み替え（tdd-lane。cwd は単位の worktree・回ごとの指示書は別のファイル）・機械の節。振り分けの段の約束と、
-        下請け・段のコマンドの語は載らない（並べは工程の節で、役は JSON を返す）"""
-        text = fixrules.tdd_lane_render(tdd_values(), "## この単位の決まり（機械が書いた）", title=TITLE)
-        for p, b in PHASE_BULLET.items():
-            (self.assertIn if p in fixrules.LANE_PHASES else self.assertNotIn)(b, text)
-        for s in ("## 並べの枝の役の読み替え", "## このループでの読み替え", "## この単位の決まり（機械が書いた）", TITLE, "cwd（単位の worktree）",
-                  "回ごとの指示書"):
-            self.assertIn(s, text)
-        for s in ("段のコマンド", "まとめ役", "Agent で起こした"):
-            self.assertNotIn(s, text)
-        self.assertNotIn("lanes", fixrules.PHASES, "並べの周は輪の役の段でない（枝の輪が回す）")
-
     def test_tdd_phase_rules_only_for_the_current_phase(self):
         for phase in fixrules.PHASES:
             with self.subTest(phase):
@@ -321,21 +318,21 @@ class TestCompose(unittest.TestCase):
 
     def test_missing_value_is_an_error(self):
         with self.assertRaises(fixrules.Unfilled):
-            fixrules.fix_prompt({k: v for k, v in VALUES.items() if k != "plan_file"})
+            fix_prompt({k: v for k, v in VALUES.items() if k != "plan_file"})
         with self.assertRaises(fixrules.Unfilled):
             fixrules.fill("a <<nope>> b", {})
 
     def test_values_are_not_rescanned(self):
         """値の中の <<…>>・$… は字のまま（埋めた値をもう一度穴として読まない）"""
         odd = {**VALUES, "notes_file": "/x/<<plan_file>>/$INPUTS.plan_file"}
-        self.assertIn("`/x/<<plan_file>>/$INPUTS.plan_file`", fixrules.fix_prompt(odd))
+        self.assertIn("`/x/<<plan_file>>/$INPUTS.plan_file`", fix_prompt(odd))
 
     def test_same_inputs_same_bytes(self):
         self.assertEqual(self.fix().encode(), self.fix().encode())
-        self.assertEqual(self.fix().encode(), fixrules.fix_prompt(dict(reversed(list(VALUES.items())))).encode())
+        self.assertEqual(self.fix().encode(), fix_prompt(dict(reversed(list(VALUES.items())))).encode())
         self.assertEqual(self.tdd().encode(), self.tdd().encode())
         self.assertEqual(self.fix(reject_file="/b/r-1.txt").encode(), self.fix(reject_file="/b/r-1.txt").encode())
-        self.assertNotEqual(self.fix(), fixrules.fix_prompt({**VALUES, "plan_file": "/other"}))
+        self.assertNotEqual(self.fix(), fix_prompt({**VALUES, "plan_file": "/other"}))
 
     def test_reject_line_after_the_header(self):
         """前の回の拒否の理由はファイルのパスで、見出しの次の 1 行（fixboard.REJECT_LINE。元 rolekit と同じ文。理由の文は貼らない。R44）"""
@@ -359,7 +356,7 @@ class TestCompose(unittest.TestCase):
 
     def test_tdd_brief_after_title_before_reason(self):
         """TDD の役の指示書の頭: 題 → brief の節 → 前の回に拒んだ理由"""
-        text = fixrules.tdd_prompt(tdd_values(), "fix", PHASE_TEXT, title=TITLE, reason="R", brief="## 要求の正本（brief）\n\nX")
+        text = tdd_prompt(tdd_values(), "fix", PHASE_TEXT, title=TITLE, reason="R", brief="## 要求の正本（brief）\n\nX")
         self.assertLess(text.index(TITLE), text.index("## 要求の正本（brief）"))
         self.assertLess(text.index("## 要求の正本（brief）"), text.index("前の回の返答を機械が拒んだ理由"))
 
@@ -547,61 +544,16 @@ class TestSeatParts(unittest.TestCase):
         self.assertNotIn("seat", [pid for pid, _, _ in fixrules.tdd_parts(tdd_values())])
 
     def test_prompts_pass_the_seat_through(self):
-        self.assertIn("座の文 S", fixrules.fix_prompt(VALUES, seat="座の文 S"))
-        self.assertIn("座の文 S", fixrules.tdd_prompt(tdd_values(), "fix", PHASE_TEXT, title=TITLE, seat="座の文 S"))
-        self.assertEqual(fixrules.fix_prompt(VALUES), fixrules.fix_prompt(VALUES, seat=""))
+        self.assertIn("座の文 S", fix_prompt(VALUES, seat="座の文 S"))
+        self.assertIn("座の文 S", tdd_prompt(tdd_values(), "fix", PHASE_TEXT, title=TITLE, seat="座の文 S"))
+        self.assertEqual(fix_prompt(VALUES), fix_prompt(VALUES, seat=""))
 
-class LanesAndItemsCase(unittest.TestCase):
-    """修正役の並べの枝の結末（置き場の fix-lanes-out.json・fix-lanes.md）の読み口と、承認済みの項目の範囲（item_ranges）。
-    置き場 b は fix の run の置き場のフォルダ（元の盤面の b.work(<名>) は置き場の <名>）"""
+
+class BriefUnitsCase(unittest.TestCase):
+    """brief の行の単位の書き方（planbrief.unit_note）と、修正役の座の理由・下請けを起こす単位"""
 
     ROWS = [{"item": 1, "unit_keys": ["a: 分母"], "file": "/b/r1/brief-1.md", "sha256": "0" * 64},
             {"item": 2, "unit_keys": ["b: 上限", "c: 外"], "file": "/b/r1/brief-2.md", "sha256": "1" * 64}]
-
-    def place(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        return pathlib.Path(tmp.name)
-
-    def test_overlap_line_names_what_the_lanes_merged(self):
-        """出し直しの指示書の頭の 1 行は、修正役の並べの枝の締めが記録に残した重なりのファイルと、それを変えた当てた項目を名指す"""
-        b = self.place()
-        self.assertEqual(fixrules.overlap_line(b), "", "枝の結末が無ければ空")
-        rec = b / fixrules.LANES_RECORD
-        rec.write_text(json.dumps({"items": [], "shared": []}), encoding="utf-8")
-        self.assertEqual(fixrules.overlap_line(b), "", "重なりのファイルが無ければ空")
-        rec.write_text(json.dumps({"shared": ["report.py"], "items": [
-            {"item": 1, "outcome": "merged", "files": ["report.py"], "changed": ["a"]},
-            {"item": 2, "outcome": "merged", "files": ["report.py", "x.py"], "changed": ["b"]},
-            {"item": 3, "outcome": "merged", "files": ["y.py"], "changed": ["c"]},
-            {"item": 4, "outcome": "serial", "files": [], "changed": []}]}), encoding="utf-8")
-        self.assertEqual(fixrules.overlap_line(b), fixrules.OVERLAP_LINE.format(items="1・2", files="report.py"))
-        self.assertEqual(fixrules.lanes_merged(b), {"a", "b", "c"}, "当てた項目の直した単位だけ（戻した項目の単位は直す義務のまま）")
-
-    def test_lanes_text_names_the_summary_only_when_the_lanes_ran(self):
-        b = self.place()
-        self.assertEqual(fixrules.lanes_text(b), "")
-        (b / fixrules.LANES_RECORD).write_text(json.dumps({"items": []}), encoding="utf-8")
-        self.assertEqual(fixrules.lanes_text(b), "", "本文が無ければ載せない")
-        (b / fixrules.LANES_SUMMARY).write_text("# 結末\n", encoding="utf-8")
-        text = fixrules.lanes_text(b)
-        self.assertIn(str(b / fixrules.LANES_SUMMARY), text)
-        self.assertIn("下請けを起こさず", text)
-        parts = fixrules.fix_parts(VALUES, lanes=text)
-        self.assertEqual([p[0] for p in parts][:3], ["fix-head", "brief-canon", "lanes"], "節 lanes は brief の後")
-
-    def test_item_ranges_read_allowed_paths_and_tests(self):
-        """承認済みの項目は値か口で受ける（元は盤面の planmarks.approved_items(b)）。口が控えの壊れを出せば {}"""
-        items = [{"item": 1, "allowed_paths": ["a/*.py"], "tests": [{"id": "tests/test_a.py::test_x"}]}, {"item": 2}]
-        self.assertEqual(fixrules.item_ranges(items), {1: ["a/*.py", "tests/test_a.py"], 2: None})
-        self.assertEqual(fixrules.item_ranges(lambda: items), {1: ["a/*.py", "tests/test_a.py"], 2: None})
-        self.assertEqual(fixrules.item_ranges(None), {})
-
-        def broken():
-            raise fixrules.planmarks.FieldsBroken("欄の控えが凍結の印と違う")
-        self.assertEqual(fixrules.item_ranges(broken), {})
-        self.assertEqual(fixrules.test_files(items, [1]), ["tests/test_a.py"])
-        self.assertEqual(fixrules.test_files(broken, [1]), [])
 
     def test_unit_note_is_shared_with_head_text(self):
         import planbrief
@@ -673,7 +625,7 @@ class StartValuesCase(unittest.TestCase):
     「人の方針の文書は無い」「依頼の文のファイルは無い」と 1 行ずつ書く（黙って抜かない。計画 fix の指示書に始めの記録の値を差し込む所）"""
 
     def test_empty_values_say_none(self):
-        for text in (fixrules.fix_prompt(VALUES), fixrules.tdd_prompt(tdd_values(), "fix", PHASE_TEXT, title=TITLE),
+        for text in (fix_prompt(VALUES), tdd_prompt(tdd_values(), "fix", PHASE_TEXT, title=TITLE),
                      fixrules.ruler_prompt({k: "" for k in fixrules.RULER_VALUES})):
             with self.subTest(text[:40]):
                 self.assertIn(fixrules.NO_POLICY_LINE, text.splitlines())
@@ -681,7 +633,7 @@ class StartValuesCase(unittest.TestCase):
 
     def test_given_values_are_named(self):
         vals = {**VALUES, "policy_path": "/s/policy.md", "request_file": "/s/request.md"}
-        text = fixrules.fix_prompt(vals)
+        text = fix_prompt(vals)
         self.assertIn(fixrules.POLICY_LINE.format(path="/s/policy.md"), text)
         self.assertIn(fixrules.REQUEST_LINE.format(path="/s/request.md"), text)
         self.assertNotIn(fixrules.NO_POLICY_LINE, text)
@@ -691,7 +643,7 @@ class StartValuesCase(unittest.TestCase):
                          [fixrules.NO_POLICY_LINE, fixrules.NO_REQUEST_LINE])
 
     def test_lines_sit_after_the_title_and_before_the_rules(self):
-        text = fixrules.tdd_prompt(tdd_values(), "fix", PHASE_TEXT, title=TITLE, reason="- R")
+        text = tdd_prompt(tdd_values(), "fix", PHASE_TEXT, title=TITLE, reason="- R")
         self.assertEqual(text.split("\n")[1], TITLE)
         self.assertLess(text.index("- R"), text.index(fixrules.NO_POLICY_LINE))
         self.assertLess(text.index(fixrules.NO_REQUEST_LINE), text.index(fixrules.shared()))

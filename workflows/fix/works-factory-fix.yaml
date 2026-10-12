@@ -247,18 +247,18 @@ nodes:
                   additionalProperties: false
                   required: [id, decision, text, limits]
                   properties:
-                    id: {type: string, minLength: 1}
+                    id: {type: string, minLength: 1, pattern: '\S'}
                     decision:
                       type: string
                       enum: [fix_test_scope, fix_code_as, ask_human, replace_query, fix_plan_item]
-                    text: {type: string, minLength: 10}
+                    text: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
                     limits:
                       type: array
-                      items: {type: string, minLength: 1}
+                      items: {type: string, minLength: 1, pattern: '\S'}
                     grounds:
                       type: array
-                      items: {type: string, minLength: 3}
-                    request_searched: {type: string, minLength: 10}
+                      items: {type: string, minLength: 3, pattern: '\S[\s\S]{1,}\S'}
+                    request_searched: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
                     query:
                       type: object
                       additionalProperties: false
@@ -271,12 +271,12 @@ nodes:
                         hits:
                           type: array
                           maxItems: 20
-                          items: {type: string, minLength: 1}
+                          items: {type: string, minLength: 1, pattern: '\S'}
                           minItems: 1
                         misses:
                           type: array
                           maxItems: 20
-                          items: {type: string, minLength: 1}
+                          items: {type: string, minLength: 1, pattern: '\S'}
 
         - id: rule-accept
           script: rule_accept
@@ -924,6 +924,8 @@ nodes:
           runtime: uv
           mutates_checkout: false
           timeout: 1728000000
+          with:
+            n: 1
           output_format: &refix_prep_out
             type: object
             additionalProperties: false
@@ -985,6 +987,7 @@ nodes:
           with:
             reply: {from: "$refix.output", if_skipped: null}
             iteration: $refix-prep.output.iteration
+            n: 1
           output_format: *accept_out
 
   # 2 回目の審査（1 回目の手直しが走った時だけ。走らなければ切りの節が go: false）
@@ -1076,10 +1079,12 @@ nodes:
       until_bash: done=$refix2-accept.output.done; test "$done" = true
       nodes:
         - id: refix2-prep
-          script: refix2_prep
+          script: refix_prep
           runtime: uv
           mutates_checkout: false
           timeout: 1728000000
+          with:
+            n: 2
           output_format: *refix_prep_out
 
         - id: refix2
@@ -1126,7 +1131,7 @@ nodes:
                     why: {type: string, minLength: 10}
 
         - id: refix2-accept
-          script: refix2_accept
+          script: refix_accept
           runtime: uv
           depends_on: [refix2-prep, refix2]
           trigger_rule: none_failed_min_one_success
@@ -1134,6 +1139,7 @@ nodes:
           with:
             reply: {from: "$refix2.output", if_skipped: null}
             iteration: $refix2-prep.output.iteration
+            n: 2
           output_format: *accept_out
 
   # ---- 形 group（組ごとの子の run。単独の run でも回る） ----

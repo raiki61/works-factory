@@ -30,7 +30,7 @@ def main() -> dict:
         raise ValueError(why)
     iteration = int(os.environ["INPUTS_ITERATION"])
     place, repo = boundary.place("fix"), boundary.work_tree()
-    got = ruling.accept_rule(reply, place, fixboard.base_rev_of(place), repo, iteration=iteration,
+    got = ruling.accept_rule(reply, place, fixboard.base_rev_of(place), repo,
                              keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")))
     if got["ok"]:
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}

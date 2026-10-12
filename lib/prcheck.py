@@ -6,7 +6,7 @@
 確かめて pr-excluded.json に置く（後の役に触らせないため）。
 
 - NODE・ROLE: 節の名前と役の名前
-- EXCLUDED_FIELD・EXCLUDED_SCHEMA・EXCLUDED: 外す hunk の欄・型・置き場のファイルの名
+- EXCLUDED_FIELD・EXCLUDED: 外す hunk の欄・置き場のファイルの名
 - BRIEF: 役への渡し物のファイルの名
 - check_excluded: 外す hunk の誤りの一覧。_anchored: 受け付けた時の行の中身の印を足す。_write: 置き場に書く
 - DRAFTS・draft_lines(rows): 判定の隣の申し送りの下書き [{pr, files, note}] のファイルの名（docs/design.md の隣のファイル）と報告の行
@@ -23,10 +23,7 @@ sys.dont_write_bytecode = True
 CORE = pathlib.Path(__file__).resolve().parent
 if str(CORE) not in sys.path:
     sys.path.insert(0, str(CORE))
-if str(CORE / "graphloops") not in sys.path:   # 元は board の import が写しの engine を sys.path に足していた
-    sys.path.insert(0, str(CORE / "graphloops"))
 
-from engine.schema import validate_schema  # noqa: E402
 import marks  # noqa: E402
 
 NODE = "p0.parallel_pr"
@@ -37,11 +34,6 @@ DOWNGRADE_KEYS = ("node", "what", "versus")
 # 本ループのスコープから外す hunk（works だけの欄。写しの schema の conflicts[] は additionalProperties: false で足せないので、
 # 返答の一番上に置き、受け付けが外してから盤面に渡す）。start・end は今の作業ツリーのファイルの行（1 始まり・両端を含む）
 EXCLUDED_FIELD = "excluded"
-EXCLUDED_SCHEMA = {"type": "array", "items": {
-    "type": "object", "required": ["pr", "file", "start", "end", "why"], "additionalProperties": False,
-    "properties": {"pr": {"type": "string", "minLength": 1}, "file": {"type": "string", "minLength": 1},
-                   "start": {"type": "integer", "minimum": 1}, "end": {"type": "integer", "minimum": 1},
-                   "why": {"type": "string", "minLength": 1}}}}
 EXCLUDED = marks.KINDS["pr"].file   # 受け付けた外す hunk {node, head, excluded}
 BRIEF = "pr-brief.json"         # 役への渡し物（落ちた理由・交差を取る集合・版）
 
@@ -57,14 +49,9 @@ def _anchored(excluded: list, repo) -> list:
 
 
 def check_excluded(reply: dict, repo) -> list:
-    """外す hunk（excluded）の誤りの一覧（空なら通す。返答の残りは写しの schema を通った後に呼ぶ）: 型・start <= end・PR が conflicts に在りファイルがその行の files に在る・
+    """外す hunk（excluded）の誤りの一覧（空なら通す。型は役の節の output_format が照らした後に呼ぶ）: start <= end・PR が conflicts に在りファイルがその行の files に在る・
     ファイルが今の作業ツリーに在り end が行の数を超えない・外す hunk を持つ PR の行に申し送りの下書き（note）が在る"""
-    ex = reply.get("excluded")
-    if ex is None:
-        return ["excluded が無い（外す hunk が無ければ空の配列）"]
-    errs = validate_schema(ex, EXCLUDED_SCHEMA)
-    if errs:
-        return [f"excluded の型: {e}" for e in errs]
+    ex = reply["excluded"]
     rows = {c.get("pr"): c for c in reply.get("conflicts") or [] if isinstance(c, dict)}
     out = []
     for i, h in enumerate(ex):

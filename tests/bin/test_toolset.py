@@ -1287,8 +1287,7 @@ class NewerCase(Base):
         # newer が読む pack は偽の物（写しの固定の commit を試験が書き換えても本物の borrow.json に触れない）
         self.pack = self.tmp / "pack"
         shutil.copytree(LIB / "borrow", self.pack / "borrow")
-        for name in ("spseam.py", "changemap.py"):
-            (self.pack / name).symlink_to(LIB / name)
+        (self.pack / "spseam.py").symlink_to(LIB / "spseam.py")
         shutil.copy2(TOOLSET, self.pack / "toolset.py")
         self.upstream = self.make_upstream(PIN_V)
 
@@ -1611,6 +1610,28 @@ class NewerCase(Base):
         _put(bindir / "git", f"#!/bin/sh\nprintf '%s\\trefs/tags/v%s\\n' {commit} {PIN_V}\necho 'no tab here'\n", 0o755)
         out = self.newer_out(PATH=f"{bindir}{os.pathsep}{os.environ['PATH']}")
         self.assert_unchecked(out, "上流の tag（git ls-remote の行を読めない")
+
+    def test_upstream_versions_calls_git_directly(self):
+        """偽の pack は toolset.py と spseam.py だけで、git の口の写しを持たない。git には ls-remote --tags <上流> だけを渡し、
+        端末に認証を聞かせず（GIT_TERMINAL_PROMPT=0）、標準入力を閉じる"""
+        commit = toolset.load_borrow(self.pack)["superpowers"]["pin"]["commit"]
+        bindir, seen = self.tmp / "fake-bin", self.tmp / "seen"
+        _put(bindir / "git", "#!/bin/sh\n"
+             f"printf '%s\\n' \"$*\" \"$GIT_TERMINAL_PROMPT\" > {shlex.quote(str(seen))}\n"
+             f"if read -r _; then echo open >> {shlex.quote(str(seen))}; else echo closed >> {shlex.quote(str(seen))}; fi\n"
+             f"printf '%s\\trefs/tags/v%s\\n' {commit} {PIN_V}\n", 0o755)
+        self.assertEqual(sorted(p.name for p in self.pack.iterdir()), ["borrow", "spseam.py", "toolset.py"])
+        self.add_version(PIN_V)
+        out = self.newer_out(PATH=f"{bindir}{os.pathsep}{os.environ['PATH']}")
+        self.assertNotIn("確かめられなかった", out)
+        self.assertEqual(seen.read_text(encoding="utf-8").splitlines(),
+                         [f"ls-remote --tags {toolset.UPSTREAM_URL}", "0", "closed"])
+
+    def test_upstream_versions_names_missing_git(self):
+        no_git = self.tmp / "no-git"
+        no_git.mkdir()
+        with mock.patch.dict(os.environ, {"PATH": str(no_git)}):
+            self.assertEqual(toolset._upstream_versions(toolset._version_key(PIN_V)), ([], "git が見つからない", None))
 
     def test_newer_names_new_tag_and_unchecked_when_pinned_tag_is_missing(self):
         newer = _bumped(PIN_V)

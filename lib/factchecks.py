@@ -28,9 +28,6 @@ import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように（必ず import より前）
-_CORE = Path(__file__).resolve().parents[2] / ".shared" / "core"
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
 _LIB = str(Path(__file__).resolve().parent)
 if _LIB not in sys.path:
     sys.path.append(_LIB)
@@ -167,20 +164,6 @@ def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: 
             ask = consult.offered(consult_place, pass_)
         problems = [planscope.reject_head(ask) + problems[0], *problems[1:]]
     return problems, note
-
-
-def split_overflow(texts, overflow) -> tuple:
-    """拒否の文 texts のうち、はみ出しの行（overflow の各行の line。planscope の記録・凍ったファイルの頼み・事後の関門の頼みの形）を
-    含む文（頭に reject_head が付いても外れない）を外す。返り (残りの文, 文が当たったはみ出し)。範囲の外の変更は、拒まずに相談に
-    回すか、機械が戻す物（修正の輪の受け付け）。修正役の並べの枝は枝の拒否に積まず、結末に名指して本線の受け付けに任せる"""
-    rest, hit = [], []
-    for text in texts:
-        rows = [o for o in overflow if isinstance(o, dict) and o.get("line") and o["line"] in text]
-        if rows:
-            hit += [o for o in rows if o not in hit]
-        else:
-            rest.append(text)
-    return rest, hit
 
 
 def declared_files(rows, repo) -> set:

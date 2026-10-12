@@ -12,9 +12,8 @@ FILE に周ごとに控え、判定の写し judgment.json に戻す。次の ru
 目的の外から運んだ印 MARK と下書きの印 draft・source つきで載せる（依頼の入口が拒むので、人が見直すまで次の run の目的に
 ならない）。この run では直さない。
 
-- FIELD・NODES・ROW_SCHEMA・with_field(node, schema): 欄の名・欄を持つ節・行の型・役の型に欄を足した写し
+- FIELD・NODES・ROW_SCHEMA: 欄の名・欄を持つ節・行の型
 - split(reply): （欄を外した返答の写し, 行の一覧）
-- material_rows(b): 盤面の材料の行 [{where, text, …, from}]（from は出どころの節と目の名）
 - problems(rows, material): 行の誤り（形・材料に当たらない where）。1 件 1 文
 - save(board_dir, rnd, rows, material)・restore(doc, board_dir, rnd): 周の分を控える・判定の写しに戻す
 - next_items(board_dir)・report_lines(board_dir)・count_line(board_dir, next_file, section): 次の run の依頼の行・報告の本文の行・
@@ -49,12 +48,6 @@ ROW_SCHEMA = {
 }
 
 
-def with_field(node: str, schema: dict) -> dict:
-    """役の型に out_of_purpose（任意の欄。古い返答を拒まない）を足した写し（NODES でなければそのまま）"""
-    return marks.add("purpose", node, schema, {FIELD: {
-        "type": "array", "items": ROW_SCHEMA, "note": "凍結した目的の外として単位にしなかった材料の所見（次の run の依頼に運ぶ）"}})
-
-
 def split(reply) -> tuple:
     """（欄を外した返答の写し, 行の一覧。欄が無ければ []）。dict でない返答はそのまま"""
     if not isinstance(reply, dict):
@@ -82,19 +75,6 @@ def _walk(node, origin: str, out: list) -> None:
     here = f"{origin} / {node['skill']}" if isinstance(node.get("skill"), str) and node["skill"] else origin
     for v in node.values():
         _walk(v, here, out)
-
-
-def material_rows(b) -> list:
-    """盤面の材料の行: P1 の節（p1.*）の最新の出力の中の where・text を持つ行の全部と、今の周に積まれた依頼の行。
-    行は {where, text, 任意の mechanism・measured・false_positive_if, from（出どころの節と目の名）}"""
-    out = []
-    for nid in sorted((b.state.get("outputs") or {})):
-        if nid.startswith("p1."):
-            _walk(b.latest_output(nid), nid, out)
-    for batch in ((b.record.get("process") or {}).get("request_findings") or []):
-        if isinstance(batch, dict) and batch.get("round") == b.round:
-            _walk(batch.get("findings") or [], f"依頼（{batch.get('origin') or ''}）", out)
-    return out
 
 
 def _hits(row: dict, material: list) -> list:

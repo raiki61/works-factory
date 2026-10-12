@@ -34,7 +34,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import os
 import pathlib
 import posixpath
 import subprocess
@@ -57,6 +56,7 @@ import converge  # noqa: E402
 import depth  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
+import jsonfile  # noqa: E402
 import impact  # noqa: E402
 import judgeverify  # noqa: E402
 import libdocs  # noqa: E402
@@ -117,20 +117,8 @@ NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に�
 
 
 # ---------------------------------------------------------------- 読み書きの小道具
-def _read_json(path, default=None):
-    try:
-        return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return default
-
-
 def _write_json(path, doc) -> pathlib.Path:
-    path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
-    return path
+    return jsonfile.write(path, doc, parents=True)
 
 
 class _Unreadable(Exception):
@@ -217,7 +205,7 @@ def units_of(raw: str):
 def read_round(round_dir) -> dict:
     """周のフォルダの round.json（無い・読めなければ、フォルダの名の番号と形 plan・役を起こさない形・構造の置き場 UNREAD_STRUCTURE）。
     structure は置き場 plan/ からの相対のパス"""
-    got = _read_json(pathlib.Path(round_dir) / ROUND_FILE, {})
+    got = jsonfile.read_or(pathlib.Path(round_dir) / ROUND_FILE, {})
     name = pathlib.Path(round_dir).name
     base = {"round": int(name[1:]) if name[:1] == "r" and name[1:].isdigit() else 1, "mode": "plan", "go": False, "why": "", "items": [],
             "structure": UNREAD_STRUCTURE}
@@ -483,12 +471,12 @@ def converge_record(plan_dir) -> dict:
         if read_round(d)["mode"] != "plan":
             continue
         doc["round"] = round_no(d)
-        review = _read_json(d / REVIEW_FILE)
+        review = jsonfile.read_or(d / REVIEW_FILE)
         if isinstance(review, dict) and doc.get("plan"):
             resolved = review.get(converge.RESOLVED)
             converge.add_pass(doc, review, answers=copy.deepcopy(answers),
                               resolved=resolved if isinstance(resolved, list) else [])
-        reply = _read_json(d / REPLY_FILE)
+        reply = jsonfile.read_or(d / REPLY_FILE)
         if isinstance(reply, dict) and isinstance(reply.get("plan"), list):
             doc["plan"] = converge.plan_rows(reply["plan"])
             answers = _rows(reply, converge.ANSWERS)
@@ -538,7 +526,7 @@ def open_round(plan_dir, *, ruling, judgment, review, units, repo, why: str = ""
         if prev is None:
             why = "直す元の承認済みの修正案が無い"
         else:
-            items, why = planmarks.handed(ruling, len(_rows(_read_json(prev / REPLY_FILE), "plan")))
+            items, why = planmarks.handed(ruling, len(_rows(jsonfile.read_or(prev / REPLY_FILE), "plan")))
     structure = (f"{d.name}/{STRUCTURE_DIR}" if why
                  else structure_dir(plan_dir, units, repo, prev).relative_to(plan_dir).as_posix())
     doc = {"round": k, "mode": mode, "go": not why, "why": why, "items": items, "structure": structure, "at": reads.stamp()}
@@ -585,7 +573,7 @@ def measure(out_dir, units, root, policy_path: str) -> dict:
     _write_json(out_dir / SKIPPED_FILE, skipped)
     t0, started = time.monotonic(), _now()
     design.write_bytes(b"")
-    (out_dir / eye.EYE_FILE).unlink(missing_ok=True)
+    eye.reset(out_dir)
     root = pathlib.Path(root).resolve()
     doc = {"status": "ok", "reason": "", "root": str(root), "policy_path": policy_path, "units": []}
     try:
@@ -610,8 +598,9 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _outcome(doc: dict, kept: dict) -> tuple:
-    """(status, reason)（元 works/blk-structure/scripts/collect.py の outcome。輪の出口の代わりに目の控え eye.json を読む）"""
+def _outcome(doc: dict, kept: dict, rejects: list) -> tuple:
+    """(status, reason)（元 works/blk-structure/scripts/collect.py の outcome。輪の出口の代わりに目の控え eye.json と
+    拒否の控え rejects（rolekit.rejected）を読む）"""
     if doc.get("status") != "ok":
         return "failed", f"実測が落ちた: {doc.get('reason') or '理由の記録が無い'}"
     if not eye.due(doc):
@@ -619,7 +608,7 @@ def _outcome(doc: dict, kept: dict) -> tuple:
     if kept.get("status") == "ok":
         return "ok", ""
     if kept.get("status") == "gave_up":
-        return "failed", f"構造の目の返答が {kept.get('attempt') or '?'} 回とも受け付けで拒まれた: {kept.get('reason') or ''}"
+        return "failed", f"構造の目の返答が {len(rejects) or '?'} 回とも受け付けで拒まれた: {rejects[-1] if rejects else ''}"
     return "failed", "構造の目の会話が落ちたか走らなかった（目の受け付けの控えが無いか途中のまま）"
 
 
@@ -635,10 +624,10 @@ def write_state(out_dir, *, skipped: str = "") -> pathlib.Path:
         (out_dir / DESIGN_FILE).write_bytes(b"")
         return structmark.write(out_dir, status="failed", reason=f"役を起こさない周で、構造を測らなかった: {skipped}",
                                 design_file=str(out_dir / DESIGN_FILE), wall_s=0)
-    doc = _read_json(out_dir / STRUCTURE_FILE)
+    doc = jsonfile.read_or(out_dir / STRUCTURE_FILE)
     kept = eye.state(out_dir)
     if isinstance(doc, dict):
-        status, reason = _outcome(doc, kept)
+        status, reason = _outcome(doc, kept, rolekit.rejected(out_dir, eye.NAME))
     else:
         status, reason = "failed", f"段 A の {STRUCTURE_FILE} が読めない"
     return structmark.write(out_dir, status=status, reason=reason, design_file=str(out_dir / DESIGN_FILE),
@@ -753,9 +742,9 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
     common = [head, carried, concepthome.section(repo)]
     if mode == "replan":
         prev = latest(plan_dir, before=round_dir)
-        rows = _rows(_read_json(prev / REPLY_FILE), "plan") if prev else []
+        rows = _rows(jsonfile.read_or(prev / REPLY_FILE), "plan") if prev else []
         items = [i for i in read_round(round_dir)["items"] if 1 <= i <= len(rows)]
-        fields = (_read_json(prev / planmarks.FIELDS_FILE, {}) if prev else {}).get("fields") or []
+        fields = (jsonfile.read_or(prev / planmarks.FIELDS_FILE, {}) if prev else {}).get("fields") or []
         parts = [*common, replan.REPLAN_ASK,
                  *(replan_section(i, rows[i - 1], conflict_rows(conflicts, i, rows[i - 1]),
                                   str(item_brief(round_dir, i, rows[i - 1], fields[i - 1] if i <= len(fields) else {},
@@ -763,9 +752,9 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
                    for i in items)]
     else:
         owed, opened, _ = plan_slots(judgment)
-        skipped = _read_json(pathlib.Path(structure_dir_) / SKIPPED_FILE, [])
+        skipped = jsonfile.read_or(pathlib.Path(structure_dir_) / SKIPPED_FILE, [])
         world = worldmark.section(world_rows or [])
-        doc = _read_json(round_dir / RIPPLE_UNITS_FILE)
+        doc = jsonfile.read_or(round_dir / RIPPLE_UNITS_FILE)
         record = converge_record(plan_dir)
         parts = [*common, units_section(judgment, units, skipped, converge.filled_units(record)),
                  repo_line(repo, review_rev, base, review_md),
@@ -793,7 +782,7 @@ def _prior_section(round_dir, plan_dir, record: dict) -> str:
     lines = [PRIOR_HEAD, "",
              f"- 前の周の案: {prev / FIX_PLAN_FILE} と {prev / planmarks.FIELDS_FILE}（Read で読め。閉じた項目はこの形のまま変えない）",
              f"- 事前審査の指摘: {review}" if review.is_file() else "- 事前審査の指摘: 受けていない（読めなかったか、渡されなかった）"]
-    rip = _read_json(prev / RIPPLE_FILE)
+    rip = jsonfile.read_or(prev / RIPPLE_FILE)
     return "\n\n".join(x for x in ("\n".join(lines), converge.revise_section(record) if review.is_file() else "",
                                     ripple.section(rip) if isinstance(rip, dict) else "") if x)
 
@@ -822,7 +811,7 @@ def snap_tree(path, repo) -> pathlib.Path:
 def moved(path, repo, keys=accept.TREE_KEYS) -> str:
     """役が作業ツリーを変えた・HEAD や枝を動かした訳（keys の欄で比べる。変えていなければ空）。起こす前の姿 path（snap_tree）が
     読めなければその訳"""
-    before = _read_json(path)
+    before = jsonfile.read_or(path)
     if not isinstance(before, dict):
         return planblk.NO_TREE.format(name=pathlib.Path(path).name)
     changes = accept.tree_moved(before, pathlib.Path(repo), keys=keys)
@@ -861,7 +850,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
         return {"ok": False, "reason": MALFORMED_REJECT}
     record = converge_record(plan_dir)
     bare, answers = converge.split("plan-revise", reply)
-    slot_list = _read_json(round_dir / SLOTS_FILE)
+    slot_list = jsonfile.read_or(round_dir / SLOTS_FILE)
     got = named(bare, slot_list if isinstance(slot_list, list) else slots(judgment))
     whole, closed, dropped = converge.splice(record, got["plan"])
     plan = {**got, "plan": whole}
@@ -899,7 +888,7 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
 def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_rev: str, keys=accept.TREE_KEYS) -> dict:
     """修正案の役の直した項目の返答（形 replan）を受け付ける。拒否は REPLAN_REJECT と誤りの全部。通れば replan.json（行は
     replan.TRIP_KEYS の形。contract_changed・widened は事実だけ）と、直した項目を差し替えた案の全体を p2.fix_plan.json・
-    plan-fields.json（amended に直した項目の核の欄。planmarks.amend と同じ）・reply.json に書き、trace に planmarks.AMEND_OP を書く。
+    plan-fields.json（amended に直した項目の核の欄）・reply.json に書き、trace に planmarks.AMEND_OP を書く。
     作業ツリーの比べと控えを置けない時は take_plan と同じ"""
     round_dir = pathlib.Path(round_dir)
     why = moved(round_dir / TREE_FILE, repo, keys)
@@ -908,7 +897,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
     prev = latest(plan_dir, before=round_dir)
     if prev is None:
         return {"ok": False, "reason": f"{replan.REPLAN_REJECT}\n  - 直す元の承認済みの修正案が無い"}
-    old = _rows(_read_json(prev / REPLY_FILE), "plan")
+    old = _rows(jsonfile.read_or(prev / REPLY_FILE), "plan")
     rows = [{**dict.fromkeys(replan.TRIP_KEYS), "item": n, "units": list(old[n - 1].get("unit_keys") or []),
              "old": copy.deepcopy(old[n - 1])} for n in items if 1 <= n <= len(old)]
     rev = base_rev or "HEAD"
@@ -927,7 +916,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
     texts, unread = base_test_texts(repo, rev)
     if unread:
         planmarks.append_trace(round_dir, BASE_TESTS_UNREAD_OP, rev=rev, unread=unread)
-    kept = _read_json(prev / planmarks.FIELDS_FILE, {})
+    kept = jsonfile.read_or(prev / planmarks.FIELDS_FILE, {})
     fields = revised_fields(kept.get("fields") or [], rows, repo, base_tests=texts)
     amended = {int(n): core for n, core in (kept.get(planmarks.AMENDED_KEY) or {}).items()}
     whole = copy.deepcopy(old)
@@ -988,7 +977,7 @@ def note_gave_up(round_dir, plan_dir, conflicts) -> None:
     if rnd["mode"] != "replan" or not reason or (round_dir / REPLY_FILE).is_file():
         return
     prev = latest(plan_dir, before=round_dir)
-    old = _rows(_read_json(prev / REPLY_FILE), "plan") if prev else []
+    old = _rows(jsonfile.read_or(prev / REPLY_FILE), "plan") if prev else []
     why = planblk.PLAN_GAVE_UP_WHY.format(reason=reason)
     _write_json(round_dir / planblk.REPLAN_GAVE_UP_FILE,
                 [{"item": n, "why": why, "ruling": ruling_text(conflict_rows(conflicts, n, old[n - 1]))}
@@ -1008,7 +997,7 @@ def accepted_fields(round_dir):
     round_dir = pathlib.Path(round_dir)
     if not (round_dir / REPLY_FILE).is_file():
         return None
-    fields = _read_json(round_dir / planmarks.FIELDS_FILE, {}).get("fields")
+    fields = jsonfile.read_or(round_dir / planmarks.FIELDS_FILE, {}).get("fields")
     return fields if isinstance(fields, list) and fields else None
 
 

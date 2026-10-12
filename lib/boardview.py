@@ -42,6 +42,7 @@ import design
 import gate_axes
 import gatemarks
 import gatepolicy
+import jsonfile
 import planblk
 import planfile
 import planmarks
@@ -259,7 +260,7 @@ def _tracer(folder: pathlib.Path):
 
 
 def place(folder) -> types.SimpleNamespace:
-    """書き手（converge の note_plan・note_answers・record_pass・stash_rejects）の書き先: round（いつも 1）・dir・work(name)・
+    """書き手（converge の note_plan・note_answers・record_pass）の書き先: round（いつも 1）・dir・work(name)・
     trace(op, **row)。置き場 folder の本物のファイルに書く"""
     d = pathlib.Path(folder)
     return types.SimpleNamespace(round=1, dir=d, work=lambda name: d / name, trace=_tracer(d))
@@ -298,12 +299,7 @@ def _read_json(path):
 
 
 def _write_json(path, doc) -> pathlib.Path:
-    p = pathlib.Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    tmp.replace(p)
-    return p
+    return jsonfile.write(path, doc, parents=True)
 
 
 def _sibling(pointed, name: str):
@@ -427,7 +423,8 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     関所の答え（JSON の値。take_gate_answers）、round_limit は線の往復の輪の安全の上限（max_iterations と同じ数。輪の外で
     回す時は None。止め時の決まりではない: converge.decide）、ruling は裁かれた項目の番号の字（planmarks.handed。番号でない行と
     案の外の番号は訳つきの Missing）、review_schema・design_schema は事前審査と独立設計の役の型
-    （ブロックの YAML の役の節の output_format）。形 replan では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、
+    （ブロックの YAML の役の節の output_format。下請けの答えのファイルの faces・shrink と design.json の読み直しが照らす）。形 replan
+    では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、
     直した項目と申し出と裁定の行と並べて材料に置く（replan_items）。
     返り {k（plan-fields.json の round）, form（ruling が空なら review、在れば replan）, tree, r2_go}"""
     d = pathlib.Path(folder)
@@ -716,7 +713,7 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
 
 
 def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
-    """独立設計の受け付け: 作業ツリーが役の前と同じ（keys の欄で比べる）→ 型（差し込みの頭が置いた材料の役の型） → 問いが立たない時は根拠の名指し（パス:行）が固めた版に在る。通れば
+    """独立設計の受け付け: 作業ツリーが役の前と同じ（keys の欄で比べる）→ 問いが立たない時は根拠の名指し（パス:行）が固めた版に在る。通れば
     design.json と、返答が『渡されていない』と書いた文と控えの given の対（PREMISES_FILE の claims）。拒みは控えに積み、
     GIVE_UP_AFTER 回目で done・give_up。返り {ok, done, give_up, reason}"""
     d = pathlib.Path(folder)
@@ -728,7 +725,6 @@ def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
         moved = planfile.moved(d / R2_TREE, repo, keys)
         if moved:
             raise Reject(moved)
-        accept.type_errors(reply, read_open(d)["design_schema"], "独立設計の返答")
         if not reply["question_stands"]:
             misses = design.anchor_misses(reply.get("premise_invalid_reason") or reply["reason"], repo)
             if misses:
@@ -882,7 +878,7 @@ def _lines(head: str, gaps: list) -> str:
 
 
 def take_review(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
-    """事前審査の受け付け（元 planblk.take と with_converge の事前審査の側）。作業ツリーが役の前と同じ（keys の欄で比べる）→ 推しの形 → 型（役の型） → 木なら下請けの
+    """事前審査の受け付け（元 planblk.take と with_converge の事前審査の側）。作業ツリーが役の前と同じ（keys の欄で比べる）→ 推しの形 → 木なら下請けの
     答えのまとめ（planblk.tree_merge）・木でなければ独立設計の引用と design_map（planblk.design_gaps）→ 前の往復の block の行き先
     （converge.resolved_gaps）→ 審査の決まり（rules.plan_review_output）。通れば決め手の欄を gate-marks.json に置き、形 review なら
     往復を控え（converge.record_pass。計画の周 k が輪の上限 round_limit の往復は輪がもう 1 周回せないので at_cap で止める）、
@@ -905,12 +901,9 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo, keys) -> di
     moved = planfile.moved(p / TREE_FILE, repo, keys)
     if moved:
         raise Reject(moved)
-    if not isinstance(reply.get("faces"), list):
-        accept.type_errors(reply, inputs["review_schema"], "事前審査の返答")
     gaps = gatemarks.recommend_gaps(REVIEW_NODE, reply)
     if gaps:
         raise Reject(_lines(planblk.RECOMMEND_REJECT, gaps))
-    accept.type_errors(reply, inputs["review_schema"], "事前審査の返答")
     b = view(d, inputs)
     bare, resolved = converge.split("plan-review", reply)
     bare, tree = converge.tree_split(bare)

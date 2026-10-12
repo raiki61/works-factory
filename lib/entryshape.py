@@ -119,7 +119,7 @@ def refuse_empty(items: list, change, repo: pathlib.Path) -> None:
 
 
 def build(inp: dict, repo: pathlib.Path) -> dict:
-    """check_inputs の返りから、入口の入力の形（始めの記録の欄 input。約束は docs/design.md の線の start の record）を作る:
+    """入口の節（start）が確かめた入力 inp から、入口の入力の形（始めの記録の欄 input。約束は docs/design.md の線の start の record）を作る:
     {base: {rev, from, name, label}, head_rev, diff: {empty, files, stat}, requests, request_file, pr: {number, title, body} | None,
     spec}。base は差分の根（名指しが無ければ HEAD・from head）、diff は差分の根から作業ツリーの今の姿までの測り（diff_of）、
     requests は依頼の行の数、pr は PR の番号と題と本文（目的の役が出典 ① PR 説明として読む。元は盤面の根の pr.md を線が
@@ -157,7 +157,7 @@ def request_text(inp: dict) -> str:
 
 def named(raw: dict, repo: pathlib.Path):
     """入力 pr と依頼の欄 pr・issue が名指した (PR の番号の並び, issue の番号の並び)。依頼が読めない・形の外なら依頼の分は
-    無しにする（形の誤りは check_inputs が拒む）"""
+    無しにする（形の誤りは入口の節（start）が拒む）"""
     pr = _word(raw, "pr")
     prs, issues = ([int(pr)] if pr.isdigit() else []), []
     rel = _word(raw, "request")

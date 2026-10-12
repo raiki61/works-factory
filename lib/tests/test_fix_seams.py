@@ -6,8 +6,7 @@ tests/bin/gitkit.py と tests/e2e/target-seed/ の写しで小さなリポジト
   unittrees.apply で 2 つの組の差分を順に当てる。2 つ目が当たらない時に 1 つ目が残り、2 つ目は当たらないと返る
 - leftovers.record_ignored・remove_new_ignored: 控えに無かった無視されるファイルだけを消し、前から在った無視されるフォルダの
   中は残し、除くパスの頭の下は消さない。既定の () では除かない。控えは置き場のフォルダに置く
-- writes の除き（check・unrecorded の skip）も同じ。writes.base_test_texts は版を引数で受け、読み損ねを置き場の trace.jsonl に残す
-  （元 tests/test_plan_fields.py の TestBaseTestTexts の場合を写した）。fixboard.base_rev は元の writes.base_rev と同じ順で版を選ぶ
+- writes の除き（check・unrecorded の skip）も同じ。fixboard.base_rev は元の writes.base_rev と同じ順で版を選ぶ
 - lens の控えは置き場の lens.json。summary は差分の審査の出力をファイルのパスで受ける
 - refix・lenses・rulebook: refix.cut・accept_review・accept_fix は置き場のファイルと引数の値で回り、範囲の外の手直しを
   planrange.check_paths の行で拒む。lenses.render は役の定義の本文から、rulebook.render は fixboard.compose で指示書を組む
@@ -31,6 +30,7 @@ from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import groups  # noqa: E402
+import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
 import lens  # noqa: E402
 import unittrees  # noqa: E402
@@ -244,28 +244,7 @@ class TestWritesSeams(TempCase):
 
 
 class TestBaseTestTexts(TempCase):
-    """writes.base_test_texts: 修正前の版のテストを読み損ねたら、黙って空にせず置き場の trace.jsonl に残す
-    （元 tests/test_plan_fields.py の TestBaseTestTexts の場合を、版を引数で受ける形に写した）"""
-
-    def test_readable_base_leaves_no_trace_row(self):
-        self.assertEqual(sorted(writes.base_test_texts(self.place, self.repo, self.rev)), ["test_stats.py"])
-        self.assertEqual(_traced(self.place), [])
-
-    def test_unreadable_rev_is_traced(self):
-        self.assertEqual(writes.base_test_texts(self.place, self.repo, "0" * 40), {})
-        self.assertEqual(_traced(self.place), [{"op": writes.BASE_TESTS_UNREAD_OP, "rev": "0" * 40, "unread": ["<版>"]}])
-
-    def test_unreadable_file_is_traced_with_its_path(self):
-        real = writes.git
-
-        def flaky(repo, *args, **kw):
-            if args[0] == "show":
-                raise leftovers.Unreadable("読めない")
-            return real(repo, *args, **kw)
-
-        with mock.patch.object(writes, "git", flaky):
-            self.assertEqual(writes.base_test_texts(self.place, self.repo, self.rev), {})
-        self.assertEqual(_traced(self.place), [{"op": writes.BASE_TESTS_UNREAD_OP, "rev": self.rev, "unread": ["test_stats.py"]}])
+    """fixboard.base_rev は元の writes.base_rev と同じ順で修正前の版を選ぶ"""
 
     def test_base_rev_order(self):
         self.assertEqual(fixboard.base_rev({"inputs": {"review_rev": "abc"}}, "def"), "abc")
@@ -274,7 +253,7 @@ class TestBaseTestTexts(TempCase):
 
 
 class TestLensPlace(unittest.TestCase):
-    """lens の控え lens.json は置き場のフォルダに置き、summary は差分の審査の出力のファイルを受ける"""
+    """lens の控え lens.json は置き場のフォルダに置く"""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -296,6 +275,7 @@ class TestLensPlace(unittest.TestCase):
         self.assertIn("採った 1 件", lens.report_lines(self.place, review)[-1])
         broken = lens.summary(self.place, self.place / "none.json")
         self.assertFalse(broken["readable"])
+
 
 
 
@@ -513,7 +493,7 @@ def _fix_ok() -> dict:
 class RecountSeamCase(TempCase):
     """recount.accept_fix: 受け付けの時に数え直しの欄を照らす（元 works/tests/test_blk_fix.py の TestRecount・
     test_fix_accept_all.py の DryTakeCase の場合を写した。盤面の代わりに判定の units・直す義務・修正前の版を引数で渡す）。
-    fixboard.fix_reply・_coverage・collect は置き場のファイルで読む"""
+    fixboard.fix_reply は置き場のファイルで読む"""
 
     def setUp(self):
         super().setUp()
@@ -599,9 +579,9 @@ class RecountSeamCase(TempCase):
         self.assertEqual(cov["round"], 1)
         self.assertEqual({i["unit_key"]: (i["total"], i["after"]) for i in cov["items"]}, {R_MEAN: (1, 0), R_CLAMP: (2, 1)})
         self.assertEqual(reply["changes"][0]["coverage"]["how"], R_JUDGED[0]["class_query"]["how"], "判定者の how を書き戻す")
-        import fixboard
-        self.assertEqual(fixboard._coverage(self.place), {R_MEAN: {"before": 1, "after": 0}, R_CLAMP: {"before": 2, "after": 1}})
-        self.assertEqual(fixboard._coverage(self.place, round_=2), {}, "周が違えば空")
+        cov = json.loads((self.place / self.recount.COVERAGE_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(cov["round"], 1)
+        self.assertEqual({i["unit_key"]: (i["total"], i["after"]) for i in cov["items"]}, {R_MEAN: (1, 0), R_CLAMP: (2, 1)})
 
     def test_rejects_count_not_dropped(self):
         self.assert_rejected(_fix_ok(), R_MEAN, "母数 1", "修正の後も 1 件")
@@ -723,23 +703,6 @@ class RecountSeamCase(TempCase):
         self.assertEqual((len(got["changes"]), path), (2, f.resolve()))
         with self.assertRaises(self.recount.Unreadable):
             fixboard.fix_reply(None)
-
-    def test_collect_writes_changes_and_needs_accepted(self):
-        import fixboard
-        self.edit_tree(R_FIXED)
-        f = self.place / "fix-reply.json"
-        f.write_text(json.dumps(_fix_ok(), ensure_ascii=False), encoding="utf-8")
-        acc = self.accept(_fix_ok())
-        out = fixboard.collect(self.place, acc, {"ok": True, "files": ["stats.py"]}, reply_file=f)
-        self.assertEqual((out["fix_file"], out["not_done"], out["reads_file"]), (str(f.resolve()), 0, ""))
-        self.assertEqual(out["coverage"][R_MEAN], {"before": 1, "after": 0})
-        self.assertEqual(json.loads((self.place / self.recount.CHANGES_FILE).read_text(encoding="utf-8")),
-                         {"changes": acc["changes"]})
-        with self.assertRaises(self.recount.Unreadable):
-            fixboard.collect(self.place, {"ok": False, "reason": "x"}, {"ok": True, "files": []}, reply_file=f)
-        with self.assertRaises(self.recount.Unreadable):   # 空の changes は、外れた単位の無い置き場では止める
-            fixboard.collect(self.place, {"ok": True, "changes": []}, {"ok": True, "files": []}, reply_file=f,
-                             owed={R_MEAN})
 
 
 class RefixSeamCase(TempCase):
@@ -864,7 +827,7 @@ class RulebookSeamCase(unittest.TestCase):
 
 class LanekitSeamCase(TempCase):
     """lanekit.groups: 項目を共にする単位は同じ組（推移的）・組の順と組の中の順は入力の順。待ちの列と固定の枝の数は持たない
-    （持ち主の決め no-queue）。lanekit.merge: 除くパスの頭 skip の下は書き込みの記録と突き合わせない（既定 () は突き合わせる）"""
+    （持ち主の決め no-queue）"""
 
     def test_groups_units_sharing_items_transitively_in_input_order(self):
         import lanekit
@@ -876,25 +839,9 @@ class LanekitSeamCase(TempCase):
         for name in ("MAX_LANES", "queue_put", "take"):
             self.assertFalse(hasattr(lanekit, name), name)
 
-    def test_merge_skip_prefix_is_not_matched_with_write_records(self):
-        import lanekit
-        tree = self.tmp / "lane"
-        git(self.repo, "worktree", "add", "--detach", "--quiet", str(tree), "HEAD")
-        since = leftovers.snapshot(tree)
-        (tree / "vendored").mkdir()
-        (tree / "vendored" / "x.txt").write_text("写し\n", encoding="utf-8")
-        log = self.place / "writes.jsonl"
-        log.write_text("", encoding="utf-8")
-        args = dict(since=since, base=since, log=log, kept=self.place / "lane.patch")
-        got = lanekit.merge(self.repo, tree, **args)
-        self.assertTrue(got.why.startswith(writes.REJECT), got.why)
-        got = lanekit.merge(self.repo, tree, skip=("vendored/",), **args)
-        self.assertEqual((got.why, got.names), ("", ["vendored/x.txt"]))
-        self.assertEqual((self.repo / "vendored" / "x.txt").read_text(encoding="utf-8"), "写し\n")
-
 
 class RulingSeamCase(TempCase):
-    """ruling の継ぎ目: prep・accept_rule は置き場（pathlib.Path(board)）の conflicts.json・rule-tree.json・rule-prep.json・
+    """ruling の継ぎ目: prep・accept_rule は置き場（pathlib.Path(board)）の conflicts.json・rule-tree.json・rejects-rule.json・
     prompt-rule.md で回る。作業ツリーの控えは fixboard.snapshot、前の拒否の理由のファイルと言語の行と輪の回は引数、
     配線の誤りは ValueError"""
 
@@ -927,6 +874,8 @@ class RulingSeamCase(TempCase):
             self.assertIn(w, text)
         self.assertFalse(text.split("\n")[1].startswith(fixboard.REJECT_LINE[:10]), "1 回目は拒否の理由を名指さない")
         self.assertTrue((self.place / r.TREE).is_file(), "作業ツリーの姿の控えは置き場")
+        bad = {"rulings": [{"id": "c9-9", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": []}]}
+        self.assertFalse(r.accept_rule(bad, self.place, self.rev, self.repo)["ok"])   # 回の数えは拒否の控え（rolekit）
         again = r.prep(self.place, self.repo, self.VALUES, reject_file="/home/x/reject.md")
         self.assertEqual(again["iteration"], 2)
         self.assertEqual((self.place / r.PROMPT).read_text(encoding="utf-8").split("\n")[1],
@@ -947,12 +896,13 @@ class RulingSeamCase(TempCase):
         r = self.ruling
         r.prep(self.place, self.repo, self.VALUES)
         bad = {"rulings": [{"id": "c9-9", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": []}]}
-        got = r.accept_rule(bad, self.place, self.rev, self.repo, iteration=1)
-        self.assertEqual((got["ok"], got["done"]), (False, False))
-        self.assertIn("c9-9", got["reason"])
+        for _ in range(r.GIVE_UP_AFTER - 1):
+            got = r.accept_rule(bad, self.place, self.rev, self.repo)
+            self.assertEqual((got["ok"], got["done"]), (False, False))
+            self.assertIn("c9-9", got["reason"])
         self.assertEqual(len(self.conflict.unruled(self.place)), 1, "拒んだ回は積まない")
         (self.repo / "stats.py").write_text("# 変えた\n", encoding="utf-8")
-        got = r.accept_rule(self.reply(), self.place, self.rev, self.repo, iteration=r.GIVE_UP_AFTER)
+        got = r.accept_rule(self.reply(), self.place, self.rev, self.repo)
         self.assertTrue(got["reason"].startswith(r.READONLY), got)
         self.assertEqual((got["ok"], got["done"]), (False, True))
         row, = self.conflict.items(self.place)
@@ -1116,11 +1066,9 @@ class FactchecksSeamCase(TempCase):
     def test_no_loop_has_no_frozen_rejects(self):
         self.assertEqual(self.fc.check_frozen(self.place, "", self.repo, "first", base_rev=self.rev), [])
 
-    def test_declared_files_and_split_overflow(self):
+    def test_declared_files(self):
         rows = [{"files": [str(self.repo / "a" / ".." / "stats.py"), " docs/x.md ", "", 3]}]
         self.assertEqual(self.fc.declared_files(rows, self.repo), {"stats.py", "docs/x.md"})
-        over = [{"line": "L1"}, {"line": "L2"}]
-        self.assertEqual(self.fc.split_overflow(["頭 L1 の文", "ほかの文"], over), (["ほかの文"], [{"line": "L1"}]))
 
     def run_main(self, allowed):
         """置き場に修正案の控え（planmarks.save の欄・p2.fix_plan.json・judgment.json）と相談の控えを置き、下書きの返答で main を
@@ -1985,7 +1933,7 @@ class FixAcceptSeamCase(TempCase):
         st = consult.state(self.place, "first")
         self.assertEqual([r["status"] for r in st["rows"]], [consult.ASKED, consult.REFUSED])
         self.assertEqual(fixboard.consult_ask(self.place, {"changes": []}, "first", items, node="x")["consulted"], False)
-        consult._write_json(consult.state_path(self.place, "first"), {"turns": consult.BUDGET})
+        jsonfile.write(consult.state_path(self.place, "first"), {"turns": consult.BUDGET})
         self.assertTrue(fixboard.consult_ask(self.place, reply, "first", items, node="x")["spent"])
 
     def test_accept_reply_parks_the_bound_unit_on_the_last_turn(self):

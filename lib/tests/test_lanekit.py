@@ -1,16 +1,11 @@
-"""並べの枝の部品（lib/lanekit.py。元 blk-fix/lib/lanekit.py）の純粋な口の検査。TDD の輪の並べ（tddlanes）と修正役の並べ（fixlanes）が同じ形で
-使う物は lanekit に 1 つだけ在る（計画 docs/plans/2026-10-09-lanes-home.md）。
+"""組の部品（lib/lanekit.py。元 blk-fix/lib/lanekit.py）の純粋な口の検査。
 
 縛る事:
 - groups(rows): タグを共にする物どうしを 1 組に（つながりは推移的・組の中と組の並びは rows の順・タグの無い物は 1 つで 1 組）
-- relocate(path, repo, tree): run の作業ツリーの中のパスは単位の worktree の同じ所へ、外のパスはそのまま
-- tree_ok(row): 行の tree の `.git` の 1 行が行の git と同じなら空、違う・git が空なら理由
-- merge_in_order(lanes, merge_one): 枝を順に当て、前に当てた枝の差分のパスを後の枝の earlier に渡す（当てなかった枝のパスは渡さない）
-- 締めの結末の語 JOINED・MERGED・BACK
+- merge_in_order(lanes, merge_one): 組を順に当て、前に当てた組の差分のパスを後の組の earlier に渡す（当てなかった組のパスは渡さない）
 """
 import pathlib
 import sys
-import tempfile
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
@@ -19,11 +14,6 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import lanekit  # noqa: E402
-
-
-class Names(unittest.TestCase):
-    def test_outcome_words(self):
-        self.assertEqual((lanekit.JOINED, lanekit.MERGED, lanekit.BACK), ("joined", "merged", "serial"))
 
 
 class Groups(unittest.TestCase):
@@ -39,23 +29,6 @@ class Groups(unittest.TestCase):
 
     def test_empty(self):
         self.assertEqual(lanekit.groups([]), [])
-
-
-class Relocate(unittest.TestCase):
-    def test_inside_moves_to_tree(self):
-        self.assertEqual(lanekit.relocate("/r/repo/bin/run", "/r/repo", "/t/item-1"), pathlib.Path("/t/item-1/bin/run"))
-
-    def test_outside_stays(self):
-        self.assertEqual(lanekit.relocate("/usr/bin/python3", "/r/repo", "/t/item-1"), pathlib.Path("/usr/bin/python3"))
-
-
-class TreeOk(unittest.TestCase):
-    def test_same_line(self):
-        with tempfile.TemporaryDirectory() as d:
-            (pathlib.Path(d) / ".git").write_text("gitdir: /x/wt/item-1\n", encoding="utf-8")
-            self.assertEqual(lanekit.tree_ok({"tree": d, "git": "gitdir: /x/wt/item-1"}), "")
-            self.assertIn(d, lanekit.tree_ok({"tree": d, "git": "gitdir: /x/wt/item-2"}))
-            self.assertTrue(lanekit.tree_ok({"tree": d}), "切った時の git の 1 行が無い行は通さない")
 
 
 class MergeInOrder(unittest.TestCase):

@@ -3,7 +3,7 @@
 実行基盤を知らない関数だけを出す。ブロックの script の節がこれを呼び、結果をそのまま出口にする。
 - snapshot_tree: 作業ツリーの写し（git が無視するファイルも入れる。index の印に隠れた物も入れる。tree_state の土台）
 - tree_state・tree_change・tree_moved: 読むだけの役（blk-pr・blk-ci・entry.take・rejudge.take）を起こす前後の作業ツリーの姿
-                 （snapshot_tree に HEAD・枝を足した物）と、その違いの文（R47。check_judge の突き合わせも tree_change で言う）。
+                 （snapshot_tree に HEAD・枝を足した物）と、その違いの文（R47）。
                  bytecode=False はバイトコード（_is_bytecode）を姿から除く（測るためにコマンドを走らせる実測役の見張り。premises）
 - guard・in_repo・resolve_rev・read_board・write_board・type_errors: 受け付けの部品の公開の名（ブロックのモジュールの受け付けが使う）
 - touched_files: 修正が触ったファイル（バイトコードは除く。index の印に隠れた物も入れる。protect が数える）
@@ -229,7 +229,7 @@ _NO_BYTECODE = (":(top)", ":(top,exclude,glob)**/*.pyc", ":(top,exclude,glob)**/
 
 def snapshot_tree(repo: pathlib.Path, *, bytecode: bool = True) -> dict:
     """作業ツリーの写し {"porcelain": str, "ignored": [str], "diff_sha256": str}。tree_state がこれに HEAD・枝を足し、
-    読むだけの役を起こす前後に比べる（判定役を起こす前に盤面に写しが無い時は、check_judge が今の写しで作業ツリーが綺麗かを見る）。
+    読むだけの役を起こす前後に比べる（判定役を起こす前に盤面に写しが無い時は、judge_accept._judge_tree_unchanged が今の写しで作業ツリーが綺麗かを見る）。
     porcelain は git status --porcelain（未追跡は 1 本ずつ）。porcelain と差分は本物の index の印を外して見る（flag_free_env。
     touched_files と同じ見え方: assume-unchanged・skip-worktree の印の付いたファイルの編集も見え、sparse checkout の範囲外は消したと見ない）。ignored は git が無視するパス（_ignored_entries。
     差分には載らないが、後の節——テスト——の緑赤を左右する物も在るので、読むだけの役が足しても見逃さない）。

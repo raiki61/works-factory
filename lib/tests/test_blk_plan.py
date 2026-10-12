@@ -75,16 +75,6 @@ class ScriptCase(unittest.TestCase):
         self.assertNotIn("kind scope_creep", ask, "対の無い仕組みは suggest に回さず contract_drift・block で挙げる")
 
 
-class ConvergeReviseCase(unittest.TestCase):
-    def test_revise_role_is_fix_plan_node(self):
-        role = planblk.REVISE_ROLE
-        self.assertEqual(role, "plan-revise")
-        self.assertEqual(planblk.known_role(role), "p2.fix_plan")
-        self.assertEqual(planblk.snapshot_name(role), "plan-revise-snapshot.json")
-        self.assertNotIn(role, planblk.NODE_OF)   # collect の役の並びは今のまま
-        self.assertNotIn(role, planblk.ROLES)
-
-
 class DesignReadCase(unittest.TestCase):
     """盤面の根の design.json は r2.design の役の型（盤面の design_schema）で確かめてから読む。型に合わない控えは壊れた控えとして
     設計が無い理由に回し、design_only は欄を引いて落ちない"""

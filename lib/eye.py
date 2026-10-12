@@ -9,14 +9,16 @@
 受け付けは返答を機械で確かめ、通れば design-row.schema.json の形の行を design.jsonl に書く。拒めば理由を返し、同じ会話で
 出し直させる（輪の max_iterations は 3。3 回目の拒否は give_up で輪を抜け、線を落とさない）。
 
-控え eye.json（design.jsonl の隣。段 A が置き直す）: {attempt, started_at, reason, status: pending|ok|gave_up, wall_s}。
+控え eye.json（design.jsonl の隣。段 A が置き直す）: {started_at, status: pending|ok|gave_up, wall_s}。回の数えと拒否の文は
+rolekit の拒否の控え rejects-structure-eye.json だけが持つ（同じ置き場。resume を跨いで数える）。
 目の秒は 1 回目の支度から最後の受け付けまでの壁時計の秒。
 ブロックの時間の欄の名 WALL（秒）はこのモジュールが持つ: 段 A・段 B の timing は stamp で書き、出口（collect）は wall で読んで足す。
 
 - due(doc):                   目を起こす周か（structure.json の status が ok で、実測できた単位が 1 つ以上）
-- prep(structure_file):       指示書を描いて控えの attempt を 1 つ進める。返り {prompt, prompt_file, attempt}
+- prep(structure_file):       指示書を描く（attempt は拒否の数 + 1）。返り {prompt, prompt_file, attempt}
 - accept(structure_file, design_file, reply): 返答を確かめて行を書く。返り {ok, done, give_up, reason, attempt}
 - state(out_dir):             控え（無い・読めないなら {}）
+- reset(out_dir):             控えと拒否の控えを消す（段 A）
 - stamp(doc, t0, **more):     doc の timing に t0（time.monotonic）からの秒を WALL の欄で書く（more は timing に並べる欄）
 - wall(doc):                  doc の timing（無ければ doc そのもの）の WALL の秒（無い・空なら 0）
 """
@@ -30,12 +32,12 @@ if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 import concepthome  # noqa: E402  （判断の 1 軸と目の問いの文の住処）
 import promptsection  # noqa: E402
+import rolekit  # noqa: E402  （拒否の控えと輪の回の数え）
 
 EYE_FILE = "eye.json"
 PROMPT_FILE = "eye-prompt-{n}.md"
-MAX_ATTEMPTS = 3
+NAME = "structure-eye"   # 拒否の控え rejects-structure-eye.json の名（rolekit）
 DUP_SHOWN = 5   # 目に見せる duplicates の件数（残りは duplicates_total の数だけ。_cut）
-SCHEMA = pathlib.Path(__file__).resolve().parent / "design-row.schema.json"
 WALL = "wall_s"   # ブロックの時間の欄の名（壁時計の秒。段 A・段 B の timing・目の控え・出口が同じ名で持つ）
 ROUTES = ("自分で決める", "人に上げる")
 ROUTE, ROUTE_UP = ROUTES
@@ -78,6 +80,12 @@ def state(out_dir) -> dict:
     except (OSError, UnicodeDecodeError, ValueError):
         return {}
     return got if isinstance(got, dict) else {}
+
+
+def reset(out_dir) -> None:
+    """控え eye.json と拒否の控えを消す（段 A が測り直す周は 1 回目から数える）"""
+    (pathlib.Path(out_dir) / EYE_FILE).unlink(missing_ok=True)
+    rolekit.rejects_path(out_dir, NAME).unlink(missing_ok=True)
 
 
 def _put(out_dir, doc: dict) -> None:
@@ -156,12 +164,12 @@ def prep(structure_file) -> dict:
     out_dir = pathlib.Path(structure_file).parent
     doc = _load(structure_file)
     st = state(out_dir)
-    n = int(st.get("attempt") or 0) + 1
-    prompt = render(doc, st.get("reason") or "")
+    rejects = rolekit.rejected(out_dir, NAME)
+    n = len(rejects) + 1
+    prompt = render(doc, rejects[-1] if rejects else "")
     path = out_dir / PROMPT_FILE.format(n=n)
     path.write_text(prompt, encoding="utf-8")
-    _put(out_dir, {"attempt": n, "started_at": st.get("started_at") or time.time(), "reason": st.get("reason") or "",
-                   "status": "pending", WALL: st.get(WALL, 0)})
+    _put(out_dir, {"started_at": st.get("started_at") or time.time(), "status": "pending", WALL: st.get(WALL, 0)})
     return {"prompt": prompt, "prompt_file": str(path), "attempt": n}
 
 
@@ -182,11 +190,10 @@ def _pointer(doc, ptr: str) -> bool:
 
 
 def problems(doc: dict, reply) -> list:
-    """返答の外れ（空なら通る）。単位と 1 対 1・形・根拠の実在・汚れる行の避け方・人に上げる道の無さを見る"""
+    """返答の外れ（空なら通る。型は目の節の output_format が照らす）。単位と 1 対 1・根拠の実在・汚れる行の避け方・人に上げる道の無さを見る"""
     rows = reply.get("rows") if isinstance(reply, dict) else None
     if not isinstance(rows, list):
         return ["返答に rows（行の配列）が無い"]
-    keys = set(json.loads(SCHEMA.read_text(encoding="utf-8"))["properties"])
     want = [u["id"] for u in measured(doc)]
     seen, out = [], []
     shown = view(doc)
@@ -196,21 +203,12 @@ def problems(doc: dict, reply) -> list:
             continue
         uid = r.get("unit_id")
         head = f"行 {i}（{uid}）"
-        extra = sorted(set(r) - keys)
-        if extra:
-            out.append(f"{head}: 行の形に無い欄 {extra}")
         if uid not in want:
             out.append(f"{head}: 実測した単位に無い id（在るのは {want}）")
         elif uid in seen:
             out.append(f"{head}: 同じ単位の 2 行目")
         seen.append(uid)
-        if r.get("verdict") not in VERDICTS:
-            out.append(f"{head}: verdict は {'・'.join(VERDICTS)} のどちらか")
-        faces = r.get("faces")
-        if not isinstance(faces, list) or any(not isinstance(f, int) or isinstance(f, bool) or not 1 <= f <= len(FORMS)
-                                              for f in faces):
-            out.append(f"{head}: faces は形の番号 1〜{len(FORMS)} の配列")
-        elif r.get("verdict") == DIRTY and not faces:
+        if r.get("verdict") == DIRTY and not r.get("faces"):
             out.append(f"{head}: 汚れると見たのに当たった形の番号が無い")
         ev = r.get("evidence")
         if not isinstance(ev, list) or not ev:
@@ -221,10 +219,7 @@ def problems(doc: dict, reply) -> list:
             out.append(f"{head}: reason が空")
         if r.get("verdict") == DIRTY and not all(isinstance(r.get(k), str) and r[k].strip() for k in ("chosen", "chosen_reason")):
             out.append(f"{head}: 汚れると見た行に chosen（推しの避け方）と chosen_reason が無い")
-        route = r.get("route", ROUTE)
-        if route not in ROUTES:
-            out.append(f"{head}: route は {'・'.join(ROUTES)} のどちらか")
-        elif route == ROUTE_UP:
+        if r.get("route", ROUTE) == ROUTE_UP:
             if r.get("verdict") != DIRTY:
                 out.append(f"{head}: {ROUTE_UP}のは汚れると見た行だけ")
             why = r.get("undecided_because")
@@ -244,19 +239,18 @@ def problems(doc: dict, reply) -> list:
 def accept(structure_file, design_file, reply) -> dict:
     out_dir = pathlib.Path(structure_file).parent
     st = state(out_dir)
-    n = int(st.get("attempt") or 1)
+    n = rolekit.attempt(out_dir, NAME)
     started = st.get("started_at") or time.time()
     bad = problems(_load(structure_file), reply)
     wall = round(time.time() - started, 3)
     if bad:
         reason = " / ".join(bad)
-        give_up = n >= MAX_ATTEMPTS
-        _put(out_dir, {**st, "attempt": n, "started_at": started, "reason": reason,
-                       "status": "gave_up" if give_up else "pending", WALL: wall})
+        give_up = rolekit.with_done(out_dir, NAME, {"ok": False, "reason": reason})["done"]
+        _put(out_dir, {"started_at": started, "status": "gave_up" if give_up else "pending", WALL: wall})
         return {"ok": False, "done": give_up, "give_up": give_up, "reason": reason, "attempt": n}
     rows = [{**r, "route": r.get("route", ROUTE),
              "route_reason": r["undecided_because"].strip() if r.get("route") == ROUTE_UP else ROUTE_REASON}
             for r in reply["rows"]]
     pathlib.Path(design_file).write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-    _put(out_dir, {**st, "attempt": n, "started_at": started, "reason": "", "status": "ok", WALL: wall})
+    _put(out_dir, {"started_at": started, "status": "ok", WALL: wall})
     return {"ok": True, "done": True, "give_up": False, "reason": "", "attempt": n}
