@@ -387,23 +387,17 @@ def answer_drafts(returns: dict, gates: dict, start: dict) -> list:
 
 
 # ---------------------------------------------------------------- 次の run に渡す物
-def _outside(returns: dict) -> tuple[list, list]:
-    """判定が目的の外とした所見の (次の依頼の行, 報告の行)。指し札の先は outpurpose の控えの名のファイル"""
+def _outside(returns: dict, next_file: str = "") -> tuple[list, list, str]:
+    """判定が目的の外とした所見の (次の依頼の行, 報告の行, 人が決めることの節に置く件数と置き場の 1 行)。指し札の先は outpurpose の
+    控えの名のファイル。無い・名違いなら件数の行は ""（名違いは報告の行が言う）"""
     p = _ret(returns, "judge").get("out_of_purpose")
     if not (isinstance(p, str) and p):
-        return [], []
+        return [], [], ""
     path = pathlib.Path(p)
     if path.name != outpurpose.FILE:
-        return [], [f"目的の外の所見のファイル {p} の名が {outpurpose.FILE} でない（読まなかった）"]
-    return outpurpose.next_items(path.parent), outpurpose.report_lines(path.parent)
-
-
-def _outside_count(returns: dict, next_file: str) -> str:
-    """人が決めることの節に置く、目的の外の所見の件数と置き場の 1 行（無い・名違いなら ""。名違いは _outside の行が言う）"""
-    p = _ret(returns, "judge").get("out_of_purpose")
-    if not (isinstance(p, str) and p) or pathlib.Path(p).name != outpurpose.FILE:
-        return ""
-    return outpurpose.count_line(pathlib.Path(p).parent, next_file, report.OUTSIDE_HEADING.removeprefix("## "))
+        return [], [f"目的の外の所見のファイル {p} の名が {outpurpose.FILE} でない（読まなかった）"], ""
+    return (outpurpose.next_items(path.parent), outpurpose.report_lines(path.parent),
+            outpurpose.count_line(path.parent, next_file, report.OUTSIDE_HEADING.removeprefix("## ")))
 
 
 def _parked(returns: dict) -> list:
@@ -993,12 +987,11 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     decisions, decide = _decisions(returns, gates, start, outcome, left, closed=closed, repo=repo)
     tdd, freeze, tdd_notes = _tdd_lines(typed, returns)
     eye_lines, eye_notes = _eye_lines(returns, typed)
-    outside = _outside(returns)[1]
     _, material_note = oc.materials(returns)
     notes = [*_list(typed.get("warnings")), *tdd_notes, *eye_notes, *([material_note] if material_note else [])]
     next_file = carry.NEXT_REQUEST_FILE if findings or drafts else ""
     draft = gatemarks.draft_line(drafts, next_file)
-    outside_count = _outside_count(returns, next_file)
+    _, outside, outside_count = _outside(returns, next_file)
     split = split_line(returns)
     asked_texts = [q for rid in ("plan-review", "eyes") for q in _list(_ret(returns, rid).get("questions")) if isinstance(q, str)]
     head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）" + (f"。{split}" if split else ""),
