@@ -83,7 +83,7 @@ def _write_json(path: pathlib.Path, doc) -> None:
 
 
 def _gave_up_text(name: str, count: int, last: str, *, at_once: bool = False) -> str:
-    """諦めた理由の 1 行の文の正本。at_once は出し直させずに諦めた時（with_done の give_up）"""
+    """given_up_reason が返す諦めた理由の 1 行の文。at_once は出し直させずに諦めた時（with_done の give_up）"""
     last = " ".join(str(last).split())
     if at_once:
         return f"{name} の返答を受け付けが出し直させずに諦めた（拒否: {last}）"
