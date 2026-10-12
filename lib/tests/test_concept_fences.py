@@ -134,6 +134,23 @@ class FenceCase(unittest.TestCase):
         "web-get": ["from urllib.request import urlopen"],
         "cite": ["from cite import quoted_in", "ok = cite.fold(a) in cite.fold(b)"],
         "prompt-sections": ["class Section:"],
+        "outcome": ['return "no_fix_needed", ""'],
+        "depth": ["doc = depth.decide_doc(fields, unit_ids)"],
+        "features": ['"judge_verify": "判定の裏取り",'],
+        "reads": ['return f"reads-{role}.json"'],
+        "conflict": ['WHY_FIELD = "why_both_cannot_hold"'],
+        "lanes": ["parent[i] = parent[parent[i]]"],
+        "marks": ['"gate": Kind({}, "gate-marks.json", ROOT),', "write_json(jdir / prcheck.EXCLUDED, {})",
+                  'row.setdefault("properties", {}).update(fields)', "{k: row.pop(k) for k in names if k in row}"],
+        "plan-scope": ["any(planmarks.glob_match(path, g) for g in globs(it))"],
+        "test-files": [r'TEST_STEM = re.compile(r"^(test_[^.]+|[^.]+_test|.+\.(test|spec))$")'],
+        "red-check": ['QUOTES_FIELD = "red_quotes"', "probs = list(rules().red_problems(named, cases, code, baseline))",
+                      r'ANSI = re.compile(r"\x1b\[[0-9;]*m")'],
+        "carry-over": ['NEXT_REQUEST_FILE = "next-request.json"'],
+        "world": ['WORLD_FILE = "world.jsonl"'],
+        "stop-reasons": ['HEAD = "works:"', "WAIT_WORDS = stopby.WAITING"],
+        "start-record": ['NAME = "start.json"'],
+        "human-gates": ['FINAL_GATES = ("always", "when_needed", "protected_only")', "import gatepolicy as gp"],
     }
 
     def test_every_home_fence_hits_its_line(self):
