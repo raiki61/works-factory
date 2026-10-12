@@ -370,7 +370,7 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(copied.restore_problems(COMMANDS / "fix-plan.md", *COPIED["fix-plan.md"]), [])
 
     def test_eye_command_is_the_original(self):
-        """構造の目の指示書は元の blk-structure/commands/structure-eye.md のバイトのまま（直しを許していない）"""
+        """構造の目の指示書は元の blk-structure/commands/structure-eye.md の字のまま（台帳の直しは無く、書き直しは copied_rewrites.json の件だけ）"""
         self.assertEqual(copied.restore_problems(COMMANDS / "structure-eye.md", *COPIED["structure-eye.md"]), [])
 
     def test_deadlines_are_all_twenty_days(self):

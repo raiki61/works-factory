@@ -85,7 +85,7 @@ ANSWERS_REJECT = "block への答えに誤りが在る（下の行を全部直�
 TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る（下の行を全部直して出し直せ）:"
 CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "   # 元 works/.shared/core/entry.py:1228
-NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度の節が走っていない）"
+NO_TREE = "役を起こす前の作業ツリーの控え {name} が無い（支度のノードが走っていない）"
 # 案の直しを終えられなかった項目の諦めの訳（元 works/.shared/core/replan.py:139-140）と、その行 [{item, why, ruling}] を置く隣のファイル
 # （計画の返り plan と事前審査の返り review の指し札の先と同じフォルダ。報告が前の失敗の行に読む）
 PLAN_GAVE_UP_WHY = "修正案の役の直しが 3 回とも拒まれた: {reason}"
