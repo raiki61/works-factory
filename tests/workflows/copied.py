@@ -25,35 +25,37 @@ def role_definition(agent: str, body: str) -> str:
 
 
 def assert_is_original(case, path: pathlib.Path, sha256: str, edits) -> None:
-    """写しのファイル path の字が元に戻る（assert_text_is_original。REWRITES の鍵は根からのパス）"""
+    """写しのファイル path の字が元に戻る（restore_text_problems。REWRITES の鍵は根からのパス）"""
     assert_text_is_original(case, path.relative_to(ROOT).as_posix(), path.read_text(encoding="utf-8"), sha256, edits)
 
 
 def assert_text_is_original(case, key: str, text: str, sha256: str, edits) -> None:
-    """写しの字 text に台帳の直し edits（(元の字, 写しの字, …) の並び。前から当てると元が写しになる順）と、その後ろの
-    REWRITES[key] の書き直しを後ろから逆に当てると、元のバイト（sha256）に戻る。直しの写しの字はどれも写しにちょうど 1 度だけ
-    現れる。key は写しのファイルの根からのパスか、YAML に直に書いた prompt: の `<YAML の根からのパス>#<ノードの id>`"""
-    rewrites = [(r["original"], r["copied"]) for r in REWRITES.get(key, [])]
-    for original, copied, *_ in reversed([*edits, *rewrites]):
-        case.assertEqual(text.count(copied), 1, copied)
-        text = text.replace(copied, original)
-    case.assertEqual(hashlib.sha256(text.encode("utf-8")).hexdigest(), sha256)
+    """写しの字 text が元 1 つのバイト（sha256）に戻る（restore_text_problems が空）。key は写しのファイルの根からのパスか、
+    YAML に直に書いた prompt: の `<YAML の根からのパス>#<ノードの id>`"""
+    case.assertEqual(restore_text_problems(key, text, [(key, sha256, None)], edits), [])
 
 
 def restore_problems(path: pathlib.Path, origins: list, edits: list) -> list:
-    """写し path の字が台帳の行（K9。元 origins は [(元のパス, 元の sha256, 元のバイト数)]、直し edits は [(元の字, 写しの字, 訳)]。
-    その後ろに REWRITES の書き直しを当てる）に合わない訳の並び（合えば空）。元が 2 つ以上なら、逆に当てた後をバイト数で切って
-    1 つずつ sha256 を見る"""
-    rewrites = [(r["original"], r["copied"], r["why"]) for r in REWRITES.get(path.relative_to(ROOT).as_posix(), [])]
-    text, out = path.read_text(encoding="utf-8"), []
-    for original, copied, why in reversed([*edits, *rewrites]):
+    """写しのファイル path の restore_text_problems（REWRITES の鍵は根からのパス）"""
+    return restore_text_problems(path.relative_to(ROOT).as_posix(), path.read_text(encoding="utf-8"), origins, edits)
+
+
+def restore_text_problems(key: str, text: str, origins: list, edits) -> list:
+    """写しの字 text が台帳の行（K9）に合わない訳の並び（合えば空）。台帳の直し edits（(元の字, 写しの字[, 訳]) の並び。前から
+    当てると元が写しになる順）と、その後ろの REWRITES[key] の書き直しを後ろから逆に当てる。直しの写しの字はどれも写しにちょうど
+    1 度だけ現れる。元 origins は [(元の名, 元の sha256, 元のバイト数)] で、逆に当てた後をバイト数で切って 1 つずつ sha256 を見る
+    （最後の元のバイト数 None は残りの全部）"""
+    rewrites = [(r["original"], r["copied"], r["why"]) for r in REWRITES.get(key, [])]
+    out = []
+    for original, copied, *why in reversed([*edits, *rewrites]):
         n = text.count(copied)
         if n != 1:
-            out.append(f"許した直し「{why}」の写しの字が {n} 回在る（1 回のはず）: {copied[:80]!r}")
+            out.append(f"許した直し「{why[0] if why else original[:40]}」の写しの字が {n} 回在る（1 回のはず）: {copied[:80]!r}")
             continue
         text = text.replace(copied, original)
     raw, at = text.encode("utf-8"), 0
     for origin, sha, size in origins:
+        size = len(raw) - at if size is None else size
         got = hashlib.sha256(raw[at:at + size]).hexdigest()
         if got != sha:
             out.append(f"元 {origin} に戻らない（sha256 {got}）")
