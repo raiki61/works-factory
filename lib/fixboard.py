@@ -1458,7 +1458,7 @@ def fix_reject_text(found: list) -> str:
 
 
 def undeclared_writes(reply: dict, repo, tree: str, *, made=(), skip=()) -> list:
-    """書き込みの記録が無い run の書き込みの出どころ（U6 の狭め。書き込みの記録のフックを戻すまで）: 木 tree（段の頭の木）から作業ツリーの今の姿で変わったパス
+    """書き込みの記録が無い run の書き込みの出どころ（U6 の狭め）: 木 tree（段の頭の木）から作業ツリーの今の姿で変わったパス
     （touched_since。除くパスの頭 skip の下は数えない）のうち、返答の changes[].files にも bash_writes の path にも無く、実行器が
     作った物（made）でもない物を名指す拒否の文（無ければ空の並び）。新しい（今の works は包みの書き込みの記録で縛った）"""
     import factchecks

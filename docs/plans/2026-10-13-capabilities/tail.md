@@ -1504,7 +1504,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 今: lib/runreport.py:84 `UNSEEN`（「取れない（読んだ証拠を集める口を戻していない。docs/design.md の U6）」の 1 行だけ）
   - 証: 要追加（U6 が決まった後）: lib/tests/test_runreport.py::BuildCase.test_reads_section_says_unseen — 今は UNSEEN の 1 行を縛る程度
   - 本物の run: report/report.md「## 4. 読んだ証拠と包み」
-  - 狭め: 包み（前の起こし方の殻 adapter）を落としたので対象が変わった。U6（当時は未決）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（PR #178 が書き込みの記録で戻す道）か節の `hooks:` → 持ち主（戻すか）
+  - 狭め: 包み（前の起こし方の殻 adapter）を落としたので対象が変わった。U6（当時は未決）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:` → 持ち主（戻すか）
 
 - R47 見る所: 判定・目的・定石・仕様・目的の外の所見・計画・構造の目・波及・事前審査・独立設計・差分・申し出と裁定・直す前と最後の試験の記録・直した後の構造・封じた差分・置いた差分のパス
   - 元: works/.shared/core/report.py:1706 `head_where`

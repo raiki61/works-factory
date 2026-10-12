@@ -418,7 +418,7 @@
   - 今: 無し
   - 証: 要追加: tests/workflows/test_plan.py::ReadsCase.test_writer_reads_its_brief_are_recorded — run の記録の provider_event の Read の呼びから、plan-writer が brief-<n>.md（と方針の文書）を読んだかを plan/r<k>/reads.json に書く
   - 本物の run: Archon の run の記録 <logDir>/<run_id>.jsonl の type provider_event・step plan-writer の Read の行（今は誰も集めない）
-  - 狭め: #75・#73 で狭めた（当時の docs/design.md の U6「取れるか未決」）。Archon で不可でない: Archon は役の道具の呼びを step 名つきで run の記録に残す（packages/workflows/src/logger.ts:129-130 `getLogPath` が <logDir>/<runId>.jsonl、:298-310 `logProviderEvent`、packages/workflows/src/store.ts:156 provider_event、packages/core/src/db/workflow-events.ts:257-262 で tool_call {name, rawInput} に読める）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（PR #178 が書き込みの記録で戻す道）か節の `hooks:` → 戻す
+  - 狭め: #75・#73 で狭めた（当時の docs/design.md の U6「取れるか未決」）。Archon で不可でない: Archon は役の道具の呼びを step 名つきで run の記録に残す（packages/workflows/src/logger.ts:129-130 `getLogPath` が <logDir>/<runId>.jsonl、:298-310 `logProviderEvent`、packages/workflows/src/store.ts:156 provider_event、packages/core/src/db/workflow-events.ts:257-262 で tool_call {name, rawInput} に読める）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:` → 戻す
 
 - P058 工程の地図（旗 map で包みが system prompt に工程の地図とこの会話の居場所を足す）。
   - 元: planblk.py:105 `MAP_FLAG`・graphmap.render（works/.shared/core/graphmap.py）
@@ -977,7 +977,7 @@
   - 今: 無し
   - 証: 当たらない（取らない）
   - 本物の run: 無し
-  - 狭め: #75・#73 で狭めた（当時の U6「Archon の役の節でどこに取るかが未決」）。Archon の出来事の記録には道具の呼びの行が在る（packages/workflows/src/provider-events.ts:134 `case 'tool_call'`）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（PR #178 が書き込みの記録で戻す道）か節の `hooks:` → 持ち主へ（PD の読んだ証拠の行と同じ根）
+  - 狭め: #75・#73 で狭めた（当時の U6「Archon の役の節でどこに取るかが未決」）。Archon の出来事の記録には道具の呼びの行が在る（packages/workflows/src/provider-events.ts:134 `case 'tool_call'`）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:` → 持ち主へ（PD の読んだ証拠の行と同じ根）
 
 ### C. 案の直し: 事前審査の側と関所
 
@@ -1528,7 +1528,7 @@
   - 今: 無し
   - 証: 要追加: tests/workflows/test_plan_review.py::ReadsCase.test_reads_collected_from_archon_events — Archon の `workflow get <run> --verbose --events --json` の provider_event（tool_call の name=Read・rawInput.file_path）の見本の行から、事前審査の役が材料のファイルを読んだ・読まないを reads-plan-review.json に書くこと
   - 本物の run: 筋書きでのみ（今は記録が無い。戻せば `plan-review/reads-plan-review.json`）
-  - 狭め: #73・#75 で狭めた（「Archon の出来事から役の道具の呼びを引く口が無い（U6）」）。Archon で不可でない: 止めた Archon は provider_event（packages/provider-contract/src/events.ts:30-44 の tool_call。name と rawInput を持つ）を run の出来事に積み、CLI の `workflow get --verbose --events --json` が生の行を出す（packages/cli/src/commands/workflow.ts:4076-4091 `listRunEvents` の rawEvents・packages/cli/src/help.ts:751 `--events`）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（PR #178 が書き込みの記録で戻す道）か節の `hooks:` → 戻す
+  - 狭め: #73・#75 で狭めた（「Archon の出来事から役の道具の呼びを引く口が無い（U6）」）。Archon で不可でない: 止めた Archon は provider_event（packages/provider-contract/src/events.ts:30-44 の tool_call。name と rawInput を持つ）を run の出来事に積み、CLI の `workflow get --verbose --events --json` が生の行を出す（packages/cli/src/commands/workflow.ts:4076-4091 `listRunEvents` の rawEvents・packages/cli/src/help.ts:751 `--events`）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:` → 戻す
 
 - P212 束ね役が下請けを本当に起こしたか（Agent の道具の呼びの数と subagent_type）を、下請けのファイルの数と突き合わせて trace（plan_review_agents）に残す
   - 元: works/.shared/core/reads.py `tool_count`・`tool_inputs`・works/blk-plan/lib/planblk.py:134 `AGENT_OP`・works/tests/test_blk_plan.py:2674 `test_reads_trace_agent_launches_against_item_files`
@@ -1879,7 +1879,7 @@
 
 ### 同じ根でまとめると
 
-1. 読んだ証拠（元の plan-reads・U6）: P057・P135・P211・P212・P213。#73・#75 は「Archon から役の道具の呼びを引く口が無い」としたが、止めた版の Archon は道具の呼びを run の記録と出来事に残す（packages/workflows/src/logger.ts:129-130・:298-310、packages/workflows/src/provider-events.ts:134、packages/cli/src/commands/workflow.ts:4076-4091 の `workflow get --events --json`）。不可ではない。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（PR #178 が書き込みの記録で戻す道）か節の `hooks:`
+1. 読んだ証拠（元の plan-reads・U6）: P057・P135・P211・P212・P213。#73・#75 は「Archon から役の道具の呼びを引く口が無い」としたが、止めた版の Archon は道具の呼びを run の記録と出来事に残す（packages/workflows/src/logger.ts:129-130・:298-310、packages/workflows/src/provider-events.ts:134、packages/cli/src/commands/workflow.ts:4076-4091 の `workflow get --events --json`）。不可ではない。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:`
 2. 線（#74）の配線の欠け: P139・P152（plan-review に conflicts を渡さない）、P244（gate_answers を渡さない）、P241（`asked` を運ばない）、P002・P010（plan に関所の答えが届かず、行き止まりの道が届かない）、P249（関所の行の二重）
 3. 方針の文書の固め: P216（run の始めでなく事前審査の最初の差し込みで固める）、P192（固めた版の写しでなく今の文書を貼る）、P246（関所で通した変化の固め直しが後段へ届かない）
 4. 判定が `purpose_review` を出さない: P161。「目的を狭めている」で独立設計を止める決まりは本物の線では一度も効かない（試験は手で欄を置いた判定で緑）
