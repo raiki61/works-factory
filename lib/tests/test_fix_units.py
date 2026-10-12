@@ -533,13 +533,37 @@ class GitWaitsWithoutDeadlineCase(unittest.TestCase):
                 call(d)
                 self.assertIsNone(run.call_args.kwargs.get("timeout"), run.call_args)
 
-    def test_query_greps_have_no_timeout(self):
+    def test_git_and_count_have_no_deadline(self):
+        """engine の git・git_bytes・run_count（rev の確かめ・下調べ・本体の git grep）が、子のプロセスに期限を渡さず、
+        止めの Timer も作らない（E12）"""
+        import subprocess
+        import threading
         from unittest import mock
-        with mock.patch.object(querytest._util, "count_argv", return_value=(["git", "grep", "-c", "-e", "x", "--"], "")), \
-                mock.patch.object(querytest._util, "_grep_run", return_value=(1, b"", "")) as grep_run:
-            querytest.run_examples({}, ["a x", "b"])
-        self.assertIsNone(grep_run.call_args.args[2], grep_run.call_args)
-        with mock.patch.object(unitrows._util, "count_argv", return_value=(["git", "grep", "-c", "-e", "x"], "")), \
-                mock.patch.object(unitrows._util, "_grep", return_value=("", "")) as grep:
-            unitrows.file_counts({}, ".")
-        self.assertIsNone(grep.call_args.args[2], grep.call_args)
+        util = querytest._util
+        runs, popens = [], []
+        real_run, real_popen = subprocess.run, subprocess.Popen
+
+        def run(*a, **k):
+            runs.append(k)
+            return real_run(*a, **k)
+
+        def popen(*a, **k):
+            popens.append(k)
+            return real_popen(*a, **k)
+        with tempfile.TemporaryDirectory() as d:
+            real_run(["git", "init", "-q", d], check=True)
+            (pathlib.Path(d) / "a.txt").write_text("x\n", encoding="utf-8")
+            real_run(["git", "-C", d, "add", "a.txt"], check=True)
+            real_run(["git", "-C", d, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c"], check=True)
+            with mock.patch.object(util.subprocess, "run", side_effect=run), \
+                    mock.patch.object(util.subprocess, "Popen", side_effect=popen), \
+                    mock.patch.object(threading, "Timer", side_effect=AssertionError("Timer を作った")), \
+                    mock.patch.object(util, "GIT_CWD", d):
+                self.assertIsNotNone(util.git("status"))
+                self.assertIsNotNone(util.git_bytes("status"))
+                got, why = util.run_count({"patterns": ["x"], "paths": ["a.txt"], "count": "lines"}, d, rev="HEAD")
+        self.assertEqual((got, why), (1, ""))
+        self.assertTrue(runs and popens)
+        for k in runs + popens:
+            self.assertNotIn("timeout", k)
+        self.assertFalse(hasattr(util, "GIT_TIMEOUT"))

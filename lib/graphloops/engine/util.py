@@ -109,9 +109,6 @@ ANSWER_ACTIONS = ("continue", "stop", "escalate")
 # 周の途中の問いは、周の中の工程（仕様の承認・承認後のテストの変更）で人の答えを待つ口で、周の終わりの判定ではない
 IN_ROUND_ACTIONS = ("continue", "stop")
 
-GIT_TIMEOUT = 120  # 秒。近傍の scripts/comment-ratio.sh と同じ上限
-
-
 GIT_CWD = None  # 対象リポジトリ。init が記録した inputs.cwd を engine が 1 度だけ入れる（下の _repo_args を見よ）
 
 
@@ -131,7 +128,7 @@ GIT_WHY_CAP = 300  # 失敗の理由として運ぶ git の標準エラーの末
 
 
 def git(*args, env=None, why=None):
-    """成功なら stdout、失敗（git が無い・非 0・時間切れ）なら None。呼ぶ側は None を『分からない』として扱い、合格に倒さない。
+    """成功なら stdout、失敗（git が無い・非 0）なら None。呼ぶ側は None を『分からない』として扱い、合格に倒さない。
 
     `env` は**足す**（置き換えない）。GIT_INDEX_FILE を渡して一時 index の上で組み立てる呼びが 1 つ在る
     ——intent-to-add の index では stash create も write-tree も非 0 で返るので、本物の index を避ける道が要る。
@@ -146,8 +143,8 @@ def git(*args, env=None, why=None):
         # errors=replace: 対象リポジトリに非 UTF-8 のテキストが 1 本でも在ると、復号の例外が『失敗なら None』の契約を
         # 迂回して総括例外で落ちた（実測 2026-09-13: next が exit 2 でどの周にも進めない）。置換文字で読み、落とさない
         r = subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           timeout=GIT_TIMEOUT, env=run_env)
-    except (OSError, subprocess.TimeoutExpired) as e:
+                           env=run_env)
+    except OSError as e:
         if why is not None:
             why.append(f"{type(e).__name__}: {e}"[-GIT_WHY_CAP:])
         return None
@@ -164,8 +161,8 @@ def git_bytes(*args):
     （実測 2026-09-13: b"caf\xe9 \xff" と b"caf\xc3 \xfe" が一致）。貼る用は落としてよい／突合用は落としてはいけない。"""
     args = (*_repo_args(), *args)
     try:
-        r = subprocess.run(["git", *args], capture_output=True, timeout=GIT_TIMEOUT)
-    except (OSError, subprocess.TimeoutExpired):
+        r = subprocess.run(["git", *args], capture_output=True)
+    except OSError:
         return None
     return r.stdout if r.returncode == 0 else None
 
@@ -363,32 +360,21 @@ def count_argv(how, rev=None):
     return argv + ([rev] if rev else []) + ["--"] + list(how["paths"]), ""
 
 
-def _run_capped(argv, cwd, timeout, cap):
-    """1 本を走らせる ——（exit, 標準出力, 標準エラーの頭, 上限を超えたか, 時間切れか）。
+def _run_capped(argv, cwd, cap):
+    """1 本を走らせる ——（exit, 標準出力, 標準エラーの頭, 上限を超えたか）。
     標準入力は DEVNULL（engine の標準入力を子に継がせない）、標準出力は上限の 1 バイト先までしか読まない"""
     import tempfile
-    import threading
-    flags = {"timeout": False}
-
-    def kill():
-        flags["timeout"] = True
-        p.kill()
     with tempfile.TemporaryFile() as err:
         p = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=err)
-        timer = threading.Timer(timeout, kill)
-        timer.start()
-        try:
-            out = p.stdout.read(cap + 1)
-            over = len(out) > cap
-            if over:
-                p.kill()
-            p.stdout.close()
-            rc = p.wait()
-        finally:
-            timer.cancel()
+        out = p.stdout.read(cap + 1)
+        over = len(out) > cap
+        if over:
+            p.kill()
+        p.stdout.close()
+        rc = p.wait()
         err.seek(0)
         msg = err.read(2000).decode("utf-8", "replace").strip()
-    return rc, out, msg, over, flags["timeout"]
+    return rc, out, msg, over
 
 
 def sum_counts(text):
@@ -399,15 +385,13 @@ def sum_counts(text):
     return sum(int(l.rpartition(":")[2]) for l in lines)
 
 
-def _grep_run(argv, cwd, timeout, cap):
+def _grep_run(argv, cwd, cap):
     """git grep を 1 本 ——（exit, 標準出力のバイト, ""）か（None, None, 理由）。**読めなかった問いを 0 件にしない**:
-    時間切れ・上限超え・標準エラーへの書き込み・1 でない非 0 は理由を返す（一致なしの exit 1 は正当な 0 件）"""
+    上限超え・標準エラーへの書き込み・1 でない非 0 は理由を返す（一致なしの exit 1 は正当な 0 件）"""
     try:
-        rc, out, err, over, late = _run_capped(argv, cwd, timeout, cap)
+        rc, out, err, over = _run_capped(argv, cwd, cap)
     except OSError as e:
         return None, None, f"走らせられない（{type(e).__name__}）"
-    if late:
-        return None, None, f"git grep が {timeout} 秒で終わらない"
     if over:
         return None, None, f"git grep の出力が上限（{cap} バイト）を超えた——パスを絞れ"
     if err:
@@ -417,15 +401,15 @@ def _grep_run(argv, cwd, timeout, cap):
     return rc, out, ""
 
 
-def _grep_found(argv, cwd, timeout):
+def _grep_found(argv, cwd):
     """git grep -q を 1 本 ——（当たったか, ""）か（None, 理由）"""
-    rc, _, why = _grep_run(argv, cwd, timeout, 1)
+    rc, _, why = _grep_run(argv, cwd, 1)
     return (None, why) if why else (rc == 0, "")
 
 
-def _grep(argv, cwd, timeout):
+def _grep(argv, cwd):
     """git grep を 1 本 ——（標準出力の文字列, ""）か（None, 理由）"""
-    _, out, why = _grep_run(argv, cwd, timeout, COUNT_CAP)
+    _, out, why = _grep_run(argv, cwd, COUNT_CAP)
     return (None, why) if why else (out.decode("utf-8", "replace"), "")
 
 
@@ -477,11 +461,11 @@ def copy_worktree(dst):
     dst = pathlib.Path(dst)
     try:
         subprocess.run(["git", "clone", "-q", "--shared", "--no-checkout", top, str(dst)], check=True,
-                       capture_output=True, timeout=GIT_TIMEOUT)
+                       capture_output=True)
         head = git("rev-parse", "--verify", "-q", "HEAD")
         if head and head.strip():
             subprocess.run(["git", "-C", str(dst), "checkout", "-q", "--detach", head.strip()], check=True,
-                           capture_output=True, timeout=GIT_TIMEOUT)
+                           capture_output=True)
     except (OSError, subprocess.SubprocessError) as e:
         raise Reject(f"任せ先の写しを作れない（git clone / checkout: {e}）") from e
     changed = git("diff", "--name-only", "-z", "HEAD") if head and head.strip() else git("ls-files", "-z")
@@ -501,7 +485,7 @@ def copy_worktree(dst):
     return str(dst)
 
 
-def run_count(how, cwd, timeout=60, rev=None, probe=True):
+def run_count(how, cwd, rev=None, probe=True):
     """『同じ形を全部引く問い』（how）を engine が組んだ argv で走らせ、件数を返す ——（件数, ""）か（None, 理由）。
 
     パスは 1 本ずつ、**数える本体と同じ旗・同じ版で**テキストのファイルに 1 本以上当たるかを先に見る——指し先の無い問いは
@@ -513,8 +497,8 @@ def run_count(how, cwd, timeout=60, rev=None, probe=True):
     if rev:
         try:
             r = subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}"], cwd=cwd,
-                               stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
-        except (OSError, subprocess.TimeoutExpired) as e:
+                               stdin=subprocess.DEVNULL, capture_output=True)
+        except OSError as e:
             return None, f"数える版を確かめられない（{type(e).__name__}）"
         if r.returncode != 0:
             return None, f"数える版 {rev!r} が版として解決できない"
@@ -526,13 +510,13 @@ def run_count(how, cwd, timeout=60, rev=None, probe=True):
     # -l でなく -q——一致したファイル名を全部読まない（パス . で 5 万ファイルなら 1 本 9〜13 秒・1.8MB だった）
     world = ["-q" if x == "-l" else x for x in world]
     for p in how["paths"] if probe else []:
-        found, why = _grep_found(world + ["--", p], cwd, timeout)
+        found, why = _grep_found(world + ["--", p], cwd)
         if why:
             return None, f"パス {p!r} を確かめられない（{why}）"
         if not found:
             where = f"版 {rev}" if rev else ("追跡中と未追跡" if how.get("untracked") else "追跡中") + "のファイル"
             return None, f"パス {p!r} が数える世界（{where}）のテキストのファイルに 1 本も当たらない——指し先の無い問いは 0 件の証拠にならない"
-    out, why = _grep(argv, cwd, timeout)
+    out, why = _grep(argv, cwd)
     if why:
         return None, why
     if how["count"] == "files":

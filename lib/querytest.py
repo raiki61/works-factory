@@ -91,7 +91,7 @@ def run_examples(how, lines) -> tuple:
         for i, line in enumerate(lines):
             (pathlib.Path(d) / str(i)).write_text(line + "\n", encoding="utf-8")
             names.append(str(i))
-        _, out, why = _util._grep_run(["git", "grep", "--no-index", *flags, "--", *names], d, None, _util.COUNT_CAP)
+        _, out, why = _util._grep_run(["git", "grep", "--no-index", *flags, "--", *names], d, _util.COUNT_CAP)
     if why:
         return None, why
     got = set()
