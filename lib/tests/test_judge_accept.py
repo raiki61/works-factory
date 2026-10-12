@@ -540,7 +540,7 @@ class JudgeTakeCase(_JudgeBase):
         head = redesign["text"]
         for name, ties, needle in (("結び無し", [], "作り直しの行"),
                                    ("defer の単位", [{"redesign": head, "to": defer["key"]}], "[block] でも do-now でもない"),
-                                   ("知らない行", [{"redesign": "別の行", "to": _MEAN}], "作り直しの節のどの行にも当たらない"),
+                                   ("知らない行", [{"redesign": "別の行", "to": _MEAN}], "作り直しのセクションのどの行にも当たらない"),
                                    ("短い訳", [{"redesign": head, "none": "目的の外"}], "字に満たない")):
             with self.subTest(name):
                 reply = _judge_ok()
@@ -1355,7 +1355,7 @@ class MaterialCase(_RepoCase):
         got = self.take_round("test-double-fidelity",
                               {"material": {"status": "carried_over", "from_round": 1, "reason": "前の周と同じ"}})
         self.assertFalse(got["ok"])
-        self.assertIn("素材 'test_double_fidelity'（節 p1.test_double_fidelity）は今の周に走ったのに carried_over", got["reason"])
+        self.assertIn("素材 'test_double_fidelity'（ノード p1.test_double_fidelity）は今の周に走ったのに carried_over", got["reason"])
         good = {"material": {"status": "clean", "checked": "代役と本物の口を比べた"}}
         self.assertTrue(self.take_round("test-double-fidelity", good)["ok"])
         self.assertEqual(ja.read_json(self.jdir / "material-test-double-fidelity.json")["materials"],
