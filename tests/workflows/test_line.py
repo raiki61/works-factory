@@ -4,11 +4,14 @@
 入口の拒み・返りの合わせ方はここで照らす。種の git は gitkit の型の写し。
 """
 import ast
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import pathlib
 import re
+import runpy
 import shutil
 import subprocess
 import sys
@@ -930,30 +933,27 @@ class Recorded(dict):
         self.read.add(key)
         return super().get(key, default)
 
+    def __getitem__(self, key):
+        self.read.add(key)
+        return super().__getitem__(key)
+
 
 class LineWiringCase(unittest.TestCase):
     """返しの節の with: の鍵と、その script が読む INPUTS_<名> が同じ（片方だけ欄を足すと、欄が黙って報告から落ちる）"""
 
-    READERS = {
-        "plan-out": lambda: plan_out.from_env(),
-        "judged": lambda: judged.from_env(),
-        "fixed": lambda: fixed.from_env(),
-        "collect": lambda: (collect.received_of_env(), collect.line_of_env()),
-        "ask-final": lambda: ask_final.from_env(),
-        "answer-before-fix": lambda: before_fix_answer.from_env(),
-        "answer-start": lambda: gate_answer.from_env(),
-        "answer-final": lambda: gate_answer.from_env(),
-        "answer-replan": lambda: replan_answer.from_env(),
-    }
-
     def test_with_keys_are_what_the_script_reads(self):
-        nodes = line_nodes()
-        for key, read in self.READERS.items():
-            with self.subTest(node=key):
-                env = Recorded(WORKFLOW_ID=RUN)
-                with mock.patch.object(os, "environ", env):
-                    read()
-                self.assertEqual(env.read, {f"INPUTS_{name.upper()}" for name in nodes[key]["with"]})
+        """with: を持つ線の script の節の全部（受け皿 returned は下の 2 本）を、with: の鍵の全部を "null" にして走らせ、読んだ
+        INPUTS_<名> を控える"""
+        nodes = {key: node for key, node in line_nodes().items()
+                 if "script" in node and node.get("with") and node["script"] != "returned"}
+        self.assertIn("ask-before-fix", nodes)
+        for key, node in nodes.items():
+            with self.subTest(node=key), tempfile.TemporaryDirectory() as tmp:
+                env = Recorded(WORKFLOW_ID=RUN, ARTIFACTS_DIR=tmp, **{f"INPUTS_{name.upper()}": "null" for name in node["with"]})
+                with mock.patch.object(os, "environ", env), contextlib.redirect_stdout(io.StringIO()):
+                    runpy.run_path(str(SCRIPTS / f"{node['script']}.py"), run_name="__main__")
+                self.assertEqual({name for name in env.read if name.startswith("INPUTS_")},
+                                 {f"INPUTS_{name.upper()}" for name in node["with"]})
 
     def test_receivers_return_every_with_key_and_nothing_else(self):
         """受け皿（returned）は with: の鍵 got_<欄> の全部を欄にし、Archon が同じく INPUTS_<名> で渡す線の inputs: は欄にしない"""
@@ -1172,45 +1172,67 @@ class LineWiringCase(unittest.TestCase):
         self.assertEqual(sorted(found - set(self.UNPROVEN)), [], "照らしの通らない隣のファイル（直すか、訳を書いて UNPROVEN に足す）")
         self.assertEqual(sorted(set(self.UNPROVEN) - found), [], "通るようになった照らしが UNPROVEN に残っている（表から消す）")
 
+    # 2 度差し込むが置き場を分けないブロック: plan-review は案の直しの差し込みが前の差し込みの承認済みの項目を読む（boardview.view の
+    # 「同じ run の往復と案の直しを同じ周に積む」）ので置き場 plan-review/ を共にし、差し込みの形は with: の ruling で分ける
+    SHARED_PLACE = {"works-factory-plan-review": "ruling"}
+
     def test_twice_included_blocks_use_their_own_place(self):
-        """落とし穴 K14: 同じブロックを 2 度差し込む所で、各ブロックの置き場を決める関数に線の 2 つの include の id か形（with: の値）を
-        渡すと違う置き場が返る（2 度目が 1 度目の置き場の物を今回の物として拾わない）。関数: judge は lib/judge_accept.verdict（異議の
-        有無で judge/・rejudge/）、plan は lib/planfile.open_round（周ごとの plan/r<k>/）、fix は workflows/fix/scripts/fixio.place
+        """落とし穴 K14: 線が 2 度差し込むブロック（YAML から数える）の全部で、置き場を決める関数に 2 つの include の id か形（with: の
+        値）を渡すと違う置き場が返る（2 度目が 1 度目の置き場の物を今回の物として拾わない）。関数: judge は lib/judge_accept.verdict
+        （異議の有無で judge/・rejudge/）、plan は lib/planfile.open_round（周ごとの plan/r<k>/）、fix は workflows/fix/scripts/fixio.place
         （include の名ごとの fix/<id>/）、test-gate は workflows/test-gate/scripts/result.rel（形ごとの test-gate/<mode>/）、merge は
-        workflows/merge/scripts/merge.py の返す節（形ごとのファイル。フォルダ merge/ は同じ）"""
+        workflows/merge/scripts/merge.py の返す節（形ごとのファイル。フォルダ merge/ は同じ）。表 SHARED_PLACE のブロックは置き場を
+        共にし、2 つの include が形の with: の値で分かれる"""
         nodes = line_nodes()
+        twice = {}
+        for key, node in nodes.items():
+            if "include" in node:
+                twice.setdefault(node["include"], []).append(key)
+        twice = {block: keys for block, keys in twice.items() if len(keys) > 1}
+        places = {"works-factory-judge": self.judge_places, "works-factory-plan": self.plan_places,
+                  "works-factory-fix": self.fix_places, "works-factory-test-gate": self.gate_places,
+                  "works-factory-merge": self.merge_places}
+        self.assertEqual(set(twice), set(places) | set(self.SHARED_PLACE), "2 度差し込むブロックの置き場の照らし")
+        for block, keys in twice.items():
+            with self.subTest(block=block, includes=keys):
+                if block in self.SHARED_PLACE:
+                    form = self.SHARED_PLACE[block]
+                    self.assertNotEqual(*[nodes[key]["with"][form] for key in keys])
+                    continue
+                self.assertNotEqual(*places[block]([nodes[key] for key in keys], keys))
+
+    def judge_places(self, includes, keys) -> list:
+        self.assertEqual([node["with"]["objection"] for node in includes], ["", "$fix.output.objection"])
         with tempfile.TemporaryDirectory() as tmp:
             tmp = pathlib.Path(tmp)
-            self.assertEqual((nodes["judge"]["with"]["objection"], nodes["rejudge-run"]["with"]["objection"]), ("", "$fix.output.objection"))
-            folders = [pathlib.PurePosixPath(judge_accept.verdict(tmp / "judge", tmp / "rejudge", tmp, objection,
-                                                                  lambda rel: {"path": rel})["judgment"]["path"]).parent
-                       for objection in ("", "u1 は直さなくてよい")]
-            self.assertNotEqual(*folders, "judge と rejudge-run の置き場")
+            return [pathlib.PurePosixPath(judge_accept.verdict(tmp / "judge", tmp / "rejudge", tmp, objection,
+                                                               lambda rel: {"path": rel})["judgment"]["path"]).parent
+                    for objection in ("", "u1 は直さなくてよい")]
 
-            self.assertEqual((nodes["plan"]["with"]["ruling"], nodes["replan"]["with"]["ruling"]), ([], "$fix.output.replan_items"))
-            dirs = [planfile.open_round(tmp / "plan", ruling=ruling, judgment=None, review=None, units=[], repo=tmp, why="試験")["dir"]
+    def plan_places(self, includes, keys) -> list:
+        self.assertEqual([node["with"]["ruling"] for node in includes], [[], "$fix.output.replan_items"])
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            return [planfile.open_round(tmp / "plan", ruling=ruling, judgment=None, review=None, units=[], repo=tmp, why="試験")["dir"]
                     for ruling in ([], ["1"])]
-            self.assertNotEqual(*dirs, "plan と replan の周のフォルダ")
 
+    def fix_places(self, includes, keys) -> list:
         fixio = load_file("fix_fixio", SCRIPTS.parents[1] / "fix" / "scripts" / "fixio.py")
         with tempfile.TemporaryDirectory() as tmp:
             places = []
-            for include in ("fix", "refix-run"):
-                self.assertEqual(nodes[include]["include"], "works-factory-fix")
+            for include in keys:
                 env = {"ARTIFACTS_DIR": tmp, "ARCHON_NODE_EXECUTION": json.dumps({"path": f"{include}__fix-prep"})}
                 with mock.patch.dict(os.environ, env):
                     places.append(fixio.place())
-            self.assertNotEqual(*places, "fix と refix-run の置き場")
+            return places
 
+    def gate_places(self, includes, keys) -> list:
         gate = load_file("test_gate_result", SCRIPTS.parents[1] / "test-gate" / "scripts" / "result.py")
-        modes = [nodes[key]["with"]["mode"] for key in ("test-gate-base", "test-gate-final")]
-        self.assertNotEqual(*[pathlib.PurePosixPath(gate.rel(mode, "run.json")).parent for mode in modes], "test-gate の base と final の置き場")
+        return [pathlib.PurePosixPath(gate.rel(node["with"]["mode"], "run.json")).parent for node in includes]
 
-        self.assertNotEqual(*self.merge_places([nodes[key]["with"]["mode"] for key in ("merge-seal", "merge-apply")]),
-                            "merge-seal と merge-apply の差分の置き場")
-
-    def merge_places(self, modes) -> list:
+    def merge_places(self, includes, keys) -> list:
         """merge の返す節を一時の git の木で形ごとに走らせ（seal の次に apply）、返りの diff の指し札の置き場を並べる"""
+        modes = [node["with"]["mode"] for node in includes]
         with tempfile.TemporaryDirectory() as tmp:
             tmp = pathlib.Path(tmp)
             repo, artifacts = tmp / "repo", tmp / "artifacts"
