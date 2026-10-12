@@ -37,6 +37,12 @@
   "spec.review": "board/out/r*/spec.review.json: 無い",
   "stop.premise_check": "board/out/r*/stop.premise_check.json: 無い; board/out/r*/stop.premise_check.json: 無い"
  },
+ "units": [
+  "stats.py median middle: 中央の添字を持つ局所変数の名が値か添字か読み取れない"
+ ],
+ "asks": [
+  "entering__launch"
+ ],
  "cost": {
   "usd": null,
   "seconds": 788.0,
@@ -55,7 +61,7 @@
    "final_gate": "when_needed",
    "thickness": "標準"
   },
-  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80",
-  "date": "2026-10-12T08:47:23+00:00"
+  "date": "2026-10-12T08:47:23+00:00",
+  "fingerprint": "a06a4f0738729f4b15c2f4e56d170ff46de09bc544732a6391fa4a9514027e80"
  }
 }

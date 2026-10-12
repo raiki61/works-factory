@@ -1,6 +1,7 @@
 """欠陥を仕込んだ較正の束を本物の工場に回し、1 行の run ごとに observed を残す（運び役が命令として打つ道具。試験のモジュールではない）。
 
     python3 tests/calibration/run.py run <works|works-factory> --attempts <置き場> [--only <id,…>] [--resume] [--observed <dir>] [--dry-run]
+    python3 tests/calibration/run.py reobserve <works|works-factory> --attempts <置き場> [--only <id,…>] [--observed <dir>]
     python3 tests/calibration/run.py score <works|works-factory> [--observed <dir>]
     python3 tests/calibration/run.py compare [--observed <dir>]
 
@@ -18,6 +19,19 @@ observed を <observed>/<factory>/<行の id>--<run の id の頭 8 字>.json �
   行の組ごとに別にして起こす（同じ置き場に 2 つ目のランナーは断る）。observed は同じ --observed に書いてよい（名に run の id が入る）。
 - アカウントは各工場の起動の殻が読む環境変数（WORKS_FACTORY_KEYCHAIN_ITEM・WORKS_KEYCHAIN_ITEM）をそのまま子に継ぐ。値は読まず、出さない。
 - 試験の差し替え口は環境変数 WORKS_CALIBRATION_SHELL の 1 つだけ: works-factory の起動の殻（既定は bin/works-factory）を替える。
+- reobserve は台帳で終わった行の observed を、試みの evidence/ だけから今の物差しで取り直す（工場も Archon も起こさず、記録を写し
+  直さない）。evidence/ に無い来歴（工場と claude の版・入力・日時）と子の run は前の observed から引き継ぐ。前の observed が無い行は
+  止まる（終了の値 1）。
+
+observed の units（直した単位の名の並び）と asks（人の関所で止めた順の関所の名の並び。数は並びの長さ）は evidence/ から読み、読めない
+時は欄を null にして unread に欄の名を、flag_evidence に読めない訳を置く（関門の unread と違い、行の判定には数えない）。読む先:
+- 今の works（版は pack.json の works.commit）: units は盤面の周ごとの修正の出力 board/out/r<N>/p3.fix.json の changes[].unit_key
+  （出力の置き場は .shared/core/board.py:1025、changes[].unit_key は .shared/core/graphloops/graphs/review-loop.json:3660 の p3.fix の
+  pointers）。asks は record/parent.json の出来事のうち approval_requested の step_name（関所は blk-entry/blk-entry.yaml:79 の
+  launch・blk-spec/blk-spec.yaml:443 の spec-gate・darkfactory/darkfactory.yaml:534・741・1247 の policy-gate・replan-gate・final-gate）。
+- works-factory: units は修正の置き場 parent/fix/<include の名>/join.json の単位の行に、同じ置き場の fix-units.json の裁定の後の結末を
+  重ねて fixed の unit_id（workflows/fix/scripts/collect.py:85 と同じ重ね方。lib/fixboard.py:742・760・1445・2308）。asks は
+  record/parent.json の terminal_record.nodes のうち、メイングラフの承認ノード（WorksFactory.gates）で skipped・pending でない物。
 
 今の works（pack.json の works.commit。置き場は環境変数 WORKS_FACTORY_OLD_WORKS に、取り出した claude-plugins の works/ を渡す）の
 記録の置き場と形（その版の works/dev/use.sh・lib.sh・archon.sh・canary_check.py と .shared/core/report.py で確かめた）:
@@ -55,6 +69,7 @@ if str(ROOT) not in sys.path:
 from bin._lib import pack  # noqa: E402
 from tests.calibration import corpus  # noqa: E402
 from tests.e2e import evidence, make_target  # noqa: E402
+import fixboard  # noqa: E402  lib/ は corpus が sys.path に足す
 
 FLAGS = HERE / "flags.json"
 OBSERVED = HERE / "observed"
@@ -72,6 +87,8 @@ SKIPPED = "skipped"
 WAIT_RUNNING = 3
 UNATTENDED_STOP = "無人の run（WORKS_USE_UNATTENDED=1）: 人が決める関所に着いたので止めて報告へ"   # use.sh start の無人の末尾の文
 STATES = {"running": "running", "pending": "running", "paused": "paused", "completed": DONE}   # Archon の run の status → run_one の分かれ
+RECORDED = ("units", "asks")   # 関門でなく unread に入りうる observed の欄
+NOT_ASKED = ("skipped", "pending")
 
 
 class Stop(Exception):
@@ -85,6 +102,7 @@ class WorksFactory:
     name = "works-factory"
     account = "WORKS_FACTORY_KEYCHAIN_ITEM"
     passes = {"unattended": "unattended", "final_gate": "final_gate", "thickness": "thickness"}
+    gates = ("gate-start", "gate-before-fix", "gate-replan", "gate-final")   # workflows/line/works-factory-line.yaml の承認ノード
 
     def __init__(self):
         self.shell = Path(os.environ.get(SHELL_ENV) or ROOT / "bin" / "works-factory")
@@ -149,19 +167,51 @@ class WorksFactory:
         self._launch(attempt, self.resume_command(attempt, run_id))
 
     def finish(self, attempt: Path, run_id: str) -> dict:
-        got = self._get(attempt, run_id)
-        value = ((got.get("terminal_record") or {}).get("returns") or {}).get("value")
-        outcome = value.get("outcome") if isinstance(value, dict) else None
         try:
             kept = evidence.collect(attempt, run_id, self.shell)
         except evidence.Stop as e:
             raise Stop(STOPPED, f"run {run_id} の記録を evidence/ に写せない: {e}") from None
         for limit in kept["limits"]:
             print(f"run.py: {limit}（その置き場を読む照らしは unread になる）", file=sys.stderr)
-        return {"outcome": outcome if isinstance(outcome, str) else "", "children": kept["children"],
+        return {**self.ended(attempt / evidence.EVIDENCE), "children": kept["children"]}
+
+    @staticmethod
+    def ended(ev: Path) -> dict:
+        got = _object(_read_json(ev, "record/parent.json")[0])
+        value = _object(_object(got.get("terminal_record")).get("returns")).get("value")
+        outcome = value.get("outcome") if isinstance(value, dict) else None
+        return {"outcome": outcome if isinstance(outcome, str) else "",
                 "seconds": _seconds(got.get("started_at"), got.get("completed_at")),
-                "usd": _number((got.get("metadata") or {}).get("total_cost_usd")),
+                "usd": _number(_object(got.get("metadata")).get("total_cost_usd")),
                 "usd_from": "run の記録の metadata.total_cost_usd（fix の組の子の run の費用を含む）"}
+
+    @staticmethod
+    def units(ev: Path) -> tuple[list | None, str]:
+        if not (ev / "parent").is_dir():
+            return None, "parent: 無い"
+        names = []
+        for join in sorted((ev / "parent").glob(f"fix/*/{fixboard.JOIN_FILE}")):
+            doc, why = _read_json(ev, join)
+            rows = doc.get("units") if isinstance(doc, dict) else None
+            if not isinstance(rows, list):
+                return None, why or f"{_name(ev, join)}: units が並びでない"
+            ruled, why = None, ""
+            if (join.parent / fixboard.FIX_UNITS_FILE).exists():
+                ruled, why = _read_json(ev, join.parent / fixboard.FIX_UNITS_FILE)
+            if why:
+                return None, why
+            rows = [r for r in rows if isinstance(r, dict) and "unit_id" in r and "status" in r]
+            names += [u["unit_id"] for u in fixboard.with_ruled(rows, ruled) if u["status"] == "fixed"]
+        return _unique(names), ""
+
+    @classmethod
+    def asks(cls, ev: Path) -> tuple[list | None, str]:
+        doc, why = _read_json(ev, "record/parent.json")
+        nodes = _object(_object(doc).get("terminal_record")).get("nodes")
+        if not isinstance(nodes, list):
+            return None, why or "record/parent.json: terminal_record.nodes が並びでない"
+        return [n["node_id"] for n in nodes if isinstance(n, dict) and n.get("node_id") in cls.gates
+                and n.get("state") not in NOT_ASKED], ""
 
     def provenance(self) -> dict:
         return {"factory_commit": make_target.git("-C", str(ROOT), "rev-parse", "HEAD"),
@@ -304,12 +354,39 @@ class OldWorks:
             shutil.copytree(board, out / "board", symlinks=True)
         else:
             print(f"run.py: run {run_id} の盤面（{board}）が無い（盤面を読む照らしは unread になる）", file=sys.stderr)
-        usd = next((e["data"].get("cost_usd") for e in events
-                    if e["event_type"] == "workflow_completed" and isinstance(e["data"], dict)), None)
-        return {"outcome": _header_outcome(out / "board"), "children": [],
-                "seconds": _seconds(row.get("started_at"), row.get("completed_at")),
+        return {**self.ended(out), "children": []}
+
+    @staticmethod
+    def ended(ev: Path) -> dict:
+        got = _object(_read_json(ev, "record/parent.json")[0])
+        run = _object(got.get("run"))
+        usd = next((e["data"].get("cost_usd") for e in _events(got)
+                    if e.get("event_type") == "workflow_completed" and isinstance(e.get("data"), dict)), None)
+        return {"outcome": _header_outcome(ev / "board"),
+                "seconds": _seconds(run.get("started_at"), run.get("completed_at")),
                 "usd": _number(usd),
                 "usd_from": "出来事 workflow_completed の data.cost_usd"}
+
+    @staticmethod
+    def units(ev: Path) -> tuple[list | None, str]:
+        if not (ev / "board").is_dir():
+            return None, "board: 無い"
+        fixes = [p for p in (ev / "board").glob("out/r*/p3.fix.json") if re.fullmatch(r"r\d+", p.parent.name)]
+        names = []
+        for path in sorted(fixes, key=lambda p: int(p.parent.name[1:])):
+            doc, why = _read_json(ev, path)
+            changes = doc.get("changes") if isinstance(doc, dict) else None
+            if not isinstance(changes, list):
+                return None, why or f"{_name(ev, path)}: changes が並びでない"
+            names += [c["unit_key"] for c in changes if isinstance(c, dict) and isinstance(c.get("unit_key"), str)]
+        return _unique(names), ""
+
+    @staticmethod
+    def asks(ev: Path) -> tuple[list | None, str]:
+        doc, why = _read_json(ev, "record/parent.json")
+        if not isinstance(_object(doc).get("events"), list):
+            return None, why or "record/parent.json: events が並びでない"
+        return [e.get("step_name") or "" for e in _events(doc) if e.get("event_type") == "approval_requested"], ""
 
     def provenance(self) -> dict:
         found = re.search(r'^ARCHON_VERSION="([^"]+)"', (self.dev / "archon.sh").read_text(encoding="utf-8"), re.M)
@@ -337,6 +414,34 @@ def _header_outcome(board: Path) -> str:
         if line.startswith(HAPPENED):
             return next((w for w in corpus.OUTCOMES if f"（{w}）" in line), "")
     return ""
+
+
+def _read_json(ev: Path, path) -> tuple[object, str]:
+    """evidence/ の中の JSON。(値, "") か、(None, 「evidence/ からの相対パス: 無い・読めない」)"""
+    path = ev / path
+    try:
+        return json.loads(path.read_text(encoding="utf-8")), ""
+    except FileNotFoundError:
+        return None, f"{_name(ev, path)}: 無い"
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        return None, f"{_name(ev, path)}: 読めない（{type(e).__name__}）"
+
+
+def _name(ev: Path, path: Path) -> str:
+    return path.relative_to(ev).as_posix()
+
+
+def _object(value) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def _events(record: dict) -> list[dict]:
+    events = _object(record).get("events")
+    return [e for e in events if isinstance(e, dict)] if isinstance(events, list) else []
+
+
+def _unique(names: list) -> list:
+    return list(dict.fromkeys(names))
 
 
 def _json_or_text(raw):
@@ -568,27 +673,63 @@ def run_one(row: dict, factory, inputs: dict, attempts: Path, ledger: Ledger, fl
         ledger.add(**entry, run_id=run_id, state="stopped")
         raise Stop(STOPPED, f"行 {row['id']}: run {run_id} が終わりの状態にならずに止まった（{state}）。続ける: {_resume_line(args)}")
     ended = factory.finish(attempt, run_id)
-    observed = observe(row, factory, run_id, ended, attempt, inputs, base, flags, args.corpus)
+    made = {**factory.provenance(), "claude_code": _claude_version(),
+            "run_inputs": {"request": "request.json", **({"base": base} if base else {}), **SEED_INPUTS, **inputs},
+            "date": _now()}
+    observed = observe(row, factory, run_id, ended, attempt / evidence.EVIDENCE, flags, args.corpus, made)
     write_observed(observed, Path(args.observed))
     ledger.add(**entry, run_id=run_id, child_run_ids=ended["children"], state=DONE)
     print(json.dumps(observed, ensure_ascii=False, allow_nan=False))
 
 
-def observe(row, factory, run_id, ended, attempt, inputs, base, flags, corpus_path) -> dict:
-    ev = attempt / evidence.EVIDENCE
+def observe(row, factory, run_id, ended, ev: Path, flags, corpus_path, made: dict) -> dict:
+    """made は来歴のうち物差しの指紋のほかの欄（工場と claude の版・入力・日時）"""
     got = flags_of(flags[factory.name], ev, factory.skipped(ev))
+    read = {name: getattr(factory, name)(ev) for name in RECORDED}
+    lost = {name: why for name, (_, why) in read.items() if why}
     seconds = ended["seconds"]
     return {
         "id": row["id"], "factory": factory.name, "run_id": run_id, "outcome": ended["outcome"],
-        "flagged": got["flagged"], "child_run_ids": ended["children"], "unread": got["unread"],
-        "flag_evidence": got["flag_evidence"],
+        "flagged": got["flagged"], "child_run_ids": ended["children"], "unread": got["unread"] + list(lost),
+        "flag_evidence": {**got["flag_evidence"], **lost},
+        "units": read["units"][0], "asks": read["asks"][0],
         "cost": {"usd": ended["usd"], "seconds": seconds, "why_null": "。".join(
             ([] if ended["usd"] is not None else [f"usd: {ended['usd_from']} が読めない"])
             + ([] if seconds is not None else ["seconds: run の記録の始めと終わりの時刻が読めない"]))},
-        "provenance": {**factory.provenance(), "claude_code": _claude_version(),
-                       "run_inputs": {"request": "request.json", **({"base": base} if base else {}), **SEED_INPUTS, **inputs},
-                       "fingerprint": fingerprint(factory.name, corpus_path, flags), "date": _now()},
+        "provenance": {**made, "fingerprint": fingerprint(factory.name, corpus_path, flags)},
     }
+
+
+def reobserve_rows(args) -> int:
+    factory = FACTORY[args.factory]()
+    rows = _rows(corpus.load(args.corpus), args.only)
+    attempts = _outside(args.attempts)
+    if not attempts.is_dir():
+        raise Stop(REFUSED, f"置き場 {attempts} が無い")
+    lock = _lock(attempts)
+    try:
+        ledger, flags = Ledger(attempts), load_flags()
+        for row in rows:
+            last = ledger.last(row["id"], factory.name)
+            if last is None:
+                continue
+            if last["state"] != DONE:
+                print(f"run.py: 行 {row['id']} の run は終わっていない（台帳の状態 {last['state']}）。取り直さない", file=sys.stderr)
+                continue
+            path = observed_path(Path(args.observed), factory.name, row["id"], last["run_id"])
+            try:
+                before = _object(json.loads(path.read_text(encoding="utf-8")))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                raise Stop(STOPPED, f"行 {row['id']} の前の observed（{path}）が読めない。来歴を引き継げないので取り直さない") from None
+            ev = Path(last["attempt"]) / evidence.EVIDENCE
+            ended = {**factory.ended(ev), "children": before.get("child_run_ids") or []}
+            made = {k: v for k, v in _object(before.get("provenance")).items() if k != "fingerprint"}
+            observed = observe(row, factory, last["run_id"], ended, ev, flags, args.corpus, made)
+            write_observed(observed, Path(args.observed))
+            print(json.dumps(observed, ensure_ascii=False, allow_nan=False))
+    finally:
+        os.close(lock)
+    return OK
 
 
 def _claude_version() -> str | None:
@@ -598,8 +739,12 @@ def _claude_version() -> str | None:
     return (done.stdout.strip() or None) if done.returncode == 0 else None
 
 
+def observed_path(folder: Path, factory: str, row_id: str, run_id: str) -> Path:
+    return folder / factory / f"{row_id}--{run_id[:8]}.json"
+
+
 def write_observed(observed: dict, folder: Path) -> Path:
-    path = folder / observed["factory"] / f"{observed['id']}--{observed['run_id'][:8]}.json"
+    path = observed_path(folder, observed["factory"], observed["id"], observed["run_id"])
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(observed, ensure_ascii=False, indent=1, allow_nan=False) + "\n", encoding="utf-8")
     return path
@@ -651,7 +796,7 @@ def verdict(rows: dict, observed) -> dict:
     if row_id not in rows:
         return _inconclusive(row_id, f"observed が読めないか、行 {row_id} が束に無い")
     row = rows[row_id]
-    unread = observed.get("unread") or []
+    unread = [g for g in observed.get("unread") or [] if g not in RECORDED]
     if row["kind"] == "none":
         got = corpus.score(row, observed)
         return _inconclusive(row_id, f"読めなかった関門 {list(unread)}") if got["verdict"] == "CLEAN" and unread else got
@@ -679,7 +824,21 @@ def score(args) -> int:
     return OK
 
 
+# 違いに数える欄と、その比べる値。単位と問いは数で比べる（名は工場ごとに語が違う）。費用は並べるだけ（2 つの工場で同じ値にならない）
+DIFFERS = {"verdict": lambda v: v["verdict"], "outcome": lambda v: v["outcome"],
+           "units": lambda v: v["units"] and v["units"]["count"], "asks": lambda v: v["asks"] and v["asks"]["count"]}
+
+
+def view(rows: dict, observed: dict) -> dict:
+    units, asks, cost = observed.get("units"), observed.get("asks"), _object(observed.get("cost"))
+    return {"verdict": verdict(rows, observed)["verdict"], "outcome": observed.get("outcome"),
+            "units": {"count": len(units), "names": units} if isinstance(units, list) else None,
+            "asks": {"count": len(asks), "gates": asks} if isinstance(asks, list) else None,
+            "cost": {"usd": cost.get("usd"), "seconds": cost.get("seconds")}}
+
+
 def compare(args) -> int:
+    """行ごとに両工場の observed を並べ、違う欄を differs に名指す。違いの訳の 1 行は人か運び役が reason に書く（出す時は空）"""
     rows = {r["id"]: r for r in corpus.load(args.corpus)["rows"]}
     flags = load_flags()
     sides = {}
@@ -690,17 +849,16 @@ def compare(args) -> int:
             if not fresh:
                 print(json.dumps({"stale": f"{factory}/{name}"}, ensure_ascii=False))
                 continue
-            got = verdict(rows, observed)
-            sides.setdefault(got["id"], {}).setdefault(factory, []).append((got["verdict"], observed.get("outcome")))
-    for row_id in sorted(sides):
+            sides.setdefault(observed.get("id"), {}).setdefault(factory, []).append(view(rows, observed))
+    for row_id in sorted(sides, key=str):
         side = sides[row_id]
         if len(side) == 1:
-            print(json.dumps({"one_sided": row_id, "only": next(iter(side))}, ensure_ascii=False))
+            only = next(iter(side))
+            print(json.dumps({"one_sided": row_id, "only": only, only: side[only]}, ensure_ascii=False))
             continue
-        views = {f: sorted(set(v)) for f, v in side.items()}
-        if len({tuple(v) for v in views.values()}) > 1:
-            print(json.dumps({"differs": row_id, **{f: [{"verdict": v, "outcome": o} for v, o in views[f]] for f in views}},
-                             ensure_ascii=False))
+        differs = [field for field, key in DIFFERS.items()
+                   if len({tuple(sorted({json.dumps(key(v)) for v in views})) for views in side.values()}) > 1]
+        print(json.dumps({"compare": row_id, "differs": differs, "reason": "", **side}, ensure_ascii=False))
     return OK
 
 
@@ -718,10 +876,14 @@ def main(argv=None) -> int:
     ran.add_argument("--dry-run", action="store_true")
     scored = sub.add_parser("score", parents=[common])
     scored.add_argument("factory", choices=corpus.FACTORIES)
+    again = sub.add_parser("reobserve", parents=[common])
+    again.add_argument("factory", choices=corpus.FACTORIES)
+    again.add_argument("--attempts", required=True, type=Path)
+    again.add_argument("--only")
     sub.add_parser("compare", parents=[common])
     args = parser.parse_args(argv)
     try:
-        return {"run": run_rows, "score": score, "compare": compare}[args.command](args)
+        return {"run": run_rows, "reobserve": reobserve_rows, "score": score, "compare": compare}[args.command](args)
     except (Stop, corpus.CorpusError) as e:
         print(f"run.py: {e}", file=sys.stderr)
         return getattr(e, "code", REFUSED)
