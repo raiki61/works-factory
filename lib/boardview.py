@@ -52,13 +52,14 @@ import premises as _premises
 import promptsection
 import purpose as _purpose
 import reads
+import replan
 import rolekit
 import startrec
 import structmark
 import worldmark
 from engine.util import Reject
 
-PLAN_NODE = "p2.fix_plan"
+PLAN_NODE = planmarks.NODE
 REVIEW_NODE = "p2.plan_review"
 PURPOSE_NODE = "p0.purpose"
 DIAGNOSE_NODE = "p2.diagnose"
@@ -555,11 +556,6 @@ def _role_item(item: dict) -> dict:
     return out
 
 
-def _bare(item: dict) -> dict:
-    """項目から関所の決め手の欄を外した写し（元 works/.shared/core/replan.py:579）"""
-    return gatemarks.split(PLAN_NODE, {"plan": [copy.deepcopy(item)]})[0]["plan"][0]
-
-
 def replan_items(b, approved, marked_rows: list, ruled: list, conflicts: list) -> list:
     """裁かれた項目ごとの {item, units, rows（申し出と裁定の行）, old（承認済みの前の形）, new（直した形。決め手の欄つき）}。
     申し出の行は conflict.replan_rows の選び。承認済みの案が無い・項目が案の外なら Missing"""
@@ -1005,7 +1001,7 @@ def replan_asks(d: pathlib.Path, p: pathlib.Path, inputs: dict, review: dict) ->
     for row in rows:
         faces = _faces_of(row, review, rows)
         human = [f for f in faces if isinstance(f, dict) and f.get("kind") in HUMAN_FACE_KINDS]
-        old, new = _bare(row["old"]), _bare(row["new"])
+        old, new = replan.bare(row["old"]), replan.bare(row["new"])
         row["contract_changed"] = planmarks.contract_diff(old, new)
         row["human_faces"] = [f.get("key") for f in human]
         row["widened"] = planmarks.widened(old, new) if alone and row["contract_changed"] and not human else None
