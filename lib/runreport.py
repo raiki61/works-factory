@@ -1035,7 +1035,7 @@ def _tdd_lines(typed: dict, returns: dict) -> tuple[list, list, list]:
     if not units:
         return [], [], notes
     lines = ["型つきの成果物 tdd-unit が一覧に無い（修正の段が出していない・子の run の成果物が親の一覧に載らない。docs/design.md の U8）。"
-             "修正の返りの単位の行で出す:"]
+             "修正の出力の単位の行で出す:"]
     lines += [f"  - {u.get('unit_id')}: {u.get('status')}（{report._one_line(u.get('reason') or '理由なし')}）" for u in units]
     return lines, [], notes
 
@@ -1117,7 +1117,7 @@ def _world_lines(returns: dict) -> list:
     if not (isinstance(p, str) and p):
         if state is not None and state.get("status") != "ok":
             return [f"世界の解の段が落ちた（行なしで進んだ）: {report._one_line(state.get('reason') or '理由の記録が無い')}"]
-        return ["世界の解の行が無い（判定の返りの world が null: 世界の解の段が落ちたか、行を取れなかった。行なしで進んだ）"] if judge else []
+        return ["世界の解の行が無い（判定の出力の world が null: 世界の解の段が落ちたか、行を取れなかった。行なしで進んだ）"] if judge else []
     try:
         rows = worldmark.rows(p)
     except ValueError as e:
@@ -1227,7 +1227,7 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     ran = [k for k, v in returns.items() if v is not None]
     skipped = [k for k, v in returns.items() if v is None]
     out.append(f"走った段: {'・'.join(ran) or '無い'}")
-    out.append(f"飛ばされた・返りの無い段: {'・'.join(skipped) or '無い'}")
+    out.append(f"飛ばされた・出力の無い段: {'・'.join(skipped) or '無い'}")
     out += _downgrade_lines()
     out += _depth_lines(start, returns, line)
     out += _prior_in_lines(line)
@@ -1256,7 +1256,7 @@ def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, retur
         out += [f"{report.RETRIED_HEAD}: {r['node']}（落ちた回 {r['failures']}。最後の誤り: {r['error'] or '（誤りの文が無い）'}）"
                 for r in tfacts.get("retried") or []]
         out += [f"{report.ABSORBED_HEAD}: {a['node']}（誤り: {report._first_error(a)}）" for a in tfacts.get("absorbed") or []]
-    out += [f"返りの続きが切れている: {x}" for x in oc.chain_notes(returns)]
+    out += [f"出力の続きが切れている: {x}" for x in oc.chain_notes(returns)]
     out += [f"結果を名乗れない訳: {report._one_line(p)}" for p in problems]
     return out
 

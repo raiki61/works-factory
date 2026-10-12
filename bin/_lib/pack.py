@@ -1,5 +1,5 @@
 """版の止め pack.json を読む。Archon の版は ASF の取り付け命令が置いた factory/pack.json から読む。
-中身の説明は docs/design.md の「pack.json」の節。"""
+中身の説明は docs/design.md の「pack.json」のセクション。"""
 import json
 import re
 from pathlib import Path

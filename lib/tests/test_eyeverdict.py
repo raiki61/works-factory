@@ -194,13 +194,13 @@ class R4GateCase(unittest.TestCase):
 
 
 class FellTextCase(unittest.TestCase):
-    FELL = [{"lane": "R1", "eye": "r1", "state": "返りのファイルが無い"},
-            {"lane": "R2", "eye": "r2", "state": "返りのファイルが無い"}]
+    FELL = [{"lane": "R1", "eye": "r1", "state": "出力のファイルが無い"},
+            {"lane": "R2", "eye": "r2", "state": "出力のファイルが無い"}]
 
     def test_names_the_lanes_and_states(self):
         text = eyeverdict.fell_text(self.FELL)
         self.assertTrue(text.startswith("R1・R2 " + eyeverdict.FELL_MARK), text)
-        self.assertIn("r1: 返りのファイルが無い・r2: 返りのファイルが無い", text)
+        self.assertIn("r1: 出力のファイルが無い・r2: 出力のファイルが無い", text)
 
     def test_names_what_ran_after_the_fall(self):
         self.assertTrue(eyeverdict.fell_text(self.FELL[:1], "R4").startswith("R1 " + eyeverdict.FELL_MARK + "まま R4 を回した"))
@@ -297,7 +297,7 @@ class CollectCase(unittest.TestCase):
         self.assertIn(eyeverdict.FELL_MARK, got["r3"]["reason"])
 
     def test_off_contract_status_is_named(self):
-        """判定の語が約束の外の返りは、落ちた筋と「返りの判定の語が約束の外」を名指して unverifiable にする（元 review-record.py:443-454）"""
+        """判定の語が約束の外の返りは、落ちた筋と「出力の判定の語が約束の外」を名指して unverifiable にする（元 review-record.py:443-454）"""
         self.all_pass()
         self.put("r3", {"status": "ok", "reason": "整合", "seen": [], "unseen": []})
         got = self.collect()

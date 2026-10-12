@@ -33,6 +33,8 @@ DESIGN_DOC_FORMS = """\
   5. 骨組みの無いまま新しい名前や口を足す
   6. 外の道具の事情を名指しで抱え込む
 """
+# 設計書の字に許した直し（元の字, 写しの字）。持ち主の決め graph-words で語をグラフの語にそろえた物だけ
+DESIGN_DOC_REWRITES = (("ブロックの境をまたいで、他のブロックの中身", "サブグラフの境をまたいで、他のサブグラフの中身"),)
 
 
 class EyeLoopGateCase(unittest.TestCase):
@@ -45,8 +47,12 @@ class EyeLoopGateCase(unittest.TestCase):
 
 class EyeAcceptCase(unittest.TestCase):
     def test_six_forms_match_the_design_doc(self):
-        """6 つの形の文は設計書の番号つきの一覧と一字も違わない（faces の 1〜6 の意味の正本は設計書）"""
-        self.assertEqual(tuple(re.findall(r"^  \d\. (.+)$", DESIGN_DOC_FORMS, re.M)), eye.FORMS)
+        """6 つの形の文は設計書の番号つきの一覧と、許した直しのほかは一字も違わない（faces の 1〜6 の意味の正本は設計書）"""
+        forms = DESIGN_DOC_FORMS
+        for original, copied in DESIGN_DOC_REWRITES:
+            self.assertEqual(forms.count(original), 1, original)
+            forms = forms.replace(original, copied)
+        self.assertEqual(tuple(re.findall(r"^  \d\. (.+)$", forms, re.M)), eye.FORMS)
 
     def test_prompt_carries_only_measured_units_and_the_forms(self):
         prompt = eye.render(DOC)

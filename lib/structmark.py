@@ -121,7 +121,7 @@ def report_lines(board_dir) -> list:
     state, got, missing = _state_rows(board_dir)
     if state is None:
         return after_lines(board_dir)
-    wall = f"構造のブロックで増えた時間: {state.get('wall_s', 0)} 秒"
+    wall = f"構造の目で増えた時間: {state.get('wall_s', 0)} 秒"
     if missing:
         return [missing, wall, *after_lines(board_dir)]
     return [*(_row_line(r) for r in got), wall, *after_lines(board_dir)] if got else ["構造の目の行は無い", wall, *after_lines(board_dir)]

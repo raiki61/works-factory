@@ -1303,7 +1303,7 @@ def delta_review_problems(place, n: int, reply: dict, repo, *, fix_reply=None) -
     for i, f in enumerate(faces):
         kind, where, cite = f.get("kind"), str(f.get("where") or ""), str(f.get("cite") or "")
         if kind in HUMAN_FACE_KINDS:
-            errs.append(f"faces[{i}] の kind '{kind}' は事前審査だけの語——修正の後の後退・方針とのぶつかりは後の工程が人に聞く")
+            errs.append(f"faces[{i}] の kind '{kind}' は事前審査だけの語——修正の後の後退・方針とのぶつかりは後の段が人に聞く")
             continue
         if kind in PLAN_ONLY_FACE_KINDS:
             errs.append(f"faces[{i}] の kind '{kind}' は事前審査だけの語——判定者の先行例はこのノードに渡っていない")

@@ -20,7 +20,7 @@ from lib import answer, reads, writelog
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
 NAME = "works-factory"
-# 止めた Archon が工程を走らせる命令（packages/cli/src/cli.ts の executesWorkflow と、その前で捌く続きの命令。
+# 止めた Archon がグラフを走らせる命令（packages/cli/src/cli.ts の executesWorkflow と、その前で捌く続きの命令。
 # tests/shared/test_archon_contract.py が照らす）
 CONTINUING = frozenset({"wake", "signal"})
 EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"}) | CONTINUING
@@ -54,7 +54,7 @@ def main(argv: list[str]) -> int:
 def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     flags = before_double_dash(argv)
     if any(a == "--workflow-source" or a.startswith("--workflow-source=") for a in flags):
-        raise Stop("--workflow-source は渡さない。自分の工程の置き場は殻が渡す")
+        raise Stop("--workflow-source は渡さない。自分のグラフの置き場は殻が渡す")
     require_command_first(argv)
     workflow = fresh_run_workflow(argv, flags)
     no_auth = user.get("WORKS_FACTORY_NO_AUTH") == "1"
@@ -132,7 +132,7 @@ def reads_only(argv: list[str]) -> bool:
 
 
 def answer_head(home: Path, target: Path) -> str:
-    """関所の文の答えの行の頭: 家を env で名指し、殻を通して対象を名指した respond（家を選ぶ値の無いシェルで打っても同じ run の
+    """承認ノードの文の答えの行の頭: 家を env で名指し、殻を通して対象を名指した respond（家を選ぶ値の無いシェルで打っても同じ run の
     DB に届く。tests/shared/test_archon_contract.py が殻の後ろの引数の形を照らす）"""
     return shlex.join(["env", f"{HOME_ENV}={home}", str(ROOT / "bin" / NAME), "workflow", "respond", "--cwd", str(target)])
 
@@ -145,11 +145,11 @@ def require_command_first(argv: list[str]) -> None:
 
 
 def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
-    """新しい run（workflow run <工程の名>。--resume でない）の工程の名。--cwd と --workflow-source を殻が足すのはこの時だけ"""
+    """新しい run（workflow run <グラフの名>。--resume でない）のグラフの名。--cwd と --workflow-source を殻が足すのはこの時だけ"""
     if argv[:2] != ["workflow", "run"] or "--resume" in flags:
         return None
     if len(argv) < 3 or argv[2].startswith("-"):
-        raise Stop("使い方: works-factory workflow run <工程の名> [Archon の旗…]")
+        raise Stop("使い方: works-factory workflow run <グラフの名> [Archon の旗…]")
     return argv[2]
 
 

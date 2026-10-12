@@ -150,7 +150,7 @@ QUESTION_KINDS = _rows(Kind, {
                  "素材が awaiting_human（未観測・打ち切られた一覧・洗えなかった決定記録・走らせられない CI）"),
     "field": ("none", (),
               "人が実地で確かめるまで決まらない（実機・外部の環境・権限の要る操作）で、どの素材も awaiting_human でない。"
-              "素材の欄を借りるな——CI の欄を借りると、CI を再実行する工程が毎周上書きする。周を止めず、最終報告の冒頭に載る"),
+              "素材の欄を借りるな——CI の欄を借りると、CI を再実行する段が毎周上書きする。周を止めず、最終報告の冒頭に載る"),
 })
 ORIGIN_NOTE = {"unit": "origin は当該ユニットの key", "material": "origin は素材名",
                "review": "origin は R1〜R4", "none": "origin も depends も持てない"}
@@ -3814,13 +3814,13 @@ def parallel_pr_scan(repo, slug: str, head: str, files, *, gh=None) -> tuple:
     mine = {f.strip() for f in files if f.strip()}
     prs, why, _ = gh("pr", "list", "-R", slug, "--limit", str(PR_LIMIT), "--json", "number,headRefName,headRefOid")
     if not isinstance(prs, list):
-        return None, why or "gh pr list の返りが配列でない"
+        return None, why or "gh pr list の出力が配列でない"
     others = [pr for pr in prs if isinstance(pr, dict) and pr.get("headRefOid") != head]
     conflicts = []
     for pr in others:
         doc, why, _ = gh("pr", "view", str(pr.get("number")), "-R", slug, "--json", "files")
         if not isinstance(doc, dict):
-            return None, why or f"gh pr view {pr.get('number')} の返りが object でない"
+            return None, why or f"gh pr view {pr.get('number')} の出力が object でない"
         got = {str(f.get("path")).strip() for f in doc.get("files") or [] if isinstance(f, dict) and f.get("path")}
         hit = sorted(got & mine)
         if hit:
