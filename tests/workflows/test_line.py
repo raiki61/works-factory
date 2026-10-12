@@ -3,9 +3,16 @@
 筋書き（tests/e2e/test_line_scenarios.py）は関所の答えを stub で差し、往復を 1 周で終えるので、関所の答えの読み・往復の抜け方・
 入口の拒み・返りの合わせ方はここで照らす。種の git は gitkit の型の写し。
 """
+import ast
+import contextlib
+import importlib.util
+import io
 import json
 import os
 import pathlib
+import re
+import runpy
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,7 +25,6 @@ from tests.bin.gitkit import committed_copy, git
 from tests.bin.linescripts import SCRIPTS, load
 from tests.workflows.test_gate_head import final_got
 
-linekit = load("linekit")
 start = load("start")
 gate_answer = load("gate_answer")
 before_fix_answer = load("before_fix_answer")
@@ -35,12 +41,14 @@ returned = load("returned")
 collect = load("collect")
 result = load("result")
 
-import answer  # noqa: E402  （線の script が lib/ を sys.path に足した後に読む）
+import answer  # noqa: E402  （線の script が lib/ と境の口の置き場を sys.path に足した後に読む）
 import boardview  # noqa: E402
+import boundary  # noqa: E402
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
+import planfile  # noqa: E402
 import policy  # noqa: E402
 import startrec  # noqa: E402
 import stopby  # noqa: E402
@@ -49,6 +57,7 @@ SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 RUN = "run-1"
 LINE = yaml.safe_load((SCRIPTS.parent / "works-factory-line.yaml").read_text(encoding="utf-8"))
 BLOCKS = ("judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
+ROUND_LIMIT = 3
 
 
 def block_doc(include: str) -> dict:
@@ -63,6 +72,97 @@ def line_nodes(nodes=None) -> dict:
         got[node["id"]] = node
         got.update(line_nodes(node["loop_group"]["nodes"]) if "loop_group" in node else {})
     return got
+
+
+ROOT = SCRIPTS.parents[2]
+DESIGN = ROOT / "docs" / "design.md"
+CONTRACT_HEAD = "## ブロックの返りの約束"
+
+
+def contract_section(text: str) -> str:
+    """docs/design.md の「ブロックの返りの約束」の節（次の ## の前まで）。無ければ落ちる"""
+    start = text.index(CONTRACT_HEAD)
+    end = text.find("\n## ", start + len(CONTRACT_HEAD))
+    return text[start:] if end < 0 else text[start:end]
+
+
+def contract_inputs(text: str) -> dict:
+    """約束の節の「### <ブロック> の返り」ごとの、「入力（`with:`）:」の箇条の下の段の箇条が名指す入力の名の集まり。
+    「←」の在る行は各「←」の直前の `名`（`a`・`b` ← の並びも）、無い行（`mode` の行・report の行）は行の中の `名` の全部（約束の外の
+    名は呼び手が宣言と交わして落とす）。同じ節の上の段の箇条（fix の「`refix-run` の時」「約束に無い入力」）は約束の入力に数えない"""
+    got = {}
+    for block, body in re.findall(r"^### (\S+) の返り\n(.*?)(?=^### |\Z)", contract_section(text), re.M | re.S):
+        lines = body.splitlines()
+        head = next((i for i, line in enumerate(lines) if line.startswith("- 入力（`with:`）")), None)
+        if head is None:
+            continue
+        names = set()
+        for line in lines[head + 1:]:
+            if not line.startswith("  - "):
+                break
+            names |= set(re.findall(r"`([\w-]+)`(?=(?:・`[\w-]+`)*\s*←)" if "←" in line else r"`([\w-]+)`", line))
+        got[block] = names
+    return got
+
+
+def neighbour_files(text: str) -> tuple:
+    """約束の節が名指す隣のファイル（ほかのブロックが名で開く控え）の名の集まりと、そのうち「中身が無い run では書かれないことが
+    ある」と名指した物の集まり。隣のファイルは「ただし次の隣のファイルは約束の一部」から始まる箇条の `*.json`・`*.jsonl` のうち、
+    「`欄`（`ファイル`）」の形で欄の指し札の先を名指す物（judgment.json ほか）を除いた物"""
+    item = next(line for line in contract_section(text).splitlines() if "隣のファイルは約束の一部" in line)
+    body = item[item.index("隣のファイルは約束の一部"):]
+    names = {m.group(2) for m in re.finditer(r"(`（)?`([\w.-]+\.jsonl?)`", body) if not m.group(1)}
+    optional = body[body.index("次の 4 つは"):body.index("この 4 つは")]
+    return names, set(re.findall(r"`([\w.-]+\.jsonl?)`", optional))
+
+
+def block_scripts(block: str) -> list:
+    return sorted((SCRIPTS.parents[1] / block / "scripts").glob("*.py"))
+
+
+def imported_files(paths) -> set:
+    """paths の script と、そこから import で辿れる lib/*.py と同じ script の置き場の *.py（推移で全部）"""
+    lib = ROOT / "lib"
+    seen, todo = set(), list(paths)
+    while todo:
+        path = todo.pop()
+        if path in seen:
+            continue
+        seen.add(path)
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            names = [a.name for a in node.names] if isinstance(node, ast.Import) else \
+                [node.module] if isinstance(node, ast.ImportFrom) and node.module and not node.level else []
+            for name in names:
+                for where in (lib / f"{name.split('.')[0]}.py", path.parent / f"{name.split('.')[0]}.py"):
+                    if where.is_file():
+                        todo.append(where)
+    return seen
+
+
+def literals(path: pathlib.Path) -> set:
+    """ファイルの中の字の定数の全部"""
+    return {n.value for n in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+
+
+def named_files(path: pathlib.Path) -> set:
+    """ファイルが名で持つ字: 字の定数と、import した lib のモジュールの字の定数を <別名>.<名> で引いた値（持ち主の定数で開く読み手）"""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    aliases = {a.asname or a.name: a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    found = literals(path)
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id in aliases:
+            module = aliases[n.value.id]
+            if (ROOT / "lib" / f"{module}.py").is_file() and isinstance(value := getattr(importlib.import_module(module), n.attr, None), str):
+                found.add(value)
+    return found
+
+
+def load_file(name: str, path: pathlib.Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class Artifacts(unittest.TestCase):
@@ -196,7 +296,7 @@ class StartCase(Artifacts):
                           ({"request": str(self.bad_findings())}, "findings は")):
             with self.subTest(kw=kw):
                 got = self.start(**kw)
-                self.assertEqual((got["ok"], got["stop_reason"], got["ask"]), (False, linekit.START_REFUSED, False), got)
+                self.assertEqual((got["ok"], got["stop_reason"], got["ask"]), (False, stopby.START_REFUSED, False), got)
                 self.assertIn(words, got["reason"])
                 self.assertEqual(self.record(got)["refused"], got["reason"])
 
@@ -224,9 +324,10 @@ class PolicyPassedCase(Artifacts):
         return json.loads((self.artifacts / self.pointer["path"]).read_text(encoding="utf-8"))
 
     def answer(self, decision: str) -> dict:
-        return before_fix_answer.answer(json.dumps(self.pointer), self.artifacts, go_raw="true", stop_raw="", place="gate-before-fix",
-                                        gate_raw=json.dumps({"decision": decision, "text": "B で進める"}, ensure_ascii=False),
-                                        asked_raw=json.dumps([self.row], ensure_ascii=False))
+        return before_fix_answer.take(start_raw=json.dumps(self.pointer), artifacts=self.artifacts, go_raw="true", stop_raw="",
+                                      place="gate-before-fix",
+                                      gate_raw=json.dumps({"decision": decision, "text": "B で進める"}, ensure_ascii=False),
+                                      asked_raw=json.dumps([self.row], ensure_ascii=False))
 
     def test_continue_past_a_policy_change_rewrites_the_record_with_the_refrozen_version(self):
         self.assertTrue(self.answer("continue")["go"])
@@ -262,7 +363,7 @@ class ReplanAnswerCase(Artifacts):
         self.assertIsNone(replan_answer.fix_answers(None, None))
 
     def test_answer_is_the_gate_answer_with_the_fix_answers(self):
-        got = replan_answer.answer(json.dumps({"decision": "continue", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts)
+        got = replan_answer.take(json.dumps({"decision": "continue", "text": "x"}), "true", "", "null", "gate-replan", self.artifacts)
         self.assertEqual(got, {"go": True, "answer": {"decision": "continue", "text": "x"}, "stop_reason": "",
                                "fix_answers": {"decision": "continue", "text": f"{replan_answer.NOTE_HEAD}\n\nx\n", "asked": []}})
 
@@ -282,8 +383,8 @@ class FixGateAnswersCase(Artifacts):
 
     def test_before_fix_answer_returns_the_asked_unit(self):
         asked = json.dumps([gatemarks.ask_text(self.FORK)], ensure_ascii=False)
-        before_fix = before_fix_answer.answer(**self.before_fix_inputs(asked), artifacts=self.artifacts)["answer"]
-        replan = gate_answer.answer(json.dumps({"decision": "approve", "text": "直した案でよい"}), "true", "", "gate-replan",
+        before_fix = before_fix_answer.take(**self.before_fix_inputs(asked), artifacts=self.artifacts)["answer"]
+        replan = gate_answer.take(json.dumps({"decision": "approve", "text": "直した案でよい"}), "true", "", "gate-replan",
                                     self.artifacts)["answer"]
         for name, answers in (("fix", before_fix), ("refix-run", replan_answer.fix_answers(before_fix, replan)),
                               ("refix-run の関所なし", replan_answer.fix_answers(before_fix, None))):
@@ -303,32 +404,32 @@ class FixGateAnswersCase(Artifacts):
 
 class GateAnswerCase(Artifacts):
     def test_skipped_gate_passes_the_decision_before_it(self):
-        self.assertEqual(gate_answer.answer("null", "true", "", "gate-final", self.artifacts),
+        self.assertEqual(gate_answer.take("null", "true", "", "gate-final", self.artifacts),
                          {"go": True, "answer": None, "stop_reason": ""})
-        self.assertEqual(gate_answer.answer(None, "false", linekit.NEEDS_HUMAN, "gate-final", self.artifacts),
-                         {"go": False, "answer": None, "stop_reason": linekit.NEEDS_HUMAN})
-        self.assertFalse((self.artifacts / gate_answer.ANSWERS).exists())
+        self.assertEqual(gate_answer.take(None, "false", stopby.NEEDS_HUMAN, "gate-final", self.artifacts),
+                         {"go": False, "answer": None, "stop_reason": stopby.NEEDS_HUMAN})
+        self.assertFalse((self.artifacts / answer.ANSWERS).exists())
 
     def test_go_words_continue_and_are_recorded(self):
-        for word in linekit.GO_WORDS:
+        for word in answer.GO_WORDS:
             with self.subTest(word=word):
-                got = gate_answer.answer(json.dumps({"decision": word, "text": "a.py だけ"}), "true", "", "gate-before-fix",
+                got = gate_answer.take(json.dumps({"decision": word, "text": "a.py だけ"}), "true", "", "gate-before-fix",
                                          self.artifacts)
                 self.assertEqual(got, {"go": True, "answer": {"decision": word, "text": "a.py だけ"}, "stop_reason": ""})
                 kept = json.loads((self.artifacts / "gates" / "gate-before-fix.json").read_text(encoding="utf-8"))
                 self.assertEqual(kept, got["answer"])
 
     def test_stop_word_stops_with_the_gate_named(self):
-        got = gate_answer.answer(json.dumps({"decision": "stop", "text": "やめる"}), "true", "", "gate-final", self.artifacts)
+        got = gate_answer.take(json.dumps({"decision": "stop", "text": "やめる"}), "true", "", "gate-final", self.artifacts)
         self.assertEqual((got["go"], got["stop_reason"]), (False, "human:gate-final"))
         self.assertEqual(json.loads((self.artifacts / "gates" / "gate-final.json").read_text(encoding="utf-8"))["decision"], "stop")
 
     def test_reject_stops_like_stop(self):
-        got = gate_answer.answer(json.dumps({"decision": linekit.REJECT, "text": ""}), "true", "", "gate-replan", self.artifacts)
+        got = gate_answer.take(json.dumps({"decision": answer.REJECT, "text": ""}), "true", "", "gate-replan", self.artifacts)
         self.assertEqual((got["go"], got["stop_reason"]), (False, "human:gate-replan"))
 
     def test_dry_run_approval_reads_as_approve(self):
-        got = gate_answer.answer(linekit.DRY_RUN_APPROVED, "true", "", "gate-start", self.artifacts)
+        got = gate_answer.take(answer.DRY_RUN_APPROVED, "true", "", "gate-start", self.artifacts)
         self.assertEqual(got, {"go": True, "answer": {"decision": "approve", "text": ""}, "stop_reason": ""})
 
 
@@ -341,7 +442,7 @@ def planned(**kw) -> dict:
 
 class AskBeforeFixCase(unittest.TestCase):
     def ask(self, plan, unattended=False, design_only=False):
-        return ask_before_fix.ask(plan, unattended=unattended, design_only=design_only, run_id=RUN)
+        return ask_before_fix.ask(plan, unattended=unattended, design_only=design_only, round_limit=ROUND_LIMIT, run_id=RUN)
 
     def test_no_plan_goes_nowhere(self):
         self.assertEqual(self.ask(planned(ready=False)), {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": []})
@@ -372,7 +473,7 @@ class AskBeforeFixCase(unittest.TestCase):
 
     def test_unattended_stops_where_the_gate_would_open(self):
         got = self.ask(planned(**{"pass": False, "stalled": True}), unattended=True)
-        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
+        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, stopby.NEEDS_HUMAN))
 
 
 class AskReplanCase(Artifacts):
@@ -408,7 +509,7 @@ class AskReplanCase(Artifacts):
 
     def test_unattended_stops_on_a_contract_change(self):
         got = self.ask({**self.ITEM, "out_of_scope": ["cli.py"]}, unattended=True)
-        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
+        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, stopby.NEEDS_HUMAN))
 
     def test_review_asking_human_asks(self):
         self.assertTrue(self.ask(self.ITEM, ask_human=True)["open"])
@@ -436,14 +537,14 @@ class AskFinalCase(unittest.TestCase):
 
     def test_unattended_stops_instead_of_opening(self):
         got = self.ask(self.got(), unattended=True)
-        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
+        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, stopby.NEEDS_HUMAN))
         self.assertTrue(self.ask(self.got(), "when_needed", unattended=True)["go"])
 
     def test_unattended_protected_hit_stops(self):
         """守りのパスに当たった無人の run は、protected_only でも関所を開かずに人待ちで止め、merge-apply が飛ぶ（飛んだ関所が go を渡すのは GateAnswerCase）"""
         got = self.ask(self.got(protected_hits=["lib/seal.py（+1 −0）: 規則 seal（lib/seal.py）——封印"]), "protected_only",
                        unattended=True)
-        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, linekit.NEEDS_HUMAN))
+        self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, stopby.NEEDS_HUMAN))
         nodes = line_nodes()
         self.assertEqual(nodes["gate-final"]["when"], "$ask-final.output.open == true")
         self.assertEqual(nodes["merge-apply"]["when"], "$answer-final.output.go == true")
@@ -550,7 +651,7 @@ class PlanOutCase(unittest.TestCase):
         base = {key: None for key in plan_out.PLAN + plan_out.REVIEW}
         base.update({"ready": True, "round": 1, "pass": False, "stalled": False})
         base.update(kw)
-        return plan_out.plan_out(base)
+        return plan_out.plan_out(base, ROUND_LIMIT)
 
     def test_done_rules(self):
         self.assertFalse(self.got()["done"])
@@ -623,7 +724,7 @@ class FixedCase(unittest.TestCase):
         self.assertFalse(fixed.fixed(self.fix(), None, replan=True, stops=("", ""))["done"])
 
     def test_a_line_script_stop_before_is_not_done(self):
-        for stops in ((linekit.LINE_SCRIPT, ""), ("", linekit.LINE_SCRIPT)):
+        for stops in ((stopby.LINE_SCRIPT, ""), ("", stopby.LINE_SCRIPT)):
             with self.subTest(stops=stops):
                 self.assertFalse(fixed.fixed(self.fix(), None, replan=False, stops=stops)["done"])
 
@@ -636,7 +737,7 @@ class FixedCase(unittest.TestCase):
         self.assertEqual((got["done"], got["go"]), (False, True))
         self.assertTrue(fixed.fixed(self.fix(), None, replan=False, stops=("", ""))["go"])
         for fix, replan, stops in ((self.fix(done=False, delta_review={"rounds": 0, "pass": False}), False, ("", "")),
-                                   (failed, True, ("", "")), (failed, False, (linekit.LINE_SCRIPT, ""))):
+                                   (failed, True, ("", "")), (failed, False, (stopby.LINE_SCRIPT, ""))):
             with self.subTest(review=fix["delta_review"], replan=replan, stops=stops):
                 self.assertFalse(fixed.fixed(fix, None, replan=replan, stops=stops)["go"])
 
@@ -690,10 +791,16 @@ class RedepthCase(unittest.TestCase):
 
 class ReturnedCase(unittest.TestCase):
     def test_fields_are_gathered_and_strings_stay_strings(self):
-        env = {"ok": "true", "hash": "123", "mode": "seal", "diff": "null", "protected_hits": "[]", "reason": ""}
-        self.assertEqual(returned.returned("merge", env.get),
+        env = {"INPUTS_GOT_OK": "true", "INPUTS_GOT_HASH": "123", "INPUTS_GOT_MODE": "seal", "INPUTS_GOT_DIFF": "null",
+               "INPUTS_GOT_PROTECTED_HITS": "[]", "INPUTS_GOT_REASON": ""}
+        self.assertEqual(returned.returned(env),
                          {"got": {"mode": "seal", "ok": True, "hash": "123", "diff": None, "protected_hits": [], "reason": ""},
                           "stop_reason": ""})
+
+    def test_line_inputs_are_not_fields(self):
+        """Archon は線の inputs: も INPUTS_<名> で渡す。受け皿は got_ の付いた with: の鍵だけを欄にする"""
+        env = {f"INPUTS_{name.upper()}": "x" for name in LINE["inputs"]} | {"INPUTS_GOT_OK": "true"}
+        self.assertEqual(returned.returned(env)["got"], {"ok": True})
 
 
 class CollectAndResultCase(unittest.TestCase):
@@ -711,16 +818,18 @@ class CollectAndResultCase(unittest.TestCase):
 
     def test_skipped_receiver_is_null(self):
         seal = {"got": {"mode": "seal", "ok": True, "hash": "123"}, "stop_reason": ""}
-        got = collect.collect({"judge": "null", "merge_seal": json.dumps(seal), "plan_rounds": None}, self.line())
+        got = collect.collect({"judge": "null", "merge_seal": json.dumps(seal), "plan": "null", "plan_review": "null"}, self.line())
         self.assertIsNone(got["judge"])
         self.assertEqual(got["merge_seal"], seal["got"])
         self.assertEqual((got["plan"], got["plan_review"], got["fix"]), (None, None, None))
 
-    def test_plan_rounds_are_split_into_plan_and_review(self):
-        rounds = {key: None for key in returned.SHAPES["plan_rounds"]}
-        rounds.update({"ready": False, "round": 1, "stop_reason": ""})
-        got = collect.collect({"plan_rounds": json.dumps({"got": rounds, "stop_reason": ""})}, self.line())
-        self.assertEqual(got["plan"], {key: rounds[key] for key in plan_out.PLAN})
+    def test_plan_rounds_without_a_review_have_no_plan_review(self):
+        """plan-review が飛ばされた周で抜けた往復は、plan-review の欄が全部 null の受け皿を null に倒す"""
+        plan = {key: None for key in plan_out.PLAN} | {"ready": False, "round": 1}
+        review = {key: None for key in plan_out.REVIEW}
+        got = collect.collect({"plan": json.dumps({"got": plan, "stop_reason": ""}),
+                               "plan_review": json.dumps({"got": review, "stop_reason": ""})}, self.line())
+        self.assertEqual(got["plan"], plan)
         self.assertIsNone(got["plan_review"])
 
     def test_fix_is_the_first_and_second_fix_merged(self):
@@ -746,23 +855,19 @@ class CollectAndResultCase(unittest.TestCase):
                 self.assertEqual(result.result({"outcome": outcome})["fixed"], want)
 
 
-class LinekitCase(unittest.TestCase):
+class BoundaryRunCase(unittest.TestCase):
     def test_script_failure_is_returned_not_raised(self):
         def boom():
             raise ValueError("壊れた\n入力")
 
-        with mock.patch.object(linekit.boundary, "returns") as returns, mock.patch("sys.stderr"):
-            linekit.run(boom, lambda reason: {"stop_reason": linekit.LINE_SCRIPT, "reason": reason})
-        returns.assert_called_once_with({"stop_reason": linekit.LINE_SCRIPT, "reason": "ValueError: 壊れた 入力"})
-
-    def test_line_stop_words_are_what_stopby_declares(self):
-        for word, meaning in linekit.DECLARED.items():
-            with self.subTest(word=word):
-                self.assertEqual(stopby.declare(word.removeprefix(stopby.HEAD), meaning), word)
+        with mock.patch.object(boundary, "returns") as returns, mock.patch("sys.stderr"):
+            boundary.run(boom, lambda reason: {"stop_reason": stopby.LINE_SCRIPT, "reason": reason})
+        returns.assert_called_once_with({"stop_reason": stopby.LINE_SCRIPT, "reason": "ValueError: 壊れた 入力"})
 
     def test_skipped_values(self):
-        self.assertEqual((linekit.value("null"), linekit.text("null"), linekit.flag("true"), linekit.items("[1]")), (None, "", True, [1]))
-        self.assertEqual((linekit.value("abc"), linekit.text("abc"), linekit.items("null")), ("abc", "abc", []))
+        self.assertEqual((boundary.value("null"), boundary.text("null"), boundary.flag("true"), boundary.items("[1]")),
+                         (None, "", True, [1]))
+        self.assertEqual((boundary.value("abc"), boundary.text("abc"), boundary.items("null")), ("abc", "abc", []))
 
 
 TYPES = {"boolean": bool, "string": str, "array": list, "object": dict, "integer": int, "null": type(None)}
@@ -789,7 +894,7 @@ class FallbackCase(unittest.TestCase):
                 if key == "collect":   # report に止めの理由の入力が無い。始めの記録が届かないので report が結果を名乗らない
                     self.assertIsNone(got["start"])
                 else:
-                    self.assertEqual(got["stop_reason"], linekit.LINE_SCRIPT)
+                    self.assertEqual(got["stop_reason"], stopby.LINE_SCRIPT)
                 self.assertIsNot(got.get("go"), True)
                 if key != "plan-out":   # plan-out の done は往復を抜けるか（例外の時は抜ける）で、修正へ進むかではない
                     self.assertIsNot(got.get("done"), True)
@@ -810,24 +915,24 @@ class BrokenLibCase(unittest.TestCase):
                     done = subprocess.run([sys.executable, str(SCRIPTS / f"{node['script']}.py")], cwd=tmp, env=env,
                                           capture_output=True, text=True)
                     self.assertEqual(done.returncode, 0, done.stderr)
-                    self.assertEqual(json.loads(done.stdout)["stop_reason"], linekit.LINE_SCRIPT)
+                    self.assertEqual(json.loads(done.stdout)["stop_reason"], stopby.LINE_SCRIPT)
                     self.assertIn("ModuleNotFoundError", done.stderr)
 
 
 class GateDecisionsCase(unittest.TestCase):
     """人の関所は 4 つで、どれも関所の文が見せる答えの語（lib/answer.py の VERBS）と approve・reject を受け、受ける語は通す語
-    （linekit.GO_WORDS）か止める語（VERBS のうち通す語でない物と reject。gate_answer は通す語でない答えを止めと読む）だけ。
+    （answer.GO_WORDS）か止める語（VERBS のうち通す語でない物と reject。gate_answer は通す語でない答えを止めと読む）だけ。
     reject が decisions に無いと、Archon はその答えを run の取り消しとして扱い、報告が出ない"""
 
     def test_gates_take_the_words_their_text_prints(self):
         gates = {key: node for key, node in line_nodes().items() if "approval" in node}
         self.assertEqual(set(gates), {"gate-start", "gate-before-fix", "gate-replan", "gate-final"})
-        stop_words = set(answer.VERBS) - set(linekit.GO_WORDS)
+        stop_words = set(answer.VERBS) - set(answer.GO_WORDS)
         self.assertEqual(stop_words, {"stop"})
         for key, node in gates.items():
             with self.subTest(gate=key):
                 self.assertEqual({d["id"] for d in node["approval"]["decisions"]},
-                                 set(linekit.GO_WORDS) | set(answer.VERBS) | {linekit.REJECT})
+                                 set(answer.GO_WORDS) | set(answer.VERBS) | {answer.REJECT})
 
 
 class Recorded(dict):
@@ -841,50 +946,80 @@ class Recorded(dict):
         self.read.add(key)
         return super().get(key, default)
 
+    def __getitem__(self, key):
+        self.read.add(key)
+        return super().__getitem__(key)
+
 
 class LineWiringCase(unittest.TestCase):
     """返しの節の with: の鍵と、その script が読む INPUTS_<名> が同じ（片方だけ欄を足すと、欄が黙って報告から落ちる）"""
 
-    READERS = {
-        "plan-out": lambda: plan_out.from_env(),
-        "judged": lambda: judged.from_env(),
-        "fixed": lambda: fixed.from_env(),
-        "collect": lambda: (collect.received_of_env(), collect.line_of_env()),
-        "ask-final": lambda: ask_final.from_env(),
-        "answer-before-fix": lambda: before_fix_answer.from_env(),
-    }
-
     def test_with_keys_are_what_the_script_reads(self):
-        nodes = line_nodes()
-        readers = {**self.READERS, **{key: returned.from_env for key, node in nodes.items() if node.get("script") == "returned"}}
-        for key, read in readers.items():
+        """with: を持つ線の script の節の全部（受け皿 returned は下の 2 本）を、with: の鍵の全部を "null" にして走らせ、読んだ
+        INPUTS_<名> を控える"""
+        nodes = {key: node for key, node in line_nodes().items()
+                 if "script" in node and node.get("with") and node["script"] != "returned"}
+        self.assertIn("ask-before-fix", nodes)
+        for key, node in nodes.items():
+            with self.subTest(node=key), tempfile.TemporaryDirectory() as tmp:
+                env = Recorded(WORKFLOW_ID=RUN, ARTIFACTS_DIR=tmp, **{f"INPUTS_{name.upper()}": "null" for name in node["with"]})
+                with mock.patch.object(os, "environ", env), contextlib.redirect_stdout(io.StringIO()):
+                    runpy.run_path(str(SCRIPTS / f"{node['script']}.py"), run_name="__main__")
+                self.assertEqual({name for name in env.read if name.startswith("INPUTS_")},
+                                 {f"INPUTS_{name.upper()}" for name in node["with"]})
+
+    def test_receivers_return_every_with_key_and_nothing_else(self):
+        """受け皿（returned）は with: の鍵 got_<欄> の全部を欄にし、Archon が同じく INPUTS_<名> で渡す線の inputs: は欄にしない"""
+        run_inputs = {f"INPUTS_{name.upper()}": "x" for name in LINE["inputs"]}
+        for key, node in line_nodes().items():
+            if node.get("script") != "returned":
+                continue
             with self.subTest(node=key):
-                env = Recorded(WORKFLOW_ID=RUN)
-                if nodes[key].get("script") == "returned":
-                    env["INPUTS_BLOCK"] = nodes[key]["with"]["block"]
-                with mock.patch.object(os, "environ", env):
-                    read()
-                self.assertEqual(env.read, {f"INPUTS_{name.upper()}" for name in nodes[key]["with"]})
+                self.assertTrue(all(name.startswith("got_") for name in node["with"]), node["with"])
+                env = run_inputs | {f"INPUTS_{name.upper()}": "null" for name in node["with"]}
+                self.assertEqual(set(returned.returned(env)["got"]), {name.removeprefix("got_") for name in node["with"]})
+
+    def test_receivers_take_every_field_of_what_they_receive(self):
+        """受け皿の got_<欄> は受ける節の同じ欄を指し、欄の組はブロックの返す節の output_format（計画の往復は plan_out の
+        PLAN・REVIEW）と同じ（受け皿の鍵を消すか向け違えると、その欄が黙って報告から落ちる）"""
+        nodes = line_nodes()
+        rounds = {"plan-rounds-out": plan_out.PLAN, "plan-rounds-review-out": plan_out.REVIEW}
+        for key, node in nodes.items():
+            if node.get("script") != "returned":
+                continue
+            with self.subTest(node=key):
+                dep = node["depends_on"][0]
+                fields = {name.removeprefix("got_") for name in node["with"]}
+                self.assertEqual(node["with"], {f"got_{name}": f"${dep}.output.{name}" for name in fields})
+                if key in rounds:
+                    self.assertEqual(fields, set(rounds[key]))
+                    continue
+                doc = block_doc(nodes[dep]["include"])
+                returns = next(n for n in doc["nodes"] if n["id"] == doc["returns"])
+                self.assertEqual(fields, set(returns["output_format"]["properties"]))
 
     def test_every_include_and_the_plan_rounds_have_a_receiver_that_collect_reads(self):
         """ブロックの返す節が落ちても報告が出るように、collect は返りを受け皿 <id>-out からだけ読む。2 度目の修正 refix-run は、
-        1 回目と合わせた節 fixed を通して読む（fixed は refix-run が落ちると飛ばされ、collect は 1 回目の返りに戻る）"""
+        1 回目と合わせた節 fixed を通して読む（fixed は refix-run が落ちると飛ばされ、collect は 1 回目の返りに戻る）。計画の往復は
+        plan の欄と plan-review の欄を別の受け皿で受ける"""
         nodes = line_nodes()
         inside = {node["id"] for node in nodes["plan-rounds"]["loop_group"]["nodes"]}
-        received = [key for key, node in nodes.items() if "include" in node and key not in ("report", "refix-run") and key not in inside]
+        received = {key: (f"{key}-out",) for key, node in nodes.items()
+                    if "include" in node and key not in ("report", "refix-run") and key not in inside}
         self.assertEqual(nodes["collect"]["with"]["fixed"], {"from": "$fixed.output", "if_skipped": None})
         self.assertIn("refix-run", nodes["fixed"]["depends_on"])
         self.assertEqual(nodes["fixed"]["trigger_rule"], "none_failed_min_one_success")
-        received.append("plan-rounds")
+        received["plan-rounds"] = ("plan-rounds-out", "plan-rounds-review-out")
         reads = {v["from"] for v in nodes["collect"]["with"].values() if isinstance(v, dict)}
-        for key in received:
-            with self.subTest(node=key):
-                receiver = nodes.get(f"{key}-out")
-                self.assertIsNotNone(receiver)
-                self.assertEqual((receiver["script"], receiver["depends_on"], receiver.get("trigger_rule")), ("returned", [key], None))
-                self.assertIn(f"{key}-out", nodes["collect"]["depends_on"])
-                self.assertIn(f"${key}-out.output", reads)
-                self.assertFalse(any(f"${key}.output" in v for v in reads), "collect がブロックの返りを直に読む")
+        for key, receivers in received.items():
+            for name in receivers:
+                with self.subTest(node=key, receiver=name):
+                    receiver = nodes.get(name)
+                    self.assertIsNotNone(receiver)
+                    self.assertEqual((receiver["script"], receiver["depends_on"], receiver.get("trigger_rule")), ("returned", [key], None))
+                    self.assertIn(name, nodes["collect"]["depends_on"])
+                    self.assertIn(f"${name}.output", reads)
+            self.assertFalse(any(f"${key}.output" in v for v in reads), "collect がブロックの返りを直に読む")
 
     def test_line_includes_the_eight_blocks(self):
         """線が差し込むのは 8 つのブロックで、どれも workflows/ に在る（無ければ block_doc が落ちて赤）"""
@@ -904,27 +1039,238 @@ class LineWiringCase(unittest.TestCase):
                 with self.subTest(node=key, input=name):
                     self.assertEqual(node["with"].get(name), from_the_start[name])
 
+    APPLY_ONLY = "apply だけの入力（merge は seal と apply の 2 つの形で、seal には渡さない）"
+    GROUP_ONLY = "組の子の run だけの入力（fix が組ごとの並べのために自分を子の run として起こす時に渡す）"
     UNPASSED = {
-        "plan-review-run": {"conflicts", "gate_answers"},   # 計画の往復は修正の前。申し出も修正前の関所の答えもまだ無い
-        "fix": {"only_items", "mode", "group", "from_tree", "out_dir"},   # docs/design.md の「約束に無い入力（線は渡さない）」
-        "refix-run": {"mode", "group", "from_tree", "out_dir"},
-        "merge-seal": {"answer", "r2", "sealed_hash"},   # apply の時だけ
-        "eyes": {"x_scalars"},   # issue #110
+        ("merge-seal", "answer"): APPLY_ONLY,
+        ("merge-seal", "r2"): APPLY_ONLY,
+        ("merge-seal", "sealed_hash"): APPLY_ONLY,
+        ("fix", "mode"): GROUP_ONLY,
+        ("fix", "group"): GROUP_ONLY,
+        ("fix", "from_tree"): GROUP_ONLY,
+        ("fix", "out_dir"): GROUP_ONLY,
+        ("refix-run", "mode"): GROUP_ONLY,
+        ("refix-run", "group"): GROUP_ONLY,
+        ("refix-run", "from_tree"): GROUP_ONLY,
+        ("refix-run", "out_dir"): GROUP_ONLY,
+        ("fix", "only_items"): "1 回目は全部の項目（refix-run だけが 1 回目の replan_items を渡す）",
+        ("plan-review-run", "conflicts"): "修正の前なので申し出が無い",
+        ("plan-review-run", "gate_answers"): "修正前の関所より前に走る",
+        ("eyes", "x_scalars"): "部分 D1 で配線する。D1 で表から消す",
     }
 
-    def test_includes_pass_every_declared_input_but_the_named(self):
-        """ブロックへの with: の鍵はそのブロックの inputs: の宣言の中に在り、宣言する入力は UNPASSED に名指した物のほかは全部渡す
-        （既定値のまま黙って落ちない。約束の「← $…」の入力は宣言の中に在る）。名指した物に required は無い。report には宣言の全部を
-        渡す（報告は全部の段の返りと関所の答えを読む）"""
-        for key, node in line_nodes().items():
-            if "include" not in node:
-                continue
+    def test_every_declared_block_input_is_wired_or_listed(self):
+        """行 L-W67: 線が差し込む各ブロックの inputs: の全部が、線の with: に在るか、渡さない訳を名指した表 UNPASSED に在る
+        （既定値つきの入力が黙って未配線で残らない）。with: の鍵は宣言の中に在り、表の行は宣言に在って with: に無く、required でない。
+        元 works/tests/test_line_inputs.py::InputNamesCase.test_block_inputs_are_all_referenced（:129）"""
+        nodes = line_nodes()
+        includes = {key for key, node in nodes.items() if "include" in node}
+        self.assertLessEqual({key for key, _ in self.UNPASSED}, includes, "表の行の include の id が線に無い")
+        for key in sorted(includes):
+            node = nodes[key]
             declared = block_doc(node["include"])["inputs"]
             passed = set(node.get("with") or {})
+            listed = {name for include, name in self.UNPASSED if include == key}
             with self.subTest(node=key):
-                self.assertLessEqual(passed, set(declared))
-                self.assertEqual(set(declared) - passed, self.UNPASSED.get(key, set()))
-                self.assertFalse([name for name in self.UNPASSED.get(key, ()) if declared[name].get("required")])
+                self.assertLessEqual(passed, set(declared), "with: の鍵がブロックの宣言に無い")
+                self.assertEqual(listed - set(declared), set(), "表の行の入力がブロックの宣言に無い")
+                self.assertEqual(listed & passed, set(), "with: で渡す入力が表にも在る（配線したら表の行を消す）")
+                self.assertEqual(set(declared) - passed - listed, set(), "宣言した入力が with: にも表にも無い")
+                self.assertFalse([name for name in listed if declared[name].get("required")], "表の行の入力が required")
+
+    def test_block_inputs_outside_the_contract_have_defaults(self):
+        """落とし穴 K11: ブロックの入力のうち docs/design.md の「ブロックの返りの約束」の入力（「入力（`with:`）:」の箇条）の外の物は
+        既定値を持つ（既定値の無い入力は include する全部の工程の読み込みを落とす。Archon の include-expander.ts 576-580 行）"""
+        contract = contract_inputs(DESIGN.read_text(encoding="utf-8"))
+        self.assertEqual(set(contract), set(BLOCKS), "約束の節からブロックごとの入力の箇条を読めない")
+        for block in BLOCKS:
+            declared = block_doc(f"works-factory-{block}")["inputs"]
+            agreed = contract[block] & set(declared)
+            with self.subTest(block=block):
+                self.assertTrue(agreed, f"約束の節の {block} の入力の名がブロックの宣言に 1 つも当たらない（読み方が崩れた）")
+                self.assertEqual(sorted(name for name in set(declared) - agreed if "default" not in (declared[name] or {})), [],
+                                 "約束の外の入力に既定値が無い")
+
+    def test_line_inputs_are_what_start_reads(self):
+        """行 L-E54: 線の inputs: の名と、始めの節 start が読む INPUTS_<名>（Archon は工程の入力を INPUTS_<大文字> で渡す）が同じ。
+        元 works/tests/test_line_inputs.py（TA16）"""
+        env = Recorded()
+        with mock.patch.object(os, "environ", env):
+            got = start.raw_inputs()
+        self.assertEqual(env.read, {f"INPUTS_{name.upper()}" for name in LINE["inputs"]})
+        self.assertEqual(set(got), set(LINE["inputs"]))
+
+    # 隣のファイル（docs/design.md の約束の節）: 名 → ((書き手のブロック, 隣に置く返りの欄), 読み手の lib か script)
+    NEIGHBOURS = {
+        "premises.json": (("judge", "judgment"), "lib/boardview.py"),
+        "judge-verify.json": (("judge", "judgment"), "lib/planfile.py"),
+        "pr-excluded.json": (("judge", "judgment"), "lib/planfile.py"),
+        "materials.json": (("judge", "judgment"), "lib/boardview.py"),
+        "purpose-review.json": (("judge", "judgment"), "lib/boardview.py"),
+        "answer-ties.json": (("judge", "judgment"), "lib/gatemarks.py"),
+        "local-review-lenses.json": (("judge", "judgment"), "lib/runreport.py"),
+        "pr-downgrades.json": (("judge", "judgment"), "lib/runreport.py"),
+        "world-state.json": (("judge", "judgment"), "lib/worldmark.py"),
+        "p2.fix_plan.json": (("plan", "plan"), "lib/fixboard.py"),
+        "design.jsonl": (("plan", "structure"), "lib/boardview.py"),
+        "gate-passes.json": (("plan-review", "review"), "lib/eyeverdict.py"),
+        "design-premises.json": (("plan-review", "design"), "lib/eyeverdict.py"),
+    }
+    # 書き手の返す節を空の置き場で走らせる時の入力（ブロックの YAML がその節に渡す with: と、Archon がブロックの入力を渡す INPUTS_*）
+    RETURN_INPUTS = {
+        "judge": {"INPUTS_OBJECTION": ""},
+        "plan": {"INPUTS_DIR": "plan/r1", "INPUTS_START": "", "INPUTS_JUDGMENT": ""},
+        "plan-review": {},
+    }
+    # 今の木で照らしが通らない所（named: 書き手の script と lib が名を持つ・stop: lib の在る返す節が空の置き場でも書く・bare: lib も
+    # 境の口も無い返す節が書く・read: 読み手が名を開く）。表に無い新しい穴と、通るようになったのに残る行は赤
+    UNPROVEN = {
+        **{(name, "bare"): "区分の issue で外す（judge の返す節 verdict.py の lib の無い道 fallen は judgment.json・purpose.json だけを書く）"
+           for name in ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.json", "purpose-review.json")},
+        **{("p2.fix_plan.json", check): "区分の issue で外す（plan の返す節の止めの道と lib の無い道が修正案の役の返答の写しを置かない）"
+           for check in ("stop", "bare")},
+        **{("design-premises.json", check): "区分の issue で外す（plan-review の返す節の止めの道と lib の無い道が独立設計の控えを置かない）"
+           for check in ("stop", "bare")},
+        ("answer-ties.json", "read"): "区分の issue で外す（ほかのブロックが判定の隣のこの名を開かない。部分 B1 の S58・部分 C の S31）",
+        ("local-review-lenses.json", "read"): "区分の issue で外す（report が開かない。部分 C の S41）",
+        ("pr-downgrades.json", "read"): "区分の issue で外す（report が開かない。部分 C の S41）",
+    }
+
+    def written_beside(self, block: str, field: str, bare: bool) -> set:
+        """書き手のブロックの返す節を空の置き場で走らせ、返りの欄 field の指し札の先と同じフォルダに在るファイルの名。bare なら返す節を
+        境の口も lib も無い一時のフォルダに単独で写して走らせる（lib の無い道）"""
+        doc = block_doc(f"works-factory-{block}")
+        script = next(n["script"] for n in doc["nodes"] if n["id"] == doc["returns"])
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            artifacts = tmp / "artifacts"
+            artifacts.mkdir()
+            path = SCRIPTS.parents[1] / block / "scripts" / f"{script}.py"
+            if bare:
+                alone = tmp / "alone" / "scripts"
+                alone.mkdir(parents=True)
+                path = pathlib.Path(shutil.copy(path, alone))
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("INPUTS_", "WORKS_FACTORY_ROOT", "PYTHONPATH"))}
+            env.update({"ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": RUN, "PYTHONDONTWRITEBYTECODE": "1", **self.RETURN_INPUTS[block]})
+            done = subprocess.run([sys.executable, str(path)], cwd=tmp, env=env, capture_output=True, text=True)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            ptr = json.loads(done.stdout.strip().splitlines()[-1])[field]
+            folder = (artifacts / ptr["path"]).parent
+            return {p.name for p in folder.iterdir()} if folder.is_dir() else set()
+
+    def test_every_contract_neighbour_file_has_a_writer_and_a_reader(self):
+        """落とし穴 K12: docs/design.md の隣のファイルの一覧と表 NEIGHBOURS が同じで、各行で、書き手のブロックの script か lib が
+        その名を字の定数で持ち（named）、書き手の返す節が止めの道（空の置き場で lib の在る道。stop）と lib の無い道（bare）でも返りの
+        欄の指し札の隣にそのファイルを置き、読み手（書き手でないブロックの script か、そこから import で辿れる lib）がその名を字か持ち主の定数で開く（read）。
+        約束が「書かれないことがある」と名指した 4 つは stop・bare を問わない。通らない照らしは UNPROVEN に名指して許す"""
+        names, optional = neighbour_files(DESIGN.read_text(encoding="utf-8"))
+        self.assertEqual(set(self.NEIGHBOURS), names, "表と docs/design.md の隣のファイルの一覧が違う")
+        self.assertEqual(len(optional), 4, "約束の「次の 4 つは」の名を読めない")
+        reach = {block: imported_files(block_scripts(block)) for block in (*BLOCKS, "line")}
+        beside = {}
+        for (block, field) in {writer for writer, _ in self.NEIGHBOURS.values()}:
+            for bare in (False, True):
+                beside[block, field, bare] = self.written_beside(block, field, bare)
+        found = set()
+        for name, ((block, field), reader) in sorted(self.NEIGHBOURS.items()):
+            reader_path = ROOT / reader
+            checks = {
+                "named": any(name in literals(p) for p in reach[block]),
+                "stop": name in optional or name in beside[block, field, False],
+                "bare": name in optional or name in beside[block, field, True],
+                "read": reader_path.is_file() and name in named_files(reader_path)
+                        and any(reader_path in files for other, files in reach.items() if other != block),
+            }
+            found |= {(name, check) for check, ok in checks.items() if not ok}
+        self.assertEqual(sorted(found - set(self.UNPROVEN)), [], "照らしの通らない隣のファイル（直すか、訳を書いて UNPROVEN に足す）")
+        self.assertEqual(sorted(set(self.UNPROVEN) - found), [], "通るようになった照らしが UNPROVEN に残っている（表から消す）")
+
+    # 2 度差し込むが置き場を分けないブロック: plan-review は案の直しの差し込みが前の差し込みの承認済みの項目を読む（boardview.view の
+    # 「同じ run の往復と案の直しを同じ周に積む」）ので置き場 plan-review/ を共にし、差し込みの形は with: の ruling で分ける
+    SHARED_PLACE = {"works-factory-plan-review": "ruling"}
+
+    def test_twice_included_blocks_use_their_own_place(self):
+        """落とし穴 K14: 線が 2 度差し込むブロック（YAML から数える）の全部で、置き場を決める関数に 2 つの include の id か形（with: の
+        値）を渡すと違う置き場が返る（2 度目が 1 度目の置き場の物を今回の物として拾わない）。関数: judge は lib/judge_accept.verdict
+        （異議の有無で judge/・rejudge/）、plan は lib/planfile.open_round（周ごとの plan/r<k>/）、fix は workflows/fix/scripts/fixio.place
+        （include の名ごとの fix/<id>/）、test-gate は workflows/test-gate/scripts/result.rel（形ごとの test-gate/<mode>/）、merge は
+        workflows/merge/scripts/merge.py の返す節（形ごとのファイル。フォルダ merge/ は同じ）。表 SHARED_PLACE のブロックは置き場を
+        共にし、2 つの include が形の with: の値で分かれる"""
+        nodes = line_nodes()
+        twice = {}
+        for key, node in nodes.items():
+            if "include" in node:
+                twice.setdefault(node["include"], []).append(key)
+        twice = {block: keys for block, keys in twice.items() if len(keys) > 1}
+        places = {"works-factory-judge": self.judge_places, "works-factory-plan": self.plan_places,
+                  "works-factory-fix": self.fix_places, "works-factory-test-gate": self.gate_places,
+                  "works-factory-merge": self.merge_places}
+        self.assertEqual(set(twice), set(places) | set(self.SHARED_PLACE), "2 度差し込むブロックの置き場の照らし")
+        for block, keys in twice.items():
+            with self.subTest(block=block, includes=keys):
+                if block in self.SHARED_PLACE:
+                    form = self.SHARED_PLACE[block]
+                    self.assertNotEqual(*[nodes[key]["with"][form] for key in keys])
+                    continue
+                self.assertNotEqual(*places[block]([nodes[key] for key in keys], keys))
+
+    def judge_places(self, includes, keys) -> list:
+        self.assertEqual([node["with"]["objection"] for node in includes], ["", "$fix.output.objection"])
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            return [pathlib.PurePosixPath(judge_accept.verdict(tmp / "judge", tmp / "rejudge", tmp, objection,
+                                                               lambda rel: {"path": rel})["judgment"]["path"]).parent
+                    for objection in ("", "u1 は直さなくてよい")]
+
+    def plan_places(self, includes, keys) -> list:
+        self.assertEqual([node["with"]["ruling"] for node in includes], [[], "$fix.output.replan_items"])
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            return [planfile.open_round(tmp / "plan", ruling=ruling, judgment=None, review=None, units=[], repo=tmp, why="試験")["dir"]
+                    for ruling in ([], ["1"])]
+
+    def fix_places(self, includes, keys) -> list:
+        fixio = load_file("fix_fixio", SCRIPTS.parents[1] / "fix" / "scripts" / "fixio.py")
+        with tempfile.TemporaryDirectory() as tmp:
+            places = []
+            for include in keys:
+                env = {"ARTIFACTS_DIR": tmp, "ARCHON_NODE_EXECUTION": json.dumps({"path": f"{include}__fix-prep"})}
+                with mock.patch.dict(os.environ, env):
+                    places.append(fixio.place())
+            return places
+
+    def gate_places(self, includes, keys) -> list:
+        gate = load_file("test_gate_result", SCRIPTS.parents[1] / "test-gate" / "scripts" / "result.py")
+        return [pathlib.PurePosixPath(gate.rel(node["with"]["mode"], "run.json")).parent for node in includes]
+
+    def merge_places(self, includes, keys) -> list:
+        """merge の返す節を一時の git の木で形ごとに走らせ（seal の次に apply）、返りの diff の指し札の置き場を並べる"""
+        modes = [node["with"]["mode"] for node in includes]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            repo, artifacts = tmp / "repo", tmp / "artifacts"
+            repo.mkdir()
+            artifacts.mkdir()
+            git(repo, "init", "-q")
+            (repo / "a.txt").write_text("one\n", encoding="utf-8")
+            git(repo, "add", "a.txt")
+            git(repo, "commit", "-q", "-m", "seed")
+            (artifacts / "start.json").write_text(json.dumps({"base_rev": git(repo, "rev-parse", "HEAD")}), encoding="utf-8")
+            (repo / "a.txt").write_text("two\n", encoding="utf-8")
+            got, sealed = [], "null"
+            for mode in modes:
+                env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
+                env.update({"WORKFLOW_ID": RUN, "ARTIFACTS_DIR": str(artifacts), "WORKS_FACTORY_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1"})
+                env.update({f"INPUTS_{name.upper()}": "null" for name in block_doc("works-factory-merge")["inputs"]})
+                env.update({"INPUTS_MODE": mode, "INPUTS_START": json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "start.json"}),
+                            "INPUTS_SEALED_HASH": sealed})
+                done = subprocess.run([sys.executable, str(SCRIPTS.parents[1] / "merge" / "scripts" / "merge.py")], cwd=repo, env=env,
+                                      capture_output=True, text=True)
+                out = json.loads(done.stdout)
+                self.assertIsNotNone(out["diff"], out)
+                sealed = out["hash"]
+                got.append(out["diff"]["path"])
+            return got
 
     def test_fix_and_refix_get_their_plan_and_gate_answers(self):
         """筋書きはブロックの script に include の入力を渡さない（docs/design.md の U3）ので、修正の段に届く物はここで照らす: 1 回目は計画の往復の
@@ -959,7 +1305,98 @@ class LineWiringCase(unittest.TestCase):
         self.assertEqual(includes & body_ids(LINE["nodes"]), set())
 
     def test_round_limit_is_the_loop_limit(self):
-        self.assertEqual(line_nodes()["plan-rounds"]["loop_group"]["max_iterations"], plan_out.ROUND_LIMIT)
+        nodes = line_nodes()
+        self.assertEqual({nodes[key]["with"]["round_limit"] for key in ("plan-out", "ask-before-fix")},
+                         {nodes["plan-rounds"]["loop_group"]["max_iterations"]})
+
+
+
+DF = "works/darkfactory/darkfactory.yaml"   # 今の works の線（pack.json の works.commit 2aa7c66c の版）
+EDGE = "works/darkfactory/lib/line_edge.py"   # その境の節
+PRIOR = "$start.output.prior_failures"
+START_ANSWER = "$answer-start.output.answer"
+
+
+class HandoffCase(unittest.TestCase):
+    """今の works の線が段から段へ渡した値（元の線の各節の入力と境の節が盤面から渡した物）を、今の線の with: が同じ源から渡すか。
+    元の線は判定・案・深さを境の節（h-*）が盤面から読んで渡したので、表の 1 行は「元の受け手の節 → 今の include か節の id と入力 →
+    今の源の $…」。元に在って今の線に無い受け渡しは MISSING に閉じる部分の名を訳に書いて置き、今の線に無いことを照らす（配線した
+    部分がその行を MISSING から HANDOFFS へ移す）。行 L-W05・L-W11・L-W12・L-W43・L-W50・L-W58"""
+
+    HANDOFFS = [
+        # L-W05 判定の単位と判定を後ろの段へ運ぶ。元は h-plan が判定の出口を盤面に控え（DF:409 judged）、どの境の節も
+        # judgment_file・open_units をその控えから返した（EDGE:224 _carried・:1163）
+        ("planning（DF:481-489。盤面の判定を読む）", "plan", "units", "$judge.output.units"),
+        ("planning（DF:481-489）", "plan", "judgment", "$judge.output.judgment"),
+        ("planning の事前審査（DF:481-489。blk-plan の中）", "plan-review-run", "units", "$judge.output.units"),
+        ("planning の事前審査（DF:481-489）", "plan-review-run", "judgment", "$judge.output.judgment"),
+        ("fixing（DF:629 open_units ← h-fix）", "fix", "units", "$judge.output.units"),
+        ("fixing（DF:628 judgment_file ← h-fix）", "fix", "judgment", "$judge.output.judgment"),
+        ("replanning（DF:687-696。盤面の判定を読む）", "replan", "units", "$judge.output.units"),
+        ("replanning（DF:687-696）", "replan", "judgment", "$judge.output.judgment"),
+        ("replanning の事前審査（DF:687-696。blk-plan の中）", "replan-review", "units", "$judge.output.units"),
+        ("replanning の事前審査（DF:687-696）", "replan-review", "judgment", "$judge.output.judgment"),
+        ("refitting（DF:810 open_units ← h-refit）", "refix-run", "units", "$judge.output.units"),
+        ("refitting（DF:809 judgment_file ← h-refit）", "refix-run", "judgment", "$judge.output.judgment"),
+        # L-W11 修正案と波及の一覧と深さを修正へ渡す（EDGE:1217-1226・:163 _ripple_file）
+        ("fixing（DF:630 plan_file ← h-fix）", "fix", "plan", "$plan-rounds.output.plan"),
+        ("fixing（DF:637 ripple_file ← h-fix）", "fix", "ripple", "$plan-rounds.output.ripple"),
+        ("fixing（DF:636 unit_depths ← h-depth）", "fix", "depth", "$plan-rounds.output.depth"),
+        ("refitting（DF:811 plan_file ← h-refit。差し替えた承認済みの案）", "refix-run", "plan", "$replan.output.plan"),
+        ("refitting（DF:817 ripple_file ← h-refit。EDGE:169 refit_ripple_file の作り直した一覧）", "refix-run", "ripple", "$replan.output.ripple"),
+        ("refitting（DF:803-821 は unit_depths を持たず盤面の深さのまま。今は直した案の深さを渡す）", "refix-run", "depth", "$replan.output.depth"),
+        # L-W12 計画の往復。事前審査の返答を次の周の plan に渡す（元 works/blk-plan の輪と works/.shared/core/converge.py）
+        ("planning の往復（DF:481-489。blk-plan の中の輪）", "plan", "review", "$LOOP_PREV.plan-out.output.review"),
+        # L-W43 再審の後は独立の目と最後の関所が再審の判定を読む（元は盤面の判定の差し替え。EDGE:1043-1053 rejudge_edge）
+        ("eyeing（DF:1195-1202。盤面の判定を読む）", "eyes", "units", "$judged.output.units"),
+        ("eyeing（DF:1195-1202）", "eyes", "judgment", "$judged.output.judgment"),
+        ("eyeing（DF:1195-1202）", "eyes", "purpose", "$judged.output.purpose"),
+        ("eyeing（DF:1195-1202）", "eyes", "world", "$judged.output.world"),
+        ("h-final（DF:1204-1215。EDGE:560 _final_text の保留の問い）", "ask-final", "judgment", "$judged.output.judgment"),
+        # L-W50 単位ごとの深さを修正へ渡し、修正の後の信号で上げ直して独立の目が省くかを決める（fix.depth は L-W11 の行）
+        ("eyeing（DF:1201 skip_optional ← h-redepth.skip）", "eyes", "depth", "$redepth.output.depth"),
+        ("h-redepth（DF:885 replanned ← h-replan.go）", "redepth", "replan_depth", {"from": "$replan.output.depth", "if_skipped": None}),
+        ("h-redepth（DF:885 replanned ← h-replan.go）", "redepth", "replanned", "$after-fix.output.replan"),
+        ("h-redepth（DF:886 rejudged ← h-rejudge.go）", "redepth", "rejudged", "$after-fix.output.rejudge"),
+        # L-W58 前の失敗は判定と修正案にだけ（元 works/tests/test_line_a.py:503 test_prior_failures_reach_judge_and_plan_only）
+        ("judging（test_line_a.py:503。盤面の prior-failures-in.json）", "judge", "prior_failures", PRIOR),
+        ("rejudging（DF:866-873。同じ盤面）", "rejudge-run", "prior_failures", PRIOR),
+        ("planning（test_line_a.py:503。修正案の役の指示書）", "plan", "prior_failures", PRIOR),
+        ("replanning（DF:687-696。同じ盤面）", "replan", "prior_failures", PRIOR),
+        # L-W58 始めの関所の答え（元は入口のブロック DF:98-119 の起動の関所の答えを盤面の人の答えにし、独立設計と前提の検算が読む。
+        # EDGE:529 _r2_inputs の after_design）
+        ("planning の独立設計（DF:481-489）", "plan-review-run", "answers", START_ANSWER),
+        ("replanning の事前審査（DF:687-696）", "replan-review", "answers", START_ANSWER),
+        ("eyeing の前提の検算（DF:1195-1202）", "eyes", "start_answers", START_ANSWER),
+    ]
+    # 元に在って今の線に無い受け渡し: (元の受け手と元の在り処, 今の id, 今なら読むはずの源の字, 閉じる部分)
+    MISSING = [
+        ("refitting が 1 回目の申し出と裁定を見る（works/.shared/core/conflict.py:411-414 second_pass・works/blk-fix/lib/fixgates.py:103）",
+         "refix-run", "$fix.output.conflicts", "部分 D1（S01）"),
+        ("差分の審査役の材料 out.p2.plan_review（works/.shared/core/graphloops/graphs/review-loop.json:4163・"
+         "works/blk-delta/commands/delta-review.md:8）", "fix", "$plan-rounds.output.review", "部分 D1（S02）"),
+        ("独立の目の x_scalars（盤面の修正役の返答。S09）", "eyes", ".output.x_scalars", "部分 D1（S09）"),
+        ("h-final の breaks.accepted（EDGE:814-815 _final_needs・:719-723 _handoff_text・:868。works/.shared/core/report.py:304-314）",
+         "ask-final", ".output.breaks", "部分 D2（S03）"),
+        ("report の depth ← h-redepth（DF:1330）", "collect", "$redepth.output", "部分 C（S30・S53）"),
+        ("report の前の失敗（DF:1307-1308 の prior-failures.json。盤面の prior-failures-in.json）", "collect", PRIOR, "部分 C（S49）"),
+    ]
+
+    def test_handoff_table(self):
+        nodes = line_nodes()
+        for origin, key, name, want in self.HANDOFFS:
+            with self.subTest(origin=origin, node=key, input=name):
+                self.assertIn(key, nodes)
+                self.assertEqual((nodes[key].get("with") or {}).get(name), want)
+        for origin, key, source, part in self.MISSING:
+            with self.subTest(origin=origin, node=key, closes=part):
+                values = json.dumps(nodes[key].get("with") or {}, ensure_ascii=False)
+                self.assertNotIn(source, values, f"{part} が配線した。行を MISSING から HANDOFFS へ移す")
+
+    def test_prior_failures_reach_judge_and_plan_only(self):
+        """元 works/tests/test_line_a.py:503 の「判定と修正案の役にだけ」: 前の失敗を渡す差し込みは HANDOFFS の 4 つだけ"""
+        given = {key for key, node in line_nodes().items() if "include" in node and PRIOR in (node.get("with") or {}).values()}
+        self.assertEqual(given, {key for _, key, name, want in self.HANDOFFS if name == "prior_failures"})
 
 
 if __name__ == "__main__":

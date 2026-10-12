@@ -55,7 +55,7 @@ def main() -> int:
         boundary, out = collected()
         boundary.returns(out)
     except Exception as e:
-        print(json.dumps(failed(e), ensure_ascii=False), flush=True)
+        print(json.dumps(failed(e), ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 

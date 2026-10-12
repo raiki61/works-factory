@@ -29,5 +29,25 @@ class LibBlindTest(unittest.TestCase):
         self.assertTrue(any("lib/z.py" in line for line in got), got)
 
 
+    def test_runtime_names_are_red(self):
+        """実行基盤の入力・run の id・前の周・輪・節の出力の字（K7）。UNREAD_INPUTS_HEAD のような名の一部は数えない"""
+        for text, word in (('X = "INPUTS_UNITS"\n', "INPUTS_UNITS"), ('X = "WORKFLOW_ID"\n', "WORKFLOW_ID"),
+                           ("# $LOOP_PREV で貼る\n", "$LOOP_PREV"), ("# 線の loop_group の 3 回\n", "loop_group"),
+                           ("# $material-route.output.<欄> で読む\n", "$material-route.output")):
+            with self.subTest(word=word), tree({"lib/y.py": text}) as root:
+                got = scan.problems("E3", root)
+                self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].endswith(f" {word}"), got)
+        with tree({"lib/y.py": 'UNREAD_INPUTS_HEAD = "x"\n'}) as root:
+            self.assertEqual(scan.problems("E3", root), [])
+
+    def test_named_word_allowance_hides_only_that_word(self):
+        """ALLOWED の `<パス>#<字>` の行は、そのファイルのその字だけを外す（同じファイルのほかの字は赤のまま）"""
+        with tree({"lib/stage_a.py": 'A = "INPUTS_UNITS"\nB = "INPUTS_OTHER"\n'}) as root:
+            got = scan.problems("E3", root)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("INPUTS_OTHER", got[0])
+
+
 if __name__ == "__main__":
     unittest.main()

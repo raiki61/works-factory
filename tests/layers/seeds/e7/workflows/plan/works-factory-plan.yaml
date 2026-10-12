@@ -1,0 +1,8 @@
+name: works-factory-plan
+nodes:
+  - id: diagnose
+    prompt: 判定する
+    idle_timeout: 1728000000
+    settingSources: [user]
+    allowed_tools: [Read, Grep, Glob]
+    sandbox: { enabled: true, allowUnsandboxedCommands: false }

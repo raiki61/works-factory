@@ -179,6 +179,11 @@ class GateTest(unittest.TestCase):
         self.assertEqual(gate["idle_timeout"], NO_DEADLINE)
         self.assertEqual(by["spec-freeze"]["with"]["answer"], {"from": "$spec-gate.output", "if_skipped": None})
 
+    def test_spec_freeze_may_change_the_checkout(self):
+        """spec-freeze は人が通した受け入れ条件を作業ツリーで走らせる（lib/judge_accept._spec_run）。走らせた命令がファイルを
+        残しても節が落ちないように、作業ツリーを変えない印を持たない"""
+        self.assertNotIn("mutates_checkout", nodes()["spec-freeze"])
+
 
 class LoopTest(unittest.TestCase):
     def test_every_loop_retries_three_times_until_its_accept_is_done(self):

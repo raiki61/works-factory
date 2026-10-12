@@ -1,0 +1,9 @@
+name: works-factory-line
+interactive: true
+nodes:
+  - id: gate
+    approval:
+      message: m
+      decisions: [{ id: approve }, { id: stop }, { id: reject }]
+      on_reject: { prompt: 直す }
+    idle_timeout: 1728000000

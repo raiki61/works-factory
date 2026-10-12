@@ -142,7 +142,7 @@ def main() -> int:
         boundary, out = certified(raw_mode, os.environ["INPUTS_START"], os.environ["INPUTS_BASELINE"])
         boundary.returns(out)
     except Exception as e:
-        print(json.dumps(failed(raw_mode if raw_mode == "base" else "final", e), ensure_ascii=False), flush=True)
+        print(json.dumps(failed(raw_mode if raw_mode == "base" else "final", e), ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 

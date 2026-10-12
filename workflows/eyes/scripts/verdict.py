@@ -48,8 +48,8 @@ try:
 except Exception as e:  # noqa: BLE001  返す節は落ちない（落ちると線が先へ進めない）
     why = f"出口が落ちた: {type(e).__name__}: {e}"
     out = eyeverdict.unverified(why, protected) if eyeverdict else fallen(why)
-try:   # boundary.returns と同じ形（境の口を読めなかった時も返す）。Archon の JSON.parse が読めない NaN・Infinity は落ちた返りにする
-    text = json.dumps(out, ensure_ascii=False, allow_nan=False)
+try:   # Archon の JSON.parse が読めない NaN・Infinity は落ちた返りにする
+    print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
 except ValueError as e:
-    text = json.dumps(fallen(f"出口が落ちた: 返りが JSON に書けない: {e}"), ensure_ascii=False)
-print(text, flush=True)
+    print(json.dumps(fallen(f"出口が落ちた: 返りが JSON に書けない: {e}"), ensure_ascii=False, allow_nan=False),
+          flush=True)

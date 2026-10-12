@@ -5,7 +5,7 @@
 """修正前の関所を開くかと、見せる文を決める節 ask-before-fix（docs/design.md の「線」の「順と関所」の 6）。
 
 入力（with:）は計画の往復の返り（plan-rounds の ready・pass・stalled・round・ask_human・gate_axes・questions）と、始めの節の
-unattended・design_only。
+unattended・design_only と、往復の上限 round_limit。
 - 計画ができていない（ready が false）: 関所を開かず、修正へも進まない（go: false。結末は report が計画と判定の返りから決める）
 - 必ず開く: 事前審査の壁打ちが止まった（stalled）・往復が 3 周で決着しなかった・設計だけの run（design_only）
 - 開く: 4 つの軸のどれかが ok でない・事前審査が人に聞くと言った（ask_human）・人への問いが在る
@@ -14,12 +14,15 @@ unattended・design_only。
   （needs-human。今の works で無人の殻が関所に stop を返したのと同じ結末）
 """
 import os
+import sys
+from pathlib import Path
 
-import linekit
-from plan_out import ROUND_LIMIT
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
+import boundary  # noqa: E402
 
-with linekit.guarded_imports():
+with boundary.guarded_imports():
     import gatemarks
+    import stopby
 
 AXES = {"obvious": "自明", "world": "世界の解", "clean": "汚くない", "not_overkill": "やりすぎでない"}
 AXIS_KIND = "plan_review"
@@ -28,7 +31,7 @@ QUESTION = "事前審査の 4 つの軸と人への問い。通すなら通す�
 RECORD = "run の置き場の gates/gate-before-fix.json"
 
 
-def ask(plan: dict, *, unattended: bool, design_only: bool, run_id: str) -> dict:
+def ask(plan: dict, *, unattended: bool, design_only: bool, round_limit: int, run_id: str) -> dict:
     if not plan.get("ready"):
         return {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": []}
     rows = []
@@ -41,7 +44,7 @@ def ask(plan: dict, *, unattended: bool, design_only: bool, run_id: str) -> dict
     rows += [] if unattended else [(gatemarks.ASK_KINDS[0], q) for q in questions]
     if plan.get("stalled"):
         rows.append((gatemarks.DESIGN_ONLY_KIND, gatemarks.STUCK_ITEM))
-    elif (plan.get("round") or 0) >= ROUND_LIMIT and not plan.get("pass"):
+    elif (plan.get("round") or 0) >= round_limit and not plan.get("pass"):
         rows.append((gatemarks.DESIGN_ONLY_KIND, UNSETTLED_ITEM))
     if design_only:
         rows.append((gatemarks.DESIGN_ONLY_KIND, gatemarks.DESIGN_ONLY_ITEM))
@@ -49,7 +52,7 @@ def ask(plan: dict, *, unattended: bool, design_only: bool, run_id: str) -> dict
     if not opens:
         return {"open": False, "go": True, "stop_reason": "", "text": "", "deferred": deferred}
     if unattended:
-        return {"open": False, "go": False, "stop_reason": linekit.NEEDS_HUMAN, "text": "", "deferred": deferred}
+        return {"open": False, "go": False, "stop_reason": stopby.NEEDS_HUMAN, "text": "", "deferred": deferred}
     asking = {"node": gatemarks.GATE_NODE, "kinds": list(dict.fromkeys(kind for kind, _ in rows)) or [AXIS_KIND],
               "question": QUESTION, "items": [item for _, item in rows]}
     return {"open": True, "go": True, "stop_reason": "", "text": gate_text(asking, run_id=run_id), "deferred": deferred}
@@ -62,22 +65,23 @@ def gate_text(asking: dict, *, run_id: str) -> str:
 
 def plan_of_env() -> dict:
     return {
-        "ready": linekit.flag(os.environ.get("INPUTS_READY")),
-        "pass": linekit.flag(os.environ.get("INPUTS_PASS")),
-        "stalled": linekit.flag(os.environ.get("INPUTS_STALLED")),
-        "round": linekit.value(os.environ.get("INPUTS_ROUND")),
-        "ask_human": linekit.flag(os.environ.get("INPUTS_ASK_HUMAN")),
-        "gate_axes": linekit.value(os.environ.get("INPUTS_GATE_AXES")),
-        "questions": linekit.items(os.environ.get("INPUTS_QUESTIONS")),
+        "ready": boundary.flag(os.environ.get("INPUTS_READY")),
+        "pass": boundary.flag(os.environ.get("INPUTS_PASS")),
+        "stalled": boundary.flag(os.environ.get("INPUTS_STALLED")),
+        "round": boundary.value(os.environ.get("INPUTS_ROUND")),
+        "ask_human": boundary.flag(os.environ.get("INPUTS_ASK_HUMAN")),
+        "gate_axes": boundary.value(os.environ.get("INPUTS_GATE_AXES")),
+        "questions": boundary.items(os.environ.get("INPUTS_QUESTIONS")),
     }
 
 
 def fallback(reason: str) -> dict:
-    return {"open": False, "go": False, "stop_reason": linekit.LINE_SCRIPT, "text": "", "deferred": []}
+    return {"open": False, "go": False, "stop_reason": boundary.LINE_SCRIPT, "text": "", "deferred": []}
 
 
 if __name__ == "__main__":
-    linekit.run(lambda: ask(plan_of_env(), unattended=linekit.flag(os.environ.get("INPUTS_UNATTENDED")),
-                            design_only=linekit.flag(os.environ.get("INPUTS_DESIGN_ONLY")),
+    boundary.run(lambda: ask(plan_of_env(), unattended=boundary.flag(os.environ.get("INPUTS_UNATTENDED")),
+                            design_only=boundary.flag(os.environ.get("INPUTS_DESIGN_ONLY")),
+                            round_limit=boundary.value(os.environ.get("INPUTS_ROUND_LIMIT")),
                             run_id=os.environ["WORKFLOW_ID"]),
                 fallback)

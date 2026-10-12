@@ -5,7 +5,7 @@ description: |
   どの道でも報告を出す。順と関所は docs/design.md の「線」、ブロックとの受け渡しは同じ文書の「ブロックの返りの約束」。
   YAML は配線だけで、決めは線の script（workflows/line/scripts/）、確かめは lib/ が持つ。
   ブロックに渡す飛ばされうる値は、返しの節（埋め P2: answer-*・collect）が `{from, if_skipped: null}` で受けて明示の値で返し直す。
-  ブロックと計画の往復の返りは受け皿の節（<include の id>-out・plan-rounds-out）が受け直し、collect はそこからだけ読む
+  ブロックと計画の往復の返りは受け皿の節（<include の id>-out・plan-rounds-out・plan-rounds-review-out）が受け直し、collect はそこからだけ読む
   （受ける節が落ちても受け皿が飛ばされるだけで、報告まで届く）。
   返りは線の節 result（結末の語と、結末が fixed・fixed_needs_check の時に真の fixed）。
 
@@ -134,14 +134,13 @@ nodes:
     mutates_checkout: false
     depends_on: [test-gate-base]
     with:
-      block: test_gate
-      mode: "$test-gate-base.output.mode"
-      ok: "$test-gate-base.output.ok"
-      green: "$test-gate-base.output.green"
-      red_cause: "$test-gate-base.output.red_cause"
-      baseline: "$test-gate-base.output.baseline"
-      fingerprint: "$test-gate-base.output.fingerprint"
-      evidence: "$test-gate-base.output.evidence"
+      got_mode: "$test-gate-base.output.mode"
+      got_ok: "$test-gate-base.output.ok"
+      got_green: "$test-gate-base.output.green"
+      got_red_cause: "$test-gate-base.output.red_cause"
+      got_baseline: "$test-gate-base.output.baseline"
+      got_fingerprint: "$test-gate-base.output.fingerprint"
+      got_evidence: "$test-gate-base.output.evidence"
 
   # 4 判定
   - id: judge
@@ -167,16 +166,15 @@ nodes:
     mutates_checkout: false
     depends_on: [judge]
     with:
-      block: judge
-      ready: "$judge.output.ready"
-      stop_reason: "$judge.output.stop_reason"
-      units: "$judge.output.units"
-      judgment: "$judge.output.judgment"
-      purpose: "$judge.output.purpose"
-      world: "$judge.output.world"
-      spec: "$judge.output.spec"
-      out_of_purpose: "$judge.output.out_of_purpose"
-      rejudge_verdict: "$judge.output.rejudge_verdict"
+      got_ready: "$judge.output.ready"
+      got_stop_reason: "$judge.output.stop_reason"
+      got_units: "$judge.output.units"
+      got_judgment: "$judge.output.judgment"
+      got_purpose: "$judge.output.purpose"
+      got_world: "$judge.output.world"
+      got_spec: "$judge.output.spec"
+      got_out_of_purpose: "$judge.output.out_of_purpose"
+      got_rejudge_verdict: "$judge.output.rejudge_verdict"
 
   # 5 計画の往復。中の節は外から見えないので、本体の終わりの返しの節 plan-out が返りを欄ごとに受けて返す
   - id: plan-rounds
@@ -244,6 +242,7 @@ nodes:
           depends_on: [plan, plan-review-run]
           trigger_rule: none_failed_min_one_success
           with:
+            round_limit: 3
             ready: "$plan.output.ready"
             plan: "$plan.output.plan"
             structure: "$plan.output.structure"
@@ -271,21 +270,33 @@ nodes:
     mutates_checkout: false
     depends_on: [plan-rounds]
     with:
-      block: plan_rounds
-      ready: "$plan-rounds.output.ready"
-      plan: "$plan-rounds.output.plan"
-      structure: "$plan-rounds.output.structure"
-      ripple: "$plan-rounds.output.ripple"
-      depth: "$plan-rounds.output.depth"
-      round: "$plan-rounds.output.round"
-      pass: "$plan-rounds.output.pass"
-      stalled: "$plan-rounds.output.stalled"
-      review: "$plan-rounds.output.review"
-      design: "$plan-rounds.output.design"
-      gate_axes: "$plan-rounds.output.gate_axes"
-      ask_human: "$plan-rounds.output.ask_human"
-      questions: "$plan-rounds.output.questions"
-      stop_reason: "$plan-rounds.output.stop_reason"
+      got_ready: "$plan-rounds.output.ready"
+      got_plan: "$plan-rounds.output.plan"
+      got_structure: "$plan-rounds.output.structure"
+      got_ripple: "$plan-rounds.output.ripple"
+      got_depth: "$plan-rounds.output.depth"
+      got_round: "$plan-rounds.output.round"
+
+  - id: plan-rounds-review-out
+    script: returned
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        got: { type: [object, "null"] }
+        stop_reason: { type: string }
+      required: [got, stop_reason]
+    mutates_checkout: false
+    depends_on: [plan-rounds]
+    with:
+      got_pass: "$plan-rounds.output.pass"
+      got_stalled: "$plan-rounds.output.stalled"
+      got_review: "$plan-rounds.output.review"
+      got_design: "$plan-rounds.output.design"
+      got_gate_axes: "$plan-rounds.output.gate_axes"
+      got_ask_human: "$plan-rounds.output.ask_human"
+      got_questions: "$plan-rounds.output.questions"
 
   # 6 修正前の関所
   - id: ask-before-fix
@@ -313,6 +324,7 @@ nodes:
       questions: "$plan-rounds.output.questions"
       unattended: "$start.output.unattended"
       design_only: "$start.output.design_only"
+      round_limit: 3
 
   - id: gate-before-fix
     approval:
@@ -373,17 +385,16 @@ nodes:
     mutates_checkout: false
     depends_on: [fix]
     with:
-      block: fix
-      done: "$fix.output.done"
-      units: "$fix.output.units"
-      groups: "$fix.output.groups"
-      conflicts: "$fix.output.conflicts"
-      replan_items: "$fix.output.replan_items"
-      objection: "$fix.output.objection"
-      diff: "$fix.output.diff"
-      allowed_test_changes: "$fix.output.allowed_test_changes"
-      changed: "$fix.output.changed"
-      delta_review: "$fix.output.delta_review"
+      got_done: "$fix.output.done"
+      got_units: "$fix.output.units"
+      got_groups: "$fix.output.groups"
+      got_conflicts: "$fix.output.conflicts"
+      got_replan_items: "$fix.output.replan_items"
+      got_objection: "$fix.output.objection"
+      got_diff: "$fix.output.diff"
+      got_allowed_test_changes: "$fix.output.allowed_test_changes"
+      got_changed: "$fix.output.changed"
+      got_delta_review: "$fix.output.delta_review"
 
   - id: after-fix
     script: after_fix
@@ -425,16 +436,15 @@ nodes:
     mutates_checkout: false
     depends_on: [rejudge-run]
     with:
-      block: judge
-      ready: "$rejudge-run.output.ready"
-      stop_reason: "$rejudge-run.output.stop_reason"
-      units: "$rejudge-run.output.units"
-      judgment: "$rejudge-run.output.judgment"
-      purpose: "$rejudge-run.output.purpose"
-      world: "$rejudge-run.output.world"
-      spec: "$rejudge-run.output.spec"
-      out_of_purpose: "$rejudge-run.output.out_of_purpose"
-      rejudge_verdict: "$rejudge-run.output.rejudge_verdict"
+      got_ready: "$rejudge-run.output.ready"
+      got_stop_reason: "$rejudge-run.output.stop_reason"
+      got_units: "$rejudge-run.output.units"
+      got_judgment: "$rejudge-run.output.judgment"
+      got_purpose: "$rejudge-run.output.purpose"
+      got_world: "$rejudge-run.output.world"
+      got_spec: "$rejudge-run.output.spec"
+      got_out_of_purpose: "$rejudge-run.output.out_of_purpose"
+      got_rejudge_verdict: "$rejudge-run.output.rejudge_verdict"
 
   - id: judged
     script: judged
@@ -500,13 +510,12 @@ nodes:
     mutates_checkout: false
     depends_on: [replan]
     with:
-      block: plan
-      ready: "$replan.output.ready"
-      plan: "$replan.output.plan"
-      structure: "$replan.output.structure"
-      ripple: "$replan.output.ripple"
-      depth: "$replan.output.depth"
-      round: "$replan.output.round"
+      got_ready: "$replan.output.ready"
+      got_plan: "$replan.output.plan"
+      got_structure: "$replan.output.structure"
+      got_ripple: "$replan.output.ripple"
+      got_depth: "$replan.output.depth"
+      got_round: "$replan.output.round"
 
   - id: replan-review
     include: works-factory-plan-review
@@ -539,14 +548,13 @@ nodes:
     mutates_checkout: false
     depends_on: [replan-review]
     with:
-      block: plan_review
-      pass: "$replan-review.output.pass"
-      stalled: "$replan-review.output.stalled"
-      review: "$replan-review.output.review"
-      design: "$replan-review.output.design"
-      gate_axes: "$replan-review.output.gate_axes"
-      ask_human: "$replan-review.output.ask_human"
-      questions: "$replan-review.output.questions"
+      got_pass: "$replan-review.output.pass"
+      got_stalled: "$replan-review.output.stalled"
+      got_review: "$replan-review.output.review"
+      got_design: "$replan-review.output.design"
+      got_gate_axes: "$replan-review.output.gate_axes"
+      got_ask_human: "$replan-review.output.ask_human"
+      got_questions: "$replan-review.output.questions"
 
   - id: ask-replan
     script: ask_replan
@@ -715,14 +723,13 @@ nodes:
     mutates_checkout: false
     depends_on: [test-gate-final]
     with:
-      block: test_gate
-      mode: "$test-gate-final.output.mode"
-      ok: "$test-gate-final.output.ok"
-      green: "$test-gate-final.output.green"
-      red_cause: "$test-gate-final.output.red_cause"
-      baseline: "$test-gate-final.output.baseline"
-      fingerprint: "$test-gate-final.output.fingerprint"
-      evidence: "$test-gate-final.output.evidence"
+      got_mode: "$test-gate-final.output.mode"
+      got_ok: "$test-gate-final.output.ok"
+      got_green: "$test-gate-final.output.green"
+      got_red_cause: "$test-gate-final.output.red_cause"
+      got_baseline: "$test-gate-final.output.baseline"
+      got_fingerprint: "$test-gate-final.output.fingerprint"
+      got_evidence: "$test-gate-final.output.evidence"
 
   # 9 独立の目
   - id: eyes
@@ -759,16 +766,15 @@ nodes:
     mutates_checkout: false
     depends_on: [eyes]
     with:
-      block: eyes
-      ok: "$eyes.output.ok"
-      r1: "$eyes.output.r1"
-      r2: "$eyes.output.r2"
-      r3: "$eyes.output.r3"
-      r4: "$eyes.output.r4"
-      questions: "$eyes.output.questions"
-      premise_check: "$eyes.output.premise_check"
-      structure_after: "$eyes.output.structure_after"
-      protected_hits: "$eyes.output.protected_hits"
+      got_ok: "$eyes.output.ok"
+      got_r1: "$eyes.output.r1"
+      got_r2: "$eyes.output.r2"
+      got_r3: "$eyes.output.r3"
+      got_r4: "$eyes.output.r4"
+      got_questions: "$eyes.output.questions"
+      got_premise_check: "$eyes.output.premise_check"
+      got_structure_after: "$eyes.output.structure_after"
+      got_protected_hits: "$eyes.output.protected_hits"
 
   # 10 封じる
   - id: merge-seal
@@ -795,13 +801,12 @@ nodes:
     mutates_checkout: false
     depends_on: [merge-seal]
     with:
-      block: merge
-      mode: "$merge-seal.output.mode"
-      ok: "$merge-seal.output.ok"
-      hash: "$merge-seal.output.hash"
-      diff: "$merge-seal.output.diff"
-      protected_hits: "$merge-seal.output.protected_hits"
-      reason: "$merge-seal.output.reason"
+      got_mode: "$merge-seal.output.mode"
+      got_ok: "$merge-seal.output.ok"
+      got_hash: "$merge-seal.output.hash"
+      got_diff: "$merge-seal.output.diff"
+      got_protected_hits: "$merge-seal.output.protected_hits"
+      got_reason: "$merge-seal.output.reason"
 
   # 11 最後の関所
   - id: ask-final
@@ -903,13 +908,12 @@ nodes:
     mutates_checkout: false
     depends_on: [merge-apply]
     with:
-      block: merge
-      mode: "$merge-apply.output.mode"
-      ok: "$merge-apply.output.ok"
-      hash: "$merge-apply.output.hash"
-      diff: "$merge-apply.output.diff"
-      protected_hits: "$merge-apply.output.protected_hits"
-      reason: "$merge-apply.output.reason"
+      got_mode: "$merge-apply.output.mode"
+      got_ok: "$merge-apply.output.ok"
+      got_hash: "$merge-apply.output.hash"
+      got_diff: "$merge-apply.output.diff"
+      got_protected_hits: "$merge-apply.output.protected_hits"
+      got_reason: "$merge-apply.output.reason"
 
   # 13 報告。前の段が落ちても飛ばされても走る
   - id: collect
@@ -938,9 +942,9 @@ nodes:
         gate_final: {}
       required: [start, test_gate_base, judge, rejudge, plan, plan_review, replan, replan_review, fix, test_gate_final, eyes, merge_seal, merge_apply, gate_start, gate_before_fix, gate_replan, gate_final]
     mutates_checkout: false
-    depends_on: [start, answer-start, test-gate-base-out, judge-out, plan-rounds-out, answer-before-fix, fix-out, rejudge-run-out,
-                 replan-out, replan-review-out, answer-replan, fixed, test-gate-final-out, eyes-out, merge-seal-out, answer-final,
-                 merge-apply-out]
+    depends_on: [start, answer-start, test-gate-base-out, judge-out, plan-rounds-out, plan-rounds-review-out, answer-before-fix, fix-out,
+                 rejudge-run-out, replan-out, replan-review-out, answer-replan, fixed, test-gate-final-out, eyes-out, merge-seal-out,
+                 answer-final, merge-apply-out]
     trigger_rule: all_done
     with:
       start: { from: "$start.output.record", if_skipped: null }
@@ -952,7 +956,8 @@ nodes:
       test_gate_base: { from: "$test-gate-base-out.output", if_skipped: null }
       judge: { from: "$judge-out.output", if_skipped: null }
       rejudge: { from: "$rejudge-run-out.output", if_skipped: null }
-      plan_rounds: { from: "$plan-rounds-out.output", if_skipped: null }
+      plan: { from: "$plan-rounds-out.output", if_skipped: null }
+      plan_review: { from: "$plan-rounds-review-out.output", if_skipped: null }
       replan: { from: "$replan-out.output", if_skipped: null }
       replan_review: { from: "$replan-review-out.output", if_skipped: null }
       fix: { from: "$fix-out.output", if_skipped: null }

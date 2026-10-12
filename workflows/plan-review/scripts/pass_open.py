@@ -77,8 +77,8 @@ def main() -> int:
             (folder / OPEN_ERROR).write_text(why, encoding="utf-8")
         except OSError:
             pass
-        print(json.dumps({"ok": False, "r2_go": False, "tree": False, "k": 0, "form": "", "reason": why}, ensure_ascii=False),
-              flush=True)
+        print(json.dumps({"ok": False, "r2_go": False, "tree": False, "k": 0, "form": "", "reason": why}, ensure_ascii=False,
+                         allow_nan=False), flush=True)
     return 0
 
 
