@@ -34,6 +34,8 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
 - glob_match(path, glob): 根からの相対のパスが glob に当たるか（* ? [..] は / を跨がない・** は段をまたぐ。守りのファイルの
   protect.match もこれを呼ぶ）。gaps は out_of_scope の glob が tests・rewrite_tests の id のファイルに当たる案を拒む
 - approved_items(b): 今の周の承認済みの修正案の項目と凍結した欄を同じ番号で合わせた並び（修正の受け付けが差分と照らす）
+- handed(ruling, items): 裁かれた項目の番号の字（fix の replan_items）を案の項目の番号に読み、番号でない行と案の外の番号は訳を返す
+  （案の直しの周を開く planfile と、案の直しの事前審査を開く boardview が同じ物を呼ぶ）
 - 約束の欄と手段の欄（依頼 226）: CONTRACT_KEYS・CONTRACT_TEST_KEYS（tests[] の行の約束の欄）は変えると関所に戻す物、
   MEANS_KEYS は修正案の役が同じ run の中で直してよい物。contract_diff(old, new) が違う約束の欄の名を返す
   widened(old, new) は違いが範囲を広げる欄（WIDEN_KEYS: allowed_paths に足す・out_of_scope から外す）だけの時に足した・外した glob を返す
@@ -897,6 +899,18 @@ def _saved_mark(b) -> dict | None:
         if isinstance(row, dict) and row.get("op") == SAVED_OP and row.get("round") == b.round:
             mark = row
     return mark
+
+
+def handed(ruling, items: int) -> tuple:
+    """(案の直しで渡す項目の番号の並び, 渡せない訳)。ruling は項目の番号の字の並び（fix の replan_items）"""
+    out = []
+    for r in ruling if isinstance(ruling, list) else []:
+        n = int(r) if isinstance(r, str) and re.fullmatch(r"[0-9]+", r.strip()) else r if isinstance(r, int) and not isinstance(r, bool) else None
+        if n is None or not 1 <= n <= items:
+            return [], f"ruling の項目 {r!r} が承認済みの修正案（{items} 項目）の番号でない"
+        if n not in out:
+            out.append(n)
+    return out, "" if out else "ruling に直す項目が無い"
 
 
 def approved_items(b) -> list[dict] | None:
