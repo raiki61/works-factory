@@ -29,6 +29,7 @@ if str(LIB) not in sys.path:
 
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import fixboard  # noqa: E402
+import gatemarks  # noqa: E402
 import groups  # noqa: E402
 import leftovers  # noqa: E402
 import lens  # noqa: E402
@@ -54,6 +55,25 @@ class TempCase(unittest.TestCase):
         self.rev = committed_copy(self.repo, SEED)
         self.place = self.tmp / "place"
         self.place.mkdir()
+
+
+class GateAsksCase(TempCase):
+    """P241: 修正の置き場の判定の写しと関所の答え（answers.json の {decision, text, asked}）から引く、答えで戻る単位と外れる単位"""
+
+    FORK = {"key": "q1", "kind": "fork", "status": "held", "origin": "u1", "options": ["a", "b"], "reason": "割れる"}
+
+    def put(self, answers):
+        (self.place / fixboard.JUDGMENT_FILE).write_text(json.dumps({"units": [{"key": "u1", "label": "block"}], "questions": [self.FORK]}),
+                                                         encoding="utf-8")
+        (self.place / fixboard.ANSWERS_FILE).write_text(json.dumps(answers, ensure_ascii=False), encoding="utf-8")
+
+    def test_continue_returns_the_fork_origin(self):
+        self.put({"decision": "approve", "text": "", "asked": [gatemarks.ask_text(self.FORK)]})
+        self.assertEqual(fixboard.gate_asks(self.place), ({}, {"u1"}))
+        self.assertEqual(fixboard.group_owed(self.place), ["u1"])
+        self.put({"decision": "approve", "text": "", "asked": []})
+        withheld, back = fixboard.gate_asks(self.place)
+        self.assertEqual((set(withheld), back, fixboard.group_owed(self.place)), ({"u1"}, set(), []))
 
 
 class TestGroups(TempCase):
@@ -1424,8 +1444,9 @@ class DeltaSeamCase(TempCase):
         self.assertEqual(fixboard.start_tree(self.place), leftovers.head_tree(self.place))
         fixboard.write_json(self.place / fixboard.GROUPS_FILE, {"groups": [], "start_tree": "abc"})
         self.assertEqual(fixboard.start_tree(self.place), "abc")
-        self.assertIn("日本語", fixboard.lang_line({"lang": "日本語"}))
-        self.assertIn(fixboard.LANG_DEFAULT, fixboard.lang_line({}))
+        import rolekit
+        self.assertIn("日本語", rolekit.lang_line({"lang": "日本語"}))
+        self.assertIn(rolekit.LANG_DEFAULT, rolekit.lang_line({}))
 
     def test_delta_review_rejects_every_plan_only_kind(self):
         """差分の審査の穴の kind が事前審査だけの語なら 1 行で拒む: regression・policy は後の工程が人に聞く、precedent は判定者の
@@ -1602,9 +1623,13 @@ class GroupScriptsSeamCase(TempCase):
                 {"unit_key": "B", "ruling": {"decision": "fix_plan_item"}},
                 {"unit_key": "C", "ruling": {"decision": "ask_human"}}]
         self.assertEqual(fixboard.replan_items(rows, [{"unit_ids": ["B"], "items": [3]}]), ["2", "3"])
-        marks = fixboard.changed_marks([{"changed": {"gates_changed": True}}, None, {"changed": {}}])
-        self.assertEqual(set(marks), set(fixboard.CHANGED_MARKS))
-        self.assertEqual([k for k, v in marks.items() if v], ["gates_changed"])
+        marks = fixboard.changed_marks([{"changed": {"gates_changed": True, fixboard.DRIFT_NOTE: "測り直した"}}, None,
+                                        {"changed": {fixboard.DRIFT_NOTE: "測り直した"}}])
+        self.assertEqual(set(marks), {*fixboard.CHANGED_MARKS, fixboard.DRIFT_NOTE})
+        self.assertEqual([k for k, v in marks.items() if v is True], ["gates_changed"])
+        self.assertEqual(marks[fixboard.DRIFT_NOTE], "測り直した", "同じ文は 1 度")
+        self.assertEqual(fixboard.x_scalars([{"x_scalars": {"x_a": 1, "x_b": "多い"}}, {"x_scalars": {"x_a": 2.5, "x_b": 3}},
+                                             {"x_scalars": "壊れた"}, None]), {"x_a": 3.5, "x_b": "多い"})
         self.assertEqual(fixboard.objection([{"objection": "前提が違う"}, {"rejudge_requested": "前提が違う"}, {}]), "前提が違う")
         self.assertEqual(fixboard.allowed_tests(self.place, [{"allowed_test_changes": ["t/a.py"]}]), ["t/a.py"])
 
@@ -1614,6 +1639,7 @@ class GroupScriptsSeamCase(TempCase):
         off = {k: False for k in fixboard.CHANGED_MARKS}
         g1 = fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
                                    reply={**off, "mechanism_changed": True})
+        off = {**off, fixboard.DRIFT_NOTE: ""}   # 前提のずれの申告の文（無ければ空）も同じ欄に載る
         g2 = fixboard.group_result({"group_id": "g2", "unit_ids": []}, start_tree="", end_tree="", tdd=None, reply=dict(off))
         ruled = fixboard.reply_marks({"seams_changed": True})
         got = fixboard.changed_marks([g1, g2, ruled])
@@ -1809,14 +1835,16 @@ class GroupChildSeamCase(TempCase):
                                     end_tree="t1", tdd=tdd, fix_units={"a": {"status": "fixed", "reason": ""}},
                                     reply=reply, reply_file="/r.json", allowed=["t.py", "t.py"], conflicts=[{"id": 1}])
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
-                                    "objection", "changed", "allowed_test_changes", "allowed_tests", "verified", "reply_file",
-                                    "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace"})
+                                    "objection", "changed", "x_scalars", "allowed_test_changes", "allowed_tests", "verified",
+                                    "reply_file", "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace", "closure",
+                                    "claimed"})
         self.assertEqual(got["worktree"], "", "渡さなければ空")
+        self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"]), ([], [], [], []))
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
         self.assertEqual(got["units"][2]["reason"], fixboard.NO_UNIT_RESULT)
         self.assertEqual(got["objection"], "判定の単位 a は誤り")
-        self.assertEqual(got["changed"], {k: k == "mechanism_changed" for k in fixboard.CHANGED_MARKS})
+        self.assertEqual(got["changed"], {**{k: k == "mechanism_changed" for k in fixboard.CHANGED_MARKS}, fixboard.DRIFT_NOTE: ""})
         self.assertEqual(got["allowed_test_changes"], ["t.py"])
         row = {"path": "t.py", "permit": "plan-rewrite-1", "source": "plan"}
         self.assertEqual(fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
@@ -1885,9 +1913,11 @@ class FixAcceptSeamCase(TempCase):
         self.assertIn("vendored/w.txt", fixboard.undeclared_writes(reply, self.repo, tree)[0])
 
     def test_reply_marks_or_over_the_previous(self):
-        before = fixboard.reply_marks({"gates_changed": True, "rejudge_requested": "前の異議"})
-        got = fixboard.reply_marks({"changes": [], "path_changed": True, "rejudge_requested": "今の異議"}, before)
-        self.assertEqual(got["changed"], {k: k in ("gates_changed", "path_changed") for k in fixboard.CHANGED_MARKS})
+        before = fixboard.reply_marks({"gates_changed": True, "rejudge_requested": "前の異議", "premise_drift_note": "前の申告"})
+        got = fixboard.reply_marks({"changes": [], "path_changed": True, "rejudge_requested": "今の異議",
+                                    "premise_drift_note": "今の申告"}, before)
+        self.assertEqual(got["changed"], {**{k: k in ("gates_changed", "path_changed") for k in fixboard.CHANGED_MARKS},
+                                          fixboard.DRIFT_NOTE: "前の申告\n今の申告"})
         self.assertEqual(got["rejudge_requested"], "前の異議\n今の異議")
         self.assertTrue(got["gates_changed"])
 

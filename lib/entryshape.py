@@ -33,9 +33,9 @@ import engine.util as _util  # noqa: E402
 from engine.util import Reject, git  # noqa: E402
 
 EMPTY_REFUSED = "直す物も審査する物も無い"   # 差分が空で依頼の行も空の入力を拒む文の頭
-# 認証の要らない起動（開発の殻 dev/ の実行基盤の起動の殻。テスト・validate・workflow test）の印。この run の中の gh は利用者の gh の
-# ログインを継がない（dev/hostgh.py の口を置かない）ので、名指した PR・issue を読めない
-NO_AUTH_ENV = "WORKS_DEV_NO_AUTH"
+# 認証の要らない起動（起動の殻 bin/works-factory を WORKS_FACTORY_NO_AUTH=1 で起こした run。bin/_lib/launcher.py・auth_launch.py が
+# 同じ名を読む）の印。この run の中の gh は利用者の gh のログインを継がないので、名指した PR・issue を読めない
+NO_AUTH_ENV = "WORKS_FACTORY_NO_AUTH"
 PR_FILE = "pr.md"   # 盤面の根の PR の添え物（番号・題・本文。PR の無い run は置かない）
 
 
@@ -119,17 +119,17 @@ def refuse_empty(items: list, change, repo: pathlib.Path) -> None:
 
 
 def build(inp: dict, repo: pathlib.Path) -> dict:
-    """check_inputs の返りから、入口の入力の形（始めの記録の欄 input。約束は入口のブロックの schemas/input.schema.json）を作る:
-    {base: {rev, from, name, label}, head_rev, diff: {empty, files, stat}, requests, request_file, pr: {number, title} | None, spec}。
-    base は差分の根（名指しが無ければ HEAD・from head）、diff は差分の根から作業ツリーの今の姿までの測り（diff_of）、
-    requests は依頼の行の数、pr は PR の番号と題（本文は盤面の依頼の文と github.json に在るので写さない）、spec は仕様の段を
-    挟むか。後ろの段（盤面・ブロック・境の節・報告）はこの形の中身（diff.empty・requests・pr・spec）だけを読み、入口の種類を見ない"""
+    """check_inputs の返りから、入口の入力の形（始めの記録の欄 input。約束は docs/design.md の線の start の record）を作る:
+    {base: {rev, from, name, label}, head_rev, diff: {empty, files, stat}, requests, request_file, pr: {number, title, body} | None,
+    spec}。base は差分の根（名指しが無ければ HEAD・from head）、diff は差分の根から作業ツリーの今の姿までの測り（diff_of）、
+    requests は依頼の行の数、pr は PR の番号と題と本文（目的の役が出典 ① PR 説明として読む。元は盤面の根の pr.md を線が
+    渡した: works/darkfactory/darkfactory.yaml 297 行）、spec は仕様の段を挟むか。後ろの段（盤面・ブロック・境の節・報告）はこの形の中身（diff.empty・requests・pr・spec）だけを読み、入口の種類を見ない"""
     repo = pathlib.Path(repo)
     head = _git(repo, "rev-parse", "HEAD")
     base = inp.get("base") or {"rev": head, "from": "head", "name": "", "label": "HEAD"}
     pr = inp.get("pr")
     return {"base": dict(base), "head_rev": head, "diff": measure(repo, base["rev"]), "requests": len(inp["items"]),
-            "request_file": inp["request_file"], "pr": {"number": pr["number"], "title": pr["title"]} if pr else None,
+            "request_file": inp["request_file"], "pr": {"number": pr["number"], "title": pr["title"], "body": pr["body"]} if pr else None,
             "spec": bool(inp.get("spec"))}
 
 
@@ -187,7 +187,7 @@ def github_reads(board_dir: pathlib.Path, repo: pathlib.Path, raw: dict):
     if os.environ.get(NO_AUTH_ENV) == "1":
         names = "・".join([f"PR #{n}" for n in prs] + [f"issue #{n}" for n in issues])
         raise Refused(f"{names} を名指したが、この run は {NO_AUTH_ENV}=1 で起こしたので run の中の gh が利用者のログインを"
-                      "継がず読めない——認証を使う起動（use.sh start・dogfood.sh）で回す")
+                      "継がず読めない——認証を使う起動（bin/works-factory を WORKS_FACTORY_NO_AUTH なしで起こす）で回す")
     return ghreads.read_named(repo, prs, issues)
 
 

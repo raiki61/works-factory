@@ -6,7 +6,7 @@ intake: {go: true, mode: judge, spec: false, world: true, verify: false, reason:
 pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
 premises:
   constraints: []
-premises-reject: {reason: ''}
+premises-reject: {reason: '', "lang_line": ""}
 premises-accept: &id001 {ok: true, done: true, reason: ''}
 purpose-prep: {go: true, brief_file: /tmp/judge/purpose-brief.md, reason: ''}
 purpose:
@@ -15,7 +15,7 @@ purpose:
   known_weaknesses: []
   source_files: []
   means: []
-purpose-reject: {reason: ''}
+purpose-reject: {reason: '', "lang_line": ""}
 purpose-accept: *id001
 world-intake: {due: true, prompt: 依頼の行を問題の類に言い直せ, reason: ''}
 world-classes:
@@ -25,7 +25,7 @@ world-classes:
     activity: 集計
     proposed: 分母を件数にする
     queries: [mean denominator]
-world-classes-reject: {reason: ''}
+world-classes-reject: {reason: '', "lang_line": ""}
 world-classes-accept: *id001
 world-plan: {due: true, prompt: 類ごとに定石を集めよ, reason: ''}
 world-judge:
@@ -38,7 +38,7 @@ world-judge:
     verdict: same
     challenge: ''
   excerpts: []
-world-judge-reject: {reason: ''}
+world-judge-reject: {reason: '', "lang_line": ""}
 world-judge-accept: *id001
 world-finish: {ok: true, status: ok, reason: 網に出られなかった。行は知識だけで書いた}
 material-route: {prior_decisions: false, purpose_review: false, local_review: false, consistency_bypass: false, hygiene: false, external_standards: false, procedure_trace: false, gate_efficacy: false, test_double_fidelity: false, main_path_observation: false, provenance: false, reason: 差分の空の run}
@@ -53,9 +53,9 @@ diagnose:
   carried_r1: []
   one_shot_closes: ['stats.py mean: 分母が len(xs) - 1']
   precedents: []
-diagnose-reject: {reason: ''}
+diagnose-reject: {reason: '', "lang_line": ""}
 diagnose-accept: *id001
-verify-prep: {go: false, prompt_file: '', reason: 開いた単位が 2 つ未満}
+verify-prep: {go: false, prompt_file: '', reason: 開いた単位が 2 つ未満, "lang_line": ""}
 verify-merge: {ok: true, reason: ''}
 verdict:
   ready: true

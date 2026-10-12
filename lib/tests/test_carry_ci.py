@@ -105,6 +105,22 @@ class CliCase(unittest.TestCase):
         self.assertEqual(len(bad.stderr.strip().splitlines()), 1)
 
 
+    def test_readme_names_the_carry_ci_command(self):
+        """L-D54: 人が CI の赤を次の依頼へ運ぶ口の使い方が README の使い方に在り、その 1 行の命令がそのまま動く（元
+        works/skills/works/SKILL.md:71 の入口の案内）"""
+        import re
+        text = (LIB.parent / "README.md").read_text(encoding="utf-8")
+        found = re.findall(r"`(python3 -I lib/carry\.py carry-ci [^`]+)`", text)
+        self.assertEqual(len(found), 1, "README の使い方に carry-ci の命令の 1 行が無い")
+        with tempfile.TemporaryDirectory() as tmp:
+            req, ids = pathlib.Path(tmp) / "next-request.json", pathlib.Path(tmp) / "failed.txt"
+            req.write_text(json.dumps({"findings": [{"where": "a.py:1", "text": "穴"}]}), encoding="utf-8")
+            ids.write_text(f"{TID}\n", encoding="utf-8")
+            argv = found[0].replace("<next-request.json>", str(req)).replace("<試験の id のファイル>", str(ids)).split()
+            done = subprocess.run([sys.executable, *argv[1:]], cwd=LIB.parent, capture_output=True, text=True)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertIn(TID, json.loads(req.read_text(encoding="utf-8"))["prior_failures"][0]["text"])
+
 class OldEntryCase(unittest.TestCase):
     def test_old_ghreads_entry_points_to_carry(self):
         """前の打ち方 ghreads.py carry-ci は通さず、移った先 carry.py を 1 行で言って 2 で終わる"""

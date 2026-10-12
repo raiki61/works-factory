@@ -37,11 +37,13 @@ NEVER_FAIL = {
     ("plan", "round"): ALONE_BOUND,
     ("report", "facts"): ALONE_BOUND,
     ("line", "report"): ALONE_RETURN,
+    ("line", "collect"): ALONE_BOUND,
 }
 
 # 境の口を読めない時にも返すため、標準出力へ直に書く script（パス → 訳）
 LIBLESS_EXITS = {
     "workflows/line/scripts/result.py": "線の返す節",
+    "workflows/line/scripts/collect.py": "線の返す節が $collect.output で結ぶ",
     "workflows/judge/scripts/verdict.py": "judge の返す節",
     "workflows/plan/scripts/plan_collect.py": "plan の返す節",
     "workflows/plan/scripts/round.py": "plan の返す節が $round.output.dir で結ぶ",

@@ -16,7 +16,10 @@ command・output は人が手元で測った命令と出力で、両方か無し
 （入口・判定と前提の受け口）はここで解き、graphloops の規則（check_request・add_request・REQUEST_SCHEMA）に渡すのは
 findings だけにする（容器の形を規則の側へ漏らさない）。
 
-- parts(doc) -> {"findings": list, "pr": [int], "issue": [int], "answers": [dict], "prior_failures": [dict]}: 解けなければ ValueError（1 行）
+- parts(doc) -> {"findings": list, "pr": [int], "issue": [int], "answers": [dict], "prior_failures": [dict], "constraints": [dict]}:
+  解けなければ ValueError（1 行）。constraints は前の run の前提の検算が偽と示した仮定の実測 [{text, measured_how, kind: "実測"}]
+  （前の run の報告が書く。判定が前提の実測の制約に足す。直す穴 findings にも前の失敗 prior_failures にも混ぜない）
+- carried_constraints(facts, run_id): 前提の検算の facts_to_add を constraints の行にする（書き手は報告）
 - without_prior(doc) -> 依頼の object か None: 前の run の判断（欄 prior_failures）を外した写し。前の run の判断を知らない別の目
   （目的の役）に渡す形を機械が作る口。欄が無い・object でない（findings の配列の形）なら None（そのまま渡してよい）
 - carry_ci(doc, ids) -> 依頼の object: run の後の CI が赤と言った試験の id を prior_failures の行（where CI_WHERE）として足す。
@@ -48,12 +51,15 @@ from engine.schema import validate_schema  # noqa: E402
 import promptsection  # noqa: E402
 
 # 依頼の容器の欄の名
-FINDINGS, PR, ISSUE, ANSWERS, PRIOR = "findings", "pr", "issue", "answers", "prior_failures"
-KEYS = (FINDINGS, PR, ISSUE, ANSWERS, PRIOR)
+FINDINGS, PR, ISSUE, ANSWERS, PRIOR, CONSTRAINTS = "findings", "pr", "issue", "answers", "prior_failures", "constraints"
+KEYS = (FINDINGS, PR, ISSUE, ANSWERS, PRIOR, CONSTRAINTS)
 ANSWER_KEYS = ("question", "text", "command", "output")   # 人が見直した答えの欄（Schema の answers は下書きの欄で、別の物）
 DRAFT, SOURCE, NOTE = "draft", "source", "note"
 DRAFT_KEYS = (DRAFT, SOURCE)   # 前の run の報告が next-request.json の answers・findings に置く下書きの印（人が見直して消すまで拒む）
 PRIOR_KEYS = ("where", "text")   # prior_failures の行の欄（前の run の報告が next-request.json に書いた形）
+MEASURED = "実測"   # constraints の行の kind（前提の検算が実態で確かめた事実だけを運ぶ）
+CARRIED_HOW = "前の run の前提の検算（run {run}）"   # 報告が書く行の measured_how（元 review-loop.py:255 の「stop.premise_check の検算」）
+CARRIED_HOW_HEAD = CARRIED_HOW.split("（", 1)[0]   # 運ばれた制約の行の見分け（独立の目が R2 を省かない印）
 CI_WHERE = "run の後の CI"   # carry_ci が足す prior_failures の行の where
 REDESIGN_WHERE = "独立の目 R2"   # 独立の目 R2 の作り直しの行の where（報告が書き、is_redesign が読む）
 CI_TEXT = ("試験 {id} が CI で赤だった（重い試験は run の外の CI で回る。前の run の直しがこの試験を赤にした見込み。"
@@ -92,9 +98,9 @@ def errors(doc, name: str) -> list:
 
 def parts(doc) -> dict:
     if isinstance(doc, list):
-        return {FINDINGS: doc, PR: [], ISSUE: [], ANSWERS: [], PRIOR: []}
+        return {FINDINGS: doc, PR: [], ISSUE: [], ANSWERS: [], PRIOR: [], CONSTRAINTS: []}
     if not isinstance(doc, dict):
-        raise ValueError(f"findings の配列か {{findings, pr, issue, answers, prior_failures}} の形でない（{type(doc).__name__}）")
+        raise ValueError(f"findings の配列か {{findings, pr, issue, answers, prior_failures, constraints}} の形でない（{type(doc).__name__}）")
     extra = sorted(set(doc) - set(KEYS))
     if extra:
         raise ValueError(f"知らない鍵 {extra}（使えるのは {list(KEYS)}）")
@@ -114,7 +120,24 @@ def parts(doc) -> dict:
         out[key] = nums
     out[ANSWERS] = _answers(doc.get(ANSWERS, []))
     out[PRIOR] = _prior_failures(doc.get(PRIOR, []))
+    out[CONSTRAINTS] = _constraints(doc.get(CONSTRAINTS, []))
     return out
+
+
+def _constraints(rows) -> list:
+    """依頼の constraints（前の run の前提の検算が実態で示した事実。前の run の報告が書いた next-request.json の欄）を約束の Schema の
+    constraints の部分（行は {text, measured_how, kind: MEASURED}。知らない欄を拒む）で照らしてそのまま返す。合わなければ ValueError（1 行）"""
+    errs = validate_schema(rows, schema(NEXT_SCHEMA)["properties"][CONSTRAINTS], CONSTRAINTS)
+    if errs:
+        raise ValueError(f"constraints が約束の形でない（{'・'.join(errs)}。運ぶのは {{text, measured_how, kind: {MEASURED!r}}} の実測だけ）")
+    return rows
+
+
+def carried_constraints(facts, run_id: str) -> list:
+    """前提の検算が偽と示した仮定の実測（facts_to_add の字の並び）を、次の依頼の constraints の行にする（元 review-loop.py:253-257 が
+    盤面の制約に足した形のまま。measured_how は CARRIED_HOW）"""
+    return [{"text": " ".join(str(f).split()), "measured_how": CARRIED_HOW.format(run=run_id or "—"), "kind": MEASURED}
+            for f in facts or [] if isinstance(f, str) and f.strip()]
 
 
 def without_prior(doc):
@@ -188,11 +211,14 @@ def draft(row: dict, source: str, note: str = "") -> dict:
     return out
 
 
-def compose(findings: list, prior: list, drafts: list) -> dict:
-    """次の run の依頼の下書きの中身 {findings, prior_failures, answers?}（answers は答えの下書きが在る時だけ）。盤面を知らない"""
+def compose(findings: list, prior: list, drafts: list, constraints=()) -> dict:
+    """次の run の依頼の下書きの中身 {findings, prior_failures, answers?, constraints?}（answers は答えの下書きが、constraints は前提の
+    検算が運ぶ実測が在る時だけ）。盤面を知らない"""
     doc = {FINDINGS: findings, PRIOR: prior}
     if drafts:
         doc[ANSWERS] = drafts
+    if constraints:
+        doc[CONSTRAINTS] = list(constraints)
     return doc
 
 

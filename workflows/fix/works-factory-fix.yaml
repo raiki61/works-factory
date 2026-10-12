@@ -35,6 +35,15 @@ inputs:
   answers:
     default: ""
     description: 修正前の承認ノードの答え（$gate-before-fix.output。飛ばされれば null）
+  prior_conflicts:
+    default: "null"
+    description: 前の修正の段の申し出と裁定のポインタ（前の段の出力 conflicts。2 度目の修正の段だけに渡す）。その先のフォルダの申し出と裁定と TDD のループの状態を写し、この段が前の段の裁定と凍結を見る。null は 1 回目の段
+  plan_review:
+    default: "null"
+    description: 事前審査の返答のポインタ（plan-review の出力 review）。修正役が plan_faces で穴と別案に答え、差分の審査の材料 out.p2.plan_review になる。null は事前審査の無い run
+  notes:
+    default: ""
+    description: 機械の申し送りの文（案の直しを受けた 2 度目の修正の段だけに渡す、採った項目の事前審査の穴のうち人に聞く種類でない物）。修正役と TDD の役の notes_file に足す
   only_items:
     default: ""
     description: 案の直しの後の 2 回目の修正（メイングラフの include refix）で直す計画の項目の id の JSON の配列。空は直す義務の単位の全部
@@ -1422,8 +1431,8 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [done, units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, delta_review, handoffs,
-                 mismatched]
+      required: [done, units, groups, conflicts, replan_items, objection, diff, allowed_test_changes, changed, x_scalars, delta_review,
+                 handoffs, mismatched]
       properties:
         done: {type: boolean}
         units:
@@ -1467,7 +1476,8 @@ nodes:
         changed:
           type: object
           additionalProperties: false
-          required: [mechanism_changed, premise_drift, gates_changed, seams_changed, security_surface_changed, path_changed]
+          required: [mechanism_changed, premise_drift, gates_changed, seams_changed, security_surface_changed, path_changed,
+                     premise_drift_note]
           properties:
             mechanism_changed: {type: boolean}
             premise_drift: {type: boolean}
@@ -1475,6 +1485,8 @@ nodes:
             seams_changed: {type: boolean}
             security_surface_changed: {type: boolean}
             path_changed: {type: boolean}
+            premise_drift_note: {type: string}
+        x_scalars: {type: object}
         delta_review:
           type: object
           additionalProperties: false

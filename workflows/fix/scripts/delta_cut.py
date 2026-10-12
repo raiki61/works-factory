@@ -58,7 +58,7 @@ def main() -> None:
         no_go(place, why)
         return
     start = startrec.read(place)
-    got = refix.cut(place, 1, repo, fixboard.start_tree(place), plan_review=None,
+    got = refix.cut(place, 1, repo, fixboard.start_tree(place), plan_review=fixboard.plan_review_file(place),
                     fix_reply=fix_reply, items=functools.partial(fixboard.place_items, place),
                     policy=fixboard.policy_brief(start))
     if not got.get("ok"):

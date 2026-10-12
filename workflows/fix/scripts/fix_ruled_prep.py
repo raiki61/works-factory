@@ -23,6 +23,7 @@ import factchecks  # noqa: E402
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
 import groups  # noqa: E402
+import rolekit  # noqa: E402
 import rulebook  # noqa: E402
 import startrec  # noqa: E402
 import writelog  # noqa: E402
@@ -39,7 +40,7 @@ def main() -> dict:
     place, repo = boundary.place("fix"), boundary.work_tree()
     prompt = place / (fixrules.PROMPT_NAME[:-len(".md")] + fixrules.RULED_TAIL)
     n = fixrules.iteration_next(prompt)
-    if not conflict.ruled_fix(place):
+    if not [r for r in conflict.ruled_fix(place) if not r.get(conflict.PRIOR)]:   # 1 回目の段の裁定（2 回目の段が写した行）は直し直さない
         return {"prompt_file": "", "go": False, "iteration": n}
     if not (place / fixboard.RULED_HEAD_FILE).is_file():
         fixboard.record_skipped(place, repo, boundary.SKIP)   # 印より先に（落ちて回し直した prep が控えを飛ばさない）
@@ -50,7 +51,7 @@ def main() -> dict:
     reject = place / fixboard.REJECT_NAME.format(name=ACCEPT, k=n - 1)
     got = fixrules.prep(place, repo, fixboard.fix_values(place, owed, start=start, answer_node=ANSWER_NODE), "ruled",
                         owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
-                        reject_file=str(reject) if n > 1 and reject.is_file() else "", lang=fixboard.lang_line(start),
+                        reject_file=str(reject) if n > 1 and reject.is_file() else "", lang=rolekit.lang_line(start),
                         shared=boundary.shared_cache())
     if Path(got["prompt_file"]) == prompt and saved is not None:
         fixboard.ruled_reply_line(prompt, str(saved))

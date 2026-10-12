@@ -4,21 +4,28 @@
 # ///
 """返す節 fix（script collect。両方の形）: 前の節の返りを with: で束ねず、各節が置き場に書いたファイルを読んで返りの約束の欄を組む。
 
-形 ""（ブロック）: 組と単位の結末は join.json、申し出と裁定は conflicts.json（指し札。無ければ null）、replan_items は裁定
-fix_plan_item の項目、objection・changed・allowed_test_changes は戻せた組の子の結果（result.json）と裁定の後の修正役の返答
-（fix-ruled-reply.json）と裁定の許し、delta_review は delta/review-<n>.json（{pass}）の数と最後の pass（delta/skipped.json が
+形 ""（ブロック）: 組と単位の結末は join.json、申し出と裁定は conflicts.json（指し札。無ければ null。2 回目の修正の段は 1 回目の段の
+行を写して持つ）、replan_items はこの段の裁定 fix_plan_item の項目（conflict.this_pass）、objection・changed（6 つの印と前提のずれの
+申告の文 premise_drift_note）・x_scalars（修正役が足した規模の数値。組ごとの値を名ごとに足す）・allowed_test_changes は戻せた組の
+子の結果（result.json）と裁定の後の修正役の返答（fix-ruled-reply.json）と裁定の許し、delta_review は delta/review-<n>.json（{pass}）の数と最後の pass（delta/skipped.json が
 在れば {rounds: 0, pass: true}）。done は assert-changed.json の ok かつ（審査を省いた か 審査が通った）。
+2 回目の修正の段（conflict.second_pass）は、段を抜ける前に案の直しを待つ行（この段で新しく fix_plan_item と裁いた行）を諦めた行にする
+（replan.close と CLOSE_WHY。案の段に戻るのは 1 run に 1 回。元 works/darkfactory/lib/line_edge.py:1159 の replan.settle）。
 形 group（組の子）: 自分の組の結果（out_dir/<group_id>/result.json。out_dir が空なら自分の置き場の groups/ の下）の行だけを同じ形で返す。
 レンズの集め役の事実は diff の隣の lenses.json（{collector: {ok, reason}}。集め役が書かずに落ちた・走らなかった時は ok: false）。
 累積差分（修正前の版 fixboard.base_rev_of から。未追跡を含み .archon/ の下は除く）は置き場の fix.diff に書いて指し札にする（空なら理由のファイルを指す）。
 diff の隣（置き場）に許したテストの変更の訳 allowed-tests.json = [{path, permit, source}]（fixboard.allowed_test_rows）と、
-受け付けが選んだ試験を走らせた回の行 accept-trace.json（戻せた組の子の結果の行と親の置き場の行。fixboard.accept_trace_rows）を置く。
+受け付けの行 accept-trace.json（戻せた組の子の結果の行と親の置き場の行。fixboard.accept_trace_rows）と、閉鎖の数え直しと差分の審査の
+穴の名札と手直しの結果（lib/fixbeside.py の closure.json・delta-holes.json。戻せた組の子の結果が運んだ分と、裁定の後の修正の段の分を
+合わせる）を置く。
 最後の関所を開ける理由の 2 欄（元 works/darkfactory/lib/line_edge.py:800 _final_needs）: handoffs は修正役が人に回した物
 （子の結果の handoffs と裁定の後の返答の changes[].breaks.accepted。fixboard.handoff_lines）、mismatched は直したという申告と
 機械の数え直しが合わない単位（子の結果の mismatched と親の置き場の閉鎖の表。fixboard.mismatched_lines）。形 group は自分の結果の行だけ。
 この節は落ちない: 中の誤りは全部捕まえ、done: false・理由（units と groups の reason）・ほかは空の値で返し、終了の値は 0
-（diff は理由のファイル fix-collect-error.txt を指し、その隣の allowed-tests.json は空の []、accept-trace.json は無ければ []）。
+（diff は理由のファイル fix-collect-error.txt を指し、その隣の allowed-tests.json は空の []、accept-trace.json は無ければ []。
+closure.json・delta-holes.json は置かず、読み手が「無い」と名指す）。
 """
+import functools
 import json
 import os
 import sys
@@ -27,13 +34,14 @@ from pathlib import Path
 NO_REVIEW = {"rounds": 0, "pass": False}
 CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
                  "path_changed")
+DRIFT_NOTE = "premise_drift_note"   # fixboard.DRIFT_NOTE の写し（lib を読めない時の返りの形）
 ERROR_FILE = "fix-collect-error.txt"
 LENSES_FILE = "lenses.json"   # fixboard.LENSES_FILE と同じ名（lib が読めない道でも書く）
 NO_COLLECTOR = "レンズの集め役が終わらなかった: 集め役の出口が無い（集め役が落ちたか走らなかった）"   # fixboard.LENS_NOT_DONE の形
 GROUP_LENSES = "組の子の run はレンズを起こさない（差分の審査は親の run が回す）"
 ALLOWED_TESTS = "allowed-tests.json"   # fixboard.ALLOWED_TESTS_FILE と同じ名（lib を読めない時も diff の隣に [] を置く）
 ACCEPT_TRACE = "accept-trace.json"     # fixboard.ACCEPT_TRACE_FILE と同じ名（lib を読めない時も diff の隣に無ければ [] を置く）
-boundary = None   # 境の口。読めない時は fallback が stdlib だけで返す
+boundary = fixbeside = None   # 境の口と隣の約束のファイルの口。読めない時は fallback が stdlib だけで返す
 
 
 def rel(place: Path, name: str) -> str:
@@ -64,15 +72,18 @@ def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review,
     fixboard.write_json(place / fixboard.ACCEPT_TRACE_FILE, fixboard.accept_trace_rows(place, results))
     return {"done": done, "units": units_rows, "groups": groups_rows,
             "conflicts": boundary.pointer(rel(place, conflict.FILE)) if rows else None,
-            "replan_items": fixboard.replan_items(rows, groups),
+            "replan_items": fixboard.replan_items(conflict.this_pass(place), groups),
             "objection": fixboard.objection(extras), "diff": diff_pointer(fixboard, place),
             "allowed_test_changes": fixboard.allowed_tests(place, extras),
-            "changed": fixboard.changed_marks(extras), "delta_review": review,
+            "changed": fixboard.changed_marks(extras), "x_scalars": fixboard.x_scalars(extras), "delta_review": review,
             "handoffs": final[0], "mismatched": final[1]}
 
 
 def block(fixboard, conflict) -> dict:
     place = boundary.place("fix")
+    if conflict.second_pass(place):
+        import replan
+        replan.close(place, replan.CLOSE_WHY)
     plan = fixboard.read_json(place / fixboard.GROUPS_FILE)
     if not isinstance(plan, dict) or not isinstance(plan.get("groups"), list):
         raise ValueError(f"置き場に groups.json が無い（prep が走らなかった。{place}）")
@@ -91,6 +102,10 @@ def block(fixboard, conflict) -> dict:
     review, _ = fixboard.delta_review(place)
     checked = fixboard.read_json(place / fixboard.ASSERT_FILE) or {}
     done = isinstance(joined, dict) and checked.get("ok") is True and review["pass"]
+    reply = place / fixboard.FIX_REPLY_FILE
+    fixbeside.write(place, results, ruled,
+                    items=functools.partial(fixboard.place_items, place), plan_review=fixboard.plan_review_file(place),
+                    fix_reply=reply if reply.is_file() else None)
     final = (fixboard.final_lines(results, "handoffs", fixboard.handoff_lines([ruled])),
              fixboard.final_lines(results, "mismatched", fixboard.mismatched_lines(place)))
     return fields(fixboard, conflict, place, rows_groups, plan["groups"], extras, review, done, final, results)
@@ -106,6 +121,7 @@ def group(fixboard, conflict) -> dict:
         result = None
     rows_groups = fixboard.join_rows([g], {gid: (result, result is not None, "" if result else fixboard.NO_RESULT)})
     extras = [result] if result else []
+    fixbeside.write(place, extras)
     final = (fixboard.final_lines(extras, "handoffs"), fixboard.final_lines(extras, "mismatched"))
     return fields(fixboard, conflict, place, rows_groups, [g], extras, dict(NO_REVIEW), result is not None, final, [])
 
@@ -177,17 +193,19 @@ def fallback(why: str) -> dict:
         groups_rows = [{"group_id": "", "unit_ids": [], "returned": False, "reason": why}]
     return {"done": False, "units": units_rows, "groups": groups_rows, "conflicts": None, "replan_items": [],
             "objection": "", "diff": error_pointer(why), "allowed_test_changes": [],
-            "changed": {k: False for k in CHANGED_MARKS}, "delta_review": dict(NO_REVIEW), "handoffs": [], "mismatched": []}
+            "changed": {**{k: False for k in CHANGED_MARKS}, DRIFT_NOTE: ""}, "x_scalars": {}, "delta_review": dict(NO_REVIEW),
+            "handoffs": [], "mismatched": []}
 
 
 def main() -> dict:
-    global boundary
+    global boundary, fixbeside
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
     import boundary
     sys.path.append(str(boundary.lib_root()))
 
     import conflict
+    import fixbeside
     import fixboard
     mode = os.environ.get("INPUTS_MODE", "")
     if mode not in fixboard.MODES:

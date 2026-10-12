@@ -4,15 +4,15 @@
 # ///
 """修正前の関所の答えを受ける返しの節 answer-before-fix（埋め P2）。
 
-関所の答えの読みと返り {go, answer, stop_reason} は gate_answer と同じ（lib/answer.py の taken）。加えて答えに関所で見せた問いの行
-asked を足す。fix の置き場の読み（lib/fixboard.py の gate_items）は asked の行が問いの頭で始まる時だけ、その問いを人が答えたと読み、
-問いの単位を直す義務に戻す。
+関所の答えの読みと返り {go, answer, stop_reason} は gate_answer と同じ（lib/answer.py の taken）。答えの asked は ask-before-fix が
+関所に載せた項目の行（$ask-before-fix.output.asked）。fix の置き場の読み（lib/gatemarks.py の gate_items）は asked の行が問いの頭で
+始まる時だけ、その問いを人が答えたと読み、問いの単位を直す義務に戻す。事前審査（replan-review の gate_answers）は asked の行を聞き直さない。
 
 関所を通した答えは、始めの記録の欄 policy を事前審査が固め直した版（boardview.passed_version。人が方針の文書の変化を通した時だけ
 変わる）で書き直す。fix・eyes・judge の再審は始めの記録の写し（policy.frozen_copy）を読むので、ブロックの入力を足さずに人が通した版が
 届く。止めた答え・関所が開かなかった run は書き直さない。
 
-入力（with:）: gate_answer の入力と asked（関所で見せた問いの行。$plan-rounds.output.questions）と start（始めの記録の指し札）
+入力（with:）: gate_answer の入力と asked（関所に載せた項目の行。$ask-before-fix.output.asked）と start（始めの記録の指し札）
 """
 import json
 import os

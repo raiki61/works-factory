@@ -9,9 +9,11 @@
 - line(run_id, verb, note, env=None) -> str: 打つ行 1 本（verb は continue か stop）
 - GO_WORDS・STOP_WORDS・REJECT・DRY_RUN_APPROVED: 関所の決めの語。通す語でない答えは止める語と読む
 - decision(got) -> dict: 関所の出力の値を {decision, text} に
-- taken(got, *, go, stop_reason, place, folder, asked=None) -> dict: 関所の答えの行 {go, answer, stop_reason}。関所が開かなかった
-  （got が None か空の字）時は前の決め go・stop_reason をそのまま返す。開いた時は答えを folder/gates/<place>.json に書き（同じ関所の
-  答えは書き直す。人が読む控え）、通す語でなければ止めの理由 human:<place> を返す。asked（関所で見せた問いの行）が在れば答えに足す
+- taken(got, *, go, stop_reason, place, folder, asked=()) -> dict: 関所の答えの行 {go, answer, stop_reason}。関所が開かなかった
+  （got が None か空の字）時は前の決め go・stop_reason をそのまま返す。開いた時の答えは {decision, text, asked}（asked は関所で見せた
+  問いの行。項目を持たない関所は []。読み手は asked の無い答えを別に読まない）。答えを folder/gates/<place>.json に書き（同じ関所の
+  答えは書き直す。人が読む控え）、通す語でなければ止めの理由 human:<place> を返す。止める答えの一言が空なら既定の文（STOP_NOTE・
+  最後の承認ノード FINAL は FINAL_STOP_NOTE。元 works/darkfactory/lib/line_edge.py 98・104 行）を一言にする（報告の止めの理由が空にならない）
 """
 import json
 import os
@@ -31,6 +33,9 @@ REJECT = "reject"   # 今の works の関所の語で、stop と同じ。関所�
 STOP_WORDS = (VERBS[1], REJECT)
 DRY_RUN_APPROVED = "approved"   # 筋書きの関所がいつも返す字。決めの語の approve と読む
 ANSWERS = "gates"
+STOP_NOTE = "承認ノードで止めた"
+FINAL_STOP_NOTE = "最後の承認ノードで止めた"
+FINAL = "gate-final"
 
 
 def head(env=None) -> str:
@@ -53,14 +58,15 @@ def decision(got) -> dict:
     return {"decision": str(got), "text": ""}
 
 
-def taken(got, *, go: bool, stop_reason: str, place: str, folder: pathlib.Path, asked=None) -> dict:
+def taken(got, *, go: bool, stop_reason: str, place: str, folder: pathlib.Path, asked=()) -> dict:
     if got is None or got == "":
         return {"go": go, "answer": None, "stop_reason": stop_reason}
     answer = decision(got)
-    if asked is not None:
-        answer["asked"] = [row for row in asked if isinstance(row, str)]
+    passed = answer["decision"] in GO_WORDS
+    if not passed and not answer["text"].strip():
+        answer["text"] = FINAL_STOP_NOTE if place == FINAL else STOP_NOTE
+    answer["asked"] = [row for row in asked or () if isinstance(row, str)]
     kept = pathlib.Path(folder) / ANSWERS
     kept.mkdir(parents=True, exist_ok=True)
     (kept / f"{place}.json").write_text(json.dumps(answer, ensure_ascii=False) + "\n", encoding="utf-8")
-    passed = answer["decision"] in GO_WORDS
     return {"go": passed, "answer": answer, "stop_reason": "" if passed else stopby.HUMAN + place}

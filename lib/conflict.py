@@ -55,6 +55,9 @@
 - 案の直しの状態（依頼 226。裁定 fix_plan_item の行の欄 REPLAN_STATE）: apply_rulings が WAITING に置き、set_replan の 1 か所だけが
   AMENDED（項目を直した。held_by_rulings が外さず直す義務に戻す）か GAVE_UP（諦めた。asked に入り ask_human の行として並ぶ）に
   移す（trace の行 REPLAN_OP）。読む口は replan_state(row)・waiting(b)・amended_keys(b)
+- 2 回目の修正の段（同じブロックの 2 度目の差し込み。置き場が分かれる）は、1 回目の段の行を adopt_prior(b, prior, items) で自分の
+  置き場に写して読む（元は 1 つの盤面に両方の段の行が在った。second_pass・amended_rows_by_unit・test_permits・write_rulings が
+  1 回目の裁定と案を直した行を見る）。写した行は印 PRIOR を持ち、this_pass(b) はそれを外した今の段の行（組の子の結果に載せる行）
 標準ライブラリだけ。期限は持たない。
 """
 import json
@@ -82,6 +85,9 @@ import startrec  # noqa: E402  （始めの記録の読み口）
 from engine.util import Reject  # noqa: E402  （上の行が写しの engine を sys.path に足す）
 
 FILE = "conflicts.json"                 # 盤面の今の周の作業ファイル {"items": [...]}
+ITEMS = "items"                         # FILE の行の並びの欄（報告と結末の読み手が引く）
+RULING = "ruling"                       # 行の裁定の欄 {decision, text, limits}
+DECISION = "decision"                   # 裁定の語の欄（DECISIONS のどれか）
 RULINGS_FILE = "conflict-rulings.md"    # 裁定の文（修正役が 2 回目の起動の 1 行目で Read する。R44）。今の scope の周の置き場（2 回目の修正の段は 1 回目と分かれる）
 PARKED_REPLY = "fix-parked-reply.json"  # 申し出を返した回の修正役の返答（裁定の後の出し直しで読む）。同じく今の scope の周の置き場
 KIND_FIELD = "kind"                      # 申し出の種類の欄（食い違いの起きた場面。which_is_right とは別の軸）
@@ -152,6 +158,7 @@ LATE_REPLAN_PROMISE = ("案の項目そのものが誤りと裁いたが、こ�
                        "「項目の単位」に並べた同じ項目の単位も直すな（機械が直す義務から外した）。修正の段を抜ける時に機械が諦めた"
                        "行にし、最後の承認ノードで人が決める。changes に書くな。この段までに直した項目の単位の直しは作業ツリーに"
                        "そのまま残す（戻すな・触るな。最後の承認ノードで人が見る）")   # 2 回目の修正の段で新しく fix_plan_item と裁いた行（状態 WAITING）の約束（write_rulings）
+PRIOR = "prior_pass"                    # 2 回目の修正の段の置き場に写した 1 回目の段の行の印（adopt_prior が置く。新しい）
 
 ITEM_SCHEMA = {
     "type": "object",
@@ -393,6 +400,29 @@ def waiting(b) -> list:
     return [i for i in items(b) if replan_state(i) == WAITING]
 
 
+def this_pass(b) -> list:
+    """今の段の行（adopt_prior が写した 1 回目の段の行 PRIOR を外す）"""
+    return [i for i in items(b) if not i.get(PRIOR)]
+
+
+def adopt_prior(b, prior, todo) -> list:
+    """2 回目の修正の段の置き場 b に、1 回目の段の置き場 prior の申し出と裁定の行を印 PRIOR つきで写し（元 conflict.py:411 の
+    second_pass が 1 つの盤面で 1 回目の行を見た形）、案の直しを待つ行（WAITING）のうち 2 回目の段が直す計画の項目 todo（項目の
+    番号の字）に載る行を AMENDED へ移す（set_replan。元 replan.answer が採った項目の行を移した所）。項目の番号を持たない行（組の
+    項目から数えた行）は todo が空でなければ移す。b に行が在れば写さない（再開で 2 度写さない）。prior に FILE が無ければ何もしない。
+    写した行の id を返す。prior の FILE が読めなければ ValueError"""
+    if _path(b).is_file() or not _path(prior).is_file():
+        return []
+    rows = [{**r, PRIOR: True} for r in _load(prior)["items"]]
+    _save(b, {"items": rows})
+    want = {str(n) for n in todo or []}
+    moved = [r["id"] for r in rows if replan_state(r) == WAITING and want
+             and (not ruled_items(r) or want & {str(n) for n in ruled_items(r)})]
+    if moved:
+        set_replan(b, moved, AMENDED)
+    return [r["id"] for r in rows]
+
+
 def second_pass(b) -> bool:
     """今の周が 2 回目の修正の段か: 今の周の裁定の行に案を直した行（状態 AMENDED）が 1 つでも在る（案を直して直す義務に戻った
     単位を直すのは 2 回目の修正の段だけ。1 回目の段の行は WAITING か裁定が fix_plan_item でない）"""
@@ -554,7 +584,10 @@ def park(b, rows, *, source: str, ruling: dict | None = None, round_: int = 1) -
         if same is not None:
             ids.append(same["id"])
             continue
-        row = {"id": f"c{round_}-{len(doc['items']) + 1}", "round": round_, "source": source, **body,
+        n, taken = len(doc["items"]) + 1, {r.get("id") for r in doc["items"]}
+        while f"c{round_}-{n}" in taken:   # 写した 1 回目の段の行（adopt_prior）の id と重ねない
+            n += 1
+        row = {"id": f"c{round_}-{n}", "round": round_, "source": source, **body,
                **({CORRECT: list(it[CORRECT])} if it.get(CORRECT) else {}),
                "status": "ruled" if ruling else "parked", "ruling": ruling}
         doc["items"].append(row)

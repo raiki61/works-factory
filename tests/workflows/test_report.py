@@ -45,7 +45,8 @@ WORKFLOW = yaml.safe_load((BLOCK / "works-factory-report.yaml").read_text(encodi
 NODES = {n["id"]: n for n in WORKFLOW["nodes"]}
 BODY = {n["id"]: n for n in NODES["write-loop"]["loop_group"]["nodes"]}
 INPUTS = ("start", "test-gate-base", "judge", "rejudge", "plan", "plan-review", "replan", "replan-review", "fix", "test-gate-final",
-          "eyes", "merge-seal", "merge-apply", "gate-start", "gate-before-fix", "gate-replan", "gate-final")
+          "eyes", "merge-seal", "merge-apply", "gate-start", "gate-before-fix", "gate-replan", "gate-final", "stops", "prior-failures",
+          "deferred", "widened", "final-reasons", "redepth", "optional")
 RETURN_FIELDS = {"outcome", "stop_reason", "report", "report_ai", "next_request", "prior_failures", "ok"}
 TOP_KEYS_DROPPED_ON_INCLUDE = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 SANDBOX = {"enabled": True, "allowUnsandboxedCommands": False}
@@ -115,6 +116,9 @@ REPORT_EDITS = [
     ("判定の役が台帳の options・reason に書いた推しだけを",
      "判定の役が書いた推しだけを",
      "推しの出どころ（問いの文の推しの尾と台帳の欄）は構成の ④ が名指す"),
+    ("お前はレビューの最終報告を書く役（writer）。",
+     "$facts.output.lang_line\n\nお前はレビューの最終報告を書く役（writer）。",
+     "役の文の頭に言語の 1 行を足す（元は包みが rolekit.lang_line を役の文に足した: works/.shared/core/rolekit.py 147-150 行。L-E37）"),
 ]
 COLD_CHECK_EDITS = [
     ("機械が盤面から組んだ事実の節（数・置き場・状態の一覧。見出しは「機械が盤面から組んだ事実（AI は書き換えていない）」）",
@@ -151,13 +155,13 @@ def load_script(name: str, scripts: pathlib.Path = SCRIPTS):
 
 
 def env_reads(script: str) -> dict:
-    """script の頭の、入力の名 → 読む環境変数の名（RETURNS・GATES の dict と START の os.environ.get の字）"""
+    """script の頭の、入力の名 → 読む環境変数の名（RETURNS・GATES・LINE の dict と START の os.environ.get の字）"""
     reads = {}
     for node in ast.parse((SCRIPTS / f"{script}.py").read_text(encoding="utf-8")).body:
         if not (isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)):
             continue
         name, value = node.targets[0].id, node.value
-        pairs = (zip(value.keys, value.values) if isinstance(value, ast.Dict) and name in ("RETURNS", "GATES")
+        pairs = (zip(value.keys, value.values) if isinstance(value, ast.Dict) and name in ("RETURNS", "GATES", "LINE")
                  else [(ast.Constant("start"), value)] if name == "START" else [])
         for key, call in pairs:
             reads[key.value] = call.args[0].value
@@ -392,6 +396,22 @@ class FactsCase(Run):
         self.assertEqual(out["outcome"], "record_invalid")
         self.assertTrue(out["stop_reason"].startswith("report:報告の事実を組めなかった"))
 
+    def test_lang_line_reaches_the_writer(self):
+        """L-E37: 始めの記録の lang が、報告の書き手の役の文の頭に言語の 1 行（rolekit.lang_line。判定・計画・修正・独立の目と同じ口）
+        として届く。始めの記録が読めない・思わぬ誤りの時も既定の言語の 1 行を返す"""
+        import rolekit
+        start = self.pointer("start/start.json", {"run_id": RUN, "lang": "English"})
+        code, out = self.run_script("facts", INPUTS_START=start)
+        self.assertEqual((code, out["lang_line"]), (0, rolekit.lang_line({"lang": "English"})))
+        self.assertIn("English", out["lang_line"])
+        self.assertEqual(self.run_script("facts")[1]["lang_line"], rolekit.lang_line({}))
+        blocker = self.dir / "file"
+        blocker.write_text("", encoding="utf-8")
+        self.assertEqual(self.run_script("facts", ARTIFACTS_DIR=str(blocker))[1]["lang_line"], rolekit.lang_line({}))
+        first = (BLOCK / "commands" / "report.md").read_text(encoding="utf-8").splitlines()[0]
+        self.assertEqual(first, "$facts.output.lang_line")
+        self.assertIn("lang_line", WORKFLOW["nodes"][0]["output_format"]["required"])
+
     def test_request_stop_with_dry_run_environment(self):
         start = self.pointer("start/start.json", {"run_id": RUN})
         code, out = self.run_script("facts", INPUTS_START=start, INPUTS_GATE_FINAL='{"decision":"stop","text":"request: 止め札"}',
@@ -423,9 +443,9 @@ class FactsCase(Run):
                 self.assertIn(f"結果を名乗れない訳: {word}", text)
 
     def test_stamp_carries_the_plan_round_and_measured_answer_reaches_outcome(self):
-        """来歴の行の周は計画（案の直しが在ればそちら）の round、メイングラフの版は始めの記録の versions.line。依頼が命令と出力つきで答えた素材は残りに数えない（始めの記録の
+        """来歴の行の周は計画（案の直しが在ればそちら）の round、メイングラフの版は始めの記録の versions.works.rev。依頼が命令と出力つきで答えた素材は残りに数えない（始めの記録の
         answers が結末の決め方に届く）"""
-        start = self.pointer("start/start.json", {"run_id": RUN, "versions": {"line": "c" * 64}, "answers": [
+        start = self.pointer("start/start.json", {"run_id": RUN, "versions": {"works": {"rev": "c" * 64, "dirty": False}}, "answers": [
             {"question": "ci", "text": "緑", "command": "make ci", "output": "ok"}]})
         judgment = self.pointer("judge/judgment.json", {})
         self.pointer("judge/materials.json", {"ci": {"status": "awaiting_human"}})
@@ -455,6 +475,61 @@ class FactsCase(Run):
         green = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8").split(f"{runreport.GREEN_HEADING}\n\n", 1)[1]
         self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: engine・{suites}\n", green)
         self.assertIn(f"- 最後のテスト（test-gate-final）のログ: {log}\n", green)
+
+    def test_green_cert_section_carries_the_baseline_line(self):
+        """T35: 最後のテストの証拠の修正前のテストの行（declared_checks.baseline_line）が、緑の認証の節に字のまま届く"""
+        result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
+        run = {"by": "engine", "log": "", "junit_steps": [], "junit_unran": [], "suite": None, "fingerprint_before": None,
+               "fingerprint_after": None}
+        base = "修正前のテスト: 緑（元の結末（入力 baseline）の status clean）——最後のテストの赤は修正の後に出た赤でありうる"
+        text = result.evidence("final", {"ok": True, "green": True, "red_cause": ""}, run, None, "", "", "一式", base)
+        (self.artifacts / "test-gate" / "final").mkdir(parents=True)
+        (self.artifacts / "test-gate" / "final" / "evidence.md").write_text(text, encoding="utf-8")
+        final = {"mode": "final", "ok": True, "green": True, "red_cause": "",
+                 "evidence": {"type": "archon_artifact", "run_id": RUN, "path": "test-gate/final/evidence.md"}}
+        code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}),
+                                    INPUTS_TEST_GATE_FINAL=json.dumps(final))
+        self.assertEqual(code, 0)
+        green = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8").split(f"{runreport.GREEN_HEADING}\n\n", 1)[1]
+        self.assertIn(f"- 最後のテスト（test-gate-final）の{base}\n", green)
+
+    def test_line_values_reach_the_outcome_and_the_report(self):
+        """R5b・S48〜S51・S53: 線の collect が渡す線の値が、facts の結末と機械の報告に届く（入力 stops の止めの語が結末に、deferred・
+        widened・final-reasons・prior-failures・redepth が報告の節に）。JSON でない線の値は結果を名乗らせない"""
+        start = self.pointer("start/start.json", {"run_id": RUN})
+        prior = self.pointer("start/prior-failures-in.json", [{"where": "受け付け 計画", "text": "前の run の拒否"}])
+        redepth = {"depth": [{"unit_id": "u1", "depth": "標準", "why": "w"}], "skip_optional": "", "raised": ["再審が走った"],
+                   "counted": "", "stop_reason": ""}
+        code, out = self.run_script("facts", INPUTS_START=start, INPUTS_STOPS=json.dumps({"ask-final": "works:needs-human"}),
+                                    INPUTS_DEFERRED='["[fork] q1"]', INPUTS_WIDENED='["項目 1: 直した——広げた"]',
+                                    INPUTS_FINAL_REASONS='["守りのパスに当たった"]', INPUTS_PRIOR_FAILURES=prior,
+                                    INPUTS_REDEPTH=json.dumps(redepth), INPUTS_OPTIONAL='["eyes__"]',
+                                    INPUTS_FIX=json.dumps({"done": True, "units": [], "replan_items": ["1"], "refixed": True}))
+        self.assertEqual(code, 0)
+        self.assertEqual((out["outcome"], out["stop_reason"]), ("needs_human", "ask-final:works:needs-human"))
+        text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
+        for line in (f"- {runreport.DEFERRED_HEAD}: 1 件\n  - [fork] q1", "  - 案の項目 1: 直した——広げた",
+                     f"- {runreport.FINAL_REASONS_HEAD}: 1 件\n  - 守りのパスに当たった", f"- {runreport.PRIOR_IN_HEAD}: 1 件\n  - 受け付け 計画: 前の run の拒否",
+                     "  - 標準へ上げた信号: 再審が走った", "- メイングラフのノードの止め: ask-final が works:needs-human"):
+            with self.subTest(line=line):
+                self.assertIn(line, text)
+        code, out = self.run_script("facts", INPUTS_START=start, INPUTS_STOPS=json.dumps({"start": "works:start-refused"}))
+        self.assertEqual((out["outcome"], out["stop_reason"]), ("stopped_by_line", "start:works:start-refused"))
+        code, out = self.run_script("facts", INPUTS_START=start, INPUTS_DEFERRED="{壊れた")
+        self.assertEqual(out["outcome"], "record_invalid")
+        self.assertIn("入力 deferred が JSON でない", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
+
+    def test_missing_eye_of_a_standard_run_is_not_fixed(self):
+        """R14: 直した後の深さが標準（入力 redepth の skip_optional が空）なのに返りの無い目は、結末を fixed にしない（深さで省いた run は数えない）"""
+        start = self.pointer("start/start.json", {"run_id": RUN})
+        env = {"INPUTS_START": start, "INPUTS_JUDGE": json.dumps({"ready": True, "stop_reason": "", "units": [{"id": "u1"}]}),
+               "INPUTS_PLAN": '{"ready": true, "round": 1}', "INPUTS_FIX": json.dumps({"done": True, "units": []}),
+               "INPUTS_TEST_GATE_FINAL": '{"ok": true, "green": true}', "INPUTS_MERGE_SEAL": '{"ok": true}',
+               "INPUTS_EYES": json.dumps({"ok": True, "r1": {"status": "pass", "reason": ""}, "r2": None, "r3": None, "r4": None})}
+        standard = {"depth": [], "skip_optional": "", "raised": [], "counted": "", "stop_reason": ""}
+        self.assertEqual(self.run_script("facts", **env, INPUTS_REDEPTH=json.dumps(standard))[1]["outcome"], "round_limit")
+        light = {**standard, "skip_optional": "軽量で省いた"}
+        self.assertEqual(self.run_script("facts", **env, INPUTS_REDEPTH=json.dumps(light))[1]["outcome"], "fixed")
 
     def test_returns_with_pointers_reach_the_report(self):
         judgment = self.pointer("judge/judgment.json", {})
@@ -716,10 +791,12 @@ class RealRunCase(unittest.TestCase):
                 artifacts = found[0].parent
                 env = json.loads(found[0].read_text(encoding="utf-8"))
                 lines = (pathlib.Path(env["LOG_DIR"]) / f"{env['WORKFLOW_ID']}.jsonl").read_text(encoding="utf-8").splitlines()
-                facts = runreport.transcript_facts([json.loads(x) for x in lines if x.strip()])
+                rows = [json.loads(x) for x in lines if x.strip()]
+                facts = runreport.transcript_facts(rows, optional=("boom",))
                 self.assertTrue(facts["ok"])
                 self.assertEqual(facts["failed"], [])
                 self.assertEqual([a["node"] for a in facts["absorbed"]], ["boom"])
+                self.assertEqual(runreport.transcript_facts(rows)["failed"], ["boom"], "受け止めると宣言していない段の落ち")
                 self.assertIn("boom", facts["errors"]["boom"])
                 self.assertLessEqual({"make", "boom", "read"}, set(facts["minutes"]))
                 got = typed.listing(str(artifacts / "listing-copy.json"), str(artifacts), env["WORKFLOW_ID"],

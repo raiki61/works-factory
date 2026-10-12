@@ -31,9 +31,9 @@ def opened() -> dict:
         ruling, why = json.loads(os.environ["INPUTS_RULING"] or "[]"), ""
     except json.JSONDecodeError as e:
         ruling, why = [], f"ruling が JSON の字でない: {e}"
-    judgment, bad = planfile.read_pointed(os.environ["INPUTS_JUDGMENT"], boundary.resolve)
+    start, bad_start = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
+    judgment, bad = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.resolve)
     review, bad_review = planfile.read_pointed(os.environ["INPUTS_REVIEW"], boundary.resolve)
-    _, bad_start = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
     _, bad_world = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.resolve)
     unread = [f"{name} が読めない（{b}）" for name, b in (("start", bad_start), ("review", bad_review), ("world", bad_world)) if b]
     if bad and not ruling:

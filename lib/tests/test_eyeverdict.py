@@ -22,6 +22,7 @@ if str(LIB) not in sys.path:
 import design  # noqa: E402
 import eyeverdict  # noqa: E402
 import gatemarks  # noqa: E402
+import rolekit  # noqa: E402
 import seal  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
 
@@ -120,7 +121,8 @@ class ScalarsCase(unittest.TestCase):
 
 
 class HumanPassedCase(unittest.TestCase):
-    QUESTIONS = [NARROW, "事前審査の穴 [policy] k: 方針の第 2 項とぶつかる", "問いの台帳の問い q1: どちらにするか"]
+    QUESTIONS = [gatemarks.question_row("regression", NARROW), gatemarks.question_row("policy", "事前審査の穴 [policy] k: 方針の第 2 項とぶつかる"),
+                 gatemarks.question_row("fork", "問いの台帳の問い q1: どちらにするか")]
 
     def test_pass_words_return_narrow_and_face_rows_without_heads(self):
         for word in ("approve", "continue"):
@@ -142,7 +144,7 @@ class R4PushTailCase(unittest.TestCase):
     def test_r4_does_not_reask_when_the_asked_row_had_a_push_tail(self):
         asked = NARROW + gatemarks._push({gatemarks.RECOMMEND: self.REC})   # 関所の項目の尾と同じ作り
         self.assertIn("／推し", asked)
-        passed = eyeverdict._human_passed([asked], {"decision": "continue", "text": ""})
+        passed = eyeverdict._human_passed([gatemarks.question_row("regression", asked)], {"decision": "continue", "text": ""})
         self.assertNotIn("推し", eyeverdict.carried_section(passed))
         r4 = {"capability_inventory": {"fired": True, "lost": [BODY]}, "policy_conflicts": []}
         self.assertEqual(eyeverdict.r4_gate_items(r4, passed), [])
@@ -153,7 +155,7 @@ class R4GateCase(unittest.TestCase):
     元と同じく、修正前の関所の答えから _human_passed を通して照らす"""
 
     def r4_gate(self, answer="continue", lost=(), policy=()):
-        passed = eyeverdict._human_passed([NARROW], {"decision": answer, "text": ""})
+        passed = eyeverdict._human_passed([gatemarks.question_row("regression", NARROW)], {"decision": answer, "text": ""})
         r4 = {"capability_inventory": {"fired": True, "lost": list(lost)}, "policy_conflicts": list(policy)}
         return eyeverdict.r4_gate_items(r4, passed), eyeverdict.gate_passes(r4, passed)
 
@@ -408,9 +410,11 @@ class PromptTextsCase(unittest.TestCase):
                       self.texts(constraints=[{"kind": "measured", "text": "1 デプロイは 2 リポジトリ"}])["constraints_text"])
 
     def test_lang_line_keeps_keys_untranslated(self):
-        self.assertIn("依頼文の言語", eyeverdict.lang_line(""))
-        self.assertIn("English で書け", eyeverdict.lang_line("English"))
-        self.assertIn("key・enum の値", eyeverdict.lang_line(None))
+        """目の支度は始めの記録を丸ごと rolekit.lang_line に渡す（inputs.lang への代わりの取り方も効く）"""
+        self.assertIn("依頼文の言語", rolekit.lang_line({"lang": ""}))
+        self.assertIn("English で書け", rolekit.lang_line({"lang": "English"}))
+        self.assertIn("English で書け", rolekit.lang_line({"inputs": {"lang": "English"}}))
+        self.assertIn("key・enum の値", rolekit.lang_line({}))
 
 
 class PremiseSectionCase(unittest.TestCase):

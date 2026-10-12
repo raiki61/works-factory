@@ -36,7 +36,7 @@ import gatemarks  # noqa: E402
 import seal  # noqa: E402
 import structmark  # noqa: E402
 
-RETURN_FIELDS = ["ok", "r1", "r2", "r3", "r4", "questions", "premise_check", "structure_after", "protected_hits"]
+RETURN_FIELDS = ["ok", "r1", "r2", "r3", "r4", "questions", "premise_check", "structure_after", "protected_hits", "notes"]
 RUN_ID = "run-eyes-test"
 # pr-review-toolkit:comment-analyzer の定義の本文（anthropics/claude-plugins-official の ce721c1f1d5da2c281588818e072ae01a05d2e73 の
 # plugins/pr-review-toolkit/agents/comment-analyzer.md。Apache-2.0。今の works の run が読んだ物と同じ版）の sha256
@@ -676,7 +676,8 @@ class ScriptCase(unittest.TestCase):
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
         self.passing_eyes(r4_lost=("古い入口——使う人がいない", "別の能力"), policy=("方針の第 1 項",))
         self.inputs["answers"] = json.dumps({"decision": "continue", "text": ""})
-        self.inputs["plan_questions"] = json.dumps(["修正案 1 が狭める能力: 古い入口——使う人がいない"], ensure_ascii=False)
+        self.inputs["plan_questions"] = json.dumps([{"kind": "regression", "text": "修正案 1 が狭める能力: 古い入口——使う人がいない"}],
+                                                   ensure_ascii=False)
         got = self.run_script("verdict")
         self.assertEqual(got["questions"], ["R4 が BASE から消えたと見た能力: 別の能力", "R4 が見た人の方針とのぶつかり: 方針の第 1 項"])
 
@@ -784,7 +785,8 @@ class ScriptCase(unittest.TestCase):
         self.eye_file("r2", {"status": "pass", "reason": "人の答えが渡されていない", "differences": []})
         self.eye_file(eyeverdict.R2_PREMISES.removesuffix(".json"), {"node": "r2.compare", "given": [{"kind": "human_answer", "what": "修正前の関所: continue"}]})
         self.inputs["answers"] = json.dumps({"decision": "continue", "text": ""})
-        self.inputs["plan_questions"] = json.dumps(["修正案 1 が狭める能力: 古い入口——使う人がいない"], ensure_ascii=False)
+        self.inputs["plan_questions"] = json.dumps([{"kind": "regression", "text": "修正案 1 が狭める能力: 古い入口——使う人がいない"}],
+                                                   ensure_ascii=False)
         got = self.run_script("verdict")
         self.assertEqual(got["questions"], [])
         notes = json.loads((self.artifacts / "eyes" / eyeverdict.PREMISE_INPUTS).read_text(encoding="utf-8"))
@@ -793,6 +795,73 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual([c["kind"] for c in notes["compare"]["claims_given"]], ["human_answer"])
         passes = json.loads((self.artifacts / "eyes" / eyeverdict.GATE_PASSES).read_text(encoding="utf-8"))
         self.assertEqual([p["by"] for p in passes], ["human"])
+
+    def test_premise_facts_reach_the_report(self):
+        """E37: 前提の検算が仮定を偽（resolved）と示したら、返り notes の隣の premise-check.json の問いの key と実測 facts_to_add を、
+        最後の関所と報告が読み（問いは held のまま残すと言い、実測を並べる）、報告は実測を次の依頼の constraints（{text, measured_how,
+        kind: 実測}。carry.parts が読む）に運ぶ。次の run の判定は前提の実測の制約に足し（judge_accept.with_carried）、目の支度は
+        運ばれた制約の在る run では深さで目を省かない"""
+        import carry
+        import judge_accept
+        import runreport
+        self.prep_file(premise_due=True, compare_due=False)
+        self.design({"question_stands": False, "premise_invalid_reason": "上限が無いと仮定した", "design": ""})
+        self.passing_eyes()
+        self.eye_file("premise-check", {"key": "上限を呼び手ごとに持つか", "assumption": "上限が無い", "assumption_false": True,
+                                        "evidence": "config.py:3", "verdict": "resolved", "reason": "上限は在る",
+                                        "resolution": "config.py:3 に上限 10", "facts_to_add": ["上限は config.py:3 の 10"]})
+        got = self.run_script("verdict")
+        self.assertEqual(got["notes"], {"type": "archon_artifact", "run_id": RUN_ID, "path": f"eyes/{eyeverdict.PREMISE_INPUTS}"})
+        folder = self.artifacts / "eyes"
+        self.assertEqual(eyeverdict.premise_fact_lines(folder),
+                         ["仮定は偽と検算した——問い「上限を呼び手ごとに持つか」は保留（held）のまま残す（次の run の判定が回し直した R2 を見て決める）"
+                          ": config.py:3 に上限 10", "次の run の制約に足す実測: 上限は config.py:3 の 10"])
+        out = self.tmp / "report"
+        eyes = {**{k: got[k] for k in got}, "notes": str(folder / eyeverdict.PREMISE_INPUTS)}
+        built = runreport.build({"eyes": eyes}, {}, {}, None, "needs_human", "", out_dir=out, run_id="run-9")
+        text = pathlib.Path(built["report"]).read_text(encoding="utf-8")
+        self.assertIn("  - 次の run の制約に足す実測: 上限は config.py:3 の 10", text)
+        doc = json.loads(pathlib.Path(built["next_request"]).read_text(encoding="utf-8"))
+        rows = [{"text": "上限は config.py:3 の 10", "measured_how": carry.CARRIED_HOW.format(run="run-9"), "kind": carry.MEASURED}]
+        self.assertEqual(doc["constraints"], rows)
+        self.assertEqual(carry.parts({"findings": [], "constraints": rows})["constraints"], rows)
+        self.assertFalse([r for r in doc["findings"] + doc["prior_failures"] if "上限は config.py:3 の 10" in r["text"]],
+                         "直す穴にも前の失敗にも混ぜない")
+        jdir = self.tmp / "judge"
+        jdir.mkdir()
+        (jdir / judge_accept.CARRIED_FILE).write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+        merged = judge_accept.with_carried({"constraints": [{"text": "a", "measured_how": "m", "kind": "仮説"}]}, jdir)
+        self.assertEqual([c["text"] for c in merged["constraints"]], ["a", "上限は config.py:3 の 10"])
+
+    def test_no_fix_round_has_no_diff(self):
+        """L-W07: 直す物が無い周（線の fixed の no_fix）は差分が無い（diff・plan・ripple が null、changed が {}）。目の支度は落ちずに
+        差分 0 行で組み、R2 は独立設計と「直す物が無い」判定を比べる"""
+        self.start()
+        self.inputs.update({"judgment": self.pointer("judge/judgment.json", {"units": []}),
+                            "purpose": self.pointer("judge/purpose.json", {"purpose_text": "目的"}),
+                            "diff": "null", "answers": "null", "start_answers": "null", "changed": "{}", "x_scalars": "{}",
+                            "units": "[]", "fix_units": "[]", "depth": "[]", "plan_questions": "[]"})
+        self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
+        got = self.run_script("prep")
+        self.assertEqual((got["diff_lines"], got["diff_file"], got["run_eyes"], got["compare_due"]), (0, "", True, True))
+
+    def test_carried_constraints_keep_the_eyes(self):
+        """E37（R2 を省かない）: 前の run が運んだ実測が判定の制約に在る run は、深さが目を省く軽量の単位でも run_eyes を真にする
+        （元 review-loop.py:3755 の r2_refire_forced）"""
+        import carry
+        import depth
+        self.start()
+        self.inputs.update({"judgment": self.pointer("judge/judgment.json", {"units": []}),
+                            "purpose": self.pointer("judge/purpose.json", {"purpose_text": "目的"}),
+                            "diff": self.pointer("fix/fix.diff", ""), "answers": "null", "start_answers": "null",
+                            "changed": json.dumps({}), "x_scalars": "{}", "units": "[]", "fix_units": "[]",
+                            "depth": json.dumps([{"unit_id": "u1", "depth": depth.LIGHT, "why": ""}], ensure_ascii=False)})
+        self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
+        got = self.run_script("prep")
+        self.assertFalse(got["run_eyes"], "軽量の単位だけなら目を省く")
+        self.pointer("judge/premises.json", {"constraints": [
+            {"text": "上限は 10", "measured_how": carry.CARRIED_HOW.format(run="run-0"), "kind": carry.MEASURED}]})
+        self.assertTrue(self.run_script("prep")["run_eyes"])
 
     def test_eye_verdict_writes_file_and_returns_row(self):
         out = {"key": "k", "assumption": "a", "assumption_false": False, "evidence": "e", "verdict": "escalate", "reason": "実測で反証できない"}
@@ -964,8 +1033,9 @@ class ScriptCase(unittest.TestCase):
         """修正前の関所で人が通した狭まりを R4 の頭に貼る（元 works/blk-eyes/lib/eyes.py:435-436 の gatemarks.carried_section）"""
         self.prep_inputs()
         self.assertEqual(self.run_script("prep")["carried"], "")
-        self.inputs["answers"] = json.dumps({"decision": "continue", "text": ""})
-        self.inputs["plan_questions"] = json.dumps(["修正案 1 が狭める能力: 古い入口——使う人がいない"], ensure_ascii=False)
+        row = "修正案 1 が狭める能力: 古い入口——使う人がいない"
+        self.inputs["answers"] = json.dumps({"decision": "continue", "text": "", "asked": [row]}, ensure_ascii=False)
+        self.inputs["plan_questions"] = json.dumps([gatemarks.question_row("regression", row)], ensure_ascii=False)
         carried = self.run_script("prep")["carried"]
         self.assertTrue(carried.startswith(gatemarks.CARRIED_HEAD), carried)
         self.assertIn("- [regression] 古い入口——使う人がいない", carried)

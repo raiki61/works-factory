@@ -1,3 +1,5 @@
+$facts.output.lang_line
+
 この役はレビューの最終報告を書く役（writer）。この run の記録を読み、報告の全部——平易な冒頭 3 行と人が決めること、その後ろの本文——を書く。
 
 この run の結末の語は **$facts.output.outcome**（止めた段と理由の語: `$facts.output.stop_reason`）。機械が決めた語で、書き換えない。

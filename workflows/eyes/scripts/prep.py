@@ -3,7 +3,8 @@
 # dependencies = []
 # ///
 """目の指示書に差し込む値を組み、置き場の eyes/prep.json にも書く（返す節 verdict がファイルで読む）。比較役に貼った前提の控えは
-eyes/r2-premises.json に書く"""
+eyes/r2-premises.json に書く。前の run の前提の検算が運んだ実測（判定の premises.json の制約のうち measured_how が
+carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に。R2 を回し直す）"""
 import json
 import os
 import sys
@@ -13,11 +14,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
+import carry  # noqa: E402
 import concepthome  # noqa: E402
 import depth  # noqa: E402
 import eyeverdict  # noqa: E402
 import policy  # noqa: E402
 import premises as _premises  # noqa: E402
+import rolekit  # noqa: E402
 import structmark  # noqa: E402
 
 EYES = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
@@ -38,7 +41,7 @@ purpose = read(json.loads(os.environ["INPUTS_PURPOSE"])) or {}
 design_file = opened(json.loads(os.environ["INPUTS_DESIGN"]))
 design = eyeverdict.read_design(design_file)
 diff_file = opened(json.loads(os.environ["INPUTS_DIFF"]))
-diff_text = diff_file.read_text(encoding="utf-8", errors="replace")
+diff_text = diff_file.read_text(encoding="utf-8", errors="replace") if diff_file else ""   # 直す物が無い周は差分が無い（L-W07）
 answer = json.loads(os.environ["INPUTS_ANSWERS"])
 changed = json.loads(os.environ["INPUTS_CHANGED"])
 premises = judgment_file.with_name(_premises.PREMISES_FILE) if judgment_file else None
@@ -55,13 +58,15 @@ premises_text, r2_ledger = eyeverdict.premise_section(
     design_seen=(eyeverdict.read_json(design_file.with_name(eyeverdict.DESIGN_PREMISES)) or {}).get("seen") if design_file else None)
 
 out = {
-    "run_eyes": depth.skip_reason({"units": {r["unit_id"]: r for r in sorted(depth_rows, key=lambda r: r["unit_id"])}}) == "",
+    # 前の run の前提の検算が運んだ実測が制約に在る run は、深さで目を省かない（元 review-loop.py:3755 の r2_refire_forced。R2 を回し直す）
+    "run_eyes": depth.skip_reason({"units": {r["unit_id"]: r for r in sorted(depth_rows, key=lambda r: r["unit_id"])}}) == ""
+    or any(isinstance(c, dict) and str(c.get("measured_how") or "").startswith(carry.CARRIED_HOW_HEAD) for c in constraints or []),
     "compare_due": eyeverdict.r2_compare_due(design, purpose_text),
     "premise_due": eyeverdict.r2_premise_invalid(design),
     "purpose_text": purpose_text,
     "design_text": design.get("design") or "",
     "design_reply": json.dumps(design, ensure_ascii=False, indent=1),
-    "diff_file": str(diff_file),
+    "diff_file": str(diff_file or ""),
     "diff_lines": len(diff_text.splitlines()),
     "changed_files": "、".join(eyeverdict.changed_files(diff_text)),
     "scalars": eyeverdict.scalars_text(eyeverdict.scalars(diff_text, json.loads(os.environ["INPUTS_X_SCALARS"]))),
@@ -70,7 +75,7 @@ out = {
     "review_md": str(boundary.lib_root() / "REVIEW.md"),
     "repo_review_md": str(repo_review) if repo_review.is_file() else "（対象のリポジトリの根に REVIEW.md は無い）",
     "policy_path": policy.frozen_copy(start),
-    "lang_line": eyeverdict.lang_line(start.get("lang")),
+    "lang_line": rolekit.lang_line(start),
     "r1_head": concepthome.R1_HEAD.format(section=after),
     "r3_head": concepthome.R3_HEAD.format(section=after),
     "concept_map": concepthome.section(os.getcwd()),

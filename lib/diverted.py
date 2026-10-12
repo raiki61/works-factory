@@ -9,12 +9,15 @@ fork（下請けの会話）で走る。返答の道具 StructuredOutput を継�
 0.2.48 から局所レビューの役は包みの旗 text-reply で起き（adapter.py の頭の 21）、子にも fork にも返答の道具が無いので、
 /code-review は所見を本文で返す。それでも /code-review の行が空なら、本文で返った 0 件と届かなかった物を見分けられないので、
 受け付け（blk-material の take。今は lib/judge_accept.material_take）は FORK_LENSES の空の行を「所見なし」でなく「見ていない」と書く（mark_unseen。起こし直しても
-同じ形で落ちるので拒まない）。見ていない、は作業ファイル LENS_FILE に残す（報告の「未確認のレンズ」の節に出す report_lines は持ってこなかった）。0.2.46 の拾い戻し（包みの PostToolUse:StructuredOutput のフック record-output.py が下請けの返答を残し、
+同じ形で落ちるので拒まない）。見ていない、は作業ファイル LENS_FILE に残す（報告の「未確認のレンズ」の節に report_lines が出す）。0.2.46 の拾い戻し（包みの PostToolUse:StructuredOutput のフック record-output.py が下請けの返答を残し、
 受け付けが戻す）は、旗の起動では戻す物が無く（実の run の控えで 3 本とも 0 件）、2026-10-09 の掃除で外した。
 
 - mark_unseen(reply, skills): (印を付けた返答の写し, 控え {unseen})。受けた返答は書き換えない
+- report_lines(folder): 報告の「未確認のレンズ」の節の行（元 diverted.report_lines。判定の隣の LENS_FILE の unseen）
 """
 import copy
+import json
+import pathlib
 
 LENS_FILE = "local-review-lenses.json"     # 周の作業ファイル（board/r<N>/）。受け付けが毎回書き直す
 # fork で走り、返答が親に届かないと実測したレンズ。空の行は「所見なし」に数えない
@@ -42,3 +45,13 @@ def mark_unseen(reply: dict, skills: list) -> tuple:
                     mat[k] = f"{mat[k]}（{lens}: {UNSEEN_TAG}）"
     return out, notes
 
+
+def report_lines(folder) -> list:
+    """報告の「未確認のレンズ」の節に足す行（元 diverted.report_lines :71。周は 1 つ）。控えが無い・読めなければ空"""
+    try:
+        doc = json.loads((pathlib.Path(folder) / LENS_FILE).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return []
+    lenses = doc.get("unseen") if isinstance(doc, dict) else None
+    return [f"局所レビューの {lens}: 所見を受け取れていない（fork の返答が届かなかった）——見ていないのと同じ"
+            for lens in lenses or [] if isinstance(lens, str)]

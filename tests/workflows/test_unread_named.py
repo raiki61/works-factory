@@ -232,6 +232,9 @@ UNNAMED = {
     ("fix", "world"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
     ("fix", "plan"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
     ("fix", "ripple"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
+    ("fix", "plan_review"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。ほかの fix のポインタの入力と同じ。区分 F。区分の issue で外す",
+    ("fix", "prior_conflicts"): f"prep と group-start（単独の run の組の子の頭）が{FELL}（先が無いと黙って写さずに進めず、入力の名を言って止まる）。"
+                                "区分 F。区分の issue で外す",
     ("judge", "start"): RENAMED.format(words="intake の「始めの記録か前の失敗の行が読めない」。2 つの入力のどちらかを言わない")
                         + "。区分 J。区分の issue で外す",
     ("judge", "baseline"): RENAMED.format(words="diagnose-prep の「直す前の結末が読めない」") + "。区分 J。区分の issue で外す",

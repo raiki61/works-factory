@@ -129,3 +129,4 @@ verdict:
     reason: 仮定は実態で偽
   structure_after: *id001
   protected_hits: []
+  notes: null

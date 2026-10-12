@@ -3,7 +3,8 @@
 # dependencies = []
 # ///
 """差し込みの頭（boardview.open_pass）: 入力の指し札の先を run の置き場の plan-review/ に写し、見え方の材料を置き、独立設計を
-回すかと事前審査を木にするかを返す。役の節の型（output_format）はブロックの YAML から読んで渡す。
+回すかと事前審査を木にするかを返す。役の節の型（output_format）はブロックの YAML から読んで渡す。入力 mode が design（直す物が
+無い周）は修正案を読まず、独立設計の材料だけを置いて形 design を返す（boardview.open_design。事前審査の輪は飛ぶ）。
 落ちない: 始めに前の差し込みの材料 open.json を消し（後の節が前の差し込みの結末を今回の物として読まない）、境の口と lib の import
 から先の誤りは全部捕まえて、落ちた訳 open-error.txt を置き ok: false と訳を返す（後の節は返す節の偽の結末に進む）"""
 import json
@@ -52,6 +53,13 @@ def opened() -> tuple:
         return None if value is None else boundary.resolve(value)
 
     text = YAML.read_text(encoding="utf-8")
+    if os.environ.get("INPUTS_MODE", "") == boardview.DESIGN_FORM:   # 直す物が無い周: 修正案を読まずに独立設計だけ
+        got = boardview.open_design(
+            Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER, cwd=Path.cwd(), judgment=pointed(os.environ["INPUTS_JUDGMENT"]),
+            purpose=pointed(os.environ["INPUTS_PURPOSE"]), world=pointed(os.environ["INPUTS_WORLD"]),
+            start=pointed(os.environ["INPUTS_START"]), answers=json.loads(os.environ["INPUTS_ANSWERS"]),
+            design_schema=node_schema(text, "r2-design"))
+        return boundary, {"ok": True, **got, "reason": ""}
     got = boardview.open_pass(
         Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER, cwd=Path.cwd(), judgment=pointed(os.environ["INPUTS_JUDGMENT"]),
         purpose=pointed(os.environ["INPUTS_PURPOSE"]), plan=pointed(os.environ["INPUTS_PLAN"]),

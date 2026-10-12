@@ -346,7 +346,7 @@ def idle_run(tmp: pathlib.Path, started: bool) -> pathlib.Path:
 
     parent = ev / "parent"
     parent.mkdir()
-    start = ptr("start.json")
+    start = ptr("r1/start.json")   # 線の start が始めの記録を置く所（lib/startrec.py の REL）
     refused = {} if started else {"fix_fixture": REFUSED_INPUT}
     begun = script(parent, "line/scripts/start.py", "", "", **seed_inputs(made["request"]), **refused)
     if begun["ok"] != started:

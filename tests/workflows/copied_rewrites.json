@@ -104,6 +104,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "   - **人に問う（fork・escalate）のは次の 3 つの場合だけ**: ① 決め手どうしで先例が割れる（前の決定・方針・対象の同じ場面・世界の解が別の答えを指す）② 人の優先の付け方（何を代償にするか）で答えが変わる ③ 人の前の決定か方針の文書とぶつかる（決め手に従うと前の決定か方針を覆す）。\n   - 機構の新設・共有面の拡大に及ぶ処方で、3 つの場合のどれかに当たるものだけを「設計の岐路」として `questions` に `kind: fork` で載せ、選択肢（`options`）ごとに帰結と代償を書き、零処方が落ちる理由を `reason` に一文添えろ（添えられないなら岐路ではなく零処方で解く）。`reason` の末尾には**あなたの推し**を「推し: <選択肢>——<理由>」の形で必ず書け（人に問う文にそのまま載り、人の答えが問いに触れなければその推しで直される）。\n   - **BASE にあった能力を減らす・狭める処方を採るなら、失う能力を単位の reason に書け**——代償として採るかはこの役が確定させない。修正案の narrows と事前審査を通って、修正の前に run が人に聞く。\n",
    "copied": "   - **人に問う（fork・escalate）のは次の 3 つの場合だけ**: ① 決め手どうしで先例が割れる（前の決定・方針・対象の同じ場面・世界の解が別の答えを指す）② 人の優先の付け方（何を代償にするか）で答えが変わる ③ 人の前の決定か方針の文書とぶつかる（決め手に従うと前の決定か方針を覆す）。\n   - 機構の新設・共有面の拡大に及ぶ処方で、3 つの場合のどれかに当たるものだけを「設計の岐路」として `questions` に `kind: fork` で載せ、選択肢（`options`）ごとに帰結と代償を書き、零処方が落ちる理由を `reason` に一文添えろ（添えられないなら岐路ではなく零処方で解く）。`reason` の末尾には**この役の推し**を「推し: <選択肢>——<理由>」の形で必ず書け（人に問う文にそのまま載り、人の答えが問いに触れなければその推しで直される）。\n   - **BASE にあった能力を減らす・狭める処方を採るなら、失う能力を単位の reason に書け**——代償として採るかはこの役が確定させない。修正案の narrows と事前審査を通って、修正の前に run が人に聞く。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "## 前の回の受け付けが拒んだ理由",
+   "copied": "$diagnose-reject.output.lang_line\n\n## 前の回の受け付けが拒んだ理由"
   }
  ],
  "workflows/judge/commands/material-consistency-bypass.md": [
@@ -161,6 +166,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "\n返すのはノードの output_format の形に合う JSON だけ。\n",
    "copied": "\nこの役は Read を持つので、上の「ファイルを読める役」に当たる。作業ツリーの今のファイルは上の固めた版と同じ中身なので、Read で確かめた行番号を書けばよい。\n\n返すのはノードの output_format の形に合う JSON だけ。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "## 役の定義（inspector）",
+   "copied": "$consistency-bypass-reject.output.lang_line\n\n## 役の定義（inspector）"
   }
  ],
  "workflows/judge/commands/material-external-standards.md": [
@@ -208,6 +218,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "ファイルの作成・編集・削除を自らに禁じる。Bash は読み取りにだけ使え。engine が起こしたこの役の Bash は、OS の sandbox が使える環境では sandbox の中で走り、既にある計器（テスト一式・計器の台本）を動かせる——作業ツリー・.git・ほかの作業ツリーへの書き込みと外への通信は OS が止め、書けるのは一時ディレクトリ（$TMPDIR）だけ。PyPI 等から取って入れる実行（uv run --with・pip install）は通信が無いので止まる——手元に入っている道具で動かせ。gh は読むだけの物（issue・pr の list と view・pr diff・search・repo view）を単独で打てば sandbox の外で通り、| や && でつなぐと止まる。sandbox を使えない環境では、組み込みの読むだけのコマンド（git log・git diff 等）と読むだけの gh の一部しか通らず、計器の実行は権限で拒まれる。拒まれた・止まって確かめられなかった箇所は、打ったコマンドと拒まれ方を添えて「未実測」として返せ（綴りを変えて通そうとするな）。\n素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は review-record.py。\n",
    "copied": "ファイルの作成・編集・削除を自らに禁じる。Bash は読み取りにだけ使え。engine が起こしたこの役の Bash は、OS の sandbox が使える環境では sandbox の中で走り、既にある計器（テスト一式・計器の台本）を動かせる——作業ツリー・.git・ほかの作業ツリーへの書き込みと外への通信は OS が止め、書けるのは一時ディレクトリ（$TMPDIR）だけ。PyPI 等から取って入れる実行（uv run --with・pip install）は通信が無いので止まる——手元に入っている道具で動かせ。GitHub を読む口は上の手順 3 のとおりで、sandbox の外で通るのは読むだけの口 `works-gh` を手順 3 の形で単独で打った時だけ（素の `gh` の名で打つと sandbox の中で走って網に出られない。issue と検索は `works-gh` でも通らないので WebFetch・WebSearch で読め）。sandbox を使えない環境では、組み込みの読むだけのコマンド（git log・git diff 等）と `works-gh` の読むだけの形しか通らず、計器の実行は権限で拒まれる。拒まれた・止まって確かめられなかった箇所は、打ったコマンドと拒まれ方を添えて「未実測」として返せ（綴りを変えて通そうとするな）。\n素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は受け付けが使う検証器 review-record.py だが、この役が探して読む必要は無い——上の status と欄に合わせれば足りる。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "## 役の定義（investigator）",
+   "copied": "$external-standards-reject.output.lang_line\n\n## 役の定義（investigator）"
   }
  ],
  "workflows/judge/commands/material-gate-efficacy.md": [
@@ -250,6 +265,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "\n所見の場所（`where`）の `<パス>:<行>` は、作業ツリーの今のファイルの行番号で書け。差分のファイル（patch）の中の行番号を書くな——差分の行はファイルの行と違い、人が場所を開けない。差分で見つけた所見は、ファイルを読める役ならそのファイルをRead して行を確かめてから書け（読めない役は、確かめられない行番号を書かずにパスと関数名などで書け）。受け付けは、在るファイルの行の外を指す場所を拒んで出し直させる。\n",
    "copied": "\nこの役の返答（material と arms）には `where` 欄が無い。下の決まりは、arms の note・hit_evidence や material の detail の中で場所を `<パス>:<行>` で書く時に当てる。\n\n所見の場所（`where`）の `<パス>:<行>` は、作業ツリーの今のファイルの行番号で書け。差分のファイル（patch）の中の行番号を書くな——差分の行はファイルの行と違い、人が場所を開けない。差分で見つけた所見は、ファイルを読める役ならそのファイルをRead して行を確かめてから書け（読めない役は、確かめられない行番号を書かずにパスと関数名などで書け）。受け付けは、在るファイルの行の外を指す場所を拒んで出し直させる。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$gate-efficacy-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/material-hygiene.md": [
@@ -292,6 +312,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "言語／フレームワーク一般の衛生の逸脱（資源の対称性・公式機構の迂回・外部 I/O の上限とタイムアウト・検査の fail-open 等。観点本文が正本）を findings に where と text で。**見た範囲を seen に正直に書け**——全部渡してあるので「渡されなかったから見ていない」は無い。量で打ち切ったならどこで打ち切ったかを書け。指摘は仮説として出せ（検証手段を持たない目の観察は診断側が検証する。センサーの浅さは仕事であり欠陥ではない）。\n\n",
    "copied": "言語／フレームワーク一般の衛生の逸脱（資源の対称性・公式機構の迂回・外部 I/O の上限とタイムアウト・検査の fail-open 等。観点本文が正本）を findings に where と text で。**見た範囲を seen に正直に書け**——全部渡してあるので「渡されなかったから見ていない」は無い。量で打ち切ったならどこで打ち切ったかを書け。指摘は仮説として出せ（検証手段を持たない目の観察は診断側が検証する。センサーの浅さは仕事であり欠陥ではない）。\n返す欄は findings と seen の 2 つだけ。役の定義の「判断できることと、できないことを分けて返せ」は、この 2 つで次のように分ける: diff 本文と観点本文だけで言えることは findings の行に書く。diff の外（定義元・呼び元・設定など）を見ないと言えないことは findings に入れず、seen に「判断できなかった所: 〜（何が渡されていないからか）」として書く。\n\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "## 役の定義（cold-reader）",
+   "copied": "$hygiene-reject.output.lang_line\n\n## 役の定義（cold-reader）"
   }
  ],
  "workflows/judge/commands/material-local-review.md": [
@@ -339,6 +364,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "上の『skill の呼び出し自体が失敗したら…material を awaiting_human にして理由を書け』は、`required` が false のレンズにだけ当てる。`required` が true のレンズの呼び出しが失敗したら、この回のうちに起こし直して `invoked: true` を書け。起こせないまま返すなら `failed` に理由を書き、material を awaiting_human にするな——受け付けが拒んで同じ会話で起こし直させ、拒みが 3 回に届いた時と、レンズのプラグインが隔離した設定に無い時だけ人に渡す。\n",
    "copied": "上の『skill の呼び出し自体が失敗したら…material を awaiting_human にして理由を書け』は、`required` が false のレンズにだけ当てる。`required` が true のレンズの呼び出しが失敗したら、この回のうちに起こし直して `invoked: true` を書け。起こせないまま返すなら `failed` に理由を書き、material を awaiting_human にするな——受け付けが拒んで同じ会話で起こし直させ、拒みが 3 回に届いた時と、レンズのプラグインが隔離した設定に無い時だけ人に渡す。人に渡すのは受け付けと engine で、この役ではない——プラグインが設定に無いと分かった時も、この役は material を awaiting_human にせず、その行の `failed` に「隔離した設定に無い」と打った呼び出しと返った誤りを書いて返すだけ。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$local-review-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/material-main-path-observation.md": [
@@ -366,6 +396,11 @@
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "返すのは節の output_format の形に合う JSON だけ。\n",
    "copied": "返すのはノードの output_format の形に合う JSON だけ。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$main-path-observation-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/material-prior-decisions.md": [
@@ -403,6 +438,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "対象差分が触れる領域（**差分が空なら依頼が指す場所**——判定から入る run の 1 周目は、依頼が既存のコードに向くので差分が空なのが普通で、これから変わるのは依頼が指す場所である）の決定記録（ADR・意図的保留の台帳・issue / PR の棄却済み一覧・closed issue）を洗い、決着済みの論点のリスト（決定・理由・再訪条件・どこに書いてあるか）を作れ。差分が触れる領域から先に読め（順序の助言であって、見るなの境目ではない）。見た範囲と見ていない範囲（searched）を返せ。洗えなかったら checked=false・material は awaiting_human（理由付き）——未確認を「決着済みなし」（clean）と書くな。ファイルの作成・編集・削除を自らに禁じる。Bash は読み取りにだけ使え（前後の作業ツリーは engine が突き合わせる）。\n素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は review-record.py。\n",
    "copied": "対象差分が触れる領域（**差分が空なら依頼が指す場所**——判定から入る run の 1 周目は、依頼が既存のコードに向くので差分が空なのが普通で、これから変わるのは依頼が指す場所である）の決定記録（ADR・意図的保留の台帳・issue / PR の棄却済み一覧・closed issue）を洗い、決着済みの論点のリスト（決定・理由・再訪条件・どこに書いてあるか）を作れ（返答の `settled`。1 件ごとに topic・decision・reason・revisit・where）。差分が触れる領域から先に読め（順序の助言であって、見るなの境目ではない）。見た範囲と見ていない範囲（searched）を返せ。洗えなかったら checked=false・material は awaiting_human（理由付き）。ここの `checked` は返答の頭の真偽の欄（決定記録を洗えたか。洗えたら true）で、下の material の中の checked（文字列）とは別。洗えなかった理由は material の `reason` に、洗えた所までは `searched` に書く——未確認を「決着済みなし」（clean）と書くな。ファイルの作成・編集・削除を自らに禁じる。Bash は読み取りにだけ使え（前後の作業ツリーは engine が突き合わせる）。\n素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。material の中の checked に何を見たかを文で）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値はここに書いたもので足りる（元の graphloops では review-record.py が正本だったが、この役が開く物ではない）。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "## 役の定義（investigator）",
+   "copied": "$prior-decisions-reject.output.lang_line\n\n## 役の定義（investigator）"
   }
  ],
  "workflows/judge/commands/material-procedure-trace.md": [
@@ -455,6 +495,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "ファイルの作成・編集・削除を自らに禁じる。\n素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は review-record.py。\n",
    "copied": "ファイルの作成・編集・削除を自らに禁じる。$TMPDIR の中も同じで、この役が自分でファイルを作ることはしない。上で「書けるのは $TMPDIR だけ」と言うのは、動かした計器（テスト一式など）が一時ファイルを置ける場所を OS が残しているという意味で、この役に書くことを許すものではない。\n素材（material）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。欄と値の正本は受け付けが使う検証器 review-record.py だが、この役が探して読む必要は無い——上の status と欄に合わせれば足りる。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "## 役の定義（investigator）",
+   "copied": "$procedure-trace-reject.output.lang_line\n\n## 役の定義（investigator）"
   }
  ],
  "workflows/judge/commands/material-provenance.md": [
@@ -487,6 +532,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "対象差分の本文・PR 説明・docstring から「正本は X」「規約は X」「合意済み」等の事実の主張を抽出し、その X が対象差分の内側に無いかを確認しろ（`git log -S` 等で BASE 時点の実在を見る）。差分が自ら足したものを根拠として引用しているなら循環で、素材として P2 へ渡す。外部（他チーム・他システム・取り込み元）との合意を主張する箇所は、BASE に痕跡が無ければ「未確認の前提」として扱え。claims に主張・BASE 時点の実在・証拠。\n",
    "copied": "対象差分の本文・PR 説明・docstring から「正本は X」「規約は X」「合意済み」等の事実の主張を抽出し、その X が対象差分の内側に無いかを確認しろ（`git log -S` 等で BASE 時点の実在を見る）。差分が自ら足したものを根拠として引用しているなら循環で、素材として P2 へ渡す（P2 は素材を読んで判定する段で、この run では診断の役 diagnose がこの役の返答を読む。渡し方: claims のその行の exists_at_base を false にし、evidence に循環の証拠（X を足した差分の箇所と、打ったコマンドの結果）を書き、material を found にして count と detail に書く）。外部（他チーム・他システム・取り込み元）との合意を主張する箇所は、BASE に痕跡が無ければ「未確認の前提」として扱え。claims に主張・BASE 時点の実在・証拠を書け。claims は返答の頭の欄で material とは別。抽出した主張 1 件ごとに 1 行で、`claim`（主張の文）・`exists_at_base`（X が BASE 時点に在ったか。真偽）・`evidence`（確かめた方法と結果）を書く。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$provenance-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/material-purpose-review.md": [
@@ -534,6 +584,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "\n所見の場所（`where`）の `<パス>:<行>` は、作業ツリーの今のファイルの行番号で書け。差分のファイル（patch）の中の行番号を書くな——差分の行はファイルの行と違い、人が場所を開けない。差分で見つけた所見は、ファイルを読める役ならそのファイルをRead して行を確かめてから書け（読めない役は、確かめられない行番号を書かずにパスと関数名などで書け）。受け付けは、在るファイルの行の外を指す場所を拒んで出し直させる。\n",
    "copied": "\nこの役の findings の行には `where` 欄が無い（text・cite・hits の 3 つで、場所は cite の字列で示す）。下の決まりは、text の中で場所を `<パス>:<行>` で書く時に当てる。この役は Read を持つので「ファイルを読める役」に当たり、作業ツリーの今のファイルは固めた版と同じ中身なので、Read で確かめた行番号を書けばよい。\n\n所見の場所（`where`）の `<パス>:<行>` は、作業ツリーの今のファイルの行番号で書け。差分のファイル（patch）の中の行番号を書くな——差分の行はファイルの行と違い、人が場所を開けない。差分で見つけた所見は、ファイルを読める役ならそのファイルをRead して行を確かめてから書け（読めない役は、確かめられない行番号を書かずにパスと関数名などで書け）。受け付けは、在るファイルの行の外を指す場所を拒んで出し直させる。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "## 役の定義（inspector）",
+   "copied": "$purpose-review-reject.output.lang_line\n\n## 役の定義（inspector）"
   }
  ],
  "workflows/judge/commands/material-test-double-fidelity.md": [
@@ -566,6 +621,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "対象差分が外部との継ぎ目（別プロセス・別サービス・ブラウザ・外部 API・プロトコル）に触れるなら、テストの代役（モック・スタブ・フェイク）の形が実物と一致するかを、**実物から取った値 1 件**で確認しろ。代役は本物の再現度でなく「実装の誤りが観測できるか」で区切るが、入力の形が実物と違う代役は誤りを観測できない——代役にだけ通る形でテストが緑になる。不一致は mismatches に。\n",
    "copied": "対象差分が外部との継ぎ目（別プロセス・別サービス・ブラウザ・外部 API・プロトコル）に触れるなら、テストの代役（モック・スタブ・フェイク）の形が実物と一致するかを、**実物から取った値 1 件**で確認しろ。代役は本物の再現度でなく「実装の誤りが観測できるか」で区切るが、入力の形が実物と違う代役は誤りを観測できない——代役にだけ通る形でテストが緑になる。不一致は mismatches に。`mismatches` は返答の頭の欄で material とは別。不一致 1 件ごとに 1 行で、where と text（任意で mechanism・measured・false_positive_if）を書く。不一致が在れば material は found にして、count に mismatches の行の数、detail に要約を書く。無ければ mismatches は空にし、material は clean（checked に何と何を比べたか）か、継ぎ目に触れない差分なら not_applicable（reason）。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$test-double-fidelity-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/pr-check.md": [
@@ -588,6 +648,11 @@
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "- 素材（`material`）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかった節に機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。\n",
    "copied": "- 素材（`material`）の書き方: status は found（見つけた。count と detail）／clean（今ラウンドに見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。reason）／not_run（やるべきだったが飛ばした。reason）。carried_over（前の周の流用）は走らなかったノードに機械が書く——走った役は今の周の判定を書け（流用と書いても拒まれる）。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$pr-check-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/premises.md": [
@@ -615,6 +680,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "\n受け付けは、`kind: 実測` の行に `measured_output` が無い（空白だけも同じ）と拒み、依頼の `measured` の行の `where` を `text` に含む制約が無いと拒む。拒んだ理由が次の回の指示書の頭に届く。\n",
    "copied": "\n冒頭の「外のサービスへ問い合わせる時の決まり」で、対象の名前が要るので引かなかった調べは、`kind: 仮説` の制約 1 行にして返す。`text` に「対象の名前が要るので引いていない調べ」と、何を確かめたかったか（依頼の行の `where`）を書き、`measured_how` に「引いていない（対象の名前が要る）」と書く。この返答の型には「足りない」「検証不能」の欄が無いので、この行が人の確認に回す印になる。\n\n受け付けは、`kind: 実測` の行に `measured_output` が無い（空白だけも同じ）と拒み、依頼の `measured` の行の `where` を `text` に含む制約が無いと拒む。拒んだ理由が次の回の指示書の頭に届く。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$premises-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/purpose.md": [
@@ -662,6 +732,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "output_format の schema どおりの JSON を 1 つ返せ。欄は `purpose_text`・`source`（`①PR 説明`／`②計画・タスク記述`／`③writer の要約`／`目的不明` のどれかを字のまま）・`known_weaknesses`・`source_files` の 4 つと、依頼が解き方を示した時だけの `means`。\n",
    "copied": "output_format の schema どおりの JSON を 1 つ返せ。欄は `purpose_text`・`source`（`①PR 説明`／`②計画・タスク記述`／`③writer の要約`／`目的不明` のどれかを字のまま）・`known_weaknesses`・`source_files` の 4 つと、依頼が解き方を示した時だけの `means`。この型には「足りない」に当たる欄が無い。頭の決まりにある「対象の名前が要るので引いていない調べ」の名指しは、`purpose_text` の文の後ろに「（対象の名前が要るので引いていない調べ: …）」と添えて書け（`目的不明` のときは「目的不明: 」の後の文の後ろ）。目的の出典はリポジトリの中と材料だけなので、ふつうは外を引かずに済み、添える物も無い。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$purpose-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/rejudge.md": [
@@ -719,6 +794,11 @@
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "**この工程が在る理由**: 散文の規律は「判定に異議があるなら自分で覆さず、別 context の役に再判定させろ」と書くが、\n",
    "copied": "**このノードが在る理由**: 散文の規律は「判定に異議があるなら自分で覆さず、別 context の役に再判定させろ」と書くが、\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "この役は judge。呼び出し側が覆せない判定（ラベルの確定・根本診断・反証・票）を下す役である。",
+   "copied": "$rejudge-reject.output.lang_line\n\nこの役は judge。呼び出し側が覆せない判定（ラベルの確定・根本診断・反証・票）を下す役である。"
   }
  ],
  "workflows/judge/commands/spec-review.md": [
@@ -751,6 +831,11 @@
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "- writer は `faces` の key ごとに、取り込んだか（absorbed）、残すと宣言したか（declared）を次の工程で答え、その後に人が仕様を承認する。\n",
    "copied": "- writer は `faces` の key ごとに、取り込んだか（absorbed）、残すと宣言したか（declared）を次のノードで答え、その後に人が仕様を承認する。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "この役は仕様の審査役（judge）。仕様を書いた役とは別の目で、書かれた要件と受け入れ条件の抜け・曖昧さ・範囲の外を、修正案より前に挙げる。",
+   "copied": "$spec-review-reject.output.lang_line\n\nこの役は仕様の審査役（judge）。仕様を書いた役とは別の目で、書かれた要件と受け入れ条件の抜け・曖昧さ・範囲の外を、修正案より前に挙げる。"
   }
  ],
  "workflows/judge/commands/spec-revise.md": [
@@ -763,6 +848,11 @@
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。下の理由が空なら、これは 1 回目の返答で、この節は読み飛ばしてよい:\n",
    "copied": "前の回の返答は受け付けで拒まれた。下の理由のところを直した返答を丸ごと出し直せ（直した所だけを返すな）。下の理由が空なら、これは 1 回目の返答で、このセクションは読み飛ばしてよい:\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$spec-revise-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/spec.md": [
@@ -785,6 +875,11 @@
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "2. `acceptance` — 要件ごとに 1 件以上の**受け入れ条件を、実行できるテストとして対象リポジトリに書け**（今この工程で書く）。\n",
    "copied": "2. `acceptance` — 要件ごとに 1 件以上の**受け入れ条件を、実行できるテストとして対象リポジトリに書け**（今このノードで書く）。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$spec-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/judge/commands/world-classes.md": [
@@ -797,6 +892,11 @@
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "- この指示書の頭の「前の回の受け付けが拒んだ理由」の節に理由が在れば、お前の前の返答は機械の受け付けで拒まれている。そこに書かれた所を直した返答を丸ごと出し直せ（直した所だけを返すな）。\n",
    "copied": "- この指示書の頭の「前の回の受け付けが拒んだ理由」のセクションに理由が在れば、前の返答は機械の受け付けで拒まれている。そこに書かれた所を直した返答を丸ごと出し直せ（直した所だけを返すな）。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "## 前の回の受け付けが拒んだ理由",
+   "copied": "$world-classes-reject.output.lang_line\n\n## 前の回の受け付けが拒んだ理由"
   }
  ],
  "workflows/judge/commands/world-judge.md": [
@@ -809,6 +909,11 @@
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "- この指示書の頭の「前の回の受け付けが拒んだ理由」の節に理由が在れば、お前の前の返答は機械の受け付けで拒まれている。そこに書かれた所を直した返答を丸ごと出し直せ（直した所だけを返すな）。\n",
    "copied": "- この指示書の頭の「前の回の受け付けが拒んだ理由」のセクションに理由が在れば、前の返答は機械の受け付けで拒まれている。そこに書かれた所を直した返答を丸ごと出し直せ（直した所だけを返すな）。\n"
+  },
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$world-judge-reject.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ],
  "workflows/eyes/commands/r1-comments.md": [
@@ -1571,8 +1676,8 @@
   },
   {
    "why": "語をグラフの語にそろえ、役の指示書を初見の読み手が詰まらない形に書き直した（持ち主の決め graph-words・prompts-coldread。PR #221）",
-   "original": "- 修正案（別の役が書き、別の目が事前審査で叩いた物）: <<plan_file>>——修正案の全体は読まなくてよい（要求は brief に切り出してある。頭に brief の節が無く、ここが空でなければ Read で読め）。事前審査の返答はこの修正の材料に渡らない（`plan_faces` は空配列で返せ）。空なら修正案の無い run\n",
-   "copied": "- 修正案（別の役が書き、別の目が事前審査で叩いた物）: <<plan_file>>——修正案の全体は読まなくてよい（要求は brief に切り出してある。頭に brief のセクションが無く、ここが空でなければ Read で読め）。事前審査の返答はこの修正の材料に渡らない（`plan_faces` は空配列で返せ）。空なら修正案の無い run\n"
+   "original": "- 修正案（別の役が書き、別の目が事前審査で叩いた物）: <<plan_file>>——修正案の全体は読まなくてよい（要求は brief に切り出してある。頭に brief の節が無く、ここが空でなければ Read で読め）。事前審査の返答 `p2.plan_review.json` は <<plan_file>> と同じフォルダに在り、`plan_faces` に答えるのに読め（`faces` が穴、`shrink` が別案。どちらも `key` を持つ）。空なら修正案の無い run で、事前審査への答えは要らない\n",
+   "copied": "- 修正案（別の役が書き、別の目が事前審査で叩いた物）: <<plan_file>>——修正案の全体は読まなくてよい（要求は brief に切り出してある。頭に brief のセクションが無く、ここが空でなければ Read で読め）。事前審査の返答 `p2.plan_review.json` は <<plan_file>> と同じフォルダに在り、`plan_faces` に答えるのに読め（`faces` が穴、`shrink` が別案。どちらも `key` を持つ）。空なら修正案の無い run で、事前審査への答えは要らない\n"
   },
   {
    "why": "語をグラフの語にそろえ、役の指示書を初見の読み手が詰まらない形に書き直した（持ち主の決め graph-words・prompts-coldread。PR #221）",
@@ -1915,6 +2020,13 @@
    "why": "語をグラフの語にそろえ、役の指示書を初見の読み手が詰まらない形に書き直した（持ち主の決め graph-words・prompts-coldread。PR #221）",
    "original": "人が決めた、run をまたいで効く決まり（役も engine も書き換えない）。本文は材料 `$cut2.output.brief_file` の `policy.paste`（空なら方針は無い。長くて切り詰めたときは末尾に続きの置き場が在り、写しの置き場は `policy.path`）——在れば、先に全部読め。方針が在るなら、それは対象の本文ではなく、この指示の発行者が守らせる制約である。審査は方針に照らして行え。方針とぶつかる手直しを見つけたら、どの項とぶつかるかを穴の `why` に書け。方針の文書は書き換えるな。\n",
    "copied": "人が決めた、run をまたいで効く決まり（役も engine も書き換えない）。本文は材料 `$cut2.output.brief_file` の `policy.paste`（空なら方針は無い。長くて切り詰めたときは末尾に続きの置き場が在り、写しの置き場は `policy.path`）——在れば、先に全部読め。方針が在るなら、それは対象の本文ではなく、この指示の発行者が守らせる制約である。審査は方針に照らして行え。方針とぶつかる手直しを見つけたら、どの項とぶつかるかを穴の `why` に書け（`kind` は 5 つの語のうち一番近い物。どれにも当てはまらなければ、方針も守る約束の 1 つとして `contract_drift`）。方針の文書は書き換えるな。\n"
+  }
+ ],
+ "workflows/judge/commands/judge-verify.md": [
+  {
+   "why": "言語の 1 行を役の文の頭に置く（部分 A。L-E37。元 works/.shared/core/rolekit.py 147-150 行 lang_line を頭に足した形。判定の全部の役に支度・拒否のノードの lang_line を差し込む）",
+   "original": "外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:",
+   "copied": "$verify-prep.output.lang_line\n\n外のサービスへ問い合わせる時の決まり（works の包みより。役への直の指示。Agent で子を起こすなら、子への指示に下の塊をそのまま含めよ——子にはこの決まりが届かない）:"
   }
  ]
 }

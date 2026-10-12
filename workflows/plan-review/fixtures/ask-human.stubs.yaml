@@ -18,7 +18,7 @@ review:
   design: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/design.json" }
   gate_axes: { obvious: { ok: false, note: "stub: 決め手の欄が揃わない" }, world: { ok: true, note: "" }, clean: { ok: true, note: "" }, not_overkill: { ok: true, note: "" } }
   ask_human: true
-  questions: ["事前審査の穴 [regression] stub-regression-001: stub（人に聞く訳: 決め手の欄が揃わない）"]
+  questions: [{"kind": "regression", "text": "事前審査の穴 [regression] stub-regression-001: stub（人に聞く訳: 決め手の欄が揃わない）"}]
 fixture:
   inputs:
     units: "[]"

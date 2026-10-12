@@ -15,7 +15,7 @@ review:
   design: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/design.json" }
   gate_axes: { obvious: { ok: true, note: "" }, world: { ok: true, note: "" }, clean: { ok: true, note: "" }, not_overkill: { ok: true, note: "" } }
   ask_human: true
-  questions: ["事前審査の壁打ちが止まった案: 修正に進まない。理由: stub-block-001 が続いた"]
+  questions: [{"kind": "design_only", "text": "事前審査の壁打ちが止まった案: 修正に進まない。理由: stub-block-001 が続いた"}]
 fixture:
   inputs:
     units: "[]"

@@ -29,6 +29,7 @@ WORDS = frozenset({
 COPIES = {
     ("workflows/.shared/boundary.py", "LINE_SCRIPT"): "LINE_SCRIPT",
     ("workflows/line/scripts/result.py", "LINE_SCRIPT"): "LINE_SCRIPT",
+    ("workflows/line/scripts/collect.py", "LINE_SCRIPT"): "LINE_SCRIPT",
 }
 
 

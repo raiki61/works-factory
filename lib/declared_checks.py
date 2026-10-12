@@ -35,6 +35,10 @@ from engine import declared  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 
 DECL_NAME = declared.DECL_NAME
+ROLE_NEEDED = "role_needed"   # 走らせ方の語のうち、engine が走らせず任せ先の CI の役が素材を書いた（自己申告）物
+# 自己申告の緑・走らせなかった CI を人に見せる時の次の手（T41。最後の関所と報告が同じ字を出す）
+SELF_REPORTED_NOTE = (f"最後のテストは engine が走らせた結果ではない（任せ先の申告）。走らせる語を宣言 {DECL_NAME} に"
+                      "書けば次の run から engine が走らせる")
 TEST_CMD_STEP = "test_cmd"
 TAIL_LINES = 20      # 走らせた語の出力のうち、返答に写す末尾の行数（全体は置き場のファイルに残す）
 TAIL_BYTES = 2000    # その上限（バイト）。1 行が長い出力で返答が膨らまないように
@@ -203,11 +207,11 @@ def suites_line(tests: dict | None, *, role_status: str | None = None) -> str:
     elif by == "role":
         ran = ran or [f"{TEST_CMD_STEP}（{tests['test_cmd_how']}）" if tests.get("test_cmd_how") else TEST_CMD_STEP]
         unrun.append("宣言の段（宣言が無いか、engine が任せ先に落ちた）")
-    elif by == "role_needed" and role_status in ("clean", "found"):
+    elif by == ROLE_NEEDED and role_status in ("clean", "found"):
         ran = [f"任せ先の CI の役 blk-ci が選んだ一式（素材の status {role_status}）"]
-    elif by == "role_needed" and role_status is not None:
+    elif by == ROLE_NEEDED and role_status is not None:
         unrun.append(f"宣言の段・{TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせなかった: 素材の status {role_status or '無い'}）")
-    elif by == "role_needed":
+    elif by == ROLE_NEEDED:
         unrun.append(f"宣言の段・{TEST_CMD_STEP}（任せ先の CI の役 blk-ci が走らせる）")
     env = f"／環境で起こせなかった（コードの赤ではない）: {'・'.join(broken)}" if broken else ""
     if direct_broken:
@@ -470,7 +474,7 @@ def _planned_run(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, chang
     plan = checks_plan(root)
     if "fallback" in plan:
         if not (test_cmd or "").strip():
-            return {**out, "by": "role_needed"}, [], ""
+            return {**out, "by": ROLE_NEEDED}, [], ""
         log = log_dir / f"{TEST_CMD_STEP}.log"
         launched = {}
         material = _cant_status(local_checks_material(root, test_cmd, log, launched=launched, reuse=reuse)["material"], after_judge)

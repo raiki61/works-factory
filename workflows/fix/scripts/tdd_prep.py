@@ -9,7 +9,7 @@
 続きの役 tdd（会話を継ぐ）と新しい単位の役 tdd-new（context: fresh）を振り分ける。前の単位と今の単位のこれまでは引き継ぎの節
 （tddloop.handoff_lines。今の単位の段の結果 current_lines を含む）でも指示書に載せる。前の周に拒んだ理由も指示書に載る。
 run の値: 判定の写し（judgment.json）・修正案の役の返答の写し（p2.fix_plan.json。無ければ空）・人の方針の文書（始めの記録の
-固めた版の写し）・依頼の文のファイル（request_file）・修正前の関所の一言（human-notes.md）・言語の 1 行（fixboard.lang_line）。brief は置き場の凍結した欄と修正案から切る
+固めた版の写し）・依頼の文のファイル（request_file）・修正前の関所の一言（human-notes.md）・言語の 1 行（rolekit.lang_line）。brief は置き場の凍結した欄と修正案から切る
 （planbrief.cut。修正案の無い run は無し）。
 輪が済んだ（resume で 1 周目から回し直された）・実行器の無い run は何も書かずに {prompt_file: "", go: false, new_unit: false}。
 返り {prompt_file, go, new_unit}。輪の状態が読めない・指示書を組めない: 標準エラーに 1 行で 1。
@@ -25,6 +25,7 @@ sys.path.append(str(boundary.lib_root()))
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
 import policy  # noqa: E402
+import rolekit  # noqa: E402
 import rulebook  # noqa: E402
 import startrec  # noqa: E402
 import tddloop  # noqa: E402
@@ -52,7 +53,7 @@ def main() -> dict:
               "policy_path": policy.frozen_copy(start), "request_file": str(start.get("request_file") or ""),
               "notes_file": str(notes) if notes.is_file() else "", "base_rev": fixboard.base_rev_of(place)}
     sources = {"plan": fixboard.read_json(plan_file), "judgment": fixboard.read_json(judgment_file)}
-    out = tddloop.prep(started["state_file"], values, repo, lang=fixboard.lang_line(start), sources=sources)
+    out = tddloop.prep(started["state_file"], values, repo, lang=rolekit.lang_line(start), sources=sources)
     return {"prompt_file": out["prompt_file"], "go": bool(out["go"]), "new_unit": bool(out["new_unit"])}
 
 

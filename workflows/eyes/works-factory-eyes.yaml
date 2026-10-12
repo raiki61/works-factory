@@ -19,7 +19,7 @@ inputs:
   fix_units: {required: true, description: "$fix.output.units（単位ごとの結末。JSON の配列）"}
   green_ok: {required: true, description: "$test-gate-final.output.ok"}
   start: {default: "null", description: "$start.output.record（始めの記録のポインタ）"}
-  plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の承認ノードで聞いた行）"}
+  plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の承認ノードの項目 {kind, text}）"}
   answers: {default: "null", description: "{ from: $gate-before-fix.output, if_skipped: null }（修正前の承認ノードの答え）"}
   start_answers: {default: "null", description: "{ from: $gate-start.output, if_skipped: null }（始めの承認ノードの答え。plan-review が独立設計に貼った人の答えと同じ源）"}
   x_scalars: {default: "null", description: "$fix.output.x_scalars（修正役が足した x_ の規模の数値。JSON の object）"}
@@ -419,7 +419,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, r1, r2, r3, r4, questions, premise_check, structure_after, protected_hits]
+      required: [ok, r1, r2, r3, r4, questions, premise_check, structure_after, protected_hits, notes]
       properties:
         ok: {type: boolean}
         r1: &eye_row
@@ -449,3 +449,11 @@ nodes:
             run_id: {type: string}
             path: {type: string}
         protected_hits: {type: array, items: {type: string}}
+        notes:
+          type: [object, "null"]
+          additionalProperties: false
+          required: [type, run_id, path]
+          properties:
+            type: {type: string, enum: [archon_artifact]}
+            run_id: {type: string}
+            path: {type: string}

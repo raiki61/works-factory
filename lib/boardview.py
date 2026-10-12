@@ -83,7 +83,8 @@ R2_PROMPT = "r2-prompt.md"
 TREE_FILE = planfile.TREE_FILE           # 事前審査の役を起こす前の作業ツリーの姿（pass-<k>/ の中）
 PROMPT_FILE = "prompt.md"
 REVIEW_FILE = "review.json"
-PASSES_FILE = "gate-passes.json"
+PASSES_FILE = gatemarks.PASSES_FILE
+GATE_FILE = gatemarks.PLAN_GATE_FILE
 TREE_FEATURE = "review_tree"
 # 元 works/.shared/core/design.py:104
 PREMISE_MISS = "premise_invalid_reason の名指しが固めた版の実物に当たらない（追跡されたファイルと、その行の範囲を名指せ）: "
@@ -231,9 +232,9 @@ def plan_review_output(b, nid, out, item):
 
 # 元 works/.shared/core/scripts/review-record.py:135・:140・:343（検証器の素材の状態の表と、人に聞く状態の問い）。表の列は
 # このブロックの部品が読む blocks（gatemarks.unmeasured）だけ。状態の語の持ち主は gatemarks.MATERIAL_WORDS
-BLOCKING = ("awaiting_human", "not_run")
+BLOCKING = gatemarks.UNMEASURED
 STATUS = {s: types.SimpleNamespace(blocks=s in BLOCKING) for s in gatemarks.MATERIAL_WORDS}
-ASKING = ("held", "escalate")
+ASKING = gatemarks.ASKING
 VALIDATOR = types.SimpleNamespace(STATUS=STATUS, ASKING=ASKING)
 
 
@@ -433,9 +434,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     d = pathlib.Path(folder)
     d.mkdir(parents=True, exist_ok=True)
     out = place(d)
-    start_doc = _read_json(start) if start else None
-    if start_doc is not None:
-        _write_json(startrec.path(d), start_doc)
+    start_doc = startrec.adopt(d, start) if start else None
     gate_rows = take_gate_answers(d, gate_answers)
     judged = _read_json(judgment)
     shutil.copyfile(judgment, d / JUDGMENT_COPY)
@@ -492,6 +491,50 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     inputs["tree"] = form == "review" and _tree_on(b, inputs["tree_word"])
     _write_json(d / OPEN_FILE, inputs)
     return {"k": k, "form": form, "tree": inputs["tree"], "r2_go": r2_due(b)}
+
+
+DESIGN_FORM = "design"   # 直す物が無い周の差し込みの形（修正案を読まずに独立設計だけを作る。元 line_edge.plan_edge 1107-1119）
+DESIGN_ONLY_DIR = "design-only"   # 形 design の返りの置き場（事前審査の返答の代わりの空の控えと聞かずに通した行・関所の控え）
+DESIGN_ONLY_WHY = "直す物が無い周（判定が直す単位を出さなかった）——修正案も事前審査も無く、最後の R2 が要る独立設計だけを作った"
+
+
+def open_design(folder, *, cwd, judgment, purpose, world=None, start=None, answers=None, design_schema: dict) -> dict:
+    """直す物が無い周の差し込みの頭（形 design）: 修正案を読まずに、独立設計の支度と受け付けと返す節が読む材料だけを置く。
+    返り {k: 0, form: DESIGN_FORM, tree: False, r2_go}（事前審査は回さない）"""
+    d = pathlib.Path(folder)
+    d.mkdir(parents=True, exist_ok=True)
+    start_doc = startrec.adopt(d, start) if start else None
+    judged = _read_json(judgment)
+    shutil.copyfile(judgment, d / JUDGMENT_COPY)
+    _copy_world(d, world)
+    frozen = _frozen_policy(d, start_doc, cwd)
+    units = [u for u in judged.get("units") or [] if isinstance(u, dict)]
+    _, request, unread = _request(start_doc)
+    purpose_review, review_unread = _purpose_review(judgment)
+    inputs = {"k": 0, "form": DESIGN_FORM, "ruled": [], "cwd": str(cwd), "rev": (start_doc or {}).get("base_rev") or "HEAD",
+              "base": (start_doc or {}).get("base_rev") or "", "request": request, "policy_md": frozen.get("path") or "",
+              "policy_copy": frozen.get("copy") or "", "excluded_file": "", "units": units,
+              "names": [u["key"] for u in units if isinstance(u.get("key"), str)], "questions": judged.get("questions") or [],
+              "materials": {}, "precedents": [], "diagnosis": {}, "purpose_review": purpose_review,
+              "purpose": _read_json(purpose), "plan": {"plan": []}, "human_items": human_items(answers),
+              "tree_word": tree_word(start_doc), "review_schema": {}, "design_schema": design_schema,
+              "defaults": [x for x in (review_unread, unread) if x], "tree": False}
+    _write_json(d / OPEN_FILE, inputs)
+    return {"k": 0, "form": DESIGN_FORM, "tree": False, "r2_go": r2_due(view(d, inputs))}
+
+
+def _collect_design(d: pathlib.Path, inputs: dict) -> dict:
+    """形 design の返す節の中身: 通った形（関所の項目・問い無し・4 つの軸は ok）と独立設計の控え（無ければ訳の控え）。事前審査の
+    返答の代わりに faces の無い控えを DESIGN_ONLY_DIR に置き、隣に聞かずに通した行（空）と関所の控えを置く"""
+    p = d / DESIGN_ONLY_DIR
+    b = view(d, inputs)
+    review = _write_json(p / REVIEW_FILE, {"faces": [], "shrink": [], "reason": DESIGN_ONLY_WHY})
+    _write_json(p / PASSES_FILE, [])
+    _write_json(p / GATE_FILE, {"items": [], "converge": []})
+    got, _ = design.made(d, b.design_schema)
+    design_file = d / design.DESIGN_FILE if got is not None else _write_json(p / design.DESIGN_FILE, {"missing": design.missing(b)})
+    return {"pass": True, "stalled": False, "review": review, "design": design_file,
+            "gate_axes": {axis: {"ok": True, "note": ""} for axis in gatemarks.AXES}, "ask_human": False, "questions": []}
 
 
 def _approved(d: pathlib.Path) -> list | None:
@@ -894,7 +937,8 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo, keys) -> di
         converge.record_pass(out, bare_review, resolved=merged["resolved"], files=files, synergy=merged["synergy"],
                              hits=merged["hits"], origins=merged["origins"], at_cap=_at_cap(inputs))
         converge.stash_rejects(out, _pass_rejects(inputs, p))
-    _write_json(p / REVIEW_FILE, review)
+    # 壁打ちの欄 resolved は写しの型の外なので外して照らしたが、plan の往復の控え（planfile.converge_record）が review.json から読む
+    _write_json(p / REVIEW_FILE, {**review, converge.RESOLVED: merged["resolved"]} if merged["resolved"] else review)
     return {"ok": True, "reason": ""}
 
 
@@ -990,16 +1034,19 @@ def _note_asked(d: pathlib.Path, items: list, changed: dict | None) -> None:
 
 
 def collect(folder) -> dict:
-    """返す節の中身（パスは置き場の中の実物）: {pass, stalled, review, design, gate_axes, ask_human, questions}。
+    """返す節の中身（パスは置き場の中の実物）: {pass, stalled, review, design, gate_axes, ask_human, questions}。questions の行は
+    関所の項目の種類と文 {kind, text}（gatemarks.question_row。線が無人の run で台帳の問いだけを報告へ回し、ほかの種類で止まる）。
     抜け方は形 review なら往復の控えの converge.decide（record_pass が決めた語）、形 replan なら block の有無（stalled はいつも偽）。
     受け付けが諦めた往復は pass: false・stalled: true で、諦めた訳を questions に載せる。関所の項目は、形 review なら
     gatemarks.plan_gate_items、形 replan なら約束の欄が変わったか人に聞く穴の在る直した項目だけ（replan_asks）で、どちらも方針の
     文書の変化を足す。聞かずに通した行は pass-<k>/gate-passes.json、4 つの軸は gate_axes.gather。返した項目の種類と方針の変化を
     GATE_ASKED_FILE に積む（次の差し込みが入力 gate_answers の通した行を引く）。形 replan で受け付けが諦めた時は、裁かれた項目
     ごとの諦めの行を review.json の隣の planblk.REPLAN_GAVE_UP_FILE に置く。返り design に設計の控えを渡したか・無いまま進んだかを
-    trace に design.HANDED_OP・MISSING_OP で残す（元 works/.shared/core/design.py の hand）"""
+    trace に design.HANDED_OP・MISSING_OP で残す（元 works/.shared/core/design.py の hand）。形 design（直す物が無い周）は _collect_design"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
+    if inputs.get("form") == DESIGN_FORM:
+        return _collect_design(d, inputs)
     p = pass_dir(d, inputs["k"])
     out = place(d)
     gave = rolekit.given_up_reason(p, REVIEW_NODE)
@@ -1022,9 +1069,9 @@ def collect(folder) -> dict:
     if changed:
         items.append((POLICY_CHANGED, change_row(changed)))
     _note_asked(d, items, changed)
-    questions = [text for _, text in items]
+    questions = [gatemarks.question_row(kind, text) for kind, text in items]
     if gave:
-        questions.append(GIVEN_UP_FACES + gave)
+        questions.append(gatemarks.question_row(gatemarks.GIVEN_UP_KIND, GIVEN_UP_FACES + gave))
         if inputs["form"] == "replan":
             why = planblk.REVIEW_GAVE_UP_WHY.format(reason=gave)
             _write_json(p / planblk.REPLAN_GAVE_UP_FILE,

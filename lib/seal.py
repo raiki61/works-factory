@@ -10,11 +10,13 @@
 - diff_files(repo, data) -> {path: (added, deleted)}: 差分のバイトに載るファイルごとの行数。読めなければ ValueError
 - seal_refusal(*, fingerprint, fingerprint_ok) -> str: 封じてよいかの理由（空なら封じてよい）
 - unknown_row(reason) -> str: 守りのパスを確かめられない時に、当たりとして数える 1 行
+- deleted_paths(text) -> list: 封じた差分の字が消すファイル（取り込む前に 1 本ずつ名指す。DELETED_HEAD）
 - apply_refusal(*, ...) -> str: 置いてよいかの理由（空なら置く）。決まりは関数の doc
 """
 import hashlib
 import os
 import pathlib
+import re
 import subprocess
 
 from answer import VERBS
@@ -24,6 +26,7 @@ STOPS = (VERBS[1], "reject")     # 止める語（今の works の report.FINAL_
 REQUEST_BY = "request:"          # 止め札: 文がこれで始まる止める語（今の works の report.REQUEST_BY）
 PASSED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "redesign-needed", "unverifiable")   # 目の状態の語の持ち主（ほかは写さずここを読む）
 UNKNOWN_HEAD = "守りのパスを確かめられない（差分が一覧に触れていないとは言えない）: "
+DELETED_HEAD = "取り込むと消えるファイル"   # 元 works/dev/lib.sh:622-623 の行の頭
 
 
 class SealError(Exception):
@@ -77,6 +80,32 @@ def seal_refusal(*, fingerprint, fingerprint_ok) -> str:
 
 def unknown_row(reason: str) -> str:
     return UNKNOWN_HEAD + reason
+
+
+def deleted_paths(text: str) -> list:
+    """git の差分の字のうち、ファイルを消す節（見出しに deleted file mode）のパス（現れた順・重ねない。元 works/dev/lib.sh:595-597 の
+    diff --diff-filter=D --name-only と同じ物を、封じた差分そのものから読む）。パスは '--- a/…' 行を正とし、中身の無いファイルの
+    削除のように '---' 行の無い節は 'diff --git' の見出しから引く（どちらも git の引用を changemap.unquote_git_path で解く）"""
+    from changemap import unquote_git_path
+    out, head, gone, path = [], None, False, None
+
+    def close():
+        name = path or head
+        if gone and name is not None and name not in out:
+            out.append(name)
+    for line in text.split("\n"):
+        if line.startswith("diff --git "):
+            close()
+            m = re.match(r'diff --git ("?)a/(.*?)\1 ("?)b/(.*?)\3$', line)
+            head = unquote_git_path(m.group(1) + m.group(2) + m.group(1)) if m else None
+            gone, path = False, None
+        elif line.startswith("deleted file mode"):
+            gone = True
+        elif line.startswith("--- ") and not line.startswith("--- /dev/null") and path is None:
+            got = unquote_git_path(line[4:].strip())
+            path = got[2:] if got.startswith("a/") else got
+    close()
+    return out
 
 
 def _answer_refusal(answer: dict) -> str:

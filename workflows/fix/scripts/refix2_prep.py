@@ -44,14 +44,14 @@ def main() -> None:
         fixboard.write_json(head, {"tree": groups.end_tree(boundary.work_tree())})
     start = startrec.read(place)
     fix_reply = place / fixboard.FIX_REPLY_FILE
-    got = fixboard.prep_fix(place, N, items=functools.partial(fixboard.place_items, place), plan_review=None,
+    got = fixboard.prep_fix(place, N, items=functools.partial(fixboard.place_items, place), plan_review=fixboard.plan_review_file(place),
                             fix_reply=fix_reply if fix_reply.is_file() else None, policy=fixboard.policy_brief(start))
     if not got["ok"]:
         raise ValueError(got["reason"])
     text = fixboard.refix_prompt(N, {"brief_file": got["brief_file"], "diff_file": got["diff_file"], "policy_path": policy.frozen_copy(start),
                                      "request_file": str(start.get("request_file") or "")},
                                  reject_file=fixboard.last_reject_file(place, ACCEPT), iteration=iteration,
-                                 lang=fixboard.lang_line(start))
+                                 lang=rolekit.lang_line(start))
     prompt = fixboard.write_text(place / fixboard.REFIX_PROMPT.format(refix.passes()[N]["fix"]), text)
     boundary.returns({"prompt_file": str(prompt), "go": True, "iteration": iteration})
 

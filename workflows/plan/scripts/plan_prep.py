@@ -17,6 +17,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import planfile  # noqa: E402
 import policy  # noqa: E402
+import rolekit  # noqa: E402
 
 
 def main() -> None:
@@ -26,7 +27,7 @@ def main() -> None:
     start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
     start = start if isinstance(start, dict) else {}
     judgment_file, _ = planfile.pointed(os.environ["INPUTS_JUDGMENT"], boundary.resolve)
-    judgment, _ = planfile.read_pointed(os.environ["INPUTS_JUDGMENT"], boundary.resolve)
+    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.resolve)
     units = planfile.units_of(os.environ["INPUTS_UNITS"])
     world, bad_world = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.resolve)
     spec, bad_spec = planfile.read_pointed(os.environ["INPUTS_SPEC"], boundary.resolve, text=True)
@@ -39,7 +40,7 @@ def main() -> None:
         round_dir, plan_dir, mode=rnd["mode"], judgment=judgment, judgment_dir=judgment_file.parent if judgment_file else None,
         units=units, structure_dir_=plan_dir / rnd["structure"], world_rows=world, spec=spec,
         repo=repo, base_rev=start.get("base_rev") or "", review_md=str(boundary.lib_root() / "REVIEW.md"),
-        lang=start.get("lang"), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys,
+        lang_line=rolekit.lang_line(start), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys,
                                                                      shared=boundary.shared_cache()),
         conflicts=conflicts, policy_md=policy.frozen_copy(start), prior_failures=prior, unread=unread)
     planfile.snap_tree(round_dir / planfile.TREE_FILE, repo)
