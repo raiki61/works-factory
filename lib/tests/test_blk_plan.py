@@ -117,6 +117,27 @@ class ConceptRuleCase(unittest.TestCase):
         self.assertNotIn(concepthome.REVIEW_ASK, planblk.HEAD["plan"])
 
 
+class RejectHeadOwnerCase(unittest.TestCase):
+    """受け付けの拒みの頭と木の下限は planblk が 1 つだけ持ち、plan の受け付け（planfile）と事前審査の受け付け（boardview）は
+    それを読む。事前審査の役の頭は works-factory に無い盤面を名指さない（issue #81）"""
+
+    NAMES = ("NO_NARROW_REJECT", "RECOMMEND_REJECT", "NOT_OWED_REJECT", "RESOLVED_REJECT", "ANSWERS_REJECT",
+             "TREE_REJECT", "CLOSED_REJECT", "DESIGN_QUOTE_REJECT", "TREE_AUTO_MIN")
+
+    def test_reject_heads_live_in_planblk(self):
+        import boardview
+        import planfile
+        for name in self.NAMES:
+            with self.subTest(name=name):
+                self.assertTrue(hasattr(planblk, name))
+                for reader in (planfile, boardview):
+                    self.assertFalse(hasattr(reader, name), f"{reader.__name__}.{name}")
+
+    def test_review_head_names_no_board(self):
+        self.assertNotIn("盤面", planblk.HEAD["plan-review"])
+        self.assertNotIn("盤面", planblk.head("plan-review"))
+
+
 class QuoteFoldCase(unittest.TestCase):
     """引用の照らし（cite.missing_quotes）は両側を NFKC にし、空白の並びを 1 つに畳んでから字のまま在るかを見る。字の 1 つ違いは見逃さない"""
 

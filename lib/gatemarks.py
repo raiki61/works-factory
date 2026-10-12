@@ -103,6 +103,7 @@ import worldmark   # 世界の解の行と、関所の軸「世界の解か」�
 MARKS_FILE = marks.KINDS["gate"].file
 RECOMMEND = "recommend"   # 人に回す行の推し {answer, note, why}（実の利用者の run ac9e02ab。機械が読める推しが無かった）
 FIELDS = ("decided_by", "undecided_because", "fences", "world", RECOMMEND)
+RECOMMEND_KEYS = ("answer", "note", "why")   # 頭が答え、残りが RECOMMEND_MIN 字以上の文
 RECOMMEND_ANSWERS = ("continue", "stop")
 RECOMMEND_WORDS = {"continue": "通す", "stop": "止める"}
 RECOMMEND_MIN = 4
@@ -118,7 +119,7 @@ MARK_SCHEMA = {
                "note": "当たる柵の印。1 つでも在れば決め手が在っても人に聞く"},
     "world": {"type": "string",
               "note": "人に回す行で、世の中の同じ問題の解き方を当たった結果の 1 文（出どころと割れ方、当たらなかったならその理由）"},
-    RECOMMEND: {"type": "object", "additionalProperties": False, "required": ["answer", "note", "why"],
+    RECOMMEND: {"type": "object", "additionalProperties": False, "required": list(RECOMMEND_KEYS),
                 "properties": {"answer": {"type": "string", "enum": list(RECOMMEND_ANSWERS)},
                                "note": {"type": "string", "minLength": RECOMMEND_MIN},
                                "why": {"type": "string", "minLength": RECOMMEND_MIN}},
@@ -337,13 +338,13 @@ def narrow_gaps(node: str, reply: dict) -> list:
 def _recommend_gap(got) -> str:
     """recommend の形の誤りの文（正しければ空）"""
     if not isinstance(got, dict):
-        return f"{RECOMMEND} が {{answer, note, why}} の object でない"
-    extra = sorted(set(got) - {"answer", "note", "why"})
+        return f"{RECOMMEND} が {{{', '.join(RECOMMEND_KEYS)}}} の object でない"
+    extra = sorted(set(got) - set(RECOMMEND_KEYS))
     if extra:
         return f"{RECOMMEND} の知らない欄 {extra}"
     if got.get("answer") not in RECOMMEND_ANSWERS:
         return f"{RECOMMEND}.answer が {'・'.join(RECOMMEND_ANSWERS)} のどれでもない（{got.get('answer')!r}）"
-    for k in ("note", "why"):
+    for k in RECOMMEND_KEYS[1:]:
         if not (isinstance(got.get(k), str) and len(got[k].strip()) >= RECOMMEND_MIN):
             return f"{RECOMMEND}.{k} が {RECOMMEND_MIN} 字に満たない（文字列で書く）"
     return ""
