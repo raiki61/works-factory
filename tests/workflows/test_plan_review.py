@@ -734,7 +734,7 @@ class DesignCase(RunCase):
         (r.repo / "stats.py").write_text("# 変えた\n", encoding="utf-8")
         got = r.accept(DESIGN_OK, "r2_accept")
         self.assertFalse(got["ok"])
-        self.assertTrue(got["reason"].startswith(boardview.READONLY_MOVED), got["reason"])
+        self.assertTrue(got["reason"].startswith(planblk.READONLY_MOVED), got["reason"])
         self.assertFalse((r.folder / design.DESIGN_FILE).exists())
 
     def test_skipped_when_purpose_unusable(self):
@@ -850,7 +850,7 @@ class ReviewAcceptCase(RunCase):
         (r.repo / "stats.py").write_text("# 変えた\n", encoding="utf-8")
         got = r.accept(review(MEAN_BLOCK))
         self.assertFalse(got["ok"])
-        self.assertTrue(got["reason"].startswith(boardview.READONLY_MOVED), got["reason"])
+        self.assertTrue(got["reason"].startswith(planblk.READONLY_MOVED), got["reason"])
         git(r.repo, "commit", "-qam", "役が commit した")
         got = r.accept(review())
         self.assertFalse(got["ok"])

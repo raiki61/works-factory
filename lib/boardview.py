@@ -85,10 +85,8 @@ PROMPT_FILE = "prompt.md"
 REVIEW_FILE = "review.json"
 PASSES_FILE = "gate-passes.json"
 TREE_FEATURE = "review_tree"
-READONLY_MOVED = planblk.READONLY_MOVED
 # 元 works/.shared/core/design.py:104
 PREMISE_MISS = "premise_invalid_reason の名指しが固めた版の実物に当たらない（追跡されたファイルと、その行の範囲を名指せ）: "
-NO_TREE = planblk.NO_TREE
 # 元 works/.shared/core/design.py:82。指示書は「渡すのは元の目的と実測した制約だけ」と書くので、貼った前提をこの節で読み替える
 DESIGN_PREMISE_REREAD = ("下の指示書の「渡すのは元の目的と実測した制約だけである」は、この run では、この節（人の関所の答え・"
                          "依頼が名指した設計書の節・対象のリポジトリの地図）も渡していると読み替えよ。")
@@ -666,15 +664,9 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     if rows:
         prompt = rolekit.with_reject(prompt, rows[-1])
     _write_json(d / PREMISES_FILE, {"node": design.NODE, **ledger})
-    _write_json(d / R2_TREE, accept.tree_state(pathlib.Path(cwd)))
+    planfile.snap_tree(d / R2_TREE, cwd)
     (d / R2_PROMPT).write_text(prompt, encoding="utf-8")
     return prompt
-
-
-def _moved(before_file: pathlib.Path, repo, keys=accept.TREE_KEYS) -> list:
-    if not before_file.is_file():
-        raise Reject(NO_TREE.format(name=before_file.name))
-    return accept.tree_moved(_read_json(before_file), pathlib.Path(repo), keys=keys)
 
 
 def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
@@ -687,9 +679,9 @@ def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
         reply, why = rolekit.parse_reply(raw)
         if reply is None:
             raise Reject(why)
-        moved = _moved(d / R2_TREE, repo, keys)
+        moved = planfile.moved(d / R2_TREE, repo, keys)
         if moved:
-            raise Reject(READONLY_MOVED + "；".join(moved))
+            raise Reject(moved)
         accept.type_errors(reply, read_open(d)["design_schema"], "独立設計の返答")
         if not reply["question_stands"]:
             misses = design.anchor_misses(reply.get("premise_invalid_reason") or reply["reason"], repo)
@@ -806,7 +798,7 @@ def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, comma
     if last:
         body = rolekit.with_reject(body, last[-1])
     main.write_text(body + "\n", encoding="utf-8")
-    _write_json(p / TREE_FILE, accept.tree_state(pathlib.Path(repo)))
+    planfile.snap_tree(p / TREE_FILE, repo)
     return main
 
 
@@ -864,9 +856,9 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo, keys) -> di
     reply, why = rolekit.parse_reply(raw)
     if reply is None:
         raise Reject(why)
-    moved = _moved(p / TREE_FILE, repo, keys)
+    moved = planfile.moved(p / TREE_FILE, repo, keys)
     if moved:
-        raise Reject(READONLY_MOVED + "；".join(moved))
+        raise Reject(moved)
     if not isinstance(reply.get("faces"), list):
         accept.type_errors(reply, inputs["review_schema"], "事前審査の返答")
     gaps = gatemarks.recommend_gaps(REVIEW_NODE, reply)

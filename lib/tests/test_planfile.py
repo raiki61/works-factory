@@ -523,7 +523,7 @@ class TakePlanCase(TmpCase):
         self.write("plan/r1/round.json", {"round": 1, "mode": "plan", "go": True, "why": "", "items": [],
                                           "structure": "structure/k"})
         self.write("plan/r1/slots.json", planfile.slots(judgment()))
-        planfile.snap_tree(self.round, self.repo)
+        planfile.snap_tree(self.round / planfile.TREE_FILE, self.repo)
 
     def take(self, reply, *, base_rev=None):
         return planfile.take_plan(self.round, self.plan_dir, judgment=judgment(), reply=reply, repo=self.repo,

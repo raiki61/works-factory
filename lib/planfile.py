@@ -810,18 +810,19 @@ def _section(head: str, lines) -> str:
     return head + "\n" + "\n".join(f"  - {g}" for g in lines) if lines else ""
 
 
-def snap_tree(round_dir, repo) -> pathlib.Path:
-    """修正案の役を起こす前の作業ツリーの姿を TREE_FILE に置く（元 works/blk-plan/lib/planblk.py:1062 の snap）"""
-    return _write_json(pathlib.Path(round_dir) / TREE_FILE, accept.tree_state(pathlib.Path(repo)))
+def snap_tree(path, repo) -> pathlib.Path:
+    """読むだけの役を起こす前の作業ツリーの姿を path に置く（元 works/blk-plan/lib/planblk.py:1062 の snap。事前審査の役の分も）"""
+    return _write_json(path, accept.tree_state(pathlib.Path(repo)))
 
 
-def _moved(round_dir, repo) -> str:
-    """役が作業ツリーを変えた・HEAD や枝を動かした訳（変えていなければ空）。起こす前の姿が無ければその訳"""
-    before = _read_json(pathlib.Path(round_dir) / TREE_FILE)
+def moved(path, repo, keys=accept.TREE_KEYS) -> str:
+    """役が作業ツリーを変えた・HEAD や枝を動かした訳（keys の欄で比べる。変えていなければ空）。起こす前の姿 path（snap_tree）が
+    読めなければその訳"""
+    before = _read_json(path)
     if not isinstance(before, dict):
-        return planblk.NO_TREE.format(name=TREE_FILE)
-    moved = accept.tree_moved(before, pathlib.Path(repo))
-    return planblk.READONLY_MOVED + "；".join(moved) if moved else ""
+        return planblk.NO_TREE.format(name=pathlib.Path(path).name)
+    changes = accept.tree_moved(before, pathlib.Path(repo), keys=keys)
+    return planblk.READONLY_MOVED + "；".join(changes) if changes else ""
 
 
 def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=None) -> dict:
@@ -843,15 +844,15 @@ def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=No
 
 
 def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: str) -> dict:
-    """修正案の役の返答（形 plan）を受け付ける。役が作業ツリーを動かしていれば先にそれだけで拒む（_moved）。拒否は理由を全部 1 回で
+    """修正案の役の返答（形 plan）を受け付ける。役が作業ツリーを動かしていれば先にそれだけで拒む（moved）。拒否は理由を全部 1 回で
     並べて {ok: False, reason}。通れば no を id に戻した返答を
     planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}（置けなければ
     _save の halt）。2 往復目からは block_answers を外して前の往復の block への答えを照らし、閉じた・保留の項目の行を差し込んだ案の全体を照らす。
     返答から捨てた閉じた項目の行は trace に converge.DROPPED_OP で残す（元 planblk.revise_take）"""
     round_dir = pathlib.Path(round_dir)
-    moved = _moved(round_dir, repo)
-    if moved:
-        return {"ok": False, "reason": moved}
+    why = moved(round_dir / TREE_FILE, repo)
+    if why:
+        return {"ok": False, "reason": why}
     if replan._malformed(reply):
         return {"ok": False, "reason": MALFORMED_REJECT}
     record = converge_record(plan_dir)
@@ -897,9 +898,9 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
     plan-fields.json（amended に直した項目の核の欄。planmarks.amend と同じ）・reply.json に書き、trace に planmarks.AMEND_OP を書く。
     作業ツリーの比べと控えを置けない時は take_plan と同じ"""
     round_dir = pathlib.Path(round_dir)
-    moved = _moved(round_dir, repo)
-    if moved:
-        return {"ok": False, "reason": moved}
+    why = moved(round_dir / TREE_FILE, repo)
+    if why:
+        return {"ok": False, "reason": why}
     prev = latest(plan_dir, before=round_dir)
     if prev is None:
         return {"ok": False, "reason": f"{replan.REPLAN_REJECT}\n  - 直す元の承認済みの修正案が無い"}

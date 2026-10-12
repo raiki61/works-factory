@@ -47,7 +47,7 @@ def main() -> None:
         lang=start.get("lang"), lib_docs=planfile.lib_section(plan_dir, repo, str(judgment_file or ""), keys,
                                                                      shared=shared_cache()),
         conflicts=conflicts, policy_md=policy.frozen_copy(start), prior_failures=prior, unread=unread)
-    planfile.snap_tree(round_dir, repo)
+    planfile.snap_tree(round_dir / planfile.TREE_FILE, repo)
     boundary.returns({"brief": str(path), "attempt": n})
 
 
