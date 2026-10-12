@@ -13,6 +13,7 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import eye  # noqa: E402
+import planfile  # noqa: E402
 
 DOC = {"status": "ok", "reason": "", "units": [
     {"id": "u-1", "summary": "直す所", "paths": ["a.txt"], "status": "measured", "reason": "", "measure": {"churn": 3}},
@@ -183,6 +184,8 @@ class EyeAcceptCase(unittest.TestCase):
                              [(False, False, False), (False, False, False), (False, True, True)])
             self.assertEqual(eye.state(d)["status"], "gave_up")
             self.assertEqual(design.stat().st_size, 0)
+            self.assertEqual(json.loads(planfile.write_state(d).read_text(encoding="utf-8"))["reason"],
+                             f"構造の目の返答が 3 回とも受け付けで拒まれた: {got[-1]['reason']}", "諦めの文は拒否の控えから読む")
 
 
 if __name__ == "__main__":

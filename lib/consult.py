@@ -197,9 +197,6 @@ def _oos_rows(it: dict) -> list:
     return out
 
 
-_write_json = jsonfile.write
-
-
 def _read_json(path: pathlib.Path):
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
@@ -436,7 +433,7 @@ def queue(b, pass_: str, asks: list) -> bool:
     st = state(b, pass_)
     rows = [{**a, "item": "" if a.get("item") is None else str(a.get("item")), "paths": list(a.get("paths") or []), "tests": list(a.get("tests") or []),
              "new_tests": list(a.get("new_tests") or []), "why": str(a.get("why") or ""), "origin": ORIGIN_ACCEPT} for a in asks]
-    _write_json(state_path(b, pass_), {**st, "queued": [*(st.get("queued") or []), *rows], "turns": int(st.get("turns") or 0) + 1})
+    jsonfile.write(state_path(b, pass_), {**st, "queued": [*(st.get("queued") or []), *rows], "turns": int(st.get("turns") or 0) + 1})
     return True
 
 
@@ -463,7 +460,7 @@ def settle(b, answer, pass_: str, node: str, round_: int = 1) -> dict:
     out_rows = _trace_rows(b, st, answer, by_n, turn, pass_, node, round_)
     path = pathlib.Path(b) / ANSWER_FILE.format(pass_=pass_, turn=turn)
     path.write_text(answer_text(turn, out_rows), encoding="utf-8")
-    _write_json(state_path(b, pass_), {**st, "turn_state": ANSWERED_TURN, "answer_file": str(path),
+    jsonfile.write(state_path(b, pass_), {**st, "turn_state": ANSWERED_TURN, "answer_file": str(path),
                                        "ids": [r["id"] for r in out_rows]})
     counts = collections.Counter(r["decision"] if r["status"] == ANSWERED else r["status"] for r in out_rows)
     return {"consulted": True, "turn": turn, "answer_file": str(path), "counts": dict(counts)}
@@ -542,7 +539,7 @@ def take(b, pass_: str):
     st = state(b, pass_)
     if st.get("turn_state") != ANSWERED_TURN or not st.get("answer_file"):
         return None
-    _write_json(state_path(b, pass_), {**st, "turn_state": DELIVERED})
+    jsonfile.write(state_path(b, pass_), {**st, "turn_state": DELIVERED})
     origin = ORIGIN_ACCEPT if any(r.get("origin") == ORIGIN_ACCEPT for r in st.get("rows") or []) else ""
     return {"turn": int(st.get("turns") or 0), "answer_file": st["answer_file"],
             "left": max(0, BUDGET - int(st.get("turns") or 0)), "origin": origin}
@@ -554,7 +551,7 @@ def write_config(place, doc: dict) -> pathlib.Path:
     place = pathlib.Path(place)
     place.mkdir(parents=True, exist_ok=True)
     path = place / CONFIG
-    _write_json(path, doc)
+    jsonfile.write(path, doc)
     return path
 
 

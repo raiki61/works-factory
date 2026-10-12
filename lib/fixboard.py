@@ -2353,7 +2353,7 @@ def consult_ask(place, reply, pass_: str, items, *, node: str, human_items=(), r
         path = pathlib.Path(place) / consult.QUESTION_FILE.format(pass_=pass_, turn=turn)
         path.write_text(head + "\n\n" + consult.question(table, asked), encoding="utf-8")
         qfile = str(path)
-    consult._write_json(consult.state_path(place, pass_), {"turns": turn, "turn_state": consult.ASKED, "rows": rows,
+    jsonfile.write(consult.state_path(place, pass_), {"turns": turn, "turn_state": consult.ASKED, "rows": rows,
                                                            "question_file": qfile, "session": None, "node": node,
                                                            "items": table})
     return {"consulted": True, "go": bool(asked), "prompt_file": qfile, "turn": turn, "spent": False}

@@ -601,8 +601,9 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _outcome(doc: dict, kept: dict) -> tuple:
-    """(status, reason)（元 works/blk-structure/scripts/collect.py の outcome。輪の出口の代わりに目の控え eye.json を読む）"""
+def _outcome(doc: dict, kept: dict, rejects: list) -> tuple:
+    """(status, reason)（元 works/blk-structure/scripts/collect.py の outcome。輪の出口の代わりに目の控え eye.json と
+    拒否の控え rejects（rolekit.rejected）を読む）"""
     if doc.get("status") != "ok":
         return "failed", f"実測が落ちた: {doc.get('reason') or '理由の記録が無い'}"
     if not eye.due(doc):
@@ -610,7 +611,7 @@ def _outcome(doc: dict, kept: dict) -> tuple:
     if kept.get("status") == "ok":
         return "ok", ""
     if kept.get("status") == "gave_up":
-        return "failed", f"構造の目の返答が {kept.get('attempt') or '?'} 回とも受け付けで拒まれた: {kept.get('reason') or ''}"
+        return "failed", f"構造の目の返答が {len(rejects) or '?'} 回とも受け付けで拒まれた: {rejects[-1] if rejects else ''}"
     return "failed", "構造の目の会話が落ちたか走らなかった（目の受け付けの控えが無いか途中のまま）"
 
 
@@ -629,7 +630,7 @@ def write_state(out_dir, *, skipped: str = "") -> pathlib.Path:
     doc = _read_json(out_dir / STRUCTURE_FILE)
     kept = eye.state(out_dir)
     if isinstance(doc, dict):
-        status, reason = _outcome(doc, kept)
+        status, reason = _outcome(doc, kept, rolekit.rejected(out_dir, eye.NAME))
     else:
         status, reason = "failed", f"段 A の {STRUCTURE_FILE} が読めない"
     return structmark.write(out_dir, status=status, reason=reason, design_file=str(out_dir / DESIGN_FILE),

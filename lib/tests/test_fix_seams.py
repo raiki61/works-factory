@@ -30,6 +30,7 @@ from tests.bin.gitkit import committed_copy, git  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import groups  # noqa: E402
+import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
 import lens  # noqa: E402
 import unittrees  # noqa: E402
@@ -887,12 +888,13 @@ class RulingSeamCase(TempCase):
         r = self.ruling
         r.prep(self.place, self.repo, self.VALUES)
         bad = {"rulings": [{"id": "c9-9", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": []}]}
-        got = r.accept_rule(bad, self.place, self.rev, self.repo, iteration=1)
-        self.assertEqual((got["ok"], got["done"]), (False, False))
-        self.assertIn("c9-9", got["reason"])
+        for _ in range(r.GIVE_UP_AFTER - 1):
+            got = r.accept_rule(bad, self.place, self.rev, self.repo)
+            self.assertEqual((got["ok"], got["done"]), (False, False))
+            self.assertIn("c9-9", got["reason"])
         self.assertEqual(len(self.conflict.unruled(self.place)), 1, "拒んだ回は積まない")
         (self.repo / "stats.py").write_text("# 変えた\n", encoding="utf-8")
-        got = r.accept_rule(self.reply(), self.place, self.rev, self.repo, iteration=r.GIVE_UP_AFTER)
+        got = r.accept_rule(self.reply(), self.place, self.rev, self.repo)
         self.assertTrue(got["reason"].startswith(r.READONLY), got)
         self.assertEqual((got["ok"], got["done"]), (False, True))
         row, = self.conflict.items(self.place)
@@ -1923,7 +1925,7 @@ class FixAcceptSeamCase(TempCase):
         st = consult.state(self.place, "first")
         self.assertEqual([r["status"] for r in st["rows"]], [consult.ASKED, consult.REFUSED])
         self.assertEqual(fixboard.consult_ask(self.place, {"changes": []}, "first", items, node="x")["consulted"], False)
-        consult._write_json(consult.state_path(self.place, "first"), {"turns": consult.BUDGET})
+        jsonfile.write(consult.state_path(self.place, "first"), {"turns": consult.BUDGET})
         self.assertTrue(fixboard.consult_ask(self.place, reply, "first", items, node="x")["spent"])
 
     def test_accept_reply_parks_the_bound_unit_on_the_last_turn(self):

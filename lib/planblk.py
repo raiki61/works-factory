@@ -325,12 +325,9 @@ def lib_section(b, repo, shared=None) -> str:
     return text + (f"\n- 単位のファイルの引き: {why}" if why else "")
 
 
-_read_json = jsonfile.read_or
-
-
 def _ripple_of(b, k: int):
     """往復 k の項目ごとの波及の一覧（無ければ None）"""
-    return _read_json(b.work(RIPPLE_PASS.format(k=k)))
+    return jsonfile.read_or(b.work(RIPPLE_PASS.format(k=k)))
 
 
 VERIFY_HEAD = promptsection.Section("## 判定の単位の裏取り（判定とは別の目が単位ごとに確かめた申し送り。機械が貼った）", source="fn:planblk.verify_part")
@@ -368,7 +365,7 @@ def verify_part(verify_file) -> str:
     path = _given(verify_file)
     if not path:
         return ""
-    doc = _read_json(pathlib.Path(path))
+    doc = jsonfile.read_or(pathlib.Path(path))
     if not isinstance(doc, dict) or not isinstance(doc.get("units"), list):
         return f"{VERIFY_HEAD}\n\n申し送りのファイル {path} が読めない（判定のままに読め）。"
     lines = [VERIFY_HEAD, "", VERIFY_ASK, ""] + [_verify_row(u) for u in doc["units"] if isinstance(u, dict)]
@@ -458,7 +455,7 @@ def _precedent_cache(b) -> pathlib.Path:
 
 def precedent_checks(b) -> dict:
     """控えた先行例の出典の確かめ {出典: {found, quote, round, pass, item}}（無い・読めなければ {}）"""
-    doc = _read_json(_precedent_cache(b))
+    doc = jsonfile.read_or(_precedent_cache(b))
     return doc if isinstance(doc, dict) else {}
 
 
@@ -530,7 +527,7 @@ def save_precedents(b, plan_rows: dict, answers: dict, k: int) -> None:
                 cache[src] = {"found": r.get("found"), "quote": r.get("quote"), "round": b.round, "pass": k, "item": n}
     path = _precedent_cache(b)
     path.parent.mkdir(parents=True, exist_ok=True)
-    _write_json(path, cache)
+    jsonfile.write(path, cache, indent=2)
 
 
 def synergy_schema(b) -> dict:
@@ -867,10 +864,6 @@ def tree_part(b, main_prompt: pathlib.Path) -> str:
 
 
 # ---------------------------------------------------------------- 節
-
-
-def _write_json(path, doc) -> None:
-    jsonfile.write(path, doc, indent=2)
 
 
 _WRITERS = ("plan", REVISE_ROLE)

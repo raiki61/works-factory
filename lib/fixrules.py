@@ -265,12 +265,6 @@ def tdd_render(values, phase, phase_text, *, title, reason="", kinds=None, itera
 
 
 # ---------------------------------------------------------------- 指示書を書く（支度の節）
-_read_json = jsonfile.read_or
-
-
-_write_json = jsonfile.write
-
-
 def beside(prompt: pathlib.Path, tail: str) -> pathlib.Path:
     """<名>.md の隣の <名><tail>"""
     return prompt.with_name(prompt.name[:-len(".md")] + tail if prompt.name.endswith(".md") else prompt.name + tail)
@@ -290,18 +284,18 @@ def kinds_now(values: dict, repo, before=()) -> dict:
 
 def iteration_next(prompt: pathlib.Path) -> int:
     """この輪で次に組む回の番号（<名>.delivered.json の iterations の数 + 1）"""
-    return len((_read_json(beside(prompt, DELIVERED)) or {}).get("iterations") or []) + 1
+    return len((jsonfile.read_or(beside(prompt, DELIVERED)) or {}).get("iterations") or []) + 1
 
 
 def write_prompt(prompt: pathlib.Path, repo, values: dict, build, iteration: int) -> None:
     """指示書 prompt を書く。build(kinds) -> rulebook.render の返り。この輪で前に渡した証拠の種類（<名>.delivered.json）を
     kinds_now に足して組み、渡した後の種類と回を積む。repo が None なら差分を見ない"""
     ledger = beside(prompt, DELIVERED)
-    done = _read_json(ledger)
+    done = jsonfile.read_or(ledger)
     done = done if isinstance(done, dict) else {}
     kinds = kinds_now(values, repo, done.get("kinds") or ())
     prompt.write_text(build(kinds)["text"], encoding="utf-8")
-    _write_json(ledger, {"kinds": sorted(kinds), "iterations": [*(done.get("iterations") or []), iteration]})
+    jsonfile.write(ledger, {"kinds": sorted(kinds), "iterations": [*(done.get("iterations") or []), iteration]})
 
 
 # ---------------------------------------------------------------- 節 fix-prep

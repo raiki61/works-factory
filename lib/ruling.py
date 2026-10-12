@@ -9,7 +9,7 @@
 - prep(board_dir, repo, values, reject_file="", lang=""): 節 rule-prep の中身。作業ツリーの姿を控え（fixboard.snapshot。読むだけの役の
   見張り）、指示書を fixrules.ruler_prompt で組んで置き場の prompt-rule.md に書く。出し直しなら前の拒否の理由のファイル reject_file
   （呼び手が渡す）を 1 行目で名指す（R44）。lang は言語の 1 行（呼び手が組む）
-- accept_rule(reply, board, base_rev, repo, iteration=None): 節 rule-accept の中身（呼び手の script が回す）。作業ツリーが変わっていない・裁く申し出の id に
+- accept_rule(reply, board, base_rev, repo): 節 rule-accept の中身（呼び手の script が回す）。作業ツリーが変わっていない・裁く申し出の id に
   ちょうど 1 件ずつ・fix_test_scope の範囲が現物に在る・replace_query の問いが例（hits・misses・申し出の correct_lines）で
   外れない・裁きの出どころ（grounds）が現物に在り、依頼のファイルが在る run の ask_human は依頼の行か request_searched を持つ・
   fix_plan_item は範囲を持たず、grounds にその単位の brief の行を名指す（planbrief.by_unit_at・conflict.brief_cite_problem）・
@@ -44,9 +44,6 @@ BY_GIVE_UP = stopby.declare("rule-give-up", "裁定の by: 裁定役の返答が
 GIVE_UP_TEXT = f"裁定役の返答が {GIVE_UP_AFTER} 回とも受け付けを通らなかった——材料から決められない物として人に回した"
 READONLY = "裁定役は読むだけで、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない: "
 RULING_KEYS = ("decision", "text", "limits", "grounds", "request_searched", "query")   # 置き場の控えに積む裁定の欄
-
-
-_read_json = jsonfile.read_or
 
 
 def prep(board_dir, repo, values: dict, *, reject_file: str = "", lang: str = "") -> dict:
@@ -188,14 +185,12 @@ def query_problems(r: dict, item: dict) -> list:
     return errs
 
 
-def accept_rule(reply, board, base_rev, repo, *, iteration=None, keys=TREE_KEYS) -> dict:
-    """節 rule-accept の中身。{ok, done, reason, rulings_file, counts}。裁定の文は置き場に書く。iteration は輪の今の回
-    （None なら拒否の控えから数えた今の回 rolekit.attempt）。keys は作業ツリーの控えと比べる欄（tree_moved）。作業ツリーの控えが無い・形が違うのは
-    ValueError（rule-prep が先に走る）"""
+def accept_rule(reply, board, base_rev, repo, *, keys=TREE_KEYS) -> dict:
+    """節 rule-accept の中身。{ok, done, reason, rulings_file, counts}。裁定の文は置き場に書く。諦めの回は拒否の控え（rolekit）が
+    数える。keys は作業ツリーの控えと比べる欄（tree_moved）。作業ツリーの控えが無い・形が違うのは ValueError（rule-prep が先に走る）"""
     b = pathlib.Path(board)
     todo = {i["id"]: i for i in conflict.unruled(b)}
-    it = int(iteration) if iteration is not None else rolekit.attempt(b, ROLE)
-    snap = _read_json(b / TREE)
+    snap = jsonfile.read_or(b / TREE)
     if not (isinstance(snap, dict) and set(TREE_KEYS) <= set(snap)):
         raise ValueError(f"{b / TREE} が無い・形が違う——rule-prep が先に走る")
     moved = tree_moved({k: snap[k] for k in TREE_KEYS}, pathlib.Path(repo), keys=keys)
@@ -210,10 +205,9 @@ def accept_rule(reply, board, base_rev, repo, *, iteration=None, keys=TREE_KEYS)
             return got
         path = conflict.apply_rulings(b, {r["id"]: stored(r) for r in reply["rulings"]}, by=BY_ROLE)
         return {"ok": True, "done": True, "reason": "", "rulings_file": str(path), "counts": conflict.counts(b)}
-    out = {"ok": False, "done": False, "reason": " / ".join(errs), "rulings_file": "", "counts": conflict.counts(b)}
-    rolekit.with_done(b, ROLE, out)   # 拒否を控えに積む（次の rule-prep の回の数え）
-    if it >= GIVE_UP_AFTER:
+    out = rolekit.with_done(b, ROLE, {"ok": False, "reason": " / ".join(errs), "rulings_file": "", "counts": conflict.counts(b)})
+    if out["done"]:
         path = conflict.apply_rulings(b, {i: {"decision": conflict.ASK, "text": GIVE_UP_TEXT, "limits": []} for i in todo},
                                       by=BY_GIVE_UP)
-        out.update(done=True, rulings_file=str(path), counts=conflict.counts(b))
+        out.update(rulings_file=str(path), counts=conflict.counts(b))
     return out

@@ -89,10 +89,6 @@ def _read_json(path: pathlib.Path, default):
         raise BoardGap(f"{path} が読めない: {e}") from None
 
 
-def _write_json(path: pathlib.Path, doc) -> None:
-    jsonfile.write(path, doc, indent=2)
-
-
 def _gave_up_text(name: str, count: int, last: str, *, at_once: bool = False) -> str:
     """given_up_reason が返す諦めた理由の 1 行の文。at_once は出し直させずに諦めた時（with_done の give_up）"""
     last = " ".join(str(last).split())
@@ -116,7 +112,7 @@ def with_done(board: pathlib.Path, name: str, out: dict, *, give_up_after: int =
     rows = _read_json(path, [])
     row = {"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "reason": str(out.get("reason", ""))}
     rows.append({**row, "give_up": True} if give_up else row)
-    _write_json(path, rows)
+    jsonfile.write(path, rows, indent=2)
     return {**out, "done": give_up or len(rows) >= give_up_after}
 
 

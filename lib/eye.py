@@ -9,8 +9,8 @@
 受け付けは返答を機械で確かめ、通れば design-row.schema.json の形の行を design.jsonl に書く。拒めば理由を返し、同じ会話で
 出し直させる（輪の max_iterations は 3。3 回目の拒否は give_up で輪を抜け、線を落とさない）。
 
-控え eye.json（design.jsonl の隣。段 A が置き直す）: {attempt, started_at, reason, status: pending|ok|gave_up, wall_s}。回の数えと
-拒否の文の正本は rolekit の拒否の控え rejects-structure-eye.json（同じ置き場。resume を跨いで数える）。
+控え eye.json（design.jsonl の隣。段 A が置き直す）: {started_at, status: pending|ok|gave_up, wall_s}。回の数えと拒否の文は
+rolekit の拒否の控え rejects-structure-eye.json だけが持つ（同じ置き場。resume を跨いで数える）。
 目の秒は 1 回目の支度から最後の受け付けまでの壁時計の秒。
 ブロックの時間の欄の名 WALL（秒）はこのモジュールが持つ: 段 A・段 B の timing は stamp で書き、出口（collect）は wall で読んで足す。
 
@@ -169,8 +169,7 @@ def prep(structure_file) -> dict:
     prompt = render(doc, rejects[-1] if rejects else "")
     path = out_dir / PROMPT_FILE.format(n=n)
     path.write_text(prompt, encoding="utf-8")
-    _put(out_dir, {"attempt": n, "started_at": st.get("started_at") or time.time(), "reason": rejects[-1] if rejects else "",
-                   "status": "pending", WALL: st.get(WALL, 0)})
+    _put(out_dir, {"started_at": st.get("started_at") or time.time(), "status": "pending", WALL: st.get(WALL, 0)})
     return {"prompt": prompt, "prompt_file": str(path), "attempt": n}
 
 
@@ -247,12 +246,11 @@ def accept(structure_file, design_file, reply) -> dict:
     if bad:
         reason = " / ".join(bad)
         give_up = rolekit.with_done(out_dir, NAME, {"ok": False, "reason": reason})["done"]
-        _put(out_dir, {**st, "attempt": n, "started_at": started, "reason": reason,
-                       "status": "gave_up" if give_up else "pending", WALL: wall})
+        _put(out_dir, {"started_at": started, "status": "gave_up" if give_up else "pending", WALL: wall})
         return {"ok": False, "done": give_up, "give_up": give_up, "reason": reason, "attempt": n}
     rows = [{**r, "route": r.get("route", ROUTE),
              "route_reason": r["undecided_because"].strip() if r.get("route") == ROUTE_UP else ROUTE_REASON}
             for r in reply["rows"]]
     pathlib.Path(design_file).write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-    _put(out_dir, {**st, "attempt": n, "started_at": started, "reason": "", "status": "ok", WALL: wall})
+    _put(out_dir, {"started_at": started, "status": "ok", WALL: wall})
     return {"ok": True, "done": True, "give_up": False, "reason": "", "attempt": n}

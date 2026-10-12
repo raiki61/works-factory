@@ -38,6 +38,7 @@ import engine.util as _util  # noqa: E402
 import forge  # noqa: E402
 import gatemarks  # noqa: E402
 import ghreads  # noqa: E402
+import jsonfile  # noqa: E402
 import judgeverify as jv  # noqa: E402
 import marks  # noqa: E402
 import outpurpose  # noqa: E402
@@ -934,9 +935,9 @@ def prep_on(jdir, judgment, repo, verify: bool = True) -> dict:
     reply = {k: v for k, v in jv.output_format().items() if k != "description"}
     prompt.write_text("\n\n".join([jv.AGG, "下請けのファイル:\n" + "\n".join(files),
                                    f"{jv.AGG_REPLY}\n\n```json\n{json.dumps(reply, ensure_ascii=False)}\n```"]) + "\n", encoding="utf-8")
-    jv._write_json(jdir / VERIFY_TREE_FILE, core_accept.tree_state(pathlib.Path(repo)))
-    jv._write_json(jdir / jv.PLAN_FILE, {"units": [{"n": n, "key": u["key"]} for n, u in enumerate(units, 1)], "answers": str(answers)})
-    jv._write_json(jdir / jv.VERIFY_FILE, jv._initial(units))
+    jsonfile.write(jdir / VERIFY_TREE_FILE, core_accept.tree_state(pathlib.Path(repo)), parents=True)
+    jsonfile.write(jdir / jv.PLAN_FILE, {"units": [{"n": n, "key": u["key"]} for n, u in enumerate(units, 1)], "answers": str(answers)}, parents=True)
+    jsonfile.write(jdir / jv.VERIFY_FILE, jv._initial(units), parents=True)
     return {"go": True, "prompt_file": str(prompt), "reason": ""}
 
 
@@ -978,7 +979,7 @@ def merge_on(jdir, repo, *, keys=core_accept.TREE_KEYS) -> dict:
     相乗りの番号を単位の key に戻して judge-verify.json に書く（単位は消さない）。束ね役か下請けが作業ツリーを変えていれば
     止めの控え（VERIFY_STOP）を置いて ok 偽（元は盤面を止めた）。keys は作業ツリーの写しと比べる欄（_moved_since）"""
     jdir = pathlib.Path(jdir)
-    plan = jv._read_json(jdir / jv.PLAN_FILE)
+    plan = jsonfile.read_or(jdir / jv.PLAN_FILE)
     if not isinstance(plan, dict) or not isinstance(plan.get("units"), list):
         if not (jdir / jv.VERIFY_FILE).is_file():
             verify_not_run(jdir, "判定の裏取りの支度が走らなかった（番号の控えが無い）")
@@ -991,7 +992,7 @@ def merge_on(jdir, repo, *, keys=core_accept.TREE_KEYS) -> dict:
     keys = {r["n"]: r["key"] for r in plan["units"]}
     rows = [_check_unit(answers, n, key) for n, key in keys.items()]
     syn = _check_synergy(answers, keys)
-    jv._write_json(jdir / jv.VERIFY_FILE, {"units": rows, "synergy": syn})
+    jsonfile.write(jdir / jv.VERIFY_FILE, {"units": rows, "synergy": syn}, parents=True)
     if moved:
         reason = "判定の裏取りの束ね役か下請けが作業ツリーを変えた（読むだけの役）: " + "・".join(moved)
         write_stop(jdir, VERIFY_STOP, reason)

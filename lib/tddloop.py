@@ -2124,9 +2124,6 @@ def load_json(path: pathlib.Path, default):
     return got if isinstance(got, type(default)) else default
 
 
-save_json = jsonfile.write
-
-
 @contextlib.contextmanager
 def temp_tree(repo: pathlib.Path, rev: str):
     """(版 rev を出した一時の git worktree（--detach。フックは切る）か None, 作れない理由の並び)。写しに .git が在るので git を読む
@@ -2185,7 +2182,7 @@ def _base_reds(st, repo, rev, files, kexpr) -> tuple:
     if cases is None:
         return None, why
     reds = {_key(c) for c in cases if c["outcome"] in ("failure", "error")}
-    save_json(cache, [*rows, {**key, "files": sorted(set(files)), "reds": sorted(reds)}])
+    jsonfile.write(cache, [*rows, {**key, "files": sorted(set(files)), "reds": sorted(reds)}])
     return reds, []
 
 

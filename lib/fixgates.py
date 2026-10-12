@@ -63,6 +63,7 @@ import cite  # noqa: E402  （.shared/core。名指しの形）
 import conflict  # noqa: E402  （.shared/core。修正案の欄の控え・テストの変更の許し）
 import fixboard  # noqa: E402  （lib。修正前の版 base_rev・直す義務 owed_units_but_asked（元 writes・conflict の盤面の読みを値で受ける形））
 import impact  # noqa: E402  （.shared/core。受け付けの置き場の trace の行の名・テストのファイルの見分け）
+import jsonfile  # noqa: E402
 import planmarks  # noqa: E402  （.shared/core。修正案の書き換えの名指し・テストの定義の行）
 import planrange  # noqa: E402  （.shared/core。範囲の相談の合意を項目の写しに重ねる with_agreed・パスを結ぶ項目 owner）
 import tddloop  # noqa: E402  （同じブロックの lib。輪の関門の読み口をそのまま使う）
@@ -312,7 +313,7 @@ def _red_green(repo: pathlib.Path, rev: str, suite: str, tests: list, work: path
         if base is None:
             return [], [f"{NO_RUN}（base の木: {'; '.join(why)}）"], []
         seen = {**tddloop.load_json(cache, {}), **{keys[i]: rules.match_case(i, base) for i in need}}
-        tddloop.save_json(cache, seen)
+        jsonfile.write(cache, seen)
     rows, guards = [], []
     for t in tests:
         c = rules.match_case(t["id"], now)
@@ -368,7 +369,7 @@ def _red_tree_probs(repo: pathlib.Path, rev: str, suite: str, ids: list, loop: d
                 return None, why
             out[i] = probs
             seen = {**tddloop.load_json(cache, {}), keys[i]: probs}
-            tddloop.save_json(cache, seen)
+            jsonfile.write(cache, seen)
     return out, []
 
 
