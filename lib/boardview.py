@@ -120,7 +120,7 @@ ROW_HEAD = promptsection.Section("### 修正の段の申し出と裁定（{id}�
 WHY_FIELD = "why_both_cannot_hold"
 KIND_FIELD = "kind"
 WHICH_FIELD = "which_is_right"
-NO_APPROVED = "案の直しの事前審査なのに、置き場に承認済みの修正案（前の差し込みの往復の控えと凍結した欄）が無い"
+NO_APPROVED = "案の直しの事前審査なのに、置き場に承認済みの修正案（前の計画の往復の控えと凍結した欄）が無い"
 REPLAN_ASKED = ("人に聞く直した項目 {n}（単位 {units}）: 約束の欄の変化 {changed}・人に聞く穴 {faces}"
                 "（前の項目と直した項目は {file}）")   # 元 works/.shared/core/replan.py:162・:593 の関所の節の 1 行
 REPLAN_FILE = "replan.json"             # 案の直しの項目 [{item, units, rows, old, new, contract_changed, human_faces, widened, ask}]（pass-<k>/ の中）
@@ -829,7 +829,7 @@ def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, comma
                         lib_docs=planblk.lib_section(b, pathlib.Path(repo), shared), design_part=part)
     diag = (b.record["process"].get("diagnosis") or {})
     body = "\n\n".join(x for x in (
-        _defaults_line(inputs), head, "## 差し込み（機械が貼った）",
+        _defaults_line(inputs), head, "## 機械が貼った材料",
         "修正役の案: " + json.dumps(_shown_plan(inputs), ensure_ascii=False, indent=1),
         UNITS_LINE + _units_text(b),
         "判定者の見立て: " + json.dumps(diag, ensure_ascii=False),

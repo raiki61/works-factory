@@ -50,7 +50,7 @@ PREMISE = "premise-check"
 LANE = {"r1": "R1", "r2": "R2", PREMISE: "R2", "r3": "R3", "r4": "R4"}
 RETURN_FIELDS = ("ok", *EYES, "questions", "premise_check", "structure_after", "protected_hits", "notes")
 VERDICTS = ("resolved", "escalate")
-NO_FILE = "返りのファイルが無い"
+NO_FILE = "出力のファイルが無い"
 NO_AFTER = "直しの後の実測: 控えが無い（測っていない run）"   # 元 blk-eyes/lib/eyes.py:93
 GREEN_LINE = "最後のテストの認証が通っていない（赤は最後の承認ノードで人が見る）"
 DOC_SUFFIXES = (".md",)
@@ -289,8 +289,8 @@ def _read_eye(eyes_dir: pathlib.Path, eye: str) -> tuple[dict | None, str]:
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        return None, f"返りのファイルが読めない: {e}"
-    return (doc, "") if isinstance(doc, dict) else (None, "返りのファイルが JSON の object でない")
+        return None, f"出力のファイルが読めない: {e}"
+    return (doc, "") if isinstance(doc, dict) else (None, "出力のファイルが JSON の object でない")
 
 
 def _protected(protected: dict | None) -> tuple[list, bool]:
@@ -422,7 +422,7 @@ def premise_fact_lines(eyes_dir) -> list:
 
 
 def _off_contract(eye: str) -> dict:
-    return {"lane": LANE[eye], "eye": eye, "state": "返りの判定の語が約束の外"}
+    return {"lane": LANE[eye], "eye": eye, "state": "出力の判定の語が約束の外"}
 
 
 def _row(eye: str, doc: dict | None, fell: dict | None, *, ran: str) -> dict:

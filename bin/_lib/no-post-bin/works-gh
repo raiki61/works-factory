@@ -128,7 +128,7 @@ def form_error(argv):
 
 
 def main(argv):
-    # 輪の断ち方は期限でなく形で: 口は本物の gh を起こす前に WORKS_FACTORY_GH_ACTIVE を立てる。本物の gh は口を呼ばないので、
+    # ループの断ち方は期限でなく形で: 口は本物の gh を起こす前に WORKS_FACTORY_GH_ACTIVE を立てる。本物の gh は口を呼ばないので、
     # これが立った env で口に入るのは、PATH の上の本物と取り違えた物が（置き場の外からでも）口へ回っている時だけ。その 2 度目で拒む
     if os.environ.get("WORKS_FACTORY_GH_ACTIVE"):
         return refuse("口が本物の gh の代わりに起こし直された（PATH の上の gh が口へ回っている）")

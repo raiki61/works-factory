@@ -220,7 +220,7 @@ def eye_lines(got: dict) -> list:
         row = got["eyes"].get(name)
         if not isinstance(row, dict):
             missing.append(name.upper())
-            lines.append(f"  - {gatemarks.EYES[name.upper()]}（{name.upper()}）: 結果が無い（深さで省いたか、目のブロックが返さなかった）")
+            lines.append(f"  - {gatemarks.EYES[name.upper()]}（{name.upper()}）: 結果が無い（深さで省いたか、目のサブグラフが返さなかった）")
             continue
         reason = " ".join(str(row.get("reason") or "").split())
         lines.append(f"  - {gatemarks.eye_named(name.upper(), row.get('status'))}" + (f"——理由: {reason}" if reason else ""))
@@ -277,7 +277,7 @@ def final_text(got: dict, why: list, run_id: str) -> str:
     lines.append(f"- 止めずに残った異議: {left_objection(got) or '無い'}")
     lines += ["- 再審で決着した結果:", *[f"  {x}" if x.startswith("  ") else f"  - {x}" for x in got["rejudge"]]] if got["rejudge"] \
         else ["- 再審: 無い"]
-    lines += [f"- 構造のブロック: {got['structure_missing']}"] if got["structure_missing"] else []
+    lines += [f"- 構造のサブグラフ: {got['structure_missing']}"] if got["structure_missing"] else []
     lines += [x if x[:1].isspace() else f"- {x}" for x in got["after"]]
     if got["passes"]:
         lines.append(f"- 直す前の承認ノードで通した項目（決め手が在るので聞かずに通した行と、人が通したので後の承認ノードで聞き直さなかった行。"
@@ -426,7 +426,7 @@ def eye_notes(notes) -> dict:
     _final_text の gatemarks.lines）・前提の検算で偽と分かった仮定の問いと次の run の制約に足す実測（premise-check.json）。null は
     目のブロックが材料を書けなかった道（訳の 1 行）"""
     if notes is None:
-        return {"r2_inputs": ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の返り notes が null）"], "eye_passes": [],
+        return {"r2_inputs": ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の出力 notes が null）"], "eye_passes": [],
                 "premise_facts": [], "notes_unread": []}
     try:
         folder = boundary.resolve(notes).parent

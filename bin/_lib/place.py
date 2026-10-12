@@ -1,11 +1,11 @@
-"""ASF が止めた版（factory/pack.json）の Archon の源を 1 度だけ取り、Archon の本体と ASF の工程の両方をそこから使う。自分の工程は置かずに起こす。
+"""ASF が止めた版（factory/pack.json）の Archon の源を 1 度だけ取り、Archon の本体と ASF のグラフの両方をそこから使う。自分のグラフは置かずに起こす。
 
 - Archon の本体: 源の packages/cli/src/cli.ts を bun で起こす（ASF の factory/consumer.py の cli() と同じ形）。
-- ASF の工程: 源の中の asf.folder（factory/pack.json の source_directory）。ASF の工程を回す時は --workflow-source に源を渡す。
-- 自分の工程: Archon の家に写さない。Archon は --workflow-source <dir> の <dir>/.archon/workflows/ を読み、run の始めに
+- ASF のグラフ: 源の中の asf.folder（factory/pack.json の source_directory）。ASF のグラフを回す時は --workflow-source に源を渡す。
+- 自分のグラフ: Archon の家に写さない。Archon は --workflow-source <dir> の <dir>/.archon/workflows/ を読み、run の始めに
   その中身を run の物として写し取る（Archon の packages/workflows/src/workflow-source.ts）。だからその中の
   .archon/workflows/<pack>/ がリポジトリの workflows/ を指す小さな置き場を作り、そこを --workflow-source に渡す。
-  pack の形にするのは、Archon が名前の script を pack の工程の時だけ工程のフォルダの scripts/ から探し、
+  pack の形にするのは、Archon が名前の script を pack のグラフの時だけグラフのフォルダの scripts/ から探し、
   pack の部品を <pack>/.shared/ から読むため（Archon の packages/workflows/src/script-discovery.ts）。
 
 Archon の家（$ARCHON_HOME/workflows など）には何も置かない。
@@ -19,7 +19,7 @@ from pathlib import Path
 
 ENTRY = "packages/cli/src/cli.ts"
 WORKFLOW_FOLDER = ".archon/workflows"
-# 入口の殻が run に渡す、起こした源のパス。run の中の節はこれで殻を入れ子にせず同じ Archon を起こす（bin/_lib/childsweep.py）
+# 入口の殻が run に渡す、起こした源のパス。run の中のノードはこれで殻を入れ子にせず同じ Archon を起こす（bin/_lib/childsweep.py）
 SOURCE_ENV = "WORKS_FACTORY_ARCHON_SOURCE"
 
 Fetch = Callable[[str, str, Path], None]
@@ -50,7 +50,7 @@ def bun_install(source: Path) -> None:
 def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: Install = bun_install) -> Path:
     """Archon の源を archon_folder(cache, commit) に取り、依存を入れて返す。在れば照らしてから使い、取らない。
 
-    bun が無い・取れない・依存が入らない・本体か ASF の工程が源に無ければ、途中まで取った物を残さず（前に取った物は残す）、
+    bun が無い・取れない・依存が入らない・本体か ASF のグラフが源に無ければ、途中まで取った物を残さず（前に取った物は残す）、
     何が取れなかったかを 1 行の RuntimeError で言う。在った物が照らしに合わなければ、消して取り直す案内つきの RuntimeError。
     """
     if shutil.which("bun") is None:
@@ -77,15 +77,15 @@ def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: In
 
 
 def pack_folder(pack: dict, base: Path) -> Path:
-    """base の中で Archon が自分の工程を pack として読む所 <base>/.archon/workflows/<pack>"""
+    """base の中で Archon が自分のグラフを pack として読む所 <base>/.archon/workflows/<pack>"""
     return base / WORKFLOW_FOLDER / pack["ours"]["pack"]
 
 
 def workflow_source(pack: dict, root: Path, cache: Path) -> Path:
-    """--workflow-source に渡す置き場を返す。その中の .archon/workflows/<pack> は root の自分の工程のフォルダを指す。
+    """--workflow-source に渡す置き場を返す。その中の .archon/workflows/<pack> は root の自分のグラフのフォルダを指す。
 
     置き場の名は指す先のパスの hash なので、同じ root からは同じ置き場になる。前の形の置き場（.archon/workflows が
-    直に工程のフォルダを指す symlink）は、そのまま使うと pack の symlink を工程のフォルダの中に作るので、消す案内で止まる。
+    直にグラフのフォルダを指す symlink）は、そのまま使うと pack の symlink をグラフのフォルダの中に作るので、消す案内で止まる。
     """
     target = (root / pack["ours"]["folder"]).resolve()
     shim = cache / "workflow-source" / hashlib.sha256(str(target).encode()).hexdigest()[:16]
@@ -113,10 +113,10 @@ def archon(bun: str, source: Path) -> list[str]:
 
 
 def workflow_run(source: Path, workflow_dir: Path, cwd: Path, name: str, *args: str) -> list[str]:
-    """工程 name を workflow_dir から読み、cwd に対して回す命令。
+    """グラフ name を workflow_dir から読み、cwd に対して回す命令。
 
     --cwd と --workflow-source は利用者の引数より前に置く。利用者の -- の後ろに付くと、文として渡り、
-    Archon が cwd の工程を探す元の動きに黙って戻る（ASF の factory/consumer.py と同じ並べ）。
+    Archon が cwd のグラフを探す元の動きに黙って戻る（ASF の factory/consumer.py と同じ並べ）。
     """
     return [
         "bun", str(source / ENTRY),
@@ -128,7 +128,7 @@ def workflow_run(source: Path, workflow_dir: Path, cwd: Path, name: str, *args: 
 def _verify(source: Path, commit: str) -> None:
     """取り置いた源の 3 つを照らす: HEAD が commit・git status --porcelain --untracked-files=all が空・node_modules が在る。
     依存（node_modules）は源の .gitignore に入るので status には出ない。
-    ASF の factory/consumer.py の verify_source の照らしの一部で、無視・未追跡の工程ファイル・symlink・必須のファイルの欠けは見ない"""
+    ASF の factory/consumer.py の verify_source の照らしの一部で、無視・未追跡のグラフファイル・symlink・必須のファイルの欠けは見ない"""
     def git(*args: str) -> str:
         done = subprocess.run(["git", "-C", str(source), *args], capture_output=True, text=True)
         return done.stdout.rstrip("\n") if done.returncode == 0 else f"git {args[0]} が失敗: {done.stderr.strip()}"
