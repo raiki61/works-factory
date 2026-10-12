@@ -113,6 +113,7 @@ import rolekit  # noqa: E402  （lib。諦めの回数 GIVE_UP_AFTER）
 import seat  # noqa: E402  （lib。借りたスキルの座）
 import tree_run  # noqa: E402
 import writes  # noqa: E402  （.shared/core。書き込みの出どころの突き合わせ）
+import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
 import promptsection  # noqa: E402
 from leftovers import Unreadable, git, git_names  # noqa: E402
@@ -2123,10 +2124,7 @@ def load_json(path: pathlib.Path, default):
     return got if isinstance(got, type(default)) else default
 
 
-def save_json(path: pathlib.Path, doc) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+save_json = jsonfile.write
 
 
 @contextlib.contextmanager

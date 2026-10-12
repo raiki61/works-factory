@@ -24,6 +24,7 @@ if str(_CORE) not in sys.path:
 
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
+import jsonfile  # noqa: E402
 import promptsection  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （board が写しの engine を sys.path に足した後）
 
@@ -109,18 +110,11 @@ def synergy_schema() -> dict:
                            "order": {"type": "array", "items": order}}}
 
 
-def _read_json(path: pathlib.Path):
-    try:
-        return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return None
+_read_json = jsonfile.read_or
 
 
-def _write_json(path: pathlib.Path, doc) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    tmp.replace(path)
+def _write_json(path, doc) -> None:
+    jsonfile.write(path, doc, parents=True)
 
 
 def _unit_row(u: dict) -> dict:

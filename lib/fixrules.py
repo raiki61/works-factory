@@ -45,6 +45,7 @@ import conflict  # noqa: E402
 import fixboard  # noqa: E402  （直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
 from leftovers import Unreadable, git_names  # noqa: E402
 import consult  # noqa: E402  （同じブロックの lib。範囲の相談の控え・置き場・答え）
+import jsonfile  # noqa: E402
 import libdocs  # noqa: E402
 import planbrief  # noqa: E402  （同じブロックの lib。承認済みの修正案の項目ごとの brief の凍結）
 import planmarks  # noqa: E402  （項目の範囲: allowed_paths と受け入れのテストのファイル。並べる項目の分け方）
@@ -264,17 +265,10 @@ def tdd_render(values, phase, phase_text, *, title, reason="", kinds=None, itera
 
 
 # ---------------------------------------------------------------- 指示書を書く（支度の節）
-def _read_json(path: pathlib.Path):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+_read_json = jsonfile.read_or
 
 
-def _write_json(path: pathlib.Path, doc) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    tmp.replace(path)
+_write_json = jsonfile.write
 
 
 def beside(prompt: pathlib.Path, tail: str) -> pathlib.Path:

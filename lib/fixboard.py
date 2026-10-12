@@ -32,6 +32,7 @@ import pathlib
 import types
 
 import gatemarks
+import jsonfile
 import startrec
 
 TRACE_FILE = "trace.jsonl"
@@ -256,13 +257,7 @@ NODE_READS = {
 
 
 def write_json(path, doc) -> pathlib.Path:
-    """doc を JSON で path に置く（一時のファイルから os.replace）"""
-    path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
-    return path
+    return jsonfile.write(path, doc, indent=2, parents=True)
 
 
 def read_json(path, default=None):

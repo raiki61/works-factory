@@ -34,7 +34,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import os
 import pathlib
 import posixpath
 import subprocess
@@ -57,6 +56,7 @@ import converge  # noqa: E402
 import depth  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
+import jsonfile  # noqa: E402
 import impact  # noqa: E402
 import judgeverify  # noqa: E402
 import libdocs  # noqa: E402
@@ -117,20 +117,11 @@ NO_ROWS = "申し出と裁定の行が見つからない（conflicts の中に�
 
 
 # ---------------------------------------------------------------- 読み書きの小道具
-def _read_json(path, default=None):
-    try:
-        return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return default
+_read_json = jsonfile.read_or
 
 
 def _write_json(path, doc) -> pathlib.Path:
-    path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
-    return path
+    return jsonfile.write(path, doc, parents=True)
 
 
 class _Unreadable(Exception):

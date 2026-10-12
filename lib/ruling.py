@@ -18,7 +18,6 @@
   （fix_plan_item には欄 plan_items にその単位の brief の項目の番号を、欄 plan_units にその項目に載る単位の全部を足す）。GIVE_UP_AFTER 回目の拒否では
   裁かれていない申し出を全部 ask_human に裁いて抜ける（決められない物は人へ。max_iterations で落とさない）
 """
-import json
 import os
 import pathlib
 import sys
@@ -30,6 +29,7 @@ import cite  # noqa: E402
 import conflict  # noqa: E402
 import fixboard  # noqa: E402   置き場への作業ツリーの姿の控え（元 entry.snapshot）
 import fixrules  # noqa: E402
+import jsonfile  # noqa: E402
 import planbrief  # noqa: E402   今の周の brief の行（fix_plan_item を brief の在る単位に限る）
 import querytest  # noqa: E402
 import rolekit  # noqa: E402   輪の回の数え（拒否の控え rejects-rule.json）
@@ -46,11 +46,7 @@ READONLY = "裁定役は読むだけで、作業ツリー・HEAD・枝・git が
 RULING_KEYS = ("decision", "text", "limits", "grounds", "request_searched", "query")   # 置き場の控えに積む裁定の欄
 
 
-def _read_json(path: pathlib.Path):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+_read_json = jsonfile.read_or
 
 
 def prep(board_dir, repo, values: dict, *, reject_file: str = "", lang: str = "") -> dict:

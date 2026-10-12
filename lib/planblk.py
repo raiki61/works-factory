@@ -29,7 +29,6 @@ p2.fix_plan）が案を直す。直しの役が起きるかは壁打ちの控え
 import copy
 import difflib
 import json
-import os
 import pathlib
 import sys
 
@@ -43,6 +42,7 @@ if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 from rolekit import BoardGap  # noqa: E402
 import carry  # noqa: E402
+import jsonfile  # noqa: E402
 import concepthome  # noqa: E402  （L1。判断の 1 軸と考えの住処の観点の文）
 import converge  # noqa: E402
 import design  # noqa: E402
@@ -325,11 +325,7 @@ def lib_section(b, repo, shared=None) -> str:
     return text + (f"\n- 単位のファイルの引き: {why}" if why else "")
 
 
-def _read_json(path: pathlib.Path):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+_read_json = jsonfile.read_or
 
 
 def _ripple_of(b, k: int):
@@ -873,10 +869,8 @@ def tree_part(b, main_prompt: pathlib.Path) -> str:
 # ---------------------------------------------------------------- 節
 
 
-def _write_json(path: pathlib.Path, doc) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+def _write_json(path, doc) -> None:
+    jsonfile.write(path, doc, indent=2)
 
 
 _WRITERS = ("plan", REVISE_ROLE)

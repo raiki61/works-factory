@@ -19,7 +19,6 @@
 """
 import datetime
 import json
-import os
 import pathlib
 import sys
 
@@ -33,6 +32,7 @@ if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 from engine.util import safe_name  # noqa: E402
 from engine.validator import agent_def  # noqa: E402,F401  （fixboard のレンズが rolekit.agent_def の名で読む）
+import jsonfile  # noqa: E402
 import promptsection  # noqa: E402
 
 
@@ -90,9 +90,7 @@ def _read_json(path: pathlib.Path, default):
 
 
 def _write_json(path: pathlib.Path, doc) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    jsonfile.write(path, doc, indent=2)
 
 
 def _gave_up_text(name: str, count: int, last: str, *, at_once: bool = False) -> str:

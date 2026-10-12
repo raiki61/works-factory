@@ -42,6 +42,7 @@ import design
 import gate_axes
 import gatemarks
 import gatepolicy
+import jsonfile
 import planblk
 import planfile
 import planmarks
@@ -298,12 +299,7 @@ def _read_json(path):
 
 
 def _write_json(path, doc) -> pathlib.Path:
-    p = pathlib.Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    tmp.replace(p)
-    return p
+    return jsonfile.write(path, doc, parents=True)
 
 
 def _sibling(pointed, name: str):

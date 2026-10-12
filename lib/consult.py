@@ -44,7 +44,6 @@
 import collections
 import datetime
 import json
-import os
 import pathlib
 import posixpath
 import sys
@@ -54,6 +53,7 @@ sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ 
 import conflict  # noqa: E402   範囲の相談の trace の行（ASKED_OP）と頼みの欄（CONSULT_FIELD）
 import fixboard  # noqa: E402   置き場の trace.jsonl への 1 行
 import gatemarks  # noqa: E402   直す前の人の関所の節の名（GATE_NODE。関所の条件の相談の一言を引く）
+import jsonfile  # noqa: E402
 import planmarks  # noqa: E402   glob の当て方の正本・承認済みの修正案の項目
 import promptsection  # noqa: E402
 
@@ -197,10 +197,7 @@ def _oos_rows(it: dict) -> list:
     return out
 
 
-def _write_json(path: pathlib.Path, doc) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(str(tmp), str(path))
+_write_json = jsonfile.write
 
 
 def _read_json(path: pathlib.Path):
