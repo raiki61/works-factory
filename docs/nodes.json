@@ -90,6 +90,7 @@
   "plan-review/open": "入力の指し札の先を置き場に写す支度の節", "plan-review/review-reads": "事前審査の役の読んだ証拠と下請けの起動の数を集める節（今の works の blk-plan の plan-reads の事前審査の側。review-graph の節に当たらない）",
   "fix/route": "修正のブロックの形（block・group）の振り分けの節",
   "fix/group-end": "枝の結末を置き場に書く節（枝の重ねは p3.lane_merge）",
+  "fix/fix-reads": "修正役の読んだ証拠を集める節（今の works の blk-fix の fix-reads。review-graph の節に当たらない）",
   "fix/fix": "修正のブロックの返す節",
   "eyes/structure-after": "直した後の構造の実測（plan の構造の目の続き。review-graph の節に当たらない新しい能力）",
   "eyes/eyes-complete": "目が落ちても出口へ進む柵の節",

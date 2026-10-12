@@ -56,7 +56,7 @@ def moved_policy(tmp: pathlib.Path) -> tuple:
 READ_ONLY_SCRIPTS = ("route", "prep", "tdd-unit", "conflict-check", "rule-prep", "rule-accept", "fix-ruled-prep",
                      "ruled-consult-check", "ruled-consult-accept", "assert-changed", "delta-cut", "lens-prep",
                      "lens-collect", "delta-accept", "refix-prep", "cut2", "review2-accept", "refix2-prep", "tdd-prep",
-                     "fix-prep", "consult-check", "consult-accept", "group-end", "fix")
+                     "fix-prep", "consult-check", "consult-accept", "group-end", "fix-reads", "fix")
 
 # 今の works（2aa7c66c）の同じ役の節の値: (model, effort, context, settingSources, sandbox)。
 # 元 works/blk-fix/blk-fix.yaml の tdd・fix・fix-ruled・rule・plan-answer、blk-delta.yaml の review、blk-lens.yaml の
