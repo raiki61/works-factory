@@ -8,6 +8,7 @@
   成果物の一覧を読む部品に読ませる
 """
 import ast
+import hashlib
 import importlib.util
 import json
 import os
@@ -46,6 +47,93 @@ RETURN_FIELDS = {"outcome", "stop_reason", "report", "report_ai", "next_request"
 TOP_KEYS_DROPPED_ON_INCLUDE = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 SANDBOX = {"enabled": True, "allowUnsandboxedCommands": False}
 RUN = "run-test"
+
+# 役の指示書の元: 今の works（raiki61/claude-plugins の 2aa7c66cf7abe1fe09699ac2942d107123214168）の works/blk-report/commands/ の
+# 2 本の sha256 と、許した直し（元の字, 写しの字, 訳）。元に無い字の差し込みは前後の元の字を錨にした組にする
+REPORT_EDITS = [
+    ("1. まず指示書 `$report-write-prep.output.prompt_file` を Read で読み、その指示に従え。記録の置き場・問いの台帳・根本の単位・盤面の状態・検証器の結果・"
+     "判定者の生の返答は全部そこに在る（graphloops の最終報告の指示書を、この run の盤面の値で描いた物）。\n"
+     "2. 数の出どころは `$report-write-prep.output.facts_file`（盤面から機械が組んだ事実。線 A の機械の報告が在ればそれ）。これも Read で読め。報告に書く数"
+     "は、このファイルに在る物はこのファイルと同じ値にしろ。このファイルは報告の最後に機械がそのまま付けるので、同じ一覧を本文に並べ直さない。本文はその事実の上に、何が起きたか・何を決めればよいかを足す。\n"
+     "3. 指示書の頭に「前の回の受け付けが拒んだ理由」の節が在れば、お前の前の返答は受け付けで拒まれている。そこに書かれた理由のところを直した本文を丸ごと出し直せ（直した所だけを返すな）。1 回目にはこの"
+     "節は無い。\n"
+     "4. お前は読むだけの役。道具は Read・Grep・Glob と web を引く WebSearch・WebFetch だけで、作業ツリーを 1 文字も変えてはいけない（受け付けは、起こす前に取った"
+     "作業ツリーの写しと今を比べ、変わっていれば拒む）。\n"
+     "5. 報告の 1 行目の来歴（ライン・run の番号・周・graph と表の版）は機械が刻む。自分で書き写すな。この行は冒頭 3 行に数えない。\n",
+     "この run の結末の語は **$facts.output.outcome**（止めた段と理由の語: `$facts.output.stop_reason`）。機械が決めた語で、書き換えない。\n"
+     "\n"
+     "1. まず機械の事実のファイル `$ARTIFACTS_DIR/$facts.output.facts_file` を Read で読め（ブロックの返りと run の記録から機械が組んだ報告。結末・止"
+     "めた段・人が決めることの件数・段ごとの結末・TDD の単位の行・緑の認証・独立の目・費用が在る）。その「5. 見る所」に並ぶファイル（判定・目的・計画・事前審査・独立設計・差分・試験の記録・直した後の"
+     "構造ほか）も、書く節ごとに要る物を Read で読め。\n"
+     "2. 報告に書く数は、機械の事実のファイルに在る物はそのファイルと同じ値にしろ。そのファイルに無い数を書くなら、どのファイルのどの欄から数えたかを添えろ。このファイルは報告の最後に機械がそのまま付ける"
+     "ので、同じ一覧を本文に並べ直さない。本文はその事実の上に、何が起きたか・何を決めればよいかを足す。\n"
+     "3. 前の回の拒否の訳のファイルの、run の置き場からの相対のパス（無ければ空）: `$write-reject.output.reason`。空でなければ、お前の前の返答は受け付けで拒まれている。"
+     "そのファイル（`$ARTIFACTS_DIR/` の下のそのパス）を Read で読み、書かれた理由のところを直した本文を丸ごと出し直せ（直した所だけを返すな）。1 回目は空。\n"
+     "4. お前は読むだけの役。道具は Read・Grep・Glob と web を引く WebSearch・WebFetch だけで、作業ツリーを 1 文字も変えてはいけない（変えれば実行基盤がこの節を落"
+     "とす）。\n"
+     "5. 報告の 1 行目の来歴（工程・run の番号・周・工程の版）は機械が刻む。自分で書き写すな。この行は冒頭 3 行に数えない。\n",
+     "盤面の指示書（report-write-prep）が無いので、結末の語と機械の事実のファイル・拒否の訳のファイルを名指す"),
+    ("\n"
+     "## 書式の決まり（読み手のための決まり。指示書と食い違う所はこちらを採る）\n",
+     "\n"
+     "## 構成（読む所は上の機械の事実のファイルと、そこに並ぶファイル）\n"
+     "\n"
+     "報告は依頼の言語で書く。ファイルの中身が違う言語でも揃える（コード識別子・パス・エラー文はそのまま）。\n"
+     "\n"
+     "1. **冒頭 3 行は「人が決めること」だけ**——機械の事実の「1. 人が決めること」に並ぶ物（修正前の問い・独立の目 R4 の問い・保留にしたままの問い・人に回した食い違いの申し出・守りのパスに"
+     "当たった差分・許したテストの変更・直す義務に戻せなかった単位・前提の検算が人に上げた物・人が確かめる物・直しきれずに残った物）。結末が止め札か関所の止め（stopped_by_request・stop"
+     "ped_by_human）なら、止めた所・理由の本文・答えないまま残った問いを 1 項として必ず入れる——続けるなら新しい run を始めること、止めた後の段は走っていないことも添える。無ければ「人が"
+     "決めることは無い」と 1 行。判定の役が自分で決めた問い（判定のファイルの問いの台帳で resolved / decided の物）は「判定の役が自分で決めたこと」として根拠つきで冒頭の直後に。\n"
+     "   人に聞くところは、run を見ていない人が初見で読んで決められる形に: ①急ぐものと後でよいものを分け、件数を先に言う ②1 件ずつ独立して読める ③1 件につき、何を決めるのか・なぜこれが出て"
+     "きたか（きっかけの実物）・選択肢ごとに何が起きるか・決めないと何が止まるか ④選ぶ側の材料を出す——ただし書いてよいのは判定の役が書いた選択肢と理由（問いの文の「推し」の尾・判定のファイルの台帳の o"
+     "ptions と reason）だけで、writer が新たに 1 つを推すな。**内部の語彙（[block]・do-now・defer・零処方・R1〜R4・素材名・安定キー）で書かれた問いは、それだ"
+     "けでは決められない。**\n"
+     "2. この run の入口と依頼（冒頭 3 行と人が決めることの後ろに置く。冒頭 3 行の前に置かない）:\n"
+     "   - 判定から入った run（機械の事実の「2. 入口・段・決めた人」の入口の行が言う）なら、1 行で「判定から入った run（出どころ）。依頼の外を見る役は、修正が入るまで起こしていない」と書く"
+     "。依頼の外を見る目が欠けた周があったことを、収束の見た目に埋もれさせない。\n"
+     "   - 依頼が積まれた run（入口の行と始めの記録の依頼の件数）なら、1 行で出どころと件数を並べる。人の依頼と機械の線を『人の依頼』と一括りに書くな。どの依頼も報告から落とさない。\n"
+     "3. 判断材料として、機械の事実の「3. 止めたか」の結末と止めた段をそのまま貼る。\n"
+     "4. 各根本の単位の「ラベル・対応内容／対応不要の理由」（判定のファイルと修正の結末の単位の行）。defer の台帳。\n"
+     "5. R1・R2・R3・R4 それぞれの判定と理由（機械の事実の「独立の目」）。R1 は削ったコメント・残した why も。\n"
+     "6. 問いの台帳——各問いの状態と、決めた根拠（resolved にした問いの resolution）か人へ回した理由。\n"
+     "7. 判定の生の返答（判定のファイル。要約で丸めず、根本の単位のキーの集合と判定と理由はそのまま転記する）・元の目的の出典・直す前の版（始めの記録の元の版）。\n"
+     "8. 主経路の実行観測: 何をどこで動かし何を観測したか（「テストが緑」を観測として書くな）。\n"
+     "9. 新設機構の棚卸し: この差分が導入する機構・配管（ビルド設定・環境変数・CI ジョブ・テンプレートのノブ・スクリプト等）を、判定抜きで一覧する。\n"
+     "10. 前提のドリフトがあれば、測り直した制約と前の制約が偽になった理由（収束せずに止まった run の held / escalate は 1 の人が決めることにまとめる）。\n"
+     "\n"
+     "## 書式の決まり（読み手のための決まり。上の構成と食い違う所はこちらを採る）\n",
+     "元の指示書 prompts/review-loop/report.md（COPIED_FROM の手直しを当てた物）の構成の節を、盤面の欄を機械の事実のファイルの節に読み替えて差し込む"),
+    ("（指示書の「人が決めることは無いと 1 行」",
+     "（構成の「人が決めることは無い」と 1 行",
+     "差し込んだ指示書の文を構成の節と呼ぶ"),
+    ("（指示書の ①〜④ を広げた物）",
+     "（構成の ①〜④ を広げた物）",
+     "差し込んだ指示書の文を構成の節と呼ぶ"),
+    ("判定の役が台帳の options・reason に書いた推しだけを",
+     "判定の役が書いた推しだけを",
+     "推しの出どころ（問いの文の推しの尾と台帳の欄）は構成の ④ が名指す"),
+]
+COLD_CHECK_EDITS = [
+    ("機械が盤面から組んだ事実の節（数・置き場・状態の一覧。見出しは「機械が盤面から組んだ事実（AI は書き換えていない）」）",
+     "機械が組んだ事実の節（数・置き場・状態の一覧。見出しは「機械が各段の返りと run の記録から組んだ事実（AI は書き換えていない）」）",
+     "盤面が無いので、機械の事実の見出しを report_roles.MACHINE_HEADING の字に"),
+    ("下の区切りの間が、お前が読む指示と本文の全部である。\n",
+     "お前は文脈を持たない初見の読み手。ラウンドの経緯・記録・差分は一切渡されていない。次の本文（レビューの最終報告のうち、人に決めてもらうところ）だけを読め。\n",
+     "区切りの間に指示書ごと渡さないので、元の指示書 prompts/review-loop/report.cold_check.md の頭の文を差し込む"),
+    ("$report-write-cold-prep.output.prompt\n",
+     "$cold-prep.output.body\n",
+     "区切りの間に渡すのは報告の頭の本文だけ（節 cold-prep）"),
+    ("返すのは上の JSON Schema に合う JSON だけ。\n",
+     "①どこで意味が取れず止まったか（stops）②何を推測で埋めたか（guessed）③この本文だけで決められるか（decidable）を返せ。止まった箇所か推測が 1 つでもあれば verdict=re"
+     "design-needed、無ければ pass。\n"
+     "\n"
+     '返すのは JSON `{"verdict": "pass" | "redesign-needed", "stops": ["<文>"], "guessed": ["<文>"], "decidable"'
+     ": true | false}` だけ。\n",
+     "元の指示書 report.cold_check.md の返す物の文を差し込み、Schema を区切りの間で渡さないので返す形を名指す"),
+]
+COPIED = {"report.md": ("report-write.md", "dd402ea917dfc83fa32e41442b3bc0f5262c6f93ad9c07a7d78f076e693773a8", REPORT_EDITS),
+          "cold-check.md": ("report-write-cold.md", "1de61b6025023f62f99fc20c196f1f87e69fed4fbd5c49232224d366c6eb3815",
+                            COLD_CHECK_EDITS)}
 
 
 def load_script(name: str, scripts: pathlib.Path = SCRIPTS):
@@ -153,6 +241,19 @@ class ShapeCase(unittest.TestCase):
     def test_loop_gives_up_with_the_roles_count(self):
         self.assertEqual(NODES["write-loop"]["loop_group"]["max_iterations"], report_roles.GIVE_UP_AFTER)
         self.assertIs(NODES["write-loop"]["loop_group"]["fresh_context"], False)
+
+
+class CopiedTextsCase(unittest.TestCase):
+    def test_every_command_is_its_original_with_only_ledgered_edits(self):
+        """役の指示書は元の works の指示書の文のまま: 台帳の直しを逆に当てると元のバイトに戻る"""
+        self.assertEqual({p.name for p in (BLOCK / "commands").glob("*.md")}, set(COPIED))
+        for name, (original, sha, edits) in COPIED.items():
+            with self.subTest(name, original=original):
+                text = (BLOCK / "commands" / name).read_text(encoding="utf-8")
+                for before, after, _why in reversed(edits):
+                    self.assertEqual(text.count(after), 1, after)
+                    text = text.replace(after, before)
+                self.assertEqual(hashlib.sha256(text.encode("utf-8")).hexdigest(), sha)
 
 
 class TypedCase(unittest.TestCase):
