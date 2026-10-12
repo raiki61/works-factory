@@ -54,6 +54,7 @@ import stopby  # noqa: E402
 import tree_run  # noqa: E402
 import worldblk  # noqa: E402
 import worldmark  # noqa: E402
+from engine import declared  # noqa: E402
 from engine.render import Renderer  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 from engine.util import (READ_CAP, Reject, _grep as grep, git, hook_evidence, pick, read_capped, repo_root,  # noqa: E402
@@ -1046,6 +1047,7 @@ def accept_round(board, name: str, raw, take, *, reject=None, on_give_up=None) -
     """受け付けの輪の 1 回（元 rolekit.main_accept）。役の返答の字 raw を読み（rolekit.parse_reply）、take(reply) に通す。読めない
     返答と take の中の例外は reject(理由) で拒否にする（既定は {ok: False, reason}。受け付けは落ちない）。拒否は
     board/rejects-<name>.json に積み（rolekit.with_done）、3 回目で done。諦めた時は on_give_up() を呼ぶ。
+    take の返りの give_up が真なら 1 回目でも done（出し直しても直らない拒み）。
     返り take の返りに done を足した物。拒否の控えが扱えなければ done 真の拒否"""
     reject = reject or (lambda why: {"ok": False, "reason": why})
     reply, why = rolekit.parse_reply(raw)
@@ -1054,7 +1056,8 @@ def accept_round(board, name: str, raw, take, *, reject=None, on_give_up=None) -
     except Exception as e:  # noqa: BLE001
         got = reject(f"受け付けの中で例外（{type(e).__name__}: {e}）")
     try:
-        out = {**got, **rolekit.with_done(board, name, {"ok": got.get("ok") is True, "reason": str(got.get("reason") or "")})}
+        out = {**got, **rolekit.with_done(board, name, {"ok": got.get("ok") is True, "reason": str(got.get("reason") or "")},
+                                          give_up=got.get("give_up") is True)}
         if out["done"] and not out["ok"] and on_give_up:
             on_give_up()
     except Exception as e:  # noqa: BLE001
@@ -1271,7 +1274,7 @@ DIFF_FILE = "diff.patch"
 CHANGED_FILE = "changed-files.txt"
 MATERIAL_VIEW_FILE = "material-view.json"     # 素材の役が読む版と差分（material_route が 1 度置く）
 MATERIAL_ROUTE_FILE = "material-route.json"   # 素材ごとの要否と回さない素材の埋め（material_route）
-DECL_NAME = ".review-checks.json"             # 元 engine/declared.py の DECL_NAME（対象リポジトリの宣言の名）
+DECL_NAME = declared.DECL_NAME
 
 
 # ---------------------------------------------------------------- 依頼と PR の題と本文（元 works/.shared/core/entryshape.py:134-200）
@@ -2341,6 +2344,22 @@ def _purpose_or_missing(jdir) -> dict:
     return _purpose_of(jdir) or {"purpose_text": PURPOSE_MISSING, "source": "目的不明", "known_weaknesses": [], "source_files": []}
 
 
+def mutation_decl(root) -> dict:
+    """元 review-loop.py:734 の mutation_decl。変異の実行器と腕の一覧の名指しを、役に貼る 1 段落にした {declared, text}。対象の根の
+    宣言の mutation の段が在ればその値、無い・読めなければ対象リポジトリの側を探させる散文（読めない時はその訳を添える）"""
+    d = declared.read(root)
+    m = (d or {}).get("mutation")
+    if m:
+        text = (f"対象リポジトリの宣言 {DECL_NAME} の mutation の段——実行器の呼び方の頭 {json.dumps(m['argv'], ensure_ascii=False)}・"
+                f"腕の一覧 {m['arms']}（口の綴りは実行器の --help が正本）")
+    else:
+        text = MUTATION_UNDECLARED.format(decl=DECL_NAME)
+        err = (d or {}).get("mutation_error") or (d or {}).get("error")
+        if err:
+            text += f"（宣言は在るが mutation の段を読めない: {err}）"
+    return {"declared": bool(m), "text": text}
+
+
 def _material_ctx(jdir, repo, start, doc, view, review_md, repo_review_md, role="") -> dict:
     """元 material.py:332 の render が engine に渡した値の入れ物（穴の名 → 値）。盤面の記録・周の値を、置き場のファイルと
     1 run = 1 周の値で埋めた物"""
@@ -2352,7 +2371,7 @@ def _material_ctx(jdir, repo, start, doc, view, review_md, repo_review_md, role=
         "record": {"base": doc["base"]},
         "loop": {"diff_file": doc["diff_file"], "changed_files": doc["changed_files"],
                  "changed_files_file": doc["changed_files_file"], "request_wheres": request_wheres(view, jdir),
-                 "mutation_decl": {"declared": False, "text": MUTATION_UNDECLARED.format(decl=DECL_NAME)}},
+                 "mutation_decl": mutation_decl(repo)},
         "out": {"p0.purpose": _purpose_or_missing(jdir)},
         "node": {"skills": _skills(view, role)},
     }
@@ -2475,7 +2494,7 @@ def _grep_count(cite_, rev):
     root = _repo_root()
     if root is None:
         return None, "git が動かない"
-    return grep(["git", "grep", "-F", "-cI", "-e", cite_, rev, "--", ":(top)"], root, 60)
+    return grep(["git", "grep", "-F", "-cI", "-e", cite_, rev, "--", ":(top)"], root)
 
 
 def _in_version(rels):
@@ -2805,12 +2824,23 @@ def check_record(view: DueView, nid, mats: dict, diff_file=None) -> list:
     return errs
 
 
+def _peers_note(jdir, role: str) -> str:
+    """元 material.py:530 の _peers の名指し。material-route.json で同じ時に回すほかの役を並べた文（変えたのがこの役とは限らない）"""
+    try:
+        roles = (read_json(pathlib.Path(jdir) / MATERIAL_ROUTE_FILE, {}) or {}).get("roles") or {}
+        peers = [r for r, d in roles.items() if r != role and d.get("run")]
+    except (ValueError, AttributeError) as e:
+        return f"。{MATERIAL_ROUTE_FILE} が読めない（{e}）——同じ時に回す役を名指せないが、変えたのがこの役とは限らない"
+    return (f"。同じ時に回す役が他に {len(peers)} 件在る（{'・'.join(peers)}）——変えたのがこの役とは限らない" if peers else "")
+
+
 def material_take(jdir, role: str, reply: dict, repo, *, keys=core_accept.TREE_KEYS) -> dict:
     """元 works/blk-material/lib/material.py:544 の take の書き直し。作業ツリーを素材の役を起こす前の姿（material-tree.json）と比べる →（局所レビューだけ）
     fork のレンズの所見が届かなかった空の行に『見ていない』の印（diverted.mark_unseen）→ 必須のレンズの起動（_lens_gap）→ 所見の場所の
     行（_location_gap）→ 写しの graph の節の post_check → 素材の欄（check_record）。通れば material-<役>.json に
     {role, reply, materials} を書く（局所レビューは見ていないレンズの控えも）。keys は作業ツリーの写しと比べる欄（_moved_since）。
-    {ok, reason}。拒否の数えは呼び手（rolekit.with_done）"""
+    {ok, reason[, give_up]}。give_up 真は出し直しても直らない拒み（隔離した設定にレンズのプラグインが無い。元 _reject(give_up=True)）。
+    拒否の数えは呼び手（rolekit.with_done）"""
     def run():
         nid = _material_node(role)
         if not isinstance(reply, dict):
@@ -2819,7 +2849,7 @@ def material_take(jdir, role: str, reply: dict, repo, *, keys=core_accept.TREE_K
         moved = _moved_since(j / MATERIAL_TREE_FILE, repo_p, keys=keys)
         if moved:
             raise Reject(f"{READONLY_MOVED}素材集めの役は対象の作業ツリー・HEAD・枝・git が無視するファイルを"
-                         f"変えてはいけない（{'・'.join(moved)}）。同じ時に別の素材集めの役も走っている——変えたのがこの役とは限らない")
+                         f"変えてはいけない（{'・'.join(moved)}）{_peers_note(j, role)}")
         start = _start_of(j)
         doc = _material_view(j, repo_p, start)
         view = due_view(start, _purpose_of(j), doc["changed_files"])
@@ -2829,7 +2859,8 @@ def material_take(jdir, role: str, reply: dict, repo, *, keys=core_accept.TREE_K
             lens_note = {"round": 1, **notes}
             gap = _lens_gap(_skills(view, role), got)
             if gap:
-                raise Reject(gap[0])
+                why, give_up = gap
+                return {"ok": False, "reason": why, "give_up": give_up}
         where_gap, got = _location_gap(j, role, got, repo_p)
         if where_gap:
             raise Reject(where_gap)
