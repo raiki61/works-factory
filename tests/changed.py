@@ -7,7 +7,8 @@
 変更（origin/main との merge-base からの差と、未追跡を含む作業ツリーの差）に直に当たる試験のモジュールと、層の柵
 （tests/layers/）だけを unittest で回す。全部の試験は CI（.github/workflows/tests.yml）が回す。持ち主の決め 2026-10-12（#130）。
 - 選び: lib/impact.py の map と select_tests（direct_only。起点か深さ 1）。変わった試験のファイルは discover の名の規則で足す
-- 全部を回す: 選びが全部が要ると言った時・WHOLE と WHOLE_DIRS の変更・起点が取れない時・選びが落ちた時（緑を仮定しない）
+- 全部を回す: 選びが全部が要ると言った時・WHOLE と WHOLE_DIRS の変更・起点が取れない時・選びが落ちた時（緑を仮定しない）。
+  全部は CI と同じ集め方（tests/shard.py。discover の規則）を 1 つの分けで回す
 - 出力: 選んだモジュール・回さないモジュールの数・訳を先に標準出力へ出し、最後は unittest の数え（Ran N tests）のまま
 """
 import pathlib
@@ -75,15 +76,15 @@ def main():
     if reasons:
         print("全部の試験を回す。訳:")
         print("\n".join(f"  {r}" for r in reasons))
-        cmd = ["discover", "-s", ".", "-t", "."]
+        cmd = ["-m", "tests.shard", "--shard", "1/1"]
     else:
         every = {mod for mod in map(module, impact.tree_files(ROOT)) if mod}
         print(f"変更に直に当たる試験と層の柵の {len(mods)} モジュールを回す（回さない: {len(every - set(mods))} モジュール。"
               f"全部は CI が回す）:")
         print("\n".join(f"  {mod}" for mod in mods))
-        cmd = mods
+        cmd = ["-m", "unittest", *mods]
     sys.stdout.flush()
-    return subprocess.run([sys.executable, "-m", "unittest", *cmd], cwd=ROOT).returncode
+    return subprocess.run([sys.executable, *cmd], cwd=ROOT).returncode
 
 
 if __name__ == "__main__":

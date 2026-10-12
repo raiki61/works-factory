@@ -21,7 +21,7 @@ from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 COUNT = re.compile(json.loads((ROOT / "harness" / "harness.config.json").read_text(encoding="utf-8"))["unit_count_pattern"])
-COPIED = ("lib/impact.py", "lib/changemap.py", "tests/changed.py")
+COPIED = ("lib/impact.py", "lib/changemap.py", "tests/changed.py", "tests/shard.py")
 ONE_TEST = "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_one(self):\n        pass\n"
 TWO_TESTS = ONE_TEST + "\n    def test_two(self):\n        pass\n"
 LIB_TEST = ("import unittest\n\nfrom lib import {name}\n\n\nclass T(unittest.TestCase):\n"
@@ -35,6 +35,7 @@ TREE = {
     "lib/tests/test_beta.py": LIB_TEST.format(name="beta") + "\n    def test_two(self):\n        pass\n",
     "tests/__init__.py": "",
     "tests/archon.py": "",
+    "tests/shard-seconds.json": "{}\n",
     "tests/layers/__init__.py": "",
     "tests/layers/test_fence.py": ONE_TEST,
     "docs/note.md": "# note\n",
