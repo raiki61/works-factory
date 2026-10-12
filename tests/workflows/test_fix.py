@@ -432,7 +432,7 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertNotIn(raw_doc, text)
 
     def test_refix_undeclared_write_is_rejected(self):
-        """記録の無い run の書き込みの出どころ（U6）: 手直しの段の頭の木からの変更が handled[].files にも bash_writes にも無ければ拒む"""
+        """記録の無い run の書き込みの出どころ（U6 の狭め）: 手直しの段の頭の木からの変更が handled[].files にも bash_writes にも無ければ拒む"""
         self._cut()
         self._run("delta_accept", "delta-accept", reply=json.dumps(_RV_REVIEW, ensure_ascii=False))
         self.assertTrue(self._run("refix_prep", "refix-prep")["go"])
@@ -1484,7 +1484,7 @@ class FixLoopScriptsCase(unittest.TestCase):
         self.assertEqual(set(kept["changed"]), set(CHANGED_MARKS))
 
     def test_undeclared_change_is_rejected(self):
-        """書き込みの記録が無い run は、段の頭の木からの変更が changes[].files にも bash_writes にも無ければ拒む（U6 の照らし）"""
+        """書き込みの記録が無い run は、段の頭の木からの変更が changes[].files にも bash_writes にも無ければ拒む（U6 の狭めの照らし）"""
         import fixboard
         self._fx_fix_mean()
         (self.repo / "scratch.txt").write_text("下書き\n", encoding="utf-8")

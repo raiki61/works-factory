@@ -1160,7 +1160,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - 関所: 人が答える節（Archon の approval）。答えの語は通す approve・continue と止める stop・reject
 - 本物の run: 種の対象（tests/e2e/target-seed/。stats.py に欠陥 2 つ）を標準の厚さで回し、最後の関所は開いて通す run。報告の置き場は `$ARTIFACTS_DIR/report/`（`workflows/report/scripts/place.py:13` の `OUT = "report"`）、返す節は `report__report`
 - #68: 報告のブロックを入れた PR（本文と、持ち主側の独立の目の指摘のコメント 3 つ）。#100: 書き手の輪の拒否の訳を script の節で渡す直しの PR
-- U6・U8: docs/design.md:570-572 の未決の問い（U6 は前の包みが取っていた読んだ証拠と書き込みの記録をどこで取るか）
+- U6・U8: docs/design.md の「未決」の節の問い（U6 は前の包みが取っていた読んだ証拠と書き込みの記録をどこで取るか。段 1b で決めた。U8 は分かった）
 - 「約束の隣のファイル」: docs/design.md:162 が名指す、返りの指し札の先と同じフォルダに置き、ほかのブロックも開いてよいファイル
 
 種の run では結末は `fixed` か、判定の素材が not_run なら `fixed_needs_check` になる見込み。止め・落ち・申し出・再審は起きないので、その行は「筋書きでのみ」。
@@ -1442,7 +1442,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 今: 無し。fix の置き場に fix-removed.json（lib/leftovers.py:29）と lens.json（lib/lens.py:21）が在る
   - 証: 要追加: lib/tests/test_runreport.py::DecisionsCase.test_always_rows_name_clean_lens_and_not_run — 0 件・走らせていない・読めないを分けて出す（元 works/tests/test_report.py::HeadCase.test_always_rows_show_zero_and_not_run :606）
   - 本物の run: fix/fix/fix-removed.json・fix/fix/lens.json
-  - 狭め: #68 で書かれずに落ちた。clean とレンズは不可でない → 戻す。仕組みの異常は元の盤面の trace と包みの記録に頼ったので U6 に結ぶ → 持ち主
+  - 狭め: #68 で書かれずに落ちた。clean とレンズは不可でない → 戻す。仕組みの異常は元の盤面の trace と包みの記録に頼ったので U6 に結ぶ（段 1b で U6 を決めた: 包みの記録は Archon の出来事だけでは足りずフックが要る）→ 持ち主
 
 - R39 落ちたレンズを次の依頼に「再実行の要あり」で運ぶ（控えが読めなければそれも）と、報告の「未確認のレンズ」の節（局所レビューの戻した・見ていないレンズを先に）
   - 元: works/.shared/core/report.py:774 `lens_next_items`・:2072-2073（diverted.report_lines・lens.report_lines）
@@ -1501,10 +1501,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R46 役ごとの読んだ証拠（渡した・読んだ跡の無い件数）・包みが通ったか・会話を継いだ起動の数・起動の即時の失敗
   - 元: works/.shared/core/report.py:1385 `head_reads`
-  - 今: lib/runreport.py:84 `UNSEEN`（「取れない（U6）」の 1 行だけ）
+  - 今: lib/runreport.py:84 `UNSEEN`（「取れない（読んだ証拠を集める口を戻していない。docs/design.md の U6）」の 1 行だけ）
   - 証: 要追加（U6 が決まった後）: lib/tests/test_runreport.py::BuildCase.test_reads_section_says_unseen — 今は UNSEEN の 1 行を縛る程度
   - 本物の run: report/report.md「## 4. 読んだ証拠と包み」
-  - 狭め: 包み（前の起こし方の殻 adapter）を落としたので対象が変わった。U6（docs/design.md:570）→ 持ち主（Archon で不可とする源は示されていない）
+  - 狭め: 包み（前の起こし方の殻 adapter）を落としたので対象が変わった。U6（当時は未決）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:` → 持ち主（戻すか）
 
 - R47 見る所: 判定・目的・定石・仕様・目的の外の所見・計画・構造の目・波及・事前審査・独立設計・差分・申し出と裁定・直す前と最後の試験の記録・直した後の構造・封じた差分・置いた差分のパス
   - 元: works/.shared/core/report.py:1706 `head_where`

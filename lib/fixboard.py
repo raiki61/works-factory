@@ -1458,7 +1458,7 @@ def fix_reject_text(found: list) -> str:
 
 
 def undeclared_writes(reply: dict, repo, tree: str, *, made=(), skip=()) -> list:
-    """書き込みの記録が無い run の書き込みの出どころ（未決 U6 の狭め）: 木 tree（段の頭の木）から作業ツリーの今の姿で変わったパス
+    """書き込みの記録が無い run の書き込みの出どころ（U6 の狭め）: 木 tree（段の頭の木）から作業ツリーの今の姿で変わったパス
     （touched_since。除くパスの頭 skip の下は数えない）のうち、返答の changes[].files にも bash_writes の path にも無く、実行器が
     作った物（made）でもない物を名指す拒否の文（無ければ空の並び）。新しい（今の works は包みの書き込みの記録で縛った）"""
     import factchecks
@@ -1472,7 +1472,7 @@ def undeclared_writes(reply: dict, repo, tree: str, *, made=(), skip=()) -> list
 
 def undeclared_refix(reply: dict, repo, tree: str, *, skip=()) -> list:
     """手直しの役の返答（handled[].files と bash_writes で申告する）の書き込みの出どころ: undeclared_writes と同じ照らしを、
-    handled の files を申告として当てる。新しい（未決 U6 の狭め。今の works は包みの書き込みの記録で縛った）"""
+    handled の files を申告として当てる。新しい（U6 の狭め。今の works は包みの書き込みの記録で縛った）"""
     rows = [{"files": h.get("files") or []} for h in (reply or {}).get("handled") or [] if isinstance(h, dict)]
     return undeclared_writes({"changes": rows, "bash_writes": (reply or {}).get("bash_writes") or []}, repo, tree, skip=skip)
 
