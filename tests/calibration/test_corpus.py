@@ -163,6 +163,20 @@ class TestInjection(unittest.TestCase):
         self.assertEqual(self.seed["errors"], [])
         self.assertGreaterEqual(self.seed["ran"], 1)
 
+    def test_seed_results_counts_only_assertions_as_failures(self):
+        tree = pathlib.Path(self.tmp.name) / "mixed"
+        tree.mkdir()
+        (tree / "test_x.py").write_text(
+            "import unittest\n\n\nclass T(unittest.TestCase):\n"
+            "    def test_asserts(self):\n        self.assertEqual(1, 2)\n\n"
+            "    def test_raises(self):\n        raise ValueError('x')\n", encoding="utf-8")
+        (tree / "test_broken.py").write_text("import no_such_module\n", encoding="utf-8")
+        got = corpus.seed_results(tree)
+        self.assertEqual(got["failures"], ["test_x.T.test_asserts"])
+        self.assertEqual(len(got["errors"]), 2, got["errors"])
+        self.assertIn("test_x.T.test_raises", got["errors"])
+        self.assertTrue(any("test_broken" in e for e in got["errors"]), got["errors"])
+
     def test_every_anchor_is_unique_when_applied(self):
         self.assertEqual(set(self.made), {row["id"] for row in self.rows})
         for made in self.made.values():
