@@ -1204,6 +1204,61 @@ class MaterialCase(_RepoCase):
         self.assertFalse(got["ok"])
         self.assertIn("作業ツリー", got["reason"])
 
+    def make_test_caches(self):
+        """並んで走る役の 1 本が対象のテストを回した跡（wf-265a の局所レビューの役が python3 -m pytest -q で作った物）"""
+        for d in (self.repo, self.repo / "pkg"):
+            (d / "__pycache__").mkdir(parents=True, exist_ok=True)
+            (d / "__pycache__" / "stats.cpython-312.pyc").write_bytes(b"\0")
+        cache = self.repo / ".pytest_cache"
+        (cache / "v" / "cache").mkdir(parents=True)
+        (cache / ".gitignore").write_text("*\n", encoding="utf-8")
+        (cache / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55\n", encoding="utf-8")
+        (cache / "v" / "cache" / "lastfailed").write_text("{}\n", encoding="utf-8")
+
+    def test_test_caches_made_by_a_peer_role_are_not_counted(self):
+        """issue #270: テストを回してできたキャッシュ（__pycache__/・.pytest_cache/）では、素材集めの役の返答を拒まない。
+        役を起こす前から在ったキャッシュの中身が増えても同じ"""
+        reply = {"material": {"status": "clean", "checked": "x"}, "claims": []}
+        for already in (False, True):
+            with self.subTest(already=already):
+                self.setUp()
+                if already:
+                    (self.repo / "__pycache__").mkdir()
+                    (self.repo / "__pycache__" / "old.cpython-312.pyc").write_bytes(b"\0")
+                self.view()
+                self.make_test_caches()
+                got = ja.material_take(self.jdir, "provenance", reply, self.repo)
+                self.assertTrue(got["ok"], got)
+
+    def test_real_changes_beside_test_caches_still_rejected(self):
+        """issue #270 の不変条件: キャッシュを除いても、追跡しているファイル・HEAD・枝・キャッシュ以外の無視されるファイルを
+        変えれば今までどおり拒む"""
+        def tracked():
+            (self.repo / "app.txt").write_text("書き換えた\n", encoding="utf-8")
+
+        def commit():
+            gitkit.git(self.repo, "commit", "-q", "--allow-empty", "-m", "x")
+
+        def branch():
+            gitkit.git(self.repo, "checkout", "-q", "-b", "other")
+
+        def ignored():
+            (self.repo / "run.log").write_text("x\n", encoding="utf-8")
+
+        reply = {"material": {"status": "clean", "checked": "x"}, "claims": []}
+        for move in (tracked, commit, branch, ignored):
+            with self.subTest(move.__name__):
+                self.setUp()
+                (self.repo / ".gitignore").write_text("*.log\n", encoding="utf-8")
+                gitkit.git(self.repo, "add", ".gitignore")
+                gitkit.git(self.repo, "commit", "-q", "-m", "ignore")
+                self.view()
+                self.make_test_caches()
+                move()
+                got = ja.material_take(self.jdir, "provenance", reply, self.repo)
+                self.assertFalse(got["ok"], got)
+                self.assertIn(ja.READONLY_MOVED, got["reason"])
+
     def changed(self, *names):
         """app.txt と names を変えた差分で素材の道を分ける"""
         for name in ("app.txt", *names):

@@ -1073,9 +1073,9 @@ MATERIAL_TREE_FILE = "material-tree.json"
 DIAGNOSE_TREE_FILE = "diagnose-tree.json"
 
 
-def snap_tree(jdir, name: str, repo) -> pathlib.Path:
-    """役を起こす前の作業ツリーの姿（accept.tree_state）を置き場の name に書く（元 entry.snapshot）"""
-    return write_json(pathlib.Path(jdir) / name, core_accept.tree_state(pathlib.Path(repo)))
+def snap_tree(jdir, name: str, repo, *, caches: bool = True) -> pathlib.Path:
+    """役を起こす前の作業ツリーの姿（accept.tree_state。caches も同じ）を置き場の name に書く（元 entry.snapshot）"""
+    return write_json(pathlib.Path(jdir) / name, core_accept.tree_state(pathlib.Path(repo), caches=caches))
 
 
 def _tree_snapshot(path):
@@ -1090,29 +1090,29 @@ def _tree_snapshot(path):
     return {k: snap[k] for k in core_accept.TREE_KEYS}
 
 
-def _bytecode_in(snap: dict) -> bool:
-    return any(core_accept._is_bytecode(core_accept._porcelain_path(ln)) for ln in snap["porcelain"].splitlines()) \
-        or any(core_accept._is_bytecode(n) for n in snap["ignored"])
+def _caches_in(snap: dict) -> bool:
+    return any(core_accept._is_test_cache(core_accept._porcelain_path(ln)) for ln in snap["porcelain"].splitlines()) \
+        or any(core_accept._is_test_cache(n) for n in snap["ignored"])
 
 
-def _moved_since(path, repo, *, bytecode: bool = True, keys=core_accept.TREE_KEYS) -> list:
+def _moved_since(path, repo, *, caches: bool = True, keys=core_accept.TREE_KEYS) -> list:
     """写し path（_tree_snapshot）から今の作業ツリーが変わった所の文（accept.tree_moved。keys の欄だけを比べる。同じなら空）。写しが
-    無い・読めない・形が違えば Reject。bytecode=False でも写しがバイトコードを含む時は含めて比べる（写しは bytecode=True で取られる
-    ので、外した姿と比べると変わっていなくても違って見える）"""
+    無い・読めない・形が違えば Reject。caches=False でも写しがテストのキャッシュを含む時は含めて比べる（caches=True で取った写し
+    は、外した姿と比べると変わっていなくても違って見える）"""
     snap = _tree_snapshot(path)
     if snap is None:
         raise Reject(f"作業ツリーの写し {path} が無い——役を起こす前の作業ツリーと比べられない（写しを置くノードが先に走る）")
-    return core_accept.tree_moved(snap, pathlib.Path(repo), bytecode=bytecode or _bytecode_in(snap), keys=keys)
+    return core_accept.tree_moved(snap, pathlib.Path(repo), caches=caches or _caches_in(snap), keys=keys)
 
 
-def _tree_unchanged(jdir, repo, rule: str, name: str, *, bytecode: bool = True, rev: str = "",
+def _tree_unchanged(jdir, repo, rule: str, name: str, *, caches: bool = True, rev: str = "",
                     keys=core_accept.TREE_KEYS) -> None:
     """元 works/.shared/core/premises.py:44 と purpose.py:57 の _tree_unchanged。役が作業ツリーと履歴を変えていないか。
     置き場に役を起こす前の姿 name が在れば今と比べ（accept.tree_moved。HEAD・枝・git が無視するパスも見る）、
     無ければ作業ツリーが綺麗で、rev を渡せば HEAD が rev のままであることを求める。違えば Reject。
-    bytecode=False（前提の実測役）はバイトコードを数えない（_moved_since）。keys は写しと比べる欄（_moved_since）"""
+    caches=False（前提の実測役）はテストのキャッシュを数えない（_moved_since）。keys は写しと比べる欄（_moved_since）"""
     if _tree_snapshot(pathlib.Path(jdir) / name) is None:
-        now = core_accept.tree_state(repo, bytecode=bytecode)
+        now = core_accept.tree_state(repo, caches=caches)
         dirty = now["porcelain"].splitlines() + [f"!! {n}" for n in now["ignored"]]
         if dirty:
             raise Reject(f"作業ツリーに変更が在る——{rule}"
@@ -1121,7 +1121,7 @@ def _tree_unchanged(jdir, repo, rule: str, name: str, *, bytecode: bool = True, 
             raise Reject(f"HEAD が数える版から動いた（版 {rev[:12]} / 今 {now['head'][:12]}）——{rule}。commit・reset・checkout で"
                          "履歴を動かしてはいけない")
         return
-    moved = _moved_since(pathlib.Path(jdir) / name, repo, bytecode=bytecode, keys=keys)
+    moved = _moved_since(pathlib.Path(jdir) / name, repo, caches=caches, keys=keys)
     if moved:
         raise Reject(f"役を起こした後から作業ツリーが変わった——{rule}（HEAD・枝・git が無視するファイルも）。作った物"
                      "（出力のファイル・キャッシュ）は rm で消し、書き換えた追跡中のファイルは git restore -- <path> で戻してから"
@@ -1164,7 +1164,7 @@ def with_carried(reply: dict, jdir) -> dict:
 def check_premises(reply: dict, jdir, repo, items: list) -> dict:
     """元 works/.shared/core/premises.py:125（と blk-premises/scripts/accept.py:32 の accept_premises）。実測役の返答を受け付ける:
     依頼の実測を測り直したか（check_claims）→ 作業ツリーか HEAD が変わっていれば拒む（_tree_unchanged。
-    バイトコードは数えない）→ post_check（measured_needs_output）。通れば置き場の premises.json に返答を書く（依頼が運んだ前の run の
+    テストのキャッシュは数えない）→ post_check（measured_needs_output）。通れば置き場の premises.json に返答を書く（依頼が運んだ前の run の
     実測を制約に足す。with_carried）。
     items は依頼の行（judge/request.json）。{ok, reason}"""
     def run():
@@ -1177,7 +1177,7 @@ def check_premises(reply: dict, jdir, repo, items: list) -> dict:
             rev = core_accept.resolve_rev(repo_p, "")
             # 実測役は測るために Bash を持つが、作業ツリーは変えない約束（後ろの判定はこの後の作業ツリーを写し、
             # 修正の差分は版からの差分で数える——ここで残った物は修正役の差分に混じる）
-            _tree_unchanged(jdir, repo_p, PREMISES_RULE, TREE_FILE, bytecode=False, rev=rev)
+            _tree_unchanged(jdir, repo_p, PREMISES_RULE, TREE_FILE, caches=False, rev=rev)
             measured_needs_output(_purpose.PREMISES_NODE, copy.deepcopy(reply))
         write_json(pathlib.Path(jdir) / _premises.PREMISES_FILE, with_carried(reply, jdir))
         return {"ok": True, "reason": ""}
@@ -1940,7 +1940,7 @@ def material_route(jdir, repo) -> dict:
         write_json(j / MATERIAL_ROUTE_FILE, {"roles": {}, "fill": {}, "reason": reason})
         return {**off, "reason": reason}
     if not (j / MATERIAL_TREE_FILE).is_file():
-        snap_tree(j, MATERIAL_TREE_FILE, repo)
+        snap_tree(j, MATERIAL_TREE_FILE, repo, caches=False)
     view = due_view(start, _purpose_of(j), doc["changed_files"])
     got = due_roles(view)
     fill = {}
@@ -2541,7 +2541,7 @@ def _peers_note(jdir, role: str) -> str:
 
 
 def material_take(jdir, role: str, reply: dict, repo, *, keys=core_accept.TREE_KEYS) -> dict:
-    """元 works/blk-material/lib/material.py:544 の take の書き直し。作業ツリーを素材の役を起こす前の姿（material-tree.json）と比べる →（局所レビューだけ）
+    """元 works/blk-material/lib/material.py:544 の take の書き直し。作業ツリーを素材の役を起こす前の姿（material-tree.json。テストのキャッシュは数えない）と比べる →（局所レビューだけ）
     fork のレンズの所見が届かなかった空の行に『見ていない』の印（diverted.mark_unseen）→ 必須のレンズの起動（_lens_gap）→ 所見の場所の
     行（_location_gap）→ 写しの graph の節の post_check → 素材の欄（check_record）。通れば material-<役>.json に
     {role, reply, materials} を書く（局所レビューは見ていないレンズの控えも）。keys は作業ツリーの写しと比べる欄（_moved_since）。
@@ -2552,7 +2552,7 @@ def material_take(jdir, role: str, reply: dict, repo, *, keys=core_accept.TREE_K
         if not isinstance(reply, dict):
             raise Reject("返答が JSON のオブジェクトでない")
         j, repo_p = pathlib.Path(jdir), pathlib.Path(repo)
-        moved = _moved_since(j / MATERIAL_TREE_FILE, repo_p, keys=keys)
+        moved = _moved_since(j / MATERIAL_TREE_FILE, repo_p, caches=False, keys=keys)
         if moved:
             raise Reject(f"{READONLY_MOVED}素材集めの役は対象の作業ツリー・HEAD・枝・git が無視するファイルを"
                          f"変えてはいけない（{'・'.join(moved)}）{_peers_note(j, role)}")
