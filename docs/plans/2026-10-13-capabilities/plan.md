@@ -399,10 +399,10 @@
   - 本物の run: plan の節の出力
   - 狭め: asks_human・gate_kinds・review_file は plan-review の返りへ移した（PE・PD）。gave_up・reason_file は P047。reads_file は P057
 
-- P055 受け付けた案の項目ごとに、変える名の呼び出し元と試験の当たり（覆っていない当たりを含む）を波及の一覧 ripple.json に作って返す。案が無い周は {items: [], error: <訳>}。
+- P055 受け付けた案の項目ごとに、変える名の呼び出し元と試験の当たり（覆っていない当たりを含む）と、消す名（removes）の残る名指し（kind removed・removed_test。docs/plans も数える）を波及の一覧 ripple.json に作って返す。案が無い周は {items: [], error: <訳>}。
   - 元: works/blk-plan/lib/planblk.py:478 `make_ripple`（stage items・RIPPLE_LATEST）・works/blk-plan/lib/ripple.py:171 `build`
   - 今: lib/planfile.py:1028 `ripple_items`・lib/ripple.py:171・workflows/plan/scripts/ripple_items.py
-  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends（assert: tests/workflows/test_plan.py:655 の request_ok.json:8 が 1 回目の覆っていない当たり）・AcceptCase.test_three_rejections_give_up_with_every_pointer（:600・:601）・lib/tests/test_ripple.py::RippleCase.test_literal_test_not_in_rewrite_is_uncovered（:92）・test_caller_outside_scope_is_uncovered（:101）。1 回目の差し込みで中身を見る試験は AcceptCase.test_accepted_plan_files の error が空（:528）だけで弱い → 要追加: AcceptCase.test_accepted_plan_has_item_ripple — 種の 1 回目の ripple.json の items[0] の uncovered に request_ok.json:8 が在る
+  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends（assert: tests/workflows/test_plan.py:655 の request_ok.json:8 が 1 回目の覆っていない当たり）・AcceptCase.test_three_rejections_give_up_with_every_pointer（:600・:601）・lib/tests/test_ripple.py::RippleCase.test_literal_test_not_in_rewrite_is_uncovered（:92）・test_caller_outside_scope_is_uncovered（:101）。消す名は RippleCase.test_removes_names_hits_are_uncovered ほか removed の 7 本と lib/tests/test_planfile.py::RippleItemsCase.test_ripple_items_sees_removes（planmarks.split が removes を欄に写す）。1 回目の差し込みで中身を見る試験は AcceptCase.test_accepted_plan_files の error が空（:528）だけで弱い → 要追加: AcceptCase.test_accepted_plan_has_item_ripple — 種の 1 回目の ripple.json の items[0] の uncovered に request_ok.json:8 が在る
   - 本物の run: plan/r1/ripple.json の items[].uncovered（返りの ripple の指し札の先）
   - 狭め: 無し
 
@@ -739,10 +739,10 @@
 
 ### A. 計画と事前審査の往復（壁打ち）
 
-- P102 往復の決め: 最後の往復に block（直しへ進めない穴）が無ければ clean、前のどれかの往復と同じ block が残れば persisted、柵（3 往復）に着けば unsettled、ほかは again。数の定数をモジュールに持たない
+- P102 往復の決め: 最後の往復に block（直しへ進めない穴）が無ければ clean、前のどれかの往復と同じ block が残れば persisted、2 往復目から開いた block の数が前の往復より減らなければ unsettled、ほかは again（往復の数では止めない）。数の定数をモジュールに持たない
   - 元: works/.shared/core/converge.py:148 `decide`・:161 `_decide_items`
-  - 今: lib/converge.py:148 `decide`（字のままの写し）。計画の側の写し lib/planfile.py:469 `_record_pass` も同じ decide を呼ぶ
-  - 証: lib/tests/test_converge.py::DecideCase.test_no_block_is_clean（assert: lib/tests/test_converge.py:56）・test_block_from_any_earlier_pass_persists（:62）・test_fence_with_new_blocks_is_unsettled（:67）・test_module_has_no_count_constant（:71）
+  - 今: lib/converge.py:182 `decide`・`not_fewer`（古い works 0.2.65 の e9a82061 の写し）。計画の側の写し lib/planfile.py:447 `converge_record` も同じ add_pass → decide を呼ぶ
+  - 証: lib/tests/test_converge.py::DecideCase.test_no_block_is_clean（assert: lib/tests/test_converge.py:56）・test_block_from_any_earlier_pass_persists（:70）・test_new_blocks_stop_before_fence_when_not_fewer（:58）・test_open_blocks_not_fewer_than_last_pass_is_unsettled（:63）・test_decreasing_blocks_go_on_regardless_of_pass_count（:75）・test_module_has_no_count_constant（:81）
   - 本物の run: plan-review/plan-converge.json の `outcome`（種の run では `clean`）
   - 狭め: 無し
 
@@ -816,18 +816,18 @@
   - 本物の run: plan-review/pass-2/prompt.md。種の run では pass-1/prompt.md に REREVIEW_ASK が無いことだけ見える
   - 狭め: 無し
 
-- P113 again（1 往復目の block）では止めず関所も決めず、計画に返す。同じ block が 2 度続いた（persisted）・柵でも消えない（unsettled）時は止めて、修正前の関所に止まりの行（STUCK_ITEM と理由）と block の穴を載せる
+- P113 again（開いた block が前の往復より減った往復）では止めず関所も決めず、計画に返す。同じ block が 2 度続いた（persisted）・開いた block が減らない（unsettled）・安全の上限の周（capped）の時は止めて、修正前の関所に止まりの行（STUCK_ITEM と理由）と block の穴を載せる
   - 元: works/blk-plan/lib/planblk.py:1178 `with_converge`（again は rewind_roles）・:1341 `converge_check`、works/.shared/core/converge.py:571 `stuck_reason`
-  - 今: lib/boardview.py:919 `collect`（stalled = outcome in STUCK）、P74 workflows/line/scripts/plan_out.py `plan_out`（done = ready 偽・pass・stalled・round ≥ 3）、P74 workflows/line/works-factory-line.yaml:182-237 の loop_group `plan-rounds`
-  - 証: tests/workflows/test_plan_review.py::ConvergeCase.test_first_block_is_not_stalled（assert: :855-857）・test_same_block_again_stalls_with_a_design_item（:879-880）・test_other_block_on_the_fence_is_unsettled（:926）。線の側 P74 tests/workflows/test_line.py::PlanOutCase.test_done_rules（assert: P74 tests/workflows/test_line.py:413-416）・test_round_limit_is_the_loop_limit（:751）・筋書き P74 workflows/line/fixtures/plan-stalled.stubs.yaml・plan-unsettled.stubs.yaml
+  - 今: lib/boardview.py:919 `collect`（stalled = outcome in STUCK）、P74 workflows/line/scripts/plan_out.py `plan_out`（done = ready 偽・pass・stalled・round ≥ with: の round_limit（20））、P74 workflows/line/works-factory-line.yaml:182-237 の loop_group `plan-rounds`
+  - 証: tests/workflows/test_plan_review.py::ConvergeCase.test_first_block_is_not_stalled（assert: :855-857）・test_same_block_again_stalls_with_a_design_item（:879-880）・test_other_block_not_fewer_is_unsettled・test_decreasing_blocks_go_again・test_capped_decay_stops_at_loop_max。線の側 P74 tests/workflows/test_line.py::PlanOutCase.test_done_rules（assert: P74 tests/workflows/test_line.py:413-416）・test_round_limit_is_the_loop_limit（:751）・筋書き P74 workflows/line/fixtures/plan-stalled.stubs.yaml・plan-unsettled.stubs.yaml
   - 本物の run: `$plan-rounds.output.stalled`・plan-review の返り `stalled`（種の run では false）
   - 狭め: 無し
 
-- P114 往復の柵（3）を、事前審査の往復の数と線の loop_group の上限の両方で同じ数に縛る。上限に当たって落ちずに抜ける
+- P114 往復の安全の上限（20）を、事前審査が上限の周を知る数と線の loop_group の上限の両方で同じ数に縛る。止め時は数でなく converge.decide。上限に当たって落ちずに抜ける
   - 元: works/blk-plan/blk-plan.yaml:543（converge-loop の max_iterations 3）と works/tests/test_blk_plan.py::YamlCase.test_converge_loop_wraps_revise_and_review（GIVE_UP_AFTER と突き合わせ）
-  - 今: lib/boardview.py:81 `FENCE = rolekit.GIVE_UP_AFTER`、P74 workflows/line/scripts/plan_out.py `ROUND_LIMIT = 3`、P74 works-factory-line.yaml:186 `max_iterations: 3`
-  - 証: P74 tests/workflows/test_line.py::PlanOutCase.test_round_limit_is_the_loop_limit（assert: :751）。FENCE と ROUND_LIMIT の一致は照らされていない → 要追加: P74 tests/workflows/test_line.py::PlanOutCase.test_round_limit_is_the_review_fence — plan_out.ROUND_LIMIT == boardview.FENCE == rolekit.GIVE_UP_AFTER
-  - 本物の run: plan/r*/ の数が 3 を越えない。筋書きでのみ
+  - 今: P74 works-factory-line.yaml の `max_iterations: 20` と、plan-out・plan-review-run の `with:` の `round_limit: 20`（正本は線。lib/boardview.py `_at_cap` は入力の round_limit で converge.record_pass の at_cap を決め、数を持たない）
+  - 証: P74 tests/workflows/test_line.py::LineWiringCase.test_round_limit_is_the_loop_limit（max_iterations == plan-out と plan-review-run の round_limit）
+  - 本物の run: plan/r*/ の数が 20 を越えない。筋書きでのみ
   - 狭め: 無し
 
 - P115 往復の数え: 計画の周 r<k> は往復と案の直しを通して数え、事前審査の往復の控えは差し込みをまたいで 1 つの周（見え方の周はいつも 1）に積む。案の直しの周は往復に数えない
@@ -860,10 +860,10 @@
 
 - P119 往復の報告の行（何往復・抜け方の語・続いた block・往復ごとの block と答えの数・項目の閉じた/開いた/保留・相乗りの block）を報告の冒頭に載せる
   - 元: works/.shared/core/converge.py:593 `lines`、works/.shared/core/report.py:949（`lines += converge.lines(b)`）
-  - 今: lib/boardview.py:951 が plan-review/pass-<k>/gate.json の `converge` に書くだけで、報告（lib/runreport.py・lib/report.py）も線も読まない
-  - 証: lib/tests/test_converge.py::TextCase.test_lines_summarize_passes（lib の水準だけ）。報告に届く試験は無い → 要追加: tests/workflows/test_report.py::ConvergeLinesCase.test_head_carries_plan_converge_lines — plan-review の返りの review の隣の gate.json の converge の行が報告の冒頭の決めの節に載る
-  - 本物の run: plan-review/pass-1/gate.json の `converge`（種の run では「事前審査の壁打ち: 1 往復・抜け方は block が消えた…」の 1 行が在るはず）と report の本文（今は載らない）
-  - 狭め: #73・#68 のどちらにも狭めの記載無し（不可でない → 戻す。報告が gate-passes.json と同じく review の隣を読めば足りる）
+  - 今: lib/boardview.py の collect が plan-review/pass-<k>/gate.json の `converge` に書き、lib/runreport.py の `_converge_lines` が plan-review の返りの review の隣のその行を報告の冒頭の決めの節に載せる（gate-passes.json と同じ読み方）
+  - 証: lib/tests/test_converge.py::TextCase.test_lines_summarize_passes（lib の水準）、tests/workflows/test_report.py::ConvergeLinesCase.test_head_carries_plan_converge_lines（事前審査のブロックの script を回した返りの gate.json の converge の行が報告の冒頭の決めの節に載る）
+  - 本物の run: plan-review/pass-<k>/gate.json の `converge`（種の run では「事前審査の壁打ち: 1 往復・抜け方は block が消えた…」の 1 行が在るはず）と report の本文の決めの節
+  - 狭め: 無し
 
 - P120 往復ごとの拒否の数え直し: again で次の往復に移ると、計画と事前審査の拒否の回数を 0 から数え直す（拒否の行は往復の行に残す）
   - 元: works/blk-plan/lib/planblk.py:1178 `with_converge`（converge.stash_rejects・rolekit.take_rejects）、works/tests/test_blk_plan.py:1751 `test_rejects_restart_per_pass`
@@ -1770,7 +1770,7 @@
 
 - P245 返した関所の項目の種類と方針の変化を gate-asked.json に積み、関所の項目の全部と壁打ちの行を pass-<k>/gate.json に残す（次の差し込みが通した行の種類を引く・人が読む控え）
   - 元: 盤面の state.pending_human（{node, kinds, items}）と loop_state.policy_change
-  - 今: lib/boardview.py:912 `_note_asked`・:951（GATE_FILE）
+  - 今: lib/boardview.py:907 `_note_asked`・:946（gatemarks.PLAN_GATE_FILE）
   - 証: 要追加: tests/workflows/test_plan_review.py::ResultCase.test_gate_files_carry_kinds_and_items — 狭め 1 件と方針の変化 1 件の差し込みの後、gate.json の items が `[{kind: "regression", …}, {kind: "policy_changed", …}]` で、gate-asked.json が 2 つの文を種類つきで持ち、方針の行だけ policy_change を持つ（今は lib の試験が `_note_asked` を直に呼ぶだけで、collect が書くことを見ない）
   - 本物の run: `plan-review/pass-1/gate.json`・`plan-review/gate-asked.json`
   - 狭め: 無し

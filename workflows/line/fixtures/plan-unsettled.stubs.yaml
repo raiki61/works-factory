@@ -1,9 +1,10 @@
-# 3 周目の値（round: 3・pass: false・stalled: false）。plan-out の done が真になり、往復が落ちずに修正前の関所が開く。
+# 往復の安全の上限の周（round: 20）で、減り続けていた壁打ちを事前審査が上限で止めた返り（stalled: true。理由の行は questions）。
+# plan-out の done が真になり、往復が落ちずに修正前の関所が開く。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
   reached: ["plan-out", "gate-before-fix", "fix__fix"]
-  resolved-text-contains: {"gate-before-fix": "3 往復で決着しなかった"}
+  resolved-text-contains: {"gate-before-fix": "仕組みの異常として止めた"}
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
 test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}
@@ -13,9 +14,9 @@ judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths
 plan__round: {"round": 1, "mode": "plan", "dir": "plan/r1", "go": false}
 plan__structure-state: {"state_file": "plan/r1/structure-state.json"}
 plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
-plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "標準", "why": "約束の形のファイルを触る"}], "round": 3}
+plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "標準", "why": "約束の形のファイルを触る"}], "round": 20}
 plan-review-run__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "review", "reason": ""}
-plan-review-run__review: {"pass": false, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": false, "questions": []}
+plan-review-run__review: {"pass": false, "stalled": true, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": true, "questions": ["事前審査の壁打ちが止まった案: 修正に進まない（continue で修正へ進む・stop で報告へ。判定・修正案・事前審査・独立設計は報告の見る所に並ぶ）。理由: 事前審査（記録の名 p2.plan_review）の block が、壁打ち 20 往復でも消えない（往復ごとに別の穴が出た。最後の block: mean-empty-0。往復ごとの案と審査: plan-review/plan-converge）。壁打ちの輪の安全の上限 20 往復に届いた（減り続ける往復は普通は届かないので、仕組みの異常として止めた）。開いた block は減り続けていた（往復ごとの開いた数: 1 往復目 20 → 20 往復目 1）"]}
 fix__route: {"group": true}
 fix__group-start: {"tdd": false, "units": 1, "reason": ""}
 fix-prep: {"prompt_file": "", "go": false, "iteration": 1}

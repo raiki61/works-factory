@@ -328,6 +328,16 @@ class DecisionsCase(Base):
         self.assertIn("が読めない", self.section(text, report.DECISIONS_HEADING))
 
 
+    def test_converge_lines_missing_is_quiet_and_broken_is_one_line(self):
+        review = self.put("plan-review/review.json", {})
+        self.put("plan-review/gate-passes.json", [])
+        _, text, _ = self.build(fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "review": review}}))
+        self.assertNotIn("事前審査の壁打ち", text)
+        self.put("plan-review/gate.json", "{壊れた")
+        _, text, _ = self.build(fixed_run(**{"plan-review": {**fixed_run()["plan-review"], "review": review}}))
+        self.assertIn("事前審査の壁打ちの行: 無い（", self.section(text, report.DECISIONS_HEADING))
+
+
 class DraftsCase(Base):
     def test_each_stopped_item_gets_a_marked_draft(self):
         """元 DraftsCase.test_each_stopped_item_gets_a_marked_draft: 無人の run で関所が開かなかった問いごとに、下書きの印つきの

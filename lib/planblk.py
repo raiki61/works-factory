@@ -21,11 +21,11 @@ p2.fix_plan）が案を直す。直しの役が起きるかは壁打ちの控え
             下請けは答えを作業ツリーの外の run の置き場（answers_dir。作業ツリーは役が変えてはいけない）の機械が決めたファイルに Write で
             書く。受け付け（tree_merge）がそのファイルを項目ごとに確かめ（check_item。型・覆っていない当たりの全部の答え・自分の項目の単位だけ・
             前の block の行き先・独立設計が立つ時は穴の引用と対応表 design_map。design_gaps）、faces・shrink・resolved・当たりの答え・
-            相乗りを審査の返答にまとめる（相乗りの審査の答えは穴の引用だけを照らす）。束ね役の返答は項目ごとの判定の
+            相乗り・出自の申告（origins）を審査の返答にまとめる（相乗りの審査の答えは穴の引用だけを照らす）。束ね役の返答は項目ごとの判定の
             要約（converge.ITEMS）だけで、答えのファイルと食い違えば拒む。確かめを通らない項目は、出し直しの tree_part がその項目の下請けの
             ファイルにだけ機械の読める誤りの一覧（ERRORS_HEAD）を貼って起こし直させ、通った項目は起こし直さない。
             支度（ブロックの script）が tree_part を呼ばなかった往復は下請けの置き場（ITEMS_DIR）が無いので、受け付けは木のまとめを飛ばす
-            （_tree_off。審査役 1 つの返答をそのまま受ける）
+            （_tree_off。審査役 1 つの返答をそのまま受ける。出自の申告 origins は役の型が確かめた返答の欄のまま）
 - 壁打ちの again: rewind_roles が役の節 2 つを同じ周の待ちに戻す。replanning は入力 replan が同じ run の中の案の直しを指すか
 - RECEIVES: 役ごとに貼る節の見出しの表（promptsection）
 """
@@ -101,7 +101,7 @@ AGG_ASK = ("お前は束ね役。案の項目を自分で見ずに、下の下�
            "下請けは読むだけで、答えはファイルに書き（どこに書くかはファイルが名指す。作業ツリーは変えない。変われば受け付けが拒む）、"
            "最後に 1 行の要約を返す。答えのファイルは受け付け（機械）が確かめてまとめるので、お前は答えの中身を写さない。")
 AGG_MERGE = ("下請けが全部返ったら、返答は次の形だけにせよ（受け付けが答えのファイルと突き合わせ、食い違えば拒む）: faces と shrink は"
-             "空の配列、reason にこの往復のまとめ（20 字以上）、items に開いた項目ごとに 1 行 {item, verdict（下請けの要約が clean なら"
+             "空の配列、origins は書かない（出自は下請けの答えのファイルに書く）、reason にこの往復のまとめ（20 字以上）、items に開いた項目ごとに 1 行 {item, verdict（下請けの要約が clean なら"
              " clean、block なら block）, blocks（下請けの要約の block の key ごとに {key, why（一言）}。clean なら []）}。"
              "閉じた項目・保留の項目の行は入れない。前の拒否の理由が済んだ項目の答えの中身を名指していれば、その項目の下請けを起こし"
              "直して理由のファイルを読ませ、答えのファイルを直させよ。")
@@ -487,7 +487,7 @@ HISTORY_HEAD = promptsection.Section(f"## この項目の前の往復の block�
 
 
 def _item_history(b, unit_keys: list) -> str:
-    """前の往復でこの項目に挙がった block と修正案の役の答え（下請けのファイルに貼る）"""
+    """前の往復でこの項目に挙がった block と修正案の役の答えと、出自の頼み ORIGIN_ASK（下請けのファイルに貼る。1 往復目は空）"""
     doc = converge.read(b)
     mine = {str(k) for k in unit_keys}
     lines = []
@@ -500,9 +500,9 @@ def _item_history(b, unit_keys: list) -> str:
                 lines.append(f"- {p['pass']} 往復目の block {f['key']}: {f.get('why')}（{f.get('where')}）")
         lines += [f"  - 修正案の役の答え {a.get('key')}: {a.get('handled')}（{a.get('how')}）" for a in answers
                   if isinstance(a, dict) and a.get("key") in keys]
-    if not lines:
+    if not doc["passes"]:
         return ""
-    return "\n".join([HISTORY_HEAD, *lines])
+    return "\n".join([*([HISTORY_HEAD, *lines] if lines else []), converge.ORIGIN_ASK])
 
 
 def answers_dir(b, k: int) -> pathlib.Path:
@@ -544,6 +544,7 @@ def item_schema(b) -> dict:
                            "hits": copy.deepcopy(converge.HITS_SCHEMA), "faces": faces, "shrink": shrink,
                            "resolved": {"type": "array", "items": {"type": "string"}},
                            converge.DESIGN_MAP: copy.deepcopy(converge.DESIGN_MAP_SCHEMA),
+                           converge.ORIGINS: copy.deepcopy(converge.ORIGIN_SCHEMA),
                            "precedents": {"type": "array", "items": {
                                "type": "object", "additionalProperties": False, "required": ["id", "found", "quote"],
                                "properties": {"id": {"type": "string"}, "found": {"type": "boolean"},
@@ -641,7 +642,8 @@ def synergy_schema(b) -> dict:
     """相乗りの審査の下請けの答えのファイルの型"""
     faces, _ = _faces_schema(b)
     return {"type": "object", "additionalProperties": False, "required": ["why", "faces"],
-            "properties": {"why": {"type": "string", "minLength": 10}, "faces": faces}}
+            "properties": {"why": {"type": "string", "minLength": 10}, "faces": faces,
+                           converge.ORIGINS: copy.deepcopy(converge.ORIGIN_SCHEMA)}}
 
 
 def _load(path: pathlib.Path, schema: dict) -> tuple:
@@ -747,13 +749,14 @@ def _tree_off(b, k: int, rip: dict) -> bool:
 
 def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
     """事前審査の受け付けの木のまとめ（機械）。束ね役の返答の外した写し bare・束ね役の欄 tree・束ね役の resolved から、
-    {review（盤面へ渡す返答）, resolved, synergy（相乗りの審査の face の key）, hits（{項目: 当たりの答え}）, files（往復の控えに
-    写す答えのファイル）, gaps（拒む理由の行。在れば他は使わない）} を返す。木にしない案は束ね役の返答のまま"""
+    {review（盤面へ渡す返答）, resolved, synergy（相乗りの審査の face の key）, hits（{項目: 当たりの答え}）, origins（新しい block の
+    出自の申告の行。下請けと相乗りの答えの物を集める）, files（往復の控えに写す答えのファイル）, gaps（拒む理由の行。在れば他は
+    使わない）} を返す。木にしない案は審査役 1 つの返答のまま（出自の申告はその欄 origins。型は受け付けが役の型で確かめ済み）"""
     k = converge.pass_no(b)
     rip = _ripple_of(b, k) or {}
-    base = {"review": bare, "resolved": resolved, "synergy": [], "hits": {}, "files": {}, "gaps": []}
+    base = {"review": bare, "resolved": resolved, "synergy": [], "hits": {}, "origins": [], "files": {}, "gaps": []}
     if _tree_off(b, k, rip):
-        return {**base, "off": True}
+        return {**base, "off": True, "origins": list(tree.get(converge.ORIGINS) or [])}
     plan = converge.read(b)["plan"]
     opened = converge.open_items(b)
     gaps, answers = [], {}
@@ -768,8 +771,8 @@ def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
         gaps += [f"{where}: {e}" for e in errs]
         if got is not None:
             answers[n] = got
-    if bare.get("faces") or bare.get("shrink"):
-        gaps.append("束ね役の faces・shrink は空にする（項目の穴は下請けの答えのファイルから機械がまとめる。写さない）")
+    if bare.get("faces") or bare.get("shrink") or tree.get(converge.ORIGINS):
+        gaps.append("束ね役の faces・shrink・origins は空にする（項目の穴と出自は下請けの答えのファイルから機械がまとめる。写さない）")
     rows = tree.get(converge.ITEMS)
     rows = [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
     for n in opened:
@@ -812,6 +815,7 @@ def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
         files[SYNERGY_FILE] = str(synergy_file(b, k))
     return {"review": review, "resolved": list(dict.fromkeys(x for n in opened for x in answers[n]["resolved"])),
             "synergy": [f["key"] for f in (syn or {}).get("faces") or []],
+            "origins": [o for x in [*(answers[n] for n in opened), syn or {}] for o in x.get(converge.ORIGINS) or []],
             "hits": {n: _hit_rows(b, n, rip, answers[n]["hits"]) for n in opened}, "files": files, "gaps": [],
             "precedents": (precedent_plan(b, opened), answers, k)}
 
@@ -941,6 +945,7 @@ def tree_part(b, main_prompt: pathlib.Path) -> str:
         syn.write_text("\n\n".join([
             head, SYNERGY_HEAD,
             SUB_SYNERGY_ASK.format(answer=synergy_file(b, k), schema=json.dumps(synergy_schema(b), ensure_ascii=False)),
+            *([converge.ORIGIN_ASK] if k > 1 else []),
             f"{ALL_ITEMS_HEAD}\n\n" + "\n".join(states),
             f"{OVERLAPS_HEAD}\n\n" + over]) + "\n", encoding="utf-8")
         parts.append(AGG_SYNERGY.format(path=syn))

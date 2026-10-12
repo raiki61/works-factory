@@ -1,4 +1,4 @@
-# plan-review が同じ所で 2 度続けて止めた（stalled）。往復を抜け、修正前の関所が必ず開く。
+# plan-review が stalled を返した（壁打ちを止めた姿。止め時は lib の converge.decide で、筋書きは確かめない）。往復を抜け、修正前の関所が必ず開く。
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}

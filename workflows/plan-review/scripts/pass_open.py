@@ -59,6 +59,7 @@ def opened() -> tuple:
         world=pointed(os.environ["INPUTS_WORLD"]), start=pointed(os.environ["INPUTS_START"]),
         answers=json.loads(os.environ["INPUTS_ANSWERS"]), ruling=json.loads(os.environ["INPUTS_RULING"]) or [],
         conflicts=pointed(os.environ["INPUTS_CONFLICTS"]), gate_answers=json.loads(os.environ["INPUTS_GATE_ANSWERS"]),
+        round_limit=json.loads(os.environ["INPUTS_ROUND_LIMIT"]),
         review_schema=node_schema(text, "plan-review"), design_schema=node_schema(text, "r2-design"))
     return boundary, {"ok": True, **got, "reason": ""}
 

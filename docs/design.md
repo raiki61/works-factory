@@ -90,7 +90,7 @@ flowchart TB
   g1 --> tb["test-gate（base）"]
   tb --> judge
   judge --> loopP
-  subgraph loopP["計画の往復（3 往復まで）"]
+  subgraph loopP["計画の往復（開いた block が減る間。安全の上限 20 往復）"]
     plan --> pr["plan-review"]
   end
   loopP --> g2{{"修正前の関所"}}
@@ -109,7 +109,7 @@ flowchart TB
 2. 起動の関所（人）: 何を始めるかを見せて止まる。
 3. test-gate（base）: テストの走らせ方を見つけ、直す前の結末（元から赤のテスト）を控える。
 4. judge: 前提・目的・定石・素材・判定。`--spec` の時は中に仕様の関所（人）を持つ。
-5. 計画の往復: plan → plan-review を 3 往復まで。同じ所で 2 度続けて止められたら止める。
+5. 計画の往復: plan → plan-review を、開いた block が前の往復より減る間くり返す。同じ所で 2 度続けて止められたか、開いた block が減らなければ止める（止め時の正本は `lib/converge.py` の `decide`）。安全の上限 20 往復に届けば、仕組みの異常として止めて修正前の関所へ回す。
 6. 修正前の関所（人）: 事前審査の 4 つの軸（自明・世界の解・汚くない・やりすぎでない）で人に聞く物がある時だけ開く。
 7. fix: 組ごとの並べ（`fan_out:`）・TDD の輪・修正役・裁定・差分の審査と手直し。裁定が計画の項目の誤りとした時は、1 run に 1 度だけ plan と plan-review をもう一度差し込み、案の直しの関所（人）を通る。2 度目の修正が走らなかった時（関所の stop・無人の止め・直した案ができなかった）は、1 回目の修正の差分も試験の関門から先へ進めない。差分の審査が 2 往復で通らなかった run は、今の works の最後のテスト（`p4.ci` は手直しの段が済むのを待つだけで、審査の通りを待たない）と同じく試験の関門・独立の目・最後の関所へ進め、通らなかった審査は報告の残りに載る（線の節 `fixed` の `go`）。1 回目の修正の修正役の異議は judge を再審の入力でもう一度差し込む（1 度。2 度目の修正の前）。2 度目の修正の異議は再審せず、再審されずに残った異議として最後の関所を開け（11）、報告と次の依頼に載る（今の works は再審を 2 度目の修正の後に置き、両方の異議を再審に渡した。線は再審を先に置くので狭めた）。
 8. test-gate（final）: テスト一式と CI。緑を作業ツリーの指紋つきで認証する。
@@ -143,7 +143,7 @@ flowchart TB
 ### 繰り返し
 
 - 判定の受け付けが拒めば、判定役に 3 回まで出し直させる（judge の中の `loop:`）。
-- 計画の往復は線の `loop_group` の `plan-rounds`（plan と plan-review の 2 つの include（id は `plan`・`plan-review-run`。輪の中の id は差し込まれても頭が付かず、plan-review のブロックの輪の中の節 `plan-review` とぶつかるので、線の側を替える）と、終わりの返しの節 `plan-out`）で 3 回まで。`loop_group` の中の節は外から見えないので、外の節は `plan-out` が返し直した `$plan-rounds.output.<欄>` を読む（U4）。ただし `collect` は往復の後ろの受け皿 `plan-rounds-out`（plan の欄）と `plan-rounds-review-out`（plan-review の欄）から読む（往復の中の節が落ちると `$plan-rounds.output` は読めず、`collect` も落ちるため）。往復の上限は `plan-out` と `ask-before-fix` に `with:` の `round_limit` で渡す（試験が `max_iterations` と同じ値を縛る）。`plan-out` の `done` が上限の周の終わりで必ず真になるので、往復は上限に当たって落ちずに修正前の関所へ回る。
+- 計画の往復は線の `loop_group` の `plan-rounds`（plan と plan-review の 2 つの include（id は `plan`・`plan-review-run`。輪の中の id は差し込まれても頭が付かず、plan-review のブロックの輪の中の節 `plan-review` とぶつかるので、線の側を替える）と、終わりの返しの節 `plan-out`）で、安全の上限 20 回（`max_iterations`）。止め時は回数でなく事前審査の壁打ちの `converge.decide`（同じ block が続く・開いた block が減らない）で、`plan-out` の `stalled` が真になって抜ける。`loop_group` の中の節は外から見えないので、外の節は `plan-out` が返し直した `$plan-rounds.output.<欄>` を読む（U4）。ただし `collect` は往復の後ろの受け皿 `plan-rounds-out`（plan の欄）と `plan-rounds-review-out`（plan-review の欄）から読む（往復の中の節が落ちると `$plan-rounds.output` は読めず、`collect` も落ちるため）。往復の上限は `plan-out` と事前審査（`plan-review-run`）に `with:` の `round_limit` で渡す（試験が `max_iterations` と同じ値を縛る。正本は線で、lib に数を写さない）。上限の周の往復は事前審査が `at_cap` で止め（関所の理由は「仕組みの異常として止めた」）、`plan-out` の `done` も上限の周の終わりで必ず真になるので、往復は上限に当たって落ちずに修正前の関所へ回る。
 - 並べ: 単位を組にし（組は分けない）、fix は組ごとに `fan_out:` で並べる。幅は計画の組の数から run の時に決まり、並べの数の上限だけを持つ。固定の枝の数・待ちの列・錠は持たない（持ち主の決め `no-queue`。今の works の固定の 3 本と待ちの列（commit `ab9b9f17`）は持ち込まない）。結果は `fan_out:` が入力の順に集める。組の差分は決めた順に親の木へ戻し、戻せなかった組は理由つきで報告と次の run に回す。組ごとの作業ツリーの持ち方は未決 U8。
 - 修正役が 3 回拒まれた単位は、その単位を始めた時の版に戻し、理由を残して裁定に回し、ほかの単位は先へ進む。
 - 差分の審査 → 手直しは 2 往復まで。
@@ -225,9 +225,10 @@ flowchart TB
   - `ruling` ← `$fix.output.replan_items`（`replan-review` の時だけ。`plan-review` では `[]`。裁かれた項目（`replan_items` と同じ番号の字）だけを審査する。番号でない行と案の外の番号は拒む）
   - `conflicts` ← `$fix.output.conflicts`（`replan-review` の時だけ。`plan-review` では渡さない（既定 null）。裁かれた項目ごとに申し出と裁定の文を事前審査に貼る）
   - `gate_answers` ← `$answer-before-fix.output.answer`（`replan-review` の時だけ。`plan-review` では渡さない（既定 null。往復は修正前の関所の前）。修正前の関所の答え `{decision, text, asked}`、`asked` は人が見た `questions` の行。関所が開かなかった run は null）。通した行を次の差し込みで聞き直さず、方針の文書の変化を通したらその版を固め直す
+  - `round_limit`（`plan-review` の時だけ。線の往復の輪の安全の上限 20 で、`max_iterations` と同じ数。`replan-review` では渡さない（既定 null。輪の外））。計画の周 `round` がこの数の往復は、開いた block が減っていても止める（`at_cap`）
 - 返り:
   - `pass`（boolean）: 止める指摘が無い（通し）→ 線 5（往復を抜ける）
-  - `stalled`（boolean）: 同じ所で 2 度続けて止めた（`lib/converge`）→ 線 5（往復を止める）・report
+  - `stalled`（boolean）: 壁打ちを止めた（同じ block が続いた・開いた block が前の往復より減らなかった・往復の安全の上限の周に届いた。`lib/converge`）、または受け付けが諦めた → 線 5（往復を止める）・report
   - `review`（指し札）: 項目ごとの指摘（review-graph の `p2.plan_review` の `faces`・`shrink`・`reason`）→ plan（次の周）・report
   - `design`（指し札）: 独立設計 R2（review-graph の `r2.design` の `question_stands`・`design`。今の works の `design.json`）→ eyes（R2 の比較）
   - `gate_axes`（object）: 4 つの軸。鍵は `obvious`（自明）・`world`（世界の解）・`clean`（汚くない）・`not_overkill`（やりすぎでない）、各 `{ok: boolean, note: string}` → 線 6
@@ -614,7 +615,7 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 
 - `judge`: 前提・目的・定石・素材 11 本・診断・裏取り・再審・仕様の段が動く。受け付けが拒めば 3 回まで出し直す。定石の抜き書きが出どころに在ることを機械が照らす。目的の外の所見が持ち越しの行になる。
 - `plan`: 構造の目と修正案と波及の一覧。項目ごとに書いてよい範囲・受け入れテスト・定石と構造の行への従うか外れの訳が無ければ受け付けが拒む。案の直しの入力で 2 度目を差し込める。
-- `plan-review`: R2 の独立設計は道具なしで目的の文だけを受ける（禁じた入力が届かないことを試験で縛る）。4 つの軸と人への問いを返す。往復の止め（3 回・同じ止めが 2 度）が働く。
+- `plan-review`: R2 の独立設計は道具なしで目的の文だけを受ける（禁じた入力が届かないことを試験で縛る）。4 つの軸と人への問いを返す。往復の止め（同じ block が続く・開いた block が前の往復より減らない。往復の数では止めず、安全の上限 20 周の周は仕組みの異常として止める）が働く。
 - `fix`: 赤緑の機械の判定・元から赤の区別・凍結・範囲の照らしと相談・書き込みの出どころ・3 回で諦める・申し出と裁定・差分の審査と手直し 2 往復。組は `fan_out:` で並べ、幅は計画（組の数）から決まり、組は分けない。並べの数の上限は持つが、固定の枝の数・待ちの列・錠は持たない。
 - `test-gate`: base と final の 2 つの形。赤の原因を 3 つに分け、今回入れた赤と原因の無い赤を拒む。緑の認証に作業ツリーの指紋が入り、木が変われば認証が使えない。
 - `eyes`: R1〜R4 と前提の検算と直した後の構造の実測。全部の役が `mutates_checkout: false`。R2 の禁じた入力が届かない。R4 の問いと守りのパスの当たりが返りに載る。型つきの成果物 `eye-verdict`（`{eye, status, reason}`）を目ごとに出す。返す節は自分の目の返りを `with:` で受けてまとめ、型つきの成果物の一覧は読まない（読むのは report だけ。E5）。

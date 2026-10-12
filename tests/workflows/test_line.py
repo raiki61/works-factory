@@ -45,6 +45,7 @@ import answer  # noqa: E402  （線の script が lib/ と境の口の置き場�
 import boardview  # noqa: E402
 import boundary  # noqa: E402
 import conflict  # noqa: E402
+import converge  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
@@ -57,7 +58,7 @@ SEED = SCRIPTS.parents[2] / "tests" / "e2e" / "target-seed"
 RUN = "run-1"
 LINE = yaml.safe_load((SCRIPTS.parent / "works-factory-line.yaml").read_text(encoding="utf-8"))
 BLOCKS = ("judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
-ROUND_LIMIT = 3
+ROUND_LIMIT = 20
 
 
 def block_doc(include: str) -> dict:
@@ -442,7 +443,7 @@ def planned(**kw) -> dict:
 
 class AskBeforeFixCase(unittest.TestCase):
     def ask(self, plan, unattended=False, design_only=False):
-        return ask_before_fix.ask(plan, unattended=unattended, design_only=design_only, round_limit=ROUND_LIMIT, run_id=RUN)
+        return ask_before_fix.ask(plan, unattended=unattended, design_only=design_only, run_id=RUN)
 
     def test_no_plan_goes_nowhere(self):
         self.assertEqual(self.ask(planned(ready=False)), {"open": False, "go": False, "stop_reason": "", "text": "", "deferred": []})
@@ -456,7 +457,10 @@ class AskBeforeFixCase(unittest.TestCase):
                             (planned(questions=["0 を返すか"]), "0 を返すか"),
                             (planned(ask_human=True), "直す前の関所"),
                             (planned(**{"pass": False, "stalled": True}), gatemarks.STUCK_ITEM),
-                            (planned(**{"pass": False, "round": 3}), ask_before_fix.UNSETTLED_ITEM)):
+                            (planned(**{"pass": False, "stalled": True, "round": ROUND_LIMIT, "ask_human": True,
+                                        "questions": [f"{gatemarks.STUCK_ITEM}。理由: " + converge.CAP_WHY.format(
+                                            n=ROUND_LIMIT, counts="1 往復目 2 → 20 往復目 1")]}),
+                             "仕組みの異常として止めた")):
             with self.subTest(words=words):
                 got = self.ask(plan)
                 self.assertEqual((got["open"], got["go"]), (True, True))
@@ -655,9 +659,10 @@ class PlanOutCase(unittest.TestCase):
 
     def test_done_rules(self):
         self.assertFalse(self.got()["done"])
-        for kw in ({"ready": False}, {"pass": True}, {"stalled": True}, {"round": 3}):
+        for kw in ({"ready": False}, {"pass": True}, {"stalled": True}, {"round": ROUND_LIMIT}):
             with self.subTest(kw=kw):
                 self.assertTrue(self.got(**kw)["done"])
+        self.assertFalse(self.got(round=3)["done"], "往復は数でなく開いた block の減り方で止まる（converge.decide）")
 
     def test_every_field_is_returned(self):
         self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"done", "stop_reason"})
@@ -1056,6 +1061,7 @@ class LineWiringCase(unittest.TestCase):
         ("fix", "only_items"): "1 回目は全部の項目（refix-run だけが 1 回目の replan_items を渡す）",
         ("plan-review-run", "conflicts"): "修正の前なので申し出が無い",
         ("plan-review-run", "gate_answers"): "修正前の関所より前に走る",
+        ("replan-review", "round_limit"): "案の直しの事前審査は往復の輪の外で、輪の上限が無い",
         ("eyes", "x_scalars"): "部分 D1 で配線する。D1 で表から消す",
     }
 
@@ -1305,8 +1311,9 @@ class LineWiringCase(unittest.TestCase):
         self.assertEqual(includes & body_ids(LINE["nodes"]), set())
 
     def test_round_limit_is_the_loop_limit(self):
+        """往復の輪の上限は線の 1 つの数: max_iterations と、plan-out と事前審査（上限の周を知る）に with: で渡す round_limit"""
         nodes = line_nodes()
-        self.assertEqual({nodes[key]["with"]["round_limit"] for key in ("plan-out", "ask-before-fix")},
+        self.assertEqual({nodes[key]["with"]["round_limit"] for key in ("plan-out", "plan-review-run")},
                          {nodes["plan-rounds"]["loop_group"]["max_iterations"]})
 
 

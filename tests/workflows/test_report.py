@@ -21,6 +21,7 @@ import unittest
 import yaml
 
 from tests import archon
+from tests.workflows import test_plan_review as plan_review
 from tests.workflows.copied import assert_is_original
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -32,11 +33,13 @@ if str(LIB) not in sys.path:
 if str(LIB / "graphloops") not in sys.path:
     sys.path.append(str(LIB / "graphloops"))
 
+import converge  # noqa: E402
 import outcome  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
 import runreport  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
+from lib.tests.test_outcome import fixed_run  # noqa: E402
 
 WORKFLOW = yaml.safe_load((BLOCK / "works-factory-report.yaml").read_text(encoding="utf-8"))
 NODES = {n["id"]: n for n in WORKFLOW["nodes"]}
@@ -573,6 +576,32 @@ class CollectScriptCase(Run):
         blocker.write_text("", encoding="utf-8")
         out = self.collect(json.dumps({**good, "report": None}), ARTIFACTS_DIR=str(blocker))
         self.assertEqual(out["outcome"], "record_invalid")
+
+
+class ConvergeLinesCase(unittest.TestCase):
+    """事前審査の往復の報告の行（棚卸しの P119。元 works/tests/test_report.py の test_head_lists_converge_lines）"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = pathlib.Path(os.path.realpath(tmp.name))
+
+    def test_head_carries_plan_converge_lines(self):
+        """plan-review の返りの review の隣の gate.json の converge の行（1 回目に出た割合の句を含む頭の行）が、報告の冒頭の決めの節に
+        載る。事前審査のブロックの script を本当に回して返りを作る"""
+        r = plan_review.Run(self.dir / "plan-review")
+        r.start(features_off=["review_tree"])
+        got = r.pass_(plan_review.review(plan_review.MEAN_BLOCK))
+        lines = converge.lines(r.view())
+        self.assertIn("1 回目の block 1 件", lines[0])
+        returns = fixed_run(**{"plan-review": {**got, "review": str(r.pointed(got["review"]))}})
+        decided = outcome.decide_outcome(returns, {}, {"start_ok": True, "record_problems": [], "failed": []})
+        built = runreport.build(returns, {}, {}, None, *decided, out_dir=self.dir / "report", start={"run_id": RUN}, run_id=RUN)
+        text = pathlib.Path(built["report"]).read_text(encoding="utf-8")
+        body = text.split(f"{report.DECISIONS_HEADING}\n\n", 1)[1].split("\n## ", 1)[0]
+        self.assertIn(f"- {lines[0]}\n", body)
+        for line in lines[1:]:
+            self.assertIn(f"{line}\n", body)
 
 
 class FixtureCase(unittest.TestCase):

@@ -80,8 +80,6 @@ TREE_FILE = "tree.json"                 # 事前審査の役を起こす前の�
 PROMPT_FILE = "prompt.md"
 REVIEW_FILE = "review.json"
 PASSES_FILE = "gate-passes.json"
-GATE_FILE = "gate.json"
-FENCE = rolekit.GIVE_UP_AFTER           # 往復の柵（線の loop_group の 3 回と同じ数）
 TREE_FEATURE = "review_tree"
 # 元 works/.shared/core/entry.py:1228 と works/.shared/core/design.py:104
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "
@@ -402,11 +400,13 @@ def _request(start: dict | None) -> tuple:
 
 # ---------------------------------------------------------------- 差し込みの頭
 def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=None, start=None, answers=None,
-              ruling=(), conflicts=None, gate_answers=None, review_schema: dict, design_schema: dict) -> dict:
+              ruling=(), conflicts=None, gate_answers=None, round_limit: int | None = None, review_schema: dict,
+              design_schema: dict) -> dict:
     """入力の指し札の先を置き場に写し、見え方の材料 OPEN_FILE を置く。judgment・purpose・plan・structure・ripple・world・start・
     conflicts は指し札の先のパス（world・start・conflicts は null 可）、answers は始めの人の関所の答え・gate_answers は修正前の
-    関所の答え（JSON の値。take_gate_answers）、ruling は裁かれた項目の番号の字（planmarks.handed。番号でない行と案の外の番号は
-    訳つきの Missing）、review_schema・design_schema は事前審査と独立設計の役の型
+    関所の答え（JSON の値。take_gate_answers）、round_limit は線の往復の輪の安全の上限（max_iterations と同じ数。輪の外で
+    回す時は None。止め時の決まりではない: converge.decide）、ruling は裁かれた項目の番号の字（planmarks.handed。番号でない行と
+    案の外の番号は訳つきの Missing）、review_schema・design_schema は事前審査と独立設計の役の型
     （ブロックの YAML の役の節の output_format）。形 replan では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、
     直した項目と申し出と裁定の行と並べて材料に置く（replan_items）。
     返り {k（plan-fields.json の round）, form（ruling が空なら review、在れば replan）, tree, r2_go}"""
@@ -451,7 +451,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     defaults = [x for x, given in ((DEFAULT_START, start is not None), (DEFAULT_ANSWERS, answers is not None)) if not given]
     defaults += [x for x in (review_unread, unread) if x]
     inputs = {
-        "k": k, "form": form, "ruled": ruled, "cwd": str(cwd),
+        "k": k, "form": form, "ruled": ruled, "round_limit": round_limit, "cwd": str(cwd),
         "rev": (start_doc or {}).get("base_rev") or "HEAD", "base": (start_doc or {}).get("base_rev") or "",
         "request": request, "policy_md": frozen.get("path") or "",
         "policy_copy": frozen.get("copy") or "", "excluded_file": str(d / EXCLUDED_FILE) if excluded is not None else "",
@@ -752,7 +752,7 @@ def review_material(folder, repo, command_text: str, review_md, *, shared=None) 
         part = "\n\n".join([planblk.design_only(b), REVIEW_ASK_REPLAN, planmarks.REVIEW_ASK,
                              *(_replan_section(r) for r in inputs.get("replan_items") or [])])
     else:
-        part = "\n\n".join(x for x in (planblk.design_section(b), converge.review_section(b),
+        part = "\n\n".join(x for x in (planblk.design_section(b), converge.review_section(b), _origin_ask(b, inputs),
                                        planblk.tree_part(b, main) if inputs.get("tree") else "") if x)
     head = planblk.head("plan-review", excluded_file=inputs.get("excluded_file") or "",
                         lib_docs=planblk.lib_section(b, pathlib.Path(repo), shared), design_part=part)
@@ -772,6 +772,11 @@ def review_material(folder, repo, command_text: str, review_md, *, shared=None) 
     main.write_text(body + "\n", encoding="utf-8")
     _write_json(p / TREE_FILE, accept.tree_state(pathlib.Path(repo)))
     return main
+
+
+def _origin_ask(b, inputs: dict) -> str:
+    """木にしない 2 往復目からの出自の頼み（書き手は審査役 1 つ。木なら書き手は下請けで、planblk が下請けのファイルに貼る）"""
+    return converge.ORIGIN_ASK if not inputs.get("tree") and converge.read(b)["passes"] else ""
 
 
 def _unit_name(names: list, k):
@@ -797,7 +802,8 @@ def take_review(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
     """事前審査の受け付け（元 planblk.take と with_converge の事前審査の側）。作業ツリーが役の前と同じ（keys の欄で比べる）→ 推しの形 → 型（役の型） → 木なら下請けの
     答えのまとめ（planblk.tree_merge）・木でなければ独立設計の引用と design_map（planblk.design_gaps）→ 前の往復の block の行き先
     （converge.resolved_gaps）→ 審査の決まり（rules.plan_review_output）。通れば決め手の欄を gate-marks.json に置き、形 review なら
-    往復を控え（converge.record_pass）、返答を pass-<k>/review.json に書く。拒みは pass-<k>/ の控えに積み、GIVE_UP_AFTER 回目で
+    往復を控え（converge.record_pass。計画の周 k が輪の上限 round_limit の往復は輪がもう 1 周回せないので at_cap で止める）、
+    返答を pass-<k>/review.json に書く。拒みは pass-<k>/ の控えに積み、GIVE_UP_AFTER 回目で
     done・give_up（その時は最後の拒みの訳を reason に置いた空の返答を review.json に書く）。返り {ok, done, give_up, reason}"""
     d = pathlib.Path(folder)
     inputs = read_open(d)
@@ -825,7 +831,7 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo, keys) -> di
     b = view(d, inputs)
     bare, resolved = converge.split("plan-review", reply)
     bare, tree = converge.tree_split(bare)
-    merged = {"review": bare, "resolved": resolved, "synergy": [], "hits": {}, "files": {}, "gaps": [], "off": True}
+    merged = {"review": bare, "resolved": resolved, "synergy": [], "hits": {}, "origins": [], "files": {}, "gaps": [], "off": True}
     if inputs["form"] == "review":
         merged = planblk.tree_merge(b, bare, tree, resolved)
         if merged["gaps"]:
@@ -848,10 +854,14 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo, keys) -> di
         if merged.get("precedents"):
             planblk.save_precedents(b, *merged["precedents"])
         files = {**merged["files"], PROMPT_FILE: str(p / PROMPT_FILE)}
-        converge.record_pass(out, bare_review, resolved=merged["resolved"], fence=FENCE, files=files,
-                             synergy=merged["synergy"], hits=merged["hits"])
+        converge.record_pass(out, bare_review, resolved=merged["resolved"], files=files, synergy=merged["synergy"],
+                             hits=merged["hits"], origins=merged["origins"], at_cap=_at_cap(inputs))
     _write_json(p / REVIEW_FILE, review)
     return {"ok": True, "reason": ""}
+
+
+def _at_cap(inputs: dict) -> bool:
+    return inputs["round_limit"] is not None and inputs["k"] >= inputs["round_limit"]
 
 
 # ---------------------------------------------------------------- 返す節
@@ -933,7 +943,7 @@ def collect(folder) -> dict:
     if gave:
         questions.append(GIVEN_UP_FACES + gave)
     _write_json(p / PASSES_FILE, gatemarks.passes(b))
-    _write_json(p / GATE_FILE, {"items": [{"kind": k, "text": t} for k, t in items], "converge": converge.lines(b)})
+    _write_json(p / gatemarks.PLAN_GATE_FILE, {"items": [{"kind": k, "text": t} for k, t in items], "converge": converge.lines(b)})
     got, _ = design.made(d, b.design_schema)
     design_file = d / design.DESIGN_FILE if got is not None else _write_json(p / design.DESIGN_FILE, {"missing": design.missing(b)})
     return {"pass": ok, "stalled": stalled, "review": p / REVIEW_FILE, "design": design_file,

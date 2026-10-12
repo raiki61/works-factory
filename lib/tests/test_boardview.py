@@ -109,7 +109,7 @@ class OpenCase(Base):
         self.open()
         b = self.view()
         self.assertEqual([it["unit_keys"] for it in converge.read(b)["plan"]], [[UNIT]])
-        converge.record_pass(boardview.place(self.folder), {"faces": []}, resolved=[], fence=3, files={})
+        converge.record_pass(boardview.place(self.folder), {"faces": []}, resolved=[], files={})
         self.assertEqual(converge.read(self.view())["outcome"], converge.CLEAN)
         rows = [json.loads(x) for x in (self.folder / "trace.jsonl").read_text(encoding="utf-8").splitlines()]
         self.assertIn(converge.OP, [r["op"] for r in rows])
