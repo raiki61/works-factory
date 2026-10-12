@@ -80,7 +80,6 @@ ALLOWED = {
         "lib/refixrules.py#$LOOP_PREV",             # 区分 F #121（手直しの指示書の docstring）
         "lib/rolekit.py#$LOOP_PREV",                # 区分 F #121（with_reject の docstring。使う役は fix の手直しと裁定）
         "lib/report_roles.py#loop_group",           # 区分 R #124（受け付けの諦めの数の注）
-        "lib/boardview.py#loop_group",              # 区分 P #120（plan-review の往復の柵の注）
         "lib/specblk.py#$spec-gate.output",         # 区分 J #119（仕様の関所の出口の字）
         "lib/judge_accept.py#$spec-gate.output",    # 区分 J #119（仕様の関所の答えの字）
         "lib/judge_accept.py#$material-route.output",  # 区分 J #119（素材の振り分けの返りの欄の注）
