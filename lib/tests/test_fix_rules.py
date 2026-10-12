@@ -1,8 +1,8 @@
 """修正の決まりの正本（workflows/fix/commands/fix-rules/common.md）と、2 つの修正役の指示書の組み立て（lib/fixrules.py。裁定 R65）の検査。
 
 - 決まりの正本は 1 つ: 直す役（fix-prep が組む）と TDD の輪の役（tdd-prep が組む）の両方の指示書が、正本の節をそのまま含む
-- 本線から来た決まりの句が正本に在る・「プロジェクトのテストを回せ」の文は RUN_TESTS と一字違わず（直した単位に絞る）・
-  変更の種類ごとの直の証拠（決定 C8）が在る
+- 本線から来た決まりの句が正本に在る・「プロジェクトのテストを回せ」の文はバイトコードを作らずに回せと言う（直した単位に絞る意味は
+  tests/workflows/prompt_contracts.json が照らす）・変更の種類ごとの直の証拠（決定 C8）が在る
 - 節を機械が選ぶ: 本線の核（直し方・守ること）はいつも、証拠の節は単位のファイルと差分に在る種類だけ、TDD の段の約束は今の段だけ
 - 指示書は決まりを全部載せた 1 つの形（prompt_file）。どの節を載せたか・なぜかは 1 行目の見出しに在る
 - 組み立ては機械だけ（AI を通さない）で、同じ入力からはバイト単位で同じ。値の穴は全部埋まる
@@ -38,16 +38,6 @@ SHARED = FR / "common.md"
 # 本線（graphloops の p3.fix.md）から来た決まりの句。正本に在り、両方の指示書に届く
 MAINLINE = ("根本の単位ごとに直せ", "同じ形を全部直せ", "直す前に既製の物で済まないかを確かめろ", "動きを変えたら",
             "テストを消すな・緩めるな", "git commit` するな")
-# 書く役の試験の回し方（直した単位に絞る。一式は線の最後のテストの段が回す。裁定 c1-1 で書き換えた文）
-RUN_TESTS = ("- **プロジェクトのテストを回せ。** 直した単位に当たる試験だけを絞って回せ（実行器の絞り方——試験の id か名前"
-             "で絞る。絞り方はリポジトリの `run.sh`・テストの置き場から探す）。テストの実行器が在る run では、受け付け（"
-             "返答を受け取って確かめる機械）が版からの変更に当たる試験を選んで回し、元で赤でなかった試験が赤なら返答を拒み、落ちた試験"
-             "を書いた拒否の理由のファイルを、この役を次に起こす時の指示書の頭で名指す（この役が書くファイルではない）——自分で回すな"
-             "ら同じく変えたファイルに当たる試験を選べ。リポジトリのテスト一式は原則としてメイングラフの最後のテストの段が回すので、役"
-             "は回さない。例外は 1 つで、絞る手（試験の id か名前で選ぶ方法）がリポジトリに無い時だけ、返答の直前に一式を 1 "
-             "回だけ回せ。赤が残るなら、どの単位のどこかを直してから出せ。Python は `PYTHONDONTWRITEBYTEC"
-             "ODE=1` を立てて回せ。git が無視する生成物（`__pycache__` など）のうち、この役が起きる前に無かっ"
-             "た物は後のノードが消す（消した物は人に見せる）。")
 VALUES = {"judgment_file": "/b/out/r1/p2.diagnose.json", "open_units": '["a: 分母", "b: 上限"]', "plan_file": "/b/out/r1/p2.fix_plan.json",
           "policy_path": "", "notes_file": "/b/r1/notes.md", "summary_file": "/b/tdd-1/summary.md"}
 PHASE_TEXT = "## この段ですること\n\n今の単位だけを直せ。\n\n## 返す JSON\n\n{\"phase\": \"fix\"}"
@@ -147,8 +137,11 @@ class TestSharedSource(unittest.TestCase):
             with self.subTest(phrase):
                 self.assertIn(phrase, core)
 
-    def test_run_tests_sentence_kept(self):
-        self.assertEqual([ln for ln in shared_lines() if "プロジェクトのテストを回せ" in ln], [RUN_TESTS])
+    def test_run_tests_sentence_keeps_bytecode_rule(self):
+        [line] = [ln for ln in shared_lines() if "プロジェクトのテストを回せ" in ln]
+        for clause in ("`PYTHONDONTWRITEBYTECODE=1` を立てて回せ", "`__pycache__` など"):
+            with self.subTest(clause):
+                self.assertIn(clause, line)
 
     def test_direct_evidence_by_change_kind(self):
         """決定 C8: 先にテストを書けない直しの証拠を、変更の種類ごとに（文書・指示書・設定・注記と型）1 節ずつ"""
