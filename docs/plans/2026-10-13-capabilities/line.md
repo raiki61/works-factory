@@ -936,10 +936,10 @@
   - 狭め: #76 で狭めた（Archon で不可: packages/workflows/src/loader.ts:1174、include-expander.ts:492-493。L-D43）。持ち主の答え待ち（S40） 決め: 継がない。保存した返答を読む新しい会話で回す（docs/owner-decisions.md の「導いた事」の 2026-10-12 の推しの決め。Archon loader.ts:1173-1175）。狭めとして確定（線の配線の文書の「この文書の外」の「決めた物」）
 - L-W42 再審の前後の比べ（後に開いた単位・block から下げた単位・異議が名指さずに変わった単位）を報告へ渡す
   - 元: works/.shared/core/rejudge.py:552-563 collect・:474-509 diff_units
-  - 今: scripts/judged.py:66 `compared` が数えるが、collect（yaml:908-955）が judged を読まず報告に届かない
-  - 証: AfterFixAndJudgedCase.test_judged_compares_the_two_judgments_like_the_original（:452-455）。要追加: CollectAndResultCase.test_judged_reaches_report
+  - 今: 判定のブロックが再審の judgment の隣に rejudge-exit.json・rejudge-diff.json を書き（lib/judge_accept.rejudge_collect）、線の scripts/judged.py の compared と lib/runreport.py の rejudge_lines・rejudge_opened・rejudge_lowered・rejudge_changes はそれを読むだけ（名は lib/report.py の REJUDGE_EXIT・REJUDGE_DIFF。報告は report の入力 rejudge の judgment の隣を読む）
+  - 証: tests/workflows/test_line.py::AfterFixAndJudgedCase.test_judged_reads_the_rejudge_exit・test_unreadable_judgments_are_said・lib/tests/test_runreport.py::CarryCase.test_rejudge_changes_and_opened_units・test_rejudge_lowered_block_units_are_shown_and_carried（CollectAndResultCase.test_judged_reaches_report → 報告は隣のファイルを読むので judged の欄を運ばない）
   - 本物の run: 節 judged の output.new_open_units ほか
-  - 狭め: #74 で名指し済み（S52。不可でない → 戻す）
+  - 狭め: #74 で名指し済み（S52。不可でない → 戻す） → 部分 C で戻した
 - L-W43 再審の後は、独立の目と最後の関所が再審の判定を読む
   - 元: 盤面の判定の差し替え（rejudge.route）
   - 今: yaml:725-728（eyes の units・judgment・purpose・world ＝ `$judged.output.*`）・:837（ask-final の judgment）
@@ -1537,7 +1537,7 @@
 - S49 同 2: 依頼の前の失敗の指し札（`$start.output.prior_failures`）を report に届ける。→ **部分 C で閉じた**（report の入力 prior-failures ← $start.output.prior_failures。報告の入口の節）
 - S50 同 3: 無人の run で関所に載せなかった問い（`ask-before-fix` の `deferred`）と、聞かずに通した範囲を広げるだけの直し（`ask-replan` の `widened`）を report に届ける。→ **部分 C で閉じた**（report の入力 deferred・widened）
 - S51 同 4: 最後の関所を開けた理由（`ask-final` の `reasons`）を report に届ける。→ **部分 C で閉じた**（report の入力 final-reasons ← $ask-final.output.reasons）
-- S52 同 5: 再審の前後の比べ（`judged` の `rejudged`・`new_open_units`・`lowered`・`unnamed_changed`・`unread`）を report に届ける。→ **開いている**
+- S52 同 5: 再審の前後の比べ（`judged` の `rejudged`・`new_open_units`・`lowered`・`unnamed_changed`・`unread`）を report に届ける。→ **部分 C で閉じた**（再審の比べは判定のブロックが rejudge-exit.json に書き、report は再審の judgment の隣を読む。judged も同じファイルを読む）
 - S53 同 6: 直した後の深さの上げ直し（`redepth` の `skip_optional`・`raised`）を report に届ける。→ **部分 C で閉じた**（S30 と同じ入力 redepth）
 - S54「今の works から狭めた物」1 `fix_fixture`: 空でない値を `start` が止める（`LS/start.py:84-86`）。→ **狭めたまま**（持ち主の確かめ待ち） 決め: 固定材料は戻すと決めた。独立の issue（線の配線の文書の「この文書の外」の「決めた物」）
 - S55 同 2: 最後の関所で、申し出を人に回した行（行の `ruling`）だけを数える絞り。→ 部分 B2 で閉じた（`LS/ask_final.py` の `asked_conflicts` が fix と refix-run の `conflicts.json` を `lib/conflict.py` の `human_lines` で読み、人に回した行だけを数えて並べる。読めない控えは訳を出して開く）

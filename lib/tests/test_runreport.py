@@ -574,6 +574,34 @@ class ColdBodyCase(unittest.TestCase):
 class CarryCase(Base):
     """次の依頼と前の失敗に運ぶ物（元 report.next_request・prior_failures のうち返りから読める物）"""
 
+    def rejudged(self, before, after, objection, verdicts=("退ける",)):
+        """判定と再審の返り（judgment の指し札の先）と、判定のブロックの書き手（judge_accept.diff_units・rejudge_collect）が再審の judgment の
+        隣に書く rejudge-diff.json・rejudge-exit.json"""
+        import judge_accept
+        rdir = self.dir / "rejudge"
+        rdir.mkdir(parents=True, exist_ok=True)
+        (rdir / judge_accept.REJUDGE_BEFORE).write_text(json.dumps({"units": before, "objection": objection,
+                                                                    "numbered_keys": [u["key"] for u in before]}), encoding="utf-8")
+        judge = {**fixed_run()["judge"], "judgment": self.put("judge/judgment.json", {"units": before})}
+        rejudge = {**judge, "judgment": self.put("rejudge/judgment.json", {"units": after}), "rejudge_verdict": verdicts[-1]}
+        rows = [{"round": 1, "pass": judge_accept.REJUDGE_ROLE, "verdict": v,
+                 **judge_accept.diff_units(before, after, objection, [u["key"] for u in before])} for v in verdicts]
+        self.put(f"rejudge/{judge_accept.REJUDGE_DIFF}", rows)
+        judge_accept.rejudge_collect(rdir)
+        return judge, rejudge
+
+    def test_rejudge_passes_and_verdicts_are_listed(self):
+        """R76・やる事 2: 再審の行は再審の judgment の隣の rejudge-exit.json（判定のブロックが書く）から、往復の数と答えの並びを出す
+        （元 report._settled_rounds・rejudge_lines）。出口が読めない再審は 1 行で名指す"""
+        units = [{"key": "a", "label": "block", "disposition": "fix"}]
+        judge, rejudge = self.rejudged(units, units, "a は違う", verdicts=("一部採る", "退ける"))
+        fix = {**fixed_run()["fix"], "objection": "a は違う"}
+        lines = runreport.rejudge_lines(fixed_run(judge=judge, rejudge=rejudge, fix=fix))
+        self.assertEqual(lines[0], "再審の結果（2 往復）: 一部採る・退ける（異議: a は違う）")
+        (self.dir / "rejudge" / report.REJUDGE_EXIT).unlink()
+        lines = runreport.rejudge_lines(fixed_run(judge=judge, rejudge=rejudge, fix=fix))
+        self.assertTrue(lines[0].startswith(f"再審の記録が読めない（再審の出口 {report.REJUDGE_EXIT} が無い"), lines)
+
     def test_asked_conflicts_parked_groups_and_rejudge_reach_next_request(self):
         rows = [{"unit_key": "u1", "between": ["brief", "判定"], "ruling": {"decision": "ask_human", "text": "人が決める"}},
                 {"unit_key": "u2", "between": ["案"], "ruling": {"decision": "fix_plan_item", "text": "案を直す", "plan_units": ["u2"]},
@@ -582,7 +610,8 @@ class CarryCase(Base):
                "units": [{"unit_id": "u1", "status": "not_done", "reason": "人待ち"}],
                "groups": [{"group_id": "g1", "unit_ids": ["u3"], "returned": True, "reason": ""},
                           {"group_id": "g2", "unit_ids": ["u4"], "returned": False, "reason": "親の木とぶつかった"}]}
-        returns = fixed_run(fix=fix, rejudge={**fixed_run()["judge"], "rejudge_verdict": "退ける"})
+        judge, rejudge = self.rejudged([{"key": "a", "label": "block"}], [{"key": "a", "label": "block"}], "判定が違う")
+        returns = fixed_run(fix=fix, judge=judge, rejudge=rejudge)
         got, text, decided = self.build(returns)
         self.assertEqual(decided[0], "needs_human")
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
@@ -593,7 +622,7 @@ class CarryCase(Base):
         self.assertIn("親の木とぶつかった", texts["組 g2"])
         self.assertEqual(texts[report.REJUDGE_WHERE], "再審: 退ける（異議: 判定が違う）")
         self.assertIn("修正の段は 1 単位（u3）を受け、1 単位（u4）を止めて持ち越した", text.splitlines()[2])
-        self.assertIn("再審の結果: 退ける（異議: 判定が違う）", self.section(text, report.DECISIONS_HEADING))
+        self.assertIn("再審の結果（1 往復）: 退ける（異議: 判定が違う）", self.section(text, report.DECISIONS_HEADING))
 
     def test_objection_without_rejudge_is_carried(self):
         returns = fixed_run(fix={**fixed_run()["fix"], "objection": "判定が違う"})
@@ -615,20 +644,21 @@ class CarryCase(Base):
 
 
     def test_rejudge_changes_and_opened_units(self):
-        """元 report._rejudge_changes・_rejudge_next: 再審で足された・消えた・変わった単位を、異議に名指されたかで分けて並べ、
-        再審が足して修正の段が受けていない単位は次の依頼に運ぶ"""
-        judge = {**fixed_run()["judge"], "units": [UNIT_A, UNIT_B]}
-        rejudge = {**judge, "units": [{**UNIT_A, "summary": "広く直す"}, UNIT_C], "rejudge_verdict": "一部採る"}
+        """元 report._rejudge_changes・_rejudge_next: 再審で足された・消えた・変わった単位（rejudge-diff.json の changed）を、異議に
+        名指されたかで分けて並べ、再審が開いた単位（rejudge-exit.json の new_open_units）で修正の段が受けていない物は次の依頼に運ぶ"""
+        before = [{"key": "a", "label": "block", "disposition": "fix"}, {"key": "b", "label": "nit", "disposition": "later"}]
+        after = [{"key": "a", "label": "block", "disposition": "later"}, {"key": "c", "label": "block", "disposition": "fix"}]
+        judge, rejudge = self.rejudged(before, after, "a の範囲が狭い", verdicts=("一部採る",))
         fix = {**fixed_run()["fix"], "objection": "a の範囲が狭い"}
         returns = fixed_run(judge=judge, rejudge=rejudge, fix=fix)
         self.assertEqual(runreport.rejudge_changes(returns), [
-            '再審で異議に名指された単位が変わった: a の summary: "狭く直す" → "広く直す"',
-            "再審で争点でない単位が消えた: b", "再審で争点でない単位が足された: c"])
+            '再審（rejudge）で異議に名指された単位が変わった: a の disposition: "fix" → "later"',
+            "再審（rejudge）で争点でない単位が消えた: b", "再審（rejudge）で争点でない単位が足された: c"])
         self.assertEqual(runreport.rejudge_opened(returns), ["c"])
         got, text, _ = self.build(returns)
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn("  - 再審が直す単位にした（この run では直していない——次の run に渡す）: c", body)
-        self.assertIn("再審で争点でない単位が消えた: b", body)
+        self.assertIn("再審（rejudge）で争点でない単位が消えた: b", body)
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         self.assertIn({"where": "c", "text": "c（再審が直す単位にした——この run では直していない）"}, doc["findings"])
         fix = {**fix, "units": [*fix["units"], {"unit_id": "c", "status": "fixed", "reason": ""}]}
@@ -636,20 +666,13 @@ class CarryCase(Base):
         self.assertEqual(runreport.rejudge_changes(fixed_run(judge=judge)), [])
 
     def test_rejudge_lowered_block_units_are_shown_and_carried(self):
-        """元 rejudge.diff_units の lowered と report.rejudge_lines・_rejudge_next: 再審が block から下げた単位を拒まずに見せ、
-        次の依頼に運ぶ。judgment の label・disposition の変化は再審の変化の行にも出る"""
-        before = self.put("judge/judgment.json", {"units": [{"key": "a", "label": "block"}, {"key": "b", "label": "block"},
-                                                            {"key": "c", "label": "suggest", "disposition": "defer"}]})
-        after = self.put("rejudge/judgment.json", {"units": [{"key": "a", "label": "suggest", "disposition": "defer"},
-                                                             {"key": "b", "label": "block"},
-                                                             {"key": "c", "label": "suggest", "disposition": "do-now"}]})
-        judge = {**fixed_run()["judge"], "judgment": before}
-        returns = fixed_run(judge=judge, rejudge={**judge, "judgment": after, "rejudge_verdict": "一部採る"})
+        """元 rejudge.diff_units の lowered と report.rejudge_lines・_rejudge_next: 再審が block から下げた単位（rejudge-exit.json の
+        lowered）を今のラベルつきで拒まずに見せ、次の依頼に運ぶ"""
+        before = [{"key": "a", "label": "block"}, {"key": "b", "label": "block"}]
+        after = [{"key": "a", "label": "suggest", "disposition": "defer"}, {"key": "b", "label": "block"}]
+        judge, rejudge = self.rejudged(before, after, "異議", verdicts=("一部採る",))
+        returns = fixed_run(judge=judge, rejudge=rejudge)
         self.assertEqual(runreport.rejudge_lowered(returns), [("a", "suggest")])
-        self.assertEqual(runreport.rejudge_changes(returns), [
-            '再審で争点でない単位が変わった: a の label: "block" → "suggest"',
-            '再審で争点でない単位が変わった: a の disposition: null → "defer"',
-            '再審で争点でない単位が変わった: c の disposition: "defer" → "do-now"'])
         got, text, _ = self.build(returns)
         self.assertIn("  - 再審が block から suggest に下げた（拒まずに見せる——人が確かめる）: a",
                       self.section(text, report.DECISIONS_HEADING))

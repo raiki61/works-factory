@@ -48,6 +48,7 @@ import policy  # noqa: E402
 import promptsection  # noqa: E402
 import purpose as _purpose  # noqa: E402
 import querytest  # noqa: E402
+import report  # noqa: E402  （約束の隣のファイルの名 REJUDGE_DIFF・REJUDGE_EXIT の住処）
 import rolekit  # noqa: E402
 import specblk  # noqa: E402
 import stopby  # noqa: E402
@@ -3478,8 +3479,8 @@ REJUDGE_UNIT_FIELDS = ("key", "label", "disposition", "reason", "reopen_evidence
 REJUDGE_BRIEF = "brief.md"
 REJUDGE_BEFORE = "units-before.json"          # 元 rejudge-units-before-<役>.json
 REJUDGE_SNAPSHOT = "rejudge-snapshot.json"    # 元 rejudge.SNAPSHOT_NAME（役を起こす前の作業ツリーの姿）
-REJUDGE_DIFF = "rejudge-diff.json"            # 元 rejudge.DIFF_NAME
-REJUDGE_EXIT = "rejudge-exit.json"            # 元 rejudge.EXIT_NAME（再審のブロックの出口の形）
+REJUDGE_DIFF = report.REJUDGE_DIFF            # 元 rejudge.DIFF_NAME（名の住処は報告の定数。線の judged と報告が読む約束の隣のファイル）
+REJUDGE_EXIT = report.REJUDGE_EXIT            # 元 rejudge.EXIT_NAME（再審のブロックの出口の形）
 REJUDGE_REPLY = "rejudge-reply.json"          # 受けた再審の返答の並び（元 writes の append to: process.rejudge）
 # 元 rejudge.py:77。修正役に貼った番号の書き方（no N・No.N・#N・N 番）。全角の数字も \d に当たる
 _NUMBERS = (re.compile(r"(?<![A-Za-z])no\.?\s*(\d+)", re.IGNORECASE), re.compile(r"[#＃]\s*(\d+)"), re.compile(r"(\d+)\s*番"))

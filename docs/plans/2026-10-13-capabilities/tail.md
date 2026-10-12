@@ -1723,10 +1723,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R76 再審の行の往復の数と周の名（rejudge-exit.json の verdicts の並び）
   - 元: works/.shared/core/report.py:1162 `_settled_rounds`・:1189
-  - 今: 無し（lib/runreport.py:414 `_rejudge` は答え 1 つ）
-  - 証: 要追加: lib/tests/test_runreport.py::CarryCase.test_rejudge_passes_and_verdicts_are_listed — 再審の judgment の隣の rejudge-exit.json の passes と verdicts が「再審の結果（N 往復）: …」に出る
+  - 今: lib/runreport.py の rejudge_lines（rejudge-exit.json の verdicts の並びと往復の数）・_rejudge_exit
+  - 証: lib/tests/test_runreport.py::CarryCase.test_rejudge_passes_and_verdicts_are_listed
   - 本物の run: 筋書きでのみ（rejudge/rejudge-exit.json）
-  - 狭め: 判定: 戻せる（#68 の主張は誤り）。判定のブロックが再審の輪を抜ける時に rejudge/rejudge-exit.json {passes, verdicts, objection, new_open_units, lowered, …} と rejudge/rejudge-diff.json（named の印つき）を、再審の judgment.json と同じフォルダに書く（lib/judge_accept.py:3657・:3661-3695、workflows/judge/scripts/rejudge_accept.py:20-24）。今の線は 1 周なので周の名は要らず、往復の数と並びが要る。R30 の名指しの判じ方もこの named で揃う。Archon で不可でない → 戻す
+  - 狭め: 判定: 戻せる（#68 の主張は誤り）。判定のブロックが再審の輪を抜ける時に rejudge/rejudge-exit.json {passes, verdicts, objection, new_open_units, lowered, …} と rejudge/rejudge-diff.json（named の印つき）を、再審の judgment.json と同じフォルダに書く（lib/judge_accept.py:3657・:3661-3695、workflows/judge/scripts/rejudge_accept.py:20-24）。今の線は 1 周なので周の名は要らず、往復の数と並びが要る。R30 の名指しの判じ方もこの named で揃う。Archon で不可でない → 戻す → 部分 C で戻した（線は 1 周なので周の名は出さない）
 
 - R77 判定の answer_ties（依頼の答えを問いや単位に結ぶ行）と、単位に結んだ答えを修正役へ渡す行・結ばないと判定が名乗った答えの訳の行（answer_tie_lines）
   - 元: works/.shared/core/gatemarks.py:878 `answer_tie_lines`、works/.shared/core/report.py:2055

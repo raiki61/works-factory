@@ -874,14 +874,20 @@ class AskFinalCase(unittest.TestCase):
 
     def test_settled_rejudge_lines_are_shown(self):
         """L-W30: 決着した再審の結果（runreport.rejudge_lines）を並べ、再審が無ければ「再審: 無い」"""
-        rows = ["再審の結果: 退ける（異議: 異議）", "  - 再審が直す単位にした（この run では直していない——次の run に渡す）: u2"]
+        rows = ["再審の結果（1 往復）: 退ける（異議: 異議）", "  - 再審が直す単位にした（この run では直していない——次の run に渡す）: u2"]
         text = ask_final.final_text(self.got(rejudge=rows), [], RUN)
-        self.assertIn("- 再審で決着した結果:\n  - 再審の結果: 退ける（異議: 異議）\n    - 再審が直す単位にした", text)
+        self.assertIn("- 再審で決着した結果:\n  - 再審の結果（1 往復）: 退ける（異議: 異議）\n    - 再審が直す単位にした", text)
         self.assertIn("- 再審: 無い", ask_final.final_text(self.got(), [], RUN))
-        returns = ask_final.judged_returns({"units": [{"id": "u1"}, {"id": "u2"}], "first_units": [{"id": "u1"}], "judgment": None,
-                                            "ties_judgment": None, "rejudged": True, "rejudge_verdict": "退ける", "objection": "異議",
-                                            "refix_objection": "", "fix_units": [{"unit_id": "u1"}], "groups": []})
-        self.assertEqual(ask_final.rejudge_rows(returns), rows)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"ARTIFACTS_DIR": tmp, "WORKFLOW_ID": RUN}):
+            (pathlib.Path(tmp) / "rejudge").mkdir()
+            (pathlib.Path(tmp) / "rejudge" / "judgment.json").write_text('{"units": []}', encoding="utf-8")
+            (pathlib.Path(tmp) / "rejudge" / judge_accept.REJUDGE_EXIT).write_text(json.dumps(
+                {"verdicts": ["退ける"], "objection": "異議", "new_open_units": ["u2"], "lowered": []}), encoding="utf-8")
+            ptr = {"type": "archon_artifact", "run_id": RUN, "path": "rejudge/judgment.json"}
+            returns = ask_final.judged_returns({"units": [{"id": "u1"}, {"id": "u2"}], "first_units": [{"id": "u1"}], "judgment": ptr,
+                                                "ties_judgment": None, "rejudged": True, "rejudge_verdict": "退ける", "objection": "異議",
+                                                "refix_objection": "", "fix_units": [{"unit_id": "u1"}], "groups": []})
+            self.assertEqual(ask_final.rejudge_rows(returns), rows)
 
     def test_questions_say_the_answer_does_not_answer_them(self):
         """L-W35: 人に聞いている問いを記録のまま引き（> の行）、「この関所の答えはこの問いに答えない」と添える"""
@@ -1174,22 +1180,42 @@ class AfterFixAndJudgedCase(Artifacts):
         self.assertEqual((got["judgment"], got["rejudged"], got["new_open_units"], got["lowered"], got["unnamed_changed"]),
                          (judge["judgment"], False, [], [], []))
 
-    def test_judged_compares_the_two_judgments_like_the_original(self):
-        """元 rejudge.collect と diff_units の意味: 開いた単位は再審の後に開いた物、下げた単位は block から下げた物、
-        名指していない変化は異議の文が key も番号も名指さない変わった単位"""
+    def rejudged(self, before, after, objection, verdicts=("一部採る",)):
+        """判定のブロックの書き手（judge_accept.diff_units・rejudge_collect）が再審の置き場に書く judgment.json・rejudge-diff.json・
+        rejudge-exit.json（再審の judgment の隣の約束のファイル）"""
+        rdir = self.artifacts / "rejudge"
+        rdir.mkdir(parents=True, exist_ok=True)
+        (rdir / judge_accept.REJUDGE_BEFORE).write_text(json.dumps({"units": before, "objection": objection,
+                                                                    "numbered_keys": [u["key"] for u in before]}), encoding="utf-8")
+        ptr = self.judgment("rejudge/judgment.json", after)
+        rows = [{"round": 1, "pass": judge_accept.REJUDGE_ROLE, "verdict": v,
+                 **judge_accept.diff_units(before, after, objection, [u["key"] for u in before])} for v in verdicts]
+        (rdir / judge_accept.REJUDGE_DIFF).write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+        judge_accept.rejudge_collect(rdir)
+        return ptr
+
+    def test_judged_reads_the_rejudge_exit(self):
+        """L-W42・やる事 2: 再審の前後の比べ（後に開いた単位・block から下げた単位・異議が名指さずに変わった単位）は判定のブロックが
+        再審の judgment の隣に書く rejudge-exit.json だけが数え（元 rejudge.collect と diff_units）、judged はそれを読んで返す（数えを
+        2 か所に持たない。K20）"""
         before = [{"key": "a", "label": "block", "disposition": "fix"}, {"key": "b", "label": "suggest", "disposition": "later"},
                   {"key": "c", "label": "block", "disposition": "fix"}, {"key": "d", "label": "nit", "disposition": "later"}]
         after = [{"key": "a", "label": "suggest", "disposition": "later"}, {"key": "b", "label": "suggest", "disposition": "do-now"},
                  {"key": "c", "label": "block", "disposition": "fix"}, {"key": "d", "label": "nit", "disposition": "drop"},
                  {"key": "e", "label": "block", "disposition": "fix"}]
         judge = self.returned(self.judgment("judge/judgment.json", before))
-        again = self.returned(self.judgment("rejudge/judgment.json", after), "一部採る")
+        again = self.returned(self.rejudged(before, after, "a は直さなくてよい。no 2 も"), "一部採る")
         got = judged.judged(judge, again, "a は直さなくてよい。no 2 も")
         self.assertEqual((got["judgment"], got["rejudged"], got["rejudge_verdict"]), (again["judgment"], True, "一部採る"))
         self.assertEqual(got["new_open_units"], ["b", "e"])
         self.assertEqual(got["lowered"], ["a"])
         self.assertEqual(got["unnamed_changed"], ["d", "e"])
         self.assertEqual(got["unread"], "")
+        exit_doc = json.loads((self.artifacts / "rejudge" / judge_accept.REJUDGE_EXIT).read_text(encoding="utf-8"))
+        exit_doc.update({"new_open_units": ["z"], "lowered": [], "unnamed_changed": []})
+        (self.artifacts / "rejudge" / judge_accept.REJUDGE_EXIT).write_text(json.dumps(exit_doc), encoding="utf-8")
+        self.assertEqual(judged.judged(judge, again, "")["new_open_units"], ["z"], "judged は自分で数えず出口を読む")
+        self.assertFalse(hasattr(judged, "unit_changes"))
 
     def test_rejudge_stop_holds_the_line(self):
         """L-D48: 再審が止まった run（3 回拒まれた・支度ができない）は、judged が再審の止めの理由を返し、fixed が試験の関門（final）・
@@ -1213,6 +1239,9 @@ class AfterFixAndJudgedCase(Artifacts):
         got = judged.judged(judge, self.returned(judge["judgment"]), "")
         self.assertEqual((got["new_open_units"], got["lowered"], got["unnamed_changed"], got["stop_reason"]), ([], [], [], ""))
         self.assertIn("比べられない", got["unread"])
+        judge = self.returned(self.judgment("judge/judgment.json", []))
+        got = judged.judged(judge, self.returned(self.judgment("rejudge/judgment.json", [])), "")
+        self.assertIn(f"{judge_accept.REJUDGE_EXIT} が無い", got["unread"])
 
 
 class FixedCase(unittest.TestCase):

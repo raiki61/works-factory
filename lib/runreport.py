@@ -88,7 +88,6 @@ HYPOTHESIS = "仮説"                           # 前提の役が実測でなく
 HUMAN_FACE_KINDS = ("regression", "policy")   # 事前審査の穴のうち人に回す種類（元の写しの規則 review-loop.py:4084）
 GROUP_WHERE = "組"
 REJUDGE_LEFT_WHERE = "判定（再審されずに残った異議）"
-JUDGED_FIELDS = ("label", "disposition")         # 再審の前後で比べる judgment の単位の欄（元 rejudge.diff_units の欄のうち人が決める物）
 UNSEEN = "取れない（docs/design.md の U6。読んだ証拠を run の記録から取り出す口が無い）"
 # 線の値（線の collect が report の入力で渡す物。docs/design.md の report の返り）の行の頭
 DEFERRED_HEAD = "無人の run で修正前の関所に載せずに報告へ回した問い（関所を開かずに修正へ進めた）"
@@ -413,10 +412,6 @@ def _refix_objection(returns: dict) -> str:
     return report._one_line(objection) if isinstance(objection, str) else ""
 
 
-def _unit_map(ret) -> dict:
-    return {u["id"]: u for u in _list(as_dict(ret).get("units")) if isinstance(u, dict) and isinstance(u.get("id"), str)}
-
-
 def _judgment_units(ret) -> dict:
     """段の返りの judgment の指し札の先（今の works の judgment.json）の units {key: 単位}。指し札が無い・読めなければ空"""
     p = as_dict(ret).get("judgment")
@@ -427,14 +422,28 @@ def _judgment_units(ret) -> dict:
     return {u["key"]: u for u in _list(as_dict(doc).get("units")) if isinstance(u, dict) and isinstance(u.get("key"), str)}
 
 
+def _rejudge_exit(returns: dict) -> tuple:
+    """(再審の出口 rejudge-exit.json の中身, 読めなかった訳)。再審の judgment の隣の約束のファイル（判定のブロックが書く。
+    lib/report.rejudge_exit）。再審が走っていなければ (None, "")"""
+    rejudge = returns.get("rejudge")
+    if not isinstance(rejudge, dict):
+        return None, ""
+    p = rejudge.get("judgment")
+    if not (isinstance(p, str) and p):
+        return None, "再審の判定の指し札が無いか開けなかった"
+    return report.rejudge_exit(pathlib.Path(p).parent)
+
+
+def _exit_keys(returns: dict, field: str) -> list:
+    doc, _ = _rejudge_exit(returns)
+    return [k for k in _list(as_dict(doc).get(field)) if isinstance(k, str) and k]
+
+
 def rejudge_lowered(returns: dict) -> list:
-    """再審が block から他のラベルに下げた単位 [(key, 今のラベル)]（元 rejudge.exit_doc の lowered。判定と再審の judgment の
-    units を label で比べる。指示書は禁じるが受け付けは拒まないので、拒まずに見せる）"""
-    if not isinstance(returns.get("rejudge"), dict):
-        return []
-    before, after = _judgment_units(returns.get("judge")), _judgment_units(returns.get("rejudge"))
-    return [(k, str(u.get("label"))) for k, u in after.items()
-            if as_dict(before.get(k)).get("label") == "block" and u.get("label") != "block"]
+    """再審が block から他のラベルに下げた単位 [(key, 今のラベル)]（rejudge-exit.json の lowered。今のラベルは再審の judgment。
+    指示書は禁じるが受け付けは拒まないので、拒まずに見せる）"""
+    now = _judgment_units(returns.get("rejudge"))
+    return [(k, str(as_dict(now.get(k)).get("label") or "（判定に無い）")) for k in _exit_keys(returns, "lowered")]
 
 
 def unproven_lines(returns: dict) -> list:
@@ -445,52 +454,58 @@ def unproven_lines(returns: dict) -> list:
 
 
 def rejudge_opened(returns: dict) -> list:
-    """再審が足した単位のうち修正の段が受けていない物（元 rejudge-exit.json の new_open_units。この run では直していない）"""
-    if not isinstance(returns.get("rejudge"), dict):
-        return []
-    before, fixed = _unit_map(returns.get("judge")), {u.get("unit_id") for u in _list(as_dict(returns.get("fix")).get("units"))
-                                                       if isinstance(u, dict)}
-    return [k for k in _unit_map(returns.get("rejudge")) if k not in before and k not in fixed]
+    """再審が直す単位にした単位のうち修正の段が受けていない物（rejudge-exit.json の new_open_units。この run では直していない）"""
+    fixed = {u.get("unit_id") for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict)}
+    return [k for k in _exit_keys(returns, "new_open_units") if k not in fixed]
 
 
 def rejudge_changes(returns: dict) -> list:
-    """再審で単位が変わった行（元 report._rejudge_changes。元は rejudge-diff.json の changed を読んだ。ここは判定と再審の返りの
-    units を単位の id で比べ、judgment の units の label・disposition を key で比べる。異議の文が key を含む単位は「異議に
-    名指された単位」、ほかは「争点でない単位」）"""
-    if not isinstance(returns.get("rejudge"), dict):
+    """再審で単位が変わった行（元 report._rejudge_changes。再審の judgment の隣の rejudge-diff.json の changed の全部。異議に名指されて
+    いない物は「争点でない」と印を付ける）"""
+    p = as_dict(returns.get("rejudge")).get("judgment")
+    if not (isinstance(p, str) and p):
         return []
-    before, after = _unit_map(returns.get("judge")), _unit_map(returns.get("rejudge"))
-    _, objection = _rejudge(returns)
+    try:
+        rows = oc.read_json(pathlib.Path(p).with_name(report.REJUDGE_DIFF))
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError) as e:
+        return [f"再審の単位の前後の差 {report.REJUDGE_DIFF} が読めない（{report._one_line(e)}）"]
     lines = []
-    for key in dict.fromkeys([*before, *after]):
-        who = "異議に名指された単位" if key in objection else "争点でない単位"
-        if key not in before or key not in after:
-            lines.append(f"再審で{who}が{'足された' if key not in before else '消えた'}: {key}")
-            continue
-        lines += _changed_fields(who, key, before[key], after[key], dict.fromkeys([*before[key], *after[key]]))
-    judged_before, judged_after = _judgment_units(returns.get("judge")), _judgment_units(returns.get("rejudge"))
-    for key in (k for k in judged_after if k in judged_before):
-        who = "異議に名指された単位" if key in objection else "争点でない単位"
-        lines += _changed_fields(who, key, judged_before[key], judged_after[key], JUDGED_FIELDS)
+    for row in _list(rows):
+        for c in _list(as_dict(row).get("changed")):
+            if not isinstance(c, dict):
+                continue
+            who = "異議に名指された単位" if c.get("named") else "争点でない単位"
+            if c.get("kind") == "changed":
+                lines.append(f"再審（{row.get('pass')}）で{who}が変わった: {c.get('key')} の {c.get('field')}: "
+                             f"{json.dumps(c.get('before'), ensure_ascii=False)} → {json.dumps(c.get('after'), ensure_ascii=False)}")
+            else:
+                lines.append(f"再審（{row.get('pass')}）で{who}が{'足された' if c.get('kind') == 'added' else '消えた'}: {c.get('key')}")
     return lines
 
 
-def _changed_fields(who: str, key: str, before: dict, after: dict, fields) -> list:
-    return [f"再審で{who}が変わった: {key} の {f}: {json.dumps(before.get(f), ensure_ascii=False)} → "
-            f"{json.dumps(after.get(f), ensure_ascii=False)}" for f in fields if before.get(f) != after.get(f)]
-
-
 def rejudge_lines(returns: dict) -> list:
-    """決着した再審の結果の行（元 report.rejudge_lines。再審が直す単位にした単位を下に並べる）と、再審されずに残った異議（2 度目の
-    修正の異議も）"""
+    """決着した再審の結果の行（元 report.rejudge_lines・_settled_rounds。再審の judgment の隣の rejudge-exit.json の往復の数と答えの
+    並び・異議の文、再審が直す単位にした単位と block から下げた単位）と、再審されずに残った異議（2 度目の修正の異議も）。出口が
+    読めない再審は 1 行で名指す"""
     verdict, objection = _rejudge(returns)
     left = [f"再審されずに残った異議: {o}" for o in ("" if verdict else objection, _refix_objection(returns)) if o]
-    if verdict:
-        return [f"再審の結果: {verdict}" + (f"（異議: {objection}）" if objection else ""),
-                *[f"  - 再審が直す単位にした（この run では直していない——次の run に渡す）: {k}" for k in rejudge_opened(returns)],
-                *[f"  - 再審が block から {label} に下げた（拒まずに見せる——人が確かめる）: {k}" for k, label in rejudge_lowered(returns)],
-                *left]
-    return left
+    if not isinstance(returns.get("rejudge"), dict):
+        return left
+    doc, why = _rejudge_exit(returns)
+    if doc is None:
+        return [f"再審の記録が読めない（{why}）——再審の結果を確かめる", *left]
+    raw = _list(doc.get("verdicts"))
+    obj = report._one_line(doc.get("objection") or "") or objection
+    opened, lowered = rejudge_opened(returns), rejudge_lowered(returns)
+    if not (raw or opened or lowered or obj):
+        return left
+    verdicts = "・".join(v if isinstance(v, str) and v else "（判定の欄が無い）" for v in raw) or "（判定の往復が無い）"
+    return [f"再審の結果（{len(raw)} 往復）: {verdicts}" + (f"（異議: {obj}）" if obj else ""),
+            *[f"  - 再審が直す単位にした（この run では直していない——次の run に渡す）: {k}" for k in opened],
+            *[f"  - 再審が block から {label} に下げた（拒まずに見せる——人が確かめる）: {k}" for k, label in lowered],
+            *left]
 
 
 def _asked_rows(returns: dict, closed: bool) -> list:

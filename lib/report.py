@@ -51,6 +51,7 @@ judge-verify.json）は書き手のモジュール（ライン・ブロック）
 報告は run の中で走るので run の和は読まず、合計は節の和を「途中」として出す。
 """
 import datetime
+import json
 import os
 import pathlib
 import re
@@ -99,6 +100,10 @@ ABSORBED_HEAD = "落ちたが、線が宣言のとおり受け止めた節"
 PR_EXCLUDED = marks.KINDS["pr"].file           # 並行 PR の外した hunk {node, head, excluded}（周ごとに全部読むので置き場でなく名だけを引く）
 VERIFY_NOTES = "judge-verify.json"             # 判定の単位の裏取りの申し送り（線の木の段 3。単位ごとの state・verdict と相乗り）
 REJUDGE_WHERE = "判定（再審の結果）"           # 次の run の依頼の再審の結果の行の where
+# 再審の judgment の隣の約束のファイル（書き手は判定のブロックの lib/judge_accept.rejudge_take・rejudge_collect。線の judged と
+# 報告は読むだけで、再審の前後を自分で数えない）
+REJUDGE_DIFF = "rejudge-diff.json"             # 往復ごとの単位の前後の差 [{round, pass, verdict, changed, unnamed_changed, lowered}]
+REJUDGE_EXIT = "rejudge-exit.json"             # 再審の出口 {ok, reason, passes, verdicts, unsettled, objection, new_open_units, lowered, unnamed_changed, …}
 # 直しが対象に書く文に混じってはいけない works の内側の語と run の中の事情の言い方（修正役の共通の決まり writerules/common.md の
 # 「対象に書く文」。利用者の run 8cb2ee00 の差分が Terraform のコメントに「この単位」「作業ツリー」を書いた）。拒まず報告に並べる
 INNER_WORDS = ("この単位", "単位の key", "作業ツリー", "盤面", "この周", "この run", "判定役", "修正役", "独立の目", "関所")
@@ -121,6 +126,21 @@ def _one_line(text) -> str:
 def _first_error(x: dict) -> str:
     """落ちた節の行 {node, error} の誤りの文の 1 行目（無ければその旨）"""
     return (str(x.get("error") or "").strip().splitlines() or ["（誤りの文が無い）"])[0]
+
+
+def rejudge_exit(folder) -> tuple:
+    """(再審の出口 rejudge-exit.json の中身, 読めなかった訳)。folder は再審の judgment の在るフォルダ。無い・読めない・形が違えば
+    (None, 訳)"""
+    path = pathlib.Path(folder) / REJUDGE_EXIT
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None, f"再審の出口 {path.name} が無い（{path}）"
+    except (OSError, ValueError) as e:
+        return None, f"再審の出口 {path} が読めない（{_one_line(e)}）"
+    if not isinstance(doc, dict):
+        return None, f"再審の出口 {path} が JSON のオブジェクトでない"
+    return doc, ""
 
 
 # ---------------------------------------------------------------- 次の run に渡す依頼
