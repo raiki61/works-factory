@@ -1881,6 +1881,22 @@ class GroupChildScriptsCase(unittest.TestCase):
         calls = json.loads(pathlib.Path(state).read_text(encoding="utf-8"))["calls"]
         self.assertEqual([c["ok"] for c in calls], [True, False, False], "どちらの束ねの返答も 1 周 1 回の確かめ")
 
+    def test_tdd_step_rejects_a_query_claim_when_the_judgment_is_unreadable(self):
+        """TDD の輪の query の申し出も、修正役の受け付けと同じ口（fixboard.judge_query）で試す: 置き場の判定の写しが読めなければ
+        「読めない」と名指して拒み、黙って積まない（K15）"""
+        import fixboard
+        self._grp_parent_inputs(str(self.suite))
+        self._grp_run("group_start", "group-start")
+        self._grp_step({"phase": "route", "units": [{"unit_key": _GRP_MEAN, "route": "tdd"}]})
+        (self.place / fixboard.JUDGMENT_FILE).unlink()
+        got = self._grp_step({"phase": "conflict", "unit_key": _GRP_MEAN, "between": ["stats.py:9", "test_stats.py:9"],
+                              "why_both_cannot_hold": "テストは分母 len(xs) - 1 の値を期待しているが、依頼は算術平均を求めている",
+                              "which_is_right": "query", "kind": "query_hits_fixed",
+                              "correct_lines": ["    return sum(xs) / (len(xs) - 1)"]})
+        self.assertFalse(got["ok"], got)
+        self.assertIn(f"{fixboard.JUDGMENT_FILE} が読めない", got["reason"])
+        self.assertFalse((self.place / "conflicts.json").exists(), "拒んだ申し出は積まない")
+
     def test_tdd_step_takes_the_red_and_gives_up_on_the_third_refusal(self):
         """実行器が在る run: 振り分け → 名指しが failure で落ちる赤を受け → 直しの段で 3 回拒まれた単位は、単位の頭の木に戻して
         機械の申し出を置き場の conflicts.json に積み、輪を抜ける"""

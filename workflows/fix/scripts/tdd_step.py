@@ -6,7 +6,7 @@
 
 段は route → 単位ごとに test（赤）→ fix（緑）→（申告の在る単位だけ）refactor。赤・緑は実行器の JUnit XML で機械が決める
 （役の申告では決まらない）。段ごとに 3 回目の拒否で諦め、その単位を単位の頭の木に戻し、機械の申し出を積んで次の単位へ。
-食い違いの申し出（phase conflict）は、名指しが現物に在れば単位を止める（query の申し出は判定者の問いを当てる。querytest.judge_hits）。
+食い違いの申し出（phase conflict）は、名指しが現物に在れば単位を止める（query の申し出は判定者の問いを当てる。fixboard.judge_query）。
 止めた申し出は状態の未送の並びから置き場の conflicts.json に積む（tddloop.flush_unsent → conflict.park_claims。前の周が積めなかった
 物も積み直す）。並べの周（tddlanes）は使わない（組の並べは子の run の fan_out が持つ）。
 入力 reply は同じ単位の続きの役 tdd の返答、reply_new は新しい単位の役 tdd-new の返答（周ごとにどちらか一方だけが起き、
@@ -28,7 +28,6 @@ import fixio  # noqa: E402
 
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
-import querytest  # noqa: E402
 import tddloop  # noqa: E402
 
 REJECT = "tdd-step-reject-{}.md"
@@ -56,8 +55,7 @@ def main() -> dict:
     if not started.get("go"):
         return {"ok": True, "done": True, "reason": "", "reason_file": "", "phase": "done"}
     state = started["state_file"]
-    judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
-    hits = querytest.judge_hits(judgment.get("units") or [] if isinstance(judgment, dict) else [])
+    hits = fixboard.judge_query(place)
     log = fixio.writes_log()
     boundary.drop_runner_env()   # 対象のテストに Archon の変数を継がせない（place・repo は先に取った）
     out = tddloop.step(state, reply, repo, try_query=hits, log=log)
