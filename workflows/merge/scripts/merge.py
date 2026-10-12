@@ -4,7 +4,8 @@
 # ///
 """merge の返す節。seal は今の差分を封じて守りのパスの当たりを返し、apply は封じた hash を今の差分と照らして置く。
 
-差分は作業ツリー（節の cwd）と始めの記録の base_rev の間で green_cert.diff_bytes が組み、守りのパスの当たりもその差分から数える。
+差分は作業ツリー（節の cwd）と始めの記録の base_rev の間で green_cert.diff_bytes が組み、守りのパスの当たりもその差分から数える
+（守りの一覧は自分の一覧と、対象のリポジトリの base_rev の宣言を合わせた物）。
 Archon が作業ツリーに置く工程の写し（.archon/ の下）は修正の差分でないので載せない（fix の累積差分・test-gate の範囲と同じ線引き）。
 書く（消す）のは run の置き場だけ。apply は始めに前の merge/apply.diff を消し、置くと決めた時だけ書く（やり直しの apply が拒んでも古い物が残らない）。
 落ちない: どの誤りも終了の値 0 で ok: false と理由を返す（線は落ちた返す節の先へ進めない）。
@@ -67,7 +68,7 @@ def main() -> None:
     try:
         stats = seal.diff_files(repo, data)
         protected = protect.lines([{**r, "added": stats[r["path"]][0], "deleted": stats[r["path"]][1]}
-                                   for r in protect.hits(stats)])
+                                   for r in protect.hits(stats, protect.merged(repo, base_rev))])
     except (protect.Broken, ValueError) as e:
         protected = [seal.unknown_row(str(e))]
 

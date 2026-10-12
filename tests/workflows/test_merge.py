@@ -313,6 +313,19 @@ class ApplyTest(ScriptCase):
         sealed = self.seal(fingerprint=self.fingerprint())["hash"]
         self.assertRefused(self.apply(sealed, answer="", fingerprint=self.fingerprint()), "守りのパス")
 
+    def test_apply_refuses_target_protected_hit_without_answer(self):
+        (self.repo / ".works-protected.json").write_text(
+            json.dumps({"rules": [{"id": "core", "glob": "a.txt", "why": "対象の芯"}]}), encoding="utf-8")
+        git(self.repo, "add", ".works-protected.json")
+        git(self.repo, "commit", "-q", "-m", "declare")
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        self.start = self.place("start.json", json.dumps({"base_rev": self.base}))
+        (self.repo / ".works-protected.json").unlink()
+        sealed = self.seal(fingerprint=self.fingerprint())
+        self.assertEqual([h.split("（")[0] for h in sealed["protected_hits"]], [".works-protected.json", "a.txt"], sealed)
+        self.assertRefused(self.apply(sealed["hash"], answer="", fingerprint=self.fingerprint()), "守りのパス")
+        self.assertIs(self.apply(sealed["hash"], fingerprint=self.fingerprint())["ok"], True)
+
     def test_unverifiable_r2_with_approve_applies(self):
         got = self.apply(self.sealed, eyes_ok="false", answer=json.dumps({"decision": "approve", "text": ""}),
                          r2=json.dumps({"status": "unverifiable", "reason": "比べの節が落ちた"}))
