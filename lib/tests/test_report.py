@@ -90,10 +90,6 @@ class TddLinesCase(unittest.TestCase):
         self.assertEqual(len(report.tdd_lines([(report.TDD_STAGES[0], None), (report.TDD_STAGES[1], TDD_OFF)])), 1)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class DocCase(unittest.TestCase):
     def test_listed_names_exist(self):
         """docstring の一覧が挙げる名は、全部このモジュールに在る（移した・消した口を挙げ続けない）"""
@@ -102,3 +98,7 @@ class DocCase(unittest.TestCase):
         names = {a or b for a, b in listed}
         self.assertTrue(names)
         self.assertEqual(sorted(n for n in names if not hasattr(report, n)), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
