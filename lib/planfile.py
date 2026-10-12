@@ -843,14 +843,14 @@ def _save(round_dir, k: int, plan: dict, fields: list, bare: dict, *, amended=No
     return {"ok": True, "reason": ""}
 
 
-def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: str) -> dict:
-    """修正案の役の返答（形 plan）を受け付ける。役が作業ツリーを動かしていれば先にそれだけで拒む（moved）。拒否は理由を全部 1 回で
+def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: str, keys=accept.TREE_KEYS) -> dict:
+    """修正案の役の返答（形 plan）を受け付ける。役が作業ツリーを動かしていれば先にそれだけで拒む（moved。keys の欄で比べる）。拒否は理由を全部 1 回で
     並べて {ok: False, reason}。通れば no を id に戻した返答を
     planmarks.split で works の欄と分け、p2.fix_plan.json・plan-fields.json・reply.json を書いて {ok: True, reason: ""}（置けなければ
     _save の halt）。2 往復目からは block_answers を外して前の往復の block への答えを照らし、閉じた・保留の項目の行を差し込んだ案の全体を照らす。
     返答から捨てた閉じた項目の行は trace に converge.DROPPED_OP で残す（元 planblk.revise_take）"""
     round_dir = pathlib.Path(round_dir)
-    why = moved(round_dir / TREE_FILE, repo)
+    why = moved(round_dir / TREE_FILE, repo, keys)
     if why:
         return {"ok": False, "reason": why}
     if replan._malformed(reply):
@@ -892,13 +892,13 @@ def take_plan(round_dir, plan_dir, *, judgment, reply, repo, tables, base_rev: s
     return saved
 
 
-def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_rev: str) -> dict:
+def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_rev: str, keys=accept.TREE_KEYS) -> dict:
     """修正案の役の直した項目の返答（形 replan）を受け付ける。拒否は REPLAN_REJECT と誤りの全部。通れば replan.json（行は
     replan.TRIP_KEYS の形。contract_changed・widened は事実だけ）と、直した項目を差し替えた案の全体を p2.fix_plan.json・
     plan-fields.json（amended に直した項目の核の欄。planmarks.amend と同じ）・reply.json に書き、trace に planmarks.AMEND_OP を書く。
     作業ツリーの比べと控えを置けない時は take_plan と同じ"""
     round_dir = pathlib.Path(round_dir)
-    why = moved(round_dir / TREE_FILE, repo)
+    why = moved(round_dir / TREE_FILE, repo, keys)
     if why:
         return {"ok": False, "reason": why}
     prev = latest(plan_dir, before=round_dir)

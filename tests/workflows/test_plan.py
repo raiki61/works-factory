@@ -198,7 +198,9 @@ class Run:
         return json.loads(p.stdout)
 
     def value(self, ref):
-        """with: の値（$<節>.output[.<欄>] か {from, if_skipped}）を Archon と同じ字にする（字はそのまま・ほかは JSON）"""
+        """with: の値（$<節>.output[.<欄>] か {from, if_skipped} か字でない定数）を Archon と同じ字にする（字はそのまま・ほかは JSON）"""
+        if not isinstance(ref, (str, dict)):
+            return json.dumps(ref)
         if isinstance(ref, dict):
             nid = ref["from"].split(".")[0][1:]
             if self.status.get(nid) != "ok":
@@ -799,6 +801,34 @@ class AcceptCase(unittest.TestCase):
                 self.assertEqual(len(why), 1, why)
                 self.assertTrue(why[0].startswith(planblk.READONLY_MOVED), why[0])
                 self.assertTrue((run.art / "plan" / "r1" / planfile.TREE_FILE).is_file())
+
+    def test_status_guarded_leaves_index_only_change_to_the_status_check(self):
+        """修正案の役は mutates_checkout: false なので、plan-accept の with: の status_guarded が真: Archon の状態の照らし（git status の
+        行の違い）が見る index だけの変化では拒まない。行の字が同じままの、既に変わっていたファイルの書き換えは拒む"""
+        def stage(repo):
+            git(repo, "add", "stats.py")
+
+        def rewrite(repo):
+            with open(repo / "stats.py", "a", encoding="utf-8") as f:
+                f.write("# 役が書いた\n")
+
+        for name, move, refused in (("index だけ", stage, False), ("書き換え", rewrite, True)):
+            with self.subTest(name):
+                run = Run(self)
+                with open(run.repo / "stats.py", "a", encoding="utf-8") as f:
+                    f.write("# 前から在った変更\n")
+
+                def writer(n, brief, run=run, move=move):
+                    if n == 1:
+                        move(run.repo)
+                    return {"plan": [item(1, 2)]}
+
+                out = run.include(writer=writer)
+                self.assertIs(out["ready"], True, out)
+                why = self.reasons(run)
+                self.assertEqual(len(why), 1 if refused else 0, why)
+                if refused:
+                    self.assertIn("中身が変わった", why[0])
 
     def test_unsavable_plan_halts_without_counting_a_rejection(self):
         """P025: 受けた案の控えを置けない周は、役の拒否に数えず（出し直させず）に輪を止める（plan_accept の halt の道）"""

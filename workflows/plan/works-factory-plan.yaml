@@ -499,6 +499,7 @@ nodes:
           timeout: 1728000000
           depends_on: [plan-writer]
           with:
+            status_guarded: true
             dir: $round.output.dir
             reply: $plan-writer.output
           output_format:
