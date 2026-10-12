@@ -128,19 +128,6 @@ def fallback(why: str) -> dict:
             "changed": {k: False for k in CHANGED_MARKS}, "delta_review": dict(NO_REVIEW)}
 
 
-def leave(out: dict) -> None:
-    """返りを境の口 boundary.returns で書く。境の口を読めない時だけ、同じ形（allow_nan=False）を標準ライブラリで書く"""
-    shared = str(Path(__file__).resolve().parents[2] / ".shared")
-    if shared not in sys.path:
-        sys.path.insert(0, shared)
-    try:
-        import boundary
-    except Exception:  # noqa: BLE001  境の口を読めない時（返す節は落ちない）
-        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
-        return
-    boundary.returns(out)
-
-
 def main() -> dict:
     global boundary, fixio
     sys.dont_write_bytecode = True
@@ -165,7 +152,8 @@ if __name__ == "__main__":
         print(f"collect: {why}", file=sys.stderr)
         out = fallback(why)
     try:
-        leave(out)
+        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
     except ValueError as e:
-        leave(fallback(f"fix の返りを書けない（{type(e).__name__}: {e}）"))
+        print(json.dumps(fallback(f"fix の返りを書けない（{type(e).__name__}: {e}）"), ensure_ascii=False, allow_nan=False),
+              flush=True)
     sys.exit(0)

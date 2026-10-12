@@ -50,25 +50,12 @@ def failed(error: BaseException) -> dict:
             "gate_axes": {axis: {"ok": False, "note": note} for axis in AXES}, "ask_human": True, "questions": [note]}
 
 
-def leave(out: dict) -> None:
-    """返りを境の口 boundary.returns で書く。境の口を読めない時だけ、同じ形（allow_nan=False）を標準ライブラリで書く"""
-    shared = str(Path(__file__).resolve().parents[2] / ".shared")
-    if shared not in sys.path:
-        sys.path.insert(0, shared)
-    try:
-        import boundary
-    except Exception:  # noqa: BLE001  境の口を読めない時（返す節は落ちない）
-        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
-        return
-    boundary.returns(out)
-
-
 def main() -> int:
     try:
         boundary, out = collected()
         boundary.returns(out)
     except Exception as e:
-        leave(failed(e))
+        print(json.dumps(failed(e), ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 

@@ -81,25 +81,12 @@ def failed(error: BaseException) -> dict:
             "depth": [], "round": k}
 
 
-def leave(out: dict) -> None:
-    """返りを境の口 boundary.returns で書く。境の口を読めない時だけ、同じ形（allow_nan=False）を標準ライブラリで書く"""
-    shared = str(Path(__file__).resolve().parents[2] / ".shared")
-    if shared not in sys.path:
-        sys.path.insert(0, shared)
-    try:
-        import boundary
-    except Exception:  # noqa: BLE001  境の口を読めない時（返す節は落ちない）
-        print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
-        return
-    boundary.returns(out)
-
-
 def main() -> int:
     try:
         out = collected()
     except Exception as e:  # noqa: BLE001  返す節は落ちない（誤りは訳に残して ready: false）
         out = failed(e)
-    leave(out)
+    print(json.dumps(out, ensure_ascii=False, allow_nan=False), flush=True)
     return 0
 
 

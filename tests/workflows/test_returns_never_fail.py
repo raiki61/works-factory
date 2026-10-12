@@ -7,8 +7,8 @@ resolveBindingDirective・output-ref.ts 590-597 行）。返りの指し札の�
   終了の値 0 で、標準出力の JSON が節の output_format に合う
 - 返す節が with:・when:・本文で読む $<id>.output の <id> は表 NEVER_FAIL に在り、表の行はその節を lib 無しで走らせる試験を名指す
 - 単独で走らせた返りの指し札の先は在って空でない
-- scripts/ から標準出力へ書く道は境の口（boundary.returns）だけ。外は表 LIBLESS_EXITS の script の「境の口を読めない時」の
-  json.dumps(..., allow_nan=False) だけ
+- scripts/ から標準出力へ書く道は境の口（boundary.returns）だけ。外は表 LIBLESS_EXITS の script の
+  json.dumps(..., allow_nan=False) だけ（境の口も lib も読めない時にも返す道）
 """
 import ast
 import importlib
@@ -39,7 +39,7 @@ NEVER_FAIL = {
     ("line", "report"): ALONE_RETURN,
 }
 
-# 境の口を読めない時に標準出力へ直に書く script（パス → 訳）
+# 境の口を読めない時にも返すため、標準出力へ直に書く script（パス → 訳）
 LIBLESS_EXITS = {
     "workflows/line/scripts/result.py": "線の返す節",
     "workflows/judge/scripts/verdict.py": "judge の返す節",
@@ -235,7 +235,7 @@ def exit_problems(files: list[pathlib.Path], table: dict, root: pathlib.Path) ->
             if name not in table:
                 out.append(f"{name}:{line}: 境の口（boundary.returns）の外で標準出力に書く")
             elif not ok:
-                out.append(f"{name}:{line}: 境の口を読めない時の道は json.dumps(..., allow_nan=False) だけを書く")
+                out.append(f"{name}:{line}: 境の口の外の道は json.dumps(..., allow_nan=False) だけを書く")
     return out
 
 
@@ -298,7 +298,6 @@ class ReturnScriptCase(unittest.TestCase):
             with self.subTest(name):
                 text = (ROOT / name).read_text(encoding="utf-8")
                 self.assertTrue(stdout_writes(ast.parse(text)), f"{name} は標準出力へ直に書かない（古い行）")
-                self.assertRegex(text, r"boundary\.(returns|run)\(", f"{name} は境の口で返さない")
 
 
 class SeedCase(unittest.TestCase):
