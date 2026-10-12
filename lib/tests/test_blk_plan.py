@@ -129,10 +129,9 @@ class RejectHeadOwnerCase(unittest.TestCase):
         import planfile
         for name in self.NAMES:
             with self.subTest(name=name):
-                owned = getattr(planblk, name)
+                self.assertTrue(hasattr(planblk, name))
                 for reader in (planfile, boardview):
-                    if hasattr(reader, name):
-                        self.assertIs(getattr(reader, name), owned, f"{reader.__name__}.{name}")
+                    self.assertFalse(hasattr(reader, name), f"{reader.__name__}.{name}")
 
     def test_review_head_names_no_board(self):
         self.assertNotIn("盤面", planblk.HEAD["plan-review"])

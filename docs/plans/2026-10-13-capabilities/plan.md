@@ -791,7 +791,7 @@
 - P109 計画の返答に前の往復の閉じた・保留の項目を差し込んで案の全体を組む。閉じた項目を変えた・閉じた項目の単位を別の行に入れた・開いた項目の行が無い返答は CLOSED_REJECT で拒む。閉じた項目を前のまま書いた行は捨てて trace に `plan_converge_dropped` を残す
   - 元: works/.shared/core/converge.py:333 `splice`、works/blk-plan/lib/planblk.py:1301 `revise_take`
   - 今: lib/planfile.py:539 `splice`（写し）、lib/planfile.py:915 `take_plan`（DROPPED_OP は converge.DROPPED_OP を直に使う）
-  - 証: lib/tests/test_planfile.py::ConvergeCase.test_splice_fills_closed_item_and_refuses_changed_one（assert: lib/tests/test_planfile.py:351-357）・test_splice_refuses_missing_open_item（:361-362）・tests/workflows/test_plan.py::CollectCase.test_rounds_count_and_second_round_gets_review（assert: tests/workflows/test_plan.py:750・752-753）。ブロックの水準で CLOSED_REJECT が拒みの本文に載ることは照らされていない → 要追加: tests/workflows/test_plan.py::CollectCase.test_second_round_changing_a_closed_item_is_rejected — 2 周目に閉じた項目の行を変えて返すと拒否の本文が planfile.CLOSED_REJECT で始まる
+  - 証: lib/tests/test_planfile.py::ConvergeCase.test_splice_fills_closed_item_and_refuses_changed_one（assert: lib/tests/test_planfile.py:351-357）・test_splice_refuses_missing_open_item（:361-362）・tests/workflows/test_plan.py::CollectCase.test_rounds_count_and_second_round_gets_review（assert: tests/workflows/test_plan.py:750・752-753）。ブロックの水準で CLOSED_REJECT が拒みの本文に載ることは照らされていない → 要追加: tests/workflows/test_plan.py::CollectCase.test_second_round_changing_a_closed_item_is_rejected — 2 周目に閉じた項目の行を変えて返すと拒否の本文が planblk.CLOSED_REJECT で始まる
   - 本物の run: plan/r2/trace.jsonl の `plan_converge_dropped` 行・plan/r2/p2.fix_plan.json の `plan`。筋書きでのみ
   - 狭め: 無し
 
