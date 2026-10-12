@@ -98,7 +98,7 @@ PERSISTED_WHY = ("事前審査（記録の名 p2.plan_review）の同じ block �
 UNSETTLED_WHY = ("事前審査（記録の名 p2.plan_review）の block が、壁打ち {n} 往復でも消えない（往復ごとに別の穴が出た。"
                  "最後の block: {keys}。往復ごとの案と審査: {path}）")
 COUNTS_WHY = "開いた block の数: {counts}（前の往復より減らなかった）"
-CAP_WHY = ("壁打ちの輪の安全の上限 {n} 往復に届いた（減り続ける往復は普通は届かないので、仕組みの異常として止めた）。"
+CAP_WHY = ("壁打ちのループの安全の上限 {n} 往復に届いた（減り続ける往復は普通は届かないので、仕組みの異常として止めた）。"
            "開いた block は減り続けていた（往復ごとの開いた数: {counts}）")
 LINE_HEAD = ("事前審査の壁打ち: {n} 往復・抜け方は{word}（記録の名 {outcome}）・続いた block: {persists}・{share}"
              "（往復ごとの案と審査: {path}）")

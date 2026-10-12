@@ -50,8 +50,8 @@ inputs:
   round_limit:
     default: "null"
     description: >-
-      線の計画の往復の輪の安全の上限（輪の max_iterations と同じ数）か null（輪の外の案の直しの事前審査）。計画の周 round がこの数の
-      往復は、輪がもう 1 周回せないので開いた block が減っていても止める
+      メイングラフの計画の往復のループの安全の上限（ループの max_iterations と同じ数）か null（ループの外の案の直しの事前審査）。計画の周 round がこの数の
+      往復は、ループがもう 1 周回せないので開いた block が減っていても止める
 
 returns: review
 outcome_field: pass
