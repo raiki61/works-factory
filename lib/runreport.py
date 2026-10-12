@@ -1421,7 +1421,7 @@ def accept(reply, cold, *, out_dir) -> dict:
         give_up = len(rows) >= report_roles.GIVE_UP_AFTER
         if give_up:
             carry.write(out_dir / AI_FILE, {"accepted": False,
-                                            "reason": f"{REPORT_NODE} の返答が {len(rows)} 回とも受け付けで拒まれた（最後の拒否: {reason}）",
+                                            "reason": rolekit.gave_up_text(REPORT_NODE, len(rows), reason),
                                             "cold": c, "rejects": report_roles.count_rejects(rows)})
         return {"done": give_up, "ok": False, "reason": reason, "kind": kind, "reason_file": str(path)}
 

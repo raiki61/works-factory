@@ -827,11 +827,8 @@ def accept(jdir, raw: str, repo, base_rev: str = "", *, keys=core_accept.TREE_KE
 def _give_up(jdir) -> dict:
     """元 works/blk-judge/lib/judgetake.py:122。受け付けを通った判定が無いまま輪を抜けた: 最後の拒否の文で止めの控えを置き
     （JUDGE_STOP。もう止めの控えが在れば write_stop は書かない）、ok false の出口"""
-    rows = rolekit.rejected(jdir, DIAGNOSE_ROLE)
-    if rows:
-        reason = f"{DIAGNOSE_NODE} の返答が {len(rows)} 回とも受け付けで拒まれた（最後の拒否: {' '.join(rows[-1].split())}）"
-    else:
-        reason = f"受け付けを通った判定が無いまま判定のループを抜けた（{DIAGNOSE_NODE} の受け付けの拒否の控えも無い）"
+    reason = (rolekit.given_up_reason(jdir, DIAGNOSE_ROLE)
+              or f"受け付けを通った判定が無いまま判定のループを抜けた（{DIAGNOSE_ROLE} の受け付けの拒否の控えが諦めに届いていない）")
     write_stop(jdir, JUDGE_STOP, reason)
     return {"ok": False, "open_units": [], "need_fix": False, "judgment_file": "", "one_shot": ""}
 

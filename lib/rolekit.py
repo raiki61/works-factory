@@ -7,6 +7,7 @@
                   積み、通った時か give_up_after 回目の拒否で done（出し直しても直らない拒みは 1 回目で。控えは intake が
                   clear_rejects で消す）
 - rejected:       盤面の節でない受け付けの拒否の文の並び（古い順。指示書の番号と、輪が落ちた周の最後の拒否の文に使う）
+- gave_up_text:   役の返答を諦めた理由の 1 行の文（回数で諦めた時と、出し直させずに諦めた時）
 - given_up_reason: 盤面の節でない受け付けの出口が、控えの最後の拒否の文を引く
 - attempt:        盤面の節でない受け付けの輪の今の回（控えの拒否の数 + 1）
 - last_reject(folder): 置き場の下の受け付けの最後の拒否の本文（報告の前の失敗の行が読む）
@@ -89,8 +90,8 @@ def _read_json(path: pathlib.Path, default):
         raise BoardGap(f"{path} が読めない: {e}") from None
 
 
-def _gave_up_text(name: str, count: int, last: str, *, at_once: bool = False) -> str:
-    """given_up_reason が返す諦めた理由の 1 行の文。at_once は出し直させずに諦めた時（with_done の give_up）"""
+def gave_up_text(name: str, count: int, last: str, *, at_once: bool = False) -> str:
+    """役 name の返答を諦めた理由の 1 行の文（given_up_reason と、控えを自分で持つ受け付けが引く正本）。at_once は出し直させずに諦めた時（with_done の give_up）"""
     last = " ".join(str(last).split())
     if at_once:
         return f"{name} の返答を受け付けが出し直させずに諦めた（拒否: {last}）"
@@ -144,7 +145,7 @@ def given_up_reason(board: pathlib.Path, name: str, *, give_up_after: int = GIVE
     at_once = any(r.get("give_up") is True for r in rows)
     if not rows or not (at_once or len(rows) >= give_up_after):
         return ""
-    return _gave_up_text(name, len(rows), str(rows[-1].get("reason", "")), at_once=at_once)
+    return gave_up_text(name, len(rows), str(rows[-1].get("reason", "")), at_once=at_once)
 
 
 def last_reject(folder) -> str:

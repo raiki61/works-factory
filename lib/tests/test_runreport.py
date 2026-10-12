@@ -26,6 +26,7 @@ import outpurpose  # noqa: E402
 import querytest  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
+import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import stopby  # noqa: E402
 from lib.tests.test_outcome import fixed_run  # noqa: E402
@@ -620,6 +621,19 @@ class AcceptCase(Base):
         self.assertTrue(third["done"])
         self.assertFalse(third["ok"])
         self.assertFalse(self.ai()["accepted"], "3 回とも拒めば受け取れなかった訳を残す")
+
+
+class ReportGiveUpCase(Base):
+    """書き手の返答を諦めた 1 行の文は rolekit.gave_up_text の 1 か所が持つ"""
+
+    def test_give_up_text_is_rolekit_text(self):
+        bad_terms = json.dumps({"text": "x", "terms": [{"term": ""}]})
+        for _ in range(report_roles.GIVE_UP_AFTER):
+            runreport.accept(bad_terms, AcceptCase.PASS, out_dir=self.out)
+        rows = json.loads((self.out / runreport.REJECTS_FILE).read_text(encoding="utf-8"))
+        self.assertIn("\n", rows[-1]["reason"], "拒否の文が複数の行でも諦めの文は 1 行")
+        ai = json.loads((self.out / runreport.AI_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(ai["reason"], rolekit.gave_up_text(runreport.REPORT_NODE, len(rows), rows[-1]["reason"]))
 
 
 class CollectCase(Base):
