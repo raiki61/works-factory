@@ -48,6 +48,7 @@ import policy  # noqa: E402
 import promptsection  # noqa: E402
 import purpose as _purpose  # noqa: E402
 import querytest  # noqa: E402
+import report  # noqa: E402  （約束の隣のファイルの名 REJUDGE_DIFF・REJUDGE_EXIT の住処）
 import rolekit  # noqa: E402
 import specblk  # noqa: E402
 import stopby  # noqa: E402
@@ -186,7 +187,7 @@ PROMPT_TABLES = {
     "labels": "／".join(LABELS),
 }
 # 元 review-record.py:343
-ASKING = ("held", "escalate")
+ASKING = gatemarks.ASKING
 TRACKED = ("held", "escalate", "decided")
 
 
@@ -935,31 +936,18 @@ def request_answers(jdir) -> list:
 
 def unmeasured(materials) -> dict:
     """元 works/.shared/core/gatemarks.py:693。今の周に測れていない素材 {名: status}: 素材のうち、検証器の表 STATUS で阻害になる
-    status（not_run・awaiting_human）の物"""
-    if not isinstance(materials, dict) or not materials:
-        return {}
-    return {n: m["status"] for n, m in materials.items()
-            if isinstance(m, dict) and m.get("status") in STATUS and STATUS[m["status"]].blocks}
+    status（gatemarks.UNMEASURED。表との一致は試験が縛る）の物"""
+    return gatemarks.unmeasured_of(materials)
 
 
 def origin_of(q, materials) -> str:
-    """元 works/.shared/core/gatemarks.py:704。答えを結ぶ時の問いの出どころ: 台帳の origin。origin が空の問いで、key が今の周に測れていない
-    素材の名で始まる（名の直後が終わりか KEY_CHAR でない字）物は、その素材の名"""
-    got = q.get("origin")
-    if isinstance(got, str) and got:
-        return got
-    key = str(q.get("key") or "")
-    return next((n for n in unmeasured(materials)
-                 if key.startswith(n) and not gatemarks.KEY_CHAR.match(key[len(n):len(n) + 1])), "")
+    """元 works/.shared/core/gatemarks.py:704。答えを結ぶ時の問いの出どころ（gatemarks.origin。測れていない素材は materials から）"""
+    return gatemarks.origin(q, unmeasured(materials))
 
 
 def answer_binds(a, questions, materials) -> list:
-    """元 works/.shared/core/gatemarks.py:716 を受け付けの呼び方（answer_rows は空の列。字の一致だけ）で。依頼の答え a が当たる返答の
-    問い: question と key が字のまま等しい問い、無ければ出どころ（origin_of）が等しい問いの全部"""
-    qs = [q for q in questions if isinstance(q, dict)]
-    name = a.get("question")
-    by_key = [q for q in qs if isinstance(q.get("key"), str) and q.get("key") and q.get("key") == name]
-    return by_key or [q for q in qs if name and origin_of(q, materials) == name]
+    """元 works/.shared/core/gatemarks.py:716 を受け付けの呼び方（結びの行は空。字の一致だけ）で（gatemarks.binds）"""
+    return gatemarks.binds(a, questions, missing=unmeasured(materials))
 
 
 def redesign_rows(jdir) -> list:
@@ -1123,17 +1111,26 @@ def _unit_file_paths(u: dict, repo) -> tuple:
     return list(dict.fromkeys(kept)), list(dict.fromkeys(dropped))
 
 
-def structure_units(judgment, repo) -> list:
+STRUCTURE_DROPPED_FILE = "structure-units-dropped.json"   # 構造の目の入力に写せなかったパスと paths の空の単位の記録（元 trace の STRUCTURE_UNITS_OP）
+
+
+def structure_units(judgment, repo, record=None) -> list:
     """元 works/darkfactory/lib/line_edge.py:361。判定の開いた単位（is_open）を全部、構造の目の入力の形 {id, paths, summary} に写した
     並び（判定の順）。summary は単位の reason だけ。元は paths が 1 本も残らない単位を写さなかったが、計画の決めで落とさない
-    （paths: [] で返す。構造の目に回すかは plan が決める）。元の書き出し（盤面の作業ファイル）と trace の行は持たない"""
-    rows = []
+    （paths: [] で返す。構造の目に回すかは plan が決める）。record（ファイルのパス）が在れば、パスの取れない単位と捨てたパスを
+    {units, paths} で書く（元は trace の STRUCTURE_UNITS_OP の 1 行。黙って空の実測にしない）"""
+    rows, empty, dropped = [], [], []
     for u in (judgment.get("units") if isinstance(judgment, dict) else None) or []:
         if not isinstance(u, dict) or not isinstance(u.get("key"), str) or not is_open(u):
             continue
-        paths, _ = _unit_file_paths(u, repo)
+        paths, bad = _unit_file_paths(u, repo)
+        dropped += bad
+        if not paths:
+            empty.append(u["key"])
         reason = u.get("reason") if isinstance(u.get("reason"), str) else ""
         rows.append({"id": u["key"], "paths": paths, "summary": reason})
+    if record is not None:
+        write_json(record, {"units": empty, "paths": list(dict.fromkeys(dropped))})
     return rows
 
 
@@ -1441,10 +1438,19 @@ PREMISES_SCHEMA = {
 }
 
 
+def with_carried(reply: dict, jdir) -> dict:
+    """前提の実測の返答の制約に、依頼が運んだ前の run の前提の検算の実測（CARRIED_FILE。carry.CONSTRAINTS の行）を足した物（同じ字の
+    制約は 2 度足さない）。元 review-loop.py:3751-3755 の finalize が facts_to_add を盤面の制約に足した形を run をまたいで戻す"""
+    carried = [c for c in read_json(pathlib.Path(jdir) / CARRIED_FILE, []) or [] if isinstance(c, dict)]
+    have = {c.get("text") for c in reply.get("constraints") or [] if isinstance(c, dict)}
+    return {**reply, "constraints": [*(reply.get("constraints") or []), *(c for c in carried if c.get("text") not in have)]}
+
+
 def check_premises(reply: dict, jdir, repo, items: list) -> dict:
     """元 works/.shared/core/premises.py:125（と blk-premises/scripts/accept.py:32 の accept_premises）。実測役の返答を受け付ける:
     型（PREMISES_SCHEMA）→ 依頼の実測を測り直したか（check_claims）→ 作業ツリーか HEAD が変わっていれば拒む（_tree_unchanged。
-    バイトコードは数えない）→ post_check（measured_needs_output）。通れば置き場の premises.json に返答を書く。
+    バイトコードは数えない）→ post_check（measured_needs_output）。通れば置き場の premises.json に返答を書く（依頼が運んだ前の run の
+    実測を制約に足す。with_carried）。
     items は依頼の行（judge/request.json）。{ok, reason}"""
     def run():
         core_accept.type_errors(reply, PREMISES_SCHEMA, "前提の実測の返答")
@@ -1459,7 +1465,7 @@ def check_premises(reply: dict, jdir, repo, items: list) -> dict:
             # 修正の差分は版からの差分で数える——ここで残った物は修正役の差分に混じる）
             _tree_unchanged(jdir, repo_p, PREMISES_RULE, TREE_FILE, bytecode=False, rev=rev)
             measured_needs_output(_purpose.PREMISES_NODE, copy.deepcopy(reply))
-        write_json(pathlib.Path(jdir) / _premises.PREMISES_FILE, reply)
+        write_json(pathlib.Path(jdir) / _premises.PREMISES_FILE, with_carried(reply, jdir))
         return {"ok": True, "reason": ""}
     return core_accept.guard(run)
 
@@ -3513,14 +3519,15 @@ REJUDGE_SCHEMA = {
     },
 }
 REJUDGE_VERDICTS = tuple(REJUDGE_SCHEMA["properties"]["verdict"]["enum"])
+ADOPTED = REJUDGE_VERDICTS[0]                     # 異議を採る答え（最後の関所と報告が「止めずに残った異議」から外す）
 REJUDGE_SETTLED = ("採る", "退ける")               # 元 rules:3210。決着して異議を降ろす答え
 # 元 写しの graph の p2.rejudge の writes（to: units の pick）。再審が単位を置き換える時に残す欄で、前後の差もこの欄だけを比べる
 REJUDGE_UNIT_FIELDS = ("key", "label", "disposition", "reason", "reopen_evidence")
 REJUDGE_BRIEF = "brief.md"
 REJUDGE_BEFORE = "units-before.json"          # 元 rejudge-units-before-<役>.json
 REJUDGE_SNAPSHOT = "rejudge-snapshot.json"    # 元 rejudge.SNAPSHOT_NAME（役を起こす前の作業ツリーの姿）
-REJUDGE_DIFF = "rejudge-diff.json"            # 元 rejudge.DIFF_NAME
-REJUDGE_EXIT = "rejudge-exit.json"            # 元 rejudge.EXIT_NAME（再審のブロックの出口の形）
+REJUDGE_DIFF = report.REJUDGE_DIFF            # 元 rejudge.DIFF_NAME（名の住処は報告の定数。線の judged と報告が読む約束の隣のファイル）
+REJUDGE_EXIT = report.REJUDGE_EXIT            # 元 rejudge.EXIT_NAME（再審のブロックの出口の形）
 REJUDGE_REPLY = "rejudge-reply.json"          # 受けた再審の返答の並び（元 writes の append to: process.rejudge）
 # 元 rejudge.py:77。修正役に貼った番号の書き方（no N・No.N・#N・N 番）。全角の数字も \d に当たる
 _NUMBERS = (re.compile(r"(?<![A-Za-z])no\.?\s*(\d+)", re.IGNORECASE), re.compile(r"[#＃]\s*(\d+)"), re.compile(r"(\d+)\s*番"))
@@ -3740,7 +3747,7 @@ def rejudge_verdict(rdir):
 # ================================================================ 並行 PR と世界の解
 
 
-PR_DOWNGRADES_FILE = "pr-downgrades.json"        # 申し送りの下書き [{pr, files, note}]（GitHub に投稿しない。報告が人に渡す）
+PR_DOWNGRADES_FILE = prcheck.DRAFTS              # 申し送りの下書き [{pr, files, note}]（GitHub に投稿しない。報告が人に渡す）
 MATERIAL_PR_FILE = f"material-{prcheck.ROLE}.json"   # 並行 PR の素材 {role, reply, materials: {parallel_pr}}
 PR_LIMIT = 100   # 元 works/.shared/core/graphloops/scripts/parallel-pr.py:16 の LIMIT（gh pr list の --limit）
 # 元 works/.shared/core/graphloops/rules/review-loop.py:2278
@@ -4048,6 +4055,7 @@ def world_finish(jdir) -> dict:
 START_FILE = "start.json"          # 始めの記録を既定の値で読んだ物（start_view）
 INTAKE_FILE = "intake.json"        # 入口の返り {go, mode, spec, world, verify, reason}
 REQUEST_FILE = "request.json"      # 依頼の行（check_request が通した物。仕様の段が受け入れ条件の行を積む）
+CARRIED_FILE = "carried-constraints.json"   # 依頼が運んだ前の run の前提の検算の実測（carry.CONSTRAINTS の行。check_premises が制約に足す）
 TREE_FILE = "judge-tree.json"      # 入口の時（仕様の段が在れば承認の後）の作業ツリーの姿（accept.tree_state）。並行 PR と前提の受け付けが比べる
 STOP_FILE = "stop.json"            # 止めの控え {stop_reason, reason}。最初に止めた節の物だけ残す
 DEFAULT_FEATURES_CUT = ["judge_verify"]   # 今の works の入口の既定（判定の裏取りは既定で切）
@@ -4136,11 +4144,12 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None
         write_json(jdir / START_FILE, view)
         container, path = request_container(view, repo)
         rows = container["findings"]
-        if rows:
+        if rows or view["input"].get("requests"):   # 依頼の無い run 以外は空でも型に通す（元 blk-judge/scripts/intake.py 47-60 行）
             checked = check_request(rows, f"依頼のファイル {path}")
             if checked.get("ok") is not True:
                 raise ValueError(checked.get("reason") or "依頼の行が型に通らない")
         write_json(jdir / REQUEST_FILE, rows)
+        write_json(jdir / CARRIED_FILE, container[carry.CONSTRAINTS])
         carry.place_prior(jdir, [*container[carry.PRIOR], *prior_of(prior)])
         snap_tree(jdir, TREE_FILE, repo)
     except (ValueError, OSError, Reject) as e:
@@ -4245,7 +4254,7 @@ def verdict(jdir, rdir, repo, objection: str, ptr) -> dict:
     spec = jdir / SPEC_FILE if (jdir / SPEC_FILE).is_file() else None
     outside = jdir / OUT_OF_PURPOSE_FILE if (jdir / OUT_OF_PURPOSE_FILE).is_file() else None
 
-    units = structure_units(judgment, repo) if stop is None else []
+    units = structure_units(judgment, repo, record=here / STRUCTURE_DROPPED_FILE) if stop is None else []
     rel = lambda p: None if p is None else ptr(f"{p.parent.name}/{p.name}")   # noqa: E731
     return {
         "ready": stop is None and bool(units),

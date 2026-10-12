@@ -1,3 +1,5 @@
+$consistency-bypass-reject.output.lang_line
+
 ## 役の定義（inspector）
 
 この役は inspector。このループを回している側とは別の context に居る採点者である。

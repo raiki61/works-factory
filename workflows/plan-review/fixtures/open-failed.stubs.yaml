@@ -8,7 +8,7 @@ review:
   design: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/failed/design.json" }
   gate_axes: { obvious: { ok: false, note: "stub" }, world: { ok: false, note: "stub" }, clean: { ok: false, note: "stub" }, not_overkill: { ok: false, note: "stub" } }
   ask_human: true
-  questions: ["出力ノードが落ちた: Missing: stub"]
+  questions: [{"kind": "given_up", "text": "出力ノードが落ちた: Missing: stub"}]
 fixture:
   inputs:
     units: "[]"

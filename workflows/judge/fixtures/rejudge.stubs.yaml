@@ -11,7 +11,7 @@ rejudge:
   reason: 異議の半分は判定の見落とし
   units:
   - {key: 'stats.py mean: 分母が len(xs) - 1', label: block}
-rejudge-reject: {reason: ''}
+rejudge-reject: {reason: '', "lang_line": ""}
 rejudge-accept: {ok: true, done: true, reason: ''}
 verify-merge: {ok: true, reason: ''}
 verdict:

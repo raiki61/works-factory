@@ -6,8 +6,10 @@
 answer-replan。埋め P2）。
 
 関所が方針で飛ばされても走る（trigger_rule: none_failed_min_one_success）。関所の出力は `{from, if_skipped: null}` で受ける。
-返り {go, answer, stop_reason}（lib/answer.py の taken）: 関所が飛ばされたら前の節が決めた go と止めの理由をそのまま返し、answer は
-null。関所が開いたら答え {decision, text} を返し、通す語なら go、止める語なら go: false と止めの理由 human:<関所>。
+返り {go, answer, stop_reason}（lib/answer.py の taken）: 関所が飛ばされたら前のノードが決めた go と止めの理由をそのまま返し、answer は
+null。関所が開いたら答え {decision, text, asked} を返し、通す語なら go、通す語でない語（stop・reject・知らない語）なら go: false と
+止めの理由 human:<関所>。止める答えの一言が空なら既定の文（answer.STOP_NOTE・最後の関所は FINAL_STOP_NOTE）を一言にする。
+asked は関所が人に見せた項目の行（before_fix_answer だけが ask-before-fix の asked を渡す）で、項目を持たない関所は []。
 答えは run の置き場の gates/<関所>.json に書く（同じ関所の答えは書き直す。人が読む控えで、関所の文が名指す）。
 報告へは返りの answer が collect を通って届く。
 

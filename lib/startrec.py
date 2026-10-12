@@ -7,8 +7,14 @@
 （前は置き場の名を 3 か所が、読む口を 6 か所が別々に持ち、続きの run で機能の切り替えが黙って変わった 8dfebca6 の元になった）。
 
 - NAME・REL: 周の置き場の中の名（盤面の work(NAME) が今の周 r<N>/ に置く）と、盤面の根からの置き場（1 周目）
-- path(board_dir): 盤面の根からの始めの記録のパス
+- path(board_dir): 盤面の根からの始めの記録のパス。置き場はこの 1 つで、線の start は run の置き場の根を盤面の根として
+  ここに書き（write）、ブロックは指し札の先を自分の置き場の同じ所へ字のまま写す（adopt）。読み手は全部 read で読む
 - read(board_dir): 始めの記録の dict（無い・読めない・dict でなければ {}。読み手が欠けを欄ごとに扱う）
+- load(file): 始めの記録のファイル file（指し札の先）の dict。無い・読めなければ OSError・ValueError、dict でなければ ValueError
+  （読めないことを訳にする読み手の口。read はこれを {} に落とす）
+- write(board_dir, doc): 始めの記録を path(board_dir) に置いてパスを返す
+- adopt(board_dir, src): 線の始めの記録のファイル src を path(board_dir) へ字のまま写し、その dict を返す（欄を足さず・既定で
+  埋めない。写しが元と食い違って機能の切り替えが黙って変わらないように。JSON のオブジェクトでなければ ValueError）
 - shape(doc): 入口の入力の形（欄 input の dict）。無い前の版の控え（入口の入力の形を持つ前の固定材料）は None
 - diff_empty(doc): 入口の差分が空か（真偽）。入力の形が無ければ None
 - requests(doc): 依頼の行の数。入力の形が無ければ None
@@ -37,10 +43,40 @@ def path(board_dir) -> pathlib.Path:
 def read(board_dir) -> dict:
     """始めの記録（無い・読めない・dict でなければ空の dict）"""
     try:
-        doc = json.loads(path(board_dir).read_text(encoding="utf-8"))
+        return load(path(board_dir))
     except (OSError, ValueError):
         return {}
-    return doc if isinstance(doc, dict) else {}
+
+
+def load(file) -> dict:
+    """始めの記録のファイル file の dict（無い・読めなければ OSError・ValueError、dict でなければ ValueError）"""
+    doc = json.loads(pathlib.Path(file).read_text(encoding="utf-8"))
+    if not isinstance(doc, dict):
+        raise ValueError(f"始めの記録 {file} が JSON のオブジェクトでない")
+    return doc
+
+
+def write(board_dir, doc: dict) -> pathlib.Path:
+    """始めの記録 doc を path(board_dir) に置く（一時のファイルから置き換える）"""
+    p = path(board_dir)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(p)
+    return p
+
+
+def adopt(board_dir, src) -> dict:
+    """線の始めの記録のファイル src を path(board_dir) へ字のまま写し、その dict を返す。src と写しが同じなら写さない"""
+    src, p = pathlib.Path(src), path(board_dir)
+    data = src.read_bytes()
+    doc = json.loads(data.decode("utf-8"))
+    if not isinstance(doc, dict):
+        raise ValueError(f"始めの記録 {src} が JSON のオブジェクトでない")
+    if src.resolve() != p.resolve():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(data)
+    return doc
 
 
 def shape(doc: dict):

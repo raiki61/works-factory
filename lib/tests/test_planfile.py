@@ -24,6 +24,7 @@ import conflict  # noqa: E402
 import converge  # noqa: E402
 import eye  # noqa: E402
 import planblk  # noqa: E402
+import rolekit  # noqa: E402
 import planfile  # noqa: E402
 import planmarks  # noqa: E402
 import replan  # noqa: E402
@@ -467,6 +468,27 @@ class PriorFailuresCase(TmpCase):
         for bad in ({"where": "x"}, [{"where": "x"}], ["x"]):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 planfile.prior_section(self.tmp, bad)
+
+
+class VerifyNeighborCase(TmpCase):
+    """L-W10: 判定の単位の裏取りの申し送り（判定の隣の judge-verify.json）を修正案の役の材料に貼る（元 line_edge._verify_file と
+    works/tests/test_edge.py::PlanEdgeCase.test_plan_hands_verify_notes :1194）"""
+
+    def test_verify_notes_reach_the_prompt(self):
+        import planblk
+        jdir = self.tmp / "judge"
+        self.write("judge/judge-verify.json", {"units": [{"n": 1, "key": "a.py 分母", "state": "checked", "verdict": "root",
+                                                          "evidence_found": True, "evidence": "a.py:3", "location_ok": True,
+                                                          "location": "a.py:3", "why": "確か"}], "synergy": {}})
+        judgment = {"units": [{"key": "a.py 分母", "label": "block", "disposition": "do-now", "reason": "r"}], "questions": []}
+        rd = self.tmp / "plan" / "r1"
+        rd.mkdir(parents=True)
+        path, _ = planfile.write_brief(rd, self.tmp / "plan", mode="plan", judgment=judgment, judgment_dir=jdir, units=[],
+                                       structure_dir_=self.tmp / "s", world_rows=None, spec=None, repo=self.tmp, base_rev="",
+                                       review_md="", lang_line=rolekit.lang_line({}))
+        text = path.read_text(encoding="utf-8")
+        self.assertIn(f"{planblk.VERIFY_HEAD}\n\n{planblk.VERIFY_ASK}", text)
+        self.assertIn("- 単位 1 `a.py 分母`: ", text)
 
 
 class RevisedFieldsCase(TmpCase):

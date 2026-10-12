@@ -10,6 +10,7 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import conflict  # noqa: E402
 import outcome  # noqa: E402
 import report  # noqa: E402
 import stopby  # noqa: E402
@@ -105,6 +106,17 @@ class TableCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(**{"test-gate-final": None})), ("interrupted", "test-gate-final:chain-cut"))
         self.assertEqual(decide(fixed_run(**{"merge-seal": None, "merge-apply": None})), ("interrupted", "merge-seal:chain-cut"))
 
+    def test_missing_eye_of_a_standard_run_is_left(self):
+        """R14（元 report.eye_counts の missing「結果が無い——再実行の要あり」:599-602）: 直した後の深さが標準（線の redepth の
+        skip_optional が空。facts の eyes_skip）なのに返りの無い目は、深さで省いた目と分けて残りに数える。軽量で省いた run と、深さの
+        返りの届かない run は数えない"""
+        eyes = {**fixed_run()["eyes"], "r2": None}
+        self.assertEqual(decide(fixed_run(eyes=eyes), facts={**OK_FACTS, "eyes_skip": ""}), ("round_limit", ""))
+        self.assertIn({"where": f"{report.EYES_WHERE} R2", "text": "R2 の結果が無い——再実行の要あり（深さは標準で、省いていない）"},
+                      outcome.residue(fixed_run(eyes=eyes), {"eyes_skip": ""}))
+        self.assertEqual(decide(fixed_run(eyes=eyes), facts={**OK_FACTS, "eyes_skip": "軽量で省いた"}), ("fixed", ""))
+        self.assertEqual(decide(fixed_run(eyes=eyes)), ("fixed", ""))
+
     def test_eyes_not_ok_without_counted_eyes_is_left(self):
         """独立の目のブロックが ok: false で、数えた目（r1〜r4）が全部 null でも、残りに 1 行入れて fixed にしない"""
         eyes = {**fixed_run()["eyes"], "ok": False, "r1": None}
@@ -118,6 +130,42 @@ class TableCase(unittest.TestCase):
         _stop_lines が出す）。残りの行には重ねない"""
         self.assertEqual(decide(fixed_run(**{"merge-seal": {"mode": "seal"}})), ("round_limit", ""))
         self.assertEqual(outcome.residue(fixed_run(**{"merge-seal": {"mode": "seal"}})), [])
+
+
+class LineStopCase(unittest.TestCase):
+    """R5b・S48: 線の節が返す止めの語（facts の stops。線の collect が集めた {節: 語}）を結末に入れる（元 report._stop_info は線の境の
+    節が盤面に書いた止めも読んだ）: 入口の拒みと線の script の例外は stopped_by_line、無人の run の関所の止めは needs_human、人の止め
+    human:<関所> は stopped_by_human"""
+
+    def test_line_stop_words_reach_the_outcome(self):
+        refused = {"start_ok": False, "record_problems": [], "failed": [], "stops": [("start", stopby.START_REFUSED)]}
+        self.assertEqual(decide(fixed_run(judge=None, plan=None, fix=None), facts=refused), ("stopped_by_line", f"start:{stopby.START_REFUSED}"))
+        broken = {**OK_FACTS, "stops": [("redepth", stopby.LINE_SCRIPT)]}
+        self.assertEqual(decide(fixed_run(**{"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None}),
+                                facts=broken), ("stopped_by_line", f"redepth:{stopby.LINE_SCRIPT}"))
+        waiting = {**OK_FACTS, "stops": [("ask-final", stopby.NEEDS_HUMAN)]}
+        self.assertEqual(decide(fixed_run(**{"merge-apply": None}), facts=waiting), ("needs_human", f"ask-final:{stopby.NEEDS_HUMAN}"))
+        human = {**OK_FACTS, "stops": [("answer-final", "human:gate-final")]}
+        self.assertEqual(decide(fixed_run(**{"merge-apply": None}), facts=human), ("stopped_by_human", "answer-final:human:gate-final"))
+
+    def test_line_words_are_the_stopby_words(self):
+        self.assertEqual((stopby.START_REFUSED, stopby.NEEDS_HUMAN, stopby.LINE_SCRIPT),
+                         ("works:start-refused", "works:needs-human", "works:line-script"))
+        self.assertIn(stopby.NEEDS_HUMAN, outcome.WAIT_WORDS)
+
+
+class ConflictNamesCase(unittest.TestCase):
+    def test_conflict_field_names_come_from_conflict(self):
+        """S34: 結末と報告は fix の conflicts.json の欄の名と裁定の語を lib/conflict.py から引き、自分の定数に写さない（K20）"""
+        import conflict
+        import runreport
+        for name in ("CONFLICT_ITEMS", "CONFLICT_RULING", "CONFLICT_DECISION", "CONFLICT_REPLAN", "CONFLICT_KIND", "CONFLICT_HEAD",
+                     "ASK_HUMAN", "REPLACE_QUERY", "FIX_PLAN_ITEM", "FIX_RULINGS", "RULINGS", "REPLAN_WAITING", "REPLAN_KEPT",
+                     "REPLAN_WHY", "PLAN_UNITS", "HELD_WORK_KEPT", "DIV_KINDS", "UNSET"):
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(outcome, name))
+                self.assertFalse(hasattr(runreport, name))
+        self.assertEqual((conflict.ITEMS, conflict.RULING, conflict.DECISION), ("items", "ruling", "decision"))
 
 
 class OrderCase(unittest.TestCase):
@@ -169,6 +217,51 @@ class ReadingCase(unittest.TestCase):
         path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
         return str(path)
 
+    def test_unit_not_closed_in_the_closure_table_is_left(self):
+        """R16（元 works/tests/test_report_head.py::ResidueOutcomeCase.test_unit_in_changes_but_not_closed_in_the_table_is_not_fixed :630）:
+        修正の diff の隣の閉鎖の表で closed が偽の単位は、fix の units が fixed でも残りに数え、結末を fixed にしない（round_limit）"""
+        import fixbeside
+        folder = self.dir / "fix" / "fix"
+        folder.mkdir(parents=True)
+        (folder / "fix.diff").write_text("x", encoding="utf-8")
+        fixbeside.write(folder, [{"closure": [{"unit_key": "u1", "closed": False}]}])
+        fix = {**fixed_run()["fix"], "diff": str(folder / "fix.diff"), "diffs": [str(folder / "fix.diff")]}
+        self.assertEqual(decide(fixed_run(fix=fix))[0], "round_limit")
+        left = outcome.residue(fixed_run(fix=fix))
+        self.assertEqual([r["where"] for r in left], ["修正 u1"])
+        fixbeside.write(folder, [{"closure": [{"unit_key": "u1", "closed": True}]}])
+        self.assertEqual(decide(fixed_run(fix=fix))[0], "fixed")
+
+    def test_unreadable_closure_table_is_left(self):
+        """errors F2: 閉鎖の表の控え（closure.json）が無い・壊れた・組めなかった（{"error"}）時は、閉じたかを数えていないので残りに
+        数え、結末を fixed にしない（round_limit）。書き手は組の子と親の置き場の表が読めなければ {"error"} を置く（0 件の表にしない）"""
+        import fixbeside
+        import querytest
+        folder = self.dir / "fix" / "fix"
+        folder.mkdir(parents=True)
+        (folder / "fix.diff").write_text("x", encoding="utf-8")
+        fix = {**fixed_run()["fix"], "diff": str(folder / "fix.diff"), "diffs": [str(folder / "fix.diff")]}
+        (folder / fixbeside.CLOSURE_FILE).write_text('{"rows": [{"unit_key": "U1", "closed": false}', encoding="utf-8")
+        self.assertEqual(decide(fixed_run(fix=fix))[0], "round_limit")
+        self.assertTrue([r for r in outcome.residue(fixed_run(fix=fix)) if fixbeside.CLOSURE_UNREAD in r["text"]])
+        (folder / querytest.CLOSURE_FILE).write_text("{壊れた", encoding="utf-8")
+        fixbeside.write(folder, [])
+        self.assertIn("error", json.loads((folder / fixbeside.CLOSURE_FILE).read_text(encoding="utf-8")))
+        self.assertEqual(decide(fixed_run(fix=fix))[0], "round_limit")
+        fixbeside.write(folder, [{"group_id": "g1", "closure": None}])
+        (folder / querytest.CLOSURE_FILE).unlink()
+        fixbeside.write(folder, [{"group_id": "g1", "closure": None}])
+        self.assertIn("組 g1", json.loads((folder / fixbeside.CLOSURE_FILE).read_text(encoding="utf-8"))["error"])
+
+    def test_no_fix_round_closes_with_the_final_test_and_the_eyes(self):
+        """L-W07: 直す物が無い周（判定が ready でなく止めの語も無い。修正は走らず封じもしない）は、最後のテストと独立の目が済んでも
+        no_fix_needed。封じた返りが無いのを途中で切れたと読まない。R2 が直す物が在ると言えば（残りが在れば）直す物が無いと名乗らない"""
+        judge = {"ready": False, "stop_reason": "", "units": [], "judgment": None}
+        run = {**fixed_run(judge=judge), "plan": None, "plan-review": None, "fix": None, "merge-seal": None, "merge-apply": None}
+        self.assertEqual(decide(run), ("no_fix_needed", ""))
+        eyes = {**run["eyes"], "r2": {"status": "redesign-needed", "reason": "直す物が在る"}}
+        self.assertNotEqual(decide({**run, "eyes": eyes})[0], "no_fix_needed")
+
     def test_skipped_eyes_are_not_left(self):
         eyes = {**fixed_run()["eyes"], "r1": None, "r2": None}
         self.assertEqual(decide(fixed_run(eyes=eyes))[0], "fixed")
@@ -196,7 +289,7 @@ class ReadingCase(unittest.TestCase):
         waiting = {"unit_key": "u3", "ruling": {"decision": "fix_plan_item", "text": "案を", "plan_units": ["u3"]}, "replan": "waiting"}
         fix = {**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": [waiting]})}
         self.assertEqual(decide(fixed_run(fix=fix)), ("needs_human", f"fix:{stopby.CONFLICT}"))
-        self.assertEqual(outcome.asked_conflicts(fixed_run(fix=fix))[0][outcome.REPLAN_WHY], outcome.CLOSE_WHY)
+        self.assertEqual(outcome.asked_conflicts(fixed_run(fix=fix))[0][conflict.REPLAN_WHY], outcome.CLOSE_WHY)
         self.assertEqual(decide(fixed_run(fix=fix), facts={**OK_FACTS, "failed": ["refix__write"]})[0], "interrupted")
         self.assertEqual(outcome.asked_conflicts(fixed_run(fix=fix), closed=False), [])
         self.assertEqual(outcome.waiting_conflicts(fixed_run(fix=fix)), [waiting])
@@ -301,7 +394,7 @@ class ReadingCase(unittest.TestCase):
         returns = fixed_run(fix={**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": rows})})
         rulings, kinds = outcome.conflict_counts(returns)
         self.assertEqual(rulings, {"parked": 4, "unruled": 1, "fix_test_scope": 0, "fix_code_as": 1, "ask_human": 1, "fix_plan_item": 1})
-        self.assertEqual((kinds["not_red"], kinds["scope_needed"], kinds[outcome.UNSET]), (2, 1, 1))
+        self.assertEqual((kinds["not_red"], kinds["scope_needed"], kinds[conflict.UNSET]), (2, 1, 1))
         self.assertEqual([k for k, _ in outcome.asked_units(returns)], ["u1", "u2", "u3"])
 
     def test_ok_outcomes(self):

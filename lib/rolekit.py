@@ -8,7 +8,11 @@
                   clear_rejects で消す）
 - rejected:       盤面の節でない受け付けの拒否の文の並び（古い順。指示書の番号と、輪が落ちた周の最後の拒否の文に使う）
 - given_up_reason: 盤面の節でない受け付けの出口が、控えの最後の拒否の文を引く
+- last_reject(folder): 置き場の下の受け付けの最後の拒否の本文（報告の前の失敗の行が読む）
 - parse_reply:    役の返答（$<役>.output の JSON の文字列）を dict に
+- LANG_RULE・LANG_DEFAULT・lang_line(start): 役の文の頭に足す言語の 1 行（元 rolekit.py 67-68 行・147-150 行。言語は始めの記録の
+                  lang。空なら依頼文の言語。元 board.py 96 行）。判定・計画・修正・独立の目・報告の書き手の役が同じ口で読む
+- record_lang_line(path): 始めの記録のファイル path から lang_line（読めなければ既定の言語の 1 行に読めない訳を添える）
 
 層は L3（盤面と受け付け）。ライン・include の id・ブロックの名前を書かない（tests/test_layers.py）。
 """
@@ -54,6 +58,32 @@ def agent_def(agent_type: str):
         return _engine_agent_def(agent_type)
     finally:
         os.environ.pop(key, None)
+
+
+# 役の文は関所と報告に機械が字のまま載せるので、書き手に言語を縛る（元 works/.shared/core/rolekit.py 67-68 行。機械で訳さない）
+LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、承認ノードと報告に載る文）は {lang} で書け。"
+             "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
+LANG_DEFAULT = "依頼文の言語（利用者の言語）"   # 元 works/.shared/core/board.py 96 行
+
+
+def lang_line(start) -> str:
+    """役に言語を縛る 1 行。言語は始めの記録 start の欄 lang（無ければ inputs.lang、どちらも空なら LANG_DEFAULT）"""
+    start = start if isinstance(start, dict) else {}
+    got = start.get("lang") or ((start.get("inputs") or {}).get("lang") if isinstance(start.get("inputs"), dict) else "")
+    return LANG_RULE.format(lang=str(got or "").strip() or LANG_DEFAULT)
+
+
+def record_lang_line(path) -> str:
+    """始めの記録のファイル path（None は記録の無い run）の lang_line。読めない・オブジェクトでなければ既定の言語の 1 行に訳を添える"""
+    if path is None:
+        return lang_line({})
+    try:
+        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return f"{lang_line({})}（始めの記録 {path} を読めない: {type(e).__name__}。言語は既定にした）"
+    if not isinstance(doc, dict):
+        return f"{lang_line({})}（始めの記録 {path} が JSON のオブジェクトでない。言語は既定にした）"
+    return lang_line(doc)
 
 
 REJECT_HEADING = promptsection.Section("## 前の回の受け付けが拒んだ理由", source="fn:rolekit.with_reject")
@@ -132,6 +162,25 @@ def given_up_reason(board: pathlib.Path, name: str, *, give_up_after: int = GIVE
     if not rows or not (at_once or len(rows) >= give_up_after):
         return ""
     return _gave_up_text(name, len(rows), str(rows[-1].get("reason", "")), at_once=at_once)
+
+
+def last_reject(folder) -> str:
+    """置き場 folder（の下）の受け付けの最後の拒否の本文（元 report._accept_last_files の reason_file の本文）: 拒否の控え
+    rejects-<名>.json の最後の行の文と、拒否の訳のファイル reject-*.md・reject-*.txt のうち一番新しい物。無い・読めなければ空"""
+    rows = []
+    for p in pathlib.Path(folder).rglob("reject*") if pathlib.Path(folder).is_dir() else ():
+        try:
+            if p.name.startswith("rejects-") and p.suffix == ".json":
+                got = json.loads(p.read_text(encoding="utf-8"))
+                text = str(got[-1].get("reason", "")) if isinstance(got, list) and got and isinstance(got[-1], dict) else ""
+            elif p.name.startswith("reject-") and p.suffix in (".md", ".txt"):
+                text = p.read_text(encoding="utf-8", errors="replace")
+            else:
+                continue
+            rows.append((p.stat().st_mtime, text))
+        except (OSError, ValueError):
+            continue
+    return " ".join(max(rows, key=lambda r: r[0])[1].split()) if rows else ""
 
 
 def parse_reply(raw):

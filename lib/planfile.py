@@ -93,7 +93,6 @@ SKIPPED_FILE = "skipped-units.json"
 STRUCTURE_FILE = "structure.json"
 DESIGN_FILE = "design.jsonl"
 KEY_LEN = 12
-ASKING = ("held", "escalate")      # まだ人に聞く気がある問いの status（元 review-record.py:343）
 BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテストを読み損ねた trace の行 {rev, unread}（元 writes.py:52）
 
 COVERS_REJECT = "単位の網羅に誤りが在る（直す義務の単位は全部、どれか 1 つの項目にちょうど 1 度入れる）。案に入れてよい no は"
@@ -101,9 +100,6 @@ MALFORMED_REJECT = "修正案の返答の形が崩れている（plan は項目�
 # 役に読ませる文の組み立て（元 works/.shared/core/rolekit.py:64・:67 と board.py:96。前提の lib/rolekit.py に無い）
 REJECT_LINE = ("前の回の返答は受け付けで拒まれた。理由はファイル {path} に在る。先に Read で読み、そこを直した返答を丸ごと"
                "出し直せ（直した所だけを返すな）。")
-LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、承認ノードと報告に載る文）は {lang} で書け。"
-             "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
-LANG_DEFAULT = "依頼文の言語（利用者の言語）"
 NOTHING_OWED = "直す義務の単位が無い（開いた単位が無いか、全部が人の答え待ちの問いの出どころ・depends）"
 UNWRITABLE_STATE = "構造の控えを書けない"
 NO_PLAN = "受け付けを通った修正案が無い（修正案のループが回らなかったか、途中で落ちた）"
@@ -183,6 +179,22 @@ def read_pointed(raw: str, resolve, *, text: bool = False) -> tuple:
         return (body, "") if text else (None, f"ポインタの先が JSON でない: {e}")
 
 
+LEDGER = "_ledger"   # read_judgment が判定の dict に添える問いの台帳の値の見え方（gatemarks.Ledger）の鍵。判定の欄ではない
+
+
+def read_judgment(raw: str, start, resolve) -> tuple:
+    """(判定の dict, 読めない訳)。判定に、直す義務の数え（gatemarks.duty）が読む問いの台帳の見え方を添える: 始めの記録 start
+    （dict か None）の依頼の answers と、判定の隣の結び・素材の状態（gatemarks.ledger_beside）。plan に関所の答えは届かない（行き止まりの
+    判定は 1 回目の周で、修正前の関所より前に走る）。判定が読めなければ (None, 訳)"""
+    doc, why = read_pointed(raw, resolve)
+    if not isinstance(doc, dict):
+        return doc, why
+    path, _ = pointed(raw, resolve)
+    answers = (start or {}).get("answers") if isinstance(start, dict) else None
+    return {**doc, LEDGER: gatemarks.ledger_beside(pathlib.Path(path).parent, doc,
+                                                   answers=answers if isinstance(answers, list) else [])}, why
+
+
 def world_rows(raw: str, resolve) -> tuple:
     """(定石の行の並び, 読めない訳)。指し札が無い（null）なら ([], "")"""
     path, why = pointed(raw, resolve)
@@ -233,21 +245,14 @@ def is_open(u) -> bool:
     return u.get("label") == "block" or (u.get("label") == "suggest" and u.get("disposition") == "do-now")
 
 
-def _skips(q) -> list:
-    """問いの出どころと depends の単位の key（元 works/.shared/core/gatemarks.py の _skips。字でない物は読まない）"""
-    depends = q.get("depends")
-    return [k for k in [q.get("origin"), *(depends if isinstance(depends, list) else [])] if isinstance(k, str) and k]
-
-
 def _owed_units(judgment) -> set:
-    """今の周に直す義務の単位の key——開いた単位から、答えていない関所の問い（人に聞く状態の fork と、status が escalate の問い）の
-    出どころ・depends を除いた物（元の works が写しの RL の _owed_units を差し替えた works/.shared/core/conflict.py:676 の
-    owed_units_but_asked と、gatemarks.py:674 の asks・:1166 の withheld。判定の返答の units と questions を読む）。
-    元が関所の答え（gatemarks.returned）で義務に戻す単位と、直す裁定でない裁定の単位（held_by_rulings）は、このブロックに関所の答えも
-    裁定も届かないので扱わない（関所の問いは全部まだ答えていない物と読む）"""
-    exempt = {k for q in _rows(judgment, "questions") if q.get("status") in ASKING
-              and (q.get("kind") == "fork" or q.get("status") == "escalate") for k in _skips(q)}
-    return {u["key"] for u in _rows(judgment, "units") if isinstance(u.get("key"), str) and is_open(u)} - exempt
+    """今の周に直す義務の単位の key（gatemarks.duty。fix の直す義務と同じ口）: 開いた単位から、答えていない関所の問い（人に聞く状態の
+    fork と、status が escalate の問い）の出どころ・depends を除き、依頼の answers が答えた問いの出どころ・depends を戻した物（元の
+    works が写しの RL の _owed_units を差し替えた works/.shared/core/conflict.py:676 の owed_units_but_asked）。問いの台帳の見え方は
+    read_judgment が添えた物（無ければ判定だけの見え方）。直す裁定でない裁定の単位（held_by_rulings）は、このブロックに裁定が届かない
+    ので扱わない"""
+    got = judgment.get(LEDGER)
+    return gatemarks.duty(got if isinstance(got, gatemarks.Ledger) else gatemarks.ledger(judgment))
 
 
 def _units(judgment) -> dict:
@@ -671,11 +676,6 @@ def compose(parts, *, reject_file: str = "") -> str:
     return "\n\n".join(out + [s for s in parts if s])
 
 
-def lang_line(lang) -> str:
-    """役に言語を縛る 1 行（元 works/.shared/core/rolekit.py の lang_line。言語は始めの記録の lang）"""
-    return LANG_RULE.format(lang=str(lang or "").strip() or LANG_DEFAULT)
-
-
 def _dump(doc) -> str:
     return json.dumps(doc, ensure_ascii=False)
 
@@ -722,7 +722,7 @@ def _neighbor(judgment_dir, name: str) -> str:
 
 
 def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units, structure_dir_, world_rows, spec,
-                repo, base_rev: str, review_md: str, lang, lib_docs: str = "", conflicts=None, policy_md: str = "",
+                repo, base_rev: str, review_md: str, lang_line: str, lib_docs: str = "", conflicts=None, policy_md: str = "",
                 prior_failures=None, unread=()) -> tuple:
     """修正案の役の材料のファイル brief-<n>.md を書き、(パス, 回の番号 n) を返す。前の回の拒否が在れば、その理由を reject-<n>.txt に
     置いて頭の 1 行で名指す。両方の形に役の定義・並行 PR の外した範囲・ライブラリの文書・前の run で通らなかった物（prior_failures。
@@ -775,7 +775,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
                  POLICY_PART.format(path=policy_md) if policy_md else ""]
     notes = "\n".join([UNREAD_INPUTS_HEAD, "", *(f"- {u}" for u in unread)]) if unread else ""
     path = round_dir / BRIEF_FILE.format(n=n)
-    path.write_text(compose([*parts, notes, lang_line(lang)], reject_file=reject_file), encoding="utf-8")
+    path.write_text(compose([*parts, notes, lang_line], reject_file=reject_file), encoding="utf-8")
     return path, n
 
 

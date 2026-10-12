@@ -100,6 +100,27 @@ class DiffFilesCase(unittest.TestCase):
             seal.diff_files(self.repo, b"not a diff\n")
 
 
+class DeletedPathsCase(unittest.TestCase):
+    def test_deleted_files_are_named_by_their_real_path(self):
+        """取り込むと消えるファイル（deleted file mode の節）のパスは、git が引用した非 ASCII・空白入りの名と中身の無いファイルの
+        削除（--- 行が無い）も実の名で読む（simplify F1: 前の写しは diff --git の見出しを " b/" で割り、引用を解かなかった）"""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = pathlib.Path(tmp)
+            git = lambda *a: subprocess.run(["git", "-C", tmp, "-c", "user.email=a@b", "-c", "user.name=a", *a],  # noqa: E731
+                                            capture_output=True, text=True, check=True).stdout
+            git("init", "-q")
+            (repo / "d").mkdir()
+            names = ["d/日本.txt", "a b.txt", "empty", "kept.txt"]
+            for name in names:
+                (repo / name).write_text("" if name == "empty" else "x\n", encoding="utf-8")
+            git("add", "-A")
+            git("commit", "-qm", "seed")
+            for name in names[:3]:
+                (repo / name).unlink()
+            (repo / "kept.txt").write_text("y\n", encoding="utf-8")
+            self.assertEqual(sorted(seal.deleted_paths(git("diff"))), sorted(names[:3]))
+
+
 class SealRefusalCase(unittest.TestCase):
     FP = {"head": "a" * 40, "diff_hash": HASH}
 

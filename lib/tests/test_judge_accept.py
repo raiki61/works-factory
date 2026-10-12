@@ -23,6 +23,7 @@ if str(LIB) not in sys.path:
 import accept as core_accept  # noqa: E402
 import carry  # noqa: E402
 import diverted  # noqa: E402
+import gatemarks  # noqa: E402
 import judge_accept as ja  # noqa: E402
 import judgeverify as jv  # noqa: E402
 import rolekit  # noqa: E402
@@ -42,6 +43,10 @@ class TablesCase(unittest.TestCase):
         self.assertTrue(ja.is_open({"label": "suggest", "disposition": "do-now"}))
         self.assertFalse(ja.is_open({"label": "suggest", "disposition": "defer"}))
         self.assertFalse(ja.is_open({"label": "nit"}))
+
+    def test_unmeasured_states_are_the_blocking_states(self):
+        """測れていない素材の状態の語（gatemarks.UNMEASURED。値で読む口の住処）は、写しの検証器の表 STATUS で阻害になる状態と同じ"""
+        self.assertEqual(set(gatemarks.UNMEASURED), {k for k, r in ja.STATUS.items() if r.blocks})
 
 
 # ================================================================ 依頼と判定
@@ -770,6 +775,16 @@ class StructureUnitsCase(unittest.TestCase):
                           {"id": "上限を呼び手ごとに持つ", "paths": [], "summary": "r"}])
         self.assertEqual(ja.structure_units(None, self.repo), [])
 
+    def test_dropped_paths_are_recorded(self):
+        """L-W08（元 line_edge.structure_units の trace STRUCTURE_UNITS_OP）: パスの取れない単位と捨てたパスを記録に残す（黙って空の
+        実測にしない）。判定の返す節は判定の置き場の STRUCTURE_DROPPED_FILE に書く"""
+        doc = {"units": [self.unit(["b.py", "src", "gone.py"], key="b.py 一"), self.unit(key="上限を呼び手ごとに持つ")]}
+        record = self.repo / "judge" / ja.STRUCTURE_DROPPED_FILE
+        record.parent.mkdir()
+        ja.structure_units(doc, self.repo, record=record)
+        self.assertEqual(json.loads(record.read_text(encoding="utf-8")),
+                         {"units": ["上限を呼び手ごとに持つ"], "paths": ["src", "gone.py", "上限を呼び手ごとに持つ"]})
+
 
 # ================================================================ 材料・前提・目的・素材
 # ---------------------------------------------------------------- 試験の助け
@@ -848,6 +863,53 @@ class IntakeCase(_RepoCase):
 
 
 # ================================================================ 前提の実測
+class IntakeCase(_RepoCase):
+    def test_empty_request_file_is_refused_when_start_counts_requests(self):
+        """J04: 依頼のファイルを名指したのに行が空なら、始めの記録が依頼 1 件以上と言う run では欠けとして止める（元 works/blk-judge/
+        scripts/intake.py 47-60 行。依頼の無い run 以外は空でも型に通し、minItems で拒む）"""
+        (self.repo / "empty.json").write_text("[]", encoding="utf-8")
+        start = {"base_rev": self.head, "request_file": "empty.json",
+                 "input": {"base": {"rev": self.head}, "diff": {"empty": False}, "requests": 2, "request_file": "empty.json"}}
+        got = ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "")
+        self.assertFalse(got["go"], got)
+        self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], ja.REQUEST_STOP)
+        start["input"]["requests"] = 0
+        shutil.rmtree(self.jdir)
+        self.assertTrue(ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "")["go"], "依頼の無い run は空の行で通す")
+
+
+class CarriedConstraintsCase(_RepoCase):
+    def test_carried_constraints_join_the_premises(self):
+        """E37（次の run の側。S14）: 依頼の constraints（前の run の前提の検算の実測。carry.parts の鍵）を入口が置き場の
+        CARRIED_FILE に置き、前提の実測の受け付けが premises.json の constraints に足す（同じ字は 2 度足さない）。直す穴 findings にも
+        前の失敗 prior_failures にも混ぜない"""
+        import carry
+        row = {"text": "上限は config.py:3 の 10", "measured_how": carry.CARRIED_HOW.format(run="run-0"), "kind": carry.MEASURED}
+        (self.repo / "req.json").write_text(json.dumps({"findings": [{"where": "a.py:1", "text": "穴"}], "constraints": [row]},
+                                                       ensure_ascii=False), encoding="utf-8")
+        start = {"base_rev": self.head, "request_file": "req.json",
+                 "input": {"base": {"rev": self.head}, "diff": {"empty": False}, "requests": 1, "request_file": "req.json"}}
+        self.assertTrue(ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "")["go"])
+        self.assertEqual(ja.read_json(self.jdir / ja.CARRIED_FILE), [row])
+        self.assertEqual(ja.read_json(self.jdir / ja.REQUEST_FILE), [{"where": "a.py:1", "text": "穴"}])
+        self.assertEqual(ja.read_json(self.jdir / carry.PRIOR_IN_FILE), [])
+        got = ja.check_premises(PremisesCase.GOOD, self.jdir, self.repo, [])
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(ja.read_json(self.jdir / "premises.json")["constraints"], [*PremisesCase.GOOD["constraints"], row])
+
+
+    def test_carried_rows_fit_the_premises_shape(self):
+        """seams F5: 報告が次の依頼に書く constraints の行（carry.carried_constraints）は、判定の側が premises.json に足す前提の実測の
+        型（PREMISES_SCHEMA の constraints の行）にそのまま合う（2 つの Schema の片方だけ欄を変えると、照らされない行が premises.json に
+        入り lib/premises.py が Broken で落ちる）"""
+        import carry
+        rows = carry.carried_constraints(["上限は config.py:3 の 10", "  ", 3], "run-0")
+        self.assertEqual(len(rows), 1)
+        item = ja.PREMISES_SCHEMA["properties"]["constraints"]["items"]
+        for row in rows:
+            self.assertFalse(core_accept.type_errors(row, item, "運んだ制約"))
+
+
 class PremisesCase(_RepoCase):
     GOOD = {"constraints": [{"text": "README.md の件数は 3 件", "measured_how": "grep", "kind": "実測",
                              "measured_output": "$ grep -c 件 README.md\n1"}]}
@@ -945,6 +1007,19 @@ class PurposeCase(_RepoCase):
                 got = ja.check_purpose({**self.GOOD, "source_files": bad}, self.jdir, self.repo)
                 self.assertFalse(got["ok"], got)
                 self.assertIn("source_files", got["reason"])
+
+    def test_pr_body_reaches_purpose_brief(self):
+        """L-E17: 線の入口が始めの記録の input.pr に置いた PR の題と本文が、目的の役の材料に「PR の説明」として載る
+        （元 works/.shared/core/entryshape.py 192-205 行 write_pr_file → darkfactory.yaml 297 行 pr_file → purpose.md 16 行 ①PR 説明）"""
+        import entryshape
+        pr = {"number": "7", "title": "題 T", "body": "本文X"}
+        shape = entryshape.build({"items": [], "request_file": "", "base": {"rev": self.head, "from": "pr", "name": "7",
+                                                                           "label": "PR #7「題 T」"}, "pr": pr}, self.repo)
+        got = ja.purpose_prep(self.jdir, self.repo, ja.start_view({"base_rev": self.head, "input": shape}))
+        self.assertTrue(got["go"], got)
+        text = pathlib.Path(got["brief_file"]).read_text(encoding="utf-8")
+        self.assertIn("本文X", text)
+        self.assertIn("題 T", text)
 
     def test_source_files_nested_ignored_and_subdir(self):
         """元 test_blk_purpose.py:460・472・505・512（_source_files_errors）: 入れ子の綴り・git が無視するファイル・git の形でない名前を

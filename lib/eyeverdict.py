@@ -7,12 +7,13 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
 - _human_passed(questions, answer)・carried_section(passed)・r4_gate_items(r4, passed)・gate_passes(r4, passed): 修正前の関所で
   人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
-- prompt_texts(...)・lang_line(lang): 目の指示書に差し込む文
+- prompt_texts(...): 目の指示書に差し込む文
 - read_design(path)・read_json(path): 独立設計の控え（無ければ {"missing": 訳}）と、置き場の JSON（無い・読めなければ None）
 - premise_reason(design): 独立設計が問いが立たないとした訳
 - fell_text(fell, ran)・collect(...)・unverified(reason, protected): ブロックの返り
 - write_notes(eyes_dir, ...): 返りの欄の外で最後の関所に出す材料（R2 に渡した前提の控えと『渡されていない』の照らし・人が
-  通したので R4 の問いから外した行）を置き場に書く
+  通したので R4 の問いから外した行）を置き場に書く（返りの notes が PREMISE_INPUTS を指し、隣の GATE_PASSES・PREMISE_FILE も約束）
+- r2_input_lines・gate_pass_rows・premise_facts・premise_fact_lines: 最後の関所と報告がその隣のファイルを読む口
 """
 from __future__ import annotations
 
@@ -41,17 +42,13 @@ CONSTRAINT_HEAD = "### 記録の制約"                 # 元 同 :119
 NO_CONSTRAINTS = "（記録の制約 premises.json が渡っていない）"
 NO_REQUEST = "依頼のファイルが渡っていない"
 START_GATE_NODE = "gate-start"   # 線の始めの関所（plan-review が独立設計に貼る人の答えの源）
-# 元 .shared/core/rolekit.py:67 の LANG_RULE と board.py:96 の LANG_DEFAULT
-LANG_RULE = ("人が読む文の欄（reason・how・what・why・異議・所見・申し出の文など、承認ノードと報告に載る文）は {lang} で書け。"
-             "key・enum の値・コード識別子・パス・コマンド・エラー文はそのまま（key は周をまたいで突き合わせるので訳さない）。")
-LANG_DEFAULT = "依頼文の言語（利用者の言語）"
 # 元 .shared/core/graphloops/rules/review-loop.py:4103 の R4_ROWS（種類・R4 の返りの欄・行の頭）
 R4_ROWS = (("regression", "lost", "R4 が BASE から消えたと見た能力: "), ("policy", "policy_conflicts", "R4 が見た人の方針とのぶつかり: "))
 X_SCALAR = re.compile(r"^x_[a-z0-9_]+$")   # 元 graphs/review-loop.json の p3.fix の x_scalars の patternProperties
 EYES = ("r1", "r2", "r3", "r4")
 PREMISE = "premise-check"
 LANE = {"r1": "R1", "r2": "R2", PREMISE: "R2", "r3": "R3", "r4": "R4"}
-RETURN_FIELDS = ("ok", *EYES, "questions", "premise_check", "structure_after", "protected_hits")
+RETURN_FIELDS = ("ok", *EYES, "questions", "premise_check", "structure_after", "protected_hits", "notes")
 VERDICTS = ("resolved", "escalate")
 NO_FILE = "返りのファイルが無い"
 NO_AFTER = "直しの後の実測: 控えが無い（測っていない run）"   # 元 blk-eyes/lib/eyes.py:93
@@ -60,7 +57,7 @@ DOC_SUFFIXES = (".md",)
 DESIGN_PREMISES = "design-premises.json"   # 独立設計の役に貼った物の控え（design.json の隣。元 design.PREMISES_FILE）
 R2_PREMISES = "r2-premises.json"           # 比較役に貼った物の控え（置き場。元 eyes.PREMISES_NAME）
 PREMISE_INPUTS = "premise-inputs.json"     # 最後の関所に出す R2 の前提の材料（元 eyes-exit.json の premise_inputs）
-GATE_PASSES = "gate-passes.json"           # 人が通したので R4 の問いから外した行（元 state.works.gate_passes）
+GATE_PASSES = "r4-gate-passes.json"        # 人が通したので R4 の問いから外した行（元 state.works.gate_passes。事前審査の gatemarks.PASSES_FILE とは別の物）
 
 
 def r2_compare_due(design_doc: dict, purpose_text: str) -> bool:
@@ -113,14 +110,13 @@ def scalars_text(s: dict) -> str:
 
 
 def _human_passed(questions: list, answer: dict | None) -> dict:
-    """元 .shared/core/gatemarks.py:1244。修正前の関所の答え answer（{decision, text}）が通す語なら、そこで聞いた行 questions の
-    うち狭める能力と事前審査の穴の行を {(種類, 頭と推しの尾を外した本文): 答えた周} で返す（台帳の問いの行は数えない。1 run 1 周）"""
+    """元 .shared/core/gatemarks.py:1244。修正前の関所の答え answer（{decision, text, asked}）が通す語なら、事前審査が関所の項目にした
+    行 questions（{kind, text}）のうち狭める能力と事前審査の穴の行を {(種類, 頭と推しの尾を外した本文): 答えた周} で返す（台帳の
+    問いの行は数えない。1 run 1 周）"""
     if not isinstance(answer, dict) or answer.get("decision") not in seal.PASS:
         return {}
     out = {}
-    for a in questions or []:
-        if not isinstance(a, str):
-            continue
+    for a in gatemarks.row_texts(questions):
         m = gatemarks.NARROW_HEAD.match(a)
         f = None if m else gatemarks.FACE_HEAD.match(a)
         if m or f:
@@ -237,11 +233,6 @@ def premise_section(*, human_items, request_text, repo, changed, constraints, de
     return "\n\n".join(parts), {"node": "r2.compare", **ledger}
 
 
-def lang_line(lang) -> str:
-    """元 .shared/core/rolekit.py:147 の lang_line。言語は始めの記録の lang（空なら依頼文の言語）"""
-    return LANG_RULE.format(lang=str(lang or "").strip() or LANG_DEFAULT)
-
-
 def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_file: str, world_file: str, passed: dict) -> dict:
     """目の指示書に差し込む文。値は線から届いたままの形（無い物は None）"""
     unit_rows = [f"{u.get('id')}: {u.get('summary')}（{', '.join(u.get('paths') or [])}）" for u in units or [] if isinstance(u, dict)]
@@ -313,7 +304,7 @@ def unverified(reason: str, protected: dict | None) -> dict:
     """目を数えられない時の返り（r1〜r4 は unverifiable、ok は false）。protected は collect と同じ"""
     row = {"status": seal.UNVERIFIABLE, "reason": reason}
     return {"ok": False, **{e: dict(row) for e in EYES}, "questions": [], "premise_check": None, "structure_after": None,
-            "protected_hits": _protected(protected)[0]}
+            "protected_hits": _protected(protected)[0], "notes": None}
 
 
 def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, design: dict, after_ptr,
@@ -324,7 +315,7 @@ def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, d
     eyes_dir = pathlib.Path(eyes_dir)
     hits, guarded = _protected(protected)
     out = {"ok": False, **{e: None for e in EYES}, "questions": [], "premise_check": None, "structure_after": after_ptr,
-           "protected_hits": hits}
+           "protected_hits": hits, "notes": None}
     if not run_eyes:
         out["ok"] = guarded
         return out
@@ -370,6 +361,64 @@ def write_notes(eyes_dir, *, design_ledger, passed: dict) -> None:
              GATE_PASSES: gate_passes(_read_eye(eyes_dir, "r4")[0], passed)}
     for name, doc in notes.items():
         (eyes_dir / name).write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+
+
+ROLE_WORDS = {"design": "独立の設計を作る役", "compare": "独立の設計と差分を比べる役"}   # R2 の 2 つの役の平易な名（元 line_edge.ROLE_WORDS）
+PREMISE_FILE = "premise-check.json"   # 前提の検算（PREMISE）の役の返り（置き場。key・resolution・facts_to_add を持つ）
+
+
+def r2_input_lines(eyes_dir) -> list:
+    """元 works/darkfactory/lib/line_edge.py:529-557 の _r2_inputs。最後の関所と報告の R2 の行の下に並べる行: 比較役が『渡されていない』
+    と書いた文と、そのうち渡していた物（compare の claims_given）と、R2 の 2 つの役へ渡した前提の入力の控え（PREMISE_INPUTS）と、
+    独立設計の後に来た人の答え（compare の after_design）。控えが無ければその 1 行"""
+    pi = read_json(pathlib.Path(eyes_dir) / PREMISE_INPUTS)
+    if not isinstance(pi, dict):
+        return ["独立の設計と比べる目に渡した入力の控えが無い（R2）"]
+    out = [f"独立の設計と比べる目が渡されていないと書いた（R2）: {c}" for c in pi.get("claims") or []]
+    led = pi["compare"] if isinstance(pi.get("compare"), dict) else {}
+    out += [f"独立の設計と比べる目が渡されていないと書いたが、渡していた（R2）: {m.get('claim')} ← {m.get('kind')}: {m.get('what')}"
+            for m in led.get("claims_given") or [] if isinstance(m, dict)]
+    late = led.get("after_design")
+    if late:
+        out.append(f"独立設計の後に来た人の答え（{ROLE_WORDS['compare']}にだけ渡った）: " + "／".join(str(x) for x in late))
+    for role in ("design", "compare"):
+        led = pi.get(role)
+        if not isinstance(led, dict):
+            out.append(f"{ROLE_WORDS[role]}に渡した入力の控えが無い（{role}）")
+            continue
+        given = "／".join(f"{g.get('kind')}: {g.get('what')}" for g in led.get("given") or [] if isinstance(g, dict)) or "（前提の入力は無い）"
+        out.append(f"{ROLE_WORDS[role]}に渡した前提の入力（{role}）: {given}")
+        held = [w for w in led.get("withheld") or [] if isinstance(w, dict)]
+        if held:
+            out.append("run に在ったが渡していない: " + "／".join(f"{w.get('kind')}: {w.get('what')}（{w.get('why')}）" for w in held))
+    return out
+
+
+def gate_pass_rows(eyes_dir) -> list | None:
+    """人が通したので R4 の問いから外した行（GATE_PASSES。gate_passes の形）。控えが無い・読めなければ None"""
+    rows = read_json(pathlib.Path(eyes_dir) / GATE_PASSES)
+    return rows if isinstance(rows, list) else None
+
+
+def premise_facts(eyes_dir) -> dict:
+    """前提の検算で仮定が偽（resolved）と分かった時の {key, resolution, facts}（元 review-loop.py:1310-1331 の premise_question と
+    :3751-3755 の finalize。問いの key は台帳に held で残り、実測 facts_to_add は次の run の制約に足す）。resolved でない・返りが無ければ
+    facts が空の物"""
+    doc = read_json(pathlib.Path(eyes_dir) / PREMISE_FILE)
+    if not (isinstance(doc, dict) and doc.get("verdict") == "resolved"):
+        return {"key": "", "resolution": "", "facts": []}
+    return {"key": str(doc.get("key") or ""), "resolution": str(doc.get("resolution") or ""),
+            "facts": [f for f in doc.get("facts_to_add") or [] if isinstance(f, str) and f.strip()]}
+
+
+def premise_fact_lines(eyes_dir) -> list:
+    """最後の関所と報告の前提の検算の行の下に並べる行（仮定が偽と分かった問いの key と、次の run の制約に足す実測）"""
+    got = premise_facts(eyes_dir)
+    if not got["key"]:
+        return []
+    return [f"仮定は偽と検算した——問い「{got['key']}」は保留（held）のまま残す（次の run の判定が回し直した R2 を見て決める）"
+            + (f": {got['resolution']}" if got["resolution"] else ""),
+            *(f"次の run の制約に足す実測: {f}" for f in got["facts"])]
 
 
 def _off_contract(eye: str) -> dict:

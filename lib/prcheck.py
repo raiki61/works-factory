@@ -9,8 +9,12 @@
 - EXCLUDED_FIELD・EXCLUDED_SCHEMA・EXCLUDED: 外す hunk の欄・型・置き場のファイルの名
 - BRIEF: 役への渡し物のファイルの名
 - check_excluded: 外す hunk の誤りの一覧。_anchored: 受け付けた時の行の中身の印を足す。_write: 置き場に書く
+- DRAFTS・draft_lines(rows): 判定の隣の申し送りの下書き [{pr, files, note}] のファイルの名（docs/design.md の隣のファイル）と報告の行
+- DOWNGRADES・DOWNGRADE_KEYS・downgrades(path)・head_downgrades(rows): 下げた物の宣言（元 prcheck.py:322・:345。lib/downgrades.json
+  [{node, what, versus}]。node は写しの graph の節）と、報告の頭の「下げている所: K 個」
 """
 import hashlib
+import json
 import pathlib
 import sys
 
@@ -27,6 +31,9 @@ import marks  # noqa: E402
 
 NODE = "p0.parallel_pr"
 ROLE = "pr-check"
+DRAFTS = "pr-downgrades.json"   # 申し送りの下書き [{pr, files, note}]（判定の隣。GitHub に投稿しない。報告が人に渡す）
+DOWNGRADES = "downgrades.json"
+DOWNGRADE_KEYS = ("node", "what", "versus")
 # 本ループのスコープから外す hunk（works だけの欄。写しの schema の conflicts[] は additionalProperties: false で足せないので、
 # 返答の一番上に置き、受け付けが外してから盤面に渡す）。start・end は今の作業ツリーのファイルの行（1 始まり・両端を含む）
 EXCLUDED_FIELD = "excluded"
@@ -85,3 +92,33 @@ def check_excluded(reply: dict, repo) -> list:
 def _write(path: pathlib.Path, obj) -> pathlib.Path:
     marks.write(path, obj)
     return path
+
+
+# ---------------------------------------------------------------- 申し送りの下書きと下げた物の宣言（報告が読む）
+def draft_lines(rows) -> list:
+    """申し送りの下書きの報告の行（元 report._pr_lines の前半。note を持つ行だけ）"""
+    return [f"並行 PR #{r.get('pr')} の担当への申し送りの下書き（{'・'.join(map(str, r.get('files') or []))}。投稿していない）: "
+            f"{r['note']}" for r in rows or [] if isinstance(r, dict) and r.get("note")]
+
+
+def downgrades(path: pathlib.Path = CORE / DOWNGRADES) -> list:
+    """下げた物の宣言 [{node, what, versus}]（無ければ []）。形が崩れていれば ValueError（黙って 0 個と数えない）"""
+    if not path.is_file():
+        return []
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise ValueError(f"{path} が読めない: {e}") from None
+    bad = [] if isinstance(rows, list) else [f"一番上が配列でない（{type(rows).__name__}）"]
+    for i, r in enumerate(rows if isinstance(rows, list) else []):
+        if not (isinstance(r, dict) and sorted(r) == sorted(DOWNGRADE_KEYS)
+                and all(isinstance(r[k], str) and r[k].strip() for k in DOWNGRADE_KEYS)):
+            bad.append(f"{i} 行目が {{node, what, versus}}（空でない文字列）でない: {r!r}")
+    if bad:
+        raise ValueError(f"{path}: " + "; ".join(bad))
+    return rows
+
+
+def head_downgrades(rows) -> str:
+    """報告の頭の行の部品「下げている所: K 個」（元 head_downgrades）"""
+    return f"下げている所: {len(rows)} 個"

@@ -71,7 +71,7 @@ CONTRACT_INPUTS = ("units", "judgment", "purpose", "world", "plan", "structure",
 ORIGINAL_UNITS_LINE = ("直す単位（各行の `no` は engine が振った番号。**key を写さず no の整数で指せ**——engine が名前に戻して記録する）: "
                        "{{record.units | pick key,label,disposition,reason}}")
 ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts": "null", "gate_answers": "null",
-                "round_limit": "null"}
+                "round_limit": "null", "mode": ""}
 RETURN_FIELDS = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
 RUN_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 
@@ -171,6 +171,11 @@ def review(*faces, **extra) -> dict:
     if not faces:
         out["faces_none"] = "写し・入口・契約のずれ・死んだ道・範囲の膨張・後退・方針を全部確かめて穴が無い"
     return {**out, **extra}
+
+
+def texts(got) -> list:
+    """返す節の questions（関所の項目 {kind, text}）の文の並び"""
+    return gatemarks.row_texts(got["questions"])
 
 
 class Run:
@@ -357,7 +362,8 @@ class YamlCase(unittest.TestCase):
         props = fmt["properties"]
         for name in ("pass", "stalled", "ask_human"):
             self.assertEqual(props[name], {"type": "boolean"})
-        self.assertEqual(props["questions"], {"type": "array", "items": {"type": "string"}})
+        self.assertEqual(props["questions"], {"type": "array", "items": {"type": "object", "additionalProperties": False, "required": ["kind", "text"],
+                                                           "properties": {"kind": {"type": "string"}, "text": {"type": "string"}}}})
         for name in ("review", "design"):
             self.assertEqual(props[name]["properties"]["type"]["enum"], ["archon_artifact"])
             self.assertEqual(sorted(props[name]["required"]), ["path", "run_id", "type"])
@@ -801,6 +807,28 @@ class DesignCase(RunCase):
         self.assertTrue(claims and all(c["kind"] == "repo_map" for c in claims), claims)
 
 
+class NoFixDesignCase(RunCase):
+    """L-W07（元 works/darkfactory/lib/line_edge.py:1107-1119 の plan_edge と works/tests/test_line_a.py::LineCase.test_no_fix_path）:
+    直す物が無い周は修正案を作らず、最後の R2 が要る独立設計だけを作る。入力 mode が design の差し込みは、修正案（plan・structure・
+    ripple は null）を読まずに独立設計の輪だけを回し、事前審査を回さず、返す節は通った形（関所の項目・問い無し）と design の指し札を返す"""
+
+    def test_design_mode_makes_only_the_design(self):
+        r = self.run_
+        r.inputs.update(plan="null", structure="null", ripple="null", mode="design")
+        got = r.open()
+        self.assertEqual((got["form"], got["r2_go"]), ("design", True), got)
+        self.assertEqual(nodes()["review-loop"]["when"], "$open.output.ok == true && $open.output.form != 'design'")
+        prompt = r.out("r2_prep")["prompt"]
+        self.assertIn(PURPOSE_MARK, prompt)
+        self.assertTrue(r.accept(DESIGN_OK, "r2_accept")["ok"])
+        out = r.out("result")
+        self.assertEqual((out["pass"], out["stalled"], out["ask_human"], out["questions"]), (True, False, False, []), out)
+        self.assertEqual(json.loads(r.pointed(out["design"]).read_text(encoding="utf-8")), DESIGN_OK)
+        self.assertEqual(json.loads(r.pointed(out["review"]).read_text(encoding="utf-8"))["faces"], [])
+        self.assertTrue(all(axis["ok"] for axis in out["gate_axes"].values()), out["gate_axes"])
+        self.assertEqual(workflow()["inputs"]["mode"]["default"], "")
+
+
 class ReviewAcceptCase(RunCase):
     """事前審査の受け付け（審査役 1 つ。元 tests/test_blk_plan.py の ScriptCase・ConvergeReviewCase の事前審査の側）"""
 
@@ -876,7 +904,7 @@ class ReviewAcceptCase(RunCase):
         self.assertEqual([(g["ok"], g["done"], g["give_up"]) for g in rows], [(False, False, False)] * 2 + [(False, True, True)])
         got = r.out("result")
         self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, True, True))
-        self.assertTrue(any(q.startswith(boardview.GIVEN_UP_FACES) for q in got["questions"]), got["questions"])
+        self.assertTrue(any(q.startswith(boardview.GIVEN_UP_FACES) for q in texts(got)), texts(got))
         saved = json.loads(r.pointed(got["review"]).read_text(encoding="utf-8"))
         self.assertEqual((saved["faces"], saved["shrink"]), ([], []))
         self.assertIn("no_add", saved["reason"])
@@ -970,7 +998,7 @@ class ReviewAcceptCase(RunCase):
         pol.write_text("# 方針\n- 公開の口を減らさない\n- 足した\n", encoding="utf-8")
         got = r.pass_(review())
         self.assertTrue(got["ask_human"])
-        self.assertTrue(any("人の方針の文書" in q and "が固定した版から変わった" in q for q in got["questions"]), got["questions"])
+        self.assertTrue(any("人の方針の文書" in q and "が固定した版から変わった" in q for q in texts(got)), texts(got))
 
     def test_design_drift_face_needs_quotes_in_both(self):
         """元 ConvergeReviewCase.test_design_drift_face_needs_quotes_in_both"""
@@ -1028,6 +1056,28 @@ class ReviewAcceptCase(RunCase):
         self.assertTrue(got["ok"], got)
 
 
+class PolicyCase(RunCase):
+    """方針の文書は run の始め（線の start）に固めた版を使う（元 works/.shared/core/graphloops/rules/policy_input.py:61 の resolve は盤面の
+    on_init で固めた）"""
+
+    def frozen_start(self) -> pathlib.Path:
+        """版 A を線の start と同じ口（policy.freeze）で固めた始めの記録を置き、文書を版 B に書き換える"""
+        r = self.run_
+        pol = r.tmp / "policy.md"
+        pol.write_text("# 方針\n- POLICY-A-1111 版 A\n", encoding="utf-8")
+        r.start(features_off=["review_tree"], policy_md=str(pol), policy=policy.freeze(r.art, r.repo, str(pol)))
+        pol.write_text("# 方針\n- POLICY-B-2222 版 B\n", encoding="utf-8")
+        return pol
+
+    def test_policy_frozen_at_run_start(self):
+        """P216: 始めの記録が持つ方針の版（sha256 と写し）を固めた版として使い、run の始めから事前審査の最初の差し込みまでに書き換えた
+        文書は、最初の差し込みで変化（人の方針の文書が固定した版から変わった）の行になる"""
+        self.frozen_start()
+        got = self.run_.pass_(review())
+        self.assertTrue(got["ask_human"])
+        self.assertTrue(any("人の方針の文書" in q and "が固定した版から変わった" in q for q in texts(got)), texts(got))
+
+
 class ConvergeCase(RunCase):
     """往復の決め（review_accept と result を往復ごとに子のプロセスで続けて回す。元 ConvergeReviewCase の
     test_persisted_review_taken_and_gate_opens_design_item・test_rereview_must_account_for_every_previous_block・
@@ -1065,8 +1115,8 @@ class ConvergeCase(RunCase):
         got = self.run_.pass_(review(MEAN_BLOCK))
         self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, True, True), got)
         self.assertEqual(converge.read(self.run_.view())["outcome"], converge.PERSISTED)
-        self.assertTrue(any(q.startswith(gatemarks.STUCK_ITEM + "。理由: ") for q in got["questions"]), got["questions"])
-        self.assertTrue(any(q.startswith("事前審査の穴 [regression] " + MEAN_BLOCK["key"]) for q in got["questions"]))
+        self.assertTrue(any(q.startswith(gatemarks.STUCK_ITEM + "。理由: ") for q in texts(got)), texts(got))
+        self.assertTrue(any(q.startswith("事前審査の穴 [regression] " + MEAN_BLOCK["key"]) for q in texts(got)))
 
     def test_rereview_must_account_for_every_previous_block(self):
         r = self.run_
@@ -1189,7 +1239,7 @@ class ConvergeCase(RunCase):
         self.assertEqual([p["outcome"] for p in doc["passes"]], [converge.AGAIN, converge.UNSETTLED])
         self.assertIs(doc["passes"][-1].get("capped"), True)
         self.assertNotIn("capped", doc["passes"][0])
-        stuck = [q for q in got["questions"] if q.startswith(gatemarks.STUCK_ITEM + "。理由: ")]
+        stuck = [q for q in texts(got) if q.startswith(gatemarks.STUCK_ITEM + "。理由: ")]
         self.assertEqual(len(stuck), 1, got["questions"])
         self.assertIn(converge.CAP_WHY.split("（")[0].format(n=2), stuck[0])
         self.assertIn("仕組みの異常として止めた", stuck[0])
@@ -1783,7 +1833,7 @@ class ReplanCase(RunCase):
         self.assertNotIn(converge.REREVIEW_ASK, text)
         self.assertTrue(r.accept(review(CLAMP_BLOCK))["ok"])
         got = r.out("result")
-        self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, False, False), got["questions"])
+        self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, False, False), texts(got))
         self.assertEqual(len(converge.read(r.view())["passes"]), 1)
 
     def designed_replan(self):
@@ -1839,8 +1889,8 @@ class ReplanCase(RunCase):
         self.assertTrue(r.accept(review())["ok"])
         got = r.out("result")
         self.assertTrue(got["ask_human"])
-        self.assertEqual(len(got["questions"]), 1, got["questions"])
-        self.assertIn("allowed_paths", got["questions"][0])
+        self.assertEqual(len(texts(got)), 1, texts(got))
+        self.assertIn("allowed_paths", texts(got)[0])
         rows = json.loads((r.folder / "pass-2" / boardview.REPLAN_FILE).read_text(encoding="utf-8"))
         self.assertEqual([(x["item"], x["contract_changed"], x["ask"]) for x in rows], [(2, ["allowed_paths"], True)])
 
@@ -1850,7 +1900,7 @@ class ReplanCase(RunCase):
         self.assertTrue(r.accept(review(face("clamp-regression", UNIT_CLAMP, kind="regression", severity="suggest")))["ok"])
         got = r.out("result")
         self.assertTrue(got["ask_human"])
-        self.assertIn("clamp-regression", got["questions"][0])
+        self.assertIn("clamp-regression", texts(got)[0])
 
     def test_unattended_widen_only_is_not_asked(self):
         """無人の run で、範囲を広げただけ（allowed_paths に足しただけで、ほかの欄は同じ）の直しは聞かない（planmarks.widened）"""
@@ -1912,7 +1962,7 @@ class ReplanCase(RunCase):
         self.assertFalse(r.out("pass_open")["ok"])
         got = r.out("result")
         self.assertEqual((got["pass"], got["ask_human"]), (False, True))
-        self.assertTrue(any("ruling の項目 'x'" in q for q in got["questions"]), got["questions"])
+        self.assertTrue(any("ruling の項目 'x'" in q for q in texts(got)), texts(got))
 
     def test_replan_without_an_approved_plan_names_it(self):
         """同じ run の置き場に承認済みの案（前の差し込みの往復の控え）が無ければ、差し込みの頭は ok: false でその訳を返す"""
@@ -1944,7 +1994,7 @@ class GateFromPlanCase(RunCase):
                rnd=2)
         got = r.pass_(review())
         self.assertTrue(got["ask_human"])
-        self.assertTrue(any(TP.NARROW["what"] in q for q in got["questions"]), got["questions"])
+        self.assertTrue(any(TP.NARROW["what"] in q for q in texts(got)), texts(got))
         self.assertFalse(got["gate_axes"]["obvious"]["ok"])
 
 
@@ -1970,6 +2020,15 @@ class ResultCase(RunCase):
         self.check(got)
         self.assertTrue(got["ask_human"])
 
+    def test_questions_carry_their_kinds(self):
+        """P250: 返りの questions の行は関所の項目の種類 {kind, text} を持つ（線は無人の run で台帳の問い（fork・escalate）だけを報告へ
+        回し、ほかの種類では止まる。関所の文の冒頭の種類と ASK_GATE_HEAD の有無もこれで決まる）。行は置き場の gate.json の項目と同じ"""
+        self.run_.start(features_off=["review_tree"])
+        got = self.run_.pass_(review(face("regression-face-ask", kind="regression", severity="suggest")))
+        self.assertEqual([q["kind"] for q in got["questions"]], ["regression"], got["questions"])
+        gate = json.loads((self.run_.pointed(got["review"]).parent / boardview.GATE_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(got["questions"], [gatemarks.question_row(i["kind"], i["text"]) for i in gate["items"]])
+
     def test_tampered_fields_reason_reaches_the_return(self):
         """凍結の欄の控えが受け付けの後に書き換わった差し込みは、支度の節が落ちた訳を置き場に残し、返す節がそれを読んで
         questions に控えの名と「凍結と食い違う」を載せ、pass: false で返す（元は盤面を止めて訳を残した）"""
@@ -1983,8 +2042,7 @@ class ResultCase(RunCase):
         got = r.out("result")
         self.check(got)
         self.assertIs(got["pass"], False)
-        self.assertTrue(any(planmarks.FIELDS_FILE in q and "凍結と食い違う" in q for q in got["questions"]),
-                        got["questions"])
+        self.assertTrue(any(planmarks.FIELDS_FILE in q and "凍結と食い違う" in q for q in texts(got)), got["questions"])
 
     def test_gate_files_carry_kinds_and_items(self):
         """返した関所の項目の種類と方針の変化を gate-asked.json に積み、項目の全部と壁打ちの行を pass-<k>/gate.json に残す"""
@@ -1998,12 +2056,12 @@ class ResultCase(RunCase):
         got = r.pass_(review())
         gate = json.loads((r.pointed(got["review"]).parent / gatemarks.PLAN_GATE_FILE).read_text(encoding="utf-8"))
         self.assertEqual([x["kind"] for x in gate["items"]], ["regression", boardview.POLICY_CHANGED])
-        self.assertEqual([x["text"] for x in gate["items"]], got["questions"])
+        self.assertEqual([x["text"] for x in gate["items"]], texts(got))
         self.assertIn("converge", gate)
         asked = json.loads((r.folder / boardview.GATE_ASKED_FILE).read_text(encoding="utf-8"))
-        self.assertEqual(sorted(asked), sorted(got["questions"]))
+        self.assertEqual(sorted(asked), sorted(texts(got)))
         self.assertEqual({t: (v["kind"], "policy_change" in v) for t, v in asked.items()},
-                         {got["questions"][0]: ("regression", False), got["questions"][1]: (boardview.POLICY_CHANGED, True)})
+                         {texts(got)[0]: ("regression", False), texts(got)[1]: (boardview.POLICY_CHANGED, True)})
 
     def test_broken_inputs_never_fail_the_return_node(self):
         """壊れた入力（読めない指し札・空の字・JSON でない字・ほかの run の札・在らない先）で open が ok: false を返し、返す節は
@@ -2023,7 +2081,7 @@ class ResultCase(RunCase):
                 got = json.loads(done.stdout)
                 self.check(got)
                 self.assertEqual((got["pass"], got["stalled"], got["ask_human"]), (False, False, True))
-                self.assertTrue(any(word in q for q in got["questions"]), got["questions"])
+                self.assertTrue(any(word in q for q in texts(got)), texts(got))
                 self.assertFalse(any(a["ok"] for a in got["gate_axes"].values()))
 
     def test_failed_open_drops_the_previous_material(self):
@@ -2036,7 +2094,7 @@ class ResultCase(RunCase):
         got = r.out("result")
         self.check(got)
         self.assertEqual((got["pass"], got["ask_human"]), (False, True))
-        self.assertTrue(any("JSONDecodeError" in q for q in got["questions"]), got["questions"])
+        self.assertTrue(any("JSONDecodeError" in q for q in texts(got)), texts(got))
 
     def test_empty_folder_never_fails_the_return_node(self):
         """open も受け付けも走らず plan-review/ が空でも、返す節は偽の結末を返す"""
@@ -2045,7 +2103,7 @@ class ResultCase(RunCase):
         got = json.loads(done.stdout)
         self.check(got)
         self.assertEqual((got["pass"], got["ask_human"]), (False, True))
-        self.assertTrue(any(boardview.OPEN_FILE in q for q in got["questions"]), got["questions"])
+        self.assertTrue(any(boardview.OPEN_FILE in q for q in texts(got)), texts(got))
 
     def test_open_without_accepted_review_never_fails(self):
         r = self.run_
@@ -2054,7 +2112,7 @@ class ResultCase(RunCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         got = json.loads(done.stdout)
         self.check(got)
-        self.assertTrue(any(boardview.REVIEW_FILE in q for q in got["questions"]), got["questions"])
+        self.assertTrue(any(boardview.REVIEW_FILE in q for q in texts(got)), texts(got))
 
 
 class FailSafeCase(RunCase):
@@ -2069,9 +2127,10 @@ class FailSafeCase(RunCase):
         self.assertEqual((opened.FOLDER, opened.OPEN_FILE, opened.OPEN_ERROR),
                          (boardview.FOLDER, boardview.OPEN_FILE, boardview.OPEN_ERROR))
         self.assertEqual(result.FAILED.split("/")[0], boardview.FOLDER)
-        self.assertEqual((result.REVIEW_FILE, result.DESIGN_FILE, result.PASSES_FILE),
-                         (boardview.REVIEW_FILE, design.DESIGN_FILE, boardview.PASSES_FILE))
+        self.assertEqual((result.REVIEW_FILE, result.DESIGN_FILE, result.PASSES_FILE, result.GATE_FILE),
+                         (boardview.REVIEW_FILE, design.DESIGN_FILE, boardview.PASSES_FILE, boardview.GATE_FILE))
         self.assertEqual(result.AXES, gate_axes.AXES)
+        self.assertEqual(result.FAILED_KIND, gatemarks.GIVEN_UP_KIND)
 
     def test_result_without_the_lib_returns_the_failed_shape(self):
         r = self.run_
@@ -2080,7 +2139,7 @@ class FailSafeCase(RunCase):
         got = json.loads(done.stdout)
         self.assertEqual(validate_schema(got, nodes()["review"]["output_format"]), [], got)
         self.assertEqual((got["pass"], got["ask_human"]), (False, True))
-        self.assertTrue(got["questions"][0].startswith("出力ノードが落ちた: "), got["questions"])
+        self.assertTrue(texts(got)[0].startswith("出力ノードが落ちた: "), texts(got))
         for name in ("review", "design"):
             r.assert_pointer(got[name])
         passes = r.pointed(got["review"]).with_name(boardview.PASSES_FILE)
@@ -2107,7 +2166,7 @@ class FailSafeCase(RunCase):
         self.assertIn(converge.RECORD, got["reason"])
         out = r.out("result")
         self.assertIs(out["pass"], False)
-        self.assertTrue(any(converge.RECORD in q for q in out["questions"]), out["questions"])
+        self.assertTrue(any(converge.RECORD in q for q in texts(out)), out["questions"])
 
     def test_open_without_the_lib_drops_the_previous_material(self):
         """前の差し込みが通った後、差し込みの頭が lib を読めずに落ちても、返す節は前の差し込みの結末を今回の物として返さない"""
@@ -2120,7 +2179,7 @@ class FailSafeCase(RunCase):
         self.assertFalse((r.folder / boardview.OPEN_FILE).exists())
         got = r.out("result")
         self.assertEqual((got["pass"], got["ask_human"]), (False, True))
-        self.assertTrue(any("ModuleNotFoundError" in q for q in got["questions"]), got["questions"])
+        self.assertTrue(any("ModuleNotFoundError" in q for q in texts(got)), texts(got))
 
 
 class ScriptHeadCase(unittest.TestCase):
@@ -2185,6 +2244,19 @@ class PortedMaterialCase(RunCase):
                      policy.RULE, "## 考えの住処の地図"):
             self.assertIn(want, text)
         self.assertLess(text.index(policy.RULE), text.index("## 考えの住処の地図"))
+
+    def test_material_pastes_the_frozen_copy(self):
+        """P192: 事前審査の材料と独立設計の材料に貼る方針の本文は、run の始めに固めた版の写し（元 works/.shared/core/policy.py の brief は
+        record.process.policy.copy を貼った）。後から書き換えた文書の字は貼らず、変化は関所の行だけが言う"""
+        PolicyCase.frozen_start(self)
+        r = self.run_
+        r.open()
+        texts = {"事前審査": pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8"),
+                 "独立設計": r.out("r2_prep")["prompt"]}
+        for name, text in texts.items():
+            with self.subTest(material=name):
+                self.assertIn("POLICY-A-1111", text)
+                self.assertNotIn("POLICY-B-2222", text)
 
     def test_prep_passes_state_dir_cache_root(self):
         """材料のライブラリの文書の節は、STATE_DIR の下 works-factory/ の run をまたぐ控えを読む（網に出ない）"""
@@ -2861,12 +2933,15 @@ class EscalateAsksCase(GateBase):
 
     def test_gate_item_exemption_and_return_name_the_same_units(self):
         """元 tests/test_plan_gate.py の EscalateAsksCase.test_gate_item_exemption_and_return_name_the_same_units。fork と escalate
-        の両方で、関所の項目が名指す単位と答えて戻る単位が同じ（答える前に直す義務から外れる単位の突き合わせは落とした）"""
+        の両方で、関所の項目が名指す単位・答える前に直す義務から外れる単位（P240。元 works/tests/test_plan_gate.py:602 の exempt）・
+        答えて戻る単位が同じ。答えた後は外れる単位が無い"""
         for q in (TP.FORK, TP.ESCALATE):
             got, b = self.gate(questions=[q], units=TP.UNITS)
             named = {u for u in (TP.FORK_UNIT, TP.OTHER_UNIT) if u in got["ask"]["items"][0]}
+            exempt = gatemarks.withheld(b)
             self.answer(b, got)
-            self.assertEqual((q["kind"], named, gatemarks.returned(b)), (q["kind"], *({TP.FORK_UNIT},) * 2))
+            self.assertEqual((q["kind"], named, exempt, gatemarks.returned(b)), (q["kind"], *({TP.FORK_UNIT},) * 3))
+            self.assertEqual(gatemarks.withheld(b), set())
 
 
 class DesignOnlyCase(GateBase):

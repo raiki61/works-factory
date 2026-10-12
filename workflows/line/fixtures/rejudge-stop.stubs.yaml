@@ -1,0 +1,30 @@
+# 再審が止まった（3 回とも拒まれた。judge の返す節が ready: false・止めの理由 works:rejudge を返す）。judged が止めの理由を返し、fixed が
+# 進めず、試験の関門（final）・独立の目・merge・最後の関所が飛び、collect・report・result は走る（stub が無いので、試験の関門から先が
+# 走れば本物のブロックの節が落ちて筋書きが赤になる。L-D48）。
+fixture:
+  expect: "completed"
+  inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
+  reached: ["rejudge-run__verdict", "judged", "fixed", "redepth", "collect", "report__report", "result"]
+exec-code: true
+test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
+test-gate-base__result: {"mode": "base", "ok": true, "green": true, "red_cause": "", "baseline": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/baseline.json"}, "fingerprint": null, "evidence": {"type": "archon_artifact", "run_id": "fixture-run", "path": "test-gate-base/evidence.json"}}
+judge__intake: {"go": false, "mode": "judge", "spec": false, "world": false, "verify": false, "reason": ""}
+judge__verify-merge: {"ok": true, "reason": ""}
+judge__verdict: {"ready": true, "stop_reason": "", "units": [{"id": "u1", "paths": ["stats.py"], "summary": "空の列の mean が 0 割りで落ちる"}], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null}
+plan__round: {"round": 1, "mode": "plan", "dir": "plan/r1", "go": false}
+plan__structure-state: {"state_file": "plan/r1/structure-state.json"}
+plan__ripple-items: {"ripple_file": "plan/r1/ripple.json"}
+plan__plan: {"ready": true, "plan": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/plan-fields.json"}, "structure": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/structure-state.json"}, "ripple": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan/ripple.json"}, "depth": [{"unit_id": "u1", "depth": "標準", "why": "約束の形のファイルを触る"}], "round": 1}
+plan-review-run__open: {"ok": false, "r2_go": false, "tree": false, "k": 0, "form": "review", "reason": ""}
+plan-review-run__review: {"pass": true, "stalled": false, "review": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/review.json"}, "design": {"type": "archon_artifact", "run_id": "fixture-run", "path": "plan-review/design.json"}, "gate_axes": {"obvious": {"ok": true, "note": ""}, "world": {"ok": true, "note": ""}, "clean": {"ok": true, "note": ""}, "not_overkill": {"ok": true, "note": ""}}, "ask_human": false, "questions": []}
+fix__route: {"group": true}
+fix__group-start: {"tdd": false, "units": 1, "reason": ""}
+fix-prep: {"prompt_file": "", "go": false, "iteration": 1}
+fix-accept: {"ok": true, "done": true, "reason": "", "reason_file": ""}
+fix__group-end: {"result_file": ""}
+fix__fix: {"done": true, "units": [{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": ""}], "groups": [{"group_id": "g1", "unit_ids": ["u1"], "returned": true, "reason": ""}], "conflicts": null, "replan_items": [], "objection": "u1 は判定の読み違い。u2 が本当の穴", "diff": {"type": "archon_artifact", "run_id": "fixture-run", "path": "fix/diff.patch"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false, "premise_drift_note": ""}, "x_scalars": {}, "handoffs": [], "mismatched": [], "delta_review": {"rounds": 1, "pass": true}}
+report__facts: {"outcome": "stopped_by_line", "ok": false, "stop_reason": "works:rejudge", "report": null, "next_request": null, "prior_failures": null, "ai_go": false, "facts_file": "", "stamp": "", "lang_line": ""}
+report__report: {"ok": false, "outcome": "stopped_by_line", "stop_reason": "works:rejudge", "report": {"type": "archon_artifact", "run_id": "fixture-run", "path": "report/report.md"}, "report_ai": null, "next_request": null, "prior_failures": null}
+rejudge-run__intake: {"go": false, "mode": "rejudge", "spec": false, "world": false, "verify": false, "reason": ""}
+rejudge-run__verify-merge: {"ok": true, "reason": ""}
+rejudge-run__verdict: {"ready": false, "stop_reason": "works:rejudge", "units": [], "judgment": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/judgment.json"}, "purpose": {"type": "archon_artifact", "run_id": "fixture-run", "path": "judge/purpose.json"}, "world": null, "spec": null, "out_of_purpose": null, "rejudge_verdict": null}

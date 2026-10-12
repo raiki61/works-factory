@@ -2191,6 +2191,7 @@
       "$diagnose-prep.output.brief_file",
       "$diagnose-prep.output.repo_review_md",
       "$diagnose-prep.output.review_md",
+      "$diagnose-reject.output.lang_line",
       "$diagnose-reject.output.reason"
     ],
     "returns": {
@@ -2405,6 +2406,7 @@
   },
   "workflows/judge/commands/judge-verify.md": {
     "inserts": [
+      "$verify-prep.output.lang_line",
       "$verify-prep.output.prompt_file"
     ],
     "returns": {
@@ -2454,6 +2456,7 @@
       "$consistency-bypass-prep.output.brief_file",
       "$consistency-bypass-prep.output.repo_review_md",
       "$consistency-bypass-prep.output.review_md",
+      "$consistency-bypass-reject.output.lang_line",
       "$consistency-bypass-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: inputs.repo_review_md］",
@@ -2584,6 +2587,7 @@
       "$external-standards-prep.output.brief_file",
       "$external-standards-prep.output.repo_review_md",
       "$external-standards-prep.output.review_md",
+      "$external-standards-reject.output.lang_line",
       "$external-standards-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: inputs.review_md］",
@@ -2742,6 +2746,7 @@
   "workflows/judge/commands/material-gate-efficacy.md": {
     "inserts": [
       "$gate-efficacy-prep.output.brief_file",
+      "$gate-efficacy-reject.output.lang_line",
       "$gate-efficacy-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: loop.changed_files_file］",
@@ -2909,6 +2914,7 @@
       "$hygiene-prep.output.brief",
       "$hygiene-prep.output.repo_review_md",
       "$hygiene-prep.output.review_md",
+      "$hygiene-reject.output.lang_line",
       "$hygiene-reject.output.reason",
       "［材料: file:loop.diff_file］",
       "［材料: section:inputs.review_md#コード衛生観点］"
@@ -3004,6 +3010,7 @@
       "$local-review-prep.output.brief_file",
       "$local-review-prep.output.repo_review_md",
       "$local-review-prep.output.review_md",
+      "$local-review-reject.output.lang_line",
       "$local-review-reject.output.reason",
       "［材料: inputs.repo_review_md］",
       "［材料: inputs.review_md］",
@@ -3226,6 +3233,7 @@
   "workflows/judge/commands/material-main-path-observation.md": {
     "inserts": [
       "$main-path-observation-prep.output.brief_file",
+      "$main-path-observation-reject.output.lang_line",
       "$main-path-observation-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: loop.changed_files_file］",
@@ -3329,6 +3337,7 @@
   "workflows/judge/commands/material-prior-decisions.md": {
     "inserts": [
       "$prior-decisions-prep.output.brief_file",
+      "$prior-decisions-reject.output.lang_line",
       "$prior-decisions-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: loop.changed_files］",
@@ -3464,6 +3473,7 @@
       "$procedure-trace-prep.output.brief_file",
       "$procedure-trace-prep.output.repo_review_md",
       "$procedure-trace-prep.output.review_md",
+      "$procedure-trace-reject.output.lang_line",
       "$procedure-trace-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: inputs.review_md］",
@@ -3600,6 +3610,7 @@
   "workflows/judge/commands/material-provenance.md": {
     "inserts": [
       "$provenance-prep.output.brief_file",
+      "$provenance-reject.output.lang_line",
       "$provenance-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: loop.diff_file］",
@@ -3707,6 +3718,7 @@
   "workflows/judge/commands/material-purpose-review.md": {
     "inserts": [
       "$purpose-review-prep.output.brief_file",
+      "$purpose-review-reject.output.lang_line",
       "$purpose-review-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: inputs.review_rev］",
@@ -3826,6 +3838,7 @@
   "workflows/judge/commands/material-test-double-fidelity.md": {
     "inserts": [
       "$test-double-fidelity-prep.output.brief_file",
+      "$test-double-fidelity-reject.output.lang_line",
       "$test-double-fidelity-reject.output.reason",
       "［材料: inputs.cwd］",
       "［材料: loop.changed_files_file］",
@@ -3921,6 +3934,7 @@
   "workflows/judge/commands/pr-check.md": {
     "inserts": [
       "$ARTIFACTS_DIR",
+      "$pr-check-reject.output.lang_line",
       "$pr-check-reject.output.reason"
     ],
     "returns": {
@@ -4077,6 +4091,7 @@
     "inserts": [
       "$ARTIFACTS_DIR",
       "$TMPDIR",
+      "$premises-reject.output.lang_line",
       "$premises-reject.output.reason"
     ],
     "returns": {
@@ -4196,6 +4211,7 @@
   "workflows/judge/commands/purpose.md": {
     "inserts": [
       "$purpose-prep.output.brief_file",
+      "$purpose-reject.output.lang_line",
       "$purpose-reject.output.reason"
     ],
     "returns": {
@@ -4331,6 +4347,7 @@
   "workflows/judge/commands/rejudge.md": {
     "inserts": [
       "$rejudge-prep.output.brief_file",
+      "$rejudge-reject.output.lang_line",
       "$rejudge-reject.output.reason"
     ],
     "returns": {
@@ -4470,6 +4487,7 @@
   "workflows/judge/commands/spec-review.md": {
     "inserts": [
       "$ARTIFACTS_DIR",
+      "$spec-review-reject.output.lang_line",
       "$spec-review-reject.output.reason"
     ],
     "returns": {
@@ -4577,6 +4595,7 @@
   "workflows/judge/commands/spec-revise.md": {
     "inserts": [
       "$ARTIFACTS_DIR",
+      "$spec-revise-reject.output.lang_line",
       "$spec-revise-reject.output.reason"
     ],
     "returns": {
@@ -4664,6 +4683,7 @@
   "workflows/judge/commands/spec.md": {
     "inserts": [
       "$ARTIFACTS_DIR",
+      "$spec-reject.output.lang_line",
       "$spec-reject.output.reason"
     ],
     "returns": {
@@ -4766,6 +4786,7 @@
   },
   "workflows/judge/commands/world-classes.md": {
     "inserts": [
+      "$world-classes-reject.output.lang_line",
       "$world-classes-reject.output.reason",
       "$world-intake.output.prompt"
     ],
@@ -4845,6 +4866,7 @@
   },
   "workflows/judge/commands/world-judge.md": {
     "inserts": [
+      "$world-judge-reject.output.lang_line",
       "$world-judge-reject.output.reason",
       "$world-plan.output.prompt"
     ],
@@ -5385,6 +5407,7 @@
     "inserts": [
       "$ARTIFACTS_DIR",
       "$facts.output.facts_file",
+      "$facts.output.lang_line",
       "$facts.output.outcome",
       "$facts.output.stop_reason",
       "$write-reject.output.reason"

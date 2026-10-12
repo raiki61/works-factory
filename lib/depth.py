@@ -13,7 +13,7 @@
   （空・自動は機械が決める。軽量・標準は全部をその深さに固定）
 - raise_doc(doc, *, units, run): 信号で標準へ上げた控え。units は {単位: 理由}（その単位だけ）、run は理由の並び（全部の単位）。下げない
 - run_wide(items, keys, touched=()): 控えの単位 keys を合わせた run 全体の広さ（触るファイルの和集合と、受け入れと書き換えの
-  テストの和）が単位ごとの上限 MAX_PATHS・MAX_TESTS を超えた理由の並び。触るファイルは計画の allowed_paths に、修正の実際の差分
+  テストの和）が単位ごとの上限 MAX_PATHS・MAX_TESTS を超えた理由の並びと、触るファイルの数。触るファイルは計画の allowed_paths に、修正の実際の差分
   （touched。呼び手が渡す）のうちテストのファイルを除いた物を足して数える。呼び手が run の信号に足し、単位ごとには軽量の集まりも
   標準へ上げる（raise_doc の run）
 - run_depth(doc): 切った後の run 全体の段の深さ（全部の単位が軽量の時だけ軽量。単位が無ければ標準）
@@ -80,8 +80,8 @@ def _wide(items, keys, touched=()) -> tuple:
     return set(_paths(mine)) | {p for p in touched if isinstance(p, str) and not impact.is_test_file(p, declared)}, _tests(mine)
 
 
-def run_wide(items, keys, touched=()) -> list:
-    """_wide の広さが単位ごとの上限を超えた理由の並び。単位ごとには軽量の集まりを標準へ上げる信号"""
+def run_wide(items, keys, touched=()) -> tuple:
+    """(_wide の広さが単位ごとの上限を超えた理由の並び, 触るファイルの数)。理由は単位ごとには軽量の集まりを標準へ上げる信号"""
     paths, tests = _wide(items, keys, touched)
     paths = len(paths)
     out = []
@@ -89,7 +89,7 @@ def run_wide(items, keys, touched=()) -> list:
         out.append(f"run 全体で触るファイル {paths} 個（{MAX_PATHS} 個まで）")
     if tests > MAX_TESTS:
         out.append(f"run 全体の受け入れと書き換えのテストが {tests} 本（{MAX_TESTS} 本まで）")
-    return out
+    return out, paths
 
 
 def _contract(path: str) -> bool:

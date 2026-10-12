@@ -7,7 +7,8 @@
 読む物（無ければ空で読む）: 組の置き場（fixboard.group_dir）の group-start.json（始めの木）と、自分の置き場の
 tdd-start.json（TDD の輪の頭の返り。輪の結果は tddloop.exit_fields、輪の状態のパスは tdd_state として結果に載せる）・fix-units.json（修正の輪の単位ごとの結末
 {unit_key: {status, reason}}）・fix-reply.json（最後に受け付けた修正役の返答。異議 rejudge_requested と 6 つの印）・
-granted-tests.json（許したテストの変更のパス）・conflicts.json（申し出。conflict.items）。終わりの木は作業ツリーの今の姿
+granted-tests.json（許したテストの変更のパス）・conflicts.json（今の段の申し出。conflict.this_pass。2 回目の修正の段が写した 1 回目の
+段の行は載せない）・閉鎖の表（fixbeside.closure_rows。親の collect が diff の隣の約束のファイルに合わせる）。終わりの木は作業ツリーの今の姿
 （groups.end_tree）。子の作業ツリーの実パスも載せる（join がそこから子の書き込みの記録を引き、
 親の記録へ写す。writelog.log_here）。許したテストの変更の訳（fixboard.allowed_test_rows。親の collect が allowed-tests.json に集める）と、
 最後の関所を開ける理由の行（修正役が人に回した物 handoffs と、自分の置き場の閉鎖の表で申告と数え直しが合わない単位 mismatched。
@@ -28,6 +29,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
 import conflict  # noqa: E402
+import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import groups  # noqa: E402
 import tddloop  # noqa: E402
@@ -61,9 +63,9 @@ def main() -> dict:
         fix_units=fixboard.read_json(place / fixboard.FIX_UNITS_FILE, {}), reply=fixboard.read_json(reply_path),
         reply_file=str(reply_path) if reply_path.is_file() else "",
         allowed=fixboard.read_json(place / fixboard.GRANTED_TESTS_FILE, []) or [],
-        allowed_rows=fixboard.allowed_test_rows(place), conflicts=conflict.items(place),
+        allowed_rows=fixboard.allowed_test_rows(place), conflicts=conflict.this_pass(place),
         worktree=os.path.realpath(repo), mismatched=fixboard.mismatched_lines(place),
-        accept_trace=fixboard.accept_trace_rows(place))
+        accept_trace=fixboard.accept_trace_rows(place), closure=fixbeside.closure_rows(place))
     target = gdir / fixboard.RESULT_FILE
     fixboard.write_json(target, result)
     return {"result_file": str(target)}

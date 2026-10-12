@@ -17,7 +17,8 @@ import planfile  # noqa: E402
 
 def main() -> None:
     art = Path(os.environ["ARTIFACTS_DIR"])
-    judgment, _ = planfile.read_pointed(os.environ["INPUTS_JUDGMENT"], boundary.resolve)
+    start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
+    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.resolve)
     path = planfile.ripple_units(art / os.environ["INPUTS_DIR"], judgment, Path.cwd(), skip_dirs=boundary.RUNTIME_COPY_DIRS)
     boundary.returns({"ripple_file": path.relative_to(art).as_posix()})
 

@@ -1,3 +1,5 @@
+$hygiene-reject.output.lang_line
+
 ## 役の定義（cold-reader）
 
 この役は cold-reader。文脈を持たない初見の読み手である。
