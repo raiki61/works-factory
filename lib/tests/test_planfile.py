@@ -462,6 +462,18 @@ class ReplanInputsCase(TmpCase):
         self.assertFalse((plan / planfile.STRUCTURE_DIR / "unread").exists())
 
 
+class WorldRowsCase(TmpCase):
+    def test_world_of_two_rows_is_read_as_json_lines(self):
+        """#295: 判定の world.jsonl は行ごとの JSON。2 行を 1 つの JSON として読む読み手はここで落ちる"""
+        from lib.tests.test_plan_gate import WORLD_ROW
+        world = self.tmp / "judge" / "world.jsonl"
+        world.parent.mkdir(parents=True)
+        world.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n"
+                                 for r in (WORLD_ROW, {**WORLD_ROW, "finding": 2, "class_id": "w-empty"})), encoding="utf-8")
+        rows, why = planfile.world_rows(json.dumps(str(world)), pathlib.Path)
+        self.assertEqual(([r["class_id"] for r in rows], why), (["w-mean", "w-empty"], ""))
+
+
 class PriorFailuresCase(TmpCase):
     """前の run で最後まで通らなかった物の節（元 planblk.prior_part の carry.prior_section）"""
 
