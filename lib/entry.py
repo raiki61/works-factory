@@ -14,6 +14,7 @@ if str(_HERE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_HERE / "graphloops"))   # 写しの engine（carry と同じ足し方）
 
 from engine.schema import validate_schema  # noqa: E402
+import oneline  # noqa: E402
 
 # 元 works/.shared/core/script_io.py 83-84 行（script_io は持ってこないので、塊が読む語だけを元の字のまま写す）
 SWITCH_ON, SWITCH_OFF = "on", "off"   # 部品の切り替えの入力の語（線が run ごとに機能を切る口。空は on）
@@ -49,7 +50,7 @@ class InputRefused(Exception):
     """入力を受けない（AI を起こす前に run を止める）。文は人に向けた 1 行"""
 
     def __init__(self, msg):
-        super().__init__(" ".join(str(msg).split()))
+        super().__init__(oneline.one_line(msg))
 
 
 def _feature_list(word: str, key: str) -> list:

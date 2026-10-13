@@ -34,13 +34,13 @@ def collected() -> dict:
     art = Path(os.environ["ARTIFACTS_DIR"])
     round_dir = art / os.environ["INPUTS_DIR"]
     rnd = planfile.read_round(round_dir)
-    start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
+    start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
     start = start if isinstance(start, dict) else {}
-    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.resolve)
+    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed)
     got = planfile.collect(round_dir, unit_ids=planfile.owed_order(judgment) if isinstance(judgment, dict) else [],
                            thickness=start.get("thickness") or "", checked=bool(start.get("test_cmd") or start.get("tdd_suite")))
     if not got["ready"]:
-        conflicts, _ = planfile.read_pointed(os.environ["INPUTS_CONFLICTS"], boundary.resolve)
+        conflicts, _ = planfile.read_pointed(os.environ["INPUTS_CONFLICTS"], boundary.pointed)
         planfile.note_gave_up(round_dir, art / planfile.PLAN_DIR, conflicts)
     reason = "" if got["ready"] else planfile.why_not_ready(round_dir)
     paths = planfile.placeholders(round_dir, art / planfile.PLAN_DIR / rnd["structure"], reason)

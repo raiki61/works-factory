@@ -33,6 +33,8 @@ import types
 
 import gatemarks
 import jsonfile
+import oneline
+import rolekit
 import startrec
 
 TRACE_FILE = "trace.jsonl"
@@ -479,21 +481,11 @@ NOT_DECLARED = ("修正役は済んだと言ったが、触ったファイルを
 
 
 
-def _input_value(raw: str, name: str):
-    """入力の字を JSON で読む（空・null は None）"""
-    if not (raw or "").strip() or raw.strip() == "null":
-        return None
-    try:
-        return json.loads(raw)
-    except ValueError as e:
-        raise ValueError(f"入力 {name} が JSON として読めない: {e}（頭: {raw[:120]!r}）") from None
-
-
-def prep(folder, worktree, raw: dict, resolve) -> dict:
+def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     """入力の字 raw（{入力の名: 字}。start・judgment・plan・plan_review・ripple・world・depth・answers・units・only_items・baseline・
     prior_conflicts・notes。無い名は空）を置き場 folder に写し、始めの記録（startrec.adopt。字のまま）・git が無視するファイルの控え・
-    始めの木を取り、組を作って返す（置く物と返りの形は fix の節 prep の docstring）。resolve はポインタを置き場の中のパスに戻す口
-    （境の口の resolve）。fix の節 prep と、単独の run の組の子の頭（節 group-start。ポインタは自分の run の物）が同じ写しを置くのに
+    始めの木を取り、組を作って返す（置く物と返りの形は fix の節 prep の docstring）。parsed は入力の字を値に戻す口（境の口の parsed）、
+    located はポインタの入力の字を置き場の中のパスに戻す口（境の口の pointed）。どちらも null・空の字を None と読む。fix の節 prep と、単独の run の組の子の頭（節 group-start。ポインタは自分の run の物）が同じ写しを置くのに
     呼ぶ"""
     import baseline_red
     import groups
@@ -501,11 +493,13 @@ def prep(folder, worktree, raw: dict, resolve) -> dict:
     import planmarks
 
     def value(name):
-        return _input_value(raw.get(name) or "", name)
+        try:
+            return parsed(raw.get(name))
+        except ValueError as e:
+            raise ValueError(f"入力 {name} が JSON として読めない: {e}") from None
 
     def pointed(name):
-        ptr = value(name)
-        return None if ptr is None else resolve(ptr)
+        return located(raw.get(name))
 
     def read_pointed(name, required=False):
         path = pointed(name)
@@ -706,7 +700,7 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     got: list = []
     ok, why = unittrees.apply(repo, patch, union=union, unioned=got, check=unittrees.tests_unique)
     if not ok:
-        return lanekit.Merge(f"差分が親の作業ツリーに当たらない（{' '.join(why.split())[:300]}）", str(kept), [], [], True)
+        return lanekit.Merge(f"差分が親の作業ツリーに当たらない（{oneline.one_line(why)[:300]}）", str(kept), [], [], True)
     names = unittrees.patch_names(patch)
     try:
         why = (check(names) if check else "") if names else ""
@@ -873,12 +867,8 @@ def allowed_test_rows(place, results=()) -> list:
 
 
 def allowed_tests(place, results=()) -> list:
-    """許したテストの変更のパス（名の順）: 置き場 place と組の子の結果の許しの訳（allowed_test_rows）のパスと、組の子の結果の
-    allowed_test_changes"""
-    out = {r["path"] for r in allowed_test_rows(place, results)}
-    for r in results:
-        out.update(p for p in (r or {}).get("allowed_test_changes") or [] if isinstance(p, str) and p)
-    return sorted(out)
+    """許したテストの変更のパス（名の順）: 置き場 place と組の子の結果の許しの訳（allowed_test_rows）のパス"""
+    return sorted({r["path"] for r in allowed_test_rows(place, results)})
 
 
 def changed_marks(results) -> dict:
@@ -928,7 +918,7 @@ def handoff_lines(replies) -> list:
         for c in (reply or {}).get("changes") or [] if isinstance(reply, dict) else []:
             got = (c.get("breaks") or {}).get("accepted") if isinstance(c, dict) and isinstance(c.get("breaks"), dict) else None
             if isinstance(got, str) and got.strip():
-                out.append(f"{c.get('unit_key')}: 壊すと分かって通した——{' '.join(got.split())}")
+                out.append(f"{c.get('unit_key')}: 壊すと分かって通した——{oneline.one_line(got)}")
     return out
 
 
@@ -1332,7 +1322,7 @@ def lens_route(place, lang: str = "") -> dict:
             try:
                 got = agent_def(row["agent"])
             except (Exception, SystemExit) as e:   # engine の探しが出所の曖昧さで止まる（die）時も、起こさない理由にする
-                got, why = None, f"{row['agent']} の定義を引けない（{type(e).__name__}: {' '.join(str(e).split())}）"
+                got, why = None, f"{row['agent']} の定義を引けない（{type(e).__name__}: {oneline.one_line(e)}）"
             if got is None or not got.get("body"):
                 go = False
                 why = why or f"{row['agent']} の定義が役の設定に無い（pr-review-toolkit が入っていない）"
@@ -1391,7 +1381,7 @@ def prep_fix(place, n: int, *, items=None, plan_review=None, fix_reply=None, pol
     try:   # 穴ごとの枝の名札（材料だけで、答え方は変えない。組めなければ理由を置いて手直しは起こす）
         doc["ties"] = refix.brief_ties(hole_ties(place, n, items=items, plan_review=plan_review, fix_reply=fix_reply))
     except Exception as e:
-        doc["ties"], doc["ties_error"] = [], f"{type(e).__name__}: {' '.join(str(e).split())}"
+        doc["ties"], doc["ties_error"] = [], f"{type(e).__name__}: {oneline.one_line(e)}"
     if n == 1:
         doc["plan_items"] = _plan_items(place, items, by=stopby.REFIX)
         doc["ruled_paths"] = conflict.ruled_paths(place)
@@ -1431,7 +1421,6 @@ def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int 
 
 def last_reject_file(place, name: str) -> str:
     """受け付け name の最後の拒否の理由のファイル（accept_out が書いた物。拒否が無ければ空）"""
-    import rolekit
     k = len(rolekit.rejected(place, name))
     f = pathlib.Path(place) / REJECT_NAME.format(name=name, k=k)
     return str(f) if k and f.is_file() else ""
@@ -1441,7 +1430,6 @@ def accept_out(place, name: str, got: dict) -> dict:
     """受け付けの返り {ok, done, reason, reason_file}（輪の until が done を読む）。got の ok が真なら done。偽なら理由を置き場の
     reject-<name>-<k>.md に書き、rolekit.with_done で控え rejects-<name>.json に積み、rolekit.GIVE_UP_AFTER 回目の拒否で done
     （諦め。ok は偽のまま）。元 works/.shared/core/rolekit.py の main_accept の 3 回目の拒否で done・give_up の振る舞い"""
-    import rolekit
     if got.get("ok") is True:
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
     reason = str(got.get("reason") or "受け付けが理由を書かずに拒んだ")
@@ -1490,7 +1478,6 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, WORLD_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
            ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
-GRANTED_TESTS_FILE = "granted-tests.json"   # 受け付けが通った回の allowed_tests [str]（fix-accept が書き、group-end が子の結果に載せる）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 返りの diff の隣: 許したテストの変更の訳 [{path, permit, source}]（collect が書く。allowed_test_rows）
 ALLOWED_SOURCES = ("plan", "consult", "ruling")   # allowed-tests.json の source の語: 承認済みの修正案・範囲の相談の合意・裁定
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
@@ -1594,7 +1581,7 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
-                 reply_file: str = "", allowed=(), allowed_rows=(), conflicts=(), worktree: str = "", mismatched=(),
+                 reply_file: str = "", allowed_rows=(), conflicts=(), worktree: str = "", mismatched=(),
                  accept_trace=(), closure=()) -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
@@ -1606,7 +1593,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
     writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
-    を持つ。無ければ None）、allowed は修正の輪の受け付けが通った回の許したテストの変更のパス（GRANTED_TESTS_FILE）、conflicts は
+    を持つ。無ければ None）、allowed_test_changes は reply の在る組（修正の輪の受け付けが通った組）の allowed_rows のパス、conflicts は
     置き場の申し出の行（conflict.items）。新しい"""
     import fixbeside
     gid = str(group["group_id"])
@@ -1614,13 +1601,14 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
     tdd = tdd if isinstance(tdd, dict) else {"ran": False, "suite": "", "reason": "", "units": []}
     rows = {u.get("unit_key"): u for u in tdd.get("units") or [] if isinstance(u, dict)}
     reply = reply if isinstance(reply, dict) else None
+    permits = [r for r in allowed_rows or [] if isinstance(r, dict)]
     return {"group_id": gid, "unit_ids": keys, "end_tree": end_tree, "start_tree": start_tree,
             "units": [_unit_row(k, fix_units or {}, rows) for k in keys], "tdd": tdd,
             "conflicts": [r for r in conflicts or [] if isinstance(r, dict)],
             "objection": objection([reply] if reply else []),
             "changed": changed_marks([{"changed": reply}] if reply else []), X_SCALARS: x_scalars([reply] if reply else []),
-            "allowed_test_changes": sorted({p for p in allowed or [] if isinstance(p, str) and p}),
-            "allowed_tests": [r for r in allowed_rows or [] if isinstance(r, dict)],
+            "allowed_test_changes": sorted({r["path"] for r in permits}) if reply is not None else [],
+            "allowed_tests": permits,
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
             "worktree": str(worktree or ""), "handoffs": handoff_lines([reply] if reply else []),
             "mismatched": list(mismatched),
@@ -1706,7 +1694,7 @@ FIX_HEAD_FILE = "fix-head.json"             # 組の修正の段の頭の木 {tr
 REFIX_HEAD_FILE = "refix{}-head.json"       # n 回目の手直しの段の頭の木 {tree}（refix-prep・refix2-prep が 1 回目に書く）
 PARKED_PATCH = "fix-parked"                 # 最後の回に止めた単位の戻した直しの控え（置き場の fix-parked-<n>.patch。元 accept.py:168）
 FIX_ACCEPT_BY = "fix-accept"                # 受け付けが単位を人に回した裁定の by（元 accept.py:140 の stopby の名）
-GIVE_UP_AFTER = 3                           # 諦める拒否の回（元 accept.py:139。rolekit.GIVE_UP_AFTER と同じ数）
+GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER       # 諦める拒否の回（元 accept.py:139。持ち主は rolekit）
 # 修正の受け付けの確かめの id → 拒否の見出しの短い名（受け付けが回す順）。元 works/blk-fix/scripts/accept.py:180
 FIX_CHECKS = {
     "consult": "範囲の相談の枠",

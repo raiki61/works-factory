@@ -19,7 +19,7 @@ querytest.closure_lines の mismatched_only）は、fix の出力の handoffs・
 
 文は冒頭 3 行（final_head。lib/gatemarks.py の head3）で始め、元 line_edge.final_edge・_final_text の節の並びに戻す: 守りのパス
 （差分の見方と一覧）・食い違いの申し出・修正役が人に回した物・減っていない単位・例で試していない単位・閉鎖の数え直し・同じ run で
-直した案の項目 → 最後のテストの一式と修正前のテスト（証拠 evidence.md の字のまま）・回さなかった試験と赤緑を確かめずに受けた回・
+直した案の項目 → 最後のテストの一式と修正前のテスト（test-gate の返りの欄のまま）・回さなかった試験と赤緑を確かめずに受けた回・
 ログ・作業ツリー・差分の審査と穴の枝の名札と手直しの結果・異議と再審・構造のブロックが落ちた周・直した後の実測・修正前の関所で
 通した行と往復・許したテストの変更・取り込むと消えるファイル・独立の目・clean とレンズと仕組みの異常・残り・人に聞いている問い
 （記録のまま引く）・保留の問いと答えた問いと当たらなかった
@@ -186,17 +186,16 @@ def rows_section(head: str, rows: list, tail: str = "") -> list:
 
 
 def tests_lines(got: dict) -> list:
-    """最後のテストの一式と修正前のテスト（証拠の字のまま。元 _final_text の entry.suites_line・baseline_line）・自己申告の緑の次の手・
-    ログ・走れなかった理由・作業ツリー"""
-    ev = got["evidence"]
-    lines = [f"- テストの一式: {ev['suites'] or '証拠に走らせ方の行が無い'}",
-             f"- {runreport.BASELINE_ROW[0]}: {ev['baseline'] or '証拠に修正前のテストの行が無い'}"]
-    if ev["suites"].startswith(declared_checks.ROLE_NEEDED):
+    """最後のテストの一式と修正前のテスト（test-gate の返りの欄のまま。元 _final_text の entry.suites_line・baseline_line）・自己申告の
+    緑の次の手・ログ・走れなかった理由・作業ツリー"""
+    ev = got["tests"]
+    lines = [f"- テストの一式: {ev['suites']}", f"- {ev['baseline']}"]
+    if ev["by"] == declared_checks.ROLE_NEEDED:
         lines.append(f"- {declared_checks.SELF_REPORTED_NOTE}。確かめてから通すか（continue の一言に何を走らせて何色だったか）、止めるか（stop）")
     lines += [x if x[:1].isspace() else f"- {x}" for x in [*got["tests_left"], *got["gates"]]]
-    lines.append(f"- ログ: {ev['log'] or '（無い）'}")
-    if ev["why"]:
-        lines.append(f"- 走れなかった・認証しなかった理由: {ev['why']}")
+    lines.append(f"- ログ: {ev['log']}")
+    if ev["reason"]:
+        lines.append(f"- 走れなかった・認証しなかった理由: {ev['reason']}")
     if ev["unread"]:
         lines.append(f"- {ev['unread']}")
     lines.append(f"- run の作業ツリー: {got['worktree']}")
@@ -439,28 +438,6 @@ def eye_notes(notes) -> dict:
             "notes_unread": [] if rows is not None else [f"独立の目の {eyeverdict.GATE_PASSES} を読めない（人が通した行を並べていない）"]}
 
 
-def evidence_rows(ptr) -> dict:
-    """最後のテストの証拠（test-gate の evidence.md）から、走らせ方・修正前のテスト・ログ・認証しなかった訳の行（字のまま）"""
-    got = {"suites": "", "baseline": "", "log": "", "why": "", "unread": ""}
-    if ptr is None:
-        got["unread"] = "最後のテストの証拠が無い（試験の関門が返さなかった）"
-        return got
-    try:
-        rows = boundary.resolve(ptr).read_text(encoding="utf-8").splitlines()
-    except (OSError, ValueError, TypeError, AttributeError, KeyError, UnicodeDecodeError) as error:
-        got["unread"] = f"最後のテストの証拠を読めない（{type(error).__name__}: {' '.join(str(error).split())}）"
-        return got
-
-    def row(prefix: str) -> str:
-        return next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), "")
-    (_, run_prefix), (_, log_prefix) = runreport.EVIDENCE_ROWS
-    got.update(suites=row(run_prefix), log=row(log_prefix), baseline=row(runreport.BASELINE_ROW[1]))
-    ok = row(runreport.OK_ROW)
-    if ok.startswith("false（") and ok.endswith("）"):
-        got["why"] = ok[len("false（"):-1]
-    return got
-
-
 def review_rows(reviews) -> tuple:
     """(修正前の関所で通した行, 壁打ちの往復の行, 読めなかった訳)。事前審査の返り review（計画の往復と案の直しの事前審査）の隣の
     gatemarks.PASSES_FILE と PLAN_GATE_FILE の converge から"""
@@ -524,6 +501,14 @@ def env(name: str):
     return boundary.value(os.environ.get(f"INPUTS_{name}"))
 
 
+def final_tests() -> dict:
+    """最後のテストの返りの欄（with: の by・suites_line・log・baseline_line・tests_reason）を declared_checks.gate_values で見せる値にし、
+    関門が返さなかった（飛ばされた節）時は unread にその旨"""
+    ret = {k: boundary.field(k, os.environ.get(f"INPUTS_{k.upper()}")) for k in ("by", "suites_line", "log", "baseline_line")}
+    ret["reason"] = boundary.field("reason", os.environ.get("INPUTS_TESTS_REASON"))
+    return {**declared_checks.gate_values(ret), "unread": "" if ret["by"] is not None else "最後のテストの証拠が無い（試験の関門が返さなかった）"}
+
+
 def got_of_env() -> dict:
     start, start_unread = start_doc(env("START"))
     b, ledger_notes = ledger(env("JUDGMENT"), start, env("BEFORE_FIX_ANSWER"), env("TIES_JUDGMENT"))
@@ -543,7 +528,7 @@ def got_of_env() -> dict:
         "tests_ok": boundary.flag(os.environ.get("INPUTS_TESTS_OK")),
         "green": boundary.flag(os.environ.get("INPUTS_GREEN")),
         "red_cause": boundary.text(os.environ.get("INPUTS_RED_CAUSE")),
-        "evidence": evidence_rows(env("EVIDENCE")),
+        "tests": final_tests(),
         "worktree": str(Path.cwd().resolve()),
         "base_rev": str((start or {}).get("base_rev") or ""),
         "protected_hits": boundary.items(os.environ.get("INPUTS_PROTECTED_HITS")),

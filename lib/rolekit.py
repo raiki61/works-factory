@@ -32,6 +32,7 @@ if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 from engine.util import safe_name  # noqa: E402
 import jsonfile  # noqa: E402
+import oneline  # noqa: E402
 import promptsection  # noqa: E402
 
 
@@ -90,7 +91,7 @@ def _read_json(path: pathlib.Path, default):
 
 def gave_up_text(name: str, count: int, last: str, *, at_once: bool = False) -> str:
     """役 name の返答を諦めた理由の 1 行の文（given_up_reason と、控えを自分で持つ受け付けが引く正本）。at_once は出し直させずに諦めた時（with_done の give_up）"""
-    last = " ".join(str(last).split())
+    last = oneline.one_line(last)
     if at_once:
         return f"{name} の返答を受け付けが出し直させずに諦めた（拒否: {last}）"
     return f"{name} の返答が {count} 回とも受け付けで拒まれた（最後の拒否: {last}）"
@@ -162,7 +163,7 @@ def last_reject(folder) -> str:
             rows.append((p.stat().st_mtime, text))
         except (OSError, ValueError):
             continue
-    return " ".join(max(rows, key=lambda r: r[0])[1].split()) if rows else ""
+    return oneline.one_line(max(rows, key=lambda r: r[0])[1]) if rows else ""
 
 
 def parse_reply(raw):

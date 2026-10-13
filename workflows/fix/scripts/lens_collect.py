@@ -31,7 +31,7 @@ def main() -> None:
     if lens.read(place) is None:
         lens.write_routes(place, [{"lens": r["lens"], "agent": r["agent"], "go": False, "reason": NO_ROUTE}
                                   for r in lenses.LENSES])
-    got = lenses.collect(place, {LENS: os.environ["INPUTS_REPLY"]})
+    got = lenses.collect(place, {LENS: boundary.value(os.environ["INPUTS_REPLY"])})
     if not got["ok"]:
         raise ValueError(got["reason"])
     fixboard.brief_lens(place)

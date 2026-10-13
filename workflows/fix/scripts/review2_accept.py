@@ -31,7 +31,7 @@ NOT_LAUNCHED = "2 回目の審査役を起こさなかった（1 回目の手直
 
 def main() -> None:
     raw = os.environ["INPUTS_REPLY"]
-    if raw.strip() in ("", "null"):
+    if boundary.value(raw) is None:
         boundary.returns({"ok": True, "done": True, "reason": NOT_LAUNCHED, "reason_file": ""})
         return
     reply, why = rolekit.parse_reply(raw)

@@ -513,7 +513,7 @@ class Run:
         env = {k: v for k, v in os.environ.items() if not k.startswith("INPUTS_")}
         env.update({"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN_ID, "WORKS_FACTORY_ROOT": str(root),
                     "PYTHONDONTWRITEBYTECODE": "1", "INPUTS_START": self.start if start is None else start,
-                    "INPUTS_BASELINE": "null", "INPUTS_OBJECTION": objection, "INPUTS_PRIOR_FAILURES": "null"})
+                    "INPUTS_BASELINE": "", "INPUTS_OBJECTION": objection, "INPUTS_PRIOR_FAILURES": ""})
         env.update({f"INPUTS_{k.upper()}": v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in inputs.items()})
         return subprocess.run([*launcher, str(SCRIPTS / f"{script}.py")], cwd=self.repo, env=env,
                               capture_output=True, text=True, encoding="utf-8")
@@ -913,6 +913,12 @@ class BaselineTest(unittest.TestCase):
 
 
 class PriorFailuresTest(unittest.TestCase):
+    def test_no_prior_failures_reach_intake_as_empty_text(self):
+        """前の失敗の持ち越しが無い run: start の出力の null の欄 prior_failures を、止めた Archon は include の入力に空の字で渡す
+        （tests/shared/test_archon_contract.py が縛る）。入口はそれを「無い」と読んで進む"""
+        r = Run(self)
+        self.assertTrue(r.returned("intake", prior_failures="")["go"])
+
     def test_container_rows_and_the_input_rows_both_reach_the_brief(self):
         """前の失敗の行は入口が 1 度だけ置く: 依頼の容器の prior_failures と入力 prior_failures の行の両方が判定役の材料に届く"""
         from_container = {"where": "受け付け", "text": "容器の側の前の失敗の印"}
@@ -928,6 +934,20 @@ class PriorFailuresTest(unittest.TestCase):
         text = pathlib.Path(prep["brief_file"]).read_text(encoding="utf-8")
         for row in (from_container, from_input):
             self.assertIn(row["text"], text)
+
+
+class DeclaredTestCachesTest(unittest.TestCase):
+    def test_intake_places_the_test_caches_of_its_with(self):
+        """入口の節の with: の test_caches（issue #270。lib に実行器の名を書かずに足すキャッシュの名の形）が judge の置き場に届く。
+        JSON でない字は依頼の語で止める"""
+        r = Run(self)
+        declared = nodes()["intake"]["with"]["test_caches"]
+        self.assertIn(".pytest_cache", declared)
+        self.assertTrue(r.returned("intake", **node_inputs(nodes()["intake"]))["go"])
+        self.assertEqual(json.loads((r.judge / ja.TEST_CACHES_FILE).read_text(encoding="utf-8")), declared)
+        r = Run(self)
+        self.assertFalse(r.returned("intake", test_caches="[")["go"])
+        self.assertEqual(json.loads((r.judge / ja.STOP_FILE).read_text(encoding="utf-8"))["stop_reason"], ja.REQUEST_STOP)
 
 
 class MaterialGiveUpTest(unittest.TestCase):

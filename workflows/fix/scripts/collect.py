@@ -105,7 +105,7 @@ def block(fixboard, conflict) -> dict:
 
 def group(fixboard, conflict) -> dict:
     place = boundary.place("fix")
-    g = json.loads(os.environ["INPUTS_GROUP"])
+    g = boundary.parsed(os.environ["INPUTS_GROUP"])
     gid = g["group_id"]
     gdir = fixboard.group_dir(place, os.environ.get("INPUTS_OUT_DIR", ""), gid)
     result = fixboard.read_json(gdir / fixboard.RESULT_FILE)
@@ -172,8 +172,8 @@ def fallback(why: str) -> dict:
         import fixboard
         plan = fixboard.read_json(boundary.place("fix") / fixboard.GROUPS_FILE)
         gs = plan["groups"] if isinstance(plan, dict) and isinstance(plan.get("groups"), list) else []
-        if not gs and os.environ.get("INPUTS_GROUP", "").strip():
-            gs = [json.loads(os.environ["INPUTS_GROUP"])]
+        if not gs and (g := boundary.parsed(os.environ.get("INPUTS_GROUP"))) is not None:
+            gs = [g]
         for g in gs:
             groups_rows.append({"group_id": str(g["group_id"]), "unit_ids": [str(k) for k in g["unit_ids"]],
                                 "returned": False, "reason": why})

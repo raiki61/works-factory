@@ -62,12 +62,12 @@ WORKFLOW_FILE = Path(__file__).resolve().parents[1] / "works-factory-report.yaml
 
 def parse(name: str, raw: str) -> tuple:
     """入力の字を (値, 読めなかった訳) に。空と字の null は (None, "")。JSON でない・オブジェクトでない時も落とさず None"""
-    if raw.strip() in ("", "null"):
-        return None, ""
     try:
-        value = json.loads(raw)
+        value = boundary.parsed(raw)
     except ValueError as e:
         return None, f"入力 {name} が JSON でない（{e}）"
+    if value is None:
+        return None, ""
     if not isinstance(value, dict):
         return None, f"入力 {name} が JSON のオブジェクトでない"
     return value, ""
@@ -98,11 +98,8 @@ def line_values(unread: list, unopened: list) -> dict:
     out = {}
     for name, raw in LINE.items():
         key = name.replace("-", "_")
-        if raw.strip() in ("", "null"):
-            out[key] = [] if name in LISTS else None
-            continue
         try:
-            value = json.loads(raw)
+            value = boundary.parsed(raw)
         except ValueError as e:
             unread.append(f"入力 {name} が JSON でない（{e}）")
             value = None
@@ -143,9 +140,9 @@ def transcript() -> tuple:
     except OSError as e:
         return None, f"run の記録 {path} が読めない（{e.strerror or e}。dry-run は記録を書かない）"
     rows = []
-    for line in lines:
+    for record in lines:
         try:
-            rows.append(json.loads(line))
+            rows.append(json.loads(record))
         except ValueError:
             continue
     return rows, ""

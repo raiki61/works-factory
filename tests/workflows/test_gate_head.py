@@ -122,7 +122,7 @@ class AskGateCase(unittest.TestCase):
 def final_got(**kw) -> dict:
     """最後の関所の材料（ask_final.got_of_env の形）。既定は緑で、目は全部通り、申し出も守りのパスの当たりも無い"""
     eye = {"status": "pass", "reason": ""}
-    got = {"tests_ok": True, "green": True, "red_cause": "", "evidence": {"suites": "", "baseline": "", "log": "", "why": "", "unread": ""},
+    got = {"tests_ok": True, "green": True, "red_cause": "", "tests": {**declared_checks.gate_values({}), "unread": ""},
            "worktree": "/tmp/tree", "base_rev": "0123456789abcdef", "protected_hits": [], "asked": [], "conflicts_unread": [],
            "allowed_tests": [], "beside_unread": [], "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [],
            "objection": "", "rejudge_verdict": "", "rejudge": [], "split": "", "unproven": [], "amend": [],
@@ -214,10 +214,11 @@ class FinalHeadCase(unittest.TestCase):
 
 def every_section() -> dict:
     """最後の関所の文の節が全部在る材料（L-G51・L-W28〜L-W37 の節ごとに 1 行ずつ）"""
-    ev = {"suites": "engine・走らせた: suite（exit 0）／走らせなかった: 無い", "log": "test-gate/final/logs/checks.log",
-          "baseline": "緑（元の結末（入力 baseline）の status clean）——最後のテストの赤は修正の後に出た赤でありうる", "why": "", "unread": ""}
+    tests = declared_checks.gate_values({"by": "engine", "suites_line": "走らせた: suite（exit 0）／走らせなかった: 無い",
+                                   "log": "test-gate/final/logs/checks.log", "reason": "",
+                                   "baseline_line": "修正前のテスト: 緑（元の結末（入力 baseline）の status clean）——最後のテストの赤は修正の後に出た赤でありうる"})
     return final_got(
-        evidence=ev, protected_hits=["tests/test_stats.py（+1 −0）: 規則 tests（tests/**）——試験"],
+        tests={**tests, "unread": ""}, protected_hits=["tests/test_stats.py（+1 −0）: 規則 tests（tests/**）——試験"],
         asked=["u1: 人が決める（名指し a.py:1, t.py:2・種類 not_red・正しいと見た側 unknown・c1）"],
         allowed_tests=[{"path": "tests/test_mean.py", "permit": "plan-1", "source": "plan"}], unproven=["u1: 例が無い"], amend=["案の項目 1: 直した——人が承認した"],
         delta_review={"rounds": 2, "pass": True}, branch_rows=["差分の審査の穴の枝: 見本の 1 行", "  - k: 項目 1"],
@@ -260,7 +261,7 @@ class FinalSectionsCase(unittest.TestCase):
         self.assertEqual(internal_subjects(self.text(got)), [])
 
     def test_final_text_carries_suites_and_baseline_lines(self):
-        """T35: 最後のテストの一式の行と修正前のテストの行を、証拠の字のまま出す"""
+        """T35: 最後のテストの一式の行と修正前のテストの行を、test-gate の返りの欄のまま出す"""
         text = self.text(every_section())
         self.assertIn("- テストの一式: engine・走らせた: suite（exit 0）／走らせなかった: 無い", text)
         self.assertIn("- 修正前のテスト: 緑（元の結末（入力 baseline）の status clean）——最後のテストの赤は修正の後に出た赤でありうる", text)
@@ -270,8 +271,9 @@ class FinalSectionsCase(unittest.TestCase):
         """T41: 任せ先の自己申告の緑は、engine が走らせた結果でないことと、宣言 .review-checks.json に書く次の手と、確かめて続けるか
         止めるかを添える"""
         got = every_section()
-        got["evidence"] = {**got["evidence"], "suites": "role_needed・走らせた: 任せ先の CI の役 blk-ci が選んだ一式（素材の status clean）",
-                           "why": "任せ先の自己申告の緑（機械が走らせていない）"}
+        got["tests"] = {**got["tests"], "by": declared_checks.ROLE_NEEDED,
+                        "suites": "role_needed・走らせた: 任せ先の CI の役 blk-ci が選んだ一式（素材の status clean）",
+                        "reason": "任せ先の自己申告の緑（機械が走らせていない）"}
         text = self.text({**got, "tests_ok": False})
         line = next(x for x in text.splitlines() if declared_checks.DECL_NAME in x)
         for want in ("engine が走らせた結果ではない", "次の run から engine が走らせる", "continue", "stop"):

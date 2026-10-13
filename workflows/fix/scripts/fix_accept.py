@@ -13,10 +13,9 @@ recount.accept_fix・tddloop.selected_problems。除くパスの頭 boundary.SKI
 - 範囲の外のはみ出しだけの返答は拒まずに範囲の相談に積むか機械が戻す（fixboard.settle_overflow）。積んだ回は done: false
 - 1 回目で裁かれていない申し出が在れば輪を抜ける（done: true。裁定の後の修正役が受け付け直す）
 置き場に残す物: fix-units.json（{unit_key: {status, reason}}）・fix-reply.json（受けた返答に 6 つの印と rejudge_requested を
-前の控えと論理和で重ねた物）・granted-tests.json（許したテストの変更のパス）。
+前の控えと論理和で重ねた物）。
 返り {ok, done, reason, reason_file}。回す側の誤り（返答・回の番号が読めない・判定の写しが無い）は標準エラーに 1 行で非 0。
 """
-import json
 import os
 import sys
 from pathlib import Path
@@ -42,9 +41,9 @@ def main() -> dict:
     if consulted:
         return {"ok": False, "done": False, "reason": fixboard.CONSULTED, "reason_file": ""}
     place, repo = boundary.place("fix"), boundary.work_tree()
-    group = os.environ.get("INPUTS_GROUP", "").strip()
-    owed = fixboard.group_owed(place, json.loads(group)["unit_ids"] if group else None)
-    if raw.strip() in ("", "null"):
+    group = boundary.parsed(os.environ.get("INPUTS_GROUP"))
+    owed = fixboard.group_owed(place, group["unit_ids"] if group else None)
+    if boundary.value(raw) is None:
         _, excused = fixboard.fix_duty(place, owed)
         fixboard.write_json(place / fixboard.FIX_UNITS_FILE, fixboard.unit_outcomes(owed, {}, excused=excused))
         return {"ok": True, "done": True, "reason": NOT_LAUNCHED, "reason_file": ""}
@@ -68,7 +67,6 @@ def finish(place: Path, got: dict, iteration: int) -> dict:
     if got["ok"]:
         path = place / fixboard.FIX_REPLY_FILE
         fixboard.write_json(path, fixboard.reply_marks(got["reply"], fixboard.read_json(path)))
-        fixboard.write_json(place / fixboard.GRANTED_TESTS_FILE, fixboard.allowed_tests(place))
         fixboard.trace(place, "fix_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]),
                        conflicted=got["conflicted"])
         return {"ok": True, "done": True, "reason": fixboard.PARKED_FOR_RULING if got["conflicted"] else "",

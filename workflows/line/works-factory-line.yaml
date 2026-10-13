@@ -141,6 +141,11 @@ nodes:
       got_baseline: "$test-gate-base.output.baseline"
       got_fingerprint: "$test-gate-base.output.fingerprint"
       got_evidence: "$test-gate-base.output.evidence"
+      got_by: "$test-gate-base.output.by"
+      got_suites_line: "$test-gate-base.output.suites_line"
+      got_log: "$test-gate-base.output.log"
+      got_baseline_line: "$test-gate-base.output.baseline_line"
+      got_reason: "$test-gate-base.output.reason"
 
   # 4 判定
   - id: judge
@@ -814,6 +819,11 @@ nodes:
       got_baseline: "$test-gate-final.output.baseline"
       got_fingerprint: "$test-gate-final.output.fingerprint"
       got_evidence: "$test-gate-final.output.evidence"
+      got_by: "$test-gate-final.output.by"
+      got_suites_line: "$test-gate-final.output.suites_line"
+      got_log: "$test-gate-final.output.log"
+      got_baseline_line: "$test-gate-final.output.baseline_line"
+      got_reason: "$test-gate-final.output.reason"
 
   # 9 独立の目
   - id: eyes
@@ -916,7 +926,11 @@ nodes:
       tests_ok: "$test-gate-final.output.ok"
       green: "$test-gate-final.output.green"
       red_cause: "$test-gate-final.output.red_cause"
-      evidence: "$test-gate-final.output.evidence"
+      by: "$test-gate-final.output.by"
+      suites_line: "$test-gate-final.output.suites_line"
+      log: "$test-gate-final.output.log"
+      baseline_line: "$test-gate-final.output.baseline_line"
+      tests_reason: "$test-gate-final.output.reason"
       protected_hits: { from: "$merge-seal.output.protected_hits", if_skipped: [] }
       conflicts: "$fixed.output.conflicts"
       fix_diffs: "$fixed.output.diffs"
