@@ -486,14 +486,14 @@ class LauncherTest(unittest.TestCase):
 
     def test_fence_denies_what_later_launches_run_outside_the_sandbox(self):
         """後の役の起動と次の起動が sandbox の外で走らせる物（殻・gh の口・本物の claude・包みを起こす Python・取り置いた Archon の源・
-        工場の bin/・workflows/〔包みを含む〕・lib/ と版の止め）は、禁じる一覧に入る"""
+        工場の checkout の根の全体〔根に置いた .py も次の起動の import に勝つ〕）は、禁じる一覧に入る"""
         env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
         argv = self.fence_of(env)
         own = {argv[i + 1] for i, a in enumerate(argv) if a == "--own"}
         home = self.default_home(self.target)
         self.assertEqual(own, {str(home / launcher.FENCE_DIR), str(home / launcher.HOST_GH_DIR),
                                str(self.cache_home / "works-factory"),
-                               *(str(self.repo / name) for name in ("bin", "workflows", "lib", "pack.json", "factory/pack.json")),
+                               str(self.repo),
                                sys.prefix, sys.base_prefix, os.path.realpath(self.fake / "claude")})
 
     def test_env_file_naming_claude_bin_path_stops_the_run(self):

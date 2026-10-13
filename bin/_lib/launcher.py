@@ -295,12 +295,12 @@ def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path) ->
     """Archon が役を起こす claude の前に置く包み（埋め P5。workflows/.shared/fence.py）の殻を書き、そのパスを返す。値は env でなく
     殻に焼く（Archon は claude に渡す env を掃除する）。-B は Archon がバイトで照らす workflows/ に __pycache__ を作らないため。
     --own は、同じ run の後の役の起動が sandbox の外で走らせる物（この殻・gh の口・包みを起こす解釈系〔sys.prefix と sys.base_prefix〕・本物の claude）と、
-    次の起動が sandbox の外で走らせる物（取り置き cache〔Archon の源〕・工場の bin/・workflows/〔包みを含む〕・lib/・版の止め pack.REQUIRED）。
+    次の起動が sandbox の外で走らせる物（取り置き cache〔Archon の源〕・工場の checkout の根 ROOT 全体）。根は丸ごと禁じる。bin/works-factory は
+    ROOT を import の先頭に置くので、根に新しく置いた shlex.py や bin.py が次の起動の import に勝つ。
     本物の claude は実パスで起こす（包みは --own を実パスに解いて禁じるので、symlink を通して起こすと symlink 自身は書ける）"""
     top = home / FENCE_DIR
     real = os.path.realpath(real)
-    own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, cache,
-           *(ROOT / name for name in ("bin", "workflows", "lib", *pack.REQUIRED))]
+    own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, cache, ROOT]
     body = ("#!/bin/sh\n"
             "# works-factory の起動（bin/_lib/launcher.py）が書いた包み: 読むだけの役の claude の sandbox に、起こす直前に組んだ\n"
             "# 書き込みを禁じるパスの一覧を足す\n"
