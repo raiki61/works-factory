@@ -21,6 +21,7 @@
 - LANG_RULE・LANG_DEFAULT・lang_line(start): 役の文の頭に足す言語の 1 行（元 rolekit.py 67-68 行・147-150 行。言語は始めの記録の
                   lang。空なら依頼文の言語。元 board.py 96 行）。判定・計画・修正・独立の目・報告の書き手の役が同じ口で読む
 - record_lang_line(path): 始めの記録のファイル path から lang_line（読めなければ既定の言語の 1 行に読めない訳を添える）
+- pointed_lang_line(raw, locate): 始めの記録の指し札の字 raw から record_lang_line（指し札が読めなくても落ちない。script が呼ぶ 1 か所）
 
 層は L3（盤面と受け付け）。ライン・include の id・ブロックの名前を書かない（tests/test_layers.py）。
 """
@@ -74,6 +75,19 @@ def record_lang_line(path) -> str:
     if not isinstance(doc, dict):
         return f"{lang_line({})}（始めの記録 {path} が JSON のオブジェクトでない。言語は既定にした）"
     return lang_line(doc)
+
+
+POINTER_UNREAD = "始めの記録のポインタを読めない"
+
+
+def pointed_lang_line(raw, locate) -> str:
+    """始めの記録の指し札の字 raw の record_lang_line。locate は指し札の字を置き場の中のパスに戻す口（境の口の pointed）。指し札が
+    読めなければ（ほかの run の札・札の形でない）既定の言語の 1 行に訳を添える（言語の 1 行を返す節は落ちない）"""
+    try:
+        path = locate(raw)
+    except (ValueError, TypeError, AttributeError, KeyError) as e:
+        return f"{lang_line({})}（{POINTER_UNREAD}: {type(e).__name__}: {oneline.one_line(e)}。言語は既定にした）"
+    return record_lang_line(path)
 
 
 REJECT_HEADING = promptsection.Section("## 前の回の受け付けが拒んだ理由", source="fn:rolekit.with_reject")

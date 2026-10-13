@@ -8,6 +8,7 @@
 実物の盤面での描画（本線の p2.fix_plan・p2.plan_review）は test_blk_plan（HEAVY）、rejudge.render の本文の一致は test_rejudge が見る。
 盤面はここでは小さな偽物（rolekit が触る欄だけ）で、entry の口は mock で差し替える。
 """
+import json
 import pathlib
 import sys
 import tempfile
@@ -33,6 +34,25 @@ class ScriptMainCase(Base):
         self.assertEqual(rolekit.parse_reply('{"a": 1}'), ({"a": 1}, ""))
         self.assertIsNone(rolekit.parse_reply("{x")[0])
         self.assertIn("オブジェクトでない", rolekit.parse_reply("[1]")[1])
+
+
+class PointedLangLineCase(Base):
+    """#367: 始めの記録の指し札の字から言語の 1 行を組む 1 か所。指し札が読めない時は落ちずに既定の言語の 1 行に訳を添える"""
+
+    def test_reads_the_pointed_record(self):
+        path = self.tmp / "start.json"
+        path.write_text(json.dumps({"lang": "English"}), encoding="utf-8")
+        self.assertEqual(rolekit.pointed_lang_line("札", lambda raw: path), rolekit.lang_line({"lang": "English"}))
+        self.assertEqual(rolekit.pointed_lang_line("", lambda raw: None), rolekit.lang_line({}))
+
+    def test_unreadable_pointer_degrades(self):
+        for error in (ValueError("ほかの run"), TypeError("t"), AttributeError("a"), KeyError("k")):
+            def locate(raw, error=error):
+                raise error
+            with self.subTest(type(error).__name__):
+                got = rolekit.pointed_lang_line("札", locate)
+                self.assertTrue(got.startswith(rolekit.lang_line({})), got)
+                self.assertIn(f"{rolekit.POINTER_UNREAD}: {type(error).__name__}", got)
 
 
 class GivenUpCase(Base):
