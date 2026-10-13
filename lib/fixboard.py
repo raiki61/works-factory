@@ -33,6 +33,8 @@ import types
 
 import gatemarks
 import jsonfile
+import oneline
+import rolekit
 import startrec
 
 TRACE_FILE = "trace.jsonl"
@@ -698,7 +700,7 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     got: list = []
     ok, why = unittrees.apply(repo, patch, union=union, unioned=got, check=unittrees.tests_unique)
     if not ok:
-        return lanekit.Merge(f"差分が親の作業ツリーに当たらない（{' '.join(why.split())[:300]}）", str(kept), [], [], True)
+        return lanekit.Merge(f"差分が親の作業ツリーに当たらない（{oneline.one_line(why)[:300]}）", str(kept), [], [], True)
     names = unittrees.patch_names(patch)
     try:
         why = (check(names) if check else "") if names else ""
@@ -916,7 +918,7 @@ def handoff_lines(replies) -> list:
         for c in (reply or {}).get("changes") or [] if isinstance(reply, dict) else []:
             got = (c.get("breaks") or {}).get("accepted") if isinstance(c, dict) and isinstance(c.get("breaks"), dict) else None
             if isinstance(got, str) and got.strip():
-                out.append(f"{c.get('unit_key')}: 壊すと分かって通した——{' '.join(got.split())}")
+                out.append(f"{c.get('unit_key')}: 壊すと分かって通した——{oneline.one_line(got)}")
     return out
 
 
@@ -1298,7 +1300,7 @@ def lens_route(place, lang: str = "") -> dict:
             try:
                 got = agent_def(row["agent"])
             except (Exception, SystemExit) as e:   # engine の探しが出所の曖昧さで止まる（die）時も、起こさない理由にする
-                got, why = None, f"{row['agent']} の定義を引けない（{type(e).__name__}: {' '.join(str(e).split())}）"
+                got, why = None, f"{row['agent']} の定義を引けない（{type(e).__name__}: {oneline.one_line(e)}）"
             if got is None or not got.get("body"):
                 go = False
                 why = why or f"{row['agent']} の定義が役の設定に無い（pr-review-toolkit が入っていない）"
@@ -1357,7 +1359,7 @@ def prep_fix(place, n: int, *, items=None, plan_review=None, fix_reply=None, pol
     try:   # 穴ごとの枝の名札（材料だけで、答え方は変えない。組めなければ理由を置いて手直しは起こす）
         doc["ties"] = refix.brief_ties(hole_ties(place, n, items=items, plan_review=plan_review, fix_reply=fix_reply))
     except Exception as e:
-        doc["ties"], doc["ties_error"] = [], f"{type(e).__name__}: {' '.join(str(e).split())}"
+        doc["ties"], doc["ties_error"] = [], f"{type(e).__name__}: {oneline.one_line(e)}"
     if n == 1:
         doc["plan_items"] = _plan_items(place, items, by=stopby.REFIX)
         doc["ruled_paths"] = conflict.ruled_paths(place)
@@ -1397,7 +1399,6 @@ def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int 
 
 def last_reject_file(place, name: str) -> str:
     """受け付け name の最後の拒否の理由のファイル（accept_out が書いた物。拒否が無ければ空）"""
-    import rolekit
     k = len(rolekit.rejected(place, name))
     f = pathlib.Path(place) / REJECT_NAME.format(name=name, k=k)
     return str(f) if k and f.is_file() else ""
@@ -1407,7 +1408,6 @@ def accept_out(place, name: str, got: dict) -> dict:
     """受け付けの返り {ok, done, reason, reason_file}（輪の until が done を読む）。got の ok が真なら done。偽なら理由を置き場の
     reject-<name>-<k>.md に書き、rolekit.with_done で控え rejects-<name>.json に積み、rolekit.GIVE_UP_AFTER 回目の拒否で done
     （諦め。ok は偽のまま）。元 works/.shared/core/rolekit.py の main_accept の 3 回目の拒否で done・give_up の振る舞い"""
-    import rolekit
     if got.get("ok") is True:
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
     reason = str(got.get("reason") or "受け付けが理由を書かずに拒んだ")
@@ -1672,7 +1672,7 @@ FIX_HEAD_FILE = "fix-head.json"             # 組の修正の段の頭の木 {tr
 REFIX_HEAD_FILE = "refix{}-head.json"       # n 回目の手直しの段の頭の木 {tree}（refix-prep・refix2-prep が 1 回目に書く）
 PARKED_PATCH = "fix-parked"                 # 最後の回に止めた単位の戻した直しの控え（置き場の fix-parked-<n>.patch。元 accept.py:168）
 FIX_ACCEPT_BY = "fix-accept"                # 受け付けが単位を人に回した裁定の by（元 accept.py:140 の stopby の名）
-GIVE_UP_AFTER = 3                           # 諦める拒否の回（元 accept.py:139。rolekit.GIVE_UP_AFTER と同じ数）
+GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER       # 諦める拒否の回（元 accept.py:139。持ち主は rolekit）
 # 修正の受け付けの確かめの id → 拒否の見出しの短い名（受け付けが回す順）。元 works/blk-fix/scripts/accept.py:180
 FIX_CHECKS = {
     "consult": "範囲の相談の枠",

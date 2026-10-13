@@ -19,12 +19,13 @@ FILE に周ごとに控え、判定の写し judgment.json に戻す。次の ru
 - next_items(board_dir)・report_lines(board_dir)・count_line(board_dir, next_file, section): 次の run の依頼の行・報告の本文の行・
   報告の冒頭 1（人が決めること）の件数の 1 行。冒頭 1 には人が決めることだけを置き、所見は 1 件ずつ並べない（材料であって決め事でない。
   利用者の声 10-09 の B。10-09 の利用者は 23 件を読んで 3 件を採った）
-標準ライブラリと住処 marks・carry（L1）だけ。
+標準ライブラリと住処 marks・carry（L1）・1 行に畳む葉 oneline だけ。
 """
 import json
 
 import carry   # 下書きの印の付け方（次の run への持ち越しの形の住処）
 import marks
+import oneline
 
 FIELD = "out_of_purpose"
 FILE = marks.KINDS["purpose"].file
@@ -57,7 +58,7 @@ def split(reply) -> tuple:
 
 
 def _squeeze(v) -> str:
-    return " ".join(str(v or "").split())
+    return oneline.one_line(v or "")
 
 
 def _walk(node, origin: str, out: list) -> None:

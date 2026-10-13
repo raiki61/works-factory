@@ -29,6 +29,7 @@ import tempfile
 
 import carry  # noqa: E402  （依頼の容器の形 parts）
 import ghreads  # noqa: E402  （run の中の gh の読み出し・盤面の github.json）
+import oneline  # noqa: E402
 import promptsection  # noqa: E402
 import engine.util as _util  # noqa: E402
 from engine.util import Reject, git  # noqa: E402
@@ -83,7 +84,7 @@ def change_base(raw: dict, repo: pathlib.Path, reads=None):
         raise Refused(f"pr={pr!r} は PR の番号でない")
     doc = ((reads or {}).get("pr") or {}).get(pr)
     if not isinstance(doc, dict) or not doc.get("baseRefOid") or not doc.get("headRefOid"):
-        why = " ".join(str((doc.get("reason") if isinstance(doc, dict) else "") or "読み出しにこの PR の base・head が無い").split())
+        why = oneline.one_line((doc.get("reason") if isinstance(doc, dict) else "") or "読み出しにこの PR の base・head が無い")
         if isinstance(doc, dict) and doc.get("status") == ghreads.NOT_APPLICABLE:   # forge の無い対象で gh も GitHub を見つけなかった
             raise Refused(f"PR #{pr} の base・head を読めない——対象の remote に PR を持つホストが無い（{why}）。base を名指して回す")
         raise Refused(f"PR #{pr} の base・head を読めない（{why}）——利用者の gh でログインしてから回す")

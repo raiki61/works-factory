@@ -39,7 +39,8 @@ import skip_value
 
 POINTER_TYPE = "archon_artifact"
 LINE_SCRIPT = "works:line-script"
-TEXT_FIELDS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason", "unread")   # JSON として読まない欄
+TEXT_FIELDS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason", "unread", "by", "suites_line", "log",
+               "baseline_line")   # JSON として読まない欄
 
 _import_error = None
 
