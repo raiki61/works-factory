@@ -74,10 +74,7 @@ GRAPH_SCHEMAS = {
             "deletions": {"type": "array", "items": {
                 "type": "object", "required": ["where", "why"], "additionalProperties": False,
                 "properties": {
-                    "where": {"type": "string", "minLength": 1, "note": (
-                        "照合される側（p2.diagnose.carried_r1[].where）は minLength を持つのに、正本のこちらが持たないと、"
-                        "空文字が schema を通ったうえで数える口から黙って落ち、次の周の judge はその候補について 1 行も"
-                        "書かなくてよくなる（実測 2026-09-16・静的）")},
+                    "where": {"type": "string", "minLength": 1},
                     "why": {"type": "string"}}}},
             "ledger_audit": {"type": "array", "items": {"type": "string"}},
             "increments": {"type": "array", "items": {"type": "string"}},
