@@ -686,8 +686,8 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 
 1. メイングラフに全部の本物のサブグラフを並べ、`tests/e2e/` を通す。
 2. 受け入れの一覧の全部の行に証を書く。graph のノードの表（`by` と `absent` の理由）をこのリポジトリにも置き、試験で縛る。
-3. 欠陥を仕込んだ較正（`tests/calibration/`）: 仕込んだ欠陥を、今の works と works-factory の両方が見つけるか比べる。
-4. 同じ依頼を今の works と works-factory に回し、結末・単位・人への問い・費用を並べて比べる。違いは 1 行ずつ理由を書く。
+3. 公開ベンチの比べ（`tests/calibration/run.py`。`docs/owner-decisions.md` の `public-bench-at-major`）: 大きい版上げの時だけ、ReviewBench の Python の部分集合を works-factory・今の works・素の Claude Code（同じ模型・effort）で回す。判定役で採点し、ノードとサブグラフの働きを Archon の記録から表にする。段 4 はこれを待たない。
+4. 自作の較正の束（#214）での 2 つの工場の比べは 2026-10-14 に終えた。結果は `docs/calibration-214.md` に残し、束は消した。
 5. 変異の検算（`p3.delta_gates`・`p4.final_gates`）と周の記録（`p2.history`）を戻すかを持ち主に聞く。変異の検算は戻さない（`docs/owner-decisions.md` の `no-mutation-in-graph`。2026-10-13）。周の記録も今は戻さない（`no-history-for-now`。2026-10-13）。
 
 ### 段 4 切り替え
