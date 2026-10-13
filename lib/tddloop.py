@@ -116,6 +116,7 @@ import writelog  # noqa: E402
 import writes  # noqa: E402  （.shared/core。書き込みの出どころの突き合わせ）
 import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
+import oneline  # noqa: E402
 import promptsection  # noqa: E402
 from leftovers import Unreadable, git, git_names  # noqa: E402
 
@@ -593,7 +594,7 @@ def _cmd_material(repo, cmd: str, log: pathlib.Path, *, reuse: dict | None = Non
     kind = tree_run.launch_kind(code)
     if kind == "broken":
         return {"status": "not_run", "reason": f"{launched} でテストのコマンドを起こせない（exit None。ログ {log}）"}
-    tail = " ".join(log.read_text(encoding="utf-8", errors="replace").split())[-2000:]
+    tail = oneline.one_line(log.read_text(encoding="utf-8", errors="replace"))[-2000:]
     ran = f"{launched} を対象の根で走らせた: exit {code}（ログ {log}）"
     if kind == "clean":
         reused = tree_run.reused_text(note)
@@ -621,7 +622,7 @@ def _test_cmd_problems(st, repo) -> list[str]:
     if mat["status"] == "clean":
         _cur(st)["test_cmd"] = "ok"
         return []
-    tail = " ".join(str(mat.get("detail", "")).split())[-400:]
+    tail = oneline.one_line(mat.get("detail", ""))[-400:]
     return [f"名指しのテストと一式は緑だが、run の test_cmd（{st['test_cmd']}）が赤（ループの頭では緑。ログ {log}）——"
             f"これも緑にせよ（赤の元が凍ったテストのファイルなら phase conflict で申し出よ）。{mat.get('rewrote') or '末尾: ' + tail}"]
 

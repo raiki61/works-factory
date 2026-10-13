@@ -46,7 +46,8 @@ def suite_exit(run: dict):
 def evidence(mode: str, out: dict, run: dict, material, summary: str, why: str, suites: str, base_line: str) -> str:
     """証拠の文。読み手は行の頭で 1 行ずつ読むので、自由な文の値（役の素材の reason が入る）は 1 行に畳む"""
     import declared_checks
-    one = declared_checks.one_line
+    import oneline
+    one = oneline.one_line
     (_, run_row), (_, log_row) = declared_checks.EVIDENCE_ROWS
     lines = [f"# test-gate（{mode}）",
              "",

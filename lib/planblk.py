@@ -50,6 +50,7 @@ import design  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 import gatemarks  # noqa: E402
 import libdocs  # noqa: E402
+import oneline  # noqa: E402
 import planmarks  # noqa: E402
 import promptsection  # noqa: E402
 import ripple  # noqa: E402  （blk-plan の lib。波及の一覧）
@@ -298,7 +299,7 @@ def design_section(b) -> str:
     try:
         fields = planmarks.review_section(b, worldmark.challenges(worldmark.stage_rows(b.dir) or []))
     except planmarks.FieldsBroken as e:   # 受け付けの後に欄の控えを書き換えた: 書き換えた欄を審査に見せない
-        why = f"修正案の項目の works の欄の控え {planmarks.FIELDS_FILE} が凍結と食い違う: {' '.join(str(e).split())}"
+        why = f"修正案の項目の works の欄の控え {planmarks.FIELDS_FILE} が凍結と食い違う: {oneline.one_line(e)}"
         raise BoardGap(why) from None
     return design_only(b) + fields
 
@@ -544,7 +545,7 @@ def _load(path: pathlib.Path, schema: dict) -> tuple:
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError) as e:
-        return None, [f"JSON として読めない（{' '.join(str(e).split())}）"]
+        return None, [f"JSON として読めない（{oneline.one_line(e)}）"]
     errs = validate_schema(doc, schema)
     return (None, errs) if errs else (doc, [])
 

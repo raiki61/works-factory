@@ -41,6 +41,7 @@ import ghreads  # noqa: E402
 import jsonfile  # noqa: E402
 import judgeverify as jv  # noqa: E402
 import marks  # noqa: E402
+import oneline  # noqa: E402
 import outpurpose  # noqa: E402
 import prcheck  # noqa: E402
 import premises as _premises  # noqa: E402
@@ -529,7 +530,7 @@ def judge_output(out, jdir, root, rev, materials, *, prev_deletions=None, prev_q
     for row in list(out.get("units", [])) + list(out.get("questions", [])):
         for f in ONE_LINE_FIELDS:
             if isinstance(row.get(f), str):
-                row[f] = " ".join(row[f].split())
+                row[f] = oneline.one_line(row[f])
     keys = set()
     replaced, zeroed = [], []
     for i, u in enumerate(out["units"]):
@@ -3774,7 +3775,7 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None
         carry.place_prior(jdir, [*container[carry.PRIOR], *prior_of(prior)])
         snap_tree(jdir, TREE_FILE, repo)
     except (ValueError, OSError, Reject) as e:
-        reason = " ".join(str(e).split())
+        reason = oneline.one_line(e)
         write_stop(jdir, REQUEST_STOP, reason)
         out = _intake_out(False, reason=reason)
     else:

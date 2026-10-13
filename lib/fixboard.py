@@ -33,6 +33,7 @@ import types
 
 import gatemarks
 import jsonfile
+import oneline
 import startrec
 
 TRACE_FILE = "trace.jsonl"
@@ -706,7 +707,7 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     got: list = []
     ok, why = unittrees.apply(repo, patch, union=union, unioned=got, check=unittrees.tests_unique)
     if not ok:
-        return lanekit.Merge(f"差分が親の作業ツリーに当たらない（{' '.join(why.split())[:300]}）", str(kept), [], [], True)
+        return lanekit.Merge(f"差分が親の作業ツリーに当たらない（{oneline.one_line(why)[:300]}）", str(kept), [], [], True)
     names = unittrees.patch_names(patch)
     try:
         why = (check(names) if check else "") if names else ""
@@ -928,7 +929,7 @@ def handoff_lines(replies) -> list:
         for c in (reply or {}).get("changes") or [] if isinstance(reply, dict) else []:
             got = (c.get("breaks") or {}).get("accepted") if isinstance(c, dict) and isinstance(c.get("breaks"), dict) else None
             if isinstance(got, str) and got.strip():
-                out.append(f"{c.get('unit_key')}: 壊すと分かって通した——{' '.join(got.split())}")
+                out.append(f"{c.get('unit_key')}: 壊すと分かって通した——{oneline.one_line(got)}")
     return out
 
 
@@ -1310,7 +1311,7 @@ def lens_route(place, lang: str = "") -> dict:
             try:
                 got = agent_def(row["agent"])
             except (Exception, SystemExit) as e:   # engine の探しが出所の曖昧さで止まる（die）時も、起こさない理由にする
-                got, why = None, f"{row['agent']} の定義を引けない（{type(e).__name__}: {' '.join(str(e).split())}）"
+                got, why = None, f"{row['agent']} の定義を引けない（{type(e).__name__}: {oneline.one_line(e)}）"
             if got is None or not got.get("body"):
                 go = False
                 why = why or f"{row['agent']} の定義が役の設定に無い（pr-review-toolkit が入っていない）"
@@ -1369,7 +1370,7 @@ def prep_fix(place, n: int, *, items=None, plan_review=None, fix_reply=None, pol
     try:   # 穴ごとの枝の名札（材料だけで、答え方は変えない。組めなければ理由を置いて手直しは起こす）
         doc["ties"] = refix.brief_ties(hole_ties(place, n, items=items, plan_review=plan_review, fix_reply=fix_reply))
     except Exception as e:
-        doc["ties"], doc["ties_error"] = [], f"{type(e).__name__}: {' '.join(str(e).split())}"
+        doc["ties"], doc["ties_error"] = [], f"{type(e).__name__}: {oneline.one_line(e)}"
     if n == 1:
         doc["plan_items"] = _plan_items(place, items, by=stopby.REFIX)
         doc["ruled_paths"] = conflict.ruled_paths(place)

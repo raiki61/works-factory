@@ -40,6 +40,7 @@ import conflict  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
+import oneline  # noqa: E402
 import replan  # noqa: E402
 import report  # noqa: E402
 import seal  # noqa: E402
@@ -150,7 +151,7 @@ def conflict_rows(returns: dict) -> tuple[list, list]:
             if not isinstance(items, list):
                 raise ValueError(f"欄 {conflict.ITEMS} の配列が無い")
         except (OSError, ValueError) as e:
-            notes.append(f"申し出と裁定のファイル {p} が読めない: {report._one_line(e)}")
+            notes.append(f"申し出と裁定のファイル {p} が読めない: {oneline.one_line(e)}")
             continue
         rows += [i for i in items if isinstance(i, dict)]
     return rows, notes
@@ -197,7 +198,7 @@ def materials(returns: dict) -> tuple[dict, str]:
     try:
         doc = read_json(p)
     except (OSError, ValueError) as e:
-        return {}, f"素材の状態 {p} が読めない（測れていない素材は無いと数えた）: {report._one_line(e)}"
+        return {}, f"素材の状態 {p} が読めない（測れていない素材は無いと数えた）: {oneline.one_line(e)}"
     if not isinstance(doc, dict):
         return {}, f"素材の状態 {p} がオブジェクトでない（測れていない素材は無いと数えた）"
     return doc, ""
@@ -274,7 +275,7 @@ def _eye_rows(returns: dict, eyes_skip=None) -> list:
         label = name.upper()
         if isinstance(e, dict) and e.get("status") in EYE_STATUS_LEFT:
             rows.append({"where": f"{report.EYES_WHERE} {label}",
-                         "text": f"{label} が {e['status']}: {report._one_line(e.get('reason') or '理由なし')}"})
+                         "text": f"{label} が {e['status']}: {oneline.one_line(e.get('reason') or '理由なし')}"})
         elif e is None and eyes_skip == "":
             rows.append({"where": f"{report.EYES_WHERE} {label}", "text": f"{label} {MISSING_EYE}"})
     if eyes.get("ok") is False and not rows:
@@ -320,7 +321,7 @@ def residue(returns: dict, facts: dict | None = None) -> list:
         for u in fix.get("units") or []:
             if isinstance(u, dict) and u.get("status") in fixboard.UNIT_LEFT:
                 rows.append({"where": f"修正 {u.get('unit_id')}",
-                             "text": f"単位 {u.get('unit_id')} が {u['status']}: {report._one_line(u.get('reason') or '理由なし')}"})
+                             "text": f"単位 {u.get('unit_id')} が {u['status']}: {oneline.one_line(u.get('reason') or '理由なし')}"})
         left = {u.get("unit_id") for u in fix.get("units") or [] if isinstance(u, dict) and u.get("status") in fixboard.UNIT_LEFT}
         beside = facts.get("beside") or fixbeside.read(fix_folders(returns))
         for k in fixbeside.not_closed(beside):   # 元 report._closed_units: 申告しても表で閉じていない

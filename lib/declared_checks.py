@@ -25,6 +25,7 @@ import time
 import baseline_red
 import checkscope
 import gatemarks
+import oneline
 import tree_run
 
 _GL = pathlib.Path(__file__).resolve().parent / "graphloops"
@@ -62,10 +63,6 @@ def row_prefix(name: str) -> str:
     return f"- {name}: "
 
 
-def one_line(text) -> str:
-    return " ".join(str(text).split())
-
-
 def evidence_value(rows: list, prefix: str):
     """証拠の文の行の並び rows のうち、頭 prefix で始まる最初の行の値（頭を外した物）。無ければ None"""
     return next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
@@ -83,7 +80,7 @@ class InputRefused(Exception):
     """入力を受けない（AI を起こす前に run を止める）。文は人に向けた 1 行（元 works/.shared/core/entry.py:445-449）"""
 
     def __init__(self, msg):
-        super().__init__(one_line(msg))
+        super().__init__(oneline.one_line(msg))
 
 
 class CiRefused(InputRefused):
