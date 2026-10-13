@@ -14,9 +14,6 @@ nodes:
     runtime: uv
     timeout: 1728000000
     mutates_checkout: false
-    with:
-      # 読むだけの役が対象のテストを回して作るキャッシュのうち、lib が知らない物（lib/accept.TEST_CACHES に足す名の形。issue #270）
-      test_caches: ['.pytest_cache']
     output_format:
       type: object
       additionalProperties: false
@@ -357,6 +354,10 @@ nodes:
             excludedCommands: ['works-gh:*']
             network:
               allowedDomains: []
+            # 作業ツリー・ほかの run の worktree・artifacts を書けなくする（~ は起動が隔離した HOME で、~/../archon-home が Archon の家。
+            # '.' は cwd でなく設定の一時ファイルのフォルダに解かれる。実測 2026-10-13。issue #293）
+            filesystem:
+              denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
           output_format:
             type: object
@@ -447,7 +448,12 @@ nodes:
           effort: medium
           settingSources: [user]
           allowed_tools: [Read, Grep, Glob, Bash, WebSearch, WebFetch]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          sandbox:
+            enabled: true
+            allowUnsandboxedCommands: false
+            # denyWrite は pr-check の注釈と同じ
+            filesystem:
+              denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
           output_format:
             type: object
@@ -824,6 +830,9 @@ nodes:
             excludedCommands: ['works-gh:*']
             network:
               allowedDomains: []
+            # denyWrite は pr-check の注釈と同じ
+            filesystem:
+              denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
           output_format:
             type: object
@@ -1004,6 +1013,9 @@ nodes:
             excludedCommands: ['works-gh:*']
             network:
               allowedDomains: []
+            # denyWrite は pr-check の注釈と同じ
+            filesystem:
+              denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
           output_format:
             type: object
@@ -1305,6 +1317,9 @@ nodes:
             excludedCommands: ['works-gh:*']
             network:
               allowedDomains: []
+            # denyWrite は pr-check の注釈と同じ
+            filesystem:
+              denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
           output_format:
             type: object
@@ -1419,6 +1434,9 @@ nodes:
             excludedCommands: ['works-gh:*']
             network:
               allowedDomains: []
+            # denyWrite は pr-check の注釈と同じ
+            filesystem:
+              denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
           output_format:
             type: object
@@ -1518,8 +1536,10 @@ nodes:
             network:
               allowedDomains: ['*']
               allowLocalBinding: true
+            # denyWrite は pr-check の注釈と同じ
             filesystem:
               allowWrite: [/]
+              denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
           output_format:
             type: object
@@ -1617,8 +1637,10 @@ nodes:
             network:
               allowedDomains: ['*']
               allowLocalBinding: true
+            # denyWrite は pr-check の注釈と同じ
             filesystem:
               allowWrite: [/]
+              denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
           output_format:
             type: object
@@ -1715,8 +1737,10 @@ nodes:
             network:
               allowedDomains: ['*']
               allowLocalBinding: true
+            # denyWrite は pr-check の注釈と同じ
             filesystem:
               allowWrite: [/]
+              denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
           output_format:
             type: object
@@ -1810,8 +1834,10 @@ nodes:
             network:
               allowedDomains: ['*']
               allowLocalBinding: true
+            # denyWrite は pr-check の注釈と同じ
             filesystem:
               allowWrite: [/]
+              denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000
           output_format:
             type: object

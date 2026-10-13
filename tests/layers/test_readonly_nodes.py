@@ -3,11 +3,15 @@
 全部のブロックと線の役の節（`prompt:`・`command:`。輪の中も）の印は道具から導く: `allowed_tools` に Bash・Edit・Write（scan.TREE_CHANGERS）
 が無い役は書き、在る役は書かない（外れは表 scan.KEEP_CHECKOUT の役だけ）。script・bash の節は表 scan.CHANGE_CHECKOUT の節の外が書く。
 `loop:` の節は作らない（Archon は loop: の節の mutates_checkout を無視する）。役の節は settingSources: [user]・閉じた sandbox・
-表 scan.ROLE_TOOLS の中の allowed_tools を持つ（K18）。
+表 scan.ROLE_TOOLS の中の allowed_tools を持つ（K18）。Bash を持ち Edit・Write を持たない役は sandbox の denyWrite に
+scan.NO_TREE_WRITE を書く（#293）。
 """
+import os
 import pathlib
+import tempfile
 import unittest
 
+from bin._lib import isolate
 from tests.layers import scan
 from tests.layers.trees import tree
 
@@ -17,6 +21,7 @@ PLAN = "workflows/plan/works-factory-plan.yaml"
 FIX = "workflows/fix/works-factory-fix.yaml"
 LINE = "workflows/line/works-factory-line.yaml"
 SETTINGS = "settingSources: [user]\nsandbox: {enabled: true, allowUnsandboxedCommands: false}\nidle_timeout: 1728000000\n"
+NO_TREE_SETTINGS = SETTINGS.replace("false}", f"false, filesystem: {{denyWrite: ['{scan.NO_TREE_WRITE}']}}}}")
 
 
 def role(ident: str, tools: str | None, mark: bool, indent: int = 2, settings: str = SETTINGS) -> str:
@@ -65,8 +70,25 @@ class ReadonlyNodesTest(unittest.TestCase):
                                      ("[Read, Bash]", True, True), ("[Read, Edit]", True, True), ("[Read, Write]", True, True),
                                      ("[Read, Bash]", False, False)):
                 with self.subTest(block=name, tools=tools, mark=mark):
-                    got = self.problems({path: workflow(name, role("r", tools, mark))})
+                    got = self.problems({path: workflow(name, role("r", tools, mark, settings=NO_TREE_SETTINGS))})
                     self.assertEqual(len(got), int(red), got)
+
+    def test_bash_reader_without_no_tree_write_is_red(self):
+        """Bash を持つ読むだけの役は sandbox で作業ツリーへの書き込みを止める。'.' は cwd を塞がないので赤。書く役は見ない"""
+        for tools, settings, red in (("[Read, Bash]", SETTINGS, 1), ("[Read, Bash]", NO_TREE_SETTINGS, 0),
+                                     ("[Read, Bash]", NO_TREE_SETTINGS.replace(scan.NO_TREE_WRITE, "."), 2),
+                                     ("[Read, Edit, Bash]", SETTINGS, 0)):
+            with self.subTest(tools=tools, settings=settings):
+                got = self.problems({PLAN: workflow("plan", role("r", tools, False, settings=settings))})
+                self.assertEqual(len(got), red, got)
+                self.assertTrue(all("denyWrite" in line for line in got), got)
+
+    def test_no_tree_write_names_the_isolated_archon_home(self):
+        """denyWrite の値 ~/../archon-home は、起動が隔離した HOME から解くと隔離した Archon の家そのものを指す"""
+        with tempfile.TemporaryDirectory() as tmp:
+            child = isolate.isolate({}, pathlib.Path(tmp))
+        resolved = os.path.normpath(scan.NO_TREE_WRITE.replace("~", child["HOME"], 1))
+        self.assertEqual(resolved, child["ARCHON_HOME"])
 
     def test_keep_checkout_roles_write_the_mark_with_a_changer_tool(self):
         """表 KEEP_CHECKOUT の役は変える道具を持っても書く（書かなければ赤）"""
