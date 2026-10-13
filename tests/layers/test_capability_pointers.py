@@ -1,11 +1,15 @@
-"""能力の棚卸し（docs/plans/2026-10-13-capabilities/）の「今」と「証」が、行番号でなく名で指し、その名が main に在る（#220）。
+"""能力の棚卸し（docs/plans/2026-10-13-capabilities/）の「今」と「証」と、較正の旗の表（tests/calibration/flags.json）の
+works-factory の節の why・never が、行番号でなく名で指し、その名が main に在る（#220・#315）。
 
 指しの形は棚卸しの README.md の「指しの形」: 今は `path::名`（関数・クラス・定数・`クラス.名`。YAML は節の id）、証は
-`path::Class.test_name`。行番号は試験や関数を 1 つ足すたびに関係の無い行までずれるので書かない。「元」は版を止めた今の works の
-`file:line` でずれないので照らさない。「要追加:」の後の名は、まだ無い名なので照らさない。
+`path::Class.test_name`。行番号は試験や関数を 1 つ足すたびに関係の無い行までずれるので書かない。「元」と旗の表の works の節は
+版を止めた今の works の `file:line` でずれないので照らさない。「要追加」から文の終わり（「。」か行の終わり）までの名は、まだ無い名
+なので照らさない。
 """
 import ast
+import collections
 import functools
+import json
 import pathlib
 import re
 import unittest
@@ -14,8 +18,6 @@ from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 INVENTORY = ROOT / "docs" / "plans" / "2026-10-13-capabilities"
-# 照らす欄はこれだけ（元・本物の run・狭めなどは照らさない）。pitfalls.md の「今の機械」は証と同じく試験を指す欄
-POINTING_FIELDS = ("今", "証", "今の機械")
 FIELD = re.compile(r"^  - ([^:：（(\s]+)")
 LINE_NUMBER = re.compile(r"\.(?:py|yaml):\d")
 # 名はハイフンも読む（YAML の節の id は `ask-final` の形。Python の名にハイフンは無いので、読めば無い名として赤になる）
@@ -23,7 +25,20 @@ POINTER = re.compile(r"(?<![\w./-])((?:[\w.-]+/)*[\w.-]+\.(?:py|yaml))::([A-Za-z
 # `path::名` の形に外れた指し（`::` の前後の欠け・1 つのコロン）。POINTER に合わない指しは名を照らされないので赤にする
 MALFORMED = re.compile(r"\.(?:py|yaml)::?(?!\d)")
 BARE_PATH = re.compile(r"(?<![\w./*-])((?:lib|bin|workflows|tests|docs)/[\w./-]*\.(?:py|yaml|md|json))(?![\w*-])")
-NOT_YET = "要追加"
+NOT_YET = re.compile(r"要追加[^。\n]*")
+# 照らす欄（元・本物の run・狭めなどは照らさない。pitfalls.md の「今の機械」は証と同じく試験を指す欄）と、ファイルごとの読めた
+# 指しの数の下限。1 つのファイルの欄の読み落とし（欄の頭の形の変わり）で他のファイルの数が保っても赤にする
+FIELD_FLOOR = {
+    "今": {"fix.md": 300, "gaps-fix.md": 70, "gaps-plan.md": 100, "judge.md": 170, "line.md": 330, "plan.md": 430,
+          "tail.md": 430},
+    "証": {"fix.md": 330, "gaps-fix.md": 50, "gaps-plan.md": 60, "judge.md": 160, "line.md": 320, "plan.md": 380,
+          "tail.md": 470},
+    "今の機械": {"pitfalls.md": 70},
+}
+FLAGS = ROOT / "tests" / "calibration" / "flags.json"
+FLAG_FACTORY = "works-factory"
+FLAG_FIELDS = ("why", "never")
+FLAG_FLOOR = 70
 
 
 def pointing_fields() -> list[tuple[str, str]]:
@@ -34,7 +49,7 @@ def pointing_fields() -> list[tuple[str, str]]:
         for no, line in enumerate(md.read_text(encoding="utf-8").splitlines(), 1):
             head = FIELD.match(line)
             if head:
-                current = [f"{md.name}:{no}", line] if head.group(1) in POINTING_FIELDS else None
+                current = [f"{md.name}:{no}", line] if head.group(1) in FIELD_FLOOR else None
                 if current:
                     found.append(current)
             elif current and line.startswith("    "):
@@ -44,9 +59,20 @@ def pointing_fields() -> list[tuple[str, str]]:
     return [(where, text) for where, text in found]
 
 
+def flag_fields() -> list[tuple[str, str]]:
+    """(flags.json:旗, 欄の字)。旗の表の works-factory の節の why・never"""
+    table = json.loads(FLAGS.read_text(encoding="utf-8"))[FLAG_FACTORY]
+    return [(f"{FLAGS.name}:{gate}", entry[f]) for gate, entry in table.items() for f in FLAG_FIELDS if f in entry]
+
+
+def present(text: str) -> str:
+    """「要追加」の文（まだ無い名）を外した字"""
+    return NOT_YET.sub("", text)
+
+
 def present_tense() -> list[tuple[str, str]]:
-    """(ファイル:行, 欄の字)。「要追加」より後ろは、まだ無い名なので外す"""
-    return [(where, text.split(NOT_YET, 1)[0]) for where, text in pointing_fields()]
+    """(どこ, 字)。棚卸しの欄は「要追加」の文を外し、旗の欄はそのまま"""
+    return [(where, present(text)) for where, text in pointing_fields()] + flag_fields()
 
 
 def pointers() -> list[tuple[str, str, str]]:
@@ -81,6 +107,10 @@ def yaml_node_ids(path: str) -> frozenset[str]:
     return frozenset(scan._top(node, "id").value for node in scan.nodes(ROOT, path))
 
 
+def exists(path: str, name: str) -> bool:
+    return (ROOT / path).is_file() and name in (yaml_node_ids(path) if path.endswith(".yaml") else python_names(path))
+
+
 def missing(want_tests: bool) -> list[str]:
     out = []
     for where, path, name in pointers():
@@ -88,17 +118,33 @@ def missing(want_tests: bool) -> list[str]:
             continue
         if not (ROOT / path).is_file():
             out.append(f"{where}: {path} が無い")
-        elif name not in (yaml_node_ids(path) if path.endswith(".yaml") else python_names(path)):
+        elif not exists(path, name):
             out.append(f"{where}: {path}::{name} が無い")
     return out
 
 
 class PointerCase(unittest.TestCase):
-    def test_reads_the_inventory(self):
-        self.assertGreater(len(pointers()), 500)
+    def test_reads_every_pointing_field(self):
+        read = collections.Counter((field, where.split(":")[0]) for where, text in pointing_fields()
+                                   for field in [FIELD.match(text).group(1)] for _ in POINTER.findall(present(text)))
+        floor = {(field, md): least for field, files in FIELD_FLOOR.items() for md, least in files.items()}
+        self.assertEqual({key: read[key] >= least for key, least in floor.items()}, dict.fromkeys(floor, True), read)
+        self.assertLessEqual(set(read), set(floor), read)
+
+    def test_no_present_name_hides_in_a_not_yet_sentence(self):
+        hidden = [f"{where}: {path}::{name}" for where, text in pointing_fields() for span in NOT_YET.findall(text)
+                  for path, name in POINTER.findall(span) if exists(path, name)]
+        self.assertEqual(hidden, [])
+
+    def test_names_after_the_not_yet_sentence_are_read(self):
+        text = "  - 証: a/b.py::Now。後は要追加: a/c.py::Later — まだ無い。今の形: a/d.py::Kept\n    a/e.py::Next"
+        self.assertEqual(POINTER.findall(present(text)), [("a/b.py", "Now"), ("a/d.py", "Kept"), ("a/e.py", "Next")])
+
+    def test_reads_the_flags(self):
+        self.assertGreaterEqual(len([where for where, _, _ in pointers() if where.startswith(f"{FLAGS.name}:")]), FLAG_FLOOR)
 
     def test_current_and_evidence_carry_no_line_numbers(self):
-        found = [f"{where}: {line.strip()}" for where, text in pointing_fields()
+        found = [f"{where}: {line.strip()}" for where, text in pointing_fields() + flag_fields()
                  for line in text.splitlines() if LINE_NUMBER.search(line)]
         self.assertEqual(found, [])
 
