@@ -37,6 +37,8 @@ import oneline
 import rolekit
 import startrec
 
+PREP_INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "depth", "answers", "units", "only_items", "baseline",
+               "prior_conflicts", "notes")   # prep の入力の字 raw の名（fix の節 prep と節 group-start が INPUTS_<名> で読む）
 TRACE_FILE = "trace.jsonl"
 ACCEPT_TRACE_FILE = "accept-trace.json"   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
@@ -482,9 +484,8 @@ NOT_DECLARED = ("修正役は済んだと言ったが、触ったファイルを
 
 
 def prep(folder, worktree, raw: dict, parsed, located) -> dict:
-    """入力の字 raw（{入力の名: 字}。start・judgment・plan・plan_review・ripple・depth・answers・units・only_items・baseline・
-    prior_conflicts・notes。無い名は空）を置き場 folder に写し、始めの記録（startrec.adopt。字のまま）・git が無視するファイルの控え・
-    始めの木を取り、組を作って返す（置く物と返りの形は fix の節 prep の docstring）。parsed は入力の字を値に戻す口（境の口の parsed）、
+    """入力の字 raw（{入力の名: 字}。名は PREP_INPUTS。無い名は空）を置き場 folder に写し、始めの記録（startrec.adopt。字のまま）・
+    git が無視するファイルの控え・始めの木を取り、組を作って返す（置く物と返りの形は fix の節 prep の docstring）。parsed は入力の字を値に戻す口（境の口の parsed）、
     located はポインタの入力の字を置き場の中のパスに戻す口（境の口の pointed）。どちらも null・空の字を None と読む。fix の節 prep と、単独の run の組の子の頭（節 group-start。ポインタは自分の run の物）が同じ写しを置くのに
     呼ぶ"""
     import baseline_red

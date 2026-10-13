@@ -29,14 +29,11 @@ import fixboard  # noqa: E402
 import oneline  # noqa: E402
 import writelog  # noqa: E402
 
-INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "depth", "answers", "units", "only_items", "baseline",
-          "prior_conflicts", "notes")
-
 
 
 def main() -> dict:
     writelog.open_here()
-    raw = {name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in INPUTS}
+    raw = {name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in fixboard.PREP_INPUTS}
     return fixboard.prep(boundary.place("fix"), boundary.work_tree(), raw, boundary.parsed, boundary.pointed)
 
 
