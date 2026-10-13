@@ -28,6 +28,12 @@ $prep.output.design_reply
 $prep.output.constraints_text
 リポジトリ: `$prep.output.cwd`
 
+テストの実測（機械が測った）:
+$prep.output.measured_text
+累積差分の起点（機械が測った）:
+$prep.output.origin_text
+作業ツリーが修正前の HEAD と違う所（上の「この run の直しの差分」が名指すファイル）は、この run の直しである。人に確かめる未コミットの変更ではないので、それを問いにして escalate しない。仮定の検算で作業ツリーと修正前の HEAD の違いに当たったら、それがこの run の直しか審査する変更（PR の差分）かを、上の訳で分けて読め。
+
 仮定（assumption）を特定し、実態で偽と示せたら assumption_false=true・verdict=resolved・resolution に示した事実・facts_to_add に制約へ足す実測（目的は動かさない。1 run は 1 周なので、この run では R2 を回し直さない。実測を制約に足して R2 を回し直すのは次の run で、台帳の行はその run の judge が回し直した R2 を見て resolved にするまで held で残る）。仮定が真か、根拠が目的テキストの内側で閉じていて実測で反証できないなら verdict=escalate——このときだけは残る仕事が全てその答えに従属するので、他の阻害要因に依らず止めて聞く。key は問いの一文（何を決めるか）。
 
 - 仮定が複数混じるとき: assumption に書くのは、R2 の「問いが立っていない」という結論を支えている仮定のうち、偽なら結論が崩れるもの 1 つ。偽と示せた仮定があっても、残りの仮定だけで結論が立つなら resolved にせず verdict=escalate とし、どれを偽と示し、どれが残ったかを reason に書く。

@@ -75,6 +75,7 @@ DESIGN_PREMISES = "design-premises.json"   # 独立設計の役に貼った物�
 R2_PREMISES = "r2-premises.json"           # 比較役に貼った物の控え（置き場。元 eyes.PREMISES_NAME）
 PREMISE_INPUTS = "premise-inputs.json"     # 最後の関所に出す R2 の前提の材料（元 eyes-exit.json の premise_inputs）
 GATE_PASSES = "r4-gate-passes.json"        # 人が通したので R4 の問いから外した行（元 state.works.gate_passes。事前審査の gatemarks.PASSES_FILE とは別の物）
+FIX_DIFF_ROW = "この run の直しの差分"   # 起点の訳の行の名（前提の検算の指示書 premise-check.md がこの名で行を指す）
 
 
 def r2_compare_due(design_doc: dict, purpose_text: str) -> bool:
@@ -350,8 +351,8 @@ def tdd_record_lines(stages: list) -> list[str]:
 
 def origin_section(repo, base: str, head: str, label: str, *, cumulative_empty: bool, skip=()) -> str:
     """R2 の比較役に貼る累積差分の起点の訳。起点 base（入口の差分の根）が修正前の HEAD head と同じ版か PR の根かを書き、PR の差分
-    （base → head）とこの run の直しの差分（head → 作業ツリー。fixboard.run_diff）で変わったファイルを分けて名指す。どちらも累積差分と
-    同じく除くパスの頭 skip の下は載せない。累積差分が空（cumulative_empty）なら、打ち消し合ったのか何も変えていないのかを分ける。
+    （base → head。fixboard.pr_diff）とこの run の直しの差分（head → 作業ツリー。fixboard.run_diff）で変わったファイルを分けて
+    名指す。どちらも累積差分と同じく除くパスの頭 skip の下は載せない。累積差分が空（cumulative_empty）なら、打ち消し合ったのか何も変えていないのかを分ける。
     label は入口が書いた起点の出どころの文"""
     import fixboard
     import leftovers
@@ -359,9 +360,8 @@ def origin_section(repo, base: str, head: str, label: str, *, cumulative_empty: 
     if not base:
         return "- 累積差分の起点が分からない（始めの記録に入口の base が無い）"
     try:
-        base_sha, head_sha = (unittrees._out(repo, "rev-parse", "--verify", f"{rev}^{{commit}}") for rev in (base, head))
-        pr_files = unittrees._out(repo, "diff", "--name-only", "--no-renames", base_sha, head_sha, "--",
-                                  *unittrees.pathspec_without(skip)).splitlines()
+        base_sha, head_sha = fixboard.pr_revs(repo, base, head)
+        pr_files = fixboard.pr_diff(repo, base_sha, head_sha, skip, "--name-only").splitlines()
         commits = int(unittrees._out(repo, "rev-list", "--count", f"{base_sha}..{head_sha}"))
         fix_files = changed_files(fixboard.run_diff(repo, head_sha, skip))
     except (unittrees.UnitTreeError, leftovers.Unreadable, ValueError) as e:
@@ -373,7 +373,7 @@ def origin_section(repo, base: str, head: str, label: str, *, cumulative_empty: 
         rows = [f"- 起点は PR の根 `{base_sha[:12]}`{where}で、修正前の HEAD `{head_sha[:12]}` との間に PR の commit が {commits} 個在る。"
                 "累積差分は PR の差分と直しの差分を合わせた物",
                 f"- PR の差分（起点 → 修正前の HEAD）で変わったファイル: {'、'.join(pr_files) or '無い'}"]
-    rows.append(f"- この run の直しの差分（修正前の HEAD → 作業ツリー）で変わったファイル: {'、'.join(fix_files) or '無い'}")
+    rows.append(f"- {FIX_DIFF_ROW}（修正前の HEAD → 作業ツリー）で変わったファイル: {'、'.join(fix_files) or '無い'}")
     if cumulative_empty:
         rows.append("- 累積差分が空なのは、PR の変更と直しが打ち消し合った（直しが PR の変更を元に戻した）から。何もしていないのではない"
                     if pr_files and fix_files else "- 累積差分が空なのは、PR も直しも何も変えていないから")
