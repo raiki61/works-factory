@@ -53,10 +53,12 @@
   planscope が読む）
 - ruled_test_limits(b, rulings=, source=, skip_ids=, base=)・parse_limit(lim): テストの変更の許し（承認済みの修正案の rewrite_tests と裁定
   fix_test_scope の範囲。test_permits）の範囲の文字列と、その 1 つの読み（TDD の輪の凍結が範囲の中の直しを通す）
-- human_lines(b): 最後の関所と報告に載せる ask_human の行（諦めた fix_plan_item の行も。末尾に案の直しの理由か、単位の直しの
-  在りか left_words を添える）
+- human_lines(b): 最後の関所と報告に載せる ask_human の行（諦めた fix_plan_item の行も。末尾に案の直しの理由と、単位の直しの
+  在りか place_words を添える）
+- fix_place(rows)・place_words(rows)・unit_rows(rows, key): 人に回した単位の直しの在りか（IN_DIFF・REVERTED・LEFT・KEPT）を単位の
+  行の全部から選ぶ 1 か所と、その言い方。関所の行・直す義務から外す理由・次の依頼・裁定へ回した理由はここから引く
 - mark_reverted(b, files, patch, pass_): 機械が files を段の頭へ戻した時、それを名指す query_hits_fixed の行のうち今の段
-  pass_ の受け付けが積んだ行（FILED_IN。直しが段の頭より後で、控えに移った）に控えの patch を置く（left_words が「直しは差分に
+  pass_ の受け付けが積んだ行（FILED_IN。直しが段の頭より後で、控えに移った）に控えの patch を置く（place_words が「直しは差分に
   在り」でなく控えを名指す。段の頭より前の行の直しは頭の木に在り、戻しても差分に残る）
 - 案の直しの状態（依頼 226。裁定 fix_plan_item の行の欄 REPLAN_STATE）: apply_rulings が WAITING に置き、set_replan の 1 か所だけが
   AMENDED（項目を直した。held_by_rulings が外さず直す義務に戻す）か GAVE_UP（諦めた。asked に入り ask_human の行として並ぶ）に
@@ -158,7 +160,8 @@ REPLAN_OP = "replan_state"              # trace の行 {id, unit_key, state, why
 AMENDED_PROMISE = ("案の項目そのものが誤りと裁いたが、同じ run で案を直して直す義務に戻った。直した項目（頭の brief）のとおりに"
                    "直し、この単位も changes に 1 行を書け")   # 裁定の文の AMENDED の行の約束（write_rulings）
 HELD_WORK_KEPT = "この run の修正の段で直した分は作業ツリーに残した"   # 諦めた行の直しの在りか（1 回目・2 回目の段のどちらで諦めても。約束・関所・次の依頼）
-# 人に回した単位の直しの在りか（left_words。関所と次の依頼の行）
+# 人に回した単位の直しの在りか（fix_place の種と place_words の言い方。関所と次の依頼の行）
+IN_DIFF, REVERTED, LEFT, KEPT = "in_diff", "reverted", "left", "kept"
 UNFIXED_LEFT = "直さずに残した"
 FIX_IN_DIFF = f"{fixboard.FIX_IN_DIFF_CORE}が人の決め待ち"
 FIX_REVERTED = UNFIXED_LEFT + "（戻した直しの控え {patch}）"
@@ -512,17 +515,17 @@ def held_by_rulings(b) -> dict:
     """直す義務から外す単位 {unit_key: 理由}。決まりは 1 つ: 直す裁定（FIX_DECISIONS）でない裁定は、それが外す単位（ruled_units。
     fix_plan_item は誤りと裁いた項目の単位の全部）を直させない（ask_human は最後の人の関所で人が決め、fix_plan_item は同じ
     run の中で案の項目を直すのを待つ）。案の項目を直した行（状態 AMENDED）は外さない（その単位は直す義務に戻る）。理由は
-    「<decision> の裁定 <id>」に、在れば案の項目を、ask_human の query_hits_fixed の行なら直しの在りか left_words を添える。
+    「<decision> の裁定 <id>」に、在れば案の項目を、ask_human の行で単位の直しの在りか（fix_place）が LEFT でなければ place_words を添える。
     1 単位に 2 つ当たれば DECISIONS の順で先の裁定の理由（並べ替えで決める）"""
     rank = {d: n for n, d in enumerate(DECISIONS)}
     rows = sorted((i for i in items(b) if decision(i) not in (None, *FIX_DECISIONS) and replan_state(i) != AMENDED),
                   key=lambda i: rank.get(decision(i), len(rank)))
-    out = {}
+    out, held = {}, asked(b)
     for i in rows:
         ru = i["ruling"]
         nums = ", ".join(map(str, ruled_items(i)))
         why = f"{ru['decision']} の裁定 {i.get('id') or '（id 無し）'}" + (f"（案の項目 {nums}）" if nums else "") \
-            + (f"・{left_words(i)}" if decision(i) == ASK and i.get(KIND_FIELD) == QUERY_HITS_FIXED else "")
+            + (f"・{place_words(mine)}" if decision(i) == ASK and fix_place(mine := unit_rows(held, i.get("unit_key"))) != LEFT else "")
         for k in ruled_units(i):
             out.setdefault(k, why)
     return out
@@ -947,20 +950,42 @@ def mark_reverted(b, files, patch: str, pass_: str) -> None:
         _save(b, doc)
 
 
-def left_words(row) -> str:
-    """人に回した申し出の行 row の単位の直しの在りか: query_hits_fixed は FIX_IN_DIFF（機械が名指しのファイルを戻した行は
-    FIX_REVERTED）、ほかは UNFIXED_LEFT"""
+def _row_place(row) -> str:
+    if row.get(REPLAN_WHY):
+        return KEPT
     if row.get(KIND_FIELD) != QUERY_HITS_FIXED:
-        return UNFIXED_LEFT
-    return FIX_REVERTED.format(patch=row[REVERTED_FIELD]) if row.get(REVERTED_FIELD) else FIX_IN_DIFF
+        return LEFT
+    return REVERTED if row.get(REVERTED_FIELD) else IN_DIFF
+
+
+def fix_place(rows) -> str:
+    """1 単位の人に回した行（か裁定へ回した行）の全部 rows から、その単位の直しの在りか: 案の直しを諦めた行は KEPT（直した分は
+    作業ツリーに残した）、query_hits_fixed は IN_DIFF（直してから申し出る。機械が名指しのファイルを戻した行は REVERTED）、ほかは
+    LEFT。行ごとの在りかが揃わなければ LEFT（直していない直しを差分に在ると言わない）"""
+    got = {_row_place(r) for r in rows}
+    return got.pop() if len(got) == 1 else LEFT
+
+
+def place_words(rows) -> str:
+    """fix_place の言い方（関所・報告・次の依頼・単位の結末の理由の字）"""
+    place = fix_place(rows)
+    if place == REVERTED:
+        return FIX_REVERTED.format(patch=next(r[REVERTED_FIELD] for r in rows if r.get(REVERTED_FIELD)))
+    return {IN_DIFF: FIX_IN_DIFF, LEFT: UNFIXED_LEFT, KEPT: HELD_WORK_KEPT}[place]
+
+
+def unit_rows(rows, key) -> list:
+    """rows のうち単位 key を外す行（ruled_units。裁いていない行は申し出の単位）"""
+    return [r for r in rows if key in ruled_units(r)]
 
 
 def human_lines(b) -> list:
     """最後の関所と報告に載せる ask_human の行（1 件 1 行。asked の行で、諦めた fix_plan_item も。裁定の文は字のまま。末尾の括弧に
-    REPLAN_WHY が在れば「・案の直し: <why>・<HELD_WORK_KEPT>」、無ければ直しの在りか「・<left_words>」）"""
+    REPLAN_WHY が在れば「・案の直し: <why>」と、行の単位の直しの在りか「・<place_words>」）"""
+    rows = asked(b)
     return [f"{r['unit_key']}: {r['ruling']['text']}（名指し {', '.join(r['between'])}・種類 {r.get(KIND_FIELD) or '無し'}・"
             f"正しいと見た側 {r[WHICH_FIELD]}・"
             + (f"依頼で探したこと {r['ruling']['request_searched']}・" if r["ruling"].get("request_searched") else "")
             + f"{r['id']}"
-            + (f"・案の直し: {r[REPLAN_WHY]}・{HELD_WORK_KEPT}" if r.get(REPLAN_WHY) else f"・{left_words(r)}")
-            + "）" for r in asked(b)]
+            + (f"・案の直し: {r[REPLAN_WHY]}" if r.get(REPLAN_WHY) else "")
+            + f"・{place_words(unit_rows(rows, r['unit_key']))}）" for r in rows]

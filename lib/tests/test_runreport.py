@@ -905,6 +905,21 @@ class CarryCase(Base):
         self.assertIn(conflict.FIX_IN_DIFF, text)
         self.assertNotIn(conflict.UNFIXED_LEFT, text)
 
+    def test_mixed_asked_unit_does_not_claim_its_fix_in_the_diff(self):
+        """#368: 1 単位に query_hits_fixed と unnamed_test_broke の人に回した行が混ざる時、次の依頼の行は関所の行と同じく
+        conflict.fix_place の 1 つの在りか（直さずに残した）を言い、先頭の行の種類で「差分に在る」と言わない"""
+        ask = {"decision": "ask_human", "text": "人が決める"}
+        rows = [{"unit_key": "u1", "between": ["判定:58", "stats.py:14"], "kind": conflict.QUERY_HITS_FIXED, "which_is_right": "query",
+                 "ruling": ask},
+                {"unit_key": "u1", "between": ["test_stats.py:3"], "kind": conflict.UNNAMED_TEST_BROKE, "which_is_right": "request",
+                 "ruling": ask}]
+        fix = {**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": rows})}
+        got, _, _ = self.build(fixed_run(fix=fix))
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        text = {r["where"]: r["text"] for r in doc["findings"]}["u1"]
+        self.assertIn(conflict.UNFIXED_LEFT, text)
+        self.assertNotIn(conflict.FIX_IN_DIFF, text)
+
     def test_objection_without_rejudge_is_carried(self):
         returns = fixed_run(fix={**fixed_run()["fix"], "objection": "判定が違う"})
         self.assertIn({"where": runreport.REJUDGE_LEFT_WHERE, "text": "判定が違う"}, self.next_request(returns, []))

@@ -1967,13 +1967,12 @@ def unit_outcomes(owed, reply, *, excused=None, parked=None, conflicted=None) ->
 
 
 def parked_reasons(place, keys) -> dict:
-    """裁定へ回した周の単位 keys の結末の理由 {key: 理由}: 裁かれていない申し出が query_hits_fixed だけの単位は QUERY_PARKED、
-    ほかは PARKED_FOR_RULING"""
+    """裁定へ回した周の単位 keys の結末の理由 {key: 理由}: 裁かれていない申し出から選んだ直しの在りか（conflict.fix_place）が
+    差分に在る単位は QUERY_PARKED、ほかは PARKED_FOR_RULING"""
     import conflict
-    kinds = {}
-    for i in conflict.unruled(place):
-        kinds.setdefault(i.get("unit_key"), set()).add(i.get(conflict.KIND_FIELD))
-    return {k: QUERY_PARKED if kinds.get(k) == {conflict.QUERY_HITS_FIXED} else PARKED_FOR_RULING for k in keys}
+    rows = conflict.unruled(place)
+    return {k: QUERY_PARKED if (mine := conflict.unit_rows(rows, k)) and conflict.fix_place(mine) == conflict.IN_DIFF
+            else PARKED_FOR_RULING for k in keys}
 
 
 def judge_query(place):

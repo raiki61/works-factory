@@ -354,6 +354,33 @@ class TestReplanState(unittest.TestCase):
         self.assertIn(conflict.UNFIXED_LEFT, left)
         self.assertNotIn(conflict.FIX_IN_DIFF, left)
 
+    def test_mixed_unit_is_one_place_for_every_reader(self):
+        """#368: 1 単位に query_hits_fixed とほかの種類の人に回した行が混ざる時、直しの在りかは conflict.fix_place の 1 つ（直していない
+        直しを差分に在ると言わない LEFT）で、関所の行・直す義務から外す理由・裁定へ回した理由が同じ事を言う"""
+        query = {**row("c1-1", CLAMP, "ask_human"), "which_is_right": "query", "kind": "query_hits_fixed",
+                 "correct_lines": ["        return lo"]}
+        broke = {**row("c1-2", CLAMP, "ask_human"), "kind": "unnamed_test_broke"}
+        b = fake_with_rows([query, broke])
+        self.assertEqual(conflict.fix_place([query, broke]), conflict.LEFT)
+        self.assertEqual(conflict.fix_place([query]), conflict.IN_DIFF)
+        self.assertEqual(conflict.fix_place([{**query, conflict.REVERTED_FIELD: "p.patch"}]), conflict.REVERTED)
+        self.assertEqual(conflict.fix_place([{**broke, conflict.REPLAN_WHY: "諦めた"}]), conflict.KEPT)
+        for line in conflict.human_lines(b):
+            with self.subTest(line):
+                self.assertIn(conflict.UNFIXED_LEFT, line)
+                self.assertNotIn(conflict.FIX_IN_DIFF, line)
+        self.assertNotIn(conflict.FIX_IN_DIFF, conflict.held_by_rulings(b)[CLAMP])
+        unruled = fake_with_rows([{**query, "ruling": None, "status": "parked"}, {**broke, "ruling": None, "status": "parked"}])
+        self.assertEqual(fixboard.parked_reasons(unruled.dir, [CLAMP]), {CLAMP: fixboard.PARKED_FOR_RULING})
+
+    def test_fix_place_is_chosen_in_one_place(self):
+        """#368: 直しの在りかを種類と控えの欄から選ぶのは conflict.fix_place だけ。読み手は fix_place・place_words を引き、欄を直に見ない"""
+        direct = re.compile(r"\bconflict\.(REVERTED_FIELD|FIX_IN_DIFF|UNFIXED_LEFT|FIX_REVERTED|left_words)\b|QUERY_HITS_FIXED\s*\}")
+        found = [f"{p.relative_to(LIB)}:{i}" for p in sorted(LIB.rglob("*.py"))
+                 if p.relative_to(LIB).parts[0] != "tests" and p.name != "conflict.py"
+                 for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if direct.search(line.split("#")[0])]
+        self.assertEqual(found, [])
+
     def test_bad_transition_is_board_gap(self):
         b = fake_with_rows([row("c1-1", MEAN, "fix_plan_item", state="gave_up"),
                             row("c1-2", CLAMP, "fix_plan_item", state="waiting"),

@@ -581,13 +581,14 @@ def _asked_rows(returns: dict, closed: bool) -> list:
         for k, r in oc.asked_units(returns, rows=oc.waiting_conflicts(returns)):
             out.append({"where": k, "text": f"{k}（{oc.PENDING_WHY}。裁定の文: {as_dict(r.get(conflict.RULING)).get('text') or ''}。"
                                             f"名指し {', '.join(str(x) for x in _list(r.get('between')))}。{conflict.HELD_WORK_KEPT}）"})
-    for k, r in oc.asked_units(returns, closed):
+    asked = oc.asked_conflicts(returns, closed)
+    for k, r in oc.asked_units(returns, closed, rows=asked):
         ruling = as_dict(r.get(conflict.RULING))
         why = r.get(conflict.REPLAN_WHY)
-        out.append({"where": k,   # 案の直しを諦めた行は、直しの在りかを left_words でなく HELD_WORK_KEPT で言う
-                    "text": f"{k}（{conflict.HEAD}を人に回した{'' if why else '——' + conflict.left_words(r)}。裁定の文: {ruling.get('text') or ''}。"
-                            f"名指し {', '.join(str(x) for x in _list(r.get('between')))}"
-                            + (f"。案の直し: {why}。{conflict.HELD_WORK_KEPT}" if why else "") + "）"})
+        out.append({"where": k,
+                    "text": f"{k}（{conflict.HEAD}を人に回した——{conflict.place_words(conflict.unit_rows(asked, k))}。"
+                            f"裁定の文: {ruling.get('text') or ''}。名指し {', '.join(str(x) for x in _list(r.get('between')))}"
+                            + (f"。案の直し: {why}" if why else "") + "）"})
     return out
 
 
