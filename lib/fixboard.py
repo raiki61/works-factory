@@ -1571,7 +1571,8 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
     writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
-    を持つ。無ければ None）、allowed_test_changes は reply の在る組（修正の輪の受け付けが通った組）の allowed_rows のパス、conflicts は
+    を持つ。無ければ None）、allowed_tests は reply の在る組（修正の輪の受け付けが通った組）だけ allowed_rows の行（無い組は []。join の和と親の collect の
+    allowed-tests.json・allowed_test_changes が同じ 1 つの決まりで読む。受け付けの行は accept_trace に残る）、allowed_test_changes はその行のパス、conflicts は
     置き場の申し出の行（conflict.items）。新しい"""
     import fixbeside
     gid = str(group["group_id"])
@@ -1579,13 +1580,13 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
     tdd = tdd if isinstance(tdd, dict) else {"ran": False, "suite": "", "reason": "", "units": []}
     rows = {u.get("unit_key"): u for u in tdd.get("units") or [] if isinstance(u, dict)}
     reply = reply if isinstance(reply, dict) else None
-    permits = [r for r in allowed_rows or [] if isinstance(r, dict)]
+    permits = [r for r in allowed_rows or [] if isinstance(r, dict)] if reply is not None else []
     return {"group_id": gid, "unit_ids": keys, "end_tree": end_tree, "start_tree": start_tree,
             "units": [_unit_row(k, fix_units or {}, rows) for k in keys], "tdd": tdd,
             "conflicts": [r for r in conflicts or [] if isinstance(r, dict)],
             "objection": objection([reply] if reply else []),
             "changed": changed_marks([{"changed": reply}] if reply else []), X_SCALARS: x_scalars([reply] if reply else []),
-            "allowed_test_changes": sorted({r["path"] for r in permits}) if reply is not None else [],
+            "allowed_test_changes": sorted({r["path"] for r in permits}),
             "allowed_tests": permits,
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
             "worktree": str(worktree or ""), "handoffs": handoff_lines([reply] if reply else []),

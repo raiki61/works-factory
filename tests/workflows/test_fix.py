@@ -946,7 +946,8 @@ class DeltaScriptsCase(unittest.TestCase):
             spec.loader.exec_module(module)
             return module
         collect = load(BLOCK / "scripts" / "collect.py", "fix_collect")
-        boundary = load(ROOT / "workflows" / ".shared" / "boundary.py", "boundary")
+        with mock.patch.object(sys, "path", [str(ROOT / "workflows" / ".shared"), *sys.path]):   # boundary は頭で skip_value を読む（単独で回しても落ちない）
+            boundary = load(ROOT / "workflows" / ".shared" / "boundary.py", "boundary")
         self.assertEqual((collect.LENSES_FILE, collect.ALLOWED_TESTS, collect.ACCEPT_TRACE),
                          (fixboard.LENSES_FILE, fixboard.ALLOWED_TESTS_FILE, fixboard.ACCEPT_TRACE_FILE))
         self.assertEqual(collect.NO_COLLECTOR, fixboard.LENS_NOT_DONE.format(why=collect.NO_COLLECTOR.partition(": ")[2]))
@@ -1827,6 +1828,25 @@ class BlockScriptsCase(unittest.TestCase):
                 self.assertEqual(out["delta_review"], {"rounds": 0, "pass": False})
                 self.assertTrue(out["done"], "組の子の done は審査に依らない")
 
+    def test_collect_takes_group_permits_by_the_join_rule(self):
+        """#286: 修正役の返答を受け付けていない組の子は、join の和にも親の collect の返りの allowed_test_changes・diff の隣の
+        allowed-tests.json にも許しを足さない。受け付けた組は両方に同じパスを足す"""
+        import fixboard
+        child = {"path": "test_extra.py", "permit": "plan-agreed-2", "source": "consult"}
+        for reply, paths, rows in ((None, [], []), ({"changes": []}, ["test_extra.py"], [child])):
+            with self.subTest(reply=reply):
+                __import__("shutil").rmtree(self.art, ignore_errors=True)
+                self.place.mkdir(parents=True)
+                gated = fixboard.group_result({"group_id": "g1", "unit_ids": ["A"]}, start_tree="", end_tree="", tdd=None,
+                                              reply=reply, allowed_rows=[child])
+                self.collect_place(result_extra={k: gated[k] for k in ("allowed_tests", "allowed_test_changes")})
+                code, out, err = _blk_run("collect", self.repo, self.art)
+                self.assertEqual(code, 0, err)
+                self.assertEqual(out["allowed_test_changes"], gated["allowed_test_changes"], "join の merge_one が足す和と同じ")
+                beside = (self.art / out["diff"]["path"]).parent / fixboard.ALLOWED_TESTS_FILE
+                self.assertEqual(json.loads(beside.read_text(encoding="utf-8")), gated["allowed_tests"])
+                self.assertEqual((gated["allowed_test_changes"], gated["allowed_tests"]), (paths, rows))
+
     def test_collect_allowed_test_changes_from_rulings_and_groups(self):
         """F429: 許したテストの変更（裁定 fix_test_scope の範囲・組の子が許した物）を返りの allowed_test_changes にパスで並べ、
         訳（許しの id と出どころ）を返りの diff の隣の allowed-tests.json に [{path, permit, source}] で置く（元
@@ -2495,7 +2515,8 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(result["reply_file"], str(self.place / "fix-reply.json"))
 
     def test_group_end_lists_allowed_tests_only_for_an_accepted_reply(self):
-        """受け付けが通らず fix-reply.json が無い組は、置き場に許しが在っても allowed_test_changes を空にする（許しの訳は載せる）"""
+        """受け付けが通らず fix-reply.json が無い組は、置き場に許しが在っても allowed_test_changes も許しの訳 allowed_tests も
+        空にする（#286。join の和と親の collect が同じ決まりで読む）。相談の 1 問 1 答の行は accept_trace に残る"""
         import conflict
         self._grp_run("group_start", "group-start")
         agreed = {"op": conflict.ASKED_OP, "id": 1, "item": "1", "status": "answered", "decision": "allow",
@@ -2504,7 +2525,8 @@ class GroupChildScriptsCase(unittest.TestCase):
         out = self._grp_run("group_end", "group-end")
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual((result["allowed_test_changes"], result["reply_file"]), ([], ""))
-        self.assertEqual([r["path"] for r in result["allowed_tests"]], ["test_stats.py"])
+        self.assertEqual(result["allowed_tests"], [])
+        self.assertEqual(result["accept_trace"], [{**agreed, "group_id": "g1"}])
 
     def test_refix_child_sees_the_first_pass_and_returns_only_its_rows(self):
         """L-W18・F023: 2 度目の修正の段の組の子は、親の置き場が写した 1 回目の段の申し出と裁定（印 prior_pass）を写して読み
@@ -2528,7 +2550,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual([r["id"] for r in result["conflicts"]], new)
 
     def test_group_end_carries_permits_mismatches_and_accept_notices_to_the_parent_collect(self):
-        """組の子の置き場の許しの訳（F429）・申告と数え直しが合わない単位（追記 00:00）・受け付けが選んだ試験の知らせ（F014）は
+        """修正役の返答を受け付けた組の子の置き場の許しの訳（F429）・申告と数え直しが合わない単位（追記 00:00）・受け付けが選んだ試験の知らせ（F014）は
         group-end が組の結果に載せ、親の collect が返りの diff の隣の allowed-tests.json・返りの mismatched・accept-trace.json に集める
         （組の子でだけ走る受け付けの知らせが親の diff の隣に届く）"""
         import conflict
@@ -2546,6 +2568,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         notice = {"op": "fix_tests_selected", "node": "fix-accept", "pass": "first", "attempt": 1,
                   "note": "選んだ試験が 0 件しか走らなかった", "ci_left": [], "final_left": [], "final_far": []}
         (self.place / fixboard.ACCEPT_TRACE_FILE).write_text(json.dumps([notice], ensure_ascii=False), encoding="utf-8")
+        (self.place / fixboard.FIX_REPLY_FILE).write_text(json.dumps({"changes": []}), encoding="utf-8")
         result = json.loads(pathlib.Path(self._grp_run("group_end", "group-end")["result_file"]).read_text(encoding="utf-8"))
         permit = {"path": "test_stats.py", "permit": f"{conflict.RULED_TEST_ID}-c1-1", "source": "ruling"}
         self.assertEqual(result["allowed_tests"], [permit])
