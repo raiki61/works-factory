@@ -39,7 +39,6 @@ rulebook.CANON = RULES / "common.md"
 fixrules.SHARED = rulebook.CANON
 fixrules.RULES_DIR = RULES
 ACCEPT = "fix-accept"            # 受け付けの節（拒否の理由のファイルの名）
-ANSWER_NODE = "consult-answer"   # 範囲の相談に答える役の節
 
 
 def main() -> dict:
@@ -57,7 +56,7 @@ def main() -> dict:
         return {"prompt_file": "", "go": False, "iteration": n}
     state, summary = fixboard.loop_files(place)
     got = fixrules.prep(place, repo, fixboard.fix_values(place, owed, start=start, state=state, summary=summary,
-                                                         answer_node=ANSWER_NODE),
+                                                         answer_node=fixrules.answer_node("first")),
                         "first", owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
                         reject_file=fixboard.rejects_file(place, ACCEPT, n - 1), lang=rolekit.lang_line(start),
                         green=tddloop.green_units(summary), shared=boundary.shared_cache())

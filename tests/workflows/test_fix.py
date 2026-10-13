@@ -388,6 +388,16 @@ class RolesCase(unittest.TestCase):
         for nid in ("delta-loop", "refix-loop", "review2-loop", "refix2-loop"):
             self.assertEqual(self.nodes[nid]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER, nid)
 
+    def test_answer_nodes_are_keyed_by_passes_and_name_nodes_here(self):
+        """#385: 段 → 範囲の相談に答える役の節は fixrules.PASSES を鍵にした表 1 つ。値はどれもこの YAML の節。表に無い段は例外"""
+        import fixrules
+        self.assertEqual(tuple(fixrules.ANSWER_NODES), fixrules.PASSES)
+        for pass_, nid in fixrules.ANSWER_NODES.items():
+            self.assertIn(nid, self.nodes, pass_)
+            self.assertEqual(fixrules.answer_node(pass_), nid)
+        with self.assertRaises(ValueError):
+            fixrules.answer_node("refix")
+
 
 class FilesCase(unittest.TestCase):
     def setUp(self):

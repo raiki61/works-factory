@@ -69,6 +69,7 @@ RULER_VALUES = ("conflicts_file", "ids", "judgment_file", "request_file", "polic
 CONFLICT_WHY = "（食い違いの申し出。緑にするために曲げない）"
 PASSES = ("first", "ruled")   # 修正役の 1 回目と、裁定の後の 2 回目（印 continue=fix の会話の続き）
 HEAD_FILES = dict(zip(PASSES, (fixboard.FIX_HEAD_FILE, fixboard.RULED_HEAD_FILE), strict=True))   # 段 → 段の頭の木の控え
+ANSWER_NODES = dict(zip(PASSES, ("consult-answer", "ruled-consult-answer"), strict=True))   # 段 → 範囲の相談に答える役の節
 RULED_TAIL = "-ruled.md"      # 2 回目の指示書の名の尾（1 回目の <名>.md の隣。輪の控えを分ける）
 RULINGS_LINE = ("食い違いの申し出への裁定を書いたファイル {path} を、先に Read で全部読め。裁定に従って直し、返答を丸ごと出し直せ"
                 "（裁定の文そのものはここに貼らない）")
@@ -485,6 +486,13 @@ def head_file(pass_: str) -> str:
     if pass_ not in HEAD_FILES:
         raise ValueError(f"段 {pass_!r} は {PASSES} のどれでもない")
     return HEAD_FILES[pass_]
+
+
+def answer_node(pass_: str) -> str:
+    """段 pass_ の範囲の相談に答える役の節（ANSWER_NODES）。PASSES に無い段は ValueError"""
+    if pass_ not in ANSWER_NODES:
+        raise ValueError(f"段 {pass_!r} は {PASSES} のどれでもない")
+    return ANSWER_NODES[pass_]
 
 
 def prep(b, repo, values: dict, pass_: str = PASSES[0], *, owed, withheld_by=None, returned=(), items=None, sources=None,
