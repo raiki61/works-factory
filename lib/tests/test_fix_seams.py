@@ -1032,6 +1032,21 @@ class FactchecksSeamCase(TempCase):
         self.assertEqual(self.fc.precheck(self.cfg, self.reply)["rejects"], [])
         self.assertTrue(self.fc.precheck(self.cfg, self.reply, items=[{**self.ITEM, "allowed_paths": ["stats.py"]}])["ok"])
 
+    def test_precheck_reads_the_fixer_tree_the_acceptance_reads(self):
+        """事前の確かめと受け付けは、修正役が変え始めた木（段の頭）を同じ所から読む: 段の頭より前に変わった stats.py を、
+        段の頭を見ない照らし（輪の凍った木に戻る）は修正役に問い、受け付けは問わない。その場面で 2 つの範囲の行が揃う（#332）"""
+        for pass_, name in (("first", fixboard.FIX_HEAD_FILE), ("ruled", fixboard.RULED_HEAD_FILE)):
+            with self.subTest(pass_=pass_):
+                (self.place / name).write_text(json.dumps({"tree": leftovers.snapshot(self.repo)}), encoding="utf-8")
+                args = (self.reply, [R_MEAN], self.place, self.rev, self.repo, "", pass_)
+                accepted, _ = self.fc.check_plan_scope(*args, ask=True, since=fixboard.stage_head(self.place, name),
+                                                       items=[self.ITEM])
+                headless, _ = self.fc.check_plan_scope(*args, ask=True, items=[self.ITEM])
+                self.assertNotEqual(headless, accepted, "2 つの木で照らしが食い違う場面")
+                got = self.fc.precheck({**self.cfg, "pass": pass_}, self.reply, items=[self.ITEM])
+                self.assertEqual([r["text"] for r in got["rejects"] if r["check"] == "scope"], accepted)
+                (self.place / name).unlink()
+
     def test_scope_head_follows_the_consult_place(self):
         import consult
         import planscope

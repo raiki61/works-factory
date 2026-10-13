@@ -2456,6 +2456,12 @@ def stage_head(place, name: str = "") -> str:
         return ""
 
 
+def fixer_head(place, pass_: str) -> str:
+    """修正役が変え始めた木（段 pass_ の頭の木。stage_head）。受け付け（fix-accept・fix-ruled-accept）と修正役の事前の確かめ
+    （factchecks.precheck）が since に渡す木はここ 1 か所から読む"""
+    return stage_head(place, RULED_HEAD_FILE if pass_ == "ruled" else FIX_HEAD_FILE)
+
+
 def ruled_owed(place) -> list:
     """裁定の後の修正の段（形 "" の置き場）の直す義務の値: 判定の直す義務の単位（group_owed）のうち、親の木へ戻せた組の単位で
     結末が fixed でない物（join.json。無ければ判定の直す義務の全部）"""

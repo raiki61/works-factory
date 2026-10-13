@@ -10,8 +10,8 @@ TDD の輪の状態 tdd-<k>/ を置く所）。返答の番号を名前に戻す
 - check_plan_scope: 承認済みの修正案の範囲（1d）。agreed は同じ。items は承認済みの修正案の項目（planmarks.approved_items の
   形の値か口。None は照らさない）。ask は拒否の頭で相談を先の道に言うか（None は consult_place の相談の控えで決める）
 - precheck(cfg, reply, items=, skip=): 修正役が sandbox の中の Bash で返答の前に回す事前の確かめ。上の 3 つ（凍結・書き込み・範囲）だけを、
-  試験を回さずに当てる（変更に当たる試験と事後の関門の束は受け付けだけ）。修正役の並べの枝の控え（fixlanes が書く）は repo が単位の
-  worktree で、since（枝の今の項目の頭の木。枝の支度が回ごとに書き直す）を持つ（枝の確かめと同じ照らし）。置き場は読むだけ。
+  試験を回さずに当てる（変更に当たる試験と事後の関門の束は受け付けだけ）。修正役が変え始めた木 since は受け付けと同じ口
+  （fixboard.fixer_head。置き場の段の頭の控え）から読む。置き場は読むだけ。
   範囲の相談の合意は、修正の輪の確かめの節が置き場の trace に書いた物（conflict.agreed）を受け付けと同じに読む。
   返り {ok, rejects: [{check, text}]}
 - place_items(place): 置き場の修正案の控え（plan-fields.json と凍結の印・p2.fix_plan.json・judgment.json）から承認済みの修正案の
@@ -150,8 +150,8 @@ def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: 
     （consult.offered。None なら言わない）。
     凍らせたファイルと実行器が作ったファイルは run の全部の輪の物（_loop_freeze・tddloop.suite_made_all）で、凍った後は一番後の
     輪の frozen_tree から見る（前の輪の後に 1 回目の段と後の輪が書いた物を、2 回目の修正役のせいにしない）。
-    since は修正役が変え始めた木（受け付けは段の頭、修正役の並べの枝（fixlanes）は枝の今の項目の頭。fixlanes は repo に単位の
-    worktree を渡す）: 欠けは版からの差分の全部で見て、修正役に問う外れと余分は since の後に変えた分（git の比べ）だけで見る（planscope.check。
+    since は修正役が変え始めた木（受け付けと事前の確かめは fixboard.fixer_head の段の頭）: 欠けは版からの差分の全部で見て、
+    修正役に問う外れと余分は since の後に変えた分（git の比べ）だけで見る（planscope.check。
     輪が直し終えた単位を修正役が変えずに返しても欠けにしない。同じ枝の前の項目が変えたファイルを、後の項目の out_of_scope で
     照らさない。run 97fd532f）。made は枝の実行器が作ったファイル"""
     b = board
@@ -206,11 +206,11 @@ def place_items(place):
 
 
 def precheck(cfg: dict, reply=None, *, items=None, skip: tuple = ()) -> dict:
-    """事前の確かめ（モジュールの頭）。cfg は相談の控え（consult.load_config。board・repo・pass・base_rev・tdd_state と、修正役の
-    並べの枝の控えなら since・log）。items は承認済みの修正案の項目（check_plan_scope）、skip は除くパスの頭（check_writes）"""
+    """事前の確かめ（モジュールの頭）。cfg は相談の控え（consult.load_config。board・repo・pass・base_rev・tdd_state と、在れば
+    書き込みの記録のファイル log）。修正役が変え始めた木は控えでなく置き場の段の頭（fixboard.fixer_head）。items は承認済みの修正案の項目（check_plan_scope）、skip は除くパスの頭（check_writes）"""
     board, repo = Path(cfg["board"]), Path(cfg["repo"])
     state, pass_, base_rev = cfg.get("tdd_state") or "", cfg.get("pass") or "first", cfg.get("base_rev") or ""
-    log, since = cfg.get("log") or None, cfg.get("since") or None   # 修正役の並べの枝の控え（fixlanes が書く）
+    log, since = cfg.get("log") or None, fixboard.fixer_head(board, pass_) or None
     reply = reply if isinstance(reply, dict) else {"changes": []}
     agreed = conflict.agreed(board)
     found = [("frozen", t) for t in check_frozen(board, state, repo, pass_ if pass_ in ("first", "ruled") else "first",
