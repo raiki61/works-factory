@@ -213,6 +213,20 @@ class OpenCase(Base):
             boardview.read_open(self.folder)
         self.assertIn("読めない指し札", str(cm.exception))
 
+    def test_open_place_does_not_guess_an_unread_form(self):
+        """#405: 材料の形 form が無いか知らない語なら、1 回目と推し量らず読めない（落ちた記録は置き場の根に訳つきで置く）"""
+        self.open()
+        doc = boardview.read_open(self.folder)
+        for form in (None, "lane"):
+            with self.subTest(form=form):
+                (self.folder / boardview.OPEN_FILE).write_text(
+                    json.dumps({**doc, "form": form} if form else {k: v for k, v in doc.items() if k != "form"}), encoding="utf-8")
+                with self.assertRaises(boardview.Missing):
+                    boardview.open_place(self.folder)
+                place, again, why = boardview.reads_place(self.folder)
+                self.assertEqual((place, again), (self.folder, False))
+                self.assertIn("form", why)
+
 
 class RulesCase(Base):
     def test_plan_review_output(self):

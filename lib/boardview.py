@@ -341,12 +341,15 @@ def pass_dir(folder, k: int) -> pathlib.Path:
 
 
 def open_place(folder) -> tuple:
-    """open_pass が置いた材料から (この差し込みの pass-<k>/, 形が replan か, 材料)。材料が読めない・k が整数でなければ Missing"""
+    """open_pass が置いた材料から (この差し込みの pass-<k>/, 形が replan か, 材料)。材料が読めない・k が整数でない・形が FORMS に
+    無ければ Missing"""
     inputs = read_open(folder)
     k = inputs.get("k")
     if not isinstance(k, int) or isinstance(k, bool):
         raise Missing(f"見え方の材料の k が整数でない: {k!r}")
-    return pass_dir(folder, k), inputs.get("form") == "replan", inputs
+    if inputs.get("form") not in FORMS:
+        raise Missing(f"見え方の材料の形 form が {'・'.join(FORMS)} のどれでもない: {inputs.get('form')!r}")
+    return pass_dir(folder, k), inputs["form"] == "replan", inputs
 
 
 def reads_place(folder) -> tuple:
@@ -514,6 +517,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
 
 
 DESIGN_FORM = "design"   # 直す物が無い周の差し込みの形（修正案を読まずに独立設計だけを作る。元 line_edge.plan_edge 1107-1119）
+FORMS = ("review", "replan", DESIGN_FORM)   # open_pass と open_design が材料に書く形
 DESIGN_ONLY_DIR = "design-only"   # 形 design の返りの置き場（事前審査の返答の代わりの空の控えと聞かずに通した行・関所の控え）
 DESIGN_ONLY_WHY = "直す物が無い周（判定が直す単位を出さなかったか、計画の直す義務が 0 件だった）——修正案も事前審査も無く、最後の R2 が要る独立設計だけを作った"
 
