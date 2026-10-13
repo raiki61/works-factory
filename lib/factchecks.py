@@ -216,7 +216,7 @@ def precheck(cfg: dict, reply=None, *, items=None, skip: tuple = ()) -> dict:
     found += [("writes", t) for t in wrote["problems"]]
     keys = [c.get("unit_key") for c in wrote["reply"].get("changes") or [] if isinstance(c, dict)]   # 返答は単位の名前で書く
     scope, _ = check_plan_scope(wrote["reply"], keys, board, base_rev, repo, state,
-                                pass_ if pass_ in ("first", "ruled") else "first", agreed=agreed, ask=True, since=since,
+                                pass_, agreed=agreed, ask=True, since=since,
                                 items=items)
     found += [("scope", t) for t in scope]
     return {"ok": not found, "rejects": [{"check": c, "text": t} for c, t in found]}
