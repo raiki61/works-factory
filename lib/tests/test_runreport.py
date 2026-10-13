@@ -1001,6 +1001,18 @@ class LedgerCase(Base):
         self.assertEqual(state["held"], [])
         self.assertEqual(len(state["answered"]), 1)
 
+    def test_question_held_at_the_gate_stays_a_decision(self):
+        """通す語の答えでも一言が「保留: <key>」と名指した事前審査の問いは答えていないので、修正前の問いに数え、答えた問いの行に出さない"""
+        returns = self.returns(FORK, review=[gatemarks.ask_text(FORK)])
+        for decision in ("continue", "approve"):
+            with self.subTest(decision=decision):
+                gate = {"decision": decision, "text": f"保留: {FORK['key']}", "asked": [gatemarks.ask_text(FORK)]}
+                _, text, _ = self.build(returns, gates={"gate-before-fix": gate})
+                self.assertIn("修正前の問い 1 件", text.splitlines()[3])
+                body = self.section(text, report.DECISIONS_HEADING)
+                self.assertIn("- 修正前の問い: 1 件\n", body)
+                self.assertNotIn(runreport.GATE_ANSWERED_HEAD, body)
+
     def test_unread_hold_is_named_in_the_head(self):
         """P238・L-G31: 修正前の関所の答えの文が「保留: q-typo」（台帳の key を拾えない）の時、報告の冒頭に「読めなかった保留」の行が
         在り、問いは答えたものとして扱う（直す義務は変えない）"""
