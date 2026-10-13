@@ -916,6 +916,22 @@ class PremisesCase(_RepoCase):
         (self.repo / "__pycache__" / "m.cpython-312.pyc").write_bytes(b"\0")
         self.assertTrue(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"])
 
+    def test_caches_left_by_an_earlier_run_do_not_tighten_the_check(self):
+        """入口の前から在ったキャッシュのフォルダ（CACHEDIR.TAG を置いた物。後片付けは前から在った物を消さない）が入口の写しに
+        入っていても、測って出来たキャッシュは数えない。キャッシュ以外の変更は今までどおり拒む"""
+        cache = self.repo / ".test_cache"
+        cache.mkdir()
+        (cache / ".gitignore").write_text("*\n", encoding="utf-8")
+        (cache / core_accept.CACHEDIR_TAG).write_bytes(core_accept.CACHEDIR_SIGNATURE + b"\n")
+        start = {"base_rev": self.head, "input": {"base": {"rev": self.head}, "diff": {"empty": False}, "requests": 0}}
+        self.assertTrue(ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "")["go"])
+        (cache / "lastfailed").write_text("{}\n", encoding="utf-8")
+        (self.repo / "__pycache__").mkdir()
+        (self.repo / "__pycache__" / "m.cpython-312.pyc").write_bytes(b"\0")
+        self.assertTrue(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"])
+        (self.repo / "out.txt").write_text("測った出力\n", encoding="utf-8")
+        self.assertFalse(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"])
+
 
 # ================================================================ 目的
 class PurposeCase(_RepoCase):
@@ -1210,10 +1226,11 @@ class MaterialCase(_RepoCase):
             (d / "__pycache__").mkdir(parents=True, exist_ok=True)
             (d / "__pycache__" / "stats.cpython-312.pyc").write_bytes(b"\0")
         cache = self.repo / ".pytest_cache"
-        (cache / "v" / "cache").mkdir(parents=True)
+        (cache / "v" / "cache").mkdir(parents=True, exist_ok=True)
         (cache / ".gitignore").write_text("*\n", encoding="utf-8")
         (cache / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55\n", encoding="utf-8")
-        (cache / "v" / "cache" / "lastfailed").write_text("{}\n", encoding="utf-8")
+        with (cache / "v" / "cache" / "lastfailed").open("a", encoding="utf-8") as fh:
+            fh.write("{}\n")
 
     def test_test_caches_made_by_a_peer_role_are_not_counted(self):
         """issue #270: テストを回してできたキャッシュ（__pycache__/・.pytest_cache/）では、素材集めの役の返答を拒まない。
@@ -1225,10 +1242,32 @@ class MaterialCase(_RepoCase):
                 if already:
                     (self.repo / "__pycache__").mkdir()
                     (self.repo / "__pycache__" / "old.cpython-312.pyc").write_bytes(b"\0")
+                    self.make_test_caches()
                 self.view()
                 self.make_test_caches()
                 got = ja.material_take(self.jdir, "provenance", reply, self.repo)
                 self.assertTrue(got["ok"], got)
+
+    def test_caches_inside_an_ignored_folder_are_not_counted(self):
+        """丸ごと無視されるフォルダ（.venv/。git は `.venv/` の 1 本に畳む）の中に出来たキャッシュも数えない。同じフォルダの中の
+        キャッシュでない物が増えれば今までどおり拒む"""
+        reply = {"material": {"status": "clean", "checked": "x"}, "claims": []}
+        for extra, ok in ((None, True), ("added.py", False)):
+            with self.subTest(extra=extra):
+                self.setUp()
+                (self.repo / ".gitignore").write_text(".venv/\n", encoding="utf-8")
+                gitkit.git(self.repo, "add", ".gitignore")
+                gitkit.git(self.repo, "commit", "-q", "-m", "ignore")
+                pkg = self.repo / ".venv" / "lib" / "yaml"
+                pkg.mkdir(parents=True)
+                (pkg / "__init__.py").write_text("x = 1\n", encoding="utf-8")
+                self.view()
+                (pkg / "__pycache__").mkdir()
+                (pkg / "__pycache__" / "__init__.cpython-312.pyc").write_bytes(b"\0")
+                if extra:
+                    (pkg / extra).write_text("y = 2\n", encoding="utf-8")
+                got = ja.material_take(self.jdir, "provenance", reply, self.repo)
+                self.assertEqual(got["ok"], ok, got)
 
     def test_real_changes_beside_test_caches_still_rejected(self):
         """issue #270 の不変条件: キャッシュを除いても、追跡しているファイル・HEAD・枝・キャッシュ以外の無視されるファイルを

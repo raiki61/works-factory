@@ -102,10 +102,18 @@ class TestSnapshot(AcceptCase):
         self.assertNotEqual(before["diff_sha256"], snapshot_tree(self.repo)["diff_sha256"])
 
 
+    def test_cachedir_tag_marks_a_cache_folder(self):
+        """CACHEDIR.TAG の頭が決まった字のフォルダの下はキャッシュ。字の違う印・印の無い隣のフォルダはキャッシュでない"""
+        for d, tag in (("c", accept.CACHEDIR_SIGNATURE + b"\n"), ("w", b"Signature: wrong\n"), ("n", None)):
+            (self.repo / d / "sub").mkdir(parents=True)
+            if tag is not None:
+                (self.repo / d / accept.CACHEDIR_TAG).write_bytes(tag)
+        self.assertEqual([n for n in ("c", "c/", "c/sub/x", "w/sub/x", "n/x", "cx/y") if accept._is_cache(self.repo, n)],
+                         ["c", "c/", "c/sub/x"])
+
     def test_test_cache_pathspec_agrees_with_predicate(self):
         """差分を測る pathspec（_NO_TEST_CACHE）と未追跡を落とす _is_test_cache が同じ物を除く"""
-        names = ["__pycache__", "a/__pycache__", "b/__pycache__/x.py", "c.pyc", "d/e.pyc", "ok.py", "x/__pycache__y/z.py",
-                 ".pytest_cache", "f/.pytest_cache/v/cache/lastfailed", "g/.pytest_cache_x/y.txt"]
+        names = ["__pycache__", "a/__pycache__", "b/__pycache__/x.py", "c.pyc", "d/e.pyc", "ok.py", "x/__pycache__y/z.py"]
         for name in names:
             (self.repo / name).parent.mkdir(parents=True, exist_ok=True)
             (self.repo / name).write_text("1\n", encoding="utf-8")

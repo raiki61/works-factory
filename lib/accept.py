@@ -4,7 +4,7 @@
 - snapshot_tree: 作業ツリーの写し（git が無視するファイルも入れる。index の印に隠れた物も入れる。tree_state の土台）
 - tree_state・tree_change・tree_moved: 読むだけの役（blk-pr・blk-ci・entry.take・rejudge.take）を起こす前後の作業ツリーの姿
                  （snapshot_tree に HEAD・枝を足した物）と、その違いの文（R47）。
-                 caches=False はテストのキャッシュ（_is_test_cache）を姿から除く（測るためにコマンドを走らせる実測役・テストを回しうる素材集めの役の見張り）
+                 caches=False はテストのキャッシュ（_is_cache）を姿から除く（測るためにコマンドを走らせる実測役・テストを回しうる素材集めの役の見張り）
 - guard・in_repo・resolve_rev・read_board・write_board・type_errors: 受け付けの部品の公開の名（ブロックのモジュールの受け付けが使う）
 - touched_files: 修正が触ったファイル（テストのキャッシュは除く。index の印に隠れた物も入れる。protect が数える）
 - flag_free_env: 本物の index の assume-unchanged・skip-worktree の印を外して git に作業ツリーを見せる env（protect も使う。
@@ -127,12 +127,13 @@ write_board = _write_board
 type_errors = _type_errors
 
 
-def _entry_digest(p: pathlib.Path, racy_after=None, marks=None) -> bytes:
+def _entry_digest(p: pathlib.Path, racy_after=None, marks=None, *, caches: bool = True) -> bytes:
     """未追跡の 1 本の sha256。symlink はリンク先の名前、ファイルは中身、フォルダ（入れ子の git リポジトリは
     git が `sub/` の 1 行で出す）は中の全部の名前と印を名前の順に続けた物（.git の下は除く）。それ以外（FIFO など）は種類だけ。
     marks（1 つの要素の list）を渡すと、ファイルは中身を読まず stat の印（mode・大きさ・mtime_ns・ino。git の index と
     同じ考え——git の Documentation/technical/racy-git.txt）にし、見た mtime_ns の最大を marks[0] に入れる。ただし
-    mtime_ns が racy_after より後（写した時刻に近すぎて、同じ大きさの素早い書き換えを印で見分けられない）のファイルは中身も足す"""
+    mtime_ns が racy_after より後（写した時刻に近すぎて、同じ大きさの素早い書き換えを印で見分けられない）のファイルは中身も足す。
+    caches=False はフォルダの中のテストのキャッシュ（_is_cache）を辿らない"""
     if p.is_symlink():
         return hashlib.sha256(b"link\0" + os.fsencode(os.readlink(p))).digest()
     if p.is_file():
@@ -147,23 +148,24 @@ def _entry_digest(p: pathlib.Path, racy_after=None, marks=None) -> bytes:
     if p.is_dir():
         h = hashlib.sha256(b"dir\0")
         for top, dirs, files in os.walk(p):
-            dirs[:] = sorted(d for d in dirs if d != ".git")
-            for name in sorted(files) + [d for d in dirs if os.path.islink(os.path.join(top, d))]:
+            dirs[:] = sorted(d for d in dirs if d != ".git" and (caches or not _is_cache(top, d)))
+            for name in sorted(f for f in files if caches or not _is_test_cache(f)) + \
+                    [d for d in dirs if os.path.islink(os.path.join(top, d))]:
                 q = pathlib.Path(top) / name
                 h.update(os.fsencode(str(q.relative_to(p))) + b"\0" + _entry_digest(q, racy_after, marks))
         return h.digest()
     return hashlib.sha256(b"other\0" if p.exists() else b"gone\0").digest()
 
 
-def _ignored_digests(repo, names) -> list:
+def _ignored_digests(repo, names, *, caches: bool = True) -> list:
     """git が無視するパス（names）ごとの印（_entry_digest の stat の印。無視されるフォルダ——.venv・node_modules など——は
     大きいので中身を読まない）。写す時刻から RACY_NS 以内に書かれたファイルが在れば、その書き込みから RACY_NS 過ぎるまで
     （上限 RACY_NS）待って印を取り直す。待った後の書き換えは、時刻の細かさ（最大でも 2 秒）を越えて mtime が変わるので、
-    印だけで見分けられる。待っても近い物（時計が進んだ mtime）は、racy として中身も足す"""
+    印だけで見分けられる。待っても近い物（時計が進んだ mtime）は、racy として中身も足す。caches は _entry_digest と同じ"""
     for attempt in range(2):
         racy_after = time.time_ns() - RACY_NS
         marks = [0]
-        digests = [_entry_digest(repo / name.rstrip("/"), racy_after, marks) for name in names]
+        digests = [_entry_digest(repo / name.rstrip("/"), racy_after, marks, caches=caches) for name in names]
         if marks[0] <= racy_after or attempt:
             return digests
         time.sleep(min(marks[0] - racy_after, RACY_NS) / 1e9 + 0.01)
@@ -221,10 +223,13 @@ def _porcelain_path(line: str) -> str:
     return path[1:-1] if len(path) >= 2 and path[0] == path[-1] == '"' else path
 
 
-# テストを走らせただけで出来るキャッシュ（_is_test_cache）。読むだけの役が対象のテストを回して作っても、修正でも作業ツリーの
-# 変更でもない
-TEST_CACHE_DIRS = ("__pycache__", ".pytest_cache")
+# テストを走らせただけで出来るキャッシュ（_is_cache）。読むだけの役が対象のテストを回して作っても、修正でも作業ツリーの
+# 変更でもない。名で見分ける物（_is_test_cache）と、キャッシュのフォルダの印 CACHEDIR.TAG（事実上の標準 Cache Directory Tagging
+# Specification。https://bford.info/cachedir/ ——頭が CACHEDIR_SIGNATURE の字）を置いたフォルダの下の物
+TEST_CACHE_DIRS = ("__pycache__",)
 TEST_CACHE_SUFFIXES = (".pyc",)
+CACHEDIR_TAG = "CACHEDIR.TAG"
+CACHEDIR_SIGNATURE = b"Signature: 8a477f597d28d172789f06886806bc55"
 # git の pathspec で _is_test_cache と同じ物を除く（試験で縛る）。__pycache__ という名のファイルは /** の形では除けず、
 # 中身は /** の無い形では除けないので両方要る
 _NO_TEST_CACHE = (":(top)", *(f":(top,exclude,glob)**/*{s}" for s in TEST_CACHE_SUFFIXES),
@@ -240,8 +245,9 @@ def snapshot_tree(repo: pathlib.Path, *, caches: bool = True) -> dict:
     diff_sha256 は HEAD からの差分（--binary）と、未追跡のファイルの名前と中身・無視されるパスの名前と stat の印
     （_ignored_digests。中身は読まない）を続けた sha256——名前が同じまま中身だけ変わっても違う値になる。フォルダ（入れ子の
     git リポジトリ・無視されるフォルダ）は中を辿って続ける（_entry_digest）。git が効かなければ Reject を投げる。
-    caches=False はテストのキャッシュ（_is_test_cache。TEST_CACHE_DIRS の下と .pyc）を porcelain・差分・未追跡・無視されるパスの
-    どれからも除く（測るために試験を走らせる役が作る物を変化に数えない。修正の差分の側の touched_files と同じ定義）"""
+    caches=False はテストのキャッシュ（_is_cache。TEST_CACHE_DIRS の下と .pyc、CACHEDIR.TAG を置いたフォルダの下）を porcelain・
+    未追跡・無視されるパスと、それらのフォルダの中から除く（測るために試験を走らせる役が作る物を変化に数えない）。差分は名で見分ける
+    物（_NO_TEST_CACHE）だけを除く"""
     repo = pathlib.Path(repo)
     with flag_free_env(repo) as env:
         porcelain = _git(repo, "status", "--porcelain", "--untracked-files=all", env=env)
@@ -249,15 +255,15 @@ def snapshot_tree(repo: pathlib.Path, *, caches: bool = True) -> dict:
                     binary=True, env=env)
     porcelain = "".join(f"{ln}\n" for ln in porcelain.splitlines()
                         if not (ln.startswith("?? ") and _cli_owned(_porcelain_path(ln)))
-                        and (caches or not _is_test_cache(_porcelain_path(ln))))
+                        and (caches or not _is_cache(repo, _porcelain_path(ln))))
     h = hashlib.sha256(diff)
     for name in sorted(n for n in _git(repo, "ls-files", "--others", "--exclude-standard", "-z", binary=True).split(b"\0") if n):
-        if (not caches and _is_test_cache(os.fsdecode(name))) or _cli_owned(os.fsdecode(name)):
+        if (not caches and _is_cache(repo, os.fsdecode(name))) or _cli_owned(os.fsdecode(name)):
             continue
         p = repo / os.fsdecode(name).rstrip("/")
-        h.update(b"\0untracked\0" + name + b"\0" + _entry_digest(p))
-    ignored = [n for n in _ignored_entries(repo) if caches or not _is_test_cache(n)]
-    for name, digest in zip(ignored, _ignored_digests(repo, ignored)):
+        h.update(b"\0untracked\0" + name + b"\0" + _entry_digest(p, caches=caches))
+    ignored = [n for n in _ignored_entries(repo) if caches or not _is_cache(repo, n)]
+    for name, digest in zip(ignored, _ignored_digests(repo, ignored, caches=caches)):
         h.update(b"\0ignored\0" + os.fsencode(name) + b"\0" + digest)
     return {"porcelain": porcelain, "ignored": ignored, "diff_sha256": h.hexdigest()}
 
@@ -379,8 +385,24 @@ def flag_free_env(repo):
 
 
 def _is_test_cache(name: str) -> bool:
-    """テストのキャッシュ（TEST_CACHE_DIRS の下か TEST_CACHE_SUFFIXES の名）。テストを走らせただけで出来る物で、修正ではない"""
+    """名で見分けるテストのキャッシュ（TEST_CACHE_DIRS の下か TEST_CACHE_SUFFIXES の名）。テストを走らせただけで出来る物で、修正ではない"""
     return name.endswith(TEST_CACHE_SUFFIXES) or any(d in TEST_CACHE_DIRS for d in name.rstrip("/").split("/"))
+
+
+def _tagged(d) -> bool:
+    """フォルダ d に CACHEDIR.TAG（頭が CACHEDIR_SIGNATURE）が在るか"""
+    try:
+        with open(os.path.join(d, CACHEDIR_TAG), "rb") as fh:
+            return fh.read(len(CACHEDIR_SIGNATURE)) == CACHEDIR_SIGNATURE
+    except OSError:
+        return False
+
+
+def _is_cache(root, name: str) -> bool:
+    """root からのパス name がテストのキャッシュか: 名で見分ける物（_is_test_cache）か、name かその上のフォルダ（root の下）に
+    CACHEDIR.TAG が在る物"""
+    parts = name.rstrip("/").split("/")
+    return _is_test_cache(name) or any(_tagged(os.path.join(root, *parts[:i])) for i in range(1, len(parts) + 1))
 
 
 def _touched(repo, rev) -> tuple:

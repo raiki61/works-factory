@@ -1090,9 +1090,9 @@ def _tree_snapshot(path):
     return {k: snap[k] for k in core_accept.TREE_KEYS}
 
 
-def _caches_in(snap: dict) -> bool:
-    return any(core_accept._is_test_cache(core_accept._porcelain_path(ln)) for ln in snap["porcelain"].splitlines()) \
-        or any(core_accept._is_test_cache(n) for n in snap["ignored"])
+def _caches_in(snap: dict, repo) -> bool:
+    return any(core_accept._is_cache(repo, core_accept._porcelain_path(ln)) for ln in snap["porcelain"].splitlines()) \
+        or any(core_accept._is_cache(repo, n) for n in snap["ignored"])
 
 
 def _moved_since(path, repo, *, caches: bool = True, keys=core_accept.TREE_KEYS) -> list:
@@ -1102,7 +1102,7 @@ def _moved_since(path, repo, *, caches: bool = True, keys=core_accept.TREE_KEYS)
     snap = _tree_snapshot(path)
     if snap is None:
         raise Reject(f"作業ツリーの写し {path} が無い——役を起こす前の作業ツリーと比べられない（写しを置くノードが先に走る）")
-    return core_accept.tree_moved(snap, pathlib.Path(repo), caches=caches or _caches_in(snap), keys=keys)
+    return core_accept.tree_moved(snap, pathlib.Path(repo), caches=caches or _caches_in(snap, repo), keys=keys)
 
 
 def _tree_unchanged(jdir, repo, rule: str, name: str, *, caches: bool = True, rev: str = "",
@@ -3134,7 +3134,7 @@ def spec_answer(jdir, root, raw) -> dict:
         why = "仕様を固められない: " + "; ".join(got["problems"])
         write_stop(jdir, SPEC_STOP, why)
         return {"go": False, "reason": why}
-    snap_tree(jdir, TREE_FILE, root)   # 仕様の役が書いた受け入れテストを、後ろの読むだけの役が変えた物と数えない
+    snap_tree(jdir, TREE_FILE, root, caches=False)   # 仕様の役が書いた受け入れテストを、後ろの読むだけの役が変えた物と数えない
     return {"go": True, "reason": ""}
 
 
@@ -3541,7 +3541,7 @@ def prcheck_take(jdir, reply, repo) -> dict:
     if posted:
         return {"ok": False, "reason": NO_POST + ", ".join(posted)}
     try:
-        moved = _moved_since(jdir / TREE_FILE, repo)
+        moved = _moved_since(jdir / TREE_FILE, repo, caches=False)
     except Reject as e:
         return {"ok": False, "reason": str(e)}
     head = _tree_snapshot(jdir / TREE_FILE)["head"]
@@ -3678,7 +3678,7 @@ START_FILE = "start.json"          # 始めの記録を既定の値で読んだ�
 INTAKE_FILE = "intake.json"        # 入口の返り {go, mode, spec, world, verify, reason}
 REQUEST_FILE = "request.json"      # 依頼の行（check_request が通した物。仕様の段が受け入れ条件の行を積む）
 CARRIED_FILE = "carried-constraints.json"   # 依頼が運んだ前の run の前提の検算の実測（carry.CONSTRAINTS の行。check_premises が制約に足す）
-TREE_FILE = "judge-tree.json"      # 入口の時（仕様の段が在れば承認の後）の作業ツリーの姿（accept.tree_state）。並行 PR と前提の受け付けが比べる
+TREE_FILE = "judge-tree.json"      # 入口の時（仕様の段が在れば承認の後）の作業ツリーの姿（accept.tree_state。テストのキャッシュを除く）。並行 PR と前提の受け付けが比べる
 STOP_FILE = "stop.json"            # 止めの控え {stop_reason, reason}。最初に止めた節の物だけ残す
 DEFAULT_FEATURES_CUT = ["judge_verify"]   # 今の works の入口の既定（判定の裏取りは既定で切）
 
@@ -3772,7 +3772,7 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None
         write_json(jdir / REQUEST_FILE, rows)
         write_json(jdir / CARRIED_FILE, container[carry.CONSTRAINTS])
         carry.place_prior(jdir, [*container[carry.PRIOR], *prior_of(prior)])
-        snap_tree(jdir, TREE_FILE, repo)
+        snap_tree(jdir, TREE_FILE, repo, caches=False)
     except (ValueError, OSError, Reject) as e:
         reason = " ".join(str(e).split())
         write_stop(jdir, REQUEST_STOP, reason)
