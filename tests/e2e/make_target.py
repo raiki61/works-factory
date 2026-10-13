@@ -5,7 +5,8 @@
   python3 tests/e2e/make_target.py teardown                  控えの家ごとに、終わっていない run を止めて控えから消す
   python3 tests/e2e/make_target.py stop <試みのフォルダ>      その試みの家の終わっていない run だけを止める（控えを見ない）
 
-約束は docs/plans/2026-10-13-stage1-walking-skeleton.md の「対象の作り方」。試みのフォルダはリポジトリの外に置き、作業ツリーには
+約束は docs/plans/2026-10-13-stage1-walking-skeleton.md の版 bee02ce2 の「対象の作り方」（今の版から消え、issue #101 が
+この版を正本として指す）。試みのフォルダはリポジトリの外に置き、作業ツリーには
 何も書かない。控えは、この checkout の git の私用の置き場（git rev-parse --git-dir の下）に置くので、同じ機械のほかの checkout の
 控えには触らない。種と依頼の既定は target-seed/ とその中の request_ok.json で、較正のランナー tests/calibration/run.py は
 仕込んだ種と依頼を渡す。--no-ledger は控えに載せない（teardown が今の works の家に works-factory の殻を当てないため。同じ checkout
