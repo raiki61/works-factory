@@ -7,7 +7,8 @@ works-factory の節の why・never が、行番号でなく名で指し、そ�
 なので照らさない。
 
 tail.md の各領域の穴の「数」と末尾の「穴の要約」は、README.md の「穴の数え方」のとおり行の欄から数えた今の値で、要約は各領域の
-数の足し算（#336・#339）。狭めの並びは欄を読んで人が選ぶので、数と並びの長さと要約の足し算だけを照らす。
+数の足し算（#336・#339）。狭めの並びは欄を読んで人が選ぶので、数と並びの長さ・並びの ID がその領域の行に在ること・
+要約の足し算だけを照らす。
 """
 import ast
 import collections
@@ -218,7 +219,7 @@ class PointerCase(unittest.TestCase):
                         continue
                     ids = listed.split("・") if listed else []
                     self.assertEqual(number, len(ids), name)
-                    self.assertLessEqual(set(ids), set(rows), name)
+                    self.assertLessEqual(set(ids), {key for key in rows if key[0] == area}, name)
                     if name in COUNTED:
                         self.assertEqual(ids, [key for key, row in rows.items() if key[0] == area and COUNTED[name](row)], name)
 
