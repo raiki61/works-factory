@@ -17,20 +17,18 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
 import consult  # noqa: E402
+import fixrules  # noqa: E402
 import oneline  # noqa: E402
-
-NODES = {"first": "consult-answer", "ruled": "ruled-consult-answer"}   # 答えの役の節（記録に残す）
 
 
 def main() -> dict:
     pass_ = os.environ["INPUTS_PASS"]
-    if pass_ not in NODES:
-        raise ValueError(f"入力 pass は {sorted(NODES)} のどれか: {pass_!r}")
+    node = fixrules.answer_node(pass_)
     try:
         answer = boundary.parsed(os.environ.get("INPUTS_ANSWER"))
     except ValueError:
         answer = None   # 読めない答えは答えの無い周と同じ（行は unavailable）
-    got = consult.settle(boundary.place("fix"), answer, pass_, NODES[pass_])
+    got = consult.settle(boundary.place("fix"), answer, pass_, node)
     return {"consulted": bool(got["consulted"]), "answer_file": str(got["answer_file"] or "")}
 
 
