@@ -35,7 +35,13 @@ class ChildPointerTest(unittest.TestCase):
         self.assertEqual(child_pointer.resolve(ptr()), self.file.resolve())
 
     def test_paths_leaving_the_child_run_are_refused(self):
-        for path in ("../parent/secret.json", str(self.parent / "secret.json"), "", "report/../../parent/secret.json"):
+        for path in ("../parent/secret.json", str(self.parent / "secret.json"), "", None, "report/../../parent/secret.json"):
+            with self.subTest(path=path):
+                with self.assertRaises(ValueError):
+                    child_pointer.resolve(ptr(path=path))
+
+    def test_paths_archon_refuses_are_refused_even_inside_the_child_run(self):
+        for path in ("report/../report/next-request.json", "report/", "\\report\\next-request.json"):
             with self.subTest(path=path):
                 with self.assertRaises(ValueError):
                     child_pointer.resolve(ptr(path=path))

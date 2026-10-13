@@ -17,15 +17,12 @@ RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 
 def resolve(ptr) -> Path:
     """子の run の札 {type, run_id, path} の先の、子の置き場の中のパス（symlink を辿った後）。形が違う・置き場の外へ出る物は ValueError"""
-    if not isinstance(ptr, dict) or ptr.get("type") != boundary.POINTER_TYPE:
-        raise ValueError(f"{boundary.POINTER_TYPE} のポインタでない: {ptr!r}")
-    run_id, rel = ptr.get("run_id"), ptr.get("path")
+    boundary.require_pointer(ptr)
+    run_id = ptr.get("run_id")
     if not isinstance(run_id, str) or not RUN_ID.fullmatch(run_id):
         raise ValueError(f"子の run の id の形でない: {run_id!r}")
-    if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or "\0" in rel:
-        raise ValueError(f"ポインタのパスは子の run の置き場からの相対: {rel!r}")
     home = (Path(os.environ["ARTIFACTS_DIR"]).resolve().parent / run_id).resolve()
-    target = (home / rel).resolve()
+    target = boundary.inside_artifacts(ptr.get("path"), home).resolve()
     try:
         target.relative_to(home)
     except ValueError:
