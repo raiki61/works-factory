@@ -122,9 +122,9 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 - `seen`: 本物の run で見えるはずの行で、下の 3 つの基準を全部満たす行だけ。欄は `id`・`where`（置き場の中の相対パスの glob。親の run の置き場は `parent/`、fix の組の子の run の置き場は `child-*/` で始める。run の記録 `workflow get --json --verbose` の出力は `record/parent.json`・`record/child-<n>.json`）・`check`（次の 5 つの 1 つ: `exists`〔在って空でない〕・`json-has`〔JSON の欄の道 `path` が在って null でも空でもない〕・`json-equals`〔欄の値が `value`〕・`text-contains`〔字 `text` を含む〕・`node-completed`〔run の記録の `nodes[]` に、節の id がちょうど `node` の節が `completed` で在る。`nodes[]` は飛ばされた節・落ちた節も載せるので、節の名だけを照らさない。include の頭は差し込んだ節のどれか 1 つが走れば通るので名指さない〕）・`writer`（その行の能力の決める行〔拒み・止め・既定でない側・値を作る行。保存の行でない〕の「パス:行」。run の記録の行はその節を置く YAML の行）。棚卸しの「本物の run」の欄の名指しを形にし、書き手のコードで確かめる。
   - 基準（3 つを全部満たす行だけを `seen` にする）: (1) 能力の決める行を消したら照らしが落ちる。(2) 何も働かなかった run の 2 つの形（全部の節が飛んだ run と、`start` は通り必ず走る節〔`start`・`answer-start`・`collect`・報告のブロック・`result`〕だけが走った run。走らなくても空の形を書く出口・支度がいつも書く欄・報告の見出しと 0 件の行・入力のこだまを含む）のどちらにも当たらない。(3) 健やかな種の run で必ず通る道の能力である。棚卸しの行の多くは拒む・止める・既定でない側の能力で、健やかな種の run では働かないので `seen` にしない。
   - 本物の通しの役目は、本物の役で各ブロック（線・judge・plan・plan-review・fix・test-gate・eyes・merge・report）が埋め物でない中身を作ったかを見ること。どのブロックにも `seen` の行を 1 つ以上置く。
-- `scenario-only`: 既定。棚卸しの「本物の run」が「筋書きでのみ」で始まる行（`waits-part` の行を除く）。`seen` の 3 つの基準を満たさない行は、棚卸しの欄を「筋書きでのみ（本物の通しの照らしの外。在れば <元の名指し>）」に直してここに置く（能力は棚卸しの「証」の欄の試験が縛るので落ちない）。欄 `why` は棚卸しの字（基準で移した行は移した訳）。欄の途中に「筋書きでのみ」を含む行（例 L-E01「拒みは筋書きでのみ」）は行ごとに決める。
+- `scenario-only`: 既定。棚卸しの「本物の run」が「筋書きでのみ」で始まる行。`seen` の 3 つの基準を満たさない行は、棚卸しの欄を「筋書きでのみ（本物の通しの照らしの外。在れば <元の名指し>）」に直してここに置く（能力は棚卸しの「証」の欄の試験が縛るので落ちない）。欄 `why` は棚卸しの字（基準で移した行は「本物の通しの照らしの外（#261 の決め直し）: 」で始まる移した訳）。欄の途中に「筋書きでのみ」を含む行（例 L-E01「拒みは筋書きでのみ」）は行ごとに決める。
 - `seed-cannot`: 棚卸しは置き場を名指すが、この種では通らない道の行（種に `.review-checks.json` が無い・PR も forge も無い・申し出や 3 回目の拒否が起きない、など）と、種の run でも働かなかった run と同じ跡しか残さない行（上の基準。返りの型・関所の文・節の出力は run の記録に載らない、など）。欄 `why` に、通らない訳を 1 句。照らしを持つなら、働いた時だけ当たる物にする。
-- `waits-part`: 線の配線の部分 A・B1・B2・C・D1・D2 の「閉じる行」。欄 `part`（`A`・`B1`・`B2`・`C`・`D1`・`D2`）。棚卸しが「筋書きでのみ」と書く行でも、閉じる行なら `waits-part` にする（その部分が入った時に `scenario-only` へ移す。線の配線の文書の共通の決まり 10）。
+- `waits-part`: 線の配線の部分 A・B1・B2・C・D1・D2 の「閉じる行」のうち、本物の run の記録で置き場を決めるまでの行。欄 `part`（`A`・`B1`・`B2`・`C`・`D1`・`D2`）。部分は全部 main に入ったので、棚卸しが「筋書きでのみ」と書く閉じる行は `scenario-only` にする（線の配線の文書の共通の決まり 10）。
 - `backlog`: 線の配線の文書の「この文書の外」（「決めた物」「持ち主の答え待ち」「ブロックの中だけの穴」）に名指された行。欄 `why` に、その節の名。
 - `handed-off`: 本物の run の中で働かなかったが、この PR では直さずに渡した行（下の「見えなかった行の扱い」の 3）。欄 `why`（働かなかった事実。run の記録の節の id と状態）と `to`（渡した先: 線の配線の部分の名か、区分の issue の番号）。
 
@@ -138,8 +138,8 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 - 試験 `tests/e2e/test_evidence.py`（先に赤）:
   - `EvidenceTableCase.test_every_inventory_row_is_in_the_table`（棚卸しの `line.md`・`judge.md`・`plan.md`・`fix.md`・`tail.md` の区分 L・J・P・F・T・E・R・M の行の ID の集合 = 表の ID の集合）
   - `EvidenceTableCase.test_every_row_has_a_known_kind_and_fields`
-  - `EvidenceTableCase.test_scenario_only_rows_match_the_inventory`（棚卸しが「筋書きでのみ」で始まる行は、`waits-part` でなければ `scenario-only`。「筋書きでのみ」を含まない行は `scenario-only` でない）
-  - `EvidenceTableCase.test_waits_part_rows_are_closing_rows_of_that_part`（`waits-part` の行が線の配線の文書のその部分の「閉じる行」に在り、その部分の閉じる行は全部 `waits-part`）
+  - `EvidenceTableCase.test_scenario_only_rows_match_the_inventory`（棚卸しが「筋書きでのみ」で始まる行は `scenario-only`。「筋書きでのみ」を含まない行は `scenario-only` でない。部分は全部 main に入ったので、「筋書きでのみ」を含む行は `waits-part` に残らない。`scenario-only` の行の `why` は棚卸しの字か、基準で移した訳。基準で移した行は棚卸しの欄も「本物の通しの照らしの外」に直っている）
+  - `EvidenceTableCase.test_waits_part_rows_are_closing_rows_of_that_part`（`waits-part` の行が線の配線の文書のその部分の「閉じる行」に在る。その部分の閉じる行のうち `scenario-only` でない行は全部 `waits-part`。本物の run の記録で置き場を決めた行を移す時に、この試験も合わせて直す）
   - `EvidenceTableCase.test_node_rules_name_node_ids_the_workflow_makes`（run の記録の節を照らす行が `node-completed` で、node が線と fix の YAML から組んだ節の id そのもの）
   - `EvidenceTableCase.test_seen_rows_name_a_writer_in_the_repository`（`seen` の行の `writer` が `lib/`・`workflows/`・`bin/` のコードの行で、そのファイルのコードの字（コメント・docstring・`.md` を除く）に where のファイル名かその名を作る定数が在る。決める行は保存の行から離れうるので、行の近くでなくファイルで見る。where の頭のフォルダの名も書き手かそのブロックのコードに在る。名を組んで書く・名の表から引く置き場は名を作る行を名指し、名の照らしだけを外す。run の記録の節の行の writer はその節の id を置く YAML の行）
   - `IdleRunCase.test_no_row_holds_on_a_run_where_nothing_worked`（基準の (2) を縛る。何も働かなかった run の 2 つの形の試みのフォルダ（1 つ目: 線と fix の組の子の全部の節が `skipped`、`start` は入力を受けずこだまと版の控えだけを書く。2 つ目: `start` は種の入力を受けて書く欄を全部書き、必ず走る節が `completed`。どちらも、各ブロックとメイングラフの落ちない返す節と目の `prep` を上流が全部飛んだ形で今の書き手のまま走らせた物を置く）に `check` を当て、`seen` も `unexpected` も 0 件）
