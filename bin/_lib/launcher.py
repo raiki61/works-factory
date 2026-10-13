@@ -274,14 +274,7 @@ def write_fence(home: Path, real: str, child: Mapping[str, str]) -> str:
                                     "--archon-home", child["ARCHON_HOME"], "--claude-config", child["CLAUDE_CONFIG_DIR"],
                                     "--own", str(top), "--own", str(home / HOST_GH_DIR)])
             + ' -- "$@"\n')
-    d = top / hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
-    shell = d / "claude"
-    d.mkdir(parents=True, exist_ok=True)
-    tmp = d / f".claude.{os.getpid()}.tmp"
-    tmp.write_text(body, encoding="utf-8")
-    tmp.chmod(0o755)
-    os.replace(tmp, shell)
-    return str(shell)
+    return hostgh.place_shim(top, "claude", body)
 
 
 def sweep_logs(config: str) -> None:
