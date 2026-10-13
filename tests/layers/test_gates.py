@@ -2,8 +2,8 @@
 
 `approval:` の節を持つ工程を（差し込みを辿って）含む一番上の工程に `interactive: true` が在る。差し込まれるブロックは工程の頭に
 `interactive`・`worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない。ただし自分の節に `approval:` を持つブロックの
-`interactive: true` だけは許す（外すと止めた Archon の単独の validate が警告を出す）。どの工程の関所も decisions に reject を持ち、
-on_reject を持たない（K10）。輪（loop_group）の本体に関所を置かない（K18）。並べの形は人が見る。
+`interactive: true` だけは許す（外すと止めた Archon の単独の validate が警告を出す）。どの工程の関所も decisions に答えの語
+（lib/answer.py の GO_WORDS・STOP_WORDS・REJECT）を全部持ち、on_reject を持たない（K10）。輪（loop_group）の本体に関所を置かない（K18）。並べの形は人が見る。
 """
 import pathlib
 import unittest
@@ -16,7 +16,7 @@ SEEDS = pathlib.Path(__file__).resolve().parent / "seeds"
 JUDGE = "workflows/judge/works-factory-judge.yaml"
 PLAN = "workflows/plan/works-factory-plan.yaml"
 LINE = "workflows/line/works-factory-line.yaml"
-GATE = "  - id: g\n    approval:\n      message: m\n      decisions: [{id: approve}, {id: stop}, {id: reject}]\n    idle_timeout: 1728000000\n"
+GATE = "  - id: g\n    approval:\n      message: m\n      decisions: [{id: approve}, {id: continue}, {id: stop}, {id: reject}]\n    idle_timeout: 1728000000\n"
 
 
 def in_loop(nodes: str) -> str:
@@ -86,12 +86,15 @@ class GatesTest(unittest.TestCase):
     def test_workflow_without_gates_needs_nothing(self):
         self.assertEqual(self.problems({LINE: "name: works-factory-line\nnodes: []\n"}), [])
 
-    def test_gate_without_reject_is_red(self):
-        """decisions に reject が無い関所の reject は、Archon が run の取り消しにする（報告が出ない）"""
-        gate = GATE.replace(", {id: reject}", "")
-        got = self.problems({LINE: "name: works-factory-line\ninteractive: true\nnodes:\n" + gate})
-        self.assertEqual(len(got), 1, got)
-        self.assertIn("reject が無い", got[0])
+    def test_gate_without_an_answer_word_is_red(self):
+        """decisions に答えの語が 1 つでも無い関所は赤（reject が無いと Archon が run の取り消しにし、報告が出ない）"""
+        for word in ("approve", "continue", "stop", "reject"):
+            with self.subTest(word=word):
+                gate = GATE.replace(f"{{id: {word}}}, ", "").replace(f", {{id: {word}}}", "")
+                self.assertNotIn(word, gate)
+                got = self.problems({LINE: "name: works-factory-line\ninteractive: true\nnodes:\n" + gate})
+                self.assertEqual(len(got), 1, got)
+                self.assertIn(f"{word} が無い", got[0])
 
     def test_gate_with_on_reject_is_red(self):
         gate = GATE.replace("      message: m\n", "      message: m\n      on_reject: {prompt: x}\n")

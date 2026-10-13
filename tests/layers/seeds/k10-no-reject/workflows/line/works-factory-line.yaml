@@ -4,5 +4,5 @@ nodes:
   - id: gate
     approval:
       message: m
-      decisions: [{ id: approve }, { id: stop }]
+      decisions: [{ id: approve }, { id: continue }, { id: stop }]
     idle_timeout: 1728000000
