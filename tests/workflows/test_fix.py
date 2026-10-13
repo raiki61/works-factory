@@ -258,6 +258,26 @@ class GroupsCase(unittest.TestCase):
         self.assertEqual(self.nodes["tdd-unit"]["depends_on"], ["join"])
         self.assertEqual(self.nodes["join"]["when"], "$route.output.group == false")
 
+    def test_no_node_adds_permits_between_fix_accept_and_group_end(self):
+        """#245: group-end は子の置き場の許しの訳を受け付けの後に引き直す。受け付けの通った周で輪が抜け、輪の体で
+        fix-accept の後に走る節（範囲の相談の合意を書く consult-accept を含む）が無く、輪の後は group-end だけが走る間だけ、
+        引き直した値が受け付けの時の値と同じになる"""
+        loop = self.nodes["fix-loop"]["loop_group"]
+        self.assertEqual(refs(loop["until_bash"]), {"fix-accept"})
+        self.assertIn("$fix-accept.output.done", loop["until_bash"])
+        body = {n["id"]: n for n in loop["nodes"]}
+
+        def ancestors(nid):
+            out, todo = set(), list(body[nid].get("depends_on") or [])
+            while todo:
+                dep = todo.pop()
+                if dep in body and dep not in out:
+                    out.add(dep)
+                    todo.extend(body[dep].get("depends_on") or [])
+            return out
+        self.assertEqual(ancestors("fix-accept"), set(body) - {"fix-accept"})
+        self.assertEqual(self.nodes["group-end"]["depends_on"], ["group-start", "tdd-loop", "fix-loop"])
+
 
 class RolesCase(unittest.TestCase):
     def setUp(self):
