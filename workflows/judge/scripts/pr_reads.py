@@ -4,7 +4,7 @@
 # ///
 """読んだ証拠の節 pr-check-reads（lib/judge_accept.pr_reads）: 並行 PR の役が、機械が渡した judge/pr-brief.json を読んだかを、
 隔離した設定のフックの記録（lib/reads.log_here）から集め、置き場に reads-pr-check.json と索引を書く。受け付けの条件にしない。
-落ちない: 中の誤りは ok: false と訳で返す。返り {ok, missing, index_file, reason}"""
+落ちない: 中の誤りは ok: false と訳で返し、置き場に落ちた記録（lib/reads.guarded）を残す。返り {ok, missing, index_file, reason}"""
 import json
 import sys
 from pathlib import Path
@@ -17,12 +17,12 @@ def collected() -> None:
     import boundary
     sys.path.append(str(boundary.lib_root()))
     import judge_accept as ja
+    import prcheck
     import reads
 
     jdir = boundary.resolve(boundary.pointer(ja.JUDGE_DIR))
     jdir.mkdir(parents=True, exist_ok=True)
-    got = ja.pr_reads(jdir, reads.log_here(), Path.cwd())
-    boundary.returns({**got, "reason": ""})
+    boundary.returns(reads.guarded(lambda: ja.pr_reads(jdir, reads.log_here(), Path.cwd()), owner=prcheck.ROLE, place=jdir))
 
 
 def main() -> int:

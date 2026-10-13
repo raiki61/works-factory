@@ -2281,7 +2281,7 @@ class FixAcceptSeamCase(TempCase):
         残る。関所の行は「直しは差分に在り」のままで、控えの patch を名指さない（#355）"""
         import conflict
         row = self._revert_after_head(lambda claim, ruling: conflict.park(self.place, [claim], source=conflict.FIX_SOURCE,
-                                                                           ruling=ruling, pass_="first"))
+                                                                           ruling=ruling))
         self.assertIn(conflict.FIX_IN_DIFF, row)
         self.assertNotIn(fixboard.PARKED_PATCH, row)
 
@@ -2313,6 +2313,16 @@ class FixAcceptSeamCase(TempCase):
         self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {R_MEAN: "not_done", R_CLAMP: "not_done"}, got)
         self.assertIn(conflict.FIX_IN_DIFF, got["units"][R_CLAMP]["reason"])
         self.assertNotIn(conflict.FIX_IN_DIFF, got["units"][R_MEAN]["reason"])
+
+    def test_first_pass_conflict_rows_carry_no_filed_in(self):
+        """#369: 1 回目の段の受け付けが積んだ申し出の行は、積んだ段の欄 FILED_IN を持たない（読むのは裁定の後の段の
+        mark_reverted だけ）。park が受ける段は ruled だけ"""
+        import conflict
+        got = self._accept_claims([self._claim()])
+        self.assertTrue(got["conflicted"], got)
+        self.assertEqual([conflict.FILED_IN in r for r in conflict.items(self.place)], [False])
+        with self.assertRaises(ValueError):
+            conflict.park(self.place, [self._claim()], source=conflict.FIX_SOURCE, pass_="first")
 
     def test_first_pass_parked_reason_says_fix_in_diff_only_for_query_hits_fixed_alone(self):
         """1 回目の段で裁定へ回した単位の理由は、裁かれていない申し出が query_hits_fixed だけの単位だけ QUERY_PARKED。

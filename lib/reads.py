@@ -14,10 +14,12 @@
 - ROOT・LOG・root(config_dir)・reads_path(root, cwd)・open_log(root, cwd)・log_here(): 記録の根（Claude の設定の置き場の下）と、作業の場
   ごとの記録のファイル（置き場の鍵・作業の場の控え・片付けは lib/writelog と同じ物）
 - EVIDENCE_GLOB・REPLAN・role_key(role, replan)・evidence_name(role)・index_name(owner, replan)・is_index(name): 置き場の読んだ証拠と索引の名
+- INDEX_WHY・index_why(path): 索引の訳の鍵と、それを読む 1 か所
 - stamp()・records(log, since): 記録の時刻の形と、since から後の行（読めなければ None と訳。記録が無い訳は NO_CONFIG・NO_ROOT・ファイルが無いを分ける）
 - tool_count・tool_inputs・web_fetches・web_searches: 記録の行の道具の呼びの数と入力
 - collect(place, role, must_read, log, *, own, since, repo, replan): 役ごとの reads-<役>.json（案の直しは reads-replan-<役>.json）を書く
-- read_evidence(path): collect が書いた reads-*.json を読む（読む側の 1 か所）
+- guarded(collect, owner, place)・failure_name(owner, at): 集めるノードの中の誤りを、sources.hook が FAILED の reads-*.json にして残す
+- read_evidence(path): collect・guarded が書いた reads-*.json を読む（読む側の 1 か所）
 """
 import json
 import os
@@ -38,8 +40,10 @@ EVIDENCE_GLOB = "reads-*.json"
 _INDEX_SUFFIX = "-block.json"
 REPLAN = "replan"              # 案の直しの差し込みの役の名の頭と索引の持ち主（1 回目の物を上書きしない。元 replan.READS_PREFIX・READS_INDEX）
 RECORDED = "recorded"           # sources.hook: フックの記録が在る
+FAILED = "failed"               # sources.hook: 読んだ証拠を集めるノードの中で誤りが起き、測れなかった（guarded が書く）
 HOOK_SEEN = ("read", "stale", "partial")   # フックで「読んだ跡が在る」状態（missing に数えない）
 NOT_LAUNCHED = "役を起こしていない"
+INDEX_WHY = "why"              # 索引の中の訳の鍵（役を起こしていない段など。役の名と並ぶ。index_why が読む）
 NO_CONFIG = "Claude の設定の置き場が渡っていない起動（CLAUDE_CONFIG_DIR が無い）"
 NO_ROOT = "記録の根が無い（読んだ証拠のフックを置いていない起動）"
 SHAPE_WRONG = "読んだ証拠の形が違う"
@@ -72,6 +76,15 @@ def evidence_name(role: str) -> str:
 def index_name(owner: str, replan: bool = False) -> str:
     """読んだ証拠を集めた側 owner が書く索引の名（{役: 役ごとの証拠のパス}。役ごとの証拠と別の名。案の直しの差し込みは持ち主を REPLAN に）"""
     return f"reads-{REPLAN if replan else owner}{_INDEX_SUFFIX}"
+
+
+def index_why(path) -> str:
+    """索引 path の訳（INDEX_WHY）。読めない・訳が無ければ """""
+    try:
+        why = json.loads(pathlib.Path(path).read_text(encoding="utf-8")).get(INDEX_WHY)
+    except (OSError, ValueError, AttributeError):
+        return ""
+    return why if isinstance(why, str) else ""
 
 
 def is_index(name: str) -> bool:
@@ -193,6 +206,27 @@ def collect(place, role: str, must_read: list, log, *, own: list, since: str, re
     out = _write_json(pathlib.Path(place) / evidence_name(name),
                       {"role": name, "since": since, "rows": rows, "sources": sources, "missing": missing, "web": web})
     return {"ok": True, "sources": sources, "missing": missing, "reads_file": str(out), "records": got}
+
+
+def failure_name(owner: str, at: float | None = None) -> str:
+    """集める側 owner のノードが落ちた記録のファイルの名。役ごとの証拠を上書きせず、同じ置き場に 2 度差し込まれるノード（事前審査と
+    案の直しの事前審査）の物も時刻（at。無ければ今）で分ける"""
+    return f"{evidence_name(owner).removesuffix('.json')}-failed-{time.strftime('%Y%m%d-%H%M%S', time.localtime(at))}.json"
+
+
+def guarded(collect, *, owner: str, place) -> dict:
+    """読んだ証拠を集めるノードの返り: collect()（{ok, missing, index_file}）に reason "" を足す。collect が誤りを上げたら、place に
+    sources.hook が FAILED で訳つきの読んだ証拠（failure_name）を書き、{ok: False, missing: [], index_file: "", reason} を返す。
+    ノードの返りは誰も読まないので、報告が「役を起こしていない」と取り違えないよう置き場に残す"""
+    try:
+        return {**collect(), "reason": ""}
+    except Exception as e:  # noqa: BLE001  読んだ証拠は受け付けの条件でない（ノードを落とさない）
+        reason = f"{type(e).__name__}: {oneline.one_line(e)}"
+    p = pathlib.Path(place)
+    p.mkdir(parents=True, exist_ok=True)
+    _write_json(p / failure_name(owner), {"role": owner, "since": stamp(), "rows": [], "sources": {"hook": FAILED, "why": reason},
+                                          "missing": [], "web": None})
+    return {"ok": False, "missing": [], "index_file": "", "reason": reason}
 
 
 def read_evidence(path) -> tuple:

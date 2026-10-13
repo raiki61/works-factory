@@ -8,6 +8,7 @@
 - 筋書き: tests/archon.py の使い捨ての木で `archon workflow test` を fixtures/ の全部に走らせる（Archon の源が無ければ見送る）
 """
 import datetime
+import importlib.util
 import json
 import os
 import pathlib
@@ -39,6 +40,20 @@ import declared_checks  # noqa: E402
 import green_cert  # noqa: E402
 import rolekit  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （declared_checks が lib/graphloops を sys.path に足す）
+
+
+def _load_result():
+    spec = importlib.util.spec_from_file_location("test_gate_block_result", SCRIPTS / "result.py")
+    module = importlib.util.module_from_spec(spec)
+    saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = saved
+    return module
+
+
+result = _load_result()
 
 DEADLINE = 1728000000
 RUN_ID = "run-1"
@@ -319,6 +334,31 @@ class YamlCase(unittest.TestCase):
             with self.subTest(path.name):
                 for word in (r"\bgh\b", r"git\W+push", r"git\W+merge"):
                     self.assertIsNone(re.search(word, text), word)
+
+
+class EvidenceRowsCase(unittest.TestCase):
+    """証拠の文の行の頭（走らせ方・ログ）の持ち主は result.py の RUN_ROW・LOG_ROW だけ（持ち主の決め evidence-prefix-one-home）。
+    lib と workflows の写しは docs/concepts.json の柵が見る。柵の外の試験と通しの照らしはここで縛る"""
+    # 同じ字の頭を持つ別の文（最後の承認ノードの文の行。ask_final.tests_lines）を照らす試験
+    FINAL_GATE_TESTS = {"tests/workflows/test_gate_head.py", "tests/workflows/test_line.py"}
+
+    def test_tests_draw_the_prefixes_from_result(self):
+        for path in sorted((ROOT / "tests").rglob("*.py")):
+            rel = path.relative_to(ROOT).as_posix()
+            text = path.read_text(encoding="utf-8")
+            prefixes = (result.RUN_ROW,) if rel in self.FINAL_GATE_TESTS else (result.RUN_ROW, result.LOG_ROW)
+            with self.subTest(rel):
+                self.assertEqual([p for p in prefixes if p in text], [])
+
+    def test_e2e_evidence_rows_start_with_the_prefixes(self):
+        rows = json.loads((ROOT / "tests" / "e2e" / "evidence.json").read_text(encoding="utf-8"))
+        heads = [p.removeprefix("- ") for p in (result.RUN_ROW, result.LOG_ROW)]
+        texts = [r["text"] for r in rows if str(r.get("where", "")).endswith("/evidence.md") and str(r.get("where")).startswith("parent/test-gate/")
+                 and any(h in str(r.get("text")) for h in heads)]
+        self.assertTrue(texts)
+        for text in texts:
+            with self.subTest(text):
+                self.assertTrue(text.startswith((result.RUN_ROW, result.LOG_ROW)), text)
 
 
 class CopiedTextsCase(unittest.TestCase):
@@ -764,8 +804,8 @@ class ResultScriptCase(ScriptCase):
                 rows = self.pointed(out["evidence"]).read_text(encoding="utf-8").splitlines()
                 self.assertEqual(out["by"], "engine")
                 self.assertFalse([r for r in rows if r.startswith("- 包み:")])
-                self.assertIn(f"- 走らせ方: engine・{out['suites_line']}", rows)
-                self.assertIn(f"- ログ: {out['log']}", rows)
+                self.assertIn(f"{result.RUN_ROW}engine・{out['suites_line']}", rows)
+                self.assertIn(f"{result.LOG_ROW}{out['log']}", rows)
                 self.assertTrue(out["log"] and "\n" not in out["suites_line"] + out["log"] + out["baseline_line"], out)
                 self.assertIn(f"- ok: {str(out['ok']).lower()}" + (f"（{out['reason']}）" if out["reason"] else ""), rows)
                 if out["mode"] == "final":

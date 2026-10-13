@@ -169,6 +169,36 @@ class ReadEvidenceTest(Case):
         self.assertTrue(reads.read_evidence(self.place / "none.json")[1].startswith("FileNotFoundError: "))
 
 
+class GuardedTest(unittest.TestCase):
+    """#371: 読んだ証拠のノードの中で誤りが起きた時も、報告が「役を起こしていない」と取り違えない記録を置き場に残す"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.place = pathlib.Path(tmp.name) / "place"
+
+    def test_passes_the_collected_return_through(self):
+        got = reads.guarded(lambda: {"ok": True, "missing": ["a"], "index_file": "i"}, owner="fix", place=self.place)
+        self.assertEqual(got, {"ok": True, "missing": ["a"], "index_file": "i", "reason": ""})
+        self.assertFalse(self.place.exists())
+
+    def test_failure_writes_a_failed_evidence(self):
+        def broken():
+            raise KeyError("k\n2")
+        got = reads.guarded(broken, owner="plan-review", place=self.place)
+        self.assertEqual(got, {"ok": False, "missing": [], "index_file": "", "reason": "KeyError: 'k\\n2'"})
+        [path] = self.place.glob(reads.EVIDENCE_GLOB)
+        self.assertFalse(reads.is_index(path.name))
+        doc, why = reads.read_evidence(path)
+        self.assertEqual(why, "")
+        self.assertEqual((doc["role"], doc["sources"]), ("plan-review", {"hook": reads.FAILED, "why": got["reason"]}))
+
+    def test_failure_names_do_not_overwrite_each_other_or_the_role_evidence(self):
+        self.assertNotEqual(reads.failure_name("plan-review", 0), reads.failure_name("plan-review", 60))
+        self.assertNotEqual(reads.failure_name("fix", 0), reads.evidence_name("fix"))
+        self.assertTrue(reads.failure_name("fix", 0).startswith(reads.evidence_name("fix").removesuffix(".json")))
+
+
 class ToolTest(unittest.TestCase):
     ROWS = [{"tool_name": "Agent", "input": "general-purpose"}, {"tool_name": "Agent", "input": "general-purpose"},
             {"tool_name": "WebSearch", "input": "q"}, {"path": "/x", "file_sha": "a"}]

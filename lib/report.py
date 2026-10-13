@@ -5,7 +5,7 @@ lib/runreport（機械の報告・次の依頼・前の失敗・費用）に移�
 - OUTCOMES・OUTCOME_WORDS: 結末の語（報告のブロックの返す節の enum と同じ 10 語）と、冒頭 3 行の 1 行目の平易な言い方
 - 報告の見出し（TITLE_HEADING・HEADINGS の冒頭 1〜5・PRIOR_HEADING・OUTSIDE_HEADING・WORLD_HEADING・TDD_HEADING・
   MODEL_HEADING・COST_HEADING・STRUCTURE_HEADING。人が読む本文の物で役の指示書には貼らない FOR_READERS）と行の where・頭の語
-- prior_lines(rows): 次の run に運んだ落ちた理由の節の行
+- prior_lines(rows, next_file): 次の run に運んだ落ちた理由の節の行
 - tdd_lines(stages)・freeze_lines(stages): 修正の段ごとの TDD の輪の単位の結末の行（keep-essence の 11）と、輪を回していない段で
   テストの凍結が効いていないと言う冒頭 2 の行（keep-essence の 3）
 - INNER_WORDS・INNER_WORD・INNER_WORDS_HEAD・HUNK_NEW: 直しが対象に書く文に混じってはいけない works の内側の語の照らし
@@ -107,10 +107,14 @@ def _r2_redesign(row) -> bool:
     return str(row.get("text") or "").startswith(R2_REDESIGN)
 
 
-def prior_lines(rows: list) -> list:
-    """報告の節 PRIOR_HEADING の行（次の run に運んだ行の件数と 1 件 1 行）"""
-    return [f"{len(rows)} 件（次の run の依頼の下書き {carry.NEXT_REQUEST_FILE} の prior_failures に載せた。判定役と修正案の役の材料に"
-            "貼る。受け付けの拒否の行は直す穴ではない注意で、R2 の作り直しの行は次の周の先頭で直す穴）"] + [f"{r['where']}: {r['text']}" for r in rows]
+def prior_lines(rows: list, next_file: str) -> list:
+    """報告の節 PRIOR_HEADING の行（次の run に運んだ行の件数と 1 件 1 行）。名指すのは書いたファイルだけ: 行が在れば
+    carry.PRIOR_FAILURES_FILE、次の依頼の下書きも書いた時（next_file が空でない）はそれも"""
+    if not rows:
+        return ["0 件"]
+    also = f"。次の run の依頼の下書き {next_file} の prior_failures にも載せた" if next_file else ""
+    return [f"{len(rows)} 件（{carry.PRIOR_FAILURES_FILE} に書いた{also}。判定役と修正案の役の材料に貼る。受け付けの拒否の行は"
+            "直す穴ではない注意で、R2 の作り直しの行は次の周の先頭で直す穴）"] + [f"{r['where']}: {r['text']}" for r in rows]
 
 
 # ---------------------------------------------------------------- 冒頭 3 行と 1〜5

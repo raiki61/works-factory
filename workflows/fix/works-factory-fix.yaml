@@ -1469,6 +1469,7 @@ nodes:
               unit_ids: {type: array, items: {type: string}}
               returned: {type: boolean}
               reason: {type: string}
+              backed_out: {type: array, items: {type: string}}
         conflicts:
           type: [object, "null"]
           additionalProperties: false

@@ -553,6 +553,24 @@
     }
    ]
   },
+  "gate-evidence": {
+   "status": "住処あり",
+   "fences": [
+    {
+     "what": "試験の関門の証拠の文の行の頭（走らせ方・ログ）",
+     "pattern": "- (走らせ方|ログ): ",
+     "allowed": [
+      "workflows/test-gate/scripts/result.py"
+     ],
+     "known": {
+      "workflows/line/scripts/ask_final.py": [
+       1,
+       "別の文: 最後の承認ノードの文のログの行が同じ字の頭を持つ（中身は test-gate の出力の欄 log。証拠の文の行ではない）"
+      ]
+     }
+    }
+   ]
+  },
   "ledger": {
    "status": "散らばり",
    "fences": [

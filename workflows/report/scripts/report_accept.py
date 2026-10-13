@@ -16,8 +16,8 @@ import runreport  # noqa: E402
 
 
 def out_dir() -> Path:
-    """報告の置き場（run の置き場の report）"""
-    return Path(os.environ["ARTIFACTS_DIR"]) / "report"
+    """報告の置き場（run の置き場の runreport.OUT_DIR）"""
+    return Path(os.environ["ARTIFACTS_DIR"]) / runreport.OUT_DIR
 
 
 if __name__ == "__main__":

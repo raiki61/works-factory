@@ -19,8 +19,7 @@ import os
 import sys
 from pathlib import Path
 
-OUT = "report"
-UNWRITTEN = "report-unwritten.md"   # 報告を組めない時の報告か訳だけのファイル（report.md を上書きしない名。collect.py も同じ名へ書く）
+LIBLESS = "report-facts-unwritten.md"   # lib/ を読めない時の訳だけのファイル（run の置き場の根。報告の置き場の名は lib が持つ）
 LANG_FALLBACK = "人が読む文の欄は依頼文の言語で書け（言語の 1 行を組めなかった）"   # 言語の 1 行を組めない道の 1 行
 
 try:
@@ -65,8 +64,9 @@ WORKFLOW_FILE = Path(__file__).resolve().parents[1] / "works-factory-report.yaml
 
 
 def out_dir() -> Path:
-    """報告の置き場（run の置き場の OUT）"""
-    return Path(os.environ["ARTIFACTS_DIR"]) / OUT
+    """報告の置き場（run の置き場の runreport.OUT_DIR）"""
+    import runreport
+    return Path(os.environ["ARTIFACTS_DIR"]) / runreport.OUT_DIR
 
 
 def rel(path) -> dict | None:
@@ -82,7 +82,7 @@ def failed_line(what: str, error: BaseException) -> str:
 def unwritten(why: str) -> dict:
     """lib/ にも境の口にも頼らず訳だけの 1 ファイルを書いて指す（書けなくても札は返す。先の無い札は実行基盤が節の終わりに拒む）。
     札は境の口を読めない時のために手で組む"""
-    rel_path = f"{OUT}/{UNWRITTEN}"
+    rel_path = LIBLESS
     try:
         path = Path(os.environ["ARTIFACTS_DIR"]) / rel_path
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -307,7 +307,7 @@ def fallen(error: BaseException) -> dict:
         import rolekit
         out["lang_line"] = rolekit.lang_line({})
         import runreport
-        out["report"] = rel(runreport.fallback_report(out_dir(), why, UNWRITTEN))
+        out["report"] = rel(runreport.fallback_report(out_dir(), why, runreport.UNWRITTEN))
     except Exception:  # noqa: BLE001 — lib/ を読めなくても、置き場に書けなくても返る
         out["report"] = unwritten(why)
     out["facts_file"] = out["report"]["path"]

@@ -23,7 +23,7 @@
 ## 語
 
 - 考え（concept）: 設計の 1 つの決まりごと。名前を付けて話せる単位（例: 「入口の種類を知るのは入口の変換だけ」）
-- 住処（home）: その考えを 1 か所で持つ部品。`lib/` のモジュール（持ち主の決め `concept-home`）。考えを変える時に触るのはここだけ、になっている所
+- 住処（home）: その考えを 1 か所で持つ部品。ふつうは `lib/` のモジュール（持ち主の決め `concept-home`）。lib は workflows を import できない（E3）ので、持ち主の決めが書き手の側に置いた考えは、その書き手の script（例: `gate-evidence` の `workflows/test-gate/scripts/result.py`。持ち主の決め `evidence-prefix-one-home`）。考えを変える時に触るのはここだけ、になっている所
 - 約束（contract）: 住処の外の人がその考えに触れる時の形を決めたファイルか欄
 - 知ってよい所（allowed places）: 住処のほかに、その考えの語・欄の名・値を書いてよい所。柵が照らす一覧は表 `docs/concepts.json` の `allowed` で、その全部を地図の行（住処・約束・知ってよい所）が字で名指す（試験が照らす）
 - 漏れ（leak）: 知ってよい所の外に、その考えの語・欄の名・値が書かれていること。漏れた所は、考えが変わった時に一緒に直す必要があるのに、誰もそれを知らない所になる
@@ -57,6 +57,7 @@
 | `stop-reasons` | 止めの理由 | 住処あり |
 | `start-record` | 始めの記録（r1/start.json） | 住処あり |
 | `human-gates` | 人の承認ノードと無人の方針 | 住処あり |
+| `gate-evidence` | 試験の関門の証拠の文の行の頭 | 住処あり |
 | `ledger` | 費用と時間の帳簿 | 散らばり |
 | `ai-launch` | AI の起こし方（模型・effort・道具・隔離） | 散らばり |
 | `prompt-assembly` | 指示書の組み立て | 散らばり |
@@ -125,7 +126,7 @@
 ### `reads` 読んだ証拠
 
 - 状態: 住処あり
-- 住処: `lib/reads.py`（記録の根と作業の場ごとの記録のファイル `reads_path`・`log_here`、記録の名 `LOG`、置き場の読んだ証拠と索引の名の口 `evidence_name`・`index_name`・`is_index`・`EVIDENCE_GLOB`、役ごとの証拠を集める `collect`、役が web を引いた記録 `web_fetches`・`web_searches`）
+- 住処: `lib/reads.py`（記録の根と作業の場ごとの記録のファイル `reads_path`・`log_here`、記録の名 `LOG`、置き場の読んだ証拠と索引の名の口 `evidence_name`・`index_name`・`is_index`・`EVIDENCE_GLOB`、役ごとの証拠を集める `collect`、集めるノードの中の誤りを落ちた記録（`sources.hook` が `FAILED`）にして残す `guarded`・`failure_name`、役が web を引いた記録 `web_fetches`・`web_searches`）
 - 約束: 住処の名の口（置き場の名を使う所はこの口から引く）と、Read のフックの記録の行の形 `{ts, session_id, agent_id, path, file_sha, bytes, partial, partial_why, tool_use_id}`（Agent・WebFetch・WebSearch は path を持たない形）
 - 知ってよい所: 住処・Read のフックの殻 `bin/_lib/record-read.py`・各サブグラフの集めるノードの script `workflows/fix/scripts/fix_reads.py`・`workflows/plan/scripts/plan_reads.py`・`workflows/plan-review/scripts/review_reads.py`。記録の置き場の決め方（鍵・控え・片付け）は書き込みの記録の `lib/writelog.py` と共にする
 - 今: 外の当たりは `lib/writelog.py` の docstring の 1 行（置き場の決め方を共にする相手として記録の名を述べる）
@@ -217,6 +218,14 @@
 - 約束: 始めの記録（`lib/startrec.py` の start.json の形）の 2 つの欄。書き手はメイングラフの始めのノードの 1 か所
 - 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_FINAL_GATE`・`INPUTS_UNATTENDED` を受けて住処の `check` に渡し、始めの記録に置く）。読み手（`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口で始めの記録を読む
 - 今: 柵は、方針の語の字（住処の口 `gatepolicy.<名>` は数えない）と、住処の定数を別の名に写す形の 2 本。既知の漏れは、メイングラフの入力の宣言と始めのノードの出口の欄を後ろへ写す `workflows/line/works-factory-line.yaml` と、承認ノードの script（`workflows/line/scripts/ask_before_fix.py`・`workflows/line/scripts/ask_final.py`・`workflows/line/scripts/ask_replan.py`）が始めの記録を読まずにメイングラフの入力を写して受ける所（25 行・4 ファイル）
+
+### `gate-evidence` 試験の関門の証拠の文の行の頭
+
+- 状態: 住処あり
+- 住処: `workflows/test-gate/scripts/result.py`（証拠の文 `test-gate/<mode>/evidence.md` の走らせ方・ログの行の頭 `RUN_ROW`・`LOG_ROW`。lib は workflows を import できない（E3）ので、書き手の script が持つ。持ち主の決め `evidence-prefix-one-home`）
+- 約束: 行の値は出力の欄 `suites_line`・`log` と同じ字。報告と最後の承認ノードは証拠の文を開かずに出力の欄を `lib/declared_checks.py` の `gate_values` で読む
+- 知ってよい所: 住処だけ。柵の外の試験と通しの照らし（`tests/e2e/evidence.json`）は `tests/workflows/test_test_gate.py` の `EvidenceRowsCase` が住処の定数から引くことを縛る
+- 今: 既知の漏れは、最後の承認ノードの文のログの行（`workflows/line/scripts/ask_final.py` の `tests_lines`）が同じ字の頭を持つ 1 行。証拠の文の行ではない別の文
 
 ---
 
