@@ -17,8 +17,7 @@
   盤面の写しの規則と問いの台帳を読んだ所を、値の引数で受ける）
 - _fix_output(reply_file)・fix_reply(reply_file=None): 修正の返答の読み口
   （元 works/.shared/core/recount.py:89・101。盤面の p3.fix の出力を読んだ所を、返答のファイルのパスで受ける）
-- compose・REJECT_LINE・ROLE_DEF_HEAD: 役の指示書の組み立て（元 works/.shared/core/rolekit.py:64・168・205 の写し。rulebook.render・
-  lenses.render が使う）
+- ROLE_DEF_HEAD: 役の定義の見出し（元 works/.shared/core/rolekit.py:205 の写し。lenses.render が使う）
 - write_json・out_file・output・loop_file・loop_value・snapshot・tree_moved_since・take・READONLY_MOVED: 差分の審査と手直しの
   置き場の決まった名のファイル（盤面の b.output_of_round・b.loop_state と entry.snapshot・take の代わり。元 entry.py:1228・1231・1240・1262）
 - _owed_rows・_read_value・_brief・_plan_items・_fix_report・tie_items・hole_ties: 差分の審査と手直しの材料（元
@@ -234,18 +233,8 @@ def collect_reads(place, log, *, repo) -> dict:
 
 
 # ---------------------------------------------------------------- 差分の審査と手直し（refix・lenses・rulebook が読む）
-# 役の指示書の組み立て（元 works/.shared/core/rolekit.py:64・168・205 の写し。main の lib/rolekit.py に無いので fix の中に置く）
-REJECT_LINE = ("前の回の返答は受け付けで拒まれた。理由はファイル {path} に在る。先に Read で読み、そこを直した返答を丸ごと"
-               "出し直せ（直した所だけを返すな）。")
+# 役の定義の見出し（元 works/.shared/core/rolekit.py:205 の写し。main の lib/rolekit.py に無いので fix の中に置く）
 ROLE_DEF_HEAD = "## 役の定義（{agent}）"
-
-
-def compose(parts, *, reject_file: str = "") -> str:
-    """役に読ませる指示書の組み立て（AI を通さない）: 空でない部分を字のまま空行 1 つで繋ぐ。reject_file（前の拒否の理由の
-    ファイル）が在れば 1 行目でそのパスを名指す（理由の文そのものは貼らない）。同じ入力からは同じバイト。
-    元 works/.shared/core/rolekit.py:168 の写し"""
-    out = [REJECT_LINE.format(path=reject_file)] if reject_file else []
-    return "\n\n".join(out + [s for s in parts if s])
 
 
 # 置き場の決まった名のファイル（盤面の節の出力 b.output_of_round・loop の値 b.loop_state の代わり。refix の受け付けと切りが書く）
@@ -1051,7 +1040,7 @@ BASELINE_FILE = "baseline.json"        # 直す前の結末 {cases, exit}（base
 NOTES_FILE = "human-notes.md"          # 修正前の関所の一言と答えで直す義務に戻った単位の行（修正役と TDD の役の notes_file）
 BASE_REV_FILE = "base-rev.json"        # 修正前の版 {rev}（prep が親の作業ツリーの HEAD の sha を控え、組の子が写す）
 FIX_REPLY_FILE = "fix-reply.json"      # 組ごとの修正役の返答をまとめた物（差分の審査の材料 fix_report と plan_faces）
-REJECT_NAME = "reject-{name}-{k}.md"   # 受け付けの k 回目の拒否の理由（役が Read で読む）
+REJECT_NAME = "reject-{name}-{k}.md"   # 受け付けの k 回目の拒否の理由（rejects_file が全部を 1 つに書く元）
 REFIX_PROMPT = "prompt-{}.md"          # 手直しの役の指示書（節の名 p3.delta_fix・p3.delta_fix2）
 LENS_PROMPT = "prompt-lens-{}.md"      # レンズの節の指示書（lenses.key）
 LENSES_FILE = "lenses.json"            # レンズの集め役の事実 {collector: {ok, reason}}（diff の隣のファイル。読み手は最後の関所と報告）
@@ -1432,7 +1421,7 @@ def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int 
     TDD の役の指示書と同じ）→ 役の頭（refix-head-<n>。values の brief_file・diff_file・policy_path で穴を埋める）→
     書く役の決まりの正本（rulebook.CANON の NOT_HERE の外）→ 読み替え → 手直しだけの決まり → 返答 → 返答の後に当たる物
     （refix-tail-<n>）を rulebook.render で繋ぐ。手直しだけの決まりの後に借りたスキルの座（seat.section。receiving-code-review と
-    読み替え）を置く。reject_file（前の拒否の理由のファイル）が在れば 1 行目で名指す。決まりのファイルの置き場は refixrules.RULES と
+    読み替え）を置く。reject_file（この輪の拒否の理由の全部のファイル。rejects_file）が在れば 1 行目で名指す。決まりのファイルの置き場は refixrules.RULES と
     rulebook.CANON（呼び手が置き替える）。写しが固定と違えば seat の ValueError。
     元 works/blk-refix/lib/refixrules.py:36・52 の parts・build"""
     import fixrules
@@ -1456,24 +1445,30 @@ def refix_prompt(n: int, values: dict, *, reject_file: str = "", iteration: int 
                            lang=lang)["text"]
 
 
-def last_reject_file(place, name: str) -> str:
-    """受け付け name の最後の拒否の理由のファイル（accept_out が書いた物。拒否が無ければ空）"""
-    k = len(rolekit.rejected(place, name))
-    f = pathlib.Path(place) / REJECT_NAME.format(name=name, k=k)
-    return str(f) if k and f.is_file() else ""
+def rejects_file(place, name: str, upto: int) -> str:
+    """受け付け name の 1〜upto 回目の拒否の理由（reject-<name>-<k>.md）の全部を古い順に rolekit.write_rejects で 1 つのファイルに
+    書いたパス（拒否が無ければ空）。次の回の役の指示書が名指す"""
+    files = [pathlib.Path(place) / REJECT_NAME.format(name=name, k=k) for k in range(1, upto + 1)]
+    return rolekit.write_rejects(place, name, [f.read_text(encoding="utf-8") for f in files if f.is_file()])
+
+
+def write_reject(place, name: str, k: int, reason: str) -> str:
+    """受け付け name の k 回目の拒否の理由を reject-<name>-<k>.md に書き、1〜k 回目の全部の rejects_file を返す（受け付けの返りの
+    reason_file。前の周の値でこれを読む役にも前の回の拒否が届く）"""
+    write_text(pathlib.Path(place) / REJECT_NAME.format(name=name, k=k), reason + "\n")
+    return rejects_file(place, name, k)
 
 
 def accept_out(place, name: str, got: dict) -> dict:
-    """受け付けの返り {ok, done, reason, reason_file}（輪の until が done を読む）。got の ok が真なら done。偽なら理由を置き場の
-    reject-<name>-<k>.md に書き、rolekit.with_done で控え rejects-<name>.json に積み、rolekit.GIVE_UP_AFTER 回目の拒否で done
+    """受け付けの返り {ok, done, reason, reason_file}（輪の until が done を読む）。got の ok が真なら done。偽なら理由を write_reject で書き
+    （reason_file はこの輪の拒否の全部のファイル）、rolekit.with_done で控え rejects-<name>.json に積み、rolekit.GIVE_UP_AFTER 回目の拒否で done
     （諦め。ok は偽のまま）。元 works/.shared/core/rolekit.py の main_accept の 3 回目の拒否で done・give_up の振る舞い"""
     if got.get("ok") is True:
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
     reason = str(got.get("reason") or "受け付けが理由を書かずに拒んだ")
-    k = rolekit.attempt(place, name)
-    f = write_text(pathlib.Path(place) / REJECT_NAME.format(name=name, k=k), reason + "\n")
+    f = write_reject(place, name, rolekit.attempt(place, name), reason)
     out = rolekit.with_done(pathlib.Path(place), name, {"ok": False, "reason": reason})
-    return {"ok": False, "done": bool(out["done"]), "reason": reason, "reason_file": str(f)}
+    return {"ok": False, "done": bool(out["done"]), "reason": reason, "reason_file": f}
 
 
 # ---------------------------------------------------------------- 組を親の木へ当てた後の名指しのテストの照らし（fix の join の script が呼ぶ）

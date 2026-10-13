@@ -22,7 +22,7 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
-import fixboard  # noqa: E402  （指示書の組み立て compose。元 rolekit.compose の写し）
+import rolekit  # noqa: E402  （指示書の組み立て compose）
 
 CANON = _CORE / "writerules" / "common.md"
 EMPTY = "（空）"
@@ -107,6 +107,6 @@ def render(role: str, iteration: int, parts: list, *, before=(), after=(), rejec
     rules_text = join(text for _, text, _ in parts)
     head = {"role": role, "iteration": iteration, "rules_sha": sha(rules_text),
             "sections": [{"id": pid, "why": w} for pid, _, w in parts]}
-    text = fixboard.compose([*before, rules_text, *after, lang], reject_file=reject_file)
+    text = rolekit.compose([*before, rules_text, *after, lang], reject_file=reject_file)
     text = HEADER.format(json.dumps(head, ensure_ascii=False)) + "\n" + text.rstrip("\n") + "\n"
     return {"text": text, "head": head}

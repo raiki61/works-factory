@@ -24,6 +24,7 @@ if str(LIB) not in sys.path:
 
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
+import rolekit  # noqa: E402
 import rulebook  # noqa: E402
 
 ROOT = LIB.parent
@@ -335,9 +336,9 @@ class TestCompose(unittest.TestCase):
         self.assertNotEqual(self.fix(), fix_prompt({**VALUES, "plan_file": "/other"}))
 
     def test_reject_line_after_the_header(self):
-        """前の回の拒否の理由はファイルのパスで、見出しの次の 1 行（fixboard.REJECT_LINE。元 rolekit と同じ文。理由の文は貼らない。R44）"""
+        """前の回の拒否の理由はファイルのパスで、見出しの次の 1 行（rolekit.REJECT_LINE。理由の文は貼らない。R44）"""
         got = self.fix(reject_file="/b/reject-accept_fix-2.txt")
-        self.assertEqual(got.split("\n")[1], fixboard.REJECT_LINE.format(path="/b/reject-accept_fix-2.txt"))
+        self.assertEqual(got.split("\n")[1], rolekit.REJECT_LINE.format(path="/b/reject-accept_fix-2.txt"))
         self.assertNotIn("拒まれた", self.fix())
 
     def test_tdd_reason_on_top(self):
@@ -405,7 +406,7 @@ class TestWritePrompt(unittest.TestCase):
         self.write(1)
         self.values["open_units"] = json.dumps(["stats.py mean: 分母"], ensure_ascii=False)
         text = self.write(2, reject="/b/reject-accept_fix-1.txt")
-        self.assertIn(fixboard.REJECT_LINE.format(path="/b/reject-accept_fix-1.txt"), text)
+        self.assertIn(rolekit.REJECT_LINE.format(path="/b/reject-accept_fix-1.txt"), text)
         self.assertIn(fixrules.sections(fixrules.SHARED)["core-fix"], text, "毎回全部")
         self.assertIn(KIND_BULLET["docs"], text, "この輪で前に渡した種類は減らさない")
         self.assertEqual(fixrules.iteration_next(self.prompt), 3)
@@ -480,7 +481,7 @@ class TestLangLine(unittest.TestCase):
         for name, text in (("fix", fix), ("tdd", tdd), ("rule", rule)):
             with self.subTest(name):
                 self.assertTrue(text.endswith(self.LINE + "\n"), text[-200:])
-        self.assertEqual(fix.split("\n")[1], fixboard.REJECT_LINE.format(path="/b/r-1.txt"))
+        self.assertEqual(fix.split("\n")[1], rolekit.REJECT_LINE.format(path="/b/r-1.txt"))
         self.assertEqual(tdd.split("\n")[1], TITLE)
 
     def test_no_lang_no_line(self):
@@ -673,7 +674,7 @@ class PrepCase(unittest.TestCase):
         self.assertIn(fixrules.NO_POLICY_LINE, text)
         again = self.prep(reject_file="/b/reject-1.txt")
         self.assertEqual(again["iteration"], 2)
-        self.assertEqual(path.read_text(encoding="utf-8").split("\n")[1], fixboard.REJECT_LINE.format(path="/b/reject-1.txt"))
+        self.assertEqual(path.read_text(encoding="utf-8").split("\n")[1], rolekit.REJECT_LINE.format(path="/b/reject-1.txt"))
 
     def test_ruled_pass_names_the_rulings_file_and_counts_apart(self):
         rulings = self.place / fixrules.conflict.RULINGS_FILE

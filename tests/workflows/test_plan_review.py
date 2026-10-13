@@ -929,6 +929,16 @@ class ReviewAcceptCase(RunCase):
         self.assertTrue(text.startswith(boardview.rolekit.REJECT_HEADING), text[:200])
         self.assertIn(got["reason"].splitlines()[0][:40], text)
 
+    def test_third_material_pastes_every_reject_of_the_loop(self):
+        """事前審査の役は周ごとに新しい会話で起きるので、2 回拒まれた後の 3 回目の材料に 1 回目と 2 回目の拒否が古い順に在る（#345）"""
+        r = self.run_
+        self.prepped()
+        reasons = [r.out("review_accept", INPUTS_REPLY="{JSON でない")["reason"],
+                   r.accept(review(face("entrance-without-no-add", kind="entrance")))["reason"]]
+        self.assertNotEqual(*reasons)
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(boardview.rolekit.rejects_text(reasons), text)
+
     def test_material_carries_the_mainline_inputs(self):
         """材料は役の頭（関所の決め手・狭めない案・既にある物を量ったか・人に回す物）と、写しの指示書の差し込み（修正案・番号つきの
         単位・判定者の見立て・先行例・リポジトリと読む版と観点の正本・人の方針）を持つ。修正案の頭の入れてよい no の節は載らない

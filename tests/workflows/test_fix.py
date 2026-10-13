@@ -637,6 +637,32 @@ class DeltaScriptsCase(unittest.TestCase):
         cut2 = self._run("cut2", "cut2")
         self.assertEqual((cut2["go"], cut2["files"]), (True, ["stats.py"]), cut2)
 
+    def test_third_refix_prompt_names_every_reject_of_the_loop(self):
+        """どの回の役も輪の拒否の全部を読む。2 回続けて拒まれた輪の 3 回目の指示書が名指すファイルに、1 回目の拒否の理由も届く（#345）"""
+        self._cut()
+        self.assertTrue(self._run("delta_accept", "delta-accept", reply=json.dumps(_RV_REVIEW, ensure_ascii=False))["ok"])
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("def mean(xs):\n", 'def mean(xs):\n    """算術平均"""\n'),
+                     encoding="utf-8")
+        reasons = []
+        for k, stray in ((1, "other.py"), (2, "another.py")):
+            self.assertEqual(self._run("refix_prep", "refix-prep", n="1")["iteration"], k)
+            for name in ("other.py", "another.py"):
+                (self.repo / name).unlink(missing_ok=True)
+            (self.repo / stray).write_text("X = 1\n", encoding="utf-8")
+            bad = self._run("refix_accept", "refix-accept", n="1", reply=json.dumps(_RV_HANDLED, ensure_ascii=False),
+                            iteration=str(k))
+            self.assertEqual((bad["ok"], bad["done"]), (False, False), bad)
+            reasons.append(bad["reason"])
+        self.assertNotIn("another.py", reasons[0])
+        third = self._run("refix_prep", "refix-prep", n="1")
+        self.assertEqual(third["iteration"], 3)
+        head = pathlib.Path(third["prompt_file"]).read_text(encoding="utf-8").split("\n")[1]
+        named = re.findall(re.escape(str(self.place)) + r"/\S+?\.md", head)
+        self.assertEqual(len(named), 1, head)
+        text = pathlib.Path(named[0]).read_text(encoding="utf-8")
+        self.assertLess(text.index(reasons[0]), text.index(reasons[1]), "1 回目の拒否も古い順に届く")
+
     def test_refix_prompts_name_the_frozen_policy_copy(self):
         """1 回目と 2 回目の手直しの指示書が名指す方針の文書は、始めの記録の固めた版の写し（run の途中で書き換えた生の文書ではない）"""
         fields, raw_doc = moved_policy(self.tmp)
@@ -3024,6 +3050,38 @@ class FixLoopScriptsCase(FixLoopPlace):
                 self.assertEqual(code, 0, err)
                 self.assertIn(".archon/workflows/x.yaml", fixboard.read_json(self.place / fixboard.SKIP_BEFORE_FILE))
                 self.assertTrue((self.place / head).is_file())
+
+    def test_third_fix_prompt_names_every_reject_of_the_loop(self):
+        """どの回の修正役も輪の拒否の全部を読む（#345）。修正の輪と裁定の後の修正の輪で 2 回続けて拒まれた後の 3 回目の指示書が名指す
+        ファイルに、1 回目と 2 回目の拒否の理由が古い順に在る（#345）"""
+        import conflict
+        named = re.compile(re.escape(rolekit.REJECT_LINE.partition("{path}")[0]) + r"(\S+?) ")
+        conflict.park(self.place, [{"unit_key": _FX_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE, ruling={"decision": "fix_test_scope", "text": "テストの期待を直してよい",
+                                                          "limits": ["test_stats.py"]})
+        self._fx_json("join.json", {"groups": [{"group_id": "g1", "unit_ids": [_FX_MEAN, _FX_BOUND], "returned": True,
+                                                "reason": ""}],
+                                    "units": [{"unit_id": _FX_MEAN, "group_id": "g1", "status": "not_done", "reason": ""},
+                                              {"unit_id": _FX_BOUND, "group_id": "g1", "status": "fixed", "reason": ""}]})
+        group = {"group": self._fx_group([_FX_MEAN])}
+        for prep, accept, extra in (("fix_prep", "fix_accept", group), ("fix_ruled_prep", "fix_ruled_accept", {})):
+            with self.subTest(prep=prep):
+                reasons = []
+                for k, reply in ((1, {"changes": []}), (2, {"changes": [_fx_change(_FX_BOUND, ["bounds.py"])]})):
+                    code, out, err = _fx_run(prep, self.repo, self.art, **extra)
+                    self.assertEqual((code, out["iteration"]), (0, k), err)
+                    bad = self._fx_accept(accept, reply, k, **extra)
+                    self.assertEqual((bad["ok"], bad["done"]), (False, False), bad)
+                    reasons.append(bad["reason"])
+                self.assertNotEqual(*reasons)
+                code, out, err = _fx_run(prep, self.repo, self.art, **extra)
+                self.assertEqual((code, out["iteration"]), (0, 3), err)
+                files = named.findall(pathlib.Path(out["prompt_file"]).read_text(encoding="utf-8"))
+                self.assertEqual(len(files), 1, files)
+                text = pathlib.Path(files[0]).read_text(encoding="utf-8")
+                self.assertLess(text.index(reasons[0]), text.index(reasons[1]), "1 回目の拒否も古い順に届く")
 
     def test_fix_ruled_prep_without_fix_ruling_does_not_launch(self):
         import conflict
