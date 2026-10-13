@@ -61,7 +61,7 @@ prep:
   r4_context: '- 波及の一覧: /tmp/ripple.json'
   green_line: ''
   measured_text: '- 比べた結果（test_outcomes）が渡っていない'
-  origin_text: '- 起点は修正前の HEAD'
+  origin_text: "- 起点は修正前の HEAD `0123abc`（HEAD）。PR の差分は無い（累積差分はこの run の直しの差分だけ）\n- この run の直しの差分（修正前の HEAD → 作業ツリー）で変わったファイル: stats.py"
 r1-comments:
   candidates: []
   kept: []

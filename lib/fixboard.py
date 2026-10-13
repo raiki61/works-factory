@@ -17,6 +17,9 @@
   盤面の写しの規則と問いの台帳を読んだ所を、値の引数で受ける）
 - _fix_output(reply_file)・fix_reply(reply_file=None): 修正の返答の読み口
   （元 works/.shared/core/recount.py:89・101。盤面の p3.fix の出力を読んだ所を、返答のファイルのパスで受ける）
+- pr_revs(repo, base, head)・pr_diff(repo, base_sha, head_sha, skip, *opts)・pr_added_lines(repo, base_sha, head_sha, skip):
+  審査する変更（起点 → 修正前の HEAD）の差分と、それが足した行（直しの差分 run_diff と分ける側。目の起点の訳と独立設計の制約の
+  印が引く。新しい）
 - ROLE_DEF_HEAD: 役の定義の見出し（元 works/.shared/core/rolekit.py:205 の写し。lenses.render が使う）
 - write_json・out_file・output・loop_file・loop_value・snapshot・tree_moved_since・take・READONLY_MOVED: 差分の審査と手直しの
   置き場の決まった名のファイル（盤面の b.output_of_round・b.loop_state と entry.snapshot・take の代わり。元 entry.py:1228・1231・1240・1262）
@@ -1032,6 +1035,33 @@ def run_diff(repo, base: str = "HEAD", skip=()) -> str:
     import unittrees
     out = unittrees._git(repo, *unittrees._DIFF, base, leftovers.snapshot(repo), "--", *unittrees.pathspec_without(skip))
     return out.stdout.decode("utf-8", "surrogateescape")
+
+
+def pr_revs(repo, base: str, head: str) -> tuple[str, str]:
+    """審査する変更の両端（起点 base・修正前の HEAD head）の commit の名。引けなければ unittrees.UnitTreeError"""
+    import unittrees
+    base_sha, head_sha = (unittrees._out(repo, "rev-parse", "--verify", f"{rev}^{{commit}}") for rev in (base, head))
+    return base_sha, head_sha
+
+
+def pr_diff(repo, base_sha: str, head_sha: str, skip=(), *opts: str) -> str:
+    """審査する変更の差分（起点 base_sha → 修正前の HEAD head_sha。この run の直しの差分 run_diff と分ける側）を git diff の
+    形 opts で。除くパスの頭 skip の下は載せない。git が落ちれば unittrees.UnitTreeError"""
+    import unittrees
+    return unittrees._out(repo, "-c", "core.quotePath=false", *unittrees._DIFF, *opts, base_sha, head_sha, "--",
+                          *unittrees.pathspec_without(skip))
+
+
+def pr_added_lines(repo, base_sha: str, head_sha: str, skip=()) -> dict[str, set[int]]:
+    """審査する変更（pr_diff）が足した行 {根からのパス: 修正前の HEAD での行番号}。消しただけのファイルは載せない。
+    ファイルの分け方と行番号の数え方は changemap.split_diff・new_side"""
+    import changemap
+    added: dict[str, set[int]] = {}
+    for path, lines in changemap.split_diff(pr_diff(repo, base_sha, head_sha, skip, "-U0"))[0].items():
+        for n, ln in changemap.new_side(lines):
+            if ln.startswith("+"):
+                added.setdefault(path, set()).add(n)
+    return added
 
 
 DIFF_EMPTY = "累積差分は空（{base} から作業ツリーは変わっていない）"
