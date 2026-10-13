@@ -19,7 +19,7 @@ $prep.output.carried
 
 この役は inspector。R4 見えてないスコープ——diff の中でなく、diff が解こうとしている領域に潜む、変更が手を付けていない横断リスクを探す（SRE・セキュリティ・データガバナンスの複数レンズ）。
 
-累積差分: `$prep.output.diff_file`（Read せよ。始めの版 `$prep.output.base_rev` から今の作業ツリーまでの差。未追跡の新規ファイルも入る）　変更ファイル: $prep.output.changed_files　リポジトリ: `$prep.output.cwd`
+累積差分: `$prep.output.diff_file`（Read せよ。入口の差分の根 `$prep.output.base_rev` から今の作業ツリーまでの差。未追跡の新規ファイルも入る）　変更ファイル: $prep.output.changed_files　リポジトリ: `$prep.output.cwd`
 元の目的: $prep.output.purpose_text
 観点の正本: `$prep.output.review_md`——「横断リスク観点」を Read して従え（レート制限・濫用耐性、PII の外部送信、可用性の外部結合、誤爆半径、移行退行の棚卸し＝BASE 能力インベントリ。列挙は代表例で限定ではない。棚卸しの発火条件・BASE 比較の基準・明示返答の要求は正本のとおり）。
 波及と定石（機械が並べた置き場。在れば Read で読め）:
