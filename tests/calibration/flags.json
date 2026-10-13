@@ -539,14 +539,9 @@
      "check": "json-has",
      "where": "board/out/r*/r4.hidden_scope.json",
      "path": "policy_conflicts.0"
-    },
-    {
-     "check": "json-has",
-     "where": "board/out/r*/r4.hidden_scope.json",
-     "path": "surfaced.0"
     }
    ],
-   "why": "R4 の status と、消えた能力・方針とのぶつかり・見つけた所見（review-loop.json:5036）"
+   "why": "R4 の status と、消えた能力・方針とのぶつかり（review-loop.json:5036）"
   },
   "r4.human_gate": {
    "rules": [
@@ -781,10 +776,10 @@
     {
      "check": "json-has",
      "where": "parent/judge/material-local-review.json",
-     "path": "reply.findings.0"
+     "path": "reply.findings.*.items.0"
     }
    ],
-   "why": "judge/local-review-accept が書く素材の found か reply.findings（lib/judge_accept.py::material_take）"
+   "why": "judge/local-review-accept が書く素材の found か、レンズごとの reply.findings[].items[]（lib/judge_accept.py::material_take）"
   },
   "p1.main_path_observation": {
    "rules": [

@@ -125,6 +125,35 @@ class FlagTableTest(unittest.TestCase):
         self.assertNotIn("p1.provenance", got["unread"])
         self.assertIn("p1.gate_efficacy", got["unread"])
 
+    def test_works_factory_local_review_needs_items_not_lens_rows(self):
+        """局所レビューはレンズ 1 本につき findings の行を必ず返すので、行だけ（items が空）では立たず、items に中身がある時だけ立つ"""
+        table = _table()[runner.WorksFactory.name]
+        rows = [{"skill": "code-review", "items": [], "invoked": True, "failed": "起こしたが所見なし"},
+                {"skill": "simplify", "items": [], "invoked": True, "failed": "起こしたが所見なし"}]
+        for items, flagged in (([], []), ([{"where": "a.py:1"}], ["p1.local_review"])):
+            with self.subTest(items=items), tempfile.TemporaryDirectory() as tmp:
+                ev = pathlib.Path(tmp)
+                (ev / "parent" / "judge").mkdir(parents=True)
+                reply = {"findings": [rows[0], {**rows[1], "items": items}]}
+                (ev / "parent" / "judge" / "material-local-review.json").write_text(json.dumps(
+                    {"materials": {"local_review": {"status": "clean"}}, "reply": reply}), encoding="utf-8")
+                got = runner.flags_of({"p1.local_review": table["p1.local_review"]}, ev, set())
+                self.assertEqual(got["flagged"], flagged)
+
+    def test_hidden_scope_counts_surfaced_alike_in_both_factories(self):
+        """仕込みに当たらない suggest（surfaced）だけの R4 の返りは、どちらの工場でも旗を立てない"""
+        reply = {"status": "ok", "capability_inventory": {"lost": []}, "policy_conflicts": [],
+                 "surfaced": [{"title": "別の所見"}]}
+        places = {runner.OldWorks.name: "board/out/r1/r4.hidden_scope.json",
+                  runner.WorksFactory.name: "parent/eyes/r4.json"}
+        for factory, where in places.items():
+            with self.subTest(factory=factory), tempfile.TemporaryDirectory() as tmp:
+                ev = pathlib.Path(tmp)
+                (ev / where).parent.mkdir(parents=True)
+                (ev / where).write_text(json.dumps(reply), encoding="utf-8")
+                got = runner.flags_of({"r4.hidden_scope": _table()[factory]["r4.hidden_scope"]}, ev, set())
+                self.assertEqual(got["flagged"], [])
+
     def test_test_gate_flags_read_the_evidence_of_a_fallen_result(self):
         """返す節 test-gate/result が落ちた時に今書く evidence.md で、p0.local_checks・p4.ci の旗が立つ"""
         spec = importlib.util.spec_from_file_location("test_gate_result", ROOT / "workflows" / "test-gate" / "scripts" / "result.py")

@@ -631,6 +631,19 @@ class RunTest(RunnerCase):
                 self.assertEqual((observed["units"], observed["asks"]), self.UNITS[factory])
                 self.assertFalse({"units", "asks"} & set(observed["unread"]))
 
+    def test_old_works_seconds_span_from_the_first_event_across_resumes(self):
+        """Archon は再開のたびに行の started_at を書き直すので、時間は最初の出来事から completed_at までで測る"""
+        record = {"run": {"started_at": "2026-10-12 01:59:50", "completed_at": "2026-10-12 02:00:00"},
+                  "events": [{"event_type": "workflow_started", "created_at": "2026-10-12 01:50:00"},
+                             {"event_type": "approval_requested", "created_at": "2026-10-12 01:55:00"},
+                             {"event_type": "workflow_completed", "created_at": "2026-10-12 02:00:00",
+                              "data": {"cost_usd": 1.0}}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            ev = pathlib.Path(tmp)
+            (ev / "record").mkdir()
+            (ev / "record" / "parent.json").write_text(json.dumps(record), encoding="utf-8")
+            self.assertEqual(runner.OldWorks.ended(ev)["seconds"], 600.0)
+
     def reobserve(self, factory, *extra):
         return self.runner("reobserve", factory, "--attempts", str(self.attempts), "--observed", str(self.observed), *extra)
 

@@ -364,8 +364,10 @@ class OldWorks:
         run = _object(got.get("run"))
         usd = next((e["data"].get("cost_usd") for e in _events(got)
                     if e.get("event_type") == "workflow_completed" and isinstance(e.get("data"), dict)), None)
+        # 行の started_at は再開のたびに書き直される。最初の出来事が run の始め
+        began = next((e["created_at"] for e in _events(got) if e.get("created_at")), run.get("started_at"))
         return {"outcome": _header_outcome(ev / "board"),
-                "seconds": _seconds(run.get("started_at"), run.get("completed_at")),
+                "seconds": _seconds(began, run.get("completed_at")),
                 "usd": _number(usd),
                 "usd_from": "出来事 workflow_completed の data.cost_usd"}
 
