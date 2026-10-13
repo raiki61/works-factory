@@ -217,7 +217,7 @@ def _keys_once(rows, label):
 def plan_review_output(b, nid, out, item):
     """事前審査の穴は案の単位を指し、key は一意。穴も別案も無いなら faces_none を書く。入口の穴は no_add を併記する
     （元 review-loop.py:3096。out の unit_keys は単位の名に戻した物）"""
-    planned = {k for p in (b.output_of_round(PLAN_NODE, b.round) or {}).get("plan") or [] for k in p["unit_keys"]}
+    planned = converge.planned_units((b.output_of_round(PLAN_NODE, b.round) or {}).get("plan"))
     rows = (out.get("faces") or []) + (out.get("shrink") or [])
     errs = _keys_once(rows, "faces・shrink")
     for r in rows:
