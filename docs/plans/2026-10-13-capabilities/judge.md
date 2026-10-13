@@ -421,7 +421,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J66 判定・素材・仕様・再審の役に、人が読む文の欄を依頼文の言語（利用者の言語）で書かせる 1 行（LANG_RULE）を足す
   - 元: works/.shared/core/rolekit.py:67 `LANG_RULE`・:147 `lang_line`（render_body の lang=True で judgebrief・material・specblk の本文の末尾に、rejudge.py:379 は明示で足した。test_rejudge.py:323）
-  - 今: lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（workflows/judge/scripts/reject.py と判定の裏取りの支度が lang_line で返し、各役の指示書の頭が `$<節>.output.lang_line` で読む）
+  - 今: lib/rolekit.py::lang_line・lib/rolekit.py::record_lang_line（workflows/judge/scripts/reject.py・rejects.py と判定の裏取りの支度が lang_line で返し、各役の指示書の頭が `$<節>.output.lang_line` で読む）
   - 証: tests/workflows/test_judge.py::BriefCase.test_lang_line_reaches_judge_roles
   - 本物の run: 各役の節の指示書
   - 狭め: #76 で落とした（不可でない → 戻す。持ち主の決め「人と話す所だけその人の言語」に沿う物で、選び方の仕組みではない）
@@ -514,7 +514,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し（読み手の側は J102）
 - J81 受け付けが拒めば同じ会話で 3 回まで出し直し、理由は輪の頭の reject の節から役へ渡し、3 回目で最後の拒否の文で works:judge で止める
   - 元: works/blk-judge/lib/judgetake.py:106 `accept`・:122 `_give_up`・rolekit の拒否の控え
-  - 今: lib/judge_accept.py::accept・lib/judge_accept.py::_give_up・workflows/judge/works-factory-judge.yaml の `diagnose-reject`（集めの口 `collect` は届かなかったので #232 で消した）。役が周ごとに新しい会話で起きる仕様の 3 つの輪と再審の輪（fresh_context: true）は、reject の節が with: の board・accept で拒否の控えの全部を読み rolekit.rejects_text で渡す（workflows/judge/scripts/reject.py::reason。#345）
+  - 今: lib/judge_accept.py::accept・lib/judge_accept.py::_give_up・workflows/judge/works-factory-judge.yaml の `diagnose-reject`（集めの口 `collect` は届かなかったので #232 で消した）。役が周ごとに新しい会話で起きる仕様の 3 つの輪と再審の輪（fresh_context: true）は、頭の節（script rejects）が with: の board・accept で拒否の控えの全部を読み rolekit.rejects_text で渡す（workflows/judge/scripts/rejects.py。#345）
   - 証: tests/workflows/test_judge.py::AcceptLoopTest.test_diagnose_accept_gives_up_on_the_third_reject・tests/workflows/test_judge.py::LoopTest.test_every_loop_retries_three_times_until_its_accept_is_done・tests/workflows/test_judge.py::LoopTest.test_roles_receive_the_reject_reason_through_the_reject_node・tests/workflows/test_judge.py::LoopTest.test_third_fresh_spec_role_reads_every_reject_of_the_loop・tests/workflows/test_judge.py::StopPathTest.test_gave_up_judgment_still_fills_pointers。止めの文が最後の拒否を名指すかは縛られていない（`collect` と共に JudgeAcceptCase.test_collect_without_judgment_gives_up_with_last_reject を #232 で消した）→ 要追加: JudgeTakeCase.test_give_up_names_the_last_reject — 3 回拒んだ後の止めの控えの reason に「3 回とも」と最後の拒否の文
   - 本物の run: judge/rejects-diagnose.json（拒まれた時）
   - 狭め: 無し

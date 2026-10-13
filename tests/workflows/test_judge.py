@@ -292,7 +292,7 @@ class LoopTest(unittest.TestCase):
     def test_roles_receive_the_reject_reason_through_the_reject_node(self):
         """拒否の理由は、輪の中の節 <役>-reject（script reject）の with: に $LOOP_PREV で結び、役の指示書は今の周のその節の返り
         $<役>-reject.output.reason で受け、rolekit.with_reject の見出しと文で出す（1 周目の $LOOP_PREV は空の字）。
-        役が周ごとに新しい会話で起きる輪（FRESH）は $LOOP_PREV でなく受け付けの拒否の控え（FRESH_LEDGERS）を結ぶ（#345）。
+        役が周ごとに新しい会話で起きる輪（FRESH）は script rejects の節で、$LOOP_PREV でなく受け付けの拒否の控え（FRESH_LEDGERS）を結ぶ（#345）。
         役の節には with: を書かず、指示書には $INPUTS も $LOOP_PREV も書かない: 線が include すると、止めた Archon は輪の中の節が
         自分の with: で結んだ名を楯にせず「入力が無い」で止める（packages/workflows/src/include-expander.ts:566・627。楯は輪の節の
         束縛だけを見る）。ブロックの入力に宣言すると読み込みの時に既定の値で字が埋まり、周ごとの理由が消える。指示書の $LOOP_PREV は
@@ -306,7 +306,7 @@ class LoopTest(unittest.TestCase):
                     reject = f"{role['id']}-reject"
                     node = body[reject]
                     self.assertEqual((node["script"], node["runtime"], node["timeout"], node["mutates_checkout"]),
-                                     ("reject", "uv", NO_DEADLINE, False))
+                                     ("rejects" if lid in FRESH else "reject", "uv", NO_DEADLINE, False))
                     self.assertEqual(node["with"], FRESH_LEDGERS.get(lid, {"reason": f"$LOOP_PREV.{accept}.output.reason"}))
                     self.assertEqual(node["output_format"]["required"], ["reason", "lang_line"])   # 言語の 1 行は BriefCase
                     self.assertNotIn("with", role)
@@ -326,13 +326,15 @@ class LoopTest(unittest.TestCase):
                 self.assertEqual(r.returned("reject", reason=reason), {"reason": reason, "lang_line": rolekit.lang_line({})})
 
     def test_third_fresh_spec_role_reads_every_reject_of_the_loop(self):
-        """新しい会話で起きる仕様の役が 2 回拒まれた後の 3 回目: reject の返りの reason に 1 回目と 2 回目の拒否が古い順に在る（#345）"""
+        """新しい会話で起きる仕様の役が 2 回拒まれた後の 3 回目: rejects の返りの reason に 1 回目と 2 回目の拒否が古い順に在る（#345）。
+        1 周目は空の字。言語の 1 行も reject と同じに返す"""
         r = Run(self)
         r.returned("intake")
+        self.assertEqual(r.returned("rejects", **FRESH_LEDGERS["spec-loop"]), {"reason": "", "lang_line": rolekit.lang_line({})})
         reasons = [r.returned("spec_accept", role="write", reply=reply)["reason"]
                    for reply in ({"requirements": []}, {"acceptance": []})]
         self.assertTrue(all(reasons) and reasons[0] != reasons[1], reasons)
-        got = r.returned("reject", **FRESH_LEDGERS["spec-loop"])["reason"]
+        got = r.returned("rejects", **FRESH_LEDGERS["spec-loop"])["reason"]
         self.assertEqual(got, rolekit.rejects_text(reasons))
         self.assertLess(got.index(reasons[0]), got.index(reasons[1]))
 

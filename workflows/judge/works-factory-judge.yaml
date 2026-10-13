@@ -37,7 +37,7 @@ nodes:
       until_bash: done=$spec-accept.output.done; test "$done" = true
       nodes:
         - id: spec-reject
-          script: reject
+          script: rejects
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
@@ -113,7 +113,7 @@ nodes:
       until_bash: done=$spec-review-accept.output.done; test "$done" = true
       nodes:
         - id: spec-review-reject
-          script: reject
+          script: rejects
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
@@ -179,7 +179,7 @@ nodes:
       until_bash: done=$spec-revise-accept.output.done; test "$done" = true
       nodes:
         - id: spec-revise-reject
-          script: reject
+          script: rejects
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
@@ -2194,7 +2194,7 @@ nodes:
       until_bash: done=$rejudge-accept.output.done; test "$done" = true
       nodes:
         - id: rejudge-reject
-          script: reject
+          script: rejects
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
