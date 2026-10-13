@@ -1796,7 +1796,9 @@ ABSORBED_OP = "fix_excused_dropped"   # 最後の回に、義務の外の単位�
 PACK_COPY = ("修正役は除くパスの頭 {skip} の下を変えてはいけない（実行基盤の置き場で、この run を動かしているグラフの写しが在りうる。"
              "写しは次の run が作り直す）: ")   # 元 accept.py:175 の PACK_COPY（頭の字は呼び手が渡す）
 SKIP_BEFORE_FILE = "skip-before.json"   # 修正の段の頭の、除くパスの頭の下の姿 {パス: 中身の sha256}（fix-prep・fix-ruled-prep が 1 回目に書く）
-PARKED_FOR_RULING = "食い違いの申し出を裁定へ回した（裁定の後の修正役が受け付け直す）"
+PARKED_FOR_RULING = "食い違いの申し出を裁定へ回した（直す裁定なら裁定の後の修正役が受け付け直し、人に回れば人が決める）"
+QUERY_PARKED = ("直しは差分に在る。閉じたかの数え（判定者の問いが直した後の正しい行にも当たる）だけを裁定へ回した（問いが"
+                "置き換われば裁定の後の修正役が受け付け直し、人に回れば人が決める）")   # query_hits_fixed は直してから申し出る（common.md）
 UNDECLARED = ("書き込みの記録が無い run で、作業ツリーの変更が返答の changes[].files にも bash_writes にも無い——直したファイルなら "
               "changes の files に足し、Bash で書いたなら bash_writes にパスと理由を書き、要らない変更なら戻せ: ")
 NOT_IN_REPLY = "修正役の返答がこの単位を changes に書かなかった"
@@ -1949,23 +1951,34 @@ def reply_marks(reply, before=None) -> dict:
     return out
 
 
-def unit_outcomes(owed, reply, *, excused=None, parked=None, conflicted=()) -> dict:
+def unit_outcomes(owed, reply, *, excused=None, parked=None, conflicted=None) -> dict:
     """単位ごとの結末 {key: {status, reason}}（fix-units.json の中身）: 止めた単位（parked {key: 理由}）は given_up、受けた返答の
-    changes の単位は fixed、申し出た単位（conflicted）と changes に無い直す義務の単位・外れた単位（excused {key: 理由}）は not_done
-    （理由は返答の not_done の why か外れた理由）"""
+    changes の単位は fixed、裁定へ回した単位（conflicted {key: 理由}。parked_reasons）と changes に無い直す義務の単位・外れた単位
+    （excused {key: 理由}）は not_done（理由は返答の not_done の why か外れた理由）"""
     out = {}
+    conflicted = conflicted or {}
     why = {r.get("unit_key"): r.get("why") for r in (reply or {}).get("not_done") or [] if isinstance(r, dict)}
     done = {c.get("unit_key") for c in (reply or {}).get("changes") or [] if isinstance(c, dict)}
     for k in [*owed, *(excused or {}), *conflicted]:
         if k in done:
             out[k] = {"status": FIXED, "reason": ""}
         elif k in conflicted:
-            out[k] = {"status": NOT_DONE, "reason": PARKED_FOR_RULING}
+            out[k] = {"status": NOT_DONE, "reason": conflicted[k]}
         else:
             out[k] = {"status": NOT_DONE, "reason": str(why.get(k) or (excused or {}).get(k) or NOT_IN_REPLY)}
     for k, texts in (parked or {}).items():
         out[k] = {"status": GIVEN_UP, "reason": texts if isinstance(texts, str) else " / ".join(texts)}
     return out
+
+
+def parked_reasons(place, keys) -> dict:
+    """裁定へ回した周の単位 keys の結末の理由 {key: 理由}: 裁かれていない申し出が query_hits_fixed だけの単位は QUERY_PARKED、
+    ほかは PARKED_FOR_RULING"""
+    import conflict
+    kinds = {}
+    for i in conflict.unruled(place):
+        kinds.setdefault(i.get("unit_key"), set()).add(i.get(conflict.KIND_FIELD))
+    return {k: QUERY_PARKED if kinds.get(k) == {conflict.QUERY_HITS_FIXED} else PARKED_FOR_RULING for k in keys}
 
 
 def judge_query(place):
@@ -2160,7 +2173,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     reply, done = take_conflicts(reply, place, repo, pass_, owed)
     if done is not None:
         if done.get("ok") is True:   # 1 回目に裁かれていない申し出: 積んだ誤りが在っても輪を抜ける（裁定の後の受け付けが当て直す）
-            units = unit_outcomes(owed, {}, parked=parked, conflicted=[k for k in owed if k not in parked])
+            units = unit_outcomes(owed, {}, parked=parked, conflicted=parked_reasons(place, [k for k in owed if k not in parked]))
             return {"ok": True, "reason": "", "rejects": [], "reply": reply, "units": units, "parked": parked,
                     "conflicted": True}
         for key, text in done.get("lines") or [(None, done["reason"])]:

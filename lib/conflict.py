@@ -53,7 +53,8 @@
   planscope が読む）
 - ruled_test_limits(b, rulings=, source=, skip_ids=, base=)・parse_limit(lim): テストの変更の許し（承認済みの修正案の rewrite_tests と裁定
   fix_test_scope の範囲。test_permits）の範囲の文字列と、その 1 つの読み（TDD の輪の凍結が範囲の中の直しを通す）
-- human_lines(b): 最後の関所と報告に載せる ask_human の行（諦めた fix_plan_item の行も。案の直しの理由を末尾に添える）
+- human_lines(b): 最後の関所と報告に載せる ask_human の行（諦めた fix_plan_item の行も。末尾に案の直しの理由か、単位の直しの
+  在りか left_words を添える）
 - 案の直しの状態（依頼 226。裁定 fix_plan_item の行の欄 REPLAN_STATE）: apply_rulings が WAITING に置き、set_replan の 1 か所だけが
   AMENDED（項目を直した。held_by_rulings が外さず直す義務に戻す）か GAVE_UP（諦めた。asked に入り ask_human の行として並ぶ）に
   移す（trace の行 REPLAN_OP）。読む口は replan_state(row)・waiting(b)・amended_keys(b)
@@ -154,6 +155,10 @@ REPLAN_OP = "replan_state"              # trace の行 {id, unit_key, state, why
 AMENDED_PROMISE = ("案の項目そのものが誤りと裁いたが、同じ run で案を直して直す義務に戻った。直した項目（頭の brief）のとおりに"
                    "直し、この単位も changes に 1 行を書け")   # 裁定の文の AMENDED の行の約束（write_rulings）
 HELD_WORK_KEPT = "この run の修正の段で直した分は作業ツリーに残した"   # 諦めた行の直しの在りか（1 回目・2 回目の段のどちらで諦めても。約束・関所・次の依頼）
+# 人に回した単位の直しの在りか（left_words。関所と次の依頼の行）。query_hits_fixed は修正役が直してから申し出る（common.md）ので、
+# 直しは作業ツリーに残り封じた差分に入る
+UNFIXED_LEFT = "直さずに残した"
+FIX_IN_DIFF = "直しは差分に在り、閉じたかの数え（判定者の問いが直した後の正しい行にも当たる）だけが人の決め待ち"
 GAVE_UP_PROMISE = ("案の項目そのものが誤りと裁いたが、同じ run の中で案を直せなかった（諦めた。理由は「案の直しを諦めた理由」）。"
                    "この単位も「項目の単位」に並べた同じ項目の単位も直すな（機械が直す義務から外した。最後の承認ノードで人が"
                    f"決める）。changes に書くな。{HELD_WORK_KEPT}（戻すな）")   # 裁定の文の GAVE_UP の行の約束（write_rulings）
@@ -920,12 +925,17 @@ def ruled_test_doc(b) -> dict | None:
     return {"rules": rows} if rows else None
 
 
+def left_words(row) -> str:
+    """人に回した申し出の行 row の単位の直しの在りか（FIX_IN_DIFF か UNFIXED_LEFT）"""
+    return FIX_IN_DIFF if row.get(KIND_FIELD) == QUERY_HITS_FIXED else UNFIXED_LEFT
+
+
 def human_lines(b) -> list:
-    """最後の関所と報告に載せる ask_human の行（1 件 1 行。asked の行で、諦めた fix_plan_item も。裁定の文は字のまま。
-    REPLAN_WHY が在れば末尾の括弧に「・案の直し: <why>・<HELD_WORK_KEPT>」）"""
+    """最後の関所と報告に載せる ask_human の行（1 件 1 行。asked の行で、諦めた fix_plan_item も。裁定の文は字のまま。末尾の括弧に
+    REPLAN_WHY が在れば「・案の直し: <why>・<HELD_WORK_KEPT>」、無ければ直しの在りか「・<left_words>」）"""
     return [f"{r['unit_key']}: {r['ruling']['text']}（名指し {', '.join(r['between'])}・種類 {r.get(KIND_FIELD) or '無し'}・"
             f"正しいと見た側 {r[WHICH_FIELD]}・"
             + (f"依頼で探したこと {r['ruling']['request_searched']}・" if r["ruling"].get("request_searched") else "")
             + f"{r['id']}"
-            + (f"・案の直し: {r[REPLAN_WHY]}・{HELD_WORK_KEPT}" if r.get(REPLAN_WHY) else "")
+            + (f"・案の直し: {r[REPLAN_WHY]}・{HELD_WORK_KEPT}" if r.get(REPLAN_WHY) else f"・{left_words(r)}")
             + "）" for r in asked(b)]

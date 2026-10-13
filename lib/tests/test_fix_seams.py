@@ -2009,7 +2009,7 @@ class FixAcceptSeamCase(TempCase):
         self.assertEqual(got, {"a": {"status": "fixed", "reason": ""}, "b": {"status": "not_done", "reason": "答え待ち"},
                                "c": {"status": "given_up", "reason": "諦めた"},
                                "d": {"status": "not_done", "reason": "人が決める"}})
-        got = fixboard.unit_outcomes(["a"], {}, conflicted=["a"])
+        got = fixboard.unit_outcomes(["a"], {}, conflicted={"a": fixboard.PARKED_FOR_RULING})
         self.assertEqual(got["a"], {"status": "not_done", "reason": fixboard.PARKED_FOR_RULING})
 
     def test_allowed_tests_take_rulings_and_agreements(self):
