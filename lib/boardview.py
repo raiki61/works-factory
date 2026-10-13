@@ -52,13 +52,14 @@ import premises as _premises
 import promptsection
 import purpose as _purpose
 import reads
+import replan
 import rolekit
 import startrec
 import structmark
 import worldmark
 from engine.util import Reject
 
-PLAN_NODE = "p2.fix_plan"
+PLAN_NODE = planmarks.NODE
 REVIEW_NODE = "p2.plan_review"
 PURPOSE_NODE = "p0.purpose"
 DIAGNOSE_NODE = "p2.diagnose"
@@ -234,8 +235,7 @@ def plan_review_output(b, nid, out, item):
 # このブロックの部品が読む blocks（gatemarks.unmeasured）だけ。状態の語の持ち主は gatemarks.MATERIAL_WORDS
 BLOCKING = gatemarks.UNMEASURED
 STATUS = {s: types.SimpleNamespace(blocks=s in BLOCKING) for s in gatemarks.MATERIAL_WORDS}
-ASKING = gatemarks.ASKING
-VALIDATOR = types.SimpleNamespace(STATUS=STATUS, ASKING=ASKING)
+VALIDATOR = types.SimpleNamespace(STATUS=STATUS, ASKING=gatemarks.ASKING)
 
 
 def validator_module(b):
@@ -554,11 +554,6 @@ def _role_item(item: dict) -> dict:
         out["rewrite_tests"] = [{k: v for k, v in r.items() if k != "limit"} if isinstance(r, dict) else r
                                 for r in out["rewrite_tests"]]
     return out
-
-
-def _bare(item: dict) -> dict:
-    """項目から関所の決め手の欄を外した写し（元 works/.shared/core/replan.py:579）"""
-    return gatemarks.split(PLAN_NODE, {"plan": [copy.deepcopy(item)]})[0]["plan"][0]
 
 
 def replan_items(b, approved, marked_rows: list, ruled: list, conflicts: list) -> list:
@@ -1006,7 +1001,7 @@ def replan_asks(d: pathlib.Path, p: pathlib.Path, inputs: dict, review: dict) ->
     for row in rows:
         faces = _faces_of(row, review, rows)
         human = [f for f in faces if isinstance(f, dict) and f.get("kind") in HUMAN_FACE_KINDS]
-        old, new = _bare(row["old"]), _bare(row["new"])
+        old, new = replan.bare(row["old"]), replan.bare(row["new"])
         row["contract_changed"] = planmarks.contract_diff(old, new)
         row["human_faces"] = [f.get("key") for f in human]
         row["widened"] = planmarks.widened(old, new) if alone and row["contract_changed"] and not human else None

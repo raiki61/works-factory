@@ -731,7 +731,7 @@ def join_rows(groups, outcomes) -> tuple:
         got = {u.get("unit_id"): u for u in (result or {}).get("units") or [] if isinstance(u, dict)} if back else {}
         for k in g["unit_ids"]:
             u = got.get(k) or {}
-            status = u.get("status") if u.get("status") in ("fixed", "given_up", "not_done") else "not_done"
+            status = u.get("status") if u.get("status") in UNIT_STATUSES else NOT_DONE
             reason = str(u.get("reason") or "") if u else str(why or "組の結果にこの単位の行が無い")
             units.append({"unit_id": k, "group_id": gid, "status": status, "reason": reason})
     return rows, units
@@ -744,7 +744,7 @@ def with_ruled(units, ruled) -> list:
     out = []
     for u in units:
         r = ruled.get(u["unit_id"])
-        if u["status"] != "fixed" and isinstance(r, dict) and r.get("status") in ("fixed", "given_up", "not_done"):
+        if u["status"] != FIXED and isinstance(r, dict) and r.get("status") in UNIT_STATUSES:
             u = {**u, "status": r["status"], "reason": str(r.get("reason") or "")}
         out.append(u)
     return out
@@ -978,8 +978,7 @@ def run_diff(repo, base: str = "HEAD", skip=()) -> str:
     （unittrees._DIFF の形）。除くパスの頭 skip の下は載せない。git が落ちれば unittrees.UnitTreeError"""
     import leftovers
     import unittrees
-    spec = [":/", *[f":(top,exclude){s.rstrip('/')}" for s in skip]]
-    out = unittrees._git(repo, *unittrees._DIFF, base, leftovers.snapshot(repo), "--", *spec)
+    out = unittrees._git(repo, *unittrees._DIFF, base, leftovers.snapshot(repo), "--", *unittrees.pathspec_without(skip))
     return out.stdout.decode("utf-8", "surrogateescape")
 
 
@@ -1081,7 +1080,7 @@ def depth_signals(place) -> tuple:
             units.setdefault(r["unit_key"], "食い違いの申し出が在る")
     parked = [k for row in conflict.plan_asks(place, conflict.ACCEPT_PARKED_OP) for k in row.get("unit_keys") or []]
     joined = read_json(place / JOIN_FILE, {}) or {}
-    parked += [u.get("unit_id") for u in joined.get("units") or [] if isinstance(u, dict) and u.get("status") == "given_up"]
+    parked += [u.get("unit_id") for u in joined.get("units") or [] if isinstance(u, dict) and u.get("status") == GIVEN_UP]
     for k in parked:
         if isinstance(k, str):
             units.setdefault(k, "修正の受け付けが最後の回に止めた")
@@ -1289,14 +1288,14 @@ def delta_fix_problems(place, n: int, reply: dict) -> list:
 
 def lens_route(place, lang: str = "") -> dict:
     """レンズの振り分け: 前の試みの控えを消し、置き場の 1 回目の差分（refix.fix_delta）の変わったファイルでレンズごとに起こすかを
-    決め（lenses.LENSES の route）、起こすレンズは利用者が入れた役の定義の本文（rolekit.agent_def）から指示書を組んで
+    決め（lenses.LENSES の route）、起こすレンズは利用者が入れた役の定義の本文（engine.validator.agent_def）から指示書を組んで
     置き場の prompt-lens-<key>.md に書く。定義が引けなければ起こさない理由を残す。行を lens.json に書き（lens.write_routes）、
     {レンズの名: {go, reason, prompt_file}} を返す。差分が無ければ ValueError。
     元 works/blk-lens/lib/lenses.py:81 の route（盤面の今の周の差分と inputs を読み、出口の欄を <key>_go にした）"""
     import lens
     import lenses
     import refix
-    import rolekit
+    from engine.validator import agent_def   # refix の import が写しの engine を sys.path に足した後
     p = pathlib.Path(place)
     (p / lens.LENS_FILE).unlink(missing_ok=True)   # 前の試みの控えを次の集め役に読ませない
     d = refix.fix_delta(p)
@@ -1309,7 +1308,7 @@ def lens_route(place, lang: str = "") -> dict:
         prompt = ""
         if go:
             try:
-                got = rolekit.agent_def(row["agent"])
+                got = agent_def(row["agent"])
             except (Exception, SystemExit) as e:   # engine の探しが出所の曖昧さで止まる（die）時も、起こさない理由にする
                 got, why = None, f"{row['agent']} の定義を引けない（{type(e).__name__}: {' '.join(str(e).split())}）"
             if got is None or not got.get("body"):
@@ -1476,7 +1475,8 @@ GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, fr
 DROPPED_FILE = "dropped.json"           # 落ちた子の変更を戻した控え {start_tree, paths}（drop_unreturned が組の置き場に書く）
 ADOPTED_FROM = "adopted_from"           # 親の置き場に写した TDD の輪の状態の、写し元の子の状態のパスの欄（adopt_tdd_states）
 PRIOR_LOOP = "prior_pass"               # 2 回目の修正の段の置き場に写した 1 回目の段の輪の状態の印（adopt_prior_pass。新しい）
-UNIT_STATUSES = ("fixed", "given_up", "not_done")
+UNIT_STATUSES = (FIXED, GIVEN_UP, NOT_DONE) = ("fixed", "given_up", "not_done")
+UNIT_LEFT = (GIVEN_UP, NOT_DONE)   # 直し終えなかった単位の状態
 NO_UNIT_RESULT = "修正のループがこの単位の結末を残さなかった"
 
 
@@ -1566,9 +1566,9 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
         return {"unit_id": key, "status": got["status"], "reason": str(got.get("reason") or "")}
     t = tdd_rows.get(key) or {}
     if t.get("gave_up") or t.get("route") == "parked":
-        return {"unit_id": key, "status": "given_up",
+        return {"unit_id": key, "status": GIVEN_UP,
                 "reason": str(t.get("why") or "") or f"TDD のループで諦めた（{t.get('gave_up')}）"}
-    return {"unit_id": key, "status": "not_done", "reason": NO_UNIT_RESULT}
+    return {"unit_id": key, "status": NOT_DONE, "reason": NO_UNIT_RESULT}
 
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
@@ -1887,13 +1887,13 @@ def unit_outcomes(owed, reply, *, excused=None, parked=None, conflicted=()) -> d
     done = {c.get("unit_key") for c in (reply or {}).get("changes") or [] if isinstance(c, dict)}
     for k in [*owed, *(excused or {}), *conflicted]:
         if k in done:
-            out[k] = {"status": "fixed", "reason": ""}
+            out[k] = {"status": FIXED, "reason": ""}
         elif k in conflicted:
-            out[k] = {"status": "not_done", "reason": PARKED_FOR_RULING}
+            out[k] = {"status": NOT_DONE, "reason": PARKED_FOR_RULING}
         else:
-            out[k] = {"status": "not_done", "reason": str(why.get(k) or (excused or {}).get(k) or NOT_IN_REPLY)}
+            out[k] = {"status": NOT_DONE, "reason": str(why.get(k) or (excused or {}).get(k) or NOT_IN_REPLY)}
     for k, texts in (parked or {}).items():
-        out[k] = {"status": "given_up", "reason": texts if isinstance(texts, str) else " / ".join(texts)}
+        out[k] = {"status": GIVEN_UP, "reason": texts if isinstance(texts, str) else " / ".join(texts)}
     return out
 
 
@@ -2410,7 +2410,7 @@ def ruled_owed(place) -> list:
         return keys
     back = {g.get("group_id") for g in doc.get("groups") or [] if isinstance(g, dict) and g.get("returned")}
     left = {u.get("unit_id") for u in doc.get("units") or []
-            if isinstance(u, dict) and u.get("group_id") in back and u.get("status") != "fixed"}
+            if isinstance(u, dict) and u.get("group_id") in back and u.get("status") != FIXED}
     return [k for k in keys if k in left]
 
 
@@ -2532,7 +2532,7 @@ def overflow_trace(place, trail: dict, repo, *, pass_: str, attempt: int) -> Non
              for g in r.get("granted_new_tests") or [] if isinstance(g, dict) and fixgates.present(repo, g.get("id"))]
     guards = [f"{g['id']}: 守りのテスト（base で {g['base']}）"
               for g in fixgates.guards(place, pass_=pass_, attempt=attempt)]
-    row = dict(zip(impact.ACCEPT_OVERFLOW_KEYS, (agreed, trail["reverted"], guards, gated), strict=True))
+    row = impact.OverflowRow(agreed=agreed, reverted=trail["reverted"], guards=guards, gate_tests=gated)._asdict()
     if any(row.values()):
         trace(place, impact.ACCEPT_OVERFLOW_OP, node=FIX_ACCEPT_BY, **row)
 

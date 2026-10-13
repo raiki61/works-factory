@@ -284,6 +284,18 @@ class RefixCase(DeltaPlaceCase):
         self.assertNotIn("plan_items", brief)
         self.assertNotIn("lens", brief)
 
+    def test_cut_leaves_out_the_runtime_copy(self):
+        """差分の審査に渡す差分は、実行基盤が作業ツリーに写した置き場（除くパスの頭 skip の下）を載せない（ほかの差分の作り手と同じ）"""
+        self.fixed()
+        (self.repo / "runtime-copy" / "workflows").mkdir(parents=True)
+        (self.repo / "runtime-copy" / "workflows" / "x.yaml").write_text("name: x\n", encoding="utf-8")
+        for n in (1, 2):
+            with self.subTest(n=n):
+                got = self.cut(n, skip=("runtime-copy/",))
+                self.assertNotIn("runtime-copy/workflows/x.yaml", got["files"])
+                self.assertNotIn("runtime-copy/", pathlib.Path(got["diff_file"]).read_text(encoding="utf-8"))
+        self.assertIn("stats.py", self.cut(1, skip=("runtime-copy/",))["files"])
+
     def test_cut2_needs_the_first_cut(self):
         self.fixed()
         got = refix.cut(self.place, 2, self.repo, self.base)

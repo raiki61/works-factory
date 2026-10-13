@@ -187,15 +187,12 @@ PROMPT_TABLES = {
     "unit_fields": "／".join(UNIT_FIELDS),
     "labels": "／".join(LABELS),
 }
-# 元 review-record.py:343
-ASKING = gatemarks.ASKING
-TRACKED = ("held", "escalate", "decided")
 
 
 def origin_not_awaiting(q, materials):
     """元 works/.shared/core/scripts/review-record.py:276。未決の問いの出どころが素材なのに、その素材が今 awaiting_human でないか"""
     k = QUESTION_KINDS.get(q.get("kind"))
-    if not k or k.domain != "material" or q.get("status") not in ASKING:
+    if not k or k.domain != "material" or q.get("status") not in gatemarks.ASKING:
         return False
     m = materials.get(q.get("origin"))
     return bool(m) and m.get("status") != "awaiting_human"
@@ -454,7 +451,7 @@ def _fork_moves_forward(out, prev_questions=()):
     escalate（人に実際に届く形）に上げろ。prev_questions は前の周の台帳の問い（元 loop.prev_questions。1 run は 1 周なので空）"""
     prev_exempt = set()
     for q in (prev_questions or []):
-        if q.get("kind") == "fork" and q.get("status") in ASKING:
+        if q.get("kind") == "fork" and q.get("status") in gatemarks.ASKING:
             prev_exempt |= {q.get("origin")} | set(q.get("depends", []) or [])
     prev_exempt.discard(None)
     if not prev_exempt:
@@ -490,7 +487,7 @@ def _precedent_errors(out):
             errs.append(f"precedents[{i}]（{r['verdict']}）に {gap}")
     need = [(u["key"], False) for u in out["units"] if is_open(u)]
     need += [(q["key"], True) for q in out["questions"]
-             if (q.get("kind") == "fork" and q.get("status") in ASKING) or q.get("status") == "escalate"]
+             if (q.get("kind") == "fork" and q.get("status") in gatemarks.ASKING) or q.get("status") == "escalate"]
     for k, asks in need:
         r = by.get(k)
         if r is None:
@@ -606,14 +603,14 @@ def judge_output(out, jdir, root, rev, materials, *, prev_deletions=None, prev_q
         for d in q.get("depends", []) or []:
             if d not in keys | defer:
                 errs.append(f"questions[{i}] の depends '{d}' が units にも defer 台帳にも無い")
-        if status in ASKING and kind in NO_OPEN_ORIGIN:
+        if status in gatemarks.ASKING and kind in NO_OPEN_ORIGIN:
             for k in [q.get("origin")] + list(q.get("depends", []) or []):
                 u = next((x for x in out["units"] if x["key"] == k), None)
                 if u and is_open(u):
                     errs.append(f"questions[{i}]（{kind}）の出どころ '{k}' が [block] / do-now（人に聞く前に直す義務が消える。defer にして構造的理由を書け）")
         errs += [f"questions[{i}]: {m}" for m in settled_state_errors(q, out["units"])]
     awaiting = {name for name, m in (materials or {}).items() if isinstance(m, dict) and m.get("status") == "awaiting_human"}
-    listed = {q.get("origin") for q in out["questions"] if q.get("kind") == "awaiting" and q.get("status") in ASKING}
+    listed = {q.get("origin") for q in out["questions"] if q.get("kind") == "awaiting" and q.get("status") in gatemarks.ASKING}
     for name in sorted(awaiting - listed):
         errs.append(f"素材 '{name}' が awaiting_human なのに台帳に kind=awaiting で無い")
     if out.get("materials_missing"):
@@ -827,11 +824,8 @@ def accept(jdir, raw: str, repo, base_rev: str = "", *, keys=core_accept.TREE_KE
 def _give_up(jdir) -> dict:
     """元 works/blk-judge/lib/judgetake.py:122。受け付けを通った判定が無いまま輪を抜けた: 最後の拒否の文で止めの控えを置き
     （JUDGE_STOP。もう止めの控えが在れば write_stop は書かない）、ok false の出口"""
-    rows = rolekit.rejected(jdir, DIAGNOSE_ROLE)
-    if rows:
-        reason = f"{DIAGNOSE_NODE} の返答が {len(rows)} 回とも受け付けで拒まれた（最後の拒否: {' '.join(rows[-1].split())}）"
-    else:
-        reason = f"受け付けを通った判定が無いまま判定のループを抜けた（{DIAGNOSE_NODE} の受け付けの拒否の控えも無い）"
+    reason = (rolekit.given_up_reason(jdir, DIAGNOSE_ROLE)
+              or f"受け付けを通った判定が無いまま判定のループを抜けた（{DIAGNOSE_ROLE} の受け付けの拒否の控えが諦めに届いていない）")
     write_stop(jdir, JUDGE_STOP, reason)
     return {"ok": False, "open_units": [], "need_fix": False, "judgment_file": "", "one_shot": ""}
 

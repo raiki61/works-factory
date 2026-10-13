@@ -33,6 +33,7 @@ if str(LIB / "graphloops") not in sys.path:
 
 from engine.schema import validate_schema  # noqa: E402  （output_format の照らし。jsonschema に頼らない lib の小道具）
 import conflict  # noqa: E402
+import fixboard  # noqa: E402
 import rolekit  # noqa: E402
 import ruling  # noqa: E402
 
@@ -140,11 +141,15 @@ class ContractCase(unittest.TestCase):
         self.assertIs(self.fmt["additionalProperties"], False)
         self.assertEqual(self.fmt["properties"]["done"], {"type": "boolean"})
 
+    def test_unit_status_enum_matches_unit_statuses(self):
+        """単位の状態の enum（型の正本は YAML）は、lib の論理が読む語彙 fixboard.UNIT_STATUSES と同じ"""
+        unit = self.fmt["properties"]["units"]["items"]
+        self.assertEqual(unit["properties"]["status"]["enum"], list(fixboard.UNIT_STATUSES))
+
     def test_nested_shapes(self):
         props = self.fmt["properties"]
         unit = props["units"]["items"]
         self.assertEqual(set(unit["required"]), {"unit_id", "group_id", "status", "reason"})
-        self.assertEqual(unit["properties"]["status"]["enum"], ["fixed", "given_up", "not_done"])
         self.assertIs(unit["additionalProperties"], False)
         group = props["groups"]["items"]
         self.assertEqual(set(group["required"]), {"group_id", "unit_ids", "returned", "reason"})
@@ -718,6 +723,28 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertEqual(self._run("cut2", "cut2"), {"go": False, "files": [], "diff_file": "", "brief_file": ""})
         self.assertFalse((self.place / "loop-fix_delta2.json").exists())
         self.assertFalse((self.place / "review2-brief.json").exists())
+
+    def test_both_cuts_leave_out_the_runtime_copy(self):
+        """1 回目（delta-cut）と 2 回目（cut2）の差分の審査の支度は、実行基盤の写しの置き場（.archon/ の下）を差分に載せない。
+        scripts が除くパスの頭（boundary.SKIP）を渡さないと、写した工程のファイルが審査役の差分に載る"""
+        copy = self.repo / ".archon" / "workflows" / "x.yaml"
+        copy.parent.mkdir(parents=True)
+        copy.write_text("name: copied\n", encoding="utf-8")
+        p = self.repo / "stats.py"
+        first = self._cut()
+        self.assertEqual(first["files"], ["stats.py"], first)
+        self.assertNotIn(".archon", pathlib.Path(first["diff_file"]).read_text(encoding="utf-8"))
+        self.assertTrue(self._run("delta_accept", "delta-accept", reply=json.dumps(_RV_REVIEW, ensure_ascii=False))["ok"])
+        self.assertTrue(self._run("refix_prep", "refix-prep", n="1")["go"])
+        p.write_text(p.read_text(encoding="utf-8").replace("def mean(xs):\n", 'def mean(xs):\n    """算術平均"""\n'),
+                     encoding="utf-8")
+        copy.unlink()   # 手直しの受け付けは run の始めの版から見た範囲の外の変更を拒むので、写しは受け付けの後に置き直す
+        self.assertTrue(self._run("refix_accept", "refix-accept", n="1", reply=json.dumps(_RV_HANDLED, ensure_ascii=False),
+                                  iteration="1")["ok"])
+        copy.write_text("name: copied again\n", encoding="utf-8")
+        second = self._run("cut2", "cut2")
+        self.assertEqual((second["go"], second["files"]), (True, ["stats.py"]), second)
+        self.assertNotIn(".archon", pathlib.Path(second["diff_file"]).read_text(encoding="utf-8"))
 
     def test_second_refix_takes_a_real_reply_on_the_second_round(self):
         """2 回目の手直し（p3.delta_fix2）を本物の 2 周目で回す: 1 回目の審査・手直し（fixed）・2 回目の審査（塞がっていない検算と

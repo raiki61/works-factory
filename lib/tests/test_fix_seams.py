@@ -34,6 +34,7 @@ import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
 import lens  # noqa: E402
 import unittrees  # noqa: E402
+import writelog  # noqa: E402
 import writes  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"
@@ -782,13 +783,13 @@ class RefixSeamCase(TempCase):
 
 
 class LensesSeamCase(unittest.TestCase):
-    """lenses.render: 役の定義の本文（rolekit.agent_def が利用者の入れた plugin の agents/<役>.md から引いた body）から、
+    """lenses.render: 役の定義の本文（engine.validator.agent_def が利用者の入れた plugin の agents/<役>.md から引いた body）から、
     レンズの節の指示書を組む。見出しは fixboard.ROLE_DEF_HEAD（元 rolekit の写し）"""
 
     def test_render_builds_prompt_from_the_role_definition(self):
         import os
         import lenses
-        import rolekit
+        from engine.validator import agent_def
         row = lenses.LENSES[0]
         plugin, _, role = row["agent"].rpartition(":")
         with tempfile.TemporaryDirectory() as td:
@@ -797,7 +798,7 @@ class LensesSeamCase(unittest.TestCase):
             (agents / f"{role}.md").write_text("---\nname: x\nmodel: inherit\n---\n黙って失敗する所を探す役。\n",
                                                encoding="utf-8")
             with mock.patch.dict(os.environ, {plugin.upper().replace("-", "_") + "_ROOT": td}):
-                got = rolekit.agent_def(row["agent"])
+                got = agent_def(row["agent"])
         self.assertEqual(got["body"], "黙って失敗する所を探す役。")
         text = lenses.render(row, got["body"], "/home/x/fix-delta.patch", ["stats.py"], "LANG の 1 行")
         self.assertTrue(text.startswith(fixboard.ROLE_DEF_HEAD.format(agent=row["agent"]) + "\n\n黙って失敗する所を探す役。\n"))
@@ -1043,7 +1044,7 @@ class FactchecksSeamCase(TempCase):
         self.assertTrue(lines[0].startswith(planscope.REJECT_ASK), lines)
 
     def test_writes_use_the_log_and_skip(self):
-        log = self.place / self.fc.WRITES_LOG
+        log = self.place / writelog.LOG
         log.write_text("", encoding="utf-8")   # 記録の在る run（Edit・Write の行は無い）
         (self.repo / "vendored").mkdir()
         (self.repo / "vendored" / "x.py").write_text("x = 1\n", encoding="utf-8")
@@ -1240,7 +1241,7 @@ class LaneChecksSeamCase(TempCase):
 
     def test_writes_look_only_after_since(self):
         fc, since, _, reply = self.since_case()
-        log = self.place / fc.WRITES_LOG
+        log = self.place / writelog.LOG
         log.write_text("", encoding="utf-8")
         got = fc.check_writes(reply, self.place, self.rev, self.repo, "")
         self.assertTrue(any("NOTES.md" in p for p in got["problems"]), got)

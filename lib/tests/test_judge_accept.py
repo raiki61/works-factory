@@ -107,6 +107,25 @@ class _JudgeBase(unittest.TestCase):
         return json.loads((self.jdir / ja.JUDGMENT_FILE).read_text(encoding="utf-8"))
 
 
+class DiagnoseGiveUpCase(unittest.TestCase):
+    """判定の輪を諦めた時の止めの文は rolekit の諦めの文（回数で諦めた時と、出し直させずに諦めた時で分かれる）"""
+
+    def stop_after(self, rejects):
+        with tempfile.TemporaryDirectory() as jdir:
+            for reason, give_up in rejects:
+                rolekit.with_done(pathlib.Path(jdir), ja.DIAGNOSE_ROLE, {"ok": False, "reason": reason}, give_up=give_up)
+            ja._give_up(jdir)
+            return ja.read_stop(jdir)["reason"], rolekit.given_up_reason(pathlib.Path(jdir), ja.DIAGNOSE_ROLE)
+
+    def test_give_up_text_is_rolekit_text(self):
+        got, want = self.stop_after([("欠け 1", False), ("欠け 2", False), ("欠け\n3", False)])
+        self.assertEqual(got, want)
+        self.assertIn("3 回とも", got)
+        got, want = self.stop_after([("直らない", True)])
+        self.assertEqual(got, want)
+        self.assertIn("出し直させずに諦めた", got)
+
+
 class RequestCase(unittest.TestCase):
     def test_request_rows_pass_the_add_type(self):
         """元 test_accept.TestIntake.test_intake_accepts_request（依頼の行が rules の add の型を通る）"""
