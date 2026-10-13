@@ -121,7 +121,7 @@
   - 元: works/.shared/core/entryshape.py:119-138 `build`、works/blk-entry/schemas/input.schema.json
   - 今: lib/entryshape.py::build（部分 A で閉じた）
   - 証: tests/workflows/test_line.py::StartCase.test_every_entry_has_the_same_shape
-  - 本物の run: start.json の input
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json の input）
   - 狭め: 無し（約束の schema と試験が落ちた）
 - L-E20 差分の測り diff_of: 未追跡の新規は数え、.gitignore に当たる物は除く。引けない版は Reject
   - 元: works/.shared/core/board.py:554-581 `diff_of`
@@ -151,7 +151,7 @@
   - 元: works/.shared/core/startrec.py:1-20・24-30
   - 今: lib/startrec.py::path・lib/startrec.py::write・lib/startrec.py::adopt・lib/startrec.py::read（線の start は run の置き場の根の r1/start.json に書き、fix の prep・事前審査の open は adopt で字のまま写す）（部分 A で閉じた）
   - 証: tests/workflows/test_line.py::StartCase.test_record_is_where_lib_readers_look・tests/workflows/test_line.py::StartCase.test_blocks_read_the_request_file_from_the_line_record
-  - 本物の run: artifacts/r1/start.json（線の start が書く 1 つの置き場。部分 A の前は artifacts/start.json）
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば artifacts/r1/start.json（線の start が書く 1 つの置き場。部分 A の前は artifacts/start.json））
   - 狭め: #74 の審査の R12 で既知（不可でない → 直す） → 部分 A で直した
 - L-E25 thickness は空・自動・軽量・標準を受け、重厚は「足す工程がまだ無い」、ほかは「知らない値」で拒む
   - 元: works/.shared/core/entry.py:546-552
@@ -271,13 +271,13 @@
   - 元: works/.shared/core/versions.py:119-147 `snapshot`、works/blk-entry/scripts/start.py（versions.write）
   - 今: workflows/line/scripts/start.py::version_record（lib/versions.py::snapshot を呼ぶ。書いた時の `versions` は {archon, claude_code} だけだった）。lib/startrec.py::cli_version
   - 証: tests/workflows/test_line.py::StartCase.test_request_builds_the_entry_shape_and_the_record（"archon" の鍵だけ）、lib/tests/test_startrec.py::StartRecCase.test_cli_version_reads_the_first_line_or_nothing
-  - 本物の run: start.json の versions
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json の versions）
   - 狭め: #74 で狭めた（宣言済み。不可でない → 持ち主の確かめ）
 - L-E45 分からない版の値は null にし、unknown に理由を書く
   - 元: works/.shared/core/versions.py:59-117
   - 今: lib/versions.py::snapshot（元 versions.py の名。分からない値は null と unknown の訳）（部分 A で閉じた）
   - 証: lib/tests/test_versions.py::SnapshotCase・tests/workflows/test_line.py::StartCase.test_unknown_versions_say_why
-  - 本物の run: start.json の versions
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json の versions）
   - 狭め: #74（L-E44 に含む。不可でない）
 - L-E46 拒む run でも版の控えと設定の写しを残す
   - 元: works/blk-entry/scripts/start.py（確かめの前に versions.write）
@@ -295,13 +295,13 @@
   - 元: works/blk-entry/blk-entry.yaml の launch の message
   - 今: workflows/line/scripts/start.py::gate_text（部分 A で閉じた）
   - 証: tests/workflows/test_line.py::StartCase.test_start_gate_text_names_entry_features_and_answers
-  - 本物の run: gate-start の approval の message
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば gate-start の approval の message）
   - 狭め: 無し
 - L-E49 頭の行に段（thickness と（既定））・gates・機能・このラインに無い節の数・downgrades・修正前のテストの任せ先の注を並べる
   - 元: works/.shared/core/entry.py:1213-1219 `start`（head_line）
   - 今: workflows/line/scripts/start.py::depth_words・workflows/line/scripts/start.py::test_note・workflows/line/scripts/start.py::gate_text（部分 A で閉じた）
   - 証: tests/workflows/test_line.py::StartCase.test_gate_text_has_the_depth_word
-  - 本物の run: gate-start の message
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば gate-start の message）
   - 狭め: #74 で落ちた（宣言なし。不可でない → 戻すか持ち主へ） → 部分 A で戻した
 - L-E50 答えの行の頭は殻が env の WORKS_ANSWER_CMD に置き、答えた者（WORKS_ANSWER_WHO）を末尾に付ける
   - 元: works/.shared/core/answer.py:20-29、works/dev/use.sh:266-271
@@ -400,7 +400,7 @@
   - 元: works/blk-entry/blk-entry.yaml:79-86
   - 今: workflows/line/scripts/start.py::gate_text・yaml gate-start（部分 A で閉じた）
   - 証: tests/workflows/test_line.py::StartCase.test_start_gate_text_names_entry_features_and_answers
-  - 本物の run: `start.output.gate_text`
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば `start.output.gate_text`）
   - 狭め: 無し
 - L-G10 無人の run は人を待たずに始めの関所を越える
   - 元: works/dev/use.sh:1216-1225
