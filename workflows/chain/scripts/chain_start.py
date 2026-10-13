@@ -7,7 +7,7 @@
 入力の周の数 rounds と費用の上限 budget_usd を lib/chain.limits で確かめ、範囲の外なら act: refused で返して AI の前で止める。
 受けた時は 0 周目の決めと同じ形（act: launch・1 周目の子の入力 request・base・pr・spec・前までの周の行 rows: []）を返すので、
 5 組の周のノードは番号と前の決めのほかは同じ形になる。後ろの決めが読む rounds・budget と、2 周目から運ぶ 1 周目の依頼の絶対パス
-first_request・1 周目に名指した PR の番号 first_pr（無ければ 0）も返す。
+first_request・1 周目に名指した PR の番号 first_pr（メイングラフの入口と同じ entryshape.named_pr の読み。無ければ 0）も返す。
 出力ノード result が結ぶので落ちない: 境の口を読めない時も標準ライブラリだけで act: refused を返す。
 
 入力: rounds・budget_usd・request・base・pr・spec（鎖の入力）
@@ -27,6 +27,7 @@ except Exception as error:   # 出力ノードが結ぶので落ちない（上�
 if boundary is not None:
     with boundary.guarded_imports():
         import chain
+        import entryshape
 
 
 def refused(reason: str) -> dict:
@@ -46,7 +47,7 @@ def start() -> dict:
     return {"ok": True, "reason": "", "act": "launch", "word": "", "text": "1 周目を起こす", "request": request,
             "base": boundary.text(os.environ.get("INPUTS_BASE")), "pr": pr, "spec": boundary.text(os.environ.get("INPUTS_SPEC")),
             "rows": [], "rounds": rounds, "budget": budget, "first_request": first,
-            "first_pr": int(pr) if pr.isdigit() else 0}
+            "first_pr": entryshape.named_pr({"pr": pr}) or 0}
 
 
 def main() -> None:
