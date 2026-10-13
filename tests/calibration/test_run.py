@@ -74,7 +74,15 @@ elif verb == "status":
 elif verb == "get":
     run = next(r for r in state["runs"] if r["id"] == args[2])
     parent = run["parent_run_id"] is None
-    print(json.dumps({"id": run["id"], "status": run["status"], "started_at": "2026-10-12T00:00:00Z",
+    if "--events" in args:
+        if plan.get("events_unreadable"):
+            print("not json")
+            sys.exit(0)
+        print(json.dumps({"id": run["id"], "events": [
+            {"event_type": "workflow_started", "created_at": "2026-10-12T00:00:00.000Z"},
+            {"event_type": "workflow_started", "created_at": "2026-10-12T01:00:00.000Z"}]}))
+        sys.exit(0)
+    print(json.dumps({"id": run["id"], "status": run["status"], "started_at": "2026-10-12T01:00:00Z",
                       "completed_at": "2026-10-12T01:30:00Z",
                       "metadata": {"total_cost_usd": 3.25,
                                    **({"approval": {"nodeId": plan.get("gate", "gate-final")}} if run["status"] == "paused" else {})},
@@ -126,7 +134,9 @@ if who == "use.sh" and args[0] == "start":
                 "data TEXT, created_at TEXT, event_order INTEGER)")
     con.execute("INSERT INTO remote_agent_workflow_runs VALUES (?, 'running', ?, '2026-10-12 00:00:00', "
                 "'2026-10-12 02:00:00', ?)", (rid, str(home / "out"), json.dumps({"approval": {"nodeId": "r4.human_gate"}})))
-    for n, gate in enumerate(plan.get("asks", [])):
+    con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'workflow_started', '', '{}', '2026-10-12 00:00:00', 0)",
+                (rid,))
+    for n, gate in enumerate(plan.get("asks", []), 1):
         con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'approval_requested', ?, '{}', '', ?)", (rid, gate, n))
     con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'workflow_completed', '', ?, '', 99)",
                 (rid, json.dumps({"cost_usd": plan.get("usd", 12.5)})))
@@ -630,6 +640,32 @@ class RunTest(RunnerCase):
                 [observed] = self.observed_files(factory)
                 self.assertEqual((observed["units"], observed["asks"]), self.UNITS[factory])
                 self.assertFalse({"units", "asks"} & set(observed["unread"]))
+
+    def test_unreadable_events_stop_the_row(self):
+        self.set_plan(events_unreadable=True)
+        done = self.run_rows("works-factory", REQUEST)
+        self.assertEqual(done.returncode, 1, done.stderr)
+        self.assertIn("run a1b2c3d4-0000-run の出来事の列を evidence/ に写せない", done.stderr)
+        self.assertFalse(self.observed.exists())
+
+    SPANS = {"works-factory": lambda row, events: {"record/parent.json": {**row, "terminal_record": {}},
+                                                   "record/parent-events.json": {"events": events}},
+             "works": lambda row, events: {"record/parent.json": {"run": row, "events": events}}}
+
+    def test_seconds_span_from_the_first_event_across_resumes(self):
+        """Archon は再開のたびに行の started_at を書き直すので、両工場とも時間は最初の出来事から completed_at までで測る"""
+        row = {"started_at": "2026-10-12 01:59:50", "completed_at": "2026-10-12 02:00:00"}
+        events = [{"event_type": "workflow_started", "created_at": "2026-10-12 01:50:00"},
+                  {"event_type": "workflow_started", "created_at": "2026-10-12 01:59:50"},
+                  {"event_type": "workflow_completed", "created_at": "2026-10-12 02:00:00", "data": {"cost_usd": 1.0}}]
+        for factory, files in self.SPANS.items():
+            for given, seconds in ((events, 600.0), ([], None)):
+                with self.subTest(factory=factory, events=len(given)), tempfile.TemporaryDirectory() as tmp:
+                    ev = pathlib.Path(tmp)
+                    (ev / "record").mkdir()
+                    for name, doc in files(row, given).items():
+                        (ev / name).write_text(json.dumps(doc), encoding="utf-8")
+                    self.assertEqual(runner.FACTORY[factory].ended(ev)["seconds"], seconds)
 
     def reobserve(self, factory, *extra):
         return self.runner("reobserve", factory, "--attempts", str(self.attempts), "--observed", str(self.observed), *extra)
