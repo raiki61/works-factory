@@ -7,7 +7,8 @@
 test-gate/base/baseline.json を書く（baseline_red.write_baseline）。final は入力 baseline の指し札の先を baseline_red.read_baseline で読み、
 修正前のテストの行（declared_checks.baseline_line）を証拠に足す。走らせ方（by・suites_line）・ログ（log）・修正前のテスト（baseline_line）・
 認証しなかった訳（reason）は 1 行に畳んで返りに載せ、証拠の文 test-gate/<mode>/evidence.md の行も同じ値から組む（報告と最後の関所は
-返りの欄を読む）。任せ先の役の節が落ちて残った作業ツリーの写し（ci-snapshot.json の top）を消す。
+返りの欄を読む）。任せ先の役で走らせた run が包みを宣言していなければ（env の fence.RECORDS_ENV が無い）、証拠に
+declared_checks.NO_ADAPTER_NOTE を足す。任せ先の役の節が落ちて残った作業ツリーの写し（ci-snapshot.json の top）を消す。
 落ちない: 境の口と lib の import から先の誤りは全部捕まえ、終了の値 0 で ok: false・green: false・red_cause: incomplete と、誤りを
 名指した証拠の指し札を返す（返す節が落ちると線が先へ進めない）。その時の by などの字の欄は空、reason は INNER_ERROR"""
 import json
@@ -50,9 +51,9 @@ def gate_fields(run: dict, suites: str, base_line: str, why: str) -> dict:
     return {"by": run["by"], "suites_line": one(suites), "log": one(run["log"] or ""), "baseline_line": one(base_line), "reason": one(why)}
 
 
-def evidence(mode: str, out: dict, run: dict, material, summary: str) -> str:
+def evidence(mode: str, out: dict, run: dict, material, summary: str, note: str = "") -> str:
     """証拠の文。走らせ方・ログ・修正前のテスト・ok の訳は返り out の欄（1 行に畳んだ物）と同じ値で書く。ほかの自由な文の値（役の
-    素材の reason が入る）も 1 行に畳む"""
+    素材の reason が入る）も 1 行に畳む。note は包みの知らせ（declared_checks.NO_ADAPTER_NOTE か空）"""
     import declared_checks
     import oneline
     one = oneline.one_line
@@ -63,6 +64,7 @@ def evidence(mode: str, out: dict, run: dict, material, summary: str) -> str:
              f"- green: {str(out['green']).lower()}",
              f"- red_cause: {out['red_cause'] or '無し'}{'（' + one(summary) + '）' if summary else ''}",
              f"- 走らせ方: {v['suites']}",
+             *([f"- 包み: {note}"] if note else []),
              *([f"- engine の結果を任せ先へ落とした訳: {one(run['fell_back'])}"] if run.get("fell_back") else []),
              *([f"- {out['baseline_line']}"] if out["baseline_line"] else []),
              f"- 素材: {json.dumps(material, ensure_ascii=False) if material is not None else '無い（任せ先の CI の役が素材を渡さなかった）'}",
@@ -79,6 +81,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
     import boundary
+    import fence
     sys.path.append(str(boundary.lib_root()))
     import baseline_red
     import declared_checks
@@ -131,7 +134,8 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
              "skipped_steps": run["skipped_steps"]}
     suites = declared_checks.suites_line(tests, role_status=(status or "") if role else None)
     out.update(gate_fields(run, suites, declared_checks.baseline_line(base) if mode == "final" else "", why))
-    write(rel(mode, "evidence.md"), evidence(mode, out, run, material, summary))
+    note = declared_checks.NO_ADAPTER_NOTE if role and not os.environ.get(fence.RECORDS_ENV) else ""
+    write(rel(mode, "evidence.md"), evidence(mode, out, run, material, summary, note))
     out["evidence"] = boundary.pointer(rel(mode, "evidence.md"))
     return boundary, out
 

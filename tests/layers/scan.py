@@ -685,7 +685,9 @@ CLOSED_SANDBOX = (("enabled", "true"), ("allowUnsandboxedCommands", "false"))
 # Bash を持ち Edit・Write を持たない役の sandbox の denyWrite に書く場所（#293）。~ は起動が隔離した HOME で、
 # その隣が Archon の家＝全部の run の worktree と artifacts。相対のパス '.' は cwd でなく設定の一時ファイルのフォルダに解かれ、
 # 作業ツリーを塞がない（実測 2026-10-13）。包み（workflows/.shared/fence.py。埋め P5）はこの値を読むだけの役の印に読み、起こす直前に
-# cwd・共通の .git・worktree の根などを足す（#309）。包みの無い起動にはこの値だけが残る
+# cwd・共通の .git・worktree の根などを足す（#309）。包みの無い起動にはこの値だけが残る。Edit・Write を持つ役（直す役・書く役）に
+# 書かないのは、作業ツリーを変えるのがその役の仕事で、cwd を禁じると仕事ができないため（今の works の柵も道具に書き込みの無い役だけに
+# 掛けた: role_run.py の tooled_permission と DELEGATE_TOOLS）
 NO_TREE_WRITE = f"~/../{isolate.DIRS['ARCHON_HOME']}"
 YAML_BOOL = "tag:yaml.org,2002:bool"
 
