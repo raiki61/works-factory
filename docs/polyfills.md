@@ -90,6 +90,14 @@
 - 使うサブグラフ: judge・test-gate
 - 外す条件: ノードの `sandbox` が run ごとの値（cwd・共通の `.git`・worktree の根）を受ける版が出たら
 
+### P6 親が子の run のポインタを読めない
+
+- 穴: `workflow:` のノードが起こした子の run の出力のポインタ（`{type: archon_artifact, run_id, path}`）を、親の run の script が読む口が無い。境の口 `workflows/.shared/boundary.py` の `resolve` は自分の run のポインタしか読まない。
+- 証拠: 止めた Archon の `packages/workflows/src/artifact-pointer.ts` 1-33 行（「A pointer naming any other run is rejected — a result may only point at its own run's artifacts today.」と、読む側は「a future in-workflow resolver」で、読む時に symlink を辿った照らしは「not yet implemented」）。run の置き場は `packages/paths/src/archon-paths.ts` の `getRunArtifactsDirForRoot` の `<artifactsRoot>/runs/<run の id>` で、子と親は同じ `runs/` の下に兄弟で並ぶ。
+- 埋め: `workflows/.shared/child_pointer.py`。自分の置き場（`ARTIFACTS_DIR`）の隣の `<run_id>` を子の置き場とし、札の形・run の id の形（空・`..`・`/` を拒む）・相対のパスを照らして、symlink を辿った先が子の置き場の中に在ることを確かめてから返す。試験は `tests/shared/test_child_pointer.py`。
+- 使うサブグラフ: 周の鎖（`workflows/chain/works-factory-chain.yaml` の `round-k-facts`）
+- 外す条件: Archon の run の中から、ほかの run のポインタを読む口が入ったら
+
 ## 外した
 
 （まだ無い）
