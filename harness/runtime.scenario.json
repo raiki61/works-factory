@@ -10,7 +10,7 @@
     },
     {
       "id": "capabilities-evidenced",
-      "description": "request-to-report の run の記録に、今の works の能力の棚卸しの行ごとの跡が在るかを、照らしの表 tests/e2e/evidence.json で機械に照らさせる。手順: python3 tests/e2e/evidence.py collect <試み> <run> で、親の run と fix の組の子の run の置き場と記録を <試み>/evidence/ に写す。次に python3 tests/e2e/evidence.py check <試み> を走らせ、出力の全部を証拠に残す。期待: check が終了の値 0（absent も unreadable も 0 件）。unexpected の行（seen でない行が見えた）は失敗にしないが、行を全部 reason に写す。"
+      "description": "request-to-report の run の記録に、今の works の能力の棚卸しの行ごとの跡が在るかを、照らしの表 tests/e2e/evidence.json で機械に照らさせる。手順: python3 tests/e2e/evidence.py collect <試み> <run> で、親の run と fix の組の子の run の置き場と記録を <試み>/evidence/ に写す。次に python3 tests/e2e/evidence.py check <試み> を走らせ、出力の全部を証拠に残す。期待: check が終了の値 0（absent も unreadable も 0 件で、waits-part の行が残らない）。waits-part の行は 1 つでも残れば（見えて unexpected と出た行も）失敗。ほかの unexpected の行（seed-cannot・backlog・handed-off の行が見えた）は失敗にしないが、行を全部 reason に写す。"
     },
     {
       "id": "changed-diff-refused",

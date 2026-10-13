@@ -515,6 +515,20 @@ class EvidenceCheckCase(unittest.TestCase):
         ])
         self.assertEqual([r[:2] for r in rows], [("J1", "unexpected"), ("J2", "backlog"), ("J3", "scenario-only"),
                                                  ("J4", "seed-cannot")])
+        self.assertEqual(code, 1, "見えた waits-part の行も残りなので落ち")
+        rows, code = self.checked([{"id": "J1", "kind": "backlog", "why": "決めた物", **rule},
+                                   {"id": "J2", "kind": "handed-off", "why": "渡した", "to": "#1"},
+                                   {"id": "J3", "kind": "seed-cannot", "why": "種に宣言が無い", **rule}])
+        self.assertEqual(([r[:2] for r in rows], code), ([("J1", "unexpected"), ("J2", "handed-off"),
+                                                          ("J3", "unexpected")], 0))
+
+    def test_waits_part_row_left_exits_one(self):
+        """部分は全部入ったので、waits-part の行が残る表の check は見えた・見えないに依らず落ちる"""
+        rows, code = self.checked([{"id": "J1", "kind": "waits-part", "part": "B1"},
+                                   {"id": "J2", "kind": "scenario-only", "why": "筋書きでのみ"}])
+        self.assertEqual(([r[:2] for r in rows], code), ([("J1", "waits-part"), ("J2", "scenario-only")], 1))
+        rows, code = self.checked([{"id": "J2", "kind": "scenario-only", "why": "筋書きでのみ"},
+                                   {"id": "J3", "kind": "seed-cannot", "why": "種に宣言が無い"}])
         self.assertEqual(code, 0)
 
     def test_counts_are_by_inventory_category(self):

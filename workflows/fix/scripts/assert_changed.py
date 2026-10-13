@@ -20,6 +20,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
 import fixboard  # noqa: E402
+import oneline  # noqa: E402
 
 
 def replies(place: Path, plan: dict) -> list:
@@ -52,7 +53,7 @@ if __name__ == "__main__":
     try:
         result = main(here)
     except Exception as e:
-        why = f"{type(e).__name__}: {' '.join(str(e).split())}"
+        why = f"{type(e).__name__}: {oneline.one_line(e)}"
         fixboard.write_json(here / fixboard.ASSERT_FILE, {"ok": False, "reason": f"変更の確かめが回せない（{why}）"})
         print(f"assert-changed: {why}", file=sys.stderr)
         sys.exit(1)

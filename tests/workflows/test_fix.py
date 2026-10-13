@@ -1887,7 +1887,8 @@ class BlockScriptsCase(unittest.TestCase):
 
     def test_group_permits_reach_join_and_collect_only_for_an_accepted_reply(self):
         """#286: 修正役の返答を受け付けていない組の子の許しは、join の和（同じテストのファイルへの挿しだけの食い違いを合わせる）にも
-        親の collect の返りの allowed_test_changes・diff の隣の allowed-tests.json にも入らない。受け付けた組の許しは両方に入る"""
+        親の collect の返りの allowed_test_changes・diff の隣の allowed-tests.json にも入らない。受け付けた組の許しは両方に入る。
+        #304: 形の崩れた許しの行（path の無い行・ALLOWED_SOURCES に無い source）は join も collect も同じ決まりで捨て、join は落ちない"""
         import fixboard
         child = {"path": "test_stats.py", "permit": "plan-agreed-2", "source": "consult"}
         src = (self.repo / "test_stats.py").read_text(encoding="utf-8")
@@ -1896,13 +1897,17 @@ class BlockScriptsCase(unittest.TestCase):
         def added(name):
             return src.replace(tail, f"class {name}(unittest.TestCase):\n    def test_{name.lower()}(self):\n"
                                      f"        self.assertTrue(True)\n\n\n{tail}")
-        for reply, returned, rows in ((None, 1, []), ({"changes": []}, 2, [child])):
-            with self.subTest(reply=reply):
+        malformed = [{"permit": "plan-3", "source": "plan"}, {"path": "test_other.py", "permit": "x-1", "source": "guess"}]
+        bad_source = [{"path": "test_stats.py", "permit": "x-1", "source": "guess"}]
+        for reply, returned, given, rows, extra in ((None, 1, [child], [], []), ({"changes": []}, 2, [child], [child], []),
+                                                    ({"changes": []}, 2, [child], [child], malformed),
+                                                    ({"changes": []}, 1, [], [], bad_source)):
+            with self.subTest(reply=reply, extra=extra):
                 __import__("shutil").rmtree(self.art, ignore_errors=True)
                 self.restore()
                 self.place.mkdir(parents=True)
                 permits = fixboard.group_result({"group_id": "g2", "unit_ids": ["B"]}, start_tree="", end_tree="", tdd=None,
-                                                reply=reply, allowed_rows=[child])["allowed_tests"]
+                                                reply=reply, allowed_rows=given)["allowed_tests"] + extra
                 start = self.snapshot(self.repo)
                 t1, t2 = self.tree_with({"test_stats.py": added("TestG1")}), self.tree_with({"test_stats.py": added("TestG2")})
                 out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
@@ -2389,7 +2394,7 @@ class GroupChildScriptsCase(unittest.TestCase):
 
     def test_tdd_head_reuses_the_test_gate_base_test_cmd(self):
         """test-gate の base が線の run の置き場に控えた test_cmd の緑を、fix の組の子の run の TDD の輪の頭が引く（同じ run の中で
-        2 度走らせない）。置き場（fixio.line_top）・run の名（始めの記録の run_id）・落とす変数・2 つの起こし口の指紋が揃って当たる"""
+        2 度走らせない）。置き場（group_start.line_top）・run の名（始めの記録の run_id）・落とす変数・2 つの起こし口の指紋が揃って当たる"""
         count = self.tmp / "test-cmd-count"
         test_cmd = f"{sys.executable} -c \"open({str(count)!r}, 'a').write('1\\n')\""
         line = self.tmp / "parent-art"
@@ -2523,7 +2528,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertIn("test_stats.py", frozen)
 
     def test_fix_accept_rejects_a_change_under_the_skip_head(self):
-        """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は fixio.SKIP）、fix-accept が
+        """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は boundary.SKIP）、fix-accept が
         その下を変えた返答を拒む（元 works/blk-fix/scripts/accept.py:234 check_pack_copy・:663）"""
         import fixboard
         copy = self.repo / ".archon" / "workflows" / "x.yaml"

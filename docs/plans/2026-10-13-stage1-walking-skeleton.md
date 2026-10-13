@@ -42,7 +42,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 - 線の PR #74（issue #60）と 8 つのブロック（PR #66・#69・#67・#75・#73・#68・#76・#94）と PR #100（judge と report の輪の拒否の理由を輪の頭の script の節で渡す形）。
 - issue #101: `bin/apply`（封じた差分を当てる口。土台の計画 Task 7）・`tests/e2e/make_target.py`（`make` と `teardown`）・種の実行器 `tests/e2e/target-seed/junit-suite.sh`。この issue はそれらを使うだけで作らない。
 - 線の配線の文書 `docs/plans/2026-10-13-line-wiring.md` の部分 0（配線の網と落とし穴の機械）と部分 A（入口・始めの記録・今壊れている物・線の返りの欄）。`bin/apply` は線の返りの欄を読む。
-- 照らしの表は、線の配線の部分 A・B1・B2・C・D1・D2（#211）が main に入る前に作る（#258）。だから、それらの「閉じる行」は照らしの表で「部分 X 待ち」（`waits-part`）と名指す（見えなくても不具合に数えない。その部分の issue が戻し、表の行を移す）。段 1 は、その部分が直すファイル（`workflows/line/scripts/ask_final.py`・`collect.py`・`lib/runreport.py` ほか）を、不具合の直しの外では触らない。
+- 照らしの表は、線の配線の部分 A・B1・B2・C・D1・D2（#211）が main に入る前に作る（#258）。だから、それらの「閉じる行」は照らしの表で「部分 X 待ち」（`waits-part`）と名指す（部分が入るまでの区分。部分が全部入った後の check では残りを落ちに数える。その部分の issue が戻し、表の行を移す）。段 1 は、その部分が直すファイル（`workflows/line/scripts/ask_final.py`・`collect.py`・`lib/runreport.py` ほか）を、不具合の直しの外では触らない。
 - 依存しない: issue #65（役が利用者の gh を通して GitHub の資格を読める件）。通しの種は GitHub を使わない。
 - 入った YAML の節の id がこの文書と食い違えば、YAML を正として読み替え、PR に書く。
 
@@ -133,7 +133,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 ### 照らしの道具 `tests/e2e/evidence.py`
 
 - `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>`: 家と対象から、親の run と fix の組の子の run（`workflow runs` で引く）の置き場（`terminal_record.artifacts.root`）を試みのフォルダの `evidence/parent/`・`evidence/child-<n>/` に写し、`workflow get <run> --json --verbose` の出力を `evidence/record/` に置く（後で消える作業ツリーに依らない）。
-- `python3 tests/e2e/evidence.py check <試みのフォルダ>`: 照らしの表を読み、行ごとに `seen`・`absent`（`seen` の行で照らしが通らない）・`unexpected`（`seed-cannot`・`backlog`・`waits-part`・`handed-off` の行なのに見えた）・`unreadable`（照らしの当たったファイルが在るが読めない。黙って `absent` にせず、読めなかった訳を出す。K15）を 1 行ずつ出し、最後に区分ごとの数を出す。`absent` か `unreadable` が 1 つでも在れば終了の値 1。
+- `python3 tests/e2e/evidence.py check <試みのフォルダ>`: 照らしの表を読み、行ごとに `seen`・`absent`（`seen` の行で照らしが通らない）・`unexpected`（`seed-cannot`・`backlog`・`waits-part`・`handed-off` の行なのに見えた）・`unreadable`（照らしの当たったファイルが在るが読めない。黙って `absent` にせず、読めなかった訳を出す。K15）を 1 行ずつ出し、最後に区分ごとの数を出す。`absent` か `unreadable` が 1 つでも在るか、`waits-part` の行が 1 つでも残れば（見えた・見えないに依らない）終了の値 1。
 - 標準ライブラリだけで書く（筋書きの確かめの役が対象の外から呼ぶため）。期限を置かない。
 - 試験 `tests/e2e/test_evidence.py`（先に赤）:
   - `EvidenceTableCase.test_every_inventory_row_is_in_the_table`（棚卸しの `line.md`・`judge.md`・`plan.md`・`fix.md`・`tail.md` の区分 L・J・P・F・T・E・R・M の行の ID の集合 = 表の ID の集合）
@@ -148,6 +148,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
   - `EvidenceCheckCase.test_each_check_kind_passes_and_fails`（一時のフォルダに作った置き場で 5 つの照らしの通る形と通らない形）
   - `EvidenceCheckCase.test_absent_row_exits_one_and_unreadable_file_is_named`
   - `EvidenceCheckCase.test_unexpected_seen_is_reported`
+  - `EvidenceCheckCase.test_waits_part_row_left_exits_one`（`waits-part` の行が残る表は見えた・見えないに依らず終了の値 1。残らず `absent`・`unreadable` も無い表は 0）
   - `EvidenceCheckCase.test_cli_exits_one_on_an_absent_row`（命令の終了の値。筋書きが読むのはこれだけ）
 
 ### 見えなかった行の扱い（手順 4 の中で）
@@ -193,7 +194,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
    2. run を起こし、`wait` と `respond … approve --detach` で終わりまで運ぶ。
    3. 当てる前に、対象で `python3 -m unittest -v` を走らせて控える（2 件落ちる）。`returns.value.apply.diff` の先のファイルを試みのフォルダに写して控え、1 バイト変えて `./bin/apply <run> --cwd <target>` が 1 で止まり対象が変わらないことを見て、控えから戻す。
    4. `./bin/apply <run> --cwd <target>` で当て、`python3 -m unittest -v` で 3 件が全部通ることを見る。
-   5. `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせ、出力を PR に貼る（数の行と、`absent`・`unexpected` の全行）。受け入れ 2 の材料を作る。
+   5. `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせ、出力を PR に貼る（数の行と、`absent`・`unexpected`・`waits-part` の全行）。受け入れ 2 の材料を作る。
    6. 上の「片付け」のとおり、`python3 tests/e2e/make_target.py teardown`（`--no-ledger` で作った試みは `stop <試みのフォルダ>`）。
    - 通しが途中で落ちる・おかしな結末を出す・`check` が `absent` を出すたびに、上の「見えなかった行の扱い」で決める。不具合なら superpowers:systematic-debugging の形で原因を確かめ、落ちたブロック（か線か `lib/`）の試験か筋書きに **その不具合で赤になる 1 本を先に足して赤を見てから** 直す（superpowers:test-driven-development）。直しは K1〜K20 を通す。直したら、通しを新しい試みのフォルダで最初から回し直す（直した `workflows/` は新しい run でしか読まれない。`workflows/` は run の始めに写し取られる）。
    - 殻（`bin/_lib/launcher.py`）と `bin/apply` の不具合は、直さずに別の issue にして PR に書く。
@@ -238,7 +239,7 @@ lifecycle の入力のうち、このリポジトリが決める物:
 - 主張は次の 5 つ。どれも、確かめの役が道具の出力を証拠のファイルに残す前提で書く（`W/verify-runtime/commands/verify-runtime.md`）。試みのフォルダは、この試みの置き場（attempt directory）の下に新しく作る。
   1. `request-to-report`: `make_target.py make` で対象・依頼・家を作り、run を起こし、関所で止まるたびに関所の文を見て `approve` で答え、終わりまで運ぶ。期待: 起こした後の `workflow runs --json` に `parent_run_id` の無い run がちょうど 1 つ在る・`workflow get <run> --json` の `terminal_record.status` が `completed`・`returns.value.outcome` が report の結末の 10 語の 1 つ・`returns.value.report` の先の報告の本文が空でない・当てる前の対象の `git status --porcelain` が空。認証が拾えずに殻が止まった時は `inconclusive` にし、殻の 1 行を reason に書く（製品の不具合ではない）。
   2. `every-block-ran`: 1 の run の `workflow get <run> --json --verbose` の `nodes` を読む。線の include の id は `test-gate-base`・`judge`・`plan`・`plan-review-run`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`。include の中の節の id は `<include の id>__<節の id>`（止めた Archon の `include-expander.ts` の `inlineInclude`）、輪の中の節には `<輪の id>.` の頭が付く（`dag-executor.ts` 4322-4331 行）。`plan` と `plan-review-run` は計画の往復の輪 `plan-rounds` の中に在るので、その節の id は `plan-rounds.plan__`・`plan-rounds.plan-review-run__` で始まる。案の直しの道の include（`rejudge-run`・`replan`・`replan-review`・`refix-run`）は、通った run だけ見る。直す物の無い周の include（`design-only`）も、通った run だけ見る。fix の組は子の run として起きるので、`workflow runs` で親の子の run を引き、子ごとの `get --json --verbose` を読む（子の run の節の id には頭が付かない）。期待: include の id ごとに、親の run の `nodes` に `<include の id>__` を含む節が 1 つ以上 `completed`（fix も親の run で見る）。子の run が 1 つ以上在り、子のどれかで修正の役の節（`tdd-loop.tdd`・`tdd-loop.tdd-new`・`fix-loop.fixer`）のどれかが `completed`。eyes の R1〜R4 の役の節（`eyes__r1-comments`・`eyes__r1-minimality`・`eyes__r2-compare`・`eyes__r3-coherence`・`eyes__r4-scope`）が `completed`（深さを標準で回したので省かれない）。include の id・修正の役・eyes の役の名が線とブロックの YAML と合うことは `tests/e2e/test_scenario.py` が見る。
-  3. `capabilities-evidenced`: 1 の run で `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせる。期待: `check` が終了の値 0（`absent` も `unreadable` も 0 件）。`unexpected` の行は失敗にしないが、行を全部 reason に写す。
+  3. `capabilities-evidenced`: 1 の run で `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせる。期待: `check` が終了の値 0（`absent` も `unreadable` も 0 件で、`waits-part` の行が残らない）。`waits-part` の行は 1 つでも残れば（見えた行も）失敗。`seed-cannot`・`backlog`・`handed-off` の行が見えた `unexpected` は失敗にしないが、行を全部 reason に写す。
   4. `changed-diff-refused`: 1 の run で、当てる前に、`returns.value.apply.diff` の先（`terminal_record.artifacts.root` の下）を試みのフォルダに写して控え、1 バイト変えてから `./bin/apply <run> --cwd <対象>` を呼ぶ。期待: 0 以外で終わり、hash が合わないことを言い、対象の `git status --porcelain` が空のまま。その後で控えから元に戻す。
   5. `sealed-diff-fixes-seed`: 4 の後、対象で `python3 -m unittest -v` を走らせて控え、`./bin/apply <run> --cwd <対象>` で当て、もう一度走らせる。期待: 当てる前は依頼が名指した 2 件（`test_mean_of_three`・`test_clamp_above_range`）が落ち、当てた後は 3 件全部が通る。対象の `git diff --stat` は空でなく、変わったファイルは報告が挙げたファイルの中だけ。
 - 消す: 今の筋書きの「`workflows/*/scripts/stub.py` が在る間は inconclusive」の前提と、「線が無い間は inconclusive」の前提。
@@ -266,11 +267,11 @@ lifecycle の入力のうち、このリポジトリが決める物:
    - 結末の語と報告の本文の頭
    - include の id ごとに `completed` の節の数と、役の節の provider と模型の表（セルは短い値だけ）
    - 1 バイト変えた差分を `bin/apply` が拒んだ出力と、当てた後の `python3 -m unittest -v` の出力
-   - `evidence.py check` の出力（数の行と、`absent`・`unexpected` の全行）。数は区分ごと（L・J・P・F・T・E・R・M）に `seen`・`scenario-only`・`seed-cannot`・`waits-part`・`backlog` の件数
+   - `evidence.py check` の出力（数の行と、`absent`・`unexpected`・`waits-part` の全行）。数は区分ごと（L・J・P・F・T・E・R・M）に `seen`・`scenario-only`・`seed-cannot`・`waits-part`・`backlog` の件数
    - 最初の `check` で `absent` だった行ごとの決め（見立ての誤り・種では通らない・不具合・持ち主待ち）と訳（表の下に箇条書き）
    - 通しで見つけて直した不具合の一覧（1 件ごとに: 落ちた節・原因・先に赤にした試験の名・直したファイル・当たった能力の行 ID・K1〜K20 への答え）
    - 段ごとの費用と時間の表
-3. 最後の通しで `evidence.py check` が終了の値 0（`absent` も `unreadable` も 0 件）。`seed-cannot` と `handed-off` の行はどれも、run の記録の事実（節の id と状態）を訳に持つ。
+3. 最後の通しで `evidence.py check` が終了の値 0（`absent` も `unreadable` も 0 件で、`waits-part` の行が残らない）。`seed-cannot` と `handed-off` の行はどれも、run の記録の事実（節の id と状態）を訳に持つ。
 4. 手順 6 の K6・K10・L-W60 の確かめの出力が PR に在る。K6 の `test_loop_prev_real` を本物で 1 度回した出力（1 周目が空、2 周目が前の理由）が在る。
 5. `docs/design.md` の U1・U2 の残り・U6・U7 が「決めた」になり、U8・P2・P1・層の E3 の `deps:` に実物の事実と run の id が書いてある。決めは事実から 1 つに決まる物だけで、決まらない物は「持ち主の答え待ち」と書いて PR の冒頭に並べる。
 6. 層の試験（各階層の `AGENTS.md` の機械の行）が全部緑。`bin/` に持ち主の環境の字が無い（層の E14）。

@@ -276,7 +276,7 @@ def _named_paths(text: str, paths) -> list[str]:
 
 
 def problems(items: list[dict], rows: list[dict], changes: dict, *,
-             permits=(), loop=None) -> tuple[list[str], dict]:
+             permits=(), loop=None, untouched=None) -> tuple[list[str], dict]:
     """承認済みの修正案の項目（items）と差分の外れの行と記録 {"checked": True, "unchecked": [識別子の形でない名], "items": [見た
     項目の番号], "overflow": [はみ出しの行 {line（拒否の行の文）, item, unit_key, paths, new_tests}]}。純粋な関数（ファイル・盤面を読まない）。見る物はモジュールの docstring の語と、下の 1〜6:
     1. 行の files の各パスが、その単位の項目のどれかの範囲に入り、out_of_scope に当たらない。その単位の項目のどれかが明示に
@@ -296,10 +296,14 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
     裁定で外れた単位の項目も範囲を与える（依頼 241。外れた単位を直させない守りは受け付けの check_excused_units）。
     permits のパスは 1 でも範囲に入る。out_of_scope は permits にも勝つ（1・2 とも先に見る）。ただし範囲の相談の合意でその項目の
     out_of_scope から外したパス（with_agreed の LIFTED）は、その項目の out_of_scope に当たらない（1・2 とも）。
-    loop は TDD の輪が凍らせたファイル（パス → 凍った時の中身。無ければ None）。規則は 1 本: 欠け（Missing）の証拠は版からの差分の
+    loop は修正役が変え始めた時の中身（パス → check の loop_tree の木の中身。無ければ None）。規則は 1 本: 欠け（Missing）の証拠は版からの差分の
     全部（changes）で見て、修正役に問う外れと余分（1・2・6 の Extra・canonical の外の定義）は凍った後に修正役が変えた分だけ
-    （凍った時の中身と今の中身の差分）で見る。凍った後に変わっていないファイルは 1・2 で照らさない"""
+    （凍った時の中身と今の中身の差分）で見る。凍った後に変わっていないファイル（untouched。渡さなければ loop の中身が今の中身と
+    同じパス）は 1・2・6 で照らさない"""
     permits, loop = set(permits), dict(loop or {})
+    if untouched is None:
+        untouched = {p for p in loop if loop[p] is not None and p in changes and changes[p][1] == loop[p]}
+    untouched = set(untouched)
     out, unchecked, overflow = [], [], []   # overflow: 1・2・6 の行（範囲の外のはみ出し）。受け付けが相談に回す物の見分けは範囲の持ち主のここ
     row_keys = {r.get("unit_key") for r in rows if isinstance(r.get("unit_key"), str)}
     diffs = {p: added_removed(*pair) for p, pair in changes.items()}
@@ -307,9 +311,8 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
     removed_all = [line for _, rem in diffs.values() for line in rem]
     # 修正役に問う側の差分: 凍ったファイルは凍った時の中身から今まで
     # 凍った時の中身が無い（凍った時の木で読めない）ファイルは版からの差分に戻す
-    since = {p: (loop[p], pair[1]) if loop.get(p) is not None else pair for p, pair in changes.items()}
+    since = {p: (loop[p], pair[1]) if loop.get(p) is not None else pair for p, pair in changes.items() if p not in untouched}
     fixer_added = [(p, line) for p, pair in since.items() for line in added_removed(*pair)[0]]
-    untouched = {p for p in loop if loop[p] is not None and p in changes and changes[p][1] == loop[p]}
 
     # 1. 行の申告したファイル
     seen = set()          # 1 で見たパス（2 で重ねて書かない）
@@ -434,7 +437,7 @@ def _now_text(repo: pathlib.Path, path: str) -> str | None:
 
 
 def check(rows: list[dict], b, repo: pathlib.Path, rev: str, paths: list[str], *, pass_: str, loop_tree: str | None = None,
-          frozen=(), agreed=None, items=None, round_: int = 1) -> tuple[list[str], dict]:
+          frozen=(), touched=None, agreed=None, items=None, round_: int = 1) -> tuple[list[str], dict]:
     """承認済みの修正案の項目 items（planmarks.approved_items の形の値か口。元は盤面 b から planmarks.approved_items(b)。修正案の
     無い run は None）と、版 rev からの変わったパス paths の版と今の中身を problems に渡す。b は fix の run の置き場（合意・許し・
     裁定を conflict が置き場の控えから読む）。テストの変更の許し（conflict.test_permits）を先に引く（欄の控えが凍結の印と
@@ -442,7 +445,9 @@ def check(rows: list[dict], b, repo: pathlib.Path, rev: str, paths: list[str], *
     裁定の後（pass_ が ruled）は直す裁定（conflict.ruled_paths）のパスを permits に足す（裁定を受けた単位の全部は外さない）。
     項目が無い・範囲の欄の無い控えなら照らさず ([], {"checked": False, "why": 理由})。口が欄の控えの食い違いを出せば conflict.fields_broken
     の ValueError。
-    loop_tree（TDD の輪が凍らせた時の木）と frozen（凍らせたファイル）を渡せば、凍った時の中身を problems の loop に渡す。
+    loop_tree（修正役が変え始めた木。TDD の輪が凍らせた時の木か、呼び手の since）と frozen（その木から照らすパス）を渡せば、その木の
+    中身を problems の loop に渡す（輪や前の項目が直し終えた物は欠けの証拠に数え、修正役に問わない）。touched（その木の後に変わった
+    パス。git の比べ）を渡せば、frozen のうちそれに無いパスを problems の untouched に渡す（無ければ中身の比べで決めさせる）。
     範囲の相談の合意（conflict.agreed。agreed を渡せばその行）のパスをその項目の範囲に足す（with_agreed）"""
     agreed = conflict.agreed(b) if agreed is None else agreed
     permits = planrange.permit_paths(b, ruled=pass_ == "ruled", agreed=agreed, round_=round_)
@@ -452,4 +457,5 @@ def check(rows: list[dict], b, repo: pathlib.Path, rev: str, paths: list[str], *
     items = with_agreed(items, agreed)
     changes = {p: (_base_text(repo, rev, p), _now_text(repo, p)) for p in paths}
     loop = {p: _base_text(repo, loop_tree, p) for p in paths if p in set(frozen)} if loop_tree else {}
-    return problems(items, rows, changes, permits=tuple(permits), loop=loop)
+    untouched = None if touched is None else set(loop) - set(touched)
+    return problems(items, rows, changes, permits=tuple(permits), loop=loop, untouched=untouched)

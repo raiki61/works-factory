@@ -17,7 +17,8 @@ workflow runs の started_at の順で 1 から。
 
 check は照らしの表 evidence.json（能力の棚卸しの 1 行 = 表の 1 行）を読み、行ごとに判じを 1 行出し、最後に区分（L・J・P・F・T・
 E・R・M）ごとの数を出す。判じは seen・absent（seen の行の照らしが通らない）・unreadable・unexpected（seen でない行の照らしが
-通った。その行は seen へ移す）か、照らしを持たない・通らない行の種類そのもの。absent か unreadable が 1 つでも在れば終了の値 1。
+通った。その行は seen へ移す）か、照らしを持たない・通らない行の種類そのもの。absent か unreadable が 1 つでも在るか、waits-part
+の行が 1 つでも残れば（見えた・見えないに依らない）終了の値 1。
 """
 import json
 import os
@@ -256,7 +257,7 @@ def counts(rows: list[dict]) -> dict[str, dict[str, int]]:
 
 
 def exit_code(rows: list[dict]) -> int:
-    return 1 if any(row["state"] in (ABSENT, UNREADABLE) for row in rows) else 0
+    return 1 if any(row["state"] in (ABSENT, UNREADABLE) or row["kind"] == "waits-part" for row in rows) else 0
 
 
 def main(argv: list[str]) -> int:

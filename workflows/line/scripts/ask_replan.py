@@ -27,6 +27,7 @@ with boundary.guarded_imports():
     import answer
     import conflict
     import gatemarks
+    import oneline
     import planmarks
     import replan
     import stopby
@@ -61,7 +62,7 @@ def ruled_rows(ptr) -> tuple:
     try:
         return conflict.items(boundary.resolve(ptr).parent), ""
     except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
-        return [], f"申し出と裁定の控えを読めない（{type(error).__name__}: {' '.join(str(error).split())}）"
+        return [], f"申し出と裁定の控えを読めない（{type(error).__name__}: {oneline.one_line(error)}）"
 
 
 def item_rows(rows: list, ident: str, old, new) -> list:

@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import fixboard  # noqa: E402
+import oneline  # noqa: E402
 import refix  # noqa: E402
 import startrec  # noqa: E402
 
@@ -38,4 +39,4 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        sys.exit(f"cut2: {type(e).__name__}: {' '.join(str(e).split())}")
+        sys.exit(f"cut2: {type(e).__name__}: {oneline.one_line(e)}")
