@@ -528,21 +528,11 @@ NOT_DECLARED = ("修正役は済んだと言ったが、触ったファイルを
 
 
 
-def _input_value(raw: str, name: str):
-    """入力の字を JSON で読む（空・null は None）"""
-    if not (raw or "").strip() or raw.strip() == "null":
-        return None
-    try:
-        return json.loads(raw)
-    except ValueError as e:
-        raise ValueError(f"入力 {name} が JSON として読めない: {e}（頭: {raw[:120]!r}）") from None
-
-
-def prep(folder, worktree, raw: dict, resolve) -> dict:
+def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     """入力の字 raw（{入力の名: 字}。start・judgment・plan・plan_review・ripple・world・depth・answers・units・only_items・baseline・
     prior_conflicts・notes。無い名は空）を置き場 folder に写し、始めの記録（startrec.adopt。字のまま）・git が無視するファイルの控え・
-    始めの木を取り、組を作って返す（置く物と返りの形は fix の節 prep の docstring）。resolve はポインタを置き場の中のパスに戻す口
-    （境の口の resolve）。fix の節 prep と、単独の run の組の子の頭（節 group-start。ポインタは自分の run の物）が同じ写しを置くのに
+    始めの木を取り、組を作って返す（置く物と返りの形は fix の節 prep の docstring）。parsed は入力の字を値に戻す口（境の口の parsed）、
+    located はポインタの入力の字を置き場の中のパスに戻す口（境の口の pointed）。どちらも null・空の字を None と読む。fix の節 prep と、単独の run の組の子の頭（節 group-start。ポインタは自分の run の物）が同じ写しを置くのに
     呼ぶ"""
     import baseline_red
     import groups
@@ -550,11 +540,13 @@ def prep(folder, worktree, raw: dict, resolve) -> dict:
     import planmarks
 
     def value(name):
-        return _input_value(raw.get(name) or "", name)
+        try:
+            return parsed(raw.get(name))
+        except ValueError as e:
+            raise ValueError(f"入力 {name} が JSON として読めない: {e}") from None
 
     def pointed(name):
-        ptr = value(name)
-        return None if ptr is None else resolve(ptr)
+        return located(raw.get(name))
 
     def read_pointed(name, required=False):
         path = pointed(name)

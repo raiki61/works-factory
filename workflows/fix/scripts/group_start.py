@@ -81,7 +81,7 @@ def main() -> dict:
                 fixboard.drop_unreturned(repo, gdir, boundary.SKIP)
     else:
         raw = {name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in INPUTS}
-        fixboard.prep(place, repo, raw, boundary.resolve)
+        fixboard.prep(place, repo, raw, boundary.parsed, boundary.pointed)
     leftovers.record_ignored(place, repo)
     start_tree = groups.end_tree(repo)
     fixboard.write_json(place / fixboard.GROUPS_FILE,
