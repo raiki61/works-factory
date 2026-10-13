@@ -854,10 +854,6 @@ def _shown_plan(inputs: dict) -> list:
     return [r for n, r in enumerate(rows, 1) if n in set(inputs.get("ruled") or [])]
 
 
-def _unit_name(names: list, k):
-    return names[k - 1] if isinstance(k, int) and not isinstance(k, bool) and 1 <= k <= len(names) else k
-
-
 def named(b, reply: dict) -> dict:
     """返答の faces・shrink の unit_keys の番号を単位の名に戻した写し（戻せない番号は番号のまま。照らしが拒む）"""
     names = b.pointer_rows(REVIEW_NODE)["pointers"][0]["names"]
@@ -865,7 +861,7 @@ def named(b, reply: dict) -> dict:
     for field in ("faces", "shrink"):
         for row in out.get(field) or []:
             if isinstance(row, dict) and isinstance(row.get("unit_keys"), list):
-                row["unit_keys"] = [_unit_name(names, k) for k in row["unit_keys"]]
+                row["unit_keys"] = [planblk.unit_name(names, k) for k in row["unit_keys"]]
     return out
 
 

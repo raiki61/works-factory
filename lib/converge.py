@@ -38,7 +38,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   機械が差し込む（閉じた・保留の）項目の単位・直しの役が返した開いた項目の行に前の往復の行を差し込んで案の全体を組む口
   （閉じた項目を変えた行は拒み、前と同じ行は捨てる）
 - planned_units(plan): 今の案に在る単位の key の集合を組む唯一の口（控えの plan の行からも修正案の役の出力の plan の行からも。
-  carried_notes・受け付けの plan_review_output・修正前の関所の照らしが同じ集合を引く）
+  carried_notes・受け付けの plan_review_output・修正前の関所の照らしが同じ集合を引く）。その下の plan_keys(plan) は案の順・
+  重複のまま字の key を並べる読み口（planfile の受け付けの照らしも引く）
 - answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（項目の在る
   控えでは、今の往復で開いている項目の分だけ）
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
@@ -341,10 +342,17 @@ def plan_rows(rows: list) -> list[dict]:
              "hash": item_hash(r), "row": copy.deepcopy(r)} for r in rows if isinstance(r, dict)]
 
 
+def plan_keys(plan) -> list:
+    """今の案に在る単位の key を案の順に、重複も残して字のまま（控えの plan の行・修正案の役の出力の plan の行のどちらからも）。
+    list でない plan・行で無い物・unit_keys が list でない行は読まない。planned_units と planfile の照らしの下の読み口"""
+    return [k for r in plan if isinstance(r, dict) and isinstance(r.get("unit_keys"), list)
+            for k in r["unit_keys"]] if isinstance(plan, list) else []
+
+
 def planned_units(plan) -> set[str]:
-    """今の案に在る単位の key の集合（控えの plan の行・修正案の役の出力の plan の行のどちらからも。key は plan_rows と同じく
-    str にする）。carried_notes が持ち越す穴の単位と、受け付けが案に無い単位を拒む照らしは、この 1 つの集合で揃う"""
-    return {str(k) for r in plan or [] if isinstance(r, dict) for k in r.get("unit_keys") or []}
+    """今の案に在る単位の key の集合（plan_keys の key を plan_rows と同じく str にする）。carried_notes が持ち越す穴の単位と、
+    受け付けが案に無い単位を拒む照らしは、この 1 つの集合で揃う"""
+    return {str(k) for k in plan_keys(plan)}
 
 
 def _last_items(doc: dict) -> dict:
@@ -427,7 +435,7 @@ def _filled_ids(doc: dict) -> dict:
 def filled_units(doc: dict) -> list[str]:
     """機械が前の往復の行を差し込む項目（最後の往復で閉じた・保留にした項目）の単位の key。項目の控えが無ければ []"""
     filled = _filled_ids(doc)
-    return [k for it in doc.get("plan") or [] if it["id"] in filled for k in it["unit_keys"]]
+    return plan_keys([it for it in doc.get("plan") or [] if it["id"] in filled])
 
 
 def splice(doc: dict, rows: list) -> tuple[list, list[str], list[str]]:

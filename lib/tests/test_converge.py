@@ -677,25 +677,49 @@ class AddPassCase(BoardCase):
         self.assertEqual(converge.read(self.b)["outcome"], doc["outcome"])
 
 
-def _reads_plan(node) -> bool:
-    """式が修正案の項目の並び（plan の名・["plan"]・.get("plan")）を読むか"""
-    return any(isinstance(n, ast.Name) and n.id == "plan" or isinstance(n, ast.Constant) and n.value == "plan"
+COMPREHENSIONS = (ast.SetComp, ast.ListComp, ast.GeneratorExp, ast.DictComp)
+SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+
+
+def _mentions(node, names: set) -> bool:
+    """式が修正案の項目の並び（["plan"]・.get("plan")・names の名）を読むか"""
+    return any(isinstance(n, ast.Name) and n.id in names or isinstance(n, ast.Constant) and n.value == "plan"
                for n in ast.walk(node))
 
 
+def _plan_names(scope) -> set:
+    """scope の中で修正案の項目の並びを指す名（plan と、それを読む式を代入した名。rows = out.get("plan") の rows も、
+    xs = rows or [] の xs も）"""
+    binds = [(t, n.value) for n in ast.walk(scope) if isinstance(n, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
+             and n.value is not None for t in (n.targets if isinstance(n, ast.Assign) else [n.target])]
+    names = {"plan"}
+    while grown := {x.id for t, v in binds if _mentions(v, names) for x in ast.walk(t)
+                    if isinstance(x, ast.Name) and x.id not in names}:
+        names |= grown
+    return names
+
+
 def planned_unit_sets(source: str, name: str) -> list[str]:
-    """修正案の項目の並びを回し、その行の unit_keys を回して集合を組む内包の在りか（<name>:<行>）"""
-    found = []
-    for node in ast.walk(ast.parse(source)):
-        if not isinstance(node, ast.SetComp) or len(node.generators) < 2:
+    """修正案の項目の並びを回し、その行の unit_keys を回して単位を並べる内包（集合・list・生成式（set(...) も）・dict）の
+    在りか（<name>:<行>）。並びを読むかは内包を囲む一番内の関数の中の名で見る（名を変えた局所変数からの写しも捕まえ、
+    別の関数の同じ名は見ない）"""
+    tree = ast.parse(source)
+    scope_of = {}
+    for scope in [tree] + [n for n in ast.walk(tree) if isinstance(n, SCOPES)]:
+        for node in ast.walk(scope):
+            if isinstance(node, COMPREHENSIONS):
+                scope_of[node] = scope
+    found = set()
+    for node, scope in scope_of.items():
+        if len(node.generators) < 2:
             continue
         outer, inner = node.generators[0], node.generators[-1]
         rows = {n.id for n in ast.walk(outer.target) if isinstance(n, ast.Name)}
         per_row = any(isinstance(n, ast.Constant) and n.value == "unit_keys" for n in ast.walk(inner.iter)) and any(
             isinstance(n, ast.Name) and n.id in rows for n in ast.walk(inner.iter))
-        if per_row and _reads_plan(outer.iter):
-            found.append(f"{name}:{node.lineno}")
-    return found
+        if per_row and _mentions(outer.iter, _plan_names(scope)):
+            found.add(node.lineno)
+    return [f"{name}:{line}" for line in sorted(found)]
 
 
 class PlannedUnitsCase(unittest.TestCase):
@@ -707,13 +731,29 @@ class PlannedUnitsCase(unittest.TestCase):
 
     def test_a_second_copy_is_red(self):
         """控えの plan からも、修正案の役の出力の plan からも、写した式は見つかる"""
-        copies = ['planned = {k for it in doc["plan"] for k in it["unit_keys"]}',
-                  'planned = {str(k) for p in (out or {}).get("plan") or [] for k in p.get("unit_keys") or []}',
-                  'every = {k for it in plan if isinstance(it, dict) for k in it["unit_keys"] if isinstance(k, str)}']
-        for src in copies:
+        copies = [('planned = {k for it in doc["plan"] for k in it["unit_keys"]}', ["x.py:1"]),
+                  ('planned = {str(k) for p in (out or {}).get("plan") or [] for k in p.get("unit_keys") or []}', ["x.py:1"]),
+                  ('every = {k for it in plan if isinstance(it, dict) for k in it["unit_keys"] if isinstance(k, str)}',
+                   ["x.py:1"]),
+                  ('planned = set(k for p in plan for k in p["unit_keys"])', ["x.py:1"]),
+                  ('keys = [k for p in plan for k in p["unit_keys"]]', ["x.py:1"]),
+                  ('rows = reply.get("plan")\nkeys = {k for p in rows for k in p.get("unit_keys") or []}', ["x.py:2"]),
+                  ('def f(out):\n    rows = out["plan"] or []\n    return set(k for r in rows for k in r["unit_keys"])',
+                   ["x.py:3"])]
+        for src, want in copies:
             with self.subTest(src=src):
-                self.assertEqual(planned_unit_sets(src, "x.py"), ["x.py:1"])
+                self.assertEqual(planned_unit_sets(src, "x.py"), want)
         self.assertEqual(planned_unit_sets('got = {k for r in given for k in r.get("unit_keys") or []}', "x.py"), [])
+        self.assertEqual(planned_unit_sets('def f(o):\n    rows = o["plan"]\n\ndef g(rows):\n'
+                                           '    return {k for r in rows for k in r["unit_keys"]}', "x.py"), [],
+                         "別の関数で plan を指した名は、この関数の同じ名を plan にしない")
+
+    def test_plan_keys_keeps_order_duplicates_and_raw_keys(self):
+        """plan_keys は案の順・重複・字のままの key（planfile の拒む行の並びが変わらない）。planned_units はその上で str の集合"""
+        plan = [{"unit_keys": ["u2", "u1"]}, "broken", {"unit_keys": 5}, {"unit_keys": ["u1", 9]}]
+        self.assertEqual(converge.plan_keys(plan), ["u2", "u1", "u1", 9])
+        self.assertEqual(converge.plan_keys(None), [])
+        self.assertEqual(converge.planned_units(plan), {"u1", "u2", "9"})
 
     def test_planned_units_reads_both_row_shapes(self):
         """控えの行（str にした key）と修正案の役の出力の行（名の key）の単位の和。行で無い物と unit_keys の無い行は数えない"""

@@ -258,16 +258,11 @@ def stuck_reason(judgment) -> str:
     return f"{planblk.PLAN_STUCK}: {items}。{planblk.STUCK_WHY}"
 
 
-def _plan_keys(reply) -> list:
-    rows = reply.get("plan") if isinstance(reply, dict) else None
-    return [k for p in rows if isinstance(p, dict) and isinstance(p.get("unit_keys"), list)
-            for k in p["unit_keys"] if isinstance(k, str)] if isinstance(rows, list) else []
-
-
 def _shut(judgment, reply) -> list:
     """返答（id に戻した物）が案に入れた単位のうち、判定に在るが入れてよくも必ず入れるでもない物の key"""
     owed, opened, units = plan_slots(judgment)
-    return [k for k in _plan_keys(reply) if k in units and k not in opened and k not in owed]
+    plan = reply.get("plan") if isinstance(reply, dict) else None
+    return [k for k in converge.plan_keys(plan) if isinstance(k, str) and k in units and k not in opened and k not in owed]
 
 
 def not_allowed(judgment, reply) -> list:
@@ -284,16 +279,14 @@ def named(reply, slot_list):
         keys = p.get("unit_keys") if isinstance(p, dict) else None
         if not isinstance(keys, list):
             continue
-        for i, k in enumerate(keys):
-            if isinstance(k, int) and not isinstance(k, bool) and 1 <= k <= len(slot_list):
-                keys[i] = slot_list[k - 1]
+        p["unit_keys"] = [planblk.unit_name(slot_list, k) for k in keys]
     return got
 
 
 def fix_plan_covers_units(plan, owed, opened) -> list:
     """修正案は今の周に直す単位を全部、どれか 1 つの案に入れる（元 works/.shared/core/graphloops/rules/review-loop.py:3077。
     例外の代わりに拒否の行を返す。戻せなかった no の整数も知らない key に数える）"""
-    got = [k for p in plan if isinstance(p, dict) and isinstance(p.get("unit_keys"), list) for k in p["unit_keys"]]
+    got = converge.plan_keys(plan)
     errs = []
     unknown = sorted({str(k) for k in got if k not in opened})   # 免除の単位（答えていない問いの出どころ・depends）は入れても入れなくてもよい
     if unknown:
