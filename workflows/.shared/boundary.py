@@ -39,8 +39,12 @@ import skip_value
 
 POINTER_TYPE = "archon_artifact"
 LINE_SCRIPT = "works:line-script"
+# JSON として読まない欄（field）。型の正本は出す節の output_format で、Archon が返りを照らす。これは受け手の読み方の表: Archon は字の欄を
+# 字のまま、ほかを JSON の字で渡し、空の字は字の "" と null の欄のどちらでも届くので、字だけからは決まらない（"" を None に読むと
+# 返す節の中の誤りの by "" と返らなかった by が見分けられない）。run の中の script は出す節の output_format を読めない（YAML を読む
+# パッケージを持たない。workflows/AGENTS.md の E7 の dependencies = []）ので、受け手がここで名指す
 TEXT_FIELDS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason", "unread", "by", "suites_line", "log",
-               "baseline_line")   # JSON として読まない欄
+               "baseline_line")
 
 _import_error = None
 
