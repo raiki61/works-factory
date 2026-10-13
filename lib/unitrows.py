@@ -6,6 +6,8 @@
 件数・remaining・作り直した how）が数え直しと合わない形は、写しの fix_covers_open_units なら返答全体を拒む 4 つの形と同じで、ここでは
 拒まずに表の discrepancies に記録する。写しに渡す返答は、その 4 つの拒否が発火しないように揃える（sites を母数に切る・空の
 remaining に機械の記録を書く）。写しは変えない（板の POST_CHECKS は差し替えられない。ADR 0009・TA25 の置き場）。
+ただし defects の問いが直した後も当たる単位（closed が偽）は、受け付けが unclosed_defects で拾って修正役に戻す（#313: 問いが正しい行にも
+当たる時に申し出の無いまま受けると、閉じない数えが run の結末まで届き round_limit になった）。
 申告の site は works だけの欄 path（recount.SITE_PATH）で問いの当たりのファイルに結び、site の件数でなく、site が在る当たりの
 ファイルの件数（covered）を母数と比べる（site の件数と行数・ファイル数は単位が違う）。当たりの外の site（試験・文書など）は
 不一致に数えず、表の out_of_query にパスを並べる。path の無い site は覆いに数えず、ファイルごとの数が引ければ path の在る site で
@@ -20,6 +22,7 @@ site が名指す当たりのファイルも、修正前の版から実際に変
 写しの sites は additionalProperties: false なので、写しに渡す返答からは path を外す。
 
 - build(changes, judged, *, count, blank, zero_keys, replaced, per_file, touched): 本体（盤面を読まない）。返り (写しに渡す changes, 表の行)
+- unclosed_defects(rows): 表の行のうち defects の問いが閉じない単位の行
 - file_counts(how, root, rev): 問いの当たりをファイルごとに数える（argv は写しの count_argv、走らせ方は写しの _grep）
 （元の take(reply, b, repo)——盤面の判定者の問い・置き換えた問い・engine_zero・写しの規則の _run_query で build を当てた口——は
 外した。呼び手の script が判定の問い・conflict.replaced_queries(置き場)・recount._run_query と file_counts で build を回す）
@@ -131,6 +134,11 @@ def file_counts(how, root, rev=None):
             return None, f"-c の出力が `…:数` の形でない（{line[:60]!r}）"
         got[path] = int(n)
     return got, ""
+
+
+def unclosed_defects(rows) -> list:
+    """表の行 rows（build の返りの 2 つ目）のうち、defects の問いが直した後も当たる単位の行"""
+    return [r for r in rows if r.get("counts") == "defects" and r.get("closed") is False]
 
 
 def build(changes, judged: dict, *, count, blank, zero_keys=(), replaced=None, per_file=None, touched=None):

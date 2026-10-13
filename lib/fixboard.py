@@ -1733,9 +1733,16 @@ FIX_CHECKS = {
     "scope": "承認済みの修正案の範囲",
     "tests": "変更に当たる試験の赤",
     "gates": "事後の関門の束",
+    "closure": "閉じない欠陥の数え",
     "copy": "数え直しの受け付け",
     "plan_faces": "修正案の事前審査への応答",
 }
+# 閉じない欠陥の数え（check closure）の文。remaining では抜けず、直すか申し出るかを求める（#313）
+UNCLOSED_DEFECTS = ("単位 {key} の欠陥を数える問い（判定者の問いか、裁定が置き換えた問い）が、修正前 {total} 件・修正後 {after} 件"
+                    "で閉じていない。remaining を書いても閉じない。次のどれかで出し直せ: 残った当たりも欠陥なら直して 0 件に"
+                    "する / 問いが直した後の正しい行に当たるなら conflicts に kind: query_hits_fixed・which_is_right: query・"
+                    "correct_lines（その正しい行の写し）で申し出る / 範囲の中では閉じないなら conflicts に kind: scope_needed で"
+                    "申し出る")
 FIX_REJECT_HEAD = ("受け付けは確かめを全部回した。見出しごとに並べた行を全部直した返答を丸ごと出し直せ（直した所だけを返すな。"
                    "1 回の出し直しで全部を直せ）:")   # 元 accept.py:195
 FIX_CHECK_HEAD = "## {head}（確かめ {cid}・{count} 件）"   # 元 works/blk-fix/lib/fixlanes.py:449
@@ -2074,7 +2081,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     記録の無い run は undeclared_writes で段の頭の木 head からの変更を申告に縛る）→ 食い違いの申し出（take_conflicts。first で
     裁かれていない申し出が在れば輪を抜ける {ok: True, conflicted: True}）→ 除くパスの頭の下の変更（check_pack_copy）→
     単位の行（check_unique_units・check_opened_units・check_excused_units）→ 承認済みの修正案の範囲（factchecks.check_plan_scope）→ 変更に当たる試験（tddloop.selected_problems）→
-    事後の関門の束（fixgates.problems）→ 閉鎖の数え直し（closure_reply。通れば表を querytest.save_closure）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
+    事後の関門の束（fixgates.problems）→ 閉鎖の数え直し（closure_reply。defects の問いが閉じない単位は申し出が無ければ
+    戻す。通れば表を querytest.save_closure）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
     拒まずに settle_overflow を通す（相談に積んだ回は {ok: False, queued: True}。戻した回は戻した返答で頭から通し直す。reverted・
     trail はその通し直しが渡す）。最後の回の単位への結びは、はみ出しでない行にだけ当てる（止めた後の通し直しのはみ出しは聞かずに戻す）。
     iteration が GIVE_UP_AFTER 以上の拒否は、写しでない行を単位に結んで（last_settle）結んだ単位だけを head に戻して諦め
@@ -2094,6 +2102,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     import parking
     import recount
     import tddloop
+    import unitrows
     import writes
     parked = dict(parked or {})
     trail = {"reverted": []} if trail is None else trail
@@ -2149,19 +2158,24 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     note("gates", fixgates.reject_lines(gates) if gates else [])
     precedents = (read_json(pathlib.Path(place) / JUDGMENT_FILE, {}) or {}).get("precedents") or []
 
-    def copy_rows(reply, commit):
-        """閉鎖の数え直し（closure_reply）を当てた返答の写しの照らし（recount.accept_fix）の誤りの行。commit が真で通れば表を
-        querytest.save_closure で置き場に置く"""
+    def check_copy(reply):
+        """閉鎖の数え直し（closure_reply）で閉じない欠陥の数え（unitrows.unclosed_defects）を closure に単位へ結んで積み、
+        それを当てた返答の写しの照らし（recount.accept_fix）の誤りを copy に積む。それまでに積んだ行が無ければ写しの照らしを
+        置き場に刻み、通れば表を querytest.save_closure で置き場に置く"""
         shaped, closure, zero = closure_reply(reply, place, repo, rev, judged)
+        for row in unitrows.unclosed_defects(closure):
+            text = UNCLOSED_DEFECTS.format(key=row["unit_key"], total=row["total"], after=row["after"])
+            note("closure", text)
+            declared.setdefault(text, set()).add(row["unit_key"])
+        commit = not found
         out = recount.accept_fix(shaped, place, rev, repo, judged=judged, owed=set(duty), zero_keys=zero,
                                  precedents=precedents, commit=commit)
         if out.get("ok") is not True:
-            return out.get("problems") or [str(out.get("reason") or "")]
-        if closure and commit:
+            note("copy", out.get("problems") or [str(out.get("reason") or "")])
+        elif closure and commit:
             import querytest
             querytest.save_closure(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), closure)
-        return []
-    note("copy", copy_rows(reply, not found))
+    check_copy(reply)
     kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, state=state,
               tests_state=tests_state, base_rev=base_rev, head=head, skip=skip, parked=parked, log=log)
 
@@ -2212,7 +2226,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
                         "absorbed": settled.absorbed}
             reply = _without_units(reply, out_of_duty)
             found = list(over)
-            note("copy", copy_rows(reply, not found))
+            check_copy(reply)
             over, rest = split_rows(found, asks)
             if over and not rest:   # 残ったはみ出しは聞かずに戻して通し直す（元 :693-697）
                 got = settle_overflow(asks, found, whole, place, repo, head=head or rev, reverted=reverted, trail=trail,
