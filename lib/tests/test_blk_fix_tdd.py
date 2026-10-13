@@ -1181,10 +1181,11 @@ class TestTestFileIdentity(unittest.TestCase):
     """テストのファイルの見分け: 宣言（単位の申告・約束の tests と rewrites のパス）を正本に、名の慣習（impact.is_test）を予備に"""
 
     def test_declared_test_files_from_state(self):
-        st = {"units": {"u1": {"test_files": ["a/checks.go"]}, "u2": {}},
+        st = {"units": {"u1": {"test_files": ["./a/checks.go", " d/x_test.py ", None, "", 3]}, "u2": {}, "u3": {"test_files": 5},
+                        "u4": {"test_files": "e.py"}},
               "contract": {"u1": {"tests": [{"id": "b/verify.kt::Verify::adds"}], "rewrites": ["./c/legacy.rb::old"]},
                            "u2": None}}
-        self.assertEqual(tddloop.declared_test_files(st), {"a/checks.go", "b/verify.kt", "c/legacy.rb"})
+        self.assertEqual(tddloop.declared_test_files(st), {"a/checks.go", "d/x_test.py", "b/verify.kt", "c/legacy.rb"})
 
 
 class TestRewriteSharedAcrossUnits(ContractCase):

@@ -1458,9 +1458,12 @@ def _bodies(text, rel: str) -> dict:
 
 def unit_test_files(unit) -> list:
     """TDD の輪の単位の行の test_files のうち、空でない文字列だけを posixpath.normpath で整えた並び（子の result.json の写しも読む口。
-    形の違う要素は落とす）"""
+    並びでない test_files は空、形の違う要素は落とす）"""
     import posixpath
-    return [posixpath.normpath(f.strip()) for f in (unit or {}).get("test_files") or [] if isinstance(f, str) and f.strip()]
+    files = (unit or {}).get("test_files")
+    if not isinstance(files, list):
+        return []
+    return [posixpath.normpath(f.strip()) for f in files if isinstance(f, str) and f.strip()]
 
 
 def _moved_tests(repo, tree: str, units, shared: set) -> list:
