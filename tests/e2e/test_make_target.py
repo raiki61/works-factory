@@ -6,6 +6,7 @@ teardown の殻の後ろの Archon は偽の bun で、受けた命令を控え�
 本物の Archon と同じく、--cwd（無ければ cwd）が git のリポジトリでなければ命令を拒む。FAKE_FAILS に並べた命令は落とす。
 """
 import ast
+import io
 import json
 import os
 import pathlib
@@ -13,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tokenize
 import unittest
 import xml.etree.ElementTree as ET
 
@@ -251,6 +253,32 @@ class MakeTargetTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(self.ledger(other).read_text(encoding="utf-8"), their_ledger)
         self.assertTrue(all(pathlib.Path(c["archon_home"]).is_relative_to(mine) for c in self.calls()))
+
+
+class SeedTextCase(unittest.TestCase):
+    """種のコードの文（docstring とコメント）が、仕込んだバグの中身を書かない（説明は make_target.py の docstring に置く）"""
+    BUG_WORDS = ("バグ", "仕込", "赤", "正しく", "分母", "len(xs)", "lo を返", "hi を返", "3 件中")
+
+    @staticmethod
+    def texts(source: str) -> list:
+        tree = ast.parse(source)
+        docs = [ast.get_docstring(n) for n in ast.walk(tree)
+                if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
+        comments = [t.string for t in tokenize.generate_tokens(io.StringIO(source).readline) if t.type == tokenize.COMMENT]
+        return [x for x in docs + comments if x]
+
+    def test_seed_text_does_not_describe_the_bugs(self):
+        files = sorted((E2E / "target-seed").glob("*.py"))
+        self.assertTrue(files)
+        for path in files:
+            for text in self.texts(path.read_text(encoding="utf-8")):
+                for word in self.BUG_WORDS:
+                    with self.subTest(file=path.name, word=word):
+                        self.assertNotIn(word, text)
+
+    def test_the_words_catch_the_old_docstring(self):
+        old = '"""使い捨ての対象リポジトリの種。\n\n- mean: 分母が len(xs) - 1 になっている（正しくは len(xs)）。\n"""\n# 3 件中 2 件が赤\n'
+        self.assertTrue(any(w in t for t in self.texts(old) for w in self.BUG_WORDS))
 
 
 if __name__ == "__main__":

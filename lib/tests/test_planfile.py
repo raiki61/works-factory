@@ -277,6 +277,12 @@ class PrescriptionCase(unittest.TestCase):
         self.assertNotIn(f"### {CLAMP}", got)
         self.assertEqual(planfile.prescription_section([CLAMP], {}), "")
 
+    def test_section_names_the_judgment_file(self):
+        """処方を決め手に引く先（判定の記録の絶対パス）を名指す（相対の素の名は作業ツリーの根から引かれて人に回る）"""
+        got = planfile.prescription_section([MEAN], planfile.prescriptions(judgment()), "/run/judge/judgment.json")
+        self.assertIn(planblk.PRESCRIPTION_SOURCE.format(path="/run/judge/judgment.json"), got)
+        self.assertNotIn("判定の記録: ", planfile.prescription_section([MEAN], planfile.prescriptions(judgment())))
+
 
 class RepoLineCase(unittest.TestCase):
     """P035 のリポジトリの行（修正役の brief と事前審査の材料が同じ物を貼る）"""
@@ -504,7 +510,7 @@ class VerifyNeighborCase(TmpCase):
         judgment = {"units": [{"key": "a.py 分母", "label": "block", "disposition": "do-now", "reason": "r"}], "questions": []}
         rd = self.tmp / "plan" / "r1"
         rd.mkdir(parents=True)
-        path, _ = planfile.write_brief(rd, self.tmp / "plan", mode="plan", judgment=judgment, judgment_dir=jdir, units=[],
+        path, _ = planfile.write_brief(rd, self.tmp / "plan", mode="plan", judgment=judgment, judgment_file=jdir / "judgment.json", units=[],
                                        structure_dir_=self.tmp / "s", world_rows=None, spec=None, repo=self.tmp, review_rev="", base="",
                                        review_md="", lang_line=rolekit.lang_line({}))
         text = path.read_text(encoding="utf-8")
