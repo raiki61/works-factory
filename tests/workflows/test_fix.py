@@ -2394,7 +2394,7 @@ class GroupChildScriptsCase(unittest.TestCase):
 
     def test_tdd_head_reuses_the_test_gate_base_test_cmd(self):
         """test-gate の base が線の run の置き場に控えた test_cmd の緑を、fix の組の子の run の TDD の輪の頭が引く（同じ run の中で
-        2 度走らせない）。置き場（fixio.line_top）・run の名（始めの記録の run_id）・落とす変数・2 つの起こし口の指紋が揃って当たる"""
+        2 度走らせない）。置き場（group_start.line_top）・run の名（始めの記録の run_id）・落とす変数・2 つの起こし口の指紋が揃って当たる"""
         count = self.tmp / "test-cmd-count"
         test_cmd = f"{sys.executable} -c \"open({str(count)!r}, 'a').write('1\\n')\""
         line = self.tmp / "parent-art"
@@ -2528,7 +2528,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertIn("test_stats.py", frozen)
 
     def test_fix_accept_rejects_a_change_under_the_skip_head(self):
-        """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は fixio.SKIP）、fix-accept が
+        """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は boundary.SKIP）、fix-accept が
         その下を変えた返答を拒む（元 works/blk-fix/scripts/accept.py:234 check_pack_copy・:663）"""
         import fixboard
         copy = self.repo / ".archon" / "workflows" / "x.yaml"
