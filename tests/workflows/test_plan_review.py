@@ -2805,6 +2805,27 @@ class WorldGateCase(GateBase):
         self.assertEqual(got, {"ok": True})
         self.assertTrue(any("w-mean" in p["item"] for p in b.state["works"].get("gate_passes") or []))
 
+    def test_code_lines_in_purpose_sources_pass_without_asking(self):
+        """run 6444e6d7 の gate.json の形: 外れの訳が直す対象のコードの行（目的の文の出典 source_files と同じファイル）を挙げた
+        だけなら、依頼を出どころにした外れでなく、グラフの中で通る（無人の run を修正前に止めない）"""
+        self.put_request()
+        self.put_world(TP.WORLD_ROW)
+        (self.tmp / "stats.py").write_text("".join(f"x{i} = {i}\n" for i in range(1, 40)), encoding="utf-8")
+        (self.tmp / "test_stats.py").write_text("".join(f"y{i} = {i}\n" for i in range(1, 40)), encoding="utf-8")
+        self.put_answers({"world": "w-mean", "deviation": "今の形 stats.py:29 を試験 test_stats.py:28 が縛るので、定石から外れる"})
+        inputs = {"plan": {"plan": [{"unit_keys": ["u"], "narrows": []}]}, "cwd": str(self.tmp),
+                  "purpose": {"purpose_text": "空の列の平均を直す", "source_files": ["stats.py"]}}
+        b = boardview.view(self.tmp, inputs, {"faces": []})
+        self.assertEqual([x for _, x in gatemarks.plan_gate_items(b) if "w-mean" in x], [])
+
+    def test_request_quote_on_none_verdict_row_passes_without_asking(self):
+        """依頼が解き方を示していない行（verdict none）の外れは、依頼の引用を挙げても依頼を出どころにした外れにならない"""
+        self.put_request()
+        self.put_world({**TP.WORLD_ROW, "versus": {"proposed": "", "verdict": "none", "challenge": ""}})
+        self.put_answers({"world": "w-mean", "deviation": f"依頼の本文「{TP.REQUEST_LINE}」に従い、定石から外れる"})
+        got, _ = self.gate()
+        self.assertEqual(got, {"ok": True})
+
     def test_world_item_the_human_continued_is_not_asked_again(self):
         """元 tests/test_plan_gate.py の WorldGateCase.test_world_item_the_human_continued_is_not_asked_again。人が continue で
         通した世界の解の外れの項目は聞き直さない（構造の目の設計の問いと同じ）"""

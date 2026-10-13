@@ -24,7 +24,9 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
   外れの訳に添える）
 - needs(row)・answered(item)・unanswered(rows, items): 答えの要る行（applies が空でない）と、修正案の
   項目の欄 structure の答え {world: <類の id>, follows: true} か {world, deviation}
-- world_ok(answer, row, own_sources, cite_ok): 関所の軸「世界の解か」（答えの要らない行・従う・依頼の外の出どころで訳の立つ外れ。
+- world_ok(answer, row, request_files, means, cite_ok): 関所の軸「世界の解か」（答えの要らない行・従う・依頼の外の出どころで訳の立つ外れ。
+  依頼の出どころは依頼のファイルのパス（パス全体で照らす）・依頼の引用・依頼の解き方 means で、目的の文の出典 source_files は入れない。
+  依頼が解き方を示していない行（verdict none）の外れは依頼の出どころにならない。
   web で確かめていない行（knowledge）は従う答えだけが揃い、外れは人に聞く——計画の 5.5 節「知識だけの定石に従うのは自明側、外れは人へ」）
 - gate_line(row, answer)・report_lines(board_dir): 関所の項目と報告の節「世界の解」の行
 
@@ -36,6 +38,7 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
 """
 import json
 import pathlib
+import re
 
 import cite   # 依頼の引用「…」の形と語（決め手の出どころの照らしの住処）
 import marks  # 返答の足し欄の住処（種 means）
@@ -223,12 +226,23 @@ def unanswered(rows, items) -> list:
     return out
 
 
-def _from_request(text: str, own_sources) -> bool:
-    """決め手の文が依頼（依頼のファイル・目的の文の出典）を出どころにしているか"""
-    return any(s and s in text for s in own_sources or ()) or (cite.REQUEST_WORD in text and cite.QUOTE.search(text) is not None)
+def _names_path(text: str, path: str) -> bool:
+    """文がパス path をパス全体（と :行）で名指すか（別のファイルの名の一部として在るだけでは名指さない）"""
+    return bool(path) and re.search(rf"(?<![\w./-]){re.escape(path)}(?::[1-9][0-9]*(?:-[1-9][0-9]*)?)?(?![\w/-]|\.\w)",
+                                    text, re.ASCII) is not None
 
 
-def world_ok(answer, row, own_sources, cite_ok) -> tuple:
+def _from_request(text: str, request_files, means) -> bool:
+    """決め手の文が依頼（依頼のファイルのパス・依頼の引用「…」・依頼の解き方 means の文か、その引用）を出どころにしているか"""
+    if any(_names_path(text, f) for f in request_files or ()):
+        return True
+    if cite.REQUEST_WORD in text and cite.QUOTE.search(text) is not None:
+        return True
+    return any(cite.quoted_in(m, text, norm=cite.fold) or any(cite.quoted_in(q, m, norm=cite.fold) for q in cite.quotes(text))
+               for m in means or ())
+
+
+def world_ok(answer, row, request_files, means, cite_ok) -> tuple:
     if not needs(row):
         return True, "答えの要らない行（この依頼に当たる所が無い）"
     if not isinstance(answer, dict):
@@ -243,8 +257,9 @@ def world_ok(answer, row, own_sources, cite_ok) -> tuple:
     bad = cite_ok(text)
     if bad:
         return False, bad
-    if _from_request(text, own_sources):
-        return False, "依頼（依頼のファイル・目的の文の出典）を出どころにした外れ（定石と比べて疑う案なので人に聞く）"
+    # 依頼が解き方を示していない行の外れは、依頼の解き方を疑う形にならない
+    if (row.get("versus") or {}).get("verdict") != NONE and _from_request(text, request_files, means):
+        return False, "依頼（依頼のファイル・依頼の引用・依頼の解き方）を出どころにした外れ（定石と比べて疑う案なので人に聞く）"
     return True, "依頼の外の出どころで訳の立つ外れ"
 
 
