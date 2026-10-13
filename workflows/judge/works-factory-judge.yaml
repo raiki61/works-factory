@@ -14,6 +14,9 @@ nodes:
     runtime: uv
     timeout: 1728000000
     mutates_checkout: false
+    with:
+      # 読むだけの役が対象のテストを回して作るキャッシュのうち、lib が知らない物（lib/accept.TEST_CACHES に足す名の形。issue #270）
+      test_caches: ['.pytest_cache']
     output_format:
       type: object
       additionalProperties: false
