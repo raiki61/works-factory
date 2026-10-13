@@ -129,7 +129,7 @@
   2. 目の当て方は、持ち主の目のサブグラフの「軽い単位は R1〜R4 を省く」に倣う。小さい PR は ASF の審査と R1、大きい PR は 5 つ全部。
   3. 守るパスに触る PR でも、計画どおりの変更で目が通った物は、聞かずに merge する。新しい決めが要る物だけ聞く。
   5. issue と PR の単位は大きくする。持ち主の言葉「PRの単位が小さいのでは」「書いたことは忠実にやってくれるのであれば、でっかくかいていいのでは」。サブグラフ 1 つと、それが使う `lib/` の部品と試験を、1 つの issue にまとめる。
-  4. 依存の置き場は根の `pyproject.toml`、試験の命令は `uv run --isolated python3 -m unittest discover -s . -t .`（PR #8。Archon を使う人は uv を持つ。`outside-packages-ok` の当て方）。
+  4. 依存の置き場は根の `pyproject.toml`、試験の命令は `uv run --isolated python3 -m unittest discover -s . -t .`（PR #8。Archon を使う人は uv を持つ。`outside-packages-ok` の当て方）。（2026-10-12 の `full-suite-in-ci` で置き換え: run の中の確かめの命令は `tests/changed.py`、全部の試験は CI だけ）
 - 当て方: 根の `AGENTS.md` の「リポジトリの形」の木に `pyproject.toml` を載せる。計画の Task 4 と「全体の決まり」。
 
 ### `archon-same-as-asf` 自分のグラフも ASF と同じ開発中の Archon で回す
