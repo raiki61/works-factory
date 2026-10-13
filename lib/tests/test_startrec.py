@@ -99,15 +99,13 @@ def request_file_reads(source: str) -> list[tuple[str, str, int]]:
 class RequestFileOwner(unittest.TestCase):
     """始めの記録の依頼のファイルを読む式は startrec.request_file の 1 か所（#393。盤面から読む conflict.request_file も、
     workflows の script もここを引く）"""
-    OTHER_DICTS = {"fixrules.py": "役の指示書の run の値 values を読む（始めの記録ではない）",
-                   "entryshape.py": "入口の変換が依頼の読みの dict から入口の入力の形を組む（始めの記録を書く前）"}
     READERS = {("workflows/line/scripts/start.py", "start", "asked"): "始めの記録を書く側が依頼の読みの dict から欄を写す",
-               ("judge_accept.py", "request_container", "view"): "start_view が startrec.request_file で解き済みの view を読む"}
+               ("judge_accept.py", "request_container", "view"): "start_view が startrec.request_file で解き済みの view を読む",
+               ("fixrules.py", "start_lines", ""): "役の指示書の run の値 values を読む（始めの記録ではない）",
+               ("entryshape.py", "build", "inp"): "入口の変換が依頼の読みの dict から入口の入力の形を組む（始めの記録を書く前）"}
 
     def stray(self, name: str, source: str) -> list[str]:
         """name のファイルの読む式のうち、持ち主の外で見逃す物に当たらない物の在りか（<name>:<行>）"""
-        if name in self.OTHER_DICTS:
-            return []
         return sorted({f"{name}:{line}" for func, held, line in request_file_reads(source)
                        if (name, func, held) not in self.READERS})
 
@@ -125,7 +123,9 @@ class RequestFileOwner(unittest.TestCase):
                   ("workflows/line/scripts/start.py", 'def start(raw):\n    return record["request_file"]'),
                   ("workflows/line/scripts/start.py", 'def request(asked):\n    return asked["request_file"]'),
                   ("judge_accept.py", 'def intake(view):\n    return view.get("request_file")'),
-                  ("judge_accept.py", 'def request_container(view, start):\n    return start["request_file"]')]
+                  ("judge_accept.py", 'def request_container(view, start):\n    return start["request_file"]'),
+                  ("fixrules.py", 'def rules(record):\n    return record["request_file"]'),
+                  ("entryshape.py", 'def build(inp, record):\n    return record["request_file"]')]
         for name, copy in copies:
             with self.subTest(copy=copy):
                 self.assertEqual(len(self.stray(name, copy)), 1)
