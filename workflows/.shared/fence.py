@@ -29,7 +29,7 @@ class Refused(Exception):
 
 def protected(cwd: str, archon_home: str, claude_config: str, own: Sequence[str]) -> list[str]:
     """書き込みを禁じるパスの一覧: 今の works の protected_paths（共有ボードの代わりに Archon の家）の後ろに、Claude の設定（読んだ証拠と
-    書き込みの記録とフック）と own（起動の殻が書いた口と、この run の役を起こす時に sandbox の外で走る物）の実パスを足す。git が読めず
+    書き込みの記録とフック）と own（起動の殻が書いた口と、この run の後の役の起動や次の起動が sandbox の外で走らせる物）の実パスを足す。git が読めず
     守る場所が決まらなければ Refused"""
     paths = protected_paths(cwd, archon_home)
     if paths is None:
