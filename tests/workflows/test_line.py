@@ -1578,6 +1578,19 @@ class PlanOutNothingOwedCase(Artifacts):
     def test_another_reason_is_not_nothing_owed(self):
         self.assertFalse(plan_out.round_owes_nothing(self.round_pointer("")))
 
+    def read_from_env(self, pointer: dict) -> dict:
+        env = {f"INPUTS_{key.upper()}": "null" for key in plan_out.PLAN + plan_out.REVIEW}
+        env.update({"INPUTS_READY": "false", "INPUTS_PLAN": json.dumps(pointer), "INPUTS_ROUND_LIMIT": str(ROUND_LIMIT)})
+        with mock.patch.dict(os.environ, env):
+            return plan_out.plan_out(*plan_out.from_env())
+
+    def test_the_node_reads_the_round_from_its_plan_input(self):
+        """本番の節の口（from_env）が plan の入力の指し札から周の訳を読んで nothing_owed に渡す"""
+        self.assertTrue(self.read_from_env(self.round_pointer(planfile.NOTHING_OWED))["nothing_owed"])
+
+    def test_the_node_leaves_another_reason_false(self):
+        self.assertFalse(self.read_from_env(self.round_pointer(""))["nothing_owed"])
+
 
 class AfterFixAndJudgedCase(Artifacts):
     def test_after_fix_counts(self):
