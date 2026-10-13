@@ -34,7 +34,6 @@ rulebook.CANON = RULES / "common.md"
 fixrules.SHARED = rulebook.CANON
 fixrules.RULES_DIR = RULES
 ACCEPT = "fix-ruled-accept"            # 受け付けの節（拒否の理由のファイルの名）
-ANSWER_NODE = "ruled-consult-answer"   # 範囲の相談に答える役の節
 
 
 def main() -> dict:
@@ -50,7 +49,8 @@ def main() -> dict:
     owed = fixboard.ruled_owed(place)
     start = startrec.read(place)
     saved = fixboard.group_fix_reply(place)
-    got = fixrules.prep(place, repo, fixboard.fix_values(place, owed, start=start, answer_node=ANSWER_NODE), "ruled",
+    values = fixboard.fix_values(place, owed, start=start, answer_node=fixrules.answer_node("ruled"))
+    got = fixrules.prep(place, repo, values, "ruled",
                         owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
                         reject_file=fixboard.rejects_file(place, ACCEPT, n - 1), lang=rolekit.lang_line(start),
                         shared=boundary.shared_cache())
