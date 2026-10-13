@@ -1959,7 +1959,7 @@ class SpecGateCase(_SpecRepoCase):
         (self.repo / "__pycache__" / "old.cpython-312.pyc").write_bytes(b"\0")
         self.asked()
         ja.write_json(self.jdir / ja.TEST_CACHES_FILE, [".pytest_cache"])
-        self.assertTrue(ja.spec_answer(self.jdir, self.repo, json.dumps({"decision": "approve", "text": "進めてよい"}))["go"])
+        self.assertTrue(ja.spec_answer(self.jdir, self.repo, {"decision": "approve", "text": "進めてよい"})["go"])
         (self.repo / "__pycache__" / "new.cpython-312.pyc").write_bytes(b"\0")
         got = ja.check_premises(PremisesCase.GOOD, self.jdir, self.repo, [])
         self.assertTrue(got["ok"], got)
