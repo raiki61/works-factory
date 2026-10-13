@@ -50,8 +50,7 @@ def make(attempt: Path, seed: Path = SEED, request: Path = SEED / REQUEST, liste
         raise Stop(f"試みのフォルダ {attempt} がリポジトリの中に在る。リポジトリの外に置く")
     if attempt.exists() and (not attempt.is_dir() or any(attempt.iterdir())):
         raise Stop(f"試みのフォルダ {attempt} が空のフォルダでない")
-    made = {"target": attempt / "target", "origin": attempt / "origin", "request": attempt / "request.json",
-            "home": attempt / "home"}
+    made = layout(attempt)
     book = ledger()
     attempt.mkdir(parents=True, exist_ok=True)
     git("init", "-q", "--bare", "-b", "main", str(made["origin"]))
@@ -70,6 +69,11 @@ def make(attempt: Path, seed: Path = SEED, request: Path = SEED / REQUEST, liste
         with book.open("a", encoding="utf-8") as f:
             f.write(f"{made['home']}\t{made['target']}\n")
     return {k: str(v) for k, v in made.items()}
+
+
+def layout(attempt: Path) -> dict[str, Path]:
+    return {"target": attempt / "target", "origin": attempt / "origin", "request": attempt / "request.json",
+            "home": attempt / "home"}
 
 
 def teardown() -> list[str]:
@@ -141,9 +145,10 @@ def main(argv: list[str]) -> int:
             return 1 if teardown() else 0
         if argv[:1] == ["stop"] and len(argv) == 2:
             attempt = Path(os.path.realpath(argv[1]))
-            if not (attempt / "home").is_dir():
+            made = layout(attempt)
+            if not made["home"].is_dir():
                 raise Stop(f"{attempt} に家 home/ が無い（make の作った試みのフォルダでない）")
-            return 0 if stop_runs(attempt / "home", attempt / "target") else 1
+            return 0 if stop_runs(made["home"], made["target"]) else 1
     except Stop as stop:
         print(f"make_target: {stop}", file=sys.stderr)
         return 1

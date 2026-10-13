@@ -176,6 +176,15 @@ class MakeTargetTest(unittest.TestCase):
         self.assertIn("home/", done.stderr)
         self.assertEqual(self.calls(), [])
 
+    def test_stop_exits_one_when_runs_are_left(self):
+        for i, fails in enumerate(("status", "cancel,abandon")):
+            with self.subTest(fails=fails):
+                attempt = self.tmp / f"attempt-{i}"
+                self.assertEqual(self.make_target("make", str(attempt), "--no-ledger").returncode, 0)
+                done = self.make_target("stop", str(attempt), FAKE_FAILS=fails)
+                self.assertEqual(done.returncode, 1, done.stderr)
+                self.assertIn(str(attempt / "home"), done.stderr)
+
     def test_make_refuses_unknown_arguments(self):
         for args in (["--seed"], ["a", "b"], ["a", "--seed", "x", "--seed", "y"], ["a", "--force"]):
             with self.subTest(args=args):
