@@ -124,6 +124,11 @@ def record(records: str, cwd: str) -> None:
         raise Refused(f"起動の記録 {records} を書けない（{error}）") from None
 
 
+def bad_declaration(records: str) -> str:
+    """宣言した記録のパス records を記録の置き場に読めなければ訳の 1 行（読めれば空）"""
+    return "" if os.path.isabs(records) else f"{RECORDS_ENV} が絶対パスでない（{records!r}）"
+
+
 def _at(text) -> datetime.datetime | None:
     """時刻の字（ISO 8601。時差つき）。読めなければ None"""
     try:

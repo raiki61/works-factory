@@ -25,15 +25,8 @@ import rolekit  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
 
 
-def unfenced(snap: dict, root: Path, records: str) -> str:
-    """宣言した記録 records に、この回の役の起動に柵が掛かった証が無ければその訳（在れば空）"""
-    if not os.path.isabs(records):
-        return f"{fence.RECORDS_ENV} が絶対パスでない（{records!r}）"
-    return fence.fenced_since(Path(records), root, snap.get("prepared_at"))
-
-
 def judge(gate: Path, root: Path, snap: dict, raw: str, mode: str, keys=accept.TREE_KEYS, records: str = "") -> dict:
-    if records and (why := unfenced(snap, root, records)):
+    if records and (why := fence.fenced_since(Path(records), root, snap.get("prepared_at"))):
         return {"ok": False, "give_up": True,
                 "reason": f"包みの柵が CI の任せ先の役の起動に掛かっていない: {why}——返答を受けず止める"}
     moved = accept.tree_moved({k: snap[k] for k in accept.TREE_KEYS}, root, keys=keys)

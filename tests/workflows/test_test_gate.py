@@ -566,10 +566,15 @@ class CiRoleCase(ScriptCase):
         self.prep()
         self.assert_stopped_unfenced(self.ok("ci_accept", mode="base", reply=self.GOOD))
 
-    def test_declared_run_with_a_relative_record_path_stops(self):
+    def test_declared_run_with_a_relative_record_path_stops_before_the_role(self):
+        """宣言が読めない（絶対パスでない）run は、ci-prep が落ちて役を起こさず、出し直さずに諦めた拒否を控えに積む（T49）"""
         self.declared = {launcher.FENCE_RECORDS_ENV: "launches.jsonl"}
-        self.prep()
-        self.assert_stopped_unfenced(self.ok("ci_accept", mode="base", reply=self.GOOD))
+        rc, out, err = self.script("ci_prep", mode="base", start=self.start)
+        self.assertNotEqual(rc, 0)
+        self.assertIn(launcher.FENCE_RECORDS_ENV, err)
+        gate = self.artifacts / "test-gate" / "base"
+        self.assertFalse((gate / "ci-snapshot.json").exists())
+        self.assertIn("役を起こさずに止める", rolekit.given_up_reason(gate, declared_checks.CI_ROLE))
 
     def test_declared_run_with_a_fenced_launch_is_accepted(self):
         records = self.declare()
@@ -758,6 +763,7 @@ class ResultScriptCase(ScriptCase):
             with self.subTest(out["mode"]):
                 rows = self.pointed(out["evidence"]).read_text(encoding="utf-8").splitlines()
                 self.assertEqual(out["by"], "engine")
+                self.assertFalse([r for r in rows if r.startswith("- 包み:")])
                 self.assertIn(f"- 走らせ方: engine・{out['suites_line']}", rows)
                 self.assertIn(f"- ログ: {out['log']}", rows)
                 self.assertTrue(out["log"] and "\n" not in out["suites_line"] + out["log"] + out["baseline_line"], out)

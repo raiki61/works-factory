@@ -268,6 +268,16 @@ class FencedSinceTest(unittest.TestCase):
             with self.subTest(since=text):
                 self.assertNotEqual(self.since_of(text), "")
 
+    def test_rows_written_by_the_fence_are_read_back(self):
+        """書く側（fence.record）の行を読む側が読む。行の形を片方だけ変えると、宣言した run の CI の役は毎回諦める"""
+        before = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=1)
+        fence.record(str(self.records), str(self.root / "sub"))
+        self.assertEqual(self.since_of(before.isoformat()), "")
+
+    def test_only_an_absolute_declaration_is_readable(self):
+        self.assertEqual(fence.bad_declaration(str(self.records)), "")
+        self.assertIn(fence.RECORDS_ENV, fence.bad_declaration("launches.jsonl"))
+
     def test_declaration_name_is_shared_with_the_launcher(self):
         self.assertEqual(fence.RECORDS_ENV, launcher.FENCE_RECORDS_ENV)
 
