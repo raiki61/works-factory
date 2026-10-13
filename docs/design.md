@@ -141,7 +141,7 @@ flowchart TB
 - 計画（修正案のポインタ・波及のポインタ・単位ごとの深さ）: plan → plan-review・fix・eyes
 - 事前審査（止めか通しか・4 つの軸・人への問い）: plan-review → メイングラフ（承認ノードと往復）・plan
 - 修正（単位ごとの結末・申し出・諦めた単位・差分のポインタ。組ごとの結果は `fan_out:` が入力の順に集めた `$<id>.output`）と型つきの成果物 `tdd-unit`: fix → test-gate・eyes・report
-- 緑の認証（緑・赤の原因・作業ツリーの指紋）: test-gate（final）→ eyes・merge
+- 緑の認証（緑・赤の原因・作業ツリーの指紋。eyes には base で赤・最後に緑のテストも）: test-gate（final）→ eyes・merge
 - 独立の目と型つきの成果物 `eye-verdict`: eyes → merge・report
 - 封じた差分（hash・守りのパスの当たり）: merge（seal）→ 最後の承認ノード・merge（apply）
 - 報告（結末の語・報告のポインタ・持ち越しのポインタ）: report → メイングラフの出力（人は `bin/works-factory workflow get <run>` で見る）

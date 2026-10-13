@@ -1022,15 +1022,11 @@ def _tdd_stages(typed: dict) -> tuple[list, list]:
         key = (e.get("include"), json.dumps(e.get("loop")))
         if key not in keys:
             keys.append(key)
-        n = keys.index(key)
-        name = report.TDD_STAGES[min(n, len(report.TDD_STAGES) - 1)] + (f" {n}" if n >= len(report.TDD_STAGES) else "")
         body = e.get("body")
         if not isinstance(body, list):
             notes.append(f"tdd-unit {e.get('path')} の中身が組ごとの段の物の配列でない（読まなかった）")
             continue
-        for g in body:
-            if isinstance(g, dict):
-                stages.append((f"{name}（組 {g.get('group_id')}）", g))
+        stages += report.tdd_stage_groups(keys.index(key), body)
     return stages, notes
 
 

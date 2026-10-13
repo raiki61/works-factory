@@ -472,7 +472,7 @@ class MeasuredSectionCase(unittest.TestCase):
             (stage / fixboard.TDD_UNIT_FILE).write_text(json.dumps([{"group_id": "g1", "ran": False}]), encoding="utf-8")
             got = eyeverdict.tdd_stages([str(stage / "fix.diff"), str(pathlib.Path(tmp) / "refix" / "fix.diff")], pathlib.Path)
         self.assertEqual(got[0], [{"group_id": "g1", "ran": False}])
-        self.assertIn("diffs", got[1])
+        self.assertIn(f"refix/{fixboard.TDD_UNIT_FILE} が無い", got[1])
         self.assertEqual(eyeverdict.tdd_stages(None, pathlib.Path), [])
 
         def refuse(ptr):
@@ -523,13 +523,13 @@ class OriginSectionCase(unittest.TestCase):
         self.assertIn("PR も直しも何も変えていない", got)
 
     def test_skipped_paths_are_left_out_of_the_pr_diff_too(self):
-        (self.repo / ".archon").mkdir()
-        (self.repo / ".archon" / "w.yaml").write_text("x: 1\n", encoding="utf-8")
+        (self.repo / "skipped").mkdir()
+        (self.repo / "skipped" / "w.yaml").write_text("x: 1\n", encoding="utf-8")
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "pr")
         head = git(self.repo, "rev-parse", "HEAD")
-        got = eyeverdict.origin_section(self.repo, self.root, head, "", cumulative_empty=True, skip=(".archon/",))
-        self.assertNotIn(".archon", got)
+        got = eyeverdict.origin_section(self.repo, self.root, head, "", cumulative_empty=True, skip=("skipped/",))
+        self.assertNotIn("skipped", got)
         self.assertIn("PR の差分（起点 → 修正前の HEAD）で変わったファイル: 無い", got)
 
     @unittest.skipIf(os.geteuid() == 0, "root はモードを無視してファイルを読める")

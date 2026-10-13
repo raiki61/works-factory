@@ -278,8 +278,8 @@ TDD_PROVED_HEAD = "### TDD のループの記録（修正の段ごと。赤→�
 
 def tdd_stages(diffs, resolve) -> list:
     """修正の段ごとの TDD の記録（fixboard.tdd_units の本文）か読めない訳の並び。diffs は段ごとの diff のポインタの並び（無ければ None）、
-    resolve はポインタを置き場の中のパスに戻す関数（戻せなければ ValueError）。記録は段の diff の隣の fixboard.TDD_UNIT_FILE"""
-    import fixboard
+    resolve はポインタを置き場の中のパスに戻す関数（戻せなければ ValueError）。記録の読み手は fixbeside.tdd"""
+    import fixbeside
     if diffs is None:
         return []
     if not isinstance(diffs, list):
@@ -287,12 +287,11 @@ def tdd_stages(diffs, resolve) -> list:
     out = []
     for ptr in diffs:
         try:
-            beside = pathlib.Path(resolve(ptr)).with_name(fixboard.TDD_UNIT_FILE)
+            folder = pathlib.Path(resolve(ptr)).parent
         except ValueError as e:
             out.append(f"修正の段の diff（diffs）のポインタが読めない（{oneline.one_line(e)}）")
             continue
-        doc = read_json(beside)
-        out.append(doc if isinstance(doc, list) else f"修正の段の diff（diffs）の隣の {fixboard.TDD_UNIT_FILE} が無いか読めない（{beside.parent}）")
+        out.append(fixbeside.tdd(folder))
     return out
 
 
@@ -315,15 +314,14 @@ def red_green_lines(red_to_green) -> list[str]:
 
 
 def tdd_record_lines(stages: list) -> list[str]:
-    """段ごとの記録を、報告と同じ描き方（report.tdd_lines。段の名は report.TDD_STAGES）の行に"""
+    """段ごとの記録を、報告と同じ描き方（report.tdd_lines。段の名は report.tdd_stage_groups）の行に"""
     import report
     named, notes = [], []
     for n, stage in enumerate(stages):
         if isinstance(stage, str):
             notes.append(f"- TDD のループの記録を読めない（{stage}）")
             continue
-        name = report.TDD_STAGES[min(n, len(report.TDD_STAGES) - 1)]
-        named += [(f"{name}（組 {g.get('group_id')}）", g) for g in stage if isinstance(g, dict)]
+        named += report.tdd_stage_groups(n, stage)
     rows = [r if r.startswith(" ") else f"- {r}" for r in report.tdd_lines(named)]
     return (rows or ["- 無い（修正の段が走っていない）"]) + notes
 

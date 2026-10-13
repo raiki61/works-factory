@@ -2444,7 +2444,7 @@ class LineWiringCase(unittest.TestCase):
         "closure.json": (("fix", "diff"), "lib/fixbeside.py"),
         "delta-holes.json": (("fix", "diff"), "lib/fixbeside.py"),
         "fix-removed.json": (("fix", "diff"), "lib/leftovers.py"),
-        "tdd-unit.json": (("fix", "diff"), "lib/eyeverdict.py"),
+        "tdd-unit.json": (("fix", "diff"), "lib/fixbeside.py"),
     }
     # 書き手の返す節を空の置き場で走らせる時の入力（ブロックの YAML がその節に渡す with: と、Archon がブロックの入力を渡す INPUTS_*）
     RETURN_INPUTS = {
@@ -2469,7 +2469,7 @@ class LineWiringCase(unittest.TestCase):
         **{("fix-removed.json", check): "書き手は fix のノード clean で出力ノードではない（clean の前に止まった run には無く、"
                                         "leftovers.removed が「走らせていない」と読む）" for check in ("stop", "bare")},
         **{("tdd-unit.json", check): "書き手は fix のノード tdd-unit で出力ノードではない（tdd-unit の前に止まった run と組の子の run には"
-                                     "無く、eyeverdict.tdd_stages が「読めない」と名指す）" for check in ("stop", "bare")},
+                                     "無く、読み手 fixbeside.tdd が「無い」と名指す）" for check in ("stop", "bare")},
         **{(name, check): "eyes の出力ノードは目の材料を書けない道で notes を null にする（読み手 ask_final.eye_notes と報告が null を訳にする）"
            for name in ("r4-gate-passes.json", "premise-check.json") for check in ("stop", "bare")},
         **{(name, check): "再審（rejudge-run）の判定の隣にだけ在り、判定の道では書かれない（読み手 report.rejudge_exit が「無い」を訳にする）"

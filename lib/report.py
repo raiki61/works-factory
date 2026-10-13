@@ -170,6 +170,13 @@ def _reused_line(reused) -> str:
     return "・".join(f"{label} {oneline.one_line(reused[k])}" for k, label in labels if isinstance(reused, dict) and reused.get(k))
 
 
+def tdd_stage_groups(n: int, groups) -> list:
+    """n 番目（0 から）の修正の段の組ごとの物 groups（tdd-unit の本文）を、tdd_lines に渡す [(段の名（組 id）, 組の物)] に。段の名は
+    TDD_STAGES の順で、並びを超えた段は番号を足す（報告と独立の目の比較役が同じ名で段を指す）"""
+    name = TDD_STAGES[min(n, len(TDD_STAGES) - 1)] + (f" {n}" if n >= len(TDD_STAGES) else "")
+    return [(f"{name}（組 {g.get('group_id')}）", g) for g in groups if isinstance(g, dict)]
+
+
 def tdd_lines(stages) -> list:
     """修正の段ごとの TDD の輪の単位の結末の行（keep-essence の 11）。stages は [(段の名, 修正のブロックの出口 tdd か None)]。
     None（飛ばされた段・渡されていない）は出さない。輪を回していない段（ran が偽）は理由つきの 1 行（黙らない）。回した段は
