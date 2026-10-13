@@ -2,6 +2,7 @@
 
 - CITE: 名指し `<パス>:<行>` か `<パス>:<行>-<行>` の形
 - inside(p, root): p が root の中か
+- resolved(path, repo) -> Path: 名指しのパスの実体（problem と、世界の解の外れの依頼のファイルの照らしが同じ規則で解く）
 - problem(cite, repo, roots=()) -> str: 1 つの名指しの確かめ（通れば空）。相対のパスは作業ツリーの根から（外と .git は拒む）、
   絶対のパスは作業ツリーの中か roots（依頼のファイル・盤面の置き場）の中だけ。ファイルが在り、行がその中に在る
 - flat(s) -> str: 空白の並び（改行・タブ・連続する空白）を 1 つの空白に寄せ、色の制御文字（ESC[…m）を除いた文
@@ -49,6 +50,12 @@ def inside(p: pathlib.Path, root: pathlib.Path) -> bool:
         return False
 
 
+def resolved(path, repo) -> pathlib.Path:
+    """名指しのパスの実体（相対は作業ツリーの根 repo から。. と .. の段と symlink を解く）"""
+    raw = pathlib.Path(path)
+    return (raw if raw.is_absolute() else pathlib.Path(repo) / raw).resolve()
+
+
 def problem(cite, repo, roots=()) -> str:
     """名指し `<パス>:<行>` か `<パス>:<行>-<行>` の確かめ（通れば空）"""
     if not isinstance(cite, str):
@@ -60,8 +67,7 @@ def problem(cite, repo, roots=()) -> str:
     if b < a:
         return f"名指し {cite!r} の行の範囲が逆"
     repo = pathlib.Path(repo).resolve()
-    raw = pathlib.Path(m["path"])
-    p = (raw if raw.is_absolute() else repo / raw).resolve()
+    p = resolved(m["path"], repo)
     allowed = [repo] + [pathlib.Path(r).resolve() for r in roots if r]
     if not any(p == r or inside(p, r) for r in allowed) or inside(p, repo / ".git"):
         return f"名指し {cite!r} のパスが作業ツリー・依頼のファイル・共有ボードの外"
