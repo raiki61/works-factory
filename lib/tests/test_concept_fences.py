@@ -71,11 +71,12 @@ class Synthetic(unittest.TestCase):
 
     def test_check_table_refuses_broken_bound(self):
         """表の読み（tables が対象の表に当てる確かめ）は、bound が配列でない・paths が配列でない・lines が正規表現でない・
-        by が無い表を拒む（ValueError か re.error）"""
+        lines が空の行に当たる（どの行も写しになり柵が見えなくなる）・by が無い表を拒む（ValueError か re.error）"""
         import re
         cf().check_table({"concepts": {"a": {"fences": [self.BOUND]}}})
         for bad in ("x", ["x"], [{"paths": "x", "lines": "a", "by": "t"}], [{"paths": ["x"], "lines": "(", "by": "t"}],
-                    [{"paths": ["x"], "lines": "a"}]):
+                    [{"paths": ["x"], "lines": "a"}], [{"paths": ["x"], "lines": "", "by": "t"}],
+                    [{"paths": ["x"], "lines": ".*", "by": "t"}], [{"paths": ["x"], "lines": "^", "by": "t"}]):
             with self.subTest(bad=bad):
                 with self.assertRaises((ValueError, re.error)):
                     cf().check_table({"concepts": {"a": {"fences": [dict(self.BOUND, bound=bad)]}}})
@@ -107,6 +108,65 @@ class Synthetic(unittest.TestCase):
         main = {"concepts": {"a": {"status": "散らばり", "fences": []}}}
         now = self.table(a={"x.py": [5, "理由"]}, b={"y.py": [1, "理由"]})
         self.assertEqual(cf().growth(main, now), [])   # 初めて柵を掛ける差分（main は柵が空・考えが無い）は比べない
+        self.assertEqual(cf().growth({"concepts": {}}, dict(now, exclude=["docs/**"])), [])   # main に柵が無ければ exclude も比べない
+
+    @staticmethod
+    def fenced():
+        """緩めを比べる main の表: 柵を 1 つ持つ考え a と表の exclude"""
+        fence = {"what": "語", "pattern": r"\bx\b", "allowed": ["home.py", "lib/h.py"], "known": {},
+                 "bound": [{"paths": ["blk-*/*.yaml"], "lines": r"^\s*x:", "by": "t.py", "why": "縛る"}]}
+        return {"exclude": ["docs/**", "fixtures/**"], "concepts": {"a": {"status": "住処あり", "fences": [fence]}}}
+
+    def loosen(self, change):
+        now = self.fenced()
+        change(now, now["concepts"]["a"]["fences"][0])
+        return now
+
+    LOOSENINGS = {
+        "concept:a": lambda t, f: t["concepts"].pop("a"),
+        "fence:a:語": lambda t, f: t["concepts"]["a"]["fences"].clear(),
+        "allowed:a:語:lib/y.py": lambda t, f: f["allowed"].append("lib/y.py"),
+        "pattern:a:語": lambda t, f: f.update(pattern=r"\bxx\b"),
+        "exclude:lib/**": lambda t, f: t["exclude"].append("lib/**"),
+        "bound:a:語:lib/*.py:^y": lambda t, f: f["bound"].append({"paths": ["lib/*.py"], "lines": "^y", "by": "t.py"}),
+        "bound:a:語:wf/*.yaml:^\\s*x:": lambda t, f: f["bound"][0]["paths"].append("wf/*.yaml"),
+        "bound:a:語:blk-*/*.yaml:x": lambda t, f: f["bound"][0].update(lines="x"),
+    }
+
+    def test_growth_loosening_is_red(self):
+        """考え・柵を消す・allowed・exclude・bound を広げる・pattern を変えるのは、main の表より緩めたので赤（鍵を名指す）"""
+        for key, change in self.LOOSENINGS.items():
+            with self.subTest(key=key):
+                got = cf().growth(self.fenced(), self.loosen(change))
+                self.assertTrue(got)
+                self.assertTrue(any(f'"{key}"' in m for m in got), got)
+
+    def test_growth_tightening_is_quiet(self):
+        """減らす・並べ替える・bound の why を変えるのは緩めでない"""
+        for name, change in {"allowed を減らす": lambda t, f: f["allowed"].pop(),
+                             "exclude を減らす": lambda t, f: t["exclude"].pop(),
+                             "bound を消す": lambda t, f: f["bound"].clear(),
+                             "allowed の並べ替え": lambda t, f: f["allowed"].reverse(),
+                             "bound の why": lambda t, f: f["bound"][0].update(why="別の訳")}.items():
+            with self.subTest(name=name):
+                self.assertEqual(cf().growth(self.fenced(), self.loosen(change)), [])
+
+    def test_growth_loosening_passes_only_with_new_reason(self):
+        """緩めは loosened の新しい理由の行で通す。理由が空・main に同じ行が在る（入った行の使い回し）なら赤"""
+        key = "allowed:a:語:lib/y.py"
+        now = self.loosen(self.LOOSENINGS[key])
+        self.assertEqual(cf().growth(self.fenced(), dict(now, loosened={key: "住処を lib/y.py に移した"})), [])
+        self.assertTrue(cf().growth(self.fenced(), dict(now, loosened={key: " "})))
+        main = dict(self.fenced(), loosened={key: "住処を lib/y.py に移した"})
+        self.assertTrue(cf().growth(main, dict(now, loosened={key: "住処を lib/y.py に移した"})))
+        self.assertEqual(cf().growth(main, dict(now, loosened={key: "住処を lib/y.py にもう一度移した"})), [])
+
+    def test_growth_duplicate_what_is_red(self):
+        """柵は what で引くので、1 つの考えの中で what が重なれば赤（重なった片方が比べられない）"""
+        now = self.fenced()
+        fences = now["concepts"]["a"]["fences"]
+        fences.append(dict(fences[0], allowed=["*"]))
+        self.assertTrue(any("重なる" in m for m in cf().growth(self.fenced(), now)))
 
     def test_map_ids_take_first_status_word(self):
         md = ("### `a` 一つ\n\n- 状態: 住処あり（写し）\n- 住処: x\n\n"
