@@ -61,13 +61,19 @@ EXCEPT = {
 }
 
 
+def guides(root):
+    """決まりの文書: ASF の物を除く全部の階層の `AGENTS.md` と根の `ROOT_DOCS`"""
+    root = pathlib.Path(root)
+    found = [p for p in root.rglob("AGENTS.md") if p.relative_to(root).parts[0] not in ASF_DIRS]
+    return found + [p for name in ROOT_DOCS for p in root.glob(name)]
+
+
 def scope(root):
     """`(根からのパス, 種類)` を並べる。種類は md（json も行ごとに読む）・yaml・py・bin（docstring とコメントも読む py）"""
     root = pathlib.Path(root)
     found = []
     found += [p for p in root.glob("docs/*.md")]
-    found += [p for p in root.rglob("AGENTS.md") if p.relative_to(root).parts[0] not in ASF_DIRS]
-    found += [p for name in ROOT_DOCS for p in root.glob(name)]
+    found += guides(root)
     found += [p for p in root.glob("docs/*.json")]
     found += [p for p in root.glob("lib/*.md")] + [p for p in root.glob("lib/*.json")]
     found += [p for p in root.glob("bin/_lib/borrow/*.json")]
