@@ -34,7 +34,7 @@ $prep.output.concept_map
 
 コメントの削除候補（前段の AI ノード r1-comments の返答。取れなかったなら、返す JSON の文字列の欄 candidates_note に理由を書いて残りで判定しろ——この目の判定を not_run（走らなかった扱い）に倒すな。前段が無いことだけを理由に status を unverifiable にもしない）: `$prep.output.candidates_file` を Read せよ（ファイルが無ければ前段は取れなかった）。
 凍結した目的: $prep.output.purpose_text
-累積差分: `$prep.output.diff_file`（Read せよ。始めの版 `$prep.output.base_rev` から今の作業ツリーまでの差。未追跡の新規ファイルも入る）　リポジトリ: `$prep.output.cwd`
+累積差分: `$prep.output.diff_file`（Read せよ。入口の差分の根 `$prep.output.base_rev` から今の作業ツリーまでの差。未追跡の新規ファイルも入る）　リポジトリ: `$prep.output.cwd`
 根本ユニット:
 $prep.output.units_text
 問いの台帳: `$prep.output.judgment_file` の questions を Read せよ。台帳の 1 行は人への問いで、kind（fork＝設計の岐路で、選択肢を options に持つ／split＝修正が露呈させた、凍結した目的の外の既存の欠陥として切り出したもの、ほか）と origin（その問いの出どころの単位の key）を持つ。

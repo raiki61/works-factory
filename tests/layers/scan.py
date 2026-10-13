@@ -13,6 +13,7 @@ from pathlib import Path
 
 import yaml
 
+from bin._lib import isolate
 from bin._lib.place import WORKFLOW_FOLDER
 
 BOUNDARY = "boundary.py"
@@ -628,8 +629,8 @@ TREE_CHANGERS = frozenset({"Bash", "Edit", "Write"})
 KEEP_CHECKOUT = {
     ("judge", "judge-verify"): "単位ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout）",
     ("plan-review", "plan-review"): "項目ごとの下請けが答えのファイルを run の置き場に Write で書く。作業ツリーは書かない（元の keep_checkout）",
-    ("test-gate", "ci"): "Bash でテストを走らせるが作業ツリーは書かない。今の works は包みが作業ツリーを守り、ここでは false と ci-accept の"
-                         "作業ツリーの比べが守る（#69）",
+    ("test-gate", "ci"): "Bash でテストを走らせるが作業ツリーは書かない。sandbox の denyWrite が書き込みを止め、false と ci-accept の"
+                         "作業ツリーの比べが重ねて守る（#69・#293）",
 }
 CHANGE_CHECKOUT = {
     ("line", "start"): "始めの記録を run の置き場に書くだけだが、今の線は印を持たない。足すと Archon の照らしが増えて振る舞いが変わるので部分 0 では足さない",
@@ -647,6 +648,10 @@ CHANGE_CHECKOUT = {
 # 役の節に要る鍵（K18。元 works/tests/test_yaml_rules.py の決まり）: settingSources: [user]・閉じた sandbox・道具の表の中の allowed_tools
 ROLE_TOOLS = frozenset({"Read", "Grep", "Glob", "Edit", "Write", "Bash", "WebSearch", "WebFetch", "Agent", "Skill"})
 CLOSED_SANDBOX = (("enabled", "true"), ("allowUnsandboxedCommands", "false"))
+# Bash を持ち Edit・Write を持たない役の sandbox の denyWrite に書く場所（#293）。~ は起動が隔離した HOME で、
+# その隣が Archon の家＝全部の run の worktree と artifacts。相対のパス '.' は cwd でなく設定の一時ファイルのフォルダに解かれ、
+# 作業ツリーを塞がない（実測 2026-10-13）
+NO_TREE_WRITE = f"~/../{isolate.DIRS['ARCHON_HOME']}"
 YAML_BOOL = "tag:yaml.org,2002:bool"
 
 
@@ -673,6 +678,8 @@ def _readonly_nodes(root: Path) -> list[str]:
                 tools = _top(node, "allowed_tools")
                 names = {item.value for item in tools.value if isinstance(item, yaml.ScalarNode)} if isinstance(tools, yaml.SequenceNode) else None
                 out += _role_settings(at, ident, node, names)
+                if names is not None and "Bash" in names and not names & {"Edit", "Write"}:
+                    out += _tree_write_denied(at, ident, node)
                 changer = names is None or bool(names & TREE_CHANGERS)
                 keep = (folder.name, ident) in KEEP_CHECKOUT
                 if marked and changer and not keep:
@@ -703,6 +710,17 @@ def _role_settings(at: str, ident: str, node, tools) -> list[str]:
         out.append(f"{at}: 役 {ident} に allowed_tools が無い（無いと全部の道具を持つ）")
     elif tools - ROLE_TOOLS:
         out.append(f"{at}: 役 {ident} の allowed_tools に表 ROLE_TOOLS の外の道具 {sorted(tools - ROLE_TOOLS)}")
+    return out
+
+
+def _tree_write_denied(at: str, ident: str, node) -> list[str]:
+    deny = _top(_top(_top(node, "sandbox"), "filesystem"), "denyWrite")
+    paths = [item.value for item in deny.value if isinstance(item, yaml.ScalarNode)] if isinstance(deny, yaml.SequenceNode) else []
+    out = []
+    if NO_TREE_WRITE not in paths:
+        out.append(f"{at}: Bash を持つ読むだけの役 {ident} の sandbox に denyWrite: ['{NO_TREE_WRITE}'] が無い（作業ツリーに書ける）")
+    if "." in paths:
+        out.append(f"{at}: 役 {ident} の denyWrite の '.' は cwd を塞がない（設定の一時ファイルのフォルダに解かれる）")
     return out
 
 
