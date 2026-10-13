@@ -1554,7 +1554,29 @@ class PlanOutCase(unittest.TestCase):
         self.assertFalse(self.got(round=3)["done"], "往復は数でなく開いた block の減り方で止まる（converge.decide）")
 
     def test_every_field_is_returned(self):
-        self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"done", "stop_reason"})
+        self.assertEqual(set(self.got()), set(plan_out.PLAN + plan_out.REVIEW) | {"nothing_owed", "done", "stop_reason"})
+
+
+class PlanOutNothingOwedCase(Artifacts):
+    def round_pointer(self, why: str) -> dict:
+        rdir = self.artifacts / "plan" / "r1"
+        rdir.mkdir(parents=True)
+        (rdir / planfile.ROUND_FILE).write_text(json.dumps({"round": 1, "mode": "plan", "go": False, "why": why}), encoding="utf-8")
+        (rdir / "plan-fields.json").write_text("{}", encoding="utf-8")
+        return boundary.pointer("plan/r1/plan-fields.json")
+
+    def test_nothing_owed_is_read_from_the_round(self):
+        """#291: 直す義務 0 件の周（round.json の why が planfile.NOTHING_OWED。lib/outcome.py の plan_nothing_owed と同じ読み）だけが
+        nothing_owed。ほかの訳・ほかの run の指し札・指し札の無い時は偽。計画ができた周は読みが真でも偽"""
+        self.assertTrue(plan_out.round_owes_nothing(self.round_pointer(planfile.NOTHING_OWED)))
+        self.assertFalse(plan_out.round_owes_nothing({**boundary.pointer("plan/r1/plan-fields.json"), "run_id": "other"}))
+        self.assertFalse(plan_out.round_owes_nothing(None))
+        got = {key: None for key in plan_out.PLAN + plan_out.REVIEW}
+        self.assertTrue(plan_out.plan_out({**got, "ready": False}, ROUND_LIMIT, True)["nothing_owed"])
+        self.assertFalse(plan_out.plan_out({**got, "ready": True, "round": 1}, ROUND_LIMIT, True)["nothing_owed"])
+
+    def test_another_reason_is_not_nothing_owed(self):
+        self.assertFalse(plan_out.round_owes_nothing(self.round_pointer("")))
 
 
 class AfterFixAndJudgedCase(Artifacts):
@@ -2160,6 +2182,10 @@ class GateDecisionsCase(unittest.TestCase):
                                  set(answer.GO_WORDS) | set(answer.VERBS) | {answer.REJECT})
 
 
+NO_FIX_WHEN = ("$judge.output.ready == false && $judge.output.stop_reason == '' "
+               "|| $judge.output.ready == true && $plan-rounds.output.nothing_owed == true")
+
+
 class NoFixWiringCase(unittest.TestCase):
     def test_no_fix_round_closes_the_round(self):
         """L-W07（元 line_edge.plan_edge 1107-1119）: 判定が直す単位を出さず止めてもいない周は、plan-review を形 design で差し込み
@@ -2168,7 +2194,7 @@ class NoFixWiringCase(unittest.TestCase):
         nodes = line_nodes()
         only = nodes["design-only"]
         self.assertEqual((only["include"], only["when"], only["with"]["mode"], only["with"]["plan"]),
-                         ("works-factory-plan-review", "$judge.output.ready == false && $judge.output.stop_reason == ''", "design", "null"))
+                         ("works-factory-plan-review", NO_FIX_WHEN, "design", "null"))
         self.assertIn("design-only", nodes["fixed"]["depends_on"])
         for key in ("fix_done", "fix_units", "plan", "ripple", "replan", "stop_after_fix", "design", "no_fix_design",
                     "plan_questions", "answer"):
@@ -2184,6 +2210,16 @@ class NoFixWiringCase(unittest.TestCase):
             self.assertIsInstance(nodes["ask-final"]["with"][key], dict, key)
         for key in ("depth", "answer", "replanned"):
             self.assertIsInstance(nodes["redepth"]["with"][key], dict, key)
+
+    def test_nothing_owed_round_takes_the_no_fix_tail(self):
+        """#291（元 line_edge.plan_edge 1109-1114 の空の修正）: 計画の直す義務が 0 件の周も design-only から最後のテスト・独立の目へ
+        進む。判定が ready でない周は plan-rounds が飛ぶので、その欄を読む句は判定が ready の句の後（評価は偽の句で止まる）"""
+        nodes = line_nodes()
+        only = nodes["design-only"]
+        self.assertEqual((only["depends_on"], only["trigger_rule"]), (["judge", "plan-rounds"], "none_failed_min_one_success"))
+        self.assertTrue(only["when"].startswith("$judge.output.ready == false && $judge.output.stop_reason == '' || "))
+        self.assertIn("$judge.output.ready == true && $plan-rounds.output.nothing_owed == true", only["when"])
+        self.assertIn("nothing_owed", nodes["plan-out"]["output_format"]["required"])
 
 
 class Recorded(dict):

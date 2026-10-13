@@ -29,6 +29,7 @@ SCENARIOS = (
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
     "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "test-gate-failed", "rejudge-stop",
     "unattended-questions", "unattended-policy-change", "eyes-failed-protected", "refix-handoff",
+    "nothing-owed",
 )
 
 
@@ -316,6 +317,27 @@ class NoFixRoundTest(unittest.TestCase):
             self.assertFalse(self.ran(self.trace, node), node)
         collected = json.loads(self.trace["collect"]["output"])
         self.assertEqual((collected["fix"], collected["plan_review"]["design"]["path"]), (None, "plan-review/design.json"))
+
+
+class NothingOwedRoundTest(unittest.TestCase):
+    """#291（筋書き nothing-owed。元 works/darkfactory/lib/line_edge.py:1109-1114 の空の修正）: 計画の直す義務が 0 件の周も修正前の
+    関所・修正を飛ばしたまま、design-only・fixed の直す物の無い形・最後のテスト・独立の目で周を締め、目の阻害が collect に届く"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.trace = line_traces(("nothing-owed",))["nothing-owed"]
+
+    def test_the_tail_runs_like_works(self):
+        ran = NoFixRoundTest.ran
+        got = json.loads(self.trace["fixed"]["output"])
+        self.assertEqual((got["no_fix"], got["go"], got["design"]["path"]), (True, True, "plan-review/design.json"), got)
+        for node in ("plan-rounds", "design-only-out", "test-gate-final-out", "eyes-out", "ask-final"):
+            self.assertTrue(ran(self.trace, node), node)
+        for node in ("fix", "merge-seal-out", "merge-apply-out"):
+            self.assertFalse(ran(self.trace, node), node)
+        collected = json.loads(self.trace["collect"]["output"])
+        self.assertEqual((collected["fix"], collected["plan_review"]["design"]["path"], collected["eyes"]["r2"]["status"]),
+                         (None, "plan-review/design.json", "redesign-needed"))
 
 
 class RefixInputsTest(unittest.TestCase):

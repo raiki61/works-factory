@@ -389,6 +389,24 @@ class ReadingCase(unittest.TestCase):
                                                           encoding="utf-8")
                     self.assertEqual(decide(returns), want)
 
+    def test_nothing_owed_round_with_the_tail_is_round_limit(self):
+        """#291: 直す義務 0 件の周も今の works（works/darkfactory/lib/line_edge.py:1109-1114 の空の修正）と同じく最後のテストと独立の目
+        まで回り、結末は round_limit のまま。目の阻害の行（works の [block] の行）は残りに載る"""
+        with tempfile.TemporaryDirectory() as tmp:
+            round_dir = pathlib.Path(tmp) / "plan" / "r1"
+            round_dir.mkdir(parents=True)
+            fields = round_dir / planfile.planmarks.FIELDS_FILE
+            fields.write_text('{"round": 1, "fields": []}', encoding="utf-8")
+            (round_dir / planfile.ROUND_FILE).write_text(
+                json.dumps({"round": 1, "mode": "plan", "go": False, "why": planfile.NOTHING_OWED}), encoding="utf-8")
+            returns = fixed_run(plan={"ready": False, "plan": str(fields)}, fix=None,
+                                **{"plan-review": None, "merge-seal": None, "merge-apply": None})
+            self.assertEqual(decide(returns), ("round_limit", ""))
+            eyes = {**returns["eyes"], "ok": False, "r2": {"status": "redesign-needed", "reason": "直す物が在る"}}
+            blocked = {**returns, "eyes": eyes}
+            self.assertEqual(decide(blocked), ("round_limit", ""))
+            self.assertIn(f"{report.EYES_WHERE} R2", [row["where"] for row in outcome.residue(blocked)])
+
     def test_later_judge_and_plan_are_read_first(self):
         """再審・案の直しの返りは後の段で先に読む（線と同じ）"""
         self.assertEqual(decide(fixed_run(rejudge={"ready": False, "stop_reason": "", "units": []}))[0], "no_fix_needed")

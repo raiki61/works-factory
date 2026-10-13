@@ -389,7 +389,8 @@ def _line_stop(returns: dict, facts: dict | None) -> str:
 
 def plan_gave_up(returns: dict) -> bool:
     """計画が直す単位を受けたのに修正案を出せなかった（受け付けが 3 回とも拒んだか、行き止まりの単位が在る）。直す義務 0 件で役を
-    起こさなかった周（開いた単位が全部人の答え待ちの問いの出どころ）は諦めでなく、今の works と同じく残りの決めに落ちる（round_limit）"""
+    起こさなかった周（開いた単位が全部人の答え待ちの問いの出どころ）は諦めでなく、今の works と同じく最後のテストと独立の目まで回って
+    （線の design-only。#291）残りの決めに落ちる（round_limit）"""
     plan = planned(returns)
     return bool(plan) and plan.get("ready") is False and bool(_units(returns)) and not plan_nothing_owed(returns)
 

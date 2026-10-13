@@ -98,7 +98,7 @@
   "line/answer-start": "始めの承認ノードの答えを読むノード",
   "line/judge": "判定のサブグラフを include するノード",
   "line/judge-out": "判定の出力をメイングラフの形に直すノード",
-  "line/design-only": "直す物が無い周に、事前審査のサブグラフを形 design で include し、独立設計だけを作るノード（L-W07。元 line_edge.plan_edge 1107-1119）",
+  "line/design-only": "直す物が無い周と計画の直す義務が 0 件の周に、事前審査のサブグラフを形 design で include し、独立設計だけを作るノード（L-W07・#291。元 line_edge.plan_edge 1107-1119）",
   "line/design-only-out": "直す物が無い周の独立設計の include の出力をメイングラフの形に直すノード",
   "line/plan-rounds": "計画の往復（plan → plan-review。lib/converge の壁打ち）のループ。review-graph の converge（周の収束）とは別物",
   "line/plan": "計画のサブグラフを include するノード",
