@@ -4,7 +4,7 @@
 # ///
 """読んだ証拠の節 fix-reads（lib/fixboard.collect_reads）: 修正役と裁定の後の修正役が、機械が渡したパス（指示書・判定の写し・
 brief）を読んだかを、隔離した設定のフックの記録（lib/reads.log_here）から集め、置き場に reads-<役>.json と索引を書く。
-受け付けの条件にしない。返す節に結ばない。落ちない: 中の誤りは ok: false と訳で返す。返り {ok, missing, index_file, reason}"""
+受け付けの条件にしない。返す節に結ばない。落ちない: 中の誤りは ok: false と訳で返し、置き場に落ちた記録（lib/reads.guarded）を残す。返り {ok, missing, index_file, reason}"""
 import json
 import sys
 from pathlib import Path
@@ -19,8 +19,9 @@ def collected() -> None:
     import fixboard
     import reads
 
-    got = fixboard.collect_reads(boundary.place("fix"), reads.log_here(), repo=boundary.work_tree())
-    boundary.returns({**got, "reason": ""})
+    place = boundary.place("fix")
+    boundary.returns(reads.guarded(lambda: fixboard.collect_reads(place, reads.log_here(), repo=boundary.work_tree()),
+                                   owner=fixboard.READS_OWNER, place=place))
 
 
 def main() -> int:

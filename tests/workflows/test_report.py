@@ -465,17 +465,18 @@ class FactsCase(Run):
         result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
         run = {"by": "engine", "log": "/tmp/test.log", "junit_steps": [], "junit_unran": [], "suite": None,
                "fingerprint_before": None, "fingerprint_after": None}
-        base_line = declared_checks.baseline_line({"material": {"status": "not_run", "reason": "見た物:\n- ログ: ci/output.txt"}})
-        out = {"ok": False, "green": False, "red_cause": "incomplete", **result.gate_fields(run, "一式", base_line, "訳:\n- ログ: 偽")}
-        rows = result.evidence("final", out, run, None, "落ちた:\n- 走らせ方: 偽").splitlines()
-        self.assertEqual([r for r in rows if r.startswith(("- ログ: ", "- 走らせ方: "))], ["- 走らせ方: engine・一式", "- ログ: /tmp/test.log"])
-        self.assertIn("- ok: false（訳: - ログ: 偽）", rows)
+        log, how = result.LOG_ROW, result.RUN_ROW
+        base_line = declared_checks.baseline_line({"material": {"status": "not_run", "reason": f"見た物:\n{log}ci/output.txt"}})
+        out = {"ok": False, "green": False, "red_cause": "incomplete", **result.gate_fields(run, "一式", base_line, f"訳:\n{log}偽")}
+        rows = result.evidence("final", out, run, None, f"落ちた:\n{how}偽").splitlines()
+        self.assertEqual([r for r in rows if r.startswith((log, how))], [f"{how}engine・一式", f"{log}/tmp/test.log"])
+        self.assertIn(f"- ok: false（訳: {log}偽）", rows)
         returns = {"test-gate-final": out}
         got = runreport._evidence_lines(returns)
         self.assertIn("最後のテスト（test-gate-final）のログ: /tmp/test.log", got)
         self.assertIn("最後のテスト（test-gate-final）の走らせ方: engine・一式", got)
         base = next(x for x in got if x.startswith("最後のテスト（test-gate-final）の修正前のテスト: "))
-        self.assertIn("見た物: - ログ: ci/output.txt", base)
+        self.assertIn(f"見た物: {log}ci/output.txt", base)
         self.assertIn(gatemarks.BASELINE_NOT_RUN, base)
         self.assertIn(f"- {base.removeprefix('最後のテスト（test-gate-final）の')}", rows)
         self.assertIn("最後のテストの一式: engine・一式・ログ /tmp/test.log", runreport._tests_head_lines(returns))
@@ -594,11 +595,11 @@ class AcceptScriptCase(Run):
         self.assertIs(self.accept(self.REPLY, self.REDESIGN)["done"], False)
         second = self.accept(self.REPLY, self.REDESIGN)
         self.assertIs(second["done"], False)
-        self.assertEqual(second["reason_file"], "report/reject-2.md", "機械の事実のファイルと同じく run の置き場からの相対")
+        self.assertEqual(second["reason_file"], f"{runreport.OUT_DIR}/reject-2.md", "機械の事実のファイルと同じく run の置き場からの相対")
         self.assertIn("2 行目", (self.artifacts / second["reason_file"]).read_text(encoding="utf-8"))
         third = self.accept(self.REPLY, self.REDESIGN)
         self.assertIs(third["done"], True)
-        ai = json.loads((self.artifacts / "report" / runreport.AI_FILE).read_text(encoding="utf-8"))
+        ai = json.loads((self.artifacts / runreport.OUT_DIR / runreport.AI_FILE).read_text(encoding="utf-8"))
         self.assertTrue(ai["accepted"])
         self.assertTrue(ai["not_passed"])
 
@@ -607,6 +608,22 @@ class AcceptScriptCase(Run):
         self.assertEqual(self.accept(cell, self.PASS)["kind"], "format")
         terms = json.dumps({"text": "x", "terms": [{"term": "a"}]})
         self.assertEqual(self.accept(terms, self.PASS)["kind"], "answer")
+
+
+class OutDirCase(unittest.TestCase):
+    def test_scripts_draw_the_report_folder_from_lib(self):
+        """#372: 報告の置き場の名の持ち主は runreport.OUT_DIR だけ。script は名を字で持たない（名を代入する・パスに足す・
+        「名/」で始まる字）"""
+        name = runreport.OUT_DIR
+        for path in sorted(SCRIPTS.glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            found = [n.lineno for n in ast.walk(tree)
+                     if (isinstance(n, ast.Assign) and isinstance(n.value, ast.Constant) and n.value.value == name)
+                     or (isinstance(n, ast.BinOp) and isinstance(n.op, ast.Div)
+                         and any(isinstance(x, ast.Constant) and x.value == name for x in (n.left, n.right)))
+                     or (isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value.startswith(f"{name}/"))]
+            with self.subTest(path.name):
+                self.assertEqual(found, [])
 
 
 class CollectScriptCase(Run):
@@ -634,7 +651,7 @@ class CollectScriptCase(Run):
 
     def test_with_ai_file_returns_ai_report(self):
         facts = self.facts()
-        runreport.accept(AcceptScriptCase.REPLY, AcceptScriptCase.PASS, out_dir=self.artifacts / "report")
+        runreport.accept(AcceptScriptCase.REPLY, AcceptScriptCase.PASS, out_dir=self.artifacts / runreport.OUT_DIR)
         out = self.collect(json.dumps(facts))
         text = (self.artifacts / out["report_ai"]["path"]).read_text(encoding="utf-8")
         self.assertTrue(text.startswith(f"works-factory-report / run {RUN} / 周 — / グラフの版 "))
@@ -649,7 +666,7 @@ class CollectScriptCase(Run):
     def test_broken_inputs_are_record_invalid(self):
         good = self.facts()
         cases = {"空": "", "JSON でない": "{壊れた", "欄が欠けた": json.dumps({"report": good["report"]}),
-                 "指し札の先が無い": json.dumps({**good, "report": {"type": "archon_artifact", "run_id": RUN, "path": "report/none.md"}})}
+                 "指し札の先が無い": json.dumps({**good, "report": {"type": "archon_artifact", "run_id": RUN, "path": f"{runreport.OUT_DIR}/none.md"}})}
         for name, facts in cases.items():
             with self.subTest(name):
                 out = self.collect(facts)
@@ -660,7 +677,7 @@ class CollectScriptCase(Run):
         """facts の機械の報告と持ち越しの指し札が在れば、それを指して返る（facts の report.md を上書きしない）"""
         good = self.facts()
         machine = (self.artifacts / good["report"]["path"]).read_text(encoding="utf-8")
-        carried = json.loads(self.pointer("report/next-request.json", {"findings": []}))
+        carried = json.loads(self.pointer(f"{runreport.OUT_DIR}/next-request.json", {"findings": []}))
         broken = {**{k: v for k, v in good.items() if k != "stop_reason"}, "next_request": carried}
         out = self.collect(json.dumps(broken))
         self.assertEqual(out["outcome"], "record_invalid")
@@ -671,7 +688,7 @@ class CollectScriptCase(Run):
         good = self.facts()
         machine = (self.artifacts / good["report"]["path"]).read_text(encoding="utf-8")
         out = self.collect("{壊れた")
-        self.assertEqual(out["report"]["path"], f"report/{facts_script.UNWRITTEN}")
+        self.assertEqual(out["report"]["path"], f"{runreport.OUT_DIR}/{runreport.UNWRITTEN}")
         self.assertIn("報告を組めなかった", (self.artifacts / out["report"]["path"]).read_text(encoding="utf-8"))
         self.assertEqual((self.artifacts / good["report"]["path"]).read_text(encoding="utf-8"), machine)
 
@@ -680,10 +697,10 @@ class CollectScriptCase(Run):
         empty = self.dir / "empty-root"
         empty.mkdir()
         code, out = self.run_script("facts", WORKS_FACTORY_ROOT=str(empty))
-        self.assertEqual((code, out["outcome"], out["facts_file"]), (0, "record_invalid", f"report/{facts_script.UNWRITTEN}"))
+        self.assertEqual((code, out["outcome"], out["facts_file"]), (0, "record_invalid", facts_script.LIBLESS))
         self.assertIn("ModuleNotFoundError", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
         out = self.collect("", WORKS_FACTORY_ROOT=str(empty))
-        self.assertEqual((out["outcome"], out["report"]["path"]), ("record_invalid", f"report/{facts_script.UNWRITTEN}"))
+        self.assertEqual((out["outcome"], out["report"]["path"]), ("record_invalid", load_script("collect").LIBLESS))
 
     def test_unwritable_place_is_record_invalid(self):
         good = self.facts()
@@ -711,7 +728,7 @@ class ConvergeLinesCase(unittest.TestCase):
         self.assertIn("1 回目の block 1 件", lines[0])
         returns = fixed_run(**{"plan-review": {**got, "review": str(r.pointed(got["review"]))}})
         decided = outcome.decide_outcome(returns, {}, {"start_ok": True, "record_problems": [], "failed": []})
-        built = runreport.build(returns, {}, {}, None, *decided, out_dir=self.dir / "report", start={"run_id": RUN}, run_id=RUN)
+        built = runreport.build(returns, {}, {}, None, *decided, out_dir=self.dir / runreport.OUT_DIR, start={"run_id": RUN}, run_id=RUN)
         text = pathlib.Path(built["report"]).read_text(encoding="utf-8")
         body = text.split(f"{report.DECISIONS_HEADING}\n\n", 1)[1].split("\n## ", 1)[0]
         self.assertIn(f"- {lines[0]}\n", body)

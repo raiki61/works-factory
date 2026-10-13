@@ -20,10 +20,7 @@ stage = os.environ.get("INPUTS_STAGE", "")
 objection = os.environ.get("INPUTS_OBJECTION", "")
 if stage not in ("prep", "merge"):
     sys.exit(f"stage は prep か merge（{stage!r}）")
-try:
-    lang = {"lang_line": rolekit.record_lang_line(boundary.pointed(os.environ.get("INPUTS_START")))}
-except (ValueError, AttributeError) as e:
-    lang = {"lang_line": f"{rolekit.lang_line({})}（始めの記録のポインタを読めない: {e}。言語は既定にした）"}
+lang = {"lang_line": rolekit.pointed_lang_line(os.environ.get("INPUTS_START"), boundary.pointed)}
 if objection.strip():   # 再審の道: 判定の道の裏取りは走らせず、置き場に触らない
     boundary.returns({"go": False, "prompt_file": "", "reason": "再審の道（入力 objection が空でない）", **lang} if stage == "prep"
                      else {"ok": True, "reason": "再審の道（入力 objection が空でない）"})

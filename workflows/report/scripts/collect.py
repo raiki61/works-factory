@@ -10,8 +10,7 @@ import os
 import sys
 from pathlib import Path
 
-OUT = "report"
-UNWRITTEN = "report-unwritten.md"   # 報告を組めない時の報告か訳だけのファイル（facts の report.md を上書きしない名。facts.py と同じ名）
+LIBLESS = "report-collect-unwritten.md"   # lib/ を読めない時の訳だけのファイル（run の置き場の根。報告の置き場の名は lib が持つ）
 
 try:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
@@ -25,8 +24,9 @@ CARRIED = ("next_request", "prior_failures")
 
 
 def out_dir() -> Path:
-    """報告の置き場（run の置き場の OUT）"""
-    return Path(os.environ["ARTIFACTS_DIR"]) / OUT
+    """報告の置き場（run の置き場の runreport.OUT_DIR）"""
+    import runreport
+    return Path(os.environ["ARTIFACTS_DIR"]) / runreport.OUT_DIR
 
 
 def rel(path) -> dict | None:
@@ -42,7 +42,7 @@ def failed_line(what: str, error: BaseException) -> str:
 def unwritten(why: str) -> dict:
     """lib/ にも境の口にも頼らず訳だけの 1 ファイルを書いて指す（書けなくても札は返す。先の無い札は実行基盤が節の終わりに拒む）。
     札は境の口を読めない時のために手で組む"""
-    rel_path = f"{OUT}/{UNWRITTEN}"
+    rel_path = LIBLESS
     try:
         path = Path(os.environ["ARTIFACTS_DIR"]) / rel_path
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -88,7 +88,7 @@ def fallen(error: BaseException) -> dict:
         return {**out, **got}
     try:
         import runreport
-        out["report"] = rel(runreport.fallback_report(out_dir(), why, UNWRITTEN))
+        out["report"] = rel(runreport.fallback_report(out_dir(), why, runreport.UNWRITTEN))
     except Exception:  # noqa: BLE001 — lib/ を読めなくても、置き場に書けなくても返る
         out["report"] = unwritten(why)
     return out

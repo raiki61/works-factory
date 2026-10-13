@@ -70,6 +70,8 @@ import worldmark  # noqa: E402
 
 as_dict = oc.as_dict
 PACK_TERMS = _HERE / "glossary.json"
+OUT_DIR = "report"                      # run の置き場の中の報告の置き場（報告のサブグラフの script が run の置き場に足す）
+UNWRITTEN = "report-unwritten.md"       # 報告を組めない時の機械の報告（fallback_report。facts の report.md を上書きしない名）
 AI_FILE = "ai.json"                     # 受け付けた書き手の返答と初見の判定（collect が読む）
 AI_REPORT_FILE = "report-ai.md"         # AI の報告（元 report_roles.REPORT_NAME）
 REJECTS_FILE = "report-rejects.json"    # 拒否の行の控え（元 report_roles.REJECTS_NAME）
@@ -129,6 +131,7 @@ MISSING_EYE_NOTE = "結果が無い目は阻害 0 件でなく判定が無い（
 FORGE_HEAD = "PR を持つホスト（forge）"   # 元 report.FORGE_HEAD
 POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わったまま終わった"
 APPLY_HEAD = "差分を対象に当てる"
+BACKED_OUT_HEAD = "当ててから確かめ直しが赤で戻した組"   # 組の合わせの意味の食い違い（持ち主の決め clash-goes-to-ruling。作りは #382）
 STOP_OUTCOMES = ("stopped_by_request", "stopped_by_human", "stopped_by_line", "needs_human")   # 止まった run の結末（bin/apply が拒む）
 
 POINTERS = (("judge", "judgment", "判定"), ("judge", "purpose", "目的"), ("judge", "world", "定石"),
@@ -464,15 +467,36 @@ def _parked(returns: dict) -> list:
 
 
 def split_line(returns: dict) -> str:
-    """冒頭の 1 行目に添える、修正の段が受けた単位と止めて持ち越した単位の 1 文（元 report.split_line。止めた組が無ければ ""）"""
+    """冒頭の 1 行目に添える、修正の段が受けた単位と止めて持ち越した単位の 1 文（元 report.split_line。止めた組が無ければ ""）。
+    当ててから確かめ直しが赤で戻した組（_backed_out）は名指して足す"""
     groups = [g for g in _list(as_dict(returns.get("fix")).get("groups")) if isinstance(g, dict)]
     parked = _parked(returns)
     if not parked:
         return ""
     kept = [str(u) for g in groups if g.get("returned") is True for u in _list(g.get("unit_ids"))]
     held_ = [str(u) for g in parked for u in _list(g.get("unit_ids"))]
+    backed = _backed_out(returns)
     return (f"修正の段は {len(kept)} 単位（{'・'.join(kept) or 'なし'}）を受け、{len(held_)} 単位"
-            f"（{'・'.join(held_)}）を止めて持ち越した（組 {'・'.join(str(g.get('group_id')) for g in parked)}。次の run の依頼に載る）")
+            f"（{'・'.join(held_)}）を止めて持ち越した（組 {'・'.join(str(g.get('group_id')) for g in parked)}。次の run の依頼に載る）"
+            + (f"。{BACKED_OUT_HEAD}: 組 {'・'.join(str(g.get('group_id')) for g in backed)}" if backed else ""))
+
+
+def _backed_out(returns: dict) -> list:
+    """戻せなかった組のうち、当ててから確かめ直しが赤で戻した組（fix.groups の欄 backed_out が在る物。fixboard.join_rows）"""
+    return [g for g in _parked(returns) if _list(g.get("backed_out"))]
+
+
+def backed_out_lines(returns: dict) -> list:
+    """人が決めることの節の頭の、当ててから確かめ直しが赤で戻した組ごとの 3 行（組と単位と戻したパス・赤の文・作り直しの結果）。
+    今は作り直さず、外した単位は次の run の依頼に回る（作り直しは #382）"""
+    kept = [g for g in _list(as_dict(returns.get("fix")).get("groups")) if isinstance(g, dict) and g.get("returned") is True]
+    out = []
+    for g in _backed_out(returns):
+        units = "・".join(str(u) for u in _list(g.get("unit_ids"))) or "なし"
+        out += [f"{BACKED_OUT_HEAD}: 組 {g.get('group_id')}（単位 {units}）。戻したパス {'・'.join(map(str, _list(g.get('backed_out'))))}",
+                f"  - 赤: {oneline.one_line(g.get('reason') or '訳の記録が無い')}",
+                f"  - 作り直しの結果: 作り直していない。ほかの組は {len(kept)} 組を当てたまま、外した単位 {units} は次の run の依頼に回した"]
+    return out
 
 
 def _rejudge(returns: dict) -> tuple[str, str]:
@@ -579,13 +603,14 @@ def _asked_rows(returns: dict, closed: bool) -> list:
         for k, r in oc.asked_units(returns, rows=oc.waiting_conflicts(returns)):
             out.append({"where": k, "text": f"{k}（{oc.PENDING_WHY}。裁定の文: {as_dict(r.get(conflict.RULING)).get('text') or ''}。"
                                             f"名指し {', '.join(str(x) for x in _list(r.get('between')))}。{conflict.HELD_WORK_KEPT}）"})
-    for k, r in oc.asked_units(returns, closed):
+    asked = oc.asked_conflicts(returns, closed)
+    for k, r in oc.asked_units(returns, closed, rows=asked):
         ruling = as_dict(r.get(conflict.RULING))
         why = r.get(conflict.REPLAN_WHY)
-        out.append({"where": k,   # 案の直しを諦めた行は、直しの在りかを left_words でなく HELD_WORK_KEPT で言う
-                    "text": f"{k}（{conflict.HEAD}を人に回した{'' if why else '——' + conflict.left_words(r)}。裁定の文: {ruling.get('text') or ''}。"
-                            f"名指し {', '.join(str(x) for x in _list(r.get('between')))}"
-                            + (f"。案の直し: {why}。{conflict.HELD_WORK_KEPT}" if why else "") + "）"})
+        out.append({"where": k,
+                    "text": f"{k}（{conflict.HEAD}を人に回した——{conflict.place_words(conflict.unit_rows(asked, k))}。"
+                            f"裁定の文: {ruling.get('text') or ''}。名指し {', '.join(str(x) for x in _list(r.get('between')))}"
+                            + (f"。案の直し: {why}" if why else "") + "）"})
     return out
 
 
@@ -932,6 +957,8 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
              ("直しきれずに残った物", rest), ("記録が通らないこと", [outcome] if outcome == "record_invalid" else [])]
     lines = []
     for word, items in parts:
+        if not items:
+            continue
         lines.append(f"{word}: {len(items)} 件")
         for x in items:
             text = x if isinstance(x, str) else (f"{x.get('where')}: {x.get('text')}" if "where" in x else json.dumps(x, ensure_ascii=False))
@@ -1271,11 +1298,25 @@ def _base_status(base: dict) -> str | None:
     return material.get("status") if isinstance(material, dict) else None
 
 
+def _stop_words(line: dict | None) -> list:
+    """メイングラフのノードの止めの 1 件ずつ: 「{ノード} が {止めの語}（{語の意味}）」"""
+    return [f"{node} が {word}（{stopby.REASONS.get(str(word).removeprefix(stopby.HEAD), '語の意味の記録が無い')}）"
+            for node, word in as_dict(as_dict(line).get("stops")).items()]
+
+
+def _stopped_why(returns: dict, line: dict | None) -> list:
+    """止まった run の冒頭 1 行目に足す訳: 止めの語・最後の承認ノードを開ける理由・阻害を返した目（どれも本文の節と同じ字）"""
+    reasons = [str(x) for x in _list(as_dict(line).get("final_reasons"))]
+    eyes = as_dict(returns.get("eyes"))
+    blocked = [f"{gatemarks.eye_named(name.upper(), e.get('status'))}——{oneline.one_line(e.get('reason') or '理由なし')}"
+               for name in oc.EYE_NAMES if isinstance(e := eyes.get(name), dict) and e.get("status") in oc.EYE_STATUS_LEFT]
+    return [*_stop_words(line), *(["開けた理由: " + "・".join(reasons)] if reasons else []), *blocked]
+
+
 def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, returns: dict, problems: list,
                 line: dict | None = None) -> list:
     out = [f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", f"止めた段と理由の語: {stop_reason or '止めていない'}"]
-    out += [f"メイングラフのノードの止め: {node} が {word}（{stopby.REASONS.get(str(word).removeprefix(stopby.HEAD), '語の意味の記録が無い')}）"
-            for node, word in as_dict(as_dict(line).get("stops")).items()]
+    out += [f"メイングラフのノードの止め: {x}" for x in _stop_words(line)]
     for gid in oc.GATES:
         g = gates.get(gid)
         out.append(f"承認ノード {gid}: " + (f"{g.get('decision')}（{oneline.one_line(g.get('text') or '')}）" if isinstance(g, dict) else "開かなかった"))
@@ -1315,7 +1356,7 @@ SHOWN_FILES = 3   # 1 ノードの行に名を出すファイルの数
 
 def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, transcript_why: str, repo) -> list:
     """「4. 読んだ証拠と包み」の行: run の記録の道具の呼び（tfacts の calls）と、読んだ証拠の節が run の置き場 artifacts に書いた
-    reads-*.json（索引と報告自身の置き場 out_dir の物を外す）と、どちらでも取れない物"""
+    reads-*.json（報告自身の置き場 out_dir の物を外す。索引は訳 why だけを出す）と、どちらでも取れない物"""
     calls = as_dict(tfacts.get("calls"))
     out = [CALLS_HEAD]
     if not tfacts.get("ok"):
@@ -1327,8 +1368,10 @@ def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, t
         shown = "・".join(_shown(p, repo) for p in files[:SHOWN_FILES]) + (f" ほか {len(files) - SHOWN_FILES} 件" if len(files) > SHOWN_FILES else "")
         out.append(f"  - {step}: " + "・".join(f"{tool} {len(mine[tool])} 件" for tool in PATH_TOOLS) + (f"（ファイル: {shown}）" if files else ""))
     out.append(HOOK_HEAD)
-    found = sorted(p for p in artifacts.rglob(reads.EVIDENCE_GLOB) if not reads.is_index(p.name) and out_dir not in p.parents)
-    out += [f"  - {_evidence_line(p, p.relative_to(artifacts).as_posix(), repo)}" for p in found] \
+    found = sorted(p for p in artifacts.rglob(reads.EVIDENCE_GLOB) if out_dir not in p.parents)
+    out += [f"  - {x}" for p in found
+            for x in (_index_lines(p, p.relative_to(artifacts).as_posix()) if reads.is_index(p.name)
+                      else [_evidence_line(p, p.relative_to(artifacts).as_posix(), repo)])] \
         or ["  - 読んだ証拠のノードが記録を書いていない（役を起こしていないか、ノードが走っていない）"]
     shell = {step: mine[SHELL_TOOL] for step, mine in calls.items() if mine[SHELL_TOOL]}
     counted = (f"。Bash の呼び {sum(shell.values())} 回" + (": " + "・".join(f"{s} {n}" for s, n in shell.items()) if shell else "")
@@ -1336,10 +1379,18 @@ def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, t
     return [*out, UNSEEN + counted, CHILD_RUNS]
 
 
+def _index_lines(path: pathlib.Path, rel: str) -> list:
+    """索引が名指す訳（役を起こしていない段など）。役ごとの行は役ごとの証拠のファイルが出すので、ここは訳だけ"""
+    why = reads.index_why(path)
+    return [f"{rel}: {oneline.one_line(why)}"] if why else []
+
+
 def _evidence_line(path: pathlib.Path, rel: str, repo) -> str:
     doc, why = reads.read_evidence(path)
     if doc is None:
         return f"{rel}: 読めない（{why}）"
+    if doc["sources"].get("hook") == reads.FAILED:
+        return f"{doc['role']}（{rel}）: 読んだ証拠のノードが落ちた（{doc['sources'].get('why') or '訳の記録が無い'}）"
     if doc["sources"].get("hook") != reads.RECORDED:
         return f"{doc['role']}（{rel}）: 測れない（{doc['sources'].get('why') or '訳の記録が無い'}）"
     missing = [str(m) for m in doc["missing"]]
@@ -1389,16 +1440,21 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     draft = gatemarks.draft_line(drafts, next_file)
     _, outside, outside_count = _outside(returns, next_file)
     split = split_line(returns)
+    apply = _apply_lines(returns, gates, outcome, stop_reason, run_id or "—")
+    stopped = outcome in STOP_OUTCOMES
+    happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", *([split] if split else []),
+                          *(_stopped_why(returns, line) if stopped else [])])
+    if stopped:
+        decide = "。".join(x for x in (decide, apply[-1]) if x)
     asked_texts = [*_plan_questions(returns, gates, start)[0],
                    *[q for q in _list(_ret(returns, "eyes").get("questions")) if isinstance(q, str)]]
-    head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）" + (f"。{split}" if split else ""),
-                           decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
+    head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
-        (report.DECISIONS_HEADING, [*decisions,
+        (report.DECISIONS_HEADING, [*backed_out_lines(returns), *decisions,
                                     f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件" + (f"（{next_file}）" if next_file else ""),
                                     *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],
-                                    *([draft] if draft else []), *_apply_lines(returns, gates, outcome, stop_reason, run_id or "—")]),
+                                    *([draft] if draft else []), *apply]),
         (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line, gates, repo)),
         (report.STOP_HEADING, _stop_lines(outcome, stop_reason, gates, tfacts, returns, list(problems), line)),
         (report.READS_HEADING, _reads_lines(tfacts, out_dir.parent, out_dir, transcript_why, repo)),
@@ -1410,7 +1466,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
         (report.WORLD_HEADING, _world_lines(returns)),
         (report.UNSEEN_LENS_HEADING, _unseen_lens_lines(returns, beside)),
         (report.OUTSIDE_HEADING, outside),
-        (report.PRIOR_HEADING, report.prior_lines(prior)),
+        (report.PRIOR_HEADING, report.prior_lines(prior, next_file)),
         (report.MODEL_HEADING, _model_lines(tfacts)),
         (report.COST_HEADING, head_cost(tfacts, transcript_why)),
         (NOTES_HEADING, [oneline.one_line(n) for n in notes] or ["無い"]),

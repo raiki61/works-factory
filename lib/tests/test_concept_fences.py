@@ -219,6 +219,7 @@ class FenceCase(unittest.TestCase):
         "stop-reasons": ['HEAD = "works:"', "WAIT_WORDS = stopby.WAITING"],
         "start-record": ['NAME = "start.json"'],
         "human-gates": ['FINAL_GATES = ("always", "when_needed", "protected_only")', "import gatepolicy as gp"],
+        "gate-evidence": ['RUN_ROW, LOG_ROW = "- 走らせ方: ", "- ログ: "'],
     }
 
     def test_every_home_fence_hits_its_line(self):

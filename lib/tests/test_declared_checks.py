@@ -363,6 +363,22 @@ class RunEngineCase(RepoCase):
                     self.assertIn(want, m["reason"])
                     self.assertNotIn("count", m)
 
+    def test_ran_red_wins_over_unran_step(self):
+        """#370: 走った段の赤は、ほかの段が走らなかったことに隠されない。found にし、走らなかった段の訳を detail に添える"""
+        def step(name, report, cases, code):
+            body = "" if cases is None else f"open({report!r},'w').write({f'<testsuite>{cases}</testsuite>'!r});"
+            return {"name": name, "argv": [PY, "-c", f"import sys;{body}sys.exit({code})"], "junit": report}
+        for after_judge in (False, True):
+            with self.subTest(after_judge=after_judge):
+                self.decl([step("unit", "unit.xml", "<testcase name='t'><failure/></testcase>", 1),
+                           step("integ", "integ.xml", None, 2)])
+                for name in ("unit.xml", "integ.xml"):
+                    (self.repo / name).unlink(missing_ok=True)
+                m = self.run_ci(after_judge=after_judge)["material"]
+                self.assertEqual((m["status"], m["count"]), ("found", 1), m)
+                self.assertIn("unit の末尾", m["detail"])
+                self.assertIn("基準の検査が走らなかった段（コードの赤ではない）: integ: 報告 integ.xml が無い", m["detail"])
+
     def test_ran_red_step_is_found(self):
         """元 test_ran_red_step_is_found: 報告に走った試験と failure が在る段は、終了コードが何でも found"""
         m = self.material_for(self.reported_step("<testcase name='t'><failure/></testcase>", 5))

@@ -227,7 +227,7 @@ def collect_reads(place, log, *, repo) -> dict:
         index[role] = got["reads_file"]
         missing += got["missing"]
     if idle:
-        index["why"] = f"{reads.NOT_LAUNCHED}: {'・'.join(idle)}"
+        index[reads.INDEX_WHY] = f"{reads.NOT_LAUNCHED}: {'・'.join(idle)}"
     out = write_json(p / reads.index_name(READS_OWNER), index)
     return {"ok": True, "missing": missing, "index_file": str(out)}
 
@@ -679,7 +679,7 @@ def rerun_cmd(place, result, test_cmd: str) -> str:
 def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=None):
     """組の子の差分（木 from_tree → 木 end_tree。groups.diff_since）を親の作業ツリー repo へ 3 方向で当てる（unittrees.apply。
     union の試験のファイルの挿しだけの食い違いは合わせる）。差分は kept に控える。当てた後に check（当てたパスの並び → 戻す理由か
-    空。確かめ直し）が理由を返せば、当てたパスを当てる前の姿に戻す。返りは lanekit.Merge（why・patch・names・unioned・clash）。
+    空。確かめ直し）が理由を返せば、当てたパスを当てる前の姿に戻す。返りは lanekit.Merge（why・patch・names・unioned・clash・backed_out）。
     元 works/blk-fix/lib/lanekit.py の merge（単位の worktree の差分を当てた所）を、子の run の終わりの木との差分で受ける形にした物"""
     import groups
     import lanekit
@@ -702,19 +702,23 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
         raise
     if why:
         tddloop.restore_paths(repo, before, names)
-        return lanekit.Merge(why, str(kept), [], [], False)
+        return lanekit.Merge(why, str(kept), [], [], False, names)
     return lanekit.Merge("", str(kept), names, got, False)
 
 
-def join_rows(groups, outcomes) -> tuple:
-    """(組の行 [{group_id, unit_ids, returned, reason}], 単位の行 [{unit_id, group_id, status, reason}])（返す節の約束の形）。
+def join_rows(groups, outcomes, backed_out=None) -> tuple:
+    """(組の行 [{group_id, unit_ids, returned, reason, backed_out?}], 単位の行 [{unit_id, group_id, status, reason}])（返す節の約束の形）。
     outcomes は {group_id: (子の結果の dict か None, 戻せたか, 理由)}。戻せた組の単位は子の結果の status・reason（結果に無い単位・
-    知らない status は not_done）、戻せなかった組・結果の無い組の単位は not_done と組の理由。新しい（元の締めの結末の並べ。p3.lane_merge）"""
+    知らない status は not_done）、戻せなかった組・結果の無い組の単位は not_done と組の理由。backed_out は {group_id: 当ててから
+    確かめ直しが赤で戻したパス}（lanekit.Merge の backed_out）で、在る組の行にだけ欄 backed_out を置く（報告が当てなかった組と分ける）。
+    新しい（元の締めの結末の並べ。p3.lane_merge）"""
     rows, units = [], []
     for g in groups:
         gid = g["group_id"]
         result, back, why = outcomes.get(gid, (None, False, NO_RESULT))
-        rows.append({"group_id": gid, "unit_ids": list(g["unit_ids"]), "returned": bool(back), "reason": str(why or "")})
+        paths = list((backed_out or {}).get(gid) or [])
+        rows.append({"group_id": gid, "unit_ids": list(g["unit_ids"]), "returned": bool(back), "reason": str(why or ""),
+                     **({"backed_out": paths} if paths else {})})
         got = {u.get("unit_id"): u for u in (result or {}).get("units") or [] if isinstance(u, dict)} if back else {}
         for k in g["unit_ids"]:
             u = got.get(k) or {}
@@ -1969,13 +1973,12 @@ def unit_outcomes(owed, reply, *, excused=None, parked=None, conflicted=None) ->
 
 
 def parked_reasons(place, keys) -> dict:
-    """裁定へ回した周の単位 keys の結末の理由 {key: 理由}: 裁かれていない申し出が query_hits_fixed だけの単位は QUERY_PARKED、
-    ほかは PARKED_FOR_RULING"""
+    """裁定へ回した周の単位 keys の結末の理由 {key: 理由}: 裁かれていない申し出から選んだ直しの在りか（conflict.fix_place）が
+    差分に在る単位は QUERY_PARKED、ほかは PARKED_FOR_RULING"""
     import conflict
-    kinds = {}
-    for i in conflict.unruled(place):
-        kinds.setdefault(i.get("unit_key"), set()).add(i.get(conflict.KIND_FIELD))
-    return {k: QUERY_PARKED if kinds.get(k) == {conflict.QUERY_HITS_FIXED} else PARKED_FOR_RULING for k in keys}
+    rows = conflict.unruled(place)
+    return {k: QUERY_PARKED if (mine := conflict.unit_rows(rows, k)) and conflict.fix_place(mine) == conflict.IN_DIFF
+            else PARKED_FOR_RULING for k in keys}
 
 
 def judge_query(place):
@@ -2028,7 +2031,7 @@ def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
         if bad:
             return reply, {"ok": False, "reason": CONFLICT_BAD + " / ".join(bad), "lines": lines}
         if pass_ == "first":
-            conflict.park(place, items, source=conflict.FIX_SOURCE, pass_=pass_)
+            conflict.park(place, items, source=conflict.FIX_SOURCE)
         else:
             conflict.park(place, items, source=conflict.FIX_SOURCE, pass_=pass_,
                           ruling={"decision": conflict.ASK, "text": SECOND_CONFLICT, "limits": [], "by": FIX_ACCEPT_BY})

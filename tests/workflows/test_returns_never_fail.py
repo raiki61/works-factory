@@ -12,7 +12,10 @@ resolveBindingDirective・output-ref.ts 590-597 行）。返りの指し札の�
   json.dumps(..., allow_nan=False) だけ（境の口も lib も読めない時にも返す道）
 """
 import ast
+import contextlib
 import importlib
+import importlib.util
+import io
 import json
 import os
 import pathlib
@@ -320,6 +323,38 @@ class ReturnScriptCase(unittest.TestCase):
             with self.subTest(name):
                 text = (ROOT / name).read_text(encoding="utf-8")
                 self.assertTrue(stdout_writes(ast.parse(text)), f"{name} は標準出力へ直に書かない（古い行）")
+
+
+class ReadsFailureCase(unittest.TestCase):
+    """#371: 読んだ証拠の 4 つの節は、集める中で誤りが起きても終了の値 0 で ok: false を返し、置き場に落ちた記録
+    （lib/reads.guarded）を残す。返りは誰も読まないので、報告はこの記録で「役を起こしていない」と分ける"""
+    # (script, 集める lib の口, 置き場の run の置き場からの相対)
+    TABLE = [("workflows/fix/scripts/fix_reads.py", "fixboard.collect_reads", "fix/fix"),
+             ("workflows/judge/scripts/pr_reads.py", "judge_accept.pr_reads", "judge"),
+             ("workflows/plan/scripts/plan_reads.py", "planfile.collect_reads", "plan/r1"),
+             ("workflows/plan-review/scripts/review_reads.py", "boardview.collect_reads", "plan-review")]
+
+    def test_failed_collection_leaves_a_failed_evidence(self):
+        if str(ROOT / "lib") not in sys.path:
+            sys.path.append(str(ROOT / "lib"))
+        import reads
+        for rel, target, place in self.TABLE:
+            with self.subTest(rel), tempfile.TemporaryDirectory() as tmp:
+                artifacts = pathlib.Path(tmp)
+                spec = importlib.util.spec_from_file_location(f"reads_failure_{pathlib.Path(rel).stem}", ROOT / rel)
+                script = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(script)
+                module, name = target.split(".")
+                out = io.StringIO()
+                env = {"ARTIFACTS_DIR": str(artifacts), "WORKFLOW_ID": RUN_ID, "INPUTS_DIR": "plan/r1", "INPUTS_START": "null"}
+                with mock.patch.dict(os.environ, env), mock.patch.object(importlib.import_module(module), name, side_effect=OSError("壊れた")), \
+                        contextlib.redirect_stdout(out):
+                    self.assertEqual(script.main(), 0)
+                got = json.loads(out.getvalue())
+                self.assertEqual((got["ok"], got["reason"]), (False, "OSError: 壊れた"))
+                [path] = (artifacts / place).glob(reads.EVIDENCE_GLOB)
+                doc, _ = reads.read_evidence(path)
+                self.assertEqual(doc["sources"], {"hook": reads.FAILED, "why": "OSError: 壊れた"})
 
 
 class SeedCase(unittest.TestCase):

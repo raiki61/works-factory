@@ -137,16 +137,7 @@ def _rows(doc, key: str) -> list:
 
 
 # ---------------------------------------------------------------- 入力
-def pointed(raw: str, locate) -> tuple:
-    """(指し札の字 raw が指すファイルのパス, 読めない訳)。locate は指し札の字をパスに戻す口（境の口の pointed。空の字・null は
-    None）で、None なら (None, "")"""
-    try:
-        path = locate(raw)
-    except (ValueError, TypeError, AttributeError, KeyError) as e:
-        return None, f"ポインタが読めない: {e}"
-    if path is None:
-        return None, ""
-    return (path, "") if pathlib.Path(path).is_file() else (None, f"ポインタの先が無い: {path}")
+pointed = rolekit.pointed
 
 
 def read_pointed(raw: str, locate, *, text: bool = False) -> tuple:
@@ -945,7 +936,7 @@ def collect_reads(round_dir, log, *, role: str, quiet: tuple, policy_md: str, re
                             repo=repo, replan=again)
         index[reads.role_key(role, again)], missing = got["reads_file"], got["missing"]
     else:
-        index["why"] = f"{reads.NOT_LAUNCHED}: {rnd['why']}"
+        index[reads.INDEX_WHY] = f"{reads.NOT_LAUNCHED}: {rnd['why']}"
     out = _write_json(round_dir / reads.index_name(ROLE, again), index)
     return {"ok": True, "missing": missing, "index_file": str(out)}
 

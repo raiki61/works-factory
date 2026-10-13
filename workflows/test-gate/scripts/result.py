@@ -19,6 +19,7 @@ import traceback
 from pathlib import Path
 
 INNER_ERROR = "出力ノードの中の誤り"
+RUN_ROW, LOG_ROW = "- 走らせ方: ", "- ログ: "   # 証拠の文の走らせ方・ログの行の頭（書くのはここだけ。試験と通しの照らしはここから引く）
 
 
 def rel(mode: str, name: str) -> str:
@@ -80,12 +81,12 @@ def evidence(mode: str, out: dict, run: dict, material, summary: str, note: str 
              f"- ok: {str(out['ok']).lower()}{'（' + out['reason'] + '）' if out['reason'] else ''}",
              f"- green: {str(out['green']).lower()}",
              f"- red_cause: {out['red_cause'] or '無し'}{'（' + one(summary) + '）' if summary else ''}",
-             f"- 走らせ方: {v['suites']}",
+             f"{RUN_ROW}{v['suites']}",
              *([f"- 包み: {note}"] if note else []),
              *([f"- engine の結果を任せ先へ落とした訳: {one(run['fell_back'])}"] if run.get("fell_back") else []),
              *([f"- {out['baseline_line']}"] if out["baseline_line"] else []),
              f"- 素材: {json.dumps(material, ensure_ascii=False) if material is not None else '無い（任せ先の CI の役が素材を渡さなかった）'}",
-             f"- ログ: {v['log']}",
+             f"{LOG_ROW}{v['log']}",
              f"- JUnit の報告を宣言した段: {'・'.join(run['junit_steps']) or '無い'}"
              + (f"（試験を走らせなかった段: {'・'.join(run['junit_unran'])}）" if run["junit_unran"] else ""),
              f"- 一式（tdd_suite）: {json.dumps(run['suite'], ensure_ascii=False) if run.get('suite') else '無い'}",

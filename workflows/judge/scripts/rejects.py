@@ -20,4 +20,4 @@ import rolekit  # noqa: E402
 
 board = boundary.resolve(boundary.pointer(os.environ["INPUTS_BOARD"]))
 boundary.returns({"reason": rolekit.rejects_text(rolekit.rejected(board, os.environ["INPUTS_ACCEPT"])),
-                  "lang_line": rolekit.record_lang_line(boundary.pointed(os.environ.get("INPUTS_START")))})
+                  "lang_line": rolekit.pointed_lang_line(os.environ.get("INPUTS_START"), boundary.pointed)})
