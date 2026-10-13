@@ -708,6 +708,19 @@ class AddedMarkCase(RunCase):
     def test_run_without_a_diff_is_not_marked(self):
         self.assertNotIn('"mark"', self.prompt(self.added, self.head))
 
+    def test_tail_two_files_share_is_not_marked(self):
+        """名指しの末尾が 2 本の追跡ファイルに当たる時は、独立設計の受け付け（design.head_file）と同じく決めずに付けない"""
+        r = self.run_
+        for d in ("a", "b"):
+            (r.repo / d).mkdir()
+            (r.repo / d / "m.py").write_text("x = 1\n", encoding="utf-8")
+        git(r.repo, "add", "-A")
+        git(r.repo, "commit", "-qm", "審査する変更")
+        self.head = git(r.repo, "rev-parse", "HEAD")
+        r.judgment(constraints=[{"text": "既に在る（m.py:1）", "measured_how": "読んだ", "kind": "実測", "measured_output": "x"}])
+        r.start(input={"base": {"rev": self.root, "label": "PR の根"}})
+        self.assertNotIn('"mark"', r.out("r2_prep")["prompt"])
+
     def test_design_command_does_not_count_marked_constraints(self):
         self.assertIn("審査する変更 {base}..{head} が足した行", boardview.ADDED_MARK)
         self.assertIn(ADDED_ASK, (BLOCK / "commands" / "r2-design.md").read_text(encoding="utf-8"))

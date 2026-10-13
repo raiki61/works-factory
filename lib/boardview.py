@@ -751,7 +751,11 @@ def added_marks(constraints: list, repo, start_doc) -> list:
         return constraints
 
     def hit(path: str, start: int, end: int) -> bool:
-        return any(lines.intersection(range(start, end + 1)) for p, lines in added.items() if p == path or p.endswith(f"/{path}"))
+        try:
+            rel = design.head_file(repo, path)
+        except ValueError:
+            return False
+        return bool(added.get(rel, set()).intersection(range(start, end + 1)))
 
     out = []
     for c in constraints:
