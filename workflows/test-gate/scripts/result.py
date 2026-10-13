@@ -5,11 +5,11 @@
 """返す節 result: run.json と（在れば）任せ先の役の ci-material.json を読み、赤の原因と証拠を出し（green_cert.classify）、今の指紋を
 取って認証する（green_cert.certify。final で素材を任せ先の役が書いた緑は自己申告として認証しない）。base は直す前の結末のファイル
 test-gate/base/baseline.json を書く（baseline_red.write_baseline）。final は入力 baseline の指し札の先を baseline_red.read_baseline で読み、
-修正前のテストの行（declared_checks.baseline_line）を証拠に足す。両方とも証拠の文 test-gate/<mode>/evidence.md を書き（行の頭は
-declared_checks の物）、任せ先の役の節が
-落ちて残った作業ツリーの写し（ci-snapshot.json の top）を消す。
+修正前のテストの行（declared_checks.baseline_line）を証拠に足す。走らせ方（by・suites_line）・ログ（log）・修正前のテスト（baseline_line）・
+認証しなかった訳（reason）は 1 行に畳んで返りに載せ、証拠の文 test-gate/<mode>/evidence.md の行も同じ値から組む（報告と最後の関所は
+返りの欄を読む）。任せ先の役の節が落ちて残った作業ツリーの写し（ci-snapshot.json の top）を消す。
 落ちない: 境の口と lib の import から先の誤りは全部捕まえ、終了の値 0 で ok: false・green: false・red_cause: incomplete と、誤りを
-名指した証拠の指し札を返す（返す節が落ちると線が先へ進めない）"""
+名指した証拠の指し札を返す（返す節が落ちると線が先へ進めない）。その時の by などの字の欄は空、reason は INNER_ERROR"""
 import json
 import os
 import sys
@@ -17,6 +17,7 @@ import traceback
 from pathlib import Path
 
 NONE_WORDS = ("", "null")   # 入力 baseline の「無い」
+INNER_ERROR = "出力ノードの中の誤り"
 
 
 def rel(mode: str, name: str) -> str:
@@ -43,22 +44,29 @@ def suite_exit(run: dict):
     return next((r["exit"] for r in junit if r["exit"]), 0) if junit else None
 
 
-def evidence(mode: str, out: dict, run: dict, material, summary: str, why: str, suites: str, base_line: str) -> str:
-    """証拠の文。読み手は行の頭で 1 行ずつ読むので、自由な文の値（役の素材の reason が入る）は 1 行に畳む"""
+def gate_fields(run: dict, suites: str, base_line: str, why: str) -> dict:
+    """返りの欄 by・suites_line・log・baseline_line・reason（字の値は 1 行に畳む）"""
+    import oneline
+    one = oneline.one_line
+    return {"by": run["by"], "suites_line": one(suites), "log": one(run["log"] or ""), "baseline_line": one(base_line), "reason": one(why)}
+
+
+def evidence(mode: str, out: dict, run: dict, material, summary: str) -> str:
+    """証拠の文。走らせ方・ログ・修正前のテスト・ok の訳は返り out の欄（1 行に畳んだ物）と同じ値で書く。ほかの自由な文の値（役の
+    素材の reason が入る）も 1 行に畳む"""
     import declared_checks
     import oneline
     one = oneline.one_line
-    (_, run_row), (_, log_row) = declared_checks.EVIDENCE_ROWS
     lines = [f"# test-gate（{mode}）",
              "",
-             f"{declared_checks.OK_ROW}{str(out['ok']).lower()}{'（' + one(why) + '）' if why else ''}",
+             f"- ok: {str(out['ok']).lower()}{'（' + out['reason'] + '）' if out['reason'] else ''}",
              f"- green: {str(out['green']).lower()}",
              f"- red_cause: {out['red_cause'] or '無し'}{'（' + one(summary) + '）' if summary else ''}",
-             f"{run_row}{one(run['by'])}・{one(suites)}",
+             f"- 走らせ方: {out['by']}・{out['suites_line']}",
              *([f"- engine の結果を任せ先へ落とした訳: {one(run['fell_back'])}"] if run.get("fell_back") else []),
-             *([f"- {one(base_line)}"] if base_line else []),
+             *([f"- {out['baseline_line']}"] if out["baseline_line"] else []),
              f"- 素材: {json.dumps(material, ensure_ascii=False) if material is not None else '無い（任せ先の CI の役が素材を渡さなかった）'}",
-             f"{log_row}{one(run['log'] or '無い')}",
+             f"- ログ: {out['log'] or declared_checks.NO_LOG}",
              f"- JUnit の報告を宣言した段: {'・'.join(run['junit_steps']) or '無い'}"
              + (f"（試験を走らせなかった段: {'・'.join(run['junit_unran'])}）" if run["junit_unran"] else ""),
              f"- 一式（tdd_suite）: {json.dumps(run['suite'], ensure_ascii=False) if run.get('suite') else '無い'}",
@@ -122,8 +130,8 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     tests = {"by": run["by"], "suites": run["runs"], "test_cmd_same_as": run["same_as"], "test_cmd_how": run["test_cmd_how"],
              "skipped_steps": run["skipped_steps"]}
     suites = declared_checks.suites_line(tests, role_status=(status or "") if role else None)
-    base_line = declared_checks.baseline_line(base) if mode == "final" else ""
-    write(rel(mode, "evidence.md"), evidence(mode, out, run, material, summary, why, suites, base_line))
+    out.update(gate_fields(run, suites, declared_checks.baseline_line(base) if mode == "final" else "", why))
+    write(rel(mode, "evidence.md"), evidence(mode, out, run, material, summary))
     out["evidence"] = boundary.pointer(rel(mode, "evidence.md"))
     return boundary, out
 
@@ -134,7 +142,7 @@ def failed(mode: str, error: BaseException) -> dict:
     line = f"{type(error).__name__}: {' '.join(str(error).split())}"
     name = "evidence.md"
     try:
-        write(rel(mode, name), f"# test-gate（{mode}）\n\n- ok: false（出力ノードの中の誤り）\n- 誤り: {line}\n\n```text\n"
+        write(rel(mode, name), f"# test-gate（{mode}）\n\n- ok: false（{INNER_ERROR}）\n- 誤り: {line}\n\n```text\n"
               + "".join(traceback.format_exception(error)) + "```\n")
     except Exception:
         name = "failure.txt"
@@ -143,7 +151,8 @@ def failed(mode: str, error: BaseException) -> dict:
         except Exception:
             pass
     return {"mode": mode, "ok": False, "green": False, "red_cause": "incomplete", "baseline": None, "fingerprint": None,
-            "evidence": {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel(mode, name)}}
+            "evidence": {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel(mode, name)},
+            "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": INNER_ERROR}
 
 
 def main() -> int:

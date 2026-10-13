@@ -90,8 +90,7 @@ NOTES_HEADING = promptsection.Section("## 注意（読めなかった物）", hu
 MACHINE_DECISIONS = promptsection.Section("## 1. 人の判断を待つ物の機械の数え（判断の本文は報告の頭）", human=report.FOR_READERS)
 RED_KEPT = ("inherited", "environment")       # 認証が通した赤（元から赤・環境の赤）
 GATE_RUNS = (("test-gate-base", "直す前のテスト"), ("test-gate-final", "最後のテスト"))
-# 試験の関所の証拠の文の行の頭の、線の最後の関所の文が読む名（持ち主は declared_checks。この中は declared_checks を引く）
-EVIDENCE_ROWS, BASELINE_ROW, OK_ROW = declared_checks.EVIDENCE_ROWS, declared_checks.BASELINE_ROW, declared_checks.OK_ROW
+GATE_MISSING = "取れない（試験の関門の出力に無い）"
 EYE_KEYS = ("eye", "status", "reason")
 GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
 PLAN_GAVE_UP_WHERE = "受け付け 計画"          # 元 report.ACCEPT_WHERE（受け付け <名>）の計画の行
@@ -949,32 +948,29 @@ def _design_lines(returns: dict) -> list:
     return out
 
 
-def _evidence_rows(returns: dict, rid: str) -> tuple:
-    """(試験の関所の証拠の文の行, 読めなかった訳)。証拠の指し札が無ければ (None, "")"""
-    p = _ret(returns, rid).get("evidence")
-    if not (isinstance(p, str) and p):
-        return None, ""
-    try:
-        return pathlib.Path(p).read_text(encoding="utf-8").splitlines(), ""
-    except (OSError, UnicodeDecodeError) as e:
-        return None, oneline.one_line(e)
+def gate_values(ret) -> dict:
+    """試験の関門の返り ret（無い・dict でない時は空）の、人に見せる値 {by, suites, log, baseline, reason}: 走らせ方は by・suites_line、
+    ログは log（空なら declared_checks.NO_LOG）。by が無いか空（返す節の中の誤り）なら走らせ方とログは GATE_MISSING。修正前のテストの行は
+    頭つきの baseline_line（無いか空なら頭と GATE_MISSING）。reason は認証しなかった訳（無ければ空）。報告と最後の関所が同じ字を出す"""
+    ret = as_dict(ret)
+    by = ret.get("by") or ""
+    return {"by": by,
+            "suites": f"{by}・{ret.get('suites_line') or ''}" if by else GATE_MISSING,
+            "log": (ret.get("log") or declared_checks.NO_LOG) if by else GATE_MISSING,
+            "baseline": ret.get("baseline_line") or f"{declared_checks.BASELINE_HEAD}: {GATE_MISSING}",
+            "reason": ret.get("reason") or ""}
 
 
 def _tests_head_lines(returns: dict) -> list:
-    """最後のテストの一式の行と修正前のテストの行（T35。test-gate の証拠の字のまま。最後の関所の文と同じ行）・任せ先の申告の緑の次の手
-    （T41）・封じた差分が消すファイル（M38）"""
+    """最後のテストの一式の行と修正前のテストの行（T35。test-gate の返りの欄から gate_values で。最後の関所の文と同じ字）・任せ先の
+    申告の緑の次の手（T41）・封じた差分が消すファイル（M38）"""
     out = []
-    rows, why = _evidence_rows(returns, "test-gate-final")
-    if rows is not None:
-        (_, run_prefix), (_, log_prefix) = declared_checks.EVIDENCE_ROWS
-        base_name, base_prefix = declared_checks.BASELINE_ROW
-        suites, log, base = (declared_checks.evidence_value(rows, x) for x in (run_prefix, log_prefix, base_prefix))
-        out.append(f"最後のテストの一式: {suites or '証拠に走らせ方の行が無い'}・ログ {log or '（無い）'}")
-        out.append(f"{base_name}: {base or '証拠に修正前のテストの行が無い'}")
-        if (suites or "").startswith(declared_checks.ROLE_NEEDED):
+    ret = _ret(returns, "test-gate-final")
+    if ret:
+        v = gate_values(ret)
+        out += [f"最後のテストの一式: {v['suites']}・ログ {v['log']}", v["baseline"]]
+        if v["by"] == declared_checks.ROLE_NEEDED:
             out.append(declared_checks.SELF_REPORTED_NOTE)
-    elif why:
-        out.append(f"最後のテストの一式: 証拠が読めない（{why}）")
     p = as_dict(returns.get("merge-seal")).get("diff")
     if isinstance(p, str) and p:
         try:
@@ -1038,24 +1034,18 @@ def _tdd_lines(typed: dict, returns: dict) -> tuple[list, list, list]:
 
 
 def _evidence_lines(returns: dict) -> list:
-    """試験の関所の段ごとの、走らせた一式の行とログの置き場（元 report.py:1042-1050。返りの evidence の先の行から）と、最後のテストの
-    修正前のテストの行（declared_checks.BASELINE_ROW。元の報告の冒頭の entry.baseline_line）"""
+    """試験の関所の段ごとの、走らせた一式の行とログの置き場（元 report.py:1042-1050。返りの欄から gate_values で）と、最後のテストの
+    修正前のテストの行（返りの baseline_line。元の報告の冒頭の entry.baseline_line）"""
     out = []
     for rid, label in GATE_RUNS:
         ret = _ret(returns, rid)
         if not ret:
             continue
         head = f"{label}（{rid}）"
-        rows, why = _evidence_rows(returns, rid)
-        if why:
-            out.append(f"{head}の走らせ方とログ: 読めない（{why}）")
-            continue
-        if rows is None:
-            out.append(f"{head}の走らせ方とログ: 取れない（証拠のポインタが無いか開けなかった）")
-            continue
-        for name, prefix in (*declared_checks.EVIDENCE_ROWS, *((declared_checks.BASELINE_ROW,) if rid == "test-gate-final" else ())):
-            got = declared_checks.evidence_value(rows, prefix)
-            out.append(f"{head}の{name}: " + (got if got is not None else f"証拠に「{name}」の行が無い"))
+        v = gate_values(ret)
+        out += [f"{head}の走らせ方: {v['suites']}", f"{head}のログ: {v['log']}"]
+        if rid == "test-gate-final":
+            out.append(f"{head}の{v['baseline']}")
     return out
 
 

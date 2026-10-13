@@ -1448,24 +1448,23 @@ class AskFinalReadsCase(Artifacts):
         self.assertIn("決め手で通した行（決め手: x.md:1）", ask_final.final_text(final_got(passes=passes), [], RUN))
 
     def test_final_text_lists_suites_baseline_and_left_tests(self):
-        """L-W28・T35: 最後のテストの証拠（test-gate の result.py の evidence が書く evidence.md）から、一式・修正前のテスト・ログ・
-        認証しなかった訳を字のまま読み、作業ツリーと並べる。手元で回さなかった試験（ci_left・final_left・final_far）は修正の返りに
-        控えが無い（F013。部分 D2）"""
-        result = load_block_script("test-gate", "result")
-        run = {"by": "role_needed", "log": "test-gate/final/logs/checks.log", "junit_steps": [], "junit_unran": [], "suite": None,
-               "fingerprint_before": None, "fingerprint_after": None}
-        text = result.evidence("final", {"ok": False, "green": True, "red_cause": ""}, run, None, "", "任せ先の自己申告の緑", "一式 X",
-                               "修正前のテスト: 緑（元の結末）")
-        ptr = self.place("test-gate/final/evidence.md", {})
-        (self.artifacts / "test-gate/final/evidence.md").write_text(text, encoding="utf-8")
-        got = ask_final.evidence_rows(ptr)
-        self.assertEqual(got, {"suites": "role_needed・一式 X", "baseline": "緑（元の結末）", "log": "test-gate/final/logs/checks.log",
-                               "why": "任せ先の自己申告の緑", "unread": ""})
-        self.assertIn("最後のテストの証拠を読めない", ask_final.evidence_rows({"type": "archon_artifact", "run_id": "x", "path": "e.md"})["unread"])
-        text = ask_final.final_text(final_got(evidence=got, tests_ok=False), [], RUN)
+        """L-W28・T35: 最後のテストの返りの欄（with: の by・suites_line・log・baseline_line・tests_reason）から、一式・修正前のテスト・
+        ログ・認証しなかった訳を字のまま出し、作業ツリーと並べる（証拠の文は開かない）。関門が返さなかった（飛ばされた節の null）時は
+        その旨と「取れない」。手元で回さなかった試験（ci_left・final_left・final_far）は修正の返りに控えが無い（F013。部分 D2）"""
+        returned = {"INPUTS_BY": "role_needed", "INPUTS_SUITES_LINE": "一式 X", "INPUTS_LOG": "test-gate/final/logs/checks.log",
+                    "INPUTS_BASELINE_LINE": "修正前のテスト: 緑（元の結末）", "INPUTS_TESTS_REASON": "任せ先の自己申告の緑"}
+        with mock.patch.dict(os.environ, returned):
+            got = ask_final.final_tests()
+        text = ask_final.final_text(final_got(tests=got, tests_ok=False), [], RUN)
         for want in ("- テストの一式: role_needed・一式 X", "- 修正前のテスト: 緑（元の結末）", "- ログ: test-gate/final/logs/checks.log",
                      "- 走れなかった・認証しなかった理由: 任せ先の自己申告の緑", "- run の作業ツリー: /tmp/tree"):
             self.assertIn(want, text)
+        with mock.patch.dict(os.environ, {k: "null" for k in returned}):
+            got = ask_final.final_tests()
+        missing = ask_final.runreport.GATE_MISSING
+        self.assertEqual((got["suites"], got["log"], got["baseline"], got["reason"]), (missing, missing, f"修正前のテスト: {missing}", ""))
+        self.assertIn(f"- {got['unread']}", ask_final.final_text(final_got(tests=got, tests_ok=False), [], RUN))
+        self.assertTrue(got["unread"])
 
     def test_deleted_files_named(self):
         """M38: 封じた差分の中で消えるファイルを、当てる前に 1 本ずつ名指す（「取り込むと消えるファイル: <パス>」）"""

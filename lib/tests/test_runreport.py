@@ -222,25 +222,25 @@ class TypedCase(Base):
         self.assertIn("赤のまま通した", self.section(text, runreport.GREEN_HEADING))
 
     def test_green_cert_names_suites_and_log(self):
-        """元 report.py:1042-1050 の最後のテストの一式の行とログ: test-gate の返りの evidence の先の行から。取れなければ黙らずにその旨"""
+        """元 report.py:1042-1050 の最後のテストの一式の行とログ: test-gate の返りの欄 by・suites_line・log から（証拠の文は開かない）。
+        取れなければ黙らずにその旨"""
         suites = "一式: run-tests（make test）"
-        final = self.put("test-gate-final/evidence.md", f"# test-gate（final）\n\n- ok: true\n- 走らせ方: engine・{suites}\n"
-                                                        "- ログ: /tmp/x/test.log\n")
-        _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": final}}))
+        final = {**fixed_run()["test-gate-final"], "by": "engine", "suites_line": suites, "log": "/tmp/x/test.log",
+                 "baseline_line": "修正前のテスト: 赤", "reason": "", "evidence": str(self.dir / "nowhere.md")}
+        _, text, _ = self.build(fixed_run(**{"test-gate-final": final}))
         green = self.section(text, runreport.GREEN_HEADING)
         self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: engine・{suites}\n", green)
         self.assertIn("- 最後のテスト（test-gate-final）のログ: /tmp/x/test.log\n", green)
-        self.assertIn("- 直す前のテスト（test-gate-base）の走らせ方とログ: 取れない", green)
+        self.assertIn("- 最後のテスト（test-gate-final）の修正前のテスト: 赤\n", green)
+        self.assertIn(f"- 直す前のテスト（test-gate-base）の走らせ方: {runreport.GATE_MISSING}\n", green)
+        self.assertIn(f"- 直す前のテスト（test-gate-base）のログ: {runreport.GATE_MISSING}\n", green)
 
-        fell = self.put("fell/evidence.md", "# test-gate（final）\n\n- ok: false（返す節の中の誤り）\n- 誤り: KeyError: 'by'\n")
-        _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": fell}}))
+        fell = {**final, "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": "出力ノードの中の誤り"}
+        _, text, _ = self.build(fixed_run(**{"test-gate-final": fell}))
         green = self.section(text, runreport.GREEN_HEADING)
-        self.assertIn("- 最後のテスト（test-gate-final）の走らせ方: 証拠に「走らせ方」の行が無い\n", green)
-        self.assertIn("- 最後のテスト（test-gate-final）のログ: 証拠に「ログ」の行が無い\n", green)
-        self.assertNotIn("証拠か", green, "行が無い訳を推し量らない")
-
-        _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": str(self.dir)}}))
-        self.assertIn("- 最後のテスト（test-gate-final）の走らせ方とログ: 読めない（", self.section(text, runreport.GREEN_HEADING))
+        self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: {runreport.GATE_MISSING}\n", green)
+        self.assertIn(f"- 最後のテスト（test-gate-final）のログ: {runreport.GATE_MISSING}\n", green)
+        self.assertIn(f"- 最後のテスト（test-gate-final）の修正前のテスト: {runreport.GATE_MISSING}\n", green)
 
         _, text, _ = self.build(fixed_run(**{"test-gate-base": None, "test-gate-final": None}))
         self.assertNotIn("走らせ方", self.section(text, runreport.GREEN_HEADING))
@@ -1409,14 +1409,13 @@ class LinesCase(Base):
 
     def test_tests_head_lines_and_deleted_files(self):
         """T35・T41・M38（部分 B2 の申し送り。最後の関所と同じ行を報告の冒頭に）: 人が決めることの節に最後のテストの一式の行と修正前のテストの
-        行（test-gate の証拠の字のまま）、任せ先の申告の緑なら走らせる語の宣言の仕方、封じた差分が消すファイルを 1 本ずつ出す"""
+        行（test-gate の返りの欄のまま）、任せ先の申告の緑なら走らせる語の宣言の仕方、封じた差分が消すファイルを 1 本ずつ出す"""
         import declared_checks
         import seal
-        evidence = self.put("test-gate/final/evidence.md", "\n".join([
-            "# test-gate（final）", "- ok: true", "- 走らせ方: role_needed・一式: 任せ先の申告", "- ログ: /tmp/ci.log",
-            "- 修正前のテスト: 赤（段ごとの終了コード {\"suite\": 1}）——最後のテストの赤は修正前から在りうる"]) + "\n")
+        final = {**fixed_run()["test-gate-final"], "by": "role_needed", "suites_line": "一式: 任せ先の申告", "log": "/tmp/ci.log",
+                 "baseline_line": "修正前のテスト: 赤（段ごとの終了コード {\"suite\": 1}）——最後のテストの赤は修正前から在りうる", "reason": ""}
         diff = self.put("merge/sealed.diff", "diff --git a/old.py b/old.py\ndeleted file mode 100644\n--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n")
-        returns = fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": evidence},
+        returns = fixed_run(**{"test-gate-final": final,
                                "merge-seal": {"mode": "seal", "ok": True, "diff": diff}})
         _, text, _ = self.build(returns)
         body = self.section(text, report.DECISIONS_HEADING)

@@ -56,23 +56,8 @@ MATERIAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": 
                                   **{k: {"type": "integer", "minimum": 0} if k in NUMERIC_FIELDS else {"type": "string"}
                                      for k in FIELDS}}}
 MODES = ("base", "final")   # 形: 判定の前・修正の後
-
-
-def row_prefix(name: str) -> str:
-    """証拠の文（evidence.md）の行の頭"""
-    return f"- {name}: "
-
-
-def evidence_value(rows: list, prefix: str):
-    """証拠の文の行の並び rows のうち、頭 prefix で始まる最初の行の値（頭を外した物）。無ければ None"""
-    return next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
-
-
-# 証拠の文の行の頭（名, 行の頭）。書くのは試験の関門の返す節、行のまま読むのはメイングラフの最後の関所の文
-EVIDENCE_ROWS = tuple((name, row_prefix(name)) for name in ("走らせ方", "ログ"))
 BASELINE_HEAD = "修正前のテスト"
-BASELINE_ROW = (BASELINE_HEAD, row_prefix(BASELINE_HEAD))   # final の証拠だけに在る行（baseline_line）
-OK_ROW = row_prefix("ok")                                   # 証拠の頭の行（false なら括弧に認証しなかった訳）
+NO_LOG = "無い"   # 試験の関門のログが無い時の字。証拠の文と報告・最後の関所が同じ字を出す
 CANT = {False: "awaiting_human", True: "not_run"}   # 走らせられない時の status（判定の前・後。after_judge か mode == "final" で引く）
 
 
