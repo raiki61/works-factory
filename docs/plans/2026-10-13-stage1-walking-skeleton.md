@@ -111,7 +111,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
   - `awaiting_response`: `get <respondTo.runId>` で関所の文を見て、`WORKS_FACTORY_HOME=<家> ./bin/works-factory workflow respond <respondTo.runId> approve --detach --json --cwd <target>` で答える（`respondTo.runId` は子の run のことがある）。`--detach` を必ず付ける: 付けないと答えた後の run の続き（数時間）が 1 回の道具の呼び出しの中で走り、上限で殺されると持ち主の居ない `running` の run が残って再開できない（`workflow approve` の「In human mode approve/reject auto-resume the run inline」と P1）。
   - `stalled_tool_calls`: `workflow logs <run>` を見て、待ちを続ける（止めない）。
   - `owner_lost`・`action_required`・読めない返り: 止めて、`workflow get <run> --json` を証拠に残す（実装の役は手順 4 の不具合として扱う。確かめの役はその主張を `inconclusive` にする）。
-- 片付け: 試みの終わりに `python3 tests/e2e/make_target.py teardown`（issue #101。その checkout の家の終わっていない run を止める。プロセスを名で止めない）。
+- 片付け: 試みの終わりに `python3 tests/e2e/make_target.py teardown`（issue #101。その checkout の家の終わっていない run を止める。プロセスを名で止めない）。同じ checkout でほかの run（較正のランナーなど）が走る時は、teardown が控えに載った全部の家の run を止めて並んだ run まで止めるので、`make` に `--no-ledger` を付け、試みの終わりに `python3 tests/e2e/make_target.py stop <試みのフォルダ>` でその試みの家の run だけを止める（命令の正本は `harness/runtime.scenario.json`）。
 
 ## 能力の行の照らし（この issue の芯の 1 つ）
 
@@ -194,7 +194,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
    3. 当てる前に、対象で `python3 -m unittest -v` を走らせて控える（2 件落ちる）。`returns.value.apply.diff` の先のファイルを試みのフォルダに写して控え、1 バイト変えて `./bin/apply <run> --cwd <target>` が 1 で止まり対象が変わらないことを見て、控えから戻す。
    4. `./bin/apply <run> --cwd <target>` で当て、`python3 -m unittest -v` で 3 件が全部通ることを見る。
    5. `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせ、出力を PR に貼る（数の行と、`absent`・`unexpected` の全行）。受け入れ 2 の材料を作る。
-   6. `python3 tests/e2e/make_target.py teardown`。
+   6. 上の「片付け」のとおり、`python3 tests/e2e/make_target.py teardown`（`--no-ledger` で作った試みは `stop <試みのフォルダ>`）。
    - 通しが途中で落ちる・おかしな結末を出す・`check` が `absent` を出すたびに、上の「見えなかった行の扱い」で決める。不具合なら superpowers:systematic-debugging の形で原因を確かめ、落ちたブロック（か線か `lib/`）の試験か筋書きに **その不具合で赤になる 1 本を先に足して赤を見てから** 直す（superpowers:test-driven-development）。直しは K1〜K20 を通す。直したら、通しを新しい試みのフォルダで最初から回し直す（直した `workflows/` は新しい run でしか読まれない。`workflows/` は run の始めに写し取られる）。
    - 殻（`bin/_lib/launcher.py`）と `bin/apply` の不具合は、直さずに別の issue にして PR に書く。
    - 入れ子の認証: この手順は、実装の役の会話の Bash から殻を起こす。殻は普通の利用者の道（ホストのログイン・`ANTHROPIC_API_KEY`・選べる道の `WORKS_FACTORY_KEYCHAIN_ITEM`）で認証を拾う。拾えずに殻が止まった時は、どの道で何が無かったかを殻の 1 行のまま PR に書き、この手順の 4 を運び役に渡す（下の「PR の後に運び役が行う確かめ」の 1）。手順 1〜3・5〜7 はそのまま進める。
