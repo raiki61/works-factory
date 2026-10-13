@@ -32,7 +32,6 @@ BLOCKS = ("line", "judge", "plan", "plan-review", "fix", "test-gate", "eyes", "r
 RELATIVE_PATH = re.compile(r"(?:\.\./)+[^\s'\"`)]*")
 
 LIB = Path(__file__).resolve().parents[2] / "lib"
-LIB_CONST = re.compile(r"\b([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
 # INPUTS_{…} を組む内包の for が回す lib の部品の定数（`for name in fixboard.PREP_INPUTS`）
 BUILT_FROM = re.compile(r"INPUTS_\{[^}\n]*\}[^\n]*\bfor\s+\w+\s+in\s+([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
 OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
@@ -548,14 +547,14 @@ def _block_returns(root: Path) -> list[str]:
 
 def script_reads(text: str, name: str, lib: Path = LIB) -> bool:
     """script の字が入力 name を読むか。Archon は名の - を _ にして大文字の INPUTS_<名> で渡す。`INPUTS_{…}` を組んで読む script は
-    名の字を持つ物と、名を持つ lib の部品の字の並びの定数（`fixboard.PREP_INPUTS` の形。部品は lib の下）を引く物を読み手に数える"""
+    名の字を持つ物と、INPUTS_{…} を組む内包の for で名を持つ lib の部品の字の並びの定数（BUILT_FROM。部品は lib の下）を回す物を読み手に数える"""
     if re.search(rf"INPUTS_{re.escape(name.replace('-', '_').upper())}(?![A-Z0-9_])", text):
         return True
     if "INPUTS_{" not in text:
         return False
     if re.search(rf"[\"']{re.escape(name)}[\"']", text):
         return True
-    return any(name in _lib_names(lib / f"{module}.py", const) for module, const in LIB_CONST.findall(text))
+    return any(name in _lib_names(lib / f"{module}.py", const) for module, const in BUILT_FROM.findall(text))
 
 
 @functools.cache
