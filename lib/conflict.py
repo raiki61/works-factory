@@ -941,7 +941,7 @@ def mark_reverted(b, files, patch: str, pass_: str) -> None:
     """機械が段 pass_ の頭の木へ files を戻して控え patch に移した時、その段の受け付けが積んだ（FILED_IN が pass_。adopt_prior が
     写した PRIOR の行は外す）query_hits_fixed の行で、名指し between がその files に当たる行に控えを置く（REVERTED_FIELD。先に置いた
     控えは残す——直しを持つのは最初に戻した patch）。段の頭より前に積んだ行の直しは頭の木に在り、戻しても差分に残るので置かない。
-    left_words が直しの在りかに読む"""
+    fix_place が直しの在りかに読む"""
     files = set(files)
     doc = _load(b)
     hit = [r for r in doc["items"] if r.get(KIND_FIELD) == QUERY_HITS_FIXED and not r.get(REVERTED_FIELD)
@@ -964,8 +964,11 @@ def _row_place(row) -> str:
 def fix_place(rows) -> str:
     """1 単位の人に回した行（か裁定へ回した行）の全部 rows から、その単位の直しの在りか: 案の直しを諦めた行は KEPT（直した分は
     作業ツリーに残した）、query_hits_fixed は IN_DIFF（直してから申し出る。機械が名指しのファイルを戻した行は REVERTED）、ほかは
-    LEFT。行ごとの在りかが揃わなければ LEFT（直していない直しを差分に在ると言わない）"""
+    LEFT。KEPT の行が 1 つでも在れば KEPT（修正役に戻すなと約束した直しが木に在る。GAVE_UP_PROMISE）。ほかに行ごとの在りかが
+    揃わなければ LEFT（直していない直しを差分に在ると言わない）"""
     got = {_row_place(r) for r in rows}
+    if KEPT in got:
+        return KEPT
     return got.pop() if len(got) == 1 else LEFT
 
 

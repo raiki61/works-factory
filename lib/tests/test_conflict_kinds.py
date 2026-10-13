@@ -373,6 +373,18 @@ class TestReplanState(unittest.TestCase):
         unruled = fake_with_rows([{**query, "ruling": None, "status": "parked"}, {**broke, "ruling": None, "status": "parked"}])
         self.assertEqual(fixboard.parked_reasons(unruled.dir, [CLAMP]), {CLAMP: fixboard.PARKED_FOR_RULING})
 
+    def test_gave_up_row_keeps_the_unit_fix_in_the_tree(self):
+        """諦めた fix_plan_item の行（修正役に直した分を戻すなと約束した。GAVE_UP_PROMISE）と別の ask_human の行が同じ単位に並ぶ時、
+        単位の直しの在りかは KEPT で、関所の両方の行が直した分を作業ツリーに残したと言う（直さずに残したと言わない）"""
+        b = fake_with_rows([row("c1-1", CLAMP, "fix_plan_item", state="waiting"),
+                            {**row("c1-2", CLAMP, "ask_human"), "kind": "unnamed_test_broke"}])
+        conflict.set_replan(b, ["c1-1"], conflict.GAVE_UP, why="直せなかった")
+        self.assertEqual(conflict.fix_place(conflict.unit_rows(conflict.asked(b), CLAMP)), conflict.KEPT)
+        for line in conflict.human_lines(b):
+            with self.subTest(line):
+                self.assertIn(conflict.HELD_WORK_KEPT, line)
+                self.assertNotIn(conflict.UNFIXED_LEFT, line)
+
     def test_fix_place_is_chosen_in_one_place(self):
         """#368: 直しの在りかを種類と控えの欄から選ぶのは conflict.fix_place だけ。読み手は fix_place・place_words を引き、欄を直に見ない"""
         direct = re.compile(r"\bconflict\.(REVERTED_FIELD|FIX_IN_DIFF|UNFIXED_LEFT|FIX_REVERTED|left_words)\b|QUERY_HITS_FIXED\s*\}")
