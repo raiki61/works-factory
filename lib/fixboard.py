@@ -1571,7 +1571,7 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
-                 reply_file: str = "", allowed=(), allowed_rows=(), conflicts=(), worktree: str = "", mismatched=(),
+                 reply_file: str = "", allowed_rows=(), conflicts=(), worktree: str = "", mismatched=(),
                  accept_trace=(), closure=()) -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
@@ -1583,7 +1583,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
     writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
-    を持つ。無ければ None）、allowed は修正の輪の受け付けが通った組の許したテストの変更のパス（allowed_tests）、conflicts は
+    を持つ。無ければ None）、allowed_test_changes は reply の在る組（修正の輪の受け付けが通った組）の allowed_rows のパス、conflicts は
     置き場の申し出の行（conflict.items）。新しい"""
     import fixbeside
     gid = str(group["group_id"])
@@ -1591,13 +1591,14 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
     tdd = tdd if isinstance(tdd, dict) else {"ran": False, "suite": "", "reason": "", "units": []}
     rows = {u.get("unit_key"): u for u in tdd.get("units") or [] if isinstance(u, dict)}
     reply = reply if isinstance(reply, dict) else None
+    permits = [r for r in allowed_rows or [] if isinstance(r, dict)]
     return {"group_id": gid, "unit_ids": keys, "end_tree": end_tree, "start_tree": start_tree,
             "units": [_unit_row(k, fix_units or {}, rows) for k in keys], "tdd": tdd,
             "conflicts": [r for r in conflicts or [] if isinstance(r, dict)],
             "objection": objection([reply] if reply else []),
             "changed": changed_marks([{"changed": reply}] if reply else []), X_SCALARS: x_scalars([reply] if reply else []),
-            "allowed_test_changes": sorted({p for p in allowed or [] if isinstance(p, str) and p}),
-            "allowed_tests": [r for r in allowed_rows or [] if isinstance(r, dict)],
+            "allowed_test_changes": sorted({r["path"] for r in permits}) if reply is not None else [],
+            "allowed_tests": permits,
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
             "worktree": str(worktree or ""), "handoffs": handoff_lines([reply] if reply else []),
             "mismatched": list(mismatched),
