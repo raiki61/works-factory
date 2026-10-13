@@ -1073,7 +1073,7 @@ MATERIAL_TREE_FILE = "material-tree.json"
 DIAGNOSE_TREE_FILE = "diagnose-tree.json"
 
 
-def snap_tree(jdir, name: str, repo, *, caches: bool = True) -> pathlib.Path:
+def snap_tree(jdir, name: str, repo, *, caches: tuple = ()) -> pathlib.Path:
     """役を起こす前の作業ツリーの姿（accept.tree_state。caches も同じ）を置き場の name に書く（元 entry.snapshot）"""
     return write_json(pathlib.Path(jdir) / name, core_accept.tree_state(pathlib.Path(repo), caches=caches))
 
@@ -1090,27 +1090,27 @@ def _tree_snapshot(path):
     return {k: snap[k] for k in core_accept.TREE_KEYS}
 
 
-def _caches_in(snap: dict, repo) -> bool:
-    return any(core_accept._is_cache(repo, core_accept._porcelain_path(ln)) for ln in snap["porcelain"].splitlines()) \
-        or any(core_accept._is_cache(repo, n) for n in snap["ignored"])
+def _caches_in(snap: dict, caches: tuple) -> bool:
+    held = [core_accept._porcelain_path(ln) for ln in snap["porcelain"].splitlines()] + snap["ignored"]
+    return any(core_accept._is_test_cache(n, caches) for n in held)
 
 
-def _moved_since(path, repo, *, caches: bool = True, keys=core_accept.TREE_KEYS) -> list:
+def _moved_since(path, repo, *, caches: tuple = (), keys=core_accept.TREE_KEYS) -> list:
     """写し path（_tree_snapshot）から今の作業ツリーが変わった所の文（accept.tree_moved。keys の欄だけを比べる。同じなら空）。写しが
-    無い・読めない・形が違えば Reject。caches=False でも写しがテストのキャッシュを含む時は含めて比べる（caches=True で取った写し
-    は、外した姿と比べると変わっていなくても違って見える）"""
+    無い・読めない・形が違えば Reject。写しが caches に当たる物を含む時は何も除かずに比べる（除かずに取った古い写しは、除いた姿と比べると
+    変わっていなくても違って見える）"""
     snap = _tree_snapshot(path)
     if snap is None:
         raise Reject(f"作業ツリーの写し {path} が無い——役を起こす前の作業ツリーと比べられない（写しを置くノードが先に走る）")
-    return core_accept.tree_moved(snap, pathlib.Path(repo), caches=caches or _caches_in(snap, repo), keys=keys)
+    return core_accept.tree_moved(snap, pathlib.Path(repo), caches=() if _caches_in(snap, caches) else caches, keys=keys)
 
 
-def _tree_unchanged(jdir, repo, rule: str, name: str, *, caches: bool = True, rev: str = "",
+def _tree_unchanged(jdir, repo, rule: str, name: str, *, caches: tuple = (), rev: str = "",
                     keys=core_accept.TREE_KEYS) -> None:
     """元 works/.shared/core/premises.py:44 と purpose.py:57 の _tree_unchanged。役が作業ツリーと履歴を変えていないか。
     置き場に役を起こす前の姿 name が在れば今と比べ（accept.tree_moved。HEAD・枝・git が無視するパスも見る）、
     無ければ作業ツリーが綺麗で、rev を渡せば HEAD が rev のままであることを求める。違えば Reject。
-    caches=False（前提の実測役）はテストのキャッシュを数えない（_moved_since）。keys は写しと比べる欄（_moved_since）"""
+    caches（前提の実測役は test_caches）に当たるテストのキャッシュは数えない（_moved_since）。keys は写しと比べる欄（_moved_since）"""
     if _tree_snapshot(pathlib.Path(jdir) / name) is None:
         now = core_accept.tree_state(repo, caches=caches)
         dirty = now["porcelain"].splitlines() + [f"!! {n}" for n in now["ignored"]]
@@ -1177,7 +1177,7 @@ def check_premises(reply: dict, jdir, repo, items: list) -> dict:
             rev = core_accept.resolve_rev(repo_p, "")
             # 実測役は測るために Bash を持つが、作業ツリーは変えない約束（後ろの判定はこの後の作業ツリーを写し、
             # 修正の差分は版からの差分で数える——ここで残った物は修正役の差分に混じる）
-            _tree_unchanged(jdir, repo_p, PREMISES_RULE, TREE_FILE, caches=False, rev=rev)
+            _tree_unchanged(jdir, repo_p, PREMISES_RULE, TREE_FILE, caches=test_caches(jdir), rev=rev)
             measured_needs_output(_purpose.PREMISES_NODE, copy.deepcopy(reply))
         write_json(pathlib.Path(jdir) / _premises.PREMISES_FILE, with_carried(reply, jdir))
         return {"ok": True, "reason": ""}
@@ -1940,7 +1940,7 @@ def material_route(jdir, repo) -> dict:
         write_json(j / MATERIAL_ROUTE_FILE, {"roles": {}, "fill": {}, "reason": reason})
         return {**off, "reason": reason}
     if not (j / MATERIAL_TREE_FILE).is_file():
-        snap_tree(j, MATERIAL_TREE_FILE, repo, caches=False)
+        snap_tree(j, MATERIAL_TREE_FILE, repo, caches=test_caches(j))
     view = due_view(start, _purpose_of(j), doc["changed_files"])
     got = due_roles(view)
     fill = {}
@@ -2552,7 +2552,7 @@ def material_take(jdir, role: str, reply: dict, repo, *, keys=core_accept.TREE_K
         if not isinstance(reply, dict):
             raise Reject("返答が JSON のオブジェクトでない")
         j, repo_p = pathlib.Path(jdir), pathlib.Path(repo)
-        moved = _moved_since(j / MATERIAL_TREE_FILE, repo_p, caches=False, keys=keys)
+        moved = _moved_since(j / MATERIAL_TREE_FILE, repo_p, caches=test_caches(j), keys=keys)
         if moved:
             raise Reject(f"{READONLY_MOVED}素材集めの役は対象の作業ツリー・HEAD・枝・git が無視するファイルを"
                          f"変えてはいけない（{'・'.join(moved)}）{_peers_note(j, role)}")
@@ -3134,7 +3134,7 @@ def spec_answer(jdir, root, raw) -> dict:
         why = "仕様を固められない: " + "; ".join(got["problems"])
         write_stop(jdir, SPEC_STOP, why)
         return {"go": False, "reason": why}
-    snap_tree(jdir, TREE_FILE, root, caches=False)   # 仕様の役が書いた受け入れテストを、後ろの読むだけの役が変えた物と数えない
+    snap_tree(jdir, TREE_FILE, root, caches=test_caches(jdir))   # 仕様の役が書いた受け入れテストを、後ろの読むだけの役が変えた物と数えない
     return {"go": True, "reason": ""}
 
 
@@ -3541,7 +3541,7 @@ def prcheck_take(jdir, reply, repo) -> dict:
     if posted:
         return {"ok": False, "reason": NO_POST + ", ".join(posted)}
     try:
-        moved = _moved_since(jdir / TREE_FILE, repo, caches=False)
+        moved = _moved_since(jdir / TREE_FILE, repo, caches=test_caches(jdir))
     except Reject as e:
         return {"ok": False, "reason": str(e)}
     head = _tree_snapshot(jdir / TREE_FILE)["head"]
@@ -3680,6 +3680,7 @@ REQUEST_FILE = "request.json"      # 依頼の行（check_request が通した�
 CARRIED_FILE = "carried-constraints.json"   # 依頼が運んだ前の run の前提の検算の実測（carry.CONSTRAINTS の行。check_premises が制約に足す）
 TREE_FILE = "judge-tree.json"      # 入口の時（仕様の段が在れば承認の後）の作業ツリーの姿（accept.tree_state。テストのキャッシュを除く）。並行 PR と前提の受け付けが比べる
 STOP_FILE = "stop.json"            # 止めの控え {stop_reason, reason}。最初に止めた節の物だけ残す
+TEST_CACHES_FILE = "test-caches.json"   # 入口の節の with: の test_caches（テストのキャッシュの名の形。accept.TEST_CACHES に足す）
 DEFAULT_FEATURES_CUT = ["judge_verify"]   # 今の works の入口の既定（判定の裏取りは既定で切）
 
 
@@ -3746,10 +3747,19 @@ def request_container(view: dict, repo):
     return carry.parts(doc), path
 
 
-def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None) -> dict:
+def test_caches(jdir) -> tuple:
+    """読むだけの役の見張りが数えないテストのキャッシュの名の形（accept.TEST_CACHES と、入口が置いた TEST_CACHES_FILE）。読めなければ Reject"""
+    try:
+        return core_accept.TEST_CACHES + tuple(read_json(pathlib.Path(jdir) / TEST_CACHES_FILE, []))
+    except ValueError as e:
+        raise Reject(str(e)) from None
+
+
+def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None, caches=()) -> dict:
     """入口の節（intake）。再審の道（objection が空でない）は判定の置き場に触らずに mode: rejudge を返す。判定の道は、始めの記録を
     既定の値で読んで置き（START_FILE）、依頼の行を型に通して置き（REQUEST_FILE。元 accept.check_request）、前の run の失敗の行
-    （依頼の容器の prior_failures と、入力 prior_failures の先の JSON prior の行（prior_of））を lib/carry.place_prior で 1 度だけ置き、作業ツリーの姿を置く（TREE_FILE）。
+    （依頼の容器の prior_failures と、入力 prior_failures の先の JSON prior の行（prior_of））を lib/carry.place_prior で 1 度だけ置き、
+    テストのキャッシュの名の形 caches（入口の節の with: の test_caches）を TEST_CACHES_FILE に置き、作業ツリーの姿を置く（TREE_FILE。キャッシュを除く）。
     通らなければ止めの控えに依頼の語を書き go: false（AI を 1 つも起こさない）。機能の切り替えは始めの記録の features_cut、
     仕様の段は始めの記録の input.spec。返りは INTAKE_FILE にも書く（後ろの節は with: で結ばずにここを読む）"""
     jdir, rdir = pathlib.Path(jdir), pathlib.Path(rdir)
@@ -3772,7 +3782,10 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None
         write_json(jdir / REQUEST_FILE, rows)
         write_json(jdir / CARRIED_FILE, container[carry.CONSTRAINTS])
         carry.place_prior(jdir, [*container[carry.PRIOR], *prior_of(prior)])
-        snap_tree(jdir, TREE_FILE, repo, caches=False)
+        if not isinstance(caches, (list, tuple)) or not all(isinstance(c, str) and c and "/" not in c for c in caches):
+            raise ValueError(f"テストのキャッシュの名の形 {caches!r} が / を含まない字の並びでない")
+        write_json(jdir / TEST_CACHES_FILE, list(caches))
+        snap_tree(jdir, TREE_FILE, repo, caches=test_caches(jdir))
     except (ValueError, OSError, Reject) as e:
         reason = " ".join(str(e).split())
         write_stop(jdir, REQUEST_STOP, reason)
