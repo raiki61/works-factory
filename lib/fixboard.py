@@ -29,6 +29,7 @@
 import json
 import os
 import pathlib
+import posixpath
 import types
 
 import gatemarks
@@ -807,7 +808,6 @@ def touched_since(repo, tree: str, skip=()) -> list:
 def declared_files(replies) -> list:
     """受け付けた修正役の返答（dict の並び）の changes[].files を、リポジトリの根からの相対に揃えた並び（重ねない・名の順）。
     形の違う行は ValueError。元 works/blk-fix/scripts/assert_changed.py の declared_files"""
-    import posixpath
     out = set()
     for reply in replies:
         changes = reply.get("changes") if isinstance(reply, dict) else None
@@ -1478,14 +1478,19 @@ def _bodies(text, rel: str) -> dict:
     return {tddloop._id_base(i): body for i, body in tddloop.test_functions(text, rel).items()}
 
 
+def test_file(f) -> str | None:
+    """TDD の輪の単位の test_files の要素の決まり: 空でない文字列を posixpath.normpath で整えたパス（ほかは None）。書き手
+    tddloop の確かめ（要素が 1 つでも外れれば並びごと拒む）と読み手 unit_test_files（外れた要素を落とす）がここから引く"""
+    return posixpath.normpath(f.strip()) if isinstance(f, str) and f.strip() else None
+
+
 def unit_test_files(unit) -> list:
-    """TDD の輪の単位の行の test_files のうち、空でない文字列だけを posixpath.normpath で整えた並び（子の result.json の写しも読む口。
+    """TDD の輪の単位の行の test_files のうち、決まり（test_file）に合う要素だけを整えた並び（子の result.json の写しも読む口。
     並びでない test_files は空、形の違う要素は落とす）"""
-    import posixpath
     files = (unit or {}).get("test_files")
     if not isinstance(files, list):
         return []
-    return [posixpath.normpath(f.strip()) for f in files if isinstance(f, str) and f.strip()]
+    return [p for p in map(test_file, files) if p]
 
 
 def _moved_tests(repo, tree: str, units, shared: set) -> list:
@@ -2628,7 +2633,6 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     もう 1 回走り（fixrules.prep が consult.queued を見て作業ツリーを変えずに前の返答と同じ JSON を返させる続きの指示書だけを書く。
     受け付けの回には数えない）、その周の consult-check（consult_ask）が積んだ頼みを答えの役に回し、その周の受け付けは相談の周として
     回らない。答えの後の周の受け付けが、ここで聞いた物を戻すか（allow なら範囲に入って行が消える）を選ぶ"""
-    import posixpath
     import conflict
     import consult
     import factchecks
