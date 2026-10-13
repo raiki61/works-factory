@@ -39,10 +39,12 @@ import skip_value
 
 POINTER_TYPE = "archon_artifact"
 LINE_SCRIPT = "works:line-script"
-# JSON として読まない欄（field）。型の正本は出す節の output_format で、Archon が返りを照らす。これは受け手の読み方の表: Archon は字の欄を
-# 字のまま、ほかを JSON の字で渡し、空の字は字の "" と null の欄のどちらでも届くので、字だけからは決まらない（"" を None に読むと
-# 返す節の中の誤りの by "" と返らなかった by が見分けられない）。run の中の script は出す節の output_format を読めない（YAML を読む
-# パッケージを持たない。workflows/AGENTS.md の E7 の dependencies = []）ので、受け手がここで名指す
+# JSON として読まない欄（field）。出す節の output_format が字（string）と型づける返りの欄を受け手が手で写した表で、型の正本は
+# output_format（Archon が返りを照らす）。写しを残すのは、run の中の script が output_format を読めず（YAML を読むパッケージを持たない。
+# workflows/AGENTS.md の E7 の dependencies = []）、Archon が字の欄を字のまま・ほかを JSON の字で渡して空の字は字の "" と null の欄の
+# どちらでも届くので、届いた字だけからは決まらないため（"" を None に読むと返す節の中の誤りの by "" と返らなかった by が見分けられず、
+# line/scripts/ask_final.py の最後の関所の字が変わる）。output_format と揃えるものは無く、字の欄を足して此処に足し忘れると、その欄の
+# "" は None に、"1" は数に読まれる
 TEXT_FIELDS = ("mode", "red_cause", "stop_reason", "objection", "rejudge_verdict", "hash", "reason", "unread", "by", "suites_line", "log",
                "baseline_line")
 
