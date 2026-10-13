@@ -253,7 +253,7 @@ flowchart TB
 - 入力（`with:`）:
   - `start` ← `$start.output.record`
   - `baseline` ← `$test-gate-base.output.baseline`
-  - `units`・`judgment`・`world` ← `$judge.output.<同じ名>`
+  - `units`・`judgment` ← `$judge.output.<同じ名>`
   - `plan`・`ripple`・`depth` ← `$plan-rounds.output.<同じ名>`
   - `answers` ← `$answer-before-fix.output.answer`（修正前の承認ノードの答え `{decision, text, asked}`。`asked` は承認ノードに載せた項目の行（`$ask-before-fix.output.asked`）で、fix はこの行が頭で始まる問いを人が答えたと読み、問いの単位を直す義務に戻す（`lib/gatemarks.py` の `gate_items`）。承認ノードが開かなかった run は null）
   - 直す義務は `lib/gatemarks.py` の `duty`（開いた単位 − 答えの無い承認ノードの問いの出どころ・depends ＋ 承認ノードか依頼の answers が答えた問いの出どころ・depends。plan の 1 回目の周の必ず入れる単位と同じ口）から、直す裁定でない裁定の単位を除いた物。依頼の answers の当ては判定の結びと素材の状態を読むので、fix の prep は `judgment` の隣の `answer-ties.json`・`materials.json` を在れば置き場に写す

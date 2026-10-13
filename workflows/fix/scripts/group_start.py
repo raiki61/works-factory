@@ -43,7 +43,7 @@ import tree_run  # noqa: E402
 import writelog  # noqa: E402
 
 NO_UNITS = "組に単位が無い——TDD のループを回さない"
-INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "world", "depth", "answers", "units", "only_items", "baseline",
+INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "depth", "answers", "units", "only_items", "baseline",
           "prior_conflicts", "notes")   # 単独の run が節 prep と同じ写しを置くのに読む入力
 
 

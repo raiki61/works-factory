@@ -24,7 +24,7 @@
 - _owed_rows・_read_value・_brief・_plan_items・_fix_report・tie_items・hole_ties: 差分の審査と手直しの材料（元
   works/.shared/core/refix.py:189・197・219・340・362・291・308。盤面の読みを置き場のファイルと引数の値で受ける）
 
-外のパッケージは使わない（startrec・gatemarks・jsonfile・worldmark のほかの lib の部品は、使う関数の中で import する）。
+外のパッケージは使わない（startrec・gatemarks・jsonfile のほかの lib の部品は、使う関数の中で import する）。
 """
 import json
 import os
@@ -36,7 +36,6 @@ import jsonfile
 import oneline
 import rolekit
 import startrec
-import worldmark
 
 TRACE_FILE = "trace.jsonl"
 ACCEPT_TRACE_FILE = "accept-trace.json"   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
@@ -483,7 +482,7 @@ NOT_DECLARED = ("修正役は済んだと言ったが、触ったファイルを
 
 
 def prep(folder, worktree, raw: dict, parsed, located) -> dict:
-    """入力の字 raw（{入力の名: 字}。start・judgment・plan・plan_review・ripple・world・depth・answers・units・only_items・baseline・
+    """入力の字 raw（{入力の名: 字}。start・judgment・plan・plan_review・ripple・depth・answers・units・only_items・baseline・
     prior_conflicts・notes。無い名は空）を置き場 folder に写し、始めの記録（startrec.adopt。字のまま）・git が無視するファイルの控え・
     始めの木を取り、組を作って返す（置く物と返りの形は fix の節 prep の docstring）。parsed は入力の字を値に戻す口（境の口の parsed）、
     located はポインタの入力の字を置き場の中のパスに戻す口（境の口の pointed）。どちらも null・空の字を None と読む。fix の節 prep と、単独の run の組の子の頭（節 group-start。ポインタは自分の run の物）が同じ写しを置くのに
@@ -542,9 +541,6 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     ripple = read_pointed("ripple")
     if ripple is not None:
         write_json(folder / RIPPLE_FILE, ripple)
-    world = pointed("world")
-    if world is not None:
-        worldmark.rows(world)
     for name, file in (("depth", DEPTH_FILE), ("answers", ANSWERS_FILE), ("units", UNITS_FILE)):
         got = value(name)
         if got not in (None, "", [], {}) or name == "units":
