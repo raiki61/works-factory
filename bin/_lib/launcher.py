@@ -34,7 +34,8 @@ FENCE = ROOT / "workflows" / ".shared" / "fence.py"
 CLAUDE_BIN_ENV = "CLAUDE_BIN_PATH"   # Archon が起こす claude の実行ファイル（packages/providers/src/claude/binary-resolver.ts）
 # Archon が起きた場所から読む env のファイル。.env* が名指す鍵は env から消し（packages/paths/src/strip-cwd-env.ts）、.archon/.env の
 # 値で env を上書きする（packages/paths/src/env-loader.ts。CLAUDE_BIN_PATH は拒む鍵に無い）。--detach の子は --cwd の場所で起きる
-# （packages/cli/src/commands/workflow.ts の spawnDetachedWorkflowRun）
+# （packages/cli/src/commands/workflow.ts の spawnDetachedWorkflowRun）。<ARCHON_HOME>/.env も上書きで読む（env-loader.ts の
+# loadArchonEnv。archon setup の既定の書き先で、claude の置き場を CLAUDE_BIN_PATH に書く）
 ARCHON_CWD_ENV_FILES = (".env", ".env.local", ".env.development", ".env.production", ".archon/.env")
 # 役の sandbox の Bash が書ける置き場（Claude の一時の置き場）。家・対象・取り置きがこの下だと、役が書き込みの記録・控え・DB・
 # 対象の .git・取り置いた Archon の源（次の起動が sandbox の外で起こす）を書き換えられる。形は今の works の dev/guard.sh の
@@ -108,7 +109,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
 
     executing = len(argv) > 1 and argv[0] == "workflow" and argv[1] in EXECUTING
     if executing:
-        refuse_bin_override([here, here / (flag_value(flags, "--cwd") or "."), target])
+        refuse_bin_override([where / name for where in dict.fromkeys([here, here / (flag_value(flags, "--cwd") or "."), target])
+                             for name in ARCHON_CWD_ENV_FILES] + [Path(child["ARCHON_HOME"]) / ".env"])
     if executing and not no_auth:
         check = subprocess.run([*auth, "check", *auth_user], env=user, stdout=subprocess.PIPE, text=True,
                                encoding="utf-8")
@@ -270,14 +272,13 @@ def real_claude(user: Mapping[str, str]) -> str | None:
     return user.get(CLAUDE_BIN_ENV) or on_absolute_path("claude", user.get("PATH", ""))
 
 
-def refuse_bin_override(places: list[Path]) -> None:
-    """Archon が起きる場所の env のファイルが CLAUDE_BIN_PATH を名指すなら止める。名指されると Archon は殻が向けた包みの殻を
+def refuse_bin_override(env_files: list[Path]) -> None:
+    """Archon が起きる時に読む env のファイルが CLAUDE_BIN_PATH を名指すなら止める。名指されると Archon は殻が向けた包みの殻を
     消すか置き換え、読むだけの役が柵の無い claude で起きる"""
-    for where in dict.fromkeys(places):
-        for name in ARCHON_CWD_ENV_FILES:
-            if names_key(where / name, CLAUDE_BIN_ENV):
-                raise Stop(f"{where / name} が {CLAUDE_BIN_ENV} を名指す。Archon が書き込みの柵の包みを外すので、そこから消して"
-                           f"殻を起こす env に {CLAUDE_BIN_ENV} を置く")
+    for env_file in env_files:
+        if names_key(env_file, CLAUDE_BIN_ENV):
+            raise Stop(f"{env_file} が {CLAUDE_BIN_ENV} を名指す。Archon が書き込みの柵の包みを外すので、そこから消して"
+                       f"殻を起こす env に {CLAUDE_BIN_ENV} を置く")
 
 
 def names_key(path: Path, key: str) -> bool:

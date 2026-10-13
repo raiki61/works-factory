@@ -495,11 +495,12 @@ class LauncherTest(unittest.TestCase):
                                os.path.realpath(self.fake / "claude")})
 
     def test_env_file_naming_claude_bin_path_stops_the_run(self):
-        """Archon が起きる場所の .env* か .archon/.env が CLAUDE_BIN_PATH を名指すと、包みが外れるので起こさない"""
+        """Archon が起きる場所の .env* か .archon/.env、ARCHON_HOME の .env が CLAUDE_BIN_PATH を名指すと、包みが外れるので起こさない"""
         for where, name, line in ((self.target, ".archon/.env", "CLAUDE_BIN_PATH=/usr/local/bin/claude"),
                                   (self.target / "sub", ".env.local", "export CLAUDE_BIN_PATH = /x"),
-                                  (self.target, ".env", "CLAUDE_BIN_PATH:")):
-            with self.subTest(file=name):
+                                  (self.target, ".env", "CLAUDE_BIN_PATH:"),
+                                  (self.default_home(self.target) / "archon-home", ".env", "CLAUDE_BIN_PATH=/usr/local/bin/claude")):
+            with self.subTest(file=str(where / name)):
                 env_file = put(where / name, f"A=1\n{line}\n")
                 err = self.stopped(self.launch("workflow", "run", "works-factory-line", cwd=self.target / "sub"))
                 env_file.unlink()
