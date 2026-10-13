@@ -140,7 +140,8 @@ def _loop_freeze(board, state) -> tuple:
 def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: Path, state: str, pass_: str,
                      agreed=None, ask=None, since=None, made=(), *, items=None, consult_place=None) -> tuple:
     """承認済みの修正案の項目と差分の照らし（planscope.check）。行は changes と keys（単位の名前）を並べ、files を根からの相対に
-    揃えた物。変わったパスは版からの変更（writes.changed）から実行器が作ったファイル（tddloop.suite_made）を除いた物。TDD の輪が
+    揃えた物。変わったパスは版からの変更（writes.changed）と since からの変更（版と同じ中身に戻した・版に無く since の後に消した
+    ファイルも修正役に問う）の和から、実行器が作ったファイル（tddloop.suite_made）を除いた物。TDD の輪が
     凍らせたファイル（輪の状態の frozen と frozen_tree）は planscope.check に渡し、欠けは版からの
     差分の全部で、修正役に問う外れと余分は凍った後に変えた分だけで見させる。
     返り (拒否の行（最初の行の頭に planscope.reject_head）, 記録)。盤面は書かない（控えの食い違いで止めるのは planscope.check）。
@@ -157,7 +158,8 @@ def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: 
     rows = [{"unit_key": k, "files": sorted(declared_files([c], repo))} for c, k in zip(reply.get("changes") or [], keys)]
     made = set(tddloop.suite_made(state)) | tddloop.suite_made_all(board) | set(made)
     rev = fixboard.base_rev(None, base_rev)
-    paths = [p for p in writes.changed(repo, rev) if p not in made]
+    changed = set(writes.changed(repo, rev)) | set(writes.changed_from(repo, since) if since else ())
+    paths = sorted(p for p in changed if p not in made)
     tree, frozen = (since, paths) if since else _loop_freeze(board, state)
     problems, note = planscope.check(rows, b, repo, rev, paths, pass_=pass_, loop_tree=tree, frozen=frozen,
                                      agreed=agreed, items=items)

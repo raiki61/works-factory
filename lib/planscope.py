@@ -296,7 +296,7 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
     裁定で外れた単位の項目も範囲を与える（依頼 241。外れた単位を直させない守りは受け付けの check_excused_units）。
     permits のパスは 1 でも範囲に入る。out_of_scope は permits にも勝つ（1・2 とも先に見る）。ただし範囲の相談の合意でその項目の
     out_of_scope から外したパス（with_agreed の LIFTED）は、その項目の out_of_scope に当たらない（1・2 とも）。
-    loop は修正役が変え始めた時の中身（パス → check の loop_tree の木の中身。無ければ None）。規則は 1 本: 欠け（Missing）の証拠は版からの差分の
+    loop は修正役が変え始めた時の中身（パス → check の loop_tree の木の中身。None はその木にも今も無いファイル）。規則は 1 本: 欠け（Missing）の証拠は版からの差分の
     全部（changes）で見て、修正役に問う外れと余分（1・2・6 の Extra・canonical の外の定義）は凍った後に修正役が変えた分だけ
     （凍った時の中身と今の中身の差分）で見る。凍った後に変わっていないファイルは 1・2 で照らさない"""
     permits, loop = set(permits), dict(loop or {})
@@ -453,4 +453,6 @@ def check(rows: list[dict], b, repo: pathlib.Path, rev: str, paths: list[str], *
     items = with_agreed(items, agreed)
     changes = {p: (_base_text(repo, rev, p), _now_text(repo, p)) for p in paths}
     loop = {p: _base_text(repo, loop_tree, p) for p in paths if p in set(frozen)} if loop_tree else {}
+    # 今在るのに読めないファイル（_now_text の None）を、loop_tree に無く今も無い物と取り違えない
+    loop = {p: t for p, t in loop.items() if t is not None or not (pathlib.Path(repo) / p).exists()}
     return problems(items, rows, changes, permits=tuple(permits), loop=loop)
