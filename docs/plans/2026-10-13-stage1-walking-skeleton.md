@@ -138,7 +138,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
 - 試験 `tests/e2e/test_evidence.py`（先に赤）:
   - `EvidenceTableCase.test_every_inventory_row_is_in_the_table`（棚卸しの `line.md`・`judge.md`・`plan.md`・`fix.md`・`tail.md` の区分 L・J・P・F・T・E・R・M の行の ID の集合 = 表の ID の集合）
   - `EvidenceTableCase.test_every_row_has_a_known_kind_and_fields`
-  - `EvidenceTableCase.test_scenario_only_rows_match_the_inventory`（棚卸しが「筋書きでのみ」で始まる行は `scenario-only`。「筋書きでのみ」を含まない行は `scenario-only` でない。部分は全部 main に入ったので、「筋書きでのみ」を含む行は `waits-part` に残らない。`scenario-only` の行の `why` は棚卸しの字か、基準で移した訳）
+  - `EvidenceTableCase.test_scenario_only_rows_match_the_inventory`（棚卸しが「筋書きでのみ」で始まる行は `scenario-only`。「筋書きでのみ」を含まない行は `scenario-only` でない。部分は全部 main に入ったので、「筋書きでのみ」を含む行は `waits-part` に残らない。`scenario-only` の行の `why` は棚卸しの字か、基準で移した訳。基準で移した行は棚卸しの欄も「本物の通しの照らしの外」に直っている）
   - `EvidenceTableCase.test_waits_part_rows_are_closing_rows_of_that_part`（`waits-part` の行が線の配線の文書のその部分の「閉じる行」に在る。その部分の閉じる行のうち `scenario-only` でない行は全部 `waits-part`。本物の run の記録で置き場を決めた行を移す時に、この試験も合わせて直す）
   - `EvidenceTableCase.test_node_rules_name_node_ids_the_workflow_makes`（run の記録の節を照らす行が `node-completed` で、node が線と fix の YAML から組んだ節の id そのもの）
   - `EvidenceTableCase.test_seen_rows_name_a_writer_in_the_repository`（`seen` の行の `writer` が `lib/`・`workflows/`・`bin/` のコードの行で、そのファイルのコードの字（コメント・docstring・`.md` を除く）に where のファイル名かその名を作る定数が在る。決める行は保存の行から離れうるので、行の近くでなくファイルで見る。where の頭のフォルダの名も書き手かそのブロックのコードに在る。名を組んで書く・名の表から引く置き場は名を作る行を名指し、名の照らしだけを外す。run の記録の節の行の writer はその節の id を置く YAML の行）

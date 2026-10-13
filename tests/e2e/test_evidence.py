@@ -26,6 +26,8 @@ ROW_ID = r"(?:L-[EGWD]|[JPFTERM])\d+[a-z]?"
 SCENARIO_ONLY = "筋書きでのみ"
 # 基準で seen から移した scenario-only の行の why の頭（棚卸しの字でなく移した訳を持つ）
 OUT_OF_REAL_RUN = "本物の通しの照らしの外（#261 の決め直し）: "
+# 基準で移した行の棚卸しの「本物の run」の欄の字（筋書きでのみ（本物の通しの照らしの外。在れば <元の名指し>））
+OUT_OF_REAL_RUN_MARK = "本物の通しの照らしの外"
 # 照らしの where の run の記録 → その run の工程（親は線、子は fix の組ごとの子の run）
 RECORDS = {"record/parent.json": "works-factory-line", "record/child-*.json": "works-factory-fix"}
 OUTSIDE = "この文書の外"
@@ -222,7 +224,9 @@ class EvidenceTableCase(unittest.TestCase):
         self.assertEqual(self.kind_of("waits-part") - never, set(), "棚卸しが筋書きでのみと書く行が部分を待っている")
         for i in sorted(scenario_only):
             with self.subTest(row=i):
-                if not self.by_id[i]["why"].startswith(OUT_OF_REAL_RUN):
+                if self.by_id[i]["why"].startswith(OUT_OF_REAL_RUN):
+                    self.assertIn(OUT_OF_REAL_RUN_MARK, self.inventory[i], "基準で移した行の棚卸しの欄が直っていない")
+                else:
                     self.assertEqual(self.by_id[i]["why"], self.inventory[i], "欄 why が棚卸しの字でない")
 
     def test_waits_part_rows_are_closing_rows_of_that_part(self):
