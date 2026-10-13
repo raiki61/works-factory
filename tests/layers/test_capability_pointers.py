@@ -10,7 +10,7 @@ import pathlib
 import re
 import unittest
 
-import yaml
+from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 INVENTORY = ROOT / "docs" / "plans" / "2026-10-13-capabilities"
@@ -71,17 +71,7 @@ def python_names(path: str) -> frozenset[str]:
 
 @functools.cache
 def yaml_node_ids(path: str) -> frozenset[str]:
-    def ids(value):
-        if isinstance(value, dict):
-            if isinstance(value.get("id"), str):
-                yield value["id"]
-            for v in value.values():
-                yield from ids(v)
-        elif isinstance(value, list):
-            for v in value:
-                yield from ids(v)
-
-    return frozenset(ids(yaml.safe_load((ROOT / path).read_text(encoding="utf-8"))))
+    return frozenset(scan._top(node, "id").value for node in scan.nodes(ROOT, path))
 
 
 def missing(want_tests: bool) -> list[str]:
