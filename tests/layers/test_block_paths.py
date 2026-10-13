@@ -71,7 +71,8 @@ class BlockPathsTest(unittest.TestCase):
         text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         listed = re.search(r"<サブグラフ>/\s+(\S+) の \d+ つ", text)[1].split("・")
         self.assertIn("── line/", text)
-        self.assertEqual(sorted(scan.BLOCKS), sorted(["line", *listed]))
+        self.assertIn("── chain/", text)
+        self.assertEqual(sorted(scan.BLOCKS), sorted(["line", "chain", *listed]))
 
     def test_block_only_on_disk_counts_as_other(self):
         files = {"workflows/judge/scripts/a.py": 'X = "workflows/newblock/out.json"\n', "workflows/newblock/x": ""}

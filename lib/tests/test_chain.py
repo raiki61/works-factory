@@ -1,6 +1,6 @@
 """周の鎖の決め lib/chain.py と、結末の種の表 report.OUTCOME_KINDS の検査（純粋な関数を直に呼ぶ。ファイル・git は使わない）。
 
-元 works/tests/test_chain.py（raiki61/claude-plugins の 2aa7c66）の Decide・NextRequest・Fences を元の試験名のまま写した。
+今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の works/tests/test_chain.py の Decide・NextRequest・Fences を元の試験名のまま写した。
 起こした次の周の状態を読む 2 本（test_launched_pending_waits_while_child_lives・test_relaunch_is_capped_and_names_the_child_log）は、
 起動と待ちをグラフの側が持つようになったので写さない。
 """

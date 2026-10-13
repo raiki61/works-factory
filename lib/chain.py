@@ -1,6 +1,6 @@
 """周の鎖の決め（考え chain）。標準ライブラリと持ち越しの住処 carry だけを import する。
 
-元は works/.shared/core/chain.py（raiki61/claude-plugins の 2aa7c66）。鎖は、1 回の起動が周ごとの run を最大 MAX_ROUNDS 本つなぐ並び。
+元は今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の works/.shared/core/chain.py。鎖は、1 回の起動が周ごとの run を最大 MAX_ROUNDS 本つなぐ並び。
 起こす・待つ・承認・再開・費用の合算はグラフの側が持ち、ここは周の間の決め（次を起こすか・止めの語・次の依頼）だけを持つ。
 結末の語は書かず、結末の住処 report.OUTCOME_KINDS が引いた種だけを受ける。
 

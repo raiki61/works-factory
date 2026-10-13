@@ -74,7 +74,7 @@ class ArchonValidateTest(unittest.TestCase):
 
     def probe_includes(self, wrap) -> dict[str, list[str]]:
         """ブロックごとに、include の節を wrap で包んだ親の工程を木に足して validate し、誤りか警告の在る親の工程を返す"""
-        names = [folder.name for folder in scan._blocks(ROOT) if f"{scan.OURS_PREFIX}{folder.name}" != scan.OURS["line"]]
+        names = [folder.name for folder in scan._blocks(ROOT) if folder.name not in scan.TOP_FOLDERS]
         with archon.tree(names) as tree:
             placed = tree / ".archon" / "workflows" / archon.PACK["ours"]["pack"]
             for name in names:

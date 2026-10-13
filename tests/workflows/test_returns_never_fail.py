@@ -43,6 +43,8 @@ NEVER_FAIL = {
     ("line", "report"): ALONE_RETURN,
     ("line", "collect"): ALONE_BOUND,
     ("line", "sweep-children"): ALONE_BOUND,
+    ("chain", "chain-start"): ALONE_BOUND,
+    **{("chain", f"round-{k}-decide"): ALONE_BOUND for k in range(1, 6)},
 }
 
 # 境の口を読めない時にも返すため、標準出力へ直に書く script（パス → 訳）
@@ -65,6 +67,9 @@ LIBLESS_EXITS = {
     "workflows/merge/scripts/merge.py": "merge の返す節",
     "workflows/report/scripts/collect.py": "report の返す節",
     "workflows/report/scripts/facts.py": "report の返す節が $facts.output で結ぶ",
+    "workflows/chain/scripts/result.py": "周の鎖の返す節",
+    "workflows/chain/scripts/chain_start.py": "周の鎖の返す節が $chain-start.output で結ぶ",
+    "workflows/chain/scripts/decide.py": "周の鎖の返す節が $round-k-decide.output で結ぶ",
 }
 
 BOUND = re.compile(r"\$([A-Za-z][\w-]*)\.output\b")

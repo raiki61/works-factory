@@ -1,0 +1,12 @@
+# rounds=2。round-1 と round-2 の子がどちらも round_limit で、残りの鍵は別。round-2-decide が rounds_reached で止め、round-3 は飛ぶ。
+fixture:
+  expect: "completed"
+  inputs: {"rounds": "2", "request": "request.json"}
+  reached: ["chain-start", "round-1", "round-1-commit", "round-1-facts", "round-1-decide", "round-2", "round-2-commit", "round-2-facts", "round-2-decide", "result"]
+exec-code: true
+round-1: {"fixed": false, "ok": true, "outcome": "round_limit", "stop_reason": "", "report": null, "report_ai": null, "next_request": {"type": "archon_artifact", "run_id": "child-1", "path": "report/next-request.json"}, "prior_failures": null, "apply": null, "sealed": null, "r2_status": null, "final_answer": null, "children": null}
+round-1-commit: {"ok": true, "changed": true, "head": "1111111111111111111111111111111111111111", "reason": ""}
+round-1-facts: {"ok": true, "error": "", "run": "child-1", "keys": ["k1"], "held_rows": [], "request": "/tmp/chain-fixture/r1/next-request.json", "source": "/tmp/chain-fixture/runs/child-1/report/next-request.json", "cost": 1.5, "cost_read": true}
+round-2: {"fixed": false, "ok": true, "outcome": "round_limit", "stop_reason": "", "report": null, "report_ai": null, "next_request": {"type": "archon_artifact", "run_id": "child-2", "path": "report/next-request.json"}, "prior_failures": null, "apply": null, "sealed": null, "r2_status": null, "final_answer": null, "children": null}
+round-2-commit: {"ok": true, "changed": true, "head": "2222222222222222222222222222222222222222", "reason": ""}
+round-2-facts: {"ok": true, "error": "", "run": "child-2", "keys": ["k2"], "held_rows": [], "request": "/tmp/chain-fixture/r2/next-request.json", "source": "/tmp/chain-fixture/runs/child-2/report/next-request.json", "cost": 1.5, "cost_read": true}
