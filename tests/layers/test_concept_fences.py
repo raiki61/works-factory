@@ -4,7 +4,8 @@
 考えごとに（住処ありも散らばりも）、その考えの語の形（正規表現）が「知ってよい所」と表の exclude の外の追跡されたファイルに
 何行あるかを数え、表の既知の漏れ（ファイル → 件数と理由）とちょうど揃うことを見る。件数が表より増えても・減っても・表に無い
 ファイルが出ても赤（減る向きにだけ動かす）。散らばりの柵は知ってよい所が空の数の歯止め。表そのものも、HEAD と origin/main の
-分かれ目の表より件数の和が増えない（NotAboveMain）。分かれ目を引けなければ見送らずに赤（CI は全履歴を取る）。
+分かれ目の表より件数の和が増えず、考え・柵を消す・知ってよい所や exclude・bound を広げる・語の形を変える緩めも、表の loosened に
+新しい理由の行が無ければ赤（NotAboveMain）。分かれ目を引けなければ見送らずに赤（CI は全履歴を取る）。
 あわせて地図と表の id と状態が揃うこと・どの考えも柵を持つこと・地図に書いたパスが在ることを見る（地図が古くなるのを防ぐ一番安い同期）。
 道具は lib/conceptfence.py（run の中の構造の目も同じ道具を対象の表に当てる）。元 works/tests/test_concept_fences.py。
 """
@@ -89,7 +90,8 @@ class FencesHold(unittest.TestCase):
 
 class NotAboveMain(unittest.TestCase):
     """表そのものが増えない: 考えごとの既知の漏れは、HEAD と origin/main の分かれ目の表より件数の和が増えず、main に無いパスも
-    出ない。main で柵を持たない考え（柵を初めて掛ける差分。分かれ目に表が無い時も）は比べない"""
+    出ない。考え・柵を消す・allowed・exclude・bound を広げる・pattern を変える緩めは、表の loosened に新しい理由の行が無ければ赤。
+    main で柵を持たない考え（柵を初めて掛ける差分。分かれ目に表が無い時も）は比べない"""
 
     def test_known_not_above_main(self):
         fork = cf.fork_ref(ROOT)

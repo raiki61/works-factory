@@ -28,7 +28,7 @@
 - 知ってよい所（allowed places）: 住処のほかに、その考えの語・欄の名・値を書いてよい所。柵が照らす一覧は表 `docs/concepts.json` の `allowed` で、その全部を地図の行（住処・約束・知ってよい所）が字で名指す（試験が照らす）
 - 漏れ（leak）: 知ってよい所の外に、その考えの語・欄の名・値が書かれていること。漏れた所は、考えが変わった時に一緒に直す必要があるのに、誰もそれを知らない所になる
 - 散らばり: 住処の無い考え。同じ考えを複数の所がそれぞれの形で知っている状態
-- 柵（fence）: 漏れを見つける安い試験。考えの語の形（正規表現）と知ってよい所を表に書き、表の外で語が見つかったら赤にする。今ある漏れは「既知の漏れ」として件数と理由つきで表に置き、減らす向きにだけ動かす。道具は `lib/conceptfence.py`
+- 柵（fence）: 漏れを見つける安い試験。考えの語の形（正規表現）と知ってよい所を表に書き、表の外で語が見つかったら赤にする。今ある漏れは「既知の漏れ」として件数と理由つきで表に置き、減らす向きにだけ動かす。分かれ目の表より考えや柵を消す・知ってよい所・`exclude`・`bound` を広げる・語の形を変えるのも赤で、意図した緩めは表の `loosened` に新しい `"<鍵>": "<理由>"` の行を足した時だけ通る。道具は `lib/conceptfence.py`
 - 状態: `住処あり`（住処が在り、柵を掛けられる）か `散らばり`（住処が無い）。どちらも柵を持つ
 - 数の歯止め: 散らばりの考えの柵。知ってよい所が空で、今その考えを知っている所を全部既知の漏れとして件数つきで表に置く。まとめるたびに数が減り、増やす差分は試験が赤にする。表そのものも、`origin/main` から分かれた所の表より既知の漏れの件数の和が増えない
 
@@ -175,7 +175,7 @@
 - 状態: 住処あり
 - 住処: `lib/tddloop.py` の `red_check`（赤の事実の判定。正本 `lib/baseline_red.py` の `red_problems` を中で呼び、役の引用と理由の照らしを足す）と `QUOTES_FIELD`（test の段の返答の欄と単位の記録の欄の名）、ループの記録した赤の木で名指しを走らせ直す `red_rerun`。引用を寄せた後の部分一致で照らす口は `lib/cite.py` の `quoted_in`
 - 約束: 出口の欄 tdd の単位の行 `lib/tddloop.py` の `FIELDS`。役の務めの置き場は `workflows/fix/commands/fix-rules/tdd.md` の test の段（引用と理由を書く務め・走る前の失敗の直し方）
-- 知ってよい所: 住処・赤と緑の判定の正本 `lib/baseline_red.py`（`red_problems` の定義）・`lib/cite.py`・`lib/report.py`（出口 tdd の単位の行を読み、引用と理由を報告の行に並べる）。事後の関門（`lib/fixgates.py`）と試験の関門の script（`workflows/test-gate/scripts/`）は `red_check`・`red_rerun` を呼ぶだけで、赤の式を持たない
+- 知ってよい所: 住処・赤と緑の判定の正本 `lib/baseline_red.py`（`red_problems` の定義）・`lib/cite.py`・`lib/report.py`（出口 tdd の単位の行を読み、引用と理由を報告の行に並べる）・`workflows/fix/works-factory-fix.yaml`（TDD の役の返答の型 `&tdd_reply` が欄 `red_quotes` を宣言する。型の正本は output_format だけ、持ち主の決め `io-in-output-format`）。事後の関門（`lib/fixgates.py`）と試験の関門の script（`workflows/test-gate/scripts/`）は `red_check`・`red_rerun` を呼ぶだけで、赤の式を持たない
 - 今: 外の当たりは 0 件。機械が見るのは言語に依らない事実（名指しが走った・failure で落ちた・名指しの外は元のまま）だけで、「期待どおりの理由で落ちたか」は役が結末の失敗の文を引いて書き、機械は引用が結末の failure の文に在るかだけを照らす
 
 ### `carry-over` 次の run への持ち越し

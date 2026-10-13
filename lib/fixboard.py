@@ -24,7 +24,7 @@
 - _owed_rows・_read_value・_brief・_plan_items・_fix_report・tie_items・hole_ties: 差分の審査と手直しの材料（元
   works/.shared/core/refix.py:189・197・219・340・362・291・308。盤面の読みを置き場のファイルと引数の値で受ける）
 
-外のパッケージは使わない（startrec のほかの lib の部品は、使う関数の中で import する）。
+外のパッケージは使わない（startrec・gatemarks・jsonfile・worldmark のほかの lib の部品は、使う関数の中で import する）。
 """
 import json
 import os
@@ -36,6 +36,7 @@ import jsonfile
 import oneline
 import rolekit
 import startrec
+import worldmark
 
 TRACE_FILE = "trace.jsonl"
 ACCEPT_TRACE_FILE = "accept-trace.json"   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
@@ -538,10 +539,12 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     review = read_pointed("plan_review")
     if review is not None:
         write_json(folder / PLAN_REVIEW_FILE, review)
-    for name, file in (("ripple", RIPPLE_FILE), ("world", WORLD_FILE)):
-        got = read_pointed(name)
-        if got is not None:
-            write_json(folder / file, got)
+    ripple = read_pointed("ripple")
+    if ripple is not None:
+        write_json(folder / RIPPLE_FILE, ripple)
+    world = pointed("world")
+    if world is not None:
+        worldmark.rows(world)
     for name, file in (("depth", DEPTH_FILE), ("answers", ANSWERS_FILE), ("units", UNITS_FILE)):
         got = value(name)
         if got not in (None, "", [], {}) or name == "units":
@@ -761,8 +764,9 @@ def tdd_units(groups, results) -> list:
 
 def cited_rows(rows, repo, roots=()) -> tuple:
     """(名指しが全部現物に在る申し出の行, 落とした行の理由の文)。行は conflict の申し出の形（FIELDS。kind は無くてもよい）で、
-    between の名指しを 1 つずつ cite.problem で照らす（親の作業ツリー repo と roots の下）。元 works/blk-fix/lib/tddlanes.py・
-    fixlanes.py の join の「枝の申し出は盤面の確かめを通った物を積む」所（conflict.problems の名指しの照らし）"""
+    between の名指しを 1 つずつ cite.problem で照らす（親の作業ツリー repo と roots の下）。between が空の機械の諦め
+    （conflict.GAVE_UP_SOURCE。brief の無い run）は照らさずに通す（元 works も機械の諦めは照らさずに積んだ）。元
+    works/blk-fix/lib/tddlanes.py・fixlanes.py の join の「枝の申し出は盤面の確かめを通った物を積む」所（conflict.problems の名指しの照らし）"""
     import cite
     import conflict
     need = [k for k in conflict.FIELDS if k != conflict.KIND_FIELD]
@@ -772,6 +776,9 @@ def cited_rows(rows, repo, roots=()) -> tuple:
             dropped.append(f"申し出[{i}] の欄が足りない（{need}）")
             continue
         cites = r["between"] if isinstance(r["between"], list) else []
+        if not cites and r.get("source") == conflict.GAVE_UP_SOURCE:
+            ok.append(r)
+            continue
         bad = [e for e in (cite.problem(c, repo, roots) for c in cites) if e] if cites else ["between が空"]
         if bad:
             dropped.append(f"申し出[{i}]（{r.get('unit_key')}）: {'；'.join(bad)}")
@@ -972,6 +979,28 @@ def run_diff(repo, base: str = "HEAD", skip=()) -> str:
     return out.stdout.decode("utf-8", "surrogateescape")
 
 
+DIFF_EMPTY = "累積差分は空（{base} から作業ツリーは変わっていない）"
+
+
+def diff_file(repo, base, place, name: str, none_name: str, skip=()) -> tuple[pathlib.Path, str, str]:
+    """(読み手に渡す累積差分のファイル, 差分の本文, 取れなかった訳)。版を引く関数 base の版から run_diff を取って place/name に書く。
+    空・版が引けない・git が落ちた時は訳を place/none_name に書き、そのファイルと空の本文（読み手に空の字を渡さない）。取れなかった訳は
+    版が引けない・git が落ちた時だけ在り、本当に空の時は空の字（「取れない」と「変化なし」を同じ値にしない）"""
+    place = pathlib.Path(place)
+    place.mkdir(parents=True, exist_ok=True)
+    rev, text, why = "", "", ""
+    try:
+        rev = base()
+        text = run_diff(repo, rev, skip)
+    except Exception as e:  # noqa: BLE001  版の読みと git の誤りも訳にして読み手へ渡す
+        why = f"累積差分が取れない（{type(e).__name__}: {oneline.one_line(e)}）"
+    if text.strip():
+        (place / name).write_text(text, encoding="utf-8", errors="surrogateescape")
+        return place / name, text, ""
+    (place / none_name).write_text((why or DIFF_EMPTY.format(base=rev)) + "\n", encoding="utf-8")
+    return place / none_name, "", why
+
+
 # ---------------------------------------------------------------- 差分の審査・レンズ・手直しの節の口（delta・lens・refix の scripts が呼ぶ）
 # 置き場の決まった名（prep が写し、ここが読む）
 GROUPS_FILE = "groups.json"            # {groups: [{group_id, …}], out_dir, start_tree, …}（prep の返りと同じ）
@@ -984,7 +1013,6 @@ PLAN_REVIEW_FILE = "p2.plan_review.json"   # 事前審査の返答の写し（fa
                                            # 修正役の指示書は修正案 PLAN_REPLY_FILE と同じフォルダに在ると書く）
 JUDGMENT_FILE = "judgment.json"        # 判定の写し
 RIPPLE_FILE = "ripple.json"            # 波及の一覧の写し
-WORLD_FILE = "world.json"              # 周りの事実の写し
 ANSWERS_FILE = "answers.json"          # 人の関所の答えの写し（承認の節の出力 {decision, text, asked}）
 UNITS_FILE = "units.json"              # 入力 units の写し
 ONLY_ITEMS_FILE = "only-items.json"    # 直す項目の絞り（入力 only_items。空は全部）
@@ -1453,7 +1481,7 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 
 # ---------------------------------------------------------------- 形 group の子の run（group-start・tdd-loop・group-end の scripts が呼ぶ）
 # 子が親の置き場から自分の置き場に写す入力の写し（prep が書く物。plan-fields.json と凍結の印は adopt_inputs が別に置き直す）
-ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, WORLD_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
+ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
            ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 返りの diff の隣: 許したテストの変更の訳 [{path, permit, source}]（collect が書く。allowed_test_rows）
@@ -1560,18 +1588,19 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
                  reply_file: str = "", allowed_rows=(), conflicts=(), worktree: str = "", mismatched=(),
-                 accept_trace=(), closure=()) -> dict:
+                 accept_trace=(), closure=(), place: str = "") -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
-    allowed_test_changes, allowed_tests, verified, reply_file, tdd_state, worktree, handoffs, mismatched, accept_trace, closure,
-    claimed}。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
+    allowed_tests, verified, reply_file, tdd_state, worktree, handoffs, mismatched, accept_trace, closure,
+    claimed, place}。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
     mismatched_lines（最後の関所を開ける理由）、accept_trace は子の置き場の accept_trace_rows の行（group_id を足す。親の collect が
     diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。fixbeside.closure_rows）と claimed は reply の
     changes の単位（親の collect が diff の隣の fixbeside.CLOSURE_FILE に合わせる）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
-    writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
+    writes.carry_children）。place は子の run の置き場（親の conflict-check がこの組の申し出の名指しに許す根）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
-    を持つ。無ければ None）、allowed_test_changes は reply の在る組（修正の輪の受け付けが通った組）の allowed_rows のパス、conflicts は
+    を持つ。無ければ None）、allowed_tests は reply の在る組（修正の輪の受け付けが通った組）だけ allowed_rows の行（無い組は []。join の和と親の collect の
+    allowed-tests.json・allowed_test_changes が同じ 1 つの欄から読む。受け付けの行は accept_trace に残る）、conflicts は
     置き場の申し出の行（conflict.items）。新しい"""
     import fixbeside
     gid = str(group["group_id"])
@@ -1579,20 +1608,19 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
     tdd = tdd if isinstance(tdd, dict) else {"ran": False, "suite": "", "reason": "", "units": []}
     rows = {u.get("unit_key"): u for u in tdd.get("units") or [] if isinstance(u, dict)}
     reply = reply if isinstance(reply, dict) else None
-    permits = [r for r in allowed_rows or [] if isinstance(r, dict)]
+    permits = [r for r in allowed_rows or [] if isinstance(r, dict)] if reply is not None else []
     return {"group_id": gid, "unit_ids": keys, "end_tree": end_tree, "start_tree": start_tree,
             "units": [_unit_row(k, fix_units or {}, rows) for k in keys], "tdd": tdd,
             "conflicts": [r for r in conflicts or [] if isinstance(r, dict)],
             "objection": objection([reply] if reply else []),
             "changed": changed_marks([{"changed": reply}] if reply else []), X_SCALARS: x_scalars([reply] if reply else []),
-            "allowed_test_changes": sorted({r["path"] for r in permits}) if reply is not None else [],
             "allowed_tests": permits,
             "verified": verified_tests(tdd), "reply_file": str(reply_file or ""), "tdd_state": str(tdd_state or ""),
             "worktree": str(worktree or ""), "handoffs": handoff_lines([reply] if reply else []),
             "mismatched": list(mismatched),
             "accept_trace": [{**r, "group_id": gid} for r in accept_trace or [] if isinstance(r, dict)],
             "closure": None if closure is None else [r for r in closure if isinstance(r, dict)],
-            "claimed": fixbeside.claimed_of(reply)}
+            "claimed": fixbeside.claimed_of(reply), "place": str(place or "")}
 
 
 def adopt_tdd_states(place, results, repo, *, prior: bool = False) -> list:

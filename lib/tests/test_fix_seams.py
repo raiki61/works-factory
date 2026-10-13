@@ -1567,6 +1567,24 @@ class GroupScriptsSeamCase(TempCase):
         self.assertNotIn("vendored", diff)
         self.assertIn("vendored/w.txt", fixboard.run_diff(self.repo))
 
+    def test_diff_file_points_at_the_reason_when_empty_or_unreadable(self):
+        place = self.repo.parent / "place"
+        path, text, why = fixboard.diff_file(self.repo, lambda: "HEAD", place, "x.diff", "x-none.txt")
+        self.assertEqual((path.name, text, why), ("x-none.txt", "", ""))
+        self.assertEqual(path.read_text(encoding="utf-8"), fixboard.DIFF_EMPTY.format(base="HEAD") + "\n")
+
+        def no_base():
+            raise ValueError("起点が無い")
+        path, text, why = fixboard.diff_file(self.repo, no_base, place, "x.diff", "x-none.txt")
+        self.assertEqual(text, "")
+        self.assertIn("ValueError: 起点が無い", why)
+        self.assertEqual(path.read_text(encoding="utf-8"), why + "\n")
+        (self.repo / "stats.py").write_text("X = 1\n", encoding="utf-8")
+        path, text, why = fixboard.diff_file(self.repo, lambda: "HEAD", place, "x.diff", "x-none.txt")
+        self.assertEqual((path.name, why), ("x.diff", ""))
+        self.assertEqual(path.read_text(encoding="utf-8"), text)
+        self.assertIn("b/stats.py", text)
+
     def test_collect_fields(self):
         rows = [{"unit_key": "A", "ruling": {"decision": "fix_plan_item", "plan_items": [2]}},
                 {"unit_key": "B", "ruling": {"decision": "fix_plan_item"}},
@@ -1787,22 +1805,22 @@ class GroupChildSeamCase(TempCase):
                                     allowed_rows=[{"path": "t.py", "permit": "p1", "source": "plan"},
                                                   {"path": "t.py", "permit": "p2", "source": "plan"}])
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
-                                    "objection", "changed", "x_scalars", "allowed_test_changes", "allowed_tests", "verified",
+                                    "objection", "changed", "x_scalars", "allowed_tests", "verified",
                                     "reply_file", "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace", "closure",
-                                    "claimed"})
-        self.assertEqual(got["worktree"], "", "渡さなければ空")
+                                    "claimed", "place"})
+        self.assertEqual((got["worktree"], got["place"]), ("", ""), "渡さなければ空")
         self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"]), ([], [], [], []))
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
         self.assertEqual(got["units"][2]["reason"], fixboard.NO_UNIT_RESULT)
         self.assertEqual(got["objection"], "判定の単位 a は誤り")
         self.assertEqual(got["changed"], {**{k: k == "mechanism_changed" for k in fixboard.CHANGED_MARKS}, fixboard.DRIFT_NOTE: ""})
-        self.assertEqual(got["allowed_test_changes"], ["t.py"])
+        self.assertEqual([r["permit"] for r in got["allowed_tests"]], ["p1", "p2"])
         row = {"path": "t.py", "permit": "plan-rewrite-1", "source": "plan"}
         unreplied = fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
                                           allowed_rows=[row, "壊れた行"])
-        self.assertEqual((unreplied["allowed_tests"], unreplied["allowed_test_changes"]), ([row], []),
-                         "返答を受け付けていない組は訳だけ載せ、パスは空")
+        self.assertEqual(unreplied["allowed_tests"], [],
+                         "返答を受け付けていない組は許しの訳を載せない（join と親の collect が同じ欄から読む）")
         final = fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
                                       reply={"changes": [{"unit_key": "a", "breaks": {"accepted": "x"}}]}, mismatched=["m"],
                                       accept_trace=[{"op": "fix_tests_selected", "note": "0 件"}, "壊れた行"])

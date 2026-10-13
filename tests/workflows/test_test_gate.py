@@ -22,6 +22,7 @@ import yaml
 
 from tests import archon
 from tests.bin.gitkit import committed_copy, git
+from tests.layers import scan
 from tests.workflows.copied import assert_is_original, rewritten
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -267,14 +268,15 @@ class YamlCase(unittest.TestCase):
         self.assertEqual(ci["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
                                          "enableWeakerNetworkIsolation": True,
                                          "network": {"allowedDomains": ["*"], "allowLocalBinding": True},
-                                         "filesystem": {"allowWrite": ["/"], "denyWrite": ["."]}})
+                                         "filesystem": {"allowWrite": ["/"], "denyWrite": [scan.NO_TREE_WRITE]}})
         self.assertEqual(ci["output_format"]["properties"]["material"], declared_checks.MATERIAL_SCHEMA)
 
     def test_role_cannot_write_the_checkout(self):
-        """元 ci_role.fence の書き込みの守り: 役の砂場は run の作業ツリー（役の cwd。砂場は相対のパスを cwd から読む）への書き込みを塞ぎ、
-        写しの置き場（一時の置き場の直下）は書けるまま。読むだけの節の印 mutates_checkout: false も外さない"""
+        """元 ci_role.fence の書き込みの守り: 役の砂場は run の作業ツリーを含む Archon の家ごと書き込みを塞ぎ（相対のパス '.' は cwd で
+        なく設定の一時ファイルのフォルダに解かれ、作業ツリーを塞がない。実測 2026-10-13）、写しの置き場（TMPDIR の下）は書けるまま。
+        読むだけの節の印 mutates_checkout: false も外さない"""
         ci = node("ci")
-        self.assertEqual(ci["sandbox"]["filesystem"], {"allowWrite": ["/"], "denyWrite": ["."]})
+        self.assertEqual(ci["sandbox"]["filesystem"], {"allowWrite": ["/"], "denyWrite": [scan.NO_TREE_WRITE]})
         self.assertIs(ci["mutates_checkout"], False)
 
     def test_run_material_is_the_material_schema_or_null(self):
