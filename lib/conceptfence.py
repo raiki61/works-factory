@@ -14,8 +14,8 @@
 
 - load(root)・read_table(path)・tracked(root)・hit(path, globs)・scan(root, paths, fence, exclude)・verdict(found, known)・map_rows・map_ids・map_paths(md, heads)
 - count_lines(text, fence, path) -> int: 1 つのファイルの柵の語の行の数（結んだ写しの行を除く。scan・places・scan_change が使う）
-- check_table(doc): 表の形の確かめ（concepts の表・pattern と bound の lines が正規表現・allowed と bound の paths が配列・
-  bound の lines が空の行に当たらない。外れは ValueError か re.error）
+- check_table(doc): 表の形の確かめ（concepts の表・loosened が表・pattern と bound の lines が正規表現・allowed と bound の paths が配列・
+  bound の lines が空の行・1 字の行に当たらない。外れは ValueError か re.error）
 - tables(repo, rev=None) -> ([(持ち主のフォルダ, 表)], [読めない表の訳]): 対象の表を探して読む（投げない）。rev を渡せば
   その版の木の表を読む（直しが表を広げても、直しの前の表で数える）
 - changed(repo, base_rev, *, skip_prefix) -> [パス]: base_rev と今の作業ツリーで変わった・足したファイル（実行基盤の写しの置き場 skip_prefix の下と入れ子のリポジトリは除く。skip_prefix が空なら ValueError）
@@ -275,9 +275,15 @@ def tables(repo, rev: str | None = None) -> tuple[list[tuple[str, dict]], list[s
     return out, bad
 
 
+# 柵の語に当たった行は空でないので、空の行だけを試すと "." や \S が通る。どの字種にも当たる lines を 1 字の行で見つける
+_ANY_LINE = ("", " ", "x", "X", "0", "あ")
+
+
 def check_table(doc) -> None:
     if not isinstance(doc, dict) or not isinstance(doc.get("concepts"), dict):
         raise ValueError("concepts の表が無い")
+    if not isinstance(doc.get("loosened", {}), dict):
+        raise ValueError("loosened が {鍵: 理由} の表でない")
     for k, v in doc["concepts"].items():
         for f in v.get("fences") or []:
             re.compile(f["pattern"])
@@ -290,8 +296,8 @@ def check_table(doc) -> None:
                 if not (isinstance(b, dict) and isinstance(b.get("paths"), list) and isinstance(b.get("lines"), str)
                         and isinstance(b.get("by"), str) and b["by"]):
                     raise ValueError(f"{k} の bound の行が {{paths: [...], lines: <正規表現>, by: <縛る試験>}} の形でない")
-                if re.compile(b["lines"]).search(""):
-                    raise ValueError(f"{k} の bound の lines {b['lines']!r} が空の行に当たる（どの行にも当たり、柵が見えなくなる）")
+                if any(re.compile(b["lines"]).search(probe) for probe in _ANY_LINE):
+                    raise ValueError(f"{k} の bound の lines {b['lines']!r} が空の行か 1 字の行に当たる（ほぼどの行にも当たり、柵が見えなくなる）")
 
 
 def _within(path: str, base: str) -> str | None:

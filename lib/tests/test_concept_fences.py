@@ -71,15 +71,23 @@ class Synthetic(unittest.TestCase):
 
     def test_check_table_refuses_broken_bound(self):
         """表の読み（tables が対象の表に当てる確かめ）は、bound が配列でない・paths が配列でない・lines が正規表現でない・
-        lines が空の行に当たる（どの行も写しになり柵が見えなくなる）・by が無い表を拒む（ValueError か re.error）"""
+        lines が空の行か 1 字の行に当たる（ほぼどの行も写しになり柵が見えなくなる）・by が無い表を拒む（ValueError か re.error）"""
         import re
         cf().check_table({"concepts": {"a": {"fences": [self.BOUND]}}})
         for bad in ("x", ["x"], [{"paths": "x", "lines": "a", "by": "t"}], [{"paths": ["x"], "lines": "(", "by": "t"}],
                     [{"paths": ["x"], "lines": "a"}], [{"paths": ["x"], "lines": "", "by": "t"}],
-                    [{"paths": ["x"], "lines": ".*", "by": "t"}], [{"paths": ["x"], "lines": "^", "by": "t"}]):
+                    [{"paths": ["x"], "lines": ".*", "by": "t"}], [{"paths": ["x"], "lines": "^", "by": "t"}]) + tuple(
+                        [{"paths": ["x"], "lines": lines, "by": "t"}] for lines in (".", r"\S", r"\w", r"[\s\S]", "^.", "[^\n]")):
             with self.subTest(bad=bad):
                 with self.assertRaises((ValueError, re.error)):
                     cf().check_table({"concepts": {"a": {"fences": [dict(self.BOUND, bound=bad)]}}})
+
+    def test_check_table_refuses_loosened_not_a_table(self):
+        """loosened（緩めの鍵と理由）が表でない表は、growth が落ちる前に形の外れとして拒む"""
+        for bad in (["pattern:a:w"], "x"):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    cf().check_table({"concepts": {}, "loosened": bad})
 
     def test_ratchet(self):
         m = cf()
