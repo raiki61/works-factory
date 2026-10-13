@@ -107,6 +107,7 @@ class ReplyFieldsTest(unittest.TestCase):
         self.assertEqual((kept, problems), (reply["red_quotes"], []))
         quote = reply["red_quotes"]["t.py::T::test_a"]["quote"]
         no_why_entry = no_why["red_quotes"]["t.py::T::test_a"]
+        self.assertEqual(tddloop._quote_problem("t.py::T::test_a", reply["red_quotes"]["t.py::T::test_a"], quote), "")
         self.assertTrue(tddloop._quote_problem("t.py::T::test_a", no_why_entry, quote))
 
     def test_every_role_reply_shape_holds_the_keys_its_instructions_write(self):
