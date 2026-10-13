@@ -1581,6 +1581,13 @@ class ReadsTest(unittest.TestCase):
         self.assertEqual([row["path"] for row in doc["rows"]], [str(brief)])
         self.assertIn(doc["rows"][0]["hook"], reads.HOOK_SEEN)
 
+    def test_pr_check_reads_runs_after_the_role_on_the_roles_rounds(self):
+        """役の輪の後に走り（先に走ると読む前の記録で欠けと言う）、輪が落ちた回も走り、役を起こした回だけ走る"""
+        node, role = nodes()["pr-check-reads"], nodes()["pr-check-loop"]
+        self.assertIn("pr-check-loop", node["depends_on"])
+        self.assertEqual(node["trigger_rule"], "one_success")
+        self.assertEqual(node["when"], role["when"])
+
     def test_pr_check_reads_without_record_does_not_fail(self):
         """記録の根が無い（フックを置いていない起動）時も落ちず、読んでいないとも言わない"""
         self.brief()
