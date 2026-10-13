@@ -29,6 +29,7 @@ _HERE = pathlib.Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
+import baseline_red  # noqa: E402
 import carry  # noqa: E402
 import changemap  # noqa: E402
 import conflict  # noqa: E402
@@ -43,6 +44,7 @@ import eyeverdict  # noqa: E402
 import forge  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
+import green_cert  # noqa: E402
 import judgeverify  # noqa: E402
 import marks  # noqa: E402
 import oneline  # noqa: E402
@@ -1238,13 +1240,27 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
 
 
 def _base_word(base: dict) -> str:
-    """直す前のテストの語。test-gate の green_cert.classify は素材の NOT_DONE の語も素材の無い回も incomplete に畳むので、
-    返りの red_cause だけで「走らせられなかった」と言える"""
+    """直す前のテストの語。red_cause が incomplete で認証されなかった（ok 偽）base は、素材が測った結果でないか、素材が無いか、
+    返す節の中の誤り（workflows/test-gate/scripts/result.py）なので「走らせられなかった」。認証された incomplete の base は、
+    素材が not_applicable（green_cert.certify が認証し classify が incomplete に畳む）なら元の結末のファイルの素材の語で言う"""
     if base.get("green"):
         return "緑"
-    if base.get("red_cause") == "incomplete":
-        return f"走らせられなかった（incomplete）——{gatemarks.BASELINE_NOT_RUN}"
+    if base.get("red_cause") == green_cert.INCOMPLETE:
+        if base.get("ok") is not True:
+            return f"走らせられなかった（{green_cert.INCOMPLETE}）——{gatemarks.BASELINE_NOT_RUN}"
+        if _base_status(base) == green_cert.NOT_APPLICABLE:
+            return f"{gatemarks.MATERIAL_WORDS[green_cert.NOT_APPLICABLE]}（{green_cert.NOT_APPLICABLE}）"
     return "赤" + (f"（赤の原因 {base.get('red_cause')}）" if base.get("red_cause") else "")
+
+
+def _base_status(base: dict) -> str | None:
+    """base の返りの baseline の指し札の先（元の結末のファイル）の素材の status。読めなければ None"""
+    pointed = oc.paths(base.get("baseline"))
+    try:
+        material = baseline_red.read_baseline(pointed[0]).get("material") if pointed else None
+    except ValueError:
+        return None
+    return material.get("status") if isinstance(material, dict) else None
 
 
 def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, returns: dict, problems: list,
@@ -1313,13 +1329,9 @@ def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, t
 
 
 def _evidence_line(path: pathlib.Path, rel: str, repo) -> str:
-    try:
-        doc = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as e:
-        return f"{rel}: 読めない（{type(e).__name__}: {oneline.one_line(str(e))}）"
-    if not (isinstance(doc, dict) and isinstance(doc.get("role"), str) and isinstance(doc.get("rows"), list)
-            and isinstance(doc.get("missing"), list) and isinstance(doc.get("sources"), dict)):
-        return f"{rel}: 読めない（読んだ証拠の形が違う）"
+    doc, why = reads.read_evidence(path)
+    if doc is None:
+        return f"{rel}: 読めない（{why}）"
     if doc["sources"].get("hook") != reads.RECORDED:
         return f"{doc['role']}（{rel}）: 測れない（{doc['sources'].get('why') or '訳の記録が無い'}）"
     missing = [str(m) for m in doc["missing"]]

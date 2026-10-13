@@ -15,9 +15,11 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import baseline_red  # noqa: E402
 import carry  # noqa: E402
 import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
+import green_cert  # noqa: E402
 import worldmark  # noqa: E402
 import conflict  # noqa: E402
 import fixbeside  # noqa: E402
@@ -182,11 +184,14 @@ class BuildCase(Base):
         self.assertEqual(tfacts["calls"], {role: {"Read": ["/r/a.py", "/r/b.py"], "Edit": [], "Write": [], "Bash": 1},
                                            "fix__fix": {"Read": [], "Edit": ["/r/a.py"], "Write": [], "Bash": 0}})
         brief = "/art/judge/pr-brief.json"
-        pr = self.put("judge/reads-pr-check.json", {"role": "pr-check", "since": "", "rows": [{"path": brief, "hook": "absent"}],
-                                                    "sources": {"hook": "recorded", "why": ""}, "missing": [brief], "web": None})
+        log = reads.reads_path(self.dir / "config" / reads.ROOT, self.dir)
+        log.parent.mkdir(parents=True)
+        log.write_text("", encoding="utf-8")
+        (self.dir / "judge").mkdir()
+        pr = reads.collect(self.dir / "judge", "pr-check", [brief], log, own=[brief], since="", repo=self.dir)["reads_file"]
         self.put(f"judge/{reads.index_name('pr-check')}", {"pr-check": pr})
-        self.put("fix/fix/reads-fix.json", {"role": "fix", "since": "", "rows": [{"path": "/p.md", "hook": None}],
-                                            "sources": {"hook": "none", "why": reads.NO_ROOT}, "missing": [], "web": None})
+        (self.dir / "fix" / "fix").mkdir(parents=True)
+        reads.collect(self.dir / "fix" / "fix", "fix", ["/p.md"], self.dir / "none" / "x" / reads.LOG, own=[], since="", repo=self.dir)
         self.put("plan/r1/reads-plan-writer.json", "{")
         _, text, _ = self.build(transcript=tfacts)
         got = self.section(text, report.READS_HEADING)
@@ -208,11 +213,22 @@ class BuildCase(Base):
 
     def test_unrun_base_is_not_called_red(self):
         """走らせられなかった直す前のテスト（ok false・green false・red_cause incomplete）を「赤」と書かない（棚卸し T68）"""
-        base = {"mode": "base", "ok": False, "green": False, "red_cause": "incomplete"}
+        base = {"mode": "base", "ok": False, "green": False, "red_cause": green_cert.INCOMPLETE}
         _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
         entry = self.section(text, report.ENTRY_HEADING)
         self.assertIn(f"直す前のテスト: 走らせられなかった（incomplete）——{gatemarks.BASELINE_NOT_RUN}", entry)
         self.assertNotIn("直す前のテスト: 赤", entry)
+
+    def test_not_applicable_base_is_not_called_unrun(self):
+        """素材が not_applicable の直す前のテストは認証され（ok 真）incomplete に畳まれるが、「走らせられなかった」とも「赤」とも書かない"""
+        pointed = str(self.dir / "test-gate" / "base" / "baseline.json")
+        baseline_red.write_baseline(pointed, suite="", test_cmd="", rev="r", exit=None, cases=[],
+                                    material={"status": green_cert.NOT_APPLICABLE, "reason": "検査の宣言が無い"})
+        base = {"mode": "base", "ok": True, "green": False, "red_cause": green_cert.INCOMPLETE, "baseline": pointed}
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"直す前のテスト: {gatemarks.MATERIAL_WORDS['not_applicable']}（not_applicable）", entry)
+        self.assertNotIn("走らせられなかった", entry)
 
 
 class TddCase(Base):

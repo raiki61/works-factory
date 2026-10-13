@@ -108,7 +108,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     if mode == "final" and (base_file := boundary.pointed(baseline_raw)) is not None:
         base = baseline_red.read_baseline(base_file)
     if material is None:   # 3 回とも拒まれて諦めた時は最後の拒否の文を人に見える証拠に出す（T45。元 ci_role.collect :349-356）
-        red_cause = "incomplete"
+        red_cause = green_cert.INCOMPLETE
         summary = (rolekit.given_up_reason(artifacts / rel(mode, ""), declared_checks.CI_ROLE)
                    or "任せ先の CI の役が素材を渡さなかった（受け付けが拒み続けた・ループが回らなかった）")
     else:
