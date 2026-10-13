@@ -59,6 +59,10 @@ inputs:
     default: ""
     description: どの周の子にも渡すメイングラフの同じ名の入力
 
+# 周の commit（round-k-commit）は run の作業ツリーの枝へ積む。--no-worktree で利用者の作業ツリーに走らせない
+worktree:
+  enabled: true
+
 returns: result
 outcome_field: closed
 

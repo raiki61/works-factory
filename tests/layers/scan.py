@@ -789,9 +789,10 @@ def _gates(root: Path) -> list[str]:
             for n in _nodes(docs[name][1]) if isinstance(value := _top(n, "include"), yaml.ScalarNode)
         )
 
+    tops = {f"{OURS_PREFIX}{folder}" for folder in TOP_FOLDERS}
     for name, (path, document) in docs.items():
         rel = _rel(root, path)
-        if name != OURS["line"]:
+        if name not in tops:
             for key, value in _pairs(document):
                 if key in BLOCK_HEAD_KEYS and not (key == "interactive" and _is_bool(value, "true") and own_gate(name)):
                     out.append(f"{rel}:{_line(value)}: 差し込まれるブロックが工程の頭に {key} を書く")

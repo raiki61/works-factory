@@ -65,7 +65,7 @@
 - 自分のノードに `approval:` を持つサブグラフ（judge の仕様の承認ノード）は、グラフの頭に `interactive: true` を残す。止めた Archon の単独の `archon validate` は、`approval:` のノードを持つグラフの頭に `interactive: true` が無いと警告を出す（`packages/workflows/src/loader.ts` 1389-1427 行の `validateWorkflowClassPlacement` が誤りの文を返し、1666-1675 行が猶予の警告にする）。メイングラフから include された時はメイングラフの `interactive: true` が効き、サブグラフの頭のこの鍵には何も言わない。
 - 並べ: `fan_out:`（`items`・`as`・`max_parallel`・`join`）で書く（ASF の `W/verify-runtime-suite/archon-verify-runtime-suite.yaml`:27-34）。作業ツリーに書く並べ（fix の組）は、組ごとに子の run を起こして作業ツリーを分ける。子の run が自分の作業ツリーを持つかは段 1 で実測する（`docs/design.md` の U8）。待ちの列・固定の枝の数・錠は持たない（持ち主の決め `no-queue`）。
 - どの承認ノードも `decisions` に `reject` を持ち、`on_reject` を持たない（止めた Archon の `packages/core/src/operations/workflow-operations.ts` 1625-1700 行: そうでない承認ノードの reject は run の取り消しになり、報告が出ない）。ループ（`loop_group`）の本体に承認ノードを置かない（本体が承認ノードで終わるループの再開は会話を引き継がない。今の works の `works/tests/test_yaml_rules.py` 43-45 行）。
-- 機械: `tests/layers/test_gates.py`（全グラフの承認ノードが `reject` を持ち `on_reject` を持たない。ループの本体に承認ノードが無い。`approval:` のノードを持つグラフを include する一番上のグラフ（メイングラフ）に `interactive: true` が在る。include されるサブグラフはグラフの頭に `worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない。`interactive` は、自分のノードに `approval:` を持つサブグラフが `true` で書く時だけ許し、ほかのサブグラフが書いた時と `true` 以外の値は赤）。並べの形は人が見る。
+- 機械: `tests/layers/test_gates.py`（全グラフの承認ノードが `reject` を持ち `on_reject` を持たない。ループの本体に承認ノードが無い。`approval:` のノードを持つグラフを include する一番上のグラフ（メイングラフ）に `interactive: true` が在る。include されるサブグラフはグラフの頭に `worktree`・`container`・`evidence_policy`・`mutates_checkout` を書かない（一番上のグラフ（メイングラフ・周の鎖）は書いてよい）。`interactive` は、自分のノードに `approval:` を持つサブグラフが `true` で書く時だけ許し、ほかのサブグラフが書いた時と `true` 以外の値は赤）。並べの形は人が見る。
 
 ## E17 対象のリポジトリには差分を置くだけ
 
