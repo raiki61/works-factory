@@ -194,7 +194,7 @@ works-factory は今の works の能力を、線・8 つのブロック・助け
    2. run を起こし、`wait` と `respond … approve --detach` で終わりまで運ぶ。
    3. 当てる前に、対象で `python3 -m unittest -v` を走らせて控える（2 件落ちる）。`returns.value.apply.diff` の先のファイルを試みのフォルダに写して控え、1 バイト変えて `./bin/apply <run> --cwd <target>` が 1 で止まり対象が変わらないことを見て、控えから戻す。
    4. `./bin/apply <run> --cwd <target>` で当て、`python3 -m unittest -v` で 3 件が全部通ることを見る。
-   5. `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせ、出力を PR に貼る（数の行と、`absent`・`unexpected` の全行）。受け入れ 2 の材料を作る。
+   5. `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせ、出力を PR に貼る（数の行と、`absent`・`unexpected`・`waits-part` の全行）。受け入れ 2 の材料を作る。
    6. `python3 tests/e2e/make_target.py teardown`。
    - 通しが途中で落ちる・おかしな結末を出す・`check` が `absent` を出すたびに、上の「見えなかった行の扱い」で決める。不具合なら superpowers:systematic-debugging の形で原因を確かめ、落ちたブロック（か線か `lib/`）の試験か筋書きに **その不具合で赤になる 1 本を先に足して赤を見てから** 直す（superpowers:test-driven-development）。直しは K1〜K20 を通す。直したら、通しを新しい試みのフォルダで最初から回し直す（直した `workflows/` は新しい run でしか読まれない。`workflows/` は run の始めに写し取られる）。
    - 殻（`bin/_lib/launcher.py`）と `bin/apply` の不具合は、直さずに別の issue にして PR に書く。
@@ -239,7 +239,7 @@ lifecycle の入力のうち、このリポジトリが決める物:
 - 主張は次の 5 つ。どれも、確かめの役が道具の出力を証拠のファイルに残す前提で書く（`W/verify-runtime/commands/verify-runtime.md`）。試みのフォルダは、この試みの置き場（attempt directory）の下に新しく作る。
   1. `request-to-report`: `make_target.py make` で対象・依頼・家を作り、run を起こし、関所で止まるたびに関所の文を見て `approve` で答え、終わりまで運ぶ。期待: 起こした後の `workflow runs --json` に `parent_run_id` の無い run がちょうど 1 つ在る・`workflow get <run> --json` の `terminal_record.status` が `completed`・`returns.value.outcome` が report の結末の 10 語の 1 つ・`returns.value.report` の先の報告の本文が空でない・当てる前の対象の `git status --porcelain` が空。認証が拾えずに殻が止まった時は `inconclusive` にし、殻の 1 行を reason に書く（製品の不具合ではない）。
   2. `every-block-ran`: 1 の run の `workflow get <run> --json --verbose` の `nodes` を読む。線の include の id は `test-gate-base`・`judge`・`plan`・`plan-review-run`・`fix`・`test-gate-final`・`eyes`・`merge-seal`・`merge-apply`・`report`。include の中の節の id は `<include の id>__<節の id>`（止めた Archon の `include-expander.ts` の `inlineInclude`）、輪の中の節には `<輪の id>.` の頭が付く（`dag-executor.ts` 4322-4331 行）。`plan` と `plan-review-run` は計画の往復の輪 `plan-rounds` の中に在るので、その節の id は `plan-rounds.plan__`・`plan-rounds.plan-review-run__` で始まる。案の直しの道の include（`rejudge-run`・`replan`・`replan-review`・`refix-run`）は、通った run だけ見る。直す物の無い周の include（`design-only`）も、通った run だけ見る。fix の組は子の run として起きるので、`workflow runs` で親の子の run を引き、子ごとの `get --json --verbose` を読む（子の run の節の id には頭が付かない）。期待: include の id ごとに、親の run の `nodes` に `<include の id>__` を含む節が 1 つ以上 `completed`（fix も親の run で見る）。子の run が 1 つ以上在り、子のどれかで修正の役の節（`tdd-loop.tdd`・`tdd-loop.tdd-new`・`fix-loop.fixer`）のどれかが `completed`。eyes の R1〜R4 の役の節（`eyes__r1-comments`・`eyes__r1-minimality`・`eyes__r2-compare`・`eyes__r3-coherence`・`eyes__r4-scope`）が `completed`（深さを標準で回したので省かれない）。include の id・修正の役・eyes の役の名が線とブロックの YAML と合うことは `tests/e2e/test_scenario.py` が見る。
-  3. `capabilities-evidenced`: 1 の run で `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせる。期待: `check` が終了の値 0（`absent` も `unreadable` も 0 件）。`unexpected` の行は失敗にしないが、行を全部 reason に写す。
+  3. `capabilities-evidenced`: 1 の run で `python3 tests/e2e/evidence.py collect <試みのフォルダ> <run>` と `check <試みのフォルダ>` を走らせる。期待: `check` が終了の値 0（`absent` も `unreadable` も 0 件で、`waits-part` の行が残らない）。`waits-part` の行は 1 つでも残れば（見えた行も）失敗。`seed-cannot`・`backlog`・`handed-off` の行が見えた `unexpected` は失敗にしないが、行を全部 reason に写す。
   4. `changed-diff-refused`: 1 の run で、当てる前に、`returns.value.apply.diff` の先（`terminal_record.artifacts.root` の下）を試みのフォルダに写して控え、1 バイト変えてから `./bin/apply <run> --cwd <対象>` を呼ぶ。期待: 0 以外で終わり、hash が合わないことを言い、対象の `git status --porcelain` が空のまま。その後で控えから元に戻す。
   5. `sealed-diff-fixes-seed`: 4 の後、対象で `python3 -m unittest -v` を走らせて控え、`./bin/apply <run> --cwd <対象>` で当て、もう一度走らせる。期待: 当てる前は依頼が名指した 2 件（`test_mean_of_three`・`test_clamp_above_range`）が落ち、当てた後は 3 件全部が通る。対象の `git diff --stat` は空でなく、変わったファイルは報告が挙げたファイルの中だけ。
 - 消す: 今の筋書きの「`workflows/*/scripts/stub.py` が在る間は inconclusive」の前提と、「線が無い間は inconclusive」の前提。
@@ -267,7 +267,7 @@ lifecycle の入力のうち、このリポジトリが決める物:
    - 結末の語と報告の本文の頭
    - include の id ごとに `completed` の節の数と、役の節の provider と模型の表（セルは短い値だけ）
    - 1 バイト変えた差分を `bin/apply` が拒んだ出力と、当てた後の `python3 -m unittest -v` の出力
-   - `evidence.py check` の出力（数の行と、`absent`・`unexpected` の全行）。数は区分ごと（L・J・P・F・T・E・R・M）に `seen`・`scenario-only`・`seed-cannot`・`waits-part`・`backlog` の件数
+   - `evidence.py check` の出力（数の行と、`absent`・`unexpected`・`waits-part` の全行）。数は区分ごと（L・J・P・F・T・E・R・M）に `seen`・`scenario-only`・`seed-cannot`・`waits-part`・`backlog` の件数
    - 最初の `check` で `absent` だった行ごとの決め（見立ての誤り・種では通らない・不具合・持ち主待ち）と訳（表の下に箇条書き）
    - 通しで見つけて直した不具合の一覧（1 件ごとに: 落ちた節・原因・先に赤にした試験の名・直したファイル・当たった能力の行 ID・K1〜K20 への答え）
    - 段ごとの費用と時間の表
