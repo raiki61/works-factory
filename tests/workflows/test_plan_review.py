@@ -1163,9 +1163,19 @@ class ConvergeCase(RunCase):
         got = r.pass_(review(resolved=[MEAN_BLOCK["key"]]))
         self.assertEqual(converge.block_faces(json.loads(r.pointed(got["review"]).read_text(encoding="utf-8"))), [])
         self.assertEqual((got["pass"], got["stalled"]), (False, True), got)
-        line = eyeverdict.plan_review_line(r.folder)
+        line = eyeverdict.plan_review_line(r.folder, r.art / "plan/r3/plan-fields.json")
         self.assertEqual(line, eyeverdict.REVIEW_HELD.format(k=3, outcome=converge.PERSISTED))
         self.assertNotIn("外れを認めた）", line)
+        self.assertEqual(eyeverdict.plan_review_line(r.folder, r.art / "plan/r1/plan-fields.json"),
+                         eyeverdict.REVIEW_UNREAD.format(why=boardview.PLAN_ROUND_OTHER.format(k=3, round=1)),
+                         "#359: 1 周目の案の外れに、3 周目の案の往復の結論を組まない")
+        bad = r.art / "plan/bad-fields.json"
+        bad.write_text(json.dumps({"fields": []}), encoding="utf-8")
+        unread = eyeverdict.REVIEW_UNREAD.format(why="")
+        for plan in (None, r.art / "plan/r9/plan-fields.json", bad):
+            line = eyeverdict.plan_review_line(r.folder, plan)
+            self.assertTrue(line.startswith(unread), (plan, line))
+            self.assertNotIn("外れを認めた）", line, plan)
 
     def test_rereview_must_account_for_every_previous_block(self):
         r = self.run_

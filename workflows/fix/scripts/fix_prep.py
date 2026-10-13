@@ -46,9 +46,10 @@ def main() -> dict:
     place, repo = boundary.place("fix"), boundary.work_tree()
     group = boundary.parsed(os.environ.get("INPUTS_GROUP"))
     owed = fixboard.group_owed(place, group["unit_ids"] if group else None)
-    if not (place / fixboard.FIX_HEAD_FILE).is_file():
+    head = place / fixrules.head_file("first")
+    if not head.is_file():
         fixboard.record_skipped(place, repo, boundary.SKIP)   # 印より先に（落ちて回し直した prep が控えを飛ばさない）
-        fixboard.write_json(place / fixboard.FIX_HEAD_FILE, {"tree": groups.end_tree(repo)})
+        fixboard.write_json(head, {"tree": groups.end_tree(repo)})
     start = startrec.read(place)
     n = fixrules.iteration_next(fixrules.prompt_path(place))
     duty, _ = fixboard.fix_duty(place, owed)

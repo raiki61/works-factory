@@ -43,9 +43,10 @@ def main() -> dict:
     n = fixrules.iteration_next(prompt)
     if not [r for r in conflict.ruled_fix(place) if not r.get(conflict.PRIOR)]:   # 1 回目の段の裁定（2 回目の段が写した行）は直し直さない
         return {"prompt_file": "", "go": False, "iteration": n}
-    if not (place / fixboard.RULED_HEAD_FILE).is_file():
+    head = place / fixrules.head_file("ruled")
+    if not head.is_file():
         fixboard.record_skipped(place, repo, boundary.SKIP)   # 印より先に（落ちて回し直した prep が控えを飛ばさない）
-        fixboard.write_json(place / fixboard.RULED_HEAD_FILE, {"tree": groups.end_tree(repo)})
+        fixboard.write_json(head, {"tree": groups.end_tree(repo)})
     owed = fixboard.ruled_owed(place)
     start = startrec.read(place)
     saved = fixboard.group_fix_reply(place)
