@@ -25,6 +25,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
 import fixboard  # noqa: E402
+import oneline  # noqa: E402
 import rolekit  # noqa: E402
 import startrec  # noqa: E402
 import writelog  # noqa: E402
@@ -71,6 +72,6 @@ if __name__ == "__main__":
     try:
         out = main()
     except Exception as e:
-        print(f"{NAME}: {type(e).__name__}: {' '.join(str(e).split())}", file=sys.stderr)
+        print(f"{NAME}: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
     boundary.returns(out)

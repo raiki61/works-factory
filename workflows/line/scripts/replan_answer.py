@@ -33,6 +33,7 @@ import boundary  # noqa: E402
 with boundary.guarded_imports():
     import answer
     import boardview
+    import oneline
     import planfile
     import replan
 
@@ -47,7 +48,7 @@ def fix_answers(before_fix, replan) -> dict | None:
     if not answered:
         return None
     prior = str(before_fix.get("text") or "").strip() if isinstance(before_fix, dict) else ""
-    note = " ".join(str(replan.get("text") or "").split()) if isinstance(replan, dict) else ""
+    note = oneline.one_line(replan.get("text") or "") if isinstance(replan, dict) else ""
     parts = [f"{FIX_NOTES_HEAD}\n\n{prior}\n"] if prior else []
     if note:
         parts.append(f"{NOTE_HEAD}\n\n{note}\n")
@@ -66,7 +67,7 @@ def fix_notes(review_raw, plan_raw, items_raw) -> str:
         reply = boundary.resolve(ptr).parent / planfile.FIX_PLAN_FILE if ptr is not None else None
         plan = json.loads(reply.read_text(encoding="utf-8")) if reply is not None and reply.is_file() else None
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
-        return replan.NO_REVIEW_WHY.format(why=" ".join(f"{type(error).__name__}: {error}".split()))
+        return replan.NO_REVIEW_WHY.format(why=oneline.one_line(f"{type(error).__name__}: {error}"))
     return replan.fix_notes(doc if isinstance(doc, dict) else {}, plan, boundary.items(items_raw), boardview.HUMAN_FACE_KINDS)
 
 

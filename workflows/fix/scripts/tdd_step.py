@@ -26,6 +26,7 @@ sys.path.append(str(boundary.lib_root()))
 
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
+import oneline  # noqa: E402
 import tddloop  # noqa: E402
 import writelog  # noqa: E402
 
@@ -66,6 +67,6 @@ if __name__ == "__main__":
     try:
         result = main()
     except Exception as e:
-        print(f"tdd-step: {type(e).__name__}: {' '.join(str(e).split())}", file=sys.stderr)
+        print(f"tdd-step: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
     boundary.returns(result)
