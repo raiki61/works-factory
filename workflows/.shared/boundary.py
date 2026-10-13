@@ -172,8 +172,7 @@ def drop_runner_env() -> None:
 
 def include_name(block: str) -> str:
     """この節を差し込んだ include の名（Archon が立てる節の実行の path ARCHON_NODE_EXECUTION の最初の __ より前）。同じサブグラフを
-    2 度差し込む run（fix と、案の直しの後の 2 回目の refix）で置き場を分ける。include の外（組の子の run・単独の run）と path が
-    読めない時は block"""
+    2 度差し込む run で置き場を分ける。include の外の run と path が読めない時は block"""
     try:
         path = json.loads(os.environ.get("ARCHON_NODE_EXECUTION") or "{}").get("path") or ""
     except ValueError:
