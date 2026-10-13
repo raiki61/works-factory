@@ -55,8 +55,9 @@
   fix_test_scope の範囲。test_permits）の範囲の文字列と、その 1 つの読み（TDD の輪の凍結が範囲の中の直しを通す）
 - human_lines(b): 最後の関所と報告に載せる ask_human の行（諦めた fix_plan_item の行も。末尾に案の直しの理由か、単位の直しの
   在りか left_words を添える）
-- mark_reverted(b, files, patch): 機械が files を段の頭へ戻した時、それを名指す query_hits_fixed の行に控えの patch を置く
-  （left_words が「直しは差分に在り」でなく控えを名指す）
+- mark_reverted(b, files, patch, pass_): 機械が files を段の頭へ戻した時、それを名指す query_hits_fixed の行のうち今の段
+  pass_ の受け付けが積んだ行（FILED_IN。直しが段の頭より後で、控えに移った）に控えの patch を置く（left_words が「直しは差分に
+  在り」でなく控えを名指す。段の頭より前の行の直しは頭の木に在り、戻しても差分に残る）
 - 案の直しの状態（依頼 226。裁定 fix_plan_item の行の欄 REPLAN_STATE）: apply_rulings が WAITING に置き、set_replan の 1 か所だけが
   AMENDED（項目を直した。held_by_rulings が外さず直す義務に戻す）か GAVE_UP（諦めた。asked に入り ask_human の行として並ぶ）に
   移す（trace の行 REPLAN_OP）。読む口は replan_state(row)・waiting(b)・amended_keys(b)
@@ -162,6 +163,7 @@ UNFIXED_LEFT = "直さずに残した"
 FIX_IN_DIFF = f"{fixboard.FIX_IN_DIFF_CORE}が人の決め待ち"
 FIX_REVERTED = UNFIXED_LEFT + "（戻した直しの控え {patch}）"
 REVERTED_FIELD = "reverted_to"          # 名指したファイルを機械が段の頭へ戻した query_hits_fixed の行に置く控えの patch（mark_reverted）
+FILED_IN = "filed_in"                   # 修正役の返答の受け付けが行を積んだ段（first・ruled。park の pass_。mark_reverted が読む）
 GAVE_UP_PROMISE = ("案の項目そのものが誤りと裁いたが、同じ run の中で案を直せなかった（諦めた。理由は「案の直しを諦めた理由」）。"
                    "この単位も「項目の単位」に並べた同じ項目の単位も直すな（機械が直す義務から外した。最後の承認ノードで人が"
                    f"決める）。changes に書くな。{HELD_WORK_KEPT}（戻すな）")   # 裁定の文の GAVE_UP の行の約束（write_rulings）
@@ -576,8 +578,8 @@ def kind_counts_of(rows) -> dict:
     return out
 
 
-def park(b, rows, *, source: str, ruling: dict | None = None, round_: int = 1) -> list:
-    """申し出を積む（status parked・ruling は None か渡した物）。同じ単位・同じ名指し・同じ理由の申し出は積み増さない
+def park(b, rows, *, source: str, ruling: dict | None = None, round_: int = 1, pass_: str | None = None) -> list:
+    """申し出を積む（status parked・ruling は None か渡した物。pass_ を渡せば積んだ段を欄 FILED_IN に）。同じ単位・同じ名指し・同じ理由の申し出は積み増さない
     （実行基盤の呼び直し。案を直した行（状態 AMENDED）は数えない——作り直した後の同じ申し出は新しい申し出）。trace に 1 行ずつ。
     返りは積んだ・在った行の id。source が SOURCES の外なら ValueError"""
     if source not in SOURCES:
@@ -596,7 +598,7 @@ def park(b, rows, *, source: str, ruling: dict | None = None, round_: int = 1) -
             n += 1
         row = {"id": f"c{round_}-{n}", "round": round_, "source": source, **body,
                **({CORRECT: list(it[CORRECT])} if it.get(CORRECT) else {}),
-               "status": "ruled" if ruling else "parked", "ruling": ruling}
+               "status": "ruled" if ruling else "parked", "ruling": ruling, **({FILED_IN: pass_} if pass_ else {})}
         doc["items"].append(row)
         ids.append(row["id"])
         fixboard.trace(b, PARK_OP, id=row["id"], unit_key=row["unit_key"], source=source, which_is_right=row[WHICH_FIELD],
@@ -929,12 +931,15 @@ def ruled_test_doc(b) -> dict | None:
     return {"rules": rows} if rows else None
 
 
-def mark_reverted(b, files, patch: str) -> None:
-    """機械が files を段の頭の木へ戻して控え patch に移した時、名指し between がその files に当たる query_hits_fixed の行に
-    控えを置く（REVERTED_FIELD。先に置いた控えは残す——直しを持つのは最初に戻した patch）。left_words が直しの在りかに読む"""
+def mark_reverted(b, files, patch: str, pass_: str) -> None:
+    """機械が段 pass_ の頭の木へ files を戻して控え patch に移した時、その段の受け付けが積んだ（FILED_IN が pass_。adopt_prior が
+    写した PRIOR の行は外す）query_hits_fixed の行で、名指し between がその files に当たる行に控えを置く（REVERTED_FIELD。先に置いた
+    控えは残す——直しを持つのは最初に戻した patch）。段の頭より前に積んだ行の直しは頭の木に在り、戻しても差分に残るので置かない。
+    left_words が直しの在りかに読む"""
     files = set(files)
     doc = _load(b)
     hit = [r for r in doc["items"] if r.get(KIND_FIELD) == QUERY_HITS_FIXED and not r.get(REVERTED_FIELD)
+           and r.get(FILED_IN) == pass_ and not r.get(PRIOR)
            and any((m := cite.CITE.match(c.strip())) and m["path"] in files for c in r.get("between") or [] if isinstance(c, str))]
     for r in hit:
         r[REVERTED_FIELD] = patch

@@ -2031,9 +2031,9 @@ def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
         if bad:
             return reply, {"ok": False, "reason": CONFLICT_BAD + " / ".join(bad), "lines": lines}
         if pass_ == "first":
-            conflict.park(place, items, source=conflict.FIX_SOURCE)
+            conflict.park(place, items, source=conflict.FIX_SOURCE, pass_=pass_)
         else:
-            conflict.park(place, items, source=conflict.FIX_SOURCE,
+            conflict.park(place, items, source=conflict.FIX_SOURCE, pass_=pass_,
                           ruling={"decision": conflict.ASK, "text": SECOND_CONFLICT, "limits": [], "by": FIX_ACCEPT_BY})
             conflict.write_rulings(place)
     if pass_ == "first" and conflict.unruled(place):
@@ -2086,14 +2086,14 @@ def last_settle(texts: list, rows: list, place, repo, rev: str, state: str, owed
     return got, out, feet
 
 
-def park_units(place, repo, settled, head: str, *, iteration: int) -> tuple:
+def park_units(place, repo, settled, head: str, *, iteration: int, pass_: str) -> tuple:
     """最後の回に結んだ単位を止める: 足跡（settled.files）を段の頭の木 head に戻して控えの patch に移し（revert_units。戻したファイルを
-    名指す query_hits_fixed の行に控えを置く conflict.mark_reverted）、単位ごとに
+    名指す今の段 pass_ の query_hits_fixed の行に控えを置く conflict.mark_reverted）、単位ごとに
     ask_human の裁定つきの申し出を積み（conflict.park）、置き場の trace に conflict.ACCEPT_PARKED_OP の行。返り
     ({key: 結末の理由}, 控えのパス)。元 works/blk-fix/scripts/accept.py:434（通し直しは呼び手 accept_reply）"""
     import conflict
     patch = revert_units(place, repo, settled.files, head)
-    conflict.mark_reverted(place, settled.files, patch)
+    conflict.mark_reverted(place, settled.files, patch, pass_)
     out = {}
     for key, texts in settled.park.items():
         why = " / ".join(texts)
@@ -2292,7 +2292,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
             settled = parking.park_owed(texts, feet=feet, owed=set(duty), out_of_duty=out_of_duty, skip=tuple(skip))
     if not settled.park:
         return rejected(NOT_SETTLED)
-    now, _ = park_units(place, repo, settled, head or rev, iteration=iteration)
+    now, _ = park_units(place, repo, settled, head or rev, iteration=iteration, pass_=pass_)
     return accept_reply(_without_units(whole, set(now)), place, repo, pass_=pass_, iteration=iteration, owed=owed,
                         judged=judged, suite=suite, state=state, tests_state=tests_state, base_rev=base_rev, head=head,
                         skip=skip, parked={**parked, **now}, reverted=reverted, trail=trail, log=log)

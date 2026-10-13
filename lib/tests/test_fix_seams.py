@@ -2240,6 +2240,50 @@ class FixAcceptSeamCase(TempCase):
         self.assertIn(fixboard.PARKED_PATCH, row)
         self.assertNotIn(conflict.FIX_IN_DIFF, conflict.held_by_rulings(self.place)[R_CLAMP])
 
+    def _revert_after_head(self, park_clamp):
+        """clamp の直しと人に回した query_hits_fixed の clamp の行（park_clamp が積む）を段の頭より前に置き、頭の後に mean を直して、
+        裁定の後の段の最後の回に mean を止めて stats.py を段の頭へ戻す。返りは clamp の関所の行"""
+        import conflict
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        path = self.repo / "stats.py"
+        old, new = list(R_FIXED.items())[1]
+        path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
+        park_clamp({"unit_key": R_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+                    "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
+                    "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]},
+                   {"decision": conflict.ASK, "text": "人が決める", "limits": [], "by": "test"})
+        head = leftovers.snapshot(self.repo)
+        old, new = list(R_FIXED.items())[0]
+        path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
+        reply = {"changes": [_fix_row(R_MEAN, 1), _fix_row(R_MEAN, 1)], "not_done": [], "conflicts": []}
+        got = fixboard.accept_reply(reply, self.place, self.repo, pass_="ruled", iteration=fixboard.GIVE_UP_AFTER,
+                                    owed=[R_MEAN], judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+        self.assertEqual(got["units"][R_MEAN]["status"], "given_up", got)
+        self.assertIn("return hi", path.read_text(encoding="utf-8"), "段の頭より前の clamp の直しが戻った（場面が崩れた）")
+        return next(r for r in conflict.human_lines(self.place) if r.startswith(R_CLAMP))
+
+    def test_revert_keeps_fix_in_diff_for_first_pass_rows(self):
+        """1 回目の段に積んだ query_hits_fixed の行の直しは裁定の後の段の頭の木に在り、機械が同じファイルを段の頭へ戻しても差分に
+        残る。関所の行は「直しは差分に在り」のままで、控えの patch を名指さない（#355）"""
+        import conflict
+        row = self._revert_after_head(lambda claim, ruling: conflict.park(self.place, [claim], source=conflict.FIX_SOURCE,
+                                                                           ruling=ruling, pass_="first"))
+        self.assertIn(conflict.FIX_IN_DIFF, row)
+        self.assertNotIn(fixboard.PARKED_PATCH, row)
+
+    def test_revert_keeps_fix_in_diff_for_rows_copied_from_the_prior_stage(self):
+        """adopt_prior が写した前の修正の段の行（PRIOR）も、直しは段の頭の木に在る。戻しても控えの patch を名指さない（#355）"""
+        import conflict
+        prior = self.tmp / "prior-place"
+        prior.mkdir()
+
+        def park_clamp(claim, ruling):
+            conflict.park(prior, [claim], source=conflict.FIX_SOURCE, ruling=ruling, pass_="ruled")
+            conflict.adopt_prior(self.place, prior, [])
+        row = self._revert_after_head(park_clamp)
+        self.assertIn(conflict.FIX_IN_DIFF, row)
+        self.assertNotIn(fixboard.PARKED_PATCH, row)
+
     def test_ruled_pass_asked_unit_reason_says_where_the_fix_is_by_kind(self):
         """裁定の後の段の単位の結末（fix-units.json に写る units）も、人に回した query_hits_fixed の単位は「直しは差分に在り」と
         書き、ほかの種類の単位には書かない（1 回目の段の QUERY_PARKED と同じ分け。#355）"""
