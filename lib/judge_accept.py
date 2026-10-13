@@ -1715,7 +1715,7 @@ SNAPSHOT_FALLBACK_IDENT = {"GIT_AUTHOR_NAME": "graphloops", "GIT_AUTHOR_EMAIL": 
 
 
 def route_key(role: str) -> str:
-    """元 material.py:185。route の返りの欄の名（YAML の when: が $material-route.output.<欄> で読む）"""
+    """元 material.py:185。route の返りの欄の名（YAML の when: が素材の振り分けの節の返りのこの欄を読む）"""
     return role.replace("-", "_")
 
 
@@ -3091,7 +3091,7 @@ def spec_freeze(jdir, root, pend, approval) -> dict:
 
 
 def spec_answer(jdir, root, answer) -> dict:
-    """仕様の関所の答え（with: の {from: $spec-gate.output, if_skipped: null} を境の口 value が読んだ値）を受ける（元 works/blk-spec/lib/specblk.py:302 の
+    """仕様の関所の答え（関所の節の出口〔開かなかった時は null〕を境の口 value が読んだ値）を受ける（元 works/blk-spec/lib/specblk.py:302 の
     answer と :343 の collect と、写しの rules の on_answer_in_round の仕様の承認）。返り {go, reason}:
     - 開かなかった（None）: go false（前の節が止めた。止めの控えが無ければ works:spec で止める）
     - 止める語（stop・reject）: 一言（空なら GATE_STOP_NOTE）が "request:" で始まれば止め札 request:spec-gate、ほかは人の止め

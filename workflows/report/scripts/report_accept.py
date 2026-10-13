@@ -13,7 +13,17 @@ import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
 import runreport  # noqa: E402
-from place import out_dir, rel_path  # noqa: E402
+
+
+def out_dir() -> Path:
+    """報告の置き場（run の置き場の report）"""
+    return Path(os.environ["ARTIFACTS_DIR"]) / "report"
+
+
+def rel_path(path) -> str:
+    """置き場の中のパスを、run の置き場からの相対の字に"""
+    return Path(path).relative_to(Path(os.environ["ARTIFACTS_DIR"])).as_posix()
+
 
 if __name__ == "__main__":
     got = runreport.accept(os.environ.get("INPUTS_REPLY", ""), os.environ.get("INPUTS_COLD", ""), out_dir=out_dir())

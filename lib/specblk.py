@@ -5,7 +5,7 @@
 - GATE_GO・GATE_STOP・GATE_STOP_NOTE・FLAG_BY_PREFIX: 関所の答えの語（approve は continue と、reject は stop と同じ。台帳 R32）と、
   一言の無い止めの理由と、止め札の by の頭
 - gate_text: 関所に見せる文（線 A の修正前の関所と同じ組み立て gatemarks.gate_text）
-- parse_gate: 関所の出口（with: の {from: $spec-gate.output, if_skipped: null} を境の口 value が読んだ値）を dict か None（開かなかった）に
+- parse_gate: 関所の出口（関所の節の出口〔開かなかった時は null〕を境の口 value が読んだ値）を dict か None（開かなかった）に
 - snapshot_name: 読むだけの役（審査）を起こす前の作業ツリーの写しのファイルの名
 - SPEC_FILE: 固めた仕様のファイルの名
 """
@@ -43,7 +43,7 @@ def gate_text(asking: dict, *, run_id: str = RUN_ID_HOLE) -> str:
 
 
 def parse_gate(gate):
-    """関所の出口（with: の {from: $spec-gate.output, if_skipped: null} を境の口 value が読んだ値）を dict か None（開かなかった）に。
+    """関所の出口（関所の節の出口〔開かなかった時は null〕を境の口 value が読んだ値）を dict か None（開かなかった）に。
     形の誤りは BoardGap"""
     if gate is None:
         return None

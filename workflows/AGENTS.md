@@ -21,7 +21,7 @@
 - サブグラフ（`workflows/<名>/`）の script は、ほかのサブグラフのフォルダへのパスを組まない。受け取りは `with:` の入力・前のノードの出力・ポインタ（`archon_artifact`）・型つきの成果物（`output_type`）だけ。
 - サブグラフの script は `lib/` と境の口を呼ぶだけで、確かめの中身を持たない。
 - script は同じ `scripts/` の別の script を import しない（共に使う物は lib か境の口に置く）。script の名を lib のモジュールの名にしない（script のフォルダが `sys.path` の頭に来るので、`import <名>` が lib の物でなく script を読む）。
-- 機械: `tests/layers/test_block_paths.py`（サブグラフの `scripts/` とサブグラフの YAML（直に書いた script）の字に、ほかのサブグラフを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/works-factory/<名>/`（pack の形。pack の段 `works-factory` は飛ばして見る）・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のサブグラフの外への相対パスも無い。`scripts/*.py` の import の名が同じ `scripts/` の別のファイルの名でない（今の物は `tests/layers/scan.py` の `ALLOWED["E4"]` に import する script を 1 本ずつ名指し、区分の issue で外す）。メイングラフとサブグラフの `scripts/*.py` の名と `lib/*.py` の名が重ならない）。
+- 機械: `tests/layers/test_block_paths.py`（サブグラフの `scripts/` とサブグラフの YAML（直に書いた script）の字に、ほかのサブグラフを指すパス（`workflows/<名>/`・Archon が読む所の `.archon/workflows/works-factory/<名>/`（pack の形。pack の段 `works-factory` は飛ばして見る）・`../<名>/`）が無い。`scripts/` の字には `lib/`・`workflows/.shared/`・自分のサブグラフの外への相対パスも無い。`scripts/*.py` の import の名が同じ `scripts/` の別のファイルの名でない。メイングラフとサブグラフの `scripts/*.py` の名と `lib/*.py` の名が重ならない）。
 
 ## E5 サブグラフの出力は 1 つのノードの構造体
 
