@@ -100,7 +100,7 @@ import unittest
 sys.dont_write_bytecode = True
 
 import baseline_red  # noqa: E402  （lib。赤・緑の判定と実行器を走らせる口の正本）
-from baseline_red import _failure_attrs, run_suite  # noqa: E402,F401  （定義はここに持たない。fixgates が tddloop の名で読む）
+from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401  （定義はここに持たない。fixgates・fixboard が tddloop の名で読む）
 import cite  # noqa: E402  （.shared/core。名指しの形・引いた文が現物に在るかの照らし。寄せた後の部分一致 quoted_in）
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
 import fixboard  # noqa: E402  （lib。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
@@ -2120,11 +2120,6 @@ def rev_id(repo, rev: str) -> str:
         return git(repo, "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}").strip() or rev
     except Unreadable:
         return rev
-
-
-def exe_path(repo, suite: str) -> pathlib.Path:
-    """入力 tdd_suite の実行器のパス（相対なら作業ツリー repo の根から解く）"""
-    return pathlib.Path(suite) if pathlib.Path(suite).is_absolute() else pathlib.Path(repo) / suite
 
 
 def exe_id(repo, exe) -> list:

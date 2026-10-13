@@ -2,7 +2,7 @@
 
 - run_suite の結末の行に failure の子の message と本文（元 works/tests/test_blk_fix_tdd.py の TestRedKind）
 - run_suite が only でない時は外の env の合図 ONLY_ENV を落とす
-- run_suite を種（tests/e2e/target-seed/）の写しで走らせ、JUnit を書かない時と XML が壊れた時の problems の文
+- run_suite を種（tests/e2e/target-seed/）の写しで走らせ、JUnit を書かない時と XML が壊れた時の problems の文。ファイル名だけの実行器を写しの根から起こす
 - parse_junit・red_problems・green_problems の事実の文（元は輪の中からだけ呼ばれていた筋を、関数を直に呼んで写す）
 - write_baseline → read_baseline が同じ dict に戻る（extra の欄も）。必須の欄の欠けと型の違い・OUTCOMES に無い outcome は ValueError
 - outcomes が同じ鍵の最初の 1 つを取る。_must_pass が元で failure の物を問わず、元に無い物を問う
@@ -103,6 +103,15 @@ class RunSuiteSeedCase(unittest.TestCase):
         self.assertEqual(len(why), 1)
         self.assertTrue(why[0].startswith("JUnit XML が読めない（"), why)
         self.assertIn(str(self.work / "suite-bad.log"), why[0])
+
+    def test_bare_name_runs_from_the_repo_root(self):
+        """ファイル名だけの実行器（種の tdd_suite の junit-suite.sh の形）は PATH で探さず repo の根の物を起こす（#340）"""
+        exe = self.repo / "bare-suite.sh"
+        exe.write_text(f"#!/bin/sh\nprintf '%s' '{JUNIT}' > \"$1\"\nexit 1\n", encoding="utf-8")
+        exe.chmod(0o755)
+        cases, code, why = baseline_red.run_suite(exe.name, self.repo, self.work, "bare-name")
+        self.assertEqual((code, why), (1, []))
+        self.assertEqual(len(cases), 2)
 
     def test_missing_runner_is_a_problem_without_exit(self):
         cases, code, why = baseline_red.run_suite(str(self.work / "無い"), self.repo, self.work, "gone")
