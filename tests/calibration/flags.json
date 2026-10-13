@@ -661,7 +661,7 @@
      "where": "parent/test-gate/base/failure.txt"
     }
    ],
-   "why": "line/test-gate-base で走る test-gate/run の素材を test-gate/result が baseline.json の material に写し（found が修正前の赤）、evidence.md の『- green: false』か落ちた時の failure.txt を赤とする（workflows/test-gate/scripts/result.py:48・87・103-107・115・126・131）"
+   "why": "line/test-gate-base で走る test-gate/run の素材を test-gate/result が baseline.json の material に写し（found が修正前の赤）、evidence.md の『- green: false』か落ちた時の failure.txt を赤とする（workflows/test-gate/scripts/result.py:58・97・113-117・125・136・141）"
   },
   "p0.parallel_pr": {
    "rules": [
@@ -677,10 +677,10 @@
      "path": "reply.conflicts.0"
     }
    ],
-   "why": "judge/pr-scan が交差を見て役に回し、material-pr-check.json の status found か conflicts を並行 PR との交差の所見とする（lib/judge_accept.py:3790・3812-3815・3903）"
+   "why": "judge/pr-scan が交差を見て役に回し、material-pr-check.json の status found か conflicts を並行 PR との交差の所見とする（lib/judge_accept.py:3791・3813-3816・3904）"
   },
   "p0.premises": {
-   "never": "judge/premises の返答は測り直した制約 constraints だけで、所見か赤を言う欄が無い（lib/judge_accept.py:1459）"
+   "never": "judge/premises の返答は測り直した制約 constraints だけで、所見か赤を言う欄が無い（lib/judge_accept.py:1460）"
   },
   "p0.prior_decisions": {
    "rules": [
@@ -691,7 +691,7 @@
      "value": "found"
     }
    ],
-   "why": "judge/prior-decisions-accept が material-prior-decisions.json を書き、status found を所見とする（lib/judge_accept.py:117・2852）"
+   "why": "judge/prior-decisions-accept が material-prior-decisions.json を書き、status found を所見とする（lib/judge_accept.py:118・2853）"
   },
   "p0.purpose": {
    "rules": [
@@ -702,7 +702,7 @@
      "value": "目的不明"
     }
    ],
-   "why": "judge/purpose-accept が judge/purpose.json を書き、出典が『目的不明』なら独立設計が検証できない赤とする（lib/judge_accept.py:1511、workflows/judge/commands/purpose.md:49）"
+   "why": "judge/purpose-accept が judge/purpose.json を書き、出典が『目的不明』なら独立設計が検証できない赤とする（lib/judge_accept.py:1512、workflows/judge/commands/purpose.md:49）"
   },
   "p0.purpose_review": {
    "rules": [
@@ -718,7 +718,7 @@
      "path": "reply.findings.0"
     }
    ],
-   "why": "judge/purpose-review-accept が material-purpose-review.json を書き、verdict『狭めている』か findings を所見とする（lib/judge_accept.py:2650・2852）"
+   "why": "judge/purpose-review-accept が material-purpose-review.json を書き、verdict『狭めている』か findings を所見とする（lib/judge_accept.py:2651・2853）"
   },
   "p1.consistency_bypass": {
    "rules": [
@@ -735,7 +735,7 @@
      "value": "found"
     }
    ],
-   "why": "judge/consistency-bypass-accept が素材 consistency と bypass を書き、どちらかの found を所見とする（lib/judge_accept.py:1916-1923・2852）"
+   "why": "judge/consistency-bypass-accept が素材 consistency と bypass を書き、どちらかの found を所見とする（lib/judge_accept.py:1917-1924・2853）"
   },
   "p1.external_standards": {
    "rules": [
@@ -746,7 +746,7 @@
      "value": "found"
     }
    ],
-   "why": "judge/external-standards-accept が書く素材の found（lib/judge_accept.py:2852）"
+   "why": "judge/external-standards-accept が書く素材の found（lib/judge_accept.py:2853）"
   },
   "p1.gate_efficacy": {
    "rules": [
@@ -757,7 +757,7 @@
      "value": "found"
     }
    ],
-   "why": "judge/gate-efficacy-accept が書く素材の found（lib/judge_accept.py:2852）"
+   "why": "judge/gate-efficacy-accept が書く素材の found（lib/judge_accept.py:2853）"
   },
   "p1.hygiene": {
    "rules": [
@@ -768,7 +768,7 @@
      "value": "found"
     }
    ],
-   "why": "judge/hygiene-accept が書く素材の found。findings が在れば found（lib/judge_accept.py:2750-2757・2852）"
+   "why": "judge/hygiene-accept が書く素材の found。findings が在れば found（lib/judge_accept.py:2751-2758・2853）"
   },
   "p1.local_review": {
    "rules": [
@@ -784,7 +784,7 @@
      "path": "reply.findings.0"
     }
    ],
-   "why": "judge/local-review-accept が書く素材の found か reply.findings（lib/judge_accept.py:2852）"
+   "why": "judge/local-review-accept が書く素材の found か reply.findings（lib/judge_accept.py:2853）"
   },
   "p1.main_path_observation": {
    "rules": [
@@ -795,7 +795,7 @@
      "value": "found"
     }
    ],
-   "why": "judge/main-path-observation-accept が書く素材の found（lib/judge_accept.py:2852）"
+   "why": "judge/main-path-observation-accept が書く素材の found（lib/judge_accept.py:2853）"
   },
   "p1.procedure_trace": {
    "rules": [
@@ -806,7 +806,7 @@
      "value": "found"
     }
    ],
-   "why": "judge/procedure-trace-accept が書く素材の found（lib/judge_accept.py:2852）"
+   "why": "judge/procedure-trace-accept が書く素材の found（lib/judge_accept.py:2853）"
   },
   "p1.provenance": {
    "rules": [
@@ -817,7 +817,7 @@
      "value": "found"
     }
    ],
-   "why": "judge/provenance-accept が書く素材の found（lib/judge_accept.py:2852）"
+   "why": "judge/provenance-accept が書く素材の found（lib/judge_accept.py:2853）"
   },
   "p1.test_double_fidelity": {
    "rules": [
@@ -828,7 +828,7 @@
      "value": "found"
     }
    ],
-   "why": "judge/test-double-fidelity-accept が書く素材の found（lib/judge_accept.py:2852）"
+   "why": "judge/test-double-fidelity-accept が書く素材の found（lib/judge_accept.py:2853）"
   },
   "p1.worktree_after": {
    "rules": [
@@ -883,10 +883,10 @@
      "text": "読むだけの役が作業ツリーを変えた"
     }
    ],
-   "why": "judge/hygiene-accept などの素材の受け付けは作業ツリーが役の前と違えば拒み（lib/judge_accept.py:2000・2819-2823）、その文を judge/rejects-<役>.json に積む（lib/rolekit.py:95-103）"
+   "why": "judge/hygiene-accept などの素材の受け付けは作業ツリーが役の前と違えば拒み（lib/judge_accept.py:2001・2820-2824）、その文を judge/rejects-<役>.json に積む（lib/rolekit.py:96-104）"
   },
   "p1.worktree_before": {
-   "never": "judge/material-route は役を起こす前の作業ツリーの姿 material-tree.json を置くだけで、照らして拒むのは p1.worktree_after の側（lib/judge_accept.py:2233-2234）"
+   "never": "judge/material-route は役を起こす前の作業ツリーの姿 material-tree.json を置くだけで、照らして拒むのは p1.worktree_after の側（lib/judge_accept.py:2234-2235）"
   },
   "p2.diagnose": {
    "rules": [
@@ -921,7 +921,7 @@
      "value": "not_root"
     }
    ],
-   "why": "judge/diagnose-accept が judge/judgment.json を書き、label が info でない単位を所見とする（lib/judge_accept.py:129・899・1039）。judge/verify-merge が書く not_root も所見（:1251）"
+   "why": "judge/diagnose-accept が judge/judgment.json を書き、label が info でない単位を所見とする（lib/judge_accept.py:130・900・1040）。judge/verify-merge が書く not_root も所見（:1252）"
   },
   "p2.fix_plan": {
    "rules": [
@@ -990,22 +990,22 @@
      "path": "lowered.0"
     }
    ],
-   "why": "line/rejudge-run の中の judge/rejudge-accept が受けた再審を rejudge/rejudge-exit.json に書き、異議を採った verdicts・新しく開いた単位・下げた block を所見とする（lib/judge_accept.py:3681-3695）"
+   "why": "line/rejudge-run の中の judge/rejudge-accept が受けた再審を rejudge/rejudge-exit.json に書き、異議を採った verdicts・新しく開いた単位・下げた block を所見とする（lib/judge_accept.py:3682-3696）"
   },
   "p3.delta_fix": {
-   "never": "fix/refix は差分の審査の穴に答える手直しの役で、所見は p3.delta_review が出す（lib/refix.py:252）"
+   "never": "fix/refix は差分の審査の穴に答える手直しの役で、所見は p3.delta_review が出す（lib/refix.py:253）"
   },
   "p3.delta_fix2": {
-   "never": "fix/refix2 は p3.delta_fix と同じ形の 2 回目の手直し（lib/refix.py:252）"
+   "never": "fix/refix2 は p3.delta_fix と同じ形の 2 回目の手直し（lib/refix.py:253）"
   },
   "p3.delta_gates": {
    "never": "docs/nodes.json の by が absent（works-factory に節が無い）。変異の検算の線が無い"
   },
   "p3.delta_owed": {
-   "never": "fix/delta-accept は p3.delta_review の穴と閉じていない checks を数え直すだけ（workflows/fix/scripts/delta_accept.py:44-49）。所見は p3.delta_review の側で数える"
+   "never": "fix/delta-accept は p3.delta_review の穴と閉じていない checks を数え直すだけ（workflows/fix/scripts/delta_accept.py:45-50）。所見は p3.delta_review の側で数える"
   },
   "p3.delta_owed2": {
-   "never": "fix/review2-accept は p3.delta_owed と同じ集計（workflows/fix/scripts/review2_accept.py:47-52）"
+   "never": "fix/review2-accept は p3.delta_owed と同じ集計（workflows/fix/scripts/review2_accept.py:48-53）"
   },
   "p3.delta_review": {
    "rules": [
@@ -1026,7 +1026,7 @@
      "path": "rows.*.findings.0"
     }
    ],
-   "why": "fix/delta-review の受けた返答の faces と closed:false の checks（lib/refix.py:220、lib/fixboard.py:213・315-326）と、fix/lens-collect が残すレンズの指摘（workflows/fix/scripts/lens_collect.py:32）"
+   "why": "fix/delta-review の受けた返答の faces と closed:false の checks（lib/refix.py:221、lib/fixboard.py:215・317-328）と、fix/lens-collect が残すレンズの指摘（workflows/fix/scripts/lens_collect.py:33）"
   },
   "p3.delta_review2": {
    "rules": [
@@ -1042,7 +1042,7 @@
      "value": false
     }
    ],
-   "why": "fix/review2 の受けた返答の faces と closed:false の checks（lib/refix.py:212）"
+   "why": "fix/review2 の受けた返答の faces と closed:false の checks（lib/refix.py:213）"
   },
   "p3.fix": {
    "rules": [
@@ -1065,13 +1065,13 @@
      "value": false
     }
    ],
-   "why": "fix/assert-changed が申告と変更の食い違いを ok:false で書き（workflows/fix/scripts/assert_changed.py:57・60）、子の run の終わりに fix の組が諦めた単位と TDD の段の落ちを groups/<gid>/result.json に書く（workflows/fix/scripts/group_end.py:63-64）"
+   "why": "fix/assert-changed が申告と変更の食い違いを ok:false で書き（workflows/fix/scripts/assert_changed.py:58・61）、子の run の終わりに fix の組が諦めた単位と TDD の段の落ちを groups/<gid>/result.json に書く（workflows/fix/scripts/group_end.py:64-65）"
   },
   "p3.fix_delta": {
-   "never": "fix/delta-cut は修正だけの差分を切るか飛ばすだけの記帳（lib/refix.py:117-130・189、workflows/fix/scripts/delta_cut.py:41）"
+   "never": "fix/delta-cut は修正だけの差分を切るか飛ばすだけの記帳（lib/refix.py:118-131・190、workflows/fix/scripts/delta_cut.py:42）"
   },
   "p3.fix_delta2": {
-   "never": "fix/cut2 は 2 回目の差分を切るか go:false を返すだけの記帳（workflows/fix/scripts/cut2.py:27-35）"
+   "never": "fix/cut2 は 2 回目の差分を切るか go:false を返すだけの記帳（workflows/fix/scripts/cut2.py:28-36）"
   },
   "p3.gates_cut": {
    "never": "test-gate/result は修正の後の姿を緑の認証の指紋で固めるだけ（lib/green_cert.py:114-138）。最後の試験の赤は p4.ci の側で数える"
@@ -1094,7 +1094,7 @@
      "text": "組の差分を当てられない"
     }
    ],
-   "why": "fix/join が組の差分を親の作業ツリーに当てられない・当てた後に元で赤でなかった試験が赤の時、join.json の groups[].reason に書く（workflows/fix/scripts/join.py:73・98、lib/fixboard.py:518・522・549）"
+   "why": "fix/join が組の差分を親の作業ツリーに当てられない・当てた後に元で赤でなかった試験が赤の時、join.json の groups[].reason に書く（workflows/fix/scripts/join.py:74・99、lib/fixboard.py:520・524・551）"
   },
   "p4.assemble": {
    "never": "docs/nodes.json の by が absent（works-factory に節が無い）。R1・R2 の再発火を数える節を持たない"
@@ -1116,7 +1116,7 @@
      "where": "parent/test-gate/final/failure.txt"
     }
    ],
-   "why": "line/test-gate-final で走る test-gate/run の結末を test-gate/result が evidence.md の『- green: false』か落ちた時の failure.txt で書く（workflows/test-gate/scripts/result.py:48・87・115・126・131）"
+   "why": "line/test-gate-final で走る test-gate/run の結末を test-gate/result が evidence.md の『- green: false』か落ちた時の failure.txt で書く（workflows/test-gate/scripts/result.py:58・97・125・136・141）"
   },
   "p4.final_gates": {
    "never": "docs/nodes.json の by が absent（works-factory に節が無い）。最後の変異の検算が無い"
@@ -1222,10 +1222,10 @@
      "value": "reject"
     }
    ],
-   "why": "line/gate-final が開いて答えると line/answer-final が gates/gate-final.json に decision を書き、通す語でない stop・reject を赤とする（workflows/line/scripts/gate_answer.py:42-44）。無人の run が関所の手前で needs-human で止まる時は書かれない（workflows/line/scripts/ask_final.py:131-132）"
+   "why": "line/gate-final が開いて答えると line/answer-final が gates/gate-final.json に decision を書き、通す語でない stop・reject を赤とする（workflows/line/scripts/gate_answer.py:42-44）。無人の run が関所の手前で needs-human で止まる時は書かれない（workflows/line/scripts/ask_final.py:132-133）"
   },
   "report": {
-   "never": "report/write は報告の書き手で、所見は出さない（受け付けの拒みは報告の形の直しで、対象への所見でない。lib/runreport.py:1100-1105）"
+   "never": "report/write は報告の書き手で、所見は出さない（受け付けの拒みは報告の形の直しで、対象への所見でない。lib/runreport.py:1077-1082）"
   },
   "report.cold_check": {
    "rules": [
@@ -1246,10 +1246,10 @@
      "text": "redesign-needed を返した"
     }
    ],
-   "why": "report/cold の判定を report/accept が受け、redesign-needed なら ai.json の cold.verdict・not_passed と reject-<N>.md に残す（lib/runreport.py:1083-1127）"
+   "why": "report/cold の判定を report/accept が受け、redesign-needed なら ai.json の cold.verdict・not_passed と reject-<N>.md に残す（lib/runreport.py:1060-1104）"
   },
   "report.human_items": {
-   "never": "report/facts はほかの関門が人に回した項目を数えて報告の頭に書くだけで、自分では所見も赤も出さない（lib/runreport.py:785・1020）"
+   "never": "report/facts はほかの関門が人に回した項目を数えて報告の頭に書くだけで、自分では所見も赤も出さない（lib/runreport.py:784・1003）"
   },
   "spec.approve": {
    "never": "judge/spec-gate は仕様の承認を人に聞く関所で、関門自身は所見も赤も出さない（spec=on の run だけ。無人の run とは組めない）"
@@ -1258,7 +1258,7 @@
    "never": "docs/nodes.json の by が absent（works-factory に節が無い）。凍結した受け入れ条件のテストの hash を後で照らす節が無い"
   },
   "spec.freeze": {
-   "never": "judge/spec-freeze は承認した仕様を固めて依頼を積むだけ（lib/judge_accept.py:3357-3358）"
+   "never": "judge/spec-freeze は承認した仕様を固めて依頼を積むだけ（lib/judge_accept.py:3358-3359）"
   },
   "spec.review": {
    "rules": [
@@ -1268,13 +1268,13 @@
      "path": "faces.0"
     }
    ],
-   "why": "judge/spec-review-accept が審査の返答を judge/spec-review.json に書き、穴 faces を所見とする（lib/judge_accept.py:3258）"
+   "why": "judge/spec-review-accept が審査の返答を judge/spec-review.json に書き、穴 faces を所見とする（lib/judge_accept.py:3259）"
   },
   "spec.revise": {
-   "never": "judge/spec-revise は書き手が審査の穴に答えて直す節で、所見は spec.review が出す（lib/judge_accept.py:3258）"
+   "never": "judge/spec-revise は書き手が審査の穴に答えて直す節で、所見は spec.review が出す（lib/judge_accept.py:3259）"
   },
   "spec.write": {
-   "never": "judge/spec-accept は書き手の仕様を置くだけで、返答に所見や赤の欄が無い（lib/judge_accept.py:3258）"
+   "never": "judge/spec-accept は書き手の仕様を置くだけで、返答に所見や赤の欄が無い（lib/judge_accept.py:3259）"
   },
   "stop.premise_check": {
    "rules": [
@@ -1290,7 +1290,7 @@
      "text": "前提の検算が人に上げた物: 1 件"
     }
    ],
-   "why": "eyes/premise-check-verdict が eyes/premise-check.json に返りを書き verdict escalate を赤とし、役が落ちて escalate に倒した時は report.md の行で拾う（workflows/eyes/scripts/eye_verdict.py:17、lib/eyeverdict.py:346-349、lib/runreport.py:763-774）"
+   "why": "eyes/premise-check-verdict が eyes/premise-check.json に返りを書き verdict escalate を赤とし、役が落ちて escalate に倒した時は report.md の行で拾う（workflows/eyes/scripts/eye_verdict.py:17、lib/eyeverdict.py:346-349、lib/runreport.py:762-773）"
   }
  }
 }
