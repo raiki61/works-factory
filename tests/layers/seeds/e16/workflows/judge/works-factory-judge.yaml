@@ -4,5 +4,5 @@ nodes:
   - id: approve-spec
     approval:
       message: 仕様を承認するか
-      decisions: [{ id: approve }, { id: stop }, { id: reject }]
+      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
     idle_timeout: 1728000000
