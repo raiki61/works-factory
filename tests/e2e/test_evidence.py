@@ -54,6 +54,10 @@ NAMED_BY_PATTERN = {
     "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py:93",
     "parent/fix/fix/review1-brief.json": "lib/refix.py:164",
     "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:472",
+    "parent/judge/query-examples.json": "lib/marks.py:51",
+    "parent/plan/r1/rejects-plan.json": "lib/rolekit.py:103",
+    "parent/plan/structure/*/design.jsonl": "lib/planfile.py:94",
+    "parent/plan-review/gate-marks.json": "lib/marks.py:42",
 }
 
 
@@ -230,13 +234,14 @@ class EvidenceTableCase(unittest.TestCase):
                     self.assertEqual(self.by_id[i]["why"], self.inventory[i], "欄 why が棚卸しの字でない")
 
     def test_waits_part_rows_are_closing_rows_of_that_part(self):
-        """部分の閉じる行のうち scenario-only でない行は全部 waits-part（本物の run の記録で置き場を決めた行を移す時に、この試験を直す）"""
+        """waits-part の行はその部分の閉じる行で scenario-only でない行。閉じる行は本物の run の記録で決めたものから waits-part を
+        離れる（seen・seed-cannot など）ので、閉じる行の全部が waits-part とは縛らない"""
         parts, _ = wiring()
         for part in evidence.PARTS:
             with self.subTest(part=part):
                 waiting = {row["id"] for row in self.rows if row["kind"] == "waits-part" and row["part"] == part}
                 self.assertTrue(parts.get(part))
-                self.assertEqual(waiting, parts[part] - self.kind_of("scenario-only"))
+                self.assertLessEqual(waiting, parts[part] - self.kind_of("scenario-only"))
 
     def test_node_rules_name_node_ids_the_workflow_makes(self):
         """run の記録の節を照らす行は node-completed で、node はその run の工程の YAML から組んだ節の id そのもの（include の頭は

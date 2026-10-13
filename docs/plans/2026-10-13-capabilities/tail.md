@@ -1314,7 +1314,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1588-1591 `always_rows` の「残り: N 件」
   - 今: lib/runreport.py の _decisions の RESIDUE_HEAD の行（結末に依らず 0 件も。残りが在れば MISSING_EYE_NOTE）
   - 証: lib/tests/test_runreport.py::DecisionsCase.test_residue_count_is_always_shown
-  - 本物の run: report/report.md「1. 人が決めること」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report.md「1. 人が決めること」）
   - 狭め: #68 で書かれずに落ちた。不可でない → 戻す → 部分 C で戻した（検証器の阻害は持たないので数えない）
 
 ### 報告の頭と「1. 人が決めること」
@@ -1465,7 +1465,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1308-1338 `head_entry`・:1339 `forge_line`
   - 今: lib/runreport.py の _entry_lines（段・entry.features_part・決めた人の関所の答えの数・FORGE_HEAD の forge.reason(forge.detect(repo))）
   - 証: lib/tests/test_runreport.py::LinesCase.test_entry_names_thickness_and_features
-  - 本物の run: start.json（run の置き場の直下）の thickness（標準）・features
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json（run の置き場の直下）の thickness（標準）・features）
   - 狭め: #68 で書かれずに落ちた。不可でない → 戻す（元の「下げている所 downgrades.json」と「このラインに無い節」は線の形が変わったので対象が無い） → 部分 C で戻した（下げている所は J41。このラインに無い節は対象が無い）
 
 - R42 線が渡した深さの行（単位ごとの深さ・標準へ上げた信号・軽量で省いた物）
