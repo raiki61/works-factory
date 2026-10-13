@@ -9,13 +9,9 @@ script の字を ast で読み、入力の字が流れ込む名（入力を代�
 """
 import ast
 import pathlib
-import sys
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-sys.path.append(str(ROOT / "lib"))
-import lenses  # noqa: E402
-import specblk  # noqa: E402
 
 SCRIPTS = sorted({*ROOT.glob("workflows/*/scripts/*.py"), *ROOT.glob("workflows/*/scripts/*/*.py")})
 INPUT_HEAD = "INPUTS_"
@@ -133,13 +129,6 @@ class InputReadsCase(unittest.TestCase):
                          (None, None, None, [], False, None, "", ""))
         with self.assertRaisesRegex(ValueError, "入力 start のポインタが無い"):
             boundary.needed("", "start")
-
-    def test_lib_null_readers_agree_with_the_boundary(self):
-        """入力の字をそのまま受ける lib の読み手（lib は境の口を import できない。lib/AGENTS.md の E3）も、null の規則を口と同じに読む"""
-        from tests.shared.test_boundary import boundary
-        for raw in ("", "  ", "null", " null "):
-            with self.subTest(raw=raw):
-                self.assertEqual((boundary.parsed(raw), lenses._parse(raw), specblk.parse_gate(raw)), (None, None, None))
 
 
 if __name__ == "__main__":

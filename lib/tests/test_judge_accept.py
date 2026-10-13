@@ -1843,7 +1843,7 @@ class SpecGateCase(_SpecRepoCase):
         """元 test_blk_spec の test_pass_path（承認の後に run を走らせ、sha256 と exit_at_approval を固め、依頼の行を積む）"""
         self.asked()
         ja.write_json(self.jdir / "request.json", [{"where": "x.txt", "text": "人の依頼"}])
-        got = ja.spec_answer(self.jdir, self.repo, json.dumps({"decision": "approve", "text": "A1 で進めてよい"}))
+        got = ja.spec_answer(self.jdir, self.repo, {"decision": "approve", "text": "A1 で進めてよい"})
         self.assertEqual(got, {"go": True, "reason": ""})
         spec = ja.read_json(self.jdir / "spec.json")
         a = spec["acceptance"][0]
@@ -1859,7 +1859,7 @@ class SpecGateCase(_SpecRepoCase):
         self.assertEqual([(b["origin"], b["findings"]) for b in batches][1:], [(ja.SPEC_ORIGIN, rows[1:])],
                          "受け入れ条件の行は出どころの印 SPEC_ORIGIN のバッチ（元 review-loop.py:4040）")
         self.assertEqual(batches[0]["findings"], rows[:1])
-        again = ja.spec_answer(self.jdir, self.repo, json.dumps({"decision": "continue", "text": "二度目"}))
+        again = ja.spec_answer(self.jdir, self.repo, {"decision": "continue", "text": "二度目"})
         self.assertTrue(again["go"])
         self.assertEqual(ja.read_json(self.jdir / "spec.json")["approval"]["note"], "A1 で進めてよい", "1 度だけ固める")
         self.assertEqual(len(ja.read_json(self.jdir / "request.json")), 2)
@@ -1873,7 +1873,7 @@ class SpecGateCase(_SpecRepoCase):
             with self.subTest(decision=decision, text=text):
                 self.setUp()
                 self.asked(faces=False)
-                got = ja.spec_answer(self.jdir, self.repo, json.dumps({"decision": decision, "text": text}))
+                got = ja.spec_answer(self.jdir, self.repo, {"decision": decision, "text": text})
                 self.assertIs(got["go"], False)
                 stop = ja.read_stop(self.jdir)
                 self.assertEqual(stop["stop_reason"], want)
@@ -1885,16 +1885,16 @@ class SpecGateCase(_SpecRepoCase):
         for _ in range(3):
             rolekit.with_done(self.jdir, "spec-write", {"ok": False, "reason": "テストのファイルが無い"})
         ja.spec_ask(self.jdir, self.repo, "run-spec")
-        got = ja.spec_answer(self.jdir, self.repo, "null")
+        got = ja.spec_answer(self.jdir, self.repo, None)
         self.assertIs(got["go"], False)
         self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], ja.SPEC_STOP)
 
     def test_gate_unknown_word(self):
         """元 test_blk_spec の test_answer_rejects_unknown_word"""
         with self.assertRaises(rolekit.BoardGap):
-            specblk.parse_gate(json.dumps({"decision": "maybe", "text": ""}))
+            specblk.parse_gate({"decision": "maybe", "text": ""})
         self.asked(faces=False)
-        got = ja.spec_answer(self.jdir, self.repo, json.dumps({"decision": "maybe", "text": ""}))
+        got = ja.spec_answer(self.jdir, self.repo, {"decision": "maybe", "text": ""})
         self.assertIs(got["go"], False)
         self.assertIn("maybe", got["reason"])
 
@@ -2090,11 +2090,11 @@ class SpecblkCase(unittest.TestCase):
         self.assertEqual(text.count(specblk.gatemarks.answer.line("run-x", "continue", "<通す範囲と条件>")), 1)
 
     def test_parse_gate(self):
-        self.assertIsNone(specblk.parse_gate("null"))
-        self.assertIsNone(specblk.parse_gate(""))
-        self.assertEqual(specblk.parse_gate('{"decision": "reject"}'), {"decision": "reject", "text": ""})
-        with self.assertRaises(rolekit.BoardGap):
-            specblk.parse_gate("[1]")
+        self.assertIsNone(specblk.parse_gate(None))
+        self.assertEqual(specblk.parse_gate({"decision": "reject"}), {"decision": "reject", "text": ""})
+        for bad in ([1], "{decision"):
+            with self.assertRaises(rolekit.BoardGap):
+                specblk.parse_gate(bad)
         self.assertEqual(specblk.snapshot_name("spec.review"), "spec-snapshot-spec.review.json")
 
 
