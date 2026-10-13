@@ -524,11 +524,11 @@ class CiRoleCase(ScriptCase):
 
     def test_prep_marks_each_attempt_with_its_time(self):
         """ci-prep は回ごとに役を起こす前の時刻を書く（受け付けがこの後の包みの起動の記録を探す）"""
-        prepared = self.artifacts / "test-gate" / "base" / declared_checks.PREPARED
+        snapshot = self.artifacts / "test-gate" / "base" / "ci-snapshot.json"
         times = []
         for _ in range(2):
             self.prep()
-            times.append(datetime.datetime.fromisoformat(json.loads(prepared.read_text(encoding="utf-8"))["at"]))
+            times.append(datetime.datetime.fromisoformat(json.loads(snapshot.read_text(encoding="utf-8"))["prepared_at"]))
         self.assertTrue(times[0].tzinfo)
         self.assertLess(times[0], times[1])
 

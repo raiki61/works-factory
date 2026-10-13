@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """節 ci-accept: 任せ先の CI の役の返答を受け付ける。run が包みを通ると宣言した（env の fence.RECORDS_ENV）なら、先に包みの起動の記録で
-ci-prep の時刻（declared_checks.PREPARED）より後にこの作業ツリーで柵の掛かった起動が在ったかを見て、無ければ返答を受けず回数を待たずに
+ci-prep の時刻（ci-snapshot.json の prepared_at）より後にこの作業ツリーで柵の掛かった起動が在ったかを見て、無ければ返答を受けず回数を待たずに
 諦める（今の works の ci_role.take と同じ所。棚卸しの T49）。役の前後の作業ツリーの姿（ci-prep の ci-snapshot.json と今。accept.tree_moved。
 HEAD・枝・git が無視するパスも見る。with: の status_guarded が真なら、Archon の状態の照らしと重なる git status の行は比べない）を比べ、素材の欄の決まり（declared_checks.material_problems）を照らす。通れば素材を
 test-gate/<mode>/ci-material.json に書く。拒めば理由を返し（拒否は rolekit の控えに積む）、役が自分で置きうる ci-material.json を消し、
@@ -25,19 +25,15 @@ import rolekit  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
 
 
-def unfenced(gate: Path, root: Path, records: str) -> str:
+def unfenced(snap: dict, root: Path, records: str) -> str:
     """宣言した記録 records に、この回の役の起動に柵が掛かった証が無ければその訳（在れば空）"""
     if not os.path.isabs(records):
         return f"{fence.RECORDS_ENV} が絶対パスでない（{records!r}）"
-    try:
-        since = json.loads((gate / declared_checks.PREPARED).read_text(encoding="utf-8"))["at"]
-    except (OSError, ValueError, KeyError, TypeError) as error:
-        return f"{declared_checks.PREPARED} が読めない（{error}）"
-    return fence.fenced_since(Path(records), root, since)
+    return fence.fenced_since(Path(records), root, snap.get("prepared_at"))
 
 
 def judge(gate: Path, root: Path, snap: dict, raw: str, mode: str, keys=accept.TREE_KEYS, records: str = "") -> dict:
-    if records and (why := unfenced(gate, root, records)):
+    if records and (why := unfenced(snap, root, records)):
         return {"ok": False, "give_up": True,
                 "reason": f"包みの柵が CI の任せ先の役の起動に掛かっていない: {why}——返答を受けず止める"}
     moved = accept.tree_moved({k: snap[k] for k in accept.TREE_KEYS}, root, keys=keys)

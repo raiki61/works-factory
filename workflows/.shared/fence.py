@@ -133,7 +133,7 @@ def _at(text) -> datetime.datetime | None:
     return at if at.tzinfo else None
 
 
-def fenced_since(records, root, since: str) -> str:
+def fenced_since(records, root, since: str | None) -> str:
     """記録 records に、since より後に root（実パス）かその下を cwd にした起動が在れば空。無ければ訳の 1 行"""
     start = _at(since)
     if start is None:
