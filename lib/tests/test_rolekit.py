@@ -67,7 +67,7 @@ class RejectLedgerCase(Base):
         self.assertIn(f"拒否 {rolekit.GIVE_UP_AFTER}", rolekit.given_up_reason(self.tmp, "eye"))
 
     def test_reject_file_carries_every_reject_oldest_first(self):
-        """次の回の役は新しい会話で起きるので、名指すファイルに輪の拒否の全部が古い順に在る（#345）。報告の最後の拒否の読み
+        """次の回の役が名指すファイルに輪の拒否の全部が古い順に在る（#345）。報告の最後の拒否の読み
         （last_reject）はそのファイルを最後の拒否と取り違えない"""
         self.assertEqual(rolekit.reject_file(self.tmp, "plan"), "")
         for n in (1, 2):

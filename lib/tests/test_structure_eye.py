@@ -180,7 +180,7 @@ class EyeAcceptCase(unittest.TestCase):
             for _ in range(eye.rolekit.GIVE_UP_AFTER):
                 prepped = eye.prep(s)
                 self.assertEqual(prepped["attempt"], len(got) + 1)
-                if got:   # 目は回ごとに新しい会話で起きるので、前の回までの拒否の全部を貼る（#345）
+                if got:   # どの回の目も前の回までの拒否の全部を読む（#345）
                     self.assertIn(eye.rolekit.rejects_text([g["reason"] for g in got]), prepped["prompt"])
                 got.append(eye.accept(s, design, {"rows": []}))
             self.assertEqual([(g["ok"], g["done"], g["give_up"]) for g in got],

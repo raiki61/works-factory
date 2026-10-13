@@ -638,7 +638,7 @@ class DeltaScriptsCase(unittest.TestCase):
         self.assertEqual((cut2["go"], cut2["files"]), (True, ["stats.py"]), cut2)
 
     def test_third_refix_prompt_names_every_reject_of_the_loop(self):
-        """役は回ごとに新しい会話で起きる。2 回続けて拒まれた輪の 3 回目の指示書が名指すファイルに、1 回目の拒否の理由も届く（#345）"""
+        """どの回の役も輪の拒否の全部を読む。2 回続けて拒まれた輪の 3 回目の指示書が名指すファイルに、1 回目の拒否の理由も届く（#345）"""
         self._cut()
         self.assertTrue(self._run("delta_accept", "delta-accept", reply=json.dumps(_RV_REVIEW, ensure_ascii=False))["ok"])
         p = self.repo / "stats.py"
@@ -2997,7 +2997,7 @@ class FixLoopScriptsCase(FixLoopPlace):
                 self.assertTrue((self.place / head).is_file())
 
     def test_third_fix_prompt_names_every_reject_of_the_loop(self):
-        """修正役は回ごとに新しい会話で起きる。修正の輪と裁定の後の修正の輪で 2 回続けて拒まれた後の 3 回目の指示書が名指す
+        """どの回の修正役も輪の拒否の全部を読む（#345）。修正の輪と裁定の後の修正の輪で 2 回続けて拒まれた後の 3 回目の指示書が名指す
         ファイルに、1 回目と 2 回目の拒否の理由が古い順に在る（#345）"""
         import conflict
         named = re.compile(re.escape(rolekit.REJECT_LINE.partition("{path}")[0]) + r"(\S+?) ")
