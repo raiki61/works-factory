@@ -1899,14 +1899,15 @@ class BlockScriptsCase(unittest.TestCase):
                                      f"        self.assertTrue(True)\n\n\n{tail}")
         malformed = [{"permit": "plan-3", "source": "plan"}, {"path": "test_other.py", "permit": "x-1", "source": "guess"}]
         bad_source = [{"path": "test_stats.py", "permit": "x-1", "source": "guess"}]
-        for reply, returned, rows, extra in ((None, 1, [], []), ({"changes": []}, 2, [child], []),
-                                             ({"changes": []}, 2, [child], malformed), ({"changes": []}, 1, [], bad_source)):
+        for reply, returned, given, rows, extra in ((None, 1, [child], [], []), ({"changes": []}, 2, [child], [child], []),
+                                                    ({"changes": []}, 2, [child], [child], malformed),
+                                                    ({"changes": []}, 1, [], [], bad_source)):
             with self.subTest(reply=reply, extra=extra):
                 __import__("shutil").rmtree(self.art, ignore_errors=True)
                 self.restore()
                 self.place.mkdir(parents=True)
                 permits = fixboard.group_result({"group_id": "g2", "unit_ids": ["B"]}, start_tree="", end_tree="", tdd=None,
-                                                reply=reply, allowed_rows=rows)["allowed_tests"] + extra
+                                                reply=reply, allowed_rows=given)["allowed_tests"] + extra
                 start = self.snapshot(self.repo)
                 t1, t2 = self.tree_with({"test_stats.py": added("TestG1")}), self.tree_with({"test_stats.py": added("TestG2")})
                 out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
