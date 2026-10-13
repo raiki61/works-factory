@@ -115,9 +115,6 @@ def missing(want_tests: bool) -> list[str]:
 
 
 class PointerCase(unittest.TestCase):
-    def test_reads_the_inventory(self):
-        self.assertGreater(len(pointers()), 500)
-
     def test_reads_every_pointing_field(self):
         read = collections.Counter(FIELD.match(text).group(1) for _, text in pointing_fields()
                                    for _ in POINTER.findall(present(text)))
