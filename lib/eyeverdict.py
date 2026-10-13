@@ -3,7 +3,7 @@
 premise-check）で受ける。標準ライブラリと lib の部品だけ。
 
 - r2_compare_due(design, purpose_text)・r2_premise_invalid(design): 比較役と前提の検算を起こすか
-- scalars(diff_text, x_scalars)・scalars_text(s): 規模の数値と、その 1 文
+- scalars(diff_text, x_scalars, not_taken)・scalars_text(s): 規模の数値と、その 1 文
 - _human_passed(questions, answer)・carried_section(passed)・r4_gate_items(r4, passed)・gate_passes(r4, passed): 修正前の関所で
   人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
@@ -79,12 +79,15 @@ def changed_files(diff_text: str) -> list[str]:
     return list(changemap.split_diff(diff_text)[0])
 
 
-def scalars(diff_text: str, x_scalars=None) -> dict:
+def scalars(diff_text: str, x_scalars=None, not_taken: str = "") -> dict:
     """元 同 :2153 の builtin scalars。差分から数えられる規模の数値（足した行・消した行・文書の足した行・変わったファイル）に、
-    修正役が足した x_ の数値 x_scalars を足す。測れた分は返し、測れない物は 0 にせず unmeasured に訳を置く"""
+    修正役が足した x_ の数値 x_scalars を足す。測れた分は返し、測れない物は 0 にせず unmeasured に訳を置く（差分が取れなかった訳
+    not_taken が在れば差分の数は測れない）"""
     out, why = {}, []
     files = changemap.split_diff(diff_text)[0]
-    if diff_text.strip() and not files:
+    if not_taken:
+        why.append(not_taken)
+    elif diff_text.strip() and not files:
         why.append("累積差分が git の差分の形でない")
     else:
         rows = [(path, line[:1]) for path, lines in files.items() for line in lines]

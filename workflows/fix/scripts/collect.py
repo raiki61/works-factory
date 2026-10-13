@@ -48,19 +48,11 @@ def rel(place: Path, name: str) -> str:
     return (place / name).relative_to(Path(os.environ["ARTIFACTS_DIR"])).as_posix()
 
 
-def diff_pointer(fixboard, place: Path, why: str = "") -> dict:
+def diff_pointer(fixboard, place: Path) -> dict:
     """累積差分のファイルの指し札。書けない・空なら理由を書いたファイルの指し札"""
-    if not why:
-        try:
-            text = fixboard.run_diff(boundary.work_tree(), fixboard.base_rev_of(place), boundary.SKIP)
-        except Exception as e:
-            text, why = "", f"累積差分が取れない（{type(e).__name__}: {' '.join(str(e).split())}）"
-        if text.strip():
-            (place / "fix.diff").write_text(text, encoding="utf-8", errors="surrogateescape")
-            return boundary.pointer(rel(place, "fix.diff"))
-        why = why or "累積差分は空（run の始めの版から作業ツリーは変わっていない）"
-    (place / "fix-diff-none.txt").write_text(why + "\n", encoding="utf-8")
-    return boundary.pointer(rel(place, "fix-diff-none.txt"))
+    path, _, _ = fixboard.diff_file(boundary.work_tree(), lambda: fixboard.base_rev_of(place), place, "fix.diff",
+                                 "fix-diff-none.txt", boundary.SKIP)
+    return boundary.pointer(rel(place, path.name))
 
 
 def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review, done, final, results) -> dict:
