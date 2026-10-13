@@ -1553,6 +1553,7 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertIn("E8 = 8\n", e, "後の組の直しは戻す")
         self.assertEqual((self.repo / "b.py").read_text(encoding="utf-8"), "def triple(x):\n    return x * 3 + 1\n")
 
+    @unittest.skipIf(os.geteuid() == 0, "root は書けないフォルダの中も書ける")
     def test_join_keeps_a_group_it_could_not_restore_and_stops_applying(self):
         """#403: 確かめ直しが赤の組 g1 の差分を戻せない（走らせ直しの試験が pkg/ を書けなくする）と、g1 を当てていないと言わず、
         当たったままのパスを unrestored に名指して止めの文を置き、作業ツリーが信用できないので後の組 g2 は当てない"""
