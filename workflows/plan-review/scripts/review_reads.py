@@ -4,7 +4,8 @@
 # ///
 """読んだ証拠の節（lib/boardview.collect_reads）: この差し込みの事前審査の役が、機械が渡したパスを読んだかを、隔離した設定の
 フックの記録（lib/reads.log_here。隔離した Claude の設定の置き場の下）から集め、pass-<k>/ に reads-<役>.json と索引を書き、
-束ね役が起こした下請けの数を trace に残す。受け付けの条件にしない。返す節に結ばない。落ちない: 中の誤りは ok: false と訳で返し、置き場に落ちた記録（lib/reads.guarded）を残す。
+束ね役が起こした下請けの数を trace に残す。受け付けの条件にしない。返す節に結ばない。落ちない: 中の誤りは ok: false と訳で返し、落ちた記録（lib/reads.guarded。名は役の案の直しの名 reads.role_key、置き場は pass-<k>/。
+往復の番号と形を読めなければ置き場の根に役の素の名で、読めないと書く。boardview.reads_place）を残す。
 返り {ok, missing, index_file, reason}"""
 import json
 import os
@@ -25,9 +26,10 @@ def collected() -> None:
     import reads
 
     folder = Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER
+    place, again, unread = boardview.reads_place(folder)
     boundary.returns(reads.guarded(lambda: boardview.collect_reads(folder, reads.log_here(), role=ROLE, quiet=(planblk.DESIGN_ROLE,),
                                                                    repo=Path.cwd()),
-                                   owner=ROLE, place=folder))
+                                   owner=ROLE, place=place, replan=again, unread=unread))
 
 
 def main() -> int:

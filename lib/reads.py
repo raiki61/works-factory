@@ -18,7 +18,8 @@
 - stamp()・records(log, since): 記録の時刻の形と、since から後の行（読めなければ None と訳。記録が無い訳は NO_CONFIG・NO_ROOT・ファイルが無いを分ける）
 - tool_count・tool_inputs・web_fetches・web_searches: 記録の行の道具の呼びの数と入力
 - collect(place, role, must_read, log, *, own, since, repo, replan): 役ごとの reads-<役>.json（案の直しは reads-replan-<役>.json）を書く
-- guarded(collect, owner, place)・failure_name(owner, at): 集めるノードの中の誤りを、sources.hook が FAILED の reads-*.json にして残す
+- guarded(collect, owner, place, replan, unread)・failure_name(owner, at): 集めるノードの中の誤りを、sources.hook が FAILED の
+  reads-*.json にして残す（名は role_key。差し込みの往復と形が読めなければ UNREAD_PASS）
 - read_evidence(path): collect・guarded が書いた reads-*.json を読む（読む側の 1 か所）
 """
 import json
@@ -47,6 +48,7 @@ INDEX_WHY = "why"              # 索引の中の訳の鍵（役を起こして�
 NO_CONFIG = "Claude の設定の置き場が渡っていない起動（CLAUDE_CONFIG_DIR が無い）"
 NO_ROOT = "記録の根が無い（読んだ証拠のフックを置いていない起動）"
 SHAPE_WRONG = "読んだ証拠の形が違う"
+UNREAD_PASS = "往復の番号と形が読めない（推し量らず、置き場の根に役の素の名で書いた）"   # guarded の unread の訳の頭
 WEB_INPUTS = {"Agent": "subagent_type", "WebFetch": "url", "WebSearch": "query"}   # 道具 → 記録に残す入力の欄
 
 
@@ -214,18 +216,21 @@ def failure_name(owner: str, at: float | None = None) -> str:
     return f"{evidence_name(owner).removesuffix('.json')}-failed-{time.strftime('%Y%m%d-%H%M%S', time.localtime(at))}.json"
 
 
-def guarded(collect, *, owner: str, place) -> dict:
+def guarded(collect, *, owner: str, place, replan: bool = False, unread: str = "") -> dict:
     """読んだ証拠を集めるノードの返り: collect()（{ok, missing, index_file}）に reason "" を足す。collect が誤りを上げたら、place に
-    sources.hook が FAILED で訳つきの読んだ証拠（failure_name）を書き、{ok: False, missing: [], index_file: "", reason} を返す。
-    ノードの返りは誰も読まないので、報告が「役を起こしていない」と取り違えないよう置き場に残す"""
+    sources.hook が FAILED で訳つきの読んだ証拠（名は role_key(owner, replan) の failure_name）を書き、{ok: False, missing: [],
+    index_file: "", reason} を返す。ノードの返りは誰も読まないので、報告が「役を起こしていない」と取り違えないよう置き場に残す。
+    呼び手が差し込みの往復と形を読めず place と replan を決められなかった時は、その訳 unread を UNREAD_PASS と並べて訳に添える"""
     try:
         return {**collect(), "reason": ""}
     except Exception as e:  # noqa: BLE001  読んだ証拠は受け付けの条件でない（ノードを落とさない）
         reason = f"{type(e).__name__}: {oneline.one_line(e)}"
     p = pathlib.Path(place)
     p.mkdir(parents=True, exist_ok=True)
-    _write_json(p / failure_name(owner), {"role": owner, "since": stamp(), "rows": [], "sources": {"hook": FAILED, "why": reason},
-                                          "missing": [], "web": None})
+    name = role_key(owner, replan)
+    why = f"{reason}（{UNREAD_PASS}: {oneline.one_line(unread)}）" if unread else reason
+    _write_json(p / failure_name(name), {"role": name, "since": stamp(), "rows": [], "sources": {"hook": FAILED, "why": why},
+                                         "missing": [], "web": None})
     return {"ok": False, "missing": [], "index_file": "", "reason": reason}
 
 

@@ -340,6 +340,19 @@ def pass_dir(folder, k: int) -> pathlib.Path:
     return pathlib.Path(folder) / PASS_DIR.format(k=k)
 
 
+def reads_place(folder) -> tuple:
+    """読んだ証拠のノードが落ちた記録の (置き場, 案の直しか, 読めない訳)。open_pass が置いた材料から、この差し込みの pass-<k>/ と
+    形 replan かを引く（collect_reads と同じ）。材料が読めない・k が整数でなければ推し量らず (folder, False, 訳)（reads.guarded の unread）"""
+    try:
+        inputs = read_open(folder)
+    except Missing as e:
+        return pathlib.Path(folder), False, str(e)
+    k = inputs.get("k")
+    if not isinstance(k, int) or isinstance(k, bool):
+        return pathlib.Path(folder), False, f"見え方の材料の k が整数でない: {k!r}"
+    return pass_dir(folder, k), inputs.get("form") == "replan", ""
+
+
 def human_items(answers) -> list:
     """人の関所の答え（承認の節の返り {decision, text} か、その並び）を design.human_answers が読む行 {round, node, kinds, answer, note}
     に。null・形の違う値は無い"""
