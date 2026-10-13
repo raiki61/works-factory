@@ -53,22 +53,30 @@ COUNTED = {
 HOLE = re.compile(rf"^- ({TOTAL}|{'|'.join(COUNTED)}|{NARROWED}): (\d+)(?:（([^）]*)）)?")
 
 
-def pointing_fields() -> list[tuple[str, str]]:
-    """(ファイル:行, 欄の字)。欄は `  - <名>:` の行と、それより深く字下げした続きの行"""
+def row_fields() -> list[tuple[str, str | None, str]]:
+    """(ファイル:行, 行 ID, 欄の字)。欄は `  - <名>:` の行と、それより深く字下げした続きの行。行 ID は欄の属す `- <ID> ` の行
+    （ROW の形。無ければ None）"""
     found = []
     for md in sorted(INVENTORY.glob("*.md")):
-        current = None
+        current, row = None, None
         for no, line in enumerate(md.read_text(encoding="utf-8").splitlines(), 1):
             head = FIELD.match(line)
             if head:
-                current = [f"{md.name}:{no}", line] if head.group(1) in FIELD_FLOOR else None
+                current = [f"{md.name}:{no}", row, line] if head.group(1) in FIELD_FLOOR else None
                 if current:
                     found.append(current)
             elif current and line.startswith("    "):
-                current[1] += "\n" + line
+                current[2] += "\n" + line
             else:
                 current = None
-    return [(where, text) for where, text in found]
+                if line.strip():
+                    row = head.group(1) if (head := ROW.match(line)) else None
+    return [(where, row, text) for where, row, text in found]
+
+
+def pointing_fields() -> list[tuple[str, str]]:
+    """(ファイル:行, 欄の字)"""
+    return [(where, text) for where, _, text in row_fields()]
 
 
 def flag_fields() -> list[tuple[str, str]]:
@@ -136,19 +144,11 @@ def missing(want_tests: bool) -> list[str]:
 
 
 def tail_rows() -> dict[str, dict[str, str]]:
-    """行 ID → 欄の名 → 欄の字（続きの行を足した物）"""
-    rows, row, field = {}, None, None
-    for line in TAIL.read_text(encoding="utf-8").splitlines():
-        if head := ROW.match(line):
-            row = rows[head.group(1)] = {}
-            field = None
-        elif row is not None and (head := FIELD.match(line)):
-            field = head.group(1)
-            row[field] = line.split(":", 1)[1].strip()
-        elif row is not None and line.startswith("    "):
-            row[field] += line.strip()
-        elif line.strip():
-            row = None
+    """tail.md の行 ID → 欄の名 → 欄の字"""
+    rows = {}
+    for where, row, text in row_fields():
+        if row is not None and where.startswith(f"{TAIL.name}:"):
+            rows.setdefault(row, {})[FIELD.match(text).group(1)] = text.split(":", 1)[1].strip()
     return rows
 
 
