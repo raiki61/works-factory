@@ -2,6 +2,7 @@
 import pathlib
 import re
 import unittest
+from unittest import mock
 
 from tests.layers import scan
 from tests.layers.trees import tree
@@ -100,7 +101,7 @@ class BlockPathsTest(unittest.TestCase):
         import place を足すと赤）"""
         files = {"workflows/report/scripts/collect.py": "import place\nimport b\n", "workflows/report/scripts/place.py": "",
                  "workflows/report/scripts/b.py": "", "workflows/report/scripts/new.py": "import place\n"}
-        with tree(files) as root:
+        with tree(files) as root, mock.patch.dict(scan.ALLOWED, {"E4": ("workflows/report/scripts/collect.py#place",)}):
             got = scan.problems("E4", root)
         self.assertEqual(len(got), 2, got)
         self.assertIn("collect.py:2: 同じ scripts/ の script b", got[0])

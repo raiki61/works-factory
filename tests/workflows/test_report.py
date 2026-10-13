@@ -1,7 +1,7 @@
 """報告のブロック（workflows/report/）の試験。
 
 - YAML の形: PyYAML で読み、Archon を起こさない（返す節の約束の欄・入力・役の節の鍵）
-- 部品と script: scripts/typed.py を一時の一覧で回し、facts.py・report_accept.py・collect.py を子のプロセスで走らせる
+- 部品と script: scripts/facts.py の一覧の読みを一時の一覧で回し、facts.py・report_accept.py・collect.py を子のプロセスで走らせる
   （一時の ARTIFACTS_DIR と環境変数。Archon を起こさない）
 - 筋書き: tests/archon.py の使い捨ての木で fixtures/ を archon workflow test で回す。Archon の源か bun が無ければ名前つきで見送る
 - 本物の run: 同じ使い捨ての木で試しの工程を 1 回だけ本当に回し（dry-run でない）、実行基盤が書いた run の記録と型つきの
@@ -170,10 +170,9 @@ def env_reads(script: str) -> dict:
     return reads
 
 
-typed = load_script("typed")
 if str(ROOT / "workflows" / ".shared") not in sys.path:
     sys.path.append(str(ROOT / "workflows" / ".shared"))
-place = load_script("place")
+facts_script = load_script("facts")
 
 
 class ShapeCase(unittest.TestCase):
@@ -282,7 +281,7 @@ class TypedCase(unittest.TestCase):
         return str(path)
 
     def read(self, listing, execution=""):
-        return typed.listing(listing, str(self.dir), RUN, execution)
+        return facts_script.listing(listing, str(self.dir), RUN, execution)
 
     def test_groups_by_include_and_loop_keep_rounds_and_drop_others(self):
         rows = [self.entry("fix__tdd", "nodes/a.md", [{"group_id": "g1"}], loop=[("fix__loop", 1)]),
@@ -304,9 +303,9 @@ class TypedCase(unittest.TestCase):
         self.assertEqual([u["node"] for u in got["by_type"]["k"]], ["outer__fix__tdd"])
 
     def test_own_prefix_is_the_full_namespace(self):
-        self.assertEqual(typed.own_prefix(json.dumps({"path": "outer__report__facts"})), "outer__report__")
-        self.assertEqual(typed.own_prefix(json.dumps({"path": "report__facts"})), "report__")
-        self.assertEqual(typed.own_prefix(json.dumps({"path": "facts"})), "")
+        self.assertEqual(facts_script.own_prefix(json.dumps({"path": "outer__report__facts"})), "outer__report__")
+        self.assertEqual(facts_script.own_prefix(json.dumps({"path": "report__facts"})), "report__")
+        self.assertEqual(facts_script.own_prefix(json.dumps({"path": "facts"})), "")
 
     def test_errors_each_become_a_warning(self):
         errors = [{"path": "nodes/x.meta.json", "kind": "invalid_metadata"}, {"path": "nodes", "kind": "unreadable_directory", "code": "EACCES"}]
@@ -672,7 +671,7 @@ class CollectScriptCase(Run):
         good = self.facts()
         machine = (self.artifacts / good["report"]["path"]).read_text(encoding="utf-8")
         out = self.collect("{壊れた")
-        self.assertEqual(out["report"]["path"], f"report/{place.UNWRITTEN}")
+        self.assertEqual(out["report"]["path"], f"report/{facts_script.UNWRITTEN}")
         self.assertIn("報告を組めなかった", (self.artifacts / out["report"]["path"]).read_text(encoding="utf-8"))
         self.assertEqual((self.artifacts / good["report"]["path"]).read_text(encoding="utf-8"), machine)
 
@@ -681,10 +680,10 @@ class CollectScriptCase(Run):
         empty = self.dir / "empty-root"
         empty.mkdir()
         code, out = self.run_script("facts", WORKS_FACTORY_ROOT=str(empty))
-        self.assertEqual((code, out["outcome"], out["facts_file"]), (0, "record_invalid", f"report/{place.UNWRITTEN}"))
+        self.assertEqual((code, out["outcome"], out["facts_file"]), (0, "record_invalid", f"report/{facts_script.UNWRITTEN}"))
         self.assertIn("ModuleNotFoundError", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
         out = self.collect("", WORKS_FACTORY_ROOT=str(empty))
-        self.assertEqual((out["outcome"], out["report"]["path"]), ("record_invalid", f"report/{place.UNWRITTEN}"))
+        self.assertEqual((out["outcome"], out["report"]["path"]), ("record_invalid", f"report/{facts_script.UNWRITTEN}"))
 
     def test_unwritable_place_is_record_invalid(self):
         good = self.facts()
@@ -788,7 +787,7 @@ print("{}")
 
 class RealRunCase(unittest.TestCase):
     """止めた Archon で本物の run（dry-run でない）を 1 回回し、実行基盤が書いた run の記録と型つきの成果物の一覧を、
-    手で組んだ見本でなく本物の出力のまま runreport.transcript_facts と typed.listing に読ませる（欄の名が変われば赤）"""
+    手で組んだ見本でなく本物の出力のまま runreport.transcript_facts と facts.listing に読ませる（欄の名が変われば赤）"""
 
     def test_readers_read_a_real_run(self):
         if shutil.which("uv") is None:
@@ -813,11 +812,11 @@ class RealRunCase(unittest.TestCase):
                 self.assertEqual(runreport.transcript_facts(rows)["failed"], ["boom"], "受け止めると宣言していない段の落ち")
                 self.assertIn("boom", facts["errors"]["boom"])
                 self.assertLessEqual({"make", "boom", "read"}, set(facts["minutes"]))
-                got = typed.listing(str(artifacts / "listing-copy.json"), str(artifacts), env["WORKFLOW_ID"],
+                got = facts_script.listing(str(artifacts / "listing-copy.json"), str(artifacts), env["WORKFLOW_ID"],
                                     env["ARCHON_NODE_EXECUTION"])
                 self.assertEqual(got["warnings"], [])
                 self.assertEqual([(r["node"], r["body"]) for r in got["by_type"]["probe-kind"]], [("make", {"a": 1})])
-                self.assertEqual(typed.own_prefix(env["ARCHON_NODE_EXECUTION"]), "")
+                self.assertEqual(facts_script.own_prefix(env["ARCHON_NODE_EXECUTION"]), "")
 
 
 if __name__ == "__main__":

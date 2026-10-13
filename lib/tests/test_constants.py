@@ -16,7 +16,8 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 ROOT = LIB.parent
 SUFFIXES = (".json", ".md", ".txt", ".diff")
 FALLBACK = "lib を読めない時にも返りの約束の形を書く逃げ道の写し（K1）。lib の値との一致は script の頭の注記の試験が縛る"
-BARE = "境の口か隣の place を読めない時の逃げ道 bare の写し（K1）。place.UNWRITTEN と字が違えば行が当たらず赤"
+BARE = ("境の口を読めない時の逃げ道 unwritten が書く名（K1）。collect.py と facts.py が同じ名を持ち、"
+        "tests/workflows/test_report.py の落ちた道の試験が collect の返りを facts.UNWRITTEN と照らす")
 
 # (定義の在る所, 名) -> 訳
 FALLBACKS = {

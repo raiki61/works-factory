@@ -26,6 +26,8 @@ from tests.workflows.copied import agent_body, assert_is_original, rewritten, ro
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
 import judge_accept as ja  # noqa: E402
+import prcheck  # noqa: E402
+import reads  # noqa: E402
 import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import seat  # noqa: E402
@@ -1544,6 +1546,74 @@ COPIED_TEXTS = {
         ("$world-judge-prep.output.prompt", "$world-plan.output.prompt"),   # 指示書を描く節の名が world-plan
     ]),
 }
+
+
+RECORDER = ROOT / "bin" / "_lib" / "record-read.py"
+
+
+class ReadsTest(unittest.TestCase):
+    """読んだ証拠の節 pr-check-reads（lib/judge_accept.pr_reads）: 並行 PR の役が渡し物 judge/pr-brief.json を読んだかを、隔離した
+    設定のフック（bin/_lib/record-read.py を実物で起こす）の記録から集める。受け付けの条件にせず、欠けは返りに出す（棚卸し J40）"""
+
+    def setUp(self):
+        self.r = Run(self)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.config = pathlib.Path(tmp.name) / "claude"
+        env = mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(self.config)})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def brief(self) -> pathlib.Path:
+        self.r.judge.mkdir(parents=True, exist_ok=True)
+        path = self.r.judge / prcheck.BRIEF
+        path.write_text("{}", encoding="utf-8")
+        at = path.stat().st_mtime - 60
+        os.utime(path, (at, at))
+        return path
+
+    def hook(self, path):
+        event = {"session_id": "s-1", "tool_name": "Read", "tool_input": {"file_path": str(path)}, "tool_use_id": "toolu_Read",
+                 "cwd": str(self.r.repo), "hook_event_name": "PostToolUse"}
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
+        done = subprocess.run([sys.executable, str(RECORDER), str(self.config / reads.ROOT)], input=json.dumps(event),
+                              text=True, encoding="utf-8", capture_output=True, cwd=str(self.r.repo),
+                              env={**env, "PYTHONDONTWRITEBYTECODE": "1"})
+        self.assertEqual(done.returncode, 0, done.stderr)
+
+    def index(self) -> dict:
+        return json.loads((self.r.judge / reads.index_name(prcheck.ROLE)).read_text(encoding="utf-8"))
+
+    def test_pr_check_must_read_its_brief(self):
+        self.assertEqual(nodes()["pr-check-reads"]["script"], "pr_reads")
+        (self.config / reads.ROOT).mkdir(parents=True)
+        brief = self.brief()
+        self.hook(self.r.repo / "stats.py")
+        out = self.r.returned("pr_reads")
+        self.assertIs(out["ok"], True, out)
+        self.assertEqual(out["missing"], [str(brief)])
+        self.hook(brief)
+        out = self.r.returned("pr_reads")
+        self.assertEqual(out["missing"], [], out)
+        self.assertEqual(out["index_file"], str(self.r.judge / reads.index_name(prcheck.ROLE)))
+        doc = json.loads(pathlib.Path(self.index()[prcheck.ROLE]).read_text(encoding="utf-8"))
+        self.assertEqual([row["path"] for row in doc["rows"]], [str(brief)])
+        self.assertIn(doc["rows"][0]["hook"], reads.HOOK_SEEN)
+
+    def test_pr_check_reads_runs_after_the_role_on_the_roles_rounds(self):
+        """役の輪の後に走り（先に走ると読む前の記録で欠けと言う）、輪が落ちた回も走り、役を起こした回だけ走る"""
+        node, role = nodes()["pr-check-reads"], nodes()["pr-check-loop"]
+        self.assertIn("pr-check-loop", node["depends_on"])
+        self.assertEqual(node["trigger_rule"], "one_success")
+        self.assertEqual(node["when"], role["when"])
+
+    def test_pr_check_reads_without_record_does_not_fail(self):
+        """記録の根が無い（フックを置いていない起動）時も落ちず、読んでいないとも言わない"""
+        self.brief()
+        out = self.r.returned("pr_reads")
+        self.assertEqual((out["ok"], out["missing"]), (True, []), out)
+        doc = json.loads(pathlib.Path(self.index()[prcheck.ROLE]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["sources"], {"hook": "none", "why": reads.NO_ROOT})
 
 
 class CopiedTextsCase(unittest.TestCase):
