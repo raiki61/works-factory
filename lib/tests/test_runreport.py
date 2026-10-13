@@ -16,6 +16,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import carry  # noqa: E402
+import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
 import worldmark  # noqa: E402
 import conflict  # noqa: E402
@@ -232,15 +233,15 @@ class TypedCase(Base):
         self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: engine・{suites}\n", green)
         self.assertIn("- 最後のテスト（test-gate-final）のログ: /tmp/x/test.log\n", green)
         self.assertIn("- 最後のテスト（test-gate-final）の修正前のテスト: 赤\n", green)
-        self.assertIn(f"- 直す前のテスト（test-gate-base）の走らせ方: {runreport.GATE_MISSING}\n", green)
-        self.assertIn(f"- 直す前のテスト（test-gate-base）のログ: {runreport.GATE_MISSING}\n", green)
+        self.assertIn(f"- 直す前のテスト（test-gate-base）の走らせ方: {declared_checks.GATE_MISSING}\n", green)
+        self.assertIn(f"- 直す前のテスト（test-gate-base）のログ: {declared_checks.GATE_MISSING}\n", green)
 
         fell = {**final, "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": "出力ノードの中の誤り"}
         _, text, _ = self.build(fixed_run(**{"test-gate-final": fell}))
         green = self.section(text, runreport.GREEN_HEADING)
-        self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: {runreport.GATE_MISSING}\n", green)
-        self.assertIn(f"- 最後のテスト（test-gate-final）のログ: {runreport.GATE_MISSING}\n", green)
-        self.assertIn(f"- 最後のテスト（test-gate-final）の修正前のテスト: {runreport.GATE_MISSING}\n", green)
+        self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: {declared_checks.GATE_MISSING}\n", green)
+        self.assertIn(f"- 最後のテスト（test-gate-final）のログ: {declared_checks.GATE_MISSING}\n", green)
+        self.assertIn(f"- 最後のテスト（test-gate-final）の修正前のテスト: {declared_checks.GATE_MISSING}\n", green)
 
         _, text, _ = self.build(fixed_run(**{"test-gate-base": None, "test-gate-final": None}))
         self.assertNotIn("走らせ方", self.section(text, runreport.GREEN_HEADING))

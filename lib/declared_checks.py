@@ -57,7 +57,7 @@ MATERIAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": 
                                      for k in FIELDS}}}
 MODES = ("base", "final")   # 形: 判定の前・修正の後
 BASELINE_HEAD = "修正前のテスト"
-NO_LOG = "無い"   # 試験の関門のログが無い時の字。証拠の文と報告・最後の関所が同じ字を出す
+GATE_MISSING = "取れない（試験の関門の出力に無い）"
 CANT = {False: "awaiting_human", True: "not_run"}   # 走らせられない時の status（判定の前・後。after_judge か mode == "final" で引く）
 
 
@@ -582,6 +582,19 @@ def material_problems(material, *, mode: str) -> list:
 
 
 # ---------------------------------------------------------------- 修正前のテストの行
+def gate_values(ret) -> dict:
+    """試験の関門の返り ret（無い・dict でない時は空）の、人に見せる値 {by, suites, log, baseline, reason}: 走らせ方は by・suites_line、
+    ログは log（空なら「無い」）。by が無いか空（返す節の中の誤り）なら走らせ方とログは GATE_MISSING。修正前のテストの行は頭つきの
+    baseline_line（無いか空なら頭と GATE_MISSING）。reason は認証しなかった訳（無ければ空）。証拠の文・報告・最後の関所が同じ字を出す"""
+    ret = ret if isinstance(ret, dict) else {}
+    by = ret.get("by") or ""
+    return {"by": by,
+            "suites": f"{by}・{ret.get('suites_line') or ''}" if by else GATE_MISSING,
+            "log": (ret.get("log") or "無い") if by else GATE_MISSING,
+            "baseline": ret.get("baseline_line") or f"{BASELINE_HEAD}: {GATE_MISSING}",
+            "reason": ret.get("reason") or ""}
+
+
 def baseline_line(base) -> str:
     """修正前のテスト（base の元の結末。baseline_red.read_baseline の返りの、呼び手の欄 material・exit_codes・skipped_steps）の 1 行。
     final の証拠が最後のテストの行と並べて出す——最後の赤が修正の後に出た赤か、基の版からの赤かを人が見分ける手がかり。修正前の CI と

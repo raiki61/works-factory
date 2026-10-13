@@ -499,7 +499,7 @@ class FactsCase(Run):
         self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: engine・{suites}\n", green)
         self.assertIn(f"- 最後のテスト（test-gate-final）のログ: {log}\n", green)
         green = self.green_section(self.final_returned(suites_line=suites))
-        self.assertIn(f"- 最後のテスト（test-gate-final）のログ: {declared_checks.NO_LOG}\n", green)
+        self.assertIn(f"- 最後のテスト（test-gate-final）のログ: 無い\n", green)
 
     def test_green_cert_section_carries_the_baseline_line(self):
         """T35: 最後のテストの返りの修正前のテストの欄（declared_checks.baseline_line）が、緑の認証の節に字のまま届く"""

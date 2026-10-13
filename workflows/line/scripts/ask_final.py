@@ -502,11 +502,11 @@ def env(name: str):
 
 
 def final_tests() -> dict:
-    """最後のテストの返りの欄（with: の by・suites_line・log・baseline_line・tests_reason）を runreport.gate_values で見せる値にし、
+    """最後のテストの返りの欄（with: の by・suites_line・log・baseline_line・tests_reason）を declared_checks.gate_values で見せる値にし、
     関門が返さなかった（飛ばされた節）時は unread にその旨"""
     ret = {k: boundary.field(k, os.environ.get(f"INPUTS_{k.upper()}")) for k in ("by", "suites_line", "log", "baseline_line")}
     ret["reason"] = boundary.field("reason", os.environ.get("INPUTS_TESTS_REASON"))
-    return {**runreport.gate_values(ret), "unread": "" if ret["by"] is not None else "最後のテストの証拠が無い（試験の関門が返さなかった）"}
+    return {**declared_checks.gate_values(ret), "unread": "" if ret["by"] is not None else "最後のテストの証拠が無い（試験の関門が返さなかった）"}
 
 
 def got_of_env() -> dict:

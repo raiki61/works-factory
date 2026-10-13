@@ -1461,7 +1461,7 @@ class AskFinalReadsCase(Artifacts):
             self.assertIn(want, text)
         with mock.patch.dict(os.environ, {k: "null" for k in returned}):
             got = ask_final.final_tests()
-        missing = ask_final.runreport.GATE_MISSING
+        missing = ask_final.declared_checks.GATE_MISSING
         self.assertEqual((got["suites"], got["log"], got["baseline"], got["reason"]), (missing, missing, f"修正前のテスト: {missing}", ""))
         self.assertIn(f"- {got['unread']}", ask_final.final_text(final_got(tests=got, tests_ok=False), [], RUN))
         self.assertTrue(got["unread"])

@@ -122,7 +122,7 @@ class AskGateCase(unittest.TestCase):
 def final_got(**kw) -> dict:
     """最後の関所の材料（ask_final.got_of_env の形）。既定は緑で、目は全部通り、申し出も守りのパスの当たりも無い"""
     eye = {"status": "pass", "reason": ""}
-    got = {"tests_ok": True, "green": True, "red_cause": "", "tests": {**runreport.gate_values({}), "unread": ""},
+    got = {"tests_ok": True, "green": True, "red_cause": "", "tests": {**declared_checks.gate_values({}), "unread": ""},
            "worktree": "/tmp/tree", "base_rev": "0123456789abcdef", "protected_hits": [], "asked": [], "conflicts_unread": [],
            "allowed_tests": [], "beside_unread": [], "eyes": {"r1": eye, "r2": eye, "r3": eye, "r4": eye, "premise_check": None}, "questions": [],
            "objection": "", "rejudge_verdict": "", "rejudge": [], "split": "", "unproven": [], "amend": [],
@@ -214,7 +214,7 @@ class FinalHeadCase(unittest.TestCase):
 
 def every_section() -> dict:
     """最後の関所の文の節が全部在る材料（L-G51・L-W28〜L-W37 の節ごとに 1 行ずつ）"""
-    tests = runreport.gate_values({"by": "engine", "suites_line": "走らせた: suite（exit 0）／走らせなかった: 無い",
+    tests = declared_checks.gate_values({"by": "engine", "suites_line": "走らせた: suite（exit 0）／走らせなかった: 無い",
                                    "log": "test-gate/final/logs/checks.log", "reason": "",
                                    "baseline_line": "修正前のテスト: 緑（元の結末（入力 baseline）の status clean）——最後のテストの赤は修正の後に出た赤でありうる"})
     return final_got(
