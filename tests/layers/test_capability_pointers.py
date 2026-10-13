@@ -1,11 +1,15 @@
-"""能力の棚卸し（docs/plans/2026-10-13-capabilities/）の「今」と「証」が、行番号でなく名で指し、その名が main に在る（#220）。
+"""能力の棚卸し（docs/plans/2026-10-13-capabilities/）の「今」と「証」と、較正の旗の表（tests/calibration/flags.json）の
+works-factory の節の why・never が、行番号でなく名で指し、その名が main に在る（#220・#315）。
 
 指しの形は棚卸しの README.md の「指しの形」: 今は `path::名`（関数・クラス・定数・`クラス.名`。YAML は節の id）、証は
-`path::Class.test_name`。行番号は試験や関数を 1 つ足すたびに関係の無い行までずれるので書かない。「元」は版を止めた今の works の
-`file:line` でずれないので照らさない。「要追加:」の後の名は、まだ無い名なので照らさない。
+`path::Class.test_name`。行番号は試験や関数を 1 つ足すたびに関係の無い行までずれるので書かない。「元」と旗の表の works の節は
+版を止めた今の works の `file:line` でずれないので照らさない。「要追加」から文の終わり（「。」か行の終わり）までの名は、まだ無い名
+なので照らさない。
 """
 import ast
+import collections
 import functools
+import json
 import pathlib
 import re
 import unittest
@@ -23,7 +27,13 @@ POINTER = re.compile(r"(?<![\w./-])((?:[\w.-]+/)*[\w.-]+\.(?:py|yaml))::([A-Za-z
 # `path::名` の形に外れた指し（`::` の前後の欠け・1 つのコロン）。POINTER に合わない指しは名を照らされないので赤にする
 MALFORMED = re.compile(r"\.(?:py|yaml)::?(?!\d)")
 BARE_PATH = re.compile(r"(?<![\w./*-])((?:lib|bin|workflows|tests|docs)/[\w./-]*\.(?:py|yaml|md|json))(?![\w*-])")
-NOT_YET = "要追加"
+NOT_YET = re.compile(r"要追加[^。\n]*")
+# 欄ごとの読めた指しの数の下限。欄の読み落とし（POINTING_FIELDS の欠け・欄の頭の形の変わり）で総数が保っても赤にする
+FIELD_FLOOR = {"今": 1800, "証": 1700, "今の機械": 70}
+FLAGS = ROOT / "tests" / "calibration" / "flags.json"
+FLAG_FACTORY = "works-factory"
+FLAG_FIELDS = ("why", "never")
+FLAG_FLOOR = 70
 
 
 def pointing_fields() -> list[tuple[str, str]]:
@@ -44,9 +54,20 @@ def pointing_fields() -> list[tuple[str, str]]:
     return [(where, text) for where, text in found]
 
 
+def flag_fields() -> list[tuple[str, str]]:
+    """(flags.json:旗, 欄の字)。旗の表の works-factory の節の why・never"""
+    table = json.loads(FLAGS.read_text(encoding="utf-8"))[FLAG_FACTORY]
+    return [(f"{FLAGS.name}:{gate}", entry[f]) for gate, entry in table.items() for f in FLAG_FIELDS if f in entry]
+
+
+def present(text: str) -> str:
+    """「要追加」の文（まだ無い名）を外した字"""
+    return NOT_YET.sub("", text)
+
+
 def present_tense() -> list[tuple[str, str]]:
-    """(ファイル:行, 欄の字)。「要追加」より後ろは、まだ無い名なので外す"""
-    return [(where, text.split(NOT_YET, 1)[0]) for where, text in pointing_fields()]
+    """(どこ, 字)。棚卸しの欄は「要追加」の文を外し、旗の欄はそのまま"""
+    return [(where, present(text)) for where, text in pointing_fields()] + flag_fields()
 
 
 def pointers() -> list[tuple[str, str, str]]:
@@ -97,8 +118,21 @@ class PointerCase(unittest.TestCase):
     def test_reads_the_inventory(self):
         self.assertGreater(len(pointers()), 500)
 
+    def test_reads_every_pointing_field(self):
+        read = collections.Counter(FIELD.match(text).group(1) for _, text in pointing_fields()
+                                   for _ in POINTER.findall(present(text)))
+        self.assertEqual({field: read[field] >= least for field, least in FIELD_FLOOR.items()},
+                         dict.fromkeys(FIELD_FLOOR, True), read)
+
+    def test_names_after_the_not_yet_sentence_are_read(self):
+        text = "  - 証: a/b.py::Now。後は要追加: a/c.py::Later — まだ無い。今の形: a/d.py::Kept\n    a/e.py::Next"
+        self.assertEqual(POINTER.findall(present(text)), [("a/b.py", "Now"), ("a/d.py", "Kept"), ("a/e.py", "Next")])
+
+    def test_reads_the_flags(self):
+        self.assertGreaterEqual(len([where for where, _, _ in pointers() if where.startswith(f"{FLAGS.name}:")]), FLAG_FLOOR)
+
     def test_current_and_evidence_carry_no_line_numbers(self):
-        found = [f"{where}: {line.strip()}" for where, text in pointing_fields()
+        found = [f"{where}: {line.strip()}" for where, text in pointing_fields() + flag_fields()
                  for line in text.splitlines() if LINE_NUMBER.search(line)]
         self.assertEqual(found, [])
 
