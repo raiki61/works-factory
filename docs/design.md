@@ -558,7 +558,7 @@ flowchart TB
 - [ ] `p1.main_path_observation` 主経路を 1 回動かして観測する
 - [ ] `p1.provenance` 「正本は X」の X が差分の内側に無いか
 - [ ] `p2.diagnose` 反証・出自・上へ 3 段・処方の木（書き手は覆せない。禁: 履歴・前の周の台帳と判定）
-- [ ] `p2.history` 台帳の再燃・問いの再審・膨張（今は 1 周の run で absent。周の鎖で受けるかを段 3 で決める）
+- [x] `p2.history` 台帳の再燃・問いの再審・膨張（今は 1 周の run で absent。持ち主の決め `no-history-for-now`（2026-10-13）で今は戻さず、周の鎖を作る時に改めて聞く）
 - [ ] `p2.fix_plan` 全部の単位を案に入れ、生まれる物・消す物・狭める能力を先に書く
 - [ ] `p2.plan_review` 写し・塞がない入口・契約のずれ・後退・方針とのぶつかりを予測する
 - [ ] `p2.human_gate` 狭め・後退・方針の穴があれば直す前に人に聞く
@@ -685,9 +685,11 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 2. 受け入れの一覧の全部の行に証を書く。graph のノードの表（`by` と `absent` の理由）をこのリポジトリにも置き、試験で縛る。
 3. 欠陥を仕込んだ較正（`tests/calibration/`）: 仕込んだ欠陥を、今の works と works-factory の両方が見つけるか比べる。
 4. 同じ依頼を今の works と works-factory に回し、結末・単位・人への問い・費用を並べて比べる。違いは 1 行ずつ理由を書く。
-5. 変異の検算（`p3.delta_gates`・`p4.final_gates`）と周の記録（`p2.history`）を戻すかを持ち主に聞く。変異の検算は戻さない（`docs/owner-decisions.md` の `no-mutation-in-graph`。2026-10-13）。周の記録は答え待ち。
+5. 変異の検算（`p3.delta_gates`・`p4.final_gates`）と周の記録（`p2.history`）を戻すかを持ち主に聞く。変異の検算は戻さない（`docs/owner-decisions.md` の `no-mutation-in-graph`。2026-10-13）。周の記録も今は戻さない（`no-history-for-now`。2026-10-13）。
 
 ### 段 4 切り替え
+
+切り替えは持ち主の動作確認の後（`docs/owner-decisions.md` の `coexist-before-switch`。2026-10-13）。その前に、今の `/works` を残したまま works-factory を別の入口として claude-plugins に並べてよい。
 
 1. claude-plugins の `works/` の `/works` を、works-factory の `bin/` を呼ぶ薄いスキルに替える。
 2. 今の works の pack を退ける（消す前に、段 3 の比べの記録をこのリポジトリに残す）。
