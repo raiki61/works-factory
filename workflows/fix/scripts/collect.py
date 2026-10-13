@@ -96,16 +96,15 @@ def block(fixboard, conflict) -> dict:
     extras = results + ([ruled] if ruled is not None else [])
     review, _ = fixboard.delta_review(place)
     checked = fixboard.read_json(place / fixboard.ASSERT_FILE) or {}
-    stuck = [g for g in rows_groups[0] if g.get("unrestored")]
-    done = isinstance(joined, dict) and checked.get("ok") is True and review["pass"] and not stuck
+    stop = stopby.UNRESTORED if fixboard.held(place) else ""
+    done = isinstance(joined, dict) and checked.get("ok") is True and review["pass"] and not stop
     reply = place / fixboard.FIX_REPLY_FILE
     fixbeside.write(place, results, ruled,
                     items=functools.partial(fixboard.place_items, place), plan_review=fixboard.plan_review_file(place),
                     fix_reply=reply if reply.is_file() else None)
     final = (fixboard.final_lines(results, "handoffs", fixboard.handoff_lines([ruled])),
              fixboard.final_lines(results, "mismatched", fixboard.mismatched_lines(place)))
-    return fields(fixboard, conflict, place, rows_groups, plan["groups"], extras, review, done, final, results,
-                  stopby.UNRESTORED if stuck else "")
+    return fields(fixboard, conflict, place, rows_groups, plan["groups"], extras, review, done, final, results, stop)
 
 
 def group(fixboard, conflict) -> dict:

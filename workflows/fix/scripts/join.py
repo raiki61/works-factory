@@ -65,11 +65,10 @@ def main() -> dict:
         with_result = [g for g in plan["groups"] if results[g["group_id"]] is not None]
         boundary.drop_runner_env()   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
         verified = []   # 戻せた組が赤 → 緑を確かめた名指し（後の組の確かめ直しで一緒に走らせる）
-        stuck = []      # 戻せず当たったままの組（在れば後の組は当てない）
 
         def merge_one(g, earlier):
-            if stuck:
-                return lanekit.Merge(fixboard.AFTER_UNRESTORED.format(group=stuck[0]), "", [], [], False)
+            if unrestored:   # 戻せず当たったままの組が在れば後の組は当てない
+                return lanekit.Merge(fixboard.AFTER_UNRESTORED.format(group=next(iter(unrestored))), "", [], [], False)
             r = results[g["group_id"]]
             tdd_rows = fixboard.child_tdd_units(r)
             union = sorted({f for u in tdd_rows for f in fixboard.unit_test_files(u)} | {t["path"] for t in fixboard.child_allowed_rows(r)})
@@ -90,15 +89,13 @@ def main() -> dict:
             if not got.why:
                 verified.extend(t for t in fixboard.child_verified(r) if t not in verified)
             if got.unrestored:
-                stuck.append(g["group_id"])
+                unrestored[g["group_id"]] = got.unrestored
             return got
         applied = []
         for g, got in lanekit.merge_in_order(with_result, merge_one):
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)
             if got.backed_out:
                 backed_out[g["group_id"]] = got.backed_out
-            if got.unrestored:
-                unrestored[g["group_id"]] = got.unrestored
             r = results[g["group_id"]]
             if not got.why and r.get("worktree") and log is not None:
                 applied.append((r["worktree"], writelog.log_here(r["worktree"]), got.names))
