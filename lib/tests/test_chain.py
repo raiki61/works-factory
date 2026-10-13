@@ -220,6 +220,18 @@ class OutcomeKindsTest(unittest.TestCase):
         self.assertEqual(len(report.OUTCOMES), 10)
         self.assertLessEqual(set(report.OUTCOME_KINDS.values()), set(chain.KINDS))
 
+    def test_kinds_group_the_outcomes(self):
+        """種の分け方は鎖の安全に効く: open だけが次の周を起こし、closed だけが閉じ、人の止めは止まり、要確認は人へ回る"""
+        import report
+        groups = {kind: {o for o, k in report.OUTCOME_KINDS.items() if k == kind} for kind in chain.KINDS}
+        self.assertEqual(groups, {
+            chain.KIND_OPEN: {"round_limit"},
+            chain.KIND_CLOSED: {"fixed", "no_fix_needed"},
+            chain.KIND_HUMAN: {"fixed_needs_check", "needs_human"},
+            chain.KIND_WAIT: {"interrupted"},
+            chain.KIND_HALTED: {"stopped_by_request", "stopped_by_human", "stopped_by_line", "record_invalid"},
+        })
+
 
 class Fences(unittest.TestCase):
     def test_chain_names_no_outcome_word(self):

@@ -8,7 +8,7 @@
   wait＝途中で落ちた、open＝残りが在る（次の周へ進める）
 - STOPS: 鎖の止めの語の表（run の中の止めの理由 stopby とは別の考え）
 - decide(doc, facts, budget=None) -> {act, word, text}: 見る順は 周の数 → 結末の種 → 人が要る → 進みが無い → 費用
-- step(doc, facts, budget=None): 周の事実を読めなかった周と、運ぶ依頼の無い launch を halted にしてから decide を呼ぶ
+- step(doc, facts): 周の事実を読めなかった周と、運ぶ依頼の無い launch を halted にしてから decide を呼ぶ
 - next_request(prev_next_doc, first_doc)・held_rows(next_doc)・keys_of(next_doc)・first_of(first_doc, pr): 次の周の依頼と、運ばない
   下書きの行と、残りの行の鍵と、1 周目に名指した PR を足した 1 周目の依頼
 - limits(rounds_raw, budget_raw): 周の数と費用の上限の入力の確かめ
@@ -102,12 +102,12 @@ def decide(doc: dict, facts: dict, budget=None) -> dict:
     return {"act": "launch", "word": "", "text": f"{len(rows) + 1} 周目を起こす"}
 
 
-def step(doc: dict, facts: dict, budget=None) -> dict:
+def step(doc: dict, facts: dict) -> dict:
     """周の事実の読みの誤り facts["error"] が在れば halted に訳を付けて返す。無ければ decide。launch になっても運ぶ次の依頼
     facts["request"] が空なら halted"""
     if facts.get("error"):
         return _stop("halted", facts["error"])
-    got = decide(doc, facts, budget)
+    got = decide(doc, facts)
     if got["act"] == "launch" and not facts.get("request"):
         return _stop("halted", "次の周の依頼に運ぶ所見が無い")
     return got

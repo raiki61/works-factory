@@ -10,6 +10,7 @@ import functools
 import json
 import posixpath
 import re
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -32,6 +33,9 @@ BLOCKS = ("line", "chain", "judge", "plan", "plan-review", "fix", "test-gate", "
 RELATIVE_PATH = re.compile(r"(?:\.\./)+[^\s'\"`)]*")
 
 LIB = Path(__file__).resolve().parents[2] / "lib"
+if str(LIB) not in sys.path:
+    sys.path.append(str(LIB))
+import chain  # noqa: E402  （周の鎖の周の数の上限 MAX_ROUNDS）
 # INPUTS_{…} を組む内包の for が回す lib の部品の定数（`for name in fixboard.PREP_INPUTS`）
 BUILT_FROM = re.compile(r"INPUTS_\{[^}\n]*\}[^\n]*\bfor\s+\w+\s+in\s+([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
 OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
@@ -681,7 +685,7 @@ CHANGE_CHECKOUT = {
     ("fix", "refix-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
     ("fix", "refix2-accept"): "3 回目の拒否で手直しを戻す（refix.accept_fix）",
     ("test-gate", "run"): "対象のテストを作業ツリーで走らせる（declared_checks.run_ci）",
-    **{("chain", f"round-{k}-commit"): "周の結果を親の run の枝へ commit する（index と HEAD を変える）" for k in range(1, 6)},
+    **{("chain", f"round-{k}-commit"): "周の結果を親の run の枝へ commit する（index と HEAD を変える）" for k in range(1, chain.MAX_ROUNDS + 1)},
 }
 # 役の節に要る鍵（K18。元 works/tests/test_yaml_rules.py の決まり）: settingSources: [user]・閉じた sandbox・道具の表の中の allowed_tools
 ROLE_TOOLS = frozenset({"Read", "Grep", "Glob", "Edit", "Write", "Bash", "WebSearch", "WebFetch", "Agent", "Skill"})

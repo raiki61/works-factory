@@ -11,10 +11,11 @@ request・決めの act・word・text）を返す。closed は止めの語が cl
 続け方を返す。
 lib を読まない。落ちない: 境の口を読めない時も、標準ライブラリだけで返す。
 
-入力（with:）: start（chain-start の出力）・d1〜d5（round-k-decide の出力。どれも `{from, if_skipped: null}`）
+入力（with:）: start（chain-start の出力）・d1〜d<周の数の上限>（round-k-decide の出力。番号の順に読む。どれも `{from, if_skipped: null}`）
 """
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -26,6 +27,7 @@ except Exception as error:   # 出力ノードは落ちない（上の docstring
     boundary, unread = None, error
 
 CLOSED = "closed"
+DECISION = re.compile(r"INPUTS_D[1-9][0-9]*")   # 周 k の決めの入力 d<k>。周の数はグラフの with: が持つ
 
 
 def result(start, decisions: list) -> dict:
@@ -55,7 +57,8 @@ def main() -> None:
         print(reason, file=sys.stderr)
         print(json.dumps(fallback(reason), ensure_ascii=False, allow_nan=False), flush=True)
     else:
-        decisions = [os.environ.get(name) for name in ("INPUTS_D1", "INPUTS_D2", "INPUTS_D3", "INPUTS_D4", "INPUTS_D5")]
+        names = sorted(filter(DECISION.fullmatch, os.environ), key=lambda name: int(name[len("INPUTS_D"):]))
+        decisions = [os.environ[name] for name in names]
         boundary.run(lambda: result(boundary.value(os.environ.get("INPUTS_START")), [boundary.value(d) for d in decisions]),
                      fallback)
 

@@ -5,6 +5,7 @@ script は子のプロセスとして使い捨ての置き場（runs/<親>・run
 筋書き（workflows/chain/fixtures/）は止めた Archon の `workflow test` で合否を、`workflow run --dry-run` の trace で決めの語を照らす
 （子の run と、読み書きをするノード round-k-commit・round-k-facts は stub で差し、chain-start・round-k-decide・result は本当に走る）。
 """
+import importlib.util
 import json
 import os
 import pathlib
@@ -204,6 +205,11 @@ class ChainStartCase(Tree):
         self.assertEqual((got["request"], got["pr"], got["first_pr"]), ("req.json", "7", 7))
         self.assertEqual(pathlib.Path(got["first_request"]).resolve(), (self.tmp / "req.json").resolve())
 
+    def test_padded_pr_is_read_like_the_main_graph(self):
+        """メイングラフの入口は pr の前後の空白を除いて読む。1 周目に名指した PR を後ろの周へ運ぶ鎖も同じに読む"""
+        got = self.start(rounds="2", pr=" 7 ")
+        self.assertEqual((got["act"], got["pr"], got["first_pr"]), ("launch", " 7 ", 7), got)
+
 
 class DecideCase(Tree):
     def decide(self, **inputs) -> dict:
@@ -229,6 +235,20 @@ class DecideCase(Tree):
         got = self.decide(commit=json.dumps({"ok": True, "changed": False, "head": "h", "reason": ""}))
         self.assertEqual(got["word"], "no_change")
 
+    def facts(self, cost, cost_read=True) -> str:
+        return json.dumps({"ok": True, "error": "", "run": "c2", "keys": ["k2"], "held_rows": [], "request": "/r2.json", "source": "",
+                           "cost": cost, "cost_read": cost_read})
+
+    def test_budget_input_stops_before_the_round_that_can_exceed_it(self):
+        prev = [{"n": 1, "outcome": "round_limit", "kind": chain.KIND_OPEN, "keys": ["k1"], "cost": 6.0, "cost_read": True}]
+        self.assertEqual(self.decide(rows=json.dumps(prev), facts=self.facts(8.0))["act"], "launch", "上限が無ければ次を起こす")
+        got = self.decide(rows=json.dumps(prev), facts=self.facts(8.0), budget="10")
+        self.assertEqual((got["act"], got["word"], got["request"]), ("stop", "budget", ""), got)
+
+    def test_unread_cost_under_a_budget_is_cost_unread(self):
+        got = self.decide(facts=self.facts(None, cost_read=False), budget="10")
+        self.assertEqual((got["act"], got["word"]), ("stop", "cost_unread"), got)
+
 
 class ResultCase(Tree):
     def result(self, start, *decisions) -> dict:
@@ -250,6 +270,21 @@ class ResultCase(Tree):
         start = {"ok": True, "reason": "", "act": "launch", "word": "", "text": "", "rows": []}
         got = self.result(start, {"act": "stop", "word": "closed", "text": "t", "request": "", "rows": [{"n": 1}]})
         self.assertEqual((got["closed"], got["word"], got["act"]), (True, "closed", "stop"))
+
+    def test_closed_is_a_stop_word_of_the_chain(self):
+        """result は lib を読まないので止めの語 closed を字で持つ。lib/chain の STOPS の語と同じであることをここで縛る"""
+        spec = importlib.util.spec_from_file_location("chain_result", SCRIPTS / "result.py")
+        script = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(script)
+        self.assertIn(script.CLOSED, chain.STOPS)
+
+    def test_decisions_are_read_in_round_order_up_to_the_last_round(self):
+        start = {"ok": True, "reason": "", "act": "launch", "word": "", "text": "", "rows": []}
+        made = [{"act": "launch", "word": "", "text": "", "request": f"/r{k}.json", "rows": [{"n": n} for n in range(1, k + 1)]}
+                for k in range(1, chain.MAX_ROUNDS)]
+        last = {"act": "stop", "word": "closed", "text": "t", "request": "", "rows": [{"n": n} for n in range(1, chain.MAX_ROUNDS + 1)]}
+        got = self.result(start, *made, last)
+        self.assertEqual((got["closed"], got["act"], len(got["rounds"])), (True, "stop", chain.MAX_ROUNDS), got)
 
 
 class ShapeCase(unittest.TestCase):
@@ -285,6 +320,25 @@ class ShapeCase(unittest.TestCase):
     def test_head_has_no_interactive_and_returns_closed(self):
         self.assertNotIn("interactive", CHAIN)
         self.assertEqual((CHAIN["returns"], CHAIN["outcome_field"]), ("result", "closed"))
+
+    def test_head_pins_the_run_worktree(self):
+        """周の commit は run の作業ツリーの枝に積む。--no-worktree で利用者の作業ツリーに走らせない（Archon が起動を拒む）"""
+        self.assertEqual(CHAIN.get("worktree"), {"enabled": True})
+
+    def test_decisions_read_the_limits_from_the_start(self):
+        for k in range(1, chain.MAX_ROUNDS + 1):
+            with self.subTest(round=k):
+                bound = NODES[f"round-{k}-decide"]["with"]
+                self.assertEqual((bound["rounds_max"], bound["budget"]),
+                                 ("$chain-start.output.rounds", "$chain-start.output.budget"))
+
+    def test_result_reads_the_start_and_every_round_decision(self):
+        node = NODES["result"]
+        rounds = range(1, chain.MAX_ROUNDS + 1)
+        self.assertEqual(set(node["with"]), {"start"} | {f"d{k}" for k in rounds})
+        for k in rounds:
+            self.assertEqual(node["with"][f"d{k}"], {"from": f"$round-{k}-decide.output", "if_skipped": None})
+        self.assertEqual(set(node["depends_on"]), {"chain-start"} | {f"round-{k}-decide" for k in rounds})
 
 
 class ChainScenariosTest(unittest.TestCase):

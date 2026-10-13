@@ -31,6 +31,9 @@ import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / "workflows"
+if str(ROOT / "lib") not in sys.path:
+    sys.path.append(str(ROOT / "lib"))
+import chain  # noqa: E402  （周の鎖の周の数の上限 MAX_ROUNDS）
 RUN_ID = "run-alone"
 HERE = "tests.workflows.test_returns_never_fail.ReturnScriptCase."
 ALONE_RETURN = HERE + "test_every_returns_script_runs_alone_and_fits_its_output_format"
@@ -44,7 +47,7 @@ NEVER_FAIL = {
     ("line", "collect"): ALONE_BOUND,
     ("line", "sweep-children"): ALONE_BOUND,
     ("chain", "chain-start"): ALONE_BOUND,
-    **{("chain", f"round-{k}-decide"): ALONE_BOUND for k in range(1, 6)},
+    **{("chain", f"round-{k}-decide"): ALONE_BOUND for k in range(1, chain.MAX_ROUNDS + 1)},
 }
 
 # 境の口を読めない時にも返すため、標準出力へ直に書く script（パス → 訳）
