@@ -1,5 +1,6 @@
 """関所の答えの行（lib/answer.py）。起動の殻が置く頭で打てる行になる事と、殻の外の穴の字（FAST）"""
 import pathlib
+import re
 import shlex
 import sys
 import unittest
@@ -44,6 +45,21 @@ class LineCase(unittest.TestCase):
         self.assertTrue(answer.line("run-1", "stop", "x", env={}).startswith(answer.HOLE + " "))
         self.assertIn("bin/works-factory workflow respond --cwd", answer.HOLE)
         self.assertNotIn("use.sh", answer.HOLE)
+
+
+class GoWordsOwner(unittest.TestCase):
+    """関所を通す語の並びを宣言するのは answer.GO_WORDS の 1 か所（#392。ほかは引く。写すと語を足した時に片方だけ変わる）"""
+    TUPLE = re.compile(r"""\(\s*["'](approve|continue)["']\s*,\s*(["'](approve|continue)["']|(answer\.)?VERBS\[0\])\s*\)""")
+
+    def test_declared_once_in_lib(self):
+        found = sorted(str(f.relative_to(LIB)) for f in LIB.rglob("*.py")
+                       if "tests" not in f.relative_to(LIB).parts and self.TUPLE.search(f.read_text(encoding="utf-8")))
+        self.assertEqual(found, ["answer.py"])
+
+    def test_pattern_sees_a_second_copy(self):
+        for copy in ('PASS = ("continue", "approve")', "GATE_GO = ('approve', VERBS[0])"):
+            with self.subTest(copy=copy):
+                self.assertTrue(self.TUPLE.search(copy))
 
 
 if __name__ == "__main__":

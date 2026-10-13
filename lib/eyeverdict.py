@@ -29,6 +29,7 @@ import types
 
 import boardview
 import changemap
+from answer import GO_WORDS
 import design
 import gatemarks
 import jsonfile
@@ -132,7 +133,7 @@ def _human_passed(questions: list, answer: dict | None) -> dict:
     """元 .shared/core/gatemarks.py:1244。修正前の関所の答え answer（{decision, text, asked}）が通す語なら、事前審査が関所の項目にした
     行 questions（{kind, text}）のうち狭める能力と事前審査の穴の行を {(種類, 頭と推しの尾を外した本文): 答えた周} で返す（台帳の
     問いの行は数えない。1 run 1 周）"""
-    if not isinstance(answer, dict) or answer.get("decision") not in seal.PASS:
+    if not isinstance(answer, dict) or answer.get("decision") not in GO_WORDS:
         return {}
     out = {}
     for a in gatemarks.row_texts(questions):

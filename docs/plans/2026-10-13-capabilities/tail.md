@@ -1934,7 +1934,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - M17 拒む理由 3: 最後の関所の答えが通す語（approve・continue）でない。stop・reject も知らない語も答えの語なしも「最後の関所で <語> と答えた」で拒む
   - 元: works/.shared/core/report.py:172・648-667 `stopped_run`（FINAL_GATE_STOPS）・works/dev/use.sh:409-426
-  - 今: lib/seal.py::PASS・lib/seal.py::STOPS・lib/seal.py::_answer_refusal・lib/seal.py::apply_refusal
+  - 今: lib/answer.py::GO_WORDS・lib/seal.py::STOPS・lib/seal.py::_answer_refusal・lib/seal.py::apply_refusal
   - 証: lib/tests/test_seal.py::ApplyAnswerCase.test_non_pass_words_refuse・lib/tests/test_seal.py::ApplyRefusalOrderCase.test_3_stop_answer・tests/workflows/test_merge.py::ApplyTest.test_stop_answer_refuses
   - 本物の run: 筋書きでのみ（本物の run では答えを continue にする。stop にすれば `merge-apply` は飛ぶ: M38）
   - 狭め: 無し
