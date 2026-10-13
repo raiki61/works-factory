@@ -44,7 +44,7 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
 - scoped(items): 範囲の欄の在る項目の並びか（217 番の形の控えは範囲の無い run と同じに扱う 1 つの決まり。
   修正の受け付けの範囲の照らしと差分の審査の準拠の受け付けが使う）
 
-写しの engine の型の検査と時刻（engine.schema・engine.util。L0 の写し）と住処 marks（L1）だけを使い、entry・conflict を import しない（conflict がこのモジュールを読むので、
+写しの engine の型の検査と時刻（engine.schema・engine.util。L0 の写し）と住処 marks（L1）・cite（L1。出どころの引き方の文）だけを使い、entry・conflict を import しない（conflict がこのモジュールを読むので、
 輪を作らない）。
 """
 from __future__ import annotations
@@ -66,6 +66,7 @@ if str(_GL) not in sys.path:
 
 from engine.schema import validate_schema  # noqa: E402
 from engine.util import now  # noqa: E402
+import cite  # noqa: E402
 import marks  # noqa: E402
 import promptsection  # noqa: E402
 
@@ -144,7 +145,7 @@ STRUCTURE_HEAD = ("structure＝構造の目が汚れると見た行（頭の『�
                   "処方に従うなら {prescription: <単位の key>, follows: true} を並べてよい。"
                   "頭の『世界の解の行』のセクションに当たる所（答えの要る行）が在れば、答えの要る行ごとに、どれかの項目が "
                   "{world: <類の id>, follows: true}（定石に従う）か {world: <類の id>, deviation: <従わない訳。"
-                  f"{MIN_DEVIATION} 字以上で、出どころ（URL・<パス>:<行>・決定の記録のパス）を添える>}} を書け。どの項目も答えていない"
+                  f"{MIN_DEVIATION} 字以上で、出どころ（URL・<パス>:<行>・決定の記録のパス）を添える>}} を書け（{cite.RUN_FILES}）。どの項目も答えていない"
                   "答えの要る行は受け付けが拒む。依頼そのものを出どころにした外れは修正前の承認ノードで人に回る。"
                   "汚れる行も答えの要る世界の解の行も無い項目は空の並びか書かない")
 REJECT = ("修正案の項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope）か adds の name に欠けか誤りが在る。"

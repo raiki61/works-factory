@@ -1,4 +1,4 @@
-"""stats.py の単体テスト。仕込んだ 2 つのバグのせいで 3 件中 2 件が赤になる。"""
+"""stats.py の単体テスト。"""
 import unittest
 
 from stats import clamp, mean

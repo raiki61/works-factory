@@ -150,6 +150,67 @@ class SplitCase(AxesBase):
         self.assertIn("修正案の単位の外を名指す（別の単位）", got["not_overkill"]["note"])
 
 
+class RunRootCase(AxesBase):
+    """決め手の出どころに引いてよい作業ツリーの外の根は、依頼のファイルと run の置き場の根（盤面 plan-review/ の親）。
+    場面は run f3a32503: 計画の役が定石から外れる訳に、run の置き場の plan/r1/brief-2.md:62（判定の処方の行）を挙げた"""
+
+    def setUp(self):
+        super().setUp()
+        self.run_dir = self.tmp / "run"
+        self.board = self.run_dir / boardview.FOLDER
+        self.board.mkdir(parents=True)
+        self.repo = self.tmp / "repo"
+        self.repo.mkdir()
+        self.brief = self.run_dir / "plan" / "r1" / "brief-2.md"
+        self.brief.parent.mkdir(parents=True)
+        self.brief.write_text("前置き\n" * 61 + "判定の処方: 空の列は 0 を返す\n", encoding="utf-8")
+        self.judgment = self.run_dir / "judge" / "judgment.json"
+        self.judgment.parent.mkdir(parents=True)
+        self.judgment.write_text("{\n \"units\": []\n}\n", encoding="utf-8")
+
+    def view(self, narrows=(), faces=()):
+        inputs = {"plan": {"plan": [{"unit_keys": ["u"], "narrows": list(narrows)}]}, "cwd": str(self.repo)}
+        return boardview.view(self.board, inputs, {"faces": list(faces)})
+
+    def deviate(self, deviation: str) -> list:
+        """世界の解の外れ 1 行の揃わない訳（揃えば []）"""
+        wf = self.board / "world.jsonl"
+        wf.write_text(json.dumps(TP.WORLD_ROW, ensure_ascii=False) + "\n", encoding="utf-8")
+        worldmark.write(self.board, status="ok", reason="", world_file=str(wf), classes=1, dropped=0)
+        planmarks.save(self.board, 1, [{"structure": [{"world": "w-mean", "deviation": deviation}]}])
+        [(_, _, why)] = gatemarks.world_items(self.view())
+        return why
+
+    def test_absolute_run_file_is_a_source(self):
+        self.assertEqual(self.deviate(f"判定の処方 {self.brief}:62 が 0 を返すと決めている"), [])
+        got, _ = self.check({**TP.DECIDED, "decided_by": f"判定の処方 {self.judgment}:2 の単位の並び"})
+        self.assertEqual(self.bad(got), [])
+
+    def test_bare_name_is_still_asked(self):
+        """相対の素の名は作業ツリーの根から引く（run の置き場で探し直さない）"""
+        why = self.deviate("brief-2.md:62 の処方が 0 を返すと決めている")
+        self.assertEqual(len(why), 1)
+        self.assertIn("ファイルが無い", why[0])
+
+    def test_outside_the_run_is_still_asked(self):
+        other = self.tmp / "other.md"
+        other.write_text("判定の処方\n", encoding="utf-8")
+        got, _ = self.check({**TP.DECIDED, "decided_by": f"{other}:1 の処方"})
+        self.assertEqual(self.bad(got), ["obvious"])
+        self.assertIn("の外", got["obvious"]["note"])
+
+    def test_request_file_is_a_source_but_not_its_folder(self):
+        req = self.tmp / "request.json"
+        req.write_text("[{\"where\": \"stats.py\", \"text\": \"空の列\"}]\n", encoding="utf-8")
+        startrec.path(self.board).parent.mkdir(parents=True, exist_ok=True)
+        startrec.path(self.board).write_text(json.dumps({"request_file": str(req)}), encoding="utf-8")
+        got, _ = self.check({**TP.DECIDED, "decided_by": f"{req}:1 の依頼の行"})
+        self.assertEqual(self.bad(got), [])
+        (self.tmp / "other.md").write_text("依頼の横の文書\n", encoding="utf-8")
+        got, _ = self.check({**TP.DECIDED, "decided_by": f"{self.tmp / 'other.md'}:1 の処方"})
+        self.assertEqual(self.bad(got), ["obvious"])
+
+
 class GatherCase(AxesBase):
     def test_no_rows_is_all_ok(self):
         b = self.view()

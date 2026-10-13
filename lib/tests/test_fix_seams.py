@@ -2184,7 +2184,7 @@ class FixAcceptSeamCase(TempCase):
     def test_unclosed_defects_count_with_query_hits_fixed_goes_to_the_ruling(self):
         """同じ木で正しい行を query_hits_fixed で名指した返答は、受け付けが単位を止めて裁定に回す"""
         got = self._accept_clamp(conflicts=[{
-            "unit_key": self.D_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+            "unit_key": self.D_CLAMP, "between": ["stats.py:10", "stats.py:12"],
             "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
             "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}])
         self.assertTrue(got["ok"] and got["conflicted"], got)
@@ -2197,7 +2197,7 @@ class FixAcceptSeamCase(TempCase):
         import conflict
         import querytest
         import ruling
-        claim = {"unit_key": self.D_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+        claim = {"unit_key": self.D_CLAMP, "between": ["stats.py:10", "stats.py:12"],
                  "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
                  "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
         replaced = {"how": {"patterns": ["if x > hi:"], "paths": ["stats.py"], "count": "lines", "fixed": True},
@@ -2214,7 +2214,7 @@ class FixAcceptSeamCase(TempCase):
         """裁定 replace_query の後の回は、閉鎖を数える問い（置き換えた問い）で申し出の correct_lines を試す。判定者の問いが当たらず、
         置き換えた問いが当たる正しい行の申し出は、拒まずに人に回す"""
         import conflict
-        claim = {"unit_key": self.D_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+        claim = {"unit_key": self.D_CLAMP, "between": ["stats.py:10", "stats.py:12"],
                  "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
                  "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
         replaced = {"how": {"patterns": ["return"], "paths": ["stats.py"], "count": "lines", "fixed": True},
@@ -2241,7 +2241,7 @@ class FixAcceptSeamCase(TempCase):
         for old, new in R_FIXED.items():
             text = text.replace(old, new)
         path.write_text(text, encoding="utf-8")
-        claim = {"unit_key": R_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+        claim = {"unit_key": R_CLAMP, "between": ["stats.py:10", "stats.py:12"],
                  "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
                  "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
         reply = {"changes": [_fix_row(R_MEAN, 1), _fix_row(R_MEAN, 1)], "not_done": [], "conflicts": [claim]}
@@ -2262,7 +2262,7 @@ class FixAcceptSeamCase(TempCase):
         path = self.repo / "stats.py"
         old, new = list(R_FIXED.items())[1]
         path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
-        park_clamp({"unit_key": R_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+        park_clamp({"unit_key": R_CLAMP, "between": ["stats.py:10", "stats.py:12"],
                     "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
                     "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]},
                    {"decision": conflict.ASK, "text": "人が決める", "limits": [], "by": "test"})
@@ -2303,7 +2303,7 @@ class FixAcceptSeamCase(TempCase):
         書き、ほかの種類の単位には書かない（1 回目の段の QUERY_PARKED と同じ分け。#355）"""
         import conflict
         asked = {"decision": conflict.ASK, "text": "人が決める", "limits": [], "by": "test"}
-        conflict.park(self.place, [{"unit_key": R_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+        conflict.park(self.place, [{"unit_key": R_CLAMP, "between": ["stats.py:10", "stats.py:12"],
                                     "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たる",
                                     "which_is_right": "query", "kind": "query_hits_fixed",
                                     "correct_lines": ["        return lo"]}], source=conflict.FIX_SOURCE, ruling=asked)

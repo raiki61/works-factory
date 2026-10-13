@@ -277,7 +277,9 @@ def plan_slots_section(b, filled=()) -> str:
 
 PRESCRIPTION_HEAD = promptsection.Section("## 判定の処方（判定役が単位ごとに書いた直し方の案。零処方から並ぶ。機械が判定の記録から貼った）", source="fn:planblk.prescription_section")
 PRESCRIPTION_ASK = ("案は単位の処方を採れ。採らない処方が在れば、その単位を持つ項目の works の欄 structure に "
-                    "{prescription: <単位の key>, deviation: <採らない訳>} を書け（処方の関係・条件を黙って落とさない）。")
+                    "{prescription: <単位の key>, deviation: <採らない訳>} を書け（処方の関係・条件を黙って落とさない）。"
+                    "処方を決め手の出どころに挙げる時は、このセクションの行でなく判定の記録 judgment.json の絶対パス:<行> で引け。")
+PRESCRIPTION_SOURCE = "判定の記録: {path}"
 
 
 PRESCRIPTION_UNIT_HEAD = promptsection.Section("### {key}", source="fn:planblk.prescription_section")
