@@ -20,6 +20,8 @@ if str(LIB / "graphloops") not in sys.path:
     sys.path.append(str(LIB / "graphloops"))
 
 import consult  # noqa: E402
+import fixrules  # noqa: E402
+import refixrules  # noqa: E402
 import tddloop  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 from tests.workflows.test_prompt_contracts import JSON_KEY, graph_nodes, prompts, users  # noqa: E402
@@ -28,14 +30,15 @@ FIX = "workflows/fix/works-factory-fix.yaml"
 FR = "workflows/fix/commands/fix-rules/"
 INDIRECT = re.compile(r"\.output\.prompt_file")
 # 指示書を機械が書く節（`<YAML のパス>#<id>`）→ その指示書の元。`<模組>:<名>` は lib の字か、lib の dict の値の全部
-_TDD = [FR + "common.md", FR + "brief.md", FR + "tdd.md", "tddloop:RETURN", "tddloop:RETURN_CONFLICT"]
-_FIXER = [FR + "common.md", FR + "brief.md", FR + "direct.md"]
-_REFIX = [FR + "common.md", FR + "refix.md"]
+_COMMON = FR + fixrules.SHARED.name
+_TDD = [_COMMON, FR + fixrules.BRIEF, FR + fixrules.TDD, "tddloop:DO", "tddloop:RETURN", "tddloop:RETURN_CONFLICT"]
+_FIXER = [_COMMON, FR + fixrules.BRIEF, FR + fixrules.DIRECT]
+_REFIX = [_COMMON, FR + refixrules.RULES.name]
 _CONSULT = ["consult:QUESTION", "consult:ASK_TEXT", "consult:ASK_GATE_TEXT"]
 READ_SOURCES = {
     f"{FIX}#tdd": _TDD,
     f"{FIX}#tdd-new": _TDD,
-    f"{FIX}#ruler": [FR + "ruler.md", FR + "principles.md"],
+    f"{FIX}#ruler": [FR + fixrules.RULER, FR + fixrules.PRINCIPLES],
     f"{FIX}#fixer": _FIXER,
     f"{FIX}#fix-ruled": _FIXER,
     f"{FIX}#refix": _REFIX,
@@ -100,6 +103,11 @@ class ReplyFieldsTest(unittest.TestCase):
             with self.subTest(key):
                 self.assertEqual(validate_schema(reply, shape), [])
                 self.assertTrue(validate_schema(no_why, shape))
+        _, kept, problems = tddloop._quotes_of(reply, reply["tests"], True)
+        self.assertEqual((kept, problems), (reply["red_quotes"], []))
+        quote = reply["red_quotes"]["t.py::T::test_a"]["quote"]
+        no_why_entry = no_why["red_quotes"]["t.py::T::test_a"]
+        self.assertTrue(tddloop._quote_problem("t.py::T::test_a", no_why_entry, quote))
 
     def test_every_role_reply_shape_holds_the_keys_its_instructions_write(self):
         missing = {}
