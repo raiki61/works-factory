@@ -184,6 +184,16 @@ class ClassifyCase(unittest.TestCase):
                 self.assertEqual(classify(status, [RED_UNIT], [case("t", "failure")], [case("t", "passed")], ["unit"], unran)[0],
                                  "incomplete")
 
+    def test_ran_red_wins_over_an_unran_step(self):
+        """#404: 走った段の赤は、ほかの段が走らなかったことに隠されず本当の原因で分かれ、走らなかった段は要約に添える
+        （declared_checks.checks_reply の #370 と同じ決め）"""
+        e2e = {"name": "e2e", "exit": 1}
+        cause, summary = classify("found", [RED_UNIT, e2e], [case("t", "failure")], [case("t", "passed")], ["unit", "e2e"], ["e2e"])
+        self.assertEqual(cause, "introduced")
+        self.assertIn("e2e", summary)
+        cause, _ = classify("found", [RED_UNIT, e2e], [case("t", "failure")], [case("t", "failure")], ["unit", "e2e"], ["e2e"])
+        self.assertEqual(cause, "", "走らなかった赤の段が在れば、受け継いだ赤とは言えない")
+
     def test_broken_mixed_with_red_is_not_environment(self):
         self.assertNotEqual(classify("found", [BROKEN, RED_UNIT])[0], "environment")
 

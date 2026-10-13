@@ -193,6 +193,19 @@ class GuardedTest(unittest.TestCase):
         self.assertEqual(why, "")
         self.assertEqual((doc["role"], doc["sources"]), ("plan-review", {"hook": reads.FAILED, "why": got["reason"]}))
 
+    def test_failure_of_a_replan_carries_the_replan_name_and_the_unread_why(self):
+        """#405: 落ちた記録の名は role_key（案の直しは頭に REPLAN）。往復と形を読めなかった訳は UNREAD_PASS と並べて訳に添える"""
+        def broken():
+            raise KeyError("k")
+        reads.guarded(broken, owner="plan-review", place=self.place / "replan", replan=True)
+        [path] = (self.place / "replan").glob(reads.EVIDENCE_GLOB)
+        self.assertTrue(path.name.startswith(reads.evidence_name(reads.role_key("plan-review", True)).removesuffix(".json")))
+        reads.guarded(broken, owner="plan-review", place=self.place / "unread", unread="open.json が無い")
+        [path] = (self.place / "unread").glob(reads.EVIDENCE_GLOB)
+        doc, _ = reads.read_evidence(path)
+        self.assertEqual(doc["role"], "plan-review")
+        self.assertEqual(doc["sources"]["why"], f"KeyError: 'k'（{reads.UNREAD_PASS}: open.json が無い）")
+
     def test_failure_names_do_not_overwrite_each_other_or_the_role_evidence(self):
         self.assertNotEqual(reads.failure_name("plan-review", 0), reads.failure_name("plan-review", 60))
         self.assertNotEqual(reads.failure_name("fix", 0), reads.evidence_name("fix"))

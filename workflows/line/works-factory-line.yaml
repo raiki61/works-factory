@@ -447,6 +447,7 @@ nodes:
       got_delta_review: "$fix.output.delta_review"
       got_handoffs: "$fix.output.handoffs"
       got_mismatched: "$fix.output.mismatched"
+      got_stop_reason: "$fix.output.stop_reason"
 
   - id: after-fix
     script: after_fix
@@ -669,6 +670,7 @@ nodes:
       fix_delta_review: { from: "$fix.output.delta_review", if_skipped: null }
       fix_handoffs: { from: "$fix.output.handoffs", if_skipped: null }
       fix_mismatched: { from: "$fix.output.mismatched", if_skipped: null }
+      fix_stop_reason: { from: "$fix.output.stop_reason", if_skipped: null }
       refix_done: { from: "$refix-run.output.done", if_skipped: null }
       refix_units: { from: "$refix-run.output.units", if_skipped: null }
       refix_groups: { from: "$refix-run.output.groups", if_skipped: null }
@@ -682,6 +684,7 @@ nodes:
       refix_delta_review: { from: "$refix-run.output.delta_review", if_skipped: null }
       refix_handoffs: { from: "$refix-run.output.handoffs", if_skipped: null }
       refix_mismatched: { from: "$refix-run.output.mismatched", if_skipped: null }
+      refix_stop_reason: { from: "$refix-run.output.stop_reason", if_skipped: null }
       replan: { from: "$after-fix.output.replan", if_skipped: null }
       stop_after_fix: { from: "$after-fix.output.stop_reason", if_skipped: null }
       plan: { from: "$plan-rounds.output.plan", if_skipped: null }

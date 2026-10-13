@@ -5,7 +5,8 @@
 """節 clean（形 ""）: 修正役が残した、git が無視するファイルのうち、置き場の控え fix-ignored-before.json（prep が取った）に無かった
 物だけを消す（leftovers.remove_new_ignored。前から在ったフォルダの中身と、Archon の工程の置き場 .archon/ の下は消さない）。
 
-消したパスの全件は置き場の fix-removed.json（{removed: [...]}）。返り {ok: true, count: 消した数}。
+消したパスの全件は置き場の fix-removed.json（{removed: [...]}）。返り {ok: true, count: 消した数}。戻せず親の作業ツリーに
+当たったままの組が在る run（fixboard.held）は、人が確かめるまで木を動かさないので何も消さない（count: 0）。
 控えが無い・読めない・git が効かない・消せない: 標準エラーに 1 行で 1（生成物の残る木で後を回さない）。
 """
 import sys
@@ -16,12 +17,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
+import fixboard  # noqa: E402
 import leftovers  # noqa: E402
 import oneline  # noqa: E402
 
 
 def main() -> dict:
-    out = leftovers.remove_new_ignored(boundary.place("fix"), boundary.work_tree(), skip=boundary.SKIP)
+    place = boundary.place("fix")
+    if fixboard.held(place):
+        return {"ok": True, "count": 0}
+    out = leftovers.remove_new_ignored(place, boundary.work_tree(), skip=boundary.SKIP)
     return {"ok": True, "count": out["count"]}
 
 

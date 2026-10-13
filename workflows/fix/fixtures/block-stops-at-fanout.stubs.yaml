@@ -36,3 +36,4 @@ fix:
   delta_review: {rounds: 0, pass: false}
   handoffs: []
   mismatched: []
+  stop_reason: ""

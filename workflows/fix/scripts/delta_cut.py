@@ -4,7 +4,7 @@
 # ///
 """差分の審査の支度（節 delta-cut）: 修正だけの差分（run の始めの木 → 今の作業ツリー）を切り、審査役の材料を置き場に書く（refix.cut）。
 
-変更の確かめ（置き場の assert-changed.json）が ok でない run は go: false で審査を回さない（審査は走らなかったので collect は
+戻せず親の作業ツリーに当たったままの組が在る run（fixboard.held）と、変更の確かめ（置き場の assert-changed.json）が ok でない run は go: false で審査を回さない（審査は走らなかったので collect は
 {rounds: 0, pass: false} を返す）。先に修正の後の信号（申し出・止めた単位・答えていない問い・案の直し・修正役の異議・実際の差分の
 広さ）で深さを標準へ上げ（fixboard.redepth。元の線の h-redepth。上げた控えは置き場の depth-raised.json）、それでも全部の単位が
 軽量の run（持ち主の決め dynamic-depth）は、置き場の delta/skipped.json に {reason} を書いて go: false で審査を飛ばす。
@@ -42,6 +42,9 @@ def main() -> None:
     skipped = place / fixboard.DELTA_DIR / fixboard.DELTA_SKIPPED
     skipped.unlink(missing_ok=True)
     (place / fixboard.LENSES_FILE).unlink(missing_ok=True)   # 前の試みの集め役の事実を返す節に読ませない
+    if held := fixboard.held(place):
+        no_go(place, held)
+        return
     checked = fixboard.read_json(place / fixboard.ASSERT_FILE)
     if not isinstance(checked, dict) or checked.get("ok") is not True:
         no_go(place, str((checked.get("reason") if isinstance(checked, dict) else "") or NOT_CHECKED))

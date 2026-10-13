@@ -1778,9 +1778,30 @@ class GroupScriptsSeamCase(TempCase):
 
         def broken(names):
             raise RuntimeError("地図が引けない")
-        with self.assertRaises(RuntimeError):
-            fixboard.join_group(self.repo, start, end, self.place / "g1.diff", check=broken)
+        got = fixboard.join_group(self.repo, start, end, self.place / "g1.diff", check=broken)
         self.assertFalse((self.repo / "extra.py").exists())
+        self.assertIn("RuntimeError: 地図が引けない", got.why)
+        self.assertEqual((got.names, got.backed_out, got.unrestored), ([], ["extra.py"], []),
+                         "#406: 確かめ直しが落ちて戻した組も、赤で戻した組と同じく戻したパスを名指す")
+
+    def test_join_group_keeps_a_group_it_could_not_restore_as_applied(self):
+        """#403: 当てたパスを戻せなければ、組を当てていないと言わず、当たったままのパスと止めの文を返す（赤でも、確かめ直しが
+        落ちても）"""
+        start = leftovers.snapshot(self.repo)
+        (self.repo / "extra.py").write_text("X = 1\n", encoding="utf-8")
+        end = leftovers.snapshot(self.repo)
+
+        def broken(names):
+            raise RuntimeError("地図が引けない")
+        for check in (lambda names: "確かめ直しが赤", broken):
+            with self.subTest(check=check):
+                git(self.repo, "clean", "-qfd")
+                with mock.patch("tddloop.restore_paths", side_effect=OSError("書けない")):
+                    got = fixboard.join_group(self.repo, start, end, self.place / "g1.diff", check=check)
+                self.assertTrue((self.repo / "extra.py").is_file())
+                self.assertEqual((got.names, got.backed_out, got.unrestored), ([], [], ["extra.py"]))
+                self.assertIn(fixboard.UNRESTORED_HEAD, got.why)
+                self.assertIn("OSError: 書けない", got.why)
 
     def test_rerun_problem_is_empty_without_suite_or_names(self):
         self.assertEqual(fixboard.rerun_problem(self.place, self.repo, "", [], ["t.py::x"]), "")
