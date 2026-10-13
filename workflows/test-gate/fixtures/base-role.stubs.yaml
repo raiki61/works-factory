@@ -32,7 +32,7 @@ result:
   red_cause: incomplete
   baseline: {type: archon_artifact, run_id: stub-run, path: test-gate/base/baseline.json}
   fingerprint: null
-  red_to_green: null
+  test_outcomes: null
   evidence: {type: archon_artifact, run_id: stub-run, path: test-gate/base/evidence.md}
   by: role_needed
   suites_line: "走らせた: 無い／走らせなかった: 宣言の段・test_cmd（任せ先の CI の役 blk-ci が走らせなかった: 素材の status awaiting_human）"

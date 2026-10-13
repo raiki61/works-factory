@@ -204,11 +204,13 @@ R2_DIFF = DIFF_ASK.replace("変わったファイル {files} 本", "変わった
     path="$prep.output.diff_file", lines="$prep.output.diff_lines", files="$prep.output.changed_files")
 R2_HEADS = f"{DIFF_HEAD}\n\n{R2_DIFF}\n\n---\n\n{PREMISE_HEAD}\n\n{PREMISE_ASK}\n\n$prep.output.premises_text\n\n---\n\n"
 # 比較役に貼る機械の実測と累積差分の起点の訳（元に無い。issue #384: 既に在る退行の試験と PR を打ち消した直しを『無い』と読ませない）
-MEASURED_ASK = "差分に無い物を『無い』と書く前に、上の実測で確かめる。実測が満たしていれば、食い違いに数えない。"
+MEASURED_ASK = ("差分に無い物を『無い』と書く前に、上の実測で確かめる。実測が満たしていれば、食い違いに数えない。緑→緑のテストも満たす根拠に"
+                "読む（既存のテストが観点を覆うかを『確かめられない』と書く前に、緑→緑のテストの名を見る）。")
 R2_MEASURED = ("## テストの実測と累積差分の起点（機械が測った）\n\n"
-               "下は機械が測った事実で、累積差分のファイルには現れない。base で赤・最後に緑のテストは、修正前のコードで落ちて直した後に通る"
-               "試験が既に在ることを示す（差分に試験の変更が無くても、退行を防ぐ試験は在る）。起点が PR の根で累積差分が空なら、本体を直して"
-               "いないのではなく、直しが PR の変更を打ち消したことがある。\n\n"
+               "下は機械が測った事実で、累積差分のファイルには現れない。テストごとの base と最後の結末は、差分に試験の変更が無くても在る試験を"
+               "示す。赤→緑は、修正前のコードで落ちて直した後に通る試験（退行を防ぐ試験）が既に在ること。緑→緑は、直しの前と後で同じ試験が"
+               "通り続けたこと（振る舞いを変えない直しなら、既存の試験がその振る舞いを確かめ続けた根拠）。緑→赤は、直しが壊した試験。"
+               "起点が PR の根で累積差分が空なら、本体を直していないのではなく、直しが PR の変更を打ち消したことがある。\n\n"
                "$prep.output.measured_text\n\n### 累積差分の起点\n\n$prep.output.origin_text\n\n"
                f"{MEASURED_ASK}実測が「測っていない」「無い」と書いている物は、推し量って満たしたことにしない。\n\n---\n\n")
 
@@ -638,14 +640,14 @@ class FixtureCase(unittest.TestCase):
                 self.assertTrue(result["pass"], result)
                 self.assertEqual((result["outcome"], result["authoredOutcome"]), ("completed", self.AUTHORED[name]))
 
-    def test_pass_fixture_takes_the_red_to_green_rows_and_carries_the_measured_rows(self):
-        """issue #384: 筋書き pass は eyes が試験の関門の比べた base で赤・最後に緑のテストと修正の段の diff を受け、prep の出力に
+    def test_pass_fixture_takes_the_test_outcomes_and_carries_the_measured_rows(self):
+        """issue #384: 筋書き pass は eyes が試験の関門の比べたテストごとの base と最後の結末と修正の段の diff を受け、prep の出力に
         実測の行と起点の訳が載る配線（ほかの筋書きは渡っていない形）"""
         doc = yaml.safe_load((BLOCK / "fixtures" / "pass.stubs.yaml").read_text(encoding="utf-8"))
         inputs = doc["fixture"]["inputs"]
-        self.assertEqual(json.loads(inputs["red_to_green"])["rows"][0]["key"], "tests.test_a::test_entry")
+        self.assertEqual(json.loads(inputs["test_outcomes"])["rows"][0]["key"], "tests.test_a::test_entry")
         self.assertEqual(len(json.loads(inputs["diffs"])), 1)
-        self.assertIn("base で赤（", doc["prep"]["measured_text"])
+        self.assertIn("赤→緑（", doc["prep"]["measured_text"])
         self.assertIn("起点は", doc["prep"]["origin_text"])
 
 
@@ -976,25 +978,47 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual((got["base_rev"], got["changed_files"]), (self.base, "a.txt"))
         self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), got)
 
-    def test_prep_pastes_the_measured_red_to_green_and_the_tdd_proof(self):
-        """issue #384: 試験の関門が比べた base で赤・最後に緑のテスト（入力 red_to_green）と、修正の段の diff の隣の TDD の記録が
+    def test_prep_pastes_the_measured_test_outcomes_and_the_tdd_proof(self):
+        """issue #384: 試験の関門が比べたテストごとの base と最後の結末（入力 test_outcomes）と、修正の段の diff の隣の TDD の記録が
         比較役への実測の行に載る。渡っていない時は測っていないと書く"""
         import tddloop
         self.prep_inputs()
         none = self.run_script("prep")["measured_text"]
-        self.assertIn("red_to_green）が渡っていない", none)
+        self.assertIn("test_outcomes）が渡っていない", none)
         self.assertIn("修正の段が走っていない", none)
-        self.inputs["red_to_green"] = json.dumps({"rows": [{"key": "tests.test_stats.TestStats::test_clamp_above_range",
-                                                            "outcome": "failure", "fail_message": "AssertionError: 0 != 10"}],
-                                                  "unmeasured": ""})
+        self.inputs["test_outcomes"] = json.dumps({"rows": [{"key": "tests.test_stats.TestStats::test_clamp_above_range",
+                                                             "base": "failure", "final": "passed",
+                                                             "fail_message": "AssertionError: 0 != 10"}], "unmeasured": ""})
         self.inputs["diffs"] = json.dumps([json.loads(self.pointer("fix/fix/fix.diff", ""))])
         self.pointer(f"fix/fix/{fixboard.TDD_UNIT_FILE}", [{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
                                                            "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok",
                                                                       "tests": ["tests/test_stats.py::TestStats::test_clamp_above_range"],
                                                                       tddloop.QUOTES_FIELD: {}}]}])
         got = self.run_script("prep")["measured_text"]
-        self.assertIn("`tests.test_stats.TestStats::test_clamp_above_range`: base で赤（failure: AssertionError: 0 != 10）→最後のテストで緑", got)
+        self.assertIn("  - `tests.test_stats.TestStats::test_clamp_above_range`（base failure: AssertionError: 0 != 10）", got)
         self.assertIn("  - u1: 赤 ok・緑 ok・整え —（名指しのテスト tests/test_stats.py::TestStats::test_clamp_above_range）", got)
+
+    def test_rename_without_red_puts_the_green_tests_in_the_compare_prompt(self):
+        """issue #384 の閉じる条件: 赤の無い改名の run（較正の対照 control-clearer-names、run 90970124）で、比較役の指示書に
+        base でも最後でも緑のテストの名が載る。載らないと、比較役は既存のテストが観点を覆うかを確かめられないと読んで止める"""
+        self.prep_inputs()
+        (self.repo / "a.txt").write_text("a\n", encoding="utf-8")
+        (self.repo / "stats.py").write_text("def median(xs):\n    return sorted(xs)[len(xs) // 2]\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "median")
+        self.base = git(self.repo, "rev-parse", "HEAD").strip()
+        self.start(policy_md="")
+        (self.repo / "stats.py").write_text("def median(values):\n    return sorted(values)[len(values) // 2]\n", encoding="utf-8")
+        names = [f"tests.test_stats.TestMedian::test_{n}" for n in ("odd", "even", "single")]
+        self.inputs["test_outcomes"] = json.dumps({"rows": [{"key": k, "base": "passed", "final": "passed", "fail_message": ""}
+                                                            for k in names], "unmeasured": ""})
+        got = self.run_script("prep")
+        prompt = re.sub(r"\$prep\.output\.([a-z_0-9]+)", lambda m: str(got[m.group(1)]),
+                        (BLOCK / "commands" / "r2-compare.md").read_text(encoding="utf-8"))
+        self.assertIn("- 緑→緑（base でも最後でも緑）: 3 件", prompt)
+        for k in names:
+            self.assertIn(f"  - `{k}`\n", prompt)
+        self.assertLess(prompt.index(names[-1]), prompt.index(MEASURED_ASK))
 
     def test_prep_names_the_pr_diff_and_the_fix_diff_apart(self):
         """issue #384: 起点が PR の根で直しが PR の変更を元に戻した run は、累積差分が空でも PR の差分と直しの差分を分けて名指す"""

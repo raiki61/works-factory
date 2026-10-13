@@ -17,7 +17,7 @@ inputs:
   changed: {required: true, description: "$fix.output.changed（修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む）"}
   fix_units: {required: true, description: "$fix.output.units（単位ごとの結末。JSON の配列）"}
   green_ok: {required: true, description: "$test-gate-final.output.ok"}
-  red_to_green: {required: true, description: "$test-gate-final.output.red_to_green（base で赤・最後に緑のテスト {rows, unmeasured}）。比較役に貼る"}
+  test_outcomes: {required: true, description: "$test-gate-final.output.test_outcomes（テストごとの base と最後の結末 {rows, unmeasured}）。比較役に貼る"}
   diffs: {required: true, description: "$fixed.output.diffs（修正の段ごとの diff のポインタの配列。隣の tdd-unit.json の TDD の記録を読む）"}
   start: {default: "null", description: "$start.output.record（始めの記録のポインタ）"}
   plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の承認ノードの項目 {kind, text}）"}

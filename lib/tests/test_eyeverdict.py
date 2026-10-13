@@ -423,24 +423,50 @@ class PromptTextsCase(unittest.TestCase):
 
 
 class MeasuredSectionCase(unittest.TestCase):
-    """R2 の比較役に貼る機械の実測（issue #384）。試験の関門が比べた base で赤・最後に緑のテストを名指し、段ごとの TDD の記録を
-    報告と同じ行で並べ、測っていない時は推し量らずにそう書く"""
+    """R2 の比較役に貼る機械の実測（issue #384）。試験の関門が比べたテストごとの base と最後の結末を移り方ごとに全部名指し、
+    段ごとの TDD の記録を報告と同じ行で並べ、測っていない時は推し量らずにそう書く"""
 
-    RED_TO_GREEN = {"rows": [{"key": "tests.test_stats.TestStats::test_clamp_above_range", "outcome": "failure",
-                              "fail_message": "AssertionError: 0 != 10"}], "unmeasured": ""}
+    OUTCOMES = {"rows": [{"key": "tests.test_stats.TestStats::test_clamp_above_range", "base": "failure", "final": "passed",
+                          "fail_message": "AssertionError: 0 != 10"}], "unmeasured": ""}
 
     def test_names_the_test_red_at_base_and_green_at_the_end(self):
-        got = eyeverdict.measured_section(self.RED_TO_GREEN, [])
-        self.assertIn("`tests.test_stats.TestStats::test_clamp_above_range`: base で赤（failure: AssertionError: 0 != 10）→最後のテストで緑", got)
+        got = eyeverdict.measured_section(self.OUTCOMES, [])
+        self.assertIn("- 赤→緑（base で赤・最後に緑）: 1 件\n"
+                      "  - `tests.test_stats.TestStats::test_clamp_above_range`（base failure: AssertionError: 0 != 10）", got)
+
+    def test_names_every_test_green_at_both_ends_when_nothing_was_red(self):
+        """較正の対照 control-clearer-names（run 90970124）: 振る舞いを変えない改名の run は赤が無い。緑→緑のテストの名が載らないと、
+        比較役は既存のテストが観点を覆うかを確かめられないと読む"""
+        rows = [{"key": f"tests.test_stats.TestStats::test_median_{n}", "base": "passed", "final": "passed", "fail_message": ""}
+                for n in ("odd", "even", "single")]
+        got = eyeverdict.measured_section({"rows": rows, "unmeasured": ""}, [])
+        self.assertIn("- 緑→緑（base でも最後でも緑）: 3 件\n", got)
+        for n in ("odd", "even", "single"):
+            self.assertIn(f"  - `tests.test_stats.TestStats::test_median_{n}`\n", got + "\n")
+        self.assertNotIn("- 赤→緑", got)
+
+    def test_every_transition_is_named_in_a_fixed_order(self):
+        rows = [{"key": "k::gone", "base": "passed", "final": "", "fail_message": ""},
+                {"key": "k::same", "base": "passed", "final": "passed", "fail_message": ""},
+                {"key": "k::stuck", "base": "error", "final": "failure", "fail_message": "boom"},
+                {"key": "k::broke", "base": "passed", "final": "failure", "fail_message": "1 != 2"},
+                {"key": "k::fixed", "base": "failure", "final": "passed", "fail_message": ""},
+                {"key": "k::skip", "base": "skipped", "final": "skipped", "fail_message": ""}]
+        got = eyeverdict.measured_section({"rows": rows, "unmeasured": ""}, [])
+        heads = [line for line in got.splitlines() if line.startswith("- ") and line.endswith("件")]
+        self.assertEqual(heads, ["- 赤→緑（base で赤・最後に緑）: 1 件", "- 緑→緑（base でも最後でも緑）: 1 件",
+                                 "- 緑→赤（base で緑・最後に赤）: 1 件", "- 赤→赤（base でも最後でも赤）: 1 件",
+                                 "- 緑→測っていない: 1 件", "- 飛ばし→飛ばし: 1 件"])
+        self.assertIn("  - `k::broke`（最後 failure: 1 != 2）", got)
+        self.assertIn("  - `k::stuck`（base error・最後 failure: boom）", got)
 
     def test_says_when_the_gate_did_not_compare(self):
         got = eyeverdict.measured_section({"rows": [], "unmeasured": "最後のテストは 1 件ごとの結末を取っていない"}, [])
-        self.assertIn("比べていない（最後のテストは 1 件ごとの結末を取っていない）。base で赤だったテストが最後に通ったかは測っていない", got)
-        self.assertIn("red_to_green）が渡っていない", eyeverdict.measured_section(None, []))
+        self.assertIn("比べていない（最後のテストは 1 件ごとの結末を取っていない）。テストごとの base と最後の結末は測っていない", got)
+        self.assertIn("test_outcomes）が渡っていない", eyeverdict.measured_section(None, []))
 
     def test_no_row_is_said_not_left_empty(self):
-        self.assertIn("base で赤だったテストのうち、最後のテストで通った物は無い",
-                      eyeverdict.measured_section({"rows": [], "unmeasured": ""}, []))
+        self.assertIn("base と最後のどちらの一式にもテストが居ない", eyeverdict.measured_section({"rows": [], "unmeasured": ""}, []))
 
     def test_lists_the_tdd_record_as_the_report_does(self):
         import report
@@ -450,19 +476,19 @@ class MeasuredSectionCase(unittest.TestCase):
         direct = {"unit_key": "u2", "route": "direct", "red": "", "green": "", "tests": [], "why": "テストが書けない"}
         g1 = {"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {}, "units": [proved, direct]}
         g2 = {"group_id": "g2", "ran": False, "reason": "実行器が無い", "suite": "", "reused": {}, "units": []}
-        got = eyeverdict.measured_section(self.RED_TO_GREEN, [[g1, g2]])
+        got = eyeverdict.measured_section(self.OUTCOMES, [[g1, g2]])
         for row in report.tdd_lines([("修正の段（組 g1）", g1), ("修正の段（組 g2）", g2)]):
             self.assertIn(row if row.startswith(" ") else f"- {row}", got)
         self.assertIn("赤 ok・緑 ok", got)
         self.assertIn("赤の引用 tests/test_x.py::test_new: 「AssertionError: 1 != 2」", got)
         self.assertIn("u2: 初めから今どおりの直し（テストが書けない）", got)
         self.assertIn("修正の段（組 g2）: TDD のループを回していない（実行器が無い）", got)
-        self.assertIn("案を直した後の修正の段（組 g3）", eyeverdict.measured_section(self.RED_TO_GREEN, [[], [{**g2, "group_id": "g3"}]]))
+        self.assertIn("案を直した後の修正の段（組 g3）", eyeverdict.measured_section(self.OUTCOMES, [[], [{**g2, "group_id": "g3"}]]))
 
     def test_tdd_record_that_cannot_be_read_is_named(self):
         self.assertIn("TDD のループの記録を読めない（tdd-unit.json が無い）",
-                      eyeverdict.measured_section(self.RED_TO_GREEN, ["tdd-unit.json が無い"]))
-        self.assertIn("修正の段が走っていない", eyeverdict.measured_section(self.RED_TO_GREEN, []))
+                      eyeverdict.measured_section(self.OUTCOMES, ["tdd-unit.json が無い"]))
+        self.assertIn("修正の段が走っていない", eyeverdict.measured_section(self.OUTCOMES, []))
 
     def test_reads_the_tdd_record_beside_each_fix_diff(self):
         import fixboard

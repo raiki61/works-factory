@@ -141,7 +141,7 @@ flowchart TB
 - 計画（修正案のポインタ・波及のポインタ・単位ごとの深さ）: plan → plan-review・fix・eyes
 - 事前審査（止めか通しか・4 つの軸・人への問い）: plan-review → メイングラフ（承認ノードと往復）・plan
 - 修正（単位ごとの結末・申し出・諦めた単位・差分のポインタ。組ごとの結果は `fan_out:` が入力の順に集めた `$<id>.output`）と型つきの成果物 `tdd-unit`: fix → test-gate・eyes・report
-- 緑の認証（緑・赤の原因・作業ツリーの指紋。eyes には base で赤・最後に緑のテストも）: test-gate（final）→ eyes・merge
+- 緑の認証（緑・赤の原因・作業ツリーの指紋。eyes にはテストごとの base と最後の結末も）: test-gate（final）→ eyes・merge
 - 独立の目と型つきの成果物 `eye-verdict`: eyes → merge・report
 - 封じた差分（hash・守りのパスの当たり）: merge（seal）→ 最後の承認ノード・merge（apply）
 - 報告（結末の語・報告のポインタ・持ち越しのポインタ）: report → メイングラフの出力（人は `bin/works-factory workflow get <run>` で見る）
@@ -291,7 +291,7 @@ flowchart TB
   - `red_cause`（string）: 赤の原因 `introduced`・`inherited`・`environment`・`interaction`・`incomplete`・`""`（ASF の enum。緑なら `""`）→ report
   - `baseline`（ポインタ・null 可）: 直す前の結末（テストの走らせ方と元から赤のテスト）。base だけ → judge・fix・test-gate（final）
   - `fingerprint`（object・null 可）: 作業ツリーの指紋 `{head, diff_hash}`。final だけ → merge（seal が照らす）
-  - `red_to_green`（object・null 可）: base で赤・最後に緑のテスト `{rows: [{key, outcome, fail_message}], unmeasured}`（`outcome`・`fail_message` は base の物）。赤の原因の照らし（`green_cert.classify`）と同じ決めで base と最後の 1 件ごとの結末を比べ、比べない時は `rows` が空で `unmeasured` に訳。final だけ → eyes
+  - `test_outcomes`（object・null 可）: テストごとの base と最後の結末 `{rows: [{key, base, final, fail_message}], unmeasured}`（赤→緑・緑→緑・緑→赤・赤→赤を全部。`base`・`final` は片側に居なければ `""`、`fail_message` は最後が赤なら最後の、でなければ base の物）。赤の原因の照らし（`green_cert.classify`）と同じ決めで base と最後の 1 件ごとの結末を比べ、比べない時は `rows` が空で `unmeasured` に訳。final だけ → eyes
   - `evidence`（ポインタ）: 走らせた記録（人が読む `evidence.md`。下の 5 つの欄と同じ値の行を含む）→ report
   - `by`（string）: 走らせ方の語 `engine`・`role`・`role_needed`（出力ノードの中の誤りなら `""`）→ report・メイングラフ 11
   - `suites_line`（string）: 走らせた一式・走らせなかった物の 1 行（誤りなら `""`）→ report・メイングラフ 11
@@ -310,7 +310,7 @@ flowchart TB
   - `design` ← `$fixed.output.design`（計画の往復の設計。直す物が無い周は `design-only` の設計）
   - `diff`・`changed`・`x_scalars` ← `$fixed.output.<同じ名>`（`changed` の `premise_drift_note` を比較役の頭に貼り、`x_scalars` を規模の数値に足す）、`fix_units` ← `$fixed.output.units`
   - `green_ok` ← `$test-gate-final.output.ok`
-  - `red_to_green` ← `$test-gate-final.output.red_to_green`（試験の関門が比べた base で赤・最後に緑のテスト）、`diffs` ← `$fixed.output.diffs`（修正の段ごとの diff の隣の `tdd-unit.json`）。R2 の比較役に、base で赤・最後に緑のテストと段ごとの TDD のループの記録（報告と同じ行）を機械の実測として貼る。累積差分の起点の訳（起点が PR の根か修正前の HEAD か・PR の差分と直しの差分の分かれ・空の時に打ち消し合ったか何も変えていないか）も貼る。比較役の道具は Read と累積差分のファイルのまま（issue #384）
+  - `test_outcomes` ← `$test-gate-final.output.test_outcomes`（試験の関門が比べたテストごとの base と最後の結末）、`diffs` ← `$fixed.output.diffs`（修正の段ごとの diff の隣の `tdd-unit.json`）。R2 の比較役に、テストごとの base と最後の結末（移り方ごとに全部。赤の無い run でも緑→緑のテストの名が載る）と段ごとの TDD のループの記録（報告と同じ行）を機械の実測として貼る。累積差分の起点の訳（起点が PR の根か修正前の HEAD か・PR の差分と直しの差分の分かれ・空の時に打ち消し合ったか何も変えていないか）も貼る。比較役の道具は Read と累積差分のファイルのまま（issue #384）
   - `start` ← `$start.output.record`（直した後の実測の数える版・守りのパスの当たり・方針の文書の置き場）
   - `plan_questions` ← `$fixed.output.plan_questions`（修正前の承認ノードの項目 `{kind, text}`。fixed が計画の往復の `questions` をそのまま渡す。直す物が無い周は `[]`）、`answers` ← `$fixed.output.answer`（fixed が修正前の承認ノードの答えをそのまま渡す。直す物が無い周は null。修正前の承認ノードで人が通した行を R4 に渡し、同じ行を聞き直さない。持ち主の決め `decision-records`）
   - `start_answers` ← `$answer-start.output.answer`（始めの承認ノードの答え `{decision, text, asked}`。開かなかった run は null。前提の検算に貼る人の答えの頭。plan-review の `answers` と同じ源）

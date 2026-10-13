@@ -146,7 +146,7 @@ def eyes(p: Place) -> dict:
             "design": p.put("plan-review/design.json", {"question_stands": True, "reason": "立つ", "design": "設計"}),
             "diff": p.put("fix/diff.patch", "diff --git a/stats.py b/stats.py\n--- a/stats.py\n+++ b/stats.py\n@@ -1 +1 @@\n-a\n+b\n"),
             "changed": json.dumps({"premise_drift": False}), "fix_units": "[]", "green_ok": "true",
-            "red_to_green": json.dumps({"rows": [], "unmeasured": ""}),
+            "test_outcomes": json.dumps({"rows": [], "unmeasured": ""}),
             "diffs": json.dumps([json.loads(p.put("fix/fix/tdd-unit.json", []))]),
             "start": p.start(), "plan_questions": "null", "answers": "null", "start_answers": "null", "x_scalars": "null"}
 

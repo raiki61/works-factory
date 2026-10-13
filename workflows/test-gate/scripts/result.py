@@ -5,7 +5,7 @@
 """返す節 result: run.json と（在れば）任せ先の役の ci-material.json を読み、赤の原因と証拠を出し（green_cert.classify）、今の指紋を
 取って認証する（green_cert.certify。final で素材を任せ先の役が書いた緑は自己申告として認証しない）。base は直す前の結末のファイル
 test-gate/base/baseline.json を書く（baseline_red.write_baseline）。final は入力 baseline の指し札の先を baseline_red.read_baseline で読み、
-修正前のテストの行（declared_checks.baseline_line）を証拠に足し、修正前に赤で今は通ったテストの行（red_to_green。独立の目の
+修正前のテストの行（declared_checks.baseline_line）を証拠に足し、テストごとの修正前と今の結末（test_outcomes。独立の目の
 比較役が読む）を返りに載せる。走らせ方（by・suites_line）・ログ（log）・修正前のテスト（baseline_line）・
 認証しなかった訳（reason）は 1 行に畳んで返りに載せ、証拠の文 test-gate/<mode>/evidence.md の行も同じ値から組む（報告と最後の関所は
 返りの欄を読む）。任せ先の役で走らせた run が包みを宣言していなければ（env の fence.RECORDS_ENV が無い）、証拠に
@@ -45,8 +45,8 @@ def suite_exit(run: dict):
     return next((r["exit"] for r in junit if r["exit"]), 0) if junit else None
 
 
-def red_to_green(base, run: dict) -> tuple:
-    """(赤の原因の照らしに渡す元の 1 件ごとの結末か None, 返りの欄 red_to_green {rows, unmeasured})。元の結末と今の結末を比べて
+def test_outcomes(base, run: dict) -> tuple:
+    """(赤の原因の照らしに渡す元の 1 件ごとの結末か None, 返りの欄 test_outcomes {rows, unmeasured})。元の結末と今の結末を比べて
     よいのは、元の結末が 1 件ごとの結末を取り（exit が None でない）、今の一式も取れた（suite_exit）時だけ。比べない時は rows を空に
     して訳を unmeasured に書く"""
     import baseline_red
@@ -57,7 +57,7 @@ def red_to_green(base, run: dict) -> tuple:
     elif suite_exit(run) is None:
         why = "最後のテストは 1 件ごとの結末を取っていない"
     else:
-        return base["cases"], {"rows": baseline_red.red_to_green(base["cases"], run["cases"]), "unmeasured": ""}
+        return base["cases"], {"rows": baseline_red.test_outcomes(base["cases"], run["cases"]), "unmeasured": ""}
     return None, {"rows": [], "unmeasured": why}
 
 
@@ -127,7 +127,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     base = None
     if mode == "final" and (base_file := boundary.pointed(baseline_raw)) is not None:
         base = baseline_red.read_baseline(base_file)
-    cases, rows = red_to_green(base, run) if mode == "final" else (None, None)
+    cases, rows = test_outcomes(base, run) if mode == "final" else (None, None)
     if material is None:   # 3 回とも拒まれて諦めた時は最後の拒否の文を人に見える証拠に出す（T45。元 ci_role.collect :349-356）
         red_cause = green_cert.INCOMPLETE
         summary = (rolekit.given_up_reason(artifacts / rel(mode, ""), declared_checks.CI_ROLE)
@@ -137,7 +137,7 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
                                                  junit_steps=run["junit_steps"], junit_unran=run["junit_unran"])
     ok, why = green_cert.certify(mode=mode, material_status=status, green=green, before=run["fingerprint_before"],
                                  after=run["fingerprint_after"], now=now, self_reported=role)
-    out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause, "baseline": None, "fingerprint": None, "red_to_green": rows}
+    out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause, "baseline": None, "fingerprint": None, "test_outcomes": rows}
     if mode == "base":
         baseline_red.write_baseline(artifacts / rel(mode, "baseline.json"), suite=start.get("tdd_suite") or "",
                                     test_cmd=start.get("test_cmd") or "", rev=now["head"], exit=suite_exit(run),
@@ -172,7 +172,7 @@ def failed(mode: str, error: BaseException) -> dict:
         except Exception:
             pass
     return {"mode": mode, "ok": False, "green": False, "red_cause": "incomplete", "baseline": None, "fingerprint": None,
-            "red_to_green": {"rows": [], "unmeasured": INNER_ERROR} if mode == "final" else None,
+            "test_outcomes": {"rows": [], "unmeasured": INNER_ERROR} if mode == "final" else None,
             "evidence": {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel(mode, name)},
             "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": INNER_ERROR}
 

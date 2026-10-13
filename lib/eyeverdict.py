@@ -8,8 +8,8 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
   人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
 - prompt_texts(...): 目の指示書に差し込む文
-- tdd_stages(diffs, resolve)・measured_section(red_to_green, stages): R2 の比較役に貼る機械の実測（試験の関門が返した base で赤・
-  最後に緑のテストと、修正の段ごとの TDD のループの記録。測っていない物はそう書く）
+- tdd_stages(diffs, resolve)・measured_section(test_outcomes, stages): R2 の比較役に貼る機械の実測（試験の関門が返したテストごとの
+  base と最後の結末を移り方ごとに全部と、修正の段ごとの TDD のループの記録。測っていない物はそう書く）
 - origin_section(repo, base, head, label, ...): R2 の比較役に貼る累積差分の起点の訳（PR の根か修正前の HEAD か・PR の差分と直しの差分）
 - after_section(eyes_dir, review_folder, plan)・plan_review_line(review_folder, plan): R1・R3 の頭に貼る直しの後の実測の節（外れの訳が
   在れば、訳の行と、外れの源の修正案 plan を審査した事前審査の最後の往復が外れを認めたか）
@@ -272,7 +272,7 @@ def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_fil
     }
 
 
-RED_GREEN_HEAD = "### base で赤・最後に緑のテスト（試験の関門が base と最後に測った 1 件ごとの結末）"
+OUTCOMES_HEAD = "### テストごとの base と最後の結末（試験の関門が base と最後に測った 1 件ごと。移り方ごとに全部）"
 TDD_PROVED_HEAD = "### TDD のループの記録（修正の段ごと。赤→緑を確かめた単位は名指しのテストつき）"
 
 
@@ -295,22 +295,43 @@ def tdd_stages(diffs, resolve) -> list:
     return out
 
 
-def measured_section(red_to_green, stages: list) -> str:
-    """R2 の比較役に貼る機械の実測の節。red_to_green は試験の関門（final）の返りの欄 {rows, unmeasured}（無ければ None）、stages は
+def measured_section(test_outcomes, stages: list) -> str:
+    """R2 の比較役に貼る機械の実測の節。test_outcomes は試験の関門（final）の返りの欄 {rows, unmeasured}（無ければ None）、stages は
     tdd_stages の並び。測っていない物は推し量らずにそう書く"""
-    return "\n".join([RED_GREEN_HEAD, "", *red_green_lines(red_to_green), "", TDD_PROVED_HEAD, "", *tdd_record_lines(stages)])
+    return "\n".join([OUTCOMES_HEAD, "", *outcome_lines(test_outcomes), "", TDD_PROVED_HEAD, "", *tdd_record_lines(stages)])
 
 
-def red_green_lines(red_to_green) -> list[str]:
-    if not isinstance(red_to_green, dict):
-        return ["- 試験の関門が base と最後のテストを比べた結果（red_to_green）が渡っていない。base で赤だったテストが最後に通ったかは分からない"]
-    if red_to_green.get("unmeasured"):
-        return [f"- 比べていない（{oneline.one_line(red_to_green['unmeasured'])}）。base で赤だったテストが最後に通ったかは測っていない"]
-    rows = []
-    for r in red_to_green.get("rows") or []:
-        why = oneline.one_line(r.get("fail_message") or "")[:200]
-        rows.append(f"- `{r.get('key')}`: base で赤（{r.get('outcome')}{': ' + why if why else ''}）→最後のテストで緑")
-    return rows or ["- 無い（base で赤だったテストのうち、最後のテストで通った物は無い）"]
+# 移り方（base の側→最後の側）の並びの順と、名に添える読み。ここに無い移り方（飛ばし・片側に居ない）は後ろに出会った順
+TRANSITIONS = {"赤→緑": "base で赤・最後に緑", "緑→緑": "base でも最後でも緑", "緑→赤": "base で緑・最後に赤", "赤→赤": "base でも最後でも赤"}
+
+
+def outcome_side(outcome: str) -> str:
+    import baseline_red
+    if outcome in baseline_red.FAILED:
+        return "赤"
+    return {"passed": "緑", "skipped": "飛ばし", "": "測っていない"}.get(outcome, outcome)
+
+
+def outcome_lines(test_outcomes) -> list[str]:
+    """テストを移り方ごとにまとめ、移り方の行の下に全部のテストを名指す（緑→緑も省かない。赤の側は結末と落ちた文を添える）"""
+    import baseline_red
+    if not isinstance(test_outcomes, dict):
+        return ["- 試験の関門がテストごとに base と最後を比べた結果（test_outcomes）が渡っていない。どのテストが base と最後に緑か赤かは分からない"]
+    if test_outcomes.get("unmeasured"):
+        return [f"- 比べていない（{oneline.one_line(test_outcomes['unmeasured'])}）。テストごとの base と最後の結末は測っていない"]
+    groups: dict[str, list[str]] = {t: [] for t in TRANSITIONS}
+    for r in test_outcomes.get("rows") or []:
+        base, final = r.get("base") or "", r.get("final") or ""
+        notes = [f"{side} {o}" for side, o in (("base", base), ("最後", final)) if o in baseline_red.FAILED]
+        if notes and (why := oneline.one_line(r.get("fail_message") or "")[:200]):
+            notes[-1] += f": {why}"
+        groups.setdefault(f"{outcome_side(base)}→{outcome_side(final)}", []).append(
+            f"  - `{r.get('key')}`" + (f"（{'・'.join(notes)}）" if notes else ""))
+    out = []
+    for move, rows in groups.items():
+        if rows:
+            out += [f"- {move}{f'（{TRANSITIONS[move]}）' if move in TRANSITIONS else ''}: {len(rows)} 件", *rows]
+    return out or ["- 無い（base と最後のどちらの一式にもテストが居ない）"]
 
 
 def tdd_record_lines(stages: list) -> list[str]:

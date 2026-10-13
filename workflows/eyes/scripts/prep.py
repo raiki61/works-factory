@@ -5,8 +5,8 @@
 """目の指示書に差し込む値を組み、置き場の eyes/prep.json にも書く（返す節 verdict がファイルで読む）。比較役に貼った前提の控えは
 eyes/r2-premises.json に書く。目が読む累積差分は、入口の base（startrec.diff_base。差分の run では PR の根）から今の作業ツリーまで
 （未追跡を含み、Archon の写しの下は除く）を取って eyes/run.diff に書き、空・取れない時は訳を eyes/run-diff-none.txt に書いてそれを指す
-（直す物が無い run も、修正前の HEAD でなく頼まれた変更を目が見る）。比較役には機械の実測も貼る: base で赤・最後に緑のテスト
-（試験の関門が比べた入力 red_to_green）と TDD のループの記録（修正の段ごとの diff の隣の記録）、累積差分の起点が PR の根か修正前の HEAD かと PR の差分・直しの差分の分かれ。前の run の前提の検算が運んだ実測（判定の premises.json の制約のうち measured_how が
+（直す物が無い run も、修正前の HEAD でなく頼まれた変更を目が見る）。比較役には機械の実測も貼る: テストごとの base と最後の結末
+（試験の関門が比べた入力 test_outcomes）と TDD のループの記録（修正の段ごとの diff の隣の記録）、累積差分の起点が PR の根か修正前の HEAD かと PR の差分・直しの差分の分かれ。前の run の前提の検算が運んだ実測（判定の premises.json の制約のうち measured_how が
 carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に。R2 を回し直す）"""
 import json
 import os
@@ -89,7 +89,7 @@ out = {
     "candidates_file": str(EYES / "r1-comments.json"),
     "judgment_file": str(judgment_file or ""),
     "premises_text": premises_text,
-    "measured_text": eyeverdict.measured_section(boundary.parsed(os.environ["INPUTS_RED_TO_GREEN"]),
+    "measured_text": eyeverdict.measured_section(boundary.parsed(os.environ["INPUTS_TEST_OUTCOMES"]),
                                                  eyeverdict.tdd_stages(boundary.parsed(os.environ["INPUTS_DIFFS"]), boundary.resolve)),
     "origin_text": eyeverdict.origin_section(Path.cwd(), base_rev, start.get("base_rev") or "HEAD", startrec.diff_base_label(start),
                                              cumulative_empty=not diff_text and not diff_why, skip=boundary.SKIP),
