@@ -5,6 +5,9 @@ works-factory の節の why・never が、行番号でなく名で指し、そ�
 `path::Class.test_name`。行番号は試験や関数を 1 つ足すたびに関係の無い行までずれるので書かない。「元」と旗の表の works の節は
 版を止めた今の works の `file:line` でずれないので照らさない。「要追加」から文の終わり（「。」か行の終わり）までの名は、まだ無い名
 なので照らさない。
+
+tail.md の各領域の穴の「数」と末尾の「穴の要約」は、README.md の「穴の数え方」のとおり行の欄から数えた今の値で、要約は各領域の
+数の足し算（#336・#339）。狭めの並びは欄を読んで人が選ぶので、数と並びの長さと要約の足し算だけを照らす。
 """
 import ast
 import collections
@@ -37,6 +40,17 @@ FIELD_FLOOR = {
 }
 FLAG_FIELDS = ("why", "never")
 FLAG_FLOOR = 70
+TAIL = INVENTORY / "tail.md"
+ROW = re.compile(r"^- ([TERM]\d+b?) ")
+AREA_HOLES = re.compile(r"^### ([TERM]) の穴")
+SUMMARY = "## 穴の要約"
+TOTAL = "行の総数"
+NARROWED = "狭めたのに Archon が強いていない"
+COUNTED = {
+    "今: 無し": lambda row: row["今"].startswith("無し"),
+    "証が要追加か弱い": lambda row: row["証"].startswith("要追加") or "弱い:" in row["証"],
+}
+HOLE = re.compile(rf"^- ({TOTAL}|{'|'.join(COUNTED)}|{NARROWED}): (\d+)(?:（([^）]*)）)?")
 
 
 def pointing_fields() -> list[tuple[str, str]]:
@@ -121,6 +135,35 @@ def missing(want_tests: bool) -> list[str]:
     return out
 
 
+def tail_rows() -> dict[str, dict[str, str]]:
+    """行 ID → 欄の名 → 欄の字（続きの行を足した物）"""
+    rows, row, field = {}, None, None
+    for line in TAIL.read_text(encoding="utf-8").splitlines():
+        if head := ROW.match(line):
+            row = rows[head.group(1)] = {}
+            field = None
+        elif row is not None and (head := FIELD.match(line)):
+            field = head.group(1)
+            row[field] = line.split(":", 1)[1].strip()
+        elif row is not None and line.startswith("    "):
+            row[field] += line.strip()
+        elif line.strip():
+            row = None
+    return rows
+
+
+def hole_counts() -> tuple[dict[str, dict[str, tuple[int, str]]], dict[str, tuple[int, str]]]:
+    """({領域: {数の名: (数, 括弧の中)}}, 穴の要約の {数の名: (数, 括弧の中)})"""
+    areas, summary, current = {}, {}, None
+    for line in TAIL.read_text(encoding="utf-8").splitlines():
+        if line.startswith("#"):
+            area = AREA_HOLES.match(line)
+            current = areas.setdefault(area.group(1), {}) if area else summary if line == SUMMARY else None
+        elif current is not None and (hole := HOLE.match(line)):
+            current[hole.group(1)] = (int(hole.group(2)), hole.group(3) or "")
+    return areas, summary
+
+
 class PointerCase(unittest.TestCase):
     def test_reads_every_pointing_field(self):
         read = collections.Counter((field, where.split(":")[0]) for where, text in pointing_fields()
@@ -161,6 +204,32 @@ class PointerCase(unittest.TestCase):
         found = [f"{where}: {path} が無い" for where, text in present_tense()
                  for path in BARE_PATH.findall(text) if not (ROOT / path).exists()]
         self.assertEqual(found, [])
+
+    def test_tail_hole_counts_are_counted_from_the_rows(self):
+        rows = tail_rows()
+        areas, _ = hole_counts()
+        self.assertEqual(sorted(areas), sorted("TERM"))
+        for area, counts in areas.items():
+            with self.subTest(area=area):
+                self.assertEqual(set(counts), {TOTAL, *COUNTED, NARROWED})
+                self.assertEqual(counts[TOTAL][0], len([key for key in rows if key[0] == area]))
+                for name, (number, listed) in counts.items():
+                    if name == TOTAL:
+                        continue
+                    ids = listed.split("・") if listed else []
+                    self.assertEqual(number, len(ids), name)
+                    self.assertLessEqual(set(ids), set(rows), name)
+                    if name in COUNTED:
+                        self.assertEqual(ids, [key for key, row in rows.items() if key[0] == area and COUNTED[name](row)], name)
+
+    def test_hole_summary_adds_up_the_areas(self):
+        areas, summary = hole_counts()
+        self.assertEqual(set(summary), {TOTAL, *COUNTED, NARROWED})
+        for name, (number, listed) in summary.items():
+            with self.subTest(name=name):
+                parts = {area: int(n) for area, n in re.findall(r"([TERM]) (\d+)", listed)}
+                self.assertEqual(parts, {area: counts[name][0] for area, counts in areas.items()})
+                self.assertEqual(number, sum(parts.values()))
 
 
 if __name__ == "__main__":
