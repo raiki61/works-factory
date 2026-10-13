@@ -241,6 +241,18 @@ class EvidenceTableCase(unittest.TestCase):
                 else:
                     self.assertEqual(self.by_id[i]["why"], self.inventory[i], "欄 why が棚卸しの字でない")
 
+    def test_no_row_waits_for_a_part(self):
+        """部分は全部 main に入り、check は waits-part の行が 1 つでも残れば落ちる（#154 の最後の通し c38831c2 は L-W08 だけで rc=1）"""
+        self.assertEqual(self.kind_of("waits-part"), set())
+
+    def test_rows_without_a_sure_trace_in_the_seed_run_are_seed_cannot_with_their_check(self):
+        """#355（c38831c2）: E12 の削除候補は役が削る物を見つけた時だけ出る（健やかな種の run で必ず通る道でない。seen の基準 (3)）。
+        L-W08 の記録は空の {units: [], paths: []} でも書かれ、働かなかった run と同じ跡（基準 (2)）。照らしは働いた時だけ当たる物で残す"""
+        for i, where in (("E12", "parent/eyes/r1-comments.json"), ("L-W08", "parent/judge/structure-units-dropped.json")):
+            with self.subTest(row=i):
+                row = self.by_id[i]
+                self.assertEqual((row["kind"], row.get("check"), row.get("where")), ("seed-cannot", "json-has", where))
+
     def test_waits_part_rows_are_closing_rows_of_that_part(self):
         """waits-part の行はその部分の閉じる行で scenario-only でない行。閉じる行は本物の run の記録で決めたものから waits-part を
         離れる（seen・seed-cannot など）ので、閉じる行の全部が waits-part とは縛らない"""

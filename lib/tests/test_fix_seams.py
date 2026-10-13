@@ -2174,6 +2174,27 @@ class FixAcceptSeamCase(TempCase):
             "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
             "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}])
         self.assertTrue(got["ok"] and got["conflicted"], got)
+        self.assertEqual(got["units"][self.D_CLAMP], {"status": "not_done", "reason": fixboard.QUERY_PARKED},
+                         "直してから申し出た単位を、直さずに裁定へ回したと書いた（#355）")
+
+    def test_population_query_naming_the_branch_closes_the_same_text_fix(self):
+        """欠陥の行と正しい行が同じ字（どちらも `return lo`）でも、裁定が分岐の条件の行を名指す population の問いに置き換えれば、
+        例の試しを通り、上限の分岐だけを直した木で閉じる（#355。c38831c2 の裁定役が書けないとして人に回した置き換え）"""
+        import conflict
+        import querytest
+        import ruling
+        claim = {"unit_key": self.D_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+                 "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
+                 "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
+        replaced = {"how": {"patterns": ["if x > hi:"], "paths": ["stats.py"], "count": "lines", "fixed": True},
+                    "counts": "population", "hits": ["    if x > hi:"], "misses": ["    if x < lo:"]}
+        decided = {"decision": conflict.REPLACE, "text": "上限の分岐の条件の行を名指す", "limits": [], "query": replaced}
+        self.assertEqual(ruling.query_problems(decided, claim), [])
+        conflict.park(self.place, [claim], source=conflict.FIX_SOURCE, ruling={**decided, "by": "test"})
+        got = self._accept_clamp(pass_="ruled")
+        self.assertTrue(got["ok"], got["reason"])
+        rows = json.loads((self.place / querytest.CLOSURE_FILE).read_text(encoding="utf-8"))["rows"]
+        self.assertEqual([(r["unit_key"], r["counts"], r["closed"]) for r in rows], [(self.D_CLAMP, "population", True)], rows)
 
     def test_query_hits_fixed_after_replace_query_tries_the_replaced_query(self):
         """裁定 replace_query の後の回は、閉鎖を数える問い（置き換えた問い）で申し出の correct_lines を試す。判定者の問いが当たらず、

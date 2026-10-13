@@ -342,6 +342,18 @@ class TestReplanState(unittest.TestCase):
         self.assertEqual(conflict.items(b)[0]["replan_why"], "修正案の役の直しが 3 回とも拒まれた: 数が違う")
         self.assertEqual(b.traced[-1][1]["state"], "gave_up")
 
+    def test_human_lines_say_where_the_fix_is_by_kind(self):
+        """query_hits_fixed は修正役が直してから申し出るので、人に回った行は直しが差分に在り閉じたかの数えだけが決め待ちと言い、
+        直さずに残したと言わない。ほかの種類は直さずに残した（#355）"""
+        query = {**row("c1-1", CLAMP, "ask_human"), "which_is_right": "query", "kind": "query_hits_fixed",
+                 "correct_lines": ["        return lo"]}
+        b = fake_with_rows([query, row("c1-2", MEAN, "ask_human")])
+        fixed_first, left = conflict.human_lines(b)
+        self.assertIn(conflict.FIX_IN_DIFF, fixed_first)
+        self.assertNotIn(conflict.UNFIXED_LEFT, fixed_first)
+        self.assertIn(conflict.UNFIXED_LEFT, left)
+        self.assertNotIn(conflict.FIX_IN_DIFF, left)
+
     def test_bad_transition_is_board_gap(self):
         b = fake_with_rows([row("c1-1", MEAN, "fix_plan_item", state="gave_up"),
                             row("c1-2", CLAMP, "fix_plan_item", state="waiting"),
