@@ -9,11 +9,11 @@ works-factory の節の why・never が、行番号でなく名で指し、そ�
 import ast
 import collections
 import functools
-import json
 import pathlib
 import re
 import unittest
 
+from tests.calibration import run as calibration
 from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -35,8 +35,6 @@ FIELD_FLOOR = {
           "tail.md": 470},
     "今の機械": {"pitfalls.md": 70},
 }
-FLAGS = ROOT / "tests" / "calibration" / "flags.json"
-FLAG_FACTORY = "works-factory"
 FLAG_FIELDS = ("why", "never")
 FLAG_FLOOR = 70
 
@@ -61,8 +59,8 @@ def pointing_fields() -> list[tuple[str, str]]:
 
 def flag_fields() -> list[tuple[str, str]]:
     """(flags.json:旗, 欄の字)。旗の表の works-factory の節の why・never"""
-    table = json.loads(FLAGS.read_text(encoding="utf-8"))[FLAG_FACTORY]
-    return [(f"{FLAGS.name}:{gate}", entry[f]) for gate, entry in table.items() for f in FLAG_FIELDS if f in entry]
+    table = calibration.load_flags()[calibration.WorksFactory.name]
+    return [(f"{calibration.FLAGS.name}:{gate}", entry[f]) for gate, entry in table.items() for f in FLAG_FIELDS if f in entry]
 
 
 def present(text: str) -> str:
@@ -141,7 +139,7 @@ class PointerCase(unittest.TestCase):
         self.assertEqual(POINTER.findall(present(text)), [("a/b.py", "Now"), ("a/d.py", "Kept"), ("a/e.py", "Next")])
 
     def test_reads_the_flags(self):
-        self.assertGreaterEqual(len([where for where, _, _ in pointers() if where.startswith(f"{FLAGS.name}:")]), FLAG_FLOOR)
+        self.assertGreaterEqual(len([where for where, _, _ in pointers() if where.startswith(f"{calibration.FLAGS.name}:")]), FLAG_FLOOR)
 
     def test_current_and_evidence_carry_no_line_numbers(self):
         found = [f"{where}: {line.strip()}" for where, text in pointing_fields() + flag_fields()
