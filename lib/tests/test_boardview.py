@@ -78,7 +78,8 @@ class Base(unittest.TestCase):
 class OpenCase(Base):
     def test_view_reads_what_open_placed(self):
         """始めの記録・構造の目の控え・世界の解の段・修正案の欄・決め手の控えを、今の works の読み口が見え方の上で読む"""
-        wf = self.put("judge/world/world.jsonl", json.dumps(TP.WORLD_ROW, ensure_ascii=False) + "\n", raw=True)
+        wf = self.put("judge/world/world.jsonl", "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in (
+            TP.WORLD_ROW, {**TP.WORLD_ROW, "finding": 2, "class_id": "w-empty"})), raw=True)
         start = self.put("start.json", {"run_id": "r", "base_rev": "abc", "review_rev": "abc", "unattended": "true",
                                        "design_only": "true"})
         got = self.open(world=wf, start=start)
@@ -88,7 +89,8 @@ class OpenCase(Base):
         self.assertEqual(structmark.read(b.dir)["status"], "ok")
         self.assertEqual(structmark.rows(structmark.read(b.dir)["design_file"]), [TP.ROUTE_UP])
         self.assertEqual(pathlib.Path(structmark.read(b.dir)["design_file"]).parent.parent, self.folder)
-        self.assertEqual([r["class_id"] for r in worldmark.stage_rows(b.dir)], ["w-mean"])
+        self.assertEqual([r["class_id"] for r in worldmark.stage_rows(b.dir)], ["w-mean", "w-empty"])
+        self.assertEqual(worldmark.read(b.dir)["classes"], 2)
         self.assertEqual(planmarks.read(b), [{"route": "direct", "structure": []}])
         self.assertEqual(planmarks.frozen(b), [{"route": "direct", "structure": []}])
         saved = marks.load(marks.path_of("gate", b))

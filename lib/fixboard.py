@@ -24,7 +24,7 @@
 - _owed_rows・_read_value・_brief・_plan_items・_fix_report・tie_items・hole_ties: 差分の審査と手直しの材料（元
   works/.shared/core/refix.py:189・197・219・340・362・291・308。盤面の読みを置き場のファイルと引数の値で受ける）
 
-外のパッケージは使わない（startrec のほかの lib の部品は、使う関数の中で import する）。
+外のパッケージは使わない（startrec・gatemarks・jsonfile・worldmark のほかの lib の部品は、使う関数の中で import する）。
 """
 import json
 import os
@@ -36,6 +36,7 @@ import jsonfile
 import oneline
 import rolekit
 import startrec
+import worldmark
 
 TRACE_FILE = "trace.jsonl"
 ACCEPT_TRACE_FILE = "accept-trace.json"   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
@@ -538,10 +539,12 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     review = read_pointed("plan_review")
     if review is not None:
         write_json(folder / PLAN_REVIEW_FILE, review)
-    for name, file in (("ripple", RIPPLE_FILE), ("world", WORLD_FILE)):
-        got = read_pointed(name)
-        if got is not None:
-            write_json(folder / file, got)
+    ripple = read_pointed("ripple")
+    if ripple is not None:
+        write_json(folder / RIPPLE_FILE, ripple)
+    world = pointed("world")
+    if world is not None:
+        worldmark.rows(world)
     for name, file in (("depth", DEPTH_FILE), ("answers", ANSWERS_FILE), ("units", UNITS_FILE)):
         got = value(name)
         if got not in (None, "", [], {}) or name == "units":
@@ -1010,7 +1013,6 @@ PLAN_REVIEW_FILE = "p2.plan_review.json"   # 事前審査の返答の写し（fa
                                            # 修正役の指示書は修正案 PLAN_REPLY_FILE と同じフォルダに在ると書く）
 JUDGMENT_FILE = "judgment.json"        # 判定の写し
 RIPPLE_FILE = "ripple.json"            # 波及の一覧の写し
-WORLD_FILE = "world.json"              # 周りの事実の写し
 ANSWERS_FILE = "answers.json"          # 人の関所の答えの写し（承認の節の出力 {decision, text, asked}）
 UNITS_FILE = "units.json"              # 入力 units の写し
 ONLY_ITEMS_FILE = "only-items.json"    # 直す項目の絞り（入力 only_items。空は全部）
@@ -1479,7 +1481,7 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 
 # ---------------------------------------------------------------- 形 group の子の run（group-start・tdd-loop・group-end の scripts が呼ぶ）
 # 子が親の置き場から自分の置き場に写す入力の写し（prep が書く物。plan-fields.json と凍結の印は adopt_inputs が別に置き直す）
-ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, WORLD_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
+ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
            ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 返りの diff の隣: 許したテストの変更の訳 [{path, permit, source}]（collect が書く。allowed_test_rows）
