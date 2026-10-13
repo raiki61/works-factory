@@ -54,7 +54,8 @@ NAMED_BY_PATTERN = {
     "parent/fix/fix/review1-brief.json": "lib/refix.py:165",
     "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:476",
     "parent/judge/query-examples.json": "lib/marks.py:51",
-    "parent/plan/r1/rejects-plan.json": "lib/rolekit.py:103",
+    "parent/plan/r1/rejects-plan.json": "lib/rolekit.py:151",
+    "parent/plan/r1/rejects-plan.md": "lib/rolekit.py:107",
     "parent/plan/structure/*/design.jsonl": "lib/planfile.py:94",
     "parent/plan-review/gate-marks.json": "lib/marks.py:42",
 }

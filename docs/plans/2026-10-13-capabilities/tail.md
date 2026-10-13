@@ -399,7 +399,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T53 前の回の拒否の理由を次の回の指示書の頭に置き、「理由のところを直した返答を丸ごと出し直せ」と言う。拒否の文の中の `$<節>.output.<欄>` を Archon が置き換え直して輪が落ちないように渡す（元の裁定 R44: $LOOP_PREV で指示書に直に貼らない）。
   - 元: works/.shared/core/ci_role.py:236-241 `prep`（REJECT_HEADING）
-  - 今: workflows/test-gate/scripts/ci_prep.py::main（前の回の拒否を rolekit.rejected の控えの最後の 1 件から読む。with: の $LOOP_PREV は外した: Archon は with: に $LOOP_PREV を生のまま貼った後に節の出力の参照をもう 1 度置き換える。dag-executor.ts:5279-5306・:464-493。#122）・workflows/test-gate/commands/ci.md
+  - 今: workflows/test-gate/scripts/ci_prep.py::main（前の回までの拒否の全部を rolekit.rejected の控えから読み、rolekit.rejects_text で古い順に 1 つの文にする。#345。with: の $LOOP_PREV は外した: Archon は with: に $LOOP_PREV を生のまま貼った後に節の出力の参照をもう 1 度置き換える。dag-executor.ts:5279-5306・:464-493。#122）・workflows/test-gate/commands/ci.md
   - 証: tests/workflows/test_test_gate.py::YamlCase.test_loop_does_not_paste_previous_reject_by_loop_prev（旧 test_prep_takes_previous_reject）・tests/workflows/test_test_gate.py::CiRoleCase.test_reject_with_a_reference_reaches_the_prompt_verbatim・tests/workflows/test_test_gate.py::CiRoleCase.test_prep_copies_tree_and_passes_reject
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（形を変えた。落ちないかは未確かめ）
