@@ -1562,6 +1562,10 @@ class TreeCase(RunCase):
         rec = converge.read(r.view())
         self.assertEqual(rec["outcome"], converge.CLEAN)
         self.assertEqual(rec["passes"][0]["notes"], [both, only])
+        converge.note_plan(r.view(), [row["row"] for row in rec["passes"][0]["items"]])
+        self.assertEqual([(f["key"], f["unit_keys"]) for f in converge.carried_notes(r.view())],
+                         [(both["key"], [UNIT_MEAN, median]), (only["key"], [median])],
+                         "後の案が戻した単位は、2 往復目に絞って控えた写しでなく審査役の書いた穴の単位から戻る")
 
     def second_pass_brief(self, first=None, edit=None, edit_fields=None) -> str:
         """2 項目の案（first。既定は setUp の案）の 1 往復目は項目 2 だけ block。項目 2 の行を edit が、項目 2 の works の欄を

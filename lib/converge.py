@@ -376,19 +376,21 @@ def answered_hits(b, n: int) -> list:
 
 def carried_notes(b) -> list:
     """前の往復の suggest の穴（往復の行の notes。key で 1 つ・新しい物を採る）のうち、どの往復でも block でなかった物。控えに
-    今の案の項目（note_plan）が在れば、unit_keys から案に無い単位を外した写しにし、指す単位が残らない穴は持ち越さない（受け付けの
-    plan_review_output は案に無い単位を指す face を拒み、機械が足した face は審査役に直せない）。往復の行の notes は変えない"""
+    今の案の項目（note_plan）が在れば、unit_keys をその key の全往復の写しの単位の和から案に在る物だけにした写しにし、指す単位が
+    残らない穴は持ち越さない（受け付けの plan_review_output は案に無い単位を指す face を拒み、機械が足した face は審査役に直せない。
+    持ち越して絞った写しも往復の行の notes に残るので、和を取らないと後の案が戻した単位が穴から消えたままになる）。往復の行の notes は変えない"""
     doc = read(b)
     blocks = {k for p in doc["passes"] for k in p.get("blocks", [])}
-    out = {}
+    out, units = {}, {}
     for p in doc["passes"]:
         for f in p.get("notes") or []:
             if f.get("key") not in blocks:
                 out[f.get("key")] = f
+                units.setdefault(f.get("key"), {}).update(dict.fromkeys(f.get("unit_keys") or []))
     if "plan" not in doc:
         return list(out.values())
     planned = {k for it in doc["plan"] for k in it["unit_keys"]}
-    kept = [{**f, "unit_keys": [k for k in f.get("unit_keys") or [] if k in planned]} for f in out.values()]
+    kept = [{**f, "unit_keys": [k for k in units[key] if k in planned]} for key, f in out.items()]
     return [f for f in kept if f["unit_keys"]]
 
 
