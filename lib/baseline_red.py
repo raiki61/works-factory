@@ -3,7 +3,7 @@
 今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の `works/.shared/core/graphloops/rules/review-loop-tdd.py`
 と `works/blk-fix/lib/tddloop.py` の関数を、元の名のまま字のとおり写した物（各関数の docstring の末尾に元の `<パス>:<行>`）。
 run_suite だけは元の試験の枠（tree_run.slotted_run の枠）を外し、tree_run.reuse_run で走らせる（優先度は lowered が 1 か所で下げる）。
-元の結末のファイルの口（write_baseline・read_baseline・outcomes）は新しい関数。
+元の結末のファイルの口（write_baseline・read_baseline・outcomes・red_to_green）は新しい関数。
 
 元の結末のファイルの必須の欄: {"suite": str, "test_cmd": str, "rev": str, "exit": int | None, "cases": [{classname, name, outcome（OUTCOMES の語）, …}]}。
 ほかの欄は呼び手だけが読む（extra）。
@@ -220,6 +220,13 @@ def outcomes(cases) -> dict:
     for c in cases:
         out.setdefault(_key(c), c["outcome"])
     return out
+
+
+def red_to_green(baseline_cases, cases) -> list:
+    """元の結末で落ちていて今の結末で通ったテスト [{key, outcome, fail_message}]（outcome・fail_message は元の結末の物。新しい関数）"""
+    now = outcomes(cases)
+    return [{"key": _key(c), "outcome": c["outcome"], "fail_message": c.get("fail_message") or ""}
+            for c in _unique(baseline_cases) if c["outcome"] in FAILED and now.get(_key(c)) == "passed"]
 
 
 def _problems(doc) -> list:

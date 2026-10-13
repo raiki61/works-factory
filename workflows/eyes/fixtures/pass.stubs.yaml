@@ -14,8 +14,7 @@ fixture:
     changed: '{}'
     fix_units: '[]'
     green_ok: 'true'
-    baseline: '{"type": "archon_artifact", "run_id": "dry-run", "path": "test-gate/base/baseline.json"}'
-    final_evidence: '{"type": "archon_artifact", "run_id": "dry-run", "path": "test-gate/final/evidence.md"}'
+    red_to_green: '{"rows": [{"key": "tests.test_a::test_entry", "outcome": "failure", "fail_message": "AssertionError"}], "unmeasured": ""}'
     diffs: '[{"type": "archon_artifact", "run_id": "dry-run", "path": "fix/fix/fix.diff"}]'
   reached:
   - structure-after

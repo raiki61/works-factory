@@ -16,6 +16,7 @@ result:
   red_cause: introduced
   baseline: null
   fingerprint: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
+  red_to_green: {rows: [], unmeasured: ""}
   evidence: {type: archon_artifact, run_id: stub-run, path: test-gate/final/evidence.md}
   by: engine
   suites_line: "走らせた: suite（exit 1・direct）／走らせなかった: test_cmd（渡されていない）"

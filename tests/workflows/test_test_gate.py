@@ -817,6 +817,24 @@ class ResultScriptCase(ScriptCase):
         self.assertEqual((doc["suite"], doc["test_cmd"], doc["exit"]), (str(suite), "true", 1))
         self.assertEqual(baseline_red.outcomes(doc["cases"]), {"s::x": "failure"})
 
+    def test_final_returns_the_tests_red_at_base_and_green_now(self):
+        """issue #384: final は元の結末で落ちていて今通ったテストを red_to_green で返す（独立の目の比較役が読む）。base は null、
+        元の結末が無い final は rows を空にして比べない訳を書く"""
+        suite = self.tmp / "suite.py"
+        suite.write_text("import os, sys\nok = os.path.exists('fixed.flag')\nopen(sys.argv[1], 'w').write(\"<testsuite>\" + (\""
+                         "<testcase classname='s' name='x'/>\" if ok else \"<testcase classname='s' name='x'><failure message='0 != 10'/>"
+                         "</testcase>\") + \"</testsuite>\")\nsys.exit(0 if ok else 1)\n", encoding="utf-8")
+        self.write_start(tdd_suite=str(suite), test_cmd="true")
+        self.ok("run", mode="base", start=self.start)
+        base = self.result("base")
+        self.assertIsNone(base["red_to_green"])
+        (self.repo / "fixed.flag").write_text("x\n", encoding="utf-8")
+        self.ok("run", mode="final", start=self.start)
+        self.assertEqual(self.result("final", baseline=json.dumps(base["baseline"]))["red_to_green"],
+                         {"rows": [{"key": "s::x", "outcome": "failure", "fail_message": "0 != 10"}], "unmeasured": ""})
+        self.assertEqual(self.result("final")["red_to_green"],
+                         {"rows": [], "unmeasured": "base の実測（baseline）が無い（実行器の無い run か、base のテストが走っていない）"})
+
     def test_bare_name_tdd_suite_runs_from_the_target_root(self):
         """#340: 種の tdd_suite のようにファイル名だけ（junit-suite.sh）の実行器は、PATH でなく対象の根から起こす（TDD の輪の
         tddloop.exe_path と同じ解き方）。base も final も"""

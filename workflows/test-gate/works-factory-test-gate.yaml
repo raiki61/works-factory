@@ -198,7 +198,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [mode, ok, green, red_cause, baseline, fingerprint, evidence, by, suites_line, log, baseline_line, reason]
+      required: [mode, ok, green, red_cause, baseline, fingerprint, red_to_green, evidence, by, suites_line, log, baseline_line, reason]
       properties:
         mode: {type: string, enum: [base, final]}
         ok: {type: boolean}
@@ -223,6 +223,24 @@ nodes:
               properties:
                 head: {type: string}
                 diff_hash: {type: string}
+        red_to_green:   # final だけ。修正前に赤で今は通ったテスト。比べない時は rows が空で unmeasured に訳
+          anyOf:
+            - type: "null"
+            - type: object
+              additionalProperties: false
+              required: [rows, unmeasured]
+              properties:
+                rows:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [key, outcome, fail_message]
+                    properties:
+                      key: {type: string}
+                      outcome: {type: string, enum: [failure, error]}
+                      fail_message: {type: string}
+                unmeasured: {type: string}
         evidence:
           type: object
           additionalProperties: false

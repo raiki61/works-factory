@@ -422,70 +422,46 @@ class PromptTextsCase(unittest.TestCase):
 
 
 class MeasuredSectionCase(unittest.TestCase):
-    """R2 の比較役に貼る機械の実測（issue #384）。base で赤・最後に緑のテストと TDD のループが赤→緑を確かめたテストを名指し、
-    測っていない時は推し量らずにそう書く"""
+    """R2 の比較役に貼る機械の実測（issue #384）。試験の関門が比べた base で赤・最後に緑のテストを名指し、段ごとの TDD の記録を
+    報告と同じ行で並べ、測っていない時は推し量らずにそう書く"""
 
-    BASE = [{"classname": "tests.test_stats.TestStats", "name": "test_clamp_above_range", "outcome": "failure",
-             "fail_message": "AssertionError: 0 != 10", "fail_text": ""},
-            {"classname": "tests.test_stats.TestStats", "name": "test_mean", "outcome": "passed"},
-            {"classname": "tests.test_stats.TestStats", "name": "test_still_red", "outcome": "failure"}]
-    FINAL = [{"classname": "tests.test_stats.TestStats", "name": "test_clamp_above_range", "outcome": "passed"},
-             {"classname": "tests.test_stats.TestStats", "name": "test_mean", "outcome": "passed"},
-             {"classname": "tests.test_stats.TestStats", "name": "test_still_red", "outcome": "failure"}]
+    RED_TO_GREEN = {"rows": [{"key": "tests.test_stats.TestStats::test_clamp_above_range", "outcome": "failure",
+                              "fail_message": "AssertionError: 0 != 10"}], "unmeasured": ""}
 
     def test_names_the_test_red_at_base_and_green_at_the_end(self):
-        got = eyeverdict.measured_section(self.BASE, self.FINAL, [])
-        self.assertIn("tests.test_stats.TestStats::test_clamp_above_range", got)
-        self.assertIn("base で赤（failure: AssertionError: 0 != 10）→最後のテストで緑", got)
-        self.assertNotIn("test_mean", got)
-        self.assertNotIn("test_still_red", got)
+        got = eyeverdict.measured_section(self.RED_TO_GREEN, [])
+        self.assertIn("`tests.test_stats.TestStats::test_clamp_above_range`: base で赤（failure: AssertionError: 0 != 10）→最後のテストで緑", got)
 
-    def test_says_when_the_final_tests_did_not_run(self):
-        got = eyeverdict.measured_section(self.BASE, "最後のテストの記録が無い", [])
-        self.assertIn("最後のテストの 1 件ごとの結末が無い（最後のテストの記録が無い）", got)
-        self.assertNotIn("test_clamp_above_range", got)
-        self.assertIn("base の実測が無い（実行器が無い）", eyeverdict.measured_section("実行器が無い", self.FINAL, []))
-        both = eyeverdict.measured_section("実行器が無い", "走っていない", [])
-        self.assertIn("base の実測が無い", both)
-        self.assertIn("最後のテストの 1 件ごとの結末が無い（走っていない）", both)
+    def test_says_when_the_gate_did_not_compare(self):
+        got = eyeverdict.measured_section({"rows": [], "unmeasured": "最後のテストは 1 件ごとの結末を取っていない"}, [])
+        self.assertIn("比べていない（最後のテストは 1 件ごとの結末を取っていない）。base で赤だったテストが最後に通ったかは測っていない", got)
+        self.assertIn("red_to_green）が渡っていない", eyeverdict.measured_section(None, []))
 
     def test_no_row_is_said_not_left_empty(self):
         self.assertIn("base で赤だったテストのうち、最後のテストで通った物は無い",
-                      eyeverdict.measured_section(self.FINAL, self.FINAL, []))
+                      eyeverdict.measured_section({"rows": [], "unmeasured": ""}, []))
 
-    def test_lists_tests_the_tdd_loop_proved_red_then_green(self):
+    def test_lists_the_tdd_record_as_the_report_does(self):
+        import report
         import tddloop
         proved = {"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok", "tests": ["tests/test_x.py::test_new"],
                   tddloop.QUOTES_FIELD: {"tests/test_x.py::test_new": {"quote": "AssertionError: 1 != 2", "why": "上限を見ていない"}}}
-        unproved = {"unit_key": "u2", "route": "direct", "red": "", "green": "", "tests": ["tests/test_x.py::test_other"]}
-        stages = [[{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {}, "units": [proved, unproved]},
-                   {"group_id": "g2", "ran": False, "reason": "実行器が無い", "suite": "", "reused": {}, "units": []}]]
-        got = eyeverdict.measured_section(self.BASE, self.FINAL, stages)
-        self.assertIn("`tests/test_x.py::test_new`（単位 u1）: 直す前に赤・直した後に緑を機械が確かめた（赤の時の失敗の文: AssertionError: 1 != 2）", got)
-        self.assertNotIn("test_other", got)
-        self.assertIn("組 g2 は TDD のループを回していない（実行器が無い）", got)
+        direct = {"unit_key": "u2", "route": "direct", "red": "", "green": "", "tests": [], "why": "テストが書けない"}
+        g1 = {"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {}, "units": [proved, direct]}
+        g2 = {"group_id": "g2", "ran": False, "reason": "実行器が無い", "suite": "", "reused": {}, "units": []}
+        got = eyeverdict.measured_section(self.RED_TO_GREEN, [[g1, g2]])
+        for row in report.tdd_lines([("修正の段（組 g1）", g1), ("修正の段（組 g2）", g2)]):
+            self.assertIn(row if row.startswith(" ") else f"- {row}", got)
+        self.assertIn("赤 ok・緑 ok", got)
+        self.assertIn("赤の引用 tests/test_x.py::test_new: 「AssertionError: 1 != 2」", got)
+        self.assertIn("u2: 初めから今どおりの直し（テストが書けない）", got)
+        self.assertIn("修正の段（組 g2）: TDD のループを回していない（実行器が無い）", got)
+        self.assertIn("案を直した後の修正の段（組 g3）", eyeverdict.measured_section(self.RED_TO_GREEN, [[], [{**g2, "group_id": "g3"}]]))
 
     def test_tdd_record_that_cannot_be_read_is_named(self):
         self.assertIn("TDD のループの記録を読めない（tdd-unit.json が無い）",
-                      eyeverdict.measured_section(self.BASE, self.FINAL, ["tdd-unit.json が無い"]))
-        self.assertIn("修正の段が走っていない", eyeverdict.measured_section(self.BASE, self.FINAL, []))
-
-    def test_reads_the_baseline_and_the_final_run_beside_the_evidence(self):
-        import baseline_red
-        import declared_checks
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp = pathlib.Path(tmp)
-            self.assertIn("渡っていない", eyeverdict.baseline_cases(None))
-            baseline_red.write_baseline(tmp / "baseline.json", suite="", test_cmd="t", rev="r", exit=1, cases=self.BASE)
-            self.assertEqual(eyeverdict.baseline_cases(tmp / "baseline.json")[0]["name"], "test_clamp_above_range")
-            baseline_red.write_baseline(tmp / "unran.json", suite="", test_cmd="t", rev="r", exit=None, cases=[])
-            self.assertIn("1 件ごとの結末を取っていない", eyeverdict.baseline_cases(tmp / "unran.json"))
-            evidence = tmp / "final" / "evidence.md"
-            self.assertIn("final_evidence）の隣の記録 run.json が無い", eyeverdict.final_cases(evidence))
-            evidence.parent.mkdir()
-            (evidence.parent / declared_checks.RUN_FILE).write_text(json.dumps({"cases": self.FINAL}), encoding="utf-8")
-            self.assertEqual(len(eyeverdict.final_cases(evidence)), 3)
-            self.assertIn("渡っていない", eyeverdict.final_cases(None))
+                      eyeverdict.measured_section(self.RED_TO_GREEN, ["tdd-unit.json が無い"]))
+        self.assertIn("修正の段が走っていない", eyeverdict.measured_section(self.RED_TO_GREEN, []))
 
     def test_reads_the_tdd_record_beside_each_fix_diff(self):
         import fixboard

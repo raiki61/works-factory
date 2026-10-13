@@ -209,6 +209,16 @@ class MustPassCase(unittest.TestCase):
                          {"test_a.TestA::t": "failure", "test_a.TestA::u": "passed"})
 
 
+class RedToGreenCase(unittest.TestCase):
+    def test_only_tests_red_at_base_and_passed_now(self):
+        base = [{**row("t", "failure"), "fail_message": "0 != 10"}, row("e", "error"), row("still", "failure"), row("u", "passed"),
+                row("gone", "failure")]
+        now = [row("t", "passed"), row("e", "passed"), row("still", "failure"), row("u", "passed")]
+        self.assertEqual(baseline_red.red_to_green(base, now),
+                         [{"key": "test_a.TestA::t", "outcome": "failure", "fail_message": "0 != 10"},
+                          {"key": "test_a.TestA::e", "outcome": "error", "fail_message": ""}])
+
+
 BASE = {"suite": "/home/x/suite.sh", "test_cmd": "make check", "rev": "a" * 40, "exit": 1,
         "cases": [row("t", "failure"), row("u", "passed")]}
 

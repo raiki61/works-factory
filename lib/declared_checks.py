@@ -58,7 +58,7 @@ MATERIAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": 
                                   **{k: {"type": "integer", "minimum": 0} if k in NUMERIC_FIELDS else {"type": "string"}
                                      for k in FIELDS}}}
 MODES = ("base", "final")   # 形: 判定の前・修正の後
-RUN_FILE = "run.json"   # 形ごとの置き場の走らせた記録（1 件ごとの結末 cases を持つ）。返りの evidence の隣で、eyes も読む
+RUN_FILE = "run.json"   # 形ごとの置き場の走らせた記録（1 件ごとの結末 cases を持つ）。ノード run が書き、result が読む
 BASELINE_HEAD = "修正前のテスト"
 GATE_MISSING = "取れない（試験の関門の出力に無い）"
 CANT = {False: "awaiting_human", True: "not_run"}   # 走らせられない時の status（判定の前・後。after_judge か mode == "final" で引く）

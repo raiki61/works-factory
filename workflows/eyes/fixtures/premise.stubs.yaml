@@ -13,8 +13,7 @@ fixture:
     changed: '{}'
     fix_units: '[]'
     green_ok: 'true'
-    baseline: 'null'
-    final_evidence: 'null'
+    red_to_green: 'null'
     diffs: '[]'
   reached:
   - premise-check
@@ -61,7 +60,7 @@ prep:
   carried: ''
   r4_context: '- 波及の一覧: /tmp/ripple.json'
   green_line: ''
-  measured_text: '- base の実測が無い'
+  measured_text: '- 比べた結果（red_to_green）が渡っていない'
   origin_text: '- 起点は修正前の HEAD'
 r1-comments:
   candidates: []

@@ -637,13 +637,12 @@ class FixtureCase(unittest.TestCase):
                 self.assertTrue(result["pass"], result)
                 self.assertEqual((result["outcome"], result["authoredOutcome"]), ("completed", self.AUTHORED[name]))
 
-    def test_pass_fixture_takes_the_baseline_and_carries_the_measured_rows(self):
-        """issue #384: 筋書き pass は eyes が base の実測・最後のテストの証拠・修正の段の diff を受け、prep の出力に実測の行と
-        起点の訳が載る配線（ほかの筋書きは渡っていない形）"""
+    def test_pass_fixture_takes_the_red_to_green_rows_and_carries_the_measured_rows(self):
+        """issue #384: 筋書き pass は eyes が試験の関門の比べた base で赤・最後に緑のテストと修正の段の diff を受け、prep の出力に
+        実測の行と起点の訳が載る配線（ほかの筋書きは渡っていない形）"""
         doc = yaml.safe_load((BLOCK / "fixtures" / "pass.stubs.yaml").read_text(encoding="utf-8"))
         inputs = doc["fixture"]["inputs"]
-        self.assertEqual(json.loads(inputs["baseline"])["path"], "test-gate/base/baseline.json")
-        self.assertEqual(json.loads(inputs["final_evidence"])["path"], "test-gate/final/evidence.md")
+        self.assertEqual(json.loads(inputs["red_to_green"])["rows"][0]["key"], "tests.test_a::test_entry")
         self.assertEqual(len(json.loads(inputs["diffs"])), 1)
         self.assertIn("base で赤（", doc["prep"]["measured_text"])
         self.assertIn("起点は", doc["prep"]["origin_text"])
@@ -977,19 +976,16 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), got)
 
     def test_prep_pastes_the_measured_red_to_green_and_the_tdd_proof(self):
-        """issue #384: base で赤・最後に緑のテスト（baseline と最後のテストの証拠の隣の記録）と、TDD のループが赤→緑を確かめた
-        テスト（修正の段の diff の隣の記録）が比較役への実測の行に載る。渡っていない時は測っていないと書く"""
+        """issue #384: 試験の関門が比べた base で赤・最後に緑のテスト（入力 red_to_green）と、修正の段の diff の隣の TDD の記録が
+        比較役への実測の行に載る。渡っていない時は測っていないと書く"""
         import tddloop
         self.prep_inputs()
         none = self.run_script("prep")["measured_text"]
-        self.assertIn("base の実測が無い", none)
+        self.assertIn("red_to_green）が渡っていない", none)
         self.assertIn("修正の段が走っていない", none)
-        red = {"classname": "tests.test_stats.TestStats", "name": "test_clamp_above_range"}
-        self.inputs["baseline"] = self.pointer("test-gate/base/baseline.json", {
-            "suite": "", "test_cmd": "t", "rev": self.base, "exit": 1,
-            "cases": [{**red, "outcome": "failure", "fail_message": "AssertionError: 0 != 10"}]})
-        self.inputs["final_evidence"] = self.pointer("test-gate/final/evidence.md", "# test-gate（final）\n")
-        self.pointer("test-gate/final/run.json", {"cases": [{**red, "outcome": "passed"}]})
+        self.inputs["red_to_green"] = json.dumps({"rows": [{"key": "tests.test_stats.TestStats::test_clamp_above_range",
+                                                            "outcome": "failure", "fail_message": "AssertionError: 0 != 10"}],
+                                                  "unmeasured": ""})
         self.inputs["diffs"] = json.dumps([json.loads(self.pointer("fix/fix/fix.diff", ""))])
         self.pointer(f"fix/fix/{fixboard.TDD_UNIT_FILE}", [{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
                                                            "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok",
@@ -997,7 +993,7 @@ class ScriptCase(unittest.TestCase):
                                                                       tddloop.QUOTES_FIELD: {}}]}])
         got = self.run_script("prep")["measured_text"]
         self.assertIn("`tests.test_stats.TestStats::test_clamp_above_range`: base で赤（failure: AssertionError: 0 != 10）→最後のテストで緑", got)
-        self.assertIn("`tests/test_stats.py::TestStats::test_clamp_above_range`（単位 u1）: 直す前に赤・直した後に緑を機械が確かめた", got)
+        self.assertIn("  - u1: 赤 ok・緑 ok・整え —（名指しのテスト tests/test_stats.py::TestStats::test_clamp_above_range）", got)
 
     def test_prep_names_the_pr_diff_and_the_fix_diff_apart(self):
         """issue #384: 起点が PR の根で直しが PR の変更を元に戻した run は、累積差分が空でも PR の差分と直しの差分を分けて名指す"""

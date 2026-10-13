@@ -8,8 +8,8 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
   人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
 - prompt_texts(...): 目の指示書に差し込む文
-- baseline_cases(path)・final_cases(evidence)・tdd_stages(diffs, resolve)・measured_section(...): R2 の比較役に貼る機械の実測
-  （base で赤・最後に緑のテストと、TDD のループが赤→緑を確かめたテスト。測っていない物はそう書く）
+- tdd_stages(diffs, resolve)・measured_section(red_to_green, stages): R2 の比較役に貼る機械の実測（試験の関門が返した base で赤・
+  最後に緑のテストと、修正の段ごとの TDD のループの記録。測っていない物はそう書く）
 - origin_section(repo, base, head, label, ...): R2 の比較役に貼る累積差分の起点の訳（PR の根か修正前の HEAD か・PR の差分と直しの差分）
 - after_section(eyes_dir, review_folder)・plan_review_line(review_folder): R1・R3 の頭に貼る直しの後の実測の節（外れの訳が在れば、
   訳の行と事前審査の最後の往復が外れを認めたか）
@@ -273,30 +273,7 @@ def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_fil
 
 
 RED_GREEN_HEAD = "### base で赤・最後に緑のテスト（試験の関門が base と最後に測った 1 件ごとの結末）"
-TDD_PROVED_HEAD = "### TDD のループが赤→緑を確かめたテスト（修正の段ごとの TDD の記録）"
-
-
-def baseline_cases(path) -> list | str:
-    """base の 1 件ごとの結末（baseline_red.read_baseline の cases）か、取れない訳"""
-    import baseline_red
-    if path is None:
-        return "base の実測（baseline）が渡っていない（実行器の無い run か、base のテストが走っていない）"
-    try:
-        doc = baseline_red.read_baseline(path)
-    except ValueError as e:
-        return f"base の実測（baseline）が読めない（{oneline.one_line(e)}）"
-    return doc["cases"] if doc["exit"] is not None and doc["cases"] else "base のテストは 1 件ごとの結末を取っていない"
-
-
-def final_cases(evidence) -> list | str:
-    """最後のテストの 1 件ごとの結末（試験の関門の証拠 evidence の隣の declared_checks.RUN_FILE の cases）か、取れない訳"""
-    import declared_checks
-    if evidence is None:
-        return "最後のテストの証拠（final_evidence）が渡っていない"
-    run = read_json(pathlib.Path(evidence).with_name(declared_checks.RUN_FILE))
-    if not isinstance(run, dict):
-        return f"最後のテストの証拠（final_evidence）の隣の記録 {declared_checks.RUN_FILE} が無いか読めない（最後のテストが走っていない）"
-    return run.get("cases") or "最後のテストは 1 件ごとの結末を取っていない"
+TDD_PROVED_HEAD = "### TDD のループの記録（修正の段ごと。赤→緑を確かめた単位は名指しのテストつき）"
 
 
 def tdd_stages(diffs, resolve) -> list:
@@ -319,50 +296,36 @@ def tdd_stages(diffs, resolve) -> list:
     return out
 
 
-def measured_section(baseline: list | str, final: list | str, stages: list) -> str:
-    """R2 の比較役に貼る機械の実測の節。baseline・final は base と最後のテストの 1 件ごとの結末か取れない訳（baseline_cases・
-    final_cases）、stages は tdd_stages の並び。測っていない物は推し量らずにそう書く"""
-    return "\n".join([RED_GREEN_HEAD, "", *red_green_lines(baseline, final), "", TDD_PROVED_HEAD, "", *tdd_proved_lines(stages)])
+def measured_section(red_to_green, stages: list) -> str:
+    """R2 の比較役に貼る機械の実測の節。red_to_green は試験の関門（final）の返りの欄 {rows, unmeasured}（無ければ None）、stages は
+    tdd_stages の並び。測っていない物は推し量らずにそう書く"""
+    return "\n".join([RED_GREEN_HEAD, "", *red_green_lines(red_to_green), "", TDD_PROVED_HEAD, "", *tdd_record_lines(stages)])
 
 
-def red_green_lines(baseline: list | str, final: list | str) -> list[str]:
-    import baseline_red
-    missing = ([f"- base の実測が無い（{baseline}）。base で赤だったテストは分からない"] if isinstance(baseline, str) else []) + (
-        [f"- 最後のテストの 1 件ごとの結末が無い（{final}）。base で赤だったテストが最後に通ったかは測っていない"] if isinstance(final, str) else [])
-    if missing:
-        return missing
-    now = baseline_red.outcomes(final)
+def red_green_lines(red_to_green) -> list[str]:
+    if not isinstance(red_to_green, dict):
+        return ["- 試験の関門が base と最後のテストを比べた結果（red_to_green）が渡っていない。base で赤だったテストが最後に通ったかは分からない"]
+    if red_to_green.get("unmeasured"):
+        return [f"- 比べていない（{oneline.one_line(red_to_green['unmeasured'])}）。base で赤だったテストが最後に通ったかは測っていない"]
     rows = []
-    for c in baseline:
-        key = baseline_red._key(c)
-        if c["outcome"] in baseline_red.FAILED and now.get(key) == "passed":
-            why = oneline.one_line(c.get("fail_message") or "")[:200]
-            rows.append(f"- `{key}`: base で赤（{c['outcome']}{': ' + why if why else ''}）→最後のテストで緑")
+    for r in red_to_green.get("rows") or []:
+        why = oneline.one_line(r.get("fail_message") or "")[:200]
+        rows.append(f"- `{r.get('key')}`: base で赤（{r.get('outcome')}{': ' + why if why else ''}）→最後のテストで緑")
     return rows or ["- 無い（base で赤だったテストのうち、最後のテストで通った物は無い）"]
 
 
-def tdd_proved_lines(stages: list) -> list[str]:
-    import tddloop
-    if not stages:
-        return ["- 無い（修正の段が走っていない）"]
-    rows, notes = [], []
-    for stage in stages:
+def tdd_record_lines(stages: list) -> list[str]:
+    """段ごとの記録を、報告と同じ描き方（report.tdd_lines。段の名は report.TDD_STAGES）の行に"""
+    import report
+    named, notes = [], []
+    for n, stage in enumerate(stages):
         if isinstance(stage, str):
             notes.append(f"- TDD のループの記録を読めない（{stage}）")
             continue
-        for group in stage:
-            if not group.get("ran"):
-                notes.append(f"- 組 {group.get('group_id')} は TDD のループを回していない（{oneline.one_line(group.get('reason') or '理由なし')}）")
-                continue
-            for u in group.get("units") or []:
-                if u.get("red") != "ok" or u.get("green") != "ok":
-                    continue
-                quotes = u.get(tddloop.QUOTES_FIELD) or {}
-                for test in u.get("tests") or []:
-                    quote = oneline.one_line((quotes.get(test) or {}).get("quote") or "")[:200]
-                    rows.append(f"- `{test}`（単位 {u.get('unit_key')}）: 直す前に赤・直した後に緑を機械が確かめた"
-                                + (f"（赤の時の失敗の文: {quote}）" if quote else ""))
-    return (rows or ["- 無い（TDD のループで赤→緑を確かめたテストは無い）"]) + notes
+        name = report.TDD_STAGES[min(n, len(report.TDD_STAGES) - 1)]
+        named += [(f"{name}（組 {g.get('group_id')}）", g) for g in stage if isinstance(g, dict)]
+    rows = [r if r.startswith(" ") else f"- {r}" for r in report.tdd_lines(named)]
+    return (rows or ["- 無い（修正の段が走っていない）"]) + notes
 
 
 def origin_section(repo, base: str, head: str, label: str, *, cumulative_empty: bool, skip=()) -> str:
