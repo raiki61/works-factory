@@ -18,7 +18,7 @@ from collections.abc import Callable
 from tests.bin import hermetic, stepnames
 from tests.e2e import evidence, make_target
 from tests.layers import scan
-from tests.layers.test_capability_pointers import POINTER, exists, python_definitions, yaml_nodes
+from tests.layers.test_capability_pointers import POINTER, python_definitions, yaml_definitions
 
 E2E = pathlib.Path(__file__).resolve().parent
 ROOT = E2E.parents[1]
@@ -144,18 +144,26 @@ def _python_code(text: str) -> list[str]:
 
 
 def writer_code(code: CodeText, writer: str) -> tuple[str, str, str, str] | None:
-    """writer（`path::名`）の (path, 名, 定義の字, ファイルの字)。ファイルか名の定義が無ければ None。YAML の名は節の id で、定義は節の字と、
-    名前の script の節ならその script のコードの字（最上位のコードに決める行の在る script は、それを走らせる節で指す）"""
+    """writer（`path::名`）の (path, 名, 定義の字, ファイルの字)。ファイルか名の定義が無ければ None。在るかも定義の範囲も code.read の字で
+    決める。YAML の名は節の id で、定義は節の字と、名前の script の節ならその script のコードの字（最上位のコードに決める行の在る
+    script は、それを走らせる節で指す）"""
     pointed = POINTER.fullmatch(writer)
     if not pointed:
         return None
     path, name = pointed.groups()
-    if not exists(path, name):
+    try:
+        text = code.read(path)
+    except FileNotFoundError:
         return None
     if path.endswith(".py"):
-        first, last = python_definitions(code.read(path))[name]
+        span = python_definitions(text).get(name)
+        if span is None:
+            return None
+        first, last = span
         return path, name, "\n".join(code.lines(path)[first - 1:last]), code.text(path)
-    node = yaml_nodes(path)[name]
+    node = yaml_definitions(text).get(name)
+    if node is None:
+        return None
     scripts = [code.text(p.relative_to(ROOT).as_posix()) for p in scan.node_scripts((ROOT / path).parent, node)]
     body = "\n".join(code.lines(path)[node.start_mark.line:node.end_mark.line])
     return path, name, "\n".join([body, *scripts]), "\n".join([code.text(path), *scripts])
@@ -215,9 +223,8 @@ def pattern_writer_problems(code: CodeText, table: dict[str, str] = NAMED_BY_PAT
 
 
 def shifted(rel: str) -> str:
-    """関係の無い 1 行を頭に足した字（Python のファイルだけ。YAML は節の id で指すので行に依らない）"""
-    text = (ROOT / rel).read_text(encoding="utf-8")
-    return f"# 関係の無い 1 行\n{text}" if rel.endswith(".py") else text
+    """関係の無い 1 行（コメント）を頭に足した字"""
+    return f"# 関係の無い 1 行\n{(ROOT / rel).read_text(encoding='utf-8')}"
 
 
 FAKE_SHELL = """#!/usr/bin/env python3
@@ -374,10 +381,13 @@ class EvidenceTableCase(unittest.TestCase):
         まま、名を作る定数、か字の並び（{…} の差し込みはどの字でも）で持つ。書き手の名が変わったら、表の指しもここで落ちる"""
         self.assertEqual(pattern_writer_problems(CodeText()), [])
 
-    def test_writers_hold_when_python_lines_shift(self):
-        """名で指すので、関係の無い行がずれても照らしは緑のまま"""
+    def test_writers_hold_when_lines_shift(self):
+        """名で指すので、Python でも YAML でも関係の無い行がずれても照らしは緑のまま"""
         code = CodeText(read=shifted)
-        self.assertEqual(len(code.lines("lib/planfile.py")), len(CodeText().lines("lib/planfile.py")) + 1)
+        for rel in ("lib/planfile.py", "workflows/eyes/works-factory-eyes.yaml"):
+            self.assertEqual(len(code.lines(rel)), len(CodeText().lines(rel)) + 1)
+        self.assertEqual(writer_code(code, "workflows/eyes/works-factory-eyes.yaml::r1-minimality")[2],
+                         writer_code(CodeText(), "workflows/eyes/works-factory-eyes.yaml::r1-minimality")[2])
         self.assertEqual(seen_writer_problems(writer_rows(self.rows), code), [])
         self.assertEqual(pattern_writer_problems(code), [])
 
@@ -388,6 +398,12 @@ class EvidenceTableCase(unittest.TestCase):
             with self.subTest(writer=writer):
                 self.assertNotEqual(seen_writer_problems([{"id": "J1", "where": "parent/plan/r1/brief-1.md",
                                                            "writer": writer}], code), [])
+        for row in ({"where": "parent/judge/purpose-means-x.json", "writer": "lib/rolekit.py::lang_line"},
+                    {"where": "parent/nosuchfolder/brief-1.md", "writer": "lib/planfile.py::write_brief"},
+                    {"where": "record/parent.json", "check": "node-completed", "node": "eyes__prep",
+                     "writer": "workflows/eyes/works-factory-eyes.yaml::structure-after"}):
+            with self.subTest(row=row):
+                self.assertNotEqual(seen_writer_problems([{"id": "J1", **row}], code), [])
         for where, writer in (("parent/plan/r1/brief-1.md", "lib/planfile.py::DESIGN_FILE"),
                               ("parent/eyes/r1.json", "workflows/eyes/works-factory-eyes.yaml::prep"),
                               ("parent/eyes/r1-comments.json", "workflows/eyes/works-factory-eyes.yaml::structure-after"),

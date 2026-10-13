@@ -259,6 +259,11 @@ def nodes(root: Path, rel: str) -> list:
     return [node for document in documents for node in _nodes(document)]
 
 
+def text_nodes(text: str) -> list:
+    """YAML の字の工程の節の node（`loop_group` の中も）。読めない YAML は yaml.YAMLError"""
+    return [node for document in yaml.compose_all(text, Loader=yaml.SafeLoader) for node in _nodes(document)]
+
+
 def includes(root: Path, rel: str) -> list[str]:
     """root/rel の工程の `include:` の先の工程の名（`loop_group` の中も）。読めない YAML は ValueError"""
     return [value.value for node in nodes(root, rel) if isinstance(value := _top(node, "include"), yaml.ScalarNode)]

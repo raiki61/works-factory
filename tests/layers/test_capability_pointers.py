@@ -128,17 +128,21 @@ def python_names(path: str) -> frozenset[str]:
     return frozenset(python_definitions((ROOT / path).read_text(encoding="utf-8")))
 
 
-@functools.cache
-def yaml_nodes(path: str) -> dict:
-    """節の id → 節の node（同じ id は先の節）"""
+def yaml_definitions(text: str) -> dict:
+    """工程の YAML の字の節の id → 節の node（同じ id は先の節）"""
     found = {}
-    for node in scan.nodes(ROOT, path):
+    for node in scan.text_nodes(text):
         found.setdefault(scan._top(node, "id").value, node)
     return found
 
 
+@functools.cache
+def yaml_node_ids(path: str) -> frozenset[str]:
+    return frozenset(yaml_definitions((ROOT / path).read_text(encoding="utf-8")))
+
+
 def exists(path: str, name: str) -> bool:
-    return (ROOT / path).is_file() and name in (yaml_nodes(path) if path.endswith(".yaml") else python_names(path))
+    return (ROOT / path).is_file() and name in (yaml_node_ids(path) if path.endswith(".yaml") else python_names(path))
 
 
 def missing(want_tests: bool) -> list[str]:
