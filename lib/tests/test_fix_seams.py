@@ -1032,6 +1032,21 @@ class FactchecksSeamCase(TempCase):
         self.assertEqual(self.fc.precheck(self.cfg, self.reply)["rejects"], [])
         self.assertTrue(self.fc.precheck(self.cfg, self.reply, items=[{**self.ITEM, "allowed_paths": ["stats.py"]}])["ok"])
 
+    def test_precheck_reads_the_fixer_tree_the_acceptance_reads(self):
+        """事前の確かめと受け付けは、修正役が変え始めた木（段の頭）を同じ所から読む: 段の頭より前に変わった stats.py を、
+        段の頭を見ない照らし（輪の凍った木に戻る）は修正役に問い、受け付けは問わない。その場面で 2 つの範囲の行が揃う（#332）"""
+        for pass_, name in (("first", fixboard.FIX_HEAD_FILE), ("ruled", fixboard.RULED_HEAD_FILE)):
+            with self.subTest(pass_=pass_):
+                (self.place / name).write_text(json.dumps({"tree": leftovers.snapshot(self.repo)}), encoding="utf-8")
+                args = (self.reply, [R_MEAN], self.place, self.rev, self.repo, "", pass_)
+                accepted, _ = self.fc.check_plan_scope(*args, ask=True, since=fixboard.stage_head(self.place, name),
+                                                       items=[self.ITEM])
+                headless, _ = self.fc.check_plan_scope(*args, ask=True, items=[self.ITEM])
+                self.assertNotEqual(headless, accepted, "2 つの木で照らしが食い違う場面")
+                got = self.fc.precheck({**self.cfg, "pass": pass_}, self.reply, items=[self.ITEM])
+                self.assertEqual([r["text"] for r in got["rejects"] if r["check"] == "scope"], accepted)
+                (self.place / name).unlink()
+
     def test_scope_head_follows_the_consult_place(self):
         import consult
         import planscope
@@ -1272,6 +1287,24 @@ class LaneChecksSeamCase(TempCase):
         fc, since, item, reply = self.since_case()
         item["out_of_scope"] += [{"glob": "IMG.bin", "why": "項目 2 では触らない"}, {"glob": "WIN.md", "why": "項目 2 では触らない"}]
         lines, _ = fc.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since, items=[item])
+        self.assertEqual(lines, [])
+
+    def test_plan_scope_skips_a_file_only_the_git_filter_shows_changed(self):
+        """since の前に書いた ident のファイルは、作業ツリーの中身（$Id: <sha> $）と since の木の中身（$Id$）が違っても git の
+        比べでは触っていない: 修正役が足した行（canonical の外の同名の定義）として照らさない（#333）"""
+        import factchecks
+        (self.repo / ".gitattributes").write_text("helper.py ident\n", encoding="utf-8")
+        (self.repo / "helper.py").write_text(f'def helper(): return "$Id: {"0" * 40} $"\n', encoding="utf-8")
+        stats = self.repo / "stats.py"
+        since = leftovers.snapshot(self.repo)
+        stats.write_text(stats.read_text(encoding="utf-8") + "\n\ndef helper():\n    return 1\n", encoding="utf-8")
+        item = {"item": 1, "unit_keys": [R_MEAN], "removes": [], "route": "direct", "tests": [], "rewrite_tests": [],
+                "adds": [{"kind": "function", "name": "helper", "canonical": "stats.py"}],
+                "allowed_paths": ["stats.py"], "out_of_scope": []}
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py"]}]}
+        self.assertEqual(writes.changed_from(self.repo, since), ["stats.py"], "git の比べでは helper.py を触っていない")
+        lines, _ = factchecks.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since,
+                                               items=[item])
         self.assertEqual(lines, [])
 
     def test_plan_scope_counts_what_the_loop_fixed_before_since(self):
@@ -1566,6 +1599,7 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual(fixboard.child_allowed_rows(result), [good, good])
         self.assertEqual(fixboard.allowed_test_rows(self.place, [result]), [good])
         self.assertEqual((fixboard.child_allowed_rows(None), fixboard.child_allowed_rows({"allowed_tests": None})), ([], []))
+        self.assertEqual([fixboard.child_allowed_rows({"allowed_tests": v}) for v in (5, "tests/t.py", good)], [[], [], []])
 
     def test_fix_groups_join_units_through_items(self):
         items = [{"item": 1, "unit_keys": ["A", "C"]}, {"item": 2, "unit_keys": ["C", "D"]}, {"item": 3, "unit_keys": ["B"]}]
@@ -1602,6 +1636,9 @@ class GroupScriptsSeamCase(TempCase):
                                  {"g1": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": [row]}}, "g2": None})
         self.assertEqual(got[0], {"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "units": [row]})
         self.assertEqual((got[1]["ran"], got[1]["units"], got[1]["reason"]), (False, [], fixboard.NO_RESULT))
+        got = fixboard.tdd_units([{"group_id": "g1"}, {"group_id": "g2"}],
+                                 {"g1": {"tdd": ["x"]}, "g2": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": 5}}})
+        self.assertEqual([(r["ran"], r["units"]) for r in got], [(False, []), (True, [])], "形の崩れた tdd・units は空で読む（#342）")
 
     def test_cited_rows_drop_claims_whose_lines_are_gone(self):
         row = {"unit_key": "A", "between": ["stats.py:9", "test_stats.py:1"], "why_both_cannot_hold": "x" * 12,
@@ -1776,6 +1813,9 @@ class GroupScriptsSeamCase(TempCase):
             self.assertEqual(fixboard.rerun_cmd(self.place, on, " make test "), "make test")
             self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": {"test_cmd": {"gate": "same_as_suite"}}}, "make test"), "")
             self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": {"ran": False}}, "make test"), "")
+            for tdd in (["x"], "x", {"test_cmd": ["x"]}, {"test_cmd": "on"}):
+                self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": tdd}, "make test"), "make test",
+                                 f"関門が読めない子の結果（{tdd!r}）は on と見て走らせ直す")
             fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "A", "depth": "軽量", "why": "x"},
                                                                    {"unit_id": "B", "depth": "軽量", "why": "x"}])
             self.assertEqual(fixboard.rerun_cmd(self.place, on, "make test"), "", "全部の単位が軽量")

@@ -29,6 +29,7 @@
 import json
 import os
 import pathlib
+import posixpath
 import types
 
 import gatemarks
@@ -674,9 +675,12 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
 
 def rerun_cmd(place, result, test_cmd: str) -> str:
     """当てた後に走らせ直す test_cmd（rerun_problem に渡す）: 組の子の TDD の輪が決めた関門（結果の tdd.test_cmd.gate）が on で、
-    組に軽量でない単位（置き場の深さの控え。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）"""
+    組に軽量でない単位（置き場の深さの控え。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）。
+    tdd か tdd.test_cmd が在って dict でない結果は関門を読めないので on と見る（走らせ直しを飛ばして戻さない）"""
     import tddloop
-    gate = (((result or {}).get("tdd") or {}).get("test_cmd") or {}).get("gate")
+    tdd = (result or {}).get("tdd") or {}
+    cmd = (tdd.get("test_cmd") or {}) if isinstance(tdd, dict) else None
+    gate = cmd.get("gate") if isinstance(cmd, dict) else tddloop.GATE_ON
     if gate != tddloop.GATE_ON or not (test_cmd or "").strip():
         return ""
     light = set(tddloop._light_units(unit_depths(place)))
@@ -744,18 +748,36 @@ def with_ruled(units, ruled) -> list:
     return out
 
 
+def child_tdd(result) -> dict:
+    """組の子の結果 result の欄 tdd（tddloop.exit_fields の形。dict でなければ空）"""
+    tdd = (result or {}).get("tdd")
+    return tdd if isinstance(tdd, dict) else {}
+
+
+def child_tdd_units(result) -> list:
+    """組の子の結果 result の TDD の輪の単位の行（tdd.units のうち dict の物。並びでなければ空）"""
+    units = child_tdd(result).get("units")
+    return [u for u in units if isinstance(u, dict)] if isinstance(units, list) else []
+
+
+def child_verified(result) -> list:
+    """組の子の結果 result の欄 verified（赤 → 緑を確かめた名指し。verified_tests の形）のうち空でない文字列（並びでなければ空）"""
+    names = (result or {}).get("verified")
+    return [t for t in names if isinstance(t, str) and t] if isinstance(names, list) else []
+
+
 def tdd_units(groups, results) -> list:
     """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, units}]（子の結果の欄 tdd。
     tddloop.exit_fields の形）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
     out = []
     for g in groups:
         result = results.get(g["group_id"])
-        tdd = (result or {}).get("tdd") if isinstance((result or {}).get("tdd"), dict) else {}
+        tdd = child_tdd(result)
         ran = tdd.get("ran") is True
         out.append({"group_id": g["group_id"], "ran": ran,
                     "reason": str(tdd.get("reason") or ("" if result else NO_RESULT)), "suite": str(tdd.get("suite") or ""),
                     "reused": tdd.get("reused") if isinstance(tdd.get("reused"), dict) else {},
-                    "units": [u for u in tdd.get("units") or [] if isinstance(u, dict)] if ran else []})
+                    "units": child_tdd_units(result) if ran else []})
     return out
 
 
@@ -794,7 +816,6 @@ def touched_since(repo, tree: str, skip=()) -> list:
 def declared_files(replies) -> list:
     """受け付けた修正役の返答（dict の並び）の changes[].files を、リポジトリの根からの相対に揃えた並び（重ねない・名の順）。
     形の違う行は ValueError。元 works/blk-fix/scripts/assert_changed.py の declared_files"""
-    import posixpath
     out = set()
     for reply in replies:
         changes = reply.get("changes") if isinstance(reply, dict) else None
@@ -850,8 +871,9 @@ def _allowed_row(path, permit, source):
 def child_allowed_rows(result) -> list:
     """組の子の結果 result の許しの訳 allowed_tests のうち形の正しい行（_allowed_row）。collect（allowed_test_rows）と
     join の戻しの和が同じ決まりで読む口"""
+    given = (result or {}).get("allowed_tests")
     rows = [_allowed_row(r.get("path"), r.get("permit"), r.get("source"))
-            for r in (result or {}).get("allowed_tests") or [] if isinstance(r, dict)]
+            for r in (given if isinstance(given, list) else []) if isinstance(r, dict)]
     return [r for r in rows if r]
 
 
@@ -1465,14 +1487,19 @@ def _bodies(text, rel: str) -> dict:
     return {tddloop._id_base(i): body for i, body in tddloop.test_functions(text, rel).items()}
 
 
+def test_file(f) -> str | None:
+    """TDD の輪の単位の test_files の要素の決まり: 空でない文字列を posixpath.normpath で整えたパス（ほかは None）。書き手
+    tddloop の確かめ（要素が 1 つでも外れれば並びごと拒む）と読み手 unit_test_files（外れた要素を落とす）がここから引く"""
+    return posixpath.normpath(f.strip()) if isinstance(f, str) and f.strip() else None
+
+
 def unit_test_files(unit) -> list:
-    """TDD の輪の単位の行の test_files のうち、空でない文字列だけを posixpath.normpath で整えた並び（子の result.json の写しも読む口。
+    """TDD の輪の単位の行の test_files のうち、決まり（test_file）に合う要素だけを整えた並び（子の result.json の写しも読む口。
     並びでない test_files は空、形の違う要素は落とす）"""
-    import posixpath
     files = (unit or {}).get("test_files")
     if not isinstance(files, list):
         return []
-    return [posixpath.normpath(f.strip()) for f in files if isinstance(f, str) and f.strip()]
+    return [p for p in map(test_file, files) if p]
 
 
 def _moved_tests(repo, tree: str, units, shared: set) -> list:
@@ -2456,6 +2483,12 @@ def stage_head(place, name: str = "") -> str:
         return ""
 
 
+def fixer_head(place, pass_: str) -> str:
+    """修正役が変え始めた木（段 pass_ の頭の木。stage_head）。受け付け（fix-accept・fix-ruled-accept）と修正役の事前の確かめ
+    （factchecks.precheck）が since に渡す木はここ 1 か所から読む"""
+    return stage_head(place, RULED_HEAD_FILE if pass_ == "ruled" else FIX_HEAD_FILE)
+
+
 def ruled_owed(place) -> list:
     """裁定の後の修正の段（形 "" の置き場）の直す義務の値: 判定の直す義務の単位（group_owed）のうち、親の木へ戻せた組の単位で
     結末が fixed でない物（join.json。無ければ判定の直す義務の全部）"""
@@ -2609,7 +2642,6 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     もう 1 回走り（fixrules.prep が consult.queued を見て作業ツリーを変えずに前の返答と同じ JSON を返させる続きの指示書だけを書く。
     受け付けの回には数えない）、その周の consult-check（consult_ask）が積んだ頼みを答えの役に回し、その周の受け付けは相談の周として
     回らない。答えの後の周の受け付けが、ここで聞いた物を戻すか（allow なら範囲に入って行が消える）を選ぶ"""
-    import posixpath
     import conflict
     import consult
     import factchecks

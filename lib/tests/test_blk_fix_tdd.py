@@ -1187,6 +1187,20 @@ class TestTestFileIdentity(unittest.TestCase):
                            "u2": None}}
         self.assertEqual(tddloop.declared_test_files(st), {"a/checks.go", "d/x_test.py", "b/verify.kt", "c/legacy.rb"})
 
+    def test_writer_and_reader_share_the_test_file_rule(self):
+        """test_files の要素の決まりは fixboard.test_file の 1 か所: 書き手（tddloop._paths）が整えた並びを読み手
+        （fixboard.unit_test_files）は同じに読み、決まりに外れた要素は書き手が並びごと拒み、読み手が落とす（#343）"""
+        import fixboard
+        files = ["./a/x_test.py", " b/y_test.py "]
+        written, problems = tddloop._paths(files, "test_files")
+        self.assertEqual((written, problems), (["a/x_test.py", "b/y_test.py"], []))
+        self.assertEqual(fixboard.unit_test_files({"test_files": files}), written)
+        self.assertEqual(fixboard.unit_test_files({"test_files": written}), written)
+        for bad in ([*files, None], [*files, "  "], [], "a/x_test.py"):
+            with self.subTest(bad=bad):
+                self.assertEqual(tddloop._paths(bad, "test_files")[0], [])
+                self.assertEqual(fixboard.unit_test_files({"test_files": bad}), written if isinstance(bad, list) and bad else [])
+
 
 class TestRewriteSharedAcrossUnits(ContractCase):
     """1 つの項目が 2 つの単位にまたがると、同じ書き換えの名指しが両方の単位の約束に載る。前の単位で赤→緑を確かめた id は、
