@@ -473,7 +473,7 @@ def precedent_plan(b, opened: list) -> dict:
     owner: dict = {}
     out: dict = {}
     for n in opened:
-        mine = {str(k) for k in plan[n - 1]["unit_keys"]} if 1 <= n <= len(plan) else set()
+        mine = converge.item_units(plan, n)
         for i, r in enumerate(rows, 1):
             if not isinstance(r, dict) or r.get("key") not in mine or r.get("verdict") not in PRECEDENT_VERDICTS:
                 continue
@@ -600,7 +600,7 @@ def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
     if any(h.get("answer") == "block" for h in got["hits"]) and not blocks:
         errs.append("$.faces: 当たりに block と答えたのに severity block の face が無い")
     plan = converge.read(b).get("plan") or []
-    mine = {str(k) for k in plan[n - 1]["unit_keys"]} if 1 <= n <= len(plan) else set()
+    mine = converge.item_units(plan, n)
     names = _names(b, NODE_OF["plan-review"])
     for i, f in enumerate(got["faces"]):
         out = [str(k) for k in f["unit_keys"] if unit_name(names, k) not in mine]

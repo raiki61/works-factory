@@ -503,18 +503,16 @@ def _world_rows(b) -> dict | None:
 
 
 def _world_answers(b) -> list:
-    """[(項目の番号（1 始まり）, 項目の単位の key の組, 答え)]: 修正案の欄 structure の世界の解の答え（控えが無い・読めない周は []）"""
+    """[(項目の番号（1 始まり）, 答え)]: 修正案の欄 structure の世界の解の答え（控えが無い・読めない周は []）"""
     try:
         fields = planmarks.read(b)
     except Exception:   # 控えの形の崩れは受け付けと brief が止める（ここは照らさない）
         return []
-    plan = (b.output_of_round("p2.fix_plan", b.round) or {}).get("plan") or []
     out = []
     for n, f in enumerate(fields or [], 1):
-        keys = set(plan[n - 1].get("unit_keys") or []) if n - 1 < len(plan) and isinstance(plan[n - 1], dict) else set()
         for a in (f.get("structure") if isinstance(f, dict) and isinstance(f.get("structure"), list) else []):
             if isinstance(a, dict) and isinstance(a.get(worldmark.ANSWER_KEY), str):
-                out.append((n, keys, a))
+                out.append((n, a))
     return out
 
 
@@ -547,7 +545,7 @@ def world_items(b) -> list:
         return []
     cite_ok, request_file, means, repo = _cite_check(b)
     out = []
-    for n, _keys, a in _world_answers(b):
+    for n, a in _world_answers(b):
         if a.get("follows") is True:
             continue
         row = world.get(a[worldmark.ANSWER_KEY]) or {"class_id": a[worldmark.ANSWER_KEY]}
