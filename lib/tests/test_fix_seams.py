@@ -1503,6 +1503,7 @@ class GroupScriptsSeamCase(TempCase):
         good = {"path": "tests/t.py", "permit": "plan-1", "source": "plan"}
         result = {"allowed_tests": [good, {"permit": "plan-2", "source": "plan"}, {"path": "tests/u.py", "source": "plan"},
                                     {"path": "tests/v.py", "permit": "x-1", "source": "guess"}, {"path": "", "permit": "p", "source": "plan"},
+                                    {"path": 7, "permit": "p", "source": "plan"}, {"path": "tests/w.py", "permit": 3, "source": "plan"},
                                     "壊れた行", good]}
         self.assertEqual(fixboard.child_allowed_rows(result), [good, good])
         self.assertEqual(fixboard.allowed_test_rows(self.place, [result]), [good])
