@@ -256,10 +256,10 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 狭め: 無し
 - J40 pr-check の役が必ず読む物（渡し物 pr-brief.json）を読んだかを、読んだ証拠（Read のフックの記録と出来事）で確かめる
   - 元: works/blk-pr/blk-pr.yaml:181 の `must`・works/.shared/core/reads.py・works/.shared/core/record-read.py（test_reads.py・test_blk_pr.py:761）
-  - 今: 無し（workflows/judge/commands/pr-check.md の「渡し物: … pr-brief.json（Read せよ。JSON）」の行が Read を頼むだけ。docs/design.md の能力の棚卸しは `lib/reads` と書く）
-  - 証: 要追加（U6 の決めの後）: tests/workflows/test_judge.py::ReadsTest.test_pr_check_must_read_its_brief — 渡し物を読まない返答を拒むか、読んだ証拠の欠けを返りと報告に出す
+  - 今: lib/judge_accept.py::pr_reads（節 workflows/judge/works-factory-judge.yaml::pr-check-reads。lib/reads.py::collect）
+  - 証: tests/workflows/test_judge.py::ReadsTest.test_pr_check_must_read_its_brief
   - 本物の run: 筋書きでのみ
-  - 狭め: #76 で入れていない（当時は未決 U6。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:`。入れるのは後の issue）
+  - 狭め: 無し（#354 で戻した。今の works の reads.py と同じく受け付けの条件にせず、欠けは節 pr-check-reads の返りと報告の「4.」に出す。確かめはフックの記録で、provider_event の側は報告が節ごとに出す）。前の欄: #76 で入れていない（当時は未決 U6。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:`。入れるのは後の issue）
 - J41 並行 PR を投稿しない形に下げたことを宣言し（`downgrades.json` の p0.parallel_pr と r2.design）、報告の頭に「下げている所: N 個」を出す
   - 元: works/.shared/core/prcheck.py:322 `downgrades`・:345 `head_downgrades`・works/darkfactory/downgrades.json・works/.shared/core/entry.py:1107
   - 今: lib/downgrades.json（元 darkfactory/downgrades.json の写し）・lib/prcheck.py の downgrades・head_downgrades → lib/runreport.py の _downgrade_lines（入口の節）
@@ -732,13 +732,13 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
 ## 穴の要約
 
 - 行の数: 113（J01〜J113）
-- 今に無い（能力が落ちている）: 11 行 — J04 空の依頼の素通し・J40 読んだ証拠・J41 下げた物の宣言・J49 mutation の宣言・J66 言語の 1 行・J88 捨てたパスの記録・J101 再審の会話・J109 answer-ties の読み手・J110 見ていないレンズの読み手・J111 申し送りの下書きの読み手・J112 世界の解の段の落ちた訳の読み手。ほかに J51（仲間の名指し）・J57（すぐ人に渡す道）は一部が落ちている（下の狭めに数える）
-- 試験が無い・弱い（要追加）: 38 行 — J03・J04・J05・J13・J17・J20・J37・J40・J41・J45・J47・J48・J49・J50・J51・J55・J56・J57・J59・J65・J66・J67・J68・J69・J70・J71・J73・J74・J75・J80・J85・J88・J95・J99・J109・J110・J111・J112（J101 は持ち主の答えの後）
-- 狭めたが Archon で不可でない（戻す）: 11 行（J40 は当時は未決 U6 で止まっていたので、下の持ち主の項に別に置く。U6 は段 1b で決めた） — J04・J41・J49・J51・J57・J66・J88（#76）、J109・J110・J111・J112（#68。J110 は #76 も）
+- 今に無い（能力が落ちている）: 11 行 — J04 空の依頼の素通し・J40 読んだ証拠（→ #354 で戻した）・J41 下げた物の宣言・J49 mutation の宣言・J66 言語の 1 行・J88 捨てたパスの記録・J101 再審の会話・J109 answer-ties の読み手・J110 見ていないレンズの読み手・J111 申し送りの下書きの読み手・J112 世界の解の段の落ちた訳の読み手。ほかに J51（仲間の名指し）・J57（すぐ人に渡す道）は一部が落ちている（下の狭めに数える）
+- 試験が無い・弱い（要追加）: 38 行 — J03・J04・J05・J13・J17・J20・J37・J40（→ #354 で戻した）・J41・J45・J47・J48・J49・J50・J51・J55・J56・J57・J59・J65・J66・J67・J68・J69・J70・J71・J73・J74・J75・J80・J85・J88・J95・J99・J109・J110・J111・J112（J101 は持ち主の答えの後）
+- 狭めたが Archon で不可でない（戻す）: 11 行（J40 は当時は未決 U6 で止まっていたので、下の持ち主の項に別に置く。U6 は段 1b で決めた。J40 は #354 で戻した） — J04・J41・J49・J51・J57・J66・J88（#76）、J109・J110・J111・J112（#68。J110 は #76 も）
 - Archon で不可の狭め: 1 行 — J101（loader.ts:1174・1179・1185）
 - 持ち主に要る物:
   1. J101 再審の会話: 新しい会話で保存した判定を読む形でよいか（PR #76 が聞いたまま）
-  2. J40 読んだ証拠（U6）: pr-check の必ず読む物を確かめる口を戻すか。取る所は段 1b の U6 の決めで分かった（pr-check が自分で呼んだ Read は `provider_event`、下請けの中の Read と読んだ時の sha はフック）
+  2. J40 読んだ証拠（U6）: pr-check の必ず読む物を確かめる口を戻すか。取る所は段 1b の U6 の決めで分かった（pr-check が自分で呼んだ Read は `provider_event`、下請けの中の Read と読んだ時の sha はフック） → #354 で戻した
   3. J109・J110・J112: answer-ties.json・local-review-lenses.json・world-state.json を judge の約束の隣のファイルに足すか（PR #68 が頼みとして返している。足さなければ報告の能力が落ちたまま）
   4. J111・J41: 並行 PR の下書きと「下げている所」の宣言を報告に戻す置き場（report か線）
   5. J88: 単位の目録で捨てたパスを記録に残すか（計画が trace を持たないと決めたが、狭めの節に書かれていない）
