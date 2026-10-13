@@ -15,7 +15,8 @@ works/blk-fix/lib/tddlanes.py:688 _green_after。その前に Archon の変数�
 無い（子が落ちた）組は当てず、当たらない・確かめ直しが赤・確かめ直しが落ちた組は当てたパスを戻して、returned: false と理由。
 並べない run は子が親の木で直したので当てない。結果のファイルが在れば returned: true、無い組は、その子が親の木に残した変更を
 子の始めの木に戻して（fixboard.drop_unreturned。次の組の group-start が先に戻した組はその控え）returned: false と理由。
-置き場に join.json = {par, groups: [{group_id, unit_ids, returned, reason}], units: [{unit_id, group_id, status, reason}]} を書き、
+置き場に join.json = {par, groups: [{group_id, unit_ids, returned, reason, backed_out?}], units: [{unit_id, group_id, status, reason}]}
+（backed_out は当ててから確かめ直しが赤で戻した組だけが持つ、戻したパスの並び）を書き、
 組の差分は join/<group_id>.diff に控える。戻せた組の子の TDD の輪の状態（結果の tdd_state）は親の置き場の tdd-<k>/ に、実行器を
 親の作業ツリーで解き直して写す（fixboard.adopt_tdd_states。裁定の後の修正の受け付けが読む）。返り {groups: 組の数, returned: 戻せた組の数}。
 置き場の groups.json が無い・読めない・git が効かない: 標準エラーに 1 行で 1。
@@ -52,7 +53,7 @@ def main() -> dict:
         raise ValueError(f"置き場に groups.json が無いか形が違う（{place}）")
     out_dir = Path(plan["out_dir"])
     results = {g["group_id"]: result_of(out_dir, g["group_id"]) for g in plan["groups"]}
-    outcomes = {}
+    outcomes, backed_out = {}, {}
     if plan["par"]:
         repo = boundary.work_tree()
         log = writelog.log_here()
@@ -86,6 +87,8 @@ def main() -> dict:
         applied = []
         for g, got in lanekit.merge_in_order(with_result, merge_one):
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)
+            if got.backed_out:
+                backed_out[g["group_id"]] = got.backed_out
             r = results[g["group_id"]]
             if not got.why and r.get("worktree") and log is not None:
                 applied.append((r["worktree"], writelog.log_here(r["worktree"]), got.names))
@@ -105,7 +108,7 @@ def main() -> dict:
         outcomes.setdefault(g["group_id"], (None, False, fixboard.NO_RESULT))
     fixboard.adopt_tdd_states(place, [outcomes[g["group_id"]][0] for g in plan["groups"] if outcomes[g["group_id"]][1]],
                               boundary.work_tree())
-    rows, units = fixboard.join_rows(plan["groups"], outcomes)
+    rows, units = fixboard.join_rows(plan["groups"], outcomes, backed_out)
     fixboard.write_json(place / fixboard.JOIN_FILE, {"par": bool(plan["par"]), "groups": rows, "units": units})
     return {"groups": len(rows), "returned": sum(1 for r in rows if r["returned"])}
 

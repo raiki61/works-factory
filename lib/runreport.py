@@ -131,6 +131,7 @@ MISSING_EYE_NOTE = "結果が無い目は阻害 0 件でなく判定が無い（
 FORGE_HEAD = "PR を持つホスト（forge）"   # 元 report.FORGE_HEAD
 POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わったまま終わった"
 APPLY_HEAD = "差分を対象に当てる"
+BACKED_OUT_HEAD = "当ててから確かめ直しが赤で戻した組"   # 組の合わせの意味の食い違い（持ち主の決め clash-goes-to-ruling。作りは #382）
 STOP_OUTCOMES = ("stopped_by_request", "stopped_by_human", "stopped_by_line", "needs_human")   # 止まった run の結末（bin/apply が拒む）
 
 POINTERS = (("judge", "judgment", "判定"), ("judge", "purpose", "目的"), ("judge", "world", "定石"),
@@ -466,15 +467,36 @@ def _parked(returns: dict) -> list:
 
 
 def split_line(returns: dict) -> str:
-    """冒頭の 1 行目に添える、修正の段が受けた単位と止めて持ち越した単位の 1 文（元 report.split_line。止めた組が無ければ ""）"""
+    """冒頭の 1 行目に添える、修正の段が受けた単位と止めて持ち越した単位の 1 文（元 report.split_line。止めた組が無ければ ""）。
+    当ててから確かめ直しが赤で戻した組（_backed_out）は名指して足す"""
     groups = [g for g in _list(as_dict(returns.get("fix")).get("groups")) if isinstance(g, dict)]
     parked = _parked(returns)
     if not parked:
         return ""
     kept = [str(u) for g in groups if g.get("returned") is True for u in _list(g.get("unit_ids"))]
     held_ = [str(u) for g in parked for u in _list(g.get("unit_ids"))]
+    backed = _backed_out(returns)
     return (f"修正の段は {len(kept)} 単位（{'・'.join(kept) or 'なし'}）を受け、{len(held_)} 単位"
-            f"（{'・'.join(held_)}）を止めて持ち越した（組 {'・'.join(str(g.get('group_id')) for g in parked)}。次の run の依頼に載る）")
+            f"（{'・'.join(held_)}）を止めて持ち越した（組 {'・'.join(str(g.get('group_id')) for g in parked)}。次の run の依頼に載る）"
+            + (f"。{BACKED_OUT_HEAD}: 組 {'・'.join(str(g.get('group_id')) for g in backed)}" if backed else ""))
+
+
+def _backed_out(returns: dict) -> list:
+    """戻せなかった組のうち、当ててから確かめ直しが赤で戻した組（fix.groups の欄 backed_out が在る物。fixboard.join_rows）"""
+    return [g for g in _parked(returns) if _list(g.get("backed_out"))]
+
+
+def backed_out_lines(returns: dict) -> list:
+    """人が決めることの節の頭の、当ててから確かめ直しが赤で戻した組ごとの 3 行（組と単位と戻したパス・赤の文・作り直しの結果）。
+    今は作り直さず、外した単位は次の run の依頼に回る（作り直しは #382）"""
+    kept = [g for g in _list(as_dict(returns.get("fix")).get("groups")) if isinstance(g, dict) and g.get("returned") is True]
+    out = []
+    for g in _backed_out(returns):
+        units = "・".join(str(u) for u in _list(g.get("unit_ids"))) or "なし"
+        out += [f"{BACKED_OUT_HEAD}: 組 {g.get('group_id')}（単位 {units}）。戻したパス {'・'.join(map(str, _list(g.get('backed_out'))))}",
+                f"  - 赤: {oneline.one_line(g.get('reason') or '訳の記録が無い')}",
+                f"  - 作り直しの結果: 作り直していない。ほかの組は {len(kept)} 組を当てたまま、外した単位 {units} は次の run の依頼に回した"]
+    return out
 
 
 def _rejudge(returns: dict) -> tuple[str, str]:
@@ -1423,7 +1445,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                    *[q for q in _list(_ret(returns, "eyes").get("questions")) if isinstance(q, str)]]
     head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
-        (report.DECISIONS_HEADING, [*decisions,
+        (report.DECISIONS_HEADING, [*backed_out_lines(returns), *decisions,
                                     f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件" + (f"（{next_file}）" if next_file else ""),
                                     *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],
