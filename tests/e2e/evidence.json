@@ -394,7 +394,7 @@
 {"id": "P043", "kind": "backlog", "why": "ブロックの中だけの穴（区分の issue）"},
 {"id": "P044", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "P045", "kind": "scenario-only", "why": "筋書きでのみ"},
-{"id": "P046", "kind": "seen", "writer": "lib/planfile.py::write_brief", "check": "exists", "where": "parent/plan/r1/reject-1.txt"},
+{"id": "P046", "kind": "seen", "writer": "lib/rolekit.py::rejects_text_path", "check": "exists", "where": "parent/plan/r1/rejects-plan.md"},
 {"id": "P047", "kind": "scenario-only", "why": "plan-accept の節の出力 {ok, done, give_up, attempt}・plan/r1/rejects-plan.json・ripple.json の error（諦めた時だけ。健全な種では筋書きでのみ）"},
 {"id": "P048", "kind": "seed-cannot", "why": "役の指示書の字と節の設定は run の記録に写らない（字と設定は tests/workflows の試験が縛る）"},
 {"id": "P049", "kind": "scenario-only", "why": "筋書きでのみ"},

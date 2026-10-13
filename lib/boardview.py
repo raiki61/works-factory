@@ -701,7 +701,7 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     prompt = "\n\n".join(x for x in (body, policy.section(pol.get("copy"))) if x)
     rows = rolekit.rejected(d, design.NODE)
     if rows:
-        prompt = rolekit.with_reject(prompt, rows[-1])
+        prompt = rolekit.with_reject(prompt, rolekit.rejects_text(rows))
     _write_json(d / PREMISES_FILE, {"node": design.NODE, **ledger})
     planfile.snap_tree(d / R2_TREE, cwd)
     (d / R2_PROMPT).write_text(prompt, encoding="utf-8")
@@ -834,7 +834,7 @@ def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, comma
         policy.section(inputs.get("policy_copy")), concepthome.section(pathlib.Path(repo))) if x)
     last = rolekit.rejected(p, REVIEW_NODE)
     if last:
-        body = rolekit.with_reject(body, last[-1])
+        body = rolekit.with_reject(body, rolekit.rejects_text(last))
     main.write_text(body + "\n", encoding="utf-8")
     planfile.snap_tree(p / TREE_FILE, repo)
     return main

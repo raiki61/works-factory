@@ -49,10 +49,9 @@ def main() -> dict:
     owed = fixboard.ruled_owed(place)
     start = startrec.read(place)
     saved = fixboard.group_fix_reply(place)
-    reject = place / fixboard.REJECT_NAME.format(name=ACCEPT, k=n - 1)
     got = fixrules.prep(place, repo, fixboard.fix_values(place, owed, start=start, answer_node=ANSWER_NODE), "ruled",
                         owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
-                        reject_file=str(reject) if n > 1 and reject.is_file() else "", lang=rolekit.lang_line(start),
+                        reject_file=fixboard.rejects_file(place, ACCEPT, n - 1), lang=rolekit.lang_line(start),
                         shared=boundary.shared_cache())
     if Path(got["prompt_file"]) == prompt and saved is not None:
         fixboard.ruled_reply_line(prompt, str(saved))

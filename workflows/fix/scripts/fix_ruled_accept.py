@@ -62,10 +62,10 @@ def main() -> dict:
         fixboard.write_json(path, fixboard.reply_marks(got["reply"], fixboard.read_json(path)))
         fixboard.trace(place, "fix_ruled_accepted", node=NAME, iteration=iteration, parked=sorted(got["parked"]))
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
-    reason_file = fixboard.write_text(place / fixboard.REJECT_NAME.format(name=NAME, k=iteration), got["reason"] + "\n")
+    reason_file = fixboard.write_reject(place, NAME, iteration, got["reason"])
     done = fixboard.loop_done(got, iteration)
     fixboard.trace(place, "fix_ruled_rejected", node=NAME, iteration=iteration, done=done, parked=sorted(got["parked"]))
-    return {"ok": False, "done": done, "reason": got["reason"], "reason_file": str(reason_file)}
+    return {"ok": False, "done": done, "reason": got["reason"], "reason_file": reason_file}
 
 
 if __name__ == "__main__":

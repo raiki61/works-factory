@@ -58,6 +58,7 @@ NAMED_BY_PATTERN = {
     "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py::_planned_run",
     "parent/judge/query-examples.json": "lib/marks.py::KINDS",
     "parent/plan/r1/rejects-plan.json": "lib/rolekit.py::rejects_path",
+    "parent/plan/r1/rejects-plan.md": "lib/rolekit.py::rejects_text_path",
     "parent/plan/structure/*/design.jsonl": "lib/planfile.py::DESIGN_FILE",
     "parent/plan-review/gate-marks.json": "lib/marks.py::KINDS",
 }
