@@ -26,7 +26,6 @@ import types
 
 import boardview
 import changemap
-import converge
 import design
 import gatemarks
 import jsonfile
@@ -58,8 +57,12 @@ RETURN_FIELDS = ("ok", *EYES, "questions", "premise_check", "structure_after", "
 VERDICTS = ("resolved", "escalate")
 NO_FILE = "出力のファイルが無い"
 NO_AFTER = "直しの後の実測: 控えが無い（測っていない run）"   # 元 blk-eyes/lib/eyes.py:93
-REVIEW_ACCEPTED = "  事前審査の最後の往復（pass-{k}）は上の外れの訳を見て、block の穴 0 件で案を通した（外れを認めた）"
+REVIEW_ACCEPTED = "  事前審査の最後の往復（pass-{k}）は上の外れの訳を見て案を通した（外れを認めた）"
 REVIEW_BLOCKED = "  事前審査の最後の往復（pass-{k}）は上の外れの訳を見て、block の穴 {n} 件を残した（外れを認めていない）: {faces}"
+REVIEW_GAVE_UP = "  事前審査の最後の往復（pass-{k}）は受け付けが諦めて案を通していない（外れを認めていない）: {why}"
+REVIEW_HELD = ("  事前審査の最後の往復（pass-{k}）は block の穴を挙げ直さなかったが、前の往復の穴を保留のまま案を通していない"
+               "（外れを認めていない。往復の控えの抜け方: {outcome}）")
+REVIEW_NO_PLAN = "事前審査は直す物の無い周（形 design）で、案を審査していない"
 REVIEW_UNREAD = "  事前審査の最後の往復の返答を読めない（外れを認めたかは分からない）: {why}"
 GREEN_LINE = "最後のテストの認証が通っていない（赤は最後の承認ノードで人が見る）"
 DOC_SUFFIXES = (".md",)
@@ -276,19 +279,22 @@ def after_section(eyes_dir, review_folder) -> str:
 
 
 def plan_review_line(review_folder) -> str:
-    """事前審査の置き場 review_folder の最後に開いた往復（open.json の k）の返答に block の穴が残ったか"""
+    """事前審査の置き場 review_folder の最後に開いた往復が案を通したか（通否の持ち主は boardview.verdict）"""
     try:
-        k = boardview.read_open(review_folder)["k"]
+        inputs = boardview.read_open(review_folder)
+        if inputs.get("form") == boardview.DESIGN_FORM:
+            return REVIEW_UNREAD.format(why=REVIEW_NO_PLAN)
+        k = inputs["k"]
+        v = boardview.verdict(pathlib.Path(review_folder), inputs)
     except (boardview.Missing, KeyError) as e:
         return REVIEW_UNREAD.format(why=e)
-    path = boardview.pass_dir(review_folder, k) / boardview.REVIEW_FILE
-    review = jsonfile.read_or(path)
-    if not isinstance(review, dict):
-        return REVIEW_UNREAD.format(why=f"{path} が無いか object でない")
-    blocks = converge.block_faces(review)
-    if not blocks:
+    if v.ok:
         return REVIEW_ACCEPTED.format(k=k)
-    return REVIEW_BLOCKED.format(k=k, n=len(blocks), faces="; ".join(f"{f.get('key')}: {f.get('why')}" for f in blocks))
+    if v.gave:
+        return REVIEW_GAVE_UP.format(k=k, why=v.gave)
+    if v.blocks:
+        return REVIEW_BLOCKED.format(k=k, n=len(v.blocks), faces="; ".join(f"{f.get('key')}: {f.get('why')}" for f in v.blocks))
+    return REVIEW_HELD.format(k=k, outcome=v.outcome)
 
 
 def read_json(path):

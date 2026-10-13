@@ -1059,12 +1059,12 @@ class ScriptCase(unittest.TestCase):
     def plan_review_pass(self, k: int, faces: list):
         folder = self.artifacts / "plan-review"
         (folder / f"pass-{k}").mkdir(parents=True, exist_ok=True)
-        (folder / "open.json").write_text(json.dumps({"k": k}), encoding="utf-8")
+        (folder / "open.json").write_text(json.dumps({"k": k, "form": "replan"}), encoding="utf-8")
         (folder / f"pass-{k}" / "review.json").write_text(json.dumps({"faces": faces, "shrink": []}), encoding="utf-8")
 
     def test_r1_head_carries_plan_deviations_and_the_plan_review_verdict(self):
         """#353: 修正案の外れの訳が在る run は、R1・R3 の頭に訳の本文（structmark.after_lines と同じ行）と事前審査の最後の往復の
-        結論（block の穴が残ったか）を載せる。訳の無い run は数の 1 文だけで、事前審査の行も載せない"""
+        結論（boardview.verdict の通否。形 replan は block の穴の有無）を載せる。訳の無い run は数の 1 文だけで、事前審査の行も載せない"""
         self.prep_inputs()
         eyes = self.artifacts / "eyes"
         eyes.mkdir(parents=True, exist_ok=True)

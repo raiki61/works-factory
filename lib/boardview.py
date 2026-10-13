@@ -21,6 +21,7 @@
   :1178 の with_converge）
 - collect: 返す節の組み立て（元 works/blk-plan/lib/planblk.py:1441 の collect。形 replan の関所の項目は replan_asks。元
   works/.shared/core/replan.py:620 の gate）
+- verdict: 最後に開いた往復の通否（collect の pass・stalled と、独立の目の頭の事前審査の行が読む）
 """
 from __future__ import annotations
 
@@ -1024,11 +1025,35 @@ def _note_asked(d: pathlib.Path, items: list, changed: dict | None) -> None:
     _write_json(d / GATE_ASKED_FILE, doc)
 
 
+def verdict(d: pathlib.Path, inputs: dict) -> types.SimpleNamespace:
+    """置き場 d の最後に開いた往復（inputs は read_open の返り。形 design でない物）の通否。collect の pass・stalled と、独立の目の
+    頭の事前審査の結論の持ち主。抜け方は形 review なら往復の控えの converge.decide（record_pass が決めた語）、形 replan なら block の
+    有無（stalled はいつも偽）。受け付けが諦めた往復は ok 偽・stalled 真。返り: pass_dir・review（返答）・gave（諦めた訳。無ければ空）・
+    board（見え方）・blocks・outcome（形 review の控えの語。ほかは None）・ok・stalled。返答が無ければ Missing"""
+    p = pass_dir(d, inputs["k"])
+    gave = rolekit.given_up_reason(p, REVIEW_NODE)
+    review = _read_json(p / REVIEW_FILE) if (p / REVIEW_FILE).is_file() else None
+    if review is None:
+        prep = p / PREP_ERROR
+        raise Missing(prep.read_text(encoding="utf-8") if prep.is_file()
+                      else f"事前審査の返答 {p / REVIEW_FILE} が無い（受け付けが通っていない）")
+    b = view(d, inputs, None if gave else review)
+    blocks = converge.block_faces(review)
+    outcome = converge.read(b)["outcome"] if inputs["form"] == "review" else None
+    if gave:
+        ok, stalled = False, True
+    elif inputs["form"] == "review":
+        ok, stalled = outcome == converge.CLEAN, outcome in converge.STUCK
+    else:
+        ok, stalled = not blocks, False
+    return types.SimpleNamespace(pass_dir=p, review=review, gave=gave, board=b, blocks=blocks, outcome=outcome,
+                                 ok=ok, stalled=stalled)
+
+
 def collect(folder) -> dict:
     """返す節の中身（パスは置き場の中の実物）: {pass, stalled, review, design, gate_axes, ask_human, questions}。questions の行は
     関所の項目の種類と文 {kind, text}（gatemarks.question_row。線が無人の run で台帳の問いだけを報告へ回し、ほかの種類で止まる）。
-    抜け方は形 review なら往復の控えの converge.decide（record_pass が決めた語）、形 replan なら block の有無（stalled はいつも偽）。
-    受け付けが諦めた往復は pass: false・stalled: true で、諦めた訳を questions に載せる。関所の項目は、形 review なら
+    pass・stalled は verdict。受け付けが諦めた往復は諦めた訳を questions に載せる。関所の項目は、形 review なら
     gatemarks.plan_gate_items、形 replan なら約束の欄が変わったか人に聞く穴の在る直した項目だけ（replan_asks）で、どちらも方針の
     文書の変化を足す。聞かずに通した行は pass-<k>/gate-passes.json、4 つの軸は gate_axes.gather。返した項目の種類と方針の変化を
     GATE_ASKED_FILE に積む（次の差し込みが入力 gate_answers の通した行を引く）。形 replan で受け付けが諦めた時は、裁かれた項目
@@ -1038,23 +1063,9 @@ def collect(folder) -> dict:
     inputs = read_open(d)
     if inputs.get("form") == DESIGN_FORM:
         return _collect_design(d, inputs)
-    p = pass_dir(d, inputs["k"])
+    v = verdict(d, inputs)
+    p, review, gave, b = v.pass_dir, v.review, v.gave, v.board
     out = place(d)
-    gave = rolekit.given_up_reason(p, REVIEW_NODE)
-    review = _read_json(p / REVIEW_FILE) if (p / REVIEW_FILE).is_file() else None
-    if review is None:
-        prep = p / PREP_ERROR
-        raise Missing(prep.read_text(encoding="utf-8") if prep.is_file()
-                      else f"事前審査の返答 {p / REVIEW_FILE} が無い（受け付けが通っていない）")
-    b = view(d, inputs, None if gave else review)
-    blocks = converge.block_faces(review)
-    if gave:
-        ok, stalled = False, True
-    elif inputs["form"] == "review":
-        outcome = converge.read(b)["outcome"]
-        ok, stalled = outcome == converge.CLEAN, outcome in converge.STUCK
-    else:
-        ok, stalled = not blocks, False
     items = gatemarks.plan_gate_items(b) if inputs["form"] == "review" else replan_asks(d, p, inputs, review)
     changed = policy_change(d, inputs["cwd"])
     if changed:
@@ -1078,5 +1089,5 @@ def collect(folder) -> dict:
         why = design.missing(b)
         design_file = _write_json(p / design.DESIGN_FILE, {"missing": why})
         out.trace(design.MISSING_OP, reason=why)
-    return {"pass": ok, "stalled": stalled, "review": p / REVIEW_FILE, "design": design_file,
+    return {"pass": v.ok, "stalled": v.stalled, "review": p / REVIEW_FILE, "design": design_file,
             "gate_axes": gate_axes.gather(b), "ask_human": bool(questions), "questions": questions}

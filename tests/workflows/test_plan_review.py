@@ -42,6 +42,7 @@ from lib.tests import test_plan_gate as TP  # noqa: E402
 import boardview  # noqa: E402
 import converge  # noqa: E402
 import design  # noqa: E402
+import eyeverdict  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
 import planblk  # noqa: E402
@@ -1140,6 +1141,21 @@ class ConvergeCase(RunCase):
         self.assertEqual(converge.read(self.run_.view())["outcome"], converge.PERSISTED)
         self.assertTrue(any(q.startswith(gatemarks.STUCK_ITEM + "。理由: ") for q in texts(got)), texts(got))
         self.assertTrue(any(q.startswith("事前審査の穴 [regression] " + MEAN_BLOCK["key"]) for q in texts(got)))
+
+    def test_held_block_not_raised_again_is_not_accepted_at_the_eyes_head(self):
+        """#353: 保留の項目は前の往復の block を引き継ぐので、最後の往復の返答に block が無くても通っていない。独立の目の頭の事前審査
+        の行は collect と同じ通否（boardview.verdict）を書き、外れを認めたとは言わない"""
+        r = self.run_
+        self.first()
+        r.pass_(review(MEAN_BLOCK))
+        r.plan([item(UNIT_MEAN, 1, approach="mean の直し 3 回目"), item(UNIT_CLAMP, 2)], rnd=3,
+               answers=[{"key": MEAN_BLOCK["key"], "handled": "fixed", "how": "前の穴を直した形に案を書き直した"}])
+        got = r.pass_(review(resolved=[MEAN_BLOCK["key"]]))
+        self.assertEqual(converge.block_faces(json.loads(r.pointed(got["review"]).read_text(encoding="utf-8"))), [])
+        self.assertEqual((got["pass"], got["stalled"]), (False, True), got)
+        line = eyeverdict.plan_review_line(r.folder)
+        self.assertEqual(line, eyeverdict.REVIEW_HELD.format(k=3, outcome=converge.PERSISTED))
+        self.assertNotIn("外れを認めた）", line)
 
     def test_rereview_must_account_for_every_previous_block(self):
         r = self.run_
