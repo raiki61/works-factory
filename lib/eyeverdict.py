@@ -8,8 +8,8 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
   人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
 - prompt_texts(...): 目の指示書に差し込む文
-- after_section(eyes_dir, review_folder)・plan_review_line(review_folder): R1・R3 の頭に貼る直しの後の実測の節（外れの訳が在れば、
-  訳の行と事前審査の最後の往復が外れを認めたか）
+- after_section(eyes_dir, review_folder, plan)・plan_review_line(review_folder, plan): R1・R3 の頭に貼る直しの後の実測の節（外れの訳が
+  在れば、訳の行と、外れの源の修正案 plan を審査した事前審査の最後の往復が外れを認めたか）
 - read_design(path)・read_json(path): 独立設計の控え（無ければ {"missing": 訳}）と、置き場の JSON（無い・読めなければ None）
 - premise_reason(design): 独立設計が問いが立たないとした訳
 - fell_text(fell, ran)・collect(...)・unverified(reason, protected): ブロックの返り
@@ -268,20 +268,21 @@ def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_fil
     }
 
 
-def after_section(eyes_dir, review_folder) -> str:
+def after_section(eyes_dir, review_folder, plan) -> str:
     """R1・R3 の頭に貼る直しの後の実測の節: 数の 1 文（控えが無ければ NO_AFTER）。修正案の外れの訳が在る run は、訳の行と事前審査の
-    最後の往復の結論を続ける（持ち主の決め tell-downstream。訳の無い run は数の 1 文だけ）"""
+    最後の往復の結論を続ける（持ち主の決め tell-downstream。訳の無い run は数の 1 文だけ）。plan は外れの訳の源の plan-fields.json"""
     counts = structmark.after_counts(eyes_dir)
     if not counts:
         return NO_AFTER
     devs = structmark.deviation_lines(eyes_dir)
-    return "\n".join([counts, *devs, plan_review_line(review_folder)] if devs else [counts])
+    return "\n".join([counts, *devs, plan_review_line(review_folder, plan)] if devs else [counts])
 
 
-def plan_review_line(review_folder) -> str:
-    """事前審査の置き場 review_folder の最後に開いた往復が案を通したか（通否の持ち主は boardview.verdict）"""
+def plan_review_line(review_folder, plan) -> str:
+    """事前審査の置き場 review_folder の最後に開いた往復が修正案 plan（plan-fields.json）を通したか（往復と案が組むかの照らしの
+    持ち主は boardview.read_open_of、通否の持ち主は boardview.verdict）"""
     try:
-        inputs = boardview.read_open(review_folder)
+        inputs = boardview.read_open_of(review_folder, plan)
         if inputs.get("form") == boardview.DESIGN_FORM:
             return REVIEW_UNREAD.format(why=REVIEW_NO_PLAN)
         k = inputs["k"]

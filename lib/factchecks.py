@@ -211,13 +211,12 @@ def precheck(cfg: dict, reply=None, *, items=None, skip: tuple = ()) -> dict:
     log, since = cfg.get("log") or None, fixboard.fixer_head(board, pass_) or None
     reply = reply if isinstance(reply, dict) else {"changes": []}
     agreed = conflict.agreed(board)
-    found = [("frozen", t) for t in check_frozen(board, state, repo, pass_ if pass_ in ("first", "ruled") else "first",
-                                                 agreed=agreed, base_rev=base_rev)]
+    found = [("frozen", t) for t in check_frozen(board, state, repo, pass_, agreed=agreed, base_rev=base_rev)]
     wrote = check_writes(reply, board, base_rev, repo, state, log=log, since=since, skip=skip)
     found += [("writes", t) for t in wrote["problems"]]
     keys = [c.get("unit_key") for c in wrote["reply"].get("changes") or [] if isinstance(c, dict)]   # 返答は単位の名前で書く
     scope, _ = check_plan_scope(wrote["reply"], keys, board, base_rev, repo, state,
-                                pass_ if pass_ in ("first", "ruled") else "first", agreed=agreed, ask=True, since=since,
+                                pass_, agreed=agreed, ask=True, since=since,
                                 items=items)
     found += [("scope", t) for t in scope]
     return {"ok": not found, "rejects": [{"check": c, "text": t} for c, t in found]}

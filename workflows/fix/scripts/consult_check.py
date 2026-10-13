@@ -19,17 +19,15 @@ sys.path.append(str(boundary.lib_root()))
 
 import factchecks  # noqa: E402
 import fixboard  # noqa: E402
+import fixrules  # noqa: E402
 import oneline  # noqa: E402
 import planmarks  # noqa: E402
 import rolekit  # noqa: E402
 
-NODES = {"first": "consult-answer", "ruled": "ruled-consult-answer"}   # 答えの役の節
-
 
 def main() -> dict:
     pass_ = os.environ["INPUTS_PASS"]
-    if pass_ not in NODES:
-        raise ValueError(f"入力 pass は {sorted(NODES)} のどれか: {pass_!r}")
+    node = fixrules.answer_node(pass_)
     reply, why = rolekit.parse_reply(os.environ["INPUTS_REPLY"])
     if reply is None:
         raise ValueError(why)
@@ -41,7 +39,7 @@ def main() -> dict:
     plan = next((str(place / n) for n in (fixboard.PLAN_REPLY_FILE, fixboard.marks_path(place).name)
                  if (place / n).is_file()), "")
     ripple = place / fixboard.RIPPLE_FILE
-    got = fixboard.consult_ask(place, reply, pass_, items, node=NODES[pass_], plan_file=plan,
+    got = fixboard.consult_ask(place, reply, pass_, items, node=node, plan_file=plan,
                                human_items=fixboard.gate_items(fixboard.read_json(place / fixboard.ANSWERS_FILE)),
                                ripple_file=str(ripple) if ripple.is_file() else "")
     return {"consulted": got["consulted"], "go": got["go"], "prompt_file": got["prompt_file"]}
