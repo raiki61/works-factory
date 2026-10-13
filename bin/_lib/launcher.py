@@ -37,9 +37,10 @@ CLAUDE_BIN_ENV = "CLAUDE_BIN_PATH"   # Archon が起こす claude の実行フ�
 # （packages/cli/src/commands/workflow.ts の spawnDetachedWorkflowRun）。<ARCHON_HOME>/.env も上書きで読む（env-loader.ts の
 # loadArchonEnv。archon setup の既定の書き先で、claude の置き場を CLAUDE_BIN_PATH に書く）
 ARCHON_CWD_ENV_FILES = (".env", ".env.local", ".env.development", ".env.production", ".archon/.env")
-# 役の sandbox の Bash が書ける置き場（Claude の一時の置き場）。家・対象・取り置きがこの下だと、役が書き込みの記録・控え・DB・
+# 書く役の sandbox の Bash が書ける置き場（Claude の一時の置き場）。家・対象・取り置きがこの下だと、書く役が書き込みの記録・控え・DB・
 # 対象の .git・取り置いた Archon の源（次の起動が sandbox の外で起こす）を書き換えられる。形は今の works の dev/guard.sh の
-# works_dev_refuse_claude_tmp と同じ（実パスで照らす。* は / も越える）
+# works_dev_refuse_claude_tmp と同じ（実パスで照らす。* は / も越える）。読むだけの役（allowWrite が / ）はどこでも書けるので、
+# この照らしでは守れない。その役からは write_fence の --own が取り置きと工場の根を守る
 SANDBOX_WRITABLE = ("/tmp/claude-*", "/private/tmp/claude-*")
 
 
@@ -126,7 +127,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         install_toolset(child, target, filled_config, claude=real if not no_auth else None)
     if executing:
         sweep_logs(child["CLAUDE_CONFIG_DIR"])
-        child[CLAUDE_BIN_ENV] = write_fence(home, real, child)
+        child[CLAUDE_BIN_ENV] = write_fence(home, real, child, cache)
 
     if workflow is None:
         args = argv
@@ -290,14 +291,16 @@ def names_key(path: Path, key: str) -> bool:
     return any(re.match(rf"\s*(?:export\s+)?{re.escape(key)}\s*[=:]", line) for line in text.splitlines())
 
 
-def write_fence(home: Path, real: str, child: Mapping[str, str]) -> str:
+def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path) -> str:
     """Archon が役を起こす claude の前に置く包み（埋め P5。workflows/.shared/fence.py）の殻を書き、そのパスを返す。値は env でなく
     殻に焼く（Archon は claude に渡す env を掃除する）。-B は Archon がバイトで照らす workflows/ に __pycache__ を作らないため。
-    --own は、同じ run の後の役の起動が sandbox の外で走らせる物（この殻・gh の口・包み・包みを起こす解釈系〔sys.prefix と sys.base_prefix〕・本物の claude）。
+    --own は、同じ run の後の役の起動が sandbox の外で走らせる物（この殻・gh の口・包みを起こす解釈系〔sys.prefix と sys.base_prefix〕・本物の claude）と、
+    次の起動が sandbox の外で走らせる物（取り置き cache〔Archon の源〕・工場の bin/・workflows/〔包みを含む〕・lib/・版の止め pack.REQUIRED）。
     本物の claude は実パスで起こす（包みは --own を実パスに解いて禁じるので、symlink を通して起こすと symlink 自身は書ける）"""
     top = home / FENCE_DIR
     real = os.path.realpath(real)
-    own = [top, home / HOST_GH_DIR, FENCE, sys.prefix, sys.base_prefix, real]
+    own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, cache,
+           *(ROOT / name for name in ("bin", "workflows", "lib", *pack.REQUIRED))]
     body = ("#!/bin/sh\n"
             "# works-factory の起動（bin/_lib/launcher.py）が書いた包み: 読むだけの役の claude の sandbox に、起こす直前に組んだ\n"
             "# 書き込みを禁じるパスの一覧を足す\n"

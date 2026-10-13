@@ -16,7 +16,7 @@ import threading
 import unittest
 from unittest import mock
 
-from bin._lib import isolate
+from bin._lib import isolate, launcher
 from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.layers import scan
@@ -295,7 +295,8 @@ def fake_api(command: str, results: list):
 
 
 class RealClaudeTest(unittest.TestCase):
-    """本物の claude の sandbox が、包みの足した一覧への Bash の書き込みを止める（#305 の見直しの R2）"""
+    """本物の claude の sandbox が、起動の殻の書いた包み（launcher.write_fence）の足した一覧への Bash の書き込みを止める
+    （#305 の見直しの R2・#348）"""
 
     @classmethod
     def setUpClass(cls):
@@ -310,6 +311,8 @@ class RealClaudeTest(unittest.TestCase):
         self.tree = make_tree(self.tmp)
         self.outside = self.tmp / "outside"
         self.outside.mkdir()
+        self.cache = self.tmp / "cache" / "works-factory"
+        self.cache.mkdir(parents=True)
         child = self.tree["child"]
         main = self.tree["main"]
         self.blocked = {
@@ -320,6 +323,7 @@ class RealClaudeTest(unittest.TestCase):
             "置き場を替えた worktree": self.tree["nested"],
             "Archon の家": pathlib.Path(child["ARCHON_HOME"]),
             "Claude の設定": pathlib.Path(child["CLAUDE_CONFIG_DIR"]),
+            "取り置いた Archon の源": self.cache,
         }
         self.settings = json.dumps({"sandbox": test_test_gate.node("ci")["sandbox"]})
 
@@ -356,10 +360,7 @@ class RealClaudeTest(unittest.TestCase):
         return {str(p): said[str(i)] for i, p in enumerate(places)}
 
     def test_fenced_role_cannot_write_the_listed_places(self):
-        child = self.tree["child"]
-        got = self.probe([sys.executable, str(FENCE), "--real", self.claude, "--archon-home", child["ARCHON_HOME"],
-                          "--claude-config", child["CLAUDE_CONFIG_DIR"], *(a for o in self.tree["own"] for a in ("--own", o)),
-                          "--"])
+        got = self.probe([launcher.write_fence(self.tmp / "run-home", self.claude, self.tree["child"], self.cache)])
         for what, place in self.blocked.items():
             with self.subTest(what=what):
                 self.assertEqual(got[str(place)], "BLOCKED")
