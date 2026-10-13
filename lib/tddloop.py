@@ -1085,7 +1085,7 @@ def declared_test_files(st) -> set[str]:
     名指し（rewrites）のパス。テストのファイルの見分け（impact.is_test_file）の宣言の正本。純粋"""
     out = set()
     for u in (st.get("units") or {}).values():
-        out |= {posixpath.normpath(f) for f in (u or {}).get("test_files") or [] if isinstance(f, str) and f.strip()}
+        out |= set(fixboard.unit_test_files(u))
     for c in (st.get("contract") or {}).values():
         ids = [t.get("id") for t in (c or {}).get("tests") or [] if isinstance(t, dict)] + list((c or {}).get("rewrites") or [])
         out |= {id_path(i) for i in ids if isinstance(i, str) and i.strip()}

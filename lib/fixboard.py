@@ -1465,6 +1465,16 @@ def _bodies(text, rel: str) -> dict:
     return {tddloop._id_base(i): body for i, body in tddloop.test_functions(text, rel).items()}
 
 
+def unit_test_files(unit) -> list:
+    """TDD の輪の単位の行の test_files のうち、空でない文字列だけを posixpath.normpath で整えた並び（子の result.json の写しも読む口。
+    並びでない test_files は空、形の違う要素は落とす）"""
+    import posixpath
+    files = (unit or {}).get("test_files")
+    if not isinstance(files, list):
+        return []
+    return [posixpath.normpath(f.strip()) for f in files if isinstance(f, str) and f.strip()]
+
+
 def _moved_tests(repo, tree: str, units, shared: set) -> list:
     """重なりのファイル shared（前に当てた組の差分とも重なるパス）に在る名指しのテストのうち、関数の源が組の子の終わりの木 tree と
     親の作業ツリー repo で違う・消えた物。units は TDD の輪の単位の行（tests・test_files）。元 works/blk-fix/lib/tddlanes.py:629
@@ -1472,7 +1482,7 @@ def _moved_tests(repo, tree: str, units, shared: set) -> list:
     import tddloop
     out = []
     for u in units:
-        for f in sorted(set(u.get("test_files") or []) & set(shared)):
+        for f in sorted(set(unit_test_files(u)) & set(shared)):
             mine = _bodies(tddloop._tree_text(repo, tree, f), f)
             p = pathlib.Path(repo) / f
             now = _bodies(p.read_text(encoding="utf-8", errors="replace") if p.is_file() else None, f)
