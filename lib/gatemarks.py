@@ -522,7 +522,7 @@ def _world_answers(b) -> list:
 
 
 def _cite_check(b):
-    """（決め手の文 → 出どころの誤りの 1 文（無ければ ""）の口, 依頼のファイル, 依頼の解き方の並び）。出どころの照らしは
+    """（決め手の文 → 出どころの誤りの 1 文（無ければ ""）の口, 依頼のファイル, 依頼の解き方の並び, 作業ツリーの根）。出どころの照らしは
     cite.sources_problem（依頼の引用は依頼の文と照らす）。依頼のファイルと依頼の解き方（worldmark.means_of）は世界の解の外れの
     決め手にならない物。目的の文の出典 source_files は目的の審査を走り直すための物で、ここに入れない"""
     req = startrec.read(b.dir).get("request_file") or ""
@@ -536,7 +536,7 @@ def _cite_check(b):
     roots = [str(pathlib.Path(req).parent) if req else "", str(b.dir)]
     def cite_ok(text):
         return cite.sources_problem(text, repo, roots, quoted)
-    return cite_ok, req, worldmark.means_of(b.dir)
+    return cite_ok, req, worldmark.means_of(b.dir), repo
 
 
 def world_items(b) -> list:
@@ -545,13 +545,13 @@ def world_items(b) -> list:
     world = _world_rows(b)
     if world is None:
         return []
-    cite_ok, request_file, means = _cite_check(b)
+    cite_ok, request_file, means, repo = _cite_check(b)
     out = []
     for n, _keys, a in _world_answers(b):
         if a.get("follows") is True:
             continue
         row = world.get(a[worldmark.ANSWER_KEY]) or {"class_id": a[worldmark.ANSWER_KEY]}
-        ok, why = worldmark.world_ok(a, row, request_file, means, cite_ok)
+        ok, why = worldmark.world_ok(a, row, request_file, means, cite_ok, repo)
         text = f"修正案 {n} の{worldmark.gate_line(row, a)}"
         out.append((text, {"decided_by": str(a.get("deviation") or ""), "world": worldmark.gate_line(row, a)},
                     [] if ok else [why]))

@@ -2851,6 +2851,40 @@ class WorldGateCase(GateBase):
         self.assertIn(worldmark.NOT_WEB, item)
 
 
+
+class WorldGateRunCase(RunCase):
+    """差し込みの頭（pass_open）を通った置き場で、関所の軸「世界の解か」が依頼の出どころ（目的の役が judge の置き場に置いた
+    依頼の解き方 means・始めの記録の依頼のファイル）を照らす"""
+
+    def deviate(self, why):
+        r = self.run_
+        r.world(TP.WORLD_ROW)
+        r.plan([item(UNIT_MEAN, 1)], field_rows=[{**fields(UNIT_MEAN), "structure": [{"world": "w-mean", "deviation": why}]}])
+        r.open()
+        return [x for _, x in gatemarks.plan_gate_items(r.view({"faces": []})) if "w-mean" in x]
+
+    def test_deviation_cited_to_means_goes_to_human(self):
+        means = "空の並びは 0 を返す形に寄せる"
+        why = f"{means}、と stats.py:1 の呼び手が決める"
+        self.assertEqual(self.deviate(why), [], "means の控えが無ければ依頼の外の出どころで通る")
+        self.run_.put("judge/purpose-means.json", {"means": [means]})
+        items = self.deviate(why)
+        self.assertEqual(len(items), 1, items)
+        self.assertIn("依頼", items[0])
+
+    def test_deviation_cited_to_request_file_goes_to_human(self):
+        r = self.run_
+        req = r.tmp / "run" / "request.json"
+        req.parent.mkdir()
+        req.write_text('{"findings": []}\n', encoding="utf-8")
+        r.start(request_file=str(req))
+        for cited in (str(req), f"{req.parent}/./request.json", f"{req.parent}/../run/request.json"):
+            with self.subTest(cited=cited):
+                items = self.deviate(f"{cited}:1 が 0 を返せと言う")
+                self.assertEqual(len(items), 1, items)
+                self.assertIn("依頼", items[0])
+
+
 class LedgerAsksCase(GateBase):
     """問いの台帳で人に聞く状態の fork・escalate が修正前の関所の項目に載り（無人の run では載せない）、関所の continue でその
     出どころが修正役に戻ったと言い（一言の「保留: <key>」は戻さない）、読めなかった保留を名指す。直す義務の数え・報告の文は
