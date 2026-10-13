@@ -457,6 +457,21 @@ class LauncherTest(unittest.TestCase):
                 env = self.reached(self.launch(*args, **login))["env"]
                 self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))
 
+    def test_home_inside_the_factory_checkout_is_refused(self):
+        """家が工場の checkout（ROOT。ここでは使い捨ての木の self.repo）の下だと、柵が ROOT を丸ごと禁じて読むだけの役が家に書けない。
+        どの命令でも起こさずに 1 行で拒む（#358）"""
+        link = self.tmp / "to-factory"
+        link.symlink_to(self.repo)
+        for name, value in (("WORKS_FACTORY_HOME", str(self.repo / "h")), ("WORKS_FACTORY_HOME", str(self.repo)),
+                            ("WORKS_FACTORY_HOME", str(link / "h2")), ("XDG_STATE_HOME", str(self.repo / "state"))):
+            with self.subTest(name=name, value=value):
+                err = self.stopped(self.launch("workflow", "status", **{name: value}))
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertIn(name, err)
+                self.assertIn("checkout の外", err)
+                if value != str(self.repo):
+                    self.assertFalse(os.path.lexists(value), "拒んだ置き場に物を作った")
+
     def test_claude_on_relative_path_is_not_used(self):
         """PATH の相対の置き場（打った場所の下）の claude は、隔離した設定にプラグインを入れる本物として使わない"""
         (self.fake / "claude").unlink()
@@ -483,16 +498,21 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(argv[argv.index("--archon-home") + 1], env["ARCHON_HOME"])
         self.assertEqual(argv[argv.index("--claude-config") + 1], env["CLAUDE_CONFIG_DIR"])
         self.assertEqual(argv[-2:], ["--", "$@"])
+        records = str(self.default_home(self.target) / launcher.FENCE_DIR / "launches.jsonl")
+        self.assertEqual(argv[argv.index("--records") + 1], records)
+        self.assertEqual(env[launcher.FENCE_RECORDS_ENV], records, "script のノードが包みの記録を読めない（包みの宣言が無い）")
 
     def test_fence_denies_what_later_launches_run_outside_the_sandbox(self):
-        """後の役の起動が sandbox の外で走らせる物（殻・gh の口・包み・包みを起こす Python・本物の claude）は、禁じる一覧に入る"""
+        """後の役の起動と次の起動が sandbox の外で走らせる物（殻・gh の口・本物の claude・包みを起こす Python・取り置いた Archon の源・
+        工場の checkout の根の全体〔根に置いた .py も次の起動の import に勝つ〕）は、禁じる一覧に入る"""
         env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
         argv = self.fence_of(env)
         own = {argv[i + 1] for i, a in enumerate(argv) if a == "--own"}
         home = self.default_home(self.target)
         self.assertEqual(own, {str(home / launcher.FENCE_DIR), str(home / launcher.HOST_GH_DIR),
-                               str(self.repo / "workflows" / ".shared" / "fence.py"), sys.prefix, sys.base_prefix,
-                               os.path.realpath(self.fake / "claude")})
+                               str(self.cache_home / "works-factory"),
+                               str(self.repo),
+                               sys.prefix, sys.base_prefix, os.path.realpath(self.fake / "claude")})
 
     def test_env_file_naming_claude_bin_path_stops_the_run(self):
         """Archon が起きる場所の .env* か .archon/.env、ARCHON_HOME の .env が CLAUDE_BIN_PATH を名指すと、包みが外れるので起こさない"""
@@ -509,6 +529,16 @@ class LauncherTest(unittest.TestCase):
         put(self.target / ".archon" / ".env", "CLAUDE_BIN_PATHS=/x\nOTHER=CLAUDE_BIN_PATH=/x\n")
         self.reached(self.launch("workflow", "run", "works-factory-line"))
 
+    def test_env_file_naming_the_fence_records_stops_the_run(self):
+        """env のファイルが包みの記録（受け付けが読む包みの宣言）を名指すと、宣言が消えるかほかを指すので起こさない"""
+        for where, name in ((self.target, ".env"), (self.default_home(self.target) / "archon-home", ".env")):
+            with self.subTest(file=str(where / name)):
+                env_file = put(where / name, f"{launcher.FENCE_RECORDS_ENV}=/elsewhere.jsonl\n")
+                err = self.stopped(self.launch("workflow", "run", "works-factory-line"))
+                env_file.unlink()
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertIn(launcher.FENCE_RECORDS_ENV, err)
+
     def test_users_claude_bin_path_is_the_real_claude_behind_the_fence(self):
         real = write_fake_claude(self.tmp / "my-claude")
         env = self.reached(self.launch("workflow", "run", "works-factory-line", CLAUDE_BIN_PATH=str(real)))["env"]
@@ -521,6 +551,7 @@ class LauncherTest(unittest.TestCase):
             with self.subTest(args=args):
                 env = self.reached(self.launch(*args))["env"]
                 self.assertNotIn("CLAUDE_BIN_PATH", list(env))
+                self.assertNotIn(launcher.FENCE_RECORDS_ENV, list(env))
 
     def test_no_auth_run_without_claude_stops(self):
         """柵を掛けられない run は起こさない（認証の要らない道でも、役は claude で起きる）"""

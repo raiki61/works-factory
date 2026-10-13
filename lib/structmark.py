@@ -21,6 +21,7 @@
   text は「考えの住処: 」で始まる。表の無い対象・控えが無い run は []）
 - after_lines(board_dir): 最後の関所と報告に並べる行（実測の数・増えた所・外れの訳。控えが無い run は []）
 - after_counts(board_dir): 独立の目の頭に渡す数の 1 文（控えが無い run は ""）
+- deviation_lines(board_dir): after_lines の末尾の修正案の外れの訳の行（独立の目の頭も同じ行を引く。訳が無い・控えが無い run は []）
 """
 import json
 import pathlib
@@ -186,5 +187,11 @@ def after_lines(board_dir) -> list:
     for n in doc["after"].get("new_names") or []:
         if isinstance(n, dict):
             out.append(f"  - 新しい名 {n.get('name')}（現れる所 {n.get('sites')} か所）")
-    out += [f"  - 修正案の{planmarks.answer_line(d)}" for d in doc.get("deviations") or [] if isinstance(d, dict)]
-    return out
+    return out + deviation_lines(board_dir)
+
+
+def deviation_lines(board_dir) -> list:
+    doc = read_after(board_dir)
+    if doc is None:
+        return []
+    return [f"  - 修正案の{planmarks.answer_line(d)}" for d in doc.get("deviations") or [] if isinstance(d, dict)]

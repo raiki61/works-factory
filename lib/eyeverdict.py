@@ -8,6 +8,8 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
   人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
 - prompt_texts(...): 目の指示書に差し込む文
+- after_section(eyes_dir, review_folder)・plan_review_line(review_folder): R1・R3 の頭に貼る直しの後の実測の節（外れの訳が在れば、
+  訳の行と事前審査の最後の往復が外れを認めたか）
 - read_design(path)・read_json(path): 独立設計の控え（無ければ {"missing": 訳}）と、置き場の JSON（無い・読めなければ None）
 - premise_reason(design): 独立設計が問いが立たないとした訳
 - fell_text(fell, ran)・collect(...)・unverified(reason, protected): ブロックの返り
@@ -22,11 +24,13 @@ import pathlib
 import re
 import types
 
+import boardview
 import changemap
 import design
 import gatemarks
 import jsonfile
 import seal
+import structmark
 
 R2_PREMISE_HEAD = "前提不成立: "
 R2_MISSING_HEAD = f"{design.MISSING}: "
@@ -53,6 +57,13 @@ RETURN_FIELDS = ("ok", *EYES, "questions", "premise_check", "structure_after", "
 VERDICTS = ("resolved", "escalate")
 NO_FILE = "出力のファイルが無い"
 NO_AFTER = "直しの後の実測: 控えが無い（測っていない run）"   # 元 blk-eyes/lib/eyes.py:93
+REVIEW_ACCEPTED = "  事前審査の最後の往復（pass-{k}）は上の外れの訳を見て案を通した（外れを認めた）"
+REVIEW_BLOCKED = "  事前審査の最後の往復（pass-{k}）は上の外れの訳を見て、block の穴 {n} 件を残した（外れを認めていない）: {faces}"
+REVIEW_GAVE_UP = "  事前審査の最後の往復（pass-{k}）は受け付けが諦めて案を通していない（外れを認めていない）: {why}"
+REVIEW_HELD = ("  事前審査の最後の往復（pass-{k}）は block の穴を挙げ直さなかったが、前の往復の穴を保留のまま案を通していない"
+               "（外れを認めていない。往復の控えの抜け方: {outcome}）")
+REVIEW_NO_PLAN = "事前審査は直す物の無い周（形 design）で、案を審査していない"
+REVIEW_UNREAD = "  事前審査の最後の往復の返答を読めない（外れを認めたかは分からない）: {why}"
 GREEN_LINE = "最後のテストの認証が通っていない（赤は最後の承認ノードで人が見る）"
 DOC_SUFFIXES = (".md",)
 DESIGN_PREMISES = "design-premises.json"   # 独立設計の役に貼った物の控え（design.json の隣。元 design.PREMISES_FILE）
@@ -255,6 +266,35 @@ def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_fil
             f"- 修正の印: {'・'.join(marks) if marks else '（渡っていない）'}"]),
         "green_line": "" if green_ok is True else GREEN_LINE,
     }
+
+
+def after_section(eyes_dir, review_folder) -> str:
+    """R1・R3 の頭に貼る直しの後の実測の節: 数の 1 文（控えが無ければ NO_AFTER）。修正案の外れの訳が在る run は、訳の行と事前審査の
+    最後の往復の結論を続ける（持ち主の決め tell-downstream。訳の無い run は数の 1 文だけ）"""
+    counts = structmark.after_counts(eyes_dir)
+    if not counts:
+        return NO_AFTER
+    devs = structmark.deviation_lines(eyes_dir)
+    return "\n".join([counts, *devs, plan_review_line(review_folder)] if devs else [counts])
+
+
+def plan_review_line(review_folder) -> str:
+    """事前審査の置き場 review_folder の最後に開いた往復が案を通したか（通否の持ち主は boardview.verdict）"""
+    try:
+        inputs = boardview.read_open(review_folder)
+        if inputs.get("form") == boardview.DESIGN_FORM:
+            return REVIEW_UNREAD.format(why=REVIEW_NO_PLAN)
+        k = inputs["k"]
+        v = boardview.verdict(pathlib.Path(review_folder), inputs)
+    except (boardview.Missing, KeyError) as e:
+        return REVIEW_UNREAD.format(why=e)
+    if v.ok:
+        return REVIEW_ACCEPTED.format(k=k)
+    if v.gave:
+        return REVIEW_GAVE_UP.format(k=k, why=v.gave)
+    if v.blocks:
+        return REVIEW_BLOCKED.format(k=k, n=len(v.blocks), faces="; ".join(f"{f.get('key')}: {f.get('why')}" for f in v.blocks))
+    return REVIEW_HELD.format(k=k, outcome=v.outcome)
 
 
 def read_json(path):

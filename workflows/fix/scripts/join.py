@@ -64,9 +64,9 @@ def main() -> dict:
 
         def merge_one(g, earlier):
             r = results[g["group_id"]]
-            tdd_rows = [u for u in (r.get("tdd") or {}).get("units") or [] if isinstance(u, dict)]
+            tdd_rows = fixboard.child_tdd_units(r)
             union = sorted({f for u in tdd_rows for f in fixboard.unit_test_files(u)} | {t["path"] for t in fixboard.child_allowed_rows(r)})
-            named = [*verified, *(r.get("verified") or [])]
+            named = [*verified, *fixboard.child_verified(r)]
 
             def check(names):
                 shared = set(names) & earlier
@@ -81,7 +81,7 @@ def main() -> dict:
                 return lanekit.Merge(f"組の差分を当てられない（{type(e).__name__}: {oneline.one_line(e)[:300]}）",
                                      "", [], [], False)
             if not got.why:
-                verified.extend(t for t in r.get("verified") or [] if t not in verified)
+                verified.extend(t for t in fixboard.child_verified(r) if t not in verified)
             return got
         applied = []
         for g, got in lanekit.merge_in_order(with_result, merge_one):

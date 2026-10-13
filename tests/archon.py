@@ -24,7 +24,7 @@ import tempfile
 import unittest
 from collections.abc import Iterable, Iterator
 
-from bin._lib import pack, place
+from bin._lib import launcher, pack, place
 from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -86,11 +86,12 @@ def tree(names: Iterable[str], workflows: pathlib.Path = WORKFLOWS) -> Iterator[
 
 def archon(cwd: pathlib.Path, *args: str) -> subprocess.CompletedProcess:
     """源の Archon を cwd で起こす。ARCHON_HOME は cwd の横の使い捨て。源か bun が無ければ absent。入口の殻を通さないので殻が渡す
-    源のパス（place.SOURCE_ENV）は継がない（試験が殻の中で走っても、線の後始末の節が外の Archon を起こさない）"""
+    源のパス（place.SOURCE_ENV）は継がない（試験が殻の中で走っても、線の後始末の節が外の Archon を起こさない）。包みの宣言
+    （launcher.FENCE_RECORDS_ENV）も継がない（包みを通らない起動を、外の run の記録で受け付けさせない）"""
     entry = source() / place.ENTRY
     bun = shutil.which("bun")
     if bun is None:
         raise absent("bun が無い")
-    env = {k: v for k, v in os.environ.items() if k != place.SOURCE_ENV}
+    env = {k: v for k, v in os.environ.items() if k not in (place.SOURCE_ENV, launcher.FENCE_RECORDS_ENV)}
     env.update({"ARCHON_HOME": str(cwd.parent / "archon-home"), "WORKS_FACTORY_ROOT": str(ROOT)})
     return subprocess.run([bun, str(entry), *args], cwd=cwd, env=env, capture_output=True, text=True, encoding="utf-8")

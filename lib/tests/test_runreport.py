@@ -864,6 +864,17 @@ class CarryCase(Base):
         self.assertIn("修正の段は 1 単位（u3）を受け、1 単位（u4）を止めて持ち越した", text.splitlines()[2])
         self.assertIn("再審の結果（1 往復）: 退ける（異議: 判定が違う）", self.section(text, report.DECISIONS_HEADING))
 
+    def test_asked_query_hits_fixed_unit_keeps_its_fix_in_the_next_request(self):
+        """query_hits_fixed の単位は直してから申し出たので、次の依頼の行は直しが差分に在ると言い、直さずに残したと言わない（#355）"""
+        rows = [{"unit_key": "u1", "between": ["判定:58", "stats.py:14"], "kind": conflict.QUERY_HITS_FIXED, "which_is_right": "query",
+                 "ruling": {"decision": "ask_human", "text": "置き換える問いを書けない"}}]
+        fix = {**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": rows})}
+        got, _, _ = self.build(fixed_run(fix=fix))
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        text = {r["where"]: r["text"] for r in doc["findings"]}["u1"]
+        self.assertIn(conflict.FIX_IN_DIFF, text)
+        self.assertNotIn(conflict.UNFIXED_LEFT, text)
+
     def test_objection_without_rejudge_is_carried(self):
         returns = fixed_run(fix={**fixed_run()["fix"], "objection": "判定が違う"})
         self.assertIn({"where": runreport.REJUDGE_LEFT_WHERE, "text": "判定が違う"}, self.next_request(returns, []))

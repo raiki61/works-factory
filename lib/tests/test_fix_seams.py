@@ -1032,6 +1032,21 @@ class FactchecksSeamCase(TempCase):
         self.assertEqual(self.fc.precheck(self.cfg, self.reply)["rejects"], [])
         self.assertTrue(self.fc.precheck(self.cfg, self.reply, items=[{**self.ITEM, "allowed_paths": ["stats.py"]}])["ok"])
 
+    def test_precheck_reads_the_fixer_tree_the_acceptance_reads(self):
+        """事前の確かめと受け付けは、修正役が変え始めた木（段の頭）を同じ所から読む: 段の頭より前に変わった stats.py を、
+        段の頭を見ない照らし（輪の凍った木に戻る）は修正役に問い、受け付けは問わない。その場面で 2 つの範囲の行が揃う（#332）"""
+        for pass_, name in (("first", fixboard.FIX_HEAD_FILE), ("ruled", fixboard.RULED_HEAD_FILE)):
+            with self.subTest(pass_=pass_):
+                (self.place / name).write_text(json.dumps({"tree": leftovers.snapshot(self.repo)}), encoding="utf-8")
+                args = (self.reply, [R_MEAN], self.place, self.rev, self.repo, "", pass_)
+                accepted, _ = self.fc.check_plan_scope(*args, ask=True, since=fixboard.stage_head(self.place, name),
+                                                       items=[self.ITEM])
+                headless, _ = self.fc.check_plan_scope(*args, ask=True, items=[self.ITEM])
+                self.assertNotEqual(headless, accepted, "2 つの木で照らしが食い違う場面")
+                got = self.fc.precheck({**self.cfg, "pass": pass_}, self.reply, items=[self.ITEM])
+                self.assertEqual([r["text"] for r in got["rejects"] if r["check"] == "scope"], accepted)
+                (self.place / name).unlink()
+
     def test_scope_head_follows_the_consult_place(self):
         import consult
         import planscope
@@ -1272,6 +1287,24 @@ class LaneChecksSeamCase(TempCase):
         fc, since, item, reply = self.since_case()
         item["out_of_scope"] += [{"glob": "IMG.bin", "why": "項目 2 では触らない"}, {"glob": "WIN.md", "why": "項目 2 では触らない"}]
         lines, _ = fc.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since, items=[item])
+        self.assertEqual(lines, [])
+
+    def test_plan_scope_skips_a_file_only_the_git_filter_shows_changed(self):
+        """since の前に書いた ident のファイルは、作業ツリーの中身（$Id: <sha> $）と since の木の中身（$Id$）が違っても git の
+        比べでは触っていない: 修正役が足した行（canonical の外の同名の定義）として照らさない（#333）"""
+        import factchecks
+        (self.repo / ".gitattributes").write_text("helper.py ident\n", encoding="utf-8")
+        (self.repo / "helper.py").write_text(f'def helper(): return "$Id: {"0" * 40} $"\n', encoding="utf-8")
+        stats = self.repo / "stats.py"
+        since = leftovers.snapshot(self.repo)
+        stats.write_text(stats.read_text(encoding="utf-8") + "\n\ndef helper():\n    return 1\n", encoding="utf-8")
+        item = {"item": 1, "unit_keys": [R_MEAN], "removes": [], "route": "direct", "tests": [], "rewrite_tests": [],
+                "adds": [{"kind": "function", "name": "helper", "canonical": "stats.py"}],
+                "allowed_paths": ["stats.py"], "out_of_scope": []}
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py"]}]}
+        self.assertEqual(writes.changed_from(self.repo, since), ["stats.py"], "git の比べでは helper.py を触っていない")
+        lines, _ = factchecks.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since,
+                                               items=[item])
         self.assertEqual(lines, [])
 
     def test_plan_scope_counts_what_the_loop_fixed_before_since(self):
@@ -1566,6 +1599,7 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual(fixboard.child_allowed_rows(result), [good, good])
         self.assertEqual(fixboard.allowed_test_rows(self.place, [result]), [good])
         self.assertEqual((fixboard.child_allowed_rows(None), fixboard.child_allowed_rows({"allowed_tests": None})), ([], []))
+        self.assertEqual([fixboard.child_allowed_rows({"allowed_tests": v}) for v in (5, "tests/t.py", good)], [[], [], []])
 
     def test_fix_groups_join_units_through_items(self):
         items = [{"item": 1, "unit_keys": ["A", "C"]}, {"item": 2, "unit_keys": ["C", "D"]}, {"item": 3, "unit_keys": ["B"]}]
@@ -1602,6 +1636,9 @@ class GroupScriptsSeamCase(TempCase):
                                  {"g1": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": [row]}}, "g2": None})
         self.assertEqual(got[0], {"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "units": [row]})
         self.assertEqual((got[1]["ran"], got[1]["units"], got[1]["reason"]), (False, [], fixboard.NO_RESULT))
+        got = fixboard.tdd_units([{"group_id": "g1"}, {"group_id": "g2"}],
+                                 {"g1": {"tdd": ["x"]}, "g2": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": 5}}})
+        self.assertEqual([(r["ran"], r["units"]) for r in got], [(False, []), (True, [])], "形の崩れた tdd・units は空で読む（#342）")
 
     def test_cited_rows_drop_claims_whose_lines_are_gone(self):
         row = {"unit_key": "A", "between": ["stats.py:9", "test_stats.py:1"], "why_both_cannot_hold": "x" * 12,
@@ -1776,6 +1813,9 @@ class GroupScriptsSeamCase(TempCase):
             self.assertEqual(fixboard.rerun_cmd(self.place, on, " make test "), "make test")
             self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": {"test_cmd": {"gate": "same_as_suite"}}}, "make test"), "")
             self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": {"ran": False}}, "make test"), "")
+            for tdd in (["x"], "x", {"test_cmd": ["x"]}, {"test_cmd": "on"}):
+                self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": tdd}, "make test"), "make test",
+                                 f"関門が読めない子の結果（{tdd!r}）は on と見て走らせ直す")
             fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "A", "depth": "軽量", "why": "x"},
                                                                    {"unit_id": "B", "depth": "軽量", "why": "x"}])
             self.assertEqual(fixboard.rerun_cmd(self.place, on, "make test"), "", "全部の単位が軽量")
@@ -1969,7 +2009,7 @@ class FixAcceptSeamCase(TempCase):
         self.assertEqual(got, {"a": {"status": "fixed", "reason": ""}, "b": {"status": "not_done", "reason": "答え待ち"},
                                "c": {"status": "given_up", "reason": "諦めた"},
                                "d": {"status": "not_done", "reason": "人が決める"}})
-        got = fixboard.unit_outcomes(["a"], {}, conflicted=["a"])
+        got = fixboard.unit_outcomes(["a"], {}, conflicted={"a": fixboard.PARKED_FOR_RULING})
         self.assertEqual(got["a"], {"status": "not_done", "reason": fixboard.PARKED_FOR_RULING})
 
     def test_allowed_tests_take_rulings_and_agreements(self):
@@ -2134,6 +2174,27 @@ class FixAcceptSeamCase(TempCase):
             "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
             "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}])
         self.assertTrue(got["ok"] and got["conflicted"], got)
+        self.assertEqual(got["units"][self.D_CLAMP], {"status": "not_done", "reason": fixboard.QUERY_PARKED},
+                         "直してから申し出た単位を、直さずに裁定へ回したと書いた（#355）")
+
+    def test_population_query_naming_the_branch_closes_the_same_text_fix(self):
+        """欠陥の行と正しい行が同じ字（どちらも `return lo`）でも、裁定が分岐の条件の行を名指す population の問いに置き換えれば、
+        例の試しを通り、上限の分岐だけを直した木で閉じる（#355。c38831c2 の裁定役が書けないとして人に回した置き換え）"""
+        import conflict
+        import querytest
+        import ruling
+        claim = {"unit_key": self.D_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+                 "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
+                 "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
+        replaced = {"how": {"patterns": ["if x > hi:"], "paths": ["stats.py"], "count": "lines", "fixed": True},
+                    "counts": "population", "hits": ["    if x > hi:"], "misses": ["    if x < lo:"]}
+        decided = {"decision": conflict.REPLACE, "text": "上限の分岐の条件の行を名指す", "limits": [], "query": replaced}
+        self.assertEqual(ruling.query_problems(decided, claim), [])
+        conflict.park(self.place, [claim], source=conflict.FIX_SOURCE, ruling={**decided, "by": "test"})
+        got = self._accept_clamp(pass_="ruled")
+        self.assertTrue(got["ok"], got["reason"])
+        rows = json.loads((self.place / querytest.CLOSURE_FILE).read_text(encoding="utf-8"))["rows"]
+        self.assertEqual([(r["unit_key"], r["counts"], r["closed"]) for r in rows], [(self.D_CLAMP, "population", True)], rows)
 
     def test_query_hits_fixed_after_replace_query_tries_the_replaced_query(self):
         """裁定 replace_query の後の回は、閉鎖を数える問い（置き換えた問い）で申し出の correct_lines を試す。判定者の問いが当たらず、
@@ -2154,6 +2215,101 @@ class FixAcceptSeamCase(TempCase):
         self.assertIn("ask_human", got["units"][self.D_CLAMP]["reason"], got)
         self.assertEqual([r["ruling"]["decision"] for r in conflict.items(self.place) if r["correct_lines"] == ["        return hi"]],
                          [conflict.ASK])
+
+    def test_reverted_query_hits_fixed_fix_is_not_said_to_be_in_the_diff(self):
+        """裁定の後の段の最後の回に、同じファイルの別の単位を止めて段の頭へ戻すと、人に回した query_hits_fixed の単位の直しも
+        控えの patch へ移る。関所の行と単位の結末の理由は「直しは差分に在り」と言わず、控えの patch を名指す（#355）"""
+        import conflict
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        path = self.repo / "stats.py"
+        text = path.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        path.write_text(text, encoding="utf-8")
+        claim = {"unit_key": R_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+                 "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
+                 "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
+        reply = {"changes": [_fix_row(R_MEAN, 1), _fix_row(R_MEAN, 1)], "not_done": [], "conflicts": [claim]}
+        got = fixboard.accept_reply(reply, self.place, self.repo, pass_="ruled", iteration=fixboard.GIVE_UP_AFTER,
+                                    owed=[R_MEAN, R_CLAMP], judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+        self.assertEqual(got["units"][R_MEAN]["status"], "given_up", got)
+        self.assertNotIn("return hi", path.read_text(encoding="utf-8"), "clamp の直しが作業ツリーに残った（場面が崩れた）")
+        row = next(r for r in conflict.human_lines(self.place) if r.startswith(R_CLAMP))
+        self.assertNotIn(conflict.FIX_IN_DIFF, row)
+        self.assertIn(fixboard.PARKED_PATCH, row)
+        self.assertNotIn(conflict.FIX_IN_DIFF, conflict.held_by_rulings(self.place)[R_CLAMP])
+
+    def _revert_after_head(self, park_clamp):
+        """clamp の直しと人に回した query_hits_fixed の clamp の行（park_clamp が積む）を段の頭より前に置き、頭の後に mean を直して、
+        裁定の後の段の最後の回に mean を止めて stats.py を段の頭へ戻す。返りは clamp の関所の行"""
+        import conflict
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        path = self.repo / "stats.py"
+        old, new = list(R_FIXED.items())[1]
+        path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
+        park_clamp({"unit_key": R_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+                    "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
+                    "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]},
+                   {"decision": conflict.ASK, "text": "人が決める", "limits": [], "by": "test"})
+        head = leftovers.snapshot(self.repo)
+        old, new = list(R_FIXED.items())[0]
+        path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
+        reply = {"changes": [_fix_row(R_MEAN, 1), _fix_row(R_MEAN, 1)], "not_done": [], "conflicts": []}
+        got = fixboard.accept_reply(reply, self.place, self.repo, pass_="ruled", iteration=fixboard.GIVE_UP_AFTER,
+                                    owed=[R_MEAN], judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+        self.assertEqual(got["units"][R_MEAN]["status"], "given_up", got)
+        self.assertIn("return hi", path.read_text(encoding="utf-8"), "段の頭より前の clamp の直しが戻った（場面が崩れた）")
+        return next(r for r in conflict.human_lines(self.place) if r.startswith(R_CLAMP))
+
+    def test_revert_keeps_fix_in_diff_for_first_pass_rows(self):
+        """1 回目の段に積んだ query_hits_fixed の行の直しは裁定の後の段の頭の木に在り、機械が同じファイルを段の頭へ戻しても差分に
+        残る。関所の行は「直しは差分に在り」のままで、控えの patch を名指さない（#355）"""
+        import conflict
+        row = self._revert_after_head(lambda claim, ruling: conflict.park(self.place, [claim], source=conflict.FIX_SOURCE,
+                                                                           ruling=ruling, pass_="first"))
+        self.assertIn(conflict.FIX_IN_DIFF, row)
+        self.assertNotIn(fixboard.PARKED_PATCH, row)
+
+    def test_revert_keeps_fix_in_diff_for_rows_copied_from_the_prior_stage(self):
+        """adopt_prior が写した前の修正の段の行（PRIOR）も、直しは段の頭の木に在る。戻しても控えの patch を名指さない（#355）"""
+        import conflict
+        prior = self.tmp / "prior-place"
+        prior.mkdir()
+
+        def park_clamp(claim, ruling):
+            conflict.park(prior, [claim], source=conflict.FIX_SOURCE, ruling=ruling, pass_="ruled")
+            conflict.adopt_prior(self.place, prior, [])
+        row = self._revert_after_head(park_clamp)
+        self.assertIn(conflict.FIX_IN_DIFF, row)
+        self.assertNotIn(fixboard.PARKED_PATCH, row)
+
+    def test_ruled_pass_asked_unit_reason_says_where_the_fix_is_by_kind(self):
+        """裁定の後の段の単位の結末（fix-units.json に写る units）も、人に回した query_hits_fixed の単位は「直しは差分に在り」と
+        書き、ほかの種類の単位には書かない（1 回目の段の QUERY_PARKED と同じ分け。#355）"""
+        import conflict
+        asked = {"decision": conflict.ASK, "text": "人が決める", "limits": [], "by": "test"}
+        conflict.park(self.place, [{"unit_key": R_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+                                    "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たる",
+                                    "which_is_right": "query", "kind": "query_hits_fixed",
+                                    "correct_lines": ["        return lo"]}], source=conflict.FIX_SOURCE, ruling=asked)
+        conflict.park(self.place, [self._claim()], source=conflict.FIX_SOURCE, ruling=asked)
+        got = self._accept_claims([], pass_="ruled")
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {R_MEAN: "not_done", R_CLAMP: "not_done"}, got)
+        self.assertIn(conflict.FIX_IN_DIFF, got["units"][R_CLAMP]["reason"])
+        self.assertNotIn(conflict.FIX_IN_DIFF, got["units"][R_MEAN]["reason"])
+
+    def test_first_pass_parked_reason_says_fix_in_diff_only_for_query_hits_fixed_alone(self):
+        """1 回目の段で裁定へ回した単位の理由は、裁かれていない申し出が query_hits_fixed だけの単位だけ QUERY_PARKED。
+        unnamed_test_broke の単位も、query_hits_fixed とほかの種類が混ざる単位も PARKED_FOR_RULING（#355）"""
+        import conflict
+        got = self._accept_claims([self._claim()])
+        self.assertTrue(got["conflicted"], got)
+        self.assertEqual(got["units"][R_MEAN], {"status": "not_done", "reason": fixboard.PARKED_FOR_RULING})
+        conflict.park(self.place, [self._claim("stats.py:9", "stats.py:10", which_is_right="query", kind="query_hits_fixed",
+                                               correct_lines=["    return sum(xs) / len(xs)"])], source=conflict.FIX_SOURCE)
+        self.assertEqual(fixboard.parked_reasons(self.place, [R_MEAN]), {R_MEAN: fixboard.PARKED_FOR_RULING})
 
     def test_unclosed_defects_count_on_the_last_round_stops_the_unit(self):
         """最後の回まで申し出が無ければ、その単位を止めて人に回す（閉じない数えのまま受けて round_limit で終えない）"""

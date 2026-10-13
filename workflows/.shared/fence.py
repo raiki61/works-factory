@@ -9,9 +9,14 @@ packages/providers/src/claude/provider.ts:801-803）ので、YAML の固定の�
 一覧の組み方は今の works の role_run.protected_paths を写した（下の写しの注記）。起動に足す形は包み claude-adapter の
 「旗 no-tree-write の起動に denyWrite を足す」を採り、旗の代わりに、YAML が読むだけの役に書く固定の値
 （tests/layers/scan.py の NO_TREE_WRITE。~ を HOME で解くと Archon の家）を印に読む。印の無い起動は argv を変えずに起こす。
+印の在る起動は、起こす前に起動の記録（--records。起動の殻が env の RECORDS_ENV でも script のノードに名指す）へ時刻と cwd の 1 行を
+足し、書けなければ起こさない。記録は --own の下に置かれ、柵の中の役は書き換えられない。受け付け（test-gate の ci-accept）は
+fenced_since で、役を起こす前の時刻より後にその作業ツリーで柵の掛かった起動が在ったかを見る（今の works の ci_role.take の
+「包みの起動の記録を見て止める」と同じ所。棚卸しの T49）。
 標準ライブラリだけを使う（起動の殻が `python -I -B` で起こす）。
 """
 import argparse
+import datetime
 import json
 import os
 import subprocess
@@ -21,6 +26,7 @@ from collections.abc import Callable, Sequence
 SETTINGS = "--settings"
 DENY_WRITE = ("sandbox", "filesystem", "denyWrite")
 REFUSED_EXIT = 3
+RECORDS_ENV = "WORKS_FACTORY_FENCE_RECORDS"   # 起動の記録のパス。在れば run は包みを通ると宣言した
 
 
 class Refused(Exception):
@@ -29,7 +35,7 @@ class Refused(Exception):
 
 def protected(cwd: str, archon_home: str, claude_config: str, own: Sequence[str]) -> list[str]:
     """書き込みを禁じるパスの一覧: 今の works の protected_paths（共有ボードの代わりに Archon の家）の後ろに、Claude の設定（読んだ証拠と
-    書き込みの記録とフック）と own（起動の殻が書いた口と、この run の役を起こす時に sandbox の外で走る物）の実パスを足す。git が読めず
+    書き込みの記録とフック）と own（起動の殻が書いた口と、この run の後の役の起動や次の起動が sandbox の外で走らせる物）の実パスを足す。git が読めず
     守る場所が決まらなければ Refused"""
     paths = protected_paths(cwd, archon_home)
     if paths is None:
@@ -107,6 +113,55 @@ def marks(item, archon_home: str) -> bool:
     return isinstance(item, str) and os.path.realpath(os.path.expanduser(item)) == os.path.realpath(archon_home)
 
 
+def record(records: str, cwd: str) -> None:
+    """起動の記録 records に、今の時刻と cwd の実パスの 1 行を足す。書けなければ Refused"""
+    row = {"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "cwd": os.path.realpath(cwd)}
+    try:
+        os.makedirs(os.path.dirname(records), exist_ok=True)
+        with open(records, "a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except OSError as error:
+        raise Refused(f"起動の記録 {records} を書けない（{error}）") from None
+
+
+def bad_declaration(records: str) -> str:
+    """宣言した記録のパス records を記録の置き場に読めなければ訳の 1 行（読めれば空）"""
+    return "" if os.path.isabs(records) else f"{RECORDS_ENV} が絶対パスでない（{records!r}）"
+
+
+def _at(text) -> datetime.datetime | None:
+    """時刻の字（ISO 8601。時差つき）。読めなければ None"""
+    try:
+        at = datetime.datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return None
+    return at if at.tzinfo else None
+
+
+def fenced_since(records, root, since: str | None) -> str:
+    """記録 records に、since より後に root（実パス）かその下を cwd にした起動が在れば空。無ければ訳の 1 行"""
+    start = _at(since)
+    if start is None:
+        return f"役を起こす前の時刻 {since!r} が読めない"
+    try:
+        with open(records, encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()
+    except OSError as error:
+        return f"起動の記録 {records} が読めない（{error}）"
+    top = os.path.realpath(root)
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(row, dict) or not isinstance(cwd := row.get("cwd"), str):
+            continue
+        at = _at(row.get("at"))
+        if at is not None and at > start and (cwd == top or cwd.startswith(top.rstrip(os.sep) + os.sep)):
+            return ""
+    return f"起動の記録 {records} に、{since} より後に {top} で柵を掛けた起動が無い"
+
+
 def main(argv: list[str]) -> int:
     cut = argv.index("--") if "--" in argv else len(argv)
     ap = argparse.ArgumentParser(prog="fence.py")
@@ -114,11 +169,17 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--archon-home", required=True)
     ap.add_argument("--claude-config", required=True)
     ap.add_argument("--own", action="append", default=[])
+    ap.add_argument("--records", required=True)
     opts = ap.parse_args(argv[:cut])
     rest = argv[cut + 1:]
+
+    def paths() -> list[str]:
+        listed = protected(os.getcwd(), opts.archon_home, opts.claude_config, opts.own)
+        record(opts.records, os.getcwd())
+        return listed
+
     try:
-        rest = fenced_argv(rest, opts.archon_home,
-                           lambda: protected(os.getcwd(), opts.archon_home, opts.claude_config, opts.own))
+        rest = fenced_argv(rest, opts.archon_home, paths)
     except Refused as refused:
         print(f"works-factory fence: {refused}", file=sys.stderr)
         return REFUSED_EXIT
