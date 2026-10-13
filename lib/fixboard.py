@@ -761,8 +761,9 @@ def tdd_units(groups, results) -> list:
 
 def cited_rows(rows, repo, roots=()) -> tuple:
     """(名指しが全部現物に在る申し出の行, 落とした行の理由の文)。行は conflict の申し出の形（FIELDS。kind は無くてもよい）で、
-    between の名指しを 1 つずつ cite.problem で照らす（親の作業ツリー repo と roots の下）。元 works/blk-fix/lib/tddlanes.py・
-    fixlanes.py の join の「枝の申し出は盤面の確かめを通った物を積む」所（conflict.problems の名指しの照らし）"""
+    between の名指しを 1 つずつ cite.problem で照らす（親の作業ツリー repo と roots の下）。between が空の機械の諦め
+    （conflict.GAVE_UP_SOURCE。brief の無い run）は照らさずに通す（元 works も機械の諦めは照らさずに積んだ）。元
+    works/blk-fix/lib/tddlanes.py・fixlanes.py の join の「枝の申し出は盤面の確かめを通った物を積む」所（conflict.problems の名指しの照らし）"""
     import cite
     import conflict
     need = [k for k in conflict.FIELDS if k != conflict.KIND_FIELD]
@@ -772,6 +773,9 @@ def cited_rows(rows, repo, roots=()) -> tuple:
             dropped.append(f"申し出[{i}] の欄が足りない（{need}）")
             continue
         cites = r["between"] if isinstance(r["between"], list) else []
+        if not cites and r.get("source") == conflict.GAVE_UP_SOURCE:
+            ok.append(r)
+            continue
         bad = [e for e in (cite.problem(c, repo, roots) for c in cites) if e] if cites else ["between が空"]
         if bad:
             dropped.append(f"申し出[{i}]（{r.get('unit_key')}）: {'；'.join(bad)}")
@@ -1582,15 +1586,15 @@ def _unit_row(key, fix_units, tdd_rows) -> dict:
 
 def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str = "", fix_units=None, reply=None,
                  reply_file: str = "", allowed_rows=(), conflicts=(), worktree: str = "", mismatched=(),
-                 accept_trace=(), closure=()) -> dict:
+                 accept_trace=(), closure=(), place: str = "") -> dict:
     """組の子の結果（out_dir/<group_id>/result.json の中身。join・collect・tdd-unit・conflict-check が読む）:
     {group_id, unit_ids, end_tree, start_tree, units: [{unit_id, status, reason}], tdd, conflicts, objection, changed, x_scalars,
     allowed_tests, verified, reply_file, tdd_state, worktree, handoffs, mismatched, accept_trace, closure,
-    claimed}。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
+    claimed, place}。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
     mismatched_lines（最後の関所を開ける理由）、accept_trace は子の置き場の accept_trace_rows の行（group_id を足す。親の collect が
     diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。fixbeside.closure_rows）と claimed は reply の
     changes の単位（親の collect が diff の隣の fixbeside.CLOSURE_FILE に合わせる）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
-    writes.carry_children）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
+    writes.carry_children）。place は子の run の置き場（親の conflict-check がこの組の申し出の名指しに許す根）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_state は子の TDD の輪の状態のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
     を持つ。無ければ None）、allowed_tests は reply の在る組（修正の輪の受け付けが通った組）だけ allowed_rows の行（無い組は []。join の和と親の collect の
@@ -1614,7 +1618,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_state: str =
             "mismatched": list(mismatched),
             "accept_trace": [{**r, "group_id": gid} for r in accept_trace or [] if isinstance(r, dict)],
             "closure": None if closure is None else [r for r in closure if isinstance(r, dict)],
-            "claimed": fixbeside.claimed_of(reply)}
+            "claimed": fixbeside.claimed_of(reply), "place": str(place or "")}
 
 
 def adopt_tdd_states(place, results, repo, *, prior: bool = False) -> list:
