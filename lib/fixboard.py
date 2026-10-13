@@ -2025,7 +2025,7 @@ def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
         if bad:
             return reply, {"ok": False, "reason": CONFLICT_BAD + " / ".join(bad), "lines": lines}
         if pass_ == "first":
-            conflict.park(place, items, source=conflict.FIX_SOURCE, pass_=pass_)
+            conflict.park(place, items, source=conflict.FIX_SOURCE)
         else:
             conflict.park(place, items, source=conflict.FIX_SOURCE, pass_=pass_,
                           ruling={"decision": conflict.ASK, "text": SECOND_CONFLICT, "limits": [], "by": FIX_ACCEPT_BY})

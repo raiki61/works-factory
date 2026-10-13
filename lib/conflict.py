@@ -166,7 +166,7 @@ UNFIXED_LEFT = "直さずに残した"
 FIX_IN_DIFF = f"{fixboard.FIX_IN_DIFF_CORE}が人の決め待ち"
 FIX_REVERTED = UNFIXED_LEFT + "（戻した直しの控え {patch}）"
 REVERTED_FIELD = "reverted_to"          # 名指したファイルを機械が段の頭へ戻した query_hits_fixed の行に置く控えの patch（mark_reverted）
-FILED_IN = "filed_in"                   # 修正役の返答の受け付けが行を積んだ段（first・ruled。park の pass_。mark_reverted が読む）
+FILED_IN = "filed_in"                   # 裁定の後の段の受け付けが積んだ行の印（park の pass_ の ruled だけ。mark_reverted が読む）
 GAVE_UP_PROMISE = ("案の項目そのものが誤りと裁いたが、同じ run の中で案を直せなかった（諦めた。理由は「案の直しを諦めた理由」）。"
                    "この単位も「項目の単位」に並べた同じ項目の単位も直すな（機械が直す義務から外した。最後の承認ノードで人が"
                    f"決める）。changes に書くな。{HELD_WORK_KEPT}（戻すな）")   # 裁定の文の GAVE_UP の行の約束（write_rulings）
@@ -582,11 +582,14 @@ def kind_counts_of(rows) -> dict:
 
 
 def park(b, rows, *, source: str, ruling: dict | None = None, round_: int = 1, pass_: str | None = None) -> list:
-    """申し出を積む（status parked・ruling は None か渡した物。pass_ を渡せば積んだ段を欄 FILED_IN に）。同じ単位・同じ名指し・同じ理由の申し出は積み増さない
+    """申し出を積む（status parked・ruling は None か渡した物。裁定の後の段の受け付けは pass_ に ruled を渡し、欄 FILED_IN に残す）。同じ単位・同じ名指し・同じ理由の申し出は積み増さない
     （実行基盤の呼び直し。案を直した行（状態 AMENDED）は数えない——作り直した後の同じ申し出は新しい申し出）。trace に 1 行ずつ。
-    返りは積んだ・在った行の id。source が SOURCES の外なら ValueError"""
+    返りは積んだ・在った行の id。source が SOURCES の外か、pass_ が ruled でも None でもなければ ValueError（1 回目の段の行は
+    mark_reverted が照らさないので印を持たない）"""
     if source not in SOURCES:
         raise ValueError(f"申し出の出どころ {source!r} が表 SOURCES {list(SOURCES)} に無い")
+    if pass_ not in (None, "ruled"):
+        raise ValueError(f"積んだ段の印は ruled だけ: {pass_!r}")
     doc = _load(b)
     ids = []
     for it in rows:
