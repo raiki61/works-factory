@@ -23,9 +23,9 @@ def main() -> None:
     art = Path(os.environ["ARTIFACTS_DIR"])
     plan_dir, round_dir, repo = art / planfile.PLAN_DIR, art / os.environ["INPUTS_DIR"], Path.cwd()
     rnd = planfile.read_round(round_dir)
-    start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
+    start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
     base_rev = (start.get("base_rev") if isinstance(start, dict) else "") or ""
-    world, _ = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.resolve)
+    world, _ = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.pointed)
     tables = planfile.answer_tables(plan_dir / rnd["structure"], world)
     keys = accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", ""))
     reply, why = rolekit.parse_reply(os.environ["INPUTS_REPLY"])
@@ -35,7 +35,7 @@ def main() -> None:
         out = planfile.take_replan(round_dir, plan_dir, items=rnd["items"], reply=reply, repo=repo, tables=tables,
                                    base_rev=base_rev, keys=keys)
     else:
-        judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.resolve)
+        judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed)
         out = planfile.take_plan(round_dir, plan_dir, judgment=judgment, reply=reply, repo=repo, tables=tables,
                                  base_rev=base_rev, keys=keys)
     out = {**out, "done": True} if out.get("halt") else rolekit.with_done(round_dir, planfile.ROLE, out)

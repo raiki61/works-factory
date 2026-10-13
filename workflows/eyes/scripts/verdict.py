@@ -35,10 +35,9 @@ try:
     if prep is None:
         out = eyeverdict.unverified("支度のノード（prep か、その前の直しの後の実測）が落ちた", protected)
     else:
-        design_ptr = json.loads(os.environ["INPUTS_DESIGN"])
-        design_file = boundary.resolve(design_ptr) if design_ptr else None
-        answer = json.loads(os.environ["INPUTS_ANSWERS"])
-        passed = eyeverdict._human_passed(json.loads(os.environ["INPUTS_PLAN_QUESTIONS"]), answer)
+        design_file = boundary.pointed(os.environ["INPUTS_DESIGN"])
+        answer = boundary.parsed(os.environ["INPUTS_ANSWERS"])
+        passed = eyeverdict._human_passed(boundary.parsed(os.environ["INPUTS_PLAN_QUESTIONS"]), answer)
         out = eyeverdict.collect(
             eyes_dir=eyes, run_eyes=prep["run_eyes"], compare_due=prep["compare_due"], premise_due=prep["premise_due"],
             design=eyeverdict.read_design(design_file),

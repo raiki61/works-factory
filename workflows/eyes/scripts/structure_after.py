@@ -22,8 +22,8 @@ import structmark  # noqa: E402
 
 after, devs, problems = {}, [], []
 try:
-    start_ptr = json.loads(os.environ["INPUTS_START"])
-    start = json.loads(boundary.resolve(start_ptr).read_text(encoding="utf-8")) if start_ptr else {}
+    start_file = boundary.pointed(os.environ["INPUTS_START"])
+    start = json.loads(start_file.read_text(encoding="utf-8")) if start_file else {}
     t0 = time.monotonic()
     after = stage_b.run(Path.cwd(), start.get("base_rev") or "", skip_prefix=boundary.RUNTIME_COPY_PREFIX)
     eye.stamp(after, t0)
@@ -32,8 +32,8 @@ try:
 except Exception as e:  # noqa: BLE001  測れない訳はどれも理由に残して進む
     problems.append(f"直しの後の実測が落ちた: {e}")
 try:
-    plan_ptr = json.loads(os.environ["INPUTS_PLAN"])
-    plan = json.loads(boundary.resolve(plan_ptr).read_text(encoding="utf-8")) if plan_ptr else {}
+    plan_file = boundary.pointed(os.environ["INPUTS_PLAN"])
+    plan = json.loads(plan_file.read_text(encoding="utf-8")) if plan_file else {}
     devs = planmarks.deviations(plan.get("fields"))
 except Exception as e:  # noqa: BLE001
     problems.append(f"修正案の外れの訳が読めない: {e}")

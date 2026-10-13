@@ -5,11 +5,10 @@
 - GATE_GO・GATE_STOP・GATE_STOP_NOTE・FLAG_BY_PREFIX: 関所の答えの語（approve は continue と、reject は stop と同じ。台帳 R32）と、
   一言の無い止めの理由と、止め札の by の頭
 - gate_text: 関所に見せる文（線 A の修正前の関所と同じ組み立て gatemarks.gate_text）
-- parse_gate: 関所の出口（with: の {from: $spec-gate.output, if_skipped: null} の字）を dict か None（開かなかった）に
+- parse_gate: 関所の出口（with: の {from: $spec-gate.output, if_skipped: null} を境の口 value が読んだ値）を dict か None（開かなかった）に
 - snapshot_name: 読むだけの役（審査）を起こす前の作業ツリーの写しのファイルの名
 - SPEC_FILE: 固めた仕様のファイルの名
 """
-import json
 import pathlib
 import sys
 
@@ -25,7 +24,6 @@ import gatemarks  # noqa: E402
 
 APPROVE = "spec.approve"
 SPEC_FILE = "spec.json"                 # 出口が書く record.process.spec の写し（b.work）
-NULL = "null"                           # 飛ばされた節の出力（if_skipped: null）が届く字
 GATE_GO = ("approve", "continue")       # approve は continue と、reject は stop と同じ（台帳 R32）
 GATE_STOP = ("stop", "reject")
 GATE_STOP_NOTE = "承認ノードで止めた"          # stop・reject に一言が無い時の理由
@@ -44,16 +42,13 @@ def gate_text(asking: dict, *, run_id: str = RUN_ID_HOLE) -> str:
     return gatemarks.gate_text(asking, run_id=run_id or RUN_ID_HOLE, node=APPROVE, record_name="process.spec.approval")
 
 
-def parse_gate(raw: str):
-    """関所の出口（with: の {from: $spec-gate.output, if_skipped: null}）を dict か None（開かなかった）に。形の誤りは BoardGap"""
-    if raw.strip() in ("", NULL):
-        return None
-    try:
-        gate = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise BoardGap(f"承認ノードの答えが JSON として読めない（{e}）: {raw[:200]!r}") from None
+def parse_gate(gate):
+    """関所の出口（with: の {from: $spec-gate.output, if_skipped: null} を境の口 value が読んだ値）を dict か None（開かなかった）に。
+    形の誤りは BoardGap"""
     if gate is None:
         return None
+    if isinstance(gate, str):
+        raise BoardGap(f"承認ノードの答えが JSON として読めない: {gate[:200]!r}")
     if not isinstance(gate, dict):
         raise BoardGap(f"承認ノードの答えが JSON のオブジェクトでない: {type(gate).__name__}")
     decision = gate.get("decision")
