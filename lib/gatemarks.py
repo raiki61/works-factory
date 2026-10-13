@@ -484,11 +484,6 @@ def _item(text: str, mark: dict, why=()) -> str:
     return text + _world(mark) + _no_narrow(mark) + tail + _push(mark)
 
 
-def _plan_keys(b) -> set:
-    plan = b.output_of_round("p2.fix_plan", b.round) or {}
-    return {k for p in plan.get("plan") or [] if isinstance(p, dict) for k in p.get("unit_keys") or [] if isinstance(k, str)}
-
-
 def _design_rows(b) -> list:
     """構造の目の行（控えが無い・落ちた周は []）"""
     state = structmark.read(b.dir)
@@ -603,7 +598,7 @@ def axis_reasons(b, mark: dict, units) -> dict:
         miss = sorted(k for k in units if k in dirty and k not in answered)
         if miss:
             out["clean"].append(f"構造の目が汚れると見た単位（{'・'.join(miss)}）に修正案の答えが無い")
-    outside = sorted(set(units) - _plan_keys(b))
+    outside = sorted(set(units) - converge.planned_units((b.output_of_round("p2.fix_plan", b.round) or {}).get("plan")))
     if outside:
         out["not_overkill"].append(f"修正案の単位の外を名指す（{'・'.join(outside)}）")
     return out
