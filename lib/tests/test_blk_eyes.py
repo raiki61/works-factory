@@ -37,6 +37,11 @@ class AnchorCase(unittest.TestCase):
         self.assertEqual(design.anchors("design.py:70 と works/.shared/core/design.py:70-75 を見よ"),
                          [("design.py", 70, 70), ("works/.shared/core/design.py", 70, 75)])
 
+    def test_command_output_reads_the_grep_form(self):
+        out = "$ grep -n median stats.py\nstats.py:44:def median(xs):"
+        self.assertEqual(design.anchors(out), [])
+        self.assertEqual(design.anchors(out, output=True), [("stats.py", 44, 44)])
+
     def test_host_port_and_dotted_names_are_not_anchors(self):
         """拡張子がコード・文書・設定の物（impact の表）でないドット付きの名と番号（host:port など）は名指しに数えない"""
         self.assertEqual(design.anchors("db.internal:5432 と foo.bar:12 に繋ぐ"), [])

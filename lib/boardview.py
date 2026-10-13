@@ -761,7 +761,8 @@ def added_marks(constraints: list, repo, start_doc) -> list:
     for c in constraints:
         where = list(dict.fromkeys(
             f"{path}:{start}" + (f"-{end}" if end != start else "")
-            for key in ("text", "measured_output") for path, start, end in design.anchors(c.get(key) if isinstance(c, dict) else None)
+            for key in ("text", "measured_output")
+            for path, start, end in design.anchors(c.get(key) if isinstance(c, dict) else None, output=key == "measured_output")
             if hit(path, start, end)))
         out.append({**c, "mark": ADDED_MARK.format(base=base_sha[:12], head=head_sha[:12], where="、".join(where))} if where else c)
     return out

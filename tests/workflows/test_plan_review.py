@@ -702,6 +702,15 @@ class AddedMarkCase(RunCase):
         mark = boardview.ADDED_MARK.format(base=self.root[:12], head=self.head[:12], where=f"stats.py:{self.added}")
         self.assertIn(json.dumps(mark, ensure_ascii=False), self.prompt(self.added, self.root))
 
+    def test_grep_output_naming_an_added_line_is_marked(self):
+        """名指しが measured_output の `grep -n` の出力（<パス>:<行>:<中身>）にだけ在っても付ける"""
+        r = self.run_
+        r.judgment(constraints=[{"text": "中央値の口は既に在る", "measured_how": "grep した", "kind": "実測",
+                                 "measured_output": f"$ grep -n median stats.py\nstats.py:{self.added}:def median(xs):"}])
+        r.start(input={"base": {"rev": self.root, "label": "PR の根"}})
+        mark = boardview.ADDED_MARK.format(base=self.root[:12], head=self.head[:12], where=f"stats.py:{self.added}")
+        self.assertIn(json.dumps(mark, ensure_ascii=False), r.out("r2_prep")["prompt"])
+
     def test_line_the_change_did_not_add_is_not_marked(self):
         self.assertNotIn('"mark"', self.prompt(self.old, self.root))
 

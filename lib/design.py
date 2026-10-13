@@ -88,7 +88,10 @@ BARE_NUM = re.compile(r"§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節")
 # の当たりは拾わない（URL の host:port を外す。拡張子の無い時刻 10:15 も、拡張子が英字で始まらない版の番号 3.12:1 も拾わない）。パスの字は ASCII に限る（日本語の地の文に続けて
 # 書いたパスの頭に地の文を混ぜない）。当たりのうち拡張子が ANCHOR_EXT（impact のコード・設定・文書の拡張子の表）に在る物だけを名指しに
 # 数える（db.internal:5432・foo.bar:12 のような host:port やドット付きの名を、固めた版に無いファイルとして拒み続けない）
-ANCHOR = re.compile(r"(?<![A-Za-z0-9_/.:\-])((?:[A-Za-z0-9_.\-]+/)*[A-Za-z0-9_.\-]*[A-Za-z0-9_\-]\.[A-Za-z][A-Za-z0-9]*):(\d+)(?:-(\d+))?(?![\d:])")
+_ANCHOR = r"(?<![A-Za-z0-9_/.:\-])((?:[A-Za-z0-9_.\-]+/)*[A-Za-z0-9_.\-]*[A-Za-z0-9_\-]\.[A-Za-z][A-Za-z0-9]*):(\d+)(?:-(\d+))?"
+ANCHOR = re.compile(_ANCHOR + r"(?![\d:])")
+# コマンドの出力（実測の measured_output）の名指し。`grep -n` の「<パス>:<行>:<中身>」のように行の後に `:` が続いてよい
+OUTPUT_ANCHOR = re.compile(_ANCHOR + r"(?!\d)")
 ANCHOR_EXT = impact.PY_EXT | impact.PATHREF_EXT | impact.DOC_EXT | impact.OTHER_CODE_EXT
 UNANCHORED = "根拠の実物の名指しなし"
 # Markdown として見出しを数える拡張子（_md_heads）と ATX 見出しの行（写しの rules の _md_slugs と同じ形）
@@ -477,15 +480,16 @@ def made(board_dir, schema) -> tuple:
         return None, f"{MISSING}: {e}"
 
 
-def _anchor_matches(text) -> list:
-    """ANCHOR の当たりのうち、拡張子が ANCHOR_EXT に在る物（出た順）"""
-    return [m for m in ANCHOR.finditer(str(text or ""))
+def _anchor_matches(text, output=False) -> list:
+    """ANCHOR（output ならコマンドの出力の OUTPUT_ANCHOR）の当たりのうち、拡張子が ANCHOR_EXT に在る物（出た順）"""
+    return [m for m in (OUTPUT_ANCHOR if output else ANCHOR).finditer(str(text or ""))
             if pathlib.PurePosixPath(m.group(1)).suffix[1:].lower() in ANCHOR_EXT]
 
 
-def anchors(text) -> list:
-    """文の中の `パス:行` と `パス:開始-終了` を (パス, 開始, 終了) で出た順に（`パス:行` は開始と終了が同じ。_anchor_matches の物だけ）"""
-    return [(m.group(1), int(m.group(2)), int(m.group(3) or m.group(2))) for m in _anchor_matches(text)]
+def anchors(text, output=False) -> list:
+    """文の中の `パス:行` と `パス:開始-終了` を (パス, 開始, 終了) で出た順に（`パス:行` は開始と終了が同じ。_anchor_matches の物だけ。
+    output はコマンドの出力として読む）"""
+    return [(m.group(1), int(m.group(2)), int(m.group(3) or m.group(2))) for m in _anchor_matches(text, output)]
 
 
 def anchor_misses(text, repo) -> list:
