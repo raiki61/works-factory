@@ -936,6 +936,20 @@ class PriorFailuresTest(unittest.TestCase):
             self.assertIn(row["text"], text)
 
 
+class DeclaredTestCachesTest(unittest.TestCase):
+    def test_intake_places_the_test_caches_of_its_with(self):
+        """入口の節の with: の test_caches（issue #270。lib に実行器の名を書かずに足すキャッシュの名の形）が judge の置き場に届く。
+        JSON でない字は依頼の語で止める"""
+        r = Run(self)
+        declared = nodes()["intake"]["with"]["test_caches"]
+        self.assertIn(".pytest_cache", declared)
+        self.assertTrue(r.returned("intake", **node_inputs(nodes()["intake"]))["go"])
+        self.assertEqual(json.loads((r.judge / ja.TEST_CACHES_FILE).read_text(encoding="utf-8")), declared)
+        r = Run(self)
+        self.assertFalse(r.returned("intake", test_caches="[")["go"])
+        self.assertEqual(json.loads((r.judge / ja.STOP_FILE).read_text(encoding="utf-8"))["stop_reason"], ja.REQUEST_STOP)
+
+
 class MaterialGiveUpTest(unittest.TestCase):
     def test_diagnose_prep_builds_the_brief_from_the_remaining_materials(self):
         """素材の 1 本の受け付けが諦めても、支度は残りの素材のファイルで材料を組む（諦めた素材が在るので判定役は起こさない）"""

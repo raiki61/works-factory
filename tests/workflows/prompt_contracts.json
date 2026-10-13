@@ -376,7 +376,7 @@
       "nodes": [
         "workflows/eyes/works-factory-eyes.yaml#r1-minimality"
       ],
-      "output_format_sha256": "9e5c88cfb433efb02f526ddddb63fc472b1933531cd50e4aa107e255ced3ed41",
+      "output_format_sha256": "19e15d7bed3733f2ef491ce5ced96b1765cc3b07858203c7249a71976f3bcdca",
       "json_keys": []
     },
     "forbidden": [

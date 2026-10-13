@@ -41,6 +41,7 @@ import converge  # noqa: E402
 import eye  # noqa: E402
 import gatemarks  # noqa: E402
 import libdocs  # noqa: E402
+import outcome  # noqa: E402
 import planblk  # noqa: E402
 import planbrief  # noqa: E402
 import planmarks  # noqa: E402
@@ -1340,6 +1341,8 @@ class CollectCase(unittest.TestCase):
         self.assertIn(planfile.NOTHING_OWED, run.json(out["ripple"])["error"])
         for key in ("plan", "structure", "ripple"):
             run.file(out[key])
+        self.assertTrue(outcome.plan_nothing_owed({"plan": {**out, "plan": str(run.file(out["plan"]))}}),
+                        "結末の決めが計画の書いた控えから義務 0 件の周を読めない")
         self.assertEqual((run.status["structure-measure"], run.status["structure-eye-loop"]), ("skipped", "skipped"))
         self.assertEqual(out["structure"]["path"], "plan/r1/structure/structure-state.json", "使い回す実測の控えに書かない")
         state = run.json(out["structure"])
@@ -1353,6 +1356,7 @@ class CollectCase(unittest.TestCase):
         self.assertEqual(run.status["plan-loop"], "skipped")
         self.assertIs(out["ready"], False)
         self.assertIn(planblk.PLAN_STUCK, run.json(out["ripple"])["error"])
+        self.assertFalse(outcome.plan_nothing_owed({"plan": {**out, "plan": str(run.file(out["plan"]))}}))
 
     def test_unreadable_pointer_inputs_are_not_absent(self):
         """空の字と null だけが「無い」。線が渡した指し札が読めない入力は、役を起こさずに ready: false で訳を残す"""

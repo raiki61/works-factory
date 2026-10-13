@@ -985,6 +985,11 @@ def note_gave_up(round_dir, plan_dir, conflicts) -> None:
                  for n in rnd["items"] if 1 <= n <= len(old)])
 
 
+def nothing_owed(round_dir) -> bool:
+    """形 plan の周が直す義務の単位 0 件で役を起こさなかったか（開いた単位が全部人の答え待ちの問いの出どころ。round.json の why）"""
+    return read_round(round_dir)["why"] == NOTHING_OWED
+
+
 def why_not_ready(round_dir) -> str:
     """この周に案が無い訳（役を起こさなかった訳・3 回の拒否の最後の理由・輪が回らなかった）"""
     why = read_round(round_dir)["why"]
