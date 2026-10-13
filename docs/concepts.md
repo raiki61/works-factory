@@ -223,7 +223,7 @@
 
 - 状態: 住処あり
 - 住処: `workflows/test-gate/scripts/result.py`（証拠の文 `test-gate/<mode>/evidence.md` の走らせ方・ログの行の頭 `RUN_ROW`・`LOG_ROW`。lib は workflows を import できない（E3）ので、書き手の script が持つ。持ち主の決め `evidence-prefix-one-home`）
-- 約束: 行の値は返りの欄 `suites_line`・`log` と同じ字。報告と最後の承認ノードは証拠の文を開かずに返りの欄を `lib/declared_checks.py` の `gate_values` で読む
+- 約束: 行の値は出力の欄 `suites_line`・`log` と同じ字。報告と最後の承認ノードは証拠の文を開かずに出力の欄を `lib/declared_checks.py` の `gate_values` で読む
 - 知ってよい所: 住処だけ。柵の外の試験と通しの照らし（`tests/e2e/evidence.json`）は `tests/workflows/test_test_gate.py` の `EvidenceRowsCase` が住処の定数から引くことを縛る
 - 今: 既知の漏れは、最後の承認ノードの文のログの行（`workflows/line/scripts/ask_final.py` の `tests_lines`）が同じ字の頭を持つ 1 行。証拠の文の行ではない別の文
 
