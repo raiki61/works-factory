@@ -27,6 +27,7 @@ if str(CORE) not in sys.path:
 
 import answer  # noqa: E402
 import carry  # noqa: E402  （L1。次の run への持ち越しの形の住処: ファイルの名・欄の名・約束の Schema）
+import oneline  # noqa: E402
 import promptsection  # noqa: E402
 import stopby  # noqa: E402
 
@@ -81,10 +82,6 @@ def _write_text(path: pathlib.Path, text: str) -> None:
     os.replace(tmp, path)
 
 
-def _one_line(text) -> str:
-    return " ".join(str(text).split())
-
-
 def _first_error(x: dict) -> str:
     """落ちた節の行 {node, error} の誤りの文の 1 行目（無ければその旨）"""
     return (str(x.get("error") or "").strip().splitlines() or ["（誤りの文が無い）"])[0]
@@ -99,7 +96,7 @@ def rejudge_exit(folder) -> tuple:
     except FileNotFoundError:
         return None, f"再審の出口 {path.name} が無い（{path}）"
     except (OSError, ValueError) as e:
-        return None, f"再審の出口 {path} が読めない（{_one_line(e)}）"
+        return None, f"再審の出口 {path} が読めない（{oneline.one_line(e)}）"
     if not isinstance(doc, dict):
         return None, f"再審の出口 {path} が JSON のオブジェクトでない"
     return doc, ""
@@ -145,7 +142,7 @@ def _red_evidence(u: dict) -> str:
     out = []
     for test, q in (u.get("red_quotes") or {}).items():
         if isinstance(q, dict):
-            out.append(f"赤の引用 {test}: 「{_one_line(q.get('quote', ''))[:200]}」（理由: {_one_line(q.get('why', ''))[:200]}）")
+            out.append(f"赤の引用 {test}: 「{oneline.one_line(q.get('quote', ''))[:200]}」（理由: {oneline.one_line(q.get('why', ''))[:200]}）")
     if u.get("stub_files"):
         out.append(f"仮の実装 {', '.join(u['stub_files'])}")
     if u.get("quote_unchecked"):
@@ -155,7 +152,7 @@ def _red_evidence(u: dict) -> str:
 
 def _tdd_unit(u: dict) -> str:
     """TDD の輪の 1 単位の結末の行（修正のブロックの出口 tdd の units の行。route は tdd・direct・parked）"""
-    key, why = u.get("unit_key") or "（key 無し）", _one_line(u.get("why") or "")
+    key, why = u.get("unit_key") or "（key 無し）", oneline.one_line(u.get("why") or "")
     if u.get("route") == "tdd":
         row = (f"{key}: 赤 {u.get('red') or '—'}・緑 {u.get('green') or '—'}・整え {u.get('refactor') or '—'}"
                f"（名指しのテスト {', '.join(u.get('tests') or []) or '無し'}）")
@@ -170,7 +167,7 @@ def _tdd_unit(u: dict) -> str:
 def _reused_line(reused) -> str:
     """出口 tdd の reused {suite, test_cmd}（輪の頭で控えから使い回した結果の出どころの句）を『元の結末 …・test_cmd …』に"""
     labels = (("suite", "元の結末"), ("test_cmd", "test_cmd"))
-    return "・".join(f"{label} {_one_line(reused[k])}" for k, label in labels if isinstance(reused, dict) and reused.get(k))
+    return "・".join(f"{label} {oneline.one_line(reused[k])}" for k, label in labels if isinstance(reused, dict) and reused.get(k))
 
 
 def tdd_lines(stages) -> list:
@@ -182,7 +179,7 @@ def tdd_lines(stages) -> list:
         if not isinstance(tdd, dict):
             continue
         if not tdd.get("ran"):
-            rows.append(f"{name}: TDD のループを回していない（{_one_line(tdd.get('reason') or '理由なし')}）")
+            rows.append(f"{name}: TDD のループを回していない（{oneline.one_line(tdd.get('reason') or '理由なし')}）")
             continue
         units = [u for u in tdd.get("units") or [] if isinstance(u, dict)]
         green = sum(u.get("route") == "tdd" and u.get("green") == "ok" for u in units)
@@ -190,7 +187,7 @@ def tdd_lines(stages) -> list:
         direct = sum(u.get("route") == "direct" and not u.get("gave_up") for u in units)
         parked = sum(u.get("route") == "parked" for u in units)
         rows.append(f"{name}: {len(units)} 単位（赤→緑 {green}・TDD を諦めた {gave}・初めから今どおりの直し {direct}・止めた {parked}。"
-                    f"実行器 {tdd.get('suite') or '—'}）" + (f"。ループを途中で抜けた: {_one_line(tdd['reason'])}" if tdd.get("reason") else "")
+                    f"実行器 {tdd.get('suite') or '—'}）" + (f"。ループを途中で抜けた: {oneline.one_line(tdd['reason'])}" if tdd.get("reason") else "")
                     + (f"。控えから使った結果: {_reused_line(tdd['reused'])}" if tdd.get("reused") else ""))
         rows += [f"  - {_tdd_unit(u)}" for u in units]
     return rows
@@ -200,7 +197,7 @@ def freeze_lines(stages) -> list:
     """冒頭 2 の行（keep-essence の 3）: TDD の輪を回していない修正の段（修正のブロックの出口 tdd の ran が偽）ごとに、テストの
     凍結が効いていないと理由つきで 1 行（黙らない）。stages は tdd_lines と同じ。走っていない段（None）は出さない"""
     return [f"{FREEZE_OFF_HEAD}: {name}で効いていない（TDD のループを回していないので既存のテストを凍らせていない——"
-            f"{_one_line(tdd.get('reason') or '理由なし')}）"
+            f"{oneline.one_line(tdd.get('reason') or '理由なし')}）"
             for name, tdd in stages if isinstance(tdd, dict) and not tdd.get("ran")]
 
 

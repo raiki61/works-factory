@@ -32,6 +32,7 @@ import textwrap
 sys.dont_write_bytecode = True
 
 import conflict  # noqa: E402  （申し出の種類の語 DIV_KINDS と状態の語の読み替え WORD）
+import oneline  # noqa: E402
 import promptsection  # noqa: E402
 
 BORROW_DIR = pathlib.Path(__file__).resolve().parents[1] / "bin" / "_lib" / "borrow"   # 借りた物の置き場（bin/_lib/spseam.BORROW_DIR）
@@ -297,8 +298,8 @@ def _prompt_body(text: str) -> str:
 
 
 def _stray(text: str, sec: dict) -> list:
-    known = {" ".join(t.split()) for t in [*sec.get("placeholders", []), *sec.get("literals", [])]}
-    return sorted({" ".join(t.split()) for t in BRACKETED.findall(text)} - known)
+    known = {oneline.one_line(t) for t in [*sec.get("placeholders", []), *sec.get("literals", [])]}
+    return sorted({oneline.one_line(t) for t in BRACKETED.findall(text)} - known)
 
 
 def fill(seam_id: str, values: dict[str, str]) -> str:

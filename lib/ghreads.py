@@ -1,5 +1,5 @@
 """依頼が名指した PR・issue を run の中で読む 1 か所（設計書 2.8）。層 L1（works の物を何も知らない）。
-標準ライブラリだけ（Python 3.9 で動く）。依頼のファイルの形（欄 pr・issue を含む容器）は持ち越しの住処 carry が解く。
+標準ライブラリと、同じ置き場の forge・oneline（1 行に畳む葉）だけ（Python 3.9 で動く）。依頼のファイルの形（欄 pr・issue を含む容器）は持ち越しの住処 carry が解く。
 
 名指した PR・issue は、線の入口（entry.start）が run の中で gh を対象の根で呼んで読む。run の中の gh は開発の殻
 （dev/hostgh.py の口）が利用者の gh のログインを継がせる（2026-10-08 から。それより前は隔離した実行基盤の中から利用者の
@@ -32,10 +32,11 @@ import sys
 
 sys.dont_write_bytecode = True
 _HERE = str(pathlib.Path(__file__).resolve().parent)
-if _HERE not in sys.path:   # 置き場を sys.path に持たない起こし方（python3 -I など）でも同じ層の forge だけを読む
+if _HERE not in sys.path:   # 置き場を sys.path に持たない起こし方（python3 -I など）でも同じ層の forge・oneline だけを読む
     sys.path.append(_HERE)     # 末尾に足す（core の名が標準のモジュールの名を覆わない）
 
 import forge  # noqa: E402
+import oneline  # noqa: E402
 
 GITHUB_READS_VERSION = 1
 BOARD_FILE = "github.json"   # 盤面の根に置く読み出しの写し
@@ -51,21 +52,17 @@ GH_NO_HOST = ("point to a known GitHub host", "no git remotes found")
 GH_EXIT_AUTH = 4
 
 
-def _line(text) -> str:
-    return " ".join(str(text).split())
-
-
 def _gh(repo: pathlib.Path, *args):
     """gh を cwd＝repo で 1 回呼んで (JSON の値, None, False) か (None, 読めない理由の 1 行, no_host)。no_host は gh が読みに行く
     GitHub のホストを見つけなかった（GH_NO_HOST の言葉か exit 4。gh が起きない時も）か。--paginate の連なった配列は 1 つに繋ぐ"""
     try:
         got = subprocess.run(["gh", *args], cwd=repo, capture_output=True, text=True, encoding="utf-8")
     except OSError as e:
-        return None, _line(f"gh が起きない（{type(e).__name__}: {e}）"), True
+        return None, oneline.one_line(f"gh が起きない（{type(e).__name__}: {e}）"), True
     if got.returncode != 0:
         first = next((s for s in got.stderr.splitlines() if s.strip()), "")
         no_host = got.returncode == GH_EXIT_AUTH or any(w in got.stderr for w in GH_NO_HOST)
-        return None, _line(f"gh {args[0]} が exit {got.returncode}" + (f": {first}" if first else "")), no_host
+        return None, oneline.one_line(f"gh {args[0]} が exit {got.returncode}" + (f": {first}" if first else "")), no_host
     dec, text, pos, parts = json.JSONDecoder(), got.stdout, 0, []
     try:
         while text[pos:].strip():
@@ -73,7 +70,7 @@ def _gh(repo: pathlib.Path, *args):
             value, pos = dec.raw_decode(text, pos)
             parts.append(value)
     except json.JSONDecodeError as e:
-        return None, _line(f"gh {args[0]} の出力が JSON でない（{e}）"), False
+        return None, oneline.one_line(f"gh {args[0]} の出力が JSON でない（{e}）"), False
     if len(parts) > 1 and all(isinstance(p, list) for p in parts):
         return [x for p in parts for x in p], None, False
     return (parts[0] if parts else None), None, False
@@ -88,7 +85,7 @@ def _target(repo: pathlib.Path, remote: str):
         if len(parts) == 2:
             parts = [gh_host or "github.com", *parts]
         if len(parts) != 3 or not (forge.HOST.match(parts[0].lower()) and all(map(forge.SEGMENT.match, parts[1:]))):
-            return _unreadable(f"GH_REPO が [HOST/]OWNER/REPO の形でない（{forge.redact(_line(named))}）", False)
+            return _unreadable(f"GH_REPO が [HOST/]OWNER/REPO の形でない（{forge.redact(oneline.one_line(named))}）", False)
         return parts[0].lower(), parts[1], parts[2]
     for got in forge.remote_repos(repo, remote):
         if got["kind"] == forge.GITHUB or got["host"] == gh_host:

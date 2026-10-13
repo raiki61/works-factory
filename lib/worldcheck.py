@@ -35,6 +35,7 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 import webget  # noqa: E402  （網に出してよい URL と、網に届かない時の例外の住処）
+import oneline  # noqa: E402
 
 MIN_EXCERPT = 20   # 抜き書きの字の下限（正規化の前の字数。短い字は本文のどこにでも在りうる）
 WORD = re.compile(r"[A-Za-z0-9_.][A-Za-z0-9_./\-]*")
@@ -93,7 +94,7 @@ def normalize(body) -> str:
     text = TAG.sub(" ", DROP_BLOCKS.sub(" ", text))
     text = unicodedata.normalize("NFKC", html.unescape(text)).translate(QUOTES)
     text = MD_LINK.sub(r"\1", text).translate(MD_MARKS)
-    return " ".join(text.split()).casefold()
+    return oneline.one_line(text).casefold()
 
 
 def _same(url) -> str:

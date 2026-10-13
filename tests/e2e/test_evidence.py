@@ -46,14 +46,14 @@ NAMED_BY_PATTERN = {
     "parent/eyes/r1.json": "workflows/eyes/scripts/eye_verdict.py:18",
     "parent/eyes/r1-comments.json": "workflows/eyes/works-factory-eyes.yaml:142",
     "parent/nodes/*.meta.json": "workflows/fix/works-factory-fix.yaml:175",
-    "parent/judge/material-prior-decisions-brief.md": "lib/judge_accept.py:2095",
-    "parent/judge/material-prior-decisions.json": "lib/judge_accept.py:2582",
+    "parent/judge/material-prior-decisions-brief.md": "lib/judge_accept.py:2096",
+    "parent/judge/material-prior-decisions.json": "lib/judge_accept.py:2583",
     "parent/plan/r1/brief-1.md": "lib/planfile.py:83",
     "parent/plan/structure/*/eye-prompt-1.md": "lib/eye.py:38",
-    "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py:802",
-    "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py:92",
-    "parent/fix/fix/review1-brief.json": "lib/refix.py:163",
-    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:490",
+    "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py:803",
+    "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py:93",
+    "parent/fix/fix/review1-brief.json": "lib/refix.py:164",
+    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:472",
 }
 
 

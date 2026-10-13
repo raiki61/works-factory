@@ -25,6 +25,7 @@ if str(_CORE) not in sys.path:
 if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 import promptsection  # noqa: E402
+import oneline  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （board が写しの engine を sys.path に足した後）
 
 ROLE = "judge-verify"                  # 束ね役の節の id と印の名
@@ -139,6 +140,6 @@ def _load(path: pathlib.Path, schema: dict) -> tuple:
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError) as e:
-        return None, [f"答えのファイルが JSON として読めない（{' '.join(str(e).split())}）"]
+        return None, [f"答えのファイルが JSON として読めない（{oneline.one_line(e)}）"]
     errs = validate_schema(doc, schema)
     return (None, errs) if errs else (doc, [])

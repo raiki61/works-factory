@@ -1,5 +1,5 @@
 """次の run への持ち越しの住処（考え carry-over。地図 docs/concepts.md）。層 L1: works のほかの物を import せず、標準ライブラリと
-写しの engine の型検査（engine.schema。L0）だけを読む。Python 3.9 で動く。殻は `python3 -I carry.py carry-ci …` でファイルとして呼ぶ。
+写しの engine の型検査（engine.schema。L0）と、1 行に畳む葉 oneline（標準ライブラリだけ）だけを読む。Python 3.9 で動く。殻は `python3 -I carry.py carry-ci …` でファイルとして呼ぶ。
 
 持つのは形だけ: 依頼の容器の欄の名・下書きの印・前の失敗の行・盤面の根のファイルの名・約束の JSON Schema（この置き場の
 next-request.schema.json と prior-failures.schema.json）の読みと照らし・依頼の解き方・置き場への読み書き。何を運ぶか（残りの行・
@@ -49,6 +49,7 @@ if str(_HERE) not in sys.path:   # 同じ置き場の promptsection
 
 from engine.schema import validate_schema  # noqa: E402
 import promptsection  # noqa: E402
+import oneline  # noqa: E402
 
 # 依頼の容器の欄の名
 FINDINGS, PR, ISSUE, ANSWERS, PRIOR, CONSTRAINTS = "findings", "pr", "issue", "answers", "prior_failures", "constraints"
@@ -136,7 +137,7 @@ def _constraints(rows) -> list:
 def carried_constraints(facts, run_id: str) -> list:
     """前提の検算が偽と示した仮定の実測（facts_to_add の字の並び）を、次の依頼の constraints の行にする（元 review-loop.py:253-257 が
     盤面の制約に足した形のまま。measured_how は CARRIED_HOW）"""
-    return [{"text": " ".join(str(f).split()), "measured_how": CARRIED_HOW.format(run=run_id or "—"), "kind": MEASURED}
+    return [{"text": oneline.one_line(f), "measured_how": CARRIED_HOW.format(run=run_id or "—"), "kind": MEASURED}
             for f in facts or [] if isinstance(f, str) and f.strip()]
 
 
@@ -225,7 +226,7 @@ def compose(findings: list, prior: list, drafts: list, constraints=()) -> dict:
 def row_key(row: dict) -> str:
     """行の鍵: where と、text の最初の「（」までを空白を詰めて \\t でつないだ物（理由の尾だけ違う行を同じ物と見る）"""
     def squeeze(v):
-        return " ".join(str(v or "").split())
+        return oneline.one_line(v or "")
     return f"{squeeze(row.get('where'))}\t{squeeze(str(row.get('text') or '').split('（', 1)[0])}"
 
 
@@ -252,7 +253,7 @@ def place_prior(board_dir, rows: list) -> None:
 
 def is_redesign(row) -> bool:
     """行が独立の目 R2 の作り直しの行か（where が REDESIGN_WHERE。空白は詰めて比べる）"""
-    return isinstance(row, dict) and " ".join(str(row.get("where") or "").split()) == REDESIGN_WHERE
+    return isinstance(row, dict) and oneline.one_line(row.get("where") or "") == REDESIGN_WHERE
 
 
 def prior_section(board_dir, gap=ValueError) -> str:
@@ -271,8 +272,8 @@ def prior_section(board_dir, gap=ValueError) -> str:
     if not rows:
         return ""
     notes, redesign = [r for r in rows if not is_redesign(r)], [r for r in rows if is_redesign(r)]
-    return "\n\n".join(head + "\n\n" + "\n".join(f"- {' '.join(str(r.get('where', '')).split())}: "
-                                                 f"{' '.join(str(r.get('text', '')).split())}" for r in part)
+    return "\n\n".join(head + "\n\n" + "\n".join(f"- {oneline.one_line(r.get('where', ''))}: "
+                                                 f"{oneline.one_line(r.get('text', ''))}" for r in part)
                        for head, part in ((PRIOR_HEAD, notes), (REDESIGN_HEAD, redesign)) if part)
 
 
@@ -308,7 +309,7 @@ def _carry_cli(request: str, failed: str, out: str) -> int:
         ids = [ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
         got = carry_ci(doc, ids)
     except (OSError, ValueError) as e:
-        print(f"carry carry-ci: {' '.join(str(e).split())}", file=sys.stderr)
+        print(f"carry carry-ci: {oneline.one_line(e)}", file=sys.stderr)
         return 2
     write(out, got)
     return 0

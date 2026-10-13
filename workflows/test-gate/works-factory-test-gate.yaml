@@ -196,7 +196,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [mode, ok, green, red_cause, baseline, fingerprint, evidence]
+      required: [mode, ok, green, red_cause, baseline, fingerprint, evidence, by, suites_line, log, baseline_line, reason]
       properties:
         mode: {type: string, enum: [base, final]}
         ok: {type: boolean}
@@ -229,3 +229,8 @@ nodes:
             type: {type: string, enum: [archon_artifact]}
             run_id: {type: string}
             path: {type: string}
+        by: {type: string, enum: [engine, role, role_needed, ""]}
+        suites_line: {type: string}
+        log: {type: string}
+        baseline_line: {type: string}
+        reason: {type: string}

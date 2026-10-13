@@ -46,6 +46,7 @@ import fixboard  # noqa: E402
 import holeties  # noqa: E402
 import leftovers  # noqa: E402
 import lens  # noqa: E402
+import oneline  # noqa: E402
 import planrange  # noqa: E402
 import protect  # noqa: E402
 import recount  # noqa: E402
@@ -232,7 +233,7 @@ def accept_review(reply: dict, board: pathlib.Path, base_rev: str, repo: pathlib
             deltamarks.save(board, verdicts)
         except Exception as e:   # 書けない・形にできない: 受けた審査に欄が無いまま進ませない
             raise ValueError(f"審査の返答を受けた後で、受け付けが外した欄の控え {deltamarks.VERDICTS_FILE} を置けない"
-                             f"（控えの無いまま先へ進ませない）: {type(e).__name__}: {' '.join(str(e).split())}") from None
+                             f"（控えの無いまま先へ進ませない）: {type(e).__name__}: {oneline.one_line(e)}") from None
     return _owed(out, board, n)
 
 
