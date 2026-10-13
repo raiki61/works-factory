@@ -50,7 +50,7 @@ def main(n: int) -> None:
     if not got["ok"]:
         raise ValueError(got["reason"])
     text = fixboard.refix_prompt(n, {"brief_file": got["brief_file"], "diff_file": got["diff_file"], "policy_path": policy.frozen_copy(start),
-                                     "request_file": str(start.get("request_file") or "")},
+                                     "request_file": startrec.request_file(start)},
                                  reject_file=fixboard.rejects_file(place, accept, iteration - 1), iteration=iteration,
                                  lang=rolekit.lang_line(start))
     prompt = fixboard.write_text(place / fixboard.REFIX_PROMPT.format(refix.passes()[n]["fix"]), text)

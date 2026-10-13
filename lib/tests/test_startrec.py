@@ -75,14 +75,18 @@ class StartRecCase(unittest.TestCase):
 
 
 class RequestFileOwner(unittest.TestCase):
-    """始めの記録の依頼のファイルを読む式は startrec.request_file の 1 か所（#393。盤面から読む conflict.request_file もここを引く）"""
+    """始めの記録の依頼のファイルを読む式は startrec.request_file の 1 か所（#393。盤面から読む conflict.request_file も、
+    workflows の script もここを引く）"""
     READ = re.compile(r"""\.get\(\s*["']request_file["']|\[\s*["']request_file["']\s*\]""")
     OTHER_DICTS = {"fixrules.py": "役の指示書の run の値 values を読む（始めの記録ではない）",
-                   "entryshape.py": "入口の変換が依頼の読みの dict から入口の入力の形を組む（始めの記録を書く前）"}
+                   "entryshape.py": "入口の変換が依頼の読みの dict から入口の入力の形を組む（始めの記録を書く前）",
+                   "workflows/line/scripts/start.py": "始めの記録を書く側が依頼の読みの dict から欄を写す"}
 
-    def test_read_once_in_lib(self):
-        found = {str(f.relative_to(LIB)) for f in LIB.rglob("*.py")
-                 if "tests" not in f.relative_to(LIB).parts and self.READ.search(f.read_text(encoding="utf-8"))}
+    def test_read_once_in_lib_and_workflow_scripts(self):
+        scripts = LIB.parent / "workflows"
+        sources = [(str(f.relative_to(LIB)), f) for f in LIB.rglob("*.py") if "tests" not in f.relative_to(LIB).parts]
+        sources += [(str(f.relative_to(LIB.parent)), f) for f in scripts.glob("*/scripts/*.py")]
+        found = {name for name, f in sources if self.READ.search(f.read_text(encoding="utf-8"))}
         self.assertEqual(found - set(self.OTHER_DICTS), {"startrec.py"})
 
     def test_pattern_sees_a_second_copy(self):
