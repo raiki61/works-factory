@@ -21,6 +21,7 @@ sys.path.append(str(boundary.lib_root()))
 import fixboard  # noqa: E402
 import lens  # noqa: E402
 import lenses  # noqa: E402
+import oneline  # noqa: E402
 
 LENS = "silent-failure-hunter"
 NO_ROUTE = "レンズの支度（lens-prep）が振り分けの控えを書いていない（支度が落ちたか走らなかった）"
@@ -44,9 +45,9 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        why = f"{type(e).__name__}: {' '.join(str(e).split())}"
+        why = f"{type(e).__name__}: {oneline.one_line(e)}"
         try:
             fixboard.lens_collector(boundary.place("fix"), False, fixboard.LENS_NOT_DONE.format(why=why))
         except Exception as w:
-            why += f"（集め役の事実 {fixboard.LENSES_FILE} を書けない: {type(w).__name__}: {' '.join(str(w).split())}）"
+            why += f"（集め役の事実 {fixboard.LENSES_FILE} を書けない: {type(w).__name__}: {oneline.one_line(w)}）"
         sys.exit(f"lens-collect: {why}")

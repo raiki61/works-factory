@@ -36,7 +36,9 @@ from engine import declared  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 
 DECL_NAME = declared.DECL_NAME
-ROLE_NEEDED = "role_needed"   # 走らせ方の語のうち、engine が走らせず任せ先の CI の役が素材を書いた（自己申告）物
+# 走らせ方の語（返りの by）: engine が宣言を走らせた・engine が任せ先に落ちて test_cmd を走らせた・engine が走らせず任せ先の CI の役が
+# 素材を書いた（自己申告）
+RUN_WORDS = ENGINE, ROLE, ROLE_NEEDED = ("engine", "role", "role_needed")
 # 自己申告の緑・走らせなかった CI を人に見せる時の次の手（T41。最後の関所と報告が同じ字を出す）
 SELF_REPORTED_NOTE = (f"最後のテストは engine が走らせた結果ではない（任せ先の申告）。走らせる語を宣言 {DECL_NAME} に"
                       "書けば次の run から engine が走らせる")
@@ -198,11 +200,11 @@ def suites_line(tests: dict | None, *, role_status: str | None = None) -> str:
     if same:
         ran.append(f"{TEST_CMD_STEP}（宣言の段 {same} と同じコマンドなので 1 度だけ走らせた）")
     unrun = [f"範囲の外で回さなかった段 {checkscope.scope_word(s)}" for s in tests.get("skipped_steps") or []]
-    if by == "engine" and not suites:
+    if by == ENGINE and not suites:
         unrun.append(f"宣言の段・{TEST_CMD_STEP}（宣言が読めないので engine が走らせなかった）")
-    elif by == "engine" and not same and not any(s.get("name") == TEST_CMD_STEP for s in suites):
+    elif by == ENGINE and not same and not any(s.get("name") == TEST_CMD_STEP for s in suites):
         unrun.append(f"{TEST_CMD_STEP}（渡されていない）")
-    elif by == "role":
+    elif by == ROLE:
         ran = ran or [f"{TEST_CMD_STEP}（{tests['test_cmd_how']}）" if tests.get("test_cmd_how") else TEST_CMD_STEP]
         unrun.append("宣言の段（宣言が無いか、engine が任せ先に落ちた）")
     elif by == ROLE_NEEDED and role_status in ("clean", "found"):
@@ -457,7 +459,7 @@ def run_ci(root, *, test_cmd: str, log_dir, changed, after_judge: bool, report_d
         got, ran, again = _planned_run(root, test_cmd, log_dir / "replan", changed, after_judge, report_dir, reuse)
         if again:
             raise CiRefused(f"宣言 {DECL_NAME} が計画の後に 2 度変わった（計画し直しても同じ）: {moved}／{again}")
-    if got["by"] != "engine":
+    if got["by"] != ENGINE:
         return got
     problems = material_problems(got["material"], mode=MODES[bool(after_judge)])
     if not problems:
@@ -476,7 +478,7 @@ def _planned_run(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, chang
         log = log_dir / f"{TEST_CMD_STEP}.log"
         launched = {}
         material = _cant_status(local_checks_material(root, test_cmd, log, launched=launched, reuse=reuse)["material"], after_judge)
-        return {**out, "by": "role", "material": material, "log": str(log), "test_cmd_how": launched.get("how")}, [], ""
+        return {**out, "by": ROLE, "material": material, "log": str(log), "test_cmd_how": launched.get("how")}, [], ""
     steps = plan.get("steps") or []
     launch = {"steps": steps, "sha": plan.get("sha"), "blocked": plan.get("blocked")}
     runs, skipped, note, todo = [], [], {}, []
@@ -499,7 +501,7 @@ def _planned_run(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, chang
         for path in new_reports:
             path.unlink(missing_ok=True)
     log = _engine_log(log_dir / "checks.log", runs, material.get("reason") or "")
-    got = {**out, "by": "engine", "material": material, "runs": [_row(r) for r in runs], "skipped_steps": skipped,
+    got = {**out, "by": ENGINE, "material": material, "runs": [_row(r) for r in runs], "skipped_steps": skipped,
            "same_as": note.get("same_as"), "log": str(log), "cases": cases, "junit_steps": junit_steps,
            "junit_unran": junit_unran}
     return got, runs, (_declaration_moved(root, launch["sha"]) if runs else "")
@@ -523,7 +525,7 @@ def _fall_back(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, after_j
     印 mark_launched と盤面の done を外し、素材を返りに置く）"""
     out = {**_no_runs(), "fell_back": why}
     if not (test_cmd or "").strip():
-        return {**out, "by": "role_needed"}
+        return {**out, "by": ROLE_NEEDED}
     log = log_dir / f"{TEST_CMD_STEP}.log"
     ran = next((r for r in runs if r["name"] in (TEST_CMD_STEP, same_as) and r.get("exit") is not None), None)
     if ran:
@@ -534,7 +536,7 @@ def _fall_back(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, after_j
     else:
         launched = {}
         material = local_checks_material(root, test_cmd, log, launched=launched, reuse=reuse)["material"]
-    return {**out, "by": "role", "material": _cant_status(material, after_judge), "log": str(log),
+    return {**out, "by": ROLE, "material": _cant_status(material, after_judge), "log": str(log),
             "test_cmd_how": launched.get("how")}
 
 

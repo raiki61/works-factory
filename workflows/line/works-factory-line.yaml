@@ -182,11 +182,14 @@ nodes:
       got_rejudge_verdict: "$judge.output.rejudge_verdict"
 
   # 5' 直す物が無い周（判定が直す単位を出さず、止めてもいない）は修正案を作らず、最後の R2 が要る独立設計だけを作る（元
-  # works/darkfactory/lib/line_edge.py:1107-1119 の plan_edge）。後ろは fixed が直す物の無い形で受けて、最後のテストと独立の目で周を締める
+  # works/darkfactory/lib/line_edge.py:1107-1119 の plan_edge）。後ろは fixed が直す物の無い形で受けて、最後のテストと独立の目で周を締める。
+  # 計画の直す義務が 0 件の周（plan-out の nothing_owed。元 line_edge.py:1109-1114 の空の修正）も同じ尾を通る。判定は単位を出したので
+  # 結末は round_limit。when は判定が ready でない句を先に置く: 飛ばされた plan-rounds の欄は読むと落ち、評価は偽の句で止まる
   - id: design-only
     include: works-factory-plan-review
-    depends_on: [judge]
-    when: "$judge.output.ready == false && $judge.output.stop_reason == ''"
+    depends_on: [judge, plan-rounds]
+    trigger_rule: none_failed_min_one_success
+    when: "$judge.output.ready == false && $judge.output.stop_reason == '' || $judge.output.ready == true && $plan-rounds.output.nothing_owed == true"
     with:
       mode: design
       start: "$start.output.record"
@@ -279,10 +282,11 @@ nodes:
               gate_axes: {}
               ask_human: {}
               questions: {}
+              nothing_owed: { type: boolean }
               done: { type: boolean }
               stop_reason: { type: string }
-            required: [ready, plan, structure, ripple, depth, round, pass, stalled, review, design, gate_axes, ask_human, questions, done,
-                       stop_reason]
+            required: [ready, plan, structure, ripple, depth, round, pass, stalled, review, design, gate_axes, ask_human, questions,
+                       nothing_owed, done, stop_reason]
           mutates_checkout: false
           depends_on: [plan, plan-review-run]
           trigger_rule: none_failed_min_one_success

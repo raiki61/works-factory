@@ -16,6 +16,7 @@ sys.path.append(str(boundary.lib_root()))
 
 import fixboard  # noqa: E402
 import fixrules  # noqa: E402
+import oneline  # noqa: E402
 import policy  # noqa: E402
 import rolekit  # noqa: E402
 import rulebook  # noqa: E402
@@ -46,6 +47,6 @@ if __name__ == "__main__":
     try:
         out = main()
     except Exception as e:
-        print(f"rule-prep: {type(e).__name__}: {' '.join(str(e).split())}", file=sys.stderr)
+        print(f"rule-prep: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
     boundary.returns(out)

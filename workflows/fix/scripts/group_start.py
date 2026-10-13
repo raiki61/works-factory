@@ -36,6 +36,7 @@ sys.path.append(str(boundary.lib_root()))
 import fixboard  # noqa: E402
 import groups  # noqa: E402
 import leftovers  # noqa: E402
+import oneline  # noqa: E402
 import startrec  # noqa: E402
 import tddloop  # noqa: E402
 import tree_run  # noqa: E402
@@ -109,6 +110,6 @@ if __name__ == "__main__":
     try:
         result = main()
     except Exception as e:   # 回す側の誤り（入力が読めない・置き場が無い・git が効かない・輪の頭が壊れた）
-        print(f"group-start: {type(e).__name__}: {' '.join(str(e).split())}", file=sys.stderr)
+        print(f"group-start: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
     boundary.returns(result)

@@ -30,6 +30,7 @@ sys.path.append(str(boundary.lib_root()))
 
 import fixboard  # noqa: E402
 import lanekit  # noqa: E402
+import oneline  # noqa: E402
 import startrec  # noqa: E402
 import writes  # noqa: E402
 import writelog  # noqa: E402
@@ -64,7 +65,7 @@ def main() -> dict:
         def merge_one(g, earlier):
             r = results[g["group_id"]]
             tdd_rows = [u for u in (r.get("tdd") or {}).get("units") or [] if isinstance(u, dict)]
-            union = sorted({f for u in tdd_rows for f in fixboard.unit_test_files(u)} | {t.get("path") for t in r.get("allowed_tests") or [] if isinstance(t, dict)})
+            union = sorted({f for u in tdd_rows for f in fixboard.unit_test_files(u)} | {t["path"] for t in fixboard.child_allowed_rows(r)})
             named = [*verified, *(r.get("verified") or [])]
 
             def check(names):
@@ -77,7 +78,7 @@ def main() -> dict:
                     repo, r.get("start_tree") or plan["start_tree"], r["end_tree"], place / "join" / f"{g['group_id']}.diff",
                     union=union, check=check)
             except Exception as e:   # 子の木が引けない・git が落ちた組は戻さない（ほかの組は先へ）
-                return lanekit.Merge(f"組の差分を当てられない（{type(e).__name__}: {' '.join(str(e).split())[:300]}）",
+                return lanekit.Merge(f"組の差分を当てられない（{type(e).__name__}: {oneline.one_line(e)[:300]}）",
                                      "", [], [], False)
             if not got.why:
                 verified.extend(t for t in r.get("verified") or [] if t not in verified)
@@ -113,6 +114,6 @@ if __name__ == "__main__":
     try:
         result = main()
     except Exception as e:   # 回す側の誤り（置き場が無い・groups.json が読めない・git が効かない）
-        print(f"join: {type(e).__name__}: {' '.join(str(e).split())}", file=sys.stderr)
+        print(f"join: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
     boundary.returns(result)

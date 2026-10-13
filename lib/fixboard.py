@@ -843,6 +843,21 @@ def replan_items(rows, groups=()) -> list:
     return out
 
 
+def _allowed_row(path, permit, source):
+    """許しの訳の 1 行 {path, permit, source}。path と permit が空でない字で source が ALLOWED_SOURCES の語の時だけ（ほかは None）"""
+    if isinstance(path, str) and path and isinstance(permit, str) and permit and source in ALLOWED_SOURCES:
+        return {"path": path, "permit": permit, "source": source}
+    return None
+
+
+def child_allowed_rows(result) -> list:
+    """組の子の結果 result の許しの訳 allowed_tests のうち形の正しい行（_allowed_row）。collect（allowed_test_rows）と
+    join の戻しの和が同じ決まりで読む口"""
+    rows = [_allowed_row(r.get("path"), r.get("permit"), r.get("source"))
+            for r in (result or {}).get("allowed_tests") or [] if isinstance(r, dict)]
+    return [r for r in rows if r]
+
+
 def allowed_test_rows(place, results=()) -> list:
     """許したテストの変更の訳 [{path, permit, source}]（返りの diff の隣の allowed-tests.json の中身。パスと許しの id の順・重ねない）:
     置き場 place のテストの変更の許し（conflict.test_permits の範囲の在る行。承認済みの修正案の rewrite_tests・removes・範囲の相談の
@@ -852,24 +867,21 @@ def allowed_test_rows(place, results=()) -> list:
     import conflict
     rows = []
 
-    def add(path, permit, source):
-        row = {"path": path, "permit": permit, "source": source}
-        if isinstance(path, str) and path and isinstance(permit, str) and permit and source in ALLOWED_SOURCES \
-                and row not in rows:
+    def add(row):
+        if row and row not in rows:
             rows.append(row)
     for p in conflict.test_permits(place):
         got = conflict.parse_limit(p["limit"]) if "limit" in p else None
         if got:
-            add(got[0], p["id"], p["source"])
+            add(_allowed_row(got[0], p["id"], p["source"]))
     for r in conflict.agreed(place):
         for g in r.get("granted_new_tests") or []:
             tid = g.get("id") if isinstance(g, dict) else None
             if isinstance(tid, str) and tid:
-                add(tid.partition("::")[0], f"{conflict.AGREED_TEST_ID}-{r.get('item')}", ALLOWED_SOURCES[1])
+                add(_allowed_row(tid.partition("::")[0], f"{conflict.AGREED_TEST_ID}-{r.get('item')}", ALLOWED_SOURCES[1]))
     for res in results:
-        for row in (res or {}).get("allowed_tests") or []:
-            if isinstance(row, dict):
-                add(row.get("path"), row.get("permit"), row.get("source"))
+        for row in child_allowed_rows(res):
+            add(row)
     return sorted(rows, key=lambda r: (r["path"], r["permit"]))
 
 
