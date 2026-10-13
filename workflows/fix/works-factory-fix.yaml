@@ -20,9 +20,6 @@ inputs:
   judgment:
     required: true
     description: 判定のポインタ（$judge.output.judgment）
-  world:
-    default: ""
-    description: 定石の行のポインタ（$judge.output.world）
   plan:
     default: ""
     description: 修正案のポインタ（$plan.output.plan。plan-fields.json）。空は修正案の無い run
@@ -124,7 +121,6 @@ nodes:
       baseline: $INPUTS.baseline
       units: $INPUTS.units
       judgment: $INPUTS.judgment
-      world: $INPUTS.world
       plan: $INPUTS.plan
       ripple: $INPUTS.ripple
       depth: $INPUTS.depth
@@ -149,7 +145,6 @@ nodes:
       baseline: $INPUTS.baseline
       units: $INPUTS.units
       judgment: $INPUTS.judgment
-      world: $INPUTS.world
       plan: $INPUTS.plan
       ripple: $INPUTS.ripple
       depth: $INPUTS.depth
