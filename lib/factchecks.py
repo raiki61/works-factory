@@ -57,22 +57,20 @@ def fix_unit_keys(reply: dict, board: Path, owed, *, withheld_by=None, returned=
 
 
 def check_writes(reply: dict, board: Path, base_rev: str, repo: Path, state: str, *, log=None, since=None,
-                 made=(), skip: tuple = ()) -> dict:
+                 skip: tuple = ()) -> dict:
     """書き込みの出どころ（writes.check。欄 bash_writes を外した返答は reply に）。実行器が作ったファイルは run の全部の輪の物を
     外す（tddloop.suite_made_all）。盤面は書かない（申告の記録は writes.check が足す）。
     書き込みの記録は log（既定は置き場の writelog.LOG）。skip は除くパスの頭（writes.check）。
-    修正役の並べの枝（fixlanes）は repo に単位の worktree を渡し、log（run の作業ツリーの記録。単位の worktree の
-    書き込みも run の作業ツリーの記録に載る）と since（見る変更の起点。枝の今の項目の頭の木。前の段が run の作業ツリーで書いた物は
-    単位の worktree の実パスの記録を持たず、同じ枝の前の項目が書いた物はその項目の確かめが見たので見ない）と made（枝の実行器が作ったファイル）を渡す"""
-    made = set(tddloop.suite_made(state)) | tddloop.suite_made_all(board) | set(made)
+    since は見る変更の起点（受け付けと事前の確かめは fixboard.fixer_head の段の頭。前の段が書いた物を修正役に求めない）"""
+    made = set(tddloop.suite_made(state)) | tddloop.suite_made_all(board)
     rev = fixboard.base_rev(None, base_rev)
     return writes.check(reply, repo, [p for p in _changed(repo, rev, since) if p not in made],
                         Path(board) / writelog.LOG if log is None else Path(log), skip=tuple(skip))
 
 
 def _changed(repo, rev: str, since=None) -> list:
-    """見る変わったパス: since（修正役の並べの枝の今の項目の頭の木）が在ればそこからの変更（writes.changed_from。項目の頭は HEAD でも
-    index でもない木）、無ければ版 rev からの変更（writes.changed）"""
+    """見る変わったパス: since（修正役が変え始めた木。fixboard.fixer_head）が在ればそこからの変更（writes.changed_from。段の頭は
+    HEAD でも index でもない木）、無ければ版 rev からの変更（writes.changed）"""
     return writes.changed_from(repo, since) if since else writes.changed(repo, rev)
 
 
@@ -138,7 +136,7 @@ def _loop_freeze(board, state) -> tuple:
 
 
 def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: Path, state: str, pass_: str,
-                     agreed=None, ask=None, since=None, made=(), *, items=None, consult_place=None) -> tuple:
+                     agreed=None, ask=None, since=None, *, items=None, consult_place=None) -> tuple:
     """承認済みの修正案の項目と差分の照らし（planscope.check）。行は changes と keys（単位の名前）を並べ、files を根からの相対に
     揃えた物。変わったパスは版からの変更（writes.changed）と since からの変更（版と同じ中身に戻した・版に無く since の後に消した
     ファイルも修正役に問う）の和から、実行器が作ったファイル（tddloop.suite_made）を除いた物。TDD の輪が
@@ -152,11 +150,11 @@ def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: 
     輪の frozen_tree から見る（前の輪の後に 1 回目の段と後の輪が書いた物を、2 回目の修正役のせいにしない）。
     since は修正役が変え始めた木（受け付けと事前の確かめは fixboard.fixer_head の段の頭）: 欠けは版からの差分の全部で見て、
     修正役に問う外れと余分は since の後に変えた分（git の比べ）だけで見る（planscope.check。
-    輪が直し終えた単位を修正役が変えずに返しても欠けにしない。同じ枝の前の項目が変えたファイルを、後の項目の out_of_scope で
-    照らさない。run 97fd532f）。made は枝の実行器が作ったファイル"""
+    輪が直し終えた単位を修正役が変えずに返しても欠けにしない。段の頭より前に変わったファイルを out_of_scope で照らさない。
+    run 97fd532f）"""
     b = board
     rows = [{"unit_key": k, "files": sorted(declared_files([c], repo))} for c, k in zip(reply.get("changes") or [], keys)]
-    made = set(tddloop.suite_made(state)) | tddloop.suite_made_all(board) | set(made)
+    made = set(tddloop.suite_made(state)) | tddloop.suite_made_all(board)
     rev = fixboard.base_rev(None, base_rev)
     after = set(writes.changed_from(repo, since)) if since else None
     paths = sorted(p for p in set(writes.changed(repo, rev)) | (after or set()) if p not in made)
