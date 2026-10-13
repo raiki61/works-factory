@@ -231,6 +231,11 @@ ARCHON_ROWS = (
     Row("工程を続ける命令", lambda: sorted(launcher.CONTINUING), "packages/cli/src/cli.ts",
         r"if \(command === 'workflow' && \(subcommand === '(\w+)' \|\| subcommand === '(\w+)'\)\) \{\n"
         r"\s*const schedule", lambda m: sorted(m.groups())),
+    Row("起こす claude の実行ファイルを替える環境変数（殻が書き込みの柵の包みを置く）", lambda: launcher.CLAUDE_BIN_ENV,
+        "packages/providers/src/claude/binary-resolver.ts", r"^\s*const envPath = process\.env\.(\w+);$"),
+    Row("節の sandbox は置き換えずに SDK へ渡す（包みが起動の直前に足す）", lambda: None,
+        "packages/workflows/src/dag-executor.ts", r"^\s*sandbox: node\.sandbox \?\? workflowLevelOptions\.sandbox,$",
+        lambda m: None),
     Row("script を探すフォルダの深さ", lambda: test_uv_scripts.DISCOVERY_DEPTH, "packages/workflows/src/script-discovery.ts",
         r"^const MAX_SCRIPT_DISCOVERY_DEPTH = (\d+);$", lambda m: int(m[1])),
     Row("答えの行の run の id・答えの語・一言の位置", _answer_positions, "packages/cli/src/cli.ts",

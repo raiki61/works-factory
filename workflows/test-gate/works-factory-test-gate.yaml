@@ -136,7 +136,8 @@ nodes:
           # 依存の導入（~/.cache・網）と localhost のテストを通す（今の works の blk-ci と同じ形）。本物の作業ツリーへの書き込みは
           # denyWrite で Archon の家（~/../archon-home。~ は起動が隔離した HOME）ごと塞ぐ。相対のパスは cwd でなく設定の一時
           # ファイルのフォルダに解かれるので '.' は効かない（実測 2026-10-13。#217）。写し（ci-prep の mkdtemp。TMPDIR の下）は
-          # 書ける。その上に mutates_checkout: false と ci-accept の作業ツリーの比べ
+          # 書ける。起こす直前に包み（workflows/.shared/fence.py）がこの値を印と読み、cwd・共通の .git・worktree の根などを足す（#309）。
+          # その上に mutates_checkout: false と ci-accept の作業ツリーの比べ
           sandbox:
             enabled: true
             allowUnsandboxedCommands: false

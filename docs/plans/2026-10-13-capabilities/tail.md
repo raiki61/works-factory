@@ -371,10 +371,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T49 本物の作業ツリーへの書き込みを、包み（adapter）が印の旗 no-tree-write を見て起動ごとに denyWrite に足して塞ぐ。切符の無い起動は起こさない。包みを宣言した run は受け付けが包みの起動の記録で柵が掛かったかを見て、無ければ止める。包み無しの run は知らせ NO_ADAPTER_NOTE を出す。宣言が読めなければ役を起こさずに止める。
   - 元: works/.shared/core/ci_role.py:150 `fence`・:274-298 `take`・:76 NO_ADAPTER_NOTE・works/blk-ci/blk-ci.yaml:28-42
-  - 今: workflows/test-gate/works-factory-test-gate.yaml の節 ci の sandbox.filesystem `{allowWrite: ['/'], denyWrite: ['~/../archon-home']}`（起動が隔離した HOME の隣の Archon の家 archon-home の下＝既定の置き場の run の作業ツリーと隣の worktree・artifacts を塞ぐ。`'.'` は cwd でなく設定の一時ファイルのフォルダに解かれ作業ツリーを塞がない——実測 2026-10-13・#293。止めた Archon は節の sandbox をそのまま SDK に渡す: dag-executor.ts:1847・providers/src/claude/provider.ts:801-803。実測は #217（段 1a・#154）。#122）と、mutates_checkout: false・受け付けの作業ツリーの比べ（T51）
-  - 証: tests/workflows/test_test_gate.py::YamlCase.test_role_cannot_write_the_checkout・test_role_node_matches_works_blk_ci
+  - 今: workflows/test-gate/works-factory-test-gate.yaml の節 ci の sandbox.filesystem `{allowWrite: ['/'], denyWrite: ['~/../archon-home']}`（起動が隔離した HOME の隣の Archon の家 archon-home の下＝既定の置き場の run の作業ツリーと隣の worktree・artifacts を塞ぐ。`'.'` は cwd でなく設定の一時ファイルのフォルダに解かれ作業ツリーを塞がない——実測 2026-10-13・#293。止めた Archon は節の sandbox をそのまま SDK に渡す: dag-executor.ts:1847・providers/src/claude/provider.ts:801-803。実測は #217（段 1a・#154）。#122）と、包み workflows/.shared/fence.py（埋め P5。殻 bin/_lib/launcher.py の write_fence が CLAUDE_BIN_PATH に置く。固定の値を印に読み、起こす直前に cwd・共通の .git・git worktree list の全部の根・Archon の家・Claude の設定・殻の口を denyWrite に足す。#309）と、mutates_checkout: false・受け付けの作業ツリーの比べ（T51）
+  - 証: tests/workflows/test_test_gate.py::YamlCase.test_role_cannot_write_the_checkout・test_role_node_matches_works_blk_ci・tests/shared/test_fence.py（一覧の組み方・印の読み方と、本物の claude で書き込みが止まること。claude の無い所では見送る）・tests/bin/test_launcher.py::LauncherTest.test_executing_launch_puts_the_fence_before_claude
   - 本物の run: 筋書きでのみ
-  - 狭め: #69 で狭めた（PR の「能力の狭め」1 つ目）。Archon で不可でない（packages/workflows/src/schemas/dag-node.ts:109 に sandbox.filesystem.denyWrite が在る。節の値は固定の YAML なので、run ごとに違う共有の .git・対象の本体の作業ツリー・worktree.path を替えた対象の作業ツリーは名指せず、書ける——実測 2026-10-13・#293。起動の直前に一覧を組む 2 歩目は #309）→ 持ち主の確かめ 決め: 戻すと決めた。run ごとの作業ツリーを denyWrite で塞げないと実測で分かった時だけ源の行つきで狭め。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #69 で狭めた（PR の「能力の狭め」1 つ目）。Archon で不可でない（packages/workflows/src/schemas/dag-node.ts:109 に sandbox.filesystem.denyWrite が在る。節の値は固定の YAML なので、run ごとに違う共有の .git・対象の本体の作業ツリー・worktree.path を替えた対象の作業ツリーは名指せず、書ける——実測 2026-10-13・#293。起動の直前に一覧を組む包みを #309 で戻した）→ 持ち主の確かめ 決め: 戻すと決めた。run ごとの作業ツリーを denyWrite で塞げないと実測で分かった時だけ源の行つきで狭め。残りの狭め: 受け付けが包みの起動の記録で柵が掛かったかを見て止める所と知らせ NO_ADAPTER_NOTE は戻していない（#309 の受け入れの外。包みを通らない起動にも固定の値は残る）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
 
 - T50 役はテストを作業ツリーの写し（同じ commit に未コミットの変更と未追跡のファイルを載せた独立の clone。一時の置き場の直下の works-factory-ci-*）の上で走らせ、一時の置き場 tmp も渡す。
   - 元: works/.shared/core/ci_role.py:177 `_make_copy`・:189 `snapshot`
@@ -546,7 +546,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 行の総数: 71
   - 今が「無し」: 13（T8・T9・T16・T35・T41・T45・T47・T61・T62・T63・T64・T69・T70）
   - 証が要追加か弱い: 26（「無し」の 13 と、T7・T13・T15・T19・T30・T31・T38・T49・T53・T55・T60・T67・T68 の 13。このうち T7・T13・T49・T53・T67 は試験が在るが弱い）
-  - 狭めで Archon のせいでない物: 14（「無し」の 13 行の全部と、柵が archon-home の下だけの T49（残りは #309）。Archon のせいで不可と言える行は 1 つも無い）
+  - 狭めで Archon のせいでない物: 14（「無し」の 13 行の全部と、包みの起動の記録を受け付けが見ない T49。Archon のせいで不可と言える行は 1 つも無い）
   - 字の誤り（狭めではない）: 2（T67・T68）
 - 持ち主に聞く物（前の決め・定石・元の作りのどれでも 1 つに決まらない）
   1. T62・T63・T64 同じ run の中の使い回しと機械全体の試験の枠。→ 決めた: T62・T63 は戻す（reuse-results）。T64 は戻さない（`no-queue`。#118）

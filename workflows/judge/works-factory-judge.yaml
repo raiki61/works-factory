@@ -356,6 +356,7 @@ nodes:
               allowedDomains: []
             # 作業ツリー・ほかの run の worktree・artifacts を書けなくする（~ は起動が隔離した HOME で、~/../archon-home が Archon の家。
             # '.' は cwd でなく設定の一時ファイルのフォルダに解かれる。実測 2026-10-13。issue #293）
+            # 起こす直前に包み（workflows/.shared/fence.py）がこの値を印と読み、cwd・共通の .git・worktree の根などを足す（#309）
             filesystem:
               denyWrite: ['~/../archon-home']
           idle_timeout: 1728000000

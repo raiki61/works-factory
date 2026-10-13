@@ -75,6 +75,15 @@
 - 使うサブグラフ: plan・plan-review（区分 J・F の issue の後は judge・fix）
 - 外す条件: ノードの hooks: が command の種類を受け、入力を見て書ける版が出たら
 
+### P5 役の sandbox に起動ごとの値を渡せない
+
+- 穴: ノードの `sandbox` は YAML の固定の値のまま SDK に渡るので、run ごとに違うパス（cwd・共通の `.git`・対象の本体の作業ツリー・`worktree.path` で置き場を替えた worktree）を読むだけの役の `denyWrite` に名指せない。固定の値 `~/../archon-home`（`tests/layers/scan.py` の `NO_TREE_WRITE`）は Archon の家の下しか塞がない。
+- 証拠: 止めた Archon の `packages/workflows/src/dag-executor.ts` 1847 行（`sandbox: node.sandbox ?? workflowLevelOptions.sandbox`。同じ関数で `systemPrompt` などは `resolveAiText` で置き換えるが、`sandbox` は置き換えない）と `packages/providers/src/claude/provider.ts` 801-803 行（`options.sandbox = nodeConfig.sandbox`）。起こす claude の実行ファイルは `packages/providers/src/claude/binary-resolver.ts` 172-178 行が環境変数 `CLAUDE_BIN_PATH` から読む（dev mode でも読む）。
+- 埋め: `workflows/.shared/fence.py`。起動の殻（`bin/_lib/launcher.py` の `write_fence`）が、Archon を走らせる命令の時だけ包みの殻を書いて子の `CLAUDE_BIN_PATH` をそこへ向ける。包みは SDK が渡す `--settings` の `sandbox.filesystem.denyWrite` に固定の値（印）が在る起動だけ、起こす直前に cwd から組んだ一覧（cwd・`git rev-parse --git-common-dir`・`git worktree list` の全部の根・Archon の家・Claude の設定・殻が書いた口）を足して本物の claude を起こす。印の無い起動は argv を変えない。形は今の works の `role_run.protected_paths` と包み `claude-adapter`（旗 `no-tree-write`）。試験は `tests/shared/test_fence.py`（本物の claude で書き込みが止まることも見る）。
+  - 足りない残り: 今の works の包みの起動の記録を受け付けが見て、柵が掛からなかった run を止める所（`docs/plans/2026-10-13-capabilities/tail.md` の T49 の後半）は戻していない。包みを通らない起動（`tests/archon.py` が殻を通さずに起こす Archon）には固定の値だけが残る。
+- 使うサブグラフ: judge・test-gate
+- 外す条件: ノードの `sandbox` が run ごとの値（cwd・共通の `.git`・worktree の根）を受ける版が出たら
+
 ## 外した
 
 （まだ無い）
