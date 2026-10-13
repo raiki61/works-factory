@@ -18,8 +18,6 @@ from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 INVENTORY = ROOT / "docs" / "plans" / "2026-10-13-capabilities"
-# 照らす欄はこれだけ（元・本物の run・狭めなどは照らさない）。pitfalls.md の「今の機械」は証と同じく試験を指す欄
-POINTING_FIELDS = ("今", "証", "今の機械")
 FIELD = re.compile(r"^  - ([^:：（(\s]+)")
 LINE_NUMBER = re.compile(r"\.(?:py|yaml):\d")
 # 名はハイフンも読む（YAML の節の id は `ask-final` の形。Python の名にハイフンは無いので、読めば無い名として赤になる）
@@ -28,8 +26,15 @@ POINTER = re.compile(r"(?<![\w./-])((?:[\w.-]+/)*[\w.-]+\.(?:py|yaml))::([A-Za-z
 MALFORMED = re.compile(r"\.(?:py|yaml)::?(?!\d)")
 BARE_PATH = re.compile(r"(?<![\w./*-])((?:lib|bin|workflows|tests|docs)/[\w./-]*\.(?:py|yaml|md|json))(?![\w*-])")
 NOT_YET = re.compile(r"要追加[^。\n]*")
-# 欄ごとの読めた指しの数の下限。欄の読み落とし（POINTING_FIELDS の欠け・欄の頭の形の変わり）で総数が保っても赤にする
-FIELD_FLOOR = {"今": 1800, "証": 1700, "今の機械": 70}
+# 照らす欄（元・本物の run・狭めなどは照らさない。pitfalls.md の「今の機械」は証と同じく試験を指す欄）と、ファイルごとの読めた
+# 指しの数の下限。1 つのファイルの欄の読み落とし（欄の頭の形の変わり）で他のファイルの数が保っても赤にする
+FIELD_FLOOR = {
+    "今": {"fix.md": 300, "gaps-fix.md": 70, "gaps-plan.md": 100, "judge.md": 170, "line.md": 330, "plan.md": 430,
+          "tail.md": 430},
+    "証": {"fix.md": 330, "gaps-fix.md": 50, "gaps-plan.md": 60, "judge.md": 160, "line.md": 320, "plan.md": 380,
+          "tail.md": 470},
+    "今の機械": {"pitfalls.md": 70},
+}
 FLAGS = ROOT / "tests" / "calibration" / "flags.json"
 FLAG_FACTORY = "works-factory"
 FLAG_FIELDS = ("why", "never")
@@ -44,7 +49,7 @@ def pointing_fields() -> list[tuple[str, str]]:
         for no, line in enumerate(md.read_text(encoding="utf-8").splitlines(), 1):
             head = FIELD.match(line)
             if head:
-                current = [f"{md.name}:{no}", line] if head.group(1) in POINTING_FIELDS else None
+                current = [f"{md.name}:{no}", line] if head.group(1) in FIELD_FLOOR else None
                 if current:
                     found.append(current)
             elif current and line.startswith("    "):
@@ -102,6 +107,10 @@ def yaml_node_ids(path: str) -> frozenset[str]:
     return frozenset(scan._top(node, "id").value for node in scan.nodes(ROOT, path))
 
 
+def exists(path: str, name: str) -> bool:
+    return (ROOT / path).is_file() and name in (yaml_node_ids(path) if path.endswith(".yaml") else python_names(path))
+
+
 def missing(want_tests: bool) -> list[str]:
     out = []
     for where, path, name in pointers():
@@ -109,17 +118,23 @@ def missing(want_tests: bool) -> list[str]:
             continue
         if not (ROOT / path).is_file():
             out.append(f"{where}: {path} が無い")
-        elif name not in (yaml_node_ids(path) if path.endswith(".yaml") else python_names(path)):
+        elif not exists(path, name):
             out.append(f"{where}: {path}::{name} が無い")
     return out
 
 
 class PointerCase(unittest.TestCase):
     def test_reads_every_pointing_field(self):
-        read = collections.Counter(FIELD.match(text).group(1) for _, text in pointing_fields()
-                                   for _ in POINTER.findall(present(text)))
-        self.assertEqual({field: read[field] >= least for field, least in FIELD_FLOOR.items()},
-                         dict.fromkeys(FIELD_FLOOR, True), read)
+        read = collections.Counter((field, where.split(":")[0]) for where, text in pointing_fields()
+                                   for field in [FIELD.match(text).group(1)] for _ in POINTER.findall(present(text)))
+        floor = {(field, md): least for field, files in FIELD_FLOOR.items() for md, least in files.items()}
+        self.assertEqual({key: read[key] >= least for key, least in floor.items()}, dict.fromkeys(floor, True), read)
+        self.assertLessEqual(set(read), set(floor), read)
+
+    def test_no_present_name_hides_in_a_not_yet_sentence(self):
+        hidden = [f"{where}: {path}::{name}" for where, text in pointing_fields() for span in NOT_YET.findall(text)
+                  for path, name in POINTER.findall(span) if exists(path, name)]
+        self.assertEqual(hidden, [])
 
     def test_names_after_the_not_yet_sentence_are_read(self):
         text = "  - 証: a/b.py::Now。後は要追加: a/c.py::Later — まだ無い。今の形: a/d.py::Kept\n    a/e.py::Next"
