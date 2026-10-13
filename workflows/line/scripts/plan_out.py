@@ -48,7 +48,7 @@ def plan_out(got: dict, round_limit: int, nothing_owed: bool = False) -> dict:
 
 def from_env() -> tuple:
     got = {key: boundary.value(os.environ.get(f"INPUTS_{key.upper()}")) for key in PLAN + REVIEW}
-    return got, boundary.value(os.environ.get("INPUTS_ROUND_LIMIT")), got["ready"] is not True and round_owes_nothing(got["plan"])
+    return got, boundary.value(os.environ.get("INPUTS_ROUND_LIMIT")), round_owes_nothing(got["plan"])
 
 
 def fallback(reason: str) -> dict:
