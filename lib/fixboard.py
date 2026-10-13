@@ -640,7 +640,7 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
     shared = sorted({f for f in shared or () if isinstance(f, str) and f})
     if not suite:
         return ""
-    exe = pathlib.Path(suite) if pathlib.Path(suite).is_absolute() else pathlib.Path(repo) / suite
+    exe = tddloop.exe_path(repo, suite)
     work = pathlib.Path(place) / name
     work.mkdir(parents=True, exist_ok=True)
     probs = []
