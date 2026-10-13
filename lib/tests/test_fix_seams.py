@@ -2082,7 +2082,7 @@ class FixAcceptSeamCase(TempCase):
     D_JUDGED = [{"key": D_CLAMP, "class_query": {"how": {"patterns": ["return lo"], "paths": ["stats.py"], "count": "lines",
                                                          "fixed": True}, "counts": "defects", "total": 2}}]
 
-    def _accept_clamp(self, *, iteration=1, conflicts=None, pass_="first"):
+    def _accept_clamp(self, *, iteration=1, conflicts=None, pass_="first", coverage=None):
         (self.place / "judgment.json").write_text(json.dumps({"units": self.D_JUDGED}, ensure_ascii=False), encoding="utf-8")
         head = leftovers.snapshot(self.repo)
         path = self.repo / "stats.py"
@@ -2091,6 +2091,7 @@ class FixAcceptSeamCase(TempCase):
         path.write_text(text.replace("    if x > hi:\n        return lo", "    if x > hi:\n        return hi"), encoding="utf-8")
         row = _fix_row(self.D_CLAMP, 1)
         row["closure"]["sites"][0]["path"] = "stats.py"
+        row["coverage"].update(coverage or {})
         reply = {"changes": [] if conflicts else [row], "not_done": [], **({"conflicts": conflicts} if conflicts else {})}
         return fixboard.accept_reply(reply, self.place, self.repo, pass_=pass_, iteration=iteration, owed=[self.D_CLAMP],
                                      judged=self.D_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
@@ -2108,6 +2109,23 @@ class FixAcceptSeamCase(TempCase):
         self.assertIn("query_hits_fixed", texts[0])
         self.assertFalse((self.place / recount.COVERAGE_FILE).exists(), "拒んだ返答の数え直しを置き場に刻んだ")
         self.assertFalse((self.place / querytest.CLOSURE_FILE).exists(), "拒んだ返答の閉鎖の表を置き場に置いた")
+
+    def test_uncountable_judge_query_goes_back_with_its_reason(self):
+        """判定者の問いを修正後に数えられない単位は、修正役が狭めた問いの数でなく、数えられない理由を名指して戻す"""
+        import recount
+        run = recount._run_query
+
+        def flaky(place, where, how, root, **kw):
+            if how.get("patterns") == ["return lo"] and "修正後" in where:
+                return None, "git grep が stderr に書いた"
+            return run(place, where, how, root, **kw)
+        narrow = {**self.D_JUDGED[0]["class_query"]["how"], "patterns": ["return lo  # none"]}
+        with mock.patch.object(recount, "_run_query", flaky):
+            got = self._accept_clamp(coverage={"how": narrow, "remaining": "判定者の問いは下限の正しい分岐にも当たるので狭めた"})
+        texts = [r["text"] for r in got["rejects"] if r["check"] == "closure"]
+        self.assertEqual(len(texts), 1, got["rejects"])
+        self.assertIn("git grep が stderr に書いた", texts[0])
+        self.assertNotIn("query_hits_fixed", texts[0], "数えられない単位に閉じない数えの文を返した")
 
     def test_unclosed_defects_count_with_query_hits_fixed_goes_to_the_ruling(self):
         """同じ木で正しい行を query_hits_fixed で名指した返答は、受け付けが単位を止めて裁定に回す"""
