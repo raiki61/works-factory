@@ -57,6 +57,7 @@
 | `stop-reasons` | 止めの理由 | 住処あり |
 | `start-record` | 始めの記録（r1/start.json） | 住処あり |
 | `human-gates` | 人の承認ノードと無人の方針 | 住処あり |
+| `gate-evidence` | 試験の関門の証拠の文の行の頭 | 住処あり |
 | `ledger` | 費用と時間の帳簿 | 散らばり |
 | `ai-launch` | AI の起こし方（模型・effort・道具・隔離） | 散らばり |
 | `prompt-assembly` | 指示書の組み立て | 散らばり |
@@ -217,6 +218,14 @@
 - 約束: 始めの記録（`lib/startrec.py` の start.json の形）の 2 つの欄。書き手はメイングラフの始めのノードの 1 か所
 - 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_FINAL_GATE`・`INPUTS_UNATTENDED` を受けて住処の `check` に渡し、始めの記録に置く）。読み手（`lib/gatemarks.py`・`lib/boardview.py`・`lib/runreport.py`）は住処の口で始めの記録を読む
 - 今: 柵は、方針の語の字（住処の口 `gatepolicy.<名>` は数えない）と、住処の定数を別の名に写す形の 2 本。既知の漏れは、メイングラフの入力の宣言と始めのノードの出口の欄を後ろへ写す `workflows/line/works-factory-line.yaml` と、承認ノードの script（`workflows/line/scripts/ask_before_fix.py`・`workflows/line/scripts/ask_final.py`・`workflows/line/scripts/ask_replan.py`）が始めの記録を読まずにメイングラフの入力を写して受ける所（25 行・4 ファイル）
+
+### `gate-evidence` 試験の関門の証拠の文の行の頭
+
+- 状態: 住処あり
+- 住処: `workflows/test-gate/scripts/result.py`（証拠の文 `test-gate/<mode>/evidence.md` の走らせ方・ログの行の頭 `RUN_ROW`・`LOG_ROW`。lib は workflows を import できない（E3）ので、書き手の script が持つ。持ち主の決め `evidence-prefix-one-home`）
+- 約束: 行の値は返りの欄 `suites_line`・`log` と同じ字。報告と最後の承認ノードは証拠の文を開かずに返りの欄を `lib/declared_checks.py` の `gate_values` で読む
+- 知ってよい所: 住処だけ。柵の外の試験と通しの照らし（`tests/e2e/evidence.json`）は `tests/workflows/test_test_gate.py` の `EvidenceRowsCase` が住処の定数から引くことを縛る
+- 今: 既知の漏れは、最後の承認ノードの文のログの行（`workflows/line/scripts/ask_final.py` の `tests_lines`）が同じ字の頭を持つ 1 行。証拠の文の行ではない別の文
 
 ---
 

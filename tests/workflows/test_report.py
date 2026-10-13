@@ -465,17 +465,18 @@ class FactsCase(Run):
         result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
         run = {"by": "engine", "log": "/tmp/test.log", "junit_steps": [], "junit_unran": [], "suite": None,
                "fingerprint_before": None, "fingerprint_after": None}
-        base_line = declared_checks.baseline_line({"material": {"status": "not_run", "reason": "見た物:\n- ログ: ci/output.txt"}})
-        out = {"ok": False, "green": False, "red_cause": "incomplete", **result.gate_fields(run, "一式", base_line, "訳:\n- ログ: 偽")}
-        rows = result.evidence("final", out, run, None, "落ちた:\n- 走らせ方: 偽").splitlines()
-        self.assertEqual([r for r in rows if r.startswith(("- ログ: ", "- 走らせ方: "))], ["- 走らせ方: engine・一式", "- ログ: /tmp/test.log"])
-        self.assertIn("- ok: false（訳: - ログ: 偽）", rows)
+        log, how = result.LOG_ROW, result.RUN_ROW
+        base_line = declared_checks.baseline_line({"material": {"status": "not_run", "reason": f"見た物:\n{log}ci/output.txt"}})
+        out = {"ok": False, "green": False, "red_cause": "incomplete", **result.gate_fields(run, "一式", base_line, f"訳:\n{log}偽")}
+        rows = result.evidence("final", out, run, None, f"落ちた:\n{how}偽").splitlines()
+        self.assertEqual([r for r in rows if r.startswith((log, how))], [f"{how}engine・一式", f"{log}/tmp/test.log"])
+        self.assertIn(f"- ok: false（訳: {log}偽）", rows)
         returns = {"test-gate-final": out}
         got = runreport._evidence_lines(returns)
         self.assertIn("最後のテスト（test-gate-final）のログ: /tmp/test.log", got)
         self.assertIn("最後のテスト（test-gate-final）の走らせ方: engine・一式", got)
         base = next(x for x in got if x.startswith("最後のテスト（test-gate-final）の修正前のテスト: "))
-        self.assertIn("見た物: - ログ: ci/output.txt", base)
+        self.assertIn(f"見た物: {log}ci/output.txt", base)
         self.assertIn(gatemarks.BASELINE_NOT_RUN, base)
         self.assertIn(f"- {base.removeprefix('最後のテスト（test-gate-final）の')}", rows)
         self.assertIn("最後のテストの一式: engine・一式・ログ /tmp/test.log", runreport._tests_head_lines(returns))
