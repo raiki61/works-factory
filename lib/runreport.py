@@ -1402,7 +1402,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
         (report.WORLD_HEADING, _world_lines(returns)),
         (report.UNSEEN_LENS_HEADING, _unseen_lens_lines(returns, beside)),
         (report.OUTSIDE_HEADING, outside),
-        (report.PRIOR_HEADING, report.prior_lines(prior)),
+        (report.PRIOR_HEADING, report.prior_lines(prior, next_file)),
         (report.MODEL_HEADING, _model_lines(tfacts)),
         (report.COST_HEADING, head_cost(tfacts, transcript_why)),
         (NOTES_HEADING, [oneline.one_line(n) for n in notes] or ["無い"]),

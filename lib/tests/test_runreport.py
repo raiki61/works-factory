@@ -144,6 +144,15 @@ class BuildCase(Base):
         self.assertFalse(any(report._r2_redesign(r) for r in doc["findings"]), "R2 の作り直しの行は前の失敗にだけ載せる")
         self.assertTrue(any("受け付けが 3 回拒んだ" in r["text"] for r in prior))
 
+    def test_prior_section_names_only_the_files_written(self):
+        """#383 の 10: 前の失敗だけが在る run は next-request.json を書かないので、節はそれを名指さず prior-failures.json を名指す"""
+        got, text, _ = self.build(line={"stops": {"ask-final": stopby.LINE_SCRIPT}})
+        self.assertIsNone(got["next_request"])
+        prior = self.section(text, report.PRIOR_HEADING)
+        self.assertNotIn(carry.NEXT_REQUEST_FILE, prior)
+        self.assertIn(carry.PRIOR_FAILURES_FILE, prior)
+        self.assertEqual(report.prior_lines([], carry.NEXT_REQUEST_FILE), ["0 件"])
+
     def test_build_refuses_off_contract_carries(self):
         """2 つとも照らしてから書く: 次の依頼か前の失敗のどちらかが約束に合わなければ ValueError で、どちらのファイルも置かない。
         次の依頼は前の失敗の行を同じ形で抱えるので、前の失敗だけが合わない場面は PRIOR_SCHEMA の照らしだけを誤らせて作る"""
