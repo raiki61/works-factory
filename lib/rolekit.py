@@ -2,8 +2,11 @@
 ブロックのスクリプトの入口の約束を 1 か所に置く（前は rejudge・refix に写しが在った）。
 
 - rejects_text:   その輪の拒否の文の全部（古い順）を、次の回の役に読ませる 1 つの文に。役は回ごとに新しい会話で起きる（会話を継がない。
-                  docs/owner-decisions.md）ので、最後の拒否だけでは前の回の誤りを繰り返す（#345）。拒否を役に渡す所はどれもこれを読む
-- write_rejects・reject_file・REJECT_LINE: rejects_text を置き場の rejects-<名>.md に書いて名指す（道具を持つ役。名指す 1 行が REJECT_LINE）
+                  docs/owner-decisions.md）ので、最後の拒否だけでは前の回の誤りを繰り返す（#345）。新しい会話で起きる役に拒否を渡す所は
+                  どれもこれを読む（会話を継ぐ輪 fresh_context: false は、前の回の拒否が会話に残るので最後の 1 件を渡す）
+- write_rejects・reject_file・rejects_text_path・REJECT_LINE: rejects_text を置き場の rejects-<名>.md に書いて名指す（道具を持つ役。
+                  名指す 1 行が REJECT_LINE）
+- compose:        役に読ませる材料の組み立て: 空でない部分を空行 1 つで繋ぎ、拒否の理由のファイルが在れば 1 行目で REJECT_LINE で名指す
 - with_reject:    道具ゼロの役の指示書の頭に前の拒否の文を貼る（ファイルを名指さない。裁定 R44）
 - with_done:      盤面の節でない受け付け（script_io.main の finish）に done を足す。拒否は盤面の根の控え rejects-<名>.json に
                   積み、通った時か give_up_after 回目の拒否で done（出し直しても直らない拒みは 1 回目で。控えは run の間
@@ -77,7 +80,6 @@ REJECT_HEADING = promptsection.Section("## 前の回の受け付けが拒んだ�
 
 REJECT_LINE = ("前の回までの返答は受け付けで拒まれた。これまでの拒否の理由の全部（古い順）がファイル {path} に在る。先に Read で"
                "全部読み、前の回の拒否も含めてどの理由も満たす返答を丸ごと出し直せ（直した所だけを返すな）。")
-REJECTS_TEXT = "rejects-{name}.md"
 
 
 def rejects_text(reasons) -> str:
@@ -94,9 +96,22 @@ def write_rejects(board, name: str, reasons) -> str:
     text = rejects_text(reasons)
     if not text:
         return ""
-    path = pathlib.Path(board) / REJECTS_TEXT.format(name=safe_name(name))
+    path = rejects_text_path(board, name)
     path.write_text(text + "\n", encoding="utf-8")
     return str(path)
+
+
+def rejects_text_path(board, name: str) -> pathlib.Path:
+    """write_rejects が拒否の全部を書くファイル（置き場 board の rejects-<name>.md）"""
+    return pathlib.Path(board) / f"rejects-{safe_name(name)}.md"
+
+
+def compose(parts, *, reject_file: str = "") -> str:
+    """役に読ませる材料の組み立て（元 works/.shared/core/rolekit.py:168 の compose。AI を通さない）: 空でない部分を字のまま空行 1 つで
+    繋ぐ。reject_file（拒否の理由の全部のファイル）が在れば 1 行目でそのパスを REJECT_LINE で名指す（理由の文そのものは貼らない）。
+    同じ入力からは同じバイト"""
+    out = [REJECT_LINE.format(path=reject_file)] if reject_file else []
+    return "\n\n".join(out + [s for s in parts if s])
 
 
 def reject_file(board, name: str) -> str:

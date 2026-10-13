@@ -655,13 +655,6 @@ def answer_tables(structure_dir_, world_rows) -> list:
 
 
 # ---------------------------------------------------------------- 材料
-def compose(parts, *, reject_file: str = "") -> str:
-    """役に読ませる材料の組み立て（元 works/.shared/core/rolekit.py の compose）: 空でない部分を空行 1 つで繋ぐ。reject_file が
-    在れば 1 行目でそのパスを名指す（rolekit.REJECT_LINE。理由の文そのものは貼らない）"""
-    out = [rolekit.REJECT_LINE.format(path=reject_file)] if reject_file else []
-    return "\n\n".join(out + [s for s in parts if s])
-
-
 def _dump(doc) -> str:
     return json.dumps(doc, ensure_ascii=False)
 
@@ -760,7 +753,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
                  POLICY_PART.format(path=policy_md) if policy_md else ""]
     notes = "\n".join([UNREAD_INPUTS_HEAD, "", *(f"- {u}" for u in unread)]) if unread else ""
     path = round_dir / BRIEF_FILE.format(n=n)
-    path.write_text(compose([*parts, notes, lang_line], reject_file=reject_file), encoding="utf-8")
+    path.write_text(rolekit.compose([*parts, notes, lang_line], reject_file=reject_file), encoding="utf-8")
     return path, n
 
 
@@ -928,7 +921,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
 
 # ---------------------------------------------------------------- 読んだ証拠
 def collect_reads(round_dir, log, *, role: str, quiet: tuple, policy_md: str, repo) -> dict:
-    """この周に起こした修正案の役 role が、機械が渡したパス（周の材料 brief-*.md・この周の拒否の理由の全部 rolekit.REJECTS_TEXT・方針の文書の固めた写し）
+    """この周に起こした修正案の役 role が、機械が渡したパス（周の材料 brief-*.md・この周の拒否の理由の全部 rolekit.rejects_text_path・方針の文書の固めた写し）
     を読んだ証拠を reads.collect で集め、{役: 役ごとの証拠のパス} の索引を周のフォルダに書く（元 planblk.collect_reads）。記録は周を
     開いた時刻（round.json の at）から後の、この周の材料 brief-*.md を読んだ session の行で切る。道具を持たない役 quiet は読む物が無いので null で名指す。役を起こさない周は
     索引の why に reads.NOT_LAUNCHED と訳。形 replan は役の名と索引を reads の案の直しの名にする（1 回目の物を上書き
@@ -940,7 +933,7 @@ def collect_reads(round_dir, log, *, role: str, quiet: tuple, policy_md: str, re
     missing = []
     if rnd["go"]:
         briefs = [str(p) for p in sorted(round_dir.glob(BRIEF_FILE.format(n="*")))]
-        rejects = round_dir / rolekit.REJECTS_TEXT.format(name=ROLE)
+        rejects = rolekit.rejects_text_path(round_dir, ROLE)
         must = briefs + ([str(rejects)] if rejects.is_file() else [])
         got = reads.collect(round_dir, role, must + ([policy_md] if policy_md else []), log, own=briefs, since=rnd["at"],
                             repo=repo, replan=again)

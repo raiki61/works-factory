@@ -9,7 +9,7 @@ tests/bin/gitkit.py と tests/e2e/target-seed/ の写しで小さなリポジト
 - writes の除き（check・unrecorded の skip）も同じ。fixboard.base_rev は元の writes.base_rev と同じ順で版を選ぶ
 - lens の控えは置き場の lens.json。summary は差分の審査の出力をファイルのパスで受ける
 - refix・lenses・rulebook: refix.cut・accept_review・accept_fix は置き場のファイルと引数の値で回り、範囲の外の手直しを
-  planrange.check_paths の行で拒む。lenses.render は役の定義の本文から、rulebook.render は fixboard.compose で指示書を組む
+  planrange.check_paths の行で拒む。lenses.render は役の定義の本文から、rulebook.render は rolekit.compose で指示書を組む
 - ruling.prep・accept_rule: 置き場のファイルで回り、作業ツリーの控えは fixboard.snapshot、拒否の理由のファイル・言語の行・輪の回は
   引数、配線の誤りは ValueError
 """
@@ -811,7 +811,7 @@ class LensesSeamCase(unittest.TestCase):
 
 class RulebookSeamCase(unittest.TestCase):
     def test_render_heads_rejects_and_lang(self):
-        """rulebook.render: 1 行目に載せた節と理由と決まりの sha、続けて拒否の理由のファイルの 1 行（fixboard.compose）、
+        """rulebook.render: 1 行目に載せた節と理由と決まりの sha、続けて拒否の理由のファイルの 1 行（rolekit.compose）、
         before・決まり・after・言語の 1 行の順。同じ入力からは同じバイト"""
         import rulebook
         parts = [("a", "- 決まり A", "いつも"), ("b", "- 決まり B", "いつも")]

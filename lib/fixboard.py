@@ -17,8 +17,7 @@
   盤面の写しの規則と問いの台帳を読んだ所を、値の引数で受ける）
 - _fix_output(reply_file)・fix_reply(reply_file=None): 修正の返答の読み口
   （元 works/.shared/core/recount.py:89・101。盤面の p3.fix の出力を読んだ所を、返答のファイルのパスで受ける）
-- compose・ROLE_DEF_HEAD: 役の指示書の組み立て（元 works/.shared/core/rolekit.py:168・205 の写し。rulebook.render・
-  lenses.render が使う。拒否の理由のファイルを名指す 1 行は rolekit.REJECT_LINE）
+- ROLE_DEF_HEAD: 役の定義の見出し（元 works/.shared/core/rolekit.py:205 の写し。lenses.render が使う）
 - write_json・out_file・output・loop_file・loop_value・snapshot・tree_moved_since・take・READONLY_MOVED: 差分の審査と手直しの
   置き場の決まった名のファイル（盤面の b.output_of_round・b.loop_state と entry.snapshot・take の代わり。元 entry.py:1228・1231・1240・1262）
 - _owed_rows・_read_value・_brief・_plan_items・_fix_report・tie_items・hole_ties: 差分の審査と手直しの材料（元
@@ -233,16 +232,8 @@ def collect_reads(place, log, *, repo) -> dict:
 
 
 # ---------------------------------------------------------------- 差分の審査と手直し（refix・lenses・rulebook が読む）
-# 役の指示書の組み立て（元 works/.shared/core/rolekit.py:168・205 の写し。main の lib/rolekit.py に無いので fix の中に置く）
+# 役の定義の見出し（元 works/.shared/core/rolekit.py:205 の写し。main の lib/rolekit.py に無いので fix の中に置く）
 ROLE_DEF_HEAD = "## 役の定義（{agent}）"
-
-
-def compose(parts, *, reject_file: str = "") -> str:
-    """役に読ませる指示書の組み立て（AI を通さない）: 空でない部分を字のまま空行 1 つで繋ぐ。reject_file（前の拒否の理由の
-    ファイル）が在れば 1 行目でそのパスを rolekit.REJECT_LINE で名指す（理由の文そのものは貼らない）。同じ入力からは同じバイト。
-    元 works/.shared/core/rolekit.py:168 の写し"""
-    out = [rolekit.REJECT_LINE.format(path=reject_file)] if reject_file else []
-    return "\n\n".join(out + [s for s in parts if s])
 
 
 # 置き場の決まった名のファイル（盤面の節の出力 b.output_of_round・loop の値 b.loop_state の代わり。refix の受け付けと切りが書く）
