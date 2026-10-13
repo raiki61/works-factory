@@ -14,6 +14,7 @@ import pathlib
 import json
 import re
 import shlex
+import sys
 import tempfile
 import unittest
 from collections.abc import Callable
@@ -30,6 +31,9 @@ from tests.shared.test_fence import fence
 from tests.workflows import test_uv_scripts
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(ROOT / "lib") not in sys.path:   # 後ろに足す（頭に入れると lib/tests が根の tests を隠す）
+    sys.path.append(str(ROOT / "lib"))
+import runreport  # noqa: E402
 
 
 class Row(NamedTuple):
@@ -285,6 +289,15 @@ ARCHON_ROWS = (
         r"^\s*(nodes): buildNodeSummaries\(events\),$"),
     Row("節の一覧の行の id と状態の鍵", lambda: [childsweep.NODE_ID, childsweep.STATE], "packages/cli/src/commands/workflow.ts",
         r"case 'node_completed': \{\n.*?summaries\.set\((\w+), \{\n\s*\1,\n\s*(\w+): 'completed',",
+        lambda m: list(m.groups())),
+    Row("run の記録の道具の呼びの行の型と節の欄", lambda: runreport.PROVIDER_ROW, "packages/workflows/src/logger.ts",
+        r"type: '(provider_event)',\s*step: stepName,"),
+    Row("道具の呼びの行の出来事の欄", lambda: runreport.PROVIDER_EVENT, "packages/workflows/src/schemas/provider-event.ts",
+        r"^\s*(event): providerEventSchema,"),
+    Row("出来事の道具の呼びの型", lambda: runreport.TOOL_CALL, "packages/provider-contract/src/events.ts",
+        r"type: z\.literal\('(tool_call)'\)"),
+    Row("道具の呼びの道具の名と入力の欄", lambda: ["name", "rawInput"], "packages/provider-contract/src/events.ts",
+        r"export const toolCallSchema = z\.object\(\{.*?^\s*(name): z\.string\(\),$.*?^\s*(rawInput): z$",
         lambda m: list(m.groups())),
 )
 
