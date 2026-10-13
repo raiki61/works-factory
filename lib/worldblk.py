@@ -148,7 +148,7 @@ def _switch(web) -> bool:
 # ---------------------------------------------------------------- 輪の控え（拒否は rolekit の控えに積む）
 def _prep(out, role, body: str) -> dict:
     rejected = rolekit.rejected(out, role)
-    prompt = rolekit.with_reject(body, rejected[-1]) if rejected else body
+    prompt = rolekit.with_reject(body, rolekit.rejects_text(rejected)) if rejected else body
     path = pathlib.Path(out) / PROMPT.format(role=role, n=len(rejected) + 1)
     path.write_text(prompt, encoding="utf-8")
     return {"prompt": prompt, "prompt_file": str(path)}

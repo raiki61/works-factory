@@ -514,7 +514,7 @@ class CiRoleCase(ScriptCase):
     def test_prep_copies_tree_and_passes_reject(self):
         (self.repo / "new.txt").write_text("未追跡\n", encoding="utf-8")
         out = self.prep(reject="前の理由")
-        self.assertEqual((out["mode"], out["reject"], out["attempt"], out["root"]), ("base", "前の理由", 2, str(self.repo.resolve())))
+        self.assertEqual((out["mode"], out["reject"], out["attempt"], out["root"]), ("base", rolekit.rejects_text(["前の理由"]), 2, str(self.repo.resolve())))
         self.assertEqual((pathlib.Path(out["copy_dir"]) / "new.txt").read_text(encoding="utf-8"), "未追跡\n")
         self.assertTrue(pathlib.Path(out["tmp_dir"]).is_dir())
 
@@ -525,7 +525,7 @@ class CiRoleCase(ScriptCase):
         self.assertEqual((first["reject"], first["attempt"]), ("", 1))
         reason = "欄を直せ: $ci.output.material と $INPUTS.mode"
         again = self.prep(reject=reason)
-        self.assertEqual((again["reject"], again["attempt"]), (reason, 2))
+        self.assertEqual((again["reject"], again["attempt"]), (rolekit.rejects_text([reason]), 2))
 
     def test_unreadable_reply_is_a_reject(self):
         """元 test_blk_ci.py の test_unreadable_reply_is_a_reject: 読めない返答（JSON でない・オブジェクトでない）は受け付けの拒否として

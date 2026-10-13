@@ -33,6 +33,7 @@ import groups  # noqa: E402
 import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
 import lens  # noqa: E402
+import rolekit  # noqa: E402
 import unittrees  # noqa: E402
 import writelog  # noqa: E402
 import writes  # noqa: E402
@@ -821,7 +822,7 @@ class RulebookSeamCase(unittest.TestCase):
         self.assertEqual((head["role"], head["iteration"], [s["id"] for s in head["sections"]]), ("refix", 1, ["a", "b"]))
         self.assertEqual(head["rules_sha"], rulebook.sha("- 決まり A\n- 決まり B"))
         self.assertEqual(got["text"].split("\n", 1)[1],
-                         fixboard.REJECT_LINE.format(path="/home/x/r.md") + "\n\n頭\n\n- 決まり A\n- 決まり B\n\n尻\n\n言語\n")
+                         rolekit.REJECT_LINE.format(path="/home/x/r.md") + "\n\n頭\n\n- 決まり A\n- 決まり B\n\n尻\n\n言語\n")
         self.assertEqual(rulebook.render("refix", 1, parts), rulebook.render("refix", 1, parts))
         self.assertNotIn("拒まれた", rulebook.render("refix", 1, parts)["text"])
 
@@ -873,14 +874,14 @@ class RulingSeamCase(TempCase):
         text = (self.place / r.PROMPT).read_text(encoding="utf-8")
         for w in ("`c1-1`", f"`{self.place / self.conflict.FILE}`", "日本語で書け"):
             self.assertIn(w, text)
-        self.assertFalse(text.split("\n")[1].startswith(fixboard.REJECT_LINE[:10]), "1 回目は拒否の理由を名指さない")
+        self.assertFalse(text.split("\n")[1].startswith(rolekit.REJECT_LINE[:10]), "1 回目は拒否の理由を名指さない")
         self.assertTrue((self.place / r.TREE).is_file(), "作業ツリーの姿の控えは置き場")
         bad = {"rulings": [{"id": "c9-9", "decision": "ask_human", "text": "方針の変更で人が決める", "limits": []}]}
         self.assertFalse(r.accept_rule(bad, self.place, self.rev, self.repo)["ok"])   # 回の数えは拒否の控え（rolekit）
         again = r.prep(self.place, self.repo, self.VALUES, reject_file="/home/x/reject.md")
         self.assertEqual(again["iteration"], 2)
         self.assertEqual((self.place / r.PROMPT).read_text(encoding="utf-8").split("\n")[1],
-                         fixboard.REJECT_LINE.format(path="/home/x/reject.md"), "2 回目は 1 行目の後に拒否の理由のファイルを名指す")
+                         rolekit.REJECT_LINE.format(path="/home/x/reject.md"), "2 回目は 1 行目の後に拒否の理由のファイルを名指す")
 
     def test_accept_rule_applies_rulings_to_the_place(self):
         r = self.ruling
@@ -1369,12 +1370,16 @@ class DeltaSeamCase(TempCase):
     def test_accept_out_writes_reasons_and_gives_up_on_the_third(self):
         self.assertEqual(fixboard.accept_out(self.place, "x-accept", {"ok": True}),
                          {"ok": True, "done": True, "reason": "", "reason_file": ""})
-        self.assertEqual(fixboard.last_reject_file(self.place, "x-accept"), "")
+        self.assertEqual(fixboard.rejects_file(self.place, "x-accept", 0), "")
         for k in (1, 2, 3):
             out = fixboard.accept_out(self.place, "x-accept", {"ok": False, "reason": f"理由 {k}"})
             self.assertEqual((out["ok"], out["done"]), (False, k == 3))
-            self.assertEqual(pathlib.Path(out["reason_file"]).read_text(encoding="utf-8"), f"理由 {k}\n")
-            self.assertEqual(fixboard.last_reject_file(self.place, "x-accept"), out["reason_file"])
+            self.assertEqual((self.place / f"reject-x-accept-{k}.md").read_text(encoding="utf-8"), f"理由 {k}\n")
+            self.assertEqual(pathlib.Path(out["reason_file"]).read_text(encoding="utf-8"),
+                             rolekit.rejects_text([f"理由 {i}" for i in range(1, k + 1)]) + "\n", "reason_file は輪の拒否の全部")
+            self.assertEqual(fixboard.rejects_file(self.place, "x-accept", k), out["reason_file"])
+        self.assertNotIn("理由 3", pathlib.Path(fixboard.rejects_file(self.place, "x-accept", 2)).read_text(encoding="utf-8"),
+                         "次の回の支度は前の回までの拒否だけを書く")
 
     def _reviewed(self):
         fixboard.write_json(fixboard.out_file(self.place, "p3.delta_review"), {"faces": [
@@ -1433,7 +1438,7 @@ class DeltaSeamCase(TempCase):
             text = fixboard.refix_prompt(2, {"brief_file": "/b.json", "diff_file": "/d.patch", "policy_path": "",
                                              "request_file": "/req.md"},
                                          reject_file="/r.md", iteration=2, lang="言語の 1 行")
-        self.assertIn(fixboard.REJECT_LINE.format(path="/r.md"), text)
+        self.assertIn(rolekit.REJECT_LINE.format(path="/r.md"), text)
         import fixrules
         for line in fixrules.start_lines({"policy_path": "", "request_file": "/req.md"}):
             self.assertLess(text.index(line), text.index("refix-head-2 の本文"), "始めの記録の 2 行は役の頭の前（修正役と同じ）")
@@ -1532,7 +1537,7 @@ class DeltaSeamCase(TempCase):
             text = fixboard.refix_prompt(1, values, reject_file="/r.md", iteration=2, lang="言語の 1 行")
         lines = text.splitlines()
         self.assertTrue(lines[0].startswith(rulebook.HEADER.split("{")[0]), lines[0])
-        self.assertEqual(lines[1], fixboard.REJECT_LINE.format(path="/r.md"), "前の回の拒否は頭の次の 1 行目で名指す")
+        self.assertEqual(lines[1], rolekit.REJECT_LINE.format(path="/r.md"), "前の回の拒否は頭の次の 1 行目で名指す")
         self.assertEqual(lines[-1], "言語の 1 行", "指示書の末尾は言語の 1 行")
         self.assertIn("refix-head-1 の本文 方針 `/frozen/policy.md`", text)
         marks = [*fixrules.start_lines(values), "refix-head-1 の本文", "直し方", "refix-remap の本文", "refix-keep の本文",

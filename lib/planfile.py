@@ -81,7 +81,6 @@ REPLY_FILE = "reply.json"
 FIX_PLAN_FILE = "p2.fix_plan.json"
 REVIEW_FILE = "review/p2.plan_review.json"
 BRIEF_FILE = "brief-{n}.md"
-REJECT_FILE = "reject-{n}.txt"
 ITEM_BRIEF_FILE = "item-brief-{no}.md"   # 案の直しで直す項目の brief（planbrief.render。周の材料 BRIEF_FILE と別の名）
 TREE_FILE = "tree.json"            # 修正案の役を起こす前の作業ツリーの姿（accept.tree_state。支度の節が回ごとに置き直す）
 RIPPLE_UNITS_FILE = "ripple-units.json"
@@ -97,9 +96,6 @@ BASE_TESTS_UNREAD_OP = "writes_base_tests_unread"   # 修正前の版のテス�
 
 COVERS_REJECT = "単位の網羅に誤りが在る（直す義務の単位は全部、どれか 1 つの項目にちょうど 1 度入れる）。案に入れてよい no は"
 MALFORMED_REJECT = "修正案の返答の形が崩れている（plan は項目の object の配列で、各項目の narrows は配列）。指示書の JSON Schema に合う形で出し直せ"
-# 役に読ませる文の組み立て（元 works/.shared/core/rolekit.py:64・:67 と board.py:96。前提の lib/rolekit.py に無い）
-REJECT_LINE = ("前の回の返答は受け付けで拒まれた。理由はファイル {path} に在る。先に Read で読み、そこを直した返答を丸ごと"
-               "出し直せ（直した所だけを返すな）。")
 NOTHING_OWED = "直す義務の単位が無い（開いた単位が無いか、全部が人の答え待ちの問いの出どころ・depends）"
 UNWRITABLE_STATE = "構造の控えを書けない"
 NO_PLAN = "受け付けを通った修正案が無い（修正案のループが回らなかったか、途中で落ちた）"
@@ -661,8 +657,8 @@ def answer_tables(structure_dir_, world_rows) -> list:
 # ---------------------------------------------------------------- 材料
 def compose(parts, *, reject_file: str = "") -> str:
     """役に読ませる材料の組み立て（元 works/.shared/core/rolekit.py の compose）: 空でない部分を空行 1 つで繋ぐ。reject_file が
-    在れば 1 行目でそのパスを名指す（理由の文そのものは貼らない）"""
-    out = [REJECT_LINE.format(path=reject_file)] if reject_file else []
+    在れば 1 行目でそのパスを名指す（rolekit.REJECT_LINE。理由の文そのものは貼らない）"""
+    out = [rolekit.REJECT_LINE.format(path=reject_file)] if reject_file else []
     return "\n\n".join(out + [s for s in parts if s])
 
 
@@ -719,21 +715,16 @@ def _neighbor(judgment_dir, name: str) -> str:
 def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units, structure_dir_, world_rows, spec,
                 repo, review_rev: str, base: str, review_md: str, lang_line: str, lib_docs: str = "", conflicts=None, policy_md: str = "",
                 prior_failures=None, unread=()) -> tuple:
-    """修正案の役の材料のファイル brief-<n>.md を書き、(パス, 回の番号 n) を返す。前の回の拒否が在れば、その理由を reject-<n>.txt に
-    置いて頭の 1 行で名指す。両方の形に役の定義・並行 PR の外した範囲・ライブラリの文書・前の run で通らなかった物（prior_failures。
+    """修正案の役の材料のファイル brief-<n>.md を書き、(パス, 回の番号 n) を返す。前の回の拒否が在れば、この周の拒否の理由の全部を
+    rolekit.reject_file で書いて頭の 1 行で名指す。両方の形に役の定義・並行 PR の外した範囲・ライブラリの文書・前の run で通らなかった物（prior_failures。
     元の planblk.prior_part）・考えの住処の地図（元は包みが旗 concept-map で足した concepthome.section）。形 plan はほかに単位と no・
     処方・構造の目の行・世界の解の行・波及の一覧・裏取りの申し送り・仕様・方針の文書の段落（policy_md が在る時。元の p2.fix_plan の
     prompt_append の policy-path.md と policy.md）・2 往復目からは前の周の案と事前審査の指摘と前の周の波及の一覧。形 replan は
     ほかに REPLAN_ASK・直す項目ごとの前の形と申し出と裁定の文だけ"""
     round_dir, plan_dir = pathlib.Path(round_dir), pathlib.Path(plan_dir)
     unread = list(unread)
-    rejected = rolekit.rejected(round_dir, ROLE)
-    n = len(rejected) + 1
-    reject_file = ""
-    if rejected:
-        rf = round_dir / REJECT_FILE.format(n=len(rejected))
-        rf.write_text(rejected[-1], encoding="utf-8")
-        reject_file = str(rf)
+    n = rolekit.attempt(round_dir, ROLE)
+    reject_file = rolekit.reject_file(round_dir, ROLE)
     head = planblk.head("plan", _neighbor(judgment_dir, prcheck.EXCLUDED), lib_docs)
     try:
         carried = prior_section(round_dir, prior_failures)
@@ -937,7 +928,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
 
 # ---------------------------------------------------------------- 読んだ証拠
 def collect_reads(round_dir, log, *, role: str, quiet: tuple, policy_md: str, repo) -> dict:
-    """この周に起こした修正案の役 role が、機械が渡したパス（周の材料 brief-*.md・前の拒否の理由 reject-*.txt・方針の文書の固めた写し）
+    """この周に起こした修正案の役 role が、機械が渡したパス（周の材料 brief-*.md・この周の拒否の理由の全部 rolekit.REJECTS_TEXT・方針の文書の固めた写し）
     を読んだ証拠を reads.collect で集め、{役: 役ごとの証拠のパス} の索引を周のフォルダに書く（元 planblk.collect_reads）。記録は周を
     開いた時刻（round.json の at）から後の、この周の材料 brief-*.md を読んだ session の行で切る。道具を持たない役 quiet は読む物が無いので null で名指す。役を起こさない周は
     索引の why に reads.NOT_LAUNCHED と訳。形 replan は役の名と索引を reads の案の直しの名にする（1 回目の物を上書き
@@ -949,7 +940,8 @@ def collect_reads(round_dir, log, *, role: str, quiet: tuple, policy_md: str, re
     missing = []
     if rnd["go"]:
         briefs = [str(p) for p in sorted(round_dir.glob(BRIEF_FILE.format(n="*")))]
-        must = briefs + [str(p) for p in sorted(round_dir.glob(REJECT_FILE.format(n="*")))]
+        rejects = round_dir / rolekit.REJECTS_TEXT.format(name=ROLE)
+        must = briefs + ([str(rejects)] if rejects.is_file() else [])
         got = reads.collect(round_dir, role, must + ([policy_md] if policy_md else []), log, own=briefs, since=rnd["at"],
                             repo=repo, replan=again)
         index[reads.role_key(role, again)], missing = got["reads_file"], got["missing"]

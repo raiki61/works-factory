@@ -66,6 +66,21 @@ class RejectLedgerCase(Base):
         self.assertEqual(rolekit.attempt(self.tmp, "other"), 1)
         self.assertIn(f"拒否 {rolekit.GIVE_UP_AFTER}", rolekit.given_up_reason(self.tmp, "eye"))
 
+    def test_reject_file_carries_every_reject_oldest_first(self):
+        """次の回の役は新しい会話で起きるので、名指すファイルに輪の拒否の全部が古い順に在る（#345）。報告の最後の拒否の読み
+        （last_reject）はそのファイルを最後の拒否と取り違えない"""
+        self.assertEqual(rolekit.reject_file(self.tmp, "plan"), "")
+        for n in (1, 2):
+            rolekit.with_done(self.tmp, "plan", {"ok": False, "reason": f"拒否 {n}\n2 行目"})
+        path = pathlib.Path(rolekit.reject_file(self.tmp, "plan"))
+        self.assertEqual(path.name, "rejects-plan.md")
+        text = path.read_text(encoding="utf-8")
+        self.assertEqual(text, rolekit.rejects_text(["拒否 1\n2 行目", "拒否 2\n2 行目"]) + "\n")
+        self.assertLess(text.index("1 回目の拒否:\n拒否 1"), text.index("2 回目の拒否:\n拒否 2"))
+        self.assertEqual(rolekit.last_reject(self.tmp), "拒否 2 2 行目")
+        pasted = rolekit.with_reject("本文", rolekit.rejects_text(rolekit.rejected(self.tmp, "plan")))
+        self.assertIn("拒否 1", pasted, "道具ゼロの役に貼る文も全部")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -164,7 +164,9 @@ class Classes(Base):
         self.assertEqual(rolekit.rejected(self.out, worldblk.CLASSES_ROLE), reasons)
         self.assertFalse((self.out / f"{worldblk.CLASSES_ROLE}-state.json").exists())
         second = (self.out / worldblk.PROMPT.format(role=worldblk.CLASSES_ROLE, n=2)).read_text(encoding="utf-8")
-        self.assertTrue(second.startswith(rolekit.with_reject("", reasons[0])))
+        self.assertTrue(second.startswith(rolekit.with_reject("", rolekit.rejects_text(reasons[:1]))))
+        third = (self.out / worldblk.PROMPT.format(role=worldblk.CLASSES_ROLE, n=3)).read_text(encoding="utf-8")
+        self.assertTrue(third.startswith(rolekit.with_reject("", rolekit.rejects_text(reasons[:2]))), "3 回目には 1 回目の拒否も貼る")
 
     def test_class_ids_are_stable_by_text(self):
         self.intake()

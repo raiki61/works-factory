@@ -8,7 +8,8 @@ recount.accept_fix・tddloop.selected_problems。除くパスの頭 boundary.SKI
 
 - 範囲の相談の周（入力 consulted が true）は受け付けを回さず done: false
 - 修正役を起こさなかった（入力 reply が null）周は done: true（直す義務が残らない）
-- 拒否は理由を置き場の reject-fix-accept-<iteration>.md に書いて done: false。iteration が 3 以上の拒否は、名指しの単位だけを
+- 拒否は理由を置き場の reject-fix-accept-<iteration>.md に書き（reason_file はこの輪の拒否の全部のファイル。fixboard.write_reject）
+  done: false。iteration が 3 以上の拒否は、名指しの単位だけを
   段の頭の木に戻して諦め、ほかの単位を受けて done: true
 - 範囲の外のはみ出しだけの返答は拒まずに範囲の相談に積むか機械が戻す（fixboard.settle_overflow）。積んだ回は done: false
 - 1 回目で裁かれていない申し出が在れば輪を抜ける（done: true。裁定の後の修正役が受け付け直す）
@@ -72,10 +73,10 @@ def finish(place: Path, got: dict, iteration: int) -> dict:
                        conflicted=got["conflicted"])
         return {"ok": True, "done": True, "reason": fixboard.PARKED_FOR_RULING if got["conflicted"] else "",
                 "reason_file": ""}
-    reason_file = fixboard.write_text(place / fixboard.REJECT_NAME.format(name=NAME, k=iteration), got["reason"] + "\n")
+    reason_file = fixboard.write_reject(place, NAME, iteration, got["reason"])
     done = fixboard.loop_done(got, iteration)
     fixboard.trace(place, "fix_rejected", node=NAME, iteration=iteration, done=done, parked=sorted(got["parked"]))
-    return {"ok": False, "done": done, "reason": got["reason"], "reason_file": str(reason_file)}
+    return {"ok": False, "done": done, "reason": got["reason"], "reason_file": reason_file}
 
 
 if __name__ == "__main__":

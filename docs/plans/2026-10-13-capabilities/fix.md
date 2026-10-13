@@ -557,11 +557,11 @@
   - 本物の run: 拒否の時の置き場 `reject-fix-accept-<k>.md`（健全な run では現れないことが多い）
   - 狭め: 無し
 
-- F132 拒否の理由をファイルに書き、次の回の指示書の 1 行目の後に名指す（役が Read で読む）
-  - 元: works/blk-fix/lib/fixrules.py `last_reject`・REJECT_FN、works/.shared/core/rolekit.py:64 `REJECT_LINE`
-  - 今: lib/fixboard.py::last_reject_file・lib/fixboard.py::accept_out・lib/fixboard.py::REJECT_LINE
-  - 証: tests/workflows/test_fix.py::FixLoopScriptsCase.test_third_reject_gives_up_only_the_named_unit、lib/tests/test_fix_seams.py::RulebookSeamCase.test_render_heads_rejects_and_lang
-  - 本物の run: 拒否が在れば置き場の `reject-fix-accept-<k>.md` と次の回の修正役の指示書の 2 行目
+- F132 拒否の理由をファイルに書き、輪の拒否の全部（古い順）を 1 つのファイルにまとめて次の回の指示書の 1 行目の後に名指す（役が Read で読む）
+  - 元: works/blk-fix/lib/fixrules.py `last_reject`・REJECT_FN、works/.shared/core/rolekit.py:64 `REJECT_LINE`。元は最後の拒否だけを名指したが、拒まれた役は同じ会話の続きで起きた（works/.shared/core/graphloops/engine/role_run.py:19-20）
+  - 今: lib/fixboard.py::rejects_file・lib/fixboard.py::write_reject・lib/fixboard.py::accept_out・lib/rolekit.py::REJECT_LINE
+  - 証: tests/workflows/test_fix.py::FixLoopScriptsCase.test_third_reject_gives_up_only_the_named_unit、lib/tests/test_fix_seams.py::RulebookSeamCase.test_render_heads_rejects_and_lang、tests/workflows/test_fix.py::DeltaScriptsCase.test_third_refix_prompt_names_every_reject_of_the_loop（#345）
+  - 本物の run: 拒否が在れば置き場の `reject-fix-accept-<k>.md`・`rejects-fix-accept.md` と次の回の修正役の指示書の 2 行目
   - 狭め: 無し
 
 - F133 修正の受け付けの 3 回目の拒否: 拒否の行を単位に結び（申し出の行は申し出た単位、ほかは文が名指す単位・足跡・届く試験）、結んだ単位を足跡を共にする単位と一緒に段の頭の木へ戻して控えの patch に移し、ask_human の裁定つきで止め、残りの単位で頭から通し直す（keep-essence の 4 の後半）

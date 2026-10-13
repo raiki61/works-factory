@@ -166,7 +166,7 @@ def prep(structure_file) -> dict:
     st = state(out_dir)
     rejects = rolekit.rejected(out_dir, NAME)
     n = len(rejects) + 1
-    prompt = render(doc, rejects[-1] if rejects else "")
+    prompt = render(doc, rolekit.rejects_text(rejects))
     path = out_dir / PROMPT_FILE.format(n=n)
     path.write_text(prompt, encoding="utf-8")
     _put(out_dir, {"started_at": st.get("started_at") or time.time(), "status": "pending", WALL: st.get(WALL, 0)})
