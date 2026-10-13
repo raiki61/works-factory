@@ -17,6 +17,7 @@ import yaml
 
 from bin._lib import isolate
 from bin._lib.place import WORKFLOW_FOLDER
+from lib import answer
 
 BOUNDARY = "boundary.py"
 POLYFILL_ROW = re.compile(r"workflows/\.shared/([^\s`（）()、・。]+)(`?（予定）)?")
@@ -796,8 +797,9 @@ def _gates(root: Path) -> list[str]:
 
 
 def _gate_words(root: Path) -> list[str]:
-    """関所（approval:）は decisions に reject を持ち、on_reject を持たない（K10。止めた Archon の core/src/operations/
-    workflow-operations.ts 1625-1700 行: decisions に reject が無いか on_reject が在る関所の reject は run の取り消しになり、報告が出ない）。
+    """関所（approval:）は decisions に答えの語（lib/answer.py の GO_WORDS・STOP_WORDS。STOP_WORDS は REJECT を含む）を全部持ち、on_reject を持たない
+    （K10。止めた Archon の core/src/operations/workflow-operations.ts 1625-1700 行: decisions に reject が無いか on_reject が在る
+    関所の reject は run の取り消しになり、報告が出ない。ほかの語が無いと、その答えを関所が受けない）。
     輪（loop_group）の本体に関所を置かない（K18。本体が関所で終わる輪の再開は会話を引き継がない。元 works/tests/test_yaml_rules.py 43-45 行）"""
     out = []
     for path in _workflow_yamls(root):
@@ -814,8 +816,9 @@ def _gate_words(root: Path) -> list[str]:
                     continue
                 ident = getattr(_top(node, "id"), "value", "?")
                 words = {getattr(_top(d, "id"), "value", None) for d in getattr(_top(gate, "decisions"), "value", [])}
-                if "reject" not in words:
-                    out.append(f"{rel}:{_line(node)}: 関所 {ident} の decisions に reject が無い")
+                for word in answer.GO_WORDS + answer.STOP_WORDS:
+                    if word not in words:
+                        out.append(f"{rel}:{_line(node)}: 関所 {ident} の decisions に {word} が無い")
                 if _top(gate, "on_reject") is not None or _top(node, "on_reject") is not None:
                     out.append(f"{rel}:{_line(node)}: 関所 {ident} が on_reject を持つ")
     return out
