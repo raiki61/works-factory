@@ -91,6 +91,11 @@ ROLES = {
 }
 # 輪の id → 受け付けの節と fresh_context（旧 YAML: 仕様の 3 つの輪と再審の輪は true、ほかは false）
 FRESH = {"spec-loop", "spec-review-loop", "spec-revise-loop", "rejudge-loop"}
+# 新しい会話の輪の reject の節が結ぶ拒否の控え（受け付けの置き場と控えの名。lib/judge_accept の spec_accept・rejudge_accept と同じ）
+FRESH_LEDGERS = {"spec-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["write"]},
+                 "spec-review-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["review"]},
+                 "spec-revise-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["revise"]},
+                 "rejudge-loop": {"board": ja.REJUDGE_DIR, "accept": ja.REJUDGE_ROLE}}
 # 観点の正本（REVIEW.md）を読む役の指示書（元が {{inputs.review_md}} で読ませていた物）
 REVIEW_READERS = ("diagnose", "material-local-review", "material-consistency-bypass", "material-hygiene",
                   "material-external-standards", "material-procedure-trace")
@@ -287,12 +292,13 @@ class LoopTest(unittest.TestCase):
     def test_roles_receive_the_reject_reason_through_the_reject_node(self):
         """拒否の理由は、輪の中の節 <役>-reject（script reject）の with: に $LOOP_PREV で結び、役の指示書は今の周のその節の返り
         $<役>-reject.output.reason で受け、rolekit.with_reject の見出しと文で出す（1 周目の $LOOP_PREV は空の字）。
+        役が周ごとに新しい会話で起きる輪（FRESH）は $LOOP_PREV でなく受け付けの拒否の控え（FRESH_LEDGERS）を結ぶ（#345）。
         役の節には with: を書かず、指示書には $INPUTS も $LOOP_PREV も書かない: 線が include すると、止めた Archon は輪の中の節が
         自分の with: で結んだ名を楯にせず「入力が無い」で止める（packages/workflows/src/include-expander.ts:566・627。楯は輪の節の
         束縛だけを見る）。ブロックの入力に宣言すると読み込みの時に既定の値で字が埋まり、周ごとの理由が消える。指示書の $LOOP_PREV は
         include した時だけ解け、単独の run では字のまま役に届く"""
         lead = rolekit.with_reject("", "").split("\n\n")[1].removesuffix(":")
-        for loop in loops().values():
+        for lid, loop in loops().items():
             body = {n["id"]: n for n in loop["loop_group"]["nodes"]}
             accept = loop["loop_group"]["nodes"][-1]["id"]
             for role in (n for n in body.values() if "command" in n):
@@ -301,7 +307,7 @@ class LoopTest(unittest.TestCase):
                     node = body[reject]
                     self.assertEqual((node["script"], node["runtime"], node["timeout"], node["mutates_checkout"]),
                                      ("reject", "uv", NO_DEADLINE, False))
-                    self.assertEqual(node["with"], {"reason": f"$LOOP_PREV.{accept}.output.reason"})
+                    self.assertEqual(node["with"], FRESH_LEDGERS.get(lid, {"reason": f"$LOOP_PREV.{accept}.output.reason"}))
                     self.assertEqual(node["output_format"]["required"], ["reason", "lang_line"])   # 言語の 1 行は BriefCase
                     self.assertNotIn("with", role)
                     self.assertIn(reject, role["depends_on"])
@@ -318,6 +324,17 @@ class LoopTest(unittest.TestCase):
         for reason in ("", '一行目 "引用" `x`\n二行目'):
             with self.subTest(reason=reason):
                 self.assertEqual(r.returned("reject", reason=reason), {"reason": reason, "lang_line": rolekit.lang_line({})})
+
+    def test_third_fresh_spec_role_reads_every_reject_of_the_loop(self):
+        """新しい会話で起きる仕様の役が 2 回拒まれた後の 3 回目: reject の返りの reason に 1 回目と 2 回目の拒否が古い順に在る（#345）"""
+        r = Run(self)
+        r.returned("intake")
+        reasons = [r.returned("spec_accept", role="write", reply=reply)["reason"]
+                   for reply in ({"requirements": []}, {"acceptance": []})]
+        self.assertTrue(all(reasons) and reasons[0] != reasons[1], reasons)
+        got = r.returned("reject", **FRESH_LEDGERS["spec-loop"])["reason"]
+        self.assertEqual(got, rolekit.rejects_text(reasons))
+        self.assertLess(got.index(reasons[0]), got.index(reasons[1]))
 
     def test_materials_are_eleven_loops_one_per_command(self):
         material_loops = sorted(lid.removesuffix("-loop") for lid in loops() if lid.removesuffix("-loop") in MATERIALS)

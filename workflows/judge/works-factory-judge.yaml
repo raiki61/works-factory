@@ -41,7 +41,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {reason: "$LOOP_PREV.spec-accept.output.reason"}
+          with: {board: judge, accept: spec-write}
           output_format:
             type: object
             additionalProperties: false
@@ -117,7 +117,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {reason: "$LOOP_PREV.spec-review-accept.output.reason"}
+          with: {board: judge, accept: spec-review}
           output_format:
             type: object
             additionalProperties: false
@@ -183,7 +183,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {reason: "$LOOP_PREV.spec-revise-accept.output.reason"}
+          with: {board: judge, accept: spec-revise}
           output_format:
             type: object
             additionalProperties: false
@@ -2198,7 +2198,7 @@ nodes:
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {reason: "$LOOP_PREV.rejudge-accept.output.reason"}
+          with: {board: rejudge, accept: rejudge}
           output_format:
             type: object
             additionalProperties: false
