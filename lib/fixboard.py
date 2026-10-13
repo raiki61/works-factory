@@ -29,7 +29,6 @@
 import json
 import os
 import pathlib
-import shutil
 import types
 
 import gatemarks
@@ -546,7 +545,6 @@ def prep(folder, worktree, raw: dict, parsed, located) -> dict:
     world = pointed("world")
     if world is not None:
         worldmark.rows(world)
-        shutil.copyfile(world, folder / WORLD_FILE)
     for name, file in (("depth", DEPTH_FILE), ("answers", ANSWERS_FILE), ("units", UNITS_FILE)):
         got = value(name)
         if got not in (None, "", [], {}) or name == "units":
@@ -1015,7 +1013,6 @@ PLAN_REVIEW_FILE = "p2.plan_review.json"   # 事前審査の返答の写し（fa
                                            # 修正役の指示書は修正案 PLAN_REPLY_FILE と同じフォルダに在ると書く）
 JUDGMENT_FILE = "judgment.json"        # 判定の写し
 RIPPLE_FILE = "ripple.json"            # 波及の一覧の写し
-WORLD_FILE = worldmark.WORLD_FILE      # 世界の解の行の写し（JSON Lines の行のまま。読むのは worldmark.rows）
 ANSWERS_FILE = "answers.json"          # 人の関所の答えの写し（承認の節の出力 {decision, text, asked}）
 UNITS_FILE = "units.json"              # 入力 units の写し
 ONLY_ITEMS_FILE = "only-items.json"    # 直す項目の絞り（入力 only_items。空は全部）
@@ -1484,7 +1481,7 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 
 # ---------------------------------------------------------------- 形 group の子の run（group-start・tdd-loop・group-end の scripts が呼ぶ）
 # 子が親の置き場から自分の置き場に写す入力の写し（prep が書く物。plan-fields.json と凍結の印は adopt_inputs が別に置き直す）
-ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, WORLD_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
+ADOPTED = (startrec.REL, JUDGMENT_FILE, *gatemarks.BESIDE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE, DEPTH_FILE, ANSWERS_FILE, UNITS_FILE,
            ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
 ALLOWED_TESTS_FILE = "allowed-tests.json"   # 返りの diff の隣: 許したテストの変更の訳 [{path, permit, source}]（collect が書く。allowed_test_rows）

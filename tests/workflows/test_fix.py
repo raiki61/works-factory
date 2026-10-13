@@ -1195,17 +1195,12 @@ class BlockScriptsCase(unittest.TestCase):
                fixboard.TRACE_FILE, planmarks.FIELDS_FILE}
         self.assertEqual(written - own, set(fixboard.ADOPTED))
 
-    def test_prep_copies_world_rows_line_for_line(self):
-        """入力 world（judge/world.jsonl。JSON Lines）が 2 行以上でも prep は落ちず、行のまま写す（読み方の持ち主は worldmark）"""
-        import fixboard
-        import worldmark
+    def test_prep_takes_world_of_two_rows(self):
+        """入力 world（judge/world.jsonl。JSON Lines）が 2 行以上でも prep は落ちない（読み方の持ち主は worldmark）"""
         _blk_world(self.art / "in" / "world.jsonl")
         code, _, err = _blk_run("prep", self.repo, self.art, {**self.prep_inputs(), "world": _blk_ptr("in/world.jsonl")},
                                 "fix__prep")
         self.assertEqual(code, 0, err)
-        copy = self.place / fixboard.WORLD_FILE
-        self.assertEqual(copy.read_text(encoding="utf-8"), _WORLD_LINES)
-        self.assertEqual([r["class_id"] for r in worldmark.rows(copy)], ["mean-denominator", "mean-empty"])
 
     def test_prep_refuses_a_broken_world_row(self):
         _blk_world(self.art / "in" / "world.jsonl", _WORLD_LINES + "{]\n")
