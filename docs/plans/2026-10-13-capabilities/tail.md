@@ -1189,9 +1189,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
-- R4 stopped_by_line: 線の止めの語（人待ちの conflict・replan・tdd-repeat を除く）・事前審査の stalled・計画の ready: false（直す単位が在る時）・merge-seal / merge-apply の ok: false
+- R4 stopped_by_line: 線の止めの語（人待ちの conflict・replan・tdd-repeat を除く）・事前審査の stalled・計画の ready: false（直す単位が在り、直す義務 0 件で役を起こさなかった周でない時）・merge-seal / merge-apply の ok: false
   - 元: works/.shared/core/report.py:644 `stopby.is_line(by)`（盤面の by が works:）
-  - 今: lib/outcome.py:391 `_line_stop`・:407 `plan_gave_up`
+  - 今: lib/outcome.py:373 `_line_stop`・:389 `plan_gave_up`
   - 証: lib/tests/test_outcome.py::TableCase.test_2_line_stops（assert: :56-59）・::ReadingCase.test_plan_not_ready（assert: :265-266）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（ただし線の script が返す止めの語は報告に届かない。R5b）
