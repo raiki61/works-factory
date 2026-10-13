@@ -470,7 +470,7 @@ class WorldRowsCase(TmpCase):
         world.parent.mkdir(parents=True)
         world.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n"
                                  for r in (WORLD_ROW, {**WORLD_ROW, "finding": 2, "class_id": "w-empty"})), encoding="utf-8")
-        rows, why = planfile.world_rows(json.dumps(str(world)), pathlib.Path)
+        rows, why = planfile.world_rows(json.dumps(str(world)), lambda _: world)
         self.assertEqual(([r["class_id"] for r in rows], why), (["w-mean", "w-empty"], ""))
 
 

@@ -11,7 +11,7 @@ p2.plan_review.json（入力 plan_review の事前審査の返答の写し。修
 depth.json・answers.json・units.json・only-items.json・baseline.json（{cases, exit}）・fix-ignored-before.json・human-notes.md（関所の一言と答えで戻った単位の行と、
 入力 notes の機械の申し送り。無ければ書かない）・base-rev.json
 （修正前の版。親の HEAD の sha。組の子が写して受け付けの起点にする）・groups.json
-（返りと同じ物）。入力 world（judge/world.jsonl）は写さず、行が worldmark.rows で読めることだけ確かめる。入力 prior_conflicts（1 回目の段の申し出と裁定のポインタ。2 回目の修正の段だけ）が在れば、その先のフォルダの申し出と
+（返りと同じ物）。入力 world（判定の世界の解の行）は写さず、行が worldmark.rows で読めることだけ確かめる。入力 prior_conflicts（1 回目の段の申し出と裁定のポインタ。2 回目の修正の段だけ）が在れば、その先のフォルダの申し出と
 裁定と TDD のループの状態を、組を作る前に写す（fixboard.adopt_prior_pass。直す項目 only_items の案の直しを待つ行は案を直した行になる）。
 組の子が結果を書く out_dir（置き場の groups/）も作る。記録の根が在れば、この作業ツリーの書き込みの記録を
 空で作る（writelog.open_here。在れば触らない）。
