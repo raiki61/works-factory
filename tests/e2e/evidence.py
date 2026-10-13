@@ -22,7 +22,6 @@ E・R・M）ごとの数を出す。判じは seen・absent（seen の行の照�
 """
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -41,7 +40,8 @@ SHOWN = 80
 RUNS_LISTED = "1000"
 TABLE = Path(__file__).resolve().with_name("evidence.json")
 # 行の種類ごとの欄。照らし（RULE_FIELDS）は seen の行に要り、scenario-only の行は持たず、ほかの行は見えたかを知るために持ってよい。
-# seen の writer は where のファイルと欄を書くコードの「リポジトリの根からのパス:行」（run の記録の行は、その節を置く YAML の行）
+# seen の writer は where のファイルと欄を決めるコードの `リポジトリの根からのパス::名`（関数・定数・`クラス.名`。YAML と run の記録の
+# 行は節の id、最上位のコードで決める script はそれを走らせる節）。形は tests/e2e/test_evidence.py が照らす
 ROW_FIELDS = {"seen": {"id", "kind", "writer"}, "scenario-only": {"id", "kind", "why"}, "seed-cannot": {"id", "kind", "why"},
               "waits-part": {"id", "kind", "part"}, "backlog": {"id", "kind", "why"},
               "handed-off": {"id", "kind", "why", "to"}}
@@ -49,7 +49,6 @@ ROW_FIELDS = {"seen": {"id", "kind", "writer"}, "scenario-only": {"id", "kind", 
 PARTS = ("A", "B1", "B2", "C", "D1", "D2")
 WHERE_HEADS = ("parent/", "child-*/", "record/")
 SEEN, ABSENT, UNEXPECTED = "seen", "absent", "unexpected"
-WRITER = r"[\w.-]+(?:/[\w.-]+)*:[1-9]\d*"
 
 
 class Stop(Exception):
@@ -195,8 +194,6 @@ def row_problem(row) -> str | None:
     own = ROW_FIELDS[row["kind"]]
     if not own <= set(row) or not all(isinstance(row[k], str) and row[k].strip() for k in own):
         return f"行 {row!r} に {sorted(own)} が空でない字で無い"
-    if row["kind"] == "seen" and not re.fullmatch(WRITER, row["writer"]):
-        return f"行 {row['id']} の writer が「パス:行」でない"
     if row["kind"] == "waits-part" and row["part"] not in PARTS:
         return f"行 {row['id']} の part が {PARTS} のどれでもない"
     rule = {k: v for k, v in row.items() if k not in own}

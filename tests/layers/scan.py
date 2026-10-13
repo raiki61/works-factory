@@ -627,14 +627,21 @@ OUTWARD = re.compile(r"(?<![\w./-])gh(?![\w./-])|\bgit[\"'\s,]+(?:push|merge)\b"
 NAMED_SCRIPT = re.compile(r"[\w.-]+")
 
 
+def node_scripts(folder: Path, node) -> list[Path]:
+    """名前の script の節（`script: <名>`）の走らせる folder/scripts/<名>.* のファイル。そうでない節は空"""
+    value = _top(node, "script")
+    if not (isinstance(value, yaml.ScalarNode) and NAMED_SCRIPT.fullmatch(value.value) and (folder / "scripts").is_dir()):
+        return []
+    return sorted((folder / "scripts").glob(f"{value.value}.*"))
+
+
 def _node_code(folder: Path, node) -> str | None:
     """節の走らせる字（直に書いた script・bash か、名前の script のファイルの中身）。script・bash の節でなければ None"""
     for key in ("script", "bash"):
         value = _top(node, key)
         if isinstance(value, yaml.ScalarNode):
             if key == "script" and NAMED_SCRIPT.fullmatch(value.value):
-                found = sorted((folder / "scripts").glob(f"{value.value}.*")) if (folder / "scripts").is_dir() else []
-                return "".join(p.read_text(encoding="utf-8", errors="replace") for p in found)
+                return "".join(p.read_text(encoding="utf-8", errors="replace") for p in node_scripts(folder, node))
             return value.value
     return None
 

@@ -101,9 +101,8 @@ def pointers() -> list[tuple[str, str, str]]:
     return [(where, path, name) for where, text in present_tense() for path, name in POINTER.findall(text)]
 
 
-@functools.cache
-def python_names(path: str) -> frozenset[str]:
-    """最上位の関数・クラス・代入の名と、クラスの中のそれを `クラス.名` で"""
+def python_definitions(text: str) -> dict[str, tuple[int, int]]:
+    """最上位の関数・クラス・代入の名と、クラスの中のそれを `クラス.名` で → 定義の文の (頭の行, 終わりの行)（1 から。同じ名は先の定義）"""
     def defined(body):
         for node in body:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -115,21 +114,31 @@ def python_names(path: str) -> frozenset[str]:
             elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
                 yield node.target.id, node
 
-    names = set()
-    for name, node in defined(ast.parse((ROOT / path).read_text(encoding="utf-8")).body):
-        names.add(name)
+    spans = {}
+    for name, node in defined(ast.parse(text).body):
+        spans.setdefault(name, (node.lineno, node.end_lineno))
         if isinstance(node, ast.ClassDef):
-            names.update(f"{name}.{member}" for member, _ in defined(node.body))
-    return frozenset(names)
+            for member, inner in defined(node.body):
+                spans.setdefault(f"{name}.{member}", (inner.lineno, inner.end_lineno))
+    return spans
 
 
 @functools.cache
-def yaml_node_ids(path: str) -> frozenset[str]:
-    return frozenset(scan._top(node, "id").value for node in scan.nodes(ROOT, path))
+def python_names(path: str) -> frozenset[str]:
+    return frozenset(python_definitions((ROOT / path).read_text(encoding="utf-8")))
+
+
+@functools.cache
+def yaml_nodes(path: str) -> dict:
+    """節の id → 節の node（同じ id は先の節）"""
+    found = {}
+    for node in scan.nodes(ROOT, path):
+        found.setdefault(scan._top(node, "id").value, node)
+    return found
 
 
 def exists(path: str, name: str) -> bool:
-    return (ROOT / path).is_file() and name in (yaml_node_ids(path) if path.endswith(".yaml") else python_names(path))
+    return (ROOT / path).is_file() and name in (yaml_nodes(path) if path.endswith(".yaml") else python_names(path))
 
 
 def missing(want_tests: bool) -> list[str]:
