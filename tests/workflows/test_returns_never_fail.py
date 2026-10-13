@@ -354,7 +354,12 @@ class ReadsFailureCase(unittest.TestCase):
                 self.assertEqual((got["ok"], got["reason"]), (False, "OSError: 壊れた"))
                 [path] = (artifacts / place).glob(reads.EVIDENCE_GLOB)
                 doc, _ = reads.read_evidence(path)
-                self.assertEqual(doc["sources"], {"hook": reads.FAILED, "why": "OSError: 壊れた"})
+                self.assertEqual(doc["sources"]["hook"], reads.FAILED)
+                why = doc["sources"]["why"]
+                if place == "plan-review":   # 見え方の材料を置いていないので、往復の番号と形を読めないと添える（#405）
+                    self.assertTrue(why.startswith(f"OSError: 壊れた（{reads.UNREAD_PASS}: "), why)
+                else:
+                    self.assertEqual(why, "OSError: 壊れた")
 
 
 class SeedCase(unittest.TestCase):

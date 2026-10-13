@@ -20,7 +20,7 @@ SKIP = ("graphloops/",)
 WORDS = frozenset({
     "works:adapter", "works:ci", "works:conflict", "works:delta", "works:empty-fix", "works:fix", "works:lens",
     "works:plan-converge", "works:pr", "works:premises", "works:purpose", "works:refix", "works:rejudge",
-    "works:rejudge-session", "works:replan", "works:scope-check", "works:tdd-repeat",
+    "works:rejudge-session", "works:replan", "works:scope-check", "works:tdd-repeat", "works:unrestored",
     "works:start-refused", "works:needs-human", "works:line-script",
     "works:rule-give-up", "works:judge", "works:judge-verify", "works:spec", "works:material", "works:request",
 })

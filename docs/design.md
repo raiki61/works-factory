@@ -263,7 +263,7 @@ flowchart TB
 - 出力:
   - `done`（boolean）: 直しを作業ツリーに入れ終え、差分の審査を通した。諦めた単位が在っても true → メイングラフのノード `fixed`（メイングラフ 8 へ進むかの `go`）・report
   - `units`（array）: 単位ごとの結末。項目は `{unit_id, group_id, status, reason}`、status は `fixed`・`given_up`・`not_done` → eyes・report
-  - `groups`（array）: 組ごとの結果。項目は `{group_id, unit_ids, returned, reason, backed_out?}`（returned は親の木へ戻せたか。backed_out は当ててから確かめ直しが赤で戻した組だけが持つ、戻したパスの並び）→ report
+  - `groups`（array）: 組ごとの結果。項目は `{group_id, unit_ids, returned, reason, backed_out?, unrestored?}`（returned は親の木へ戻せたか。backed_out は当ててから確かめ直しが赤か落ちて戻した組だけが持つ、戻したパスの並び。unrestored は戻そうとして戻せなかった組だけが持つ、親の作業ツリーに当たったままのパスの並びで、その後の組は当てない）→ report
   - `conflicts`（ポインタ・null 可）: 申し出と裁定（`lib/conflict` の形）。無ければ null → メイングラフ 11・plan（replan）・report
   - `replan_items`（array of string）: 裁定が誤りとした計画の項目の番号（承認済みの修正案の `plan[]` の 1 から数えた位置を 10 進の字にした物。例 `["2"]`。重ねない・現れた順）。空でなければメイングラフが案の直しを 1 度include する → メイングラフ 7・plan
   - `objection`（string）: 修正役の異議。空でなければメイングラフが再審を 1 度include する → メイングラフ 7・judge
@@ -274,6 +274,7 @@ flowchart TB
   - `delta_review`（object）: 差分の審査 `{rounds: integer, pass: boolean}`。軽量で省いた時と、差分が空で塞いだと言われた穴も無い時は `{rounds: 0, pass: true}`（訳は diff の隣の `delta/skipped.json`） → report
   - `handoffs`（array of string）: 修正役が人に回した物（受け付けた返答の `changes[].breaks.accepted`。1 件 1 行。`lib/fixboard.py` の `handoff_lines`）→ メイングラフのノード `fixed` → メイングラフ 11（開ける理由）・report（人が決めること）
   - `mismatched`（array of string）: 直したという申告と機械の数え直しが合わない単位（1 件 1 行。`fixboard.mismatched_lines`）→ メイングラフのノード `fixed` → メイングラフ 11（開ける理由）
+  - `stop_reason`（string）: 止めの語。戻せず当たったままの組が在れば `stopby.UNRESTORED`（人待ちの語。作業ツリーが信用できないので、fix の中の裁定・後始末・差分の審査も木を動かさない）、ほかは `""` → メイングラフのノード `fixed`（held にして最後のテストへ進めず、`stop_reason` で報告の結末 `needs_human` に届ける）
 - 型つきの成果物: 単位ごとに `output_type: tdd-unit`（出力ではない。report だけが一覧から読む。E5）
 
 

@@ -340,6 +340,28 @@ def pass_dir(folder, k: int) -> pathlib.Path:
     return pathlib.Path(folder) / PASS_DIR.format(k=k)
 
 
+def open_place(folder) -> tuple:
+    """open_pass が置いた材料から (この差し込みの pass-<k>/, 形が replan か, 材料)。材料が読めない・k が整数でない・形が FORMS に
+    無ければ Missing"""
+    inputs = read_open(folder)
+    k = inputs.get("k")
+    if not isinstance(k, int) or isinstance(k, bool):
+        raise Missing(f"見え方の材料の k が整数でない: {k!r}")
+    if inputs.get("form") not in FORMS:
+        raise Missing(f"見え方の材料の形 form が {'・'.join(FORMS)} のどれでもない: {inputs.get('form')!r}")
+    return pass_dir(folder, k), inputs["form"] == "replan", inputs
+
+
+def reads_place(folder) -> tuple:
+    """読んだ証拠のノードが落ちた記録の (置き場, 案の直しか, 読めない訳)。置き場と形は collect_reads と同じ open_place から引く。
+    材料が読めなければ推し量らず (folder, False, 訳)（reads.guarded の unread）"""
+    try:
+        place, again, _ = open_place(folder)
+    except Missing as e:
+        return pathlib.Path(folder), False, str(e)
+    return place, again, ""
+
+
 def human_items(answers) -> list:
     """人の関所の答え（承認の節の返り {decision, text} か、その並び）を design.human_answers が読む行 {round, node, kinds, answer, note}
     に。null・形の違う値は無い"""
@@ -495,6 +517,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
 
 
 DESIGN_FORM = "design"   # 直す物が無い周の差し込みの形（修正案を読まずに独立設計だけを作る。元 line_edge.plan_edge 1107-1119）
+FORMS = ("review", "replan", DESIGN_FORM)   # open_pass と open_design が材料に書く形
 DESIGN_ONLY_DIR = "design-only"   # 形 design の返りの置き場（事前審査の返答の代わりの空の控えと聞かずに通した行・関所の控え）
 DESIGN_ONLY_WHY = "直す物が無い周（判定が直す単位を出さなかったか、計画の直す義務が 0 件だった）——修正案も事前審査も無く、最後の R2 が要る独立設計だけを作った"
 
@@ -950,10 +973,8 @@ def collect_reads(folder, log, *, role: str, quiet: tuple, repo) -> dict:
     この差し込みで書いた下請けのファイルの数と並べて trace に planblk.AGENT_OP で残す（拒まない。測る。記録が読めなければ launched は
     null と訳）。形 replan は役の名と索引を reads の案の直しの名にする。返り {ok: True, missing, index_file}"""
     d = pathlib.Path(folder)
-    inputs = read_open(d)
-    p = pass_dir(d, inputs["k"])
+    p, again, inputs = open_place(d)
     p.mkdir(parents=True, exist_ok=True)
-    again = inputs["form"] == "replan"
     opened = (d / OPEN_FILE).stat().st_mtime
     since = reads.stamp(opened)
     prompt = str(p / PROMPT_FILE)

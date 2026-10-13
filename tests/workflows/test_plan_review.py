@@ -1987,6 +1987,47 @@ class ReadsCase(RunCase):
         self.assertEqual(pathlib.Path(index["replan-plan-review"]).name, reads.evidence_name("replan-plan-review"))
         self.assertTrue(pathlib.Path(first["index_file"]).is_file())
 
+    def fallen(self) -> pathlib.Path:
+        """trace を置けない木で読んだ証拠の節を落とし、置き場に残った落ちた記録 1 つのパスを返す"""
+        r = self.run_
+        before = set(r.folder.rglob(reads.EVIDENCE_GLOB))
+        trace = r.folder / planmarks.TRACE_FILE
+        kept = trace.read_bytes() if trace.is_file() else None
+        trace.unlink(missing_ok=True)
+        trace.mkdir()
+        got = r.out("review_reads", CLAUDE_CONFIG_DIR=str(self.config))
+        trace.rmdir()
+        if kept is not None:
+            trace.write_bytes(kept)
+        self.assertFalse(got["ok"], got)
+        [path] = [p for p in set(r.folder.rglob(reads.EVIDENCE_GLOB)) - before if "-failed-" in p.name]
+        return path
+
+    def test_fallen_reads_of_a_replan_are_named_and_placed_apart(self):
+        """#405: 落ちた読みの記録は role_key の名で pass-<k>/ に置き、1 回目の物と案の直しの物を名と置き場で分ける"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        self.assertTrue(r.pass_(review())["pass"])
+        first = self.fallen()
+        self.assertEqual((first.parent, first.name.split("-failed-")[0]),
+                         (boardview.pass_dir(r.folder, 1), reads.evidence_name("plan-review").removesuffix(".json")))
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, approach=f"{PLAN_MARK} 直した項目 2")], rnd=2)
+        r.inputs.update(ruling=json.dumps(["2"]), conflicts=r.put("fix/conflicts.json", {"items": [ReplanCase.CONFLICT]}))
+        r.open()
+        again = self.fallen()
+        self.assertEqual((again.parent, again.name.split("-failed-")[0]),
+                         (boardview.pass_dir(r.folder, 2), reads.evidence_name("replan-plan-review").removesuffix(".json")))
+
+    def test_fallen_reads_without_the_open_material_say_unreadable(self):
+        """#405: 往復の番号と形を読めない時は推し量らず、置き場の根に役の素の名で書いて「読めない」と言う"""
+        r = self.run_
+        got = r.out("review_reads", CLAUDE_CONFIG_DIR=str(self.config))
+        self.assertFalse(got["ok"], got)
+        [path] = r.folder.glob(reads.EVIDENCE_GLOB)
+        doc, _ = reads.read_evidence(path)
+        self.assertEqual(doc["role"], "plan-review")
+        self.assertIn(reads.UNREAD_PASS, doc["sources"]["why"])
+
 
 class ReplanCase(RunCase):
     """形 replan（案の直しの事前審査。ruling が空でない）: 壁打ちを回さず 1 回で返り、stalled はいつも偽（元

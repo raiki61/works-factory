@@ -14,7 +14,8 @@ groups・allowed_test_changes と、最後の承認ノードを開ける理由�
 決めたのは 1 回目）。objection は 1 回目と 2 度目の修正役の異議をつないだ文で、rejudge は異議が在り held でない時に真（再審は 2 度目の
 修正の後に 1 度だけ両方の異議を受ける。元 works/darkfactory/darkfactory.yaml:827 の h-rejudge は refit の後）。
 done は、案の直しが要ったのに 2 度目の修正が走らなかった時（案の直しの関所の stop・無人の止め・案ができなかった・refix-run の中が
-落ちた）と、前の線の script（after-fix）が止めた時は偽（held）。再審の止め（judged）は試験の関門の when が読む。go は試験の関門（final）へ進めるか: held でなく、done か、
+落ちた）と、前の線の script（after-fix）が止めた時と、fix か refix-run が止めの語を返した時（戻せず当たったままの組。
+stopby.UNRESTORED）は偽（held）。stop_reason は fix か refix-run が返した止めの語（報告の結末が読む。after-fix の止めは collect が別に受ける）。再審の止め（judged）は試験の関門の when が読む。go は試験の関門（final）へ進めるか: held でなく、done か、
 差分の審査が回って通らなかった（delta_review の rounds が 1 以上で pass が偽。審査は変更の確かめが通った run でだけ回る）時。
 今の works の最後のテスト p4.ci は手直しの段が済むのを待つだけで、審査が通ったかを待たない（done が偽の残りは報告が数える）。
 held の時は 1 回目の修正の差分を試験の関門から先へ進めない。
@@ -24,7 +25,7 @@ plan・ripple は独立の目が照らす修正案と波及: 2 度目の修正�
 design・plan_questions・answer は独立の目へ渡す計画の往復の設計と修正前の関所の問いと答え（そのまま渡す）。直す物が無い周（fix が
 走らず design-only が走った。fix の欄が null）は no_fix の形（no_fix）を返す（L-W07）。
 
-入力（with:）: fix_<欄>（fix の返り）・refix_<欄>（refix-run の返り）・replan（after-fix の返り）・stop_after_fix（after-fix の止めの理由）・
+入力（with:）: fix_<欄>（fix の返り。止めの語 stop_reason も）・refix_<欄>（refix-run の返り）・replan（after-fix の返り）・stop_after_fix（after-fix の止めの理由）・
 plan・ripple・design・plan_questions（計画の往復の返り）・answer（修正前の関所の答え）・no_fix_design（design-only の design）・replanned
 （案の直しの返りの受け皿 replan-out の got。案の直しの返す節が落ちても fixed が落ちないように、replan を直に読まない）。直す物が
 無い周に飛ぶ節を結ぶので、どれも `{from, if_skipped: null}`
@@ -38,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
 FIELDS = ("done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes", "changed",
-          "x_scalars", "delta_review", "handoffs", "mismatched")
+          "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason")
 PLANS = ("plan", "ripple")
 PASSED = ("design", "plan_questions", "answer")   # 独立の目へ渡す計画の往復の設計・修正前の関所の問いと答え（飛ばされた周は null）
 
@@ -74,7 +75,8 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
         return no_fix(plans)
     last = refix if refix is not None else fix
     again = plans.get("replanned") if refix is not None and isinstance(plans.get("replanned"), dict) else None
-    held = (replan and refix is None) or any(stops)
+    own = next((s for s in (fix.get("stop_reason"), (refix or {}).get("stop_reason")) if isinstance(s, str) and s), "")
+    held = (replan and refix is None) or any(stops) or bool(own)
     done = last.get("done") is True and not held
     units = {}
     for unit in [*(fix.get("units") or []), *((refix or {}).get("units") or [])]:
@@ -107,7 +109,7 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
         "plan_questions": plans.get("plan_questions") or [],
         "answer": plans.get("answer"),
         "no_fix": False,
-        "stop_reason": "",
+        "stop_reason": own,
     }
 
 

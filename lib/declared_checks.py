@@ -333,6 +333,12 @@ def _junit_unran(root, step, row):
     return None
 
 
+def ran_reds(runs, unran) -> list:
+    """走った赤の段（終了の値が 0 でも None〔起こせない〕でもなく、試験を走らせなかった段の名 unran に無い段）。1 つでも在れば、
+    走らなかった段より赤が勝つ（#370）。素材を組む checks_reply と赤の原因を分ける green_cert.classify がこの 1 か所を引く"""
+    return [r for r in runs or [] if tree_run.launch_kind(r.get("exit")) == "red" and r.get("name") not in unran]
+
+
 def checks_reply(launch, runs, root, *, after_judge) -> dict:
     """走らせた結果から素材 {status, count?, detail?, checked?, reason?} を組む。走らせられないときは、判定の前（after_judge が偽）なら
     awaiting_human、判定の後なら not_run（人待ちを新しく立てない規則）。
@@ -345,14 +351,13 @@ def checks_reply(launch, runs, root, *, after_judge) -> dict:
         return {"status": cant, "reason": launch["blocked"]}
     summary = "; ".join(f"{r['name']}: exit {r['exit']}（{r['wall_s']} 秒）" for r in runs)
     broken = [r for r in runs if r["exit"] is None]
-    red = [r for r in runs if r["exit"] not in (0, None)]
     decl = {s["name"]: s for s in launch.get("steps") or []}
     unran = {r["name"]: _junit_unran(root, decl[r["name"]], r) for r in runs if r["exit"] is not None and decl.get(r["name"], {}).get("junit")}
     unran = {n: why for n, why in unran.items() if why}
     if broken:
         return {"status": cant, "reason": "宣言の語を起こせない: " + "; ".join(f"{r['name']}: {r.get('error')}" for r in broken)}
     unran_text = "基準の検査が走らなかった段（コードの赤ではない）: " + "; ".join(f"{n}: {why}" for n, why in unran.items())
-    red_ran = [r for r in red if r["name"] not in unran]
+    red_ran = ran_reds(runs, unran)
     if red_ran:
         unverified = [r["name"] for r in red_ran if not decl.get(r["name"], {}).get("junit")]
         return {"status": "found", "count": len(red_ran),

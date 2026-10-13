@@ -3,7 +3,7 @@
 
 口:
 - groups(rows): [(id, タグの並び)] をタグを共にする物どうしの組に（つながりは推移的。組の中と組の並びは rows の順。純粋）
-- Merge: 組の差分を当てた結末（why・patch・names・unioned・clash）
+- Merge: 組の差分を当てた結末（why・patch・names・unioned・clash・backed_out・unrestored）
 - merge_in_order(lanes, merge_one): 組を順に当てる。merge_one(lane, earlier) が Merge を返し、earlier は前に当てた組の差分の
   パス（当てなかった組の物は入らない）。[(lane, Merge)]
 """
@@ -18,7 +18,8 @@ class Merge(NamedTuple):
     names: list       # 当てた差分のパス（当てなかったら []）
     unioned: list     # 試験のファイルの挿しだけの食い違いを合わせたパス
     clash: bool       # 字の食い違いで当たらなかった
-    backed_out: list = []   # 当ててから確かめ直しが赤で戻したパス（当てなかった・当てたままなら []）
+    backed_out: list = []   # 当ててから確かめ直しが赤か落ちて戻したパス（当てなかった・当てたままなら []）
+    unrestored: list = []   # 当ててから戻そうとして戻せず、親の作業ツリーに当たったままのパス（戻せた・戻さなかったなら []）
 
 
 def groups(rows) -> list:
