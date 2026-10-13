@@ -53,6 +53,7 @@ LIBLESS_EXITS = {
     "workflows/plan-review/scripts/result.py": "plan-review の返す節",
     "workflows/plan-review/scripts/review_reads.py": "読んだ証拠の節。受け付けの条件でないので、境の口を読めない時も ok: false で返す（線を止めない）",
     "workflows/fix/scripts/fix_reads.py": "読んだ証拠の節。受け付けの条件でないので、境の口を読めない時も ok: false で返す（ブロックを止めない）",
+    "workflows/judge/scripts/pr_reads.py": "読んだ証拠の節。受け付けの条件でないので、境の口を読めない時も ok: false で返す（ブロックを止めない）",
     "workflows/plan-review/scripts/pass_open.py": "差し込みの頭。境の口を読めない時も ok: false で返す今の振る舞いを残す",
     "workflows/fix/scripts/collect.py": "fix の返す節",
     "workflows/test-gate/scripts/result.py": "test-gate の返す節",

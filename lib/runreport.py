@@ -84,7 +84,7 @@ COST_ROWS = ("node_complete", "node_error")   # 自分の費用を報告しう�
 DONE_ROWS = ("node_complete", "node_skipped")
 OWN_SPEND = "node"                            # execution.accounting のうち、自分の費用を言う語（ほかは言い直しの行）
 # 役が呼んだ道具の行（止めた実行基盤の logger.ts の logProviderEvent が {type, step, …, event} で書き、event は provider-contract の
-# tool_call {type, toolCallId, name, rawInput}。tests/shared/test_archon_contract.py が源と照らす）
+# tool_call {type, toolCallId, name, rawInput}。境の試験の写しの表が源と照らす）
 PROVIDER_ROW = "provider_event"
 PROVIDER_EVENT = "event"
 TOOL_CALL = "tool_call"
@@ -1280,10 +1280,10 @@ def _bullets(lines: list) -> list:
     return [r if r.startswith("  ") else f"- {r}" for r in lines]
 
 
-CALLS_HEAD = "役が自分で呼んだ道具（run の記録の provider_event。節ごと）:"
+CALLS_HEAD = "役が自分で呼んだ道具（run の記録の provider_event。ノードごと）:"
 HOOK_HEAD = "渡した物を読んだか（フック bin/_lib/record-read.py の記録。下請けの中の Read も数える）:"
-CHILD_RUNS = "fix の組の子の run の道具の呼びは子の run の記録に在り、上の節ごとの行に入らない"
-SHOWN_FILES = 3   # 1 節の行に名を出すファイルの数
+CHILD_RUNS = "fix の組の子の run の道具の呼びは子の run の記録に在り、上のノードごとの行に入らない"
+SHOWN_FILES = 3   # 1 ノードの行に名を出すファイルの数
 
 
 def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, transcript_why: str, repo) -> list:
@@ -1294,7 +1294,7 @@ def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, t
     if not tfacts.get("ok"):
         out.append(f"  - run の記録が読めない（{transcript_why or '訳の記録が無い'}）")
     elif not calls:
-        out.append("  - 道具を呼んだ節が run の記録に無い")
+        out.append("  - 道具を呼んだノードが run の記録に無い")
     for step, mine in calls.items():
         files = list(dict.fromkeys(p for tool in PATH_TOOLS for p in mine[tool]))
         shown = "・".join(_shown(p, repo) for p in files[:SHOWN_FILES]) + (f" ほか {len(files) - SHOWN_FILES} 件" if len(files) > SHOWN_FILES else "")
@@ -1302,7 +1302,7 @@ def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, t
     out.append(HOOK_HEAD)
     found = sorted(p for p in artifacts.rglob(reads.EVIDENCE_GLOB) if not reads.is_index(p.name) and out_dir not in p.parents)
     out += [f"  - {_evidence_line(p, p.relative_to(artifacts).as_posix(), repo)}" for p in found] \
-        or ["  - 読んだ証拠の節が記録を書いていない（役を起こしていないか、節が走っていない）"]
+        or ["  - 読んだ証拠のノードが記録を書いていない（役を起こしていないか、ノードが走っていない）"]
     shell = {step: mine[SHELL_TOOL] for step, mine in calls.items() if mine[SHELL_TOOL]}
     counted = (f"。Bash の呼び {sum(shell.values())} 回" + (": " + "・".join(f"{s} {n}" for s, n in shell.items()) if shell else "")
                if tfacts.get("ok") else "。Bash の呼びは run の記録が読めないので数えられない")
