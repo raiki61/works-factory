@@ -594,7 +594,8 @@ class IsolationCase(RunCase):
         prompt = r.out("r2_prep")["prompt"]
         for want in (PURPOSE_MARK, CONSTRAINT_MARK):
             self.assertIn(want, prompt)
-        for leak in (PLAN_MARK, "LABEL-MARK-3131", FRAMING_MARK, ONE_SHOT_MARK, RIPPLE_MARK, UNIT_MEAN, "w-mean", str(r.repo) + "/"):
+        for leak in (PLAN_MARK, "LABEL-MARK-3131", FRAMING_MARK, ONE_SHOT_MARK, RIPPLE_MARK, UNIT_MEAN, "w-mean", str(r.repo) + "/",
+                     policy.RECORDED_HEAD):
             self.assertNotIn(leak, prompt)
         premises = (r.folder / boardview.PREMISES_FILE).read_text(encoding="utf-8")
         for leak in (PLAN_MARK, FRAMING_MARK, RIPPLE_MARK):
@@ -1100,6 +1101,27 @@ class ReviewAcceptCase(RunCase):
         got = r.pass_(review())
         self.assertTrue(got["ask_human"])
         self.assertTrue(any("人の方針の文書" in q and "が固定した版から変わった" in q for q in texts(got)), texts(got))
+
+    def test_policy_face_must_name_a_recorded_row(self):
+        """#427: kind policy の穴は記録された方針の行を名指す時だけ受ける。対象のテストの docstring を名指す穴と、方針の文書の無い run
+        の fences の policy_doc は拒み、依頼の answers の question と決着済みの論点の where を名指す穴は受ける"""
+        r = self.run_
+        r.start(features_off=["review_tree"], answers=[{"question": "q-mean-empty", "text": "空の列の平均は例外にする"}])
+        r.put(f"judge/{policy.PRIOR_DECISIONS_FILE}", {"role": "prior-decisions", "materials": {}, "reply": {"settled": [
+            {"topic": "公開の口", "decision": "減らさない", "where": "docs/adr/0002.md"}]}})
+        self.prepped()
+        docstring = {**SEED_DOCSTRING_FACE, "unit_keys": [UNIT_MEAN], "fences": []}
+        got = r.accept(review(docstring))
+        self.assertFalse(got["ok"], got)
+        for want in (SEED_DOCSTRING, "記録された方針に無い"):
+            self.assertIn(want, got["reason"])
+        got = r.accept(review(face("fenced-without-doc", kind="regression", severity="suggest", fences=["policy_doc"])))
+        self.assertFalse(got["ok"], got)
+        self.assertIn("policy_doc", got["reason"])
+        for named in ("q-mean-empty", "docs/adr/0002.md"):
+            with self.subTest(named=named):
+                got = r.accept(review({**docstring, "decided_by": named}))
+                self.assertTrue(got["ok"], got)
 
     def test_design_drift_face_needs_quotes_in_both(self):
         """元 ConvergeReviewCase.test_design_drift_face_needs_quotes_in_both"""
@@ -2302,6 +2324,18 @@ class GateFromPlanCase(RunCase):
         self.assertEqual((got["pass"], got["ask_human"], got["questions"]), (False, False, []), got)
 
 
+    def test_target_text_as_contract_drift_is_not_asked(self):
+        """#427: 対象の文（テストの docstring）を contract_drift で挙げた返答は人に聞かない。方針の文書の無い run の材料にも
+        記録された方針のセクションが「無い」と載る"""
+        r = self.run_
+        r.start(features_off=["review_tree"])
+        got = r.pass_(review(face("seed-docstring-stale", severity="suggest", where=SEED_DOCSTRING)))
+        self.assertEqual((got["ask_human"], got["questions"]), (False, []), got)
+        text = (r.folder / "pass-1" / boardview.PROMPT_FILE).read_text(encoding="utf-8")
+        self.assertIn(policy.RECORDED_HEAD, text)
+        self.assertIn(policy.RECORDED_NONE, text)
+
+
 class ResultCase(RunCase):
     """返す節は落ちない（元に無い。持ち主の決めと docs/design.md の『返す節は落ちない』）と、返りが output_format を満たす"""
 
@@ -2687,7 +2721,8 @@ class FixtureCase(unittest.TestCase):
     def test_fixtures_pass_in_archon(self):
         names = sorted(p.name for p in (BLOCK / "fixtures").glob("*.stubs.yaml"))
         self.assertEqual(names, sorted(f"{n}.stubs.yaml" for n in (
-            "pass", "block", "stalled", "ask-human", "r2-skipped", "r2-give-up", "review-give-up", "open-failed")))
+            "pass", "block", "stalled", "ask-human", "target-text-drift", "r2-skipped", "r2-give-up", "review-give-up",
+            "open-failed")))
         with archon.tree([BLOCK.name]) as tree:
             done = archon.archon(tree, "workflow", "test", "works-factory-plan-review", "--cwd", str(tree))
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
@@ -2705,13 +2740,14 @@ class GateBase(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.tmp = pathlib.Path(os.path.realpath(self._tmp.name))
 
-    def gate(self, narrows=(), faces=(), questions=(), units=(), materials=None, unattended=False):
-        """(返り, 見え方)。materials は記録の素材 {名: {status, reason}}"""
+    def gate(self, narrows=(), faces=(), questions=(), units=(), materials=None, unattended=False, recorded=()):
+        """(返り, 見え方)。materials は記録の素材 {名: {status, reason}}、recorded は記録された方針の行（policy.recorded）"""
         if unattended:
             (self.tmp / startrec.REL).parent.mkdir(parents=True, exist_ok=True)
             (self.tmp / startrec.REL).write_text(json.dumps({gatepolicy.UNATTENDED_KEY: gatepolicy.UNATTENDED}), encoding="utf-8")
         inputs = {"plan": {"plan": [{"unit_keys": ["u"], "narrows": list(narrows)}]}, "questions": list(questions),
-                  "units": list(units), "materials": dict(materials or {}), "cwd": str(self.tmp)}
+                  "units": list(units), "materials": dict(materials or {}), "cwd": str(self.tmp),
+                  policy.RECORDED_KEY: list(recorded)}
         b = boardview.view(self.tmp, inputs, {"faces": list(faces)})
         items = gatemarks.plan_gate_items(b)
         if not items:
@@ -2719,6 +2755,11 @@ class GateBase(unittest.TestCase):
         return {"decision": "ask", "ask": {"kinds": sorted({k for k, _ in items}), "items": [t for _, t in items]}}, b
 
 
+# 較正の 2 件で役が挙げた穴の形（#427）: 対象のテストの docstring を持ち主の方針と読み、方針の文書の無い run で policy_doc を立てた
+SEED_DOCSTRING = "tests/calibration/seed/test_stats.py:1"
+SEED_DOCSTRING_FACE = {"key": "seed-docstring", "unit_keys": ["u"], "kind": "policy", "where": f"{SEED_DOCSTRING} の docstring",
+                       "why": "テストの説明文が「わざと試験しない」と言うので、試験を足す案は持ち主の方針とぶつかる",
+                       "severity": "suggest", "decided_by": "test_stats.py:1", "fences": ["policy_doc"]}
 # 決め手は在るが柵に当たる行（元 tests/test_gate_drafts.py の ASKED。利用者の run ac9e02ab の 2 件の形）
 ASKED = {**TP.DECIDED, "fences": ["policy_doc"]}
 
@@ -2807,6 +2848,19 @@ class PlanGateCase(GateBase):
         self.assertEqual(len(got["ask"]["items"]), 1)
         self.assertIn("負の上限の clamp", got["ask"]["items"][0])
         self.assertEqual([p["by"] for p in b.state["works"].get("gate_passes") or []], ["decided"])
+
+
+    def test_target_text_face_is_not_a_policy_row(self):
+        """#427: 方針の文書の無い run で、対象のテストの docstring を決め手に名指す kind policy の穴は関所の行にならない（記録された
+        方針に無い）。方針の文書の写しの <パス>:<行> を名指す同じ形の穴は、今どおり kind policy の行になる"""
+        got, _ = self.gate(faces=[SEED_DOCSTRING_FACE])
+        self.assertNotIn("policy", (got.get("ask") or {}).get("kinds") or [], got)
+        doc = self.tmp / "policy.md"
+        doc.write_text("# 方針\n- 公開の口を減らさない\n", encoding="utf-8")
+        frozen = policy.freeze(self.tmp / "run", self.tmp, str(doc))
+        got, _ = self.gate(faces=[{**SEED_DOCSTRING_FACE, "decided_by": f"{frozen['copy']}:2"}],
+                           recorded=policy.recorded({"policy": frozen}))
+        self.assertIn("policy", got["ask"]["kinds"], got)
 
 
 class FourAxesCase(GateBase):

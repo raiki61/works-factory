@@ -24,6 +24,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
 
+import planblk  # noqa: E402
+import policy  # noqa: E402
 import rulebook  # noqa: E402
 CONTRACTS = pathlib.Path(__file__).resolve().parent / "prompt_contracts.json"
 INLINE_KEYS = ("prompt", "systemPrompt")
@@ -132,6 +134,18 @@ class PromptContractsTest(unittest.TestCase):
     def test_every_prompt_keeps_its_contract(self):
         contracts = json.loads(CONTRACTS.read_text(encoding="utf-8"))
         self.assertEqual(problems(ROOT, contracts), [])
+
+    def test_recorded_policy_readers_name_the_section(self):
+        """#427: 方針とのぶつかりを見る役の指示書と事前審査の頭は、同じ「記録された方針」のセクションを指す。目的と制約だけを読む
+        独立設計の役（r2-design）は指さない"""
+        self.assertEqual(policy.RECORDED_HEAD, "## 記録された方針")
+        for rel in ("workflows/judge/commands/diagnose.md", "workflows/judge/commands/material-prior-decisions.md",
+                    "workflows/plan-review/commands/plan-review.md", "workflows/eyes/commands/r3-coherence.md",
+                    "workflows/eyes/commands/r4-scope.md"):
+            with self.subTest(rel):
+                self.assertIn(policy.RECORDED_REF, (ROOT / rel).read_text(encoding="utf-8"))
+        self.assertIn(policy.RECORDED_REF, planblk.HANDOFF_REVIEW)
+        self.assertNotIn(policy.RECORDED_TERM, (ROOT / "workflows/plan-review/commands/r2-design.md").read_text(encoding="utf-8"))
 
     def test_quote_must_be_in_the_text(self):
         contract = {"forbidden": [{"what": "道具を呼ばない", "quote": "道具を呼ぶな"}], "steps": [], "stops": []}

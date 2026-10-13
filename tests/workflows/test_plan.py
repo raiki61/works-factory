@@ -45,6 +45,7 @@ import outcome  # noqa: E402
 import planblk  # noqa: E402
 import planbrief  # noqa: E402
 import planmarks  # noqa: E402
+import policy  # noqa: E402
 import reads  # noqa: E402
 import replan  # noqa: E402
 import planfile  # noqa: E402  （lib/graphloops を sys.path に足す。engine より先に）
@@ -1562,7 +1563,8 @@ class BriefCase(unittest.TestCase):
         run.include()
         brief = self.brief(run)
         self.assertTrue(brief.startswith(planblk.HEAD["plan"]), brief[:200])
-        for word in (planblk.ITEMS_RULE, planblk.REUSE_RULE, planmarks.HEAD, gatemarks.HEAD[planmarks.NODE]):
+        for word in (planblk.ITEMS_RULE, planblk.REUSE_RULE, planblk.TARGET_TEXT_PLAN, planmarks.HEAD, gatemarks.HEAD[planmarks.NODE],
+                     policy.RECORDED_HEAD, policy.RECORDED_NONE, "承認ノードの人の答え: この役には渡っていない"):
             self.assertIn(word, brief)
 
     def test_units_section_carries_catalog_ledger_and_view(self):

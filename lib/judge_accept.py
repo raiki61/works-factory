@@ -786,11 +786,33 @@ def answer_tie_problems(jdir, reply, rows, materials) -> list:
     return out
 
 
+PREMISE_THREE = "③"   # 人へ回す問いの先行例の undecided_because が、記録された方針の行とぶつかると名乗る印（diagnose.md の 7・8 項）
+
+
+def _recorded(jdir) -> list:
+    """判定の置き場の記録された方針の行（始めの記録と決定記録の突合の返答から。承認ノードの答えは判定に渡っていない）"""
+    return policy.recorded(_start_of(jdir), settled=policy.settled_rows(jdir))
+
+
+def recorded_question_problems(out, rows) -> list:
+    """人へ回す問い（_precedent_errors の人へ回す物と同じ決まり）の先行例のうち、undecided_because が ③ を名乗るのに記録された方針の
+    どの行も名指さない物（1 件 1 文）"""
+    asked = {q["key"]: q for q in out["questions"]
+             if (q.get("kind") == "fork" and q.get("status") in gatemarks.ASKING) or q.get("status") == "escalate"}
+    return [f"precedents['{r['key'][:60]}'] の undecided_because が {PREMISE_THREE} を名乗るが、{policy.RECORDED_TERM}の一覧のどの行も"
+            "名指さない——対象の文は方針でない（コードのコメント・docstring・テストの説明文）。直しの一部にせよ（その文を書き換える site を"
+            "単位の prescriptions に入れ、問いを立てずに処方として採る）。一覧の行とぶつかるなら、その行の名指しを字のまま写せ"
+            for r in out.get("precedents") or []
+            if r.get("key") in asked and PREMISE_THREE in str(r.get("undecided_because") or "")
+            and not policy.hits(rows, r.get("undecided_because"), asked[r["key"]].get("reason"))]
+
+
 def take(jdir, reply, repo, base_rev: str = "", *, prev_deletions=None, prev_questions=(), defer_ledger=None,
          keys=core_accept.TREE_KEYS) -> dict:
     """元 works/blk-judge/lib/judgetake.py:74 の take と、受け付けの芯（元 entry.take の p2.diagnose の done と accept.check_judge）。
     順（計画の節 9）: 作業ツリーと HEAD → class_query の例（querytest）→ 先例の出どころが世界の解の行に在る（worldmark）→
-    judge_output → 目的の外の所見の行を材料の行に当てる（outpurpose）→ 依頼の答えと作り直しの行の結び（answer_ties）。
+    judge_output → 目的の外の所見の行を材料の行に当てる（outpurpose）→ 依頼の答えと作り直しの行の結び（answer_ties）→ ③ を名乗る
+    人へ回す問いが記録された方針の行を名指す（recorded_question_problems）。
     返答の型は判定役の節の output_format だけが持つ。例・目的の外の行・結びは judge_output の前に外す。通れば例を query-examples.json に、
     目的の外の行を当たった材料の行ごと out-of-purpose.json（周は 1）に、結びを answer-ties.json に置き、judge_output が整えた返答に
     例と目的の外の行を戻して judgment.json に書く（元 judgetake.finish）。
@@ -810,6 +832,9 @@ def take(jdir, reply, repo, base_rev: str = "", *, prev_deletions=None, prev_que
         errs = answer_tie_problems(jdir, out, tie_rows, _materials(jdir))
         if errs:
             raise Reject(f"{gatemarks.ANSWER_TIES} が依頼の答えと作り直しの行に結ばれていない: " + "; ".join(errs))
+        errs = recorded_question_problems(out, _recorded(jdir))
+        if errs:
+            raise Reject("③（前の決定か方針とぶつかる）を名乗る問いが記録された方針の行を名指さない: " + "; ".join(errs))
         _save_examples(jdir, examples)
         outpurpose.save(jdir, 1, outside, material)
         gatemarks.save_answer_ties(jdir, 1, tie_rows)
@@ -2793,7 +2818,9 @@ def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "") -> 
     1 頭 BRIEF_HEAD・2 世界の解の行（worldmark.section。置き場の world-state.json が行を指す時）・3 p2.diagnose の「## 入力」の節を
     置き場の値で埋めた物・4 問いの台帳の段（LEDGER_HEAD。{{validator.*}} は PROMPT_TABLES）・5 依頼と PR の題と本文（始めの記録に
     input.pr が在る時。request_text と pr_file_text）・6 依頼の answers（answers_section）・7 前の run の行（入口が置いた
-    prior-failures-in.json。carry.prior_section が PRIOR_HEAD の節と REDESIGN_HEAD の節に分ける）・8 人の方針（POLICY_HEAD。文書が在る時。policy_text）。素材の状態は materials.json（無ければ fill_materials）。
+    prior-failures-in.json。carry.prior_section が PRIOR_HEAD の節と REDESIGN_HEAD の節に分ける）・8 記録された方針
+    （policy.recorded_section。行が無い run も RECORDED_NONE と載る）・9 人の方針（POLICY_HEAD。文書が在る時。policy_text）。
+    素材の状態は materials.json（無ければ fill_materials）。
     対象差分は material-view.json（無ければ取る）"""
     j = pathlib.Path(jdir)
     doc = _material_view(j, repo, start)
@@ -2808,11 +2835,12 @@ def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "") -> 
                                                           "body": pr.get("body") or ""}}).rstrip("\n") + "\n\n" + pr_file_text(pr)
     answers = answers_section(start.get("answers"))
     prior = carry.prior_section(j)
+    recorded = policy.recorded_section(policy.recorded(start, settled=policy.settled_rows(j)), gates_given=False)
     pol = policy_text(start)
     p = j / DIAGNOSE_BRIEF_FILE
     tmp = p.with_name(p.name + ".tmp")
     tmp.write_text(BRIEF_HEAD + "\n\n" + (f"{world}\n" if world else "") + body + (f"\n\n{req.rstrip()}\n" if req else "")
-                   + (f"\n\n{answers}\n" if answers else "") + (f"\n\n{prior}\n" if prior else "")
+                   + (f"\n\n{answers}\n" if answers else "") + (f"\n\n{prior}\n" if prior else "") + f"\n\n{recorded}\n"
                    + (f"\n\n{POLICY_HEAD}\n\n{pol.strip()}\n" if pol.strip() else ""), encoding="utf-8")
     os.replace(tmp, p)
     return str(p)

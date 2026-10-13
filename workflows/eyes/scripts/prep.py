@@ -59,8 +59,9 @@ repo_review = Path.cwd() / "REVIEW.md"
 depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
 purpose_text = purpose.get("purpose_text") or ""
 after = eyeverdict.after_section(EYES, EYES.parent / boardview.FOLDER, boundary.pointed(os.environ["INPUTS_PLAN"]))
+human_items = eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer)
 premises_text, r2_ledger = eyeverdict.premise_section(
-    human_items=eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer),
+    human_items=human_items,
     request_text=request.read_text(encoding="utf-8") if request and request.is_file() else None, repo=Path.cwd(),
     changed=changed, constraints=constraints,
     design_seen=(eyeverdict.read_json(design_file.with_name(eyeverdict.DESIGN_PREMISES)) or {}).get("seen") if design_file else None)
@@ -83,6 +84,8 @@ out = {
     "review_md": str(boundary.lib_root() / "REVIEW.md"),
     "repo_review_md": str(repo_review) if repo_review.is_file() else "（対象のリポジトリの根に REVIEW.md は無い）",
     "policy_path": policy.frozen_copy(start),
+    "recorded_policy": policy.recorded_section(policy.recorded(
+        start, settled=policy.settled_rows(judgment_file.parent) if judgment_file else [], human_items=human_items)),
     "lang_line": rolekit.lang_line(start),
     "r1_head": concepthome.R1_HEAD.format(section=after),
     "r3_head": concepthome.R3_HEAD.format(section=after),

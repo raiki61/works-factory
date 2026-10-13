@@ -96,6 +96,7 @@ import converge
 import marks
 import oneline
 import planmarks   # 修正案の欄 structure（汚れる行への答え）
+import policy     # 記録された方針の一覧（kind policy の穴が名指す行）
 import promptsection
 import seal      # 目の状態の語の持ち主
 import startrec   # 始めの記録（盤面の r1/start.json）の読み口
@@ -120,7 +121,8 @@ RECOMMEND_SHAPE = ("{" + f"{RECOMMEND_KEYS[0]}: " + " か ".join(f"{a}（{RECOMM
 FENCES = ("external_write", "irreversible", "policy_doc", "widen_protection", "web_doubt")
 MARK_SCHEMA = {
     "decided_by": {"type": "string",
-                   "note": "決め手の出どころ（依頼の引用・URL とセクション・対象の同じ場面・人の前の決定＝ADR・台帳の行）。無ければ書かない"},
+                   "note": "決め手の出どころ（依頼の引用・URL とセクション・対象の同じ場面＝同じ問題をコードがどう解いているか・記録された方針の行の"
+                           "名指し＝人の前の決定・台帳の行）。コメント・docstring が述べる意図は対象の同じ場面に含めない。無ければ書かない"},
     "undecided_because": {"type": "string",
                           "note": "決め手を当たっても答えが 1 つに決まらない理由。書けないなら空（自明なので人に回さない）"},
     "fences": {"type": "array", "uniqueItems": True, "items": {"type": "string", "enum": list(FENCES)},
@@ -140,7 +142,9 @@ NO_NARROW_MIN = 20     # 本流の事前審査が entrance の穴に求める no
 NO_NARROW_SCHEMA = {"type": "string", "minLength": NO_NARROW_MIN,
                     "note": "狭めない案（BASE の動きを残し、直したい場合だけ新しい動きを当て、黙らずに名指す形）を探した結果"}
 NODES = marks.nodes("gate")
-_RULE = ("に、決め手の欄を書け。decided_by＝決め手の出どころ（URL とセクション・<パス>:<行>（対象の同じ場面・人の前の決定＝ADR）・"
+_RULE = ("に、決め手の欄を書け。decided_by＝決め手の出どころ（URL とセクション・<パス>:<行>（対象の同じ場面＝同じ問題をコードがどう解いて"
+         "いるか。コメント・docstring が述べる意図は含めない）・記録された方針の行の名指し（材料の" + policy.RECORDED_REF + "の名指しの字"
+         "のまま。人の前の決定＝ADR・決着済みの論点・依頼の answers・承認ノードの答え）・"
          "設計の決定の記録のパス・依頼の引用「…」（依頼の文を字のまま鉤括弧で）。機械が現物に在るかを照らし、照らせない出どころの行は人に回る。"
          + cite.RUN_FILES + "）。"
          "undecided_because＝決め手を当たっても答えが 1 つに決まらない理由（書けないなら空にせよ——自明なので人に回さない）。"
@@ -463,7 +467,8 @@ def _push(mark: dict) -> str:
 
 def _gate_rows(b) -> list:
     """修正前の関所の決め手の濾しに掛ける行 [(kind, 文, 決め手, 節, 単位の key の並び)]（修正案の narrows と事前審査の人に回す種類の穴。
-    narrows の単位はその項目の unit_keys、穴の単位は穴の unit_keys）"""
+    記録された方針の行を名指さない kind policy の穴（policy.unrecorded）は行にしない。narrows の単位はその項目の unit_keys、穴の単位は
+    穴の unit_keys）"""
     rows = []
     plan = b.output_of_round("p2.fix_plan", b.round) or {}
     saved = _saved(b, "p2.fix_plan")
@@ -472,10 +477,12 @@ def _gate_rows(b) -> list:
         rows += [("regression", f"修正案 {i + 1} が狭める能力: {n['what']}——{n['why']}", _mark(n, saved, i, j), "p2.fix_plan", keys)
                  for j, n in enumerate(p.get("narrows") or [])]
     saved = _saved(b, "p2.plan_review")
-    rows += [(f["kind"], f"事前審査の穴 [{f['kind']}] {f['key']}: {f['why']}", _mark(f, saved, j), "p2.plan_review",
-              [k for k in f.get("unit_keys") or [] if isinstance(k, str)])
-             for j, f in enumerate((b.output_of_round("p2.plan_review", b.round) or {}).get("faces") or [])
-             if f["kind"] in b.rules.HUMAN_FACE_KINDS]
+    recorded = (b.record.get("process") or {}).get(policy.RECORDED_KEY) or []
+    for j, f in enumerate((b.output_of_round("p2.plan_review", b.round) or {}).get("faces") or []):
+        m = _mark(f, saved, j)
+        if f["kind"] in b.rules.HUMAN_FACE_KINDS and not policy.unrecorded(f, m, recorded):
+            rows.append((f["kind"], f"事前審査の穴 [{f['kind']}] {f['key']}: {f['why']}", m, "p2.plan_review",
+                         [k for k in f.get("unit_keys") or [] if isinstance(k, str)]))
     return rows
 
 

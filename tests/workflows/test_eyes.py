@@ -34,6 +34,7 @@ import concepthome  # noqa: E402
 import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
+import policy  # noqa: E402
 import seal  # noqa: E402
 import structmark  # noqa: E402
 
@@ -468,6 +469,11 @@ class ShapeCase(unittest.TestCase):
                     self.assertNotIn("## 人の方針", text)
                     self.assertNotIn("policy_path", prep_reads(text))
         self.assertIn("policy_conflicts", (BLOCK / "commands" / "r4-scope.md").read_text(encoding="utf-8"))
+
+    def test_recorded_policy_only_on_r3_r4(self):
+        """記録された方針のセクションは R3・R4 にだけ読ませる（#427。R2 の目には渡さない）"""
+        readers = {path.stem: prep_reads(path.read_text(encoding="utf-8")) for path in (BLOCK / "commands").glob("*.md")}
+        self.assertEqual(sorted(n for n, reads in readers.items() if "recorded_policy" in reads), ["r3-coherence", "r4-scope"])
 
 
     def test_r2_compare_gets_no_forbidden_input(self):
@@ -1078,6 +1084,13 @@ class ScriptCase(unittest.TestCase):
                    policy={"named": "POLICY.md", "path": str(self.repo / "POLICY.md"), "sha256": "a" * 64,
                            "copy": "/run/policy/frozen.md"})
         self.assertEqual(self.run_script("prep")["policy_path"], "/run/policy/frozen.md")
+
+    def test_prep_carries_the_recorded_policy_section(self):
+        """方針の文書の無い run の目にも、記録された方針のセクションが「無い」と載る（#427）"""
+        self.prep_inputs()
+        got = self.run_script("prep")["recorded_policy"]
+        self.assertTrue(got.startswith(policy.RECORDED_HEAD), got)
+        self.assertIn(policy.RECORDED_NONE, got)
 
     def test_prep_pastes_the_premises_and_names_the_target_review_md(self):
         self.prep_inputs()
