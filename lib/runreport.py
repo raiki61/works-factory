@@ -1206,8 +1206,18 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     out += _policy_lines(returns, repo)
     base = returns.get("test-gate-base")
     if isinstance(base, dict):
-        out.append(f"直す前のテスト: {'緑' if base.get('green') else '赤'}" + (f"（赤の原因 {base.get('red_cause')}）" if base.get("red_cause") else ""))
+        out.append(f"直す前のテスト: {_base_word(base)}")
     return out + list(tdd_freeze)
+
+
+def _base_word(base: dict) -> str:
+    """直す前のテストの語。test-gate の green_cert.classify は素材の NOT_DONE の語も素材の無い回も incomplete に畳むので、
+    返りの red_cause だけで「走らせられなかった」と言える"""
+    if base.get("green"):
+        return "緑"
+    if base.get("red_cause") == "incomplete":
+        return f"走らせられなかった（incomplete）——{gatemarks.BASELINE_NOT_RUN}"
+    return "赤" + (f"（赤の原因 {base.get('red_cause')}）" if base.get("red_cause") else "")
 
 
 def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, returns: dict, problems: list,

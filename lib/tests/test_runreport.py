@@ -162,6 +162,14 @@ class BuildCase(Base):
         self.assertIn(report.OUTCOME_WORDS["stopped_by_request"], text)
         self.assertIn("承認ノード gate-final: stop（request: 止め札）", text)
 
+    def test_unrun_base_is_not_called_red(self):
+        """走らせられなかった直す前のテスト（ok false・green false・red_cause incomplete）を「赤」と書かない（棚卸し T68）"""
+        base = {"mode": "base", "ok": False, "green": False, "red_cause": "incomplete"}
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"直す前のテスト: 走らせられなかった（incomplete）——{gatemarks.BASELINE_NOT_RUN}", entry)
+        self.assertNotIn("直す前のテスト: 赤", entry)
+
 
 class TddCase(Base):
     GROUP_RAN = {"group_id": "g1", "ran": True, "reason": "", "suite": "run-tests", "reused": None,
