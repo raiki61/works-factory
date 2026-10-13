@@ -58,7 +58,7 @@ class FlagTableTest(unittest.TestCase):
                         self.assertTrue(entry["rules"] and entry["why"].strip())
 
     def test_works_factory_why_names_nodes_of_nodes_json(self):
-        for gate, entry in _table()["works-factory"].items():
+        for gate, entry in _table()[runner.WorksFactory.name].items():
             if "rules" in entry:
                 with self.subTest(gate=gate):
                     named = [w for w in GRAPH[gate].get("where") or [] if re.search(rf"{re.escape(w)}(?![\w-])", entry["why"])]
@@ -119,7 +119,7 @@ class FlagTableTest(unittest.TestCase):
             (ev / "record" / "parent.json").write_text(json.dumps({"terminal_record": {"nodes": [
                 {"node_id": "eyes__r1-minimality", "state": "skipped"},
                 {"node_id": "eyes__r1-minimality-verdict", "state": "skipped"}]}}), encoding="utf-8")
-            got = runner.flags_of(_table()["works-factory"], ev, runner.WorksFactory.skipped(ev))
+            got = runner.flags_of(_table()[runner.WorksFactory.name], ev, runner.WorksFactory.skipped(ev))
         self.assertEqual(got["flagged"], ["p1.hygiene"])
         self.assertEqual(got["flag_evidence"]["r1.minimality"], "skipped")
         self.assertNotIn("p1.provenance", got["unread"])
@@ -130,7 +130,7 @@ class FlagTableTest(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("test_gate_result", ROOT / "workflows" / "test-gate" / "scripts" / "result.py")
         result = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(result)
-        table = _table()["works-factory"]
+        table = _table()[runner.WorksFactory.name]
         for gate, mode in (("p0.local_checks", "base"), ("p4.ci", "final")):
             with self.subTest(gate=gate), tempfile.TemporaryDirectory() as tmp:
                 ev = pathlib.Path(tmp)
