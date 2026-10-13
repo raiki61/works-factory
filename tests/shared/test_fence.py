@@ -68,19 +68,52 @@ class ProtectedTest(unittest.TestCase):
     def test_lists_every_tree_of_the_repository(self):
         t = make_tree(self.tmp)
         got = fence.protected(str(t["linked"]), t["child"]["ARCHON_HOME"], t["child"]["CLAUDE_CONFIG_DIR"], t["own"])
-        self.assertEqual(got, [str(t["linked"]), str(t["main"] / ".git"), str(t["main"]), str(t["nested"]),
-                               t["child"]["ARCHON_HOME"], t["child"]["CLAUDE_CONFIG_DIR"], *t["own"]])
+        self.assertEqual(got, [*sorted([str(t["linked"]), str(t["main"] / ".git"), str(t["main"]), str(t["nested"]),
+                                        t["child"]["ARCHON_HOME"]]),
+                               t["child"]["CLAUDE_CONFIG_DIR"], *t["own"]])
 
     def test_outside_git_lists_only_the_given_paths(self):
         cwd = self.tmp / "plain"
         cwd.mkdir()
         got = fence.protected(str(cwd), "/a", "/c", ["/o"])
-        self.assertEqual(got, [str(cwd), "/a", "/c", "/o"])
+        self.assertEqual(got, [*sorted([str(cwd), "/a"]), "/c", "/o"])
 
     def test_without_git_refuses(self):
         with mock.patch.dict(os.environ, {"PATH": str(self.tmp)}):
             with self.assertRaises(fence.Refused):
                 fence.protected(str(self.tmp), "/a", "/c", [])
+
+
+class ProtectedPathsCopiedTest(unittest.TestCase):
+    """写した protected_paths を縛る、今の works（raiki61/claude-plugins@2aa7c66cf7ab）の試験の写し: graphloops/tests/simulate.py の
+    test_tooled_launch_fence の守る場所の 2 つの check と、graphloops/tests/py/test_role_run_stop.py の
+    test_protected_paths_is_undecided_when_git_answers_partly（pytest の parametrize を subTest に直した）"""
+
+    def setUp(self):
+        self.tmp = hermetic.tmpdir(self)
+
+    def test_tooled_launch_fence(self):
+        repo, other, board = self.tmp / "repo", self.tmp / "wt2", self.tmp / "board"
+        board.mkdir()
+        for args in (["init", "-q", str(repo)], ["-C", str(repo), "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                                                      "--allow-empty", "-m", "x"], ["-C", str(repo), "worktree", "add", "-q", str(other)]):
+            subprocess.run(["git", *args], capture_output=True, check=True)
+        real = os.path.realpath
+        want_deny = sorted({real(repo), real(repo / ".git"), real(other), real(board)})
+        self.assertEqual(fence.protected_paths(repo, board), want_deny,
+                         "書き込みを止める場所は、自分を含む作業ツリーの根の全部・共有の .git・盤面の置き場")
+        plain_dir = self.tmp / "plain"
+        plain_dir.mkdir()
+        self.assertEqual(fence.protected_paths(plain_dir, board), sorted({real(plain_dir), real(board)}),
+                         "git の作業ツリーでない場所では cwd と盤面だけを守る")
+
+    def test_protected_paths_is_undecided_when_git_answers_partly(self):
+        """共有の .git か作業ツリーの一覧のどちらかが引けなければ、守る場所は決まらない（None——sandbox の形を選ばない）"""
+        for name, worktrees in (("worktree-list-fails", (False, [], "失敗")), ("no-common-dir", (True, ["worktree /w"], ""))):
+            with self.subTest(name):
+                common = (True, [], "") if worktrees[0] else (True, [str(self.tmp / ".git")], "")
+                with mock.patch.object(fence, "_git", lambda cwd, *args: common if "rev-parse" in args else worktrees):
+                    self.assertIsNone(fence.protected_paths(self.tmp))
 
 
 class FencedArgvTest(unittest.TestCase):
@@ -110,14 +143,14 @@ class FencedArgvTest(unittest.TestCase):
         for argv in (["-p", "x", "--settings", writer],
                      ["-p", "x", "--settings", settings_with(["~/../other"])],
                      ["--settings=" + settings_with(["/elsewhere"])],
-                     ["--settings", "/path/to/settings.json"],
                      ["--version"]):
             with self.subTest(argv=argv):
                 self.assertIs(self.fenced(argv), argv)
 
     def test_undecidable_settings_are_refused(self):
         marked = settings_with([scan.NO_TREE_WRITE])
-        for argv in (["--settings", marked, "--settings", marked], ["--settings", "{not json"], ["--settings"]):
+        for argv in (["--settings", marked, "--settings", marked], ["--settings", "{not json"], ["--settings"],
+                     ["--settings", "/path/to/settings.json"], ["--settings=[]"]):
             with self.subTest(argv=argv):
                 with self.assertRaises(fence.Refused):
                     self.fenced(argv)
