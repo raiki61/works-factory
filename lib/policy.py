@@ -14,9 +14,19 @@
   続きの置き場を末尾に書く（切った後の全体が上限の内）
 - section(path): 盤面の無いブロック（plan-review）が役に貼る人の方針の節（前置き・資料の囲みの本文・方針の決まりの段落）。本文は
   brief と同じ上限で切る（元 gl-prompts/prompts/policy-paste.md・policy.md）
+
+記録された方針（issue #427。役を縛るのはこの一覧の行だけで、対象のコードのコメント・docstring は直しの一部の「対象の文」）:
+- recorded(start, settled, human_items): 4 つの出どころ（方針の文書の写し・依頼の answers・承認ノードの人の答え・決着済みの論点）
+  の行 {source, name, text}。name は役が字のまま写す名指しで、機械はこれだけを照らす
+- settled_rows(folder): 決定記録の突合の返答（PRIOR_DECISIONS_FILE）の決着済みの論点の行
+- hits(rows, *texts)・unrecorded(face, mark, rows)・face_gaps(faces, rows): 名指しの照らし、一覧の行を名指さない kind policy の穴、
+  事前審査の受け付けが拒む穴の行
+- recorded_section(rows, gates_given): 役に貼る「記録された方針」のセクション（名指せる行が無ければ RECORDED_NONE）
 """
 import hashlib
+import json
 import pathlib
+import re
 import sys
 
 sys.dont_write_bytecode = True
@@ -126,3 +136,118 @@ def _capped(data: bytes, where) -> str:
     note = f"\n\n［方針の文書は {len(data)} バイトで、{PASTE_CAP} バイトまでを貼った。続きは {where}］\n"
     room = PASTE_CAP - len(note.encode("utf-8"))
     return data[:room].decode("utf-8", "ignore") + note
+
+
+RECORDED_KEY = "recorded_policy"   # 事前審査の材料 open.json と見え方の record.process の欄（一覧の行）
+PRIOR_DECISIONS_FILE = "material-prior-decisions.json"   # 判定の置き場の決定記録の突合の返答（judge_accept.material_take が書く）
+RECORDED_TERM = "記録された方針"
+RECORDED_REF = f"「{RECORDED_TERM}」のセクション"
+RECORDED_NONE = f"{RECORDED_TERM}: 無い"
+RECORDED_HEAD = promptsection.Section(f"## {RECORDED_TERM}", source="fn:policy.recorded_section")
+GATE_NAME = "承認ノードの答え {n}"
+RECORDED_RULE = ("記録された方針は、人か対象の持ち主が「決めた」と記録に残した決まりで、出どころは下の 4 つだけ（方針の文書の写し・"
+                 "依頼の answers・承認ノードの人の答え・決定記録の突合が挙げた決着済みの論点）。対象のリポジトリのコードのコメント・"
+                 "docstring・テストの説明文は、下の行に当たらない限り「対象の文」——コードの今の姿の説明で、持ち主の決めではない。"
+                 "対象の文が綺麗な形と食い違うなら、方針とのぶつかりにせず、直しの一部としてその文を書き換えよ。方針とぶつかると言う時は、"
+                 "下の行の名指しを字のまま写せ（機械が一覧に当たるかを照らし、当たらなければ拒む）。")
+_CAP = 120   # セクションに並べる答え・論点の頭の字数
+
+
+def settled_rows(folder) -> list:
+    """判定の置き場 folder の決定記録の突合の返答の reply.settled のうち dict の行。無い・読めない・形が違えば []"""
+    try:
+        doc = json.loads((pathlib.Path(folder) / PRIOR_DECISIONS_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    reply = doc.get("reply") if isinstance(doc, dict) else None
+    rows = reply.get("settled") if isinstance(reply, dict) else None
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+
+
+def recorded(start, *, settled=(), human_items=None) -> list:
+    """記録された方針の行 [{source, name, text}]。doc（方針の文書の写し。行数 lines と元の置き場 alias も持つ）・answer（依頼の
+    answers の question）・gate（承認ノードの人の答えのうち note の在る物を並びの順に 1 から。human_items が None の段は作らない）・
+    settled（決着済みの論点の where。where の無い論点は name が空で、名指せない）"""
+    rows = []
+    copy = frozen_copy(start)
+    if copy and pathlib.Path(copy).is_file():
+        lines = len(pathlib.Path(copy).read_text(encoding="utf-8", errors="replace").splitlines())
+        rows.append({"source": "doc", "name": copy, "text": "", "lines": lines, "alias": (version(start) or {}).get("path") or ""})
+    answers = start.get("answers") if isinstance(start, dict) else None
+    rows += [{"source": "answer", "name": a["question"], "text": str(a.get("text") or "")}
+             for a in answers or [] if isinstance(a, dict) and isinstance(a.get("question"), str) and a["question"].strip()]
+    notes = [h for h in human_items or [] if isinstance(h, dict) and str(h.get("note") or "").strip()]
+    rows += [{"source": "gate", "name": GATE_NAME.format(n=n), "text": str(h["note"])} for n, h in enumerate(notes, 1)]
+    rows += [{"source": "settled", "name": str(r.get("where") or "").strip(),
+              "text": f"{r.get('topic') or ''}——{r.get('decision') or ''}"} for r in settled if isinstance(r, dict)]
+    return rows
+
+
+def _hit(row: dict, text: str) -> bool:
+    if not row.get("name"):
+        return False
+    if row["source"] == "doc":
+        for path in (row["name"], row.get("alias")):
+            for m in re.finditer(re.escape(path) + r":(\d+)", text) if path else ():
+                if 1 <= int(m.group(1)) <= row.get("lines", 0):
+                    return True
+        return False
+    if row["source"] == "gate":
+        return re.search(re.escape(row["name"]) + r"(?!\d)", text) is not None
+    return row["name"] in text
+
+
+def hits(rows, *texts) -> list:
+    """texts を合わせた字が名指す一覧の行の name（方針の文書は <写しか元の置き場>:<1〜行数>、承認ノードの答えは番号の後ろに数字が
+    続かない一致、answers と論点は字の部分一致）"""
+    text = "\n".join(str(t) for t in texts if t)
+    return [r["name"] for r in rows if isinstance(r, dict) and _hit(r, text)]
+
+
+def unrecorded(face, mark, rows) -> bool:
+    """kind policy の穴で、where と決め手の decided_by が一覧のどの行も名指さない"""
+    return face.get("kind") == "policy" and not hits(rows, face.get("where"), mark.get("decided_by"))
+
+
+def face_gaps(faces, rows) -> list:
+    """事前審査の受け付けが拒む穴の行（1 穴 1 文）: 一覧の行を名指さない kind policy の穴と、方針の文書の行の無い run で fences に
+    policy_doc を立てた穴"""
+    has_doc = any(r.get("source") == "doc" for r in rows if isinstance(r, dict))
+    out = []
+    for j, f in enumerate(faces or []):
+        if not isinstance(f, dict):
+            continue
+        head = f"faces[{j}]（{f.get('key')}）: "
+        if unrecorded(f, f, rows):
+            out.append(head + f"kind policy の名指し（where: {f.get('where')!r}・decided_by: {f.get('decided_by')!r}）が{RECORDED_TERM}に"
+                       f"無い——一覧に無いコードのコメント・docstring・テストの説明文は対象の文で、方針ではない。対象の文は kind "
+                       "contract_drift で挙げ、案にその文の書き換えを入れさせよ。一覧の行とぶつかるなら、その名指しを decided_by に字のまま写せ")
+        if not has_doc and "policy_doc" in (f.get("fences") or []):
+            out.append(head + "方針の文書の無い run で fences に policy_doc を立てた——policy_doc は方針の文書の行を書き換える時だけ立てる")
+    return out
+
+
+def recorded_section(rows, *, gates_given=True) -> str:
+    """役に貼る「記録された方針」のセクション。名指せる行が 1 つも無ければ頭に RECORDED_NONE。gates_given が偽の段（承認ノードの
+    答えを入力に持たない役）は、その行を「この役には渡っていない」と書く"""
+    rows = [r for r in rows or [] if isinstance(r, dict)]
+    of = {s: [r for r in rows if r.get("source") == s] for s in ("doc", "answer", "gate", "settled")}
+    out = [RECORDED_HEAD, "", RECORDED_RULE, ""]
+    if not any(r.get("name") for r in rows):
+        out.append(RECORDED_NONE)
+    doc = of["doc"][0] if of["doc"] else None
+    out.append("- 方針の文書: " + (f"名指し `{doc['name']}:<行>`（1〜{doc['lines']} 行。元の置き場 {doc['alias'] or '無い'}）"
+                                  if doc else "無い"))
+    out.append("- 依頼の answers: " + ("" if of["answer"] else "無い"))
+    out += [f"  - 名指し {json.dumps(r['name'], ensure_ascii=False)}: {_head(r['text'])}" for r in of["answer"]]
+    out.append("- 承認ノードの人の答え: " + ("この役には渡っていない" if not gates_given else "" if of["gate"] else "無い"))
+    out += [f"  - 名指し `{r['name']}`: {_head(r['text'])}" for r in of["gate"]] if gates_given else []
+    out.append("- 決着済みの論点（決定記録の突合）: " + ("" if of["settled"] else "無い"))
+    out += [f"  - 名指し {json.dumps(r['name'], ensure_ascii=False)}: {_head(r['text'])}" if r["name"]
+            else f"  - （where が無いので名指せない）{_head(r['text'])}" for r in of["settled"]]
+    return "\n".join(x.rstrip() for x in out)
+
+
+def _head(text: str) -> str:
+    text = " ".join(str(text or "").split())
+    return text if len(text) <= _CAP else text[:_CAP] + "…"
