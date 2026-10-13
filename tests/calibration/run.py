@@ -145,13 +145,13 @@ class WorksFactory:
         except evidence.Stop as e:
             raise Stop(STOPPED, f"家 {attempt / 'home'} の run を読めない: {e}") from None
 
-    def _get(self, attempt: Path, run_id: str) -> dict:
+    def _get(self, attempt: Path, run_id: str, *flags: str, failed: str = "の記録を読めない") -> dict:
         try:
-            got = evidence.read_json(attempt, "get", run_id, "--json", shell=self.shell)
+            got = evidence.read_json(attempt, "get", run_id, "--json", *flags, shell=self.shell)
         except evidence.Stop as e:
-            raise Stop(STOPPED, f"run {run_id} の記録を読めない: {e}") from None
+            raise Stop(STOPPED, f"run {run_id} {failed}: {e}") from None
         if not isinstance(got, dict):
-            raise Stop(STOPPED, f"run {run_id} の workflow get の返りが dict でない")
+            raise Stop(STOPPED, f"run {run_id} {failed}: workflow get の返りが dict でない")
         return got
 
     def state(self, attempt: Path, run_id: str) -> str:
@@ -176,10 +176,7 @@ class WorksFactory:
             raise Stop(STOPPED, f"run {run_id} の記録を evidence/ に写せない: {e}") from None
         for limit in kept["limits"]:
             print(f"run.py: {limit}（その置き場を読む照らしは unread になる）", file=sys.stderr)
-        try:
-            events = evidence.read_json(attempt, "get", run_id, "--json", "--verbose", "--events", shell=self.shell)
-        except evidence.Stop as e:
-            raise Stop(STOPPED, f"run {run_id} の出来事の列を evidence/ に写せない: {e}") from None
+        events = self._get(attempt, run_id, "--verbose", "--events", failed="の出来事の列を evidence/ に写せない")
         (attempt / evidence.EVIDENCE / EVENTS).write_text(
             json.dumps({"events": _events(events)}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         return {**self.ended(attempt / evidence.EVIDENCE), "children": kept["children"]}
