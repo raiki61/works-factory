@@ -80,7 +80,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 構造の目が人に上げた行（structmark の route が人に上げる行）は、修正前の関所の項目になる（種類 DESIGN_KIND。推し＝chosen、捨てた案と
 代償＝rejected。DESIGN_HEAD で始まる 1 行。人が continue で答えた同じ文の行は聞き直さない）。
 標準ライブラリと core の answer（L1。答えの行）・carry（L1。下書きの印の付け方）・cite（L1。出どころの照らし）・marks（L1）・
-converge（L3。事前審査の壁打ち。標準ライブラリだけ）・planmarks（L3）・structmark（L3）・worldmark（L3。世界の解の行）・oneline（1 行に畳む葉。標準ライブラリだけ）だけ。
+converge（L3。事前審査の壁打ち。標準ライブラリだけ）・conflict（決め手の出どころを引いてよい根。関数の中で読む）・planmarks（L3）・structmark（L3）・worldmark（L3。世界の解の行）・oneline（1 行に畳む葉。標準ライブラリだけ）だけ。
 """
 import json
 import pathlib
@@ -140,7 +140,8 @@ NO_NARROW_SCHEMA = {"type": "string", "minLength": NO_NARROW_MIN,
                     "note": "狭めない案（BASE の動きを残し、直したい場合だけ新しい動きを当て、黙らずに名指す形）を探した結果"}
 NODES = marks.nodes("gate")
 _RULE = ("に、決め手の欄を書け。decided_by＝決め手の出どころ（URL とセクション・<パス>:<行>（対象の同じ場面・人の前の決定＝ADR）・"
-         "設計の決定の記録のパス・依頼の引用「…」（依頼の文を字のまま鉤括弧で）。機械が現物に在るかを照らし、照らせない出どころの行は人に回る）。"
+         "設計の決定の記録のパス・依頼の引用「…」（依頼の文を字のまま鉤括弧で）。機械が現物に在るかを照らし、照らせない出どころの行は人に回る。"
+         + cite.RUN_FILES + "）。"
          "undecided_because＝決め手を当たっても答えが 1 つに決まらない理由（書けないなら空にせよ——自明なので人に回さない）。"
          "fences＝当たる柵の印（external_write 外への書き込み・irreversible 取り消せない操作・policy_doc 方針の文書の変更・"
          "widen_protection 守り（資格・sandbox）を広げる・web_doubt web の結果が新しい疑いを出した）。decided_by が在り "
@@ -523,8 +524,11 @@ def _world_answers(b) -> list:
 
 def _cite_check(b):
     """（決め手の文 → 出どころの誤りの 1 文（無ければ ""）の口, 依頼の出どころの組）。出どころの照らしは cite.sources_problem
-    （依頼の引用は依頼の文と照らす）。依頼の出どころは依頼のファイルと目的の文の出典（世界の解の外れの決め手にならない物）"""
-    req = startrec.read(b.dir).get("request_file") or ""
+    （依頼の引用は依頼の文と照らす）。作業ツリーの外で引いてよい根は conflict.cite_roots の依頼のファイルと run の置き場の根
+    （盤面 b.dir は run の置き場の plan-review/ なので、その親。run の中の指示書・判定を絶対パスで引ける）。依頼の出どころは依頼の
+    ファイルと目的の文の出典（世界の解の外れの決め手にならない物）"""
+    import conflict   # conflict は fixboard を通して gatemarks を読むので、ここで読む
+    req = conflict.request_file(b.dir)
     quoted = ""
     try:
         quoted = pathlib.Path(req).read_text(encoding="utf-8") if req else ""
@@ -532,7 +536,7 @@ def _cite_check(b):
     except (OSError, UnicodeDecodeError, ValueError):
         pass
     repo = (b.state.get("inputs") or {}).get("cwd") or "."
-    roots = [str(pathlib.Path(req).parent) if req else "", str(b.dir)]
+    roots = conflict.cite_roots(b.dir, pathlib.Path(b.dir).parent)
     latest = getattr(b, "latest_output", None)
     purpose = latest("p0.purpose") if callable(latest) else None
     own = {req} | {s for s in (purpose or {}).get("source_files") or [] if isinstance(s, str) and s}

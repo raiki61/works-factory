@@ -38,7 +38,7 @@ def main() -> None:
                                                  ("prior_failures", bad_prior)) if why]
     keys = set(planfile.slots(judgment)) if isinstance(judgment, dict) else None
     path, n = planfile.write_brief(
-        round_dir, plan_dir, mode=rnd["mode"], judgment=judgment, judgment_dir=judgment_file.parent if judgment_file else None,
+        round_dir, plan_dir, mode=rnd["mode"], judgment=judgment, judgment_file=judgment_file,
         units=units, structure_dir_=plan_dir / rnd["structure"], world_rows=world, spec=spec,
         repo=repo, review_rev=startrec.read_rev(start), base=startrec.diff_base(start),
         review_md=str(boundary.lib_root() / "REVIEW.md"),

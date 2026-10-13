@@ -332,11 +332,15 @@ def prescriptions(judgment) -> dict:
     return got
 
 
-def prescription_section(keys, given) -> str:
-    """修正案の材料に貼る、案に入れる単位 keys（並びの順）の判定の処方の節（元 works/blk-plan/lib/planblk.py:356）。処方が無ければ ""）"""
+def prescription_section(keys, given, judgment_file=None) -> str:
+    """修正案の材料に貼る、案に入れる単位 keys（並びの順）の判定の処方の節（元 works/blk-plan/lib/planblk.py:356）。処方が無ければ ""）。
+    judgment_file（判定の記録の絶対パス）が在れば、処方を出どころに引く先として頼みの下に名指す"""
     rows = [f"{planblk.PRESCRIPTION_UNIT_HEAD.format(key=k)}\n\n" + "\n".join(f"{i}. {x}" for i, x in enumerate(given[k], 1))
             for k in keys if k in given]
-    return f"{planblk.PRESCRIPTION_HEAD}\n\n{planblk.PRESCRIPTION_ASK}\n\n" + "\n\n".join(rows) if rows else ""
+    if not rows:
+        return ""
+    source = f"\n{planblk.PRESCRIPTION_SOURCE.format(path=judgment_file)}" if judgment_file else ""
+    return f"{planblk.PRESCRIPTION_HEAD}\n\n{planblk.PRESCRIPTION_ASK}{source}\n\n" + "\n\n".join(rows)
 
 
 # ---------------------------------------------------------------- 修正前の版
@@ -716,7 +720,7 @@ def _neighbor(judgment_dir, name: str) -> str:
     return str(p) if p is not None and p.is_file() else ""
 
 
-def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units, structure_dir_, world_rows, spec,
+def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, units, structure_dir_, world_rows, spec,
                 repo, review_rev: str, base: str, review_md: str, lang_line: str, lib_docs: str = "", conflicts=None, policy_md: str = "",
                 prior_failures=None, unread=()) -> tuple:
     """修正案の役の材料のファイル brief-<n>.md を書き、(パス, 回の番号 n) を返す。前の回の拒否が在れば、その理由を reject-<n>.txt に
@@ -724,8 +728,10 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
     元の planblk.prior_part）・考えの住処の地図（元は包みが旗 concept-map で足した concepthome.section）。形 plan はほかに単位と no・
     処方・構造の目の行・世界の解の行・波及の一覧・裏取りの申し送り・仕様・方針の文書の段落（policy_md が在る時。元の p2.fix_plan の
     prompt_append の policy-path.md と policy.md）・2 往復目からは前の周の案と事前審査の指摘と前の周の波及の一覧。形 replan は
-    ほかに REPLAN_ASK・直す項目ごとの前の形と申し出と裁定の文だけ"""
+    ほかに REPLAN_ASK・直す項目ごとの前の形と申し出と裁定の文だけ。judgment_file は判定の記録の絶対パス（隣の控えを引く元で、
+    処方の節に出どころとして名指す。無い run は None）"""
     round_dir, plan_dir = pathlib.Path(round_dir), pathlib.Path(plan_dir)
+    judgment_dir = pathlib.Path(judgment_file).parent if judgment_file else None
     unread = list(unread)
     rejected = rolekit.rejected(round_dir, ROLE)
     n = len(rejected) + 1
@@ -759,7 +765,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_dir, units
         record = converge_record(plan_dir)
         parts = [*common, units_section(judgment, units, skipped, converge.filled_units(record)),
                  repo_line(repo, review_rev, base, review_md),
-                 prescription_section([k for k in slots(judgment) if k in owed | opened], prescriptions(judgment)),
+                 prescription_section([k for k in slots(judgment) if k in owed | opened], prescriptions(judgment), judgment_file),
                  structmark.plan_section(structure_dir_),
                  f"{world}\n{worldmark.PLAN_ASK}\n" if world else "",
                  ripple.units_section(doc) if isinstance(doc, dict) else "",
