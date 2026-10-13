@@ -798,7 +798,7 @@
   - 狭め: #94 で狭めた（「約束を変える頼み」2。不可でない → 戻す。S01） → 部分 D1 で戻した
 - L-W19 修正役が事前審査の返答（faces・shrink）に plan_faces で key ごとに 1 度だけ答え、答えない key を機械が拒む。差分の審査役も out.p2.plan_review を受ける
   - 元: works/.shared/core/graphloops/rules/review-loop.py:3115-3128 `_plan_face_errors`（呼び元 :2803）、works/.shared/core/graphloops/graphs/review-loop.json:4163（p3.delta_review の inputs）、works/blk-delta/commands/delta-review.md:8
-  - 今: fix の入力 plan_review（線の fix に `$plan-rounds.output.review`、refix-run に `$replan-review.output.review`）。prep が置き場の p2.plan_review.json に写し（組の子も写す）、受け付け（lib/fixboard.py::accept_reply の plan_faces の照らし plan_face_errors）が答えの無い key・事前審査に無い key・重複を拒む。差分の審査の材料（delta_cut.py・refix_prep.py・refix2_prep.py が fixboard.plan_review_file を渡す）の out.p2.plan_review が埋まる。指示書 direct.md は元の字
+  - 今: fix の入力 plan_review（線の fix に `$plan-rounds.output.review`、refix-run に `$replan-review.output.review`）。prep が置き場の p2.plan_review.json に写し（組の子も写す）、受け付け（lib/fixboard.py::accept_reply の plan_faces の照らし plan_face_errors）が答えの無い key・事前審査に無い key・重複を拒む。差分の審査の材料（workflows/fix/scripts/delta_cut.py・workflows/fix/scripts/refix_prep.py・workflows/fix/scripts/collect.py が lib/fixboard.py::plan_review_file を渡す）の out.p2.plan_review が埋まる。指示書 direct.md は元の字
   - 証: tests/workflows/test_fix.py::FixAcceptCase.test_unanswered_plan_face_is_rejected・tests/workflows/test_fix.py::DeltaScriptsCase.test_delta_cut_passes_the_plan_review_to_the_brief・tests/workflows/test_fix.py::InputsCase.test_plan_review_is_an_input・tests/workflows/test_fix.py::CopiedTextsCase.test_every_command_is_its_original_with_only_ledgered_edits（許した直しは tests/workflows/copied_rewrites.json）
   - 本物の run: fix の置き場の差分の審査の材料 `out.p2.plan_review`（今は null）
   - 狭め: #94 で狭めた（「能力の狭め」・「約束を変える頼み」3。不可でない → 戻す。S02） → 部分 D1 で戻した

@@ -20,6 +20,9 @@ FIELD = re.compile(r"^  - ([^:：（(\s]+)")
 LINE_NUMBER = re.compile(r"\.(?:py|yaml):\d")
 # 名はハイフンも読む（YAML の節の id は `ask-final` の形。Python の名にハイフンは無いので、読めば無い名として赤になる）
 POINTER = re.compile(r"(?<![\w./-])((?:[\w.-]+/)*[\w.-]+\.(?:py|yaml))::([A-Za-z_][\w-]*(?:\.[A-Za-z_]\w*)?)")
+# `path::名` の形に外れた指し（`::` の前後の欠け・1 つのコロン）。POINTER に合わない指しは名を照らされないので赤にする
+MALFORMED = re.compile(r"\.(?:py|yaml)::?(?!\d)")
+BARE_PATH = re.compile(r"(?<![\w./*-])((?:lib|bin|workflows|tests|docs)/[\w./-]*\.(?:py|yaml|md|json))(?![\w*-])")
 NOT_YET = "要追加"
 
 
@@ -41,10 +44,14 @@ def pointing_fields() -> list[tuple[str, str]]:
     return [(where, text) for where, text in found]
 
 
+def present_tense() -> list[tuple[str, str]]:
+    """(ファイル:行, 欄の字)。「要追加」より後ろは、まだ無い名なので外す"""
+    return [(where, text.split(NOT_YET, 1)[0]) for where, text in pointing_fields()]
+
+
 def pointers() -> list[tuple[str, str, str]]:
-    """(ファイル:行, path, 名)。「要追加」より後ろは、まだ無い名なので外す"""
-    return [(where, path, name) for where, text in pointing_fields()
-            for path, name in POINTER.findall(text.split(NOT_YET, 1)[0])]
+    """(ファイル:行, path, 名)"""
+    return [(where, path, name) for where, text in present_tense() for path, name in POINTER.findall(text)]
 
 
 @functools.cache
@@ -100,6 +107,16 @@ class PointerCase(unittest.TestCase):
 
     def test_named_tests_exist(self):
         self.assertEqual(missing(want_tests=True), [])
+
+    def test_pointers_take_the_named_form(self):
+        found = [f"{where}: {hit.group(0)}" for where, text in present_tense()
+                 for hit in MALFORMED.finditer(POINTER.sub("", text))]
+        self.assertEqual(found, [])
+
+    def test_named_paths_exist(self):
+        found = [f"{where}: {path} が無い" for where, text in present_tense()
+                 for path in BARE_PATH.findall(text) if not (ROOT / path).exists()]
+        self.assertEqual(found, [])
 
 
 if __name__ == "__main__":

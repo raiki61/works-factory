@@ -1624,7 +1624,7 @@
 - P223 決め手の揃った行（decided_by が在り undecided_because が空で fences が無く、4 つの軸が揃う）は人に聞かずに通し、出どころつきの「通した行」に残す（node・by: decided・item・decided_by）。返す節は pass-<k>/gate-passes.json に書き、報告がそれを読む
   - 元: works/.shared/core/gatemarks.py:625 `plan_gate_items`・:1239 `_record`・:1286 `passes`
   - 今: lib/gatemarks.py::plan_gate_items・lib/gatemarks.py::_record・lib/boardview.py::collect（PASSES_FILE）・lib/runreport.py::_gate_passes（隣の gate-passes.json を読む）
-  - 証: tests/workflows/test_plan_review.py::PlanGateCase.test_decided_narrow_passes_and_is_recorded・tests/workflows/test_plan_review.py::GateFromPlanCase.test_decided_narrow_passes_and_undecided_asks・lib/tests/test_runreport.py::…test_gate_passes_follow_decisions
+  - 証: tests/workflows/test_plan_review.py::PlanGateCase.test_decided_narrow_passes_and_is_recorded・tests/workflows/test_plan_review.py::GateFromPlanCase.test_decided_narrow_passes_and_undecided_asks・lib/tests/test_runreport.py::DecisionsCase.test_gate_passes_follow_decisions
   - 本物の run: `plan-review/pass-1/gate-passes.json`（種では `[]` の見込み）と報告の「修正前の関所が聞かずに通した行（plan-review）: N 件」
   - 狭め: 無し
 
