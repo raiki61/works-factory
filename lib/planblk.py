@@ -24,6 +24,7 @@ p2.fix_plan）が案を直す。直しの役が起きるかは壁打ちの控え
             ファイルにだけ機械の読める誤りの一覧（ERRORS_HEAD）を貼って起こし直させ、通った項目は起こし直さない。
             支度（ブロックの script）が tree_part を呼ばなかった往復は下請けの置き場（ITEMS_DIR）が無いので、受け付けは木のまとめを飛ばす
             （_tree_off。審査役 1 つの返答をそのまま受ける。出自の申告 origins は役の型が確かめた返答の欄のまま）
+- 単位の名: unit_name（返答の no → 単位の名。boardview・planfile も引く）
 - RECEIVES: 役ごとに貼る節の見出しの表（promptsection）
 """
 import copy
@@ -552,8 +553,10 @@ def _load(path: pathlib.Path, schema: dict) -> tuple:
     return (None, errs) if errs else (doc, [])
 
 
-def _unit_name(names: list, k) -> str:
-    return names[k - 1] if isinstance(k, int) and not isinstance(k, bool) and 1 <= k <= len(names) else str(k)
+def unit_name(names: list, k):
+    """役が返した単位の番号（1 から）を names の単位の名に戻す唯一の口。戻せない値は k のまま（範囲の外の番号は int のまま
+    残り、字の名と比べる照らしが必ず拒む。数字の字の名に化けさせない）"""
+    return names[k - 1] if isinstance(k, int) and not isinstance(k, bool) and 1 <= k <= len(names) else k
 
 
 def carried_hits(b, n: int, rip: dict) -> dict:
@@ -579,7 +582,7 @@ def design_gaps(b, faces, items: list, design_map=None) -> list[str]:
     names = _names(b, NODE_OF["plan-review"])
     plan = converge.read(b).get("plan") or []
     rows = [{**plan[n - 1].get("row", {}), "item": n} for n in items if 1 <= n <= len(plan)]
-    named = [{**f, "unit_keys": [_unit_name(names, k) for k in f.get("unit_keys") or []]} for f in faces if isinstance(f, dict)]
+    named = [{**f, "unit_keys": [unit_name(names, k) for k in f.get("unit_keys") or []]} for f in faces if isinstance(f, dict)]
     return design.quote_gaps(b.dir, b.design_schema, named, rows, design_map)
 
 
@@ -600,7 +603,7 @@ def item_answer_gaps(b, n: int, got: dict, rip: dict) -> list[str]:
     mine = {str(k) for k in plan[n - 1]["unit_keys"]} if 1 <= n <= len(plan) else set()
     names = _names(b, NODE_OF["plan-review"])
     for i, f in enumerate(got["faces"]):
-        out = [str(k) for k in f["unit_keys"] if _unit_name(names, k) not in mine]
+        out = [str(k) for k in f["unit_keys"] if unit_name(names, k) not in mine]
         if out:
             errs.append(f"$.faces[{i}].unit_keys: 項目 {n} の単位でない {out}（項目どうしの穴は相乗りの審査が挙げる。"
                         "unit_keys は項目の unit_keys を字のまま）")
