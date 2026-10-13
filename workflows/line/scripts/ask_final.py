@@ -171,7 +171,7 @@ def conflict_section(got: dict) -> list:
     """食い違いの申し出の節（元 line_edge._conflict_text。conflict.human_lines の行のまま）と、控えを読めなかった訳"""
     lines = []
     if got["asked"]:
-        lines += [f"## {conflict.HEAD}（{len(got['asked'])} 件。裁定役か機械が人に回した。単位は直さずに残した。通すのは人の答えだけ）", "",
+        lines += [f"## {conflict.HEAD}（{len(got['asked'])} 件。裁定役か機械が人に回した。直しの在りかは行ごとの末尾の括弧。通すのは人の答えだけ）", "",
                   *[f"- {row}" for row in got["asked"]], ""]
     if got["conflicts_unread"]:
         lines += [f"## {CONFLICT_UNREAD}（{len(got['conflicts_unread'])} 件。人に回した行かを数えられない。通すのは人の答えだけ）", "",
