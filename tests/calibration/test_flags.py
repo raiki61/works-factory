@@ -130,7 +130,7 @@ class FlagTableTest(unittest.TestCase):
         table = _table()[runner.WorksFactory.name]
         rows = [{"skill": "code-review", "items": [], "invoked": True, "failed": "起こしたが所見なし"},
                 {"skill": "simplify", "items": [], "invoked": True, "failed": "起こしたが所見なし"}]
-        for items, flagged in (([], []), ([{"where": "a.py:1"}], ["p1.local_review"])):
+        for items, flagged in (([], []), ([{"where": "a.py:1", "text": "境界で落ちる"}], ["p1.local_review"])):
             with self.subTest(items=items), tempfile.TemporaryDirectory() as tmp:
                 ev = pathlib.Path(tmp)
                 (ev / "parent" / "judge").mkdir(parents=True)
@@ -141,18 +141,20 @@ class FlagTableTest(unittest.TestCase):
                 self.assertEqual(got["flagged"], flagged)
 
     def test_hidden_scope_counts_surfaced_alike_in_both_factories(self):
-        """仕込みに当たらない suggest（surfaced）だけの R4 の返りは、どちらの工場でも旗を立てない"""
-        reply = {"status": "ok", "capability_inventory": {"lost": []}, "policy_conflicts": [],
-                 "surfaced": [{"title": "別の所見"}]}
+        """仕込みに当たらない suggest（surfaced）だけの R4 の返りは、どちらの工場でも返りを読んだうえで旗を立てない。
+        policy_conflicts に中身があれば両工場とも立つ（返りを読まずに flagged が空になったのでないことの対照）"""
+        quiet = {"status": "pass", "reason": "仕込みの範囲の外の所見だけ", "capability_inventory": {"fired": True, "lost": []},
+                 "policy_conflicts": [], "surfaced": [{"where": "b.py:3", "text": "別の所見"}], "seen": [], "unseen": []}
         places = {runner.OldWorks.name: "board/out/r1/r4.hidden_scope.json",
                   runner.WorksFactory.name: "parent/eyes/r4.json"}
         for factory, where in places.items():
-            with self.subTest(factory=factory), tempfile.TemporaryDirectory() as tmp:
-                ev = pathlib.Path(tmp)
-                (ev / where).parent.mkdir(parents=True)
-                (ev / where).write_text(json.dumps(reply), encoding="utf-8")
-                got = runner.flags_of({"r4.hidden_scope": _table()[factory]["r4.hidden_scope"]}, ev, set())
-                self.assertEqual(got["flagged"], [])
+            for reply, flagged in ((quiet, []), ({**quiet, "policy_conflicts": ["決めに反する"]}, ["r4.hidden_scope"])):
+                with self.subTest(factory=factory, flagged=flagged), tempfile.TemporaryDirectory() as tmp:
+                    ev = pathlib.Path(tmp)
+                    (ev / where).parent.mkdir(parents=True)
+                    (ev / where).write_text(json.dumps(reply), encoding="utf-8")
+                    got = runner.flags_of({"r4.hidden_scope": _table()[factory]["r4.hidden_scope"]}, ev, set())
+                    self.assertEqual((got["flagged"], got["unread"]), (flagged, []))
 
     def test_test_gate_flags_read_the_evidence_of_a_fallen_result(self):
         """返す節 test-gate/result が落ちた時に今書く evidence.md で、p0.local_checks・p4.ci の旗が立つ"""
