@@ -617,8 +617,7 @@ def _frozen_policy(d: pathlib.Path, start_doc, cwd) -> dict:
 def _recorded(start_doc, frozen: dict, judgment, gates: list) -> list:
     """記録された方針の行（policy.recorded）。方針の文書は関所で通した書き直しを含む固めた版 frozen から、決着済みの論点は判定の隣の
     決定記録の突合の返答から読む"""
-    return policy.recorded({**(start_doc or {}), "policy": frozen}, settled=policy.settled_rows(pathlib.Path(judgment).parent),
-                           human_items=gates)
+    return policy.recorded({**(start_doc or {}), "policy": frozen}, pathlib.Path(judgment).parent, human_items=gates)
 
 
 def policy_change(folder, cwd) -> dict | None:
@@ -1063,15 +1062,14 @@ def _faces_of(row: dict, review: dict, rows: list) -> list:
 
 def replan_asks(d: pathlib.Path, p: pathlib.Path, inputs: dict, review: dict) -> list:
     """案の直しで人に聞く項目 [(種類, 文)]: 直した項目のうち、約束の欄（planmarks.contract_diff）が変わったか、人に聞く種類の穴
-    （HUMAN_FACE_KINDS。記録された方針の行を名指さない kind policy の穴は除く。policy.unrecorded）が在る物。無人の run で範囲を
-    広げただけ（planmarks.widened）の直しは聞かない。項目ごとの判じを pass-<k>/replan.json に置く（元 works/.shared/core/replan.py:620 の gate）"""
+    （HUMAN_FACE_KINDS）が在る物。無人の run で範囲を広げただけ（planmarks.widened）の直しは聞かない。項目ごとの判じを
+    pass-<k>/replan.json に置く（元 works/.shared/core/replan.py:620 の gate）"""
     rows = inputs.get("replan_items") or []
     alone = gatepolicy.unattended(d)
     out = []
     for row in rows:
         faces = _faces_of(row, review, rows)
-        human = [f for f in faces if isinstance(f, dict) and f.get("kind") in HUMAN_FACE_KINDS
-                 and not policy.unrecorded(f, f, inputs.get(policy.RECORDED_KEY) or [])]
+        human = [f for f in faces if isinstance(f, dict) and f.get("kind") in HUMAN_FACE_KINDS]
         old, new = replan.bare(row["old"]), replan.bare(row["new"])
         row["contract_changed"] = planmarks.contract_diff(old, new)
         row["human_faces"] = [f.get("key") for f in human]

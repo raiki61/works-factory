@@ -698,7 +698,7 @@ def write_brief(round_dir, plan_dir, *, mode: str, judgment, judgment_file, unit
                 prior_failures=None, unread=(), recorded: str = "") -> tuple:
     """修正案の役の材料のファイル brief-<n>.md を書き、(パス, 回の番号 n) を返す。前の回の拒否が在れば、この周の拒否の理由の全部を
     rolekit.reject_file で書いて頭の 1 行で名指す。両方の形に役の定義・並行 PR の外した範囲・ライブラリの文書・前の run で通らなかった物（prior_failures。
-    元の planblk.prior_part）・記録された方針のセクション recorded（policy.recorded_section）・考えの住処の地図（元は包みが旗
+    元の planblk.prior_part）・記録された方針のセクション recorded（policy.recorded_text）・考えの住処の地図（元は包みが旗
     concept-map で足した concepthome.section）。形 plan はほかに単位と no・
     処方・構造の目の行・世界の解の行・波及の一覧・裏取りの申し送り・仕様・方針の文書の段落（policy_md が在る時。元の p2.fix_plan の
     prompt_append の policy-path.md と policy.md）・2 往復目からは前の周の案と事前審査の指摘と前の周の波及の一覧。形 replan は

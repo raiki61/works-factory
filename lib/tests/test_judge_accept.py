@@ -1422,7 +1422,7 @@ class MaterialCase(_RepoCase):
                          {"prior_decisions": good["material"]})
         settled = [{"topic": "公開の口", "decision": "減らさない", "where": "docs/adr/0002.md"}]
         self.assertTrue(self.take_round("prior-decisions", {**good, "settled": settled})["ok"])
-        self.assertEqual(ja.policy.settled_rows(self.jdir), settled)
+        self.assertEqual([r["name"] for r in ja._recorded(self.jdir) if r["source"] == "settled"], ["docs/adr/0002.md"])
 
     def test_consistency_bypass_reply_is_taken_or_refused(self):
         """素材の役の受け付け（整合と標準機構の迂回）: 2 つの素材を両方書いた返答だけ受ける"""

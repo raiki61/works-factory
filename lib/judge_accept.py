@@ -791,7 +791,7 @@ PREMISE_THREE = "③"   # 人へ回す問いの先行例の undecided_because �
 
 def _recorded(jdir) -> list:
     """判定の置き場の記録された方針の行（始めの記録と決定記録の突合の返答から。承認ノードの答えは判定に渡っていない）"""
-    return policy.recorded(_start_of(jdir), settled=policy.settled_rows(jdir))
+    return policy.recorded(_start_of(jdir), jdir)
 
 
 def recorded_question_problems(out, rows) -> list:
@@ -2819,7 +2819,7 @@ def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "") -> 
     置き場の値で埋めた物・4 問いの台帳の段（LEDGER_HEAD。{{validator.*}} は PROMPT_TABLES）・5 依頼と PR の題と本文（始めの記録に
     input.pr が在る時。request_text と pr_file_text）・6 依頼の answers（answers_section）・7 前の run の行（入口が置いた
     prior-failures-in.json。carry.prior_section が PRIOR_HEAD の節と REDESIGN_HEAD の節に分ける）・8 記録された方針
-    （policy.recorded_section。行が無い run も RECORDED_NONE と載る）・9 人の方針（POLICY_HEAD。文書が在る時。policy_text）。
+    （policy.recorded_text。受け付けの _recorded と同じ置き場から組む。行が無い run も RECORDED_NONE と載る）・9 人の方針（POLICY_HEAD。文書が在る時。policy_text）。
     素材の状態は materials.json（無ければ fill_materials）。
     対象差分は material-view.json（無ければ取る）"""
     j = pathlib.Path(jdir)
@@ -2835,7 +2835,7 @@ def brief(jdir, repo, start: dict, review_md: str, repo_review_md: str = "") -> 
                                                           "body": pr.get("body") or ""}}).rstrip("\n") + "\n\n" + pr_file_text(pr)
     answers = answers_section(start.get("answers"))
     prior = carry.prior_section(j)
-    recorded = policy.recorded_section(policy.recorded(start, settled=policy.settled_rows(j)), gates_given=False)
+    recorded = policy.recorded_text(_start_of(j), j)
     pol = policy_text(start)
     p = j / DIAGNOSE_BRIEF_FILE
     tmp = p.with_name(p.name + ".tmp")
