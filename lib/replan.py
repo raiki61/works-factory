@@ -25,6 +25,7 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
+import converge  # noqa: E402
 import gatemarks  # noqa: E402
 import oneline  # noqa: E402
 import planmarks  # noqa: E402
@@ -86,7 +87,8 @@ def fix_notes(review, plan, items, human_kinds) -> str:
     for item in items or []:
         n = int(item) if str(item).isdigit() else 0
         units = [str(k) for k in ((rows[n - 1] or {}).get("unit_keys") or [])] if isinstance(rows, list) and 0 < n <= len(rows) else []
-        mine = [f for f in faces if not f.get("unit_keys") or set(units) & {str(k) for k in f.get("unit_keys") or []}]
+        keys = converge.item_units(rows, n)
+        mine = [f for f in faces if not f.get("unit_keys") or keys & {str(k) for k in f.get("unit_keys") or []}]
         if mine:
             parts.append(f"{FACES_HEAD.format(item=item, units='、'.join(units))}\n\n"
                          + "\n".join(f"- [{f.get('kind')}] {f.get('key')}（{f.get('where')}）: {f.get('why')}" for f in mine) + "\n")

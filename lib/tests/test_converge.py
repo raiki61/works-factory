@@ -698,10 +698,11 @@ def _own(scope):
 
 
 def _plan_names(scope, outer: set) -> set:
-    """scope の中で修正案の項目の並びを指す名。plan と、それを読む式を代入した名（rows = out.get("plan") の rows も、
-    xs = rows or [] の xs も）と、囲む関数でそう指す名 outer のうち scope が引数や代入で付け直さない物（閉包も読む）"""
+    """scope の中で修正案の項目の並びかその行を指す名。plan と、それを読む式を代入した名（rows = out.get("plan") の rows も、
+    xs = rows or [] の xs も、for n, it in enumerate(rows) の it も）と、囲む関数でそう指す名 outer のうち scope が引数や代入で付け直さない物（閉包も読む）"""
     binds = [(t, n.value) for n in _own(scope) if isinstance(n, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
              and n.value is not None for t in (n.targets if isinstance(n, ast.Assign) else [n.target])]
+    binds += [(n.target, n.iter) for n in _own(scope) if isinstance(n, (ast.For, ast.AsyncFor))]
     args = scope.args if isinstance(scope, SCOPES) else None
     params = {a.arg for a in (args.posonlyargs + args.args + args.kwonlyargs + [args.vararg, args.kwarg]) if a} if args else set()
     rebound = params | {x.id for t, _ in binds for x in ast.walk(t) if isinstance(x, ast.Name)}
@@ -712,30 +713,66 @@ def _plan_names(scope, outer: set) -> set:
     return names
 
 
+def _row_of_unit_keys(it):
+    """回す式が行の unit_keys（x["unit_keys"]・x.get("unit_keys")。後ろの or []・sorted(...) などの包み・a if c else b の両方の枝・
+    [:] などの切り出しも）なら行の式。でなければ None"""
+    if isinstance(it, ast.BoolOp):
+        return _row_of_unit_keys(it.values[0])
+    if isinstance(it, ast.IfExp):
+        row = _row_of_unit_keys(it.body)
+        return row if row is not None else _row_of_unit_keys(it.orelse)
+    if isinstance(it, ast.Call):
+        if isinstance(it.func, ast.Attribute) and it.func.attr == "get":
+            return it.func.value if it.args and isinstance(it.args[0], ast.Constant) and it.args[0].value == "unit_keys" else None
+        return _row_of_unit_keys(it.args[0]) if isinstance(it.func, ast.Name) and it.args else None
+    if isinstance(it, ast.Subscript):
+        return it.value if isinstance(it.slice, ast.Constant) and it.slice.value == "unit_keys" else _row_of_unit_keys(it.value)
+    return None
+
+
+def _planned_units_shape(node, names: set) -> str | None:
+    """内包が修正案の項目の行の unit_keys を回すなら、前の生成子が並びから取った行を回す（案の全体の単位）時 "plan"、
+    並びかその行を指す名から直に回す（項目 1 つの単位）時 "item"。回さなければ None"""
+    rows = set()
+    for gen in node.generators:
+        row = _row_of_unit_keys(gen.iter)
+        if row is not None and _mentions(row, rows):
+            return "plan"
+        if row is not None and _mentions(row, names):
+            return "item"
+        if _mentions(gen.iter, names | rows):
+            rows |= {n.id for n in ast.walk(gen.target) if isinstance(n, ast.Name)}
+    return None
+
+
 def planned_unit_sets(source: str, name: str) -> list[str]:
-    """修正案の項目の並びを回し、その行の unit_keys を回して単位を並べる内包（集合・list・生成式（set(...) も）・dict）の
-    在りか（<name>:<行>）。並びを読むかは内包を囲む一番内の関数（lambda も）とそれを囲む関数の中の名で見る（名を変えた局所変数
+    """修正案の項目の行の unit_keys を回して単位を並べる内包の在りか（<name>:<行>）。案の全体を回す形（for p in plan
+    for k in p["unit_keys"]）は集合・list・生成式（set(...) も）・dict のどれも、項目 1 つの形（plan[n - 1]["unit_keys"]・
+    for 文で並びから取った行の it["unit_keys"] を回す）は集合を組む物（集合の内包・set(...)・frozenset(...) に渡した内包。
+    項目の順を保つ list は別の物）を捕まえる。並びを読むかは内包を囲む一番内の関数（lambda も）とそれを囲む関数の中の名で見る（名を変えた局所変数
     からの写しも閉包の中の写しも捕まえ、別の関数の同じ名は見ない）"""
+    tree = ast.parse(source)
+    in_set = {id(a) for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+              and n.func.id in ("set", "frozenset") for a in n.args}
     found = set()
-    todo = [(tree := ast.parse(source), _plan_names(tree, set()))]
+    todo = [(tree, _plan_names(tree, set()))]
     while todo:
         scope, names = todo.pop()
         for node in _own(scope):
             if isinstance(node, SCOPES):
                 todo.append((node, _plan_names(node, names)))
-            elif isinstance(node, COMPREHENSIONS) and len(node.generators) >= 2:
-                outer, inner = node.generators[0], node.generators[-1]
-                rows = {n.id for n in ast.walk(outer.target) if isinstance(n, ast.Name)}
-                per_row = any(isinstance(n, ast.Constant) and n.value == "unit_keys" for n in ast.walk(inner.iter)) and any(
-                    isinstance(n, ast.Name) and n.id in rows for n in ast.walk(inner.iter))
-                if per_row and _mentions(outer.iter, names):
-                    found.add(node.lineno)
+            elif isinstance(node, COMPREHENSIONS) and (shape := _planned_units_shape(node, names)) and (
+                    shape == "plan" or isinstance(node, ast.SetComp) or id(node) in in_set):
+                found.add(node.lineno)
+            elif id(node) in in_set and (row := _row_of_unit_keys(node)) is not None and _mentions(row, names):
+                found.add(node.lineno)
     return [f"{name}:{line}" for line in sorted(found)]
 
 
 class PlannedUnitsCase(unittest.TestCase):
     def test_planned_units_are_built_in_one_place(self):
-        """今の案に在る単位の集合を組む式は converge.planned_units の 1 か所（#391。carried_notes と受け付けの照らしが食い違わない）"""
+        """今の案に在る単位の集合を組む式は converge.planned_units の 1 か所（#391。carried_notes と受け付けの照らしが食い違わない）。
+        項目 1 つの単位の集合もその上の converge.item_units だけが組む（#412。受け付けの照らしと item_blocks が食い違わない）"""
         found = [hit for path in sorted(LIB.glob("*.py"))
                  for hit in planned_unit_sets(path.read_text(encoding="utf-8"), path.name)]
         self.assertEqual([hit.partition(":")[0] for hit in found], ["converge.py"], found)
@@ -753,11 +790,27 @@ class PlannedUnitsCase(unittest.TestCase):
                    ["x.py:3"]),
                   ('def f(out):\n    rows = out["plan"]\n    g = lambda: {k for r in rows for k in r["unit_keys"]}', ["x.py:3"]),
                   ('def f(out):\n    rows = out["plan"]\n\n    def g():\n        return {k for r in rows for k in r["unit_keys"]}',
-                   ["x.py:5"])]
-        for src, want in copies:
+                   ["x.py:5"]),
+                  ('u = {str(k) for r in plan for k in (r["unit_keys"] if isinstance(r.get("unit_keys"), list) else [])}',
+                   ["x.py:1"]),
+                  ('u = {str(k) for r in plan for k in r["unit_keys"][:]}', ["x.py:1"])]
+        items = [('mine = {str(k) for k in plan[n - 1]["unit_keys"]} if 1 <= n <= len(plan) else set()', ["x.py:1"]),
+                 ('units = {str(k) for n in opened for k in doc["plan"][n - 1]["unit_keys"]}', ["x.py:1"]),
+                 ('for n, it in enumerate(doc.get("plan") or [], 1):\n    mine = {str(k) for k in it["unit_keys"]}',
+                  ["x.py:2"]),
+                 ('rows = out.get("plan")\nmine = set(str(k) for k in (rows[n - 1].get("unit_keys") or []))', ["x.py:2"]),
+                 ('mine = frozenset(k for k in sorted(plan[n - 1]["unit_keys"]))', ["x.py:1"]),
+                 ('mine = set(plan[n - 1]["unit_keys"])', ["x.py:1"]),
+                 ('keys = set(plan[n - 1].get("unit_keys") or []) if n - 1 < len(plan) else set()', ["x.py:1"]),
+                 ('for it in plan:\n    mine = frozenset(it["unit_keys"])', ["x.py:2"])]
+        for src, want in copies + items:
             with self.subTest(src=src):
                 self.assertEqual(planned_unit_sets(src, "x.py"), want)
         self.assertEqual(planned_unit_sets('got = {k for r in given for k in r.get("unit_keys") or []}', "x.py"), [])
+        self.assertEqual(planned_unit_sets('for p in plan:\n    keys = [k for k in p.get("unit_keys") or [] if isinstance(k, str)]',
+                                           "x.py"), [], "項目の順を保つ list は項目の単位の集合でない")
+        self.assertEqual(planned_unit_sets('it = plan[n - 1]\nbody = {x for x in (it["id"], len(it.get("unit_keys") or []))}',
+                                           "x.py"), [], "unit_keys を回さず読むだけの内包は単位を並べない")
         self.assertEqual(planned_unit_sets('def f(o):\n    rows = o["plan"]\n\ndef g(rows):\n'
                                            '    return {k for r in rows for k in r["unit_keys"]}', "x.py"), [],
                          "別の関数で plan を指した名は、この関数の同じ名を plan にしない")
@@ -771,6 +824,17 @@ class PlannedUnitsCase(unittest.TestCase):
         self.assertEqual(converge.plan_keys(plan), ["u2", "u1", "u1", 9])
         self.assertEqual(converge.plan_keys(None), [])
         self.assertEqual(converge.planned_units(plan), {"u1", "u2", "9"})
+
+    def test_item_units_is_the_items_str_keys(self):
+        """item_units は項目 n（1 始まり）の単位の key を str にした集合。番号の外・list でない plan は空"""
+        plan = converge.plan_rows([row("u1", "u2"), row("u3")])
+        self.assertEqual(converge.item_units(plan, 1), {"u1", "u2"})
+        self.assertEqual(converge.item_units(plan, 2), {"u3"})
+        self.assertEqual(converge.item_units([{"unit_keys": ["u1", 9]}], 1), {"u1", "9"})
+        for n in (0, -1, 3):
+            with self.subTest(n=n):
+                self.assertEqual(converge.item_units(plan, n), set())
+        self.assertEqual(converge.item_units(None, 1), set())
 
     def test_planned_units_reads_both_row_shapes(self):
         """控えの行（str にした key）と修正案の役の出力の行（名の key）の単位の和。行で無い物と unit_keys の無い行は数えない"""
