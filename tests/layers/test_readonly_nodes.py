@@ -81,9 +81,8 @@ class ReadonlyNodesTest(unittest.TestCase):
                 self.assertEqual(len(got), red, got)
                 self.assertTrue(all("denyWrite" in line for line in got), got)
 
-    def test_no_tree_write_is_the_isolated_archon_home(self):
-        """denyWrite の値は起動が隔離した HOME の隣の Archon の家を指す。isolate の置き場の名を変えたらここが赤になる"""
-        self.assertEqual(scan.NO_TREE_WRITE, f"~/../{isolate.DIRS['ARCHON_HOME']}")
+    def test_isolated_homes_are_siblings(self):
+        """denyWrite の値 ~/.. は隔離した HOME の隣を指すので、HOME と Archon の家は同じ run の置き場の直下に在る"""
         for name in ("HOME", "ARCHON_HOME"):
             self.assertNotIn("/", isolate.DIRS[name])
 

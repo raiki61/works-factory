@@ -13,6 +13,7 @@ from pathlib import Path
 
 import yaml
 
+from bin._lib import isolate
 from bin._lib.place import WORKFLOW_FOLDER
 
 BOUNDARY = "boundary.py"
@@ -647,10 +648,10 @@ CHANGE_CHECKOUT = {
 # 役の節に要る鍵（K18。元 works/tests/test_yaml_rules.py の決まり）: settingSources: [user]・閉じた sandbox・道具の表の中の allowed_tools
 ROLE_TOOLS = frozenset({"Read", "Grep", "Glob", "Edit", "Write", "Bash", "WebSearch", "WebFetch", "Agent", "Skill"})
 CLOSED_SANDBOX = (("enabled", "true"), ("allowUnsandboxedCommands", "false"))
-# Bash を持ち Edit・Write を持たない役の sandbox の denyWrite に書く場所（#293）。~ は起動が隔離した HOME（bin/_lib/isolate.DIRS）で、
+# Bash を持ち Edit・Write を持たない役の sandbox の denyWrite に書く場所（#293）。~ は起動が隔離した HOME で、
 # その隣が Archon の家＝全部の run の worktree と artifacts。相対のパス '.' は cwd でなく設定の一時ファイルのフォルダに解かれ、
 # 作業ツリーを塞がない（実測 2026-10-13）
-NO_TREE_WRITE = "~/../archon-home"
+NO_TREE_WRITE = f"~/../{isolate.DIRS['ARCHON_HOME']}"
 YAML_BOOL = "tag:yaml.org,2002:bool"
 
 
