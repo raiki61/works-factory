@@ -425,8 +425,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     回す時は None。止め時の決まりではない: converge.decide）、ruling は裁かれた項目の番号の字（planmarks.handed。番号でない行と
     案の外の番号は訳つきの Missing）、review_schema・design_schema は事前審査と独立設計の役の型
     （ブロックの YAML の役の節の output_format。下請けの答えのファイルの faces・shrink と design.json の読み直しが照らす）。形 replan
-    では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、
-    直した項目と申し出と裁定の行と並べて材料に置く（replan_items）。
+    では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、直した項目と申し出と裁定の行と並べて材料に置く（replan_items）。
     返り {k（plan-fields.json の round）, form（ruling が空なら review、在れば replan）, tree, r2_go}"""
     d = pathlib.Path(folder)
     d.mkdir(parents=True, exist_ok=True)
@@ -448,6 +447,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     planmarks.save(d, 1, fields["fields"], {int(n): v for n, v in (fields.get("amended") or {}).items()} or None,
                    trace=out.trace)
     _copy_world(d, world)
+    worldmark.copy_means(pathlib.Path(purpose).parent, d)
     _copy_structure(d, structure)
     _write_json(d / planblk.RIPPLE_PASS.format(k=converge.pass_no(out)), _read_json(ripple))
     bare, answered = converge.split("plan-revise", fix_plan)
