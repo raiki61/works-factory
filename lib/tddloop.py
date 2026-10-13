@@ -852,10 +852,10 @@ def _blank(s) -> bool:
 
 
 def _paths(v, name) -> tuple:
-    """空でない文字列の配列 → (正規化したパスの一覧, 問題)"""
-    if not isinstance(v, list) or not v or not all(isinstance(x, str) and x.strip() for x in v):
+    """空でない文字列の配列 → (要素の決まり fixboard.test_file で整えたパスの一覧, 問題)"""
+    out = [fixboard.test_file(x) for x in v] if isinstance(v, list) else []
+    if not out or None in out:
         return [], [f"{name} は空でない文字列の配列"]
-    out = [posixpath.normpath(x.strip()) for x in v]
     bad = [x for x in out if x.startswith("/") or x == ".." or x.startswith("../")]
     return out, ([f"{name} はリポジトリの根からの相対パス（{bad}）"] if bad else [])
 

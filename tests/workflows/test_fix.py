@@ -1916,6 +1916,21 @@ class BlockScriptsCase(unittest.TestCase):
         code, out, err = _blk_run("join", self.repo, self.art)
         self.assertEqual((code, out), (0, {"groups": 2, "returned": 2}), err)
 
+    def test_join_reads_a_malformed_child_tdd_as_empty(self):
+        """#342: 組の子の result.json の tdd が dict でない（並び・文字列）時も、units が並びでない（数）時も、verified・
+        allowed_tests が並びでない（数・文字列）時も、join は落ちず、TDD の単位・名指し・許しの無い組として戻す"""
+        start = self.snapshot(self.repo)
+        tdds = {"g1": ["x"], "g2": "x", "g3": {"ran": True, "reason": "", "suite": "", "units": 5,
+                                              "test_cmd": ["x"]}}
+        broken = {"g1": {"verified": 5, "allowed_tests": 5}, "g2": {"verified": "test_x", "allowed_tests": "x"}, "g3": {}}
+        out_dir = self.groups_file([{"group_id": g, "unit_ids": [g.upper()], "items": [i]} for i, g in enumerate(tdds, 1)],
+                                   start)
+        for g, tdd in tdds.items():
+            end = self.tree_with({f"{g}.md": f"{g}\n"})
+            _blk_write(out_dir / g / "result.json", _blk_result(g, [g.upper()], end, start, tdd=tdd, **broken[g]))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual((code, out), (0, {"groups": 3, "returned": 3}), err)
+
     def test_collect_allowed_test_changes_from_rulings_and_groups(self):
         """F429: 許したテストの変更（裁定 fix_test_scope の範囲・組の子が許した物）を返りの allowed_test_changes にパスで並べ、
         訳（許しの id と出どころ）を返りの diff の隣の allowed-tests.json に [{path, permit, source}] で置く（元
@@ -2912,6 +2927,26 @@ class FixLoopScriptsCase(FixLoopPlace):
                               group=self._fx_group([_FX_MEAN]))
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         self.assertTrue((self.repo / "tdd_note.txt").is_file())
+
+    def test_ruled_fixer_head_is_the_ruled_prep_tree(self):
+        """#332: 裁定の後の修正の段の頭は fix-ruled-prep が控える木。1 回目の修正の段の頭（fix-head.json）の後に書かれた物を
+        裁定の後の修正役の申告に求めない（事前の確かめと同じ木を受け付けも読む）"""
+        import conflict
+        code, _, err = _fx_run("fix_prep", self.repo, self.art, group=self._fx_group([_FX_MEAN]))
+        self.assertEqual(code, 0, err)
+        (self.repo / "tdd_note.txt").write_text("1 回目の修正・join が書いた物\n", encoding="utf-8")
+        conflict.park(self.place, [{"unit_key": _FX_MEAN, "between": ["stats.py:9", "test_stats.py:8"],
+                                    "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
+                                    "which_is_right": "request", "kind": "unnamed_test_broke"}],
+                      source=conflict.FIX_SOURCE, ruling={"decision": "fix_test_scope", "text": "テストの期待を直してよい",
+                                                          "limits": ["test_stats.py"]})
+        code, _, err = _fx_run("fix_ruled_prep", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self._fx_json("join.json", {"groups": [{"group_id": "g1", "unit_ids": [_FX_MEAN], "returned": True, "reason": ""}],
+                                    "units": [{"unit_id": _FX_MEAN, "group_id": "g1", "status": "not_done", "reason": ""}]})
+        self._fx_fix_mean()
+        out = self._fx_accept("fix_ruled_accept", {"changes": [_fx_change(_FX_MEAN, ["stats.py"])]}, 1)
+        self.assertEqual((out["ok"], out["done"]), (True, True), out)
 
     def test_consulted_turn_and_skipped_fixer(self):
         out = self._fx_accept("fix_accept", {"changes": []}, 1, group=self._fx_group([_FX_MEAN]))
