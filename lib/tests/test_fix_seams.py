@@ -1239,6 +1239,29 @@ class LaneChecksSeamCase(TempCase):
         self.assertTrue(any("NOTES.md" in t for t in lines), lines)
         self.assertFalse(any("test_stats.py" in t for t in lines), "since の前に変えたファイルは照らさない")
 
+    def test_plan_scope_counts_what_the_loop_fixed_before_since(self):
+        """TDD の輪が直し終えた単位（stats.py の直しと adds・tests の test_mean_of_two）の後の木を since（段の頭）に取り、修正役が
+        何も変えずにその単位の行だけを返せば、欠けにしない（修正役の指示書は輪の単位を直し直させない。較正 clamp-above）"""
+        import factchecks
+        from lib.tests.test_blk_fix_tdd import NEW_TEST
+        tests = self.repo / "test_stats.py"
+        tests.write_text(tests.read_text(encoding="utf-8").replace("\n\nif __name__", NEW_TEST + "\n\nif __name__"),
+                         encoding="utf-8")
+        stats = self.repo / "stats.py"
+        text = stats.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        stats.write_text(text, encoding="utf-8")
+        since = leftovers.snapshot(self.repo)
+        tid = "test_stats.py::TestStats::test_mean_of_two"
+        item = {"item": 1, "unit_keys": [R_MEAN], "removes": [], "route": "tdd", "tests": [{"id": tid}], "rewrite_tests": [],
+                "adds": [{"kind": "test", "name": tid, "canonical": "test_stats.py に新設"}],
+                "allowed_paths": ["stats.py", "test_stats.py"], "out_of_scope": []}
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py", "test_stats.py"]}]}
+        args = (reply, [R_MEAN], self.place, self.rev, self.repo, "", "first")
+        lines, _ = factchecks.check_plan_scope(*args, since=since, items=[item])
+        self.assertEqual(lines, [])
+
     def test_writes_look_only_after_since(self):
         fc, since, _, reply = self.since_case()
         log = self.place / writelog.LOG
