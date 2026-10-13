@@ -41,7 +41,7 @@ EXCEPT = {
     "owner_quote_line": "持ち主の言葉",
     # 3. 旧い語をグラフの語でない意味で含む語。
     "compounds": ("配線", "導線", "動線", "点線", "下線", "上線", "実線", "罫線", "条件節", "節約", "振り返り", "返り値"),
-    # 4. `bin/` の写し（写しの台帳 `COPIED_FROM*` が並べる物）。元の字のまま縛る（K9）ので直さない。
+    # 4. `bin/`・`lib/` の写し（写しの台帳 `COPIED_FROM*` が並べる物）。元の字のまま縛る（K9）ので直さない。
     "copies": "COPIED_FROM*",
     # 5. lib・script の文字列のうち、字でなく値の物（前の run が書いたファイルから読み戻す語など）。{(パス, 文字列の 1 行): 訳}。
     # どの行も木の文字列に当たる（当たらない行は test_keep_rows_hit_the_tree が赤にする）。
@@ -61,13 +61,19 @@ EXCEPT = {
 }
 
 
+def guides(root):
+    """決まりの文書: ASF の物を除く全部の階層の `AGENTS.md` と根の `ROOT_DOCS`"""
+    root = pathlib.Path(root)
+    found = [p for p in root.rglob("AGENTS.md") if p.relative_to(root).parts[0] not in ASF_DIRS]
+    return found + [p for name in ROOT_DOCS for p in root.glob(name)]
+
+
 def scope(root):
     """`(根からのパス, 種類)` を並べる。種類は md（json も行ごとに読む）・yaml・py・bin（docstring とコメントも読む py）"""
     root = pathlib.Path(root)
     found = []
     found += [p for p in root.glob("docs/*.md")]
-    found += [p for p in root.rglob("AGENTS.md") if p.relative_to(root).parts[0] not in ASF_DIRS]
-    found += [p for name in ROOT_DOCS for p in root.glob(name)]
+    found += guides(root)
     found += [p for p in root.glob("docs/*.json")]
     found += [p for p in root.glob("lib/*.md")] + [p for p in root.glob("lib/*.json")]
     found += [p for p in root.glob("bin/_lib/borrow/*.json")]
@@ -78,9 +84,11 @@ def scope(root):
         yield path.relative_to(root).as_posix(), "md"
     for path in sorted(root.glob("workflows/*/*.yaml")):
         yield path.relative_to(root).as_posix(), "yaml"
-    copies = {led.base / rel for led in map(copyledger.read, root.glob(f"bin/**/{EXCEPT['copies']}")) for rel, _ in led.rows}
+    copies = {led.base / rel for top in ("bin", "lib") for led in map(copyledger.read, root.glob(f"{top}/**/{EXCEPT['copies']}"))
+              for rel, _ in led.rows}
     bin_py = {p for pattern in BIN_PY for p in root.glob(pattern)} - copies
-    for path in sorted([*root.glob("lib/*.py"), *root.glob("workflows/*/scripts/*.py"), *root.glob("workflows/.shared/*.py")]):
+    py = {*root.glob("lib/*.py"), *root.glob("workflows/*/scripts/*.py"), *root.glob("workflows/.shared/*.py")} - copies
+    for path in sorted(py):
         yield path.relative_to(root).as_posix(), "py"
     for path in sorted(bin_py):
         yield path.relative_to(root).as_posix(), "bin"
@@ -254,6 +262,12 @@ class WordsTest(unittest.TestCase):
         ledger = "742a61d  元の説明の節\nc.py  src/c.py\n"
         self.clean({"bin/_lib/COPIED_FROM.c": ledger, "bin/_lib/c.py": 'X = "仕様 3 節"\n'})
         self.red({"bin/_lib/COPIED_FROM.c": ledger, "bin/_lib/d.py": 'X = "仕様 3 節"\n'}, "bin/_lib/d.py:1", "節")
+
+    def test_lib_copies_in_a_ledger_are_not_read(self):
+        """#256: lib の写し（lib/COPIED_FROM.* が並べる changemap.py など）も元の字のまま縛るので見ない"""
+        ledger = "742a61d  元の説明の節\nc.py  src/c.py\n"
+        self.clean({"lib/COPIED_FROM.c": ledger, "lib/c.py": 'X = "仕様 3 節"\n'})
+        self.red({"lib/COPIED_FROM.c": ledger, "lib/d.py": 'X = "仕様 3 節"\n'}, "lib/d.py:1", "節")
 
 
 if __name__ == "__main__":

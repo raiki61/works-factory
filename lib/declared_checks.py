@@ -55,6 +55,27 @@ MATERIAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": 
                                   **{k: {"type": "integer", "minimum": 0} if k in NUMERIC_FIELDS else {"type": "string"}
                                      for k in FIELDS}}}
 MODES = ("base", "final")   # 形: 判定の前・修正の後
+
+
+def row_prefix(name: str) -> str:
+    """証拠の文（evidence.md）の行の頭"""
+    return f"- {name}: "
+
+
+def one_line(text) -> str:
+    return " ".join(str(text).split())
+
+
+def evidence_value(rows: list, prefix: str):
+    """証拠の文の行の並び rows のうち、頭 prefix で始まる最初の行の値（頭を外した物）。無ければ None"""
+    return next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
+
+
+# 証拠の文の行の頭（名, 行の頭）。書くのは試験の関門の返す節、行のまま読むのはメイングラフの最後の関所の文
+EVIDENCE_ROWS = tuple((name, row_prefix(name)) for name in ("走らせ方", "ログ"))
+BASELINE_HEAD = "修正前のテスト"
+BASELINE_ROW = (BASELINE_HEAD, row_prefix(BASELINE_HEAD))   # final の証拠だけに在る行（baseline_line）
+OK_ROW = row_prefix("ok")                                   # 証拠の頭の行（false なら括弧に認証しなかった訳）
 CANT = {False: "awaiting_human", True: "not_run"}   # 走らせられない時の status（判定の前・後。after_judge か mode == "final" で引く）
 
 
@@ -62,7 +83,7 @@ class InputRefused(Exception):
     """入力を受けない（AI を起こす前に run を止める）。文は人に向けた 1 行（元 works/.shared/core/entry.py:445-449）"""
 
     def __init__(self, msg):
-        super().__init__(" ".join(str(msg).split()))
+        super().__init__(one_line(msg))
 
 
 class CiRefused(InputRefused):
@@ -587,12 +608,12 @@ def baseline_line(base) -> str:
     段ごとの終了コードを足した）"""
     named = "元の結末（入力 baseline）"
     if base is None:
-        return f"修正前のテスト: 記録が無い（{named}）"
+        return f"{BASELINE_HEAD}: 記録が無い（{named}）"
     material = base.get("material")
     if material is None:
-        return f"修正前のテスト: 素材が無い（{named}。任せ先の CI の役が渡さなかった）——{gatemarks.BASELINE_NOT_RUN}"
+        return f"{BASELINE_HEAD}: 素材が無い（{named}。任せ先の CI の役が渡さなかった）——{gatemarks.BASELINE_NOT_RUN}"
     if not isinstance(material, dict) or not isinstance(material.get("status"), str) or not material["status"]:
-        return (f"修正前のテスト: 記録が壊れている（{named} の material に文字列の status が無い: "
+        return (f"{BASELINE_HEAD}: 記録が壊れている（{named} の material に文字列の status が無い: "
                 f"{json.dumps(material, ensure_ascii=False)[:80]}）")
     status = material["status"]
     word = gatemarks.MATERIAL_WORDS.get(status, "表に無い状態")
@@ -600,13 +621,13 @@ def baseline_line(base) -> str:
     told = (f"{named} の status {status}" + (f"・走らせた物 {material['checked']}" if material.get("checked") else "")
             + (f"・段ごとの終了コード {json.dumps(codes, ensure_ascii=False)}" if codes else ""))
     if status in ("not_run", "awaiting_human"):
-        return f"修正前のテスト: {word}（{told}・{material.get('reason') or '理由なし'}）——{gatemarks.BASELINE_NOT_RUN}"
+        return f"{BASELINE_HEAD}: {word}（{told}・{material.get('reason') or '理由なし'}）——{gatemarks.BASELINE_NOT_RUN}"
     if status == "clean":
-        return (f"修正前のテスト: {word}（{told}）——最後のテストの赤は修正の後に出た赤でありうる"
+        return (f"{BASELINE_HEAD}: {word}（{told}）——最後のテストの赤は修正の後に出た赤でありうる"
                 "（同じ一式とは限らない。最後のテストの一式と照らして決める）")
     if status == "found":
         skipped = base.get("skipped_steps") or []
         scoped = f"・{checkscope.skipped_text(skipped)}" if skipped else ""
-        return (f"修正前のテスト: {word}（{told}{scoped}）——最後のテストの赤は修正前から在りうる"
+        return (f"{BASELINE_HEAD}: {word}（{told}{scoped}）——最後のテストの赤は修正前から在りうる"
                 "（同じ一式とは限らない。最後のテストの一式と照らして決める）")
-    return f"修正前のテスト: {word}（{told}・{material.get('reason') or '理由なし'}）"
+    return f"{BASELINE_HEAD}: {word}（{told}・{material.get('reason') or '理由なし'}）"

@@ -1,12 +1,12 @@
 """修正の後の局所レビュー（レンズ）のブロックの中身。控え lens.json の形と読み書きは core の lens だけが持つ。
 
 レンズは利用者が入れた pr-review-toolkit の agent（定義は写さない。役の隔離した設定のキャッシュか <PLUGIN>_ROOT から
-rolekit.agent_def で前付けを剥がした本文を引く。引くのは呼び手の lens-prep の script）。レンズの節は定義の本文を指示書に貼った節そのもので、子（Agent）を起こさない
+engine.validator.agent_def で前付けを剥がした本文を引く。引くのは呼び手の lens-prep の script）。レンズの節は定義の本文を指示書に貼った節そのもので、子（Agent）を起こさない
 （節ごとの model が効くように。持ち主 2026-10-01）。
 
 - LENSES:               レンズの表（{lens, agent, route}。route(files) -> (go, 理由)。レンズを足す時は行と YAML の節を 1 つずつ足す）
 - key(row):            振り分けの出口の欄の頭（<key>_go・prompt_<key>）
-- render(row, body, diff_file, files, lang): レンズの節の指示書（定義の本文 body（rolekit.agent_def の body）と、この線での
+- render(row, body, diff_file, files, lang): レンズの節の指示書（定義の本文 body（engine.validator.agent_def の body）と、この線での
                         読み方・返し方）
 - collect(board, raws): 集め役。レンズの節の出口（{レンズの名: 出口の JSON の字}。無ければ null）で置き場 board の lens.json を埋め、
                         落ちたレンズも理由つきで記録して ok

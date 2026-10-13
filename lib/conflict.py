@@ -25,7 +25,9 @@
   grounds）が、その単位の brief の行を名指すかの確かめ（1 つの決まり）
 - park(b, items, source=, ruling=None, round_=1): 止めた単位を置き場の作業ファイルに積み、trace に 1 行（同じ申し出は積み増さない）
 - items(b)・unruled(b)・asked(b)・ruled_fix(b)・replaced_queries(b)・counts(b)・
-  kind_counts(b): 読む口
+  kind_counts(b): 読む口。asked・waiting・counts・kind_counts の述語は行の並びを受ける asked_rows(rows)・waiting_rows(rows)・
+  counts_of(rows)・kind_counts_of(rows) が持つ（置き場を開かずに読んだ行にも同じ読みを当てる）。decision(row) は裁定の語（裁定が
+  dict でない行は None）
 - held_by_rulings(b)・ruled_units(row): 直す義務から外す単位と理由。決まりは「直す裁定（FIX_DECISIONS）でない裁定は、それが外す
   単位（申し出の単位と、fix_plan_item ならその項目に載る単位の全部）を直させない」の 1 つ
   （kind の無い前の形の控えの行も読む。種類は「無し」）
@@ -352,27 +354,37 @@ def unruled(b) -> list:
     return [i for i in items(b) if i.get("ruling") is None]
 
 
-def asked(b) -> list:
+def decision(row) -> str | None:
+    ruling = row.get(RULING)
+    return ruling.get(DECISION) if isinstance(ruling, dict) else None
+
+
+def asked_rows(rows) -> list:
     """人に諮る行: 直す裁定でない裁定（FIX_DECISIONS の外）の行のうち、案の直しを待つ・直した物でない行（ask_human と、
     諦めた fix_plan_item）"""
-    return [i for i in items(b) if (i.get("ruling") or {}).get("decision") not in (None, *FIX_DECISIONS)
-            and replan_state(i) not in (WAITING, AMENDED)]
+    return [i for i in rows if decision(i) not in (None, *FIX_DECISIONS) and replan_state(i) not in (WAITING, AMENDED)]
+
+
+def asked(b) -> list:
+    return asked_rows(items(b))
 
 
 def ruled_fix(b) -> list:
-    return [i for i in items(b) if (i.get("ruling") or {}).get("decision") in FIX_DECISIONS]
+    return [i for i in items(b) if decision(i) in FIX_DECISIONS]
 
 
 def replan_state(row) -> str | None:
     """裁定が fix_plan_item の行の案の直しの状態（欄 REPLAN_STATE）。ほかの裁定・裁いていない行は None"""
-    if (row.get("ruling") or {}).get("decision") != REPLAN:
-        return None
-    return row[REPLAN_STATE]
+    return row.get(REPLAN_STATE) if decision(row) == REPLAN else None
+
+
+def waiting_rows(rows) -> list:
+    """案の直しを待つ行（状態 WAITING）"""
+    return [i for i in rows if replan_state(i) == WAITING]
 
 
 def waiting(b) -> list:
-    """案の直しを待つ行（状態 WAITING）"""
-    return [i for i in items(b) if replan_state(i) == WAITING]
+    return waiting_rows(items(b))
 
 
 def this_pass(b) -> list:
@@ -459,7 +471,8 @@ def set_replan(b, ids, state: str, *, why: str = "") -> None:
 
 def ruled_units(row) -> list:
     """1 件の裁定が外す単位（申し出の単位と、fix_plan_item ならその項目に載る単位 PLAN_UNITS。重ねない・申し出の単位が先）"""
-    return list(dict.fromkeys([row["unit_key"], *((row.get("ruling") or {}).get(PLAN_UNITS) or [])]))
+    ruling = row.get(RULING)
+    return list(dict.fromkeys([row.get("unit_key"), *((ruling.get(PLAN_UNITS) if isinstance(ruling, dict) else None) or [])]))
 
 
 def ruled_items(row) -> list:
@@ -473,8 +486,7 @@ def replan_rows(rows, n: int, unit_keys) -> list:
     keys = {str(k) for k in unit_keys or []}
     out = []
     for c in rows or []:
-        ru = c.get("ruling") if isinstance(c, dict) else None
-        if isinstance(ru, dict) and ru.get("decision") == REPLAN and (
+        if isinstance(c, dict) and decision(c) == REPLAN and (
                 n in ruled_items(c) or str(c.get("unit_key")) in keys):
             out.append(c)
     return out
@@ -487,9 +499,8 @@ def held_by_rulings(b) -> dict:
     「<decision> の裁定 <id>」に、在れば案の項目を添える。1 単位に 2 つ当たれば DECISIONS の順で先の裁定の理由（並べ替えで
     決める）"""
     rank = {d: n for n, d in enumerate(DECISIONS)}
-    rows = sorted((i for i in items(b) if (i.get("ruling") or {}).get("decision") not in (None, *FIX_DECISIONS)
-                   and replan_state(i) != AMENDED),
-                  key=lambda i: rank.get(i["ruling"]["decision"], len(rank)))
+    rows = sorted((i for i in items(b) if decision(i) not in (None, *FIX_DECISIONS) and replan_state(i) != AMENDED),
+                  key=lambda i: rank.get(decision(i), len(rank)))
     out = {}
     for i in rows:
         ru = i["ruling"]
@@ -519,24 +530,30 @@ def held_item(unit_keys, held: dict) -> str:
 def replaced_queries(b) -> dict:
     """裁定 replace_query が置き換えた問い {unit_key: {id, how, counts, hits, misses}}（閉鎖の数え直しが判定者の問いの代わりに使う）"""
     return {i["unit_key"]: {"id": i["id"], **i["ruling"]["query"]} for i in items(b)
-            if (i.get("ruling") or {}).get("decision") == REPLACE and isinstance(i["ruling"].get("query"), dict)}
+            if decision(i) == REPLACE and isinstance(i["ruling"].get("query"), dict)}
 
 
-def counts(b) -> dict:
+def counts_of(rows) -> dict:
     """{parked（申し出の件数）, fix_test_scope, fix_code_as, ask_human, unruled}。replace_query・fix_plan_item は裁いた物が在る
     時だけ足す"""
-    rows = items(b)
-    out = {"parked": len(rows), "unruled": sum(1 for i in rows if i.get("ruling") is None)}
+    out = {"parked": len(rows), "unruled": sum(1 for i in rows if i.get(RULING) is None)}
     for d in DECISIONS:
-        n = sum(1 for i in rows if (i.get("ruling") or {}).get("decision") == d)
+        n = sum(1 for i in rows if decision(i) == d)
         if n or d not in (REPLACE, REPLAN):
             out[d] = n
     return out
 
 
+def counts(b) -> dict:
+    return counts_of(items(b))
+
+
 def kind_counts(b) -> dict:
+    return kind_counts_of(items(b))
+
+
+def kind_counts_of(rows) -> dict:
     """申し出の種類の内訳 {DIV_KINDS の全部: 件数（0 も）}。kind の無い前の形の行が在る時だけ鍵 UNSET を足す"""
-    rows = items(b)
     out = {k: sum(1 for r in rows if r.get(KIND_FIELD) == k) for k in DIV_KINDS}
     unset = sum(1 for r in rows if not r.get(KIND_FIELD))
     if unset:

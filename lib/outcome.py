@@ -38,6 +38,7 @@ if str(_HERE) not in sys.path:
 import answer  # noqa: E402
 import conflict  # noqa: E402
 import fixbeside  # noqa: E402
+import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import replan  # noqa: E402
 import report  # noqa: E402
@@ -50,7 +51,6 @@ GATES = ("gate-start", "gate-before-fix", "gate-replan", "gate-final")
 STOP_WORDS = answer.STOP_WORDS
 PASS_WORDS = answer.GO_WORDS
 WAIT_WORDS = stopby.WAITING
-FIX_STATUS_LEFT = ("given_up", "not_done")
 NOT_CLOSED = "直したと申告したが、機械が判定の問いで数え直すと閉じていない"   # 元 report._closed_units が残りから外さなかった単位
 EYE_STATUS_LEFT = (seal.REDESIGN, seal.UNVERIFIABLE)
 EYE_NAMES = tuple(e.lower() for e in report.EYES)
@@ -63,8 +63,7 @@ RECORD_INVALID = "record-invalid"
 # 開けないと結果を名乗れない指し札 (段, 欄)。申し出と裁定が読めないと、人に回した申し出が見えなくなる
 MUST_OPEN = (("fix", "conflicts"),)
 
-# fix の conflicts の先（今の works の conflicts.json の包み）を読む欄の名と語は lib/conflict.py の物を引く（S34。自分の定数に写さない）。
-# 元は works/.shared/core/conflict.py:91-160 と asked:388・ruled_units:470・counts:517・kind_counts:529
+# fix の conflicts の先（今の works の conflicts.json の包み）を読む欄の名と語と行の述語は lib/conflict.py の物を引く（S34。写さない）
 # 案の直しを待つ行の締め（元 works/.shared/core/replan.py:99-101）。途中で落ちた run は締めずに次の依頼へ未完了で運ぶ
 CLOSE_WHY = replan.CLOSE_WHY
 PENDING_WHY = replan.PENDING_WHY
@@ -74,7 +73,6 @@ PENDING_WHY = replan.PENDING_WHY
 MATERIALS_FILE = gatemarks.MATERIALS_FILE
 UNMEASURED = gatemarks.UNMEASURED
 MATERIAL_WHERE = "素材"
-ASKING = gatemarks.ASKING   # 問いの台帳で人に聞く状態
 
 # 返りの続き (前の段, 前の段の欄（None は返りが在るだけ）, 後の段, 文)。前の段が欄を真にしたのに後の段の出力が無い run は途中で終わった
 CHAIN = (("judge", "ready", "plan", "判定が直す単位を出したのに計画の出力が無い"),
@@ -158,22 +156,15 @@ def conflict_rows(returns: dict) -> tuple[list, list]:
     return rows, notes
 
 
-def _ruling(row: dict) -> str | None:
-    return as_dict(row.get(conflict.RULING)).get(conflict.DECISION)
-
-
 def waiting_conflicts(returns: dict) -> list:
-    """案の直しを待つ行（元 conflict.waiting）"""
-    rows, _ = conflict_rows(returns)
-    return [i for i in rows if _ruling(i) == conflict.REPLAN and i.get(conflict.REPLAN_STATE) == conflict.WAITING]
+    """案の直しを待つ行（conflict.waiting_rows）"""
+    return conflict.waiting_rows(conflict_rows(returns)[0])
 
 
 def asked_conflicts(returns: dict, closed: bool = True) -> list:
-    """人に諮る申し出の行（元 conflict.asked: 直す裁定でも裁定無しでもなく、案の直しを待つ・直した行でもない）。closed（途中で
-    落ちていない run）なら、案の直しを待つ行も諦めた行として足す（元 report.build が先に replan.close_at で締めた形。訳は CLOSE_WHY）"""
-    rows, _ = conflict_rows(returns)
-    asked = [i for i in rows if _ruling(i) not in (None, *conflict.FIX_DECISIONS)
-             and i.get(conflict.REPLAN_STATE) not in (conflict.WAITING, conflict.AMENDED)]
+    """人に諮る申し出の行（conflict.asked_rows）。closed（途中で落ちていない run）なら、案の直しを待つ行も諦めた行として足す
+    （元 report.build が先に replan.close_at で締めた形。訳は CLOSE_WHY）"""
+    asked = conflict.asked_rows(conflict_rows(returns)[0])
     return asked + [{**i, conflict.REPLAN_WHY: CLOSE_WHY} for i in waiting_conflicts(returns)] if closed else asked
 
 
@@ -185,27 +176,16 @@ def asked_units(returns: dict, closed: bool = True, rows: list | None = None) ->
     for r in rows:
         own.setdefault(r.get("unit_key"), r)
     for r in rows:
-        for k in dict.fromkeys([r.get("unit_key"), *(as_dict(r.get(conflict.RULING)).get(conflict.PLAN_UNITS) or [])]):
+        for k in conflict.ruled_units(r):
             if isinstance(k, str) and k:
                 out.setdefault(k, own.get(k, r))
     return list(out.items())
 
 
 def conflict_counts(returns: dict) -> tuple[dict, dict]:
-    """(裁定の内訳, 種類の内訳)（元 conflict.counts・kind_counts）。裁定は {parked, fix_test_scope, fix_code_as, ask_human,
-    unruled} に、replace_query・fix_plan_item は裁いた物が在る時だけ足す。種類は conflict.DIV_KINDS の全部（0 も）に、kind の無い行が
-    在る時だけ conflict.UNSET を足す"""
+    """(裁定の内訳, 種類の内訳)（conflict.counts_of・kind_counts_of）"""
     rows, _ = conflict_rows(returns)
-    rulings = {"parked": len(rows), "unruled": sum(1 for i in rows if i.get(conflict.RULING) is None)}
-    for d in conflict.DECISIONS:
-        n = sum(1 for i in rows if _ruling(i) == d)
-        if n or d not in (conflict.REPLACE, conflict.REPLAN):
-            rulings[d] = n
-    kinds = {k: sum(1 for r in rows if r.get(conflict.KIND_FIELD) == k) for k in conflict.DIV_KINDS}
-    unset = sum(1 for r in rows if not r.get(conflict.KIND_FIELD))
-    if unset:
-        kinds[conflict.UNSET] = unset
-    return rulings, kinds
+    return conflict.counts_of(rows), conflict.kind_counts_of(rows)
 
 
 def materials(returns: dict) -> tuple[dict, str]:
@@ -246,7 +226,7 @@ def questions(returns: dict) -> list:
 
 def ledger(returns: dict) -> list:
     """問いの台帳のうち人に聞く状態の問い"""
-    return [q for q in questions(returns) if q.get("status") in ASKING]
+    return [q for q in questions(returns) if q.get("status") in gatemarks.ASKING]
 
 
 def origin_of(q: dict, missing: dict) -> str:
@@ -338,10 +318,10 @@ def residue(returns: dict, facts: dict | None = None) -> list:
     fix = returns.get("fix")
     if isinstance(fix, dict):
         for u in fix.get("units") or []:
-            if isinstance(u, dict) and u.get("status") in FIX_STATUS_LEFT:
+            if isinstance(u, dict) and u.get("status") in fixboard.UNIT_LEFT:
                 rows.append({"where": f"修正 {u.get('unit_id')}",
                              "text": f"単位 {u.get('unit_id')} が {u['status']}: {report._one_line(u.get('reason') or '理由なし')}"})
-        left = {u.get("unit_id") for u in fix.get("units") or [] if isinstance(u, dict) and u.get("status") in FIX_STATUS_LEFT}
+        left = {u.get("unit_id") for u in fix.get("units") or [] if isinstance(u, dict) and u.get("status") in fixboard.UNIT_LEFT}
         beside = facts.get("beside") or fixbeside.read(fix_folders(returns))
         for k in fixbeside.not_closed(beside):   # 元 report._closed_units: 申告しても表で閉じていない
             if k not in left:

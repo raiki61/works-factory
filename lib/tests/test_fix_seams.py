@@ -34,6 +34,7 @@ import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
 import lens  # noqa: E402
 import unittrees  # noqa: E402
+import writelog  # noqa: E402
 import writes  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"
@@ -782,13 +783,13 @@ class RefixSeamCase(TempCase):
 
 
 class LensesSeamCase(unittest.TestCase):
-    """lenses.render: 役の定義の本文（rolekit.agent_def が利用者の入れた plugin の agents/<役>.md から引いた body）から、
+    """lenses.render: 役の定義の本文（engine.validator.agent_def が利用者の入れた plugin の agents/<役>.md から引いた body）から、
     レンズの節の指示書を組む。見出しは fixboard.ROLE_DEF_HEAD（元 rolekit の写し）"""
 
     def test_render_builds_prompt_from_the_role_definition(self):
         import os
         import lenses
-        import rolekit
+        from engine.validator import agent_def
         row = lenses.LENSES[0]
         plugin, _, role = row["agent"].rpartition(":")
         with tempfile.TemporaryDirectory() as td:
@@ -797,7 +798,7 @@ class LensesSeamCase(unittest.TestCase):
             (agents / f"{role}.md").write_text("---\nname: x\nmodel: inherit\n---\n黙って失敗する所を探す役。\n",
                                                encoding="utf-8")
             with mock.patch.dict(os.environ, {plugin.upper().replace("-", "_") + "_ROOT": td}):
-                got = rolekit.agent_def(row["agent"])
+                got = agent_def(row["agent"])
         self.assertEqual(got["body"], "黙って失敗する所を探す役。")
         text = lenses.render(row, got["body"], "/home/x/fix-delta.patch", ["stats.py"], "LANG の 1 行")
         self.assertTrue(text.startswith(fixboard.ROLE_DEF_HEAD.format(agent=row["agent"]) + "\n\n黙って失敗する所を探す役。\n"))
@@ -1043,7 +1044,7 @@ class FactchecksSeamCase(TempCase):
         self.assertTrue(lines[0].startswith(planscope.REJECT_ASK), lines)
 
     def test_writes_use_the_log_and_skip(self):
-        log = self.place / self.fc.WRITES_LOG
+        log = self.place / writelog.LOG
         log.write_text("", encoding="utf-8")   # 記録の在る run（Edit・Write の行は無い）
         (self.repo / "vendored").mkdir()
         (self.repo / "vendored" / "x.py").write_text("x = 1\n", encoding="utf-8")
@@ -1240,7 +1241,7 @@ class LaneChecksSeamCase(TempCase):
 
     def test_writes_look_only_after_since(self):
         fc, since, _, reply = self.since_case()
-        log = self.place / fc.WRITES_LOG
+        log = self.place / writelog.LOG
         log.write_text("", encoding="utf-8")
         got = fc.check_writes(reply, self.place, self.rev, self.repo, "")
         self.assertTrue(any("NOTES.md" in p for p in got["problems"]), got)
@@ -1579,7 +1580,8 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual(fixboard.x_scalars([{"x_scalars": {"x_a": 1, "x_b": "多い"}}, {"x_scalars": {"x_a": 2.5, "x_b": 3}},
                                              {"x_scalars": "壊れた"}, None]), {"x_a": 3.5, "x_b": "多い"})
         self.assertEqual(fixboard.objection([{"objection": "前提が違う"}, {"rejudge_requested": "前提が違う"}, {}]), "前提が違う")
-        self.assertEqual(fixboard.allowed_tests(self.place, [{"allowed_test_changes": ["t/a.py"]}]), ["t/a.py"])
+        self.assertEqual(fixboard.allowed_tests(self.place, [{"allowed_tests": [{"path": "t/a.py", "permit": "plan-1",
+                                                                                   "source": "plan"}]}]), ["t/a.py"])
 
     def test_changed_marks_or_over_groups_and_ruled(self):
         """F138: 修正役の 6 つの印は、戻せた組の子の結果（group_result の changed）と裁定の後の返答（reply_marks の changed）の
@@ -1781,7 +1783,9 @@ class GroupChildSeamCase(TempCase):
         reply = {"mechanism_changed": True, "rejudge_requested": "判定の単位 a は誤り"}
         got = fixboard.group_result({"group_id": "g1", "unit_ids": ["a", "b", "c"], "items": [1]}, start_tree="t0",
                                     end_tree="t1", tdd=tdd, fix_units={"a": {"status": "fixed", "reason": ""}},
-                                    reply=reply, reply_file="/r.json", allowed=["t.py", "t.py"], conflicts=[{"id": 1}])
+                                    reply=reply, reply_file="/r.json", conflicts=[{"id": 1}],
+                                    allowed_rows=[{"path": "t.py", "permit": "p1", "source": "plan"},
+                                                  {"path": "t.py", "permit": "p2", "source": "plan"}])
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                     "objection", "changed", "x_scalars", "allowed_test_changes", "allowed_tests", "verified",
                                     "reply_file", "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace", "closure",
@@ -1795,8 +1799,10 @@ class GroupChildSeamCase(TempCase):
         self.assertEqual(got["changed"], {**{k: k == "mechanism_changed" for k in fixboard.CHANGED_MARKS}, fixboard.DRIFT_NOTE: ""})
         self.assertEqual(got["allowed_test_changes"], ["t.py"])
         row = {"path": "t.py", "permit": "plan-rewrite-1", "source": "plan"}
-        self.assertEqual(fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
-                                               allowed_rows=[row, "壊れた行"])["allowed_tests"], [row])
+        unreplied = fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
+                                          allowed_rows=[row, "壊れた行"])
+        self.assertEqual((unreplied["allowed_tests"], unreplied["allowed_test_changes"]), ([row], []),
+                         "返答を受け付けていない組は訳だけ載せ、パスは空")
         final = fixboard.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
                                       reply={"changes": [{"unit_key": "a", "breaks": {"accepted": "x"}}]}, mismatched=["m"],
                                       accept_trace=[{"op": "fix_tests_selected", "note": "0 件"}, "壊れた行"])
