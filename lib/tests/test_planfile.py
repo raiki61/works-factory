@@ -178,6 +178,13 @@ class SlotsCase(unittest.TestCase):
         self.assertIn("label=nit", got[0])
         self.assertEqual(planfile.not_allowed(judgment(), {"plan": [item(MEAN, CLAMP, ASKED)]}), [])
 
+    def test_not_allowed_keeps_plan_order_and_repeats(self):
+        """同じ単位を 2 つの案に入れたら拒む行も 2 つ（converge.plan_keys の順と重複のまま）"""
+        got = planfile.not_allowed(judgment(), {"plan": [item(MEAN, NIT), item(CLAMP, NIT)]})
+        self.assertEqual(len(got), 2, got)
+        self.assertEqual(got[0], got[1])
+        self.assertIn("label=nit", got[0])
+
     def test_not_allowed_reads_past_broken_rows(self):
         self.assertEqual(planfile.not_allowed(judgment(), {"plan": ["x", {"unit_keys": 5}]}), [])
 
