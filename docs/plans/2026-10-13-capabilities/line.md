@@ -1463,7 +1463,7 @@
 ### #66 merge
 
 - S04 #66「約束の変更・埋め・持ち主への頼み」: 線への頼みは無い（約束の変更・埋め・狭めはどれも無し）。線の外の頼みが 2 件ある: `docs/asf-notes.md` の A5 の文（docs）と、`lib/protect.py` の `touched`・`lib/accept.py` の `touched_files` が index の印の付いた変更を見落とす件（前提の lib）。→ 線の外
-- S05 #66 コメント「マージ前の独立の目」5: 人が明示して止めた run の差分を当てる道（元 `WORKS_USE_ALLOW_STOPPED=1`）は `bin/apply`（`docs/plans/2026-10-13-stage1-walking-skeleton.md` の Task 7）が持つ。→ **開いている**（#74 の head にも main にも `bin/apply` が無い。`bin/` は `works-factory` と `_lib/` だけ）
+- S05 #66 コメント「マージ前の独立の目」5: 人が明示して止めた run の差分を当てる道（元 `WORKS_USE_ALLOW_STOPPED=1`）は `bin/apply`（`docs/plans/2026-10-13-stage1-walking-skeleton.md` の Task 7）が持つ。→ **開いている**（#74 の head に `bin/apply` が無い。`bin/` は `works-factory` と `_lib/` だけ） → #114 で閉じた（`bin/apply` の中身 `bin/_lib/apply.py` が `--allow-stopped` で止めた run の封じた差分を当てる。`tests/bin/test_apply.py` の `ApplyTest.test_apply_stopped_run_needs_flag`）
 
 ### #69 test-gate
 
