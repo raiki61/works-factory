@@ -28,6 +28,7 @@ import time
 _HERE = str(pathlib.Path(__file__).resolve().parent)
 if _HERE not in sys.path:   # 殻（bin/_lib/launcher.py）は from lib import reads で読み、置き場を sys.path に持たない
     sys.path.append(_HERE)
+import oneline  # noqa: E402
 import writelog  # noqa: E402
 
 ROOT = "works-reads"
@@ -200,7 +201,7 @@ def read_evidence(path) -> tuple:
     try:
         doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        return None, f"{type(e).__name__}: {' '.join(str(e).split())}"
+        return None, f"{type(e).__name__}: {oneline.one_line(e)}"
     if not (isinstance(doc, dict) and isinstance(doc.get("role"), str) and isinstance(doc.get("rows"), list)
             and isinstance(doc.get("missing"), list) and isinstance(doc.get("sources"), dict)):
         return None, SHAPE_WRONG
