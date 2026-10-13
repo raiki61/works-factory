@@ -1918,6 +1918,25 @@ class BlockScriptsCase(unittest.TestCase):
                 beside = (self.art / out["diff"]["path"]).parent / fixboard.ALLOWED_TESTS_FILE
                 self.assertEqual(json.loads(beside.read_text(encoding="utf-8")), rows)
 
+    def test_join_drops_malformed_test_files_of_a_child_tdd_unit(self):
+        """#319: 組の子の result.json の TDD の単位の test_files に文字列でない要素（null）が混じっても、join の和は落ちず、
+        文字列の要素だけで組を戻す"""
+        src = (self.repo / "test_stats.py").read_text(encoding="utf-8")
+        tail = 'if __name__ == "__main__":'
+
+        def added(name):
+            return src.replace(tail, f"class {name}(unittest.TestCase):\n    def test_{name.lower()}(self):\n"
+                                     f"        self.assertTrue(True)\n\n\n{tail}")
+        start = self.snapshot(self.repo)
+        t1, t2 = self.tree_with({"test_stats.py": added("TestG1")}), self.tree_with({"test_stats.py": added("TestG2")})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        tdd = {"ran": True, "reason": "", "suite": "", "units": [{"unit_key": "B", "tests": [], "test_files": ["test_stats.py", None]}]}
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, tdd=tdd))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual((code, out), (0, {"groups": 2, "returned": 2}), err)
+
     def test_collect_allowed_test_changes_from_rulings_and_groups(self):
         """F429: 許したテストの変更（裁定 fix_test_scope の範囲・組の子が許した物）を返りの allowed_test_changes にパスで並べ、
         訳（許しの id と出どころ）を返りの diff の隣の allowed-tests.json に [{path, permit, source}] で置く（元
