@@ -1831,12 +1831,12 @@
   - 本物の run: 返す節 `review` の出力 `gate_axes`・`ask_human`・`questions`（種では ask_human: false・questions: [] の見込み）
   - 狭め: 無し
 
-- P253 関所の材料は修正の義務が在る周だけに作る（直す義務が 0 件・計画が無い周は関所を開かず修正もしない）
-  - 元: works/.shared/core/gatemarks.py 冒頭（直す義務が 0 件の周は関所の節が走らない）
-  - 今: workflows/line/works-factory-line.yaml::plan-review-run（plan-review は plan の ready でだけ走る）・workflows/line/scripts/ask_before_fix.py::ask（plan の ready が偽なら関所を開かない）
-  - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_no_plan_goes_nowhere
+- P253 関所の材料は修正の義務が在る周だけに作る（直す義務が 0 件の周は関所を開かず修正の役も起こさないが、今の works と同じく空の修正を渡して最後のテストと独立の目まで回す）
+  - 元: works/.shared/core/gatemarks.py 冒頭（直す義務が 0 件の周は関所の節が走らない）・works/darkfactory/lib/line_edge.py:1109-1114 `plan_edge`（空の修正 `entry.empty_fix_reply`。works/.shared/core/entry.py:1313）
+  - 今: workflows/line/works-factory-line.yaml::plan-review-run（plan-review は plan の ready でだけ走る）・workflows/line/scripts/ask_before_fix.py::ask（plan の ready が偽なら関所を開かない）・workflows/line/scripts/plan_out.py::round_owes_nothing → workflows/line/works-factory-line.yaml::design-only → workflows/line/scripts/fixed.py::no_fix → test-gate-final・eyes
+  - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_no_plan_goes_nowhere・tests/workflows/test_line.py::PlanOutNothingOwedCase.test_nothing_owed_is_read_from_the_round・tests/workflows/test_line.py::NoFixWiringCase.test_nothing_owed_round_takes_the_no_fix_tail・lib/tests/test_outcome.py::ReadingCase.test_nothing_owed_round_with_the_tail_is_round_limit・筋書き nothing-owed・tests/e2e/test_line_scenarios.py::NothingOwedRoundTest.test_the_tail_runs_like_works
   - 本物の run: 線の節 `ask-before-fix` の出力 `open`・`go`
-  - 狭め: 無し
+  - 狭め: #74 で狭めた（直す義務 0 件の周に最後のテストと独立の目を飛ばした。この行の「無し」は棚卸しの見誤りで、持ち主の決めでない） → #291 で戻した
 
 - P254 修正前の関所で人が通した狭め・穴と同じ行は、修正の後の関所（R4）で聞き直さず、通した行に by human で残す。R4 の役にも「人が通した狭まり」の節を貼る
   - 元: works/.shared/core/gatemarks.py `r4_gate_items`・`_human_passed`・`carried_section`
