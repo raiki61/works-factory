@@ -224,7 +224,6 @@ UNNAMED = {
     ("eyes", "plan"): RENAMED.format(words="structure-after の「修正案の外れの訳が読めない」") + "。区分 E。区分の issue で外す",
     ("eyes", "ripple"): f"prep が{PATH_ONLY}。区分 E。区分の issue で外す",
     ("eyes", "design"): RENAMED.format(words="prep と verdict の「独立設計の控えが読めない」") + "。区分 E。区分の issue で外す",
-    ("eyes", "diff"): f"prep が{FELL}。区分 E。区分の issue で外す",
     ("eyes", "start"): f"prep が{FELL}。protected・structure-after は例外の字だけを返す。区分 E。区分の issue で外す",
     ("fix", "start"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
     ("fix", "baseline"): f"prep と group-start（単独の run の組の子の頭）が{FELL}（「元の結末が読めない」も標準エラーだけ）。区分 F。区分の issue で外す",

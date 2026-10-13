@@ -96,6 +96,10 @@ class ScalarsCase(unittest.TestCase):
         self.assertIn("unmeasured", got)
         self.assertIn("測れなかった", eyeverdict.scalars_text(got))
 
+    def test_untaken_diff_is_named_not_zero(self):
+        got = eyeverdict.scalars("", {"x_endpoints": 2}, "累積差分が取れない（git が落ちた）")
+        self.assertEqual(got, {"x_endpoints": 2, "unmeasured": ["累積差分が取れない（git が落ちた）"]})
+
     def test_fix_x_scalars_are_added(self):
         got = eyeverdict.scalars(DIFF, {"x_endpoints": 2})
         self.assertEqual(got["x_endpoints"], 2)

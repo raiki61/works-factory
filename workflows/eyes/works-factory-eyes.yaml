@@ -14,7 +14,6 @@ inputs:
   ripple: {required: true, description: "$plan.output.ripple（ripple.json のポインタ）"}
   depth: {required: true, description: "$redepth.output.depth（単位ごとの深さ。JSON の配列）"}
   design: {required: true, description: "$plan-review.output.design（design.json のポインタ）"}
-  diff: {required: true, description: "$fix.output.diff（累積差分のポインタ）"}
   changed: {required: true, description: "$fix.output.changed（修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む）"}
   fix_units: {required: true, description: "$fix.output.units（単位ごとの結末。JSON の配列）"}
   green_ok: {required: true, description: "$test-gate-final.output.ok"}
