@@ -571,6 +571,7 @@ class ShapeCase(unittest.TestCase):
         text = (BLOCK / "commands" / "premise-check.md").read_text(encoding="utf-8")
         self.assertLessEqual({"measured_text", "origin_text"}, prep_reads(text))
         self.assertLess(text.index("$prep.output.origin_text"), text.index(FIX_IS_THIS_RUN))
+        self.assertIn(f"「{eyeverdict.FIX_DIFF_ROW}」", FIX_IS_THIS_RUN)
 
     def test_concept_map_is_pasted_after_the_concept_head(self):
         """concepthome の R1_HEAD・R3_HEAD は『考えの住処の地図』のセクションを「機械がこのセクションの後ろに貼った」と読ませる"""
@@ -671,6 +672,7 @@ class FixtureCase(unittest.TestCase):
         self.assertLessEqual(prep_reads(text), set(prep))
         filled = re.sub(r"\$prep\.output\.([A-Za-z0-9_]+)", lambda m: str(prep[m.group(1)]), text)
         self.assertIn(prep["origin_text"], filled)
+        self.assertIn(eyeverdict.FIX_DIFF_ROW, prep["origin_text"])
         self.assertIn(prep["measured_text"], filled)
 
 
