@@ -43,7 +43,7 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   対応表）・出自 ORIGINS は tree_split が外す。下請けの答えのファイルの当たりの答えの型は HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
 - item_blocks(b, n): 項目 n が答える前の往復の block の key（受け付けが下請けの答えの resolved を確かめる）
 - prev_row(b, n)・answered_hits(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答えと、suggest の穴（往復の行の
-  notes。項目を開き直さず、直しの役に参考として渡り、受け付けが後の往復の返答に引き継ぐ）
+  notes。項目を開き直さず、直しの役に参考として渡り、受け付けが後の往復の返答に今の案の単位だけで引き継ぐ）
 - revise_section(doc)・review_section(b)・stuck_reason(b)・lines(b): 指示書に足す文・関所の理由・報告の行（往復ごとの行は
   前の往復の block を審査が suggest に下げた key も名指す）
 
@@ -375,7 +375,9 @@ def answered_hits(b, n: int) -> list:
 
 
 def carried_notes(b) -> list:
-    """前の往復の suggest の穴（往復の行の notes。key で 1 つ・新しい物を採る）のうち、どの往復でも block でなかった物"""
+    """前の往復の suggest の穴（往復の行の notes。key で 1 つ・新しい物を採る）のうち、どの往復でも block でなかった物。控えに
+    今の案の項目（note_plan）が在れば、unit_keys から案に無い単位を外した写しにし、指す単位が残らない穴は持ち越さない（受け付けの
+    plan_review_output は案に無い単位を指す face を拒み、機械が足した face は審査役に直せない）。往復の行の notes は変えない"""
     doc = read(b)
     blocks = {k for p in doc["passes"] for k in p.get("blocks", [])}
     out = {}
@@ -383,7 +385,11 @@ def carried_notes(b) -> list:
         for f in p.get("notes") or []:
             if f.get("key") not in blocks:
                 out[f.get("key")] = f
-    return list(out.values())
+    if "plan" not in doc:
+        return list(out.values())
+    planned = {k for it in doc["plan"] for k in it["unit_keys"]}
+    kept = [{**f, "unit_keys": [k for k in f.get("unit_keys") or [] if k in planned]} for f in out.values()]
+    return [f for f in kept if f["unit_keys"]]
 
 
 def item_blocks(b, n: int) -> list:
