@@ -31,6 +31,9 @@ HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
 HOST_GH_DIR = "host-gh"
 FENCE_DIR = "claude-fence"
 FENCE = ROOT / "workflows" / ".shared" / "fence.py"
+# 包みが印の在る起動を書く記録（fence.py の RECORDS_ENV と同じ名）。子の env に置くと、run が包みを通ると script のノードに宣言する
+FENCE_RECORDS_ENV = "WORKS_FACTORY_FENCE_RECORDS"
+FENCE_RECORDS = "launches.jsonl"
 CLAUDE_BIN_ENV = "CLAUDE_BIN_PATH"   # Archon が起こす claude の実行ファイル（packages/providers/src/claude/binary-resolver.ts）
 # Archon が起きた場所から読む env のファイル。.env* が名指す鍵は env から消し（packages/paths/src/strip-cwd-env.ts）、.archon/.env の
 # 値で env を上書きする（packages/paths/src/env-loader.ts。CLAUDE_BIN_PATH は拒む鍵に無い）。--detach の子は --cwd の場所で起きる
@@ -128,6 +131,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
     if executing:
         sweep_logs(child["CLAUDE_CONFIG_DIR"])
         child[CLAUDE_BIN_ENV] = write_fence(home, real, child, cache)
+        child[FENCE_RECORDS_ENV] = str(fence_records(home))
 
     if workflow is None:
         args = argv
@@ -225,10 +229,13 @@ def run_home(user: Mapping[str, str], target: Path) -> Path:
         if not os.path.isabs(chosen):
             raise Stop(f"{HOME_ENV} は絶対パスにする（受けた値: {chosen}）")
         refuse_sandbox_writable(HOME_ENV, chosen)
+        refuse_in_factory(HOME_ENV, chosen)
         return Path(chosen)
     state = user.get("XDG_STATE_HOME") or str(Path(user["HOME"]) / ".local" / "state")
     home = Path(state) / NAME / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]
-    refuse_sandbox_writable("XDG_STATE_HOME" if user.get("XDG_STATE_HOME") else "HOME", home)
+    what = "XDG_STATE_HOME" if user.get("XDG_STATE_HOME") else "HOME"
+    refuse_sandbox_writable(what, home)
+    refuse_in_factory(what, home)
     return home
 
 
@@ -241,6 +248,15 @@ def refuse_sandbox_writable(what: str, path) -> None:
     if sandbox_writable(path):
         raise Stop(f"{what} の置き場 {os.path.realpath(path)} は /tmp/claude-* の下で、役の sandbox の Bash が書ける。"
                    "ほかの置き場を選ぶ")
+
+
+def refuse_in_factory(what: str, path) -> None:
+    """家が工場の checkout（ROOT）の下だと、ROOT を丸ごと禁じる柵（write_fence の --own）に家も入り、読むだけの役が隔離した HOME や
+    一時の置き場に書けない"""
+    real = Path(os.path.realpath(path))
+    if real.is_relative_to(ROOT):
+        raise Stop(f"{what} の置き場 {real} は工場の checkout {ROOT} の下で、読むだけの役の書き込みの柵に入り役が家に書けない。"
+                   "checkout の外を選ぶ")
 
 
 def mise_trusts(user: Mapping[str, str], target: Path) -> bool:
@@ -274,12 +290,14 @@ def real_claude(user: Mapping[str, str]) -> str | None:
 
 
 def refuse_bin_override(env_files: list[Path]) -> None:
-    """Archon が起きる時に読む env のファイルが CLAUDE_BIN_PATH を名指すなら止める。名指されると Archon は殻が向けた包みの殻を
-    消すか置き換え、読むだけの役が柵の無い claude で起きる"""
+    """Archon が起きる時に読む env のファイルが CLAUDE_BIN_PATH か WORKS_FACTORY_FENCE_RECORDS を名指すなら止める。前者が名指されると
+    Archon は殻が向けた包みの殻を消すか置き換え、読むだけの役が柵の無い claude で起きる。後者は受け付けが読む包みの宣言を消すか
+    ほかの記録へ向ける"""
     for env_file in env_files:
-        if names_key(env_file, CLAUDE_BIN_ENV):
-            raise Stop(f"{env_file} が {CLAUDE_BIN_ENV} を名指す。Archon が書き込みの柵の包みを外すので、そこから消して"
-                       f"殻を起こす env に {CLAUDE_BIN_ENV} を置く")
+        for key in (CLAUDE_BIN_ENV, FENCE_RECORDS_ENV):
+            if names_key(env_file, key):
+                raise Stop(f"{env_file} が {key} を名指す。Archon が書き込みの柵の包みかその宣言を外すので、そこから消す"
+                           + (f"（claude の置き場は殻を起こす env に {CLAUDE_BIN_ENV} で置く）" if key == CLAUDE_BIN_ENV else ""))
 
 
 def names_key(path: Path, key: str) -> bool:
@@ -297,7 +315,8 @@ def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path) ->
     --own は、同じ run の後の役の起動が sandbox の外で走らせる物（この殻・gh の口・包みを起こす解釈系〔sys.prefix と sys.base_prefix〕・本物の claude）と、
     次の起動が sandbox の外で走らせる物（取り置き cache〔Archon の源〕・工場の checkout の根 ROOT 全体）。根は丸ごと禁じる。bin/works-factory は
     ROOT を import の先頭に置くので、根に新しく置いた shlex.py や bin.py が次の起動の import に勝つ。
-    本物の claude は実パスで起こす（包みは --own を実パスに解いて禁じるので、symlink を通して起こすと symlink 自身は書ける）"""
+    本物の claude は実パスで起こす（包みは --own を実パスに解いて禁じるので、symlink を通して起こすと symlink 自身は書ける）。
+    --records は印の在る起動の記録（fence_records。--own の top の下なので役は書き換えられない）"""
     top = home / FENCE_DIR
     real = os.path.realpath(real)
     own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, cache, ROOT]
@@ -306,9 +325,14 @@ def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path) ->
             "# 書き込みを禁じるパスの一覧を足す\n"
             + "exec " + shlex.join([sys.executable, "-I", "-B", str(FENCE), "--real", real,
                                     "--archon-home", child["ARCHON_HOME"], "--claude-config", child["CLAUDE_CONFIG_DIR"],
-                                    *(arg for path in dict.fromkeys(map(str, own)) for arg in ("--own", path))])
+                                    *(arg for path in dict.fromkeys(map(str, own)) for arg in ("--own", path)),
+                                    "--records", str(fence_records(home))])
             + ' -- "$@"\n')
     return hostgh.place_shim(top, "claude", body)
+
+
+def fence_records(home: Path) -> Path:
+    return home / FENCE_DIR / FENCE_RECORDS
 
 
 def sweep_logs(config: str) -> None:

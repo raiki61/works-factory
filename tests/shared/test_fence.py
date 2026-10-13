@@ -3,6 +3,7 @@
 一覧の組み方・argv の書き換え・main は使い捨ての git の木と偽の claude で確かめる。RealClaudeTest は本物の claude を偽の API で起こし、
 sandbox が包みの足した一覧への書き込みを本当に止めることを確かめる（本物の claude か sandbox が無い所では名前つきで見送る）。
 """
+import datetime
 import http.server
 import importlib.util
 import json
@@ -178,12 +179,14 @@ class MainTest(unittest.TestCase):
         self.real.write_text(FAKE_REAL, encoding="utf-8")
         self.real.chmod(0o755)
         self.log = self.tmp / "argv.json"
+        self.records = self.tmp / "run-home" / launcher.FENCE_DIR / "launches.jsonl"
 
-    def run_fence(self, *argv, path=None):
+    def run_fence(self, *argv, path=None, records=None):
         child = self.tree["child"]
         env = hermetic.child_env(HOME=child["HOME"], FAKE_REAL_LOG=str(self.log), **({"PATH": path} if path else {}))
         return subprocess.run([sys.executable, str(FENCE), "--real", str(self.real), "--archon-home", child["ARCHON_HOME"],
-                               "--claude-config", child["CLAUDE_CONFIG_DIR"], "--own", self.tree["own"][0], "--", *argv],
+                               "--claude-config", child["CLAUDE_CONFIG_DIR"], "--own", self.tree["own"][0],
+                               "--records", str(records or self.records), "--", *argv],
                               cwd=self.tree["linked"], env=env, capture_output=True, text=True, encoding="utf-8",
                               timeout=60)
 
@@ -195,17 +198,88 @@ class MainTest(unittest.TestCase):
         self.assertIn(str(self.tree["main"] / ".git"), deny)
         self.assertIn(str(self.tree["nested"]), deny)
 
+    def test_marked_launch_is_recorded_with_its_cwd(self):
+        """印の在る起動は、起こす前に起動の記録へ 1 行（時刻と cwd の実パス）を足す。受け付けはそれで柵が掛かったかを見る（T49）"""
+        for _ in range(2):
+            self.assertEqual(self.run_fence("--settings", settings_with([scan.NO_TREE_WRITE])).returncode, 0)
+        rows = [json.loads(line) for line in self.records.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([r["cwd"] for r in rows], [os.path.realpath(self.tree["linked"])] * 2)
+        self.assertTrue(all(datetime.datetime.fromisoformat(r["at"]).tzinfo for r in rows), rows)
+
     def test_unmarked_launch_reaches_claude_unchanged(self):
         argv = ["-p", "x", "--settings", json.dumps({"sandbox": {"enabled": True}})]
         done = self.run_fence(*argv)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(json.loads(self.log.read_text(encoding="utf-8")), argv)
+        self.assertFalse(self.records.exists(), "印の無い起動を記録した")
+
+    def test_unwritable_record_stops_before_claude(self):
+        """記録を書けなければ、柵が掛かった証が残らないので claude を起こさない"""
+        blocker = self.tmp / "not-a-dir"
+        blocker.write_text("", encoding="utf-8")
+        done = self.run_fence("--settings", settings_with([scan.NO_TREE_WRITE]), records=blocker / "launches.jsonl")
+        self.assertEqual(done.returncode, fence.REFUSED_EXIT, done.stderr)
+        self.assertIn(str(blocker), done.stderr)
+        self.assertFalse(self.log.exists(), "止まるはずが claude が起きた")
 
     def test_without_git_stops_before_claude(self):
         done = self.run_fence("--settings", settings_with([scan.NO_TREE_WRITE]), path=str(self.tmp / "no-tools"))
         self.assertEqual(done.returncode, fence.REFUSED_EXIT, done.stderr)
         self.assertTrue(done.stderr.startswith("works-factory fence: "), done.stderr)
         self.assertFalse(self.log.exists(), "止まるはずが claude が起きた")
+
+
+class FencedSinceTest(unittest.TestCase):
+    """受け付けが読む側（fence.fenced_since）: since より後に root の中を cwd にした印の在る起動が 1 行でも在れば空、無ければ訳"""
+
+    def setUp(self):
+        self.tmp = hermetic.tmpdir(self)
+        self.root = self.tmp / "work"
+        (self.root / "sub").mkdir(parents=True)
+        self.records = self.tmp / "launches.jsonl"
+        self.since = datetime.datetime(2026, 10, 13, 12, 0, tzinfo=datetime.timezone.utc)
+
+    def write(self, *rows):
+        self.records.write_text("".join((r if isinstance(r, str) else json.dumps(r)) + "\n" for r in rows), encoding="utf-8")
+
+    def row(self, minutes, cwd):
+        return {"at": (self.since + datetime.timedelta(minutes=minutes)).isoformat(), "cwd": str(cwd)}
+
+    def since_of(self, text=None):
+        return fence.fenced_since(self.records, self.root, self.since.isoformat() if text is None else text)
+
+    def test_launch_after_since_in_root_is_fenced(self):
+        for cwd in (self.root, self.root / "sub"):
+            with self.subTest(cwd=cwd):
+                self.write("{broken", self.row(-5, self.root), self.row(1, cwd))
+                self.assertEqual(self.since_of(), "")
+
+    def test_missing_old_or_elsewhere_launches_are_not(self):
+        self.assertIn(str(self.records), self.since_of())
+        for name, rows in (("前の回", [self.row(-1, self.root)]), ("ほかの木", [self.row(1, self.tmp / "work2")]),
+                           ("読めない行だけ", ["{broken", json.dumps({"at": "x", "cwd": str(self.root)})])):
+            with self.subTest(name):
+                self.write(*rows)
+                self.assertNotEqual(self.since_of(), "")
+
+    def test_unreadable_since_is_not_fenced(self):
+        self.write(self.row(1, self.root))
+        for text in ("", "not a time", "2026-10-13T12:00:00"):
+            with self.subTest(since=text):
+                self.assertNotEqual(self.since_of(text), "")
+
+    def test_rows_written_by_the_fence_are_read_back(self):
+        """書く側（fence.record）の行を読む側が読む。行の形を片方だけ変えると、宣言した run の CI の役は毎回諦める"""
+        before = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=1)
+        fence.record(str(self.records), str(self.root / "sub"))
+        self.assertEqual(self.since_of(before.isoformat()), "")
+
+    def test_only_an_absolute_declaration_is_readable(self):
+        self.assertEqual(fence.bad_declaration(str(self.records)), "")
+        self.assertIn(fence.RECORDS_ENV, fence.bad_declaration("launches.jsonl"))
+
+    def test_declaration_name_is_shared_with_the_launcher(self):
+        self.assertEqual(fence.RECORDS_ENV, launcher.FENCE_RECORDS_ENV)
 
 
 def sandbox_available() -> bool:
@@ -324,7 +398,9 @@ class RealClaudeTest(unittest.TestCase):
             "Archon の家": pathlib.Path(child["ARCHON_HOME"]),
             "Claude の設定": pathlib.Path(child["CLAUDE_CONFIG_DIR"]),
             "取り置いた Archon の源": self.cache,
+            "テストのキャッシュの置き場（cwd の下）": self.tree["linked"] / ".pytest_cache",
         }
+        self.blocked["テストのキャッシュの置き場（cwd の下）"].mkdir()
         self.settings = json.dumps({"sandbox": test_test_gate.node("ci")["sandbox"]})
 
     def probe(self, launcher: list[str]) -> dict[str, str]:
@@ -360,11 +436,14 @@ class RealClaudeTest(unittest.TestCase):
         return {str(p): said[str(i)] for i, p in enumerate(places)}
 
     def test_fenced_role_cannot_write_the_listed_places(self):
-        got = self.probe([launcher.write_fence(self.tmp / "run-home", self.claude, self.tree["child"], self.cache)])
+        home = self.tmp / "run-home"
+        got = self.probe([launcher.write_fence(home, self.claude, self.tree["child"], self.cache)])
         for what, place in self.blocked.items():
             with self.subTest(what=what):
                 self.assertEqual(got[str(place)], "BLOCKED")
         self.assertEqual(got[str(self.outside)], "WROTE", "柵の外まで書けない（試験の道具が書き込みを試していない）")
+        rows = [json.loads(line) for line in launcher.fence_records(home).read_text(encoding="utf-8").splitlines()]
+        self.assertIn(os.path.realpath(self.tree["linked"]), [r["cwd"] for r in rows])
 
     def test_without_the_fence_the_main_tree_is_writable(self):
         got = self.probe([self.claude])

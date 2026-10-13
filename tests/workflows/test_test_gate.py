@@ -7,6 +7,7 @@
   任せ先の受け付けの拒みと諦め・返す節の赤の原因と認証・壊れた入力でも落ちない返す節
 - 筋書き: tests/archon.py の使い捨ての木で `archon workflow test` を fixtures/ の全部に走らせる（Archon の源が無ければ見送る）
 """
+import datetime
 import json
 import os
 import pathlib
@@ -20,6 +21,7 @@ import unittest
 
 import yaml
 
+from bin._lib import launcher
 from tests import archon
 from tests.bin.gitkit import committed_copy, git
 from tests.layers import scan
@@ -336,6 +338,7 @@ class ScriptCase(unittest.TestCase):
         self.repo = self.tmp / "repo"
         self.head = committed_copy(self.repo, SEED)
         self.artifacts = self.tmp / "artifacts"
+        self.declared = {}   # 包みの宣言（launcher.FENCE_RECORDS_ENV）。空なら起動の殻を通らない run
         self.write_start()
 
     def write_start(self, **over):
@@ -346,7 +349,8 @@ class ScriptCase(unittest.TestCase):
         self.start = json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "start/record.json"})
 
     def env(self, inputs: dict) -> dict:
-        return {**os.environ, "WORKFLOW_ID": RUN_ID, "ARTIFACTS_DIR": str(self.artifacts), "WORKS_FACTORY_ROOT": str(ROOT),
+        inherited = {k: v for k, v in os.environ.items() if k != launcher.FENCE_RECORDS_ENV}
+        return {**inherited, **self.declared, "WORKFLOW_ID": RUN_ID, "ARTIFACTS_DIR": str(self.artifacts), "WORKS_FACTORY_ROOT": str(ROOT),
                 "PYTHONDONTWRITEBYTECODE": "1", **{f"INPUTS_{k.upper()}": v for k, v in inputs.items()}}
 
     def script(self, name: str, **inputs) -> tuple:
@@ -517,6 +521,67 @@ class CiRoleCase(ScriptCase):
         self.assertEqual((out["mode"], out["reject"], out["attempt"], out["root"]), ("base", "前の理由", 2, str(self.repo.resolve())))
         self.assertEqual((pathlib.Path(out["copy_dir"]) / "new.txt").read_text(encoding="utf-8"), "未追跡\n")
         self.assertTrue(pathlib.Path(out["tmp_dir"]).is_dir())
+
+    def test_prep_marks_each_attempt_with_its_time(self):
+        """ci-prep は回ごとに役を起こす前の時刻を書く（受け付けがこの後の包みの起動の記録を探す）"""
+        snapshot = self.artifacts / "test-gate" / "base" / "ci-snapshot.json"
+        times = []
+        for _ in range(2):
+            self.prep()
+            times.append(datetime.datetime.fromisoformat(json.loads(snapshot.read_text(encoding="utf-8"))["prepared_at"]))
+        self.assertTrue(times[0].tzinfo)
+        self.assertLess(times[0], times[1])
+
+    def declare(self) -> pathlib.Path:
+        records = self.tmp / "launches.jsonl"
+        self.declared = {launcher.FENCE_RECORDS_ENV: str(records)}
+        return records
+
+    def launched(self, records: pathlib.Path, cwd) -> None:
+        with records.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "cwd": os.path.realpath(cwd)}) + "\n")
+
+    def assert_stopped_unfenced(self, got):
+        self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, True))
+        self.assertIn("包みの柵が CI の任せ先の役の起動に掛かっていない", got["reason"])
+        self.assertFalse((self.artifacts / "test-gate" / "base" / "ci-material.json").exists())
+
+    def test_declared_run_without_a_fenced_launch_stops_at_once(self):
+        """包みを通ると宣言した run で、ci-prep の後にこの作業ツリーで柵の掛かった起動の記録が無ければ、変わらない木と良い返答でも
+        受けずに 1 回目で諦める（T49。今の works の ci_role.take の包みの起動の照らし）"""
+        records = self.declare()
+        cases = (("記録が無い", lambda: None),
+                 ("ほかの木の起動", lambda: self.launched(records, self.tmp)))
+        for name, before_accept in cases:
+            with self.subTest(name):
+                records.unlink(missing_ok=True)
+                self.prep()
+                before_accept()
+                self.assert_stopped_unfenced(self.ok("ci_accept", mode="base", reply=self.GOOD))
+                rolekit.rejects_path(self.artifacts / "test-gate" / "base", declared_checks.CI_ROLE).unlink()
+
+    def test_declared_run_ignores_launches_before_prep(self):
+        records = self.declare()
+        self.launched(records, self.repo)
+        self.prep()
+        self.assert_stopped_unfenced(self.ok("ci_accept", mode="base", reply=self.GOOD))
+
+    def test_declared_run_with_a_relative_record_path_stops_before_the_role(self):
+        """宣言が読めない（絶対パスでない）run は、ci-prep が落ちて役を起こさず、出し直さずに諦めた拒否を控えに積む（T49）"""
+        self.declared = {launcher.FENCE_RECORDS_ENV: "launches.jsonl"}
+        rc, out, err = self.script("ci_prep", mode="base", start=self.start)
+        self.assertNotEqual(rc, 0)
+        self.assertIn(launcher.FENCE_RECORDS_ENV, err)
+        gate = self.artifacts / "test-gate" / "base"
+        self.assertFalse((gate / "ci-snapshot.json").exists())
+        self.assertIn("役を起こさずに止める", rolekit.given_up_reason(gate, declared_checks.CI_ROLE))
+
+    def test_declared_run_with_a_fenced_launch_is_accepted(self):
+        records = self.declare()
+        self.prep()
+        self.launched(records, self.repo)
+        got = self.ok("ci_accept", mode="base", reply=self.GOOD)
+        self.assertEqual((got["ok"], got["done"]), (True, True), got["reason"])
 
     def test_reject_with_a_reference_reaches_the_prompt_verbatim(self):
         """前の回の拒否の文は、節の参照の字（$ci.output.material・$INPUTS.mode）を含んでも字のまま次の回の reject に載る。
@@ -698,6 +763,7 @@ class ResultScriptCase(ScriptCase):
             with self.subTest(out["mode"]):
                 rows = self.pointed(out["evidence"]).read_text(encoding="utf-8").splitlines()
                 self.assertEqual(out["by"], "engine")
+                self.assertFalse([r for r in rows if r.startswith("- 包み:")])
                 self.assertIn(f"- 走らせ方: engine・{out['suites_line']}", rows)
                 self.assertIn(f"- ログ: {out['log']}", rows)
                 self.assertTrue(out["log"] and "\n" not in out["suites_line"] + out["log"] + out["baseline_line"], out)
@@ -790,6 +856,15 @@ class ResultScriptCase(ScriptCase):
         self.assertEqual((out["ok"], out["red_cause"]), (False, "incomplete"))
         self.assertIn(f"{declared_checks.CI_ROLE} の返答が 3 回とも受け付けで拒まれた（最後の拒否: 素材の欄が足りない 3）",
                       self.pointed(out["evidence"]).read_text(encoding="utf-8"))
+
+    def test_role_run_without_the_fence_declaration_carries_the_note(self):
+        """任せ先の役で走らせた run が包みを通ると宣言していなければ、証拠に包み無しの知らせ（NO_ADAPTER_NOTE）を出す。宣言が
+        在れば出さない（T49）"""
+        self.assertEqual(self.ok("run", mode="base", start=self.start)["by"], declared_checks.ROLE_NEEDED)
+        line = f"- 包み: {declared_checks.NO_ADAPTER_NOTE}"
+        self.assertIn(line, self.pointed(self.result("base")["evidence"]).read_text(encoding="utf-8").splitlines())
+        self.declared = {launcher.FENCE_RECORDS_ENV: str(self.tmp / "launches.jsonl")}
+        self.assertNotIn("- 包み:", self.pointed(self.result("base")["evidence"]).read_text(encoding="utf-8"))
 
     def test_final_not_run_is_incomplete(self):
         self.ok("run", mode="final", start=self.start)

@@ -543,6 +543,8 @@ def _fall_back(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, after_j
 # ---------------------------------------------------------------- 任せ先の役の素材
 CI_ROLE = "ci"                       # 任せ先の CI の役の拒否の控えの名（rolekit.with_done・rolekit.rejected）
 COPY_PREFIX = "works-factory-ci-"    # 任せ先の役がテストを走らせる写しの置き場（一時の置き場の直下）の頭
+# 包みの宣言の無い run の知らせ（今の works の ci_role.NO_ADAPTER_NOTE から、ここに無い仕組みの語を抜いた）
+NO_ADAPTER_NOTE = "包み無し（起動の殻を通らない run）: CI の任せ先の役は YAML の固定の sandbox だけ（作業ツリーの柵は無い）で走った"
 
 
 def drop_copy(top) -> None:
