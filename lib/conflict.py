@@ -213,6 +213,11 @@ def request_file(board_dir) -> str:
     return got if isinstance(got, str) else ""
 
 
+def cite_roots(board_dir) -> list:
+    """盤面の受け付けが名指しを許す、作業ツリーの外の根（依頼のファイルと盤面の置き場）"""
+    return [request_file(board_dir), str(board_dir)]
+
+
 def _correct_problem(it, try_query) -> str:
     """which_is_right: query の申し出の correct_lines の確かめ（通れば空）。try_query(unit_key, lines) が渡れば、判定者の問いを
     その行に当てた結果の文（当たれば空）を足す"""
@@ -283,7 +288,7 @@ def problems_by_entry(items, *, repo, board_dir, owed, try_query=None, briefs=No
     brief_vs_judgment を通さない）"""
     if not isinstance(items, list) or not items:
         return [(None, None, ["食い違いの申し出は 1 件以上の配列"])]
-    roots = [request_file(board_dir), str(board_dir)]
+    roots = cite_roots(board_dir)
     seen = set()
     return [(i, *_entry_problems(i, it, repo, roots, owed, seen, try_query, briefs)) for i, it in enumerate(items)]
 
