@@ -196,7 +196,7 @@ def accept_rule(reply, board, base_rev, repo, *, keys=TREE_KEYS) -> dict:
     moved = tree_moved({k: snap[k] for k in TREE_KEYS}, pathlib.Path(repo), keys=keys)
     request = conflict.request_file(board)
     briefs = planbrief.by_unit_at(board)
-    errs = [READONLY + "・".join(moved)] if moved else problems(reply, todo, repo, request, (request, str(board)), briefs)
+    errs = [READONLY + "・".join(moved)] if moved else problems(reply, todo, repo, request, conflict.cite_roots(board), briefs)
     if not errs:
         def stored(r):   # 置き場に積む欄（役の欄と、fix_plan_item には機械が足すその単位の brief の項目の番号と、その項目の単位の全部）
             got = {k: r[k] for k in RULING_KEYS if k in r}
