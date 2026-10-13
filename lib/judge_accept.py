@@ -343,7 +343,20 @@ def material_brief_file(role: str) -> str:
     return f"{MATERIAL_PREFIX}{role}-brief.md"
 
 
-MATERIAL_GLOB = material_file("*")           # 素材の役が書く {role, reply, materials}
+MATERIAL_GLOB = material_file("*")           # 素材の役が書く {role, reply, materials}。固定の控え（view・route・tree）にも当たる
+
+
+def is_role_material(name) -> bool:
+    """name（パスも可）が素材の役の返答の置き場（material_file の名）か。同じ頭の固定の控えは役の素材でない"""
+    p = pathlib.PurePath(name)
+    return p.match(MATERIAL_GLOB) and p.name not in (MATERIAL_VIEW_FILE, MATERIAL_ROUTE_FILE, MATERIAL_TREE_FILE)
+
+
+def role_material_files(jdir) -> list:
+    """置き場の素材の役の返答の置き場の全部（名の順）"""
+    return sorted(p for p in pathlib.Path(jdir).glob(MATERIAL_GLOB) if is_role_material(p))
+
+
 VERIFY_ANSWERS_DIR = f"{jv.BRIEF_DIR}/answers"   # 裏取りの下請けの答えの置き場（元 judgeverify.answers_dir の run ごとの置き場の代わり）
 VERIFY_TREE_FILE = f"{jv.BRIEF_DIR}/{jv.TREE_FILE}"   # 束ね役を起こす前の作業ツリーの姿
 GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER        # 元 judgetake.py:42（輪 diagnose-loop の max_iterations と同じ）
@@ -696,8 +709,8 @@ def material_rows(jdir) -> list:
     任意の mechanism・measured・false_positive_if, from（出どころの節と目の名、依頼はバッチの出どころ）}。
     出どころの節の名は元の写しの graph の名（p1.<役の名の - を _ に>）"""
     out = []
-    replies = {}   # MATERIAL_GLOB は素材の役の返答の外の控え（material-view.json など。role が無い）にも当たる
-    for p in pathlib.Path(jdir).glob(MATERIAL_GLOB):
+    replies = {}
+    for p in role_material_files(jdir):
         d = read_json(p, None)
         if isinstance(d, dict) and isinstance(d.get("role"), str):
             replies[f"p1.{d['role'].replace('-', '_')}"] = d.get("reply")
@@ -2610,9 +2623,7 @@ def material_take(jdir, role: str, reply: dict, repo, *, keys=core_accept.TREE_K
 def _accepted(jdir) -> dict:
     """置き場の material-<役>.json（受けた返答と素材。並行 PR の material-pr-check.json も）を 役 → 中身 で"""
     out = {}
-    for p in sorted(pathlib.Path(jdir).glob(MATERIAL_GLOB)):
-        if p.name in (MATERIAL_VIEW_FILE, MATERIAL_ROUTE_FILE):
-            continue
+    for p in role_material_files(jdir):
         try:
             doc = read_json(p)
         except ValueError:
