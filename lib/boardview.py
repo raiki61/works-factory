@@ -406,7 +406,7 @@ def tree_word(start: dict | None) -> str:
 def _request(start: dict | None) -> tuple:
     """始めの記録が名指す依頼のファイルの (パス, 本文, 読めない訳)。名指しが無ければ ("", "", "")、読めなければ本文は空で
     訳は REQUEST_UNREAD の行"""
-    req = (start or {}).get("request_file") or ((start or {}).get("input") or {}).get("request_file") or ""
+    req = startrec.request_file(start)
     if not req:
         return "", "", ""
     try:

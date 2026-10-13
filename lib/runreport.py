@@ -852,8 +852,8 @@ def premise_lines(returns: dict, start: dict) -> list:
     if why:
         return [f"前提の制約: {why}"]
     hyp = [c for c in _list(as_dict(doc).get("constraints")) if isinstance(c, dict) and c.get("kind") == HYPOTHESIS]
-    req = as_dict(start).get("request_file")
-    if not (hyp and isinstance(req, str) and req):
+    req = startrec.request_file(start)
+    if not (hyp and req):
         return []
     try:
         findings = carry.parts(oc.read_json(req))["findings"]

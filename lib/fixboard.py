@@ -2537,7 +2537,7 @@ def fix_values(place, owed, *, start, state: str = "", summary: str = "", answer
     return {"judgment_file": there(JUDGMENT_FILE), "open_units": json.dumps(list(owed), ensure_ascii=False),
             "plan_file": there(PLAN_REPLY_FILE), "policy_path": policy.frozen_copy(start),
             "notes_file": there(NOTES_FILE), "summary_file": summary or "",
-            "request_file": str(start.get("request_file") or ""), "plan_session": answer_node, "tdd_state": state or "",
+            "request_file": startrec.request_file(start), "plan_session": answer_node, "tdd_state": state or "",
             "ripple_file": there(RIPPLE_FILE), "base_rev": base_rev_of(place)}
 
 

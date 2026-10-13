@@ -1,6 +1,7 @@
 """始めの記録の住処 startrec（.shared/core/startrec.py）の読み口と入口の文と版の控え。一時の置き場のファイルだけ（FAST。git なし。子のプロセスは版の控えの試験の 1 つだけ）"""
 import json
 import pathlib
+import re
 import sys
 import tempfile
 import unittest
@@ -70,6 +71,35 @@ class StartRecCase(unittest.TestCase):
                          "差分 aaaaaaaaaaaa..HEAD（3 ファイル・PR #12「題」）・依頼 0 件")
         self.assertEqual(startrec.words(shape(empty=False, label="base main", spec=True)),
                          "差分 aaaaaaaaaaaa..HEAD（3 ファイル・base main）・依頼 2 件・仕様の段あり")
+
+
+
+class RequestFileOwner(unittest.TestCase):
+    """始めの記録の依頼のファイルを読む式は startrec.request_file の 1 か所（#393。盤面から読む conflict.request_file もここを引く）"""
+    READ = re.compile(r"""\.get\(\s*["']request_file["']|\[\s*["']request_file["']\s*\]""")
+    OTHER_DICTS = {"fixrules.py": "役の指示書の run の値 values を読む（始めの記録ではない）",
+                   "entryshape.py": "入口の変換が依頼の読みの dict から入口の入力の形を組む（始めの記録を書く前）"}
+
+    def test_read_once_in_lib(self):
+        found = {str(f.relative_to(LIB)) for f in LIB.rglob("*.py")
+                 if "tests" not in f.relative_to(LIB).parts and self.READ.search(f.read_text(encoding="utf-8"))}
+        self.assertEqual(found - set(self.OTHER_DICTS), {"startrec.py"})
+
+    def test_pattern_sees_a_second_copy(self):
+        for copy in ('req = start.get("request_file")', "start['request_file']"):
+            with self.subTest(copy=copy):
+                self.assertTrue(self.READ.search(copy))
+
+    def test_falls_back_to_the_entry_shape(self):
+        """欄 request_file が無い・空なら入口の入力の形の input.request_file。どちらも無ければ空（事前審査と判定の読みの既定を全部の読み手に）"""
+        cases = [({"request_file": "/a.json", "input": {"request_file": "/b.json"}}, "/a.json"),
+                 ({"request_file": "", "input": {"request_file": "/b.json"}}, "/b.json"),
+                 ({"input": {"request_file": "/b.json"}}, "/b.json"),
+                 ({"request_file": 3, "input": {"request_file": None}}, ""),
+                 ({}, ""), (None, "")]
+        for doc, want in cases:
+            with self.subTest(doc=doc):
+                self.assertEqual(startrec.request_file(doc), want)
 
 
 if __name__ == "__main__":

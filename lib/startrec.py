@@ -18,6 +18,8 @@
 - shape(doc): 入口の入力の形（欄 input の dict）。無い前の版の控え（入口の入力の形を持つ前の固定材料）は None
 - diff_empty(doc): 入口の差分が空か（真偽）。入力の形が無ければ None
 - requests(doc): 依頼の行の数。入力の形が無ければ None
+- request_file(doc): 依頼のファイルのパス（欄 request_file、無ければ入口の入力の形の input.request_file、どちらも無ければ空の字）。
+  始めの記録の依頼のファイルを読む式はここ 1 つ（盤面から読む conflict.request_file もここを引く）
 - read_rev(doc)・diff_base(doc): 役の材料の「読む版」（欄 review_rev。役が根拠を取る版）と「BASE」（入口の差分の根 input.base.rev）。
   差分の run では 2 つが違う
 - diff_base_label(doc): BASE の出どころの文（input.base.label）
@@ -86,6 +88,14 @@ def shape(doc: dict):
     """入口の入力の形（欄 input）。dict でない・無ければ None"""
     got = doc.get("input") if isinstance(doc, dict) else None
     return got if isinstance(got, dict) else None
+
+
+def request_file(doc) -> str:
+    """依頼のファイルのパス（欄 request_file。無い・空なら入口の入力の形の input.request_file。どちらも無ければ空の字）"""
+    for got in ((doc if isinstance(doc, dict) else {}).get("request_file"), (shape(doc) or {}).get("request_file")):
+        if isinstance(got, str) and got:
+            return got
+    return ""
 
 
 def diff_empty(doc: dict):
