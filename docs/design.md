@@ -568,7 +568,7 @@ flowchart TB
 - [ ] `p3.fix_delta`・`p3.delta_review`・`p3.delta_owed`・`p3.delta_fix` 修正だけの差分の審査と手直し
 - [ ] `p3.fix_delta2`・`p3.delta_review2`・`p3.delta_owed2`・`p3.delta_fix2` 2 回目
 - [ ] `p3.gates_cut` 周の版を固める
-- [ ] `p3.delta_gates`・`p4.final_gates` 変異の検算（今の works は absent と宣言して落としている。works-factory で戻すかを段 3 で持ち主に聞く）
+- [x] `p3.delta_gates`・`p4.final_gates` 変異の検算（今の works は absent と宣言して落としている。持ち主の決め `no-mutation-in-graph`（2026-10-13）でグラフに戻さない。変異試験は CI などで別に回す）
 - [ ] `p4.ci` CI を走らせ直す。赤なら戻る（今は次の run の下書き）
 - [ ] `p4.scalars`・`p4.assemble` 規模の数値と R1・R2 の再発火を機械が数える
 - [ ] `p4.record`・`converge` 周の記録と検証器。阻害が 2 周続けて無く CI が緑の時だけ収束、上限 5 周
@@ -685,7 +685,7 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 2. 受け入れの一覧の全部の行に証を書く。graph のノードの表（`by` と `absent` の理由）をこのリポジトリにも置き、試験で縛る。
 3. 欠陥を仕込んだ較正（`tests/calibration/`）: 仕込んだ欠陥を、今の works と works-factory の両方が見つけるか比べる。
 4. 同じ依頼を今の works と works-factory に回し、結末・単位・人への問い・費用を並べて比べる。違いは 1 行ずつ理由を書く。
-5. 変異の検算（`p3.delta_gates`・`p4.final_gates`）と周の記録（`p2.history`）を戻すかを持ち主に聞く。
+5. 変異の検算（`p3.delta_gates`・`p4.final_gates`）と周の記録（`p2.history`）を戻すかを持ち主に聞く。変異の検算は戻さない（`docs/owner-decisions.md` の `no-mutation-in-graph`。2026-10-13）。周の記録は答え待ち。
 
 ### 段 4 切り替え
 
