@@ -1054,20 +1054,13 @@ def pr_diff(repo, base_sha: str, head_sha: str, skip=(), *opts: str) -> str:
 
 def pr_added_lines(repo, base_sha: str, head_sha: str, skip=()) -> dict[str, set[int]]:
     """審査する変更（pr_diff）が足した行 {根からのパス: 修正前の HEAD での行番号}。消しただけのファイルは載せない。
-    ファイルの分け方は changemap.split_diff"""
+    ファイルの分け方と行番号の数え方は changemap.split_diff・new_side"""
     import changemap
-    import report
     added: dict[str, set[int]] = {}
     for path, lines in changemap.split_diff(pr_diff(repo, base_sha, head_sha, skip, "-U0"))[0].items():
-        n = 0
-        for ln in lines:
-            if m := report.HUNK_NEW.match(ln):
-                n = int(m.group(1))
-            elif ln.startswith("+"):
+        for n, ln in changemap.new_side(lines):
+            if ln.startswith("+"):
                 added.setdefault(path, set()).add(n)
-                n += 1
-            elif not ln.startswith("-"):
-                n += 1
     return added
 
 
