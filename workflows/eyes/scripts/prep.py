@@ -26,33 +26,29 @@ import structmark  # noqa: E402
 EYES = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
 
 
-def opened(ptr) -> Path | None:
-    return boundary.resolve(ptr) if ptr else None
-
-
-def read(ptr):
-    path = opened(ptr)
+def read(raw):
+    path = boundary.pointed(raw)
     return json.loads(path.read_text(encoding="utf-8")) if path else None
 
 
-start = read(json.loads(os.environ["INPUTS_START"])) or {}
-judgment_file = opened(json.loads(os.environ["INPUTS_JUDGMENT"]))
-purpose = read(json.loads(os.environ["INPUTS_PURPOSE"])) or {}
-design_file = opened(json.loads(os.environ["INPUTS_DESIGN"]))
+start = read(os.environ["INPUTS_START"]) or {}
+judgment_file = boundary.pointed(os.environ["INPUTS_JUDGMENT"])
+purpose = read(os.environ["INPUTS_PURPOSE"]) or {}
+design_file = boundary.pointed(os.environ["INPUTS_DESIGN"])
 design = eyeverdict.read_design(design_file)
-diff_file = opened(json.loads(os.environ["INPUTS_DIFF"]))
+diff_file = boundary.pointed(os.environ["INPUTS_DIFF"])
 diff_text = diff_file.read_text(encoding="utf-8", errors="replace") if diff_file else ""   # 直す物が無い周は差分が無い（L-W07）
-answer = json.loads(os.environ["INPUTS_ANSWERS"])
-changed = json.loads(os.environ["INPUTS_CHANGED"])
+answer = boundary.parsed(os.environ["INPUTS_ANSWERS"])
+changed = boundary.parsed(os.environ["INPUTS_CHANGED"])
 premises = judgment_file.with_name(_premises.PREMISES_FILE) if judgment_file else None
 constraints = json.loads(premises.read_text(encoding="utf-8")).get("constraints") if premises and premises.is_file() else None
 request = Path(start["request_file"]) if start.get("request_file") else None
 repo_review = Path.cwd() / "REVIEW.md"
-depth_rows = json.loads(os.environ["INPUTS_DEPTH"]) or []
+depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
 purpose_text = purpose.get("purpose_text") or ""
 after = structmark.after_counts(EYES) or eyeverdict.NO_AFTER
 premises_text, r2_ledger = eyeverdict.premise_section(
-    human_items=eyeverdict.human_items(json.loads(os.environ["INPUTS_START_ANSWERS"]), answer),
+    human_items=eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer),
     request_text=request.read_text(encoding="utf-8") if request and request.is_file() else None, repo=Path.cwd(),
     changed=changed, constraints=constraints,
     design_seen=(eyeverdict.read_json(design_file.with_name(eyeverdict.DESIGN_PREMISES)) or {}).get("seen") if design_file else None)
@@ -69,7 +65,7 @@ out = {
     "diff_file": str(diff_file or ""),
     "diff_lines": len(diff_text.splitlines()),
     "changed_files": "、".join(eyeverdict.changed_files(diff_text)),
-    "scalars": eyeverdict.scalars_text(eyeverdict.scalars(diff_text, json.loads(os.environ["INPUTS_X_SCALARS"]))),
+    "scalars": eyeverdict.scalars_text(eyeverdict.scalars(diff_text, boundary.parsed(os.environ["INPUTS_X_SCALARS"]))),
     "cwd": os.getcwd(),
     "base_rev": start.get("base_rev") or "",
     "review_md": str(boundary.lib_root() / "REVIEW.md"),
@@ -83,14 +79,14 @@ out = {
     "judgment_file": str(judgment_file or ""),
     "premises_text": premises_text,
     **eyeverdict.prompt_texts(
-        units=json.loads(os.environ["INPUTS_UNITS"]),
-        fix_units=json.loads(os.environ["INPUTS_FIX_UNITS"]),
+        units=boundary.parsed(os.environ["INPUTS_UNITS"]),
+        fix_units=boundary.parsed(os.environ["INPUTS_FIX_UNITS"]),
         changed=changed,
         constraints=constraints,
-        green_ok=json.loads(os.environ["INPUTS_GREEN_OK"]),
-        ripple_file=str(opened(json.loads(os.environ["INPUTS_RIPPLE"])) or ""),
-        world_file=str(opened(json.loads(os.environ["INPUTS_WORLD"])) or ""),
-        passed=eyeverdict._human_passed(json.loads(os.environ["INPUTS_PLAN_QUESTIONS"]), answer)),
+        green_ok=boundary.parsed(os.environ["INPUTS_GREEN_OK"]),
+        ripple_file=str(boundary.pointed(os.environ["INPUTS_RIPPLE"]) or ""),
+        world_file=str(boundary.pointed(os.environ["INPUTS_WORLD"]) or ""),
+        passed=eyeverdict._human_passed(boundary.parsed(os.environ["INPUTS_PLAN_QUESTIONS"]), answer)),
 }
 EYES.mkdir(parents=True, exist_ok=True)
 (EYES / eyeverdict.R2_PREMISES).write_text(json.dumps(r2_ledger, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")

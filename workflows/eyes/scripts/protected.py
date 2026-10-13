@@ -17,8 +17,8 @@ import protect  # noqa: E402
 import seal  # noqa: E402
 
 try:
-    start_ptr = json.loads(os.environ["INPUTS_START"])
-    start = json.loads(boundary.resolve(start_ptr).read_text(encoding="utf-8")) if start_ptr else {}
+    start_file = boundary.pointed(os.environ["INPUTS_START"])
+    start = json.loads(start_file.read_text(encoding="utf-8")) if start_file else {}
     base_rev = start.get("base_rev") or ""
     rows = protect.touched(Path.cwd(), base_rev, protect.merged(Path.cwd(), base_rev))
     out = {"hits": [r["path"] for r in rows], "lines": protect.lines(rows), "broken": ""}

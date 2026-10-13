@@ -41,6 +41,7 @@ import ghreads  # noqa: E402
 import jsonfile  # noqa: E402
 import judgeverify as jv  # noqa: E402
 import marks  # noqa: E402
+import oneline  # noqa: E402
 import outpurpose  # noqa: E402
 import prcheck  # noqa: E402
 import premises as _premises  # noqa: E402
@@ -529,7 +530,7 @@ def judge_output(out, jdir, root, rev, materials, *, prev_deletions=None, prev_q
     for row in list(out.get("units", [])) + list(out.get("questions", [])):
         for f in ONE_LINE_FIELDS:
             if isinstance(row.get(f), str):
-                row[f] = " ".join(row[f].split())
+                row[f] = oneline.one_line(row[f])
     keys = set()
     replaced, zeroed = [], []
     for i, u in enumerate(out["units"]):
@@ -3089,10 +3090,10 @@ def spec_freeze(jdir, root, pend, approval) -> dict:
     return {"ok": True, "problems": []}
 
 
-def spec_answer(jdir, root, raw) -> dict:
-    """仕様の関所の答え（with: の {from: $spec-gate.output, if_skipped: null} の字）を受ける（元 works/blk-spec/lib/specblk.py:302 の
+def spec_answer(jdir, root, answer) -> dict:
+    """仕様の関所の答え（with: の {from: $spec-gate.output, if_skipped: null} を境の口 value が読んだ値）を受ける（元 works/blk-spec/lib/specblk.py:302 の
     answer と :343 の collect と、写しの rules の on_answer_in_round の仕様の承認）。返り {go, reason}:
-    - 開かなかった（"null"）: go false（前の節が止めた。止めの控えが無ければ works:spec で止める）
+    - 開かなかった（None）: go false（前の節が止めた。止めの控えが無ければ works:spec で止める）
     - 止める語（stop・reject）: 一言（空なら GATE_STOP_NOTE）が "request:" で始まれば止め札 request:spec-gate、ほかは人の止め
       human:spec-gate で止める（report が stopped_by_request と stopped_by_human に分ける）
     - 通す語（approve・continue）: J/spec-ask.json の仕様を spec_freeze で固め、作業ツリーの姿（TREE_FILE）を取り直す
@@ -3100,7 +3101,7 @@ def spec_answer(jdir, root, raw) -> dict:
     答えの形の誤り（知らない語など）は works:spec で止めて go false"""
     jdir = pathlib.Path(jdir)
     try:
-        gate = specblk.parse_gate(raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False))
+        gate = specblk.parse_gate(answer)
     except rolekit.BoardGap as e:
         write_stop(jdir, SPEC_STOP, str(e))
         return {"go": False, "reason": str(e)}
@@ -3768,7 +3769,7 @@ def intake(start, start_error: str, jdir, rdir, repo, objection: str, prior=None
         carry.place_prior(jdir, [*container[carry.PRIOR], *prior_of(prior)])
         snap_tree(jdir, TREE_FILE, repo)
     except (ValueError, OSError, Reject) as e:
-        reason = " ".join(str(e).split())
+        reason = oneline.one_line(e)
         write_stop(jdir, REQUEST_STOP, reason)
         out = _intake_out(False, reason=reason)
     else:

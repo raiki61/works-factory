@@ -41,7 +41,6 @@ from engine.schema import validate_schema  # noqa: E402  （declared_checks が 
 DEADLINE = 1728000000
 RUN_ID = "run-1"
 PY = sys.executable
-RESULT_FIELDS = ["mode", "ok", "green", "red_cause", "baseline", "fingerprint", "evidence"]
 RED_CAUSES = ["introduced", "inherited", "environment", "interaction", "incomplete", ""]
 WAIT = 30   # 子のプロセスを待つ上限（秒）。試験の枠で、script の中には期限を置かない
 # 任せ先の CI の役の指示書の元: 今の works（pack.json の works.commit）の works/blk-ci/commands/ci.md・prompts/p0.local_checks.md・
@@ -231,8 +230,7 @@ class YamlCase(unittest.TestCase):
     def test_result_output_format_is_the_contract(self):
         result = node("result")
         fmt = result["output_format"]
-        self.assertEqual(sorted(fmt["properties"]), sorted(RESULT_FIELDS))
-        self.assertEqual(sorted(fmt["required"]), sorted(RESULT_FIELDS))
+        self.assertEqual(sorted(fmt["required"]), sorted(fmt["properties"]))
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["mode"]["enum"], ["base", "final"])
         self.assertEqual(fmt["properties"]["red_cause"]["enum"], RED_CAUSES)
@@ -692,6 +690,25 @@ class ResultScriptCase(ScriptCase):
         self.assertIn("inherited", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
         self.assertEqual(out["fingerprint"], green_cert.fingerprint(self.repo))
 
+    def test_returned_values_are_the_evidence_rows(self):
+        """走らせ方・ログ・修正前のテスト・認証しなかった訳は、返りの欄（1 行）と同じ回の証拠の文の行が同じ値（報告と最後の関所は
+        返りの欄を読む）。base は修正前のテストの欄が空で、証拠にその行が無い"""
+        baseline = self.base()
+        for out in (self.result("base"), self.final(baseline)):
+            with self.subTest(out["mode"]):
+                rows = self.pointed(out["evidence"]).read_text(encoding="utf-8").splitlines()
+                self.assertEqual(out["by"], "engine")
+                self.assertIn(f"- 走らせ方: engine・{out['suites_line']}", rows)
+                self.assertIn(f"- ログ: {out['log']}", rows)
+                self.assertTrue(out["log"] and "\n" not in out["suites_line"] + out["log"] + out["baseline_line"], out)
+                self.assertIn(f"- ok: {str(out['ok']).lower()}" + (f"（{out['reason']}）" if out["reason"] else ""), rows)
+                if out["mode"] == "final":
+                    self.assertTrue(out["baseline_line"].startswith(f"{declared_checks.BASELINE_HEAD}: 赤"), out)
+                    self.assertIn(f"- {out['baseline_line']}", rows)
+                else:
+                    self.assertEqual(out["baseline_line"], "")
+                    self.assertFalse([r for r in rows if declared_checks.BASELINE_HEAD in r])
+
     def test_final_evidence_names_the_tests_before_the_fix(self):
         """final の証拠は修正前のテストの行（元 entry.baseline_line）を出す: 修正前は赤で、段ごとの終了コードと、最後の赤は修正前から
         在りうること。元の結末が無い final は記録が無いと書く"""
@@ -872,6 +889,8 @@ class ResultScriptCase(ScriptCase):
         out = json.loads(done.stdout)
         self.assertEqual(schema_problems(out, self.output_format), [], out)
         self.assertEqual((out["mode"], out["ok"], out["green"], out["red_cause"]), ("base", False, False, "incomplete"))
+        self.assertEqual((out["by"], out["suites_line"], out["log"], out["baseline_line"]), ("", "", "", ""))
+        self.assertIn(f"- ok: false（{out['reason']}）", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
         self.assertIn("ModuleNotFoundError", self.pointed(out["evidence"]).read_text(encoding="utf-8"))
 
 

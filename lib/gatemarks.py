@@ -80,7 +80,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 構造の目が人に上げた行（structmark の route が人に上げる行）は、修正前の関所の項目になる（種類 DESIGN_KIND。推し＝chosen、捨てた案と
 代償＝rejected。DESIGN_HEAD で始まる 1 行。人が continue で答えた同じ文の行は聞き直さない）。
 標準ライブラリと core の answer（L1。答えの行）・carry（L1。下書きの印の付け方）・cite（L1。出どころの照らし）・marks（L1）・
-converge（L3。事前審査の壁打ち。標準ライブラリだけ）・planmarks（L3）・structmark（L3）・worldmark（L3。世界の解の行）だけ。
+converge（L3。事前審査の壁打ち。標準ライブラリだけ）・planmarks（L3）・structmark（L3）・worldmark（L3。世界の解の行）・oneline（1 行に畳む葉。標準ライブラリだけ）だけ。
 """
 import json
 import pathlib
@@ -93,6 +93,7 @@ import cite    # 決め手の出どころが現物に在るかの照らし（食
 import gatepolicy   # 無人の run か（人の関所と無人の方針の住処）
 import converge
 import marks
+import oneline
 import planmarks   # 修正案の欄 structure（汚れる行への答え）
 import promptsection
 import seal      # 目の状態の語の持ち主
@@ -924,7 +925,7 @@ def answer_note(a: dict) -> str:
 
 
 def _squeeze(v) -> str:
-    return " ".join(str(v or "").split())
+    return oneline.one_line(v or "")
 
 
 DRAFT_HEAD = "人の判断を待つ項目への答えの下書き"

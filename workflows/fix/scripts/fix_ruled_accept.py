@@ -39,7 +39,7 @@ def main() -> dict:
     iteration = int(os.environ["INPUTS_ITERATION"])
     if consulted:
         return {"ok": False, "done": False, "reason": fixboard.CONSULTED, "reason_file": ""}
-    if raw.strip() in ("", "null"):
+    if boundary.value(raw) is None:
         return {"ok": True, "done": True, "reason": NOT_LAUNCHED, "reason_file": ""}
     reply, why = rolekit.parse_reply(raw)
     if reply is None:

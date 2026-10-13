@@ -25,15 +25,15 @@ def main() -> None:
     art = Path(os.environ["ARTIFACTS_DIR"])
     plan_dir, round_dir, repo = art / planfile.PLAN_DIR, art / os.environ["INPUTS_DIR"], Path.cwd()
     rnd = planfile.read_round(round_dir)
-    start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
+    start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
     start = start if isinstance(start, dict) else {}
-    judgment_file, _ = planfile.pointed(os.environ["INPUTS_JUDGMENT"], boundary.resolve)
-    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.resolve)
+    judgment_file, _ = planfile.pointed(os.environ["INPUTS_JUDGMENT"], boundary.pointed)
+    judgment, _ = planfile.read_judgment(os.environ["INPUTS_JUDGMENT"], start, boundary.pointed)
     units = planfile.units_of(os.environ["INPUTS_UNITS"])
-    world, bad_world = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.resolve)
-    spec, bad_spec = planfile.read_pointed(os.environ["INPUTS_SPEC"], boundary.resolve, text=True)
-    conflicts, bad_conflicts = planfile.read_pointed(os.environ["INPUTS_CONFLICTS"], boundary.resolve)
-    prior, bad_prior = planfile.read_pointed(os.environ["INPUTS_PRIOR_FAILURES"], boundary.resolve)
+    world, bad_world = planfile.world_rows(os.environ["INPUTS_WORLD"], boundary.pointed)
+    spec, bad_spec = planfile.read_pointed(os.environ["INPUTS_SPEC"], boundary.pointed, text=True)
+    conflicts, bad_conflicts = planfile.read_pointed(os.environ["INPUTS_CONFLICTS"], boundary.pointed)
+    prior, bad_prior = planfile.read_pointed(os.environ["INPUTS_PRIOR_FAILURES"], boundary.pointed)
     unread = [f"{name}: {why}" for name, why in (("world", bad_world), ("spec", bad_spec), ("conflicts", bad_conflicts),
                                                  ("prior_failures", bad_prior)) if why]
     keys = set(planfile.slots(judgment)) if isinstance(judgment, dict) else None

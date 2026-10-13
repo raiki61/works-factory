@@ -1,13 +1,9 @@
-"""考えの住処の柵（地図 docs/concepts.md と表 docs/concepts.json）。
+"""考えの住処の柵の道具 lib/conceptfence.py の試験（仮の置き場で数え方・歯止め・地図の読みを見る Synthetic、表 docs/concepts.json の
+住処ありの柵が本当に当たることと entry-kind が既知の漏れを持たないことを見る FenceCase、main の表を引く main_table と分かれ目の fork_ref の MainTableCase）。
 
-考えごとに（住処ありも散らばりも）、その考えの語の形（正規表現）が「知ってよい所」と除く所の外の
-追跡されたファイルに何行あるかを数え、表の既知の漏れ（ファイル → 件数と理由）とちょうど揃うことを見る。件数が
-表より増えても・減っても・表に無いファイルが出ても赤（減る向きにだけ動かす。tests/blockblind.py の許可表と同じ型）。
-散らばりの柵は知ってよい所が空の数の歯止め。表そのものも main の表（origin/main）より件数の和が増えない（NotAboveMain）。
-あわせて地図と表の id と状態が揃うこと・住処ありの考えが柵を持つこと・地図に書いたパスが在ることを見る（地図が
-古くなるのを防ぐ一番安い同期）。
-中身は core の .shared/core/conceptfence.py（ここは試験だけ。run の中の構造のブロックも同じ道具を対象の表に当てる）。計画は docs/plans/2026-10-09-structure-viewpoint.md の 3 節と Task 1。
+works-factory 自身の地図と表の全部を本物の木に当てる試験は tests/layers/test_concept_fences.py。
 """
+import json
 import pathlib
 import sys
 import tempfile
@@ -17,6 +13,9 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
+
+from tests.bin.gitkit import git  # noqa: E402
+
 PATH_HEADS = (".shared/", "blk-", "darkfactory/", "dev/", "tests/", "skills/")   # works の地図の行のパスの頭（works の並べ方）
 
 
@@ -72,14 +71,23 @@ class Synthetic(unittest.TestCase):
 
     def test_check_table_refuses_broken_bound(self):
         """表の読み（tables が対象の表に当てる確かめ）は、bound が配列でない・paths が配列でない・lines が正規表現でない・
-        by が無い表を拒む（ValueError か re.error）"""
+        lines が空の行か 1 字の行に当たる（ほぼどの行も写しになり柵が見えなくなる）・by が無い表を拒む（ValueError か re.error）"""
         import re
         cf().check_table({"concepts": {"a": {"fences": [self.BOUND]}}})
         for bad in ("x", ["x"], [{"paths": "x", "lines": "a", "by": "t"}], [{"paths": ["x"], "lines": "(", "by": "t"}],
-                    [{"paths": ["x"], "lines": "a"}]):
+                    [{"paths": ["x"], "lines": "a"}], [{"paths": ["x"], "lines": "", "by": "t"}],
+                    [{"paths": ["x"], "lines": ".*", "by": "t"}], [{"paths": ["x"], "lines": "^", "by": "t"}]) + tuple(
+                        [{"paths": ["x"], "lines": lines, "by": "t"}] for lines in (".", r"\S", r"\w", r"[\s\S]", "^.", "[^\n]")):
             with self.subTest(bad=bad):
                 with self.assertRaises((ValueError, re.error)):
                     cf().check_table({"concepts": {"a": {"fences": [dict(self.BOUND, bound=bad)]}}})
+
+    def test_check_table_refuses_loosened_not_a_table(self):
+        """loosened（緩めの鍵と理由）が表でない表は、growth が落ちる前に形の外れとして拒む"""
+        for bad in (["pattern:a:w"], "x"):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    cf().check_table({"concepts": {}, "loosened": bad})
 
     def test_ratchet(self):
         m = cf()
@@ -108,6 +116,65 @@ class Synthetic(unittest.TestCase):
         main = {"concepts": {"a": {"status": "散らばり", "fences": []}}}
         now = self.table(a={"x.py": [5, "理由"]}, b={"y.py": [1, "理由"]})
         self.assertEqual(cf().growth(main, now), [])   # 初めて柵を掛ける差分（main は柵が空・考えが無い）は比べない
+        self.assertEqual(cf().growth({"concepts": {}}, dict(now, exclude=["docs/**"])), [])   # main に柵が無ければ exclude も比べない
+
+    @staticmethod
+    def fenced():
+        """緩めを比べる main の表: 柵を 1 つ持つ考え a と表の exclude"""
+        fence = {"what": "語", "pattern": r"\bx\b", "allowed": ["home.py", "lib/h.py"], "known": {},
+                 "bound": [{"paths": ["blk-*/*.yaml"], "lines": r"^\s*x:", "by": "t.py", "why": "縛る"}]}
+        return {"exclude": ["docs/**", "fixtures/**"], "concepts": {"a": {"status": "住処あり", "fences": [fence]}}}
+
+    def loosen(self, change):
+        now = self.fenced()
+        change(now, now["concepts"]["a"]["fences"][0])
+        return now
+
+    LOOSENINGS = {
+        "concept:a": lambda t, f: t["concepts"].pop("a"),
+        "fence:a:語": lambda t, f: t["concepts"]["a"]["fences"].clear(),
+        "allowed:a:語:lib/y.py": lambda t, f: f["allowed"].append("lib/y.py"),
+        "pattern:a:語": lambda t, f: f.update(pattern=r"\bxx\b"),
+        "exclude:lib/**": lambda t, f: t["exclude"].append("lib/**"),
+        "bound:a:語:lib/*.py:^y": lambda t, f: f["bound"].append({"paths": ["lib/*.py"], "lines": "^y", "by": "t.py"}),
+        "bound:a:語:wf/*.yaml:^\\s*x:": lambda t, f: f["bound"][0]["paths"].append("wf/*.yaml"),
+        "bound:a:語:blk-*/*.yaml:x": lambda t, f: f["bound"][0].update(lines="x"),
+    }
+
+    def test_growth_loosening_is_red(self):
+        """考え・柵を消す・allowed・exclude・bound を広げる・pattern を変えるのは、main の表より緩めたので赤（鍵を名指す）"""
+        for key, change in self.LOOSENINGS.items():
+            with self.subTest(key=key):
+                got = cf().growth(self.fenced(), self.loosen(change))
+                self.assertTrue(got)
+                self.assertTrue(any(f'"{key}"' in m for m in got), got)
+
+    def test_growth_tightening_is_quiet(self):
+        """減らす・並べ替える・bound の why を変えるのは緩めでない"""
+        for name, change in {"allowed を減らす": lambda t, f: f["allowed"].pop(),
+                             "exclude を減らす": lambda t, f: t["exclude"].pop(),
+                             "bound を消す": lambda t, f: f["bound"].clear(),
+                             "allowed の並べ替え": lambda t, f: f["allowed"].reverse(),
+                             "bound の why": lambda t, f: f["bound"][0].update(why="別の訳")}.items():
+            with self.subTest(name=name):
+                self.assertEqual(cf().growth(self.fenced(), self.loosen(change)), [])
+
+    def test_growth_loosening_passes_only_with_new_reason(self):
+        """緩めは loosened の新しい理由の行で通す。理由が空・main に同じ行が在る（入った行の使い回し）なら赤"""
+        key = "allowed:a:語:lib/y.py"
+        now = self.loosen(self.LOOSENINGS[key])
+        self.assertEqual(cf().growth(self.fenced(), dict(now, loosened={key: "住処を lib/y.py に移した"})), [])
+        self.assertTrue(cf().growth(self.fenced(), dict(now, loosened={key: " "})))
+        main = dict(self.fenced(), loosened={key: "住処を lib/y.py に移した"})
+        self.assertTrue(cf().growth(main, dict(now, loosened={key: "住処を lib/y.py に移した"})))
+        self.assertEqual(cf().growth(main, dict(now, loosened={key: "住処を lib/y.py にもう一度移した"})), [])
+
+    def test_growth_duplicate_what_is_red(self):
+        """柵は what で引くので、1 つの考えの中で what が重なれば赤（重なった片方が比べられない）"""
+        now = self.fenced()
+        fences = now["concepts"]["a"]["fences"]
+        fences.append(dict(fences[0], allowed=["*"]))
+        self.assertTrue(any("重なる" in m for m in cf().growth(self.fenced(), now)))
 
     def test_map_ids_take_first_status_word(self):
         md = ("### `a` 一つ\n\n- 状態: 住処あり（写し）\n- 住処: x\n\n"
@@ -127,36 +194,118 @@ class Synthetic(unittest.TestCase):
 
 
 
-# 柵 entry-kind（元 works/docs/concepts.json の entry-kind の 2 つの柵。語の形は元の字。2 つ目の「base.from での分岐」の形だけは、
-# 比べる相手を入口の種の語（head・base・pr）に限る: 元の形は `["from"] != ...` を全部数え、判定の受け付けの写しの道の
-# 指し先（lib/judge_accept.py の w["from"] != "$"。入口の種類と別の考え）にも当たる）
-ENTRY_KIND = (
-    {"what": "入口の生の入力（差分の根の名指し base・pr）を読む・渡す形",
-     "pattern": r"_word\(raw, [\"'](base|pr)[\"']\)|\bINPUTS_(BASE|PR)\b|\$INPUTS\.(base|pr)\b|\bCHANGE_INPUT\b|--(base|pr)\b",
-     "allowed": ["lib/entryshape.py", "workflows/line/scripts/start.py"], "known": {}},
-    {"what": "入口の種類で分かれる形と消した種の名（差分の根の出どころ base.from での分岐ほか）",
-     "pattern": r"\bentry_words\b|\bENTRIES\b|\bchange_only\b|add_pending_request|PENDING_WAIT_NODE|PENDING_REQUEST_BY|"
-                r"\[[\"']from[\"']\]\s*[!=]=\s*[\"'](head|base|pr)[\"']|\.get\([\"']from[\"']\)\s*[!=]=\s*[\"'](head|base|pr)[\"']|"
-                r"kind == [\"'](request|change|both)[\"']",
-     "allowed": ["lib/entryshape.py"], "known": {}},
-)
-ENTRY_KIND_EXCLUDE = ["tests/**", "lib/tests/**", "docs/**", "README.md", "**/fixtures/**", "lib/graphloops/**", "factory/**",
-                      "harness/**", ".github/**", "*.md"]
-
-
 class FenceCase(unittest.TestCase):
+    # 住処ありの柵ごとに、柵が当たるはずの 1 行（表の fences の順）。表の柵が正規表現の書き損じで何にも当たらなくなると、
+    # 本物の木の FencesHold は「漏れが無い」と見分けがつかず緑のまま。柵を足したらここにも 1 行足す（足さなければ赤）
+    HITS = {
+        "entry-kind": ['b = _word(raw, "base")', 'if base["from"] == "pr":'],
+        "web-get": ["from urllib.request import urlopen"],
+        "cite": ["from cite import quoted_in", "ok = cite.fold(a) in cite.fold(b)"],
+        "prompt-sections": ["class Section:"],
+        "outcome": ['return "no_fix_needed", ""'],
+        "depth": ["doc = depth.decide_doc(fields, unit_ids)"],
+        "features": ['"judge_verify": "判定の裏取り",'],
+        "reads": ['return f"reads-{role}.json"'],
+        "conflict": ['WHY_FIELD = "why_both_cannot_hold"'],
+        "lanes": ["parent[i] = parent[parent[i]]"],
+        "marks": ['"gate": Kind({}, "gate-marks.json", ROOT),', "write_json(jdir / prcheck.EXCLUDED, {})",
+                  'row.setdefault("properties", {}).update(fields)', "{k: row.pop(k) for k in names if k in row}"],
+        "plan-scope": ["any(planmarks.glob_match(path, g) for g in globs(it))"],
+        "test-files": [r'TEST_STEM = re.compile(r"^(test_[^.]+|[^.]+_test|.+\.(test|spec))$")'],
+        "red-check": ['QUOTES_FIELD = "red_quotes"', "probs = list(rules().red_problems(named, cases, code, baseline))",
+                      r'ANSI = re.compile(r"\x1b\[[0-9;]*m")'],
+        "carry-over": ['NEXT_REQUEST_FILE = "next-request.json"'],
+        "world": ['WORLD_FILE = "world.jsonl"'],
+        "stop-reasons": ['HEAD = "works:"', "WAIT_WORDS = stopby.WAITING"],
+        "start-record": ['NAME = "start.json"'],
+        "human-gates": ['FINAL_GATES = ("always", "when_needed", "protected_only")', "import gatepolicy as gp"],
+    }
+
+    def test_every_home_fence_hits_its_line(self):
+        table = cf().load(LIB.parent)
+        homes = {k: v["fences"] for k, v in table["concepts"].items() if v["status"] == "住処あり"}
+        self.assertEqual(set(self.HITS), set(homes))
+        for k, fences in homes.items():
+            self.assertEqual(len(self.HITS[k]), len(fences), k)
+            for line, fence in zip(self.HITS[k], fences):
+                with self.subTest(concept=k, what=fence["what"]):
+                    self.assertEqual(cf().count_lines(line, fence, "lib/x.py"), 1)
+
     def test_entry_kind_read_only_by_entryshape(self):
-        """L-E55: 入口の種類（依頼・base・PR）を知るのは入口の変換（lib/entryshape.py と線の start）だけ（元 works/tests/
-        test_entry_block.py の ConversionLayerCase.test_only_conversion_layer_knows_entry_kind）。外の当たりは 0 件"""
-        paths = cf().tracked(LIB.parent)
-        self.assertIn("lib/entryshape.py", paths)
-        for fence in ENTRY_KIND:
-            with self.subTest(fence["what"]):
-                self.assertEqual(cf().scan(LIB.parent, paths, fence, ENTRY_KIND_EXCLUDE), {})
-        with tempfile.TemporaryDirectory() as tmp:   # 柵が本当に当たる: 入口の種類で分かれる行と生の入力の読みを数える
-            (pathlib.Path(tmp) / "x.py").write_text('if base["from"] == "pr":\n    pass\nb = _word(raw, "base")\n'
-                                                     'w = step["from"] != "$"\n', encoding="utf-8")
-            self.assertEqual([cf().scan(tmp, ["x.py"], fence, []) for fence in ENTRY_KIND], [{"x.py": 1}, {"x.py": 1}])
+        """L-E55: 入口の種類（依頼・base・PR）を知るのは入口の変換（lib/entryshape.py とメイングラフの start）だけ（元 works/tests/
+        test_entry_block.py の ConversionLayerCase.test_only_conversion_layer_knows_entry_kind）。既知の漏れは 0 件（本物の木の
+        当たりが既知と揃うことは tests/layers/test_concept_fences.py の FencesHold が照らす）。
+        柵の正本は表 docs/concepts.json の entry-kind（2 つ目の「base.from での分岐」の形は、比べる相手を入口の種の語
+        （head・base・pr）に限る: 元の形は判定の受け付けの写しの道の指し先 lib/judge_accept.py の w["from"] != "$" にも当たる）"""
+        table = cf().load(LIB.parent)
+        concept = table["concepts"]["entry-kind"]
+        self.assertEqual(concept["status"], "住処あり")
+        fences = concept["fences"]
+        self.assertEqual([f["known"] for f in fences], [{}, {}])
+        self.assertEqual([cf().count_lines('w = step["from"] != "$"', fence, "lib/x.py") for fence in fences], [0, 0])
+
+    def test_carry_over_reading_prior_failures_outside_home_is_red(self):
+        """持ち越しの中身の前の失敗を住処の外で欄の名の字で直に読む行を 1 つ足すと、本物の木の柵が赤になる。欄の名を書くだけの
+        形（ノードの入出力の鍵・並び）は数えない"""
+        table = cf().load(LIB.parent)
+        fence, = table["concepts"]["carry-over"]["fences"]
+        found = cf().scan(LIB.parent, cf().tracked(LIB.parent), fence, table["exclude"])
+        self.assertEqual(cf().verdict(found, fence["known"]), [])
+        for line in ('rows = doc["prior_failures"]', "rows = doc.get('prior_failures', [])"):
+            with self.subTest(line=line):
+                n = cf().count_lines(line, fence, "lib/x.py")
+                self.assertEqual(n, 1)
+                self.assertNotEqual(cf().verdict(found | {"lib/x.py": n}, fence["known"]), [])
+                more = found | {"lib/runreport.py": found["lib/runreport.py"] + n}
+                self.assertNotEqual(cf().verdict(more, fence["known"]), [])
+        for line in ('return {"prior_failures": None}', 'VALUES = ("prior_failures", "redepth")'):
+            self.assertEqual(cf().count_lines(line, fence, "lib/x.py"), 0, line)
+
+
+class MainTableCase(unittest.TestCase):
+    """main_table: 版は在って表のファイルが無ければ空の表（表を置く最初の差分は比べない）・表が読めなければ (None, 理由)。版を引けない時の (None, 理由) は
+    tests/layers/test_concept_fences.py の NotAboveMain が見る"""
+
+    def test_missing_table_is_empty_and_present_table_is_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            git(root, "init", "-q")
+            (root / "a.txt").write_text("a\n", encoding="utf-8")
+            git(root, "add", "-A")
+            git(root, "commit", "-q", "-m", "no table")
+            self.assertEqual(cf().main_table(root, "HEAD"), ({"concepts": {}}, None))
+            table = {"concepts": {"a": {"status": "散らばり", "fences": []}}}
+            (root / "docs").mkdir()
+            (root / "docs" / "concepts.json").write_text(json.dumps(table, ensure_ascii=False), encoding="utf-8")
+            git(root, "add", "-A")
+            git(root, "commit", "-q", "-m", "table")
+            self.assertEqual(cf().main_table(root, "HEAD"), (table, None))
+
+    def test_unreadable_table_is_none_not_empty(self):
+        """表のファイルは在るのに読めなければ (None, 理由)（空の表にすると比べずに通る）"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            git(root, "init", "-q")
+            (root / "docs").mkdir()
+            (root / "docs" / "concepts.json").write_text("{ 壊れた", encoding="utf-8")
+            git(root, "add", "-A")
+            git(root, "commit", "-q", "-m", "broken table")
+            got, why = cf().main_table(root, "HEAD")
+            self.assertIsNone(got)
+            self.assertIn("JSON", why)
+
+    def test_fork_ref_is_none_without_fork_point(self):
+        """分かれ目を引けなければ None（ref の頭に比べ直さない。比べ直すと別の版か空の表と比べて黙って通る）"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            git(root, "init", "-q", "-b", "main")
+            (root / "a.txt").write_text("a\n", encoding="utf-8")
+            git(root, "add", "-A")
+            git(root, "commit", "-q", "-m", "a")
+            self.assertIsNone(cf().fork_ref(root))            # origin/main が無い
+            git(root, "checkout", "-q", "--orphan", "other")
+            git(root, "commit", "-q", "-m", "b")
+            self.assertIsNone(cf().fork_ref(root, "main"))    # 共通の祖先が無い
 
 
 if __name__ == "__main__":

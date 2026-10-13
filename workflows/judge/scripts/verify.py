@@ -4,7 +4,6 @@
 # ///
 """判定の裏取りの支度（stage prep。lib/judge_accept.prep_on）とまとめ（stage merge。lib/judge_accept.merge_on）。
 支度は役の文の頭に足す言語の 1 行（始めの記録の lang から rolekit.lang_line）も lang_line で返す"""
-import json
 import os
 import sys
 from pathlib import Path
@@ -22,8 +21,7 @@ objection = os.environ.get("INPUTS_OBJECTION", "")
 if stage not in ("prep", "merge"):
     sys.exit(f"stage は prep か merge（{stage!r}）")
 try:
-    start_ptr = json.loads(os.environ.get("INPUTS_START") or "null")
-    lang = {"lang_line": rolekit.record_lang_line(None if start_ptr is None else boundary.resolve(start_ptr))}
+    lang = {"lang_line": rolekit.record_lang_line(boundary.pointed(os.environ.get("INPUTS_START")))}
 except (ValueError, AttributeError) as e:
     lang = {"lang_line": f"{rolekit.lang_line({})}（始めの記録のポインタを読めない: {e}。言語は既定にした）"}
 if objection.strip():   # 再審の道: 判定の道の裏取りは走らせず、置き場に触らない
