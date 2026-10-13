@@ -241,25 +241,6 @@ def start_record(problems: list) -> dict | None:
     return doc
 
 
-def transcript() -> tuple:
-    """run の記録の行と、読めなかった訳"""
-    log_dir, run_id = os.environ.get("LOG_DIR", ""), os.environ.get("WORKFLOW_ID", "")
-    if not log_dir or not run_id:
-        return None, "run の記録の置き場（LOG_DIR）か run の id（WORKFLOW_ID）が届いていない"
-    path = Path(log_dir) / f"{run_id}.jsonl"
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError as e:
-        return None, f"run の記録 {path} が読めない（{e.strerror or e}。dry-run は記録を書かない）"
-    rows = []
-    for record in lines:
-        try:
-            rows.append(json.loads(record))
-        except ValueError:
-            continue
-    return rows, ""
-
-
 def main() -> dict:
     sys.path.append(str(boundary.lib_root()))
     import outcome
@@ -278,7 +259,7 @@ def main() -> dict:
     problems, notes = outcome.record_problems(returns, gates, unread=unread, unopened=unopened)
     record = start_record(problems)
     start = record or {}
-    rows, transcript_why = transcript()
+    rows, transcript_why = boundary.transcript()
     typed_listing = read_listing()
     typed_listing["warnings"] = [*notes, *typed_listing["warnings"], *([transcript_why] if transcript_why else [])]
     facts = runreport.transcript_facts(rows, exclude_prefix=own_prefix(os.environ.get("ARCHON_NODE_EXECUTION", "")),

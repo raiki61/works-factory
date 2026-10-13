@@ -26,6 +26,7 @@ Archon に向いた事実（lib/ は Archon の名を持たない（lib/AGENTS.m
 - shared_cache(): run をまたぐ控えの根
 - RUNNER_PREFIXES・RUNNER_NAMES・drop_runner_env(): Archon が script の節に立てる変数
 - prev_reason(): 輪の頭の節の返り（前の周の受け付けの理由）
+- transcript(): この run の記録の行（Archon の logger が LOG_DIR に書く JSONL。節ごとの費用と落ちを読む）
 """
 import contextlib
 import json
@@ -210,6 +211,25 @@ def prev_reason() -> dict:
     """輪の頭の節の返り {reason}: 節の with: の reason（前の周の受け付けが拒んだ理由。1 周目は空の字）をそのまま返す。
     輪の中の役の節は自分の with: を結べない（workflows/AGENTS.md の E5）ので、役はこの節の返りを読む"""
     return {"reason": os.environ["INPUTS_REASON"]}
+
+
+def transcript() -> tuple:
+    """この run の記録（LOG_DIR/<WORKFLOW_ID>.jsonl）の行と、読めなかった訳。読めなければ (None, 訳)。JSON でない行は飛ばす"""
+    log_dir, run_id = os.environ.get("LOG_DIR", ""), os.environ.get("WORKFLOW_ID", "")
+    if not log_dir or not run_id:
+        return None, "run の記録の置き場（LOG_DIR）か run の id（WORKFLOW_ID）が届いていない"
+    path = Path(log_dir) / f"{run_id}.jsonl"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as e:
+        return None, f"run の記録 {path} が読めない（{e.strerror or e}。dry-run は記録を書かない）"
+    rows = []
+    for record in lines:
+        try:
+            rows.append(json.loads(record))
+        except ValueError:
+            continue
+    return rows, ""
 
 
 def _run_id() -> str:
