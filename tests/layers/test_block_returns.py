@@ -135,6 +135,20 @@ class BlockReturnsTest(unittest.TestCase):
         got = self.files(files)
         self.assertEqual([line.split("入力 ")[1].split(" ")[0] for line in got], ["ripple"], got)
 
+    def test_lib_constant_name_not_declared_as_input_is_red(self):
+        """逆向き: INPUTS_{…} を組む script が回す lib の部品の定数の名は、どれもブロックの inputs: に在る（無い名は空の字で届く。#344）"""
+        block = RETURNING.replace("nodes:\n", "inputs:\n  plan: {default: ''}\nnodes:\n", 1)
+        files = {BLOCK: block, LINE: "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
+                                     "  - id: r\n    script: r\n    with: {a: $judge.output.ready, b: $judge.output.units}\n",
+                 "lib/board.py": 'NAMES = ("plan", "world")\nOTHER = ("elsewhere",)\n',
+                 "workflows/judge/scripts/s.py": 'raw = {n: os.environ.get(f"INPUTS_{n.upper()}", "") for n in board.NAMES}\n'
+                                                 "x = board.OTHER\n"}
+        got = self.files(files)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("workflows/judge/scripts/s.py:1: board.NAMES の名 world", got[0])
+        files["lib/board.py"] = 'NAMES = ("plan",)\nOTHER = ("elsewhere",)\n'
+        self.assertEqual(self.files(files), [], "組む内包が回さない定数の名は照らさない")
+
     def test_input_passed_by_with_only_is_red(self):
         """YAML の with: で script へ渡すだけの $INPUTS.<名> は読み手に数えない（merge の diff を merge.py が読まないと赤）。
         YAML の役の節の prompt: の $INPUTS.<名> は数える"""

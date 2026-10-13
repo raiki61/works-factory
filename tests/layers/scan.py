@@ -33,6 +33,8 @@ RELATIVE_PATH = re.compile(r"(?:\.\./)+[^\s'\"`)]*")
 
 LIB = Path(__file__).resolve().parents[2] / "lib"
 LIB_CONST = re.compile(r"\b([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
+# INPUTS_{…} を組む内包の for が回す lib の部品の定数（`for name in fixboard.PREP_INPUTS`）
+BUILT_FROM = re.compile(r"INPUTS_\{[^}\n]*\}[^\n]*\bfor\s+\w+\s+in\s+([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
 OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
 OURS_PREFIX = OURS["name_prefix"]
 OURS_PACK = OURS["pack"]
@@ -577,7 +579,9 @@ def _role_reads(text: str, name: str) -> bool:
 
 def _inputs_read(root: Path) -> list[str]:
     """ブロックの inputs: の名は、そのブロックの script が INPUTS_<名> で読むか、役の指示書（commands/ と YAML の prompt:）が
-    $INPUTS.<名> で読む（宣言しただけで誰も読まない入力を残さない）。YAML の with: で script へ渡すだけの字は読み手に数えない"""
+    $INPUTS.<名> で読む（宣言しただけで誰も読まない入力を残さない）。YAML の with: で script へ渡すだけの字は読み手に数えない。
+    逆向きに、script が INPUTS_{…} を組んで回す lib の部品の定数（BUILT_FROM）の名は、どれもそのブロックの inputs: に在る
+    （宣言の無い名は Archon が渡さず、script は空の字を黙って読む）"""
     out = []
     for folder in _blocks(root):
         if folder.name == LINE_FOLDER:
@@ -585,14 +589,21 @@ def _inputs_read(root: Path) -> list[str]:
         path, document = _workflow_doc(folder)
         if document is None:
             continue
-        scripts = ["\n".join(_lines(root, p)[0]) for p in _files(folder, "scripts") if p.suffix == ".py"]
+        scripts = {p: "\n".join(_lines(root, p)[0]) for p in _files(folder, "scripts") if p.suffix == ".py"}
         roles = [p.read_text(encoding="utf-8", errors="replace") for p in _files(folder, "commands")]
         roles += [value.value for node in _nodes(document) if isinstance(value := _top(node, "prompt"), yaml.ScalarNode)]
         for key, value in _pairs(_top(document, "inputs")):
-            if not any(script_reads(text, key, root / "lib") for text in scripts) \
+            if not any(script_reads(text, key, root / "lib") for text in scripts.values()) \
                     and not any(_role_reads(text, key) for text in roles):
                 env = "INPUTS_" + key.replace("-", "_").upper()
                 out.append(f"{_rel(root, path)}:{_line(value)}: 入力 {key} に読み手が無い（script の {env} も指示書の $INPUTS.{key} も無い）")
+        declared = {key for key, _ in _pairs(_top(document, "inputs"))}
+        for script, text in scripts.items():
+            for module, const in BUILT_FROM.findall(text):
+                for name in _lib_names(root / "lib" / f"{module}.py", const):
+                    if name not in declared:
+                        out.append(f"{_rel(root, script)}:1: {module}.{const} の名 {name} が {_rel(root, path)} の inputs: に無い"
+                                   f"（INPUTS_{name.upper()} は空の字で届く）")
     return out
 
 
