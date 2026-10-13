@@ -7,7 +7,6 @@
 - 欄の名は形のどの深さの `properties` の名でもよい（`patternProperties` の値・`items`・`anyOf` などの中も）
 """
 import functools
-import importlib
 import pathlib
 import re
 import sys
@@ -20,6 +19,8 @@ if str(LIB) not in sys.path:
 if str(LIB / "graphloops") not in sys.path:
     sys.path.append(str(LIB / "graphloops"))
 
+import consult  # noqa: E402
+import tddloop  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 from tests.workflows.test_prompt_contracts import JSON_KEY, graph_nodes  # noqa: E402
 
@@ -50,7 +51,7 @@ def source_text(source) -> str:
     if ":" not in source:
         return (ROOT / source).read_text(encoding="utf-8")
     module, name = source.split(":")
-    value = getattr(importlib.import_module(module), name)
+    value = getattr({"consult": consult, "tddloop": tddloop}[module], name)
     return "\n".join(value.values()) if isinstance(value, dict) else str(value)
 
 
