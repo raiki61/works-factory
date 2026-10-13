@@ -38,7 +38,7 @@ import rolekit
 import startrec
 
 PREP_INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "depth", "answers", "units", "only_items", "baseline",
-               "prior_conflicts", "notes")   # prep の入力の字 raw の名（fix の節 prep と節 group-start が INPUTS_<名> で読む）
+               "prior_conflicts", "notes")   # prep の入力の字 raw の名（fix の script の prep.py と group_start.py が引く）
 TRACE_FILE = "trace.jsonl"
 ACCEPT_TRACE_FILE = "accept-trace.json"   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
