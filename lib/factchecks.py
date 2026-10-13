@@ -151,17 +151,17 @@ def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: 
     凍らせたファイルと実行器が作ったファイルは run の全部の輪の物（_loop_freeze・tddloop.suite_made_all）で、凍った後は一番後の
     輪の frozen_tree から見る（前の輪の後に 1 回目の段と後の輪が書いた物を、2 回目の修正役のせいにしない）。
     since は修正役が変え始めた木（受け付けは段の頭、修正役の並べの枝（fixlanes）は枝の今の項目の頭。fixlanes は repo に単位の
-    worktree を渡す）: 欠けは版からの差分の全部で見て、修正役に問う外れと余分は since の後に変えた分だけで見る（planscope.check。
+    worktree を渡す）: 欠けは版からの差分の全部で見て、修正役に問う外れと余分は since の後に変えた分（git の比べ）だけで見る（planscope.check。
     輪が直し終えた単位を修正役が変えずに返しても欠けにしない。同じ枝の前の項目が変えたファイルを、後の項目の out_of_scope で
     照らさない。run 97fd532f）。made は枝の実行器が作ったファイル"""
     b = board
     rows = [{"unit_key": k, "files": sorted(declared_files([c], repo))} for c, k in zip(reply.get("changes") or [], keys)]
     made = set(tddloop.suite_made(state)) | tddloop.suite_made_all(board) | set(made)
     rev = fixboard.base_rev(None, base_rev)
-    changed = set(writes.changed(repo, rev)) | set(writes.changed_from(repo, since) if since else ())
-    paths = sorted(p for p in changed if p not in made)
+    after = set(writes.changed_from(repo, since)) if since else None
+    paths = sorted(p for p in set(writes.changed(repo, rev)) | (after or set()) if p not in made)
     tree, frozen = (since, paths) if since else _loop_freeze(board, state)
-    problems, note = planscope.check(rows, b, repo, rev, paths, pass_=pass_, loop_tree=tree, frozen=frozen,
+    problems, note = planscope.check(rows, b, repo, rev, paths, pass_=pass_, loop_tree=tree, frozen=frozen, touched=after,
                                      agreed=agreed, items=items)
     if problems:
         if ask is None:

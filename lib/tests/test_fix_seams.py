@@ -1264,6 +1264,16 @@ class LaneChecksSeamCase(TempCase):
         lines, _ = fc.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since, items=[item])
         self.assertEqual(lines, [])
 
+    def test_plan_scope_skips_untouched_binary_and_crlf_files_written_before_since(self):
+        """since の前に書いた UTF-8 でない・CRLF のファイルも、since の後に触っていなければ後の項目の out_of_scope で照らさない
+        （触ったかは git の比べで決める。読み方の違う 2 つの文字列を比べない）"""
+        (self.repo / "IMG.bin").write_bytes(b"\xff\xfe\x00img")
+        (self.repo / "WIN.md").write_bytes(b"line one\r\nline two\r\n")
+        fc, since, item, reply = self.since_case()
+        item["out_of_scope"] += [{"glob": "IMG.bin", "why": "項目 2 では触らない"}, {"glob": "WIN.md", "why": "項目 2 では触らない"}]
+        lines, _ = fc.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since, items=[item])
+        self.assertEqual(lines, [])
+
     def test_plan_scope_counts_what_the_loop_fixed_before_since(self):
         """TDD の輪が直し終えた単位（stats.py の直しと adds・tests の test_mean_of_two）の後の木を since（段の頭）に取り、修正役が
         何も変えずにその単位の行だけを返せば、欠けにしない（修正役の指示書は輪の単位を直し直させない。較正 clamp-above）"""
