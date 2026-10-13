@@ -126,7 +126,7 @@
 ### `reads` 読んだ証拠
 
 - 状態: 住処あり
-- 住処: `lib/reads.py`（記録の根と作業の場ごとの記録のファイル `reads_path`・`log_here`、記録の名 `LOG`、置き場の読んだ証拠と索引の名の口 `evidence_name`・`index_name`・`is_index`・`EVIDENCE_GLOB`、役ごとの証拠を集める `collect`、役が web を引いた記録 `web_fetches`・`web_searches`）
+- 住処: `lib/reads.py`（記録の根と作業の場ごとの記録のファイル `reads_path`・`log_here`、記録の名 `LOG`、置き場の読んだ証拠と索引の名の口 `evidence_name`・`index_name`・`is_index`・`EVIDENCE_GLOB`、役ごとの証拠を集める `collect`、集めるノードの中の誤りを落ちた記録（`sources.hook` が `FAILED`）にして残す `guarded`・`failure_name`、役が web を引いた記録 `web_fetches`・`web_searches`）
 - 約束: 住処の名の口（置き場の名を使う所はこの口から引く）と、Read のフックの記録の行の形 `{ts, session_id, agent_id, path, file_sha, bytes, partial, partial_why, tool_use_id}`（Agent・WebFetch・WebSearch は path を持たない形）
 - 知ってよい所: 住処・Read のフックの殻 `bin/_lib/record-read.py`・各サブグラフの集めるノードの script `workflows/fix/scripts/fix_reads.py`・`workflows/plan/scripts/plan_reads.py`・`workflows/plan-review/scripts/review_reads.py`。記録の置き場の決め方（鍵・控え・片付け）は書き込みの記録の `lib/writelog.py` と共にする
 - 今: 外の当たりは `lib/writelog.py` の docstring の 1 行（置き場の決め方を共にする相手として記録の名を述べる）

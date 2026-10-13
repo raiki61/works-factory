@@ -4,7 +4,7 @@
 # ///
 """読んだ証拠の節（lib/planfile.collect_reads）: この周に起こした修正案の役が、機械が渡したパスを読んだかを、隔離した設定の
 フックの記録（lib/reads.log_here。隔離した Claude の設定の置き場の下）から集め、周のフォルダに reads-<役>.json と索引を書く。
-受け付けの条件にしない。返す節に結ばない。落ちない: 中の誤りは ok: false と訳で返す。返り {ok, missing, index_file, reason}"""
+受け付けの条件にしない。返す節に結ばない。落ちない: 中の誤りは ok: false と訳で返し、置き場に落ちた記録（lib/reads.guarded）を残す。返り {ok, missing, index_file, reason}"""
 import json
 import os
 import sys
@@ -24,11 +24,14 @@ def collected() -> None:
     import policy
     import reads
 
-    start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
-    got = planfile.collect_reads(Path(os.environ["ARTIFACTS_DIR"]) / os.environ["INPUTS_DIR"],
-                                 reads.log_here(), role=ROLE, quiet=QUIET,
-                                 policy_md=policy.frozen_copy(start if isinstance(start, dict) else {}), repo=Path.cwd())
-    boundary.returns({**got, "reason": ""})
+    round_dir = Path(os.environ["ARTIFACTS_DIR"]) / os.environ["INPUTS_DIR"]
+
+    def collect():
+        start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
+        return planfile.collect_reads(round_dir, reads.log_here(), role=ROLE, quiet=QUIET,
+                                      policy_md=policy.frozen_copy(start if isinstance(start, dict) else {}), repo=Path.cwd())
+
+    boundary.returns(reads.guarded(collect, owner=ROLE, place=round_dir))
 
 
 def main() -> int:

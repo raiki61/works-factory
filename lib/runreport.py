@@ -1335,8 +1335,10 @@ def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, t
         shown = "・".join(_shown(p, repo) for p in files[:SHOWN_FILES]) + (f" ほか {len(files) - SHOWN_FILES} 件" if len(files) > SHOWN_FILES else "")
         out.append(f"  - {step}: " + "・".join(f"{tool} {len(mine[tool])} 件" for tool in PATH_TOOLS) + (f"（ファイル: {shown}）" if files else ""))
     out.append(HOOK_HEAD)
-    found = sorted(p for p in artifacts.rglob(reads.EVIDENCE_GLOB) if not reads.is_index(p.name) and out_dir not in p.parents)
-    out += [f"  - {_evidence_line(p, p.relative_to(artifacts).as_posix(), repo)}" for p in found] \
+    found = sorted(p for p in artifacts.rglob(reads.EVIDENCE_GLOB) if out_dir not in p.parents)
+    out += [f"  - {x}" for p in found
+            for x in (_index_lines(p, p.relative_to(artifacts).as_posix()) if reads.is_index(p.name)
+                      else [_evidence_line(p, p.relative_to(artifacts).as_posix(), repo)])] \
         or ["  - 読んだ証拠のノードが記録を書いていない（役を起こしていないか、ノードが走っていない）"]
     shell = {step: mine[SHELL_TOOL] for step, mine in calls.items() if mine[SHELL_TOOL]}
     counted = (f"。Bash の呼び {sum(shell.values())} 回" + (": " + "・".join(f"{s} {n}" for s, n in shell.items()) if shell else "")
@@ -1344,10 +1346,21 @@ def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, t
     return [*out, UNSEEN + counted, CHILD_RUNS]
 
 
+def _index_lines(path: pathlib.Path, rel: str) -> list:
+    """索引が名指す訳（役を起こしていない段など）。役ごとの行は役ごとの証拠のファイルが出すので、ここは訳だけ"""
+    try:
+        why = json.loads(path.read_text(encoding="utf-8")).get("why")
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [f"{rel}: {oneline.one_line(why)}"] if isinstance(why, str) and why else []
+
+
 def _evidence_line(path: pathlib.Path, rel: str, repo) -> str:
     doc, why = reads.read_evidence(path)
     if doc is None:
         return f"{rel}: 読めない（{why}）"
+    if doc["sources"].get("hook") == reads.FAILED:
+        return f"{doc['role']}（{rel}）: 読んだ証拠のノードが落ちた（{doc['sources'].get('why') or '訳の記録が無い'}）"
     if doc["sources"].get("hook") != reads.RECORDED:
         return f"{doc['role']}（{rel}）: 測れない（{doc['sources'].get('why') or '訳の記録が無い'}）"
     missing = [str(m) for m in doc["missing"]]
