@@ -930,7 +930,7 @@ def collect_reads(round_dir, log, *, role: str, quiet: tuple, policy_md: str, re
                             repo=repo, replan=again)
         index[reads.role_key(role, again)], missing = got["reads_file"], got["missing"]
     else:
-        index["why"] = f"{reads.NOT_LAUNCHED}: {rnd['why']}"
+        index[reads.INDEX_WHY] = f"{reads.NOT_LAUNCHED}: {rnd['why']}"
     out = _write_json(round_dir / reads.index_name(ROLE, again), index)
     return {"ok": True, "missing": missing, "index_file": str(out)}
 

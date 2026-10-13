@@ -1373,11 +1373,8 @@ def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, t
 
 def _index_lines(path: pathlib.Path, rel: str) -> list:
     """索引が名指す訳（役を起こしていない段など）。役ごとの行は役ごとの証拠のファイルが出すので、ここは訳だけ"""
-    try:
-        why = json.loads(path.read_text(encoding="utf-8")).get("why")
-    except (OSError, ValueError, AttributeError):
-        return []
-    return [f"{rel}: {oneline.one_line(why)}"] if isinstance(why, str) and why else []
+    why = reads.index_why(path)
+    return [f"{rel}: {oneline.one_line(why)}"] if why else []
 
 
 def _evidence_line(path: pathlib.Path, rel: str, repo) -> str:

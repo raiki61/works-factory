@@ -227,7 +227,7 @@ def collect_reads(place, log, *, repo) -> dict:
         index[role] = got["reads_file"]
         missing += got["missing"]
     if idle:
-        index["why"] = f"{reads.NOT_LAUNCHED}: {'・'.join(idle)}"
+        index[reads.INDEX_WHY] = f"{reads.NOT_LAUNCHED}: {'・'.join(idle)}"
     out = write_json(p / reads.index_name(READS_OWNER), index)
     return {"ok": True, "missing": missing, "index_file": str(out)}
 
