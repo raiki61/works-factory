@@ -995,6 +995,18 @@ def _blk_write(path, doc):
     return path
 
 
+_WORLD_ROW = {"finding": 1, "where": "stats.py", "class_id": "mean-denominator", "problem": "平均の分母の取り違え",
+              "activity": "算術", "practice": "算術平均は要素の数で割る", "sources": [], "applies": "mean の分母",
+              "not_applies": "", "versus": {"proposed": "分母を直す", "verdict": "same", "challenge": ""}, "basis": "knowledge"}
+_WORLD_LINES = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in (
+    _WORLD_ROW, {**_WORLD_ROW, "finding": 2, "class_id": "mean-empty", "problem": "空の並びの平均"}))
+
+
+def _blk_world(path, text=_WORLD_LINES):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
 def _blk_ptr(rel):
     return json.dumps({"type": "archon_artifact", "run_id": _BLK_RUN, "path": rel})
 
@@ -1165,13 +1177,13 @@ class BlockScriptsCase(unittest.TestCase):
         import gatemarks
         import planmarks
         _blk_write(self.art / "in" / "ripple.json", [{"path": "stats.py"}])
-        _blk_write(self.art / "in" / "world.json", {"facts": []})
+        _blk_world(self.art / "in" / "world.jsonl")
         _blk_write(self.art / "in" / "baseline.json", {"cases": [], "exit": 0, "suite": "", "test_cmd": "", "rev": "HEAD"})
         inputs = self.prep_inputs()
         judgment_dir = self.art / json.loads(inputs["judgment"])["path"].rsplit("/", 1)[0]
         _blk_write(judgment_dir / gatemarks.BESIDE[0], {"rounds": {"1": []}})   # 判定の隣の結びと素材の状態
         _blk_write(judgment_dir / gatemarks.BESIDE[1], {"ci": {"status": "not_run"}})
-        inputs = {**inputs, "ripple": _blk_ptr("in/ripple.json"), "world": _blk_ptr("in/world.json"),
+        inputs = {**inputs, "ripple": _blk_ptr("in/ripple.json"), "world": _blk_ptr("in/world.jsonl"),
                   "baseline": _blk_ptr("in/baseline.json"), "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]',
                   "answers": '{"decision": "approve", "text": "stats.py の外は触らない"}', "units": '["A"]',
                   "only_items": '["1"]', "plan_review": _blk_ptr("in/review.json"), "notes": "## 直した項目 1 の事前審査の穴"}
@@ -1182,6 +1194,20 @@ class BlockScriptsCase(unittest.TestCase):
         own = {fixboard.GROUPS_FILE, "fix-ignored-before.json", fixboard.marks_path(self.place).name,
                fixboard.TRACE_FILE, planmarks.FIELDS_FILE}
         self.assertEqual(written - own, set(fixboard.ADOPTED))
+
+    def test_prep_takes_world_of_two_rows(self):
+        """入力 world（judge/world.jsonl。JSON Lines）が 2 行以上でも prep は落ちない（読み方の持ち主は worldmark）"""
+        _blk_world(self.art / "in" / "world.jsonl")
+        code, _, err = _blk_run("prep", self.repo, self.art, {**self.prep_inputs(), "world": _blk_ptr("in/world.jsonl")},
+                                "fix__prep")
+        self.assertEqual(code, 0, err)
+
+    def test_prep_refuses_a_broken_world_row(self):
+        _blk_world(self.art / "in" / "world.jsonl", _WORLD_LINES + "{]\n")
+        code, _, err = _blk_run("prep", self.repo, self.art, {**self.prep_inputs(), "world": _blk_ptr("in/world.jsonl")},
+                                "fix__prep")
+        self.assertNotEqual(code, 0)
+        self.assertIn("世界の解の行 3", err)
 
     def test_prep_takes_the_gate_answers_into_the_duty(self):
         """修正前の関所で答えた問いの単位は直す義務に戻り、答えていない問いの単位は外れる（gatemarks.returned・withheld_by）。
@@ -1545,6 +1571,37 @@ class BlockScriptsCase(unittest.TestCase):
             self.assertEqual(out, {"go": False, "count": 0})
             self.assertFalse((self.place / "conflicts-dropped.json").exists())
 
+    def test_conflict_check_keeps_claims_citing_their_own_child_place(self):
+        """依頼 290: 子の申し出が名指す子の置き場（結果の place）の brief は、その組の名指しの根に許す（元 works の共有の盤面。
+        子の受け付けが許した根と同じ）。ほかの組の置き場は許さない。brief の無い run の機械の諦め（between が空）は照らさずに積み、
+        役の申し出の空の between は落とす"""
+        child = self.tmp / "child-g1"
+        child.mkdir()
+        (child / "brief-1.md").write_text("# brief\n", encoding="utf-8")
+        other = self.tmp / "child-g2"
+        other.mkdir()
+        giveup = {"unit_key": "A", "between": [f"{child}/brief-1.md:1"], "why_both_cannot_hold": "赤の確かめが 3 回とも通らなかった",
+                  "which_is_right": "unknown", "kind": "needs_context", "source": "tdd-gave-up"}
+        bare = {**giveup, "unit_key": "C", "between": []}
+        start = self.snapshot(self.repo)
+        out_dir = self.groups_file([{"group_id": g, "unit_ids": [k], "items": []} for g, k in (("g1", "A"), ("g2", "B"), ("g3", "C"))],
+                                   start, par=False)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], start, start, conflicts=[giveup], place=str(child)))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], start, start, conflicts=[{**giveup, "unit_key": "B"}],
+                                                               place=str(other)))
+        _blk_write(out_dir / "g3" / "result.json", _blk_result("g3", ["C"], start, start, conflicts=[
+            bare, {**bare, "unit_key": "D", "source": "tdd"}], place=""))
+        _blk_write(self.place / "join.json", {"par": False, "units": [], "groups": [
+            {"group_id": g, "unit_ids": [k], "returned": True, "reason": ""} for g, k in (("g1", "A"), ("g2", "B"), ("g3", "C"))]})
+        code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
+        self.assertEqual(code, 0, err)
+        items = json.loads((self.place / "conflicts.json").read_text(encoding="utf-8"))["items"]
+        self.assertEqual([(r["unit_key"], r["source"]) for r in items], [("A", "tdd-gave-up"), ("C", "tdd-gave-up")])
+        dropped = json.loads((self.place / "conflicts-dropped.json").read_text(encoding="utf-8"))["dropped"]
+        self.assertEqual([d.split(":", 1)[0] for d in dropped], ["g2", "g3"])
+        self.assertIn("（B）", dropped[0])
+        self.assertIn("（D）", dropped[1])
+
     # ---- tdd_unit.py
     def test_tdd_unit_writes_one_body_for_all_groups(self):
         start = self.snapshot(self.repo)
@@ -1830,7 +1887,8 @@ class BlockScriptsCase(unittest.TestCase):
 
     def test_group_permits_reach_join_and_collect_only_for_an_accepted_reply(self):
         """#286: 修正役の返答を受け付けていない組の子の許しは、join の和（同じテストのファイルへの挿しだけの食い違いを合わせる）にも
-        親の collect の返りの allowed_test_changes・diff の隣の allowed-tests.json にも入らない。受け付けた組の許しは両方に入る"""
+        親の collect の返りの allowed_test_changes・diff の隣の allowed-tests.json にも入らない。受け付けた組の許しは両方に入る。
+        #304: 形の崩れた許しの行（path の無い行・ALLOWED_SOURCES に無い source）は join も collect も同じ決まりで捨て、join は落ちない"""
         import fixboard
         child = {"path": "test_stats.py", "permit": "plan-agreed-2", "source": "consult"}
         src = (self.repo / "test_stats.py").read_text(encoding="utf-8")
@@ -1839,13 +1897,17 @@ class BlockScriptsCase(unittest.TestCase):
         def added(name):
             return src.replace(tail, f"class {name}(unittest.TestCase):\n    def test_{name.lower()}(self):\n"
                                      f"        self.assertTrue(True)\n\n\n{tail}")
-        for reply, returned, rows in ((None, 1, []), ({"changes": []}, 2, [child])):
-            with self.subTest(reply=reply):
+        malformed = [{"permit": "plan-3", "source": "plan"}, {"path": "test_other.py", "permit": "x-1", "source": "guess"}]
+        bad_source = [{"path": "test_stats.py", "permit": "x-1", "source": "guess"}]
+        for reply, returned, given, rows, extra in ((None, 1, [child], [], []), ({"changes": []}, 2, [child], [child], []),
+                                                    ({"changes": []}, 2, [child], [child], malformed),
+                                                    ({"changes": []}, 1, [], [], bad_source)):
+            with self.subTest(reply=reply, extra=extra):
                 __import__("shutil").rmtree(self.art, ignore_errors=True)
                 self.restore()
                 self.place.mkdir(parents=True)
                 permits = fixboard.group_result({"group_id": "g2", "unit_ids": ["B"]}, start_tree="", end_tree="", tdd=None,
-                                                reply=reply, allowed_rows=[child])["allowed_tests"]
+                                                reply=reply, allowed_rows=given)["allowed_tests"] + extra
                 start = self.snapshot(self.repo)
                 t1, t2 = self.tree_with({"test_stats.py": added("TestG1")}), self.tree_with({"test_stats.py": added("TestG2")})
                 out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
@@ -2332,7 +2394,7 @@ class GroupChildScriptsCase(unittest.TestCase):
 
     def test_tdd_head_reuses_the_test_gate_base_test_cmd(self):
         """test-gate の base が線の run の置き場に控えた test_cmd の緑を、fix の組の子の run の TDD の輪の頭が引く（同じ run の中で
-        2 度走らせない）。置き場（fixio.line_top）・run の名（始めの記録の run_id）・落とす変数・2 つの起こし口の指紋が揃って当たる"""
+        2 度走らせない）。置き場（group_start.line_top）・run の名（始めの記録の run_id）・落とす変数・2 つの起こし口の指紋が揃って当たる"""
         count = self.tmp / "test-cmd-count"
         test_cmd = f"{sys.executable} -c \"open({str(count)!r}, 'a').write('1\\n')\""
         line = self.tmp / "parent-art"
@@ -2466,7 +2528,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertIn("test_stats.py", frozen)
 
     def test_fix_accept_rejects_a_change_under_the_skip_head(self):
-        """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は fixio.SKIP）、fix-accept が
+        """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は boundary.SKIP）、fix-accept が
         その下を変えた返答を拒む（元 works/blk-fix/scripts/accept.py:234 check_pack_copy・:663）"""
         import fixboard
         copy = self.repo / ".archon" / "workflows" / "x.yaml"
@@ -2511,7 +2573,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "x_scalars", "allowed_tests", "verified",
                                        "reply_file", "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace", "closure",
-                                       "claimed"})
+                                       "claimed", "place"})
         # F427・F428・F013: 子の置き場の受け入れた壊れ・閉鎖の表・受け付けの知らせを、親の collect へ結果で運ぶ
         self.assertEqual((result["handoffs"], result["claimed"], result["closure"]),
                          ([f"{_GRP_MEAN}: 壊すと分かって通した——空の列の平均の値が変わる"], [_GRP_MEAN], [closure]))
@@ -2527,6 +2589,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((result["objection"], [t["path"] for t in result["allowed_tests"]], result["verified"], result["conflicts"]),
                          ("単位の見立てが違う", ["test_stats.py"], [], []))
         self.assertEqual(result["reply_file"], str(self.place / "fix-reply.json"))
+        self.assertEqual(result["place"], str(self.place), "親の conflict-check がこの組の名指しに許す根")
 
     def test_group_end_lists_allowed_tests_only_for_an_accepted_reply(self):
         """受け付けが通らず fix-reply.json が無い組は、置き場に許しが在っても許しの訳 allowed_tests を

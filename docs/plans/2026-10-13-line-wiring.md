@@ -18,11 +18,11 @@
 - 層の決まり: 各階層の `AGENTS.md` の決まり E1〜E18 と、それを照らす `tests/layers/`（走査器 `tests/layers/scan.py`）。この文書では「層の E3」のように書き、能力の棚卸しの区分 E の行（独立の目の行。ID の一覧の中の E17 など）と分ける。
 - 能力の棚卸し: この文書と一緒に置く `docs/plans/2026-10-13-capabilities/`（`README.md` と 6 ファイル: `line.md` 区分 L と線への申し送り S、`judge.md` 区分 J、`plan.md` 区分 P、`fix.md` 区分 F、`tail.md` 区分 T・E・R・M、`pitfalls.md` 区分 K）。1 行 = 1 つの能力で、欄は 5 つ:
   - 元: 今の works の file:line と関数
-  - 今: works-factory の住処（file:line と関数）か「無し」
-  - 証: その能力を外すと赤になる試験の名と assert の行。無ければ「要追加: <試験の名> — <何を照らすか>」
+  - 今: works-factory の住処（`path::名`。YAML は `path::節の id`）か「無し」
+  - 証: その能力を外すと赤になる試験（`path::Class.test_name`）。無ければ「要追加: <試験の名> — <何を照らすか>」
   - 本物の run: 本物の run の記録のどこで見えるか、か「筋書きでのみ」
   - 狭め: 「無し」か、どの PR が狭めたかと「Archon で不可（源の行）」か「不可でない → 戻す」
-  - 「今」の行番号は main `4e0e18d` と、線は PR #74 の head `824dee3` の物。#74 の 5 回目の直しで線の行番号はずれるので、関数と節の id で引く。
+  - 「今」「証」に行番号は書かない。指しの形は棚卸しの `README.md` の「指しの形」が正で、`tests/layers/test_capability_pointers.py` が照らす。
 - 行の印（この文書の「閉じる行」の頭）: 〔無〕今の住処が無い・〔戻〕狭めたが Archon で不可でない・〔試〕証の試験が無いか弱い・〔縛り済み〕証が在る（壊さない）。閉じる行の文は棚卸しの行の頭の 1 文の写しで、詳しい元と試験は棚卸しのその行。
 - 止めた Archon: `factory/pack.json` の commit `d97d00ef15cce4b15d39e42635e4e86996ec1351` の源（CI と同じ取り方。`bin/_lib/place.py` の `archon_folder`）。下の Archon の file:line はその `packages/` からの相対。
 - 段 1: 段 1 の計画 `docs/plans/2026-10-13-stage1-walking-skeleton.md`。本物の役で線を通しで回し、能力の行を run の記録で照らす（照らしの表 `tests/e2e/evidence.json`）。

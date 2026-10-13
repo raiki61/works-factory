@@ -26,9 +26,9 @@ ASF（Archon という AI の工程を回す道具の作者が作った、issue 
 
 目的: 今の works の能力の棚卸しの行ごとに、本物の run の記録に跡が在るかを、照らしの表 `tests/e2e/evidence.json` と照らしの道具 `tests/e2e/evidence.py` で機械に照らさせる。
 
-期待: `check` が `absent`（見えるはずの行が見えない）も `unreadable`（記録が読めない）も 0 件で終わる。`unexpected`（まだ見えない扱いの行が見えた）は落ちたとしないが、行を全部書き出す。
+期待: `check` が `absent`（見えるはずの行が見えない）も `unreadable`（記録が読めない）も 0 件で、`waits-part`（部分が入るまでの行）の行が残らずに終わる。`seed-cannot`・`backlog`・`handed-off` の行が見えた `unexpected` は落ちたとしないが、行を全部書き出す。
 
-**落ちたと言える物:** `absent` か `unreadable` の行が 1 つでも在る。
+**落ちたと言える物:** `absent` か `unreadable` の行が 1 つでも在る。`waits-part` の行が 1 つでも残る（見えて `unexpected` と出た行も）。
 
 ## `changed-diff-refused`
 

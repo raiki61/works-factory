@@ -1229,6 +1229,17 @@ nodes:
               tests:
                 type: array
                 items: {type: string}
+              red_quotes:
+                type: object
+                additionalProperties: false
+                patternProperties:
+                  ^.+$:
+                    type: object
+                    additionalProperties: false
+                    required: [quote, why]
+                    properties:
+                      quote: {type: string}
+                      why: {type: string}
               direct_why: {type: string}
               files:
                 type: array

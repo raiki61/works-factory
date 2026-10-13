@@ -43,6 +43,7 @@ with boundary.guarded_imports():
     import gatemarks
     import gatepolicy
     import judge_accept
+    import oneline
     import protect
     import querytest
     import replan
@@ -221,13 +222,13 @@ def eye_lines(got: dict) -> list:
             missing.append(name.upper())
             lines.append(f"  - {gatemarks.EYES[name.upper()]}（{name.upper()}）: 結果が無い（深さで省いたか、目のサブグラフが返さなかった）")
             continue
-        reason = " ".join(str(row.get("reason") or "").split())
+        reason = oneline.one_line(row.get("reason") or "")
         lines.append(f"  - {gatemarks.eye_named(name.upper(), row.get('status'))}" + (f"——理由: {reason}" if reason else ""))
         if name == "r2":
             lines += [f"    - {x}" for x in got["r2_inputs"]]
     premise = got["eyes"].get("premise_check")
     if isinstance(premise, dict):
-        lines.append(f"  - 前提の検算: {premise.get('verdict') or '語が無い'}（{' '.join(str(premise.get('reason') or '').split())}）")
+        lines.append(f"  - 前提の検算: {premise.get('verdict') or '語が無い'}（{oneline.one_line(premise.get('reason') or '')}）")
         lines += [f"    - {x}" for x in got["premise_facts"]]
     blocked = blocked_eyes(got)
     lines.append(f"- 残り（最後の承認ノードで数えられる分）: 独立の目の阻害 {len(blocked)} 件（{'・'.join(blocked) or '無し'}）・"
@@ -329,7 +330,7 @@ def asked_conflicts(pointers) -> tuple:
             rows += conflict.human_lines(folder)
         except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
             where = ptr.get("path") if isinstance(ptr, dict) else ptr
-            unread.append(f"{where}: {type(error).__name__}: {' '.join(str(error).split())}")
+            unread.append(f"{where}: {type(error).__name__}: {oneline.one_line(error)}")
     return rows, unread
 
 
@@ -450,7 +451,7 @@ def review_rows(reviews) -> tuple:
             passes += gatemarks.passes_of(folder)
             rounds += gatemarks.converge_of(folder)
         except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
-            unread.append(f"事前審査の隣の控え（通した行・往復）を読めない（{type(error).__name__}: {' '.join(str(error).split())}）")
+            unread.append(f"事前審査の隣の控え（通した行・往復）を読めない（{type(error).__name__}: {oneline.one_line(error)}）")
     return passes, rounds, unread
 
 

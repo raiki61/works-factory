@@ -1497,6 +1497,18 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual(fixboard.owed_keys(judgment), ["A", "B"])
         self.assertEqual(fixboard.owed_keys(None), [])
 
+    def test_child_allowed_rows_share_the_row_check_with_collect(self):
+        """#304: 組の子の結果の許しの訳は join の和と collect（allowed_test_rows）が同じ口で読む。path・permit の無い行と
+        ALLOWED_SOURCES に無い source の行はどちらにも入らない"""
+        good = {"path": "tests/t.py", "permit": "plan-1", "source": "plan"}
+        result = {"allowed_tests": [good, {"permit": "plan-2", "source": "plan"}, {"path": "tests/u.py", "source": "plan"},
+                                    {"path": "tests/v.py", "permit": "x-1", "source": "guess"}, {"path": "", "permit": "p", "source": "plan"},
+                                    {"path": 7, "permit": "p", "source": "plan"}, {"path": "tests/w.py", "permit": 3, "source": "plan"},
+                                    "壊れた行", good]}
+        self.assertEqual(fixboard.child_allowed_rows(result), [good, good])
+        self.assertEqual(fixboard.allowed_test_rows(self.place, [result]), [good])
+        self.assertEqual((fixboard.child_allowed_rows(None), fixboard.child_allowed_rows({"allowed_tests": None})), ([], []))
+
     def test_fix_groups_join_units_through_items(self):
         items = [{"item": 1, "unit_keys": ["A", "C"]}, {"item": 2, "unit_keys": ["C", "D"]}, {"item": 3, "unit_keys": ["B"]}]
         got = fixboard.fix_groups(["A", "B", "C", "D", "E"], items)
@@ -1807,8 +1819,8 @@ class GroupChildSeamCase(TempCase):
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                     "objection", "changed", "x_scalars", "allowed_tests", "verified",
                                     "reply_file", "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace", "closure",
-                                    "claimed"})
-        self.assertEqual(got["worktree"], "", "渡さなければ空")
+                                    "claimed", "place"})
+        self.assertEqual((got["worktree"], got["place"]), ("", ""), "渡さなければ空")
         self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"]), ([], [], [], []))
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])

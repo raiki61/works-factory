@@ -1450,7 +1450,8 @@ class AskFinalReadsCase(Artifacts):
     def test_final_text_lists_suites_baseline_and_left_tests(self):
         """L-W28・T35: 最後のテストの返りの欄（with: の by・suites_line・log・baseline_line・tests_reason）から、一式・修正前のテスト・
         ログ・認証しなかった訳を字のまま出し、作業ツリーと並べる（証拠の文は開かない）。関門が返さなかった（飛ばされた節の null）時は
-        その旨と「取れない」。手元で回さなかった試験（ci_left・final_left・final_far）は修正の返りに控えが無い（F013。部分 D2）"""
+        その旨と「取れない」。返す節の中の誤り（by の空の字）は返らなかった形と分ける。手元で回さなかった試験（ci_left・final_left・
+        final_far）は修正の返りに控えが無い（F013。部分 D2）"""
         with_ = line_nodes()["ask-final"]["with"]
         self.assertEqual({k: with_[k] for k in ("by", "suites_line", "log", "baseline_line", "tests_reason")},
                          {"by": "$test-gate-final.output.by", "suites_line": "$test-gate-final.output.suites_line",
@@ -1470,6 +1471,8 @@ class AskFinalReadsCase(Artifacts):
         self.assertEqual((got["suites"], got["log"], got["baseline"], got["reason"]), (missing, missing, f"修正前のテスト: {missing}", ""))
         self.assertIn(f"- {got['unread']}", ask_final.final_text(final_got(tests=got, tests_ok=False), [], RUN))
         self.assertTrue(got["unread"])
+        with mock.patch.dict(os.environ, {k: "" for k in returned}):
+            self.assertEqual(ask_final.final_tests()["unread"], "")
 
     def test_deleted_files_named(self):
         """M38: 封じた差分の中で消えるファイルを、当てる前に 1 本ずつ名指す（「取り込むと消えるファイル: <パス>」）"""

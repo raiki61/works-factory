@@ -21,6 +21,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import accept  # noqa: E402
 import fixboard  # noqa: E402
+import oneline  # noqa: E402
 import refix  # noqa: E402
 import rolekit  # noqa: E402
 
@@ -53,4 +54,4 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        sys.exit(f"delta-accept: {type(e).__name__}: {' '.join(str(e).split())}")
+        sys.exit(f"delta-accept: {type(e).__name__}: {oneline.one_line(e)}")

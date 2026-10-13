@@ -17,6 +17,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
 import consult  # noqa: E402
+import oneline  # noqa: E402
 
 NODES = {"first": "consult-answer", "ruled": "ruled-consult-answer"}   # 答えの役の節（記録に残す）
 
@@ -37,6 +38,6 @@ if __name__ == "__main__":
     try:
         out = main()
     except Exception as e:
-        print(f"consult-accept: {type(e).__name__}: {' '.join(str(e).split())}", file=sys.stderr)
+        print(f"consult-accept: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
     boundary.returns(out)
