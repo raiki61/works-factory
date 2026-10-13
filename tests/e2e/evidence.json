@@ -1005,7 +1005,7 @@
 {"id": "R54", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
 {"id": "R55", "kind": "seed-cannot", "why": "種の run は読めない物が出ない見込みで、見出しと「無い」の行はどの run でも出る"},
 {"id": "R56", "kind": "seed-cannot", "why": "節の行の形はどの run でも同じで、働かなかった run と分けられない（形は lib/tests/test_runreport.py が縛る）"},
-{"id": "R57", "kind": "seen", "writer": "lib/runreport.py::build", "check": "exists", "where": "parent/report/next-request.json"},
+{"id": "R57", "kind": "seed-cannot", "why": "次の依頼は渡す物（残りの所見・答えの下書き・制約）が在る時だけ書く（lib/runreport.py::build の next_file）。種の run は役の判断しだいで残りが出たり出なかったりする（f3a32503 は R1 の redesign-needed で残りが在り書かれた。59cf0db7 は fixed で残り 0 件のため無い）", "check": "exists", "where": "parent/report/next-request.json"},
 {"id": "R58", "kind": "seed-cannot", "why": "種の直しは受け付けを通り止めの語も無い見込みで、前の失敗の行が無く prior-failures.json は書かれない", "check": "exists", "where": "parent/report/prior-failures.json"},
 {"id": "R59", "kind": "scenario-only", "why": "筋書きでのみ（run の後の手）"},
 {"id": "R60", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},
