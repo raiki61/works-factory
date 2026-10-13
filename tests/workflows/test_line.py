@@ -1821,6 +1821,19 @@ class FixedCase(unittest.TestCase):
         self.assertIn("x_scalars", block_doc("works-factory-fix")["nodes"][-1]["output_format"]["required"])
 
 
+    def test_fields_are_every_field_fix_returns_and_fixed_takes_them_all(self):
+        """fixed.FIELDS は fix の返す節の output_format の欄の組と同じで、fixed は 1 回目（fix）と 2 度目（refix-run）の欄の全部を
+        fix_<欄>・refix_<欄> で受ける（片側だけ変えると欄が黙って落ちる。stop_reason は refix-run から fixed を通ってだけ報告に届く）"""
+        doc = block_doc("works-factory-fix")
+        returns = next(n for n in doc["nodes"] if n["id"] == doc["returns"])
+        self.assertEqual(set(fixed.FIELDS), set(returns["output_format"]["properties"]))
+        took = line_nodes()["fixed"]["with"]
+        for prefix, node in (("fix", "fix"), ("refix", "refix-run")):
+            with self.subTest(node=node):
+                self.assertEqual({f: took.get(f"{prefix}_{f}") for f in fixed.FIELDS},
+                                 {f: {"from": f"${node}.output.{f}", "if_skipped": None} for f in fixed.FIELDS})
+
+
 class RedepthCase(Artifacts):
     LIGHT = [{"unit_id": "u1", "depth": "軽量", "why": "配線だけ"}]
 
