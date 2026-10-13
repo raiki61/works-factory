@@ -1,0 +1,10 @@
+{
+ "status": "pass",
+ "surfaced": [
+  {
+   "where": "stats.py:5-9 / README.md:5 / stats.py:46",
+   "text": "[suggest] 差分が空で、mean は未変更です。仮に将来 n-1 に変えると、要素 1 個のとき ZeroDivisionError になります。README の「空は ValueError」だけでは、この境界が利用者に伝わりません。CLI（stats.py:46）も 1 個の引数で落ちます。",
+   "mechanism": "分母 len(xs)-1 が、len==1 のとき 0 になる。"
+  }
+ ]
+}

@@ -1,0 +1,14 @@
+{
+ "workflow_name": "works-factory-line",
+ "completed_at": "2026-10-13T18:49:02.000Z",
+ "metadata": {
+  "total_cost_usd": 6.0523279
+ },
+ "terminal_record": {
+  "returns": {
+   "value": {
+    "outcome": "needs_human"
+   }
+  }
+ }
+}

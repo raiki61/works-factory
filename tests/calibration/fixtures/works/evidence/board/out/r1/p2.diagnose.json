@@ -1,0 +1,10 @@
+{
+ "units": [
+  {
+   "key": "stats.py mean: 分母が len(xs) - 1 で算術平均を返さず要素 1 個で ZeroDivisionError",
+   "label": "block",
+   "disposition": "do-now",
+   "reason": "事実: stats.py:9 が `return sum(xs) / (len(xs) - 1)` で、HEAD の commit 2e86a23 が入れた（diff-r1.patch の 1 行）。実測（前提 p0 と P1 の目の全部）では、mean([1,2,3]) が 3.0、mean([2,4]) が 6.0 で、値は常に n/(n-1) 倍になる。mean([5]) は ZeroDivisionError を上げ、docstring と README の「空なら ValueError」の約束の外の例外になる。test_mean_of_three が 3.0 != 2.0 で赤（8 件中 1 件）。CLI の `python3 stats.py 1 2 3` は README の 2.0 でなく 3.0 を出す。依頼の行（stats.py「平均を標本の式にそろえる（分母を n - 1 にする）」）への反証: 凍結した目的は「標本の式に整合した結果」で、標本平均の定石は Σx/n。n−1（ベッセル補正）は標本分散と標本標準偏差の式だけに使う（世界の解 w-a6e73479200a、Python 標準の statistics.mean も n で割る）。依頼の解き方（平均の分母を n−1 にする）は目的に照らして誤りで、目的を満たすのは分母 n の方。依頼の前提「今は n で割っている」も成り立たない（p0: もう n−1 になっている）。先行議論の突合に、平均を n−1 で割るという人の決定は無い（prior_decisions clean）。README・docstring・既存の試験は 3 つとも算術平均を約束している。反証で殺せなかった。n=1 の ZeroDivisionError・README と CLI の 3.0・docstring との食い違い・赤の試験・stats.py:1 の「全部の試験が緑」は、どれもこの 1 行を直せば一緒に閉じる同じ欠陥の現れなので、1 つの単位に束ねた（P1 の目の false_positive_if もみな「分母を len(xs) に戻せば消える」と言う）。README を 3.0 に書き換える向きの直しは誤り。"
+  }
+ ]
+}

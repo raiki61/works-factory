@@ -1,0 +1,15 @@
+{
+ "units": [
+  {
+   "key": "stats.py mean: 分母が len(xs) - 1 で算術平均にならず、要素 1 個でゼロ除算になる",
+   "label": "block",
+   "disposition": "do-now",
+   "reason": "事実: stats.py:9 は `return sum(xs) / (len(xs) - 1)` で、BASE（85ff499）の `sum(xs) / len(xs)` から変わっている（diff.patch で確認）。実測では mean([1,2,3]) が 3.0 を返し（正しくは 2.0）、test_mean_of_three が 3.0 != 2.0 で赤になる（local_checks・実測した制約）。mean([5]) と `python3 stats.py 5` は ZeroDivisionError になる。空入力を弾く stats.py:7-8 の `if not xs` は n=1 を通してしまう。結果、docstring「xs の平均。空の xs は ValueError」、README.md:5 の説明、README.md:19 の出力例「2.0」、test_stats.py:9 の期待値のどれとも合わない。2 件以上の入力では、例外も出ずに n/(n-1) 倍の値が黙って返る。所見の行（stats.py:9 の各目、test_stats.py:9、README.md:5、外部標準、根拠の出所）と人の依頼の行（stats.py）は、どれもこの 1 行を n に戻せば閉じるので、1 つの単位にまとめた。反証①「n-1 の平均が意図された仕様変更で、文書と試験も一緒に直す前提」: 凍結した目的は「標本の平均として正しく使える結果」で、世界の解（Python statistics の文書「the sum of the data divided by the number of data points」）では標本平均も合計を n で割る。n-1（ベッセルの補正）を使うのは分散の推定だけ。先行議論の突合は clean で、n-1 を決めた人の記録も無い。だからこの反証は成り立たない。仮に n-1 が意図だったとしても、n=1 で docstring の約束にない例外が出る欠陥は残る。反証②「要素 1 個の入力は渡されない」: CLI の `python3 stats.py 5` で起きることが実測済みなので成り立たない。反証③「依頼の行（分母を n - 1 にする）に従った正しい修正だ」: 世界の解の行 w-e59e10647b99 が、依頼の解き方を定石と違うと名指している。依頼の解き方は人の前の決定に数えないので、目的に合う定石（n で割る）を採る。BASE に戻すので、BASE から失われる能力は無い（HEAD の n-1 の挙動だけが消える）。"
+  },
+  {
+   "key": "test_stats.py test_mean_of_three: mean の試験が 3 要素の 1 ケースと空だけで、1 要素などが試されていない",
+   "label": "nit",
+   "reason": "事実: mean の試験は test_mean_of_three（[1,2,3] → 2.0）と test_mean_of_empty_raises の 2 件だけ（stats.py:999）。反証: 所見は「分母の取り違えを捉える力が弱い」と言うが、この差分の取り違え（n−1）は既存の test_mean_of_three が実際に赤にして捉えている（local_checks の実測で 3.0 != 2.0）。分母を n に戻したあとに n−1 が再び入っても、同じ試験が赤になる。n=1 のゼロ除算も n−1 の式からしか生まれず、同じ試験で捉えられる。所見の側も未実測で、誤検出の見積もりは約 40% と書いている。「捉える力が弱い」という主張は実測で反証された。残るのは 1 要素の境界を試験で明文化する任意の改善だけで、直す義務はないので [nit] に留める。凍結した目的（mean の正しさ）の内側の話なので、out_of_purpose には回さない。"
+  }
+ ]
+}

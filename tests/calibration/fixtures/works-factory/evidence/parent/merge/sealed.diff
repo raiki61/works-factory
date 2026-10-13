@@ -1,0 +1,13 @@
+diff --git a/stats.py b/stats.py
+index 2812f6a..47c8a11 100644
+--- a/stats.py
++++ b/stats.py
+@@ -6,7 +6,7 @@ def mean(xs):
+     """xs の平均。空の xs は ValueError を上げる。"""
+     if not xs:
+         raise ValueError("mean of empty")
+-    return sum(xs) / (len(xs) - 1)
++    return sum(xs) / len(xs)
+ 
+ 
+ def median(xs):
