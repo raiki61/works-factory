@@ -6,7 +6,7 @@
 対象を名指さない。無ければ役は対象自身の構造から住処を探す）。地図や表を作らない。
 
 - 定数: MAP_NAME・TABLE_NAME・PREFIX（考えの住処の指摘の頭の語）・MAX_MAPS・AXIS・PLAN_RULE・REVIEW_ASK・R1_HEAD・R3_HEAD
-  （R1_HEAD・R3_HEAD は {section} を 1 つ持つ。独立の目の支度が直しの後の実測の数の 1 文を入れる）・EYE_ASK（構造の目の問い）
+  （R1_HEAD・R3_HEAD は {section} を 1 つ持つ。独立の目の支度が直しの後の実測の数の 1 文と、在れば修正案の外れの訳と事前審査の結論を入れる）・EYE_ASK（構造の目の問い）
 - pick_maps(names) -> (先頭 MAX_MAPS 件, 全件の数): 名の並びから地図を浅い順・名の順に選ぶ
 - pick_tables(names) -> list: 名の並びから柵の表を浅い順・名の順に選ぶ（件数で切らない）
 - base_of(name) -> str: 地図か表のパスの持ち主のフォルダ（docs/ の親。根なら ""）。表の中のパスはここからの相対
@@ -55,7 +55,7 @@ R1_HEAD = promptsection.Section(
     f"「{PREFIX}」で始めて考えの名と増えた所を書き、増えた所を deletions に 1 行ずつ（where は増えた所、why は住処のパスと行）置け。"
     f"住処の無い考えの知る所が増えただけなら status は変えず、increments に「{PREFIX}」で始まる 1 行を置け。"
     "知る所の数は、下の機械の実測と『考えの住処の地図』のセクション（機械がこのセクションの後ろに貼った）を手がかりに量れ。\n\n"
-    "{section}", source="fn:structmark.after_counts")
+    "{section}", source="fn:eyeverdict.after_section")
 
 R3_HEAD = promptsection.Section(
     "## 考えの住処（works が足した観点）\n\n"
@@ -65,7 +65,7 @@ R3_HEAD = promptsection.Section(
     "足している、または住処と違う形で同じ考えを持ち直していて、住処のパスと行を名指せるなら、status を redesign-needed にし、"
     f"reason を「{PREFIX}」で始めて考えの名・住処・外の所を書け。名指せない物は pass のまま reason に書け。読んだ地図（地図が"
     "無ければ構造から見つけた住処）を seen に、住処を見つけられなかった考えを unseen に含めよ。下の機械の実測の増えた所も確かめよ。\n\n"
-    "{section}", source="fn:structmark.after_counts")
+    "{section}", source="fn:eyeverdict.after_section")
 
 EYE_ASK = (
     f"{AXIS}。\n\n"
