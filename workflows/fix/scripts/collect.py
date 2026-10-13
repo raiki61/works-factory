@@ -185,7 +185,7 @@ def fallback(why: str) -> dict:
         for g in gs:
             groups_rows.append({"group_id": str(g["group_id"]), "unit_ids": [str(k) for k in g["unit_ids"]],
                                 "returned": False, "reason": why})
-            units_rows += [{"unit_id": str(k), "group_id": str(g["group_id"]), "status": "not_done", "reason": why}
+            units_rows += [{"unit_id": str(k), "group_id": str(g["group_id"]), "status": fixboard.NOT_DONE, "reason": why}
                            for k in g["unit_ids"]]
     except Exception:
         groups_rows, units_rows = [], []

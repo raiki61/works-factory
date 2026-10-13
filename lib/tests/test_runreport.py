@@ -26,6 +26,7 @@ import outpurpose  # noqa: E402
 import querytest  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
+import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import stopby  # noqa: E402
 from lib.tests.test_outcome import fixed_run  # noqa: E402
@@ -234,8 +235,9 @@ class TypedCase(Base):
         fell = self.put("fell/evidence.md", "# test-gate（final）\n\n- ok: false（返す節の中の誤り）\n- 誤り: KeyError: 'by'\n")
         _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": fell}}))
         green = self.section(text, runreport.GREEN_HEADING)
-        self.assertIn("- 最後のテスト（test-gate-final）の走らせ方: 証拠に「走らせ方」の行が無い", green)
-        self.assertIn("- 最後のテスト（test-gate-final）のログ: 証拠に「ログ」の行が無い", green)
+        self.assertIn("- 最後のテスト（test-gate-final）の走らせ方: 証拠に「走らせ方」の行が無い\n", green)
+        self.assertIn("- 最後のテスト（test-gate-final）のログ: 証拠に「ログ」の行が無い\n", green)
+        self.assertNotIn("証拠か", green, "行が無い訳を推し量らない")
 
         _, text, _ = self.build(fixed_run(**{"test-gate-final": {**fixed_run()["test-gate-final"], "evidence": str(self.dir)}}))
         self.assertIn("- 最後のテスト（test-gate-final）の走らせ方とログ: 読めない（", self.section(text, runreport.GREEN_HEADING))
@@ -620,6 +622,19 @@ class AcceptCase(Base):
         self.assertTrue(third["done"])
         self.assertFalse(third["ok"])
         self.assertFalse(self.ai()["accepted"], "3 回とも拒めば受け取れなかった訳を残す")
+
+
+class ReportGiveUpCase(Base):
+    """書き手の返答を諦めた 1 行の文は rolekit.gave_up_text の 1 か所が持つ"""
+
+    def test_give_up_text_is_rolekit_text(self):
+        bad_terms = json.dumps({"text": "x", "terms": [{"term": ""}]})
+        for _ in range(report_roles.GIVE_UP_AFTER):
+            runreport.accept(bad_terms, AcceptCase.PASS, out_dir=self.out)
+        rows = json.loads((self.out / runreport.REJECTS_FILE).read_text(encoding="utf-8"))
+        self.assertIn("\n", rows[-1]["reason"], "拒否の文が複数の行でも諦めの文は 1 行")
+        ai = json.loads((self.out / runreport.AI_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(ai["reason"], rolekit.gave_up_text(runreport.REPORT_NODE, len(rows), rows[-1]["reason"]))
 
 
 class CollectCase(Base):
@@ -1166,6 +1181,18 @@ class LinesCase(Base):
         self.assertIn("u1: 汚れる", body)
         self.assertIn("直しの後の実測", body)
 
+    def test_structure_time_adds_the_stage_b_seconds(self):
+        """#227: 構造の実測と目で増えた時間は、段 A と目の秒（計画の structure-state.json）に直しの後の実測（段 B）の秒
+        （structure-after.json の after.timing）を足す（元 works/blk-structure/scripts/collect.py:83）"""
+        design = self.put("plan/design.jsonl", "")
+        state = self.put("plan/structure-state.json", {"status": "ok", "reason": "", "design_file": design, "wall_s": 3})
+        after = self.put("eyes/structure-after.json", {"status": "ok", "reason": "", "deviations": [],
+                                                       "after": {"changed": [], "tables": [], "new_names": [],
+                                                                 "timing": {"wall_s": 1.5}}})
+        _, text, _ = self.build(fixed_run(plan={**fixed_run()["plan"], "structure": state},
+                                          eyes={**fixed_run()["eyes"], "structure_after": after}))
+        self.assertIn("- 構造の実測と目で増えた時間: 4.5 秒\n", self.section(text, report.STRUCTURE_HEADING))
+
     def test_entry_gate_words(self):
         _, text, _ = self.build(start={"run_id": RUN, "final_gate": "when_needed"})
         self.assertIn("- 最後の承認ノード: when_needed", self.section(text, report.ENTRY_HEADING))
@@ -1186,7 +1213,8 @@ class LinesCase(Base):
         self.assertIn("- 飛ばされた・出力の無い段: test-gate-base・rejudge・replan・replan-review", body)
 
     def test_outside_purpose_rows_and_wrong_name(self):
-        """目的の外の所見は節に 1 件ずつ、人が決めることの節に件数と置き場の 1 行（次の run に渡す物の行の前）。名の違う控えは読まない"""
+        """目的の外の所見は節に 1 件ずつ、人が決めることの節に件数と置き場の 1 行（次の run に渡す物の行のすぐ後ろ。元 works/.shared/core/
+        report.py:1019-1022 の順）。名の違う控えは読まない"""
         p = self.put("judge/out-of-purpose.json", {"rounds": {"1": [{"source": "P1", "why_outside": "目的の外の所見",
                                                                     "found": [{"where": "a.py:1", "text": "x"},
                                                                               {"where": "b.py:2", "text": "y"}]}]}})
@@ -1198,7 +1226,7 @@ class LinesCase(Base):
         count = [i for i, x in enumerate(lines) if x.startswith(f"- {outpurpose.COUNT_HEAD}")]
         carried = [i for i, x in enumerate(lines) if x.startswith("- 次の run に渡す物:")]
         self.assertEqual(len(count), 1, lines)
-        self.assertLess(count[0], carried[0])
+        self.assertEqual(count[0], carried[0] + 1)
         for word in ("2 件", carry.NEXT_REQUEST_FILE, report.OUTSIDE_HEADING.removeprefix("## ")):
             self.assertIn(word, lines[count[0]])
 

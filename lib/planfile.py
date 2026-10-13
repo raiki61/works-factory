@@ -910,7 +910,7 @@ def take_replan(round_dir, plan_dir, *, items: list, reply, repo, tables, base_r
     for row, got in zip(rows, reply["plan"]):
         bare, marks = gatemarks.split(planmarks.NODE, {"plan": [got]})
         row["new"], row["new_marks"] = bare["plan"][0], marks[0]
-        before, after = replan._bare(row["old"]), replan._bare(replan.new_item(row))
+        before, after = replan.bare(row["old"]), replan.bare(replan.new_item(row))
         row["contract_changed"] = planmarks.contract_diff(before, after)
         row["widened"] = planmarks.widened(before, after) if row["contract_changed"] else None
     texts, unread = base_test_texts(repo, rev)

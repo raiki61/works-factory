@@ -60,7 +60,7 @@ def main() -> None:
     start = startrec.read(place)
     got = refix.cut(place, 1, repo, fixboard.start_tree(place), plan_review=fixboard.plan_review_file(place),
                     fix_reply=fix_reply, items=functools.partial(fixboard.place_items, place),
-                    policy=fixboard.policy_brief(start))
+                    policy=fixboard.policy_brief(start), skip=boundary.SKIP)
     if not got.get("ok"):
         raise ValueError(got.get("reason") or "差分を切れない")
     boundary.returns({"go": True, "files": got["files"], "diff_file": got["diff_file"], "brief_file": got["brief_file"]})
