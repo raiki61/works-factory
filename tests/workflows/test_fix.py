@@ -1916,6 +1916,20 @@ class BlockScriptsCase(unittest.TestCase):
         code, out, err = _blk_run("join", self.repo, self.art)
         self.assertEqual((code, out), (0, {"groups": 2, "returned": 2}), err)
 
+    def test_join_reads_a_malformed_child_tdd_as_empty(self):
+        """#342: 組の子の result.json の tdd が dict でない（並び・文字列）時も、units が並びでない（数）時も、join は落ちず、
+        TDD の単位の無い組として戻す"""
+        start = self.snapshot(self.repo)
+        tdds = {"g1": ["x"], "g2": "x", "g3": {"ran": True, "reason": "", "suite": "", "units": 5,
+                                              "test_cmd": ["x"]}}
+        out_dir = self.groups_file([{"group_id": g, "unit_ids": [g.upper()], "items": [i]} for i, g in enumerate(tdds, 1)],
+                                   start)
+        for g, tdd in tdds.items():
+            end = self.tree_with({f"{g}.md": f"{g}\n"})
+            _blk_write(out_dir / g / "result.json", _blk_result(g, [g.upper()], end, start, tdd=tdd))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual((code, out), (0, {"groups": 3, "returned": 3}), err)
+
     def test_collect_allowed_test_changes_from_rulings_and_groups(self):
         """F429: 許したテストの変更（裁定 fix_test_scope の範囲・組の子が許した物）を返りの allowed_test_changes にパスで並べ、
         訳（許しの id と出どころ）を返りの diff の隣の allowed-tests.json に [{path, permit, source}] で置く（元

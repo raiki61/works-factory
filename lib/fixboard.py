@@ -676,7 +676,8 @@ def rerun_cmd(place, result, test_cmd: str) -> str:
     """当てた後に走らせ直す test_cmd（rerun_problem に渡す）: 組の子の TDD の輪が決めた関門（結果の tdd.test_cmd.gate）が on で、
     組に軽量でない単位（置き場の深さの控え。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）"""
     import tddloop
-    gate = (((result or {}).get("tdd") or {}).get("test_cmd") or {}).get("gate")
+    cmd = child_tdd(result).get("test_cmd")
+    gate = cmd.get("gate") if isinstance(cmd, dict) else None
     if gate != tddloop.GATE_ON or not (test_cmd or "").strip():
         return ""
     light = set(tddloop._light_units(unit_depths(place)))
@@ -744,18 +745,30 @@ def with_ruled(units, ruled) -> list:
     return out
 
 
+def child_tdd(result) -> dict:
+    """組の子の結果 result の欄 tdd（tddloop.exit_fields の形。dict でなければ空）"""
+    tdd = (result or {}).get("tdd")
+    return tdd if isinstance(tdd, dict) else {}
+
+
+def child_tdd_units(result) -> list:
+    """組の子の結果 result の TDD の輪の単位の行（tdd.units のうち dict の物。並びでなければ空）"""
+    units = child_tdd(result).get("units")
+    return [u for u in units if isinstance(u, dict)] if isinstance(units, list) else []
+
+
 def tdd_units(groups, results) -> list:
     """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, units}]（子の結果の欄 tdd。
     tddloop.exit_fields の形）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
     out = []
     for g in groups:
         result = results.get(g["group_id"])
-        tdd = (result or {}).get("tdd") if isinstance((result or {}).get("tdd"), dict) else {}
+        tdd = child_tdd(result)
         ran = tdd.get("ran") is True
         out.append({"group_id": g["group_id"], "ran": ran,
                     "reason": str(tdd.get("reason") or ("" if result else NO_RESULT)), "suite": str(tdd.get("suite") or ""),
                     "reused": tdd.get("reused") if isinstance(tdd.get("reused"), dict) else {},
-                    "units": [u for u in tdd.get("units") or [] if isinstance(u, dict)] if ran else []})
+                    "units": child_tdd_units(result) if ran else []})
     return out
 
 
