@@ -21,7 +21,7 @@
   :1178 の with_converge）
 - collect: 返す節の組み立て（元 works/blk-plan/lib/planblk.py:1441 の collect。形 replan の関所の項目は replan_asks。元
   works/.shared/core/replan.py:620 の gate）
-- verdict: 最後に開いた往復の通否（collect の pass・stalled と、独立の目の頭の事前審査の行が読む）
+- verdict・read_open_of: 最後に開いた往復の通否と、その往復が修正案の周と組むか（collect の pass・stalled と、独立の目の頭の事前審査の行が読む）
 """
 from __future__ import annotations
 
@@ -1091,3 +1091,23 @@ def collect(folder) -> dict:
         out.trace(design.MISSING_OP, reason=why)
     return {"pass": v.ok, "stalled": v.stalled, "review": p / REVIEW_FILE, "design": design_file,
             "gate_axes": gate_axes.gather(b), "ask_human": bool(questions), "questions": questions}
+
+
+PLAN_ROUND_OTHER = "最後に開いた往復（pass-{k}）は修正案の周 {round} の往復でない（別の案を審査した往復）"
+
+
+def read_open_of(folder, plan) -> dict:
+    """read_open の材料のうち、修正案 plan（plan-fields.json のパス。None は渡っていない）と組む物: 最後に開いた往復の k が案の
+    round と違えば Missing（別の周の案の往復の結論を、この案の結論と読ませない）。形 design は案を審査しない周なので照らさない"""
+    inputs = read_open(folder)
+    if inputs.get("form") == DESIGN_FORM:
+        return inputs
+    if plan is None:
+        raise Missing("修正案のポインタが渡っていない")
+    try:
+        rnd = _read_json(plan)["round"]
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        raise Missing(f"修正案 {plan} の round が読めない: {e!r}") from None
+    if inputs.get("k") != rnd:
+        raise Missing(PLAN_ROUND_OTHER.format(k=inputs.get("k"), round=rnd))
+    return inputs

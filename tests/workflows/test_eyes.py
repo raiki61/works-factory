@@ -29,6 +29,7 @@ ROLES = {i: n for i, n in NODES.items() if "command" in n}
 EYE_NODES = ("r1-minimality", "r2-compare", "premise-check", "r3-coherence", "r4-scope")
 VERDICT_NODES = {f"{n}-verdict": eye for n, eye in zip(EYE_NODES, ("r1", "r2", "premise-check", "r3", "r4"))}
 sys.path.append(str(ROOT / "lib"))
+import boardview  # noqa: E402
 import concepthome  # noqa: E402
 import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
@@ -1056,7 +1057,9 @@ class ScriptCase(unittest.TestCase):
                 self.assertIn("増えた写しの塊 2 個", got[field])
                 self.assertNotIn(eyeverdict.NO_AFTER, got[field])
 
-    def plan_review_pass(self, k: int, faces: list):
+    def plan_review_pass(self, k: int, faces: list, plan_round: int | None = None):
+        """事前審査の往復 pass-<k> を開いた置き場と、それと組む修正案（plan-fields.json の round。既定は k）を置く"""
+        self.inputs["plan"] = self.pointer("plan/plan-fields.json", {"round": k if plan_round is None else plan_round, "fields": []})
         folder = self.artifacts / "plan-review"
         (folder / f"pass-{k}").mkdir(parents=True, exist_ok=True)
         (folder / "open.json").write_text(json.dumps({"k": k, "form": "replan"}), encoding="utf-8")
@@ -1092,6 +1095,22 @@ class ScriptCase(unittest.TestCase):
         got = self.run_script("prep")
         self.assertIn(eyeverdict.REVIEW_UNREAD.split("{")[0], got["r1_head"])
         self.assertIn(line, got["r1_head"])
+
+    def test_plan_review_of_another_plan_round_is_not_accepted(self):
+        """#359: 最後に開いた事前審査の往復が外れの行の源の修正案と別の周（k が plan-fields.json の round と違う）なら、通した往復でも
+        外れを認めたと言わず、読めない行にする"""
+        self.prep_inputs()
+        eyes = self.artifacts / "eyes"
+        eyes.mkdir(parents=True, exist_ok=True)
+        structmark.write_after(eyes, status="ok", reason="", after={"changed": ["a.txt"], "tables": [], "new_names": [],
+                                                                    "dup_blocks_added": 0},
+                               deviations=[{"item": 2, "row": "u2", "deviation": "入口を 2 つ残す（呼び手が別のリポジトリに在る）"}])
+        self.plan_review_pass(2, [], plan_round=1)
+        got = self.run_script("prep")
+        for field in ("r1_head", "r3_head"):
+            with self.subTest(field):
+                self.assertNotIn(eyeverdict.REVIEW_ACCEPTED.format(k=2), got[field])
+                self.assertIn(eyeverdict.REVIEW_UNREAD.format(why=boardview.PLAN_ROUND_OTHER.format(k=2, round=1)), got[field])
 
     def test_prep_names_the_bundled_review_md(self):
         """同梱の観点の正本（元 review-loop.py:35-38 review_md_path）を R1 の前段・R1・R3・R4 に名指す"""

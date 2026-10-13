@@ -1048,6 +1048,15 @@ class FactchecksSeamCase(TempCase):
                 self.assertEqual([r["text"] for r in got["rejects"] if r["check"] == "scope"], accepted)
                 (self.place / name).unlink()
 
+    def test_fixer_head_rejects_a_pass_outside_the_passes(self):
+        """#357: 段の頭のファイルは fixrules.PASSES を鍵にした表から引く。表に無い段は 1 回目の段の頭に黙って落とさず例外"""
+        import fixrules
+        (self.place / fixboard.FIX_HEAD_FILE).write_text(json.dumps({"tree": "1 回目の段の頭"}), encoding="utf-8")
+        self.assertEqual(fixboard.fixer_head(self.place, "first"), "1 回目の段の頭")
+        with self.assertRaises(ValueError):
+            fixboard.fixer_head(self.place, "refix")
+        self.assertEqual(tuple(fixrules.HEAD_FILES), fixrules.PASSES)
+
     def test_scope_head_follows_the_consult_place(self):
         import consult
         import planscope
