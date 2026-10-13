@@ -155,11 +155,11 @@ def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: 
     照らさない。run 97fd532f）。made は枝の実行器が作ったファイル"""
     b = board
     rows = [{"unit_key": k, "files": sorted(declared_files([c], repo))} for c, k in zip(reply.get("changes") or [], keys)]
-    tree, frozen = _loop_freeze(board, state)
     made = set(tddloop.suite_made(state)) | tddloop.suite_made_all(board) | set(made)
     rev = fixboard.base_rev(None, base_rev)
     paths = [p for p in writes.changed(repo, rev) if p not in made]
-    problems, note = planscope.check(rows, b, repo, rev, paths, pass_=pass_, loop_tree=tree, frozen=frozen, since=since,
+    tree, frozen = (since, paths) if since else _loop_freeze(board, state)
+    problems, note = planscope.check(rows, b, repo, rev, paths, pass_=pass_, loop_tree=tree, frozen=frozen,
                                      agreed=agreed, items=items)
     if problems:
         if ask is None:
