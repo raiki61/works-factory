@@ -16,6 +16,8 @@ from tests.calibration import corpus
 from tests.calibration import run as runner
 from tests.e2e import evidence
 
+import judge_accept  # noqa: E402  lib/ は corpus が sys.path に足す
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
 GRAPH = json.loads((ROOT / "docs" / "nodes.json").read_text(encoding="utf-8"))["graph"]
@@ -52,16 +54,17 @@ def _nodes(doc):
 
 
 def _reply_schemas(doc) -> dict:
-    """judge の受け付けの節は with.reply に書き手の節の出力を受け、material-<役>.json の reply に写す（役は with.role、無ければ書き手）。
-    置き場の名 → 書き手の output_format"""
+    """material-*.json を書く受け付けは 2 つ: material_accept は material-<with.role>.json、pr_accept は judge_accept.MATERIAL_PR_FILE。
+    どちらも with.reply に受けた書き手の節の返答を reply に写す。置き場の名 → 書き手の output_format"""
     nodes = {n["id"]: n for n in _nodes(doc)}
+    files = {"material_accept": lambda given: f"material-{given['role']}.json",
+             "pr_accept": lambda given: judge_accept.MATERIAL_PR_FILE}
     schemas = {}
     for node in nodes.values():
-        given = node.get("with") or {}
-        writer = re.fullmatch(r"\$([\w-]+)\.output", str(given.get("reply", "")))
-        if writer:
-            role = given.get("role", writer[1])
-            schemas[f"parent/judge/material-{role}.json"] = nodes[writer[1]]["output_format"]
+        if node.get("script") in files:
+            given = node["with"]
+            writer = re.fullmatch(r"\$([\w-]+)\.output", given["reply"])[1]
+            schemas[f"parent/judge/{files[node['script']](given)}"] = nodes[writer]["output_format"]
     return schemas
 
 
@@ -126,7 +129,7 @@ class FlagTableTest(unittest.TestCase):
         self.assertTrue(replies)
         for gate, rule in replies:
             with self.subTest(gate=gate, rule=rule):
-                self.assertIn(rule["where"], schemas)
+                self.assertIn(rule["where"], sorted(schemas))
                 self.assertIsNone(_schema_problem(schemas[rule["where"]], rule["path"].removeprefix(REPLY)))
         local = schemas["parent/judge/material-local-review.json"]
         self.assertIsNotNone(_schema_problem(local, "findings.*.item.0"))
