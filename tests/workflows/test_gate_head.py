@@ -314,6 +314,13 @@ class FinalSectionsCase(unittest.TestCase):
         self.assertTrue(lines[4].startswith("## " + conflict.HEAD), lines[4])
         self.assertIn(f"{conflict.HEAD}を人に回した（1 件）", lines[0])
 
+    def test_conflict_section_head_leaves_where_the_fix_is_to_each_row(self):
+        """節の見出しは単位を直さずに残したと言い切らない。query_hits_fixed の直しは差分に在り、直したかは行ごとに
+        conflict.human_lines が種類から書く（#355。c38831c2 の関所が差分に在る直しを直さずに残したと書いた）"""
+        got = final_got(asked=[f"u1: 置き換える問いを書けない（名指し a.py:1・種類 query_hits_fixed・c1・{conflict.FIX_IN_DIFF}）"])
+        head = next(x for x in self.text(got).splitlines() if x.startswith("## " + conflict.HEAD))
+        self.assertNotIn(conflict.UNFIXED_LEFT, head)
+
 
 class LedgerAsksCase(unittest.TestCase):
     """元 works/tests/test_plan_gate.py の LedgerAsksCase・EscalateAsksCase の 3 本を元の名で写した（S27）。元は盤面の記録から
