@@ -32,7 +32,6 @@ import json
 import os
 import pathlib
 import posixpath
-import re
 import types
 
 import gatemarks
@@ -1053,24 +1052,23 @@ def pr_diff(repo, base_sha: str, head_sha: str, skip=(), *opts: str) -> str:
                           *unittrees.pathspec_without(skip))
 
 
-_HUNK_NEW = re.compile(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@")
-
-
 def pr_added_lines(repo, base_sha: str, head_sha: str, skip=()) -> dict[str, set[int]]:
-    """審査する変更（pr_diff）が足した行 {根からのパス: 修正前の HEAD での行番号}。消しただけのファイルは載せない。ファイルの見出しは
-    diff --git から最初の @@ までだけで読む（足した行の中身が「++ 」で始まると、hunk の中にも「+++ 」の行が出る）"""
+    """審査する変更（pr_diff）が足した行 {根からのパス: 修正前の HEAD での行番号}。消しただけのファイルは載せない。
+    ファイルの分け方は changemap.split_diff"""
+    import changemap
+    import report
     added: dict[str, set[int]] = {}
-    path, in_head = None, False
-    for line in pr_diff(repo, base_sha, head_sha, skip, "-U0").splitlines():
-        if line.startswith("diff --git "):
-            path, in_head = None, True
-        elif in_head and line.startswith("+++ "):
-            path = line[len("+++ b/"):] if line.startswith("+++ b/") else None
-        elif path and (m := _HUNK_NEW.match(line)):
-            in_head = False
-            start, count = int(m.group(1)), int(m.group(2) or 1)
-            added.setdefault(path, set()).update(range(start, start + count))
-    return {p: lines for p, lines in added.items() if lines}
+    for path, lines in changemap.split_diff(pr_diff(repo, base_sha, head_sha, skip, "-U0"))[0].items():
+        n = 0
+        for ln in lines:
+            if m := report.HUNK_NEW.match(ln):
+                n = int(m.group(1))
+            elif ln.startswith("+"):
+                added.setdefault(path, set()).add(n)
+                n += 1
+            elif not ln.startswith("-"):
+                n += 1
+    return added
 
 
 DIFF_EMPTY = "累積差分は空（{base} から作業ツリーは変わっていない）"

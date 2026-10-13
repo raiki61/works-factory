@@ -582,6 +582,15 @@ class OriginSectionCase(unittest.TestCase):
         git(self.repo, "commit", "-q", "-am", "drop")
         self.assertEqual(fixboard.pr_added_lines(self.repo, head, git(self.repo, "rev-parse", "HEAD")), {})
 
+    def test_pr_added_lines_keep_paths_git_quotes(self):
+        """git が引用して書くパス（「"」を含む）のファイルも、足した行を落とさない"""
+        (self.repo / 'q"x.py').write_text("a\n", encoding="utf-8")
+        (self.repo / "ok.py").write_text("b\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "pr")
+        head = git(self.repo, "rev-parse", "HEAD")
+        self.assertEqual(fixboard.pr_added_lines(self.repo, self.root, head), {'q"x.py': {1}, "ok.py": {1}})
+
     def test_unknown_origin_is_said(self):
         self.assertIn("起点が分からない", eyeverdict.origin_section(self.repo, "", self.root, "", cumulative_empty=True))
         self.assertIn("起点を測れない", eyeverdict.origin_section(self.repo, "0" * 40, self.root, "", cumulative_empty=True))
