@@ -466,6 +466,70 @@ class LauncherTest(unittest.TestCase):
         self.assertIn("CLAUDE_BIN_PATH", err)
         self.assertFalse((self.tmp / "claude.jsonl").exists(), "相対の置き場の claude を呼んだ")
 
+    def fence_of(self, env) -> list[str]:
+        """子の CLAUDE_BIN_PATH の殻が起こす包みの命令（exec の後ろ）"""
+        shell = pathlib.Path(env["CLAUDE_BIN_PATH"])
+        self.assertTrue(shell.is_relative_to(self.default_home(self.target) / launcher.FENCE_DIR), shell)
+        line = next(l for l in shell.read_text(encoding="utf-8").splitlines() if l.startswith("exec "))
+        return shlex.split(line)[1:]
+
+    def test_executing_launch_puts_the_fence_before_claude(self):
+        """役を起こす claude は書き込みの柵の包み（workflows/.shared/fence.py）を通る。包みは本物の claude と隔離した置き場を名指す"""
+        env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
+        argv = self.fence_of(env)
+        self.assertEqual(argv[1:3], ["-I", "-B"])
+        self.assertEqual(argv[3], str(self.repo / "workflows" / ".shared" / "fence.py"))
+        self.assertEqual(argv[argv.index("--real") + 1], str(self.fake / "claude"))
+        self.assertEqual(argv[argv.index("--archon-home") + 1], env["ARCHON_HOME"])
+        self.assertEqual(argv[argv.index("--claude-config") + 1], env["CLAUDE_CONFIG_DIR"])
+        self.assertEqual(argv[-2:], ["--", "$@"])
+
+    def test_fence_denies_what_later_launches_run_outside_the_sandbox(self):
+        """後の役の起動が sandbox の外で走らせる物（殻・gh の口・包み・包みを起こす Python・本物の claude）は、禁じる一覧に入る"""
+        env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
+        argv = self.fence_of(env)
+        own = {argv[i + 1] for i, a in enumerate(argv) if a == "--own"}
+        home = self.default_home(self.target)
+        self.assertEqual(own, {str(home / launcher.FENCE_DIR), str(home / launcher.HOST_GH_DIR),
+                               str(self.repo / "workflows" / ".shared" / "fence.py"), sys.prefix, sys.base_prefix,
+                               os.path.realpath(self.fake / "claude")})
+
+    def test_env_file_naming_claude_bin_path_stops_the_run(self):
+        """Archon が起きる場所の .env* か .archon/.env、ARCHON_HOME の .env が CLAUDE_BIN_PATH を名指すと、包みが外れるので起こさない"""
+        for where, name, line in ((self.target, ".archon/.env", "CLAUDE_BIN_PATH=/usr/local/bin/claude"),
+                                  (self.target / "sub", ".env.local", "export CLAUDE_BIN_PATH = /x"),
+                                  (self.target, ".env", "CLAUDE_BIN_PATH:"),
+                                  (self.default_home(self.target) / "archon-home", ".env", "CLAUDE_BIN_PATH=/usr/local/bin/claude")):
+            with self.subTest(file=str(where / name)):
+                env_file = put(where / name, f"A=1\n{line}\n")
+                err = self.stopped(self.launch("workflow", "run", "works-factory-line", cwd=self.target / "sub"))
+                env_file.unlink()
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertIn(str(env_file), err)
+        put(self.target / ".archon" / ".env", "CLAUDE_BIN_PATHS=/x\nOTHER=CLAUDE_BIN_PATH=/x\n")
+        self.reached(self.launch("workflow", "run", "works-factory-line"))
+
+    def test_users_claude_bin_path_is_the_real_claude_behind_the_fence(self):
+        real = write_fake_claude(self.tmp / "my-claude")
+        env = self.reached(self.launch("workflow", "run", "works-factory-line", CLAUDE_BIN_PATH=str(real)))["env"]
+        self.assertNotEqual(env["CLAUDE_BIN_PATH"], str(real))
+        argv = self.fence_of(env)
+        self.assertEqual(argv[argv.index("--real") + 1], str(real))
+
+    def test_reading_commands_get_no_fence(self):
+        for args in (["workflow", "get", "run-1"], ["workflow", "status"], ["validate", "workflows"]):
+            with self.subTest(args=args):
+                env = self.reached(self.launch(*args))["env"]
+                self.assertNotIn("CLAUDE_BIN_PATH", list(env))
+
+    def test_no_auth_run_without_claude_stops(self):
+        """柵を掛けられない run は起こさない（認証の要らない道でも、役は claude で起きる）"""
+        (self.fake / "claude").unlink()
+        err = self.stopped(self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None,
+                                       WORKS_FACTORY_NO_AUTH="1"))
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertIn("CLAUDE_BIN_PATH", err)
+
     def test_mise_trust_only_when_user_trusts_target(self):
         put(self.fake / "mise", FAKE_MISE)
         workspaces = os.path.realpath(self.default_home(self.target) / "archon-home" / "workspaces")
