@@ -20,6 +20,7 @@ import yaml
 from tests import archon
 from tests.bin import trimmed
 from tests.bin.gitkit import committed_copy, git
+from tests.layers import scan
 from tests.workflows.copied import agent_body, assert_is_original, rewritten, role_definition
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -49,9 +50,11 @@ PUBLIC = ("premises.json", "judge-verify.json", "pr-excluded.json", "materials.j
 
 # 役の節の設定（今の works の旧 YAML の値。works/blk-*/blk-*.yaml と darkfactory/darkfactory.yaml の 174〜400 行・866 行）
 BASE = {"enabled": True, "allowUnsandboxedCommands": False}
-CLOSED = {**BASE, "failIfUnavailable": True, "excludedCommands": ["works-gh:*"], "network": {"allowedDomains": []}}
+NO_TREE = {"denyWrite": [scan.NO_TREE_WRITE]}
+CLOSED = {**BASE, "failIfUnavailable": True, "excludedCommands": ["works-gh:*"], "network": {"allowedDomains": []},
+          "filesystem": NO_TREE}
 DELEGATE = {**BASE, "failIfUnavailable": True, "enableWeakerNetworkIsolation": True,
-            "network": {"allowedDomains": ["*"], "allowLocalBinding": True}, "filesystem": {"allowWrite": ["/"]}}
+            "network": {"allowedDomains": ["*"], "allowLocalBinding": True}, "filesystem": {"allowWrite": ["/"], **NO_TREE}}
 READ = ["Read", "Grep", "Glob"]
 WEB = ["WebSearch", "WebFetch"]
 INVESTIGATE = [*READ, "Bash", *WEB]
@@ -66,7 +69,7 @@ ROLES = {
     "spec-review": ("opus", "high", [*READ, *WEB], BASE, True, None, None, None),
     "spec-revise": ("opus", "medium", WRITE_TESTS, BASE, False, None, None, None),
     "pr-check": ("sonnet", "medium", INVESTIGATE, CLOSED, False, None, None, None),
-    "premises": ("sonnet", "medium", INVESTIGATE, BASE, False, None, None, None),
+    "premises": ("sonnet", "medium", INVESTIGATE, {**BASE, "filesystem": NO_TREE}, False, None, None, None),
     "purpose": ("sonnet", "medium", [*READ, *WEB], BASE, True, None, None, None),
     "world-classes": ("opus", "high", [], BASE, True, None, None, None),
     "world-judge": ("sonnet", "medium", WEB, BASE, True, None, None, None),
@@ -928,20 +931,6 @@ class PriorFailuresTest(unittest.TestCase):
         text = pathlib.Path(prep["brief_file"]).read_text(encoding="utf-8")
         for row in (from_container, from_input):
             self.assertIn(row["text"], text)
-
-
-class DeclaredTestCachesTest(unittest.TestCase):
-    def test_intake_places_the_test_caches_of_its_with(self):
-        """入口の節の with: の test_caches（issue #270。lib に実行器の名を書かずに足すキャッシュの名の形）が judge の置き場に届く。
-        JSON でない字は依頼の語で止める"""
-        r = Run(self)
-        declared = nodes()["intake"]["with"]["test_caches"]
-        self.assertIn(".pytest_cache", declared)
-        self.assertTrue(r.returned("intake", **node_inputs(nodes()["intake"]))["go"])
-        self.assertEqual(json.loads((r.judge / ja.TEST_CACHES_FILE).read_text(encoding="utf-8")), declared)
-        r = Run(self)
-        self.assertFalse(r.returned("intake", test_caches="[")["go"])
-        self.assertEqual(json.loads((r.judge / ja.STOP_FILE).read_text(encoding="utf-8"))["stop_reason"], ja.REQUEST_STOP)
 
 
 class MaterialGiveUpTest(unittest.TestCase):

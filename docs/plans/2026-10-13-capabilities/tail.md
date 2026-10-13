@@ -371,7 +371,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T49 本物の作業ツリーへの書き込みを、包み（adapter）が印の旗 no-tree-write を見て起動ごとに denyWrite に足して塞ぐ。切符の無い起動は起こさない。包みを宣言した run は受け付けが包みの起動の記録で柵が掛かったかを見て、無ければ止める。包み無しの run は知らせ NO_ADAPTER_NOTE を出す。宣言が読めなければ役を起こさずに止める。
   - 元: works/.shared/core/ci_role.py:150 `fence`・:274-298 `take`・:76 NO_ADAPTER_NOTE・works/blk-ci/blk-ci.yaml:28-42
-  - 今: workflows/test-gate/works-factory-test-gate.yaml の節 ci の sandbox.filesystem `{allowWrite: ['/'], denyWrite: ['.']}`（役の cwd = run の作業ツリーを塞ぐ。止めた Archon は節の sandbox をそのまま SDK に渡す: dag-executor.ts:1847・providers/src/claude/provider.ts:801-803。実測は #217（段 1a・#154）。#122）と、mutates_checkout: false・受け付けの作業ツリーの比べ（T51）
+  - 今: workflows/test-gate/works-factory-test-gate.yaml の節 ci の sandbox.filesystem `{allowWrite: ['/'], denyWrite: ['~/../archon-home']}`（起動が隔離した HOME の隣の Archon の家＝run の作業ツリーを含む全部の worktree と artifacts を塞ぐ。`'.'` は cwd でなく設定の一時ファイルのフォルダに解かれ作業ツリーを塞がない——実測 2026-10-13・#293。止めた Archon は節の sandbox をそのまま SDK に渡す: dag-executor.ts:1847・providers/src/claude/provider.ts:801-803。実測は #217（段 1a・#154）。#122）と、mutates_checkout: false・受け付けの作業ツリーの比べ（T51）
   - 証: tests/workflows/test_test_gate.py::YamlCase.test_role_cannot_write_the_checkout・test_role_node_matches_works_blk_ci
   - 本物の run: 筋書きでのみ
   - 狭め: #69 で狭めた（PR の「能力の狭め」1 つ目）。Archon で不可でない（packages/workflows/src/schemas/dag-node.ts:109 に sandbox.filesystem.denyWrite が在る。run ごとの場所を書けるかは要実測）→ 持ち主の確かめ 決め: 戻すと決めた。run ごとの作業ツリーを denyWrite で塞げないと実測で分かった時だけ源の行つきで狭め。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）

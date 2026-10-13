@@ -65,10 +65,10 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 証: lib/tests/test_judge_accept.py::PremisesCase.test_request_claim_must_be_measured_again（assert: :891）
   - 本物の run: 筋書きでのみ（種の依頼に measured が無い）
   - 狭め: 無し
-- J10 実測役が作業ツリー・HEAD を変えたら拒む（入口の写しと比べ、測るときに出るバイトコードは数えない。写しが無ければ綺麗な木と HEAD が版のまま）
+- J10 実測役が作業ツリー・HEAD を変えたら拒む（入口の写しと比べる。写しが無ければ綺麗な木と HEAD が版のまま。元が数えなかったバイトコードも数える——役の sandbox の denyWrite が作業ツリーへの書き込みを止めるので、出来ていれば守りが破れている。#293）
   - 元: works/.shared/core/premises.py:44 `_tree_unchanged`
   - 今: lib/judge_accept.py:1370 `_tree_unchanged`・:1440 `check_premises`
-  - 証: lib/tests/test_judge_accept.py::PremisesCase.test_premises_role_changed_the_tree_rejected（assert: :901）・PremisesCase.test_bytecode_made_by_measuring_is_not_counted（assert: :913）
+  - 証: lib/tests/test_judge_accept.py::PremisesCase.test_premises_role_changed_the_tree_rejected（assert: :901）・PremisesCase.test_bytecode_counts_like_any_change
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - J11 前提の返答を写しの schema の字のままで照らし、型の外を拒む（役の節の output_format と同じ型）

@@ -825,9 +825,6 @@ class IntakeCase(_RepoCase):
                 self.assertTrue(got["go"], got)
                 self.assertEqual((got["spec"], got["world"], got["verify"]), flags)
 
-
-# ================================================================ 前提の実測
-class IntakeCase(_RepoCase):
     def test_empty_request_file_is_refused_when_start_counts_requests(self):
         """J04: 依頼のファイルを名指したのに行が空なら、始めの記録が依頼 1 件以上と言う run では欠けとして止める（元 works/blk-judge/
         scripts/intake.py 47-60 行。依頼の無い run 以外は空でも型に通し、minItems で拒む）"""
@@ -840,18 +837,6 @@ class IntakeCase(_RepoCase):
         start["input"]["requests"] = 0
         shutil.rmtree(self.jdir)
         self.assertTrue(ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "")["go"], "依頼の無い run は空の行で通す")
-
-    def test_declared_test_caches_are_placed_or_refused(self):
-        """入口の節の with: の test_caches は TEST_CACHES_FILE に置き、lib の TEST_CACHES に足す。/ を含む・字でない物は依頼の語で止める"""
-        start = {"base_rev": self.head, "input": {"base": {"rev": self.head}, "diff": {"empty": False}, "requests": 0}}
-        self.assertTrue(ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "", None, [".pytest_cache"])["go"])
-        self.assertEqual(ja.test_caches(self.jdir), (*core_accept.TEST_CACHES, ".pytest_cache"))
-        for bad in (["a/b"], [""], [3], ".pytest_cache"):
-            with self.subTest(bad):
-                shutil.rmtree(self.jdir)
-                got = ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "", None, bad)
-                self.assertFalse(got["go"], got)
-                self.assertEqual(ja.read_stop(self.jdir)["stop_reason"], ja.REQUEST_STOP)
 
 
 class CarriedConstraintsCase(_RepoCase):
@@ -874,6 +859,7 @@ class CarriedConstraintsCase(_RepoCase):
         self.assertEqual(ja.read_json(self.jdir / "premises.json")["constraints"], [*PremisesCase.GOOD["constraints"], row])
 
 
+# ================================================================ 前提の実測
 class PremisesCase(_RepoCase):
     GOOD = {"constraints": [{"text": "README.md の件数は 3 件", "measured_how": "grep", "kind": "実測",
                              "measured_output": "$ grep -c 件 README.md\n1"}]}
@@ -921,27 +907,14 @@ class PremisesCase(_RepoCase):
         gitkit.git(self.repo, "commit", "-qam", "x")
         self.assertFalse(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"], "commit しても HEAD で見える")
 
-    def test_bytecode_made_by_measuring_is_not_counted(self):
-        """元 test_blk_premises の test_bytecode_not_counted_without_gitignore（測るために試験を走らせて出来る物）"""
+    def test_bytecode_counts_like_any_change(self):
+        """測って出来たバイトコードも作業ツリーの変化（実測役の sandbox は作業ツリーを書けないので、出来ていれば守りが破れている）"""
         self.snap_tree()
         (self.repo / "__pycache__").mkdir()
         (self.repo / "__pycache__" / "m.cpython-312.pyc").write_bytes(b"\0")
-        self.assertTrue(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"])
-
-    def test_caches_left_by_an_earlier_run_do_not_tighten_the_check(self):
-        """入口の前から在ったキャッシュのフォルダ（入口の節が名の形を足した物。後片付けは前から在った物を消さない）が入口の写しに
-        入っていても、測って出来たキャッシュは数えない。キャッシュ以外の変更は今までどおり拒む"""
-        cache = self.repo / ".test_cache"
-        cache.mkdir()
-        (cache / ".gitignore").write_text("*\n", encoding="utf-8")
-        start = {"base_rev": self.head, "input": {"base": {"rev": self.head}, "diff": {"empty": False}, "requests": 0}}
-        self.assertTrue(ja.intake(start, "", self.jdir, self.tmp / "artifacts", self.repo, "", None, [".test_cache"])["go"])
-        (cache / "lastfailed").write_text("{}\n", encoding="utf-8")
-        (self.repo / "__pycache__").mkdir()
-        (self.repo / "__pycache__" / "m.cpython-312.pyc").write_bytes(b"\0")
-        self.assertTrue(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"])
-        (self.repo / "out.txt").write_text("測った出力\n", encoding="utf-8")
-        self.assertFalse(ja.check_premises(self.GOOD, self.jdir, self.repo, [])["ok"])
+        got = ja.check_premises(self.GOOD, self.jdir, self.repo, [])
+        self.assertFalse(got["ok"])
+        self.assertIn("作業ツリー", got["reason"])
 
 
 # ================================================================ 目的
@@ -1114,7 +1087,6 @@ class MaterialCase(_RepoCase):
     def view(self):
         start = self.start()
         ja.write_json(self.jdir / ja.START_FILE, start)
-        ja.write_json(self.jdir / ja.TEST_CACHES_FILE, [".pytest_cache"])   # 入口の節が with: の test_caches から置く
         return ja.material_route(self.jdir, self.repo)
 
     def test_route_writes_view_and_decisions(self):
@@ -1232,53 +1204,19 @@ class MaterialCase(_RepoCase):
         self.assertFalse(got["ok"])
         self.assertIn("作業ツリー", got["reason"])
 
-    def make_test_caches(self):
-        """並んで走る役の 1 本が対象のテストを回した跡（wf-265a の局所レビューの役が python3 -m pytest -q で作った物）"""
-        for d in (self.repo, self.repo / "pkg"):
-            (d / "__pycache__").mkdir(parents=True, exist_ok=True)
-            (d / "__pycache__" / "stats.cpython-312.pyc").write_bytes(b"\0")
-        cache = self.repo / ".pytest_cache"
-        (cache / "v" / "cache").mkdir(parents=True, exist_ok=True)
-        (cache / ".gitignore").write_text("*\n", encoding="utf-8")
-        with (cache / "v" / "cache" / "lastfailed").open("a", encoding="utf-8") as fh:
-            fh.write("{}\n")
-
-    def test_test_caches_made_by_a_peer_role_are_not_counted(self):
-        """issue #270: テストを回してできたキャッシュ（__pycache__/・.pytest_cache/）では、素材集めの役の返答を拒まない。
-        役を起こす前から在ったキャッシュの中身が増えても同じ"""
+    def test_test_caches_count_like_any_change(self):
+        """テストを回して出来たキャッシュも作業ツリーの変化として拒む（issue #293: 素材集めの役の sandbox は作業ツリーを書けないので、
+        出来ていれば守りが破れている）"""
         reply = {"material": {"status": "clean", "checked": "x"}, "claims": []}
-        for already in (False, True):
-            with self.subTest(already=already):
+        for made in ("__pycache__/x.pyc", ".pytest_cache/v/cache/lastfailed"):
+            with self.subTest(made):
                 self.setUp()
-                if already:
-                    (self.repo / "__pycache__").mkdir()
-                    (self.repo / "__pycache__" / "old.cpython-312.pyc").write_bytes(b"\0")
-                    self.make_test_caches()
                 self.view()
-                self.make_test_caches()
+                (self.repo / made).parent.mkdir(parents=True)
+                (self.repo / made).write_text("{}\n", encoding="utf-8")
                 got = ja.material_take(self.jdir, "provenance", reply, self.repo)
-                self.assertTrue(got["ok"], got)
-
-    def test_caches_inside_an_ignored_folder_are_not_counted(self):
-        """丸ごと無視されるフォルダ（.venv/。git は `.venv/` の 1 本に畳む）の中に出来たキャッシュも数えない——キャッシュの名の
-        フォルダの中の物も、その外の名の形に当たるファイルも。同じフォルダの中のキャッシュでない物が増えれば今までどおり拒む"""
-        reply = {"material": {"status": "clean", "checked": "x"}, "claims": []}
-        for extra, ok in ((None, True), ("stray.pyc", True), ("__pycache__/notes.txt", True), ("added.py", False)):
-            with self.subTest(extra=extra):
-                self.setUp()
-                (self.repo / ".gitignore").write_text(".venv/\n", encoding="utf-8")
-                gitkit.git(self.repo, "add", ".gitignore")
-                gitkit.git(self.repo, "commit", "-q", "-m", "ignore")
-                pkg = self.repo / ".venv" / "lib" / "yaml"
-                pkg.mkdir(parents=True)
-                (pkg / "__init__.py").write_text("x = 1\n", encoding="utf-8")
-                self.view()
-                (pkg / "__pycache__").mkdir()
-                (pkg / "__pycache__" / "__init__.cpython-312.pyc").write_bytes(b"\0")
-                if extra:
-                    (pkg / extra).write_text("y = 2\n", encoding="utf-8")
-                got = ja.material_take(self.jdir, "provenance", reply, self.repo)
-                self.assertEqual(got["ok"], ok, got)
+                self.assertFalse(got["ok"], got)
+                self.assertIn(ja.READONLY_MOVED, got["reason"])
 
     def test_tagged_environment_folder_is_still_watched(self):
         """CACHEDIR.TAG を置いた無視されるフォルダ（uv の .venv/ は根にこの印を置く）はキャッシュでない: 中のファイルを足しても
@@ -1299,35 +1237,6 @@ class MaterialCase(_RepoCase):
                     (site / "injected.py").write_text("y = 2\n", encoding="utf-8")
                 else:
                     (site / "ok.py").write_text("x = 22\n", encoding="utf-8")
-                got = ja.material_take(self.jdir, "provenance", reply, self.repo)
-                self.assertFalse(got["ok"], got)
-                self.assertIn(ja.READONLY_MOVED, got["reason"])
-
-    def test_real_changes_beside_test_caches_still_rejected(self):
-        """issue #270 の不変条件: キャッシュを除いても、追跡しているファイル・HEAD・枝・キャッシュ以外の無視されるファイルを
-        変えれば今までどおり拒む"""
-        def tracked():
-            (self.repo / "app.txt").write_text("書き換えた\n", encoding="utf-8")
-
-        def commit():
-            gitkit.git(self.repo, "commit", "-q", "--allow-empty", "-m", "x")
-
-        def branch():
-            gitkit.git(self.repo, "checkout", "-q", "-b", "other")
-
-        def ignored():
-            (self.repo / "run.log").write_text("x\n", encoding="utf-8")
-
-        reply = {"material": {"status": "clean", "checked": "x"}, "claims": []}
-        for move in (tracked, commit, branch, ignored):
-            with self.subTest(move.__name__):
-                self.setUp()
-                (self.repo / ".gitignore").write_text("*.log\n", encoding="utf-8")
-                gitkit.git(self.repo, "add", ".gitignore")
-                gitkit.git(self.repo, "commit", "-q", "-m", "ignore")
-                self.view()
-                self.make_test_caches()
-                move()
                 got = ja.material_take(self.jdir, "provenance", reply, self.repo)
                 self.assertFalse(got["ok"], got)
                 self.assertIn(ja.READONLY_MOVED, got["reason"])
@@ -1953,17 +1862,6 @@ class SpecGateCase(_SpecRepoCase):
             self.assertIn(part, got["message"])
         self.assertFalse((self.jdir / specblk.SPEC_FILE).exists(), "承認の前に仕様を固めない")
 
-    def test_snapshot_after_approval_leaves_out_test_caches(self):
-        """承認の後に取り直す入口の写しもキャッシュを除く: 承認の前から在ったキャッシュの中身が前提の実測で増えても拒まない"""
-        (self.repo / "__pycache__").mkdir()
-        (self.repo / "__pycache__" / "old.cpython-312.pyc").write_bytes(b"\0")
-        self.asked()
-        ja.write_json(self.jdir / ja.TEST_CACHES_FILE, [".pytest_cache"])
-        self.assertTrue(ja.spec_answer(self.jdir, self.repo, json.dumps({"decision": "approve", "text": "進めてよい"}))["go"])
-        (self.repo / "__pycache__" / "new.cpython-312.pyc").write_bytes(b"\0")
-        got = ja.check_premises(PremisesCase.GOOD, self.jdir, self.repo, [])
-        self.assertTrue(got["ok"], got)
-
     def test_ask_without_faces_has_no_face_lines(self):
         """元 test_blk_spec の test_no_faces_skips_revise（審査の穴の行が無い）"""
         self.assertNotIn("審査の穴", self.asked(faces=False)["message"])
@@ -2489,21 +2387,6 @@ class PrAcceptCase(_PrBase):
         (self.repo / "stats.py").write_text(_MEAN_SOURCE, encoding="utf-8")
         gitkit.git(self.repo, "checkout", "-q", "-b", "other")
         self.assertIn("ref", ja.prcheck_take(self.jdir, _PR_OK, self.repo)["reason"])
-
-    def test_caches_made_by_the_role_are_not_counted(self):
-        """入口がキャッシュを除いて取った写し（キャッシュは入口の前から在った）と比べ、役がテストを回して出来たキャッシュでは拒まない。
-        キャッシュ以外の変更は今までどおり拒む"""
-        (self.repo / "__pycache__").mkdir()
-        (self.repo / "__pycache__" / "old.cpython-312.pyc").write_bytes(b"\0")
-        ja.write_json(self.jdir / ja.TEST_CACHES_FILE, [".pytest_cache"])
-        ja.snap_tree(self.jdir, ja.TREE_FILE, self.repo, caches=ja.test_caches(self.jdir))
-        (self.repo / "__pycache__" / "stats.cpython-312.pyc").write_bytes(b"\0")
-        (self.repo / ".pytest_cache" / "v").mkdir(parents=True)
-        (self.repo / ".pytest_cache" / "v" / "lastfailed").write_text("{}\n", encoding="utf-8")
-        self.assertTrue(ja.prcheck_take(self.jdir, _PR_OK, self.repo)["ok"])
-        (self.jdir / "pr-excluded.json").unlink()
-        (self.repo / "out.txt").write_text("x\n", encoding="utf-8")
-        self.assertFalse(ja.prcheck_take(self.jdir, _PR_OK, self.repo)["ok"])
 
     def test_head_move_and_ignored_paths_are_refused(self):
         """元 test_blk_pr.py:442・467・557（prcheck.py:199 の take）: 作業ツリーの中身が同じままの別の commit への checkout と、
