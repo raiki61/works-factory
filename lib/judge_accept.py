@@ -3740,8 +3740,8 @@ def _intake_out(go, mode="judge", *, spec=False, world=False, verify=False, reas
 
 def request_container(view: dict, repo):
     """始めの記録が名指す依頼のファイルを解いた容器（lib/carry.parts の形）と、そのパス。依頼のファイルが無い run は、始めの記録の
-    依頼の数が 0 の時だけ空の容器。解けなければ ValueError（1 行）"""
-    name = startrec.request_file(view)
+    依頼の数が 0 の時だけ空の容器。view は start_view の物（request_file は解き済み）。解けなければ ValueError（1 行）"""
+    name = view["request_file"]
     if not name:
         if view["input"].get("requests"):
             raise ValueError(f"始めの記録は依頼の行が {view['input']['requests']} 件と言うのに依頼のファイルを名指していない")

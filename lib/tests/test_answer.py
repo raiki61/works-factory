@@ -1,6 +1,6 @@
 """関所の答えの行（lib/answer.py）。起動の殻が置く頭で打てる行になる事と、殻の外の穴の字（FAST）"""
+import ast
 import pathlib
-import re
 import shlex
 import sys
 import unittest
@@ -47,36 +47,93 @@ class LineCase(unittest.TestCase):
         self.assertNotIn("use.sh", answer.HOLE)
 
 
+def _named(node):
+    """名で引いた物の名（VERBS・answer.VERBS・getattr(answer, "VERBS") の VERBS）。名で引いていなければ None"""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "getattr" and len(node.args) >= 2 \
+            and isinstance(node.args[1], ast.Constant):
+        return node.args[1].value
+    return None
+
+
+def word_lists(source: str, name: str, words: set) -> list[str]:
+    """words の語を全部並べた並び（tuple・list・set・呼び出しの引数・dict の鍵）の在りか（<name>:<行>）。並びの中の語は字のままの物も、
+    answer の名（VERBS[0]・REJECT。answer. も getattr も）で引いた物も、そのファイルで語の字を代入した名で引いた物も読む"""
+    tree = ast.parse(source)
+    local = {t.id: n.value.value for n in ast.walk(tree) if isinstance(n, ast.Assign)
+             and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str)
+             for t in n.targets if isinstance(t, ast.Name)}
+
+    def word(node):
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant):
+            seq, at = getattr(answer, str(_named(node.value)), None), node.slice.value
+            return seq[at] if isinstance(seq, tuple) and isinstance(at, int) and at < len(seq) else None
+        named = _named(node) if node is not None else None
+        return (local.get(named) or getattr(answer, named, None)) if isinstance(named, str) else None
+
+    found = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+            elts = node.elts
+        elif isinstance(node, ast.Call):
+            elts = node.args
+        elif isinstance(node, ast.Dict):
+            elts = node.keys
+        else:
+            continue
+        if words <= {w for w in map(word, elts) if isinstance(w, str)}:
+            found.add(node.lineno)
+    return [f"{name}:{line}" for line in sorted(found)]
+
+
+def lib_word_lists(words: set) -> list[str]:
+    return [hit for f in sorted(LIB.rglob("*.py")) if "tests" not in f.relative_to(LIB).parts
+            for hit in word_lists(f.read_text(encoding="utf-8"), str(f.relative_to(LIB)), words)]
+
+
 class GoWordsOwner(unittest.TestCase):
     """関所を通す語の並びを宣言するのは answer.GO_WORDS の 1 か所（#392。ほかは引く。写すと語を足した時に片方だけ変わる）"""
-    TUPLE = re.compile(r"""\(\s*["'](approve|continue)["']\s*,\s*(["'](approve|continue)["']|(answer\.)?VERBS\[0\])\s*\)""")
+    WORDS = set(answer.GO_WORDS)
 
     def test_declared_once_in_lib(self):
-        found = sorted(str(f.relative_to(LIB)) for f in LIB.rglob("*.py")
-                       if "tests" not in f.relative_to(LIB).parts and self.TUPLE.search(f.read_text(encoding="utf-8")))
-        self.assertEqual(found, ["answer.py"])
+        found = lib_word_lists(self.WORDS)
+        self.assertEqual([hit.partition(":")[0] for hit in found], ["answer.py"], found)
 
-    def test_pattern_sees_a_second_copy(self):
-        for copy in ('PASS = ("continue", "approve")', "GATE_GO = ('approve', VERBS[0])"):
+    def test_a_second_copy_is_red(self):
+        """宣言の形（tuple・list・set・frozenset・3 つ組・dict の鍵）と語の引き方（字・answer の名・getattr・語を代入した名）を問わない"""
+        copies = ['PASS = ("continue", "approve")', "GATE_GO = ('approve', VERBS[0])", 'PASS = ["continue", "approve"]',
+                  'PASS = {"approve", answer.VERBS[0]}', 'PASS = frozenset(["approve", "continue"])',
+                  'PASS = frozenset({"approve", "continue"})', 'PASS = ("approve", "continue", "approved")',
+                  'PASS = {"approve": True, "continue": True}', 'PASS = ("approve", getattr(answer, "VERBS")[0])',
+                  'GO = "continue"\nPASS = ("approve", GO)', 'PASS = set_of("approve", "continue")']
+        for copy in copies:
             with self.subTest(copy=copy):
-                self.assertTrue(self.TUPLE.search(copy))
+                self.assertEqual(len(word_lists(copy, "x.py", self.WORDS)), 1)
+        for other in ('ASKED = ("approve", "stop")', 'line(run_id, "continue", note)', "VERBS = ('continue', 'stop')"):
+            with self.subTest(other=other):
+                self.assertEqual(word_lists(other, "x.py", self.WORDS), [])
 
 
 class StopWordsOwner(unittest.TestCase):
     """関所を止める語の並びを宣言するのは answer.STOP_WORDS の 1 か所（通す語の GoWordsOwner と同じ訳）"""
-    WORD = r"""(["'](stop|reject)["']|(answer\.)?VERBS\[1\]|(answer\.)?REJECT)"""
-    TUPLE = re.compile(rf"""\(\s*{WORD}\s*,\s*{WORD}\s*\)""")
+    WORDS = set(answer.STOP_WORDS)
 
     def test_declared_once_in_lib(self):
-        found = sorted(str(f.relative_to(LIB)) for f in LIB.rglob("*.py")
-                       if "tests" not in f.relative_to(LIB).parts and self.TUPLE.search(f.read_text(encoding="utf-8")))
-        self.assertEqual(found, ["answer.py"])
+        found = lib_word_lists(self.WORDS)
+        self.assertEqual([hit.partition(":")[0] for hit in found], ["answer.py"], found)
 
-    def test_pattern_sees_a_second_copy(self):
-        for copy in ('STOPS = (VERBS[1], "reject")', "GATE_STOP = ('stop', 'reject')", "STOPS = (VERBS[1], REJECT)",
-                     'STOPS = ("reject", "stop")', "STOPS = (answer.VERBS[1], answer.REJECT)"):
+    def test_a_second_copy_is_red(self):
+        copies = ['STOPS = (VERBS[1], "reject")', "GATE_STOP = ('stop', 'reject')", "STOPS = (VERBS[1], REJECT)",
+                  'STOPS = ("reject", "stop")', "STOPS = (answer.VERBS[1], answer.REJECT)", 'STOPS = ["stop", REJECT]',
+                  'STOPS = {"stop", "reject"}', 'STOPS = frozenset((VERBS[1], "reject"))', 'STOPS = ("stop", "reject", "cancel")']
+        for copy in copies:
             with self.subTest(copy=copy):
-                self.assertTrue(self.TUPLE.search(copy))
+                self.assertEqual(len(word_lists(copy, "x.py", self.WORDS)), 1)
 
 
 if __name__ == "__main__":
