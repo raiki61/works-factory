@@ -7,7 +7,7 @@
 
 置き場（boundary.place("fix") = $ARTIFACTS_DIR/fix/<include の名>/）に書く物: r1/start.json（始めの記録の字のままの写し。startrec.adopt）・
 judgment.json と隣の answer-ties.json・materials.json（在れば）・plan-fields.json と凍結の印（planmarks.save）・p2.fix_plan.json（修正案の隣に在れば）・
-p2.plan_review.json（入力 plan_review の事前審査の返答の写し。修正役の plan_faces と差分の審査の材料。無ければ書かない）・ripple.json・world.json・
+p2.plan_review.json（入力 plan_review の事前審査の返答の写し。修正役の plan_faces と差分の審査の材料。無ければ書かない）・ripple.json・world.jsonl（入力 world の行のまま。worldmark.rows で読めることを確かめてから写す）・
 depth.json・answers.json・units.json・only-items.json・baseline.json（{cases, exit}）・fix-ignored-before.json・human-notes.md（関所の一言と答えで戻った単位の行と、
 入力 notes の機械の申し送り。無ければ書かない）・base-rev.json
 （修正前の版。親の HEAD の sha。組の子が写して受け付けの起点にする）・groups.json

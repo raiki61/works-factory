@@ -128,8 +128,9 @@ WORLD_ROW = {"finding": 1, "where": "stats.py", "class_id": "mean-denominator", 
 
 
 def world(p: Place) -> str:
-    """judge の world.jsonl（行 1 つ。行が 1 つなら JSON としても読める）"""
-    return p.put("judge/world.jsonl", json.dumps(WORLD_ROW, ensure_ascii=False) + "\n")
+    """judge の world.jsonl（行 2 つ。1 つの JSON としては読めないので、JSON Lines として読まない読み手は対照の run で落ちる）"""
+    second = {**WORLD_ROW, "finding": 2, "class_id": "mean-empty", "problem": "空の並びの平均"}
+    return p.put("judge/world.jsonl", "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in (WORLD_ROW, second)))
 
 
 def plan_fields(p: Place) -> str:
