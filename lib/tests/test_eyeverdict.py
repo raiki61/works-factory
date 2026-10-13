@@ -7,6 +7,7 @@
 """
 import ast
 import json
+import os
 import pathlib
 import sys
 import tempfile
@@ -520,6 +521,25 @@ class OriginSectionCase(unittest.TestCase):
     def test_nothing_changed_is_told_apart_from_cancelling(self):
         got = eyeverdict.origin_section(self.repo, self.root, self.root, "", cumulative_empty=True)
         self.assertIn("PR も直しも何も変えていない", got)
+
+    def test_skipped_paths_are_left_out_of_the_pr_diff_too(self):
+        (self.repo / ".archon").mkdir()
+        (self.repo / ".archon" / "w.yaml").write_text("x: 1\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "pr")
+        head = git(self.repo, "rev-parse", "HEAD")
+        got = eyeverdict.origin_section(self.repo, self.root, head, "", cumulative_empty=True, skip=(".archon/",))
+        self.assertNotIn(".archon", got)
+        self.assertIn("PR の差分（起点 → 修正前の HEAD）で変わったファイル: 無い", got)
+
+    @unittest.skipIf(os.geteuid() == 0, "root はモードを無視してファイルを読める")
+    def test_unreadable_work_tree_is_said_not_raised(self):
+        secret = self.repo / "secret"
+        secret.write_text("s\n", encoding="utf-8")
+        secret.chmod(0)
+        self.addCleanup(secret.chmod, 0o644)
+        got = eyeverdict.origin_section(self.repo, self.root, self.root, "", cumulative_empty=False)
+        self.assertIn("累積差分の起点を測れない", got)
 
     def test_unknown_origin_is_said(self):
         self.assertIn("起点が分からない", eyeverdict.origin_section(self.repo, "", self.root, "", cumulative_empty=True))

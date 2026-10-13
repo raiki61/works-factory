@@ -236,6 +236,8 @@ class YamlCase(unittest.TestCase):
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["mode"]["enum"], ["base", "final"])
         self.assertEqual(fmt["properties"]["red_cause"]["enum"], RED_CAUSES)
+        compared = next(b for b in fmt["properties"]["red_to_green"]["anyOf"] if b["type"] == "object")
+        self.assertEqual(compared["properties"]["rows"]["items"]["properties"]["outcome"]["enum"], list(baseline_red.FAILED))
         self.assertEqual(fmt["properties"]["ok"]["type"], "boolean")
         self.assertEqual(result["output_type"], "green-cert")
         self.assertEqual((result["trigger_rule"], result["depends_on"]), ("all_done", ["run", "ci-loop"]))
@@ -834,6 +836,18 @@ class ResultScriptCase(ScriptCase):
                          {"rows": [{"key": "s::x", "outcome": "failure", "fail_message": "0 != 10"}], "unmeasured": ""})
         self.assertEqual(self.result("final")["red_to_green"],
                          {"rows": [], "unmeasured": "base の実測（baseline）が無い（実行器の無い run か、base のテストが走っていない）"})
+
+    def test_red_to_green_is_not_compared_when_either_side_has_no_per_test_results(self):
+        """issue #384: 1 件ごとの結末を取っていない側が在れば、rows を空にして比べない訳を書く（「無い」と読ませない）"""
+        tallied = self.base()
+        self.decl([{"name": "suite", "argv": [PY, "-c", "pass"]}])
+        self.assertEqual(self.final(tallied)["red_to_green"],
+                         {"rows": [], "unmeasured": "最後のテストは 1 件ごとの結末を取っていない"})
+        self.ok("run", mode="base", start=self.start)
+        untallied = json.dumps(self.result("base")["baseline"])
+        self.decl([{"name": "suite", "argv": [PY, "-c", self.STEP_BODY], "junit": "out/r.xml"}])
+        self.assertEqual(self.final(untallied)["red_to_green"],
+                         {"rows": [], "unmeasured": "base のテストは 1 件ごとの結末を取っていない"})
 
     def test_bare_name_tdd_suite_runs_from_the_target_root(self):
         """#340: 種の tdd_suite のようにファイル名だけ（junit-suite.sh）の実行器は、PATH でなく対象の根から起こす（TDD の輪の

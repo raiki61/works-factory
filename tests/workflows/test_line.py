@@ -1751,6 +1751,11 @@ class FixedCase(unittest.TestCase):
         self.assertEqual(got["allowed_test_changes"], ["tests/a.py", "tests/b.py"])
         self.assertEqual((got["diff"], got["replan_items"], got["refixed"]), ({"path": "refix/diff"}, ["1"], True))
 
+    def test_eyes_get_the_final_red_to_green_and_every_fix_diff(self):
+        """issue #384: R2 の比較役の実測は最後のテストの関門の比べ（base の関門の欄は常に null）と、修正の段ごとの diff"""
+        self.assertEqual({k: line_nodes()["eyes"]["with"][k] for k in ("red_to_green", "diffs")},
+                         {"red_to_green": "$test-gate-final.output.red_to_green", "diffs": "$fixed.output.diffs"})
+
     def test_eyes_get_the_replanned_plan(self):
         """L-W56: 独立の目が照らす修正案と波及は、案の直しの後（2 度目の修正が走った run）は案の直しの物に差し替えた承認済みの物
         （元 works/darkfactory/lib/line_edge.py 1058-1064 行）。2 度目の修正が走らなければ計画の往復の物"""

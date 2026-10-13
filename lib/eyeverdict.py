@@ -330,18 +330,21 @@ def tdd_record_lines(stages: list) -> list[str]:
 
 def origin_section(repo, base: str, head: str, label: str, *, cumulative_empty: bool, skip=()) -> str:
     """R2 の比較役に貼る累積差分の起点の訳。起点 base（入口の差分の根）が修正前の HEAD head と同じ版か PR の根かを書き、PR の差分
-    （base → head）とこの run の直しの差分（head → 作業ツリー。fixboard.run_diff）で変わったファイルを分けて名指す。累積差分が空
-    （cumulative_empty）なら、打ち消し合ったのか何も変えていないのかを分ける。label は入口が書いた起点の出どころの文"""
+    （base → head）とこの run の直しの差分（head → 作業ツリー。fixboard.run_diff）で変わったファイルを分けて名指す。どちらも累積差分と
+    同じく除くパスの頭 skip の下は載せない。累積差分が空（cumulative_empty）なら、打ち消し合ったのか何も変えていないのかを分ける。
+    label は入口が書いた起点の出どころの文"""
     import fixboard
+    import leftovers
     import unittrees
     if not base:
         return "- 累積差分の起点が分からない（始めの記録に入口の base が無い）"
     try:
         base_sha, head_sha = (unittrees._out(repo, "rev-parse", "--verify", f"{rev}^{{commit}}") for rev in (base, head))
-        pr_files = unittrees._out(repo, "diff", "--name-only", "--no-renames", base_sha, head_sha).splitlines()
+        pr_files = unittrees._out(repo, "diff", "--name-only", "--no-renames", base_sha, head_sha, "--",
+                                  *unittrees.pathspec_without(skip)).splitlines()
         commits = int(unittrees._out(repo, "rev-list", "--count", f"{base_sha}..{head_sha}"))
         fix_files = changed_files(fixboard.run_diff(repo, head_sha, skip))
-    except (unittrees.UnitTreeError, ValueError) as e:
+    except (unittrees.UnitTreeError, leftovers.Unreadable, ValueError) as e:
         return f"- 累積差分の起点を測れない（{oneline.one_line(e)}）"
     where = f"（{label}）" if label else ""
     if base_sha == head_sha:
