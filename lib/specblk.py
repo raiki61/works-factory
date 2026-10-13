@@ -2,8 +2,8 @@
 固めは lib/judge_accept.py の spec_* が持ち、ここの物を使う。
 
 - APPROVE: 写しの graph の承認の節の名（関所の文と記録の承認の node）
-- GATE_GO・GATE_STOP・GATE_STOP_NOTE・FLAG_BY_PREFIX: 関所の答えの語（approve は continue と、reject は stop と同じ。台帳 R32）と、
-  一言の無い止めの理由と、止め札の by の頭
+- GATE_STOP_NOTE・FLAG_BY_PREFIX: 一言の無い止めの理由と、止め札の by の頭（関所の答えの語は answer.GO_WORDS・STOP_WORDS。
+  reject は stop と同じ。台帳 R32）
 - gate_text: 関所に見せる文（線 A の修正前の関所と同じ組み立て gatemarks.gate_text）
 - parse_gate: 関所の出口（関所の節の出口〔開かなかった時は null〕を境の口 value が読んだ値）を dict か None（開かなかった）に
 - snapshot_name: 読むだけの役（審査）を起こす前の作業ツリーの写しのファイルの名
@@ -20,12 +20,11 @@ if str(CORE) not in sys.path:
 
 from rolekit import BoardGap  # noqa: E402  （rolekit が写しの engine を sys.path に足す。engine より先に）
 from engine.util import safe_name  # noqa: E402
+import answer  # noqa: E402
 import gatemarks  # noqa: E402
 
 APPROVE = "spec.approve"
 SPEC_FILE = "spec.json"                 # 出口が書く record.process.spec の写し（b.work）
-GATE_GO = ("approve", "continue")       # approve は continue と、reject は stop と同じ（台帳 R32）
-GATE_STOP = ("stop", "reject")
 GATE_STOP_NOTE = "承認ノードで止めた"          # stop・reject に一言が無い時の理由
 FLAG_BY_PREFIX = "request:"             # 止め札で止めた盤面の state.stop.by は "request:<札の by>"（報告の stopped_by_request）
 RUN_ID_HOLE = "<id>"                    # run の id を知らない時の文の穴
@@ -52,8 +51,8 @@ def parse_gate(gate):
     if not isinstance(gate, dict):
         raise BoardGap(f"承認ノードの答えが JSON のオブジェクトでない: {type(gate).__name__}")
     decision = gate.get("decision")
-    if decision not in GATE_GO + GATE_STOP:
-        raise BoardGap(f"承認ノードの答えの語 {decision!r} を知らない（{' / '.join(GATE_GO + GATE_STOP)}）")
+    if decision not in answer.GO_WORDS + answer.STOP_WORDS:
+        raise BoardGap(f"承認ノードの答えの語 {decision!r} を知らない（{' / '.join(answer.GO_WORDS + answer.STOP_WORDS)}）")
     text = gate.get("text")
     if text is None:
         text = ""

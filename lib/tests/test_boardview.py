@@ -16,6 +16,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 from lib.tests import test_plan_gate as TP  # noqa: E402
 import boardview  # noqa: E402
+import conflict  # noqa: E402
 import converge  # noqa: E402
 import gatemarks  # noqa: E402
 import judge_accept  # noqa: E402
@@ -462,6 +463,18 @@ class Owners(unittest.TestCase):
     def test_purpose_review_is_a_judge_public_file(self):
         """判定の隣の目的の監査は、judge が置く名で読む（boardview は judge_accept を import しないので、名を合わせるのはここ）"""
         self.assertIn(boardview.PURPOSE_REVIEW_FILE, judge_accept.PUBLIC_FILES)
+
+
+    def test_request_file_is_the_same_file_for_review_and_gate(self):
+        """#393: 始めの記録が入口の入力の形の input.request_file だけを持つ時も、事前審査の材料（_request）と関所の根
+        （conflict.request_file）と判定の読み（judge_accept.start_view）が同じ依頼のファイルを読む"""
+        with tempfile.TemporaryDirectory() as d:
+            req = pathlib.Path(d) / "request.json"
+            req.write_text("[]", encoding="utf-8")
+            startrec.write(d, {"input": {"request_file": str(req)}})
+            start = startrec.read(d)
+            self.assertEqual((boardview._request(start)[0], conflict.request_file(d),
+                              judge_accept.start_view(start)["request_file"]), (str(req),) * 3)
 
 
 if __name__ == "__main__":

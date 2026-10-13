@@ -53,7 +53,8 @@ answer = boundary.parsed(os.environ["INPUTS_ANSWERS"])
 changed = boundary.parsed(os.environ["INPUTS_CHANGED"])
 premises = judgment_file.with_name(_premises.PREMISES_FILE) if judgment_file else None
 constraints = json.loads(premises.read_text(encoding="utf-8")).get("constraints") if premises and premises.is_file() else None
-request = Path(start["request_file"]) if start.get("request_file") else None
+request_file = startrec.request_file(start)
+request = Path(request_file) if request_file else None
 repo_review = Path.cwd() / "REVIEW.md"
 depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
 purpose_text = purpose.get("purpose_text") or ""

@@ -25,6 +25,7 @@ import carry  # noqa: E402
 import checkscope  # noqa: E402
 import declared_checks  # noqa: E402
 import green_cert  # noqa: E402
+import startrec  # noqa: E402
 import tree_run  # noqa: E402
 from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path に足す）
 
@@ -47,10 +48,11 @@ def changed(root: Path, base_rev: str, wheres=()):
 def request_wheres(start: dict, mode: str) -> list:
     """判定から入る run（入口の差分が空）の base で、依頼の行の where の並び。修正の前の入口の確かめは、変更を依頼が名指す所で
     決める（修正が where の外へ広がれば final がその変更で照らす）。差分の在る入口・final・依頼が無いか読めない時は []（足さない）"""
-    if mode != "base" or not ((start.get("input") or {}).get("diff") or {}).get("empty") or not start.get("request_file"):
+    request_file = startrec.request_file(start)
+    if mode != "base" or not ((start.get("input") or {}).get("diff") or {}).get("empty") or not request_file:
         return []
     try:
-        findings = carry.parts(json.loads(Path(start["request_file"]).read_text(encoding="utf-8")))[carry.FINDINGS]
+        findings = carry.parts(json.loads(Path(request_file).read_text(encoding="utf-8")))[carry.FINDINGS]
     except (OSError, UnicodeDecodeError, ValueError):
         return []
     return [f["where"] for f in findings if isinstance(f, dict) and isinstance(f.get("where"), str)]

@@ -222,9 +222,8 @@ def no_requests(board_dir) -> bool:
 
 
 def request_file(board_dir) -> str:
-    """run の依頼のファイル（盤面の start の控えの request_file。無ければ空）"""
-    got = startrec.read(board_dir).get("request_file")
-    return got if isinstance(got, str) else ""
+    """run の依頼のファイル（盤面の始めの記録の startrec.request_file。無ければ空）"""
+    return startrec.request_file(startrec.read(board_dir))
 
 
 def cite_roots(board_dir, root=None) -> list:

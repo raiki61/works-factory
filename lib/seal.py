@@ -1,4 +1,4 @@
-"""run の差分の封印と、封じた差分を置いてよいかの決まり。標準ライブラリと答えの語（answer.VERBS）だけ（git は repo を cwd にして呼ぶ）。
+"""run の差分の封印と、封じた差分を置いてよいかの決まり。標準ライブラリと答えの語（answer.GO_WORDS・STOP_WORDS）だけ（git は repo を cwd にして呼ぶ）。
 
 差分を組む・作業ツリーの指紋を取るのは green_cert（差分の組み方の 1 か所）で、ここは持たない。
 封じる型は ASF の merge-queue（gate の封印を execute が照らし直し、書いた後に読み戻す）に倣う。
@@ -19,10 +19,8 @@ import pathlib
 import re
 import subprocess
 
-from answer import VERBS
+from answer import GO_WORDS, STOP_WORDS
 
-PASS = ("approve", VERBS[0])     # 通す語。approve は承認の節の decisions に要る語、continue は今の works の答えの語
-STOPS = (VERBS[1], "reject")     # 止める語（今の works の report.FINAL_GATE_STOPS）
 REQUEST_BY = "request:"          # 止め札: 文がこれで始まる止める語（今の works の report.REQUEST_BY）
 PASSED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "redesign-needed", "unverifiable")   # 目の状態の語の持ち主（ほかは写さずここを読む）
 UNKNOWN_HEAD = "守りのパスを確かめられない（差分が一覧に触れていないとは言えない）: "
@@ -110,15 +108,15 @@ def deleted_paths(text: str) -> list:
 
 def _answer_refusal(answer: dict) -> str:
     word = answer.get("decision")
-    if word in PASS:
+    if word in GO_WORDS:
         return ""
     text = answer.get("text")
-    if word in STOPS and isinstance(text, str) and text.startswith(REQUEST_BY):
+    if word in STOP_WORDS and isinstance(text, str) and text.startswith(REQUEST_BY):
         kind = "（止め札）"
-    elif word in STOPS:
+    elif word in STOP_WORDS:
         kind = ""
     else:
-        kind = f"（通す語 {'・'.join(PASS)} のどれでもない）"
+        kind = f"（通す語 {'・'.join(GO_WORDS)} のどれでもない）"
     return f"最後の承認ノードで {word or '語なし'} と答えた{kind}"
 
 
@@ -126,11 +124,11 @@ def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, f
     """置いてよいかの理由（空なら置く）。上から順に見て最初の理由を返す:
     1. sealed_hash が空（seal が走っていない）
     2. current_hash が sealed_hash と違う
-    3. 答え answer（{decision, text}）が在り、decision が PASS のどれでもない（止め札もここ）
+    3. 答え answer（{decision, text}）が在り、decision が通す語 GO_WORDS のどれでもない（止め札もここ）
     4. r2（None か {status, reason}）の status が REDESIGN（unverifiable は機械で拒まず人の答えに任せる）。人の通しの答えでも拒む（R2 が作り直しと言った run は部分を取り込まない）
     5. 答えが無い（関所が開かなかった）のに、green_ok・eyes_ok・fingerprint_ok のどれかが真でないか、protected（守りの当たりの行。
        unknown_row の行は「確かめられない」として書き分けるが、当たりと同じく拒む）が空でない。守りのパスは人の通しの答えだけが通す
-    答えが PASS なら、赤でも・R2 の作り直しのほかの目の阻害でも置く"""
+    答えが通す語なら、赤でも・R2 の作り直しのほかの目の阻害でも置く"""
     if not sealed_hash:
         return "封じた hash が無い（seal が走っていない）"
     if current_hash != sealed_hash:
