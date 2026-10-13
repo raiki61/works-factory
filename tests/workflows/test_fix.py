@@ -1022,7 +1022,7 @@ def _blk_result(gid, units, end_tree, start_tree, **extra):
     doc = {"group_id": gid, "unit_ids": units, "end_tree": end_tree, "start_tree": start_tree,
            "units": [{"unit_id": k, "status": "fixed", "reason": ""} for k in units],
            "tdd": {"ran": False, "reason": "実行器が無い", "suite": "", "units": []}, "conflicts": [], "objection": "",
-           "changed": {k: False for k in _BLK_MARKS}, "allowed_test_changes": [], "verified": []}
+           "changed": {k: False for k in _BLK_MARKS}, "allowed_tests": [], "verified": []}
     doc.update(extra)
     return doc
 
@@ -1828,24 +1828,38 @@ class BlockScriptsCase(unittest.TestCase):
                 self.assertEqual(out["delta_review"], {"rounds": 0, "pass": False})
                 self.assertTrue(out["done"], "組の子の done は審査に依らない")
 
-    def test_collect_takes_group_permits_by_the_join_rule(self):
-        """#286: 修正役の返答を受け付けていない組の子は、join の和にも親の collect の返りの allowed_test_changes・diff の隣の
-        allowed-tests.json にも許しを足さない。受け付けた組は両方に同じパスを足す"""
+    def test_group_permits_reach_join_and_collect_only_for_an_accepted_reply(self):
+        """#286: 修正役の返答を受け付けていない組の子の許しは、join の和（同じテストのファイルへの挿しだけの食い違いを合わせる）にも
+        親の collect の返りの allowed_test_changes・diff の隣の allowed-tests.json にも入らない。受け付けた組の許しは両方に入る"""
         import fixboard
-        child = {"path": "test_extra.py", "permit": "plan-agreed-2", "source": "consult"}
-        for reply, paths, rows in ((None, [], []), ({"changes": []}, ["test_extra.py"], [child])):
+        child = {"path": "test_stats.py", "permit": "plan-agreed-2", "source": "consult"}
+        src = (self.repo / "test_stats.py").read_text(encoding="utf-8")
+        tail = 'if __name__ == "__main__":'
+
+        def added(name):
+            return src.replace(tail, f"class {name}(unittest.TestCase):\n    def test_{name.lower()}(self):\n"
+                                     f"        self.assertTrue(True)\n\n\n{tail}")
+        for reply, returned, rows in ((None, 1, []), ({"changes": []}, 2, [child])):
             with self.subTest(reply=reply):
                 __import__("shutil").rmtree(self.art, ignore_errors=True)
+                self.restore()
                 self.place.mkdir(parents=True)
-                gated = fixboard.group_result({"group_id": "g1", "unit_ids": ["A"]}, start_tree="", end_tree="", tdd=None,
-                                              reply=reply, allowed_rows=[child])
-                self.collect_place(result_extra={k: gated[k] for k in ("allowed_tests", "allowed_test_changes")})
+                permits = fixboard.group_result({"group_id": "g2", "unit_ids": ["B"]}, start_tree="", end_tree="", tdd=None,
+                                                reply=reply, allowed_rows=[child])["allowed_tests"]
+                start = self.snapshot(self.repo)
+                t1, t2 = self.tree_with({"test_stats.py": added("TestG1")}), self.tree_with({"test_stats.py": added("TestG2")})
+                out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                            {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+                _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+                _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, allowed_tests=permits))
+                code, out, err = _blk_run("join", self.repo, self.art)
+                self.assertEqual((code, out), (0, {"groups": 2, "returned": returned}), err)
+                self.collect_place(result_extra={"allowed_tests": permits})
                 code, out, err = _blk_run("collect", self.repo, self.art)
                 self.assertEqual(code, 0, err)
-                self.assertEqual(out["allowed_test_changes"], gated["allowed_test_changes"], "join の merge_one が足す和と同じ")
+                self.assertEqual(out["allowed_test_changes"], [r["path"] for r in rows])
                 beside = (self.art / out["diff"]["path"]).parent / fixboard.ALLOWED_TESTS_FILE
-                self.assertEqual(json.loads(beside.read_text(encoding="utf-8")), gated["allowed_tests"])
-                self.assertEqual((gated["allowed_test_changes"], gated["allowed_tests"]), (paths, rows))
+                self.assertEqual(json.loads(beside.read_text(encoding="utf-8")), rows)
 
     def test_collect_allowed_test_changes_from_rulings_and_groups(self):
         """F429: 許したテストの変更（裁定 fix_test_scope の範囲・組の子が許した物）を返りの allowed_test_changes にパスで並べ、
@@ -1858,7 +1872,7 @@ class BlockScriptsCase(unittest.TestCase):
                  "status": "ruled", "ruling": {"decision": "fix_test_scope", "text": "期待を直してよい",
                                                "limits": ["test_stats.py:8-9"]}}
         child = {"path": "test_extra.py", "permit": "plan-agreed-2", "source": "consult"}
-        self.collect_place(conflicts=[ruled], result_extra={"allowed_test_changes": ["test_extra.py"], "allowed_tests": [child]})
+        self.collect_place(conflicts=[ruled], result_extra={"allowed_tests": [child]})
         code, out, err = _blk_run("collect", self.repo, self.art)
         self.assertEqual(code, 0, err)
         self.assert_contract(out)
@@ -2495,7 +2509,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(out["result_file"], str(self.out_dir / "g1" / "result.json"))
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
-                                       "objection", "changed", "x_scalars", "allowed_test_changes", "allowed_tests", "verified",
+                                       "objection", "changed", "x_scalars", "allowed_tests", "verified",
                                        "reply_file", "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace", "closure",
                                        "claimed"})
         # F427・F428・F013: 子の置き場の受け入れた壊れ・閉鎖の表・受け付けの知らせを、親の collect へ結果で運ぶ
@@ -2510,13 +2524,13 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((result["tdd"]["ran"], result["tdd"]["units"]), (False, []))
         self.assertEqual(result["changed"], {**{k: k == "gates_changed" for k in CHANGED_MARKS}, "premise_drift_note": "上限を測り直した"})
         self.assertEqual(result["x_scalars"], {"x_moved": 2})
-        self.assertEqual((result["objection"], result["allowed_test_changes"], result["verified"], result["conflicts"]),
+        self.assertEqual((result["objection"], [t["path"] for t in result["allowed_tests"]], result["verified"], result["conflicts"]),
                          ("単位の見立てが違う", ["test_stats.py"], [], []))
         self.assertEqual(result["reply_file"], str(self.place / "fix-reply.json"))
 
     def test_group_end_lists_allowed_tests_only_for_an_accepted_reply(self):
-        """受け付けが通らず fix-reply.json が無い組は、置き場に許しが在っても allowed_test_changes も許しの訳 allowed_tests も
-        空にする（#286。join の和と親の collect が同じ決まりで読む）。相談の 1 問 1 答の行は accept_trace に残る"""
+        """受け付けが通らず fix-reply.json が無い組は、置き場に許しが在っても許しの訳 allowed_tests を
+        空にする（#286。join の和と親の collect が同じ欄から読む）。相談の 1 問 1 答の行は accept_trace に残る"""
         import conflict
         self._grp_run("group_start", "group-start")
         agreed = {"op": conflict.ASKED_OP, "id": 1, "item": "1", "status": "answered", "decision": "allow",
@@ -2524,8 +2538,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         (self.place / "trace.jsonl").write_text(json.dumps(agreed, ensure_ascii=False) + "\n", encoding="utf-8")
         out = self._grp_run("group_end", "group-end")
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
-        self.assertEqual((result["allowed_test_changes"], result["reply_file"]), ([], ""))
-        self.assertEqual(result["allowed_tests"], [])
+        self.assertEqual((result["allowed_tests"], result["reply_file"]), ([], ""))
         self.assertEqual(result["accept_trace"], [{**agreed, "group_id": "g1"}])
 
     def test_refix_child_sees_the_first_pass_and_returns_only_its_rows(self):

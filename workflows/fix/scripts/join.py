@@ -64,7 +64,7 @@ def main() -> dict:
         def merge_one(g, earlier):
             r = results[g["group_id"]]
             tdd_rows = [u for u in (r.get("tdd") or {}).get("units") or [] if isinstance(u, dict)]
-            union = sorted({f for u in tdd_rows for f in u.get("test_files") or []} | set(r.get("allowed_test_changes") or []))
+            union = sorted({f for u in tdd_rows for f in u.get("test_files") or []} | {t.get("path") for t in r.get("allowed_tests") or [] if isinstance(t, dict)})
             named = [*verified, *(r.get("verified") or [])]
 
             def check(names):
