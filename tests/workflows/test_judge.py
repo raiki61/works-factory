@@ -1663,8 +1663,21 @@ class BriefCase(unittest.TestCase):
         self.assertEqual(r.returned("verify", stage="prep", objection="異議")["lang_line"], want)
         self.assertEqual(Run(self).returned("reject", reason="x"), {"reason": "x", "lang_line": rolekit.lang_line({})})
         broken = r.returned("reject", reason="", start=json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "no.json"}))
-        self.assertIn("読めない", broken["lang_line"])
+        self.assertIn("ポインタの先が無い", broken["lang_line"])
 
+
+    def test_unreadable_start_pointer_degrades_in_every_lang_line_script(self):
+        """#367: 始めの記録の指し札が読めない（ほかの run の札・札の形でない）時、言語の 1 行を返す 3 つの script はどれも落ちずに、
+        rolekit.pointed_lang_line の同じ 1 行を返す"""
+        r = Run(self)
+        for start in (json.dumps({"type": "archon_artifact", "run_id": "other-run", "path": "start.json"}), '"札でない"'):
+            got = [r.returned("reject", reason="", start=start)["lang_line"],
+                   r.returned("rejects", board="judge", accept="purpose", start=start)["lang_line"],
+                   r.returned("verify", stage="prep", start=start)["lang_line"]]
+            with self.subTest(start):
+                self.assertEqual(len(set(got)), 1, got)
+                self.assertTrue(got[0].startswith(rolekit.lang_line({})), got[0])
+                self.assertIn(rolekit.POINTER_UNREAD, got[0])
 
 class CarriedConstraintsCase(unittest.TestCase):
     def test_carried_rows_fit_the_premises_shape(self):

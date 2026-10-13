@@ -1546,6 +1546,8 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertIn("意味の食い違い", g2["reason"])
         self.assertIn("e.py", g2["reason"])
         self.assertIn("test_triple", g2["reason"])
+        self.assertNotIn("backed_out", g1, "当てたままの組は印を持たない")
+        self.assertEqual(sorted(g2["backed_out"]), ["b.py", "e.py"], "#383 の 8: 当ててから赤で戻した組は戻したパスを名指す")
         e = (self.repo / "e.py").read_text(encoding="utf-8")
         self.assertIn("E1 = 10\n", e, "前の組は残す")
         self.assertIn("E8 = 8\n", e, "後の組の直しは戻す")

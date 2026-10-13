@@ -21,8 +21,8 @@ def lang_line() -> str:
     try:
         sys.path.append(str(boundary.lib_root()))
         import rolekit
-        return rolekit.record_lang_line(boundary.pointed(os.environ.get("INPUTS_START")))
-    except Exception as error:  # noqa: BLE001 — 拒否の理由を役へ渡す節は落ちない
+        return rolekit.pointed_lang_line(os.environ.get("INPUTS_START"), boundary.pointed)
+    except Exception as error:  # noqa: BLE001 — 拒否の理由を役へ渡す節は lib/ を読めなくても落ちない
         return f"（言語の 1 行を組めない: {type(error).__name__}: {error}。人が読む文の欄は依頼文の言語で書け）"
 
 

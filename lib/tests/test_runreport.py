@@ -134,8 +134,11 @@ class BuildCase(Base):
 
         eyes = {**fixed_run()["eyes"], "r2": {"status": "redesign-needed", "reason": "独立設計と食い違う"}}
         fix = {**fixed_run()["fix"], "units": [{"unit_id": "u1", "status": "given_up", "reason": "受け付けが 3 回拒んだ"}]}
-        got, _, decided = self.build(fixed_run(eyes=eyes, fix=fix))
+        got, text, decided = self.build(fixed_run(eyes=eyes, fix=fix))
         self.assertEqual(decided[0], "round_limit")
+        named = self.section(text, report.PRIOR_HEADING)
+        self.assertIn(carry.NEXT_REQUEST_FILE, named, "書いた next-request.json を名指す（#383 の 10）")
+        self.assertIn(carry.PRIOR_FAILURES_FILE, named)
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         prior = json.loads(pathlib.Path(got["prior_failures"]).read_text(encoding="utf-8"))
         self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
@@ -143,6 +146,15 @@ class BuildCase(Base):
         self.assertEqual([r["where"] for r in prior if r["where"] == carry.REDESIGN_WHERE], [carry.REDESIGN_WHERE])
         self.assertFalse(any(report._r2_redesign(r) for r in doc["findings"]), "R2 の作り直しの行は前の失敗にだけ載せる")
         self.assertTrue(any("受け付けが 3 回拒んだ" in r["text"] for r in prior))
+
+    def test_prior_section_names_only_the_files_written(self):
+        """#383 の 10: 前の失敗だけが在る run は next-request.json を書かないので、節はそれを名指さず prior-failures.json を名指す"""
+        got, text, _ = self.build(line={"stops": {"ask-final": stopby.LINE_SCRIPT}})
+        self.assertIsNone(got["next_request"])
+        prior = self.section(text, report.PRIOR_HEADING)
+        self.assertNotIn(carry.NEXT_REQUEST_FILE, prior)
+        self.assertIn(carry.PRIOR_FAILURES_FILE, prior)
+        self.assertEqual(report.prior_lines([], carry.NEXT_REQUEST_FILE), ["0 件"])
 
     def test_build_refuses_off_contract_carries(self):
         """2 つとも照らしてから書く: 次の依頼か前の失敗のどちらかが約束に合わなければ ValueError で、どちらのファイルも置かない。
@@ -193,6 +205,8 @@ class BuildCase(Base):
         (self.dir / "fix" / "fix").mkdir(parents=True)
         reads.collect(self.dir / "fix" / "fix", "fix", ["/p.md"], self.dir / "none" / "x" / reads.LOG, own=[], since="", repo=self.dir)
         self.put("plan/r1/reads-plan-writer.json", "{")
+        reads.guarded(lambda: 1 / 0, owner="plan-review", place=self.dir / "plan-review")
+        self.put(f"fix/fix/{reads.index_name('fix')}", {"fix": None, "why": f"{reads.NOT_LAUNCHED}: refix"})
         _, text, _ = self.build(transcript=tfacts)
         got = self.section(text, report.READS_HEADING)
         self.assertIn(f"  - {role}: Read 2 件・Edit 0 件・Write 0 件（ファイル: /r/a.py・/r/b.py）", got)
@@ -202,6 +216,8 @@ class BuildCase(Base):
         self.assertIn(f"  - fix（fix/fix/reads-fix.json）: 測れない（{reads.NO_ROOT}）", got)
         self.assertIn("  - plan/r1/reads-plan-writer.json: 読めない（", got)
         self.assertNotIn(reads.index_name("pr-check"), got)
+        self.assertRegex(got, r"  - plan-review（plan-review/reads-plan-review-failed-[^）]+）: 読んだ証拠のノードが落ちた（ZeroDivisionError: ")
+        self.assertIn(f"  - fix/fix/{reads.index_name('fix')}: {reads.NOT_LAUNCHED}: refix", got)
         self.assertIn("取れない（U6）: Bash で読み書きしたファイル", got)
         self.assertIn(f"Bash の呼び 1 回: {role} 1", got)
         self.assertIn("組の子の run", got)
@@ -405,6 +421,43 @@ class TranscriptCase(Base):
 
 
 class DecisionsCase(Base):
+    def test_stopped_head_says_why_and_what_to_do(self):
+        """#383 の 9: R2 が redesign-needed で無人の run が最後の承認ノードの手前で止まった時、冒頭 1 行目に止めた語・開けた理由・
+        阻害の目（R2・状態の語・訳）が、2 行目に人の取る手（差分を当てる行）が出る。節 1 に 0 件の種の行は出ない（元の head3・
+        head_decisions は在る種だけを出した）"""
+        eyes = {**fixed_run()["eyes"], "r2": {"status": "redesign-needed", "reason": "独立設計と食い違う"}}
+        line = {"stops": {"ask-final": stopby.NEEDS_HUMAN}, "final_reasons": ["独立の目が阻害を返した（R2）"]}
+        seal = {"mode": "seal", "ok": True, "diff": "merge/sealed.diff"}
+        _, text, decided = self.build(fixed_run(eyes=eyes, **{"merge-seal": seal, "merge-apply": None}), line=line)
+        self.assertEqual(decided[0], "needs_human")
+        head = text.splitlines()[2:5]
+        self.assertIn(f"ask-final が {stopby.NEEDS_HUMAN}（{stopby.REASONS['needs-human']}）", head[0])
+        self.assertIn("開けた理由: 独立の目が阻害を返した（R2）", head[0])
+        self.assertIn(f"{gatemarks.eye_named('R2', 'redesign-needed')}——独立設計と食い違う", head[0])
+        self.assertIn(f"{runreport.APPLY_HEAD}: しない", head[1])
+        decisions = self.section(text, report.DECISIONS_HEADING).splitlines()
+        zero = [x for x in decisions if x.endswith(": 0 件")]
+        self.assertEqual(zero, ["- 次の run に渡す物: 0 件"], "0 件で残すのは元の head_decisions が常に出した行だけ")
+        self.assertTrue(any(x.startswith(f"- {conflict.HEAD}: 0 件") for x in decisions), "申し出の件数の行は元どおり 0 件でも出す")
+
+    def test_backed_out_group_is_named_in_head_and_decisions(self):
+        """#383 の 8（持ち主の決め clash-goes-to-ruling のそれまでの間）: 当ててから確かめ直しが赤で戻した組は、冒頭 1 行目で名指し、
+        人が決めることの節の頭に組ごとの 3 行（組と単位・赤の文・作り直しの結果）を置く。当てなかっただけの組は名指さない"""
+        groups = [{"group_id": "g1", "unit_ids": ["A"], "returned": True, "reason": ""},
+                  {"group_id": "g2", "unit_ids": ["B"], "returned": False, "reason": "意味の食い違い: test_triple が赤",
+                   "backed_out": ["b.py", "e.py"]},
+                  {"group_id": "g3", "unit_ids": ["C"], "returned": False, "reason": fixboard.NO_RESULT}]
+        fix = {**fixed_run()["fix"], "groups": groups,
+               "units": [{"unit_id": "B", "group_id": "g2", "status": "not_done", "reason": "組を戻した"}]}
+        _, text, _ = self.build(fixed_run(fix=fix))
+        head = text.splitlines()[2]
+        self.assertIn(f"{runreport.BACKED_OUT_HEAD}: 組 g2", head)
+        self.assertNotIn(f"{runreport.BACKED_OUT_HEAD}: 組 g3", head)
+        body = self.section(text, report.DECISIONS_HEADING).splitlines()
+        self.assertEqual(body[:3], [f"- {runreport.BACKED_OUT_HEAD}: 組 g2（単位 B）。戻したパス b.py・e.py",
+                                    "  - 赤: 意味の食い違い: test_triple が赤",
+                                    "  - 作り直しの結果: 作り直していない。ほかの組は 1 組を当てたまま、外した単位 B は次の run の依頼に回した"])
+
     def test_residue_count_is_always_shown(self):
         """R20（元 report.always_rows の「残り: N 件」:1588-1591）: 残りの件数の行を結末に依らず人が決めることの節に出す（0 件も）。
         残りが在れば、結果が無い目の注記を添える"""
@@ -486,7 +539,7 @@ class DecisionsCase(Base):
         self.assertTrue(head[3].startswith(gatemarks.DECIDE + "1 件——独立の目 R4 の問い 1 件"), head[3])
         self.assertNotIn("小さい方", head[4])
         body = self.section(text, report.DECISIONS_HEADING)
-        self.assertIn("- 修正前の問い: 0 件\n", body)
+        self.assertNotIn("- 修正前の問い:", body)   # 0 件の種は出さない（#383 の項目 9）。答えた問いは数えない
         self.assertIn(f"- {gatemarks.ANSWERED_HEAD}（1 件。保留と人が決めることの件数には数えない）:\n  - {text_q}", body)
         for gates in ({}, {"gate-before-fix": {"decision": "stop", "text": "止める", "asked": [text_q]}}):
             with self.subTest(gates=gates):
@@ -895,6 +948,21 @@ class CarryCase(Base):
         self.assertIn(conflict.FIX_IN_DIFF, text)
         self.assertNotIn(conflict.UNFIXED_LEFT, text)
 
+    def test_mixed_asked_unit_does_not_claim_its_fix_in_the_diff(self):
+        """#368: 1 単位に query_hits_fixed と unnamed_test_broke の人に回した行が混ざる時、次の依頼の行は関所の行と同じく
+        conflict.fix_place の 1 つの在りか（直さずに残した）を言い、先頭の行の種類で「差分に在る」と言わない"""
+        ask = {"decision": "ask_human", "text": "人が決める"}
+        rows = [{"unit_key": "u1", "between": ["判定:58", "stats.py:14"], "kind": conflict.QUERY_HITS_FIXED, "which_is_right": "query",
+                 "ruling": ask},
+                {"unit_key": "u1", "between": ["test_stats.py:3"], "kind": conflict.UNNAMED_TEST_BROKE, "which_is_right": "request",
+                 "ruling": ask}]
+        fix = {**fixed_run()["fix"], "conflicts": self.put("fix/conflicts.json", {"items": rows})}
+        got, _, _ = self.build(fixed_run(fix=fix))
+        doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
+        text = {r["where"]: r["text"] for r in doc["findings"]}["u1"]
+        self.assertIn(conflict.UNFIXED_LEFT, text)
+        self.assertNotIn(conflict.FIX_IN_DIFF, text)
+
     def test_objection_without_rejudge_is_carried(self):
         returns = fixed_run(fix={**fixed_run()["fix"], "objection": "判定が違う"})
         self.assertIn({"where": runreport.REJUDGE_LEFT_WHERE, "text": "判定が違う"}, self.next_request(returns, []))
@@ -984,7 +1052,7 @@ class CarryCase(Base):
                                             done("fix__write", "2026-10-12T00:01:00Z", kind="node_error")])
         got, text, decided = self.build(fixed_run(fix=fix), transcript=facts)
         self.assertEqual(decided[0], "interrupted")
-        self.assertIn("人に回した食い違いの申し出 0 件", self.section(text, report.DECISIONS_HEADING).replace(": ", " "))
+        self.assertNotIn("人に回した食い違いの申し出", self.section(text, report.DECISIONS_HEADING))
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         self.assertIn(outcome.PENDING_WHY, doc["findings"][-1]["text"])
 
@@ -1087,7 +1155,7 @@ class LedgerCase(Base):
         gate = {"decision": "approve", "text": "", "asked": [gatemarks.ask_text(FORK)]}
         _, text, _ = self.build(returns, gates={"gate-before-fix": gate})
         body = self.section(text, report.DECISIONS_HEADING)
-        self.assertIn("- 修正前の問い: 0 件\n", body)
+        self.assertNotIn("- 修正前の問い:", body)   # 0 件の種は出さない（#383 の項目 9）。答えた問いは数えない
         self.assertEqual(body.count(gatemarks.ANSWERED_HEAD), 1, body)
         self.assertEqual(body.count(f"{gatemarks._prefix(FORK)}"), 1, body)
         self.assertIn(f"- {gatemarks.ANSWERED_HEAD}（1 件。", body)

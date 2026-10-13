@@ -18,6 +18,7 @@ class Merge(NamedTuple):
     names: list       # 当てた差分のパス（当てなかったら []）
     unioned: list     # 試験のファイルの挿しだけの食い違いを合わせたパス
     clash: bool       # 字の食い違いで当たらなかった
+    backed_out: list = []   # 当ててから確かめ直しが赤で戻したパス（当てなかった・当てたままなら []）
 
 
 def groups(rows) -> list:

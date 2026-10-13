@@ -336,6 +336,7 @@ def checks_reply(launch, runs, root, *, after_judge) -> dict:
     """走らせた結果から素材 {status, count?, detail?, checked?, reason?} を組む。走らせられないときは、判定の前（after_judge が偽）なら
     awaiting_human、判定の後なら not_run（人待ちを新しく立てない規則）。
     試験の報告（junit）を宣言した段は、報告の件数で走ったかを見て、走らなかった段を起こせない段と同じ status に落とす。
+    ただし走った段の赤が在れば found を勝たせ、走らなかった段の訳は detail に添える（#370。元は走らなかった段を先に見ていた）。
     報告を宣言していない段の赤は found のまま、走ったかは確かめていないと detail に添える
     （元 works/.shared/core/graphloops/rules/review-loop.py:2236-2271。記録への控え _checks_note と台帳の人待ち _awaiting_origins を外した）"""
     cant = CANT[bool(after_judge)]
@@ -349,14 +350,16 @@ def checks_reply(launch, runs, root, *, after_judge) -> dict:
     unran = {n: why for n, why in unran.items() if why}
     if broken:
         return {"status": cant, "reason": "宣言の語を起こせない: " + "; ".join(f"{r['name']}: {r.get('error')}" for r in broken)}
+    unran_text = "基準の検査が走らなかった段（コードの赤ではない）: " + "; ".join(f"{n}: {why}" for n, why in unran.items())
+    red_ran = [r for r in red if r["name"] not in unran]
+    if red_ran:
+        unverified = [r["name"] for r in red_ran if not decl.get(r["name"], {}).get("junit")]
+        return {"status": "found", "count": len(red_ran),
+                "detail": f"engine が宣言 {DECL_NAME} を走らせた: {summary} ／ " + " ／ ".join(f"{r['name']} の末尾: {r['tail'][-600:]}" for r in red_ran)
+                          + (f" ／ 走ったかは確かめていない（試験の報告の宣言が無い段: {', '.join(unverified)}）" if unverified else "")
+                          + (f" ／ {unran_text}" if unran else "")}
     if unran:
-        return {"status": cant, "reason": "基準の検査が走らなかった段（コードの赤ではない）: " + "; ".join(f"{n}: {why}" for n, why in unran.items())
-                                         + f" ／ 走らせた結果: {summary}"}
-    if red:
-        unverified = [r["name"] for r in red if not decl.get(r["name"], {}).get("junit")]
-        return {"status": "found", "count": len(red),
-                "detail": f"engine が宣言 {DECL_NAME} を走らせた: {summary} ／ " + " ／ ".join(f"{r['name']} の末尾: {r['tail'][-600:]}" for r in red)
-                          + (f" ／ 走ったかは確かめていない（試験の報告の宣言が無い段: {', '.join(unverified)}）" if unverified else "")}
+        return {"status": cant, "reason": f"{unran_text} ／ 走らせた結果: {summary}"}
     return {"status": "clean", "checked": f"engine が宣言 {DECL_NAME}（sha {launch['sha'][:12]}）の {len(runs)} 段を走らせた: {summary}"}
 
 
