@@ -17,6 +17,7 @@ from tests.calibration import run as runner
 from tests.e2e import evidence
 
 import judge_accept  # noqa: E402  lib/ は corpus が sys.path に足す
+import prcheck  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
@@ -54,17 +55,23 @@ def _nodes(doc):
 
 
 def _reply_schemas(doc) -> dict:
-    """material-*.json を書く受け付けは 2 つ: material_accept は material-<with.role>.json、pr_accept は judge_accept.MATERIAL_PR_FILE。
-    どちらも with.reply に受けた書き手の節の返答を reply に写す。置き場の名 → 書き手の output_format"""
+    """material-*.json を書く受け付けは 2 つ: material_accept は material-<with.role>.json に、with.reply に受けた書き手の節の返答を
+    そのまま写す。pr_accept は judge_accept.MATERIAL_PR_FILE に、返答から prcheck.EXCLUDED_FIELD を外した物を写す（同じ置き場を
+    書く pr_scan の返答は、その残りの欄の部分集合）。置き場の名 → 置き場が持つ reply の schema"""
     nodes = {n["id"]: n for n in _nodes(doc)}
-    files = {"material_accept": lambda given: f"material-{given['role']}.json",
-             "pr_accept": lambda given: judge_accept.MATERIAL_PR_FILE}
+    files = {"material_accept": (lambda given: f"material-{given['role']}.json", ()),
+             "pr_accept": (lambda given: judge_accept.MATERIAL_PR_FILE, (prcheck.EXCLUDED_FIELD,))}
     schemas = {}
     for node in nodes.values():
         if node.get("script") in files:
             given = node["with"]
+            name, dropped = files[node["script"]]
             writer = re.fullmatch(r"\$([\w-]+)\.output", given["reply"])[1]
-            schemas[f"parent/judge/{files[node['script']](given)}"] = nodes[writer]["output_format"]
+            schema = nodes[writer]["output_format"]
+            schemas[f"parent/judge/{name(given)}"] = {
+                **schema,
+                "properties": {k: v for k, v in schema["properties"].items() if k not in dropped},
+                "required": [k for k in schema.get("required", []) if k not in dropped]}
     return schemas
 
 
@@ -135,6 +142,9 @@ class FlagTableTest(unittest.TestCase):
         self.assertIsNotNone(_schema_problem(local, "findings.*.item.0"))
         self.assertIsNotNone(_schema_problem(local, "findings.skill"))
         self.assertIsNotNone(_schema_problem(local, "verdict"))
+        pr = schemas[f"parent/judge/{judge_accept.MATERIAL_PR_FILE}"]
+        self.assertIsNone(_schema_problem(pr, "conflicts.0"))
+        self.assertIsNotNone(_schema_problem(pr, f"{prcheck.EXCLUDED_FIELD}.0"))
 
     def test_flags_from_synthetic_evidence(self):
         table = {
