@@ -11,6 +11,7 @@ ASF の `W/.shared/validation-evidence.ts`:1-23（HEAD と追跡ファイルの 
 import hashlib
 
 import baseline_red
+import declared_checks
 import gatemarks
 import tree_run
 import unittrees
@@ -77,9 +78,10 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
     2. 赤の段（exit が 0 でない段）が 1 つ以上在り、全部が起こせない段（tree_run.launch_kind が broken）→ environment
        （今の works の entry.env_only_red。entry.py:768-772。素材が not_run でもこちらが先）
     3. status が測った結果（MEASURED）でない素材の語（NOT_DONE。not_run・awaiting_human・not_applicable・carried_over）か、
-       junit_unran が空でない → incomplete
+       junit_unran が空でなく走った赤の段（declared_checks.ran_reds。走った赤が走らなかった段より勝つ決めの持ち主）が無い → incomplete。
+       走った赤の段が在れば 4.〜6. で分け、走らなかった段は summary に添える
     4. baseline_cases が在り、今の落ちた物（failure・error）に、元で通っていたか元に無かった物（baseline_red._must_pass）が在る → introduced
-    5. baseline_cases が在り、落ちた物が 1 つ以上在って全部が元でも落ちていて、broken を除く赤の段が全部 junit_steps に在る → inherited
+    5. baseline_cases が在り、落ちた物が 1 つ以上在って全部が元でも落ちていて、broken を除く赤の段が全部 junit_steps に在って junit_unran に無い → inherited
     6. ほか（JUnit の無い赤の段・shell の test_cmd の赤・baseline_cases が None）→ ""（原因の無い赤）
     baseline_cases は元の結末の cases。呼び手は、元の結末の exit が None の時と、1 件ごとの結末の出どころが無い時に None を渡す"""
     status = (material or {}).get("status")
@@ -89,10 +91,15 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
     broken = [r for r in reds if tree_run.launch_kind(r.get("exit")) == "broken"]
     if reds and len(broken) == len(reds):
         return "environment", f"赤の段は全部起こせない段: {'・'.join(str(r.get('name')) for r in broken)}"
-    if status in NOT_DONE or junit_unran:
-        why = [f"素材が {status}"] if status in NOT_DONE else []
-        why += [f"JUnit の報告を宣言した段が走らなかった: {'・'.join(map(str, junit_unran))}"] if junit_unran else []
-        return INCOMPLETE, "；".join(why)
+    unran = f"JUnit の報告を宣言した段が走らなかった: {'・'.join(map(str, junit_unran))}" if junit_unran else ""
+    if status in NOT_DONE or (unran and not declared_checks.ran_reds(runs, junit_unran)):
+        return INCOMPLETE, "；".join([*([f"素材が {status}"] if status in NOT_DONE else []), *([unran] if unran else [])])
+    cause, summary = _red_cause(reds, broken, cases, baseline_cases, set(junit_steps or []) - set(junit_unran or []))
+    return cause, f"{summary}（{unran}）" if unran else summary
+
+
+def _red_cause(reds, broken, cases, baseline_cases, read_steps) -> tuple:
+    """classify の 4.〜6.（read_steps は試験の報告を読めた段。走らなかった段の赤は受け継いだ赤と言わない）"""
     names = "・".join(str(r.get("name")) for r in reds) or "無し"
     failed = [c for c in cases or [] if c.get("outcome") in baseline_red.FAILED]
     if baseline_cases is not None:
@@ -101,9 +108,8 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
         if introduced:
             return "introduced", (f"今回落ちて元で通っていたか元に無かった {len(introduced)} 件: {_keys(introduced)}"
                                   f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")
-        steps = set(junit_steps or [])
         inherited = failed and all(base.get(baseline_red._key(c)) in baseline_red.FAILED for c in failed)
-        if inherited and all(r.get("name") in steps for r in reds if r not in broken):
+        if inherited and all(r.get("name") in read_steps for r in reds if r not in broken):
             return "inherited", (f"落ちた {len(failed)} 件は全部元でも落ちていた: {_keys(failed)}"
                                  f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")
     return "", f"赤の段 {names}: 元の結末と比べる 1 件ごとの事実が無い（{gatemarks.BASELINE_UNVERIFIED}）"

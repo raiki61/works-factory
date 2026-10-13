@@ -1404,6 +1404,11 @@
    "why": "初見の読み手が詰まった所を書き直す（持ち主の決め prompts-coldread。PR #221）",
    "original": "素材（material）の書き方: status は found（見つけた。count と detail）／clean（今見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。base だけ。reason）／not_run（やるべきだったが走らせられなかった。final だけ。reason）。\n",
    "copied": "素材（material）の書き方: status は found（見つけた。count と detail）／clean（今見たが無かった。checked に何を見たか）／not_applicable（条件に当たらない。reason）／awaiting_human（人の起動待ち。base だけ。reason）／not_run（やるべきだったが走らせられなかった。final だけ。reason）。括弧の中はその status で要る欄で、checked と reason はどの status でも足して書ける。\n"
+  },
+  {
+   "why": "1 系統が走って赤で、ほかの系統が走らなかった時の status を決める（走った赤が勝つ。lib/declared_checks.py の ran_reds と同じ決め。#402）",
+   "original": "1 系統でも赤なら found（count は赤の件数の合計、detail に赤の内容と、ほかの系統が緑か走らせられなかったか）。赤が無く、",
+   "copied": "1 系統でも走って赤なら found（count は走った赤の件数の合計、detail に赤の内容と、ほかの系統が緑か走らせられなかったか）。ほかの系統が走らなかった（上の「走っていない」段に当たる系統を含む）時も found のままにし、走らせられなかった時の status にするな——走った赤は、走らなかった系統より勝つ。走らなかった系統は、何に阻まれたかを detail に添えよ。走った赤が無く、"
   }
  ],
  "workflows/plan/commands/structure-eye.md": [
