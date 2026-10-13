@@ -714,17 +714,20 @@ def _plan_names(scope, outer: set) -> set:
 
 
 def _row_of_unit_keys(it):
-    """回す式が行の unit_keys（x["unit_keys"]・x.get("unit_keys")。後ろの or [] と sorted(...) などの包みも）なら行の式。でなければ None"""
-    while isinstance(it, (ast.BoolOp, ast.Call)):
-        if isinstance(it, ast.BoolOp):
-            it = it.values[0]
-        elif isinstance(it.func, ast.Attribute) and it.func.attr == "get":
+    """回す式が行の unit_keys（x["unit_keys"]・x.get("unit_keys")。後ろの or []・sorted(...) などの包み・a if c else b の両方の枝・
+    [:] などの切り出しも）なら行の式。でなければ None"""
+    if isinstance(it, ast.BoolOp):
+        return _row_of_unit_keys(it.values[0])
+    if isinstance(it, ast.IfExp):
+        row = _row_of_unit_keys(it.body)
+        return row if row is not None else _row_of_unit_keys(it.orelse)
+    if isinstance(it, ast.Call):
+        if isinstance(it.func, ast.Attribute) and it.func.attr == "get":
             return it.func.value if it.args and isinstance(it.args[0], ast.Constant) and it.args[0].value == "unit_keys" else None
-        elif isinstance(it.func, ast.Name) and it.args:
-            it = it.args[0]
-        else:
-            return None
-    return it.value if isinstance(it, ast.Subscript) and isinstance(it.slice, ast.Constant) and it.slice.value == "unit_keys" else None
+        return _row_of_unit_keys(it.args[0]) if isinstance(it.func, ast.Name) and it.args else None
+    if isinstance(it, ast.Subscript):
+        return it.value if isinstance(it.slice, ast.Constant) and it.slice.value == "unit_keys" else _row_of_unit_keys(it.value)
+    return None
 
 
 def _planned_units_shape(node, names: set) -> str | None:
@@ -761,6 +764,8 @@ def planned_unit_sets(source: str, name: str) -> list[str]:
             elif isinstance(node, COMPREHENSIONS) and (shape := _planned_units_shape(node, names)) and (
                     shape == "plan" or isinstance(node, ast.SetComp) or id(node) in in_set):
                 found.add(node.lineno)
+            elif id(node) in in_set and (row := _row_of_unit_keys(node)) is not None and _mentions(row, names):
+                found.add(node.lineno)
     return [f"{name}:{line}" for line in sorted(found)]
 
 
@@ -785,13 +790,19 @@ class PlannedUnitsCase(unittest.TestCase):
                    ["x.py:3"]),
                   ('def f(out):\n    rows = out["plan"]\n    g = lambda: {k for r in rows for k in r["unit_keys"]}', ["x.py:3"]),
                   ('def f(out):\n    rows = out["plan"]\n\n    def g():\n        return {k for r in rows for k in r["unit_keys"]}',
-                   ["x.py:5"])]
+                   ["x.py:5"]),
+                  ('u = {str(k) for r in plan for k in (r["unit_keys"] if isinstance(r.get("unit_keys"), list) else [])}',
+                   ["x.py:1"]),
+                  ('u = {str(k) for r in plan for k in r["unit_keys"][:]}', ["x.py:1"])]
         items = [('mine = {str(k) for k in plan[n - 1]["unit_keys"]} if 1 <= n <= len(plan) else set()', ["x.py:1"]),
                  ('units = {str(k) for n in opened for k in doc["plan"][n - 1]["unit_keys"]}', ["x.py:1"]),
                  ('for n, it in enumerate(doc.get("plan") or [], 1):\n    mine = {str(k) for k in it["unit_keys"]}',
                   ["x.py:2"]),
                  ('rows = out.get("plan")\nmine = set(str(k) for k in (rows[n - 1].get("unit_keys") or []))', ["x.py:2"]),
-                 ('mine = frozenset(k for k in sorted(plan[n - 1]["unit_keys"]))', ["x.py:1"])]
+                 ('mine = frozenset(k for k in sorted(plan[n - 1]["unit_keys"]))', ["x.py:1"]),
+                 ('mine = set(plan[n - 1]["unit_keys"])', ["x.py:1"]),
+                 ('keys = set(plan[n - 1].get("unit_keys") or []) if n - 1 < len(plan) else set()', ["x.py:1"]),
+                 ('for it in plan:\n    mine = frozenset(it["unit_keys"])', ["x.py:2"])]
         for src, want in copies + items:
             with self.subTest(src=src):
                 self.assertEqual(planned_unit_sets(src, "x.py"), want)

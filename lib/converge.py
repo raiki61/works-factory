@@ -358,7 +358,7 @@ def planned_units(plan) -> set[str]:
 
 def item_units(plan, n: int) -> set[str]:
     """項目 n（1 始まり）の単位の key の集合（planned_units と同じく str）。n が案の項目の番号の外か plan が list でなければ空。
-    item_blocks・resolved_gaps・splice と受け付けの照らし・先行例の振り分けは、この 1 つの集合で揃う"""
+    item_blocks・resolved_gaps・splice と受け付けの照らし・先行例の振り分け・2 度目の修正への申し送り（replan.fix_notes）は、この 1 つの集合で揃う"""
     return planned_units([plan[n - 1]]) if isinstance(plan, list) and 1 <= n <= len(plan) else set()
 
 
