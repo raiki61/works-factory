@@ -674,7 +674,8 @@ ROLE_TOOLS = frozenset({"Read", "Grep", "Glob", "Edit", "Write", "Bash", "WebSea
 CLOSED_SANDBOX = (("enabled", "true"), ("allowUnsandboxedCommands", "false"))
 # Bash を持ち Edit・Write を持たない役の sandbox の denyWrite に書く場所（#293）。~ は起動が隔離した HOME で、
 # その隣が Archon の家＝全部の run の worktree と artifacts。相対のパス '.' は cwd でなく設定の一時ファイルのフォルダに解かれ、
-# 作業ツリーを塞がない（実測 2026-10-13）
+# 作業ツリーを塞がない（実測 2026-10-13）。包み（workflows/.shared/fence.py。埋め P5）はこの値を読むだけの役の印に読み、起こす直前に
+# cwd・共通の .git・worktree の根などを足す（#309）。包みの無い起動にはこの値だけが残る
 NO_TREE_WRITE = f"~/../{isolate.DIRS['ARCHON_HOME']}"
 YAML_BOOL = "tag:yaml.org,2002:bool"
 
@@ -702,7 +703,7 @@ def _readonly_nodes(root: Path) -> list[str]:
                 tools = _top(node, "allowed_tools")
                 names = {item.value for item in tools.value if isinstance(item, yaml.ScalarNode)} if isinstance(tools, yaml.SequenceNode) else None
                 out += _role_settings(at, ident, node, names)
-                if names is not None and "Bash" in names and not names & {"Edit", "Write"}:
+                if names is not None and names & TREE_CHANGERS == {"Bash"}:
                     out += _tree_write_denied(at, ident, node)
                 changer = names is None or bool(names & TREE_CHANGERS)
                 keep = (folder.name, ident) in KEEP_CHECKOUT
