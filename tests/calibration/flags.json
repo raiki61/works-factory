@@ -654,14 +654,14 @@
     {
      "check": "text-contains",
      "where": "parent/test-gate/base/evidence.md",
-     "text": "返す節の中の誤り"
+     "text": "出力ノードの中の誤り"
     },
     {
      "check": "exists",
      "where": "parent/test-gate/base/failure.txt"
     }
    ],
-   "why": "line/test-gate-base で走る test-gate/run の素材を test-gate/result が baseline.json の material に写し（found が修正前の赤）、evidence.md の『- green: false』か落ちた時の failure.txt を赤とする（workflows/test-gate/scripts/result.py::certified・workflows/test-gate/scripts/result.py::evidence・workflows/test-gate/scripts/result.py::failed）"
+   "why": "line/test-gate-base で走る test-gate/run の素材を test-gate/result が baseline.json の material に写し（found が修正前の赤）、evidence.md の『- green: false』か、落ちた時の evidence.md の『出力ノードの中の誤り』か failure.txt を赤とする（workflows/test-gate/scripts/result.py::certified・workflows/test-gate/scripts/result.py::evidence・workflows/test-gate/scripts/result.py::failed・workflows/test-gate/scripts/result.py::INNER_ERROR）"
   },
   "p0.parallel_pr": {
    "rules": [
@@ -1109,14 +1109,14 @@
     {
      "check": "text-contains",
      "where": "parent/test-gate/final/evidence.md",
-     "text": "返す節の中の誤り"
+     "text": "出力ノードの中の誤り"
     },
     {
      "check": "exists",
      "where": "parent/test-gate/final/failure.txt"
     }
    ],
-   "why": "line/test-gate-final で走る test-gate/run の結末を test-gate/result が evidence.md の『- green: false』か落ちた時の failure.txt で書く（workflows/test-gate/scripts/result.py::certified・workflows/test-gate/scripts/result.py::evidence・workflows/test-gate/scripts/result.py::failed）"
+   "why": "line/test-gate-final で走る test-gate/run の結末を test-gate/result が evidence.md の『- green: false』か、落ちた時の evidence.md の『出力ノードの中の誤り』か failure.txt で書く（workflows/test-gate/scripts/result.py::certified・workflows/test-gate/scripts/result.py::evidence・workflows/test-gate/scripts/result.py::failed・workflows/test-gate/scripts/result.py::INNER_ERROR）"
   },
   "p4.final_gates": {
    "never": "docs/nodes.json の by が absent（works-factory に節が無い）。最後の変異の検算が無い"

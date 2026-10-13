@@ -1056,6 +1056,43 @@ class ScriptCase(unittest.TestCase):
                 self.assertIn("増えた写しの塊 2 個", got[field])
                 self.assertNotIn(eyeverdict.NO_AFTER, got[field])
 
+    def plan_review_pass(self, k: int, faces: list):
+        folder = self.artifacts / "plan-review"
+        (folder / f"pass-{k}").mkdir(parents=True, exist_ok=True)
+        (folder / "open.json").write_text(json.dumps({"k": k, "form": "replan"}), encoding="utf-8")
+        (folder / f"pass-{k}" / "review.json").write_text(json.dumps({"faces": faces, "shrink": []}), encoding="utf-8")
+
+    def test_r1_head_carries_plan_deviations_and_the_plan_review_verdict(self):
+        """#353: 修正案の外れの訳が在る run は、R1・R3 の頭に訳の本文（structmark.after_lines と同じ行）と事前審査の最後の往復の
+        結論（boardview.verdict の通否。形 replan は block の穴の有無）を載せる。訳の無い run は数の 1 文だけで、事前審査の行も載せない"""
+        self.prep_inputs()
+        eyes = self.artifacts / "eyes"
+        eyes.mkdir(parents=True, exist_ok=True)
+        after = {"changed": ["a.txt"], "tables": [], "new_names": [{"name": "x", "sites": 2}], "dup_blocks_added": 0}
+        self.plan_review_pass(2, [])
+        structmark.write_after(eyes, status="ok", reason="", deviations=[], after=after)
+        got = self.run_script("prep")
+        for field, head in (("r1_head", concepthome.R1_HEAD), ("r3_head", concepthome.R3_HEAD)):
+            self.assertEqual(got[field], head.format(section=structmark.after_counts(eyes)))
+        line = "  - 修正案の項目 2・設計の行 u2から外れる——入口を 2 つ残す（呼び手が別のリポジトリに在る）"
+        structmark.write_after(eyes, status="ok", reason="", after=after,
+                               deviations=[{"item": 2, "row": "u2", "deviation": "入口を 2 つ残す（呼び手が別のリポジトリに在る）"}])
+        self.assertIn(line, structmark.after_lines(eyes))
+        got = self.run_script("prep")
+        for field in ("r1_head", "r3_head"):
+            with self.subTest(field):
+                self.assertIn(f"{structmark.after_counts(eyes)}\n{line}\n", got[field])
+                self.assertIn(eyeverdict.REVIEW_ACCEPTED.format(k=2), got[field])
+                self.assertNotIn("新しい名 x", got[field])
+        self.plan_review_pass(3, [{"kind": "simpler", "key": "f1", "why": "入口は 1 つで足りる", "severity": "block"},
+                                  {"kind": "simpler", "key": "f2", "why": "名が長い", "severity": "suggest"}])
+        got = self.run_script("prep")
+        self.assertIn(eyeverdict.REVIEW_BLOCKED.format(k=3, n=1, faces="f1: 入口は 1 つで足りる"), got["r1_head"])
+        (self.artifacts / "plan-review" / "open.json").unlink()
+        got = self.run_script("prep")
+        self.assertIn(eyeverdict.REVIEW_UNREAD.split("{")[0], got["r1_head"])
+        self.assertIn(line, got["r1_head"])
+
     def test_prep_names_the_bundled_review_md(self):
         """同梱の観点の正本（元 review-loop.py:35-38 review_md_path）を R1 の前段・R1・R3・R4 に名指す"""
         self.prep_inputs()

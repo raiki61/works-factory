@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
 sys.path.append(str(boundary.lib_root()))
+import boardview  # noqa: E402
 import carry  # noqa: E402
 import concepthome  # noqa: E402
 import depth  # noqa: E402
@@ -25,7 +26,6 @@ import policy  # noqa: E402
 import premises as _premises  # noqa: E402
 import rolekit  # noqa: E402
 import startrec  # noqa: E402
-import structmark  # noqa: E402
 
 EYES = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
 
@@ -56,7 +56,7 @@ request = Path(start["request_file"]) if start.get("request_file") else None
 repo_review = Path.cwd() / "REVIEW.md"
 depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
 purpose_text = purpose.get("purpose_text") or ""
-after = structmark.after_counts(EYES) or eyeverdict.NO_AFTER
+after = eyeverdict.after_section(EYES, EYES.parent / boardview.FOLDER)
 premises_text, r2_ledger = eyeverdict.premise_section(
     human_items=eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer),
     request_text=request.read_text(encoding="utf-8") if request and request.is_file() else None, repo=Path.cwd(),

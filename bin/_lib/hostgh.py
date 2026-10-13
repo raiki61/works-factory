@@ -95,10 +95,16 @@ def write(dir_, path: str, home: str, config: str):
                       for name, (gh, _) in RELAY)
             + f"unset {' '.join(name for name, _ in RELAY)}\n"
             f'exec {shlex.quote(real)} "$@"\n')
+    return place_shim(top, SHIM, body)
+
+
+def place_shim(top: pathlib.Path, name: str, body: str) -> str:
+    """殻を top/<中身の hash>/name に原子的に置き、そのパスを返す。中身で置き場を分けるので、同じ家で違う物を指す起動が並んでも
+    互いの殻を上書きしない"""
     d = top / hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
-    shim = d / SHIM
+    shim = d / name
     d.mkdir(parents=True, exist_ok=True)
-    tmp = d / f".{SHIM}.{os.getpid()}.tmp"
+    tmp = d / f".{name}.{os.getpid()}.tmp"
     tmp.write_text(body, encoding="utf-8")
     tmp.chmod(0o755)
     os.replace(tmp, shim)

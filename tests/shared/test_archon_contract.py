@@ -26,6 +26,7 @@ from tests import archon
 from tests.archon import CACHE_ENV, pinned_source
 from tests.bin.gitkit import git
 from tests.shared.test_boundary import boundary
+from tests.shared.test_fence import fence
 from tests.workflows import test_uv_scripts
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -179,6 +180,7 @@ CONSUMER_ROWS = (
 )
 
 POINTER = "packages/workflows/src/artifact-pointer.ts"
+SDK = "packages/providers/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs"
 POINTER_SCHEMA = "packages/workflows/src/schemas/artifact-pointer.ts"
 ARCHON_ROWS = (
     Row("指し札の型", lambda: boundary.POINTER_TYPE, POINTER_SCHEMA,
@@ -231,6 +233,25 @@ ARCHON_ROWS = (
     Row("工程を続ける命令", lambda: sorted(launcher.CONTINUING), "packages/cli/src/cli.ts",
         r"if \(command === 'workflow' && \(subcommand === '(\w+)' \|\| subcommand === '(\w+)'\)\) \{\n"
         r"\s*const schedule", lambda m: sorted(m.groups())),
+    Row("起こす claude の実行ファイルを替える環境変数（殻が書き込みの柵の包みを置く）", lambda: launcher.CLAUDE_BIN_ENV,
+        "packages/providers/src/claude/binary-resolver.ts", r"^\s*const envPath = process\.env\.(\w+);$"),
+    Row("節の sandbox は置き換えずに SDK へ渡す（包みが起動の直前に足す）", lambda: None,
+        "packages/workflows/src/dag-executor.ts", r"^\s*sandbox: node\.sandbox \?\? workflowLevelOptions\.sandbox,$",
+        lambda m: None),
+    Row("節の設定は object のまま SDK へ渡す（SDK が JSON の字にする）", lambda: None,
+        "packages/providers/src/claude/provider.ts", r"^\s*options\.settings = buildClaudePluginSettings\(", lambda m: None),
+    Row("SDK は sandbox を設定の JSON の字の鍵に入れて --settings で渡す。設定のパスとは併せず、object の設定も JSON の字にする（包みが読む形）",
+        lambda: (fence.SETTINGS, fence.DENY_WRITE[0]), SDK,
+        r"function qje\(e\)\{let t=e\.trim\(\);return t\.startsWith\(\"\{\"\)&&t\.endsWith\(\"\}\"\)\}"
+        r"function n2\(e,t\)\{let n=\{\.\.\.e\};if\(!t\)return n;.*?"
+        r"if\(o&&!qje\(o\)\)throw Error\(\"Cannot use both a settings file path and the sandbox option\..*?"
+        r"let s=\{(\w+):r\};if\(o\)try\{s=\{\.\.\.Ge\(o\),\1:r\}\}catch\{\}return n\.(\w+)=ie\(s\),n\}"
+        r"function Rx\(e,t,n\)\{let r=String\(n\);if\(r\.length>1&&r\.startsWith\(\"-\"\)\)e\.push\(`--\$\{t\}=\$\{r\}`\);"
+        r"else e\.push\(`--\$\{t\}`,r\)\}.*?"
+        r"let (\w+)=n2\(\w+,\w+\);for\(let\[(\w+),(\w+)\]of Object\.entries\(\3\)\)if\(\5===null\)\w+\.push\(`--\$\{\4\}`\);"
+        r"else Rx\(\w+,\4,\5\).*?"
+        r"\2:typeof (\w+)===\"object\"\?ie\(\6\):\6,",
+        lambda m: (f"--{m[2]}", m[1])),
     Row("script を探すフォルダの深さ", lambda: test_uv_scripts.DISCOVERY_DEPTH, "packages/workflows/src/script-discovery.ts",
         r"^const MAX_SCRIPT_DISCOVERY_DEPTH = (\d+);$", lambda m: int(m[1])),
     Row("答えの行の run の id・答えの語・一言の位置", _answer_positions, "packages/cli/src/cli.ts",

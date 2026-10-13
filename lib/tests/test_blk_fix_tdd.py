@@ -1181,10 +1181,25 @@ class TestTestFileIdentity(unittest.TestCase):
     """テストのファイルの見分け: 宣言（単位の申告・約束の tests と rewrites のパス）を正本に、名の慣習（impact.is_test）を予備に"""
 
     def test_declared_test_files_from_state(self):
-        st = {"units": {"u1": {"test_files": ["a/checks.go"]}, "u2": {}},
+        st = {"units": {"u1": {"test_files": ["./a/checks.go", " d/x_test.py ", None, "", 3]}, "u2": {}, "u3": {"test_files": 5},
+                        "u4": {"test_files": "e.py"}},
               "contract": {"u1": {"tests": [{"id": "b/verify.kt::Verify::adds"}], "rewrites": ["./c/legacy.rb::old"]},
                            "u2": None}}
-        self.assertEqual(tddloop.declared_test_files(st), {"a/checks.go", "b/verify.kt", "c/legacy.rb"})
+        self.assertEqual(tddloop.declared_test_files(st), {"a/checks.go", "d/x_test.py", "b/verify.kt", "c/legacy.rb"})
+
+    def test_writer_and_reader_share_the_test_file_rule(self):
+        """test_files の要素の決まりは fixboard.test_file の 1 か所: 書き手（tddloop._paths）が整えた並びを読み手
+        （fixboard.unit_test_files）は同じに読み、決まりに外れた要素は書き手が並びごと拒み、読み手が落とす（#343）"""
+        import fixboard
+        files = ["./a/x_test.py", " b/y_test.py "]
+        written, problems = tddloop._paths(files, "test_files")
+        self.assertEqual((written, problems), (["a/x_test.py", "b/y_test.py"], []))
+        self.assertEqual(fixboard.unit_test_files({"test_files": files}), written)
+        self.assertEqual(fixboard.unit_test_files({"test_files": written}), written)
+        for bad in ([*files, None], [*files, "  "], [], "a/x_test.py"):
+            with self.subTest(bad=bad):
+                self.assertEqual(tddloop._paths(bad, "test_files")[0], [])
+                self.assertEqual(fixboard.unit_test_files({"test_files": bad}), written if isinstance(bad, list) and bad else [])
 
 
 class TestRewriteSharedAcrossUnits(ContractCase):

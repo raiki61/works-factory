@@ -100,7 +100,7 @@ import unittest
 sys.dont_write_bytecode = True
 
 import baseline_red  # noqa: E402  （lib。赤・緑の判定と実行器を走らせる口の正本）
-from baseline_red import _failure_attrs, run_suite  # noqa: E402,F401  （定義はここに持たない。fixgates が tddloop の名で読む）
+from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401  （定義はここに持たない。fixgates・fixboard が tddloop の名で読む）
 import cite  # noqa: E402  （.shared/core。名指しの形・引いた文が現物に在るかの照らし。寄せた後の部分一致 quoted_in）
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
 import fixboard  # noqa: E402  （lib。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
@@ -852,10 +852,10 @@ def _blank(s) -> bool:
 
 
 def _paths(v, name) -> tuple:
-    """空でない文字列の配列 → (正規化したパスの一覧, 問題)"""
-    if not isinstance(v, list) or not v or not all(isinstance(x, str) and x.strip() for x in v):
+    """空でない文字列の配列 → (要素の決まり fixboard.test_file で整えたパスの一覧, 問題)"""
+    out = [fixboard.test_file(x) for x in v] if isinstance(v, list) else []
+    if not out or None in out:
         return [], [f"{name} は空でない文字列の配列"]
-    out = [posixpath.normpath(x.strip()) for x in v]
     bad = [x for x in out if x.startswith("/") or x == ".." or x.startswith("../")]
     return out, ([f"{name} はリポジトリの根からの相対パス（{bad}）"] if bad else [])
 
@@ -1085,7 +1085,7 @@ def declared_test_files(st) -> set[str]:
     名指し（rewrites）のパス。テストのファイルの見分け（impact.is_test_file）の宣言の正本。純粋"""
     out = set()
     for u in (st.get("units") or {}).values():
-        out |= {posixpath.normpath(f) for f in (u or {}).get("test_files") or [] if isinstance(f, str) and f.strip()}
+        out |= set(fixboard.unit_test_files(u))
     for c in (st.get("contract") or {}).values():
         ids = [t.get("id") for t in (c or {}).get("tests") or [] if isinstance(t, dict)] + list((c or {}).get("rewrites") or [])
         out |= {id_path(i) for i in ids if isinstance(i, str) and i.strip()}
@@ -2120,11 +2120,6 @@ def rev_id(repo, rev: str) -> str:
         return git(repo, "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}").strip() or rev
     except Unreadable:
         return rev
-
-
-def exe_path(repo, suite: str) -> pathlib.Path:
-    """入力 tdd_suite の実行器のパス（相対なら作業ツリー repo の根から解く）"""
-    return pathlib.Path(suite) if pathlib.Path(suite).is_absolute() else pathlib.Path(repo) / suite
 
 
 def exe_id(repo, exe) -> list:

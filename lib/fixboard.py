@@ -28,6 +28,7 @@
 import json
 import os
 import pathlib
+import posixpath
 import types
 
 import gatemarks
@@ -629,7 +630,7 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
     shared = sorted({f for f in shared or () if isinstance(f, str) and f})
     if not suite:
         return ""
-    exe = pathlib.Path(suite) if pathlib.Path(suite).is_absolute() else pathlib.Path(repo) / suite
+    exe = tddloop.exe_path(repo, suite)
     work = pathlib.Path(place) / name
     work.mkdir(parents=True, exist_ok=True)
     probs = []
@@ -663,9 +664,12 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
 
 def rerun_cmd(place, result, test_cmd: str) -> str:
     """当てた後に走らせ直す test_cmd（rerun_problem に渡す）: 組の子の TDD の輪が決めた関門（結果の tdd.test_cmd.gate）が on で、
-    組に軽量でない単位（置き場の深さの控え。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）"""
+    組に軽量でない単位（置き場の深さの控え。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）。
+    tdd か tdd.test_cmd が在って dict でない結果は関門を読めないので on と見る（走らせ直しを飛ばして戻さない）"""
     import tddloop
-    gate = (((result or {}).get("tdd") or {}).get("test_cmd") or {}).get("gate")
+    tdd = (result or {}).get("tdd") or {}
+    cmd = (tdd.get("test_cmd") or {}) if isinstance(tdd, dict) else None
+    gate = cmd.get("gate") if isinstance(cmd, dict) else tddloop.GATE_ON
     if gate != tddloop.GATE_ON or not (test_cmd or "").strip():
         return ""
     light = set(tddloop._light_units(unit_depths(place)))
@@ -733,18 +737,36 @@ def with_ruled(units, ruled) -> list:
     return out
 
 
+def child_tdd(result) -> dict:
+    """組の子の結果 result の欄 tdd（tddloop.exit_fields の形。dict でなければ空）"""
+    tdd = (result or {}).get("tdd")
+    return tdd if isinstance(tdd, dict) else {}
+
+
+def child_tdd_units(result) -> list:
+    """組の子の結果 result の TDD の輪の単位の行（tdd.units のうち dict の物。並びでなければ空）"""
+    units = child_tdd(result).get("units")
+    return [u for u in units if isinstance(u, dict)] if isinstance(units, list) else []
+
+
+def child_verified(result) -> list:
+    """組の子の結果 result の欄 verified（赤 → 緑を確かめた名指し。verified_tests の形）のうち空でない文字列（並びでなければ空）"""
+    names = (result or {}).get("verified")
+    return [t for t in names if isinstance(t, str) and t] if isinstance(names, list) else []
+
+
 def tdd_units(groups, results) -> list:
     """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, units}]（子の結果の欄 tdd。
     tddloop.exit_fields の形）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
     out = []
     for g in groups:
         result = results.get(g["group_id"])
-        tdd = (result or {}).get("tdd") if isinstance((result or {}).get("tdd"), dict) else {}
+        tdd = child_tdd(result)
         ran = tdd.get("ran") is True
         out.append({"group_id": g["group_id"], "ran": ran,
                     "reason": str(tdd.get("reason") or ("" if result else NO_RESULT)), "suite": str(tdd.get("suite") or ""),
                     "reused": tdd.get("reused") if isinstance(tdd.get("reused"), dict) else {},
-                    "units": [u for u in tdd.get("units") or [] if isinstance(u, dict)] if ran else []})
+                    "units": child_tdd_units(result) if ran else []})
     return out
 
 
@@ -783,7 +805,6 @@ def touched_since(repo, tree: str, skip=()) -> list:
 def declared_files(replies) -> list:
     """受け付けた修正役の返答（dict の並び）の changes[].files を、リポジトリの根からの相対に揃えた並び（重ねない・名の順）。
     形の違う行は ValueError。元 works/blk-fix/scripts/assert_changed.py の declared_files"""
-    import posixpath
     out = set()
     for reply in replies:
         changes = reply.get("changes") if isinstance(reply, dict) else None
@@ -839,8 +860,9 @@ def _allowed_row(path, permit, source):
 def child_allowed_rows(result) -> list:
     """組の子の結果 result の許しの訳 allowed_tests のうち形の正しい行（_allowed_row）。collect（allowed_test_rows）と
     join の戻しの和が同じ決まりで読む口"""
+    given = (result or {}).get("allowed_tests")
     rows = [_allowed_row(r.get("path"), r.get("permit"), r.get("source"))
-            for r in (result or {}).get("allowed_tests") or [] if isinstance(r, dict)]
+            for r in (given if isinstance(given, list) else []) if isinstance(r, dict)]
     return [r for r in rows if r]
 
 
@@ -1460,6 +1482,21 @@ def _bodies(text, rel: str) -> dict:
     return {tddloop._id_base(i): body for i, body in tddloop.test_functions(text, rel).items()}
 
 
+def test_file(f) -> str | None:
+    """TDD の輪の単位の test_files の要素の決まり: 空でない文字列を posixpath.normpath で整えたパス（ほかは None）。書き手
+    tddloop の確かめ（要素が 1 つでも外れれば並びごと拒む）と読み手 unit_test_files（外れた要素を落とす）がここから引く"""
+    return posixpath.normpath(f.strip()) if isinstance(f, str) and f.strip() else None
+
+
+def unit_test_files(unit) -> list:
+    """TDD の輪の単位の行の test_files のうち、決まり（test_file）に合う要素だけを整えた並び（子の result.json の写しも読む口。
+    並びでない test_files は空、形の違う要素は落とす）"""
+    files = (unit or {}).get("test_files")
+    if not isinstance(files, list):
+        return []
+    return [p for p in map(test_file, files) if p]
+
+
 def _moved_tests(repo, tree: str, units, shared: set) -> list:
     """重なりのファイル shared（前に当てた組の差分とも重なるパス）に在る名指しのテストのうち、関数の源が組の子の終わりの木 tree と
     親の作業ツリー repo で違う・消えた物。units は TDD の輪の単位の行（tests・test_files）。元 works/blk-fix/lib/tddlanes.py:629
@@ -1467,7 +1504,7 @@ def _moved_tests(repo, tree: str, units, shared: set) -> list:
     import tddloop
     out = []
     for u in units:
-        for f in sorted(set(u.get("test_files") or []) & set(shared)):
+        for f in sorted(set(unit_test_files(u)) & set(shared)):
             mine = _bodies(tddloop._tree_text(repo, tree, f), f)
             p = pathlib.Path(repo) / f
             now = _bodies(p.read_text(encoding="utf-8", errors="replace") if p.is_file() else None, f)
@@ -1718,9 +1755,18 @@ FIX_CHECKS = {
     "scope": "承認済みの修正案の範囲",
     "tests": "変更に当たる試験の赤",
     "gates": "事後の関門の束",
+    "closure": "閉じない欠陥の数え",
     "copy": "数え直しの受け付け",
     "plan_faces": "修正案の事前審査への応答",
 }
+# 閉じない欠陥の数え（check closure）の文。remaining では抜けず、直すか申し出るかを求める（#313）
+UNCLOSED_DEFECTS = ("単位 {key} の欠陥を数える問い（判定者の問いか、裁定が置き換えた問い）が、修正前 {total} 件・修正後 {after} 件"
+                    "で閉じていない。remaining を書いても閉じない。次のどれかで出し直せ: 残った当たりも欠陥なら直して 0 件に"
+                    "する / 問いが直した後の正しい行に当たるなら conflicts に {kind}: {hits}・{which}: {query}・"
+                    "{correct}（その正しい行の写し）で申し出る / 範囲の中では閉じないなら conflicts に {kind}: {scope} で"
+                    "申し出る")
+UNCOUNTED_DEFECTS = ("単位 {key} の欠陥を数える問い（判定者の問いか、裁定が置き換えた問い）を修正後に数えられず、閉じたと確かめ"
+                     "られない: {why}。その問いが数えられる木にして出し直せ")
 FIX_REJECT_HEAD = ("受け付けは確かめを全部回した。見出しごとに並べた行を全部直した返答を丸ごと出し直せ（直した所だけを返すな。"
                    "1 回の出し直しで全部を直せ）:")   # 元 accept.py:195
 FIX_CHECK_HEAD = "## {head}（確かめ {cid}・{count} 件）"   # 元 works/blk-fix/lib/fixlanes.py:449
@@ -1919,9 +1965,10 @@ def unit_outcomes(owed, reply, *, excused=None, parked=None, conflicted=()) -> d
 
 def judge_query(place):
     """食い違いの申し出の確かめ（conflict.problems_by_entry）の try_query: 置き場の判定の写し judgment.json の units から
-    querytest.judge_hits を組む（TDD の輪の道 tdd-step と同じ）。写しが無い・読めない・dict でなければ、query の申し出ごとに
+    querytest.judge_hits を組む（TDD の輪の道 tdd-step と同じ。裁定 replace_query が置き換えた単位は置き換えた問いを当てる）。写しが無い・読めない・dict でなければ、query の申し出ごとに
     JUDGE_UNREAD の文を返す口（読めないと名指して拒む。黙って試さずに通さない。元は盤面の判定 b.record["units"] を引き、
     無ければ落ちた）"""
+    import conflict
     import querytest
     try:
         judgment = read_json(pathlib.Path(place) / JUDGMENT_FILE)
@@ -1930,7 +1977,7 @@ def judge_query(place):
         judgment, why = None, str(e)
     if why:
         return lambda key, lines: JUDGE_UNREAD.format(why=why)
-    return querytest.judge_hits(judgment.get("units") or [])
+    return querytest.judge_hits(judgment.get("units") or [], conflict.replaced_queries(place))
 
 
 def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
@@ -2059,7 +2106,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     記録の無い run は undeclared_writes で段の頭の木 head からの変更を申告に縛る）→ 食い違いの申し出（take_conflicts。first で
     裁かれていない申し出が在れば輪を抜ける {ok: True, conflicted: True}）→ 除くパスの頭の下の変更（check_pack_copy）→
     単位の行（check_unique_units・check_opened_units・check_excused_units）→ 承認済みの修正案の範囲（factchecks.check_plan_scope）→ 変更に当たる試験（tddloop.selected_problems）→
-    事後の関門の束（fixgates.problems）→ 閉鎖の数え直し（closure_reply。通れば表を querytest.save_closure）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
+    事後の関門の束（fixgates.problems）→ 閉鎖の数え直し（closure_reply。defects の問いが閉じない単位は申し出が無ければ
+    戻す。通れば表を querytest.save_closure）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
     拒まずに settle_overflow を通す（相談に積んだ回は {ok: False, queued: True}。戻した回は戻した返答で頭から通し直す。reverted・
     trail はその通し直しが渡す）。最後の回の単位への結びは、はみ出しでない行にだけ当てる（止めた後の通し直しのはみ出しは聞かずに戻す）。
     iteration が GIVE_UP_AFTER 以上の拒否は、写しでない行を単位に結んで（last_settle）結んだ単位だけを head に戻して諦め
@@ -2079,6 +2127,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     import parking
     import recount
     import tddloop
+    import unitrows
     import writes
     parked = dict(parked or {})
     trail = {"reverted": []} if trail is None else trail
@@ -2134,19 +2183,27 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     note("gates", fixgates.reject_lines(gates) if gates else [])
     precedents = (read_json(pathlib.Path(place) / JUDGMENT_FILE, {}) or {}).get("precedents") or []
 
-    def copy_rows(reply, commit):
-        """閉鎖の数え直し（closure_reply）を当てた返答の写しの照らし（recount.accept_fix）の誤りの行。commit が真で通れば表を
-        querytest.save_closure で置き場に置く"""
+    def check_copy(reply):
+        """閉鎖の数え直し（closure_reply）で閉じない欠陥の数え（unitrows.unclosed_defects）を closure に単位へ結んで積み、
+        それを当てた返答の写しの照らし（recount.accept_fix）の誤りを copy に積む。それまでに積んだ行が無ければ写しの照らしを
+        置き場に刻み、通れば表を querytest.save_closure で置き場に置く"""
         shaped, closure, zero = closure_reply(reply, place, repo, rev, judged)
+        for row in unitrows.unclosed_defects(closure):
+            text = UNCOUNTED_DEFECTS.format(key=row["unit_key"], why=" / ".join(row["discrepancies"])) if row["closed"] is None \
+                else UNCLOSED_DEFECTS.format(key=row["unit_key"], total=row["total"], after=row["after"],
+                                             kind=conflict.KIND_FIELD, hits=conflict.QUERY_HITS_FIXED, which=conflict.WHICH_FIELD,
+                                             query=conflict.QUERY, correct=conflict.CORRECT, scope=conflict.SCOPE_NEEDED)
+            note("closure", text)
+            declared.setdefault(text, set()).add(row["unit_key"])
+        commit = not found
         out = recount.accept_fix(shaped, place, rev, repo, judged=judged, owed=set(duty), zero_keys=zero,
                                  precedents=precedents, commit=commit)
         if out.get("ok") is not True:
-            return out.get("problems") or [str(out.get("reason") or "")]
-        if closure and commit:
+            note("copy", out.get("problems") or [str(out.get("reason") or "")])
+        elif closure and commit:
             import querytest
             querytest.save_closure(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), closure)
-        return []
-    note("copy", copy_rows(reply, not found))
+    check_copy(reply)
     kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, state=state,
               tests_state=tests_state, base_rev=base_rev, head=head, skip=skip, parked=parked, log=log)
 
@@ -2197,7 +2254,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
                         "absorbed": settled.absorbed}
             reply = _without_units(reply, out_of_duty)
             found = list(over)
-            note("copy", copy_rows(reply, not found))
+            check_copy(reply)
             over, rest = split_rows(found, asks)
             if over and not rest:   # 残ったはみ出しは聞かずに戻して通し直す（元 :693-697）
                 got = settle_overflow(asks, found, whole, place, repo, head=head or rev, reverted=reverted, trail=trail,
@@ -2421,6 +2478,12 @@ def stage_head(place, name: str = "") -> str:
         return ""
 
 
+def fixer_head(place, pass_: str) -> str:
+    """修正役が変え始めた木（段 pass_ の頭の木。stage_head）。受け付け（fix-accept・fix-ruled-accept）と修正役の事前の確かめ
+    （factchecks.precheck）が since に渡す木はここ 1 か所から読む"""
+    return stage_head(place, RULED_HEAD_FILE if pass_ == "ruled" else FIX_HEAD_FILE)
+
+
 def ruled_owed(place) -> list:
     """裁定の後の修正の段（形 "" の置き場）の直す義務の値: 判定の直す義務の単位（group_owed）のうち、親の木へ戻せた組の単位で
     結末が fixed でない物（join.json。無ければ判定の直す義務の全部）"""
@@ -2574,7 +2637,6 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     もう 1 回走り（fixrules.prep が consult.queued を見て作業ツリーを変えずに前の返答と同じ JSON を返させる続きの指示書だけを書く。
     受け付けの回には数えない）、その周の consult-check（consult_ask）が積んだ頼みを答えの役に回し、その周の受け付けは相談の周として
     回らない。答えの後の周の受け付けが、ここで聞いた物を戻すか（allow なら範囲に入って行が消える）を選ぶ"""
-    import posixpath
     import conflict
     import consult
     import factchecks

@@ -1,6 +1,6 @@
 # 能力の棚卸し: 試験の関門（T）・独立の目（E）・報告（R）・取り込みと差分の当て（M）
 
-前の works（raiki61/claude-plugins @ 2aa7c66c の works/）の能力を、作り直しの works-factory（main＝origin/main の写し、線だけ #74 の head＝PR #74 の頭）と 1 行ずつ照らした。全 294 行。今に無い行が 45、照らす試験が無いか弱い行が 87、Archon が強いていないのに狭めた行が 54 ある（末尾の「穴の要約」の数と同じ。書いた時点の数で、後の PR が閉じた行は各行の欄が正）。Archon が強いた狭めは 1 行（E30）だけ。
+前の works（raiki61/claude-plugins @ 2aa7c66c の works/）の能力を、作り直しの works-factory（main＝origin/main の写し、線だけ #74 の head＝PR #74 の頭）と 1 行ずつ照らした。行の数と、今に無い行・照らす試験が無いか弱い行・狭めた行の数は末尾の「穴の要約」（数え方は README.md の「穴の数え方」）。
 持ち主に要るのは、末尾の「穴の要約」の「持ち主に聞く物」。bin/apply の行は M39〜M53（M39〜M52 は #114 で入った bin/_lib/apply.py と tests/bin/test_apply.py。M53 は周の鎖と一緒に段 3 で作る）。
 
 読み方（4 つの領域で共通）:
@@ -73,14 +73,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 今: lib/declared_checks.py::run_ci・lib/declared_checks.py::_planned_run・lib/declared_checks.py::_declaration_moved（走らせた後の宣言の sha を照らし、違えば計画から 1 度だけやり直す。ログは logs/…/replan。#122）
   - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_declaration_changed_after_plan_is_replanned_once・lib/tests/test_declared_checks.py::RunEngineCase.test_declaration_changing_twice_is_refused
   - 本物の run: 筋書きでのみ
-  - 狭め: #69 で外した（PR の「外した物」の盤面の部分）。Archon で不可でない → 戻すか、計画と走りが同じ関数の中で続くので目的が消えたことを持ち主に諮る
+  - 狭め: #69 で外した（PR の「外した物」の盤面の部分）。Archon で不可でない → 戻すか、計画と走りが同じ関数の中で続くので目的が消えたことを持ち主に諮る → #122 で戻した（走らせた後に宣言が変われば 1 度だけ計画し直す）
 
 - T9 engine が組んだ素材を受け付けの規則で照らし、通らなければ任せ先に落とす。その時 engine が既に走らせた test_cmd の段の結果を使い、test_cmd を 2 度走らせない。
   - 元: works/.shared/core/board.py:1145 `_accept_engine_reply`・:1413 `_fall_back`・works/.shared/core/entry.py:925 `_ci_by_cmd`（ran）・works/tests/test_ci_test_cmd.py:113 test_fallback_after_run_reuses_test_cmd_result
   - 今: lib/declared_checks.py::run_ci（material_problems を engine の素材にも当てる）・lib/declared_checks.py::_fall_back（engine が走らせた test_cmd の段の結果から素材を組む。落とした訳 fell_back は workflows/test-gate/scripts/result.py::evidence が証拠の文にも出す）・lib/declared_checks.py::_cant_status（#122）
   - 証: lib/tests/test_declared_checks.py::RunEngineCase.test_engine_material_meets_material_problems・lib/tests/test_declared_checks.py::RunEngineCase.test_engine_material_that_breaks_the_rules_falls_back_without_rerunning_test_cmd
   - 本物の run: 筋書きでのみ
-  - 狭め: #69 で外した（盤面の部分）。Archon で不可でない → 戻す（少なくとも engine の素材にも material_problems を当てる）
+  - 狭め: #69 で外した（盤面の部分）。Archon で不可でない → 戻す（少なくとも engine の素材にも material_problems を当てる） → #122 で戻した
 
 ### B 範囲の宣言 `.works-checks.json`
 
@@ -131,7 +131,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 今: workflows/test-gate/scripts/run.py::request_wheres（判定から入る run の base で始めの記録の依頼の where）・workflows/test-gate/scripts/run.py::changed・lib/checkscope.py::request_files（元 `_pr_files` の式。#122）
   - 証: tests/workflows/test_test_gate.py::RunScriptCase.test_base_reads_request_where_as_change
   - 本物の run: 筋書きでのみ
-  - 狭め: #69 で狭めた（PR の「能力の狭め」2 つ目）。Archon で不可でない（依頼は始めの記録に在る）。落ちるのは速さだけで確かめは減らない → 持ち主の確かめ 決め: 戻すと決めた（superset）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #69 で狭めた（PR の「能力の狭め」2 つ目）。Archon で不可でない（依頼は始めの記録に在る）。落ちるのは速さだけで確かめは減らない → 持ち主の確かめ 決め: 戻すと決めた（superset）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」） → #122 で戻した
 
 - T17 回さなかった段を素材の文（clean の checked・found の detail・走らせられない reason）の末尾に「範囲の外で回さなかった段: <名>（変更が全部 <範囲> の下で、段が見ない所）」と名指す。
   - 元: works/.shared/core/board.py:507 `_skipped_note`・:497 `scope_word`・:502 `skipped_text`
@@ -358,7 +358,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 今: workflows/test-gate/scripts/run.py::fresh_gate（logs/ のほかを消し、今回のログは空いた番号の logs/a<k>/。#122）
   - 証: tests/workflows/test_test_gate.py::RunScriptCase.test_rerun_keeps_earlier_logs
   - 本物の run: 筋書きでのみ
-  - 狭め: #69 で落ちた（T46 の副作用。挙げていない）。Archon で不可でない → 戻す（ログだけ番号で分ける）
+  - 狭め: #69 で落ちた（T46 の副作用。挙げていない）。Archon で不可でない → 戻す（ログだけ番号で分ける） → #122 で戻した
 
 ### H 任せ先の CI の役
 
@@ -371,10 +371,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T49 本物の作業ツリーへの書き込みを、包み（adapter）が印の旗 no-tree-write を見て起動ごとに denyWrite に足して塞ぐ。切符の無い起動は起こさない。包みを宣言した run は受け付けが包みの起動の記録で柵が掛かったかを見て、無ければ止める。包み無しの run は知らせ NO_ADAPTER_NOTE を出す。宣言が読めなければ役を起こさずに止める。
   - 元: works/.shared/core/ci_role.py:150 `fence`・:274-298 `take`・:76 NO_ADAPTER_NOTE・works/blk-ci/blk-ci.yaml:28-42
-  - 今: workflows/test-gate/works-factory-test-gate.yaml::ci の sandbox.filesystem `{allowWrite: ['/'], denyWrite: ['~/../archon-home']}`（起動が隔離した HOME の隣の Archon の家 archon-home の下＝既定の置き場の run の作業ツリーと隣の worktree・artifacts を塞ぐ。`'.'` は cwd でなく設定の一時ファイルのフォルダに解かれ作業ツリーを塞がない——実測 2026-10-13・#293。止めた Archon は節の sandbox をそのまま SDK に渡す: dag-executor.ts:1847・providers/src/claude/provider.ts:801-803。実測は #217（段 1a・#154）。#122）と、mutates_checkout: false・受け付けの作業ツリーの比べ（T51）
-  - 証: tests/workflows/test_test_gate.py::YamlCase.test_role_cannot_write_the_checkout・tests/workflows/test_test_gate.py::YamlCase.test_role_node_matches_works_blk_ci
+  - 今: workflows/test-gate/works-factory-test-gate.yaml::ci の sandbox.filesystem `{allowWrite: ['/'], denyWrite: ['~/../archon-home']}`（起動が隔離した HOME の隣の Archon の家 archon-home の下＝既定の置き場の run の作業ツリーと隣の worktree・artifacts を塞ぐ。`'.'` は cwd でなく設定の一時ファイルのフォルダに解かれ作業ツリーを塞がない——実測 2026-10-13・#293。止めた Archon は節の sandbox をそのまま SDK に渡す: dag-executor.ts:1847・providers/src/claude/provider.ts:801-803。実測は #217（段 1a・#154）。#122）と、包み workflows/.shared/fence.py::protected_paths（埋め P5。殻 bin/_lib/launcher.py::write_fence が CLAUDE_BIN_PATH に置く。固定の値を印に読み、起こす直前に cwd・共通の .git・git worktree list の全部の根・Archon の家・Claude の設定・殻の口・包みを起こす Python・本物の claude・取り置いた Archon の源・工場の checkout の根の全体を denyWrite に足す。#309・#348）と、mutates_checkout: false・受け付けの作業ツリーの比べ（T51）。包みは印の在る起動を記録に書き（workflows/.shared/fence.py::record）、殻が子の env WORKS_FACTORY_FENCE_RECORDS で包みを宣言する。宣言した run は受け付け workflows/test-gate/scripts/ci_accept.py::judge が workflows/.shared/fence.py::fenced_since で ci-prep の後にこの作業ツリーで柵の掛かった起動を探し、無ければ返答を受けず諦める。宣言が読めない（絶対パスでない）run は workflows/test-gate/scripts/ci_prep.py が workflows/.shared/fence.py::bad_declaration で見て、役を起こさずに落ちる。宣言の無い run は workflows/test-gate/scripts/result.py::evidence が lib/declared_checks.py::NO_ADAPTER_NOTE を出す
+  - 証: tests/workflows/test_test_gate.py::YamlCase.test_role_cannot_write_the_checkout・tests/workflows/test_test_gate.py::YamlCase.test_role_node_matches_works_blk_ci・tests/shared/test_fence.py（一覧の組み方・印の読み方と、本物の claude で書き込みが止まること。claude の無い所では見送る）・tests/bin/test_launcher.py::LauncherTest.test_executing_launch_puts_the_fence_before_claude・tests/bin/test_launcher.py::LauncherTest.test_fence_denies_what_later_launches_run_outside_the_sandbox・tests/bin/test_launcher.py::LauncherTest.test_env_file_naming_claude_bin_path_stops_the_run・tests/bin/test_launcher.py::LauncherTest.test_env_file_naming_the_fence_records_stops_the_run・tests/shared/test_fence.py::MainTest.test_marked_launch_is_recorded_with_its_cwd・tests/shared/test_fence.py::MainTest.test_unwritable_record_stops_before_claude・tests/shared/test_fence.py::FencedSinceTest.test_missing_old_or_elsewhere_launches_are_not・tests/shared/test_fence.py::FencedSinceTest.test_rows_written_by_the_fence_are_read_back・tests/workflows/test_test_gate.py::CiRoleCase.test_declared_run_with_a_relative_record_path_stops_before_the_role・tests/workflows/test_test_gate.py::CiRoleCase.test_declared_run_without_a_fenced_launch_stops_at_once・tests/workflows/test_test_gate.py::CiRoleCase.test_declared_run_ignores_launches_before_prep・tests/workflows/test_test_gate.py::CiRoleCase.test_declared_run_with_a_fenced_launch_is_accepted・tests/workflows/test_test_gate.py::ResultScriptCase.test_role_run_without_the_fence_declaration_carries_the_note
   - 本物の run: 筋書きでのみ
-  - 狭め: #69 で狭めた（PR の「能力の狭め」1 つ目）。Archon で不可でない（packages/workflows/src/schemas/dag-node.ts:109 に sandbox.filesystem.denyWrite が在る。節の値は固定の YAML なので、run ごとに違う共有の .git・対象の本体の作業ツリー・worktree.path を替えた対象の作業ツリーは名指せず、書ける——実測 2026-10-13・#293。起動の直前に一覧を組む 2 歩目は #309）→ 持ち主の確かめ 決め: 戻すと決めた。run ごとの作業ツリーを denyWrite で塞げないと実測で分かった時だけ源の行つきで狭め。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #69 で狭めた（PR の「能力の狭め」1 つ目）。Archon で不可でない（packages/workflows/src/schemas/dag-node.ts:109 に sandbox.filesystem.denyWrite が在る。節の値は固定の YAML なので、run ごとに違う共有の .git・対象の本体の作業ツリー・worktree.path を替えた対象の作業ツリーは名指せず、書ける——実測 2026-10-13・#293。起動の直前に一覧を組む包みを #309 で戻した）→ 持ち主の確かめ 決め: 戻すと決めた。run ごとの作業ツリーを denyWrite で塞げないと実測で分かった時だけ源の行つきで狭め。→ 残りの受け付けが包みの起動の記録で柵が掛かったかを見て止める所と知らせ NO_ADAPTER_NOTE と、宣言が読めない（絶対パスでない）run を役を起こす前に止める所は #360 で戻した（包みを通らない起動にも固定の値は残る）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
 
 - T50 役はテストを作業ツリーの写し（同じ commit に未コミットの変更と未追跡のファイルを載せた独立の clone。一時の置き場の直下の works-factory-ci-*）の上で走らせ、一時の置き場 tmp も渡す。
   - 元: works/.shared/core/ci_role.py:177 `_make_copy`・:189 `snapshot`
@@ -467,14 +467,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 今: lib/tree_run.py::replay_group・lib/tree_run.py::keep_group・lib/tree_run.py::reuse_run（元 slotted_run から枠を外した物）・lib/tree_run.py::reuse_place・lib/declared_checks.py::tree_runner・lib/tddloop.py::_test_cmd_gate・lib/tddloop.py::start（元の結末の一式）・lib/baseline_red.py::run_suite。控えは線の run の置き場の直下 test-reuse/（run の名は始めの記録の run_id）。test-gate の base（workflows/test-gate/scripts/run.py）が引いて置き、fix の組の子の run の TDD の輪の頭（workflows/fix/scripts/group_start.py::line_top）が test_cmd と元の結末の一式を引いて置く。final は引かない（#122）
   - 証: lib/tests/test_declared_checks.py::ReuseCase.test_same_tree_same_suite_runs_once・lib/tests/test_declared_checks.py::ReuseCase.test_other_run_or_moved_tree_is_not_reused・lib/tests/test_declared_checks.py::ReuseCase.test_tdd_head_test_cmd_reads_the_base_keep・lib/tests/test_declared_checks.py::ReuseCase.test_reused_suite_writes_its_junit_back・lib/tests/test_declared_checks.py::TestModesCase.test_final_never_reads_reuse_store・lib/tests/test_tree_run.py::ReuseRunCase・tests/workflows/test_test_gate.py::RunScriptCase.test_base_rerun_reuses_the_green_suite_and_final_does_not・tests/workflows/test_fix.py::GroupChildScriptsCase.test_tdd_head_reuses_the_test_gate_base_test_cmd・lib/tests/test_blk_fix_tdd.py::TestStart.test_head_reuses_the_green_baseline_of_the_same_run・tests/shared/test_archon_contract.py::ArchonContractTest（script の節に立つ変数の名）
   - 本物の run: 筋書きでのみ
-  - 狭め: #69 で外した。PR は持ち主の決め no-queue を理由に挙げるが、no-queue（docs/owner-decisions.md:62-66）は修正の並べの待ちの列の決めで、使い回しは reuse-results（:263-268「使い回すのは入力が変わらない時だけ」「最後のテストは省かない」）に当たる。Archon で不可でない → 持ち主の確かめ 決め: 戻すと決めた（reuse-results）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: #69 で外した。PR は持ち主の決め no-queue を理由に挙げるが、no-queue（docs/owner-decisions.md:62-66）は修正の並べの待ちの列の決めで、使い回しは reuse-results（:263-268「使い回すのは入力が変わらない時だけ」「最後のテストは省かない」）に当たる。Archon で不可でない → 持ち主の確かめ 決め: 戻すと決めた（reuse-results）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」） → #122 で戻した
 
 - T63 使い回した段の出どころ（run・時刻・鍵）を素材の checked・段の行・報告に出し、使い回さなかった理由（reuse_off）を段の行・trace に出す。旗 GRAPHLOOPS_RERUN_CHECKS=1 で必ず走らせる。
   - 元: works/.shared/core/board.py:436 `_reused_note`・works/.shared/core/entry.py:706 `_reused_material`・works/.shared/core/tree_run.py:433 RERUN_ENV・:496 `note_fields`・:501 `reused_text`
   - 今: lib/tree_run.py::note_fields・lib/tree_run.py::reused_text・lib/tree_run.py::RERUN_ENV・lib/declared_checks.py::_reused_note・lib/declared_checks.py::_reused_material・lib/declared_checks.py::_row（段の行の reused・reuse_off。trace の代わりに test-gate/<mode>/run.json の runs）。旗は script が読む（#122）
   - 証: lib/tests/test_declared_checks.py::ReuseCase.test_reused_steps_named_in_material_and_rows・lib/tests/test_declared_checks.py::ReuseCase.test_rerun_flag_runs_again
   - 本物の run: 筋書きでのみ
-  - 狭め: T62 と同じ 決め: 戻すと決めた（reuse-results）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: T62 と同じ 決め: 戻すと決めた（reuse-results）。区分 T の issue（線の配線の文書の「この文書の外」の「決めた物」） → #122 で戻した
 
 - T64 機械全体の試験の枠（slotwrap.sh・TESTSLOT_N）を通してテストを走らせ、枠を待った秒 wait_s を段の行に、待ちを状態の表示と herdr に見せる（並べすぎない）。
   - 元: works/.shared/core/tree_run.py:779 `slotted_run`・works/tests/test_tiers.py:923 RunSlotCase・:987 SlotWaitShownCase
@@ -542,12 +542,14 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 ### T の穴
 
-- 数
-  - 行の総数: 71
-  - 今が「無し」: 13（T8・T9・T16・T35・T41・T45・T47・T61・T62・T63・T64・T69・T70）
-  - 証が要追加か弱い: 26（「無し」の 13 と、T7・T13・T15・T19・T30・T31・T38・T49・T53・T55・T60・T67・T68 の 13。このうち T7・T13・T49・T53・T67 は試験が在るが弱い）
-  - 狭めで Archon のせいでない物: 14（「無し」の 13 行の全部と、柵が archon-home の下だけの T49（残りは #309）。Archon のせいで不可と言える行は 1 つも無い）
-  - 字の誤り（狭めではない）: 2（T67・T68）
+数:
+
+- 行の総数: 71
+- 今: 無し: 4（T61・T64・T69・T70）。T8・T9・T16・T47・T62・T63 は #122 で、T35・T41・T45 は線の配線の部分 B2・C で戻した
+- 証が要追加か弱い: 5（T61・T67・T68・T69・T70）。T7・T13・T15・T19・T30・T31・T38・T53・T55・T60 は #122 で試験を足して閉じた
+- 狭めたのに Archon が強いていない: 4（T61・T64・T69・T70）。T49 は #309・#360 で戻した。Archon のせいで不可と言える行は 1 つも無い
+- 字の誤り（狭めではない）: 2（T67・T68）
+
 - 持ち主に聞く物（前の決め・定石・元の作りのどれでも 1 つに決まらない）
   1. T62・T63・T64 同じ run の中の使い回しと機械全体の試験の枠。→ 決めた: T62・T63 は戻す（reuse-results）。T64 は戻さない（`no-queue`。#118）
   2. T49 任せ先の役の書き込みの守り（包みの柵）。→ 決めた: 戻す（denyWrite で塞げないと実測で分かった時だけ源の行つきで狭め）
@@ -555,7 +557,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   4. T61 人に諮っている最中の CI の欄を clean で上書きさせない決まり。台帳が無いので、線の問いで持つか
   5. T69 直す前に走らせられない run を、人に聞いて続けられるようにするか、止めて報告に回すままか
   6. T8・T9 宣言の sha の照合と engine の素材の受け付け。計画と走りが同じ関数の中に入って目的が消えたと見てよいか（T9 の material_problems を engine の素材にも当てるのは聞かずに足してよい）
-- 聞かずに戻す物（どの PR も挙げずに黙って落ちた）: T35・T41（線と報告に試験の行と次の手を出す）、T45（諦めた時の最後の拒否の文）、T47（resume で前のログを残す）、T70（test_cmd の形の確かめ。偽の緑を防ぐ入口の柵）
+- 聞かずに戻す物（どの PR も挙げずに黙って落ちた）: T35・T41（線と報告に試験の行と次の手を出す）、T45（諦めた時の最後の拒否の文）、T47（resume で前のログを残す）、T70（test_cmd の形の確かめ。偽の緑を防ぐ入口の柵）。T35・T41・T45 は線の配線の部分 B2・C で、T47 は #122 で戻した
 - 本物の run の注意: 種には `.review-checks.json` が無い。engine の段・JUnit・赤の原因 inherited・introduced・範囲の宣言は、種のままでは本物の run に出ない。段 1 の本物の run で見るなら、種に JUnit を書く宣言を足すか、test_cmd を渡す run と渡さない run を 1 本ずつ回す。渡す run は T5・T20・T23・T39、渡さない run は T6・T40・T48・T50・T58 を見られる
 - 元にも無かった物: 揺れる（flaky）試験の走らせ直しは、元の試験の関門にも無い。狭めではない
 
@@ -1132,12 +1134,11 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 数:
 
-- 行の数: 77（E1〜E77）
-- 今が「無し」: 3（E16 コードとコメントの比、E67 方針の文書の変化を聞く、E74 実測の時間）
-- 今は在るが本物の run に届かない（配線か読み手が無い）: 6（E17 x_scalars、E37 前提の検算の key と facts_to_add、E42 前提のずれの申告の本文、E45 R2 の前提の材料、E66 人が通した R4 の行、E73 最後の関所の実測の数の行）
-- 証が要追加（試験が無い）: 15（E3・E12・E13・E14・E16・E23・E25・E36・E37・E51・E67・E68・E70・E71・E74）。ほかに、ブロックの試験は在るが受け手の試験が無い物が 5（E17・E42・E45・E66・E73）
-- 証が弱い（在るが外しても赤にならない）: 10（E2・E7・E9・E20・E21・E28・E38・E41・E43・E65）。うち E20（after_counts）と E68（stage_b.run）は元に在った試験が来ていない
-- Archon に強いられていない狭め: 12（E16・E17・E19・E29・E37・E42・E45・E48・E66・E67・E73・E74）。うち持ち主の決めが要る物 4（E16・E19・E29・E48）、聞かずに戻せる物 8
+- 行の総数: 77（E1〜E77）
+- 今: 無し: 2（E16・E67）。E16 はコードとコメントの比、E67 は方針の文書の変化を聞く仕組み。E74（実測の時間）は #123 で戻した
+- 今は在ったが本物の run に届かなかった（配線か読み手が無かった）6 行（E17 x_scalars、E37 前提の検算の key と facts_to_add、E42 前提のずれの申告の本文、E45 R2 の前提の材料、E66 人が通した R4 の行、E73 最後の関所の実測の数の行）は、線の配線の部分 B2・D1・D2 で届くようにし、受け手の試験を足した
+- 証が要追加か弱い: 1（E67）。要追加だった E16 は戻さないと決めて要らなくなり（#118）、E37 は線の配線の部分 D2 で試験を足し、残りの要追加 12 行と弱い 10 行は下の #123 で閉じた
+- 狭めたのに Archon が強いていない: 5（E16・E19・E29・E48・E67）。うち持ち主の決めが要る物 4（E16・E19・E29・E48。E16 は戻さないと決めた）。E17・E37・E42・E45・E66・E73 は線の配線の部分 B2・D1・D2 で、E74 は #123 で戻した
 - Archon に強いられた狭め: 1（E30。packages/workflows/src/dag-executor.ts:1243-1249）
 - #123 で閉じた: 22（E2・E3・E7・E9・E12・E13・E14・E20・E21・E23・E25・E28・E36・E38・E41・E43・E51・E65・E68・E70・E71・E74。E74 は戻し、ほかは外すと赤になる試験を足した。指示書の字は写しの台帳 tests/workflows/test_eyes.py::CopiedTextsCase が縛る）。E16 は戻さない（持ち主の決め `no-comment-ratio`。#118）
 
@@ -1149,7 +1150,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 4. E48 軽い run で省いた目の理由を、eyes の返りか報告のどちらかに残すか（今は null だけ）。
 5. E67 方針の文書の変化を修正の後に聞く仕組みの住処（線・始めの記録・eyes のどこに置くか）。
 
-線・fix・report の側で直す物（eyes のブロックは約束どおりだが本物の run に届かない）: E17（fix の返りと線の with に x_scalars）、E42（fix の返りの changed に premise_drift_note）、E37（premise_check に key と facts_to_add を運ぶ形）、E45・E66（eyes/premise-inputs.json・eyes/gate-passes.json の読み手を最後の関所と報告に）、E73（最後の関所に after_lines）。どれも #67 の「約束を変える頼み」1・2・4・6 で頼んだまま、#74 でも未だ。壊れる余地だけ在る物: E43（再審の後の judgment の隣に premises.json が無い道）。
+線・fix・report の側で直す物（eyes のブロックは約束どおりだが本物の run に届かなかった）: E17（fix の返りと線の with に x_scalars）、E42（fix の返りの changed に premise_drift_note）、E37（premise_check に key と facts_to_add を運ぶ形）、E45・E66（eyes/premise-inputs.json・eyes/gate-passes.json の読み手を最後の関所と報告に）、E73（最後の関所に after_lines）。どれも #67 の「約束を変える頼み」1・2・4・6 で頼み、線の配線の部分 B2・D1・D2 で直した。壊れる余地だけ在った E43（再審の後の judgment の隣に premises.json が無い道）は #123 で閉じた。
 
 ## R（報告のブロック report）の能力の棚卸し
 
@@ -1314,7 +1315,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1588-1591 `always_rows` の「残り: N 件」
   - 今: lib/runreport.py::_decisions の RESIDUE_HEAD の行（結末に依らず 0 件も。残りが在れば MISSING_EYE_NOTE）
   - 証: lib/tests/test_runreport.py::DecisionsCase.test_residue_count_is_always_shown
-  - 本物の run: report/report.md「1. 人が決めること」
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report.md「1. 人が決めること」）
   - 狭め: #68 で書かれずに落ちた。不可でない → 戻す → 部分 C で戻した（検証器の阻害は持たないので数えない）
 
 ### 報告の頭と「1. 人が決めること」
@@ -1465,7 +1466,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:1308-1338 `head_entry`・:1339 `forge_line`
   - 今: lib/runreport.py::_entry_lines（段・entry.features_part・決めた人の関所の答えの数・FORGE_HEAD の forge.reason(forge.detect(repo))）
   - 証: lib/tests/test_runreport.py::LinesCase.test_entry_names_thickness_and_features
-  - 本物の run: start.json（run の置き場の直下）の thickness（標準）・features
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば start.json（run の置き場の直下）の thickness（標準）・features）
   - 狭め: #68 で書かれずに落ちた。不可でない → 戻す（元の「下げている所 downgrades.json」と「このラインに無い節」は線の形が変わったので対象が無い） → 部分 C で戻した（下げている所は J41。このラインに無い節は対象が無い）
 
 - R42 線が渡した深さの行（単位ごとの深さ・標準へ上げた信号・軽量で省いた物）
@@ -1598,9 +1599,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - R59 run の後の CI が赤と言った試験の id を次の依頼の prior_failures に足す口（carry-ci）と、持ち越しの形（欄の名・下書きの印・Schema・役の材料に貼る節）
   - 元: works/.shared/core/carry.py:265 `carry_ci`・:244 `prior_section`
   - 今: lib/carry.py（元とバイト一致）
-  - 証: lib/tests/test_carry_ci.py::CarryCase.test_ids_become_prior_failures_rows ほか 7 本・lib/tests/test_carry_home.py の 10 本（例 lib/tests/test_carry_home.py::Board.test_redesign_rows_get_their_own_fix_section）
+  - 証: lib/tests/test_carry_ci.py::CarryCase.test_ids_become_prior_failures_rows ほか 7 本・lib/tests/test_carry_home.py の 10 本（例 lib/tests/test_carry_home.py::Board.test_redesign_rows_get_their_own_fix_section）。弱い: 元の works/tests/test_carry_home.py の test_carry_names_live_in_carry（考えの住処の柵の表が carry-over の名の漏れを縛る）が移されていない。柵の機械は lib/conceptfence.py に在る。要追加: lib/tests/test_carry_home.py::CarryHomeCase.test_carry_names_live_in_carry（柵の領域の棚卸しと重なるなら、そちらで持つ）
   - 本物の run: 筋書きでのみ（run の後の手）
-  - 狭め: 元の works/tests/test_carry_home.py の test_carry_names_live_in_carry（考えの住処の柵の表が carry-over の名の漏れを縛る）が移されていない。柵の機械は lib/conceptfence.py に在る → 要追加: lib/tests/test_carry_home.py::CarryHomeCase.test_carry_names_live_in_carry（柵の領域の棚卸しと重なるなら、そちらで持つ）
+  - 狭め: 無し（能力は lib/carry.py に在る。移されていないのは試験だけで、証の欄に書く）
 
 ### AI の報告と初見の確かめ
 
@@ -1658,9 +1659,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - R67 報告のブロックは前の段が落ちても飛ばされても、止め札の run でも走り、返す節は落ちない（lib/ を読めない・置き場に書けない時も record_invalid と訳で返る。facts の機械の報告と持ち越しの指し札が在ればそれを指し、無ければ別の名 report-unwritten.md に書く）
   - 元: works/darkfactory/darkfactory.yaml:1314-1325（all_done・always_run）、works/darkfactory/scripts/report.py
   - 今: workflows/report/works-factory-report.yaml::report、workflows/report/scripts/facts.py::fallen・workflows/report/scripts/collect.py::fallen・workflows/report/scripts/place.py::unwritten、workflows/line/works-factory-line.yaml::report（trigger_rule: all_done）
-  - 証: tests/workflows/test_report.py::ShapeCase.test_return_node_runs_whatever_came_before・tests/workflows/test_report.py::CollectScriptCase.test_fallen_keeps_facts_report_and_carries・tests/workflows/test_report.py::CollectScriptCase.test_fallen_without_facts_report_writes_another_name・tests/workflows/test_report.py::CollectScriptCase.test_without_lib_still_returns・tests/workflows/test_report.py::CollectScriptCase.test_unwritable_place_is_record_invalid・tests/workflows/test_report.py::FactsCase.test_unexpected_error_still_returns・tests/workflows/test_report.py::FixtureCase.test_all_empty_and_request_stop_reach_their_words
+  - 証: tests/workflows/test_report.py::ShapeCase.test_return_node_runs_whatever_came_before・tests/workflows/test_report.py::CollectScriptCase.test_fallen_keeps_facts_report_and_carries・tests/workflows/test_report.py::CollectScriptCase.test_fallen_without_facts_report_writes_another_name・tests/workflows/test_report.py::CollectScriptCase.test_without_lib_still_returns・tests/workflows/test_report.py::CollectScriptCase.test_unwritable_place_is_record_invalid・tests/workflows/test_report.py::FactsCase.test_unexpected_error_still_returns・tests/workflows/test_report.py::FixtureCase.test_all_empty_and_request_stop_reach_their_words。弱い: resume で前の試みの結果を使い回さないことを照らす物が無い。要追加: 本物の run の resume の筋書き（筋書きでのみ）
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__report` の出力（どの run でも在る））
-  - 狭め: 元の always_run（resume のたびに回し直す。元 works/darkfactory/darkfactory.yaml:1310-1313 の canary run 7d95d3bc で前の試みの interrupted が使い回された件の対策）は今の YAML に無い。Archon の resume で同じことが起きるかは確かめていない → 要追加: 本物の run の resume の筋書き（筋書きでのみ）
+  - 狭め: 元の always_run（resume のたびに回し直す。元 works/darkfactory/darkfactory.yaml:1310-1313 の canary run 7d95d3bc で前の試みの interrupted が使い回された件の対策）は今の YAML に無い。Archon の resume で同じことが起きるかは確かめていない
 
 - R68 返す節の約束の 7 欄（outcome・stop_reason・report・report_ai・next_request・prior_failures・ok）と入力の 17 の名
   - 元: works/darkfactory/darkfactory.yaml:1334-1350・:1373-1391（ok・outcome・judgment_file・review_file・diff_file・faces・report_file・next_request_file・prior_failures_file・tests_green・validator_exit・ai_report_go・export_input・machine_report_file・ai_report）、works/.shared/core/report.py:2085 `final_result`
@@ -1776,9 +1777,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 数:
 
 - 行の総数: 83（R1〜R82 と R5b）
-- 今: 無し（元の能力の主な部分が今に無い行）: 25 — R5b・R16・R20・R23・R24・R29・R35・R36・R37・R38・R39・R41・R42・R46・R69・R71・R72・R73・R74・R75・R76・R77・R78・R79・R80（R29 と R72、R42 と R74 は同じ能力の表示と判定の 2 行）
-- 証: 要追加（試験が無いか弱い）: 28 — R5b・R16・R20・R23・R24・R29・R35・R36・R37・R38・R39・R41・R42・R46・R59・R67・R69・R71・R72・R73・R74・R75・R76・R77・R78・R79・R80・R82（R12・R40・R49・R53・R81 は #124 で試験を足した）
-- 狭めたが Archon で不可でない: 26（重なりを 1 つに数えて）— 戻す 21: R5b・R14・R16・R20・R23・R24・R35・R36・R37・R38（clean とレンズ）・R39・R41・R42/R74・R29/R72・R73・R75・R76・R77・R78・R79・R80（R49 は #124 で戻した）。持ち主 6: R2・R38（仕組みの異常）・R46・R71・R81（線の版の線の側）・R82
+- 今: 無し: 2（R69・R71）。ほかに書いた時に無しと数えた 22 行（R5b・R16・R20・R23・R24・R29・R35・R36・R37・R38・R39・R41・R42・R72・R73・R74・R75・R76・R77・R78・R79・R80）は線の配線の部分 B1・C・D2 で戻した。R46 は「取れない」の 1 行（lib/runreport.py::UNSEEN）だけが在る
+- 証が要追加か弱い: 6（R42・R46・R59・R67・R69・R71）。ほかに書いた時に数えた 22 行は線の配線の部分 B1・C・D2 で試験を足して閉じた（R12・R40・R49・R53・R81 は #124 で試験を足した）
+- 狭めたのに Archon が強いていない: 5（R2・R38・R46・R71・R81）。R38 は仕組みの異常の部分（clean とレンズは部分 D2 で戻した）、R81 は線の版の線の側。書いた時に戻すとした 21 件と R82 は線の配線の部分 B1・C・D2 で、R49 は #124 で戻した
 - Archon で不可と言える狭め: 0（R60 の輪の頭の script の節と R61 の作業ツリーの確かめは置き換えで、能力は残る）
 
 #68 の「取り戻せない」12 件の判定:
@@ -2122,7 +2123,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 今: bin/_lib/apply.py::choose・bin/_lib/apply.py::stopped_why（結末の語・止めた所・人の一言。人の一言は線の result の final_answer: workflows/line/scripts/result.py::main）
   - 証: tests/bin/test_apply.py::ApplyTest.test_apply_stopped_run_needs_flag（旗なしの 1 行に結末の語・止めた所・人の一言・「--allow-stopped」、対象が変わらない）
   - 本物の run: 筋書きでのみ（種の run は continue で通す）。ただし段 1 で stop を答えた run を 1 本足せば `result` の `apply == null` が見える
-  - 狭め: 計画は人の一言を言わない（結末の語だけ）。Archon で不可でない（`answer-final.output.answer.text` は collect に届く: works-factory-line.yaml:950）→ 戻す 決め: 戻すと決めた（superset）。#101（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: 計画は人の一言を言わない（結末の語だけ）。Archon で不可でない（`answer-final.output.answer.text` は collect に届く: works-factory-line.yaml:950）→ 戻す 決め: 戻すと決めた（superset）。#101（線の配線の文書の「この文書の外」の「決めた物」） → #114 で戻した
 
 - M44 許し（今: `WORKS_USE_ALLOW_STOPPED=1`、段 1: `--allow-stopped`）が在れば止まった run の封じた差分を当て、止まった訳と「許しが在るので当てる」を 1 行出す。ただし R2 が作り直しと言った run は許しが在っても当てない
   - 元: works/dev/use.sh:427・works/tests/test_use.py::UseShell.test_apply_refuses_run_stopped_by_record（assert: test_use.py:1615-1618）
@@ -2272,7 +2273,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 - 行の総数: 63
 - 今: 無し: 3（M53・M61・M62）。M53 は周の鎖と一緒に段 3 で作る行で、M62 は置き換えで要らない行。bin/apply の M39〜M52 は #114 で入り、M29・M30・M37・M38 は線の配線の部分 B2・C で戻した
 - 証が要追加か弱い: 3（M53・M61・M63）。M10・M12・M16・M28・M31・M32・M33・M36 は issue #125 で試験を足して閉じ、M39〜M52 は #114 の tests/bin/test_apply.py が縛る
-- 狭めたのに Archon が強いていない（戻す）: 2（M61・M63）。M29・M30・M37・M38 は線の配線の部分 B2・C で、M43 は #114 で戻した
+- 狭めたのに Archon が強いていない: 2（M61・M63）。M29・M30・M37・M38 は線の配線の部分 B2・C で、M43 は #114 で戻した
 
 持ち主に確かめてほしい物:
 1. →決めた（線の配線の文書の「決めた物」）: M45・M46 は拒む 1 行に素の `git apply` の道を書いて能力を残し、M53 は段 3 の鎖の issue へ。元の問い: 段 1 の計画が `bin/apply` で狭める 3 点は、どれも Archon が強いていない。止まりかを言えない run を当てない（M45。Archon が強いるのは「hash は線の result から読む」までで、cli/src/commands/workflow.ts:3932-3934）、封じる前に止まった run の差分を当てない（M46）、鎖の最後の差分を当てる口を持たない（M53）。3 つとも計画のまま狭めてよいか。
@@ -2283,17 +2284,17 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 ## 穴の要約
 
-数（4 つの領域の合計。各領域の内訳は各領域の終わりの節）:
+数（4 つの領域の合計。各領域の内訳は各領域の終わりの節。数え方は README.md の「穴の数え方」）:
 - 行の総数: 294（T 71・E 77・R 83〔R1〜R82 と R5b〕・M 63）
-- 今: 無し: 45（T 14・E 3・R 25・M 3）。M の 3 のうち 1 は周の鎖と一緒に段 3 で作る bin/apply の行（M53。M39〜M52 は #114 で bin/_lib/apply.py と tests/bin/test_apply.py に入った）、1 は置き換えで要らない行（M62）。ほかに E に、今は在るが配線か読み手が無くて本物の run に届かない行が 6（E17・E37・E42・E45・E66・E73）
-- 証が要追加か弱い: 87（T 26・E 30〔要追加 15、受け手の試験が要る 5、弱い 10〕・R 28・M 3）
-- 狭めたのに Archon が強いていない: 54（T 14・E 12・R 26・M 2）。どの PR も書かずに黙って落とした物を含む（T35・T41・T45・T47・T70、R5b・R14・R16・R20・R23・R24・R35〜R39・R41 など。R49 は #124 で戻した）
+- 今: 無し: 11（T 4・E 2・R 2・M 3）。M の 3 のうち 1 は周の鎖と一緒に段 3 で作る bin/apply の行（M53。M39〜M52 は #114 で bin/_lib/apply.py と tests/bin/test_apply.py に入った）、1 は置き換えで要らない行（M62）
+- 証が要追加か弱い: 15（T 5・E 1・R 6・M 3）
+- 狭めたのに Archon が強いていない: 16（T 4・E 5・R 5・M 2）。どの PR も書かずに黙って落とした物のうち、まだ戻していないのは T70・E67（T35・T41・T45・T47、R5b・R14・R16・R20・R23・R24・R35〜R39・R41・R49 は戻した）
 - Archon が強いた狭め: 1（E30。読むだけの役が作業ツリーを変えた時の出し直しが無くなった。dag-executor.ts:1243-1249 で、checkout の照らしの違反は retry の外）
 - PR の対応表の照らし: #66（M）・#67（E）・#69（T）が挙げた試験は main に全部在り、該当の動きを assert していた。#68 の「取り戻せない」12 件のうち、今も読む先が無いのは gates_deferred（R71）と来歴の表（R81 の表の部分）だけ。閉鎖の数え直し（R72）は組の子 run に元データが在り、約束に足せば戻る。R73〜R80 の 8 件は今の置き場から戻せ、うち R75・R76・R79・R80 の 4 件は #68 の主張が誤り。R71・R81・R82 は持ち主に聞く
 
 今壊れている物と、壊れる余地だけの物:
-- 今壊れている（本物の run で何も言わずに落ちる）: E17・E37・E42・E45・E66・E73（x_scalars・前提の検算の key と facts_to_add・premise_drift_note・eyes/premise-inputs.json・eyes/gate-passes.json・最後の関所の実測の行は、fix の返り・線・最後の関所・報告のどこにも届かない。#67 の「約束を変える頼み」1・2・4・6 のまま、#74 でも未だ）。R5b（線の止めの語が報告に届かない）・R16（閉じていない単位があっても fixed になる）・R23（修正役が人に回した breaks.accepted が報告に出ない）は、結末の語か「人が決めること」の件数が変わる
-- 壊れる余地だけ: E43（再審の後、judgment の指し札の隣に premises.json が無い道）
+- 今壊れている: 書いた時に挙げた E17・E37・E42・E45・E66・E73（x_scalars・前提の検算の key と facts_to_add・premise_drift_note・eyes/premise-inputs.json・eyes/gate-passes.json・最後の関所の実測の行が、fix の返り・線・最後の関所・報告のどこにも届かなかった）と R5b・R16・R23（結末の語か「人が決めること」の件数が変わった）は、線の配線の部分 B2・C・D1・D2 で戻した（各行の狭めの欄）
+- 壊れる余地だけ: 書いた時に挙げた E43（再審の後、judgment の指し札の隣に premises.json が無い道）は #123 で閉じた
 
 持ち主に聞く物（前の決め・定石・元の作りのどれでも 1 つに決まらない物）:
 1. T62〜T64 同じ run の中の試験の結果の使い回しと、機械全体の試験の枠。→ 決めた: T62・T63 は戻す（reuse-results）。T64 は戻さない（`no-queue`。#118）
@@ -2306,6 +2307,6 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 8. M45・M46・M53・M43 → 決めた: M45・M46 は `bin/apply` が拒み、拒む 1 行に素の `git apply` の道を書いて能力を残す（M46 は元の能力の狭めに当たる）。M53 は段 3 の鎖の issue。M43 は人の一言を載せる
 9. M61 守りのパスの一覧が 44 行から 19 行に減った（main にファイルが在るのに外れた行がある。#74 も線の行を足していない）。M30 書き換えを許したテストを守りのパスと同じに扱う動き（関所を必ず開く・答えが無ければ置かない）→ 戻した（線の配線の部分 B2）
 
-聞かずに戻す物（どの PR も挙げずに黙って落ちた物。Archon の制約ではない）: T35・T41・T45・T47・T70（特に T70。test_cmd が手元の clone を指していないかの入口の確かめ。気づかない偽の緑を防ぐ柵）、E の 8 行（E17・E37・E42・E45・E66・E67・E73・E74。E67 は住処だけ持ち主に聞く）、R の 21 行（R の穴の「戻す」の一覧）、M63（M29・M37・M38 は線の配線の部分 B2・C で戻した）。
+聞かずに戻す物（どの PR も挙げずに黙って落ちた物。Archon の制約ではない）のうち、まだ戻していないのは T70（test_cmd が手元の clone を指していないかの入口の確かめ。気づかない偽の緑を防ぐ柵）・E67（住処だけ持ち主に聞く）。T35・T41・T45・T47、E の 7 行（E17・E37・E42・E45・E66・E73・E74）、R の 21 行（R の穴の「戻す」の一覧）、M29・M37・M38 は戻した。
 
 本物の run の注意: 種に .review-checks.json が無いので、試験の関門の engine の段・JUnit・赤の原因の分け（元から赤か、この直しで赤か）・範囲の宣言は、種のままでは本物の run に出ない。段 1 で見るなら、種に宣言を足すか、test_cmd を渡す run と渡さない run を 1 本ずつ回す（T の穴の節）。種は works-factory でない対象なので、守りのパスに当たる道も筋書きでのみ。

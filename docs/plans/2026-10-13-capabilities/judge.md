@@ -264,7 +264,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 元: works/.shared/core/prcheck.py:322 `downgrades`・:345 `head_downgrades`・works/darkfactory/downgrades.json・works/.shared/core/entry.py:1107
   - 今: lib/downgrades.json（元 darkfactory/downgrades.json の写し）・lib/prcheck.py の downgrades・head_downgrades → lib/runreport.py の _downgrade_lines（入口の節）
   - 証: lib/tests/test_runreport.py::LinesCase.test_head_names_declared_downgrades（HeadCase.test_head_names_declared_downgrades の名を変えた）
-  - 本物の run: 報告の頭の行
+  - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 報告の頭の行）
   - 狭め: #76 で外した（読み先が lib/ に無いため。不可でない → 戻す。置き場は report か線） → 部分 C で戻した
 
 ## 素材の要否と支度

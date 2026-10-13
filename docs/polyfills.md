@@ -40,7 +40,9 @@
   - `workflow abandon <run> --json` は `owner.outcome: no_owner_answered` と記録した pid を出し、run を `cancelled` にし、run が作った作業ツリーを書きかけのファイルごと消す（`releasedWorktrees`）。枝は残る。
   - その後の `workflow run <工程> --adopt <run> --detach --json` は新しい id の run（`a21aee649292b6b07be27e96aa8e6496`。`adopted_from_run_id` が前の run）を起こし、残った枝で同じパスに作業ツリーを作り直し、最初のノードからやり直す（前の run の終わったノードを飛ばさない）。後ろの `all_done` のノード `tail` は走った。
   - 持ち主を `kill -9` で止めても、走っていたノードの子のプロセス（`bash -c …` と `sleep`）は残って走り続けた（親が 1 になる）。`abandon` は持ち主が答えない時はプロセスを止めない（「Nothing decides the run is dead from its age or pid」）。手放す前に、残った子を pid で止める。
-  - メイングラフは `interactive: true` なので、メイングラフの `--adopt` は `--detach` を付けずに打つ（`docs/design.md` の「Archon の分かっていること」）。メイングラフの報告のノードが `--adopt` の run で走るか（棚卸しの L-W60 の resume の半分）は、AI の役を起こす認証が要るので運び役の確かめ待ち。
+  - メイングラフは `interactive: true` なので、メイングラフの `--adopt` は `--detach` を付けずに打つ（`docs/design.md` の「Archon の分かっていること」）。
+- 実測（段 1 の手順 6、2026-10-13。main `b5d9d8da` のメイングラフを本物の役で。run `ee0f15b7`）: 役のノード（`judge__world-judge-loop.world-judge`）が走る間に `--detach` の子のプロセスを pid で止めた。`workflow get` は `running` のまま（持ち主が居ないことは get からは分からない）・`workflow wait` は `owner_lost`・`workflow resume` は拒む・`workflow abandon` は `cancelled` にし、`releasedWorktrees` の作業ツリーを書きかけごと消す（枝は残る）。`workflow run --adopt` は新しい run `097c08dc`（`adopted_from_run_id` 付き、メイングラフの頭からやり直し）を起こし、閉じた時に報告のノードが全部走った（棚卸しの L-W60 の resume の半分。report.md 6082 バイト）。この埋め（`bin/apply` と Archon の命令）で足りる（埋めを足さない。上の「足りない残り」はそのまま）。
+  - 気づき（不具合と決めていない）: 殻 `bin/works-factory` は出力の JSON が `"ok": false`・`owner_lost` でも終了の値が 0。親を失った役の claude は作業ツリーの中で約 20 秒走り続けてから自分で終わった。
 - 再現（AI の役も認証も要らない。グラフは `tests/e2e/owner-lost-probe/`。プロセスを止めるので試験にせず手で回す。形だけは `tests/e2e/test_resume_probe.py` が validate で照らす）:
   1. 使い捨ての git の木にグラフを `.archon/workflows/works-factory/owner-lost-probe/` の形で置いて commit し、空の bare のリポジトリを `origin` に足して push する（`remote` が無いと Archon は作業ツリーを切れずに落ちる）。`ARCHON_HOME` も使い捨てにする。
   2. `workflow run works-factory-owner-lost-probe --detach --json` を打ち、`workflow get <run> --json` の `working_path` に `half-written.txt` が出るのを待つ。
@@ -74,6 +76,19 @@
 - 埋め: bin/_lib/record-read.py（Read と、Agent・WebFetch・WebSearch を path の無い行で）。bin/_lib/toolset.py の install が隔離した設定の settings.json の hooks.PostToolUse に置く。
 - 使うサブグラフ: plan・plan-review（区分 J・F の issue の後は judge・fix）
 - 外す条件: ノードの hooks: が command の種類を受け、入力を見て書ける版が出たら
+
+### P5 役の sandbox に起動ごとの値を渡せない
+
+- 穴: ノードの `sandbox` は YAML の固定の値のまま SDK に渡るので、run ごとに違うパス（cwd・共通の `.git`・対象の本体の作業ツリー・`worktree.path` で置き場を替えた worktree）を読むだけの役の `denyWrite` に名指せない。固定の値 `~/../archon-home`（`tests/layers/scan.py` の `NO_TREE_WRITE`）は Archon の家の下しか塞がない。
+- 証拠: 止めた Archon の `packages/workflows/src/dag-executor.ts` 1847 行（`sandbox: node.sandbox ?? workflowLevelOptions.sandbox`。同じ関数で `systemPrompt` などは `resolveAiText` で置き換えるが、`sandbox` は置き換えない）と `packages/providers/src/claude/provider.ts` 801-803 行（`options.sandbox = nodeConfig.sandbox`）。起こす claude の実行ファイルは `packages/providers/src/claude/binary-resolver.ts` 172-178 行が環境変数 `CLAUDE_BIN_PATH` から読む（dev mode でも読む）。実測は issue #306（固定の値でも symlink の綴りでも、共有の `.git` と対象の本体の作業ツリーに書けた）。
+- 埋め: `workflows/.shared/fence.py`。起動の殻（`bin/_lib/launcher.py` の `write_fence`）が、Archon を走らせる命令の時だけ包みの殻を書いて子の `CLAUDE_BIN_PATH` をそこへ向ける。包みは SDK が渡す `--settings` の `sandbox.filesystem.denyWrite` に固定の値（印）が在る起動だけ、起こす直前に cwd から組んだ一覧（cwd・`git rev-parse --git-common-dir`・`git worktree list` の全部の根・Archon の家・Claude の設定・殻が書いた口・後の役の起動と次の起動が sandbox の外で走らせる物〔それを起こす Python・本物の claude・取り置いた Archon の源・工場の checkout の根の全体（包み・版の止め、`bin/works-factory` が import の先頭に置く根の `.py` を含む）〕）を足して本物の claude を起こす。印の無い起動は argv を変えない。`--settings` が JSON の object でない起動は止める。形は包み `claude-adapter`（旗 `no-tree-write`）。試験は `tests/shared/test_fence.py`（本物の claude で書き込みが止まることも見る）。
+  - 写した元（台帳）: 一覧の組み方 `_git`・`protected_paths` は、今の works（`raiki61/claude-plugins` の commit `2aa7c66cf7abe1fe09699ac2942d107123214168`）の `graphloops/engine/role_run.py` 141-172 行をそのまま写した。それを縛る元の試験（`graphloops/tests/simulate.py` の `test_tooled_launch_fence` の守る場所の 2 つの check と、`graphloops/tests/py/test_role_run_stop.py` の `test_protected_paths_is_undecided_when_git_answers_partly`）は `tests/shared/test_fence.py` の `ProtectedPathsCopiedTest` に写した。同じ元の `tooled_permission`（sandbox の形と道具の許しを組む）は写さない。ここでは役の sandbox の形と道具を YAML が持ち、層の柵 `tests/layers/scan.py` が縛る。
+  - 起こす場所の `.env`・`.env.local`・`.env.development`・`.env.production`・`.archon/.env` か、Archon の家の `.env`（`archon setup` の既定の書き先）が `CLAUDE_BIN_PATH` を名指すと、Archon はその値で包みを置き換えるか消す（`packages/paths/src/strip-cwd-env.ts`・`packages/paths/src/env-loader.ts` の `loadArchonEnv`）。起動の殻はその時 Archon を起こさずに止める。同じファイルが `WORKS_FACTORY_FENCE_RECORDS`（下の宣言）を名指しても止める。
+  - 起動の記録（今の works の包みの起動の記録と `ci_role.take`。`docs/plans/2026-10-13-capabilities/tail.md` の T49）: 包みは印の在る起動を、起こす前に `--records` の記録（家の `claude-fence/launches.jsonl`。`--own` の下で役は書き換えられない）へ時刻と cwd の 1 行で足し、書けなければ起こさない。起動の殻は同じパスを子の env `WORKS_FACTORY_FENCE_RECORDS` に置き、run が包みを通ると script のノードに宣言する。宣言が読めない（絶対パスでない）run は test-gate の `ci-prep` が落ち、CI の役を起こさない。宣言した run では test-gate の `ci-accept` が、`ci-prep` の後にその作業ツリーで柵の掛かった起動が記録に無ければ返答を受けずに諦める。宣言の無い run（殻を通らない起動。`tests/archon.py` が起こす Archon）は、test-gate の証拠に知らせ `NO_ADAPTER_NOTE` を出す。
+  - 印を書かない役: Edit・Write を持つ役（直す役・書く役）は作業ツリーを変えるのが仕事で、cwd を禁じると仕事ができない。今の works の柵も道具に書き込みの無い役だけに掛けた（`graphloops/engine/role_run.py` の `tooled_permission` と `DELEGATE_TOOLS`）。
+  - 足りない残り: judge の読むだけの役の受け付けは起動の記録を見ない（今の works にも無い）。包みを通らない起動には固定の値だけが残る。
+- 使うサブグラフ: judge・test-gate
+- 外す条件: ノードの `sandbox` が run ごとの値（cwd・共通の `.git`・worktree の根）を受ける版が出たら
 
 ## 外した
 

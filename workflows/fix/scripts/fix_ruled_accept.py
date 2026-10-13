@@ -49,7 +49,7 @@ def main() -> dict:
     owed = fixboard.ruled_owed(place)
     start = startrec.read(place)
     judgment = fixboard.read_json(place / fixboard.JUDGMENT_FILE) or {}
-    head = fixboard.stage_head(place, fixboard.RULED_HEAD_FILE)
+    head = fixboard.fixer_head(place, "ruled")
     state, tests_state = fixboard.ruled_states(place)
     log = writelog.log_here()
     boundary.drop_runner_env()   # 対象のテストを走らせる前に Archon の変数を落とす（place は先に取った）

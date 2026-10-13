@@ -1033,6 +1033,21 @@ class FactchecksSeamCase(TempCase):
         self.assertEqual(self.fc.precheck(self.cfg, self.reply)["rejects"], [])
         self.assertTrue(self.fc.precheck(self.cfg, self.reply, items=[{**self.ITEM, "allowed_paths": ["stats.py"]}])["ok"])
 
+    def test_precheck_reads_the_fixer_tree_the_acceptance_reads(self):
+        """事前の確かめと受け付けは、修正役が変え始めた木（段の頭）を同じ所から読む: 段の頭より前に変わった stats.py を、
+        段の頭を見ない照らし（輪の凍った木に戻る）は修正役に問い、受け付けは問わない。その場面で 2 つの範囲の行が揃う（#332）"""
+        for pass_, name in (("first", fixboard.FIX_HEAD_FILE), ("ruled", fixboard.RULED_HEAD_FILE)):
+            with self.subTest(pass_=pass_):
+                (self.place / name).write_text(json.dumps({"tree": leftovers.snapshot(self.repo)}), encoding="utf-8")
+                args = (self.reply, [R_MEAN], self.place, self.rev, self.repo, "", pass_)
+                accepted, _ = self.fc.check_plan_scope(*args, ask=True, since=fixboard.stage_head(self.place, name),
+                                                       items=[self.ITEM])
+                headless, _ = self.fc.check_plan_scope(*args, ask=True, items=[self.ITEM])
+                self.assertNotEqual(headless, accepted, "2 つの木で照らしが食い違う場面")
+                got = self.fc.precheck({**self.cfg, "pass": pass_}, self.reply, items=[self.ITEM])
+                self.assertEqual([r["text"] for r in got["rejects"] if r["check"] == "scope"], accepted)
+                (self.place / name).unlink()
+
     def test_scope_head_follows_the_consult_place(self):
         import consult
         import planscope
@@ -1273,6 +1288,24 @@ class LaneChecksSeamCase(TempCase):
         fc, since, item, reply = self.since_case()
         item["out_of_scope"] += [{"glob": "IMG.bin", "why": "項目 2 では触らない"}, {"glob": "WIN.md", "why": "項目 2 では触らない"}]
         lines, _ = fc.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since, items=[item])
+        self.assertEqual(lines, [])
+
+    def test_plan_scope_skips_a_file_only_the_git_filter_shows_changed(self):
+        """since の前に書いた ident のファイルは、作業ツリーの中身（$Id: <sha> $）と since の木の中身（$Id$）が違っても git の
+        比べでは触っていない: 修正役が足した行（canonical の外の同名の定義）として照らさない（#333）"""
+        import factchecks
+        (self.repo / ".gitattributes").write_text("helper.py ident\n", encoding="utf-8")
+        (self.repo / "helper.py").write_text(f'def helper(): return "$Id: {"0" * 40} $"\n', encoding="utf-8")
+        stats = self.repo / "stats.py"
+        since = leftovers.snapshot(self.repo)
+        stats.write_text(stats.read_text(encoding="utf-8") + "\n\ndef helper():\n    return 1\n", encoding="utf-8")
+        item = {"item": 1, "unit_keys": [R_MEAN], "removes": [], "route": "direct", "tests": [], "rewrite_tests": [],
+                "adds": [{"kind": "function", "name": "helper", "canonical": "stats.py"}],
+                "allowed_paths": ["stats.py"], "out_of_scope": []}
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py"]}]}
+        self.assertEqual(writes.changed_from(self.repo, since), ["stats.py"], "git の比べでは helper.py を触っていない")
+        lines, _ = factchecks.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since,
+                                               items=[item])
         self.assertEqual(lines, [])
 
     def test_plan_scope_counts_what_the_loop_fixed_before_since(self):
@@ -1571,6 +1604,7 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual(fixboard.child_allowed_rows(result), [good, good])
         self.assertEqual(fixboard.allowed_test_rows(self.place, [result]), [good])
         self.assertEqual((fixboard.child_allowed_rows(None), fixboard.child_allowed_rows({"allowed_tests": None})), ([], []))
+        self.assertEqual([fixboard.child_allowed_rows({"allowed_tests": v}) for v in (5, "tests/t.py", good)], [[], [], []])
 
     def test_fix_groups_join_units_through_items(self):
         items = [{"item": 1, "unit_keys": ["A", "C"]}, {"item": 2, "unit_keys": ["C", "D"]}, {"item": 3, "unit_keys": ["B"]}]
@@ -1607,6 +1641,9 @@ class GroupScriptsSeamCase(TempCase):
                                  {"g1": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": [row]}}, "g2": None})
         self.assertEqual(got[0], {"group_id": "g1", "ran": True, "reason": "", "suite": "s", "reused": {}, "units": [row]})
         self.assertEqual((got[1]["ran"], got[1]["units"], got[1]["reason"]), (False, [], fixboard.NO_RESULT))
+        got = fixboard.tdd_units([{"group_id": "g1"}, {"group_id": "g2"}],
+                                 {"g1": {"tdd": ["x"]}, "g2": {"tdd": {"ran": True, "reason": "", "suite": "s", "units": 5}}})
+        self.assertEqual([(r["ran"], r["units"]) for r in got], [(False, []), (True, [])], "形の崩れた tdd・units は空で読む（#342）")
 
     def test_cited_rows_drop_claims_whose_lines_are_gone(self):
         row = {"unit_key": "A", "between": ["stats.py:9", "test_stats.py:1"], "why_both_cannot_hold": "x" * 12,
@@ -1781,6 +1818,9 @@ class GroupScriptsSeamCase(TempCase):
             self.assertEqual(fixboard.rerun_cmd(self.place, on, " make test "), "make test")
             self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": {"test_cmd": {"gate": "same_as_suite"}}}, "make test"), "")
             self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": {"ran": False}}, "make test"), "")
+            for tdd in (["x"], "x", {"test_cmd": ["x"]}, {"test_cmd": "on"}):
+                self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": tdd}, "make test"), "make test",
+                                 f"関門が読めない子の結果（{tdd!r}）は on と見て走らせ直す")
             fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "A", "depth": "軽量", "why": "x"},
                                                                    {"unit_id": "B", "depth": "軽量", "why": "x"}])
             self.assertEqual(fixboard.rerun_cmd(self.place, on, "make test"), "", "全部の単位が軽量")
@@ -2081,6 +2121,91 @@ class FixAcceptSeamCase(TempCase):
         self.assertTrue(got["ok"], got["reason"])
         rows = json.loads((self.place / querytest.CLOSURE_FILE).read_text(encoding="utf-8"))["rows"]
         self.assertEqual({r["unit_key"]: r["how_from"] for r in rows}, {R_MEAN: "判定者", R_CLAMP: "判定者"})
+
+    # ---- 欠陥を数える問いが直した後の正しい行にも当たる（#313。#154 の通しの clamp の単位の判定と、上限の分岐だけを直した stats.py）
+    D_CLAMP = "stats.py clamp: 上限を超えた入力に下限 lo を返す"
+    D_JUDGED = [{"key": D_CLAMP, "class_query": {"how": {"patterns": ["return lo"], "paths": ["stats.py"], "count": "lines",
+                                                         "fixed": True}, "counts": "defects", "total": 2}}]
+
+    def _accept_clamp(self, *, iteration=1, conflicts=None, pass_="first", coverage=None):
+        (self.place / "judgment.json").write_text(json.dumps({"units": self.D_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        path = self.repo / "stats.py"
+        text = path.read_text(encoding="utf-8")
+        self.assertEqual(text.count("return lo"), 2, text)
+        path.write_text(text.replace("    if x > hi:\n        return lo", "    if x > hi:\n        return hi"), encoding="utf-8")
+        row = _fix_row(self.D_CLAMP, 1)
+        row["closure"]["sites"][0]["path"] = "stats.py"
+        row["coverage"].update(coverage or {})
+        reply = {"changes": [] if conflicts else [row], "not_done": [], **({"conflicts": conflicts} if conflicts else {})}
+        return fixboard.accept_reply(reply, self.place, self.repo, pass_=pass_, iteration=iteration, owed=[self.D_CLAMP],
+                                     judged=self.D_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+
+    def test_unclosed_defects_count_goes_back_to_the_fixer(self):
+        """欠陥を数える問いが直した後も 1 件を数える単位は、申し出が無ければ修正役に戻す（remaining を機械が埋めても受けない）。
+        戻しの文は単位と query_hits_fixed の申し出を名指す。拒んだ返答の数え直しと閉鎖の表は置き場に置かない"""
+        import querytest
+        import recount
+        got = self._accept_clamp()
+        self.assertFalse(got["ok"], "閉じない欠陥の数えを申し出無しで受けた")
+        texts = [r["text"] for r in got["rejects"] if r["check"] == "closure"]
+        self.assertEqual(len(texts), 1, got["rejects"])
+        self.assertIn(self.D_CLAMP, texts[0])
+        self.assertIn("query_hits_fixed", texts[0])
+        self.assertFalse((self.place / recount.COVERAGE_FILE).exists(), "拒んだ返答の数え直しを置き場に刻んだ")
+        self.assertFalse((self.place / querytest.CLOSURE_FILE).exists(), "拒んだ返答の閉鎖の表を置き場に置いた")
+
+    def test_uncountable_judge_query_goes_back_with_its_reason(self):
+        """判定者の問いを修正後に数えられない単位は、修正役が狭めた問いの数でなく、数えられない理由を名指して戻す"""
+        import recount
+        run = recount._run_query
+
+        def flaky(place, where, how, root, **kw):
+            if how.get("patterns") == ["return lo"] and "修正後" in where:
+                return None, "git grep が stderr に書いた"
+            return run(place, where, how, root, **kw)
+        narrow = {**self.D_JUDGED[0]["class_query"]["how"], "patterns": ["return lo  # none"]}
+        with mock.patch.object(recount, "_run_query", flaky):
+            got = self._accept_clamp(coverage={"how": narrow, "remaining": "判定者の問いは下限の正しい分岐にも当たるので狭めた"})
+        texts = [r["text"] for r in got["rejects"] if r["check"] == "closure"]
+        self.assertEqual(len(texts), 1, got["rejects"])
+        self.assertIn("git grep が stderr に書いた", texts[0])
+        self.assertNotIn("query_hits_fixed", texts[0], "数えられない単位に閉じない数えの文を返した")
+
+    def test_unclosed_defects_count_with_query_hits_fixed_goes_to_the_ruling(self):
+        """同じ木で正しい行を query_hits_fixed で名指した返答は、受け付けが単位を止めて裁定に回す"""
+        got = self._accept_clamp(conflicts=[{
+            "unit_key": self.D_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+            "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
+            "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}])
+        self.assertTrue(got["ok"] and got["conflicted"], got)
+
+    def test_query_hits_fixed_after_replace_query_tries_the_replaced_query(self):
+        """裁定 replace_query の後の回は、閉鎖を数える問い（置き換えた問い）で申し出の correct_lines を試す。判定者の問いが当たらず、
+        置き換えた問いが当たる正しい行の申し出は、拒まずに人に回す"""
+        import conflict
+        claim = {"unit_key": self.D_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+                 "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
+                 "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
+        replaced = {"how": {"patterns": ["return"], "paths": ["stats.py"], "count": "lines", "fixed": True},
+                    "counts": "defects", "hits": ["        return lo"], "misses": []}
+        conflict.park(self.place, [claim], source=conflict.FIX_SOURCE,
+                      ruling={"decision": conflict.REPLACE, "text": "問いを置き換える", "limits": [], "by": "test",
+                              "query": replaced})
+        second = {**claim, "why_both_cannot_hold": "置き換えた問い return は上限の正しい分岐 return hi にも当たる",
+                  "correct_lines": ["        return hi"]}
+        got = self._accept_clamp(conflicts=[second], pass_="ruled")
+        self.assertEqual(self._conflict_rejects(got), [], got)
+        self.assertIn("ask_human", got["units"][self.D_CLAMP]["reason"], got)
+        self.assertEqual([r["ruling"]["decision"] for r in conflict.items(self.place) if r["correct_lines"] == ["        return hi"]],
+                         [conflict.ASK])
+
+    def test_unclosed_defects_count_on_the_last_round_stops_the_unit(self):
+        """最後の回まで申し出が無ければ、その単位を止めて人に回す（閉じない数えのまま受けて round_limit で終えない）"""
+        import conflict
+        got = self._accept_clamp(iteration=fixboard.GIVE_UP_AFTER)
+        self.assertEqual(got["units"][self.D_CLAMP]["status"], "given_up", got)
+        self.assertEqual([r["unit_key"] for r in conflict.items(self.place)], [self.D_CLAMP])
 
     def test_accept_reply_passes_the_judged_precedents_to_the_recount(self):
         """判定の写しの precedents に在る単位の from_judge_row は通る（判定の写しを数え直しに渡す。元 review-loop.py の

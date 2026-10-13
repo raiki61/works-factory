@@ -32,7 +32,8 @@ BLOCKS = ("line", "judge", "plan", "plan-review", "fix", "test-gate", "eyes", "r
 RELATIVE_PATH = re.compile(r"(?:\.\./)+[^\s'\"`)]*")
 
 LIB = Path(__file__).resolve().parents[2] / "lib"
-LIB_CONST = re.compile(r"\b([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
+# INPUTS_{…} を組む内包の for が回す lib の部品の定数（`for name in fixboard.PREP_INPUTS`）
+BUILT_FROM = re.compile(r"INPUTS_\{[^}\n]*\}[^\n]*\bfor\s+\w+\s+in\s+([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
 OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
 OURS_PREFIX = OURS["name_prefix"]
 OURS_PACK = OURS["pack"]
@@ -546,14 +547,14 @@ def _block_returns(root: Path) -> list[str]:
 
 def script_reads(text: str, name: str, lib: Path = LIB) -> bool:
     """script の字が入力 name を読むか。Archon は名の - を _ にして大文字の INPUTS_<名> で渡す。`INPUTS_{…}` を組んで読む script は
-    名の字を持つ物と、名を持つ lib の部品の字の並びの定数（`fixboard.PREP_INPUTS` の形。部品は lib の下）を引く物を読み手に数える"""
+    名の字を持つ物と、INPUTS_{…} を組む内包の for で名を持つ lib の部品の字の並びの定数（BUILT_FROM。部品は lib の下）を回す物を読み手に数える"""
     if re.search(rf"INPUTS_{re.escape(name.replace('-', '_').upper())}(?![A-Z0-9_])", text):
         return True
     if "INPUTS_{" not in text:
         return False
     if re.search(rf"[\"']{re.escape(name)}[\"']", text):
         return True
-    return any(name in _lib_names(lib / f"{module}.py", const) for module, const in LIB_CONST.findall(text))
+    return any(name in _lib_names(lib / f"{module}.py", const) for module, const in BUILT_FROM.findall(text))
 
 
 @functools.cache
@@ -577,7 +578,9 @@ def _role_reads(text: str, name: str) -> bool:
 
 def _inputs_read(root: Path) -> list[str]:
     """ブロックの inputs: の名は、そのブロックの script が INPUTS_<名> で読むか、役の指示書（commands/ と YAML の prompt:）が
-    $INPUTS.<名> で読む（宣言しただけで誰も読まない入力を残さない）。YAML の with: で script へ渡すだけの字は読み手に数えない"""
+    $INPUTS.<名> で読む（宣言しただけで誰も読まない入力を残さない）。YAML の with: で script へ渡すだけの字は読み手に数えない。
+    逆向きに、script が INPUTS_{…} を組んで回す lib の部品の定数（BUILT_FROM）の名は、どれもそのブロックの inputs: に在る
+    （宣言の無い名は Archon が渡さず、script は空の字を黙って読む）"""
     out = []
     for folder in _blocks(root):
         if folder.name == LINE_FOLDER:
@@ -585,14 +588,21 @@ def _inputs_read(root: Path) -> list[str]:
         path, document = _workflow_doc(folder)
         if document is None:
             continue
-        scripts = ["\n".join(_lines(root, p)[0]) for p in _files(folder, "scripts") if p.suffix == ".py"]
+        scripts = {p: "\n".join(_lines(root, p)[0]) for p in _files(folder, "scripts") if p.suffix == ".py"}
         roles = [p.read_text(encoding="utf-8", errors="replace") for p in _files(folder, "commands")]
         roles += [value.value for node in _nodes(document) if isinstance(value := _top(node, "prompt"), yaml.ScalarNode)]
         for key, value in _pairs(_top(document, "inputs")):
-            if not any(script_reads(text, key, root / "lib") for text in scripts) \
+            if not any(script_reads(text, key, root / "lib") for text in scripts.values()) \
                     and not any(_role_reads(text, key) for text in roles):
                 env = "INPUTS_" + key.replace("-", "_").upper()
                 out.append(f"{_rel(root, path)}:{_line(value)}: 入力 {key} に読み手が無い（script の {env} も指示書の $INPUTS.{key} も無い）")
+        declared = {key for key, _ in _pairs(_top(document, "inputs"))}
+        for script, text in scripts.items():
+            for module, const in BUILT_FROM.findall(text):
+                for name in _lib_names(root / "lib" / f"{module}.py", const):
+                    if name not in declared:
+                        out.append(f"{_rel(root, script)}:1: {module}.{const} の名 {name} が {_rel(root, path)} の inputs: に無い"
+                                   f"（INPUTS_{name.upper()} は空の字で届く）")
     return out
 
 
@@ -674,7 +684,10 @@ ROLE_TOOLS = frozenset({"Read", "Grep", "Glob", "Edit", "Write", "Bash", "WebSea
 CLOSED_SANDBOX = (("enabled", "true"), ("allowUnsandboxedCommands", "false"))
 # Bash を持ち Edit・Write を持たない役の sandbox の denyWrite に書く場所（#293）。~ は起動が隔離した HOME で、
 # その隣が Archon の家＝全部の run の worktree と artifacts。相対のパス '.' は cwd でなく設定の一時ファイルのフォルダに解かれ、
-# 作業ツリーを塞がない（実測 2026-10-13）
+# 作業ツリーを塞がない（実測 2026-10-13）。包み（workflows/.shared/fence.py。埋め P5）はこの値を読むだけの役の印に読み、起こす直前に
+# cwd・共通の .git・worktree の根などを足す（#309）。包みの無い起動にはこの値だけが残る。Edit・Write を持つ役（直す役・書く役）に
+# 書かないのは、作業ツリーを変えるのがその役の仕事で、cwd を禁じると仕事ができないため（今の works の柵も道具に書き込みの無い役だけに
+# 掛けた: role_run.py の tooled_permission と DELEGATE_TOOLS）
 NO_TREE_WRITE = f"~/../{isolate.DIRS['ARCHON_HOME']}"
 YAML_BOOL = "tag:yaml.org,2002:bool"
 
@@ -702,7 +715,7 @@ def _readonly_nodes(root: Path) -> list[str]:
                 tools = _top(node, "allowed_tools")
                 names = {item.value for item in tools.value if isinstance(item, yaml.ScalarNode)} if isinstance(tools, yaml.SequenceNode) else None
                 out += _role_settings(at, ident, node, names)
-                if names is not None and "Bash" in names and not names & {"Edit", "Write"}:
+                if names is not None and names & TREE_CHANGERS == {"Bash"}:
                     out += _tree_write_denied(at, ident, node)
                 changer = names is None or bool(names & TREE_CHANGERS)
                 keep = (folder.name, ident) in KEEP_CHECKOUT
