@@ -55,7 +55,7 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 - ASF: d97d00ef の `W/README.md`:82-93（「Public writes belong to a script」「fails unless the result reads back」）。実例 `W/review/archon-review.yaml`:264-270 の `publish`（コメント「this node owns the one public write」）、`W/merge-queue/scripts/merge-action.ts`:337-369（merge の後に `gh pr view` で `MERGED` を確かめる）。
 - なぜその形か: 書き込みの場所が 1 つなら、監査も再試行もそこだけ見ればよい。forge は書き込みを受けて黙って当てないことがあるので、終了の値 0 を証拠にしない。
 - 採った先: merge の出力ノード `merge`。書き先は run の置き場の `merge/sealed.diff`・`merge/apply.diff`・`merge/refused.diff` だけで、`lib/seal.py` の `write_readback` が書いて読み戻し、合った時だけ置く。report は run の置き場の `report/` に置くだけで外へ書かない。`workflows/AGENTS.md` の E6・E17。
-- 違い: ASF は PR と main へ書く。works-factory の既定は対象のリポジトリにも GitHub にも書かない（E17。持ち主の決め `diff-only-to-target`）。対象へ当てるのは人で、`bin/apply`（まだ無い）が封じた hash を照らしてから当てる。PR を作る・merge する道は、使う人が選んだ時だけ働く足しとして後で足し、その時にこの型（1 つの script ノード・読み戻し）を当てる（`docs/design.md`:413）。
+- 違い: ASF は PR と main へ書く。works-factory の既定は対象のリポジトリにも GitHub にも書かない（E17。持ち主の決め `diff-only-to-target`）。対象へ当てるのは人で、`bin/apply`（中身は `bin/_lib/apply.py`）が封じた hash を照らしてから当てる。PR を作る・merge する道は、使う人が選んだ時だけ働く足しとして後で足し、その時にこの型（1 つの script ノード・読み戻し）を当てる（`docs/design.md`:413）。
 
 ### A6 merge の計画の封印
 
