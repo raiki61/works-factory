@@ -129,7 +129,7 @@ WORLD_ROW = {"finding": 1, "where": "stats.py", "class_id": "mean-denominator", 
 
 def world(p: Place) -> str:
     """judge の world.jsonl（行 2 つ。1 つの JSON としては読めない。対照の run が落ちたと数えるのは 0 以外で終わった script だけなので、
-    ここで縛れるのは fix の prep まで。読めない訳を返りに載せて 0 で終わる plan・plan-review と report の 2 行は lib の試験が縛る）"""
+    読めない訳を返りに載せて 0 で終わる plan・plan-review と report の 2 行は lib の試験が縛る）"""
     second = {**WORLD_ROW, "finding": 2, "class_id": "mean-empty", "problem": "空の並びの平均"}
     return p.put("judge/world.jsonl", "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in (WORLD_ROW, second)))
 
@@ -152,7 +152,7 @@ def eyes(p: Place) -> dict:
 def fix(p: Place) -> dict:
     return {"start": p.start(), "baseline": p.put("test-gate/base/baseline.json",
                                                   {"suite": "", "test_cmd": "", "rev": p.head, "exit": 0, "cases": []}),
-            "units": units(), "judgment": judgment(p), "world": world(p), "plan": plan_fields(p),
+            "units": units(), "judgment": judgment(p), "plan": plan_fields(p),
             "ripple": p.put("plan/ripple.json", {"items": [], "overlaps": []}), "depth": "[]", "answers": "null",
             "only_items": "", "mode": "",
             "group": json.dumps({"group_id": "g1", "unit_ids": ["stats.py mean: 分母"], "items": []}, ensure_ascii=False),
@@ -230,7 +230,6 @@ UNNAMED = {
     ("fix", "start"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
     ("fix", "baseline"): f"prep と group-start（単独の run の組の子の頭）が{FELL}（「元の結末が読めない」も標準エラーだけ）。区分 F。区分の issue で外す",
     ("fix", "judgment"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
-    ("fix", "world"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
     ("fix", "plan"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
     ("fix", "ripple"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。区分 F。区分の issue で外す",
     ("fix", "plan_review"): f"prep と group-start（単独の run の組の子の頭）が{FELL}。ほかの fix のポインタの入力と同じ。区分 F。区分の issue で外す",

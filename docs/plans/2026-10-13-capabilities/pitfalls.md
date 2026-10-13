@@ -105,7 +105,7 @@
       - 節の id は字で見分けられない（`scan.py` の頭の注記）
     - E4:
       - 後半の「script は lib と境の口を呼ぶだけで、確かめの中身を持たない」は照らさない
-      - script どうしの import も照らさない。今 main に在るもの: fix の 30 本が `fixio`（`workflows/fix/scripts/fixio.py`。`subprocess` を持つ助け）を、`group_start.py` が `prep` を、report の `collect.py`・`facts.py`・`report_accept.py` が `place`・`typed` を import する。#74 の head では線の 15 本が `linekit`・`plan_out`・`fixed`・`gate_answer` を import する
+      - script どうしの import も照らさない。今 main に在るもの: report の `collect.py`・`facts.py`・`report_accept.py` が `place`・`typed` を import する。fix の助け `fixio`（`workflows/fix/scripts/fixio.py`）は #233 で消え、`group_start.py` は節 prep の script でなく `lib/fixboard.py::prep` を呼ぶ。線の `linekit` は #175 で消え、線の script どうしの import は今は無い
       - `commands/` と `.shared/` も見ない
     - E13:
       - 直に書いた `prompt:`（fix の `fix-ruled`・`refix`・`refix2`・`tdd`・`fixer`・`consult-answer` など）を見ない
@@ -253,7 +253,7 @@
 - main に無く #74 の head にだけ在る機械: E5・E6・E7・E16 の走査（`test_block_returns.py`・`test_outward_write.py`・`test_readonly_nodes.py`・`test_gates.py`）と、線の `FallbackCase`・`BrokenLibCase`・`GateDecisionsCase`・`LineWiringCase`。根の `AGENTS.md` の「機械」の行が名指す `tests/layers/test_layout.py` はどちらにも無い
 - 持ち主に聞く事:
   - K3: judge の script の節 36 個に `mutates_checkout: false` を足すか（読むだけかの見極めが要る）
-  - K7: 役の指示書の Python の言及（`fix-rules/common.md` ほか 6 か所）を E13 の例外にするか直すか。script どうしの import（fix の `fixio`、report の `place`・`typed`、線の `linekit`）を E4 違反として直すか、決まりの側を変えるか
+  - K7: 役の指示書の Python の言及（`fix-rules/common.md` ほか 6 か所）を E13 の例外にするか直すか。script どうしの import（今は report の `place`・`typed` だけ。fix の `fixio` と線の `linekit` は消えた）を E4 違反として直すか、決まりの側を変えるか
   - K11: 線が渡していない、宣言済みで既定値つきの入力のうち、どれが今の works から落ちた能力か（plan-review の `conflicts`・`gate_answers`、eyes の `x_scalars`、merge-seal の `answer`・`r2`・`sealed_hash`）
 
 ## 部分 0 で足した機械（線の配線の部分 0。上の「今の機械」「要る試験」より新しい）
