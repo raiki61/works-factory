@@ -35,25 +35,24 @@ OUTSIDE = "この文書の外"
 BLOCKS = ("judge", "plan", "plan-review", "fix", "test-gate", "eyes", "merge", "report")
 LINE_ITSELF = "line"
 WRITERS = ("lib", "workflows", "bin")
-# 名を組んで書く・名の表から引いて書くので字で引けない置き場 → 名を組む所・表の行（Archon が書く物は、その節を置く YAML の行）
+# 名を組んで書く・名の表から引いて書くので字で引けない置き場 → 名を組む所・表の行
 NAMED_BY_PATTERN = {
-    "parent/gates/gate-start.json": "lib/answer.py:64",
-    "parent/gates/gate-final.json": "lib/answer.py:64",
-    "parent/gates/gate-*.json": "lib/answer.py:64",
+    "parent/gates/gate-start.json": "lib/answer.py:71",
+    "parent/gates/gate-final.json": "lib/answer.py:71",
+    "parent/gates/gate-*.json": "lib/answer.py:71",
     "parent/plan/r1/plan-fields.json": "lib/marks.py:44",
     "parent/fix/fix/plan-fields.json": "lib/marks.py:44",
     "parent/judge/purpose-means.json": "lib/marks.py:57",
     "parent/eyes/r1.json": "workflows/eyes/scripts/eye_verdict.py:18",
-    "parent/eyes/r1-comments.json": "workflows/eyes/works-factory-eyes.yaml:142",
-    "parent/nodes/*.meta.json": "workflows/fix/works-factory-fix.yaml:175",
+    "parent/eyes/r1-comments.json": "workflows/eyes/scripts/save_reply.py:15",
     "parent/judge/material-prior-decisions-brief.md": "lib/judge_accept.py:2096",
     "parent/judge/material-prior-decisions.json": "lib/judge_accept.py:2583",
     "parent/plan/r1/brief-1.md": "lib/planfile.py:83",
     "parent/plan/structure/*/eye-prompt-1.md": "lib/eye.py:38",
-    "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py:803",
-    "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py:93",
-    "parent/fix/fix/review1-brief.json": "lib/refix.py:164",
-    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:472",
+    "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py:828",
+    "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py:94",
+    "parent/fix/fix/review1-brief.json": "lib/refix.py:165",
+    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:476",
     "parent/judge/query-examples.json": "lib/marks.py:51",
     "parent/plan/r1/rejects-plan.json": "lib/rolekit.py:103",
     "parent/plan/structure/*/design.jsonl": "lib/planfile.py:94",
@@ -91,6 +90,15 @@ class CodeText:
             return True
         return any(re.fullmatch(".+".join(map(re.escape, re.split(r"\{[^}]*\}", value))), name)
                    for ident in set(re.findall(r"\b[A-Z][A-Z0-9_]{2,}\b", text)) for value in self.constants.get(ident, ()))
+
+
+def _builds(text: str, name: str) -> bool:
+    """text の字の並びのどれかが、{…} の差し込みをどの字にもして name に当たるか（差し込みでない字が在る並びだけ）"""
+    for value in re.findall(r'"([^"\n]*)"|\'([^\'\n]*)\'', text):
+        fixed = re.split(r"\{[^}]*\}", "".join(value))
+        if "".join(fixed) and re.fullmatch(".+".join(map(re.escape, fixed)), name):
+            return True
+    return False
 
 
 def _constants(text: str):
@@ -264,7 +272,8 @@ class EvidenceTableCase(unittest.TestCase):
         コードの在る行。決める行は保存の行から離れうるので、where のファイル名かその名を作る定数は、writer のファイルのコードの字
         （コメント・docstring・.md を除く）のどこかに在ればよい。where の置き場の頭のフォルダ（parent/・child-*/ の次）の名も、
         書き手のファイルかそのブロックの script と YAML のコードの字に在る。名を組んで書く置き場は NAMED_BY_PATTERN に名を組む行と
-        名指し、名の照らしだけを外す。run の記録の節の行の writer は、その節の id を置く YAML の行"""
+        名指し、ここでは名の照らしを外す（名を組む行かは test_named_by_pattern_lines_build_the_name が縛る）。run の記録の節の行の
+        writer は、その節の id を置く YAML の行"""
         code = CodeText()
         for row in [r for r in self.rows if r["kind"] == "seen"] + [{"id": w, "where": w, "writer": v}
                                                                      for w, v in NAMED_BY_PATTERN.items()]:
@@ -293,6 +302,17 @@ class EvidenceTableCase(unittest.TestCase):
                 name = rest[-1]
                 self.assertNotRegex(name, r"[*?\[]", "glob の名は NAMED_BY_PATTERN に名指す")
                 self.assertTrue(code.names(code.text(path), name), f"{path} のコードに {name} の名もその名を作る定数も無い")
+
+    def test_named_by_pattern_lines_build_the_name(self):
+        """NAMED_BY_PATTERN の指す行（か前後 2 行）が、その置き場の名を組む: 名を字のまま、名を作る定数、か字の並び（{…} の差し込みは
+        どの字でも）で持つ。書き手のファイル名が変わったら、表の指す行もここで落ちる"""
+        code = CodeText()
+        for where, writer in NAMED_BY_PATTERN.items():
+            with self.subTest(where=where):
+                path, line = writer.rsplit(":", 1)
+                near = "\n".join(code.lines(path)[max(int(line) - 3, 0):int(line) + 2])
+                name = where.rsplit("/", 1)[-1]
+                self.assertTrue(code.names(near, name) or _builds(near, name), f"{writer} の前後 2 行が {name} の名を組まない")
 
     def test_every_block_has_a_seen_row(self):
         """本物の通しが見るのは、本物の役で各ブロックが仕事をしたか。どのブロックにも seen の行が在る（埋め物でない中身かは
