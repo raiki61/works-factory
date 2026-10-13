@@ -4,7 +4,6 @@
 - snapshot_tree: 作業ツリーの写し（git が無視するファイルも入れる。index の印に隠れた物も入れる。tree_state の土台）
 - tree_state・tree_change・tree_moved: 読むだけの役（blk-pr・blk-ci・entry.take・rejudge.take）を起こす前後の作業ツリーの姿
                  （snapshot_tree に HEAD・枝を足した物）と、その違いの文（R47）。
-                 caches はテストのキャッシュの名の形（_is_test_cache）。当たる物を姿から除く（測るためにコマンドを走らせる実測役・テストを回しうる素材集めの役の見張り）
 - guard・in_repo・resolve_rev・read_board・write_board・type_errors: 受け付けの部品の公開の名（ブロックのモジュールの受け付けが使う）
 - touched_files: 修正が触ったファイル（テストのキャッシュは除く。index の印に隠れた物も入れる。protect が数える）
 - flag_free_env: 本物の index の assume-unchanged・skip-worktree の印を外して git に作業ツリーを見せる env（protect も使う。
@@ -128,13 +127,12 @@ write_board = _write_board
 type_errors = _type_errors
 
 
-def _entry_digest(p: pathlib.Path, racy_after=None, marks=None, *, caches: tuple = ()) -> bytes:
+def _entry_digest(p: pathlib.Path, racy_after=None, marks=None) -> bytes:
     """未追跡の 1 本の sha256。symlink はリンク先の名前、ファイルは中身、フォルダ（入れ子の git リポジトリは
     git が `sub/` の 1 行で出す）は中の全部の名前と印を名前の順に続けた物（.git の下は除く）。それ以外（FIFO など）は種類だけ。
     marks（1 つの要素の list）を渡すと、ファイルは中身を読まず stat の印（mode・大きさ・mtime_ns・ino。git の index と
     同じ考え——git の Documentation/technical/racy-git.txt）にし、見た mtime_ns の最大を marks[0] に入れる。ただし
-    mtime_ns が racy_after より後（写した時刻に近すぎて、同じ大きさの素早い書き換えを印で見分けられない）のファイルは中身も足す。
-    caches（_is_test_cache の名の形）に当たるフォルダの中の物は辿らない"""
+    mtime_ns が racy_after より後（写した時刻に近すぎて、同じ大きさの素早い書き換えを印で見分けられない）のファイルは中身も足す"""
     if p.is_symlink():
         return hashlib.sha256(b"link\0" + os.fsencode(os.readlink(p))).digest()
     if p.is_file():
@@ -149,24 +147,23 @@ def _entry_digest(p: pathlib.Path, racy_after=None, marks=None, *, caches: tuple
     if p.is_dir():
         h = hashlib.sha256(b"dir\0")
         for top, dirs, files in os.walk(p):
-            dirs[:] = sorted(d for d in dirs if d != ".git" and not _is_test_cache(d, caches))
-            for name in sorted(f for f in files if not _is_test_cache(f, caches)) + \
-                    [d for d in dirs if os.path.islink(os.path.join(top, d))]:
+            dirs[:] = sorted(d for d in dirs if d != ".git")
+            for name in sorted(files) + [d for d in dirs if os.path.islink(os.path.join(top, d))]:
                 q = pathlib.Path(top) / name
                 h.update(os.fsencode(str(q.relative_to(p))) + b"\0" + _entry_digest(q, racy_after, marks))
         return h.digest()
     return hashlib.sha256(b"other\0" if p.exists() else b"gone\0").digest()
 
 
-def _ignored_digests(repo, names, *, caches: tuple = ()) -> list:
+def _ignored_digests(repo, names) -> list:
     """git が無視するパス（names）ごとの印（_entry_digest の stat の印。無視されるフォルダ——.venv・node_modules など——は
     大きいので中身を読まない）。写す時刻から RACY_NS 以内に書かれたファイルが在れば、その書き込みから RACY_NS 過ぎるまで
     （上限 RACY_NS）待って印を取り直す。待った後の書き換えは、時刻の細かさ（最大でも 2 秒）を越えて mtime が変わるので、
-    印だけで見分けられる。待っても近い物（時計が進んだ mtime）は、racy として中身も足す。caches は _entry_digest と同じ"""
+    印だけで見分けられる。待っても近い物（時計が進んだ mtime）は、racy として中身も足す"""
     for attempt in range(2):
         racy_after = time.time_ns() - RACY_NS
         marks = [0]
-        digests = [_entry_digest(repo / name.rstrip("/"), racy_after, marks, caches=caches) for name in names]
+        digests = [_entry_digest(repo / name.rstrip("/"), racy_after, marks) for name in names]
         if marks[0] <= racy_after or attempt:
             return digests
         time.sleep(min(marks[0] - racy_after, RACY_NS) / 1e9 + 0.01)
@@ -224,19 +221,12 @@ def _porcelain_path(line: str) -> str:
     return path[1:-1] if len(path) >= 2 and path[0] == path[-1] == '"' else path
 
 
-# テストを走らせただけで出来るキャッシュの名の形（fnmatch。パスのどこかの段が当たればキャッシュ）のうち、lib が知る物。読むだけの役が
-# 対象のテストを回して作っても、修正でも作業ツリーの変更でもない。ほかのテストの実行器のキャッシュの名は呼び手が足す（judge は
-# 入口の節の with: の test_caches。根の AGENTS.md の E13——lib に実行器の名を書かない）
+# 修正の差分（touched_files）から除くテストのキャッシュの名の形（fnmatch。パスのどこかの段が当たればキャッシュ）。テストを
+# 走らせただけで出来る物で、修正ではない。lib は実行器の名を書かない（根の AGENTS.md の E13）
 TEST_CACHES = ("__pycache__", "*.pyc")
 
 
-def _no_test_cache(caches: tuple) -> tuple:
-    """git の pathspec で _is_test_cache(·, caches) と同じ物を除く（試験で縛る）。__pycache__ という名のファイルは /** の形では
-    除けず、中身は /** の無い形では除けないので両方要る"""
-    return (":(top)", *(f":(top,exclude,glob)**/{c}{tail}" for c in caches for tail in ("", "/**")))
-
-
-def snapshot_tree(repo: pathlib.Path, *, caches: tuple = ()) -> dict:
+def snapshot_tree(repo: pathlib.Path) -> dict:
     """作業ツリーの写し {"porcelain": str, "ignored": [str], "diff_sha256": str}。tree_state がこれに HEAD・枝を足し、
     読むだけの役を起こす前後に比べる（判定役を起こす前に盤面に写しが無い時は、judge_accept._judge_tree_unchanged が今の写しで作業ツリーが綺麗かを見る）。
     porcelain は git status --porcelain（未追跡は 1 本ずつ）。porcelain と差分は本物の index の印を外して見る（flag_free_env。
@@ -244,25 +234,21 @@ def snapshot_tree(repo: pathlib.Path, *, caches: tuple = ()) -> dict:
     差分には載らないが、後の節——テスト——の緑赤を左右する物も在るので、読むだけの役が足しても見逃さない）。
     diff_sha256 は HEAD からの差分（--binary）と、未追跡のファイルの名前と中身・無視されるパスの名前と stat の印
     （_ignored_digests。中身は読まない）を続けた sha256——名前が同じまま中身だけ変わっても違う値になる。フォルダ（入れ子の
-    git リポジトリ・無視されるフォルダ）は中を辿って続ける（_entry_digest）。git が効かなければ Reject を投げる。
-    caches（テストのキャッシュの名の形。_is_test_cache）に当たる物を porcelain・差分・未追跡・無視されるパスと、それらのフォルダの
-    中から除く（測るために試験を走らせる役が作る物を変化に数えない）。空なら何も除かない"""
+    git リポジトリ・無視されるフォルダ）は中を辿って続ける（_entry_digest）。git が効かなければ Reject を投げる"""
     repo = pathlib.Path(repo)
     with flag_free_env(repo) as env:
         porcelain = _git(repo, "status", "--porcelain", "--untracked-files=all", env=env)
-        diff = _git(repo, "diff", "--binary", "--no-ext-diff", "HEAD", *(("--", *_no_test_cache(caches)) if caches else ()),
-                    binary=True, env=env)
+        diff = _git(repo, "diff", "--binary", "--no-ext-diff", "HEAD", binary=True, env=env)
     porcelain = "".join(f"{ln}\n" for ln in porcelain.splitlines()
-                        if not (ln.startswith("?? ") and _cli_owned(_porcelain_path(ln)))
-                        and not _is_test_cache(_porcelain_path(ln), caches))
+                        if not (ln.startswith("?? ") and _cli_owned(_porcelain_path(ln))))
     h = hashlib.sha256(diff)
     for name in sorted(n for n in _git(repo, "ls-files", "--others", "--exclude-standard", "-z", binary=True).split(b"\0") if n):
-        if _is_test_cache(os.fsdecode(name), caches) or _cli_owned(os.fsdecode(name)):
+        if _cli_owned(os.fsdecode(name)):
             continue
         p = repo / os.fsdecode(name).rstrip("/")
-        h.update(b"\0untracked\0" + name + b"\0" + _entry_digest(p, caches=caches))
-    ignored = [n for n in _ignored_entries(repo) if not _is_test_cache(n, caches)]
-    for name, digest in zip(ignored, _ignored_digests(repo, ignored, caches=caches)):
+        h.update(b"\0untracked\0" + name + b"\0" + _entry_digest(p))
+    ignored = _ignored_entries(repo)
+    for name, digest in zip(ignored, _ignored_digests(repo, ignored)):
         h.update(b"\0ignored\0" + os.fsencode(name) + b"\0" + digest)
     return {"porcelain": porcelain, "ignored": ignored, "diff_sha256": h.hexdigest()}
 
@@ -280,12 +266,12 @@ def status_keys(guarded) -> tuple:
     return BEYOND_STATUS if guarded is True or str(guarded).strip().lower() == "true" else TREE_KEYS
 
 
-def tree_state(repo: pathlib.Path, *, caches: tuple = ()) -> dict:
+def tree_state(repo: pathlib.Path) -> dict:
     """読むだけの役（blk-pr の並行 PR・blk-ci の CI・entry.take と rejudge.take が受ける役）を起こす前後に比べる作業ツリーの姿 {TREE_KEYS}:
     snapshot_tree（porcelain・git が無視するパスの一覧 ignored・diff_sha256。無視されるパスの stat の印も diff_sha256 に入る——
     無視されるファイルは差分に載らないが、後の節のテストの緑赤を左右しうる）に、HEAD の sha head・枝 ref
     （symbolic-ref。切り離した HEAD は空）を足した物。snapshot_tree は今の HEAD からの差分しか見ないので、枝の切り替え
-    （gh pr checkout・git checkout）は head・ref で見る。HEAD が引けない・git が効かなければ Reject。caches は snapshot_tree と同じ"""
+    （gh pr checkout・git checkout）は head・ref で見る。HEAD が引けない・git が効かなければ Reject"""
     repo = pathlib.Path(repo)
     try:
         head = _git(repo, "rev-parse", "--verify", "-q", "HEAD").strip()
@@ -295,7 +281,7 @@ def tree_state(repo: pathlib.Path, *, caches: tuple = ()) -> dict:
         ref = _git(repo, "symbolic-ref", "-q", "HEAD").strip()
     except Reject:   # 切り離した HEAD（symbolic-ref -q は 1 で終わる）
         ref = ""
-    return {**snapshot_tree(repo, caches=caches), "head": head, "ref": ref}
+    return {**snapshot_tree(repo), "head": head, "ref": ref}
 
 
 def tree_change(before: dict, now: dict, keys=TREE_KEYS) -> list:
@@ -320,12 +306,11 @@ def tree_change(before: dict, now: dict, keys=TREE_KEYS) -> list:
     return out
 
 
-def tree_moved(before: dict, repo: pathlib.Path, *, caches: tuple = (), keys=TREE_KEYS) -> list:
+def tree_moved(before: dict, repo: pathlib.Path, *, keys=TREE_KEYS) -> list:
     """役を起こす前の姿 before（tree_state）と今の作業ツリーの違いの文（tree_change。keys の欄だけを比べる）。今の姿が引けない
-    （HEAD が無い・git が効かない）ときはその 1 行——起こす前は引けたので、役が HEAD を動かした（checkout --orphan など）。
-    caches は before を取った時と同じ値を渡す"""
+    （HEAD が無い・git が効かない）ときはその 1 行——起こす前は引けたので、役が HEAD を動かした（checkout --orphan など）"""
     try:
-        now = tree_state(repo, caches=caches)
+        now = tree_state(repo)
     except Reject as e:
         return [f"作業ツリー・HEAD が引けなくなった: {e}"]
     return tree_change(before, now, keys)
@@ -383,9 +368,9 @@ def flag_free_env(repo):
         yield {"GIT_INDEX_FILE": index}
 
 
-def _is_test_cache(name: str, caches: tuple = TEST_CACHES) -> bool:
-    """パス name のどこかの段がテストのキャッシュの名の形 caches（fnmatch）に当たるか。テストを走らせただけで出来る物で、修正ではない"""
-    return any(fnmatch.fnmatchcase(part, c) for part in name.rstrip("/").split("/") for c in caches)
+def _is_test_cache(name: str) -> bool:
+    """パス name のどこかの段がテストのキャッシュの名の形 TEST_CACHES（fnmatch）に当たるか"""
+    return any(fnmatch.fnmatchcase(part, c) for part in name.rstrip("/").split("/") for c in TEST_CACHES)
 
 
 def _touched(repo, rev) -> tuple:
