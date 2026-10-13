@@ -1,7 +1,7 @@
 name: works-factory-fix
 description: |
   修正のサブグラフ。判定と承認済みの修正案の単位を組に分け、組ごとに子の run で直し（TDD のループと修正役）、直しを親の作業ツリーへ
-  戻し、食い違いの申し出を裁き、後始末と変更の確かめの後に、修正だけの差分を審査役とレンズに見せて手直しを 2 往復まで回す。
+  戻し（合わせて試験が赤になった組は合わせ役が直し、直せなければ組どうしの合わせの申し出にする）、食い違いの申し出を裁き、後始末と変更の確かめの後に、修正だけの差分を審査役とレンズに見せて手直しを 2 往復まで回す。
   1 つの YAML が 2 つの形で走る。入力 mode が空（既定）はメイングラフが include するサブグラフの形で、組ごとに自分（works-factory-fix）を
   workflow: と fan_out: で子の run として起こす。子の run の名が先祖の run に在ると Archon が循環として拒むので、
   この形はメイングラフの include の中でだけ回す。mode が group は組 1 つを直す子の run の形で、単独の run でも回る。
@@ -171,6 +171,86 @@ nodes:
         groups: {type: integer, minimum: 0}
         returned: {type: integer, minimum: 0}
 
+  # 合わせのループ（持ち主の決め clash-goes-to-ruling）。join が確かめ直しの赤で戻した組を 1 つずつ当て直し、合わせ役がその組の変えた
+  # ファイルの中だけで直す。受け付けは修正役と同じ軸。直せなければ当て直す前の木へ戻し、組どうしの合わせの申し出を裁定役へ回す。
+  # max_iterations は 3 組 × 3 回（上限の周の受け付けが残りの組を申し出へ回して抜ける。with: limit と同じ値）
+  - id: clash-loop
+    depends_on: [join]
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 9
+      fresh_context: false
+      until_bash: done=$clash-accept.output.done; test "$done" = true
+      nodes:
+        - id: clash-prep
+          script: clash_prep
+          runtime: uv
+          timeout: 1728000000
+          with:
+            pass: first
+          output_format: &clash_prep_out
+            type: object
+            additionalProperties: false
+            required: [prompt_file, go, iteration]
+            properties:
+              prompt_file: {type: string}
+              go: {type: boolean}
+              iteration: {type: integer, minimum: 1}
+
+        - id: clash-fix
+          description: '合わせ役: 組を合わせて赤になった所を、その組の変えたファイルの中だけで直す'
+          model: sonnet
+          effort: high
+          prompt: 指示書 `$clash-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返答」の形の JSON だけ。
+          depends_on: [clash-prep]
+          when: "$clash-prep.output.go == true"
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format: &clash_reply
+            type: object
+            additionalProperties: false
+            required: [handled, how, files]
+            properties:
+              handled:
+                type: string
+                enum: [fixed, cannot]
+              how: {type: string, minLength: 20}
+              files:
+                type: array
+                items: {type: string, minLength: 1}
+              bash_writes:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, why]
+                  properties:
+                    path: {type: string, minLength: 1}
+                    why: {type: string, minLength: 10}
+
+        - id: clash-accept
+          script: clash_accept
+          runtime: uv
+          depends_on: [clash-prep, clash-fix]
+          trigger_rule: none_failed_min_one_success
+          timeout: 1728000000
+          with:
+            reply: {from: "$clash-fix.output", if_skipped: null}
+            iteration: $clash-prep.output.iteration
+            pass: first
+            limit: 9
+          output_format: &accept_out
+            type: object
+            additionalProperties: false
+            required: [ok, done, reason, reason_file]
+            properties:
+              ok: {type: boolean}
+              done: {type: boolean}
+              reason: {type: string}
+              reason_file: {type: string}
+
   # 組ごとの TDD の輪の結果を 1 つの型つきの成果物にする（子の run の成果物は親の一覧に載らない）
   - id: tdd-unit
     script: tdd_unit
@@ -185,7 +265,7 @@ nodes:
     script: conflict_check
     runtime: uv
     mutates_checkout: false
-    depends_on: [join]
+    depends_on: [join, clash-loop]
     timeout: 1728000000
     output_format:
       type: object
@@ -245,7 +325,7 @@ nodes:
                     id: {type: string, minLength: 1, pattern: '\S'}
                     decision:
                       type: string
-                      enum: [fix_test_scope, fix_code_as, ask_human, replace_query, fix_plan_item]
+                      enum: [fix_test_scope, fix_code_as, ask_human, replace_query, fix_plan_item, rejudge]
                     text: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
                     limits:
                       type: array
@@ -293,10 +373,55 @@ nodes:
               reason: {type: string}
               reason_file: {type: string}
 
+  # 裁定の後の合わせのループ。組どうしの合わせの申し出が直す裁定を受けた組だけを当て直し、合わせ役が裁定の文のとおりに直す。
+  # 受け付けを通らなければ当て直す前の木へ戻して人に回す。扱う組が無ければ支度が go: false を返し、役を起こさずに抜ける
+  - id: clash-ruled-loop
+    depends_on: [conflict-check, rule-loop]
+    when: "$conflict-check.output.go == true"
+    timeout: 1728000000
+    loop_group:
+      max_iterations: 9
+      fresh_context: false
+      until_bash: done=$clash-ruled-accept.output.done; test "$done" = true
+      nodes:
+        - id: clash-ruled-prep
+          script: clash_prep
+          runtime: uv
+          timeout: 1728000000
+          with:
+            pass: ruled
+          output_format: *clash_prep_out
+
+        - id: clash-ruled
+          description: '裁定の後の合わせ役: 裁定の文のとおりに組の合わせを直す'
+          model: sonnet
+          effort: high
+          prompt: 指示書 `$clash-ruled-prep.output.prompt_file` を Read で全部読み、その指示に従え。返すのは指示書の「返答」の形の JSON だけ。
+          depends_on: [clash-ruled-prep]
+          when: "$clash-ruled-prep.output.go == true"
+          settingSources: [user]
+          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash]
+          sandbox: {enabled: true, allowUnsandboxedCommands: false}
+          idle_timeout: 1728000000
+          output_format: *clash_reply
+
+        - id: clash-ruled-accept
+          script: clash_accept
+          runtime: uv
+          depends_on: [clash-ruled-prep, clash-ruled]
+          trigger_rule: none_failed_min_one_success
+          timeout: 1728000000
+          with:
+            reply: {from: "$clash-ruled.output", if_skipped: null}
+            iteration: $clash-ruled-prep.output.iteration
+            pass: ruled
+            limit: 9
+          output_format: *accept_out
+
   # 裁定の後の修正の輪。直す裁定（fix_test_scope・fix_code_as）が無ければ支度が go: false を返し、役を起こさずに抜ける。
   # 役 fix-ruled は修正役の返答と裁定を機械が保存したファイルを読む新しい会話（Archon の context: resume は loop_group の体で使えない）
   - id: fix-ruled-loop
-    depends_on: [conflict-check, rule-loop]
+    depends_on: [conflict-check, rule-loop, clash-ruled-loop]
     when: "$conflict-check.output.go == true"
     timeout: 1728000000
     loop_group:
@@ -683,21 +808,13 @@ nodes:
             reply: {from: "$fix-ruled.output", if_skipped: null}
             consulted: {from: "$ruled-consult-accept.output.consulted", if_skipped: false}
             iteration: $fix-ruled-prep.output.iteration
-          output_format: &accept_out
-            type: object
-            additionalProperties: false
-            required: [ok, done, reason, reason_file]
-            properties:
-              ok: {type: boolean}
-              done: {type: boolean}
-              reason: {type: string}
-              reason_file: {type: string}
+          output_format: *accept_out
 
   # 控えに無かった git が無視するファイルだけを消す（Archon の工程の置き場 .archon/ は消さない）
   - id: clean
     script: clean
     runtime: uv
-    depends_on: [route, conflict-check, rule-loop, fix-ruled-loop]
+    depends_on: [route, clash-loop, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop]
     trigger_rule: all_done
     when: "$route.output.group == false"
     timeout: 1728000000
@@ -1437,7 +1554,7 @@ nodes:
     script: collect
     runtime: uv
     mutates_checkout: false
-    depends_on: [route, prep, join, tdd-unit, conflict-check, rule-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end, fix-reads]
+    depends_on: [route, prep, join, clash-loop, tdd-unit, conflict-check, rule-loop, clash-ruled-loop, fix-ruled-loop, clean, assert-changed, delta-cut, lens-collect, delta-loop, refix-loop, review2-loop, refix2-loop, group-start, tdd-loop, fix-loop, group-end, fix-reads]
     trigger_rule: all_done
     timeout: 1728000000
     output_format:
@@ -1471,6 +1588,15 @@ nodes:
               reason: {type: string}
               backed_out: {type: array, items: {type: string}}
               unrestored: {type: array, items: {type: string}}
+              # 合わせのループの結末（join が確かめ直しの赤で戻した組だけ）: 合わせ役が直して当てた（repaired）か、申し出へ回した（parked）か
+              clash:
+                type: object
+                additionalProperties: false
+                required: [outcome, requests, patch]
+                properties:
+                  outcome: {type: string, enum: [repaired, parked]}
+                  requests: {type: array, items: {type: string}}
+                  patch: {type: string}
         conflicts:
           type: [object, "null"]
           additionalProperties: false

@@ -7,7 +7,7 @@
 ## 読む物
 
 - 申し出の控え: <<conflicts_file>>——Read で全部読め。`items` の各行の `id`・`unit_key`・`between`（名指した所）・
-  `why_both_cannot_hold`・`which_is_right`・`kind`（申し出の種類）・`source`（fix・tdd・tdd-gave-up）が在り、`which_is_right` が query の行には `correct_lines` も在る。
+  `why_both_cannot_hold`・`which_is_right`・`kind`（申し出の種類）・`source`（fix・tdd・tdd-gave-up・join-clash）が在り、`which_is_right` が query の行には `correct_lines` も在る。
   `ruling` が null の行だけを裁く
 - 裁く申し出の id: <<ids>>
 - 判定のファイル: <<judgment_file>>——単位の `reason`・`origin_analysis`・`prescriptions` を読む
@@ -20,7 +20,7 @@
 <!-- セクション ruler-reply -->
 ## 返す JSON
 
-`{"rulings": [{"id": "<申し出の id>", "decision": "fix_test_scope" か "fix_code_as" か "ask_human" か "replace_query" か "fix_plan_item",
+`{"rulings": [{"id": "<申し出の id>", "decision": "fix_test_scope" か "fix_code_as" か "ask_human" か "replace_query" か "fix_plan_item" か "rejudge",
 "text": "<裁きと理由>", "limits": ["<範囲>"]}]}`——裁く申し出の id ごとにちょうど 1 件。replace_query の時だけ
 `"query": {"how": <判定の class_query の how と同じ形>, "counts": "defects" か "population", "hits": ["<当たるべき 1 行>"], "misses": ["<当たってはならない 1 行>"]}` を足す。
 どの裁定にも `"grounds": ["<パス>:<行>"]`（裁きの出どころ。依頼の行・判定のファイル・テスト・コード）を足してよく、機械が
@@ -38,6 +38,7 @@
   当たる申し出も同じ（`correct_lines` はその物の行）で、直す物だけを名指す問いへの置き換えは検査を狭める裁きではない。欠陥の行と
   `correct_lines` が同じ字で、`defects` の向きでは欠陥だけに当たる問いが書けない時は、欠陥を見分けられる行（直す分岐の条件の行など）を
   `hits` に、見分けのつく正しい側の行を `misses` に置き、`counts` を `population` にした問いにせよ。書けないとして `ask_human` に倒すな
+- `rejudge`: `source` が `join-clash` の行だけに使う（下の段落）
 - `fix_plan_item`: 承認済みの修正案の項目そのもの（道・受け入れのテスト・書き換えの名指し・範囲）が誤っていて、この run の中で直すと事前審査を通っていない変更になる時だけ。`text` に項目のどこをどう直すかを書く（修正案の役に字のまま渡る）。`limits` は空。`grounds` にその単位の brief の行（`<絶対パス>:<行>`）を挙げる（brief の無い単位には出せない）。単位と、同じ項目に載るほかの単位は今は直さず（機械が直す義務から外す）、同じ run の中で修正案の役がこの項目だけを直し、事前審査と人に聞くかの決まりを通ってから 2 回目の修正の段で直す（直せなければ人に回る）。同じ返答で、その項目に載る単位の申し出を直す裁定（`fix_test_scope`・`fix_code_as`・`replace_query`）に裁かない
 
 直す裁定（`fix_test_scope`・`fix_code_as`・`replace_query`）の `limits` は、この run の承認済みの修正案の範囲（全部の項目の
@@ -45,7 +46,7 @@
 満たすままである。直しが項目の範囲の外にしか置けない・範囲の外に新しいファイルが要る・項目の `out_of_scope` に当たる（`out_of_scope` は
 `limits` にも勝つ）なら、それは項目そのものの誤りで、`fix_code_as`・`replace_query` でなく `fix_plan_item` に裁け。
 
-機械は id の過不足・語・範囲と grounds の在る無し・依頼の在る run の ask_human の出どころ・`fix_plan_item` が範囲を持たず、grounds にその単位の brief の行を挙げるか（brief の無い単位は拒む）・その項目の単位に直す裁定を並べていないかを確かめ、外れれば理由のファイルを名指して出し直させる。3 回とも通らなければ、
+機械は id の過不足・語・範囲と grounds の在る無し・依頼の在る run の ask_human の出どころ・`fix_plan_item` が範囲を持たず、grounds にその単位の brief の行を挙げるか（brief の無い単位は拒む）・その項目の単位に直す裁定を並べていないか・`rejudge` が `join-clash` の行だけで範囲を持たないか・同じ組の `join-clash` の行が同じ裁定かを確かめ、外れれば理由のファイルを名指して出し直させる。3 回とも通らなければ、
 裁かれていない申し出は全部人に回る。
 
 `source` が `tdd-gave-up` の行は、TDD のループの同じ段が 3 回拒まれた単位から機械が作った申し出で、その `kind`・`which_is_right` は機械が決まった値を埋めた欄であり、役の見立てではない。この行に限り、上の基準に加えて次の順と条件で裁く。
@@ -53,3 +54,12 @@
 2. `fix_code_as` は、`grounds` に材料（依頼・判定・テスト・コードの行）を挙げ、コードを直せば済むと示せる時だけ選ぶ。`grounds` が空の `fix_code_as` は機械が拒む。
 3. `fix_code_as` で直した単位は、修正案の項目の元の受け入れのテストで確かめる（基準の版で赤・今の木で緑を機械が見る）。
 4. 作り直した後にまた上限まで落ちた単位は機械が人に回すので、この裁きには来ない。
+
+`source` が `join-clash` の行は、並べて直した 2 つの組の直しを親の作業ツリーで合わせたら試験が赤になり、合わせ役（ぶつかった組が変えたファイルの中だけで直す役）も直せなかった組から機械が作った申し出で、組の単位ごとに 1 件ずつ在る。`kind`・`which_is_right` は機械が決まった値を埋めた欄であり、役の見立てではない。組の直しは作業ツリーから外してあり、控えの差分に在る。この行に限り、次のとおり裁く。
+1. `why_both_cannot_hold` が名指す控えの差分と、合わせ役の拒否の理由のファイル（在れば）を Read で全部読め。赤の文が名指すテストと、前の組が変えたファイルも開け。
+2. 同じ組の行（`why_both_cannot_hold` が同じ行）は全部同じ `decision` に揃えよ。違う裁定を並べると機械が拒む。
+3. `fix_code_as`: 合わせ役がもう一度控えの差分を当てて直す時の直し方を `text` に書く。組が変えたファイルの外で触ってよいファイルが要るなら `limits` に並べる。
+4. `fix_test_scope`: 前の組の直しで、後の組のテストの期待が書いていた動きそのものが変わったと依頼か判定が示す時だけ。`limits` に直してよいテストの所を並べる。
+5. `fix_plan_item`: 2 つの組の項目が承認済みの修正案のままでは両立しない時。
+6. `rejudge`: 判定の単位の切り方が誤っていて、2 つの組が実は 1 つの問題を別々に直している時。`text` は判定のやり直しで判定役が読む異議として書く。`limits` は空。
+7. どれにも当たらない時だけ `ask_human`。

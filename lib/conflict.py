@@ -3,8 +3,10 @@
 緑にするためにテスト・依頼・コードのどれかを曲げる代わりに、役は「どちらも同時には成り立たない」を証拠つきで返してよい
 （ImpossibleBench arXiv 2510.20270: 食い違いを申し出る道を明示すると、テストを曲げる不正が 54% から 9% に減った）。
 申し出は拒否に数えず、その単位だけを止め（parked）、ほかの単位は進む。止めた単位は読むだけの裁定役が、持ち主の決まり
-（principles）で fix_test_scope・fix_code_as・ask_human・replace_query・fix_plan_item のどれかに裁き、ask_human だけが最後の人の
-関所に届く。fix_plan_item は承認済みの修正案の項目そのものの誤りで、その単位は直す義務から外し、同じ run の中で修正案の役が
+（principles）で fix_test_scope・fix_code_as・ask_human・replace_query・fix_plan_item・rejudge のどれかに裁き、ask_human だけが最後の人の
+関所に届く。rejudge は組どうしの合わせの申し出（JOIN_SOURCE。持ち主の決め clash-goes-to-ruling）にだけ許す判定のやり直しで、
+裁定の文が修正の出力の異議になって再審に渡る（rejudge_texts）。直す裁定でないので、その単位は直す義務から外れる。
+fix_plan_item は承認済みの修正案の項目そのものの誤りで、その単位は直す義務から外し、同じ run の中で修正案の役が
 その項目だけを直して事前審査と人の関所の決まり（replan-gate）を通ってから、2 回目の修正の段で直す（依頼 226。案を直せなければ
 諦めて ask_human の道に合流する）。範囲 limits を持たず、テストの変更の許しを作らない（直す裁定 FIX_DECISIONS に入れない）。
 判定者の問い（class_query）が直した後の正しい形にも当たる時は、which_is_right: query と正しい行（correct_lines）で申し出て、
@@ -24,6 +26,9 @@
 - brief_cite_problem(key, cites, repo, briefs, what, field): brief を誤りと言う物（申し出 brief_vs_judgment・裁定 fix_plan_item の
   grounds）が、その単位の brief の行を名指すかの確かめ（1 つの決まり）
 - park(b, items, source=, ruling=None, round_=1): 止めた単位を置き場の作業ファイルに積み、trace に 1 行（同じ申し出は積み増さない）
+- clash_claims(unit_ids, between, why)・mark_clash_patch(b, ids, patch): 組どうしの合わせの申し出（JOIN_SOURCE）の行の形と、
+  その行に組の直しの控えの差分を置く口（直しの在りかは REVERTED）。積むのは lib/clash.py
+- rejudge_texts(rows): 裁定 rejudge の文（修正の出力の異議に足す）
 - items(b)・unruled(b)・asked(b)・ruled_fix(b)・replaced_queries(b)・counts(b)・
   kind_counts(b): 読む口。asked・waiting・counts・kind_counts の述語は行の並びを受ける asked_rows(rows)・waiting_rows(rows)・
   counts_of(rows)・kind_counts_of(rows) が持つ（置き場を開かずに読んだ行にも同じ読みを当てる）。decision(row) は裁定の語（裁定が
@@ -109,7 +114,8 @@ REPLACE = "replace_query"               # 問いを置き換える裁定（新�
 ASK = "ask_human"
 ACCEPT_PARKED_OP = "fix_bound_parked"   # 修正の受け付け（blk-fix）が最後の回に止めた単位の trace の行の語。書くのは accept、読むのは報告と最後の関所
 REPLAN = "fix_plan_item"                # 案の項目そのものが誤りと裁く（同じ run の中で案を直して事前審査に掛けてから直す）
-DECISIONS = ("fix_test_scope", "fix_code_as", ASK, REPLACE, REPLAN)
+REJUDGE = "rejudge"                     # 判定の単位の切り方が誤りと裁く（組どうしの合わせの申し出 JOIN_SOURCE にだけ。裁定の文が修正役の異議になり再審へ）
+DECISIONS = ("fix_test_scope", "fix_code_as", ASK, REPLACE, REPLAN, REJUDGE)
 FIX_DECISIONS = ("fix_test_scope", "fix_code_as", REPLACE)   # 直す裁定（REPLAN は直さないので入れない）
 PLAN_ITEMS = "plan_items"               # 盤面の裁定の行に機械が足す欄（REPLAN の単位の brief の項目の番号）
 PLAN_UNITS = "plan_units"               # 同じく機械が足す欄（PLAN_ITEMS の項目に載る単位の全部。held_by_rulings が外す）
@@ -146,7 +152,8 @@ FIELDS_BROKEN = FIELDS_TAMPERED + "テストの変更の許しを引かずに止
 FIX_SOURCE = "fix"                       # 盤面の行の出どころの欄 source の値: 修正役の申し出（受け付けと修正役の並べが積む）
 TDD_SOURCE = "tdd"                       # 同じく: TDD の輪の役の申し出（phase conflict）
 GAVE_UP_SOURCE = "tdd-gave-up"           # 同じく: 3 回拒まれて機械が止めた単位の申し出（人が読む理由の文でなく、この値で見分ける）
-SOURCES = (FIX_SOURCE, TDD_SOURCE, GAVE_UP_SOURCE)
+JOIN_SOURCE = "join-clash"               # 同じく: 組を親の木へ当てて赤になり、合わせ役が直せなかった組の単位の申し出（機械が積む。clash_claims）
+SOURCES = (FIX_SOURCE, TDD_SOURCE, GAVE_UP_SOURCE, JOIN_SOURCE)
 REPEAT_GAVE_UP = ("案を直して作り直した後に、同じ単位が TDD の確認の上限まで落ちた（案を直した行 {prior}）。機械で回し続けず、"
                   "設計を疑う判断を人に回す")   # 作り直した後の諦めの ask_human の裁定の文
 PARK_OP, RULE_OP = "conflict_parked", "conflict_ruled"   # trace の行
@@ -174,6 +181,8 @@ LATE_REPLAN_PROMISE = ("案の項目そのものが誤りと裁いたが、こ�
                        "「項目の単位」に並べた同じ項目の単位も直すな（機械が直す義務から外した）。修正の段を抜ける時に機械が諦めた"
                        "行にし、最後の承認ノードで人が決める。changes に書くな。この段までに直した項目の単位の直しは作業ツリーに"
                        "そのまま残す（戻すな・触るな。最後の承認ノードで人が見る）")   # 2 回目の修正の段で新しく fix_plan_item と裁いた行（状態 WAITING）の約束（write_rulings）
+CLASH_PROMISE = ("組どうしの合わせの申し出への直す裁定。この単位の組の直しは作業ツリーに無く控えの差分に在り、合わせ役が控えを"
+                 "当て直して裁定の文のとおりに直す。裁定の後の修正役はこの単位を直すな・changes に書くな")   # write_rulings の JOIN_SOURCE の行の約束
 PRIOR = "prior_pass"                    # 2 回目の修正の段の置き場に写した 1 回目の段の行の印（adopt_prior が置く。新しい）
 
 ITEM_SCHEMA = {
@@ -379,8 +388,8 @@ def decision(row) -> str | None:
 
 def asked_rows(rows) -> list:
     """人に諮る行: 直す裁定でない裁定（FIX_DECISIONS の外）の行のうち、案の直しを待つ・直した物でない行（ask_human と、
-    諦めた fix_plan_item）"""
-    return [i for i in rows if decision(i) not in (None, *FIX_DECISIONS) and replan_state(i) not in (WAITING, AMENDED)]
+    諦めた fix_plan_item）。rejudge は人でなく再審に回るので入れない"""
+    return [i for i in rows if decision(i) not in (None, REJUDGE, *FIX_DECISIONS) and replan_state(i) not in (WAITING, AMENDED)]
 
 
 def asked(b) -> list:
@@ -553,12 +562,12 @@ def replaced_queries(b) -> dict:
 
 
 def counts_of(rows) -> dict:
-    """{parked（申し出の件数）, fix_test_scope, fix_code_as, ask_human, unruled}。replace_query・fix_plan_item は裁いた物が在る
-    時だけ足す"""
+    """{parked（申し出の件数）, fix_test_scope, fix_code_as, ask_human, unruled}。replace_query・fix_plan_item・rejudge は裁いた物が
+    在る時だけ足す"""
     out = {"parked": len(rows), "unruled": sum(1 for i in rows if i.get(RULING) is None)}
     for d in DECISIONS:
         n = sum(1 for i in rows if decision(i) == d)
-        if n or d not in (REPLACE, REPLAN):
+        if n or d not in (REPLACE, REPLAN, REJUDGE):
             out[d] = n
     return out
 
@@ -632,6 +641,32 @@ def park_claims(b, rows: list, *, round_: int = 1) -> list:
     return ids
 
 
+def clash_claims(unit_ids, between, why: str) -> list:
+    """組どうしの合わせの申し出（JOIN_SOURCE。組を親の木へ当てて赤になり、合わせ役が直せなかった組）の行: 組の単位ごとに 1 件
+    （held_by_rulings・human_lines が単位で読む）。kind と which_is_right は機械が埋める決まった値（NEEDS_CONTEXT・UNKNOWN。
+    見分けは出どころ source）。between は名指し（<パス>:<行>）、why は組・赤の文・直せなかった訳・控えの差分を名指す文"""
+    return [{"unit_key": k, "between": list(between), WHY_FIELD: why, WHICH_FIELD: UNKNOWN, KIND_FIELD: NEEDS_CONTEXT}
+            for k in unit_ids]
+
+
+def mark_clash_patch(b, ids, patch: str) -> None:
+    """組どうしの合わせの申し出の行 ids に控えの差分 patch を置く（REVERTED_FIELD。組の直しは作業ツリーに無く控えに在る。
+    fix_place が直しの在りかに読む）。先に置いた控えは残す"""
+    want = set(ids)
+    doc = _load(b)
+    hit = [r for r in doc["items"] if r.get("id") in want and r.get("source") == JOIN_SOURCE and not r.get(REVERTED_FIELD)]
+    for r in hit:
+        r[REVERTED_FIELD] = patch
+    if hit:
+        _save(b, doc)
+
+
+def rejudge_texts(rows) -> list:
+    """裁定 rejudge の行の裁定の文（重ねない・現れた順）。修正の出力の異議 objection に足し、再審が読む"""
+    return list(dict.fromkeys(r[RULING]["text"].strip() for r in rows
+                              if decision(r) == REJUDGE and isinstance(r[RULING].get("text"), str) and r[RULING]["text"].strip()))
+
+
 def apply_rulings(b, rulings: dict, *, by: str) -> pathlib.Path:
     """裁定 {id: {decision, text, limits[, grounds, request_searched, query]}} を今の周の申し出に積み（裁かれていない物だけ。
     fix_plan_item の行には案の直しの状態 WAITING を置く）、trace に 1 行ずつ、
@@ -664,7 +699,8 @@ def write_rulings(b) -> pathlib.Path:
     fix_plan_item の行のうち案を直した行（状態 AMENDED）は AMENDED_PROMISE（直す義務に戻った。held_by_rulings と同じ決まり）、
     諦めた行（GAVE_UP）は GAVE_UP_PROMISE（ask_human と同じく最後の関所へ。諦めた理由を添える）、2 回目の修正の段（second_pass）で
     案の直しを待つ行（WAITING。この段で新しく裁いた行）は LATE_REPLAN_PROMISE（案の段には戻らず、修正の段を抜ける時に
-    replan.settle が諦めた行にする）。
+    replan.settle が諦めた行にする）。組どうしの合わせの申し出（JOIN_SOURCE）への直す裁定は CLASH_PROMISE（直すのは合わせ役で、
+    裁定の後の修正役は直さない）。
     ファイルと、名指す申し出の回の控え（PARKED_REPLY）は今の scope の周の置き場の物（同じブロックの 2 度目の include である
     2 回目の修正の段は 1 回目の物を上書きも名指しもしない）"""
     rows = [r for r in items(b) if r.get("ruling")]
@@ -680,6 +716,8 @@ def write_rulings(b) -> pathlib.Path:
                  "正しい行で試した）。閉鎖の数え直しは機械がこの問いで数える（coverage.how は書かなくてよい）。案の項目の範囲の"
                  "外で変えてよいのは「範囲」に並べたパスだけ（無ければ範囲の外は変えるな）。テストは変えるな。"
                  "この単位も changes に 1 行を書け",
+        REJUDGE: "判定の単位の切り方が誤りと裁いた。この単位は直すな（機械が直す義務から外した）。changes に書くな。裁定の文は"
+                 "修正の段の異議として判定のやり直しに渡る",
         REPLAN: "案の項目そのものが誤りと裁いた。この単位も「項目の単位」に並べた同じ項目の単位も、今は直すな（機械が直す義務から"
                 "外した）。この run の中で修正案の役がこの項目だけを直し、事前審査と承認ノードの決まりを通ってから、2 回目の修正の段で"
                 "直す。changes に書くな。1 回目に直した項目の単位の直しは作業ツリーにそのまま残す（戻すな・触るな。機械も戻さない。"
@@ -689,7 +727,8 @@ def write_rulings(b) -> pathlib.Path:
         ru = r["ruling"]
         state = replan_state(r)
         amended = state == AMENDED
-        said = (LATE_REPLAN_PROMISE if second_pass(b) and state == WAITING
+        said = (CLASH_PROMISE if r.get("source") == JOIN_SOURCE and ru["decision"] in FIX_DECISIONS
+                else LATE_REPLAN_PROMISE if second_pass(b) and state == WAITING
                 else {AMENDED: AMENDED_PROMISE, GAVE_UP: GAVE_UP_PROMISE}.get(state) or promise[ru['decision']])
         lines += [RULING_HEAD.format(id=r['id'], unit_key=r['unit_key']), "",
                   f"- 裁定: {ru['decision']}（{ru.get('by') or ''}）——{said}",
@@ -955,6 +994,8 @@ def mark_reverted(b, files, patch: str, pass_: str) -> None:
 def _row_place(row) -> str:
     if row.get(REPLAN_WHY):
         return KEPT
+    if row.get("source") == JOIN_SOURCE and row.get(REVERTED_FIELD):
+        return REVERTED
     if row.get(KIND_FIELD) != QUERY_HITS_FIXED:
         return LEFT
     return REVERTED if row.get(REVERTED_FIELD) else IN_DIFF
@@ -962,8 +1003,9 @@ def _row_place(row) -> str:
 
 def fix_place(rows) -> str:
     """1 単位の人に回した行（か裁定へ回した行）の全部 rows から、その単位の直しの在りか: 案の直しを諦めた行は KEPT（直した分は
-    作業ツリーに残した）、query_hits_fixed は IN_DIFF（直してから申し出る。機械が名指しのファイルを戻した行は REVERTED）、ほかは
-    LEFT。KEPT の行が 1 つでも在れば KEPT（修正役に戻すなと約束した直しが木に在る。GAVE_UP_PROMISE）。ほかに行ごとの在りかが
+    作業ツリーに残した）、query_hits_fixed は IN_DIFF（直してから申し出る。機械が名指しのファイルを戻した行は REVERTED）、組どうしの
+    合わせの申し出（JOIN_SOURCE）で控えの差分を置いた行は REVERTED、ほかは LEFT。KEPT の行が 1 つでも在れば KEPT（修正役に戻すなと
+    約束した直しが木に在る。GAVE_UP_PROMISE）。ほかに行ごとの在りかが
     揃わなければ LEFT（直していない直しを差分に在ると言わない）"""
     got = {_row_place(r) for r in rows}
     if KEPT in got:

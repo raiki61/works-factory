@@ -13,7 +13,8 @@
   ちょうど 1 件ずつ・fix_test_scope の範囲が現物に在る・replace_query の問いが例（hits・misses・申し出の correct_lines）で
   外れない・裁きの出どころ（grounds）が現物に在り、依頼のファイルが在る run の ask_human は依頼の行か request_searched を持つ・
   fix_plan_item は範囲を持たず、grounds にその単位の brief の行を名指す（planbrief.by_unit_at・conflict.brief_cite_problem）・
-  同じ返答で fix_plan_item に裁いた項目の単位に直す裁定を出さない（plan_item_fix_problems）、
+  同じ返答で fix_plan_item に裁いた項目の単位に直す裁定を出さない（plan_item_fix_problems）・rejudge は組どうしの合わせの申し出
+  （conflict.JOIN_SOURCE）だけで範囲を持たず、同じ組の行は同じ裁定に揃える（clash_split_problems）、
   を確かめて conflict.apply_rulings で積む
   （fix_plan_item には欄 plan_items にその単位の brief の項目の番号を、欄 plan_units にその項目に載る単位の全部を足す）。GIVE_UP_AFTER 回目の拒否では
   裁かれていない申し出を全部 ask_human に裁いて抜ける（決められない物は人へ。max_iterations で落とさない）
@@ -130,11 +131,29 @@ def problems(reply, todo: dict, repo, request: str = "", roots=(), briefs=None) 
                 and not r.get("grounds")):
             errs.append(f"申し出 {r['id']}: 機械が諦めた単位の申し出（source {conflict.GAVE_UP_SOURCE}）への fix_code_as は、"
                         "コードを直せば済むと示す材料（依頼・判定・テスト・コードの行）を grounds に挙げる")
+        if r["decision"] == conflict.REJUDGE:
+            if (todo.get(r["id"]) or {}).get("source") != conflict.JOIN_SOURCE:
+                errs.append(f"申し出 {r['id']}: {conflict.REJUDGE} は組どうしの合わせの申し出（source {conflict.JOIN_SOURCE}）だけに裁ける")
+            if r["limits"]:
+                errs.append(f"申し出 {r['id']}: {conflict.REJUDGE} は範囲を持たない（limits は空）")
         if r["decision"] == conflict.REPLACE or "query" in r:
             errs += [f"申し出 {r['id']}: {e}" for e in query_problems(r, todo.get(r["id"]) or {})]
         errs += [f"申し出 {r['id']}: {e}" for e in grounds_problems(r, repo, request, roots)]
-    errs += plan_item_fix_problems(rows, todo, briefs)
+    errs += plan_item_fix_problems(rows, todo, briefs) + clash_split_problems(rows, todo)
     return errs
+
+
+def clash_split_problems(rows: list, todo: dict) -> list:
+    """同じ組の合わせの申し出（source JOIN_SOURCE で理由の文が同じ行。組の単位ごとに 1 件ずつ積む）に違う裁定を並べた物（組の差分は
+    1 つで、合わせ役が組ごとに当て直すので、単位ごとに裁きを分けられない）"""
+    by_group: dict = {}
+    for r in rows:
+        item = todo.get(r["id"]) or {}
+        if item.get("source") == conflict.JOIN_SOURCE:
+            by_group.setdefault(item.get(conflict.WHY_FIELD), []).append(r)
+    return [f"申し出 {'・'.join(r['id'] for r in got)}: 同じ組の合わせの申し出に違う裁定"
+            f"（{'・'.join(dict.fromkeys(r['decision'] for r in got))}）を並べた——組の行は同じ裁定に揃えよ"
+            for got in by_group.values() if len({r["decision"] for r in got}) > 1]
 
 
 def plan_item_fix_problems(rows: list, todo: dict, briefs) -> list:

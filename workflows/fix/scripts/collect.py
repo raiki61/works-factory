@@ -7,7 +7,8 @@
 形 ""（ブロック）: 組と単位の結末は join.json、申し出と裁定は conflicts.json（指し札。無ければ null。2 回目の修正の段は 1 回目の段の
 行を写して持つ）、replan_items はこの段の裁定 fix_plan_item の項目（conflict.this_pass）、objection・changed（6 つの印と前提のずれの
 申告の文 premise_drift_note）・x_scalars（修正役が足した規模の数値。組ごとの値を名ごとに足す）・allowed_test_changes は戻せた組の
-子の結果（result.json）と裁定の後の修正役の返答（fix-ruled-reply.json）と裁定の許し、delta_review は delta/review-<n>.json（{pass}）の数と最後の pass（delta/skipped.json が
+子の結果（result.json）と裁定の後の修正役の返答（fix-ruled-reply.json）と裁定の許し（objection には、この段の裁定 rejudge の文も
+足す。conflict.rejudge_texts。組どうしの合わせの申し出を判定のやり直しへ回す異議）、delta_review は delta/review-<n>.json（{pass}）の数と最後の pass（delta/skipped.json が
 在れば {rounds: 0, pass: true}）。done は assert-changed.json の ok かつ（審査を省いた か 審査が通った）かつ戻せず当たったままの組
 （join.json の欄 unrestored）が無い。そういう組が在れば stop_reason は stopby.UNRESTORED（人待ちの語。作業ツリーが信用できないので
 線は先へ進めない）、ほかは ""（形 group も）。
@@ -64,10 +65,11 @@ def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review,
     groups_rows, units_rows = rows_groups
     fixboard.write_json(place / fixboard.ALLOWED_TESTS_FILE, fixboard.allowed_test_rows(place, extras))
     fixboard.write_json(place / fixboard.ACCEPT_TRACE_FILE, fixboard.accept_trace_rows(place, results))
+    objection = [fixboard.objection(extras), *conflict.rejudge_texts(conflict.this_pass(place))]
     return {"done": done, "units": units_rows, "groups": groups_rows,
             "conflicts": boundary.pointer(rel(place, conflict.FILE)) if rows else None,
             "replan_items": fixboard.replan_items(conflict.this_pass(place), groups),
-            "objection": fixboard.objection(extras), "diff": diff_pointer(fixboard, place),
+            "objection": "\n".join(dict.fromkeys(x for x in objection if x)), "diff": diff_pointer(fixboard, place),
             "allowed_test_changes": fixboard.allowed_tests(place, extras),
             "changed": fixboard.changed_marks(extras), "x_scalars": fixboard.x_scalars(extras), "delta_review": review,
             "handoffs": final[0], "mismatched": final[1], "stop_reason": stop}

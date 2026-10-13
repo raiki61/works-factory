@@ -442,7 +442,7 @@ class DecisionsCase(Base):
 
     def test_backed_out_group_is_named_in_head_and_decisions(self):
         """#383 の 8（持ち主の決め clash-goes-to-ruling のそれまでの間）: 当ててから確かめ直しが赤で戻した組は、冒頭 1 行目で名指し、
-        人が決めることの節の頭に組ごとの 3 行（組と単位・赤の文・作り直しの結果）を置く。当てなかっただけの組は名指さない"""
+        人が決めることの節の頭に組ごとの 3 行（組と単位・赤の文・合わせの結果）を置く。当てなかっただけの組は名指さない"""
         groups = [{"group_id": "g1", "unit_ids": ["A"], "returned": True, "reason": ""},
                   {"group_id": "g2", "unit_ids": ["B"], "returned": False, "reason": "意味の食い違い: test_triple が赤",
                    "backed_out": ["b.py", "e.py"]},
@@ -456,7 +456,29 @@ class DecisionsCase(Base):
         body = self.section(text, report.DECISIONS_HEADING).splitlines()
         self.assertEqual(body[:3], [f"- {runreport.BACKED_OUT_HEAD}: 組 g2（単位 B）。戻したパス b.py・e.py",
                                     "  - 赤: 意味の食い違い: test_triple が赤",
-                                    "  - 作り直しの結果: 作り直していない。ほかの組は 1 組を当てたまま、外した単位 B は次の run の依頼に回した"])
+                                    "  - 合わせの結果: 合わせ役が直していない。ほかの組は 1 組を当てたまま、外した単位 B は次の run の依頼に回した"])
+
+    def test_parked_clash_names_its_requests_and_patch(self):
+        """#382: 合わせ役が直せず組どうしの合わせの申し出にした組（欄 clash の outcome parked）は、3 行目で申し出の id と控えの差分を
+        名指す"""
+        groups = [{"group_id": "g1", "unit_ids": ["A"], "returned": True, "reason": ""},
+                  {"group_id": "g2", "unit_ids": ["B"], "returned": False, "reason": "意味の食い違い: test_triple が赤",
+                   "backed_out": ["b.py", "e.py"], "clash": {"outcome": "parked", "requests": ["c1-1"], "patch": "join/g2.diff"}}]
+        fix = {**fixed_run()["fix"], "groups": groups,
+               "units": [{"unit_id": "B", "group_id": "g2", "status": "not_done", "reason": "組を戻した"}]}
+        _, text, _ = self.build(fixed_run(fix=fix))
+        body = self.section(text, report.DECISIONS_HEADING).splitlines()
+        self.assertEqual(body[2], "  - 合わせの結果: 合わせ役が直せず、組どうしの合わせの申し出 c1-1 にした（控えの差分 join/g2.diff）。"
+                                  "ほかの組は 1 組を当てたまま、外した単位 B は次の run の依頼に回した")
+
+    def test_repaired_clash_is_named_without_parked_groups(self):
+        """#382: 止めた組が無くても、合わせ役が直して当てた組（returned で clash の outcome repaired）は冒頭の 1 文で名指す"""
+        groups = [{"group_id": "g1", "unit_ids": ["A"], "returned": True, "reason": ""},
+                  {"group_id": "g2", "unit_ids": ["B"], "returned": True, "reason": "", "backed_out": ["b.py"],
+                   "clash": {"outcome": "repaired", "requests": [], "patch": "join/g2.diff"}}]
+        returns = fixed_run(fix={**fixed_run()["fix"], "groups": groups})
+        self.assertEqual(runreport.split_line(returns), f"{runreport.REPAIRED_HEAD}: 組 g2")
+        self.assertEqual(runreport.backed_out_lines(returns), [], "直して当てた組は戻した組に数えない")
 
     def test_unrestored_group_is_named_as_still_applied(self):
         """#403: 戻せず親の作業ツリーに当たったままの組は、当てなかった組と分けて冒頭 1 行目で名指し、人が決めることの節の頭に

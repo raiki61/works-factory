@@ -9,8 +9,9 @@
 当てた後に、前の組とも重なったファイルの名指しのテストの中身が子の終わりの木と同じかを照らし（fixboard.tests_moved）、前に戻せた
 組とその組で赤 → 緑を確かめた名指しと、変えたファイルに当たる試験（名指しの無い組も。重なったファイルから地図が届く試験も足す）を
 親の木で走らせ直し、test_cmd の関門が on なら test_cmd も 1 回走らせる（fixboard.rerun_problem・rerun_cmd。元
-works/blk-fix/lib/tddlanes.py:688 _green_after。その前に Archon の変数を環境から落とす）。赤なら今の組だけを戻す（元は当てた枝を
-全部戻して順に回した。持ち主の答え待ち）。戻せた組の子の
+works/blk-fix/lib/tddlanes.py:688 _green_after。その前に Archon の変数を環境から落とす）。赤なら今の組だけを戻して後の組を当て続け、
+戻した組を置き場の clash.json に直し待ちで控える（clash.record。後ろの合わせのループが当て直して直すか、裁定へ回す。持ち主の決め
+clash-goes-to-ruling。確かめ直しが落ちた組・字で当たらない組は控えない）。戻せた組の子の
 書き込みの記録は、親の作業ツリーの記録へ写す（writes.carry_children。親の手直しの受け付けが、子の書いた変更を記録の無い変更と見ない）。結果のファイルが
 無い（子が落ちた）組は当てず、当たらない・確かめ直しが赤・確かめ直しが落ちた組は当てたパスを戻して、returned: false と理由。
 当てたパスを戻せなかった組は当てていないと言わず、当たったままのパスを欄 unrestored に名指し（fixboard.UNRESTORED）、作業ツリーが
@@ -19,7 +20,7 @@ works/blk-fix/lib/tddlanes.py:688 _green_after。その前に Archon の変数�
 子の始めの木に戻して（fixboard.drop_unreturned。次の組の group-start が先に戻した組はその控え）returned: false と理由。
 置き場に join.json = {par, groups: [{group_id, unit_ids, returned, reason, backed_out?, unrestored?}], units: [{unit_id, group_id, status, reason}]}
 （backed_out は当ててから確かめ直しが赤か落ちて戻した組だけが持つ、戻したパスの並び。unrestored は戻せなかった組だけが持つ、
-当たったままのパスの並び）を書き、
+当たったままのパスの並び。後ろの合わせのループが、直し待ちに控えた組の行を置き直して欄 clash を足す。lib/clash.py）を書き、
 組の差分は join/<group_id>.diff に控える。戻せた組の子の TDD の輪の状態（結果の tdd_state）は親の置き場の tdd-<k>/ に、実行器を
 親の作業ツリーで解き直して写す（fixboard.adopt_tdd_states。裁定の後の修正の受け付けが読む）。返り {groups: 組の数, returned: 戻せた組の数}。
 置き場の groups.json が無い・読めない・git が効かない: 標準エラーに 1 行で 1。
@@ -32,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
+import clash  # noqa: E402
 import fixboard  # noqa: E402
 import lanekit  # noqa: E402
 import oneline  # noqa: E402
@@ -66,6 +68,7 @@ def main() -> dict:
         with_result = [g for g in plan["groups"] if results[g["group_id"]] is not None]
         boundary.drop_runner_env()   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
         verified = []   # 戻せた組が赤 → 緑を確かめた名指し（後の組の確かめ直しで一緒に走らせる）
+        red, clashes = {}, []   # 組ごとの確かめ直しの赤の文と、赤で戻した組（合わせのループが直す。clash.record）
 
         def merge_one(g, earlier):
             if unrestored:   # 戻せず当たったままの組が在れば後の組は当てない
@@ -77,9 +80,10 @@ def main() -> dict:
 
             def check(names):
                 shared = set(names) & earlier
-                return fixboard.tests_moved(repo, r["end_tree"], tdd_rows, shared) or fixboard.rerun_problem(
+                red[g["group_id"]] = fixboard.tests_moved(repo, r["end_tree"], tdd_rows, shared) or fixboard.rerun_problem(
                     place, repo, start.get("tdd_suite", ""), cases, named, name=f"rerun-{g['group_id']}", shared=shared,
                     test_cmd=fixboard.rerun_cmd(place, r, start.get("test_cmd", "")))
+                return red[g["group_id"]]
             try:
                 got = fixboard.join_group(
                     repo, r.get("start_tree") or plan["start_tree"], r["end_tree"], place / "join" / f"{g['group_id']}.diff",
@@ -91,6 +95,9 @@ def main() -> dict:
                 verified.extend(t for t in fixboard.child_verified(r) if t not in verified)
             if got.unrestored:
                 unrestored[g["group_id"]] = got.unrestored
+            elif got.backed_out and got.why == red.get(g["group_id"]):
+                clashes.append({"group_id": g["group_id"], "unit_ids": list(g["unit_ids"]), "patch": got.patch,
+                                "names": list(got.backed_out), "shared": sorted(set(got.backed_out) & earlier), "why": got.why})
             return got
         for g, got in lanekit.merge_in_order(with_result, merge_one):
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)
@@ -111,6 +118,8 @@ def main() -> dict:
                 fixboard.DROPPED.format(paths="・".join(dropped)[:300]) if dropped else ""))
     for g in plan["groups"]:
         outcomes.setdefault(g["group_id"], (None, False, fixboard.NO_RESULT))
+    if plan["par"]:
+        clash.record(place, clashes)
     rows, units = fixboard.join_rows(plan["groups"], outcomes, backed_out, unrestored)
     joined = {"par": bool(plan["par"]), "groups": rows, "units": units}
     if unrestored:   # 後の写しが落ちても、当たったままの組を後の節（fixboard.held）が読めるように先に書く

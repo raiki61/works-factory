@@ -642,7 +642,7 @@
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
       ],
       "workflows/fix/works-factory-fix.yaml": [
-       36,
+       42,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型・effort・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で値を縛るだけで、源と結んでいない）"
       ],
       "workflows/judge/commands/material-local-review.md": [
