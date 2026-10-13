@@ -108,6 +108,19 @@ class TableCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(**{"test-gate-final": None})), ("interrupted", "test-gate-final:chain-cut"))
         self.assertEqual(decide(fixed_run(**{"merge-seal": None, "merge-apply": None})), ("interrupted", "merge-seal:chain-cut"))
 
+    def test_deliberate_stop_before_final_test_follows_works(self):
+        """依頼 290: 線が最後のテストを意図して飛ばした周（fixed の go が偽）は続きの切れ目でなく、元 works の decide_outcome と同じく
+        残りで round_limit（人に回した申し出が在れば needs_human。ReadingCase）。go の無い fix は今までどおり切れ目"""
+        fix = {**fixed_run()["fix"], "done": False, "go": False,
+               "units": [{"unit_id": "u1", "status": "given_up", "reason": "通らない"}]}
+        skipped = {"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None}
+        self.assertEqual(decide(fixed_run(fix=fix, **skipped)), ("round_limit", ""))
+        self.assertNotIn("修正の段が走ったのに最後のテストの出力が無い", outcome.chain_notes(fixed_run(fix=fix, **skipped)))
+        for go in ({}, {"go": True}):
+            with self.subTest(go=go):
+                cut = {**{k: v for k, v in fix.items() if k != "go"}, **go}
+                self.assertEqual(decide(fixed_run(fix=cut, **skipped)), ("interrupted", "test-gate-final:chain-cut"))
+
     def test_missing_eye_of_a_standard_run_is_left(self):
         """R14（元 report.eye_counts の missing「結果が無い——再実行の要あり」:599-602）: 直した後の深さが標準（線の redepth の
         skip_optional が空。facts の eyes_skip）なのに返りの無い目は、深さで省いた目と分けて残りに数える。軽量で省いた run と、深さの
@@ -296,6 +309,13 @@ class ReadingCase(unittest.TestCase):
         self.assertEqual(outcome.asked_conflicts(fixed_run(fix=fix), closed=False), [])
         self.assertEqual(outcome.waiting_conflicts(fixed_run(fix=fix)), [waiting])
 
+    def test_deliberate_stop_with_asked_conflict_needs_human(self):
+        """依頼 290: 線が最後のテストを意図して飛ばした周でも、人に回した申し出が在れば元 works と同じく needs_human"""
+        asked = {"unit_key": "u1", "ruling": {"decision": "ask_human"}}
+        fix = {**fixed_run()["fix"], "done": False, "go": False, "conflicts": self.put("fix/conflicts.json", {"items": [asked]})}
+        returns = fixed_run(fix=fix, **{"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None})
+        self.assertEqual(decide(returns), ("needs_human", f"fix:{stopby.CONFLICT}"))
+
     def test_unreadable_conflicts_are_record_problems(self):
         """読めない申し出と裁定のファイルは人に回した申し出を隠すので、訳を record_problems に入れて結果を名乗らせない"""
         broken = self.dir / "fix/broken.json"
@@ -388,6 +408,24 @@ class ReadingCase(unittest.TestCase):
                     (round_dir / planfile.ROUND_FILE).write_text(json.dumps({"round": 1, "mode": "plan", "go": False, "why": why}),
                                                           encoding="utf-8")
                     self.assertEqual(decide(returns), want)
+
+    def test_nothing_owed_round_with_the_tail_is_round_limit(self):
+        """#291: 直す義務 0 件の周も今の works（works/darkfactory/lib/line_edge.py:1109-1114 の空の修正）と同じく最後のテストと独立の目
+        まで回り、結末は round_limit のまま。目の阻害の行（works の [block] の行）は残りに載る"""
+        with tempfile.TemporaryDirectory() as tmp:
+            round_dir = pathlib.Path(tmp) / "plan" / "r1"
+            round_dir.mkdir(parents=True)
+            fields = round_dir / planfile.planmarks.FIELDS_FILE
+            fields.write_text('{"round": 1, "fields": []}', encoding="utf-8")
+            (round_dir / planfile.ROUND_FILE).write_text(
+                json.dumps({"round": 1, "mode": "plan", "go": False, "why": planfile.NOTHING_OWED}), encoding="utf-8")
+            returns = fixed_run(plan={"ready": False, "plan": str(fields)}, fix=None,
+                                **{"plan-review": None, "merge-seal": None, "merge-apply": None})
+            self.assertEqual(decide(returns), ("round_limit", ""))
+            eyes = {**returns["eyes"], "ok": False, "r2": {"status": "redesign-needed", "reason": "直す物が在る"}}
+            blocked = {**returns, "eyes": eyes}
+            self.assertEqual(decide(blocked), ("round_limit", ""))
+            self.assertIn(f"{report.EYES_WHERE} R2", [row["where"] for row in outcome.residue(blocked)])
 
     def test_later_judge_and_plan_are_read_first(self):
         """再審・案の直しの返りは後の段で先に読む（線と同じ）"""

@@ -19,6 +19,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import fixboard  # noqa: E402
 import groups  # noqa: E402
+import oneline  # noqa: E402
 import policy  # noqa: E402
 import refix  # noqa: E402
 import refixrules  # noqa: E402
@@ -61,4 +62,4 @@ if __name__ == "__main__":
     try:
         main(n)
     except Exception as e:
-        sys.exit(f"{refix.FIX_ROLE[n]}-prep: {type(e).__name__}: {' '.join(str(e).split())}")
+        sys.exit(f"{refix.FIX_ROLE[n]}-prep: {type(e).__name__}: {oneline.one_line(e)}")

@@ -39,7 +39,7 @@ import ruling  # noqa: E402
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
                    "changed", "x_scalars", "delta_review", "handoffs", "mismatched"}
-CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "world", "plan", "ripple", "depth", "answers", "prior_conflicts",
+CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "plan", "ripple", "depth", "answers", "prior_conflicts",
                    "plan_review", "notes"}
 EXTRA_INPUTS = {"only_items", "mode", "group", "from_tree", "out_dir"}
 CHANGED_MARKS = {"mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
@@ -1057,7 +1057,7 @@ class BlockScriptsCase(unittest.TestCase):
         _blk_write(self.art / "plan" / "r1" / "p2.fix_plan.json", {"plan": [{"unit_keys": ["A", "B"]}, {"unit_keys": ["C"]}]})
         return {"start": _blk_ptr("in/start.json"), "judgment": _blk_ptr("in/judgment.json"),
                 "plan": _blk_ptr("plan/r1/plan-fields.json"), "units": "[]", "depth": "[]", "only_items": only,
-                "baseline": "", "world": "", "ripple": "", "answers": "null"}
+                "baseline": "", "ripple": "", "answers": "null"}
 
     def restore(self):
         git(self.repo, "checkout", "-q", "--", ".")
@@ -1165,14 +1165,13 @@ class BlockScriptsCase(unittest.TestCase):
         import gatemarks
         import planmarks
         _blk_write(self.art / "in" / "ripple.json", [{"path": "stats.py"}])
-        _blk_write(self.art / "in" / "world.json", {"facts": []})
         _blk_write(self.art / "in" / "baseline.json", {"cases": [], "exit": 0, "suite": "", "test_cmd": "", "rev": "HEAD"})
         inputs = self.prep_inputs()
         judgment_dir = self.art / json.loads(inputs["judgment"])["path"].rsplit("/", 1)[0]
         _blk_write(judgment_dir / gatemarks.BESIDE[0], {"rounds": {"1": []}})   # 判定の隣の結びと素材の状態
         _blk_write(judgment_dir / gatemarks.BESIDE[1], {"ci": {"status": "not_run"}})
-        inputs = {**inputs, "ripple": _blk_ptr("in/ripple.json"), "world": _blk_ptr("in/world.json"),
-                  "baseline": _blk_ptr("in/baseline.json"), "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]',
+        inputs = {**inputs, "ripple": _blk_ptr("in/ripple.json"), "baseline": _blk_ptr("in/baseline.json"),
+                  "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]',
                   "answers": '{"decision": "approve", "text": "stats.py の外は触らない"}', "units": '["A"]',
                   "only_items": '["1"]', "plan_review": _blk_ptr("in/review.json"), "notes": "## 直した項目 1 の事前審査の穴"}
         _blk_write(self.art / "in" / "review.json", {"faces": [], "shrink": []})
@@ -1545,6 +1544,37 @@ class BlockScriptsCase(unittest.TestCase):
             self.assertEqual(out, {"go": False, "count": 0})
             self.assertFalse((self.place / "conflicts-dropped.json").exists())
 
+    def test_conflict_check_keeps_claims_citing_their_own_child_place(self):
+        """依頼 290: 子の申し出が名指す子の置き場（結果の place）の brief は、その組の名指しの根に許す（元 works の共有の盤面。
+        子の受け付けが許した根と同じ）。ほかの組の置き場は許さない。brief の無い run の機械の諦め（between が空）は照らさずに積み、
+        役の申し出の空の between は落とす"""
+        child = self.tmp / "child-g1"
+        child.mkdir()
+        (child / "brief-1.md").write_text("# brief\n", encoding="utf-8")
+        other = self.tmp / "child-g2"
+        other.mkdir()
+        giveup = {"unit_key": "A", "between": [f"{child}/brief-1.md:1"], "why_both_cannot_hold": "赤の確かめが 3 回とも通らなかった",
+                  "which_is_right": "unknown", "kind": "needs_context", "source": "tdd-gave-up"}
+        bare = {**giveup, "unit_key": "C", "between": []}
+        start = self.snapshot(self.repo)
+        out_dir = self.groups_file([{"group_id": g, "unit_ids": [k], "items": []} for g, k in (("g1", "A"), ("g2", "B"), ("g3", "C"))],
+                                   start, par=False)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], start, start, conflicts=[giveup], place=str(child)))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], start, start, conflicts=[{**giveup, "unit_key": "B"}],
+                                                               place=str(other)))
+        _blk_write(out_dir / "g3" / "result.json", _blk_result("g3", ["C"], start, start, conflicts=[
+            bare, {**bare, "unit_key": "D", "source": "tdd"}], place=""))
+        _blk_write(self.place / "join.json", {"par": False, "units": [], "groups": [
+            {"group_id": g, "unit_ids": [k], "returned": True, "reason": ""} for g, k in (("g1", "A"), ("g2", "B"), ("g3", "C"))]})
+        code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
+        self.assertEqual(code, 0, err)
+        items = json.loads((self.place / "conflicts.json").read_text(encoding="utf-8"))["items"]
+        self.assertEqual([(r["unit_key"], r["source"]) for r in items], [("A", "tdd-gave-up"), ("C", "tdd-gave-up")])
+        dropped = json.loads((self.place / "conflicts-dropped.json").read_text(encoding="utf-8"))["dropped"]
+        self.assertEqual([d.split(":", 1)[0] for d in dropped], ["g2", "g3"])
+        self.assertIn("（B）", dropped[0])
+        self.assertIn("（D）", dropped[1])
+
     # ---- tdd_unit.py
     def test_tdd_unit_writes_one_body_for_all_groups(self):
         start = self.snapshot(self.repo)
@@ -1830,7 +1860,8 @@ class BlockScriptsCase(unittest.TestCase):
 
     def test_group_permits_reach_join_and_collect_only_for_an_accepted_reply(self):
         """#286: 修正役の返答を受け付けていない組の子の許しは、join の和（同じテストのファイルへの挿しだけの食い違いを合わせる）にも
-        親の collect の返りの allowed_test_changes・diff の隣の allowed-tests.json にも入らない。受け付けた組の許しは両方に入る"""
+        親の collect の返りの allowed_test_changes・diff の隣の allowed-tests.json にも入らない。受け付けた組の許しは両方に入る。
+        #304: 形の崩れた許しの行（path の無い行・ALLOWED_SOURCES に無い source）は join も collect も同じ決まりで捨て、join は落ちない"""
         import fixboard
         child = {"path": "test_stats.py", "permit": "plan-agreed-2", "source": "consult"}
         src = (self.repo / "test_stats.py").read_text(encoding="utf-8")
@@ -1839,13 +1870,17 @@ class BlockScriptsCase(unittest.TestCase):
         def added(name):
             return src.replace(tail, f"class {name}(unittest.TestCase):\n    def test_{name.lower()}(self):\n"
                                      f"        self.assertTrue(True)\n\n\n{tail}")
-        for reply, returned, rows in ((None, 1, []), ({"changes": []}, 2, [child])):
-            with self.subTest(reply=reply):
+        malformed = [{"permit": "plan-3", "source": "plan"}, {"path": "test_other.py", "permit": "x-1", "source": "guess"}]
+        bad_source = [{"path": "test_stats.py", "permit": "x-1", "source": "guess"}]
+        for reply, returned, given, rows, extra in ((None, 1, [child], [], []), ({"changes": []}, 2, [child], [child], []),
+                                                    ({"changes": []}, 2, [child], [child], malformed),
+                                                    ({"changes": []}, 1, [], [], bad_source)):
+            with self.subTest(reply=reply, extra=extra):
                 __import__("shutil").rmtree(self.art, ignore_errors=True)
                 self.restore()
                 self.place.mkdir(parents=True)
                 permits = fixboard.group_result({"group_id": "g2", "unit_ids": ["B"]}, start_tree="", end_tree="", tdd=None,
-                                                reply=reply, allowed_rows=[child])["allowed_tests"]
+                                                reply=reply, allowed_rows=given)["allowed_tests"] + extra
                 start = self.snapshot(self.repo)
                 t1, t2 = self.tree_with({"test_stats.py": added("TestG1")}), self.tree_with({"test_stats.py": added("TestG2")})
                 out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
@@ -1860,6 +1895,26 @@ class BlockScriptsCase(unittest.TestCase):
                 self.assertEqual(out["allowed_test_changes"], [r["path"] for r in rows])
                 beside = (self.art / out["diff"]["path"]).parent / fixboard.ALLOWED_TESTS_FILE
                 self.assertEqual(json.loads(beside.read_text(encoding="utf-8")), rows)
+
+    def test_join_drops_malformed_test_files_of_a_child_tdd_unit(self):
+        """#319: 組の子の result.json の TDD の単位の test_files に文字列でない要素（null）が混じっても、test_files が並びでない（数）
+        時も、join の和は落ちず、文字列の要素だけで組を戻す"""
+        src = (self.repo / "test_stats.py").read_text(encoding="utf-8")
+        tail = 'if __name__ == "__main__":'
+
+        def added(name):
+            return src.replace(tail, f"class {name}(unittest.TestCase):\n    def test_{name.lower()}(self):\n"
+                                     f"        self.assertTrue(True)\n\n\n{tail}")
+        start = self.snapshot(self.repo)
+        t1, t2 = self.tree_with({"test_stats.py": added("TestG1")}), self.tree_with({"test_stats.py": added("TestG2")})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        tdd = {"ran": True, "reason": "", "suite": "", "units": [{"unit_key": "B", "tests": [], "test_files": ["test_stats.py", None]},
+                                                          {"unit_key": "B", "tests": [], "test_files": 5}]}
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start, tdd=tdd))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        self.assertEqual((code, out), (0, {"groups": 2, "returned": 2}), err)
 
     def test_collect_allowed_test_changes_from_rulings_and_groups(self):
         """F429: 許したテストの変更（裁定 fix_test_scope の範囲・組の子が許した物）を返りの allowed_test_changes にパスで並べ、
@@ -2332,7 +2387,7 @@ class GroupChildScriptsCase(unittest.TestCase):
 
     def test_tdd_head_reuses_the_test_gate_base_test_cmd(self):
         """test-gate の base が線の run の置き場に控えた test_cmd の緑を、fix の組の子の run の TDD の輪の頭が引く（同じ run の中で
-        2 度走らせない）。置き場（fixio.line_top）・run の名（始めの記録の run_id）・落とす変数・2 つの起こし口の指紋が揃って当たる"""
+        2 度走らせない）。置き場（group_start.line_top）・run の名（始めの記録の run_id）・落とす変数・2 つの起こし口の指紋が揃って当たる"""
         count = self.tmp / "test-cmd-count"
         test_cmd = f"{sys.executable} -c \"open({str(count)!r}, 'a').write('1\\n')\""
         line = self.tmp / "parent-art"
@@ -2466,7 +2521,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertIn("test_stats.py", frozen)
 
     def test_fix_accept_rejects_a_change_under_the_skip_head(self):
-        """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は fixio.SKIP）、fix-accept が
+        """fix-prep が修正の段の頭に .archon/ の下の姿を控え（fixboard.record_skipped。除くパスの頭は boundary.SKIP）、fix-accept が
         その下を変えた返答を拒む（元 works/blk-fix/scripts/accept.py:234 check_pack_copy・:663）"""
         import fixboard
         copy = self.repo / ".archon" / "workflows" / "x.yaml"
@@ -2511,7 +2566,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "x_scalars", "allowed_tests", "verified",
                                        "reply_file", "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace", "closure",
-                                       "claimed"})
+                                       "claimed", "place"})
         # F427・F428・F013: 子の置き場の受け入れた壊れ・閉鎖の表・受け付けの知らせを、親の collect へ結果で運ぶ
         self.assertEqual((result["handoffs"], result["claimed"], result["closure"]),
                          ([f"{_GRP_MEAN}: 壊すと分かって通した——空の列の平均の値が変わる"], [_GRP_MEAN], [closure]))
@@ -2527,6 +2582,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((result["objection"], [t["path"] for t in result["allowed_tests"]], result["verified"], result["conflicts"]),
                          ("単位の見立てが違う", ["test_stats.py"], [], []))
         self.assertEqual(result["reply_file"], str(self.place / "fix-reply.json"))
+        self.assertEqual(result["place"], str(self.place), "親の conflict-check がこの組の名指しに許す根")
 
     def test_group_end_lists_allowed_tests_only_for_an_accepted_reply(self):
         """受け付けが通らず fix-reply.json が無い組は、置き場に許しが在っても許しの訳 allowed_tests を

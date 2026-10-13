@@ -5,6 +5,8 @@
 - E4: `pathlib` などで部品を継いで組むパス
 - E12: script の中で置く期限
 """
+import ast
+import functools
 import json
 import posixpath
 import re
@@ -29,6 +31,8 @@ LAYER_IMPORT = re.compile(r"^\s*(from|import)\s+(workflows|bin)\b")
 BLOCKS = ("line", "judge", "plan", "plan-review", "fix", "test-gate", "eyes", "report", "merge")
 RELATIVE_PATH = re.compile(r"(?:\.\./)+[^\s'\"`)]*")
 
+LIB = Path(__file__).resolve().parents[2] / "lib"
+LIB_CONST = re.compile(r"\b([a-z_][a-z0-9_]*)\.([A-Z][A-Z0-9_]*)\b")
 OURS = json.loads((Path(__file__).resolve().parents[2] / "pack.json").read_text(encoding="utf-8"))["ours"]
 OURS_PREFIX = OURS["name_prefix"]
 OURS_PACK = OURS["pack"]
@@ -540,12 +544,31 @@ def _block_returns(root: Path) -> list[str]:
     return out
 
 
-def script_reads(text: str, name: str) -> bool:
+def script_reads(text: str, name: str, lib: Path = LIB) -> bool:
     """script の字が入力 name を読むか。Archon は名の - を _ にして大文字の INPUTS_<名> で渡す。`INPUTS_{…}` を組んで読む script は
-    名の字を持つ物を読み手に数える"""
+    名の字を持つ物と、名を持つ lib の部品の字の並びの定数（`fixboard.PREP_INPUTS` の形。部品は lib の下）を引く物を読み手に数える"""
     if re.search(rf"INPUTS_{re.escape(name.replace('-', '_').upper())}(?![A-Z0-9_])", text):
         return True
-    return "INPUTS_{" in text and re.search(rf"[\"']{re.escape(name)}[\"']", text) is not None
+    if "INPUTS_{" not in text:
+        return False
+    if re.search(rf"[\"']{re.escape(name)}[\"']", text):
+        return True
+    return any(name in _lib_names(lib / f"{module}.py", const) for module, const in LIB_CONST.findall(text))
+
+
+@functools.cache
+def _lib_names(path: Path, const: str) -> tuple:
+    """lib の部品 path の頭で const に置いた字の並び（無い・字の並びでなければ空）"""
+    if not path.is_file():
+        return ()
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Assign) and [getattr(t, "id", None) for t in node.targets] == [const]:
+            try:
+                value = ast.literal_eval(node.value)
+            except ValueError:
+                return ()
+            return value if isinstance(value, tuple) and all(isinstance(v, str) for v in value) else ()
+    return ()
 
 
 def _role_reads(text: str, name: str) -> bool:
@@ -566,7 +589,8 @@ def _inputs_read(root: Path) -> list[str]:
         roles = [p.read_text(encoding="utf-8", errors="replace") for p in _files(folder, "commands")]
         roles += [value.value for node in _nodes(document) if isinstance(value := _top(node, "prompt"), yaml.ScalarNode)]
         for key, value in _pairs(_top(document, "inputs")):
-            if not any(script_reads(text, key) for text in scripts) and not any(_role_reads(text, key) for text in roles):
+            if not any(script_reads(text, key, root / "lib") for text in scripts) \
+                    and not any(_role_reads(text, key) for text in roles):
                 env = "INPUTS_" + key.replace("-", "_").upper()
                 out.append(f"{_rel(root, path)}:{_line(value)}: 入力 {key} に読み手が無い（script の {env} も指示書の $INPUTS.{key} も無い）")
     return out

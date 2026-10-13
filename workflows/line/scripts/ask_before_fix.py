@@ -6,7 +6,8 @@
 
 入力（with:）は計画の往復の返り（plan-rounds の ready・pass・stalled・ask_human・gate_axes・questions）と、始めの節の
 unattended・design_only。questions の行は関所の項目の種類と文 {kind, text}（plan-review の返り。lib/gatemarks.py の question_row）。
-- 計画ができていない（ready が false）: 関所を開かず、修正へも進まない（go: false。結末は report が計画と判定の返りから決める）
+- 計画ができていない（ready が false）: 関所を開かず、修正へも進まない（go: false。結末は report が計画と判定の返りから決める）。
+  直す義務 0 件の周（plan-out の nothing_owed）は design-only を通って最後のテストと独立の目へ進む
 - 必ず開く: 事前審査の壁打ちが止まった（stalled。往復の安全の上限の周で止めた時も stalled で、理由は questions に載る）・
   設計だけの run（design_only）。事前審査が設計だけの
   行（種類 design_only。止まった理由を尾に持つ gatemarks.design_item）を返していれば、その 1 行だけにして足し直さない（元

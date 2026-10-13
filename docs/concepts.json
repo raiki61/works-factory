@@ -365,7 +365,8 @@
      "allowed": [
       "lib/tddloop.py",
       "lib/report.py",
-      "workflows/fix/commands/fix-rules/tdd.md"
+      "workflows/fix/commands/fix-rules/tdd.md",
+      "workflows/fix/works-factory-fix.yaml"
      ],
      "known": {}
     },
@@ -788,5 +789,8 @@
     }
    ]
   }
+ },
+ "loosened": {
+  "allowed:red-check:赤の引用の欄の名（test の段の返答の欄と単位の記録の欄）:workflows/fix/works-factory-fix.yaml": "TDD の役の返答の型（output_format の &tdd_reply）に赤の引用の欄 red_quotes を足した（#290）。型の正本は output_format だけ（持ち主の決め io-in-output-format）なので、欄の名がこの YAML に在るのは住処の外の漏れでなく型の宣言"
  }
 }

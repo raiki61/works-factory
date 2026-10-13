@@ -7,7 +7,7 @@
 
 置き場（boundary.place("fix") = $ARTIFACTS_DIR/fix/<include の名>/）に書く物: r1/start.json（始めの記録の字のままの写し。startrec.adopt）・
 judgment.json と隣の answer-ties.json・materials.json（在れば）・plan-fields.json と凍結の印（planmarks.save）・p2.fix_plan.json（修正案の隣に在れば）・
-p2.plan_review.json（入力 plan_review の事前審査の返答の写し。修正役の plan_faces と差分の審査の材料。無ければ書かない）・ripple.json・world.json・
+p2.plan_review.json（入力 plan_review の事前審査の返答の写し。修正役の plan_faces と差分の審査の材料。無ければ書かない）・ripple.json・
 depth.json・answers.json・units.json・only-items.json・baseline.json（{cases, exit}）・fix-ignored-before.json・human-notes.md（関所の一言と答えで戻った単位の行と、
 入力 notes の機械の申し送り。無ければ書かない）・base-rev.json
 （修正前の版。親の HEAD の sha。組の子が写して受け付けの起点にする）・groups.json
@@ -26,16 +26,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import fixboard  # noqa: E402
+import oneline  # noqa: E402
 import writelog  # noqa: E402
-
-INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "world", "depth", "answers", "units", "only_items", "baseline",
-          "prior_conflicts", "notes")
 
 
 
 def main() -> dict:
     writelog.open_here()
-    raw = {name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in INPUTS}
+    raw = {name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in fixboard.PREP_INPUTS}
     return fixboard.prep(boundary.place("fix"), boundary.work_tree(), raw, boundary.parsed, boundary.pointed)
 
 
@@ -43,6 +41,6 @@ if __name__ == "__main__":
     try:
         result = main()
     except Exception as e:   # 回す側の誤り（入力が読めない・置き場が無い・git が効かない）
-        print(f"prep: {type(e).__name__}: {' '.join(str(e).split())}", file=sys.stderr)
+        print(f"prep: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
     boundary.returns(result)

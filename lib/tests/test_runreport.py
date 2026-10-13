@@ -473,7 +473,8 @@ class DraftsCase(Base):
     def test_world_deviation_drafted_once(self):
         """元 test_gate_drafts.DraftsCase.test_world_deviation_drafted_once: 決め手の揃った narrows の行が在っても、無人の run で修正前の
         関所が通さなかった同じ世界の解の外れの下書きは 1 行だけ（定石の行は判定の world、外れは計画の欄 structure から）"""
-        world = self.put("judge/world.jsonl", json.dumps(WORLD_ROW, ensure_ascii=False))
+        world = self.put("judge/world.jsonl", "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in (
+            WORLD_ROW, {**WORLD_ROW, "finding": 2, "class_id": "w-empty"})))
         plan = self.put("plan/plan-fields.json", {"round": 1, "fields": [{"structure": [
             {"world": "w-mean", "deviation": "呼び手の都合で 0 を返す形に寄せたい、と考えた"}]}]})
         self.put("plan/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "narrows": [{**NARROW, **DECIDED}]}]})
@@ -1123,12 +1124,15 @@ class LinesCase(Base):
         self.assertIn("- 置いた差分（merge-apply.diff）: merge/apply.diff", body)
 
     def test_world_rows_keep_mark_and_versus(self):
-        world = self.put("judge/world.jsonl", json.dumps({**WORLD_ROW, "basis": "knowledge"}, ensure_ascii=False))
+        row = {**WORLD_ROW, "basis": "knowledge"}
+        world = self.put("judge/world.jsonl", "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in (
+            row, {**row, "finding": 2, "class_id": "w-empty"})))
         _, text, _ = self.build(fixed_run(judge={**fixed_run()["judge"], "world": world}))
         body = self.section(text, report.WORLD_HEADING)
         self.assertIn(f"（{worldmark.NOT_WEB}）", body)
         self.assertIn("依頼の解き方「空の並びは 0 を返す」は定石と違う", body)
-        self.assertIn("- 類 1", body)
+        self.assertIn("類 w-empty（依頼の行 2）", body)
+        self.assertIn("- 類 2", body)
 
     def test_world_null_says_the_stage_gave_nothing(self):
         """元 worldmark.report_lines の「世界の解の段が落ちた（行なしで進んだ）」: 判定が返ったのに world が null"""

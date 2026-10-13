@@ -124,6 +124,17 @@ class BlockReturnsTest(unittest.TestCase):
         files["workflows/judge/commands/c.md"] = "波及は $INPUTS.ripple-list\n"
         self.assertEqual(self.files(files), [])
 
+    def test_input_named_by_a_lib_constant_has_a_reader(self):
+        """INPUTS_{…} を組んで読む script が名の並びを lib の部品の定数から引けば、並びに在る名は読み手を持つ"""
+        block = RETURNING.replace("nodes:\n", "inputs:\n  plan: {default: ''}\n  ripple: {default: ''}\nnodes:\n", 1)
+        files = {BLOCK: block, LINE: "name: works-factory-line\nnodes:\n  - id: judge\n    include: works-factory-judge\n"
+                                     "  - id: r\n    script: r\n    with: {a: $judge.output.ready, b: $judge.output.units}\n",
+                 "lib/board.py": 'NAMES = ("plan",)\nREAD = "ripple"\n',
+                 "workflows/judge/scripts/s.py": 'raw = {n: os.environ[f"INPUTS_{n.upper()}"] for n in board.NAMES}\n'
+                                                 "x = board.READ\n"}
+        got = self.files(files)
+        self.assertEqual([line.split("入力 ")[1].split(" ")[0] for line in got], ["ripple"], got)
+
     def test_input_passed_by_with_only_is_red(self):
         """YAML の with: で script へ渡すだけの $INPUTS.<名> は読み手に数えない（merge の diff を merge.py が読まないと赤）。
         YAML の役の節の prompt: の $INPUTS.<名> は数える"""

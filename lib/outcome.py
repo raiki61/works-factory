@@ -389,7 +389,8 @@ def _line_stop(returns: dict, facts: dict | None) -> str:
 
 def plan_gave_up(returns: dict) -> bool:
     """計画が直す単位を受けたのに修正案を出せなかった（受け付けが 3 回とも拒んだか、行き止まりの単位が在る）。直す義務 0 件で役を
-    起こさなかった周（開いた単位が全部人の答え待ちの問いの出どころ）は諦めでなく、今の works と同じく残りの決めに落ちる（round_limit）"""
+    起こさなかった周（開いた単位が全部人の答え待ちの問いの出どころ）は諦めでなく、今の works と同じく最後のテストと独立の目まで回って
+    （線の design-only。#291）残りの決めに落ちる（round_limit）"""
     plan = planned(returns)
     return bool(plan) and plan.get("ready") is False and bool(_units(returns)) and not plan_nothing_owed(returns)
 
@@ -422,6 +423,9 @@ def _chain_cuts(returns: dict) -> list:
     out = []
     for before, flag, after, text in CHAIN:
         if after == "merge-seal" and returns.get("fix") is None:   # 直す物が無い周（L-W07）は差分が無いので封じない
+            continue
+        # 線が最後のテストを意図して飛ばした周（fixed の go が偽）は切れ目でなく、元 works と同じく人待ちか残りで決める
+        if before == "fix" and as_dict(latest(returns, "fix")).get("go") is False:
             continue
         got = latest(returns, before)
         if got and (flag is None or got.get(flag) is True) and latest(returns, after) is None:
@@ -471,7 +475,7 @@ def decide_outcome(returns: dict, gates: dict, facts: dict) -> tuple[str, str]:
     4. 関所が通らない（accepted か round_closed が偽）→ record_invalid（元は検証器の関所。ここは始めの記録が読めない・
        record_problems が在る）
     5. 元に無い: 途中で終わった → interrupted（記録の落ちて線が進まなかった節か、返りの続きの切れ目 CHAIN。線が受け止めた落ちは
-       ここでなく 7 の残り）
+       ここでなく 7 の残り。fix の go が false（欄が無いのは除く）の周は線が意図して最後のテストを飛ばしたので切れ目に数えず、3 か 7 に落ちる）
     6. 直す物が無い周 → no_fix_needed（周を締めた最後のテストと独立の目の残りが無い時。残りが在れば 7）
     7. 残り（residue。依頼の答えが命令と出力つきで答えた素材を除き、受け止めた落ちを含む）が測れていない素材の行だけで最後の
        テストが緑 → fixed_needs_check、ほかの残り → round_limit

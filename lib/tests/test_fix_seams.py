@@ -1239,6 +1239,64 @@ class LaneChecksSeamCase(TempCase):
         self.assertTrue(any("NOTES.md" in t for t in lines), lines)
         self.assertFalse(any("test_stats.py" in t for t in lines), "since の前に変えたファイルは照らさない")
 
+    def test_plan_scope_asks_about_every_change_after_since(self):
+        """since の後に版の中身へ戻した・since の前に作ったファイルを消した・読めない（UTF-8 でない）ファイルを書いた変更も、
+        版からの差分に残らなくても out_of_scope で照らす"""
+        fc, since, item, reply = self.since_case()
+        args = (reply, [R_MEAN], self.place, self.rev, self.repo, "", "first")
+        git(self.repo, "checkout", self.rev, "--", "test_stats.py")
+        (self.repo / "NOTES.md").unlink()
+        (self.repo / "NOTES.bin").write_bytes(b"\xff\xfe\x00bad")
+        item["out_of_scope"].append({"glob": "NOTES.bin", "why": "記録は項目 2 では触らない"})
+        lines, _ = fc.check_plan_scope(*args, since=since, items=[item])
+        for path in ("test_stats.py", "NOTES.md", "NOTES.bin"):
+            self.assertTrue(any(f"{path} は項目 2 の out_of_scope" in t for t in lines), (path, lines))
+
+    def test_plan_scope_skips_a_file_deleted_before_since(self):
+        """版に在り since の前に消えたファイルは、since の後に触っていなければ後の項目の out_of_scope で照らさない（run 97fd532f）"""
+        (self.repo / "LEGACY.md").write_text("古い記録\n", encoding="utf-8")
+        git(self.repo, "add", "LEGACY.md")
+        git(self.repo, "commit", "-q", "-m", "legacy")
+        self.rev = git(self.repo, "rev-parse", "HEAD")
+        (self.repo / "LEGACY.md").unlink()
+        fc, since, item, reply = self.since_case()
+        item["out_of_scope"].append({"glob": "LEGACY.md", "why": "記録は項目 2 では触らない"})
+        lines, _ = fc.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since, items=[item])
+        self.assertEqual(lines, [])
+
+    def test_plan_scope_skips_untouched_binary_and_crlf_files_written_before_since(self):
+        """since の前に書いた UTF-8 でない・CRLF のファイルも、since の後に触っていなければ後の項目の out_of_scope で照らさない
+        （触ったかは git の比べで決める。読み方の違う 2 つの文字列を比べない）"""
+        (self.repo / "IMG.bin").write_bytes(b"\xff\xfe\x00img")
+        (self.repo / "WIN.md").write_bytes(b"line one\r\nline two\r\n")
+        fc, since, item, reply = self.since_case()
+        item["out_of_scope"] += [{"glob": "IMG.bin", "why": "項目 2 では触らない"}, {"glob": "WIN.md", "why": "項目 2 では触らない"}]
+        lines, _ = fc.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since, items=[item])
+        self.assertEqual(lines, [])
+
+    def test_plan_scope_counts_what_the_loop_fixed_before_since(self):
+        """TDD の輪が直し終えた単位（stats.py の直しと adds・tests の test_mean_of_two）の後の木を since（段の頭）に取り、修正役が
+        何も変えずにその単位の行だけを返せば、欠けにしない（修正役の指示書は輪の単位を直し直させない。較正 clamp-above）"""
+        import factchecks
+        from lib.tests.test_blk_fix_tdd import NEW_TEST
+        tests = self.repo / "test_stats.py"
+        tests.write_text(tests.read_text(encoding="utf-8").replace("\n\nif __name__", NEW_TEST + "\n\nif __name__"),
+                         encoding="utf-8")
+        stats = self.repo / "stats.py"
+        text = stats.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        stats.write_text(text, encoding="utf-8")
+        since = leftovers.snapshot(self.repo)
+        tid = "test_stats.py::TestStats::test_mean_of_two"
+        item = {"item": 1, "unit_keys": [R_MEAN], "removes": [], "route": "tdd", "tests": [{"id": tid}], "rewrite_tests": [],
+                "adds": [{"kind": "test", "name": tid, "canonical": "test_stats.py に新設"}],
+                "allowed_paths": ["stats.py", "test_stats.py"], "out_of_scope": []}
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py", "test_stats.py"]}]}
+        args = (reply, [R_MEAN], self.place, self.rev, self.repo, "", "first")
+        lines, _ = factchecks.check_plan_scope(*args, since=since, items=[item])
+        self.assertEqual(lines, [])
+
     def test_writes_look_only_after_since(self):
         fc, since, _, reply = self.since_case()
         log = self.place / writelog.LOG
@@ -1496,6 +1554,18 @@ class GroupScriptsSeamCase(TempCase):
                                   {"kind": "fork", "status": "decided", "origin": "A"}]}
         self.assertEqual(fixboard.owed_keys(judgment), ["A", "B"])
         self.assertEqual(fixboard.owed_keys(None), [])
+
+    def test_child_allowed_rows_share_the_row_check_with_collect(self):
+        """#304: 組の子の結果の許しの訳は join の和と collect（allowed_test_rows）が同じ口で読む。path・permit の無い行と
+        ALLOWED_SOURCES に無い source の行はどちらにも入らない"""
+        good = {"path": "tests/t.py", "permit": "plan-1", "source": "plan"}
+        result = {"allowed_tests": [good, {"permit": "plan-2", "source": "plan"}, {"path": "tests/u.py", "source": "plan"},
+                                    {"path": "tests/v.py", "permit": "x-1", "source": "guess"}, {"path": "", "permit": "p", "source": "plan"},
+                                    {"path": 7, "permit": "p", "source": "plan"}, {"path": "tests/w.py", "permit": 3, "source": "plan"},
+                                    "壊れた行", good]}
+        self.assertEqual(fixboard.child_allowed_rows(result), [good, good])
+        self.assertEqual(fixboard.allowed_test_rows(self.place, [result]), [good])
+        self.assertEqual((fixboard.child_allowed_rows(None), fixboard.child_allowed_rows({"allowed_tests": None})), ([], []))
 
     def test_fix_groups_join_units_through_items(self):
         items = [{"item": 1, "unit_keys": ["A", "C"]}, {"item": 2, "unit_keys": ["C", "D"]}, {"item": 3, "unit_keys": ["B"]}]
@@ -1807,8 +1877,8 @@ class GroupChildSeamCase(TempCase):
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                     "objection", "changed", "x_scalars", "allowed_tests", "verified",
                                     "reply_file", "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace", "closure",
-                                    "claimed"})
-        self.assertEqual(got["worktree"], "", "渡さなければ空")
+                                    "claimed", "place"})
+        self.assertEqual((got["worktree"], got["place"]), ("", ""), "渡さなければ空")
         self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"]), ([], [], [], []))
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
