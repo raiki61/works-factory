@@ -38,7 +38,7 @@ import rolekit  # noqa: E402
 import ruling  # noqa: E402
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
-                   "changed", "x_scalars", "delta_review", "handoffs", "mismatched"}
+                   "changed", "x_scalars", "delta_review", "handoffs", "mismatched", "stop_reason"}
 CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "plan", "ripple", "depth", "answers", "prior_conflicts",
                    "plan_review", "notes"}
 EXTRA_INPUTS = {"only_items", "mode", "group", "from_tree", "out_dir"}
@@ -1553,6 +1553,38 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertIn("E8 = 8\n", e, "後の組の直しは戻す")
         self.assertEqual((self.repo / "b.py").read_text(encoding="utf-8"), "def triple(x):\n    return x * 3 + 1\n")
 
+    def test_join_keeps_a_group_it_could_not_restore_and_stops_applying(self):
+        """#403: 確かめ直しが赤の組 g1 の差分を戻せない（走らせ直しの試験が pkg/ を書けなくする）と、g1 を当てていないと言わず、
+        当たったままのパスを unrestored に名指して止めの文を置き、作業ツリーが信用できないので後の組 g2 は当てない"""
+        (self.repo / "pkg").mkdir()
+        self.addCleanup(os.chmod, self.repo / "pkg", 0o755)
+        start = self.rerun_seed({
+            "pkg/__init__.py": "",
+            "pkg/m.py": "V = 1\n",
+            "c.py": "C = 1\n",
+            "test_m.py": "import os\nimport unittest\n\nfrom pkg.m import V\n\n\nclass TestM(unittest.TestCase):\n"
+                         "    def test_v(self):\n        if V == 2:\n            os.chmod('pkg', 0o555)\n        self.assertEqual(V, 3)\n"})
+        t1 = self.tree_with({"pkg/m.py": "V = 2\n"})
+        t2 = self.tree_with({"c.py": "C = 2\n"})
+        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
+                                    {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start, verified=["test_m.py::TestM::test_v"]))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], t2, start))
+        code, out, err = _blk_run("join", self.repo, self.art)
+        os.chmod(self.repo / "pkg", 0o755)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out, {"groups": 2, "returned": 0})
+        g1, g2 = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["groups"]
+        self.assertEqual(g1["unrestored"], ["pkg/m.py"], g1)
+        self.assertNotIn("backed_out", g1)
+        self.assertIn(fixboard.UNRESTORED_HEAD, g1["reason"])
+        self.assertNotIn("当てられない", g1["reason"])
+        self.assertEqual((self.repo / "pkg" / "m.py").read_text(encoding="utf-8"), "V = 2\n", "差分は当たったまま")
+        self.assertFalse(g2["returned"])
+        self.assertEqual(g2["reason"], fixboard.AFTER_UNRESTORED.format(group="g1"))
+        self.assertEqual((self.repo / "c.py").read_text(encoding="utf-8"), "C = 1\n", "後の組は当てない")
+        self.assertEqual(fixboard.held(self.place), fixboard.HELD.format(groups="g1"))
+
     # ---- conflict_check.py
     def test_conflict_check_gathers_child_claims_and_goes(self):
         """F208: 組を戻した後、戻せた組の子の申し出（結果の conflicts）を親の置き場の conflicts.json に集める。名指した行が親の作業
@@ -1696,6 +1728,34 @@ class BlockScriptsCase(unittest.TestCase):
         code, out, err = _blk_run("collect", self.repo, self.art)
         self.assertEqual(code, 0, err)
         self.assertEqual((out["delta_review"], out["done"]), ({"rounds": 0, "pass": False}, False))
+
+    def test_unrestored_group_holds_the_tree_and_stops_for_a_human(self):
+        """#403: 戻せず当たったままの組が在る run は、裁定・後始末・差分の審査が木を動かさず、返す節は done: false と人待ちの止めの語
+        stopby.UNRESTORED で返す（組の行は当たったままのパスを持つ）"""
+        import leftovers
+        import stopby
+        self.collect_place(skipped=False)
+        leftovers.record_ignored(self.place, self.repo)
+        (self.repo / "junk.pyc").write_bytes(b"x")
+        row = {"group_id": "g1", "unit_ids": ["A"], "returned": False, "reason": fixboard.UNRESTORED_HEAD, "unrestored": ["stats.py"]}
+        _blk_write(self.place / "join.json", {"par": True, "groups": [row],
+                                              "units": [{"unit_id": "A", "group_id": "g1", "status": "not_done", "reason": "x"}]})
+        code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
+        self.assertEqual((code, out), (0, {"go": False, "count": 0}), err)
+        code, out, err = _blk_run("clean", self.repo, self.art)
+        self.assertEqual((code, out), (0, {"ok": True, "count": 0}), err)
+        self.assertTrue((self.repo / "junk.pyc").is_file(), "人が確かめるまで木を動かさない")
+        code, out, err = _blk_run("delta_cut", self.repo, self.art, node_path="fix__delta-cut")
+        self.assertEqual((code, out["go"]), (0, False), err)
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual(code, 0, err)
+        self.assert_contract(out)
+        self.assertEqual((out["done"], out["stop_reason"], out["groups"]), (False, stopby.UNRESTORED, [row]))
+        self.assertIn(stopby.UNRESTORED, stopby.WAITING, "人待ちの語（結末は needs_human）")
+        with self.subTest("当たったままの組の無い run の止めの語は空"):
+            self.collect_place()
+            code, out, err = _blk_run("collect", self.repo, self.art)
+            self.assertEqual((code, out["done"], out["stop_reason"]), (0, True, ""), err)
 
     def test_collect_returns_the_contract_when_the_boundary_cannot_be_read(self):
         """境の口（.shared）も lib も読めない写しから起こしても、返す節は落ちずに約束の形の done: false を返す（stdlib だけの最後の手）"""

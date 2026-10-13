@@ -458,6 +458,23 @@ class DecisionsCase(Base):
                                     "  - 赤: 意味の食い違い: test_triple が赤",
                                     "  - 作り直しの結果: 作り直していない。ほかの組は 1 組を当てたまま、外した単位 B は次の run の依頼に回した"])
 
+    def test_unrestored_group_is_named_as_still_applied(self):
+        """#403: 戻せず親の作業ツリーに当たったままの組は、当てなかった組と分けて冒頭 1 行目で名指し、人が決めることの節の頭に
+        当たったままのパスと訳を置く。#406: 確かめ直しが落ちて戻した組は、赤で戻した組と同じく名指す"""
+        groups = [{"group_id": "g1", "unit_ids": ["A"], "returned": False, "reason": "当てた後の確かめ直しが落ちた（RuntimeError: x）",
+                   "backed_out": ["a.py"]},
+                  {"group_id": "g2", "unit_ids": ["B"], "returned": False, "reason": fixboard.UNRESTORED_HEAD + "（OSError: y）",
+                   "unrestored": ["b.py"]}]
+        fix = {**fixed_run()["fix"], "groups": groups, "units": []}
+        _, text, _ = self.build(fixed_run(fix=fix))
+        head = text.splitlines()[2]
+        self.assertIn(f"{runreport.BACKED_OUT_HEAD}: 組 g1", head)
+        self.assertIn(f"{runreport.UNRESTORED_GROUP_HEAD}: 組 g2", head)
+        body = self.section(text, report.DECISIONS_HEADING).splitlines()
+        self.assertEqual(body[:2], [f"- {runreport.UNRESTORED_GROUP_HEAD}: 組 g2（単位 B）。当たったままのパス b.py",
+                                    f"  - 訳: {fixboard.UNRESTORED_HEAD}（OSError: y）"])
+        self.assertIn(f"- {runreport.BACKED_OUT_HEAD}: 組 g1（単位 A）。戻したパス a.py", body)
+
     def test_residue_count_is_always_shown(self):
         """R20（元 report.always_rows の「残り: N 件」:1588-1591）: 残りの件数の行を結末に依らず人が決めることの節に出す（0 件も）。
         残りが在れば、結果が無い目の注記を添える"""

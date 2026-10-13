@@ -8,7 +8,9 @@
 行を写して持つ）、replan_items はこの段の裁定 fix_plan_item の項目（conflict.this_pass）、objection・changed（6 つの印と前提のずれの
 申告の文 premise_drift_note）・x_scalars（修正役が足した規模の数値。組ごとの値を名ごとに足す）・allowed_test_changes は戻せた組の
 子の結果（result.json）と裁定の後の修正役の返答（fix-ruled-reply.json）と裁定の許し、delta_review は delta/review-<n>.json（{pass}）の数と最後の pass（delta/skipped.json が
-在れば {rounds: 0, pass: true}）。done は assert-changed.json の ok かつ（審査を省いた か 審査が通った）。
+在れば {rounds: 0, pass: true}）。done は assert-changed.json の ok かつ（審査を省いた か 審査が通った）かつ戻せず当たったままの組
+（join.json の欄 unrestored）が無い。そういう組が在れば stop_reason は stopby.UNRESTORED（人待ちの語。作業ツリーが信用できないので
+線は先へ進めない）、ほかは ""（形 group も）。
 2 回目の修正の段（conflict.second_pass）は、段を抜ける前に案の直しを待つ行（この段で新しく fix_plan_item と裁いた行）を諦めた行にする
 （replan.close と CLOSE_WHY。案の段に戻るのは 1 run に 1 回。元 works/darkfactory/lib/line_edge.py:1159 の replan.settle）。
 形 group（組の子）: 自分の組の結果（out_dir/<group_id>/result.json。out_dir が空なら自分の置き場の groups/ の下）の行だけを同じ形で返す。
@@ -55,9 +57,9 @@ def diff_pointer(fixboard, place: Path) -> dict:
     return boundary.pointer(rel(place, path.name))
 
 
-def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review, done, final, results) -> dict:
+def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review, done, final, results, stop="") -> dict:
     """返りの欄（組と単位の行は rows_groups = (組の行, 単位の行)。groups は組の分け、extras は子の結果と修正役の返答、final は
-    最後の関所を開ける理由の行 (handoffs, mismatched)、results は受け付けの行を親の置き場に集める組の子の結果）"""
+    最後の関所を開ける理由の行 (handoffs, mismatched)、results は受け付けの行を親の置き場に集める組の子の結果、stop は止めの語）"""
     rows = conflict.items(place)
     groups_rows, units_rows = rows_groups
     fixboard.write_json(place / fixboard.ALLOWED_TESTS_FILE, fixboard.allowed_test_rows(place, extras))
@@ -68,10 +70,11 @@ def fields(fixboard, conflict, place: Path, rows_groups, groups, extras, review,
             "objection": fixboard.objection(extras), "diff": diff_pointer(fixboard, place),
             "allowed_test_changes": fixboard.allowed_tests(place, extras),
             "changed": fixboard.changed_marks(extras), "x_scalars": fixboard.x_scalars(extras), "delta_review": review,
-            "handoffs": final[0], "mismatched": final[1]}
+            "handoffs": final[0], "mismatched": final[1], "stop_reason": stop}
 
 
 def block(fixboard, conflict) -> dict:
+    import stopby
     place = boundary.place("fix")
     if conflict.second_pass(place):
         import replan
@@ -93,14 +96,16 @@ def block(fixboard, conflict) -> dict:
     extras = results + ([ruled] if ruled is not None else [])
     review, _ = fixboard.delta_review(place)
     checked = fixboard.read_json(place / fixboard.ASSERT_FILE) or {}
-    done = isinstance(joined, dict) and checked.get("ok") is True and review["pass"]
+    stuck = [g for g in rows_groups[0] if g.get("unrestored")]
+    done = isinstance(joined, dict) and checked.get("ok") is True and review["pass"] and not stuck
     reply = place / fixboard.FIX_REPLY_FILE
     fixbeside.write(place, results, ruled,
                     items=functools.partial(fixboard.place_items, place), plan_review=fixboard.plan_review_file(place),
                     fix_reply=reply if reply.is_file() else None)
     final = (fixboard.final_lines(results, "handoffs", fixboard.handoff_lines([ruled])),
              fixboard.final_lines(results, "mismatched", fixboard.mismatched_lines(place)))
-    return fields(fixboard, conflict, place, rows_groups, plan["groups"], extras, review, done, final, results)
+    return fields(fixboard, conflict, place, rows_groups, plan["groups"], extras, review, done, final, results,
+                  stopby.UNRESTORED if stuck else "")
 
 
 def group(fixboard, conflict) -> dict:
@@ -167,9 +172,11 @@ def lenses_file() -> None:
 
 def fallback(why: str) -> dict:
     """誤りの時の約束の形の返り（done: false と理由。ほかは空の値）"""
-    groups_rows, units_rows = [], []
+    groups_rows, units_rows, stop = [], [], ""
     try:
         import fixboard
+        import stopby
+        stop = stopby.UNRESTORED if fixboard.held(boundary.place("fix")) else ""
         plan = fixboard.read_json(boundary.place("fix") / fixboard.GROUPS_FILE)
         gs = plan["groups"] if isinstance(plan, dict) and isinstance(plan.get("groups"), list) else []
         if not gs and (g := boundary.parsed(os.environ.get("INPUTS_GROUP"))) is not None:
@@ -186,7 +193,7 @@ def fallback(why: str) -> dict:
     return {"done": False, "units": units_rows, "groups": groups_rows, "conflicts": None, "replan_items": [],
             "objection": "", "diff": error_pointer(why), "allowed_test_changes": [],
             "changed": {**{k: False for k in CHANGED_MARKS}, DRIFT_NOTE: ""}, "x_scalars": {}, "delta_review": dict(NO_REVIEW),
-            "handoffs": [], "mismatched": []}
+            "handoffs": [], "mismatched": [], "stop_reason": stop}
 
 
 def main() -> dict:

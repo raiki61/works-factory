@@ -9,7 +9,8 @@
 裁かない）。名指してよいのは親の作業ツリーと、親と、その組の子の置き場（結果の place。元 works で組の役が共有した盤面にあたる）
 それぞれの受け付けの根（conflict.cite_roots）の下（ほかの組の置き場は許さない）。名指しが現物に無い申し出は積まず、
 組の id と理由を置き場の conflicts-dropped.json に残す。
-返り {go: 裁かれていない申し出が在るか, count: その数}。置き場の groups.json・join.json が無い・読めない: 標準エラーに 1 行で 1。
+戻せず親の作業ツリーに当たったままの組が在る run（fixboard.held）は、人が確かめるまで木を動かさないので申し出を積まず裁かない
+（go: false）。返り {go: 裁かれていない申し出が在るか, count: その数}。置き場の groups.json・join.json が無い・読めない: 標準エラーに 1 行で 1。
 """
 import sys
 from pathlib import Path
@@ -30,6 +31,8 @@ def main() -> dict:
     joined = fixboard.read_json(place / fixboard.JOIN_FILE)
     if not isinstance(plan, dict) or not isinstance(joined, dict):
         raise ValueError(f"置き場に groups.json か join.json が無い（{place}）")
+    if fixboard.held(place):
+        return {"go": False, "count": 0}
     out_dir = Path(plan["out_dir"])
     back = [g["group_id"] for g in joined.get("groups") or [] if g.get("returned")]
     repo = boundary.work_tree()

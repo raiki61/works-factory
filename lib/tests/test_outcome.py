@@ -160,6 +160,10 @@ class LineStopCase(unittest.TestCase):
                                 facts=broken), ("stopped_by_line", f"redepth:{stopby.LINE_SCRIPT}"))
         waiting = {**OK_FACTS, "stops": [("ask-final", stopby.NEEDS_HUMAN)]}
         self.assertEqual(decide(fixed_run(**{"merge-apply": None}), facts=waiting), ("needs_human", f"ask-final:{stopby.NEEDS_HUMAN}"))
+        stuck = {**OK_FACTS, "stops": [("fixed", stopby.UNRESTORED)]}   # #403: 戻せず当たったままの組の止めは人待ち
+        held = {**fixed_run()["fix"], "done": False, "go": False, "stop_reason": stopby.UNRESTORED}
+        self.assertEqual(decide(fixed_run(fix=held, **{"test-gate-final": None, "eyes": None, "merge-apply": None}), facts=stuck),
+                         ("needs_human", f"fix:{stopby.UNRESTORED}"))
         human = {**OK_FACTS, "stops": [("answer-final", "human:gate-final")]}
         self.assertEqual(decide(fixed_run(**{"merge-apply": None}), facts=human), ("stopped_by_human", "answer-final:human:gate-final"))
 

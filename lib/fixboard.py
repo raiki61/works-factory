@@ -676,10 +676,17 @@ def rerun_cmd(place, result, test_cmd: str) -> str:
     return test_cmd.strip() if set((result or {}).get("unit_ids") or []) - light else ""
 
 
+CHECK_RAISED = "当てた後の確かめ直しが落ちた（{error}）"
+UNRESTORED_HEAD = "当てた差分を戻せず、親の作業ツリーに当たったまま"
+UNRESTORED = UNRESTORED_HEAD + "（{error}）。作業ツリーが信用できないので、後の組を当てずに人に回した。戻そうとした訳: {why}"
+AFTER_UNRESTORED = "前の組 {group} の差分を戻せず親の作業ツリーが信用できないので、この組は当てていない"
+
+
 def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=None):
     """組の子の差分（木 from_tree → 木 end_tree。groups.diff_since）を親の作業ツリー repo へ 3 方向で当てる（unittrees.apply。
     union の試験のファイルの挿しだけの食い違いは合わせる）。差分は kept に控える。当てた後に check（当てたパスの並び → 戻す理由か
-    空。確かめ直し）が理由を返せば、当てたパスを当てる前の姿に戻す。返りは lanekit.Merge（why・patch・names・unioned・clash・backed_out）。
+    空。確かめ直し）が理由を返すか落ちれば（CHECK_RAISED）、当てたパスを当てる前の姿に戻して backed_out に名指す。戻せなければ
+    当てていないと言わず、当たったままのパスを unrestored に名指して理由を UNRESTORED にする。返りは lanekit.Merge。
     元 works/blk-fix/lib/lanekit.py の merge（単位の worktree の差分を当てた所）を、子の run の終わりの木との差分で受ける形にした物"""
     import groups
     import lanekit
@@ -697,28 +704,33 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     names = unittrees.patch_names(patch)
     try:
         why = (check(names) if check else "") if names else ""
+    except Exception as e:  # noqa: BLE001  落ちた確かめ直しも赤と同じく戻す（#406）
+        why = CHECK_RAISED.format(error=f"{type(e).__name__}: {oneline.one_line(e)[:300]}")
     except BaseException:
         tddloop.restore_paths(repo, before, names)
         raise
-    if why:
+    if not why:
+        return lanekit.Merge("", str(kept), names, got, False)
+    try:
         tddloop.restore_paths(repo, before, names)
-        return lanekit.Merge(why, str(kept), [], [], False, names)
-    return lanekit.Merge("", str(kept), names, got, False)
+    except Exception as e:  # noqa: BLE001  戻せない組を当てていないと言わない（#403）
+        return lanekit.Merge(UNRESTORED.format(error=f"{type(e).__name__}: {oneline.one_line(e)[:300]}", why=why), str(kept), [], got,
+                             False, unrestored=names)
+    return lanekit.Merge(why, str(kept), [], [], False, names)
 
 
-def join_rows(groups, outcomes, backed_out=None) -> tuple:
-    """(組の行 [{group_id, unit_ids, returned, reason, backed_out?}], 単位の行 [{unit_id, group_id, status, reason}])（返す節の約束の形）。
-    outcomes は {group_id: (子の結果の dict か None, 戻せたか, 理由)}。戻せた組の単位は子の結果の status・reason（結果に無い単位・
-    知らない status は not_done）、戻せなかった組・結果の無い組の単位は not_done と組の理由。backed_out は {group_id: 当ててから
-    確かめ直しが赤で戻したパス}（lanekit.Merge の backed_out）で、在る組の行にだけ欄 backed_out を置く（報告が当てなかった組と分ける）。
-    新しい（元の締めの結末の並べ。p3.lane_merge）"""
+def join_rows(groups, outcomes, backed_out=None, unrestored=None) -> tuple:
+    """(組の行 [{group_id, unit_ids, returned, reason, backed_out?, unrestored?}], 単位の行 [{unit_id, group_id, status, reason}])
+    （返す節の約束の形）。outcomes は {group_id: (子の結果の dict か None, 戻せたか, 理由)}。戻せた組の単位は子の結果の status・reason
+    （結果に無い単位・知らない status は not_done）、戻せなかった組・結果の無い組の単位は not_done と組の理由。backed_out は
+    {group_id: 当ててから確かめ直しが赤か落ちて戻したパス}、unrestored は {group_id: 戻せず当たったままのパス}（lanekit.Merge の
+    同じ名の欄）で、在る組の行にだけ同じ名の欄を置く（報告と後の節が当てなかった組と分ける）。新しい（元の締めの結末の並べ。p3.lane_merge）"""
     rows, units = [], []
     for g in groups:
         gid = g["group_id"]
         result, back, why = outcomes.get(gid, (None, False, NO_RESULT))
-        paths = list((backed_out or {}).get(gid) or [])
-        rows.append({"group_id": gid, "unit_ids": list(g["unit_ids"]), "returned": bool(back), "reason": str(why or ""),
-                     **({"backed_out": paths} if paths else {})})
+        marks = {k: list(v) for k, given in (("backed_out", backed_out), ("unrestored", unrestored)) if (v := (given or {}).get(gid))}
+        rows.append({"group_id": gid, "unit_ids": list(g["unit_ids"]), "returned": bool(back), "reason": str(why or ""), **marks})
         got = {u.get("unit_id"): u for u in (result or {}).get("units") or [] if isinstance(u, dict)} if back else {}
         for k in g["unit_ids"]:
             u = got.get(k) or {}
@@ -726,6 +738,18 @@ def join_rows(groups, outcomes, backed_out=None) -> tuple:
             reason = str(u.get("reason") or "") if u else str(why or "組の結果にこの単位の行が無い")
             units.append({"unit_id": k, "group_id": gid, "status": status, "reason": reason})
     return rows, units
+
+
+HELD = "戻せず親の作業ツリーに当たったままの組 {groups} が在る（作業ツリーが信用できないので、人が確かめるまで動かさない）"
+
+
+def held(place) -> str:
+    """置き場の join.json に、戻せず親の作業ツリーに当たったままの組（欄 unrestored が在る行）が在れば HELD の訳、無ければ ""。
+    join.json が無い（組の子の形・join が書く前に落ちた）なら ""。訳が在れば、後の節（裁定・後始末・差分の審査）は作業ツリーを
+    動かさず、返す節は人に回す"""
+    joined = read_json(pathlib.Path(place) / JOIN_FILE, {}) or {}
+    stuck = [str(g.get("group_id")) for g in joined.get("groups") or [] if isinstance(g, dict) and g.get("unrestored")]
+    return HELD.format(groups="・".join(stuck)) if stuck else ""
 
 
 def with_ruled(units, ruled) -> list:

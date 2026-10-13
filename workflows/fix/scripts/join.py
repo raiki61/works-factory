@@ -13,10 +13,13 @@ works/blk-fix/lib/tddlanes.py:688 _green_after。その前に Archon の変数�
 全部戻して順に回した。持ち主の答え待ち）。戻せた組の子の
 書き込みの記録は、親の作業ツリーの記録へ写す（writes.carry_children。親の手直しの受け付けが、子の書いた変更を記録の無い変更と見ない）。結果のファイルが
 無い（子が落ちた）組は当てず、当たらない・確かめ直しが赤・確かめ直しが落ちた組は当てたパスを戻して、returned: false と理由。
+当てたパスを戻せなかった組は当てていないと言わず、当たったままのパスを欄 unrestored に名指し（fixboard.UNRESTORED）、作業ツリーが
+信用できないので後の組は当てない（fixboard.AFTER_UNRESTORED。返す節が止めの語 stopby.UNRESTORED で人に回す）。
 並べない run は子が親の木で直したので当てない。結果のファイルが在れば returned: true、無い組は、その子が親の木に残した変更を
 子の始めの木に戻して（fixboard.drop_unreturned。次の組の group-start が先に戻した組はその控え）returned: false と理由。
-置き場に join.json = {par, groups: [{group_id, unit_ids, returned, reason, backed_out?}], units: [{unit_id, group_id, status, reason}]}
-（backed_out は当ててから確かめ直しが赤で戻した組だけが持つ、戻したパスの並び）を書き、
+置き場に join.json = {par, groups: [{group_id, unit_ids, returned, reason, backed_out?, unrestored?}], units: [{unit_id, group_id, status, reason}]}
+（backed_out は当ててから確かめ直しが赤か落ちて戻した組だけが持つ、戻したパスの並び。unrestored は戻せなかった組だけが持つ、
+当たったままのパスの並び）を書き、
 組の差分は join/<group_id>.diff に控える。戻せた組の子の TDD の輪の状態（結果の tdd_state）は親の置き場の tdd-<k>/ に、実行器を
 親の作業ツリーで解き直して写す（fixboard.adopt_tdd_states。裁定の後の修正の受け付けが読む）。返り {groups: 組の数, returned: 戻せた組の数}。
 置き場の groups.json が無い・読めない・git が効かない: 標準エラーに 1 行で 1。
@@ -53,7 +56,7 @@ def main() -> dict:
         raise ValueError(f"置き場に groups.json が無いか形が違う（{place}）")
     out_dir = Path(plan["out_dir"])
     results = {g["group_id"]: result_of(out_dir, g["group_id"]) for g in plan["groups"]}
-    outcomes, backed_out = {}, {}
+    outcomes, backed_out, unrestored = {}, {}, {}
     if plan["par"]:
         repo = boundary.work_tree()
         log = writelog.log_here()
@@ -62,8 +65,11 @@ def main() -> dict:
         with_result = [g for g in plan["groups"] if results[g["group_id"]] is not None]
         boundary.drop_runner_env()   # 確かめ直しのテストに Archon の変数を継がせない（置き場のパスは上で取った）
         verified = []   # 戻せた組が赤 → 緑を確かめた名指し（後の組の確かめ直しで一緒に走らせる）
+        stuck = []      # 戻せず当たったままの組（在れば後の組は当てない）
 
         def merge_one(g, earlier):
+            if stuck:
+                return lanekit.Merge(fixboard.AFTER_UNRESTORED.format(group=stuck[0]), "", [], [], False)
             r = results[g["group_id"]]
             tdd_rows = fixboard.child_tdd_units(r)
             union = sorted({f for u in tdd_rows for f in fixboard.unit_test_files(u)} | {t["path"] for t in fixboard.child_allowed_rows(r)})
@@ -83,12 +89,16 @@ def main() -> dict:
                                      "", [], [], False)
             if not got.why:
                 verified.extend(t for t in fixboard.child_verified(r) if t not in verified)
+            if got.unrestored:
+                stuck.append(g["group_id"])
             return got
         applied = []
         for g, got in lanekit.merge_in_order(with_result, merge_one):
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)
             if got.backed_out:
                 backed_out[g["group_id"]] = got.backed_out
+            if got.unrestored:
+                unrestored[g["group_id"]] = got.unrestored
             r = results[g["group_id"]]
             if not got.why and r.get("worktree") and log is not None:
                 applied.append((r["worktree"], writelog.log_here(r["worktree"]), got.names))
@@ -108,7 +118,7 @@ def main() -> dict:
         outcomes.setdefault(g["group_id"], (None, False, fixboard.NO_RESULT))
     fixboard.adopt_tdd_states(place, [outcomes[g["group_id"]][0] for g in plan["groups"] if outcomes[g["group_id"]][1]],
                               boundary.work_tree())
-    rows, units = fixboard.join_rows(plan["groups"], outcomes, backed_out)
+    rows, units = fixboard.join_rows(plan["groups"], outcomes, backed_out, unrestored)
     fixboard.write_json(place / fixboard.JOIN_FILE, {"par": bool(plan["par"]), "groups": rows, "units": units})
     return {"groups": len(rows), "returned": sum(1 for r in rows if r["returned"])}
 

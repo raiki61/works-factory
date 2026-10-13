@@ -1724,6 +1724,16 @@ class FixedCase(unittest.TestCase):
             with self.subTest(stops=stops):
                 self.assertFalse(fixed.fixed(self.fix(), None, replan=False, stops=stops)["done"])
 
+    def test_a_fix_stop_holds_and_is_returned(self):
+        """#403: fix か 2 度目の修正が止めの語（戻せず当たったままの組の stopby.UNRESTORED）を返したら、試験の関門から先へ進めず
+        （held）、その語を stop_reason で報告へ届ける"""
+        for first, second in ((self.fix(stop_reason=stopby.UNRESTORED), None),
+                              (self.fix(), self.fix(stop_reason=stopby.UNRESTORED))):
+            with self.subTest(refix=second is not None):
+                got = fixed.fixed(first, second, replan=second is not None, stops=("",))
+                self.assertEqual((got["done"], got["go"], got["rejudge"], got["stop_reason"]), (False, False, False, stopby.UNRESTORED))
+        self.assertEqual(fixed.fixed(self.fix(stop_reason=""), None, replan=False, stops=("",))["stop_reason"], "")
+
     def test_review_not_passed_still_goes_to_the_final_test(self):
         """今の works の最後のテスト p4.ci は手直しの段（p3.delta_fix・p3.delta_fix2）が済むのを待つだけで、差分の審査が通ったかを
         待たない。審査が回って通らなかった run も最後のテスト・独立の目・最後の関所へ進め（go）、done は偽のまま報告の残りに載る。

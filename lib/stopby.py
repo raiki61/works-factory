@@ -46,6 +46,7 @@ REASONS = {
     "scope-check": "窓の照らし（部品の置き場と宣言）が誤りを見て止めた",
     "start-refused": "入口が入力を受けなかった（AI を起こす前に止めた）",
     "tdd-repeat": "同じ単位がまた TDD の確認の上限まで落ちたので、機械が裁定に回さず人に回した（裁定の by）",
+    "unrestored": "組を当ててから戻そうとして戻せず、差分が親の作業ツリーに当たったまま止めた（作業ツリーを人が確かめるまで、後の組を当てず先へ進めない）",
 }
 _DECLARED = {}
 
@@ -101,4 +102,5 @@ REPLAN = word("replan")
 SCOPE_CHECK = word("scope-check")
 START_REFUSED = word("start-refused")
 TDD_REPEAT = word("tdd-repeat")
-WAITING = frozenset({CONFLICT, NEEDS_HUMAN, REPLAN, TDD_REPEAT})
+UNRESTORED = word("unrestored")
+WAITING = frozenset({CONFLICT, NEEDS_HUMAN, REPLAN, TDD_REPEAT, UNRESTORED})
