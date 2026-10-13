@@ -14,6 +14,9 @@ fixture:
     changed: '{}'
     fix_units: '[]'
     green_ok: 'true'
+    baseline: '{"type": "archon_artifact", "run_id": "dry-run", "path": "test-gate/base/baseline.json"}'
+    final_evidence: '{"type": "archon_artifact", "run_id": "dry-run", "path": "test-gate/final/evidence.md"}'
+    diffs: '[{"type": "archon_artifact", "run_id": "dry-run", "path": "fix/fix/fix.diff"}]'
   reached:
   - structure-after
   - prep
@@ -70,6 +73,8 @@ prep:
   carried: ''
   r4_context: '- 波及の一覧: /tmp/ripple.json'
   green_line: ''
+  measured_text: "### base で赤・最後に緑のテスト\n\n- `tests.test_a::test_entry`: base で赤（failure: AssertionError）→最後のテストで緑"
+  origin_text: '- 起点は修正前の HEAD `0123abc`（HEAD）。PR の差分は無い（累積差分はこの run の直しの差分だけ）'
 r1-comments:
   candidates: []
   kept: []

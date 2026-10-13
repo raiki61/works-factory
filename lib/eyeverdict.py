@@ -8,6 +8,9 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
   人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
 - prompt_texts(...): 目の指示書に差し込む文
+- baseline_cases(path)・final_cases(evidence)・tdd_stages(diffs, resolve)・measured_section(...): R2 の比較役に貼る機械の実測
+  （base で赤・最後に緑のテストと、TDD のループが赤→緑を確かめたテスト。測っていない物はそう書く）
+- origin_section(repo, base, head, label, ...): R2 の比較役に貼る累積差分の起点の訳（PR の根か修正前の HEAD か・PR の差分と直しの差分）
 - after_section(eyes_dir, review_folder)・plan_review_line(review_folder): R1・R3 の頭に貼る直しの後の実測の節（外れの訳が在れば、
   訳の行と事前審査の最後の往復が外れを認めたか）
 - read_design(path)・read_json(path): 独立設計の控え（無ければ {"missing": 訳}）と、置き場の JSON（無い・読めなければ None）
@@ -29,6 +32,7 @@ import changemap
 import design
 import gatemarks
 import jsonfile
+import oneline
 import seal
 import structmark
 
@@ -266,6 +270,128 @@ def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_fil
             f"- 修正の印: {'・'.join(marks) if marks else '（渡っていない）'}"]),
         "green_line": "" if green_ok is True else GREEN_LINE,
     }
+
+
+RED_GREEN_HEAD = "### base で赤・最後に緑のテスト（試験の関門が base と最後に測った 1 件ごとの結末）"
+TDD_PROVED_HEAD = "### TDD のループが赤→緑を確かめたテスト（修正の段ごとの TDD の記録）"
+
+
+def baseline_cases(path) -> list | str:
+    """base の 1 件ごとの結末（baseline_red.read_baseline の cases）か、取れない訳"""
+    import baseline_red
+    if path is None:
+        return "base の実測（baseline）が渡っていない（実行器の無い run か、base のテストが走っていない）"
+    try:
+        doc = baseline_red.read_baseline(path)
+    except ValueError as e:
+        return f"base の実測（baseline）が読めない（{oneline.one_line(e)}）"
+    return doc["cases"] if doc["exit"] is not None and doc["cases"] else "base のテストは 1 件ごとの結末を取っていない"
+
+
+def final_cases(evidence) -> list | str:
+    """最後のテストの 1 件ごとの結末（試験の関門の証拠 evidence の隣の declared_checks.RUN_FILE の cases）か、取れない訳"""
+    import declared_checks
+    if evidence is None:
+        return "最後のテストの証拠（final_evidence）が渡っていない"
+    run = read_json(pathlib.Path(evidence).with_name(declared_checks.RUN_FILE))
+    if not isinstance(run, dict):
+        return f"最後のテストの証拠（final_evidence）の隣の記録 {declared_checks.RUN_FILE} が無いか読めない（最後のテストが走っていない）"
+    return run.get("cases") or "最後のテストは 1 件ごとの結末を取っていない"
+
+
+def tdd_stages(diffs, resolve) -> list:
+    """修正の段ごとの TDD の記録（fixboard.tdd_units の本文）か読めない訳の並び。diffs は段ごとの diff のポインタの並び（無ければ None）、
+    resolve はポインタを置き場の中のパスに戻す関数（戻せなければ ValueError）。記録は段の diff の隣の fixboard.TDD_UNIT_FILE"""
+    import fixboard
+    if diffs is None:
+        return []
+    if not isinstance(diffs, list):
+        return [f"修正の段の diff（diffs）が並びでない（{type(diffs).__name__}）"]
+    out = []
+    for ptr in diffs:
+        try:
+            beside = pathlib.Path(resolve(ptr)).with_name(fixboard.TDD_UNIT_FILE)
+        except ValueError as e:
+            out.append(f"修正の段の diff（diffs）のポインタが読めない（{oneline.one_line(e)}）")
+            continue
+        doc = read_json(beside)
+        out.append(doc if isinstance(doc, list) else f"修正の段の diff（diffs）の隣の {fixboard.TDD_UNIT_FILE} が無いか読めない（{beside.parent}）")
+    return out
+
+
+def measured_section(baseline: list | str, final: list | str, stages: list) -> str:
+    """R2 の比較役に貼る機械の実測の節。baseline・final は base と最後のテストの 1 件ごとの結末か取れない訳（baseline_cases・
+    final_cases）、stages は tdd_stages の並び。測っていない物は推し量らずにそう書く"""
+    return "\n".join([RED_GREEN_HEAD, "", *red_green_lines(baseline, final), "", TDD_PROVED_HEAD, "", *tdd_proved_lines(stages)])
+
+
+def red_green_lines(baseline: list | str, final: list | str) -> list[str]:
+    import baseline_red
+    missing = ([f"- base の実測が無い（{baseline}）。base で赤だったテストは分からない"] if isinstance(baseline, str) else []) + (
+        [f"- 最後のテストの 1 件ごとの結末が無い（{final}）。base で赤だったテストが最後に通ったかは測っていない"] if isinstance(final, str) else [])
+    if missing:
+        return missing
+    now = baseline_red.outcomes(final)
+    rows = []
+    for c in baseline:
+        key = baseline_red._key(c)
+        if c["outcome"] in baseline_red.FAILED and now.get(key) == "passed":
+            why = oneline.one_line(c.get("fail_message") or "")[:200]
+            rows.append(f"- `{key}`: base で赤（{c['outcome']}{': ' + why if why else ''}）→最後のテストで緑")
+    return rows or ["- 無い（base で赤だったテストのうち、最後のテストで通った物は無い）"]
+
+
+def tdd_proved_lines(stages: list) -> list[str]:
+    import tddloop
+    if not stages:
+        return ["- 無い（修正の段が走っていない）"]
+    rows, notes = [], []
+    for stage in stages:
+        if isinstance(stage, str):
+            notes.append(f"- TDD のループの記録を読めない（{stage}）")
+            continue
+        for group in stage:
+            if not group.get("ran"):
+                notes.append(f"- 組 {group.get('group_id')} は TDD のループを回していない（{oneline.one_line(group.get('reason') or '理由なし')}）")
+                continue
+            for u in group.get("units") or []:
+                if u.get("red") != "ok" or u.get("green") != "ok":
+                    continue
+                quotes = u.get(tddloop.QUOTES_FIELD) or {}
+                for test in u.get("tests") or []:
+                    quote = oneline.one_line((quotes.get(test) or {}).get("quote") or "")[:200]
+                    rows.append(f"- `{test}`（単位 {u.get('unit_key')}）: 直す前に赤・直した後に緑を機械が確かめた"
+                                + (f"（赤の時の失敗の文: {quote}）" if quote else ""))
+    return (rows or ["- 無い（TDD のループで赤→緑を確かめたテストは無い）"]) + notes
+
+
+def origin_section(repo, base: str, head: str, label: str, *, cumulative_empty: bool, skip=()) -> str:
+    """R2 の比較役に貼る累積差分の起点の訳。起点 base（入口の差分の根）が修正前の HEAD head と同じ版か PR の根かを書き、PR の差分
+    （base → head）とこの run の直しの差分（head → 作業ツリー。fixboard.run_diff）で変わったファイルを分けて名指す。累積差分が空
+    （cumulative_empty）なら、打ち消し合ったのか何も変えていないのかを分ける。label は入口が書いた起点の出どころの文"""
+    import fixboard
+    import unittrees
+    if not base:
+        return "- 累積差分の起点が分からない（始めの記録に入口の base が無い）"
+    try:
+        base_sha, head_sha = (unittrees._out(repo, "rev-parse", "--verify", f"{rev}^{{commit}}") for rev in (base, head))
+        pr_files = unittrees._out(repo, "diff", "--name-only", "--no-renames", base_sha, head_sha).splitlines()
+        commits = int(unittrees._out(repo, "rev-list", "--count", f"{base_sha}..{head_sha}"))
+        fix_files = changed_files(fixboard.run_diff(repo, head_sha, skip))
+    except (unittrees.UnitTreeError, ValueError) as e:
+        return f"- 累積差分の起点を測れない（{oneline.one_line(e)}）"
+    where = f"（{label}）" if label else ""
+    if base_sha == head_sha:
+        rows = [f"- 起点は修正前の HEAD `{base_sha[:12]}`{where}。PR の差分は無い（累積差分はこの run の直しの差分だけ）"]
+    else:
+        rows = [f"- 起点は PR の根 `{base_sha[:12]}`{where}で、修正前の HEAD `{head_sha[:12]}` との間に PR の commit が {commits} 個在る。"
+                "累積差分は PR の差分と直しの差分を合わせた物",
+                f"- PR の差分（起点 → 修正前の HEAD）で変わったファイル: {'、'.join(pr_files) or '無い'}"]
+    rows.append(f"- この run の直しの差分（修正前の HEAD → 作業ツリー）で変わったファイル: {'、'.join(fix_files) or '無い'}")
+    if cumulative_empty:
+        rows.append("- 累積差分が空なのは、PR の変更と直しが打ち消し合った（直しが PR の変更を元に戻した）から。何もしていないのではない"
+                    if pr_files and fix_files else "- 累積差分が空なのは、PR も直しも何も変えていないから")
+    return "\n".join(rows)
 
 
 def after_section(eyes_dir, review_folder) -> str:

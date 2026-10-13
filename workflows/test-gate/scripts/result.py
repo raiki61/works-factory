@@ -96,9 +96,9 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     if snap_path.is_file():
         declared_checks.drop_copy(read_json(snap_path).get("top"))
     start = read_json(boundary.needed(start_raw, "start"))
-    run_path = artifacts / rel(mode, "run.json")
+    run_path = artifacts / rel(mode, declared_checks.RUN_FILE)
     if not run_path.is_file():
-        raise ValueError(f"{rel(mode, 'run.json')} が無い——ノード run が落ちたか飛ばされた")
+        raise ValueError(f"{rel(mode, declared_checks.RUN_FILE)} が無い——ノード run が落ちたか飛ばされた")
     run = read_json(run_path)
     ci_path = artifacts / rel(mode, "ci-material.json")
     role = run["by"] == declared_checks.ROLE_NEEDED

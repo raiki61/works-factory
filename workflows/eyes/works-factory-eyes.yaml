@@ -17,6 +17,9 @@ inputs:
   changed: {required: true, description: "$fix.output.changed（修正の印。JSON の object。前提のずれの申告の文 premise_drift_note も読む）"}
   fix_units: {required: true, description: "$fix.output.units（単位ごとの結末。JSON の配列）"}
   green_ok: {required: true, description: "$test-gate-final.output.ok"}
+  baseline: {required: true, description: "$test-gate-base.output.baseline（base の 1 件ごとの結末のポインタ。null 可）。比較役に base で赤・最後に緑のテストを貼る"}
+  final_evidence: {required: true, description: "$test-gate-final.output.evidence（最後のテストの証拠のポインタ。隣の run.json の 1 件ごとの結末を読む）"}
+  diffs: {required: true, description: "$fixed.output.diffs（修正の段ごとの diff のポインタの配列。隣の tdd-unit.json の TDD の記録を読む）"}
   start: {default: "null", description: "$start.output.record（始めの記録のポインタ）"}
   plan_questions: {default: "null", description: "$plan-review.output.questions（修正前の承認ノードの項目 {kind, text}）"}
   answers: {default: "null", description: "{ from: $gate-before-fix.output, if_skipped: null }（修正前の承認ノードの答え）"}
@@ -60,7 +63,7 @@ nodes:
       required: [run_eyes, compare_due, premise_due, purpose_text, design_text, design_reply, diff_file, diff_lines,
                  changed_files, scalars, cwd, base_rev, review_md, repo_review_md, policy_path, lang_line, r1_head, r3_head,
                  concept_map, candidates_file, judgment_file, units_text, fixes_text, constraints_text, premises_text, carried,
-                 r4_context, green_line]
+                 r4_context, green_line, measured_text, origin_text]
       properties:
         run_eyes: {type: boolean}
         compare_due: {type: boolean}
@@ -90,6 +93,8 @@ nodes:
         carried: {type: string}
         r4_context: {type: string}
         green_line: {type: string}
+        measured_text: {type: string}
+        origin_text: {type: string}
 
   # 役の節は今の works の blk-eyes の同じ役の節から settingSources・sandbox を写す。出し直しは retry（合計 3 回）
   - id: r1-comments

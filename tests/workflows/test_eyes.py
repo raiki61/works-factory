@@ -202,6 +202,14 @@ DIFF_ASK = ("累積差分は、大きさに依らず本文を貼らない（大�
 R2_DIFF = DIFF_ASK.replace("変わったファイル {files} 本", "変わったファイル: {files}").replace("リポジトリや盤面のほかの", "リポジトリやほかの").format(
     path="$prep.output.diff_file", lines="$prep.output.diff_lines", files="$prep.output.changed_files")
 R2_HEADS = f"{DIFF_HEAD}\n\n{R2_DIFF}\n\n---\n\n{PREMISE_HEAD}\n\n{PREMISE_ASK}\n\n$prep.output.premises_text\n\n---\n\n"
+# 比較役に貼る機械の実測と累積差分の起点の訳（元に無い。issue #384: 既に在る退行の試験と PR を打ち消した直しを『無い』と読ませない）
+MEASURED_ASK = "差分に無い物を『無い』と書く前に、上の実測で確かめる。実測が満たしていれば、食い違いに数えない。"
+R2_MEASURED = ("## テストの実測と累積差分の起点（機械が測った）\n\n"
+               "下は機械が測った事実で、累積差分のファイルには現れない。base で赤・最後に緑のテストは、修正前のコードで落ちて直した後に通る"
+               "試験が既に在ることを示す（差分に試験の変更が無くても、退行を防ぐ試験は在る）。起点が PR の根で累積差分が空なら、本体を直して"
+               "いないのではなく、直しが PR の変更を打ち消したことがある。\n\n"
+               "$prep.output.measured_text\n\n### 累積差分の起点\n\n$prep.output.origin_text\n\n"
+               f"{MEASURED_ASK}実測が「測っていない」「無い」と書いている物は、推し量って満たしたことにしない。\n\n---\n\n")
 
 # engine の差し込み {{…}} の字（本線の周の値）を、prep の欄（この run の値）に替えた直し
 REVISION_READ = ("**読むのは、この周に固定したリビジョン**であって、生きた作業ツリーの今の姿ではない。`git -C <リポジトリ> show <版>:<パス>` や "
@@ -266,6 +274,7 @@ COPIED_TEXTS = {
     "r2-compare.md": (WORKS_GL + "r2.compare.md", "8287e31dadb58298928c875c9f703c9f0a2b525aa8a1a67cf003f784c67b1bc5", [
         ("", head_of("R2 の比較役（独立設計と累積差分の突き合わせ）", "blind-judge", read_only=R2_READ_ONLY)),
         ("", R2_HEADS),   # 元 eyes.prep が比較役の本文の頭に置いた、累積差分の渡し方と独立設計の後に分かった前提
+        ("", R2_MEASURED),
         ("元の目的: " + PURPOSE[0], "元の目的: " + PURPOSE[1]),
         ("{{out.r2.design.design}}", "$prep.output.design_text"),
         # 累積差分は本文を貼らず、ファイルを Read させる（元 eyes.diff_section が囲いの本文を置き場の 1 行に描いた）
@@ -452,14 +461,26 @@ class ShapeCase(unittest.TestCase):
 
 
     def test_r2_compare_gets_no_forbidden_input(self):
-        """持ち主の決め independent-verdict: 比較役には目的・独立設計・後で分かった前提・累積差分だけが届く"""
+        """持ち主の決め independent-verdict: 比較役には目的・独立設計・後で分かった前提・累積差分と、機械の実測（テストの結末と
+        累積差分の起点。issue #384）だけが届く。調査の経緯と判定の一覧は届かない"""
         self.assertNotIn("with", NODES["r2-compare"])
         text = (BLOCK / "commands" / "r2-compare.md").read_text(encoding="utf-8")
         self.assertEqual(prep_reads(text), {"purpose_text", "design_text", "premises_text", "diff_file", "diff_lines", "changed_files",
-                                            "lang_line"})
+                                            "lang_line", "measured_text", "origin_text"})
         self.assertEqual(re.findall(r"\$([A-Za-z0-9_-]+)\.output", text), ["prep"] * len(re.findall(r"\$prep\.output", text)))
         self.assertNotIn("$INPUTS", text)
         self.assertNotIn("$ARTIFACTS_DIR", text)
+
+    def test_r2_compare_checks_the_measurements_before_saying_missing(self):
+        """issue #384: 比較役は機械の実測と起点の訳を受け、差分に無い物を『無い』と書く前に実測で確かめる。道具は Read のまま、
+        独立設計の役 r2-design は道具を持たないまま（独立は設計の側で守る）"""
+        text = (BLOCK / "commands" / "r2-compare.md").read_text(encoding="utf-8")
+        self.assertLess(text.index("$prep.output.measured_text"), text.index(MEASURED_ASK))
+        self.assertLess(text.index("$prep.output.origin_text"), text.index(MEASURED_ASK))
+        self.assertEqual(ROLES["r2-compare"]["allowed_tools"], ["Read"])
+        review = yaml.safe_load((ROOT / "workflows" / "plan-review" / "works-factory-plan-review.yaml").read_text(encoding="utf-8"))
+        design = next(n for loop in review["nodes"] if "loop_group" in loop for n in loop["loop_group"]["nodes"] if n["id"] == "r2-design")
+        self.assertEqual(design["allowed_tools"], [])
 
     def test_r2_compare_runs_without_the_default_system_prompt(self):
         """元の旗 isolated: 比較役だけ、既定の claude_code の system prompt（cwd と git status の写しを持つ）を替える"""
@@ -615,6 +636,17 @@ class FixtureCase(unittest.TestCase):
             with self.subTest(name):
                 self.assertTrue(result["pass"], result)
                 self.assertEqual((result["outcome"], result["authoredOutcome"]), ("completed", self.AUTHORED[name]))
+
+    def test_pass_fixture_takes_the_baseline_and_carries_the_measured_rows(self):
+        """issue #384: 筋書き pass は eyes が base の実測・最後のテストの証拠・修正の段の diff を受け、prep の出力に実測の行と
+        起点の訳が載る配線（ほかの筋書きは渡っていない形）"""
+        doc = yaml.safe_load((BLOCK / "fixtures" / "pass.stubs.yaml").read_text(encoding="utf-8"))
+        inputs = doc["fixture"]["inputs"]
+        self.assertEqual(json.loads(inputs["baseline"])["path"], "test-gate/base/baseline.json")
+        self.assertEqual(json.loads(inputs["final_evidence"])["path"], "test-gate/final/evidence.md")
+        self.assertEqual(len(json.loads(inputs["diffs"])), 1)
+        self.assertIn("base で赤（", doc["prep"]["measured_text"])
+        self.assertIn("起点は", doc["prep"]["origin_text"])
 
 
 class ScriptCase(unittest.TestCase):
@@ -943,6 +975,46 @@ class ScriptCase(unittest.TestCase):
         self.assertIn("-a\n+b\n", pathlib.Path(got["diff_file"]).read_text(encoding="utf-8"))
         self.assertEqual((got["base_rev"], got["changed_files"]), (self.base, "a.txt"))
         self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), got)
+
+    def test_prep_pastes_the_measured_red_to_green_and_the_tdd_proof(self):
+        """issue #384: base で赤・最後に緑のテスト（baseline と最後のテストの証拠の隣の記録）と、TDD のループが赤→緑を確かめた
+        テスト（修正の段の diff の隣の記録）が比較役への実測の行に載る。渡っていない時は測っていないと書く"""
+        import tddloop
+        self.prep_inputs()
+        none = self.run_script("prep")["measured_text"]
+        self.assertIn("base の実測が無い", none)
+        self.assertIn("修正の段が走っていない", none)
+        red = {"classname": "tests.test_stats.TestStats", "name": "test_clamp_above_range"}
+        self.inputs["baseline"] = self.pointer("test-gate/base/baseline.json", {
+            "suite": "", "test_cmd": "t", "rev": self.base, "exit": 1,
+            "cases": [{**red, "outcome": "failure", "fail_message": "AssertionError: 0 != 10"}]})
+        self.inputs["final_evidence"] = self.pointer("test-gate/final/evidence.md", "# test-gate（final）\n")
+        self.pointer("test-gate/final/run.json", {"cases": [{**red, "outcome": "passed"}]})
+        self.inputs["diffs"] = json.dumps([json.loads(self.pointer("fix/fix/fix.diff", ""))])
+        self.pointer(f"fix/fix/{fixboard.TDD_UNIT_FILE}", [{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
+                                                           "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok",
+                                                                      "tests": ["tests/test_stats.py::TestStats::test_clamp_above_range"],
+                                                                      tddloop.QUOTES_FIELD: {}}]}])
+        got = self.run_script("prep")["measured_text"]
+        self.assertIn("`tests.test_stats.TestStats::test_clamp_above_range`: base で赤（failure: AssertionError: 0 != 10）→最後のテストで緑", got)
+        self.assertIn("`tests/test_stats.py::TestStats::test_clamp_above_range`（単位 u1）: 直す前に赤・直した後に緑を機械が確かめた", got)
+
+    def test_prep_names_the_pr_diff_and_the_fix_diff_apart(self):
+        """issue #384: 起点が PR の根で直しが PR の変更を元に戻した run は、累積差分が空でも PR の差分と直しの差分を分けて名指す"""
+        self.prep_inputs()
+        (self.repo / "a.txt").write_text("pr\n", encoding="utf-8")
+        git(self.repo, "commit", "-q", "-am", "pr")
+        head = git(self.repo, "rev-parse", "HEAD")
+        (self.repo / "a.txt").write_text("a\n", encoding="utf-8")
+        self.inputs["start"] = self.pointer("start/start.json", {
+            "run_id": RUN_ID, "base_rev": head, "policy_md": "",
+            "input": {"base": {"rev": self.base, "from": "pr", "name": "", "label": "PR #7 の根"}, "diff": {"empty": False}}})
+        got = self.run_script("prep")
+        self.assertEqual(got["diff_lines"], 0)
+        self.assertIn(f"起点は PR の根 `{self.base[:12]}`（PR #7 の根）", got["origin_text"])
+        self.assertIn("PR の差分（起点 → 修正前の HEAD）で変わったファイル: a.txt", got["origin_text"])
+        self.assertIn("この run の直しの差分（修正前の HEAD → 作業ツリー）で変わったファイル: a.txt", got["origin_text"])
+        self.assertIn("打ち消し合った", got["origin_text"])
 
     def test_prep_diff_leaves_out_the_archon_copy(self):
         """目の累積差分は Archon の写し（.archon/ の下の未追跡のファイル）を頼まれた変更に入れない"""

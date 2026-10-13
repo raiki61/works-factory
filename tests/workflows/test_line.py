@@ -2439,6 +2439,8 @@ class LineWiringCase(unittest.TestCase):
         "closure.json": (("fix", "diff"), "lib/fixbeside.py"),
         "delta-holes.json": (("fix", "diff"), "lib/fixbeside.py"),
         "fix-removed.json": (("fix", "diff"), "lib/leftovers.py"),
+        "tdd-unit.json": (("fix", "diff"), "lib/eyeverdict.py"),
+        "run.json": (("test-gate", "evidence"), "lib/eyeverdict.py"),
     }
     # 書き手の返す節を空の置き場で走らせる時の入力（ブロックの YAML がその節に渡す with: と、Archon がブロックの入力を渡す INPUTS_*）
     RETURN_INPUTS = {
@@ -2447,6 +2449,7 @@ class LineWiringCase(unittest.TestCase):
         "plan-review": {},
         "fix": {"INPUTS_MODE": ""},
         "eyes": {},
+        "test-gate": {},
     }
     # 今の木で照らしが通らない所（named: 書き手の script と lib が名を持つ・stop: lib の在る返す節が空の置き場でも書く・bare: lib も
     # 境の口も無い返す節が書く・read: 読み手が名を開く）。表に無い新しい穴と、通るようになったのに残る行は赤
@@ -2462,6 +2465,10 @@ class LineWiringCase(unittest.TestCase):
            for name in ("closure.json", "delta-holes.json") for check in ("stop", "bare")},
         **{("fix-removed.json", check): "書き手は fix のノード clean で出力ノードではない（clean の前に止まった run には無く、"
                                         "leftovers.removed が「走らせていない」と読む）" for check in ("stop", "bare")},
+        **{("tdd-unit.json", check): "書き手は fix のノード tdd-unit で出力ノードではない（tdd-unit の前に止まった run と組の子の run には"
+                                     "無く、eyeverdict.tdd_stages が「読めない」と名指す）" for check in ("stop", "bare")},
+        **{("run.json", check): "書き手は test-gate のノード run で出力ノードではない（run が落ちた run には無く、eyeverdict.final_cases が"
+                                "「最後のテストが走っていない」と名指す）" for check in ("stop", "bare")},
         **{(name, check): "eyes の出力ノードは目の材料を書けない道で notes を null にする（読み手 ask_final.eye_notes と報告が null を訳にする）"
            for name in ("r4-gate-passes.json", "premise-check.json") for check in ("stop", "bare")},
         **{(name, check): "再審（rejudge-run）の判定の隣にだけ在り、判定の道では書かれない（読み手 report.rejudge_exit が「無い」を訳にする）"

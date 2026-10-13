@@ -35,7 +35,7 @@ def main() -> list:
         raise ValueError(f"置き場に groups.json が無いか形が違う（{place}）")
     out_dir = Path(plan["out_dir"])
     body = fixboard.tdd_units(plan["groups"], {g["group_id"]: result_of(out_dir, g["group_id"]) for g in plan["groups"]})
-    fixboard.write_json(place / "tdd-unit.json", body)
+    fixboard.write_json(place / fixboard.TDD_UNIT_FILE, body)
     return body
 
 

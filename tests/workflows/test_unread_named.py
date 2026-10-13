@@ -146,7 +146,14 @@ def eyes(p: Place) -> dict:
             "design": p.put("plan-review/design.json", {"question_stands": True, "reason": "立つ", "design": "設計"}),
             "diff": p.put("fix/diff.patch", "diff --git a/stats.py b/stats.py\n--- a/stats.py\n+++ b/stats.py\n@@ -1 +1 @@\n-a\n+b\n"),
             "changed": json.dumps({"premise_drift": False}), "fix_units": "[]", "green_ok": "true",
+            "baseline": p.put("test-gate/base/baseline.json", {"suite": "", "test_cmd": "", "rev": p.head, "exit": 0, "cases": []}),
+            "final_evidence": final_evidence(p), "diffs": json.dumps([json.loads(p.put("fix/fix/tdd-unit.json", []))]),
             "start": p.start(), "plan_questions": "null", "answers": "null", "start_answers": "null", "x_scalars": "null"}
+
+
+def final_evidence(p: Place) -> str:
+    p.put("test-gate/final/run.json", {"cases": []})
+    return p.put("test-gate/final/evidence.md", "# test-gate（final）\n")
 
 
 def fix(p: Place) -> dict:
