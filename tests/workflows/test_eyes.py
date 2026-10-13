@@ -74,7 +74,10 @@ GRAPH_SCHEMAS = {
             "deletions": {"type": "array", "items": {
                 "type": "object", "required": ["where", "why"], "additionalProperties": False,
                 "properties": {
-                    "where": {"type": "string", "minLength": 1},
+                    "where": {"type": "string", "minLength": 1, "note": (
+                        "照合される側（p2.diagnose.carried_r1[].where）は minLength を持つのに、正本のこちらが持たないと、"
+                        "空文字が schema を通ったうえで数える口から黙って落ち、次の周の judge はその候補について 1 行も"
+                        "書かなくてよくなる（実測 2026-09-16・静的）")},
                     "why": {"type": "string"}}}},
             "ledger_audit": {"type": "array", "items": {"type": "string"}},
             "increments": {"type": "array", "items": {"type": "string"}},
@@ -111,6 +114,21 @@ GRAPH_SCHEMAS = {
                 "properties": {**_WHERE_TEXT, "mechanism": {"type": "string"}, "measured": {"type": "string"},
                                "false_positive_if": {"type": "string"}}}}}},
 }
+
+
+def without_note(schema):
+    """graph の schema から鍵 note（訳の文）を外した形。note は JSON Schema の鍵でなく、役に渡すと strict で落ちるので
+    YAML ではコメントに書く（#282）。properties の子は欄の名前なので、名前が note の欄は残す"""
+    if isinstance(schema, list):
+        return [without_note(v) for v in schema]
+    if not isinstance(schema, dict):
+        return schema
+    out = {k: without_note(v) for k, v in schema.items() if k != "note"}
+    if isinstance(schema.get("properties"), dict):
+        out["properties"] = {name: without_note(v) for name, v in schema["properties"].items()}
+    return out
+
+
 SEEN_UNSEEN = ("seen", "unseen")   # concepthome.R3_HEAD と r3・r4 の指示書が求める、graph の schema に足した欄
 
 # 役の道具・模型・effort の元の表（今の works の works/blk-eyes/lib/eyes.py:78-81 の TOOLS・NODE_TOOLS と、
@@ -534,8 +552,8 @@ class ShapeCase(unittest.TestCase):
                 self.assertIn("prep", depends(node))
 
     def test_role_schemas_match_graph(self):
-        for nid, want in GRAPH_SCHEMAS.items():
-            got = json.loads(json.dumps(ROLES[nid]["output_format"]))
+        for nid, graph in GRAPH_SCHEMAS.items():
+            got, want = json.loads(json.dumps(ROLES[nid]["output_format"])), without_note(graph)
             with self.subTest(nid):
                 if nid in ("r3-coherence", "r4-scope"):
                     for key in SEEN_UNSEEN:

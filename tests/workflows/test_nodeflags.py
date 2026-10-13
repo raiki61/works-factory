@@ -6,7 +6,7 @@
   節）が mutates_checkout: false。真の節の script は INPUTS_STATUS_GUARDED を読む。同じ script を回すほかの節は偽を書く
   （Archon の validate は、script が読む INPUTS_* を全部の節が結ぶことを求める。だからブロックの中で印を持つ節の script が、
   そのブロックの作業ツリーを比べる受け付けの script の全部になる）
-- 役の output_format は JSON Schema の決まった鍵だけで書く。Claude Code は役を起こす時に output_format を strict で照らし、
+- 役の output_format は JSON Schema の決まった鍵だけで書く（tests/e2e の工程も同じ）。Claude Code は役を起こす時に output_format を strict で照らし、
   知らない鍵（例: 訳の文を入れた note:）が 1 つでも在ると節が起動で落ちる（#282）。訳は YAML のコメントに書く
 """
 import pathlib
@@ -16,6 +16,9 @@ import yaml
 
 WORKFLOWS = pathlib.Path(__file__).resolve().parents[2] / "workflows"
 DOCS = {p.parent.name: yaml.safe_load(p.read_text(encoding="utf-8")) for p in sorted(WORKFLOWS.glob("*/works-factory-*.yaml"))}
+# tests/e2e の工程も本物の役に output_format を渡す（tests/e2e/test_loop_prev_real.py は WORKS_FACTORY_REAL_RUN=1 の時だけ回り、CI は回さない）
+E2E_DOCS = {f"e2e/{p.parent.name}": yaml.safe_load(p.read_text(encoding="utf-8"))
+            for p in sorted((WORKFLOWS.parent / "tests" / "e2e").glob("*/works-factory-*.yaml"))}
 
 
 # JSON Schema Draft 2020-12 の鍵の全部。出典: https://json-schema.org/draft/2020-12/json-schema-core（8 Core・
@@ -119,7 +122,7 @@ class NodeFlagsCase(unittest.TestCase):
         self.assertTrue(any(n["with"]["status_guarded"] is True for doc in DOCS.values() for n in guarded_nodes(doc)))
 
     def test_output_formats_use_only_schema_keywords(self):
-        for block, doc in DOCS.items():
+        for block, doc in {**DOCS, **E2E_DOCS}.items():
             for node, schema in output_formats(doc).items():
                 with self.subTest(block=block, node=node):
                     self.assertEqual(unknown_keywords(schema, node), [])
@@ -133,6 +136,7 @@ class NodeFlagsCase(unittest.TestCase):
     def test_output_formats_are_found(self):
         """output_format を 1 つも拾えなければ上の照らしは空回りする"""
         self.assertIn("r1-minimality", output_formats(DOCS["eyes"]))
+        self.assertIn("echo", output_formats(E2E_DOCS["e2e/loop-prev"]))
 
 
 if __name__ == "__main__":
