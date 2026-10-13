@@ -100,12 +100,12 @@
     - E13「対象の言語を知らない」: `tests/layers/test_lang_neutral.py`。`tests/layers/scan.py::_lang_neutral` が、ブロックの `commands/` と `lib/` に `tests/layers/scan.py::LANG_WORDS`（`python` は入れない決まり）を当てる。`ALLOWED["E13"]` の 8 行は外す
   - 穴:
     - E3:
-      - 字の表の欠け（`INPUTS_`・`WORKFLOW_ID`・`$LOOP_PREV`・`loop_group`・`$<id>.output` を持たない）は #175 で閉じた（issue #228）。今の `tests/layers/scan.py::ARCHON_WORDS` はこの全部を持つ。lib に残る物は `ALLOWED["E3"]` に行ごとの許しとして載る（`lib/tree_run.py` の `INPUTS_CMD`・`lib/report_roles.py` の `loop_group`・`lib/specblk.py` と `lib/judge_accept.py` の `$<id>.output`）。前に挙げた `lib/stage_a.py` の `INPUTS_UNITS`・`lib/stage_b.py` の `INPUTS_BASE_REV`・`lib/rolekit.py` と `lib/refixrules.py` の `$LOOP_PREV` は今の lib に無い
+      - 字の表の欠け（`INPUTS_`・`WORKFLOW_ID`・`$LOOP_PREV`・`loop_group`・`$<id>.output` を持たない）は #175 で閉じた（issue #228）。今の `tests/layers/scan.py::ARCHON_WORDS` はこの全部を持つ。lib に残る物は `ALLOWED["E3"]` の、役に届く文に `$LOOP_PREV` が無いことを試す 3 つの試験の字だけ（`lib/tree_run.py` の `INPUTS_CMD`・`lib/report_roles.py` の `loop_group`・`lib/specblk.py` と `lib/judge_accept.py` の `$<id>.output` の行は #354 で外した）。前に挙げた `lib/stage_a.py` の `INPUTS_UNITS`・`lib/stage_b.py` の `INPUTS_BASE_REV`・`lib/rolekit.py` と `lib/refixrules.py` の `$LOOP_PREV` は今の lib に無い
       - 「役の指示書を持たない」は照らさない。`lib/agents/*.md` の 5 本は役の定義そのもの（元と同じバイト）
       - 節の id は字で見分けられない（`scan.py` の頭の注記）
     - E4:
       - 後半の「script は lib と境の口を呼ぶだけで、確かめの中身を持たない」は照らさない
-      - script どうしの import も照らさない。今 main に在るもの: report の `collect.py`・`facts.py`・`report_accept.py` が `place`・`typed` を import する。fix の助け `fixio`（`workflows/fix/scripts/fixio.py`）は #233 で消え、`group_start.py` は節 prep の script でなく `lib/fixboard.py::prep` を呼ぶ。線の `linekit` は #175 で消え、線の script どうしの import は今は無い
+      - script どうしの import も照らさない。今 main に在るもの: 無し（report の `place`・`typed` は #354 で消し、`typed` は `facts.py` に畳んだ）。fix の助け `fixio`（`workflows/fix/scripts/fixio.py`）は #233 で消え、`group_start.py` は節 prep の script でなく `lib/fixboard.py::prep` を呼ぶ。線の `linekit` は #175 で消え、線の script どうしの import は今は無い
       - `commands/` と `.shared/` も見ない
     - E13:
       - 直に書いた `prompt:`（fix の `fix-ruled`・`refix`・`refix2`・`tdd`・`fixer`・`consult-answer` など）を見ない
@@ -253,7 +253,7 @@
 - main に無く #74 の head にだけ在る機械: E5・E6・E7・E16 の走査（`test_block_returns.py`・`test_outward_write.py`・`test_readonly_nodes.py`・`test_gates.py`）と、線の `FallbackCase`・`BrokenLibCase`・`GateDecisionsCase`・`LineWiringCase`。根の `AGENTS.md` の「機械」の行が名指す `tests/layers/test_layout.py` はどちらにも無い
 - 持ち主に聞く事:
   - K3: judge の script の節 36 個に `mutates_checkout: false` を足すか（読むだけかの見極めが要る）
-  - K7: 役の指示書の Python の言及（`fix-rules/common.md` ほか 6 か所）を E13 の例外にするか直すか。script どうしの import（今は report の `place`・`typed` だけ。fix の `fixio` と線の `linekit` は消えた）を E4 違反として直すか、決まりの側を変えるか
+  - K7: 役の指示書の Python の言及（`fix-rules/common.md` ほか 6 か所）を E13 の例外にするか直すか。script どうしの import（report の `place`・`typed`。fix の `fixio` と線の `linekit` は消えた）を E4 違反として直すか、決まりの側を変えるか → #354 で直した（決まりはそのまま）
   - K11: 線が渡していない、宣言済みで既定値つきの入力のうち、どれが今の works から落ちた能力か（plan-review の `conflicts`・`gate_answers`、eyes の `x_scalars`、merge-seal の `answer`・`r2`・`sealed_hash`）
 
 ## 部分 0 で足した機械（線の配線の部分 0。上の「今の機械」「要る試験」より新しい）
@@ -265,7 +265,7 @@
 - K5: 層の E5（`_loop_roles`。種 `k5-loop-role-with`）と `tests/layers/test_archon_validate.py::ArchonValidateTest.test_every_block_loads_when_included_inside_a_loop_group`
 - K6: `tests/workflows/test_fixture_claims.py::FixtureClaimsCase.test_fixtures_do_not_claim_per_round_values`
 - K7: 層の E3 の語の表 `ARCHON_WORDS` と `ALLOWED["E3"]` の `<パス>#<字>` の行
-- K8: 層の E4（`_script_imports`。今の物は `ALLOWED["E4"]` に script を 1 本ずつ）・線の script どうしの import は 0・`lib/tests/test_imports.py::LibImportCase.test_every_module_imports_first_in_a_fresh_interpreter`
+- K8: 層の E4（`_script_imports`。許しは無い。#354 で `ALLOWED["E4"]` を外した）・線の script どうしの import は 0・`lib/tests/test_imports.py::LibImportCase.test_every_module_imports_first_in_a_fresh_interpreter`
 - K10・K18 の関所: 層の E16（`_gate_words`。種 `k10-*`・`k18-gate-in-loop`）
 - K11・K12・K14: `tests/workflows/test_line.py::LineWiringCase` の `test_every_declared_block_input_is_wired_or_listed`・`test_block_inputs_outside_the_contract_have_defaults`・`test_every_contract_neighbour_file_has_a_writer_and_a_reader`・`test_twice_included_blocks_use_their_own_place` と、層の E5 の入力の読み手（`_inputs_read`）
 - K15: `tests/workflows/test_unread_named.py::UnreadNamedCase.test_every_pointer_input_unreadable_is_named`

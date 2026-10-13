@@ -1029,7 +1029,7 @@
 {"id": "R78", "kind": "scenario-only", "why": "筋書きでのみ（judge/・plan/・fix/fix/ の reject-<節>-<回>.md）"},
 {"id": "R79", "kind": "seen", "writer": "lib/runreport.py::_world_lines", "check": "text-contains", "where": "parent/report/report.md", "text": "・落とした抜き書き "},
 {"id": "R80", "kind": "seed-cannot", "why": "judge__pr-check-loop が skipped、material-pr-check.json の reply.material.status が not_applicable（no_forge）で pr-downgrades.json が無い（c0e26106・a1b08bc8）", "check": "json-has", "where": "parent/judge/pr-downgrades.json", "path": "0.note"},
-{"id": "R81", "kind": "backlog", "why": "ブロックの中だけの穴（区分の issue）"},
+{"id": "R81", "kind": "seen", "writer": "lib/runreport.py::stamp", "check": "text-contains", "where": "parent/report/report-ai.md", "text": "メイングラフの版 "},
 {"id": "R82", "kind": "seed-cannot", "why": "run の記録の nodes[] に failed の節が無く、落ちを受け止める場面が無い（c0e26106・a1b08bc8）", "check": "text-contains", "where": "parent/report/report.md", "text": "落ちたが、メイングラフが宣言のとおり受け止めたノード: "},
 {"id": "M1", "kind": "seen", "writer": "workflows/merge/scripts/merge.py::main", "check": "exists", "where": "parent/merge/sealed.diff"},
 {"id": "M2", "kind": "scenario-only", "why": "本物の通しの照らしの外（#261 の決め直し）: seen は、能力の決める行を消すと落ち、何も働かなかった run の 2 つの形（tests/e2e/test_evidence.py の IdleRunCase）に当たらず、健やかな種の run で必ず通る道の行だけ。能力は棚卸しの証の試験が縛る"},

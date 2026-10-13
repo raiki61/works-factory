@@ -18,7 +18,9 @@ import unittrees
 MEASURED = ("clean", "found")
 # 素材の語の持ち主は gatemarks.MATERIAL_WORDS。測った結果でない語は全部未了で、落ちた先の分けで黙って認証しない
 NOT_DONE = tuple(w for w in gatemarks.MATERIAL_WORDS if w not in MEASURED)
-BASE_OK = MEASURED + ("not_applicable",)
+NOT_APPLICABLE = "not_applicable"
+BASE_OK = MEASURED + (NOT_APPLICABLE,)
+INCOMPLETE = "incomplete"   # 赤の原因: 測り切れていない（classify の 3.）
 HEAD_LIMIT = 10   # summary に並べる鍵の数
 
 
@@ -90,7 +92,7 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran)
     if status in NOT_DONE or junit_unran:
         why = [f"素材が {status}"] if status in NOT_DONE else []
         why += [f"JUnit の報告を宣言した段が走らなかった: {'・'.join(map(str, junit_unran))}"] if junit_unran else []
-        return "incomplete", "；".join(why)
+        return INCOMPLETE, "；".join(why)
     names = "・".join(str(r.get("name")) for r in reds) or "無し"
     failed = [c for c in cases or [] if c.get("outcome") in baseline_red.FAILED]
     if baseline_cases is not None:

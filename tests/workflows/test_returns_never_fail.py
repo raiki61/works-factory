@@ -7,6 +7,7 @@ resolveBindingDirective・output-ref.ts 590-597 行）。返りの指し札の�
   終了の値 0 で、標準出力の JSON が節の output_format に合う
 - 返す節が with:・when:・本文で読む $<id>.output の <id> は表 NEVER_FAIL に在り、表の行はその節を lib 無しで走らせる試験を名指す
 - 単独で走らせた返りの指し札の先は在って空でない
+- 表 LIBLESS_EXITS の script も、単独で走らせた返りが節の output_format に合う
 - scripts/ から標準出力へ書く道は境の口（boundary.returns）だけ。外は表 LIBLESS_EXITS の script の
   json.dumps(..., allow_nan=False) だけ（境の口も lib も読めない時にも返す道）
 """
@@ -53,6 +54,7 @@ LIBLESS_EXITS = {
     "workflows/plan-review/scripts/result.py": "plan-review の返す節",
     "workflows/plan-review/scripts/review_reads.py": "読んだ証拠の節。受け付けの条件でないので、境の口を読めない時も ok: false で返す（線を止めない）",
     "workflows/fix/scripts/fix_reads.py": "読んだ証拠の節。受け付けの条件でないので、境の口を読めない時も ok: false で返す（ブロックを止めない）",
+    "workflows/judge/scripts/pr_reads.py": "読んだ証拠の節。受け付けの条件でないので、境の口を読めない時も ok: false で返す（ブロックを止めない）",
     "workflows/plan-review/scripts/pass_open.py": "差し込みの頭。境の口を読めない時も ok: false で返す今の振る舞いを残す",
     "workflows/fix/scripts/collect.py": "fix の返す節",
     "workflows/test-gate/scripts/result.py": "test-gate の返す節",
@@ -280,6 +282,18 @@ class ReturnScriptCase(unittest.TestCase):
         self.assertEqual({k for k, v in NEVER_FAIL.items() if v == ALONE_BOUND}, set(self.bound))
         for (block, nid), (n, done, _) in self.bound.items():
             with self.subTest(f"{block}:{nid}"):
+                self.assertEqual(alone_problems(done, n.get("output_format")), [], f"{block}/scripts/{n['script']}.py")
+
+    def test_every_libless_exit_runs_alone_and_fits_its_output_format(self):
+        """LIBLESS_EXITS の script は、境の口も lib も読めない時に直に返す道の返りも、節の output_format に合う"""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        used = [(block, n) for block in blocks() for n in all_nodes(load(block)["nodes"])
+                if "script" in n and script_of(block, n).relative_to(ROOT).as_posix() in LIBLESS_EXITS]
+        self.assertEqual({script_of(b, n).relative_to(ROOT).as_posix() for b, n in used}, set(LIBLESS_EXITS))
+        for block, n in used:
+            with self.subTest(f"{block}:{n['id']}"):
+                done, _ = run_alone(script_of(block, n), pathlib.Path(tmp.name) / block / n["id"])
                 self.assertEqual(alone_problems(done, n.get("output_format")), [], f"{block}/scripts/{n['script']}.py")
 
     def test_return_node_binds_only_never_failing_nodes(self):

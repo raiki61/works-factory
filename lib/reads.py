@@ -17,6 +17,7 @@
 - stamp()・records(log, since): 記録の時刻の形と、since から後の行（読めなければ None と訳。記録が無い訳は NO_CONFIG・NO_ROOT・ファイルが無いを分ける）
 - tool_count・tool_inputs・web_fetches・web_searches: 記録の行の道具の呼びの数と入力
 - collect(place, role, must_read, log, *, own, since, repo, replan): 役ごとの reads-<役>.json（案の直しは reads-replan-<役>.json）を書く
+- read_evidence(path): collect が書いた reads-*.json を読む（読む側の 1 か所）
 """
 import json
 import os
@@ -27,6 +28,7 @@ import time
 _HERE = str(pathlib.Path(__file__).resolve().parent)
 if _HERE not in sys.path:   # 殻（bin/_lib/launcher.py）は from lib import reads で読み、置き場を sys.path に持たない
     sys.path.append(_HERE)
+import oneline  # noqa: E402
 import writelog  # noqa: E402
 
 ROOT = "works-reads"
@@ -35,10 +37,12 @@ TS_FORMAT = "%Y-%m-%dT%H:%M:%S"   # 記録の行の ts（地方時。秒で切�
 EVIDENCE_GLOB = "reads-*.json"
 _INDEX_SUFFIX = "-block.json"
 REPLAN = "replan"              # 案の直しの差し込みの役の名の頭と索引の持ち主（1 回目の物を上書きしない。元 replan.READS_PREFIX・READS_INDEX）
+RECORDED = "recorded"           # sources.hook: フックの記録が在る
 HOOK_SEEN = ("read", "stale", "partial")   # フックで「読んだ跡が在る」状態（missing に数えない）
 NOT_LAUNCHED = "役を起こしていない"
 NO_CONFIG = "Claude の設定の置き場が渡っていない起動（CLAUDE_CONFIG_DIR が無い）"
 NO_ROOT = "記録の根が無い（読んだ証拠のフックを置いていない起動）"
+SHAPE_WRONG = "読んだ証拠の形が違う"
 WEB_INPUTS = {"Agent": "subagent_type", "WebFetch": "url", "WebSearch": "query"}   # 道具 → 記録に残す入力の欄
 
 
@@ -177,7 +181,7 @@ def collect(place, role: str, must_read: list, log, *, own: list, since: str, re
             if isinstance(r.get("path"), str):
                 index.setdefault(r["path"], []).append(r)
         cache = {"index": index, "n": len(got)}
-        sources = {"hook": "recorded", "why": ""}
+        sources = {"hook": RECORDED, "why": ""}
         rows, missing = [], []
         for p in must:
             hook = hook_evidence(pathlib.Path(log).parent, _real(p, repo), cache=cache)[0]
@@ -189,3 +193,16 @@ def collect(place, role: str, must_read: list, log, *, own: list, since: str, re
     out = _write_json(pathlib.Path(place) / evidence_name(name),
                       {"role": name, "since": since, "rows": rows, "sources": sources, "missing": missing, "web": web})
     return {"ok": True, "sources": sources, "missing": missing, "reads_file": str(out), "records": got}
+
+
+def read_evidence(path) -> tuple:
+    """collect が書いた読んだ証拠のファイルを読み、(中身, "") を返す。中身は role（文字列）・rows・missing（並び）・sources（dict）の
+    型を確かめた dict。読めなければ (None, 誤りの型と文)、形が違えば (None, SHAPE_WRONG)"""
+    try:
+        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return None, f"{type(e).__name__}: {oneline.one_line(e)}"
+    if not (isinstance(doc, dict) and isinstance(doc.get("role"), str) and isinstance(doc.get("rows"), list)
+            and isinstance(doc.get("missing"), list) and isinstance(doc.get("sources"), dict)):
+        return None, SHAPE_WRONG
+    return doc, ""

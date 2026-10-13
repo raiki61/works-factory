@@ -1715,7 +1715,7 @@ SNAPSHOT_FALLBACK_IDENT = {"GIT_AUTHOR_NAME": "graphloops", "GIT_AUTHOR_EMAIL": 
 
 
 def route_key(role: str) -> str:
-    """元 material.py:185。route の返りの欄の名（YAML の when: が $material-route.output.<欄> で読む）"""
+    """元 material.py:185。route の返りの欄の名（YAML の when: が素材の振り分けの節の返りのこの欄を読む）"""
     return role.replace("-", "_")
 
 
@@ -3091,7 +3091,7 @@ def spec_freeze(jdir, root, pend, approval) -> dict:
 
 
 def spec_answer(jdir, root, answer) -> dict:
-    """仕様の関所の答え（with: の {from: $spec-gate.output, if_skipped: null} を境の口 value が読んだ値）を受ける（元 works/blk-spec/lib/specblk.py:302 の
+    """仕様の関所の答え（関所の節の出口〔開かなかった時は null〕を境の口 value が読んだ値）を受ける（元 works/blk-spec/lib/specblk.py:302 の
     answer と :343 の collect と、写しの rules の on_answer_in_round の仕様の承認）。返り {go, reason}:
     - 開かなかった（None）: go false（前の節が止めた。止めの控えが無ければ works:spec で止める）
     - 止める語（stop・reject）: 一言（空なら GATE_STOP_NOTE）が "request:" で始まれば止め札 request:spec-gate、ほかは人の止め
@@ -3566,6 +3566,19 @@ def pr_accept(jdir, raw, repo) -> dict:
                         on_give_up=lambda: write_stop(jdir, stopby.PR, rolekit.given_up_reason(jdir, prcheck.ROLE)))
 
 
+
+def pr_reads(jdir, log, repo) -> dict:
+    """節 pr-check-reads の中身（今の works の blk-pr の must の確かめ）。並行 PR の役が渡し物 judge/pr-brief.json を読んだ証拠を
+    reads.collect で集め、judge/reads-pr-check.json と索引（reads.index_name(prcheck.ROLE)）を書く。記録は渡し物を書いた時刻から後の、
+    渡し物を読んだ session の行で切る（役だけに渡す物）。節は pr_scan が渡し物を書いて役を起こした回にだけ走る。受け付けの条件に
+    しない（欠けは返りと報告に出す）。返り {ok: True, missing, index_file}"""
+    import reads
+    jdir = pathlib.Path(jdir)
+    brief = jdir / prcheck.BRIEF
+    got = reads.collect(jdir, prcheck.ROLE, [str(brief)], log, own=[str(brief)], since=reads.stamp(brief.stat().st_mtime),
+                        repo=repo)
+    out = write_json(jdir / reads.index_name(prcheck.ROLE), {prcheck.ROLE: got["reads_file"]})
+    return {"ok": True, "missing": got["missing"], "index_file": str(out)}
 # ---------------------------------------------------------------- 世界の解
 def world_dir(jdir) -> pathlib.Path:
     """元 works/blk-world/lib/worldblk.py:75 の place の書き直し。worldblk の作業の置き場（judge/world/）"""
