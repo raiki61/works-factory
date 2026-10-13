@@ -39,7 +39,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   （閉じた項目を変えた行は拒み、前と同じ行は捨てる）
 - planned_units(plan): 今の案に在る単位の key の集合を組む唯一の口（控えの plan の行からも修正案の役の出力の plan の行からも。
   carried_notes・受け付けの plan_review_output・修正前の関所の照らしが同じ集合を引く）。その下の plan_keys(plan) は案の順・
-  重複のまま字の key を並べる読み口（planfile の受け付けの照らしも引く）
+  重複のまま字の key を並べる読み口（planfile の受け付けの照らしも引く）。item_units(plan, n) はその上で項目 n の単位の集合
+  （番号の外は空）を組む唯一の口
 - answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（項目の在る
   控えでは、今の往復で開いている項目の分だけ）
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
@@ -355,6 +356,12 @@ def planned_units(plan) -> set[str]:
     return {str(k) for k in plan_keys(plan)}
 
 
+def item_units(plan, n: int) -> set[str]:
+    """項目 n（1 始まり）の単位の key の集合（planned_units と同じく str）。n が案の項目の番号の外か plan が list でなければ空。
+    item_blocks・resolved_gaps・splice と受け付けの照らし・先行例の振り分けは、この 1 つの集合で揃う"""
+    return planned_units([plan[n - 1]]) if isinstance(plan, list) and 1 <= n <= len(plan) else set()
+
+
 def _last_items(doc: dict) -> dict:
     return {it["id"]: it for it in (doc["passes"][-1].get("items") or [])} if doc["passes"] else {}
 
@@ -417,7 +424,7 @@ def item_blocks(b, n: int) -> list:
     plan = doc.get("plan") or []
     if not doc["passes"] or not 1 <= n <= len(plan):
         return []
-    mine = {str(k) for k in plan[n - 1]["unit_keys"]}
+    mine = item_units(plan, n)
     every = planned_units(plan)
     out = [key for p in doc["passes"] for key in p.get("blocks", [])
            if (set((p.get("face_units") or {}).get(key) or []) & mine)
@@ -453,7 +460,7 @@ def splice(doc: dict, rows: list) -> tuple[list, list[str], list[str]]:
     whole, rejects, dropped, used = [], [], [], set()
     for n, it in enumerate(doc.get("plan") or [], 1):
         mine = by_id.get(it["id"])
-        homeless = not {str(k) for k in it["unit_keys"]} & in_rows
+        homeless = not item_units(doc["plan"], n) & in_rows
         if filled.get(it["id"]) == CLOSED:
             if mine is not None:
                 used.add(id(mine))
@@ -599,7 +606,7 @@ def resolved_gaps(b, faces: list, resolved: list) -> list[str]:
     earlier = list(dict.fromkeys(key for p in passes for key in p.get("blocks", [])))
     wanted = earlier
     if passes[-1].get("items") is not None:   # 項目の控え: 今の往復で審査する項目の物だけを求める
-        units = {str(k) for n in open_items(b) for k in doc["plan"][n - 1]["unit_keys"]}
+        units = set().union(*(item_units(doc["plan"], n) for n in open_items(b)))
         every = planned_units(doc.get("plan"))
         wanted = [key for p in passes for key in p.get("blocks", [])
                   if (set((p.get("face_units") or {}).get(key) or []) & units)
