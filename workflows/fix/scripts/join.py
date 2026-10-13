@@ -57,6 +57,7 @@ def main() -> dict:
     out_dir = Path(plan["out_dir"])
     results = {g["group_id"]: result_of(out_dir, g["group_id"]) for g in plan["groups"]}
     outcomes, backed_out, unrestored = {}, {}, {}
+    applied, log = [], None   # 戻せた組の子の書き込みの記録の (子の作業ツリー, 子の記録, 当てたパス) と、親の作業ツリーの記録
     if plan["par"]:
         repo = boundary.work_tree()
         log = writelog.log_here()
@@ -91,7 +92,6 @@ def main() -> dict:
             if got.unrestored:
                 unrestored[g["group_id"]] = got.unrestored
             return got
-        applied = []
         for g, got in lanekit.merge_in_order(with_result, merge_one):
             outcomes[g["group_id"]] = (results[g["group_id"]], not got.why, got.why)
             if got.backed_out:
@@ -99,8 +99,6 @@ def main() -> dict:
             r = results[g["group_id"]]
             if not got.why and r.get("worktree") and log is not None:
                 applied.append((r["worktree"], writelog.log_here(r["worktree"]), got.names))
-        if log is not None and log.is_file():
-            writes.carry_children(log, repo, applied)
     else:
         repo = boundary.work_tree()
         for g in plan["groups"]:
@@ -113,10 +111,15 @@ def main() -> dict:
                 fixboard.DROPPED.format(paths="・".join(dropped)[:300]) if dropped else ""))
     for g in plan["groups"]:
         outcomes.setdefault(g["group_id"], (None, False, fixboard.NO_RESULT))
+    rows, units = fixboard.join_rows(plan["groups"], outcomes, backed_out, unrestored)
+    joined = {"par": bool(plan["par"]), "groups": rows, "units": units}
+    if unrestored:   # 後の写しが落ちても、当たったままの組を後の節（fixboard.held）が読めるように先に書く
+        fixboard.write_json(place / fixboard.JOIN_FILE, joined)
+    if log is not None and log.is_file():
+        writes.carry_children(log, repo, applied)
     fixboard.adopt_tdd_states(place, [outcomes[g["group_id"]][0] for g in plan["groups"] if outcomes[g["group_id"]][1]],
                               boundary.work_tree())
-    rows, units = fixboard.join_rows(plan["groups"], outcomes, backed_out, unrestored)
-    fixboard.write_json(place / fixboard.JOIN_FILE, {"par": bool(plan["par"]), "groups": rows, "units": units})
+    fixboard.write_json(place / fixboard.JOIN_FILE, joined)
     return {"groups": len(rows), "returned": sum(1 for r in rows if r["returned"])}
 
 

@@ -1586,6 +1586,37 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual((self.repo / "c.py").read_text(encoding="utf-8"), "C = 1\n", "後の組は当てない")
         self.assertEqual(fixboard.held(self.place), fixboard.HELD.format(groups="g1"))
 
+    @unittest.skipIf(os.geteuid() == 0, "root は書けないフォルダの中も書ける")
+    def test_join_that_fails_after_an_unrestored_group_still_leaves_it_held(self):
+        """#403: 戻せない組 g1 の後で join 自身が落ちても（戻せた組 g0 の TDD の輪の状態を写せない）、当たったままの組を join.json に
+        先に書いてあるので、後の節は held と読み、返す節は止めの語 stopby.UNRESTORED で人に回す"""
+        import stopby
+        (self.repo / "pkg").mkdir()
+        self.addCleanup(os.chmod, self.repo / "pkg", 0o755)
+        start = self.rerun_seed({
+            "pkg/__init__.py": "",
+            "pkg/m.py": "V = 1\n",
+            "c.py": "C = 1\n",
+            "test_m.py": "import os\nimport unittest\n\nfrom pkg.m import V\n\n\nclass TestM(unittest.TestCase):\n"
+                         "    def test_v(self):\n        if V == 2:\n            os.chmod('pkg', 0o555)\n        self.assertEqual(V, 3)\n"})
+        t0 = self.tree_with({"c.py": "C = 2\n"})
+        t1 = self.tree_with({"pkg/m.py": "V = 2\n"})
+        out_dir = self.groups_file([{"group_id": "g0", "unit_ids": ["B"], "items": [2]},
+                                    {"group_id": "g1", "unit_ids": ["A"], "items": [1]}], start)
+        broken = self.tmp / "g0-state.json"
+        broken.write_text("{broken", encoding="utf-8")
+        _blk_write(out_dir / "g0" / "result.json", _blk_result("g0", ["B"], t0, start, tdd_state=str(broken)))
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start, verified=["test_m.py::TestM::test_v"]))
+        code, _, err = _blk_run("join", self.repo, self.art)
+        os.chmod(self.repo / "pkg", 0o755)
+        self.assertEqual(code, 1, err)
+        g0, g1 = json.loads((self.place / "join.json").read_text(encoding="utf-8"))["groups"]
+        self.assertTrue(g0["returned"], g0)
+        self.assertEqual(g1["unrestored"], ["pkg/m.py"], g1)
+        self.assertEqual(fixboard.held(self.place), fixboard.HELD.format(groups="g1"))
+        code, out, err = _blk_run("collect", self.repo, self.art)
+        self.assertEqual((code, out["done"], out["stop_reason"]), (0, False, stopby.UNRESTORED), err)
+
     # ---- conflict_check.py
     def test_conflict_check_gathers_child_claims_and_goes(self):
         """F208: 組を戻した後、戻せた組の子の申し出（結果の conflicts）を親の置き場の conflicts.json に集める。名指した行が親の作業
@@ -1623,6 +1654,21 @@ class BlockScriptsCase(unittest.TestCase):
             self.assertEqual(code, 0, err)
             self.assertEqual(out, {"go": False, "count": 0})
             self.assertFalse((self.place / "conflicts-dropped.json").exists())
+        with self.subTest("当たったままの組が在る run も、先に戻せた組の申し出は積んで名を残し、裁定の輪だけを回さない"):
+            __import__("shutil").rmtree(self.place)
+            self.place.mkdir(parents=True)
+            out_dir = self.groups_file([{"group_id": g, "unit_ids": [k], "items": []} for g, k in (("g1", "A"), ("g2", "B"))],
+                                       start, par=True)
+            _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], start, start, conflicts=[claim, {**gone, "unit_key": "A"}]))
+            _blk_write(self.place / "join.json", {"par": True, "units": [], "groups": [
+                {"group_id": "g1", "unit_ids": ["A"], "returned": True, "reason": ""},
+                {"group_id": "g2", "unit_ids": ["B"], "returned": False, "reason": fixboard.UNRESTORED_HEAD, "unrestored": ["x.py"]}]})
+            code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
+            self.assertEqual(code, 0, err)
+            self.assertEqual(out, {"go": False, "count": 1})
+            items = json.loads((self.place / "conflicts.json").read_text(encoding="utf-8"))["items"]
+            self.assertEqual([(r["unit_key"], r["status"]) for r in items], [("A", "parked")])
+            self.assertEqual(len(json.loads((self.place / "conflicts-dropped.json").read_text(encoding="utf-8"))["dropped"]), 1)
 
     def test_conflict_check_keeps_claims_citing_their_own_child_place(self):
         """依頼 290: 子の申し出が名指す子の置き場（結果の place）の brief は、その組の名指しの根に許す（元 works の共有の盤面。
@@ -1753,6 +1799,14 @@ class BlockScriptsCase(unittest.TestCase):
         self.assert_contract(out)
         self.assertEqual((out["done"], out["stop_reason"], out["groups"]), (False, stopby.UNRESTORED, [row]))
         self.assertIn(stopby.UNRESTORED, stopby.WAITING, "人待ちの語（結末は needs_human）")
+        with self.subTest("返す節の中が落ちた道（fallback）も、当たったままの組を名指して人に回す"):
+            (self.place / fixboard.FIX_UNITS_FILE).write_text("{broken", encoding="utf-8")
+            code, out, err = _blk_run("collect", self.repo, self.art)
+            self.assertEqual(code, 0, err)
+            self.assert_contract(out)
+            self.assertIn("fix の出力を組めない", out["groups"][0]["reason"])
+            self.assertEqual((out["done"], out["stop_reason"], out["groups"][0]["unrestored"]), (False, stopby.UNRESTORED, ["stats.py"]))
+            (self.place / fixboard.FIX_UNITS_FILE).unlink()
         with self.subTest("当たったままの組の無い run の止めの語は空"):
             self.collect_place()
             code, out, err = _blk_run("collect", self.repo, self.art)

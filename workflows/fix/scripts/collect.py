@@ -170,19 +170,22 @@ def lenses_file() -> None:
 
 
 def fallback(why: str) -> dict:
-    """誤りの時の約束の形の返り（done: false と理由。ほかは空の値）"""
+    """誤りの時の約束の形の返り（done: false と理由。ほかは空の値。join.json の当たったままの組は、行に当たったままのパスを
+    残して止めの語 stopby.UNRESTORED で返す）"""
     groups_rows, units_rows, stop = [], [], ""
     try:
         import fixboard
         import stopby
-        stop = stopby.UNRESTORED if fixboard.held(boundary.place("fix")) else ""
+        stuck = fixboard.unrestored_of(boundary.place("fix"))
+        stop = stopby.UNRESTORED if stuck else ""
         plan = fixboard.read_json(boundary.place("fix") / fixboard.GROUPS_FILE)
         gs = plan["groups"] if isinstance(plan, dict) and isinstance(plan.get("groups"), list) else []
         if not gs and (g := boundary.parsed(os.environ.get("INPUTS_GROUP"))) is not None:
             gs = [g]
         for g in gs:
             groups_rows.append({"group_id": str(g["group_id"]), "unit_ids": [str(k) for k in g["unit_ids"]],
-                                "returned": False, "reason": why})
+                                "returned": False, "reason": why,
+                                **({"unrestored": stuck[str(g["group_id"])]} if str(g["group_id"]) in stuck else {})})
             units_rows += [{"unit_id": str(k), "group_id": str(g["group_id"]), "status": fixboard.NOT_DONE, "reason": why}
                            for k in g["unit_ids"]]
     except Exception:

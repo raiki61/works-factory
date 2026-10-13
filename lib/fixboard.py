@@ -743,12 +743,18 @@ def join_rows(groups, outcomes, backed_out=None, unrestored=None) -> tuple:
 HELD = "戻せず親の作業ツリーに当たったままの組 {groups} が在る（作業ツリーが信用できないので、人が確かめるまで動かさない）"
 
 
-def held(place) -> str:
-    """置き場の join.json に、戻せず親の作業ツリーに当たったままの組（欄 unrestored が在る行）が在れば HELD の訳、無ければ ""。
-    join.json が無い（組の子の形・join が書く前に落ちた）なら ""。訳が在れば、後の節（裁定・後始末・差分の審査）は作業ツリーを
-    動かさず、返す節は人に回す"""
+def unrestored_of(place) -> dict:
+    """置き場の join.json の、戻せず親の作業ツリーに当たったままの組 {group_id: 当たったままのパス}（欄 unrestored が在る行）。
+    join.json が無い（組の子の形・join が当たったままの組の無いまま書く前に落ちた）なら {}"""
     joined = read_json(pathlib.Path(place) / JOIN_FILE, {}) or {}
-    stuck = [str(g.get("group_id")) for g in joined.get("groups") or [] if isinstance(g, dict) and g.get("unrestored")]
+    return {str(g.get("group_id")): list(g["unrestored"]) for g in joined.get("groups") or []
+            if isinstance(g, dict) and g.get("unrestored")}
+
+
+def held(place) -> str:
+    """当たったままの組（unrestored_of）が在れば HELD の訳、無ければ ""。訳が在れば、後の節（裁定・後始末・差分の審査）は作業
+    ツリーを動かさず、返す節は人に回す"""
+    stuck = unrestored_of(place)
     return HELD.format(groups="・".join(stuck)) if stuck else ""
 
 
