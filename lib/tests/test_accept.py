@@ -102,19 +102,26 @@ class TestSnapshot(AcceptCase):
         self.assertNotEqual(before["diff_sha256"], snapshot_tree(self.repo)["diff_sha256"])
 
 
-    def test_bytecode_pathspec_agrees_with_predicate(self):
-        """差分を測る pathspec（_NO_BYTECODE）と未追跡を落とす _is_bytecode が同じ物を除く"""
-        names = ["__pycache__", "a/__pycache__", "b/__pycache__/x.py", "c.pyc", "d/e.pyc", "ok.py", "x/__pycache__y/z.py"]
+    def test_test_cache_pathspec_agrees_with_predicate(self):
+        """差分を測る pathspec（_no_test_cache）と未追跡を落とす _is_test_cache が、呼び手が足した名の形も含めて同じ物を除く"""
+        caches = accept.TEST_CACHES + (".pytest_cache",)
+        names = ["__pycache__", "a/__pycache__", "b/__pycache__/x.py", "c.pyc", "d/e.pyc", "ok.py", "x/__pycache__y/z.py",
+                 ".pytest_cache/v/lastfailed", "y/.pytest_cache_x"]
         for name in names:
             (self.repo / name).parent.mkdir(parents=True, exist_ok=True)
             (self.repo / name).write_text("1\n", encoding="utf-8")
         git(self.repo, "add", "-f", "--", *names)
         git(self.repo, "commit", "-q", "-m", "names")
-        kept = git(self.repo, "ls-files", "-z", "--", *accept._NO_BYTECODE).split("\0")
-        self.assertEqual(sorted(n for n in kept if n in names), sorted(n for n in names if not accept._is_bytecode(n)))
-        before = snapshot_tree(self.repo, bytecode=False)["diff_sha256"]
+        kept = git(self.repo, "ls-files", "-z", "--", *accept._no_test_cache(caches)).split("\0")
+        self.assertEqual(sorted(n for n in kept if n in names), sorted(n for n in names if not accept._is_test_cache(n, caches)))
+        self.assertEqual(sorted(n for n in names if not accept._is_test_cache(n)),
+                         sorted([".pytest_cache/v/lastfailed", "ok.py", "x/__pycache__y/z.py", "y/.pytest_cache_x"]),
+                         "lib が知る名の形は TEST_CACHES だけ")
+        before = snapshot_tree(self.repo, caches=caches)["diff_sha256"]
         (self.repo / "__pycache__").write_text("2\n", encoding="utf-8")
-        self.assertEqual(snapshot_tree(self.repo, bytecode=False)["diff_sha256"], before)
+        (self.repo / ".pytest_cache" / "v" / "lastfailed").write_text("2\n", encoding="utf-8")
+        self.assertEqual(snapshot_tree(self.repo, caches=caches)["diff_sha256"], before)
+        self.assertNotEqual(snapshot_tree(self.repo, caches=accept.TEST_CACHES)["diff_sha256"], before)
 
     def test_snapshot_sees_edits_hidden_by_index_marks(self):
         """本物の index の assume-unchanged・skip-worktree の印を付けたファイルの編集も姿を変え、印は消さない（touched_files と同じ見え方）"""

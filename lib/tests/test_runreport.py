@@ -24,6 +24,7 @@ import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import outcome  # noqa: E402
 import outpurpose  # noqa: E402
+import planfile  # noqa: E402
 import querytest  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
@@ -513,6 +514,20 @@ class DraftsCase(Base):
         returns = fixed_run(judge=returns["judge"])
         _, text, _ = self.build(returns)
         self.assertIn("保留にしたままの問い 1 件", text.splitlines()[3])
+
+    def test_unattended_held_question_with_nothing_owed_waits_in_decisions(self):
+        """#283: 無人の run で、単位 1 つがその単位を出どころにした保留の問い 1 つの答え待ちで、計画が直す義務 0 件で役を起こさなかった
+        周は、線の止め（計画の諦め）にならず、問いが報告の人が決めることに載る"""
+        judgment = self.put("judge/judgment.json", {"units": [{"key": FORK_UNIT, "label": "block"}], "questions": [FORK]})
+        self.put(f"plan/r1/{planfile.ROUND_FILE}", {"round": 1, "mode": "plan", "go": False, "why": planfile.NOTHING_OWED})
+        fields = self.put(f"plan/r1/{planfile.planmarks.FIELDS_FILE}", {"round": 1, "fields": []})
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment}, plan={"ready": False, "plan": fields}, fix=None,
+                            eyes=None, **{"plan-review": None, "test-gate-final": None, "merge-seal": None, "merge-apply": None})
+        _, text, decided = self.build(returns, start=UNATTENDED)
+        self.assertEqual(decided, ("round_limit", ""))
+        self.assertIn("保留にしたままの問い 1 件", text.splitlines()[3])
+        self.assertIn(FORK["key"], self.section(text, report.DECISIONS_HEADING))
+        self.assertNotIn(runreport.PLAN_GAVE_UP_WHERE, [r["where"] for r in runreport.prior_failures(returns, [], {})])
 
     def test_unmeasured_material_draft_carries_its_reason(self):
         judgment = self.put("judge/judgment.json", {})
