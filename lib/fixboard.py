@@ -986,7 +986,7 @@ def diff_file(repo, base, place, name: str, none_name: str, skip=()) -> tuple[pa
         rev = base()
         text = run_diff(repo, rev, skip)
     except Exception as e:  # noqa: BLE001  版の読みと git の誤りも訳にして読み手へ渡す
-        why = f"累積差分が取れない（{type(e).__name__}: {' '.join(str(e).split())}）"
+        why = f"累積差分が取れない（{type(e).__name__}: {oneline.one_line(e)}）"
     if text.strip():
         (place / name).write_text(text, encoding="utf-8", errors="surrogateescape")
         return place / name, text, ""
