@@ -158,6 +158,24 @@ class MakeTargetTest(unittest.TestCase):
         self.assertEqual(self.make_target("teardown").returncode, 0)
         self.assertEqual(self.calls(), [])
 
+    def test_stop_cancels_only_runs_of_that_attempt(self):
+        mine = self.make_target("make", str(self.tmp / "mine"), "--no-ledger")
+        self.assertEqual(mine.returncode, 0, mine.stderr)
+        mine = {k: pathlib.Path(v) for k, v in json.loads(mine.stdout).items()}
+        theirs = self.make(self.tmp / "theirs")
+        done = self.make_target("stop", str(self.tmp / "mine"))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual([c["args"][:3] for c in self.calls()],
+                         [["workflow", "status", "--all"], ["workflow", "cancel", "run-a"]])
+        self.assertTrue(all(pathlib.Path(c["archon_home"]).is_relative_to(mine["home"]) for c in self.calls()))
+        self.assertEqual(self.ledger(self.repo).read_text(encoding="utf-8"), f"{theirs['home']}\t{theirs['target']}\n")
+
+    def test_stop_refuses_a_folder_without_a_home(self):
+        done = self.make_target("stop", str(self.tmp))
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("home/", done.stderr)
+        self.assertEqual(self.calls(), [])
+
     def test_make_refuses_unknown_arguments(self):
         for args in (["--seed"], ["a", "b"], ["a", "--seed", "x", "--seed", "y"], ["a", "--force"]):
             with self.subTest(args=args):

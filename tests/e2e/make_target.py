@@ -3,11 +3,13 @@
   python3 tests/e2e/make_target.py make <試みのフォルダ> [--seed <dir>] [--request <file>] [--no-ledger]
                                                              対象・その origin・依頼・家を作り、絶対パスを JSON 1 行で出す
   python3 tests/e2e/make_target.py teardown                  控えの家ごとに、終わっていない run を止めて控えから消す
+  python3 tests/e2e/make_target.py stop <試みのフォルダ>      その試みの家の終わっていない run だけを止める（控えを見ない）
 
 約束は docs/plans/2026-10-13-stage1-walking-skeleton.md の「対象の作り方」。試みのフォルダはリポジトリの外に置き、作業ツリーには
 何も書かない。控えは、この checkout の git の私用の置き場（git rev-parse --git-dir の下）に置くので、同じ機械のほかの checkout の
 控えには触らない。種と依頼の既定は target-seed/ とその中の request_ok.json で、較正のランナー tests/calibration/run.py は
-仕込んだ種と依頼を渡す。--no-ledger は控えに載せない（teardown が今の works の家に works-factory の殻を当てないため）。
+仕込んだ種と依頼を渡す。--no-ledger は控えに載せない（teardown が今の works の家に works-factory の殻を当てないため。同じ checkout
+でほかの run と並べる通しも、teardown がその run を止めないよう --no-ledger で作り、stop で自分の家だけを止める）。
 run は殻 bin/works-factory の workflow cancel（止まらなければ abandon）で止める。プロセスを名で止めない。
 """
 import json
@@ -137,11 +139,16 @@ def main(argv: list[str]) -> int:
             return 0
         if argv == ["teardown"]:
             return 1 if teardown() else 0
+        if argv[:1] == ["stop"] and len(argv) == 2:
+            attempt = Path(os.path.realpath(argv[1]))
+            if not (attempt / "home").is_dir():
+                raise Stop(f"{attempt} に家 home/ が無い（make の作った試みのフォルダでない）")
+            return 0 if stop_runs(attempt / "home", attempt / "target") else 1
     except Stop as stop:
         print(f"make_target: {stop}", file=sys.stderr)
         return 1
-    print("使い方: make_target.py make <試みのフォルダ> [--seed <dir>] [--request <file>] [--no-ledger] | make_target.py teardown",
-          file=sys.stderr)
+    print("使い方: make_target.py make <試みのフォルダ> [--seed <dir>] [--request <file>] [--no-ledger] | make_target.py teardown"
+          " | make_target.py stop <試みのフォルダ>", file=sys.stderr)
     return 2
 
 
