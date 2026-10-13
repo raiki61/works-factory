@@ -224,9 +224,9 @@ def request_file(board_dir) -> str:
     return got if isinstance(got, str) else ""
 
 
-def cite_roots(board_dir) -> list:
-    """盤面の受け付けが名指しを許す、作業ツリーの外の根（依頼のファイルと盤面の置き場）"""
-    return [request_file(board_dir), str(board_dir)]
+def cite_roots(board_dir, root=None) -> list:
+    """盤面の受け付けが名指しを許す、作業ツリーの外の根（依頼のファイルと、root。root の既定は盤面の置き場）"""
+    return [request_file(board_dir), str(board_dir if root is None else root)]
 
 
 def _correct_problem(it, try_query) -> str:

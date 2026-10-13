@@ -57,7 +57,7 @@ request = Path(start["request_file"]) if start.get("request_file") else None
 repo_review = Path.cwd() / "REVIEW.md"
 depth_rows = boundary.parsed(os.environ["INPUTS_DEPTH"]) or []
 purpose_text = purpose.get("purpose_text") or ""
-after = eyeverdict.after_section(EYES, EYES.parent / boardview.FOLDER)
+after = eyeverdict.after_section(EYES, EYES.parent / boardview.FOLDER, boundary.pointed(os.environ["INPUTS_PLAN"]))
 premises_text, r2_ledger = eyeverdict.premise_section(
     human_items=eyeverdict.human_items(boundary.parsed(os.environ["INPUTS_START_ANSWERS"]), answer),
     request_text=request.read_text(encoding="utf-8") if request and request.is_file() else None, repo=Path.cwd(),
