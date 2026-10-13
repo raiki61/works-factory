@@ -75,6 +75,9 @@ elif verb == "get":
     run = next(r for r in state["runs"] if r["id"] == args[2])
     parent = run["parent_run_id"] is None
     if "--events" in args:
+        if plan.get("events_unreadable"):
+            print("not json")
+            sys.exit(0)
         print(json.dumps({"id": run["id"], "events": [
             {"event_type": "workflow_started", "created_at": "2026-10-12T00:00:00.000Z"},
             {"event_type": "workflow_started", "created_at": "2026-10-12T01:00:00.000Z"}]}))
@@ -637,6 +640,13 @@ class RunTest(RunnerCase):
                 [observed] = self.observed_files(factory)
                 self.assertEqual((observed["units"], observed["asks"]), self.UNITS[factory])
                 self.assertFalse({"units", "asks"} & set(observed["unread"]))
+
+    def test_unreadable_events_stop_the_row(self):
+        self.set_plan(events_unreadable=True)
+        done = self.run_rows("works-factory", REQUEST)
+        self.assertEqual(done.returncode, 1, done.stderr)
+        self.assertIn("run a1b2c3d4-0000-run の出来事の列を evidence/ に写せない", done.stderr)
+        self.assertFalse(self.observed.exists())
 
     SPANS = {"works-factory": lambda row, events: {"record/parent.json": {**row, "terminal_record": {}},
                                                    "record/parent-events.json": {"events": events}},
