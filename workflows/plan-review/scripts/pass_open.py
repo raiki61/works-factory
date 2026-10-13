@@ -47,28 +47,22 @@ def opened() -> tuple:
     sys.path.append(str(boundary.lib_root()))
     import boardview
 
-    def pointed(text: str):
-        """指し札の JSON の字を置き場の中のパスに（null は None）"""
-        value = json.loads(text)
-        return None if value is None else boundary.resolve(value)
-
     text = YAML.read_text(encoding="utf-8")
+    folder = Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER
+    shared = {"judgment": boundary.needed(os.environ["INPUTS_JUDGMENT"], "judgment"),
+              "purpose": boundary.needed(os.environ["INPUTS_PURPOSE"], "purpose"),
+              "world": boundary.pointed(os.environ["INPUTS_WORLD"]), "start": boundary.pointed(os.environ["INPUTS_START"]),
+              "answers": boundary.parsed(os.environ["INPUTS_ANSWERS"]), "design_schema": node_schema(text, "r2-design")}
     if os.environ.get("INPUTS_MODE", "") == boardview.DESIGN_FORM:   # 直す物が無い周: 修正案を読まずに独立設計だけ
-        got = boardview.open_design(
-            Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER, cwd=Path.cwd(), judgment=pointed(os.environ["INPUTS_JUDGMENT"]),
-            purpose=pointed(os.environ["INPUTS_PURPOSE"]), world=pointed(os.environ["INPUTS_WORLD"]),
-            start=pointed(os.environ["INPUTS_START"]), answers=json.loads(os.environ["INPUTS_ANSWERS"]),
-            design_schema=node_schema(text, "r2-design"))
+        got = boardview.open_design(folder, cwd=Path.cwd(), **shared)
         return boundary, {"ok": True, **got, "reason": ""}
     got = boardview.open_pass(
-        Path(os.environ["ARTIFACTS_DIR"]) / boardview.FOLDER, cwd=Path.cwd(), judgment=pointed(os.environ["INPUTS_JUDGMENT"]),
-        purpose=pointed(os.environ["INPUTS_PURPOSE"]), plan=pointed(os.environ["INPUTS_PLAN"]),
-        structure=pointed(os.environ["INPUTS_STRUCTURE"]), ripple=pointed(os.environ["INPUTS_RIPPLE"]),
-        world=pointed(os.environ["INPUTS_WORLD"]), start=pointed(os.environ["INPUTS_START"]),
-        answers=json.loads(os.environ["INPUTS_ANSWERS"]), ruling=json.loads(os.environ["INPUTS_RULING"]) or [],
-        conflicts=pointed(os.environ["INPUTS_CONFLICTS"]), gate_answers=json.loads(os.environ["INPUTS_GATE_ANSWERS"]),
-        round_limit=json.loads(os.environ["INPUTS_ROUND_LIMIT"]),
-        review_schema=node_schema(text, "plan-review"), design_schema=node_schema(text, "r2-design"))
+        folder, cwd=Path.cwd(), **shared, plan=boundary.needed(os.environ["INPUTS_PLAN"], "plan"),
+        structure=boundary.needed(os.environ["INPUTS_STRUCTURE"], "structure"),
+        ripple=boundary.needed(os.environ["INPUTS_RIPPLE"], "ripple"),
+        ruling=boundary.parsed(os.environ["INPUTS_RULING"]) or [], conflicts=boundary.pointed(os.environ["INPUTS_CONFLICTS"]),
+        gate_answers=boundary.parsed(os.environ["INPUTS_GATE_ANSWERS"]), round_limit=boundary.parsed(os.environ["INPUTS_ROUND_LIMIT"]),
+        review_schema=node_schema(text, "plan-review"))
     return boundary, {"ok": True, **got, "reason": ""}
 
 

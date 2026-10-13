@@ -4,7 +4,6 @@ works/tests/test_blk_lens.py の場合のうち、盤面を使わずに回る物
 振り分け（route）・境（exit_）・ブロックの YAML・報告（report）の試験は、盤面と blk-* を使うので持ってこない。振り分けの代わりに
 控えの pending の行は lens.write_routes で置く（lens-prep の script が置く物と同じ形）。
 """
-import json
 import pathlib
 import sys
 import unittest
@@ -29,14 +28,14 @@ class LensPlaceCase(RF.DeltaPlaceCase):
         lens.write_routes(self.place, [{"lens": r["lens"], "agent": r["agent"], "go": go,
                                         "reason": "" if go else "変わったファイルに例外の扱いが無い"} for r in lenses.LENSES])
 
-    def collect(self, raw):
-        return lenses.collect(self.place, {"silent-failure-hunter": raw})
+    def collect(self, reply):
+        return lenses.collect(self.place, {"silent-failure-hunter": reply})
 
     # -- 集め役
     def test_collect_marks_findings_with_lens_name(self):
         """走ったレンズの指摘は出どころ（レンズの名）つきで ran"""
         self.routed()
-        out = self.collect(json.dumps({"findings": [FINDING]}, ensure_ascii=False))
+        out = self.collect({"findings": [FINDING]})
         self.assertEqual((out["ok"], out["ran"], out["failed"], out["not_routed"]), (True, 1, 0, 0))
         self.assertEqual(out["lens_file"], str(self.place / lens.LENS_FILE))
         row = lens.read(self.place)[0]
@@ -44,7 +43,7 @@ class LensPlaceCase(RF.DeltaPlaceCase):
 
     def test_collect_records_failed_lens_and_succeeds(self):
         """落ちたレンズ（出口 null）・形の違う出口は failed と理由を記録し、集め役そのものは ok"""
-        for given, why in (("null", "出口が無い"), ('{"findings": "x"}', "形が違う")):
+        for given, why in ((None, "出口が無い"), ({"findings": "x"}, "形が違う")):
             with self.subTest(given):
                 self.routed()
                 out = self.collect(given)
@@ -55,13 +54,13 @@ class LensPlaceCase(RF.DeltaPlaceCase):
 
     def test_collect_without_routes_is_not_ok(self):
         """振り分けが控えを書いていない（落ちた）なら集め役は ok: false と理由"""
-        out = self.collect("null")
+        out = self.collect(None)
         self.assertIs(out["ok"], False)
         self.assertIn("控えが無い", out["reason"])
 
     def test_not_routed_lens_is_counted(self):
         self.routed(go=False)
-        out = self.collect("null")
+        out = self.collect(None)
         self.assertEqual((out["ok"], out["not_routed"], out["ran"]), (True, 1, 0))
         self.assertIn("silent-failure-hunter: 起こさなかった（変わったファイルに例外の扱いが無い）", lens.report_lines(self.place))
 
@@ -70,29 +69,29 @@ class LensPlaceCase(RF.DeltaPlaceCase):
         """1 件の形の誤りは捨てて件数を行の dropped に書き、形の合った発見は残す。findings が配列でなければ failed"""
         self.routed()
         bad = {"where": "stats.py", "cite": "", "why": "cite が空の発見"}
-        self.collect(json.dumps({"findings": [FINDING, bad, "x"]}, ensure_ascii=False))
+        self.collect({"findings": [FINDING, bad, "x"]})
         row = lens.read(self.place)[0]
         self.assertEqual((row["state"], row["dropped"], row["findings"]), ("ran", 2, [{"lens": "silent-failure-hunter", **FINDING}]))
         self.routed()
-        self.collect(json.dumps({"findings": "x"}))
+        self.collect({"findings": "x"})
         row = lens.read(self.place)[0]
         self.assertEqual(row["state"], "failed")
         self.assertNotIn("dropped", row)
 
     def test_count_line_always_names_failed_lens_count(self):
         self.routed()
-        self.collect(json.dumps(LENS_REPLY, ensure_ascii=False))
+        self.collect(LENS_REPLY)
         self.assertIn("落ちたレンズ 0 件", lens.count_line(lens.summary(self.place)))
         self.assertIn("落ちたレンズ 0 件", lens.report_lines(self.place)[-1])
         self.routed()
-        self.collect("null")
+        self.collect(None)
         self.assertIn("落ちたレンズ 1 件", lens.count_line(lens.summary(self.place)))
 
     def test_summary_counts_adopted_by_lens_field(self):
         """採った件数は審査の faces の lens 欄がレンズの名の穴の数。審査の返答は受け付けが置き場に置いたファイルで渡す"""
         self.fixed()
         self.routed()
-        self.collect(json.dumps({"findings": [FINDING, {**FINDING, "where": "other.py"}]}, ensure_ascii=False))
+        self.collect({"findings": [FINDING, {**FINDING, "where": "other.py"}]})
         self.cut()
         reply = RF.review_faces()
         base = reply["faces"][0]
@@ -108,7 +107,7 @@ class LensPlaceCase(RF.DeltaPlaceCase):
         """1 回目の審査役の brief の lens に、指摘を出どころつきで載せる"""
         self.fixed()
         self.routed()
-        self.collect(json.dumps({"findings": [FINDING]}, ensure_ascii=False))
+        self.collect({"findings": [FINDING]})
         brief = self.brief(self.cut())
         self.assertEqual(brief["lens"], [{"lens": "silent-failure-hunter", "state": "ran", "reason": "",
                                           "findings": [{"lens": "silent-failure-hunter", **FINDING}]}])

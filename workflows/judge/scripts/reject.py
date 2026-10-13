@@ -8,7 +8,6 @@
 役の指示書が $<この節>.output.reason で読む形で渡す（ASF の W/deliver/archon-deliver.yaml の ci-evidence と同じ形）。
 同じ形で、役の文の頭に足す言語の 1 行（始めの記録の lang から rolekit.lang_line。元 works/.shared/core/rolekit.py 147-150 行）を
 lang_line で返し、役の指示書が $<この節>.output.lang_line で読む。lib/ を読めなくても落ちずに訳の 1 行を返す"""
-import json
 import os
 import sys
 from pathlib import Path
@@ -22,8 +21,7 @@ def lang_line() -> str:
     try:
         sys.path.append(str(boundary.lib_root()))
         import rolekit
-        ptr = json.loads(os.environ.get("INPUTS_START") or "null")
-        return rolekit.record_lang_line(None if ptr is None else boundary.resolve(ptr))
+        return rolekit.record_lang_line(boundary.pointed(os.environ.get("INPUTS_START")))
     except Exception as error:  # noqa: BLE001 — 拒否の理由を役へ渡す節は落ちない
         return f"（言語の 1 行を組めない: {type(error).__name__}: {error}。人が読む文の欄は依頼文の言語で書け）"
 

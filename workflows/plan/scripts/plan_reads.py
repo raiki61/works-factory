@@ -24,7 +24,7 @@ def collected() -> None:
     import policy
     import reads
 
-    start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.resolve)
+    start, _ = planfile.read_pointed(os.environ["INPUTS_START"], boundary.pointed)
     got = planfile.collect_reads(Path(os.environ["ARTIFACTS_DIR"]) / os.environ["INPUTS_DIR"],
                                  reads.log_here(), role=ROLE, quiet=QUIET,
                                  policy_md=policy.frozen_copy(start if isinstance(start, dict) else {}), repo=Path.cwd())
