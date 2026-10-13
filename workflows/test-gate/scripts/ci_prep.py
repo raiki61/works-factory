@@ -26,7 +26,7 @@ from engine import util  # noqa: E402  （accept が lib/graphloops を sys.path
 
 def main() -> int:
     mode = os.environ["INPUTS_MODE"]
-    start = json.loads(boundary.resolve(json.loads(os.environ["INPUTS_START"])).read_text(encoding="utf-8"))
+    start = json.loads(boundary.needed(os.environ["INPUTS_START"], "start").read_text(encoding="utf-8"))
     root = Path(util.repo_root() or os.getcwd())
     gate = Path(os.environ["ARTIFACTS_DIR"]) / "test-gate" / mode
     gate.mkdir(parents=True, exist_ok=True)

@@ -58,7 +58,7 @@ def line_top(out_dir: str) -> Path | None:
 
 
 def read_group() -> dict:
-    g = json.loads(os.environ["INPUTS_GROUP"])
+    g = boundary.parsed(os.environ["INPUTS_GROUP"])
     if not isinstance(g, dict) or not isinstance(g.get("group_id"), str) or not g["group_id"] \
             or not isinstance(g.get("unit_ids"), list):
         raise ValueError(f"入力 group が {{group_id, unit_ids, items}} の形でない（{os.environ['INPUTS_GROUP'][:200]!r}）")
@@ -81,7 +81,7 @@ def main() -> dict:
                 fixboard.drop_unreturned(repo, gdir, boundary.SKIP)
     else:
         raw = {name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in INPUTS}
-        fixboard.prep(place, repo, raw, boundary.resolve)
+        fixboard.prep(place, repo, raw, boundary.parsed, boundary.pointed)
     leftovers.record_ignored(place, repo)
     start_tree = groups.end_tree(repo)
     fixboard.write_json(place / fixboard.GROUPS_FILE,

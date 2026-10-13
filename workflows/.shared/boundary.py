@@ -15,7 +15,8 @@
   fallback の返りにする（lib/ の誤りでも節は落ちない）
 - LINE_SCRIPT: fallback の返りの止めの理由。lib/stopby.py の LINE_SCRIPT の写し（lib を読めない時の fallback も引くので lib から
   読めない。lib/tests/test_stopby.py が突き合わせる）
-- value・text・flag・items・field: Archon が渡した入力の字を値に戻す（埋め skip_value の上の読み方）
+- parsed・value・text・flag・items・field・pointed・needed: Archon が渡した入力の字を値に戻す（埋め skip_value の上の読み方）。script は入力の字を
+  自分で json.loads しない（宣言した null の欄は空の字で届く。tests/workflows/test_input_reads.py が縛る）
 
 Archon に向いた事実（lib/ は Archon の名を持たない（lib/AGENTS.md の E3）ので、script がここから引いて lib/ へ引数で渡す）:
 - RUNTIME_COPY・RUNTIME_COPY_PREFIX・RUNTIME_COPY_DIRS・SKIP: Archon が run の作業ツリーに写す工程の置き場。修正の変更でないので、
@@ -71,7 +72,7 @@ def pointer(rel: str) -> dict:
 
 def resolve(ptr: dict) -> Path:
     """この run の指し札を、置き場の中のパスに戻す"""
-    if ptr.get("type") != POINTER_TYPE:
+    if not isinstance(ptr, dict) or ptr.get("type") != POINTER_TYPE:
         raise ValueError(f"{POINTER_TYPE} のポインタでない: {ptr!r}")
     if ptr.get("run_id") != _run_id():
         raise ValueError(f"ほかの run のポインタ: {ptr.get('run_id')}（この run は {_run_id()}）")
@@ -111,12 +112,33 @@ def run(compute, fallback) -> None:
     returns(out)
 
 
+def parsed(raw):
+    """入力の JSON の値。null・空の字・無い入力は None。JSON でなければ ValueError"""
+    return skip_value.parsed(raw)
+
+
 def value(raw):
+    """入力の JSON の値。null・空の字・無い入力は None。JSON でなければ字のまま"""
     return skip_value.value(raw)
 
 
+def pointed(raw) -> Path | None:
+    """指し札の入力の字の先の、置き場の中のパス。null・空の字・無い入力は None。札でなければ ValueError"""
+    ptr = parsed(raw)
+    return None if ptr is None else resolve(ptr)
+
+
+def needed(raw, name: str) -> Path:
+    """必ず在る指し札の入力 name の先のパス。null・空の字・無い入力も ValueError"""
+    path = pointed(raw)
+    if path is None:
+        raise ValueError(f"入力 {name} のポインタが無い（null か空の字）")
+    return path
+
+
 def field(key: str, raw):
-    """ブロックの返りの 1 欄。字の欄（TEXT_FIELDS）は字のまま、ほかは JSON として読む。飛ばされた節（null）は None"""
+    """ブロックの返りの 1 欄。字の欄（TEXT_FIELDS）は字のまま（空の字も空の字）で、飛ばされた節（null）は None。ほかは JSON として
+    読み、null と空の字は None"""
     return skip_value.text(raw) if key in TEXT_FIELDS else skip_value.value(raw)
 
 
