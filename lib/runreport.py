@@ -70,6 +70,8 @@ import worldmark  # noqa: E402
 
 as_dict = oc.as_dict
 PACK_TERMS = _HERE / "glossary.json"
+OUT_DIR = "report"                      # run の置き場の中の報告の置き場（報告のサブグラフの script が run の置き場に足す）
+UNWRITTEN = "report-unwritten.md"       # 報告を組めない時の機械の報告（fallback_report。facts の report.md を上書きしない名）
 AI_FILE = "ai.json"                     # 受け付けた書き手の返答と初見の判定（collect が読む）
 AI_REPORT_FILE = "report-ai.md"         # AI の報告（元 report_roles.REPORT_NAME）
 REJECTS_FILE = "report-rejects.json"    # 拒否の行の控え（元 report_roles.REJECTS_NAME）
