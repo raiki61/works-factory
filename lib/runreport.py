@@ -112,6 +112,7 @@ NO_REJECT = "受け付けの最後の拒否の控えが置き場に無い"
 REJECT_PLACES = {"judge": "judgment", "rejudge": "judgment", "plan": "plan", "replan": "plan", "plan-review": "review",
                  "replan-review": "review", "fix": "diff", "test-gate-base": "evidence", "test-gate-final": "evidence",
                  "eyes": "structure_after", "merge-seal": "diff", "merge-apply": "diff"}
+GATE_ANSWERED_HEAD = "答えた問い（修正前の承認ノードが通す語で答えた事前審査の問い。人が決めることの件数には数えない）"
 RESIDUE_HEAD = "残り"   # 元 always_rows の残りの件数の行（結末に依らず 0 件も）
 MISSING_EYE_NOTE = "結果が無い目は阻害 0 件でなく判定が無い（再実行の要あり。深さで省いた目は数えない）"   # 元 MISSING_GATE_NOTE
 FORGE_HEAD = "PR を持つホスト（forge）"   # 元 report.FORGE_HEAD
@@ -866,14 +867,24 @@ def _converge_lines(returns: dict) -> list:
     return out
 
 
+def _plan_questions(returns: dict, gates: dict) -> tuple[list, list]:
+    """事前審査の問いの文を (人が決める物, 修正前の承認ノードが通す語で答えた物) に分ける。答えた物は答えの asked に在る行で、
+    関所が開かなかった run（無人の run の plan-review:ask-human）と止めた答えでは無い"""
+    texts = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions")))
+    gate = as_dict(gates.get("gate-before-fix"))
+    asked = {a for a in _list(gate.get("asked")) if isinstance(a, str)} if gate.get("decision") in oc.PASS_WORDS else set()
+    return [q for q in texts if q not in asked], [q for q in texts if q in asked]
+
+
 def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, beside: dict, exit_: tuple,
                repo=None, line: dict | None = None) -> tuple[list, str]:
     """人が決めることの行と、冒頭の 2 行目（件数）。数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは
     直す義務に戻せなかった単位の行を重ねて数えない。closed は途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
-    plan_qs = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions")))
+    plan_qs, plan_done = _plan_questions(returns, gates)
     eye_qs = [q for q in _list(as_dict(returns.get("eyes")).get("questions")) if isinstance(q, str)]
     ledger = ledger_state(returns, gates, start)
-    held_ = [line for q, line in ledger["held"] if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_qs)]
+    held_ = [line for q, line in ledger["held"]
+             if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in [*plan_qs, *plan_done])]
     done = ledger["answered"]
     asked = oc.asked_conflicts(returns, closed)
     tests = [t for t in _list(as_dict(returns.get("fix")).get("allowed_test_changes")) if isinstance(t, str)]
@@ -897,6 +908,9 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
             lines.append(f"  - {oneline.one_line(text)}")
     if held_:
         lines.append(f"  {gatemarks.ANSWER_HOW}")
+    if plan_done:
+        lines.append(f"{GATE_ANSWERED_HEAD}: {len(plan_done)} 件")
+        lines += [f"  - {oneline.one_line(x)}" for x in plan_done]
     if done:
         lines.append(f"{gatemarks.ANSWERED_HEAD}（問いの台帳・{len(done)} 件。保留の件数には数えない）:")
         lines += [f"  - {x}" for x in done]
@@ -1278,7 +1292,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     draft = gatemarks.draft_line(drafts, next_file)
     _, outside, outside_count = _outside(returns, next_file)
     split = split_line(returns)
-    asked_texts = [*gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))),
+    asked_texts = [*_plan_questions(returns, gates)[0],
                    *[q for q in _list(_ret(returns, "eyes").get("questions")) if isinstance(q, str)]]
     head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）" + (f"。{split}" if split else ""),
                            decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")

@@ -406,6 +406,26 @@ class DecisionsCase(Base):
         self.assertTrue(second.startswith(gatemarks.DECIDE + "2 件"), second)
         self.assertIn("小さい方", text.splitlines()[4])
 
+    def test_question_answered_at_the_gate_is_not_counted(self):
+        """修正前の承認ノードが通す語で答えた問い（答えの asked の行）は人が決めることと冒頭の件数・推しから外し、答えた問いの行に出す。
+        関所が開かなかった run（無人の run の plan-review:ask-human）は今どおり数える"""
+        text_q = "どちらに寄せるか／推し: 通す（continue）——小さい方（理由: 速い）"
+        review = {"pass": True, "ask_human": True, "questions": [gatemarks.question_row("fork", text_q)]}
+        eyes = {**fixed_run()["eyes"], "questions": ["守りを触ってよいか"]}
+        returns = fixed_run(eyes=eyes, **{"plan-review": review})
+        _, text, _ = self.build(returns, gates={"gate-before-fix": {"decision": "approve", "text": "", "asked": [text_q]}})
+        head = text.splitlines()
+        self.assertTrue(head[3].startswith(gatemarks.DECIDE + "1 件——独立の目 R4 の問い 1 件"), head[3])
+        self.assertNotIn("小さい方", head[4])
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("- 修正前の問い: 0 件\n", body)
+        self.assertIn(f"- {runreport.GATE_ANSWERED_HEAD}: 1 件\n  - {text_q}", body)
+        for gates in ({}, {"gate-before-fix": {"decision": "stop", "text": "止める", "asked": [text_q]}}):
+            with self.subTest(gates=gates):
+                _, text, _ = self.build(returns, gates=gates)
+                self.assertTrue(text.splitlines()[3].startswith(gatemarks.DECIDE + "2 件——修正前の問い 1 件"), text.splitlines()[3])
+                self.assertNotIn(runreport.GATE_ANSWERED_HEAD, text)
+
     def test_unreturned_unit_is_counted_as_decision(self):
         """元 ReportHeadCase.test_unreturned_unit_is_counted_as_decision: 関所で答えたが直す義務に戻せなかった単位（fix の not_done）"""
         fix = {**fixed_run()["fix"], "units": [{"unit_id": "u9", "status": "not_done", "reason": "案の直しを待つ"}]}
