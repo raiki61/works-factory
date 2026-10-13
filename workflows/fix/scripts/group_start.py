@@ -43,8 +43,6 @@ import tree_run  # noqa: E402
 import writelog  # noqa: E402
 
 NO_UNITS = "組に単位が無い——TDD のループを回さない"
-INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "world", "depth", "answers", "units", "only_items", "baseline",
-          "prior_conflicts", "notes")   # 単独の run が節 prep と同じ写しを置くのに読む入力
 
 
 def line_top(out_dir: str) -> Path | None:
@@ -81,7 +79,7 @@ def main() -> dict:
             for gdir in sorted(p for p in Path(out_dir).glob("*") if p.is_dir()):
                 fixboard.drop_unreturned(repo, gdir, boundary.SKIP)
     else:
-        raw = {name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in INPUTS}
+        raw = {name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in fixboard.PREP_INPUTS}
         fixboard.prep(place, repo, raw, boundary.parsed, boundary.pointed)
     leftovers.record_ignored(place, repo)
     start_tree = groups.end_tree(repo)

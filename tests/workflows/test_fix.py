@@ -39,7 +39,7 @@ import ruling  # noqa: E402
 
 CONTRACT_FIELDS = {"done", "units", "groups", "conflicts", "replan_items", "objection", "diff", "allowed_test_changes",
                    "changed", "x_scalars", "delta_review", "handoffs", "mismatched"}
-CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "world", "plan", "ripple", "depth", "answers", "prior_conflicts",
+CONTRACT_INPUTS = {"start", "baseline", "units", "judgment", "plan", "ripple", "depth", "answers", "prior_conflicts",
                    "plan_review", "notes"}
 EXTRA_INPUTS = {"only_items", "mode", "group", "from_tree", "out_dir"}
 CHANGED_MARKS = {"mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
@@ -995,18 +995,6 @@ def _blk_write(path, doc):
     return path
 
 
-_WORLD_ROW = {"finding": 1, "where": "stats.py", "class_id": "mean-denominator", "problem": "平均の分母の取り違え",
-              "activity": "算術", "practice": "算術平均は要素の数で割る", "sources": [], "applies": "mean の分母",
-              "not_applies": "", "versus": {"proposed": "分母を直す", "verdict": "same", "challenge": ""}, "basis": "knowledge"}
-_WORLD_LINES = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in (
-    _WORLD_ROW, {**_WORLD_ROW, "finding": 2, "class_id": "mean-empty", "problem": "空の並びの平均"}))
-
-
-def _blk_world(path, text=_WORLD_LINES):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-
-
 def _blk_ptr(rel):
     return json.dumps({"type": "archon_artifact", "run_id": _BLK_RUN, "path": rel})
 
@@ -1069,7 +1057,7 @@ class BlockScriptsCase(unittest.TestCase):
         _blk_write(self.art / "plan" / "r1" / "p2.fix_plan.json", {"plan": [{"unit_keys": ["A", "B"]}, {"unit_keys": ["C"]}]})
         return {"start": _blk_ptr("in/start.json"), "judgment": _blk_ptr("in/judgment.json"),
                 "plan": _blk_ptr("plan/r1/plan-fields.json"), "units": "[]", "depth": "[]", "only_items": only,
-                "baseline": "", "world": "", "ripple": "", "answers": "null"}
+                "baseline": "", "ripple": "", "answers": "null"}
 
     def restore(self):
         git(self.repo, "checkout", "-q", "--", ".")
@@ -1177,14 +1165,13 @@ class BlockScriptsCase(unittest.TestCase):
         import gatemarks
         import planmarks
         _blk_write(self.art / "in" / "ripple.json", [{"path": "stats.py"}])
-        _blk_world(self.art / "in" / "world.jsonl")
         _blk_write(self.art / "in" / "baseline.json", {"cases": [], "exit": 0, "suite": "", "test_cmd": "", "rev": "HEAD"})
         inputs = self.prep_inputs()
         judgment_dir = self.art / json.loads(inputs["judgment"])["path"].rsplit("/", 1)[0]
         _blk_write(judgment_dir / gatemarks.BESIDE[0], {"rounds": {"1": []}})   # 判定の隣の結びと素材の状態
         _blk_write(judgment_dir / gatemarks.BESIDE[1], {"ci": {"status": "not_run"}})
-        inputs = {**inputs, "ripple": _blk_ptr("in/ripple.json"), "world": _blk_ptr("in/world.jsonl"),
-                  "baseline": _blk_ptr("in/baseline.json"), "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]',
+        inputs = {**inputs, "ripple": _blk_ptr("in/ripple.json"), "baseline": _blk_ptr("in/baseline.json"),
+                  "depth": '[{"unit_id": "A", "depth": "標準", "why": "x"}]',
                   "answers": '{"decision": "approve", "text": "stats.py の外は触らない"}', "units": '["A"]',
                   "only_items": '["1"]', "plan_review": _blk_ptr("in/review.json"), "notes": "## 直した項目 1 の事前審査の穴"}
         _blk_write(self.art / "in" / "review.json", {"faces": [], "shrink": []})
@@ -1194,20 +1181,6 @@ class BlockScriptsCase(unittest.TestCase):
         own = {fixboard.GROUPS_FILE, "fix-ignored-before.json", fixboard.marks_path(self.place).name,
                fixboard.TRACE_FILE, planmarks.FIELDS_FILE}
         self.assertEqual(written - own, set(fixboard.ADOPTED))
-
-    def test_prep_takes_world_of_two_rows(self):
-        """入力 world（judge/world.jsonl。JSON Lines）が 2 行以上でも prep は落ちない（読み方の持ち主は worldmark）"""
-        _blk_world(self.art / "in" / "world.jsonl")
-        code, _, err = _blk_run("prep", self.repo, self.art, {**self.prep_inputs(), "world": _blk_ptr("in/world.jsonl")},
-                                "fix__prep")
-        self.assertEqual(code, 0, err)
-
-    def test_prep_refuses_a_broken_world_row(self):
-        _blk_world(self.art / "in" / "world.jsonl", _WORLD_LINES + "{]\n")
-        code, _, err = _blk_run("prep", self.repo, self.art, {**self.prep_inputs(), "world": _blk_ptr("in/world.jsonl")},
-                                "fix__prep")
-        self.assertNotEqual(code, 0)
-        self.assertIn("世界の解の行 3", err)
 
     def test_prep_takes_the_gate_answers_into_the_duty(self):
         """修正前の関所で答えた問いの単位は直す義務に戻り、答えていない問いの単位は外れる（gatemarks.returned・withheld_by）。

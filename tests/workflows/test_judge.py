@@ -847,6 +847,15 @@ class JudgedVerdictTest(StopPathFilesMixin, unittest.TestCase):
         self.assertIsNone(out["world"])
         self.assert_pointers_filled(r, out)
 
+    def test_world_stage_with_a_broken_row_returns_no_world(self):
+        """行が worldmark.rows で読めない world.jsonl は world に渡さない（読み手は渡された行を確かめ直さない）"""
+        r = self.judged()
+        (r.judge / "world.jsonl").write_text("{]\n", encoding="utf-8")
+        ja.worldmark.write(r.judge, status="ok", reason="", world_file=str(r.judge / "world.jsonl"), classes=1, dropped=0)
+        out = r.returned("verdict")
+        self.assertIsNone(out["world"])
+        self.assert_pointers_filled(r, out)
+
     def test_missing_premises_or_purpose_stops_even_with_an_accepted_judgment(self):
         """前提・目的の段が落ちた run（控えを書く前に終わる）は、受けた判定が在っても ready にしない"""
         for name, word in (("premises.json", "works:premises"), ("purpose.json", "works:purpose")):
