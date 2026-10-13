@@ -171,6 +171,11 @@ class ResolveTest(FakeRunTest):
         with self.assertRaisesRegex(ValueError, "archon_artifact"):
             boundary.resolve({"type": "file", "run_id": "run-1", "path": "report.md"})
 
+    def test_rel_of_is_the_inverse_of_resolve(self):
+        self.assertEqual(boundary.rel_of(self.artifacts / "report" / "report.md"), "report/report.md")
+        with self.assertRaises(ValueError):
+            boundary.rel_of(self.artifacts.parent / "elsewhere.md")
+
 
 class ReturnsTest(unittest.TestCase):
     def test_returns_writes_one_json(self):

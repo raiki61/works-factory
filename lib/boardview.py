@@ -21,7 +21,7 @@
   :1178 の with_converge）
 - collect: 返す節の組み立て（元 works/blk-plan/lib/planblk.py:1441 の collect。形 replan の関所の項目は replan_asks。元
   works/.shared/core/replan.py:620 の gate）
-- verdict: 最後に開いた往復の通否（collect の pass・stalled と、独立の目の頭の事前審査の行が読む）
+- verdict・read_open_of: 最後に開いた往復の通否と、その往復が修正案の周と組むか（collect の pass・stalled と、独立の目の頭の事前審査の行が読む）
 """
 from __future__ import annotations
 
@@ -425,8 +425,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     回す時は None。止め時の決まりではない: converge.decide）、ruling は裁かれた項目の番号の字（planmarks.handed。番号でない行と
     案の外の番号は訳つきの Missing）、review_schema・design_schema は事前審査と独立設計の役の型
     （ブロックの YAML の役の節の output_format。下請けの答えのファイルの faces・shrink と design.json の読み直しが照らす）。形 replan
-    では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、
-    直した項目と申し出と裁定の行と並べて材料に置く（replan_items）。
+    では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、直した項目と申し出と裁定の行と並べて材料に置く（replan_items）。
     返り {k（plan-fields.json の round）, form（ruling が空なら review、在れば replan）, tree, r2_go}"""
     d = pathlib.Path(folder)
     d.mkdir(parents=True, exist_ok=True)
@@ -448,6 +447,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     planmarks.save(d, 1, fields["fields"], {int(n): v for n, v in (fields.get("amended") or {}).items()} or None,
                    trace=out.trace)
     _copy_world(d, world)
+    worldmark.copy_means(pathlib.Path(purpose).parent, d)
     _copy_structure(d, structure)
     _write_json(d / planblk.RIPPLE_PASS.format(k=converge.pass_no(out)), _read_json(ripple))
     bare, answered = converge.split("plan-revise", fix_plan)
@@ -701,7 +701,7 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     prompt = "\n\n".join(x for x in (body, policy.section(pol.get("copy"))) if x)
     rows = rolekit.rejected(d, design.NODE)
     if rows:
-        prompt = rolekit.with_reject(prompt, rows[-1])
+        prompt = rolekit.with_reject(prompt, rolekit.rejects_text(rows))
     _write_json(d / PREMISES_FILE, {"node": design.NODE, **ledger})
     planfile.snap_tree(d / R2_TREE, cwd)
     (d / R2_PROMPT).write_text(prompt, encoding="utf-8")
@@ -834,7 +834,7 @@ def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, comma
         policy.section(inputs.get("policy_copy")), concepthome.section(pathlib.Path(repo))) if x)
     last = rolekit.rejected(p, REVIEW_NODE)
     if last:
-        body = rolekit.with_reject(body, last[-1])
+        body = rolekit.with_reject(body, rolekit.rejects_text(last))
     main.write_text(body + "\n", encoding="utf-8")
     planfile.snap_tree(p / TREE_FILE, repo)
     return main
@@ -1091,3 +1091,23 @@ def collect(folder) -> dict:
         out.trace(design.MISSING_OP, reason=why)
     return {"pass": v.ok, "stalled": v.stalled, "review": p / REVIEW_FILE, "design": design_file,
             "gate_axes": gate_axes.gather(b), "ask_human": bool(questions), "questions": questions}
+
+
+PLAN_ROUND_OTHER = "最後に開いた往復（pass-{k}）は修正案の周 {round} の往復でない（別の案を審査した往復）"
+
+
+def read_open_of(folder, plan) -> dict:
+    """read_open の材料のうち、修正案 plan（plan-fields.json のパス。None は渡っていない）と組む物: 最後に開いた往復の k が案の
+    round と違えば Missing（別の周の案の往復の結論を、この案の結論と読ませない）。形 design は案を審査しない周なので照らさない"""
+    inputs = read_open(folder)
+    if inputs.get("form") == DESIGN_FORM:
+        return inputs
+    if plan is None:
+        raise Missing("修正案のポインタが渡っていない")
+    try:
+        rnd = _read_json(plan)["round"]
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        raise Missing(f"修正案 {plan} の round が読めない: {e!r}") from None
+    if inputs.get("k") != rnd:
+        raise Missing(PLAN_ROUND_OTHER.format(k=inputs.get("k"), round=rnd))
+    return inputs

@@ -49,7 +49,7 @@ TERM_SCHEMA = {"type": "object", "required": ["term", "definition"], "additional
 TEXT_SCHEMA = {"type": "object", "required": ["text"], "additionalProperties": False,
                "properties": {"text": {"type": "string", "minLength": 1},
                               "terms": {"type": "array", "items": TERM_SCHEMA}}}
-# 輪（loop_group）の max_iterations と同じ数。受け付けがこの数だけ拒んだら諦めの印（done）を出し、輪を失敗で抜けさせずに
+# 輪の max_iterations と同じ数。受け付けがこの数だけ拒んだら諦めの印（done）を出し、輪を失敗で抜けさせずに
 # 後ろへ渡す（裁定 R50）。tests/test_blk_report.py が YAML の max_iterations と同じかを見る
 GIVE_UP_AFTER = 3
 REJECT_HEADING = promptsection.Section("## 前の回の受け付けが拒んだ理由", source="fn:report_roles.prep")

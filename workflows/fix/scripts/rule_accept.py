@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """節 rule-accept（形 "" の裁定の輪の終わり）: 裁定役の返答を照らし（ruling.accept_rule: 読むだけの見張り・名指しの現物・裁定の形）、
-通れば裁定を置き場の conflicts.json に積む。拒めば理由を置き場の reject-rule-accept-<iteration>.md に書き（次の rule-prep が名指す）、
+通れば裁定を置き場の conflicts.json に積む。拒めば理由を置き場の reject-rule-accept-<iteration>.md に書き（次の rule-prep がこの輪の全部を 1 つのファイルにまとめて名指す）、
 3 回目の拒否では裁かれていない申し出を人へ回して done。返り {ok, done, reason, reason_file}。
 回す側の誤り（返答・回の番号が読めない・rule-prep の控えが無い）は標準エラーに 1 行で非 0。
 """
@@ -35,8 +35,8 @@ def main() -> dict:
                              keys=accept.status_keys(os.environ.get("INPUTS_STATUS_GUARDED", "")))
     if got["ok"]:
         return {"ok": True, "done": True, "reason": "", "reason_file": ""}
-    path = fixboard.write_text(place / fixboard.REJECT_NAME.format(name=NAME, k=iteration), str(got["reason"]) + "\n")
-    return {"ok": False, "done": bool(got["done"]), "reason": str(got["reason"]), "reason_file": str(path)}
+    path = fixboard.write_reject(place, NAME, iteration, str(got["reason"]))
+    return {"ok": False, "done": bool(got["done"]), "reason": str(got["reason"]), "reason_file": path}
 
 
 if __name__ == "__main__":

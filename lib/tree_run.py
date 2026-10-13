@@ -27,8 +27,7 @@ engine/role_run.py（_tree_members・_stop_tree。本線 9f91687 = graphloops 0.
 抜け道: 数える前に親が消えて親子の鎖が切れ、かつ setsid でセッションも抜けた子孫（二重 fork の daemon 化。コマンドが
 終わった後の `setsid … &` もこの形）は拾えない（本線と同じ限界）。止め切れなかった仲間は標準エラーに名指しする。
 
-使い方: `python3 tree_run.py -- <コマンド>`（-- の後の語は空白で繋いで 1 行にし /bin/sh -c で走らせる。
-語が無ければ環境変数 INPUTS_CMD）。終了コードはコマンドの終了コード、信号で死んだら 128+信号、殻が止められたら
+使い方: `python3 tree_run.py -- <コマンド>`（-- の後の語は空白で繋いで 1 行にし /bin/sh -c で走らせる）。終了コードはコマンドの終了コード、信号で死んだら 128+信号、殻が止められたら
 128+受けた信号（直下の親が消えた回は SIGHUP）、コマンドが空なら 2。関数として使う側は run(argv, **Popen の引数) を呼ぶ。
 子に渡す環境は outside_env(os.environ) で uv run の外の形にする（blk-tests の run_tests と盤面の tree_runner。台帳 R23。
 決まりを 1 か所に置くのは、線の CI と engine_run の CI で同じ宣言が片方だけ偽の赤になるのを防ぐため）。
@@ -820,9 +819,9 @@ def main(argv=None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == ["--"]:
         args = args[1:]
-    cmd = " ".join(args) if args else os.environ.get("INPUTS_CMD", "")
+    cmd = " ".join(args)
     if not cmd.strip():
-        print("tree_run: コマンドが空（-- の後か INPUTS_CMD に書く）", file=sys.stderr)
+        print("tree_run: コマンドが空（-- の後に書く）", file=sys.stderr)
         return 2
     try:
         return run(["/bin/sh", "-c", cmd])

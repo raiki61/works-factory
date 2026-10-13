@@ -29,6 +29,7 @@ _HERE = pathlib.Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
+import baseline_red  # noqa: E402
 import carry  # noqa: E402
 import changemap  # noqa: E402
 import conflict  # noqa: E402
@@ -43,6 +44,7 @@ import eyeverdict  # noqa: E402
 import forge  # noqa: E402
 import gatemarks  # noqa: E402
 import gatepolicy  # noqa: E402
+import green_cert  # noqa: E402
 import judgeverify  # noqa: E402
 import marks  # noqa: E402
 import oneline  # noqa: E402
@@ -54,6 +56,7 @@ import prcheck  # noqa: E402
 import premises  # noqa: E402
 import promptsection  # noqa: E402
 import querytest  # noqa: E402
+import reads  # noqa: E402
 import report  # noqa: E402
 import replan  # noqa: E402
 import report_roles  # noqa: E402
@@ -82,6 +85,15 @@ COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "de
 COST_ROWS = ("node_complete", "node_error")   # 自分の費用を報告しうる行
 DONE_ROWS = ("node_complete", "node_skipped")
 OWN_SPEND = "node"                            # execution.accounting のうち、自分の費用を言う語（ほかは言い直しの行）
+# 役が呼んだ道具の行（止めた実行基盤の logger.ts の logProviderEvent が {type, step, …, event} で書き、event は provider-contract の
+# tool_call {type, toolCallId, name, rawInput}。境の試験の写しの表が源と照らす）
+PROVIDER_ROW = "provider_event"
+PROVIDER_EVENT = "event"
+TOOL_CALL = "tool_call"
+TOOL_NAME = "name"
+TOOL_INPUT = "rawInput"
+PATH_TOOLS = ("Read", "Edit", "Write")         # 道具への入力の file_path でファイルを名指す道具
+SHELL_TOOL = "Bash"                            # 読み書きしたファイルを入力から取れない道具（数だけ数える）
 
 GREEN_HEADING = promptsection.Section("## 緑の認証（全部の周）", human=report.FOR_READERS)
 EYES_HEADING = promptsection.Section("## 独立の目", human=report.FOR_READERS)
@@ -100,7 +112,7 @@ HYPOTHESIS = "仮説"                           # 前提の役が実測でなく
 HUMAN_FACE_KINDS = ("regression", "policy")   # 事前審査の穴のうち人に回す種類（元の写しの規則 review-loop.py:4084）
 GROUP_WHERE = "組"
 REJUDGE_LEFT_WHERE = "判定（再審されずに残った異議）"
-UNSEEN = "取れない（読んだ証拠を集める口を戻していない。docs/design.md の U6）"
+UNSEEN = "取れない（U6）: Bash で読み書きしたファイル（道具への入力が command の字だけで、フックも Read・Edit・Write の外）"
 EYE_PASSES_HEAD = "人が通した行（修正前の承認ノードで人が通したので、独立の目 R4 の問いから外して聞き直さなかった行）"
 # 線の値（線の collect が report の入力で渡す物。docs/design.md の report の返り）の行の頭
 DEFERRED_HEAD = "無人の run で修正前の承認ノードに載せずに報告へ回した問い（承認ノードを開かずに修正へ進めた）"
@@ -198,19 +210,23 @@ def transcript_facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
     読む。errors は落ちた節の最後の誤りの文、
     retried は node_error の後に済んだ節 [{node, failures, error}]（落ちた回と最後の誤り。元 reads.retried_nodes）。
     exclude_prefix で始まる節（報告のブロック自身）は数えない。費用は自分の費用を言う行（execution.accounting が node か無い）の
-    cost_usd の和。cost_usd の無い行は 0 と数えず uncosted に件数を積む。時間は node_start から最後の node_complete・node_error まで（分）"""
+    cost_usd の和。cost_usd の無い行は 0 と数えず uncosted に件数を積む。時間は node_start から最後の node_complete・node_error まで（分）。
+    calls は役が呼んだ道具（provider_event の tool_call の行）の節ごとの {Read・Edit・Write: 名指したファイル（記録の順で重ねない）,
+    Bash: 呼んだ回数}"""
     if rows is None:
         return {"ok": False, "failed": [], "absorbed": [], "errors": {}, "retried": [], "cost": {}, "uncosted": {}, "minutes": {},
-                "models": {}}
+                "models": {}, "calls": {}}
 
     def ours(step):
         return bool(exclude_prefix) and step.startswith(exclude_prefix)
     last, falls, errors, began, ended = {}, {}, {}, {}, {}
-    cost, uncosted, models = {}, {}, {}
+    cost, uncosted, models, calls = {}, {}, {}, {}
     for r in rows:
         if not isinstance(r, dict) or not isinstance(r.get("step"), str):
             continue
         step, kind = r["step"], r.get("type")
+        if kind == PROVIDER_ROW and not ours(step):
+            _count_call(calls, step, as_dict(r.get(PROVIDER_EVENT)))
         if kind == "node_start":
             began.setdefault(step, report._time(r.get("ts")))
         if kind in (*COST_ROWS, "node_skipped"):
@@ -240,7 +256,20 @@ def transcript_facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
             "errors": {s: errors.get(s, "") for s in fell},
             "retried": [{"node": s, "failures": n, "error": errors.get(s, "")} for s, n in falls.items()
                         if last.get(s) in DONE_ROWS and not ours(s)],
-            "cost": cost, "uncosted": uncosted, "minutes": minutes, "models": models}
+            "cost": cost, "uncosted": uncosted, "minutes": minutes, "models": models, "calls": calls}
+
+
+def _count_call(calls: dict, step: str, event: dict) -> None:
+    tool = event.get(TOOL_NAME)
+    if event.get("type") != TOOL_CALL or tool not in (*PATH_TOOLS, SHELL_TOOL):
+        return
+    mine = calls.setdefault(step, {**{t: [] for t in PATH_TOOLS}, SHELL_TOOL: 0})
+    if tool == SHELL_TOOL:
+        mine[SHELL_TOOL] += 1
+        return
+    path = as_dict(event.get(TOOL_INPUT)).get("file_path")
+    if isinstance(path, str) and path and path not in mine[tool]:
+        mine[tool].append(path)
 
 
 def cost_rows(facts: dict) -> list:
@@ -1218,8 +1247,32 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     out += _policy_lines(returns, repo)
     base = returns.get("test-gate-base")
     if isinstance(base, dict):
-        out.append(f"直す前のテスト: {'緑' if base.get('green') else '赤'}" + (f"（赤の原因 {base.get('red_cause')}）" if base.get("red_cause") else ""))
+        out.append(f"直す前のテスト: {_base_word(base)}")
     return out + list(tdd_freeze)
+
+
+def _base_word(base: dict) -> str:
+    """直す前のテストの語。red_cause が incomplete で認証されなかった（ok 偽）base は、素材が測った結果でないか、素材が無いか、
+    返す節の中の誤り（workflows/test-gate/scripts/result.py）なので「走らせられなかった」。認証された incomplete の base は、
+    素材が not_applicable（green_cert.certify が認証し classify が incomplete に畳む）なら元の結末のファイルの素材の語で言う"""
+    if base.get("green"):
+        return "緑"
+    if base.get("red_cause") == green_cert.INCOMPLETE:
+        if base.get("ok") is not True:
+            return f"走らせられなかった（{green_cert.INCOMPLETE}）——{gatemarks.BASELINE_NOT_RUN}"
+        if _base_status(base) == green_cert.NOT_APPLICABLE:
+            return f"{gatemarks.MATERIAL_WORDS[green_cert.NOT_APPLICABLE]}（{green_cert.NOT_APPLICABLE}）"
+    return "赤" + (f"（赤の原因 {base.get('red_cause')}）" if base.get("red_cause") else "")
+
+
+def _base_status(base: dict) -> str | None:
+    """base の返りの baseline の指し札の先（元の結末のファイル）の素材の status。読めなければ None"""
+    pointed = oc.paths(base.get("baseline"))
+    try:
+        material = baseline_red.read_baseline(pointed[0]).get("material") if pointed else None
+    except ValueError:
+        return None
+    return material.get("status") if isinstance(material, dict) else None
 
 
 def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, returns: dict, problems: list,
@@ -1256,6 +1309,56 @@ def _where_lines(returns: dict) -> list:
 def _bullets(lines: list) -> list:
     """節の行に「- 」を付ける（字下げした内訳の行はそのまま。元 build の行の組み方）"""
     return [r if r.startswith("  ") else f"- {r}" for r in lines]
+
+
+CALLS_HEAD = "役が自分で呼んだ道具（run の記録の provider_event。ノードごと）:"
+HOOK_HEAD = "渡した物を読んだか（フック bin/_lib/record-read.py の記録。下請けの中の Read も数える）:"
+CHILD_RUNS = "fix の組の子の run の道具の呼びは子の run の記録に在り、上のノードごとの行に入らない"
+SHOWN_FILES = 3   # 1 ノードの行に名を出すファイルの数
+
+
+def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, transcript_why: str, repo) -> list:
+    """「4. 読んだ証拠と包み」の行: run の記録の道具の呼び（tfacts の calls）と、読んだ証拠の節が run の置き場 artifacts に書いた
+    reads-*.json（索引と報告自身の置き場 out_dir の物を外す）と、どちらでも取れない物"""
+    calls = as_dict(tfacts.get("calls"))
+    out = [CALLS_HEAD]
+    if not tfacts.get("ok"):
+        out.append(f"  - run の記録が読めない（{transcript_why or '訳の記録が無い'}）")
+    elif not calls:
+        out.append("  - 道具を呼んだノードが run の記録に無い")
+    for step, mine in calls.items():
+        files = list(dict.fromkeys(p for tool in PATH_TOOLS for p in mine[tool]))
+        shown = "・".join(_shown(p, repo) for p in files[:SHOWN_FILES]) + (f" ほか {len(files) - SHOWN_FILES} 件" if len(files) > SHOWN_FILES else "")
+        out.append(f"  - {step}: " + "・".join(f"{tool} {len(mine[tool])} 件" for tool in PATH_TOOLS) + (f"（ファイル: {shown}）" if files else ""))
+    out.append(HOOK_HEAD)
+    found = sorted(p for p in artifacts.rglob(reads.EVIDENCE_GLOB) if not reads.is_index(p.name) and out_dir not in p.parents)
+    out += [f"  - {_evidence_line(p, p.relative_to(artifacts).as_posix(), repo)}" for p in found] \
+        or ["  - 読んだ証拠のノードが記録を書いていない（役を起こしていないか、ノードが走っていない）"]
+    shell = {step: mine[SHELL_TOOL] for step, mine in calls.items() if mine[SHELL_TOOL]}
+    counted = (f"。Bash の呼び {sum(shell.values())} 回" + (": " + "・".join(f"{s} {n}" for s, n in shell.items()) if shell else "")
+               if tfacts.get("ok") else "。Bash の呼びは run の記録が読めないので数えられない")
+    return [*out, UNSEEN + counted, CHILD_RUNS]
+
+
+def _evidence_line(path: pathlib.Path, rel: str, repo) -> str:
+    doc, why = reads.read_evidence(path)
+    if doc is None:
+        return f"{rel}: 読めない（{why}）"
+    if doc["sources"].get("hook") != reads.RECORDED:
+        return f"{doc['role']}（{rel}）: 測れない（{doc['sources'].get('why') or '訳の記録が無い'}）"
+    missing = [str(m) for m in doc["missing"]]
+    return (f"{doc['role']}（{rel}）: 渡した {len(doc['rows'])}・読んだ跡の無い {len(missing)}"
+            + (f"（{'・'.join(_shown(m, repo) for m in missing)}）" if missing else ""))
+
+
+def _shown(path: str, repo) -> str:
+    """repo の中のパスは repo からの相対、ほかは字のまま"""
+    if repo:
+        try:
+            return pathlib.Path(path).relative_to(pathlib.Path(repo)).as_posix()
+        except ValueError:
+            pass
+    return path
 
 
 def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: str, stop_reason: str, *, out_dir,
@@ -1302,7 +1405,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                                     *([draft] if draft else []), *_apply_lines(returns, gates, outcome, stop_reason, run_id or "—")]),
         (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line, gates, repo)),
         (report.STOP_HEADING, _stop_lines(outcome, stop_reason, gates, tfacts, returns, list(problems), line)),
-        (report.READS_HEADING, [f"読んだ証拠: {UNSEEN}"]),
+        (report.READS_HEADING, _reads_lines(tfacts, out_dir.parent, out_dir, transcript_why, repo)),
         (report.WHERE_HEADING, _where_lines(returns)),
         (report.TDD_HEADING, tdd or ["修正の段が走っていない（TDD の単位の行が無い）"]),
         (GREEN_HEADING, _green_lines(typed, returns)),

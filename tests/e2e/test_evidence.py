@@ -13,9 +13,12 @@ import subprocess
 import sys
 import tokenize
 import unittest
+from collections.abc import Callable
 
 from tests.bin import hermetic, stepnames
 from tests.e2e import evidence, make_target
+from tests.layers import scan
+from tests.layers.test_capability_pointers import POINTER, python_definitions, yaml_definitions
 
 E2E = pathlib.Path(__file__).resolve().parent
 ROOT = E2E.parents[1]
@@ -35,49 +38,51 @@ OUTSIDE = "この文書の外"
 BLOCKS = ("judge", "plan", "plan-review", "fix", "test-gate", "eyes", "merge", "report")
 LINE_ITSELF = "line"
 WRITERS = ("lib", "workflows", "bin")
-# 名を組んで書く・名の表から引いて書くので字で引けない置き場 → 名を組む所・表の行
+# 名を組んで書く・名の表から引いて書くので字で引けない置き場 → 名を組む関数・表の定数（`path::名`）
 NAMED_BY_PATTERN = {
-    "parent/gates/gate-start.json": "lib/answer.py:71",
-    "parent/gates/gate-final.json": "lib/answer.py:71",
-    "parent/gates/gate-*.json": "lib/answer.py:71",
-    "parent/plan/r1/plan-fields.json": "lib/marks.py:44",
-    "parent/fix/fix/plan-fields.json": "lib/marks.py:44",
-    "parent/judge/purpose-means.json": "lib/marks.py:57",
-    "parent/eyes/r1.json": "workflows/eyes/scripts/eye_verdict.py:18",
-    "parent/eyes/r1-comments.json": "workflows/eyes/scripts/save_reply.py:15",
-    "parent/judge/material-prior-decisions-brief.md": "lib/judge_accept.py:2096",
-    "parent/judge/material-prior-decisions.json": "lib/judge_accept.py:2583",
-    "parent/plan/r1/brief-1.md": "lib/planfile.py:83",
-    "parent/plan/structure/*/eye-prompt-1.md": "lib/eye.py:38",
-    "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py:828",
-    "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py:94",
-    "parent/fix/fix/review1-brief.json": "lib/refix.py:165",
-    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:476",
-    "parent/judge/query-examples.json": "lib/marks.py:51",
-    "parent/plan/r1/rejects-plan.json": "lib/rolekit.py:103",
-    "parent/plan/structure/*/design.jsonl": "lib/planfile.py:94",
-    "parent/plan-review/gate-marks.json": "lib/marks.py:42",
+    "parent/gates/gate-start.json": "lib/answer.py::taken",
+    "parent/gates/gate-final.json": "lib/answer.py::taken",
+    "parent/gates/gate-*.json": "lib/answer.py::taken",
+    "parent/plan/r1/plan-fields.json": "lib/marks.py::KINDS",
+    "parent/fix/fix/plan-fields.json": "lib/marks.py::KINDS",
+    "parent/judge/purpose-means.json": "lib/marks.py::KINDS",
+    "parent/eyes/r1.json": "workflows/eyes/works-factory-eyes.yaml::r1-minimality-verdict",
+    "parent/eyes/r1-comments.json": "workflows/eyes/works-factory-eyes.yaml::r1-comments-save",
+    "parent/judge/material-prior-decisions-brief.md": "lib/judge_accept.py::material_prep",
+    "parent/judge/material-prior-decisions.json": "lib/judge_accept.py::material_take",
+    "parent/plan/r1/brief-1.md": "lib/planfile.py::BRIEF_FILE",
+    "parent/plan/structure/*/eye-prompt-1.md": "lib/eye.py::PROMPT_FILE",
+    "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py::tree_part",
+    "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py::ANSWER_FILE",
+    "parent/fix/fix/review1-brief.json": "lib/refix.py::cut",
+    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py::_planned_run",
+    "parent/judge/query-examples.json": "lib/marks.py::KINDS",
+    "parent/plan/r1/rejects-plan.json": "lib/rolekit.py::rejects_path",
+    "parent/plan/r1/rejects-plan.md": "lib/rolekit.py::rejects_text_path",
+    "parent/plan/structure/*/design.jsonl": "lib/planfile.py::DESIGN_FILE",
+    "parent/plan-review/gate-marks.json": "lib/marks.py::KINDS",
 }
 
 
 class CodeText:
     """リポジトリのコードの字（コメント・Python の docstring を空の行にし、行の番号を保つ）と、コードの全部の定数（大文字の名 = 字）"""
 
-    def __init__(self):
+    def __init__(self, read: Callable[[str], str] = lambda rel: (ROOT / rel).read_text(encoding="utf-8")):
+        """read: リポジトリの根からのパス → ファイルの字（試験は行をずらした字を渡す）"""
+        self.read = read
         self._lines: dict[str, list[str]] = {}
         sources = [p for top in WRITERS for p in (ROOT / top).rglob("*") if p.is_file() and p.suffix in (".py", ".yaml", ".sh")
                    and not {"tests", "fixtures"} & set(p.relative_to(ROOT).parts)]
         self.constants: dict[str, list[str]] = {}
         for p in sources:
             if p.suffix == ".py":
-                for ident, value in _constants(p.read_text(encoding="utf-8")):
+                for ident, value in _constants(read(p.relative_to(ROOT).as_posix())):
                     self.constants.setdefault(ident, []).append(value)
 
     def lines(self, rel: str) -> list[str]:
         if rel not in self._lines:
-            path = ROOT / rel
-            text = path.read_text(encoding="utf-8")
-            self._lines[rel] = _python_code(text) if path.suffix == ".py" else [re.sub(r"(^|\s)#.*$", "", line)
+            text = self.read(rel)
+            self._lines[rel] = _python_code(text) if rel.endswith(".py") else [re.sub(r"(^|\s)#.*$", "", line)
                                                                              for line in text.splitlines()]
         return self._lines[rel]
 
@@ -137,6 +142,90 @@ def _python_code(text: str) -> list[str]:
             row, col = tok.start
             lines[row - 1] = lines[row - 1][:col]
     return lines
+
+
+def writer_code(code: CodeText, writer: str) -> tuple[str, str, str, str] | None:
+    """writer（`path::名`）の (path, 名, 定義の字, ファイルの字)。ファイルか名の定義が無ければ None。在るかも定義の範囲も code.read の字で
+    決める。YAML の名は節の id で、定義は節の字と、名前の script の節ならその script のコードの字（最上位のコードに決める行の在る
+    script は、それを走らせる節で指す）"""
+    pointed = POINTER.fullmatch(writer)
+    if not pointed:
+        return None
+    path, name = pointed.groups()
+    try:
+        text = code.read(path)
+    except FileNotFoundError:
+        return None
+    if path.endswith(".py"):
+        span = python_definitions(text).get(name)
+        if span is None:
+            return None
+        first, last = span
+        return path, name, "\n".join(code.lines(path)[first - 1:last]), code.text(path)
+    node = yaml_definitions(text).get(name)
+    if node is None:
+        return None
+    scripts = [code.text(p.relative_to(ROOT).as_posix()) for p in scan.node_scripts((ROOT / path).parent, node)]
+    body = "\n".join(code.lines(path)[node.start_mark.line:node.end_mark.line])
+    return path, name, "\n".join([body, *scripts]), "\n".join([code.text(path), *scripts])
+
+
+def writer_rows(rows: list[dict]) -> list[dict]:
+    """表の seen の行と、NAMED_BY_PATTERN の置き場を where・writer にした行"""
+    return [r for r in rows if r["kind"] == "seen"] + [{"id": w, "where": w, "writer": v} for w, v in NAMED_BY_PATTERN.items()]
+
+
+def seen_writer_problems(rows: list[dict], code: CodeText) -> list[str]:
+    out = []
+    for row in rows:
+        if pathlib.PurePosixPath(row["writer"]).parts[0] not in WRITERS:
+            out.append(f"{row['id']}: {row['writer']} が {WRITERS} の外")
+            continue
+        found = writer_code(code, row["writer"])
+        if found is None:
+            out.append(f"{row['id']}: {row['writer']} が `path::名` でないか、その名の定義が無い")
+            continue
+        path, named, _, whole = found
+        if row.get("check") == "node-completed":
+            steps = {row["node"].split("__", 1)[0], row["node"].rsplit("__", 1)[-1].rsplit(".", 1)[-1]}
+            if not (path.endswith(".yaml") and named in steps):
+                out.append(f"{row['id']}: {row['writer']} が節 {row['node']} でない")
+            continue
+        if row["where"].startswith("record/"):
+            continue
+        rest = row["where"].split("/")[1:]
+        folder = rest[0] if len(rest) > 1 and not re.search(r"[*?\[]", rest[0]) else ""
+        if folder:
+            block = ROOT / "workflows" / folder
+            here = [whole, *(code.text(p.relative_to(ROOT).as_posix()) for p in sorted(block.rglob("*"))
+                             if p.suffix in (".py", ".yaml") and "fixtures" not in p.parts)]
+            if not any(code.names(t, folder) for t in here):
+                out.append(f"{row['id']}: {row['where']} のフォルダ {folder} を書き手が作らない")
+        if row["where"] in NAMED_BY_PATTERN:
+            continue
+        name = rest[-1]
+        if re.search(r"[*?\[]", name):
+            out.append(f"{row['id']}: glob の名 {name} は NAMED_BY_PATTERN に名指す")
+        elif not code.names(whole, name):
+            out.append(f"{row['id']}: {path} のコードに {name} の名もその名を作る定数も無い")
+    return out
+
+
+def pattern_writer_problems(code: CodeText, table: dict[str, str] = NAMED_BY_PATTERN) -> list[str]:
+    out = []
+    for where, writer in table.items():
+        found = writer_code(code, writer)
+        name = where.rsplit("/", 1)[-1]
+        if found is None:
+            out.append(f"{where}: {writer} が `path::名` でないか、その名の定義が無い")
+        elif not (code.names(found[2], name) or _builds(found[2], name)):
+            out.append(f"{where}: {writer} の定義が {name} の名を組まない")
+    return out
+
+
+def shifted(rel: str) -> str:
+    """関係の無い 1 行（コメント）を頭に足した字"""
+    return f"# 関係の無い 1 行\n{(ROOT / rel).read_text(encoding='utf-8')}"
 
 
 FAKE_SHELL = """#!/usr/bin/env python3
@@ -215,14 +304,13 @@ class EvidenceTableCase(unittest.TestCase):
         for row in self.rows:
             with self.subTest(row=row.get("id")):
                 self.assertIsNone(evidence.row_problem(row))
-        for broken in ({"id": "J1", "kind": "seen", "writer": "lib/a.py:1"}, {"id": "J1", "kind": "maybe", "why": "x"},
+        for broken in ({"id": "J1", "kind": "seen", "writer": "lib/a.py::f"}, {"id": "J1", "kind": "maybe", "why": "x"},
                        {"id": "J1", "kind": "seen", "check": "exists", "where": "parent/a"},
-                       {"id": "J1", "kind": "seen", "writer": "lib/a.py", "check": "exists", "where": "parent/a"},
-                       {"id": "J1", "kind": "seen", "writer": "lib/a.py:1", "check": "node-completed", "where": "parent/a",
+                       {"id": "J1", "kind": "seen", "writer": "lib/a.py::f", "check": "node-completed", "where": "parent/a",
                         "node": "x"},
                        {"id": "J1", "kind": "waits-part", "part": "Z"}, {"id": "J1", "kind": "handed-off", "why": "x"},
                        {"id": "J1", "kind": "scenario-only", "why": "x", "check": "exists", "where": "parent/a"},
-                       {"id": "J1", "kind": "seen", "writer": "lib/a.py:1", "check": "exists", "where": "elsewhere/a"}):
+                       {"id": "J1", "kind": "seen", "writer": "lib/a.py::f", "check": "exists", "where": "elsewhere/a"}):
             with self.subTest(broken=broken):
                 self.assertIsNotNone(evidence.row_problem(broken))
 
@@ -280,51 +368,49 @@ class EvidenceTableCase(unittest.TestCase):
                     self.assertIn(row["node"], names[row["where"]])
 
     def test_seen_rows_name_a_writer_in_the_repository(self):
-        """seen の行の writer は、能力の決める行（拒み・止め・既定でない側・値を作る行。保存の行でない）で、lib・workflows・bin の
-        コードの在る行。決める行は保存の行から離れうるので、where のファイル名かその名を作る定数は、writer のファイルのコードの字
-        （コメント・docstring・.md を除く）のどこかに在ればよい。where の置き場の頭のフォルダ（parent/・child-*/ の次）の名も、
-        書き手のファイルかそのブロックの script と YAML のコードの字に在る。名を組んで書く置き場は NAMED_BY_PATTERN に名を組む行と
-        名指し、ここでは名の照らしを外す（名を組む行かは test_named_by_pattern_lines_build_the_name が縛る）。run の記録の節の行の
-        writer は、その節の id を置く YAML の行"""
-        code = CodeText()
-        for row in [r for r in self.rows if r["kind"] == "seen"] + [{"id": w, "where": w, "writer": v}
-                                                                     for w, v in NAMED_BY_PATTERN.items()]:
-            with self.subTest(row=row["id"]):
-                path, line = row["writer"].rsplit(":", 1)
-                self.assertIn(pathlib.PurePosixPath(path).parts[0], WRITERS)
-                lines = code.lines(path)
-                self.assertLessEqual(int(line), len(lines))
-                self.assertTrue(lines[int(line) - 1].strip(), f"{row['writer']} がコードの行でない（空かコメント）")
-                if row.get("check") == "node-completed":
-                    steps = {row["node"].split("__", 1)[0], row["node"].rsplit("__", 1)[-1].rsplit(".", 1)[-1]}
-                    placed = re.findall(r"\bid: (\S+)", "\n".join(lines[int(line) - 1:int(line) + 1]))
-                    self.assertTrue(steps & set(placed), f"{row['writer']} が節 {row['node']} を置く行でない")
-                    continue
-                if row["where"].startswith("record/"):
-                    continue
-                rest = row["where"].split("/")[1:]
-                folder = rest[0] if len(rest) > 1 and not re.search(r"[*?\[]", rest[0]) else ""
-                if folder:
-                    block = ROOT / "workflows" / folder
-                    here = [code.text(path), *(code.text(p.relative_to(ROOT).as_posix()) for p in sorted(block.rglob("*"))
-                                               if p.suffix in (".py", ".yaml") and "fixtures" not in p.parts)]
-                    self.assertTrue(any(code.names(t, folder) for t in here), f"{row['where']} のフォルダ {folder} を書き手が作らない")
-                if row["where"] in NAMED_BY_PATTERN:
-                    continue
-                name = rest[-1]
-                self.assertNotRegex(name, r"[*?\[]", "glob の名は NAMED_BY_PATTERN に名指す")
-                self.assertTrue(code.names(code.text(path), name), f"{path} のコードに {name} の名もその名を作る定数も無い")
+        """seen の行の writer は、能力を決める所（拒み・止め・既定でない側・値を作る所。保存の所でない）の `path::名` で、名は
+        lib・workflows・bin のファイルに定義の在る関数・定数・`クラス.名`（YAML は節の id。最上位のコードで決める script は、それを
+        走らせる節）。決める所は保存の所から離れうるので、where のファイル名かその名を作る定数は、writer のファイル（節なら節の
+        script も）のコードの字（コメント・docstring・.md を除く）のどこかに在ればよい。where の置き場の頭のフォルダ（parent/・
+        child-*/ の次）の名も、書き手のファイルかそのブロックの script と YAML のコードの字に在る。名を組んで書く置き場は
+        NAMED_BY_PATTERN に名を組む所と名指し、ここでは名の照らしを外す（名を組むかは test_named_by_pattern_bodies_build_the_name が
+        縛る）。run の記録の節の行の writer は、その節の YAML の `path::節の id`"""
+        self.assertEqual(seen_writer_problems(writer_rows(self.rows), CodeText()), [])
 
-    def test_named_by_pattern_lines_build_the_name(self):
-        """NAMED_BY_PATTERN の指す行（か前後 2 行）が、その置き場の名を組む: 名を字のまま、名を作る定数、か字の並び（{…} の差し込みは
-        どの字でも）で持つ。書き手のファイル名が変わったら、表の指す行もここで落ちる"""
+    def test_named_by_pattern_bodies_build_the_name(self):
+        """NAMED_BY_PATTERN の指す名の定義（関数なら本体の全部、定数なら値、節なら節と script）が、その置き場の名を組む: 名を字の
+        まま、名を作る定数、か字の並び（{…} の差し込みはどの字でも）で持つ。書き手の名が変わったら、表の指しもここで落ちる"""
+        self.assertEqual(pattern_writer_problems(CodeText()), [])
+
+    def test_writers_hold_when_lines_shift(self):
+        """名で指すので、Python でも YAML でも関係の無い行がずれても照らしは緑のまま"""
+        code = CodeText(read=shifted)
+        for rel in ("lib/planfile.py", "workflows/eyes/works-factory-eyes.yaml"):
+            self.assertEqual(len(code.lines(rel)), len(CodeText().lines(rel)) + 1)
+        self.assertEqual(writer_code(code, "workflows/eyes/works-factory-eyes.yaml::r1-minimality")[2],
+                         writer_code(CodeText(), "workflows/eyes/works-factory-eyes.yaml::r1-minimality")[2])
+        self.assertEqual(seen_writer_problems(writer_rows(self.rows), code), [])
+        self.assertEqual(pattern_writer_problems(code), [])
+
+    def test_a_pointer_off_the_writer_fails(self):
         code = CodeText()
-        for where, writer in NAMED_BY_PATTERN.items():
-            with self.subTest(where=where):
-                path, line = writer.rsplit(":", 1)
-                near = "\n".join(code.lines(path)[max(int(line) - 3, 0):int(line) + 2])
-                name = where.rsplit("/", 1)[-1]
-                self.assertTrue(code.names(near, name) or _builds(near, name), f"{writer} の前後 2 行が {name} の名を組まない")
+        for writer in ("lib/planfile.py:83", "lib/planfile.py::no_such_name", "lib/nope.py::f", "workflows/nope.yaml::x",
+                       "docs/a.py::f"):
+            with self.subTest(writer=writer):
+                self.assertNotEqual(seen_writer_problems([{"id": "J1", "where": "parent/plan/r1/brief-1.md",
+                                                           "writer": writer}], code), [])
+        for row in ({"where": "parent/judge/purpose-means-x.json", "writer": "lib/rolekit.py::lang_line"},
+                    {"where": "parent/nosuchfolder/brief-1.md", "writer": "lib/planfile.py::write_brief"},
+                    {"where": "record/parent.json", "check": "node-completed", "node": "eyes__prep",
+                     "writer": "workflows/eyes/works-factory-eyes.yaml::structure-after"}):
+            with self.subTest(row=row):
+                self.assertNotEqual(seen_writer_problems([{"id": "J1", **row}], code), [])
+        for where, writer in (("parent/plan/r1/brief-1.md", "lib/planfile.py::DESIGN_FILE"),
+                              ("parent/eyes/r1.json", "workflows/eyes/works-factory-eyes.yaml::prep"),
+                              ("parent/eyes/r1-comments.json", "workflows/eyes/works-factory-eyes.yaml::structure-after"),
+                              ("parent/plan/r1/rejects-plan.json", "lib/rolekit.py::lang_line")):
+            with self.subTest(where=where, writer=writer):
+                self.assertNotEqual(pattern_writer_problems(code, {where: writer}), [])
 
     def test_every_block_has_a_seen_row(self):
         """本物の通しが見るのは、本物の役で各ブロックが仕事をしたか。どのブロックにも seen の行が在る（埋め物でない中身かは
@@ -506,7 +592,7 @@ class EvidenceCheckCase(unittest.TestCase):
         self.assertIn("parent/bad.json", detail)
         state, _ = evidence.judge(self.ev, {"check": "json-has", "where": "parent/*.json", "path": "x"})
         self.assertEqual(state, evidence.PASS)
-        seen = {"id": "J1", "kind": "seen", "writer": "lib/a.py:1", "check": "json-has", "where": "parent/good.json",
+        seen = {"id": "J1", "kind": "seen", "writer": "lib/a.py::f", "check": "json-has", "where": "parent/good.json",
                 "path": "x"}
         rows, code = self.checked([seen])
         self.assertEqual((rows, code), ([("J1", "seen", "parent/good.json: x = 1")], 0))
@@ -545,7 +631,7 @@ class EvidenceCheckCase(unittest.TestCase):
 
     def test_counts_are_by_inventory_category(self):
         self.put("parent/a.md", "x\n")
-        rows = [{"id": i, "kind": "seen", "writer": "lib/a.py:1", "check": "exists", "where": "parent/a.md"}
+        rows = [{"id": i, "kind": "seen", "writer": "lib/a.py::f", "check": "exists", "where": "parent/a.md"}
                 for i in ("L-E01", "L-G02", "J3")]
         got = evidence.check(self.ev.parent, self.table(rows + [{"id": "M4", "kind": "scenario-only", "why": "x"}]))
         self.assertEqual(evidence.counts(got), {"L": {"seen": 2}, "J": {"seen": 1}, "M": {"scenario-only": 1}})

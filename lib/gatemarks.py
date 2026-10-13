@@ -75,7 +75,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 - axis_reasons(b, mark, units) -> {軸: [訳]}: 軸（AXES）ごとの揃わない訳。axes と関所の軸ごとの分け（gate_axes）の 1 つの持ち主
 世界の解の外れ（計画 2026-10-09-world-solution の W9）: 修正案の欄 structure の世界の解の答えのうち外れ（deviation）は、worldmark.world_ok
 が揃わなければ修正前の関所の項目（種類 WORLD_KIND。文は worldmark.gate_line と人に聞く訳）になり、揃えば聞かずに通して通した行に残す。
-依頼そのもの（依頼のファイル・目的の文の出典）を出どころにした外れと、web で確かめていない行からの外れは人に回る。人がいる run も
+依頼そのもの（依頼のファイル・依頼の引用・依頼の解き方）を出どころにした外れと、web で確かめていない行からの外れは人に回る。人がいる run も
 無人の run も同じ（無人なら止めて答えの下書きを残す）。同じ外れを狭め・穴の行の軸と尾には載せない（外れの住処はこの項目の 1 つ）。
 構造の目が人に上げた行（structmark の route が人に上げる行）は、修正前の関所の項目になる（種類 DESIGN_KIND。推し＝chosen、捨てた案と
 代償＝rejected。DESIGN_HEAD で始まる 1 行。人が continue で答えた同じ文の行は聞き直さない）。
@@ -523,10 +523,11 @@ def _world_answers(b) -> list:
 
 
 def _cite_check(b):
-    """（決め手の文 → 出どころの誤りの 1 文（無ければ ""）の口, 依頼の出どころの組）。出どころの照らしは cite.sources_problem
-    （依頼の引用は依頼の文と照らす）。作業ツリーの外で引いてよい根は conflict.cite_roots の依頼のファイルと run の置き場の根
-    （盤面 b.dir は run の置き場の plan-review/ なので、その親。run の中の指示書・判定を絶対パスで引ける）。依頼の出どころは依頼の
-    ファイルと目的の文の出典（世界の解の外れの決め手にならない物）"""
+    """（決め手の文 → 出どころの誤りの 1 文（無ければ ""）の口, 依頼のファイル, 依頼の解き方の並び, 作業ツリーの根）。出どころの照らしは
+    cite.sources_problem（依頼の引用は依頼の文と照らす）。作業ツリーの外で引いてよい根は conflict.cite_roots の依頼のファイルと run の
+    置き場の根（盤面 b.dir は run の置き場の plan-review/ なので、その親。run の中の指示書・判定を絶対パスで引ける）。依頼のファイルと
+    依頼の解き方（worldmark.means_of）は世界の解の外れの決め手にならない物。目的の文の出典 source_files は目的の審査を走り直すための
+    物で、ここに入れない"""
     import conflict   # conflict は fixboard を通して gatemarks を読むので、ここで読む
     req = conflict.request_file(b.dir)
     quoted = ""
@@ -537,10 +538,9 @@ def _cite_check(b):
         pass
     repo = (b.state.get("inputs") or {}).get("cwd") or "."
     roots = conflict.cite_roots(b.dir, pathlib.Path(b.dir).parent)
-    latest = getattr(b, "latest_output", None)
-    purpose = latest("p0.purpose") if callable(latest) else None
-    own = {req} | {s for s in (purpose or {}).get("source_files") or [] if isinstance(s, str) and s}
-    return (lambda text: cite.sources_problem(text, repo, roots, quoted)), {s for s in own if s}
+    def cite_ok(text):
+        return cite.sources_problem(text, repo, roots, quoted)
+    return cite_ok, req, worldmark.means_of(b.dir), repo
 
 
 def world_items(b) -> list:
@@ -549,13 +549,13 @@ def world_items(b) -> list:
     world = _world_rows(b)
     if world is None:
         return []
-    cite_ok, own = _cite_check(b)
+    cite_ok, request_file, means, repo = _cite_check(b)
     out = []
     for n, _keys, a in _world_answers(b):
         if a.get("follows") is True:
             continue
         row = world.get(a[worldmark.ANSWER_KEY]) or {"class_id": a[worldmark.ANSWER_KEY]}
-        ok, why = worldmark.world_ok(a, row, own, cite_ok)
+        ok, why = worldmark.world_ok(a, row, request_file, means, cite_ok, repo)
         text = f"修正案 {n} の{worldmark.gate_line(row, a)}"
         out.append((text, {"decided_by": str(a.get("deviation") or ""), "world": worldmark.gate_line(row, a)},
                     [] if ok else [why]))

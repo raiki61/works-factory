@@ -78,28 +78,14 @@ OWNER_ENV = ("raiki61", "claude-code-oauth-", "/Users/")
 ALLOWED = {
     "E3": (
         "lib/AGENTS.md",
-        # 今の works から写した lib が実行基盤の名を字で持つ（K7）。行ごとに外す区分の issue
-        "lib/tree_run.py#INPUTS_CMD",               # 区分 T #122（test-gate の run が走らせるコマンドの口）
-        "lib/report_roles.py#loop_group",           # 区分 R #124（受け付けの諦めの数の注）
-        "lib/specblk.py#$spec-gate.output",         # 区分 J #119（仕様の関所の出口の字）
-        "lib/judge_accept.py#$spec-gate.output",    # 区分 J #119（仕様の関所の答えの字）
-        "lib/judge_accept.py#$material-route.output",  # 区分 J #119（素材の振り分けの返りの欄の注）
-        # 役に届く文に $LOOP_PREV が無いことを確かめる試験の字。語の不在を試すので区分の issue の後も残る
+        # 役に届く文に $LOOP_PREV が無いことを確かめる試験の字。語の不在を試すので残る
         "lib/tests/test_blk_fix.py#$LOOP_PREV",
         "lib/tests/test_blk_plan.py#$LOOP_PREV",
         "lib/tests/test_fix_rules.py#$LOOP_PREV",
-        "lib/tests/test_tree_run.py#INPUTS_CMD",    # 区分 T #122（lib/tree_run.py の INPUTS_CMD の口を試す。口と一緒に外す）
     ),
     "E5": (
         # 宣言したが誰も読まない入力（K12）。行ごとに外す区分の issue
         "workflows/plan-review/works-factory-plan-review.yaml#units",  # 区分 P #120
-    ),
-    "E4": (
-        # script どうしの import（K8）。今 import している script を 1 本ずつ名指す。外す区分の issue は report が区分 R #124
-        "workflows/report/scripts/collect.py#place",
-        "workflows/report/scripts/facts.py#place",
-        "workflows/report/scripts/facts.py#typed",
-        "workflows/report/scripts/report_accept.py#place",
     ),
     "E13": (
         "lib/AGENTS.md",
@@ -257,6 +243,11 @@ def nodes(root: Path, rel: str) -> list:
     if broken:
         raise ValueError(broken[0])
     return [node for document in documents for node in _nodes(document)]
+
+
+def text_nodes(text: str) -> list:
+    """YAML の字の工程の節の node（`loop_group` の中も）。読めない YAML は yaml.YAMLError"""
+    return [node for document in yaml.compose_all(text, Loader=yaml.SafeLoader) for node in _nodes(document)]
 
 
 def includes(root: Path, rel: str) -> list[str]:
@@ -627,14 +618,21 @@ OUTWARD = re.compile(r"(?<![\w./-])gh(?![\w./-])|\bgit[\"'\s,]+(?:push|merge)\b"
 NAMED_SCRIPT = re.compile(r"[\w.-]+")
 
 
+def node_scripts(folder: Path, node) -> list[Path]:
+    """名前の script の節（`script: <名>`）の走らせる folder/scripts/<名>.* のファイル。そうでない節は空"""
+    value = _top(node, "script")
+    if not (isinstance(value, yaml.ScalarNode) and NAMED_SCRIPT.fullmatch(value.value) and (folder / "scripts").is_dir()):
+        return []
+    return sorted((folder / "scripts").glob(f"{value.value}.*"))
+
+
 def _node_code(folder: Path, node) -> str | None:
     """節の走らせる字（直に書いた script・bash か、名前の script のファイルの中身）。script・bash の節でなければ None"""
     for key in ("script", "bash"):
         value = _top(node, key)
         if isinstance(value, yaml.ScalarNode):
             if key == "script" and NAMED_SCRIPT.fullmatch(value.value):
-                found = sorted((folder / "scripts").glob(f"{value.value}.*")) if (folder / "scripts").is_dir() else []
-                return "".join(p.read_text(encoding="utf-8", errors="replace") for p in found)
+                return "".join(p.read_text(encoding="utf-8", errors="replace") for p in node_scripts(folder, node))
             return value.value
     return None
 

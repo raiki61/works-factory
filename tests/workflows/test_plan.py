@@ -764,9 +764,30 @@ class AcceptCase(unittest.TestCase):
         why = self.reasons(run)[0]
         self.assertIn("narrows の行に狭めない案を探した結果", why)
         brief = (run.art / "plan" / "r1" / "brief-2.md").read_text(encoding="utf-8")
-        self.assertTrue(brief.startswith("前の回の返答は受け付けで拒まれた。理由はファイル"), brief[:200])
+        rejects = run.art / "plan" / "r1" / "rejects-plan.md"
+        self.assertTrue(brief.startswith(rolekit.REJECT_LINE.format(path=rejects)), brief[:200])
         self.assertNotIn(why.splitlines()[0], brief, "理由の本文は材料に貼らない")
-        self.assertEqual((run.art / "plan" / "r1" / "reject-1.txt").read_text(encoding="utf-8"), why)
+        self.assertEqual(rejects.read_text(encoding="utf-8"), rolekit.rejects_text([why]) + "\n")
+
+    def test_third_brief_names_every_reject_of_the_round(self):
+        """役は回ごとに新しい会話で起きる（会話を継がない）。2 回続けて拒まれた周の 3 回目の材料が名指すファイルに、
+        1 回目の拒否の理由も届く（最後の拒否だけだと、3 回目は 1 回目の誤りを繰り返して諦める。#345）"""
+        run = Run(self)
+        briefs = {}
+
+        def writer(n, brief):
+            briefs[n] = brief
+            return copy.deepcopy([{"plan": [item(1)]}, {"plan": [item(1, 2), item(2)]}, {"plan": [item(1, 2)]}][n - 1])
+
+        self.assertIs(run.include(writer=writer)["ready"], True)
+        first, second = self.reasons(run)
+        rnd = run.art / "plan" / "r1"
+        named = re.findall(re.escape(str(rnd)) + r"/\S+?\.\w+", briefs[3].splitlines()[0])
+        self.assertEqual(len(named), 1, briefs[3][:300])
+        text = pathlib.Path(named[0]).read_text(encoding="utf-8")
+        self.assertIn(first, text)
+        self.assertIn(second, text)
+        self.assertLess(text.index(first), text.index(second), "古い順")
 
     def test_unit_in_two_items_rejected(self):
         why = self.reject_once(Run(self), {"plan": [item(1, 2), item(2)]})
@@ -1096,7 +1117,7 @@ class ReadsCase(unittest.TestCase):
         out = run.include(writer=writer_of({"plan": [item(1)]}, {"plan": [item(1, 2)]}))
         self.assertIs(out["ready"], True)
         rnd = run.art / "plan" / "r1"
-        self.assertEqual(run.out["plan-reads"]["missing"], [str(rnd / "brief-1.md"), str(rnd / "brief-2.md"), str(rnd / "reject-1.txt")])
+        self.assertEqual(run.out["plan-reads"]["missing"], [str(rnd / "brief-1.md"), str(rnd / "brief-2.md"), str(rnd / "rejects-plan.md")])
 
     def test_reads_before_the_round_opened_are_not_counted(self):
         """K14: 記録は周を開いた時刻（round.json の at）から後の行で切る。前の周・前の差し込みの読みを今の周の物に数えない"""

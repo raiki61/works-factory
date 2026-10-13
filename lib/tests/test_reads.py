@@ -149,6 +149,26 @@ class CollectTest(Case):
         self.assertEqual(doc["web"], {"fetches": ["https://example.org/b"], "searches": ["mean 空の列"]})
 
 
+class ReadEvidenceTest(Case):
+    def test_reads_back_what_collect_wrote(self):
+        other = self.repo / "other.md"
+        other.write_text("x\n", encoding="utf-8")
+        self.write(self.read_row(self.doc))
+        got, _ = self.collect([str(self.doc), str(other)])
+        doc, why = reads.read_evidence(got["reads_file"])
+        self.assertEqual(why, "")
+        self.assertEqual((doc["role"], doc["missing"], doc["sources"]["hook"]), ("plan-writer", [str(other)], reads.RECORDED))
+        self.assertEqual([r["path"] for r in doc["rows"]], [str(self.doc), str(other)])
+
+    def test_unreadable_and_misshapen_files_say_why(self):
+        bad = self.place / "reads-x.json"
+        bad.write_text("{", encoding="utf-8")
+        self.assertTrue(reads.read_evidence(bad)[1].startswith("JSONDecodeError: "))
+        bad.write_text('{"role": "x", "rows": []}', encoding="utf-8")
+        self.assertEqual(reads.read_evidence(bad), (None, reads.SHAPE_WRONG))
+        self.assertTrue(reads.read_evidence(self.place / "none.json")[1].startswith("FileNotFoundError: "))
+
+
 class ToolTest(unittest.TestCase):
     ROWS = [{"tool_name": "Agent", "input": "general-purpose"}, {"tool_name": "Agent", "input": "general-purpose"},
             {"tool_name": "WebSearch", "input": "q"}, {"path": "/x", "file_sha": "a"}]

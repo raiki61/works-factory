@@ -7,8 +7,8 @@
 （元の check(b)——節 conflict-check——は外した。呼び手の script が conflict.unruled(置き場) を読む）
 
 - prep(board_dir, repo, values, reject_file="", lang=""): 節 rule-prep の中身。作業ツリーの姿を控え（fixboard.snapshot。読むだけの役の
-  見張り）、指示書を fixrules.ruler_prompt で組んで置き場の prompt-rule.md に書く。出し直しなら前の拒否の理由のファイル reject_file
-  （呼び手が渡す）を 1 行目で名指す（R44）。lang は言語の 1 行（呼び手が組む）
+  見張り）、指示書を fixrules.ruler_prompt で組んで置き場の prompt-rule.md に書く。出し直しならこの輪の拒否の理由の全部のファイル reject_file
+  （呼び手が fixboard.rejects_file で渡す）を 1 行目で名指す（R44）。lang は言語の 1 行（呼び手が組む）
 - accept_rule(reply, board, base_rev, repo): 節 rule-accept の中身（呼び手の script が回す）。作業ツリーが変わっていない・裁く申し出の id に
   ちょうど 1 件ずつ・fix_test_scope の範囲が現物に在る・replace_query の問いが例（hits・misses・申し出の correct_lines）で
   外れない・裁きの出どころ（grounds）が現物に在り、依頼のファイルが在る run の ask_human は依頼の行か request_searched を持つ・
@@ -48,7 +48,7 @@ RULING_KEYS = ("decision", "text", "limits", "grounds", "request_searched", "que
 
 def prep(board_dir, repo, values: dict, *, reject_file: str = "", lang: str = "") -> dict:
     """節 rule-prep の中身: {prompt_file, iteration}。裁く申し出が無ければ ValueError（配線の誤り）。指示書・回の数えの控えは
-    置き場の物（2 回目の修正の段の裁定の輪は別の置き場で 1 から数える）。reject_file は前の回の拒否の理由のファイル（呼び手が
+    置き場の物（2 回目の修正の段の裁定の輪は別の置き場で 1 から数える）。reject_file はこの輪の拒否の理由の全部のファイル（呼び手が
     渡す。2 回目からだけ名指す）、lang は言語の 1 行"""
     board_dir = pathlib.Path(board_dir)
     b = board_dir

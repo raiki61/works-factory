@@ -15,9 +15,11 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import baseline_red  # noqa: E402
 import carry  # noqa: E402
 import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
+import green_cert  # noqa: E402
 import worldmark  # noqa: E402
 import conflict  # noqa: E402
 import fixbeside  # noqa: E402
@@ -26,6 +28,7 @@ import outcome  # noqa: E402
 import outpurpose  # noqa: E402
 import planfile  # noqa: E402
 import querytest  # noqa: E402
+import reads  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
 import rolekit  # noqa: E402
@@ -43,6 +46,13 @@ RUN = "run-1"
 def rows_of(*rows) -> list:
     """run の記録の見本の行（止めた実行基盤の packages/workflows/src/logger.ts と node-record-serialization.ts の形）"""
     return list(rows)
+
+
+def call(step, name, **raw):
+    """道具の呼びの行（止めた実行基盤の logger.ts の logProviderEvent と provider-contract の tool_call の形）"""
+    return {"type": "provider_event", "step": step, "workflow_id": RUN, "attemptId": "a-1", "seq": 0,
+            "observedAt": "2026-10-13T00:00:00.000Z", "event": {"type": "tool_call", "toolCallId": f"t-{name}", "name": name,
+                                                                 "rawInput": raw}}
 
 
 def start(step, ts):
@@ -161,6 +171,64 @@ class BuildCase(Base):
         self.assertEqual(decided[0], "stopped_by_request")
         self.assertIn(report.OUTCOME_WORDS["stopped_by_request"], text)
         self.assertIn("承認ノード gate-final: stop（request: 止め札）", text)
+
+    def test_reads_section_shows_what_u6_can_take(self):
+        """「4. 読んだ証拠と包み」が、run の記録の provider_event の道具の呼び（節ごと）と、読んだ証拠の節が書いた reads-*.json の
+        欠けを出し、取れない物（Bash で読み書きしたファイル・組の子の run）を名指す（棚卸し R46。docs/design.md の U6）"""
+        role = "judge__pr-check-loop.pr-check"
+        tfacts = runreport.transcript_facts(rows_of(
+            start(role, "2026-10-13T00:00:00Z"), call(role, "Read", file_path="/r/a.py"), call(role, "Read", file_path="/r/a.py"),
+            call(role, "Read", file_path="/r/b.py"), call(role, "Bash", command="cat c.py"), done(role, "2026-10-13T00:01:00Z"),
+            call("fix__fix", "Edit", file_path="/r/a.py"), call("report__write", "Read", file_path="/r/x.md")),
+            exclude_prefix="report__")
+        self.assertEqual(tfacts["calls"], {role: {"Read": ["/r/a.py", "/r/b.py"], "Edit": [], "Write": [], "Bash": 1},
+                                           "fix__fix": {"Read": [], "Edit": ["/r/a.py"], "Write": [], "Bash": 0}})
+        brief = "/art/judge/pr-brief.json"
+        log = reads.reads_path(self.dir / "config" / reads.ROOT, self.dir)
+        log.parent.mkdir(parents=True)
+        log.write_text("", encoding="utf-8")
+        (self.dir / "judge").mkdir()
+        pr = reads.collect(self.dir / "judge", "pr-check", [brief], log, own=[brief], since="", repo=self.dir)["reads_file"]
+        self.put(f"judge/{reads.index_name('pr-check')}", {"pr-check": pr})
+        (self.dir / "fix" / "fix").mkdir(parents=True)
+        reads.collect(self.dir / "fix" / "fix", "fix", ["/p.md"], self.dir / "none" / "x" / reads.LOG, own=[], since="", repo=self.dir)
+        self.put("plan/r1/reads-plan-writer.json", "{")
+        _, text, _ = self.build(transcript=tfacts)
+        got = self.section(text, report.READS_HEADING)
+        self.assertIn(f"  - {role}: Read 2 件・Edit 0 件・Write 0 件（ファイル: /r/a.py・/r/b.py）", got)
+        self.assertIn("  - fix__fix: Read 0 件・Edit 1 件・Write 0 件（ファイル: /r/a.py）", got)
+        self.assertNotIn("report__write", got)
+        self.assertIn(f"  - pr-check（judge/reads-pr-check.json）: 渡した 1・読んだ跡の無い 1（{brief}）", got)
+        self.assertIn(f"  - fix（fix/fix/reads-fix.json）: 測れない（{reads.NO_ROOT}）", got)
+        self.assertIn("  - plan/r1/reads-plan-writer.json: 読めない（", got)
+        self.assertNotIn(reads.index_name("pr-check"), got)
+        self.assertIn("取れない（U6）: Bash で読み書きしたファイル", got)
+        self.assertIn(f"Bash の呼び 1 回: {role} 1", got)
+        self.assertIn("組の子の run", got)
+        self.assertNotIn("読んだ証拠を集める口を戻していない", got)
+
+        _, text, _ = self.build(transcript=None)
+        got = self.section(text, report.READS_HEADING)
+        self.assertIn("  - run の記録が読めない（", got)
+
+    def test_unrun_base_is_not_called_red(self):
+        """走らせられなかった直す前のテスト（ok false・green false・red_cause incomplete）を「赤」と書かない（棚卸し T68）"""
+        base = {"mode": "base", "ok": False, "green": False, "red_cause": green_cert.INCOMPLETE}
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"直す前のテスト: 走らせられなかった（incomplete）——{gatemarks.BASELINE_NOT_RUN}", entry)
+        self.assertNotIn("直す前のテスト: 赤", entry)
+
+    def test_not_applicable_base_is_not_called_unrun(self):
+        """素材が not_applicable の直す前のテストは認証され（ok 真）incomplete に畳まれるが、「走らせられなかった」とも「赤」とも書かない"""
+        pointed = str(self.dir / "test-gate" / "base" / "baseline.json")
+        baseline_red.write_baseline(pointed, suite="", test_cmd="", rev="r", exit=None, cases=[],
+                                    material={"status": green_cert.NOT_APPLICABLE, "reason": "検査の宣言が無い"})
+        base = {"mode": "base", "ok": True, "green": False, "red_cause": green_cert.INCOMPLETE, "baseline": pointed}
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"直す前のテスト: {gatemarks.MATERIAL_WORDS['not_applicable']}（not_applicable）", entry)
+        self.assertNotIn("走らせられなかった", entry)
 
 
 class TddCase(Base):

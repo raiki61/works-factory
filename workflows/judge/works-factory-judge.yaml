@@ -37,11 +37,11 @@ nodes:
       until_bash: done=$spec-accept.output.done; test "$done" = true
       nodes:
         - id: spec-reject
-          script: reject
+          script: rejects
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {reason: "$LOOP_PREV.spec-accept.output.reason"}
+          with: {board: judge, accept: spec-write}
           output_format:
             type: object
             additionalProperties: false
@@ -113,11 +113,11 @@ nodes:
       until_bash: done=$spec-review-accept.output.done; test "$done" = true
       nodes:
         - id: spec-review-reject
-          script: reject
+          script: rejects
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {reason: "$LOOP_PREV.spec-review-accept.output.reason"}
+          with: {board: judge, accept: spec-review}
           output_format:
             type: object
             additionalProperties: false
@@ -179,11 +179,11 @@ nodes:
       until_bash: done=$spec-revise-accept.output.done; test "$done" = true
       nodes:
         - id: spec-revise-reject
-          script: reject
+          script: rejects
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {reason: "$LOOP_PREV.spec-revise-accept.output.reason"}
+          with: {board: judge, accept: spec-revise}
           output_format:
             type: object
             additionalProperties: false
@@ -421,6 +421,26 @@ nodes:
               ok: {type: boolean}
               done: {type: boolean}
               reason: {type: string}
+  # 読んだ証拠（受け付けの条件にしない）。並行 PR の役が渡し物 judge/pr-brief.json を読んだかを、フックの記録から集めて置き場の
+  # reads-pr-check.json と索引に書く。pr-scan は機械が決めた回も渡し物を書くので、役を起こさなかった回は when で飛ばす。
+  # pr-scan が走らなかった回（再審の道など）は飛ぶ（one_success）。輪が落ちても走り、落ちない
+  - id: pr-check-reads
+    script: pr_reads
+    runtime: uv
+    timeout: 1728000000
+    mutates_checkout: false
+    depends_on: [pr-scan, pr-check-loop]
+    trigger_rule: one_success
+    when: $pr-scan.output.go_role == true
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, missing, index_file, reason]
+      properties:
+        ok: {type: boolean}
+        missing: {type: array, items: {type: string}}
+        index_file: {type: string}
+        reason: {type: string}
   - id: premises-loop
     depends_on: [pr-scan, pr-check-loop]
     trigger_rule: none_failed_min_one_success
@@ -2195,11 +2215,11 @@ nodes:
       until_bash: done=$rejudge-accept.output.done; test "$done" = true
       nodes:
         - id: rejudge-reject
-          script: reject
+          script: rejects
           runtime: uv
           timeout: 1728000000
           mutates_checkout: false
-          with: {reason: "$LOOP_PREV.rejudge-accept.output.reason"}
+          with: {board: rejudge, accept: rejudge}
           output_format:
             type: object
             additionalProperties: false
@@ -2311,7 +2331,7 @@ nodes:
     script: verdict
     runtime: uv
     timeout: 1728000000
-    depends_on: [intake, spec-freeze, diagnose-loop, verify-merge, rejudge-loop]
+    depends_on: [intake, spec-freeze, diagnose-loop, verify-merge, rejudge-loop, pr-check-reads]
     trigger_rule: all_done
     mutates_checkout: false
     output_format:

@@ -94,7 +94,7 @@ class TreeRunCase(unittest.TestCase):
         self.tmp = pathlib.Path(self._tmp.name)
         self.pidf = self.tmp / "pgid"
         self.marker = self.tmp / "late"
-        self.env = {k: v for k, v in os.environ.items() if k not in ("INPUTS_CMD", "PYTHONDONTWRITEBYTECODE")}
+        self.env = {k: v for k, v in os.environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
         # このテストが起こした物（後片付けで止める Popen・pgid・pid）。pgid・pid は消えたと確かめた時点で外す——
         # 確かめた後に同じ番号が別のプロセスに再利用されても、後片付けで送らない。Popen は回収済みなら送らない
         self.started = []
@@ -154,14 +154,10 @@ class TreeRunCase(unittest.TestCase):
         r = self.run_cli("--", "echo 出た; echo 誤り >&2")
         self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "出た\n", "誤り\n"))
 
-    def test_command_from_env(self):
-        r = self.run_cli(env={**self.env, "INPUTS_CMD": "echo 環境から; exit 4"})
-        self.assertEqual((r.returncode, r.stdout), (4, "環境から\n"))
-
     def test_empty_command_is_refused(self):
-        for args, env in (((), self.env), (("--",), {**self.env, "INPUTS_CMD": "  "})):
+        for args in ((), ("--",), ("--", "  ")):
             with self.subTest(args=args):
-                r = self.run_cli(*args, env=env)
+                r = self.run_cli(*args)
                 self.assertEqual(r.returncode, 2)
                 self.assertTrue(r.stderr)
 

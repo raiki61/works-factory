@@ -26,6 +26,8 @@ from tests.workflows.copied import agent_body, assert_is_original, rewritten, ro
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
 import judge_accept as ja  # noqa: E402
+import prcheck  # noqa: E402
+import reads  # noqa: E402
 import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import seat  # noqa: E402
@@ -91,6 +93,11 @@ ROLES = {
 }
 # 輪の id → 受け付けの節と fresh_context（旧 YAML: 仕様の 3 つの輪と再審の輪は true、ほかは false）
 FRESH = {"spec-loop", "spec-review-loop", "spec-revise-loop", "rejudge-loop"}
+# 新しい会話の輪の reject の節が結ぶ拒否の控え（受け付けの置き場と控えの名。lib/judge_accept の spec_accept・rejudge_accept と同じ）
+FRESH_LEDGERS = {"spec-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["write"]},
+                 "spec-review-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["review"]},
+                 "spec-revise-loop": {"board": ja.JUDGE_DIR, "accept": ja.SPEC_ROLES["revise"]},
+                 "rejudge-loop": {"board": ja.REJUDGE_DIR, "accept": ja.REJUDGE_ROLE}}
 # 観点の正本（REVIEW.md）を読む役の指示書（元が {{inputs.review_md}} で読ませていた物）
 REVIEW_READERS = ("diagnose", "material-local-review", "material-consistency-bypass", "material-hygiene",
                   "material-external-standards", "material-procedure-trace")
@@ -287,12 +294,13 @@ class LoopTest(unittest.TestCase):
     def test_roles_receive_the_reject_reason_through_the_reject_node(self):
         """拒否の理由は、輪の中の節 <役>-reject（script reject）の with: に $LOOP_PREV で結び、役の指示書は今の周のその節の返り
         $<役>-reject.output.reason で受け、rolekit.with_reject の見出しと文で出す（1 周目の $LOOP_PREV は空の字）。
+        役が周ごとに新しい会話で起きる輪（FRESH）は script rejects の節で、$LOOP_PREV でなく受け付けの拒否の控え（FRESH_LEDGERS）を結ぶ（#345）。
         役の節には with: を書かず、指示書には $INPUTS も $LOOP_PREV も書かない: 線が include すると、止めた Archon は輪の中の節が
         自分の with: で結んだ名を楯にせず「入力が無い」で止める（packages/workflows/src/include-expander.ts:566・627。楯は輪の節の
         束縛だけを見る）。ブロックの入力に宣言すると読み込みの時に既定の値で字が埋まり、周ごとの理由が消える。指示書の $LOOP_PREV は
         include した時だけ解け、単独の run では字のまま役に届く"""
         lead = rolekit.with_reject("", "").split("\n\n")[1].removesuffix(":")
-        for loop in loops().values():
+        for lid, loop in loops().items():
             body = {n["id"]: n for n in loop["loop_group"]["nodes"]}
             accept = loop["loop_group"]["nodes"][-1]["id"]
             for role in (n for n in body.values() if "command" in n):
@@ -300,8 +308,8 @@ class LoopTest(unittest.TestCase):
                     reject = f"{role['id']}-reject"
                     node = body[reject]
                     self.assertEqual((node["script"], node["runtime"], node["timeout"], node["mutates_checkout"]),
-                                     ("reject", "uv", NO_DEADLINE, False))
-                    self.assertEqual(node["with"], {"reason": f"$LOOP_PREV.{accept}.output.reason"})
+                                     ("rejects" if lid in FRESH else "reject", "uv", NO_DEADLINE, False))
+                    self.assertEqual(node["with"], FRESH_LEDGERS.get(lid, {"reason": f"$LOOP_PREV.{accept}.output.reason"}))
                     self.assertEqual(node["output_format"]["required"], ["reason", "lang_line"])   # 言語の 1 行は BriefCase
                     self.assertNotIn("with", role)
                     self.assertIn(reject, role["depends_on"])
@@ -318,6 +326,19 @@ class LoopTest(unittest.TestCase):
         for reason in ("", '一行目 "引用" `x`\n二行目'):
             with self.subTest(reason=reason):
                 self.assertEqual(r.returned("reject", reason=reason), {"reason": reason, "lang_line": rolekit.lang_line({})})
+
+    def test_third_fresh_spec_role_reads_every_reject_of_the_loop(self):
+        """新しい会話で起きる仕様の役が 2 回拒まれた後の 3 回目: rejects の返りの reason に 1 回目と 2 回目の拒否が古い順に在る（#345）。
+        1 周目は空の字。言語の 1 行も reject と同じに返す"""
+        r = Run(self)
+        r.returned("intake")
+        self.assertEqual(r.returned("rejects", **FRESH_LEDGERS["spec-loop"]), {"reason": "", "lang_line": rolekit.lang_line({})})
+        reasons = [r.returned("spec_accept", role="write", reply=reply)["reason"]
+                   for reply in ({"requirements": []}, {"acceptance": []})]
+        self.assertTrue(all(reasons) and reasons[0] != reasons[1], reasons)
+        got = r.returned("rejects", **FRESH_LEDGERS["spec-loop"])["reason"]
+        self.assertEqual(got, rolekit.rejects_text(reasons))
+        self.assertLess(got.index(reasons[0]), got.index(reasons[1]))
 
     def test_materials_are_eleven_loops_one_per_command(self):
         material_loops = sorted(lid.removesuffix("-loop") for lid in loops() if lid.removesuffix("-loop") in MATERIALS)
@@ -1525,6 +1546,74 @@ COPIED_TEXTS = {
         ("$world-judge-prep.output.prompt", "$world-plan.output.prompt"),   # 指示書を描く節の名が world-plan
     ]),
 }
+
+
+RECORDER = ROOT / "bin" / "_lib" / "record-read.py"
+
+
+class ReadsTest(unittest.TestCase):
+    """読んだ証拠の節 pr-check-reads（lib/judge_accept.pr_reads）: 並行 PR の役が渡し物 judge/pr-brief.json を読んだかを、隔離した
+    設定のフック（bin/_lib/record-read.py を実物で起こす）の記録から集める。受け付けの条件にせず、欠けは返りに出す（棚卸し J40）"""
+
+    def setUp(self):
+        self.r = Run(self)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.config = pathlib.Path(tmp.name) / "claude"
+        env = mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(self.config)})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def brief(self) -> pathlib.Path:
+        self.r.judge.mkdir(parents=True, exist_ok=True)
+        path = self.r.judge / prcheck.BRIEF
+        path.write_text("{}", encoding="utf-8")
+        at = path.stat().st_mtime - 60
+        os.utime(path, (at, at))
+        return path
+
+    def hook(self, path):
+        event = {"session_id": "s-1", "tool_name": "Read", "tool_input": {"file_path": str(path)}, "tool_use_id": "toolu_Read",
+                 "cwd": str(self.r.repo), "hook_event_name": "PostToolUse"}
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
+        done = subprocess.run([sys.executable, str(RECORDER), str(self.config / reads.ROOT)], input=json.dumps(event),
+                              text=True, encoding="utf-8", capture_output=True, cwd=str(self.r.repo),
+                              env={**env, "PYTHONDONTWRITEBYTECODE": "1"})
+        self.assertEqual(done.returncode, 0, done.stderr)
+
+    def index(self) -> dict:
+        return json.loads((self.r.judge / reads.index_name(prcheck.ROLE)).read_text(encoding="utf-8"))
+
+    def test_pr_check_must_read_its_brief(self):
+        self.assertEqual(nodes()["pr-check-reads"]["script"], "pr_reads")
+        (self.config / reads.ROOT).mkdir(parents=True)
+        brief = self.brief()
+        self.hook(self.r.repo / "stats.py")
+        out = self.r.returned("pr_reads")
+        self.assertIs(out["ok"], True, out)
+        self.assertEqual(out["missing"], [str(brief)])
+        self.hook(brief)
+        out = self.r.returned("pr_reads")
+        self.assertEqual(out["missing"], [], out)
+        self.assertEqual(out["index_file"], str(self.r.judge / reads.index_name(prcheck.ROLE)))
+        doc = json.loads(pathlib.Path(self.index()[prcheck.ROLE]).read_text(encoding="utf-8"))
+        self.assertEqual([row["path"] for row in doc["rows"]], [str(brief)])
+        self.assertIn(doc["rows"][0]["hook"], reads.HOOK_SEEN)
+
+    def test_pr_check_reads_runs_after_the_role_on_the_roles_rounds(self):
+        """役の輪の後に走り（先に走ると読む前の記録で欠けと言う）、輪が落ちた回も走り、役を起こした回だけ走る"""
+        node, role = nodes()["pr-check-reads"], nodes()["pr-check-loop"]
+        self.assertIn("pr-check-loop", node["depends_on"])
+        self.assertEqual(node["trigger_rule"], "one_success")
+        self.assertEqual(node["when"], role["when"])
+
+    def test_pr_check_reads_without_record_does_not_fail(self):
+        """記録の根が無い（フックを置いていない起動）時も落ちず、読んでいないとも言わない"""
+        self.brief()
+        out = self.r.returned("pr_reads")
+        self.assertEqual((out["ok"], out["missing"]), (True, []), out)
+        doc = json.loads(pathlib.Path(self.index()[prcheck.ROLE]).read_text(encoding="utf-8"))
+        self.assertEqual(doc["sources"], {"hook": "none", "why": reads.NO_ROOT})
 
 
 class CopiedTextsCase(unittest.TestCase):

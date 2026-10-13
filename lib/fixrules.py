@@ -29,6 +29,7 @@
   指示書の頭（題の次）に、直す義務の単位の brief（planbrief.cut。承認済みの修正案の項目を凍結した物）を名指す節を置く。
   brief の控えが壊れていれば理由の ValueError（brief_halt。brief の無い指示書として続けない。止めるのは呼び手）
 - ruler_prompt: 裁定役の指示書（ruling.prep が書く）
+- head_file: 段（PASSES）ごとの段の頭の木の控えのファイルの名（HEAD_FILES。fixboard.fixer_head と fix-prep・fix-ruled-prep が引く）
 - 同じ run に修正役を 2 度起こす段（依頼 226 の 2 回目の修正の段）の指示書（と隣の .delivered.json）・裁定の後の尾・裁定の文・
   申し出の回の控えは、名を変えずに置き場（呼び手が渡す b。fix/fix/ と fix/refix/）で 1 回目の物と分かれる。2 回目の段は自分の
   数えから始まり、3 回の諦めを回ごとに数える
@@ -67,6 +68,7 @@ TDD_VALUES = ("judgment_file", "open_units", "plan_file", "policy_path", "notes_
 RULER_VALUES = ("conflicts_file", "ids", "judgment_file", "request_file", "policy_path")
 CONFLICT_WHY = "（食い違いの申し出。緑にするために曲げない）"
 PASSES = ("first", "ruled")   # 修正役の 1 回目と、裁定の後の 2 回目（印 continue=fix の会話の続き）
+HEAD_FILES = dict(zip(PASSES, (fixboard.FIX_HEAD_FILE, fixboard.RULED_HEAD_FILE), strict=True))   # 段 → 段の頭の木の控え
 RULED_TAIL = "-ruled.md"      # 2 回目の指示書の名の尾（1 回目の <名>.md の隣。輪の控えを分ける）
 RULINGS_LINE = ("食い違いの申し出への裁定を書いたファイル {path} を、先に Read で全部読め。裁定に従って直し、返答を丸ごと出し直せ"
                 "（裁定の文そのものはここに貼らない）")
@@ -478,11 +480,18 @@ def dispatched(owed: list[str], green=frozenset()) -> list[str]:
     return [k for k in owed if k not in green]
 
 
+def head_file(pass_: str) -> str:
+    """段 pass_ の頭の木の控えのファイルの名（HEAD_FILES）。PASSES に無い段は ValueError"""
+    if pass_ not in HEAD_FILES:
+        raise ValueError(f"段 {pass_!r} は {PASSES} のどれでもない")
+    return HEAD_FILES[pass_]
+
+
 def prep(b, repo, values: dict, pass_: str = PASSES[0], *, owed, withheld_by=None, returned=(), items=None, sources=None,
          reject_file: str = "", lang: str = "", green=frozenset(), shared=None) -> dict:
     """節 fix-prep（pass_ first）と fix-ruled-prep（pass_ ruled）: 置き場 b に指示書を書き、{prompt_file, iteration}（iteration は
     この輪の何回目か。受け付けが 3 回目の拒否で done を立てる。R50）を返す。
-    reject_file は受け付けが書いた一番新しい拒否の理由のファイル（同じ試行の出し直し。呼び手が渡す。見出しの次の 1 行で名指す。R44）。
+    reject_file はこの輪の拒否の理由の全部のファイル（fixboard.rejects_file。同じ試行の出し直し。呼び手が渡す。見出しの次の 1 行で名指す。R44）。
     ruled は指示書を <名>-ruled.md に分け（輪の回を別に数える）、1 回目は裁定の文のファイル（conflict.RULINGS_FILE）を見出しの
     次の 1 行で名指す（裁定の文は貼らない。R44）。
     題の次（ruled の 1 回目は裁定の文のファイルの行の後）に、直す義務の単位の brief を名指す節（planbrief.head_text。義務から外れた
