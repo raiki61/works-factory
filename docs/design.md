@@ -432,7 +432,7 @@ flowchart TB
 
 - 目的: 直しを作った役と別の新しい会話で、読むだけで確かめる。R1 最小性（コメントの削除候補 → 問いの台帳の監査 → 累積差分が最小か）・R2 独立設計との比較（道具は累積差分を読むだけ。前提が崩れたと言えば前提の検算）・R3 全体の整合（命名・規約・界面・文書の追従）・R4 見えていない範囲（運用・セキュリティ・データの横断の危うさと消えた能力。人への問い）。R1・R2・R3 を並べ、R4 は R1・R2 の後。直した後の構造の実測と、守りのパスの当たりも出す。
 - ASF で読む物: `W/review/archon-review.yaml`（並べたレンズ・`coverage`・`synthesize` が include の頭と `loopGroupPath` で自分の分だけを数える）。
-- 入力: 判定・計画・修正・緑の認証。型つきの成果物 `eye-verdict` も出す。目が読む累積差分は修正の出力から受けず、`prep` が入口の差分の根（`startrec.diff_base`。差分の run では PR の根）から今の作業ツリーまでを取って `eyes/run.diff` に書く（直す物が無い run も頼まれた変更を見る。差分が空・取れない時は訳を書いた `eyes/run-diff-none.txt` を指す。今の works の `review-loop.py` の `_take_diff` と同じ起点）。直した後の構造の実測と守りのパスの当たりの起点は修正前の HEAD（始めの記録の `base_rev`）のまま（今の works の `measuring-after` と `line_edge._protected` と同じ。PR にもとからある変更を修正の変更に数えない）。
+- 入力: 判定・計画・修正・緑の認証。型つきの成果物 `eye-verdict` も出す。目が読む累積差分は修正の出力から受けず、`prep` が入口の差分の根（`startrec.diff_base`。差分の run では PR の根）から今の作業ツリーまでを取って `eyes/run.diff` に書く（直す物が無い run も頼まれた変更を見る。差分が空・取れない時は訳を書いた `eyes/run-diff-none.txt` を指す。取れない時は規模の数と変更ファイルを 0 にせず、取れない訳を書く。今の works の `review-loop.py` の `_take_diff` と同じ起点）。直した後の構造の実測と守りのパスの当たりの起点は修正前の HEAD（始めの記録の `base_rev`）のまま（今の works の `measuring-after` と `line_edge._protected` と同じ。PR にもとからある変更を修正の変更に数えない）。
 - 役（`commands/`）: `r1-comments`・`r1-minimality`・`r2-compare`・`r3-coherence`・`r4-scope`・`premise-check`・`structure-after`。
 - lib: `protected`。
 - 埋め: 無し。全部の AI ノードに `mutates_checkout: false`（E7）。

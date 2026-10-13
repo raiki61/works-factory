@@ -985,9 +985,10 @@ def run_diff(repo, base: str = "HEAD", skip=()) -> str:
 DIFF_EMPTY = "累積差分は空（{base} から作業ツリーは変わっていない）"
 
 
-def diff_file(repo, base, place, name: str, none_name: str, skip=()) -> tuple[pathlib.Path, str]:
-    """(読み手に渡す累積差分のファイル, 差分の本文)。版を引く関数 base の版から run_diff を取って place/name に書く。空・版が
-    引けない・git が落ちた時は訳を place/none_name に書き、そのファイルと空の本文（読み手に空の字を渡さない）"""
+def diff_file(repo, base, place, name: str, none_name: str, skip=()) -> tuple[pathlib.Path, str, str]:
+    """(読み手に渡す累積差分のファイル, 差分の本文, 取れなかった訳)。版を引く関数 base の版から run_diff を取って place/name に書く。
+    空・版が引けない・git が落ちた時は訳を place/none_name に書き、そのファイルと空の本文（読み手に空の字を渡さない）。取れなかった訳は
+    版が引けない・git が落ちた時だけ在り、本当に空の時は空の字（「取れない」と「変化なし」を同じ値にしない）"""
     place = pathlib.Path(place)
     place.mkdir(parents=True, exist_ok=True)
     rev, text, why = "", "", ""
@@ -998,9 +999,9 @@ def diff_file(repo, base, place, name: str, none_name: str, skip=()) -> tuple[pa
         why = f"累積差分が取れない（{type(e).__name__}: {' '.join(str(e).split())}）"
     if text.strip():
         (place / name).write_text(text, encoding="utf-8", errors="surrogateescape")
-        return place / name, text
+        return place / name, text, ""
     (place / none_name).write_text((why or DIFF_EMPTY.format(base=rev)) + "\n", encoding="utf-8")
-    return place / none_name, ""
+    return place / none_name, "", why
 
 
 # ---------------------------------------------------------------- 差分の審査・レンズ・手直しの節の口（delta・lens・refix の scripts が呼ぶ）

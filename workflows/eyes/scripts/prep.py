@@ -51,7 +51,7 @@ purpose = read(json.loads(os.environ["INPUTS_PURPOSE"])) or {}
 design_file = opened(json.loads(os.environ["INPUTS_DESIGN"]))
 design = eyeverdict.read_design(design_file)
 base_rev = startrec.diff_base(start)
-diff_file, diff_text = fixboard.diff_file(Path.cwd(), entry_base, EYES, "run.diff", "run-diff-none.txt", boundary.SKIP)
+diff_file, diff_text, diff_why = fixboard.diff_file(Path.cwd(), entry_base, EYES, "run.diff", "run-diff-none.txt", boundary.SKIP)
 answer = json.loads(os.environ["INPUTS_ANSWERS"])
 changed = json.loads(os.environ["INPUTS_CHANGED"])
 premises = judgment_file.with_name(_premises.PREMISES_FILE) if judgment_file else None
@@ -78,8 +78,8 @@ out = {
     "design_reply": json.dumps(design, ensure_ascii=False, indent=1),
     "diff_file": str(diff_file),
     "diff_lines": len(diff_text.splitlines()),
-    "changed_files": "、".join(eyeverdict.changed_files(diff_text)),
-    "scalars": eyeverdict.scalars_text(eyeverdict.scalars(diff_text, json.loads(os.environ["INPUTS_X_SCALARS"]))),
+    "changed_files": "、".join(eyeverdict.changed_files(diff_text)) or diff_why,
+    "scalars": eyeverdict.scalars_text(eyeverdict.scalars(diff_text, json.loads(os.environ["INPUTS_X_SCALARS"]), diff_why)),
     "cwd": os.getcwd(),
     "base_rev": base_rev,
     "review_md": str(boundary.lib_root() / "REVIEW.md"),

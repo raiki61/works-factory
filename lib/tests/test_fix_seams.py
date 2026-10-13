@@ -1569,17 +1569,19 @@ class GroupScriptsSeamCase(TempCase):
 
     def test_diff_file_points_at_the_reason_when_empty_or_unreadable(self):
         place = self.repo.parent / "place"
-        path, text = fixboard.diff_file(self.repo, lambda: "HEAD", place, "x.diff", "x-none.txt")
-        self.assertEqual((path.name, text), ("x-none.txt", ""))
+        path, text, why = fixboard.diff_file(self.repo, lambda: "HEAD", place, "x.diff", "x-none.txt")
+        self.assertEqual((path.name, text, why), ("x-none.txt", "", ""))
         self.assertEqual(path.read_text(encoding="utf-8"), fixboard.DIFF_EMPTY.format(base="HEAD") + "\n")
 
         def no_base():
             raise ValueError("起点が無い")
-        path, _ = fixboard.diff_file(self.repo, no_base, place, "x.diff", "x-none.txt")
-        self.assertIn("ValueError: 起点が無い", path.read_text(encoding="utf-8"))
+        path, text, why = fixboard.diff_file(self.repo, no_base, place, "x.diff", "x-none.txt")
+        self.assertEqual(text, "")
+        self.assertIn("ValueError: 起点が無い", why)
+        self.assertEqual(path.read_text(encoding="utf-8"), why + "\n")
         (self.repo / "stats.py").write_text("X = 1\n", encoding="utf-8")
-        path, text = fixboard.diff_file(self.repo, lambda: "HEAD", place, "x.diff", "x-none.txt")
-        self.assertEqual(path.name, "x.diff")
+        path, text, why = fixboard.diff_file(self.repo, lambda: "HEAD", place, "x.diff", "x-none.txt")
+        self.assertEqual((path.name, why), ("x.diff", ""))
         self.assertEqual(path.read_text(encoding="utf-8"), text)
         self.assertIn("b/stats.py", text)
 

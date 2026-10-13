@@ -50,7 +50,7 @@ def rel(place: Path, name: str) -> str:
 
 def diff_pointer(fixboard, place: Path) -> dict:
     """累積差分のファイルの指し札。書けない・空なら理由を書いたファイルの指し札"""
-    path, _ = fixboard.diff_file(boundary.work_tree(), lambda: fixboard.base_rev_of(place), place, "fix.diff",
+    path, _, _ = fixboard.diff_file(boundary.work_tree(), lambda: fixboard.base_rev_of(place), place, "fix.diff",
                                  "fix-diff-none.txt", boundary.SKIP)
     return boundary.pointer(rel(place, path.name))
 
