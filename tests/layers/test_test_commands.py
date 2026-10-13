@@ -7,11 +7,13 @@ import json
 import pathlib
 import unittest
 
+from tests.layers.test_words import ASF_DIRS, ROOT_DOCS
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 RULES = ROOT / "tests" / "AGENTS.md"
 FULL = "python3 -m unittest discover"
-# 役が確かめの命令を探す決まりの文書（AGENTS.md は全部の階層）
-GUIDES = ("README.md", "engineering.md", "MISSION.md", "pyproject.toml")
+# 役が確かめの命令を探す決まりの文書（AGENTS.md は ASF の物を除く全部の階層）
+GUIDES = (*ROOT_DOCS, "pyproject.toml")
 
 
 def unit_command() -> str:
@@ -35,7 +37,7 @@ class TestCommandsTest(unittest.TestCase):
         self.assertIn("回さない", lines[0])
 
     def test_no_other_guide_names_the_full_suite(self):
-        guides = [p for p in ROOT.rglob("AGENTS.md") if p != RULES and ".git" not in p.parts]
+        guides = [p for p in ROOT.rglob("AGENTS.md") if p != RULES and p.relative_to(ROOT).parts[0] not in ASF_DIRS + (".git",)]
         guides += [ROOT / name for name in GUIDES if (ROOT / name).exists()]
         found = {p.relative_to(ROOT).as_posix(): full_suite_lines(p.read_text(encoding="utf-8")) for p in guides}
         self.assertEqual({path: lines for path, lines in found.items() if lines}, {})
