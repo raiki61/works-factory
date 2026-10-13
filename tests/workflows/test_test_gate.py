@@ -751,6 +751,21 @@ class ResultScriptCase(ScriptCase):
         self.assertEqual((doc["suite"], doc["test_cmd"], doc["exit"]), (str(suite), "true", 1))
         self.assertEqual(baseline_red.outcomes(doc["cases"]), {"s::x": "failure"})
 
+    def test_bare_name_tdd_suite_runs_from_the_target_root(self):
+        """#340: 種の tdd_suite のようにファイル名だけ（junit-suite.sh）の実行器は、PATH でなく対象の根から起こす（TDD の輪の
+        tddloop.exe_path と同じ解き方）。base も final も"""
+        suite = self.repo / "bare-suite.sh"
+        suite.write_text("#!/bin/sh\nprintf '%s' \"<testsuite><testcase classname='s' name='x'/></testsuite>\" > \"$1\"\n",
+                         encoding="utf-8")
+        suite.chmod(0o755)
+        self.write_start(tdd_suite=suite.name, test_cmd="true")
+        for mode in declared_checks.MODES:
+            with self.subTest(mode):
+                self.ok("run", mode=mode, start=self.start)
+                run = json.loads((self.artifacts / "test-gate" / mode / "run.json").read_text(encoding="utf-8"))
+                self.assertEqual(run["suite"], {"exe": suite.name, "exit": 0, "problems": []})
+                self.assertEqual(baseline_red.outcomes(run["cases"]), {"s::x": "passed"})
+
     def test_base_that_cannot_run_is_not_ok(self):
         """宣言も test_cmd も無い base: 任せ先の役が走らせられず awaiting_human を返した・素材を渡さなかった、どちらも緑を仮定しない"""
         self.assertEqual(self.ok("run", mode="base", start=self.start)["by"], "role_needed")

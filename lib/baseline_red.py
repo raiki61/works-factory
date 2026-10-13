@@ -146,8 +146,13 @@ def lowered() -> tuple[dict, str]:
     return {"preexec_fn": nice19}, ""
 
 
+def exe_path(repo, suite: str) -> pathlib.Path:
+    """入力 tdd_suite の実行器のパス（相対なら作業ツリー repo の根から解く。ファイル名だけの名を PATH で探させない）"""
+    return pathlib.Path(suite) if pathlib.Path(suite).is_absolute() else pathlib.Path(repo) / suite
+
+
 def run_suite(exe: str, repo, work: pathlib.Path, n, args=(), only=False, reuse=None, note=None):
-    """実行器を 1 回走らせる ——（結末の一覧, 終了コード, 問題）。結末が取れなければ一覧は None。
+    """実行器を 1 回走らせる ——（結末の一覧, 終了コード, 問題）。結末が取れなければ一覧は None。相対の exe は repo の根から解く（exe_path）。
     .py はこの Python で走らせる（写しの rules の run_suite と同じ）。出力は work/suite-<n>.log に丸ごと。
     args は JUnit の書き先の後ろに足す（段の外の試験のファイル・node id を絶対パスで・受け付けの -k。works/dev/tdd-suite.sh は
     試験の実行器に渡し、試験の根（conftest.py の置き場）が違う名指しは根ごとに別のプロセスで流して JUnit を 1 つに合わせる）。同じ鍵の行は 1 つにまとめる（段のファイルと足した node id が重なっても 1 件）。
@@ -157,7 +162,7 @@ def run_suite(exe: str, repo, work: pathlib.Path, n, args=(), only=False, reuse=
     （JUnit XML は書き戻す）。note（dict）を渡せば、呼び手が出どころ（reused）と理由（reuse_off）を読める。
     （元 works/blk-fix/lib/tddloop.py:296-333。試験の枠（slotted_run の枠・待った秒）を外し、tree_run.reuse_run で
     自分のプロセスグループで走らせる。使い回しの句はログでなく note に置く。rules().parse_junit は同じファイルの parse_junit）"""
-    argv = ([sys.executable] if exe.endswith(".py") else []) + [exe]
+    argv = ([sys.executable] if exe.endswith(".py") else []) + [str(exe_path(repo, exe))]
     nice_kw, bare = lowered()
     junit = work / f"junit-{n}.xml"
     log = work / f"suite-{n}.log"
