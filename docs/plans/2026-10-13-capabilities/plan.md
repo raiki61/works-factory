@@ -402,7 +402,7 @@
 - P055 受け付けた案の項目ごとに、変える名の呼び出し元と試験の当たり（覆っていない当たりを含む）と、消す名（removes）の残る名指し（kind removed・removed_test。docs/plans も数える）を波及の一覧 ripple.json に作って返す。案が無い周は {items: [], error: <訳>}。
   - 元: works/blk-plan/lib/planblk.py:478 `make_ripple`（stage items・RIPPLE_LATEST）・works/blk-plan/lib/ripple.py:171 `build`
   - 今: lib/planfile.py::ripple_items・lib/ripple.py::build・workflows/plan/scripts/ripple_items.py
-  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends・tests/workflows/test_plan.py::AcceptCase.test_three_rejections_give_up_with_every_pointer・lib/tests/test_ripple.py::RippleCase.test_literal_test_not_in_rewrite_is_uncovered・lib/tests/test_ripple.py::RippleCase.test_caller_outside_scope_is_uncovered。消す名は lib/tests/test_ripple.py::RippleCase.test_removes_names_hits_are_uncovered ほか removed の 7 本と lib/tests/test_planfile.py::RippleItemsCase.test_ripple_items_sees_removes（planmarks.split が removes を欄に写す）。1 回目の差し込みで中身を見る試験は tests/workflows/test_plan.py::AcceptCase.test_accepted_plan_files の error が空だけで弱い → 要追加: AcceptCase.test_accepted_plan_has_item_ripple — 種の 1 回目の ripple.json の items[0] の uncovered に request_ok.json:8 が在る・tests/workflows/test_plan.py::AcceptCase.test_accepted_plan_has_item_ripple（#120 で足した。消すと赤: ripple_items が当たりを引かないと赤）
+  - 証: tests/workflows/test_plan.py::ReplanCase.test_replan_rejects_extra_items_and_changed_keys_then_amends・tests/workflows/test_plan.py::AcceptCase.test_three_rejections_give_up_with_every_pointer・lib/tests/test_ripple.py::RippleCase.test_literal_test_not_in_rewrite_is_uncovered・lib/tests/test_ripple.py::RippleCase.test_caller_outside_scope_is_uncovered。消す名は lib/tests/test_ripple.py::RippleCase.test_removes_names_hits_are_uncovered ほか removed の 7 本と lib/tests/test_planfile.py::RippleItemsCase.test_ripple_items_sees_removes（planmarks.split が removes を欄に写す）。1 回目の差し込みで中身を見る試験は tests/workflows/test_plan.py::AcceptCase.test_accepted_plan_files の error が空だけで弱かったので、#120 で tests/workflows/test_plan.py::AcceptCase.test_accepted_plan_has_item_ripple を足した（種の 1 回目の ripple.json の items[0] の uncovered に request_ok.json:8 が在る。消すと赤: ripple_items が当たりを引かないと赤）
   - 本物の run: plan/r1/ripple.json の items[].uncovered（返りの ripple の指し札の先）
   - 狭め: 無し
 
@@ -1831,12 +1831,12 @@
   - 本物の run: 返す節 `review` の出力 `gate_axes`・`ask_human`・`questions`（種では ask_human: false・questions: [] の見込み）
   - 狭め: 無し
 
-- P253 関所の材料は修正の義務が在る周だけに作る（直す義務が 0 件・計画が無い周は関所を開かず修正もしない）
-  - 元: works/.shared/core/gatemarks.py 冒頭（直す義務が 0 件の周は関所の節が走らない）
-  - 今: workflows/line/works-factory-line.yaml::plan-review-run（plan-review は plan の ready でだけ走る）・workflows/line/scripts/ask_before_fix.py::ask（plan の ready が偽なら関所を開かない）
-  - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_no_plan_goes_nowhere
+- P253 関所の材料は修正の義務が在る周だけに作る（直す義務が 0 件の周は関所を開かず修正の役も起こさないが、今の works と同じく空の修正を渡して最後のテストと独立の目まで回す）
+  - 元: works/.shared/core/gatemarks.py 冒頭（直す義務が 0 件の周は関所の節が走らない）・works/darkfactory/lib/line_edge.py:1109-1114 `plan_edge`（空の修正 `entry.empty_fix_reply`。works/.shared/core/entry.py:1313）
+  - 今: workflows/line/works-factory-line.yaml::plan-review-run（plan-review は plan の ready でだけ走る）・workflows/line/scripts/ask_before_fix.py::ask（plan の ready が偽なら関所を開かない）・workflows/line/scripts/plan_out.py::round_owes_nothing → workflows/line/works-factory-line.yaml::design-only → workflows/line/scripts/fixed.py::no_fix → test-gate-final・eyes
+  - 証: tests/workflows/test_line.py::AskBeforeFixCase.test_no_plan_goes_nowhere・tests/workflows/test_line.py::PlanOutNothingOwedCase.test_nothing_owed_is_read_from_the_round・tests/workflows/test_line.py::NoFixWiringCase.test_nothing_owed_round_takes_the_no_fix_tail・lib/tests/test_outcome.py::ReadingCase.test_nothing_owed_round_with_the_tail_is_round_limit・筋書き nothing-owed・tests/e2e/test_line_scenarios.py::NothingOwedRoundTest.test_the_tail_runs_like_works
   - 本物の run: 線の節 `ask-before-fix` の出力 `open`・`go`
-  - 狭め: 無し
+  - 狭め: #74 で狭めた（直す義務 0 件の周に最後のテストと独立の目を飛ばした。この行の「無し」は棚卸しの見誤りで、持ち主の決めでない） → #291 で戻した
 
 - P254 修正前の関所で人が通した狭め・穴と同じ行は、修正の後の関所（R4）で聞き直さず、通した行に by human で残す。R4 の役にも「人が通した狭まり」の節を貼る
   - 元: works/.shared/core/gatemarks.py `r4_gate_items`・`_human_passed`・`carried_section`
