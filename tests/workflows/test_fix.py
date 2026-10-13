@@ -1544,6 +1544,37 @@ class BlockScriptsCase(unittest.TestCase):
             self.assertEqual(out, {"go": False, "count": 0})
             self.assertFalse((self.place / "conflicts-dropped.json").exists())
 
+    def test_conflict_check_keeps_claims_citing_their_own_child_place(self):
+        """依頼 290: 子の申し出が名指す子の置き場（結果の place）の brief は、その組の名指しの根に許す（元 works の共有の盤面。
+        子の受け付けが許した根と同じ）。ほかの組の置き場は許さない。brief の無い run の機械の諦め（between が空）は照らさずに積み、
+        役の申し出の空の between は落とす"""
+        child = self.tmp / "child-g1"
+        child.mkdir()
+        (child / "brief-1.md").write_text("# brief\n", encoding="utf-8")
+        other = self.tmp / "child-g2"
+        other.mkdir()
+        giveup = {"unit_key": "A", "between": [f"{child}/brief-1.md:1"], "why_both_cannot_hold": "赤の確かめが 3 回とも通らなかった",
+                  "which_is_right": "unknown", "kind": "needs_context", "source": "tdd-gave-up"}
+        bare = {**giveup, "unit_key": "C", "between": []}
+        start = self.snapshot(self.repo)
+        out_dir = self.groups_file([{"group_id": g, "unit_ids": [k], "items": []} for g, k in (("g1", "A"), ("g2", "B"), ("g3", "C"))],
+                                   start, par=False)
+        _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], start, start, conflicts=[giveup], place=str(child)))
+        _blk_write(out_dir / "g2" / "result.json", _blk_result("g2", ["B"], start, start, conflicts=[{**giveup, "unit_key": "B"}],
+                                                               place=str(other)))
+        _blk_write(out_dir / "g3" / "result.json", _blk_result("g3", ["C"], start, start, conflicts=[
+            bare, {**bare, "unit_key": "D", "source": "tdd"}], place=""))
+        _blk_write(self.place / "join.json", {"par": False, "units": [], "groups": [
+            {"group_id": g, "unit_ids": [k], "returned": True, "reason": ""} for g, k in (("g1", "A"), ("g2", "B"), ("g3", "C"))]})
+        code, out, err = _blk_run("conflict_check", self.repo, self.art, node_path="fix__conflict-check")
+        self.assertEqual(code, 0, err)
+        items = json.loads((self.place / "conflicts.json").read_text(encoding="utf-8"))["items"]
+        self.assertEqual([(r["unit_key"], r["source"]) for r in items], [("A", "tdd-gave-up"), ("C", "tdd-gave-up")])
+        dropped = json.loads((self.place / "conflicts-dropped.json").read_text(encoding="utf-8"))["dropped"]
+        self.assertEqual([d.split(":", 1)[0] for d in dropped], ["g2", "g3"])
+        self.assertIn("（B）", dropped[0])
+        self.assertIn("（D）", dropped[1])
+
     # ---- tdd_unit.py
     def test_tdd_unit_writes_one_body_for_all_groups(self):
         start = self.snapshot(self.repo)
@@ -2477,7 +2508,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(set(result), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                        "objection", "changed", "x_scalars", "allowed_test_changes", "allowed_tests", "verified",
                                        "reply_file", "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace", "closure",
-                                       "claimed"})
+                                       "claimed", "place"})
         # F427・F428・F013: 子の置き場の受け入れた壊れ・閉鎖の表・受け付けの知らせを、親の collect へ結果で運ぶ
         self.assertEqual((result["handoffs"], result["claimed"], result["closure"]),
                          ([f"{_GRP_MEAN}: 壊すと分かって通した——空の列の平均の値が変わる"], [_GRP_MEAN], [closure]))
@@ -2493,6 +2524,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((result["objection"], result["allowed_test_changes"], result["verified"], result["conflicts"]),
                          ("単位の見立てが違う", ["test_stats.py"], [], []))
         self.assertEqual(result["reply_file"], str(self.place / "fix-reply.json"))
+        self.assertEqual(result["place"], str(self.place), "親の conflict-check がこの組の名指しに許す根")
 
     def test_group_end_lists_allowed_tests_only_for_an_accepted_reply(self):
         """受け付けが通らず fix-reply.json が無い組は、置き場に許しが在っても allowed_test_changes を空にする（許しの訳は載せる）"""

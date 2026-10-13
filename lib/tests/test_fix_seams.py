@@ -1789,8 +1789,8 @@ class GroupChildSeamCase(TempCase):
         self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
                                     "objection", "changed", "x_scalars", "allowed_test_changes", "allowed_tests", "verified",
                                     "reply_file", "tdd_state", "worktree", "handoffs", "mismatched", "accept_trace", "closure",
-                                    "claimed"})
-        self.assertEqual(got["worktree"], "", "渡さなければ空")
+                                    "claimed", "place"})
+        self.assertEqual((got["worktree"], got["place"]), ("", ""), "渡さなければ空")
         self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"]), ([], [], [], []))
         self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
                          [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
