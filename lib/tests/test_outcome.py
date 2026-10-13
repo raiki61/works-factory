@@ -107,6 +107,19 @@ class TableCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(**{"test-gate-final": None})), ("interrupted", "test-gate-final:chain-cut"))
         self.assertEqual(decide(fixed_run(**{"merge-seal": None, "merge-apply": None})), ("interrupted", "merge-seal:chain-cut"))
 
+    def test_deliberate_stop_before_final_test_follows_works(self):
+        """依頼 290: 線が最後のテストを意図して飛ばした周（fixed の go が偽）は続きの切れ目でなく、元 works の decide_outcome と同じく
+        残りで round_limit（人に回した申し出が在れば needs_human。ReadingCase）。go の無い fix は今までどおり切れ目"""
+        fix = {**fixed_run()["fix"], "done": False, "go": False,
+               "units": [{"unit_id": "u1", "status": "given_up", "reason": "通らない"}]}
+        skipped = {"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None}
+        self.assertEqual(decide(fixed_run(fix=fix, **skipped)), ("round_limit", ""))
+        self.assertNotIn("修正の段が走ったのに最後のテストの出力が無い", outcome.chain_notes(fixed_run(fix=fix, **skipped)))
+        for go in ({}, {"go": True}):
+            with self.subTest(go=go):
+                cut = {**{k: v for k, v in fix.items() if k != "go"}, **go}
+                self.assertEqual(decide(fixed_run(fix=cut, **skipped)), ("interrupted", "test-gate-final:chain-cut"))
+
     def test_missing_eye_of_a_standard_run_is_left(self):
         """R14（元 report.eye_counts の missing「結果が無い——再実行の要あり」:599-602）: 直した後の深さが標準（線の redepth の
         skip_optional が空。facts の eyes_skip）なのに返りの無い目は、深さで省いた目と分けて残りに数える。軽量で省いた run と、深さの
@@ -294,6 +307,13 @@ class ReadingCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(fix=fix), facts={**OK_FACTS, "failed": ["refix__write"]})[0], "interrupted")
         self.assertEqual(outcome.asked_conflicts(fixed_run(fix=fix), closed=False), [])
         self.assertEqual(outcome.waiting_conflicts(fixed_run(fix=fix)), [waiting])
+
+    def test_deliberate_stop_with_asked_conflict_needs_human(self):
+        """依頼 290: 線が最後のテストを意図して飛ばした周でも、人に回した申し出が在れば元 works と同じく needs_human"""
+        asked = {"unit_key": "u1", "ruling": {"decision": "ask_human"}}
+        fix = {**fixed_run()["fix"], "done": False, "go": False, "conflicts": self.put("fix/conflicts.json", {"items": [asked]})}
+        returns = fixed_run(fix=fix, **{"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None})
+        self.assertEqual(decide(returns), ("needs_human", f"fix:{stopby.CONFLICT}"))
 
     def test_unreadable_conflicts_are_record_problems(self):
         """読めない申し出と裁定のファイルは人に回した申し出を隠すので、訳を record_problems に入れて結果を名乗らせない"""
