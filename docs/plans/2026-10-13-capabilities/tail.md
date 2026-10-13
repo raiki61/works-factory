@@ -276,10 +276,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 ### G 赤の原因と緑の認証
 
-- T36 final の赤の原因の順: 素材が clean なら ""。赤の段が全部起こせない段なら environment（素材が not_run でもこちらが先）。素材が not_run・awaiting_human・not_applicable か、JUnit を宣言した段が走らなかったなら incomplete（元の結末と比べるより先）。
+- T36 final の赤の原因の順: 素材が clean なら ""。赤の段が全部起こせない段なら environment（素材が not_run でもこちらが先）。素材が not_run・awaiting_human・not_applicable なら incomplete。JUnit を宣言した段が走らなかった時は、走った赤の段（declared_checks.ran_reds）が無ければ incomplete、在れば走った赤が勝つ（どちらも元の結末と比べるより先）。
   - 元: 無し（新。元は修正前のテストの行で人に見分けさせた）
   - 今: lib/green_cert.py::classify
-  - 証: lib/tests/test_green_cert.py::ClassifyCase.test_clean・lib/tests/test_green_cert.py::ClassifyCase.test_environment_wins_over_not_run・lib/tests/test_green_cert.py::ClassifyCase.test_incomplete・lib/tests/test_green_cert.py::ClassifyCase.test_incomplete_comes_before_the_baseline・lib/tests/test_green_cert.py::ClassifyCase.test_broken_mixed_with_red_is_not_environment・tests/workflows/test_test_gate.py::ResultScriptCase.test_final_not_run_is_incomplete
+  - 証: lib/tests/test_green_cert.py::ClassifyCase.test_clean・lib/tests/test_green_cert.py::ClassifyCase.test_environment_wins_over_not_run・lib/tests/test_green_cert.py::ClassifyCase.test_incomplete・lib/tests/test_green_cert.py::ClassifyCase.test_incomplete_comes_before_the_baseline・lib/tests/test_green_cert.py::ClassifyCase.test_broken_mixed_with_red_is_not_environment・lib/tests/test_green_cert.py::ClassifyCase.test_ran_red_wins_over_an_unran_step・tests/workflows/test_test_gate.py::ResultScriptCase.test_final_not_run_is_incomplete
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 test-gate-final__result の red_cause（種で直しが通れば ""））
   - 狭め: 無し
 

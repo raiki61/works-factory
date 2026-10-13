@@ -336,7 +336,7 @@ def _junit_unran(root, step, row):
 def ran_reds(runs, unran) -> list:
     """走った赤の段（終了の値が 0 でも None〔起こせない〕でもなく、試験を走らせなかった段の名 unran に無い段）。1 つでも在れば、
     走らなかった段より赤が勝つ（#370）。素材を組む checks_reply と赤の原因を分ける green_cert.classify がこの 1 か所を引く"""
-    return [r for r in runs or [] if r.get("exit") not in (0, None) and r.get("name") not in unran]
+    return [r for r in runs or [] if tree_run.launch_kind(r.get("exit")) == "red" and r.get("name") not in unran]
 
 
 def checks_reply(launch, runs, root, *, after_judge) -> dict:
