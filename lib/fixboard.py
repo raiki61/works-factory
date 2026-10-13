@@ -675,10 +675,12 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
 
 def rerun_cmd(place, result, test_cmd: str) -> str:
     """当てた後に走らせ直す test_cmd（rerun_problem に渡す）: 組の子の TDD の輪が決めた関門（結果の tdd.test_cmd.gate）が on で、
-    組に軽量でない単位（置き場の深さの控え。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）"""
+    組に軽量でない単位（置き場の深さの控え。unit_depths）が在る時だけ test_cmd、ほかは ""（元 works/blk-fix/lib/tddlanes.py:704）。
+    tdd か tdd.test_cmd が在って dict でない結果は関門を読めないので on と見る（走らせ直しを飛ばして戻さない）"""
     import tddloop
-    cmd = child_tdd(result).get("test_cmd")
-    gate = cmd.get("gate") if isinstance(cmd, dict) else None
+    tdd = (result or {}).get("tdd") or {}
+    cmd = (tdd.get("test_cmd") or {}) if isinstance(tdd, dict) else None
+    gate = cmd.get("gate") if isinstance(cmd, dict) else tddloop.GATE_ON
     if gate != tddloop.GATE_ON or not (test_cmd or "").strip():
         return ""
     light = set(tddloop._light_units(unit_depths(place)))
@@ -756,6 +758,12 @@ def child_tdd_units(result) -> list:
     """組の子の結果 result の TDD の輪の単位の行（tdd.units のうち dict の物。並びでなければ空）"""
     units = child_tdd(result).get("units")
     return [u for u in units if isinstance(u, dict)] if isinstance(units, list) else []
+
+
+def child_verified(result) -> list:
+    """組の子の結果 result の欄 verified（赤 → 緑を確かめた名指し。verified_tests の形）のうち空でない文字列（並びでなければ空）"""
+    names = (result or {}).get("verified")
+    return [t for t in names if isinstance(t, str) and t] if isinstance(names, list) else []
 
 
 def tdd_units(groups, results) -> list:
@@ -863,8 +871,9 @@ def _allowed_row(path, permit, source):
 def child_allowed_rows(result) -> list:
     """組の子の結果 result の許しの訳 allowed_tests のうち形の正しい行（_allowed_row）。collect（allowed_test_rows）と
     join の戻しの和が同じ決まりで読む口"""
+    given = (result or {}).get("allowed_tests")
     rows = [_allowed_row(r.get("path"), r.get("permit"), r.get("source"))
-            for r in (result or {}).get("allowed_tests") or [] if isinstance(r, dict)]
+            for r in (given if isinstance(given, list) else []) if isinstance(r, dict)]
     return [r for r in rows if r]
 
 

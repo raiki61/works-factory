@@ -1599,6 +1599,7 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual(fixboard.child_allowed_rows(result), [good, good])
         self.assertEqual(fixboard.allowed_test_rows(self.place, [result]), [good])
         self.assertEqual((fixboard.child_allowed_rows(None), fixboard.child_allowed_rows({"allowed_tests": None})), ([], []))
+        self.assertEqual([fixboard.child_allowed_rows({"allowed_tests": v}) for v in (5, "tests/t.py", good)], [[], [], []])
 
     def test_fix_groups_join_units_through_items(self):
         items = [{"item": 1, "unit_keys": ["A", "C"]}, {"item": 2, "unit_keys": ["C", "D"]}, {"item": 3, "unit_keys": ["B"]}]
@@ -1812,6 +1813,9 @@ class GroupScriptsSeamCase(TempCase):
             self.assertEqual(fixboard.rerun_cmd(self.place, on, " make test "), "make test")
             self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": {"test_cmd": {"gate": "same_as_suite"}}}, "make test"), "")
             self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": {"ran": False}}, "make test"), "")
+            for tdd in (["x"], "x", {"test_cmd": ["x"]}, {"test_cmd": "on"}):
+                self.assertEqual(fixboard.rerun_cmd(self.place, {**on, "tdd": tdd}, "make test"), "make test",
+                                 f"関門が読めない子の結果（{tdd!r}）は on と見て走らせ直す")
             fixboard.write_json(self.place / fixboard.DEPTH_FILE, [{"unit_id": "A", "depth": "軽量", "why": "x"},
                                                                    {"unit_id": "B", "depth": "軽量", "why": "x"}])
             self.assertEqual(fixboard.rerun_cmd(self.place, on, "make test"), "", "全部の単位が軽量")

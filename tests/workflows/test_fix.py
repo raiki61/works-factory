@@ -1917,16 +1917,17 @@ class BlockScriptsCase(unittest.TestCase):
         self.assertEqual((code, out), (0, {"groups": 2, "returned": 2}), err)
 
     def test_join_reads_a_malformed_child_tdd_as_empty(self):
-        """#342: 組の子の result.json の tdd が dict でない（並び・文字列）時も、units が並びでない（数）時も、join は落ちず、
-        TDD の単位の無い組として戻す"""
+        """#342: 組の子の result.json の tdd が dict でない（並び・文字列）時も、units が並びでない（数）時も、verified・
+        allowed_tests が並びでない（数・文字列）時も、join は落ちず、TDD の単位・名指し・許しの無い組として戻す"""
         start = self.snapshot(self.repo)
         tdds = {"g1": ["x"], "g2": "x", "g3": {"ran": True, "reason": "", "suite": "", "units": 5,
                                               "test_cmd": ["x"]}}
+        broken = {"g1": {"verified": 5, "allowed_tests": 5}, "g2": {"verified": "test_x", "allowed_tests": "x"}, "g3": {}}
         out_dir = self.groups_file([{"group_id": g, "unit_ids": [g.upper()], "items": [i]} for i, g in enumerate(tdds, 1)],
                                    start)
         for g, tdd in tdds.items():
             end = self.tree_with({f"{g}.md": f"{g}\n"})
-            _blk_write(out_dir / g / "result.json", _blk_result(g, [g.upper()], end, start, tdd=tdd))
+            _blk_write(out_dir / g / "result.json", _blk_result(g, [g.upper()], end, start, tdd=tdd, **broken[g]))
         code, out, err = _blk_run("join", self.repo, self.art)
         self.assertEqual((code, out), (0, {"groups": 3, "returned": 3}), err)
 
