@@ -920,6 +920,8 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
              ("直しきれずに残った物", rest), ("記録が通らないこと", [outcome] if outcome == "record_invalid" else [])]
     lines = []
     for word, items in parts:
+        if not items:
+            continue
         lines.append(f"{word}: {len(items)} 件")
         for x in items:
             text = x if isinstance(x, str) else (f"{x.get('where')}: {x.get('text')}" if "where" in x else json.dumps(x, ensure_ascii=False))
@@ -1263,11 +1265,25 @@ def _base_status(base: dict) -> str | None:
     return material.get("status") if isinstance(material, dict) else None
 
 
+def _stop_words(line: dict | None) -> list:
+    """メイングラフのノードの止めの 1 件ずつ: 「{ノード} が {止めの語}（{語の意味}）」"""
+    return [f"{node} が {word}（{stopby.REASONS.get(str(word).removeprefix(stopby.HEAD), '語の意味の記録が無い')}）"
+            for node, word in as_dict(as_dict(line).get("stops")).items()]
+
+
+def _stopped_why(returns: dict, line: dict | None) -> list:
+    """止まった run の冒頭 1 行目に足す訳: 止めの語・最後の承認ノードを開ける理由・阻害を返した目（どれも本文の節と同じ字）"""
+    reasons = [str(x) for x in _list(as_dict(line).get("final_reasons"))]
+    eyes = as_dict(returns.get("eyes"))
+    blocked = [f"{gatemarks.eye_named(name.upper(), e.get('status'))}——{oneline.one_line(e.get('reason') or '理由なし')}"
+               for name in oc.EYE_NAMES if isinstance(e := eyes.get(name), dict) and e.get("status") in oc.EYE_STATUS_LEFT]
+    return [*_stop_words(line), *(["開けた理由: " + "・".join(reasons)] if reasons else []), *blocked]
+
+
 def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, returns: dict, problems: list,
                 line: dict | None = None) -> list:
     out = [f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", f"止めた段と理由の語: {stop_reason or '止めていない'}"]
-    out += [f"メイングラフのノードの止め: {node} が {word}（{stopby.REASONS.get(str(word).removeprefix(stopby.HEAD), '語の意味の記録が無い')}）"
-            for node, word in as_dict(as_dict(line).get("stops")).items()]
+    out += [f"メイングラフのノードの止め: {x}" for x in _stop_words(line)]
     for gid in oc.GATES:
         g = gates.get(gid)
         out.append(f"承認ノード {gid}: " + (f"{g.get('decision')}（{oneline.one_line(g.get('text') or '')}）" if isinstance(g, dict) else "開かなかった"))
@@ -1381,16 +1397,21 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     draft = gatemarks.draft_line(drafts, next_file)
     _, outside, outside_count = _outside(returns, next_file)
     split = split_line(returns)
+    apply = _apply_lines(returns, gates, outcome, stop_reason, run_id or "—")
+    stopped = outcome in STOP_OUTCOMES
+    happened = "。".join([f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", *([split] if split else []),
+                          *(_stopped_why(returns, line) if stopped else [])])
+    if stopped:
+        decide = "。".join(x for x in (decide, apply[-1]) if x)
     asked_texts = [*gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))),
                    *[q for q in _list(_ret(returns, "eyes").get("questions")) if isinstance(q, str)]]
-    head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）" + (f"。{split}" if split else ""),
-                           decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
+    head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
         (report.DECISIONS_HEADING, [*decisions,
                                     f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件" + (f"（{next_file}）" if next_file else ""),
                                     *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],
-                                    *([draft] if draft else []), *_apply_lines(returns, gates, outcome, stop_reason, run_id or "—")]),
+                                    *([draft] if draft else []), *apply]),
         (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line, gates, repo)),
         (report.STOP_HEADING, _stop_lines(outcome, stop_reason, gates, tfacts, returns, list(problems), line)),
         (report.READS_HEADING, _reads_lines(tfacts, out_dir.parent, out_dir, transcript_why, repo)),

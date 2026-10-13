@@ -1288,6 +1288,11 @@
    "why": "語をグラフの語にそろえ、役を「お前」と呼ばない（持ち主の決め graph-words。PR #221）",
    "original": "5. R1・R2・R3・R4 それぞれの判定と理由（機械の事実の「独立の目」）。R1 は削ったコメント・残した why も（どちらも目の返りの全体を置いた `$ARTIFACTS_DIR/eyes/` の下を Read で読む。削ったコメントは r1.json の欄 deletions の where と why、残した why は r1-comments.json の欄 kept の where と fact（コメントを残す理由になった、他所に無い事実）。ファイルが無ければ、R1 か前段のコメントの候補出しが走らなかったと書く）。\n",
    "copied": "5. R1・R2・R3・R4 それぞれの判定と理由（機械の事実の「独立の目」）。R1 は削ったコメント・残した why も（どちらも目の出力の全体を置いた `$ARTIFACTS_DIR/eyes/` の下を Read で読む。削ったコメントは r1.json の欄 deletions の where と why、残した why は r1-comments.json の欄 kept の where と fact（コメントを残す理由になった、他所に無い事実）。ファイルが無ければ、R1 か前段のコメントの候補出しが走らなかったと書く）。\n"
+  },
+  {
+   "why": "#383 の 9: 無人の run が承認ノードの手前で止まった時も止めた訳を書かせる",
+   "original": "stopped_by_human（人が承認ノードで止めた）なら、",
+   "copied": "stopped_by_human（人が承認ノードで止めた）なら、または結末の語が needs_human で承認ノードを開ける理由（機械の事実の冒頭 1 行目の開けた理由・目の阻害）が在る時も、"
   }
  ],
  "workflows/report/commands/cold-check.md": [

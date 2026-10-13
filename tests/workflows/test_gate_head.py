@@ -384,7 +384,7 @@ class LedgerAsksCase(unittest.TestCase):
         awaiting = {"key": "q-awaiting-pr", "kind": "awaiting", "status": "held", "origin": "parallel_pr", "reason": "人が確かめる"}
         passed = {"decision": "continue", "text": "例外で", "asked": [gatemarks.ask_text(FORK)]}
         final, head = self.gate(questions=[FORK], answer=passed)
-        self.assertIn("保留にしたままの問い: 0 件", head)
+        self.assertNotIn("保留にしたままの問い", head)
         self.assertNotIn("保留にしたままの問い", final)
         self.assertIn(gatemarks.GATE_CONTINUED.lstrip("・"), final)
         final, head = self.gate(questions=[FORK, awaiting], answer=passed)

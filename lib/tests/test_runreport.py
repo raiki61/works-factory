@@ -414,6 +414,23 @@ class TranscriptCase(Base):
 
 
 class DecisionsCase(Base):
+    def test_stopped_head_says_why_and_what_to_do(self):
+        """#383 の 9: R2 が redesign-needed で無人の run が最後の承認ノードの手前で止まった時、冒頭 1 行目に止めた語・開けた理由・
+        阻害の目（R2・状態の語・訳）が、2 行目に人の取る手（差分を当てる行）が出る。節 1 に 0 件の種の行は出ない（元の head3・
+        head_decisions は在る種だけを出した）"""
+        eyes = {**fixed_run()["eyes"], "r2": {"status": "redesign-needed", "reason": "独立設計と食い違う"}}
+        line = {"stops": {"ask-final": stopby.NEEDS_HUMAN}, "final_reasons": ["独立の目が阻害を返した（R2）"]}
+        seal = {"mode": "seal", "ok": True, "diff": "merge/sealed.diff"}
+        _, text, decided = self.build(fixed_run(eyes=eyes, **{"merge-seal": seal, "merge-apply": None}), line=line)
+        self.assertEqual(decided[0], "needs_human")
+        head = text.splitlines()[2:5]
+        self.assertIn(f"ask-final が {stopby.NEEDS_HUMAN}（{stopby.REASONS['needs-human']}）", head[0])
+        self.assertIn("開けた理由: 独立の目が阻害を返した（R2）", head[0])
+        self.assertIn(f"{gatemarks.eye_named('R2', 'redesign-needed')}——独立設計と食い違う", head[0])
+        self.assertIn(f"{runreport.APPLY_HEAD}: しない", head[1])
+        zero = [x for x in self.section(text, report.DECISIONS_HEADING).splitlines() if x.endswith(": 0 件")]
+        self.assertEqual(zero, ["- 次の run に渡す物: 0 件"], "0 件で残すのは元の head_decisions が常に出した行だけ")
+
     def test_residue_count_is_always_shown(self):
         """R20（元 report.always_rows の「残り: N 件」:1588-1591）: 残りの件数の行を結末に依らず人が決めることの節に出す（0 件も）。
         残りが在れば、結果が無い目の注記を添える"""
@@ -973,7 +990,7 @@ class CarryCase(Base):
                                             done("fix__write", "2026-10-12T00:01:00Z", kind="node_error")])
         got, text, decided = self.build(fixed_run(fix=fix), transcript=facts)
         self.assertEqual(decided[0], "interrupted")
-        self.assertIn("人に回した食い違いの申し出 0 件", self.section(text, report.DECISIONS_HEADING).replace(": ", " "))
+        self.assertNotIn("人に回した食い違いの申し出", self.section(text, report.DECISIONS_HEADING))
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         self.assertIn(outcome.PENDING_WHY, doc["findings"][-1]["text"])
 
