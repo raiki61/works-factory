@@ -1534,6 +1534,39 @@ class TreeCase(RunCase):
         saved = json.loads((r.folder / "pass-2" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
         self.assertIn(note["key"], [f["key"] for f in saved["faces"]])
 
+    def test_carried_notes_drop_units_the_plan_dropped(self):
+        """#387: 2 往復目の案が落とした単位を指す前の往復の suggest の穴は、その単位を外して持ち越し、指す単位が残らなければ
+        持ち越さない（受け付けが機械の足した face を「修正案に無い」で拒んで往復が止まらない）。往復の行の notes は元のまま"""
+        r = self.run_
+        median = "stats.py median: 偶数の長さで中央の 2 つを平均しない"
+        r.units.append({"key": median, "label": LABEL_MARK, "reason": "中央の 2 つを平均しない"})
+        r.judgment(precedents=PRECEDENTS)
+        clamp = item(UNIT_CLAMP, 2, adds=[{"name": "clamp", "canonical": "stats.clamp の上限の枝"}])
+        r.plan([{**item(UNIT_MEAN, 1), "unit_keys": [UNIT_MEAN, median]}, clamp])
+        self.prepped()
+        both = {**face("item1-mean-median-note", severity="suggest",
+                       why="mean と median が同じ空の列の扱いを別々に書くと、後で片方だけ直りうる"), "unit_keys": [UNIT_MEAN, median]}
+        only = face("item1-median-note", unit=median, severity="suggest", why="median の docstring が偶数の長さの扱いを言っていない")
+        self.write_answers(1, {1: answer(1, faces=[both, only]), 2: answer(2, faces=[CLAMP_BLOCK])})
+        self.assertTrue(r.accept(summary({1: [], 2: [CLAMP_BLOCK["key"]]}))["ok"])
+        r.out("result")
+        r.plan([item(UNIT_MEAN, 1), clamp], rnd=2,
+               answers=[{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}])
+        r.open()
+        r.out("review_prep")
+        self.write_answers(2, {1: answer(1), 2: {**answer(2, resolved=[CLAMP_BLOCK["key"]]), "hits": []}}, syn=synergy())
+        got = r.accept(summary({1: [], 2: []}))
+        self.assertTrue(got["ok"], got)
+        saved = json.loads((r.folder / "pass-2" / boardview.REVIEW_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([(f["key"], f["unit_keys"]) for f in saved["faces"]], [(both["key"], [UNIT_MEAN])])
+        rec = converge.read(r.view())
+        self.assertEqual(rec["outcome"], converge.CLEAN)
+        self.assertEqual(rec["passes"][0]["notes"], [both, only])
+        converge.note_plan(r.view(), [row["row"] for row in rec["passes"][0]["items"]])
+        self.assertEqual([(f["key"], f["unit_keys"]) for f in converge.carried_notes(r.view())],
+                         [(both["key"], [UNIT_MEAN, median]), (only["key"], [median])],
+                         "後の案が戻した単位は、2 往復目に絞って控えた写しでなく審査役の書いた穴の単位から戻る")
+
     def second_pass_brief(self, first=None, edit=None, edit_fields=None) -> str:
         """2 項目の案（first。既定は setUp の案）の 1 往復目は項目 2 だけ block。項目 2 の行を edit が、項目 2 の works の欄を
         edit_fields が直した後の 2 往復目の項目 2 の下請けのファイル"""
