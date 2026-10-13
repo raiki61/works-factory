@@ -340,17 +340,23 @@ def pass_dir(folder, k: int) -> pathlib.Path:
     return pathlib.Path(folder) / PASS_DIR.format(k=k)
 
 
-def reads_place(folder) -> tuple:
-    """読んだ証拠のノードが落ちた記録の (置き場, 案の直しか, 読めない訳)。open_pass が置いた材料から、この差し込みの pass-<k>/ と
-    形 replan かを引く（collect_reads と同じ）。材料が読めない・k が整数でなければ推し量らず (folder, False, 訳)（reads.guarded の unread）"""
-    try:
-        inputs = read_open(folder)
-    except Missing as e:
-        return pathlib.Path(folder), False, str(e)
+def open_place(folder) -> tuple:
+    """open_pass が置いた材料から (この差し込みの pass-<k>/, 形が replan か, 材料)。材料が読めない・k が整数でなければ Missing"""
+    inputs = read_open(folder)
     k = inputs.get("k")
     if not isinstance(k, int) or isinstance(k, bool):
-        return pathlib.Path(folder), False, f"見え方の材料の k が整数でない: {k!r}"
-    return pass_dir(folder, k), inputs.get("form") == "replan", ""
+        raise Missing(f"見え方の材料の k が整数でない: {k!r}")
+    return pass_dir(folder, k), inputs.get("form") == "replan", inputs
+
+
+def reads_place(folder) -> tuple:
+    """読んだ証拠のノードが落ちた記録の (置き場, 案の直しか, 読めない訳)。置き場と形は collect_reads と同じ open_place から引く。
+    材料が読めなければ推し量らず (folder, False, 訳)（reads.guarded の unread）"""
+    try:
+        place, again, _ = open_place(folder)
+    except Missing as e:
+        return pathlib.Path(folder), False, str(e)
+    return place, again, ""
 
 
 def human_items(answers) -> list:
@@ -963,10 +969,8 @@ def collect_reads(folder, log, *, role: str, quiet: tuple, repo) -> dict:
     この差し込みで書いた下請けのファイルの数と並べて trace に planblk.AGENT_OP で残す（拒まない。測る。記録が読めなければ launched は
     null と訳）。形 replan は役の名と索引を reads の案の直しの名にする。返り {ok: True, missing, index_file}"""
     d = pathlib.Path(folder)
-    inputs = read_open(d)
-    p = pass_dir(d, inputs["k"])
+    p, again, inputs = open_place(d)
     p.mkdir(parents=True, exist_ok=True)
-    again = inputs["form"] == "replan"
     opened = (d / OPEN_FILE).stat().st_mtime
     since = reads.stamp(opened)
     prompt = str(p / PROMPT_FILE)
