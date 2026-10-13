@@ -705,10 +705,7 @@ def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin,
         if not claude_bin:
             raise ToolsetError("プラグインを入れる claude の実行ファイルが渡されていない（--claude）")
         _install_plugins(cfg, srcs, claude_bin, retired=sorted(placed))
-    _place_hooks(cfg, hooks)
-    st = {k: v for k, v in _read_json(cfg / "settings.json").items() if k != "permissions"}
-    _write_if_changed(cfg / "settings.json", json.dumps({**st, **({"permissions": DENY_WEB} if deny_web else {})},
-                                                        ensure_ascii=False, indent=2) + "\n")
+    _place_hooks(cfg, hooks, deny_web)
     st = _read_json(cfg / "settings.json") or {}
     enabled, on = st.get("enabledPlugins") or {}, st.get("hooks") or {}
     for name in sorted([*srcs, *placed]):
@@ -739,13 +736,15 @@ def install(config_dir: pathlib.Path, chosen: dict, borrow: dict, *, claude_bin,
     return rec
 
 
-def _place_hooks(cfg: pathlib.Path, hooks: dict) -> None:
-    """settings.json の hooks を hooks にし（ほかの鍵は残す）、記録の根を作る"""
+def _place_hooks(cfg: pathlib.Path, hooks: dict, deny_web: bool) -> None:
+    """settings.json の hooks を hooks に、permissions を deny_web なら DENY_WEB にしてそうでなければ外し（ほかの鍵は残す）、
+    記録の根を作る"""
     for _, _, root in _recorders(cfg):
         root.mkdir(exist_ok=True)
     st = _read_json(cfg / "settings.json")
-    st = st if isinstance(st, dict) else {}
-    _write_if_changed(cfg / "settings.json", json.dumps({**st, "hooks": hooks}, ensure_ascii=False, indent=2) + "\n")
+    st = {k: v for k, v in st.items() if k != "permissions"} if isinstance(st, dict) else {}
+    st = {**st, "hooks": hooks, **({"permissions": DENY_WEB} if deny_web else {})}
+    _write_if_changed(cfg / "settings.json", json.dumps(st, ensure_ascii=False, indent=2) + "\n")
 
 
 def _licence_notice(src: pathlib.Path, item: dict) -> str:

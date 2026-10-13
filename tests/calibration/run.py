@@ -60,6 +60,7 @@ if str(ROOT) not in sys.path:
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))   # 頭に入れると lib/tests が根の tests を隠す（tests/AGENTS.md）
 from bin._lib import hostgh, isolate, pack, toolset  # noqa: E402
+import reads  # noqa: E402
 from report import OUTCOMES  # noqa: E402
 from tests.calibration import nodes, reviewbench  # noqa: E402
 from tests.calibration.reviewbench import Source  # noqa: E402
@@ -82,7 +83,6 @@ UNATTENDED_STOP = "無人の run（WORKS_USE_UNATTENDED=1）: 人が決める承
 STATES = {"running": "running", "pending": "running", "paused": "paused", "completed": DONE}   # Archon の run の status → run_one の分かれ
 # get --verbose の記録は --events を足すと nodes を落とすので、出来事の列は記録とは別のファイルに写す
 EVENTS = "record/{name}-events.json"
-WEB_TOOLS = ("WebFetch", "WebSearch")
 WITHHELD = {"web": "denied", "gh": "withheld"}
 JUDGE_MODEL = "claude-sonnet-5"   # 公開の採点と同じ判定役の模型（ReviewBench の docs/OFFLINE_EVAL.md）
 KEY_LINE = "判定役が API キーを要るなら、作るかは持ち主の決め（#435）"
@@ -122,7 +122,6 @@ class WorksFactory:
     name = "works-factory"
     account = "WORKS_FACTORY_KEYCHAIN_ITEM"
     archon = True
-    passes = {"unattended": "unattended", "final_gate": "final_gate"}
     sources = (Source("parent/judge/judgment.json", ("units",), "units"),
                Source("parent/eyes/r1.json", ("deletions",), "items", "why"),
                Source("parent/eyes/r4.json", ("surfaced",), "items", "text"))
@@ -138,8 +137,7 @@ class WorksFactory:
         return ["WORKS_FACTORY_HOME", "GH_CONFIG_DIR", toolset.DENY_WEB_ENV]
 
     def start_command(self, attempt: Path, base: str) -> list[str]:
-        pairs = {"request": str(attempt / "request.json"), "base": base,
-                 **{self.passes[k]: v for k, v in BENCH_INPUTS.items()}}
+        pairs = {"request": str(attempt / "request.json"), "base": base, **BENCH_INPUTS}
         return [sys.executable, str(self.shell), "workflow", "run", LINE, "--cwd", str(attempt / "target"),
                 *[part for k, v in pairs.items() for part in ("--input", f"{k}={v}")]]
 
@@ -236,19 +234,13 @@ class WorksFactory:
 
 
 def web_calls(attempt: Path) -> int | None:
-    """隔離した設定の読んだ証拠の記録（lib/reads.py の ROOT・LOG）のうち WebFetch・WebSearch の行の数。記録の根が無ければ None。
+    """隔離した設定の読んだ証拠の記録のうち、拒む道具（toolset.DENY_WEB）の行の数。記録の根が無ければ None。
     記録のフックは PostToolUse なので、拒まれた呼びは数に入らない"""
-    root = attempt / "home" / "claude-config" / "works-reads"
+    root = reads.root(attempt / "home" / isolate.DIRS["CLAUDE_CONFIG_DIR"])
     if not root.is_dir():
         return None
-    count = 0
-    for log in root.rglob("reads.jsonl"):
-        for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
-            try:
-                count += json.loads(line).get("tool_name") in WEB_TOOLS
-            except (json.JSONDecodeError, AttributeError):
-                continue
-    return count
+    return sum(reads.tool_count(reads.records(log, "")[0], tool)
+               for log in root.rglob(reads.LOG) for tool in toolset.DENY_WEB["deny"])
 
 
 class OldWorks:
@@ -421,7 +413,7 @@ class PlainClaude:
         return [sys.executable, "-I", str(ROOT / "bin" / "_lib" / "auth_launch.py"), "exec", "--for", "works-factory",
                 "--user-home", user.get("HOME", ""), "--user-config", user.get("CLAUDE_CONFIG_DIR", ""), "--",
                 self.claude or "claude", "--model", PLAIN_MODEL, "--effort", PLAIN_EFFORT, "--output-format", "json",
-                "--permission-mode", "bypassPermissions", "--disallowedTools", *WEB_TOOLS, "-p", PLAIN_PROMPT]
+                "--permission-mode", "bypassPermissions", "--disallowedTools", *toolset.DENY_WEB["deny"], "-p", PLAIN_PROMPT]
 
     def start(self, attempt: Path, base: str) -> str | None:
         pr = json.loads((attempt / "pr" / "pr.json").read_text(encoding="utf-8"))

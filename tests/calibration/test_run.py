@@ -618,7 +618,7 @@ class RunTest(RunnerCase):
     def test_works_factory_inputs_exist_in_main_graph(self):
         graph = yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(encoding="utf-8"))
         self.assertEqual(graph["name"], "works-factory-line")
-        self.assertLessEqual({runner.WorksFactory.passes[k] for k in runner.BENCH_INPUTS} | {"request", "base"},
+        self.assertLessEqual(set(runner.BENCH_INPUTS) | {"request", "base"},
                              set(graph["inputs"]))
         self.assertRan(self.run_tasks("works-factory", self.one))
         self.assertLessEqual(set(self.inputs()), set(graph["inputs"]))
@@ -664,3 +664,27 @@ class RunTest(RunnerCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WebCallsTest(unittest.TestCase):
+    """web_calls は記録のフック（bin/_lib/record-read.py）が書く形の行から、拒む道具の呼びだけを数える"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.attempt = pathlib.Path(tmp.name)
+        self.config = self.attempt / "home" / "claude-config"
+
+    def test_no_record_root_is_none(self):
+        self.assertIsNone(runner.web_calls(self.attempt))
+
+    def test_counts_web_rows_across_work_places(self):
+        root = runner.reads.root(self.config)
+        rows = {"WebFetch": "https://example.com", "WebSearch": "q", "Agent": "general-purpose"}
+        for cwd in ("/w/one", "/w/two"):
+            log = runner.reads.reads_path(root, cwd)
+            log.parent.mkdir(parents=True)
+            log.write_text("".join(json.dumps({"ts": "2026-10-14T08:00:00", "tool_name": t, "input": i}) + "\n"
+                                   for t, i in rows.items())
+                           + json.dumps({"ts": "2026-10-14T08:00:01", "path": "app.py"}) + "\nnot json\n", encoding="utf-8")
+        self.assertEqual(runner.web_calls(self.attempt), 4)
