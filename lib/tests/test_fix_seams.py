@@ -2216,6 +2216,57 @@ class FixAcceptSeamCase(TempCase):
         self.assertEqual([r["ruling"]["decision"] for r in conflict.items(self.place) if r["correct_lines"] == ["        return hi"]],
                          [conflict.ASK])
 
+    def test_reverted_query_hits_fixed_fix_is_not_said_to_be_in_the_diff(self):
+        """裁定の後の段の最後の回に、同じファイルの別の単位を止めて段の頭へ戻すと、人に回した query_hits_fixed の単位の直しも
+        控えの patch へ移る。関所の行と単位の結末の理由は「直しは差分に在り」と言わず、控えの patch を名指す（#355）"""
+        import conflict
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        path = self.repo / "stats.py"
+        text = path.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        path.write_text(text, encoding="utf-8")
+        claim = {"unit_key": R_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+                 "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
+                 "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
+        reply = {"changes": [_fix_row(R_MEAN, 1), _fix_row(R_MEAN, 1)], "not_done": [], "conflicts": [claim]}
+        got = fixboard.accept_reply(reply, self.place, self.repo, pass_="ruled", iteration=fixboard.GIVE_UP_AFTER,
+                                    owed=[R_MEAN, R_CLAMP], judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+        self.assertEqual(got["units"][R_MEAN]["status"], "given_up", got)
+        self.assertNotIn("return hi", path.read_text(encoding="utf-8"), "clamp の直しが作業ツリーに残った（場面が崩れた）")
+        row = next(r for r in conflict.human_lines(self.place) if r.startswith(R_CLAMP))
+        self.assertNotIn(conflict.FIX_IN_DIFF, row)
+        self.assertIn(fixboard.PARKED_PATCH, row)
+        self.assertNotIn(conflict.FIX_IN_DIFF, conflict.held_by_rulings(self.place)[R_CLAMP])
+
+    def test_ruled_pass_asked_unit_reason_says_where_the_fix_is_by_kind(self):
+        """裁定の後の段の単位の結末（fix-units.json に写る units）も、人に回した query_hits_fixed の単位は「直しは差分に在り」と
+        書き、ほかの種類の単位には書かない（1 回目の段の QUERY_PARKED と同じ分け。#355）"""
+        import conflict
+        asked = {"decision": conflict.ASK, "text": "人が決める", "limits": [], "by": "test"}
+        conflict.park(self.place, [{"unit_key": R_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+                                    "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たる",
+                                    "which_is_right": "query", "kind": "query_hits_fixed",
+                                    "correct_lines": ["        return lo"]}], source=conflict.FIX_SOURCE, ruling=asked)
+        conflict.park(self.place, [self._claim()], source=conflict.FIX_SOURCE, ruling=asked)
+        got = self._accept_claims([], pass_="ruled")
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {R_MEAN: "not_done", R_CLAMP: "not_done"}, got)
+        self.assertIn(conflict.FIX_IN_DIFF, got["units"][R_CLAMP]["reason"])
+        self.assertNotIn(conflict.FIX_IN_DIFF, got["units"][R_MEAN]["reason"])
+
+    def test_first_pass_parked_reason_says_fix_in_diff_only_for_query_hits_fixed_alone(self):
+        """1 回目の段で裁定へ回した単位の理由は、裁かれていない申し出が query_hits_fixed だけの単位だけ QUERY_PARKED。
+        unnamed_test_broke の単位も、query_hits_fixed とほかの種類が混ざる単位も PARKED_FOR_RULING（#355）"""
+        import conflict
+        got = self._accept_claims([self._claim()])
+        self.assertTrue(got["conflicted"], got)
+        self.assertEqual(got["units"][R_MEAN], {"status": "not_done", "reason": fixboard.PARKED_FOR_RULING})
+        conflict.park(self.place, [self._claim("stats.py:9", "stats.py:10", which_is_right="query", kind="query_hits_fixed",
+                                               correct_lines=["    return sum(xs) / len(xs)"])], source=conflict.FIX_SOURCE)
+        self.assertEqual(fixboard.parked_reasons(self.place, [R_MEAN]), {R_MEAN: fixboard.PARKED_FOR_RULING})
+
     def test_unclosed_defects_count_on_the_last_round_stops_the_unit(self):
         """最後の回まで申し出が無ければ、その単位を止めて人に回す（閉じない数えのまま受けて round_limit で終えない）"""
         import conflict

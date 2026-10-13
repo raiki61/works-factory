@@ -55,6 +55,8 @@
   fix_test_scope の範囲。test_permits）の範囲の文字列と、その 1 つの読み（TDD の輪の凍結が範囲の中の直しを通す）
 - human_lines(b): 最後の関所と報告に載せる ask_human の行（諦めた fix_plan_item の行も。末尾に案の直しの理由か、単位の直しの
   在りか left_words を添える）
+- mark_reverted(b, files, patch): 機械が files を段の頭へ戻した時、それを名指す query_hits_fixed の行に控えの patch を置く
+  （left_words が「直しは差分に在り」でなく控えを名指す）
 - 案の直しの状態（依頼 226。裁定 fix_plan_item の行の欄 REPLAN_STATE）: apply_rulings が WAITING に置き、set_replan の 1 か所だけが
   AMENDED（項目を直した。held_by_rulings が外さず直す義務に戻す）か GAVE_UP（諦めた。asked に入り ask_human の行として並ぶ）に
   移す（trace の行 REPLAN_OP）。読む口は replan_state(row)・waiting(b)・amended_keys(b)
@@ -158,6 +160,8 @@ HELD_WORK_KEPT = "この run の修正の段で直した分は作業ツリーに
 # 人に回した単位の直しの在りか（left_words。関所と次の依頼の行）
 UNFIXED_LEFT = "直さずに残した"
 FIX_IN_DIFF = f"{fixboard.FIX_IN_DIFF_CORE}が人の決め待ち"
+FIX_REVERTED = UNFIXED_LEFT + "（戻した直しの控え {patch}）"
+REVERTED_FIELD = "reverted_to"          # 名指したファイルを機械が段の頭へ戻した query_hits_fixed の行に置く控えの patch（mark_reverted）
 GAVE_UP_PROMISE = ("案の項目そのものが誤りと裁いたが、同じ run の中で案を直せなかった（諦めた。理由は「案の直しを諦めた理由」）。"
                    "この単位も「項目の単位」に並べた同じ項目の単位も直すな（機械が直す義務から外した。最後の承認ノードで人が"
                    f"決める）。changes に書くな。{HELD_WORK_KEPT}（戻すな）")   # 裁定の文の GAVE_UP の行の約束（write_rulings）
@@ -506,8 +510,8 @@ def held_by_rulings(b) -> dict:
     """直す義務から外す単位 {unit_key: 理由}。決まりは 1 つ: 直す裁定（FIX_DECISIONS）でない裁定は、それが外す単位（ruled_units。
     fix_plan_item は誤りと裁いた項目の単位の全部）を直させない（ask_human は最後の人の関所で人が決め、fix_plan_item は同じ
     run の中で案の項目を直すのを待つ）。案の項目を直した行（状態 AMENDED）は外さない（その単位は直す義務に戻る）。理由は
-    「<decision> の裁定 <id>」に、在れば案の項目を添える。1 単位に 2 つ当たれば DECISIONS の順で先の裁定の理由（並べ替えで
-    決める）"""
+    「<decision> の裁定 <id>」に、在れば案の項目を、ask_human の query_hits_fixed の行なら直しの在りか left_words を添える。
+    1 単位に 2 つ当たれば DECISIONS の順で先の裁定の理由（並べ替えで決める）"""
     rank = {d: n for n, d in enumerate(DECISIONS)}
     rows = sorted((i for i in items(b) if decision(i) not in (None, *FIX_DECISIONS) and replan_state(i) != AMENDED),
                   key=lambda i: rank.get(decision(i), len(rank)))
@@ -515,7 +519,8 @@ def held_by_rulings(b) -> dict:
     for i in rows:
         ru = i["ruling"]
         nums = ", ".join(map(str, ruled_items(i)))
-        why = f"{ru['decision']} の裁定 {i.get('id') or '（id 無し）'}" + (f"（案の項目 {nums}）" if nums else "")
+        why = f"{ru['decision']} の裁定 {i.get('id') or '（id 無し）'}" + (f"（案の項目 {nums}）" if nums else "") \
+            + (f"・{left_words(i)}" if decision(i) == ASK and i.get(KIND_FIELD) == QUERY_HITS_FIXED else "")
         for k in ruled_units(i):
             out.setdefault(k, why)
     return out
@@ -924,9 +929,25 @@ def ruled_test_doc(b) -> dict | None:
     return {"rules": rows} if rows else None
 
 
+def mark_reverted(b, files, patch: str) -> None:
+    """機械が files を段の頭の木へ戻して控え patch に移した時、名指し between がその files に当たる query_hits_fixed の行に
+    控えを置く（REVERTED_FIELD。先に置いた控えは残す——直しを持つのは最初に戻した patch）。left_words が直しの在りかに読む"""
+    files = set(files)
+    doc = _load(b)
+    hit = [r for r in doc["items"] if r.get(KIND_FIELD) == QUERY_HITS_FIXED and not r.get(REVERTED_FIELD)
+           and any((m := cite.CITE.match(c.strip())) and m["path"] in files for c in r.get("between") or [] if isinstance(c, str))]
+    for r in hit:
+        r[REVERTED_FIELD] = patch
+    if hit:
+        _save(b, doc)
+
+
 def left_words(row) -> str:
-    """人に回した申し出の行 row の単位の直しの在りか（FIX_IN_DIFF か UNFIXED_LEFT）"""
-    return FIX_IN_DIFF if row.get(KIND_FIELD) == QUERY_HITS_FIXED else UNFIXED_LEFT
+    """人に回した申し出の行 row の単位の直しの在りか: query_hits_fixed は FIX_IN_DIFF（機械が名指しのファイルを戻した行は
+    FIX_REVERTED）、ほかは UNFIXED_LEFT"""
+    if row.get(KIND_FIELD) != QUERY_HITS_FIXED:
+        return UNFIXED_LEFT
+    return FIX_REVERTED.format(patch=row[REVERTED_FIELD]) if row.get(REVERTED_FIELD) else FIX_IN_DIFF
 
 
 def human_lines(b) -> list:

@@ -2087,11 +2087,13 @@ def last_settle(texts: list, rows: list, place, repo, rev: str, state: str, owed
 
 
 def park_units(place, repo, settled, head: str, *, iteration: int) -> tuple:
-    """最後の回に結んだ単位を止める: 足跡（settled.files）を段の頭の木 head に戻して控えの patch に移し（revert_units）、単位ごとに
+    """最後の回に結んだ単位を止める: 足跡（settled.files）を段の頭の木 head に戻して控えの patch に移し（revert_units。戻したファイルを
+    名指す query_hits_fixed の行に控えを置く conflict.mark_reverted）、単位ごとに
     ask_human の裁定つきの申し出を積み（conflict.park）、置き場の trace に conflict.ACCEPT_PARKED_OP の行。返り
     ({key: 結末の理由}, 控えのパス)。元 works/blk-fix/scripts/accept.py:434（通し直しは呼び手 accept_reply）"""
     import conflict
     patch = revert_units(place, repo, settled.files, head)
+    conflict.mark_reverted(place, settled.files, patch)
     out = {}
     for key, texts in settled.park.items():
         why = " / ".join(texts)
