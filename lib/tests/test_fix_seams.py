@@ -1580,7 +1580,8 @@ class GroupScriptsSeamCase(TempCase):
         self.assertEqual(fixboard.x_scalars([{"x_scalars": {"x_a": 1, "x_b": "多い"}}, {"x_scalars": {"x_a": 2.5, "x_b": 3}},
                                              {"x_scalars": "壊れた"}, None]), {"x_a": 3.5, "x_b": "多い"})
         self.assertEqual(fixboard.objection([{"objection": "前提が違う"}, {"rejudge_requested": "前提が違う"}, {}]), "前提が違う")
-        self.assertEqual(fixboard.allowed_tests(self.place, [{"allowed_test_changes": ["t/a.py"]}]), ["t/a.py"])
+        self.assertEqual(fixboard.allowed_tests(self.place, [{"allowed_tests": [{"path": "t/a.py", "permit": "plan-1",
+                                                                                   "source": "plan"}]}]), ["t/a.py"])
 
     def test_changed_marks_or_over_groups_and_ruled(self):
         """F138: 修正役の 6 つの印は、戻せた組の子の結果（group_result の changed）と裁定の後の返答（reply_marks の changed）の

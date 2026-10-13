@@ -873,12 +873,8 @@ def allowed_test_rows(place, results=()) -> list:
 
 
 def allowed_tests(place, results=()) -> list:
-    """許したテストの変更のパス（名の順）: 置き場 place と組の子の結果の許しの訳（allowed_test_rows）のパスと、組の子の結果の
-    allowed_test_changes"""
-    out = {r["path"] for r in allowed_test_rows(place, results)}
-    for r in results:
-        out.update(p for p in (r or {}).get("allowed_test_changes") or [] if isinstance(p, str) and p)
-    return sorted(out)
+    """許したテストの変更のパス（名の順）: 置き場 place と組の子の結果の許しの訳（allowed_test_rows）のパス"""
+    return sorted({r["path"] for r in allowed_test_rows(place, results)})
 
 
 def changed_marks(results) -> dict:
