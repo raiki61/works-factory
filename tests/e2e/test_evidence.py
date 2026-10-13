@@ -18,7 +18,7 @@ from collections.abc import Callable
 from tests.bin import hermetic, stepnames
 from tests.e2e import evidence, make_target
 from tests.layers import scan
-from tests.layers.test_capability_pointers import POINTER, python_definitions, yaml_nodes
+from tests.layers.test_capability_pointers import POINTER, exists, python_definitions, yaml_nodes
 
 E2E = pathlib.Path(__file__).resolve().parent
 ROOT = E2E.parents[1]
@@ -143,24 +143,22 @@ def _python_code(text: str) -> list[str]:
     return lines
 
 
-def writer_code(code: CodeText, writer: str) -> tuple[str, str, str] | None:
-    """writer（`path::名`）の (path, 定義の字, ファイルの字)。名の定義が無ければ None。YAML の名は節の id で、定義は節の字と、
+def writer_code(code: CodeText, writer: str) -> tuple[str, str, str, str] | None:
+    """writer（`path::名`）の (path, 名, 定義の字, ファイルの字)。ファイルか名の定義が無ければ None。YAML の名は節の id で、定義は節の字と、
     名前の script の節ならその script のコードの字（最上位のコードに決める行の在る script は、それを走らせる節で指す）"""
     pointed = POINTER.fullmatch(writer)
     if not pointed:
         return None
     path, name = pointed.groups()
-    if path.endswith(".py"):
-        span = python_definitions(code.read(path)).get(name)
-        if span is None:
-            return None
-        return path, "\n".join(code.lines(path)[span[0] - 1:span[1]]), code.text(path)
-    node = yaml_nodes(path).get(name)
-    if node is None:
+    if not exists(path, name):
         return None
+    if path.endswith(".py"):
+        first, last = python_definitions(code.read(path))[name]
+        return path, name, "\n".join(code.lines(path)[first - 1:last]), code.text(path)
+    node = yaml_nodes(path)[name]
     scripts = [code.text(p.relative_to(ROOT).as_posix()) for p in scan.node_scripts((ROOT / path).parent, node)]
     body = "\n".join(code.lines(path)[node.start_mark.line:node.end_mark.line])
-    return path, "\n".join([body, *scripts]), "\n".join([code.text(path), *scripts])
+    return path, name, "\n".join([body, *scripts]), "\n".join([code.text(path), *scripts])
 
 
 def writer_rows(rows: list[dict]) -> list[dict]:
@@ -178,10 +176,10 @@ def seen_writer_problems(rows: list[dict], code: CodeText) -> list[str]:
         if found is None:
             out.append(f"{row['id']}: {row['writer']} が `path::名` でないか、その名の定義が無い")
             continue
-        path, _, whole = found
+        path, named, _, whole = found
         if row.get("check") == "node-completed":
             steps = {row["node"].split("__", 1)[0], row["node"].rsplit("__", 1)[-1].rsplit(".", 1)[-1]}
-            if not (path.endswith(".yaml") and POINTER.fullmatch(row["writer"]).group(2) in steps):
+            if not (path.endswith(".yaml") and named in steps):
                 out.append(f"{row['id']}: {row['writer']} が節 {row['node']} でない")
             continue
         if row["where"].startswith("record/"):
@@ -211,7 +209,7 @@ def pattern_writer_problems(code: CodeText, table: dict[str, str] = NAMED_BY_PAT
         name = where.rsplit("/", 1)[-1]
         if found is None:
             out.append(f"{where}: {writer} が `path::名` でないか、その名の定義が無い")
-        elif not (code.names(found[1], name) or _builds(found[1], name)):
+        elif not (code.names(found[2], name) or _builds(found[2], name)):
             out.append(f"{where}: {writer} の定義が {name} の名を組まない")
     return out
 
@@ -373,7 +371,8 @@ class EvidenceTableCase(unittest.TestCase):
 
     def test_a_pointer_off_the_writer_fails(self):
         code = CodeText()
-        for writer in ("lib/planfile.py:83", "lib/planfile.py::no_such_name", "docs/a.py::f"):
+        for writer in ("lib/planfile.py:83", "lib/planfile.py::no_such_name", "lib/nope.py::f", "workflows/nope.yaml::x",
+                       "docs/a.py::f"):
             with self.subTest(writer=writer):
                 self.assertNotEqual(seen_writer_problems([{"id": "J1", "where": "parent/plan/r1/brief-1.md",
                                                            "writer": writer}], code), [])
