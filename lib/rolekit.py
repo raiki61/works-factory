@@ -75,7 +75,7 @@ def record_lang_line(path) -> str:
 REJECT_HEADING = promptsection.Section("## 前の回の受け付けが拒んだ理由", source="fn:rolekit.with_reject")
 
 
-REJECT_LINE = ("前の回までの返答は受け付けで拒まれた。この輪の拒否の理由の全部（古い順）がファイル {path} に在る。先に Read で"
+REJECT_LINE = ("前の回までの返答は受け付けで拒まれた。これまでの拒否の理由の全部（古い順）がファイル {path} に在る。先に Read で"
                "全部読み、前の回の拒否も含めてどの理由も満たす返答を丸ごと出し直せ（直した所だけを返すな）。")
 REJECTS_TEXT = "rejects-{name}.md"
 
@@ -86,7 +86,7 @@ def rejects_text(reasons) -> str:
     if not reasons:
         return ""
     blocks = [f"{k} 回目の拒否:\n{r}" for k, r in enumerate(reasons, 1)]
-    return "\n\n".join([f"この輪で受け付けが拒んだ理由の全部（古い順に {len(reasons)} 件。前の回の拒否も直したままにする）。", *blocks])
+    return "\n\n".join([f"受け付けがこれまでに拒んだ理由の全部（古い順に {len(reasons)} 件。前の回の拒否も直したままにする）。", *blocks])
 
 
 def write_rejects(board, name: str, reasons) -> str:
