@@ -134,8 +134,11 @@ class BuildCase(Base):
 
         eyes = {**fixed_run()["eyes"], "r2": {"status": "redesign-needed", "reason": "独立設計と食い違う"}}
         fix = {**fixed_run()["fix"], "units": [{"unit_id": "u1", "status": "given_up", "reason": "受け付けが 3 回拒んだ"}]}
-        got, _, decided = self.build(fixed_run(eyes=eyes, fix=fix))
+        got, text, decided = self.build(fixed_run(eyes=eyes, fix=fix))
         self.assertEqual(decided[0], "round_limit")
+        named = self.section(text, report.PRIOR_HEADING)
+        self.assertIn(carry.NEXT_REQUEST_FILE, named, "書いた next-request.json を名指す（#383 の 10）")
+        self.assertIn(carry.PRIOR_FAILURES_FILE, named)
         doc = json.loads(pathlib.Path(got["next_request"]).read_text(encoding="utf-8"))
         prior = json.loads(pathlib.Path(got["prior_failures"]).read_text(encoding="utf-8"))
         self.assertEqual(carry.errors(doc, carry.NEXT_SCHEMA), [])
@@ -432,8 +435,10 @@ class DecisionsCase(Base):
         self.assertIn("開けた理由: 独立の目が阻害を返した（R2）", head[0])
         self.assertIn(f"{gatemarks.eye_named('R2', 'redesign-needed')}——独立設計と食い違う", head[0])
         self.assertIn(f"{runreport.APPLY_HEAD}: しない", head[1])
-        zero = [x for x in self.section(text, report.DECISIONS_HEADING).splitlines() if x.endswith(": 0 件")]
+        decisions = self.section(text, report.DECISIONS_HEADING).splitlines()
+        zero = [x for x in decisions if x.endswith(": 0 件")]
         self.assertEqual(zero, ["- 次の run に渡す物: 0 件"], "0 件で残すのは元の head_decisions が常に出した行だけ")
+        self.assertTrue(any(x.startswith(f"- {conflict.HEAD}: 0 件") for x in decisions), "申し出の件数の行は元どおり 0 件でも出す")
 
     def test_backed_out_group_is_named_in_head_and_decisions(self):
         """#383 の 8（持ち主の決め clash-goes-to-ruling のそれまでの間）: 当ててから確かめ直しが赤で戻した組は、冒頭 1 行目で名指し、
