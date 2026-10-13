@@ -45,8 +45,9 @@ inputs:
   mode:
     default: ""
     description: >-
-      include の形。空は事前審査、design は直す物が無い周（判定が直す単位を出さなかった）の include で、修正案（plan・structure・
-      ripple は null）を読まずに独立設計だけを作り、事前審査を回さず、通った形と独立設計 design を返す（最後の R2 が要る設計）
+      include の形。空は事前審査、design は直す物が無い周（判定が直す単位を出さなかったか、計画の直す義務が 0 件だった）の
+      include で、修正案（plan・structure・ripple は null）を読まずに独立設計だけを作り、事前審査を回さず、通った形と独立設計 design
+      を返す（最後の R2 が要る設計）
   gate_answers:
     default: "null"
     description: >-
