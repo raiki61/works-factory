@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import yaml
+
 from tests.calibration import corpus
 from tests.calibration import run as runner
 from tests.e2e import evidence
@@ -30,10 +32,52 @@ SILENT = {
 }
 WHERE_HEADS = {"works": ("board/", "record/"), "works-factory": ("parent/", "child-*/", "record/")}
 OWNER_WORDS = ("/Users/", "/home/", "/private/", "KEYCHAIN")
+JUDGE = ROOT / "workflows" / "judge" / "works-factory-judge.yaml"
+REPLY = "reply."
 
 
 def _table():
     return runner.load_flags()
+
+
+def _nodes(doc):
+    if isinstance(doc, dict):
+        if isinstance(doc.get("id"), str):
+            yield doc
+        for value in doc.values():
+            yield from _nodes(value)
+    elif isinstance(doc, list):
+        for value in doc:
+            yield from _nodes(value)
+
+
+def _reply_schemas(doc) -> dict:
+    """judge の受け付けの節は with.reply に書き手の節の出力を受け、material-<役>.json の reply に写す（役は with.role、無ければ書き手）。
+    置き場の名 → 書き手の output_format"""
+    nodes = {n["id"]: n for n in _nodes(doc)}
+    schemas = {}
+    for node in nodes.values():
+        given = node.get("with") or {}
+        writer = re.fullmatch(r"\$([\w-]+)\.output", str(given.get("reply", "")))
+        if writer:
+            role = given.get("role", writer[1])
+            schemas[f"parent/judge/material-{role}.json"] = nodes[writer[1]]["output_format"]
+    return schemas
+
+
+def _schema_problem(schema: dict, path: str) -> str | None:
+    """照らしの path（. 区切り、* と数は並びの要素）を JSON Schema の properties・items で辿れるか"""
+    for part in path.split("."):
+        if part == "*" or part.isdigit():
+            if schema.get("type") != "array":
+                return f"{part}: 並びでない"
+            schema = schema.get("items") or {}
+        else:
+            properties = schema.get("properties") or {}
+            if part not in properties:
+                return f"{part}: output_format の properties に無い（在る欄: {sorted(properties)}）"
+            schema = properties[part]
+    return None
 
 
 class FlagTableTest(unittest.TestCase):
@@ -74,6 +118,20 @@ class FlagTableTest(unittest.TestCase):
         self.assertIsNotNone(evidence.rule_problem({"check": "exists", "where": "../x"}))
         self.assertIsNotNone(evidence.rule_problem({"check": "json-has", "where": "x"}))
         self.assertIsNotNone(evidence.rule_problem({"check": "regex", "where": "x"}))
+
+    def test_works_factory_reply_paths_follow_the_writers_output_format(self):
+        schemas = _reply_schemas(yaml.safe_load(JUDGE.read_text(encoding="utf-8")))
+        replies = [(gate, rule) for gate, entry in _table()[runner.WorksFactory.name].items()
+                   for rule in entry.get("rules", []) if rule.get("path", "").startswith(REPLY)]
+        self.assertTrue(replies)
+        for gate, rule in replies:
+            with self.subTest(gate=gate, rule=rule):
+                self.assertIn(rule["where"], schemas)
+                self.assertIsNone(_schema_problem(schemas[rule["where"]], rule["path"].removeprefix(REPLY)))
+        local = schemas["parent/judge/material-local-review.json"]
+        self.assertIsNotNone(_schema_problem(local, "findings.*.item.0"))
+        self.assertIsNotNone(_schema_problem(local, "findings.skill"))
+        self.assertIsNotNone(_schema_problem(local, "verdict"))
 
     def test_flags_from_synthetic_evidence(self):
         table = {
