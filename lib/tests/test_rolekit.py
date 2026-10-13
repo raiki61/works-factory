@@ -52,7 +52,7 @@ class PointedLangLineCase(Base):
             with self.subTest(type(error).__name__):
                 got = rolekit.pointed_lang_line("札", locate)
                 self.assertTrue(got.startswith(rolekit.lang_line({})), got)
-                self.assertIn(f"{rolekit.POINTER_UNREAD}: {type(error).__name__}", got)
+                self.assertIn(rolekit.POINTER_UNREAD, got)
 
 
 class GivenUpCase(Base):

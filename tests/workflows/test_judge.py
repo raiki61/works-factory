@@ -1663,7 +1663,7 @@ class BriefCase(unittest.TestCase):
         self.assertEqual(r.returned("verify", stage="prep", objection="異議")["lang_line"], want)
         self.assertEqual(Run(self).returned("reject", reason="x"), {"reason": "x", "lang_line": rolekit.lang_line({})})
         broken = r.returned("reject", reason="", start=json.dumps({"type": "archon_artifact", "run_id": RUN_ID, "path": "no.json"}))
-        self.assertIn("読めない", broken["lang_line"])
+        self.assertIn("ポインタの先が無い", broken["lang_line"])
 
 
     def test_unreadable_start_pointer_degrades_in_every_lang_line_script(self):

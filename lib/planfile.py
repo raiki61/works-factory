@@ -137,16 +137,7 @@ def _rows(doc, key: str) -> list:
 
 
 # ---------------------------------------------------------------- 入力
-def pointed(raw: str, locate) -> tuple:
-    """(指し札の字 raw が指すファイルのパス, 読めない訳)。locate は指し札の字をパスに戻す口（境の口の pointed。空の字・null は
-    None）で、None なら (None, "")"""
-    try:
-        path = locate(raw)
-    except (ValueError, TypeError, AttributeError, KeyError) as e:
-        return None, f"ポインタが読めない: {e}"
-    if path is None:
-        return None, ""
-    return (path, "") if pathlib.Path(path).is_file() else (None, f"ポインタの先が無い: {path}")
+pointed = rolekit.pointed
 
 
 def read_pointed(raw: str, locate, *, text: bool = False) -> tuple:
