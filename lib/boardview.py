@@ -16,7 +16,7 @@
 - 方針の文書: 固めた版（始めの記録の欄 policy。置き場と写しは policy.locate・snapshot）・変化（policy_change・change_row。元
   graphloops/rules/policy_input.py）。役に貼る節は固めた版の写しの policy.section
 - r2_prompt・check_design: 独立設計の支度と受け付け（元 works/.shared/core/design.py:528 の prep・:586 の check_design・
-  :603 の accept_reply）
+  :603 の accept_reply）。支度は実測した制約のうち審査する変更が足した行を名指す物に印を付ける（added_marks。新しい）
 - review_material・take_review: 事前審査の支度と受け付け（元 works/blk-plan/lib/planblk.py:1085 の prep・:1134 の take・
   :1178 の with_converge）
 - collect: 返す節の組み立て（元 works/blk-plan/lib/planblk.py:1441 の collect。形 replan の関所の項目は replan_asks。元
@@ -40,6 +40,7 @@ import concepthome
 import conflict
 import converge
 import design
+import fixboard
 import gate_axes
 import gatemarks
 import gatepolicy
@@ -57,6 +58,7 @@ import replan
 import rolekit
 import startrec
 import structmark
+import unittrees
 import worldmark
 from answer import GO_WORDS
 from engine.util import Reject
@@ -96,6 +98,8 @@ DESIGN_PREMISE_REREAD = ("下の指示書の「渡すのは元の目的と実測
                          "依頼が名指した設計書のセクション・対象のリポジトリの地図）も渡していると読み替えよ。")
 PURPOSE_HEAD = "元の目的:"
 CONSTRAINTS_HEAD = "実測した制約（kind=仮説 のものは所与にするな）:"
+# 実測した制約のうち、審査する変更が足した行を名指す物に機械が付ける欄 mark の字（独立設計の指示書がこの字で読む）
+ADDED_MARK = "（審査する変更 {base}..{head} が足した行: {where}）"
 # 元 works/.shared/core/gl-prompts/prompts/review-loop/r2.design.md:7-8 の 2 行（値は機械が埋める。前提のドリフトは修正の前に 1 度だけ
 # 走る R2 では元の 1 周目と同じく無い）と、元 review-loop.py:1840 の訳
 DRIFT_LINE = "前提のドリフト（あれば）: {notes}"
@@ -692,7 +696,8 @@ def r2_view(request: str, answers) -> types.SimpleNamespace:
 
 def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> str:
     """独立設計の役に貼る本文: 人が決めた前提の節（人の関所の答え・依頼が名指した設計書の節・対象のリポジトリの地図）と、元の目的
-    （purpose.json の purpose_text）と、実測した制約（judgment の隣の premises.json の constraints だけ。判定の中身は読まない）と、
+    （purpose.json の purpose_text）と、実測した制約（judgment の隣の premises.json の constraints だけ。判定の中身は読まない。
+    審査する変更が足した行を名指す物には added_marks の印）と、
     人の方針（差し込みの頭が固めた方針の文書の置き場。run をまたいで人が決めた前提なので実測した制約と同じく渡す。元の
     graphloops の r2.design の prompt_append）と、元の指示書の前提のドリフトと裏取りを通っていない目的の判定の 2 行（DRIFT_LINE・
     STALE_LINE）。前の回の拒みは頭に貼る。貼った物の控えを PREMISES_FILE、役を起こす前の作業ツリーの姿を R2_TREE に置く"""
@@ -701,7 +706,7 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     start_doc = _read_json(start) if start else None
     text = _read_json(purpose).get("purpose_text") or ""
     premises = _sibling(judgment, _premises.PREMISES_FILE)
-    constraints = (_read_json(premises).get("constraints") or []) if premises else []
+    constraints = added_marks((_read_json(premises).get("constraints") or []) if premises else [], cwd, start_doc)
     req, request, unread = _request(start_doc)
     parts, ledger = design.premises(r2_view(request, answers), cwd)
     if start_doc is None:
@@ -729,6 +734,33 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
     planfile.snap_tree(d / R2_TREE, cwd)
     (d / R2_PROMPT).write_text(prompt, encoding="utf-8")
     return prompt
+
+
+def added_marks(constraints: list, repo, start_doc) -> list:
+    """実測した制約のうち、text・measured_output が名指す <パス>:<行>（design.anchors）が審査する変更（入口の差分の根 → 修正前の
+    HEAD。fixboard.pr_added_lines）の足した行に当たる物に欄 mark（ADDED_MARK）を付けた並び。独立設計は変更の後の作業ツリーから
+    測った制約を受けるので、印が無いと変更そのものを既存の仕組みと読む。差分の無い run（根が無い・根と HEAD が同じ版）と、
+    差分を測れない時は付けない"""
+    base = startrec.diff_base(start_doc or {})
+    if not base:
+        return constraints
+    try:
+        base_sha, head_sha = fixboard.pr_revs(repo, base, startrec.head_rev(start_doc))
+        added = fixboard.pr_added_lines(repo, base_sha, head_sha) if base_sha != head_sha else {}
+    except unittrees.UnitTreeError:
+        return constraints
+
+    def hit(path: str, start: int, end: int) -> bool:
+        return any(lines.intersection(range(start, end + 1)) for p, lines in added.items() if p == path or p.endswith(f"/{path}"))
+
+    out = []
+    for c in constraints:
+        where = list(dict.fromkeys(
+            f"{path}:{start}" + (f"-{end}" if end != start else "")
+            for key in ("text", "measured_output") for path, start, end in design.anchors(c.get(key) if isinstance(c, dict) else None)
+            if hit(path, start, end)))
+        out.append({**c, "mark": ADDED_MARK.format(base=base_sha[:12], head=head_sha[:12], where="、".join(where))} if where else c)
+    return out
 
 
 def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:

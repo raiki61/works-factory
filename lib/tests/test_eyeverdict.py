@@ -22,6 +22,7 @@ if str(LIB) not in sys.path:
 
 import design  # noqa: E402
 import eyeverdict  # noqa: E402
+import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
 import rolekit  # noqa: E402
 import seal  # noqa: E402
@@ -566,6 +567,20 @@ class OriginSectionCase(unittest.TestCase):
         self.addCleanup(secret.chmod, 0o644)
         got = eyeverdict.origin_section(self.repo, self.root, self.root, "", cumulative_empty=False)
         self.assertIn("累積差分の起点を測れない", got)
+
+    def test_pr_added_lines_are_the_new_side_lines_of_the_pr_diff(self):
+        """issue #418: 独立設計の制約の印が引く、審査する変更が足した行（修正前の HEAD での行番号）。消した行と直しの差分は数えない"""
+        (self.repo / "cli.py").write_text("++ a\nname = argv[0]\nb = 2\n", encoding="utf-8")   # hunk の中に「+++ 」の行が出る
+        (self.repo / "gone.py").write_text("x\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "pr")
+        head = git(self.repo, "rev-parse", "HEAD")
+        (self.repo / "cli.py").write_text("fixed\n", encoding="utf-8")
+        self.assertEqual(fixboard.pr_added_lines(self.repo, self.root, head), {"cli.py": {1, 3}, "gone.py": {1}})
+        git(self.repo, "rm", "-q", "gone.py")
+        (self.repo / "cli.py").write_text("name = argv[0]\nb = 2\n", encoding="utf-8")
+        git(self.repo, "commit", "-q", "-am", "drop")
+        self.assertEqual(fixboard.pr_added_lines(self.repo, head, git(self.repo, "rev-parse", "HEAD")), {})
 
     def test_unknown_origin_is_said(self):
         self.assertIn("起点が分からない", eyeverdict.origin_section(self.repo, "", self.root, "", cumulative_empty=True))

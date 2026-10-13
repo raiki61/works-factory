@@ -22,6 +22,7 @@
   始めの記録の依頼のファイルを読む式はここ 1 つ（盤面から読む conflict.request_file もここを引く）
 - read_rev(doc)・diff_base(doc): 役の材料の「読む版」（欄 review_rev。役が根拠を取る版）と「BASE」（入口の差分の根 input.base.rev）。
   差分の run では 2 つが違う
+- head_rev(doc): 修正前の HEAD（欄 base_rev。審査する変更の先の端）
 - diff_base_label(doc): BASE の出どころの文（input.base.label）
 - words(shape): 頭の行と報告の冒頭 2 の入口の文（例: 差分なし（HEAD）・依頼 2 件——P1 の役は起こさない）。出どころは
   base.label（入口の変換が書いた文）で、入口の種類で分岐しない
@@ -123,6 +124,11 @@ def diff_base(doc: dict) -> str:
     base = s.get("base") if s is not None else None
     got = base.get("rev") if isinstance(base, dict) else None
     return got if isinstance(got, str) and got else _text(doc, "base_rev")
+
+
+def head_rev(doc: dict) -> str:
+    """修正前の HEAD（欄 base_rev）。無ければ HEAD"""
+    return _text(doc, "base_rev") or "HEAD"
 
 
 def diff_base_label(doc: dict) -> str:
