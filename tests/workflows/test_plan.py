@@ -1534,6 +1534,7 @@ class BriefCase(unittest.TestCase):
         self.assertIn(planblk.PRESCRIPTION_HEAD, brief)
         self.assertIn(f"{planblk.PRESCRIPTION_UNIT_HEAD.format(key=MEAN)}\n\n1. 分母を len(xs) にする", brief)
         self.assertNotIn(planblk.PRESCRIPTION_UNIT_HEAD.format(key=CLAMP), brief)
+        self.assertIn(planblk.PRESCRIPTION_SOURCE.format(path=run.art / "judge" / "judgment.json"), brief)
 
     def test_brief_opens_with_the_role_head(self):
         run = Run(self)
