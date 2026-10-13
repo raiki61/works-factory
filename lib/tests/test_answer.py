@@ -64,15 +64,17 @@ class GoWordsOwner(unittest.TestCase):
 
 class StopWordsOwner(unittest.TestCase):
     """関所を止める語の並びを宣言するのは answer.STOP_WORDS の 1 か所（通す語の GoWordsOwner と同じ訳）"""
-    TUPLE = re.compile(r"""\(\s*(["']stop["']|(answer\.)?VERBS\[1\])\s*,\s*["']reject["']\s*\)""")
+    WORD = r"""(["'](stop|reject)["']|(answer\.)?VERBS\[1\]|(answer\.)?REJECT)"""
+    TUPLE = re.compile(rf"""\(\s*{WORD}\s*,\s*{WORD}\s*\)""")
 
-    def test_declared_nowhere_else_in_lib(self):
+    def test_declared_once_in_lib(self):
         found = sorted(str(f.relative_to(LIB)) for f in LIB.rglob("*.py")
                        if "tests" not in f.relative_to(LIB).parts and self.TUPLE.search(f.read_text(encoding="utf-8")))
-        self.assertEqual(found, [])
+        self.assertEqual(found, ["answer.py"])
 
     def test_pattern_sees_a_second_copy(self):
-        for copy in ('STOPS = (VERBS[1], "reject")', "GATE_STOP = ('stop', 'reject')"):
+        for copy in ('STOPS = (VERBS[1], "reject")', "GATE_STOP = ('stop', 'reject')", "STOPS = (VERBS[1], REJECT)",
+                     'STOPS = ("reject", "stop")', "STOPS = (answer.VERBS[1], answer.REJECT)"):
             with self.subTest(copy=copy):
                 self.assertTrue(self.TUPLE.search(copy))
 

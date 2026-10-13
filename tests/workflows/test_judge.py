@@ -25,6 +25,7 @@ from tests.workflows.copied import agent_body, assert_is_original, rewritten, ro
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "lib"))
+import answer  # noqa: E402
 import judge_accept as ja  # noqa: E402
 import prcheck  # noqa: E402
 import reads  # noqa: E402
@@ -268,7 +269,7 @@ class GateTest(unittest.TestCase):
     def test_spec_gate_is_an_approval_with_the_four_words(self):
         by = nodes()
         gate = by["spec-gate"]
-        self.assertEqual([d["id"] for d in gate["approval"]["decisions"]], ["approve", "continue", "stop", "reject"])
+        self.assertEqual([d["id"] for d in gate["approval"]["decisions"]], list(answer.GO_WORDS + answer.STOP_WORDS))
         self.assertEqual(gate["approval"]["message"], "$spec-ask.output.message")
         self.assertEqual(gate["idle_timeout"], NO_DEADLINE)
         self.assertEqual(by["spec-freeze"]["with"]["answer"], {"from": "$spec-gate.output", "if_skipped": None})
