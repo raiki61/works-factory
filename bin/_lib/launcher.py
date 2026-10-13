@@ -225,10 +225,13 @@ def run_home(user: Mapping[str, str], target: Path) -> Path:
         if not os.path.isabs(chosen):
             raise Stop(f"{HOME_ENV} は絶対パスにする（受けた値: {chosen}）")
         refuse_sandbox_writable(HOME_ENV, chosen)
+        refuse_in_factory(HOME_ENV, chosen)
         return Path(chosen)
     state = user.get("XDG_STATE_HOME") or str(Path(user["HOME"]) / ".local" / "state")
     home = Path(state) / NAME / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]
-    refuse_sandbox_writable("XDG_STATE_HOME" if user.get("XDG_STATE_HOME") else "HOME", home)
+    what = "XDG_STATE_HOME" if user.get("XDG_STATE_HOME") else "HOME"
+    refuse_sandbox_writable(what, home)
+    refuse_in_factory(what, home)
     return home
 
 
@@ -241,6 +244,15 @@ def refuse_sandbox_writable(what: str, path) -> None:
     if sandbox_writable(path):
         raise Stop(f"{what} の置き場 {os.path.realpath(path)} は /tmp/claude-* の下で、役の sandbox の Bash が書ける。"
                    "ほかの置き場を選ぶ")
+
+
+def refuse_in_factory(what: str, path) -> None:
+    """家が工場の checkout（ROOT）の下だと、ROOT を丸ごと禁じる柵（write_fence の --own）に家も入り、読むだけの役が隔離した HOME や
+    一時の置き場に書けない"""
+    real = Path(os.path.realpath(path))
+    if real.is_relative_to(ROOT):
+        raise Stop(f"{what} の置き場 {real} は工場の checkout {ROOT} の下で、読むだけの役の書き込みの柵に入り役が家に書けない。"
+                   "checkout の外を選ぶ")
 
 
 def mise_trusts(user: Mapping[str, str], target: Path) -> bool:

@@ -457,6 +457,21 @@ class LauncherTest(unittest.TestCase):
                 env = self.reached(self.launch(*args, **login))["env"]
                 self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", list(env))
 
+    def test_home_inside_the_factory_checkout_is_refused(self):
+        """家が工場の checkout（ROOT。ここでは使い捨ての木の self.repo）の下だと、柵が ROOT を丸ごと禁じて読むだけの役が家に書けない。
+        どの命令でも起こさずに 1 行で拒む（#358）"""
+        link = self.tmp / "to-factory"
+        link.symlink_to(self.repo)
+        for name, value in (("WORKS_FACTORY_HOME", str(self.repo / "h")), ("WORKS_FACTORY_HOME", str(self.repo)),
+                            ("WORKS_FACTORY_HOME", str(link / "h2")), ("XDG_STATE_HOME", str(self.repo / "state"))):
+            with self.subTest(name=name, value=value):
+                err = self.stopped(self.launch("workflow", "status", **{name: value}))
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertIn(name, err)
+                self.assertIn("checkout の外", err)
+                if value != str(self.repo):
+                    self.assertFalse(os.path.lexists(value), "拒んだ置き場に物を作った")
+
     def test_claude_on_relative_path_is_not_used(self):
         """PATH の相対の置き場（打った場所の下）の claude は、隔離した設定にプラグインを入れる本物として使わない"""
         (self.fake / "claude").unlink()
