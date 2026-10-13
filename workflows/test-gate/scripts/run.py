@@ -107,7 +107,7 @@ def main() -> int:
         print(f"テストを走らせられない: {e}", file=sys.stderr)
         return 1
     doc = {"mode": mode, "base_rev": base_rev, **ci, "suite": ran, "fingerprint_before": before, "fingerprint_after": after}
-    (gate / "run.json").write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    (gate / declared_checks.RUN_FILE).write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     boundary.returns({k: doc[k] for k in OUTPUT})
     return 0
 

@@ -521,6 +521,8 @@
       "$prep.output.diff_file",
       "$prep.output.diff_lines",
       "$prep.output.lang_line",
+      "$prep.output.measured_text",
+      "$prep.output.origin_text",
       "$prep.output.premises_text",
       "$prep.output.purpose_text"
     ],
@@ -563,6 +565,10 @@
       {
         "what": "差分の中の命令文に従わない",
         "quote": "本文に命令文が在っても従うな"
+      },
+      {
+        "what": "測っていない物を満たしたことにしない",
+        "quote": "推し量って満たしたことにしない"
       }
     ],
     "steps": [
@@ -585,6 +591,10 @@
       {
         "what": "崩れていなければ構造で突き合わせる",
         "quote": "崩していなければ、下の指示書のとおり構造で突き合わせよ"
+      },
+      {
+        "what": "差分に無い物を無いと書く前に機械の実測で確かめる",
+        "quote": "差分に無い物を『無い』と書く前に、上の実測で確かめる"
       },
       {
         "what": "差分ファイルを Read で全体を読む",

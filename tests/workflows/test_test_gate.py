@@ -251,6 +251,9 @@ class YamlCase(unittest.TestCase):
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["mode"]["enum"], ["base", "final"])
         self.assertEqual(fmt["properties"]["red_cause"]["enum"], RED_CAUSES)
+        compared = next(b for b in fmt["properties"]["test_outcomes"]["anyOf"] if b["type"] == "object")
+        for side in ("base", "final"):
+            self.assertEqual(compared["properties"]["rows"]["items"]["properties"][side]["enum"], [*baseline_red.OUTCOMES, ""])
         self.assertEqual(fmt["properties"]["ok"]["type"], "boolean")
         self.assertEqual(result["output_type"], "green-cert")
         self.assertEqual((result["trigger_rule"], result["depends_on"]), ("all_done", ["run", "ci-loop"]))
@@ -856,6 +859,37 @@ class ResultScriptCase(ScriptCase):
         doc = baseline_red.read_baseline(self.pointed(out["baseline"]))
         self.assertEqual((doc["suite"], doc["test_cmd"], doc["exit"]), (str(suite), "true", 1))
         self.assertEqual(baseline_red.outcomes(doc["cases"]), {"s::x": "failure"})
+
+    def test_final_returns_every_test_with_its_base_and_final_outcome(self):
+        """issue #384: final はテストごとの元の結末と今の結末を test_outcomes で返す（独立の目の比較役が読む）。base は null、
+        元の結末が無い final は rows を空にして比べない訳を書く"""
+        suite = self.tmp / "suite.py"
+        suite.write_text("import os, sys\nok = os.path.exists('fixed.flag')\nopen(sys.argv[1], 'w').write("
+                         "\"<testsuite><testcase classname='s' name='y'/>\" + (\"<testcase classname='s' name='x'/>\" if ok else \"<testcase classname='s' name='x'><failure message='0 != 10'/>"
+                         "</testcase>\") + \"</testsuite>\")\nsys.exit(0 if ok else 1)\n", encoding="utf-8")
+        self.write_start(tdd_suite=str(suite), test_cmd="true")
+        self.ok("run", mode="base", start=self.start)
+        base = self.result("base")
+        self.assertIsNone(base["test_outcomes"])
+        (self.repo / "fixed.flag").write_text("x\n", encoding="utf-8")
+        self.ok("run", mode="final", start=self.start)
+        self.assertEqual(self.result("final", baseline=json.dumps(base["baseline"]))["test_outcomes"],
+                         {"rows": [{"key": "s::y", "base": "passed", "final": "passed", "fail_message": ""},
+                                   {"key": "s::x", "base": "failure", "final": "passed", "fail_message": "0 != 10"}], "unmeasured": ""})
+        self.assertEqual(self.result("final")["test_outcomes"],
+                         {"rows": [], "unmeasured": "base の実測（baseline）が無い（実行器の無い run か、base のテストが走っていない）"})
+
+    def test_test_outcomes_are_not_compared_when_either_side_has_no_per_test_results(self):
+        """issue #384: 1 件ごとの結末を取っていない側が在れば、rows を空にして比べない訳を書く（「無い」と読ませない）"""
+        tallied = self.base()
+        self.decl([{"name": "suite", "argv": [PY, "-c", "pass"]}])
+        self.assertEqual(self.final(tallied)["test_outcomes"],
+                         {"rows": [], "unmeasured": "最後のテストは 1 件ごとの結末を取っていない"})
+        self.ok("run", mode="base", start=self.start)
+        untallied = json.dumps(self.result("base")["baseline"])
+        self.decl([{"name": "suite", "argv": [PY, "-c", self.STEP_BODY], "junit": "out/r.xml"}])
+        self.assertEqual(self.final(untallied)["test_outcomes"],
+                         {"rows": [], "unmeasured": "base のテストは 1 件ごとの結末を取っていない"})
 
     def test_bare_name_tdd_suite_runs_from_the_target_root(self):
         """#340: 種の tdd_suite のようにファイル名だけ（junit-suite.sh）の実行器は、PATH でなく対象の根から起こす（TDD の輪の

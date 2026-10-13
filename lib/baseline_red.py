@@ -3,7 +3,7 @@
 今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の `works/.shared/core/graphloops/rules/review-loop-tdd.py`
 と `works/blk-fix/lib/tddloop.py` の関数を、元の名のまま字のとおり写した物（各関数の docstring の末尾に元の `<パス>:<行>`）。
 run_suite だけは元の試験の枠（tree_run.slotted_run の枠）を外し、tree_run.reuse_run で走らせる（優先度は lowered が 1 か所で下げる）。
-元の結末のファイルの口（write_baseline・read_baseline・outcomes）は新しい関数。
+元の結末のファイルの口（write_baseline・read_baseline・outcomes・test_outcomes）は新しい関数。
 
 元の結末のファイルの必須の欄: {"suite": str, "test_cmd": str, "rev": str, "exit": int | None, "cases": [{classname, name, outcome（OUTCOMES の語）, …}]}。
 ほかの欄は呼び手だけが読む（extra）。
@@ -220,6 +220,20 @@ def outcomes(cases) -> dict:
     for c in cases:
         out.setdefault(_key(c), c["outcome"])
     return out
+
+
+def test_outcomes(baseline_cases, cases) -> list:
+    """テストごとの元の結末と今の結末 [{key, base, final, fail_message}]（元の結末の順、今にだけ居るテストはその後ろに今の順。片側に
+    居なければその側は ""。fail_message は今が赤なら今の物、でなければ元の物。新しい関数）"""
+    base = {_key(c): c for c in _unique(baseline_cases)}
+    now = {_key(c): c for c in _unique(cases)}
+    rows = []
+    for key in [*base, *(k for k in now if k not in base)]:
+        b, f = base.get(key), now.get(key)
+        red = f if f and f["outcome"] in FAILED else b
+        rows.append({"key": key, "base": b["outcome"] if b else "", "final": f["outcome"] if f else "",
+                     "fail_message": (red or {}).get("fail_message") or ""})
+    return rows
 
 
 def _problems(doc) -> list:

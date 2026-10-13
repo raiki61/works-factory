@@ -5,7 +5,8 @@
 """返す節 result: run.json と（在れば）任せ先の役の ci-material.json を読み、赤の原因と証拠を出し（green_cert.classify）、今の指紋を
 取って認証する（green_cert.certify。final で素材を任せ先の役が書いた緑は自己申告として認証しない）。base は直す前の結末のファイル
 test-gate/base/baseline.json を書く（baseline_red.write_baseline）。final は入力 baseline の指し札の先を baseline_red.read_baseline で読み、
-修正前のテストの行（declared_checks.baseline_line）を証拠に足す。走らせ方（by・suites_line）・ログ（log）・修正前のテスト（baseline_line）・
+修正前のテストの行（declared_checks.baseline_line）を証拠に足し、テストごとの修正前と今の結末（test_outcomes。独立の目の
+比較役が読む）を返りに載せる。走らせ方（by・suites_line）・ログ（log）・修正前のテスト（baseline_line）・
 認証しなかった訳（reason）は 1 行に畳んで返りに載せ、証拠の文 test-gate/<mode>/evidence.md の行も同じ値から組む（報告と最後の関所は
 返りの欄を読む）。任せ先の役で走らせた run が包みを宣言していなければ（env の fence.RECORDS_ENV が無い）、証拠に
 declared_checks.NO_ADAPTER_NOTE を足す。任せ先の役の節が落ちて残った作業ツリーの写し（ci-snapshot.json の top）を消す。
@@ -43,6 +44,22 @@ def suite_exit(run: dict):
         return suite["exit"]
     junit = [r for r in run["runs"] if r["name"] in run["junit_steps"] and r["name"] not in run["junit_unran"]]
     return next((r["exit"] for r in junit if r["exit"]), 0) if junit else None
+
+
+def test_outcomes(base, run: dict) -> tuple:
+    """(赤の原因の照らしに渡す元の 1 件ごとの結末か None, 返りの欄 test_outcomes {rows, unmeasured})。元の結末と今の結末を比べて
+    よいのは、元の結末が 1 件ごとの結末を取り（exit が None でない）、今の一式も取れた（suite_exit）時だけ。比べない時は rows を空に
+    して訳を unmeasured に書く"""
+    import baseline_red
+    if base is None:
+        why = "base の実測（baseline）が無い（実行器の無い run か、base のテストが走っていない）"
+    elif base["exit"] is None:
+        why = "base のテストは 1 件ごとの結末を取っていない"
+    elif suite_exit(run) is None:
+        why = "最後のテストは 1 件ごとの結末を取っていない"
+    else:
+        return base["cases"], {"rows": baseline_red.test_outcomes(base["cases"], run["cases"]), "unmeasured": ""}
+    return None, {"rows": [], "unmeasured": why}
 
 
 def gate_fields(run: dict, suites: str, base_line: str, why: str) -> dict:
@@ -97,9 +114,9 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     if snap_path.is_file():
         declared_checks.drop_copy(read_json(snap_path).get("top"))
     start = read_json(boundary.needed(start_raw, "start"))
-    run_path = artifacts / rel(mode, "run.json")
+    run_path = artifacts / rel(mode, declared_checks.RUN_FILE)
     if not run_path.is_file():
-        raise ValueError(f"{rel(mode, 'run.json')} が無い——ノード run が落ちたか飛ばされた")
+        raise ValueError(f"{rel(mode, declared_checks.RUN_FILE)} が無い——ノード run が落ちたか飛ばされた")
     run = read_json(run_path)
     ci_path = artifacts / rel(mode, "ci-material.json")
     role = run["by"] == declared_checks.ROLE_NEEDED
@@ -111,17 +128,17 @@ def certified(mode: str, start_raw: str, baseline_raw: str) -> tuple:
     base = None
     if mode == "final" and (base_file := boundary.pointed(baseline_raw)) is not None:
         base = baseline_red.read_baseline(base_file)
+    cases, rows = test_outcomes(base, run) if mode == "final" else (None, None)
     if material is None:   # 3 回とも拒まれて諦めた時は最後の拒否の文を人に見える証拠に出す（T45。元 ci_role.collect :349-356）
         red_cause = green_cert.INCOMPLETE
         summary = (rolekit.given_up_reason(artifacts / rel(mode, ""), declared_checks.CI_ROLE)
                    or "任せ先の CI の役が素材を渡さなかった（受け付けが拒み続けた・ループが回らなかった）")
     else:
-        cases = base["cases"] if base and base["exit"] is not None and suite_exit(run) is not None else None
         red_cause, summary = green_cert.classify(material=material, runs=run["runs"], cases=run["cases"], baseline_cases=cases,
                                                  junit_steps=run["junit_steps"], junit_unran=run["junit_unran"])
     ok, why = green_cert.certify(mode=mode, material_status=status, green=green, before=run["fingerprint_before"],
                                  after=run["fingerprint_after"], now=now, self_reported=role)
-    out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause, "baseline": None, "fingerprint": None}
+    out = {"mode": mode, "ok": ok, "green": green, "red_cause": red_cause, "baseline": None, "fingerprint": None, "test_outcomes": rows}
     if mode == "base":
         baseline_red.write_baseline(artifacts / rel(mode, "baseline.json"), suite=start.get("tdd_suite") or "",
                                     test_cmd=start.get("test_cmd") or "", rev=now["head"], exit=suite_exit(run),
@@ -156,6 +173,7 @@ def failed(mode: str, error: BaseException) -> dict:
         except Exception:
             pass
     return {"mode": mode, "ok": False, "green": False, "red_cause": "incomplete", "baseline": None, "fingerprint": None,
+            "test_outcomes": {"rows": [], "unmeasured": INNER_ERROR} if mode == "final" else None,
             "evidence": {"type": "archon_artifact", "run_id": os.environ.get("WORKFLOW_ID", ""), "path": rel(mode, name)},
             "by": "", "suites_line": "", "log": "", "baseline_line": "", "reason": INNER_ERROR}
 

@@ -209,6 +209,23 @@ class MustPassCase(unittest.TestCase):
                          {"test_a.TestA::t": "failure", "test_a.TestA::u": "passed"})
 
 
+class TestOutcomesCase(unittest.TestCase):
+    def test_every_test_with_its_base_and_final_outcome(self):
+        """issue #384: 赤→緑だけでなく緑→緑・緑→赤・赤→赤も、片側にしか居ないテストも並べる。fail_message は最後に赤なら最後の、
+        でなければ base の物"""
+        base = [{**row("t", "failure"), "fail_message": "0 != 10"}, row("u", "passed"), {**row("broke", "passed")},
+                {**row("still", "failure"), "fail_message": "old"}, row("gone", "error")]
+        now = [row("t", "passed"), row("u", "passed"), {**row("broke", "failure"), "fail_message": "1 != 2"},
+               {**row("still", "failure"), "fail_message": "new"}, row("new", "passed")]
+        self.assertEqual(baseline_red.test_outcomes(base, now),
+                         [{"key": "test_a.TestA::t", "base": "failure", "final": "passed", "fail_message": "0 != 10"},
+                          {"key": "test_a.TestA::u", "base": "passed", "final": "passed", "fail_message": ""},
+                          {"key": "test_a.TestA::broke", "base": "passed", "final": "failure", "fail_message": "1 != 2"},
+                          {"key": "test_a.TestA::still", "base": "failure", "final": "failure", "fail_message": "new"},
+                          {"key": "test_a.TestA::gone", "base": "error", "final": "", "fail_message": ""},
+                          {"key": "test_a.TestA::new", "base": "", "final": "passed", "fail_message": ""}])
+
+
 BASE = {"suite": "/home/x/suite.sh", "test_cmd": "make check", "rev": "a" * 40, "exit": 1,
         "cases": [row("t", "failure"), row("u", "passed")]}
 
