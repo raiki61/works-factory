@@ -1,11 +1,14 @@
 """flagged の表 tests/calibration/flags.json の試験。表の形・鍵の集合・never の訳・works-factory の名指しと、照らしを合成の evidence/ に
 当てた結果を縛る。リポジトリに入った observed（運び役が本物の run の後に足す物）の形もここで縛る。"""
+import importlib.util
 import json
+import os
 import pathlib
 import re
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from tests.calibration import corpus
 from tests.calibration import run as runner
@@ -121,6 +124,19 @@ class FlagTableTest(unittest.TestCase):
         self.assertEqual(got["flag_evidence"]["r1.minimality"], "skipped")
         self.assertNotIn("p1.provenance", got["unread"])
         self.assertIn("p1.gate_efficacy", got["unread"])
+
+    def test_test_gate_flags_read_the_evidence_of_a_fallen_result(self):
+        """返す節 test-gate/result が落ちた時に今書く evidence.md で、p0.local_checks・p4.ci の旗が立つ"""
+        spec = importlib.util.spec_from_file_location("test_gate_result", ROOT / "workflows" / "test-gate" / "scripts" / "result.py")
+        result = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(result)
+        table = _table()["works-factory"]
+        for gate, mode in (("p0.local_checks", "base"), ("p4.ci", "final")):
+            with self.subTest(gate=gate), tempfile.TemporaryDirectory() as tmp:
+                ev = pathlib.Path(tmp)
+                with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(ev / "parent")}):
+                    result.failed(mode, RuntimeError("x"))
+                self.assertEqual(runner.flags_of({gate: table[gate]}, ev, set())["flagged"], [gate])
 
     def test_old_works_skips_come_from_the_board_state(self):
         with tempfile.TemporaryDirectory() as tmp:
