@@ -1253,7 +1253,7 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
 
 - F415 戻せた組の子の TDD の輪の状態を親の置き場の tdd-<k>/ に写し、実行器のパス exe を親の作業ツリーで解き直す（裁定の後の修正の受け付けが凍結と変更に当たる試験に使う）
   - 元: works/blk-fix/lib/tddloop.py の `states`（盤面の tdd-<k> を全部の輪が共有した）
-  - 今: lib/fixboard.py::adopt_tdd_states・lib/fixboard.py::ruled_states、lib/tddloop.py::exe_path
+  - 今: lib/fixboard.py::adopt_tdd_states・lib/fixboard.py::ruled_states、lib/baseline_red.py::exe_path
   - 証: tests/workflows/test_fix.py::GroupChildScriptsCase.test_ruled_accept_runs_the_tests_of_the_tdd_state_the_join_copied、tests/workflows/test_fix.py::GroupChildScriptsCase.test_join_resolves_a_relative_runner_in_the_parent_tree
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 親の置き場の `tdd-1/state.json`（実行器の在る run なら健全な run でも在る））
   - 狭め: 無し

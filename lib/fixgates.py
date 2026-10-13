@@ -102,6 +102,7 @@ def problems(board_dir, repo, base_rev: str, suite: str, attempt: int, *, pass_:
     if tests and not suite:
         gaps.append(NO_SUITE)
     elif tests:
+        suite = str(tddloop.exe_path(repo, suite))   # 控えの鍵（exe_id）と worktree の中の写し（_inner_exe）を cwd でなく根に結ぶ
         got, why, guards = _red_green(repo, rev, suite, tests, b / f"{RUN}-{pass_}-{attempt}", _base_cache(b),
                                       _red_units(b, repo))
         agreed = {t["id"] for t in tests if t.get("agreed")}
