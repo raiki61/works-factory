@@ -142,10 +142,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T18 回さなかった段を、一式の行の「走らせなかった」と run の返りの skipped_steps（名と範囲）に出す。
   - 元: works/blk-tests/scripts/run_tests.py:77・works/.shared/core/entry.py:819 `suites_line`・works/blk-tests/blk-tests.yaml:52-61
-  - 今: lib/declared_checks.py:185・workflows/test-gate/works-factory-test-gate.yaml:58-66・workflows/test-gate/scripts/result.py:112-114（evidence.md の「走らせ方」の行）
+  - 今: lib/declared_checks.py:185・workflows/test-gate/works-factory-test-gate.yaml:58-66・workflows/test-gate/scripts/result.py `gate_fields`（ブロックの返り result の欄 suites_line。evidence.md の「走らせ方」の行も同じ値）
   - 証: lib/tests/test_declared_checks.py::SuitesLineCase.test_skipped_steps_are_named_with_their_ignored_paths（assert: :170-171）・ScopedStepsCase.test_final_skips_step_whose_ignored_paths_hold_every_change（assert: :428）
   - 本物の run: 筋書きでのみ（宣言の在る run なら test-gate/final/evidence.md の「- 走らせ方:」の行）
-  - 狭め: 無し（ブロックの返り result には載らず evidence.md だけ。人の前に出るかは T35）
+  - 狭め: 無し（人の前に出るかは T35）
 
 - T19 test_cmd が範囲で外した段と同じコマンドなら、外さずに test_cmd の段として走らせる（入力で名指した一式は外さない）。
   - 元: works/.shared/core/entry.py:858 `run_ci` の docstring（範囲の項）
@@ -269,7 +269,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - T35 一式の行と修正前のテストの行を、最後の人の関所の文と報告の冒頭に字のまま出す（何を根拠にした緑か・最後の赤が修正前から在りうるかを、ファイルを開かずに人が見る）。
   - 元: works/darkfactory/lib/line_edge.py:569-571 `_final_text`・報告の冒頭（entry.baseline_line・suites_line）
-  - 今: 最後の関所は workflows/line/scripts/ask_final.py の evidence_rows・tests_lines（evidence.md の走らせ方と修正前のテストの行を字のまま）。報告は lib/runreport.py の _evidence_lines（BASELINE_ROW。緑の認証の節） 。報告の側は人が決めることの節にも（lib/runreport.py の _tests_head_lines。部分 C）
+  - 今: 最後の関所は workflows/line/scripts/ask_final.py の final_tests・tests_lines（test-gate-final の返りの欄 by・suites_line・baseline_line を with: で受け、lib/declared_checks.py の gate_values で字にする）。報告は lib/runreport.py の _evidence_lines（受け皿 test-gate-base-out・test-gate-final-out の欄。緑の認証の節）。報告の側は人が決めることの節にも（lib/runreport.py の _tests_head_lines。部分 C）
   - 証: tests/workflows/test_gate_head.py::FinalSectionsCase.test_final_text_carries_suites_and_baseline_lines・tests/workflows/test_line.py::AskFinalReadsCase.test_final_text_lists_suites_baseline_and_left_tests・tests/workflows/test_report.py::FactsCase.test_green_cert_section_carries_the_baseline_line ・lib/tests/test_runreport.py::LinesCase.test_tests_head_lines_and_deleted_files（報告の冒頭）
   - 本物の run: 最後の関所の文（ask-final の text。置き場の控えは部分 B2 の final-gate.md。gates/gate-final.json は人の答え）に行が在るか。report/report.md の「試験の記録（最後）」の指し札
   - 狭め: #69 と #74 の間 → 部分 B2 で戻した。報告では冒頭でなく緑の認証の節に出す（報告の冒頭の並びは部分 C）
@@ -1525,10 +1525,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - R49 緑の認証（全部の周）: green-cert ごとに緑か・ok・赤の原因、認証が通した赤（inherited・environment）を名指す
   - 元: works/.shared/core/report.py:1042-1050 の最後のテストの行（entry.suites_line・ログ。works/.shared/core/entry.py:819）
-  - 今: lib/runreport.py `_green_lines`・`_evidence_lines`（走らせた一式の行とログは、test-gate-base・test-gate-final の返りの evidence の先 evidence.md の行「- 走らせ方: …」「- ログ: …」から。行の頭は `EVIDENCE_ROWS`）
-  - 証: lib/tests/test_runreport.py::TypedCase.test_green_cert_names_red_let_through・test_green_cert_names_suites_and_log、tests/workflows/test_report.py::FactsCase.test_green_cert_section_reads_the_test_gate_evidence（test-gate の result.py の evidence() が書いた文を facts の節に通し、行の頭の結びを縛る）
-  - 本物の run: 型つきの成果物 green-cert と test-gate/<base|final>/evidence.md、report/report.md「## 緑の認証（全部の周）」
-  - 狭め: 戻した（evidence.md の走らせ方とログの行。元は最後のテストだけ、今は直す前のテストも同じ形で並べる）。修正前のテストとの並べ（baseline_line）は evidence.md の中に在り、節には並べない
+  - 今: lib/runreport.py `_green_lines`・`_evidence_lines`（走らせた一式の行とログは、test-gate-base・test-gate-final の返りの欄 by・suites_line・log を受け皿 test-gate-base-out・test-gate-final-out で受けた物。字は lib/declared_checks.py の `gate_values`）
+  - 証: lib/tests/test_runreport.py::TypedCase.test_green_cert_names_red_let_through・test_green_cert_names_suites_and_log、tests/workflows/test_report.py::FactsCase.test_green_cert_section_reads_the_test_gate_evidence（受け皿の返りの欄を証拠の文を開かずに facts の節に通す）・tests/workflows/test_test_gate.py::ResultScriptCase.test_returned_values_are_the_evidence_rows（返りの欄と evidence.md の行が同じ値）
+  - 本物の run: 型つきの成果物 green-cert と test-gate-base・test-gate-final の返り、report/report.md「## 緑の認証（全部の周）」
+  - 狭め: 戻した（返りの欄の走らせ方とログ。元は最後のテストだけ、今は直す前のテストも同じ形で並べる）。修正前のテストとの並べ（baseline_line）は T35
 
 - R50 独立の目の節: 目ごとの状態と理由（省いた目は「深さで省いた」）と型つきの成果物 eye-verdict（形の違う物は注意へ）
   - 元: works/darkfactory/lib/line_edge.py:505-523 の目の行

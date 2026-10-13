@@ -1451,6 +1451,11 @@ class AskFinalReadsCase(Artifacts):
         """L-W28・T35: 最後のテストの返りの欄（with: の by・suites_line・log・baseline_line・tests_reason）から、一式・修正前のテスト・
         ログ・認証しなかった訳を字のまま出し、作業ツリーと並べる（証拠の文は開かない）。関門が返さなかった（飛ばされた節の null）時は
         その旨と「取れない」。手元で回さなかった試験（ci_left・final_left・final_far）は修正の返りに控えが無い（F013。部分 D2）"""
+        with_ = line_nodes()["ask-final"]["with"]
+        self.assertEqual({k: with_[k] for k in ("by", "suites_line", "log", "baseline_line", "tests_reason")},
+                         {"by": "$test-gate-final.output.by", "suites_line": "$test-gate-final.output.suites_line",
+                          "log": "$test-gate-final.output.log", "baseline_line": "$test-gate-final.output.baseline_line",
+                          "tests_reason": "$test-gate-final.output.reason"})
         returned = {"INPUTS_BY": "role_needed", "INPUTS_SUITES_LINE": "一式 X", "INPUTS_LOG": "test-gate/final/logs/checks.log",
                     "INPUTS_BASELINE_LINE": "修正前のテスト: 緑（元の結末）", "INPUTS_TESTS_REASON": "任せ先の自己申告の緑"}
         with mock.patch.dict(os.environ, returned):

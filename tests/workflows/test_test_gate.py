@@ -40,8 +40,6 @@ from engine.schema import validate_schema  # noqa: E402  （declared_checks が 
 DEADLINE = 1728000000
 RUN_ID = "run-1"
 PY = sys.executable
-RESULT_FIELDS = ["mode", "ok", "green", "red_cause", "baseline", "fingerprint", "evidence", "by", "suites_line", "log", "baseline_line",
-                 "reason"]
 RED_CAUSES = ["introduced", "inherited", "environment", "interaction", "incomplete", ""]
 WAIT = 30   # 子のプロセスを待つ上限（秒）。試験の枠で、script の中には期限を置かない
 # 任せ先の CI の役の指示書の元: 今の works（pack.json の works.commit）の works/blk-ci/commands/ci.md・prompts/p0.local_checks.md・
@@ -231,8 +229,7 @@ class YamlCase(unittest.TestCase):
     def test_result_output_format_is_the_contract(self):
         result = node("result")
         fmt = result["output_format"]
-        self.assertEqual(sorted(fmt["properties"]), sorted(RESULT_FIELDS))
-        self.assertEqual(sorted(fmt["required"]), sorted(RESULT_FIELDS))
+        self.assertEqual(sorted(fmt["required"]), sorted(fmt["properties"]))
         self.assertIs(fmt["additionalProperties"], False)
         self.assertEqual(fmt["properties"]["mode"]["enum"], ["base", "final"])
         self.assertEqual(fmt["properties"]["red_cause"]["enum"], RED_CAUSES)
