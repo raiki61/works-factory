@@ -5,10 +5,10 @@
 """節 ci-prep: 任せ先の CI の役を起こす前の支度。役を起こす前の作業ツリーの姿（accept.tree_state）を test-gate/<mode>/ci-snapshot.json に
 置き（出し直しの回も最初の姿を残す。役が変えた後の姿で置き換えない）、テストを走らせる作業ツリーの写し（util.copy_worktree。
 一時の置き場の直下）を作り（消えていれば作り直す）、役を起こす前の時刻を同じ ci-snapshot.json の prepared_at に回ごとに書き
-（ci-accept がこの後の包みの起動の記録を探す）、前の回の拒否の理由 reject（1 回目は空）と一緒に返す。
+（ci-accept がこの後の包みの起動の記録を探す）、この輪の拒否の理由 reject（1 回目は空）と一緒に返す。
 run が包みを通ると宣言した（env の fence.RECORDS_ENV）のに宣言が読めなければ、出し直さずに諦めた拒否を控えに積んで落ち、役を起こさない
 （今の works の ci_role.take と同じ所。棚卸しの T49。返すノードが控えの拒否を証拠に出す）。
-reject は ci-accept が積んだ拒否の控え（rolekit.rejected）の最後の 1 件から読む。$LOOP_PREV で with: に貼ると、Archon が貼った値の中の
+reject は ci-accept が積んだ拒否の控え（rolekit.rejected）の全部を rolekit.rejects_text で 1 つの文にした物。$LOOP_PREV で with: に貼ると、Archon が貼った値の中の
 $<節>.output.<欄> の字をもう 1 度置き換え、拒否の文が節の参照を含むと輪が落ちる（元の裁定 R44）"""
 import datetime
 import json
@@ -51,7 +51,7 @@ def main() -> int:
     snap_path.write_text(json.dumps(snap, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     rejects = rolekit.rejected(gate, declared_checks.CI_ROLE)
     boundary.returns({"copy_dir": snap["copy_dir"], "tmp_dir": snap["tmp_dir"], "root": str(root),
-                      "base_rev": start.get("base_rev") or "", "mode": mode, "reject": rejects[-1] if rejects else "",
+                      "base_rev": start.get("base_rev") or "", "mode": mode, "reject": rolekit.rejects_text(rejects),
                       "attempt": len(rejects) + 1})
     return 0
 

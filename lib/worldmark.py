@@ -24,7 +24,9 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
   外れの訳に添える）
 - needs(row)・answered(item)・unanswered(rows, items): 答えの要る行（applies が空でない）と、修正案の
   項目の欄 structure の答え {world: <類の id>, follows: true} か {world, deviation}
-- world_ok(answer, row, own_sources, cite_ok): 関所の軸「世界の解か」（答えの要らない行・従う・依頼の外の出どころで訳の立つ外れ。
+- world_ok(answer, row, request_file, means, cite_ok, repo): 関所の軸「世界の解か」（答えの要らない行・従う・依頼の外の出どころで訳の立つ外れ。
+  依頼の出どころは依頼のファイルのパス（パス全体で照らす）・依頼の引用・依頼の解き方 means で、目的の文の出典 source_files は入れない。
+  依頼が解き方を示していない行（verdict none）の外れは依頼の出どころにならない。
   web で確かめていない行（knowledge）は従う答えだけが揃い、外れは人に聞く——計画の 5.5 節「知識だけの定石に従うのは自明側、外れは人へ」）
 - gate_line(row, answer)・report_lines(board_dir): 関所の項目と報告の節「世界の解」の行
 
@@ -33,9 +35,11 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
 目的の文の型は写しのまま。控えは世界の解の段の入力（言い直す役が依頼の解き方として見る）で、独立設計には渡さない（目的だけから設計する）。
 - MEANS_NODES・split_means(reply): 欄を持つ節・（欄を外した返答の写し, 手段の並び）
 - write_means(board_dir, means)・means_of(board_dir): 控えを置く（空なら置かない）・読む（無い・読めなければ []）
+- copy_means(src_dir, board_dir): 控えを別の置き場に写す（事前審査の置き場の関所が世界の解の外れの出どころを照らす）
 """
 import json
 import pathlib
+import shutil
 
 import cite   # 依頼の引用「…」の形と語（決め手の出どころの照らしの住処）
 import marks  # 返答の足し欄の住処（種 means）
@@ -158,6 +162,15 @@ def write_means(board_dir, means) -> None:
         marks.write(marks.path_of(MEANS, board_dir), {MEANS: got})
 
 
+def copy_means(src_dir, board_dir) -> None:
+    """src_dir（目的の役が控えを置いた judge の置き場）の控えを board_dir に写す（無ければ board_dir の前の写しを消す）"""
+    src, dest = marks.path_of(MEANS, src_dir), marks.path_of(MEANS, board_dir)
+    if src.is_file():
+        shutil.copyfile(src, dest)
+    else:
+        dest.unlink(missing_ok=True)
+
+
 def means_of(board_dir) -> list:
     doc = marks.load(marks.path_of(MEANS, board_dir))
     got = doc.get(MEANS) if isinstance(doc, dict) else None
@@ -223,12 +236,27 @@ def unanswered(rows, items) -> list:
     return out
 
 
-def _from_request(text: str, own_sources) -> bool:
-    """決め手の文が依頼（依頼のファイル・目的の文の出典）を出どころにしているか"""
-    return any(s and s in text for s in own_sources or ()) or (cite.REQUEST_WORD in text and cite.QUOTE.search(text) is not None)
+def _names_path(text: str, path: str, repo) -> bool:
+    """文がパス path をパス全体（と :行）で名指すか（別のファイルの名の一部として在るだけでは名指さない）。書き方の違い（./・..・
+    symlink・作業ツリーの根からの相対）は cite.resolved で解いて照らす（出どころの照らし cite.problem と同じ規則）"""
+    if not path:
+        return False
+    want = cite.resolved(path, repo)
+    return any(cite.resolved(m["path"] if (m := cite.CITE.match(w.rstrip("."))) else w.rstrip("."), repo) == want
+               for w in cite.TOKEN.findall(text))
 
 
-def world_ok(answer, row, own_sources, cite_ok) -> tuple:
+def _from_request(text: str, request_file: str, means, repo) -> bool:
+    """決め手の文が依頼（依頼のファイルのパス・依頼の引用「…」・依頼の解き方 means の文か、その引用）を出どころにしているか"""
+    if _names_path(text, request_file, repo):
+        return True
+    if cite.REQUEST_WORD in text and cite.QUOTE.search(text) is not None:
+        return True
+    return any(cite.quoted_in(m, text, norm=cite.fold) or any(cite.quoted_in(q, m, norm=cite.fold) for q in cite.quotes(text))
+               for m in means or ())
+
+
+def world_ok(answer, row, request_file, means, cite_ok, repo) -> tuple:
     if not needs(row):
         return True, "答えの要らない行（この依頼に当たる所が無い）"
     if not isinstance(answer, dict):
@@ -243,8 +271,9 @@ def world_ok(answer, row, own_sources, cite_ok) -> tuple:
     bad = cite_ok(text)
     if bad:
         return False, bad
-    if _from_request(text, own_sources):
-        return False, "依頼（依頼のファイル・目的の文の出典）を出どころにした外れ（定石と比べて疑う案なので人に聞く）"
+    # 依頼が解き方を示していない行の外れは、依頼の解き方を疑う形にならない
+    if (row.get("versus") or {}).get("verdict") != NONE and _from_request(text, request_file, means, repo):
+        return False, "依頼（依頼のファイル・依頼の引用・依頼の解き方）を出どころにした外れ（定石と比べて疑う案なので人に聞く）"
     return True, "依頼の外の出どころで訳の立つ外れ"
 
 

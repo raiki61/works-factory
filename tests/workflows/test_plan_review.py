@@ -929,6 +929,16 @@ class ReviewAcceptCase(RunCase):
         self.assertTrue(text.startswith(boardview.rolekit.REJECT_HEADING), text[:200])
         self.assertIn(got["reason"].splitlines()[0][:40], text)
 
+    def test_third_material_pastes_every_reject_of_the_loop(self):
+        """事前審査の役は周ごとに新しい会話で起きるので、2 回拒まれた後の 3 回目の材料に 1 回目と 2 回目の拒否が古い順に在る（#345）"""
+        r = self.run_
+        self.prepped()
+        reasons = [r.out("review_accept", INPUTS_REPLY="{JSON でない")["reason"],
+                   r.accept(review(face("entrance-without-no-add", kind="entrance")))["reason"]]
+        self.assertNotEqual(*reasons)
+        text = pathlib.Path(r.out("review_prep")["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn(boardview.rolekit.rejects_text(reasons), text)
+
     def test_material_carries_the_mainline_inputs(self):
         """材料は役の頭（関所の決め手・狭めない案・既にある物を量ったか・人に回す物）と、写しの指示書の差し込み（修正案・番号つきの
         単位・判定者の見立て・先行例・リポジトリと読む版と観点の正本・人の方針）を持つ。修正案の頭の入れてよい no の節は載らない
@@ -2795,6 +2805,27 @@ class WorldGateCase(GateBase):
         self.assertEqual(got, {"ok": True})
         self.assertTrue(any("w-mean" in p["item"] for p in b.state["works"].get("gate_passes") or []))
 
+    def test_code_lines_in_purpose_sources_pass_without_asking(self):
+        """run 6444e6d7 の gate.json の形: 外れの訳が直す対象のコードの行（目的の文の出典 source_files と同じファイル）を挙げた
+        だけなら、依頼を出どころにした外れでなく、グラフの中で通る（無人の run を修正前に止めない）"""
+        self.put_request()
+        self.put_world(TP.WORLD_ROW)
+        (self.tmp / "stats.py").write_text("".join(f"x{i} = {i}\n" for i in range(1, 40)), encoding="utf-8")
+        (self.tmp / "test_stats.py").write_text("".join(f"y{i} = {i}\n" for i in range(1, 40)), encoding="utf-8")
+        self.put_answers({"world": "w-mean", "deviation": "今の形 stats.py:29 を試験 test_stats.py:28 が縛るので、定石から外れる"})
+        inputs = {"plan": {"plan": [{"unit_keys": ["u"], "narrows": []}]}, "cwd": str(self.tmp),
+                  "purpose": {"purpose_text": "空の列の平均を直す", "source_files": ["stats.py"]}}
+        b = boardview.view(self.tmp, inputs, {"faces": []})
+        self.assertEqual([x for _, x in gatemarks.plan_gate_items(b) if "w-mean" in x], [])
+
+    def test_request_quote_on_none_verdict_row_passes_without_asking(self):
+        """依頼が解き方を示していない行（verdict none）の外れは、依頼の引用を挙げても依頼を出どころにした外れにならない"""
+        self.put_request()
+        self.put_world({**TP.WORLD_ROW, "versus": {"proposed": "", "verdict": "none", "challenge": ""}})
+        self.put_answers({"world": "w-mean", "deviation": f"依頼の本文「{TP.REQUEST_LINE}」に従い、定石から外れる"})
+        got, _ = self.gate()
+        self.assertEqual(got, {"ok": True})
+
     def test_world_item_the_human_continued_is_not_asked_again(self):
         """元 tests/test_plan_gate.py の WorldGateCase.test_world_item_the_human_continued_is_not_asked_again。人が continue で
         通した世界の解の外れの項目は聞き直さない（構造の目の設計の問いと同じ）"""
@@ -2818,6 +2849,40 @@ class WorldGateCase(GateBase):
         self.assertEqual(got.get("decision"), "ask", got)
         item = next(x for x in got["ask"]["items"] if "w-mean" in x)
         self.assertIn(worldmark.NOT_WEB, item)
+
+
+
+class WorldGateRunCase(RunCase):
+    """差し込みの頭（pass_open）を通った置き場で、関所の軸「世界の解か」が依頼の出どころ（目的の役が judge の置き場に置いた
+    依頼の解き方 means・始めの記録の依頼のファイル）を照らす"""
+
+    def deviate(self, why):
+        r = self.run_
+        r.world(TP.WORLD_ROW)
+        r.plan([item(UNIT_MEAN, 1)], field_rows=[{**fields(UNIT_MEAN), "structure": [{"world": "w-mean", "deviation": why}]}])
+        r.open()
+        return [x for _, x in gatemarks.plan_gate_items(r.view({"faces": []})) if "w-mean" in x]
+
+    def test_deviation_cited_to_means_goes_to_human(self):
+        means = "空の並びは 0 を返す形に寄せる"
+        why = f"{means}、と stats.py:1 の呼び手が決める"
+        self.assertEqual(self.deviate(why), [], "means の控えが無ければ依頼の外の出どころで通る")
+        self.run_.put("judge/purpose-means.json", {"means": [means]})
+        items = self.deviate(why)
+        self.assertEqual(len(items), 1, items)
+        self.assertIn("依頼", items[0])
+
+    def test_deviation_cited_to_request_file_goes_to_human(self):
+        r = self.run_
+        req = r.tmp / "run" / "request.json"
+        req.parent.mkdir()
+        req.write_text('{"findings": []}\n', encoding="utf-8")
+        r.start(request_file=str(req))
+        for cited in (str(req), f"{req.parent}/./request.json", f"{req.parent}/../run/request.json"):
+            with self.subTest(cited=cited):
+                items = self.deviate(f"{cited}:1 が 0 を返せと言う")
+                self.assertEqual(len(items), 1, items)
+                self.assertIn("依頼", items[0])
 
 
 class LedgerAsksCase(GateBase):

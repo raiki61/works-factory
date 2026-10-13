@@ -173,32 +173,102 @@ class Answers(unittest.TestCase):
         self.assertEqual(worldmark.unanswered(rows, items), ["w2"])
         self.assertEqual(worldmark.unanswered(rows, items + [{"structure": [{"world": "w2", "deviation": "訳"}]}]), [])
 
+    def test_copy_means_follows_the_source(self):
+        """控えは写し、元が無くなれば前の写しを消す（means の無い run の関所が古い写しで照らさない）"""
+        with tempfile.TemporaryDirectory() as tmp:
+            src, dest = pathlib.Path(tmp, "judge"), pathlib.Path(tmp, "plan-review")
+            src.mkdir()
+            dest.mkdir()
+            worldmark.write_means(src, ["読むだけの役を足す"])
+            worldmark.copy_means(src, dest)
+            self.assertEqual(worldmark.means_of(dest), ["読むだけの役を足す"])
+            worldmark.copy_means(pathlib.Path(tmp, "none"), dest)
+            self.assertEqual(worldmark.means_of(dest), [])
+
     def test_world_ok_follow(self):
-        ok, why = worldmark.world_ok({"world": "w1", "follows": True}, row(), set(), lambda text: "")
+        ok, why = worldmark.world_ok({"world": "w1", "follows": True}, row(), "", [], lambda text: "", ".")
         self.assertTrue(ok, why)
 
     def test_world_ok_without_answer_is_false(self):
-        self.assertFalse(worldmark.world_ok(None, row(), set(), lambda text: "")[0])
+        self.assertFalse(worldmark.world_ok(None, row(), "", [], lambda text: "", ".")[0])
 
     def test_world_ok_row_needing_no_answer(self):
-        self.assertTrue(worldmark.world_ok(None, row(applies=""), set(), lambda text: "")[0])
+        self.assertTrue(worldmark.world_ok(None, row(applies=""), "", [], lambda text: "", ".")[0])
 
     def test_world_ok_deviation_cited_to_request_is_false(self):
         ans = {"world": "w1", "deviation": "依頼が読む役を足せと言う", "decided_by": "/tmp/req.json:3"}
-        ok, why = worldmark.world_ok(ans, row(), {"/tmp/req.json"}, lambda text: "")
+        ok, why = worldmark.world_ok(ans, row(), "/tmp/req.json", [], lambda text: "", ".")
         self.assertFalse(ok)
         self.assertIn("依頼", why)
         quoted = {"world": "w1", "deviation": "依頼の「読むだけの役を足す」に従う", "decided_by": "依頼の「読むだけの役を足す」"}
-        self.assertFalse(worldmark.world_ok(quoted, row(), set(), lambda text: "")[0])
+        self.assertFalse(worldmark.world_ok(quoted, row(), "", [], lambda text: "", ".")[0])
 
     def test_world_ok_deviation_cited_elsewhere_is_true(self):
         ans = {"world": "w1", "deviation": "人の前の決定が仮の実装を禁じる", "decided_by": "docs/decisions.md:40"}
-        ok, why = worldmark.world_ok(ans, row(), {"/tmp/req.json"}, lambda text: "")
+        ok, why = worldmark.world_ok(ans, row(), "/tmp/req.json", [], lambda text: "", ".")
         self.assertTrue(ok, why)
+
+    def test_world_ok_code_lines_in_purpose_sources_are_not_request(self):
+        """run 6444e6d7 の形: 直す対象のコードの行（目的の文の出典 stats.py と同じファイル）を挙げただけの外れは、依頼を出どころに
+        した外れでない。stats.py は test_stats.py の名の一部でも依頼のファイルと数えない"""
+        ans = {"world": "w1", "deviation": "上限より上は lo を返す今の形 stats.py:29 を試験 test_stats.py:28 が縛る",
+               "decided_by": "stats.py:29 と test_stats.py:28"}
+        ok, why = worldmark.world_ok(ans, row(), "/tmp/run/request.json", ["空の列は 0 を返す"], lambda text: "", ".")
+        self.assertTrue(ok, why)
+        self.assertFalse(worldmark.world_ok(ans, row(), "stats.py", [], lambda text: "", ".")[0])
+        self.assertTrue(worldmark.world_ok({**ans, "decided_by": "test_stats.py:28"}, row(), "stats.py", [],
+                                           lambda text: "", ".")[0])
+
+    def test_world_ok_request_path_is_whole_path(self):
+        """依頼のファイルはパス全体（と :行）で照らし、日本語に続けて書いても名指しと数える"""
+        for text in ("依頼/tmp/req.json:3 が言う", "/tmp/req.json", "依頼 /tmp/req.json:3-4 に従う"):
+            with self.subTest(text=text):
+                ans = {"world": "w1", "deviation": "訳", "decided_by": text}
+                self.assertFalse(worldmark.world_ok(ans, row(), "/tmp/req.json", [], lambda t: "", ".")[0])
+        for text in ("/tmp/req.json.bak:3", "/x/tmp/req.json:3", "/tmp/req.jsonl:3"):
+            with self.subTest(text=text):
+                ans = {"world": "w1", "deviation": "訳", "decided_by": text}
+                self.assertTrue(worldmark.world_ok(ans, row(), "/tmp/req.json", [], lambda t: "", ".")[0])
+
+    def test_world_ok_request_path_in_other_spellings(self):
+        """依頼のファイルの別の書き方（./・..・symlink・作業ツリーの根からの相対）も、出どころの照らしと同じ規則で解いて名指しと数える"""
+        with tempfile.TemporaryDirectory() as tmp:
+            real = pathlib.Path(tmp).resolve()
+            (real / "run").mkdir()
+            req = real / "run" / "request.json"
+            req.write_text("{}\n", encoding="utf-8")
+            (real / "alias").symlink_to(real / "run")
+            for text in (f"{real}/run/./request.json:1", f"{real}/x/../run/request.json:1", f"{real}/alias/request.json:1",
+                         "run/request.json:1"):
+                with self.subTest(text=text):
+                    ans = {"world": "w1", "deviation": "訳", "decided_by": text}
+                    ok, why = worldmark.world_ok(ans, row(), str(req), [], lambda t: "", str(real))
+                    self.assertFalse(ok)
+                    self.assertIn("依頼", why)
+
+    def test_world_ok_means_is_request(self):
+        """依頼の解き方 means の文か、その引用を挙げた外れは、依頼を出どころにした外れ"""
+        means = ["生のログを読む役を足す"]
+        for text in ("生のログを読む役を足す ため docs/decisions.md:40", "「ログを読む役」 docs/decisions.md:40"):
+            with self.subTest(text=text):
+                ans = {"world": "w1", "deviation": "訳", "decided_by": text}
+                ok, why = worldmark.world_ok(ans, row(), "", means, lambda t: "", ".")
+                self.assertFalse(ok)
+                self.assertIn("依頼", why)
+        ans = {"world": "w1", "deviation": "訳", "decided_by": "docs/decisions.md:40"}
+        self.assertTrue(worldmark.world_ok(ans, row(), "", means, lambda t: "", ".")[0])
+
+    def test_world_ok_none_verdict_is_never_request(self):
+        """依頼が解き方を示していない行（verdict none）の外れは、依頼の引用・パスを挙げても依頼を出どころにした外れにならない"""
+        none = row(versus={"proposed": "", "verdict": "none", "challenge": ""})
+        ans = {"world": "w1", "deviation": "依頼の「読むだけの役を足す」に従う", "decided_by": "依頼の「読むだけの役を足す」 /tmp/req.json:3"}
+        ok, why = worldmark.world_ok(ans, none, "/tmp/req.json", ["読むだけの役を足す"], lambda t: "", ".")
+        self.assertTrue(ok, why)
+        self.assertFalse(worldmark.world_ok(ans, row(), "/tmp/req.json", ["読むだけの役を足す"], lambda t: "", ".")[0])
 
     def test_world_ok_deviation_with_missing_source_is_false(self):
         ans = {"world": "w1", "deviation": "訳", "decided_by": "docs/none.md:40"}
-        ok, why = worldmark.world_ok(ans, row(), set(), lambda text: "名指し docs/none.md:40 のファイルが無い")
+        ok, why = worldmark.world_ok(ans, row(), "", [], lambda text: "名指し docs/none.md:40 のファイルが無い", ".")
         self.assertFalse(ok)
         self.assertIn("ファイルが無い", why)
 
@@ -206,11 +276,11 @@ class Answers(unittest.TestCase):
         """web で確かめていない行からの外れは、依頼の外の出どころが在っても人に回る（計画の 5.5 節: 知識だけの定石に従うのは
         自明側、外れは人へ）。従う答えは web の行と同じに揃う"""
         ans = {"world": "w1", "deviation": "人の前の決定が仮の実装を禁じる", "decided_by": "docs/decisions.md:40"}
-        ok, why = worldmark.world_ok(ans, row(basis="knowledge", sources=[]), set(), lambda text: "")
+        ok, why = worldmark.world_ok(ans, row(basis="knowledge", sources=[]), "", [], lambda text: "", ".")
         self.assertFalse(ok)
         self.assertIn(worldmark.NOT_WEB, why)
-        self.assertTrue(worldmark.world_ok({"world": "w1", "follows": True}, row(basis="knowledge", sources=[]), set(),
-                                           lambda text: "")[0])
+        self.assertTrue(worldmark.world_ok({"world": "w1", "follows": True}, row(basis="knowledge", sources=[]), "", [],
+                                           lambda text: "", ".")[0])
 
     def test_gate_line(self):
         follow = worldmark.gate_line(row(), {"world": "w1", "follows": True})
