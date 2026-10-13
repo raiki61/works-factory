@@ -10,7 +10,6 @@ fixture:
     ripple: 'null'
     depth: '[]'
     design: 'null'
-    diff: 'null'
     changed: '{}'
     fix_units: '[]'
     green_ok: 'true'

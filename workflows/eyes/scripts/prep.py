@@ -3,7 +3,9 @@
 # dependencies = []
 # ///
 """目の指示書に差し込む値を組み、置き場の eyes/prep.json にも書く（返す節 verdict がファイルで読む）。比較役に貼った前提の控えは
-eyes/r2-premises.json に書く。前の run の前提の検算が運んだ実測（判定の premises.json の制約のうち measured_how が
+eyes/r2-premises.json に書く。目が読む累積差分は、入口の base（startrec.diff_base。差分の run では PR の根）から今の作業ツリーまで
+（未追跡を含み、Archon の写しの下は除く）を取って eyes/run.diff に書き、空・取れない時は訳を eyes/run-diff-none.txt に書いてそれを指す
+（直す物が無い run も、修正前の HEAD でなく頼まれた変更を目が見る）。前の run の前提の検算が運んだ実測（判定の premises.json の制約のうち measured_how が
 carry.CARRIED_HOW_HEAD で始まる行）が在る run は、深さで目を省かない（run_eyes を真に。R2 を回し直す）"""
 import json
 import os
@@ -18,9 +20,11 @@ import carry  # noqa: E402
 import concepthome  # noqa: E402
 import depth  # noqa: E402
 import eyeverdict  # noqa: E402
+import fixboard  # noqa: E402
 import policy  # noqa: E402
 import premises as _premises  # noqa: E402
 import rolekit  # noqa: E402
+import startrec  # noqa: E402
 import structmark  # noqa: E402
 
 EYES = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
@@ -28,6 +32,26 @@ EYES = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
 
 def opened(ptr) -> Path | None:
     return boundary.resolve(ptr) if ptr else None
+
+
+def run_diff(base: str) -> tuple[Path, str]:
+    """(目に渡す差分のファイル, 差分の本文)。差分が空・取れない時は訳を書いたファイルと空の本文"""
+    EYES.mkdir(parents=True, exist_ok=True)
+    why, text = "", ""
+    if not base:
+        why = "始めの記録に入口の base が無く、累積差分の起点が分からない"
+    else:
+        try:
+            text = fixboard.run_diff(Path.cwd(), base, boundary.SKIP)
+        except Exception as e:  # noqa: BLE001  git の誤りも訳にして目へ渡す
+            why = f"累積差分が取れない（{type(e).__name__}: {' '.join(str(e).split())}）"
+    if text.strip():
+        path = EYES / "run.diff"
+        path.write_text(text, encoding="utf-8", errors="surrogateescape")
+        return path, text
+    path = EYES / "run-diff-none.txt"
+    path.write_text((why or f"累積差分は空（入口の base {base} から作業ツリーは変わっていない）") + "\n", encoding="utf-8")
+    return path, ""
 
 
 def read(ptr):
@@ -40,8 +64,8 @@ judgment_file = opened(json.loads(os.environ["INPUTS_JUDGMENT"]))
 purpose = read(json.loads(os.environ["INPUTS_PURPOSE"])) or {}
 design_file = opened(json.loads(os.environ["INPUTS_DESIGN"]))
 design = eyeverdict.read_design(design_file)
-diff_file = opened(json.loads(os.environ["INPUTS_DIFF"]))
-diff_text = diff_file.read_text(encoding="utf-8", errors="replace") if diff_file else ""   # 直す物が無い周は差分が無い（L-W07）
+base_rev = startrec.diff_base(start)
+diff_file, diff_text = run_diff(base_rev)
 answer = json.loads(os.environ["INPUTS_ANSWERS"])
 changed = json.loads(os.environ["INPUTS_CHANGED"])
 premises = judgment_file.with_name(_premises.PREMISES_FILE) if judgment_file else None
@@ -66,12 +90,12 @@ out = {
     "purpose_text": purpose_text,
     "design_text": design.get("design") or "",
     "design_reply": json.dumps(design, ensure_ascii=False, indent=1),
-    "diff_file": str(diff_file or ""),
+    "diff_file": str(diff_file),
     "diff_lines": len(diff_text.splitlines()),
     "changed_files": "、".join(eyeverdict.changed_files(diff_text)),
     "scalars": eyeverdict.scalars_text(eyeverdict.scalars(diff_text, json.loads(os.environ["INPUTS_X_SCALARS"]))),
     "cwd": os.getcwd(),
-    "base_rev": start.get("base_rev") or "",
+    "base_rev": base_rev,
     "review_md": str(boundary.lib_root() / "REVIEW.md"),
     "repo_review_md": str(repo_review) if repo_review.is_file() else "（対象のリポジトリの根に REVIEW.md は無い）",
     "policy_path": policy.frozen_copy(start),

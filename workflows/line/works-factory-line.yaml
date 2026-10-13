@@ -829,7 +829,6 @@ nodes:
       ripple: "$fixed.output.ripple"
       depth: "$redepth.output.depth"
       design: "$fixed.output.design"
-      diff: "$fixed.output.diff"
       changed: "$fixed.output.changed"
       x_scalars: "$fixed.output.x_scalars"
       fix_units: "$fixed.output.units"

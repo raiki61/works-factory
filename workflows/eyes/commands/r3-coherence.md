@@ -23,7 +23,7 @@ $prep.output.concept_map
 
 この役は inspector。R3 全体整合——変更全体でファイル横断の整合（命名・規約・界面・docs 追従）を見る。
 
-累積差分: `$prep.output.diff_file`（Read せよ。始めの版 `$prep.output.base_rev` から今の作業ツリーまでの差。未追跡の新規ファイルも入る）　変更ファイル: $prep.output.changed_files　リポジトリ: `$prep.output.cwd`
+累積差分: `$prep.output.diff_file`（Read せよ。入口の差分の根 `$prep.output.base_rev` から今の作業ツリーまでの差。未追跡の新規ファイルも入る）　変更ファイル: $prep.output.changed_files　リポジトリ: `$prep.output.cwd`
 観点の正本: `$prep.output.review_md`（対象リポジトリ側: $prep.output.repo_review_md）
 $prep.output.green_line
 

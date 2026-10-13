@@ -195,7 +195,7 @@ REVISION_READ = ("**読むのは、この周に固定したリビジョン**で�
 FROZEN_READ = ("**読むのは、この run に固定した作業ツリー**。お前の cwd の作業ツリーは、お前を起こす前の姿のまま止めてある（読むだけの節が"
                "作業ツリーを変えると、その節は落とされる）。Read・Grep・Glob で cwd のファイルをそのまま読め——git や shell は道具に無く、要らない。\n")
 DIFF_SLOT = ("{{loop.diff_file}}（", "`git diff {{record.base}} {{inputs.review_rev}}`——周に固めた版との差")
-DIFF_FIELD = ("`$prep.output.diff_file`（", "始めの版 `$prep.output.base_rev` から今の作業ツリーまでの差")
+DIFF_FIELD = ("`$prep.output.diff_file`（", "入口の差分の根 `$prep.output.base_rev` から今の作業ツリーまでの差")
 REPO_SLOT = ("リポジトリ: {{inputs.cwd}}（読む版: `{{inputs.review_rev}}`）", "リポジトリ: `$prep.output.cwd`")
 DIFF_EDITS = [(DIFF_SLOT[0], DIFF_FIELD[0]), (DIFF_SLOT[1], DIFF_FIELD[1]), REPO_SLOT]
 CHANGED_FILES = ("変更ファイル: {{loop.changed_files}}", "変更ファイル: $prep.output.changed_files")
@@ -833,17 +833,38 @@ class ScriptCase(unittest.TestCase):
         merged = judge_accept.with_carried({"constraints": [{"text": "a", "measured_how": "m", "kind": "仮説"}]}, jdir)
         self.assertEqual([c["text"] for c in merged["constraints"]], ["a", "上限は config.py:3 の 10"])
 
-    def test_no_fix_round_has_no_diff(self):
-        """L-W07: 直す物が無い周（線の fixed の no_fix）は差分が無い（diff・plan・ripple が null、changed が {}）。目の支度は落ちずに
-        差分 0 行で組み、R2 は独立設計と「直す物が無い」判定を比べる"""
-        self.start()
+    def no_fix_inputs(self) -> None:
+        """L-W07: 直す物が無い周（線の fixed の no_fix）の形。修正の差分も plan・ripple も無く、changed が {}"""
         self.inputs.update({"judgment": self.pointer("judge/judgment.json", {"units": []}),
                             "purpose": self.pointer("judge/purpose.json", {"purpose_text": "目的"}),
-                            "diff": "null", "answers": "null", "start_answers": "null", "changed": "{}", "x_scalars": "{}",
+                            "answers": "null", "start_answers": "null", "changed": "{}", "x_scalars": "{}",
                             "units": "[]", "fix_units": "[]", "depth": "[]", "plan_questions": "[]"})
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
+
+    def test_no_fix_round_sees_the_requested_change(self):
+        """#287: 入口が差分（入口の差分の根..HEAD）で直す物が無い run も、目は修正前の HEAD でなく入口の差分の根からの累積差分を
+        読む。R2 の指示書の差分のファイルは空の字にならない"""
+        (self.repo / "a.txt").write_text("頼まれた変更\n", encoding="utf-8")
+        git(self.repo, "commit", "-q", "-am", "requested")
+        head = git(self.repo, "rev-parse", "HEAD").strip()
+        self.inputs["start"] = self.pointer("start/start.json", {"run_id": RUN_ID, "base_rev": head, "review_rev": head,
+                                                                 "input": {"base": {"rev": self.base}, "head_rev": head}})
+        self.no_fix_inputs()
         got = self.run_script("prep")
-        self.assertEqual((got["diff_lines"], got["diff_file"], got["run_eyes"], got["compare_due"]), (0, "", True, True))
+        self.assertEqual((got["base_rev"], got["run_eyes"], got["compare_due"], got["changed_files"]), (self.base, True, True, "a.txt"))
+        self.assertTrue(got["diff_file"])
+        self.assertIn("+頼まれた変更", pathlib.Path(got["diff_file"]).read_text(encoding="utf-8"))
+        self.assertGreater(got["diff_lines"], 0)
+
+    def test_empty_diff_points_at_the_reason(self):
+        """入口の差分の根から作業ツリーが変わっていない run は、空の字でなく訳を書いたファイルを目に渡す"""
+        self.start()
+        self.no_fix_inputs()
+        got = self.run_script("prep")
+        self.assertEqual(got["diff_lines"], 0)
+        self.assertIn(self.base, pathlib.Path(got["diff_file"]).read_text(encoding="utf-8"))
+        self.inputs["start"] = "null"
+        self.assertIn("入口の base が無く", pathlib.Path(self.run_script("prep")["diff_file"]).read_text(encoding="utf-8"))
 
     def test_carried_constraints_keep_the_eyes(self):
         """E37（R2 を省かない）: 前の run が運んだ実測が判定の制約に在る run は、深さが目を省く軽量の単位でも run_eyes を真にする
@@ -853,7 +874,7 @@ class ScriptCase(unittest.TestCase):
         self.start()
         self.inputs.update({"judgment": self.pointer("judge/judgment.json", {"units": []}),
                             "purpose": self.pointer("judge/purpose.json", {"purpose_text": "目的"}),
-                            "diff": self.pointer("fix/fix.diff", ""), "answers": "null", "start_answers": "null",
+                            "answers": "null", "start_answers": "null",
                             "changed": json.dumps({}), "x_scalars": "{}", "units": "[]", "fix_units": "[]",
                             "depth": json.dumps([{"unit_id": "u1", "depth": depth.LIGHT, "why": ""}], ensure_ascii=False)})
         self.design({"question_stands": True, "reason": "立つ", "design": "設計"})
@@ -883,19 +904,20 @@ class ScriptCase(unittest.TestCase):
             units=json.dumps([{"id": "u1", "paths": ["a.txt"], "summary": "入口"}], ensure_ascii=False),
             plan=self.pointer("plan/plan-fields.json", {"round": 1, "fields": []}),
             ripple=self.pointer("plan/ripple.json", {"rows": []}),
-            diff=self.pointer("fix/diff.patch", "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n"),
             changed=json.dumps({"premise_drift": False}),
             fix_units=json.dumps([{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": "直した"}], ensure_ascii=False),
             green_ok="true",
             depth=json.dumps(depth or [{"unit_id": "u1", "depth": "標準", "why": ["測りで見つけた"]}], ensure_ascii=False))
         self.design({"question_stands": True, "reason": "立つ", "design": "設計の本文"})
+        (self.repo / "a.txt").write_text("b\n", encoding="utf-8")
 
-    def test_prep_resolves_diff_pointer(self):
+    def test_prep_takes_the_diff_from_the_entry_base(self):
         self.prep_inputs()
         got = self.run_script("prep")
-        self.assertEqual(got["diff_file"], str(self.artifacts / "fix" / "diff.patch"))
+        self.assertEqual(got["diff_file"], str(self.artifacts / "eyes" / "run.diff"))
         self.assertEqual((got["run_eyes"], got["compare_due"], got["premise_due"]), (True, True, False))
-        self.assertEqual(got["diff_lines"], 6)
+        self.assertIn("-a\n+b\n", pathlib.Path(got["diff_file"]).read_text(encoding="utf-8"))
+        self.assertEqual((got["base_rev"], got["changed_files"]), (self.base, "a.txt"))
         self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), got)
 
     def test_policy_path_is_frozen_copy(self):

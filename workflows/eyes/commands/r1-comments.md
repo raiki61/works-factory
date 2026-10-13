@@ -85,7 +85,7 @@ IMPORTANT: You analyze and provide feedback only. Do not modify code or comments
 - kept: 対象のコメントのうち candidates に入れなかったものの全部。1 件ごとに where と fact（そのコメントが運んでいる事実の一文）。
 Critical Issues・Improvement Opportunities に当たる指摘（事実と違う・足りない）は返す欄が無い。そのコメントも、削る候補の条件を満たせば candidates、満たさなければ kept に入れる。
 
-対象差分: `$prep.output.diff_file`（始めの版 `$prep.output.base_rev` から今の作業ツリーまでの差。未追跡の新規ファイルも入る）　変更ファイル: $prep.output.changed_files　リポジトリ: `$prep.output.cwd`
+対象差分: `$prep.output.diff_file`（入口の差分の根 `$prep.output.base_rev` から今の作業ツリーまでの差。未追跡の新規ファイルも入る）　変更ファイル: $prep.output.changed_files　リポジトリ: `$prep.output.cwd`
 残してよい境の正本: `$prep.output.review_md`「導線を作る手段の優先順位」（どのコメントなら残してよいかの基準。Read せよ。書いてよい注記は、別解を退けた理由（why）と公開 API の docstring だけ。「何をしているか」を言うだけのコメントは削除候補に当たる——ただし削るには下の 1. の名指しが要る）
 
 上の役の定義（コードをなぞっただけのコメントは削除候補・削除を勧めるなら理由を明示）に加えて 3 つ:
