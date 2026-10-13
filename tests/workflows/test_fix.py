@@ -1887,7 +1887,8 @@ class BlockScriptsCase(unittest.TestCase):
 
     def test_group_permits_reach_join_and_collect_only_for_an_accepted_reply(self):
         """#286: 修正役の返答を受け付けていない組の子の許しは、join の和（同じテストのファイルへの挿しだけの食い違いを合わせる）にも
-        親の collect の返りの allowed_test_changes・diff の隣の allowed-tests.json にも入らない。受け付けた組の許しは両方に入る"""
+        親の collect の返りの allowed_test_changes・diff の隣の allowed-tests.json にも入らない。受け付けた組の許しは両方に入る。
+        #304: 形の崩れた許しの行（path の無い行・ALLOWED_SOURCES に無い source）は join も collect も同じ決まりで捨て、join は落ちない"""
         import fixboard
         child = {"path": "test_stats.py", "permit": "plan-agreed-2", "source": "consult"}
         src = (self.repo / "test_stats.py").read_text(encoding="utf-8")
@@ -1896,13 +1897,17 @@ class BlockScriptsCase(unittest.TestCase):
         def added(name):
             return src.replace(tail, f"class {name}(unittest.TestCase):\n    def test_{name.lower()}(self):\n"
                                      f"        self.assertTrue(True)\n\n\n{tail}")
-        for reply, returned, rows in ((None, 1, []), ({"changes": []}, 2, [child])):
-            with self.subTest(reply=reply):
+        malformed = [{"permit": "plan-3", "source": "plan"}, {"path": "test_other.py", "permit": "x-1", "source": "guess"}]
+        bad_source = [{"path": "test_stats.py", "permit": "x-1", "source": "guess"}]
+        for reply, returned, given, rows, extra in ((None, 1, [child], [], []), ({"changes": []}, 2, [child], [child], []),
+                                                    ({"changes": []}, 2, [child], [child], malformed),
+                                                    ({"changes": []}, 1, [], [], bad_source)):
+            with self.subTest(reply=reply, extra=extra):
                 __import__("shutil").rmtree(self.art, ignore_errors=True)
                 self.restore()
                 self.place.mkdir(parents=True)
                 permits = fixboard.group_result({"group_id": "g2", "unit_ids": ["B"]}, start_tree="", end_tree="", tdd=None,
-                                                reply=reply, allowed_rows=[child])["allowed_tests"]
+                                                reply=reply, allowed_rows=given)["allowed_tests"] + extra
                 start = self.snapshot(self.repo)
                 t1, t2 = self.tree_with({"test_stats.py": added("TestG1")}), self.tree_with({"test_stats.py": added("TestG2")})
                 out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
