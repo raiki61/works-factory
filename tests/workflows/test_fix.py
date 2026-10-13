@@ -637,6 +637,32 @@ class DeltaScriptsCase(unittest.TestCase):
         cut2 = self._run("cut2", "cut2")
         self.assertEqual((cut2["go"], cut2["files"]), (True, ["stats.py"]), cut2)
 
+    def test_third_refix_prompt_names_every_reject_of_the_loop(self):
+        """役は回ごとに新しい会話で起きる。2 回続けて拒まれた輪の 3 回目の指示書が名指すファイルに、1 回目の拒否の理由も届く（#345）"""
+        self._cut()
+        self.assertTrue(self._run("delta_accept", "delta-accept", reply=json.dumps(_RV_REVIEW, ensure_ascii=False))["ok"])
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("def mean(xs):\n", 'def mean(xs):\n    """算術平均"""\n'),
+                     encoding="utf-8")
+        reasons = []
+        for k, stray in ((1, "other.py"), (2, "another.py")):
+            self.assertEqual(self._run("refix_prep", "refix-prep", n="1")["iteration"], k)
+            for name in ("other.py", "another.py"):
+                (self.repo / name).unlink(missing_ok=True)
+            (self.repo / stray).write_text("X = 1\n", encoding="utf-8")
+            bad = self._run("refix_accept", "refix-accept", n="1", reply=json.dumps(_RV_HANDLED, ensure_ascii=False),
+                            iteration=str(k))
+            self.assertEqual((bad["ok"], bad["done"]), (False, False), bad)
+            reasons.append(bad["reason"])
+        self.assertNotIn("another.py", reasons[0])
+        third = self._run("refix_prep", "refix-prep", n="1")
+        self.assertEqual(third["iteration"], 3)
+        head = pathlib.Path(third["prompt_file"]).read_text(encoding="utf-8").split("\n")[1]
+        named = re.findall(re.escape(str(self.place)) + r"/\S+?\.md", head)
+        self.assertEqual(len(named), 1, head)
+        text = pathlib.Path(named[0]).read_text(encoding="utf-8")
+        self.assertLess(text.index(reasons[0]), text.index(reasons[1]), "1 回目の拒否も古い順に届く")
+
     def test_refix_prompts_name_the_frozen_policy_copy(self):
         """1 回目と 2 回目の手直しの指示書が名指す方針の文書は、始めの記録の固めた版の写し（run の途中で書き換えた生の文書ではない）"""
         fields, raw_doc = moved_policy(self.tmp)

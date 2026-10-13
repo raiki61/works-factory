@@ -768,6 +768,26 @@ class AcceptCase(unittest.TestCase):
         self.assertNotIn(why.splitlines()[0], brief, "理由の本文は材料に貼らない")
         self.assertEqual((run.art / "plan" / "r1" / "reject-1.txt").read_text(encoding="utf-8"), why)
 
+    def test_third_brief_names_every_reject_of_the_round(self):
+        """役は回ごとに新しい会話で起きる（会話を継がない）。2 回続けて拒まれた周の 3 回目の材料が名指すファイルに、
+        1 回目の拒否の理由も届く（最後の拒否だけだと、3 回目は 1 回目の誤りを繰り返して諦める。#345）"""
+        run = Run(self)
+        briefs = {}
+
+        def writer(n, brief):
+            briefs[n] = brief
+            return copy.deepcopy([{"plan": [item(1)]}, {"plan": [item(1, 2), item(2)]}, {"plan": [item(1, 2)]}][n - 1])
+
+        self.assertIs(run.include(writer=writer)["ready"], True)
+        first, second = self.reasons(run)
+        rnd = run.art / "plan" / "r1"
+        named = re.findall(re.escape(str(rnd)) + r"/\S+?\.\w+", briefs[3].splitlines()[0])
+        self.assertEqual(len(named), 1, briefs[3][:300])
+        text = pathlib.Path(named[0]).read_text(encoding="utf-8")
+        self.assertIn(first, text)
+        self.assertIn(second, text)
+        self.assertLess(text.index(first), text.index(second), "古い順")
+
     def test_unit_in_two_items_rejected(self):
         why = self.reject_once(Run(self), {"plan": [item(1, 2), item(2)]})
         self.assertIn("2 つの案に入った単位", why)
