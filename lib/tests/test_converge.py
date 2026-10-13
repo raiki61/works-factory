@@ -1,5 +1,6 @@
 """事前審査の壁打ち（依頼 231）の決まりと往復の控え（core の converge）。偽の盤面（SimpleNamespace に round・dir・work・trace）で
 関数を直に呼ぶ（FAST。盤面・git・子のプロセスなし）"""
+import ast
 import json
 import pathlib
 import sys
@@ -674,6 +675,51 @@ class AddPassCase(BoardCase):
         self.assertEqual((got["origins"], got["capped"], got["outcome"]),
                          ({"key-b1": converge.ORIGIN_MISSED}, True, converge.UNSETTLED))
         self.assertEqual(converge.read(self.b)["outcome"], doc["outcome"])
+
+
+def _reads_plan(node) -> bool:
+    """式が修正案の項目の並び（plan の名・["plan"]・.get("plan")）を読むか"""
+    return any(isinstance(n, ast.Name) and n.id == "plan" or isinstance(n, ast.Constant) and n.value == "plan"
+               for n in ast.walk(node))
+
+
+def planned_unit_sets(source: str, name: str) -> list[str]:
+    """修正案の項目の並びを回し、その行の unit_keys を回して集合を組む内包の在りか（<name>:<行>）"""
+    found = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.SetComp) or len(node.generators) < 2:
+            continue
+        outer, inner = node.generators[0], node.generators[-1]
+        rows = {n.id for n in ast.walk(outer.target) if isinstance(n, ast.Name)}
+        per_row = any(isinstance(n, ast.Constant) and n.value == "unit_keys" for n in ast.walk(inner.iter)) and any(
+            isinstance(n, ast.Name) and n.id in rows for n in ast.walk(inner.iter))
+        if per_row and _reads_plan(outer.iter):
+            found.append(f"{name}:{node.lineno}")
+    return found
+
+
+class PlannedUnitsCase(unittest.TestCase):
+    def test_planned_units_are_built_in_one_place(self):
+        """今の案に在る単位の集合を組む式は converge.planned_units の 1 か所（#391。carried_notes と受け付けの照らしが食い違わない）"""
+        found = [hit for path in sorted(LIB.glob("*.py"))
+                 for hit in planned_unit_sets(path.read_text(encoding="utf-8"), path.name)]
+        self.assertEqual([hit.partition(":")[0] for hit in found], ["converge.py"], found)
+
+    def test_a_second_copy_is_red(self):
+        """控えの plan からも、修正案の役の出力の plan からも、写した式は見つかる"""
+        copies = ['planned = {k for it in doc["plan"] for k in it["unit_keys"]}',
+                  'planned = {str(k) for p in (out or {}).get("plan") or [] for k in p.get("unit_keys") or []}',
+                  'every = {k for it in plan if isinstance(it, dict) for k in it["unit_keys"] if isinstance(k, str)}']
+        for src in copies:
+            with self.subTest(src=src):
+                self.assertEqual(planned_unit_sets(src, "x.py"), ["x.py:1"])
+        self.assertEqual(planned_unit_sets('got = {k for r in given for k in r.get("unit_keys") or []}', "x.py"), [])
+
+    def test_planned_units_reads_both_row_shapes(self):
+        """控えの行（str にした key）と修正案の役の出力の行（名の key）の単位の和。行で無い物と unit_keys の無い行は数えない"""
+        self.assertEqual(converge.planned_units(converge.plan_rows([row("u1", "u2"), row("u3")])), {"u1", "u2", "u3"})
+        self.assertEqual(converge.planned_units([{"unit_keys": ["u1"]}, {"approach": "x"}, "broken"]), {"u1"})
+        self.assertEqual(converge.planned_units(None), set())
 
 
 if __name__ == "__main__":

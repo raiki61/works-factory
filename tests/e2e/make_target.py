@@ -12,6 +12,11 @@
 仕込んだ種と依頼を渡す。--no-ledger は控えに載せない（teardown が今の works の家に works-factory の殻を当てないため。同じ checkout
 でほかの run と並べる通しも、teardown がその run を止めないよう --no-ledger で作り、stop で自分の家だけを止める）。
 run は殻 bin/works-factory の workflow cancel（止まらなければ abandon）で止める。プロセスを名で止めない。
+
+種 target-seed/ の stats.py には試作と同じ 2 つのバグを仕込んである: mean の分母が len(xs) - 1（正しくは len(xs)）、clamp が上限を
+超えた時に lo を返す（正しくは hi）。そのせいで test_stats.py の 3 件中 2 件が赤になる。この説明は種の文（docstring・コメント）に
+書かない。対象のコードがバグの在りかを書いていると、判定の役に答えを渡し、直した後に嘘になる文を修正役が必ず書き換えて独立の目の
+指摘を呼ぶ（tests/e2e/test_make_target.py の SeedTextCase が縛る）。
 """
 import json
 import os

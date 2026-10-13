@@ -202,8 +202,8 @@ def read_stages(place) -> list:
     """読んだ証拠を集める修正の段 [(役, 段の頭の印のファイル, 指示書)]: 修正役 fix と、裁定の後の修正役 fix-ruled"""
     import fixrules
     fixer = fixrules.prompt_path(place)
-    return [(READS_OWNER, pathlib.Path(place) / FIX_HEAD_FILE, fixer),
-            ("fix-ruled", pathlib.Path(place) / RULED_HEAD_FILE, fixer.with_name(fixer.stem + fixrules.RULED_TAIL))]
+    return [(READS_OWNER, pathlib.Path(place) / fixrules.head_file("first"), fixer),
+            ("fix-ruled", pathlib.Path(place) / fixrules.head_file("ruled"), fixer.with_name(fixer.stem + fixrules.RULED_TAIL))]
 
 
 def collect_reads(place, log, *, repo) -> dict:
@@ -2497,8 +2497,9 @@ def stage_head(place, name: str = "") -> str:
 
 def fixer_head(place, pass_: str) -> str:
     """修正役が変え始めた木（段 pass_ の頭の木。stage_head）。受け付け（fix-accept・fix-ruled-accept）と修正役の事前の確かめ
-    （factchecks.precheck）が since に渡す木はここ 1 か所から読む"""
-    return stage_head(place, RULED_HEAD_FILE if pass_ == "ruled" else FIX_HEAD_FILE)
+    （factchecks.precheck）が since に渡す木はここ 1 か所から読む。段の頭のファイルは fixrules.head_file（PASSES に無い段は ValueError）"""
+    import fixrules
+    return stage_head(place, fixrules.head_file(pass_))
 
 
 def ruled_owed(place) -> list:

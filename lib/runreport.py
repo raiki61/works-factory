@@ -895,15 +895,27 @@ def _converge_lines(returns: dict) -> list:
     return out
 
 
+def _plan_questions(returns: dict, gates: dict, start: dict) -> tuple[list, list]:
+    """事前審査の問いの文を (人が決める物, 修正前の承認ノードが通す語で答えた台帳の外の物) に分ける。答えた物は問いの台帳が関所の
+    continue（gatemarks.gate_items）の asked に在ると読む行で、一言が「保留: <key>」と名指した台帳の問い（held_questions）は答えていない。
+    答えた台帳の問いは人が決める物から外すだけで返さない（ledger_state の answered が並べる）"""
+    texts = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions")))
+    b = ledger(returns, gates, start)
+    held = [gatemarks._prefix(q) for q in gatemarks.held_questions(b)]
+    done = [q for q in texts if gatemarks._continued(b, q) and not any(q.startswith(h) for h in held)]
+    owned = [gatemarks._prefix(q) for q in gatemarks._asking(b)]
+    return [q for q in texts if q not in done], [q for q in done if not any(q.startswith(h) for h in owned)]
+
+
 def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list, *, closed: bool, beside: dict, exit_: tuple,
                repo=None, line: dict | None = None) -> tuple[list, str]:
     """人が決めることの行と、冒頭の 2 行目（件数）。数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは
     直す義務に戻せなかった単位の行を重ねて数えない。closed は途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
-    plan_qs = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions")))
+    plan_qs, plan_done = _plan_questions(returns, gates, start)
     eye_qs = [q for q in _list(as_dict(returns.get("eyes")).get("questions")) if isinstance(q, str)]
     ledger = ledger_state(returns, gates, start)
     held_ = [line for q, line in ledger["held"] if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_qs)]
-    done = ledger["answered"]
+    done = ledger["answered"] + [oneline.one_line(x) for x in plan_done]
     asked = oc.asked_conflicts(returns, closed)
     tests = [t for t in _list(as_dict(returns.get("fix")).get("allowed_test_changes")) if isinstance(t, str)]
     unreturned = [u for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict) and u.get("status") == fixboard.NOT_DONE]
@@ -927,7 +939,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     if held_:
         lines.append(f"  {gatemarks.ANSWER_HOW}")
     if done:
-        lines.append(f"{gatemarks.ANSWERED_HEAD}（問いの台帳・{len(done)} 件。保留の件数には数えない）:")
+        lines.append(f"{gatemarks.ANSWERED_HEAD}（{len(done)} 件。保留と人が決めることの件数には数えない）:")
         lines += [f"  - {x}" for x in done]
     lines += ledger["unmatched"]
     lines += ledger["unread_holds"]
@@ -1377,7 +1389,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     draft = gatemarks.draft_line(drafts, next_file)
     _, outside, outside_count = _outside(returns, next_file)
     split = split_line(returns)
-    asked_texts = [*gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))),
+    asked_texts = [*_plan_questions(returns, gates, start)[0],
                    *[q for q in _list(_ret(returns, "eyes").get("questions")) if isinstance(q, str)]]
     head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）" + (f"。{split}" if split else ""),
                            decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")

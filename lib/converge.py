@@ -37,13 +37,15 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - note_plan(b, rows)・open_items(b)・filled_units(doc)・splice(doc, rows)・item_id・item_hash: 項目の控え・次に審査する項目の番号・
   機械が差し込む（閉じた・保留の）項目の単位・直しの役が返した開いた項目の行に前の往復の行を差し込んで案の全体を組む口
   （閉じた項目を変えた行は拒み、前と同じ行は捨てる）
+- planned_units(plan): 今の案に在る単位の key の集合を組む唯一の口（控えの plan の行からも修正案の役の出力の plan の行からも。
+  carried_notes・受け付けの plan_review_output・修正前の関所の照らしが同じ集合を引く）
 - answer_gaps(doc, answers)・resolved_gaps(b, faces, resolved): 修正案の役と事前審査の役の返答の欄の欠けと誤りの行（項目の在る
   控えでは、今の往復で開いている項目の分だけ）
 - split(role, reply): 返答から欄を外す（事前審査の返答の任意の欄 ITEMS（項目ごとの判定の要約）・DESIGN_MAP（独立設計との
   対応表）・出自 ORIGINS は tree_split が外す。下請けの答えのファイルの当たりの答えの型は HITS_SCHEMA・出自の型は ORIGIN_SCHEMA）
 - item_blocks(b, n): 項目 n が答える前の往復の block の key（受け付けが下請けの答えの resolved を確かめる）
 - prev_row(b, n)・answered_hits(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答えと、suggest の穴（往復の行の
-  notes。項目を開き直さず、直しの役に参考として渡り、受け付けが後の往復の返答に引き継ぐ）
+  notes。項目を開き直さず、直しの役に参考として渡り、受け付けが後の往復の返答に今の案の単位だけで引き継ぐ）
 - revise_section(doc)・review_section(b)・stuck_reason(b)・lines(b): 指示書に足す文・関所の理由・報告の行（往復ごとの行は
   前の往復の block を審査が suggest に下げた key も名指す）
 
@@ -339,6 +341,12 @@ def plan_rows(rows: list) -> list[dict]:
              "hash": item_hash(r), "row": copy.deepcopy(r)} for r in rows if isinstance(r, dict)]
 
 
+def planned_units(plan) -> set[str]:
+    """今の案に在る単位の key の集合（控えの plan の行・修正案の役の出力の plan の行のどちらからも。key は plan_rows と同じく
+    str にする）。carried_notes が持ち越す穴の単位と、受け付けが案に無い単位を拒む照らしは、この 1 つの集合で揃う"""
+    return {str(k) for r in plan or [] if isinstance(r, dict) for k in r.get("unit_keys") or []}
+
+
 def _last_items(doc: dict) -> dict:
     return {it["id"]: it for it in (doc["passes"][-1].get("items") or [])} if doc["passes"] else {}
 
@@ -375,15 +383,23 @@ def answered_hits(b, n: int) -> list:
 
 
 def carried_notes(b) -> list:
-    """前の往復の suggest の穴（往復の行の notes。key で 1 つ・新しい物を採る）のうち、どの往復でも block でなかった物"""
+    """前の往復の suggest の穴（往復の行の notes。key で 1 つ・新しい物を採る）のうち、どの往復でも block でなかった物。控えに
+    今の案の項目（note_plan）が在れば、unit_keys をその key の全往復の写しの単位の和から案に在る物だけにした写しにし、指す単位が
+    残らない穴は持ち越さない（受け付けの plan_review_output は案に無い単位を指す face を拒み、機械が足した face は審査役に直せない。
+    持ち越して絞った写しも往復の行の notes に残るので、和を取らないと後の案が戻した単位が穴から消えたままになる）。往復の行の notes は変えない"""
     doc = read(b)
     blocks = {k for p in doc["passes"] for k in p.get("blocks", [])}
-    out = {}
+    out, units = {}, {}
     for p in doc["passes"]:
         for f in p.get("notes") or []:
             if f.get("key") not in blocks:
                 out[f.get("key")] = f
-    return list(out.values())
+                units.setdefault(f.get("key"), {}).update(dict.fromkeys(f.get("unit_keys") or []))
+    if "plan" not in doc:
+        return list(out.values())
+    planned = planned_units(doc["plan"])
+    kept = [{**f, "unit_keys": [k for k in units[key] if k in planned]} for key, f in out.items()]
+    return [f for f in kept if f["unit_keys"]]
 
 
 def item_blocks(b, n: int) -> list:
@@ -394,7 +410,7 @@ def item_blocks(b, n: int) -> list:
     if not doc["passes"] or not 1 <= n <= len(plan):
         return []
     mine = {str(k) for k in plan[n - 1]["unit_keys"]}
-    every = {str(k) for it in plan for k in it["unit_keys"]}
+    every = planned_units(plan)
     out = [key for p in doc["passes"] for key in p.get("blocks", [])
            if (set((p.get("face_units") or {}).get(key) or []) & mine)
            or not (set((p.get("face_units") or {}).get(key) or []) & every)]
@@ -576,7 +592,7 @@ def resolved_gaps(b, faces: list, resolved: list) -> list[str]:
     wanted = earlier
     if passes[-1].get("items") is not None:   # 項目の控え: 今の往復で審査する項目の物だけを求める
         units = {str(k) for n in open_items(b) for k in doc["plan"][n - 1]["unit_keys"]}
-        every = {str(k) for it in doc.get("plan") or [] for k in it["unit_keys"]}
+        every = planned_units(doc.get("plan"))
         wanted = [key for p in passes for key in p.get("blocks", [])
                   if (set((p.get("face_units") or {}).get(key) or []) & units)
                   or not (set((p.get("face_units") or {}).get(key) or []) & every)]

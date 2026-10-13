@@ -34,7 +34,6 @@ rulebook.CANON = RULES / "common.md"
 fixrules.SHARED = rulebook.CANON
 fixrules.RULES_DIR = RULES
 ACCEPT = "fix-ruled-accept"            # 受け付けの節（拒否の理由のファイルの名）
-ANSWER_NODE = "ruled-consult-answer"   # 範囲の相談に答える役の節
 
 
 def main() -> dict:
@@ -43,13 +42,15 @@ def main() -> dict:
     n = fixrules.iteration_next(prompt)
     if not [r for r in conflict.ruled_fix(place) if not r.get(conflict.PRIOR)]:   # 1 回目の段の裁定（2 回目の段が写した行）は直し直さない
         return {"prompt_file": "", "go": False, "iteration": n}
-    if not (place / fixboard.RULED_HEAD_FILE).is_file():
+    head = place / fixrules.head_file("ruled")
+    if not head.is_file():
         fixboard.record_skipped(place, repo, boundary.SKIP)   # 印より先に（落ちて回し直した prep が控えを飛ばさない）
-        fixboard.write_json(place / fixboard.RULED_HEAD_FILE, {"tree": groups.end_tree(repo)})
+        fixboard.write_json(head, {"tree": groups.end_tree(repo)})
     owed = fixboard.ruled_owed(place)
     start = startrec.read(place)
     saved = fixboard.group_fix_reply(place)
-    got = fixrules.prep(place, repo, fixboard.fix_values(place, owed, start=start, answer_node=ANSWER_NODE), "ruled",
+    values = fixboard.fix_values(place, owed, start=start, answer_node=fixrules.answer_node("ruled"))
+    got = fixrules.prep(place, repo, values, "ruled",
                         owed=owed, items=factchecks.place_items(place), sources=fixboard.brief_sources(place),
                         reject_file=fixboard.rejects_file(place, ACCEPT, n - 1), lang=rolekit.lang_line(start),
                         shared=boundary.shared_cache())
