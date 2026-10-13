@@ -42,6 +42,7 @@ import design
 import gate_axes
 import gatemarks
 import gatepolicy
+import jsonfile
 import planblk
 import planfile
 import planmarks
@@ -51,13 +52,14 @@ import premises as _premises
 import promptsection
 import purpose as _purpose
 import reads
+import replan
 import rolekit
 import startrec
 import structmark
 import worldmark
 from engine.util import Reject
 
-PLAN_NODE = "p2.fix_plan"
+PLAN_NODE = planmarks.NODE
 REVIEW_NODE = "p2.plan_review"
 PURPOSE_NODE = "p0.purpose"
 DIAGNOSE_NODE = "p2.diagnose"
@@ -120,7 +122,7 @@ ROW_HEAD = promptsection.Section("### 修正の段の申し出と裁定（{id}�
 WHY_FIELD = "why_both_cannot_hold"
 KIND_FIELD = "kind"
 WHICH_FIELD = "which_is_right"
-NO_APPROVED = "案の直しの事前審査なのに、置き場に承認済みの修正案（前の差し込みの往復の控えと凍結した欄）が無い"
+NO_APPROVED = "案の直しの事前審査なのに、置き場に承認済みの修正案（前の計画の往復の控えと凍結した欄）が無い"
 REPLAN_ASKED = ("人に聞く直した項目 {n}（単位 {units}）: 約束の欄の変化 {changed}・人に聞く穴 {faces}"
                 "（前の項目と直した項目は {file}）")   # 元 works/.shared/core/replan.py:162・:593 の関所の節の 1 行
 REPLAN_FILE = "replan.json"             # 案の直しの項目 [{item, units, rows, old, new, contract_changed, human_faces, widened, ask}]（pass-<k>/ の中）
@@ -128,7 +130,6 @@ UNIT_ROW_KEYS = ("key", "label", "disposition", "reason")
 REVIEW_MD = "REVIEW.md"
 # 元 works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md:4・:7
 UNITS_LINE = "直す単位（各行の `no` は機械が振った番号。**key を写さず no の整数で指せ**——機械が名前に戻して記録する）: "
-REPO_LINE = "リポジトリ: {repo}（読む版: `{rev}`）　BASE: `{base}`　観点の正本: {review_md}"
 DIFF_MISSING = "固定した版の写しが置き場に無い（消えた）——差分を作れない"   # 元 graphloops/rules/policy_input.py:94
 GIVEN_UP_FACES = "事前審査の受け付けが諦めた: "
 
@@ -234,8 +235,7 @@ def plan_review_output(b, nid, out, item):
 # このブロックの部品が読む blocks（gatemarks.unmeasured）だけ。状態の語の持ち主は gatemarks.MATERIAL_WORDS
 BLOCKING = gatemarks.UNMEASURED
 STATUS = {s: types.SimpleNamespace(blocks=s in BLOCKING) for s in gatemarks.MATERIAL_WORDS}
-ASKING = gatemarks.ASKING
-VALIDATOR = types.SimpleNamespace(STATUS=STATUS, ASKING=ASKING)
+VALIDATOR = types.SimpleNamespace(STATUS=STATUS, ASKING=gatemarks.ASKING)
 
 
 def validator_module(b):
@@ -260,7 +260,7 @@ def _tracer(folder: pathlib.Path):
 
 
 def place(folder) -> types.SimpleNamespace:
-    """書き手（converge の note_plan・note_answers・record_pass・stash_rejects）の書き先: round（いつも 1）・dir・work(name)・
+    """書き手（converge の note_plan・note_answers・record_pass）の書き先: round（いつも 1）・dir・work(name)・
     trace(op, **row)。置き場 folder の本物のファイルに書く"""
     d = pathlib.Path(folder)
     return types.SimpleNamespace(round=1, dir=d, work=lambda name: d / name, trace=_tracer(d))
@@ -299,12 +299,7 @@ def _read_json(path):
 
 
 def _write_json(path, doc) -> pathlib.Path:
-    p = pathlib.Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    tmp.replace(p)
-    return p
+    return jsonfile.write(path, doc, parents=True)
 
 
 def _sibling(pointed, name: str):
@@ -428,7 +423,8 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     関所の答え（JSON の値。take_gate_answers）、round_limit は線の往復の輪の安全の上限（max_iterations と同じ数。輪の外で
     回す時は None。止め時の決まりではない: converge.decide）、ruling は裁かれた項目の番号の字（planmarks.handed。番号でない行と
     案の外の番号は訳つきの Missing）、review_schema・design_schema は事前審査と独立設計の役の型
-    （ブロックの YAML の役の節の output_format）。形 replan では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、
+    （ブロックの YAML の役の節の output_format。下請けの答えのファイルの faces・shrink と design.json の読み直しが照らす）。形 replan
+    では、前の差し込みが置き場に残した承認済みの項目を上書きする前に読み、
     直した項目と申し出と裁定の行と並べて材料に置く（replan_items）。
     返り {k（plan-fields.json の round）, form（ruling が空なら review、在れば replan）, tree, r2_go}"""
     d = pathlib.Path(folder)
@@ -461,7 +457,11 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     ruled, why = planmarks.handed(ruling, len(rows)) if form == "replan" else ([], "")
     if why:
         raise Missing(why)
-    converge.note_plan(out, rows)
+    try:
+        pairs = planmarks.paired(rows, fields["fields"], str(plan))
+    except planmarks.FieldsBroken as e:
+        raise Missing(str(e)) from None
+    converge.note_plan(out, [planmarks.joined(r, f) for r, f in pairs])
     if form == "review" and answered:
         converge.note_answers(out, answered)
     frozen = _frozen_policy(d, start_doc, cwd)
@@ -471,7 +471,7 @@ def open_pass(folder, *, cwd, judgment, purpose, plan, structure, ripple, world=
     defaults += [x for x in (review_unread, unread) if x]
     inputs = {
         "k": k, "form": form, "ruled": ruled, "round_limit": round_limit, "cwd": str(cwd),
-        "rev": (start_doc or {}).get("base_rev") or "HEAD", "base": (start_doc or {}).get("base_rev") or "",
+        "rev": startrec.read_rev(start_doc), "base": startrec.diff_base(start_doc),
         "request": request, "policy_md": frozen.get("path") or "",
         "policy_copy": frozen.get("copy") or "", "excluded_file": str(d / EXCLUDED_FILE) if excluded is not None else "",
         "units": units, "names": [u["key"] for u in units if isinstance(u.get("key"), str)],
@@ -511,8 +511,8 @@ def open_design(folder, *, cwd, judgment, purpose, world=None, start=None, answe
     units = [u for u in judged.get("units") or [] if isinstance(u, dict)]
     _, request, unread = _request(start_doc)
     purpose_review, review_unread = _purpose_review(judgment)
-    inputs = {"k": 0, "form": DESIGN_FORM, "ruled": [], "cwd": str(cwd), "rev": (start_doc or {}).get("base_rev") or "HEAD",
-              "base": (start_doc or {}).get("base_rev") or "", "request": request, "policy_md": frozen.get("path") or "",
+    inputs = {"k": 0, "form": DESIGN_FORM, "ruled": [], "cwd": str(cwd), "rev": startrec.read_rev(start_doc),
+              "base": startrec.diff_base(start_doc), "request": request, "policy_md": frozen.get("path") or "",
               "policy_copy": frozen.get("copy") or "", "excluded_file": "", "units": units,
               "names": [u["key"] for u in units if isinstance(u.get("key"), str)], "questions": judged.get("questions") or [],
               "materials": {}, "precedents": [], "diagnosis": {}, "purpose_review": purpose_review,
@@ -554,11 +554,6 @@ def _role_item(item: dict) -> dict:
         out["rewrite_tests"] = [{k: v for k, v in r.items() if k != "limit"} if isinstance(r, dict) else r
                                 for r in out["rewrite_tests"]]
     return out
-
-
-def _bare(item: dict) -> dict:
-    """項目から関所の決め手の欄を外した写し（元 works/.shared/core/replan.py:579）"""
-    return gatemarks.split(PLAN_NODE, {"plan": [copy.deepcopy(item)]})[0]["plan"][0]
 
 
 def replan_items(b, approved, marked_rows: list, ruled: list, conflicts: list) -> list:
@@ -713,7 +708,7 @@ def r2_prompt(folder, *, cwd, purpose, judgment, start=None, answers=None) -> st
 
 
 def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
-    """独立設計の受け付け: 作業ツリーが役の前と同じ（keys の欄で比べる）→ 型（差し込みの頭が置いた材料の役の型） → 問いが立たない時は根拠の名指し（パス:行）が固めた版に在る。通れば
+    """独立設計の受け付け: 作業ツリーが役の前と同じ（keys の欄で比べる）→ 問いが立たない時は根拠の名指し（パス:行）が固めた版に在る。通れば
     design.json と、返答が『渡されていない』と書いた文と控えの given の対（PREMISES_FILE の claims）。拒みは控えに積み、
     GIVE_UP_AFTER 回目で done・give_up。返り {ok, done, give_up, reason}"""
     d = pathlib.Path(folder)
@@ -725,7 +720,6 @@ def check_design(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
         moved = planfile.moved(d / R2_TREE, repo, keys)
         if moved:
             raise Reject(moved)
-        accept.type_errors(reply, read_open(d)["design_schema"], "独立設計の返答")
         if not reply["question_stands"]:
             misses = design.anchor_misses(reply.get("premise_invalid_reason") or reply["reason"], repo)
             if misses:
@@ -755,7 +749,7 @@ def review_body(command_text: str, *, repo, rev: str, base: str, review_md, poli
     line_end = rest.find("\n")
     tail = rest[line_end:].rstrip("\n") if line_end >= 0 else ""
     pol = policy.section(policy_md)
-    return "\n" + REPO_LINE.format(repo=repo, rev=rev, base=base, review_md=review_md) + tail + (f"\n\n{pol}" if pol else "")
+    return "\n" + planfile.repo_line(repo, rev, base, review_md) + tail + (f"\n\n{pol}" if pol else "")
 
 
 def _units_text(b) -> str:
@@ -814,7 +808,7 @@ def review_material(folder, repo, command_text: str, review_md, *, shared=None) 
 
 
 def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, command_text: str, review_md, shared) -> pathlib.Path:
-    rev, base = inputs.get("rev") or "HEAD", inputs.get("base") or inputs.get("rev") or "HEAD"
+    rev, base = inputs.get("rev") or "HEAD", inputs.get("base") or ""
     inputs = {**inputs, "review_body": review_body(command_text, repo=repo, rev=rev, base=base, review_md=review_md,
                                                    policy_md=inputs.get("policy_copy") or "")}
     b = view(d, inputs)
@@ -829,13 +823,13 @@ def _review_material(d: pathlib.Path, p: pathlib.Path, inputs: dict, repo, comma
                         lib_docs=planblk.lib_section(b, pathlib.Path(repo), shared), design_part=part)
     diag = (b.record["process"].get("diagnosis") or {})
     body = "\n\n".join(x for x in (
-        _defaults_line(inputs), head, "## 差し込み（機械が貼った）",
+        _defaults_line(inputs), head, "## 機械が貼った材料",
         "修正役の案: " + json.dumps(_shown_plan(inputs), ensure_ascii=False, indent=1),
         UNITS_LINE + _units_text(b),
         "判定者の見立て: " + json.dumps(diag, ensure_ascii=False),
         ("判定者の先行例（世界の解）: " + json.dumps(b.record["process"]["precedents"], ensure_ascii=False))
         if b.record["process"]["precedents"] else "",
-        REPO_LINE.format(repo=repo, rev=rev, base=base, review_md=review_md),
+        planfile.repo_line(repo, rev, base, review_md),
         policy.section(inputs.get("policy_copy")), concepthome.section(pathlib.Path(repo))) if x)
     last = rolekit.rejected(p, REVIEW_NODE)
     if last:
@@ -879,7 +873,7 @@ def _lines(head: str, gaps: list) -> str:
 
 
 def take_review(folder, raw, repo, *, keys=accept.TREE_KEYS) -> dict:
-    """事前審査の受け付け（元 planblk.take と with_converge の事前審査の側）。作業ツリーが役の前と同じ（keys の欄で比べる）→ 推しの形 → 型（役の型） → 木なら下請けの
+    """事前審査の受け付け（元 planblk.take と with_converge の事前審査の側）。作業ツリーが役の前と同じ（keys の欄で比べる）→ 推しの形 → 木なら下請けの
     答えのまとめ（planblk.tree_merge）・木でなければ独立設計の引用と design_map（planblk.design_gaps）→ 前の往復の block の行き先
     （converge.resolved_gaps）→ 審査の決まり（rules.plan_review_output）。通れば決め手の欄を gate-marks.json に置き、形 review なら
     往復を控え（converge.record_pass。計画の周 k が輪の上限 round_limit の往復は輪がもう 1 周回せないので at_cap で止める）、
@@ -902,12 +896,9 @@ def _take(d: pathlib.Path, p: pathlib.Path, inputs: dict, raw, repo, keys) -> di
     moved = planfile.moved(p / TREE_FILE, repo, keys)
     if moved:
         raise Reject(moved)
-    if not isinstance(reply.get("faces"), list):
-        accept.type_errors(reply, inputs["review_schema"], "事前審査の返答")
     gaps = gatemarks.recommend_gaps(REVIEW_NODE, reply)
     if gaps:
         raise Reject(_lines(planblk.RECOMMEND_REJECT, gaps))
-    accept.type_errors(reply, inputs["review_schema"], "事前審査の返答")
     b = view(d, inputs)
     bare, resolved = converge.split("plan-review", reply)
     bare, tree = converge.tree_split(bare)
@@ -1010,7 +1001,7 @@ def replan_asks(d: pathlib.Path, p: pathlib.Path, inputs: dict, review: dict) ->
     for row in rows:
         faces = _faces_of(row, review, rows)
         human = [f for f in faces if isinstance(f, dict) and f.get("kind") in HUMAN_FACE_KINDS]
-        old, new = _bare(row["old"]), _bare(row["new"])
+        old, new = replan.bare(row["old"]), replan.bare(row["new"])
         row["contract_changed"] = planmarks.contract_diff(old, new)
         row["human_faces"] = [f.get("key") for f in human]
         row["widened"] = planmarks.widened(old, new) if alone and row["contract_changed"] and not human else None

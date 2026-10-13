@@ -10,7 +10,7 @@ keychain は HOME から探すので、隔離した HOME では login の keycha
 
 環境変数だけで gh にログインする利用者（GH_TOKEN など。Linux・CI に多い）のために、起動は子の環境から 4 つのトークンの名を
 外したまま（TOKENS。RELAY の拾う名から出す）、値を gh も他の道具も自動では読まない名（RELAY の渡しの名）で子に渡す（#131 のコメントの運び役の決め。持ち主の決め others-may-use・auth-middleware・roles-read-only-gh から導いた。#132）。読むのは
-この口だけで、本物の gh を起こす時だけ gh の名へ戻し、渡しの名は本物の gh に見せない。子に gh の名が既に在れば（Archon が節に
+この口だけで、本物の gh を起こす時だけ gh の名へ戻し、渡しの名は本物の gh に見せない。子に gh の名が既に在れば（Archon がノードに
 トークンを渡した時）上書きしない。役は自分の環境の渡しの名を読めるので、これも事故の柵で、堅い境ではない。
 
 AI の役が打つ gh は、起動（launcher.py）がこの口の前に置く読むだけの口 works-gh（no-post-bin/。今の works では包み

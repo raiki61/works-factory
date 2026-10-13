@@ -1,4 +1,4 @@
-"""借りる superpowers（Claude Code のプラグインのスキル集）の写しを固定と照らし、節（seam: 借りた物を works の役に載せる 1 項目）
+"""借りる superpowers（Claude Code のプラグインのスキル集）の写しを固定と照らし、継ぎ目（seam: 借りた物を works の役に載せる 1 項目）
 の契約を確かめ、部品の型を埋める部品。
 
 言葉:
@@ -17,7 +17,7 @@
 - paragraph・para_sha256: 引用を含む行がちょうど 1 行の時、その段落（とその sha256）
 - prompt_body: 部品の型の本文
 - listed_files: 借りる一覧と部品が名指す、固定に在るべきファイル
-- seam_problems: 節ごとの契約の破れ（錨・読み替えの決まり・穴・出口の語・固定に無いファイル）を 1 行ずつ
+- seam_problems: 継ぎ目ごとの契約の破れ（錨・読み替えの決まり・穴・出口の語・固定に無いファイル）を 1 行ずつ
 - contract_problems: pin_problems と seam_problems をつないだ物
 - fill・word: 部品の型の穴を埋めた文・出口の語の対応
 
@@ -33,7 +33,7 @@ import re
 import textwrap
 
 BORROW_DIR = pathlib.Path(__file__).resolve().parent / "borrow"
-SEAMS_FILE = "seams.json"          # 節の契約（BORROW_DIR の下）
+SEAMS_FILE = "seams.json"          # 継ぎ目の契約（BORROW_DIR の下）
 OVERLAY_FILE = "unattended.md"     # 無人の読み替え（BORROW_DIR の下）
 MARKERS = frozenset({".in_use", ".orphaned_at"})   # Claude Code がプラグインのキャッシュの版の置き場に置く印（使っている pid・捨てた時刻）
 IGNORED = frozenset({".DS_Store"})
@@ -48,7 +48,7 @@ def vendored_dir(item: dict, borrow_dir: pathlib.Path = BORROW_DIR) -> pathlib.P
 
 
 def load_seams(borrow_dir: pathlib.Path = BORROW_DIR) -> dict:
-    """節の契約 <borrow_dir>/seams.json を読む"""
+    """継ぎ目の契約 <borrow_dir>/seams.json を読む"""
     return json.loads((borrow_dir / SEAMS_FILE).read_text(encoding="utf-8"))
 
 
@@ -214,19 +214,19 @@ def _norm(token: str) -> str:
 
 
 def _stray(text: str, sec: dict) -> list[str]:
-    """text の角括弧の語のうち、節の穴でも埋めない語（literals）でもない物（_norm した形・重なりなし・順に並べて）"""
+    """text の角括弧の語のうち、継ぎ目の穴でも埋めない語（literals）でもない物（_norm した形・重なりなし・順に並べて）"""
     known = {_norm(t) for t in [*sec.get("placeholders", []), *sec.get("literals", [])]}
     return sorted({_norm(t) for t in BRACKETED.findall(text)} - known)
 
 
 def _section(seams: dict, seam_id: str) -> dict:
     if seam_id not in seams:
-        raise ValueError(f"節 {seam_id} が {SEAMS_FILE} に無い")
+        raise ValueError(f"継ぎ目 {seam_id} が {SEAMS_FILE} に無い")
     return seams[seam_id]
 
 
 def contract_problems(src: pathlib.Path, item: dict, seams: dict, overlay_text: str) -> list[str]:
-    """固定との食い違い（pin_problems）と節の契約の破れ（seam_problems）をこの順につないだ行。空なら契約が成り立つ"""
+    """固定との食い違い（pin_problems）と継ぎ目の契約の破れ（seam_problems）をこの順につないだ行。空なら契約が成り立つ"""
     return pin_problems(src, item) + seam_problems(src, item, seams, overlay_text)
 
 
@@ -236,7 +236,7 @@ def _has_word(text: str, word: str) -> bool:
 
 
 def seam_problems(src: pathlib.Path, item: dict, seams: dict, overlay_text: str) -> list[str]:
-    """節ごとの契約の破れの行（錨・読み替えの決まり・穴・出口の語・pin.files に無い節のファイル）。固定との食い違いは
+    """継ぎ目ごとの契約の破れの行（錨・読み替えの決まり・穴・出口の語・pin.files に無い継ぎ目のファイル）。固定との食い違いは
     含めない（それは pin_problems）"""
     out = []
     pinned = (item.get("pin") or {}).get("files", {})
@@ -281,7 +281,7 @@ def seam_problems(src: pathlib.Path, item: dict, seams: dict, overlay_text: str)
 
 
 def _prompt_problems(sid: str, sec: dict, src: pathlib.Path, item: dict, text: str, rel: str) -> list[str]:
-    """部品の節の穴の破れ: 型の本文に無い穴・穴でも埋めない語でもない角括弧の語・本文に無い埋めない語と、全部の穴をダミーの
+    """部品の継ぎ目の穴の破れ: 型の本文に無い穴・穴でも埋めない語でもない角括弧の語・本文に無い埋めない語と、全部の穴をダミーの
     値で埋めた後に残る穴（角括弧の語の行が在れば、同じ語を 2 度名指さないよう埋めて確かめない）"""
     try:
         body = prompt_body(text)
@@ -302,7 +302,7 @@ def _prompt_problems(sid: str, sec: dict, src: pathlib.Path, item: dict, text: s
 
 
 def fill(seam_id: str, values: dict[str, str], src: pathlib.Path, item: dict, seams: dict | None = None) -> str:
-    """部品の節（use_as が prompt）の型の穴を全部 values で置き換えた本文。型の sha256 が固定と合うことを先に確かめる。
+    """部品の継ぎ目（use_as が prompt）の型の穴を全部 values で置き換えた本文。型の sha256 が固定と合うことを先に確かめる。
 
     値の鍵が placeholders とちょうど同じでない・sha256 が固定と合わない・置き換えの後に穴でも埋めない語（literals）でもない
     角括弧の語（BRACKETED。小文字の語も）が残る、のどれかで ValueError（名指す）。値の中の角括弧は置き換えも残りの検査も
@@ -310,7 +310,7 @@ def fill(seam_id: str, values: dict[str, str], src: pathlib.Path, item: dict, se
     """
     sec = _section(load_seams() if seams is None else seams, seam_id)
     if sec.get("use_as") != "prompt":
-        raise ValueError(f"{seam_id}: 部品の節でない（use_as {sec.get('use_as')!r}）")
+        raise ValueError(f"{seam_id}: 部品の継ぎ目でない（use_as {sec.get('use_as')!r}）")
     holes = list(sec.get("placeholders", []))
     lack, extra = sorted(set(holes) - set(values)), sorted(set(values) - set(holes))
     if lack or extra:

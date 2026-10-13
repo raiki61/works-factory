@@ -28,7 +28,6 @@ CR = {"where": "app/compute_logs/manager.py:27-58",
 DOCKER = {"where": "Dockerfile:15-18", "text": "[block] builder 段に proxy CA の受け取りが無い", "measured": "proxy_ca が 0 件"}
 HYG = {"where": "docker-entrypoint.sh (until dagster instance migrate)", "text": "回数の上限も期限も無い",
        "mechanism": "Postgres に繋がらなければ永久に再試行する", "false_positive_if": "起動の期限を外で切るなら当たらない"}
-ASKED = {"where": "storage.py update_latest", "text": "依頼の行"}
 OUTPUTS = {
     "p1.local_review": {"material": {"status": "found"}, "findings": [
         {"skill": "/code-review", "invoked": True, "items": [], "failed": "本文なし"},
@@ -41,11 +40,19 @@ OOP = [{"source": "局所の findings（pr-review-toolkit:code-reviewer）", "wh
        {"source": "素材 hygiene", "where": HYG["where"], "why_outside": "起動の殻の再試行は Manifest の目的の外にある"}]
 
 
-def fake_board(tmp, rnd=1, outputs=OUTPUTS, requests=()):
+def fake_board(tmp, rnd=1, outputs=OUTPUTS):
     return types.SimpleNamespace(
         dir=pathlib.Path(tmp), round=rnd, state={"outputs": {k: {"round": rnd} for k in outputs}},
-        record={"process": {"request_findings": list(requests)}},
         latest_output=lambda nid: outputs.get(nid))
+
+
+def material(b) -> list:
+    """偽の盤面の P1 の節の出力の行（材料の行の作りは judge_accept.material_rows。test_judge_accept が縛る）"""
+    out = []
+    for nid in sorted(b.state["outputs"]):
+        if nid.startswith("p1."):
+            outpurpose._walk(b.latest_output(nid), nid, out)
+    return out
 
 
 class SchemaCase(unittest.TestCase):
@@ -56,25 +63,10 @@ class SchemaCase(unittest.TestCase):
         self.assertEqual(outpurpose.split({"units": []}), ({"units": []}, []))
 
 
-class MaterialRowsCase(unittest.TestCase):
-    def test_rows_are_the_p1_items_and_this_rounds_requests(self):
-        """材料の行は P1 の節の出力の where・text を持つ行の全部（入れ子の items も）と、今の周に積まれた依頼の行。P2 の出力は入れない"""
-        with tempfile.TemporaryDirectory() as d:
-            b = fake_board(d, requests=[{"round": 1, "origin": "人", "findings": [ASKED]},
-                                        {"round": 0, "origin": "前", "findings": [{"where": "古い", "text": "前の周"}]}])
-            rows = outpurpose.material_rows(b)
-        wheres = [r["where"] for r in rows]
-        self.assertEqual(sorted(wheres), sorted([CR["where"], DOCKER["where"], HYG["where"], ASKED["where"]]))
-        cr = next(r for r in rows if r["where"] == CR["where"])
-        self.assertEqual({k: cr[k] for k in CR}, CR)
-        self.assertIn("p1.local_review", cr["from"])
-        self.assertIn("pr-review-toolkit:code-reviewer", cr["from"])
-
-
 class ProblemsCase(unittest.TestCase):
     def rows(self):
         with tempfile.TemporaryDirectory() as d:
-            return outpurpose.material_rows(fake_board(d))
+            return material(fake_board(d))
 
     def test_rows_matching_material_pass(self):
         self.assertEqual(outpurpose.problems(OOP, self.rows()), [])
@@ -106,7 +98,7 @@ class SameWhereCase(unittest.TestCase):
     def rows(self, extra=()):
         outputs = {**OUTPUTS, "p1.hygiene": {"findings": [HYG, *extra]}}
         with tempfile.TemporaryDirectory() as d:
-            return outpurpose.material_rows(fake_board(d, outputs=outputs))
+            return material(fake_board(d, outputs=outputs))
 
     def test_two_rows_on_one_where_need_the_text_head(self):
         got = outpurpose.problems([OOP[0]], self.rows([self.TWIN]))
@@ -144,7 +136,7 @@ class CarryCase(unittest.TestCase):
         self.b = fake_board(self.dir)
 
     def test_next_items_carry_every_field_of_the_material_row_marked(self):
-        outpurpose.save(self.dir, 1, OOP, outpurpose.material_rows(self.b))
+        outpurpose.save(self.dir, 1, OOP, material(self.b))
         items = outpurpose.next_items(self.dir)
         self.assertEqual([i["where"] for i in items], [CR["where"], HYG["where"]])
         cr = items[0]
@@ -160,7 +152,7 @@ class CarryCase(unittest.TestCase):
     def test_next_items_pass_the_request_type(self):
         """運んだ行は下書きの印（draft・source）を外せば依頼の行の型（where・text と任意の mechanism・measured・
         false_positive_if だけ）"""
-        outpurpose.save(self.dir, 1, OOP, outpurpose.material_rows(self.b))
+        outpurpose.save(self.dir, 1, OOP, material(self.b))
         for it in outpurpose.next_items(self.dir):
             bare = {k: v for k, v in it.items() if k not in carry.DRAFT_KEYS}
             self.assertLessEqual(set(bare), {"where", "text", "mechanism", "measured", "false_positive_if"})
@@ -168,7 +160,7 @@ class CarryCase(unittest.TestCase):
     def test_carried_rows_are_drafts_the_request_entry_refuses(self):
         """運んだ行は人が見直すまで次の run の目的にしない: draft: true と出どころ source を持ち、依頼の入口が拒む（答えの下書きと
         同じ扱い）。印を消した行は通る"""
-        outpurpose.save(self.dir, 1, OOP, outpurpose.material_rows(self.b))
+        outpurpose.save(self.dir, 1, OOP, material(self.b))
         items = outpurpose.next_items(self.dir)
         self.assertTrue(all(i.get("draft") is True and i.get("source") for i in items), items)
         self.assertIn(OOP[0]["source"], items[0]["source"])
@@ -181,7 +173,7 @@ class CarryCase(unittest.TestCase):
 
     def test_only_the_last_round_is_carried(self):
         """判定は周ごとに目的の外を決め直す: 前の周に目的の外とした所見が後の周に単位になれば運ばない（最後の周の行だけ）"""
-        rows = outpurpose.material_rows(self.b)
+        rows = material(self.b)
         outpurpose.save(self.dir, 1, OOP, rows)
         outpurpose.save(self.dir, 2, OOP[1:], rows)
         self.assertEqual([i["where"] for i in outpurpose.next_items(self.dir)], [HYG["where"]])
@@ -190,7 +182,7 @@ class CarryCase(unittest.TestCase):
         self.assertEqual(outpurpose.next_items(self.dir), [])
 
     def test_saving_a_round_again_replaces_it(self):
-        rows = outpurpose.material_rows(self.b)
+        rows = material(self.b)
         outpurpose.save(self.dir, 1, OOP, rows)
         outpurpose.save(self.dir, 1, OOP[1:], rows)
         self.assertEqual([i["where"] for i in outpurpose.next_items(self.dir)], [HYG["where"]])
@@ -206,7 +198,7 @@ class CarryCase(unittest.TestCase):
     def test_unreadable_file_is_not_overwritten(self):
         """控えが読めない時は書き直さない（前の周の分を黙って消さない。読めないことは next_items が言う）"""
         (self.dir / outpurpose.FILE).write_text("{", encoding="utf-8")
-        outpurpose.save(self.dir, 2, OOP, outpurpose.material_rows(self.b))
+        outpurpose.save(self.dir, 2, OOP, material(self.b))
         self.assertEqual((self.dir / outpurpose.FILE).read_text(encoding="utf-8"), "{")
 
     def test_broken_found_rows_are_skipped(self):
@@ -216,7 +208,7 @@ class CarryCase(unittest.TestCase):
 
     def test_carried_mark_is_not_piled_up(self):
         """前の run が運んだ行がまた目的の外になっても、text の尾の印は 1 つ"""
-        outpurpose.save(self.dir, 1, OOP[:1], outpurpose.material_rows(self.b))
+        outpurpose.save(self.dir, 1, OOP[:1], material(self.b))
         once = outpurpose.next_items(self.dir)[0]
         again = {**CR, "text": once["text"]}
         with tempfile.TemporaryDirectory() as d:
@@ -225,12 +217,12 @@ class CarryCase(unittest.TestCase):
         self.assertEqual(twice["text"].count(outpurpose.MARK), 1, twice["text"])
 
     def test_restore_puts_this_rounds_rows_back_into_the_judgment(self):
-        outpurpose.save(self.dir, 1, OOP, outpurpose.material_rows(self.b))
+        outpurpose.save(self.dir, 1, OOP, material(self.b))
         self.assertEqual(outpurpose.restore({"units": []}, self.dir, 1)[outpurpose.FIELD], OOP)
         self.assertNotIn(outpurpose.FIELD, outpurpose.restore({"units": []}, self.dir, 2))
 
     def test_report_lines_name_each_row(self):
-        outpurpose.save(self.dir, 1, OOP, outpurpose.material_rows(self.b))
+        outpurpose.save(self.dir, 1, OOP, material(self.b))
         lines = outpurpose.report_lines(self.dir)
         self.assertIn("2 件", lines[0])
         self.assertTrue(any(CR["where"] in x and OOP[0]["source"] in x for x in lines[1:]), lines)

@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -34,6 +35,8 @@ if str(LIB / "graphloops") not in sys.path:
     sys.path.append(str(LIB / "graphloops"))
 
 import converge  # noqa: E402
+import declared_checks  # noqa: E402
+import gatemarks  # noqa: E402
 import outcome  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
@@ -458,8 +461,44 @@ class FactsCase(Run):
         self.assertEqual(out["outcome"], "fixed", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
         self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / グラフの版 [0-9a-f]{{12}} / メイングラフの版 cccccccccccc$")
 
+    def test_evidence_rows_have_one_owner(self):
+        """証拠の文の行の頭は declared_checks の 1 か所。test-gate の result.py の書き手と報告の読み手は同じ名を引くので、頭の字を
+        変えても行が報告に届く"""
+        result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
+        run = {"by": "engine", "log": "/tmp/test.log", "junit_steps": [], "junit_unran": [], "suite": None,
+               "fingerprint_before": None, "fingerprint_after": None}
+        path = self.dir / "evidence.md"
+        rows = (("走らせ方", "* 走らせ方= "), ("ログ", "* ログ= "))
+        with mock.patch.object(declared_checks, "EVIDENCE_ROWS", rows):
+            text = result.evidence("final", {"ok": True, "green": True, "red_cause": ""}, run, None, "", "", "一式", "")
+            path.write_text(text, encoding="utf-8")
+            got = runreport._evidence_lines({"test-gate-final": {"evidence": str(path)}})
+        self.assertIn("* 走らせ方= engine・一式", text)
+        self.assertIn("最後のテスト（test-gate-final）の走らせ方: engine・一式", got)
+        self.assertIn("最後のテスト（test-gate-final）のログ: /tmp/test.log", got)
+
+    def test_evidence_rows_stay_one_line_each(self):
+        """役の素材の reason の改行は証拠の行を切らず、次の行の頭にも化けない: 修正前のテストの行は reason の終わりまで届き、ログの
+        行は本物の置き場のまま"""
+        result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
+        run = {"by": "engine", "log": "/tmp/test.log", "junit_steps": [], "junit_unran": [], "suite": None,
+               "fingerprint_before": None, "fingerprint_after": None}
+        base_line = declared_checks.baseline_line({"material": {"status": "not_run", "reason": "見た物:\n- ログ: ci/output.txt"}})
+        text = result.evidence("final", {"ok": False, "green": False, "red_cause": "incomplete"}, run, None,
+                               "落ちた:\n- 走らせ方: 偽", "訳:\n- ログ: 偽", "一式", base_line)
+        path = self.dir / "evidence.md"
+        path.write_text(text, encoding="utf-8")
+        returns = {"test-gate-final": {"evidence": str(path)}}
+        got = runreport._evidence_lines(returns)
+        self.assertIn("最後のテスト（test-gate-final）のログ: /tmp/test.log", got)
+        self.assertIn("最後のテスト（test-gate-final）の走らせ方: engine・一式", got)
+        base = next(x for x in got if x.startswith("最後のテスト（test-gate-final）の修正前のテスト: "))
+        self.assertIn("見た物: - ログ: ci/output.txt", base)
+        self.assertIn(gatemarks.BASELINE_NOT_RUN, base)
+        self.assertIn("最後のテストの一式: engine・一式・ログ /tmp/test.log", runreport._tests_head_lines(returns))
+
     def test_green_cert_section_reads_the_test_gate_evidence(self):
-        """test-gate の result.py が書く証拠の文の走らせ方とログの行が、緑の認証の節に届く（runreport.EVIDENCE_ROWS と test-gate の字の結び）"""
+        """test-gate の result.py が書く証拠の文の走らせ方とログの行が、緑の認証の節に届く"""
         result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
         suites, log = "一式: run-tests（make test）", str(self.dir / "test.log")
         run = {"by": "engine", "log": log, "junit_steps": [], "junit_unran": [], "suite": None,

@@ -241,7 +241,6 @@ UNNAMED = {
     ("judge", "prior_failures"): RENAMED.format(words="intake の「始めの記録か前の失敗の行が読めない」。2 つの入力のどちらかを言わない")
                                  + "。区分 J。区分の issue で外す",
     ("merge", "start"): "merge の返りの reason が例外の字（FileNotFoundError とパス）だけで、入力の名が無い。区分 M。区分の issue で外す",
-    ("merge", "diff"): "読む script が無い（受けるが読まない。封じるのは今の木から組み直した差分。YAML の inputs: の description のとおり）",
     ("plan", "judgment"): RENAMED.format(words="round の「判定が読めない」") + "。plan-prep は TypeError で落ちる。区分 P。区分の issue で外す",
     ("plan-review", "judgment"): "open の返りの reason が例外の字だけで、入力の名が無い。区分 P。区分の issue で外す",
     ("plan-review", "purpose"): "open の返りの reason が例外の字だけで、入力の名が無い。r2-prep は落ちる。区分 P。区分の issue で外す",

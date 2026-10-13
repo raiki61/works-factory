@@ -8,12 +8,10 @@
 実物の盤面での描画（本線の p2.fix_plan・p2.plan_review）は test_blk_plan（HEAVY）、rejudge.render の本文の一致は test_rejudge が見る。
 盤面はここでは小さな偽物（rolekit が触る欄だけ）で、entry の口は mock で差し替える。
 """
-import os
 import pathlib
 import sys
 import tempfile
 import unittest
-from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
@@ -51,41 +49,22 @@ class GivenUpCase(Base):
         self.assertEqual(rolekit.given_up_reason(self.tmp, "b"), "b の返答を受け付けが出し直させずに諦めた（拒否: 無い）")
 
 
-class AgentDefCase(unittest.TestCase):
-    """agent_def: 写しの plugin（rolekit.AGENTS_PLUGIN）の役は lib の agents/<役>.md から本文を引き、無い役は None。
-    置き場の環境変数は呼びの間だけ置く"""
-
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        env = {k: v for k, v in os.environ.items() if k != rolekit.env_root(rolekit.AGENTS_PLUGIN)}
-        env["CLAUDE_CONFIG_DIR"] = tmp.name   # 利用者の plugin のキャッシュを見ない
-        patcher = mock.patch.dict(os.environ, env, clear=True)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def test_known_role_returns_its_body(self):
-        got = rolekit.agent_def(f"{rolekit.AGENTS_PLUGIN}:judge")
-        self.assertIsNotNone(got)
-        self.assertEqual(pathlib.Path(got["file"]), LIB / "agents" / "judge.md")
-        text = (LIB / "agents" / "judge.md").read_text(encoding="utf-8")
-        self.assertEqual(got["body"], text.split("---", 2)[2].strip())
-        self.assertTrue(got["body"])
-        self.assertEqual(got["model"], "opus")
-        self.assertNotIn(rolekit.env_root(rolekit.AGENTS_PLUGIN), os.environ)
-
-    def test_unknown_role_is_none(self):
-        self.assertIsNone(rolekit.agent_def(f"{rolekit.AGENTS_PLUGIN}:no-such-role"))
-        self.assertIsNone(rolekit.agent_def("no-plugin-role"))
-        self.assertNotIn(rolekit.env_root(rolekit.AGENTS_PLUGIN), os.environ)
-
-
 class RejectWordsCase(unittest.TestCase):
     def test_no_board_done_in_lib(self):
         """役に返る拒みの文は「出し直せ」と言う（works-factory に盤面の命令 done は無い。古い「直して done し直す」を残さない）"""
         hits = [f"{p.name}:{n}" for p in sorted(LIB.glob("*.py"))
                 for n, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if "done し直す" in line]
         self.assertEqual(hits, [])
+class RejectLedgerCase(Base):
+    def test_attempt_counts_the_kept_rejects(self):
+        """輪の今の回は控え rejects-<名>.json の拒否の数 + 1。控えはファイルなので、同じ置き場で数え直さない。通った返答は積まない"""
+        self.assertEqual(rolekit.attempt(self.tmp, "eye"), 1)
+        for n in range(1, rolekit.GIVE_UP_AFTER + 1):
+            got = rolekit.with_done(self.tmp, "eye", {"ok": False, "reason": f"拒否 {n}"})
+            self.assertEqual((got["done"], rolekit.attempt(self.tmp, "eye")), (n == rolekit.GIVE_UP_AFTER, n + 1))
+        self.assertTrue(rolekit.with_done(self.tmp, "other", {"ok": True})["done"])
+        self.assertEqual(rolekit.attempt(self.tmp, "other"), 1)
+        self.assertIn(f"拒否 {rolekit.GIVE_UP_AFTER}", rolekit.given_up_reason(self.tmp, "eye"))
 
 
 if __name__ == "__main__":

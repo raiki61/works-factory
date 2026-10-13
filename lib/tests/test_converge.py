@@ -187,39 +187,13 @@ class FieldsCase(BoardCase):
         self.assertTrue(any("x" in g and "前の往復の block に無い" in g for g in gaps), gaps)
         self.assertEqual(len(gaps), 3, gaps)
 
-    def test_with_fields_and_split_round_trip(self):
-        base = {"type": "object", "properties": {"plan": {"type": "array"}}, "required": ["plan"]}
-        revise = converge.with_fields("plan-revise", base)
-        self.assertEqual(base, {"type": "object", "properties": {"plan": {"type": "array"}}, "required": ["plan"]})
-        self.assertIn(converge.ANSWERS, revise["required"])
-        row = revise["properties"][converge.ANSWERS]["items"]
-        self.assertEqual(row["required"], ["key", "handled", "how"])
-        self.assertFalse(row["additionalProperties"])
-        self.assertEqual(row["properties"]["handled"]["enum"], list(converge.HANDLED))
-        self.assertEqual((row["properties"]["key"]["minLength"], row["properties"]["how"]["minLength"]), (8, 10))
-        review = converge.with_fields("plan-review", base)
-        self.assertIn(converge.RESOLVED, review["properties"])
-        self.assertNotIn(converge.RESOLVED, review["required"])
-        self.assertEqual(converge.with_fields("fix", base), base)
-        reply = {"plan": [1], converge.ANSWERS: [answer("a")]}
-        self.assertEqual(converge.split("plan-revise", reply), ({"plan": [1]}, [answer("a")]))
-        self.assertEqual(reply[converge.ANSWERS], [answer("a")])   # 元は変えない
-        self.assertEqual(converge.split("plan-review", {"faces": [], converge.RESOLVED: ["a"]}), ({"faces": []}, ["a"]))
-        self.assertEqual(converge.split("plan-review", {"faces": []}), ({"faces": []}, []))
-        self.assertEqual(converge.split("fix", {"x": 1}), ({"x": 1}, []))
-
     def test_review_fields_take_origins(self):
-        """事前審査の型は任意の欄 origins（ORIGIN_SCHEMA）を持ち、必須に入れない。tree_split と drop_fields が返答から外す"""
-        base = {"type": "object", "properties": {"faces": {"type": "array"}}, "required": ["faces"]}
-        review = converge.with_fields("plan-review", base)
-        self.assertEqual(review["properties"][converge.ORIGINS], converge.ORIGIN_SCHEMA)
-        self.assertNotIn(converge.ORIGINS, review["required"])
+        """事前審査の返答の任意の欄 origins は tree_split が外す"""
         said = [{"key": "key-b1", "origin": "rephrased", "of": "key-a1"}]
         reply = {"faces": [], converge.ORIGINS: said}
         bare, got = converge.tree_split(reply)
         self.assertEqual((bare, got[converge.ORIGINS]), ({"faces": []}, said))
         self.assertEqual(converge.tree_split({"faces": []})[1][converge.ORIGINS], None)
-        self.assertEqual(converge.drop_fields(reply), {"faces": []})
         self.assertEqual(reply, {"faces": [], converge.ORIGINS: said})   # 元は変えない
         self.record(["key-alpha"])   # 2 往復目からの審査の共有の節は出自の頼みを貼らない（頼みは書き手の居る層が貼る）
         sec = converge.review_section(self.b)

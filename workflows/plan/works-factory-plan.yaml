@@ -12,7 +12,7 @@ description: |
 inputs:
   start:
     default: ""
-    description: 始めの記録のポインタ（メイングラフの start の record）。欄 policy_md・thickness・test_cmd・tdd_suite・base_rev・lang を読む
+    description: 始めの記録のポインタ（メイングラフの start の record）。欄 policy_md・thickness・test_cmd・tdd_suite・base_rev・review_rev・input.base.rev・lang を読む
   units:
     default: "[]"
     description: 単位の目録（judge の units。[{id, paths, summary}]）
@@ -131,11 +131,11 @@ nodes:
                   required: [unit_id, verdict, faces, evidence, reason]
                   additionalProperties: false
                   properties:
-                    unit_id: {type: string, minLength: 1}
+                    unit_id: {type: string, minLength: 1, pattern: '\S'}
                     verdict: {type: string, enum: [汚れる, 汚れない]}
                     faces: {type: array, items: {type: integer, minimum: 1, maximum: 6}}
                     evidence: {type: array, items: {type: string}}
-                    reason: {type: string, minLength: 1}
+                    reason: {type: string, minLength: 1, pattern: '\S'}
                     chosen: {type: string}
                     rejected:
                       type: array

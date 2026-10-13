@@ -60,7 +60,7 @@ def fix_notes(review_raw, plan_raw, items_raw) -> str:
     review = boundary.value(review_raw)
     try:
         if review is None:
-            raise ValueError("案の直しの事前審査が飛ばされた（返りが無い）")
+            raise ValueError("案の直しの事前審査が飛ばされた（出力が無い）")
         doc = json.loads(boundary.resolve(review).read_text(encoding="utf-8"))
         ptr = boundary.value(plan_raw)
         reply = boundary.resolve(ptr).parent / planfile.FIX_PLAN_FILE if ptr is not None else None

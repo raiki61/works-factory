@@ -4,7 +4,6 @@
 （rewrite_tests）・整えの申告（refactor）・書いてよいパス（allowed_paths）・触らない物（out_of_scope。依頼 218）を書かせる。承認された案は後で項目ごとの brief に切り出され、修正役・TDD の役が従う
 要求の正本になる。写しの graph の型は欄を持てない（写しはバイト一致で縛られる）ので、足す・外す・置く・読むの手順は住処
 marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡す前に外して盤面の plan-fields.json に置く）に任せる。
-- with_fields(node, schema): 役の型（accept.role_schema が重ねる）
 - gaps(reply, repo, exists=): 欠けと誤りの行（kind が関数・欄の adds の name がファイルの名・パスだけの行も。修正案の受け付けが拒む。拒否の理由は書いた役に戻り、その役が直せる）。exists は
   受け入れのテストが既に在るかを引く口（既定は作業ツリー。同じ run の中の案の直しは修正の起点の版の木）
 - find_test(repo, test_id): テストの id の定義の行（rewrite_tests は在るテストだけ・tests は無いテストだけを名指す）
@@ -34,14 +33,15 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
 - glob_match(path, glob): 根からの相対のパスが glob に当たるか（* ? [..] は / を跨がない・** は段をまたぐ。守りのファイルの
   protect.match もこれを呼ぶ）。gaps は out_of_scope の glob が tests・rewrite_tests の id のファイルに当たる案を拒む
 - approved_items(b): 今の周の承認済みの修正案の項目と凍結した欄を同じ番号で合わせた並び（修正の受け付けが差分と照らす）
+- joined(it, f): 案の項目の行に同じ番号の欄の行の KEYS を重ねた行（approved_items と事前審査の往復の控えの行が使う）
 - handed(ruling, items): 裁かれた項目の番号の字（fix の replan_items）を案の項目の番号に読み、番号でない行と案の外の番号は訳を返す
   （案の直しの周を開く planfile と、案の直しの事前審査を開く boardview が同じ物を呼ぶ）
 - 約束の欄と手段の欄（依頼 226）: CONTRACT_KEYS・CONTRACT_TEST_KEYS（tests[] の行の約束の欄）は変えると関所に戻す物、
   MEANS_KEYS は修正案の役が同じ run の中で直してよい物。contract_diff(old, new) が違う約束の欄の名を返す
   widened(old, new) は違いが範囲を広げる欄（WIDEN_KEYS: allowed_paths に足す・out_of_scope から外す）だけの時に足した・外した glob を返す
-- 承認済みの項目の差し替え（依頼 226）: amend(b, items, repo) が直した項目の欄の行を split で作り直し、核の欄（CORE_KEYS）を
-  控えの AMENDED_KEY に置いて save し直し（凍結し直し）、trace に AMEND_OP を書く。amended(b)・plan_items(b) が読む
-- scoped(items)・scoped_items(b): 範囲の欄の在る項目の並びか（217 番の形の控えは範囲の無い run と同じに扱う 1 つの決まり。
+- 承認済みの項目の差し替え（依頼 226）の控え: 核の欄（CORE_KEYS）を控えの AMENDED_KEY に置き、trace に AMEND_OP を書いた物を
+  amended(b)・plan_items(b) が読む
+- scoped(items): 範囲の欄の在る項目の並びか（217 番の形の控えは範囲の無い run と同じに扱う 1 つの決まり。
   修正の受け付けの範囲の照らしと差分の審査の準拠の受け付けが使う）
 
 写しの engine の型の検査と時刻（engine.schema・engine.util。L0 の写し）と住処 marks（L1）だけを使い、entry・conflict を import しない（conflict がこのモジュールを読むので、
@@ -85,7 +85,7 @@ MEANS_KEYS = ("approach", "adds", "shrink_first", "route", "route_why", "tests",
 # 範囲を広げる欄（widened が見る）: allowed_paths に足す・out_of_scope から外すだけの直しは、範囲を広げるだけの直し
 WIDEN_KEYS = ("allowed_paths", "out_of_scope")
 AMENDED_KEY = "amended"            # 控えの鍵 {"<項目の番号>": {CORE_KEYS の欄}}（差し替えた項目の核の欄）
-AMEND_OP = "plan_amended"          # amend だけが書く trace の行 {round, items: [番号…]}（SAVED_OP の行の直後）
+AMEND_OP = "plan_amended"          # 差し替えの trace の行（planfile が書く） {round, items: [番号…]}（SAVED_OP の行の直後）
 # route_why は route が direct の時だけ要る（gaps が見る）
 REQUIRED = ("route", "tests", "rewrite_tests", "refactor", "allowed_paths", "out_of_scope")
 ROUTES = ("tdd", "direct")
@@ -188,9 +188,6 @@ REVIEW_ASK = ("下は修正案の役が項目ごとに書いた works の欄（r
 
 
 # ---------------------------------------------------------------- 役の型
-def with_fields(node: str, schema: dict) -> dict:
-    """役の型の修正案の項目に works の欄を足した写し（NODES の節でなければ渡した物をそのまま返す）"""
-    return marks.add("plan", node, schema, FIELD_SCHEMA, required=REQUIRED)
 
 
 # ---------------------------------------------------------------- テストの定義の行
@@ -946,27 +943,28 @@ def approved_items(b) -> list[dict] | None:
     plan = plan_items(b)
     if fields is None or plan is None:
         return None
+    return [{"item": n, **copy.deepcopy(joined(it, f))} for n, (it, f) in enumerate(paired(plan, fields, f"共有ボードの控え {FIELDS_FILE}"), 1)]
+
+
+def paired(plan: list, fields: list, where: str) -> list[tuple[dict, dict]]:
+    """案の項目の行の並び plan と欄の行の並び fields（where に在る物）を同じ番号で組んだ (項目, 欄) の並び（dict でない行は空の dict）。
+    数が違えば FieldsBroken（同じ周の受け付けが同じ並びで書くので、組めば番号がずれる）。承認済みの項目（approved_items）・
+    事前審査の往復の控えの行（boardview.open_pass）・項目ごとの brief（planbrief）が同じ物を呼ぶ"""
     if len(fields) != len(plan):
-        raise FieldsBroken(f"修正案の項目の数 {len(plan)} と共有ボードの控え {FIELDS_FILE} の欄の数 {len(fields)} が違う"
-                           "（同じ周の受け付けが同じ並びで書く物）")
-    out = []
-    for n, (it, f) in enumerate(zip(plan, fields), 1):
-        it = it if isinstance(it, dict) else {}
-        f = f if isinstance(f, dict) else {}
-        out.append({"item": n, **copy.deepcopy(it), **{k: copy.deepcopy(f[k]) for k in KEYS if k in f}})
-    return out
+        raise FieldsBroken(f"修正案の項目の数 {len(plan)} と {where} の欄の数 {len(fields)} が違う（同じ周の受け付けが同じ並びで書く物）")
+    return [(it if isinstance(it, dict) else {}, f if isinstance(f, dict) else {}) for it, f in zip(plan, fields)]
+
+
+def joined(it: dict, f: dict) -> dict:
+    """案の項目の行 it に同じ番号の欄の行 f（plan-fields.json の行）の KEYS の物を重ねた行（unit_keys は案の物）。
+    承認済みの項目（approved_items）と事前審査の往復の控えの行（boardview.open_pass）が同じ物を呼ぶ"""
+    return {**it, **{k: f[k] for k in KEYS if k in f}}
 
 
 def scoped(items: list | None) -> bool:
     """承認済みの項目の並び items が範囲の欄を持つか（並びが在り、どの項目にも allowed_paths が在る）。偽なら範囲の無い run
     （修正案の無い run・217 番の形の控え）として扱う"""
     return items is not None and all(isinstance(it, dict) and "allowed_paths" in it for it in items)
-
-
-def scoped_items(b) -> list[dict] | None:
-    """範囲の欄の在る承認済みの項目（approved_items が scoped の時だけ。ほかは None）。控えの食い違いは FieldsBroken"""
-    items = approved_items(b)
-    return items if scoped(items) else None
 
 
 def frozen(b) -> list | None:
@@ -1022,31 +1020,6 @@ def plan_items(b) -> list | None:
         base = out[n - 1] if isinstance(out[n - 1], dict) else {}
         out[n - 1] = {**base, **copy.deepcopy(core)}
     return out
-
-
-def amend(b, items: dict, repo, *, base_tests: dict | None = None) -> None:
-    """承認済みの項目を直した項目に差し替えて凍結し直す。items は {番号: 直した項目（CORE_KEYS と KEYS の欄の全部。鍵 item は
-    外す）}。直した項目を split に通して欄の行を作り直し（adds の名と rewrite_tests[].limit を repo から引き直す）、今の控え
-    （frozen。食い違えば FieldsBroken）の fields[n-1] をその行に替え（base_tests を渡せば removes_tests も引き直す）、核の欄を AMENDED_KEY[n] に置いて save し直し、trace に
-    AMEND_OP {round, items} を書く。知らない番号・unit_keys が元と違う項目は ValueError（受け付けが先に拒む物）で、その時は控えも
-    trace も変えない。b は dir・round・output_of_round・trace（盤面の trace の書き口）だけを使う"""
-    current = approved_items(b)
-    if current is None:
-        raise ValueError(f"差し替える承認済みの修正案が無い（周 {b.round} の案か凍結した控え {FIELDS_FILE} が無い）")
-    fields = copy.deepcopy(frozen(b))
-    done = amended(b)
-    for n in items:
-        if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= len(current):
-            raise ValueError(f"知らない項目の番号 {n!r}（承認済みの項目は 1〜{len(current)}）")
-        it = {k: copy.deepcopy(v) for k, v in items[n].items() if k != "item"}
-        if _contract_value(it, "unit_keys") != _contract_value(current[n - 1], "unit_keys"):
-            raise ValueError(f"項目 {n} の unit_keys が元と違う（元 {current[n - 1].get('unit_keys')!r}・"
-                             f"直した物 {it.get('unit_keys')!r}。差し替えは同じ単位の項目だけ）")
-        _, rows = split({"plan": [it]}, repo, base_tests=base_tests)
-        fields[n - 1] = rows[0]
-        done[n] = {k: it[k] for k in CORE_KEYS if k in it}
-    save(b.dir, b.round, fields, amended=dict(sorted(done.items())), trace=b.trace)
-    b.trace(AMEND_OP, round=b.round, items=sorted(items))
 
 
 def rewrites(b) -> list[dict]:

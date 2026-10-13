@@ -25,8 +25,8 @@ SWITCH_AUTO = "auto"                  # 自動を持つ切り替え（switch_aut
 WORLD_FEATURE = "world"   # 世界の解の段の機能の語（ブロックへは写さず、線の境の節が始めの記録を cut_of で読む）
 FEATURES = {
     "fix_lanes": "修正役の並べの枝（範囲の在る項目を修正のループの前の枝のループで単位の worktree ごとに同時に直す。切ると項目を作業ツリーで順に直す）",
-    "graph_map": "工程の地図（印の旗 map の役の system prompt に、包みが全体のグラフとその役の居場所を足す。切ると足さない。"
-                 "ブロックへは写さず、包みが start の控えを読む）",
+    "graph_map": "グラフの地図（印の旗 map の役の system prompt に、包みが全体のグラフとその役の居場所を足す。切ると足さない。"
+                 "サブグラフへは写さず、包みが start の控えを読む）",
     "judge_verify": "判定の裏取り（単位ごとの裏取りと単位どうしの相乗りの下請け。切ると申し送りを作らない。既定は off）",
     "review_tree": "事前審査の項目ごとの木（項目ごとの下請けと相乗りの審査。切ると審査役 1 つが案の全体を審査する。既定は auto＝"
                    "開いた項目が 2 つ以上の往復だけ木）",
@@ -38,7 +38,7 @@ FEATURES = {
 # 0.6〜3 USD と 1〜2 分、事前審査の木は審査役 1 つの 2〜3 倍の費用で審査役 1 つが見逃した本物の穴を出さなかった）。ほかの機能は on。
 # auto はブロックが自分の材料で決める語（事前審査の木: 開いた項目が 2 つ以上の往復だけ木）。名指した語（features_on・features_off）は既定に勝つ
 FEATURE_DEFAULTS = {"judge_verify": SWITCH_OFF, "review_tree": SWITCH_AUTO}
-FEATURES_KEY = "features_off"   # check_inputs の返りと start の控えの欄（語の順の配列）
+FEATURES_KEY = "features_off"   # start の控えの欄（語の順の配列）
 FEATURES_ON_KEY = "features_on"   # 同じく入れる機能の欄（欄の無い控えは前の版の run。features_on_of が読む）
 # start の控えの実効で off の機能の欄（既定で off の機能を含む語の順の配列。包みが工程の地図で読む。欄の無い控えは前の版で、
 # 前の版の既定は全部 on なので features_off の語だけが off）
@@ -75,7 +75,7 @@ def features_on(word: str) -> list:
 def feature_words(off, on=()) -> dict:
     """start の出口の機能ごとの欄 {<機能>: on | off | auto}（線がブロックの切り替えの入力へ写す）。名指した語が既定に勝つ:
     features_on の語は on・features_off の語は off・どちらにも無ければ FEATURE_DEFAULTS（無ければ on）。両方に在る語は
-    check_inputs が拒むので届かない"""
+    入口の節（start）が拒むので届かない"""
     off, on = set(off or ()), set(on or ())
     return {name: SWITCH_ON if name in on else SWITCH_OFF if name in off
             else FEATURE_DEFAULTS.get(name, SWITCH_ON) for name in FEATURES}

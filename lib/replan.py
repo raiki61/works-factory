@@ -7,7 +7,7 @@
 - 修正案の役には誤りと裁かれた項目・申し出・裁定の文だけを渡し（REPLAN_ASK）、返答は渡した項目に限る（数・unit_keys の字・
   works の欄・狭めない案の誤りを全部並べて 1 回で拒む。REPLAN_REJECT）。項目ごとの節の見出しは ITEM_HEAD・OLD_HEAD・ROW_HEAD
 - new_item(row): 控えの行の直した項目に、外した決め手の欄を narrows の行ごとに戻した形
-- _bare(item): 項目から関所の決め手の欄を外した写し（約束の欄の比べに使う）
+- bare(item): 項目から関所の決め手の欄を外した写し（約束の欄の比べ planmarks.contract_diff に渡す形。案の直しの事前審査と受け付けが引く）
 - _json_block(doc)・_malformed(reply): 項目を指示書に貼る JSON の段と、修正案の返答の形の崩れ
 - WIDEN_OP・WIDEN_LINE・WIDEN_PARTS・widen_text(widened)・AMEND_HEAD・amend_lines(items, …): 無人の run で聞かずに通した範囲を
   広げるだけの直しの文と、同じ run の中で直した項目ごとの 1 行とその見出し（線の ask-replan・ask-final と報告が読む）
@@ -147,6 +147,6 @@ def _malformed(reply) -> bool:
     return any(not isinstance(p, dict) or not isinstance(p.get("narrows") or [], list) for p in plan)
 
 
-def _bare(item: dict) -> dict:
+def bare(item: dict) -> dict:
     """項目から関所の決め手の欄（narrows の行の decided_by・no_narrow など）を外した写し"""
     return gatemarks.split(planmarks.NODE, {"plan": [copy.deepcopy(item)]})[0]["plan"][0]

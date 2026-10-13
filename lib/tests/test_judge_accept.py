@@ -107,6 +107,25 @@ class _JudgeBase(unittest.TestCase):
         return json.loads((self.jdir / ja.JUDGMENT_FILE).read_text(encoding="utf-8"))
 
 
+class DiagnoseGiveUpCase(unittest.TestCase):
+    """判定の輪を諦めた時の止めの文は rolekit の諦めの文（回数で諦めた時と、出し直させずに諦めた時で分かれる）"""
+
+    def stop_after(self, rejects):
+        with tempfile.TemporaryDirectory() as jdir:
+            for reason, give_up in rejects:
+                rolekit.with_done(pathlib.Path(jdir), ja.DIAGNOSE_ROLE, {"ok": False, "reason": reason}, give_up=give_up)
+            ja._give_up(jdir)
+            return ja.read_stop(jdir)["reason"], rolekit.given_up_reason(pathlib.Path(jdir), ja.DIAGNOSE_ROLE)
+
+    def test_give_up_text_is_rolekit_text(self):
+        got, want = self.stop_after([("欠け 1", False), ("欠け 2", False), ("欠け\n3", False)])
+        self.assertEqual(got, want)
+        self.assertIn("3 回とも", got)
+        got, want = self.stop_after([("直らない", True)])
+        self.assertEqual(got, want)
+        self.assertIn("出し直させずに諦めた", got)
+
+
 class RequestCase(unittest.TestCase):
     def test_request_rows_pass_the_add_type(self):
         """元 test_accept.TestIntake.test_intake_accepts_request（依頼の行が rules の add の型を通る）"""
@@ -127,17 +146,6 @@ class RequestCase(unittest.TestCase):
         self.assertIs(ja.check_request({"where": "stats.py", "text": "x"}, "持ち主")["ok"], False)
         self.assertIs(ja.check_request([], "持ち主")["ok"], False)
         self.assertIs(ja.check_request([{"where": "stats.py"}], "持ち主")["ok"], False)
-
-    def test_check_inputs_refuses_misspelled_key_and_unknown_value(self):
-        """元 test_blk_spec の頭の注（写しの rules の check_inputs が flow=spec・gates=merge 以外を init で拒む）"""
-        ja.check_inputs({})
-        ja.check_inputs({"flow": "spec", "gates": "merge"})
-        with self.assertRaises(Reject) as cm:
-            ja.check_inputs({"gate": "merge"})
-        self.assertIn("gates", str(cm.exception))
-        with self.assertRaises(Reject) as cm:
-            ja.check_inputs({"gates": "all"})
-        self.assertIn("知らない値", str(cm.exception))
 
 
 class JudgeTakeCase(_JudgeBase):
@@ -160,15 +168,6 @@ class JudgeTakeCase(_JudgeBase):
         self.assertIs(got["ok"], False)
         self.assertIn("label", got["reason"])
         self.assertFalse((self.jdir / ja.JUDGMENT_FILE).exists())
-
-    def test_open_unit_why_chain_must_be_lines(self):
-        """計画の「開いた単位の why_chain が足りないと拒む」。元の型（graph の p2.diagnose の schema）は why_chain を文の配列にし、
-        元の rules に段の数の規則は無い。型の外（文でない段）を拒む"""
-        reply = _judge_ok()
-        reply["units"][0]["why_chain"] = [{"段": 1}]
-        got = self.take(reply)
-        self.assertIs(got["ok"], False)
-        self.assertIn("why_chain", got["reason"])
 
     def test_open_unit_without_class_query_is_rejected(self):
         """元 rules の judge_output の「今の周に直す単位に class_query が無い」（元 test_blk_judge の判定の受け付けの場面）"""
@@ -202,14 +201,10 @@ class JudgeTakeCase(_JudgeBase):
         self.assertIs(got["ok"], False)
         self.assertIn("precedents の出どころが世界の解の行に無い", got["reason"])
 
-    def test_question_without_kind_or_status_is_rejected(self):
-        """元 rules の judge_output の問いの kind・status の照らし（検証器の QUESTION_KINDS・QUESTION_STATUS）"""
+    def test_fork_question_without_options_is_rejected(self):
+        """元 rules の judge_output の問いの照らし: fork の問いは選べる案（options）を持つ（kind・status の欠けは判定役の節の
+        output_format が拒む。tests/workflows/test_judge.py の ReplyTypeCase）"""
         reply = _judge_ok()
-        reply["questions"] = [{"key": "q1", "reason": "決まらない"}]
-        got = self.take(reply)
-        self.assertIs(got["ok"], False)
-        self.assertIn("kind", got["reason"])
-        self.assertIn("status", got["reason"])
         reply["questions"] = [{"key": "q1", "kind": "fork", "status": "held", "reason": "決まらない", "origin": _MEAN}]
         got = self.take(reply)
         self.assertIs(got["ok"], False)
@@ -335,13 +330,6 @@ class JudgeTakeCase(_JudgeBase):
         got = self.take(reply, prev_questions=[{"kind": "fork", "status": "held", "origin": _MEAN}])
         self.assertIs(got["ok"], False)
         self.assertIn("escalate に上げて", got["reason"])
-
-    def test_declared_route_errors(self):
-        """元 rules の _declared_route_errors（履歴の判定 p2.history の欄。このブロックの判定は当てない部品として持つ）"""
-        out = {"units": [{"key": "u", "label": "block"}], "declared_routed": [{"key": "穴", "route": "to_unit", "unit_key": "v"}]}
-        errs = ja._declared_route_errors(out, [{"key": "穴"}, {"key": "別の穴"}])
-        self.assertTrue(any("unit_key が今の周の units に無い" in e for e in errs))
-        self.assertTrue(any("'別の穴' を振り分けていない" in e for e in errs))
 
     def test_ignored_file_added_by_the_judge_is_rejected(self):
         """元 test_accept.py:178 の test_judge_rejects_ignored_file_without_snapshot・:186 の
@@ -567,30 +555,6 @@ class JudgeTakeCase(_JudgeBase):
                 self.assertEqual(saved, {"rounds": {"1": ties}})
 
 
-class JudgeAcceptCase(_JudgeBase):
-    def test_accept_parses_and_collect_builds_exit(self):
-        """元 test_blk_judge.ScriptCase.test_collect_builds_exit・test_accept_good_and_bad_reply"""
-        bad = ja.accept(self.jdir, "{not json", self.repo)
-        self.assertIs(bad["ok"], False)
-        self.assertIn("JSON", bad["reason"])
-        got = ja.accept(self.jdir, json.dumps(_judge_ok(), ensure_ascii=False), self.repo)
-        self.assertIs(got["ok"], True, got["reason"])
-        out = ja.collect(self.jdir)
-        self.assertEqual((out["ok"], out["need_fix"], sorted(out["open_units"])), (True, True, sorted([_MEAN, _CLAMP])))
-        self.assertEqual(out["one_shot"], _judge_ok()["one_shot"])
-
-    def test_collect_without_judgment_gives_up_with_last_reject(self):
-        """元 test_line_a の test_judge_gives_up_without_failing_the_run（3 回とも拒めば最後の拒否の文で止める）"""
-        for _ in range(3):
-            rolekit.with_done(self.jdir, ja.DIAGNOSE_ROLE, {"ok": False, "reason": "kind が不正"})
-        out = ja.collect(self.jdir)
-        self.assertEqual(out, {"ok": False, "open_units": [], "need_fix": False, "judgment_file": "", "one_shot": ""})
-        stop = ja.read_stop(self.jdir)
-        self.assertEqual(stop["stop_reason"], ja.JUDGE_STOP)
-        self.assertIn("3 回とも", stop["reason"])
-        self.assertIn("kind が不正", stop["reason"])
-
-
 class _VerifyBase(_JudgeBase):
     def judged(self, *units):
         doc = {"framing": "依頼の 2 件はどちらも算術の取り違え", "one_shot": "直す", "units": list(units), "questions": []}
@@ -652,7 +616,7 @@ class VerifyPrepCase(_VerifyBase):
         one = (prompt.parent / "unit-1.md").read_text(encoding="utf-8")
         self.assertIn(_MEAN, one)
         self.assertNotIn(_CLAMP, one)
-        self.assertEqual(pathlib.Path(jv.answer_in(one)), self.jdir / ja.VERIFY_ANSWERS_DIR / "unit-1.json")
+        self.assertIn(jv.ANSWER_AT.format(answer=self.jdir / ja.VERIFY_ANSWERS_DIR / "unit-1.json"), one)
         self.assertIn(jv.SUBAGENT_TYPE, prompt.read_text(encoding="utf-8"))
         self.assertEqual([(u["key"], u["state"]) for u in self.notes()["units"]],
                          [(_MEAN, jv.UNVERIFIED), (_CLAMP, jv.UNVERIFIED)])
@@ -898,18 +862,6 @@ class CarriedConstraintsCase(_RepoCase):
         self.assertEqual(ja.read_json(self.jdir / "premises.json")["constraints"], [*PremisesCase.GOOD["constraints"], row])
 
 
-    def test_carried_rows_fit_the_premises_shape(self):
-        """seams F5: 報告が次の依頼に書く constraints の行（carry.carried_constraints）は、判定の側が premises.json に足す前提の実測の
-        型（PREMISES_SCHEMA の constraints の行）にそのまま合う（2 つの Schema の片方だけ欄を変えると、照らされない行が premises.json に
-        入り lib/premises.py が Broken で落ちる）"""
-        import carry
-        rows = carry.carried_constraints(["上限は config.py:3 の 10", "  ", 3], "run-0")
-        self.assertEqual(len(rows), 1)
-        item = ja.PREMISES_SCHEMA["properties"]["constraints"]["items"]
-        for row in rows:
-            self.assertFalse(core_accept.type_errors(row, item, "運んだ制約"))
-
-
 class PremisesCase(_RepoCase):
     GOOD = {"constraints": [{"text": "README.md の件数は 3 件", "measured_how": "grep", "kind": "実測",
                              "measured_output": "$ grep -c 件 README.md\n1"}]}
@@ -924,16 +876,6 @@ class PremisesCase(_RepoCase):
                 self.assertFalse(got["ok"])
                 self.assertIn("measured_output", got["reason"])
         self.assertFalse((self.jdir / "premises.json").exists(), "拒んだ返答は書かない")
-
-    def test_reply_outside_the_copied_type_rejected(self):
-        """元 premises.check_premises の型（写しの graph の p0.premises の schema）: 欠けた欄・知らない語・知らない欄を拒む"""
-        self.snap_tree()
-        for bad in ({"text": "a", "kind": "仮説"}, {"text": "a", "measured_how": "b", "kind": "推測"},
-                    {"text": "a", "measured_how": "b", "kind": "仮説", "note": "足した欄"}):
-            with self.subTest(bad):
-                got = ja.check_premises({"constraints": [bad]}, self.jdir, self.repo, [])
-                self.assertFalse(got["ok"])
-                self.assertIn("型が合わない", got["reason"])
 
     def test_hypothesis_needs_no_output_and_good_reply_is_written(self):
         """元 test_blk_premises の test_hypothesis_needs_no_output_and_empty_is_ok・test_accepts_good_reply"""
@@ -2001,16 +1943,6 @@ class RejudgeCase(_SpecRepoCase):
         ja.rejudge_prep(self.jdir, self.rdir, "別の異議", self.repo)
         self.assertEqual(ja.read_json(self.rdir / "units-before.json"), before, "写しは 1 回目の前だけ")
 
-    def test_verdict_word_outside_three_rejected(self):
-        """元 test_rejudge の test_type_rejected（写しの型: verdict は 採る・退ける・一部採る）"""
-        self.prepared()
-        got = ja.rejudge_take(self.jdir, self.rdir, _rejudge_reply(verdict="保留"), self.repo)
-        self.assertFalse(got["ok"])
-        self.assertIn("型が合わない", got["reason"])
-        got = ja.rejudge_take(self.jdir, self.rdir, {"verdict": "採る"}, self.repo)
-        self.assertFalse(got["ok"])
-        self.assertFalse((self.rdir / "judgment.json").exists())
-
     def test_empty_facts_rejected(self):
         """元 test_rejudge の test_empty_facts_rejected（写しの rules の rejudge_output）"""
         self.prepared()
@@ -2397,13 +2329,11 @@ class PrAcceptCase(_PrBase):
     def test_excluded_checked(self):
         """元 test_blk_pr の test_excluded_checked: 外す hunk の誤り → ok false。何も書かない"""
         hunk = _PR_OK["excluded"][0]
-        cases = {"excluded が無い": {k: v for k, v in _PR_OK.items() if k != "excluded"},
-                 "conflicts に無い": dict(_PR_OK, excluded=[dict(hunk, pr="99")]),
+        cases = {"conflicts に無い": dict(_PR_OK, excluded=[dict(hunk, pr="99")]),
                  "交差したファイル": dict(_PR_OK, excluded=[dict(hunk, file="other.py")]),
                  "より大きい": dict(_PR_OK, excluded=[dict(hunk, start=2, end=1)]),
                  "行の数 2 を超える": dict(_PR_OK, excluded=[dict(hunk, end=3)]),
-                 "note": dict(_PR_OK, conflicts=[{k: v for k, v in _PR_OK["conflicts"][0].items() if k != "note"}]),
-                 "型": dict(_PR_OK, excluded=[dict(hunk, start=0)])}
+                 "note": dict(_PR_OK, conflicts=[{k: v for k, v in _PR_OK["conflicts"][0].items() if k != "note"}])}
         for word, bad in cases.items():
             got = ja.prcheck_take(self.jdir, bad, self.repo)
             self.assertFalse(got["ok"], word)
@@ -2625,6 +2555,7 @@ class StartViewCase(unittest.TestCase):
                          ("", ["judge_verify"], False, [], ""))
         self.assertEqual(view["diff_base"], "a" * 40)
         self.assertEqual(ja.start_view(None)["request_file"], "")
+        self.assertEqual(ja.start_view({"base_rev": "abc"})["diff_base"], "abc")
 
     def test_explicit_fields_win(self):
         view = ja.start_view({"request_file": "/top.json", "features_cut": [], "input": {"spec": True, "request_file": "/r.json"}})

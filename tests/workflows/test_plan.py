@@ -23,7 +23,7 @@ import unittest
 import yaml
 
 from tests import archon
-from tests.bin import hermetic
+from tests.bin import hermetic, trimmed
 from tests.bin.gitkit import committed_copy, git
 from tests.workflows import copied
 
@@ -149,6 +149,9 @@ class _NodeFailed(Exception):
     """試験が落とした script の節（Archon は節を failed にして、後の節の trigger_rule に渡す）"""
 
 
+FORK = "f0" * 20   # 差分の run の差分の根（読む版と違う版）
+
+
 class Run:
     """1 つの run の置き場と対象。include(…) で計画のブロックを 1 度差し込む（Archon と同じ順に script を回す）"""
 
@@ -162,7 +165,8 @@ class Run:
         committed_copy(self.repo, SEED)
         self.base = git(self.repo, "rev-parse", "HEAD")
         self.inputs = dict(INPUTS)
-        self.inputs["start"] = self.pointer("start/start.json", {"base_rev": self.base, "test_cmd": "", "tdd_suite": "",
+        self.inputs["start"] = self.pointer("start/start.json", {"base_rev": self.base, "review_rev": self.base,
+                                                                  "test_cmd": "", "tdd_suite": "",
                                                                   "thickness": "", "policy_md": "", "lang": "日本語",
                                                                   **(start or {})})
         self.inputs["units"] = json.dumps(catalog() if units is None else units, ensure_ascii=False)
@@ -389,7 +393,6 @@ class ShapeCase(unittest.TestCase):
         for nid, accept, fresh in (("structure-eye-loop", "structure-eye-accept", False), ("plan-loop", "plan-accept", True)):
             lg = node(doc, nid)["loop_group"]
             self.assertEqual(lg["max_iterations"], rolekit.GIVE_UP_AFTER, nid)
-            self.assertEqual(lg["max_iterations"], eye.MAX_ATTEMPTS, nid)
             self.assertIs(lg["fresh_context"], fresh, nid)
             self.assertEqual(lg["until_bash"], f'done=${accept}.output.done; test "$done" = true', nid)
 
@@ -426,7 +429,8 @@ class ShapeCase(unittest.TestCase):
         dropped = {"precedents"}           # 今の works の structure-eye の型に無い
         unrequired = {"route"}             # 今の works の structure-eye の型は任意（受け付けが既定の行き先を足す）
         rows = node(doc, "structure-eye")["output_format"]["properties"]["rows"]["items"]
-        self.assertEqual(rows["properties"], {k: v for k, v in bare(owner["properties"]).items() if k not in added | dropped})
+        self.assertEqual(trimmed.without_trimmed(rows["properties"]),
+                         {k: v for k, v in bare(owner["properties"]).items() if k not in added | dropped})
         self.assertEqual(rows["required"], [k for k in owner["required"] if k not in added | unrequired])
         self.assertIs(rows["additionalProperties"], owner["additionalProperties"])
 
@@ -488,6 +492,30 @@ class CopiedTextsCase(unittest.TestCase):
         for name in names:
             with self.subTest(name):
                 self.assertEqual(copied.restore_problems(COMMANDS / name, *COPIED[name]), [])
+class EyeTypeCase(unittest.TestCase):
+    """構造の目の返答の型の正本は目の節の output_format だけ（受け付けの eye.problems は行の意味だけを見る）"""
+
+    def fmt(self) -> dict:
+        return node(load(), "structure-eye")["output_format"]
+
+    def test_trimmed_min_length_kept_by_pattern(self):
+        self.assertEqual(trimmed.missing_patterns(self.fmt()), [])
+
+    def test_vocabulary_matches_output_format(self):
+        """受け付けと指示書が使う語（eye.VERDICTS・eye.ROUTES）と形の数（eye.FORMS）は、目の節の output_format の enum と faces の範囲"""
+        row = self.fmt()["properties"]["rows"]["items"]["properties"]
+        self.assertEqual(row["verdict"]["enum"], list(eye.VERDICTS))
+        self.assertEqual(row["route"]["enum"], list(eye.ROUTES))
+        self.assertEqual((row["faces"]["items"]["minimum"], row["faces"]["items"]["maximum"]), (1, len(eye.FORMS)))
+
+    def test_rows_outside_the_type_are_rejected(self):
+        """元 lib/tests/test_structure_eye.py の test_bad_rows_are_named の型の側: 知らない行き先・形の外の欄・形の番号の型"""
+        clean = {"unit_id": "u-1", "verdict": "汚れない", "faces": [], "evidence": ["/units/0/measure"], "reason": "形が増えない"}
+        self.assertEqual(validate_schema({"rows": [clean]}, self.fmt()), [])
+        for name, row in (("知らない行き先", {**clean, "route": "後で"}), ("形の外の欄", {**clean, "note": "x"}),
+                          ("真偽を形の番号に", {**clean, "faces": [True]}), ("形の番号の外", {**clean, "faces": [7]})):
+            with self.subTest(name):
+                self.assertTrue(validate_schema({"rows": [row]}, self.fmt()))
 
 
 class StageACase(unittest.TestCase):
@@ -1526,10 +1554,11 @@ class BriefCase(unittest.TestCase):
             self.assertIn(word, brief)
 
     def test_repo_line_names_base_and_review_md(self):
-        run = Run(self)
+        """P035: 差分の run（入口の差分の根 input.base.rev が読む版 review_rev と違う）では、読む版と BASE を別の値で描く"""
+        run = Run(self, start={"input": {"base": {"rev": FORK, "from": "base", "name": "fork", "label": "base fork"}}})
         run.include()
         brief = self.brief(run)
-        self.assertIn(f"リポジトリ: {run.repo.resolve()}（読む版: `{run.base}`）　BASE: `{run.base}`　観点の正本: {LIB / 'REVIEW.md'}",
+        self.assertIn(f"リポジトリ: {run.repo.resolve()}（読む版: `{run.base}`）　BASE: `{FORK}`　観点の正本: {LIB / 'REVIEW.md'}",
                       brief)
 
     def test_excluded_range_named(self):

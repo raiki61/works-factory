@@ -27,10 +27,9 @@ def diff_bytes(repo, rev, *, skip=()) -> bytes:
     本物の index・HEAD は動かさない）と rev の間の `git diff <unittrees._DIFF の旗> <rev> <その木>` のバイト（--binary・--no-renames・--no-ext-diff・--no-textconv・
     --no-color と、a/・b/ の頭を固める旗。利用者の git の設定で字が変わらない）。除くパスの頭 skip（writes.check と同じ形）の下は載せない。
     git の木でない・rev が引けなければ ValueError。fingerprint・合わせの封印・累積差分が同じこの関数を使う"""
-    spec = ["--", ":/", *[f":(top,exclude){s.rstrip('/')}" for s in skip]] if skip else []
     try:
         tree = unittrees.fresh_tree(repo)
-        return unittrees._git(repo, *unittrees._DIFF, rev, tree, *spec).stdout
+        return unittrees._git(repo, *unittrees._DIFF, rev, tree, "--", *unittrees.pathspec_without(skip)).stdout
     except (unittrees.UnitTreeError, OSError) as e:
         raise ValueError(f"差分を組めない（{repo}・{rev}）: {e}") from e
 

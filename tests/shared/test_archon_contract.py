@@ -256,6 +256,15 @@ ARCHON_ROWS = (
         r"^\s*(parent_run_id): z\.string\(\)\.nullable\(\),$"),
     Row("run が終わった status", lambda: childsweep.DONE, "packages/workflows/src/schemas/workflow-run.ts",
         r"export const workflowRunStatusSchema = z\.enum\(\[[^\]]*'(completed)',"),
+    Row("節が済んだ状態", lambda: childsweep.DONE, "packages/cli/src/commands/workflow.ts",
+        r"case 'node_completed': \{\n[^}]*?state: '(\w+)',"),
+    Row("include した節の id の継ぎ", lambda: childsweep.INCLUDE_SEP, "packages/workflows/src/include-expander.ts",
+        r"const prefix = `\$\{includeNode\.id\}(\w+)`;"),
+    Row("workflow get --json --verbose の節の一覧の鍵", lambda: childsweep.NODES, "packages/cli/src/commands/workflow.ts",
+        r"^\s*(nodes): buildNodeSummaries\(events\),$"),
+    Row("節の一覧の行の id と状態の鍵", lambda: [childsweep.NODE_ID, childsweep.STATE], "packages/cli/src/commands/workflow.ts",
+        r"case 'node_completed': \{\n.*?summaries\.set\((\w+), \{\n\s*\1,\n\s*(\w+): 'completed',",
+        lambda m: list(m.groups())),
 )
 
 

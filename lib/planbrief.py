@@ -14,7 +14,7 @@
 - 切り直し（RECUT_OP。依頼 226）: 今の周の trace で、承認済みの項目の差し替えの印（planmarks.AMEND_OP）の行が最後の CUT_OP の行
   より後に在る時だけ、その行（後に在る物全部）の items の項目を今の承認済みの項目（planmarks.plan_items と凍結した欄）から描き
   直し、文が変わった項目だけファイルを書き、控えを置き直して trace に RECUT_OP {round, items} と CUT_OP の行を書く。行の前後は
-  trace の行の並びで決める（時刻で比べない）。amend を通らない save し直しでは切り直さない（凍結のまま）
+  trace の行の並びで決める（時刻で比べない）。差し替えの印の無い save し直しでは切り直さない（凍結のまま）
 - 呼ぶ時: cut・cut_at は今の周の承認済みの修正案（差し替えを重ねた物）を凍結する。事前審査（p2.plan_review）と人の関所（p2.human_gate）を
   抜けた後にだけ呼ぶ（前に呼ぶと、承認されていない案がその周の正本になる）
 
@@ -46,10 +46,6 @@ import pathlib
 import sys
 
 sys.dont_write_bytecode = True
-
-_CORE = pathlib.Path(__file__).resolve().parents[2] / ".shared" / "core"
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
 
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行・planmarks に渡す読み口）
 import planmarks  # noqa: E402
@@ -211,23 +207,20 @@ def _drawn(b, src: dict) -> list[tuple[list, str]] | None:
     try:
         fields = planmarks.frozen(view)
         plan = planmarks.plan_items(view)
+        pairs = None if plan is None or fields is None else planmarks.paired(plan, fields, f"共有ボードの控え {planmarks.FIELDS_FILE}")
     except planmarks.FieldsBroken as e:
         raise LedgerBroken(str(e)) from None
-    if plan is None or fields is None:
+    if pairs is None:
         return None
-    if len(fields) != len(plan):
-        raise LedgerBroken(f"修正案の項目の数 {len(plan)} と共有ボードの控え {planmarks.FIELDS_FILE} の欄の数 {len(fields)} が違う"
-                           "（同じ周の受け付けが同じ並びで書く物）")
     given = planmarks.prescriptions(view)   # 判定の返答の単位の処方（利用者の声 D2）
     units = {u["key"]: {**u, "prescriptions": given.get(u["key"]) or u.get("prescriptions")}
              for u in (src["judgment"] or {}).get("units") or [] if isinstance(u, dict) and isinstance(u.get("key"), str)}
     purpose = src["purpose"] or ""
     structure = structmark.plan_section(src["structure_dir"]) if src["structure_dir"] else ""
     out = []
-    for n, (item, f) in enumerate(zip(plan, fields), 1):
-        item = item if isinstance(item, dict) else {}
+    for n, (item, f) in enumerate(pairs, 1):
         out.append(([k for k in item.get("unit_keys") or [] if isinstance(k, str)],
-                    render(n, item, f if isinstance(f, dict) else {}, units, purpose, structure)))
+                    render(n, item, f, units, purpose, structure)))
     return out
 
 

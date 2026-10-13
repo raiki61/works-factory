@@ -9,7 +9,6 @@ CHANGELOG の 2026-10-09 の行）:
 - clean（汚くない）: 行の単位に構造の目が人に上げた行が無く、汚れると見た単位には修正案の欄 structure の答えが在る
 - not_overkill（やりすぎでない）: 柵の印 fences が無く、修正案の単位の外を名指さない
 
-- split(b, mark, units) -> {軸: {ok, note}}: 関所の行 1 つ
 - gather(b) -> {軸: {ok, note}}: 関所の全部の行（gatemarks._gate_rows）と、世界の解の外れの行（world_items）と構造の目が人に上げた
   設計の問い（design_items）。項目の無い軸は {ok: True, note: ""}
 """
@@ -22,11 +21,6 @@ AXES = gatemarks.AXES
 
 def _note(notes: list) -> dict:
     return {"ok": not notes, "note": "／".join(dict.fromkeys(notes))}
-
-
-def split(b, mark: dict, units) -> dict:
-    """関所の行 1 つ（決め手の欄 mark・行の単位 units）の軸ごとの {ok, note}。全部 ok の時だけ gatemarks.axes が空"""
-    return {axis: _note(notes) for axis, notes in gatemarks.axis_reasons(b, mark, units).items()}
 
 
 def gather(b) -> dict:

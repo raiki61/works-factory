@@ -1,15 +1,17 @@
 """文書・役の指示書・lib が人や役に見せる字に、グラフの語にそろえる前の旧い語が無い（`docs/design.md` の「語」。
 持ち主の決め `graph-words`）。
 
-見る字（`scope`）: `docs/` の直下の `*.md`・`AGENTS.md`（ASF の物を除く）・根の `README.md`・`MISSION.md`・`engineering.md`・`lib/` の直下の `*.md`・`*.json`・
+見る字（`scope`）: `docs/` の直下の `*.md`・`*.json`・`AGENTS.md`（ASF の物を除く）・根の `README.md`・`MISSION.md`・`engineering.md`・
+`lib/` の直下の `*.md`・`*.json`・借りる物の表 `bin/_lib/borrow/*.json`・
 役の指示書（`workflows/*/commands/` の下の全部・`lib/agents/*.md`・`bin/_lib/borrow/unattended.md`）・グラフの YAML の `description`・`prompt`・`systemPrompt`・`message` の値・
-`lib/` の直下・`workflows/*/scripts/`・境 `workflows/.shared/` の Python の文字列（docstring とコメントは開発者の字なので見ない）。
-旧い語は部分一致で探す。外す規則は `EXCEPT` の 1 か所。
+`lib/` の直下・`workflows/*/scripts/`・境 `workflows/.shared/` の Python の文字列（docstring とコメントは開発者の字なので見ない）・
+入口 `bin/`（殻 2 つ・`bin/_lib/` の直下・`bin/_lib/no-post-bin/works-gh`）の Python の文字列・docstring・コメントの全部。旧い語は #115 の対応表の左の全部で、部分一致で探す。外す規則は `EXCEPT` の 1 か所。
 """
 import ast
 import io
 import pathlib
 import re
+import sys
 import tokenize
 import unittest
 from unittest import mock
@@ -19,12 +21,15 @@ import yaml
 from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.append(str(ROOT / "bin" / "_lib"))
+import copyledger  # noqa: E402
 
-BANNED = ("節", "線", "輪", "関所", "指し札", "盤面", "お前")
+BANNED = ("節", "線", "輪", "関所", "指し札", "盤面", "工程", "ワークフロー", "ブロック", "返り", "差し込み", "依る", "お前")
 YAML_TEXT_KEYS = frozenset({"description", "prompt", "systemPrompt", "message"})
 ASF_DIRS = ("factory", "harness", ".factory")
 ROOT_DOCS = ("README.md", "MISSION.md", "engineering.md")
 BORROWED_PROMPT = "bin/_lib/borrow/unattended.md"   # 局所レビューの役の指示書の末尾に全文で載る
+BIN_PY = ("bin/works-factory", "bin/apply", "bin/_lib/*.py", "bin/_lib/no-post-bin/works-gh")
 
 _SECTION_NUMBER = "依頼が設計書のセクションを番号で名指す書き方（「`<path>` 3 節」）。依頼の字を読むので変えない"
 
@@ -34,9 +39,11 @@ EXCEPT = {
     "code": re.compile(r"`[^`\n]*`"),
     # 2. 「持ち主の言葉」を持つ行の「…」は持ち主の言葉のまま（docs/owner-decisions.md の頭）。入れ子の「」も 1 つの引用として外す。
     "owner_quote_line": "持ち主の言葉",
-    # 3. 線・節をグラフの語でない意味で含む語。
-    "compounds": ("配線", "導線", "動線", "点線", "下線", "上線", "実線", "罫線", "条件節", "節約"),
-    # 4. lib・script の文字列のうち、字でなく値の物（前の run が書いたファイルから読み戻す語など）。{(パス, 文字列の 1 行): 訳}。
+    # 3. 旧い語をグラフの語でない意味で含む語。
+    "compounds": ("配線", "導線", "動線", "点線", "下線", "上線", "実線", "罫線", "条件節", "節約", "振り返り", "返り値"),
+    # 4. `bin/`・`lib/` の写し（写しの台帳 `COPIED_FROM*` が並べる物）。元の字のまま縛る（K9）ので直さない。
+    "copies": "COPIED_FROM*",
+    # 5. lib・script の文字列のうち、字でなく値の物（前の run が書いたファイルから読み戻す語など）。{(パス, 文字列の 1 行): 訳}。
     # どの行も木の文字列に当たる（当たらない行は test_keep_rows_hit_the_tree が赤にする）。
     "keep": {
         ("lib/design.py", r'r"`([^`\s#]+\.[A-Za-z0-9]+)`\s*(?:の\s*)?(?:§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節)"'): _SECTION_NUMBER,
@@ -54,14 +61,22 @@ EXCEPT = {
 }
 
 
+def guides(root):
+    """決まりの文書: ASF の物を除く全部の階層の `AGENTS.md` と根の `ROOT_DOCS`"""
+    root = pathlib.Path(root)
+    found = [p for p in root.rglob("AGENTS.md") if p.relative_to(root).parts[0] not in ASF_DIRS]
+    return found + [p for name in ROOT_DOCS for p in root.glob(name)]
+
+
 def scope(root):
-    """`(根からのパス, 種類)` を並べる。種類は md・yaml・py"""
+    """`(根からのパス, 種類)` を並べる。種類は md（json も行ごとに読む）・yaml・py・bin（docstring とコメントも読む py）"""
     root = pathlib.Path(root)
     found = []
     found += [p for p in root.glob("docs/*.md")]
-    found += [p for p in root.rglob("AGENTS.md") if p.relative_to(root).parts[0] not in ASF_DIRS]
-    found += [p for name in ROOT_DOCS for p in root.glob(name)]
+    found += guides(root)
+    found += [p for p in root.glob("docs/*.json")]
     found += [p for p in root.glob("lib/*.md")] + [p for p in root.glob("lib/*.json")]
+    found += [p for p in root.glob("bin/_lib/borrow/*.json")]
     found += [p for p in root.glob(BORROWED_PROMPT)]
     found += [p for p in root.glob("workflows/*/commands/**/*") if p.is_file()]
     found += [p for p in root.glob("lib/agents/*.md")]
@@ -69,19 +84,25 @@ def scope(root):
         yield path.relative_to(root).as_posix(), "md"
     for path in sorted(root.glob("workflows/*/*.yaml")):
         yield path.relative_to(root).as_posix(), "yaml"
-    for path in sorted([*root.glob("lib/*.py"), *root.glob("workflows/*/scripts/*.py"), *root.glob("workflows/.shared/*.py")]):
+    copies = {led.base / rel for top in ("bin", "lib") for led in map(copyledger.read, root.glob(f"{top}/**/{EXCEPT['copies']}"))
+              for rel, _ in led.rows}
+    bin_py = {p for pattern in BIN_PY for p in root.glob(pattern)} - copies
+    py = {*root.glob("lib/*.py"), *root.glob("workflows/*/scripts/*.py"), *root.glob("workflows/.shared/*.py")} - copies
+    for path in sorted(py):
         yield path.relative_to(root).as_posix(), "py"
+    for path in sorted(bin_py):
+        yield path.relative_to(root).as_posix(), "bin"
 
 
 def texts(path, kind):
-    """`(行, 字)` を並べる。md は行ごと、yaml は見る鍵の値、py は docstring を除く文字列"""
+    """`(行, 字)` を並べる。md は行ごと、yaml は見る鍵の値、py は docstring を除く文字列、bin は文字列とコメントの全部"""
     body = path.read_text(encoding="utf-8")
     if kind == "md":
         yield from enumerate(body.splitlines(), 1)
     elif kind == "yaml":
         yield from _yaml_texts(yaml.compose(body))
     else:
-        yield from _py_texts(body)
+        yield from _py_texts(body, everything=kind == "bin")
 
 
 def _yaml_texts(node, key=None):
@@ -97,14 +118,14 @@ def _yaml_texts(node, key=None):
             yield first + i, line
 
 
-def _py_texts(body):
+def _py_texts(body, everything):
     docstrings = set()
-    for node in ast.walk(ast.parse(body)):
+    for node in ([] if everything else ast.walk(ast.parse(body))):
         if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
             first = node.body[0]
             if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
                 docstrings.add((first.lineno, first.col_offset))
-    kinds = {tokenize.STRING, getattr(tokenize, "FSTRING_MIDDLE", tokenize.STRING)}
+    kinds = {tokenize.STRING, getattr(tokenize, "FSTRING_MIDDLE", tokenize.STRING)} | ({tokenize.COMMENT} if everything else set())
     for tok in tokenize.generate_tokens(io.StringIO(body).readline):
         if tok.type in kinds and tok.start not in docstrings:
             for i, line in enumerate(tok.string.splitlines()):
@@ -148,7 +169,7 @@ def problems(root):
 def stale_keep(root):
     """`EXCEPT["keep"]` の行のうち、木の文字列に当たらない物"""
     root = pathlib.Path(root)
-    found = {(rel, line) for rel, kind in scope(root) if kind == "py" for _, line in texts(root / rel, kind)}
+    found = {(rel, line) for rel, kind in scope(root) if kind in ("py", "bin") for _, line in texts(root / rel, kind)}
     return [f"keep: {rel} の {line!r} が木の文字列に当たらない" for rel, line in EXCEPT["keep"] if (rel, line) not in found]
 
 
@@ -216,8 +237,37 @@ class WordsTest(unittest.TestCase):
         self.red({"docs/a.md": "- 決め: 「関所」\n"}, "docs/a.md:1", "関所")
 
     def test_compounds_are_allowed(self):
-        self.clean({"docs/a.md": "配線と導線と動線、点線・下線・上線・実線・罫線、条件節で節約\n"})
+        self.clean({"docs/a.md": "配線と導線と動線、点線・下線・上線・実線・罫線、条件節で節約。振り返りと返り値\n"})
         self.red({"docs/a.md": "本線\n"}, "docs/a.md:1", "線")
+
+    def test_every_word_of_the_table_is_red(self):
+        for word in ("工程", "ワークフロー", "ブロック", "返り", "差し込み", "依る"):
+            self.red({"docs/a.md": f"x{word}y\n"}, "docs/a.md:1", word)
+
+    def test_bin_literal_docstring_and_comment_are_red(self):
+        self.red({"bin/_lib/a.py": 'MSG = "工程の名"\n'}, "bin/_lib/a.py:1", "工程")
+        self.red({"bin/works-factory": '#!/usr/bin/env python3\nraise SystemExit("返りが読めない")\n'}, "bin/works-factory:2", "返り")
+        self.red({"bin/_lib/no-post-bin/works-gh": 'print("輪")\n'}, "bin/_lib/no-post-bin/works-gh:1", "輪")
+        body = '"""工程の docstring"""\n# 線のコメント\n\n\ndef f():\n    """節の docstring"""\n    return 1   # 輪\n'
+        with tree({"bin/_lib/a.py": body}) as root:
+            got = problems(root)
+        self.assertEqual(got, ["bin/_lib/a.py:1: 旧い語 工程", "bin/_lib/a.py:2: 旧い語 線", "bin/_lib/a.py:6: 旧い語 節",
+                               "bin/_lib/a.py:7: 旧い語 輪"])
+
+    def test_json_tables_are_red(self):
+        self.red({"docs/nodes.json": '{"graph": {"a": "判定のブロック"}}\n'}, "docs/nodes.json:1", "ブロック")
+        self.red({"bin/_lib/borrow/seams.json": '{"x": "線の route"}\n'}, "bin/_lib/borrow/seams.json:1", "線")
+
+    def test_copies_in_a_ledger_are_not_read(self):
+        ledger = "742a61d  元の説明の節\nc.py  src/c.py\n"
+        self.clean({"bin/_lib/COPIED_FROM.c": ledger, "bin/_lib/c.py": 'X = "仕様 3 節"\n'})
+        self.red({"bin/_lib/COPIED_FROM.c": ledger, "bin/_lib/d.py": 'X = "仕様 3 節"\n'}, "bin/_lib/d.py:1", "節")
+
+    def test_lib_copies_in_a_ledger_are_not_read(self):
+        """#256: lib の写し（lib/COPIED_FROM.* が並べる changemap.py など）も元の字のまま縛るので見ない"""
+        ledger = "742a61d  元の説明の節\nc.py  src/c.py\n"
+        self.clean({"lib/COPIED_FROM.c": ledger, "lib/c.py": 'X = "仕様 3 節"\n'})
+        self.red({"lib/COPIED_FROM.c": ledger, "lib/d.py": 'X = "仕様 3 節"\n'}, "lib/d.py:1", "節")
 
 
 if __name__ == "__main__":

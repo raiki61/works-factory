@@ -87,7 +87,7 @@ def words(raw: dict, repo: Path) -> dict:
         raise Refused(f"design_only={raw['design_only']!r} は知らない値（空か {gatemarks.DESIGN_ONLY}）")
     thickness = raw["thickness"].strip()
     if thickness == HEAVY:
-        raise Refused(f"thickness={HEAVY} で足す工程がまだ無い（{' / '.join(t for t in THICKNESS if t)}）")
+        raise Refused(f"thickness={HEAVY} で足すノードがまだ無い（{' / '.join(t for t in THICKNESS if t)}）")
     if thickness not in THICKNESS:
         raise Refused(f"thickness={raw['thickness']!r} は知らない値（{' / '.join(t for t in THICKNESS if t)}）")
     if raw["fix_fixture"].strip():
@@ -195,8 +195,8 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
                 "unattended": False, "design_only": False, "final_gate": ""}
     parts = asked["parts"]
     record.update({
-        "input": shape, "base_rev": shape["head_rev"], "request_file": asked["request_file"], "test_cmd": raw["test_cmd"],
-        "tdd_suite": raw["tdd_suite"],
+        "input": shape, "base_rev": shape["head_rev"], "review_rev": shape["head_rev"], "request_file": asked["request_file"],
+        "test_cmd": raw["test_cmd"], "tdd_suite": raw["tdd_suite"],
         gatepolicy.FINAL_KEY: checked[gatepolicy.FINAL_KEY], gatepolicy.UNATTENDED_KEY: checked[gatepolicy.UNATTENDED_KEY],
         "design_only": checked["design_only"], "thickness": checked["thickness"], "spec": checked["spec"],
         "policy_md": checked["policy_md"], "policy": policy.freeze(artifacts, repo, checked["policy_md"]), "lang": raw["lang"],

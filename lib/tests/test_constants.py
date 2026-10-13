@@ -44,8 +44,6 @@ OVERLAPS = {
         "再審の支度が置く別のファイルで、fixrules.BRIEF（修正の決まりの brief.md）と字だけ同じ。区分 J。区分の issue で外す",
     ("lib/judge_accept.py", "COUNT_BUDGET_FILE"): "recount.COUNT_BUDGET_FILE の写し。区分 J。区分の issue で外す",
     ("lib/judge_accept.py", "COUNT_CACHE_FILE"): "recount.COUNT_CACHE_FILE の写し。区分 J。区分の issue で外す",
-    ("lib/fixboard.py", "DEPTH_FILE"):
-        "fix の置き場の深さの写し（plan の返り depth の形）で、depth.FILE（盤面の根の控え）と字だけ同じ。区分 F。区分の issue で外す",
     ("lib/eyeverdict.py", "DESIGN_PREMISES"): "boardview.PREMISES_FILE の写し（plan-review の隣のファイルを名で開く）。区分 E。区分の issue で外す",
     ("lib/boardview.py", "JUDGMENT_COPY"): "judge_accept.JUDGMENT_FILE の写し。区分 P。区分の issue で外す",
     ("lib/fixboard.py", "JUDGMENT_FILE"): "judge_accept.JUDGMENT_FILE の写し。区分 F。区分の issue で外す",
@@ -107,6 +105,16 @@ class ConstantsCase(unittest.TestCase):
         allowed = FALLBACKS.keys() | OVERLAPS.keys()
         self.assertEqual(overlaps(found, allowed), {}, "同じファイルの名の字を 2 か所で定義する")
         self.assertEqual(idle_rows(found, allowed), [], "表の行が今の木の重なりに当たらない")
+
+    def test_asking_states_are_written_once(self):
+        """問いの台帳で人に聞く状態の組（held・escalate）を字で並べるのは gatemarks.ASKING の 1 か所（#248）"""
+        copies = []
+        for path in sorted(LIB.glob("*.py")):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                words = {e.value for e in getattr(node, "elts", ()) if isinstance(e, ast.Constant)}
+                if isinstance(node, (ast.Tuple, ast.List, ast.Set)) and {"held", "escalate"} <= words:
+                    copies.append(f"{path.name}:{node.lineno}")
+        self.assertEqual([c.partition(":")[0] for c in copies], ["gatemarks.py"], copies)
 
     def test_every_allowed_row_has_a_reason(self):
         self.assertFalse(FALLBACKS.keys() & OVERLAPS.keys())

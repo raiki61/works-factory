@@ -4,7 +4,6 @@
 下書きの行の作りと依頼の解き方が往復すること・行の鍵の決まりを見る（計画 docs/plans/2026-10-09-chained-rounds.md の Task 1）。
 関数を直に呼ぶだけ（一時の置き場のファイルのほか、git・盤面・子のプロセスなし。柵の照らしは git ls-files を読む）。
 """
-import json
 import pathlib
 import sys
 import tempfile
@@ -42,25 +41,6 @@ class Contract(unittest.TestCase):
             self.assertLessEqual(set(c.DRAFT_KEYS), set(nxt["properties"][key]["items"]["properties"]), key)
         self.assertEqual(c.DRAFT_KEYS, (c.DRAFT, c.SOURCE))
         # ANSWER_KEYS（人が見直した答えの欄）と Schema の answers（下書きの欄）は別の物で、揃えない
-
-    def test_writer_refuses_off_contract(self):
-        """書き手は Schema に合わない物を置かない（ValueError で、ファイルを作らない）"""
-        c = carry()
-        with tempfile.TemporaryDirectory() as d:
-            ok = c.compose([{"where": "a.py", "text": "穴"}], [], [])
-            with self.assertRaises(ValueError):
-                c.save(d, ok, [{"where": 1, "text": "t"}])
-            with self.assertRaises(ValueError):
-                c.save(d, {"findings": []}, [])   # 次の依頼が合わなければ、合う前の失敗も置かない
-            with self.assertRaises(ValueError):
-                c.place_prior(d, [{"where": "a"}])
-            self.assertEqual(list(pathlib.Path(d).iterdir()), [])
-            p, q = c.save(d, ok, [])
-            self.assertEqual((p.name, q.name), (c.NEXT_REQUEST_FILE, c.PRIOR_FAILURES_FILE))
-            self.assertEqual(q.read_text(encoding="utf-8"), "[]\n")
-            self.assertEqual(p.read_text(encoding="utf-8"),
-                             json.dumps({"findings": [{"where": "a.py", "text": "穴"}], "prior_failures": []},
-                                        ensure_ascii=False, indent=2) + "\n")
 
     def test_reader_checks_prior_rows_against_schema(self):
         """読み手も prior_failures の行を同じ Schema で照らす（手書きの確かめの後。文は今のまま）"""

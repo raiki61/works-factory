@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
@@ -22,6 +23,7 @@ import marks  # noqa: E402
 import planfile  # noqa: E402
 import planmarks  # noqa: E402
 import policy  # noqa: E402
+import replan  # noqa: E402
 import startrec  # noqa: E402
 import structmark  # noqa: E402
 import worldmark  # noqa: E402
@@ -77,7 +79,8 @@ class OpenCase(Base):
     def test_view_reads_what_open_placed(self):
         """始めの記録・構造の目の控え・世界の解の段・修正案の欄・決め手の控えを、今の works の読み口が見え方の上で読む"""
         wf = self.put("judge/world/world.jsonl", json.dumps(TP.WORLD_ROW, ensure_ascii=False) + "\n", raw=True)
-        start = self.put("start.json", {"run_id": "r", "base_rev": "abc", "unattended": "true", "design_only": "true"})
+        start = self.put("start.json", {"run_id": "r", "base_rev": "abc", "review_rev": "abc", "unattended": "true",
+                                       "design_only": "true"})
         got = self.open(world=wf, start=start)
         self.assertEqual((got["k"], got["form"]), (2, "review"))
         b = self.view()
@@ -431,6 +434,17 @@ class Owners(unittest.TestCase):
         self.assertEqual((planmarks.NODES, planmarks.FIELDS_FILE), (marks.nodes("plan"), marks.KINDS["plan"].file))
         self.assertEqual(tuple(converge.FIELDS), marks.nodes("converge"))
         self.assertEqual(worldmark.MEANS_NODES, marks.nodes(worldmark.MEANS))
+
+    def test_replan_compare_strips_the_gate_fields_in_one_place(self):
+        """#260: 案の直しの事前審査（boardview.replan_asks）と案の直しの受け付け（planfile.take_replan）は、項目から関所の決め手の
+        欄を外す読みを replan.bare の 1 か所から引き、計画の節の名は planmarks.NODE"""
+        self.assertEqual(boardview.PLAN_NODE, planmarks.NODE)
+        item = {"unit_keys": [UNIT], "approach": "分母を直す", "narrows": [{**TP.NARROW, **TP.DECIDED}]}
+        seen = []
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(replan, "bare", lambda it: seen.append(it) or it):
+            boardview.replan_asks(pathlib.Path(d), pathlib.Path(d),
+                                  {"replan_items": [{"item": 1, "units": [UNIT], "old": item, "new": item}]}, {})
+        self.assertEqual(seen, [item, item])
 
     def test_purpose_review_is_a_judge_public_file(self):
         """判定の隣の目的の監査は、judge が置く名で読む（boardview は judge_accept を import しないので、名を合わせるのはここ）"""

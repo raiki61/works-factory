@@ -16,7 +16,6 @@
   "lib.tests.test_boardview": 0.3,
   "lib.tests.test_carry_ci": 0.1,
   "lib.tests.test_carry_home": 0.0,
-  "lib.tests.test_changemap_copy": 0.0,
   "lib.tests.test_checkscope": 0.0,
   "lib.tests.test_cite": 0.0,
   "lib.tests.test_concept_change": 0.1,

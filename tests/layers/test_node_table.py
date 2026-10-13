@@ -18,7 +18,7 @@ DESIGN = "docs/design.md"
 PACK = "pack.json"
 
 # 出典: raiki61/claude-plugins@2aa7c66cf7abe1fe09699ac2942d107123214168 の works/.shared/core/graphloops/graphs/review-loop.json。
-# 節の並びもその nodes の順。pack.json の works の止めが動いたら、SIXTY・OPTIONAL・KEEP_NAMES・GRAPH_SHA を新しい版から読み直して SOURCE を動かす。
+# 節の並びもその nodes の順。pack.json の works の止めが動いたら、SIXTY・OPTIONAL・KEEP_SOURCE_NAMES・GRAPH_SHA を新しい版から読み直して SOURCE を動かす。
 SOURCE = {"repo": "raiki61/claude-plugins", "commit": "2aa7c66cf7abe1fe09699ac2942d107123214168"}
 GRAPH_SHA = "2eb140b879e5"
 SIXTY = (
@@ -39,12 +39,15 @@ OPTIONAL = frozenset({
     "r4.hidden_scope", "stop.premise_check", "p2.rejudge", "p2.rejudge_third",
 })
 # 出典: SOURCE の版の works/docs/keep-essence.md:10-21
-KEEP_NAMES = {
+KEEP_SOURCE_NAMES = {
     "1": "赤緑の機械の判定", "2": "元から赤のテストの区別", "3": "テストの凍結", "4": "3 回拒まれたら諦める",
     "5": "書き込みの出どころの突き合わせ", "6": "当たる試験を選んで回し、回さなかった試験を名で残す",
     "7": "欠陥の探し方の数え直し", "8": "食い違いの申し出と読むだけの裁定役", "9": "独立設計",
     "10": "守りのファイルに触れたら最後の関所を開く", "11": "直す単位ごとの記録が報告に届く", "12": "世界の解に照らす",
 }
+# 出典の名に許した直し {鍵: (元の字, 表の字)}。持ち主の決め graph-words で語をグラフの語にそろえた物だけ
+KEEP_NAME_REWRITES = {"10": ("最後の関所を開く", "最後の承認ノードを開く")}
+KEEP_NAMES = {k: v.replace(*KEEP_NAME_REWRITES[k]) if k in KEEP_NAME_REWRITES else v for k, v in KEEP_SOURCE_NAMES.items()}
 
 BY_KINDS = {
     "role": {"command", "prompt"},

@@ -40,6 +40,7 @@ redepth = load("redepth")
 returned = load("returned")
 collect = load("collect")
 result = load("result")
+sweep_children = load("sweep_children")
 
 import answer  # noqa: E402  （線の script が lib/ と境の口の置き場を sys.path に足した後に読む）
 import boardview  # noqa: E402
@@ -242,6 +243,7 @@ class StartCase(Artifacts):
         self.assertGreaterEqual(doc["input"]["diff"]["files"], 1)
         self.assertEqual(doc["base_rev"], git(self.repo, "rev-parse", "HEAD"),
                          "base_rev は修正の前の HEAD（今の works の entry.py 1203 行。merge と test-gate が差分の起点に読む）")
+        self.assertEqual(doc["review_rev"], doc["base_rev"], "review_rev は役の材料の読む版。差分の根 input.base.rev とは別に持つ")
 
     def test_request_file_is_on_the_top_of_the_record(self):
         """issue #89: 始めの記録の上の欄 request_file は input.request_file と同じ絶対パス（今の works の entry.py 605 行）。
@@ -303,7 +305,7 @@ class StartCase(Artifacts):
         for kw, words in (({}, "直す物も審査する物も無い"),
                           ({"request": "request_ok.json", "base": "base", "pr": "1"}, "両方"),
                           ({"request": "request_ok.json", "spec": "on", "unattended": "true"}, "組めない"),
-                          ({"request": "request_ok.json", "thickness": "重厚"}, "足す工程がまだ無い"),
+                          ({"request": "request_ok.json", "thickness": "重厚"}, "足すノードがまだ無い"),
                           ({"request": "request_ok.json", "thickness": "xx"}, "知らない値"),
                           ({"request": "request_ok.json", "features_off": "nope"}, "nope"),
                           ({"request": "request_ok.json", "features_off": "judge_verify", "features_on": "judge_verify"}, "両方"),
@@ -1248,7 +1250,7 @@ class AskFinalReadsCase(Artifacts):
                                                                   "design_file": "", "wall_s": 0})
         missing = ask_final.structure_missing(ptr)
         self.assertEqual(missing, "構造の目の行なしで計画した（理由: 構造の目の役が落ちた）")
-        self.assertIn(f"- 構造のブロック: {missing}", ask_final.final_text(final_got(structure_missing=missing), [], RUN))
+        self.assertIn(f"- 構造のサブグラフ: {missing}", ask_final.final_text(final_got(structure_missing=missing), [], RUN))
         ok = self.place("plan/structure/structure-state.json", {"status": "ok", "reason": "", "design_file": "", "wall_s": 0})
         self.assertEqual(ask_final.structure_missing(ok), "")
         self.assertEqual(line_nodes()["ask-final"]["with"]["structure"], {"from": "$plan-rounds.output.structure", "if_skipped": None})
@@ -1264,7 +1266,7 @@ class AskFinalReadsCase(Artifacts):
         with mock.patch.dict(os.environ, env):
             out = ask_final.ask(**ask_final.from_env())
         self.assertTrue(out["open"], out)
-        self.assertIn("- 構造のブロック: 構造の目の行なしで計画した（理由: 構造の目の役が落ちた）", out["text"])
+        self.assertIn("- 構造のサブグラフ: 構造の目の行なしで計画した（理由: 構造の目の役が落ちた）", out["text"])
 
     def test_fix_beside_files_reach_the_final_gate(self):
         """F013・F041・F312・F329・L-W20・L-W21（S03・S28・S29）: 最後の関所は修正の段ごとの diff の隣の控え（fixed の diffs。
@@ -1340,7 +1342,7 @@ class AskFinalReadsCase(Artifacts):
             self.assertIn(want, text)
         self.assertLess(text.index("（R2）: 上限が渡されていない"), text.index("R3"))
         self.assertEqual(ask_final.eye_notes(None)["r2_inputs"],
-                         ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の返り notes が null）"])
+                         ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の出力 notes が null）"])
         self.assertEqual(line_nodes()["ask-final"]["with"]["eye_notes"], "$eyes.output.notes")
         self.assertEqual(line_nodes()["eyes-out"]["with"]["got_notes"], "$eyes.output.notes")
 
@@ -1995,11 +1997,12 @@ class CollectAndResultCase(unittest.TestCase):
         put = {**seal, "mode": "apply", "diff": {"path": "merge/apply.diff"}}
         eyes = {"ok": True, "r2": {"status": "pass", "reason": ""}}
         answer = {"decision": "stop", "text": "やめる"}
-        got = result.result({"outcome": "fixed"}, {"merge_apply": put, "merge_seal": seal, "eyes": eyes, "gate_final": answer})
+        got = result.result({"outcome": "fixed"}, {"merge_apply": put, "merge_seal": seal, "eyes": eyes, "gate_final": answer}, None)
         self.assertEqual(got["apply"], {"ok": True, "hash": "h", "diff": {"path": "merge/apply.diff"}, "reason": ""})
         self.assertEqual(got["sealed"], {"ok": True, "hash": "h", "diff": {"path": "merge/sealed.diff"}})
         self.assertEqual((got["r2_status"], got["final_answer"]), ("pass", answer))
-        got = result.result({"outcome": ""}, {"merge_apply": None, "merge_seal": None, "eyes": {"ok": True, "r2": None}, "gate_final": None})
+        got = result.result({"outcome": ""}, {"merge_apply": None, "merge_seal": None, "eyes": {"ok": True, "r2": None}, "gate_final": None},
+                            None)
         self.assertEqual((got["apply"], got["sealed"], got["r2_status"], got["final_answer"]), (None, None, None, None))
         with_ = line_nodes()["result"]["with"]
         for key in ("merge_apply", "merge_seal", "eyes", "gate_final"):
@@ -2010,7 +2013,65 @@ class CollectAndResultCase(unittest.TestCase):
     def test_result_fixed(self):
         for outcome, want in (("fixed", True), ("fixed_needs_check", True), ("no_fix_needed", False), ("", False)):
             with self.subTest(outcome=outcome):
-                self.assertEqual(result.result({"outcome": outcome}, {})["fixed"], want)
+                self.assertEqual(result.result({"outcome": outcome}, {}, None)["fixed"], want)
+
+
+class SweepChildrenCase(unittest.TestCase):
+    """線の後始末の節 sweep-children（issue #113）: 報告の後・線の返す節の前に在り、落ちずに {cleaned, left, error} を返し、
+    result がそれを線の返りの欄 children に載せる。選びと Archon の起こし方は tests/bin/test_childsweep.py"""
+
+    def test_runs_after_the_report_and_feeds_only_the_result(self):
+        nodes = line_nodes()
+        node = nodes["sweep-children"]
+        self.assertEqual((node["script"], node["depends_on"], node["trigger_rule"]), ("sweep_children", ["report"], "all_done"))
+        self.assertIs(node["mutates_checkout"], False)
+        self.assertEqual({key for key, other in nodes.items() if "sweep-children" in other.get("depends_on", [])}, {"result"})
+        self.assertIn("sweep-children", nodes["result"]["depends_on"])
+        self.assertEqual(nodes["result"]["with"]["children"], {"from": "$sweep-children.output", "if_skipped": None})
+        top = {node["id"]: node for node in LINE["nodes"]}
+        self.assertEqual({key for key in top if not any(key in other.get("depends_on", []) for other in top.values())}, {"result"})
+
+    def test_result_carries_the_sweep(self):
+        swept = {"cleaned": [{"branch": "b0", "run_id": "c0", "node": "fix__groups-par"}],
+                 "left": [{"branch": "b1", "run_id": "c1", "node": "fix__groups-par", "reason": "子の run が failed"}], "error": ""}
+        self.assertEqual(result.result({"outcome": "fixed"}, {}, swept)["children"], swept)
+        self.assertIsNone(result.result({"outcome": "fixed"}, {}, None)["children"])
+
+    def test_failure_is_returned_not_raised(self):
+        with mock.patch.object(boundary, "returns") as returns, mock.patch("sys.stderr"), \
+                mock.patch.object(sweep_children, "sweep", side_effect=OSError("壊れた")):
+            sweep_children.main()
+        returns.assert_called_once_with({"cleaned": [], "left": [], "error": "OSError: 壊れた"})
+
+    def run_node(self, extra: dict) -> dict:
+        """節の script を、Archon と同じく工程のフォルダの写し（線と境の口）から、リポジトリの根を WORKS_FACTORY_ROOT で渡して
+        本当に走らせる。Archon は偽の bun（一覧に WORKFLOW_ID の run だけを出す）で、子の run は無い"""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            copied = tmp / "workflows"
+            for folder in ("line", ".shared"):
+                shutil.copytree(SCRIPTS.parents[1] / folder, copied / folder)
+            (tmp / "bin").mkdir()
+            bun = tmp / "bin" / "bun"
+            listing = json.dumps({"runs": [{"id": RUN, "status": "running", "parent_run_id": None, "metadata": {}}]})
+            bun.write_text(f"#!/bin/sh\ncat <<'EOF'\n{listing}\nEOF\n", encoding="utf-8")
+            bun.chmod(0o755)
+            env = {k: v for k, v in os.environ.items() if k != "WORKS_FACTORY_ARCHON_SOURCE"}
+            env.update({"PATH": f"{tmp / 'bin'}{os.pathsep}{env.get('PATH', '')}", "WORKFLOW_ID": RUN, "ARTIFACTS_DIR": str(tmp),
+                        "WORKS_FACTORY_ROOT": str(ROOT)})
+            env.update({k: v.replace("<tmp>", str(tmp)) for k, v in extra.items()})
+            done = subprocess.run([sys.executable, str(copied / "line/scripts/sweep_children.py")], cwd=tmp, env=env,
+                                  capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return json.loads(done.stdout)
+
+    def test_run_without_children_does_not_fail(self):
+        self.assertEqual(self.run_node({"WORKS_FACTORY_ARCHON_SOURCE": "<tmp>/archon"}), {"cleaned": [], "left": [], "error": ""})
+
+    def test_run_outside_the_launcher_does_not_fail(self):
+        got = self.run_node({})
+        self.assertEqual((got["cleaned"], got["left"]), ([], []))
+        self.assertIn("WORKS_FACTORY_ARCHON_SOURCE", got["error"])
 
 
 class BoundaryRunCase(unittest.TestCase):
@@ -2051,6 +2112,8 @@ class FallbackCase(unittest.TestCase):
                         self.assertIsInstance(got[field], tuple(TYPES[k] for k in ([kinds] if isinstance(kinds, str) else kinds)), field)
                 if key == "collect":   # report に止めの理由の入力が無い。始めの記録が届かないので report が結果を名乗らない
                     self.assertIsNone(got["start"])
+                elif key == "sweep-children":   # 報告の後の後始末。止める段が無く、訳は error に書く
+                    self.assertEqual(got["error"], "boom")
                 else:
                     self.assertEqual(got["stop_reason"], stopby.LINE_SCRIPT)
                 self.assertIsNot(got.get("go"), True)
@@ -2304,6 +2367,8 @@ class LineWiringCase(unittest.TestCase):
         "pr-downgrades.json": (("judge", "judgment"), "lib/prcheck.py"),
         "world-state.json": (("judge", "judgment"), "lib/worldmark.py"),
         "p2.fix_plan.json": (("plan", "plan"), "lib/fixboard.py"),
+        "rejects-plan.json": (("plan", "plan"), "lib/boardview.py"),
+        "replan-gave-up.json": (("plan", "plan"), "lib/runreport.py"),
         "design.jsonl": (("plan", "structure"), "lib/boardview.py"),
         "gate-passes.json": (("plan-review", "review"), "lib/gatemarks.py"),
         "gate.json": (("plan-review", "review"), "lib/gatemarks.py"),
@@ -2345,6 +2410,12 @@ class LineWiringCase(unittest.TestCase):
            for name in ("r4-gate-passes.json", "premise-check.json") for check in ("stop", "bare")},
         **{(name, check): "再審（rejudge-run）の判定の隣にだけ在り、判定の道では書かれない（読み手 report.rejudge_exit が「無い」を訳にする）"
            for name in ("rejudge-exit.json", "rejudge-diff.json") for check in ("stop", "bare")},
+        **{("rejects-plan.json", check): "拒んだ回にだけ書く（rolekit.reject）。空の置き場の返す節は書かない"
+           for check in ("stop", "bare")},
+        ("rejects-plan.json", "named"): "名は rolekit.rejects_path が役の名から組み（rejects-<役>.json）、字の定数が無い",
+        ("rejects-plan.json", "read"): "plan-review は rolekit.reject_rows で役の名から開き、名の字を持たない",
+        **{("replan-gave-up.json", check): "案の直しで役が諦めた項目が在る時だけ書く（planfile.note_gave_up）。空の置き場の返す節は書かない"
+           for check in ("stop", "bare")},
     }
 
     def written_beside(self, block: str, field: str, bare: bool) -> set:

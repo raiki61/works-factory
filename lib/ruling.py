@@ -9,8 +9,8 @@
 - prep(board_dir, repo, values, reject_file="", lang=""): 節 rule-prep の中身。作業ツリーの姿を控え（fixboard.snapshot。読むだけの役の
   見張り）、指示書を fixrules.ruler_prompt で組んで置き場の prompt-rule.md に書く。出し直しなら前の拒否の理由のファイル reject_file
   （呼び手が渡す）を 1 行目で名指す（R44）。lang は言語の 1 行（呼び手が組む）
-- accept_rule(reply, board, base_rev, repo, iteration=None): 節 rule-accept の中身（呼び手の script が回す）。作業ツリーが変わっていない・裁く申し出の id に
-  ちょうど 1 件ずつ・語・fix_test_scope の範囲が現物に在る・replace_query の問いが例（hits・misses・申し出の correct_lines）で
+- accept_rule(reply, board, base_rev, repo): 節 rule-accept の中身（呼び手の script が回す）。作業ツリーが変わっていない・裁く申し出の id に
+  ちょうど 1 件ずつ・fix_test_scope の範囲が現物に在る・replace_query の問いが例（hits・misses・申し出の correct_lines）で
   外れない・裁きの出どころ（grounds）が現物に在り、依頼のファイルが在る run の ask_human は依頼の行か request_searched を持つ・
   fix_plan_item は範囲を持たず、grounds にその単位の brief の行を名指す（planbrief.by_unit_at・conflict.brief_cite_problem）・
   同じ返答で fix_plan_item に裁いた項目の単位に直す裁定を出さない（plan_item_fix_problems）、
@@ -18,52 +18,32 @@
   （fix_plan_item には欄 plan_items にその単位の brief の項目の番号を、欄 plan_units にその項目に載る単位の全部を足す）。GIVE_UP_AFTER 回目の拒否では
   裁かれていない申し出を全部 ask_human に裁いて抜ける（決められない物は人へ。max_iterations で落とさない）
 """
-import json
 import os
 import pathlib
 import sys
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parents[2] / ".shared" / "core"
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
-
-_GL = pathlib.Path(__file__).resolve().parent / "graphloops"   # 写しの engine（engine.schema。元は import board が sys.path に足した。carry.py と同じ足し方）
-if str(_GL) not in sys.path:
-    sys.path.insert(0, str(_GL))
-
 from accept import TREE_KEYS, tree_moved  # noqa: E402   共通の作業ツリーの比べ（R47）
 import cite  # noqa: E402
 import conflict  # noqa: E402
-from engine.schema import validate_schema  # noqa: E402
 import fixboard  # noqa: E402   置き場への作業ツリーの姿の控え（元 entry.snapshot）
 import fixrules  # noqa: E402
+import jsonfile  # noqa: E402
 import planbrief  # noqa: E402   今の周の brief の行（fix_plan_item を brief の在る単位に限る）
 import querytest  # noqa: E402
+import rolekit  # noqa: E402   輪の回の数え（拒否の控え rejects-rule.json）
 import stopby  # noqa: E402  （L1。止めの理由の住処）
 
 ROLE = "rule"
 TREE = "rule-tree.json"          # 役を起こす前の作業ツリーの姿（置き場）
 PROMPT = "prompt-rule.md"        # 指示書（置き場）
-LEDGER = "rule-prep.json"        # この輪の回の数え {iterations}
-GIVE_UP_AFTER = 3                # 輪 rule-loop の max_iterations と同じ（試験が YAML と突き合わせる）
+GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER   # 輪 rule-loop の max_iterations と同じ（試験が YAML と突き合わせる）
 BY_ROLE = "role:rule"
 BY_GIVE_UP = stopby.declare("rule-give-up", "裁定の by: 裁定役の返答が受け付けを通らず、決められない物として人に回した")
 GIVE_UP_TEXT = f"裁定役の返答が {GIVE_UP_AFTER} 回とも受け付けを通らなかった——材料から決められない物として人に回した"
 READONLY = "裁定役は読むだけで、作業ツリー・HEAD・枝・git が無視するファイルを変えてはいけない: "
 RULING_KEYS = ("decision", "text", "limits", "grounds", "request_searched", "query")   # 置き場の控えに積む裁定の欄
-# 裁定の返答の形（problems が先に照らす。元の RULE_OUTPUT_FORMAT から節の印 node_marker.mark を外した物）
-REPLY_SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["rulings"],
-    "properties": {"rulings": {"type": "array", "minItems": 1, "items": conflict.RULING_SCHEMA}}}
-
-
-def _read_json(path: pathlib.Path):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
 
 
 def prep(board_dir, repo, values: dict, *, reject_file: str = "", lang: str = "") -> dict:
@@ -75,8 +55,7 @@ def prep(board_dir, repo, values: dict, *, reject_file: str = "", lang: str = ""
     todo = conflict.unruled(b)
     if not todo:
         raise ValueError("裁く申し出が無い（conflict-check の go が偽なのに裁定のループを回した）")
-    ledger = pathlib.Path(b) / LEDGER
-    n = ((_read_json(ledger) or {}).get("iterations") or 0) + 1
+    n = rolekit.attempt(b, ROLE)
     fixboard.snapshot(board_dir, TREE, pathlib.Path(repo))
     vals = {**values, "conflicts_file": str(pathlib.Path(b) / conflict.FILE), "ids": ", ".join(i["id"] for i in todo),
             "request_file": conflict.request_file(board_dir)}
@@ -84,7 +63,6 @@ def prep(board_dir, repo, values: dict, *, reject_file: str = "", lang: str = ""
                                  lang=lang)
     path = pathlib.Path(b) / PROMPT
     path.write_text(text, encoding="utf-8")
-    ledger.write_text(json.dumps({"iterations": n}) + "\n", encoding="utf-8")
     return {"prompt_file": str(path), "iteration": n}
 
 
@@ -131,9 +109,6 @@ def problems(reply, todo: dict, repo, request: str = "", roots=(), briefs=None) 
     """裁定の返答の確かめ（空なら通る）。request は run の依頼のファイル（空なら依頼の無い run）、roots は grounds の絶対パスを
     許す置き場（依頼のファイル・fix の run の置き場）、briefs は今の周の brief の行 {unit_key: [{item, file}]}（planbrief.by_unit_at。None と {}
     は brief の無い run で、fix_plan_item を通さない）"""
-    errs = validate_schema(reply, REPLY_SCHEMA)
-    if errs:
-        return [f"返答の形: {e}" for e in errs]
     rows = reply["rulings"]
     ids = [r["id"] for r in rows]
     errs = [f"知らない申し出の id {i!r}（裁くのは {sorted(todo)}）" for i in dict.fromkeys(i for i in ids if i not in todo)]
@@ -210,14 +185,12 @@ def query_problems(r: dict, item: dict) -> list:
     return errs
 
 
-def accept_rule(reply, board, base_rev, repo, *, iteration=None, keys=TREE_KEYS) -> dict:
-    """節 rule-accept の中身。{ok, done, reason, rulings_file, counts}。裁定の文は置き場に書く。iteration は輪の今の回
-    （None なら prep が置き場に書いた回の数え）。keys は作業ツリーの控えと比べる欄（tree_moved）。作業ツリーの控えが無い・形が違うのは
-    ValueError（rule-prep が先に走る）"""
+def accept_rule(reply, board, base_rev, repo, *, keys=TREE_KEYS) -> dict:
+    """節 rule-accept の中身。{ok, done, reason, rulings_file, counts}。裁定の文は置き場に書く。諦めの回は拒否の控え（rolekit）が
+    数える。keys は作業ツリーの控えと比べる欄（tree_moved）。作業ツリーの控えが無い・形が違うのは ValueError（rule-prep が先に走る）"""
     b = pathlib.Path(board)
     todo = {i["id"]: i for i in conflict.unruled(b)}
-    it = int(iteration) if iteration is not None else ((_read_json(b / LEDGER) or {}).get("iterations") or 1)
-    snap = _read_json(b / TREE)
+    snap = jsonfile.read_or(b / TREE)
     if not (isinstance(snap, dict) and set(TREE_KEYS) <= set(snap)):
         raise ValueError(f"{b / TREE} が無い・形が違う——rule-prep が先に走る")
     moved = tree_moved({k: snap[k] for k in TREE_KEYS}, pathlib.Path(repo), keys=keys)
@@ -232,9 +205,9 @@ def accept_rule(reply, board, base_rev, repo, *, iteration=None, keys=TREE_KEYS)
             return got
         path = conflict.apply_rulings(b, {r["id"]: stored(r) for r in reply["rulings"]}, by=BY_ROLE)
         return {"ok": True, "done": True, "reason": "", "rulings_file": str(path), "counts": conflict.counts(b)}
-    out = {"ok": False, "done": False, "reason": " / ".join(errs), "rulings_file": "", "counts": conflict.counts(b)}
-    if it >= GIVE_UP_AFTER:
+    out = rolekit.with_done(b, ROLE, {"ok": False, "reason": " / ".join(errs), "rulings_file": "", "counts": conflict.counts(b)})
+    if out["done"]:
         path = conflict.apply_rulings(b, {i: {"decision": conflict.ASK, "text": GIVE_UP_TEXT, "limits": []} for i in todo},
                                       by=BY_GIVE_UP)
-        out.update(done=True, rulings_file=str(path), counts=conflict.counts(b))
+        out.update(rulings_file=str(path), counts=conflict.counts(b))
     return out

@@ -3,6 +3,7 @@
 - 突き合わせ: 記録も申告も無い変更（追跡中・未追跡・消した物）を拒む。記録の後に中身が変わった物も拒む。理由つきの申告は通し、
   記録に残す（後ろの受け付けが同じ申告を求めない）。除くパスの頭の下を数えないことは test_fix_seams。記録の無い run は知らせつきで通す
 """
+import ast
 import hashlib
 import json
 import os
@@ -19,7 +20,10 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
+import factchecks  # noqa: E402
 import leftovers  # noqa: E402
+import refix  # noqa: E402
+import writelog  # noqa: E402
 import writes  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"   # 元は test_blk_fix_tdd の SEED（ROOT / "dev" / "target-seed"）
@@ -210,6 +214,40 @@ class TestNoRecordRun(RepoCase):
         got = self.check()
         self.assertEqual((got["problems"], got["note"]), ([], writes.NO_RECORD))
         self.assertIn("書き込みの記録が無い run", got["note"])
+
+
+class WritesLogNameCase(unittest.TestCase):
+    """書き込みの記録の名の持ち主は writelog.LOG の 1 か所。受け付けの既定の置き場はその名を引き、lib にほかの写しの字が無い"""
+
+    def logs_read_by_default(self):
+        seen = []
+
+        def check(reply, repo, paths, log, **kw):
+            seen.append(pathlib.Path(log))
+            return {"problems": ["止める"], "reply": reply}
+
+        with tempfile.TemporaryDirectory() as board, mock.patch.object(writes, "check", check), \
+                mock.patch.object(writes, "changed", return_value=[]):
+            factchecks.check_writes({}, pathlib.Path(board), "HEAD", pathlib.Path(board), "")
+            refix.accept_fix({}, pathlib.Path(board), "HEAD", pathlib.Path(board), n=1)
+        return seen
+
+    def test_default_record_name_is_writelog_log(self):
+        with mock.patch.object(writelog, "LOG", "renamed.jsonl"):
+            seen = self.logs_read_by_default()
+        self.assertEqual([p.name for p in seen], ["renamed.jsonl", "renamed.jsonl"])
+        copies = []
+        for path in sorted(LIB.glob("*.py")):
+            if path.name == "writelog.py":
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            docs = {id(n.body[0].value) for n in ast.walk(tree)
+                    if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.body
+                    and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+            copies += [f"{path.name}:{n.lineno} {n.value!r}" for n in ast.walk(tree)
+                       if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docs
+                       and "writes" in n.value and n.value.endswith(".jsonl")]
+        self.assertEqual(copies, [], "書き込みの記録の名は writelog.LOG を引く")
 
 
 if __name__ == "__main__":

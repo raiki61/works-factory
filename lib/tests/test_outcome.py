@@ -11,6 +11,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import conflict  # noqa: E402
+import fixboard  # noqa: E402
 import outcome  # noqa: E402
 import report  # noqa: E402
 import stopby  # noqa: E402
@@ -100,7 +101,7 @@ class TableCase(unittest.TestCase):
         """判定と計画が ready なのに修正も最後のテストも無い run は直したと名乗らない"""
         returns = fixed_run(fix=None, **{"test-gate-final": None, "eyes": None, "merge-seal": None, "merge-apply": None})
         self.assertEqual(decide(returns, facts={**OK_FACTS, "failed": None}), ("interrupted", "fix:chain-cut"))
-        self.assertIn("計画が修正案を出したのに修正の返りが無い", outcome.chain_notes(returns))
+        self.assertIn("計画が修正案を出したのに修正の出力が無い", outcome.chain_notes(returns))
 
     def test_fix_without_final_test_or_seal_is_not_fixed(self):
         self.assertEqual(decide(fixed_run(**{"test-gate-final": None})), ("interrupted", "test-gate-final:chain-cut"))
@@ -397,9 +398,40 @@ class ReadingCase(unittest.TestCase):
         self.assertEqual((kinds["not_red"], kinds["scope_needed"], kinds[conflict.UNSET]), (2, 1, 1))
         self.assertEqual([k for k, _ in outcome.asked_units(returns)], ["u1", "u2", "u3"])
 
+    def test_conflict_rows_are_read_by_conflict_predicates(self):
+        """#251: 結末の申し出の数えと人に回した行は lib/conflict.py の述語の読みと同じ（写しを持たない）。裁定が dict でない壊れた行も、
+        両方が同じに読む（裁定なしでも直す裁定でもない行に数えず、落ちない）"""
+        rows = [{"unit_key": "u1", "kind": "not_red", "ruling": {"decision": "ask_human", "text": "人に"}},
+                {"unit_key": "u2", "kind": "scope_needed", "ruling": {"decision": "fix_plan_item", "text": "案を", "plan_units": ["u3"]},
+                 "replan": "waiting"},
+                {"unit_key": "u4", "ruling": "壊れた裁定"},
+                {"unit_key": "u5", "kind": "not_red", "ruling": None}]
+        board = self.dir / "fix"
+        returns = fixed_run(fix={**fixed_run()["fix"], "conflicts": self.put(f"fix/{conflict.FILE}", {"items": rows})})
+        self.assertEqual(outcome.waiting_conflicts(returns), conflict.waiting(board))
+        self.assertEqual(outcome.asked_conflicts(returns, closed=False), conflict.asked(board))
+        self.assertEqual(outcome.conflict_counts(returns), (conflict.counts(board), conflict.kind_counts(board)))
+        self.assertEqual([k for k, _ in outcome.asked_units(returns, closed=False)],
+                         [k for r in conflict.asked(board) for k in conflict.ruled_units(r)])
+
     def test_ok_outcomes(self):
         self.assertEqual(outcome.OK_OUTCOMES, ("fixed", "fixed_needs_check", "no_fix_needed"))
         self.assertTrue(set(outcome.OK_OUTCOMES) <= set(report.OUTCOMES))
+
+
+class StatusWordsCase(unittest.TestCase):
+    """修正の単位の状態の語は fixboard.UNIT_STATUSES の 1 か所。残りに数える語もそこから引く"""
+
+    @staticmethod
+    def left(statuses):
+        fix = {**fixed_run()["fix"], "units": [{"unit_id": s, "status": s, "reason": ""} for s in statuses]}
+        return [r["where"] for r in outcome.residue(fixed_run(fix=fix))]
+
+    def test_fix_status_left_comes_from_unit_statuses(self):
+        self.assertEqual(self.left(fixboard.UNIT_STATUSES),
+                         [f"修正 {s}" for s in fixboard.UNIT_STATUSES if s != fixboard.FIXED])
+        with mock.patch.object(fixboard, "UNIT_LEFT", (fixboard.NOT_DONE,)):
+            self.assertEqual(self.left(fixboard.UNIT_STATUSES), [f"修正 {fixboard.NOT_DONE}"])
 
 
 class WordsCase(unittest.TestCase):

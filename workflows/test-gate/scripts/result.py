@@ -5,7 +5,8 @@
 """返す節 result: run.json と（在れば）任せ先の役の ci-material.json を読み、赤の原因と証拠を出し（green_cert.classify）、今の指紋を
 取って認証する（green_cert.certify。final で素材を任せ先の役が書いた緑は自己申告として認証しない）。base は直す前の結末のファイル
 test-gate/base/baseline.json を書く（baseline_red.write_baseline）。final は入力 baseline の指し札の先を baseline_red.read_baseline で読み、
-修正前のテストの行（declared_checks.baseline_line）を証拠に足す。両方とも証拠の文 test-gate/<mode>/evidence.md を書き、任せ先の役の節が
+修正前のテストの行（declared_checks.baseline_line）を証拠に足す。両方とも証拠の文 test-gate/<mode>/evidence.md を書き（行の頭は
+declared_checks の物）、任せ先の役の節が
 落ちて残った作業ツリーの写し（ci-snapshot.json の top）を消す。
 落ちない: 境の口と lib の import から先の誤りは全部捕まえ、終了の値 0 で ok: false・green: false・red_cause: incomplete と、誤りを
 名指した証拠の指し札を返す（返す節が落ちると線が先へ進めない）"""
@@ -42,16 +43,20 @@ def suite_exit(run: dict):
 
 
 def evidence(mode: str, out: dict, run: dict, material, summary: str, why: str, suites: str, base_line: str) -> str:
+    """証拠の文。読み手は行の頭で 1 行ずつ読むので、自由な文の値（役の素材の reason が入る）は 1 行に畳む"""
+    import declared_checks
+    one = declared_checks.one_line
+    (_, run_row), (_, log_row) = declared_checks.EVIDENCE_ROWS
     lines = [f"# test-gate（{mode}）",
              "",
-             f"- ok: {str(out['ok']).lower()}{'（' + why + '）' if why else ''}",
+             f"{declared_checks.OK_ROW}{str(out['ok']).lower()}{'（' + one(why) + '）' if why else ''}",
              f"- green: {str(out['green']).lower()}",
-             f"- red_cause: {out['red_cause'] or '無し'}{'（' + summary + '）' if summary else ''}",
-             f"- 走らせ方: {run['by']}・{suites}",
-             *([f"- engine の結果を任せ先へ落とした訳: {run['fell_back']}"] if run.get("fell_back") else []),
-             *([f"- {base_line}"] if base_line else []),
+             f"- red_cause: {out['red_cause'] or '無し'}{'（' + one(summary) + '）' if summary else ''}",
+             f"{run_row}{one(run['by'])}・{one(suites)}",
+             *([f"- engine の結果を任せ先へ落とした訳: {one(run['fell_back'])}"] if run.get("fell_back") else []),
+             *([f"- {one(base_line)}"] if base_line else []),
              f"- 素材: {json.dumps(material, ensure_ascii=False) if material is not None else '無い（任せ先の CI の役が素材を渡さなかった）'}",
-             f"- ログ: {run['log'] or '無い'}",
+             f"{log_row}{one(run['log'] or '無い')}",
              f"- JUnit の報告を宣言した段: {'・'.join(run['junit_steps']) or '無い'}"
              + (f"（試験を走らせなかった段: {'・'.join(run['junit_unran'])}）" if run["junit_unran"] else ""),
              f"- 一式（tdd_suite）: {json.dumps(run['suite'], ensure_ascii=False) if run.get('suite') else '無い'}",

@@ -1,28 +1,26 @@
-"""単位の worktree（.shared/core/unittrees.py）の検査。種の git は gitkit の型の写し。
+"""組の差分を親の作業ツリーへ当てる口（lib/unittrees.py。元 .shared/core/unittrees.py）の検査。種の git は gitkit の型の写し。
+差分は締めの節と同じく、組の作業ツリー（同じリポジトリの worktree）の始めの木と終わりの木（groups.end_tree）の差分
+（groups.diff_since）で作る。
 
 縛る事:
-- 2 つの単位が別のファイルを直す → 両方が run の作業ツリーに当たる
-- 2 つの単位が同じ行を直す → 2 つ目は当たらず (False, 理由)、作業ツリーは 1 つ目を当てたまま
-- run の作業ツリーの未 commit の直し（tracked の変更・untracked の新しいファイル）が単位の worktree に見える
+- 2 つの組が別のファイルを直す → 両方が親の作業ツリーに当たる
+- 2 つの組が同じ行を直す → 2 つ目は当たらず (False, 理由)、作業ツリーは 1 つ目を当てたまま
 - どの口も本物の index・HEAD・枝を動かさない
-- index を切ったのと同じ秒に同じ大きさで書き換えたファイルも、次の秒に取った差分に入る（git の racy な行の読み直し）
-- remove・sweep が worktree と守りの参照を片付け、同じリポジトリのほかの作業ツリーの単位には触らない
-- objects（新しい object の一時の置き場）を渡せば、共通の .git が書けなくても diff・apply が回る（役の sandbox の中の当てる口）
-- applied は差分が既に当たっているか（逆向きに当たるか）を作業ツリーを変えずに言う
 - union の中のファイルで両方が同じ所（末尾）に行を足しただけの食い違いは、作業ツリーの側の行の後に patch の側の行を置いて
   当たる（unioned に積む）。行を変えた塊・union の外のファイルは今どおり当たらず、作業ツリーは前のまま
+- tests_unique: 合わせた中身に同じ名のテストの定義が 2 つ在れば合わせない。patch_names: 差分の行先のパス
 """
 import pathlib
 import shutil
 import sys
 import tempfile
-import time
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import groups  # noqa: E402
 import unittrees  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 
@@ -59,14 +57,16 @@ class UnitTrees(unittest.TestCase):
                 git(self.repo, "ls-files", "-s"), git(self.repo, "diff", "--cached", "--name-only"))
 
     def unit(self, base, name, edits):
-        path = unittrees.add(self.repo, base, self.places / name)
+        """親の HEAD から組の作業ツリーを切り、edits を書いて、base（親の始めの木）からの差分を返す"""
+        path = self.places / name
+        git(self.repo, "worktree", "add", "--detach", "-q", str(path), "HEAD")
         for rel, text in edits.items():
             (path / rel).write_text(text, encoding="utf-8")
-        return path, unittrees.diff(path, base)
+        return path, groups.diff_since(path, base, groups.end_tree(path))
 
     def test_two_units_different_files_both_apply(self):
         state = self.real_state()
-        base = unittrees.snapshot(self.repo)
+        base = groups.end_tree(self.repo)
         _, p1 = self.unit(base, "u1", {"a.txt": "a1\nA2\na3\n"})
         _, p2 = self.unit(base, "u2", {"b.txt": "b1\nb2\nB3\n", "new.txt": "new\n"})
         self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
@@ -76,18 +76,9 @@ class UnitTrees(unittest.TestCase):
         self.assertEqual((self.repo / "new.txt").read_text(), "new\n")
         self.assertEqual(self.real_state(), state)
 
-    def test_same_second_same_size_edit_reaches_diff_next_second(self):
-        """index の写しが mtime を今にすると、git は同じ秒に書いたファイルを stat で信じて直しを落とした（1 回に 1 度ほどの赤）"""
-        base = unittrees.snapshot(self.repo)
-        path, _ = self.unit(base, "u1", {"a.txt": "a1\nA2\na3\n"})
-        wrote = int((path / "a.txt").stat().st_mtime)
-        while int(time.time()) <= wrote:   # 書いた秒を跨いでから差分を取る（長くて 1 秒）
-            time.sleep(0.05)
-        self.assertIn("+A2", unittrees.diff(path, base))
-
     def test_same_line_second_does_not_apply_and_tree_keeps_first(self):
         state = self.real_state()
-        base = unittrees.snapshot(self.repo)
+        base = groups.end_tree(self.repo)
         _, p1 = self.unit(base, "u1", {"a.txt": "a1\nX\na3\n"})
         _, p2 = self.unit(base, "u2", {"a.txt": "a1\nY\na3\n", "b.txt": "b1\nb2\nB3\n"})
         self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
@@ -101,7 +92,7 @@ class UnitTrees(unittest.TestCase):
 
     def test_insert_only_conflict_in_a_union_file_is_merged_in_order(self):
         state = self.real_state()
-        base = unittrees.snapshot(self.repo)
+        base = groups.end_tree(self.repo)
         _, p1 = self.unit(base, "u1", {"a.txt": "a1\na2\na3\n\nclass B:\n    pass\n"})
         _, p2 = self.unit(base, "u2", {"a.txt": "a1\na2\na3\n\nclass C:\n    pass\n", "b.txt": "b1\nb2\nB3\n"})
         self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
@@ -114,7 +105,7 @@ class UnitTrees(unittest.TestCase):
         self.assertEqual(self.real_state(), state)
 
     def test_union_refuses_a_conflict_that_changed_lines(self):
-        base = unittrees.snapshot(self.repo)
+        base = groups.end_tree(self.repo)
         _, p1 = self.unit(base, "u1", {"a.txt": "a1\nX\na3\n"})
         _, p2 = self.unit(base, "u2", {"a.txt": "a1\nY\na3\n"})
         self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
@@ -126,7 +117,7 @@ class UnitTrees(unittest.TestCase):
         self.assertEqual(got, [])
 
     def test_union_asks_the_check_before_merging(self):
-        base = unittrees.snapshot(self.repo)
+        base = groups.end_tree(self.repo)
         _, p1 = self.unit(base, "u1", {"a.txt": "a1\na2\na3\nB\n"})
         _, p2 = self.unit(base, "u2", {"a.txt": "a1\na2\na3\nC\n"})
         self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
@@ -137,49 +128,19 @@ class UnitTrees(unittest.TestCase):
         self.assertEqual((self.repo / "a.txt").read_text(), "a1\na2\na3\nB\n")
 
     def test_union_refuses_files_outside_the_list(self):
-        base = unittrees.snapshot(self.repo)
+        base = groups.end_tree(self.repo)
         _, p1 = self.unit(base, "u1", {"a.txt": "a1\na2\na3\nB\n", "b.txt": "b1\nb2\nb3\nB\n"})
         _, p2 = self.unit(base, "u2", {"a.txt": "a1\na2\na3\nC\n", "b.txt": "b1\nb2\nb3\nC\n"})
         self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
         self.assertFalse(unittrees.apply(self.repo, p2, union=["a.txt"])[0])   # b.txt は並びの外
         self.assertEqual((self.repo / "a.txt").read_text(), "a1\na2\na3\nB\n")
 
-    def test_union_with_scratch_objects_writes_nothing_in_git(self):
-        base = unittrees.snapshot(self.repo)
-        _, p1 = self.unit(base, "u1", {"a.txt": "a1\na2\na3\nB\n"})
-        tree2 = unittrees.add(self.repo, base, self.places / "u2")
-        (tree2 / "a.txt").write_text("a1\na2\na3\nC\n", encoding="utf-8")
-        self.assertEqual(unittrees.apply(self.repo, p1), (True, ""))
-        common = pathlib.Path(git(self.repo, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "objects"
-        before = sorted(str(x) for x in common.rglob("*"))
-        with tempfile.TemporaryDirectory() as objects:
-            p2 = unittrees.diff(tree2, base, objects=objects)
-            self.assertEqual(unittrees.apply(self.repo, p2, objects=objects, union=["a.txt"]), (True, ""))
-        self.assertEqual(sorted(str(x) for x in common.rglob("*")), before)
-        self.assertEqual((self.repo / "a.txt").read_text(), "a1\na2\na3\nB\nC\n")
-
-    def test_uncommitted_run_edits_visible_in_unit(self):
-        (self.repo / "a.txt").write_text("a1\nrun\na3\n", encoding="utf-8")
-        (self.repo / "fresh.txt").write_text("untracked\n", encoding="utf-8")
-        (self.repo / "ignored.log").write_text("noise\n", encoding="utf-8")
-        (self.repo / "bin.dat").unlink()
-        state = self.real_state()
-        base = unittrees.snapshot(self.repo)
-        self.assertEqual(git(self.repo, "rev-parse", f"{base}^"), state[0])   # 親は HEAD
-        path, _ = self.unit(base, "u1", {})
-        self.assertEqual((path / "a.txt").read_text(), "a1\nrun\na3\n")
-        self.assertEqual((path / "fresh.txt").read_text(), "untracked\n")
-        self.assertFalse((path / "ignored.log").exists())
-        self.assertFalse((path / "bin.dat").exists())
-        self.assertEqual(self.real_state(), state)
-        self.assertIn("?? fresh.txt", git(self.repo, "status", "--porcelain"))   # untracked のまま
-
     def test_untracked_and_binary_in_unit_diff(self):
-        base = unittrees.snapshot(self.repo)
+        base = groups.end_tree(self.repo)
         path, _ = self.unit(base, "u1", {"fresh.txt": "unit new\n"})
         (path / "bin.dat").write_bytes(bytes(reversed(range(256))))
         (path / "b.txt").unlink()
-        patch = unittrees.diff(path, base)
+        patch = groups.diff_since(path, base, groups.end_tree(path))
         self.assertIn("GIT binary patch", patch)
         self.assertEqual(unittrees.apply(self.repo, patch), (True, ""))
         self.assertEqual((self.repo / "fresh.txt").read_text(), "unit new\n")
@@ -187,74 +148,29 @@ class UnitTrees(unittest.TestCase):
         self.assertFalse((self.repo / "b.txt").exists())
 
     def test_empty_patch_is_ok(self):
-        base = unittrees.snapshot(self.repo)
+        base = groups.end_tree(self.repo)
         path, patch = self.unit(base, "u1", {})
         self.assertEqual(patch, "")
         self.assertEqual(unittrees.apply(self.repo, patch), (True, ""))
 
-    def test_remove_and_sweep_clean_only_this_tree(self):
-        base = unittrees.snapshot(self.repo)
-        p1, _ = self.unit(base, "u1", {})
-        p2, _ = self.unit(base, "u2", {})
-        other = self.home / "other-run"
-        git(self.repo, "worktree", "add", "--detach", "-q", str(other), "HEAD")
-        obase = unittrees.snapshot(other)
-        op = unittrees.add(other, obase, self.places / "o1")
-        unittrees.remove(self.repo, p1)
-        self.assertFalse(p1.exists())
-        mine = f"{unittrees.REF_ROOT}/{unittrees._mark(self.repo)}/"
-        refs = git(self.repo, "for-each-ref", "--format=%(refname)", mine).splitlines()
-        self.assertEqual(len(refs), 2)   # base と u2
-        shutil.rmtree(p2)   # 止まった run の残り（置き場だけ消えた）も片付く
-        unittrees.sweep(self.repo)
-        self.assertEqual(git(self.repo, "for-each-ref", "--format=%(refname)", mine), "")
-        listed = {str(pathlib.Path(ln[len("worktree "):]).resolve())
-                  for ln in git(self.repo, "worktree", "list", "--porcelain").splitlines()
-                  if ln.startswith("worktree ")}
-        self.assertIn(str(self.repo.resolve()), listed)   # 切り出しが空振りしていない
-        self.assertNotIn(str(p2.resolve()), listed)
-        self.assertTrue(op.exists())   # ほかの作業ツリーの単位は残る
-        self.assertNotEqual(git(other, "for-each-ref", "--format=%(refname)", f"{unittrees.REF_ROOT}/"), "")
-        self.assertEqual(sorted(unittrees.sweep(other)), sorted([str(op.resolve())]))
-        self.assertFalse(op.exists())
 
-    def test_diff_and_apply_with_scratch_objects_write_nothing_in_git(self):
-        base = unittrees.snapshot(self.repo)
-        path = unittrees.add(self.repo, base, self.places / "u1")
-        (path / "a.txt").write_text("a1\nA2\na3\n", encoding="utf-8")
-        (path / "fresh.txt").write_text("new\n", encoding="utf-8")
-        common = pathlib.Path(git(self.repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
-        dirs = [common, *[d for d in common.rglob("*") if d.is_dir()]]
-        before = sorted(str(f) for f in common.rglob("*"))
-        for d in dirs:
-            d.chmod(0o555)
-        self.addCleanup(lambda: [d.chmod(0o755) for d in dirs])
-        scratch = self.home / "scratch"
-        scratch.mkdir()
-        patch = unittrees.diff(path, base, objects=str(scratch))
-        self.assertIn("+A2", patch)
-        self.assertEqual(unittrees.apply(self.repo, patch, objects=str(scratch)), (True, ""))
-        self.assertEqual((self.repo / "a.txt").read_text(), "a1\nA2\na3\n")
-        self.assertEqual((self.repo / "fresh.txt").read_text(), "new\n")
-        self.assertEqual(sorted(str(f) for f in common.rglob("*")), before, "共通の .git に何も足さない")
 
-    def test_applied_says_whether_the_patch_is_already_in(self):
-        base = unittrees.snapshot(self.repo)
-        _, patch = self.unit(base, "u1", {"a.txt": "a1\nA2\na3\n", "fresh.txt": "new\n"})
-        self.assertFalse(unittrees.applied(self.repo, patch))
-        self.assertEqual(unittrees.apply(self.repo, patch), (True, ""))
-        self.assertTrue(unittrees.applied(self.repo, patch))
-        self.assertTrue(unittrees.applied(self.repo, ""))
-        self.assertEqual((self.repo / "a.txt").read_text(), "a1\nA2\na3\n", "作業ツリーを変えない")
+class Checks(unittest.TestCase):
+    def test_tests_unique_refuses_a_name_defined_twice(self):
+        ok = b"class TestA:\n    def test_x(self):\n        pass\n\nclass TestB:\n    def test_x(self):\n        pass\n"
+        self.assertTrue(unittrees.tests_unique("tests/test_a.py", ok), "別のクラスの同じ名は隠さない")
+        twice = b"def test_x():\n    pass\n\ndef test_x():\n    pass\n"
+        self.assertFalse(unittrees.tests_unique("tests/test_a.py", twice))
+        cls = b"class TestA:\n    def test_y(self):\n        pass\n\n    def test_y(self):\n        pass\n"
+        self.assertFalse(unittrees.tests_unique("tests/test_a.py", cls))
+        self.assertFalse(unittrees.tests_unique("tests/test_a.py", b"def test_(:\n"), "読めない中身は合わせない")
+        self.assertTrue(unittrees.tests_unique("tests/a.txt", b"x\nx\n"), ".py でなければ照らさない")
 
-    def test_sweep_clears_a_tree_whose_git_pointer_was_rewritten(self):
-        """役が単位の worktree の .git を書き換えても（git の worktree remove は断る）、片付けは消して登録を外す"""
-        base = unittrees.snapshot(self.repo)
-        path, _ = self.unit(base, "u1", {})
-        (path / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
-        self.assertEqual(unittrees.sweep(self.repo), [str(path.resolve())])
-        self.assertFalse(path.exists())
-        self.assertNotIn(str(path.resolve()), git(self.repo, "worktree", "list", "--porcelain"))
+    def test_patch_names_are_the_b_side_once(self):
+        patch = ("diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n"
+                 "diff --git a/d/y.txt b/d/y.txt\nnew file mode 100644\n")
+        self.assertEqual(unittrees.patch_names(patch), ["x.py", "d/y.txt"])
+        self.assertEqual(unittrees.patch_names(""), [])
 
 
 if __name__ == "__main__":

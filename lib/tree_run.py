@@ -412,17 +412,22 @@ def run(argv, **popen_kw):
         time.sleep(LINGER)
         return Stopped(signum)
 
+    def stop_signal():
+        """止める信号: 受けた最初の STOP_SIGNALS か、直下の親が替わったら SIGHUP。止められていなければ None"""
+        if got:
+            return got[0]
+        return signal.SIGHUP if os.getppid() != ppid else None
+
     try:
         if ppid == 1:
             raise Stopped(signal.SIGHUP)
-        prove_launchable(argv, popen_kw.get("cwd"), popen_kw.get("env"), lambda: bool(got) or os.getppid() != ppid)
-        if got or os.getppid() != ppid:   # 証明の間に止められたら起こさない
-            raise stopped_by(got[0] if got else signal.SIGHUP)
+        prove_launchable(argv, popen_kw.get("cwd"), popen_kw.get("env"), lambda: stop_signal() is not None)
+        if (signum := stop_signal()) is not None:   # 証明の間に止められたら起こさない
+            raise stopped_by(signum)
         born = time.time()   # 長の番号の再利用の目印（_tree_members の born）
         p = subprocess.Popen(argv, start_new_session=True, **popen_kw)
         while True:
-            if got or os.getppid() != ppid:
-                signum = got[0] if got else signal.SIGHUP
+            if (signum := stop_signal()) is not None:
                 stop(signum)
                 raise stopped_by(signum)
             try:

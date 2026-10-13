@@ -13,6 +13,7 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import eye  # noqa: E402
+import planfile  # noqa: E402
 
 DOC = {"status": "ok", "reason": "", "units": [
     {"id": "u-1", "summary": "直す所", "paths": ["a.txt"], "status": "measured", "reason": "", "measure": {"churn": 3}},
@@ -33,6 +34,8 @@ DESIGN_DOC_FORMS = """\
   5. 骨組みの無いまま新しい名前や口を足す
   6. 外の道具の事情を名指しで抱え込む
 """
+# 設計書の字に許した直し（元の字, 写しの字）。持ち主の決め graph-words で語をグラフの語にそろえた物だけ
+DESIGN_DOC_REWRITES = (("ブロックの境をまたいで、他のブロックの中身", "サブグラフの境をまたいで、他のサブグラフの中身"),)
 
 
 class EyeLoopGateCase(unittest.TestCase):
@@ -45,8 +48,12 @@ class EyeLoopGateCase(unittest.TestCase):
 
 class EyeAcceptCase(unittest.TestCase):
     def test_six_forms_match_the_design_doc(self):
-        """6 つの形の文は設計書の番号つきの一覧と一字も違わない（faces の 1〜6 の意味の正本は設計書）"""
-        self.assertEqual(tuple(re.findall(r"^  \d\. (.+)$", DESIGN_DOC_FORMS, re.M)), eye.FORMS)
+        """6 つの形の文は設計書の番号つきの一覧と、許した直しのほかは一字も違わない（faces の 1〜6 の意味の正本は設計書）"""
+        forms = DESIGN_DOC_FORMS
+        for original, copied in DESIGN_DOC_REWRITES:
+            self.assertEqual(forms.count(original), 1, original)
+            forms = forms.replace(original, copied)
+        self.assertEqual(tuple(re.findall(r"^  \d\. (.+)$", forms, re.M)), eye.FORMS)
 
     def test_prompt_carries_only_measured_units_and_the_forms(self):
         prompt = eye.render(DOC)
@@ -87,14 +94,13 @@ class EyeAcceptCase(unittest.TestCase):
         self.assertEqual(eye.problems(DOC, {"rows": [DIRTY]}), [])
 
     def test_bad_rows_are_named(self):
+        """行の意味の外れ（行の形の外れ——知らない行き先・形の外の欄・形の番号の型——は目の節の output_format が拒む。
+        tests/workflows/test_plan.py の EyeTypeCase）"""
         for name, rows in (("汚れるで避け方が無い", [{**DIRTY, "chosen": ""}]),
                            ("汚れるで形が無い", [{**DIRTY, "faces": []}]),
-                           ("知らない行き先", [{**DIRTY, "route": "後で"}]),
                            ("測れなかった単位", [CLEAN, {**CLEAN, "unit_id": "u-2"}]),
                            ("同じ単位の 2 行", [CLEAN, CLEAN]),
                            ("行が無い", []),
-                           ("形の外の欄", [{**CLEAN, "note": "x"}]),
-                           ("真偽を形の番号に", [{**CLEAN, "faces": [True]}]),
                            ("ポインタでない根拠", [{**CLEAN, "evidence": ["units/0/measure"]}]),
                            ("前に 0 を付けた添字", [{**CLEAN, "evidence": ["/units/00/measure"]}]),
                            ("測れなかった単位の null", [{**CLEAN, "evidence": ["/units/1/measure"]}])):
@@ -171,13 +177,30 @@ class EyeAcceptCase(unittest.TestCase):
             design = pathlib.Path(d) / "design.jsonl"
             design.write_bytes(b"")
             got = []
-            for _ in range(eye.MAX_ATTEMPTS):
+            for _ in range(eye.rolekit.GIVE_UP_AFTER):
                 self.assertEqual(eye.prep(s)["attempt"], len(got) + 1)
                 got.append(eye.accept(s, design, {"rows": []}))
             self.assertEqual([(g["ok"], g["done"], g["give_up"]) for g in got],
                              [(False, False, False), (False, False, False), (False, True, True)])
             self.assertEqual(eye.state(d)["status"], "gave_up")
             self.assertEqual(design.stat().st_size, 0)
+            self.assertEqual(json.loads(planfile.write_state(d).read_text(encoding="utf-8"))["reason"],
+                             f"構造の目の返答が 3 回とも受け付けで拒まれた: {got[-1]['reason']}", "諦めの文は拒否の控えから読む")
+
+    def test_remeasure_counts_from_the_first_attempt(self):
+        """段 A の測り直し（planfile.measure）は構造の目の拒否の控えを消し、次の目は 1 回目から数える"""
+        with tempfile.TemporaryDirectory() as d:
+            s = pathlib.Path(d) / "structure.json"
+            s.write_text(json.dumps(DOC, ensure_ascii=False), encoding="utf-8")
+            design = pathlib.Path(d) / "design.jsonl"
+            design.write_bytes(b"")
+            for _ in range(2):
+                eye.prep(s)
+                eye.accept(s, design, {"rows": []})
+            self.assertEqual(eye.prep(s)["attempt"], 3)
+            planfile.measure(d, [], d, "")
+            self.assertEqual(eye.rolekit.rejected(d, eye.NAME), [])
+            self.assertEqual(eye.prep(s)["attempt"], 1)
 
 
 if __name__ == "__main__":

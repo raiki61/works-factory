@@ -534,7 +534,7 @@ class GitWaitsWithoutDeadlineCase(unittest.TestCase):
                 self.assertIsNone(run.call_args.kwargs.get("timeout"), run.call_args)
 
     def test_git_and_count_have_no_deadline(self):
-        """engine の git・git_bytes・run_count（rev の確かめ・下調べ・本体の git grep）が、子のプロセスに期限を渡さず、
+        """engine の git・run_count（rev の確かめ・下調べ・本体の git grep）が、子のプロセスに期限を渡さず、
         止めの Timer も作らない（E12）"""
         import subprocess
         import threading
@@ -560,7 +560,6 @@ class GitWaitsWithoutDeadlineCase(unittest.TestCase):
                     mock.patch.object(threading, "Timer", side_effect=AssertionError("Timer を作った")), \
                     mock.patch.object(util, "GIT_CWD", d):
                 self.assertIsNotNone(util.git("status"))
-                self.assertIsNotNone(util.git_bytes("status"))
                 got, why = util.run_count({"patterns": ["x"], "paths": ["a.txt"], "count": "lines"}, d, rev="HEAD")
         self.assertEqual((got, why), (1, ""))
         self.assertTrue(runs and popens)

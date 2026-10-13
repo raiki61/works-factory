@@ -1,10 +1,10 @@
 """封じた差分を対象に当てる口 bin/apply の中身: bin/apply <run-id> [--cwd <対象>] [--allow-delete] [--allow-stopped]。
 
 約束は docs/plans/2026-10-13-stage1-walking-skeleton.md の「bin/apply（土台の計画 Task 7）」の 1〜9。run は殻 bin/works-factory の
-workflow get で読み（家・隔離・Archon の起こし方は殻の物）、線の返す節 result の値（terminal_record.returns.value）から当てる差分を選ぶ。
+workflow get で読み（家・隔離・Archon の起こし方は殻の物）、メイングラフの出力ノード result の値（terminal_record.returns.value）から当てる差分を選ぶ。
 hash の正本は Archon の DB の run の記録で、置き場のファイルではない。今の works の確かめ（works/dev/use.sh の apply_checked:
-消す行の許し・止まった run の許し・git apply --check）に、封じた hash と指し札の照らし・読み戻しを足す。commit はしない。
-封じた hash で確かめられない差分（線の返りが読めない run・封じる前に止まった run）は当てず、拒む 1 行に素の git apply で当てる道を書く
+消す行の許し・止まった run の許し・git apply --check）に、封じた hash とポインタの照らし・読み戻しを足す。commit はしない。
+封じた hash で確かめられない差分（メイングラフの出力が読めない run・封じる前に止まった run）は当てず、拒む 1 行に素の git apply で当てる道を書く
 （docs/plans/2026-10-13-line-wiring.md の M45・M46 の決め。新しい旗は足さない）。
 """
 import argparse
@@ -28,7 +28,7 @@ NAME = "apply"
 SHELL = Path(__file__).resolve().parents[1] / "works-factory"
 UNREADABLE = 2
 REFUSED = 1
-POINTER_TYPE = "archon_artifact"   # merge の返りの diff の型（試験が workflows/merge の output_format と縛る）
+POINTER_TYPE = "archon_artifact"   # merge の出力の diff の型（試験が workflows/merge の output_format と縛る）
 APPLY_DIFF, SEALED_DIFF = "merge/apply.diff", "merge/sealed.diff"   # merge が置き場に置く差分（同じく output_format の enum と縛る）
 
 Get = Callable[[str, Path], subprocess.CompletedProcess[str]]
@@ -53,7 +53,7 @@ def main(argv: list[str], here: Path | None = None, get: Get = ask_launcher) -> 
     parser.add_argument("run_id")
     parser.add_argument("--cwd", help="対象（無ければ打った場所）")
     parser.add_argument("--allow-delete", action="store_true", help="対象のファイルを消す差分も当てる")
-    parser.add_argument("--allow-stopped", action="store_true", help="最後の関所で止めた run の封じた差分を当てる")
+    parser.add_argument("--allow-stopped", action="store_true", help="最後の承認ノードで止めた run の封じた差分を当てる")
     args = parser.parse_args(argv)
     here = here or Path.cwd()
     try:
@@ -90,15 +90,15 @@ def read_run(done: subprocess.CompletedProcess[str], run_id: str, target: Path) 
         raise Refuse(f"run {run_id} は終わっていない（terminal_record が null）。終わってから当てる", UNREADABLE)
     returns = record.get("returns") or {}
     if returns.get("availability") != "available":
-        raise Refuse(f"run {run_id} の線の返りが読めない（returns.availability が {returns.get('availability')}）"
+        raise Refuse(f"run {run_id} のメイングラフの出力が読めない（returns.availability が {returns.get('availability')}）"
                      f"{unchecked(record, target)}", UNREADABLE)
     if not isinstance(returns.get("value"), dict):
-        raise Refuse(f"run {run_id} の線の返り（returns.value）が object でない{unchecked(record, target)}", UNREADABLE)
+        raise Refuse(f"run {run_id} のメイングラフの出力（returns.value）が object でない{unchecked(record, target)}", UNREADABLE)
     return run
 
 
 def unchecked(record: dict, target: Path) -> str:
-    """線の返りが読めない run の、置き場に在る差分を確かめずに当てる道（置き場に差分が無ければ空）"""
+    """メイングラフの出力が読めない run の、置き場に在る差分を確かめずに当てる道（置き場に差分が無ければ空）"""
     root = (record.get("artifacts") or {}).get("root")
     if not isinstance(root, str) or not root:
         return ""
@@ -125,14 +125,14 @@ def choose(run: dict, target: Path, allow_stopped: bool) -> tuple[Path, str, str
         by_hand = "" if value.get("r2_status") == seal.REDESIGN else from_worktree(run, target)
         raise Refuse(f"{nothing}。封じていない差分は当てない{by_hand}")
     if not allow_stopped:
-        raise Refuse(f"{nothing}。最後の関所で止めた run の封じた差分を当てるなら --allow-stopped を付けて打ち直す")
+        raise Refuse(f"{nothing}。最後の承認ノードで止めた run の封じた差分を当てるなら --allow-stopped を付けて打ち直す")
     if value.get("r2_status") == seal.REDESIGN:
         raise Refuse(f"R2 が {seal.REDESIGN} を言った run の差分は、--allow-stopped でも当てない")
     return pointed(record, sealed.get("diff")), sealed["hash"], why
 
 
 def stopped_why(value: dict) -> str:
-    """結末の語と、止めた所と、最後の関所で人が書いた一言"""
+    """結末の語と、止めた所と、最後の承認ノードで人が書いた一言"""
     parts = [f"結末 {value.get('outcome')}"]
     if value.get("stop_reason"):
         parts.append(f"止めた所 {value['stop_reason']}")
@@ -144,7 +144,7 @@ def stopped_why(value: dict) -> str:
 
 def from_worktree(run: dict, target: Path) -> str:
     """封じる前に止まった run の作業ツリーの差分を確かめずに当てる道（作業ツリーか始めの commit が記録に無ければ空）。
-    始めの commit は、線の始めの記録の base_rev（始めの節が読む HEAD）と同じ、Archon が最初の節の前に見た checkout"""
+    始めの commit は、メイングラフの始めの記録の base_rev（始めのノードが読む HEAD）と同じ、Archon が最初のノードの前に見た checkout"""
     path, start = run.get("working_path"), run.get("checkout_baseline") or {}
     base = start.get("commit") if start.get("kind") == "git" else None
     if not (isinstance(path, str) and path and isinstance(base, str) and base):
@@ -154,22 +154,22 @@ def from_worktree(run: dict, target: Path) -> str:
 
 
 def pointed(record: dict, ptr) -> Path:
-    """指し札の先の実のパス。指し札がこの run の物で、置き場の根の実のパスの下の在る普通のファイルでなければ止まる"""
+    """ポインタの先の実のパス。ポインタがこの run の物で、置き場の根の実のパスの下の在る普通のファイルでなければ止まる"""
     if not isinstance(ptr, dict) or ptr.get("type") != POINTER_TYPE or not isinstance(ptr.get("path"), str):
-        raise Refuse(f"差分の指し札が読めない: {json.dumps(ptr, ensure_ascii=False)}")
+        raise Refuse(f"差分のポインタが読めない: {json.dumps(ptr, ensure_ascii=False)}")
     if ptr.get("run_id") != record["run_id"]:
-        raise Refuse(f"差分の指し札が別の run {ptr.get('run_id')} を指す（記録の run は {record['run_id']}）")
+        raise Refuse(f"差分のポインタが別の run {ptr.get('run_id')} を指す（記録の run は {record['run_id']}）")
     root = (record.get("artifacts") or {}).get("root")
     if not isinstance(root, str) or not root:
         raise Refuse("run の置き場の根（artifacts.root）が記録に無い")
     if os.path.isabs(ptr["path"]):
-        raise Refuse(f"差分の指し札のパスが相対でない: {ptr['path']}")
+        raise Refuse(f"差分のポインタのパスが相対でない: {ptr['path']}")
     real_root = os.path.realpath(root)
     real = os.path.realpath(os.path.join(root, ptr["path"]))
     if os.path.commonpath([real_root, real]) != real_root:
-        raise Refuse(f"差分の指し札が run の置き場の外を指す: {ptr['path']}（{real}）")
+        raise Refuse(f"差分のポインタが run の置き場の外を指す: {ptr['path']}（{real}）")
     if not os.path.isfile(real):
-        raise Refuse(f"差分の指し札の先に普通のファイルが無い: {real}")
+        raise Refuse(f"差分のポインタの先に普通のファイルが無い: {real}")
     return Path(real)
 
 

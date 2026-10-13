@@ -51,6 +51,8 @@ import protect  # noqa: E402
 import recount  # noqa: E402
 import seat  # noqa: E402  （借りたスキルの座。1 回目の審査役の task-review）
 import stopby  # noqa: E402  （L1。止めの理由の住処）
+import unittrees  # noqa: E402
+import writelog  # noqa: E402
 import writes  # noqa: E402
 
 PASS_KEYS = ("cut", "review", "owed", "fix", "state_key", "owed_key")
@@ -65,7 +67,6 @@ FIX_ROLE = {1: "refix", 2: "refix2"}        # 手直しの役の名
 SCOPE_REJECT = ("手直しが承認済みの修正案の項目の範囲から外れた（項目の範囲の外で変えてよいのは、材料の ruled_paths と、範囲の相談で"
                 "合意したパス・テストの変更の許しのパスだけ。外れた変更を戻して返答を丸ごと出し直せ。試験を回して出来たファイル"
                 "（キャッシュ・結果の XML）も消せ。範囲の外が要る穴は直さずに declared で残し、how に理由を書け）: ")
-WRITES_LOG = "writes.jsonl"   # 書き込みの記録（Edit・Write の行）の置き場の既定の名。無ければ記録の無い run（writes.NO_RECORD）
 PLAN_REVIEW = "p2.plan_review"   # 事前審査の節（穴の unit_keys。塞がっていない検算を枝に結ぶ）
 
 
@@ -78,6 +79,13 @@ def _table() -> tuple:
 def passes() -> dict:
     """DELTA_PASSES を {n: {cut, review, owed, fix, state_key, owed_key}} にする（節の名前はここ 1 か所で引く）"""
     return {n: dict(kv) for n, kv in _table()}
+
+
+def round_input(raw, script: str) -> int:
+    """手直しの節の入力 n（FIX_ROLE の鍵の字）を回の数に。外れた値は script の名つきの 1 行で止める"""
+    if raw not in tuple(str(k) for k in FIX_ROLE):
+        sys.exit(f"{script}: 入力 n は {' か '.join(str(k) for k in FIX_ROLE)}: {raw!r}")
+    return int(raw)
 
 
 def _pass(n) -> dict:
@@ -114,15 +122,16 @@ def _drop_stale(b, *names):
         p.unlink(missing_ok=True)
 
 
-def _cut_delta(b, n: int, repo: pathlib.Path, rev: str) -> dict:
+def _cut_delta(b, n: int, repo: pathlib.Path, rev: str, skip=()) -> dict:
     """n 回目の差分（版 rev → 今の作業ツリーの姿）を切って置き場に置く: 作業ツリーの姿（未追跡の新しいファイルも。.gitignore に
-    当たる物は除く）を木に固め（leftovers.snapshot）、git diff を <state_key>.patch に、{file, files, rev（固めた木）, base}
+    当たる物は除く）を木に固め（leftovers.snapshot）、除くパスの頭 skip の下を外した git diff を <state_key>.patch に、{file, files, rev（固めた木）, base}
     を loop-<state_key>.json に書いて返す。git が効かなければ leftovers.Unreadable。
     元 works/.shared/core/graphloops/rules/review-loop.py:1567 の fix_delta（盤面の機械の節。周の頭に固めた版から）"""
     key = _pass(n)["state_key"]
     snap = leftovers.snapshot(repo)
-    raw = leftovers.git(repo, "diff", rev, snap, text=False)
-    files = leftovers.git_names(repo, "diff", "--name-only", rev, snap)
+    spec = unittrees.pathspec_without(skip)
+    raw = leftovers.git(repo, "diff", rev, snap, "--", *spec, text=False)
+    files = leftovers.git_names(repo, "diff", "--name-only", rev, snap, "--", *spec)
     f = pathlib.Path(b) / f"{key.replace('_', '-')}.patch"
     f.write_bytes(raw)
     d = {"file": str(f), "files": files, "rev": snap, "base": rev}
@@ -132,8 +141,8 @@ def _cut_delta(b, n: int, repo: pathlib.Path, rev: str) -> dict:
 
 # ---------------------------------------------------------------- 支度（役を起こす前）
 def cut(board: pathlib.Path, n: int, repo: pathlib.Path, base_rev: str = "", *, plan_review=None, fix_reply=None,
-        items=None, policy=None) -> dict:
-    """n 回目の差分の審査役を起こす前の支度。差分の起点（1 回目は run の始めの版 base_rev、2 回目は 1 回目に固めた修正後の姿）が
+        items=None, policy=None, skip: tuple = ()) -> dict:
+    """n 回目の差分の審査役を起こす前の支度。除くパスの頭 skip（実行基盤の写しの置き場）の下は差分に載せない。差分の起点（1 回目は run の始めの版 base_rev、2 回目は 1 回目に固めた修正後の姿）が
     無い・差分を切れないなら {ok: False, reason}（配線の誤り）。在れば、前の試みの自分の出力を消し、差分を切って置き場に置き
     （_cut_delta）、役に見せる材料を review<n>-brief.json に書き、作業ツリーの写し（review<n>-snapshot.json）を撮って
     {ok: True, files, diff_file, rev, brief_file, must} を返す。材料の値は呼び手が渡す（値か、置き場に置いた JSON のパス）:
@@ -157,7 +166,7 @@ def cut(board: pathlib.Path, n: int, repo: pathlib.Path, base_rev: str = "", *, 
     if n == 1:
         (pathlib.Path(board) / deltamarks.VERDICTS_FILE).unlink(missing_ok=True)
     try:
-        d = _cut_delta(board, n, pathlib.Path(repo), rev)
+        d = _cut_delta(board, n, pathlib.Path(repo), rev, skip)
     except leftovers.Unreadable as e:
         return {"ok": False, "reason": f"差分を切れない: {e}"}
     values = {f"loop.{p['state_key']}": d, f"out.{PLAN_REVIEW}": fixboard._given(plan_review),
@@ -237,7 +246,7 @@ def accept_fix(reply: dict, board: pathlib.Path, base_rev: str, repo: pathlib.Pa
     うち修正の段が触ったファイル（1 回目の差分の files。その段の受け付けが照らした）の外を、承認済みの修正案の項目（items）の
     範囲で照らす（planrange.check_paths。修正の段と同じ決まり。この役は単位を申告しないので全部の項目の範囲の和と out_of_scope で
     見る。修正案の範囲の欄が無い run は照らさない）。外れが在れば受けずに {ok: False, reason}（同じ会話で直させる）。次に変更を
-    書き込みの記録 log（Edit・Write の行。既定は置き場の WRITES_LOG）と申告（欄 bash_writes）に突き合わせ（writes.check。skip は
+    書き込みの記録 log（Edit・Write の行。既定は置き場の writelog.LOG）と申告（欄 bash_writes）に突き合わせ（writes.check。skip は
     除くパスの頭）、どちらにも無い変更を拒む（keep-essence の 5。修正の段と同じ）。通れば欄 bash_writes を外した返答を置き場に受け、
     記録の無い run は知らせを置き場の trace.jsonl に残す"""
     rev = fixboard.base_rev(None, base_rev)
@@ -246,7 +255,7 @@ def accept_fix(reply: dict, board: pathlib.Path, base_rev: str, repo: pathlib.Pa
     bad, _note = planrange.check_paths(board, [p for p in paths if p not in fixed], items=items, ruled=True, by=stopby.REFIX)
     if bad:
         return {"ok": False, "reason": SCOPE_REJECT + "\n" + "\n".join(f"  - {x}" for x in bad)}
-    got = writes.check(reply, repo, paths, pathlib.Path(log) if log else pathlib.Path(board) / WRITES_LOG, skip=tuple(skip))
+    got = writes.check(reply, repo, paths, pathlib.Path(log) if log else pathlib.Path(board) / writelog.LOG, skip=tuple(skip))
     if got["problems"]:
         return {"ok": False, "reason": "\n".join(got["problems"])}
     out = fixboard.take(board, _pass(n)["fix"], got["reply"], repo)

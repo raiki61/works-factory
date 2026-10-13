@@ -19,7 +19,7 @@ Bash から見える環境では `CLAUDE_CODE_OAUTH_TOKEN` も `CLAUDE_CONFIG_DI
 1. 親の環境に認証が在る（`INHERITED`）→ 何も足さない。**利用者が選んだ経路を黙って別の口に差し替えない**
 2. macOS の Keychain（サービス名は呼ぶ側の指定 → `CLAUDE_KEYCHAIN_SERVICE`。どちらも無ければ読まない）
 3. 何も足さない——子自身の保存済み認証（`<CLAUDE_CONFIG_DIR>/.credentials.json`）に委ねる。
-   **Keychain の無い環境ではここが本線**で、2 は空振りする。全 OS で効くのは
+   **Keychain の無い環境ではここが主な道**で、2 は空振りする。全 OS で効くのは
    「`CLAUDE_CONFIG_DIR` を必ず子へ明示する」ことの方
 
 `auth_env` は採った段の名前も返す。呼ぶ側はそれを人の見える所（標準エラー・ログ）に出すこと

@@ -25,6 +25,7 @@ import types
 import changemap
 import design
 import gatemarks
+import jsonfile
 import seal
 
 R2_PREMISE_HEAD = "前提不成立: "
@@ -50,7 +51,7 @@ PREMISE = "premise-check"
 LANE = {"r1": "R1", "r2": "R2", PREMISE: "R2", "r3": "R3", "r4": "R4"}
 RETURN_FIELDS = ("ok", *EYES, "questions", "premise_check", "structure_after", "protected_hits", "notes")
 VERDICTS = ("resolved", "escalate")
-NO_FILE = "返りのファイルが無い"
+NO_FILE = "出力のファイルが無い"
 NO_AFTER = "直しの後の実測: 控えが無い（測っていない run）"   # 元 blk-eyes/lib/eyes.py:93
 GREEN_LINE = "最後のテストの認証が通っていない（赤は最後の承認ノードで人が見る）"
 DOC_SUFFIXES = (".md",)
@@ -255,12 +256,7 @@ def prompt_texts(*, units, fix_units, changed, constraints, green_ok, ripple_fil
 
 def read_json(path):
     """置き場の JSON（パスが無い・ファイルが無い・読めなければ None）"""
-    if path is None:
-        return None
-    try:
-        return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+    return None if path is None else jsonfile.read_or(path)
 
 
 def read_design(path) -> dict:
@@ -289,8 +285,8 @@ def _read_eye(eyes_dir: pathlib.Path, eye: str) -> tuple[dict | None, str]:
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        return None, f"返りのファイルが読めない: {e}"
-    return (doc, "") if isinstance(doc, dict) else (None, "返りのファイルが JSON の object でない")
+        return None, f"出力のファイルが読めない: {e}"
+    return (doc, "") if isinstance(doc, dict) else (None, "出力のファイルが JSON の object でない")
 
 
 def _protected(protected: dict | None) -> tuple[list, bool]:
@@ -422,7 +418,7 @@ def premise_fact_lines(eyes_dir) -> list:
 
 
 def _off_contract(eye: str) -> dict:
-    return {"lane": LANE[eye], "eye": eye, "state": "返りの判定の語が約束の外"}
+    return {"lane": LANE[eye], "eye": eye, "state": "出力の判定の語が約束の外"}
 
 
 def _row(eye: str, doc: dict | None, fell: dict | None, *, ran: str) -> dict:

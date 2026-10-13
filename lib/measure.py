@@ -89,7 +89,7 @@ DIFF_RULE = ("--diff のファイルは、diff --git で始まる行が在るか
              "（対象のリポジトリには何も当てない。当てられなければ git apply の理由で止まる）。touched は git apply --numstat のパス。"
              "paths は --paths と touched の各パスの lines・duplicates の件数・entrypoints を前の像と後の像で同じ数え方で数え、"
              "before・after・delta を並べる（無い側は null、delta も null。記号のリンクのパスの lines・duplicates はリンク先の中身を数える）。env は測るパスの名と新しい名について env の数え方を前後の像に"
-             "1 度ずつ掛けた物。frequency・growth・union は履歴に依るので測り直さない。新しい名は patch の + の行（+++ の行を除く）の"
+             "1 度ずつ掛けた物。frequency・growth・union は履歴によるので測り直さない。新しい名は patch の + の行（+++ の行を除く）の"
              "名のうち前の像のどの追跡ファイルにも語として現れない物、名の一覧なら一覧の名そのもの。sites は後の像（名の一覧なら今の木）の"
              "追跡ファイルで名が語として現れる行で、access はその行が読み書きの形に当たるか。"
              "via_readers と shell_sites は access の行のうち試験と文書（env の excluding_tests_docs と同じ除き方）の外の物の path と line。"

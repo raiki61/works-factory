@@ -89,11 +89,8 @@ NOTES_HEADING = promptsection.Section("## 注意（読めなかった物）", hu
 MACHINE_DECISIONS = promptsection.Section("## 1. 人の判断を待つ物の機械の数え（判断の本文は報告の頭）", human=report.FOR_READERS)
 RED_KEPT = ("inherited", "environment")       # 認証が通した赤（元から赤・環境の赤）
 GATE_RUNS = (("test-gate-base", "直す前のテスト"), ("test-gate-final", "最後のテスト"))
-# test-gate の証拠の文（返りの evidence の先）の行の頭。test-gate の result.py の evidence() と同じ字であることを
-# tests/workflows/test_report.py が縛る
-EVIDENCE_ROWS = (("走らせ方", "- 走らせ方: "), ("ログ", "- ログ: "))
-BASELINE_ROW = ("修正前のテスト", "- 修正前のテスト: ")   # final の証拠だけに在る行（test-gate の result.py が declared_checks.baseline_line を書く）
-OK_ROW = "- ok: "                                         # 証拠の頭の行（false なら括弧に認証しなかった訳）
+# 試験の関所の証拠の文の行の頭の、線の最後の関所の文が読む名（持ち主は declared_checks。この中は declared_checks を引く）
+EVIDENCE_ROWS, BASELINE_ROW, OK_ROW = declared_checks.EVIDENCE_ROWS, declared_checks.BASELINE_ROW, declared_checks.OK_ROW
 EYE_KEYS = ("eye", "status", "reason")
 GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
 PLAN_GAVE_UP_WHERE = "受け付け 計画"          # 元 report.ACCEPT_WHERE（受け付け <名>）の計画の行
@@ -110,7 +107,7 @@ EYE_PASSES_HEAD = "人が通した行（修正前の承認ノードで人が通�
 DEFERRED_HEAD = "無人の run で修正前の承認ノードに載せずに報告へ回した問い（承認ノードを開かずに修正へ進めた）"
 FINAL_REASONS_HEAD = "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）"
 PRIOR_IN_HEAD = "依頼が運んだ前の run の失敗（prior_failures）"
-NO_REDEPTH = "直した後の深さの上げ直しの返りが無い（上げ直しのノードが走っていない）。計画の深さのまま"
+NO_REDEPTH = "直した後の深さの上げ直しの出力が無い（上げ直しのノードが走っていない）。計画の深さのまま"
 NO_REJECT = "受け付けの最後の拒否の控えが置き場に無い"
 # 止めた段の拒否の控えを探す置き場（段の返りの指し札の欄。指し札の先と同じフォルダの下に受け付けが拒否を残す）
 REJECT_PLACES = {"judge": "judgment", "rejudge": "judgment", "plan": "plan", "replan": "plan", "plan-review": "review",
@@ -631,7 +628,7 @@ def prior_failures(returns: dict, left: list, facts: dict) -> list:
     """前の失敗 [{where, text}]（元 report.py:720）: 受け付けを最後まで通らなかった物（修正の諦めた単位の理由と、計画が修正案を
     出せなかった訳と、止めの語で止めた段の語とその意味。facts の stops のメイングラフのノードの止めも）と R2 の作り直しの訳"""
     rows = [{"where": f"{GAVE_UP_WHERE} {u.get('unit_id')}", "text": report._one_line(u.get("reason") or "理由の記録が無い")}
-            for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict) and u.get("status") == "given_up"]
+            for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict) and u.get("status") == fixboard.GIVEN_UP]
     gave_up = oc.plan_gave_up(returns)
     items = replan_gave_up(returns)
     rows += items
@@ -881,7 +878,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     done = ledger["answered"]
     asked = oc.asked_conflicts(returns, closed)
     tests = [t for t in _list(as_dict(returns.get("fix")).get("allowed_test_changes")) if isinstance(t, str)]
-    unreturned = [u for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict) and u.get("status") == "not_done"]
+    unreturned = [u for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict) and u.get("status") == fixboard.NOT_DONE]
     premise = as_dict(as_dict(returns.get("eyes")).get("premise_check"))
     escalate = [premise] if premise.get("verdict") == "escalate" else []
     checks = left if outcome == "fixed_needs_check" else []
@@ -968,12 +965,11 @@ def _tests_head_lines(returns: dict) -> list:
     out = []
     rows, why = _evidence_rows(returns, "test-gate-final")
     if rows is not None:
-        def row(prefix):
-            return next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
-        (_, run_prefix), (_, log_prefix) = EVIDENCE_ROWS
-        suites, log, base = row(run_prefix), row(log_prefix), row(BASELINE_ROW[1])
+        (_, run_prefix), (_, log_prefix) = declared_checks.EVIDENCE_ROWS
+        base_name, base_prefix = declared_checks.BASELINE_ROW
+        suites, log, base = (declared_checks.evidence_value(rows, x) for x in (run_prefix, log_prefix, base_prefix))
         out.append(f"最後のテストの一式: {suites or '証拠に走らせ方の行が無い'}・ログ {log or '（無い）'}")
-        out.append(f"{BASELINE_ROW[0]}: {base or '証拠に修正前のテストの行が無い'}")
+        out.append(f"{base_name}: {base or '証拠に修正前のテストの行が無い'}")
         if (suites or "").startswith(declared_checks.ROLE_NEEDED):
             out.append(declared_checks.SELF_REPORTED_NOTE)
     elif why:
@@ -1035,32 +1031,30 @@ def _tdd_lines(typed: dict, returns: dict) -> tuple[list, list, list]:
     if not units:
         return [], [], notes
     lines = ["型つきの成果物 tdd-unit が一覧に無い（修正の段が出していない・子の run の成果物が親の一覧に載らない。docs/design.md の U8）。"
-             "修正の返りの単位の行で出す:"]
+             "修正の出力の単位の行で出す:"]
     lines += [f"  - {u.get('unit_id')}: {u.get('status')}（{report._one_line(u.get('reason') or '理由なし')}）" for u in units]
     return lines, [], notes
 
 
 def _evidence_lines(returns: dict) -> list:
     """試験の関所の段ごとの、走らせた一式の行とログの置き場（元 report.py:1042-1050。返りの evidence の先の行から）と、最後のテストの
-    修正前のテストの行（BASELINE_ROW。元の報告の冒頭の entry.baseline_line）"""
+    修正前のテストの行（declared_checks.BASELINE_ROW。元の報告の冒頭の entry.baseline_line）"""
     out = []
     for rid, label in GATE_RUNS:
         ret = _ret(returns, rid)
         if not ret:
             continue
         head = f"{label}（{rid}）"
-        p = ret.get("evidence")
-        if not (isinstance(p, str) and p):
+        rows, why = _evidence_rows(returns, rid)
+        if why:
+            out.append(f"{head}の走らせ方とログ: 読めない（{why}）")
+            continue
+        if rows is None:
             out.append(f"{head}の走らせ方とログ: 取れない（証拠のポインタが無いか開けなかった）")
             continue
-        try:
-            rows = pathlib.Path(p).read_text(encoding="utf-8").splitlines()
-        except (OSError, UnicodeDecodeError) as e:
-            out.append(f"{head}の走らせ方とログ: 読めない（{report._one_line(e)}）")
-            continue
-        for name, prefix in (*EVIDENCE_ROWS, *((BASELINE_ROW,) if rid == "test-gate-final" else ())):
-            got = next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
-            out.append(f"{head}の{name}: " + (got if got is not None else f"証拠に「{name}」の行が無い（出力ノードが誤りで落ちた時の証拠か）"))
+        for name, prefix in (*declared_checks.EVIDENCE_ROWS, *((declared_checks.BASELINE_ROW,) if rid == "test-gate-final" else ())):
+            got = declared_checks.evidence_value(rows, prefix)
+            out.append(f"{head}の{name}: " + (got if got is not None else f"証拠に「{name}」の行が無い"))
     return out
 
 
@@ -1092,7 +1086,7 @@ def _eye_lines(returns: dict, typed: dict, eyes_skip=None) -> tuple[list, list]:
                                              else "深さで省いた"))
             if name == "r2" and isinstance(e, dict):   # E45: R2 に渡した前提と『渡されていない』と言われた物（元 line_edge._r2_inputs）
                 out += [f"  - {x}" for x in (eyeverdict.r2_input_lines(at) if at is not None
-                                             else ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の返り notes が無い）"])]
+                                             else ["独立の設計と比べる目に渡した入力の控えが無い（独立の目の出力 notes が無い）"])]
     premise = as_dict(as_dict(eyes).get("premise_check"))
     if premise:
         out.append(f"前提の検算: {premise.get('verdict') or '語が無い'}（{report._one_line(premise.get('reason') or '')}）")
@@ -1117,7 +1111,7 @@ def _world_lines(returns: dict) -> list:
     if not (isinstance(p, str) and p):
         if state is not None and state.get("status") != "ok":
             return [f"世界の解の段が落ちた（行なしで進んだ）: {report._one_line(state.get('reason') or '理由の記録が無い')}"]
-        return ["世界の解の行が無い（判定の返りの world が null: 世界の解の段が落ちたか、行を取れなかった。行なしで進んだ）"] if judge else []
+        return ["世界の解の行が無い（判定の出力の world が null: 世界の解の段が落ちたか、行を取れなかった。行なしで進んだ）"] if judge else []
     try:
         rows = worldmark.rows(p)
     except ValueError as e:
@@ -1157,9 +1151,10 @@ def _downgrade_lines() -> list:
 def _structure_lines(returns: dict) -> list:
     """構造の目の行（計画の structure の隣の design.jsonl）と、直した後の構造の実測（eyes の structure_after。元 structmark.report_lines）"""
     sp, ap = _ret(returns, "plan").get("structure"), as_dict(returns.get("eyes")).get("structure_after")
-    lines = structmark.report_lines(pathlib.Path(sp).parent) if isinstance(sp, str) and sp else []
-    after = structmark.after_lines(pathlib.Path(ap).parent) if isinstance(ap, str) and ap else []
-    return [*lines, *(x for x in after if x not in lines)]
+    after_dir = pathlib.Path(ap).parent if isinstance(ap, str) and ap else None
+    if isinstance(sp, str) and sp:
+        return structmark.report_lines(pathlib.Path(sp).parent, after_dir)
+    return structmark.after_lines(after_dir) if after_dir is not None else []
 
 
 def _depth_lines(start: dict, returns: dict, line: dict) -> list:
@@ -1227,7 +1222,7 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
     ran = [k for k, v in returns.items() if v is not None]
     skipped = [k for k, v in returns.items() if v is None]
     out.append(f"走った段: {'・'.join(ran) or '無い'}")
-    out.append(f"飛ばされた・返りの無い段: {'・'.join(skipped) or '無い'}")
+    out.append(f"飛ばされた・出力の無い段: {'・'.join(skipped) or '無い'}")
     out += _downgrade_lines()
     out += _depth_lines(start, returns, line)
     out += _prior_in_lines(line)
@@ -1256,7 +1251,7 @@ def _stop_lines(outcome: str, stop_reason: str, gates: dict, tfacts: dict, retur
         out += [f"{report.RETRIED_HEAD}: {r['node']}（落ちた回 {r['failures']}。最後の誤り: {r['error'] or '（誤りの文が無い）'}）"
                 for r in tfacts.get("retried") or []]
         out += [f"{report.ABSORBED_HEAD}: {a['node']}（誤り: {report._first_error(a)}）" for a in tfacts.get("absorbed") or []]
-    out += [f"返りの続きが切れている: {x}" for x in oc.chain_notes(returns)]
+    out += [f"出力の続きが切れている: {x}" for x in oc.chain_notes(returns)]
     out += [f"結果を名乗れない訳: {report._one_line(p)}" for p in problems]
     return out
 
@@ -1311,8 +1306,9 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     head = gatemarks.head3(f"{report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）" + (f"。{split}" if split else ""),
                            decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
-        (report.DECISIONS_HEADING, [*decisions, *([outside_count] if outside_count else []),
+        (report.DECISIONS_HEADING, [*decisions,
                                     f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件" + (f"（{next_file}）" if next_file else ""),
+                                    *([outside_count] if outside_count else []),
                                     *[f"次の run の制約に足す実測（前提の検算）: {c['text']}" for c in constraints],
                                     *([draft] if draft else []), *_apply_lines(returns, gates, outcome, stop_reason, run_id or "—")]),
         (report.ENTRY_HEADING, _entry_lines(start, returns, freeze, line, gates, repo)),
@@ -1335,16 +1331,18 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
                         *(f"{h}\n\n" + "\n".join(_bullets(lines)) for h, lines in sections if lines)]) + "\n"
     paths = {"report": _write_text(out_dir / report_name, text), "next_request": None, "prior_failures": None}
     doc = carry.compose(findings, prior, drafts, constraints)
-    if findings or drafts or constraints:
+    if next_file:
         errs = carry.errors(doc, carry.NEXT_SCHEMA)
         if errs:
             raise ValueError(f"次の依頼が約束の Schema に合わない: {errs}")
-        paths["next_request"] = out_dir / carry.NEXT_REQUEST_FILE
-        carry.write(paths["next_request"], doc)
-    if prior:
+    if prior:   # 2 つとも照らしてから書く（片方だけ合わない時に、もう片方を残さない）
         errs = carry.errors(prior, carry.PRIOR_SCHEMA)
         if errs:
             raise ValueError(f"前の失敗が約束の Schema に合わない: {errs}")
+    if next_file:
+        paths["next_request"] = out_dir / next_file
+        carry.write(paths["next_request"], doc)
+    if prior:
         paths["prior_failures"] = out_dir / carry.PRIOR_FAILURES_FILE
         carry.write(paths["prior_failures"], prior)
     return {**paths, "ai_go": outcome != "record_invalid"}
@@ -1419,7 +1417,7 @@ def accept(reply, cold, *, out_dir) -> dict:
         give_up = len(rows) >= report_roles.GIVE_UP_AFTER
         if give_up:
             carry.write(out_dir / AI_FILE, {"accepted": False,
-                                            "reason": f"{REPORT_NODE} の返答が {len(rows)} 回とも受け付けで拒まれた（最後の拒否: {reason}）",
+                                            "reason": rolekit.gave_up_text(REPORT_NODE, len(rows), reason),
                                             "cold": c, "rejects": report_roles.count_rejects(rows)})
         return {"done": give_up, "ok": False, "reason": reason, "kind": kind, "reason_file": str(path)}
 

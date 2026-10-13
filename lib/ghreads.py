@@ -99,17 +99,17 @@ def _target(repo: pathlib.Path, remote: str):
 def _read_pr(repo: pathlib.Path, target, n: int) -> dict:
     doc, why, no_host = _gh(repo, "pr", "view", str(n), *_repo_flag(target), "--json", PR_FIELDS)
     if not isinstance(doc, dict):
-        return _unreadable(why or "gh pr view の返りが object でない", no_host)
+        return _unreadable(why or "gh pr view の出力が object でない", no_host)
     lines, why, _ = _gh(repo, "api", "--paginate", *_comments_path(target, n))
     if not isinstance(lines, list):
-        return {**doc, "status": "partial", "reason": why or "行コメントの返りが配列でない", "review_comments": []}
+        return {**doc, "status": "partial", "reason": why or "行コメントの出力が配列でない", "review_comments": []}
     return {**doc, "status": "ok", "review_comments": lines}
 
 
 def _read_issue(repo: pathlib.Path, target, n: int) -> dict:
     doc, why, no_host = _gh(repo, "issue", "view", str(n), *_repo_flag(target), "--json", ISSUE_FIELDS)
     if not isinstance(doc, dict):
-        return _unreadable(why or "gh issue view の返りが object でない", no_host)
+        return _unreadable(why or "gh issue view の出力が object でない", no_host)
     return {**doc, "status": "ok"}
 
 

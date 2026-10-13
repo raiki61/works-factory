@@ -42,7 +42,7 @@ REPORT_FILE = "report.md"
 FOR_READERS = "人が読む報告の本文の見出し。役の指示書には貼らない"
 PRIOR_HEADING = promptsection.Section("## 次の run に引き継ぐ落ちた理由", human=FOR_READERS)
 OUTSIDE_HEADING = promptsection.Section("## 判定が目的の外とした所見", human=FOR_READERS)   # 1 件ずつの行（outpurpose.report_lines）。冒頭 1 は件数の行だけ（outpurpose.count_line）
-WORLD_HEADING = promptsection.Section("## 世界の解", human=FOR_READERS)   # 依頼の行ごとの定石と依頼の解き方との比べ（worldmark.report_lines。控えの無い run は節を出さない）
+WORLD_HEADING = promptsection.Section("## 世界の解", human=FOR_READERS)   # 依頼の行ごとの定石と依頼の解き方との比べ（runreport._world_lines。控えの無い run は節を出さない）
 TDD_HEADING = promptsection.Section("## TDD のループの単位ごとの結末", human=FOR_READERS)   # keep-essence の 11（修正のブロックの出口 tdd を、修正の段ごとに単位の行で）
 TDD_STAGES = ("修正の段", "案を直した後の修正の段")   # build の tdd の並び（ラインの report の with の fix_tdd・refit_tdd の順）
 FREEZE_OFF_HEAD = "テストの凍結"   # 冒頭 2 の行の頭（TDD の輪を回していない修正の段は、凍結が効いていないと言う。freeze_lines）
