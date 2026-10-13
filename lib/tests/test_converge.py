@@ -687,12 +687,25 @@ def _mentions(node, names: set) -> bool:
                for n in ast.walk(node))
 
 
-def _plan_names(scope) -> set:
-    """scope の中で修正案の項目の並びを指す名（plan と、それを読む式を代入した名。rows = out.get("plan") の rows も、
-    xs = rows or [] の xs も）"""
-    binds = [(t, n.value) for n in ast.walk(scope) if isinstance(n, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
+def _own(scope):
+    """scope の中の節（中の関数・lambda の中は見ない。内包は関数の名をそのまま読むので見る）"""
+    todo = list(ast.iter_child_nodes(scope))
+    while todo:
+        node = todo.pop()
+        yield node
+        if not isinstance(node, SCOPES):
+            todo.extend(ast.iter_child_nodes(node))
+
+
+def _plan_names(scope, outer: set) -> set:
+    """scope の中で修正案の項目の並びを指す名。plan と、それを読む式を代入した名（rows = out.get("plan") の rows も、
+    xs = rows or [] の xs も）と、囲む関数でそう指す名 outer のうち scope が引数や代入で付け直さない物（閉包も読む）"""
+    binds = [(t, n.value) for n in _own(scope) if isinstance(n, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
              and n.value is not None for t in (n.targets if isinstance(n, ast.Assign) else [n.target])]
-    names = {"plan"}
+    args = scope.args if isinstance(scope, SCOPES) else None
+    params = {a.arg for a in (args.posonlyargs + args.args + args.kwonlyargs + [args.vararg, args.kwarg]) if a} if args else set()
+    rebound = params | {x.id for t, _ in binds for x in ast.walk(t) if isinstance(x, ast.Name)}
+    names = {"plan"} | (outer - rebound)
     while grown := {x.id for t, v in binds if _mentions(v, names) for x in ast.walk(t)
                     if isinstance(x, ast.Name) and x.id not in names}:
         names |= grown
@@ -701,24 +714,22 @@ def _plan_names(scope) -> set:
 
 def planned_unit_sets(source: str, name: str) -> list[str]:
     """修正案の項目の並びを回し、その行の unit_keys を回して単位を並べる内包（集合・list・生成式（set(...) も）・dict）の
-    在りか（<name>:<行>）。並びを読むかは内包を囲む一番内の関数の中の名で見る（名を変えた局所変数からの写しも捕まえ、
-    別の関数の同じ名は見ない）"""
-    tree = ast.parse(source)
-    scope_of = {}
-    for scope in [tree] + [n for n in ast.walk(tree) if isinstance(n, SCOPES)]:
-        for node in ast.walk(scope):
-            if isinstance(node, COMPREHENSIONS):
-                scope_of[node] = scope
+    在りか（<name>:<行>）。並びを読むかは内包を囲む一番内の関数（lambda も）とそれを囲む関数の中の名で見る（名を変えた局所変数
+    からの写しも閉包の中の写しも捕まえ、別の関数の同じ名は見ない）"""
     found = set()
-    for node, scope in scope_of.items():
-        if len(node.generators) < 2:
-            continue
-        outer, inner = node.generators[0], node.generators[-1]
-        rows = {n.id for n in ast.walk(outer.target) if isinstance(n, ast.Name)}
-        per_row = any(isinstance(n, ast.Constant) and n.value == "unit_keys" for n in ast.walk(inner.iter)) and any(
-            isinstance(n, ast.Name) and n.id in rows for n in ast.walk(inner.iter))
-        if per_row and _mentions(outer.iter, _plan_names(scope)):
-            found.add(node.lineno)
+    todo = [(tree := ast.parse(source), _plan_names(tree, set()))]
+    while todo:
+        scope, names = todo.pop()
+        for node in _own(scope):
+            if isinstance(node, SCOPES):
+                todo.append((node, _plan_names(node, names)))
+            elif isinstance(node, COMPREHENSIONS) and len(node.generators) >= 2:
+                outer, inner = node.generators[0], node.generators[-1]
+                rows = {n.id for n in ast.walk(outer.target) if isinstance(n, ast.Name)}
+                per_row = any(isinstance(n, ast.Constant) and n.value == "unit_keys" for n in ast.walk(inner.iter)) and any(
+                    isinstance(n, ast.Name) and n.id in rows for n in ast.walk(inner.iter))
+                if per_row and _mentions(outer.iter, names):
+                    found.add(node.lineno)
     return [f"{name}:{line}" for line in sorted(found)]
 
 
@@ -739,7 +750,10 @@ class PlannedUnitsCase(unittest.TestCase):
                   ('keys = [k for p in plan for k in p["unit_keys"]]', ["x.py:1"]),
                   ('rows = reply.get("plan")\nkeys = {k for p in rows for k in p.get("unit_keys") or []}', ["x.py:2"]),
                   ('def f(out):\n    rows = out["plan"] or []\n    return set(k for r in rows for k in r["unit_keys"])',
-                   ["x.py:3"])]
+                   ["x.py:3"]),
+                  ('def f(out):\n    rows = out["plan"]\n    g = lambda: {k for r in rows for k in r["unit_keys"]}', ["x.py:3"]),
+                  ('def f(out):\n    rows = out["plan"]\n\n    def g():\n        return {k for r in rows for k in r["unit_keys"]}',
+                   ["x.py:5"])]
         for src, want in copies:
             with self.subTest(src=src):
                 self.assertEqual(planned_unit_sets(src, "x.py"), want)
@@ -747,6 +761,9 @@ class PlannedUnitsCase(unittest.TestCase):
         self.assertEqual(planned_unit_sets('def f(o):\n    rows = o["plan"]\n\ndef g(rows):\n'
                                            '    return {k for r in rows for k in r["unit_keys"]}', "x.py"), [],
                          "別の関数で plan を指した名は、この関数の同じ名を plan にしない")
+        self.assertEqual(planned_unit_sets('def f(o):\n    rows = o["plan"]\n    g = lambda rows: '
+                                           '{k for r in rows for k in r["unit_keys"]}', "x.py"), [],
+                         "閉包が引数で付け直した名は、囲む関数で plan を指していても plan でない")
 
     def test_plan_keys_keeps_order_duplicates_and_raw_keys(self):
         """plan_keys は案の順・重複・字のままの key（planfile の拒む行の並びが変わらない）。planned_units はその上で str の集合"""

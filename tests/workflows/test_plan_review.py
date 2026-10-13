@@ -1497,6 +1497,21 @@ class TreeCase(RunCase):
         self.assertFalse(got["ok"])
         self.assertIn("項目 1", got["reason"])
 
+    def test_item_answer_names_its_unit_by_number(self):
+        """項目の答えの face が単位を番号で名指すと planblk.unit_name で名に戻して項目の単位と比べる（#398）。自分の単位の番号は
+        通り、戻せない番号は番号のまま項目の単位でないと拒む"""
+        r = self.run_
+        self.prepped()
+        names = planblk._names(r.view(), planblk.NODE_OF["plan-review"])
+        for no, ok in ((len(names) + 1, False), (names.index(UNIT_MEAN) + 1, True)):
+            with self.subTest(no=no):
+                mine = face("item1-mean-by-number", unit=no)
+                self.write_answers(1, {1: answer(1, faces=[mine]), 2: answer(2)})
+                got = r.accept(summary({1: [mine["key"]], 2: []}))
+                self.assertEqual(got["ok"], ok, got.get("reason"))
+                if not ok:
+                    self.assertIn(f"項目 1 の単位でない ['{no}']", got["reason"])
+
     def test_second_pass_reviews_diff_and_carries_answers_and_notes(self):
         """元 test_second_pass_reviews_diff_and_carries_answers_and_notes（直しの役の側は plan のブロック）: 2 往復目の下請けは差分と
         前の block の行き先だけを見て、前の往復で答えた当たりは機械が引き継ぎ、suggest の穴は最後の返答に残る"""

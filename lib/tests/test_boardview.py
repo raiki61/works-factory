@@ -411,8 +411,8 @@ class ReplanItemsCase(Base):
 
 class UnitNameCase(Base):
     def test_unmappable_number_stays_a_number_in_every_check(self):
-        """事前審査の返答の番号 → 単位の名は planblk.unit_name の 1 つ（#398）。戻せない番号は番号のまま、全体の照らし
-        （boardview.named）と項目ごとの照らし（planblk.item_answer_gaps）が同じ値を見る"""
+        """事前審査の返答の番号 → 単位の名は planblk.unit_name の 1 つ（#398）。戻せない番号は番号のまま、全体の照らしの
+        boardview.named もその値を見る（項目ごとの照らしの側は test_plan_review の test_item_answer_names_its_unit_by_number）"""
         self.open()
         got = boardview.named(self.view(), {"faces": [{"unit_keys": [1, 9, UNIT]}], "shrink": [{"key": "s", "unit_keys": [9]}]})
         self.assertEqual((got["faces"][0]["unit_keys"], got["shrink"][0]["unit_keys"]), ([UNIT, 9, UNIT], [9]))
