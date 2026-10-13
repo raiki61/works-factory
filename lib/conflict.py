@@ -155,10 +155,9 @@ REPLAN_OP = "replan_state"              # trace の行 {id, unit_key, state, why
 AMENDED_PROMISE = ("案の項目そのものが誤りと裁いたが、同じ run で案を直して直す義務に戻った。直した項目（頭の brief）のとおりに"
                    "直し、この単位も changes に 1 行を書け")   # 裁定の文の AMENDED の行の約束（write_rulings）
 HELD_WORK_KEPT = "この run の修正の段で直した分は作業ツリーに残した"   # 諦めた行の直しの在りか（1 回目・2 回目の段のどちらで諦めても。約束・関所・次の依頼）
-# 人に回した単位の直しの在りか（left_words。関所と次の依頼の行）。query_hits_fixed は修正役が直してから申し出る（common.md）ので、
-# 直しは作業ツリーに残り封じた差分に入る
+# 人に回した単位の直しの在りか（left_words。関所と次の依頼の行）
 UNFIXED_LEFT = "直さずに残した"
-FIX_IN_DIFF = "直しは差分に在り、閉じたかの数え（判定者の問いが直した後の正しい行にも当たる）だけが人の決め待ち"
+FIX_IN_DIFF = f"{fixboard.FIX_IN_DIFF_CORE}が人の決め待ち"
 GAVE_UP_PROMISE = ("案の項目そのものが誤りと裁いたが、同じ run の中で案を直せなかった（諦めた。理由は「案の直しを諦めた理由」）。"
                    "この単位も「項目の単位」に並べた同じ項目の単位も直すな（機械が直す義務から外した。最後の承認ノードで人が"
                    f"決める）。changes に書くな。{HELD_WORK_KEPT}（戻すな）")   # 裁定の文の GAVE_UP の行の約束（write_rulings）

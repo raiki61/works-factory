@@ -1797,8 +1797,8 @@ PACK_COPY = ("修正役は除くパスの頭 {skip} の下を変えてはいけ�
              "写しは次の run が作り直す）: ")   # 元 accept.py:175 の PACK_COPY（頭の字は呼び手が渡す）
 SKIP_BEFORE_FILE = "skip-before.json"   # 修正の段の頭の、除くパスの頭の下の姿 {パス: 中身の sha256}（fix-prep・fix-ruled-prep が 1 回目に書く）
 PARKED_FOR_RULING = "食い違いの申し出を裁定へ回した（直す裁定なら裁定の後の修正役が受け付け直し、人に回れば人が決める）"
-QUERY_PARKED = ("直しは差分に在る。閉じたかの数え（判定者の問いが直した後の正しい行にも当たる）だけを裁定へ回した（問いが"
-                "置き換われば裁定の後の修正役が受け付け直し、人に回れば人が決める）")   # query_hits_fixed は直してから申し出る（common.md）
+FIX_IN_DIFF_CORE = "直しは差分に在り、閉じたかの数え（判定者の問いが直した後の正しい行にも当たる）だけ"   # query_hits_fixed は直してから申し出る（common.md）。conflict.FIX_IN_DIFF も組む
+QUERY_PARKED = f"{FIX_IN_DIFF_CORE}を裁定へ回した（問いが置き換われば裁定の後の修正役が受け付け直し、人に回れば人が決める）"
 UNDECLARED = ("書き込みの記録が無い run で、作業ツリーの変更が返答の changes[].files にも bash_writes にも無い——直したファイルなら "
               "changes の files に足し、Bash で書いたなら bash_writes にパスと理由を書き、要らない変更なら戻せ: ")
 NOT_IN_REPLY = "修正役の返答がこの単位を changes に書かなかった"
