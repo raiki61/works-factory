@@ -2,8 +2,8 @@
 
 形に無い欄は Archon の構造化の出力が拒むので、役は指示書が求める欄を返せない（依頼 290: TDD の役の `red_quotes`）。
 
-- 指示書は、節の `prompt`・`command:` の `commands/<名>.md`・節の `prompt` が `$<x>.output.prompt_file` を読ませるだけの節は
-  `READ_SOURCES` に並べた、その指示書を書く元（決まりの文書と lib の字）
+- 指示書は、`test_prompt_contracts` の `prompts`/`users` がその節に結ぶ本文（節の `prompt`・`systemPrompt`・`command:` の文書）と、
+  節の `prompt` が `$<x>.output.prompt_file` を読ませるだけの節は `READ_SOURCES` に並べた、その指示書を書く元（決まりの文書と lib の字）
 - 欄の名は形のどの深さの `properties` の名でもよい（`patternProperties` の値・`items`・`anyOf` などの中も）
 """
 import functools
@@ -22,7 +22,7 @@ if str(LIB / "graphloops") not in sys.path:
 import consult  # noqa: E402
 import tddloop  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
-from tests.workflows.test_prompt_contracts import JSON_KEY, graph_nodes  # noqa: E402
+from tests.workflows.test_prompt_contracts import JSON_KEY, graph_nodes, prompts, users  # noqa: E402
 
 FIX = "workflows/fix/works-factory-fix.yaml"
 FR = "workflows/fix/commands/fix-rules/"
@@ -75,17 +75,15 @@ def missing_keys(texts, shape, exempt=frozenset()) -> set:
 
 @functools.cache
 def roles():
-    """返答の形を持つ役の節 `<YAML のパス>#<id>` → (節, 指示書の元の並び)"""
-    out = {}
-    for rel, node in graph_nodes(ROOT):
-        if "output_format" not in node or not ("prompt" in node or "command" in node):
-            continue
-        key = f"{rel}#{node['id']}"
-        sources = list(READ_SOURCES.get(key, []))
-        if "command" in node:
-            sources.append(f"{pathlib.PurePosixPath(rel).parent}/commands/{node['command']}.md")
-        out[key] = (node, sources)
-    return out
+    """返答の形を持つ役の節 `<YAML のパス>#<id>` → (節, {指示書の元: 本文})"""
+    out = {f"{rel}#{node['id']}": (node, {}) for rel, node in graph_nodes(ROOT) if "output_format" in node}
+    for source, text in prompts(ROOT).items():
+        for key in users(ROOT, source):
+            if key in out:
+                out[key][1][source] = text
+    for key, (_, texts) in out.items():
+        texts.update((source, source_text(source)) for source in READ_SOURCES.get(key, []))
+    return {key: role for key, role in out.items() if role[1]}
 
 
 def tdd_shapes():
@@ -105,10 +103,9 @@ class ReplyFieldsTest(unittest.TestCase):
 
     def test_every_role_reply_shape_holds_the_keys_its_instructions_write(self):
         missing = {}
-        for key, (node, sources) in roles().items():
-            texts = [node.get("prompt", "")] + [source_text(s) for s in sources]
-            exempt = set().union(*(NOT_REPLY.get(s, set()) for s in sources))
-            got = missing_keys(texts, node["output_format"], exempt)
+        for key, (node, texts) in roles().items():
+            exempt = set().union(*(NOT_REPLY.get(s, set()) for s in texts))
+            got = missing_keys(texts.values(), node["output_format"], exempt)
             if got:
                 missing[key] = sorted(got)
         self.assertEqual(missing, {})
