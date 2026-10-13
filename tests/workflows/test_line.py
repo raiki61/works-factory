@@ -1751,6 +1751,11 @@ class FixedCase(unittest.TestCase):
         self.assertEqual(got["allowed_test_changes"], ["tests/a.py", "tests/b.py"])
         self.assertEqual((got["diff"], got["replan_items"], got["refixed"]), ({"path": "refix/diff"}, ["1"], True))
 
+    def test_eyes_get_the_final_test_outcomes_and_every_fix_diff(self):
+        """issue #384: R2 の比較役の実測は最後のテストの関門の比べ（base の関門の欄は常に null）と、修正の段ごとの diff"""
+        self.assertEqual({k: line_nodes()["eyes"]["with"][k] for k in ("test_outcomes", "diffs")},
+                         {"test_outcomes": "$test-gate-final.output.test_outcomes", "diffs": "$fixed.output.diffs"})
+
     def test_eyes_get_the_replanned_plan(self):
         """L-W56: 独立の目が照らす修正案と波及は、案の直しの後（2 度目の修正が走った run）は案の直しの物に差し替えた承認済みの物
         （元 works/darkfactory/lib/line_edge.py 1058-1064 行）。2 度目の修正が走らなければ計画の往復の物"""
@@ -2439,6 +2444,7 @@ class LineWiringCase(unittest.TestCase):
         "closure.json": (("fix", "diff"), "lib/fixbeside.py"),
         "delta-holes.json": (("fix", "diff"), "lib/fixbeside.py"),
         "fix-removed.json": (("fix", "diff"), "lib/leftovers.py"),
+        "tdd-unit.json": (("fix", "diff"), "lib/fixbeside.py"),
     }
     # 書き手の返す節を空の置き場で走らせる時の入力（ブロックの YAML がその節に渡す with: と、Archon がブロックの入力を渡す INPUTS_*）
     RETURN_INPUTS = {
@@ -2462,6 +2468,8 @@ class LineWiringCase(unittest.TestCase):
            for name in ("closure.json", "delta-holes.json") for check in ("stop", "bare")},
         **{("fix-removed.json", check): "書き手は fix のノード clean で出力ノードではない（clean の前に止まった run には無く、"
                                         "leftovers.removed が「走らせていない」と読む）" for check in ("stop", "bare")},
+        **{("tdd-unit.json", check): "書き手は fix のノード tdd-unit で出力ノードではない（tdd-unit の前に止まった run と組の子の run には"
+                                     "無く、読み手 fixbeside.tdd が「無い」と名指す）" for check in ("stop", "bare")},
         **{(name, check): "eyes の出力ノードは目の材料を書けない道で notes を null にする（読み手 ask_final.eye_notes と報告が null を訳にする）"
            for name in ("r4-gate-passes.json", "premise-check.json") for check in ("stop", "bare")},
         **{(name, check): "再審（rejudge-run）の判定の隣にだけ在り、判定の道では書かれない（読み手 report.rejudge_exit が「無い」を訳にする）"

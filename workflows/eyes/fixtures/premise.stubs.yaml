@@ -13,6 +13,8 @@ fixture:
     changed: '{}'
     fix_units: '[]'
     green_ok: 'true'
+    test_outcomes: 'null'
+    diffs: '[]'
   reached:
   - premise-check
   - premise-check-verdict
@@ -58,6 +60,8 @@ prep:
   carried: ''
   r4_context: '- 波及の一覧: /tmp/ripple.json'
   green_line: ''
+  measured_text: '- 比べた結果（test_outcomes）が渡っていない'
+  origin_text: '- 起点は修正前の HEAD'
 r1-comments:
   candidates: []
   kept: []

@@ -54,6 +54,11 @@ class StartRecCase(unittest.TestCase):
         self.assertEqual((startrec.read_rev({"base_rev": "abc"}), startrec.diff_base({"base_rev": "abc"})), ("abc", "abc"))
         self.assertEqual((startrec.read_rev({}), startrec.diff_base({})), ("HEAD", ""))
 
+    def test_diff_base_label(self):
+        doc = {"input": shape(empty=False)}
+        self.assertEqual(startrec.diff_base_label(doc), doc["input"]["base"]["label"])
+        self.assertEqual(startrec.diff_base_label({"base_rev": "abc"}), "")
+
     def test_cli_version_reads_the_first_line_or_nothing(self):
         self.assertTrue(startrec.cli_version(sys.executable).startswith("Python "))
         self.assertEqual(startrec.cli_version("no-such-command-for-works-factory"), "")

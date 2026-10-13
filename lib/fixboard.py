@@ -996,7 +996,8 @@ def delta_review(place) -> tuple:
 
 def run_diff(repo, base: str = "HEAD", skip=()) -> str:
     """版 base から作業ツリーの今の姿（未追跡の新しいファイルも・無視される物を除く。leftovers.snapshot）への累積差分
-    （unittrees._DIFF の形）。除くパスの頭 skip の下は載せない。git が落ちれば unittrees.UnitTreeError"""
+    （unittrees._DIFF の形）。除くパスの頭 skip の下は載せない。git が落ちれば unittrees.UnitTreeError、
+    作業ツリーの姿を取れなければ（読めないファイルなど）leftovers.Unreadable"""
     import leftovers
     import unittrees
     out = unittrees._git(repo, *unittrees._DIFF, base, leftovers.snapshot(repo), "--", *unittrees.pathspec_without(skip))
@@ -1028,6 +1029,7 @@ def diff_file(repo, base, place, name: str, none_name: str, skip=()) -> tuple[pa
 # ---------------------------------------------------------------- 差分の審査・レンズ・手直しの節の口（delta・lens・refix の scripts が呼ぶ）
 # 置き場の決まった名（prep が写し、ここが読む）
 GROUPS_FILE = "groups.json"            # {groups: [{group_id, …}], out_dir, start_tree, …}（prep の返りと同じ）
+TDD_UNIT_FILE = "tdd-unit.json"        # 組ごとの TDD の記録（tdd_units の本文。tdd-unit が書き、diff の隣の約束として eyes が読む）
 ASSERT_FILE = "assert-changed.json"    # 変更の確かめの結果 {ok, reason}（assert-changed が書き、delta-cut・collect が読む）
 RESULT_FILE = "result.json"            # 組の子の結果 <out_dir>/<group_id>/result.json（reply_file に受け付けた修正役の返答の写し）
 DEPTH_FILE = "depth.json"              # 単位ごとの深さ [{unit_id, depth, why}]（plan の返り depth の写し）

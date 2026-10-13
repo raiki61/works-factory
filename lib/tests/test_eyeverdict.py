@@ -7,6 +7,7 @@
 """
 import ast
 import json
+import os
 import pathlib
 import sys
 import tempfile
@@ -419,6 +420,156 @@ class PromptTextsCase(unittest.TestCase):
         self.assertIn("English で書け", rolekit.lang_line({"lang": "English"}))
         self.assertIn("English で書け", rolekit.lang_line({"inputs": {"lang": "English"}}))
         self.assertIn("key・enum の値", rolekit.lang_line({}))
+
+
+class MeasuredSectionCase(unittest.TestCase):
+    """R2 の比較役に貼る機械の実測（issue #384）。試験の関門が比べたテストごとの base と最後の結末を移り方ごとに全部名指し、
+    段ごとの TDD の記録を報告と同じ行で並べ、測っていない時は推し量らずにそう書く"""
+
+    OUTCOMES = {"rows": [{"key": "tests.test_stats.TestStats::test_clamp_above_range", "base": "failure", "final": "passed",
+                          "fail_message": "AssertionError: 0 != 10"}], "unmeasured": ""}
+
+    def test_names_the_test_red_at_base_and_green_at_the_end(self):
+        got = eyeverdict.measured_section(self.OUTCOMES, [])
+        self.assertIn("- 赤→緑（base で赤・最後に緑）: 1 件\n"
+                      "  - `tests.test_stats.TestStats::test_clamp_above_range`（base failure: AssertionError: 0 != 10）", got)
+
+    def test_names_every_test_green_at_both_ends_when_nothing_was_red(self):
+        """較正の対照 control-clearer-names（run 90970124）: 振る舞いを変えない改名の run は赤が無い。緑→緑のテストの名が載らないと、
+        比較役は既存のテストが観点を覆うかを確かめられないと読む"""
+        rows = [{"key": f"tests.test_stats.TestStats::test_median_{n}", "base": "passed", "final": "passed", "fail_message": ""}
+                for n in ("odd", "even", "single")]
+        got = eyeverdict.measured_section({"rows": rows, "unmeasured": ""}, [])
+        self.assertIn("- 緑→緑（base でも最後でも緑）: 3 件\n", got)
+        for n in ("odd", "even", "single"):
+            self.assertIn(f"  - `tests.test_stats.TestStats::test_median_{n}`\n", got + "\n")
+        self.assertNotIn("- 赤→緑", got)
+
+    def test_every_transition_is_named_in_a_fixed_order(self):
+        rows = [{"key": "k::gone", "base": "passed", "final": "", "fail_message": ""},
+                {"key": "k::same", "base": "passed", "final": "passed", "fail_message": ""},
+                {"key": "k::stuck", "base": "error", "final": "failure", "fail_message": "boom"},
+                {"key": "k::broke", "base": "passed", "final": "failure", "fail_message": "1 != 2"},
+                {"key": "k::fixed", "base": "failure", "final": "passed", "fail_message": ""},
+                {"key": "k::skip", "base": "skipped", "final": "skipped", "fail_message": ""}]
+        got = eyeverdict.measured_section({"rows": rows, "unmeasured": ""}, [])
+        heads = [line for line in got.splitlines() if line.startswith("- ") and line.endswith("件")]
+        self.assertEqual(heads, ["- 赤→緑（base で赤・最後に緑）: 1 件", "- 緑→緑（base でも最後でも緑）: 1 件",
+                                 "- 緑→赤（base で緑・最後に赤）: 1 件", "- 赤→赤（base でも最後でも赤）: 1 件",
+                                 "- 緑→測っていない: 1 件", "- 飛ばし→飛ばし: 1 件"])
+        self.assertIn("  - `k::broke`（最後 failure: 1 != 2）", got)
+        self.assertIn("  - `k::stuck`（base error・最後 failure: boom）", got)
+
+    def test_says_when_the_gate_did_not_compare(self):
+        got = eyeverdict.measured_section({"rows": [], "unmeasured": "最後のテストは 1 件ごとの結末を取っていない"}, [])
+        self.assertIn("比べていない（最後のテストは 1 件ごとの結末を取っていない）。テストごとの base と最後の結末は測っていない", got)
+        self.assertIn("test_outcomes）が渡っていない", eyeverdict.measured_section(None, []))
+
+    def test_no_row_is_said_not_left_empty(self):
+        self.assertIn("base と最後のどちらの一式にもテストが居ない", eyeverdict.measured_section({"rows": [], "unmeasured": ""}, []))
+
+    def test_lists_the_tdd_record_as_the_report_does(self):
+        import report
+        import tddloop
+        proved = {"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok", "tests": ["tests/test_x.py::test_new"],
+                  tddloop.QUOTES_FIELD: {"tests/test_x.py::test_new": {"quote": "AssertionError: 1 != 2", "why": "上限を見ていない"}}}
+        direct = {"unit_key": "u2", "route": "direct", "red": "", "green": "", "tests": [], "why": "テストが書けない"}
+        g1 = {"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {}, "units": [proved, direct]}
+        g2 = {"group_id": "g2", "ran": False, "reason": "実行器が無い", "suite": "", "reused": {}, "units": []}
+        got = eyeverdict.measured_section(self.OUTCOMES, [[g1, g2]])
+        for row in report.tdd_lines([("修正の段（組 g1）", g1), ("修正の段（組 g2）", g2)]):
+            self.assertIn(row if row.startswith(" ") else f"- {row}", got)
+        self.assertIn("赤 ok・緑 ok", got)
+        self.assertIn("赤の引用 tests/test_x.py::test_new: 「AssertionError: 1 != 2」", got)
+        self.assertIn("u2: 初めから今どおりの直し（テストが書けない）", got)
+        self.assertIn("修正の段（組 g2）: TDD のループを回していない（実行器が無い）", got)
+        self.assertIn("案を直した後の修正の段（組 g3）", eyeverdict.measured_section(self.OUTCOMES, [[], [{**g2, "group_id": "g3"}]]))
+
+    def test_tdd_record_that_cannot_be_read_is_named(self):
+        self.assertIn("TDD のループの記録を読めない（tdd-unit.json が無い）",
+                      eyeverdict.measured_section(self.OUTCOMES, ["tdd-unit.json が無い"]))
+        self.assertIn("修正の段が走っていない", eyeverdict.measured_section(self.OUTCOMES, []))
+
+    def test_reads_the_tdd_record_beside_each_fix_diff(self):
+        import fixboard
+        with tempfile.TemporaryDirectory() as tmp:
+            stage = pathlib.Path(tmp) / "fix"
+            stage.mkdir()
+            (stage / fixboard.TDD_UNIT_FILE).write_text(json.dumps([{"group_id": "g1", "ran": False}]), encoding="utf-8")
+            got = eyeverdict.tdd_stages([str(stage / "fix.diff"), str(pathlib.Path(tmp) / "refix" / "fix.diff")], pathlib.Path)
+        self.assertEqual(got[0], [{"group_id": "g1", "ran": False}])
+        self.assertIn(f"refix/{fixboard.TDD_UNIT_FILE} が無い", got[1])
+        self.assertEqual(eyeverdict.tdd_stages(None, pathlib.Path), [])
+
+        def refuse(ptr):
+            raise ValueError("ほかの run のポインタ")
+        self.assertIn("diffs）のポインタが読めない（ほかの run のポインタ）", eyeverdict.tdd_stages([{}], refuse)[0])
+        self.assertIn("並びでない", eyeverdict.tdd_stages({"type": "x"}, pathlib.Path)[0])
+
+
+class OriginSectionCase(unittest.TestCase):
+    """累積差分の起点の訳（issue #384）: 起点が PR の根か修正前の HEAD かを書き、PR の差分と直しの差分を分けて名指す"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.repo = pathlib.Path(tmp.name)
+        git(self.repo, "init", "-q")
+        (self.repo / "cli.py").write_text("name = argv[0]\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "root")
+        self.root = git(self.repo, "rev-parse", "HEAD")
+
+    def pr_commit(self):
+        (self.repo / "cli.py").write_text("name = argv[1]\n", encoding="utf-8")
+        git(self.repo, "commit", "-q", "-am", "pr")
+        return git(self.repo, "rev-parse", "HEAD")
+
+    def test_empty_diff_from_the_pr_root_names_both_diffs(self):
+        head = self.pr_commit()
+        (self.repo / "cli.py").write_text("name = argv[0]\n", encoding="utf-8")
+        got = eyeverdict.origin_section(self.repo, self.root, head, "PR #7 の根", cumulative_empty=True)
+        self.assertIn(f"起点は PR の根 `{self.root[:12]}`（PR #7 の根）", got)
+        self.assertIn("PR の commit が 1 個", got)
+        self.assertIn("PR の差分（起点 → 修正前の HEAD）で変わったファイル: cli.py", got)
+        self.assertIn("この run の直しの差分（修正前の HEAD → 作業ツリー）で変わったファイル: cli.py", got)
+        self.assertIn("PR の変更と直しが打ち消し合った", got)
+        self.assertNotIn("何も変えていない", got)
+
+    def test_origin_at_head_has_no_pr_diff(self):
+        (self.repo / "cli.py").write_text("name = argv[1]\n", encoding="utf-8")
+        got = eyeverdict.origin_section(self.repo, self.root, self.root, "", cumulative_empty=False)
+        self.assertIn(f"起点は修正前の HEAD `{self.root[:12]}`", got)
+        self.assertIn("PR の差分は無い", got)
+        self.assertIn("直しの差分（修正前の HEAD → 作業ツリー）で変わったファイル: cli.py", got)
+        self.assertNotIn("打ち消し", got)
+
+    def test_nothing_changed_is_told_apart_from_cancelling(self):
+        got = eyeverdict.origin_section(self.repo, self.root, self.root, "", cumulative_empty=True)
+        self.assertIn("PR も直しも何も変えていない", got)
+
+    def test_skipped_paths_are_left_out_of_the_pr_diff_too(self):
+        (self.repo / "skipped").mkdir()
+        (self.repo / "skipped" / "w.yaml").write_text("x: 1\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "pr")
+        head = git(self.repo, "rev-parse", "HEAD")
+        got = eyeverdict.origin_section(self.repo, self.root, head, "", cumulative_empty=True, skip=("skipped/",))
+        self.assertNotIn("skipped", got)
+        self.assertIn("PR の差分（起点 → 修正前の HEAD）で変わったファイル: 無い", got)
+
+    @unittest.skipIf(os.geteuid() == 0, "root はモードを無視してファイルを読める")
+    def test_unreadable_work_tree_is_said_not_raised(self):
+        secret = self.repo / "secret"
+        secret.write_text("s\n", encoding="utf-8")
+        secret.chmod(0)
+        self.addCleanup(secret.chmod, 0o644)
+        got = eyeverdict.origin_section(self.repo, self.root, self.root, "", cumulative_empty=False)
+        self.assertIn("累積差分の起点を測れない", got)
+
+    def test_unknown_origin_is_said(self):
+        self.assertIn("起点が分からない", eyeverdict.origin_section(self.repo, "", self.root, "", cumulative_empty=True))
+        self.assertIn("起点を測れない", eyeverdict.origin_section(self.repo, "0" * 40, self.root, "", cumulative_empty=True))
 
 
 class PremiseSectionCase(unittest.TestCase):
