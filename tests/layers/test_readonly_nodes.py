@@ -6,7 +6,9 @@
 表 scan.ROLE_TOOLS の中の allowed_tools を持つ（K18）。Bash を持ち Edit・Write を持たない役は sandbox の denyWrite に
 scan.NO_TREE_WRITE を書く（#293）。
 """
+import os
 import pathlib
+import tempfile
 import unittest
 
 from bin._lib import isolate
@@ -81,10 +83,12 @@ class ReadonlyNodesTest(unittest.TestCase):
                 self.assertEqual(len(got), red, got)
                 self.assertTrue(all("denyWrite" in line for line in got), got)
 
-    def test_isolated_homes_are_siblings(self):
-        """denyWrite の値 ~/.. は隔離した HOME の隣を指すので、HOME と Archon の家は同じ run の置き場の直下に在る"""
-        for name in ("HOME", "ARCHON_HOME"):
-            self.assertNotIn("/", isolate.DIRS[name])
+    def test_no_tree_write_names_the_isolated_archon_home(self):
+        """denyWrite の値 ~/../archon-home は、起動が隔離した HOME から解くと隔離した Archon の家そのものを指す"""
+        with tempfile.TemporaryDirectory() as tmp:
+            child = isolate.isolate({}, pathlib.Path(tmp))
+        resolved = os.path.normpath(scan.NO_TREE_WRITE.replace("~", child["HOME"], 1))
+        self.assertEqual(resolved, child["ARCHON_HOME"])
 
     def test_keep_checkout_roles_write_the_mark_with_a_changer_tool(self):
         """表 KEEP_CHECKOUT の役は変える道具を持っても書く（書かなければ赤）"""
