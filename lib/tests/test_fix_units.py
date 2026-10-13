@@ -114,6 +114,19 @@ class BuildCase(unittest.TestCase):
         self.assertEqual((rows[0]["total"], rows[0]["after"]), (2, 1))
         self.assertEqual(out[0]["coverage"]["how"], narrow, "写しには修正役の how を渡す（写しは作り直しとして採る）")
 
+    def test_uncountable_judge_query_does_not_close_on_the_fixer_how(self):
+        narrow = {**HOW, "patterns": ["return lo  # none"]}
+
+        def count(how, at_rev):
+            if how == narrow:
+                return 0, ""
+            return (2, "") if at_rev else (None, "git grep が stderr に書いた")
+        c = change(sites=0, remaining="判定者の問いは広すぎるので狭めた（下限の枝も数える）", how=narrow)
+        _, rows = unitrows.build([c], {KEY: {"how": HOW, "counts": "defects", "total": 2}}, count=count, blank=blank)
+        self.assertIsNone(rows[0]["closed"], "判定者の問いが数えられない時に、修正役が狭めた問いの 0 件で閉じたとしない")
+        self.assertTrue(any("git grep が stderr に書いた" in d for d in rows[0]["discrepancies"]), rows[0])
+        self.assertEqual(unitrows.unclosed_defects(rows), rows)
+
     def test_uncountable_row_is_left_to_the_copy(self):
         c = change()
         out, rows = unitrows.build([c], {KEY: {"how": HOW, "counts": "defects"}}, count=lambda h, r: (None, "走らない"),
