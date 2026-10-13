@@ -40,6 +40,8 @@ import conflict  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
+import oneline  # noqa: E402
+import planfile  # noqa: E402
 import replan  # noqa: E402
 import report  # noqa: E402
 import seal  # noqa: E402
@@ -150,7 +152,7 @@ def conflict_rows(returns: dict) -> tuple[list, list]:
             if not isinstance(items, list):
                 raise ValueError(f"欄 {conflict.ITEMS} の配列が無い")
         except (OSError, ValueError) as e:
-            notes.append(f"申し出と裁定のファイル {p} が読めない: {report._one_line(e)}")
+            notes.append(f"申し出と裁定のファイル {p} が読めない: {oneline.one_line(e)}")
             continue
         rows += [i for i in items if isinstance(i, dict)]
     return rows, notes
@@ -197,7 +199,7 @@ def materials(returns: dict) -> tuple[dict, str]:
     try:
         doc = read_json(p)
     except (OSError, ValueError) as e:
-        return {}, f"素材の状態 {p} が読めない（測れていない素材は無いと数えた）: {report._one_line(e)}"
+        return {}, f"素材の状態 {p} が読めない（測れていない素材は無いと数えた）: {oneline.one_line(e)}"
     if not isinstance(doc, dict):
         return {}, f"素材の状態 {p} がオブジェクトでない（測れていない素材は無いと数えた）"
     return doc, ""
@@ -274,7 +276,7 @@ def _eye_rows(returns: dict, eyes_skip=None) -> list:
         label = name.upper()
         if isinstance(e, dict) and e.get("status") in EYE_STATUS_LEFT:
             rows.append({"where": f"{report.EYES_WHERE} {label}",
-                         "text": f"{label} が {e['status']}: {report._one_line(e.get('reason') or '理由なし')}"})
+                         "text": f"{label} が {e['status']}: {oneline.one_line(e.get('reason') or '理由なし')}"})
         elif e is None and eyes_skip == "":
             rows.append({"where": f"{report.EYES_WHERE} {label}", "text": f"{label} {MISSING_EYE}"})
     if eyes.get("ok") is False and not rows:
@@ -320,7 +322,7 @@ def residue(returns: dict, facts: dict | None = None) -> list:
         for u in fix.get("units") or []:
             if isinstance(u, dict) and u.get("status") in fixboard.UNIT_LEFT:
                 rows.append({"where": f"修正 {u.get('unit_id')}",
-                             "text": f"単位 {u.get('unit_id')} が {u['status']}: {report._one_line(u.get('reason') or '理由なし')}"})
+                             "text": f"単位 {u.get('unit_id')} が {u['status']}: {oneline.one_line(u.get('reason') or '理由なし')}"})
         left = {u.get("unit_id") for u in fix.get("units") or [] if isinstance(u, dict) and u.get("status") in fixboard.UNIT_LEFT}
         beside = facts.get("beside") or fixbeside.read(fix_folders(returns))
         for k in fixbeside.not_closed(beside):   # 元 report._closed_units: 申告しても表で閉じていない
@@ -386,9 +388,17 @@ def _line_stop(returns: dict, facts: dict | None) -> str:
 
 
 def plan_gave_up(returns: dict) -> bool:
-    """計画が直す単位を受けたのに修正案を出せなかった（受け付けが 3 回とも拒んだか、行き止まりの単位が在る）"""
+    """計画が直す単位を受けたのに修正案を出せなかった（受け付けが 3 回とも拒んだか、行き止まりの単位が在る）。直す義務 0 件で役を
+    起こさなかった周（開いた単位が全部人の答え待ちの問いの出どころ）は諦めでなく、今の works と同じく残りの決めに落ちる（round_limit）"""
     plan = planned(returns)
-    return bool(plan) and plan.get("ready") is False and bool(_units(returns))
+    return bool(plan) and plan.get("ready") is False and bool(_units(returns)) and not plan_nothing_owed(returns)
+
+
+def plan_nothing_owed(returns: dict) -> bool:
+    """計画の返りの指し札 plan（plan-fields.json）の隣の round.json が、直す義務 0 件で役を起こさなかった周と言うか（指し札が無い・
+    読めなければ偽で、諦めに倒す）"""
+    p = as_dict(planned(returns)).get("plan")
+    return isinstance(p, str) and bool(p) and planfile.nothing_owed(pathlib.Path(p).parent)
 
 
 def _waits(returns: dict, gates: dict, closed: bool, facts: dict | None) -> str:
@@ -457,7 +467,7 @@ def decide_outcome(returns: dict, gates: dict, facts: dict) -> tuple[str, str]:
 
     1. 止め札（by request:）→ stopped_by_request、関所の stop・reject（by human:）→ stopped_by_human
     2. 機械の止め（by works:）→ stopped_by_line（元は盤面の state.stop.by。ここは返りの stop_reason と線の節の止めの語 facts の stops
-       と、往復の止まり・計画の諦め・封じの失敗を返りの欄で読む）
+       と、往復の止まり・計画の諦め（直す義務 0 件で役を起こさなかった周を除く）・封じの失敗を返りの欄で読む）
     3. 人に聞いたまま（pending_human）か食い違いの申し出を人に回した（conflict.asked）→ needs_human（元は盤面の pending_human。
        ここは返りの人待ちの語（無人の run の関所の止め works:needs-human も）・前提の検算の escalate・関所が開かなかった修正前の問い。途中で終わっていない run は、案の直しを
        待つ行も元の build の締めと同じく諦めた行として人に回す）

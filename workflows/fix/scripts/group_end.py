@@ -9,9 +9,8 @@ tdd-start.json（TDD の輪の頭の返り。輪の結果は tddloop.exit_fields
 {unit_key: {status, reason}}）・fix-reply.json（最後に受け付けた修正役の返答。異議 rejudge_requested と 6 つの印）・conflicts.json（今の段の申し出。conflict.this_pass。2 回目の修正の段が写した 1 回目の
 段の行は載せない）・閉鎖の表（fixbeside.closure_rows。親の collect が diff の隣の約束のファイルに合わせる）。終わりの木は作業ツリーの今の姿
 （groups.end_tree）。子の作業ツリーの実パスも載せる（join がそこから子の書き込みの記録を引き、
-親の記録へ写す。writelog.log_here）。許したテストの変更の訳（fixboard.allowed_test_rows。親の collect が allowed-tests.json に集める）と、
-返答を受け付けた組だけその訳のパス（fixboard.group_result が引く。受け付けが通れば修正の輪が抜けてこの節が続き、
-間に許しを足す節は無い）と、最後の関所を開ける理由の行（修正役が人に回した物 handoffs と、自分の置き場の閉鎖の表で申告と数え直しが合わない単位 mismatched。
+親の記録へ写す。writelog.log_here）。返答を受け付けた組だけ、許したテストの変更の訳（fixboard.allowed_test_rows。親の collect が
+allowed-tests.json に集め、join の和も同じ欄から読む。受け付けが通れば修正の輪が抜けてこの節が続き、間に許しを足す節は無い）と、最後の関所を開ける理由の行（修正役が人に回した物 handoffs と、自分の置き場の閉鎖の表で申告と数え直しが合わない単位 mismatched。
 fixboard.mismatched_lines）と、受け付けが選んだ試験を走らせた回の行（accept-trace.json。親の collect が diff の隣に集める）と、自分の置き場のパス
 （親の conflict-check がこの組の申し出の名指しに許す根）も載せる。
 TDD の輪の状態が済んでいなければ tdd を ran: false と理由にする。前の節が落ちた子ではこの節は走らず、結果のファイルは無い
@@ -19,7 +18,6 @@ TDD の輪の状態が済んでいなければ tdd を ran: false と理由に�
 書く先: 入力 out_dir が在ればその下の <group_id>/result.json、空の単独の run は自分の置き場の groups/<group_id>/result.json。
 返り {result_file}。入力 group が読めない・git が効かない・置き場のファイルが壊れた: 標準エラーに 1 行で 1。
 """
-import json
 import os
 import sys
 from pathlib import Path
@@ -49,7 +47,7 @@ def tdd_exit(started) -> dict:
 
 
 def main() -> dict:
-    group = json.loads(os.environ["INPUTS_GROUP"])
+    group = boundary.parsed(os.environ["INPUTS_GROUP"])
     if not isinstance(group, dict) or not group.get("group_id"):
         raise ValueError("入力 group に group_id が無い")
     out_dir = os.environ.get("INPUTS_OUT_DIR", "").strip()

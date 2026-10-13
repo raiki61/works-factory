@@ -1,11 +1,12 @@
-"""考えの住処の柵の道具（試験 tests/test_concept_fences は works 自身の表に、run の中の構造のブロックは対象の表に当てる）。
+"""考えの住処の柵の道具（試験 tests/layers/test_concept_fences.py は works-factory 自身の表に、run の中の構造のブロックは対象の表に当てる）。
 
 表 docs/concepts.json（地図 docs/concepts.md の隣）が、住処の在る考えごとに柵を持つ: 語の形（pattern。正規表現）・
 知ってよい所（allowed。fnmatch の形で `*` は `/` もまたぐ）・既知の漏れ（known。"<表の持ち主のフォルダからのパス>" → [行の数, 理由]）・
 結んだ写し（bound。任意。[{paths, lines, by, why}]: paths のファイルで lines（正規表現）に当たる行は、源の値を試験 by が縛る写しなので
 数えない。流れの道具が値を決まった置き場からしか読まないなど、写しが消せない時の形。どの行が写しかは by の試験が表の行を読んで縛る）。
 表の exclude（文書・写し・生成物・試験の材料）と allowed の外の追跡されたファイルで、pattern に当たる行を「ファイル →
-行の数」で数え、known とちょうど揃うかを見る（減る向きにだけ動かす）。
+行の数」で数え、known とちょうど揃うかを見る（減る向きにだけ動かす）。表の loosened（任意。{"<鍵>": "<理由>"}）は、分かれ目の
+表より柵を緩めた所を意図した物として通す行（growth）。
 地図からは、考えの id と状態（map_ids）・見出しの下の決まった頭の行（map_rows）・行に書いたパス（map_paths）を読む。
 
 対象のリポジトリでは、表は追跡されたファイルの中の決まった名（concepthome.TABLE_NAME。根か、どのフォルダの下でも）で探し、
@@ -13,7 +14,8 @@
 
 - load(root)・read_table(path)・tracked(root)・hit(path, globs)・scan(root, paths, fence, exclude)・verdict(found, known)・map_rows・map_ids・map_paths(md, heads)
 - count_lines(text, fence, path) -> int: 1 つのファイルの柵の語の行の数（結んだ写しの行を除く。scan・places・scan_change が使う）
-- check_table(doc): 表の形の確かめ（concepts の表・pattern と bound の lines が正規表現・allowed と bound の paths が配列。外れは ValueError か re.error）
+- check_table(doc): 表の形の確かめ（concepts の表・loosened が表・pattern と bound の lines が正規表現・allowed と bound の paths が配列・
+  bound の lines が空の行・1 字の行に当たらない。外れは ValueError か re.error）
 - tables(repo, rev=None) -> ([(持ち主のフォルダ, 表)], [読めない表の訳]): 対象の表を探して読む（投げない）。rev を渡せば
   その版の木の表を読む（直しが表を広げても、直しの前の表で数える）
 - changed(repo, base_rev, *, skip_prefix) -> [パス]: base_rev と今の作業ツリーで変わった・足したファイル（実行基盤の写しの置き場 skip_prefix の下と入れ子のリポジトリは除く。skip_prefix が空なら ValueError）
@@ -21,9 +23,10 @@
   当たる柵ごとの行の数・住処（allowed）か・その考えを知る場所の数（持ち主のフォルダの中で exclude の外の全部。住処を含む）
 - scan_change(repo, base_rev, table, base="", *, skip_prefix) -> [{concept, what, path, before, after}]: base_rev と今の作業ツリーの間で変わった
   ファイル（持ち主のフォルダの中だけ）を各柵で数え、住処の外で行の数が増えた物（path は repo からの相対）
-- fork_ref(root, ref=MAIN_REF)・main_table(root, ref=MAIN_REF, rel=TABLE)・growth(main, now): 散らばり（住処の無い考え）の柵は知ってよい所が空で、今の知る場所を全部
+- fork_ref(root, ref=MAIN_REF) -> 分かれ目の commit か None・main_table(root, ref=MAIN_REF, rel=TABLE)・growth(main, now): 散らばり（住処の無い考え）の柵は知ってよい所が空で、今の知る場所を全部
   既知の漏れに置く数の歯止め。表そのものも増えない: main の表（ref の同じパス）と比べ、考えごとの既知の漏れの件数の和が増えた・
-  main に無いパスが出た所を growth が名指す（main で柵を持たない考えは比べない）
+  main に無いパスが出た所と、考え・柵を消した・allowed・exclude・bound を広げた・pattern を変えた所を growth が名指す（緩めは
+  表の loosened に新しい理由の行が在れば通す。main で柵を持たない考えは比べない。main の版に表が無ければ main_table は空の表を返す）
 
 標準ライブラリと concepthome（探し方）だけを使う。
 """
@@ -38,7 +41,7 @@ import subprocess
 import concepthome
 
 TABLE = concepthome.TABLE_NAME
-MAIN_REF = "origin/main"   # 表の件数を比べる相手（CI の works の job は全履歴で取るので在る）
+MAIN_REF = "origin/main"   # 表の件数を比べる相手（CI の tests の job は全履歴で取るので在る）
 HEADING = re.compile(r"^### `([^`]+)`")
 STATUS_WORD = re.compile(r"[^\s（(]+")
 CODE = re.compile(r"`([^`]+)`")
@@ -56,19 +59,30 @@ def load(root):
 
 def fork_ref(root, ref=MAIN_REF):
     """表を比べる版: HEAD と ref の分かれ目（git merge-base）。枝は分かれた時の main より増やさない——分かれた後に main が
-    下げた数は、main へ入れる時（分かれ目が main の頭になる）に比べる。分かれ目を引けなければ ref のまま（引けない訳は
-    main_table が名指す）"""
+    下げた数は、main へ入れる時（分かれ目が main の頭になる）に比べる。分かれ目を引けなければ None（浅い clone・ref が無い・
+    共通の祖先が無い。ref の頭と比べ直すと、別の版か空の表と比べて黙って通る）"""
     got = subprocess.run(["git", "-C", str(root), "merge-base", "HEAD", ref], capture_output=True, text=True)
-    return got.stdout.strip() if got.returncode == 0 and got.stdout.strip() else ref
+    return got.stdout.strip() if got.returncode == 0 and got.stdout.strip() else None
 
 
 def main_table(root, ref=MAIN_REF, rel=TABLE):
-    """(ref の柵の表, None) か (None, 引けない理由)。表のパス rel は root からの相対で引く（git の「<ref>:./<パス>」）"""
-    got = subprocess.run(["git", "-C", str(root), "show", f"{ref}:./{rel}"],
-                         capture_output=True, text=True, encoding="utf-8")
+    """(ref の柵の表, None) か (None, 版を引けない理由)。表のパス rel は root からの相対で引く（git の「<ref>:./<パス>」）。
+    版は在って表のファイルだけが無ければ（git cat-file -e で確かめる）、main にまだ柵が無いので空の表 {"concepts": {}}
+    （growth はどの考えも比べない）。表は在るのに読めない・JSON でない時も (None, 理由)（空の表にすると比べずに通る）"""
+    rev = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+                         capture_output=True, text=True)
+    if rev.returncode != 0:
+        return None, rev.stderr.strip()[-200:] or f"版 {ref} を引けない（浅い clone か ref が無い）"
+    blob = f"{ref}:./{rel}"
+    if subprocess.run(["git", "-C", str(root), "cat-file", "-e", blob], capture_output=True).returncode != 0:
+        return {"concepts": {}}, None
+    got = subprocess.run(["git", "-C", str(root), "show", blob], capture_output=True, text=True, encoding="utf-8")
     if got.returncode != 0:
-        return None, got.stderr.strip()[-200:] or f"git show の終了コード {got.returncode}"
-    return json.loads(got.stdout), None
+        return None, got.stderr.strip()[-200:] or f"{blob} を読めない"
+    try:
+        return json.loads(got.stdout), None
+    except json.JSONDecodeError as e:
+        return None, f"{blob} が JSON でない: {e}"
 
 
 def _known_of(concept):
@@ -80,11 +94,48 @@ def _known_of(concept):
     return out
 
 
+def _loosened(main, now) -> list[tuple[str, str]]:
+    """main の表より緩めた所の (鍵, 文) の一覧: main で柵を持つ考え・柵が消えた、allowed・bound の (paths の形, lines) の対・
+    表の exclude が増えた、pattern が変わった（広いか狭いかは機械で決まらないので、変わったら全部）。柵は (考えの id, what) で引く。
+    減らす・並べ替える・bound の by と why を変えるのは緩めでない"""
+    fenced = {k: v for k, v in main["concepts"].items() if v and v.get("fences")}
+    out = []
+    for k, v in fenced.items():
+        cur = now["concepts"].get(k)
+        if not cur:
+            out.append((f"concept:{k}", f"考え {k} が表から消えた"))
+            continue
+        fences = {f["what"]: f for f in cur.get("fences") or []}
+        for f in v["fences"]:
+            what = f["what"]
+            g = fences.get(what)
+            if g is None:
+                out.append((f"fence:{k}:{what}", f"{k} の柵「{what}」が表から消えた"))
+                continue
+            out += [(f"allowed:{k}:{what}:{a}", f"{k} の柵「{what}」の allowed に {a} が増えた")
+                    for a in g["allowed"] if a not in f["allowed"]]
+            if g["pattern"] != f["pattern"]:
+                out.append((f"pattern:{k}:{what}", f"{k} の柵「{what}」の pattern が {f['pattern']!r} から {g['pattern']!r} に変わった"))
+            old = {(p, b["lines"]) for b in f.get("bound") or [] for p in b["paths"]}
+            new = {(p, b["lines"]) for b in g.get("bound") or [] for p in b["paths"]}
+            out += [(f"bound:{k}:{what}:{p}:{lines}", f"{k} の柵「{what}」の bound に {p} の {lines!r} が増えた")
+                    for p, lines in sorted(new - old)]
+    if fenced:
+        old = main.get("exclude") or []
+        out += [(f"exclude:{e}", f"表の exclude に {e} が増えた") for e in now.get("exclude") or [] if e not in old]
+    return out
+
+
 def growth(main, now):
-    """main の表より増えた所の文の一覧（空なら増えていない）: 考えごとの件数の和が増えた・main に無いパスが出た。
-    main で柵を持たない（考えが無い・柵が空の）考えは、初めて柵を掛ける差分なので比べない"""
+    """main の表より増えた・緩めた所の文の一覧（空なら増えていない）: 考えごとの既知の漏れの件数の和が増えた・main に無いパスが
+    出た・考えの中で柵の what が重なった・_loosened の緩め。main で柵を持たない（考えが無い・柵が空の）考えは、初めて柵を掛ける
+    差分なので比べない。緩めは、今の表の loosened に鍵と空でない理由の行が在り、その行が main に無いか理由が main と違う時だけ
+    通す（main に入った行で同じ緩めを何度も通さない）"""
     out = []
     for k, v in now["concepts"].items():
+        whats = [f["what"] for f in v.get("fences") or []]
+        out += [f"{k}: 柵の what「{w}」が重なる（柵を what で引くので 1 つが比べられない）"
+                for w in dict.fromkeys(whats) if whats.count(w) > 1]
         before = main["concepts"].get(k)
         if not before or not before["fences"]:
             continue
@@ -92,6 +143,11 @@ def growth(main, now):
         if sum(new.values()) > sum(old.values()):
             out.append(f"{k}: 既知の漏れの件数が main の {sum(old.values())} から {sum(new.values())} に増えた")
         out += [f"{k}: main の表に無い既知の漏れ {p}" for p in new if p not in old]
+    said, merged = now.get("loosened") or {}, main.get("loosened") or {}
+    for key, text in _loosened(main, now):
+        why = said.get(key)
+        if not (isinstance(why, str) and why.strip() and merged.get(key) != why):
+            out.append(f"{text}（意図した緩めなら表の loosened に \"{key}\": \"<理由>\" を足す。main に在る行は通さない）")
     return out
 
 
@@ -219,9 +275,15 @@ def tables(repo, rev: str | None = None) -> tuple[list[tuple[str, dict]], list[s
     return out, bad
 
 
+# 柵の語に当たった行は空でないので、空の行だけを試すと "." や \S が通る。どの字種にも当たる lines を 1 字の行で見つける
+_ANY_LINE = ("", " ", "x", "X", "0", "あ")
+
+
 def check_table(doc) -> None:
     if not isinstance(doc, dict) or not isinstance(doc.get("concepts"), dict):
         raise ValueError("concepts の表が無い")
+    if not isinstance(doc.get("loosened", {}), dict):
+        raise ValueError("loosened が {鍵: 理由} の表でない")
     for k, v in doc["concepts"].items():
         for f in v.get("fences") or []:
             re.compile(f["pattern"])
@@ -234,7 +296,8 @@ def check_table(doc) -> None:
                 if not (isinstance(b, dict) and isinstance(b.get("paths"), list) and isinstance(b.get("lines"), str)
                         and isinstance(b.get("by"), str) and b["by"]):
                     raise ValueError(f"{k} の bound の行が {{paths: [...], lines: <正規表現>, by: <縛る試験>}} の形でない")
-                re.compile(b["lines"])
+                if any(re.compile(b["lines"]).search(probe) for probe in _ANY_LINE):
+                    raise ValueError(f"{k} の bound の lines {b['lines']!r} が空の行か 1 字の行に当たる（ほぼどの行にも当たり、柵が見えなくなる）")
 
 
 def _within(path: str, base: str) -> str | None:

@@ -47,6 +47,7 @@ from leftovers import Unreadable, git_names  # noqa: E402
 import consult  # noqa: E402  （同じブロックの lib。範囲の相談の控え・置き場・答え）
 import jsonfile  # noqa: E402
 import libdocs  # noqa: E402
+import oneline  # noqa: E402
 import planbrief  # noqa: E402  （同じブロックの lib。承認済みの修正案の項目ごとの brief の凍結）
 import planmarks  # noqa: E402  （項目の範囲: allowed_paths と受け入れのテストのファイル。並べる項目の分け方）
 import recount  # noqa: E402
@@ -333,7 +334,7 @@ def owed_values(b, values: dict, *, owed, withheld_by=None, returned=()) -> dict
 
 def brief_halt(err) -> str:
     """brief の控えが壊れた（planbrief.LedgerBroken の err）ことを名指す理由の 1 行（止めるのは呼び手。元は盤面を止めた）"""
-    return f"{BRIEF_BROKEN}: {' '.join(str(err).split())}"
+    return f"{BRIEF_BROKEN}: {oneline.one_line(err)}"
 
 
 def briefs_or_halt(b, **sources) -> list:

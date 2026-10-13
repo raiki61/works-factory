@@ -15,7 +15,6 @@
 返り {ok, done, reason, reason_file, phase}（done は輪が済んだ時）。輪の状態が読めない・済んだ輪に返答が来た・git が効かない:
 標準エラーに 1 行で 1。
 """
-import json
 import os
 import sys
 from pathlib import Path
@@ -34,15 +33,10 @@ REJECT = "tdd-step-reject-{}.md"
 
 
 def read_reply():
-    raw = os.environ["INPUTS_REPLY"]
-    if not raw.strip() or raw.strip() == "null":
-        raw = os.environ.get("INPUTS_REPLY_NEW", "")   # 単位が替わった周は新しい単位の役の返答
-    if not raw.strip() or raw.strip() == "null":
-        return None
-    try:
-        return json.loads(raw)
-    except ValueError:
-        return raw   # 読めない返答は step が拒む（出し直しの回数に数える）
+    reply = boundary.value(os.environ["INPUTS_REPLY"])
+    if reply is None:
+        reply = boundary.value(os.environ.get("INPUTS_REPLY_NEW"))   # 単位が替わった周は新しい単位の役の返答
+    return reply   # 読めない返答は字のまま。step が拒む（出し直しの回数に数える）
 
 
 def main() -> dict:

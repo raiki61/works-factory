@@ -28,6 +28,7 @@ import sys
 from typing import Mapping
 
 import startrec
+import oneline
 
 SCHEMA = 1
 LINE_REV = ("works", "rev")   # 版の控えの中のメイングラフの版の欄の道（グラフは works-factory の木に在る）
@@ -48,7 +49,7 @@ def _git(root: pathlib.Path, *args):
     except OSError as e:
         return None, f"git を起こせない（{type(e).__name__}）"
     if got.returncode != 0:
-        return None, " ".join((got.stderr or f"git {' '.join(args)} が {got.returncode} で終わった").split())
+        return None, oneline.one_line(got.stderr or f"git {' '.join(args)} が {got.returncode} で終わった")
     return got.stdout.strip(), ""
 
 

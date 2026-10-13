@@ -34,6 +34,7 @@ _CORE = pathlib.Path(__file__).resolve().parent
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 import carry  # noqa: E402  （依頼の容器の形の住処）
+import oneline  # noqa: E402
 import promptsection  # noqa: E402
 import rolekit  # noqa: E402  （出し直しの輪の拒否の控えと指示書の頭）
 import webget  # noqa: E402  （網の口）
@@ -128,7 +129,7 @@ def intake(out, *, request: str, purpose_file: str, web, cwd) -> dict:
         doc["findings"] = _findings(request, cwd)
         doc["purpose_text"], doc["means"] = _purpose(purpose_file, cwd)
     except ValueError as e:
-        doc["reason"] = " ".join(str(e).split())
+        doc["reason"] = oneline.one_line(e)
     _write(out / INTAKE, doc)
     return {"due": bool(doc["findings"]) and not doc["reason"], "findings": len(doc["findings"]), "reason": doc["reason"]}
 

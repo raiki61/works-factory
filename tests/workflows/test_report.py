@@ -17,7 +17,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
 
 import yaml
 
@@ -461,75 +460,51 @@ class FactsCase(Run):
         self.assertEqual(out["outcome"], "fixed", (self.artifacts / out["facts_file"]).read_text(encoding="utf-8"))
         self.assertRegex(out["stamp"], rf"^works-factory-report / run {RUN} / 周 2 / グラフの版 [0-9a-f]{{12}} / メイングラフの版 cccccccccccc$")
 
-    def test_evidence_rows_have_one_owner(self):
-        """証拠の文の行の頭は declared_checks の 1 か所。test-gate の result.py の書き手と報告の読み手は同じ名を引くので、頭の字を
-        変えても行が報告に届く"""
-        result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
-        run = {"by": "engine", "log": "/tmp/test.log", "junit_steps": [], "junit_unran": [], "suite": None,
-               "fingerprint_before": None, "fingerprint_after": None}
-        path = self.dir / "evidence.md"
-        rows = (("走らせ方", "* 走らせ方= "), ("ログ", "* ログ= "))
-        with mock.patch.object(declared_checks, "EVIDENCE_ROWS", rows):
-            text = result.evidence("final", {"ok": True, "green": True, "red_cause": ""}, run, None, "", "", "一式", "")
-            path.write_text(text, encoding="utf-8")
-            got = runreport._evidence_lines({"test-gate-final": {"evidence": str(path)}})
-        self.assertIn("* 走らせ方= engine・一式", text)
-        self.assertIn("最後のテスト（test-gate-final）の走らせ方: engine・一式", got)
-        self.assertIn("最後のテスト（test-gate-final）のログ: /tmp/test.log", got)
-
     def test_evidence_rows_stay_one_line_each(self):
-        """役の素材の reason の改行は証拠の行を切らず、次の行の頭にも化けない: 修正前のテストの行は reason の終わりまで届き、ログの
-        行は本物の置き場のまま"""
+        """役の素材の reason の改行は返りの欄と証拠の行を切らず、次の行の頭にも化けない: 修正前のテストの行は reason の終わりまで
+        届き、ログの行は本物の置き場のまま。報告は証拠の文を開かずに返りの欄から同じ行を出す"""
         result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
         run = {"by": "engine", "log": "/tmp/test.log", "junit_steps": [], "junit_unran": [], "suite": None,
                "fingerprint_before": None, "fingerprint_after": None}
         base_line = declared_checks.baseline_line({"material": {"status": "not_run", "reason": "見た物:\n- ログ: ci/output.txt"}})
-        text = result.evidence("final", {"ok": False, "green": False, "red_cause": "incomplete"}, run, None,
-                               "落ちた:\n- 走らせ方: 偽", "訳:\n- ログ: 偽", "一式", base_line)
-        path = self.dir / "evidence.md"
-        path.write_text(text, encoding="utf-8")
-        returns = {"test-gate-final": {"evidence": str(path)}}
+        out = {"ok": False, "green": False, "red_cause": "incomplete", **result.gate_fields(run, "一式", base_line, "訳:\n- ログ: 偽")}
+        rows = result.evidence("final", out, run, None, "落ちた:\n- 走らせ方: 偽").splitlines()
+        self.assertEqual([r for r in rows if r.startswith(("- ログ: ", "- 走らせ方: "))], ["- 走らせ方: engine・一式", "- ログ: /tmp/test.log"])
+        self.assertIn("- ok: false（訳: - ログ: 偽）", rows)
+        returns = {"test-gate-final": out}
         got = runreport._evidence_lines(returns)
         self.assertIn("最後のテスト（test-gate-final）のログ: /tmp/test.log", got)
         self.assertIn("最後のテスト（test-gate-final）の走らせ方: engine・一式", got)
         base = next(x for x in got if x.startswith("最後のテスト（test-gate-final）の修正前のテスト: "))
         self.assertIn("見た物: - ログ: ci/output.txt", base)
         self.assertIn(gatemarks.BASELINE_NOT_RUN, base)
+        self.assertIn(f"- {base.removeprefix('最後のテスト（test-gate-final）の')}", rows)
         self.assertIn("最後のテストの一式: engine・一式・ログ /tmp/test.log", runreport._tests_head_lines(returns))
 
-    def test_green_cert_section_reads_the_test_gate_evidence(self):
-        """test-gate の result.py が書く証拠の文の走らせ方とログの行が、緑の認証の節に届く"""
-        result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
-        suites, log = "一式: run-tests（make test）", str(self.dir / "test.log")
-        run = {"by": "engine", "log": log, "junit_steps": [], "junit_unran": [], "suite": None,
-               "fingerprint_before": None, "fingerprint_after": None}
-        text = result.evidence("final", {"ok": True, "green": True, "red_cause": ""}, run, None, "", "", suites, "")
-        (self.artifacts / "test-gate" / "final").mkdir(parents=True)
-        (self.artifacts / "test-gate" / "final" / "evidence.md").write_text(text, encoding="utf-8")
-        final = {"mode": "final", "ok": True, "green": True, "red_cause": "",
-                 "evidence": {"type": "archon_artifact", "run_id": RUN, "path": "test-gate/final/evidence.md"}}
-        code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}),
-                                    INPUTS_TEST_GATE_FINAL=json.dumps(final))
+    def final_returned(self, **fields) -> str:
+        """test-gate（final）の返りの JSON。証拠の指し札の先のファイルは置かない（報告は返りの欄だけを読む）"""
+        return json.dumps({"mode": "final", "ok": True, "green": True, "red_cause": "", "baseline": None, "fingerprint": None,
+                           "evidence": {"type": "archon_artifact", "run_id": RUN, "path": "test-gate/final/evidence.md"},
+                           "by": "engine", "suites_line": "", "log": "", "baseline_line": "", "reason": "", **fields})
+
+    def green_section(self, final: str) -> str:
+        code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}), INPUTS_TEST_GATE_FINAL=final)
         self.assertEqual(code, 0)
-        green = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8").split(f"{runreport.GREEN_HEADING}\n\n", 1)[1]
+        return (self.artifacts / out["facts_file"]).read_text(encoding="utf-8").split(f"{runreport.GREEN_HEADING}\n\n", 1)[1]
+
+    def test_green_cert_section_reads_the_test_gate_evidence(self):
+        """test-gate の返りの走らせ方とログの欄が、証拠の文を開かずに緑の認証の節に届く。ログの無い回は「無い」"""
+        suites, log = "一式: run-tests（make test）", str(self.dir / "test.log")
+        green = self.green_section(self.final_returned(suites_line=suites, log=log))
         self.assertIn(f"- 最後のテスト（test-gate-final）の走らせ方: engine・{suites}\n", green)
         self.assertIn(f"- 最後のテスト（test-gate-final）のログ: {log}\n", green)
+        green = self.green_section(self.final_returned(suites_line=suites))
+        self.assertIn(f"- 最後のテスト（test-gate-final）のログ: 無い\n", green)
 
     def test_green_cert_section_carries_the_baseline_line(self):
-        """T35: 最後のテストの証拠の修正前のテストの行（declared_checks.baseline_line）が、緑の認証の節に字のまま届く"""
-        result = load_script("result", ROOT / "workflows" / "test-gate" / "scripts")
-        run = {"by": "engine", "log": "", "junit_steps": [], "junit_unran": [], "suite": None, "fingerprint_before": None,
-               "fingerprint_after": None}
+        """T35: 最後のテストの返りの修正前のテストの欄（declared_checks.baseline_line）が、緑の認証の節に字のまま届く"""
         base = "修正前のテスト: 緑（元の結末（入力 baseline）の status clean）——最後のテストの赤は修正の後に出た赤でありうる"
-        text = result.evidence("final", {"ok": True, "green": True, "red_cause": ""}, run, None, "", "", "一式", base)
-        (self.artifacts / "test-gate" / "final").mkdir(parents=True)
-        (self.artifacts / "test-gate" / "final" / "evidence.md").write_text(text, encoding="utf-8")
-        final = {"mode": "final", "ok": True, "green": True, "red_cause": "",
-                 "evidence": {"type": "archon_artifact", "run_id": RUN, "path": "test-gate/final/evidence.md"}}
-        code, out = self.run_script("facts", INPUTS_START=self.pointer("start/start.json", {"run_id": RUN}),
-                                    INPUTS_TEST_GATE_FINAL=json.dumps(final))
-        self.assertEqual(code, 0)
-        green = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8").split(f"{runreport.GREEN_HEADING}\n\n", 1)[1]
+        green = self.green_section(self.final_returned(suites_line="一式", baseline_line=base))
         self.assertIn(f"- 最後のテスト（test-gate-final）の{base}\n", green)
 
     def test_line_values_reach_the_outcome_and_the_report(self):

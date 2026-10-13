@@ -661,7 +661,7 @@
      "where": "parent/test-gate/base/failure.txt"
     }
    ],
-   "why": "line/test-gate-base で走る test-gate/run の素材を test-gate/result が baseline.json の material に写し（found が修正前の赤）、evidence.md の『- green: false』か落ちた時の failure.txt を赤とする（workflows/test-gate/scripts/result.py:49・88・104-108・116・127・132）"
+   "why": "line/test-gate-base で走る test-gate/run の素材を test-gate/result が baseline.json の material に写し（found が修正前の赤）、evidence.md の『- green: false』か落ちた時の failure.txt を赤とする（workflows/test-gate/scripts/result.py:48・87・103-107・115・126・131）"
   },
   "p0.parallel_pr": {
    "rules": [
@@ -1065,7 +1065,7 @@
      "value": false
     }
    ],
-   "why": "fix/assert-changed が申告と変更の食い違いを ok:false で書き（workflows/fix/scripts/assert_changed.py:57・60）、子の run の終わりに fix の組が諦めた単位と TDD の段の落ちを groups/<gid>/result.json に書く（workflows/fix/scripts/group_end.py:64-65）"
+   "why": "fix/assert-changed が申告と変更の食い違いを ok:false で書き（workflows/fix/scripts/assert_changed.py:57・60）、子の run の終わりに fix の組が諦めた単位と TDD の段の落ちを groups/<gid>/result.json に書く（workflows/fix/scripts/group_end.py:63-64）"
   },
   "p3.fix_delta": {
    "never": "fix/delta-cut は修正だけの差分を切るか飛ばすだけの記帳（lib/refix.py:117-130・189、workflows/fix/scripts/delta_cut.py:41）"
@@ -1116,7 +1116,7 @@
      "where": "parent/test-gate/final/failure.txt"
     }
    ],
-   "why": "line/test-gate-final で走る test-gate/run の結末を test-gate/result が evidence.md の『- green: false』か落ちた時の failure.txt で書く（workflows/test-gate/scripts/result.py:49・88・116・127・132）"
+   "why": "line/test-gate-final で走る test-gate/run の結末を test-gate/result が evidence.md の『- green: false』か落ちた時の failure.txt で書く（workflows/test-gate/scripts/result.py:48・87・115・126・131）"
   },
   "p4.final_gates": {
    "never": "docs/nodes.json の by が absent（works-factory に節が無い）。最後の変異の検算が無い"
@@ -1125,7 +1125,7 @@
    "never": "docs/nodes.json の by が absent（works-factory に節が無い）。周の記録を持たない"
   },
   "p4.scalars": {
-   "never": "eyes/prep は規模の数値を数えるだけ（lib/eyeverdict.py の scalars、workflows/eyes/scripts/prep.py:66・91）"
+   "never": "eyes/prep は規模の数値を数えるだけ（lib/eyeverdict.py の scalars、workflows/eyes/scripts/prep.py:62・87）"
   },
   "r1.comment_candidates": {
    "rules": [

@@ -25,6 +25,7 @@ import time
 import baseline_red
 import checkscope
 import gatemarks
+import oneline
 import tree_run
 
 _GL = pathlib.Path(__file__).resolve().parent / "graphloops"
@@ -55,27 +56,8 @@ MATERIAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": 
                                   **{k: {"type": "integer", "minimum": 0} if k in NUMERIC_FIELDS else {"type": "string"}
                                      for k in FIELDS}}}
 MODES = ("base", "final")   # 形: 判定の前・修正の後
-
-
-def row_prefix(name: str) -> str:
-    """証拠の文（evidence.md）の行の頭"""
-    return f"- {name}: "
-
-
-def one_line(text) -> str:
-    return " ".join(str(text).split())
-
-
-def evidence_value(rows: list, prefix: str):
-    """証拠の文の行の並び rows のうち、頭 prefix で始まる最初の行の値（頭を外した物）。無ければ None"""
-    return next((r.removeprefix(prefix) for r in rows if r.startswith(prefix)), None)
-
-
-# 証拠の文の行の頭（名, 行の頭）。書くのは試験の関門の返す節、行のまま読むのはメイングラフの最後の関所の文
-EVIDENCE_ROWS = tuple((name, row_prefix(name)) for name in ("走らせ方", "ログ"))
 BASELINE_HEAD = "修正前のテスト"
-BASELINE_ROW = (BASELINE_HEAD, row_prefix(BASELINE_HEAD))   # final の証拠だけに在る行（baseline_line）
-OK_ROW = row_prefix("ok")                                   # 証拠の頭の行（false なら括弧に認証しなかった訳）
+GATE_MISSING = "取れない（試験の関門の出力に無い）"
 CANT = {False: "awaiting_human", True: "not_run"}   # 走らせられない時の status（判定の前・後。after_judge か mode == "final" で引く）
 
 
@@ -83,7 +65,7 @@ class InputRefused(Exception):
     """入力を受けない（AI を起こす前に run を止める）。文は人に向けた 1 行（元 works/.shared/core/entry.py:445-449）"""
 
     def __init__(self, msg):
-        super().__init__(one_line(msg))
+        super().__init__(oneline.one_line(msg))
 
 
 class CiRefused(InputRefused):
@@ -600,6 +582,19 @@ def material_problems(material, *, mode: str) -> list:
 
 
 # ---------------------------------------------------------------- 修正前のテストの行
+def gate_values(ret) -> dict:
+    """試験の関門の返り ret（無い・dict でない時は空）の、人に見せる値 {by, suites, log, baseline, reason}: 走らせ方は by・suites_line、
+    ログは log（空なら「無い」）。by が無いか空（返す節の中の誤り）なら走らせ方とログは GATE_MISSING。修正前のテストの行は頭つきの
+    baseline_line（無いか空なら頭と GATE_MISSING）。reason は認証しなかった訳（無ければ空）。証拠の文・報告・最後の関所が同じ字を出す"""
+    ret = ret if isinstance(ret, dict) else {}
+    by = ret.get("by") or ""
+    return {"by": by,
+            "suites": f"{by}・{ret.get('suites_line') or ''}" if by else GATE_MISSING,
+            "log": (ret.get("log") or "無い") if by else GATE_MISSING,
+            "baseline": ret.get("baseline_line") or f"{BASELINE_HEAD}: {GATE_MISSING}",
+            "reason": ret.get("reason") or ""}
+
+
 def baseline_line(base) -> str:
     """修正前のテスト（base の元の結末。baseline_red.read_baseline の返りの、呼び手の欄 material・exit_codes・skipped_steps）の 1 行。
     final の証拠が最後のテストの行と並べて出す——最後の赤が修正の後に出た赤か、基の版からの赤かを人が見分ける手がかり。修正前の CI と

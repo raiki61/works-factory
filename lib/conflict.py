@@ -80,6 +80,7 @@ if str(_CORE / "graphloops") not in sys.path:   # 写しの engine（engine.util
 
 import cite  # noqa: E402
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行）
+import oneline  # noqa: E402
 import planmarks  # noqa: E402  （planmarks は conflict・entry を読まないので輪にならない）
 import promptsection  # noqa: E402
 import stopby  # noqa: E402  （L1。止めの理由の住処）
@@ -732,12 +733,12 @@ def fields_broken(b, e: Exception, *, by: str = stopby.FIX, stop=None) -> Except
     印を付けて止め、控えを名指す理由の ValueError を返す（呼ぶ側が raise する。許しや照らしを黙って広げない・黙って捨てない）。文の頭は修正の段
     （by stopby.FIX）なら FIELDS_BROKEN、ほかの段は段を名指さない FIELDS_TAMPERED と「読まずに止めた」"""
     head = FIELDS_BROKEN if by == stopby.FIX else FIELDS_TAMPERED + "控えを読まずに止めた"
-    why = f"{head}: {' '.join(str(e).split())}"
+    why = f"{head}: {oneline.one_line(e)}"
     if stop is not None:
         try:
             stop(why, by=by)
         except Reject as r:
-            why += f"（共有ボードを止められない: {' '.join(str(r).split())}）"
+            why += f"（共有ボードを止められない: {oneline.one_line(r)}）"
     return ValueError(why)
 
 

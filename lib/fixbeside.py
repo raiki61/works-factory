@@ -36,6 +36,7 @@ if str(_HERE) not in sys.path:
 
 import fixboard  # noqa: E402
 import impact  # noqa: E402  （受け付けの trace の op の住処）
+import oneline  # noqa: E402
 import querytest  # noqa: E402
 
 CLOSURE_FILE = "closure.json"
@@ -62,10 +63,6 @@ def branch_head(n: int) -> str:
 def handled_head(n: int) -> str:
     """n 回目の往復の手直しの結果の頭"""
     return "手直しの結果" if n == passes()[0] else f"{n} 回目の手直しの結果"
-
-
-def _one_line(text) -> str:
-    return " ".join(str(text).split())
 
 
 # ---------------------------------------------------------------- 欄を組む口（子の結果と親の書き手）
@@ -97,7 +94,7 @@ def _ties(place, *, items, plan_review, fix_reply) -> tuple:
         try:
             ties[str(n)] = fixboard.hole_ties(place, n, items=items, plan_review=plan_review, fix_reply=fix_reply)
         except Exception as e:   # 名札は材料。組めない訳を置いて先へ（元 report._ties）
-            ties[str(n)] = f"{type(e).__name__}: {_one_line(e)}"
+            ties[str(n)] = f"{type(e).__name__}: {oneline.one_line(e)}"
         out = fixboard.output(place, refix._pass(n)["fix"]) or {}
         handled[str(n)] = [h for h in out.get("handled") or [] if isinstance(h, dict)]
     return ties, handled
@@ -114,7 +111,7 @@ def write(place, results, ruled_reply=None, *, items=None, plan_review=None, fix
         try:
             doc = build()
         except Exception as e:   # 隣のファイルは材料。組めない訳を置き、出力ノードは落とさない
-            doc = {"error": f"{type(e).__name__}: {_one_line(e)}"}
+            doc = {"error": f"{type(e).__name__}: {oneline.one_line(e)}"}
         fixboard.write_json(place / name, doc)
 
     def closure():
@@ -146,10 +143,10 @@ def _load(path: pathlib.Path, unread: list, *, rows: bool = False):
         unread.append(f"修正の控え {path} が無い")
         return None
     except (OSError, ValueError) as e:
-        unread.append(f"修正の控え {path} が読めない（{type(e).__name__}: {_one_line(e)}）")
+        unread.append(f"修正の控え {path} が読めない（{type(e).__name__}: {oneline.one_line(e)}）")
         return None
     if isinstance(doc, dict) and "error" in doc:
-        unread.append(f"修正の控え {path} を組めなかった（{_one_line(doc['error'])}）")
+        unread.append(f"修正の控え {path} を組めなかった（{oneline.one_line(doc['error'])}）")
         return None
     if not isinstance(doc, list if rows else dict):
         unread.append(f"修正の控え {path} の形が違う（{'行の配列' if rows else 'オブジェクト'}でない）")
@@ -318,7 +315,7 @@ def branch_rows(got: dict) -> list:
             h = handled.get(str(n)) or []
             if h:
                 rows.append(f"{handled_head(n)}（{len(h)} 件）:")
-                rows += [f"  - {x.get('key')}: {gatemarks.HANDLED_WORDS.get(x.get('handled'), '')}（{x.get('handled')}）——{_one_line(x.get('how') or '')}"
+                rows += [f"  - {x.get('key')}: {gatemarks.HANDLED_WORDS.get(x.get('handled'), '')}（{x.get('handled')}）——{oneline.one_line(x.get('how') or '')}"
                          for x in h]
     return rows
 
@@ -338,7 +335,7 @@ def always_rows(got: dict) -> list:
     for folder, gone in got["removed"]:
         where = f"（{folder.name}）"
         if not gone["readable"]:
-            rows.append(f"clean が消したファイル{where}: 読めない（{_one_line(gone['reason'])}）")
+            rows.append(f"clean が消したファイル{where}: 読めない（{oneline.one_line(gone['reason'])}）")
         elif not gone["ran"]:
             rows.append(f"clean が消したファイル{where}: 走らせていない（fix-removed.json が無い。clean の前に止まった）")
         else:
@@ -355,7 +352,7 @@ def always_rows(got: dict) -> list:
             continue
         seen = True
         if not s.get("readable"):
-            rows.append(f"レンズ{where}: 読めない（{_one_line(s.get('reason'))}）——どのレンズが見たかを確かめられない")
+            rows.append(f"レンズ{where}: 読めない（{oneline.one_line(s.get('reason'))}）——どのレンズが見たかを確かめられない")
         elif not s.get("ran"):
             rows.append(f"レンズ{where}: 走らせていない（控えが無い）")
         else:
@@ -363,10 +360,10 @@ def always_rows(got: dict) -> list:
             for r in s.get("rows") or []:
                 taken = "調べていない" if r.get("adopted") is None else f"採った {r['adopted']}・採らなかった {r['not_adopted']}"
                 rows.append(f"  - {r.get('lens')}: {taken}・形の誤りで捨てた {r.get('dropped')}（出した発見 {r.get('findings')}）")
-            rows += [f"  - 落ちたレンズ {f.get('lens')}（再実行の要あり）: {_one_line(f.get('reason'))}" for f in s.get("failed") or []]
+            rows += [f"  - 落ちたレンズ {f.get('lens')}（再実行の要あり）: {oneline.one_line(f.get('reason'))}" for f in s.get("failed") or []]
         collector = doc.get("collector")
         if isinstance(collector, dict) and collector.get("ok") is False:
-            rows.append(f"レンズの集め役{where}: {_one_line(collector.get('reason') or '訳が無い')}")
+            rows.append(f"レンズの集め役{where}: {oneline.one_line(collector.get('reason') or '訳が無い')}")
     if not seen:
         rows.append("レンズ: 控えが無い（修正の段が無い run か、控えが読めない。下の読めなかった控えの訳）")
     rows.append(ANOMALY_LINE)
@@ -397,9 +394,9 @@ def next_items(got: dict) -> list:
     for folder, doc in got["lenses"]:
         s = doc.get("summary") if isinstance(doc.get("summary"), dict) else {}
         if s and not s.get("readable"):
-            items.append({"where": LENS_WHERE, "text": f"レンズの控えが読めない——再実行の要あり: {_one_line(s.get('reason'))}"})
+            items.append({"where": LENS_WHERE, "text": f"レンズの控えが読めない——再実行の要あり: {oneline.one_line(s.get('reason'))}"})
             continue
         items += [{"where": f"{LENS_WHERE} {f.get('lens')}",
-                   "text": f"{f.get('lens')}（再実行の要あり: 落ちて観点を誰も見ていない。理由: {_one_line(f.get('reason'))}）"}
+                   "text": f"{f.get('lens')}（再実行の要あり: 落ちて観点を誰も見ていない。理由: {oneline.one_line(f.get('reason'))}）"}
                   for f in s.get("failed") or [] if isinstance(f, dict)]
     return items

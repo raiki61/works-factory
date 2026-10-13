@@ -8,8 +8,8 @@ engine.validator.agent_def で前付けを剥がした本文を引く。引く�
 - key(row):            振り分けの出口の欄の頭（<key>_go・prompt_<key>）
 - render(row, body, diff_file, files, lang): レンズの節の指示書（定義の本文 body（engine.validator.agent_def の body）と、この線での
                         読み方・返し方）
-- collect(board, raws): 集め役。レンズの節の出口（{レンズの名: 出口の JSON の字}。無ければ null）で置き場 board の lens.json を埋め、
-                        落ちたレンズも理由つきで記録して ok
+- collect(board, replies): 集め役。レンズの節の出口（{レンズの名: 境の口 value が読んだ出口の値}。無ければ None）で置き場 board の
+                        lens.json を埋め、落ちたレンズも理由つきで記録して ok
 """
 import json
 import pathlib
@@ -60,20 +60,10 @@ def render(row, body: str, diff_file: str, files: list, lang: str) -> str:
     ]) + "\n"
 
 
-def _parse(raw):
-    raw = (raw or "").strip()
-    if raw in ("", "null"):
-        return None
-    try:
-        return json.loads(raw)
-    except ValueError:
-        return raw   # 形の違う出口として集め役が failed に記録する
-
-
-def collect(board, raws: dict) -> dict:
+def collect(board, replies: dict) -> dict:
     b = pathlib.Path(board)
     try:
-        rows = lens.collect(b, {row["lens"]: _parse(raws.get(row["lens"])) for row in LENSES})
+        rows = lens.collect(b, {row["lens"]: replies.get(row["lens"]) for row in LENSES})
     except ValueError as e:
         return {"ok": False, "reason": str(e), "lens_file": "", "ran": 0, "failed": 0, "not_routed": 0}
     count = {s: sum(1 for r in rows if r["state"] == s) for s in ("ran", "failed", "not_routed")}

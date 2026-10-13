@@ -13,6 +13,7 @@ if str(LIB) not in sys.path:
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
 import outcome  # noqa: E402
+import planfile  # noqa: E402
 import report  # noqa: E402
 import stopby  # noqa: E402
 
@@ -391,6 +392,22 @@ class ReadingCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(plan={"ready": False, "stop_reason": stopby.FIX})), ("stopped_by_line", f"plan:{stopby.FIX}"))
         judge = {"ready": True, "stop_reason": "", "units": []}
         self.assertEqual(decide(fixed_run(judge=judge, plan={"ready": False}, fix=None))[0], "no_fix_needed")
+
+    def test_nothing_owed_plan_is_not_give_up(self):
+        """#283: 開いた単位が全部人の答え待ちで直す義務 0 件の周（round.json の why が NOTHING_OWED）は計画の諦めでなく、今の works
+        （works/.shared/core/report.py:670-695）と同じく round_limit に落ちる"""
+        with tempfile.TemporaryDirectory() as tmp:
+            round_dir = pathlib.Path(tmp) / "plan" / "r1"
+            round_dir.mkdir(parents=True)
+            fields = round_dir / planfile.planmarks.FIELDS_FILE
+            fields.write_text('{"round": 1, "fields": []}', encoding="utf-8")
+            returns = fixed_run(plan={"ready": False, "plan": str(fields)}, fix=None, eyes=None,
+                                **{"plan-review": None, "test-gate-final": None, "merge-seal": None, "merge-apply": None})
+            for why, want in ((planfile.NOTHING_OWED, ("round_limit", "")), ("", ("stopped_by_line", "plan:give-up"))):
+                with self.subTest(why=why):
+                    (round_dir / planfile.ROUND_FILE).write_text(json.dumps({"round": 1, "mode": "plan", "go": False, "why": why}),
+                                                          encoding="utf-8")
+                    self.assertEqual(decide(returns), want)
 
     def test_later_judge_and_plan_are_read_first(self):
         """再審・案の直しの返りは後の段で先に読む（線と同じ）"""

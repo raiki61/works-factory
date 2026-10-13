@@ -7,7 +7,6 @@
 頼みの無い周は consulted: false で何も書かない。入力 pass は first か ruled。
 返り {consulted, answer_file}。回す側の誤り（pass が読めない・置き場が壊れた）は標準エラーに 1 行で非 0。
 """
-import json
 import os
 import sys
 from pathlib import Path
@@ -26,9 +25,8 @@ def main() -> dict:
     pass_ = os.environ["INPUTS_PASS"]
     if pass_ not in NODES:
         raise ValueError(f"入力 pass は {sorted(NODES)} のどれか: {pass_!r}")
-    raw = os.environ.get("INPUTS_ANSWER", "").strip()
     try:
-        answer = json.loads(raw) if raw and raw != "null" else None
+        answer = boundary.parsed(os.environ.get("INPUTS_ANSWER"))
     except ValueError:
         answer = None   # 読めない答えは答えの無い周と同じ（行は unavailable）
     got = consult.settle(boundary.place("fix"), answer, pass_, NODES[pass_])

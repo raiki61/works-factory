@@ -32,7 +32,7 @@ def not_launched(n: int) -> str:
 def main(n: int, name: str) -> None:
     raw = os.environ["INPUTS_REPLY"]
     iteration = int(os.environ["INPUTS_ITERATION"])
-    if raw.strip() in ("", "null"):
+    if boundary.value(raw) is None:
         boundary.returns({"ok": True, "done": True, "reason": not_launched(n), "reason_file": ""})
         return
     reply, why = rolekit.parse_reply(raw)

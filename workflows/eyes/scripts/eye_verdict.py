@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 
 eye = os.environ["INPUTS_EYE"]
-out = json.loads(os.environ["INPUTS_OUT"])
+out = boundary.parsed(os.environ["INPUTS_OUT"])
 eyes = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
 eyes.mkdir(parents=True, exist_ok=True)
 (eyes / f"{eye}.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")

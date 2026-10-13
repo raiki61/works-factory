@@ -14,7 +14,6 @@ Agent の新しい会話で下請け（実装役・審査役）を起こす節�
 同じ時に、除くパスの頭 boundary.SKIP の下の姿を skip-before.json に控える（fixboard.record_skipped。受け付けがその下を変えた返答を拒む）。
 返り {prompt_file, go, iteration}。回す側の誤り（判定の写しが無い・brief の控えが壊れた）は標準エラーに 1 行で非 0。
 """
-import json
 import os
 import sys
 from pathlib import Path
@@ -44,8 +43,7 @@ ANSWER_NODE = "consult-answer"   # 範囲の相談に答える役の節
 
 def main() -> dict:
     place, repo = boundary.place("fix"), boundary.work_tree()
-    raw = os.environ.get("INPUTS_GROUP", "").strip()
-    group = json.loads(raw) if raw else None
+    group = boundary.parsed(os.environ.get("INPUTS_GROUP"))
     owed = fixboard.group_owed(place, group["unit_ids"] if group else None)
     if not (place / fixboard.FIX_HEAD_FILE).is_file():
         fixboard.record_skipped(place, repo, boundary.SKIP)   # 印より先に（落ちて回し直した prep が控えを飛ばさない）

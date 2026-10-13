@@ -47,7 +47,7 @@ class DutyCase(unittest.TestCase):
     def plan_duty(self) -> set:
         """plan の口: 線の指し札の先を read_judgment で読み、planfile.plan_slots の必ず入れる単位"""
         raw = json.dumps({"path": str(self.jdir / "judgment.json")})
-        judgment, why = planfile.read_judgment(raw, self.start, lambda ptr: pathlib.Path(ptr["path"]))
+        judgment, why = planfile.read_judgment(raw, self.start, lambda text: pathlib.Path(json.loads(text)["path"]))
         self.assertEqual(why, "")
         return planfile.plan_slots(judgment)[0]
 

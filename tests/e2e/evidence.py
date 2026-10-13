@@ -44,7 +44,7 @@ TABLE = Path(__file__).resolve().with_name("evidence.json")
 ROW_FIELDS = {"seen": {"id", "kind", "writer"}, "scenario-only": {"id", "kind", "why"}, "seed-cannot": {"id", "kind", "why"},
               "waits-part": {"id", "kind", "part"}, "backlog": {"id", "kind", "why"},
               "handed-off": {"id", "kind", "why", "to"}}
-# 線の配線（#211）がまだ入れていない部分。入った部分の行は seen・scenario-only・seed-cannot へ移す
+# 線の配線（#211）の部分。部分は全部入ったが、閉じる行のうち本物の run の記録で置き場を決めるまでの行がその部分を待つ
 PARTS = ("A", "B1", "B2", "C", "D1", "D2")
 WHERE_HEADS = ("parent/", "child-*/", "record/")
 SEEN, ABSENT, UNEXPECTED = "seen", "absent", "unexpected"

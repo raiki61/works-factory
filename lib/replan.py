@@ -26,6 +26,7 @@ if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 
 import gatemarks  # noqa: E402
+import oneline  # noqa: E402
 import planmarks  # noqa: E402
 import promptsection  # noqa: E402
 import report  # noqa: E402  （関所の止める語 FINAL_GATE_STOPS。案の直しの関所も同じ語で止める）
@@ -104,7 +105,7 @@ def amend_lines(items, *, refixed: bool, answer=None, widened=(), whys=None, pen
         head, sep, text = str(row).partition(":")
         if sep:
             wide[head.removeprefix("項目").strip()] = text.strip()
-    stop = (STOPPED_WHY.format(text=" ".join(str(answer.get("text") or "").split()) or NO_NOTE)
+    stop = (STOPPED_WHY.format(text=oneline.one_line(answer.get("text") or "") or NO_NOTE)
             if answer.get("decision") in report.FINAL_GATE_STOPS else "")
     out = []
     for item in items or ():

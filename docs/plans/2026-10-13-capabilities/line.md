@@ -335,7 +335,7 @@
   - 狭め: 無し
 - L-E55 入口の種類（依頼・base・PR）を知るのは入口の変換だけ（柵 entry-kind）
   - 元: works/tests/test_entry_block.py::ConversionLayerCase.test_only_conversion_layer_knows_entry_kind
-  - 今: lib/entryshape.py と workflows/line/scripts/start.py だけ（柵 entry-kind）（部分 A で閉じた）
+  - 今: lib/entryshape.py と workflows/line/scripts/start.py だけ（柵 entry-kind）（部分 A で閉じた）。柵の正本は表 docs/concepts.json の entry-kind
   - 証: lib/tests/test_concept_fences.py::FenceCase.test_entry_kind_read_only_by_entryshape
   - 本物の run: 筋書きでのみ
   - 狭め: #74 で柵が落ちた（宣言なし。不可でない → 戻す） → 部分 A で戻した
@@ -852,9 +852,9 @@
   - 狭め: 無し
 - L-W28 最後の関所の文に、最後のテストの一式・修正前のテスト（baseline_line）・ログ・走れなかった理由・作業ツリー・手元で回さなかった試験・赤緑を確かめずに通した回を並べる
   - 元: works/darkfactory/lib/line_edge.py:572-589。試験 works/tests/test_report_head.py の :339・:350・:361・:384-424
-  - 今: workflows/line/scripts/ask_final.py の evidence_rows（test-gate の evidence.md の走らせ方・修正前のテスト・ログ・ok の訳の行を字のまま）と tests_lines（作業ツリーは節の cwd）
+  - 今: workflows/line/scripts/ask_final.py の final_tests（test-gate-final の返りの欄 by・suites_line・log・baseline_line・reason を with: で受け、lib/declared_checks.py の gate_values で字にする）と tests_lines（作業ツリーは節の cwd）
   - 証: tests/workflows/test_line.py::AskFinalReadsCase.test_final_text_lists_suites_baseline_and_left_tests
-  - 本物の run: test-gate-final の evidence と ask-final の text
+  - 本物の run: test-gate-final の返りと ask-final の text
   - 狭め: #74 で狭めた（名指し無し。不可でない → 戻す） → 部分 B2 で戻した。手元で回さなかった試験（ci_left・final_left・final_far）と赤緑を確かめずに通した回は fix の返りの約束に控えが無い（F013・F041。部分 D2） → 部分 D2 で戻した
 - L-W29 最後の関所の文に、差分の審査の穴の数（1・2 回目）・穴と目の行の枝の名札・手直しの結果を並べる
   - 元: works/darkfactory/lib/line_edge.py:590-595

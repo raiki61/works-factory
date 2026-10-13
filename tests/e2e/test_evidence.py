@@ -24,6 +24,10 @@ INVENTORY_FILES = ("line.md", "judge.md", "plan.md", "fix.md", "tail.md")
 WIRING = ROOT / "docs" / "plans" / "2026-10-13-line-wiring.md"
 ROW_ID = r"(?:L-[EGWD]|[JPFTERM])\d+[a-z]?"
 SCENARIO_ONLY = "筋書きでのみ"
+# 基準で seen から移した scenario-only の行の why の頭（棚卸しの字でなく移した訳を持つ）
+OUT_OF_REAL_RUN = "本物の通しの照らしの外（#261 の決め直し）: "
+# 基準で移した行の棚卸しの「本物の run」の欄の字（筋書きでのみ（本物の通しの照らしの外。在れば <元の名指し>））
+OUT_OF_REAL_RUN_MARK = "本物の通しの照らしの外"
 # 照らしの where の run の記録 → その run の工程（親は線、子は fix の組ごとの子の run）
 RECORDS = {"record/parent.json": "works-factory-line", "record/child-*.json": "works-factory-fix"}
 OUTSIDE = "この文書の外"
@@ -42,14 +46,14 @@ NAMED_BY_PATTERN = {
     "parent/eyes/r1.json": "workflows/eyes/scripts/eye_verdict.py:18",
     "parent/eyes/r1-comments.json": "workflows/eyes/works-factory-eyes.yaml:142",
     "parent/nodes/*.meta.json": "workflows/fix/works-factory-fix.yaml:175",
-    "parent/judge/material-prior-decisions-brief.md": "lib/judge_accept.py:2095",
-    "parent/judge/material-prior-decisions.json": "lib/judge_accept.py:2582",
+    "parent/judge/material-prior-decisions-brief.md": "lib/judge_accept.py:2096",
+    "parent/judge/material-prior-decisions.json": "lib/judge_accept.py:2583",
     "parent/plan/r1/brief-1.md": "lib/planfile.py:83",
     "parent/plan/structure/*/eye-prompt-1.md": "lib/eye.py:38",
-    "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py:802",
-    "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py:92",
-    "parent/fix/fix/review1-brief.json": "lib/refix.py:163",
-    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:490",
+    "parent/plan-review/plan-review-items/pass-1/item-1.md": "lib/planblk.py:803",
+    "parent/plan-review/plan-converge/pass-1/item-1.json": "lib/planblk.py:93",
+    "parent/fix/fix/review1-brief.json": "lib/refix.py:164",
+    "parent/test-gate/base/logs/*/test_cmd.log": "lib/declared_checks.py:472",
 }
 
 
@@ -211,19 +215,28 @@ class EvidenceTableCase(unittest.TestCase):
                 self.assertIsNotNone(evidence.row_problem(broken))
 
     def test_scenario_only_rows_match_the_inventory(self):
-        scenario_only, waiting = self.kind_of("scenario-only"), self.kind_of("waits-part")
+        """線の配線の部分は全部 main に入ったので、閉じる行も棚卸しが筋書きでのみと書けば scenario-only（部分を待たない）"""
+        scenario_only = self.kind_of("scenario-only")
         says = {i for i, real in self.inventory.items() if real.startswith(SCENARIO_ONLY)}
         never = {i for i, real in self.inventory.items() if SCENARIO_ONLY not in real}
-        self.assertEqual(says - waiting - scenario_only, set(), "棚卸しが筋書きでのみと書く行が scenario-only でない")
+        self.assertEqual(says - scenario_only, set(), "棚卸しが筋書きでのみと書く行が scenario-only でない")
         self.assertEqual(scenario_only & never, set(), "棚卸しが筋書きでのみと書かない行が scenario-only")
+        self.assertEqual(self.kind_of("waits-part") - never, set(), "棚卸しが筋書きでのみと書く行が部分を待っている")
+        for i in sorted(scenario_only):
+            with self.subTest(row=i):
+                if self.by_id[i]["why"].startswith(OUT_OF_REAL_RUN):
+                    self.assertIn(OUT_OF_REAL_RUN_MARK, self.inventory[i], "基準で移した行の棚卸しの欄が直っていない")
+                else:
+                    self.assertEqual(self.by_id[i]["why"], self.inventory[i], "欄 why が棚卸しの字でない")
 
     def test_waits_part_rows_are_closing_rows_of_that_part(self):
+        """部分の閉じる行のうち scenario-only でない行は全部 waits-part（本物の run の記録で置き場を決めた行を移す時に、この試験を直す）"""
         parts, _ = wiring()
         for part in evidence.PARTS:
             with self.subTest(part=part):
                 waiting = {row["id"] for row in self.rows if row["kind"] == "waits-part" and row["part"] == part}
                 self.assertTrue(parts.get(part))
-                self.assertEqual(waiting, parts[part])
+                self.assertEqual(waiting, parts[part] - self.kind_of("scenario-only"))
 
     def test_node_rules_name_node_ids_the_workflow_makes(self):
         """run の記録の節を照らす行は node-completed で、node はその run の工程の YAML から組んだ節の id そのもの（include の頭は
