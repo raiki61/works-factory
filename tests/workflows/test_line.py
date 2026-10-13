@@ -256,7 +256,7 @@ class StartCase(Artifacts):
 
     def test_blocks_read_the_request_file_from_the_line_record(self):
         """issue #89: 線の始めの記録を fix の prep・事前審査の open と同じ口（startrec.adopt）で置き場の r1/start.json に字のまま写すと、
-        上の欄だけを読む fix の読み手（conflict.request_file・fixboard.fix_values）が依頼のファイルを返す"""
+        startrec.request_file で読む fix の読み手（conflict.request_file・fixboard.fix_values）が依頼のファイルを返す"""
         got = self.start(request="request_ok.json")
         place = self.tmp / "fix"
         self.assertEqual(startrec.adopt(place, self.artifacts / got["record"]["path"]), self.record(got))

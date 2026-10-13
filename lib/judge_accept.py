@@ -57,6 +57,7 @@ import stopby  # noqa: E402
 import tree_run  # noqa: E402
 import worldblk  # noqa: E402
 import worldmark  # noqa: E402
+from answer import STOP_WORDS  # noqa: E402  （spec_answer の引数 answer がモジュールの名を隠す）
 from engine import declared  # noqa: E402
 from engine.render import Renderer  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
@@ -1052,7 +1053,7 @@ def _pr_of(start: dict):
 
 def _request_doc(repo, start: dict):
     """始めの記録の依頼のファイル（対象の根からの相対か絶対）の (文, JSON)。無い・読めなければ ("", None)"""
-    rel = start.get("request_file") or ""
+    rel = startrec.request_file(start)
     if not rel:
         return "", None
     p = pathlib.Path(rel) if pathlib.Path(rel).is_absolute() else pathlib.Path(repo) / rel
@@ -1310,7 +1311,7 @@ def due_view(start: dict, purpose, changed_files: list) -> DueView:
     reqs = inp.get("requests")
     entry = None
     if diff.get("empty") is True and isinstance(reqs, int) and not isinstance(reqs, bool) and reqs >= 1:
-        entry = {"origin": f"人の依頼（{start.get('request_file') or '依頼の行'}）"}
+        entry = {"origin": f"人の依頼（{startrec.request_file(start) or '依頼の行'}）"}
     return DueView({
         "round": 1,
         "loop.escalated": False,
@@ -1870,7 +1871,7 @@ def request_batches(jdir, start: dict) -> list:
     spec = [r for r in rows if str(r.get("text") or "").startswith(SPEC_PROVENANCE)]
     human = [r for r in rows if not str(r.get("text") or "").startswith(SPEC_PROVENANCE)]
     entry = (due_view(start, None, []).values.get("record.process.request_entry") or {}).get("origin")
-    human_origin = entry or f"人の依頼（{start.get('request_file') or '依頼の行'}）"
+    human_origin = entry or f"人の依頼（{startrec.request_file(start) or '依頼の行'}）"
     return [{"round": 1, "origin": origin, "findings": got} for origin, got in ((human_origin, human), (SPEC_ORIGIN, spec)) if got]
 
 
@@ -3109,7 +3110,7 @@ def spec_answer(jdir, root, answer) -> dict:
         if read_stop(jdir) is None:
             write_stop(jdir, SPEC_STOP, "仕様の承認ノードが開かなかった（仕様が固まっていない）")
         return {"go": False, "reason": read_stop(jdir)["reason"]}
-    if gate["decision"] in specblk.GATE_STOP:
+    if gate["decision"] in STOP_WORDS:
         note = gate["text"] if gate["text"].strip() else specblk.GATE_STOP_NOTE
         by = SPEC_GATE_REQUEST if gate["text"].strip().startswith(specblk.FLAG_BY_PREFIX) else SPEC_GATE_HUMAN
         write_stop(jdir, by, note)
@@ -3700,7 +3701,7 @@ def start_view(doc) -> dict:
     shape = doc.get("input") if isinstance(doc.get("input"), dict) else {}
     cut = doc.get("features_cut")
     return {
-        "request_file": doc.get("request_file") or shape.get("request_file") or "",
+        "request_file": startrec.request_file(doc),
         "policy_md": doc.get("policy_md") or "",
         "policy": doc.get("policy"),
         "features_cut": list(cut) if isinstance(cut, list) else list(DEFAULT_FEATURES_CUT),
@@ -3740,7 +3741,7 @@ def _intake_out(go, mode="judge", *, spec=False, world=False, verify=False, reas
 def request_container(view: dict, repo):
     """始めの記録が名指す依頼のファイルを解いた容器（lib/carry.parts の形）と、そのパス。依頼のファイルが無い run は、始めの記録の
     依頼の数が 0 の時だけ空の容器。解けなければ ValueError（1 行）"""
-    name = view["request_file"]
+    name = startrec.request_file(view)
     if not name:
         if view["input"].get("requests"):
             raise ValueError(f"始めの記録は依頼の行が {view['input']['requests']} 件と言うのに依頼のファイルを名指していない")

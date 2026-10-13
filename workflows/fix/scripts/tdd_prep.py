@@ -51,7 +51,7 @@ def main() -> dict:
     notes = place / fixboard.NOTES_FILE
     values = {"judgment_file": str(judgment_file) if judgment_file.is_file() else "",
               "plan_file": str(plan_file) if plan_file.is_file() else "",
-              "policy_path": policy.frozen_copy(start), "request_file": str(start.get("request_file") or ""),
+              "policy_path": policy.frozen_copy(start), "request_file": startrec.request_file(start),
               "notes_file": str(notes) if notes.is_file() else "", "base_rev": fixboard.base_rev_of(place)}
     sources = {"plan": fixboard.read_json(plan_file), "judgment": fixboard.read_json(judgment_file)}
     out = tddloop.prep(started["state_file"], values, repo, lang=rolekit.lang_line(start), sources=sources)

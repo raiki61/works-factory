@@ -88,6 +88,7 @@ import re
 import types
 
 import answer
+from answer import GO_WORDS
 import carry   # 下書きの印の付け方（次の run への持ち越しの形の住処）
 import cite    # 決め手の出どころが現物に在るかの照らし（食い違いの申し出の引用の照らしと同じ住処）
 import gatepolicy   # 無人の run か（人の関所と無人の方針の住処）
@@ -1188,7 +1189,7 @@ def converge_of(folder) -> list:
 def gate_items(answer) -> list:
     """修正前の関所の答え answer（{decision, text, asked}。飛ばされた時は None）を、人の関所の行 human_items
     [{round, node, answer, note, asked}] にする。通す語の時だけ 1 行（answer は continue。asked は人が見た関所の行）"""
-    if not isinstance(answer, dict) or answer.get("decision") not in seal.PASS:
+    if not isinstance(answer, dict) or answer.get("decision") not in GO_WORDS:
         return []
     return [{"round": 1, "node": GATE_NODE, "answer": "continue", "note": str(answer.get("text") or ""),
              "asked": [a for a in answer.get("asked") or [] if isinstance(a, str)]}]

@@ -2526,7 +2526,7 @@ def brief_sources(place) -> dict:
 
 def fix_values(place, owed, *, start, state: str = "", summary: str = "", answer_node: str = "") -> dict:
     """修正役の指示書の run の値（fixrules.FIX_VALUES と request_file・plan_session・tdd_state・ripple_file・base_rev）。始めの
-    記録 start の固めた方針の写しは policy_path、request_file はそのまま。plan_session は範囲の相談に答える役の名（answer_node。
+    記録 start の固めた方針の写しは policy_path、request_file は startrec.request_file で読む。plan_session は範囲の相談に答える役の名（answer_node。
     空なら相談の節を載せない）"""
     p = pathlib.Path(place)
 
@@ -2537,7 +2537,7 @@ def fix_values(place, owed, *, start, state: str = "", summary: str = "", answer
     return {"judgment_file": there(JUDGMENT_FILE), "open_units": json.dumps(list(owed), ensure_ascii=False),
             "plan_file": there(PLAN_REPLY_FILE), "policy_path": policy.frozen_copy(start),
             "notes_file": there(NOTES_FILE), "summary_file": summary or "",
-            "request_file": str(start.get("request_file") or ""), "plan_session": answer_node, "tdd_state": state or "",
+            "request_file": startrec.request_file(start), "plan_session": answer_node, "tdd_state": state or "",
             "ripple_file": there(RIPPLE_FILE), "base_rev": base_rev_of(place)}
 
 

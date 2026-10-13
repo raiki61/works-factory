@@ -58,6 +58,7 @@ import rolekit
 import startrec
 import structmark
 import worldmark
+from answer import GO_WORDS
 from engine.util import Reject
 
 PLAN_NODE = planmarks.NODE
@@ -76,7 +77,6 @@ POLICY_DIR = policy.DIR
 POLICY_CHANGED = "policy_changed"       # 関所の項目の種類（方針の文書が固めた版から変わった）
 GATE_ASKED_FILE = "gate-asked.json"     # 返した関所の項目 {文: {kind, policy_change?}}（入力 gate_answers の通した行の種類と方針の変化を引く）
 GATE_ANSWERS_FILE = "gate-answers.json"  # 入力 gate_answers を写した人の関所の答えの行（gatemarks が読む process.human_items の形）
-PASS_WORDS = ("continue", "approve")    # 関所を通す答えの語（docs/design.md の人の関所の語）
 WORLD_COPY = f"world/{worldmark.WORLD_FILE}"
 STRUCTURE_ROWS = "structure/design.jsonl"
 PASS_DIR = "pass-{k}"
@@ -362,7 +362,7 @@ def take_gate_answers(folder, gate_answers) -> list:
     asked_of = _read_json(d / GATE_ASKED_FILE) if (d / GATE_ASKED_FILE).is_file() else {}
     for a in _answer_rows(gate_answers):
         texts = [x for x in a.get("asked") or [] if isinstance(x, str)]
-        answer = "continue" if a["decision"] in PASS_WORDS else a["decision"]
+        answer = "continue" if a["decision"] in GO_WORDS else a["decision"]
         row = {"round": 1, "node": gatemarks.GATE_NODE,
                "kinds": sorted({(asked_of.get(x) or {}).get("kind") or "" for x in texts} - {""}),
                "asked": texts, "answer": answer, "note": a.get("text") or ""}
@@ -406,7 +406,7 @@ def tree_word(start: dict | None) -> str:
 def _request(start: dict | None) -> tuple:
     """始めの記録が名指す依頼のファイルの (パス, 本文, 読めない訳)。名指しが無ければ ("", "", "")、読めなければ本文は空で
     訳は REQUEST_UNREAD の行"""
-    req = (start or {}).get("request_file") or ((start or {}).get("input") or {}).get("request_file") or ""
+    req = startrec.request_file(start)
     if not req:
         return "", "", ""
     try:
