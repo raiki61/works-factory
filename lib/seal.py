@@ -1,4 +1,4 @@
-"""run の差分の封印と、封じた差分を置いてよいかの決まり。標準ライブラリと答えの語（answer.VERBS・GO_WORDS）だけ（git は repo を cwd にして呼ぶ）。
+"""run の差分の封印と、封じた差分を置いてよいかの決まり。標準ライブラリと答えの語（answer.GO_WORDS・STOP_WORDS）だけ（git は repo を cwd にして呼ぶ）。
 
 差分を組む・作業ツリーの指紋を取るのは green_cert（差分の組み方の 1 か所）で、ここは持たない。
 封じる型は ASF の merge-queue（gate の封印を execute が照らし直し、書いた後に読み戻す）に倣う。
@@ -19,9 +19,8 @@ import pathlib
 import re
 import subprocess
 
-from answer import GO_WORDS, VERBS
+from answer import GO_WORDS, STOP_WORDS
 
-STOPS = (VERBS[1], "reject")     # 止める語（今の works の report.FINAL_GATE_STOPS）
 REQUEST_BY = "request:"          # 止め札: 文がこれで始まる止める語（今の works の report.REQUEST_BY）
 PASSED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "redesign-needed", "unverifiable")   # 目の状態の語の持ち主（ほかは写さずここを読む）
 UNKNOWN_HEAD = "守りのパスを確かめられない（差分が一覧に触れていないとは言えない）: "
@@ -112,9 +111,9 @@ def _answer_refusal(answer: dict) -> str:
     if word in GO_WORDS:
         return ""
     text = answer.get("text")
-    if word in STOPS and isinstance(text, str) and text.startswith(REQUEST_BY):
+    if word in STOP_WORDS and isinstance(text, str) and text.startswith(REQUEST_BY):
         kind = "（止め札）"
-    elif word in STOPS:
+    elif word in STOP_WORDS:
         kind = ""
     else:
         kind = f"（通す語 {'・'.join(GO_WORDS)} のどれでもない）"

@@ -57,6 +57,7 @@ import stopby  # noqa: E402
 import tree_run  # noqa: E402
 import worldblk  # noqa: E402
 import worldmark  # noqa: E402
+from answer import STOP_WORDS  # noqa: E402  （spec_answer の引数 answer がモジュールの名を隠す）
 from engine import declared  # noqa: E402
 from engine.render import Renderer  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
@@ -3109,7 +3110,7 @@ def spec_answer(jdir, root, answer) -> dict:
         if read_stop(jdir) is None:
             write_stop(jdir, SPEC_STOP, "仕様の承認ノードが開かなかった（仕様が固まっていない）")
         return {"go": False, "reason": read_stop(jdir)["reason"]}
-    if gate["decision"] in specblk.GATE_STOP:
+    if gate["decision"] in STOP_WORDS:
         note = gate["text"] if gate["text"].strip() else specblk.GATE_STOP_NOTE
         by = SPEC_GATE_REQUEST if gate["text"].strip().startswith(specblk.FLAG_BY_PREFIX) else SPEC_GATE_HUMAN
         write_stop(jdir, by, note)

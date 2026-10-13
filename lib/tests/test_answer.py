@@ -62,5 +62,20 @@ class GoWordsOwner(unittest.TestCase):
                 self.assertTrue(self.TUPLE.search(copy))
 
 
+class StopWordsOwner(unittest.TestCase):
+    """関所を止める語の並びを宣言するのは answer.STOP_WORDS の 1 か所（通す語の GoWordsOwner と同じ訳）"""
+    TUPLE = re.compile(r"""\(\s*(["']stop["']|(answer\.)?VERBS\[1\])\s*,\s*["']reject["']\s*\)""")
+
+    def test_declared_nowhere_else_in_lib(self):
+        found = sorted(str(f.relative_to(LIB)) for f in LIB.rglob("*.py")
+                       if "tests" not in f.relative_to(LIB).parts and self.TUPLE.search(f.read_text(encoding="utf-8")))
+        self.assertEqual(found, [])
+
+    def test_pattern_sees_a_second_copy(self):
+        for copy in ('STOPS = (VERBS[1], "reject")', "GATE_STOP = ('stop', 'reject')"):
+            with self.subTest(copy=copy):
+                self.assertTrue(self.TUPLE.search(copy))
+
+
 if __name__ == "__main__":
     unittest.main()
