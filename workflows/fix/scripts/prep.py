@@ -36,7 +36,7 @@ INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "world", "depth"
 def main() -> dict:
     writelog.open_here()
     raw = {name: os.environ.get(f"INPUTS_{name.upper()}", "") for name in INPUTS}
-    return fixboard.prep(boundary.place("fix"), boundary.work_tree(), raw, boundary.resolve)
+    return fixboard.prep(boundary.place("fix"), boundary.work_tree(), raw, boundary.parsed, boundary.pointed)
 
 
 if __name__ == "__main__":

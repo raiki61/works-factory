@@ -713,16 +713,16 @@
 - P099 柵（conceptfence）: 考えの語の形が知ってよい所と除く所の外に何行あるかを数え、写しの束ねの行は数えず、壊れた束ねは拒み、増える向きだけ赤（ratchet）。単位のパスの知る場所の数（places）と、版の間の増え（scan_change。実行基盤の写しの置き場と入れ子のリポジトリは除く）
   - 元: works/.shared/core/conceptfence.py
   - 今: lib/conceptfence.py（`changed`・`scan_change` が skip_prefix を受ける形に変わった）
-  - 証: lib/tests/test_concept_fences.py::Synthetic の 12 件・lib/tests/test_concept_change.py::ChangeCase の 5 件（同名で在る）
+  - 証: lib/tests/test_concept_fences.py::Synthetic の 12 件・lib/tests/test_concept_change.py::ChangeCase の 5 件（同名で在る）・lib/tests/test_concept_fences.py::MainTableCase（main の表を引く。版に表が無ければ空の表）
   - 本物の run: `plan/structure/<鍵>/structure.json` の `units[].concepts.places`（種は表が無いので空）
   - 狭め: 無し
 
 - P100 工場自身のリポジトリの考えの地図と柵の表（地図と表の id・状態の揃い・住処ありの考えは柵を持つ・地図のパスが在る・柵が保たれる・main の表より増えない）を CI で照らす
   - 元: works/tests/test_concept_fences.py::MapAndTable の 6 件・FencesHold.test_every_fence・NotAboveMain の 2 件（works/docs/concepts.md・concepts.json）
-  - 今: 無し（main に docs/concepts.md・concepts.json も、それを照らす試験も無い）
-  - 証: 要追加: tests/layers/test_concept_fences.py::MapAndTable.test_ids_and_status_agree ほか元の 9 件 — main の地図と表を作った上で同じことを縛る
+  - 今: docs/concepts.md・docs/concepts.json と、それを照らす tests/layers/test_concept_fences.py（CI の `tests` の check。checkout は全履歴を取り、main の表を引けなければ赤）
+  - 証: tests/layers/test_concept_fences.py::MapAndTable の 6 件・FencesHold.test_every_fence・NotAboveMain の 2 件
   - 本物の run: 筋書きでのみ（CI の関門）
-  - 狭め: lib-port で外した（#75・#73 ではない）。Archon で不可でない → 戻すか、計画のブロックの外の関門として持ち主に置き場を聞く（持ち主の決め「同じ機械の関門（考えの住処の柵と数の歯止め）を CI で通す」に当たる）
+  - 狭め: lib-port で外した（#75・#73 ではない） → #254 で戻した（持ち主の決め「同じ機械の関門（考えの住処の柵と数の歯止め）を CI で通す」）
 
 - P101 構造の実測の単位の目録（id・paths・summary）は判定の単位から作り、paths は根の中に在るファイルだけ（ディレクトリ・glob・pathspec・絶対・根の外・無いファイルは捨てる）、無ければ key の頭のパス
   - 元: works/darkfactory/lib/line_edge.py `_unit_file_paths`・`structure_units`

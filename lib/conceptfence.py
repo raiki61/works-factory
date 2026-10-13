@@ -1,4 +1,4 @@
-"""考えの住処の柵の道具（試験 tests/test_concept_fences は works 自身の表に、run の中の構造のブロックは対象の表に当てる）。
+"""考えの住処の柵の道具（試験 tests/layers/test_concept_fences.py は works-factory 自身の表に、run の中の構造のブロックは対象の表に当てる）。
 
 表 docs/concepts.json（地図 docs/concepts.md の隣）が、住処の在る考えごとに柵を持つ: 語の形（pattern。正規表現）・
 知ってよい所（allowed。fnmatch の形で `*` は `/` もまたぐ）・既知の漏れ（known。"<表の持ち主のフォルダからのパス>" → [行の数, 理由]）・
@@ -21,9 +21,9 @@
   当たる柵ごとの行の数・住処（allowed）か・その考えを知る場所の数（持ち主のフォルダの中で exclude の外の全部。住処を含む）
 - scan_change(repo, base_rev, table, base="", *, skip_prefix) -> [{concept, what, path, before, after}]: base_rev と今の作業ツリーの間で変わった
   ファイル（持ち主のフォルダの中だけ）を各柵で数え、住処の外で行の数が増えた物（path は repo からの相対）
-- fork_ref(root, ref=MAIN_REF)・main_table(root, ref=MAIN_REF, rel=TABLE)・growth(main, now): 散らばり（住処の無い考え）の柵は知ってよい所が空で、今の知る場所を全部
+- fork_ref(root, ref=MAIN_REF) -> 分かれ目の commit か None・main_table(root, ref=MAIN_REF, rel=TABLE)・growth(main, now): 散らばり（住処の無い考え）の柵は知ってよい所が空で、今の知る場所を全部
   既知の漏れに置く数の歯止め。表そのものも増えない: main の表（ref の同じパス）と比べ、考えごとの既知の漏れの件数の和が増えた・
-  main に無いパスが出た所を growth が名指す（main で柵を持たない考えは比べない）
+  main に無いパスが出た所を growth が名指す（main で柵を持たない考えは比べない。main の版に表が無ければ main_table は空の表を返す）
 
 標準ライブラリと concepthome（探し方）だけを使う。
 """
@@ -38,7 +38,7 @@ import subprocess
 import concepthome
 
 TABLE = concepthome.TABLE_NAME
-MAIN_REF = "origin/main"   # 表の件数を比べる相手（CI の works の job は全履歴で取るので在る）
+MAIN_REF = "origin/main"   # 表の件数を比べる相手（CI の tests の job は全履歴で取るので在る）
 HEADING = re.compile(r"^### `([^`]+)`")
 STATUS_WORD = re.compile(r"[^\s（(]+")
 CODE = re.compile(r"`([^`]+)`")
@@ -56,19 +56,30 @@ def load(root):
 
 def fork_ref(root, ref=MAIN_REF):
     """表を比べる版: HEAD と ref の分かれ目（git merge-base）。枝は分かれた時の main より増やさない——分かれた後に main が
-    下げた数は、main へ入れる時（分かれ目が main の頭になる）に比べる。分かれ目を引けなければ ref のまま（引けない訳は
-    main_table が名指す）"""
+    下げた数は、main へ入れる時（分かれ目が main の頭になる）に比べる。分かれ目を引けなければ None（浅い clone・ref が無い・
+    共通の祖先が無い。ref の頭と比べ直すと、別の版か空の表と比べて黙って通る）"""
     got = subprocess.run(["git", "-C", str(root), "merge-base", "HEAD", ref], capture_output=True, text=True)
-    return got.stdout.strip() if got.returncode == 0 and got.stdout.strip() else ref
+    return got.stdout.strip() if got.returncode == 0 and got.stdout.strip() else None
 
 
 def main_table(root, ref=MAIN_REF, rel=TABLE):
-    """(ref の柵の表, None) か (None, 引けない理由)。表のパス rel は root からの相対で引く（git の「<ref>:./<パス>」）"""
-    got = subprocess.run(["git", "-C", str(root), "show", f"{ref}:./{rel}"],
-                         capture_output=True, text=True, encoding="utf-8")
+    """(ref の柵の表, None) か (None, 版を引けない理由)。表のパス rel は root からの相対で引く（git の「<ref>:./<パス>」）。
+    版は在って表のファイルだけが無ければ（git cat-file -e で確かめる）、main にまだ柵が無いので空の表 {"concepts": {}}
+    （growth はどの考えも比べない）。表は在るのに読めない・JSON でない時も (None, 理由)（空の表にすると比べずに通る）"""
+    rev = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+                         capture_output=True, text=True)
+    if rev.returncode != 0:
+        return None, rev.stderr.strip()[-200:] or f"版 {ref} を引けない（浅い clone か ref が無い）"
+    blob = f"{ref}:./{rel}"
+    if subprocess.run(["git", "-C", str(root), "cat-file", "-e", blob], capture_output=True).returncode != 0:
+        return {"concepts": {}}, None
+    got = subprocess.run(["git", "-C", str(root), "show", blob], capture_output=True, text=True, encoding="utf-8")
     if got.returncode != 0:
-        return None, got.stderr.strip()[-200:] or f"git show の終了コード {got.returncode}"
-    return json.loads(got.stdout), None
+        return None, got.stderr.strip()[-200:] or f"{blob} を読めない"
+    try:
+        return json.loads(got.stdout), None
+    except json.JSONDecodeError as e:
+        return None, f"{blob} が JSON でない: {e}"
 
 
 def _known_of(concept):
