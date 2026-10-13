@@ -184,7 +184,7 @@
 - 住処: `lib/carry.py`（依頼の容器の欄の名 `KEYS`・`ANSWER_KEYS`・`PRIOR_KEYS`、下書きの印 `DRAFT_KEYS` と `is_draft`・`draft`、共有ボードの根のファイルの名 `NEXT_REQUEST_FILE`・`PRIOR_FAILURES_FILE`・`PRIOR_IN_FILE`、依頼の解き方 `parts`・`without_prior`・`carry_ci`、次の依頼の中身 `compose`・行の鍵 `row_key`、独立の目 R2 の作り直しの行 `REDESIGN_WHERE`・`is_redesign`、照らしてから置く `place_prior`、役に貼るセクション `prior_section`、前提の検算の実測 `carried_constraints`）
 - 約束: `lib/next-request.schema.json`・`lib/prior-failures.schema.json`（住処が読み、書き手は書く前に照らす。欄の名の定数と Schema の欄が揃うことは試験 `lib/tests/test_carry_home.py` が縛る）
 - 知ってよい所: 住処と約束だけ。何を運ぶかは書き手の側が決め、形は住処を呼ぶ（報告 `lib/runreport.py`・承認ノード `lib/gatemarks.py`・目的の外の所見 `lib/outpurpose.py`）。読み手（入口の始めのノード `workflows/line/scripts/start.py`・`lib/judge_accept.py`・`lib/planfile.py` ほか）も住処の名と口を引く
-- 今: 外の当たりは 0 件。容器の欄の名 `prior_failures` はグラフのノードの入出力（前の失敗のファイルのポインタ）の名と同じ字なので、`findings`・`answers` などと同じく柵に入れず、呼び手が `carry.PRIOR` などの定数を引く決まりだけで守る
+- 今: 柵は持ち越しのファイルの名・下書きの印・住処の定数の字と、前の失敗を欄の名の字で直に読む形（`["prior_failures"]`・`.get("prior_failures")`）。`"prior_failures":` の鍵や並びの字はグラフのノードの入出力（前の失敗のファイルのポインタ）の名と同じ字なので数えない。住処の外の当たりは、報告の入出力のポインタを字で読み書きする `lib/runreport.py` の 3 行と `workflows/report/scripts/facts.py` の 2 行で、字の形で中身の直の読みと分けられないので既知の漏れに置く。容器のほかの欄の名 `findings`・`answers` などは柵に入れず、呼び手が `carry.PRIOR` などの定数を引く決まりだけで守る
 
 ### `world` 世界の解（問題の類ごとの定石と、依頼の解き方との比べ）
 

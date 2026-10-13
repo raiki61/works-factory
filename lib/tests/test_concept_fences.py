@@ -176,6 +176,23 @@ class FenceCase(unittest.TestCase):
         self.assertEqual([f["known"] for f in fences], [{}, {}])
         self.assertEqual([cf().count_lines('w = step["from"] != "$"', fence, "lib/x.py") for fence in fences], [0, 0])
 
+    def test_carry_over_reading_prior_failures_outside_home_is_red(self):
+        """持ち越しの中身の前の失敗を住処の外で欄の名の字で直に読む行を 1 つ足すと、本物の木の柵が赤になる。欄の名を書くだけの
+        形（ノードの入出力の鍵・並び）は数えない"""
+        table = cf().load(LIB.parent)
+        fence, = table["concepts"]["carry-over"]["fences"]
+        found = cf().scan(LIB.parent, cf().tracked(LIB.parent), fence, table["exclude"])
+        self.assertEqual(cf().verdict(found, fence["known"]), [])
+        for line in ('rows = doc["prior_failures"]', "rows = doc.get('prior_failures', [])"):
+            with self.subTest(line=line):
+                n = cf().count_lines(line, fence, "lib/x.py")
+                self.assertEqual(n, 1)
+                self.assertNotEqual(cf().verdict(found | {"lib/x.py": n}, fence["known"]), [])
+                more = found | {"lib/runreport.py": found["lib/runreport.py"] + n}
+                self.assertNotEqual(cf().verdict(more, fence["known"]), [])
+        for line in ('return {"prior_failures": None}', 'VALUES = ("prior_failures", "redepth")'):
+            self.assertEqual(cf().count_lines(line, fence, "lib/x.py"), 0, line)
+
 
 class MainTableCase(unittest.TestCase):
     """main_table: 版は在って表のファイルが無ければ空の表（表を置く最初の差分は比べない）・表が読めなければ (None, 理由)。版を引けない時の (None, 理由) は
