@@ -54,7 +54,7 @@ def diff_pointer(fixboard, place: Path, why: str = "") -> dict:
         try:
             text = fixboard.run_diff(boundary.work_tree(), fixboard.base_rev_of(place), boundary.SKIP)
         except Exception as e:
-            text, why = "", f"累積差分が取れない（{type(e).__name__}: {' '.join(str(e).split())}）"
+            text, why = "", f"累積差分が取れない（{type(e).__name__}: {oneline.one_line(e)}）"
         if text.strip():
             (place / "fix.diff").write_text(text, encoding="utf-8", errors="surrogateescape")
             return boundary.pointer(rel(place, "fix.diff"))
@@ -198,7 +198,7 @@ def fallback(why: str) -> dict:
 
 
 def main() -> dict:
-    global boundary, fixbeside
+    global boundary, fixbeside, oneline
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
     import boundary
@@ -207,6 +207,7 @@ def main() -> dict:
     import conflict
     import fixbeside
     import fixboard
+    import oneline
     mode = os.environ.get("INPUTS_MODE", "")
     if mode not in fixboard.MODES:
         raise ValueError(f"入力 mode は空か group: {mode!r}")

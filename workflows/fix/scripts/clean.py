@@ -17,6 +17,7 @@ import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 
 import leftovers  # noqa: E402
+import oneline  # noqa: E402
 
 
 def main() -> dict:
@@ -28,6 +29,6 @@ if __name__ == "__main__":
     try:
         result = main()
     except Exception as e:
-        print(f"clean: {type(e).__name__}: {' '.join(str(e).split())}", file=sys.stderr)
+        print(f"clean: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
     boundary.returns(result)

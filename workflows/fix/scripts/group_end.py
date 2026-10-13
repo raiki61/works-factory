@@ -31,6 +31,7 @@ import conflict  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import groups  # noqa: E402
+import oneline  # noqa: E402
 import tddloop  # noqa: E402
 
 
@@ -43,7 +44,7 @@ def tdd_exit(started) -> dict:
         return tddloop.exit_fields(started)
     except tddloop.Broken as e:
         return {"ran": False, "suite": str(started.get("suite") or ""),
-                "reason": f"TDD のループが済まずに抜けた（{' '.join(str(e).split())}）", "units": []}
+                "reason": f"TDD のループが済まずに抜けた（{oneline.one_line(e)}）", "units": []}
 
 
 def main() -> dict:
@@ -73,6 +74,6 @@ if __name__ == "__main__":
     try:
         out = main()
     except Exception as e:
-        print(f"group-end: {type(e).__name__}: {' '.join(str(e).split())}", file=sys.stderr)
+        print(f"group-end: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
     boundary.returns(out)

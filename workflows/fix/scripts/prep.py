@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".shared"))
 import boundary  # noqa: E402
 sys.path.append(str(boundary.lib_root()))
 import fixboard  # noqa: E402
+import oneline  # noqa: E402
 import writelog  # noqa: E402
 
 INPUTS = ("start", "judgment", "plan", "plan_review", "ripple", "world", "depth", "answers", "units", "only_items", "baseline",
@@ -43,6 +44,6 @@ if __name__ == "__main__":
     try:
         result = main()
     except Exception as e:   # 回す側の誤り（入力が読めない・置き場が無い・git が効かない）
-        print(f"prep: {type(e).__name__}: {' '.join(str(e).split())}", file=sys.stderr)
+        print(f"prep: {type(e).__name__}: {oneline.one_line(e)}", file=sys.stderr)
         sys.exit(1)
     boundary.returns(result)
