@@ -1348,7 +1348,7 @@ SHOWN_FILES = 3   # 1 ノードの行に名を出すファイルの数
 
 def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, transcript_why: str, repo) -> list:
     """「4. 読んだ証拠と包み」の行: run の記録の道具の呼び（tfacts の calls）と、読んだ証拠の節が run の置き場 artifacts に書いた
-    reads-*.json（索引と報告自身の置き場 out_dir の物を外す）と、どちらでも取れない物"""
+    reads-*.json（報告自身の置き場 out_dir の物を外す。索引は訳 why だけを出す）と、どちらでも取れない物"""
     calls = as_dict(tfacts.get("calls"))
     out = [CALLS_HEAD]
     if not tfacts.get("ok"):
