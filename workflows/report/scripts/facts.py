@@ -140,9 +140,9 @@ def transcript() -> tuple:
     except OSError as e:
         return None, f"run の記録 {path} が読めない（{e.strerror or e}。dry-run は記録を書かない）"
     rows = []
-    for line in lines:
+    for record in lines:
         try:
-            rows.append(json.loads(line))
+            rows.append(json.loads(record))
         except ValueError:
             continue
     return rows, ""

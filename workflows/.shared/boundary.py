@@ -137,7 +137,8 @@ def needed(raw, name: str) -> Path:
 
 
 def field(key: str, raw):
-    """ブロックの返りの 1 欄。字の欄（TEXT_FIELDS）は字のまま、ほかは JSON として読む。飛ばされた節（null）と空の字は None"""
+    """ブロックの返りの 1 欄。字の欄（TEXT_FIELDS）は字のまま（空の字も空の字）で、飛ばされた節（null）は None。ほかは JSON として
+    読み、null と空の字は None"""
     return skip_value.text(raw) if key in TEXT_FIELDS else skip_value.value(raw)
 
 

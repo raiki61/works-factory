@@ -4,14 +4,19 @@ parsed・value・pointed・needed・items・flag・field）だけ。
 止めた Archon は output_format で宣言した欄の null と無い欄を、include の入力に空の字で渡す（tests/shared/test_archon_contract.py が
 照らす）。json.loads("") は落ちるので、前の失敗の持ち越しの無い run が判定の入口で止まった（#265）。口は空の字を null と読む。
 
-script の字を ast で読み、入力の字が流れ込む名（入力を代入した名・それを回した名・それを渡した script の中の関数の引数）を辿って、
-json.loads にそれが届けば赤にする。lib/ の関数・境の口・ファイルの読み（read_text）の返りは入力の字でないので、そこで辿りを切る。
+script の字を ast で読み、入力の字が流れ込む名（入力を代入した名・それを回した名・それを渡した script の中の関数の引数・入力の字を返す script の中の関数の返り）
+を辿って、json.loads にそれが届けば赤にする。lib/ の関数・境の口・ファイルの読み（read_text）の返りは入力の字でないので、そこで辿りを切る。
 """
 import ast
 import pathlib
+import sys
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.append(str(ROOT / "lib"))
+import lenses  # noqa: E402
+import specblk  # noqa: E402
+
 SCRIPTS = sorted({*ROOT.glob("workflows/*/scripts/*.py"), *ROOT.glob("workflows/*/scripts/*/*.py")})
 INPUT_HEAD = "INPUTS_"
 FILE_READS = frozenset({"read_text", "read_bytes"})
@@ -32,6 +37,7 @@ class _Flow:
                         if isinstance(node, (ast.Import, ast.ImportFrom)) for alias in node.names}
         self.functions = {node.name: node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
         self.names: set[str] = set()
+        self.returning: set[str] = set()   # script の中の関数で、返りが入力の字を持つ物
         while self._spread():
             pass
 
@@ -39,12 +45,14 @@ class _Flow:
         """式が入力の字（かその切れ端）を持つか"""
         if _input_name(node) or (isinstance(node, ast.Name) and node.id in self.names):
             return True
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in self.returning:
+            return True
         if isinstance(node, ast.Call) and self._cuts(node.func):
             return False
         return any(self.carries(child) for child in ast.iter_child_nodes(node))
 
     def _cuts(self, func: ast.AST) -> bool:
-        """返りが入力の字でない呼び: lib/ と境の口のモジュールの関数・script の中の関数・ファイルの読み"""
+        """返りが入力の字でない呼び: lib/ と境の口のモジュールの関数・入力の字を返さない script の中の関数・ファイルの読み"""
         if isinstance(func, ast.Name):
             return func.id in self.functions
         if isinstance(func, ast.Attribute):
@@ -52,7 +60,11 @@ class _Flow:
         return False
 
     def _spread(self) -> bool:
-        before = len(self.names)
+        before = len(self.names) + len(self.returning)
+        for name, function in self.functions.items():
+            if any(isinstance(node, ast.Return) and node.value is not None and self.carries(node.value)
+                   for node in ast.walk(function)):
+                self.returning.add(name)
         for node in ast.walk(self.tree):
             if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.NamedExpr)) and node.value is not None \
                     and self.carries(node.value):
@@ -69,7 +81,7 @@ class _Flow:
                 for keyword in node.keywords:
                     if keyword.arg and self.carries(keyword.value):
                         self.names.add(keyword.arg)
-        return len(self.names) != before
+        return len(self.names) + len(self.returning) != before
 
     def _bind(self, target: ast.AST) -> None:
         self.names |= {node.id for node in ast.walk(target) if isinstance(node, ast.Name)}
@@ -103,6 +115,8 @@ class InputReadsCase(unittest.TestCase):
             'path = boundary.pointed(os.environ["INPUTS_START"])\njson.loads(path.read_text(encoding="utf-8"))\n': False,
             'art = Path(os.environ["ARTIFACTS_DIR"]) / os.environ["INPUTS_DIR"]\njson.loads((art / "r.json").read_text())\n': False,
             'json.loads(os.environ.get("ARCHON_NODE_EXECUTION") or "{}")\n': False,
+            'def given():\n    return {"a": os.environ.get("INPUTS_A")}\nline = given()\njson.loads(line["a"])\n': True,
+            'def given():\n    return boundary.value(os.environ.get("INPUTS_A"))\njson.loads(given())\n': False,
         }
         for source, hit in cases.items():
             with self.subTest(source):
@@ -115,9 +129,17 @@ class InputReadsCase(unittest.TestCase):
         """宣言した null の欄が届く空の字を、口の読み手は全部「無い」と読む"""
         from tests.shared.test_boundary import boundary
         self.assertEqual((boundary.parsed(""), boundary.value(""), boundary.pointed(""), boundary.items(""), boundary.flag(""),
-                          boundary.field("units", ""), boundary.text("")), (None, None, None, [], False, None, ""))
+                          boundary.field("units", ""), boundary.field("mode", ""), boundary.text("")),
+                         (None, None, None, [], False, None, "", ""))
         with self.assertRaisesRegex(ValueError, "入力 start のポインタが無い"):
             boundary.needed("", "start")
+
+    def test_lib_null_readers_agree_with_the_boundary(self):
+        """入力の字をそのまま受ける lib の読み手（lib は境の口を import できない。lib/AGENTS.md の E3）も、null の規則を口と同じに読む"""
+        from tests.shared.test_boundary import boundary
+        for raw in ("", "  ", "null", " null "):
+            with self.subTest(raw=raw):
+                self.assertEqual((boundary.parsed(raw), lenses._parse(raw), specblk.parse_gate(raw)), (None, None, None))
 
 
 if __name__ == "__main__":
