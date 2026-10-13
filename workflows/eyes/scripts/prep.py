@@ -34,24 +34,10 @@ def opened(ptr) -> Path | None:
     return boundary.resolve(ptr) if ptr else None
 
 
-def run_diff(base: str) -> tuple[Path, str]:
-    """(目に渡す差分のファイル, 差分の本文)。差分が空・取れない時は訳を書いたファイルと空の本文"""
-    EYES.mkdir(parents=True, exist_ok=True)
-    why, text = "", ""
-    if not base:
-        why = "始めの記録に入口の base が無く、累積差分の起点が分からない"
-    else:
-        try:
-            text = fixboard.run_diff(Path.cwd(), base, boundary.SKIP)
-        except Exception as e:  # noqa: BLE001  git の誤りも訳にして目へ渡す
-            why = f"累積差分が取れない（{type(e).__name__}: {' '.join(str(e).split())}）"
-    if text.strip():
-        path = EYES / "run.diff"
-        path.write_text(text, encoding="utf-8", errors="surrogateescape")
-        return path, text
-    path = EYES / "run-diff-none.txt"
-    path.write_text((why or f"累積差分は空（入口の base {base} から作業ツリーは変わっていない）") + "\n", encoding="utf-8")
-    return path, ""
+def entry_base() -> str:
+    if not base_rev:
+        raise ValueError("始めの記録に入口の base が無く、累積差分の起点が分からない")
+    return base_rev
 
 
 def read(ptr):
@@ -65,7 +51,7 @@ purpose = read(json.loads(os.environ["INPUTS_PURPOSE"])) or {}
 design_file = opened(json.loads(os.environ["INPUTS_DESIGN"]))
 design = eyeverdict.read_design(design_file)
 base_rev = startrec.diff_base(start)
-diff_file, diff_text = run_diff(base_rev)
+diff_file, diff_text = fixboard.diff_file(Path.cwd(), entry_base, EYES, "run.diff", "run-diff-none.txt", boundary.SKIP)
 answer = json.loads(os.environ["INPUTS_ANSWERS"])
 changed = json.loads(os.environ["INPUTS_CHANGED"])
 premises = judgment_file.with_name(_premises.PREMISES_FILE) if judgment_file else None
