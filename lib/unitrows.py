@@ -7,7 +7,8 @@
 拒まずに表の discrepancies に記録する。写しに渡す返答は、その 4 つの拒否が発火しないように揃える（sites を母数に切る・空の
 remaining に機械の記録を書く）。写しは変えない（板の POST_CHECKS は差し替えられない。ADR 0009・TA25 の置き場）。
 ただし defects の問いが直した後も当たる単位（closed が偽）は、受け付けが unclosed_defects で拾って修正役に戻す（#313: 問いが正しい行にも
-当たる時に申し出の無いまま受けると、閉じない数えが run の結末まで届き round_limit になった）。
+当たる時に申し出の無いまま受けると、閉じない数えが run の結末まで届き round_limit になった）。判定者の問いが数えられない defects の
+単位は closed を None にして同じく戻す（修正役が狭めた問いの数で閉じたとしない）。
 申告の site は works だけの欄 path（recount.SITE_PATH）で問いの当たりのファイルに結び、site の件数でなく、site が在る当たりの
 ファイルの件数（covered）を母数と比べる（site の件数と行数・ファイル数は単位が違う）。当たりの外の site（試験・文書など）は
 不一致に数えず、表の out_of_query にパスを並べる。path の無い site は覆いに数えず、ファイルごとの数が引ければ path の在る site で
@@ -22,7 +23,7 @@ site が名指す当たりのファイルも、修正前の版から実際に変
 写しの sites は additionalProperties: false なので、写しに渡す返答からは path を外す。
 
 - build(changes, judged, *, count, blank, zero_keys, replaced, per_file, touched): 本体（盤面を読まない）。返り (写しに渡す changes, 表の行)
-- unclosed_defects(rows): 表の行のうち defects の問いが閉じない単位の行
+- unclosed_defects(rows): 表の行のうち defects の問いが閉じない（か数えられない）単位の行
 - file_counts(how, root, rev): 問いの当たりをファイルごとに数える（argv は写しの count_argv、走らせ方は写しの _grep）
 （元の take(reply, b, repo)——盤面の判定者の問い・置き換えた問い・engine_zero・写しの規則の _run_query で build を当てた口——は
 外した。呼び手の script が判定の問い・conflict.replaced_queries(置き場)・recount._run_query と file_counts で build を回す）
@@ -50,6 +51,7 @@ UNKNOWN_CHANGES = "修正前の版からの変更が読めない（site の path
 UNBOUND_HOW = "（当たりのファイルが分からず、修正で変わったファイルを path が指す site を覆いに数えた。count が files なら同じファイルは 1 件）"
 # path の無い site が在るがファイルごとの数は引けた時の理由の尾
 PATHLESS_HOW = "（path の無い site は覆いに数えず、path の在る site と単位の files で数えた）"
+AUTH_UNCOUNTED = "判定者の問い（か裁定が置き換えた問い）を数えられない（{why}）。修正役の問いの数で閉鎖を決めない"
 RULING_REMAINING = "裁定 {id} が判定者の問いを置き換えた（判定者の問いは直した後の正しい形にも当たった）"
 
 
@@ -137,8 +139,8 @@ def file_counts(how, root, rev=None):
 
 
 def unclosed_defects(rows) -> list:
-    """表の行 rows（build の返りの 2 つ目）のうち、defects の問いが直した後も当たる単位の行"""
-    return [r for r in rows if r.get("counts") == "defects" and r.get("closed") is False]
+    """表の行 rows（build の返りの 2 つ目）のうち、defects の問いが直した後も当たるか、数えられず閉じたと言えない単位の行"""
+    return [r for r in rows if r.get("counts") == "defects" and r.get("closed") is not True]
 
 
 def build(changes, judged: dict, *, count, blank, zero_keys=(), replaced=None, per_file=None, touched=None):
@@ -191,8 +193,10 @@ def build(changes, judged: dict, *, count, blank, zero_keys=(), replaced=None, p
             bad.append(f"母数 {total} を全部塞いだと申告したが、修正後も {after} 件を数える")
         # closed を決めるのは判定者の問い（か裁定が置き換えた問い）。修正役が作り直した how は写しの数え合わせにだけ使う
         auth = rq["how"] if rq else jq.get("how") or how
-        a_total, a_after = (total, after) if auth == how else (count(auth, True)[0], count(auth, False)[0])
-        if a_total is None or a_after is None:
+        (a_total, a_why), (a_after, a_why2) = ((total, ""), (after, "")) if auth == how else (count(auth, True), count(auth, False))
+        uncounted = a_total is None or a_after is None
+        if uncounted:   # 修正役の数で closed を決めない（数えられないと名指し、defects なら closed は None）
+            bad.append(AUTH_UNCOUNTED.format(why=a_why or a_why2))
             a_total, a_after = total, after
         a_cap = a_total if a_total else a_after
         a_covered, a_changed_cover, a_unchanged = covered, changed_cover, unchanged_sites
@@ -202,7 +206,7 @@ def build(changes, judged: dict, *, count, blank, zero_keys=(), replaced=None, p
                 isinstance(auth, dict) and auth.get("count") == "files")
             if a_unbound:   # closed を決める数が site の件数になった理由を黙って捨てない
                 bad.append(f"判定者の問いで {a_unbound}")
-        closed = a_after == 0 if counts == "defects" else min(a_covered, a_cap) >= a_cap
+        closed = (None if uncounted else a_after == 0) if counts == "defects" else min(a_covered, a_cap) >= a_cap
         rows.append({"unit_key": key, "how_from": how_from, "counts": counts, "total": a_total, "after": a_after,
                      "claimed": claimed, "covered": covered, "out_of_query": out_of_query, "bound": bound, "closed": closed,
                      "changed_cover": a_changed_cover, "unchanged_sites": a_unchanged, "discrepancies": bad})

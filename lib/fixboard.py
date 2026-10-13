@@ -1740,9 +1740,11 @@ FIX_CHECKS = {
 # 閉じない欠陥の数え（check closure）の文。remaining では抜けず、直すか申し出るかを求める（#313）
 UNCLOSED_DEFECTS = ("単位 {key} の欠陥を数える問い（判定者の問いか、裁定が置き換えた問い）が、修正前 {total} 件・修正後 {after} 件"
                     "で閉じていない。remaining を書いても閉じない。次のどれかで出し直せ: 残った当たりも欠陥なら直して 0 件に"
-                    "する / 問いが直した後の正しい行に当たるなら conflicts に kind: {hits}・{which}: {query}・"
-                    "{correct}（その正しい行の写し）で申し出る / 範囲の中では閉じないなら conflicts に kind: {scope} で"
+                    "する / 問いが直した後の正しい行に当たるなら conflicts に {kind}: {hits}・{which}: {query}・"
+                    "{correct}（その正しい行の写し）で申し出る / 範囲の中では閉じないなら conflicts に {kind}: {scope} で"
                     "申し出る")
+UNCOUNTED_DEFECTS = ("単位 {key} の欠陥を数える問い（判定者の問いか、裁定が置き換えた問い）を修正後に数えられず、閉じたと確かめ"
+                     "られない: {why}。その問いが数えられる木にして出し直せ")
 FIX_REJECT_HEAD = ("受け付けは確かめを全部回した。見出しごとに並べた行を全部直した返答を丸ごと出し直せ（直した所だけを返すな。"
                    "1 回の出し直しで全部を直せ）:")   # 元 accept.py:195
 FIX_CHECK_HEAD = "## {head}（確かめ {cid}・{count} 件）"   # 元 works/blk-fix/lib/fixlanes.py:449
@@ -1941,9 +1943,10 @@ def unit_outcomes(owed, reply, *, excused=None, parked=None, conflicted=()) -> d
 
 def judge_query(place):
     """食い違いの申し出の確かめ（conflict.problems_by_entry）の try_query: 置き場の判定の写し judgment.json の units から
-    querytest.judge_hits を組む（TDD の輪の道 tdd-step と同じ）。写しが無い・読めない・dict でなければ、query の申し出ごとに
+    querytest.judge_hits を組む（TDD の輪の道 tdd-step と同じ。裁定 replace_query が置き換えた単位は置き換えた問いを当てる）。写しが無い・読めない・dict でなければ、query の申し出ごとに
     JUDGE_UNREAD の文を返す口（読めないと名指して拒む。黙って試さずに通さない。元は盤面の判定 b.record["units"] を引き、
     無ければ落ちた）"""
+    import conflict
     import querytest
     try:
         judgment = read_json(pathlib.Path(place) / JUDGMENT_FILE)
@@ -1952,7 +1955,7 @@ def judge_query(place):
         judgment, why = None, str(e)
     if why:
         return lambda key, lines: JUDGE_UNREAD.format(why=why)
-    return querytest.judge_hits(judgment.get("units") or [])
+    return querytest.judge_hits(judgment.get("units") or [], conflict.replaced_queries(place))
 
 
 def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
@@ -2164,9 +2167,10 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         置き場に刻み、通れば表を querytest.save_closure で置き場に置く"""
         shaped, closure, zero = closure_reply(reply, place, repo, rev, judged)
         for row in unitrows.unclosed_defects(closure):
-            text = UNCLOSED_DEFECTS.format(key=row["unit_key"], total=row["total"], after=row["after"],
-                                           hits=conflict.QUERY_HITS_FIXED, which=conflict.WHICH_FIELD,
-                                           query=conflict.QUERY, correct=conflict.CORRECT, scope=conflict.SCOPE_NEEDED)
+            text = UNCOUNTED_DEFECTS.format(key=row["unit_key"], why=" / ".join(row["discrepancies"])) if row["closed"] is None \
+                else UNCLOSED_DEFECTS.format(key=row["unit_key"], total=row["total"], after=row["after"],
+                                             kind=conflict.KIND_FIELD, hits=conflict.QUERY_HITS_FIXED, which=conflict.WHICH_FIELD,
+                                             query=conflict.QUERY, correct=conflict.CORRECT, scope=conflict.SCOPE_NEEDED)
             note("closure", text)
             declared.setdefault(text, set()).add(row["unit_key"])
         commit = not found
