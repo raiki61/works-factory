@@ -2077,6 +2077,91 @@ class FixAcceptSeamCase(TempCase):
         rows = json.loads((self.place / querytest.CLOSURE_FILE).read_text(encoding="utf-8"))["rows"]
         self.assertEqual({r["unit_key"]: r["how_from"] for r in rows}, {R_MEAN: "判定者", R_CLAMP: "判定者"})
 
+    # ---- 欠陥を数える問いが直した後の正しい行にも当たる（#313。#154 の通しの clamp の単位の判定と、上限の分岐だけを直した stats.py）
+    D_CLAMP = "stats.py clamp: 上限を超えた入力に下限 lo を返す"
+    D_JUDGED = [{"key": D_CLAMP, "class_query": {"how": {"patterns": ["return lo"], "paths": ["stats.py"], "count": "lines",
+                                                         "fixed": True}, "counts": "defects", "total": 2}}]
+
+    def _accept_clamp(self, *, iteration=1, conflicts=None, pass_="first", coverage=None):
+        (self.place / "judgment.json").write_text(json.dumps({"units": self.D_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        path = self.repo / "stats.py"
+        text = path.read_text(encoding="utf-8")
+        self.assertEqual(text.count("return lo"), 2, text)
+        path.write_text(text.replace("    if x > hi:\n        return lo", "    if x > hi:\n        return hi"), encoding="utf-8")
+        row = _fix_row(self.D_CLAMP, 1)
+        row["closure"]["sites"][0]["path"] = "stats.py"
+        row["coverage"].update(coverage or {})
+        reply = {"changes": [] if conflicts else [row], "not_done": [], **({"conflicts": conflicts} if conflicts else {})}
+        return fixboard.accept_reply(reply, self.place, self.repo, pass_=pass_, iteration=iteration, owed=[self.D_CLAMP],
+                                     judged=self.D_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+
+    def test_unclosed_defects_count_goes_back_to_the_fixer(self):
+        """欠陥を数える問いが直した後も 1 件を数える単位は、申し出が無ければ修正役に戻す（remaining を機械が埋めても受けない）。
+        戻しの文は単位と query_hits_fixed の申し出を名指す。拒んだ返答の数え直しと閉鎖の表は置き場に置かない"""
+        import querytest
+        import recount
+        got = self._accept_clamp()
+        self.assertFalse(got["ok"], "閉じない欠陥の数えを申し出無しで受けた")
+        texts = [r["text"] for r in got["rejects"] if r["check"] == "closure"]
+        self.assertEqual(len(texts), 1, got["rejects"])
+        self.assertIn(self.D_CLAMP, texts[0])
+        self.assertIn("query_hits_fixed", texts[0])
+        self.assertFalse((self.place / recount.COVERAGE_FILE).exists(), "拒んだ返答の数え直しを置き場に刻んだ")
+        self.assertFalse((self.place / querytest.CLOSURE_FILE).exists(), "拒んだ返答の閉鎖の表を置き場に置いた")
+
+    def test_uncountable_judge_query_goes_back_with_its_reason(self):
+        """判定者の問いを修正後に数えられない単位は、修正役が狭めた問いの数でなく、数えられない理由を名指して戻す"""
+        import recount
+        run = recount._run_query
+
+        def flaky(place, where, how, root, **kw):
+            if how.get("patterns") == ["return lo"] and "修正後" in where:
+                return None, "git grep が stderr に書いた"
+            return run(place, where, how, root, **kw)
+        narrow = {**self.D_JUDGED[0]["class_query"]["how"], "patterns": ["return lo  # none"]}
+        with mock.patch.object(recount, "_run_query", flaky):
+            got = self._accept_clamp(coverage={"how": narrow, "remaining": "判定者の問いは下限の正しい分岐にも当たるので狭めた"})
+        texts = [r["text"] for r in got["rejects"] if r["check"] == "closure"]
+        self.assertEqual(len(texts), 1, got["rejects"])
+        self.assertIn("git grep が stderr に書いた", texts[0])
+        self.assertNotIn("query_hits_fixed", texts[0], "数えられない単位に閉じない数えの文を返した")
+
+    def test_unclosed_defects_count_with_query_hits_fixed_goes_to_the_ruling(self):
+        """同じ木で正しい行を query_hits_fixed で名指した返答は、受け付けが単位を止めて裁定に回す"""
+        got = self._accept_clamp(conflicts=[{
+            "unit_key": self.D_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+            "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
+            "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}])
+        self.assertTrue(got["ok"] and got["conflicted"], got)
+
+    def test_query_hits_fixed_after_replace_query_tries_the_replaced_query(self):
+        """裁定 replace_query の後の回は、閉鎖を数える問い（置き換えた問い）で申し出の correct_lines を試す。判定者の問いが当たらず、
+        置き換えた問いが当たる正しい行の申し出は、拒まずに人に回す"""
+        import conflict
+        claim = {"unit_key": self.D_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+                 "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
+                 "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
+        replaced = {"how": {"patterns": ["return"], "paths": ["stats.py"], "count": "lines", "fixed": True},
+                    "counts": "defects", "hits": ["        return lo"], "misses": []}
+        conflict.park(self.place, [claim], source=conflict.FIX_SOURCE,
+                      ruling={"decision": conflict.REPLACE, "text": "問いを置き換える", "limits": [], "by": "test",
+                              "query": replaced})
+        second = {**claim, "why_both_cannot_hold": "置き換えた問い return は上限の正しい分岐 return hi にも当たる",
+                  "correct_lines": ["        return hi"]}
+        got = self._accept_clamp(conflicts=[second], pass_="ruled")
+        self.assertEqual(self._conflict_rejects(got), [], got)
+        self.assertIn("ask_human", got["units"][self.D_CLAMP]["reason"], got)
+        self.assertEqual([r["ruling"]["decision"] for r in conflict.items(self.place) if r["correct_lines"] == ["        return hi"]],
+                         [conflict.ASK])
+
+    def test_unclosed_defects_count_on_the_last_round_stops_the_unit(self):
+        """最後の回まで申し出が無ければ、その単位を止めて人に回す（閉じない数えのまま受けて round_limit で終えない）"""
+        import conflict
+        got = self._accept_clamp(iteration=fixboard.GIVE_UP_AFTER)
+        self.assertEqual(got["units"][self.D_CLAMP]["status"], "given_up", got)
+        self.assertEqual([r["unit_key"] for r in conflict.items(self.place)], [self.D_CLAMP])
+
     def test_accept_reply_passes_the_judged_precedents_to_the_recount(self):
         """判定の写しの precedents に在る単位の from_judge_row は通る（判定の写しを数え直しに渡す。元 review-loop.py の
         precedent.from_judge_row の照らし）"""
