@@ -2082,7 +2082,7 @@ class FixAcceptSeamCase(TempCase):
     D_JUDGED = [{"key": D_CLAMP, "class_query": {"how": {"patterns": ["return lo"], "paths": ["stats.py"], "count": "lines",
                                                          "fixed": True}, "counts": "defects", "total": 2}}]
 
-    def _accept_clamp(self, *, iteration=1, conflicts=None):
+    def _accept_clamp(self, *, iteration=1, conflicts=None, pass_="first"):
         (self.place / "judgment.json").write_text(json.dumps({"units": self.D_JUDGED}, ensure_ascii=False), encoding="utf-8")
         head = leftovers.snapshot(self.repo)
         path = self.repo / "stats.py"
@@ -2092,18 +2092,22 @@ class FixAcceptSeamCase(TempCase):
         row = _fix_row(self.D_CLAMP, 1)
         row["closure"]["sites"][0]["path"] = "stats.py"
         reply = {"changes": [] if conflicts else [row], "not_done": [], **({"conflicts": conflicts} if conflicts else {})}
-        return fixboard.accept_reply(reply, self.place, self.repo, pass_="first", iteration=iteration, owed=[self.D_CLAMP],
+        return fixboard.accept_reply(reply, self.place, self.repo, pass_=pass_, iteration=iteration, owed=[self.D_CLAMP],
                                      judged=self.D_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
 
     def test_unclosed_defects_count_goes_back_to_the_fixer(self):
         """欠陥を数える問いが直した後も 1 件を数える単位は、申し出が無ければ修正役に戻す（remaining を機械が埋めても受けない）。
-        戻しの文は単位と query_hits_fixed の申し出を名指す"""
+        戻しの文は単位と query_hits_fixed の申し出を名指す。拒んだ返答の数え直しと閉鎖の表は置き場に置かない"""
+        import querytest
+        import recount
         got = self._accept_clamp()
         self.assertFalse(got["ok"], "閉じない欠陥の数えを申し出無しで受けた")
         texts = [r["text"] for r in got["rejects"] if r["check"] == "closure"]
         self.assertEqual(len(texts), 1, got["rejects"])
         self.assertIn(self.D_CLAMP, texts[0])
         self.assertIn("query_hits_fixed", texts[0])
+        self.assertFalse((self.place / recount.COVERAGE_FILE).exists(), "拒んだ返答の数え直しを置き場に刻んだ")
+        self.assertFalse((self.place / querytest.CLOSURE_FILE).exists(), "拒んだ返答の閉鎖の表を置き場に置いた")
 
     def test_unclosed_defects_count_with_query_hits_fixed_goes_to_the_ruling(self):
         """同じ木で正しい行を query_hits_fixed で名指した返答は、受け付けが単位を止めて裁定に回す"""
@@ -2112,6 +2116,26 @@ class FixAcceptSeamCase(TempCase):
             "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
             "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}])
         self.assertTrue(got["ok"] and got["conflicted"], got)
+
+    def test_query_hits_fixed_after_replace_query_tries_the_replaced_query(self):
+        """裁定 replace_query の後の回は、閉鎖を数える問い（置き換えた問い）で申し出の correct_lines を試す。判定者の問いが当たらず、
+        置き換えた問いが当たる正しい行の申し出は、拒まずに人に回す"""
+        import conflict
+        claim = {"unit_key": self.D_CLAMP, "between": ["stats.py:14", "stats.py:16"],
+                 "why_both_cannot_hold": "判定の問い return lo は下限の正しい分岐にも当たり、正しく直しても 0 にならない",
+                 "which_is_right": "query", "kind": "query_hits_fixed", "correct_lines": ["        return lo"]}
+        replaced = {"how": {"patterns": ["return"], "paths": ["stats.py"], "count": "lines", "fixed": True},
+                    "counts": "defects", "hits": ["        return lo"], "misses": []}
+        conflict.park(self.place, [claim], source=conflict.FIX_SOURCE,
+                      ruling={"decision": conflict.REPLACE, "text": "問いを置き換える", "limits": [], "by": "test",
+                              "query": replaced})
+        second = {**claim, "why_both_cannot_hold": "置き換えた問い return は上限の正しい分岐 return hi にも当たる",
+                  "correct_lines": ["        return hi"]}
+        got = self._accept_clamp(conflicts=[second], pass_="ruled")
+        self.assertEqual(self._conflict_rejects(got), [], got)
+        self.assertIn("ask_human", got["units"][self.D_CLAMP]["reason"], got)
+        self.assertEqual([r["ruling"]["decision"] for r in conflict.items(self.place) if r["correct_lines"] == ["        return hi"]],
+                         [conflict.ASK])
 
     def test_unclosed_defects_count_on_the_last_round_stops_the_unit(self):
         """最後の回まで申し出が無ければ、その単位を止めて人に回す（閉じない数えのまま受けて round_limit で終えない）"""
