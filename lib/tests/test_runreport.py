@@ -419,12 +419,12 @@ class DecisionsCase(Base):
         self.assertNotIn("小さい方", head[4])
         body = self.section(text, report.DECISIONS_HEADING)
         self.assertIn("- 修正前の問い: 0 件\n", body)
-        self.assertIn(f"- {runreport.GATE_ANSWERED_HEAD}: 1 件\n  - {text_q}", body)
+        self.assertIn(f"- {gatemarks.ANSWERED_HEAD}（1 件。保留と人が決めることの件数には数えない）:\n  - {text_q}", body)
         for gates in ({}, {"gate-before-fix": {"decision": "stop", "text": "止める", "asked": [text_q]}}):
             with self.subTest(gates=gates):
                 _, text, _ = self.build(returns, gates=gates)
                 self.assertTrue(text.splitlines()[3].startswith(gatemarks.DECIDE + "2 件——修正前の問い 1 件"), text.splitlines()[3])
-                self.assertNotIn(runreport.GATE_ANSWERED_HEAD, text)
+                self.assertNotIn(gatemarks.ANSWERED_HEAD, text)
 
     def test_unreturned_unit_is_counted_as_decision(self):
         """元 ReportHeadCase.test_unreturned_unit_is_counted_as_decision: 関所で答えたが直す義務に戻せなかった単位（fix の not_done）"""
@@ -1011,7 +1011,18 @@ class LedgerCase(Base):
                 self.assertIn("修正前の問い 1 件", text.splitlines()[3])
                 body = self.section(text, report.DECISIONS_HEADING)
                 self.assertIn("- 修正前の問い: 1 件\n", body)
-                self.assertNotIn(runreport.GATE_ANSWERED_HEAD, body)
+                self.assertNotIn(gatemarks.ANSWERED_HEAD, body)
+
+    def test_ledger_question_answered_at_the_gate_is_listed_once(self):
+        """通す語の答えが asked に載せた台帳の問いは、答えた問いの行に台帳の 1 行だけで出し、事前審査の行として重ねない"""
+        returns = self.returns(FORK, review=[gatemarks.ask_text(FORK)])
+        gate = {"decision": "approve", "text": "", "asked": [gatemarks.ask_text(FORK)]}
+        _, text, _ = self.build(returns, gates={"gate-before-fix": gate})
+        body = self.section(text, report.DECISIONS_HEADING)
+        self.assertIn("- 修正前の問い: 0 件\n", body)
+        self.assertEqual(body.count(gatemarks.ANSWERED_HEAD), 1, body)
+        self.assertEqual(body.count(f"{gatemarks._prefix(FORK)}"), 1, body)
+        self.assertIn(f"- {gatemarks.ANSWERED_HEAD}（1 件。", body)
 
     def test_unread_hold_is_named_in_the_head(self):
         """P238・L-G31: 修正前の関所の答えの文が「保留: q-typo」（台帳の key を拾えない）の時、報告の冒頭に「読めなかった保留」の行が
