@@ -1289,6 +1289,24 @@ class LaneChecksSeamCase(TempCase):
         lines, _ = fc.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since, items=[item])
         self.assertEqual(lines, [])
 
+    def test_plan_scope_skips_a_file_only_the_git_filter_shows_changed(self):
+        """since の前に書いた ident のファイルは、作業ツリーの中身（$Id: <sha> $）と since の木の中身（$Id$）が違っても git の
+        比べでは触っていない: 修正役が足した行（canonical の外の同名の定義）として照らさない（#333）"""
+        import factchecks
+        (self.repo / ".gitattributes").write_text("helper.py ident\n", encoding="utf-8")
+        (self.repo / "helper.py").write_text(f'def helper(): return "$Id: {"0" * 40} $"\n', encoding="utf-8")
+        stats = self.repo / "stats.py"
+        since = leftovers.snapshot(self.repo)
+        stats.write_text(stats.read_text(encoding="utf-8") + "\n\ndef helper():\n    return 1\n", encoding="utf-8")
+        item = {"item": 1, "unit_keys": [R_MEAN], "removes": [], "route": "direct", "tests": [], "rewrite_tests": [],
+                "adds": [{"kind": "function", "name": "helper", "canonical": "stats.py"}],
+                "allowed_paths": ["stats.py"], "out_of_scope": []}
+        reply = {"changes": [{"unit_key": R_MEAN, "files": ["stats.py"]}]}
+        self.assertEqual(writes.changed_from(self.repo, since), ["stats.py"], "git の比べでは helper.py を触っていない")
+        lines, _ = factchecks.check_plan_scope(reply, [R_MEAN], self.place, self.rev, self.repo, "", "first", since=since,
+                                               items=[item])
+        self.assertEqual(lines, [])
+
     def test_plan_scope_counts_what_the_loop_fixed_before_since(self):
         """TDD の輪が直し終えた単位（stats.py の直しと adds・tests の test_mean_of_two）の後の木を since（段の頭）に取り、修正役が
         何も変えずにその単位の行だけを返せば、欠けにしない（修正役の指示書は輪の単位を直し直させない。較正 clamp-above）"""
