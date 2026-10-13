@@ -296,7 +296,7 @@ ARCHON_ROWS = (
         r"^\s*(event): providerEventSchema,"),
     Row("出来事の道具の呼びの型", lambda: runreport.TOOL_CALL, "packages/provider-contract/src/events.ts",
         r"type: z\.literal\('(tool_call)'\)"),
-    Row("道具の呼びの道具の名と入力の欄", lambda: ["name", "rawInput"], "packages/provider-contract/src/events.ts",
+    Row("道具の呼びの道具の名と入力の欄", lambda: [runreport.TOOL_NAME, runreport.TOOL_INPUT], "packages/provider-contract/src/events.ts",
         r"export const toolCallSchema = z\.object\(\{.*?^\s*(name): z\.string\(\),$.*?^\s*(rawInput): z$",
         lambda m: list(m.groups())),
 )

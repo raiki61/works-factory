@@ -35,6 +35,7 @@ TS_FORMAT = "%Y-%m-%dT%H:%M:%S"   # 記録の行の ts（地方時。秒で切�
 EVIDENCE_GLOB = "reads-*.json"
 _INDEX_SUFFIX = "-block.json"
 REPLAN = "replan"              # 案の直しの差し込みの役の名の頭と索引の持ち主（1 回目の物を上書きしない。元 replan.READS_PREFIX・READS_INDEX）
+RECORDED = "recorded"           # sources.hook: フックの記録が在る
 HOOK_SEEN = ("read", "stale", "partial")   # フックで「読んだ跡が在る」状態（missing に数えない）
 NOT_LAUNCHED = "役を起こしていない"
 NO_CONFIG = "Claude の設定の置き場が渡っていない起動（CLAUDE_CONFIG_DIR が無い）"
@@ -177,7 +178,7 @@ def collect(place, role: str, must_read: list, log, *, own: list, since: str, re
             if isinstance(r.get("path"), str):
                 index.setdefault(r["path"], []).append(r)
         cache = {"index": index, "n": len(got)}
-        sources = {"hook": "recorded", "why": ""}
+        sources = {"hook": RECORDED, "why": ""}
         rows, missing = [], []
         for p in must:
             hook = hook_evidence(pathlib.Path(log).parent, _real(p, repo), cache=cache)[0]

@@ -3570,19 +3570,15 @@ def pr_accept(jdir, raw, repo) -> dict:
 def pr_reads(jdir, log, repo) -> dict:
     """節 pr-check-reads の中身（今の works の blk-pr の must の確かめ）。並行 PR の役が渡し物 judge/pr-brief.json を読んだ証拠を
     reads.collect で集め、judge/reads-pr-check.json と索引（reads.index_name(prcheck.ROLE)）を書く。記録は渡し物を書いた時刻から後の、
-    渡し物を読んだ session の行で切る（役だけに渡す物）。渡し物が無ければ役を起こしていないので索引に null と訳。受け付けの条件に
+    渡し物を読んだ session の行で切る（役だけに渡す物）。節は pr_scan が渡し物を書いて役を起こした回にだけ走る。受け付けの条件に
     しない（欠けは返りと報告に出す）。返り {ok: True, missing, index_file}"""
     import reads
     jdir = pathlib.Path(jdir)
     brief = jdir / prcheck.BRIEF
-    if brief.is_file():
-        got = reads.collect(jdir, prcheck.ROLE, [str(brief)], log, own=[str(brief)], since=reads.stamp(brief.stat().st_mtime),
-                            repo=repo)
-        index, missing = {prcheck.ROLE: got["reads_file"]}, got["missing"]
-    else:
-        index, missing = {prcheck.ROLE: None, "why": f"{reads.NOT_LAUNCHED}: {prcheck.ROLE}"}, []
-    out = write_json(jdir / reads.index_name(prcheck.ROLE), index)
-    return {"ok": True, "missing": missing, "index_file": str(out)}
+    got = reads.collect(jdir, prcheck.ROLE, [str(brief)], log, own=[str(brief)], since=reads.stamp(brief.stat().st_mtime),
+                        repo=repo)
+    out = write_json(jdir / reads.index_name(prcheck.ROLE), {prcheck.ROLE: got["reads_file"]})
+    return {"ok": True, "missing": got["missing"], "index_file": str(out)}
 # ---------------------------------------------------------------- 世界の解
 def world_dir(jdir) -> pathlib.Path:
     """元 works/blk-world/lib/worldblk.py:75 の place の書き直し。worldblk の作業の置き場（judge/world/）"""

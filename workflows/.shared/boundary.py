@@ -86,6 +86,11 @@ def resolve(ptr: dict) -> Path:
     return _inside_artifacts(ptr.get("path", ""))
 
 
+def rel_of(path) -> str:
+    """置き場の中のパスを、この run の置き場からの相対の字に（resolve の逆）"""
+    return Path(path).relative_to(Path(os.environ["ARTIFACTS_DIR"])).as_posix()
+
+
 def lib_root() -> Path:
     """lib/ の置き場。入口が環境変数 WORKS_FACTORY_ROOT にリポジトリの根を渡していればその lib/、無ければこのファイルから辿った lib/。
     Archon は run の始めに工程のフォルダを写し取り、script はその写しから走るので、run の中ではこのファイルから辿っても届かない（docs/design.md の U5）"""

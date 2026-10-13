@@ -71,7 +71,7 @@ def out_dir() -> Path:
 
 def rel(path) -> dict | None:
     """置き場の中のパスを、run の置き場からの相対の指し札に（None は None）"""
-    return None if path is None else boundary.pointer(Path(path).relative_to(Path(os.environ["ARTIFACTS_DIR"])).as_posix())
+    return None if path is None else boundary.pointer(boundary.rel_of(path))
 
 
 def failed_line(what: str, error: BaseException) -> str:

@@ -20,11 +20,6 @@ def out_dir() -> Path:
     return Path(os.environ["ARTIFACTS_DIR"]) / "report"
 
 
-def rel_path(path) -> str:
-    """置き場の中のパスを、run の置き場からの相対の字に"""
-    return Path(path).relative_to(Path(os.environ["ARTIFACTS_DIR"])).as_posix()
-
-
 if __name__ == "__main__":
     got = runreport.accept(os.environ.get("INPUTS_REPLY", ""), os.environ.get("INPUTS_COLD", ""), out_dir=out_dir())
-    boundary.returns({**got, "reason_file": rel_path(got["reason_file"]) if got["reason_file"] else ""})
+    boundary.returns({**got, "reason_file": boundary.rel_of(got["reason_file"]) if got["reason_file"] else ""})

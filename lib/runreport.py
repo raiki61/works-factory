@@ -88,6 +88,8 @@ OWN_SPEND = "node"                            # execution.accounting のうち�
 PROVIDER_ROW = "provider_event"
 PROVIDER_EVENT = "event"
 TOOL_CALL = "tool_call"
+TOOL_NAME = "name"
+TOOL_INPUT = "rawInput"
 PATH_TOOLS = ("Read", "Edit", "Write")         # 道具への入力の file_path でファイルを名指す道具
 SHELL_TOOL = "Bash"                            # 読み書きしたファイルを入力から取れない道具（数だけ数える）
 
@@ -256,15 +258,16 @@ def transcript_facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
 
 
 def _count_call(calls: dict, step: str, event: dict) -> None:
-    if event.get("type") != TOOL_CALL or event.get("name") not in (*PATH_TOOLS, SHELL_TOOL):
+    tool = event.get(TOOL_NAME)
+    if event.get("type") != TOOL_CALL or tool not in (*PATH_TOOLS, SHELL_TOOL):
         return
-    mine = calls.setdefault(step, {**{tool: [] for tool in PATH_TOOLS}, SHELL_TOOL: 0})
-    if event["name"] == SHELL_TOOL:
+    mine = calls.setdefault(step, {**{t: [] for t in PATH_TOOLS}, SHELL_TOOL: 0})
+    if tool == SHELL_TOOL:
         mine[SHELL_TOOL] += 1
         return
-    path = as_dict(event.get("rawInput")).get("file_path")
-    if isinstance(path, str) and path and path not in mine[event["name"]]:
-        mine[event["name"]].append(path)
+    path = as_dict(event.get(TOOL_INPUT)).get("file_path")
+    if isinstance(path, str) and path and path not in mine[tool]:
+        mine[tool].append(path)
 
 
 def cost_rows(facts: dict) -> list:
@@ -1317,7 +1320,7 @@ def _evidence_line(path: pathlib.Path, rel: str, repo) -> str:
     if not (isinstance(doc, dict) and isinstance(doc.get("role"), str) and isinstance(doc.get("rows"), list)
             and isinstance(doc.get("missing"), list) and isinstance(doc.get("sources"), dict)):
         return f"{rel}: 読めない（読んだ証拠の形が違う）"
-    if doc["sources"].get("hook") != "recorded":
+    if doc["sources"].get("hook") != reads.RECORDED:
         return f"{doc['role']}（{rel}）: 測れない（{doc['sources'].get('why') or '訳の記録が無い'}）"
     missing = [str(m) for m in doc["missing"]]
     return (f"{doc['role']}（{rel}）: 渡した {len(doc['rows'])}・読んだ跡の無い {len(missing)}"

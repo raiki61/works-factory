@@ -1581,12 +1581,8 @@ class ReadsTest(unittest.TestCase):
         self.assertEqual([row["path"] for row in doc["rows"]], [str(brief)])
         self.assertIn(doc["rows"][0]["hook"], reads.HOOK_SEEN)
 
-    def test_pr_check_reads_without_brief_or_record_does_not_fail(self):
-        """渡し物が無い（役を起こしていない）・記録の根が無い（フックを置いていない起動）時も落ちず、読んでいないとも言わない"""
-        out = self.r.returned("pr_reads")
-        self.assertEqual((out["ok"], out["missing"]), (True, []), out)
-        self.assertIsNone(self.index()[prcheck.ROLE])
-        self.assertTrue(self.index()["why"].startswith(reads.NOT_LAUNCHED), self.index())
+    def test_pr_check_reads_without_record_does_not_fail(self):
+        """記録の根が無い（フックを置いていない起動）時も落ちず、読んでいないとも言わない"""
         self.brief()
         out = self.r.returned("pr_reads")
         self.assertEqual((out["ok"], out["missing"]), (True, []), out)
