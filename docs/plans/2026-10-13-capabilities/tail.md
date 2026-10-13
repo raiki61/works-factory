@@ -1,7 +1,7 @@
 # 能力の棚卸し: 試験の関門（T）・独立の目（E）・報告（R）・取り込みと差分の当て（M）
 
-前の works（raiki61/claude-plugins @ 2aa7c66c の works/）の能力を、作り直しの works-factory（main＝origin/main の写し、線だけ #74 の head＝PR #74 の頭）と 1 行ずつ照らした。全 294 行。今に無い行が 63、照らす試験が無いか弱い行が 122、Archon が強いていないのに狭めた行が 59 ある。Archon が強いた狭めは 1 行（E30）だけ。
-持ち主に要るのは、末尾の「穴の要約」の「持ち主に聞く物」。段 1 の bin/apply（今は無い。住処は bin/_lib/apply.py）の行は M39〜M53。
+前の works（raiki61/claude-plugins @ 2aa7c66c の works/）の能力を、作り直しの works-factory（main＝origin/main の写し、線だけ #74 の head＝PR #74 の頭）と 1 行ずつ照らした。全 294 行。今に無い行が 45、照らす試験が無いか弱い行が 87、Archon が強いていないのに狭めた行が 54 ある（末尾の「穴の要約」の数と同じ。書いた時点の数で、後の PR が閉じた行は各行の欄が正）。Archon が強いた狭めは 1 行（E30）だけ。
+持ち主に要るのは、末尾の「穴の要約」の「持ち主に聞く物」。bin/apply の行は M39〜M53（M39〜M52 は #114 で入った bin/_lib/apply.py と tests/bin/test_apply.py。M53 は周の鎖と一緒に段 3 で作る）。
 
 読み方（4 つの領域で共通）:
 - 元: works/ の下のパスと行（@2aa7c66c）。今: main の名（README.md の「指しの形」）。証: 能力を消すと赤になる試験の名。要追加は試験の案。
@@ -1505,7 +1505,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 今: lib/runreport.py::UNSEEN（「取れない（読んだ証拠を集める口を戻していない。docs/design.md の U6）」の 1 行だけ）
   - 証: 要追加: lib/tests/test_runreport.py::BuildCase.test_reads_section_shows_what_u6_can_take — 「4. 読んだ証拠と包み」が、U6 の決め（docs/design.md の U6）で取れる分（役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から。下請け〔Agent〕の中の呼びと、読んだ時・書いた後のファイルの sha は PostToolUse のフック bin/_lib/record-read.py・bin/_lib/record-write.py の記録から）を役ごとに出し、取れない分（Bash で書いたファイルと、Bash〔cat・sed など〕で読んだファイル。どちらも `command` の字しか無く、フックも Read・Edit・Write の外なので取れない）だけを「取れない（U6）」と書く。今は UNSEEN の 1 行を縛る程度
   - 本物の run: report/report.md「## 4. 読んだ証拠と包み」
-  - 狭め: 包み（前の起こし方の殻 adapter）を落としたので対象が変わった。U6（当時は未決）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:` → 持ち主（戻すか）
+  - 狭め: 包み（前の起こし方の殻 adapter）を落としたので対象が変わった。U6（当時は未決）。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は `provider_event` に無いが、PostToolUse のフックで取れる（書き込みの記録は PR #178 で `bin/_lib/record-write.py` に、読んだ証拠は #120 で `bin/_lib/record-read.py` に戻った）。報告の「4. 読んだ証拠と包み」はまだそれらを読まず、lib/runreport.py::UNSEEN の 1 行だけ → 持ち主（戻すか）
 
 - R47 見る所: 判定・目的・定石・仕様・目的の外の所見・計画・構造の目・波及・事前審査・独立設計・差分・申し出と裁定・直す前と最後の試験の記録・直した後の構造・封じた差分・置いた差分のパス
   - 元: works/.shared/core/report.py:1706 `head_where`
@@ -1811,7 +1811,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 読み方の前置き:
 - 「wf」は main、「pr74」は #74 の head（線の PR #74 の頭）。元は works/ の下（@2aa7c66c）。
-- `bin/apply`（人が run の封じた差分を対象へ当てる口。今の works の `use.sh apply` の後継）はまだ無い。段 1 で `bin/_lib/apply.py` に作る。証の試験名は wf の `docs/plans/2026-10-13-stage1-walking-skeleton.md`:144-156 の名に合わせ、`tests/bin/test_apply.py` に置く（tests/bin の既存の命名 `test_<部品>.py` と同じ）。
+- `bin/apply`（人が run の封じた差分を対象へ当てる口。今の works の `use.sh apply` の後継）は #114 で入った。中身は `bin/_lib/apply.py`、試験は `tests/bin/test_apply.py`（tests/bin の既存の命名 `test_<部品>.py` と同じ）。
 - 本物の run の観察先: 種（wf の tests/e2e/target-seed）は works-factory でない対象なので、`lib/protected.json` の行（works-factory 自身のパス）にはふつう当たらない。守りのパスの当たりは本物の run では `merge-seal.output.protected_hits == []` が見えるだけで、当たる道は筋書きでのみ。最後の関所はいつも開くので、本物の run は答え continue/approve → `merge-apply` が走る道を通る。
 - 旧 `blk-pr`（works/blk-pr/）は並行 PR の確かめ（p0.parallel_pr）で、差分を封じたり包んだりしない。M の範囲の能力は持たないので行にしない。
 
@@ -2091,99 +2091,99 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 - M39 run の差分を対象のリポジトリへ当て、commit しない。当てたファイルと「commit はしていない。テストを回してから commit する」を出して 0 で終わる
   - 元: works/dev/use.sh:432-433 `apply_checked`・works/tests/test_use.py::UseShell.test_apply_brings_run_diff_into_target（assert: test_use.py:1577-1579）
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_applies_sealed_diff — 対象の `git status --porcelain` が「M stats.py」だけ・HEAD が動かない・標準出力に「commit はしていない」
+  - 今: bin/_lib/apply.py::main・bin/_lib/apply.py::put
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_applies_sealed_diff
   - 本物の run: 段 1 の手順（計画 :166-167）: 当てる前に種の `python3 -m unittest` が 2 件落ち、`bin/apply <run> --cwd <target>` の後に全部通る
   - 狭め: 無し
 
 - M40 当てる差分は、関所を通った run なら `merge/apply.diff`（記録の apply.hash が sealed.hash と同じ時だけ）。ファイルの sha256 を Archon の DB の記録の hash と照らし、違えば両方の hash を言って止まり対象を変えない（古い・書き換えた差分を当てない）
   - 元: works/dev/use.sh:964-969（当てる前に差分を書き直し、書き直せなければ「前の差分は当てない」で拒む）・works/tests/test_use.py::UseShell.test_apply_refuses_when_diff_rewrite_fails（assert: test_use.py:1729-1731）
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_refuses_changed_diff（置き場のファイルを 1 バイト変えると 1・両方の hash・対象の status が前と同じ）・test_apply_refuses_apply_hash_not_sealed
+  - 今: bin/_lib/apply.py::main（封じた hash と置き場のファイルの sha256 の照らし）・bin/_lib/apply.py::choose（apply.hash と sealed.hash の照らし）
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_refuses_changed_diff・tests/bin/test_apply.py::ApplyTest.test_apply_refuses_apply_hash_not_sealed
   - 本物の run: 段 1 の手順（計画 :166）: `merge/apply.diff` を 1 バイト変えて `bin/apply` が 1 で止まり対象が変わらない
   - 狭め: 無し（元より強い）
 
 - M41 run の作業ツリーを片付けた後でも、置き場の差分から当てられる
   - 元: works/tests/test_use.py::UseShell.test_wait_completed_cleans_worktree_and_branch_after_diff_written（assert: test_use.py:1690-1693）
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py。差分は run の置き場 `merge/apply.diff` に在る）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_does_not_need_the_run_worktree — `workflow get` の答えの作業ツリーのパスが無くても、artifacts.root の差分で当たる
+  - 今: bin/_lib/apply.py::pointed（置き場の根 artifacts.root の下の差分だけを読み、run の作業ツリーを読まない）
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_does_not_need_the_run_worktree
   - 本物の run: 段 1 の手順で、run の後に作業ツリーを消してから `bin/apply` を打つ（任意の確かめ）
   - 狭め: 無し
 
 - M42 差分が対象のファイルを消すなら、許しが無い限り消すファイルを並べて止まり、許し方（今: `WORKS_USE_ALLOW_DELETE=1`、段 1: `--allow-delete`）を言う。許せば当てる
   - 元: works/dev/use.sh:401-404・works/tests/test_use.py::ChainShell.test_apply_show_clean_chain_id（assert: test_use.py:2439-2443）
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_refuses_delete_unless_allowed — 消す差分で 1・stderr に消すファイルの名と「--allow-delete」・対象の status が空。`--allow-delete` で 0 と当たり
+  - 今: bin/_lib/apply.py::put（`--allow-delete`）
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_refuses_delete_unless_allowed
   - 本物の run: 筋書きでのみ（種の直しは消さない）
   - 狭め: 無し（環境変数から旗へ。PR に名指す約束の変更）
 
 - M43 記録が止まりを示す run（関所で stop・reject、止め札、線の止め、needs-human）の差分は、許しが無ければ当てずに 1 行で止まり、止まった訳（結末の語・止めた所・人の一言）と許し方を言う
   - 元: works/dev/use.sh:409-426・works/.shared/core/report.py:648-667 `stopped_run`・works/tests/test_use.py::UseShell.test_apply_refuses_run_stopped_by_record（assert: test_use.py:1608-1613。1 行・人の一言・許しの名・対象が変わらない）
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py。計画 :86-87 は「置いた差分が無い」と結末の語を言う）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_stopped_run_needs_flag — `apply` が null で `sealed` が在る run が旗なしで 1、stderr がちょうど 1 行で、結末の語・関所の答えの一言（`gates/gate-final.json` の text を `result` に運ぶ）・「--allow-stopped」が載り、対象の status が空（計画の試験名に「人の一言」の照らしを足す）
+  - 今: bin/_lib/apply.py::choose・bin/_lib/apply.py::stopped_why（結末の語・止めた所・人の一言。人の一言は線の result の final_answer: workflows/line/scripts/result.py::main）
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_stopped_run_needs_flag（旗なしの 1 行に結末の語・止めた所・人の一言・「--allow-stopped」、対象が変わらない）
   - 本物の run: 筋書きでのみ（種の run は continue で通す）。ただし段 1 で stop を答えた run を 1 本足せば `result` の `apply == null` が見える
   - 狭め: 計画は人の一言を言わない（結末の語だけ）。Archon で不可でない（`answer-final.output.answer.text` は collect に届く: works-factory-line.yaml:950）→ 戻す 決め: 戻すと決めた（superset）。#101（線の配線の文書の「この文書の外」の「決めた物」）
 
 - M44 許し（今: `WORKS_USE_ALLOW_STOPPED=1`、段 1: `--allow-stopped`）が在れば止まった run の封じた差分を当て、止まった訳と「許しが在るので当てる」を 1 行出す。ただし R2 が作り直しと言った run は許しが在っても当てない
   - 元: works/dev/use.sh:427・works/tests/test_use.py::UseShell.test_apply_refuses_run_stopped_by_record（assert: test_use.py:1615-1618）
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py。計画 :86）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_stopped_run_needs_flag（旗で 0・stderr に止まった訳）・test_apply_stopped_run_refuses_redesign（旗でも r2_status が redesign-needed なら 1）
+  - 今: bin/_lib/apply.py::choose（`--allow-stopped`。R2 が redesign-needed なら旗でも拒む）・bin/_lib/apply.py::main（「--allow-stopped が在るので当てた」の 1 行）
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_stopped_run_needs_flag・tests/bin/test_apply.py::ApplyTest.test_apply_stopped_run_refuses_redesign
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（R2 の拒みは新しい強め）
 
 - M45 止まりかを記録で言えない run（止まりの記録が無い・読めない）は、今の works では 1 行で「確かめられなかった」と言って当てた
   - 元: works/dev/use.sh:414-416・429・works/tests/test_use.py::UseShell.test_apply_refuses_run_stopped_by_record（unknown の枝。assert: test_use.py:1634-1636）
-  - 今: 無し。段 1 の計画は当てない側に変える（`terminal_record` が null・`returns` が unavailable/truncated なら 2 で止まる）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_refuses_unreadable_run — 拒む文に「止まりかを記録で確かめられない」と、人が中身を見る道（run の作業ツリーの `git -C <wt> diff`）が載る
+  - 今: bin/_lib/apply.py::read_run（記録が無い・returns が読めない run は 2 で拒む）・bin/_lib/apply.py::unchecked（拒む 1 行に置き場の差分を素の git apply で当てる道）
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_refuses_unreadable_run
   - 本物の run: 筋書きでのみ
   - 狭め: 段 1 の計画で狭める予定。Archon で一部は強いられる（ブロックの節の出力は `workflow get --verbose` で 200 字に切られる: …/archon/d97d00ef…/packages/cli/src/commands/workflow.ts:3932-3934 `outputPreviewOf`。だから hash は線の `result` から読むしかない）。しかし「記録の無い run を当てない」こと自体は不可でない（作業ツリーから組み直して当てる道は残せる）→ 持ち主の確かめ待ち 決め: bin/apply は拒み、拒む 1 行に差分のパスと素の git apply の道を書いて能力を残す（新しい旗は足さない）。#101（線の配線の文書の「この文書の外」の「決めた物」）
 
 - M46 封じていない差分（merge-seal より前で止まった run）は当てない
   - 元: works/dev/use.sh:950-971（止まりの許しが在れば、どこで止まった run の作業ツリーの差分でも当てた）
-  - 今: 無し（段 1 の計画 :87 で当てない側）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_refuses_when_nothing_placed — `apply` も `sealed` も無い run は `--allow-stopped` でも 1、文に結末の語と「封じた差分が無い」
+  - 今: bin/_lib/apply.py::choose（封じていない差分は `--allow-stopped` でも当てない）・bin/_lib/apply.py::from_worktree（拒む 1 行に作業ツリーの差分を素の git apply で当てる道。R2 の作り直しには書かない）
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_refuses_when_nothing_placed
   - 本物の run: 筋書きでのみ
   - 狭め: 段 1 の計画で狭める予定（README の約束「関所を通らなかった物は取り込まない」から）。Archon で不可でない → 持ち主の確かめ待ち 決め: 能力の狭めに当たる（元は許しが在れば止まった run の作業ツリーの差分を当てた: works/dev/use.sh:950-971）。拒む 1 行に作業ツリーと git -C <wt> diff <基> | git apply の道を書いて残す。R2 の作り直しには書かない。#101（線の配線の文書の「この文書の外」の「決めた物」）
 
 - M47 `git apply --check` が通らなければ当てずに止まり、「対象の手元の変更とぶつかっていないかを見る」と言う（対象は変えない）
   - 元: works/dev/use.sh:431
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py。計画 :91）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_refuses_when_check_fails — 対象にぶつかる手元の変更を置くと 1、stderr に「手元の変更」、対象の status が前と同じ（今の works の試験には、この拒みの照らしが無かった）
+  - 今: bin/_lib/apply.py::put（`git apply --check`）
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_refuses_when_check_fails
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - M48 当てた後に `git apply -R --check` で、当てた物が対象に在ることを読み戻す。通らなければ「当てたが読み戻せない」
   - 元: 無し（新しい強め）
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py。計画 :92）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_applies_sealed_diff（0 で終わる時 `git apply -R --check` が通る）
+  - 今: bin/_lib/apply.py::put（`git apply -R --check`）
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_refuses_when_readback_fails・tests/bin/test_apply.py::ApplyTest.test_apply_applies_sealed_diff
   - 本物の run: 段 1 の手順の `bin/apply` の終了の値 0
   - 狭め: 無し
 
 - M49 拒む時はどれも読める 1 行で、0 でない終了の値で止まり、対象の作業ツリーを変えない
   - 元: works/dev/use.sh:192-195 `refuse`（stderr に「use.sh: …」の 1 行・終了 2）・works/tests/test_use.py::UseShell.test_apply_refuses_run_stopped_by_record（assert: test_use.py:1609-1613）
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py。計画は拒み 1・読めない run 2）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_every_refusal_is_one_line_and_leaves_target — 各拒み（hash・消す行・止まり・--check・読めない run）で stderr が 1 行・終了の値が 0 でない・対象の status が前と同じ
+  - 今: bin/_lib/apply.py::main・bin/_lib/apply.py::Refuse・bin/_lib/apply.py::one_line（拒み 1・読めない run 2）
+  - 証: tests/bin/test_apply.py::ApplyTest.test_every_refusal_is_one_line_and_leaves_target
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（終了の値 2→1 は約束の変更として PR に名指す）
 
 - M50 許しは 1 回の打ち込みだけに効き、後の周や後の呼び出しへ運ばれない（鎖の控えに WORKS_USE_ALLOW_DELETE・ALLOW_STOPPED を持たない。試験の殻もこの 2 つを消す）
   - 元: works/dev/use.sh:377-380 `chain_env_names`・works/tests/hermetic.sh:10
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py。旗にするので運ばれない）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_ignores_env_allowances — 環境に `WORKS_USE_ALLOW_DELETE=1`・`WORKS_USE_ALLOW_STOPPED=1` が残っていても、旗なしの `bin/apply` は消す差分・止まった run を拒む
+  - 今: bin/_lib/apply.py::main（許しは旗 `--allow-delete`・`--allow-stopped` だけで、環境変数を読まない）
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_ignores_env_allowances
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
 - M51 対象は打った所か `--cwd` の git の根で決め、同じ対象から殻と同じ家を引き、その対象の run だけを読む（別の対象の run id を渡しても見つけない）
   - 元: works/dev/use.sh:950-955（`cd "$TARGET"`・run_row）・works/tests/test_use.py::UseShell.test_wait_does_not_find_run_of_other_target（assert: test_use.py:1521-1522）
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py。`bin/_lib/launcher.py` の `target_root` を使う計画 :81）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_bin_apply_asks_launcher_for_get（偽の bun が受けた引数が `workflow get <run> --json --cwd <対象>`・対象の外から打っても同じ家）
+  - 今: bin/_lib/apply.py::main（対象は bin/_lib/launcher.py::target_root）・bin/_lib/apply.py::ask_launcher（殻の `workflow get <run> --json --cwd <対象>`）
+  - 証: tests/bin/test_apply.py::BinApplyTest.test_bin_apply_asks_launcher_for_get
   - 本物の run: 段 1 の手順の `bin/apply <run> --cwd <target>`
   - 狭め: 無し
 
 - M52 指し札の run_id が記録の run と同じで、パスが置き場の下の普通のファイル（`..`・絶対パス・外へ出る symlink を拒む）
   - 元: 無し（新しい強め。今の works は家の diffs/ の決まった名を読んだ）
-  - 今: 無し（段 1 の住処: bin/_lib/apply.py。計画 :88）
-  - 証: 要追加: tests/bin/test_apply.py::ApplyCase.test_apply_refuses_pointer_outside_root・test_apply_accepts_short_run_id
+  - 今: bin/_lib/apply.py::pointed
+  - 証: tests/bin/test_apply.py::ApplyTest.test_apply_refuses_pointer_outside_root・tests/bin/test_apply.py::ApplyTest.test_apply_accepts_short_run_id
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 
@@ -2270,9 +2270,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 数:
 - 行の総数: 63
-- 今: 無し: 21（M29・M30・M37・M38・M39〜M53 の bin/apply の 15 行・M61・M62）。このうち bin/apply の 15 行は段 1 で作る住処の行で、M62 は置き換えで要らない行
-- 証が要追加か弱い: 21（M29・M30・M37・M38・M39〜M53 の 15 行・M61・M63）。M10・M12・M16・M28・M31・M32・M33・M36 は issue #125 で試験を足して閉じた
-- 狭めたのに Archon が強いていない（戻す）: 6（M29・M30・M37・M38・M61・M63）
+- 今: 無し: 3（M53・M61・M62）。M53 は周の鎖と一緒に段 3 で作る行で、M62 は置き換えで要らない行。bin/apply の M39〜M52 は #114 で入り、M29・M30・M37・M38 は線の配線の部分 B2・C で戻した
+- 証が要追加か弱い: 3（M53・M61・M63）。M10・M12・M16・M28・M31・M32・M33・M36 は issue #125 で試験を足して閉じ、M39〜M52 は #114 の tests/bin/test_apply.py が縛る
+- 狭めたのに Archon が強いていない（戻す）: 2（M61・M63）。M29・M30・M37・M38 は線の配線の部分 B2・C で、M43 は #114 で戻した
 
 持ち主に確かめてほしい物:
 1. →決めた（線の配線の文書の「決めた物」）: M45・M46 は拒む 1 行に素の `git apply` の道を書いて能力を残し、M53 は段 3 の鎖の issue へ。元の問い: 段 1 の計画が `bin/apply` で狭める 3 点は、どれも Archon が強いていない。止まりかを言えない run を当てない（M45。Archon が強いるのは「hash は線の result から読む」までで、cli/src/commands/workflow.ts:3932-3934）、封じる前に止まった run の差分を当てない（M46）、鎖の最後の差分を当てる口を持たない（M53）。3 つとも計画のまま狭めてよいか。
@@ -2285,9 +2285,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 数（4 つの領域の合計。各領域の内訳は各領域の終わりの節）:
 - 行の総数: 294（T 71・E 77・R 83〔R1〜R82 と R5b〕・M 63）
-- 今: 無し: 63（T 14・E 3・R 25・M 21）。M の 21 のうち 15 は段 1 で作る bin/apply の行（M39〜M53。住処は bin/_lib/apply.py、試験は tests/bin/test_apply.py）、1 は置き換えで要らない行（M62）。ほかに E に、今は在るが配線か読み手が無くて本物の run に届かない行が 6（E17・E37・E42・E45・E66・E73）
-- 証が要追加か弱い: 105（T 26・E 30〔要追加 15、受け手の試験が要る 5、弱い 10〕・R 28・M 21）
-- 狭めたのに Archon が強いていない: 58（T 14・E 12・R 26・M 6）。どの PR も書かずに黙って落とした物を含む（T35・T41・T45・T47・T70、R5b・R14・R16・R20・R23・R24・R35〜R39・R41 など。R49 は #124 で戻した）
+- 今: 無し: 45（T 14・E 3・R 25・M 3）。M の 3 のうち 1 は周の鎖と一緒に段 3 で作る bin/apply の行（M53。M39〜M52 は #114 で bin/_lib/apply.py と tests/bin/test_apply.py に入った）、1 は置き換えで要らない行（M62）。ほかに E に、今は在るが配線か読み手が無くて本物の run に届かない行が 6（E17・E37・E42・E45・E66・E73）
+- 証が要追加か弱い: 87（T 26・E 30〔要追加 15、受け手の試験が要る 5、弱い 10〕・R 28・M 3）
+- 狭めたのに Archon が強いていない: 54（T 14・E 12・R 26・M 2）。どの PR も書かずに黙って落とした物を含む（T35・T41・T45・T47・T70、R5b・R14・R16・R20・R23・R24・R35〜R39・R41 など。R49 は #124 で戻した）
 - Archon が強いた狭め: 1（E30。読むだけの役が作業ツリーを変えた時の出し直しが無くなった。dag-executor.ts:1243-1249 で、checkout の照らしの違反は retry の外）
 - PR の対応表の照らし: #66（M）・#67（E）・#69（T）が挙げた試験は main に全部在り、該当の動きを assert していた。#68 の「取り戻せない」12 件のうち、今も読む先が無いのは gates_deferred（R71）と来歴の表（R81 の表の部分）だけ。閉鎖の数え直し（R72）は組の子 run に元データが在り、約束に足せば戻る。R73〜R80 の 8 件は今の置き場から戻せ、うち R75・R76・R79・R80 の 4 件は #68 の主張が誤り。R71・R81・R82 は持ち主に聞く
 
