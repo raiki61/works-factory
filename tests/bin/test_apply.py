@@ -136,16 +136,20 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual(self.calls, [(RUN, self.target)])
 
     def test_apply_notes_pending_reapproval(self):
-        """#550: 承認し直すかの問いを残した人待ちの run は、断らずに当て、標準エラーにそう 1 行で知らせる"""
-        value = self.value(outcome="needs_human", stop_reason="spec-check:works:spec-changed")
-        rc, out, err = self.run_apply(self.record(value))
-        self.assert_applied((rc, out, err))
-        self.assertEqual(len(err.strip().splitlines()), 1, err)
-        for word in ("承認し直す", "needs_human", "spec-check:works:spec-changed"):
-            self.assertIn(word, err)
+        """#550: 承認し直すかの問いを残した run は、断らずに当て、標準エラーにそう 1 行で知らせる。止めの語が別の待ち
+        （fix の衝突が先に立った）でも、照らせなかった（止めの語は works:line-script）でも、問いの数で知らせる"""
+        for stop in ("spec-check:works:spec-changed", "fix:works:conflict", "spec-check:works:line-script"):
+            with self.subTest(stop=stop):
+                git(self.target, "reset", "-q", "--hard")
+                value = self.value(outcome="needs_human", stop_reason=stop, spec_questions=2)
+                rc, out, err = self.run_apply(self.record(value))
+                self.assert_applied((rc, out, err))
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                for word in ("承認し直す", "2 件", "needs_human", stop):
+                    self.assertIn(word, err)
 
     def test_apply_other_waits_say_nothing(self):
-        value = self.value(outcome="needs_human", stop_reason="ask-final:works:needs-human")
+        value = self.value(outcome="needs_human", stop_reason="ask-final:works:needs-human", spec_questions=0)
         rc, out, err = self.run_apply(self.record(value))
         self.assert_applied((rc, out, err))
         self.assertEqual(err, "")

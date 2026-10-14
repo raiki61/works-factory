@@ -2291,21 +2291,23 @@ class CollectAndResultCase(unittest.TestCase):
         self.assertEqual((facts["failed"], facts["absorbed"]), ([], [{"node": "judge__head-depth-loop", "error": "役が落ちた"}]))
 
     def test_result_carries_what_apply_reads(self):
-        """線の返りの欄 apply・sealed・r2_status・final_answer（bin/apply と段 1 が読む）は collect が集めた返りから組み、飛ばされた段は
+        """線の返りの欄 apply・sealed・r2_status・final_answer・spec_questions（bin/apply と段 1 が読む）は collect が集めた返りから組み、飛ばされた段は
         null。result は merge・eyes・関所の返りを直に読まず collect を通す"""
         seal = {"mode": "seal", "ok": True, "hash": "h", "diff": {"path": "merge/sealed.diff"}, "protected_hits": [], "reason": ""}
         put = {**seal, "mode": "apply", "diff": {"path": "merge/apply.diff"}}
         eyes = {"ok": True, "r2": {"status": "pass", "reason": ""}}
         answer = {"decision": "stop", "text": "やめる"}
-        got = result.result({"outcome": "fixed"}, {"merge_apply": put, "merge_seal": seal, "eyes": eyes, "gate_final": answer}, None)
+        got = result.result({"outcome": "fixed"}, {"merge_apply": put, "merge_seal": seal, "eyes": eyes, "gate_final": answer,
+                                                   "spec_changed": [{"name": "t"}, {"name": "u"}]}, None)
         self.assertEqual(got["apply"], {"ok": True, "hash": "h", "diff": {"path": "merge/apply.diff"}, "reason": ""})
         self.assertEqual(got["sealed"], {"ok": True, "hash": "h", "diff": {"path": "merge/sealed.diff"}})
-        self.assertEqual((got["r2_status"], got["final_answer"]), ("pass", answer))
-        got = result.result({"outcome": ""}, {"merge_apply": None, "merge_seal": None, "eyes": {"ok": True, "r2": None}, "gate_final": None},
-                            None)
-        self.assertEqual((got["apply"], got["sealed"], got["r2_status"], got["final_answer"]), (None, None, None, None))
+        self.assertEqual((got["r2_status"], got["final_answer"], got["spec_questions"]), ("pass", answer, 2))
+        got = result.result({"outcome": ""}, {"merge_apply": None, "merge_seal": None, "eyes": {"ok": True, "r2": None}, "gate_final": None,
+                                              "spec_changed": None}, None)
+        self.assertEqual((got["apply"], got["sealed"], got["r2_status"], got["final_answer"], got["spec_questions"]),
+                         (None, None, None, None, 0))
         with_ = line_nodes()["result"]["with"]
-        for key in ("merge_apply", "merge_seal", "eyes", "gate_final"):
+        for key in ("merge_apply", "merge_seal", "eyes", "gate_final", "spec_changed"):
             with self.subTest(key=key):
                 self.assertEqual(with_[key], {"from": f"$collect.output.{key}", "if_skipped": None})
         self.assertFalse([v for v in with_.values() if "$merge-" in json.dumps(v) or "$eyes" in json.dumps(v)])

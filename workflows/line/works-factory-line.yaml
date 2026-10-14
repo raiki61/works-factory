@@ -1257,9 +1257,10 @@ nodes:
         sealed: { type: [object, "null"] }
         r2_status: { type: [string, "null"] }
         final_answer: { type: [object, "null"] }
+        spec_questions: { type: integer }
         children: { type: [object, "null"] }
       required: [fixed, ok, outcome, stop_reason, report, report_ai, next_request, prior_failures, apply, sealed, r2_status,
-                 final_answer, children]
+                 final_answer, spec_questions, children]
     mutates_checkout: false
     depends_on: [collect, report, sweep-children]
     trigger_rule: all_done
@@ -1276,4 +1277,5 @@ nodes:
       merge_seal: { from: "$collect.output.merge_seal", if_skipped: null }
       eyes: { from: "$collect.output.eyes", if_skipped: null }
       gate_final: { from: "$collect.output.gate_final", if_skipped: null }
+      spec_changed: { from: "$collect.output.spec_changed", if_skipped: null }
       children: { from: "$sweep-children.output", if_skipped: null }
