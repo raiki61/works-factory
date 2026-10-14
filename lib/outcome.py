@@ -403,8 +403,8 @@ def plan_nothing_owed(returns: dict) -> bool:
 
 
 def _waits(returns: dict, gates: dict, closed: bool, facts: dict | None) -> str:
-    """3. 人待ち: 人に回した申し出（closed なら締めた案の直しの行も）・返りの人待ちの語・前提の検算の escalate・無人の run が
-    残した修正前の問い"""
+    """3. 人待ち: 人に回した申し出（closed なら締めた案の直しの行も）・返りの人待ちの語・前提の検算の escalate・R4 が人に回した
+    問い（元 report.decide_outcome の pending_human）・無人の run が残した修正前の問い"""
     if asked_conflicts(returns, closed):
         return f"fix:{stopby.CONFLICT}"
     for rid, sr in stop_reasons(returns, facts):
@@ -412,6 +412,9 @@ def _waits(returns: dict, gates: dict, closed: bool, facts: dict | None) -> str:
             return f"{rid}:{sr}"
     if as_dict(as_dict(returns.get("eyes")).get("premise_check")).get("verdict") == "escalate":
         return "eyes:premise-escalate"
+    asked = as_dict(returns.get("eyes")).get("questions")
+    if isinstance(asked, list) and any(isinstance(q, str) and q.strip() for q in asked):
+        return "eyes:r4-ask"
     review = plan_reviewed(returns)
     if review and review.get("ask_human") is True and gates.get("gate-before-fix") is None and returns.get("fix") is None:
         return "plan-review:ask-human"

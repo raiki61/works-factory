@@ -781,13 +781,16 @@ class DraftsCase(Base):
         self.assertIn("狭めない案: 上限を変えずに足す", drafts[1]["note"])
         self.assertIn("決め手の欄が無い", drafts[2]["source"], "人に回さない種類の穴は事前審査の行に結ばない")
 
-    def test_final_gate_r4_questions_are_drafted_unless_passed(self):
-        """最後の関所が通さなかった無人の run は、独立の目 R4 の問いごとに下書き。関所が通した run は作らない"""
+    def test_final_gate_r4_questions_are_drafted_even_when_passed(self):
+        """独立の目 R4 の問いごとに下書き。関所の continue は問いに答えないので、人の居る run でも関所が通した run でも作る（元
+        skills/works/SKILL.md 119 行「問いは報告の冒頭と次の run の依頼の下書きに載り、結末は needs_human」。#505）"""
         eyes = {**fixed_run()["eyes"], "questions": ["守りを触ってよいか／推し: 通す（continue）——触らない（理由: 守りは別の PR）"]}
         returns = fixed_run(eyes=eyes)
         drafts = runreport.answer_drafts(returns, {}, UNATTENDED)
         self.assertEqual([(d["question"], d["text"]) for d in drafts], [("守りを触ってよいか", "通す（continue）——触らない（理由: 守りは別の PR）")])
-        self.assertEqual(runreport.answer_drafts(returns, {"gate-final": {"decision": "approve", "text": ""}}, UNATTENDED), [])
+        for start in (UNATTENDED, {"run_id": RUN}):
+            with self.subTest(start=start):
+                self.assertEqual(runreport.answer_drafts(returns, {"gate-final": {"decision": "continue", "text": ""}}, start), drafts)
 
     def test_drafts_reach_next_request(self):
         returns = fixed_run(**{"plan-review": {"questions": [gatemarks.question_row("regression", "どうするか")]}})

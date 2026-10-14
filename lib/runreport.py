@@ -423,19 +423,17 @@ def _ask_draft(q: dict, key: str) -> dict:
 
 def answer_drafts(returns: dict, gates: dict, start: dict) -> list:
     """人の判断を待つ項目への答えの下書き [{question, text, draft, source, note?}]（元 gatemarks.answer_drafts）:
-    ①無人の run で修正前の関所が通さなかった事前審査の問い（と最後の関所が通さなかった R4 の問い）ごとに 1 行。項目の文が修正案の
-    狭める行・事前審査の穴・定石の外れに当たれば、その行の決め手（推し recommend・狭めない案 no_narrow・世界の解 world）を使う
+    ①無人の run で修正前の関所が通さなかった事前審査の問いと、人の居る run でも無人の run でも R4 が人に回した問い（元
+    report.next_items の pending_human）ごとに 1 行。項目の文が修正案の狭める行・事前審査の穴・定石の外れに当たれば、その行の決め手
+    （推し recommend・狭めない案 no_narrow・世界の解 world）を使う
     ②人の居る run でも無人の run でも、保留のままの台帳の問いごとに 1 行（理由の推しか選択肢）
     ③問いの立っていない測れていない素材ごとに 1 行（materials.json の reason つき。依頼の answers が当たった素材は除く）
     同じ question の行は 1 度だけ。機械は関所にも問いにも答えない——下書きは依頼の入口が拒むので、人が見直してから使う"""
-    out = []
-    if _unattended(start):
-        rows = [*_fix_plan_rows(returns), *_face_rows(returns), *_world_rows(returns)]
-        for gid, rid in (("gate-before-fix", "plan-review"), ("gate-final", "eyes")):
-            if as_dict(gates.get(gid)).get("decision") in oc.PASS_WORDS:
-                continue
-            qs = _list(_ret(returns, rid).get("questions"))
-            out += [_gate_draft(q, rows) for q in (gatemarks.row_texts(qs) if rid == "plan-review" else qs) if isinstance(q, str) and q.strip()]
+    rows = [*_fix_plan_rows(returns), *_face_rows(returns), *_world_rows(returns)]
+    asked = _list(_ret(returns, "eyes").get("questions"))
+    if _unattended(start) and as_dict(gates.get("gate-before-fix")).get("decision") not in oc.PASS_WORDS:
+        asked = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))) + asked
+    out = [_gate_draft(q, rows) for q in asked if isinstance(q, str) and q.strip()]
     missing = oc.unmeasured(returns)
     out += [_ask_draft(q, key) for q, key in ledger_state(returns, gates, start)["drafts"]]
     mats, _ = oc.materials(returns)
