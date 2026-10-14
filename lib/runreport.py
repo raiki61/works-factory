@@ -430,7 +430,7 @@ def answer_drafts(returns: dict, gates: dict, start: dict) -> list:
     ③問いの立っていない測れていない素材ごとに 1 行（materials.json の reason つき。依頼の answers が当たった素材は除く）
     同じ question の行は 1 度だけ。機械は関所にも問いにも答えない——下書きは依頼の入口が拒むので、人が見直してから使う"""
     rows = [*_fix_plan_rows(returns), *_face_rows(returns), *_world_rows(returns)]
-    asked = _list(_ret(returns, "eyes").get("questions"))
+    asked = oc.eye_questions(returns)
     if _unattended(start) and as_dict(gates.get("gate-before-fix")).get("decision") not in oc.PASS_WORDS:
         asked = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))) + asked
     out = [_gate_draft(q, rows) for q in asked if isinstance(q, str) and q.strip()]
@@ -960,7 +960,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     """人が決めることの行と、冒頭の 2 行目（件数）。数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは
     直す義務に戻せなかった単位の行を重ねて数えない。closed は途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
     plan_qs, plan_done = _plan_questions(returns, gates, start)
-    eye_qs = [q for q in _list(as_dict(returns.get("eyes")).get("questions")) if isinstance(q, str)]
+    eye_qs = oc.eye_questions(returns)
     ledger = ledger_state(returns, gates, start)
     held_ = [line for q, line in ledger["held"] if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_qs)]
     done = ledger["answered"] + [oneline.one_line(x) for x in plan_done]
@@ -1472,7 +1472,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     if stopped:
         decide = "。".join(x for x in (decide, apply[-1]) if x)
     asked_texts = [*_plan_questions(returns, gates, start)[0],
-                   *[q for q in _list(_ret(returns, "eyes").get("questions")) if isinstance(q, str)]]
+                   *oc.eye_questions(returns)]
     head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
         (report.DECISIONS_HEADING, [*unrestored_lines(returns), *backed_out_lines(returns), *decisions,

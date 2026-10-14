@@ -402,6 +402,12 @@ def plan_nothing_owed(returns: dict) -> bool:
     return isinstance(p, str) and bool(p) and planfile.nothing_owed(pathlib.Path(p).parent)
 
 
+def eye_questions(returns: dict) -> list:
+    """独立の目 R4 が人に回した問いの文（空白だけの行は問いに数えない）"""
+    asked = as_dict(returns.get("eyes")).get("questions")
+    return [q for q in asked if isinstance(q, str) and q.strip()] if isinstance(asked, list) else []
+
+
 def _waits(returns: dict, gates: dict, closed: bool, facts: dict | None) -> str:
     """3. 人待ち: 人に回した申し出（closed なら締めた案の直しの行も）・返りの人待ちの語・前提の検算の escalate・R4 が人に回した
     問い（元 report.decide_outcome の pending_human）・無人の run が残した修正前の問い"""
@@ -412,8 +418,7 @@ def _waits(returns: dict, gates: dict, closed: bool, facts: dict | None) -> str:
             return f"{rid}:{sr}"
     if as_dict(as_dict(returns.get("eyes")).get("premise_check")).get("verdict") == "escalate":
         return "eyes:premise-escalate"
-    asked = as_dict(returns.get("eyes")).get("questions")
-    if isinstance(asked, list) and any(isinstance(q, str) and q.strip() for q in asked):
+    if eye_questions(returns):
         return "eyes:r4-ask"
     review = plan_reviewed(returns)
     if review and review.get("ask_human") is True and gates.get("gate-before-fix") is None and returns.get("fix") is None:
