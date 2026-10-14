@@ -6,6 +6,7 @@ DraftsCase のうち報告の側の物を、盤面と関所の節の代わりに
 import hashlib
 import json
 import pathlib
+import shutil
 import sys
 import tempfile
 import unittest
@@ -25,6 +26,7 @@ import conflict  # noqa: E402
 import depth  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
+import fixture  # noqa: E402
 import outcome  # noqa: E402
 import outpurpose  # noqa: E402
 import planfile  # noqa: E402
@@ -37,6 +39,7 @@ import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import stopby  # noqa: E402
 from lib.tests.test_outcome import fixed_run  # noqa: E402
+from tests.bin.gitkit import git  # noqa: E402
 from lib.tests.test_plan_gate import DECIDED, FACE, FORK, FORK_UNIT, NARROW, WORLD_ROW  # noqa: E402
 
 UNATTENDED = {"run_id": "run-1", "unattended": "true"}
@@ -263,6 +266,22 @@ class BuildCase(Base):
         _, text, _ = self.build(transcript=None)
         got = self.section(text, report.READS_HEADING)
         self.assertIn("  - run の記録が読めない（", got)
+
+    def test_reads_in_the_fixture_copy_are_not_listed_twice(self):
+        """固定材料は run の置き場を丸ごと写すので、写しの下の reads-*.json を「4. 読んだ証拠と包み」に元の物と並べて出さない"""
+        repo = pathlib.Path(tempfile.mkdtemp(dir=self.dir.parent))
+        self.addCleanup(shutil.rmtree, repo)
+        git(repo, "init", "-q")
+        git(repo, "commit", "-q", "--allow-empty", "-m", "seed")
+        (self.dir / "judge" / "judge").mkdir(parents=True)
+        reads.collect(self.dir / "judge" / "judge", "judge", ["/p.md"], self.dir / "none" / "x" / reads.LOG, own=[], since="",
+                      repo=self.dir)
+        fixture.capture(self.dir, repo, run_id="run-1", carried={})
+        self.assertTrue((self.dir / fixture.DIR / fixture.COPY / "judge" / "judge" / "reads-judge.json").is_file())
+        _, text, _ = self.build(transcript=runreport.transcript_facts(rows_of(), exclude_prefix="report__"))
+        got = self.section(text, report.READS_HEADING)
+        self.assertEqual(got.count("reads-judge.json"), 1, got)
+        self.assertNotIn(fixture.DIR, got)
 
     def test_unrun_base_is_not_called_red(self):
         """走らせられなかった直す前のテスト（ok false・green false・red_cause incomplete）を「赤」と書かない（棚卸し T68）"""
