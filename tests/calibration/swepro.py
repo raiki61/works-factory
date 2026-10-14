@@ -28,6 +28,8 @@ bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json �
   訳を書き、予測の failed を立てる。ふつうの未解決（直せなかった）と分けて数える。BROKE（record_invalid・interrupted）は
   工場そのものが壊れて終わった結末で、人の判断を待っていないので stopped（人待ち）に入れない。
 - 期限を置かない（持ち主の決め no-timeouts）。Pro の 1 件の上限 PRO_SECONDS は、超えた事実を予測の pro_limit に残すだけ。
+  Harbor は --agent-timeout-multiplier inf が無いと作業の段を PRO_SECONDS で切るので、殻が起動の字で確かめ（unbounded）、
+  無ければ環境を起こす前に断る。旗が字に無い起動（harbor job resume・-c の設定のファイル）も断る。
 - 認証は ACCEPTED_AUTH だけを運ぶ。他（ゲートウェイ・Bedrock・Vertex）は殻が upload の前に断り、断った訳を予測の error に書く
   （state は AUTH_REFUSED、failed を立てる）。
 - 漏れの塞ぎ: 認証の変数（ACCEPTED_AUTH）はファイルで 1 回だけ上げ、inside が読んで消して自分の env に置く（docker の exec の
@@ -38,6 +40,7 @@ import argparse
 import contextlib
 import io
 import json
+import math
 import os
 import re
 import shlex
@@ -165,6 +168,21 @@ def setup_commands(claude_version: str, place: str = PLACE) -> list[tuple[str, s
         ("sandbox", "bwrap --ro-bind / / --unshare-user --unshare-net true "
                     "|| { echo 'Claude Code の sandbox（bwrap）がコンテナで立たない' >&2; exit 1; }"),
     ]
+
+
+def unbounded(argv: list[str]) -> bool:
+    """起動の字に --agent-timeout-multiplier inf が在るか（最後に現れた値で決める）。無ければ Harbor が作業の段を
+    課題の [agent] timeout_sec（PRO_SECONDS）で切る"""
+    flag, value = "--agent-timeout-multiplier", None
+    for i, arg in enumerate(argv):
+        if arg == flag and i + 1 < len(argv):
+            value = argv[i + 1]
+        elif arg.startswith(f"{flag}="):
+            value = arg.split("=", 1)[1]
+    try:
+        return value is not None and float(value) == math.inf
+    except ValueError:
+        return False
 
 
 def inside_command(producer: str, place: str = PLACE) -> str:

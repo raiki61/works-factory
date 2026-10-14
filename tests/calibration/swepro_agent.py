@@ -3,7 +3,8 @@ tests/calibration/swepro.py の頭。harbor を import するのはこのファ�
 
 ホストで動く薄い殻: setup で道具と工場の写しを課題のコンテナの /opt/works-bench に載せ、run で課題の入力と認証のファイルを
 上げて起こし役（swepro.py inside）を 1 回 exec し、/app の差分を model.patch に取り、起こし役の標準出力と予測を <試み>/agent/ に書く。
-命令の字は swepro.py が組む。期限を足さない（setup・exec とも上限なし。作業の段の上限は運び役の --agent-timeout-multiplier inf）。
+命令の字は swepro.py が組む。期限を足さない（setup・exec とも上限なし。作業の段の上限は --agent-timeout-multiplier inf で外し、
+付け忘れた起動は殻を作る時に断る）。
 """
 import json
 import math
@@ -32,6 +33,10 @@ class WorksBench(BaseAgent):
 
     def __init__(self, *args, producer: str, **kwargs):
         super().__init__(*args, **kwargs)
+        # Harbor は倍率を agent に渡さず、trial を同じプロセスで回すので、起動の字そのものを見る
+        if not swepro.unbounded(sys.argv):
+            raise ValueError("harbor run に --agent-timeout-multiplier inf が無い。付けないと Harbor が作業の段を "
+                             f"{swepro.PRO_SECONDS} 秒で切る（harbor job resume・-c の設定のファイルからの起動も旗が字に無いので断る）")
         self.producer = swepro.chosen(producer)
         version = run._claude_version(launcher.real_claude(os.environ))
         if not version:

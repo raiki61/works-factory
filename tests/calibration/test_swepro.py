@@ -109,6 +109,17 @@ class TaskInputsTest(unittest.TestCase):
         self.assertIn("test_cmd", graph["inputs"])
 
 
+class UnboundedTest(unittest.TestCase):
+    def test_only_an_infinite_multiplier_counts(self):
+        flag = "--agent-timeout-multiplier"
+        for argv, want in ((["harbor", "run", flag, "inf"], True), (["harbor", "run", f"{flag}=inf"], True),
+                           (["harbor", "run"], False), (["harbor", "run", flag, "2"], False),
+                           (["harbor", "run", flag, "inf", flag, "2"], False), (["harbor", "run", flag], False),
+                           (["harbor", "run", flag, "many"], False)):
+            with self.subTest(argv=argv):
+                self.assertEqual(swepro.unbounded(argv), want)
+
+
 class StoppedTest(unittest.TestCase):
     def test_paused_and_human_kinds_are_stopped(self):
         self.assertTrue(swepro.stopped("paused", ""))
@@ -464,6 +475,9 @@ class AgentTest(unittest.TestCase):
         sys.modules.pop("tests.calibration.swepro_agent", None)
         self.addCleanup(sys.modules.pop, "tests.calibration.swepro_agent", None)
         self.agent_module = importlib.import_module("tests.calibration.swepro_agent")
+        argv = mock.patch.object(sys, "argv", ["harbor", "run", "--agent-timeout-multiplier", "inf"])
+        argv.start()
+        self.addCleanup(argv.stop)
         self.environ(**{swepro.ACCEPTED_AUTH[0]: TOKEN})
         self.tempdir = self.tmp / "host-tmp"
         self.tempdir.mkdir()
@@ -562,6 +576,12 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(got["stopped"])
         run = [c.get("command") for c in self.environment.calls[self.environment.calls_after_setup:]]
         self.assertNotIn(f"cat {swepro.OUT}/{swepro.PATCH}", run)
+
+    def test_launch_without_unbounded_multiplier_is_refused(self):
+        with mock.patch.object(sys, "argv", ["harbor", "run", "-a", "x"]):
+            with self.assertRaises(ValueError) as caught:
+                self.agent()
+        self.assertIn("--agent-timeout-multiplier inf", str(caught.exception))
 
     def test_old_works_and_unknown_producers_are_refused(self):
         with self.assertRaises(ValueError) as caught:
