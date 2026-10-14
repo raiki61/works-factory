@@ -39,6 +39,7 @@ import design  # noqa: E402
 import diverted  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
+import fixture  # noqa: E402
 import entry as entrylib  # noqa: E402
 import eyeverdict  # noqa: E402
 import forge  # noqa: E402
@@ -1267,7 +1268,7 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
                  repo=None) -> list:
     s = as_dict(start)
     out = [f"始めの記録: run {s.get('run_id') or '—'}・元の版 {s.get('base_rev') or '—'}・テストの命令 {s.get('test_cmd') or '—'}・"
-           f"TDD の実行ファイル {s.get('tdd_suite') or '—'}・無人 {s.get(gatepolicy.UNATTENDED_KEY) or '—'}"]
+           f"TDD の実行ファイル {s.get('tdd_suite') or '—'}・無人 {s.get(gatepolicy.UNATTENDED_KEY) or '—'}", *fixture.lines(s)]
     shape = startrec.shape(s)
     if shape is not None:
         try:

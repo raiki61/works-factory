@@ -1539,6 +1539,16 @@ class LinesCase(Base):
         _, text, _ = self.build(start={"run_id": RUN, "final_gate": "when_needed"})
         self.assertIn("- 最後の承認ノード: when_needed", self.section(text, report.ENTRY_HEADING))
 
+    def test_entry_fixture_lines(self):
+        """#509: 固定材料から始めた run は写しの元の run を、写した run は次の run に渡すフォルダか写せなかった訳を入口の節に並べる"""
+        _, text, _ = self.build(start={"run_id": RUN, "fixture": {"source_run": "run-0"},
+                                       "fixture_captured": {"dir": "/x/fix-fixture", "error": ""}})
+        body = self.section(text, report.ENTRY_HEADING)
+        self.assertIn("- 固定材料から: run run-0 の修正の前の写し（", body)
+        self.assertIn("- 固定材料: /x/fix-fixture（次の run の入力 fix_fixture に渡すと、", body)
+        _, text, _ = self.build(start={"run_id": RUN, "fixture_captured": {"dir": "", "error": "OSError: 書けない"}})
+        self.assertIn("- 固定材料を写せなかった: OSError: 書けない", self.section(text, report.ENTRY_HEADING))
+
     def test_entry_lists_ran_and_skipped_stages_and_baseline(self):
         """入口の節に走った段・飛ばされた段・直す前のテストの色と赤の原因（元 report.py の入口の行）"""
         base = {"mode": "base", "ok": True, "green": False, "red_cause": "inherited"}
