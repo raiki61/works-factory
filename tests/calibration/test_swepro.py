@@ -734,6 +734,14 @@ def gost(env) -> dict:
     return json.loads(swepro.gost_config(env))
 
 
+def harbor_gost() -> tuple[int, int, str]:
+    """写しの gost.yaml の port・so_mark・許す一覧の道。写しの bin/network-policy はこれと同じ字を持つ"""
+    config = yaml.safe_load((SIDECAR / "gost.yaml").read_text(encoding="utf-8"))
+    [service] = config["services"]
+    [allowlist] = [b for b in config["bypasses"] if b["name"] == service["bypass"]]
+    return int(service["addr"].removeprefix(":")), service["metadata"]["so_mark"], allowlist["file"]["path"]
+
+
 class GostConfigTest(unittest.TestCase):
     PROXY = f"http://user:p%40ss{SECRET_WORD}@proxy.invalid:3128"
 
@@ -751,19 +759,9 @@ class GostConfigTest(unittest.TestCase):
         [node] = hop["nodes"]
         self.assertEqual(node["addr"], "proxy.invalid:3128")
         self.assertEqual(node["connector"], {"type": "http", "auth": {"username": "user", "password": f"p@ss{SECRET_WORD}"}})
-        self.assertEqual(node["metadata"]["so_mark"], swepro.GOST_MARK)
+        self.assertEqual(node["metadata"]["so_mark"], harbor_gost()[1])
         self.assertNotIn("bypass", hop)
         self.assertEqual([b["name"] for b in got["bypasses"]], ["allowlist"])
-
-    def test_allowlist_check_is_harbors_before_the_chain(self):
-        harbor = yaml.safe_load((SIDECAR / "gost.yaml").read_text(encoding="utf-8"))
-        got = gost({"HTTPS_PROXY": self.PROXY, "NO_PROXY": "localhost"})
-        [service] = got["services"]
-        del service["handler"]["chain"]
-        self.assertEqual(got["services"], harbor["services"])
-        allowlist = next(b for b in got["bypasses"] if b["name"] == service["bypass"])
-        self.assertEqual(allowlist, next(b for b in harbor["bypasses"] if b["name"] == service["bypass"]))
-        self.assertEqual((allowlist["file"]["path"], allowlist["whitelist"]), (swepro.GOST_ALLOWLIST, True))
 
     def test_which_proxy_is_chained(self):
         for env, addr in (({"HTTPS_PROXY": "http://a.invalid:1", "https_proxy": "http://b.invalid:2"}, "b.invalid:2"),
@@ -818,7 +816,8 @@ class EgressPolicyTest(unittest.TestCase):
         self.allowlist = self.tmp / "allowlist.txt"
         self.script = self.tmp / "network-policy"
         text = (SIDECAR / "bin" / "network-policy").read_text(encoding="utf-8")
-        line = f"ALLOWLIST={swepro.GOST_ALLOWLIST}\n"
+        self.port, self.mark, allowlist = harbor_gost()
+        line = f"ALLOWLIST={allowlist}\n"
         self.assertEqual(text.count(line), 1)
         self.script.write_text(text.replace(line, f"ALLOWLIST={self.allowlist}\n"), encoding="utf-8")
         fakes = self.tmp / "bin"
@@ -841,12 +840,13 @@ class EgressPolicyTest(unittest.TestCase):
             with self.subTest(args=args):
                 got, nft = self.policy(*args)
                 self.assertEqual(got, allowed)
-                self.assertIn(f"redirect to :{swepro.GOST_PORT}", nft)
-                self.assertIn(f"meta mark {swepro.GOST_MARK} accept", nft)
+                self.assertIn(f"redirect to :{self.port}", nft)
+                self.assertIn(f"meta mark {self.mark} accept", nft)
 
     def test_constants_match_the_gost_config(self):
         text = (SIDECAR / "bin" / "network-policy").read_text(encoding="utf-8")
-        for line in (f"ALLOWLIST={swepro.GOST_ALLOWLIST}", f"GOST_PORT={swepro.GOST_PORT}", f"GOST_MARK={swepro.GOST_MARK}"):
+        port, mark, allowlist = harbor_gost()
+        for line in (f"ALLOWLIST={allowlist}", f"GOST_PORT={port}", f"GOST_MARK={mark}"):
             self.assertIn(f"\n{line}\n", text)
 
 

@@ -108,8 +108,6 @@ PROXY_ENV = ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy
 EGRESS, EGRESS_FROM = HERE / "swepro_egress", "0.24.0"
 ENVIRONMENT = "tests.calibration.swepro_agent:WorksBenchDocker"
 GOST_CONFIG_ENV = "WORKS_BENCH_GOST_CONFIG"
-# 写しの bin/network-policy の GOST_PORT・GOST_MARK・ALLOWLIST と同じ字
-GOST_PORT, GOST_MARK, GOST_ALLOWLIST = 12345, 114514, "/opt/egress-sidecar/allowlist.txt"
 HOST_GATEWAY = "host.docker.internal"
 SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/auth.json", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
 INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
@@ -398,9 +396,8 @@ def _upstream_host(host: str) -> str:
 
 def gost_config(env) -> str | None:
     """試行の付き添いの gost の設定（JSON の字。YAML として読める）。上流のプロキシが無ければ None（Harbor 同梱の付き添いで走る）。
-    service と許す一覧の bypass は写しの gost.yaml のまま、handler が上流への chain を通る。許す一覧の照らし（SNI）は chain の
-    手前なので、エージェントの段の宛先はプロキシの有無で変わらない。NO_PROXY に当たる宛先は hop を飛ばして直に繋ぐ。
-    断る訳に URL・host・認証を書かない"""
+    写しの gost.yaml に、handler が上流への chain を通ることだけを足す。許す一覧の照らし（SNI）は chain の手前なので、エージェントの
+    段の宛先はプロキシの有無で変わらない。NO_PROXY に当たる宛先は hop を飛ばして直に繋ぐ。断る訳に URL・host・認証を書かない"""
     url = upstream(env)
     if url is None:
         return None
@@ -413,24 +410,23 @@ def gost_config(env) -> str | None:
         port = None
     if not parts.hostname or port is None:
         raise BenchError("上流のプロキシの URL に host か port が無い（http://<host>:<port> のプロキシだけを受ける）")
+    import yaml  # 課題のコンテナの中の起こし役（inside）は PyYAML の無い Python で、このファイルを読む
+    config = yaml.safe_load((EGRESS / "harbor-docker-egress-control-sidecar" / "gost.yaml").read_text(encoding="utf-8"))
+    [service] = config["services"]
+    service["handler"]["chain"] = "upstream"
     connector = {"type": "http"}
     if parts.username is not None:
         connector["auth"] = {"username": urllib.parse.unquote(parts.username),
                              "password": urllib.parse.unquote(parts.password or "")}
     hop = {"name": "upstream", "nodes": [{"name": "upstream", "addr": f"{_upstream_host(parts.hostname)}:{port}",
                                           "connector": connector, "dialer": {"type": "tcp"},
-                                          "metadata": {"so_mark": GOST_MARK}}]}
-    bypasses = [{"name": "allowlist", "whitelist": True, "reload": "1s", "file": {"path": GOST_ALLOWLIST}}]
+                                          "metadata": {"so_mark": service["metadata"]["so_mark"]}}]}
     patterns = no_proxy_patterns(proxies(env).get("no", ""))
     if patterns:
         hop["bypass"] = "no-proxy"
-        bypasses.append({"name": "no-proxy", "matchers": patterns})
-    service = {"name": "transparent-egress", "addr": f":{GOST_PORT}", "bypass": "allowlist",
-               "metadata": {"so_mark": GOST_MARK},
-               "handler": {"type": "red", "chain": "upstream",
-                           "metadata": {"sniffing": True, "sniffing.timeout": "5s", "sniffing.fallback": True}},
-               "listener": {"type": "red"}}
-    return json.dumps({"services": [service], "chains": [{"name": "upstream", "hops": [hop]}], "bypasses": bypasses})
+        config["bypasses"].append({"name": "no-proxy", "matchers": patterns})
+    config["chains"] = [{"name": "upstream", "hops": [hop]}]
+    return json.dumps(config)
 
 
 # ---------------------------------------------------------------- コンテナの中の起こし役
