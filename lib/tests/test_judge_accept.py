@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -1693,10 +1694,14 @@ class BriefCase(_RepoCase):
         start = self.start()
         ja.write_json(self.jdir / ja.START_FILE, start)
         ja.material_route(self.jdir, self.repo)
-        for role in ja.DIAGNOSE_OUT_ROLES:
+        slots = set(re.findall(r"\{\{\?out\.([\w.]+)\}\}", ja.DIAGNOSE_EXCERPT))
+        self.assertTrue(slots, "DIAGNOSE_EXCERPT に {{?out.<節>}} の穴が無い")
+        self.assertLessEqual(slots, set(ja.MATERIAL_ROLES.values()), "MATERIAL_ROLES に無い節を読む穴")
+        roles = [r for r, nid in ja.MATERIAL_ROLES.items() if nid in slots]
+        for role in roles:
             ja.write_json(self.jdir / ja.material_file(role), {"role": role, "materials": {}, "reply": {"mark": f"返答の印-{role}"}})
         text = pathlib.Path(ja.brief(self.jdir, self.repo, start, str(self.tmp / "REVIEW.md"))).read_text(encoding="utf-8")
-        for role in ja.DIAGNOSE_OUT_ROLES:
+        for role in roles:
             self.assertIn(f"返答の印-{role}", text, ja.MATERIAL_ROLES[role])
 
     def test_brief_carries_the_human_policy_cut_at_the_paste_cap(self):
