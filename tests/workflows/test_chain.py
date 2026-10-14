@@ -383,6 +383,7 @@ class FinalDiffCase(Tree):
         self.assertEqual((got["ok"], got["sealed"], got["apply"]), (False, None, None), got)
         self.assertIn("周 2（d2・子の run child-2）の差分を作れない", got["reason"])
         self.assertFalse((self.artifacts / chain.FINAL).exists(), "前の最後の差分が残った")
+        self.assertFalse((self.artifacts / chain.REPORT).exists(), "前の最後の差分を名指す chain.md が残った")
         self.assertEqual(run_result(start, got, *broken, artifacts=self.artifacts)["stop_reason"], got["reason"])
 
     def test_nothing_to_take_leaves_no_final_diff(self):
@@ -408,9 +409,13 @@ class FinalDiffCase(Tree):
                 self.assertEqual(got["act"], act)
                 self.assertEqual("止めていない" in report, act == "wait", report)
 
-    def test_refused_start_returns_nothing(self):
+    def test_refused_start_returns_nothing_and_leaves_no_earlier_report(self):
+        start, made = three_rounds(self.repo)
+        self.final(start, *made)
         got = self.final({"ok": False, "reason": "rounds は 1〜5"})
         self.assertEqual((got["ok"], got["reason"], got["sealed"], got["report"]), (False, "rounds は 1〜5", None, None))
+        self.assertFalse((self.artifacts / chain.FINAL).exists(), "前の最後の差分が残った")
+        self.assertFalse((self.artifacts / chain.REPORT).exists(), "前の最後の差分を名指す chain.md が残った")
 
 
 class ResultCase(Tree):
