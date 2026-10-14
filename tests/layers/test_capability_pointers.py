@@ -82,10 +82,18 @@ def current_value(text: str) -> str | None:
     return text.split(":", 1)[1].strip() if FIELD.match(text).group(1) == "今" else None
 
 
-def moved_rows() -> dict[str, str]:
-    """「今」の字を docs/works-parity.md へ移した行の鍵 `<ファイル> <行 ID>` → 印（MOVED_MARK か HOLE_MARK）"""
-    return {f"{where.split(':')[0]} {row}": value for where, row, text in row_fields()
-            if (value := current_value(text)) in (MOVED_MARK, HOLE_MARK)}
+def moved_rows(fields: list[tuple[str, str | None, str]]) -> dict[str, str]:
+    """「今」の字を docs/works-parity.md へ移した行の鍵 `<ファイル> <行 ID>` → 印（MOVED_MARK か HOLE_MARK）。fields は row_fields() の形。
+    2 度在る鍵は落とす（表の行と 1 つずつ合うことを照らすので、重ねた行を 1 つに畳まない）"""
+    found = {}
+    for where, row, text in fields:
+        if (value := current_value(text)) not in (MOVED_MARK, HOLE_MARK):
+            continue
+        key = f"{where.split(':')[0]} {row}"
+        if key in found:
+            raise ValueError(f"前の棚卸しの {key} の「今」が 2 度在る（{where}）")
+        found[key] = value
+    return found
 
 
 def pointing_fields() -> list[tuple[str, str]]:
@@ -214,6 +222,12 @@ class PointerCase(unittest.TestCase):
         found = [f"{where}: {line.strip()}" for where, text in pointing_fields()
                  for line in text.splitlines() if LINE_NUMBER.search(line)]
         self.assertEqual(found, [])
+
+    def test_moved_rows_refuse_a_duplicated_key(self):
+        field = ("line.md:3", "L-E01", f"  - 今: {MOVED_MARK}")
+        self.assertEqual(moved_rows([field]), {"line.md L-E01": MOVED_MARK})
+        with self.assertRaises(ValueError):
+            moved_rows([field, ("line.md:9", "L-E01", f"  - 今: {HOLE_MARK}")])
 
     def test_named_code_exists(self):
         self.assertEqual(missing(want_tests=False), [])

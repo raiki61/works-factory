@@ -15,7 +15,7 @@ import pathlib
 import re
 import unittest
 
-from tests.layers.test_capability_pointers import BARE_PATH, HOLE_MARK, LINE_NUMBER, MALFORMED, POINTER, ROOT, ROW_ID, exists, moved_rows
+from tests.layers.test_capability_pointers import BARE_PATH, HOLE_MARK, LINE_NUMBER, MALFORMED, POINTER, ROOT, ROW_ID, exists, moved_rows, row_fields
 
 TABLE = ROOT / "docs" / "works-parity.md"
 ROW = re.compile(r"^- ([SUK]\d+[a-z]?) ")
@@ -177,7 +177,7 @@ class WorksParityCase(unittest.TestCase):
     def test_moved_current_matches_the_inventory_marks(self):
         self.assertGreaterEqual(len(moved(TEXT)), 1100, "前の棚卸しの今の読み落とし")
         # 前の棚卸しの印が穴（HOLE_MARK）なのは、移した字が「無し」で始まる行だけ。tail.md の穴の数は印から数える
-        self.assertEqual({key: mark == HOLE_MARK for key, mark in moved_rows().items()},
+        self.assertEqual({key: mark == HOLE_MARK for key, mark in moved_rows(row_fields()).items()},
                          {key: text.startswith("無し") for key, text in moved(TEXT).items()})
 
     def test_moved_current_keeps_the_inventory_floors(self):
