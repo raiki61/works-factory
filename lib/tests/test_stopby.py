@@ -22,7 +22,7 @@ WORDS = frozenset({
     "works:plan-converge", "works:pr", "works:premises", "works:purpose", "works:refix", "works:rejudge",
     "works:rejudge-session", "works:replan", "works:scope-check", "works:tdd-repeat", "works:unrestored",
     "works:start-refused", "works:needs-human", "works:line-script",
-    "works:rule-give-up", "works:judge", "works:judge-verify", "works:spec", "works:material", "works:request",
+    "works:rule-give-up", "works:clash-ruled-give-up", "works:judge", "works:judge-verify", "works:spec", "works:material", "works:request",
 })
 # 線の script と境（workflows/line/scripts/・workflows/.shared/）で止めの語の字の写しを持ってよい所: lib を読めない時の返り
 # （lib を読めないので stopby を引けない）。値は stopby の定数と同じでなければならない

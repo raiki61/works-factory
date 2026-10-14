@@ -392,9 +392,12 @@ class RolesCase(unittest.TestCase):
         """#382: 合わせのループは join の後・申し出の照らしの前、裁定の後の合わせのループは裁定の輪の後・裁定の後の修正の輪の前（作業ツリーを
         変える 2 つの輪を順に）。上限の周は with: limit が持ち、輪の max_iterations と同じ（ずれれば片付けの前に輪の上限で節が落ちる）。
         支度・受け付けは 2 つの段で同じ script を pass で使い分ける。周ごとに組が替わりうるので、2 つの輪は毎周新しい会話
-        （fresh_context: true。false だと合わせ役が前の組の会話を持ったまま次の組を直す）"""
+        （fresh_context: true。false だと合わせ役が前の組の会話を持ったまま次の組を直す）。確かめ直しの赤は並べた run だけが控えるので、
+        合わせのループは並べた run だけで回り、申し出の照らしは飛ばしたループを待たずに回る"""
         self.assertEqual(self.nodes["clash-loop"]["depends_on"], ["join"])
+        self.assertEqual(self.nodes["clash-loop"]["when"], "$prep.output.par == true")
         self.assertIn("clash-loop", self.nodes["conflict-check"]["depends_on"])
+        self.assertEqual(self.nodes["conflict-check"]["trigger_rule"], "none_failed_min_one_success")
         self.assertEqual(self.nodes["clash-ruled-loop"]["depends_on"], ["conflict-check", "rule-loop"])
         self.assertIn("clash-ruled-loop", self.nodes["fix-ruled-loop"]["depends_on"])
         for loop, prep, accept, pass_ in (("clash-loop", "clash-prep", "clash-accept", "first"),
