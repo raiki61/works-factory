@@ -100,6 +100,8 @@ class RequestFileOwner(unittest.TestCase):
     """始めの記録の依頼のファイルを読む式は startrec.request_file の 1 か所（#393。盤面から読む conflict.request_file も、
     workflows の script もここを引く）"""
     READERS = {("workflows/line/scripts/start.py", "start", "asked"): "始めの記録を書く側が依頼の読みの dict から欄を写す",
+               ("workflows/line/scripts/start.py", "from_fixture", "asked"):
+                   "固定材料の run の始めの記録を書く側が、写しの依頼のファイルを今の依頼の読みの dict の物に替える",
                ("judge_accept.py", "request_container", "view"): "start_view が startrec.request_file で解き済みの view を読む",
                ("fixrules.py", "start_lines", ""): "役の指示書の run の値 values を読む（始めの記録ではない）",
                ("entryshape.py", "build", "inp"): "入口の変換が依頼の読みの dict から入口の入力の形を組む（始めの記録を書く前）"}

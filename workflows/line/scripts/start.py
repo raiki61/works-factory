@@ -8,6 +8,11 @@
 指し札で返す。差分も依頼の行も無い・入力の組み合わせが拒まれる時は、落ちずに ok: false と止めの理由の語を返す。後ろの節は
 when: で飛び、collect・report・result だけが走る（AI を起こす前に止める）。
 
+固定材料（fix_fixture。lib/fixture.py）を名指した run は、前の run の修正の前の置き場の写しを取り込み（照らしと拒みは
+fixture.adopt。拒みは AI の前）、始めの記録は写しの物を今の run の id・入力・版の控え・機能の切り替え・依頼のファイルの道にして書く。GitHub の読み・
+差分の測り・入口の形・方針の固め・PR のファイルは写しの物を使うので回さない。返りの from_fixture が真で、fixture が置き場の根の
+fixture.CARRIED（修正の段へ運ぶ値）のポインタ。後ろは直す前のテスト・判定・計画を飛ばし、fix-in がそれを受けて修正から始める。
+
 入力は線の inputs:（環境変数 INPUTS_<名>）。対象のリポジトリは節の作業の置き場（cwd）。
 """
 import json
@@ -25,6 +30,7 @@ with boundary.guarded_imports():
     import depth
     import entry
     import entryshape
+    import fixture
     import gatemarks
     import gatepolicy
     import ghreads
@@ -91,11 +97,24 @@ def words(raw: dict, repo: Path) -> dict:
         raise Refused(f"thickness={HEAVY} で足すノードがまだ無い（{' / '.join(t for t in THICKNESS if t)}）")
     if thickness not in THICKNESS:
         raise Refused(f"thickness={raw['thickness']!r} は知らない値（{' / '.join(t for t in THICKNESS if t)}）")
-    if raw["fix_fixture"].strip():
-        raise Refused("固定材料（fix_fixture）から修正を始める道はまだ無い（判定と修正案を作り直さずに修正から始めるには、"
-                      "fix のサブグラフが固定材料を受ける形が要る）。fix_fixture を空にして回す")
+    fix_fixture = fixture_dir(raw["fix_fixture"], repo)
+    if fix_fixture and spec:
+        raise Refused("仕様の段（spec=on）は固定材料（fix_fixture）と組めない（固定材料は判定と修正案が済んだ所の写しで、仕様の段は"
+                      "判定の中に在る）")
     return {**gate, "spec": spec, "design_only": design_only, "thickness": thickness, "features_off": off, "features_on": on,
-            "policy_md": policy_md(raw["policy_md"], repo)}
+            "policy_md": policy_md(raw["policy_md"], repo), "fix_fixture": fix_fixture}
+
+
+def fixture_dir(rel: str, repo: Path) -> str:
+    """固定材料のフォルダの絶対パス（名指しが無ければ空）。相対なら対象の根から。フォルダでなければ Refused（元 use.sh の
+    WORKS_USE_FIX_FIXTURE: 在るフォルダでなければ何も作らずに拒む）"""
+    rel = rel.strip()
+    if not rel:
+        return ""
+    path = Path(rel) if Path(rel).is_absolute() else repo / rel
+    if not path.is_dir():
+        raise Refused(f"名指した固定材料のフォルダ {rel} が無い（fix_fixture。前の run の報告の「固定材料」の行のフォルダを名指す）")
+    return str(path.resolve())
 
 
 def policy_md(rel: str, repo: Path) -> str:
@@ -160,8 +179,8 @@ def test_notes(raw: dict, repo: Path) -> list:
 
 def gate_text(shape: dict, record: dict, run_id: str, notes: list) -> str:
     happened = f"run を始める前で止まった。入口: {startrec.words(shape)}"
-    rest = [depth_words(record["inputs"], record), entry.features_part(record["features_off"], record["features_on"]),
-            gatepolicy.head_words(record), *notes]
+    rest = [*fixture.lines(record), depth_words(record["inputs"], record),
+            entry.features_part(record["features_off"], record["features_on"]), gatepolicy.head_words(record), *notes]
     lines = gatemarks.head3(happened, "この入力で run を始めるか、止めるか（打つ行は末尾の答え方）", gatemarks.NO_PUSH)
     lines += ["", *[f"- {x}" for x in rest if x], "", "答え方:",
               f"- 始める: {answer.line(run_id, 'continue', '<一言>')}",
@@ -175,11 +194,44 @@ def write(artifacts: Path, doc) -> dict:
     return boundary.pointer(startrec.REL)
 
 
+def features(checked: dict) -> dict:
+    """始めの記録の機能の切り替えの 4 つの欄"""
+    off, on = checked["features_off"], checked["features_on"]
+    return {entry.FEATURES_KEY: off, entry.FEATURES_ON_KEY: on, entry.FEATURES_CUT_KEY: entry.features_cut(off, on),
+            "features": entry.feature_words(off, on)}
+
+
+def from_fixture(raw: dict, checked: dict, asked: dict, repo: Path, artifacts: Path, run_id: str, versions_doc: dict) -> dict:
+    """固定材料を取り込んで始めの記録を書き、start の返りを組む。取り込めなければ Refused（何も書かない）"""
+    try:
+        doc, _ = fixture.adopt(artifacts, checked["fix_fixture"], repo, run_id=run_id, inputs=raw,
+                               request_text=asked["request_text"])
+    except fixture.FixtureRefused as error:
+        raise Refused(f"固定材料を取り込まない: {error}") from None
+    named = asked["request_file"]
+    doc.update({"versions": versions_doc, **features(checked), "request_file": named,
+                "input": {**startrec.shape(doc), "request_file": named}})
+    prior = boundary.pointer(carry.PRIOR_IN_FILE) if (artifacts / carry.PRIOR_IN_FILE).is_file() else None
+    return begun(doc, startrec.shape(doc), prior, raw, repo, artifacts, run_id, boundary.pointer(fixture.CARRIED))
+
+
+def begun(record: dict, shape: dict, prior, raw: dict, repo: Path, artifacts: Path, run_id: str, carried=None) -> dict:
+    """始めの記録 record を書き、start の通った返りを組む。carried は固定材料の run の運ぶ値のポインタ（ほかの run は None）"""
+    unattended = record[gatepolicy.UNATTENDED_KEY] == gatepolicy.UNATTENDED
+    return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, record), "prior_failures": prior,
+            "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
+            "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
+            "final_gate": record[gatepolicy.FINAL_KEY], "spec": bool(record["spec"]),
+            "from_fixture": carried is not None, "fixture": carried}
+
+
 def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
     record = {"run_id": run_id, "inputs": raw, "versions": version_record(boundary.lib_root().parent, raw, run_id)}
     try:
         checked = words(raw, repo)
         asked = request(raw, repo)
+        if checked["fix_fixture"]:
+            return from_fixture(raw, checked, asked, repo, artifacts, run_id, record["versions"])
         reads = entryshape.github_reads(artifacts, repo, raw)
         if reads is not None:
             ghreads.place(artifacts, reads)
@@ -197,7 +249,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         record["refused"] = str(error)
         return {"ok": False, "stop_reason": stopby.START_REFUSED, "reason": str(error),
                 "record": write(artifacts, record), "prior_failures": None, "ask": False, "gate_text": "",
-                "unattended": False, "design_only": False, "final_gate": "", "spec": False}
+                "unattended": False, "design_only": False, "final_gate": "", "spec": False, "from_fixture": False, "fixture": None}
     parts = asked["parts"]
     record.update({
         "input": shape, "base_rev": shape["head_rev"], "review_rev": shape["head_rev"], "request_file": asked["request_file"],
@@ -205,9 +257,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         gatepolicy.FINAL_KEY: checked[gatepolicy.FINAL_KEY], gatepolicy.UNATTENDED_KEY: checked[gatepolicy.UNATTENDED_KEY],
         "design_only": checked["design_only"], "thickness": checked["thickness"], "spec": checked["spec"],
         "policy_md": checked["policy_md"], "policy": policy.freeze(artifacts, repo, checked["policy_md"]), "lang": raw["lang"],
-        entry.FEATURES_KEY: checked["features_off"], entry.FEATURES_ON_KEY: checked["features_on"],
-        entry.FEATURES_CUT_KEY: entry.features_cut(checked["features_off"], checked["features_on"]),
-        "features": entry.feature_words(checked["features_off"], checked["features_on"]),
+        **features(checked),
         "answers": parts[carry.ANSWERS], "request_text": entryshape.request_text(inp),
         "pr_file": entryshape.write_pr_file(artifacts, inp),
     })
@@ -215,16 +265,13 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
     if parts[carry.PRIOR]:
         carry.place_prior(artifacts, parts[carry.PRIOR])
         prior = boundary.pointer(carry.PRIOR_IN_FILE)
-    unattended = record[gatepolicy.UNATTENDED_KEY] == gatepolicy.UNATTENDED
-    return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, record),
-            "prior_failures": prior, "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
-            "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
-            "final_gate": record[gatepolicy.FINAL_KEY], "spec": bool(record["spec"])}
+    return begun(record, shape, prior, raw, repo, artifacts, run_id)
 
 
 def fallback(reason: str) -> dict:
     return {"ok": False, "stop_reason": boundary.LINE_SCRIPT, "reason": reason, "record": None, "prior_failures": None,
-            "ask": False, "gate_text": "", "unattended": False, "design_only": False, "final_gate": "", "spec": False}
+            "ask": False, "gate_text": "", "unattended": False, "design_only": False, "final_gate": "", "spec": False, "from_fixture": False,
+            "fixture": None}
 
 
 if __name__ == "__main__":

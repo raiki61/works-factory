@@ -39,6 +39,7 @@ import design  # noqa: E402
 import diverted  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
+import fixture  # noqa: E402
 import entry as entrylib  # noqa: E402
 import eyeverdict  # noqa: E402
 import forge  # noqa: E402
@@ -1300,7 +1301,7 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
                  repo=None) -> list:
     s = as_dict(start)
     out = [f"始めの記録: run {s.get('run_id') or '—'}・元の版 {s.get('base_rev') or '—'}・テストの命令 {s.get('test_cmd') or '—'}・"
-           f"TDD の実行ファイル {s.get('tdd_suite') or '—'}・無人 {s.get(gatepolicy.UNATTENDED_KEY) or '—'}"]
+           f"TDD の実行ファイル {s.get('tdd_suite') or '—'}・無人 {s.get(gatepolicy.UNATTENDED_KEY) or '—'}", *fixture.lines(s)]
     shape = startrec.shape(s)
     if shape is not None:
         try:
@@ -1417,7 +1418,7 @@ SHOWN_FILES = 3   # 1 ノードの行に名を出すファイルの数
 
 def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, transcript_why: str, repo) -> list:
     """「4. 読んだ証拠と包み」の行: run の記録の道具の呼び（tfacts の calls）と、読んだ証拠の節が run の置き場 artifacts に書いた
-    reads-*.json（報告自身の置き場 out_dir の物を外す。索引は訳 why だけを出す）と、どちらでも取れない物"""
+    reads-*.json（報告自身の置き場 out_dir と、置き場を丸ごと写した固定材料の物を外す。索引は訳 why だけを出す）と、どちらでも取れない物"""
     calls = as_dict(tfacts.get("calls"))
     out = [CALLS_HEAD]
     if not tfacts.get("ok"):
@@ -1429,7 +1430,8 @@ def _reads_lines(tfacts: dict, artifacts: pathlib.Path, out_dir: pathlib.Path, t
         shown = "・".join(_shown(p, repo) for p in files[:SHOWN_FILES]) + (f" ほか {len(files) - SHOWN_FILES} 件" if len(files) > SHOWN_FILES else "")
         out.append(f"  - {step}: " + "・".join(f"{tool} {len(mine[tool])} 件" for tool in PATH_TOOLS) + (f"（ファイル: {shown}）" if files else ""))
     out.append(HOOK_HEAD)
-    found = sorted(p for p in artifacts.rglob(reads.EVIDENCE_GLOB) if out_dir not in p.parents)
+    skipped = (out_dir, artifacts / fixture.DIR)
+    found = sorted(p for p in artifacts.rglob(reads.EVIDENCE_GLOB) if not any(d in p.parents for d in skipped))
     out += [f"  - {x}" for p in found
             for x in (_index_lines(p, p.relative_to(artifacts).as_posix()) if reads.is_index(p.name)
                       else [_evidence_line(p, p.relative_to(artifacts).as_posix(), repo)])] \

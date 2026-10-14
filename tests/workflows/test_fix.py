@@ -210,7 +210,7 @@ class InputsCase(unittest.TestCase):
         self.assertEqual({k: inputs[k]["default"] for k in ("prior_conflicts", "plan_review", "notes")},
                          {"prior_conflicts": "null", "plan_review": "null", "notes": ""})
         line = {n["id"]: n for n in yaml.safe_load((ROOT / "workflows" / "line" / "works-factory-line.yaml").read_text(encoding="utf-8"))["nodes"]}
-        self.assertEqual(line["fix"]["with"]["plan_review"], "$plan-rounds.output.review")
+        self.assertEqual(line["fix"]["with"]["plan_review"], "$fix-in.output.review")
         self.assertEqual({k: line["refix-run"]["with"][k] for k in ("prior_conflicts", "plan_review", "notes")},
                          {"prior_conflicts": "$fix.output.conflicts", "plan_review": "$replan-review.output.review",
                           "notes": "$answer-replan.output.fix_notes"})
