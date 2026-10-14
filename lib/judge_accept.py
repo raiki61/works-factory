@@ -698,25 +698,20 @@ def _save_examples(jdir, examples) -> None:
         querytest.save(jdir, examples, replace=True)
 
 
-# 元 works/blk-material/lib/material.py:65-73 の ROLES の P1 の 9 本（写しの graph の p1.* の役の節）
-P1_NODES = ("p1.local_review", "p1.consistency_bypass", "p1.hygiene", "p1.external_standards", "p1.procedure_trace",
-            "p1.gate_efficacy", "p1.test_double_fidelity", "p1.main_path_observation", "p1.provenance")
-
-
 def material_rows(jdir) -> list:
     """元 works/.shared/core/outpurpose.py:87。材料の行: P1 の目の素材の役が受けた返答（置き場の material-<役>.json の reply。元は
     盤面の p1.* の節の最新の出力）の中の where・text を持つ行の全部と、依頼のバッチ（request_batches）の行。行は {where, text,
     任意の mechanism・measured・false_positive_if, from（出どころの節と目の名、依頼はバッチの出どころ）}。
-    出どころの節の名は元の写しの graph の名（p1.<役の名の - を _ に>）"""
+    出どころの節の名は MATERIAL_ROLES の写しの graph の節の名（P1 の目は p1.* の節。P0 の役と知らない役は読まない）"""
     out = []
     replies = {}
     for p in role_material_files(jdir):
         d = read_json(p, None)
-        if isinstance(d, dict) and isinstance(d.get("role"), str):
-            replies[f"p1.{d['role'].replace('-', '_')}"] = d.get("reply")
+        nid = MATERIAL_ROLES.get(d.get("role")) if isinstance(d, dict) and isinstance(d.get("role"), str) else None
+        if nid and nid.startswith("p1."):
+            replies[nid] = d.get("reply")
     for nid in sorted(replies):
-        if nid in P1_NODES:
-            outpurpose._walk(replies[nid], nid, out)
+        outpurpose._walk(replies[nid], nid, out)
     for batch in request_batches(jdir, _start_of(jdir)):
         outpurpose._walk(batch["findings"], f"依頼（{batch['origin']}）", out)
     return out
