@@ -90,6 +90,8 @@ UNATTENDED_STOP = "無人の run（WORKS_USE_UNATTENDED=1）: 人が決める関
 STATES = {"running": "running", "pending": "running", "paused": "paused", "completed": DONE}   # Archon の run の status → run_one の分かれ
 RECORDED = ("units", "asks")   # 関門でなく unread に入りうる observed の欄
 NOT_ASKED = ("skipped", "pending")
+# get --verbose の記録は --events を足すと nodes を落とすので、出来事の列は親の記録とは別のファイルに写す
+EVENTS = "record/parent-events.json"
 
 
 class Stop(Exception):
@@ -143,13 +145,13 @@ class WorksFactory:
         except evidence.Stop as e:
             raise Stop(STOPPED, f"家 {attempt / 'home'} の run を読めない: {e}") from None
 
-    def _get(self, attempt: Path, run_id: str) -> dict:
+    def _get(self, attempt: Path, run_id: str, *flags: str, failed: str = "の記録を読めない") -> dict:
         try:
-            got = evidence.read_json(attempt, "get", run_id, "--json", shell=self.shell)
+            got = evidence.read_json(attempt, "get", run_id, "--json", *flags, shell=self.shell)
         except evidence.Stop as e:
-            raise Stop(STOPPED, f"run {run_id} の記録を読めない: {e}") from None
+            raise Stop(STOPPED, f"run {run_id} {failed}: {e}") from None
         if not isinstance(got, dict):
-            raise Stop(STOPPED, f"run {run_id} の workflow get の返りが dict でない")
+            raise Stop(STOPPED, f"run {run_id} {failed}: workflow get の返りが dict でない")
         return got
 
     def state(self, attempt: Path, run_id: str) -> str:
@@ -174,6 +176,9 @@ class WorksFactory:
             raise Stop(STOPPED, f"run {run_id} の記録を evidence/ に写せない: {e}") from None
         for limit in kept["limits"]:
             print(f"run.py: {limit}（その置き場を読む照らしは unread になる）", file=sys.stderr)
+        events = self._get(attempt, run_id, "--verbose", "--events", failed="の出来事の列を evidence/ に写せない")
+        (attempt / evidence.EVIDENCE / EVENTS).write_text(
+            json.dumps({"events": _events(events)}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         return {**self.ended(attempt / evidence.EVIDENCE), "children": kept["children"]}
 
     @staticmethod
@@ -182,7 +187,7 @@ class WorksFactory:
         value = _object(_object(got.get("terminal_record")).get("returns")).get("value")
         outcome = value.get("outcome") if isinstance(value, dict) else None
         return {"outcome": outcome if isinstance(outcome, str) else "",
-                "seconds": _seconds(got.get("started_at"), got.get("completed_at")),
+                "seconds": _span(_events(_read_json(ev, EVENTS)[0]), got.get("completed_at")),
                 "usd": _number(_object(got.get("metadata")).get("total_cost_usd")),
                 "usd_from": "run の記録の metadata.total_cost_usd（fix の組の子の run の費用を含む）"}
 
@@ -365,7 +370,7 @@ class OldWorks:
         usd = next((e["data"].get("cost_usd") for e in _events(got)
                     if e.get("event_type") == "workflow_completed" and isinstance(e.get("data"), dict)), None)
         return {"outcome": _header_outcome(ev / "board"),
-                "seconds": _seconds(run.get("started_at"), run.get("completed_at")),
+                "seconds": _span(_events(got), run.get("completed_at")),
                 "usd": _number(usd),
                 "usd_from": "出来事 workflow_completed の data.cost_usd"}
 
@@ -455,7 +460,9 @@ def _json_or_text(raw):
         return raw
 
 
-def _seconds(start, end) -> float | None:
+def _span(events: list[dict], end) -> float | None:
+    """Archon は再開のたびに run の行の started_at を書き直すので、run の始めは最初の出来事の時刻"""
+    start = next((e["created_at"] for e in events if e.get("created_at")), None)
     try:
         began, ended = (datetime.datetime.fromisoformat(str(t).replace(" ", "T").replace("Z", "+00:00")) for t in (start, end))
         if (began.tzinfo is None) != (ended.tzinfo is None):
@@ -697,7 +704,7 @@ def observe(row, factory, run_id, ended, ev: Path, flags, corpus_path, made: dic
         "units": read["units"][0], "asks": read["asks"][0],
         "cost": {"usd": ended["usd"], "seconds": seconds, "why_null": "。".join(
             ([] if ended["usd"] is not None else [f"usd: {ended['usd_from']} が読めない"])
-            + ([] if seconds is not None else ["seconds: run の記録の始めと終わりの時刻が読めない"]))},
+            + ([] if seconds is not None else ["seconds: run の最初の出来事と終わりの時刻が読めない"]))},
         "provenance": {**made, "fingerprint": fingerprint(factory.name, corpus_path, flags)},
     }
 

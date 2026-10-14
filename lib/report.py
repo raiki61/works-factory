@@ -9,7 +9,7 @@ lib/runreport（機械の報告・次の依頼・前の失敗・費用）に移�
 - prior_lines(rows, next_file): 次の run に運んだ落ちた理由の節の行
 - tdd_lines(stages)・freeze_lines(stages): 修正の段ごとの TDD の輪の単位の結末の行（keep-essence の 11）と、輪を回していない段で
   テストの凍結が効いていないと言う冒頭 2 の行（keep-essence の 3）
-- INNER_WORDS・INNER_WORD・INNER_WORDS_HEAD・HUNK_NEW: 直しが対象に書く文に混じってはいけない works の内側の語の照らし
+- INNER_WORDS・INNER_WORD・INNER_WORDS_HEAD: 直しが対象に書く文に混じってはいけない works の内側の語の照らし
 
 書き手のモジュール（ライン・ブロック）を import せずに名前で読む（層 L3 は上の層を import しない。裁定 R59）。
 """
@@ -79,7 +79,6 @@ INNER_WORDS = ("この単位", "単位の key", "作業ツリー", "共有ボー
                "承認ノード", "関所")
 INNER_WORD = re.compile("|".join(re.escape(w) + ("(?!辺)" if w == "この周" else "") for w in INNER_WORDS))   # 「この周辺」は除く
 INNER_WORDS_HEAD = "直しが対象に足した行に works の内側の語（対象の読み手に通じない。当てる前に言い換えるかを決める）"
-HUNK_NEW = re.compile(r"^@@ -\S+ \+(\d+)")
 
 
 # ---------------------------------------------------------------- 小道具

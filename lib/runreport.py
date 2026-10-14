@@ -801,19 +801,11 @@ def inner_word_lines(diff_path, known) -> list:
         return [f"差分 {diff_path} が読めない（{type(e).__name__}）——内側の語を確かめていない"]
     seen, rows = {}, []
     for path, lines in changemap.split_diff(text)[0].items():
-        n = 0
-        for ln in lines:
-            m = report.HUNK_NEW.match(ln)
-            if m:
-                n = int(m.group(1))
-                continue
-            if ln.startswith("-"):
-                continue
+        for n, ln in changemap.new_side(lines):
             words = list(dict.fromkeys(report.INNER_WORD.findall(ln))) if ln.startswith("+") else []
             words = [w for w in words if not seen.setdefault(w, known(w))]
             if words:
                 rows.append(f"{path}:{n}（{'・'.join(words)}）: {oneline.one_line(ln[1:].strip())}")
-            n += 1
     return [f"{report.INNER_WORDS_HEAD}: {len(rows)} 件", *[f"  - {r}" for r in rows]] if rows else []
 
 

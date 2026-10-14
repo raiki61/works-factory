@@ -213,6 +213,12 @@ R2_MEASURED = ("## テストの実測と累積差分の起点（機械が測っ�
                "起点が PR の根で累積差分が空なら、本体を直していないのではなく、直しが PR の変更を打ち消したことがある。\n\n"
                "$prep.output.measured_text\n\n### 累積差分の起点\n\n$prep.output.origin_text\n\n"
                f"{MEASURED_ASK}実測が「測っていない」「無い」と書いている物は、推し量って満たしたことにしない。\n\n---\n\n")
+# 前提の検算に貼る機械の実測と起点の訳（元に無い。issue #418: この run の直しを未コミットの変更として人に聞かせない）
+FIX_IS_THIS_RUN = ("作業ツリーが修正前の HEAD と違う所（上の「この run の直しの差分」が名指すファイル）は、この run の直しである。人に確かめる"
+                   "未コミットの変更ではないので、それを問いにして escalate しない。")
+PREMISE_MEASURED = ("\nテストの実測（機械が測った）:\n$prep.output.measured_text\n累積差分の起点（機械が測った）:\n$prep.output.origin_text\n"
+                    f"{FIX_IS_THIS_RUN}仮定の検算で作業ツリーと修正前の HEAD の違いに当たったら、それがこの run の直しか審査する変更"
+                    "（PR の差分）かを、上の訳で分けて読め。\n")
 
 # engine の差し込み {{…}} の字（本線の周の値）を、prep の欄（この run の値）に替えた直し
 REVISION_READ = ("**読むのは、この周に固定したリビジョン**であって、生きた作業ツリーの今の姿ではない。`git -C <リポジトリ> show <版>:<パス>` や "
@@ -296,6 +302,7 @@ COPIED_TEXTS = {
         # 1 run は 1 周なので、R2 を回し直すのは次の run（今の works は engine が同じ run の次の周で回し直した）
         ("engine が実測を制約に足し、次の周で R2 を回し直す。台帳の行はその周の judge",
          "1 run は 1 周なので、この run では R2 を回し直さない。実測を制約に足して R2 を回し直すのは次の run で、台帳の行はその run の judge"),
+        ("", PREMISE_MEASURED),
         ("", ANSWER),
     ]),
     "r3-coherence.md": (WORKS_GL + "r3.coherence.md", "4a2d542f93f75a9b1fc54bda48ef842cac3edc520d844af3e6610298c4d9e49e", [
@@ -559,6 +566,13 @@ class ShapeCase(unittest.TestCase):
         self.assertLessEqual({"design_reply", "constraints_text"}, prep_reads(check))
         self.assertIn("前の周と同じ能力なら同じ文で書け", (BLOCK / "commands" / "r4-scope.md").read_text(encoding="utf-8"))
 
+    def test_premise_check_gets_the_measurements_and_the_origin(self):
+        """issue #418: 前提の検算は prep が組む実測と起点の訳を受け、作業ツリーと修正前の HEAD の違いをこの run の直しと読む"""
+        text = (BLOCK / "commands" / "premise-check.md").read_text(encoding="utf-8")
+        self.assertLessEqual({"measured_text", "origin_text"}, prep_reads(text))
+        self.assertLess(text.index("$prep.output.origin_text"), text.index(FIX_IS_THIS_RUN))
+        self.assertIn(f"「{eyeverdict.FIX_DIFF_ROW}」", FIX_IS_THIS_RUN)
+
     def test_concept_map_is_pasted_after_the_concept_head(self):
         """concepthome の R1_HEAD・R3_HEAD は『考えの住処の地図』のセクションを「機械がこのセクションの後ろに貼った」と読ませる"""
         for name, field, head in (("r1-minimality", "r1_head", concepthome.R1_HEAD), ("r3-coherence", "r3_head", concepthome.R3_HEAD)):
@@ -649,6 +663,17 @@ class FixtureCase(unittest.TestCase):
         self.assertEqual(len(json.loads(inputs["diffs"])), 1)
         self.assertIn("赤→緑（", doc["prep"]["measured_text"])
         self.assertIn("起点は", doc["prep"]["origin_text"])
+
+
+    def test_premise_fixture_pastes_the_origin_into_the_premise_check(self):
+        """issue #418: 筋書き premise の prep の値を前提の検算の指示書に差し込むと、起点の訳と実測が載る（指示書が読む欄は全部在る）"""
+        prep = yaml.safe_load((BLOCK / "fixtures" / "premise.stubs.yaml").read_text(encoding="utf-8"))["prep"]
+        text = (BLOCK / "commands" / "premise-check.md").read_text(encoding="utf-8")
+        self.assertLessEqual(prep_reads(text), set(prep))
+        filled = re.sub(r"\$prep\.output\.([A-Za-z0-9_]+)", lambda m: str(prep[m.group(1)]), text)
+        self.assertIn(prep["origin_text"], filled)
+        self.assertIn(eyeverdict.FIX_DIFF_ROW, prep["origin_text"])
+        self.assertIn(prep["measured_text"], filled)
 
 
 class ScriptCase(unittest.TestCase):

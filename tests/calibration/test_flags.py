@@ -10,9 +10,14 @@ import tempfile
 import unittest
 from unittest import mock
 
+import yaml
+
 from tests.calibration import corpus
 from tests.calibration import run as runner
 from tests.e2e import evidence
+
+import judge_accept  # noqa: E402  lib/ は corpus が sys.path に足す
+import prcheck  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
@@ -30,10 +35,59 @@ SILENT = {
 }
 WHERE_HEADS = {"works": ("board/", "record/"), "works-factory": ("parent/", "child-*/", "record/")}
 OWNER_WORDS = ("/Users/", "/home/", "/private/", "KEYCHAIN")
+JUDGE = ROOT / "workflows" / "judge" / "works-factory-judge.yaml"
+REPLY = "reply."
 
 
 def _table():
     return runner.load_flags()
+
+
+def _nodes(doc):
+    if isinstance(doc, dict):
+        if isinstance(doc.get("id"), str):
+            yield doc
+        for value in doc.values():
+            yield from _nodes(value)
+    elif isinstance(doc, list):
+        for value in doc:
+            yield from _nodes(value)
+
+
+def _reply_schemas(doc) -> dict:
+    """material-*.json を書く受け付けは 2 つ: material_accept は material-<with.role>.json に、with.reply に受けた書き手の節の返答を
+    そのまま写す。pr_accept は judge_accept.MATERIAL_PR_FILE に、返答から prcheck.EXCLUDED_FIELD を外した物を写す（同じ置き場を
+    書く pr_scan の返答は、その残りの欄の部分集合）。置き場の名 → 置き場が持つ reply の schema"""
+    nodes = {n["id"]: n for n in _nodes(doc)}
+    files = {"material_accept": (lambda given: f"material-{given['role']}.json", ()),
+             "pr_accept": (lambda given: judge_accept.MATERIAL_PR_FILE, (prcheck.EXCLUDED_FIELD,))}
+    schemas = {}
+    for node in nodes.values():
+        if node.get("script") in files:
+            given = node["with"]
+            name, dropped = files[node["script"]]
+            writer = re.fullmatch(r"\$([\w-]+)\.output", given["reply"])[1]
+            schema = nodes[writer]["output_format"]
+            schemas[f"parent/judge/{name(given)}"] = {
+                **schema,
+                "properties": {k: v for k, v in schema["properties"].items() if k not in dropped},
+                "required": [k for k in schema.get("required", []) if k not in dropped]}
+    return schemas
+
+
+def _schema_problem(schema: dict, path: str) -> str | None:
+    """照らしの path（. 区切り、* と数は並びの要素）を JSON Schema の properties・items で辿れるか"""
+    for part in path.split("."):
+        if part == "*" or part.isdigit():
+            if schema.get("type") != "array":
+                return f"{part}: 並びでない"
+            schema = schema.get("items") or {}
+        else:
+            properties = schema.get("properties") or {}
+            if part not in properties:
+                return f"{part}: output_format の properties に無い（在る欄: {sorted(properties)}）"
+            schema = properties[part]
+    return None
 
 
 class FlagTableTest(unittest.TestCase):
@@ -74,6 +128,23 @@ class FlagTableTest(unittest.TestCase):
         self.assertIsNotNone(evidence.rule_problem({"check": "exists", "where": "../x"}))
         self.assertIsNotNone(evidence.rule_problem({"check": "json-has", "where": "x"}))
         self.assertIsNotNone(evidence.rule_problem({"check": "regex", "where": "x"}))
+
+    def test_works_factory_reply_paths_follow_the_writers_output_format(self):
+        schemas = _reply_schemas(yaml.safe_load(JUDGE.read_text(encoding="utf-8")))
+        replies = [(gate, rule) for gate, entry in _table()[runner.WorksFactory.name].items()
+                   for rule in entry.get("rules", []) if rule.get("path", "").startswith(REPLY)]
+        self.assertTrue(replies)
+        for gate, rule in replies:
+            with self.subTest(gate=gate, rule=rule):
+                self.assertIn(rule["where"], sorted(schemas))
+                self.assertIsNone(_schema_problem(schemas[rule["where"]], rule["path"].removeprefix(REPLY)))
+        local = schemas["parent/judge/material-local-review.json"]
+        self.assertIsNotNone(_schema_problem(local, "findings.*.item.0"))
+        self.assertIsNotNone(_schema_problem(local, "findings.skill"))
+        self.assertIsNotNone(_schema_problem(local, "verdict"))
+        pr = schemas[f"parent/judge/{judge_accept.MATERIAL_PR_FILE}"]
+        self.assertIsNone(_schema_problem(pr, "conflicts.0"))
+        self.assertIsNotNone(_schema_problem(pr, f"{prcheck.EXCLUDED_FIELD}.0"))
 
     def test_flags_from_synthetic_evidence(self):
         table = {
@@ -124,6 +195,37 @@ class FlagTableTest(unittest.TestCase):
         self.assertEqual(got["flag_evidence"]["r1.minimality"], "skipped")
         self.assertNotIn("p1.provenance", got["unread"])
         self.assertIn("p1.gate_efficacy", got["unread"])
+
+    def test_works_factory_local_review_needs_items_not_lens_rows(self):
+        """局所レビューはレンズ 1 本につき findings の行を必ず返すので、行だけ（items が空）では立たず、items に中身がある時だけ立つ"""
+        table = _table()[runner.WorksFactory.name]
+        rows = [{"skill": "code-review", "items": [], "invoked": True, "failed": "起こしたが所見なし"},
+                {"skill": "simplify", "items": [], "invoked": True, "failed": "起こしたが所見なし"}]
+        for items, flagged in (([], []), ([{"where": "a.py:1", "text": "境界で落ちる"}], ["p1.local_review"])):
+            with self.subTest(items=items), tempfile.TemporaryDirectory() as tmp:
+                ev = pathlib.Path(tmp)
+                (ev / "parent" / "judge").mkdir(parents=True)
+                reply = {"findings": [rows[0], {**rows[1], "items": items}]}
+                (ev / "parent" / "judge" / "material-local-review.json").write_text(json.dumps(
+                    {"materials": {"local_review": {"status": "clean"}}, "reply": reply}), encoding="utf-8")
+                got = runner.flags_of({"p1.local_review": table["p1.local_review"]}, ev, set())
+                self.assertEqual(got["flagged"], flagged)
+
+    def test_hidden_scope_counts_surfaced_alike_in_both_factories(self):
+        """仕込みに当たらない suggest（surfaced）だけの R4 の返りは、どちらの工場でも返りを読んだうえで旗を立てない。
+        policy_conflicts に中身があれば両工場とも立つ（返りを読まずに flagged が空になったのでないことの対照）"""
+        quiet = {"status": "pass", "reason": "仕込みの範囲の外の所見だけ", "capability_inventory": {"fired": True, "lost": []},
+                 "policy_conflicts": [], "surfaced": [{"where": "b.py:3", "text": "別の所見"}], "seen": [], "unseen": []}
+        places = {runner.OldWorks.name: "board/out/r1/r4.hidden_scope.json",
+                  runner.WorksFactory.name: "parent/eyes/r4.json"}
+        for factory, where in places.items():
+            for reply, flagged in ((quiet, []), ({**quiet, "policy_conflicts": ["決めに反する"]}, ["r4.hidden_scope"])):
+                with self.subTest(factory=factory, flagged=flagged), tempfile.TemporaryDirectory() as tmp:
+                    ev = pathlib.Path(tmp)
+                    (ev / where).parent.mkdir(parents=True)
+                    (ev / where).write_text(json.dumps(reply), encoding="utf-8")
+                    got = runner.flags_of({"r4.hidden_scope": _table()[factory]["r4.hidden_scope"]}, ev, set())
+                    self.assertEqual((got["flagged"], got["unread"]), (flagged, []))
 
     def test_test_gate_flags_read_the_evidence_of_a_fallen_result(self):
         """返す節 test-gate/result が落ちた時に今書く evidence.md で、p0.local_checks・p4.ci の旗が立つ"""

@@ -4,6 +4,6 @@ nodes:
   - id: gate
     approval:
       message: m
-      decisions: [{ id: approve }, { id: stop }, { id: reject }]
+      decisions: [{ id: approve }, { id: continue }, { id: stop }, { id: reject }]
       on_reject: { prompt: 直す }
     idle_timeout: 1728000000

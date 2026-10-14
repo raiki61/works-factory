@@ -101,6 +101,20 @@ def split_diff(text):
     return files, renames
 
 
+HUNK_NEW = re.compile(r"^@@ -\S+ \+(\d+)")
+
+
+def new_side(hunk_lines):
+    """split_diff の 1 ファイルの行のうち新しい側の行（'+' と ' '）を (新しい側の行番号, 行) で。@@ 行と '-' の行は出さない"""
+    n = 0
+    for ln in hunk_lines:
+        if m := HUNK_NEW.match(ln):
+            n = int(m.group(1))
+        elif not ln.startswith("-"):
+            yield n, ln
+            n += 1
+
+
 def added_lines(hunk_lines):
     return [ln[1:] for ln in hunk_lines if ln.startswith("+")]
 

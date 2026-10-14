@@ -88,6 +88,9 @@ R2_TAKEN = ("元の目的:\n{{out.p0.purpose.purpose_text}}\n\n実測した制�
             "前提のドリフト（あれば）: {{?loop.drift_notes}}\n"
             "裏取りを通っていない目的の判定（あれば）: {{?loop.purpose_review_stale}}——この周の『狭めている』は根拠が数え直されていないので、"
             "目的を独立に取れない理由としては使えない\n")
+# 独立設計の指示書に足した 1 文（issue #418）: 印 boardview.ADDED_MARK の付いた制約は審査する変更そのもの
+ADDED_ASK = ("実測した制約のうち欄 mark（「審査する変更 <起点>..<HEAD> が足した行」）を持つ物は、審査する変更そのものが足した行を"
+             "名指している。それを「既存機構で自明」の根拠に数えるな——問いが立つかは、審査する変更の前の姿で見よ。")
 COPIED = {
     "plan-review.md": (
         [("works/.shared/core/agents/judge.md", "078d6834af474542db794660277ea99673c1df7791e797ac2b6a17932fcb181c", 3225),
@@ -123,7 +126,8 @@ COPIED = {
          ("人へ）。\n", "人へ）。根拠に実物を名指すなら `<パス>:<行>` の形で書け（受け付けが依頼を固めた版で検算する）。\n",
           "問いが立たない根拠の名指しの形（受け付けが固めた版で照らす）"),
          ("比較役がやる。\n", "比較役がやる。\n\n返すのは JSON だけ: question_stands（問いが立つか）・reason（判断の理由）・"
-          "premise_invalid_reason（問いが立たない時の根拠）・design（独立設計）。\n", "返し方の 1 行")]),
+          "premise_invalid_reason（問いが立たない時の根拠）・design（独立設計）。\n", "返し方の 1 行"),
+         ("", ADDED_ASK, "審査する変更が足した行の印を持つ制約を、既存機構で自明の根拠に数えさせない（issue #418）")]),
 }
 
 
@@ -666,6 +670,69 @@ class IsolationCase(RunCase):
         self.assertIn(design.MAP_HEAD, prompt)
 
 
+
+class AddedMarkCase(RunCase):
+    """issue #418: 実測した制約が名指す行を審査する変更（入口の差分の根 → 修正前の HEAD）が足したなら、独立設計の支度がその制約に
+    印を付ける。独立設計はその印の制約を既存機構で自明の根拠に数えない"""
+
+    def setUp(self):
+        super().setUp()
+        r = self.run_
+        self.root = git(r.repo, "rev-parse", "HEAD")
+        stats = r.repo / "stats.py"
+        before = stats.read_text(encoding="utf-8").splitlines()
+        stats.write_text("\n".join([*before, "", "", "def median(xs):", "    return sorted(xs)[len(xs) // 2]"]) + "\n",
+                         encoding="utf-8")
+        git(r.repo, "commit", "-qam", "審査する変更")
+        self.head = git(r.repo, "rev-parse", "HEAD")
+        self.added = len(before) + 3
+        self.old = 5
+
+    def constraints(self, line: int) -> list:
+        return [{"text": f"中央値の口は既に在る（stats.py:{line}）", "measured_how": "読んだ", "kind": "実測",
+                 "measured_output": "x"}]
+
+    def prompt(self, line: int, base: str) -> str:
+        r = self.run_
+        r.judgment(constraints=self.constraints(line))
+        r.start(input={"base": {"rev": base, "label": "PR の根"}})
+        return r.out("r2_prep")["prompt"]
+
+    def test_constraint_naming_an_added_line_is_marked(self):
+        mark = boardview.ADDED_MARK.format(base=self.root[:12], head=self.head[:12], where=f"stats.py:{self.added}")
+        self.assertIn(json.dumps(mark, ensure_ascii=False), self.prompt(self.added, self.root))
+
+    def test_grep_output_naming_an_added_line_is_marked(self):
+        """名指しが measured_output の `grep -n` の出力（<パス>:<行>:<中身>）にだけ在っても付ける"""
+        r = self.run_
+        r.judgment(constraints=[{"text": "中央値の口は既に在る", "measured_how": "grep した", "kind": "実測",
+                                 "measured_output": f"$ grep -n median stats.py\nstats.py:{self.added}:def median(xs):"}])
+        r.start(input={"base": {"rev": self.root, "label": "PR の根"}})
+        mark = boardview.ADDED_MARK.format(base=self.root[:12], head=self.head[:12], where=f"stats.py:{self.added}")
+        self.assertIn(json.dumps(mark, ensure_ascii=False), r.out("r2_prep")["prompt"])
+
+    def test_line_the_change_did_not_add_is_not_marked(self):
+        self.assertNotIn('"mark"', self.prompt(self.old, self.root))
+
+    def test_run_without_a_diff_is_not_marked(self):
+        self.assertNotIn('"mark"', self.prompt(self.added, self.head))
+
+    def test_tail_two_files_share_is_not_marked(self):
+        """名指しの末尾が 2 本の追跡ファイルに当たる時は、独立設計の受け付け（design.head_file）と同じく決めずに付けない"""
+        r = self.run_
+        for d in ("a", "b"):
+            (r.repo / d).mkdir()
+            (r.repo / d / "m.py").write_text("x = 1\n", encoding="utf-8")
+        git(r.repo, "add", "-A")
+        git(r.repo, "commit", "-qm", "審査する変更")
+        self.head = git(r.repo, "rev-parse", "HEAD")
+        r.judgment(constraints=[{"text": "既に在る（m.py:1）", "measured_how": "読んだ", "kind": "実測", "measured_output": "x"}])
+        r.start(input={"base": {"rev": self.root, "label": "PR の根"}})
+        self.assertNotIn('"mark"', r.out("r2_prep")["prompt"])
+
+    def test_design_command_does_not_count_marked_constraints(self):
+        self.assertIn("審査する変更 {base}..{head} が足した行", boardview.ADDED_MARK)
+        self.assertIn(ADDED_ASK, (BLOCK / "commands" / "r2-design.md").read_text(encoding="utf-8"))
 
 
 class DesignCase(RunCase):

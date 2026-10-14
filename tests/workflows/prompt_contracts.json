@@ -183,6 +183,8 @@
       "$prep.output.cwd",
       "$prep.output.design_reply",
       "$prep.output.lang_line",
+      "$prep.output.measured_text",
+      "$prep.output.origin_text",
       "$prep.output.purpose_text"
     ],
     "returns": {

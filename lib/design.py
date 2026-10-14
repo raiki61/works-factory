@@ -19,6 +19,7 @@
                  1 行で withheld。1 節は engine が役に貼る本文の上限 FILE_CAP バイトまで。超えた残りは行の範囲で withheld）と
                  repo_map（対象のリポジトリの根の MAP_NAMES を地図として毎回貼る。無ければ「地図なし」の 1 行と withheld）
 - claims_unpassed: R2 の返答のうち『渡されていない』『渡っていない』と書いた文（独立の目の出口が控えと並べる）
+- head_file(repo, path): 名指しのパスを固めた版 HEAD の追跡ファイルに解く（根から無ければ末尾の一致がただ 1 本の時だけ。独立設計の支度の印も引く）
 - anchors・anchor_misses・anchor_note: 問いが立たない根拠の文の名指し（パス:行。拡張子が ANCHOR_EXT の物）を拾い、固めた版で検算し、
                  無ければ名指しなしと添える
 - read_design(board_dir, schema): design.json（無ければ None。読めない・型 schema に合わなければ Reject）。made は (中身 か None,
@@ -87,7 +88,10 @@ BARE_NUM = re.compile(r"§\s*(\d+(?:\.\d+)*)|(\d+(?:\.\d+)*)\s*節")
 # の当たりは拾わない（URL の host:port を外す。拡張子の無い時刻 10:15 も、拡張子が英字で始まらない版の番号 3.12:1 も拾わない）。パスの字は ASCII に限る（日本語の地の文に続けて
 # 書いたパスの頭に地の文を混ぜない）。当たりのうち拡張子が ANCHOR_EXT（impact のコード・設定・文書の拡張子の表）に在る物だけを名指しに
 # 数える（db.internal:5432・foo.bar:12 のような host:port やドット付きの名を、固めた版に無いファイルとして拒み続けない）
-ANCHOR = re.compile(r"(?<![A-Za-z0-9_/.:\-])((?:[A-Za-z0-9_.\-]+/)*[A-Za-z0-9_.\-]*[A-Za-z0-9_\-]\.[A-Za-z][A-Za-z0-9]*):(\d+)(?:-(\d+))?(?![\d:])")
+_ANCHOR = r"(?<![A-Za-z0-9_/.:\-])((?:[A-Za-z0-9_.\-]+/)*[A-Za-z0-9_.\-]*[A-Za-z0-9_\-]\.[A-Za-z][A-Za-z0-9]*):(\d+)(?:-(\d+))?"
+ANCHOR = re.compile(_ANCHOR + r"(?![\d:])")
+# コマンドの出力（実測の measured_output）の名指し。`grep -n` の「<パス>:<行>:<中身>」のように行の後に `:` が続いてよい
+OUTPUT_ANCHOR = re.compile(_ANCHOR + r"(?!\d)")
 ANCHOR_EXT = impact.PY_EXT | impact.PATHREF_EXT | impact.DOC_EXT | impact.OTHER_CODE_EXT
 UNANCHORED = "根拠の実物の名指しなし"
 # Markdown として見出しを数える拡張子（_md_heads）と ATX 見出しの行（写しの rules の _md_slugs と同じ形）
@@ -156,7 +160,7 @@ def _named_targets(b, text, repo) -> tuple:
     （_is_doc）だけで、コードへのリンクは数えない。拾う順は Markdown のリンク・コードスパンの `<path>#<見出し>` → コードスパンの後の
     「N 節」「§N」→ パスの無い名前の「<名前> N 節」「<名前> の「<見出し>」」（名の一致する追跡の文書がただ 1 本ならそれ。2 本以上は
     推測せずに理由と返し、0 本は名前に数えない）→ パスの無い「N 節」「§N」。番号の名指しは `<path> N 節` の形で返す。パスの無い番号は、
-    依頼が名指した設計書のパスがただ 1 本の時だけそれに結び付け、0 本か 2 本以上なら推測せずに理由と返す（_head_file が末尾の一致が
+    依頼が名指した設計書のパスがただ 1 本の時だけそれに結び付け、0 本か 2 本以上なら推測せずに理由と返す（head_file が末尾の一致が
     複数の時に決めないのと同じ）。出た順・重複なし"""
     found = [m.group(1) or m.group(2) for m in b.rules.MD_LINK.finditer(text)] + CODE_SPAN_ANCHOR.findall(text)
     out, docs, unbound = [], [], []
@@ -199,7 +203,7 @@ def _named_targets(b, text, repo) -> tuple:
     return out, unbound + [(w, why) for w in dict.fromkeys(m.group(0) for m in bare)]
 
 
-def _head_file(repo, path) -> str:
+def head_file(repo, path) -> str:
     """名指しのパスを固めた版 HEAD の追跡ファイルに解く。根から無ければ、末尾が一致する追跡ファイルがただ 1 つの時だけそれ
     （持ち主は pack の下から見た相対で書くことがある）。引けなければ ValueError（理由）"""
     rel = pathlib.PurePosixPath(urllib.parse.unquote(path))
@@ -346,7 +350,7 @@ def _section(b, repo, target) -> tuple:
     """(名指し 1 つの節の本文（依頼を固めた版 HEAD のファイルから）, 出どころ `<パス>:<開始>-<終了>`,
     engine の FILE_CAP で切った残りの範囲 `<パス>:<k>-<終了>` か "")。引けなければ ValueError（理由）"""
     path, anchor, num = _split_target(target)
-    rel = _head_file(repo, path)
+    rel = head_file(repo, path)
     got = subprocess.run(["git", "-C", str(repo), "show", f"HEAD:{rel}"],
                          capture_output=True, text=True, encoding="utf-8")
     if got.returncode != 0:
@@ -389,7 +393,7 @@ def named_sections(b, repo) -> tuple:
 def repo_map(repo) -> tuple:
     """(R2 の 2 つの役に貼る対象のリポジトリの地図の節（空にならない）, 控えの given, 控えの withheld)。固めた版 HEAD の根に追跡されて
     いる MAP_NAMES を出どころのパス:行つきで丸ごと貼る。FILE_CAP を超えたら切り、切った行の範囲を withheld に書く。1 つも無ければ
-    「地図なし」の 1 行を貼る。根のパスだけを読む（_head_file の末尾の一致は使わない）"""
+    「地図なし」の 1 行を貼る。根のパスだけを読む（head_file の末尾の一致は使わない）"""
     names = set(_tracked(repo))
     parts, given, withheld = [], [], []
     for n in MAP_NAMES:
@@ -476,15 +480,16 @@ def made(board_dir, schema) -> tuple:
         return None, f"{MISSING}: {e}"
 
 
-def _anchor_matches(text) -> list:
-    """ANCHOR の当たりのうち、拡張子が ANCHOR_EXT に在る物（出た順）"""
-    return [m for m in ANCHOR.finditer(str(text or ""))
+def _anchor_matches(text, output=False) -> list:
+    """ANCHOR（output ならコマンドの出力の OUTPUT_ANCHOR）の当たりのうち、拡張子が ANCHOR_EXT に在る物（出た順）"""
+    return [m for m in (OUTPUT_ANCHOR if output else ANCHOR).finditer(str(text or ""))
             if pathlib.PurePosixPath(m.group(1)).suffix[1:].lower() in ANCHOR_EXT]
 
 
-def anchors(text) -> list:
-    """文の中の `パス:行` と `パス:開始-終了` を (パス, 開始, 終了) で出た順に（`パス:行` は開始と終了が同じ。_anchor_matches の物だけ）"""
-    return [(m.group(1), int(m.group(2)), int(m.group(3) or m.group(2))) for m in _anchor_matches(text)]
+def anchors(text, output=False) -> list:
+    """文の中の `パス:行` と `パス:開始-終了` を (パス, 開始, 終了) で出た順に（`パス:行` は開始と終了が同じ。_anchor_matches の物だけ。
+    output はコマンドの出力として読む）"""
+    return [(m.group(1), int(m.group(2)), int(m.group(3) or m.group(2))) for m in _anchor_matches(text, output)]
 
 
 def anchor_misses(text, repo) -> list:
@@ -493,7 +498,7 @@ def anchor_misses(text, repo) -> list:
     for m in _anchor_matches(text):
         start, end = int(m.group(2)), int(m.group(3) or m.group(2))
         try:
-            rel = _head_file(repo, m.group(1))
+            rel = head_file(repo, m.group(1))
             got = subprocess.run(["git", "-C", str(repo), "show", f"HEAD:{rel}"],
                                  capture_output=True, text=True, encoding="utf-8", errors="replace")
             if got.returncode != 0:
