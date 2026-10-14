@@ -30,7 +30,7 @@ marks（種 plan。役の型にだけ欄を足し、受け付けが盤面へ渡�
   prescriptions(b) は判定の返答（盤面の節 JUDGE_NODE の最新の出力）の単位ごとの処方（写しの盤面の記録は単位の処方を写さない
   ので、修正案の頭と修正役の brief はここから引く。利用者の声 D2）
 - HEAD・REVIEW_HEAD・REVIEW_ASK・review_section(b): 修正案の役と事前審査の役の指示書の頭に足す文
-- MACHINE_KEYS・MACHINE_LABEL・machine_face_gaps(faces): 欄の行のうち機械が足し修正案の役が直せない欄（removes_tests）。事前審査の
+- MACHINE_KEY・MACHINE_LABEL・machine_face_gaps(faces): 欄の行のうち機械が足し修正案の役が直せない欄（removes_tests）。事前審査の
   頭では役の書いた欄と分けて MACHINE_LABEL で名乗り、where でそれを名指す block の穴は事前審査の受け付けが拒む（役が直せない穴で
   案の往復を回さない）
 - climbs(norm): 整えたパスが根の外へ上るか（`..` は段で見る。conflict.parse_limit も同じ物を使う）
@@ -184,18 +184,18 @@ HEAD = ("修正案の項目の works の欄: 写しの指示書はこの欄を�
 REVIEW_HEAD = promptsection.Section("## 修正案の項目の works の欄（機械が貼った）", source="fn:planmarks.review_section")
 FIELDS_ITEM_HEAD = promptsection.Section("### 修正案の項目 {n}", source="fn:planmarks.review_section")
 DEVIATION_HEAD = promptsection.Section("## 構造の目の避け方・判定の処方・世界の解から外れた訳（修正案の欄 structure から機械が並べた。訳が成り立つかを見よ）", source="fn:planmarks.review_section")
+MACHINE_KEY = "removes_tests"   # 欄の行のうち split が足し、修正案の役が書かない・直せない欄
 REVIEW_ASK = ("下は修正案の役が項目ごとに書いた works の欄（route・受け入れのテスト tests・書き換える既存のテスト rewrite_tests・"
               "整えの申告 refactor・書いてよいパス allowed_paths・触らない物 out_of_scope）。承認されると項目ごとの brief になり、"
               "修正役・TDD の役の要求の正本になる。受け入れのテストが"
               "本物の経路を通るか・mock の戻り値を断言していないか・文言の比べに寄っていないか、red_kind の赤が今のコードで本当に"
               "起きるか、rewrite_tests が依頼で変わる振る舞いだけを書き換え、期待値を実装に合わせる書き換えでないかを見よ。"
               "allowed_paths が項目の直しに足りて広すぎないか、out_of_scope が依頼の触らない物を覆うかも見よ。"
-              "項目の後の機械が足した許しの行 removes_tests は、項目の removes（消す名）をコードの識別子として使う修正前のテストを"
+              "項目の後の機械が足した許しの行 " + MACHINE_KEY + " は、項目の removes（消す名）をコードの識別子として使う修正前のテストを"
               "機械が並べた物で、修正案の役は書いていない・直せない。where でこれを名指す block は受け付けが拒む。許しが広すぎる・"
               "狭すぎると見るなら、その項目の removes を名指せ。"
               "穴は faces に挙げよ")
-MACHINE_KEYS = ("removes_tests",)   # 欄の行のうち split が足し、修正案の役が書かない・直せない欄
-MACHINE_LABEL = "機械が足した許しの行 removes_tests（修正案の役は書いていない・直せない。書き換え・消しを許すだけで、消す指示でも義務でもない）:"
+MACHINE_LABEL = f"機械が足した許しの行 {MACHINE_KEY}（修正案の役は書いていない・直せない。書き換え・消しを許すだけで、消す指示でも義務でもない）:"
 
 
 # ---------------------------------------------------------------- 役の型
@@ -794,7 +794,7 @@ def split(reply: dict, repo: pathlib.Path, *, base_tests: dict | None = None) ->
             if lim:
                 row["limit"] = lim
         if base_tests is not None:
-            got["removes_tests"] = _naming_removes(it, base_tests)
+            got[MACHINE_KEY] = _naming_removes(it, base_tests)
     return out, rows
 
 
@@ -1096,7 +1096,7 @@ def removes_permits(b) -> list[dict]:
     for n, f in enumerate(frozen(b) or [], 1):
         if not isinstance(f, dict):
             continue
-        for row in f.get("removes_tests") or []:
+        for row in f.get(MACHINE_KEY) or []:
             if isinstance(row, dict) and isinstance(row.get("id"), str) and isinstance(row.get("limit"), str) and row["limit"]:
                 out.append({"item": n, "id": row["id"], "limit": row["limit"]})
     return out
@@ -1141,22 +1141,22 @@ def _json_block(v) -> str:
 
 
 def _item_block(f: dict) -> str:
-    machine = {k: f[k] for k in MACHINE_KEYS if f.get(k)}
-    block = _json_block({k: v for k, v in f.items() if k not in MACHINE_KEYS})
-    return block + (f"\n\n{MACHINE_LABEL}\n\n{_json_block(machine)}" if machine else "")
+    block = _json_block({k: v for k, v in f.items() if k != MACHINE_KEY})
+    machine = f.get(MACHINE_KEY)
+    return block + (f"\n\n{MACHINE_LABEL}\n\n{_json_block({MACHINE_KEY: machine})}" if machine else "")
 
 
 def machine_face_gaps(faces: list) -> list[str]:
-    """事前審査の穴 faces のうち、where が機械の足した欄（MACHINE_KEYS）を名指す block の誤りの行（受け付けが拒む。修正案の役が
+    """事前審査の穴 faces のうち、where が機械の足した欄（MACHINE_KEY）を名指す block の誤りの行（受け付けが拒む。修正案の役が
     直せない穴で案の往復を回さない）。suggest は往復を回さないので拒まない"""
-    return [f"faces[{j}]（{str(f.get('key'))[:40]}）: where が機械の足した欄 {k} を名指す block（修正案の役は直せない。"
+    return [f"faces[{j}]（{str(f.get('key'))[:40]}）: where が機械の足した欄 {MACHINE_KEY} を名指す block（修正案の役は直せない。"
             f"許しが広すぎるなら removes を名指せ。そうでなければ suggest にせよ）"
-            for j, f in enumerate(faces) if f.get("severity") == "block"
-            for k in MACHINE_KEYS if word_re(k).search(str(f.get("where") or ""))]
+            for j, f in enumerate(faces)
+            if f.get("severity") == "block" and word_re(MACHINE_KEY).search(str(f.get("where") or ""))]
 
 
 def review_section(b, notes=None) -> str:
-    """事前審査の役の指示書の頭に貼る節（"\\n\\n" で始まる）: 見る点の頼みと、項目ごとの欄の JSON（機械の足した欄 MACHINE_KEYS は
+    """事前審査の役の指示書の頭に貼る節（"\\n\\n" で始まる）: 見る点の頼みと、項目ごとの欄の JSON（機械の足した欄 MACHINE_KEY は
     役の書いた欄から外し、空でなければ MACHINE_LABEL の後に別の JSON で貼る）。控えが無ければ空。
     控えは frozen で読む（凍結の印と食い違えば FieldsBroken。読む側が盤面を止める）。notes は {世界の解の類の id: 依頼の解き方との
     比べの文}（呼び手が世界の解の行の住処から渡す）で、その類の外れの訳の尾に添える"""
