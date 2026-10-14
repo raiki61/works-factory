@@ -27,6 +27,7 @@ try:
 
     sys.path.append(str(boundary.lib_root()))
     import eyeverdict
+    import policy
     import structmark
 
     eyes = Path(os.environ["ARTIFACTS_DIR"]) / "eyes"
@@ -42,7 +43,7 @@ try:
             eyes_dir=eyes, run_eyes=prep["run_eyes"], compare_due=prep["compare_due"], premise_due=prep["premise_due"],
             design=eyeverdict.read_design(design_file),
             after_ptr=boundary.pointer(f"eyes/{structmark.AFTER_FILE}") if (eyes / structmark.AFTER_FILE).is_file() else None,
-            protected=protected, passed=passed)
+            protected=protected, passed=passed, recorded=prep[policy.RECORDED_KEY])
         eyeverdict.write_notes(eyes, passed=passed, design_ledger=eyeverdict.read_json(
             design_file.with_name(eyeverdict.DESIGN_PREMISES)) if design_file else None)
         out["notes"] = boundary.pointer(f"eyes/{eyeverdict.PREMISE_INPUTS}")

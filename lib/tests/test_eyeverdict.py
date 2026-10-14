@@ -24,6 +24,7 @@ import design  # noqa: E402
 import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
+import policy  # noqa: E402
 import rolekit  # noqa: E402
 import seal  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
@@ -153,7 +154,7 @@ class R4PushTailCase(unittest.TestCase):
         passed = eyeverdict._human_passed([gatemarks.question_row("regression", asked)], {"decision": "continue", "text": ""})
         self.assertNotIn("推し", eyeverdict.carried_section(passed))
         r4 = {"capability_inventory": {"fired": True, "lost": [BODY]}, "policy_conflicts": []}
-        self.assertEqual(eyeverdict.r4_gate_items(r4, passed), [])
+        self.assertEqual(eyeverdict.r4_gate_items(r4, passed, []), [])
 
 
 class R4GateCase(unittest.TestCase):
@@ -163,7 +164,8 @@ class R4GateCase(unittest.TestCase):
     def r4_gate(self, answer="continue", lost=(), policy=()):
         passed = eyeverdict._human_passed([gatemarks.question_row("regression", NARROW)], {"decision": answer, "text": ""})
         r4 = {"capability_inventory": {"fired": True, "lost": list(lost)}, "policy_conflicts": list(policy)}
-        return eyeverdict.r4_gate_items(r4, passed), eyeverdict.gate_passes(r4, passed)
+        recorded = [{"source": "answer", "name": BODY, "text": "決めた"}]
+        return eyeverdict.r4_gate_items(r4, passed, recorded), eyeverdict.gate_passes(r4, passed)
 
     def test_r4_does_not_reask_narrow_the_human_passed(self):
         for word in ("continue", "approve"):
@@ -185,11 +187,11 @@ class R4GateCase(unittest.TestCase):
 
     def test_rows_carry_the_r4_heads(self):
         r4 = {"capability_inventory": {"fired": True, "lost": ["a"]}, "policy_conflicts": ["b"]}
-        self.assertEqual(eyeverdict.r4_gate_items(r4, {}),
+        self.assertEqual(eyeverdict.r4_gate_items(r4, {}, [{"source": "answer", "name": "b", "text": ""}]),
                          ["R4 が BASE から消えたと見た能力: a", "R4 が見た人の方針とのぶつかり: b"])
 
     def test_no_r4_asks_nothing(self):
-        self.assertEqual(eyeverdict.r4_gate_items(None, PASSED), [])
+        self.assertEqual(eyeverdict.r4_gate_items(None, PASSED, []), [])
 
     def test_carried_section_lists_passed_rows_under_the_gatemarks_head(self):
         text = eyeverdict.carried_section(PASSED)
@@ -231,7 +233,7 @@ class CollectCase(unittest.TestCase):
 
     def collect(self, **kw):
         args = {"eyes_dir": self.dir, "run_eyes": True, "compare_due": True, "premise_due": False, "design": STANDS,
-                "after_ptr": None, "protected": OK_PROTECTED, "passed": {}, **kw}
+                "after_ptr": None, "protected": OK_PROTECTED, "passed": {}, "recorded": [], **kw}
         return eyeverdict.collect(**args)
 
     def test_all_pass_is_ok(self):
@@ -240,6 +242,21 @@ class CollectCase(unittest.TestCase):
         self.assertTrue(got["ok"])
         self.assertEqual(got["r2"], {"status": "pass", "reason": "構造は同じ"})
         self.assertEqual((got["questions"], got["premise_check"], got["protected_hits"]), ([], None, []))
+
+    def test_r4_policy_conflict_is_asked_only_when_it_names_a_recorded_row(self):
+        """#427: R4 の方針とのぶつかりは、記録された方針の行を名指す物だけが人への問い。対象のテストの docstring を名指す物は問いに
+        せず、R4 の行の理由に並べて残す（目は出し直させない）"""
+        self.all_pass()
+        copy = "/run/policy/abc.md"
+        docstring, named = "tests/calibration/seed/test_stats.py:1 の『わざと試験しない』に反する", f"{copy}:2 の『空の列は試験しない』に反する"
+        r4 = json.loads((self.dir / "r4.json").read_text(encoding="utf-8"))
+        self.put("r4", {**r4, "policy_conflicts": [docstring, named]})
+        got = self.collect(recorded=[{"source": "doc", "name": copy, "text": "", "lines": 3, "alias": ""}])
+        self.assertEqual(got["questions"], ["R4 が見た人の方針とのぶつかり: " + named])
+        self.assertEqual(got["r4"]["status"], "pass")
+        self.assertIn(docstring, got["r4"]["reason"])
+        self.assertIn(policy.RECORDED_TERM + "のどの行も名指さない", got["r4"]["reason"])
+        self.assertNotIn(named, got["r4"]["reason"])
 
     def test_r2_redesign_is_not_ok(self):
         self.all_pass()

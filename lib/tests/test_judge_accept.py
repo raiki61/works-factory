@@ -514,6 +514,31 @@ class JudgeTakeCase(_JudgeBase):
         got = self.take(reply)
         self.assertIs(got["ok"], True, got["reason"])
 
+    def test_premise_three_question_must_name_a_recorded_row(self):
+        """#427: 人へ回す問いの先行例が ③（前の決定か方針とぶつかる）を名乗るなら、記録された方針の行を名指す。対象のテストの
+        docstring を名指す問いは拒み、方針の文書の写しの <パス>:<行> を名指す問いは受ける"""
+        def asked(because):
+            reply = _judge_ok()
+            reply["questions"] = [{"key": "空の列を試すか", "kind": "field", "status": "escalate", "reason": "試験を足すかが割れる"}]
+            reply["precedents"].append({"key": "空の列を試すか", "problem": "空の列の試験", "source": "対象のテストの頭",
+                                        "verdict": "adopt", "reason": "当たった", "undecided_because": because})
+            return reply
+        for because in ("③ 方針とぶつかる: test_stats.py:1 の『わざと試験しない』", "①・③ 先例が割れ、test_stats.py:1 ともぶつかる"):
+            with self.subTest(because):
+                got = self.take(asked(because))
+                self.assertIs(got["ok"], False)
+                self.assertIn("対象の文で、そのぶつかりは ③ に当たらない", got["reason"])
+        for because in ("② 優先の付け方で変わる（③ のぶつかりは無い）", "3 つ目の場合（記録された方針とぶつかる）: test_stats.py:1"):
+            with self.subTest("頭の印に ③ が無い問いは ③ を名乗らない", because=because):
+                got = self.take(asked(because))
+                self.assertIs(got["ok"], True, got["reason"])
+        pmd = self.jdir.parent / "policy.md"
+        pmd.write_text("# 方針\n- 空の列は試験しない\n", encoding="utf-8")
+        frozen = ja.policy.freeze(self.jdir.parent / "run", self.repo, str(pmd))
+        ja.write_json(self.jdir / ja.START_FILE, ja.start_view({"policy_md": str(pmd), "policy": frozen}))
+        got = self.take(asked(f"③ {frozen['copy']}:2 とぶつかる"))
+        self.assertIs(got["ok"], True, got["reason"])
+
     def test_answer_ties_rules(self):
         """元 test_blk_judge.py:743 の AnswerTiesTakeCase.test_literal_and_material_answers_need_no_tie・
         :757 の test_answer_hitting_two_reply_questions_needs_tie・:767 の test_tie_to_unknown_key_is_rejected・
@@ -1401,6 +1426,9 @@ class MaterialCase(_RepoCase):
         self.assertTrue(self.take_round("prior-decisions", good)["ok"])
         self.assertEqual(ja.read_json(self.jdir / ja.material_file("prior-decisions"))["materials"],
                          {"prior_decisions": good["material"]})
+        settled = [{"topic": "公開の口", "decision": "減らさない", "where": "docs/adr/0002.md"}]
+        self.assertTrue(self.take_round("prior-decisions", {**good, "settled": settled})["ok"])
+        self.assertEqual([r["name"] for r in ja._recorded(self.jdir) if r["source"] == "settled"], ["docs/adr/0002.md"])
 
     def test_consistency_bypass_reply_is_taken_or_refused(self):
         """素材の役の受け付け（整合と標準機構の迂回）: 2 つの素材を両方書いた返答だけ受ける"""
@@ -1649,12 +1677,13 @@ class BriefCase(_RepoCase):
         path = ja.brief(self.jdir, self.repo, start, str(self.tmp / "REVIEW.md"), "")
         text = pathlib.Path(path).read_text(encoding="utf-8")
         heads = [ja.BRIEF_HEAD, worldmark.HEAD, "## 入力", ja.LEDGER_HEAD.strip(), ja.REQUEST_HEAD, ja.ANSWERS_HEAD,
-                 carry.PRIOR_HEAD, carry.REDESIGN_HEAD]
+                 carry.PRIOR_HEAD, carry.REDESIGN_HEAD, ja.policy.RECORDED_HEAD]
         at = [text.find(h) for h in heads]
         self.assertNotIn(-1, at, list(zip(heads, at)))
         self.assertEqual(at, sorted(at), "節の並び")
         self.assertIn("凍った目的の印", text)
         self.assertIn("答えの印", text)
+        self.assertIn('名指し `q1`: 答えの印', text)
         self.assertIn("PR の本文", text)
         self.assertIn(str(self.jdir / "diff.patch"), text)
         self.assertNotIn("{{", text, "穴を残さない")
@@ -1667,6 +1696,7 @@ class BriefCase(_RepoCase):
         ja.material_route(self.jdir, self.repo)
         text = pathlib.Path(ja.brief(self.jdir, self.repo, start, str(self.tmp / "REVIEW.md"))).read_text(encoding="utf-8")
         self.assertNotIn(ja.POLICY_HEAD, text)
+        self.assertIn(ja.policy.RECORDED_NONE, text)
         pmd = self.tmp / "policy.md"
         for body, whole in (("方針の印: 既定の道を狭めない\n", True), ("方" * 20000, False)):
             with self.subTest(whole=whole):

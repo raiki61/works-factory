@@ -1,0 +1,32 @@
+# 対象の文（コードのコメント）を contract_drift で挙げ、案に書き換えが入る → pass: true・ask_human: false（記録された方針に無い文は人に回さない。#427）
+open: { ok: true, r2_go: true, tree: false, k: 1, form: review, reason: "" }
+r2-prep: { prompt: "stub: 元の目的と実測した制約" }
+r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解" }
+r2-accept: { ok: true, done: true, give_up: false, reason: "" }
+review-prep: { prompt_file: "/fixture/plan-review/pass-1/prompt.md" }
+plan-review:
+  faces:
+    - { key: "stub-stale-docstring", unit_keys: [1], kind: contract_drift, where: "test_stats.py:1", why: "stub: 案の後もテストの説明文が『わざと試験しない』と言い続ける。案にその文の書き換えが入っている", severity: suggest }
+  shrink: []
+  reason: "stub: 対象の文の食い違いを契約のずれで 1 つ挙げ、ほかの見ることは穴が無い"
+review-accept: { ok: true, done: true, give_up: false, reason: "" }
+review-reads: { ok: true, missing: [], index_file: plan-review/pass-1/reads-plan-review-block.json, reason: "" }
+review:
+  pass: true
+  stalled: false
+  review: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/pass-1/review.json" }
+  design: { type: archon_artifact, run_id: "fixture-run", path: "plan-review/design.json" }
+  gate_axes: { obvious: { ok: true, note: "" }, world: { ok: true, note: "" }, clean: { ok: true, note: "" }, not_overkill: { ok: true, note: "" } }
+  ask_human: false
+  questions: []
+fixture:
+  inputs:
+    units: "[]"
+    judgment: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/judgment.json\"}"
+    purpose: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"judge/purpose.json\"}"
+    world: "null"
+    plan: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/r1/plan-fields.json\"}"
+    structure: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/structure/structure-state.json\"}"
+    ripple: "{\"type\":\"archon_artifact\",\"run_id\":\"fixture-run\",\"path\":\"plan/ripple.json\"}"
+  expect: completed
+  reached: [r2-design, plan-review, review]

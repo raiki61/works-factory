@@ -53,6 +53,7 @@ import gatemarks  # noqa: E402
 import libdocs  # noqa: E402
 import oneline  # noqa: E402
 import planmarks  # noqa: E402
+import policy  # noqa: E402
 import promptsection  # noqa: E402
 import ripple  # noqa: E402  （blk-plan の lib。波及の一覧）
 import rolekit  # noqa: E402
@@ -78,6 +79,7 @@ RECOMMEND_REJECT = (f"承認ノードの項目の行の推し（{gatemarks.RECOM
 NOT_OWED_REJECT = "案に、直す義務の無い単位が入っている（nit・info・defer など。受け付けが受けない）。案から外せ。案に入れてよい no（必ず入れる物を含む）は"
 RESOLVED_REJECT = "前の往復の block の行き先が書かれていない（下の行を全部直して出し直せ）:"
 ANSWERS_REJECT = "block への答えに誤りが在る（下の行を全部直して出し直せ）:"
+RECORDED_REJECT = f"kind policy の穴と fences の policy_doc は、{policy.RECORDED_TERM}の行を名指す時だけ（下の行を全部直して出し直せ）:"
 TREE_REJECT = "項目ごとの審査の答え（下請けの答えのファイル・束ね役の items）に欠けか誤りが在る（下の行を全部直して出し直せ）:"
 CLOSED_REJECT = "閉じた・開いた項目の行が合わない（下の行を直して出し直せ）:"
 READONLY_MOVED = "読むだけの役が作業ツリーを変えた: "   # 元 works/.shared/core/entry.py:1228
@@ -201,15 +203,24 @@ REUSE_REVIEW = ("既にある物を量ったかを見よ: adds の行が新し�
                 "それを使う形を shrink か穴の why に書け。穴を閉じる形として新しい機構を求める前にも同じ所を探し、既存の助け手で閉じるなら"
                 "それを名指して求めよ")
 # 人に回す物は人の口へ（実の利用者の run 97fd532f: 契約のずれの穴の why に「ADR は人に回す」と書いたが、その種類の穴は関所に載らず、
-# 修正役の『人に回す』も人に届かなかった）。修正前の関所に載る種類は写しの rules の HUMAN_FACE_KINDS（regression・policy）
-HANDOFF_REVIEW = ("人に回す物は人の口で挙げよ: 穴の直しの一部に、直す側に任せず人が決める物（方針の文書・ADR の書き換えなど）が"
-                  "在るなら、why に「人に回す」と書くだけでなく、その分を kind policy・severity suggest の別の穴として挙げよ（fences に"
-                  " policy_doc。案の欠陥ではないので block にしない）——修正前の承認ノードに載り、人が決める。ほかの kind の why に書いた回付は、"
-                  "どの承認ノードにも載らない")
+# 修正役の『人に回す』も人に届かなかった）。修正前の関所に載る種類は写しの rules の HUMAN_FACE_KINDS（regression・policy）。
+# 人が決める物は記録された方針の行だけ（較正の 2 件: 対象のテストの docstring を方針と読み、方針の文書の無い run で policy_doc を立てた。#427）
+HANDOFF_REVIEW = ("人に回す物は人の口で挙げよ: 穴の直しの一部に、直す側に任せず人が決める物——材料の" + policy.RECORDED_REF + "の行（方針の"
+                  "文書・依頼の answers・承認ノードの人の答え・決着済みの論点）を覆す・書き換える物——が在るなら、why に「人に回す」と書く"
+                  "だけでなく、その分を kind policy・severity suggest の別の穴として挙げ、ぶつかる行の名指しを decided_by に字のまま写せ"
+                  "（案の欠陥ではないので block にしない）。fences の policy_doc は方針の文書の行を書き換える時だけ立てる（方針の文書の無い run"
+                  " では立てない）。一覧に無いコードのコメント・docstring・テストの説明文は対象の文で、方針ではない——案と食い違うなら kind"
+                  " contract_drift で挙げ、案にその文の書き換えを入れさせよ（古いまま残す案は block）。受け付けは、一覧の行を名指さない kind"
+                  " policy の穴と、方針の文書の無い run の policy_doc を拒む。ほかの kind の why に書いた回付は、どの承認ノードにも載らない")
+# 修正案の役が対象の文を前の決定として使わない（#427）
+TARGET_TEXT_PLAN = ("材料の" + policy.RECORDED_REF + "に無いコードのコメント・docstring・テストの説明文（対象の文）は持ち主の決めでは"
+                    "ない。out_of_scope の why と narrows の decided_by に、それを前の決定・方針として使うな——案の直しがその文と食い違う"
+                    "なら、その文の書き換えを案に入れよ")
 HEAD = {
     "plan": ("この役は修正案の役（読むだけ）。道具は Read・Grep・Glob と web を引く WebSearch・WebFetch だけで、作業ツリーを 1 文字も変えてはいけない（受け付けは起こす前の"
              "作業ツリーの写しと比べ、変わっていれば拒む）。下の指示書に従い、指示書の JSON Schema に合う JSON だけを返せ。"
-             "\n\n" + planmarks.HEAD + "\n\n" + ITEMS_RULE + "\n\n" + REUSE_RULE + "\n\n" + concepthome.PLAN_RULE),
+             "\n\n" + planmarks.HEAD + "\n\n" + ITEMS_RULE + "\n\n" + REUSE_RULE + "\n\n" + TARGET_TEXT_PLAN
+             + "\n\n" + concepthome.PLAN_RULE),
     "plan-review": ("この役は修正案の事前審査の役（読むだけ。判定をした役とは別の目）。道具は Read・Grep・Glob と web を引く WebSearch・WebFetch と、"
                     "項目ごとの下請けを起こす Agent と、下請けが答えのファイル（作業ツリーの外の run の置き場）を書く Write だけで、作業ツリーを"
                     " 1 文字も変えてはいけない（受け付けは起こす前の作業ツリーの写しと比べ、変わっていれば拒む）。下の指示書に従い、指示書の"

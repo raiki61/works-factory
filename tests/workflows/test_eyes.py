@@ -34,6 +34,7 @@ import concepthome  # noqa: E402
 import eyeverdict  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
+import policy  # noqa: E402
 import seal  # noqa: E402
 import structmark  # noqa: E402
 
@@ -469,6 +470,11 @@ class ShapeCase(unittest.TestCase):
                     self.assertNotIn("policy_path", prep_reads(text))
         self.assertIn("policy_conflicts", (BLOCK / "commands" / "r4-scope.md").read_text(encoding="utf-8"))
 
+    def test_recorded_policy_only_on_r3_r4(self):
+        """記録された方針のセクションは R3・R4 にだけ読ませる（#427。R2 の目には渡さない）"""
+        readers = {path.stem: prep_reads(path.read_text(encoding="utf-8")) for path in (BLOCK / "commands").glob("*.md")}
+        self.assertEqual(sorted(n for n, reads in readers.items() if "recorded_policy" in reads), ["r3-coherence", "r4-scope"])
+
 
     def test_r2_compare_gets_no_forbidden_input(self):
         """持ち主の決め independent-verdict: 比較役には目的・独立設計・後で分かった前提・累積差分と、機械の実測（テストの結末と
@@ -721,7 +727,7 @@ class ScriptCase(unittest.TestCase):
         self.inputs["start"] = self.pointer("start/start.json", {"run_id": RUN_ID, "base_rev": self.base, **more})
 
     def prep_file(self, **more) -> None:
-        self.eye_file("prep", {"run_eyes": True, "compare_due": True, "premise_due": False, **more})
+        self.eye_file("prep", {"run_eyes": True, "compare_due": True, "premise_due": False, policy.RECORDED_KEY: [], **more})
 
     def design(self, doc) -> None:
         self.inputs["design"] = self.pointer("plan-review/design.json", doc)
@@ -752,6 +758,10 @@ class ScriptCase(unittest.TestCase):
         self.inputs["answers"] = json.dumps({"decision": "continue", "text": ""})
         self.inputs["plan_questions"] = json.dumps([{"kind": "regression", "text": "修正案 1 が狭める能力: 古い入口——使う人がいない"}],
                                                    ensure_ascii=False)
+        got = self.run_script("verdict")
+        self.assertEqual(got["questions"], ["R4 が BASE から消えたと見た能力: 別の能力"])
+        self.assertIn("方針の第 1 項", got["r4"]["reason"])
+        self.prep_file(**{policy.RECORDED_KEY: [{"source": "answer", "name": "方針の第 1 項", "text": "決めた"}]})
         got = self.run_script("verdict")
         self.assertEqual(got["questions"], ["R4 が BASE から消えたと見た能力: 別の能力", "R4 が見た人の方針とのぶつかり: 方針の第 1 項"])
 
@@ -1001,7 +1011,7 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual((got["run_eyes"], got["compare_due"], got["premise_due"]), (True, True, False))
         self.assertIn("-a\n+b\n", pathlib.Path(got["diff_file"]).read_text(encoding="utf-8"))
         self.assertEqual((got["base_rev"], got["changed_files"]), (self.base, "a.txt"))
-        self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), got)
+        self.assertEqual(json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8")), {**got, policy.RECORDED_KEY: []})
 
     def test_prep_pastes_the_measured_test_outcomes_and_the_tdd_proof(self):
         """issue #384: 試験の関門が比べたテストごとの base と最後の結末（入力 test_outcomes）と、修正の段の diff の隣の TDD の記録が
@@ -1078,6 +1088,23 @@ class ScriptCase(unittest.TestCase):
                    policy={"named": "POLICY.md", "path": str(self.repo / "POLICY.md"), "sha256": "a" * 64,
                            "copy": "/run/policy/frozen.md"})
         self.assertEqual(self.run_script("prep")["policy_path"], "/run/policy/frozen.md")
+
+    def test_prep_carries_the_recorded_policy_section(self):
+        """方針の文書の無い run の目にも、記録された方針のセクションが「無い」と載る（#427）"""
+        self.prep_inputs()
+        got = self.run_script("prep")["recorded_policy"]
+        self.assertTrue(got.startswith(policy.RECORDED_HEAD), got)
+        self.assertIn(policy.RECORDED_NONE, got)
+
+    def test_prep_keeps_the_recorded_rows_for_the_verdict(self):
+        """返す節が R4 の方針とのぶつかりを照らす一覧は、目に貼ったセクションと同じ行（承認ノードの人の答えを含む）"""
+        self.prep_inputs()
+        self.inputs["answers"] = json.dumps({"decision": "continue", "text": "古い入口は消してよい"}, ensure_ascii=False)
+        got = self.run_script("prep")
+        rows = json.loads((self.artifacts / "eyes" / "prep.json").read_text(encoding="utf-8"))[policy.RECORDED_KEY]
+        self.assertEqual([r["source"] for r in rows], ["gate"])
+        self.assertEqual(got["recorded_policy"], policy.recorded_section(rows))
+        self.assertEqual(policy.hits(rows, f"ぶつかる: {rows[0]['name']}"), [rows[0]["name"]])
 
     def test_prep_pastes_the_premises_and_names_the_target_review_md(self):
         self.prep_inputs()

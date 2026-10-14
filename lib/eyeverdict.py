@@ -4,8 +4,9 @@ premise-check）で受ける。標準ライブラリと lib の部品だけ。
 
 - r2_compare_due(design, purpose_text)・r2_premise_invalid(design): 比較役と前提の検算を起こすか
 - scalars(diff_text, x_scalars, not_taken)・scalars_text(s): 規模の数値と、その 1 文
-- _human_passed(questions, answer)・carried_section(passed)・r4_gate_items(r4, passed)・gate_passes(r4, passed): 修正前の関所で
-  人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え
+- _human_passed(questions, answer)・carried_section(passed)・r4_gate_items(r4, passed, recorded)・gate_passes(r4, passed): 修正前の関所で
+  人が通した行と、R4 の問いからそれを外す照らしと、外した行の控え。R4 の方針とのぶつかりは、記録された方針（policy.recorded）の
+  行を名指す物だけを問いにし、名指さない物は r4_unrecorded が R4 の行の理由に並べる（目は出し直させない）
 - human_items(start_answer, answer)・premise_section(...): R2 の比較役の頭に貼る、独立設計を作った後に分かった前提と、その控え
 - prompt_texts(...): 目の指示書に差し込む文
 - tdd_stages(diffs, resolve)・measured_section(test_outcomes, stages): R2 の比較役に貼る機械の実測（試験の関門が返したテストごとの
@@ -34,6 +35,7 @@ import design
 import gatemarks
 import jsonfile
 import oneline
+import policy
 import seal
 import structmark
 
@@ -54,6 +56,8 @@ NO_REQUEST = "依頼のファイルが渡っていない"
 START_GATE_NODE = "gate-start"   # 線の始めの関所（plan-review が独立設計に貼る人の答えの源）
 # 元 .shared/core/graphloops/rules/review-loop.py:4103 の R4_ROWS（種類・R4 の返りの欄・行の頭）
 R4_ROWS = (("regression", "lost", "R4 が BASE から消えたと見た能力: "), ("policy", "policy_conflicts", "R4 が見た人の方針とのぶつかり: "))
+R4_UNRECORDED = (f"（R4 が方針とのぶつかりに挙げたが、{policy.RECORDED_TERM}のどの行も名指さないので人に聞かない——一覧に無いコードの"
+                 "コメント・docstring・テストの説明文は対象の文で、方針ではない: {rows}）")
 X_SCALAR = re.compile(r"^x_[a-z0-9_]+$")   # 元 graphs/review-loop.json の p3.fix の x_scalars の patternProperties
 EYES = ("r1", "r2", "r3", "r4")
 PREMISE = "premise-check"
@@ -158,10 +162,20 @@ def _r4_rows(r4: dict | None) -> list[tuple]:
     return [(kind, head, x) for kind, field, head in R4_ROWS for x in got[field]]
 
 
-def r4_gate_items(r4: dict | None, passed: dict) -> list[str]:
+def _unrecorded(kind: str, x: str, recorded: list) -> bool:
+    return kind == "policy" and not policy.hits(recorded, x)
+
+
+def r4_gate_items(r4: dict | None, passed: dict, recorded: list) -> list[str]:
     """元 .shared/core/gatemarks.py:1266 と review-loop.py:4106 の _r4_gate_items。R4 の消えた能力と方針とのぶつかりの行から、
-    人が通した行と種類も頭を除いた本文も同じ物を外す（種類が違えば聞き直す）。外した行は gate_passes が控える"""
-    return [head + x for kind, head, x in _r4_rows(r4) if (kind, x) not in passed]
+    人が通した行と種類も頭を除いた本文も同じ物を外す（種類が違えば聞き直す）。外した行は gate_passes が控える。方針とのぶつかりの
+    うち記録された方針の行 recorded を名指さない物も外す（r4_unrecorded が並べる）"""
+    return [head + x for kind, head, x in _r4_rows(r4) if (kind, x) not in passed and not _unrecorded(kind, x, recorded)]
+
+
+def r4_unrecorded(r4: dict | None, passed: dict, recorded: list) -> list[str]:
+    """R4 の方針とのぶつかりのうち、人が通しておらず記録された方針の行 recorded を名指さない行の本文"""
+    return [x for kind, _, x in _r4_rows(r4) if (kind, x) not in passed and _unrecorded(kind, x, recorded)]
 
 
 def gate_passes(r4: dict | None, passed: dict) -> list[dict]:
@@ -460,9 +474,9 @@ def unverified(reason: str, protected: dict | None) -> dict:
 
 
 def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, design: dict, after_ptr,
-            protected: dict | None, passed: dict) -> dict:
+            protected: dict | None, passed: dict, recorded: list) -> dict:
     """元 blk-eyes/lib/eyes.py:489 の collect と :291 の fallen。目の返りを eyes_dir/<目>.json から読んでブロックの返りを組む。
-    protected は守りのパスの節の返り（節が落ちていれば None）。ok は省いていない目が全部 pass で、前提の検算の道でなく、
+    protected は守りのパスの節の返り（節が落ちていれば None）。recorded は記録された方針の行（R4 の問いの照らし）。ok は省いていない目が全部 pass で、前提の検算の道でなく、
     守りのパスを確かめられた時だけ true"""
     eyes_dir = pathlib.Path(eyes_dir)
     hits, guarded = _protected(protected)
@@ -494,7 +508,10 @@ def collect(*, eyes_dir, run_eyes: bool, compare_due: bool, premise_due: bool, d
         out["r2"] = _row("r2", docs.get("r2"), fell.get("r2"), ran=ran)
     else:
         out["r2"] = {"status": seal.UNVERIFIABLE, "reason": R2_NO_PURPOSE if design.get("question_stands") is True else R2_NO_STANDS}
-    out["questions"] = r4_gate_items(docs.get("r4"), passed)
+    out["questions"] = r4_gate_items(docs.get("r4"), passed, recorded)
+    off = r4_unrecorded(docs.get("r4"), passed, recorded)
+    if off:
+        out["r4"]["reason"] += R4_UNRECORDED.format(rows="・".join(off))
     out["ok"] = guarded and all(out[e]["status"] == seal.PASSED for e in EYES)
     return out
 
