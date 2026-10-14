@@ -1,6 +1,6 @@
 """Archon と ASF から手で写した約束（workflows/.shared/boundary.py・bin/_lib/place.py・bin/_lib/pack.py・bin/_lib/launcher.py・
-bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・tests/layers/scan.py の
-役の節の鍵・test-gate の run.py が対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
+bin/_lib/startpoint.py・bin/_lib/childsweep.py・tests/workflows/test_uv_scripts.py・lib/answer.py が launcher の頭で組む答えの行・
+tests/layers/scan.py の役の節の鍵・機械の節の鍵・節の種類の鍵・test-gate の run.py が対象のテストの前に落とす Archon の変数の名）を、写した元の字に照らす。
 
 行ごとに「写しの値」と「元の中のその値の在り処（ファイルと正規表現）」を持ち、正規表現で引いた値と写しの値を比べる。
 元に行の形が見つからない時も赤にする（元の形が変わった合図）。写しは直さず、ずれを赤にするだけ。
@@ -21,7 +21,7 @@ from collections.abc import Callable
 from typing import Any, NamedTuple
 from unittest import mock
 
-from bin._lib import childsweep, launcher, pack, place
+from bin._lib import childsweep, launcher, pack, place, startpoint
 from lib import answer
 from tests import archon
 from tests.archon import CACHE_ENV, pinned_source
@@ -148,19 +148,29 @@ def _exec_node_names(body: str) -> list[str]:
     return sorted(k for k in re.findall(r"^    (\w+):", body, re.M) if not k.startswith(_runner_vars()["RUNNER_PREFIXES"]))
 
 
-def _agent_guards(transform: str) -> list[str]:
-    """節の形を組む transform の if の分かれのうち kind: 'agent' を返す物の、照らす data の欄。
-    data.<欄> で始まらない分かれは、その if の行を値にして赤にする（新しい AI の節の形を黙って見落とさない）"""
+def _guards(transform: str, kind: str | None = None) -> list[str]:
+    """節の形を組む transform の if の分かれ（kind を名指せば、その kind を返す物だけ）の、照らす data の欄。
+    data.<欄> で始まらない分かれは、その if の行を値にして赤にする（新しい節の形を黙って見落とさない）"""
     guards = []
-    for branch in re.split(r"^    if \(", transform, flags=re.M):
-        if "kind: 'agent'" in branch:
-            field = re.match(r"data\.(\w+) !== undefined", branch)
+    for branch in re.split(r"^    if \(", transform, flags=re.M)[1:]:
+        if kind is None or f"kind: '{kind}'" in branch:
+            field = re.match(r"!?data\.(\w+)(?: !== undefined|\))", branch)
             guards.append(field[1] if field else branch.split("\n", 1)[0])
     return sorted(guards)
 
 
 def _string_options(block: str) -> set[str]:
     return set(re.findall(r"^\s*'?([\w-]+)'?: \{ type: 'string'", block, re.M))
+
+
+def _skip_names() -> list[str]:
+    return sorted(flag.removeprefix("--") for flag in startpoint.SKIP_FLAGS)
+
+
+def _skip_short() -> list[str]:
+    """殻が --from を足さない短い名の字（大小の英字のうち、-<字> が SKIP_SHORT に当たる物）"""
+    letters = "abcdefghijklmnopqrstuvwxyz"
+    return [c for c in letters + letters.upper() if startpoint.SKIP_SHORT.fullmatch(f"-{c}")]
 
 
 SEPARATOR_CANDIDATES = "/\\:"
@@ -198,6 +208,7 @@ CONSUMER_ROWS = (
 POINTER = "packages/workflows/src/artifact-pointer.ts"
 SDK = "packages/providers/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs"
 POINTER_SCHEMA = "packages/workflows/src/schemas/artifact-pointer.ts"
+NODE_TRANSFORM = r"^  \.transform\(\(data\): DagNode \| IncludeDirective => \{\n(.*?)^  \}\)"
 ARCHON_ROWS = (
     Row("指し札の型", lambda: boundary.POINTER_TYPE, POINTER_SCHEMA,
         r"export const ARTIFACT_POINTER_TYPE = '([^']+)';"),
@@ -232,8 +243,11 @@ ARCHON_ROWS = (
         "packages/workflows/src/schemas/dag-node.ts",
         r"export function inputEnvKey\(name: string\): string \{\n\s*return `(\w+)\$\{name\.replace\(/-/g, '_'\)\.toUpperCase\(\)\}`;"),
     Row("AI の節（agent）の形を決める節の鍵（scan の役の節）", lambda: sorted(scan.ROLE_KINDS),
-        "packages/workflows/src/schemas/dag-node.ts",
-        r"^  \.transform\(\(data\): DagNode \| IncludeDirective => \{\n(.*?)^  \}\)", lambda m: _agent_guards(m[1])),
+        "packages/workflows/src/schemas/dag-node.ts", NODE_TRANSFORM, lambda m: _guards(m[1], "agent")),
+    Row("走らせる節（exec）の形を決める節の鍵（scan の機械の節）", lambda: sorted(scan.CODE_KINDS),
+        "packages/workflows/src/schemas/dag-node.ts", NODE_TRANSFORM, lambda m: _guards(m[1], "exec")),
+    Row("節の種類を決める節の鍵（scan の節の種類）", lambda: sorted(scan.NODE_KINDS),
+        "packages/workflows/src/schemas/dag-node.ts", NODE_TRANSFORM, lambda m: _guards(m[1])),
     Row("output_format で宣言した欄の null は空の解決（境の口は空の字を null と読む）", lambda: boundary.value("") is None,
         "packages/workflows/src/output-ref.ts",
         r"if \(paths !== undefined && \(value === undefined \|\| value === null\)\) return \{ kind: 'empty' \};",
@@ -279,6 +293,11 @@ ARCHON_ROWS = (
     Row("答えの行の旗は上の段の値を取る旗", _answer_options, "packages/cli/src/args.ts",
         r"export const cliArgOptions: CliArgOptions = \{\n(.*?)\n\};",
         lambda m: [name for name in _answer_options() if name in _string_options(m[1])]),
+    Row("殻が --from を足さない旗は Archon の旗", _skip_names, "packages/cli/src/args.ts",
+        r"export const cliArgOptions: CliArgOptions = \{\n(.*?)\n\};",
+        lambda m: sorted(set(_skip_names()) & set(re.findall(r"^\s*'?([\w-]+)'?: \{ type:", m[1], re.M)))),
+    Row("殻が --from を足さない短い名は枝の旗の短い名", _skip_short, "packages/cli/src/args.ts",
+        r"^\s*branch: \{ type: 'string', short: '(\w)' \},$", lambda m: [m[1]]),
     Row("子の枝の頭", lambda: childsweep.BRANCH_HEAD, "packages/isolation/src/providers/worktree.ts",
         r"return `(archon/task-)\$\{this\.slugify\(request\.identifier\)\}`;"),
     Row("子の枝の名の親の run の id の長さ", lambda: childsweep.RUN_HEAD,
@@ -335,6 +354,44 @@ class ConsumerContractTest(ContractTest):
 class ArchonContractTest(ContractTest):
     def test_copies_match_pinned_archon_source(self):
         self.check(archon.source(), ARCHON_ROWS)
+
+
+class GuardsTest(unittest.TestCase):
+    """止めた源の分かれは全部 data.<欄> の形なので、形の合わない分かれを赤にする道は作った transform で確かめる"""
+
+    TRANSFORM = """\
+    if (data.command !== undefined) {
+      return { ...base, kind: 'agent', command: data.command };
+    }
+    if (data.bash !== undefined) {
+      return { ...base, kind: 'exec', bash: data.bash };
+    }
+    if (isSleep(data)) {
+      return { ...base, kind: 'exec', sleep: data.sleep };
+    }
+    if (!data.loop) throw new Error('unknown node');
+"""
+
+    def test_every_branch_is_a_field_or_its_unmatched_line(self):
+        self.assertEqual(_guards(self.TRANSFORM), ["bash", "command", "isSleep(data)) {", "loop"])
+
+    def test_kind_keeps_only_its_branches_with_the_unmatched_line(self):
+        self.assertEqual(_guards(self.TRANSFORM, "exec"), ["bash", "isSleep(data)) {"])
+        self.assertEqual(_guards(self.TRANSFORM, "agent"), ["command"])
+
+
+class BoundCopyTest(unittest.TestCase):
+    """考えの柵の表（docs/concepts.json）がこの試験に縛らせた写しの行（bound）は、上の行が Archon に照らす写しのちょうど 1 行"""
+
+    def test_bound_lines_are_the_copies_checked_against_archon(self):
+        bounds = [(path, b["lines"]) for v in json.loads((ROOT / "docs/concepts.json").read_text(encoding="utf-8"))["concepts"].values()
+                  for f in v["fences"] for b in f.get("bound") or [] if b["by"] == "tests/shared/test_archon_contract.py"
+                  for path in b["paths"]]
+        self.assertEqual(bounds, [("bin/_lib/startpoint.py", r"^SKIP_FLAGS = \(")])
+        for path, lines in bounds:
+            found = [line for line in (ROOT / path).read_text(encoding="utf-8").splitlines() if re.search(lines, line)]
+            self.assertEqual(len(found), 1, found)
+            self.assertEqual(ast.literal_eval(found[0].split("=", 1)[1].strip()), startpoint.SKIP_FLAGS)
 
 
 class PinnedSourceTest(unittest.TestCase):

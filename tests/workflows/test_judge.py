@@ -9,6 +9,7 @@ import json
 import os
 import pathlib
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -34,6 +35,7 @@ import reads  # noqa: E402
 import rolekit  # noqa: E402
 import runreport  # noqa: E402
 import seat  # noqa: E402
+import userenv  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402  （judge_accept が写しの engine を sys.path に足す）
 from lib.tests import test_judge_accept as TJ  # noqa: E402
 
@@ -385,7 +387,7 @@ class LoopTest(unittest.TestCase):
 class RoleSettingsTest(unittest.TestCase):
     def test_roles_keep_the_old_settings(self):
         by = nodes()
-        roles = {nid for nid, n in by.items() if "command" in n or "prompt" in n}
+        roles = {nid for nid, n in by.items() if any(k in n for k in scan.ROLE_KINDS)}
         self.assertEqual(sorted(roles), sorted(ROLES))
         for nid, (model, effort, tools, sandbox, read_only, context, skills, plugins) in ROLES.items():
             n = by[nid]
@@ -857,6 +859,20 @@ class SpecFreezeTest(unittest.TestCase):
         row = spec["acceptance"][0]
         self.assertRegex(row["sha256"], "^[0-9a-f]{64}$")
         self.assertEqual(row["exit_at_approval"], 0)
+
+    def test_approval_in_users_env_leaves_the_marker(self):
+        """#504: 利用者が明示した run では、受け入れ条件のコマンドを利用者の HOME・XDG に戻して走らせ、メイングラフの run の置き場に
+        印（userenv.RAN_FILE）を残す（印の置き場を立てずに戻すと、戻さずに止まって仕様を固められない）"""
+        r = self.spec_run()
+        home = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, home, True)
+        with mock.patch.dict(os.environ, {userenv.RECORD: userenv.record({"HOME": str(home), userenv.OPT_IN: "1"})}):
+            os.environ.pop(userenv.RAN_DIR_ENV, None)
+            out = r.returned("spec_freeze", answer={"decision": "approve", "text": ""})
+        self.assertTrue(out["go"], out)
+        spec = json.loads((r.judge / "spec.json").read_text(encoding="utf-8"))
+        self.assertEqual(spec["acceptance"][0]["exit_at_approval"], 0)
+        self.assertTrue(userenv.ran(r.artifacts))
 
 
 class StopPathTest(StopPathFilesMixin, unittest.TestCase):

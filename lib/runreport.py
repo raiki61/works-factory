@@ -13,7 +13,7 @@
 - glossary_section(text, terms, pack)・pack_terms(): 本文と機械の事実に現れる語だけの定義の節（元 report_roles.py の glossary_section）
 - build(returns, gates, typed, transcript, outcome, stop_reason, *, out_dir, start, problems, run_id, transcript_why, repo,
   report_name, line) -> {report, next_request, prior_failures, ai_go}（元 report.py:2000。line は線の値）
-- fallback_report(out_dir, why, name): 思わぬ誤りの時の機械の報告（名は呼び手が渡す。facts の報告を上書きしない名）
+- fallback_report(out_dir, why, name, *, user_env): 思わぬ誤りの時の機械の報告（名は呼び手が渡す。facts の報告を上書きしない名）
 - cold_body(raw)・accept(reply, cold, *, out_dir)・collect(machine, *, out_dir, stamp)・stamp(run_id, workflow_file, rnd, start): 書き手の
   返答の受け付けと AI の報告（元 report_roles.py の write_cold_prep・accept・collect・stamp）
 """
@@ -424,19 +424,17 @@ def _ask_draft(q: dict, key: str) -> dict:
 
 def answer_drafts(returns: dict, gates: dict, start: dict) -> list:
     """人の判断を待つ項目への答えの下書き [{question, text, draft, source, note?}]（元 gatemarks.answer_drafts）:
-    ①無人の run で修正前の関所が通さなかった事前審査の問い（と最後の関所が通さなかった R4 の問い）ごとに 1 行。項目の文が修正案の
-    狭める行・事前審査の穴・定石の外れに当たれば、その行の決め手（推し recommend・狭めない案 no_narrow・世界の解 world）を使う
+    ①無人の run で修正前の関所が通さなかった事前審査の問いと、人の居る run でも無人の run でも R4 が人に回した問い（元
+    report.next_items の pending_human）ごとに 1 行。項目の文が修正案の狭める行・事前審査の穴・定石の外れに当たれば、その行の決め手
+    （推し recommend・狭めない案 no_narrow・世界の解 world）を使う
     ②人の居る run でも無人の run でも、保留のままの台帳の問いごとに 1 行（理由の推しか選択肢）
     ③問いの立っていない測れていない素材ごとに 1 行（materials.json の reason つき。依頼の answers が当たった素材は除く）
     同じ question の行は 1 度だけ。機械は関所にも問いにも答えない——下書きは依頼の入口が拒むので、人が見直してから使う"""
-    out = []
-    if _unattended(start):
-        rows = [*_fix_plan_rows(returns), *_face_rows(returns), *_world_rows(returns)]
-        for gid, rid in (("gate-before-fix", "plan-review"), ("gate-final", "eyes")):
-            if as_dict(gates.get(gid)).get("decision") in oc.PASS_WORDS:
-                continue
-            qs = _list(_ret(returns, rid).get("questions"))
-            out += [_gate_draft(q, rows) for q in (gatemarks.row_texts(qs) if rid == "plan-review" else qs) if isinstance(q, str) and q.strip()]
+    rows = [*_fix_plan_rows(returns), *_face_rows(returns), *_world_rows(returns)]
+    asked = oc.eye_questions(returns)
+    if _unattended(start) and as_dict(gates.get("gate-before-fix")).get("decision") not in oc.PASS_WORDS:
+        asked = gatemarks.row_texts(_list(_ret(returns, "plan-review").get("questions"))) + asked
+    out = [_gate_draft(q, rows) for q in asked if isinstance(q, str) and q.strip()]
     missing = oc.unmeasured(returns)
     out += [_ask_draft(q, key) for q, key in ledger_state(returns, gates, start)["drafts"]]
     mats, _ = oc.materials(returns)
@@ -963,7 +961,7 @@ def _decisions(returns: dict, gates: dict, start: dict, outcome: str, left: list
     """人が決めることの行と、冒頭の 2 行目（件数）。数える物は元 head3 と head_decisions の人が決める物。round_limit の残りは
     直す義務に戻せなかった単位の行を重ねて数えない。closed は途中で落ちていない run（案の直しを待つ行を人に回した行に数える）"""
     plan_qs, plan_done = _plan_questions(returns, gates, start)
-    eye_qs = [q for q in _list(as_dict(returns.get("eyes")).get("questions")) if isinstance(q, str)]
+    eye_qs = oc.eye_questions(returns)
     ledger = ledger_state(returns, gates, start)
     held_ = [line for q, line in ledger["held"] if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_qs)]
     done = ledger["answered"] + [oneline.one_line(x) for x in plan_done]
@@ -1316,25 +1314,29 @@ def _entry_lines(start: dict, returns: dict, tdd_freeze: list, line: dict | None
 def _base_word(base: dict) -> str:
     """直す前のテストの語。red_cause が incomplete で認証されなかった（ok 偽）base は、素材が測った結果でないか、素材が無いか、
     返す節の中の誤り（workflows/test-gate/scripts/result.py）なので「走らせられなかった」。認証された incomplete の base は、
-    素材が not_applicable（green_cert.certify が認証し classify が incomplete に畳む）なら元の結末のファイルの素材の語で言う"""
+    素材が not_applicable か awaiting_human（green_cert.certify が認証し classify が incomplete に畳む）なら元の結末のファイルの
+    素材の語で言い、awaiting_human は走らせられなかった系統を名指す素材の reason を添える"""
     if base.get("green"):
         return "緑"
     if base.get("red_cause") == green_cert.INCOMPLETE:
         if base.get("ok") is not True:
             return f"走らせられなかった（{green_cert.INCOMPLETE}）——{gatemarks.BASELINE_NOT_RUN}"
-        if _base_status(base) == green_cert.NOT_APPLICABLE:
-            return f"{gatemarks.MATERIAL_WORDS[green_cert.NOT_APPLICABLE]}（{green_cert.NOT_APPLICABLE}）"
+        material = _base_material(base)
+        status = material.get("status")
+        if status in (green_cert.NOT_APPLICABLE, green_cert.AWAITING_HUMAN):
+            why = oneline.one_line(material.get("reason") or "") if status == green_cert.AWAITING_HUMAN else ""
+            return f"{gatemarks.MATERIAL_WORDS[status]}（{status}）" + (f"——{why}" if why else "")
     return "赤" + (f"（赤の原因 {base.get('red_cause')}）" if base.get("red_cause") else "")
 
 
-def _base_status(base: dict) -> str | None:
-    """base の返りの baseline の指し札の先（元の結末のファイル）の素材の status。読めなければ None"""
+def _base_material(base: dict) -> dict:
+    """base の返りの baseline の指し札の先（元の結末のファイル）の素材。読めなければ空"""
     pointed = oc.paths(base.get("baseline"))
     try:
         material = baseline_red.read_baseline(pointed[0]).get("material") if pointed else None
     except ValueError:
-        return None
-    return material.get("status") if isinstance(material, dict) else None
+        return {}
+    return as_dict(material)
 
 
 def _stop_words(line: dict | None) -> list:
@@ -1456,7 +1458,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     transcript は transcript_facts の返り、typed は型つきの成果物の読み {by_type, warnings}、repo は直しの内側の語を直す前の版と
     比べる対象の置き場（無ければ比べずに全部並べる）、line は線の値 {stops, deferred, widened, final_reasons, prior_failures（開けた
     ファイルのパスの字か None）, redepth}（線の collect が report の入力で渡す物。無ければ空）、user_env は対象のコマンドを利用者の
-    HOME・XDG で走らせた run か（userenv.opted。真なら冒頭の 1 行目が userenv.NOTE を言う）"""
+    HOME・XDG に戻して起こした run か（userenv.ran。真なら冒頭の 1 行目が userenv.NOTE を言う）"""
     out_dir = pathlib.Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     returns, gates, typed, start = returns or {}, gates or {}, typed or {}, start or {}
@@ -1488,7 +1490,7 @@ def build(returns: dict, gates: dict, typed: dict, transcript: dict, outcome: st
     if stopped:
         decide = "。".join(x for x in (decide, apply[-1]) if x)
     asked_texts = [*_plan_questions(returns, gates, start)[0],
-                   *[q for q in _list(_ret(returns, "eyes").get("questions")) if isinstance(q, str)]]
+                   *oc.eye_questions(returns)]
     head = gatemarks.head3(happened, decide, gatemarks.pushes(asked_texts), other=f"次の run に渡す物: {len(findings) + len(drafts) + len(constraints)} 件")
     sections = [
         (report.DECISIONS_HEADING, [*unrestored_lines(returns), *backed_out_lines(returns), *decisions,
@@ -1541,10 +1543,12 @@ def _ran_notes(returns: dict) -> list:
     return [note] if note else []
 
 
-def fallback_report(out_dir, why: str, name: str) -> pathlib.Path:
+def fallback_report(out_dir, why: str, name: str, *, user_env: bool) -> pathlib.Path:
     """思わぬ誤りの時の機械の報告（結末 record_invalid と訳の 1 行）を name に書く（呼び手は facts の report.md と別の名を渡す）。
+    user_env は build と同じ（落ちた run でも、利用者の HOME・XDG で走らせたことは冒頭が言う）。
     組めなければ誤りが上がり、呼び手が lib/ に頼らない訳だけのファイルに落ちる"""
-    return build({}, {}, {}, None, "record_invalid", f"report:{why}", out_dir=out_dir, problems=[why], report_name=name)["report"]
+    return build({}, {}, {}, None, "record_invalid", f"report:{why}", out_dir=out_dir, problems=[why], report_name=name,
+                 user_env=user_env)["report"]
 
 
 # ---------------------------------------------------------------- 書き手の返答の受け付けと AI の報告
@@ -1566,12 +1570,28 @@ def _cold_of(cold) -> dict:
             "guessed": [str(g) for g in _list(got.get("guessed"))], "decidable": got.get("decidable") is True}
 
 
-def _cold_reason(c: dict) -> str:
+COLD_UNREADABLE = "初見の読み手の返答を読めない（判定の語が無い）"
+COLD_EMPTY = "（止まった所・推測の欄が空）"
+
+
+def _cold_lines(c: dict) -> list[str]:
+    """初見の読み手が通さなかった所（止まった所・推測で埋めた所）。判定を読めなければその事実の 1 つ"""
     if not c["verdict"]:
-        return "初見の読み手の返答を読めない（判定の語が無い）"
-    lines = [f"- 止まった所: {s}" for s in c["stops"]] + [f"- 推測で埋めた所: {g}" for g in c["guessed"]]
+        return [COLD_UNREADABLE]
+    return [f"止まった所: {s}" for s in c["stops"]] + [f"推測で埋めた所: {g}" for g in c["guessed"]]
+
+
+def _cold_facts(c: dict) -> str:
+    """通らなかった所の 1 行（AI_FILE の not_passed。報告の拒みの数の行の尾に出す）"""
+    return oneline.one_line("；".join(_cold_lines(c)) or COLD_EMPTY)
+
+
+def _cold_reason(c: dict) -> str:
+    """書き手に返す拒みの文"""
+    if not c["verdict"]:
+        return COLD_UNREADABLE
     return ("初見の読み手（道具なし・報告の頭だけを読む）が redesign-needed を返した。次の所を、頭だけで意味が取れるように"
-            "直した本文を丸ごと出し直せ:\n" + ("\n".join(lines) or "- （止まった所・推測の欄が空）"))
+            "直した本文を丸ごと出し直せ:\n" + "\n".join(f"- {x}" for x in _cold_lines(c) or [COLD_EMPTY]))
 
 
 def cold_body(raw) -> str:
@@ -1642,10 +1662,10 @@ def accept(reply, cold, *, out_dir) -> dict:
     if c["verdict"] != "pass":
         if len(rows) < report_roles.GIVE_UP_AFTER - 1:
             return reject(_cold_reason(c), "cold")
-        not_passed = _cold_reason(c)
+        not_passed = _cold_facts(c)
     carry.write(out_dir / AI_FILE, {"accepted": True, "text": got["text"], "terms": _list(got.get("terms")), "cold": c,
                                     "not_passed": not_passed, "rejects": report_roles.count_rejects(rows)})
-    reason = f"上限の回なので受け取った。ただし{report_roles.NOT_PASSED}（報告の冒頭に出す）" if not_passed else ""
+    reason = f"上限の回なので受け取った。ただし{report_roles.NOT_PASSED}（機械の事実の拒みの数の行に出す）" if not_passed else ""
     return {"done": True, "ok": True, "reason": reason, "kind": "", "reason_file": ""}
 
 
@@ -1678,9 +1698,18 @@ def embedded(machine_text: str) -> str:
     return "\n".join(out) + ("\n" if machine_text.endswith("\n") else "")
 
 
+def _not_passed_note(ai: dict) -> str:
+    """初見の読み手が通さないまま受け取った時の、拒みの数の行の尾（通っていれば空）"""
+    if ai.get("accepted") is not True or not ai.get("not_passed"):
+        return ""
+    return f"。{report_roles.NOT_PASSED}（上限の {report_roles.GIVE_UP_AFTER} 回目で受け取った。{oneline.one_line(ai['not_passed'])}）"
+
+
 def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
     """AI の報告（元 report_roles.collect）。AI_FILE が無ければ None（書き手の輪が落ちた・飛ばされた）。受け取っていれば 来歴の 1 行＋
-    （通っていなければ NOT_PASSED の 1 行）＋本文＋語の定義の節＋機械の事実（embedded）、受け取れなかった時は訳と機械の事実を書く"""
+    本文＋語の定義の節＋機械の事実（embedded）、受け取れなかった時は訳と機械の事実を書く。初見の読み手が通さないまま受け取った時は、
+    拒みの文を本文の頭に置かず、機械の事実の拒みの数の行（COLD_REJECTS_LINE）の尾に NOT_PASSED と通らなかった所（AI_FILE の
+    not_passed）を 1 行で足す"""
     out_dir = pathlib.Path(out_dir)
     try:
         ai = oc.read_json(out_dir / AI_FILE)
@@ -1691,12 +1720,11 @@ def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
     ai = as_dict(ai)
     if ai.get("accepted") is True:
         body = str(ai.get("text") or "").strip()
-        if ai.get("not_passed"):
-            body = f"{report_roles.NOT_PASSED}: {oneline.one_line(ai['not_passed'])}\n\n{body}"
     else:
         body = f"{report_roles.FAILED_TITLE}\n\n{ai.get('reason') or '書き手の返答を受け取れなかった'}"
-    sec = glossary_section(f"{body}\n{machine_text}", ai.get("terms") or [])
+    note = _not_passed_note(ai)
+    sec = glossary_section(f"{body}\n{note}\n{machine_text}", ai.get("terms") or [])
     colds = sum(c.get("cold", 0) for c in as_dict(ai.get("rejects")).values() if isinstance(c, dict))
     text = (f"{stamp}\n\n{body}\n\n" + (f"{sec}\n" if sec else "")
-            + f"---\n\n{report_roles.MACHINE_HEADING}\n\n{report_roles.COLD_REJECTS_LINE} {colds} 回\n\n{embedded(machine_text)}")
+            + f"---\n\n{report_roles.MACHINE_HEADING}\n\n{report_roles.COLD_REJECTS_LINE} {colds} 回{note}\n\n{embedded(machine_text)}")
     return _write_text(out_dir / AI_REPORT_FILE, text)

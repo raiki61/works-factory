@@ -93,8 +93,9 @@ def outside_env(environ):
     uv run の外で起こされた（UV_RUN_RECURSION_DEPTH が無い）ときは、下の UV_NO_CONFIG のほかは外さない。
     - UV_NO_CONFIG はいつも外す。利用者が実行基盤の環境に立てていても、テストのコマンド（`uv run <試験の実行器>` など）には対象の
       [tool.uv]（私的な index など）を読ませる。渡すと公開の PyPI から解決して、偽の赤と依存の取り違えの口になる
-    - userenv.RECORD（利用者が明示した時だけ起動の殻が控えた、隔離の前の HOME・XDG_*）はいつも外し、在れば中の値に戻す
-      （userenv.restore。形が違えば ValueError）。戻すのはこの写しだけで、実行基盤・役・script 自身の git は隔離のまま
+    - userenv.RECORD（利用者が明示した時だけ起動の殻が控えた、隔離の前の HOME・XDG_*）と userenv.RAN_DIR_ENV はいつも外し、
+      RECORD が在れば中の値に戻して、印のパスを userenv.MARK に置く（userenv.restore。印を置くのは run が子を起こした後。RECORD の
+      形が違う・RAN_DIR_ENV が無ければ ValueError）。戻すのはこの写しだけで、実行基盤・役・script 自身の git は隔離のまま
     実行基盤は script の節を `uv run <ファイル>` で起こし、uv は PATH の頭に自分の python の bin を足し、VIRTUAL_ENV・
     UV_RUN_RECURSION_DEPTH を立てる。そのまま渡すと `python3 -m <試験の実行器>` が uv の python を掴んで偽の赤になる。
     限界: 節に deps: を足すと uv は --with の層の bin も足し、それは外れない（今の節は deps を持たない）"""
@@ -393,7 +394,8 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
 
 def run(argv, **popen_kw):
     """argv を新しいプロセスグループで起こして終わりを待ち、終了コード（信号で死んだら 128+信号）を返す。bash -c の argv は起こす前に
-    prove_launchable で中の先頭の語を引き、引けなければ起こさずに OSError。
+    prove_launchable で中の先頭の語を引き、引けなければ起こさずに OSError。env に userenv.MARK（outside_env が利用者の HOME・XDG に
+    戻した印）が在れば、子に渡さず、子が起きた後にだけ印を置く（起こせなかったコマンドで報告が言い過ぎない）。
     待つ間（後始末の間も）に STOP_SIGNALS を受けたか直下の親が替わったら、木ごと止め、LINGER 秒待ってから Stopped を投げる。
     起きた時に既に孤児（親が 1）なら起こさずに Stopped(SIGHUP)。どの道で抜けても木を止めに行き、止め切れなければ
     標準エラーに名指しする（抜け道はモジュールの説明）"""
@@ -421,6 +423,10 @@ def run(argv, **popen_kw):
             return got[0]
         return signal.SIGHUP if os.getppid() != ppid else None
 
+    env = popen_kw.get("env")
+    mark = env.get(userenv.MARK) if env is not None else None
+    if mark is not None:
+        popen_kw = {**popen_kw, "env": {k: v for k, v in env.items() if k != userenv.MARK}}
     try:
         if ppid == 1:
             raise Stopped(signal.SIGHUP)
@@ -429,6 +435,8 @@ def run(argv, **popen_kw):
             raise stopped_by(signum)
         born = time.time()   # 長の番号の再利用の目印（_tree_members の born）
         p = subprocess.Popen(argv, start_new_session=True, **popen_kw)
+        if mark is not None:
+            userenv.mark(mark)
         while True:
             if (signum := stop_signal()) is not None:
                 stop(signum)
@@ -461,6 +469,7 @@ IGNORED_ENV = frozenset({
     "TERM_SESSION_ID", "ITERM_SESSION_ID", "WINDOWID", "TMUX", "TMUX_PANE", "STY", "SESSIONNAME",
     "VSCODE_GIT_IPC_HANDLE", "VSCODE_IPC_HOOK_CLI",
     "CLAUDE_CODE_SESSION_ID", "CLAUDE_PID", "CLAUDE_CODE_SSE_PORT", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
+    userenv.MARK,
 })
 
 

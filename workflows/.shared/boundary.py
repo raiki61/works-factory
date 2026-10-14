@@ -25,6 +25,8 @@ Archon に向いた事実（lib/ は Archon の名を持たない（lib/AGENTS.m
   run の作業ツリーの根
 - shared_cache(): run をまたぐ控えの根
 - RUNNER_PREFIXES・RUNNER_NAMES・drop_runner_env(): Archon が script の節に立てる変数
+- line_place()・USER_ENV_RAN_DIR・aim_user_env(): メイングラフの run の置き場（fix の組の子の run からも辿る）と、対象のコマンドを利用者の
+  HOME・XDG に戻して起こした印をそこへ置かせる変数（lib/userenv.py の RAN_DIR_ENV。drop_runner_env が先に立てる）
 - prev_reason(): 輪の頭の節の返り（前の周の受け付けの理由）
 - transcript(): この run の記録の行（Archon の logger が LOG_DIR に書く JSONL。節ごとの費用と落ちを読む）
 """
@@ -61,6 +63,8 @@ SHARED_CACHE = "works-factory"
 # Archon が script の節に立てる変数（exec-environment.ts の buildExecNodeEnvironment。tests/shared/test_archon_contract.py が照らす）。
 # 頭の一致は ARCHON_・INPUTS_ だけで、ほかは名の完全一致（CONTEXT などを頭で落とすと利用者の変数まで落とす）
 RUNNER_PREFIXES = ("ARCHON_", "INPUTS_")
+# lib/userenv.py の RAN_DIR_ENV の写し（境の口は lib/ を sys.path に足す前に読まれる。tests/shared/test_boundary.py が突き合わせる）
+USER_ENV_RAN_DIR = "WORKS_FACTORY_USER_ENV_RAN_DIR"
 RUNNER_NAMES = frozenset({
     "ARTIFACTS_DIR", "STATE_DIR", "LOG_DIR", "ADOPTED_RUN_DIR", "WORKFLOW_ID", "BASE_BRANCH", "USER_MESSAGE", "ARGUMENTS",
     "LOOP_USER_INPUT", "LOOP_PREV_OUTPUT", "REJECTION_REASON", "CONTEXT", "EXTERNAL_CONTEXT", "ISSUE_CONTEXT", "TYPED_ARTIFACTS_FILE",
@@ -189,9 +193,34 @@ def items(raw) -> list:
     return got if isinstance(got, list) else []
 
 
+def line_place() -> Path | None:
+    """メイングラフの run の成果物の置き場。fix の組の子の run は入力 out_dir（親の置き場の <メイングラフの run の置き場>/fix/<include の名>/groups）から
+    3 つ上、ほか（out_dir が空）は自分の ARTIFACTS_DIR。out_dir の形が違う・ARTIFACTS_DIR が無ければ None"""
+    out_dir = os.environ.get("INPUTS_OUT_DIR", "").strip()
+    if not out_dir:
+        artifacts = os.environ.get("ARTIFACTS_DIR")
+        return Path(artifacts) if artifacts else None
+    path = Path(out_dir)
+    if path.name != "groups" or len(path.parents) < 3 or path.parents[1].name != "fix":
+        return None
+    return path.parents[2]
+
+
+def aim_user_env() -> None:
+    """対象のコマンドを利用者の HOME・XDG に戻した印を、メイングラフの run の置き場（line_place）に置かせる（USER_ENV_RAN_DIR）。置き場が
+    引けなければ古い値も外す（利用者が明示した run では lib/userenv.restore が戻さずに止まる）"""
+    top = line_place()
+    if top is None:
+        os.environ.pop(USER_ENV_RAN_DIR, None)
+    else:
+        os.environ[USER_ENV_RAN_DIR] = str(top)
+
+
 def drop_runner_env() -> None:
     """Archon の変数を落とす。入力と置き場を読み終えた後、対象のテストを走らせる lib/ の関数を呼ぶ前に呼ぶ（lib/ は環境を os.environ
-    から継いで子を起こす。節ごと・子の run ごとに値が違うので、残すと同じ run の中の試験の結果の使い回しの指紋も割れる）"""
+    から継いで子を起こす。節ごと・子の run ごとに値が違うので、残すと同じ run の中の試験の結果の使い回しの指紋も割れる）。
+    落とす前に aim_user_env で印の置き場を立てる"""
+    aim_user_env()
     for name in [n for n in os.environ if n.startswith(RUNNER_PREFIXES) or n in RUNNER_NAMES]:
         del os.environ[name]
 

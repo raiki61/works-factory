@@ -31,7 +31,17 @@
       "workflows/line/scripts/start.py",
       "workflows/chain/scripts/chain_start.py"
      ],
-     "known": {}
+     "known": {},
+     "bound": [
+      {
+       "paths": [
+        "bin/_lib/startpoint.py"
+       ],
+       "lines": "^SKIP_FLAGS = \\(",
+       "by": "tests/shared/test_archon_contract.py",
+       "why": "殻が --from を足さない旗の並びは Archon の旗（packages/cli/src/args.ts）の写しで、Archon の --base（PR の基と作業ツリーの切り元の名指し）を名指す。入口の入力 base とは別の物。試験が並びの各々を Archon の旗の名に照らし、写しの行がこの 1 行だけである事を縛る"
+      }
+     ]
     },
     {
      "what": "入口の種類で分かれる形と消した種の名（差分の根の出どころ base.from での分岐ほか）",
@@ -813,6 +823,7 @@
  "loosened": {
   "allowed:entry-kind:入口の生の入力（差分の根の名指し base・pr）を読む・渡す形:workflows/chain/scripts/chain_start.py": "周の鎖（#380）の始めのノードが、一番上のグラフとして受けた入力 base・pr を 1 周目の子（メイングラフ）へ写して渡し、1 周目に名指した PR の番号を次の周の依頼の pr の欄で運ぶ。入口の種類の決めはメイングラフの start のまま",
   "allowed:human-gates:人の承認ノードの方針の語（最後の承認ノードの開き方 final_gate とその語 always 以外の when_needed・protected_only、無人の run の入力 unattended、語の表 FINAL_GATES・UNATTENDED）。住処の口を引く gatepolicy.<名> は数えない:workflows/chain/works-factory-chain.yaml": "周の鎖（#380）の親のグラフが、メイングラフの入力 final_gate・unattended を同じ名で宣言し、5 組の周の子へ写して渡す。方針の語の読みはメイングラフの start と gatepolicy のまま",
-  "allowed:red-check:赤の引用の欄の名（test の段の返答の欄と単位の記録の欄）:workflows/fix/works-factory-fix.yaml": "TDD の役の返答の型（output_format の &tdd_reply）に赤の引用の欄 red_quotes を足した（#290）。型の正本は output_format だけ（持ち主の決め io-in-output-format）なので、欄の名がこの YAML に在るのは住処の外の漏れでなく型の宣言"
+  "allowed:red-check:赤の引用の欄の名（test の段の返答の欄と単位の記録の欄）:workflows/fix/works-factory-fix.yaml": "TDD の役の返答の型（output_format の &tdd_reply）に赤の引用の欄 red_quotes を足した（#290）。型の正本は output_format だけ（持ち主の決め io-in-output-format）なので、欄の名がこの YAML に在るのは住処の外の漏れでなく型の宣言",
+  "bound:entry-kind:入口の生の入力（差分の根の名指し base・pr）を読む・渡す形:bin/_lib/startpoint.py:^SKIP_FLAGS = \\(": "issue #495 の見直し: 利用者が Archon の --base で名指した切り元を、殻の --from が黙って上書きしないよう、--from を足さない旗の並びに --base を入れた。Archon の旗の名の写しで、入口の種類（差分の根の名指し）は読まない"
  }
 }

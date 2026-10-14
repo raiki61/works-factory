@@ -15,6 +15,7 @@ import unittest
 import yaml
 
 from tests.archon import BORROWED_SKILLS, BUILTIN_SKILLS
+from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 PLUGIN = "pr-review-toolkit"
@@ -47,7 +48,7 @@ def role_nodes(nodes: list) -> list[dict]:
     """節の並び（loop_group の中も）から役の節（prompt:・command:）を集める。"""
     out = []
     for node in nodes or []:
-        if "prompt" in node or "command" in node:
+        if any(k in node for k in scan.ROLE_KINDS):
             out.append(node)
         if isinstance(node.get("loop_group"), dict):
             out.extend(role_nodes(node["loop_group"].get("nodes")))

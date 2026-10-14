@@ -65,6 +65,14 @@ class TableCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(fix={**fixed_run()["fix"], "stop_reason": stopby.REPLAN}))[0], "needs_human")
         eyes = {**fixed_run()["eyes"], "premise_check": {"verdict": "escalate", "reason": "前提が崩れた"}}
         self.assertEqual(decide(fixed_run(eyes=eyes))[0], "needs_human")
+        eyes = {**fixed_run()["eyes"], "questions": ["[消えた能力] 旧い口を消してよいか"]}
+        self.assertEqual(decide(fixed_run(eyes=eyes)), ("needs_human", "eyes:r4-ask"),
+                         "R4 が人に回した問いは人待ち（元 report.decide_outcome の pending_human）")
+        self.assertEqual(decide(fixed_run(eyes=eyes), gates={"gate-final": {"decision": "continue", "text": ""}}),
+                         ("needs_human", "eyes:r4-ask"), "最後の承認ノードを通しても問いには答えていない（元 SKILL.md:119）")
+        eyes = {**fixed_run()["eyes"], "questions": ["  ", 3]}
+        self.assertNotEqual(decide(fixed_run(eyes=eyes))[1], "eyes:r4-ask", "空白だけ・文でない行は問いに数えない")
+        self.assertEqual(outcome.eye_questions({"eyes": {"questions": ["  ", 3, "旧い口を消してよいか"]}}), ["旧い口を消してよいか"])
         review = {"pass": True, "ask_human": True, "questions": ["どちらに寄せるか"]}
         self.assertEqual(decide(fixed_run(**{"plan-review": review}, fix=None, **{"test-gate-final": None})),
                          ("needs_human", "plan-review:ask-human"))
@@ -343,6 +351,18 @@ class ReadingCase(unittest.TestCase):
         self.assertEqual(decide(fixed_run(judge=judge)), ("fixed_needs_check", ""))
         red = {"ok": False, "green": False, "red_cause": "introduced"}
         self.assertEqual(decide(fixed_run(judge=judge, **{"test-gate-final": red}))[0], "round_limit")
+
+    def test_base_with_unrunnable_ci_reaches_fixed_needs_check_naming_the_reason(self):
+        """#495: 直す前のテストで一部の系統を走らせられなかった（local_checks が awaiting_human）run も、最後のテストと封じが通れば
+        fixed_needs_check で、残りの行が走らせられなかった系統（素材の reason）を名指す"""
+        judgment = self.put("judge/judgment.json", {})
+        self.put("judge/materials.json", {"local_checks": {"status": "awaiting_human",
+                                                           "reason": "実機の要る系統は回せない\nlint は緑"}})
+        returns = fixed_run(judge={**fixed_run()["judge"], "judgment": judgment})
+        self.assertEqual(decide(returns), ("fixed_needs_check", ""))
+        [row] = outcome.residue(returns)
+        self.assertEqual(row["where"], f"{outcome.MATERIAL_WHERE} local_checks")
+        self.assertIn("awaiting_human: 実機の要る系統は回せない lint は緑", row["text"])
 
     def test_material_answered_with_command_and_output_is_not_left(self):
         """依頼が命令と出力つきで答えた素材は次の run の残りに数えない（元 report.residue の gatemarks.measured_materials）。

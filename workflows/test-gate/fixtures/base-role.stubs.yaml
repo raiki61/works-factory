@@ -1,5 +1,6 @@
 # 筋書き base-role: 宣言も test_cmd も無い（by role_needed）ので、任せ先の CI の役の輪（ci-prep → ci → ci-accept）を回してから
-# 返す節に届く。走らせられなかった役の awaiting_human は base では受け付け、返す節は緑を仮定しない（ok: false）
+# 返す節に届く。走らせられなかった役の awaiting_human は base では受け付け、返す節は緑を仮定しない（green: false・incomplete）が
+# 直す前の結末を控えて鎖を進める（ok: true。#495。走らせられなかった系統は控えの素材の reason が名指す）
 run:
   by: role_needed
   material: null
@@ -27,7 +28,7 @@ ci-accept:
   reason: ""
 result:
   mode: base
-  ok: false
+  ok: true
   green: false
   red_cause: incomplete
   baseline: {type: archon_artifact, run_id: stub-run, path: test-gate/base/baseline.json}
@@ -38,7 +39,7 @@ result:
   suites_line: "走らせた: 無い／走らせなかった: 宣言の段・test_cmd（任せ先の CI の役 blk-ci が走らせなかった: 素材の status awaiting_human）"
   log: ""
   baseline_line: ""
-  reason: "素材が awaiting_human——緑を仮定しない"
+  reason: ""
 fixture:
   inputs:
     mode: base

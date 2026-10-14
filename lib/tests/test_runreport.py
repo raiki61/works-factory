@@ -274,6 +274,19 @@ class BuildCase(Base):
         self.assertIn(f"直す前のテスト: {gatemarks.MATERIAL_WORDS['not_applicable']}（not_applicable）", entry)
         self.assertNotIn("走らせられなかった", entry)
 
+    def test_awaiting_human_base_names_what_could_not_run(self):
+        """#495: 一部の系統を走らせられず awaiting_human の直す前のテストは認証され（ok 真）incomplete に畳まれる。「赤」とも
+        「走らせられなかった」とも書かず、素材の語と、走らせられなかった系統を名指す reason で言う"""
+        pointed = str(self.dir / "test-gate" / "base" / "baseline.json")
+        baseline_red.write_baseline(pointed, suite="", test_cmd="", rev="r", exit=None, cases=[],
+                                    material={"status": "awaiting_human", "reason": "実機の要る系統は回せない。\nlint は緑"})
+        base = {"mode": "base", "ok": True, "green": False, "red_cause": green_cert.INCOMPLETE, "baseline": pointed}
+        _, text, _ = self.build(fixed_run(**{"test-gate-base": base}))
+        entry = self.section(text, report.ENTRY_HEADING)
+        self.assertIn(f"直す前のテスト: {gatemarks.MATERIAL_WORDS['awaiting_human']}（awaiting_human）——"
+                      "実機の要る系統は回せない。 lint は緑", entry)
+        self.assertNotIn("直す前のテスト: 赤", entry)
+
 
 class TddCase(Base):
     GROUP_RAN = {"group_id": "g1", "ran": True, "reason": "", "suite": "run-tests", "reused": None,
@@ -782,13 +795,16 @@ class DraftsCase(Base):
         self.assertIn("狭めない案: 上限を変えずに足す", drafts[1]["note"])
         self.assertIn("決め手の欄が無い", drafts[2]["source"], "人に回さない種類の穴は事前審査の行に結ばない")
 
-    def test_final_gate_r4_questions_are_drafted_unless_passed(self):
-        """最後の関所が通さなかった無人の run は、独立の目 R4 の問いごとに下書き。関所が通した run は作らない"""
+    def test_final_gate_r4_questions_are_drafted_even_when_passed(self):
+        """独立の目 R4 の問いごとに下書き。関所の continue は問いに答えないので、人の居る run でも関所が通した run でも作る（元
+        skills/works/SKILL.md 119 行「問いは報告の冒頭と次の run の依頼の下書きに載り、結末は needs_human」。#505）"""
         eyes = {**fixed_run()["eyes"], "questions": ["守りを触ってよいか／推し: 通す（continue）——触らない（理由: 守りは別の PR）"]}
         returns = fixed_run(eyes=eyes)
         drafts = runreport.answer_drafts(returns, {}, UNATTENDED)
         self.assertEqual([(d["question"], d["text"]) for d in drafts], [("守りを触ってよいか", "通す（continue）——触らない（理由: 守りは別の PR）")])
-        self.assertEqual(runreport.answer_drafts(returns, {"gate-final": {"decision": "approve", "text": ""}}, UNATTENDED), [])
+        for start in (UNATTENDED, {"run_id": RUN}):
+            with self.subTest(start=start):
+                self.assertEqual(runreport.answer_drafts(returns, {"gate-final": {"decision": "continue", "text": ""}}, start), drafts)
 
     def test_drafts_reach_next_request(self):
         returns = fixed_run(**{"plan-review": {"questions": [gatemarks.question_row("regression", "どうするか")]}})
@@ -890,11 +906,40 @@ class CollectCase(Base):
         self.assertTrue(text.endswith("- 承認ノード: 開かなかった\n"), "機械の事実の行は書き換えずに最後に付ける")
         self.assertIn("- 承認ノード:", text.split(report_roles.GLOSSARY_HEADING)[1], "機械の事実に現れる語も定義する")
 
-    def test_not_passed_mark_is_on_top(self):
+    def test_not_passed_is_one_machine_fact_line_not_the_head(self):
+        """#495: 初見の読み手が 3 回とも通さず受け取った報告は、書き手の本文で始まり、拒みの文（NOT_PASSED と出し直しの命令）を
+        頭に置かない。通らなかった事実は機械の事実の拒みの数の行の尾に 1 度だけ、止まった所と一緒に載る"""
         for _ in range(report_roles.GIVE_UP_AFTER):
             runreport.accept(AcceptCase.REPLY, AcceptCase.REDESIGN, out_dir=self.out)
         text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
-        self.assertTrue(text.split("\n\n")[1].startswith(report_roles.NOT_PASSED))
+        self.assertTrue(text.split("\n\n")[1].startswith("直した。"), text)
+        self.assertEqual(text.count(report_roles.NOT_PASSED), 1)
+        self.assertNotIn("出し直せ", text)
+        [line] = [ln for ln in text.splitlines() if report_roles.NOT_PASSED in ln]
+        self.assertTrue(line.startswith(f"{report_roles.COLD_REJECTS_LINE} 2 回。{report_roles.NOT_PASSED}"), line)
+        self.assertIn("止まった所: 冒頭の 2 行目", line)
+
+    def test_words_only_on_the_not_passed_line_are_defined(self):
+        """通らなかった事実の行にだけ在る語（NOT_PASSED の「ノード」、判定を読めなかった事実の「初見の読み手」）も、語の定義に載る"""
+        for _ in range(report_roles.GIVE_UP_AFTER):
+            runreport.accept(AcceptCase.REPLY, "壊れた", out_dir=self.out)
+        text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
+        self.assertIn(report_roles.GLOSSARY_HEADING, text)
+        glossary = text.split(report_roles.GLOSSARY_HEADING)[1].split(report_roles.MACHINE_HEADING)[0]
+        self.assertIn("- ノード:", glossary)
+        self.assertIn("- 初見の読み手:", glossary)
+
+    def test_not_passed_line_keeps_guesses_and_unreadable_verdict(self):
+        """通らなかった事実の行は、止まった所だけでなく推測で埋めた所と、判定を読めなかった事実も落とさない"""
+        guessed = json.dumps({"verdict": "redesign-needed", "stops": [], "guessed": ["語 X を推測"]}, ensure_ascii=False)
+        for cold, want in ((guessed, "推測で埋めた所: 語 X を推測"), ("壊れた", runreport.COLD_UNREADABLE)):
+            with self.subTest(want=want):
+                out = self.out / want
+                for _ in range(report_roles.GIVE_UP_AFTER):
+                    runreport.accept(AcceptCase.REPLY, cold, out_dir=out)
+                text = runreport.collect("事実", out_dir=out, stamp="run x").read_text(encoding="utf-8")
+                [line] = [ln for ln in text.splitlines() if report_roles.NOT_PASSED in ln]
+                self.assertIn(want, line)
 
     def test_given_up_reply_still_reports(self):
         for _ in range(report_roles.GIVE_UP_AFTER):
@@ -1189,6 +1234,13 @@ class LedgerCase(Base):
         self.assertEqual([line for _, line in state["held"]],
                          [gatemarks._ledger_line(FORK, skip=[FORK_UNIT]) + f'／{gatemarks.ANSWER_KEY_HEAD}: "{FORK["key"]}"'])
         self.assertIn(f"／答えが無いと直さない単位: {FORK_UNIT}", state["held"][0][1])
+
+    def test_held_lines_warn_to_read_the_measuring_command_first(self):
+        """#505: 保留の行の下の答え方は、測り方の命令が対象を読んだ役の書いた物なので、打つ前に読み読み取りだけの時だけ打てと言う
+        （元 works の skills/works/SKILL.md 117 行）"""
+        _, text, _ = self.build(self.returns(FORK))
+        self.assertIn(gatemarks.ANSWER_HOW, text)
+        self.assertIn("打つ前に読み、読み取りだけの時だけ打つ", gatemarks.ANSWER_HOW)
 
     def test_answer_key_is_the_material_name_when_it_binds_only_this(self):
         q = {**FORK, "origin": "", "key": "parallel_pr: 重なりを確かめる"}
