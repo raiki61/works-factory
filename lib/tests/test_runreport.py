@@ -1192,6 +1192,13 @@ class LedgerCase(Base):
                          [gatemarks._ledger_line(FORK, skip=[FORK_UNIT]) + f'／{gatemarks.ANSWER_KEY_HEAD}: "{FORK["key"]}"'])
         self.assertIn(f"／答えが無いと直さない単位: {FORK_UNIT}", state["held"][0][1])
 
+    def test_held_lines_warn_to_read_the_measuring_command_first(self):
+        """#505: 保留の行の下の答え方は、測り方の命令が対象を読んだ役の書いた物なので、打つ前に読み読み取りだけの時だけ打てと言う
+        （元 works の skills/works/SKILL.md 117 行）"""
+        _, text, _ = self.build(self.returns(FORK))
+        self.assertIn(gatemarks.ANSWER_HOW, text)
+        self.assertIn("打つ前に読み、読み取りだけの時だけ打つ", gatemarks.ANSWER_HOW)
+
     def test_answer_key_is_the_material_name_when_it_binds_only_this(self):
         q = {**FORK, "origin": "", "key": "parallel_pr: 重なりを確かめる"}
         state = runreport.ledger_state(self.returns(q, materials={"parallel_pr": {"status": "not_run"}}), {}, {"run_id": RUN})
