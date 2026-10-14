@@ -988,9 +988,9 @@ class ResultScriptCase(ScriptCase):
         self.assertEqual((out["ok"], out["green"], out["red_cause"]), (False, False, "incomplete"))
         self.assertTrue(green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"]).startswith(green_cert.NOT_RAN))
 
-    def test_shell_command_failing_alike_before_and_after_is_named_not_ran(self):
-        """#492 R2: 実地の形。shell の test_cmd だけの対象で、道具が利用者の設定を見失って試験の前に落ちる。直す前と後で同じログなら
-        final は incomplete で冒頭の句は「走っていない」。直す前の結末が無い・ログが違えば、原因の無い赤（確かめられていない）のまま"""
+    def test_shell_command_failing_alike_before_and_after_is_not_named_not_ran(self):
+        """#504: shell の test_cmd だけの対象で、時刻を出さない試験が直す前と後で同じログの赤でも、試験に入ったかの証拠が無いだけで
+        「走っていない」とは言わない（原因の無い赤。冒頭の句は「確かめられていない」）"""
         tool = self.as_user()
         self.write_start(test_cmd=f"{tool} && echo tests")
         self.ok("run", mode="base", start=self.start)
