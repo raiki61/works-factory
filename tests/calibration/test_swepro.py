@@ -126,15 +126,15 @@ class UnboundedTest(unittest.TestCase):
                 self.assertEqual(swepro.unbounded(argv), want)
 
 
-# 入っている Harbor の harbor run の旗（名 → click の型の名）を JSON で出す。Harbor が無ければ空の object
+# 入っている Harbor の harbor run の旗（名 → click の型の名）を JSON で出す。Harbor が無ければ空の object。
+# 入っているのに CLI を読めない時（Harbor の上げで模塊が動いた等）は落ちて、試験を赤にする
 HARBOR_RUN_FLAGS = """
-import json, sys
-try:
-    import typer
-    from harbor.cli import main
-except ImportError:
+import importlib.util, json, sys
+if importlib.util.find_spec("harbor") is None:
     print("{}")
     sys.exit(0)
+import typer
+from harbor.cli import main
 command = typer.main.get_command(main.app).commands["run"]
 print(json.dumps({o: p.type.name for p in command.params for o in p.opts}))
 """
@@ -145,8 +145,8 @@ class HarborFlagsTest(unittest.TestCase):
     uv run --isolated --extra bench で入れた環境でだけ照らす"""
 
     def test_unbounded_reads_flags_harbor_run_defines(self):
-        done = subprocess.run([sys.executable, "-c", HARBOR_RUN_FLAGS], capture_output=True, text=True, encoding="utf-8",
-                              check=True)
+        done = subprocess.run([sys.executable, "-c", HARBOR_RUN_FLAGS], capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(done.returncode, 0, f"入っている Harbor の harbor run の旗を読めない:\n{done.stderr}")
         flags = json.loads(done.stdout)
         if not flags:
             self.skipTest("Harbor が入っていない（uv run --isolated --extra bench で入る）")
