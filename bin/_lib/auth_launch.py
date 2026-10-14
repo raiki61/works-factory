@@ -35,7 +35,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))   # -I はス�
 import claude_auth  # noqa: E402
 
 HOWTO = ("認証が無い。keychain にトークンの項目が既に在るなら、その項目名を WORKS_FACTORY_KEYCHAIN_ITEM か CLAUDE_KEYCHAIN_SERVICE に"
-         "設定する。無ければ claude にログインするか、"
+         "設定する（毎回付けずに済ますなら、Claude Code の設定の置き場の settings.json の env に"
+         " \"WORKS_FACTORY_KEYCHAIN_ITEM\": \"<項目の名>\" の組を書く）。項目の名は推して試さず、"
+         "macOS なら security find-generic-password -s <項目の名> で在るかを確かめる（値を出す -w は付けない）。"
+         "無ければ claude にログインするか、"
          "claude setup-token で作ったトークンを CLAUDE_CODE_OAUTH_TOKEN に置く")
 
 # 名指しで決めた時に子から外す名。Claude Code は CLAUDE_CODE_OAUTH_TOKEN より上の資格を先に使う
