@@ -66,7 +66,7 @@ def taken(got, *, go: bool, stop_reason: str, place: str, folder: pathlib.Path, 
     opened = got is not None and got != ""
     if not opened and not isinstance(pushed, dict):
         return {"go": go, "answer": None, "stop_reason": stop_reason}
-    answer = decision(got if opened else {"decision": pushed["decision"], "text": pushed["text"]})
+    answer = decision(got if opened else pushed)
     passed = answer["decision"] in GO_WORDS
     if not passed and not answer["text"].strip():
         answer["text"] = FINAL_STOP_NOTE if place == FINAL else STOP_NOTE
