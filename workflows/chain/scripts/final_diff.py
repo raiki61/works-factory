@@ -12,11 +12,13 @@ chain.md（lib/chain.render）に書く。
 入る。apply.ok は最後の差分に入る（自分の差分のファイルが在る）どの周の子の run も自分の差分を置いた時だけ真で、どれかが置かなかった時は
 sealed だけを当てられる（bin/apply の --allow-stopped）。採る周の結末の語 outcome と、r2_status（最後の差分に入る周のどれかで R2 が
 作り直しと言えばそれ、ほかは採る周の物）も返す（bin/apply が拒む訳と、R2 の作り直しを拒むのに読む）。
-書くのは親の置き場だけで、作業ツリーと枝は動かさない（git は commit の間の差分を読むだけ）。始めに前の chain/final.diff と chain.md を
-消し、final.diff は封じた時だけ、chain.md は周の差分を作れた時だけ書く（resume で走り直して採る周が無くなったり途中で返ったりしても、
-前の回の差分や、それを名指す表が残らない）。
+書くのは親の置き場だけで、作業ツリーと枝は動かさない（git は commit の間の差分を読むだけ）。final() は始めに前の chain/final.diff と
+chain.md を消し、final.diff は封じた時だけ、chain.md は周の差分を作れた時だけ書く（resume で走り直して採る周が無くなったり final() が
+途中で返ったりしても、前の回の差分や、それを名指す表が残らない）。
 出力ノード result が結ぶので落ちない: どの誤りも ok: false と訳を返す。1 つの周の差分を作れない時は、残りの周だけで最後の差分を
 作らず、chain.md も書かずに、その周（d<k>）と子の run の id を訳で名指す（result がその訳を stop_reason にする）。境の口か lib を読めない時も、標準ライブラリだけで返す。
+この時は final() が走らず、何も消さない（消す名の持ち主の lib/chain が読めない）。前の回の表が残りうるが、result が読めない訳を
+stop_reason にし、sealed は null。
 
 入力（with:）: start（chain-start の出力）・d1〜d<周の数の上限>（round-k-decide の出力。番号の順に読む。どれも `{from, if_skipped: null}`）
 """
