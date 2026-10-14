@@ -41,6 +41,7 @@ if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 from engine import util  # noqa: E402
 from engine.render import FILE_CAP, MATERIAL_NOTE  # noqa: E402
+import oneline  # noqa: E402
 import promptsection  # noqa: E402
 
 DIR = "policy"
@@ -258,15 +259,15 @@ def _section(rows, *, gates_given: bool) -> str:
     out.append("- 方針の文書: " + (f"名指し `{doc['name']}:<行>`（1〜{doc['lines']} 行。元の置き場 {doc['alias'] or '無い'}）"
                                   if doc else "無い"))
     out.append("- 依頼の answers: " + ("" if of["answer"] else "無い"))
-    out += [f"  - 名指し {json.dumps(r['name'], ensure_ascii=False)}: {_head(r['text'])}" for r in of["answer"]]
+    out += [f"  - 名指し `{r['name']}`: {_head(r['text'])}" for r in of["answer"]]
     out.append("- 承認ノードの人の答え: " + ("この役には渡っていない" if not gates_given else "" if of["gate"] else "無い"))
     out += [f"  - 名指し `{r['name']}`: {_head(r['text'])}" for r in of["gate"]] if gates_given else []
     out.append("- 決着済みの論点（決定記録の突合）: " + ("" if of["settled"] else "無い"))
-    out += [f"  - 名指し {json.dumps(r['name'], ensure_ascii=False)}: {_head(r['text'])}" if r["name"]
+    out += [f"  - 名指し `{r['name']}`: {_head(r['text'])}" if r["name"]
             else f"  - （where が無いので名指せない）{_head(r['text'])}" for r in of["settled"]]
     return "\n".join(x.rstrip() for x in out)
 
 
 def _head(text: str) -> str:
-    text = " ".join(str(text or "").split())
+    text = oneline.one_line(text or "")
     return text if len(text) <= _CAP else text[:_CAP] + "…"

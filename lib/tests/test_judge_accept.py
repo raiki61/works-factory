@@ -1677,7 +1677,7 @@ class BriefCase(_RepoCase):
         self.assertEqual(at, sorted(at), "節の並び")
         self.assertIn("凍った目的の印", text)
         self.assertIn("答えの印", text)
-        self.assertIn('名指し "q1": 答えの印', text)
+        self.assertIn('名指し `q1`: 答えの印', text)
         self.assertIn("PR の本文", text)
         self.assertIn(str(self.jdir / "diff.patch"), text)
         self.assertNotIn("{{", text, "穴を残さない")

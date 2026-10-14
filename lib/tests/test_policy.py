@@ -3,6 +3,7 @@
 import hashlib
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -160,9 +161,19 @@ class RecordedCase(unittest.TestCase):
         self.assertIn("承認ノードの人の答え: この役には渡っていない", got)
         got = policy.recorded_section(self.rows)
         self.assertNotIn(policy.RECORDED_NONE, got)
-        for want in (f"`{self.frozen['copy']}:<行>`（1〜2 行", '"q-mean-empty"', f"`{self.gates[1]}`", '"docs/adr/0002.md"',
+        for want in (f"`{self.frozen['copy']}:<行>`（1〜2 行", '`q-mean-empty`', f"`{self.gates[1]}`", '`docs/adr/0002.md`',
                      "（where が無いので名指せない）where の無い論点"):
             self.assertIn(want, got)
+
+    def test_names_copied_from_the_section_hit_their_rows(self):
+        """役はセクションの名指しを字のまま写す。引用符・バックスラッシュ・Windows のパスを持つ名も、写した字が一覧に当たる"""
+        rows = policy.recorded({"answers": [{"question": 'Use "foo" API?', "text": "使う"}]})
+        rows.append({"source": "settled", "name": "C:\\repo\\docs\\adr.md", "text": "決めた"})
+        copied = re.findall(r"名指し `([^`]+)`", policy.recorded_section(rows))
+        self.assertEqual(copied, [r["name"] for r in rows])
+        for name in copied:
+            with self.subTest(name):
+                self.assertEqual(policy.hits(rows, f"ぶつかる: {name}"), [name])
 
     def test_text_tells_a_role_without_gate_answers_so(self):
         """承認ノードの答えを入力に持たない役（human_items が None）には「渡っていない」、持つ役には行か「無い」"""
