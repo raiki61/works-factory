@@ -1467,7 +1467,7 @@
 ### #69 test-gate
 
 - S06 #69「線（#60）への申し送り」: 範囲の宣言が誤っていて節 `run` が 1 を返して終わる時や、任せ先の役の節が落ちた時は、Archon が線の run 全体を failed で終える。→ **済み**（部分 0）: 受け皿 `test-gate-base-out`・`test-gate-final-out` と `collect` の `trigger_rule: all_done` で報告は出る。筋書き `workflows/line/fixtures/test-gate-failed.stubs.yaml` が `test-gate-final` の `run` を落とし、`test-gate-final-out`・`collect`・`report__report`・`result` まで届くことを縛る（`tests/e2e/test_line_scenarios.py`）。返す節 `result` は `trigger_rule: all_done` で落ちない（K1）ので、届く返りは null でなく認証できなかった形
-- S07 #69「能力の狭め」2: `entry.scope_changed`（`works/.shared/core/entry.py:907-925`）が、変更に依頼の `where` を足していた分を落とした（`lib/declared_checks.py:374` の docstring）。判定から入る run の base で、依頼の where に当たる段を回さなくなる。→ **開いている**（test-gate 側の狭め。線は `start` を渡しているので、test-gate が `start` の依頼の where を読めば戻せる。持ち主の確かめ待ち） 決め: 戻すと決めた（superset）。区分 T の issue（T16）（線の配線の文書の「この文書の外」の「決めた物」）
+- S07 #69「能力の狭め」2: `entry.scope_changed`（`works/.shared/core/entry.py:907-925`）が、変更に依頼の `where` を足していた分を落とした（`lib/declared_checks.py:374` の docstring）。判定から入る run の base で、依頼の where に当たる段を回さなくなる。→ **開いている**（test-gate 側の狭め。線は `start` を渡しているので、test-gate が `start` の依頼の where を読めば戻せる。持ち主の確かめ待ち） 決め: 戻すと決めた（superset）。区分 T の issue（T16）（線の配線の文書の「この文書の外」の「決めた物」） → #122 で戻した（T16。判定から入る run の base で `workflows/test-gate/scripts/run.py::request_wheres` が始めの記録の依頼の where を変更に足す）
 - S08 #69「約束を変える頼み」: 無し
 
 ### #67 eyes（「約束を変える頼み（線と report を書く人へ）」1〜7 と「持ってこなかった物」）

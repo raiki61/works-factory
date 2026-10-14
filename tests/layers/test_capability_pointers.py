@@ -39,8 +39,12 @@ FIELD_FLOOR = {
     "今の機械": {"pitfalls.md": 70},
 }
 TAIL = INVENTORY / "tail.md"
-ROW_ID = r"(?:L-[EGWD]|[A-Z])\d+[a-z]?"
-ROW = re.compile(rf"^- ({ROW_ID})[ 〔]")
+# 行の ID の型の持ち主はここ 1 か所（#537）。棚卸しの行の ID と、照らしの表 tests/e2e/evidence.json の行の ID は別の集合。
+# 表は線への申し送り（S）と落とし穴（K）の行を持たず、線の配線の文書は部分の名（D1）や今の works の名（U6）を書くので、
+# 表の側の読みに棚卸しの型を使うとそれらを行と読む
+INVENTORY_ROW_ID = r"(?:L-[EGWD]|[A-Z])\d+[a-z]?"
+EVIDENCE_ROW_ID = r"(?:L-[EGWD]|[JPFTERM])\d+[a-z]?"
+ROW = re.compile(rf"^- ({INVENTORY_ROW_ID})[ 〔]")
 # 「今」の字を docs/works-parity.md の「前の棚卸しの今」へ移した印。移した字が「無し」で始まる行は HOLE_MARK（tail.md の穴に数える）
 MOVED_MARK, HOLE_MARK = "表", "無し（表）"
 # 「今」の欄に書ける字
@@ -54,6 +58,12 @@ COUNTED = {
     "証が要追加か弱い": lambda row: row["証"].startswith("要追加") or "弱い:" in row["証"],
 }
 HOLE = re.compile(rf"^- ({TOTAL}|{'|'.join(COUNTED)}|{NARROWED}): (\d+)(?:（([^）]*)）)?")
+
+
+def mention(row_id: str) -> re.Pattern[str]:
+    """字の中で row_id の型の ID を名指す所。日本語の字は \\w に入るので、ID の前後は ASCII の字で区切る（L-E02 の E02・
+    T80 の T8 を別の ID と読まない）"""
+    return re.compile(rf"(?<![A-Za-z0-9-])({row_id})(?![A-Za-z0-9])")
 
 
 def row_fields(fields=FIELDS) -> list[tuple[str, str | None, str]]:
@@ -271,6 +281,27 @@ class PointerCase(unittest.TestCase):
                 parts = {area: int(n) for area, n in re.findall(r"([TERM]) (\d+)", listed)}
                 self.assertEqual(parts, {area: counts[name][0] for area, counts in areas.items()})
                 self.assertEqual(number, sum(parts.values()))
+
+
+class RowIdCase(unittest.TestCase):
+    def test_row_id_patterns_have_one_owner(self):
+        """型の写しをほかのファイルに書くと、ここの型を変えても写しは追わない"""
+        here = pathlib.Path(__file__).resolve()
+        copies = [str(path.relative_to(ROOT)) for top in ("tests", "lib", "workflows", "bin") for path in (ROOT / top).rglob("*.py")
+                  if path.resolve() != here and "L-[EGWD]" in path.read_text(encoding="utf-8")]
+        self.assertEqual(copies, [])
+
+    def test_every_row_head_is_read(self):
+        """棚卸しの型から区分を落とすと、その区分の行が照らしから黙って消える"""
+        unread = [f"{md.name}:{no}" for md in sorted(INVENTORY.glob("*.md"))
+                  for no, line in enumerate(md.read_text(encoding="utf-8").splitlines(), 1)
+                  if re.match(r"- [A-Z][A-Z-]*\d+[a-z]?[ 〔]", line) and not ROW.match(line)]
+        self.assertEqual(unread, [])
+
+    def test_mention_reads_ids_whole(self):
+        """L-E02 の E02・T80 の T8 を別の ID と読まず、日本語の字に挟まれた ID は読む"""
+        self.assertEqual(mention(INVENTORY_ROW_ID).findall("L-E02・T80・T8：R5b と行S07の"), ["L-E02", "T80", "T8", "R5b", "S07"])
+        self.assertEqual(mention(EVIDENCE_ROW_ID).findall("部分 D1・U6・S07・区分 T の issue（T16）"), ["T16"])
 
 
 if __name__ == "__main__":
