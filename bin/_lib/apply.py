@@ -7,6 +7,8 @@ hash の正本は Archon の DB の run の記録で、置き場のファイル�
 消す行の許し・止まった run の許し・git apply --check）に、封じた hash とポインタの照らし・読み戻しを足す。commit はしない。
 封じた hash で確かめられない差分（メイングラフの出力が読めない run・封じる前に止まった run）は当てず、拒む 1 行に素の git apply で当てる道を書く
 （docs/plans/2026-10-13-line-wiring.md の M45・M46 の決め。新しい旗は足さない）。
+承認し直すかの問い（spec-check の works:spec-changed）を残した人待ちの run は、断らずに当て、当てた後にそう 1 行で知らせる
+（今の works の apply_checked も断らない。人は最後の承認ノードで「承認すると差分は当たる」を読んで答えている）。
 """
 import argparse
 import json
@@ -25,6 +27,7 @@ if str(LIB) not in sys.path:   # lib/ の部品は互いを名だけで import �
 
 import chain  # noqa: E402  周の鎖の最後の差分の置き場（final-diff と同じ名を 2 か所に持たない）
 import seal  # noqa: E402  差分の封印と R2 の語の持ち主（merge の apply と同じ決まりを 2 か所に持たない）
+import stopby  # noqa: E402  止めの語の持ち主
 
 NAME = "apply"
 SHELL = Path(__file__).resolve().parents[1] / "works-factory"
@@ -74,6 +77,9 @@ def main(argv: list[str], here: Path | None = None, get: Get = ask_launcher) -> 
         return stop.code
     if stopped:
         print(f"{NAME}: {one_line(stopped)}で止まった run。--allow-stopped が在るので当てた", file=sys.stderr)
+    note = respec_note(run["terminal_record"]["returns"]["value"])
+    if note:
+        print(f"{NAME}: {one_line(note)}", file=sys.stderr)
     print(f"run {run['terminal_record']['run_id']} の封じた差分を {target} に当てた: {' '.join(files)}")
     print("commit はしていない。試験を回してから commit する")
     return 0
@@ -142,6 +148,15 @@ def stopped_why(value: dict) -> str:
     if isinstance(said, dict) and isinstance(said.get("text"), str) and said["text"].strip():
         parts.append(f"人の一言「{said['text']}」")
     return "・".join(parts)
+
+
+def respec_note(value: dict) -> str:
+    """承認し直すかの問いを残した run（止めの語 works:spec-changed。結末はいつも人待ち）なら、承認し直しを待たずに当てたと言う
+    1 行（ほかは空）"""
+    if not str(value.get("stop_reason") or "").endswith(f":{stopby.SPEC_CHANGED}"):
+        return ""
+    return (f"{stopped_why(value)}——承認し直すかの問いを残した run。承認し直しを待たずに当てた"
+            "（承認し直すかは次の run の仕様の段で答える）")
 
 
 def from_worktree(run: dict, target: Path) -> str:

@@ -484,6 +484,13 @@ class StartCase(Artifacts):
         self.assertTrue(self.record(self.start(request="request_ok.json", spec="on"))["input"]["spec"])
         self.assertFalse(self.record(self.start(request="request_ok.json"))["input"]["spec"])
 
+    def test_spec_on_reaches_the_output(self):
+        """#550: spec=on は始めの出力 spec で spec-check に渡る（拒んだ・落ちた返りは偽）"""
+        self.assertIs(self.start(request="request_ok.json", spec="on")["spec"], True)
+        self.assertIs(self.start(request="request_ok.json")["spec"], False)
+        self.assertIs(self.start(base="base", spec="on")["spec"], False)
+        self.assertIs(start.fallback("落ちた")["spec"], False)
+
     def test_spec_refused_without_request_text(self):
         """L-E29: spec=on なのに依頼の文（依頼も PR の題と本文も）が無ければ止める（元 SpecInputCase の同名）"""
         self.assertIn("依頼の文", self.refused(base="base", spec="on"))
@@ -1049,6 +1056,22 @@ class AskFinalCase(unittest.TestCase):
                 self.assertIn(gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND], got["text"].splitlines()[0])
                 self.assertIn(q, got["text"])
                 self.assertIn("この承認ノードの答えはこの問いに答えない", got["text"])
+                self.assertIn(ask_final.SPEC_APPLIES.strip(), got["text"], "#550: 承認すると差分が当たると言う")
+        self.assertNotIn(ask_final.SPEC_APPLIES.strip(), self.ask(self.got())["text"], "問いの無い run の文は増やさない")
+
+    def test_spec_unchecked_says_could_not_check(self):
+        """#550: 照らせなかった（unchecked）時は、1 行目と節の頭が「変わった」でなく「照らせなかった」と言う。開くのは同じ"""
+        q = "照らしが落ちた——承認済みの受け入れ条件のテストが変わったかを確かめられない（ValueError: x）"
+        for mode in ("", "when_needed", "protected_only"):
+            with self.subTest(mode=mode):
+                got = self.ask(self.got(spec_changed=[q], spec_unchecked=True), mode)
+                self.assertIs(got["open"], True)
+                first = got["text"].splitlines()[0]
+                self.assertIn(gatemarks.SPEC_UNCHECKED, first)
+                self.assertNotIn(gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND], first)
+                self.assertIn(gatemarks.SPEC_UNCHECKED_HEAD, got["text"])
+                self.assertNotIn(gatemarks.SPEC_CHANGED_HEAD, got["text"])
+                self.assertIn(ask_final.SPEC_APPLIES.strip(), got["text"])
 
     def test_unattended_stops_instead_of_opening(self):
         got = self.ask(self.got(), unattended=True)
@@ -1724,7 +1747,20 @@ class PlanOutNothingOwedCase(Artifacts):
 
 class SpecCheckNodeCase(Artifacts):
     def test_no_spec_no_question(self):
-        self.assertEqual(spec_check.check("null"), {"questions": [], "stop_reason": ""})
+        self.assertEqual(spec_check.check("null", False), {"questions": [], "stop_reason": "", "unchecked": False})
+
+    def test_spec_on_without_pointer_asks(self):
+        """#550: spec=on なのに判定が指しを返さなければ、黙って通さずに問い、照らせなかったと言う"""
+        self.assertEqual(spec_check.check("null", True),
+                         {"questions": [spec_check.NO_POINTER], "stop_reason": stopby.SPEC_CHANGED, "unchecked": True})
+
+    def test_unreadable_spec_is_unchecked(self):
+        """#550: 指した J/spec.json を読めない時は問い 1 行と人待ちの止め（今のまま）で、照らせなかったと言う"""
+        ptr = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "judge/spec.json"})
+        with contextlib.chdir(self.tmp):
+            got = spec_check.check(ptr, True)
+        self.assertEqual((len(got["questions"]), got["stop_reason"], got["unchecked"]), (1, stopby.SPEC_CHANGED, True), got)
+        self.assertIn("読めない", got["questions"][0])
 
     def test_changed_spec_waits(self):
         (self.tmp / "test_accept.txt").write_text("変えた\n", encoding="utf-8")
@@ -1733,8 +1769,9 @@ class SpecCheckNodeCase(Artifacts):
         (self.artifacts / "judge" / "spec.json").write_text(json.dumps(spec), encoding="utf-8")
         ptr = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "judge/spec.json"})
         with contextlib.chdir(self.tmp):
-            got = spec_check.check(ptr)
+            got = spec_check.check(ptr, True)
         self.assertEqual(got["stop_reason"], stopby.SPEC_CHANGED)
+        self.assertIs(got["unchecked"], False)
         self.assertEqual(len(got["questions"]), 1, got)
         self.assertIn("test_accept.txt", got["questions"][0])
 
@@ -1748,15 +1785,19 @@ class SpecCheckNodeCase(Artifacts):
         self.assertEqual(got["stop_reason"], stopby.LINE_SCRIPT)
         self.assertEqual(len(got["questions"]), 1, got)
         self.assertIn("確かめられない", got["questions"][0])
+        self.assertIs(got["unchecked"], True)
 
     def test_check_reads_the_judge_spec(self):
         """仕様の段の J/spec.json の指し札が照らしに届き、照らしの問いが最後の承認ノードと collect に届く"""
         nodes = line_nodes()
         self.assertEqual(nodes["spec-check"]["with"]["spec"], {"from": "$judge.output.spec", "if_skipped": None})
+        self.assertEqual(nodes["spec-check"]["with"]["spec_on"], "$start.output.spec")
         self.assertEqual(nodes["spec-check"]["depends_on"], ["fixed"])
-        for key, skipped in (("ask-final", []), ("collect", None)):
+        for key, skipped, unchecked in (("ask-final", [], False), ("collect", None, None)):
             with self.subTest(node=key):
                 self.assertEqual(nodes[key]["with"]["spec_changed"], {"from": "$spec-check.output.questions", "if_skipped": skipped})
+                self.assertEqual(nodes[key]["with"]["spec_unchecked"], {"from": "$spec-check.output.unchecked", "if_skipped": unchecked})
+        self.assertEqual(nodes["report"]["with"]["spec-unchecked"], "$collect.output.spec_unchecked")
 
 
 class AfterFixAndJudgedCase(Artifacts):

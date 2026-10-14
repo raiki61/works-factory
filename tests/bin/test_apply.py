@@ -135,6 +135,26 @@ class ApplyTest(unittest.TestCase):
         self.assertIn("commit はしていない", out)
         self.assertEqual(self.calls, [(RUN, self.target)])
 
+    def test_apply_notes_pending_reapproval(self):
+        """#550: 承認し直すかの問いを残した人待ちの run は、断らずに当て、標準エラーにそう 1 行で知らせる"""
+        value = self.value(outcome="needs_human", stop_reason="spec-check:works:spec-changed")
+        rc, out, err = self.run_apply(self.record(value))
+        self.assert_applied((rc, out, err))
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        for word in ("承認し直す", "needs_human", "spec-check:works:spec-changed"):
+            self.assertIn(word, err)
+
+    def test_apply_other_waits_say_nothing(self):
+        value = self.value(outcome="needs_human", stop_reason="ask-final:works:needs-human")
+        rc, out, err = self.run_apply(self.record(value))
+        self.assert_applied((rc, out, err))
+        self.assertEqual(err, "")
+
+    def test_apply_fixed_run_says_nothing(self):
+        rc, out, err = self.run_apply(self.record())
+        self.assert_applied((rc, out, err))
+        self.assertEqual(err, "")
+
     def test_apply_refuses_changed_diff(self):
         changed = self.diff.replace(b"len(xs)\n", b"len(xs) \n")
         self.place("merge/apply.diff", changed)
