@@ -873,6 +873,18 @@ class AcceptCase(Base):
                 named = json.dumps({"text": f"{note}。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
                 self.assertTrue(runreport.accept(named, self.PASS, out_dir=self.out)["ok"])
 
+    def test_partly_ran_note_must_keep_its_step_names(self):
+        """#514: 機械の冒頭が段を名指した PARTLY_RAN を言う時、句の頭だけで名を落とした返答は拒み、名まで写した返答は受け取る"""
+        self.out.mkdir(parents=True)
+        note = green_cert.ran_note(green=False, red_cause="incomplete", by="engine", steps={"ran": ["unit"], "unran": ["e2e"]})
+        (self.out / report.REPORT_FILE).write_text(f"# 報告\n\n起きたこと: 赤。{note}\n\n## 1. 人が決めること\n\n- 無い\n",
+                                                   encoding="utf-8")
+        bare = json.dumps({"text": f"{green_cert.PARTLY_RAN}。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
+        got = runreport.accept(bare, self.PASS, out_dir=self.out)
+        self.assertEqual((got["ok"], got["kind"]), (False, "answer"))
+        named = json.dumps({"text": f"{note}\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
+        self.assertTrue(runreport.accept(named, self.PASS, out_dir=self.out)["ok"])
+
     def test_format_and_terms_rejected_first(self):
         bad_cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)
         self.assertEqual(runreport.accept(bad_cell, self.PASS, out_dir=self.out)["kind"], "format")
