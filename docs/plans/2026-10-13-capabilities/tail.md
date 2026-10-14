@@ -604,7 +604,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 今: workflows/eyes/works-factory-eyes.yaml::r2-compare（`systemPrompt`）
   - 証: tests/workflows/test_eyes.py::ShapeCase.test_r2_compare_runs_without_the_default_system_prompt
   - 本物の run: 筋書きでのみ（PR #67 も「モデルを本当に走らせた回ではまだ見ていない」と書く。seed の run で eyes__r2-compare の返りが git の状態に触れていないかを見る）
-  - 狭め: 無し（Archon の packages/workflows/src/schemas/dag-node.ts:226 の systemPrompt で戻した）
+  - 狭め: 無し（→ Archon の packages/workflows/src/schemas/dag-node.ts:226 の systemPrompt で戻した）
 
 - E6 比較役に届くのは目的・独立設計・設計の後に分かった前提・累積差分（と行数・変わったファイル・言語の 1 行）だけで、調査の経緯と判定の一覧は渡さない。
   - 元: works/.shared/core/graphloops/graphs/review-loop.json:4887 `r2.compare` の forbidden_inputs と reads
@@ -1529,7 +1529,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 今: lib/runreport.py::_green_lines・lib/runreport.py::_evidence_lines（走らせた一式の行とログは、test-gate-base・test-gate-final の返りの欄 by・suites_line・log を受け皿 test-gate-base-out・test-gate-final-out で受けた物。字は lib/declared_checks.py::gate_values）
   - 証: lib/tests/test_runreport.py::TypedCase.test_green_cert_names_red_let_through・lib/tests/test_runreport.py::TypedCase.test_green_cert_names_suites_and_log、tests/workflows/test_report.py::FactsCase.test_green_cert_section_reads_the_test_gate_evidence（受け皿の返りの欄を証拠の文を開かずに facts の節に通す）・tests/workflows/test_test_gate.py::ResultScriptCase.test_returned_values_are_the_evidence_rows（返りの欄と evidence.md の行が同じ値）
   - 本物の run: 型つきの成果物 green-cert と test-gate-base・test-gate-final の返り、report/report.md「## 緑の認証（全部の周）」
-  - 狭め: 戻した（返りの欄の走らせ方とログ。元は最後のテストだけ、今は直す前のテストも同じ形で並べる）。修正前のテストとの並べ（baseline_line）は T35
+  - 狭め: → #124 で戻した（返りの欄の走らせ方とログ。元は最後のテストだけ、今は直す前のテストも同じ形で並べる）。修正前のテストとの並べ（baseline_line）は T35
 
 - R50 独立の目の節: 目ごとの状態と理由（省いた目は「深さで省いた」）と型つきの成果物 eye-verdict（形の違う物は注意へ）
   - 元: works/darkfactory/lib/line_edge.py:505-523 の目の行
@@ -1557,7 +1557,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 今: lib/runreport.py::_outside（3 つ目の返りの count_line の 1 行を人が決めることの節の、次の run に渡す物の行の前に）
   - 証: lib/tests/test_runreport.py::DecisionsCase.test_nothing_to_decide_puts_next_items・lib/tests/test_runreport.py::LinesCase.test_outside_purpose_rows_and_wrong_name（節の 1 件ずつの行・件数と置き場の 1 行の位置・名が違うファイルを読まない注意）
   - 本物の run: judge/out-of-purpose.json
-  - 狭め: 無し（件数と置き場の 1 行を戻した）
+  - 狭め: 無し（→ 件数と置き場の 1 行を戻した）
 
 - R54 模型（節ごと、run の途中で替わったら印）と費用（自分の費用を言う行の和を「途中」として。言い直しの行・輪の和を数えない。費用の欄の無い行の件数。節ごとの時間）。記録が読めなければ「取れない（訳）」
   - 元: works/.shared/core/report.py:1769 `cost_rows`・:1806 `head_cost`・:1878 `head_models`
