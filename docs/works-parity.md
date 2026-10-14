@@ -17,7 +17,7 @@
 - 今: works-factory の main で同じ事をする所。`path::名`（Python の最上位の関数・クラス・定数か `クラス.名`。YAML はノードの id）・README.md「<見出し>」・Archon の `<命令>` を「・」で並べる。無ければ「無し」
 - 状態: 在る・形を変えて在る（<何が違うか>）・無い のどれか
 - 処置: 「無い」行と、「形を変えて在る」で失った部分の在る行が持つ。次のどれか
-  - `#<issue>`: 別の issue で直す（#495 で扱う物は #495 を指し、二度直さない）
+  - `#<issue>`: 別の issue で直す（ほかの issue で扱う物はその issue を指し、二度直さない）
   - 戻した: <`path::名` か README.md「…」>: #505 の PR で戻した
   - 要らない: <訳>: keep-essence・持ち主の決め（`docs/owner-decisions.md`）・AGENTS.md の決まり・Archon が持つ、のどれかに照らした訳
 - 旧棚卸し: 前の棚卸しの行 ID。無ければ「無し」
@@ -486,9 +486,8 @@
 - S060 PR の入口では対象の HEAD が PR の head であることを求め、違えば拒む
   - 元: SKILL.md:81
   - 印: `--pr`
-  - 今: `lib/entryshape.py::change_base`
-  - 状態: 形を変えて在る（照らすのは Archon が切った run の作業ツリーの HEAD。Archon は既定で origin の既定の枝から切るので、対象で PR の枝を取り出していても既定では合わない）
-  - 処置: #495
+  - 今: `lib/entryshape.py::change_base`・`bin/_lib/startpoint.py::choose`（殻が Archon に `--from` で対象の今の HEAD を渡すので、PR の枝を取り出して頼めば run の作業ツリーもそこから切られる。#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: L-E13
 
 - S061 base・PR の入口では名指した差分の全体に局所レビューのレンズ（`/code-review`・`/simplify`・pr-review-toolkit の agent）を 1 本ずつ回し、所見を判定に流す（費用が増える）
@@ -580,9 +579,8 @@
 - S073 手元に commit していない変更が在ると、PR の入口は PR の head と違うとして拒み、base の入口の差分には包んだ手元の変更も入る
   - 元: SKILL.md:81
   - 印: `--pr`・`--base`
-  - 今: 無し（手元の変更を包む道が無い。S076）
-  - 状態: 無い
-  - 処置: #495
+  - 今: `lib/entryshape.py::change_base`・`bin/_lib/startpoint.py::wrap`・README.md「作業ツリーの起点」（包んだ commit は PR の head と違うので run の始めで拒まれ、base の入口の差分には包んだ変更が入る。#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: 無し
 
 - S074 対象はリポジトリの下のフォルダでもよく、その git の根で回し、省けば今いるフォルダの git の根で回す
@@ -603,25 +601,24 @@
 - S076 commit していない変更・未追跡のファイルが在っても止めず、殻が一時の commit に包み（.gitignore の物は入れない）run をそこから切り、差分を今の手元にそのまま当たる形にする
   - 元: SKILL.md:83
   - 印: 無し
-  - 今: 無し（Archon の `workflow run --from` は枝から切れるが、commit していない変更は入らない）
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/startpoint.py::choose`・`bin/_lib/startpoint.py::wrap`・README.md「作業ツリーの起点」（#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: 無し
 
 - S077 包んだ commit を守る参照を `refs/works/wraps/` にだけ置き、対象の作業ツリー・index・枝は動かさず、片付けと結べなかった起動の控えで参照を外す
   - 元: SKILL.md:83
   - 印: `clean`
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/startpoint.py::wrap`
+  - 状態: 形を変えて在る（包んだ commit に ref を付けず、Archon が起動の内にそこから切る run の枝が守る。対象の作業ツリー・index・枝は動かさない。#495 を #503 で戻した）
+  - 処置: 要らない: 片付ける ref を作らないので clean の片付けも要らない。gc から守るのは Archon が切る run の枝（`on-archon-only`）
   - 旧棚卸し: 無し
 
 - S078 包んだことと commit・ファイルを「包んだ（wrapped）」の行に出し、状態を見る命令も出す
   - 元: SKILL.md:83
   - 印: `show`
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/startpoint.py::choose`
+  - 状態: 形を変えて在る（包んだ commit とファイルを起動の 1 行に出す。状態を見る命令は出さない。#495 を #503 で戻した）
+  - 処置: 要らない: 状態を見る命令は README.md「使い方」の 4 が Archon の `workflow status` で言う（`on-archon-only`）
   - 旧棚卸し: 無し
 
 - S079 remote の `origin` を求め、無ければ確かめの命令が並べ、起動は Archon を起こす前に 1 行で止まって入れ方（`git remote add origin`・手元だけなら対象の外に裸のリポジトリ・`git remote set-head`）を出す。殻は remote を足さない
@@ -702,33 +699,29 @@
 - S089 run の worktree には無視される物（.venv・node_modules・.env）が無いので、test_cmd を worktree の中で環境を作る形にするよう README で案内する
   - 元: SKILL.md:86
   - 印: 無し
-  - 今: 無し（README.md に test_cmd の書き方のセクションが無い）
-  - 状態: 無い
-  - 処置: #495
+  - 今: README.md「test_cmd と作業ツリー」・`bin/_lib/testcmd_check.py::HOW`（#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: 無し
 
 - S090 手元を走らせる形の test_cmd（手元の物を絶対パスで指す・editable の外の環境・立てた環境）を見つけると `止める（test_cmd）` の行を出し、Archon を起こさずに終了コード 2 で止まる（形の確かめが落ちた時も 1 行で止まる）
   - 元: SKILL.md:86
   - 印: `start`
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/launcher.py::check_test_cmd`・`bin/_lib/testcmd_check.py::path_notes`・`bin/_lib/testcmd_check.py::venv_notes`（止める形と、形の確かめが落ちた時に Archon を起こさず終了コード 2 で止まる。#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: 無し
 
 - S091 依頼者が形を知った上で回すと決めた時だけ、手元を走らせる形の test_cmd を通す（AI が自分で付けない）
   - 元: SKILL.md:86
   - 印: `WORKS_USE_ALLOW_TESTCMD`
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/launcher.py::ALLOW_TESTCMD_ENV`・`bin/_lib/launcher.py::check_test_cmd`
+  - 状態: 形を変えて在る（名は `WORKS_FACTORY_ALLOW_TESTCMD`。#495 を #503 で戻した）
   - 旧棚卸し: 無し
 
 - S092 相対パスのように worktree で走らない形の test_cmd は `注意（test_cmd）` の行だけ出して止めない
   - 元: SKILL.md:86
   - 印: 無し
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/testcmd_check.py::path_notes`・README.md「test_cmd と作業ツリー」（#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: 無し
 
 - S093 `.review-checks.json` の段の任意の `junit` を読み、報告が無い・段の起動より古い・0 件・全部 error なら、赤でなく基準の検査が走らなかった（コードの赤ではない）に回す
@@ -1349,9 +1342,8 @@
 - S176 結末の語 fixed_needs_check（残りが run の中で測れなかった確かめだけ。冒頭 1 に「人が確かめる物」、次の依頼の下書きにも載り、apply は fixed と同じく当てる）
   - 元: SKILL.md:138
   - 印: `fixed_needs_check`
-  - 今: `lib/outcome.py::decide_outcome`・`lib/report.py::CHECKS_LEFT`・`bin/_lib/apply.py::choose`（封じた差分なら結末を問わず当てる）
-  - 状態: 形を変えて在る（語と当て方は在る。回らなかった確かめを名指す所と、一部が回せない base で鎖を切らない所が無い）
-  - 処置: #495
+  - 今: `lib/outcome.py::decide_outcome`・`lib/outcome.py::_material_row`・`lib/green_cert.py::certify`・`lib/report.py::CHECKS_LEFT`・`bin/_lib/apply.py::choose`（封じた差分なら結末を問わず当てる）。一部が回せない base でも certify が awaiting_human を通して鎖を切らず、人が確かめる物の行が素材の訳で回らなかった確かめを名指す（#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: R9
 
 - S177 結末の語 no_fix_needed
@@ -1848,41 +1840,37 @@
 - U028 WORKS_USE_ALLOW_TESTCMD=1 で、対象の手元を走らせる形の test_cmd でも止めずに起こす
   - 元: use.sh:61・185・1026・1030-1032
   - 印: `WORKS_USE_ALLOW_TESTCMD`
-  - 今: 無し（test_cmd の形の確かめが main に無い）
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/launcher.py::ALLOW_TESTCMD_ENV`・`bin/_lib/launcher.py::check_test_cmd`
+  - 状態: 形を変えて在る（名は `WORKS_FACTORY_ALLOW_TESTCMD`。#495 を #503 で戻した）
   - 旧棚卸し: T70
 
 - U029 WORKS_USE_ALLOW_TESTCMD が空・1 の外なら拒む
   - 元: use.sh:207-210
   - 印: `WORKS_USE_ALLOW_TESTCMD`・`use.sh:209`
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/launcher.py::check_test_cmd`
+  - 状態: 形を変えて在る（1 の外の値は拒まず、許さない側として扱う。#495 を #503 で戻した）
+  - 処置: 要らない: 1 の外の値は止める側に倒れ、手元を走らせる形の test_cmd を黙って通す事は無い（keep-essence 12）
   - 旧棚卸し: T70
 
 - U030 test_cmd が対象の手元（元の clone）を走らせる形なら、何も写す前に「止める（test_cmd）」の行と理由で止める（終了コード 2）
   - 元: use.sh:58-60・1019-1036
   - 印: `use.sh:1035`
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/launcher.py::check_test_cmd`（Archon を起こす前に止め、終了コード 2。#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: T70
 
 - U031 test_cmd の形の確かめ（testcmd_check.py）そのものが落ちたら止める（許しが在れば落ちたと出して起こす）
   - 元: use.sh:60・1038-1046
   - 印: `WORKS_USE_ALLOW_TESTCMD`・`use.sh:1044`
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/launcher.py::check_test_cmd`（#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: T70
 
 - U032 run・単位の worktree で走らない形（git が無視するパスを相対で指す）の test_cmd には「注意（test_cmd）」の行だけ出して止めない
   - 元: use.sh:61-62・1028
   - 印: 無し
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/testcmd_check.py::path_notes`・README.md「test_cmd と作業ツリー」（#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: T70
 
 - U033 WORKS_USE_FIX_FIXTURE で、固定材料のフォルダから判定と修正案を作り直さずに修正から始める（入力 fix_fixture）
@@ -2165,33 +2153,31 @@
 - U070 run の worktree を対象の今の姿から切る（汚れていなければ HEAD から）
   - 元: use.sh:48・1112・1125-1126
   - 印: 無し
-  - 今: 無し（殻は `--from` を渡さず、Archon は既定の枝から切る）
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/startpoint.py::choose`（#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: 無し
 
 - U071 commit していない変更・未追跡（.gitignore の物は除く）が在れば、一時の index で包んだ commit から切る（--from。対象の作業ツリー・index・枝は動かさない）
   - 元: use.sh:48-51・350-373・1108-1124
   - 印: 無し
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/startpoint.py::choose`・`bin/_lib/startpoint.py::wrap`（#495 を #503 で戻した）
+  - 状態: 在る
   - 旧棚卸し: 無し
 
 - U072 包んだファイルを <家>/wraps/<commit>.txt に控え、起動の行に「包んだ（wrapped）」と並べる
   - 元: use.sh:50・1122-1124
   - 印: 無し
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/startpoint.py::choose`
+  - 状態: 形を変えて在る（包んだファイルは起動の 1 行に出し、家の控えのファイルは書かない。#495 を #503 で戻した）
+  - 処置: 要らない: 包んだファイルは包んだ commit そのものが持ち（`git show --stat <commit>`）、Archon が run の起点として控える（`on-archon-only`）
   - 旧棚卸し: 無し
 
 - U073 包んだ commit を refs/works/wraps/<commit> で gc から守り、clean が run と一緒に消す
   - 元: use.sh:1108-1121・548-557
   - 印: `clean`
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #495
+  - 今: `bin/_lib/startpoint.py::wrap`
+  - 状態: 形を変えて在る（ref を付けず、Archon が起動の内にそこから切る run の枝が守る。#495 を #503 で戻した）
+  - 処置: 要らない: 片付ける ref を作らないので clean の片付けも要らない。gc から守るのは Archon が切る run の枝（`on-archon-only`）
   - 旧棚卸し: 無し
 
 - U074 tdd_suite を省き test_cmd が pytest の 1 コマンド（前に uv run・poetry run・python3 -m を許し、; & | < > $ ` を含まない）なら、JUnit XML を書く実行器を書いて渡す
@@ -2259,7 +2245,7 @@
   - 印: `start`・`clean`
   - 今: 無し
   - 状態: 無い
-  - 処置: 要らない: 結べない run が生じない。Archon の `workflow run` が run の id を返す（`on-archon-only`。L-E41）。包んだ基そのものは #495 で扱う
+  - 処置: 要らない: 結べない run が生じない。Archon の `workflow run` が run の id を返す（`on-archon-only`。L-E41）。包んだ基は U071・U073
   - 旧棚卸し: L-E41
 
 - U083 結べない時に run の一覧が読めなければ、候補の無い控えに残して理由の行で 1 で終わる
@@ -3043,13 +3029,12 @@
 ## 数
 
 - 行: 405
-- 状態 在る: 173
-- 状態 形を変えて在る: 167
-- 状態 無い: 65
-- 処置 #495: 19
+- 状態 在る: 185
+- 状態 形を変えて在る: 172
+- 状態 無い: 48
 - 処置 #509: 5
 - 処置 #510: 1
 - 処置 #511: 5
 - 処置 戻した: 11
-- 処置 要らない: 98
-- 無い行: S001・S008・S023・S070・S073・S076・S077・S078・S080・S089・S090・S091・S092・S105・S107・S124・S136・S165・S168・S196・S202・S207・S215・U011・U013・U014・U028・U029・U030・U031・U032・U033・U034・U040・U046・U056・U057・U058・U060・U064・U070・U071・U072・U073・U080・U081・U082・U083・U084・U086・U087・U088・U089・U103・U104・U105・U108・U109・U114・U115・U125・U156・U159・U160・U161
+- 処置 要らない: 103
+- 無い行: S001・S008・S023・S070・S080・S105・S107・S124・S136・S165・S168・S196・S202・S207・S215・U011・U013・U014・U033・U034・U040・U046・U056・U057・U058・U060・U064・U080・U081・U082・U083・U084・U086・U087・U088・U089・U103・U104・U105・U108・U109・U114・U115・U125・U156・U159・U160・U161
