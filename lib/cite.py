@@ -1,7 +1,7 @@
 """名指しの出どころが現物に在るかの確かめ（食い違いの申し出の引用の照らしと、修正前の関所の決め手の出どころの照らしが使う 1 か所）。
 
 - CITE: 名指し `<パス>:<行>` か `<パス>:<行>-<行>` の形
-- QUOTE_MIN: 引用の字数の下限（引用「…」の形 QUOTE と、quoted_in の前に字数を見る呼び手が使う）
+- QUOTE_MIN: 引用の字数の下限（引用「…」の形 QUOTE と headdepth が使う。tddloop.MIN_QUOTE は別の下限）
 - inside(p, root): p が root の中か
 - resolved(path, repo) -> Path: 名指しのパスの実体（problem と、世界の解の外れの依頼のファイルの照らしが同じ規則で解く）
 - problem(cite, repo, roots=()) -> str: 1 つの名指しの確かめ（通れば空）。相対のパスは作業ツリーの根から（外と .git は拒む）、

@@ -518,7 +518,7 @@ judge の中のノードを表に足す時は、その句を出す script のノ
 - 前提の実測: `blk-premises`・`premises.py` → `commands/premises`・`lib/premises`
 - 目的の固定と解き方の分け: `blk-purpose`・`purpose.py` → `commands/purpose`・`lib/purpose`
 - 定石（世界の解）と web の取得: `blk-world`・`worldmark.py`・`webget.py` → `commands/world-classes`・`commands/world-judge`・`lib/world`・`lib/webget`
-- 素材集め 11 本: `blk-material` → `commands/material-*`
+- 素材集め: `blk-material` → `commands/material-*`
 - 仕様の段: `blk-spec` → judge（`--spec` の時）・`commands/spec`
 - 根本の診断と受け付け: `blk-judge`・`.shared/core/accept.py` → `commands/diagnose`・`lib/judge_accept`
 - 判定の裏取り: `blk-judge/lib/judgeverify.py` → judge
@@ -704,7 +704,7 @@ issue の一覧（受け入れの条件はどれも共通の 5 つ + 個別）:
 
 個別:
 
-- `judge`: 前提・目的・定石・素材 11 本・診断・裏取り・再審・仕様の段が動く。受け付けが拒めば 3 回まで出し直す。定石の抜き書きが出どころに在ることを機械が照らす。目的の外の所見が持ち越しの行になる。
+- `judge`: 前提・目的・定石・素材集め（`commands/material-*`）・診断・裏取り・再審・仕様の段が動く。受け付けが拒めば 3 回まで出し直す。定石の抜き書きが出どころに在ることを機械が照らす。目的の外の所見が持ち越しの行になる。
 - `plan`: 構造の目と修正案と波及の一覧。項目ごとに書いてよい範囲・受け入れテスト・定石と構造の行への従うか外れの訳が無ければ受け付けが拒む。案の直しの入力で 2 度目を include できる。
 - `plan-review`: R2 の独立設計は道具なしで目的の文だけを受ける（禁じた入力が届かないことを試験で縛る）。4 つの軸と人への問いを返す。往復の止め（同じ block が続く・開いた block が前の往復より減らない。往復の数では止めず、安全の上限 20 周の周は仕組みの異常として止める）が働く。
 - `fix`: 赤緑の機械の判定・元から赤の区別・凍結・範囲の照らしと相談・書き込みの出どころ・3 回で諦める・申し出と裁定・差分の審査と手直し 2 往復。組は `fan_out:` で並べ、幅は計画（組の数）から決まり、組は分けない。並べの数の上限は持つが、固定の枝の数・待ちの列・錠は持たない。
