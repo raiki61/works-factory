@@ -168,6 +168,8 @@ FAKE_REAL = f"""#!{sys.executable}
 import json, os, sys
 with open(os.environ["FAKE_REAL_LOG"], "w", encoding="utf-8") as f:
     json.dump(sys.argv[1:], f)
+with open(os.environ["FAKE_REAL_LOG"] + ".env", "w", encoding="utf-8") as f:
+    json.dump({{k: v for k, v in os.environ.items() if k.startswith("GRAPHLOOPS_")}}, f)
 """
 
 
@@ -205,6 +207,15 @@ class MainTest(unittest.TestCase):
         rows = [json.loads(line) for line in self.records.read_text(encoding="utf-8").splitlines()]
         self.assertEqual([r["cwd"] for r in rows], [os.path.realpath(self.tree["linked"])] * 2)
         self.assertTrue(all(datetime.datetime.fromisoformat(r["at"]).tzinfo for r in rows), rows)
+
+    def test_every_launch_marks_claude_as_an_engine_child(self):
+        """#505: 包みが起こす役の claude と、その子（対象のテスト）は GRAPHLOOPS_ENGINE_CHILD=1 を持つ（元 works の SKILL.md 96 行。
+        対象の重い一式がこの名で AI の役からの起動を見分けて拒む）。印の有無に依らない"""
+        for argv in (["-p", "x"], ["--settings", settings_with([scan.NO_TREE_WRITE])]):
+            with self.subTest(argv=argv):
+                self.assertEqual(self.run_fence(*argv).returncode, 0)
+                got = json.loads(pathlib.Path(f"{self.log}.env").read_text(encoding="utf-8"))
+                self.assertEqual(got, {fence.ENGINE_CHILD_ENV: "1"})
 
     def test_unmarked_launch_reaches_claude_unchanged(self):
         argv = ["-p", "x", "--settings", json.dumps({"sandbox": {"enabled": True}})]
