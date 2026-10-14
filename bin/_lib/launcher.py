@@ -1,7 +1,7 @@
 """入口の殻 bin/works-factory の中身: 利用者の環境から認証と隔離を整え、止めた Archon を bun で起こし、引数をそのまま渡す。
 
 Archon の命令の別名は作らない（持ち主の決め one-launcher）。持つのはつなぎだけで、認証・隔離・プラグインの選び・gh の口・源の取り寄せ・
-run の作業ツリーの起点は bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
+run の作業ツリーの起点・test_cmd の形の確かめは bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
 B の「約束」1〜11）。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
 """
 import fnmatch
@@ -29,6 +29,7 @@ EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"}) | CONTI
 READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
 NO_AUTH_ENV = "WORKS_FACTORY_NO_AUTH"   # 認証の要らない起動（lib/entryshape.py の NO_AUTH_ENV と同じ名）
+ALLOW_TESTCMD_ENV = "WORKS_FACTORY_ALLOW_TESTCMD"   # 1 なら、対象の手元を走らせる形の test_cmd でも止めずに起こす
 HOST_GH_DIR = "host-gh"
 FENCE_DIR = "claude-fence"
 FENCE = ROOT / "workflows" / ".shared" / "fence.py"
@@ -141,6 +142,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             workflows = place.workflow_source(loaded, ROOT, cache)
         except RuntimeError as error:
             raise Stop(str(error)) from None
+        check_test_cmd(user, target, input_values(flags, "test_cmd"))
         try:
             start, said = startpoint.choose(flags, workflow, target, f"{NAME}-")
         except RuntimeError as error:
@@ -182,6 +184,40 @@ def fresh_run_workflow(argv: list[str], flags: list[str]) -> str | None:
     if len(argv) < 3 or argv[2].startswith("-"):
         raise Stop("使い方: works-factory workflow run <グラフの名> [Archon の旗…]")
     return argv[2]
+
+
+def input_values(flags: list[str], key: str) -> list[str]:
+    """--input key=値 と --input=key=値 の値の全部"""
+    pairs = [b for a, b in zip(flags, flags[1:]) if a == "--input"] + \
+        [a.removeprefix("--input=") for a in flags if a.startswith("--input=")]
+    return [pair[len(key) + 1:] for pair in pairs if pair.startswith(key + "=")]
+
+
+def check_test_cmd(user: dict[str, str], target: Path, commands: list[str], run=subprocess.run) -> None:
+    """test_cmd の形を Archon を起こす前に確かめる（bin/_lib/testcmd_check.py。決まりはそちら）。対象の手元を走らせる形（終了の値 3）と、
+    確かめそのものが落ちた時（0・3 の外。手元を走らせる形を除けない）は止める。ALLOW_TESTCMD_ENV が 1 なら知らせて起こす。
+    注意の形（作業ツリーで走らない。走れば落ちて分かる）は行を出すだけ"""
+    allowed = user.get(ALLOW_TESTCMD_ENV) == "1"
+    for cmd in filter(str.strip, commands):
+        done = run([sys.executable, "-I", str(LIB / "testcmd_check.py"), *(["--allow-checkout"] if allowed else []), str(target), cmd],
+                   env=user, stdout=subprocess.PIPE, text=True, encoding="utf-8")
+        if done.stdout.strip():
+            print(done.stdout.rstrip("\n"), file=sys.stderr)
+        if done.returncode == 0:
+            continue
+        if done.returncode == 3:
+            if not allowed:
+                raise Stop(f"test_cmd が対象の手元（{target}）を走らせる形なので、Archon を起こさずに止めた（run の試験が直しでなく手元の"
+                           "コードを試し、直しの正誤に関わらず緑になりうる）。作業ツリーの中で環境を作る形にして打ち直す。形を知った上で"
+                           f"回すなら {ALLOW_TESTCMD_ENV}=1 を前に付ける（README.md の「test_cmd と作業ツリー」）")
+            print(f"{NAME}: {ALLOW_TESTCMD_ENV}=1 なので止めずに起こす（上の形は作業ツリーの直しでなく対象の手元を試しうる）",
+                  file=sys.stderr)
+        elif not allowed:
+            raise Stop(f"test_cmd の形の確かめ（testcmd_check.py）が終了の値 {done.returncode} で落ち、対象の手元を走らせる形かを"
+                       f"確かめられないので、Archon を起こさずに止めた。確かめずに回すなら {ALLOW_TESTCMD_ENV}=1 を前に付ける")
+        else:
+            print(f"{NAME}: test_cmd の形の確かめ（testcmd_check.py）が終了の値 {done.returncode} で落ちた。{ALLOW_TESTCMD_ENV}=1 なので"
+                  "確かめずに起こす", file=sys.stderr)
 
 
 def absolute(value: str, here: Path) -> str:

@@ -1,4 +1,4 @@
-"""use.sh start が test_cmd を Archon に渡す前に出す知らせ（dev/testcmd_check.py）の検査。
+"""起動の殻が test_cmd を Archon に渡す前に出す知らせ（bin/_lib/testcmd_check.py）の検査。
 
 run の worktree と単位の worktree は commit から切るので、対象の git が無視する物（.venv・node_modules など）は無い。
 test_cmd がそれを相対で指せば worktree で走らず、絶対で指すか対象の外で立てた環境（VIRTUAL_ENV）を使えば、worktree の直しで
@@ -13,13 +13,11 @@ import sys
 import tempfile
 import unittest
 
-sys.dont_write_bytecode = True
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tests"))
-import gitkit  # noqa: E402
+from tests.bin import gitkit
 
-TOOL = ROOT / "dev" / "testcmd_check.py"
-SEED = ROOT / "dev" / "target-seed"
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+TOOL = ROOT / "bin" / "_lib" / "testcmd_check.py"
+SEED = ROOT / "tests" / "e2e" / "target-seed"
 
 
 class TestCmdCheck(unittest.TestCase):
@@ -341,7 +339,7 @@ class TestCmdCheck(unittest.TestCase):
         self.assertIn("sub/.venv/bin/pytest", lines[0])
 
     def test_backslash_newline_joins_the_lines(self):
-        """\ と改行は殻と同じに行を繋ぐ（段の区切りにしない）: uv run pytest \⏎ -q は 1 つの段で立てた環境を使わず、
+        r"""\ と改行は殻と同じに行を繋ぐ（段の区切りにしない）: uv run pytest \⏎ -q は 1 つの段で立てた環境を使わず、
         bash -lc \⏎ '…' は殻の -c の中を読む。一重引用符の中の \ と改行は字のまま"""
         venv = self.repo.parent / "venvs" / "proj"
         self._editable_venv(venv)

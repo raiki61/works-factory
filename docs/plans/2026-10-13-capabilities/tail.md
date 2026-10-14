@@ -520,12 +520,12 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 本物の run: 筋書きでのみ
   - 狭め: #74 の線の形（base の ok が偽なら judge を飛ばした）→ #495 で戻した
 
-- T70 入口が test_cmd を Archon に渡す前に、worktree で効かない形を分けて知らせる。対象の手元を絶対パスで指す・対象を editable で入れた外の仮想環境を使う形は、黙った偽の緑になるので止める。git が無視する物を相対で指す形は注意だけ。確かめの殻が落ちたら止める。WORKS_USE_ALLOW_TESTCMD で通せる。
+- T70 入口が test_cmd を Archon に渡す前に、worktree で効かない形を分けて知らせる。対象の手元を絶対パスで指す・対象を editable で入れた外の仮想環境を使う形は、黙った偽の緑になるので止める。git が無視する物を相対で指す形は注意だけ。確かめの殻が落ちたら止める。WORKS_USE_ALLOW_TESTCMD（今は WORKS_FACTORY_ALLOW_TESTCMD）で通せる。
   - 元: works/dev/testcmd_check.py・works/dev/use.sh:1020-1044・works/tests/test_testcmd_check.py（24 本）
-  - 今: 無し（main・#74 の head に testcmd_check が無い）
-  - 証: 要追加: tests/ の入口の試験に testcmd_check の 24 本の写し（少なくとも test_absolute_reference_to_the_checkout_stops・test_relative_ignored_path_is_named・test_activated_virtualenv_with_editable_target_is_named_unless_uv_run）
+  - 今: bin/_lib/launcher.py::check_test_cmd（殻が新しい run の --input test_cmd= を Archon を起こす前に照らす）・bin/_lib/testcmd_check.py::main（元の決まりのまま。#495）
+  - 証: tests/bin/test_testcmd_check.py::TestCmdCheck.test_absolute_reference_to_the_checkout_stops・tests/bin/test_testcmd_check.py::TestCmdCheck.test_relative_ignored_path_is_named・tests/bin/test_testcmd_check.py::TestCmdCheck.test_activated_virtualenv_with_editable_target_is_named_unless_uv_run（元の 24 本の写し）・tests/bin/test_launcher.py::LauncherTest.test_test_cmd_running_the_checkout_stops_before_archon・tests/bin/test_launcher.py::LauncherTest.test_test_cmd_check_that_fails_stops_unless_allowed
   - 本物の run: 筋書きでのみ（入口の出力。種の test_cmd は相対で手元を指さない）
-  - 狭め: どの PR も挙げていない（黙って落ちた）。Archon で不可でない → 戻す（入口 bin/ の住処） 決め: 住処は bin/_lib/testcmd_check.py（元の名と中身。殻が Archon を起こす前に照らす）。E13 の例外は要らない。L-E50・L-G08 と同じ bin の issue（線の配線の文書の「この文書の外」の「決めた物」）
+  - 狭め: どの PR も挙げていない（黙って落ちた）。Archon で不可でない → #495 で戻した（入口 bin/ の住処） 決め: 住処は bin/_lib/testcmd_check.py（元の名と中身。殻が Archon を起こす前に照らす）。E13 の例外は要らない。L-E50・L-G08 と同じ bin の issue（線の配線の文書の「この文書の外」の「決めた物」）
 
 - T71 run の後の CI の赤（run が見ない重い試験）を、次の run の依頼の prior_failures の行に載せる。
   - 元: works/.shared/core/carry.py:265 `carry_ci`
@@ -545,9 +545,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 数:
 
 - 行の総数: 71
-- 今: 無し: 3（T61・T64・T70）。T69 は #495 で、T8・T9・T16・T47・T62・T63 は #122 で、T35・T41・T45 は線の配線の部分 B2・C で戻した
-- 証が要追加か弱い: 3（T61・T67・T70）。T69 は #495 で、T68 は #354 で、T7・T13・T15・T19・T30・T31・T38・T53・T55・T60 は #122 で試験を足して閉じた
-- 狭めたのに Archon が強いていない: 3（T61・T64・T70）。T69 は #495 で、T49 は #309・#360 で戻した。Archon のせいで不可と言える行は 1 つも無い
+- 今: 無し: 2（T61・T64）。T69・T70 は #495 で、T8・T9・T16・T47・T62・T63 は #122 で、T35・T41・T45 は線の配線の部分 B2・C で戻した
+- 証が要追加か弱い: 2（T61・T67）。T69・T70 は #495 で、T68 は #354 で、T7・T13・T15・T19・T30・T31・T38・T53・T55・T60 は #122 で試験を足して閉じた
+- 狭めたのに Archon が強いていない: 2（T61・T64）。T69・T70 は #495 で、T49 は #309・#360 で戻した。Archon のせいで不可と言える行は 1 つも無い
 - 字の誤り（狭めではない）: 1（T67）。T68 は #354 で直した
 
 - 持ち主に聞く物（前の決め・定石・元の作りのどれでも 1 つに決まらない）
@@ -557,7 +557,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   4. T61 人に諮っている最中の CI の欄を clean で上書きさせない決まり。台帳が無いので、線の問いで持つか
   5. T69 直す前に走らせられない run を、人に聞いて続けられるようにするか、止めて報告に回すままか。→ 決めた: 続ける（#495。今の works と同じく、一部でも全部でも止めない）
   6. T8・T9 宣言の sha の照合と engine の素材の受け付け。計画と走りが同じ関数の中に入って目的が消えたと見てよいか（T9 の material_problems を engine の素材にも当てるのは聞かずに足してよい）
-- 聞かずに戻す物（どの PR も挙げずに黙って落ちた）: T35・T41（線と報告に試験の行と次の手を出す）、T45（諦めた時の最後の拒否の文）、T47（resume で前のログを残す）、T70（test_cmd の形の確かめ。偽の緑を防ぐ入口の柵）。T35・T41・T45 は線の配線の部分 B2・C で、T47 は #122 で戻した
+- 聞かずに戻す物（どの PR も挙げずに黙って落ちた）: T35・T41（線と報告に試験の行と次の手を出す）、T45（諦めた時の最後の拒否の文）、T47（resume で前のログを残す）、T70（test_cmd の形の確かめ。偽の緑を防ぐ入口の柵）。T35・T41・T45 は線の配線の部分 B2・C で、T47 は #122 で、T70 は #495 で戻した
 - 本物の run の注意: 種には `.review-checks.json` が無い。engine の段・JUnit・赤の原因 inherited・introduced・範囲の宣言は、種のままでは本物の run に出ない。段 1 の本物の run で見るなら、種に JUnit を書く宣言を足すか、test_cmd を渡す run と渡さない run を 1 本ずつ回す。渡す run は T5・T20・T23・T39、渡さない run は T6・T40・T48・T50・T58 を見られる
 - 元にも無かった物: 揺れる（flaky）試験の走らせ直しは、元の試験の関門にも無い。狭めではない
 
@@ -2286,9 +2286,9 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 
 数（4 つの領域の合計。各領域の内訳は各領域の終わりの節。数え方は README.md の「穴の数え方」）:
 - 行の総数: 294（T 71・E 77・R 83〔R1〜R82 と R5b〕・M 63）
-- 今: 無し: 10（T 3・E 2・R 2・M 3）。M の 3 のうち 1 は周の鎖と一緒に段 3 で作る bin/apply の行（M53。M39〜M52 は #114 で bin/_lib/apply.py と tests/bin/test_apply.py に入った）、1 は置き換えで要らない行（M62）
-- 証が要追加か弱い: 12（T 3・E 1・R 5・M 3）
-- 狭めたのに Archon が強いていない: 15（T 3・E 5・R 5・M 2）。どの PR も書かずに黙って落とした物のうち、まだ戻していないのは T70・E67（T35・T41・T45・T47、R5b・R14・R16・R20・R23・R24・R35〜R39・R41・R49 は戻した）
+- 今: 無し: 9（T 2・E 2・R 2・M 3）。M の 3 のうち 1 は周の鎖と一緒に段 3 で作る bin/apply の行（M53。M39〜M52 は #114 で bin/_lib/apply.py と tests/bin/test_apply.py に入った）、1 は置き換えで要らない行（M62）
+- 証が要追加か弱い: 11（T 2・E 1・R 5・M 3）
+- 狭めたのに Archon が強いていない: 14（T 2・E 5・R 5・M 2）。どの PR も書かずに黙って落とした物のうち、まだ戻していないのは E67（T35・T41・T45・T47・T70、R5b・R14・R16・R20・R23・R24・R35〜R39・R41・R49 は戻した）
 - Archon が強いた狭め: 1（E30。読むだけの役が作業ツリーを変えた時の出し直しが無くなった。dag-executor.ts:1243-1249 で、checkout の照らしの違反は retry の外）
 - PR の対応表の照らし: #66（M）・#67（E）・#69（T）が挙げた試験は main に全部在り、該当の動きを assert していた。#68 の「取り戻せない」12 件のうち、今も読む先が無いのは gates_deferred（R71）と来歴の表（R81 の表の部分）だけ。閉鎖の数え直し（R72）は組の子 run に元データが在り、約束に足せば戻る。R73〜R80 の 8 件は今の置き場から戻せ、うち R75・R76・R79・R80 の 4 件は #68 の主張が誤り。R71・R81・R82 は持ち主に聞く
 
@@ -2307,6 +2307,6 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
 8. M45・M46・M53・M43 → 決めた: M45・M46 は `bin/apply` が拒み、拒む 1 行に素の `git apply` の道を書いて能力を残す（M46 は元の能力の狭めに当たる）。M53 は段 3 の鎖の issue。M43 は人の一言を載せる
 9. M61 守りのパスの一覧が 44 行から 19 行に減った（main にファイルが在るのに外れた行がある。#74 も線の行を足していない）。M30 書き換えを許したテストを守りのパスと同じに扱う動き（関所を必ず開く・答えが無ければ置かない）→ 戻した（線の配線の部分 B2）
 
-聞かずに戻す物（どの PR も挙げずに黙って落ちた物。Archon の制約ではない）のうち、まだ戻していないのは T70（test_cmd が手元の clone を指していないかの入口の確かめ。気づかない偽の緑を防ぐ柵）・E67（住処だけ持ち主に聞く）。T35・T41・T45・T47、E の 7 行（E17・E37・E42・E45・E66・E73・E74）、R の 21 行（R の穴の「戻す」の一覧）、M29・M37・M38 は戻した。
+聞かずに戻す物（どの PR も挙げずに黙って落ちた物。Archon の制約ではない）のうち、まだ戻していないのは E67（住処だけ持ち主に聞く）。T35・T41・T45・T47・T70（test_cmd が手元の clone を指していないかの入口の確かめ。#495）、E の 7 行（E17・E37・E42・E45・E66・E73・E74）、R の 21 行（R の穴の「戻す」の一覧）、M29・M37・M38 は戻した。
 
 本物の run の注意: 種に .review-checks.json が無いので、試験の関門の engine の段・JUnit・赤の原因の分け（元から赤か、この直しで赤か）・範囲の宣言は、種のままでは本物の run に出ない。段 1 で見るなら、種に宣言を足すか、test_cmd を渡す run と渡さない run を 1 本ずつ回す（T の穴の節）。種は works-factory でない対象なので、守りのパスに当たる道も筋書きでのみ。

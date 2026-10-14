@@ -1,23 +1,23 @@
-"""use.sh start が test_cmd を Archon に渡す前に、run の worktree と単位の worktree で効かない形を分けて知らせる。
+"""起動の殻（bin/_lib/launcher.py）が test_cmd を Archon に渡す前に、run の worktree と単位の worktree で効かない形を分けて知らせる。
 
-python3 -I works/dev/testcmd_check.py [--allow-checkout] <対象の根> <test_cmd>
+python3 -I bin/_lib/testcmd_check.py [--allow-checkout] <対象の根> <test_cmd>
 
 run の worktree（Archon が --from の commit から切る）と単位の worktree（修正の段が run の worktree の今の姿の commit から切る）には、
 対象の git が無視する物（.venv・node_modules・ビルドの出力・.env など）が無い。形は 2 つに分け、1 行ずつ標準出力へ出す:
 - 止める形（行の頭「止める（test_cmd）」。--allow-checkout なら「注意（test_cmd）」）: run の試験が worktree の直しでなく対象の手元
   （元の clone）を走らせ、直しの正誤に関わらず緑になり得る（黙った偽の緑）。
   - 手元を絶対パスで指す語: どの段でも（手元の絶対パスは前の段が worktree の中に作ることが無い。殻の -c の中の段も）、見る語（下）の
-    うち絶対パスで、対象の根そのものか根の中の今在る物を指す物（git が無視するかを問わない。cd /手元 && uv run pytest・
-    uv sync && /手元/.venv/bin/pytest・pytest /手元/tests・PYTHONPATH=/手元/src）と、最初の段の前の絶対パスの cd の後の相対の
+    うち絶対パスで、対象の根そのものか根の中の今在る物を指す物（git が無視するかを問わない。cd /手元 && uv run <試験>・
+    uv sync && /手元/.venv/bin/<試験>・<試験> /手元/tests・PYTHONPATH=/手元/src）と、最初の段の前の絶対パスの cd の後の相対の
     語のうち git が無視する物
   - 対象の外の環境を絶対パスで指す語: どの段でも、見る語（下）のうち絶対パスで対象の外の物から上へ辿った仮想環境の根（印
-    VENV_MARKERS: pyvenv.cfg か conda-meta）に対象が editable で入っている（下の立てた環境と同じ印）（/venvs/proj/bin/pytest・
-    PATH=/venvs/proj/bin:$PATH pytest。virtualenvwrapper・poetry・conda の環境を VIRTUAL_ENV なしで指す形）
+    VENV_MARKERS: pyvenv.cfg か conda-meta）に対象が editable で入っている（下の立てた環境と同じ印）（/venvs/proj/bin/<試験>・
+    PATH=/venvs/proj/bin:$PATH <試験>。virtualenvwrapper・poetry・conda の環境を VIRTUAL_ENV なしで指す形）
   - 立てた仮想環境: VIRTUAL_ENV が在りその bin が PATH に在るか、起こした殻の PATH の段から上へ辿った仮想環境の根が在り（conda
     activate は VIRTUAL_ENV を立てない）、その環境に対象が editable で入っていて（site-packages の
     *.dist-info/direct_url.json の editable の url か、*.pth の絶対パスの行が対象の根の中を指す）、test_cmd の段（殻の -c の中も。
     前の NAME=値 と env を除く）のどれかが、組み込み（BUILTINS: cd・echo・export など）でも、頭が uv でサブコマンドが pip でなく
-    --active も --no-project も無い段（uv run・uv sync など）でもない。run の中の python・pytest は PATH のその環境を掴む（uv run・
+    --active も --no-project も無い段（uv run・uv sync など）でもない。run の中の python と試験の実行器は PATH のその環境を掴む（uv run・
     uv sync は project の .venv を使い VIRTUAL_ENV を見ない。uv run --active・uv run --no-project・uv pip は立てた環境を使う）。対象の入っていない環境（依存だけの
     環境・uv run の使い捨ての環境）は知らせない
 - 注意の形（行の頭「注意（test_cmd）」）: 相対の語が、対象に今在り git が無視する物（git check-ignore。パスか、その上のどれかの段が
@@ -27,7 +27,7 @@ run の worktree（Archon が --from の commit から切る）と単位の work
 物を使える）。
 所を変える形は辿る:
 - 前の段が `cd <先>`・`pushd <先>`（旗 -P・-L などは除く。後ろが && か ;）だけなら、所を変えるだけの段で、その次の段を最初の段とし、
-  相対の語を cd の先から読む（cd sub && .venv/bin/pytest は sub/.venv/bin/pytest）。cd の先もパスとして見る（/ が無くても）。
+  相対の語を cd の先から読む（cd sub && .venv/bin/<試験> は sub/.venv/bin/<試験>）。cd の先もパスとして見る（/ が無くても）。
   サブシェルの括弧の中の cd は、括弧を閉じたら戻す
 - 最初の段が殻の -c（sh -c '…'・bash -lc "…"。前の NAME=値 と env は許す。旗の終わり --・値を取る -o/+o/-O/+O と
   --rcfile・--init-file の値・ほかの長い旗は飛ばす）なら、その中のコマンドを同じ決まりで読む
@@ -37,7 +37,7 @@ run の worktree（Archon が --from の commit から切る）と単位の work
 書き先（リダイレクト >・>>・>|・&>・&>>・>&・<> の後ろの語と、OUTPUT_FLAGS の旗の後ろの語・= の値）はコマンドが作るので、
 手元に前の出力が在っても見ない。
 終了コード: 止める形が在れば 3（--allow-checkout でも 3。行の頭だけが替わる）、無ければ 0、引数の誤りは 2。git が効かなければ
-git が無視するかは見ない（止める形の手元を絶対パスで指す語は見る）。標準ライブラリだけ・Python 3.9 の構文。
+git が無視するかは見ない（止める形の手元を絶対パスで指す語は見る）。標準ライブラリだけ。
 
 漏れ（知っていて塞がない物。止める形の漏れは run を止めずに偽の緑を通し、注意の形の漏れは知らせが多すぎるか少なすぎる）:
 - 書き先を空白で分けた値に取る旗のうち OUTPUT_FLAGS に無い物（-o build/x・道具ごとの旗）は、その値が手元に前の出力として在り
@@ -48,15 +48,15 @@ git が無視するかは見ない（止める形の手元を絶対パスで指�
   sh <ファイル>・eval・xargs・find -exec。その中で手元を絶対パスで指しても見えない
 - 所を変える形のうち CHDIR_FLAGS の外の旗（uv run --project・cargo --manifest-path など）は、値が絶対パスで手元を指す時だけ
   見る（相対の値は / が無ければ見ず、後ろの語も根から読む）。相対の語は最初の段より後ろの段では見ない（前の段が作った物か読めない）
-- 根の外への絶対パスの cd の後の相対の語（cd /手元の親 && 手元/.venv/bin/pytest）は読めない所として見ない。docker run -v /手元:/w
+- 根の外への絶対パスの cd の後の相対の語（cd /手元の親 && 手元/.venv/bin/<試験>）は読めない所として見ない。docker run -v /手元:/w
   のように = でなく : で繋いだ値の中の手元は、語が在るパスでないので見ない
 - 立てた環境の判定で、uvx の段は uv の段として数えない（止める）。組み込みでない段は python を起こさなくても
-  止める（npm ci && uv run pytest も立てた環境で editable なら止める。止めを外せば今どおり起こす）
+  止める（npm ci && uv run <試験> も立てた環境で editable なら止める。止めを外せば今どおり起こす）
 - 対象が editable でなく普通に入った（写しを入れた）仮想環境は、絶対パスで指しても立てても editable の印が無いので、
   絶対パスの語としてだけ見る（立てた環境は知らせない）
 - 根の印（pyvenv.cfg・conda-meta）の無い入れ先（pip install --target の所・利用者の site-packages（pip install --user -e）・
   素の python の site-packages）に editable で入れた対象は、PYTHONPATH= などで指しても、PATH から掴んでも見えない。対象の外の
-  環境を相対のパス（../venvs/proj/bin/pytest）・~・変数で指す形も辿らない（相対の語は根の中だけを見る）
+  環境を相対のパス（../venvs/proj/bin/<試験>）・~・変数で指す形も辿らない（相対の語は根の中だけを見る）
 - 起こした殻の PATH の段から辿る環境は、PATH の前の段に同じ名のコマンドが在って run がそちらを掴む形でも止める（どのコマンドを
   掴むかは段ごとに決まらない）
 """
@@ -72,7 +72,7 @@ from urllib.parse import unquote, urlparse
 
 USAGE = "usage: testcmd_check.py [--allow-checkout] <対象の根> <test_cmd>"
 STOP_EXIT = 3   # 止める形が在る時の終了コード（--allow-checkout でも同じ。行の頭だけが「注意」になる）
-HOW = "worktree の中で環境を作るコマンド（例 uv run pytest -q）にする（works/README.md の「test_cmd と worktree」）"
+HOW = "worktree の中で環境を作るコマンド（例: 依存を入れてから試験を走らせる 1 行）にする（README.md の「test_cmd と作業ツリー」）"
 SEPARATORS = ("&&", "||", ";", "|", "&")
 REDIRECTS = (">", ">>", ">|", "&>", "&>>", ">&", "<>")   # 後ろの語が書き先のリダイレクト（< の先は読むので見る）
 # 書き先を値に取る旗（よく使う物だけ。空白で分けた値も = で繋いだ値も見ない。ほかの旗の = の値は絶対パスだけ見る）
@@ -509,7 +509,7 @@ def venv_notes(root, cmd, environ):
         seen.add(venv)
         if _editable_target(venv, root):
             notes.append((True, f"test_cmd の {w} は対象の外の仮想環境（{venv}）を指し、対象がそこへ editable で入っている: run の中の"
-                                f" test_cmd はその環境の python・pytest で、worktree の直しでなく対象の手元のコードを試す（直しの正誤に"
+                                f" test_cmd はその環境の python と試験の実行器 で、worktree の直しでなく対象の手元のコードを試す（直しの正誤に"
                                 f"関わらず緑になる）。{HOW}"))
     if all(_venv_free(_strip_env(words)) for words in _all_segments(cmd)):
         return notes
@@ -520,7 +520,7 @@ def venv_notes(root, cmd, environ):
         seen.add(venv)
         if _editable_target(venv, root):
             notes.append((True, f"VIRTUAL_ENV（{venv}）を立てたまま起こし、対象がそこへ editable で入っている: run の中の test_cmd の"
-                                f" python・pytest はその環境を PATH から掴み、worktree の直しでなく対象の手元のコードを試す（直しの正誤に"
+                                f" python と試験の実行器 はその環境を PATH から掴み、worktree の直しでなく対象の手元のコードを試す（直しの正誤に"
                                 f"関わらず緑になる）。{HOW}"))
     for entry in entries:
         venv = _venv_root(entry)
@@ -529,7 +529,7 @@ def venv_notes(root, cmd, environ):
         seen.add(venv)
         if _editable_target(venv, root):
             notes.append((True, f"起こした殻の PATH の {entry} は仮想環境（{venv}）の中で、対象がそこへ editable で入っている: run の中の"
-                                f" test_cmd の python・pytest はその環境を PATH から掴み、worktree の直しでなく対象の手元のコードを試す"
+                                f" test_cmd の python と試験の実行器 はその環境を PATH から掴み、worktree の直しでなく対象の手元のコードを試す"
                                 f"（直しの正誤に関わらず緑になる）。{HOW}"))
     return notes
 

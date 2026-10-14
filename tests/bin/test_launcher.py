@@ -4,7 +4,9 @@
 security（と mise）と、python3・git だけを置く。偽の bun は受けた引数と環境を JSON に書き、試験がそれを照らす（トークンは在るかだけを見る。環境は名の一覧で照らし、落ちた時に値を
 試験の出力に出さない）。
 """
+import contextlib
 import hashlib
+import io
 import json
 import os
 import pathlib
@@ -174,6 +176,41 @@ class LauncherTest(unittest.TestCase):
         with self.subTest("利用者の --from が勝ち、殻は足さない"):
             argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--from", "x", "--input", "request=x"))["argv"]
             self.assertEqual(argv[9:], ["works-factory-line", "--from", "x", "--input", "request=x"])
+
+    def test_test_cmd_running_the_checkout_stops_before_archon(self):
+        """#495: test_cmd が対象の手元を絶対パスで指すと、Archon を起こさずに止める（run の試験が直しでなく手元を試す偽の緑）。
+        WORKS_FACTORY_ALLOW_TESTCMD=1 なら知らせて起こす。git が無視する物を相対で指す形は注意だけで起こす"""
+        self.commit_target()
+        (self.target / ".gitignore").write_text(".venv/\n", encoding="utf-8")
+        runner = self.target / ".venv" / "bin" / "run-tests"
+        runner.parent.mkdir(parents=True)
+        runner.write_text("#!/bin/sh\n", encoding="utf-8")
+        git(self.target, "add", ".gitignore")
+        git(self.target, "commit", "-q", "-m", "ignore")
+        run = ("workflow", "run", "works-factory-line", "--input", "request=x")
+        err = self.stopped(self.launch(*run, "--input", f"test_cmd={runner} -q"))
+        self.assertIn("止める（test_cmd）", err)
+        self.assertIn(launcher.ALLOW_TESTCMD_ENV, err)
+        done = self.launch(*run, f"--input=test_cmd={runner} -q", **{launcher.ALLOW_TESTCMD_ENV: "1"})
+        self.reached(done)
+        self.assertIn("注意（test_cmd）", done.stderr)
+        done = self.launch(*run, "--input", "test_cmd=.venv/bin/run-tests -q")
+        self.reached(done)
+        self.assertIn("注意（test_cmd）", done.stderr)
+
+    def test_test_cmd_check_that_fails_stops_unless_allowed(self):
+        def failing(*_, **__):
+            return subprocess.CompletedProcess([], 1, stdout="")
+        with self.assertRaises(launcher.Stop):
+            launcher.check_test_cmd({}, self.target, ["make test"], run=failing)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            launcher.check_test_cmd({launcher.ALLOW_TESTCMD_ENV: "1"}, self.target, ["make test"], run=failing)
+        self.assertIn("終了の値 1", said.getvalue())
+        launcher.check_test_cmd({}, self.target, ["", "  "], run=failing)
+
+    def test_input_values_reads_both_forms(self):
+        self.assertEqual(launcher.input_values(["--input", "test_cmd=a b", "--input=test_cmd=c", "--input", "request=x",
+                                                "--input", "test_cmd_x=d"], "test_cmd"), ["a b", "c"])
 
     def test_user_workflow_source_is_refused(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--workflow-source", str(self.tmp)))
