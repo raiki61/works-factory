@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -792,6 +793,24 @@ class RunTest(RunnerCase):
         got = json.loads((self.out / "works-factory" / "nodes.json").read_text(encoding="utf-8"))
         self.assertEqual((got["producer"], got["tasks"], got["judged"]), ("works-factory", 1, False))
         self.assertTrue((self.out / "works-factory" / "nodes.md").read_text(encoding="utf-8").startswith("# ノードごとの表"))
+
+
+class PlainClaudeEnvTest(unittest.TestCase):
+    """素の Claude Code の start が隔離の上に置く env の名は、dry run が言う env_names の隔離の外の名とちょうど同じ"""
+
+    def test_start_sets_exactly_the_names_the_dry_run_reports(self):
+        attempt = hermetic.tmpdir(self)
+        (attempt / "pr").mkdir()
+        (attempt / "pr" / "pr.json").write_text(json.dumps({"head": "h" * 40}), encoding="utf-8")
+        (attempt / "target").mkdir()
+        producer = runner.PlainClaude()
+        with mock.patch.object(runner.PlainClaude, "isolated_env", return_value={}), \
+                mock.patch.object(runner.subprocess, "run") as launched:
+            producer.start(attempt, "b" * 40)
+        env = launched.call_args.kwargs["env"]
+        self.assertEqual(set(env), set(producer.env_names()) - set(runner.PlainClaude.ISOLATED_ENV))
+        self.assertEqual((env["RB_AGENT"], env["RB_OUT"]), (producer.name, str(attempt / "out" / runner.PlainClaude.FINDINGS)))
+        self.assertEqual(producer.input_pairs(attempt, "b" * 40), {k: env[k] for k in runner.PlainClaude.INPUTS})
 
 
 class WebCallsTest(unittest.TestCase):

@@ -413,6 +413,8 @@ class PlainClaude:
     leak_guard = WITHHELD
     RESULT, FINDINGS = "claude-result.json", "findings.json"
     ISOLATED_ENV = ("HOME", "CLAUDE_CONFIG_DIR", "GH_CONFIG_DIR")
+    INPUTS = ("RB_BASE", "RB_HEAD", "RB_DIFF", "RB_PR_JSON")   # 対象の入力。来歴の run_inputs はこれだけ
+    RUN_ENV = (*INPUTS, "RB_OUT", "RB_AGENT")   # start が子に置く RB_* の全部。PLAIN_PROMPT がこの名で読む
 
     def __init__(self):
         self.claude = launcher.real_claude(os.environ)
@@ -422,7 +424,7 @@ class PlainClaude:
             raise Stop(REFUSED, f"claude が見つからない。PATH に置くか {launcher.CLAUDE_BIN_ENV} に絶対パスを設定する")
 
     def env_names(self) -> list[str]:
-        return [*self.ISOLATED_ENV, "RB_BASE", "RB_HEAD", "RB_DIFF", "RB_PR_JSON", "RB_OUT"]
+        return [*self.ISOLATED_ENV, *self.RUN_ENV]
 
     def claude_args(self, prompt: str) -> list[str]:
         """同じ模型・effort で web を断った claude -p 1 回。ReviewBench と SWE-Bench Pro の基準がここを共に引く"""
@@ -444,15 +446,19 @@ class PlainClaude:
 
     def input_pairs(self, attempt: Path, base: str) -> dict[str, str]:
         pr = json.loads((attempt / "pr" / "pr.json").read_text(encoding="utf-8"))
-        return {"RB_BASE": base, "RB_HEAD": pr["head"], "RB_DIFF": str(attempt / "pr" / "diff.patch"),
-                "RB_PR_JSON": str(attempt / "pr" / "pr.json")}
+        return dict(zip(self.INPUTS, (base, pr["head"], str(attempt / "pr" / "diff.patch"), str(attempt / "pr" / "pr.json")),
+                        strict=True))
+
+    def run_env(self, attempt: Path, base: str) -> dict[str, str]:
+        return dict(zip(self.RUN_ENV, (*self.input_pairs(attempt, base).values(), str(attempt / "out" / self.FINDINGS), self.name),
+                        strict=True))
 
     def start(self, attempt: Path, base: str) -> str | None:
         env = self.isolated_env(attempt)
         out = attempt / "out"
         out.mkdir(exist_ok=True)
         (out / self.FINDINGS).unlink(missing_ok=True)
-        env.update(**self.input_pairs(attempt, base), RB_OUT=str(out / self.FINDINGS), RB_AGENT=self.name)
+        env.update(self.run_env(attempt, base))
         with (out / self.RESULT).open("wb") as result:
             subprocess.run(self.start_command(attempt, base), cwd=attempt / "target", env=env, stdin=subprocess.DEVNULL,
                            stdout=result)
