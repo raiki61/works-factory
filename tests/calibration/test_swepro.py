@@ -274,6 +274,82 @@ class InsideTest(unittest.TestCase):
         self.assertIn("origin の写しを置けない", result["error"])
         self.assertEqual(self.calls(), [])
 
+    def add_submodule(self, with_history=True) -> str:
+        """workdir に submodule vendor/sub を足す。.gitmodules の URL は網の先、/app の config に URL は無い（実走のイメージと同じ形）。
+        指す commit を返す"""
+        sub = self.tmp / "sub"
+        sub.mkdir()
+        git(sub, "init", "-q", "-b", "main")
+        (sub / "r.py").write_text("r = 1\n", encoding="utf-8")
+        git(sub, "add", "-A")
+        git(sub, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "one")
+        (sub / "s.py").write_text("s = 1\n", encoding="utf-8")
+        git(sub, "add", "-A")
+        git(sub, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "two")
+        git(self.workdir, "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub), "vendor/sub")
+        git(self.workdir, "config", "-f", ".gitmodules", "submodule.vendor/sub.url", "https://example.invalid/sub.git")
+        git(self.workdir, "add", ".gitmodules")
+        git(self.workdir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "submodule")
+        git(self.workdir, "config", "--remove-section", "submodule.vendor/sub")
+        if not with_history:
+            shutil.rmtree(self.workdir / ".git" / "modules")
+            (self.workdir / "vendor" / "sub" / ".git").unlink()
+        return git(sub, "rev-parse", "HEAD")
+
+    def test_factory_starts_with_submodule_url_at_a_copy_in_the_attempt_place(self):
+        pointed = self.add_submodule()
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        done, result = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        copy = self.place / "attempt" / swepro.SUBMODULE_COPIES / "0.git"
+        self.assertEqual(self.calls()[0]["submodules"], f"submodule.vendor/sub.url {copy}")
+        self.assertEqual(git(copy, "rev-parse", "HEAD"), pointed)
+        self.assertEqual(git(copy, "ls-tree", "-r", "--name-only", "HEAD"),
+                         git(self.workdir / "vendor" / "sub", "ls-tree", "-r", "--name-only", "HEAD"))
+        self.assertEqual(result["error"], None)
+
+    def test_worktree_of_the_target_initialises_submodules_from_the_copy_offline(self):
+        pointed = self.add_submodule()
+        attempt = self.tmp / "attempt"
+        attempt.mkdir()
+        swepro.give_origin(attempt, self.workdir)
+        env = hermetic.child_env(**swepro.give_submodules(attempt, self.workdir))
+        tree = self.tmp / "wt"
+        for args in (["-C", str(self.workdir), "worktree", "add", "-q", str(tree), "-b", "t"],
+                     ["-C", str(tree), "submodule", "update", "--init", "--recursive"]):
+            done = subprocess.run(["git", *args], env=env, capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(git(tree / "vendor" / "sub", "rev-parse", "HEAD"), pointed)
+        self.assertTrue((tree / "vendor" / "sub" / "s.py").is_file())
+        unset = subprocess.run(["git", "-C", str(self.workdir), "config", "--get", "submodule.vendor/sub.url"])
+        self.assertEqual(unset.returncode, 1)
+
+    def test_submodule_url_and_copies_stay_out_of_the_patch(self):
+        self.add_submodule()
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        done, _ = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        patch = self.patch()
+        self.assertEqual(re.findall(r"^diff --git .*$", patch, re.MULTILINE), ["diff --git a/a.py b/a.py"])
+        for said in (swepro.SUBMODULE_COPIES, "example.invalid", "[submodule"):
+            self.assertNotIn(said, patch)
+
+    def test_submodule_without_its_history_stops_before_the_factory(self):
+        self.add_submodule(with_history=False)
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        done, result = self.inside()
+        self.assertEqual(done.returncode, swepro.run.STOPPED, done.stderr)
+        self.assertIn("vendor/sub", result["error"])
+        self.assertIn("git の歴史が", result["error"])
+        self.assertEqual(self.calls(), [])
+
+    def test_target_without_submodules_adds_no_git_config(self):
+        self.sealed_plan(apply=self.seal(), sealed=self.seal())
+        done, _ = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("GIT_CONFIG_COUNT", self.calls()[0]["names"])
+        self.assertFalse((self.place / "attempt" / swepro.SUBMODULE_COPIES).exists())
+
     def test_factory_that_leaves_no_run_names_the_shells_last_line(self):
         said = "Error: Could not create isolated workspace (Cannot determine git remote for /app)."
         self.set_plan(refuse=said)

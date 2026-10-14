@@ -23,7 +23,9 @@ docker_image をそれに替える。Harbor は docker_image の在る課題を 
 （工場の commit と Claude Code の版がホストと同じか）と bwrap を確かめるだけで網を使わず（setup_commands）、run で課題の入力
 （task_inputs。依頼の行と、リポジトリごとの試験のコマンド TEST_COMMANDS）と認証のファイルを上げ、inside を 1 回打つ。inside は
 試みのフォルダ <置き場>/attempt（home/・/app への target・request.json）で作り手を起こし、工場なら remote の無い /app に試みの
-フォルダの中の写しを origin として持たせてから起こし（give_origin。Archon は remote の無い対象を拒む）、終わった run の封じた差分を
+フォルダの中の写しを origin として持たせてから起こし（give_origin。Archon は remote の無い対象を拒む）、
+submodule の在る対象では HEAD の gitlink の commit を試みのフォルダの中の写しに置き、env の git の設定で submodule の URL を
+そこへ向けてから起こし（give_submodules。Archon は作業ツリーで submodule を初期化し、網は閉じている）、終わった run の封じた差分を
 bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json に書く。殻は /app の差分を model.patch に取り
 （capture_command）、起こし役の標準出力と予測を <試み>/agent/ に書く（prediction）。tally は job の予測と、試行の result.json の
 例外を数え、測れた試行（予測が在り例外の無い試行）が 1 つも無い（全部が例外・予測も例外も無い・試行が 1 つも無い）なら
@@ -131,6 +133,8 @@ INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
 DRIVER_FAILED = "driver_failed"
 # give_origin が試みの置き場に置く origin の写しと、その既定の枝
 ORIGIN_COPY, ORIGIN_BRANCH = "origin.git", "main"
+# give_submodules が submodule ごとの写しを置く試みの置き場の中のフォルダ
+SUBMODULE_COPIES = "submodules"
 SAID_CHARS = 500   # run が起きなかった時に error へ写す殻の最後の行の長さの上限
 # 工場そのものが壊れて終わった結末（記録が読めない・節が落ちて線が進まなかった）。人を待っていないので stopped に入れない
 BROKE = ("record_invalid", "interrupted")
@@ -530,12 +534,68 @@ def give_origin(attempt: Path, workdir: Path):
         raise run.Stop(run.STOPPED, f"remote の無い対象 {workdir} に origin の写しを置けない: {e}") from None
 
 
+def give_submodules(attempt: Path, workdir: Path) -> dict:
+    """submodule の在る対象に、submodule ごとの bare の写し（SUBMODULE_COPIES の下）を置き、submodule の URL をそこへ向ける
+    env の git の設定を返す。Archon は対象から run の作業ツリーを切った後に submodule update --init --recursive を打ち、
+    エージェントの段は網が閉じている。写しは HEAD の木の gitlink が指す commit とその祖先だけを、対象の中の submodule の
+    歴史から運ぶので、網に出ず、課題に無い物を足さない。向け先と file の道の許し（protocol.file.allow）は env の git の設定で
+    渡す——repo の config の許しは submodule の clone の子に効かない。対象を書き換えないので capture_command の差分に入らない。
+    submodule の歴史が対象の中に無い（中身のファイルだけ）・指す commit を持たないなら、中身から commit は作れないので止める。
+    上の段の submodule だけを扱う"""
+    w = str(workdir)
+    try:
+        if not make_target.git("-C", w, "ls-tree", "--name-only", "HEAD", "--", ".gitmodules"):
+            return {}
+        listed = make_target.git("-C", w, "config", "--blob", "HEAD:.gitmodules", "-z", "--list")
+        paths = [entry.split("\n", 1) for entry in listed.split("\0") if entry]
+        urls = []
+        for i, (key, path) in enumerate((k, v) for k, v in paths if k.startswith("submodule.") and k.endswith(".path")):
+            name = key.removeprefix("submodule.").removesuffix(".path")
+            entry = make_target.git("-C", w, "ls-tree", "-z", "HEAD", "--", path).partition("\t")[0].split()
+            if len(entry) != 3 or entry[0] != "160000":
+                continue
+            pointed = entry[2]
+            sub = workdir / path
+            try:
+                own = Path(make_target.git("-C", str(sub), "rev-parse", "--show-toplevel")).resolve() == sub.resolve()
+            except make_target.Stop:
+                own = False
+            if not own:
+                raise run.Stop(run.STOPPED, f"submodule {name}（{path}）の git の歴史が {workdir} の中に無い（中身のファイルだけ）。"
+                                            f"指す commit {pointed} を写しに置けない（網に出ずに渡せる中身が無い）")
+            try:
+                make_target.git("-C", str(sub), "cat-file", "-e", f"{pointed}^{{commit}}")
+            except make_target.Stop:
+                raise run.Stop(run.STOPPED, f"submodule {name}（{path}）の歴史が {workdir} の中に在るが、指す commit {pointed} を"
+                                            f"持たない（網に出ずに渡せる中身が無い）") from None
+            copy = attempt / SUBMODULE_COPIES / f"{i}.git"
+            copy.parent.mkdir(parents=True, exist_ok=True)
+            make_target.git("init", "-q", "--bare", str(copy))
+            make_target.git("-C", str(sub), "push", "-q", str(copy), f"{pointed}:refs/heads/{ORIGIN_BRANCH}")
+            make_target.git("-C", str(copy), "symbolic-ref", "HEAD", f"refs/heads/{ORIGIN_BRANCH}")
+            urls.append((f"submodule.{name}.url", str(copy)))
+    except make_target.Stop as e:
+        raise run.Stop(run.STOPPED, f"submodule の在る対象 {workdir} に submodule の写しを置けない: {e}") from None
+    if not urls:
+        return {}
+    try:
+        n = int(os.environ.get("GIT_CONFIG_COUNT") or 0)
+    except ValueError:
+        n = 0
+    pairs = [("protocol.file.allow", "always"), *urls]
+    env = {"GIT_CONFIG_COUNT": str(n + len(pairs))}
+    for k, (key, value) in enumerate(pairs, start=n):
+        env.update({f"GIT_CONFIG_KEY_{k}": key, f"GIT_CONFIG_VALUE_{k}": value})
+    return env
+
+
 def drive_factory(attempt: Path, workdir: Path, out: Path, task: dict, got: dict):
     """工場を前で回し、終わった run の封じた差分を当てる。止まった run は答えず resume もしない"""
     producer = run.WorksFactory({"test_cmd": task["test_cmd"]})
     got.update(inputs=list(producer.input_pairs(attempt, "")), test_cmd=task["test_cmd"], env_names=producer.env_names(),
                provenance={"archon": pack.load(ROOT)["archon"]["commit"]})
     give_origin(attempt, workdir)
+    os.environ.update(give_submodules(attempt, workdir))
     before = status(workdir)
     run_id = producer.start(attempt, "")
     state = producer.state(attempt, run_id) if run_id else "failed"
