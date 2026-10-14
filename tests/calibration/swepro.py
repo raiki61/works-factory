@@ -24,9 +24,10 @@ bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json �
 - 無人の run が人に聞いて止まった（承認ノードで待った・結末の種が chain.KIND_HUMAN）時は stopped を立てる。封じた差分が在れば
   --allow-stopped で当て、封じる前に止まった run は当てずに空の patch（未解決）として数える。run を resume しない。
   /app の変更を取れなかった時も stopped を立て、model_patch を null にする（変更は /app に残っていて、空の patch ではない）。
-- 作り手が落ちた（認証の拒否・工場の run が起きない・封じた差分が当たらない・結末が BROKE）時と起こし役が落ちた時は error に
-  訳を書き、予測の failed を立てる。ふつうの未解決（直せなかった）と分けて数える。BROKE（record_invalid・interrupted）は
-  工場そのものが壊れて終わった結末で、人の判断を待っていないので stopped（人待ち）に入れない。
+- 作り手が落ちた（認証の拒否・工場の run が起きない・封じた差分が当たらない・結末が BROKE か空か report.OUTCOME_KINDS に
+  無い語）時と起こし役が落ちた時は error に訳を書き、予測の failed を立てる。ふつうの未解決（直せなかった）と分けて数える。
+  BROKE（record_invalid・interrupted）は工場そのものが壊れて終わった結末で、人の判断を待っていないので stopped（人待ち）に
+  入れない。
 - 期限を置かない（持ち主の決め no-timeouts）。Pro の 1 件の上限 PRO_SECONDS は、超えた事実を予測の pro_limit に残すだけ。
   Harbor は作業の段の倍率（--agent-timeout-multiplier、無ければ --timeout-multiplier）が inf でないと作業の段を
   PRO_SECONDS×倍率で切るので、殻が起動の字で確かめ（unbounded）、inf でなければ環境を起こす前に断る。旗が字に無い起動（harbor job resume・-c の設定のファイル）も断る。
@@ -170,6 +171,9 @@ def setup_commands(claude_version: str, place: str = PLACE) -> list[tuple[str, s
     ]
 
 
+AGENT_MULTIPLIER, MULTIPLIER = "--agent-timeout-multiplier", "--timeout-multiplier"   # harbor run の旗
+
+
 def unbounded(argv: list[str]) -> bool:
     """作業の段の倍率が inf か。Harbor 0.24.0 と同じく、--agent-timeout-multiplier が在ればその値、無ければ
     --timeout-multiplier の値で決める（どちらも最後に現れた値）。inf でなければ Harbor が作業の段を
@@ -183,8 +187,8 @@ def unbounded(argv: list[str]) -> bool:
                 value = arg.split("=", 1)[1]
         return value
 
-    agent = last("--agent-timeout-multiplier")
-    value = agent if agent is not None else last("--timeout-multiplier")
+    agent = last(AGENT_MULTIPLIER)
+    value = agent if agent is not None else last(MULTIPLIER)
     try:
         return value is not None and float(value) == math.inf
     except ValueError:
@@ -287,8 +291,17 @@ def drive_factory(attempt: Path, workdir: Path, out: Path, task: dict, got: dict
     got["apply"] = {"code": code, "line": lines[0] if lines else ""}
     if code != 0 and meant_to_deliver(attempt / evidence.EVIDENCE):
         got["error"] = f"封じた差分が当たらない: {got['apply']['line']}"
-    if not got.get("error") and ended["outcome"] in BROKE:
-        got["error"] = f"工場の run {run_id} が結末 {ended['outcome']} で終わった（工場が壊れた）"
+    if not got.get("error"):
+        got["error"] = broken_outcome(run_id, ended["outcome"])
+
+
+def broken_outcome(run_id: str, outcome: str) -> str | None:
+    """終わった run の結末が工場の落ちならその訳。空の結末は終わりの記録に結末が無い run（run.WorksFactory.ended）"""
+    if outcome not in report.OUTCOME_KINDS:
+        return f"工場の run {run_id} が結末の語の表（lib/report.py の OUTCOME_KINDS）に無い結末 {outcome or '（空）'} で終わった"
+    if outcome in BROKE:
+        return f"工場の run {run_id} が結末 {outcome} で終わった（工場が壊れた）"
+    return None
 
 
 def meant_to_deliver(ev: Path) -> bool:

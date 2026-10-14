@@ -413,6 +413,8 @@ class PlainClaude:
     leak_guard = WITHHELD
     RESULT, FINDINGS = "claude-result.json", "findings.json"
     ISOLATED_ENV = ("HOME", "CLAUDE_CONFIG_DIR", "GH_CONFIG_DIR")
+    INPUTS = ("RB_BASE", "RB_HEAD", "RB_DIFF", "RB_PR_JSON")   # 対象の入力。来歴の run_inputs はこれだけ
+    RUN_ENV = (*INPUTS, "RB_OUT", "RB_AGENT")   # start が子に置く RB_* の全部。PLAIN_PROMPT が読む $RB_* はこの内
 
     def __init__(self):
         self.claude = launcher.real_claude(os.environ)
@@ -422,7 +424,7 @@ class PlainClaude:
             raise Stop(REFUSED, f"claude が見つからない。PATH に置くか {launcher.CLAUDE_BIN_ENV} に絶対パスを設定する")
 
     def env_names(self) -> list[str]:
-        return [*self.ISOLATED_ENV, "RB_BASE", "RB_HEAD", "RB_DIFF", "RB_PR_JSON", "RB_OUT"]
+        return [*self.ISOLATED_ENV, *self.RUN_ENV]
 
     def claude_args(self, prompt: str) -> list[str]:
         """同じ模型・effort で web を断った claude -p 1 回。ReviewBench と SWE-Bench Pro の基準がここを共に引く"""
@@ -444,15 +446,19 @@ class PlainClaude:
 
     def input_pairs(self, attempt: Path, base: str) -> dict[str, str]:
         pr = json.loads((attempt / "pr" / "pr.json").read_text(encoding="utf-8"))
-        return {"RB_BASE": base, "RB_HEAD": pr["head"], "RB_DIFF": str(attempt / "pr" / "diff.patch"),
-                "RB_PR_JSON": str(attempt / "pr" / "pr.json")}
+        return dict(zip(self.INPUTS, (base, pr["head"], str(attempt / "pr" / "diff.patch"), str(attempt / "pr" / "pr.json")),
+                        strict=True))
+
+    def run_env(self, attempt: Path, base: str) -> dict[str, str]:
+        return dict(zip(self.RUN_ENV, (*self.input_pairs(attempt, base).values(), str(attempt / "out" / self.FINDINGS), self.name),
+                        strict=True))
 
     def start(self, attempt: Path, base: str) -> str | None:
         env = self.isolated_env(attempt)
         out = attempt / "out"
         out.mkdir(exist_ok=True)
         (out / self.FINDINGS).unlink(missing_ok=True)
-        env.update(**self.input_pairs(attempt, base), RB_OUT=str(out / self.FINDINGS), RB_AGENT=self.name)
+        env.update(self.run_env(attempt, base))
         with (out / self.RESULT).open("wb") as result:
             subprocess.run(self.start_command(attempt, base), cwd=attempt / "target", env=env, stdin=subprocess.DEVNULL,
                            stdout=result)
@@ -700,12 +706,21 @@ def run_one(entry: dict, producer, attempts: Path, out: Path, ledger: Ledger, ar
         ledger.add(**row, run_id=run_id, state="stopped")
         raise Stop(STOPPED, f"課題 {task}: run {run_id} が終わりの状態にならずに止まった（{state}）。続ける: {_resume_line(args)}")
     ended = producer.finish(attempt, run_id)
-    doc, record = reviewbench.convert(producer, entry, attempt, run_id, base, head, ended)
-    record["provenance"] = {**producer.provenance(), "claude_code": _claude_version(launcher.real_claude(os.environ)),
-                            "run_inputs": {k: v.removeprefix(f"{attempt}{os.sep}")
-                                           for k, v in producer.input_pairs(attempt, base).items()}, "date": _now()}
-    reviewbench.write(out, producer.name, task, doc, record)
+    provenance = {**producer.provenance(), "claude_code": _claude_version(launcher.real_claude(os.environ)),
+                  "run_inputs": {k: v.removeprefix(f"{attempt}{os.sep}") for k, v in producer.input_pairs(attempt, base).items()},
+                  "date": _now()}
+    convert_one(producer, entry, {**row, "run_id": run_id}, out, web_calls=ended["web_calls"], provenance=provenance)
     ledger.add(**row, run_id=run_id, child_run_ids=ended["children"], state=DONE)
+
+
+def convert_one(producer, entry: dict, row: dict, out: Path, *, web_calls: int | None, provenance: dict | None):
+    """試みの evidence/ から変換して findings/ と convert/ に書く。run と convert（やり直し）が共にここで組む。web_calls と
+    provenance は run の時にだけ測れて evidence/ から読み直せないので、やり直しは前の控えから引き継いで渡す"""
+    attempt = Path(row["attempt"])
+    ended = {**producer.ended(attempt / evidence.EVIDENCE), "web_calls": web_calls}
+    doc, record = reviewbench.convert(producer, entry, attempt, row["run_id"], row["base"], row["head"], ended)
+    record["provenance"] = provenance
+    reviewbench.write(out, producer.name, row["id"], doc, record)
     print(json.dumps(record, ensure_ascii=False, allow_nan=False))
 
 
@@ -758,11 +773,7 @@ def reconvert_one(producer, row: dict, out: Path):
         raise Stop(STOPPED, f"課題 {task} の pr/pr.json か前の変換の控えを読めない: {type(e).__name__}") from None
     if not reviewbench.has(attempt / "target", row["head"]):
         raise Stop(STOPPED, f"課題 {task} の試みの target/ で head {row['head']} を読めない（{attempt / 'target'}）。控えは書き換えない")
-    ended = {**producer.ended(attempt / evidence.EVIDENCE), "web_calls": before.get("web_calls")}
-    doc, record = reviewbench.convert(producer, entry, attempt, row["run_id"], row["base"], row["head"], ended)
-    record["provenance"] = before.get("provenance")
-    reviewbench.write(out, producer.name, task, doc, record)
-    print(json.dumps(record, ensure_ascii=False, allow_nan=False))
+    convert_one(producer, entry, row, out, web_calls=before.get("web_calls"), provenance=before.get("provenance"))
 
 
 # ---------------------------------------------------------------- judge・nodes
