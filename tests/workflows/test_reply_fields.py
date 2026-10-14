@@ -35,6 +35,7 @@ _TDD = [_COMMON, FR + fixrules.BRIEF, FR + fixrules.TDD, "tddloop:DO", "tddloop:
 _FIXER = [_COMMON, FR + fixrules.BRIEF, FR + fixrules.DIRECT]
 _REFIX = [_COMMON, FR + refixrules.RULES.name]
 _CONSULT = ["consult:QUESTION", "consult:ASK_TEXT", "consult:ASK_GATE_TEXT"]
+_CLASH = [FR + "clash.md"]   # clash_prep.RULES
 READ_SOURCES = {
     f"{FIX}#tdd": _TDD,
     f"{FIX}#tdd-new": _TDD,
@@ -45,6 +46,8 @@ READ_SOURCES = {
     f"{FIX}#refix2": _REFIX,
     f"{FIX}#consult-answer": _CONSULT,
     f"{FIX}#ruled-consult-answer": _CONSULT,
+    f"{FIX}#clash-fix": _CLASH,
+    f"{FIX}#clash-ruled": _CLASH,
 }
 # 返答でない JSON の欄を書く指示書 → その欄
 NOT_REPLY = {"workflows/judge/commands/purpose.md": {"findings", "pr", "issue"}}  # 依頼の入力の形を書いた欄で、返答の欄でない

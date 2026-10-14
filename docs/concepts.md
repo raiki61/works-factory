@@ -134,9 +134,9 @@
 ### `conflict` 食い違いの申し出
 
 - 状態: 住処あり
-- 住処: `lib/conflict.py`（申し出の形 `ITEM_SCHEMA`・`CONFLICTS_SCHEMA`、欄の名 `FIELDS`（`WHY_FIELD`・`WHICH_FIELD`・`KIND_FIELD` を含む）、申し出の種類 `DIV_KINDS`、機械の確かめ `problems`、止めた単位の積み `park`、裁定の語 `DECISIONS`・`FIX_DECISIONS`、直す義務から外す単位 `held_by_rulings`）
+- 住処: `lib/conflict.py`（申し出の形 `ITEM_SCHEMA`・`CONFLICTS_SCHEMA`、欄の名 `FIELDS`（`WHY_FIELD`・`WHICH_FIELD`・`KIND_FIELD` を含む）、申し出の種類 `DIV_KINDS`、機械の確かめ `problems`、止めた単位の積み `park`、出どころの語 `SOURCES`（組どうしの合わせの申し出 `JOIN_SOURCE` を含む）、裁定の語 `DECISIONS`（判定のやり直し `REJUDGE` を含む）・`FIX_DECISIONS`、直す義務から外す単位 `held_by_rulings`）
 - 約束: 住処の定数の表（申し出の欄と裁定の語）と、修正役の返答の欄 `conflicts` の形（`workflows/fix/works-factory-fix.yaml` の `output_format` に字で書く）
-- 知ってよい所: 住処と、申し出を書いて裁く修正のサブグラフ（`workflows/fix/`・修正の受け付けの申し出の取り込み `lib/fixboard.py`・TDD のループ `lib/tddloop.py`・裁定のループ `lib/ruling.py`）
+- 知ってよい所: 住処と、申し出を書いて裁く修正のサブグラフ（`workflows/fix/`・修正の受け付けの申し出の取り込み `lib/fixboard.py`・TDD のループ `lib/tddloop.py`・裁定のループ `lib/ruling.py`・組の合わせの直し `lib/clash.py`（組どうしの合わせの申し出を積む。欄の名は住処の `clash_claims` で組み、字を写さない））
 - 今: 外の当たりは、案の直しの事前審査と項目のセクションに申し出を貼る `lib/boardview.py`・`lib/planfile.py` と、`lib/querytest.py` の docstring と、修正役の申し出の返し方を述べる素材集めの局所の審査の指示書 `workflows/judge/commands/material-local-review.md` の 4 ファイル 7 行
 
 ### `lanes` 並べの組

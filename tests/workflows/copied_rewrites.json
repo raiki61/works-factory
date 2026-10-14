@@ -1835,6 +1835,11 @@
    "why": "query_hits_fixed の単位は直してから申し出るので、人に回っても直しは差分に残ると書く（#355）",
    "original": "6. 迷ったら人に回す側へ倒す（ask_human）。人に回した単位は直さずに残り、次の run の依頼に載る。\n",
    "copied": "6. 迷ったら人に回す側へ倒す（ask_human）。人に回した単位は直さずに残り、次の run の依頼に載る（申し出の種類が query_hits_fixed の単位は、\n   修正役が直してから申し出るので直しは差分に残り、閉じたかの数えだけが人の決め待ちになる）。\n"
+  },
+  {
+   "why": "組どうしの合わせの申し出の解き方と rejudge を決まりに足し、replace_query を使えないことをコード（lib/ruling.py の query_problems）に揃えて書く（持ち主の決め clash-goes-to-ruling。#382・#446）",
+   "original": "",
+   "copied": "8. 組どうしの合わせの申し出（`source` が join-clash）は、直し方の指示（fix_code_as）・テストの範囲（fix_test_scope）・案の直し（fix_plan_item）・判定のやり直し（rejudge）のどれかで解き、どれでも解けない時だけ人に回す。rejudge は判定の単位の切り方が誤っている時だけで、この申し出のほかには使わない。問いの置き換え（replace_query）はこの申し出に使えない（申し出の `which_is_right` は機械が unknown に埋め、replace_query は query の申し出だけに裁ける）。\n"
   }
  ],
  "workflows/fix/commands/fix-rules/refix.md": [
@@ -1929,6 +1934,31 @@
    "why": "欠陥の行と正しい行が同じ字の時は、見分けのつく行を名指す population の問いに向きを替え、人に回さない（#355。#154 の通し c38831c2 の clamp の単位）",
    "original": "  当たる申し出も同じ（`correct_lines` はその物の行）で、直す物だけを名指す問いへの置き換えは検査を狭める裁きではない\n",
    "copied": "  当たる申し出も同じ（`correct_lines` はその物の行）で、直す物だけを名指す問いへの置き換えは検査を狭める裁きではない。欠陥の行と\n  `correct_lines` が同じ字で、`defects` の向きでは欠陥だけに当たる問いが書けない時は、欠陥を見分けられる行（直す分岐の条件の行など）を\n  `hits` に、見分けのつく正しい側の行を `misses` に置き、`counts` を `population` にした問いにせよ。書けないとして `ask_human` に倒すな\n"
+  },
+  {
+   "why": "組どうしの合わせの申し出（source join-clash）の裁き方と、それにだけ許す判定のやり直し rejudge を足す（持ち主の決め clash-goes-to-ruling。#382）",
+   "original": "tdd-gave-up）",
+   "copied": "tdd-gave-up・join-clash）"
+  },
+  {
+   "why": "組どうしの合わせの申し出（source join-clash）の裁き方と、それにだけ許す判定のやり直し rejudge を足す（持ち主の決め clash-goes-to-ruling。#382）",
+   "original": "\"fix_plan_item\",",
+   "copied": "\"fix_plan_item\" か \"rejudge\","
+  },
+  {
+   "why": "組どうしの合わせの申し出（source join-clash）の裁き方と、それにだけ許す判定のやり直し rejudge を足す（持ち主の決め clash-goes-to-ruling。#382）",
+   "original": "",
+   "copied": "- `rejudge`: `source` が `join-clash` の行だけに使う（下の段落）\n"
+  },
+  {
+   "why": "組どうしの合わせの申し出（source join-clash）の裁き方と、それにだけ許す判定のやり直し rejudge を足す（持ち主の決め clash-goes-to-ruling。#382）",
+   "original": "",
+   "copied": "・`rejudge` が `join-clash` の行だけで範囲を持たないか・同じ組の `join-clash` の行が同じ裁定か"
+  },
+  {
+   "why": "組どうしの合わせの申し出（source join-clash）の裁き方と、それにだけ許す判定のやり直し rejudge を足す（持ち主の決め clash-goes-to-ruling。#382）",
+   "original": "",
+   "copied": "\n`source` が `join-clash` の行は、並べて直した 2 つの組の直しを親の作業ツリーで合わせたら試験が赤になり、合わせ役（ぶつかった組が変えたファイルの中だけで直す役）も直せなかった組から機械が作った申し出で、組の単位ごとに 1 件ずつ在る。`kind`・`which_is_right` は機械が決まった値を埋めた欄であり、役の見立てではない。組の直しは作業ツリーから外してあり、控えの差分に在る。この行に限り、次のとおり裁く。\n1. `why_both_cannot_hold` が名指す控えの差分と、合わせ役の拒否の理由のファイル（在れば）を Read で全部読め。赤の文が名指すテストと、前の組が変えたファイルも開け。\n2. 同じ組の行（`why_both_cannot_hold` が同じ行）は全部同じ `decision` に揃えよ。違う裁定を並べると機械が拒む。\n3. `fix_code_as`: 合わせ役がもう一度控えの差分を当てて直す時の直し方を `text` に書く。組が変えたファイルの外で触ってよいファイルが要るなら `limits` に並べる。\n4. `fix_test_scope`: 前の組の直しで、後の組のテストの期待が書いていた動きそのものが変わったと依頼か判定が示す時だけ。`limits` に直してよいテストの所を並べる。\n5. `fix_plan_item`: 2 つの組の項目が承認済みの修正案のままでは両立しない時。\n6. `rejudge`: 判定の単位の切り方が誤っていて、2 つの組が実は 1 つの問題を別々に直している時。`text` は判定のやり直しで判定役が読む異議として書く。`limits` は空。\n7. どれにも当たらない時だけ `ask_human`。\n"
   }
  ],
  "workflows/fix/commands/fix-rules/tdd.md": [

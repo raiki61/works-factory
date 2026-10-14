@@ -131,7 +131,8 @@ MISSING_EYE_NOTE = "結果が無い目は阻害 0 件でなく判定が無い（
 FORGE_HEAD = "PR を持つホスト（forge）"   # 元 report.FORGE_HEAD
 POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わったまま終わった"
 APPLY_HEAD = "差分を対象に当てる"
-BACKED_OUT_HEAD = "当ててから確かめ直しが赤か落ちて戻した組"   # 組の合わせの意味の食い違い（持ち主の決め clash-goes-to-ruling。作りは #382）
+BACKED_OUT_HEAD = "当ててから確かめ直しが赤か落ちて戻した組"   # 組の合わせの意味の食い違い（持ち主の決め clash-goes-to-ruling）
+REPAIRED_HEAD = "合わせ役が直して当てた組"   # 確かめ直しが赤で戻した組を、合わせのループが組の変えたファイルの中だけで直した（fix.groups の clash.outcome repaired）
 UNRESTORED_GROUP_HEAD = "戻せず親の作業ツリーに当たったままの組（人が確かめる）"   # fixboard.UNRESTORED。線は先へ進めずに止めた
 STOP_OUTCOMES = ("stopped_by_request", "stopped_by_human", "stopped_by_line", "needs_human")   # 止まった run の結末（bin/apply が拒む）
 
@@ -468,18 +469,27 @@ def _parked(returns: dict) -> list:
 
 
 def split_line(returns: dict) -> str:
-    """冒頭の 1 行目に添える、修正の段が受けた単位と止めて持ち越した単位の 1 文（元 report.split_line。止めた組が無ければ ""）。
-    当ててから確かめ直しが赤か落ちて戻した組（_backed_out）と、戻せず当たったままの組（_unrestored）は名指して足す"""
+    """冒頭の 1 行目に添える、修正の段が受けた単位と止めて持ち越した単位の 1 文（元 report.split_line）。当ててから確かめ直しが赤か
+    落ちて戻した組（_backed_out）と、戻せず当たったままの組（_unrestored）は名指して足す。止めた組が無くても、合わせ役が直して
+    当てた組（_repaired）が在ればそれを名指す 1 文、どちらも無ければ空"""
     groups = [g for g in _list(as_dict(returns.get("fix")).get("groups")) if isinstance(g, dict)]
     parked = _parked(returns)
+    repaired = f"{REPAIRED_HEAD}: 組 {'・'.join(str(g.get('group_id')) for g in got)}" if (got := _repaired(returns)) else ""
     if not parked:
-        return ""
+        return repaired
     kept = [str(u) for g in groups if g.get("returned") is True for u in _list(g.get("unit_ids"))]
     held_ = [str(u) for g in parked for u in _list(g.get("unit_ids"))]
     marked = [(head, gs) for head, gs in ((BACKED_OUT_HEAD, _backed_out(returns)), (UNRESTORED_GROUP_HEAD, _unrestored(returns))) if gs]
     return (f"修正の段は {len(kept)} 単位（{'・'.join(kept) or 'なし'}）を受け、{len(held_)} 単位"
             f"（{'・'.join(held_)}）を止めて持ち越した（組 {'・'.join(str(g.get('group_id')) for g in parked)}。次の run の依頼に載る）"
-            + "".join(f"。{head}: 組 {'・'.join(str(g.get('group_id')) for g in gs)}" for head, gs in marked))
+            + "".join(f"。{head}: 組 {'・'.join(str(g.get('group_id')) for g in gs)}" for head, gs in marked)
+            + (f"。{repaired}" if repaired else ""))
+
+
+def _repaired(returns: dict) -> list:
+    """戻せた組のうち、確かめ直しが赤で戻してから合わせ役が直して当てた組（fix.groups の欄 clash の outcome が repaired）"""
+    return [g for g in _list(as_dict(returns.get("fix")).get("groups"))
+            if isinstance(g, dict) and g.get("returned") is True and as_dict(g.get("clash")).get("outcome") == "repaired"]
 
 
 def _backed_out(returns: dict) -> list:
@@ -503,15 +513,19 @@ def unrestored_lines(returns: dict) -> list:
 
 
 def backed_out_lines(returns: dict) -> list:
-    """人が決めることの節の頭の、当ててから確かめ直しが赤か落ちて戻した組ごとの 3 行（組と単位と戻したパス・赤の文・作り直しの結果）。
-    今は作り直さず、外した単位は次の run の依頼に回る（作り直しは #382）"""
+    """人が決めることの節の頭の、当ててから確かめ直しが赤か落ちて戻した組ごとの 3 行（組と単位と戻したパス・赤の文・合わせの結果）。
+    合わせの結果は欄 clash で言い分ける: 合わせ役が直せず申し出を回した組（parked）は申し出の id と控えの差分、clash の無い組
+    （確かめ直しが落ちた・合わせのループが走らなかった）は外したまま"""
     kept = [g for g in _list(as_dict(returns.get("fix")).get("groups")) if isinstance(g, dict) and g.get("returned") is True]
     out = []
     for g in _backed_out(returns):
         units = "・".join(str(u) for u in _list(g.get("unit_ids"))) or "なし"
+        mark = as_dict(g.get("clash"))
+        said = (f"合わせ役が直せず、組どうしの合わせの申し出 {'・'.join(map(str, _list(mark.get('requests'))))} にした（控えの差分 {mark.get('patch')}）"
+                if mark.get("outcome") == "parked" else "合わせ役が直していない")
         out += [f"{BACKED_OUT_HEAD}: 組 {g.get('group_id')}（単位 {units}）。戻したパス {'・'.join(map(str, _list(g.get('backed_out'))))}",
                 f"  - 赤: {oneline.one_line(g.get('reason') or '訳の記録が無い')}",
-                f"  - 作り直しの結果: 作り直していない。ほかの組は {len(kept)} 組を当てたまま、外した単位 {units} は次の run の依頼に回した"]
+                f"  - 合わせの結果: {said}。ほかの組は {len(kept)} 組を当てたまま、外した単位 {units} は次の run の依頼に回した"]
     return out
 
 
@@ -773,6 +787,7 @@ def _conflict_line(returns: dict) -> str:
     c, k = oc.conflict_counts(returns)
     plan_n = f"・案の項目を直す（{conflict.REPLAN}）{c[conflict.REPLAN]}" if conflict.REPLAN in c else ""
     swap = f"・問いを置き換える（{conflict.REPLACE}）{c[conflict.REPLACE]}" if conflict.REPLACE in c else ""
+    swap += f"・判定をやり直す（{conflict.REJUDGE}）{c[conflict.REJUDGE]}" if conflict.REJUDGE in c else ""
     kinds = [f"{x} {k[x]}" for x in conflict.DIV_KINDS] + ([f"種類なし {k[conflict.UNSET]}"] if conflict.UNSET in k else [])
     return (f"{conflict.HEAD}: {c['parked']} 件（裁定の内訳。括弧は記録の名: テストの直しを許す（fix_test_scope）"
             f"{c['fix_test_scope']}・コードをこう直す（fix_code_as）{c['fix_code_as']}・人に回す（ask_human）{c[conflict.ASK]}"

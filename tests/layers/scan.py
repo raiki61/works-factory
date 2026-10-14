@@ -207,11 +207,23 @@ def _documents(root: Path, path: Path):
         return [], [f"{_rel(root, path)}:{line}: YAML が読めない: {reason}"]
 
 
+YAML_MERGE = "tag:yaml.org,2002:merge"
+
+
 def _pairs(node):
-    if isinstance(node, yaml.MappingNode):
-        for key, value in node.value:
-            if isinstance(key, yaml.ScalarNode):
-                yield key.value, value
+    """mapping の (鍵, 値)。merge key `<<:` は Archon（Bun.YAML）の読み方と同じく解き、字で書いた鍵が勝つ"""
+    if not isinstance(node, yaml.MappingNode):
+        return
+    own = [(key.value, value) for key, value in node.value if isinstance(key, yaml.ScalarNode) and key.tag != YAML_MERGE]
+    merged = [value for key, value in node.value if key.tag == YAML_MERGE]
+    sources = [m for value in merged for m in (value.value if isinstance(value, yaml.SequenceNode) else [value])]
+    seen = {key for key, _ in own}
+    for source in sources:
+        for key, value in _pairs(source):
+            if key not in seen:
+                seen.add(key)
+                yield key, value
+    yield from own
 
 
 def _nodes(document):
@@ -234,11 +246,7 @@ def _blocks(root: Path) -> list[Path]:
 
 
 def _top(node, key: str):
-    if isinstance(node, yaml.MappingNode):
-        for k, value in node.value:
-            if isinstance(k, yaml.ScalarNode) and k.value == key:
-                return value
-    return None
+    return dict(_pairs(node)).get(key)
 
 
 def _line(node) -> int:
@@ -679,6 +687,10 @@ CHANGE_CHECKOUT = {
     ("judge", "spec-freeze"): "人が通した受け入れ条件を作業ツリーで /bin/sh -c で走らせる（lib/judge_accept._spec_run）",
     ("fix", "group-start"): "親の姿の木を作業ツリーと index に写す（groups.adopt_tree）",
     ("fix", "join"): "並べた組の子の差分を親の作業ツリーへ当て、当たらない組は戻す（unittrees.apply）",
+    ("fix", "clash-prep"): "join が確かめ直しの赤で戻した組の控えの差分を作業ツリーへ当て直し、当たらなければ当てる前の木へ戻す（clash.stage・settle_parked）",
+    ("fix", "clash-accept"): "合わせ役の直しが通らなければ当て直す前の木へ戻す（clash.settle_parked）",
+    ("fix", "clash-ruled-prep"): "直す裁定を受けた組の控えの差分を作業ツリーへ当て直す（clash.stage の段 ruled）",
+    ("fix", "clash-ruled-accept"): "裁定の後の合わせ役の直しが通らなければ当て直す前の木へ戻す（clash.settle_parked の段 ruled）",
     ("fix", "clean"): "修正役が残した git の無視するファイルを消す（leftovers.remove_new_ignored）",
     ("fix", "tdd-step"): "諦めた単位を単位の頭の木に戻す（tddloop.step）",
     ("fix", "fix-accept"): "3 回目の拒否で名指しの単位を戻す（fixboard.accept_reply）",

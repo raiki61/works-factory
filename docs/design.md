@@ -264,10 +264,10 @@ flowchart TB
 - 出力:
   - `done`（boolean）: 直しを作業ツリーに入れ終え、差分の審査を通した。諦めた単位が在っても true → メイングラフのノード `fixed`（メイングラフ 8 へ進むかの `go`）・report
   - `units`（array）: 単位ごとの結末。項目は `{unit_id, group_id, status, reason}`、status は `fixed`・`given_up`・`not_done` → eyes・report
-  - `groups`（array）: 組ごとの結果。項目は `{group_id, unit_ids, returned, reason, backed_out?, unrestored?}`（returned は親の木へ戻せたか。backed_out は当ててから確かめ直しが赤か落ちて戻した組だけが持つ、戻したパスの並び。unrestored は戻そうとして戻せなかった組だけが持つ、親の作業ツリーに当たったままのパスの並びで、その後の組は当てない）→ report
+  - `groups`（array）: 組ごとの結果。項目は `{group_id, unit_ids, returned, reason, backed_out?, unrestored?}`（returned は親の木へ戻せたか。backed_out は当ててから確かめ直しが赤か落ちて戻した組だけが持つ、戻したパスの並び。unrestored は戻そうとして戻せなかった組だけが持つ、親の作業ツリーに当たったままのパスの並びで、その後の組は当てない。clash は確かめ直しの赤で戻した組だけが持つ合わせのループの結末 `{outcome, requests, patch}` で、outcome は合わせ役が直して当てた `repaired` か組どうしの合わせの申し出にした `parked`、requests はその申し出の id、patch は置き場からの控えの差分のパス。持ち主の決め `clash-goes-to-ruling`）→ report
   - `conflicts`（ポインタ・null 可）: 申し出と裁定（`lib/conflict` の形）。無ければ null → メイングラフ 11・plan（replan）・report
   - `replan_items`（array of string）: 裁定が誤りとした計画の項目の番号（承認済みの修正案の `plan[]` の 1 から数えた位置を 10 進の字にした物。例 `["2"]`。重ねない・現れた順）。空でなければメイングラフが案の直しを 1 度include する → メイングラフ 7・plan
-  - `objection`（string）: 修正役の異議。空でなければメイングラフが再審を 1 度include する → メイングラフ 7・judge
+  - `objection`（string）: 修正役の異議と、組どうしの合わせの申し出への裁定 `rejudge`（判定の単位の切り方の誤り）の文。空でなければメイングラフが再審を 1 度include する → メイングラフ 7・judge
   - `diff`（ポインタ）: 累積差分（run の始めの版から）→ メイングラフの `redepth`。同じフォルダ（修正の段の置き場。差分が空の時と出力を組めない時の訳のファイルも同じ所）に、出力の欄を増やさずに約束の隣のファイルを置く（組の子の分は子の結果 `result.json` の欄で親へ運び（修正役の返答を受け付けた組の分だけ。join の和と同じ決まり）、裁定の後の修正の段の分と合わせる）: `allowed-tests.json`（許したテストの変更の訳 `[{path, permit, source}]`。`source` は `plan`・`consult`・`ruling`。行が無ければ `[]`。出力を組めない時も `[]`）・`lenses.json`（レンズの集め役の事実 `{collector: {ok, reason}}`。落ちた・ok でない・何も書かずに落ちた時は `ok: false` と理由）・`accept-trace.json`（受け付けの行の並び: 回ごとの選んだ試験の行 `{op: "fix_tests_selected", node, pass, attempt, note, ci_left, final_left, final_far}`〔読み手は組と段ごとの最後の回を読む〕・赤緑を確かめずに受けた訳〔`fixgates.SKIPPED_OP`〕・はみ出しの決着〔`impact.ACCEPT_OVERFLOW_OP`〕・範囲の相談の 1 問 1 答〔`conflict.ASKED_OP`〕。組の子の行は `group_id` も持つ。`lib/fixboard.py` の `accept_trace_rows`。出力を組めない時は無ければ `[]`）・`closure.json`（修正の後に判定の問いで数え直した閉鎖の表 `{rows, claimed}`。今の works の `querytest.closure_lines`・`report._closed_units`）・`delta-holes.json`（差分の審査の穴の枝の名札と手直しの結果 `{ties: {"1", "2"}, handled: {"1", "2"}}`。今の works の `report.branch_rows`・`next_request` の手直しの行。`closure.json` と `delta-holes.json` は名と書き手が `lib/fixbeside.py` で、組めない時は `{"error": 訳}`、出力を組めない時は置かない）と、ノード `clean` が書く `fix-removed.json`（`lib/leftovers.py` の `REMOVED_FILE`）。読み手はメイングラフ 11（`ask-final` が `fixed` の `diffs` の先を `lib/fixbeside.py` の `read` で読み、読めないファイルは開ける理由にする）と report（`fix.diffs`。`lib/outcome.py` の `fix_folders`。閉鎖の表を読めなければ残りに数える）
   - `allowed_test_changes`（array of string）: 許したテストの変更のパス → report（メイングラフ 11 は `diff` の隣の `allowed-tests.json` を読む）
   - `changed`（object）: review-graph の `p3.fix` の印。`mechanism_changed`・`premise_drift`・`gates_changed`・`seams_changed`・`security_surface_changed`・`path_changed`（どれも boolean）と、前提のずれの申告の文 `premise_drift_note`（string。組の順に改行でつなぐ。無ければ `""`。今の works の `loop.drift_notes`）→ eyes（R4・前提の検算・比較役の頭）
@@ -424,8 +424,8 @@ flowchart TB
 - 差分の審査と手直しを fix に置く訳: review-graph で同じ P3 の段（`p3.fix_delta`・`p3.delta_review`・`p3.delta_fix`）にあり、サブグラフの中でループが閉じる。サブグラフの間の戻りを作らない。
 - ASF で読む物: `W/implement/archon-implement.yaml`（`loop:` と `until_field: done`・`assert-changed` が `checkoutStart` と比べて本当に変わったかを見る・`outcome_field: green`）と `W/deliver/archon-deliver.yaml`（review → correct のループ）。
 - 入力: 判定・計画・直す前の結末。型つきの成果物 `tdd-unit` も出す。
-- 役（`commands/`）: `tdd`・`fix`（修正の決まりを含む）・`ruler`・`delta-review`・`lens`・`refix`。
-- lib: `red_check`・`baseline_red`・`test_freeze`・`plan_scope`・`write_provenance`・`impact`・`test_files`・`give_up`・`groups`（組の作り）・`cite`・`conflict`（申し出の形）。
+- 役（`commands/`）: `tdd`・`fix`（修正の決まりを含む）・`ruler`・`clash`（合わせ役。並べた組を親の木で合わせて試験が赤になった組を、その組の変えたファイルの中だけで直す。直せなければ組を外して組どうしの合わせの申し出を裁定役へ回し、裁定役は直し方の指示・テストの範囲・案の直し・判定のやり直しのどれかで解き、どれでも解けない時だけ人に回す。持ち主の決め `clash-goes-to-ruling`）・`delta-review`・`lens`・`refix`。
+- lib: `red_check`・`baseline_red`・`test_freeze`・`plan_scope`・`write_provenance`・`impact`・`test_files`・`give_up`・`groups`（組の作り）・`cite`・`conflict`（申し出の形）・`clash`（組の合わせの直し）。
 - 埋め: 無し。組ごとの作業ツリーは未決 U8。
 
 ### test-gate（試験の関門）
