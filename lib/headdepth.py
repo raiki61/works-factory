@@ -8,7 +8,8 @@ tests/layers/test_depth_skip.py が突き合わせる）。
 - facts(rows, start, repo): 依頼の行ごとの字と番地の実在・試験のコマンドの有無・仕様の段・設計だけ・入力 thickness の名指し
 - gate(facts): 役を起こす前の機械の止め (go, 深さ, 訳)。go が偽なら決めた深さと訳で控えを書き、役を起こさない
 - brief(facts): 役に貼る材料の本文
-- check(reply, rows, repo): 役の返答の照らし。拒む訳の並び（空なら受ける）。番地の規則と引用の照らしは cite（problem・quoted_in）
+- check(reply, rows, repo): 役の返答の照らし。拒む訳の並び（空なら受ける）。番地の規則と引用の照らしと引用の字数の下限は cite
+  （problem・quoted_in・QUOTE_MIN）。軽量は依頼の行が在り、where の行の範囲が WHERE_SPAN 行までの時だけ受ける
 - write(jdir, doc)・read(jdir): 控え RECORD の読み書き。read は無い・読めない時に標準の控え
 - record(depth, why, *, items, facts): 控えの形
 - due(head_depth, ready, plan_rows, prior_review): 計画の往復の 1 周で事前審査を飛ばすか {skip, why}。頭が軽量でも、前の周の
@@ -44,6 +45,8 @@ NOT_ACCEPTED = "役の返答が受け付けを通らない（{why}）"
 RAISED = "計画の単位がすべて軽量ではない"
 PRIOR_REVIEWED = "前の周の事前審査が案を止めた（止めた穴を事前審査が見直す）"
 SKIPPED_NODE = "plan-review-run__review-loop"   # due が飛ばすノードの run の記録の id
+WHERE_SPAN = 30   # 軽量の根拠の where の行の範囲の幅の上限。直す所を 1 画面で名指せない範囲はファイルを指すのと変わらない
+NO_ROWS = "依頼の行が無い（軽量の根拠を引けない）"
 
 
 def _squash(text) -> str:
@@ -92,7 +95,8 @@ def brief(f: dict) -> str:
 def _check_item(it: dict, rows: list, repo) -> list:
     n = it.get("item")
     head = f"行 {n}: "
-    out = []
+    out = [head + f"{name} が {cite.QUOTE_MIN} 字より短い" for name in ("cause_quote", "code_quote")
+           if len(_squash(it.get(name))) < cite.QUOTE_MIN]
     if not cite.quoted_in(it.get("cause_quote"), rows[n - 1].get("text"), norm=_squash):
         out.append(head + "cause_quote が依頼のその行の字の部分でない")
     where = str(it.get("where") or "").strip()
@@ -101,6 +105,8 @@ def _check_item(it: dict, rows: list, repo) -> list:
         return out + [head + f"where が通らない（{bad}）"]
     m = cite.CITE.match(where)
     first, last = int(m["a"]), int(m["b"] or m["a"])
+    if last - first + 1 > WHERE_SPAN:
+        return out + [head + f"where の行の範囲が {WHERE_SPAN} 行より広い（直す所を名指していない）"]
     lines = cite.resolved(m["path"], pathlib.Path(repo).resolve()).read_text(encoding="utf-8", errors="replace").splitlines()
     if not cite.quoted_in(it.get("code_quote"), "\n".join(lines[first - 1:last]), norm=_squash):
         out.append(head + f"code_quote が {where} の字に無い")
@@ -117,6 +123,8 @@ def check(reply, rows, repo) -> list:
     if reply["depth"] == STANDARD:
         return []
     rows = [r for r in rows or [] if isinstance(r, dict)]
+    if not rows:
+        return [NO_ROWS]
     items = [it for it in reply.get("items") or [] if isinstance(it, dict)]
     named = [it.get("item") for it in items]
     want = list(range(1, len(rows) + 1))

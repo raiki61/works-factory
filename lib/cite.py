@@ -1,6 +1,7 @@
 """名指しの出どころが現物に在るかの確かめ（食い違いの申し出の引用の照らしと、修正前の関所の決め手の出どころの照らしが使う 1 か所）。
 
 - CITE: 名指し `<パス>:<行>` か `<パス>:<行>-<行>` の形
+- QUOTE_MIN: 引用の字数の下限（引用「…」の形 QUOTE と、quoted_in の前に字数を見る呼び手が使う）
 - inside(p, root): p が root の中か
 - resolved(path, repo) -> Path: 名指しのパスの実体（problem と、世界の解の外れの依頼のファイルの照らしが同じ規則で解く）
 - problem(cite, repo, roots=()) -> str: 1 つの名指しの確かめ（通れば空）。相対のパスは作業ツリーの根から（外と .git は拒む）、
@@ -37,7 +38,8 @@ import unicodedata
 CITE = re.compile(r"^(?P<path>.+?):(?P<a>[1-9][0-9]*)(?:-(?P<b>[1-9][0-9]*))?$")
 CITE_IN_WHERE = re.compile(r"(?P<path>[^\s:：（()、,]*):(?P<a>[1-9][0-9]*)(?:-(?P<b>[1-9][0-9]*))?")
 URL = re.compile(r"https?://[^\s）)」』、。,]+")
-QUOTE = re.compile(r"「([^」]{4,})」")
+QUOTE_MIN = 4   # 短い字はどの文にも当たる
+QUOTE = re.compile(rf"「([^」]{{{QUOTE_MIN},}})」")
 TOKEN = re.compile(r"/?[A-Za-z0-9_.][A-Za-z0-9_./-]*(?::[1-9][0-9]*(?:-[1-9][0-9]*)?)?")
 REQUEST_WORD = "依頼"   # 引用「…」を依頼の文と照らすのは、この語が文に在る時だけ（出典の文書の引用は照らさない）
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
