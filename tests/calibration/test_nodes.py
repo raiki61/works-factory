@@ -53,9 +53,21 @@ class NodesCase(unittest.TestCase):
         self.assertEqual((judge["invocations"], judge["findings"], judge["usd"]), (2, 1, 0.584333))
         self.assertEqual(judge["usd_why"], "一部の起動の費用が無い: not_applicable")
         md = nodes.markdown(got)
-        self.assertIn("| ノード | サブグラフ | 課題 | 起動 | 秒 | USD | 所見 | 差分に入った | 当たり | 本物 | 誤り |", md)
+        self.assertIn("| ノード | サブグラフ | 課題 | 起動 | 秒 | USD | 所見 | 番地を解いた | 差分に入った | 当たり | 本物 | 誤り |", md)
         self.assertIn("- judge__intake: 秒 timing が無い", md)
         self.assertIn("- start: 費用 not_applicable", md)
+
+    def test_resolved_references_are_counted(self):
+        path = self.out / "works-factory" / "convert" / f"{KEY}.json"
+        record = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(sum(f["ref_as_written"] is not None for f in record["findings"]), 0)
+        record["findings"][0]["ref_as_written"] = "stats.py:9-9"
+        path.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+        got = nodes.table(self.out, runner.WorksFactory())
+        rows = self.rows(got)
+        self.assertEqual((rows["judge__diagnose-loop.diagnose"]["resolved"], rows["eyes__r4-scope"]["resolved"]), (1, 0))
+        self.assertEqual({r["subgraph"]: r["resolved"] for r in got["subgraphs"]}["judge"], 1)
+        self.assertIn("| judge__diagnose-loop.diagnose | judge | 1 | 1 | 86.143 | 0.584333 | 1 | 1 |", nodes.markdown(got))
 
     def test_without_details_everything_is_unjudged(self):
         got = nodes.table(self.out, runner.WorksFactory())

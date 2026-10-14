@@ -699,6 +699,71 @@ class RunTest(RunnerCase):
         self.assertIn("npm ci", done.stderr)
         self.assertEqual(self.calls(), [])
 
+    def test_convert_command_redoes_conversion_without_a_run(self):
+        evidence_file = {"works-factory": runner.WorksFactory.sources[0].file, "claude": runner.PlainClaude.FINDINGS}
+        again = {"works-factory": {"units": [{"key": "app.py x", "label": "block", "reason": "app.py:1 が x を 2 にした"},
+                                             {"key": "app.py y", "label": "block", "reason": "app.py:2 が y を足した"}]},
+                 "claude": {"findings": [{"file": "app.py", "start_line": 1, "end_line": 1, "message": "a"},
+                                         {"file": "app.py", "start_line": 2, "end_line": 2, "message": "b"}]}}
+        for producer in ("works-factory", "claude"):
+            with self.subTest(producer=producer):
+                self.assertRan(self.run_tasks(producer, self.one))
+                kept = self.out / producer / "convert" / f"{self.one}.json"
+                before = {**json.loads(kept.read_text(encoding="utf-8")), "web_calls": 3}
+                kept.write_text(json.dumps(before), encoding="utf-8")
+                ledger = (self.attempts / runner.LEDGER).read_text(encoding="utf-8")
+                (self.attempt(self.one) / "evidence" / evidence_file[producer]).write_text(json.dumps(again[producer]),
+                                                                                           encoding="utf-8")
+                self.log.unlink()
+                done = self.runner("convert", producer, "--attempts", str(self.attempts), "--out", str(self.out))
+                self.assertRan(done)
+                self.assertEqual(self.calls(), [])
+                self.assertEqual((self.attempts / runner.LEDGER).read_text(encoding="utf-8"), ledger)
+                [after] = self.records(producer)
+                self.assertEqual(json.loads(done.stdout), after)
+                self.assertEqual([f["start_line"] for f in after["findings"]], [1, 2])
+                found = json.loads((self.out / producer / "findings" / f"{self.one}.json").read_text(encoding="utf-8"))
+                self.assertEqual(len(found["findings"]), 2)
+                for name in ("provenance", "web_calls", "run_id", "usd", "seconds", "outcome"):
+                    self.assertEqual(after[name], before[name], name)
+                shutil.rmtree(self.attempts)
+        refused = self.runner("convert", "works-factory", "--attempts", str(self.attempts), "--out", str(self.out),
+                              "--only", self.two)
+        self.assertEqual(refused.returncode, 2, refused.stderr)
+        self.assertIn(runner.LEDGER, refused.stderr)
+        self.assertFalse(self.attempts.exists())
+
+    def test_convert_command_keeps_records_when_head_is_unreadable(self):
+        self.assertRan(self.run_tasks("works-factory", self.one))
+        written = [self.out / "works-factory" / d / f"{self.one}.json" for d in ("findings", "convert")]
+        before = [p.read_bytes() for p in written]
+        shutil.rmtree(self.attempt(self.one) / "target")
+        done = self.runner("convert", "works-factory", "--attempts", str(self.attempts), "--out", str(self.out))
+        self.assertEqual(done.returncode, 1, done.stderr)
+        self.assertIn("target", done.stderr)
+        self.assertEqual([p.read_bytes() for p in written], before)
+
+    def test_convert_command_waits_for_no_runner(self):
+        self.assertRan(self.run_tasks("works-factory", self.one))
+        kept = self.out / "works-factory" / "convert" / f"{self.one}.json"
+        before = kept.read_bytes()
+        fd = os.open(self.attempts / ".lock", os.O_CREAT | os.O_RDWR)
+        self.addCleanup(os.close, fd)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        done = self.runner("convert", "works-factory", "--attempts", str(self.attempts), "--out", str(self.out))
+        self.assertEqual(done.returncode, 2, done.stderr)
+        self.assertIn("別のランナー", done.stderr)
+        self.assertEqual(kept.read_bytes(), before)
+
+    def test_convert_command_refuses_tasks_not_done(self):
+        self.assertRan(self.run_tasks("works-factory", self.one))
+        for producer, only in (("works-factory", self.two), ("claude", None)):
+            with self.subTest(producer=producer):
+                refused = self.runner("convert", producer, "--attempts", str(self.attempts), "--out", str(self.out),
+                                      *(("--only", only) if only else ()))
+                self.assertEqual(refused.returncode, 2, refused.stderr)
+                self.assertIn(only or producer, refused.stderr)
+
     def test_nodes_command_writes_json_and_md(self):
         self.assertRan(self.run_tasks("works-factory", self.one))
         self.assertRan(self.runner("nodes", "works-factory", "--out", str(self.out)))
