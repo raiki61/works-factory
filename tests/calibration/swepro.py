@@ -55,7 +55,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))   # 頭に入れると lib/tests が根の tests を隠す（tests/AGENTS.md）
-from bin._lib import apply, claude_auth, launcher, pack  # noqa: E402
+from bin._lib import apply, launcher, pack  # noqa: E402
 import chain  # noqa: E402
 import report  # noqa: E402
 from tests.calibration import run  # noqa: E402
@@ -202,7 +202,7 @@ def auth_refused(got: dict | None, why: str | None, env) -> str:
     """auth_launch.resolve の結果をコンテナへ運べるか。運べるなら空の字、断るなら訳（値は書かない）"""
     if got is None:
         return f"認証が無い: {why}"
-    other = sorted(k for k in got if k not in ACCEPTED_AUTH and not (k in claude_auth.FLAGS and got[k] in claude_auth.OFF))
+    other = sorted(set(got) - set(ACCEPTED_AUTH))
     if other:
         return (f"{' '.join(other)} は受けない（受けるのは {' か '.join(ACCEPTED_AUTH)}）: 届け先が api.anthropic.com でないか"
                 "別の資格が要り、課題のコンテナの網（--allow-agent-host api.anthropic.com）では届かない")

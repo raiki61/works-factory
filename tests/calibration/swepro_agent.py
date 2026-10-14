@@ -75,7 +75,7 @@ class WorksBench(BaseAgent):
         if refused:
             return {}, f"{refused}（出どころ: {source}）" if source else refused
         self.logger.info(f"認証は {source} から拾う（値は出さない）")
-        return {k: got[k] for k in swepro.ACCEPTED_AUTH if got.get(k)}, ""
+        return {k: got[k] for k in swepro.ACCEPTED_AUTH if k in got}, ""
 
     async def _upload_text(self, environment: BaseEnvironment, text: str, target: str):
         """0600 の一時ファイルで上げ、上げたらすぐ消す"""

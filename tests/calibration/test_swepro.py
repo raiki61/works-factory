@@ -615,6 +615,13 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(json.loads(holding["text"]), {"ANTHROPIC_API_KEY": key})
         self.assertFalse(self.predicted()["failed"])
 
+    def test_flag_set_to_off_does_not_refuse(self):
+        self.environ(ANTHROPIC_API_KEY="sk-ant-api03-zq7", CLAUDE_CODE_USE_BEDROCK="0")
+        self.go()
+        [holding] = [c for c in self.environment.calls if c["kind"] == "upload" and c["target"].endswith(swepro.SECRET)]
+        self.assertEqual(json.loads(holding["text"]), {"ANTHROPIC_API_KEY": "sk-ant-api03-zq7"})
+        self.assertFalse(self.predicted()["failed"])
+
     def test_unaccepted_auth_is_refused_before_upload_with_the_reason_predicted(self):
         for named, env in (("CLAUDE_CODE_USE_BEDROCK", {"CLAUDE_CODE_USE_BEDROCK": "1"}),
                            ("ANTHROPIC_BASE_URL", {"ANTHROPIC_API_KEY": "sk-ant-api03-zq7",

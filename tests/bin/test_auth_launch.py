@@ -144,6 +144,15 @@ class ResolveOrder(unittest.TestCase):
         self.assertIn("WORKS_FACTORY_KEYCHAIN_ITEM", name)
         self.assertEqual(run.calls, ["named"])
 
+    def test_flag_set_to_off_is_not_a_credential(self):
+        """受け継いだ認証に、値が「使わない」の旗は入らない（子の環境には受けた環境のまま残る）"""
+        for off in ("0", "false"):
+            with self.subTest(off=off):
+                env = {"ANTHROPIC_API_KEY": "k", "CLAUDE_CODE_USE_BEDROCK": off, "CLAUDE_CODE_USE_VERTEX": "1"}
+                got, _name, why = auth_launch.resolve(env, "/u", "", platform="linux", runner=keychain({}))
+                self.assertIsNone(why)
+                self.assertEqual(got, {"ANTHROPIC_API_KEY": "k", "CLAUDE_CODE_USE_VERTEX": "1"})
+
     def test_named_item_empty_or_malformed_stops(self):
         """名指しの項目が空・壊れた値なら次の段（受け継いだ認証・CLAUDE_KEYCHAIN_SERVICE の項目・Claude Code の項目）へ進まずに止まる"""
         for value in ("", "not-a-token"):
