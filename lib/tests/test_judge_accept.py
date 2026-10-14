@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -1687,6 +1688,21 @@ class BriefCase(_RepoCase):
         self.assertIn("PR の本文", text)
         self.assertIn(str(self.jdir / "diff.patch"), text)
         self.assertNotIn("{{", text, "穴を残さない")
+
+    def test_brief_pastes_out_replies_under_material_roles_nodes(self):
+        """判定役の「入力」の {{?out.<節>}} の穴は MATERIAL_ROLES の節の名で埋まる: 役の返答が材料に貼られ、ABSENT の語にならない"""
+        start = self.start()
+        ja.write_json(self.jdir / ja.START_FILE, start)
+        ja.material_route(self.jdir, self.repo)
+        slots = set(re.findall(r"\{\{\?out\.([\w.]+)\}\}", ja.DIAGNOSE_EXCERPT))
+        self.assertTrue(slots, "DIAGNOSE_EXCERPT に {{?out.<節>}} の穴が無い")
+        self.assertLessEqual(slots, set(ja.MATERIAL_ROLES.values()), "MATERIAL_ROLES に無い節を読む穴")
+        roles = [r for r, nid in ja.MATERIAL_ROLES.items() if nid in slots]
+        for role in roles:
+            ja.write_json(self.jdir / ja.material_file(role), {"role": role, "materials": {}, "reply": {"mark": f"返答の印-{role}"}})
+        text = pathlib.Path(ja.brief(self.jdir, self.repo, start, str(self.tmp / "REVIEW.md"))).read_text(encoding="utf-8")
+        for role in roles:
+            self.assertIn(f"返答の印-{role}", text, ja.MATERIAL_ROLES[role])
 
     def test_brief_carries_the_human_policy_cut_at_the_paste_cap(self):
         """元 diagnose.md の付録「人の方針」（start の policy_paste。policy.brief が PASTE_CAP バイトで切った物）。文書の無い run は節を
