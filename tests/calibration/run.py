@@ -4,6 +4,7 @@
     python3 tests/calibration/run.py run <works|works-factory|claude> --bench <ReviewBench の写し> --attempts <置き場> --out <置き場>
         [--language Python] [--only <課題の鍵,…>] [--resume] [--dry-run] [--mirror <取り先の型>]
     python3 tests/calibration/run.py judge <作り手> --bench <ReviewBench の写し> --out <置き場> [--model claude-sonnet-5]
+    python3 tests/calibration/run.py convert <作り手> --attempts <置き場> --out <置き場> [--only <課題の鍵,…>]
     python3 tests/calibration/run.py nodes <作り手> --out <置き場>
 
 作り手: works-factory（殻 bin/works-factory で works-factory-line を前で回す）・works（今の works の dev/use.sh。版は pack.json の
@@ -16,6 +17,8 @@ bare、request.json は PR の題と本文の 1 行、pr/ は diff.patch と pr.
 <out>/<作り手>/convert/<鍵>.json（変換の控え。捨てた指摘・ノード・最後の差分に入ったか）に書き、置き場の台帳
 <置き場>/ledger.jsonl に 1 行足す。judge は ReviewBench の写しの中で npm run judge を打ち、<out>/<作り手>/scoring/ に書く（判定役は
 環境変数 ANTHROPIC_API_KEY を読む）。
+convert は台帳で済んだ課題の試みの evidence/ から変換だけをやり直して findings/ と convert/ を書き直す（run を起こさない。来歴と
+web_calls は前の控えから引き継ぐ）。
 nodes は控えと出来事から <out>/<作り手>/nodes.json・nodes.md を書く。
 
 - 終了の値: 0 済んだ・1 止まった（後ろの課題を起こさない。--resume で続ける）・2 何も起こさずに断った。
@@ -714,6 +717,39 @@ def dry_run(found: list[dict], producer, attempts: Path) -> int:
     return OK
 
 
+def reconvert(args) -> int:
+    producer = PRODUCERS[args.producer]()
+    attempts, out = _outside(args.attempts), _outside(args.out)
+    lock = _lock(attempts)
+    try:
+        ledger = Ledger(attempts)
+        done = {r["id"]: r for r in ledger.rows() if r["producer"] == producer.name}
+        done = {task: row for task, row in done.items() if row["state"] == DONE}
+        wanted = [x for x in args.only.split(",") if x] if args.only else sorted(done)
+        unknown = [x for x in wanted if x not in done]
+        if unknown:
+            raise Stop(REFUSED, f"{unknown} は台帳 {ledger.path} で作り手 {producer.name} の済んだ課題でない")
+        for task in wanted:
+            reconvert_one(producer, done[task], out)
+    finally:
+        os.close(lock)
+    return OK
+
+
+def reconvert_one(producer, row: dict, out: Path):
+    task, attempt = row["id"], Path(row["attempt"])
+    try:
+        entry = json.loads((attempt / "pr" / "pr.json").read_text(encoding="utf-8"))
+        before = json.loads((out / producer.name / "convert" / f"{task}.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        raise Stop(STOPPED, f"課題 {task} の pr/pr.json か前の変換の控えを読めない: {type(e).__name__}") from None
+    ended = {**producer.ended(attempt / evidence.EVIDENCE), "web_calls": before.get("web_calls")}
+    doc, record = reviewbench.convert(producer, entry, attempt, row["run_id"], row["base"], row["head"], ended)
+    record["provenance"] = before.get("provenance")
+    reviewbench.write(out, producer.name, task, doc, record)
+    print(json.dumps(record, ensure_ascii=False, allow_nan=False))
+
+
 # ---------------------------------------------------------------- judge・nodes
 def judge(args) -> int:
     bench, mine = Path(args.bench), _outside(args.out) / args.producer
@@ -767,12 +803,17 @@ def main(argv=None) -> int:
     judged.add_argument("--bench", required=True, type=Path)
     judged.add_argument("--out", required=True, type=Path)
     judged.add_argument("--model", default=JUDGE_MODEL)
+    again = sub.add_parser("convert")
+    again.add_argument("producer", choices=sorted(PRODUCERS))
+    again.add_argument("--attempts", required=True, type=Path)
+    again.add_argument("--out", required=True, type=Path)
+    again.add_argument("--only")
     counted = sub.add_parser("nodes")
     counted.add_argument("producer", choices=sorted(PRODUCERS))
     counted.add_argument("--out", required=True, type=Path)
     args = parser.parse_args(argv)
     try:
-        return {"run": run_tasks, "judge": judge, "nodes": table}[args.command](args)
+        return {"run": run_tasks, "judge": judge, "convert": reconvert, "nodes": table}[args.command](args)
     except Stop as e:
         print(f"run.py: {e}", file=sys.stderr)
         return e.code

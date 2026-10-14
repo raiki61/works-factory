@@ -699,6 +699,37 @@ class RunTest(RunnerCase):
         self.assertIn("npm ci", done.stderr)
         self.assertEqual(self.calls(), [])
 
+    def test_convert_command_redoes_conversion_without_a_run(self):
+        evidence_file = {"works-factory": runner.WorksFactory.sources[0].file, "claude": runner.PlainClaude.FINDINGS}
+        again = {"works-factory": {"units": [{"key": "app.py x", "label": "block", "reason": "app.py:1 が x を 2 にした"},
+                                             {"key": "app.py y", "label": "block", "reason": "app.py:2 が y を足した"}]},
+                 "claude": {"findings": [{"file": "app.py", "start_line": 1, "end_line": 1, "message": "a"},
+                                         {"file": "app.py", "start_line": 2, "end_line": 2, "message": "b"}]}}
+        for producer in ("works-factory", "claude"):
+            with self.subTest(producer=producer):
+                self.assertRan(self.run_tasks(producer, self.one))
+                [before] = self.records(producer)
+                ledger = (self.attempts / runner.LEDGER).read_text(encoding="utf-8")
+                (self.attempt(self.one) / "evidence" / evidence_file[producer]).write_text(json.dumps(again[producer]),
+                                                                                           encoding="utf-8")
+                self.log.unlink()
+                done = self.runner("convert", producer, "--attempts", str(self.attempts), "--out", str(self.out))
+                self.assertRan(done)
+                self.assertEqual(self.calls(), [])
+                self.assertEqual((self.attempts / runner.LEDGER).read_text(encoding="utf-8"), ledger)
+                [after] = self.records(producer)
+                self.assertEqual(json.loads(done.stdout), after)
+                self.assertEqual([f["start_line"] for f in after["findings"]], [1, 2])
+                found = json.loads((self.out / producer / "findings" / f"{self.one}.json").read_text(encoding="utf-8"))
+                self.assertEqual(len(found["findings"]), 2)
+                for name in ("provenance", "web_calls", "run_id", "usd", "seconds", "outcome"):
+                    self.assertEqual(after[name], before[name], name)
+                shutil.rmtree(self.attempts)
+        refused = self.runner("convert", "works-factory", "--attempts", str(self.attempts), "--out", str(self.out),
+                              "--only", self.two)
+        self.assertEqual(refused.returncode, 2, refused.stderr)
+        self.assertIn(self.two, refused.stderr)
+
     def test_nodes_command_writes_json_and_md(self):
         self.assertRan(self.run_tasks("works-factory", self.one))
         self.assertRan(self.runner("nodes", "works-factory", "--out", str(self.out)))
