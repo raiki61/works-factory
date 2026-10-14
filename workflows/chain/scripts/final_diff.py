@@ -55,12 +55,8 @@ def sealed_at(rel: str, data: bytes) -> dict:
     return {"ok": True, "hash": seal.write_readback(boundary.resolve(ptr), data), "diff": ptr}
 
 
-class RoundFailed(Exception):
-    """1 つの周の差分を作れない。訳はその周の番号（d<k>）と子の run の id を名指す"""
-
-
 def with_diffs(repo: Path, origin: str, rows: list) -> list:
-    """周の行に、その周の差分のファイルの数 files と、止まった周の残した差分のパス diff を足す。作れない周が在れば RoundFailed"""
+    """周の行に、その周の差分のファイルの数 files と、止まった周の残した差分のパス diff を足す。作れない周が在れば、その周（d<k>）と子の run の id を名指す誤り"""
     out, prev = [], origin
     for r in rows:
         r = dict(r)
@@ -71,8 +67,8 @@ def with_diffs(repo: Path, origin: str, rows: list) -> list:
                 if r.get("kind") == chain.KIND_HALTED and data:
                     r["diff"] = str(boundary.resolve(sealed_at(f"chain/round-{r['n']}.diff", data)["diff"]))
             except Exception as error:   # 出力ノード result が結ぶので落ちない（上の docstring）
-                raise RoundFailed(f"周 {r.get('n')}（d{r.get('n')}・子の run {r.get('run') or '読めない'}）の差分を作れない: "
-                                  + " ".join(f"{type(error).__name__}: {error}".split())) from error
+                raise RuntimeError(f"周 {r.get('n')}（d{r.get('n')}・子の run {r.get('run') or '読めない'}）の差分を作れない: "
+                                   f"{type(error).__name__}: {error}") from error
             prev = r["head"]
         out.append(r)
     return out
@@ -107,10 +103,7 @@ def final() -> dict:
     made = decisions()
     last = made[-1] if made else start
     origin, repo = start.get("origin") or "", Path.cwd()
-    try:
-        rows = with_diffs(repo, origin, max((d.get("rows") or [] for d in made), key=len, default=[]))
-    except RoundFailed as failed:
-        return nothing(str(failed))
+    rows = with_diffs(repo, origin, max((d.get("rows") or [] for d in made), key=len, default=[]))
     kept, skipped = chain.pick(rows)
     got = {**nothing(""), "skipped": [r["n"] for r in skipped]}
     if kept is None:
