@@ -144,12 +144,36 @@ class LauncherTest(unittest.TestCase):
                 self.assertIn("使い方", err)
 
     def test_resume_and_approve_pass_through_unchanged(self):
+        self.commit_target()
         for args in (["workflow", "approve", "run-1", "--cwd", str(self.target)],
                      ["workflow", "run", "works-factory-line", "--resume", "--cwd", str(self.target)],
                      ["workflow", "status"]):
             with self.subTest(args=args):
                 argv = self.reached(self.launch(*args))["argv"]
                 self.assertEqual(argv[3:], args)
+
+    def commit_target(self) -> str:
+        (self.target / "kept.txt").write_text("kept\n", encoding="utf-8")
+        git(self.target, "add", "-A")
+        git(self.target, "commit", "-q", "-m", "seed")
+        return git(self.target, "rev-parse", "HEAD")
+
+    def test_run_starts_from_the_targets_current_state(self):
+        head = self.commit_target()
+        with self.subTest("汚れていない対象は HEAD から"):
+            argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x"))["argv"]
+            self.assertEqual(argv[9:], ["works-factory-line", "--from", head, "--input", "request=x"])
+        with self.subTest("未追跡のファイルは HEAD を親に包んだ commit から"):
+            (self.target / "untracked.txt").write_text("u\n", encoding="utf-8")
+            done = self.launch("workflow", "run", "works-factory-line", "--input", "request=x")
+            argv = self.reached(done)["argv"]
+            self.assertEqual(argv[10], "--from")
+            self.assertNotEqual(argv[11], head)
+            self.assertEqual(git(self.target, "rev-parse", f"{argv[11]}^"), head)
+            self.assertIn(argv[11][:12], done.stderr)
+        with self.subTest("利用者の --from が勝ち、殻は足さない"):
+            argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--from", "x", "--input", "request=x"))["argv"]
+            self.assertEqual(argv[9:], ["works-factory-line", "--from", "x", "--input", "request=x"])
 
     def test_user_workflow_source_is_refused(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--workflow-source", str(self.tmp)))

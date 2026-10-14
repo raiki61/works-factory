@@ -1,7 +1,7 @@
 """入口の殻 bin/works-factory の中身: 利用者の環境から認証と隔離を整え、止めた Archon を bun で起こし、引数をそのまま渡す。
 
-Archon の命令の別名は作らない（持ち主の決め one-launcher）。持つのはつなぎだけで、認証・隔離・プラグインの選び・gh の口・源の取り寄せは
-bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
+Archon の命令の別名は作らない（持ち主の決め one-launcher）。持つのはつなぎだけで、認証・隔離・プラグインの選び・gh の口・源の取り寄せ・
+run の作業ツリーの起点は bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（計画 docs/plans/2026-10-12-groundwork-line-launcher.md の
 B の「約束」1〜11）。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
 """
 import fnmatch
@@ -15,7 +15,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from bin._lib import hostgh, isolate, pack, place
+from bin._lib import hostgh, isolate, pack, place, startpoint
 from lib import answer, reads, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -141,7 +141,13 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
             workflows = place.workflow_source(loaded, ROOT, cache)
         except RuntimeError as error:
             raise Stop(str(error)) from None
-        args = place.workflow_run(source, workflows, target, workflow, *without_flag(argv[3:], "--cwd"))[2:]
+        try:
+            start, said = startpoint.choose(flags, workflow, target, f"{NAME}-")
+        except RuntimeError as error:
+            raise Stop(str(error)) from None
+        if said:
+            print(f"{NAME}: {said}", file=sys.stderr)
+        args = place.workflow_run(source, workflows, target, workflow, *start, *without_flag(argv[3:], "--cwd"))[2:]
     bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
     command = [*place.archon(bun, source), *args]
     if not reads_only(argv):
