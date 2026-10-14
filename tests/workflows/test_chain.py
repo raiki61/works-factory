@@ -245,6 +245,12 @@ class ChainStartCase(Tree):
                 self.assertIn("rounds", got["text"])
         self.assertEqual(self.start(rounds="2", budget_usd="-1")["act"], "refused")
 
+    def test_design_only_is_refused_before_any_round(self):
+        """#505: 設計だけの run は差分を作らず次の周の基が無いので、鎖は AI の前で拒む（元 works の dev/use.sh 214 行）"""
+        got = self.start(rounds="2", design_only="design_only")
+        self.assertEqual((got["ok"], got["act"]), (False, "refused"), got)
+        self.assertIn("design_only", got["text"])
+
     def test_accepted_inputs_are_the_first_round(self):
         got = self.start(rounds="3", budget_usd="2.5", request="req.json", pr="7")
         self.assertEqual((got["ok"], got["act"], got["rounds"], got["budget"], got["rows"]), (True, "launch", 3, 2.5, []))

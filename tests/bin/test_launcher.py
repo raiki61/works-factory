@@ -522,9 +522,9 @@ class LauncherTest(unittest.TestCase):
             return settings.get("permissions")
 
         env = self.reached(self.launch("validate", "workflows", **{toolset.DENY_WEB_ENV: "1"}))["env"]
-        self.assertEqual(permissions(env), toolset.DENY_WEB)
+        self.assertEqual(permissions(env), toolset.permissions(deny_web=True))
         env = self.reached(self.launch("validate", "workflows"))["env"]
-        self.assertIsNone(permissions(env))
+        self.assertEqual(permissions(env), toolset.permissions(deny_web=False))
 
     def test_continuing_commands_check_auth_and_install_plugins(self):
         """workflow wake・signal も止めた Archon が工程を走らせる（packages/cli/src/cli.ts が executesWorkflow の前で捌く）"""

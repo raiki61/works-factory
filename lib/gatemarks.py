@@ -193,7 +193,8 @@ ANSWERED_HEAD = "答えた問い（承認ノードの continue か依頼の answ
 ANSWER_KEY_HEAD = "答える時の answers の question"   # 保留の行の尾: 依頼の answers に字のまま書く question（answer_key。JSON の文字列で区切る）
 HAND_CHECKED = "人が手元で確かめた（実測とは書かない）"   # 命令と出力つきの依頼の答えが当たった測れていない素材の名乗り
 ANSWER_HOW = ('答え方: 次の run の依頼を {"findings": [...], "answers": [{"question": "<問いの key か出どころ>", "text": "<答え>"}]} '
-              'の形にすれば、その問いを人に聞き直さない（手元で測ったなら "command" と "output" も書く）')
+              'の形にすれば、その問いを人に聞き直さない（手元で測ったなら "command" と "output" も書く。測り方の命令は対象を読んだ役が'
+              '書いた物なので、打つ前に読み、読み取りだけの時だけ打つ）')
 # 判定の返答の足し欄 answer_ties（種 answers）: 依頼の答えを今の返答の問い・単位に、前の周の独立の目の作り直しの行を直す単位に結ぶ行。
 # 形は {answer, to}・{answer, none}・{redesign, to}・{redesign, none}（none は当たらない・単位にしない訳）
 ANSWER_TIES = "answer_ties"

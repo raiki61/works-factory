@@ -47,6 +47,7 @@ import boardview  # noqa: E402
 import boundary  # noqa: E402
 import conflict  # noqa: E402
 import converge  # noqa: E402
+import entryshape  # noqa: E402
 import fixbeside  # noqa: E402
 import fixboard  # noqa: E402
 import gatemarks  # noqa: E402
@@ -343,6 +344,27 @@ class StartCase(Artifacts):
         reason = self.refused(request=str(self.outside("bad_answers.json", bad)))
         self.assertIn("の形", reason)
         self.assertNotIn("読めない", reason)
+
+    def test_request_without_findings_is_taken(self):
+        """#505: findings を省いた依頼（answers・pr だけ）は空の findings として受け、差分の在る base で始まる（元 works の
+        skills/works/SKILL.md 57 行「findings を省くと空の配列」）。差分も依頼の行も無ければ今までどおり空の入力として拒む"""
+        rows = [{"question": "q1", "text": "a を選ぶ"}]
+        path = self.outside("answers_only.json", json.dumps({"answers": rows}))
+        got = self.start(request=str(path), base="base")
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(self.record(got)["answers"], rows)
+        self.assertIn(entryshape.EMPTY_REFUSED, self.refused(request=str(path)))
+
+    def test_omitted_tdd_suite_says_the_loop_is_skipped(self):
+        """#505: tdd_suite を省いた run は、承認ノードの文が TDD のループを飛ばす事と実行器の渡し方を言う（元 works の dev/use.sh
+        1086-1089 行）。名指した tdd_suite は始めの記録にそのまま載り、文は言わない"""
+        import tddloop
+        got = self.start(base="base", test_cmd="make test")
+        self.assertEqual(self.record(got)["tdd_suite"], "")
+        self.assertIn(tddloop.SUITE_SKIPPED, got["gate_text"])
+        got = self.start(base="base", test_cmd="make test", tdd_suite="run-tests.sh")
+        self.assertEqual(self.record(got)["tdd_suite"], "run-tests.sh")
+        self.assertNotIn(tddloop.SUITE_SKIPPED, got["gate_text"])
 
     def test_request_answers_reach_the_record(self):
         """L-E03: 依頼の answers は始めの記録の answers（元 works/tests/test_entry.py の test_request_answers_reach_start_doc）"""

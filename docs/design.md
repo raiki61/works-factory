@@ -469,6 +469,8 @@ flowchart TB
 
 今の works の能力ごとに、今の住処と新しい住処。パスは今の works は `works/` から。新しい方の `commands/<名>` はinclude するサブグラフの役の指示書、`lib/<名>` は助け手の能力の名。置くファイルは元の名（E18・持ち主の決め `lib-port-as-is`。例: `lib/stop_reasons` は `lib/stopby.py`）。共有ボードと Archon に届く関数は `lib/` に持ってこず、そのサブグラフの issue で扱う。
 
+利用者に見える能力（skill の使い方の文・起動の殻の旗と拒み・keep-essence の 12）を源の順に照らした表は `docs/works-parity.md`。入口・メイングラフ・サブグラフの利用者に見える能力を変える PR は、そこの該当の行を同じ PR で直す。
+
 ### メイングラフと入口
 
 - 入口の入力の形（差分の根・差分・依頼の行・PR。空なら止める）: `blk-entry`・`.shared/core/entryshape.py`・`startrec.py` → line・`lib/entry_shape`
