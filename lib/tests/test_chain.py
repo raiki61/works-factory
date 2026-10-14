@@ -212,6 +212,74 @@ class Limits(unittest.TestCase):
                     chain.limits("2", raw)
 
 
+class Pick(unittest.TestCase):
+    def test_last_halted_round_is_skipped_and_named(self):
+        rows = [row(1, head="h1"), row(2, head="h2"), row(3, chain.KIND_HALTED, head="h3")]
+        kept, skipped = chain.pick(rows)
+        self.assertEqual((kept["n"], [r["n"] for r in skipped]), (2, [3]))
+
+    def test_round_without_a_commit_is_skipped_and_named(self):
+        kept, skipped = chain.pick([row(1, head="h1"), row(2, chain.KIND_HUMAN, head="")])
+        self.assertEqual((kept["n"], [r["n"] for r in skipped]), (1, [2]))
+
+    def test_no_round_to_take(self):
+        kept, skipped = chain.pick([row(1, chain.KIND_HALTED, head="h1")])
+        self.assertEqual((kept, [r["n"] for r in skipped]), (None, [1]))
+        self.assertEqual(chain.pick([]), (None, []))
+
+
+class Render(unittest.TestCase):
+    def doc(self, rows, **kw):
+        return {"run": "parent", "rounds_max": 3, "rounds": rows, "stop": {"word": "halted", "text": "run が止まった"},
+                "original_base": "b" * 40, "final": "/runs/parent/chain/final.diff", "apply": "bin/apply parent", **kw}
+
+    def table(self, text):
+        return [ln for ln in text.splitlines() if ln.startswith("| ") and not ln.startswith(("| 周", "| ---"))]
+
+    def test_rows_and_total(self):
+        rows = [row(1, head="h1", minutes=10.2, cost=1.5, files=2), row(2, head="h2", minutes=4.9, cost=2.25, files=1)]
+        text = chain.render(self.doc(rows, stop={"word": "closed", "text": "閉じた"}))
+        self.assertEqual(self.table(text), ["| 1 | run-1 | x | 10 | 1.50 | 1 | 2 |", "| 2 | run-2 | x | 5 | 2.25 | 1 | 1 |"])
+        self.assertIn("合計: 2 周・15 分・$3.75\n", text)
+        self.assertIn("周 2 の結果までを最後の差分にした", text)
+        self.assertIn("取り込む: bin/apply parent", text)
+
+    def test_unread_cost_is_named_and_left_out_of_the_total(self):
+        rows = [row(1, head="h1", cost=1.5), row(2, head="h2", cost=None, cost_read=False), row(3, head="h3", cost=2.0)]
+        text = chain.render(self.doc(rows))
+        self.assertEqual(self.table(text)[1].split(" | ")[4], "読めない")
+        self.assertIn("$3.50（費用が読めない周 1 本を除く）", text)
+        self.assertNotIn("0.00", text)
+
+    def test_halted_round_is_named_with_its_diff(self):
+        rows = [row(1, head="h1"), row(2, head="h2"), row(3, chain.KIND_HALTED, head="h3", diff="/runs/parent/chain/round-3.diff")]
+        text = chain.render(self.doc(rows))
+        self.assertIn("周 2 の結果までを最後の差分にした", text)
+        self.assertIn("止まった周 周 3（run run-3。差分 /runs/parent/chain/round-3.diff） は最後の差分に採らなかった", text)
+        self.assertIn("止まった周 3: 差分 /runs/parent/chain/round-3.diff", text)
+
+    def test_round_whose_commit_failed_names_the_worktree_not_a_kept_diff(self):
+        rows = [row(1, head="h1"), row(2, chain.KIND_HUMAN, head="")]
+        text = chain.render(self.doc(rows, worktree="/wt/parent"))
+        self.assertIn("周 1 の結果までを最後の差分にした", text)
+        self.assertIn("止まった周 周 2（run run-2。commit できなかった。作業は作業ツリー /wt/parent に残り、片付けで消える）", text)
+        self.assertIn("止まった周 2: commit できなかった", text)
+        self.assertNotIn("差分 無し", text)
+
+    def test_human_stop_names_the_draft_and_the_steps(self):
+        rows = [row(1, head="h1", held=2, source="/runs/c1/report/next-request.json")]
+        text = chain.render(self.doc(rows, stop={"word": "human", "text": "人の判断が要る"}))
+        self.assertIn("運ばなかった下書きの行 2 件", text)
+        self.assertIn("1. 下書き /runs/c1/report/next-request.json の", text)
+        self.assertIn("2. 取り込むなら bin/apply parent", text)
+        self.assertIn("3. 見直した依頼を request に渡して", text)
+
+    def test_nothing_to_take_has_no_apply_line(self):
+        text = chain.render(self.doc([row(1, chain.KIND_HALTED, head="h1")], final=""))
+        self.assertIn("採れる周が無かった", text)
+        self.assertNotIn("取り込む", text)
+
+
 class OutcomeKindsTest(unittest.TestCase):
     def test_keys_match_outcomes_and_values_are_kinds(self):
         """結末の種の表は結末の語の 10 語ちょうどを鍵に持ち、値は鎖の 5 つの種のどれか"""
@@ -242,11 +310,11 @@ class Fences(unittest.TestCase):
             self.assertIsNone(re.search(rf"[\"']{word}[\"']", text), word)
 
     def test_layer_one_imports(self):
-        """chain は標準ライブラリと持ち越しの住処 carry だけを import する"""
+        """chain は標準ライブラリと持ち越しの住処 carry・見出しの宣言 promptsection だけを import する"""
         tree = ast.parse((LIB / "chain.py").read_text(encoding="utf-8"))
         names = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
         names |= {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module}
-        self.assertLessEqual(names - set(sys.stdlib_module_names), {"carry"})
+        self.assertLessEqual(names - set(sys.stdlib_module_names), {"carry", "promptsection"})
 
 
 if __name__ == "__main__":

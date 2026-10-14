@@ -4,7 +4,9 @@ description: |
   つなぐ。前の周の残り（次の依頼）が次の周の依頼になり、止めの語（lib/chain.py の STOPS）が出たら止まる。
   起こす・待つ・承認・再開・費用の合算は Archon の workflow: のノードが持ち、works-factory が書くのは周の commit（round_commit）・
   次の依頼（round_facts）・止めの決め（decide）の script だけ。鎖は名指して起こした時だけで、メイングラフを直に起こせば今の 1 周の run のまま。
-  出力はノード result（最後の決めの act・止めの語 word・周ごとの行 rounds と、止めの語が closed の時に真の closed）。
+  鎖の最後のノード final-diff が、止まった周を採らずに元の基から採る周までの差分を封じ、周ごとの表 chain.md を親の置き場に書く。
+  出力はノード result（最後の決めの act・止めの語 word・周ごとの行 rounds と、止めの語が closed の時に真の closed と、bin/apply が
+  読む最後の差分 apply・sealed と chain.md のポインタ report）。bin/apply <親の run> が最後の差分を当てる。
 
 inputs:
   rounds:
@@ -89,7 +91,8 @@ nodes:
         budget: { type: [number, "null"] }
         first_request: { type: string }
         first_pr: { type: integer }
-      required: [ok, reason, act, word, text, request, base, pr, spec, rows, rounds, budget, first_request, first_pr]
+        origin: { type: string }
+      required: [ok, reason, act, word, text, request, base, pr, spec, rows, rounds, budget, first_request, first_pr, origin]
     mutates_checkout: false
 
   # 周ごとの 4 つのノード。5 組は番号と前の決め（1 周目は chain-start、ほかは前の周の round-<k-1>-decide）のほかは同じ形。
@@ -145,7 +148,8 @@ nodes:
         source: { type: string }
         cost: { type: [number, "null"] }
         cost_read: { type: boolean }
-      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read]
+        minutes: { type: [number, "null"] }
+      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read, minutes]
     mutates_checkout: false
     depends_on: [round-1-commit]
     with:
@@ -175,6 +179,8 @@ nodes:
     with:
       rows: "$chain-start.output.rows"
       outcome: "$round-1.output.outcome"
+      apply: "$round-1.output.apply"
+      r2_status: "$round-1.output.r2_status"
       facts: "$round-1-facts.output"
       commit: "$round-1-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -231,7 +237,8 @@ nodes:
         source: { type: string }
         cost: { type: [number, "null"] }
         cost_read: { type: boolean }
-      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read]
+        minutes: { type: [number, "null"] }
+      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read, minutes]
     mutates_checkout: false
     depends_on: [round-2-commit]
     with:
@@ -261,6 +268,8 @@ nodes:
     with:
       rows: "$round-1-decide.output.rows"
       outcome: "$round-2.output.outcome"
+      apply: "$round-2.output.apply"
+      r2_status: "$round-2.output.r2_status"
       facts: "$round-2-facts.output"
       commit: "$round-2-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -317,7 +326,8 @@ nodes:
         source: { type: string }
         cost: { type: [number, "null"] }
         cost_read: { type: boolean }
-      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read]
+        minutes: { type: [number, "null"] }
+      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read, minutes]
     mutates_checkout: false
     depends_on: [round-3-commit]
     with:
@@ -347,6 +357,8 @@ nodes:
     with:
       rows: "$round-2-decide.output.rows"
       outcome: "$round-3.output.outcome"
+      apply: "$round-3.output.apply"
+      r2_status: "$round-3.output.r2_status"
       facts: "$round-3-facts.output"
       commit: "$round-3-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -403,7 +415,8 @@ nodes:
         source: { type: string }
         cost: { type: [number, "null"] }
         cost_read: { type: boolean }
-      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read]
+        minutes: { type: [number, "null"] }
+      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read, minutes]
     mutates_checkout: false
     depends_on: [round-4-commit]
     with:
@@ -433,6 +446,8 @@ nodes:
     with:
       rows: "$round-3-decide.output.rows"
       outcome: "$round-4.output.outcome"
+      apply: "$round-4.output.apply"
+      r2_status: "$round-4.output.r2_status"
       facts: "$round-4-facts.output"
       commit: "$round-4-commit.output"
       rounds_max: "$chain-start.output.rounds"
@@ -489,7 +504,8 @@ nodes:
         source: { type: string }
         cost: { type: [number, "null"] }
         cost_read: { type: boolean }
-      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read]
+        minutes: { type: [number, "null"] }
+      required: [ok, error, run, keys, held_rows, request, source, cost, cost_read, minutes]
     mutates_checkout: false
     depends_on: [round-5-commit]
     with:
@@ -519,12 +535,44 @@ nodes:
     with:
       rows: "$round-4-decide.output.rows"
       outcome: "$round-5.output.outcome"
+      apply: "$round-5.output.apply"
+      r2_status: "$round-5.output.r2_status"
       facts: "$round-5-facts.output"
       commit: "$round-5-commit.output"
       rounds_max: "$chain-start.output.rounds"
       budget: "$chain-start.output.budget"
 
-  # 鎖の出力。周の子かその周のノードが落ちて後ろが飛んでも走る（resume のたびに走り直す）
+  # 最後の差分と chain.md。周の子かその周のノードが落ちて後ろが飛んでも走る（resume のたびに走り直す）
+  - id: final-diff
+    script: final_diff
+    runtime: uv
+    timeout: 1728000000
+    output_format:
+      type: object
+      properties:
+        ok: { type: boolean }
+        reason: { type: string }
+        apply: { type: [object, "null"] }
+        sealed: { type: [object, "null"] }
+        report: { type: [object, "null"] }
+        kept: { type: integer }
+        skipped: { type: array, items: { type: integer } }
+        outcome: { type: string }
+        r2_status: { type: [string, "null"] }
+      required: [ok, reason, apply, sealed, report, kept, skipped, outcome, r2_status]
+    mutates_checkout: false
+    depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide]
+    trigger_rule: all_done
+    always_run: true
+    with:
+      start: { from: "$chain-start.output", if_skipped: null }
+      d1: { from: "$round-1-decide.output", if_skipped: null }
+      d2: { from: "$round-2-decide.output", if_skipped: null }
+      d3: { from: "$round-3-decide.output", if_skipped: null }
+      d4: { from: "$round-4-decide.output", if_skipped: null }
+      d5: { from: "$round-5-decide.output", if_skipped: null }
+
+  # 鎖の出力。周の子かその周のノードか final-diff が落ちて後ろが飛んでも走る（resume のたびに走り直す）
   - id: result
     script: result
     runtime: uv
@@ -540,13 +588,20 @@ nodes:
         text: { type: string }
         request: { type: string }
         rounds: { type: array, items: { type: object } }
-      required: [closed, ok, reason, act, word, text, request, rounds]
+        apply: { type: [object, "null"] }
+        sealed: { type: [object, "null"] }
+        report: { type: [object, "null"] }
+        outcome: { type: string }
+        r2_status: { type: [string, "null"] }
+        stop_reason: { type: string }
+      required: [closed, ok, reason, act, word, text, request, rounds, apply, sealed, report, outcome, r2_status, stop_reason]
     mutates_checkout: false
-    depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide]
+    depends_on: [chain-start, round-1-decide, round-2-decide, round-3-decide, round-4-decide, round-5-decide, final-diff]
     trigger_rule: all_done
     always_run: true
     with:
       start: { from: "$chain-start.output", if_skipped: null }
+      final: { from: "$final-diff.output", if_skipped: null }
       d1: { from: "$round-1-decide.output", if_skipped: null }
       d2: { from: "$round-2-decide.output", if_skipped: null }
       d3: { from: "$round-3-decide.output", if_skipped: null }

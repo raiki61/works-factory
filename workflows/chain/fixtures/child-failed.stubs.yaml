@@ -4,5 +4,5 @@ fixture:
   expect: "failed"
   fail-node: "round-1"
   inputs: {"rounds": "3", "request": "request.json"}
-  reached: ["chain-start", "result"]
+  reached: ["chain-start", "final-diff", "result"]
 exec-code: true

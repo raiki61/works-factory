@@ -11,7 +11,6 @@
 - `injectors` 包みが足す system prompt の塊: AI を起こす包み（前の works の adapter.py の INJECTORS と --append-system-prompt）を持ってきていない（docs/design.md:474 で落とした）。system prompt を足すのは Archon の AI ノードの systemPrompt（workflows/plan-review・workflows/eyes の YAML）がノードごとに字で担う
 - `replycontract` 返答の契約: 返答を本文で受けて型を確かめ出し直させる包みの旗 text-reply と replycontract.py を持ってきていない（docs/design.md:474 で包みを落とした）。返答の型は Archon の AI ノードの output_format（SDK の構造化出力 StructuredOutput）が担う
 - `writes` 役の返答を共有ボードに書く規則: graphloops の engine の共有ボードと書く規則（record.py の apply_writes・rules の WRITE_OPS）を持ってきていない（docs/design.md の graphloops の写しの行で落とした）。役の返答を後ろへ渡すのは Archon のノードの出力（$<ノード>.output）と各サブグラフの script が置き場に書くファイル
-- `chain` 周の鎖（頼まれたら周をつなぐ）: 周の鎖（頼まれたら run を何周もつなぎ差分 1 本と報告 1 本で返す）は works-factory に作られていない: 住処 chain.py も鎖の止めの語・chain.json の控えも無く（柵の 2 本とも当たり 0 件）、run は 1 周で、docs/design.md は置き先をメイングラフの後ろの workflow: のノードとして未決にし、作るまでは Archon の --adopt・--supersedes が担うと書く
 - `core-seams` 写しの核の差し替えの口: 写しの核（graphloops の review-loop）が無く（lib/graphloops は engine の型検査・描き方の 7 ファイルだけ）、走る時に写しの名を替える CORE_OVERRIDES・組み手の印 rl_builder も無い。承認ノードの組み立て（gatemarks.plan_gate_items）などはグラフの script が直に呼び、写しのバイトの手直しは写しの台帳の読み口 bin/_lib/copyledger.py の ! 行が担う
 
 ## 平たく言うと（3 行）
