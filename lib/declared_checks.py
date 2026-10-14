@@ -9,7 +9,7 @@
   _reused_material・_reused_note
 - 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci・baseline_line
 - 元の盤面の部分を盤面なしで組み直した物: _planned_run・_declaration_moved（宣言の照合）・_fall_back（任せ先へ落とす）
-- 新しい関数: material_problems・drop_copy・_cant_status
+- 新しい関数: material_problems・role_material_problems・drop_copy・_cant_status
 """
 import contextlib
 import json
@@ -53,10 +53,15 @@ FIELDS = ("count", "detail", "checked", "reason")
 STATUS_FIELDS = {"found": ("count", "detail"), "clean": ("checked",), "not_applicable": ("reason",),
                  "awaiting_human": ("reason",), "not_run": ("reason",)}
 NUMERIC_FIELDS = ("count",)
+SYSTEMS = "systems"   # 任せ先の役が書く系統の名の分け {ran, unran}（green_cert.ran_steps と同じ形。冒頭の句が読む）
+NAMES_SCHEMA = {"type": "array", "items": {"type": "string"}}
+SYSTEMS_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["ran", "unran"],
+                  "properties": {"ran": NAMES_SCHEMA, "unran": NAMES_SCHEMA}}
 MATERIAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["status"],
                    "properties": {"status": {"type": "string", "enum": list(STATUSES)},
                                   **{k: {"type": "integer", "minimum": 0} if k in NUMERIC_FIELDS else {"type": "string"}
-                                     for k in FIELDS}}}
+                                     for k in FIELDS},
+                                  SYSTEMS: SYSTEMS_SCHEMA}}
 MODES = ("base", "final")   # 形: 判定の前・修正の後
 RUN_FILE = "run.json"   # 形ごとの置き場の走らせた記録（1 件ごとの結末 cases を持つ）。ノード run が書き、result が読む
 BASELINE_HEAD = "修正前のテスト"
@@ -591,6 +596,21 @@ def material_problems(material, *, mode: str) -> list:
     if status in CANT.values() and status != cant:
         probs.append(f"{mode} の形は走らせられなければ {cant} で書け（{status} は使わない。修正前は緑を仮定せず人待ち、"
                      "修正後は人待ちを新しく立てない）")
+    return probs
+
+
+def role_material_problems(material, *, mode: str) -> list:
+    """任せ先の CI の役の素材の material_problems に、final の not_run の系統の名の分け（SYSTEMS。走らせられなかった系統が 1 つ
+    以上）が要る決まりを足した物（#514）。役の run は段の行を持たないので、一部の系統だけ走らせた時に冒頭の句が「走っていない」と
+    言わずに系統を名指すには、役が名を分けて書くほかない。engine の素材は段の行から分けるので要らない"""
+    probs = material_problems(material, mode=mode)
+    if mode != "final" or not isinstance(material, dict) or material.get("status") != CANT[True]:
+        return probs
+    systems = material.get(SYSTEMS)
+    if systems is None:
+        probs.append(f"素材は not_run なので '{SYSTEMS}' に走らせた系統（ran）と走らせられなかった系統（unran）の名を分けて書け")
+    elif isinstance(systems, dict) and systems.get("unran") == []:
+        probs.append(f"素材は not_run なので '{SYSTEMS}' の unran に走らせられなかった系統の名が要る（空）")
     return probs
 
 

@@ -616,7 +616,7 @@
   - 今: 表
   - 証: tests/workflows/test_line.py::AskReplanCase.test_unattended_passes_widening_only_and_records_it（元の字を assert）
   - 本物の run: 筋書きでのみ
-  - 狭め: #74 で名指し済み（S50。不可でない → 戻す）。部分 B2 で字を元の形に戻した。報告へ届けるのは部分 C（S50）。無人の run は最後の関所が開かないので関所の文には出ない
+  - 狭め: #74 で名指し済み（S50。不可でない → 戻す） → 部分 B2 で字を元の形に戻した。報告へ届けるのは部分 C（S50）。無人の run は最後の関所が開かないので関所の文には出ない
 - L-G46 案の直しの関所の答え: continue で 2 度目の修正へ、stop で止める。読めない計画は聞く側に倒す
   - 元: works/.shared/core/replan.py:699-772 `answer`
   - 今: 表
@@ -640,7 +640,7 @@
   - 今: 表
   - 証: tests/workflows/test_line.py::AskFinalCase.test_protected_hits_and_conflicts_open_in_every_mode・tests/workflows/test_line.py::AskFinalCase.test_allowed_test_changes_open_in_every_mode、tests/workflows/test_gate_head.py::FinalHeadCase.test_protected_named_in_the_first_line・tests/workflows/test_gate_head.py::FinalHeadCase.test_final_edge_puts_the_head_before_the_sections・tests/workflows/test_gate_head.py::FinalSectionsCase.test_conflict_section_comes_first_without_protected・tests/workflows/test_gate_head.py::FinalSectionsCase.test_protected_section_says_how_to_see_the_diff、筋書き conflict-ask と tests/e2e/test_line_scenarios.py::ConflictGateTest
   - 本物の run: gate-final の message の「## 守りのパスを触った」
-  - 狭め: 申し出の数え方（L-W24・S55）と守りの節の差分の見方・一覧のパス（M29）は部分 B2 で戻した
+  - 狭め: 申し出の数え方（L-W24・S55）と守りの節の差分の見方・一覧のパス（M29） → 部分 B2 で戻した
 - L-G50 守りのパスか申し出が在るのに最後の関所が開かなかった run は、差分を当てずに止める
   - 元: works/darkfactory/lib/line_edge.py:1187-1201
   - 今: 表
@@ -670,7 +670,7 @@
   - 今: 表
   - 証: lib/tests/test_stopby.py::Pack.test_declares_are_literal_unique_and_outside_table・lib/tests/test_stopby.py::Pack.test_words_unchanged・lib/tests/test_stopby.py::LineWordsCase.test_line_words_live_in_stopby_only（線の script に語の字を戻すと赤）
   - 本物の run: 筋書きでのみ
-  - 狭め: 無し（部分 0 で戻した）
+  - 狭め: 無し（→ 部分 0 で戻した）
 - L-G55 関所の間で走っている run を外から止める札（理由と止めた人が要る・最初の理由が正・読めない札も止める・終わった run には置かない・報告を出す stopped_by_request）
   - 元: works/.shared/core/halt.py:37-120 `place`・`seen`・`over`、works/darkfactory/lib/line_edge.py:1163-1201・:280 `_halted_out`、works/dev/stop.sh
   - 今: 無し（表）

@@ -262,7 +262,7 @@
   - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_repo_line_names_base_and_review_md・tests/workflows/test_plan_review.py::ReviewAcceptCase.test_repo_line_reads_review_rev_apart_from_base（#120 で足し、#207 で差分の run にした。消すと赤: write_brief の repo_line を外すと赤、読む版を差分の根に替えると両方赤）
   - 本物の run: plan/r1/brief-1.md の「リポジトリ:」の行
-  - 狭め: 無し（#207 で戻した。前は読む版を BASE と同じ値にしていた）
+  - 狭め: 無し（→ #207 で戻した。前は読む版を BASE と同じ値にしていた）
 
 - P036 並行 PR の外した範囲（判定の隣の pr-excluded.json）を頭で名指し、無ければ貼らない。
   - 元: planblk.py:299 `head`（EXCLUDED_HEAD :111）、試験 works/tests/test_blk_plan.py:1042 test_excluded_range_named

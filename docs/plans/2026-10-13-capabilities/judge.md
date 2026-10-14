@@ -259,7 +259,7 @@ PR #76 の「能力と受け入れの、証の試験」の名は全部 main に�
   - 今: 表
   - 証: tests/workflows/test_judge.py::ReadsTest.test_pr_check_must_read_its_brief
   - 本物の run: 筋書きでのみ
-  - 狭め: 無し（#354 で戻した。今の works の reads.py と同じく受け付けの条件にせず、欠けは節 pr-check-reads の返りと報告の「4.」に出す。確かめはフックの記録で、provider_event の側は報告が節ごとに出す）。前の欄: #76 で入れていない（当時は未決 U6。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:`。入れるのは後の issue）
+  - 狭め: 無し（→ #354 で戻した。今の works の reads.py と同じく受け付けの条件にせず、欠けは節 pr-check-reads の返りと報告の「4.」に出す。確かめはフックの記録で、provider_event の側は報告が節ごとに出す）。前の欄: #76 で入れていない（当時は未決 U6。段 1b で U6 を決めた（docs/design.md の U6）: 役が自分で呼んだ Read・Edit・Write の `file_path` は Archon の `provider_event` から取れ、下請け（Agent）の中の呼びと読んだ時のファイルの sha は取れない。取れない分を取る道の候補は PostToolUse のフック（書き込みの記録は PR #178 でこの道の `bin/_lib/record-write.py` に戻った。読んだ証拠のフックは無い）か節の `hooks:`。入れるのは後の issue）
 - J41 並行 PR を投稿しない形に下げたことを宣言し（`downgrades.json` の p0.parallel_pr と r2.design）、報告の頭に「下げている所: N 個」を出す
   - 元: works/.shared/core/prcheck.py:322 `downgrades`・:345 `head_downgrades`・works/darkfactory/downgrades.json・works/.shared/core/entry.py:1107
   - 今: 表

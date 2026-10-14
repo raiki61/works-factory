@@ -53,9 +53,12 @@ class IsolateCase(unittest.TestCase):
         """#492: 既定は控えず（利用者の env から継いだ古い控えも落とす）、userenv.OPT_IN=1 の時だけ隔離の前の HOME・XDG_* を控える。
         控える名は、隔離する名から Archon と Claude Code の置き場を除いた物"""
         env = {"HOME": "/u", "XDG_CONFIG_HOME": "/u/.cfg", "CLAUDE_CONFIG_DIR": "/u/.c", userenv.RECORD: "stale",
-               userenv.RAN_DIR_ENV: "/stale"}
+               userenv.RAN_DIR_ENV: "/stale", userenv.MARK: "/stale/mark"}
         self.assertNotIn(userenv.RECORD, isolate.isolate(env, self.run_home))
         self.assertNotIn(userenv.RAN_DIR_ENV, isolate.isolate({**env, userenv.OPT_IN: "1"}, self.run_home))
+        for asked in ({}, {userenv.OPT_IN: "1"}):
+            with self.subTest(asked=asked):   # #514: 継いだ印のパスは、道を付けても付けなくても子に残さない
+                self.assertNotIn(userenv.MARK, isolate.isolate({**env, **asked}, self.run_home))
         record = json.loads(isolate.isolate({**env, userenv.OPT_IN: "1"}, self.run_home)[userenv.RECORD])
         self.assertEqual(record["HOME"], "/u")
         self.assertEqual(set(userenv.NAMES), set(isolate.DIRS) - {"ARCHON_HOME", "CLAUDE_CONFIG_DIR"})

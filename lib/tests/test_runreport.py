@@ -169,6 +169,15 @@ class BuildCase(Base):
         for note in runreport.HEAD_NOTES:
             self.assertNotIn(note, green)
 
+    def test_final_tests_partly_started_name_the_steps_in_the_head(self):
+        """#514: 宣言の段の一部だけ起こせた最後のテストは、冒頭の 1 行目が起こした段と起こせなかった段を名指し、「走っていない」と言わない"""
+        first = self.first_line({"ok": False, "green": False, "red_cause": "incomplete", "by": "engine",
+                                 "ran_steps": {"ran": ["unit"], "unran": ["lint"]}})
+        self.assertIn(green_cert.PARTLY_RAN, first)
+        self.assertIn("unit", first)
+        self.assertIn("lint", first)
+        self.assertNotIn(green_cert.NOT_RAN, first)
+
     def test_users_environment_for_target_commands_is_named_in_the_head(self):
         """#492: 対象のコマンドを利用者の HOME・XDG で走らせた run だけ、冒頭の 1 行目が AI の試験のコードが資格に届いたと言う"""
         self.assertIn(userenv.NOTE, self.first_line(user_env=True))
@@ -866,6 +875,18 @@ class AcceptCase(Base):
                 self.assertIn(note, got["reason"])
                 named = json.dumps({"text": f"{note}。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
                 self.assertTrue(runreport.accept(named, self.PASS, out_dir=self.out)["ok"])
+
+    def test_partly_ran_note_must_keep_its_step_names(self):
+        """#514: 機械の冒頭が段を名指した PARTLY_RAN を言う時、句の頭だけで名を落とした返答は拒み、名まで写した返答は受け取る"""
+        self.out.mkdir(parents=True)
+        note = green_cert.ran_note(green=False, red_cause="incomplete", by="engine", steps={"ran": ["unit"], "unran": ["e2e"]})
+        (self.out / report.REPORT_FILE).write_text(f"# 報告\n\n起きたこと: 赤。{note}\n\n## 1. 人が決めること\n\n- 無い\n",
+                                                   encoding="utf-8")
+        bare = json.dumps({"text": f"{green_cert.PARTLY_RAN}。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
+        got = runreport.accept(bare, self.PASS, out_dir=self.out)
+        self.assertEqual((got["ok"], got["kind"]), (False, "answer"))
+        named = json.dumps({"text": f"{note}\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
+        self.assertTrue(runreport.accept(named, self.PASS, out_dir=self.out)["ok"])
 
     def test_format_and_terms_rejected_first(self):
         bad_cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)

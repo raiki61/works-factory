@@ -108,7 +108,7 @@
   - 今: 表
   - 証: lib/tests/test_tdd_outside.py::TestAcceptOutsideTier.test_zero_selected_cases_are_not_reported_as_no_new_red（accept_reply の tests_trace の呼び出しを消すと赤）・tests/workflows/test_fix.py::GroupChildScriptsCase.test_group_end_carries_permits_mismatches_and_accept_notices_to_the_parent_collect（group-end の accept_trace・collect の子の行の集めを消すと赤）
   - 本物の run: 筋書きでのみ
-  - 狭め: 戻した（#121）。読み手（最後の関所と報告）は配線の部分 D2（#211）
+  - 狭め: → #121 で戻した。読み手（最後の関所と報告）は配線の部分 D2（#211）
 
 - F015 テストの凍結（輪の中）: 緑の後、その単位のテストのファイルの hash を控え、直し・整えの段でテストのファイル（ほかの単位の既存の test 関数の本体、.py 以外は消した・置き換えた行）を変えたら拒む。テストを飛ばした・消したも拒む（keep-essence 3）
   - 元: works/blk-fix/lib/tddloop.py:286 `hashes`・:1341 `_frozen_moved`・:1183 `_other_test_edits`・:1239 `_vanished_problems`
@@ -234,7 +234,7 @@
   - 今: 表
   - 証: tests/workflows/test_fix.py::RolesCase.test_tdd_role_continues_within_a_unit、lib/tests/test_blk_fix_tdd.py::TestStart.test_prep_marks_a_new_unit_only_when_the_unit_changes、tests/workflows/test_fix.py::GroupChildScriptsCase.test_tdd_prep_and_step_route_the_unit_change_between_the_two_roles
   - 本物の run: Archon の run の出来事（同じ単位の 2 周目の tdd 節の session の id が 1 周目と同じか）。健全な run で観察できる
-  - 狭め: 戻した（#121）。源: 止めた Archon packages/workflows/src/schemas/loop.ts:83（fresh_context 既定 false）・dag-executor.ts:4778・:4831（前の周の会話を渡す）・:9583-9586（並びの層は会話を切る）・:10277-10284（context fresh）・:10662（完了した節だけ会話を進める）
+  - 狭め: → #121 で戻した。源: 止めた Archon packages/workflows/src/schemas/loop.ts:83（fresh_context 既定 false）・dag-executor.ts:4778・:4831（前の周の会話を渡す）・:9583-9586（並びの層は会話を切る）・:10277-10284（context fresh）・:10662（完了した節だけ会話を進める）
 
 - F033 借りたスキルの座: TDD の役に skills [test-driven-development] を付け、指示書に座の 1 文と無人の読み替えの全文を載せる。座を組めない（写しが固定と違う）時は座の無い指示書に逃げず止める（Broken）
   - 元: works/blk-fix/blk-fix.yaml:188（skills）、works/blk-fix/lib/tddloop.py:807 `prep`（seat.section）、旧試験 works/tests/test_blk_fix_tdd.py:536 `test_tdd_seat_failure_stops_with_broken`
@@ -380,14 +380,14 @@
   - 今: 表
   - 証: lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_last_turn_drops_only_the_excused_row・lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_last_turn_parks_the_duplicate_and_absorbs_the_excused_row
   - 本物の run: 筋書きでのみ（答え待ちの問いで外れた単位を修正役が 3 回直そうとする run）
-  - 狭め: 戻した（#121）
+  - 狭め: → #121 で戻した
 
 - F107 .archon/ の下（自分食いの run の pack の写し）を申告した・変えた返答を拒む（check_pack_copy）
   - 元: works/blk-fix/scripts/accept.py:38 `check_pack_copy`・:653
   - 今: 表
   - 証: lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_pack_copy_change_is_rejected、tests/workflows/test_fix.py::GroupChildScriptsCase.test_fix_accept_rejects_a_change_under_the_skip_head・tests/workflows/test_fix.py::FixLoopScriptsCase.test_prep_snapshots_the_skip_head_before_marking_the_stage_head（控えを段の頭の印より先に書く）
   - 本物の run: 筋書きでのみ
-  - 狭め: 戻した（#121）。控えの無い置き場（lib だけで呼ぶ時）は申告だけを見る（元は止めた）
+  - 狭め: → #121 で戻した。控えの無い置き場（lib だけで呼ぶ時）は申告だけを見る（元は止めた）
 
 - F108 承認済みの修正案の項目と差分を照らす（範囲 allowed_paths の外・out_of_scope・adds の識別子が差分に無い・canonical の外の同名の定義・removes の識別子が残る・tests に無いテストを足した・tests のテストが無い）
   - 元: works/blk-fix/lib/planscope.py `check`・works/blk-fix/scripts/accept.py:51-62
@@ -639,7 +639,7 @@
   - 今: 表
   - 証: tests/workflows/test_fix.py::FixLoopScriptsCase.test_fix_prep_writes_the_prompt_and_skips_without_duty、lib/tests/test_seat.py::SeatCase.test_g1_files_carry_the_works_rules_and_the_query_rule、lib/tests/test_fix_rules.py::BriefUnitsCase.test_dispatched_leaves_out_green_units、tests/workflows/test_fix.py::RolesCase.test_borrowed_skills_sit_on_the_seat_roles
   - 本物の run: 組の子の置き場の `g1-impl-1.md`・`g1-review-1.md`・`g1-1.patch`（TDD の輪が緑にしない単位が在る時。種に実行器が在れば輪が両方を緑にしやすく、下請けの道は通らないこともある）
-  - 狭め: #94 で一度外し、マージ前の独立の目の指摘 8 で戻した（9a78226）。修正役の並べの枝の `REVIEW_EARLIER`・単位の worktree の引数は外したまま（枝が無い）。失う能力は無い
+  - 狭め: #94 で一度外し → マージ前の独立の目の指摘 8 で戻した（9a78226）。修正役の並べの枝の `REVIEW_EARLIER`・単位の worktree の引数は外したまま（枝が無い）。失う能力は無い
 
 - F144 借りた superpowers の座（implementer・task-review・tdd・receiving-code-review）を、固定した写し（pin）と照らして指示書に埋め、無人の読み替え（unattended.md）を足す。写しが固定と違えば止める
   - 元: works/.shared/core/seat.py・works/.shared/core/spseam.py `pin_problems`・`fill`
@@ -729,7 +729,7 @@ B の数: 50 行 / 今が無し 5（F106・F107・F130・F136・F147）/ 証が�
   - 今: 表
   - 証: lib/tests/test_fix_seams.py::FixAcceptSeamCase.test_fixer_query_claim_tries_the_judge_query
   - 本物の run: 筋書きでのみ
-  - 狭め: 戻した（#121）
+  - 狭め: → #121 で戻した
 
 - F206 同じ申し出は積み増さない。裁定がもう外した単位の申し出は、出し直されても知っている申し出として確かめずに外す
   - 元: works/.shared/core/conflict.py:539 `park`、works/blk-fix/scripts/accept.py:22-23
@@ -791,7 +791,7 @@ B の数: 50 行 / 今が無し 5（F106・F107・F130・F136・F147）/ 証が�
   - 元: works/.shared/core/conflict.py:433 `set_replan`
   - 今: 表
   - 証: lib/tests/test_conflict_kinds.py::TestReplanState（9 本。例 lib/tests/test_conflict_kinds.py::TestReplanState.test_bad_transition_is_board_gap・lib/tests/test_conflict_kinds.py::TestReplanState.test_amended_rows_return_units_to_duty）、lib/tests/test_fix_seams.py::ConflictSeamCase.test_ask_human_is_asked_and_amended_returns_to_duty
-  - 本物の run: 筋書きでのみ。ただし今の線で AMENDED に移す呼び手は fix の中に無い（案の直しは線が plan を回し直して refix の別の置き場で直す）。AMENDED を読む道は F216 のとおり線の上で効かない
+  - 本物の run: 筋書きでのみ（案の直しは線が plan を回し直して refix の別の置き場で直し、その支度が 1 回目の段の待つ行を写す時に AMENDED へ移す: lib/conflict.py::adopt_prior）
   - 狭め: F216 を参照
 
 - F215 fix_plan_item の裁定の項目の番号を返り replan_items で線へ返し、線が案の直しと 2 回目の修正（only_items の単位だけ）を差し込む
@@ -997,14 +997,14 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 元: works/.shared/core/refix.py:400 `accept_fix`（writes.check）
   - 今: 表
   - 証: lib/tests/test_blk_refix.py::RefixCase.test_refix_unrecorded_write_rejected_and_declared_write_passes、lib/tests/test_blk_refix.py::RefixCase.test_refix_without_record_notes_the_run、tests/workflows/test_fix.py::DeltaScriptsCase.test_refix_undeclared_write_is_rejected
-  - 本物の run: 筋書きでのみ（審査役が直す義務を出して手直しが起きた run だけ、置き場に `refix1-head.json` を書く。記録の包みが無いので常に記録の無い run の道（B の F102・F103 と同じ））
-  - 狭め: 記録の包みは #94 で落ちた（当時は U6 待ち。段 1b の U6 の決めで記録はフックが要ると分かり、PR #178 で戻した。B の F102 と同じ）
+  - 本物の run: 筋書きでのみ（審査役が直す義務を出して手直しが起きた run だけ、置き場に `refix1-head.json` を書く。書き込みの記録は PostToolUse のフックが置き場の `writes.jsonl` に書き（PR #178）、記録の無い run の道は記録の根の無い起動だけ）
+  - 狭め: 記録の包みは #94 で落ちた（当時は U6 待ち。段 1b の U6 の決めで記録はフックが要ると分かり → PR #178 で戻した。B の F102 と同じ）
 
 - F311 手直しの brief の穴ごとの名札（hole ties）: 穴を修正案の項目・単位・修正の changes・準拠の落ちた行・前の往復の穴（2 回目）に結び、どの枝の直しかを手直しの役に見せる
   - 元: works/.shared/core/holeties.py:94 `tie`・:154 `note`、works/.shared/core/refix.py の tie_items・hole_ties
   - 今: 表
   - 証: lib/tests/test_holeties.py::TieCase、lib/tests/test_blk_refix.py::RefixCase.test_compliance_fail_reaches_ties、lib/tests/test_blk_refix.py::RefixCase.test_review2_then_ties2
-  - 本物の run: `refix1-brief.json` の ties（手直しが起きた時）。事前審査の穴の名札は F302 により付かない
+  - 本物の run: `refix1-brief.json` の ties（手直しが起きた時）。事前審査の穴の名札は、事前審査が穴を挙げた run だけ
   - 狭め: 無し（事前審査の穴の分は F302）
 
 - F312 差分の審査の穴の名札を、報告と最後の人の関所に枝ごとの行として出す（report.branch_rows・holeties.count_line・holeties.lines）
@@ -1075,7 +1075,7 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 今: 表
   - 証: tests/workflows/test_fix.py::DeltaScriptsCase.test_empty_diff_without_claims_does_not_launch_the_review
   - 本物の run: 筋書きでのみ（健全な run は差分が在る）
-  - 狭め: 戻した（#121）
+  - 狭め: → #121 で戻した
 
 - F322 前の試みの審査の材料・控え（brief・座・受けた審査・判定の控え）を切りの時に消し、前の往復の穴を義務に混ぜない
   - 元: works/.shared/core/refix.py `_drop_stale`
@@ -1124,7 +1124,7 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 今: 表
   - 証: tests/workflows/test_fix.py::DeltaScriptsCase.test_lens_collect_failure_is_reported_not_silent
   - 本物の run: 筋書きでのみ
-  - 狭め: 止めずに知らせる形で戻した（#121。fix は落ちないを約束にした）。読み手（最後の関所と報告）は配線の部分 D2（#211）
+  - 狭め: → #121 で止めずに知らせる形で戻した（fix は落ちないを約束にした）。読み手（最後の関所と報告）は配線の部分 D2（#211）
 
 - F329 レンズの結果を報告に出す: 走ったか・読めたか・採った／採らなかった指摘の数・落ちたレンズ。落ちたレンズは次の run の依頼に「再実行の要あり」で運ぶ。見ていない観点の見出し（UNSEEN_LENS_HEADING）を立てる
   - 元: works/.shared/core/report.py:777 `lens_next_items`・:1567 の lens.summary の行・:2069（lens.report_lines）、works/.shared/core/lens.py `summary`・`report_lines`
@@ -1235,7 +1235,7 @@ D の数: 31 行 / 今が無し 6（F312・F321・F328・F329 と、本物の ru
   - 今: 表
   - 証: tests/workflows/test_fix.py::BlockScriptsCase.test_join_backs_out_the_later_group_on_a_semantic_clash
   - 本物の run: 種で組が 2 つなら、mean と clamp の直しが同じ stats.py に当たるので本物の run で起きうる。join.json の returned と rerun-<group_id>/ のログで見える
-  - 狭め: 戻した（#121。F411 の (1)(2) で埋まる）
+  - 狭め: → #121 で戻した（F411 の (1)(2) で埋まる）
 
 - F413 子の結果のファイルが無い（子が落ちた）組は当てず、単位を not_done・組を returned: false と理由にする
   - 元: works/blk-fix/lib/tddlanes.py（TestSettle.test_unfinished_lane_goes_back_to_serial）、fixlanes.py（TestJoin.test_unfinished_lane_goes_back）

@@ -564,7 +564,8 @@ class OutsideEnvCase(unittest.TestCase):
                 self.assertFalse(userenv.ran(top))
 
     def test_user_env_marker_only_after_the_child_started(self):
-        """#504: 戻した env の印（userenv.MARK）は子に渡さず、子が起きた時だけ置く。起こせなかったコマンドは印を残さない"""
+        """#504: 戻した env の印（userenv.MARK）は子に渡さず、子が起きた時だけ残す。起こせなかったコマンドは印を残さず、前に起きた
+        コマンドの印は消さない"""
         record = json.dumps({"HOME": "/u"})
         with tempfile.TemporaryDirectory() as top:
             env = tree_run.outside_env({**os.environ, userenv.RECORD: record, userenv.RAN_DIR_ENV: top})
@@ -576,6 +577,33 @@ class OutsideEnvCase(unittest.TestCase):
                               env=env)
             self.assertEqual((rc, seen.read_text()), (0, ""))
             self.assertTrue(userenv.ran(top))
+            with self.assertRaises(OSError):
+                tree_run.run([os.path.join(top, "no-such-tool")], env=env)
+            self.assertTrue(userenv.ran(top))
+
+    def test_user_env_marker_that_cannot_be_written_starts_nothing(self):
+        """#514: 印を置けなければ、利用者の HOME・XDG でコマンドを起こさず、MARK_FAILED を名指した OSError（起こせなかった）にする。
+        起こしてから置けないと、利用者の環境で走らせたのを報告の冒頭が言い漏らす"""
+        record = json.dumps({"HOME": "/u"})
+        with tempfile.TemporaryDirectory() as top:
+            env = tree_run.outside_env({**os.environ, userenv.RECORD: record, userenv.RAN_DIR_ENV: top})
+            missing = pathlib.Path(top) / "missing" / userenv.RAN_FILE
+            env[userenv.MARK] = str(missing)
+            seen = pathlib.Path(top) / "seen"
+            with self.assertRaises(OSError) as raised:
+                tree_run.run([sys.executable, "-c", f"open({str(seen)!r}, 'w')"], env=env)
+            self.assertIn(tree_run.MARK_FAILED, str(raised.exception))
+            self.assertFalse(seen.exists())
+            self.assertFalse(missing.exists())
+
+    def test_inherited_user_env_marker_is_not_written_without_record(self):
+        """#514: 起こした殻から継いだ userenv.MARK は、道を付けていない（RECORD の無い）run では外れ、印を書かない"""
+        with tempfile.TemporaryDirectory() as top:
+            mark = pathlib.Path(top) / userenv.RAN_FILE
+            env = tree_run.outside_env({**os.environ, userenv.MARK: str(mark)})
+            self.assertNotIn(userenv.MARK, env)
+            self.assertEqual(tree_run.run([sys.executable, "-c", "pass"], env=env), 0)
+            self.assertFalse(mark.exists())
 
     def test_without_user_record_home_stays(self):
         self.assertEqual(tree_run.outside_env({"HOME": "/run/home"}), {"HOME": "/run/home", "PYTHONDONTWRITEBYTECODE": "1"})
