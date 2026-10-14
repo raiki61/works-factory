@@ -72,11 +72,15 @@ def read_keychain(service, runner=subprocess.run):
     return tok, "keychain"
 
 
+def active(k, v):
+    """その名と値が認証として効くか。旗は値が「使わない」でないことまで見る。"""
+    return bool(v) and not (k in FLAGS and v in OFF)
+
+
 def inherited(env):
-    """親の環境に在る認証の名前（無ければ None）。旗は値が「使わない」でないことまで見る。"""
+    """親の環境に在る認証の名前（無ければ None）"""
     for k in INHERITED:
-        v = env.get(k)
-        if v and not (k in FLAGS and v in OFF):
+        if active(k, env.get(k)):
             return k
     return None
 

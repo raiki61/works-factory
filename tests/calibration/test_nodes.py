@@ -22,11 +22,11 @@ class NodesCase(unittest.TestCase):
         reviewbench.write(self.out, "works-factory", KEY, doc, record)
         self.findings = doc["findings"]
 
-    def judged(self):
+    def judged(self, second="novel_fp"):
         details = self.out / "works-factory" / "scoring" / "results.details.json"
-        details.parent.mkdir(parents=True)
+        details.parent.mkdir(parents=True, exist_ok=True)
         details.write_text(json.dumps([{"pr_key": KEY, "candidate_findings": [
-            {**self.findings[0], "status": "matched_tp"}, {**self.findings[1], "status": "novel_fp"}]}]), encoding="utf-8")
+            {**self.findings[0], "status": "matched_tp"}, {**self.findings[1], "status": second}]}]), encoding="utf-8")
 
     def rows(self, got) -> dict:
         return {r["node"]: r for r in got["nodes"]}
@@ -74,6 +74,15 @@ class NodesCase(unittest.TestCase):
         self.assertFalse(got["judged"])
         self.assertEqual(sum(r["verdicts"]["unjudged"] for r in got["nodes"]), 2)
         self.assertEqual(sum(r["verdicts"]["hit"] + r["verdicts"]["real"] + r["verdicts"]["wrong"] for r in got["nodes"]), 0)
+
+    def test_unknown_verdict_word_stops_with_its_name(self):
+        for word in ("matched_tp_v2", None):
+            with self.subTest(word=word):
+                self.judged(second=word)
+                with self.assertRaises(reviewbench.BenchError) as caught:
+                    nodes.table(self.out, runner.WorksFactory())
+                self.assertIn(repr(word), str(caught.exception))
+                self.assertIn(KEY, str(caught.exception))
 
     def test_plain_claude_is_one_row_per_task(self):
         record = {"key": KEY, "attempt": str(self.tmp / "nowhere"), "seconds": 60.0, "usd": None,
