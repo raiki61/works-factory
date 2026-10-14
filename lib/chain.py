@@ -1,7 +1,8 @@
-"""周の鎖の決め（考え chain）。標準ライブラリと持ち越しの住処 carry だけを import する。
+"""周の鎖の決め（考え chain）。標準ライブラリと持ち越しの住処 carry・報告の見出しの宣言 promptsection だけを import する。
 
 元は今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の works/.shared/core/chain.py。鎖は、1 回の起動が周ごとの run を最大 MAX_ROUNDS 本つなぐ並び。
-起こす・待つ・承認・再開・費用の合算はグラフの側が持ち、ここは周の間の決め（次を起こすか・止めの語・次の依頼）だけを持つ。
+起こす・待つ・承認・再開・費用の合算はグラフの側が持ち、ここは周の間の決め（次を起こすか・止めの語・次の依頼・最後の差分に採る周）と、
+報告 chain.md の描きだけを持つ。git に触れる手続き（周の結果の commit・最後の差分）はグラフの script が持つ。
 結末の語は書かず、結末の住処 report.OUTCOME_KINDS が引いた種だけを受ける。
 
 - KIND_*: 結末の種（report.OUTCOME_KINDS の値）。closed＝直し済み・直す物が無い、halted＝止まった、human＝人の判断が要る、
@@ -12,15 +13,19 @@
 - next_request(prev_next_doc, first_doc)・held_rows(next_doc)・keys_of(next_doc)・first_of(first_doc, pr): 次の周の依頼と、運ばない
   下書きの行と、残りの行の鍵と、1 周目に名指した PR を足した 1 周目の依頼
 - limits(rounds_raw, budget_raw): 周の数と費用の上限の入力の確かめ
+- pick(rounds) -> (採る周, 採らずに名指す止まった周の並び)・render(doc) -> chain.md の本文（REPORT・REPORT_HEAD・FINAL）
 
 元から変えた所:
 - decide は起こした次の周の状態（facts が None の枝・pending・alive）を見ない。起こした周を待つのはグラフの側になった
 - 下書きの行は facts["held_rows"] から読む（次の依頼の文書を読むのが別のノードになった）
 - 種が読めない時の文で結末の語を名指す（語が無い・語が表に無い）
 - next_request は前の周の constraints（前提の検算の実測）も運ぶ
+- pick は止まった周を、印 stopped でなく結末の種 halted で見分け、周の結果を result でなく周の commit の head で読む
+- render は鎖の控えの代わりに周の決めの行を受け、取り込みの命令を bin/apply <親の run> にする。人が要る時の手順は下書きの在りか
+  （行の source）を名指す。独立の目 R2 の作り直しの残りは書かない（bin/apply が R2 の語で拒む）
 外した物: 起動の手続きと印（pending・pid・launched・tries・LAUNCH_TRIES・_alive）、止めの語 launch_unbound・launch_failed、
 鎖の控えと錠（new_doc・load・save・update・path・locked・_HELD・FILE・LOCK・ENV_KEY）、殻の口（_step・main ほか）、
-pick・render・build_row・REPORT・REPORT_HEAD・FINAL・_count_files（最後の差分と報告は別の課題で移す）。
+build_row・_count_files（周の行は決めのノードの script が組み、ファイルの数は最後の差分のノードが周の commit の差分から数える）。
 """
 import pathlib
 import re
@@ -31,6 +36,7 @@ if _HERE not in sys.path:
     sys.path.append(_HERE)
 
 import carry  # noqa: E402
+import promptsection  # noqa: E402
 
 KIND_CLOSED, KIND_HALTED, KIND_HUMAN, KIND_WAIT, KIND_OPEN = "closed", "halted", "human", "wait", "open"
 KINDS = (KIND_CLOSED, KIND_HALTED, KIND_HUMAN, KIND_WAIT, KIND_OPEN)
@@ -47,6 +53,8 @@ STOPS = {
     "budget": "次の周で費用の上限を越えうる",
     "cost_unread": "費用が読めない周が在り、上限を守れると言えない",
 }
+REPORT, FINAL = "chain.md", "final.diff"
+REPORT_HEAD = promptsection.Section("# 周の鎖の報告（run {run}）", human="人が読む鎖の報告 chain.md の見出し。役の指示書には貼らない")
 ROUNDS = re.compile(r"[1-9][0-9]*")
 BUDGET = re.compile(r"[0-9]+(\.[0-9]+)?|\.[0-9]+")
 
@@ -160,3 +168,67 @@ def limits(rounds_raw, budget_raw) -> tuple:
     if not BUDGET.fullmatch(budget) or float(budget) <= 0:
         raise ValueError(f"budget_usd は正の数（受けた値: {budget_raw!r}）")
     return int(rounds), float(budget)
+
+
+def pick(rounds: list):
+    """最後の周から戻り、止まりと言われていない（結末の種が halted でなく、周の結果の commit の head が在る）最初の周を採る。
+    (採る周か None, 採らずに飛ばした止まった周の並び)。止まった周は捨てずに名指す（chain.md が差分のパスを添える）"""
+    skipped = []
+    for r in reversed(rounds):
+        if r.get("kind") == KIND_HALTED:
+            skipped.append(r)
+        elif r.get("head"):
+            return r, skipped
+    return None, skipped
+
+
+def _cell(v, fmt="{}", none="読めない"):
+    return none if v is None else fmt.format(v)
+
+
+def render(doc: dict) -> str:
+    """chain.md の本文: 頭の 3 行（何が起きたか・止めた訳・人が見る物）、周ごとの表（周・run・結末・分・$・残り・ファイル）、合計、
+    最後の差分と取り込み、人が要る時の手順。読めない費用は 0 と書かず「読めない」と名指す。
+    doc は {run（親の run）, rounds_max, rounds（周の行。files・diff は最後の差分のノードが足す）, stop（{word, text} か None）,
+    original_base, final（最後の差分のパス。書けなければ空）, apply（取り込む命令）}"""
+    rows = doc.get("rounds") or []
+    kept, skipped = pick(rows)
+    stop = doc.get("stop") or {}
+    final, apply = doc.get("final") or "", doc.get("apply") or ""
+    held = sum(int(r.get("held") or 0) for r in rows)
+    notes = []
+    if skipped:
+        notes.append("止まった周 " + "・".join(f"周 {r['n']}（run {r.get('run') or '—'}。差分 {r.get('diff') or '無し'}）"
+                                          for r in skipped) + " は最後の差分に採らず、差分を残した")
+    if held:
+        notes.append(f"運ばなかった下書きの行 {held} 件（見直して新しい依頼に入れる）")
+    done = f"{len(rows)} 周のうち{('周 ' + str(kept['n']) + ' の結果までを最後の差分にした') if kept else '採れる周が無かった'}"
+    lines = [REPORT_HEAD.format(run=doc.get("run", "")), "",
+             f"- 何が起きたか: 指定 {doc.get('rounds_max')} 周のうち {done}（元の基 {(doc.get('original_base') or '—')[:12]}）",
+             f"- 止めた訳: {stop.get('word') or '（語なし）'}——{stop.get('text', '')}" if stop
+             else "- 止めた訳: 止めていない（次の周の子の run か、その周のノードが落ちた）",
+             f"- 人が見る物: {'。'.join(notes) if notes else '無し'}", "",
+             "| 周 | run | 結末 | 分 | $ | 残り | ファイル |", "| --- | --- | --- | --- | --- | --- | --- |"]
+    for r in rows:
+        lines.append("| {} | {} | {} | {} | {} | {} | {} |".format(
+            r["n"], str(r.get("run", ""))[:8], r.get("outcome") or "（結末を読めない）", _cell(r.get("minutes"), "{:.0f}"),
+            _cell(r.get("cost") if r.get("cost_read") else None, "{:.2f}"), len(r.get("keys") or []), _cell(r.get("files"))))
+    minutes = [r["minutes"] for r in rows if r.get("minutes") is not None]
+    costs = [r["cost"] for r in rows if r.get("cost_read") and r.get("cost") is not None]
+    unread = sum(1 for r in rows if not r.get("cost_read") or r.get("cost") is None)
+    lines += ["", "合計: {} 周・{} 分・{}".format(
+        len(rows), f"{sum(minutes):.0f}" if minutes else "読めない",
+        (f"${sum(costs):.2f}" if costs else "読めない") + (f"（費用が読めない周 {unread} 本を除く）" if costs and unread else ""))]
+    if kept:
+        lines += ["", f"最後の差分: {final or '（書けなかった）'}"]
+        if final:
+            lines.append(f"取り込む: {apply}")
+    if stop.get("word") == "human" or held:
+        source = next((r.get("source") for r in reversed(rows) if r.get("source")), "")
+        steps = [f"下書き {source or '（子の run の next-request.json）'} の draft・source の行を、採る物は印を消し、採らない物は消す",
+                 *([f"取り込むなら {apply}"] if kept and final else []), "見直した依頼を request に渡して周の鎖を起こし直す"]
+        lines += ["", "続けずに、下書きを見直して新しい鎖を起こす（保留して続ける口は作らない）:",
+                  *(f"{i}. {step}" for i, step in enumerate(steps, 1))]
+    for r in skipped:
+        lines.append(f"止まった周 {r['n']} の差分: {r.get('diff') or '無し'}（結末 {r.get('outcome') or '読めない'}）")
+    return "\n".join(lines) + "\n"

@@ -1,6 +1,7 @@
 """緑の認証の行: 作業ツリーの指紋と、赤の原因の分け方と、認証の判定。
 
 - diff_bytes(repo, rev, *, skip=()) -> bytes: 作業ツリーの今の姿の木と rev の間の差分のバイト（差分の組み方の 1 か所。除くパスの頭 skip の下は載せない）
+- diff_between(repo, before, after, *, skip=()) -> bytes: 2 つの commit の間の差分のバイト（diff_bytes と同じ旗）
 - fingerprint(repo) -> {"head", "diff_hash"}: HEAD と、HEAD に対する diff_bytes の sha256
 - matches(cert_fingerprint, repo) -> bool: 認証の指紋が今の作業ツリーと同じか
 - classify(...) -> (red_cause, summary): 事実だけで赤の原因を分ける
@@ -35,6 +36,15 @@ def diff_bytes(repo, rev, *, skip=()) -> bytes:
         return unittrees._git(repo, *unittrees._DIFF, rev, tree, "--", *unittrees.pathspec_without(skip)).stdout
     except (unittrees.UnitTreeError, OSError) as e:
         raise ValueError(f"差分を組めない（{repo}・{rev}）: {e}") from e
+
+
+def diff_between(repo, before, after, *, skip=()) -> bytes:
+    """commit before から after までの差分のバイト（旗と除くパスの頭 skip は diff_bytes と同じ。作業ツリーを読まない）。
+    周の鎖の最後の差分と、周ごとの差分が使う。git の木でない・rev が引けなければ ValueError"""
+    try:
+        return unittrees._git(repo, *unittrees._DIFF, before, after, "--", *unittrees.pathspec_without(skip)).stdout
+    except (unittrees.UnitTreeError, OSError) as e:
+        raise ValueError(f"差分を組めない（{repo}・{before}..{after}）: {e}") from e
 
 
 def fingerprint(repo) -> dict:
