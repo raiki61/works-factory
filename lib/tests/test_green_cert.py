@@ -294,6 +294,36 @@ class RanNoteCase(unittest.TestCase):
         self.assertEqual(self.note(green=True, by=green_cert.GATE_BROKE_BY), "")
 
 
+    def test_steps_split_into_started_and_unstarted(self):
+        """#514: 起こせない段（exit None）と JUnit の報告を宣言して試験を走らせなかった段が unran、ほかの起こした段が ran"""
+        runs = [{"name": "a", "exit": 0}, {"name": "b", "exit": 1}, {"name": "c", "exit": None}, {"name": "d", "exit": 0}]
+        self.assertEqual(green_cert.ran_steps(runs, ["d"]), {"ran": ["a", "b"], "unran": ["c", "d"]})
+        self.assertEqual(green_cert.ran_steps([], []), {"ran": [], "unran": []})
+
+    def test_partly_started_steps_are_named_instead_of_not_ran(self):
+        """#514: 一部の段だけ起こせた時は、起こした段と起こせなかった段を名指し、走っていないと言わない"""
+        for cause in ("incomplete", "environment"):
+            with self.subTest(cause=cause):
+                got = green_cert.ran_note(green=False, red_cause=cause, by="engine", steps={"ran": ["a"], "unran": ["b"]})
+                self.assertTrue(got.startswith(green_cert.PARTLY_RAN), got)
+                self.assertIn("a", got)
+                self.assertIn("b", got)
+                self.assertIn(green_cert.RAN_GUIDE, got)
+                self.assertNotIn(green_cert.NOT_RAN, got)
+
+    def test_nothing_started_stays_not_ran(self):
+        for steps in ({"ran": [], "unran": ["b"]}, None, "broken"):
+            with self.subTest(steps=steps):
+                got = green_cert.ran_note(green=False, red_cause="incomplete", by="engine", steps=steps)
+                self.assertTrue(got.startswith(green_cert.NOT_RAN), got)
+
+    def test_steps_do_not_change_other_sentences(self):
+        steps = {"ran": ["a"], "unran": ["b"]}
+        self.assertTrue(green_cert.ran_note(green=False, red_cause="", by="engine", steps=steps).startswith(green_cert.UNVERIFIED_RUN))
+        self.assertEqual(green_cert.ran_note(green=False, red_cause="incomplete", by=green_cert.GATE_BROKE_BY, steps=steps),
+                         green_cert.GATE_BROKE)
+        self.assertEqual(green_cert.ran_note(green=False, red_cause="introduced", by="engine", steps=steps), "")
+
 class CertifyCase(unittest.TestCase):
     def final(self, **kw):
         args = {"mode": "final", "material_status": "found", "green": True, "before": FP, "after": dict(FP), "now": dict(FP)}

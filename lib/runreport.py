@@ -1527,7 +1527,8 @@ def _ran_notes(returns: dict) -> list:
     """最後のテストが走っていない・走ったと確かめられていない時の冒頭の句（green_cert.ran_note。#492）。最後のテストまで来なかった
     run は結末がそう言い、直す前のテストは本文の行が言う"""
     fin = _ret(returns, "test-gate-final")
-    note = green_cert.ran_note(green=fin.get("green") is True, red_cause=fin.get("red_cause") or "", by=fin.get("by") or "") if fin else ""
+    note = (green_cert.ran_note(green=fin.get("green") is True, red_cause=fin.get("red_cause") or "", by=fin.get("by") or "",
+                                steps=fin.get("ran_steps")) if fin else "")
     return [note] if note else []
 
 

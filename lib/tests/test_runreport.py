@@ -169,6 +169,15 @@ class BuildCase(Base):
         for note in runreport.HEAD_NOTES:
             self.assertNotIn(note, green)
 
+    def test_final_tests_partly_started_name_the_steps_in_the_head(self):
+        """#514: 宣言の段の一部だけ起こせた最後のテストは、冒頭の 1 行目が起こした段と起こせなかった段を名指し、「走っていない」と言わない"""
+        first = self.first_line({"ok": False, "green": False, "red_cause": "incomplete", "by": "engine",
+                                 "ran_steps": {"ran": ["unit"], "unran": ["lint"]}})
+        self.assertIn(green_cert.PARTLY_RAN, first)
+        self.assertIn("unit", first)
+        self.assertIn("lint", first)
+        self.assertNotIn(green_cert.NOT_RAN, first)
+
     def test_users_environment_for_target_commands_is_named_in_the_head(self):
         """#492: 対象のコマンドを利用者の HOME・XDG で走らせた run だけ、冒頭の 1 行目が AI の試験のコードが資格に届いたと言う"""
         self.assertIn(userenv.NOTE, self.first_line(user_env=True))

@@ -14,6 +14,7 @@ result:
   ok: true
   green: false
   red_cause: ""
+  ran_steps: {ran: [suite], unran: []}
   baseline: {type: archon_artifact, run_id: stub-run, path: test-gate/base/baseline.json}
   fingerprint: null
   test_outcomes: null

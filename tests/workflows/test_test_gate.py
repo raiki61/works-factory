@@ -1039,13 +1039,28 @@ class ResultScriptCase(ScriptCase):
                 self.ok("run", mode="final", start=self.start)
                 out = self.result("final")
                 self.assertEqual((out["green"], out["red_cause"]), (False, green_cert.INCOMPLETE))
-                note = green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"])
+                self.assertEqual(out["ran_steps"]["ran"], [])
+                note = green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"], steps=out["ran_steps"])
                 self.assertTrue(note.startswith(green_cert.NOT_RAN), note)
                 self.assertFalse(userenv.ran(self.artifacts))
+
+    def test_partly_startable_steps_are_named_not_not_ran(self):
+        """#514: 宣言の段の一部だけ起こせた final は、判定はそのまま（赤で認証しない）で、冒頭の句は起こした段と起こせなかった段を
+        名指し、「走っていない」と言わない"""
+        self.decl([{"name": "started", "argv": [PY, "-c", "pass"]}, {"name": "missing", "argv": [str(self.tmp / "no-such-tool")]}])
+        self.ok("run", mode="final", start=self.start)
+        out = self.result("final")
+        self.assertEqual((out["ok"], out["green"]), (False, False))
+        self.assertIn(out["red_cause"], (green_cert.ENVIRONMENT, green_cert.INCOMPLETE))
+        self.assertEqual(out["ran_steps"], {"ran": ["started"], "unran": ["missing"]})
+        note = green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"], steps=out["ran_steps"])
+        self.assertTrue(note.startswith(green_cert.PARTLY_RAN), note)
+        self.assertNotIn(green_cert.NOT_RAN, note)
 
     def test_gate_script_failure_is_not_named_not_ran(self):
         """#492 R1: 返す節の中の誤りの返り（failed）は、試験の関門の句（GATE_BROKE）で、「走っていない」と言わない"""
         out = result.failed("final", ValueError("壊れた元の結末"))
+        self.assertEqual(out["ran_steps"], {"ran": [], "unran": []})
         self.assertEqual(green_cert.ran_note(green=out["green"], red_cause=out["red_cause"], by=out["by"]), green_cert.GATE_BROKE)
 
     def test_suite_without_cases_leaves_no_baseline_exit(self):

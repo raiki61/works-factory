@@ -199,12 +199,19 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [mode, ok, green, red_cause, baseline, fingerprint, test_outcomes, evidence, by, suites_line, log, baseline_line, reason]
+      required: [mode, ok, green, red_cause, ran_steps, baseline, fingerprint, test_outcomes, evidence, by, suites_line, log, baseline_line, reason]
       properties:
         mode: {type: string, enum: [base, final]}
         ok: {type: boolean}
         green: {type: boolean}
         red_cause: {type: string, enum: [introduced, inherited, environment, interaction, incomplete, ""]}
+        ran_steps:   # 起こした段と、起こせない・試験を走らせなかった段の名（green_cert.ran_steps。報告と最後の関所の冒頭の句が読む）
+          type: object
+          additionalProperties: false
+          required: [ran, unran]
+          properties:
+            ran: {type: array, items: {type: string}}
+            unran: {type: array, items: {type: string}}
         baseline:
           anyOf:
             - type: "null"

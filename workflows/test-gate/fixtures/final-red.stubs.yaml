@@ -14,6 +14,7 @@ result:
   ok: false
   green: false
   red_cause: introduced
+  ran_steps: {ran: [suite], unran: []}
   baseline: null
   fingerprint: {head: "2222222222222222222222222222222222222222", diff_hash: "bb"}
   test_outcomes: {rows: [], unmeasured: ""}
