@@ -1837,9 +1837,9 @@
    "copied": "6. 迷ったら人に回す側へ倒す（ask_human）。人に回した単位は直さずに残り、次の run の依頼に載る（申し出の種類が query_hits_fixed の単位は、\n   修正役が直してから申し出るので直しは差分に残り、閉じたかの数えだけが人の決め待ちになる）。\n"
   },
   {
-   "why": "組どうしの合わせの申し出の解き方と rejudge を決まりに足す（持ち主の決め clash-goes-to-ruling。#382）",
+   "why": "組どうしの合わせの申し出の解き方と rejudge を決まりに足し、replace_query を使えないことをコード（lib/ruling.py の query_problems）に揃えて書く（持ち主の決め clash-goes-to-ruling。#382・#446）",
    "original": "",
-   "copied": "8. 組どうしの合わせの申し出（`source` が join-clash）は、直し方の指示（fix_code_as）・テストの範囲（fix_test_scope）・案の直し（fix_plan_item）・判定のやり直し（rejudge）のどれかで解き、どれでも解けない時だけ人に回す。rejudge は判定の単位の切り方が誤っている時だけで、この申し出のほかには使わない。\n"
+   "copied": "8. 組どうしの合わせの申し出（`source` が join-clash）は、直し方の指示（fix_code_as）・テストの範囲（fix_test_scope）・案の直し（fix_plan_item）・判定のやり直し（rejudge）のどれかで解き、どれでも解けない時だけ人に回す。rejudge は判定の単位の切り方が誤っている時だけで、この申し出のほかには使わない。問いの置き換え（replace_query）はこの申し出に使えない（申し出の `which_is_right` は機械が unknown に埋め、replace_query は query の申し出だけに裁ける）。\n"
   }
  ],
  "workflows/fix/commands/fix-rules/refix.md": [

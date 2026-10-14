@@ -89,6 +89,14 @@ class RulingProblemsCase(unittest.TestCase):
         got = self.problems(self.ruled("c1-1", conflict.REJUDGE, ["b.py"]), self.ruled("c1-2", conflict.REJUDGE))
         self.assertTrue(any("範囲を持たない" in e for e in got), got)
 
+    def test_replace_query_is_refused_for_clash_claims(self):
+        """合わせの申し出の which_is_right は機械が unknown に埋めるので、問いの置き換えは裁けない（決まり principles の 8）"""
+        [claim] = conflict.clash_claims(["B"], ["e.py:1"], WHY)
+        query = {"how": {}, "counts": "defects", "hits": ["x"], "misses": []}
+        got = ruling.problems({"rulings": [{**self.ruled("c1-1", conflict.REPLACE), "query": query}]},
+                              {"c1-1": {**claim, "id": "c1-1", "source": conflict.JOIN_SOURCE}}, "/nonexistent")
+        self.assertTrue(any(f"which_is_right が {conflict.QUERY} の申し出だけ" in e for e in got), got)
+
     def test_rows_of_one_group_share_one_ruling(self):
         got = self.problems(self.ruled("c1-1", conflict.REJUDGE), self.ruled("c1-2", conflict.ASK))
         self.assertTrue(any("同じ組の合わせの申し出" in e for e in got), got)
