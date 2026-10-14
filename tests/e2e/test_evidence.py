@@ -440,10 +440,10 @@ SCRIPTS = ROOT / "workflows"
 IDLE_RUN = "idle"
 SKIPPED, COMPLETED = "skipped", evidence.COMPLETED
 LINE = "works-factory-line"
-# 前の段が全部飛んでも走る線の節: 始め・入口の関所の答え・報告の集め・報告のブロック（AI の書き手は記録が崩れていなければ走る。
-# lib/runreport.py の ai_go）・返す節
-ALWAYS_RAN = re.compile(r"start|answer-start|collect|report__.*|result")
-# start に入力を受けさせない名指し（固定材料から始める道はまだ無い）。受けない start は入力のこだまと版の控えだけを書く
+# 前の段が全部飛んでも走る線の節: 始め・入口の関所の答え・修正の段へ運ぶ値の中継（go が偽なら何も書かない）・報告の集め・報告の
+# ブロック（AI の書き手は記録が崩れていなければ走る。lib/runreport.py の ai_go）・返す節
+ALWAYS_RAN = re.compile(r"start|answer-start|fix-in|collect|report__.*|result")
+# start に入力を受けさせない名指し（対象に無い固定材料のフォルダ）。受けない start は入力のこだまと版の控えだけを書く
 REFUSED_INPUT = "fixture"
 
 

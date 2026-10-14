@@ -549,9 +549,8 @@
 - S069 仕様の段は固定材料と組めない
   - 元: SKILL.md:81
   - 印: `--spec`
-  - 今: `workflows/line/scripts/start.py::words`（fix_fixture は空でなければ常に拒む）
-  - 状態: 形を変えて在る（固定材料の道そのものがまだ無いので、組みも起きない）
-  - 処置: #509
+  - 今: `workflows/line/scripts/start.py::words`
+  - 状態: 在る
   - 旧棚卸し: L-E42
 
 - S070 修正が受け入れ条件のテストのファイルを変えると、承認し直すかの問いを最後の承認ノード・報告の冒頭・次の run の依頼に載せ、差分の審査・最後のテスト・独立の目を回さずに終わる
@@ -987,9 +986,8 @@
 - S128b 周の鎖は固定材料の run と組めない
   - 元: SKILL.md:99
   - 印: `WORKS_USE_FIX_FIXTURE`
-  - 今: `workflows/line/scripts/start.py::words`（fix_fixture は空でなければどの run でも拒む）
-  - 状態: 形を変えて在る（固定材料の道そのものがまだ無く、メイングラフの start ノードがどの run でも拒む）
-  - 処置: #509
+  - 今: `workflows/chain/scripts/chain_start.py::FIX_FIXTURE_REFUSED`・`workflows/chain/scripts/chain_start.py::start`・`workflows/chain/works-factory-chain.yaml::chain-start`
+  - 状態: 形を変えて在る（殻でなく鎖のグラフの chain-start ノードが AI の前に拒む）
   - 旧棚卸し: L-E26
 
 - S129 鎖が止まる条件として、指定の周の数・結末が閉じた・止まった・人の判断が要る・進みが無い（木が周の頭と同じ・残りが前の周と同じ）・費用の上限を持つ
@@ -1875,17 +1873,15 @@
 - U033 WORKS_USE_FIX_FIXTURE で、固定材料のフォルダから判定と修正案を作り直さずに修正から始める（入力 fix_fixture）
   - 元: use.sh:67-69・182・1141
   - 印: `WORKS_USE_FIX_FIXTURE`
-  - 今: `workflows/line/scripts/start.py::words`（空でない fix_fixture を拒む）
-  - 状態: 無い
-  - 処置: #509
+  - 今: `workflows/line/scripts/start.py::from_fixture`・`lib/fixture.py::adopt`・`lib/fixture.py::capture`・`workflows/line/scripts/fix_in.py::fix_in`・`workflows/line/works-factory-line.yaml::fix-in`（前の run が修正に入る時に写した `<run の置き場>/fix-fixture/` を名指すと、直す前のテスト・判定・計画の往復・修正前の承認ノードを飛ばして修正から始める）
+  - 状態: 在る
   - 旧棚卸し: L-E42・L-E43
 
 - U034 WORKS_USE_FIX_FIXTURE が在るフォルダでなければ何も作らずに拒み、在れば打った場所から絶対パスにして渡す
   - 元: use.sh:217-222
   - 印: `WORKS_USE_FIX_FIXTURE`・`use.sh:220`
-  - 今: 無し
-  - 状態: 無い
-  - 処置: #509
+  - 今: `workflows/line/scripts/start.py::fixture_dir`
+  - 状態: 形を変えて在る（殻でなくメイングラフの start ノードが AI の前に拒み、相対パスは打った場所でなく対象の根から解く。依頼・方針の文書の名指しと同じ規則）
   - 旧棚卸し: L-E42
 
 - U035 --rounds は WORKS_DESIGN_ONLY=1 と組めない（Archon を起こす前に拒む）
@@ -1899,9 +1895,8 @@
 - U036 --rounds は WORKS_USE_FIX_FIXTURE と組めない
   - 元: use.sh:215
   - 印: `--rounds`・`WORKS_USE_FIX_FIXTURE`・`use.sh:215`
-  - 今: `workflows/line/scripts/start.py::words`（どの周の子でも空でない fix_fixture を拒む）
-  - 状態: 形を変えて在る（鎖の前でなく 1 周目の子の start ノードが拒む。固定材料の道そのものが無い）
-  - 処置: #509
+  - 今: `workflows/chain/scripts/chain_start.py::FIX_FIXTURE_REFUSED`・`workflows/chain/scripts/chain_start.py::start`・`workflows/chain/works-factory-chain.yaml::chain-start`
+  - 状態: 形を変えて在る（殻でなく鎖のグラフの chain-start ノードが AI の前に拒む）
   - 旧棚卸し: L-D55
 
 - U037 WORKS_USE_FINAL_GATE で最後の承認ノードの開き方を選ぶ（既定 protected_only・when_needed・always）
@@ -3030,13 +3025,12 @@
 ## 数
 
 - 行: 405
-- 状態 在る: 183
+- 状態 在る: 185
 - 状態 形を変えて在る: 172
-- 状態 無い: 50
-- 処置 #509: 5
+- 状態 無い: 48
 - 処置 #510: 1
 - 処置 #511: 5
 - 処置 #516: 4
 - 処置 戻した: 9
 - 処置 要らない: 102
-- 無い行: S001・S008・S023・S070・S080・S100・S105・S107・S124・S136・S165・S168・S196・S202・S207・S215・U011・U013・U014・U033・U034・U040・U046・U056・U057・U058・U060・U064・U074・U080・U081・U082・U083・U084・U086・U087・U088・U089・U103・U104・U105・U108・U109・U114・U115・U125・U156・U159・U160・U161
+- 無い行: S001・S008・S023・S070・S080・S100・S105・S107・S124・S136・S165・S168・S196・S202・S207・S215・U011・U013・U014・U040・U046・U056・U057・U058・U060・U064・U074・U080・U081・U082・U083・U084・U086・U087・U088・U089・U103・U104・U105・U108・U109・U114・U115・U125・U156・U159・U160・U161

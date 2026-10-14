@@ -56,7 +56,7 @@ inputs:
     description: どの周の子にも渡すメイングラフの同じ名の入力
   fix_fixture:
     default: ""
-    description: どの周の子にも渡すメイングラフの同じ名の入力
+    description: メイングラフの同じ名の入力。鎖とは組めず、空でなければ chain-start が拒む（子には空のまま渡る）
   lang:
     default: ""
     description: どの周の子にも渡すメイングラフの同じ名の入力

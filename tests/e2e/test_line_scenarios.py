@@ -29,7 +29,7 @@ SCENARIOS = (
     "rejudge", "light", "final-stop", "final-when-needed-green", "conflict-ask", "unattended-needs-human", "block-failed",
     "replan-stop", "plan-failed", "block-returns-failed", "replan-answers", "test-gate-failed", "rejudge-stop",
     "unattended-questions", "unattended-policy-change", "eyes-failed-protected", "refix-handoff",
-    "nothing-owed",
+    "nothing-owed", "fix-fixture",
 )
 
 
@@ -344,6 +344,30 @@ class NothingOwedRoundTest(unittest.TestCase):
         collected = json.loads(self.trace["collect"]["output"])
         self.assertEqual((collected["fix"], collected["plan_review"]["design"]["path"], collected["eyes"]["r2"]["status"]),
                          (None, "plan-review/design.json", "redesign-needed"))
+
+
+class FixFixtureTest(unittest.TestCase):
+    """#509（筋書き fix-fixture）: 固定材料を名指した run は、判定と修正案の役を起こさずに修正から始まる。直す前のテスト・判定・計画の
+    往復・修正前の承認ノードが走らず、修正から後ろが走り、collect が飛んだ段を fix-in の運んだ写しの値で埋める（報告の結末の決めが
+    判定と計画の出力を読めるように）"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.trace = line_traces(("fix-fixture",))["fix-fixture"]
+
+    def test_roles_start_from_the_fix(self):
+        ran = NoFixRoundTest.ran
+        for node in ("test-gate-base__run", "judge__intake", "judge__verdict", "plan-rounds", "plan__plan", "ask-before-fix",
+                     "gate-before-fix", "answer-before-fix", "design-only"):
+            self.assertFalse(ran(self.trace, node), node)
+        for node in ("gate-start", "fix-in", "fix__fix", "fixed", "judged", "test-gate-final__result", "eyes__verdict", "collect"):
+            self.assertTrue(ran(self.trace, node), node)
+
+    def test_collect_reads_the_carried_values(self):
+        carried = json.loads(self.trace["fix-in"]["output"])["received"]
+        collected = json.loads(self.trace["collect"]["output"])
+        for name in ("test_gate_base", "judge", "plan", "plan_review"):
+            self.assertEqual(collected[name], carried[name], name)
 
 
 class RefixInputsTest(unittest.TestCase):
