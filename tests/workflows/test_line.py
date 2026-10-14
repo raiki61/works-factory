@@ -355,18 +355,16 @@ class StartCase(Artifacts):
         self.assertEqual(self.record(got)["answers"], rows)
         self.assertIn(entryshape.EMPTY_REFUSED, self.refused(request=str(path)))
 
-    def test_pytest_test_cmd_gets_a_tdd_runner(self):
-        """#505: tdd_suite を省き test_cmd が pytest の 1 コマンドなら、始めの記録の tdd_suite は run の置き場に書いた実行器（元 works の
-        dev/use.sh 1069-1081 行）。名指した tdd_suite はそのまま。どちらでもなければ空で、承認ノードの文が輪を飛ばす訳を言う"""
+    def test_omitted_tdd_suite_says_the_loop_is_skipped(self):
+        """#505: tdd_suite を省いた run は、承認ノードの文が TDD のループを飛ばす事と実行器の渡し方を言う（元 works の dev/use.sh
+        1086-1089 行）。名指した tdd_suite は始めの記録にそのまま載り、文は言わない"""
         import tddloop
-        got = self.start(base="base", test_cmd="uv run pytest -q")
-        suite = self.record(got)["tdd_suite"]
-        self.assertEqual(suite, str((self.artifacts / tddloop.SUITE_FILE).resolve()))
-        self.assertIn(tddloop.SUITE_WRITTEN, got["gate_text"])
-        self.assertEqual(self.record(self.start(base="base", test_cmd="pytest", tdd_suite="run-tests.sh"))["tdd_suite"], "run-tests.sh")
-        got = self.start(base="base", test_cmd="npm test")
+        got = self.start(base="base", test_cmd="make test")
         self.assertEqual(self.record(got)["tdd_suite"], "")
         self.assertIn(tddloop.SUITE_SKIPPED, got["gate_text"])
+        got = self.start(base="base", test_cmd="make test", tdd_suite="run-tests.sh")
+        self.assertEqual(self.record(got)["tdd_suite"], "run-tests.sh")
+        self.assertNotIn(tddloop.SUITE_SKIPPED, got["gate_text"])
 
     def test_request_answers_reach_the_record(self):
         """L-E03: 依頼の answers は始めの記録の answers（元 works/tests/test_entry.py の test_request_answers_reach_start_doc）"""

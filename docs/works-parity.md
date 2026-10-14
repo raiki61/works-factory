@@ -776,15 +776,15 @@
 - S100 tdd_suite を省き test_cmd が pytest の 1 コマンドなら、`--junitxml` を足す実行器を書いて TDD のループに渡す
   - 元: SKILL.md:89
   - 印: 無し
-  - 今: `lib/tddloop.py::pytest_suite`・`workflows/line/scripts/start.py::test_notes`
-  - 状態: 形を変えて在る（殻でなく始めのノード start が run の置き場に実行器を書く）
-  - 処置: 戻した: `lib/tddloop.py::pytest_suite`・`workflows/line/scripts/start.py::test_notes`
+  - 今: 無し（`lib/tddloop.py::NO_SUITE` の道で TDD のループを飛ばし、`workflows/line/scripts/start.py::test_notes` が起動の承認ノードの文でそう言う。test_cmd から特定の実行器の旗を足す知識は `lib/` に置けず（AGENTS.md の E13・持ち主の決め `lang-neutral`）、持ち主の決め `superset` とのどちらを取るかは持ち主が決める）
+  - 状態: 無い
+  - 処置: #516
   - 旧棚卸し: 無し
 
 - S101 実行器が無ければ TDD のループを飛ばして直に直し、どちらにしたかを 1 行出す
   - 元: SKILL.md:89
   - 印: 無し
-  - 今: `lib/tddloop.py::SUITE_WRITTEN`・`lib/tddloop.py::SUITE_SKIPPED`・`workflows/line/scripts/start.py::test_notes`（起動の承認ノードの文に 1 行）・`lib/report.py::freeze_lines`
+  - 今: `lib/tddloop.py::SUITE_SKIPPED`・`workflows/line/scripts/start.py::test_notes`（起動の承認ノードの文に 1 行）・`lib/report.py::freeze_lines`
   - 状態: 在る
   - 旧棚卸し: F027
 
@@ -1777,8 +1777,7 @@
   - 元: use.sh:55・1066-1068
   - 印: 無し
   - 今: `workflows/line/works-factory-line.yaml`（入力 tdd_suite）・`lib/tddloop.py::start`・`workflows/line/scripts/start.py::test_notes`（名指した時は言わない）
-  - 状態: 形を変えて在る（`--input tdd_suite=<実行器>`。知らせの 1 行は無く、空を渡しても test_cmd が pytest の 1 コマンドなら実行器を書くので、空で TDD のループを飛ばす道が無い）
-  - 処置: 要らない: 赤緑の機械の判定は keep-essence 1 で、ループを飛ばす事は能力でない（実行器の書けない対象は今もループを飛ばし、承認ノードの文がそう言う）
+  - 状態: 形を変えて在る（`--input tdd_suite=<実行器>`。空なら TDD のループを飛ばし、起動の承認ノードの文がそう言う）
   - 旧棚卸し: L-E38・F027
 
 - U020 引数の数が合わなければ使い方の行で終了コード 2 で終わる
@@ -2183,17 +2182,17 @@
 - U074 tdd_suite を省き test_cmd が pytest の 1 コマンド（前に uv run・poetry run・python3 -m を許し、; & | < > $ ` を含まない）なら、JUnit XML を書く実行器を書いて渡す
   - 元: use.sh:55-57・1069-1082
   - 印: 無し
-  - 今: `lib/tddloop.py::pytest_suite`・`workflows/line/scripts/start.py::start`（始めの記録の tdd_suite にする）
-  - 状態: 形を変えて在る（実行器を家の suites/ でなく run の置き場に書く）
-  - 処置: 戻した: `lib/tddloop.py::pytest_suite`・`workflows/line/scripts/start.py::test_notes`
+  - 今: 無し（`lib/tddloop.py::NO_SUITE` の道で TDD のループを飛ばす。`superset` と `lang-neutral` のどちらを取るかは S100 と同じく持ち主が決める）
+  - 状態: 無い
+  - 処置: #516
   - 旧棚卸し: L-E38・F027
 
 - U075 test_cmd が pytest の 1 コマンドでなければ、「TDD のループを飛ばす」と最後の引数 <tdd_suite> の渡し方を 1 行で知らせる
   - 元: use.sh:57・1086-1089
   - 印: 無し
   - 今: `workflows/line/scripts/start.py::test_notes`・`lib/tddloop.py::SUITE_SKIPPED`
-  - 状態: 形を変えて在る（殻の出力でなく起動の承認ノードの文に出る。渡し方は `--input tdd_suite=<実行器>`）
-  - 処置: 戻した: `lib/tddloop.py::pytest_suite`・`workflows/line/scripts/start.py::test_notes`
+  - 状態: 形を変えて在る（殻の出力でなく起動の承認ノードの文に出る。渡し方は `--input tdd_suite=<実行器>`。tdd_suite を省いた run では test_cmd の形を問わず出る）
+  - 処置: 戻した: `workflows/line/scripts/start.py::test_notes`・`lib/tddloop.py::SUITE_SKIPPED`
   - 旧棚卸し: F027
 
 - U076 test_cmd を省けばメイングラフの既定（対象の .review-checks.json の宣言か CI）で回すと知らせる
@@ -2833,15 +2832,17 @@
 - K1 直す前の名指しのテストが failure（error・一式に居ない・もう通る・飛ばされた、は拒む）で落ちることを、JUnit の結末から機械が見る（pytest の対象では tdd_suite を省いても既定で効く）
   - 元: keep-essence.md:10
   - 印: `keep-essence.md:10`
-  - 今: `lib/baseline_red.py::red_problems`・`lib/tddloop.py::red_check`（TDD のループの test の段 `workflows/fix/works-factory-fix.yaml::tdd-step`）・`lib/tddloop.py::pytest_suite`・`workflows/line/scripts/start.py::test_notes`（tdd_suite を省き test_cmd が pytest の 1 コマンドなら、JUnit XML を書く実行器を書いて TDD のループを回す。それ以外で tdd_suite が無ければ `lib/tddloop.py::NO_SUITE` の道でループを飛ばし、始めの注に残す）
-  - 状態: 在る
+  - 今: `lib/baseline_red.py::red_problems`・`lib/tddloop.py::red_check`（TDD のループの test の段 `workflows/fix/works-factory-fix.yaml::tdd-step`）・`workflows/line/scripts/start.py::test_notes`（tdd_suite が無ければ `lib/tddloop.py::NO_SUITE` の道でループを飛ばし、始めの注に残す）
+  - 状態: 形を変えて在る（tdd_suite を渡した run でだけ効く。省いた run で test_cmd から実行器を書く道は無い）
+  - 処置: #516
   - 旧棚卸し: F001・F008
 
 - K1b 直した後に名指しのテストが通り、元で通っていた試験が赤にならず、一式が 0 で終わることを JUnit から機械が見る（pytest の対象では既定で効く）
   - 元: keep-essence.md:10
   - 印: 無し
-  - 今: `lib/baseline_red.py::green_problems`・`lib/tddloop.py::_green`・`lib/tddloop.py::pytest_suite`（tdd_suite を省いた pytest の対象の実行器）
-  - 状態: 在る
+  - 今: `lib/baseline_red.py::green_problems`・`lib/tddloop.py::_green`
+  - 状態: 形を変えて在る（tdd_suite を渡した run でだけ効く）
+  - 処置: #516
   - 旧棚卸し: F004
 
 - K1c 受け付けの最後に、修正前の版とループの赤の木で赤 → 緑を機械が確かめ直す（役の申告に頼らない事後の関門）
@@ -3029,12 +3030,13 @@
 ## 数
 
 - 行: 405
-- 状態 在る: 185
+- 状態 在る: 183
 - 状態 形を変えて在る: 172
-- 状態 無い: 48
+- 状態 無い: 50
 - 処置 #509: 5
 - 処置 #510: 1
 - 処置 #511: 5
-- 処置 戻した: 11
-- 処置 要らない: 103
-- 無い行: S001・S008・S023・S070・S080・S105・S107・S124・S136・S165・S168・S196・S202・S207・S215・U011・U013・U014・U033・U034・U040・U046・U056・U057・U058・U060・U064・U080・U081・U082・U083・U084・U086・U087・U088・U089・U103・U104・U105・U108・U109・U114・U115・U125・U156・U159・U160・U161
+- 処置 #516: 4
+- 処置 戻した: 9
+- 処置 要らない: 102
+- 無い行: S001・S008・S023・S070・S080・S100・S105・S107・S124・S136・S165・S168・S196・S202・S207・S215・U011・U013・U014・U033・U034・U040・U046・U056・U057・U058・U060・U064・U074・U080・U081・U082・U083・U084・U086・U087・U088・U089・U103・U104・U105・U108・U109・U114・U115・U125・U156・U159・U160・U161

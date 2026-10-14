@@ -75,8 +75,6 @@
   知らせる（一式の緑は線の最後のテストの段が確かめる。役は一式を回さない）
 - collect → exit_fields: 出口の欄 tdd（単位ごとの道・赤・緑・整えとその申告の理由・direct の理由・test_cmd の緑。輪の test_cmd の
   関門と理由・段ごとの呼び出しの記録 calls）
-- start（線の始めのノード）→ pytest_suite: 入力 tdd_suite を省き test_cmd が PYTEST_CMD の形の 1 コマンドなら、それに JUnit XML の書き先を
-  足す実行器を run の置き場に書く（今の works の dev/use.sh 1069-1081 行。既定の run でも輪を回す）
 赤の判定は red_check 1 つ（中で lib/baseline_red の red_problems を呼ぶ。rules() がそのモジュールを返す）で、輪と
 事後の関門が同じ事実を見る。緑の判定は baseline_red の green_problems を呼ぶ。実行器を走らせる口 run_suite と failure の文の
 読み _failure_attrs は baseline_red の物を読む（ここに定義を持たない）。版は一時の index（GIT_INDEX_FILE）で木に固める
@@ -132,12 +130,8 @@ SESSION_KEY = "session_key"   # 状態の欄: 前の周の支度が組んだ単�
 GAVE_UP_WHY = "機械が書いた申し出（TDD の確認が回数の上限まで通らなかった）: "   # 3 回拒まれた単位の申し出の why の頭
 STATE, PROMPT, SUMMARY = "state.json", "next.md", "summary.md"
 NO_SUITE = "テストの実行器（入力 tdd_suite）が無い run——全部の単位を今どおり直す"
-PYTEST_CMD = re.compile(r"^\s*((uv|poetry) run |python3? -m )?pytest(\s|$)")   # 実行器を書ける test_cmd の頭（元 use.sh 1069 行）
-SHELL_MARKS = frozenset(";&|<>$`")   # 1 コマンドでない test_cmd の印（元 use.sh 1070 行）
-SUITE_FILE = "tdd-suite.sh"
-SUITE_WRITTEN = "TDD のループ: test_cmd から実行器を書いた"
-SUITE_SKIPPED = ("TDD のループを飛ばす（全部の単位を直に直す）: test_cmd から実行器を書ける 1 コマンドの形でない。JUnit XML を第 1 引数に書く"
-                 "実行器を入力 tdd_suite に渡せばループを回す")
+SUITE_SKIPPED = ("TDD のループを飛ばす（全部の単位を直に直す）: 入力 tdd_suite が無い。JUnit XML を第 1 引数に書く実行器を入力 tdd_suite に"
+                 "渡せばループを回す")
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
 ONLY_ENV = "TDD_SUITE_ONLY"
@@ -486,19 +480,6 @@ def _light_units(raw: str) -> list:
     return sorted(k for k, v in doc.items() if v == LIGHT)
 
 
-def pytest_suite(test_cmd: str, folder) -> str:
-    """test_cmd が PYTEST_CMD の形の 1 コマンドなら、folder に実行器 SUITE_FILE（第 1 引数に JUnit XML を書く。tdd_suite の約束）を書いて
-    絶対パスを返す。当たらなければ何も書かずに """""
-    if not PYTEST_CMD.match(test_cmd) or SHELL_MARKS & set(test_cmd):
-        return ""
-    path = pathlib.Path(folder).resolve() / SUITE_FILE
-    path.write_text("#!/bin/sh\n# test_cmd から書いた TDD の実行器。第 1 引数に JUnit XML を書く\n"
-                    "PYTHONDONTWRITEBYTECODE=1\nexport PYTHONDONTWRITEBYTECODE\n"
-                    f'exec {test_cmd.strip()} -p no:cacheprovider --continue-on-collection-errors --junitxml="$1"\n', encoding="utf-8")
-    path.chmod(0o755)
-    return str(path)
-
-
 def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit_depths: str = "", *,
           owed=None, withheld_by=None, returned=(), round_: int = 1, reuse: dict | None = None) -> dict:
     """節 tdd-start。{go, reason, suite, state_file, summary_file}。実行器が無ければ何も書かずに go: false（置き場を読まない）。
@@ -550,7 +531,7 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
 
 def _test_cmd_gate(exe: pathlib.Path, cmd: str, repo, log: pathlib.Path, *, reuse: dict | None = None) -> tuple[str, str, list]:
     """(関門, 理由, 走らせて出来たファイル)。空は (off, "", [])。実行器のファイルの中身が cmd をそのまま含めば
-    (same_as_suite, "", [])（入口が test_cmd から書いた実行器（pytest_suite）など。一式の緑が同じコマンドの緑）。ほかは
+    (same_as_suite, "", [])（use.sh が pytest の 1 コマンドから書いた実行器など。一式の緑が同じコマンドの緑）。ほかは
     _cmd_run で 1 回走らせ（reuse は _cmd_material へ）、緑なら on、赤・走らないなら off と理由。
     既存のファイルを書き換えた回は赤（_cmd_run。書き換えた物は戻す）。出来たファイルは状態の suite_made の頭（段が触った数えから外す）"""
     if not cmd:

@@ -147,14 +147,14 @@ def depth_words(raw: dict, record: dict) -> str:
     return f"段: {record['thickness'] or AUTO}" + ("" if raw["thickness"].strip() else "（既定）")
 
 
-def test_notes(raw: dict, record: dict, repo: Path) -> list:
+def test_notes(raw: dict, repo: Path) -> list:
     """テストの注: 修正前のテストの任せ先（元 entry.py 1218-1219 行。test_cmd も対象の宣言も無ければ、任せ先の役が走らせ方を探す）と、
-    TDD の輪の実行器をどうしたか（元 use.sh 1066-1089 行。tdd_suite を名指した時は言わない）"""
+    tdd_suite を省いた run が TDD の輪を飛ばす事（元 use.sh 1086-1089 行）"""
     notes = []
     if not raw["test_cmd"].strip() and "fallback" in declared_checks.checks_plan(repo):
         notes.append("修正前のテスト: 宣言も test_cmd も無い——任せ先の役がリポジトリから走らせ方を探す")
-    if not raw["tdd_suite"].strip() and raw["test_cmd"].strip():
-        notes.append(f"{tddloop.SUITE_WRITTEN}（{record['tdd_suite']}）" if record["tdd_suite"] else tddloop.SUITE_SKIPPED)
+    if not raw["tdd_suite"].strip():
+        notes.append(tddloop.SUITE_SKIPPED)
     return notes
 
 
@@ -201,7 +201,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
     parts = asked["parts"]
     record.update({
         "input": shape, "base_rev": shape["head_rev"], "review_rev": shape["head_rev"], "request_file": asked["request_file"],
-        "test_cmd": raw["test_cmd"], "tdd_suite": raw["tdd_suite"].strip() or tddloop.pytest_suite(raw["test_cmd"], artifacts),
+        "test_cmd": raw["test_cmd"], "tdd_suite": raw["tdd_suite"],
         gatepolicy.FINAL_KEY: checked[gatepolicy.FINAL_KEY], gatepolicy.UNATTENDED_KEY: checked[gatepolicy.UNATTENDED_KEY],
         "design_only": checked["design_only"], "thickness": checked["thickness"], "spec": checked["spec"],
         "policy_md": checked["policy_md"], "policy": policy.freeze(artifacts, repo, checked["policy_md"]), "lang": raw["lang"],
@@ -217,7 +217,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
         prior = boundary.pointer(carry.PRIOR_IN_FILE)
     unattended = record[gatepolicy.UNATTENDED_KEY] == gatepolicy.UNATTENDED
     return {"ok": True, "stop_reason": "", "reason": "", "record": write(artifacts, record),
-            "prior_failures": prior, "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, record, repo)),
+            "prior_failures": prior, "ask": not unattended, "gate_text": gate_text(shape, record, run_id, test_notes(raw, repo)),
             "unattended": unattended, "design_only": record["design_only"] == gatemarks.DESIGN_ONLY,
             "final_gate": record[gatepolicy.FINAL_KEY]}
 
