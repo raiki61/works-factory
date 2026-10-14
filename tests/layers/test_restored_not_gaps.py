@@ -15,7 +15,7 @@ import pathlib
 import re
 import unittest
 
-from tests.layers.test_capability_pointers import INVENTORY, INVENTORY_ROW_ID, ROW, mention, row_fields
+from tests.layers.test_capability_pointers import INVENTORY, INVENTORY_ROW_ID, ROW, mention
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 NODES = ROOT / "docs" / "nodes.json"
@@ -36,26 +36,34 @@ OPEN = re.compile(r"→(?!.*→).*開いている", re.S)
 
 
 def rows() -> list[tuple[str, str, str]]:
-    """(ファイル:行, 行 ID, 行の字（頭の行と、字下げした続きの行）)。同じ ID の行が 2 つのファイルに在れば（gaps-plan.md と
-    plan.md など）両方"""
+    """(ファイル:行, 行 ID, 行の字)。同じ ID の行が 2 つのファイルに在れば（gaps-plan.md と plan.md など）両方"""
+    return [row for md in sorted(INVENTORY.glob("*.md")) for row in rows_of(md.name, md.read_text(encoding="utf-8"))]
+
+
+def rows_of(name: str, text: str) -> list[tuple[str, str, str]]:
+    """(ファイル:行, 行 ID, 行の字（頭の行と、字下げした続きの行）)。空の行は行を閉じない（row_fields と同じ読み）"""
     found = []
-    for md in sorted(INVENTORY.glob("*.md")):
-        current = None
-        for no, line in enumerate(md.read_text(encoding="utf-8").splitlines(), 1):
-            if head := ROW.match(line):
-                current = [f"{md.name}:{no}", head.group(1), line]
-                found.append(current)
-            elif current and line.startswith("  "):
-                current[2] += "\n" + line
-            else:
-                current = None
+    current = None
+    for no, line in enumerate(text.splitlines(), 1):
+        if head := ROW.match(line):
+            current = [f"{name}:{no}", head.group(1), line]
+            found.append(current)
+        elif current and line.startswith("  "):
+            current[2] += "\n" + line
+        elif line.strip():
+            current = None
     return [(where, row, text) for where, row, text in found]
 
 
 def state_text(text: str) -> str:
     """戻したか開いているかを書く字。「狭め」の欄（4 字下げの続きの行を含む）が在る行はその欄、無い行（線への申し送りの
-    S の行）は行の字"""
+    S の行・pitfalls.md の K の行）は行の字"""
     return field.group(0) if (field := NARROWING.search(text)) else text
+
+
+def narrowings(texts: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    """(ファイル:行, 行 ID, 狭めの欄の字)。狭めの欄の在る行だけ"""
+    return [(where, row, field.group(0)) for where, row, text in texts if (field := NARROWING.search(text))]
 
 
 def says_restored(row: str, text: str) -> bool:
@@ -95,9 +103,9 @@ def rewritten(texts: list[tuple[str, str, str]], row: str, edit) -> list[tuple[s
     return [(where, r, edit(text) if r == row else text) for where, r, text in texts]
 
 
-def off_form() -> list[str]:
+def off_form(texts: list[tuple[str, str, str]]) -> list[str]:
     """狭めの欄が戻したと書くのに「→ … 戻した」の形でなく、PARTIAL にも無い所"""
-    return [f"{where} {row}" for where, row, text in row_fields(("狭め",))
+    return [f"{where} {row}" for where, row, text in narrowings(texts)
             if SAYS_RESTORED.search(text) and not RESTORED.search(text) and row not in PARTIAL]
 
 
@@ -143,7 +151,7 @@ class RestoredNotGapsCase(unittest.TestCase):
 
     def test_every_restored_row_is_in_the_form(self):
         """戻したと書く欄が形から外れると、その行の ID は照らされないまま緑になる"""
-        self.assertEqual(off_form(), [])
+        self.assertEqual(off_form(self.rows), [])
 
     def test_rows_naming_each_other_agree(self):
         self.assertEqual(disagreements(self.rows), [])
@@ -167,10 +175,18 @@ class RestoredNotGapsCase(unittest.TestCase):
 
     def test_every_copy_of_a_row_is_read(self):
         """同じ ID の行が 2 つのファイルに在る時（gaps-plan.md と plan.md）、片方の行だけの「戻した」も落とさない"""
-        first = [where for where, row, _ in self.rows if row == "P057"][0]
+        copies = [where for where, row, _ in self.rows if row == "P057"]
+        self.assertEqual([where.split(":")[0] for where in copies], ["gaps-plan.md", "plan.md"])
+        first = copies[0]
         rows = [(where, row, text + " → #999 で戻した" if where == first else text) for where, row, text in self.rows]
         self.assertNotIn("P057", self.restored)
         self.assertIn("P057", restored_ids(rows))
+
+    def test_a_blank_line_does_not_end_a_row(self):
+        """空の行の後の狭めの欄も、その行の欄として読む"""
+        texts = rows_of("x.md", "- T1 y\n  - 今: a\n\n  - 狭め: 狭めた → #1 で戻した\n\n## 次\n  - 狭め: → #2 で戻した")
+        self.assertEqual(texts, [("x.md:1", "T1", "- T1 y\n  - 今: a\n  - 狭め: 狭めた → #1 で戻した")])
+        self.assertEqual(restored_ids(texts), {"T1"})
 
     def test_copies_of_one_row_that_disagree_are_red(self):
         rows = self.rows + [("x.md:1", "T16", "- T16 y\n  - 狭め: 狭めた → **開いている**")]
@@ -178,7 +194,7 @@ class RestoredNotGapsCase(unittest.TestCase):
                                                "x.md:1 T16 は開いている、同じ ID の別の行は戻した"])
 
     def test_partial_rows_still_say_restored_and_are_not_read(self):
-        self.assertTrue(PARTIAL.keys() <= {row for _, row, text in row_fields(("狭め",)) if SAYS_RESTORED.search(text)})
+        self.assertTrue(PARTIAL.keys() <= {row for _, row, text in narrowings(self.rows) if SAYS_RESTORED.search(text)})
         self.assertFalse(PARTIAL.keys() & self.restored)
 
     def test_no_restored_row_is_still_named_as_a_hole(self):

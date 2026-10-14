@@ -18,14 +18,13 @@ from collections.abc import Callable
 from tests.bin import hermetic, stepnames
 from tests.e2e import evidence, make_target
 from tests.layers import scan
-from tests.layers.test_capability_pointers import EVIDENCE_ROW_ID, POINTER, mention, python_definitions, yaml_definitions
+from tests.layers.test_capability_pointers import EVIDENCE_ROW_ID, POINTER, ROW, mention, python_definitions, yaml_definitions
 
 E2E = pathlib.Path(__file__).resolve().parent
 ROOT = E2E.parents[1]
 INVENTORY = ROOT / "docs" / "plans" / "2026-10-13-capabilities"
 INVENTORY_FILES = ("line.md", "judge.md", "plan.md", "fix.md", "tail.md")
 WIRING = ROOT / "docs" / "plans" / "2026-10-13-line-wiring.md"
-ROW_HEAD = re.compile(rf"- ({EVIDENCE_ROW_ID})[ 〔]")
 PART_CLOSES = re.compile(rf"- ({EVIDENCE_ROW_ID})〔")
 ROW_MENTION = mention(EVIDENCE_ROW_ID)
 SCENARIO_ONLY = "筋書きでのみ"
@@ -254,8 +253,8 @@ def inventory() -> dict[str, str]:
         for line in (INVENTORY / name).read_text(encoding="utf-8").splitlines():
             if line.startswith("#"):
                 current = None
-            elif head := ROW_HEAD.match(line):
-                current = head.group(1)
+            elif head := ROW.match(line):
+                current = head.group(1) if re.fullmatch(EVIDENCE_ROW_ID, head.group(1)) else None
             elif current and (real := re.match(r"\s+- 本物の run: (.*)", line)):
                 rows.setdefault(current, real.group(1))
     return rows
