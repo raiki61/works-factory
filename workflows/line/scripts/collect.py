@@ -13,6 +13,9 @@ null の方（plan-review が飛ばされた周で抜けた往復）は null。�
 fix は 1 回目と 2 度目の修正を合わせたノード fixed の出力（申し出は段ごとのポインタの配列。report の約束の fix の形）。fixed が
 飛ばされた（2 度目の修正の中が落ちた）時は 1 回目の出力。2 度目の修正の段の行（refixed・2 度目の異議をつないだ objection・1 回目の行を
 写した 2 度目の申し出）も fixed の出力が運ぶ。
+固定材料から始めた run（fix-in の received が在る）は直す前のテスト・判定・計画の往復・修正前の承認が飛ぶので、その受け皿と
+承認の答え・載せなかった問いの空の所を、fix-in が運んだ写しの値（received）で埋める（報告の結末の決めは判定と計画の出力が無いと
+途中で終わった run と読む）。
 
 メイングラフのノードの値（docs/design.md の report の出力の「メイングラフの値」）:
 - stops: メイングラフの script のノード（STOPS）の止めの語 {ノード: 語}（入口の拒み・無人の承認ノードの止め・script の例外・人の止め。
@@ -26,7 +29,7 @@ result が $collect.output を読むので、このノードは落ちない: 境
 理由は LINE_SCRIPT。境の口の LINE_SCRIPT の写しで、lib/tests/test_stopby.py が突き合わせる）。
 
 入力（with:）: <include の id>（受け皿の出力）・plan・plan_review・design_only（計画の往復と直す物が無い周の受け皿の出力）・start・
-fixed・gate_<承認ノード>・stop_<ノード>・deferred・widened・final_reasons・spec_changed・prior_failures・redepth・optional
+fixed・fix_in（fix-in の出力）・gate_<承認ノード>・stop_<ノード>・deferred・widened・final_reasons・spec_changed・prior_failures・redepth・optional
 """
 import json
 import os
@@ -44,7 +47,7 @@ RECEIVED = ("test_gate_base", "judge", "rejudge", "replan", "replan_review", "fi
             "merge_apply")
 ROUNDS = ("plan", "plan_review")
 GATES = ("gate_start", "gate_before_fix", "gate_replan", "gate_final")
-STOPS = ("start", "answer-start", "ask-before-fix", "answer-before-fix", "after-fix", "judged", "ask-replan", "answer-replan", "fixed",
+STOPS = ("start", "answer-start", "ask-before-fix", "answer-before-fix", "fix-in", "after-fix", "judged", "ask-replan", "answer-replan", "fixed",
          "spec-check", "redepth", "ask-final", "answer-final")
 LISTS = ("deferred", "widened", "final_reasons", "spec_changed", "optional")
 VALUES = ("prior_failures", "redepth")
@@ -55,12 +58,19 @@ def filled(got: dict | None) -> dict | None:
     return None if got is None or all(value is None for value in got.values()) else got
 
 
+def carried(fix_in) -> dict:
+    """固定材料の run の写しの値（fix-in の received）。ほかの run と飛んだ fix-in は空"""
+    got = boundary.value(fix_in)
+    received = got.get("received") if isinstance(got, dict) else None
+    return received if isinstance(received, dict) else {}
+
+
 def collect(received: dict, line: dict) -> dict:
     got = {name: (boundary.value(received.get(name)) or {}).get("got") for name in (*RECEIVED, *ROUNDS, "design_only")}
     design_only = got.pop("design_only")
     fixed = boundary.value(line["fixed"])
     stops = {node: boundary.text((line.get("stops") or {}).get(node)) for node in STOPS}
-    return {
+    out = {
         **got,
         "fix": None if got["fix"] is None else fixed if isinstance(fixed, dict) else got["fix"],
         "plan": filled(got["plan"]),
@@ -71,6 +81,7 @@ def collect(received: dict, line: dict) -> dict:
         **{name: boundary.items(line.get(name)) for name in LISTS},
         **{name: boundary.value(line.get(name)) for name in VALUES},
     }
+    return {**out, **{name: value for name, value in carried(line.get("fix_in")).items() if name in out and not out[name]}}
 
 
 def received_of_env() -> dict:
@@ -85,6 +96,7 @@ def line_of_env() -> dict:
     return {
         "start": os.environ.get("INPUTS_START"),
         "fixed": os.environ.get("INPUTS_FIXED"),
+        "fix_in": os.environ.get("INPUTS_FIX_IN"),
         "gates": {name: os.environ.get(f"INPUTS_{name.upper()}") for name in GATES},
         "stops": {node: os.environ.get(f"INPUTS_{stop_key(node).upper()}") for node in STOPS},
         **{name: os.environ.get(f"INPUTS_{name.upper()}") for name in (*LISTS, *VALUES)},

@@ -251,6 +251,13 @@ class ChainStartCase(Tree):
         self.assertEqual((got["ok"], got["act"]), (False, "refused"), got)
         self.assertIn("design_only", got["text"])
 
+    def test_fix_fixture_is_refused_before_any_round(self):
+        """#509: 固定材料は 1 つの run の修正の前の写しで、2 周目からの依頼と木はそれと違うので、鎖は AI の前で拒む（元 works の
+        dev/use.sh 215 行）"""
+        got = self.start(rounds="2", fix_fixture="fixture")
+        self.assertEqual((got["ok"], got["act"]), (False, "refused"), got)
+        self.assertIn("fix_fixture", got["text"])
+
     def test_accepted_inputs_are_the_first_round(self):
         got = self.start(rounds="3", budget_usd="2.5", request="req.json", pr="7")
         self.assertEqual((got["ok"], got["act"], got["rounds"], got["budget"], got["rows"]), (True, "launch", 3, 2.5, []))
