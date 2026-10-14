@@ -2,13 +2,20 @@
 # 筋書きが見るのは配線だけ（振る舞いは tests/workflows/test_judge.py の子のプロセスの試験と lib/tests/test_judge_accept.py）
 fixture:
   expect: completed
-  reached: [intake, pr-scan, premises-accept, purpose-accept, material-route, prior-decisions-accept, diagnose-prep, diagnose-accept, verify-prep, verify-merge, verdict]
+  reached: [intake, head-depth-accept, pr-scan, premises-accept, purpose-accept, material-route, prior-decisions-accept, diagnose-prep, diagnose-accept, verify-prep, verify-merge, verdict]
 intake: {go: true, mode: judge, spec: false, world: false, verify: false, reason: ''}
+head-depth-prep: {go: true, brief_file: /tmp/judge/depth-head-brief.md, reason: ''}
+head-depth-reject: {reason: '', "lang_line": ""}
+head-depth:
+  depth: 標準
+  why: 筋書きの役は標準を返す
+  items: []
+head-depth-accept: &id001 {ok: true, done: true, reason: ''}
 pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
 premises:
   constraints: []
 premises-reject: {reason: '', "lang_line": ""}
-premises-accept: &id001 {ok: true, done: true, reason: ''}
+premises-accept: *id001
 purpose-prep: {go: true, brief_file: /tmp/judge/purpose-brief.md, reason: ''}
 purpose:
   purpose_text: 平均と範囲の関数が正しい値を返す
@@ -43,6 +50,8 @@ diagnose-accept: *id001
 verify-prep: {go: false, prompt_file: '', reason: 開いた単位が 2 つ未満, "lang_line": ""}
 verify-merge: {ok: true, reason: ''}
 verdict:
+  depth: 標準
+  depth_why: 筋書きの stub
   ready: true
   stop_reason: ''
   units:

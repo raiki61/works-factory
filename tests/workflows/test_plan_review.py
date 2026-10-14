@@ -74,7 +74,7 @@ CONTRACT_INPUTS = ("units", "judgment", "purpose", "world", "plan", "structure",
 ORIGINAL_UNITS_LINE = ("直す単位（各行の `no` は engine が振った番号。**key を写さず no の整数で指せ**——engine が名前に戻して記録する）: "
                        "{{record.units | pick key,label,disposition,reason}}")
 ADDED_INPUTS = {"start": "null", "answers": "null", "ruling": "[]", "conflicts": "null", "gate_answers": "null",
-                "round_limit": "null", "mode": ""}
+                "round_limit": "null", "mode": "", "depth_skip": "false", "depth_why": ""}
 RETURN_FIELDS = ("pass", "stalled", "review", "design", "gate_axes", "ask_human", "questions")
 RUN_KEYS = ("interactive", "worktree", "container", "evidence_policy", "mutates_checkout")
 
@@ -898,7 +898,8 @@ class NoFixDesignCase(RunCase):
         r.inputs.update(plan="null", structure="null", ripple="null", mode="design")
         got = r.open()
         self.assertEqual((got["form"], got["r2_go"]), ("design", True), got)
-        self.assertEqual(nodes()["review-loop"]["when"], "$open.output.ok == true && $open.output.form != 'design'")
+        self.assertEqual(nodes()["review-loop"]["when"],
+                         "$open.output.ok == true && $open.output.form != 'design' && $open.output.depth_skip != true")
         prompt = r.out("r2_prep")["prompt"]
         self.assertIn(PURPOSE_MARK, prompt)
         self.assertTrue(r.accept(DESIGN_OK, "r2_accept")["ok"])
@@ -2475,6 +2476,50 @@ class ResultCase(RunCase):
         self.assertTrue(any(boardview.REVIEW_FILE in q for q in texts(got)), texts(got))
 
 
+class DepthSkipCase(RunCase):
+    """run の頭の深さが軽量の周（入力 depth_skip。issue #441）: 頭が形 review の時だけ真を返し、輪を飛ばした返す節は審査なしで
+    通した形（pass 真・faces の無い訳つきの控え）を返し、修正案の狭めは今どおり関所に回す。読んだ証拠は役を探さない"""
+
+    def test_open_says_skip_only_for_review(self):
+        r = self.run_
+        self.assertIs(r.out("pass_open", INPUTS_DEPTH_SKIP="true")["depth_skip"], True)
+        self.assertIs(r.out("pass_open")["depth_skip"], False)
+        r.inputs["ruling"] = "[1]"
+        r.open()   # 形 replan は承認済みの案が要るので、先の review の往復を置いた
+        self.assertIs(r.out("pass_open", INPUTS_DEPTH_SKIP="true")["depth_skip"], False)
+
+    def test_skipped_round_passes_unreviewed_and_keeps_the_gate_items(self):
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1, narrows=[dict(TP.NARROW)]), item(UNIT_CLAMP, 2)])
+        r.out("pass_open", INPUTS_DEPTH_SKIP="true", INPUTS_DEPTH_WHY="全部の単位が軽量")
+        got = r.out("result")
+        self.assertEqual(validate_schema(got, nodes()["review"]["output_format"]), [], got)
+        self.assertEqual((got["pass"], got["stalled"]), (True, False))
+        doc = json.loads(r.pointed(got["review"]).read_text(encoding="utf-8"))
+        self.assertEqual((doc["faces"], doc["reason"]), ([], boardview.DEPTH_SKIP_WHY + "全部の単位が軽量"))
+        self.assertTrue(got["ask_human"])
+        self.assertEqual([q["kind"] for q in got["questions"]], ["regression"], got["questions"])
+
+    def test_eyes_head_says_the_skipped_round_was_not_reviewed(self):
+        """独立の目の頭の事前審査の行は、飛ばした周を通したと言わず、審査していないと言う（飛ばした事前審査の代わりの目が読む）"""
+        r = self.run_
+        r.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)])
+        r.out("pass_open", INPUTS_DEPTH_SKIP="true", INPUTS_DEPTH_WHY="全部の単位が軽量")
+        r.out("result")
+        self.assertEqual(eyeverdict.plan_review_line(r.folder, r.art / "plan/r1/plan-fields.json"),
+                         eyeverdict.REVIEW_UNREAD.format(why=eyeverdict.REVIEW_DEPTH_SKIPPED))
+
+    def test_reads_do_not_look_for_the_role(self):
+        r = self.run_
+        r.out("pass_open", INPUTS_DEPTH_SKIP="true")
+        got = r.out("review_reads")
+        self.assertEqual((got["ok"], got["missing"]), (True, []), got)
+        self.assertEqual(set(json.loads(pathlib.Path(got["index_file"]).read_text(encoding="utf-8")).values()), {None})
+
+    def test_review_loop_waits_on_the_skip(self):
+        self.assertIn("$open.output.depth_skip != true", nodes()["review-loop"]["when"])
+
+
 class FailSafeCase(RunCase):
     """差し込みの頭と返す節は境の口と lib を読めない時も落ちない。差し込みの頭は始めに前の差し込みの材料を消し、返す節は境の口を
     通さずに failed/ の返答・設計の控え・聞かずに通した行（report が review.json の隣を名で開く）と指し札を組む"""
@@ -2743,7 +2788,7 @@ class FixtureCase(unittest.TestCase):
         names = sorted(p.name for p in (BLOCK / "fixtures").glob("*.stubs.yaml"))
         self.assertEqual(names, sorted(f"{n}.stubs.yaml" for n in (
             "pass", "block", "stalled", "ask-human", "target-text-drift", "r2-skipped", "r2-give-up", "review-give-up",
-            "open-failed")))
+            "open-failed", "depth-skip")))
         with archon.tree([BLOCK.name]) as tree:
             done = archon.archon(tree, "workflow", "test", "works-factory-plan-review", "--cwd", str(tree))
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)

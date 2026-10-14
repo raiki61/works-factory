@@ -23,11 +23,13 @@ plan・ripple は独立の目が照らす修正案と波及: 2 度目の修正�
 （元 works/darkfactory/lib/line_edge.py 1058-1064 行。案の直しの後は承認済みの案を差し替えた）。
 
 design・plan_questions・answer は独立の目へ渡す計画の往復の設計と修正前の関所の問いと答え（そのまま渡す）。直す物が無い周（fix が
-走らず design-only が走った。fix の欄が null）は no_fix の形（no_fix）を返す（L-W07）。
+走らず design-only が走った。fix の欄が null）は no_fix の形（no_fix）を返す（L-W07）。review_skipped は計画の往復が事前審査を run の
+頭の深さで飛ばしたか（plan-rounds の depth_skip。真の時だけ真）で、独立の目が R1〜R4 を省かない印。
 
 入力（with:）: fix_<欄>（fix の返り。止めの語 stop_reason も）・refix_<欄>（refix-run の返り）・replan（after-fix の返り）・stop_after_fix（after-fix の止めの理由）・
 plan・ripple・design・plan_questions（計画の往復の返り）・answer（修正前の関所の答え）・no_fix_design（design-only の design）・replanned
-（案の直しの返りの受け皿 replan-out の got。案の直しの返す節が落ちても fixed が落ちないように、replan を直に読まない）。直す物が
+（案の直しの返りの受け皿 replan-out の got。案の直しの返す節が落ちても fixed が落ちないように、replan を直に読まない）・
+review_skipped（計画の往復の depth_skip）。直す物が
 無い周に飛ぶ節を結ぶので、どれも `{from, if_skipped: null}`
 """
 import json
@@ -69,10 +71,11 @@ def review_failed(returned: dict) -> bool:
     return isinstance(review, dict) and (review.get("rounds") or 0) >= 1 and review.get("pass") is False
 
 
-def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: dict | None = None) -> dict:
+def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: dict | None = None,
+          review_skipped: bool = False) -> dict:
     plans = plans or {}
     if fix.get("done") is None and refix is None:
-        return no_fix(plans)
+        return {**no_fix(plans), "review_skipped": review_skipped}
     last = refix if refix is not None else fix
     again = plans.get("replanned") if refix is not None and isinstance(plans.get("replanned"), dict) else None
     own = next((s for s in (fix.get("stop_reason"), (refix or {}).get("stop_reason")) if isinstance(s, str) and s), "")
@@ -109,6 +112,7 @@ def fixed(fix: dict, refix: dict | None, *, replan: bool, stops: tuple, plans: d
         "plan_questions": plans.get("plan_questions") or [],
         "answer": plans.get("answer"),
         "no_fix": False,
+        "review_skipped": review_skipped,
         "stop_reason": own,
     }
 
@@ -123,14 +127,16 @@ def from_env() -> dict:
             "replan": boundary.flag(os.environ.get("INPUTS_REPLAN")),
             "plans": {key: boundary.value(os.environ.get(f"INPUTS_{key.upper()}"))
                       for key in (*PLANS, "replanned", *PASSED, "no_fix_design")},
-            "stops": (boundary.text(os.environ.get("INPUTS_STOP_AFTER_FIX")),)}
+            "stops": (boundary.text(os.environ.get("INPUTS_STOP_AFTER_FIX")),),
+            "review_skipped": boundary.flag(os.environ.get("INPUTS_REVIEW_SKIPPED"))}
 
 
 def fallback(reason: str) -> dict:
     return {**{key: None for key in FIELDS}, "done": False, "go": False, "units": [], "groups": [], "conflicts": [], "diffs": [], "replan_items": [],
             "handoffs": [], "mismatched": [],
             "objection": "", "rejudge": False, "allowed_test_changes": [], "x_scalars": {}, "refixed": False, "plan": None, "ripple": None,
-            "design": None, "plan_questions": [], "answer": None, "no_fix": False, "stop_reason": boundary.LINE_SCRIPT}
+            "design": None, "plan_questions": [], "answer": None, "no_fix": False, "review_skipped": False,
+            "stop_reason": boundary.LINE_SCRIPT}
 
 
 if __name__ == "__main__":
