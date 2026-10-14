@@ -61,7 +61,7 @@ class Stop(Exception):
 
 def launch(attempt: Path, *args: str, shell: Path = SHELL) -> subprocess.CompletedProcess:
     """殻で試みのフォルダの家の Archon を起こす（工程を回さない読むだけの命令なので認証を要らなくする）"""
-    env = {**os.environ, launcher.HOME_ENV: str(attempt / "home"), "WORKS_FACTORY_NO_AUTH": "1"}
+    env = {**os.environ, launcher.HOME_ENV: str(attempt / "home"), launcher.NO_AUTH_ENV: "1"}
     return subprocess.run([sys.executable, str(shell), "workflow", *args, "--cwd", str(attempt / "target")],
                           cwd=attempt / "home", env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
                           encoding="utf-8")

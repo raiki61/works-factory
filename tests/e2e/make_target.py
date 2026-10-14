@@ -124,7 +124,7 @@ def stop_runs(home: Path, target: Path) -> bool:
 def launch(home: Path, target: Path, *args: str) -> subprocess.CompletedProcess:
     """殻で home の家の Archon を起こす。Archon は git のリポジトリの中でしか命令を受けないので、対象を --cwd で渡す。
     止める命令は工程を回さないので、認証を要らなくする"""
-    env = {**os.environ, launcher.HOME_ENV: str(home), "WORKS_FACTORY_NO_AUTH": "1"}
+    env = {**os.environ, launcher.HOME_ENV: str(home), launcher.NO_AUTH_ENV: "1"}
     return subprocess.run([sys.executable, str(SHELL), "workflow", *args, "--cwd", str(target)], cwd=home, env=env,
                           stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8")
 
