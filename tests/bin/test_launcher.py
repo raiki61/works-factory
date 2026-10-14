@@ -623,6 +623,7 @@ class LauncherTest(unittest.TestCase):
         if lib not in sys.path:
             sys.path.append(lib)
         import entryshape
+        self.assertEqual(launcher.NO_AUTH_ENV, entryshape.NO_AUTH_ENV)
         env = self.reached(self.launch("workflow", "run", "works-factory-line", ANTHROPIC_API_KEY=None,
                                        **{entryshape.NO_AUTH_ENV: "1"}))["env"]
         self.assertEqual(env.get(entryshape.NO_AUTH_ENV), "1")

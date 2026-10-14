@@ -28,6 +28,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))   # 命令として走る時は tests/e2e/ が頭に来るだけなので
+from bin._lib import launcher  # noqa: E402
+
 SHELL = ROOT / "bin" / "works-factory"
 EVIDENCE = "evidence"
 CHECKS = ("exists", "json-has", "json-equals", "text-contains", "node-completed")
@@ -57,7 +61,7 @@ class Stop(Exception):
 
 def launch(attempt: Path, *args: str, shell: Path = SHELL) -> subprocess.CompletedProcess:
     """殻で試みのフォルダの家の Archon を起こす（工程を回さない読むだけの命令なので認証を要らなくする）"""
-    env = {**os.environ, "WORKS_FACTORY_HOME": str(attempt / "home"), "WORKS_FACTORY_NO_AUTH": "1"}
+    env = {**os.environ, launcher.HOME_ENV: str(attempt / "home"), launcher.NO_AUTH_ENV: "1"}
     return subprocess.run([sys.executable, str(shell), "workflow", *args, "--cwd", str(attempt / "target")],
                           cwd=attempt / "home", env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
                           encoding="utf-8")

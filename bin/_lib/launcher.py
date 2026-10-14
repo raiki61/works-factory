@@ -28,6 +28,7 @@ EXECUTING = frozenset({"run", "resume", "approve", "reject", "respond"}) | CONTI
 # 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
 READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
+NO_AUTH_ENV = "WORKS_FACTORY_NO_AUTH"   # 認証の要らない起動（lib/entryshape.py の NO_AUTH_ENV と同じ名）
 HOST_GH_DIR = "host-gh"
 FENCE_DIR = "claude-fence"
 FENCE = ROOT / "workflows" / ".shared" / "fence.py"
@@ -71,7 +72,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> None:
         raise Stop("--workflow-source は渡さない。自分のグラフの置き場は殻が渡す")
     require_command_first(argv)
     workflow = fresh_run_workflow(argv, flags)
-    no_auth = user.get("WORKS_FACTORY_NO_AUTH") == "1"
+    no_auth = user.get(NO_AUTH_ENV) == "1"
     user_home = user.get("HOME")
     if not user_home:
         raise Stop("HOME が無い。利用者の HOME から認証と置き場を引く")
