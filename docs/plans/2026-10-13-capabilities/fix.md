@@ -791,7 +791,7 @@ B の数: 50 行 / 今が無し 5（F106・F107・F130・F136・F147）/ 証が�
   - 元: works/.shared/core/conflict.py:433 `set_replan`
   - 今: lib/conflict.py::set_replan
   - 証: lib/tests/test_conflict_kinds.py::TestReplanState（9 本。例 lib/tests/test_conflict_kinds.py::TestReplanState.test_bad_transition_is_board_gap・lib/tests/test_conflict_kinds.py::TestReplanState.test_amended_rows_return_units_to_duty）、lib/tests/test_fix_seams.py::ConflictSeamCase.test_ask_human_is_asked_and_amended_returns_to_duty
-  - 本物の run: 筋書きでのみ。ただし今の線で AMENDED に移す呼び手は fix の中に無い（案の直しは線が plan を回し直して refix の別の置き場で直す）。AMENDED を読む道は F216 のとおり線の上で効かない
+  - 本物の run: 筋書きでのみ（案の直しは線が plan を回し直して refix の別の置き場で直し、その支度が 1 回目の段の待つ行を写す時に AMENDED へ移す: lib/conflict.py::adopt_prior）
   - 狭め: F216 を参照
 
 - F215 fix_plan_item の裁定の項目の番号を返り replan_items で線へ返し、線が案の直しと 2 回目の修正（only_items の単位だけ）を差し込む
@@ -997,14 +997,14 @@ C の数: 32 行（F229・F230 は E への参照で数えない）/ 今が無�
   - 元: works/.shared/core/refix.py:400 `accept_fix`（writes.check）
   - 今: lib/refix.py::accept_fix（writes.check）、lib/fixboard.py::undeclared_refix、workflows/fix/scripts/refix_accept.py（段の頭の木 refix1-head.json）
   - 証: lib/tests/test_blk_refix.py::RefixCase.test_refix_unrecorded_write_rejected_and_declared_write_passes、lib/tests/test_blk_refix.py::RefixCase.test_refix_without_record_notes_the_run、tests/workflows/test_fix.py::DeltaScriptsCase.test_refix_undeclared_write_is_rejected
-  - 本物の run: 筋書きでのみ（審査役が直す義務を出して手直しが起きた run だけ、置き場に `refix1-head.json` を書く。記録の包みが無いので常に記録の無い run の道（B の F102・F103 と同じ））
+  - 本物の run: 筋書きでのみ（審査役が直す義務を出して手直しが起きた run だけ、置き場に `refix1-head.json` を書く。書き込みの記録は PostToolUse のフックが置き場の `writes.jsonl` に書き（PR #178）、記録の無い run の道は記録の根の無い起動だけ）
   - 狭め: 記録の包みは #94 で落ちた（当時は U6 待ち。段 1b の U6 の決めで記録はフックが要ると分かり、PR #178 で戻した。B の F102 と同じ）
 
 - F311 手直しの brief の穴ごとの名札（hole ties）: 穴を修正案の項目・単位・修正の changes・準拠の落ちた行・前の往復の穴（2 回目）に結び、どの枝の直しかを手直しの役に見せる
   - 元: works/.shared/core/holeties.py:94 `tie`・:154 `note`、works/.shared/core/refix.py の tie_items・hole_ties
   - 今: lib/holeties.py、lib/fixboard.py::tie_items・lib/fixboard.py::hole_ties・lib/fixboard.py::prep_fix
   - 証: lib/tests/test_holeties.py::TieCase、lib/tests/test_blk_refix.py::RefixCase.test_compliance_fail_reaches_ties、lib/tests/test_blk_refix.py::RefixCase.test_review2_then_ties2
-  - 本物の run: `refix1-brief.json` の ties（手直しが起きた時）。事前審査の穴の名札は F302 により付かない
+  - 本物の run: `refix1-brief.json` の ties（手直しが起きた時）。事前審査の穴の名札は、事前審査が穴を挙げた run だけ
   - 狭め: 無し（事前審査の穴の分は F302）
 
 - F312 差分の審査の穴の名札を、報告と最後の人の関所に枝ごとの行として出す（report.branch_rows・holeties.count_line・holeties.lines）

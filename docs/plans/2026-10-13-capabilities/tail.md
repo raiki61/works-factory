@@ -1936,7 +1936,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 元: works/.shared/core/report.py:172・648-667 `stopped_run`（FINAL_GATE_STOPS）・works/dev/use.sh:409-426
   - 今: lib/answer.py::GO_WORDS・lib/answer.py::STOP_WORDS・lib/seal.py::_answer_refusal・lib/seal.py::apply_refusal
   - 証: lib/tests/test_seal.py::ApplyAnswerCase.test_non_pass_words_refuse・lib/tests/test_seal.py::ApplyRefusalOrderCase.test_3_stop_answer・tests/workflows/test_merge.py::ApplyTest.test_stop_answer_refuses
-  - 本物の run: 筋書きでのみ（本物の run では答えを continue にする。stop にすれば `merge-apply` は飛ぶ: M38）
+  - 本物の run: 筋書きでのみ（本物の run では答えを continue にする。stop にすれば `merge-apply` は飛ぶ）
   - 狭め: 無し
 
 - M18 答えの文が `request:` で始まる止める語は「止め札」と書き分ける
