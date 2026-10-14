@@ -555,11 +555,27 @@ class OutsideEnvCase(unittest.TestCase):
         """起動の殻の控え（userenv.RECORD）は外し、値の在る名は戻し null の名は外す。uv run の中でも外でも同じ"""
         record = json.dumps({"HOME": "/u", "XDG_CONFIG_HOME": None})
         for uv in ({}, {"UV_RUN_RECURSION_DEPTH": "1"}):
-            with self.subTest(uv=uv):
+            with self.subTest(uv=uv), tempfile.TemporaryDirectory() as top:
                 env = tree_run.outside_env({"HOME": "/run/home", "XDG_CONFIG_HOME": "/run/xdg", "CLAUDE_CONFIG_DIR": "/run/c",
-                                            userenv.RECORD: record, **uv})
+                                            userenv.RECORD: record, userenv.RAN_DIR_ENV: top, **uv})
                 self.assertEqual({k: env[k] for k in env if k != "PATH"},
-                                 {"HOME": "/u", "CLAUDE_CONFIG_DIR": "/run/c", "PYTHONDONTWRITEBYTECODE": "1"})
+                                 {"HOME": "/u", "CLAUDE_CONFIG_DIR": "/run/c", "PYTHONDONTWRITEBYTECODE": "1",
+                                  userenv.MARK: str(pathlib.Path(top) / userenv.RAN_FILE)})
+                self.assertFalse(userenv.ran(top))
+
+    def test_user_env_marker_only_after_the_child_started(self):
+        """#504: 戻した env の印（userenv.MARK）は子に渡さず、子が起きた時だけ置く。起こせなかったコマンドは印を残さない"""
+        record = json.dumps({"HOME": "/u"})
+        with tempfile.TemporaryDirectory() as top:
+            env = tree_run.outside_env({**os.environ, userenv.RECORD: record, userenv.RAN_DIR_ENV: top})
+            with self.assertRaises(OSError):
+                tree_run.run([os.path.join(top, "no-such-tool")], env=env)
+            self.assertFalse(userenv.ran(top))
+            seen = pathlib.Path(top) / "seen"
+            rc = tree_run.run([sys.executable, "-c", f"import os; open({str(seen)!r}, 'w').write(os.environ.get({userenv.MARK!r}, ''))"],
+                              env=env)
+            self.assertEqual((rc, seen.read_text()), (0, ""))
+            self.assertTrue(userenv.ran(top))
 
     def test_without_user_record_home_stays(self):
         self.assertEqual(tree_run.outside_env({"HOME": "/run/home"}), {"HOME": "/run/home", "PYTHONDONTWRITEBYTECODE": "1"})

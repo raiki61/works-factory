@@ -4,7 +4,9 @@
 security（と mise）と、python3・git だけを置く。偽の bun は受けた引数と環境を JSON に書き、試験がそれを照らす（トークンは在るかだけを見る。環境は名の一覧で照らし、落ちた時に値を
 試験の出力に出さない）。
 """
+import contextlib
 import hashlib
+import io
 import json
 import os
 import pathlib
@@ -144,12 +146,90 @@ class LauncherTest(unittest.TestCase):
                 self.assertIn("使い方", err)
 
     def test_resume_and_approve_pass_through_unchanged(self):
+        self.commit_target()
         for args in (["workflow", "approve", "run-1", "--cwd", str(self.target)],
                      ["workflow", "run", "works-factory-line", "--resume", "--cwd", str(self.target)],
                      ["workflow", "status"]):
             with self.subTest(args=args):
                 argv = self.reached(self.launch(*args))["argv"]
                 self.assertEqual(argv[3:], args)
+
+    def commit_target(self) -> str:
+        (self.target / "kept.txt").write_text("kept\n", encoding="utf-8")
+        git(self.target, "add", "-A")
+        git(self.target, "commit", "-q", "-m", "seed")
+        return git(self.target, "rev-parse", "HEAD")
+
+    def test_run_starts_from_the_targets_current_state(self):
+        head = self.commit_target()
+        with self.subTest("汚れていない対象は HEAD から"):
+            argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x"))["argv"]
+            self.assertEqual(argv[9:], ["works-factory-line", "--from", head, "--input", "request=x"])
+        with self.subTest("未追跡のファイルは HEAD を親に包んだ commit から"):
+            (self.target / "untracked.txt").write_text("u\n", encoding="utf-8")
+            done = self.launch("workflow", "run", "works-factory-line", "--input", "request=x")
+            argv = self.reached(done)["argv"]
+            self.assertEqual(argv[10], "--from")
+            self.assertNotEqual(argv[11], head)
+            self.assertEqual(git(self.target, "rev-parse", f"{argv[11]}^"), head)
+            self.assertIn(argv[11][:12], done.stderr)
+        with self.subTest("利用者の --from が勝ち、殻は足さない"):
+            argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--from", "x", "--input", "request=x"))["argv"]
+            self.assertEqual(argv[9:], ["works-factory-line", "--from", "x", "--input", "request=x"])
+
+    def test_test_cmd_running_the_checkout_stops_before_archon(self):
+        """#495: test_cmd が対象の手元を絶対パスで指すと、Archon を起こさずに止める（run の試験が直しでなく手元を試す偽の緑）。
+        WORKS_FACTORY_ALLOW_TESTCMD=1 なら知らせて起こす。git が無視する物を相対で指す形は注意だけで起こす"""
+        self.commit_target()
+        (self.target / ".gitignore").write_text(".venv/\n", encoding="utf-8")
+        runner = self.target / ".venv" / "bin" / "run-tests"
+        runner.parent.mkdir(parents=True)
+        runner.write_text("#!/bin/sh\n", encoding="utf-8")
+        git(self.target, "add", ".gitignore")
+        git(self.target, "commit", "-q", "-m", "ignore")
+        run = ("workflow", "run", "works-factory-line", "--input", "request=x")
+        err = self.stopped(self.launch(*run, "--input", f"test_cmd={runner} -q"))
+        self.assertIn("止める（test_cmd）", err)
+        self.assertIn(f"test_cmd が対象の手元（{self.target}）を走らせる形", err)
+        self.assertIn(launcher.ALLOW_TESTCMD_ENV, err)
+        done = self.launch(*run, f"--input=test_cmd={runner} -q", **{launcher.ALLOW_TESTCMD_ENV: "1"})
+        self.reached(done)
+        self.assertIn("注意（test_cmd）", done.stderr)
+        self.assertIn("=1 なので止めずに起こす", done.stderr)
+        done = self.launch(*run, "--input", "test_cmd=.venv/bin/run-tests -q")
+        self.reached(done)
+        self.assertIn("注意（test_cmd）", done.stderr)
+
+    def test_test_cmd_through_home_stops_only_when_target_commands_get_the_users_home(self):
+        """PR #503 の見直し: 対象のコマンドを利用者の HOME で走らせる run（userenv.OPT_IN）では、~・$HOME で手元を指す test_cmd も
+        run の中で手元を指すので止める。隔離した HOME で走らせる run では別の所を指して落ちるので止めない"""
+        self.commit_target()
+        (self.target / ".gitignore").write_text(".venv/\n", encoding="utf-8")
+        runner = self.target / ".venv" / "bin" / "run-tests"
+        runner.parent.mkdir(parents=True)
+        runner.write_text("#!/bin/sh\n", encoding="utf-8")
+        git(self.target, "add", ".gitignore")
+        git(self.target, "commit", "-q", "-m", "ignore")
+        run = ("workflow", "run", "works-factory-line", "--input", "request=x")
+        via_home = f"~/{os.path.relpath(runner, self.home)} -q"
+        err = self.stopped(self.launch(*run, "--input", f"test_cmd={via_home}", **{userenv.OPT_IN: "1"}))
+        self.assertIn("止める（test_cmd）", err)
+        self.reached(self.launch(*run, "--input", f"test_cmd={via_home}"))
+
+    def test_test_cmd_check_that_fails_stops_unless_allowed(self):
+        def failing(*_, **__):
+            return subprocess.CompletedProcess([], 1, stdout="")
+        with self.assertRaises(launcher.Stop):
+            launcher.check_test_cmd({}, self.target, ["make test"], run=failing)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            launcher.check_test_cmd({launcher.ALLOW_TESTCMD_ENV: "1"}, self.target, ["make test"], run=failing)
+        self.assertIn("終了の値 1", said.getvalue())
+        launcher.check_test_cmd({}, self.target, ["", "  "], run=failing)
+
+    def test_flag_values_reads_both_forms_in_order(self):
+        self.assertEqual(launcher.flag_values(["--input", "test_cmd=a b", "--input=test_cmd=c", "--input", "request=x"], "--input"),
+                         ["test_cmd=a b", "test_cmd=c", "request=x"])
+        self.assertEqual(launcher.flag_values(["--input", "--input", "x"], "--input"), ["--input"], "値に取った字は旗として読まない")
 
     def test_user_workflow_source_is_refused(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--workflow-source", str(self.tmp)))
@@ -276,14 +356,15 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(env["WORKS_FACTORY_ROOT"], str(self.repo))
 
     def test_users_home_reaches_target_commands_only_when_asked(self):
-        """#492: OPT_IN=1 の起動だけが、対象のコマンドに戻す利用者の HOME を控え、AI の試験のコードが資格に届くと起動の 1 行で言う。
+        """#492: OPT_IN=1 の起動だけが、対象のコマンドに戻す利用者の HOME を控え、明示したことと AI の試験のコードが資格に届きうることを起動の 1 行で言う。
         役と Archon の HOME は隔離のまま"""
         done = self.launch("workflow", "run", "works-factory-line", **{userenv.OPT_IN: "1"})
         env = self.reached(done)["env"]
         self.assertEqual(json.loads(env[userenv.RECORD])["HOME"], str(self.home))
         self.assertTrue(pathlib.Path(env["HOME"]).is_relative_to(self.default_home(self.target)), env["HOME"])
         self.assertIn(f"{userenv.OPT_IN}=1", done.stderr)
-        self.assertIn("AI が書いた試験のコードが、利用者の資格", done.stderr)
+        self.assertIn(f"{userenv.OPT_IN}=1 を明示した", done.stderr)
+        self.assertIn("AI が書いた試験のコードが利用者の資格", done.stderr)
         self.assertNotIn(userenv.OPT_IN, self.launch("workflow", "run", "works-factory-line").stderr)
 
     def test_child_env_carries_answer_head(self):
@@ -694,6 +775,39 @@ class LauncherTest(unittest.TestCase):
         err = self.stopped(self.launch("workflow", "status"))
         self.assertEqual(len(err.strip().splitlines()), 1, err)
         self.assertIn("bun が無い", err)
+
+
+class ReadmeUsageTest(unittest.TestCase):
+    """#495: README の「使い方」が、依頼のファイルの形（例が入口の照らしを通る）・test_cmd・作業ツリーの起点を書き、殻の案内が
+    指すセクションの名が見出しに在る"""
+    README = (pathlib.Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+
+    def section(self, name: str) -> str:
+        head = f"### {name}\n"
+        self.assertIn(head, self.README)
+        return self.README.split(head, 1)[1].split("\n#", 1)[0]
+
+    def test_request_example_passes_the_entry_check(self):
+        lib = str(pathlib.Path(__file__).resolve().parents[2] / "lib")
+        if lib not in sys.path:
+            sys.path.append(lib)
+        import carry
+        import entry
+        [example] = [block.split("\n", 1)[1] for block in self.section("依頼のファイル").split("```")[1::2]
+                     if block.startswith("json\n")]
+        parts = carry.parts(json.loads(example))
+        self.assertTrue(parts[carry.FINDINGS])
+        self.assertEqual(entry.request_problems(parts[carry.FINDINGS]), [])
+
+    def test_test_cmd_and_start_point_are_documented(self):
+        from bin._lib import testcmd_check
+        self.assertIn("「test_cmd と作業ツリー」", testcmd_check.HOW)
+        test_cmd = self.section("test_cmd と作業ツリー")
+        for word in ("--input test_cmd=", launcher.ALLOW_TESTCMD_ENV, "止める（test_cmd）", "注意（test_cmd）"):
+            self.assertIn(word, test_cmd)
+        start = self.section("作業ツリーの起点")
+        for flag in ("--from", "--from-branch", "--base", "--branch", "--no-worktree", "--adopt"):
+            self.assertIn(f"`{flag}", start)
 
 
 if __name__ == "__main__":

@@ -72,7 +72,7 @@
 - 住処: 入口の変換 `lib/entryshape.py`（差分の根の名指しの解き `change_base`・差分も依頼の行も無い入力の拒み `refuse_empty`・入口の入力の形を作る `build`・依頼の文 `request_text`・名指した PR と issue の読み `github_reads`・PR の添え物の置き `write_pr_file`）
 - 約束: 入口の入力の形（`build` が返す `{base, head_rev, diff, requests, request_file, pr, spec}`）。後ろのノードはこの中身——差分が空か・依頼の行の数・PR の添え物・仕様の段を挟むか——だけを読み、入口の種類を見ない
 - 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_BASE`・`INPUTS_PR` を住処へ渡す）と、周の鎖の始めのノードの script `workflows/chain/scripts/chain_start.py`（鎖の入力 `INPUTS_BASE`・`INPUTS_PR` を 1 周目の子へ写し、1 周目に名指した PR の番号を次の依頼で運ぶ）。入口の種類で分かれる形と消した種の名は住処だけ
-- 今: 柵は、差分の根の名指しを読む・渡す形と、入口の種類で分かれる形・消した種の名の 2 本。試験 `lib/tests/test_concept_fences.py` の `FenceCase` が表のこの行を読み、柵が本当に当たることも見る
+- 今: 柵は、差分の根の名指しを読む・渡す形と、入口の種類で分かれる形・消した種の名の 2 本。試験 `lib/tests/test_concept_fences.py` の `FenceCase` が表のこの行を読み、柵が本当に当たることも見る。殻の `bin/_lib/startpoint.py` の `SKIP_FLAGS` の行は Archon の旗 `--base` を名指す写しで、入口の入力ではないので結んだ写し（bound）として数えない。試験 `tests/shared/test_archon_contract.py` が並びを Archon の旗に照らし、写しの行がその 1 行だけである事を縛る
 
 ### `web-get` 機械の web の取得と run をまたぐ控え
 

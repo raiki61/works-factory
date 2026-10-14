@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -40,6 +41,7 @@ import outcome  # noqa: E402
 import report  # noqa: E402
 import report_roles  # noqa: E402
 import runreport  # noqa: E402
+import userenv  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 from lib.tests.test_outcome import fixed_run  # noqa: E402
 
@@ -264,6 +266,14 @@ class CopiedTextsCase(unittest.TestCase):
             with self.subTest(name, original=original):
                 assert_is_original(self, BLOCK / "commands" / name, sha, edits)
 
+    def test_writer_names_factory_things_in_graph_and_user_words(self):
+        """#495: 書き手の書式の決まりが、工場の中の物をグラフの語（サブグラフ・ノード）で名指し、ほかを利用者の語に言い換えさせる"""
+        text = (BLOCK / "commands" / "report.md").read_text(encoding="utf-8")
+        rule = [line for line in text.splitlines() if line.startswith("- 工場の中の物はグラフの語で名指す")]
+        self.assertEqual(len(rule), 1)
+        for word in ("サブグラフ", "ノード", "承認ノード", "利用者の語", "terms"):
+            self.assertIn(word, rule[0])
+
 
 class TypedCase(unittest.TestCase):
     def setUp(self):
@@ -378,6 +388,27 @@ class FactsCase(Run):
         self.assertTrue(out["stamp"].endswith(" / メイングラフの版 読めない（始めの記録が読めない）"), out["stamp"])
         self.assertIn("TYPED_ARTIFACTS_FILE が空", text)
         self.assertIn("LOG_DIR", text)
+
+    def test_users_env_sentence_only_with_the_marker(self):
+        """#504: 利用者が明示した run でも、対象のコマンドを利用者の HOME・XDG に戻して起こした印（メイングラフの run の置き場の
+        userenv.RAN_FILE）が無ければ、報告の冒頭は利用者の環境で走らせたと言わない（対象のコマンドの前に止まった run）"""
+        opted = {userenv.RECORD: userenv.record({"HOME": "/u", userenv.OPT_IN: "1"})}
+        text = (self.artifacts / self.run_script("facts", **opted)[1]["facts_file"]).read_text(encoding="utf-8")
+        self.assertNotIn(userenv.NOTE, text)
+        (self.artifacts / userenv.RAN_FILE).touch()
+        text = (self.artifacts / self.run_script("facts", **opted)[1]["facts_file"]).read_text(encoding="utf-8")
+        self.assertIn(userenv.NOTE, text)
+
+    def test_fallen_report_says_users_env_with_the_marker(self):
+        """#504: 思わぬ誤りで落ちた報告も、印（userenv.RAN_FILE）が在れば冒頭で利用者の環境で走らせたと言う（起動の 1 行が冒頭を指す）"""
+        with mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN, "INPUTS_OUT_DIR": ""}):
+            for marked in (False, True):
+                with self.subTest(marked=marked):
+                    if marked:
+                        (self.artifacts / userenv.RAN_FILE).touch()
+                    out = facts_script.fallen(RuntimeError("壊れた"))
+                    text = (self.artifacts / out["facts_file"]).read_text(encoding="utf-8")
+                    self.assertEqual(userenv.NOTE in text, marked)
 
     def test_broken_inputs_and_missing_pointer_do_not_fall(self):
         code, out = self.run_script("facts", INPUTS_START=json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "start/none.json"}),
@@ -693,8 +724,12 @@ class CollectScriptCase(Run):
         machine = (self.artifacts / good["report"]["path"]).read_text(encoding="utf-8")
         out = self.collect("{壊れた")
         self.assertEqual(out["report"]["path"], f"{runreport.OUT_DIR}/{runreport.UNWRITTEN}")
-        self.assertIn("報告を組めなかった", (self.artifacts / out["report"]["path"]).read_text(encoding="utf-8"))
+        text = (self.artifacts / out["report"]["path"]).read_text(encoding="utf-8")
+        self.assertIn("報告を組めなかった", text)
+        self.assertNotIn(userenv.NOTE, text)
         self.assertEqual((self.artifacts / good["report"]["path"]).read_text(encoding="utf-8"), machine)
+        (self.artifacts / userenv.RAN_FILE).touch()   # #504: 利用者の HOME・XDG で走らせた run は、落ちた報告の冒頭も言う
+        self.assertIn(userenv.NOTE, (self.artifacts / self.collect("{壊れた")["report"]["path"]).read_text(encoding="utf-8"))
 
     def test_without_lib_still_returns(self):
         """lib/ を読めない（入口が渡した根に lib/ が無い）時も、返す節と facts は訳だけのファイルを指して 0 で返る"""
