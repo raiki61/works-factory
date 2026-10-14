@@ -130,6 +130,8 @@ SESSION_KEY = "session_key"   # 状態の欄: 前の周の支度が組んだ単�
 GAVE_UP_WHY = "機械が書いた申し出（TDD の確認が回数の上限まで通らなかった）: "   # 3 回拒まれた単位の申し出の why の頭
 STATE, PROMPT, SUMMARY = "state.json", "next.md", "summary.md"
 NO_SUITE = "テストの実行器（入力 tdd_suite）が無い run——全部の単位を今どおり直す"
+SUITE_SKIPPED = ("TDD のループを飛ばす（全部の単位を直に直す）: 入力 tdd_suite が無い。JUnit XML を第 1 引数に書く実行器を入力 tdd_suite に"
+                 "渡せばループを回す")
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
 ONLY_ENV = "TDD_SUITE_ONLY"

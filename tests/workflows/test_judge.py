@@ -383,7 +383,7 @@ class LoopTest(unittest.TestCase):
 class RoleSettingsTest(unittest.TestCase):
     def test_roles_keep_the_old_settings(self):
         by = nodes()
-        roles = {nid for nid, n in by.items() if "command" in n or "prompt" in n}
+        roles = {nid for nid, n in by.items() if any(k in n for k in scan.ROLE_KINDS)}
         self.assertEqual(sorted(roles), sorted(ROLES))
         for nid, (model, effort, tools, sandbox, read_only, context, skills, plugins) in ROLES.items():
             n = by[nid]
