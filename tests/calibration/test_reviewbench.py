@@ -9,10 +9,14 @@ import pathlib
 import shutil
 import unittest
 
+import yaml
+
 from tests.bin import hermetic
 from tests.bin.gitkit import git
 from tests.calibration import reviewbench
 from tests.calibration import run as runner
+from tests.calibration.run import ROOT
+from judge_accept import UNIT_FIELDS  # run が lib を sys.path に足す
 
 HERE = pathlib.Path(__file__).resolve().parent
 FIXTURES = HERE / "fixtures"
@@ -138,6 +142,21 @@ class ConvertCase(unittest.TestCase):
         self.assertIn("sealed.diff", record["final_diff_why"])
         self.assertEqual(record["unread"], {"parent/eyes/r1.json": "読めない（JSONDecodeError）"})
 
+    def test_rejudge_replaces_first_judgment(self):
+        """再審が走った run は rejudge/judgment.json の units が工場の最後の判定"""
+        attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
+        rejudged = attempt / "evidence" / "parent" / "rejudge" / "judgment.json"
+        rejudged.parent.mkdir()
+        rejudged.write_text(json.dumps({"units": [{"key": "stats.py:3 の分母", "label": "block", "reason": "置き換えた単位"}]}),
+                            encoding="utf-8")
+        _, record = self.convert(runner.WorksFactory, attempt, head)
+        units = [f for f in record["findings"] if f["source"].endswith("judgment.json")]
+        self.assertEqual([(f["source"], f["file"], f["start_line"]) for f in units],
+                         [("parent/rejudge/judgment.json", "stats.py", 3)])
+        self.assertEqual(record["dropped"], [])
+        self.assertIn("parent/rejudge/judgment.json", record["sources"])
+        self.assertNotIn("parent/judge/judgment.json", record["sources"])
+
     def test_unit_without_any_reference_is_dropped_as_such(self):
         attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
         (attempt / "evidence" / "parent" / "judge" / "judgment.json").write_text(
@@ -158,8 +177,32 @@ class ConvertCase(unittest.TestCase):
     def test_references_and_final_ranges(self):
         self.assertEqual(reviewbench.refs("see ./a/b.py:3-5 and c.md:7, not x.py:z or http://h.io:80"),
                          [("a/b.py", 3, 5), ("c.md", 7, 7)])
+        self.assertEqual(reviewbench.refs("関数はsrc/x.py:12で落ちる。②test_stats.py:40 が"),
+                         [("src/x.py", 12, 12), ("test_stats.py", 40, 40)])
         diff = "--- a/x.py\n+++ b/x.py\n@@ -3,2 +3,4 @@\n--- /dev/null\n+++ b/new.py\n@@ -0,0 +1,2 @@\n--- a/y.py\n@@ -5,0 +6 @@\n"
         self.assertEqual(reviewbench.final_ranges(diff), {"x.py": [(3, 4)], "y.py": [(5, 5)]})
+
+
+class SourceShapeCase(unittest.TestCase):
+    """ランナーが読む works-factory の出力の欄は、それを書く持ち主（判定の単位の欄・目のノードの output_format）に在る。
+    名が変わるとファイルは在るので unread は空のまま、指摘が黙って減る"""
+    # 目の置き場 eyes/<目>.json は、その目のノードの返りをそのまま書いた物（lib/eyeverdict.py の _read_eye が読む）
+    EYE_NODES = {"parent/eyes/r1.json": "r1-minimality", "parent/eyes/r4.json": "r4-scope"}
+
+    def test_sources_follow_their_owners(self):
+        graph = yaml.safe_load((ROOT / "workflows" / "eyes" / "works-factory-eyes.yaml").read_text(encoding="utf-8"))
+        by = {n["id"]: n for n in graph["nodes"]}
+        for source in runner.WorksFactory.sources:
+            with self.subTest(source=source.file):
+                if source.kind == "units":
+                    self.assertLessEqual({"key", "label", "reason"}, set(UNIT_FIELDS))
+                    continue
+                shape = by[self.EYE_NODES[source.file]]["output_format"]
+                for step in source.rows:
+                    shape = shape["properties"][step]["items"]
+                self.assertLessEqual({"where", source.text}, set(shape["properties"]))
+        r4 = by["r4-scope"]["output_format"]["properties"]["surfaced"]["items"]["properties"]
+        self.assertIn("mechanism", r4)
 
 
 if __name__ == "__main__":

@@ -171,7 +171,8 @@ pr = json.load(open(os.environ["RB_PR_JSON"], encoding="utf-8"))
 with open(os.environ["RB_OUT"], "w", encoding="utf-8") as f:
     json.dump({"pr": {k: pr[k] for k in ("repo", "pr_number", "base", "head")}, "agent": "claude",
                "findings": [{"file": "app.py", "start_line": 1, "end_line": 1, "message": "x を 2 にした", "producer": "claude"}]}, f)
-print(json.dumps({"type": "result", "is_error": False, "total_cost_usd": 1.5, "duration_ms": 60000, "session_id": "s-1"}))
+print(json.dumps({"type": "result", "is_error": os.environ.get("FAKE_CLAUDE_ERROR") == "1", "total_cost_usd": 1.5,
+                  "duration_ms": 60000, "session_id": "s-1"}))
 """
 
 FAKE_NPM = """#!PYTHON
@@ -261,9 +262,9 @@ class RunnerCase(unittest.TestCase):
                               env={**self.env, **env}, cwd=self.tmp, capture_output=True, text=True, encoding="utf-8",
                               timeout=300)
 
-    def run_tasks(self, producer, *keys, extra=()):
+    def run_tasks(self, producer, *keys, extra=(), **env):
         return self.runner("run", producer, "--bench", str(self.bench), "--attempts", str(self.attempts), "--out", str(self.out),
-                           "--mirror", self.mirror, *(["--only", ",".join(keys)] if keys else []), *extra)
+                           "--mirror", self.mirror, *(["--only", ",".join(keys)] if keys else []), *extra, **env)
 
     def calls(self, who=None) -> list[dict]:
         if not self.log.exists():
@@ -404,6 +405,26 @@ class RunTest(RunnerCase):
         self.assertEqual((record["seconds"], record["usd"], record["outcome"]), (60.0, 1.5, "done"))
         self.assertEqual([f["node"] for f in record["findings"]], ["claude"])
         self.assertEqual(record["provenance"]["model"], "opus")
+
+    def test_plain_claude_error_result_stops_and_resumes(self):
+        done = self.run_tasks("claude", self.one, FAKE_CLAUDE_ERROR="1")
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertFalse((self.out / "claude" / "findings").exists())
+        self.assertEqual(runner.Ledger(self.attempts).last(self.one, "claude")["state"], "stopped")
+        self.assertRan(self.run_tasks("claude", self.one, extra=("--resume",)))
+        self.assertEqual(len(self.calls("claude")), 2)
+        self.assertEqual(runner.Ledger(self.attempts).last(self.one, "claude")["state"], "done")
+
+    def test_claude_bin_path_is_the_claude_run_and_recorded(self):
+        other = self.tmp / "other-bin" / "claude"
+        other.parent.mkdir()
+        text = (self.tmp / "fake-bin" / "claude").read_text(encoding="utf-8")
+        other.write_text(text.replace("9.9.9", "8.8.8").replace('"who": "claude"', '"who": "other-claude"'), encoding="utf-8")
+        other.chmod(0o755)
+        self.assertRan(self.run_tasks("claude", self.one, CLAUDE_BIN_PATH=str(other)))
+        self.assertEqual((len(self.calls("claude")), len(self.calls("other-claude"))), (0, 1))
+        [record] = self.records("claude")
+        self.assertEqual(record["provenance"]["claude_code"], "8.8.8 (Claude Code)")
 
     def test_run_writes_findings_and_convert_record(self):
         for producer in ("works-factory", "works", "claude"):
@@ -662,10 +683,6 @@ class RunTest(RunnerCase):
         self.assertTrue((self.out / "works-factory" / "nodes.md").read_text(encoding="utf-8").startswith("# ノードごとの表"))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class WebCallsTest(unittest.TestCase):
     """web_calls は記録のフック（bin/_lib/record-read.py）が書く形の行から、拒む道具の呼びだけを数える"""
 
@@ -688,3 +705,18 @@ class WebCallsTest(unittest.TestCase):
                                    for t, i in rows.items())
                            + json.dumps({"ts": "2026-10-14T08:00:01", "path": "app.py"}) + "\nnot json\n", encoding="utf-8")
         self.assertEqual(runner.web_calls(self.attempt), 4)
+
+    def test_unreadable_record_is_none(self):
+        log = runner.reads.reads_path(runner.reads.root(self.config), "/w/one")
+        log.mkdir(parents=True)
+        self.assertIsNone(runner.web_calls(self.attempt))
+
+    def test_denied_tools_are_recorded_by_the_read_hook(self):
+        """数える道具が読んだ証拠のフックの matcher と記録の口に無いと、呼んでも行が無く 0 と数える"""
+        denied = set(runner.toolset.DENY_WEB["deny"])
+        self.assertLessEqual(denied, set(runner.toolset.READ_MATCHER.split("|")))
+        self.assertLessEqual(denied, set(runner.reads.WEB_INPUTS))
+
+
+if __name__ == "__main__":
+    unittest.main()

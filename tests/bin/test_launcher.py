@@ -15,7 +15,7 @@ import sys
 import tempfile
 import unittest
 
-from bin._lib import launcher, place
+from bin._lib import launcher, place, toolset
 from lib import answer, reads, writelog
 from tests.bin import fakelaunch, hermetic
 from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
@@ -421,6 +421,17 @@ class LauncherTest(unittest.TestCase):
         self.reached(done)
         self.assertIn("認証は ANTHROPIC_API_KEY", done.stderr)
         self.assertTrue(claude_log.exists(), "run で claude の plugin の CLI を呼んでいない")
+
+    def test_deny_web_reaches_the_isolated_settings(self):
+        """ベンチのランナーが頼む WebFetch・WebSearch の拒み（toolset.DENY_WEB_ENV）は、殻が toolset の install まで運ぶ"""
+        def permissions(env):
+            settings = json.loads((pathlib.Path(env["CLAUDE_CONFIG_DIR"]) / "settings.json").read_text(encoding="utf-8"))
+            return settings.get("permissions")
+
+        env = self.reached(self.launch("validate", "workflows", **{toolset.DENY_WEB_ENV: "1"}))["env"]
+        self.assertEqual(permissions(env), toolset.DENY_WEB)
+        env = self.reached(self.launch("validate", "workflows"))["env"]
+        self.assertIsNone(permissions(env))
 
     def test_continuing_commands_check_auth_and_install_plugins(self):
         """workflow wake・signal も止めた Archon が工程を走らせる（packages/cli/src/cli.ts が executesWorkflow の前で捌く）"""

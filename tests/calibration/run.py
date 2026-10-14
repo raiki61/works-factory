@@ -14,7 +14,8 @@ works.commit、置き場は環境変数 WORKS_FACTORY_OLD_WORKS）・claude（�
 bare、request.json は PR の題と本文の 1 行、pr/ は diff.patch と pr.json、home/ は作り手の家）。作り手を base を渡して前で起こし、
 終わりまで待ち、記録を試みの evidence/ に写し、指摘の一覧に変えて <out>/<作り手>/findings/<鍵>.json（判定役の入力）と
 <out>/<作り手>/convert/<鍵>.json（変換の控え。捨てた指摘・ノード・最後の差分に入ったか）に書き、置き場の台帳
-<置き場>/ledger.jsonl に 1 行足す。judge は ReviewBench の写しの中で npm run judge を打ち、<out>/<作り手>/scoring/ に書く。
+<置き場>/ledger.jsonl に 1 行足す。judge は ReviewBench の写しの中で npm run judge を打ち、<out>/<作り手>/scoring/ に書く（判定役は
+環境変数 ANTHROPIC_API_KEY を読む）。
 nodes は控えと出来事から <out>/<作り手>/nodes.json・nodes.md を書く。
 
 - 終了の値: 0 済んだ・1 止まった（後ろの課題を起こさない。--resume で続ける）・2 何も起こさずに断った。
@@ -59,7 +60,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))   # 頭に入れると lib/tests が根の tests を隠す（tests/AGENTS.md）
-from bin._lib import hostgh, isolate, pack, toolset  # noqa: E402
+from bin._lib import hostgh, isolate, launcher, pack, toolset  # noqa: E402
 import reads  # noqa: E402
 from report import OUTCOMES  # noqa: E402
 from tests.calibration import nodes, reviewbench  # noqa: E402
@@ -68,7 +69,6 @@ from tests.e2e import evidence, make_target  # noqa: E402
 
 SHELL_ENV = "WORKS_CALIBRATION_SHELL"
 OLD_WORKS_ENV = "WORKS_FACTORY_OLD_WORKS"
-CLAUDE_BIN_ENV = "CLAUDE_BIN_PATH"
 LINE = "works-factory-line"
 OK, STOPPED, REFUSED = 0, 1, 2
 # 無人の入力（#214 と同じ値。手厚さは既定）。test_cmd・tdd_suite は課題ごとに違うので渡さず、工場が自分で探す
@@ -122,7 +122,8 @@ class WorksFactory:
     name = "works-factory"
     account = "WORKS_FACTORY_KEYCHAIN_ITEM"
     archon = True
-    sources = (Source("parent/judge/judgment.json", ("units",), "units"),
+    # 再審が走った run は rejudge/judgment.json が 1 回目の units を置き換える（lib/judge_accept.py の rejudge_take）
+    sources = (Source("parent/judge/judgment.json", ("units",), "units", prefer="parent/rejudge/judgment.json"),
                Source("parent/eyes/r1.json", ("deletions",), "items", "why"),
                Source("parent/eyes/r4.json", ("surfaced",), "items", "text"))
     leak_guard = WITHHELD
@@ -134,7 +135,7 @@ class WorksFactory:
         pass
 
     def env_names(self) -> list[str]:
-        return ["WORKS_FACTORY_HOME", "GH_CONFIG_DIR", toolset.DENY_WEB_ENV]
+        return [launcher.HOME_ENV, "GH_CONFIG_DIR", toolset.DENY_WEB_ENV]
 
     def start_command(self, attempt: Path, base: str) -> list[str]:
         pairs = {"request": str(attempt / "request.json"), "base": base, **BENCH_INPUTS}
@@ -145,7 +146,7 @@ class WorksFactory:
         return [sys.executable, str(self.shell), "workflow", "resume", run_id, "--cwd", str(attempt / "target")]
 
     def _launch(self, attempt: Path, command: list[str]):
-        subprocess.run(command, cwd=attempt / "home", env={**bench_env(attempt), "WORKS_FACTORY_HOME": str(attempt / "home")},
+        subprocess.run(command, cwd=attempt / "home", env={**bench_env(attempt), launcher.HOME_ENV: str(attempt / "home")},
                        stdin=subprocess.DEVNULL)
 
     def start(self, attempt: Path, base: str) -> str | None:
@@ -195,7 +196,7 @@ class WorksFactory:
         for limit in kept["limits"]:
             print(f"run.py: {limit}（その置き場から読む指摘は控えの unread に出る）", file=sys.stderr)
         ev = attempt / evidence.EVIDENCE
-        for name, rid in [("parent", run_id), *((f"child-{n}", kid) for n, kid in enumerate(kept["children"], 1))]:
+        for name, rid in kept["named"]:
             got = self._get(attempt, rid, "--verbose", "--events", what="の出来事の列を evidence/ に写せない")
             (ev / EVENTS.format(name=name)).write_text(
                 json.dumps({"events": _events(got)}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
@@ -203,11 +204,11 @@ class WorksFactory:
 
     @staticmethod
     def ended(ev: Path) -> dict:
-        got = _object(_read_json(ev, "record/parent.json")[0])
+        got = _object(_read_json(ev, "record/parent.json"))
         value = _object(_object(got.get("terminal_record")).get("returns")).get("value")
         outcome = value.get("outcome") if isinstance(value, dict) else None
         return {"outcome": outcome if isinstance(outcome, str) else "",
-                "seconds": _span(_events(_read_json(ev, EVENTS.format(name="parent"))[0]), got.get("completed_at")),
+                "seconds": _span(_events(_read_json(ev, EVENTS.format(name="parent"))), got.get("completed_at")),
                 "usd": _number(_object(got.get("metadata")).get("total_cost_usd")),
                 "usd_from": "run の記録の metadata.total_cost_usd（fix の組の子の run の費用を含む）"}
 
@@ -218,8 +219,8 @@ class WorksFactory:
         for path in sorted((ev / "record").glob("*.json"), key=lambda p: (p.stem != "parent", p.stem)):
             if path.stem.endswith("-events"):
                 continue
-            workflow = str(_object(_read_json(ev, path.relative_to(ev))[0]).get("workflow_name") or "")
-            events = _events(_read_json(ev, EVENTS.format(name=path.stem))[0])
+            workflow = str(_object(_read_json(ev, path.relative_to(ev))).get("workflow_name") or "")
+            events = _events(_read_json(ev, EVENTS.format(name=path.stem)))
             out.append((workflow, events, "" if path.stem == "parent" else f"{nodes.short(workflow)}/"))
         return out
 
@@ -234,13 +235,15 @@ class WorksFactory:
 
 
 def web_calls(attempt: Path) -> int | None:
-    """隔離した設定の読んだ証拠の記録のうち、拒む道具（toolset.DENY_WEB）の行の数。記録の根が無ければ None。
-    記録のフックは PostToolUse なので、拒まれた呼びは数に入らない"""
+    """隔離した設定の読んだ証拠の記録のうち、拒む道具（toolset.DENY_WEB）の行の数。記録の根が無いか、記録のどれかが読めなければ
+    None（測れていない）。記録のフックは PostToolUse なので、拒まれた呼びは数に入らない"""
     root = reads.root(attempt / "home" / isolate.DIRS["CLAUDE_CONFIG_DIR"])
     if not root.is_dir():
         return None
-    return sum(reads.tool_count(reads.records(log, "")[0], tool)
-               for log in root.rglob(reads.LOG) for tool in toolset.DENY_WEB["deny"])
+    logs = [reads.records(log, "")[0] for log in root.rglob(reads.LOG)]
+    if any(rows is None for rows in logs):
+        return None
+    return sum(reads.tool_count(rows, tool) for rows in logs for tool in toolset.DENY_WEB["deny"])
 
 
 class OldWorks:
@@ -362,7 +365,7 @@ class OldWorks:
 
     @staticmethod
     def ended(ev: Path) -> dict:
-        got = _object(_read_json(ev, "record/parent.json")[0])
+        got = _object(_read_json(ev, "record/parent.json"))
         run = _object(got.get("run"))
         usd = next((e["data"].get("cost_usd") for e in _events(got)
                     if e.get("event_type") == "workflow_completed" and isinstance(e.get("data"), dict)), None)
@@ -373,7 +376,7 @@ class OldWorks:
 
     @staticmethod
     def node_runs(ev: Path) -> list[tuple[str, list[dict], str]]:
-        got = _object(_read_json(ev, "record/parent.json")[0])
+        got = _object(_read_json(ev, "record/parent.json"))
         return [(str(_object(got.get("run")).get("workflow_name") or ""), _events(got), "")]
 
     @staticmethod
@@ -399,11 +402,11 @@ class PlainClaude:
     RESULT, FINDINGS = "claude-result.json", "findings.json"
 
     def __init__(self):
-        self.claude = os.environ.get(CLAUDE_BIN_ENV) or shutil.which("claude")
+        self.claude = launcher.real_claude(os.environ)
 
     def check(self):
         if not self.claude:
-            raise Stop(REFUSED, f"claude が見つからない。PATH に置くか {CLAUDE_BIN_ENV} に絶対パスを設定する")
+            raise Stop(REFUSED, f"claude が見つからない。PATH に置くか {launcher.CLAUDE_BIN_ENV} に絶対パスを設定する")
 
     def env_names(self) -> list[str]:
         return ["HOME", "CLAUDE_CONFIG_DIR", "GH_CONFIG_DIR", "RB_BASE", "RB_HEAD", "RB_DIFF", "RB_PR_JSON", "RB_OUT"]
@@ -431,7 +434,7 @@ class PlainClaude:
         return self.find_run(attempt)
 
     def _result(self, attempt: Path) -> dict | None:
-        doc, _ = _read_json(attempt / "out", self.RESULT)
+        doc = _read_json(attempt / "out", self.RESULT)
         return doc if isinstance(doc, dict) else None
 
     def find_run(self, attempt: Path) -> str | None:
@@ -439,7 +442,9 @@ class PlainClaude:
         return session if isinstance(session, str) and session else None
 
     def state(self, attempt: Path, run_id: str) -> str:
-        return DONE if self._result(attempt) is not None else "failed"
+        """claude -p は認証の拒否・API の誤り・turn の上限でも session_id の付いた結果を書き、is_error で落ちを言う"""
+        got = self._result(attempt)
+        return DONE if got is not None and not got.get("is_error") else "failed"
 
     def gate(self, attempt: Path, run_id: str) -> str:
         return ""
@@ -456,7 +461,7 @@ class PlainClaude:
 
     @staticmethod
     def ended(ev: Path) -> dict:
-        got = _object(_read_json(ev, PlainClaude.RESULT)[0])
+        got = _object(_read_json(ev, PlainClaude.RESULT))
         ms = _number(got.get("duration_ms"))
         return {"outcome": "error" if got.get("is_error") else "done",
                 "seconds": None if ms is None else ms / 1000,
@@ -489,19 +494,12 @@ def _header_outcome(board: Path) -> str:
     return ""
 
 
-def _read_json(ev: Path, path) -> tuple[object, str]:
-    """ev の中の JSON。(値, "") か、(None, 「ev からの相対パス: 無い・読めない」)"""
-    path = ev / path
+def _read_json(ev: Path, path):
+    """ev の中の JSON。無い・読めなければ None"""
     try:
-        return json.loads(path.read_text(encoding="utf-8")), ""
-    except FileNotFoundError:
-        return None, f"{_name(ev, path)}: 無い"
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
-        return None, f"{_name(ev, path)}: 読めない（{type(e).__name__}）"
-
-
-def _name(ev: Path, path: Path) -> str:
-    return path.relative_to(ev).as_posix()
+        return json.loads((ev / path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
 
 
 def _object(value) -> dict:
@@ -676,17 +674,18 @@ def run_one(entry: dict, producer, attempts: Path, out: Path, ledger: Ledger, ar
         raise Stop(STOPPED, f"課題 {task}: run {run_id} が終わりの状態にならずに止まった（{state}）。続ける: {_resume_line(args)}")
     ended = producer.finish(attempt, run_id)
     doc, record = reviewbench.convert(producer, entry, attempt, run_id, base, head, ended)
-    record["provenance"] = {**producer.provenance(), "claude_code": _claude_version(),
+    record["provenance"] = {**producer.provenance(), "claude_code": _claude_version(launcher.real_claude(os.environ)),
                             "run_inputs": {"request": "request.json", "base": base, **BENCH_INPUTS}, "date": _now()}
     reviewbench.write(out, producer.name, task, doc, record)
     ledger.add(**row, run_id=run_id, child_run_ids=ended["children"], state=DONE)
     print(json.dumps(record, ensure_ascii=False, allow_nan=False))
 
 
-def _claude_version() -> str | None:
-    if not shutil.which("claude"):
+def _claude_version(claude: str | None) -> str | None:
+    """作り手が起こす claude（殻と同じく CLAUDE_BIN_PATH か PATH から決めた物）の版"""
+    if not claude:
         return None
-    done = subprocess.run(["claude", "--version"], capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL)
+    done = subprocess.run([claude, "--version"], capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL)
     return (done.stdout.strip() or None) if done.returncode == 0 else None
 
 

@@ -8,6 +8,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
+from bin._lib.childsweep import INCLUDE_SEP
 from tests.calibration import reviewbench
 
 PREFIX = "works-factory-"
@@ -20,7 +21,7 @@ def short(workflow: str) -> str:
 
 
 def subgraph(step: str, workflow: str) -> str:
-    return step.split("__", 1)[0].split(".")[-1] if "__" in step else short(workflow)
+    return step.split(INCLUDE_SEP, 1)[0].split(".")[-1] if INCLUDE_SEP in step else short(workflow)
 
 
 def _spent(data: dict) -> tuple[float | None, str | None, float | None, str | None]:

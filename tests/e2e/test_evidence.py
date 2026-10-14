@@ -672,7 +672,8 @@ class EvidenceCollectCase(unittest.TestCase):
             runs.append({"id": rid, "parent_run_id": parent, "started_at": at, "root": str(root)})
         (attempt / "home" / "fake-runs.json").write_text(json.dumps(runs), encoding="utf-8")
         got = evidence.collect(attempt, "p1", shell)
-        self.assertEqual(got, {"run": "p1", "children": ["c1", "c2"], "limits": []})
+        self.assertEqual(got, {"run": "p1", "children": ["c1", "c2"], "named": [("parent", "p1"), ("child-1", "c1"), ("child-2", "c2")],
+                               "limits": []})
         ev = attempt / "evidence"
         for name, rid in (("parent", "p1"), ("child-1", "c1"), ("child-2", "c2")):
             self.assertEqual(json.loads((ev / name / "sub" / "out.json").read_text(encoding="utf-8")), {"run": rid})

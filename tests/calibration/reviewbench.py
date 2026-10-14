@@ -16,7 +16,8 @@ from tests.e2e import make_target
 
 MIRROR = "https://github.com/review-bench/{name}.git"
 CONTRACT_SECONDS = 1800   # AGENT_CONTRACT.md の Limits の 1 件の秒。超えた事実を控えに残すだけで、run は止めない
-REF = re.compile(r"(?<![\w./-])((?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9]+):(\d+)(?:[-–](\d+))?")
+# ASCII: 日本語の字の直後のパスで、前の字をパスに含めない
+REF = re.compile(r"(?<![\w./-])((?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9]+):(\d+)(?:[-–](\d+))?", re.ASCII)
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@")
 NO_REF, NOT_AT_HEAD = "番地が無い", "head に無い番地"
 NO_NODE = "どのノードの出力にも所見の字が無い"
@@ -24,8 +25,8 @@ NO_NODE = "どのノードの出力にも所見の字が無い"
 VERDICTS = {"matched_tp": "hit", "novel_tp": "real", "matched_fp": "wrong", "novel_fp": "wrong"}
 GIT_ENV = {"GIT_LFS_SKIP_SMUDGE": "1", "GIT_TERMINAL_PROMPT": "0"}
 # 作り手の出力の 1 つの出どころ: evidence/ からのファイル・候補の行への道（"*" は並びを開く）・形（units は判定の単位、items は
-# where と text の欄を持つ所見、findings は AGENT_CONTRACT の指摘）・items の字の欄
-Source = namedtuple("Source", "file rows kind text", defaults=(None,))
+# where と text の欄を持つ所見、findings は AGENT_CONTRACT の指摘）・items の字の欄・在れば file の代わりに読むファイル
+Source = namedtuple("Source", "file rows kind text prefer", defaults=(None, None))
 
 
 class BenchError(Exception):
@@ -205,7 +206,9 @@ def convert(producer, entry: dict, attempt: Path, run_id: str, base: str, head: 
     diff, diff_why = producer.final_diff(ev)
     ranges = final_ranges(diff.read_text(encoding="utf-8")) if diff else None
     findings, kept, dropped, unread = [], [], [], {}
-    for source in producer.sources:
+    sources = [source._replace(file=source.prefer) if source.prefer and (ev / source.prefer).is_file() else source
+               for source in producer.sources]
+    for source in sources:
         try:
             doc = json.loads((ev / source.file).read_text(encoding="utf-8"))
         except FileNotFoundError:
@@ -237,7 +240,7 @@ def convert(producer, entry: dict, attempt: Path, run_id: str, base: str, head: 
         "outcome": ended.get("outcome"), "seconds": seconds, "usd": usd, "usd_from": ended.get("usd_from"),
         "why_null": "。".join(([] if usd is not None else [f"usd: {ended.get('usd_from')} が読めない"])
                              + ([] if seconds is not None else ["seconds: run の始めと終わりの時刻が読めない"])),
-        "sources": [s.file for s in producer.sources], "unread": unread,
+        "sources": [s.file for s in sources], "unread": unread,
         "findings": kept, "dropped": dropped, "dropped_count": len(dropped),
         "final_diff": diff.relative_to(ev).as_posix() if diff else None, "final_diff_why": diff_why,
         "leak_guard": producer.leak_guard, "web_calls": ended.get("web_calls"),
