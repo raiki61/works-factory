@@ -6,7 +6,7 @@
 fixture:
   expect: "completed"
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
-  reached: ["start", "gate-start", "answer-start", "plan-out", "ask-before-fix", "answer-before-fix", "fix__fix", "after-fix", "judged", "fixed", "spec-check", "redepth", "test-gate-final__run", "eyes__verdict", "merge-seal__merge", "ask-final", "gate-final", "answer-final", "collect", "report__report", "result"]
+  reached: ["start", "gate-start", "answer-start", "plan-out", "ask-before-fix", "answer-before-fix", "fix-in", "fix__fix", "after-fix", "judged", "fixed", "spec-check", "redepth", "test-gate-final__run", "eyes__verdict", "merge-seal__merge", "ask-final", "gate-final", "answer-final", "collect", "report__report", "result"]
   resolved-text-contains: {"gate-final": "承認し直すかの問い（承認の後に受け入れ条件のテストが変わった）: 1 件"}
 exec-code: true
 test-gate-base__run: {"by": "engine", "material": {"status": "clean", "checked": "suite: exit 0"}, "runs": [{"name": "suite", "exit": 0, "how": "direct"}], "skipped_steps": [], "same_as": null, "log": "test-gate/base/logs/checks.log", "junit_steps": [], "fingerprint_before": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}, "fingerprint_after": {"head": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "diff_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
