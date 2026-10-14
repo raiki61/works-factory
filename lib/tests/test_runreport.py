@@ -861,11 +861,18 @@ class CollectCase(Base):
         self.assertTrue(text.endswith("- 承認ノード: 開かなかった\n"), "機械の事実の行は書き換えずに最後に付ける")
         self.assertIn("- 承認ノード:", text.split(report_roles.GLOSSARY_HEADING)[1], "機械の事実に現れる語も定義する")
 
-    def test_not_passed_mark_is_on_top(self):
+    def test_not_passed_is_one_machine_fact_line_not_the_head(self):
+        """#495: 初見の読み手が 3 回とも通さず受け取った報告は、書き手の本文で始まり、拒みの文（NOT_PASSED と出し直しの命令）を
+        頭に置かない。通らなかった事実は機械の事実の拒みの数の行の尾に 1 度だけ、止まった所と一緒に載る"""
         for _ in range(report_roles.GIVE_UP_AFTER):
             runreport.accept(AcceptCase.REPLY, AcceptCase.REDESIGN, out_dir=self.out)
         text = runreport.collect("事実", out_dir=self.out, stamp="run x").read_text(encoding="utf-8")
-        self.assertTrue(text.split("\n\n")[1].startswith(report_roles.NOT_PASSED))
+        self.assertTrue(text.split("\n\n")[1].startswith("直した。"), text)
+        self.assertEqual(text.count(report_roles.NOT_PASSED), 1)
+        self.assertNotIn("出し直せ", text)
+        [line] = [ln for ln in text.splitlines() if report_roles.NOT_PASSED in ln]
+        self.assertTrue(line.startswith(f"{report_roles.COLD_REJECTS_LINE} 2 回。{report_roles.NOT_PASSED}"), line)
+        self.assertIn("止まった所: 冒頭の 2 行目", line)
 
     def test_given_up_reply_still_reports(self):
         for _ in range(report_roles.GIVE_UP_AFTER):

@@ -1608,7 +1608,7 @@ def accept(reply, cold, *, out_dir) -> dict:
         not_passed = _cold_reason(c)
     carry.write(out_dir / AI_FILE, {"accepted": True, "text": got["text"], "terms": _list(got.get("terms")), "cold": c,
                                     "not_passed": not_passed, "rejects": report_roles.count_rejects(rows)})
-    reason = f"上限の回なので受け取った。ただし{report_roles.NOT_PASSED}（報告の冒頭に出す）" if not_passed else ""
+    reason = f"上限の回なので受け取った。ただし{report_roles.NOT_PASSED}（機械の事実の拒みの数の行に出す）" if not_passed else ""
     return {"done": True, "ok": True, "reason": reason, "kind": "", "reason_file": ""}
 
 
@@ -1641,9 +1641,18 @@ def embedded(machine_text: str) -> str:
     return "\n".join(out) + ("\n" if machine_text.endswith("\n") else "")
 
 
+def _not_passed_note(ai: dict) -> str:
+    """初見の読み手が通さないまま受け取った時の、拒みの数の行の尾（通っていれば空）"""
+    if ai.get("accepted") is not True or not ai.get("not_passed"):
+        return ""
+    stops = "；".join(oneline.one_line(s) for s in _list(as_dict(ai.get("cold")).get("stops"))) or "書かれていない"
+    return f"。{report_roles.NOT_PASSED}（上限の {report_roles.GIVE_UP_AFTER} 回目で受け取った。止まった所: {stops}）"
+
+
 def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
     """AI の報告（元 report_roles.collect）。AI_FILE が無ければ None（書き手の輪が落ちた・飛ばされた）。受け取っていれば 来歴の 1 行＋
-    （通っていなければ NOT_PASSED の 1 行）＋本文＋語の定義の節＋機械の事実（embedded）、受け取れなかった時は訳と機械の事実を書く"""
+    本文＋語の定義の節＋機械の事実（embedded）、受け取れなかった時は訳と機械の事実を書く。初見の読み手が通さないまま受け取った時は、
+    拒みの文を本文の頭に置かず、機械の事実の拒みの数の行（COLD_REJECTS_LINE）の尾に NOT_PASSED と止まった所を 1 行で足す"""
     out_dir = pathlib.Path(out_dir)
     try:
         ai = oc.read_json(out_dir / AI_FILE)
@@ -1654,12 +1663,11 @@ def collect(machine_text: str, *, out_dir, stamp: str) -> pathlib.Path | None:
     ai = as_dict(ai)
     if ai.get("accepted") is True:
         body = str(ai.get("text") or "").strip()
-        if ai.get("not_passed"):
-            body = f"{report_roles.NOT_PASSED}: {oneline.one_line(ai['not_passed'])}\n\n{body}"
     else:
         body = f"{report_roles.FAILED_TITLE}\n\n{ai.get('reason') or '書き手の返答を受け取れなかった'}"
     sec = glossary_section(f"{body}\n{machine_text}", ai.get("terms") or [])
     colds = sum(c.get("cold", 0) for c in as_dict(ai.get("rejects")).values() if isinstance(c, dict))
     text = (f"{stamp}\n\n{body}\n\n" + (f"{sec}\n" if sec else "")
-            + f"---\n\n{report_roles.MACHINE_HEADING}\n\n{report_roles.COLD_REJECTS_LINE} {colds} 回\n\n{embedded(machine_text)}")
+            + f"---\n\n{report_roles.MACHINE_HEADING}\n\n{report_roles.COLD_REJECTS_LINE} {colds} 回{_not_passed_note(ai)}\n\n"
+            + embedded(machine_text))
     return _write_text(out_dir / AI_REPORT_FILE, text)

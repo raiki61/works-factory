@@ -1612,7 +1612,7 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば 節 `report__write-loop.write`・`report__write-loop.cold`・`report__write-loop.accept` の出力、report/reject-<n>.md（拒んだ回だけ））
   - 狭め: 無し（輪の頭の script の節は #100 の直し。Archon の include の読み込みが with: で結んだ名を入力の欠けと数えるため: packages/workflows/src/include-expander.ts:566-579）
 
-- R61 受け付けの順: 読む → terms の型 → 表のセルの書式（「。」か 50 字超で拒む。`コード` は数えない）→ 初見の判定。拒否の行に種類（cold・format・answer）。3 回拒めば受け取れなかった訳。初見だけが通さない時は 3 回目に受け取り「初見の確かめを通っていない」の印
+- R61 受け付けの順: 読む → terms の型 → 表のセルの書式（「。」か 50 字超で拒む。`コード` は数えない）→ 初見の判定。拒否の行に種類（cold・format・answer）。3 回拒めば受け取れなかった訳。初見だけが通さない時は 3 回目に受け取り、通らなかった事実（`report_roles.NOT_PASSED`）を機械の事実の拒みの数の行に 1 行で残す（#495 で本文の頭から移した）
   - 元: works/blk-report/lib/report_roles.py:429 `accept`・:381 `format_problems`・:510 `count_rejects`
   - 今: lib/runreport.py::accept、lib/report_roles.py::format_problems・lib/report_roles.py::count_rejects
   - 証: lib/tests/test_runreport.py::AcceptCase.test_pass_is_taken・lib/tests/test_runreport.py::AcceptCase.test_cold_rejects_twice_then_takes_with_mark・lib/tests/test_runreport.py::AcceptCase.test_format_and_terms_rejected_first・lib/tests/test_report_roles.py::FormatCase・lib/tests/test_report_roles.py::RejectCountRowsCase.test_rows_without_kind_count_as_unknown・tests/workflows/test_report.py::AcceptScriptCase.test_cold_redesign_three_times
@@ -1626,10 +1626,10 @@ engine の段・JUnit・範囲の宣言は種のままでは本物の run に出
   - 本物の run: 節 `report__write-loop.cold-prep` の出力 body、`report__write-loop.cold` の出力 verdict
   - 狭め: 無し
 
-- R63 AI の報告: 来歴の 1 行・（通っていなければ）印・本文・語の定義・初見の拒否の回数・機械の事実（見出しを 1 段下げ、「人が決めること」を機械の数えの見出しに言い換えて節を 1 つに）。受け取れなかった時は訳と機械の事実
+- R63 AI の報告: 来歴の 1 行・本文・語の定義・初見の拒否の回数（通っていなければ同じ行の尾に通らなかった事実と止まった所）・機械の事実（見出しを 1 段下げ、「人が決めること」を機械の数えの見出しに言い換えて節を 1 つに）。受け取れなかった時は訳と機械の事実
   - 元: works/blk-report/lib/report_roles.py:537 `collect`
   - 今: lib/runreport.py::collect・lib/runreport.py::embedded
-  - 証: lib/tests/test_runreport.py::CollectCase.test_taken_reply_becomes_ai_report・lib/tests/test_runreport.py::CollectCase.test_not_passed_mark_is_on_top・lib/tests/test_runreport.py::CollectCase.test_given_up_reply_still_reports・lib/tests/test_runreport.py::CollectCase.test_decisions_section_is_one_place
+  - 証: lib/tests/test_runreport.py::CollectCase.test_taken_reply_becomes_ai_report・lib/tests/test_runreport.py::CollectCase.test_not_passed_is_one_machine_fact_line_not_the_head・lib/tests/test_runreport.py::CollectCase.test_given_up_reply_still_reports・lib/tests/test_runreport.py::CollectCase.test_decisions_section_is_one_place
   - 本物の run: 筋書きでのみ（本物の通しの照らしの外。在れば report/report-ai.md、`report__report.output.report_ai`）
   - 狭め: 無し
 

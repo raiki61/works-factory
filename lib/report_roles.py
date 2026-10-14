@@ -14,8 +14,8 @@
            pack の一覧とこの控えから描く）、本文は表のセルの書式を機械で見て（持ち主の決まり。works だけの検査）、頭を読んだ
            初見の読み手の返答を COLD_RESULT_NAME に控え、pass でなければ書き手に返し（上限の回は受け取って印を残す）、
            entry.take で盤面へ。拒否は GIVE_UP_AFTER 回目で諦めの印（done）
-- collect: 出口。report を受けていれば 来歴の 1 行＋（初見の確かめを通らずに受け取った時はその 1 行）＋書き手の本文＋
-           語の定義の節（本文と機械の事実に現れる語）＋機械の事実（書き換えずに最後に付ける）を盤面の REPORT_NAME に。
+- collect: 出口。report を受けていれば 来歴の 1 行＋書き手の本文＋語の定義の節（本文と機械の事実に現れる語）＋機械の事実
+           （書き換えずに最後に付ける。初見の確かめを通らずに受け取った時は、その事実を拒みの数の行の尾に 1 行で）を盤面の REPORT_NAME に。
            受けていなければ、なぜ無いか・検証器の出力の末尾・機械の事実を付けた報告を書いて ok: false（黙らない）
 
 指示書は本線 a1202d0 の写し（blk-report/prompts/。台帳 COPIED_FROM の手直しのほかはバイト単位で同じ）。描き方は engine と同じ
@@ -41,7 +41,7 @@ import report  # noqa: E402
 # （頭と初見検査が回っていた前の版の run の控えも、run をまたぐ集計 dev/report_rejects.py が数えられるように）
 REPORT_NODES = ("report.human_items", "report.cold_check", "report")
 DECISIONS_HEAD = "人が決めること"
-NOT_PASSED = "初見の確かめを通っていない"
+NOT_PASSED = "報告サブグラフの初見の読み手のノード cold が、この報告の頭を通さなかった"
 # 本文を返す節（graph の text: true）の返答の型。盤面は本文の節の返答を {text} だけで受けるので、run ごとの語 terms は
 # 受け付けが外して TERMS_NAME に控える
 TERM_SCHEMA = {"type": "object", "required": ["term", "definition"], "additionalProperties": False,
