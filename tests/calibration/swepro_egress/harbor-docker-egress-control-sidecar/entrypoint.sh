@@ -24,10 +24,6 @@ cleanup
 trap cleanup INT TERM EXIT
 
 # works-bench: the gost config (with the upstream proxy chain) arrives at start-up, never baked into the image.
-if [ -z "${WORKS_BENCH_GOST_CONFIG:-}" ]; then
-  echo "WORKS_BENCH_GOST_CONFIG is empty: works-bench starts this sidecar only with a gost config" >&2
-  exit 2
-fi
 printf '%s\n' "$WORKS_BENCH_GOST_CONFIG" > "$GOST_CONFIG"
 
 /bin/gost -C "$GOST_CONFIG" &

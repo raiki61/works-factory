@@ -708,11 +708,7 @@ EGRESS_EDITS = {
         'trap cleanup INT TERM EXIT\n\n/bin/gost -C "$GOST_CONFIG" &\n',
         'trap cleanup INT TERM EXIT\n\n'
         '# works-bench: the gost config (with the upstream proxy chain) arrives at start-up, never baked into the image.\n'
-        'if [ -z "${WORKS_BENCH_GOST_CONFIG:-}" ]; then\n'
-        '  echo "WORKS_BENCH_GOST_CONFIG is empty: works-bench starts this sidecar only with a gost config" >&2\n'
-        '  exit 2\n'
-        'fi\n'
-        'printf \'%s\\n\' "$WORKS_BENCH_GOST_CONFIG" > "$GOST_CONFIG"\n\n'
+        f'printf \'%s\\n\' "${swepro.GOST_CONFIG_ENV}" > "$GOST_CONFIG"\n\n'
         '/bin/gost -C "$GOST_CONFIG" &\n')],
     "harbor-docker-egress-control-sidecar/bin/network-policy": [(
         '  allow-all)\n    remove_nftables\n    : > "$ALLOWLIST"\n    echo "ok: allow all egress"\n',
@@ -723,8 +719,8 @@ EGRESS_EDITS = {
     "docker-compose-egress-control.yaml": [(
         '      EGRESS_CONTROL_INITIAL_ALLOWED_HOSTS: ${EGRESS_CONTROL_INITIAL_ALLOWED_HOSTS:-}\n',
         '      EGRESS_CONTROL_INITIAL_ALLOWED_HOSTS: ${EGRESS_CONTROL_INITIAL_ALLOWED_HOSTS:-}\n'
-        '      WORKS_BENCH_GOST_CONFIG: ${WORKS_BENCH_GOST_CONFIG:?works-bench starts this sidecar only with a gost config}\n'
-        '    extra_hosts:\n      - "host.docker.internal:host-gateway"\n')],
+        f'      {swepro.GOST_CONFIG_ENV}: ${{{swepro.GOST_CONFIG_ENV}:?works-bench starts this sidecar only with a gost config}}\n'
+        f'    extra_hosts:\n      - "{swepro.HOST_GATEWAY}:host-gateway"\n')],
 }
 EGRESS_SAME = ("harbor-docker-egress-control-sidecar/Dockerfile", "harbor-docker-egress-control-sidecar/gost.yaml",
                "harbor-docker-egress-control-sidecar/allowlist.txt")
@@ -762,6 +758,15 @@ class GostConfigTest(unittest.TestCase):
         self.assertEqual(node["metadata"]["so_mark"], harbor_gost()[1])
         self.assertNotIn("bypass", hop)
         self.assertEqual([b["name"] for b in got["bypasses"]], ["allowlist"])
+
+    def test_agent_destinations_are_still_checked_against_the_allowlist(self):
+        for env in ({"HTTPS_PROXY": self.PROXY}, {"HTTPS_PROXY": self.PROXY, "NO_PROXY": "b.org"}):
+            with self.subTest(env=env):
+                got = gost(env)
+                [service] = got["services"]
+                [allowlist] = [b for b in got["bypasses"] if b["name"] == service["bypass"]]
+                self.assertTrue(allowlist["whitelist"])
+                self.assertEqual(allowlist["file"]["path"], harbor_gost()[2])
 
     def test_which_proxy_is_chained(self):
         for env, addr in (({"HTTPS_PROXY": "http://a.invalid:1", "https_proxy": "http://b.invalid:2"}, "b.invalid:2"),
@@ -848,6 +853,15 @@ class EgressPolicyTest(unittest.TestCase):
         port, mark, allowlist = harbor_gost()
         for line in (f"ALLOWLIST={allowlist}", f"GOST_PORT={port}", f"GOST_MARK={mark}"):
             self.assertIn(f"\n{line}\n", text)
+
+
+class EgressEditsTest(unittest.TestCase):
+    def test_copy_carries_the_edits_with_the_names_swepro_uses(self):
+        for name, edits in EGRESS_EDITS.items():
+            text = (swepro.EGRESS / name).read_text(encoding="utf-8")
+            for _, after in edits:
+                with self.subTest(name=name):
+                    self.assertEqual(text.count(after), 1)
 
 
 class EgressCopyTest(unittest.TestCase):
