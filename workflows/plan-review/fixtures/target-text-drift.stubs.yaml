@@ -1,5 +1,5 @@
 # 対象の文（コードのコメント）を contract_drift で挙げ、案に書き換えが入る → pass: true・ask_human: false（記録された方針に無い文は人に回さない。#427）
-open: { ok: true, r2_go: true, tree: false, k: 1, form: review, reason: "" }
+open: { ok: true, r2_go: true, tree: false, k: 1, form: review, depth_skip: false, reason: "" }
 r2-prep: { prompt: "stub: 元の目的と実測した制約" }
 r2-design: { question_stands: true, reason: "stub: 問いは立つ", design: "stub: 理想解" }
 r2-accept: { ok: true, done: true, give_up: false, reason: "" }

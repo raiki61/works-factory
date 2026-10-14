@@ -5,6 +5,7 @@ fixture:
   expect: completed
   reached: [gate-efficacy-accept, provenance-accept, diagnose-prep, verdict]
 intake: {go: true, mode: judge, spec: false, world: false, verify: false, reason: ''}
+head-depth-prep: {go: false, brief_file: '', reason: 機械の止め（筋書きの stub）}
 pr-scan: {go: true, go_role: false, reason: 開いている PR に交差が無い}
 premises:
   constraints: []
@@ -35,6 +36,8 @@ provenance-accept: {ok: false, done: true, reason: claims の主張に根拠の�
 diagnose-prep: {go: false, brief_file: /tmp/judge/diagnose-brief.md, review_md: '', repo_review_md: '', reason: 素材 provenance の受け付けが 3 回とも拒んだ}
 verify-merge: {ok: true, reason: ''}
 verdict:
+  depth: 標準
+  depth_why: 筋書きの stub
   ready: false
   stop_reason: works:material
   units: []
