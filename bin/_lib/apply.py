@@ -23,6 +23,7 @@ LIB = Path(__file__).resolve().parents[2] / "lib"
 if str(LIB) not in sys.path:   # lib/ の部品は互いを名だけで import する（merge の script と同じく lib/ を sys.path に置く）
     sys.path.append(str(LIB))
 
+import chain  # noqa: E402  周の鎖の最後の差分の置き場（final-diff と同じ名を 2 か所に持たない）
 import seal  # noqa: E402  差分の封印と R2 の語の持ち主（merge の apply と同じ決まりを 2 か所に持たない）
 
 NAME = "apply"
@@ -99,11 +100,11 @@ def read_run(done: subprocess.CompletedProcess[str], run_id: str, target: Path) 
 
 
 def unchecked(record: dict, target: Path) -> str:
-    """メイングラフの出力が読めない run の、置き場に在る差分を確かめずに当てる道（置き場に差分が無ければ空）"""
+    """メイングラフの出力が読めない run の、置き場に在る差分（周の鎖の親の run なら最後の差分）を確かめずに当てる道（置き場に差分が無ければ空）"""
     root = (record.get("artifacts") or {}).get("root")
     if not isinstance(root, str) or not root:
         return ""
-    for rel in (APPLY_DIFF, SEALED_DIFF):
+    for rel in (APPLY_DIFF, SEALED_DIFF, chain.FINAL):
         path = Path(root, rel)
         if path.is_file():
             return f"。置き場の差分 {path} を確かめずに当てるなら {shlex.join(['git', '-C', str(target), 'apply', str(path)])}"

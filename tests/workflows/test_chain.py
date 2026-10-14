@@ -334,7 +334,7 @@ class FinalDiffCase(Tree):
         start, made = three_rounds(self.repo)
         got = self.final(start, *made)
         self.assertEqual((got["ok"], got["kept"], got["skipped"], got["outcome"]), (True, 2, [3], "round_limit"), got)
-        final = self.artifacts / "chain" / chain.FINAL
+        final = self.artifacts / chain.FINAL
         self.assertEqual(self.names(final.read_bytes()), ["one.txt", "two.txt"])
         self.assertEqual(got["sealed"], {"ok": True, "hash": hashlib.sha256(final.read_bytes()).hexdigest(),
                                          "diff": {"type": "archon_artifact", "run_id": "parent", "path": "chain/final.diff"}})
@@ -374,13 +374,24 @@ class FinalDiffCase(Tree):
                 got = run_final(tree, self.artifacts, "parent", start, *made)
                 self.assertEqual((got["kept"], got["r2_status"]), (2, want), got)
 
+    def test_round_whose_diff_cannot_be_made_names_the_round_and_child_run(self):
+        """最後の差分を残りの周だけで作らない。止まりの訳（result の stop_reason）が周の番号と子の run の id を名指す"""
+        start, made = three_rounds(self.repo, halted_last=False)
+        self.final(start, *made)
+        broken = [{**d, "rows": [{**r, "head": "0" * 40} if r["n"] == 2 else r for r in d["rows"]]} for d in made]
+        got = self.final(start, *broken)
+        self.assertEqual((got["ok"], got["sealed"], got["apply"]), (False, None, None), got)
+        self.assertIn("周 2（d2・子の run child-2）の差分を作れない", got["reason"])
+        self.assertFalse((self.artifacts / chain.FINAL).exists(), "前の最後の差分が残った")
+        self.assertEqual(run_result(start, got, *broken, artifacts=self.artifacts)["stop_reason"], got["reason"])
+
     def test_nothing_to_take_leaves_no_final_diff(self):
         start, made = three_rounds(self.repo)
         self.final(start, *made)
         halted = [{**d, "rows": [{**r, "kind": chain.KIND_HALTED} for r in d["rows"]]} for d in made]
         got = self.final(start, *halted)
         self.assertEqual((got["ok"], got["kept"], got["skipped"], got["sealed"], got["apply"]), (False, 0, [3, 2, 1], None, None))
-        self.assertFalse((self.artifacts / "chain" / chain.FINAL).exists(), "前の最後の差分が残った")
+        self.assertFalse((self.artifacts / chain.FINAL).exists(), "前の最後の差分が残った")
         self.assertIn("採れる周が無かった", (self.artifacts / chain.REPORT).read_text(encoding="utf-8"))
 
     def test_result_and_the_report_read_the_same_rounds_and_stop(self):
