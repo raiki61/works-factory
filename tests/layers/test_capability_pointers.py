@@ -1,5 +1,5 @@
 """能力の棚卸し（docs/plans/2026-10-13-capabilities/）の「証」と「今の機械」が、行番号でなく名で試験を指し、その名が main に在る
-（#220・#315）。「今」は名を持たず、docs/works-parity.md の「前の棚卸しの今」の自分の行を名指す（#521）。
+（#220・#315）。「今」は名を持たず、字は docs/works-parity.md の「前の棚卸しの今」の、自分のファイルと行 ID の行が持つ（#521）。
 
 指しの形は棚卸しの README.md の「指しの形」: 証は `path::Class.test_name`。行番号は試験や関数を 1 つ足すたびに関係の無い行まで
 ずれるので書かない。「元」は版を止めた今の works の `file:line` でずれないので照らさない。「要追加」から文の終わり（「。」か行の
@@ -41,11 +41,8 @@ FIELD_FLOOR = {
 TAIL = INVENTORY / "tail.md"
 ROW_ID = r"(?:L-[EGWD]|[JPFTERMS])\d+[a-z]?"
 ROW = re.compile(rf"^- ({ROW_ID})[ 〔]")
-# 「今」の欄の名指し: 表の <ファイル> <行 ID> か、住処が無い行の 無し（表の <ファイル> <行 ID>）
-CURRENT = re.compile(rf"(?:表の (\S+\.md) ({ROW_ID})|無し（表の (\S+\.md) ({ROW_ID})）)")
-# 名指しの数のファイルごとの下限（読み落としで名指しが減った時に赤にする）
-CURRENT_FLOOR = {"fix.md": 190, "gaps-fix.md": 40, "gaps-plan.md": 70, "judge.md": 110, "line.md": 230, "plan.md": 250,
-                 "tail.md": 290}
+# 「今」の欄に書ける字。表 と 無し（表） は字を docs/works-parity.md の「前の棚卸しの今」へ移した印（無し は tail.md の穴に数える）
+CURRENT = ("", "無し", "表", "無し（表）")
 AREA_HOLES = re.compile(r"^### ([TERM]) の穴")
 SUMMARY = "## 穴の要約"
 TOTAL = "行の総数"
@@ -83,24 +80,10 @@ def current_value(text: str) -> str | None:
     return text.split(":", 1)[1].strip() if FIELD.match(text).group(1) == "今" else None
 
 
-def current_problems(fields: list[tuple[str, str | None, str]]) -> list[str]:
-    """「今」の欄が 空・無し・自分の行の名指し のどれでもない所。fields は row_fields() の形"""
-    out = []
-    for where, row, text in fields:
-        value = current_value(text)
-        if value is None or value in ("", "無し"):
-            continue
-        hit = CURRENT.fullmatch(value)
-        named = hit and [part for part in hit.groups() if part]
-        if named != [where.split(":")[0], row]:
-            out.append(f"{where}: 今 {value!r} が 表の {where.split(':')[0]} {row} を名指さない")
-    return out
-
-
-def current_refs() -> list[str]:
-    """前の棚卸しの「今」が名指す docs/works-parity.md の行の鍵 `<ファイル> <行 ID>`"""
-    return [" ".join(part for part in hit.groups() if part) for _, _, text in row_fields()
-            if (value := current_value(text)) and (hit := CURRENT.fullmatch(value))]
+def moved_rows() -> list[str]:
+    """「今」の字を docs/works-parity.md へ移した行の鍵 `<ファイル> <行 ID>`"""
+    return [f"{where.split(':')[0]} {row}" for where, row, text in row_fields()
+            if current_value(text) in ("表", "無し（表）")]
 
 
 def pointing_fields() -> list[tuple[str, str]]:
@@ -208,21 +191,9 @@ class PointerCase(unittest.TestCase):
         self.assertEqual({key: read[key] >= least for key, least in floor.items()}, dict.fromkeys(floor, True), read)
         self.assertLessEqual(set(read), set(floor), read)
 
-    def test_current_names_its_own_row_in_the_parity_table(self):
-        self.assertEqual(current_problems(row_fields()), [])
-        read = collections.Counter(ref.split(" ")[0] for ref in current_refs())
-        self.assertEqual({md: read[md] >= least for md, least in CURRENT_FLOOR.items()}, dict.fromkeys(CURRENT_FLOOR, True), read)
-
-    def test_current_problems_name_a_pointer_and_a_foreign_row(self):
-        def field(md, row, value):
-            return (f"{md}:1", row, f"  - 今: {value}")
-
-        self.assertEqual(current_problems([field("line.md", "L-E01", "表の line.md L-E01"),
-                                           field("line.md", "L-E01", "無し（表の line.md L-E01）"),
-                                           field("line.md", "L-E01", "無し"), field("line.md", "L-E01", "")]), [])
-        self.assertEqual(len(current_problems([field("line.md", "L-E01", "lib/a.py::b")])), 1)
-        self.assertEqual(len(current_problems([field("gaps-plan.md", "P005", "表の plan.md P005")])), 1)
-        self.assertEqual(len(current_problems([field("line.md", "L-E01", "無し（表の line.md L-E01")])), 1)
+    def test_current_holds_only_a_moved_mark(self):
+        self.assertEqual([f"{where}: 今 {value!r}" for where, _, text in row_fields()
+                          if (value := current_value(text)) is not None and value not in CURRENT], [])
 
     def test_pointers_name_only_tests(self):
         self.assertEqual([f"{where}: {path}::{name}" for where, path, name in pointers()

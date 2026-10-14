@@ -5,422 +5,422 @@
 
 - P005〔試〕1 つの単位を 2 つの項目に入れた案を拒む（1 単位は 1 案）。
   - 元: rules/review-loop.py:3077 `fix_plan_covers_units`（dup）、試験 works/tests/test_blk_plan.py:758 test_plan_dup_unit_rejected
-  - 今: 表の gaps-plan.md P005
+  - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_unit_in_two_items_rejected（#120 で足した。消すと赤: fix_plan_covers_units の dup の枝を消すと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - P007〔試〕文字列の "1" は番号でなく名として扱って拒み、拒否文は「no で指せ」と案内する（key を写せと言い換えない）。
   - 元: works/tests/test_blk_plan.py:999 ScriptCase.test_plan_reply_by_number_string_rejected、文は rules/review-loop.py:3083
-  - 今: 表の gaps-plan.md P007
+  - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_string_number_is_a_name_and_asks_for_no（#120 で足した。消すと赤: named が字の "1" も番号に戻すと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し（試験だけ欠け）
 - P008〔試〕直す義務の無い単位（nit・info・suggest の defer・question）を案に入れた返答を、label（と disposition）を名指して拒み、入れてよい no を並べる。
   - 元: works/blk-plan/lib/planblk.py:407 `not_allowed`・:1134 `take`、試験 works/tests/test_blk_plan.py:455・:484・:695
-  - 今: 表の gaps-plan.md P008
+  - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_info_defer_question_rejected_by_label（#120 で足した。消すと赤: take_plan の NOT_OWED_REJECT の行を消すと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: #75 で文を変えた（元「no N は label=…」→ 今「<key> は label=…」。番号を開いた単位にだけ振るため）。Archon で不可でない。能力（名指して拒む）は残る
 - P012〔試〕形の崩れた返答（plan が配列でない・行が object でない・narrows が配列でない）は例外にせず拒否にして出し直させる。
   - 元: works/blk-plan/lib/planblk.py:1127 `_plan_malformed`・:1134 `take`、試験 works/tests/test_blk_plan.py:506 test_take_malformed_plan_resubmits_not_raises
-  - 今: 表の gaps-plan.md P012
+  - 今: 表
   - 証: lib/tests/test_planfile.py::TakePlanCase.test_malformed_reply_is_a_rejection_not_an_exception（#120 で足した。消すと赤: take_plan の replan._malformed の照らしを消すと赤）
   - 本物の run: 筋書きでのみ（役の節の output_format を Archon が先に照らすので本物では届きにくい）
   - 狭め: 無し
 - P013〔試〕拒否の理由を全部 1 回の拒否に並べる（網羅・義務の無い単位・狭めない案・推し・works の欄・構造の答え・block への答え・閉じた項目）。
   - 元: 元は段ごとに最初の拒否で返した（planblk.py:1134 `take`・:1236 `with_plan_fields`・engine の post_check）。今は元より広い
-  - 今: 表の gaps-plan.md P013
+  - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_every_reason_in_one_rejection（#120 で足した。消すと赤: 理由を最初の 1 つだけにすると赤）
   - 本物の run: plan/r1/rejects-plan.json（拒否が起きた時）
   - 狭め: 無し（元より広い）
 - P015〔試〕narrows の行の推し recommend の形の崩れ（answer が continue・stop でない など）を行を名指して拒む。
   - 元: planblk.py:1134 `take`（gatemarks.recommend_gaps・RECOMMEND_REJECT :114）、試験 works/tests/test_blk_plan.py:849
-  - 今: 表の gaps-plan.md P015
+  - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_malformed_recommend_rejected（#120 で足した。消すと赤: take_plan の RECOMMEND_REJECT の行を消すと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - P022〔試〕rewrite_tests の行に、書き換えてよい範囲 limit（既存のテストの <パス>:<行>）を受け付けで引いて控える。
   - 元: planmarks.py:702 `split`（_limit）、試験 works/tests/test_blk_plan.py:1504 test_rewrite_limit_resolved_on_accept
-  - 今: 表の gaps-plan.md P022
+  - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_rewrite_limit_resolved（#120 で足した。消すと赤: 受け付けが欄から limit を落とすと赤）
   - 本物の run: plan/r1/plan-fields.json の fields[].rewrite_tests[].limit（役が書き換えを選んだ時）
   - 狭め: 無し
 - P023〔試〕removes が名指す既存のテストを、修正前の版（BASE）の中身から permits として凍結する。修正前の版のテストが読めなければ trace に writes_base_tests_unread を残す。
   - 元: planmarks.py:362 `_naming_removes`・:702 `split(base_tests=)`、works/.shared/core/writes.py:93 `base_test_texts`（trace の行 :52）
-  - 今: 表の gaps-plan.md P023
+  - 今: 表
   - 証: lib/tests/test_planfile.py::TakePlanCase.test_unreadable_base_is_traced（#120 で足した。消すと赤: take_plan の BASE_TESTS_UNREAD_OP の trace を消すと赤）
   - 本物の run: plan/r1/plan-fields.json の fields[] の permits（removes が試験を名指した時）・plan/r1/trace.jsonl
   - 狭め: 無し
 - P024〔試〕欄の控えを置くたびに凍結の印（周と置いたバイトの sha256。op plan_fields_saved）を trace に書き、後の書き換え・消しを見破れるようにする。
   - 元: planmarks.py:846 `save`（SAVED_OP）・`frozen`、試験 works/tests/test_plan_fields.py::TestFrozenFields
-  - 今: 表の gaps-plan.md P024
+  - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_fields_are_frozen_in_the_round_trace（#120 で足した。消すと赤: planmarks.save の SAVED_OP の trace を消すと赤）
   - 本物の run: plan/r1/trace.jsonl の op plan_fields_saved の行
   - 狭め: 無し（読む側の照らしは fix・plan-review）
 - P025〔戻・試〕拒まれた案は欄の控えを置かない（受けた時だけ置く）。受けた後に控えを置けなければ、欄の無い案のまま黙って進ませない。
   - 元: planblk.py:1236 `with_plan_fields`（盤面を止め BoardGap）、試験 works/tests/test_blk_plan.py:1523 test_rejected_by_board_leaves_no_fields・:1580 test_save_failure_after_board_took_plan_halts・:1591 test_round_read_once_at_head
-  - 今: 表の gaps-plan.md P025
+  - 今: 表
   - 証: lib/tests/test_planfile.py::TakePlanCase.test_save_failure_leaves_no_accepted_plan・tests/workflows/test_plan.py::AcceptCase.test_unsavable_plan_halts_without_counting_a_rejection（#120 で足した。消すと赤: _save の OSError の捕まえを外すと赤・plan_accept の halt の枝を with_done にすると赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 止め方を変えた（元は盤面を止めて理由に plan-fields.json を名指した。今は節が落ちて ready: false。理由の字は collect-error でなく why_not_ready の NO_PLAN になり、どの控えが置けなかったかが返りに残らない）。Archon で不可でない → 置けない訳を round.json の why か collect の reason に残すよう戻す
 - P027〔試〕構造の目の行（汚れると見た行と避け方）を修正案の材料に貼り、従うか外れの訳を頼む。
   - 元: works/.shared/core/structmark.py:111 `plan_section`・planblk.py:1085 `prep`、試験 works/tests/test_blk_plan.py:1300 StructureHeadCase.test_design_rows_reach_plan_head
-  - 今: 表の gaps-plan.md P027
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_dirty_structure_rows_reach_the_brief（#120 で足した。消すと赤: write_brief の structmark.plan_section を外すと赤）
   - 本物の run: plan/r1/brief-1.md の「構造の目の行」の節（目が汚れると見た時だけ行が出る）
   - 狭め: 無し（試験だけ欠け）
 - P028〔試〕構造の目の行が無い周（実測が落ちた・目が 3 回拒まれた・目が走らなかった・控えが読めない）は、材料に「構造の目の行なしで計画した（理由）」と書き、行への答えを求めずに計画へ進む。
   - 元: structmark.py:78（MISSING）・darkfactory の h-structure、試験 works/tests/test_blk_plan.py:1311・:1318・:1328
-  - 今: 表の gaps-plan.md P028
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_failed_structure_marks_the_brief（#120 で足した。消すと赤: write_brief の structmark.plan_section を外すと赤）
   - 本物の run: 筋書きでのみ（健全な run では目が通る）
   - 狭め: 無し（試験だけ欠け）
 - P031〔試〕判定の処方を案に入れる単位ごとに材料に貼り、採らない処方は欄 structure の {prescription, deviation} で訳を書かせる（処方への答えは受け付けが通す）。
   - 元: planblk.py:356 `prescription_section`・planmarks.py:804 `prescriptions`、試験 works/tests/test_blk_plan.py:1464 test_plan_head_carries_prescriptions
-  - 今: 表の gaps-plan.md P031
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_prescriptions_reach_the_brief（#120 で足した。消すと赤: write_brief の prescription_section を外すと赤）
   - 本物の run: plan/r1/brief-1.md の「## 判定の処方」（judge が処方を書いた時）
   - 狭め: 無し（試験だけ欠け）
 - P033〔試〕役の定義の頭: 読むだけ・JSON だけ・works の欄の書き方（planmarks.HEAD）・項目の組み方（ITEMS_RULE）・既にある物を先に探せ（REUSE_RULE）・考えの住処の決まり（concepthome.PLAN_RULE）・狭めない案を先に探せ（gatemarks.HEAD）。
   - 元: works/blk-plan/lib/planblk.py:243 `HEAD["plan"]`・:299 `head`
-  - 今: 表の gaps-plan.md P033
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_brief_opens_with_the_role_head（#120 で足した。消すと赤: 材料の頭の planblk.head を外すと赤）
   - 本物の run: plan/r1/brief-1.md の頭
   - 狭め: 無し。ただし頭の文「受け付けは起こす前の作業ツリーの写しと比べ、変わっていれば拒む」は今の受け付けに当たらない（P049）
 - P034〔試〕単位の一覧（no・key・label・disposition・義務の区分・単位の paths・summary）と、問いの台帳・判定者の見立て（framing・one_shot・one_shot_closes）・判定者の先行例を材料に描く（元の engine の雛形の字）。入れてはいけない単位も label つきで並べる。
   - 元: p2.fix_plan.md の頭の雛形（{{record.units | pick …}} ほか）と planblk.py:328 `plan_slots_section`、試験 works/tests/test_blk_plan.py:717 test_slots_section_lists_must_may_and_shut・:951 test_prompt_rendered_from_mainline
-  - 今: 表の gaps-plan.md P034
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_units_section_carries_catalog_ledger_and_view（#120 で足した。消すと赤: units_section の見立てを空にすると赤）
   - 本物の run: plan/r1/brief-1.md の「## 今の周に直す単位」
   - 狭め: 無し（試験だけ欠け）
 - P035〔試〕リポジトリ・読む版・BASE・観点の正本（REVIEW.md）の行を材料に描く。
   - 元: p2.fix_plan.md の雛形の行（inputs.cwd・inputs.review_rev・record.base・inputs.review_md）
-  - 今: 表の gaps-plan.md P035
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_repo_line_names_base_and_review_md・tests/workflows/test_plan_review.py::ReviewAcceptCase.test_repo_line_reads_review_rev_apart_from_base（#120 で足し、#207 で差分の run にした。消すと赤: write_brief の repo_line を外すと赤、読む版を差分の根に替えると両方赤）
   - 本物の run: plan/r1/brief-1.md の「リポジトリ:」の行
   - 狭め: 無し（#207 で戻した。前は読む版を BASE と同じ値にしていた）
 - P036〔試〕並行 PR の外した範囲（判定の隣の pr-excluded.json）を頭で名指し、無ければ貼らない。
   - 元: planblk.py:299 `head`（EXCLUDED_HEAD :111）、試験 works/tests/test_blk_plan.py:1042 test_excluded_range_named
-  - 今: 表の gaps-plan.md P036
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_excluded_range_named（#120 で足した。消すと赤: head に pr-excluded.json を渡さないと赤）
   - 本物の run: plan/r1/brief-1.md（PR の入口の run だけ。種では筋書きでのみ）
   - 狭め: 無し（試験だけ欠け）
 - P038〔試〕判定の単位のファイルが使うライブラリの文書の節を頭に貼る（網に出ない時はその旨）。
   - 元: planblk.py:462 `lib_section`、試験 works/tests/test_blk_plan.py:951 test_prompt_rendered_from_mainline（「ライブラリの文書を取る物は無い（0 本）」）
-  - 今: 表の gaps-plan.md P038
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_brief_carries_lib_docs_section（#120 で足した。消すと赤: head に lib_docs を渡さないと赤）
   - 本物の run: plan/r1/brief-1.md の libdocs の節（種は標準ライブラリだけなので「0 本」）
   - 狭め: 無し（試験だけ欠け）
 - P042〔試〕役に人が読む文の欄を書く言語を 1 行で縛る（始めの記録の lang。無ければ依頼文の言語）。
   - 元: works/.shared/core/rolekit.py:147 `lang_line`・:67 `LANG_RULE`
-  - 今: 表の gaps-plan.md P042
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_brief_ends_with_language_rule（#120 で足した。消すと赤: 材料の末尾の lang_line を外すと赤）
   - 本物の run: plan/r1/brief-1.md の最後の行
   - 狭め: 無し（試験だけ欠け）
 - P043〔試〕仕様（judge の spec）が在れば、要件と受け入れテストを材料に貼り、受け入れテストを項目の tests に入れさせる。
   - 元: 元の修正案の役には無い（仕様は判定への依頼として届いた）。今の方が広い
-  - 今: 表の gaps-plan.md P043
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_spec_reaches_the_brief（#120 で足した。消すと赤: write_brief の SPEC_HEAD の節を外すと赤）
   - 本物の run: 種は spec を使わないので出ない
   - 狭め: 無し（元より広い）
 - P046〔試〕周の拒否の理由の全部（古い順）をファイル（rejects-plan.md）に置き、次の回の材料の 1 行目がそのパスを名指す（理由の本文は貼らない）。
   - 元: rolekit.py:64 `REJECT_LINE`・:168 `compose`、試験 works/tests/test_blk_plan.py:1012 test_reject_reason_by_file（本文を貼らないことも断言）。元は最後の拒否だけを名指したが、拒まれた役は同じ会話の続きで起きた（works/.shared/core/graphloops/engine/role_run.py:19-20）
-  - 今: 表の gaps-plan.md P046
+  - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_narrow_without_no_narrow_rejected（断言 2 つ）（#120 で足した。消すと赤: 材料に拒否の本文を貼ると赤）、tests/workflows/test_plan.py::AcceptCase.test_third_brief_names_every_reject_of_the_round（#345。消すと赤: 最後の拒否だけを書くと赤）
   - 本物の run: plan/r1/rejects-plan.md と plan/r1/brief-2.md の 1 行目（拒否が起きた時）
   - 狭め: 無し
 - P049〔無・戻・試〕役が作業ツリーを変えた・commit して HEAD や枝を動かした返答を、受け付けが写しと比べて拒み、出し直させる。
   - 元: entry.take の作業ツリーの比べ（accept.tree_moved: porcelain・差分・HEAD・枝。READONLY_MOVED）・planblk.py:1062 `snap` の写し、試験 works/tests/test_blk_plan.py:765 test_readonly_tree_changed_rejected
-  - 今: 表の gaps-plan.md P049
+  - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_role_that_moved_the_tree_is_refused・tests/workflows/test_plan.py::ReplanCase.test_replan_writer_that_moved_the_tree_is_refused（#120 で足した。消すと赤: 新しい能力（take_plan・take_replan の moved の照らし））
   - 本物の run: 筋書きでのみ
   - 狭め: #75 で狭めた（本文に書かれていない）。Archon で不可でない: Archon の比べは git status --porcelain だけで HEAD の動きを見ず（Archon packages/workflows/src/dag-executor.ts:1196-1215 `snapshotCheckout`）、違反は役に返さず節を落とす（同:1262-1280 `assertCheckoutUntouched`）。役の道具に Bash・Write・Edit が無いので今は起きにくいが、元の能力（出し直しの道と HEAD の比べ）は落ちている → plan-prep で accept.tree_state を置き plan-accept で accept.tree_moved を照らす形で戻す（plan-review と揃う）
 - P055〔試〕受け付けた案の項目ごとに、変える名の呼び出し元と試験の当たり（覆っていない当たりを含む）を波及の一覧 ripple.json に作って返す。案が無い周は {items: [], error: <訳>}。
   - 元: works/blk-plan/lib/planblk.py:478 `make_ripple`（stage items・RIPPLE_LATEST）・works/blk-plan/lib/ripple.py:171 `build`
-  - 今: 表の gaps-plan.md P055
+  - 今: 表
   - 証: tests/workflows/test_plan.py::AcceptCase.test_accepted_plan_has_item_ripple（#120 で足した。消すと赤: ripple_items が当たりを引かないと赤）
   - 本物の run: plan/r1/ripple.json の items[].uncovered（返りの ripple の指し札の先）
   - 狭め: 無し
 - P056〔試〕案を書く前に、単位の key が名指す名の呼び出し元と試験の一覧を作って材料に貼る（案の直しでは作らない）。文書・CHANGELOG・実行基盤の写し（.archon）は当たりに数えず、git が無くても落ちずに error を書く。
   - 元: planblk.py:478 `make_ripple`（stage units）・:574 `units_ripple_part`・ripple.py:184 `for_units`・:246 `units_section`
-  - 今: 表の gaps-plan.md P056
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_units_ripple_reaches_the_brief（#120 で足した。消すと赤: write_brief の ripple.units_section を外すと赤）
   - 本物の run: plan/r1/ripple-units.json と plan/r1/brief-1.md の「## 波及の一覧（…単位の key が名指す名…）」
   - 狭め: 無し
 - P057〔無・戻・試〕この周に描いた役ごとに、機械が渡したパス（描いた指示書・方針の文書）を読んだ証拠を集めて索引に書く（受け付けの条件にはしない）。
   - 元: works/blk-plan/lib/planblk.py:1393 `collect_reads`・blk-plan.yaml:978 plan-reads、試験 works/tests/test_reads.py（25 件）
-  - 今: 表の gaps-plan.md P057
+  - 今: 表
   - 証: tests/workflows/test_plan.py::ReadsCase.test_writer_reads_its_brief_are_recorded（#120 で足した。消すと赤: collect_reads が索引に役の証拠を置かないと赤）
   - 本物の run: Archon の run の記録 <logDir>/<run_id>.jsonl の type provider_event・step plan-writer の Read の行（今は誰も集めない）
   - 狭め: #75・#73 で狭めた（docs/design.md:436・:570 の U6「取れるか未決」）。Archon で不可でない: Archon は役の道具の呼びを step 名つきで run の記録に残す（packages/workflows/src/logger.ts:129-130 `getLogPath` が <logDir>/<runId>.jsonl、:298-310 `logProviderEvent`、packages/workflows/src/store.ts:156 provider_event、packages/core/src/db/workflow-events.ts:257-262 で tool_call {name, rawInput} に読める）→ U6 は「取れる」で決まる。戻す
 - P059〔試〕単位ごとの深さ（軽量・標準と訳）を、直す義務の単位だけについて、受け付けた案の欄と始めの記録の厚さ（thickness）・試験の命令の有無から決めて返す。案が無ければ空。
   - 元: works/darkfactory/lib/depth.py:244 `decide`（線の h-depth が h-fix.open_units で呼んだ。depth.json を書いた）
-  - 今: 表の gaps-plan.md P059
+  - 今: 表
   - 証: tests/workflows/test_plan.py::CollectCase.test_depth_follows_start_thickness_and_checks（#120 で足した。消すと赤: plan_collect が thickness か試験の命令を渡さないと赤）
   - 本物の run: plan の節の出力 depth（種の厚さ 標準 なら全部 標準）
   - 狭め: depth.json の控え（深さの上げ直しが読む）はブロックが書かない。上げ直しは線（workflows/line/scripts/redepth.py）の持ち物なので PA の外
 - P064〔試〕設計の行のファイル design.jsonl を毎回 0 バイトで置き直し（JSON Lines なので改行も書かない）、前の目の控え eye.json を消す
   - 元: works/blk-structure/scripts/stage_a.py:100-102
-  - 今: 表の gaps-plan.md P064
+  - 今: 表
   - 証: tests/workflows/test_plan.py::StageACase.test_fresh_measure_drops_old_eye_state（#120 で足した。消すと赤: measure の eye.json の unlink を外すと赤）
   - 本物の run: `plan/structure/<鍵>/design.jsonl`（目の受け付けの後は行が入る）
   - 狭め: 無し
 - P065〔試〕対象の根に考えの地図（docs/concepts.md）と柵の表（docs/concepts.json）が在れば、単位のパスに当たる地図の行と、単位のファイルの知る場所の数（home・known_places）を単位の concepts に置く。当たらない考えの行は載せない
   - 元: works/blk-structure/lib/context.py:93 `concepts`・:71 `find`
-  - 今: 表の gaps-plan.md P065
+  - 今: 表
   - 証: tests/workflows/test_plan.py::StageACase.test_concept_rows_only_for_unit_paths（#120 で足した。消すと赤: context.concepts の当たりの照らしを外すと赤）
   - 本物の run: `plan/structure/<鍵>/structure.json` の `units[].concepts`（種は地図が無いので `{"rows":[],"places":[]}`）
   - 狭め: 無し
 - P066〔試〕地図も柵の表も無い対象は実測だけで判じ、地図や表を作らない（concepts は空の並び）
   - 元: works/blk-structure/lib/context.py 冒頭の「作らない」・works/tests/test_blk_structure.py:625 `test_no_map_no_table_measures_only`
-  - 今: 表の gaps-plan.md P066
+  - 今: 表
   - 証: tests/workflows/test_plan.py::StageACase.test_no_map_no_table_measures_only（#120 で足した。消すと赤: 実測が対象に docs/ を作ると赤）
   - 本物の run: `plan/structure/<鍵>/structure.json` の `units[].concepts` が空（種に地図が無い）、対象の作業ツリーに docs/ が増えない
   - 狭め: 無し
 - P067〔試〕方針の文書（始めの記録の policy_md）の中身と根の地図の文書（AGENTS.md など。design.repo_map の探し方）を structure.json の rules に置き、構造の目に見せる。長い文書は TEXT_CAP（6000 字）で切って印を付ける
   - 元: works/blk-structure/lib/context.py:36 `rules`
-  - 今: 表の gaps-plan.md P067
+  - 今: 表
   - 証: tests/workflows/test_plan.py::StageACase.test_eye_sees_root_map_and_cut_policy（#120 で足した。消すと赤: context._cut の切りを外すと赤）
   - 本物の run: `plan/structure/<鍵>/structure.json` の `rules.maps`・`rules.policy.path`
   - 狭め: 無し
 - P068〔試〕段 A の時間を structure.json の timing（started_at・finished_at・wall_s）に残す
   - 元: works/blk-structure/scripts/stage_a.py:120 `eye.stamp`
-  - 今: 表の gaps-plan.md P068
+  - 今: 表
   - 証: tests/workflows/test_plan.py::StageACase.test_measure_records_timing（#120 で足した。消すと赤: measure の stamp に時刻を渡さないと赤）
   - 本物の run: `plan/structure/<鍵>/structure.json` の `timing.wall_s`
   - 狭め: 無し
 - P069〔試〕構造の目は実測が ok で測れた単位が 1 つ以上の周だけ起こす（eye.due）。落ちた・測れた単位が無い周は目の会話を起こさない
   - 元: works/blk-structure/lib/eye.py:71 `due`・works/blk-structure/blk-structure.yaml:87
-  - 今: 表の gaps-plan.md P069
+  - 今: 表
   - 証: lib/tests/test_structure_eye.py::EyeLoopGateCase.test_due_needs_ok_and_a_measured_unit（#120 で足した。消すと赤: eye.due の status の照らしを外すと赤）
   - 本物の run: 節 `structure-measure` の出力 `eye`=true と節 `structure-eye-loop` が走った記録
   - 狭め: 無し
 - P072〔試〕構造の目の指示書は、実測できた単位だけ・問い 1 つ（concepthome.EYE_ASK）・6 つの形の番号つきの一覧・返し方を貼る。測れなかった単位は見せない。前の回の拒否の理由が在れば頭に貼り「丸ごと出し直せ」と言う
   - 元: works/blk-structure/lib/eye.py:129 `render`・:45 `FORMS`
-  - 今: 表の gaps-plan.md P072
+  - 今: 表
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_prompt_carries_only_measured_units_and_the_forms（#120 で足した。消すと赤: render の 6 つの形の一覧を外すと赤）
   - 本物の run: `plan/structure/<鍵>/eye-prompt-1.md` に問いと 6 つの形と stats.py の単位
   - 狭め: 無し
 - P073〔戻・試〕6 つの形の文は設計書の一覧と一字も違わない（faces の 1〜6 の意味の正本を 1 つにする）
   - 元: works/tests/test_structure_eye.py:39 `test_six_forms_are_the_design_doc_list`（設計書 structure-block-design の 4 節）
-  - 今: 表の gaps-plan.md P073
+  - 今: 表
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_six_forms_match_the_design_doc（#120 で足した。消すと赤: eye.FORMS の 1 字を変えると赤）
   - 本物の run: 筋書きでのみ
   - 狭め: lib-port で正本の文書との照らしが外れた（#75・#73 ではない）。Archon で不可でない → 戻す（正本の置き場を決めて照らしを戻す）
 - P076〔試〕構造の目は道具ゼロ・opus・effort high・設定は user だけ・sandbox 有効・作業ツリーを変えない独立の会話で、指示書は支度の節の出力だけを読む
   - 元: works/blk-structure/blk-structure.yaml:108-121
-  - 今: 表の gaps-plan.md P076
+  - 今: 表
   - 証: tests/workflows/test_plan.py::ShapeCase.test_eye_command_is_the_original（#120 で足した。消すと赤: structure-eye.md に 1 字足すと赤）
   - 本物の run: 節 `structure-eye` の記録（道具の呼びが 0 回）
   - 狭め: 無し
 - P080〔試〕行き先「人に上げる」は汚れる行だけで、決まらない訳 undecided_because（20 字以上）と捨てた案と代償 rejected（1 つ以上）が要る。自分で決める行に undecided_because を書けば拒む
   - 元: works/blk-structure/lib/eye.py:224-232（`problems` の route の照らし）
-  - 今: 表の gaps-plan.md P080
+  - 今: 表
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_own_decision_row_must_not_carry_undecided（#120 で足した。消すと赤: problems の undecided_because の照らしを外すと赤）
   - 本物の run: 筋書きでのみ（種の直しは決め手で決まる）
   - 狭め: 無し
 - P081〔試〕受け付けを通った行は route（既定「自分で決める」）と route_reason（上げた行は決まらない訳、ほかは既定の訳）を足して design.jsonl に書き、設計の行の型を通る
   - 元: works/blk-structure/lib/eye.py:244 `accept`
-  - 今: 表の gaps-plan.md P081
+  - 今: 表
   - 証: lib/tests/test_structure_eye.py::EyeAcceptCase.test_own_decision_row_gets_default_route（#120 で足した。消すと赤: accept の既定の route_reason を空にすると赤）
   - 本物の run: `plan/structure/<鍵>/design.jsonl` の各行の `route`・`route_reason`
   - 狭め: 無し
 - P083〔試〕構造の目の控え structure-state.json（status・reason・design_file・wall_s）を、目が飛んだ・落ちた・3 回拒まれた周も必ず書く。失敗の訳は「実測が落ちた: …」「構造の目の返答が N 回とも受け付けで拒まれた: …」「構造の目の会話が落ちたか走らなかった」の 3 通り。目を起こさない周（eye.due が偽）は ok
   - 元: works/blk-structure/scripts/collect.py `outcome`・works/darkfactory/lib/line_edge.py `structure_edge`
-  - 今: 表の gaps-plan.md P083
+  - 今: 表
   - 証: lib/tests/test_planfile.py::StateCase.test_each_failure_names_the_reason（#120 で足した。消すと赤: _outcome の gave_up の枝を外すと赤）
   - 本物の run: `plan/structure/<鍵>/structure-state.json` の `status`=ok・`reason`=""（返り `structure` の指し札の先）
   - 狭め: 無し
 - P084〔試〕構造のブロックで増えた時間（実測の秒＋目の秒）を structure-state.json の wall_s に足して残す（報告が「構造のブロックで増えた時間」として読む）
   - 元: works/blk-structure/scripts/collect.py（wall の和）
-  - 今: 表の gaps-plan.md P084
+  - 今: 表
   - 証: lib/tests/test_planfile.py::StateCase.test_wall_adds_the_eye_time（#120 で足した。消すと赤: write_state の目の秒の足しを外すと赤）
   - 本物の run: `plan/structure/<鍵>/structure-state.json` の `wall_s`（0 より大きい）
   - 狭め: 無し
 - P085〔試〕構造の境の中の失敗（実測が落ちた・目が落ちた・3 回拒まれた）は節の失敗にせず、構造の目の行なしで計画に進む。修正案の材料には「構造の目の行なしで計画した（理由: …）」を貼る
   - 元: works/darkfactory/darkfactory.yaml:458 の節 `h-structure`・works/.shared/core/structmark.py `note`・`plan_section`
-  - 今: 表の gaps-plan.md P085
+  - 今: 表
   - 証: tests/workflows/test_plan.py::CollectCase.test_failed_structure_note_reaches_the_brief（#120 で足した。消すと赤: structmark.plan_section の MISSING の節を外すと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - P086〔戻・試〕構造の控えを書けない（structure-state.json を書けない）周は、元は節の失敗にせず「控えを書けない」の訳で failed として計画に進んだ。今は structure-state の節が落ち、plan-loop が飛んで ready: false になる
   - 元: works/darkfactory/lib/line_edge.py `structure_edge`（OSError を訳にする）・works/tests/test_structure_eye.py:267 `test_unwritable_state_is_not_a_node_failure`
-  - 今: 表の gaps-plan.md P086
+  - 今: 表
   - 証: tests/workflows/test_plan.py::CollectCase.test_unwritable_state_still_plans（#120 で足した。消すと赤: keep_state の OSError の捕まえを外すと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: #75 で狭めた（Archon で不可でない: script の中で OSError を捕まえて訳を返せば済む → 戻す）
 - P087〔試〕構造の境の節そのものが落ちた周は、計画の落ちと同じく計画なしで修正へ進まない
   - 元: works/darkfactory/darkfactory.yaml:481 の節 `planning`（h-structure に依る）・works/tests/test_structure_eye.py:255 `test_edge_failure_stops_like_plan_failure`
-  - 今: 表の gaps-plan.md P087
+  - 今: 表
   - 証: tests/workflows/test_plan.py::CollectCase.test_failed_state_node_gives_not_ready（#120 で足した。消すと赤: plan-loop の trigger_rule を all_done にすると赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - P088〔試〕修正案の材料に構造の目の行（判定・形・根拠・避け方）と「汚れる行の単位を持つ項目は欄 structure に従うか訳を書け」の頼みを貼る
   - 元: works/.shared/core/structmark.py `plan_section`・`PLAN_ASK`
-  - 今: 表の gaps-plan.md P088
+  - 今: 表
   - 証: tests/workflows/test_plan.py::BriefCase.test_brief_carries_structure_rows（#120 で足した。消すと赤: write_brief の structmark.plan_section を外すと赤）
   - 本物の run: `plan/r1/brief-1.md` の「## 構造の目の行」の節（種で行が在れば）
   - 狭め: 無し
 - P109〔試〕計画の返答に前の往復の閉じた・保留の項目を差し込んで案の全体を組む。閉じた項目を変えた・閉じた項目の単位を別の行に入れた・開いた項目の行が無い返答は CLOSED_REJECT で拒む。閉じた項目を前のまま書いた行は捨てて trace に `plan_converge_dropped` を残す
   - 元: works/.shared/core/converge.py:333 `splice`、works/blk-plan/lib/planblk.py:1301 `revise_take`
-  - 今: 表の gaps-plan.md P109
+  - 今: 表
   - 証: tests/workflows/test_plan.py::CollectCase.test_second_round_changing_a_closed_item_is_rejected（#120 で足した。消すと赤: take_plan の CLOSED_REJECT の行を消すと赤）
   - 本物の run: plan/r2/trace.jsonl の `plan_converge_dropped` 行・plan/r2/p2.fix_plan.json の `plan`。筋書きでのみ
   - 狭め: 無し
 - P110〔試〕2 周目の計画の受け付けは block_answers を案から外して p2.fix_plan.json と reply.json の脇に残し、事前審査がそれを次の往復の answers として読む
   - 元: works/blk-plan/lib/planblk.py:1301 `revise_take`（converge.note_answers）・:1178 `with_converge`
-  - 今: 表の gaps-plan.md P110
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::ConvergeCase.test_answers_written_by_the_plan_block_reach_the_record（#120 で足した。消すと赤: take_plan が block_answers を脇に残さないと赤）
   - 本物の run: plan/r2/p2.fix_plan.json の `block_answers` と plan-review/plan-converge.json の `passes[1].answers`。筋書きでのみ
   - 狭め: 無し
 - P114〔試〕往復の安全の上限（20）を、事前審査が上限の周を知る数と線の loop_group の上限の両方で同じ数に縛る。止め時は数でなく converge.decide。上限に当たって落ちずに抜ける
   - 元: works/blk-plan/blk-plan.yaml:543（converge-loop の max_iterations 3）と works/tests/test_blk_plan.py::YamlCase.test_converge_loop_wraps_revise_and_review（GIVE_UP_AFTER と突き合わせ）
-  - 今: 表の gaps-plan.md P114
+  - 今: 表
   - 証: P74 tests/workflows/test_line.py::LineWiringCase.test_round_limit_is_the_loop_limit（max_iterations == plan-out と plan-review-run の round_limit）
   - 本物の run: plan/r*/ の数が 20 を越えない。筋書きでのみ
   - 狭め: 無し
 
 - P118〔試〕again の時、計画の役は独立設計の節を受けない（修正案の役の頭と指示書は会話に在る）
   - 元: works/tests/test_blk_plan.py:1976 `test_revise_prompt_names_blocks_and_keys`（「=====独立設計ここから=====」が無い）
-  - 今: 表の gaps-plan.md P118
+  - 今: 表
   - 証: tests/workflows/test_plan.py::CollectCase.test_second_round_brief_has_no_independent_design（#120 で足した。消すと赤: 2 周目の材料に DESIGN_HEAD を足すと赤）
   - 本物の run: plan/r*/brief-*.md。筋書きでのみ
   - 狭め: 無し（会話が新しいことは P117）
 - P120〔戻・試〕往復ごとの拒否の数え直し: again で次の往復に移ると、計画と事前審査の拒否の回数を 0 から数え直す（拒否の行は往復の行に残す）
   - 元: works/blk-plan/lib/planblk.py:1178 `with_converge`（converge.stash_rejects・rolekit.take_rejects）、works/tests/test_blk_plan.py:1751 `test_rejects_restart_per_pass`
-  - 今: 表の gaps-plan.md P120
+  - 今: 表
   - 証: tests/workflows/test_plan.py::CollectCase.test_second_round_counts_its_own_rejections・tests/workflows/test_plan_review.py::ConvergeCase.test_pass_row_keeps_each_pass_rejections（#120 で足した。消すと赤: stash_rejects の呼びを消すと赤・拒否の控えを周をまたいで数えると赤）
   - 本物の run: plan/r<k>/ の拒否の控え。筋書きでのみ
   - 狭め: 往復の行の `rejects` が消えた（報告の材料の細り）。不可でない → 要るなら戻す（軽い）
 - P121〔試〕往復の控えを書けなかった時に黙って進めない（元は盤面を止めて控えを名指す）
   - 元: works/blk-plan/lib/planblk.py:1178 `with_converge`（rolekit.halt_unsaved）、works/tests/test_blk_plan.py:1718
-  - 今: 表の gaps-plan.md P121
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::FailSafeCase.test_unwritable_converge_record_is_named（#120 で足した。消すと赤: record_pass の書けない誤りを握りつぶすと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 盤面の止め（b.stop）は無い（#73「盤面の止め（b.stop）は無い」で記載）。能力（黙って進めない）は give_up の道で残る
 - P126〔無・戻・試〕案の直しの材料に、その項目の brief（修正のブロックが項目ごとに書いた brief-<n>.md）のパスを名指す
   - 元: works/.shared/core/replan.py:291 `material`（棚卸しの決まり_NAME・scopes.each）・:387 `_section`（「この項目の brief」の行）、works/tests/test_replan.py:404 `test_prompt_has_only_the_item_and_texts`
-  - 今: 表の gaps-plan.md P126
+  - 今: 表
   - 証: tests/workflows/test_plan.py::ReplanCase.test_brief_of_the_item_is_named（#120 で足した。消すと赤: replan_section の brief の行を消すと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: #73 で事前審査の側を外した（「brief は修正のブロックの置き場に在り、E4 で読まない」）。#75 は計画の側の欠けを書いていない。Archon で不可でない（fix の返りか線の with: で指し札を渡せば足りる）→ 戻す
 - P134〔試〕案の直しの役も 3 回拒まれたら諦めて ready: false（諦めは run を止めず、後の段が読む）
   - 元: works/.shared/core/replan.py:544 `accept_reply`（GIVE_UP_AFTER）・:625 `gate`（PLAN_GAVE_UP_WHY で項目を諦める）
-  - 今: 表の gaps-plan.md P134
+  - 今: 表
   - 証: tests/workflows/test_plan.py::ReplanCase.test_three_rejections_give_up_without_amending（#120 で足した。消すと赤: 形 replan の輪が 3 回で諦めないと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 下の P142（諦めた項目を人への行に載せる）を参照
 - P135〔無〕案の直しの役が読んだ証拠（reads-replan-<役>.json の索引。1 回目の reads-plan-block.json を上書きしない）
   - 元: works/.shared/core/replan.py:114 `READS_INDEX`・:115 `READS_PREFIX`、works/tests/test_replan.py:650
-  - 今: 表の gaps-plan.md P135
+  - 今: 表
   - 証: tests/workflows/test_plan.py::ReadsCase.test_replan_reads_do_not_overwrite_planning_reads（#120 で足した。消すと赤: 形 replan の頭 replan- を外すと赤）
   - 本物の run: 無し
   - 狭め: #75・#73 で狭めた（U6「Archon の役の節でどこに取るかが未決」）。Archon の出来事の記録には道具の呼びの行が在る（packages/workflows/src/provider-events.ts:134 `case 'tool_call'`）ので、不可と言い切れない → 持ち主へ（PD の読んだ証拠の行と同じ根）
 - P137〔試〕案の直しの事前審査の材料: 独立設計の節（design_only）・REVIEW_ASK_REPLAN・planmarks.REVIEW_ASK・裁かれた項目ごとに承認済みの前の形・申し出と裁定の行・直した形（決め手の欄つき）
   - 元: works/.shared/core/replan.py:410 `prep`（plan-review）・:387 `_section`
-  - 今: 表の gaps-plan.md P137
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::ReplanCase.test_replan_material_carries_the_independent_design（#120 で足した。消すと赤: 形 replan の材料から design_only を外すと赤）
   - 本物の run: plan-review/pass-<k>/prompt.md。筋書きでのみ
   - 狭め: 下の P138・P139
 - P138〔戻・試〕案の直しの事前審査には、裁かれた項目だけを見せる（ほかの項目の案・欄を貼らない）
   - 元: works/.shared/core/replan.py:410 `prep`（「事前審査の役には…前後の項目だけを渡す」）、works/tests/test_replan.py:532 `test_review_role_sees_design_only_and_both_forms`（assertNotIn CLAMP・planmarks.REVIEW_HEAD）
-  - 今: 表の gaps-plan.md P138
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::ReplanCase.test_replan_material_shows_only_ruled_items（#120 で足した。消すと赤: _shown_plan を案の全部にすると赤）
   - 本物の run: plan-review/pass-<k>/prompt.md。筋書きでのみ
   - 狭め: #73 に記載無し。不可でない → 戻す
 - P140〔試〕案の直しの事前審査の返答を受け付ける: 壁打ちと束ね役の任意の欄（resolved・items・synergy）は外してから照らし、独立設計が立つ時は穴の引用（DRIFT_HEAD）と design_map を直した項目の行と照らす
   - 元: works/.shared/core/replan.py:511 `_take`（plan-review: drop_fields・design.quote_gaps）
-  - 今: 表の gaps-plan.md P140
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::ReplanCase.test_replan_drift_quotes_checked_and_extra_fields_dropped（#120 で足した。消すと赤: _take の design_gaps を外すと赤）
   - 本物の run: plan-review/pass-<k>/review.json。筋書きでのみ
   - 狭め: 無し
 - P142〔試〕案の直しを終えられなかった項目（計画の役の諦め・事前審査の諦め・関所の答えが無い）は、項目ごとに諦めの訳をつけ、裁定の文を字のまま人への行（最後の関所と次の run の依頼）に載せる。ほかの項目は採れる
   - 元: works/.shared/core/replan.py:625 `gate`・:583 `_give_up`（PLAN_GAVE_UP_WHY・REVIEW_GAVE_UP_WHY・NO_GATE_WHY）・:256 `_sync_closed`、works/tests/test_replan.py:1032 `test_gave_up_paths_reach_ask_human_verbatim`
-  - 今: 表の gaps-plan.md P142
+  - 今: 表
   - 証: tests/workflows/test_report.py::ReplanGiveUpCase.test_gave_up_replan_names_ruling_text_and_reason（ほか tests/workflows/test_plan.py::ReplanCase.test_three_rejections_give_up_without_amending・tests/workflows/test_plan_review.py::ReplanCase.test_replan_review_gave_up_names_each_item）（#120 で足した。消すと赤: prior_failures が項目ごとの行を足さないと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: #75・#74 に記載無し。項目ごとに採る/諦めるは Archon で不可でない → 持ち主へ（全部か無しかに倒したかの確認） 決め: 人の答えは今の works と同じく 1 つの語（works/.shared/core/replan.py:699-744）。機械の側の項目ごとの諦めは戻すと決めた。区分 P の issue（線の配線の文書の「この文書の外」の「決めた物」）
 - P169〔試〕独立設計の返答は JSON として読み、役の型（YAML の役の節の output_format を差し込みの頭が控えた物）で照らす。読めない・型に合わない返答は拒む
   - 元: works/.shared/core/design.py:586-601 `check_design`（accept.type_errors・accept.role_schema）・:603 `accept_reply`
-  - 今: 表の gaps-plan.md P169
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::DesignCase.test_off_schema_reply_names_the_type_error（#120 で足した。消すと赤: 型の拒みの訳から「独立設計の返答」を外すと赤）
   - 本物の run: 節 `r2-accept` の reason が空
   - 狭め: 無し
 - P173〔戻・試〕独立設計の指示書の文は本線の r2.design.md の字のまま（許した直しだけ）。本線の行「前提のドリフト（あれば）」「裏取りを通っていない目的の判定（あれば）——この周の『狭めている』は…使えない」を持つ
   - 元: works/.shared/core/gl-prompts/prompts/review-loop/r2.design.md（loop.drift_notes・loop.purpose_review_stale を読む）
-  - 今: 表の gaps-plan.md P173
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::YamlCase.test_r2_command_is_the_original_with_only_the_allowed_edits（ほか tests/workflows/test_plan_review.py::IsolationCase.test_prompt_carries_drift_and_unvetted_purpose_lines）（#120 で足した。消すと赤: r2-design.md の 1 字を変えると赤・材料から DRIFT_LINE を外すと赤）
   - 本物の run: `plan-review/r2-prompt.md`（指示書は command の側）
   - 狭め: #73 で狭めた（2 行の差し込みの元が盤面の周の控えで、このブロックに無い）。purpose_review_stale は判定の材料から作れるので Archon で不可でない → 戻すか持ち主に聞く。drift_notes は R2 が run の 1 周目に 1 度だけ走る今の形では元でも空だったかを持ち主に確かめる
 - P180〔戻・試〕独立設計の控え design.json を後段に渡す（元は盤面の r2.design の節へ hand し、R2 の突き合わせと独立の目が読んだ。今は返り design の指し札）
   - 元: works/.shared/core/design.py `hand`（HANDED_OP・MISSING_OP の trace）
-  - 今: 表の gaps-plan.md P180
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::DesignCase.test_design_handoff_is_traced（#120 で足した。消すと赤: collect の HANDED_OP の trace を消すと赤）
   - 本物の run: 返り `design.path`=`plan-review/design.json`・中の question_stands
   - 狭め: trace の行（HANDED_OP・MISSING_OP）が無い。Archon で不可でない → 読み手（report）が要るなら戻す。持ち主に確かめる
 - P184〔試〕修正案の項目の works の欄（route・tests・rewrite_tests・refactor・allowed_paths・out_of_scope）を項目ごとの JSON で貼り、見る点を頼む
   - 元: works/.shared/core/planmarks.py:1069 `review_section`・works/tests/test_blk_plan.py:1543 `test_plan_review_prompt_carries_fields`
-  - 今: 表の gaps-plan.md P184
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_material_carries_plan_fields（#120 で足した。消すと赤: review_section が項目ごとの欄の JSON を貼らないと赤）
   - 本物の run: `plan-review/pass-1/prompt.md` の「## 修正案の項目の works の欄」
   - 狭め: 無し
 - P185〔試〕構造の目の避け方・判定の処方・世界の解から外れた訳（欄 structure の deviation）を DEVIATION_HEAD の節で並べ、世界の解の類には依頼の解き方との比べの文を添えて、訳が成り立つかを見させる
   - 元: works/.shared/core/planmarks.py:1081 `review_section` の devs・works/tests/test_blk_plan.py:1455 `StructureFieldCase.test_plan_review_sees_deviations`・:1397 `WorldFieldCase.test_world_deviation_listed_for_review`
-  - 今: 表の gaps-plan.md P185
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::ReviewAcceptCase.test_material_lists_deviations（#120 で足した。消すと赤: review_section が定石との比べの文を添えないと赤）
   - 本物の run: 筋書きでのみ（種の案が外れを書いた時だけ）
   - 狭め: 試験の欠けだけ（コードは在る）
 - P187〔戻・試〕凍結の欄の食い違いで盤面を止めた（run を止める・止めた訳を残す）。今は支度の節が落ちるだけで、返す節は「review.json が無い」と返し、食い違いの訳は返りに載らない
   - 元: works/blk-plan/lib/planblk.py:107 `STOP_BY`・BoardGap → 盤面の stop
-  - 今: 表の gaps-plan.md P187
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::ResultCase.test_tampered_fields_reason_reaches_the_return（#120 で足した。消すと赤: collect が prep-error.txt を読まないと赤）
   - 本物の run: 筋書きでのみ
   - 狭め: #73 で狭めた（盤面の止めが無い）。Archon で不可でない（支度が訳をファイルに残し返す節が読めばよい）→ 戻す
 - P194〔試〕事前審査の指示書は役 judge の本文を字のまま頭に置き、続けて本線の p2.plan_review の決まり（見ること 1〜8・shrink・返し方・根拠は読む版で）を『リポジトリ: 』の行の後ろに持つ（許した直しは見出しの P2-11・P3 の言い換え・差し込みの行を材料へ）
   - 元: works/.shared/core/gl-prompts/prompts/review-loop/p2.plan_review.md・agents/judge.md（engine が前付けした）
-  - 今: 表の gaps-plan.md P194
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::YamlCase.test_review_command_is_the_original_with_only_the_allowed_edits（#120 で足した。消すと赤: plan-review.md の 1 字を変えると赤）
   - 本物の run: 節 `plan-review` の指示書
   - 狭め: 無し
 - P211〔無・戻・試〕役ごとに、機械が渡したパス（描いた指示書・材料のファイル・方針の文書）を役が本当に読んだかを、Archon の出来事の道具の呼び（tool_called の Read の file_path）と包みのフックの記録で集め、reads-<役>.json と索引 reads-plan-block.json に書き、欠けを報告の冒頭に出す（受け付けの条件にはしない）
   - 元: works/.shared/core/reads.py（collect・events_for・main_for）・works/blk-plan/blk-plan.yaml:978 `plan-reads`・works/blk-plan/lib/planblk.py:1393 `collect_reads`・works/tests/test_reads.py の 25 件
-  - 今: 表の gaps-plan.md P211
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::ReadsCase.test_reads_collected_from_the_hook_records（旧 test_reads_collected_from_archon_events）（#120 で足した。消すと赤: reads.collect がフックの行を索引にしないと赤）
   - 本物の run: 筋書きでのみ（今は記録が無い。戻せば `plan-review/reads-plan-review.json`）
   - 狭め: #73・#75 で狭めた（「Archon の出来事から役の道具の呼びを引く口が無い（U6）」）。Archon で不可でない: 止めた Archon は provider_event（packages/provider-contract/src/events.ts:30-44 の tool_call。name と rawInput を持つ）を run の出来事に積み、CLI の `workflow get --verbose --events --json` が生の行を出す（packages/cli/src/commands/workflow.ts:4076-4091 `listRunEvents` の rawEvents・packages/cli/src/help.ts:751 `--events`）→ 戻す
 - P212〔無・戻・試〕束ね役が下請けを本当に起こしたか（Agent の道具の呼びの数と subagent_type）を、下請けのファイルの数と突き合わせて trace（plan_review_agents）に残す
   - 元: works/.shared/core/reads.py `tool_count`・`tool_inputs`・works/blk-plan/lib/planblk.py:134 `AGENT_OP`・works/tests/test_blk_plan.py:2674 `test_reads_trace_agent_launches_against_item_files`
-  - 今: 表の gaps-plan.md P212
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::ReadsCase.test_agent_launches_counted_against_item_files（#120 で足した。消すと赤: record-read.py が Agent の行を書かないと赤）
   - 本物の run: 筋書きでのみ（戻せば `plan-review/trace.jsonl` の op=plan_review_agents）
   - 狭め: #73 で狭めた（U6 待ち）。Archon で不可でない（P211 と同じ出どころ）→ 戻す
 - P213〔無・戻・試〕役が web を引いた記録（WebFetch の URL・WebSearch の問い）を読んだ証拠のファイルに残す
   - 元: works/.shared/core/reads.py `web_fetches`・`web_searches`・works/tests/test_reads.py:227・:245・:254
-  - 今: 表の gaps-plan.md P213
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::ReadsCase.test_web_calls_recorded（#120 で足した。消すと赤: record-read.py が WebFetch・WebSearch の行を書かないと赤）
   - 本物の run: 筋書きでのみ（戻せば reads-plan-review.json の web。先行例の出典を開いた URL が見える）
   - 狭め: #73 で狭めた（U6）。Archon で不可でない（P211 と同じ）→ 戻す
 - P218〔試〕関所の決め手の欄（decided_by・undecided_because・fences・world・recommend）と狭めない案（no_narrow）を、修正案の narrows の行と事前審査の faces の行の役の型にだけ足す。欄の型の持ち主は gatemarks.MARK_SCHEMA の 1 か所
   - 元: works/.shared/core/gatemarks.py:113 `MARK_SCHEMA`・:328 `with_marks`
-  - 今: 表の gaps-plan.md P218
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::YamlCase.test_recommend_is_optional_on_both_roles（#120 で足した。消すと赤: faces の行の required に recommend を足すと赤）
   - 本物の run: 節 `plan-review` の出力が型を通った記録、`plan-review/gate-marks.json`
   - 狭め: 無し
 - P222〔試〕関所の決め手の濾しに掛ける行は、修正案の narrows の全部と、事前審査の穴のうち人に聞く種類（HUMAN_FACE_KINDS＝regression・policy）だけ。ほかの種類の穴（contract_drift など）は関所に載せない
   - 元: works/.shared/core/graphloops/rules/review-loop.py:4093 `_plan_gate_items`・:4084 `HUMAN_FACE_KINDS`・works/.shared/core/gatemarks.py:466 `_gate_rows`
-  - 今: 表の gaps-plan.md P222
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::GateFromPlanCase.test_non_human_face_kinds_are_not_asked（#120 で足した。消すと赤: _gate_rows の HUMAN_FACE_KINDS の濾しを外すと赤）
   - 本物の run: `plan-review/pass-1/gate.json` の `items`（種の直しで regression の穴が無ければ空）
   - 狭め: 無し
 - P226〔試〕人に回す行の尾: 役が書いた世界の解の 1 文（書いていなければ「役が書いていない」、欄の無い行には付けない）・狭めない案の 1 文（no_narrow を書いた行だけ）・揃わない軸の訳「（人に聞く訳: …）」（決め手を書いた行だけ）
   - 元: works/.shared/core/gatemarks.py:436 `_world`・:444 `_no_narrow`・`_item`
-  - 今: 表の gaps-plan.md P226
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::PlanGateCase.test_asked_row_shows_the_no_narrow（#120 で足した。消すと赤: _no_narrow の尾を空にすると赤）
   - 本物の run: 筋書きでのみ
   - 狭め: 無し
 - P245〔試〕返した関所の項目の種類と方針の変化を gate-asked.json に積み、関所の項目の全部と壁打ちの行を pass-<k>/gate.json に残す（次の差し込みが通した行の種類を引く・人が読む控え）
   - 元: 盤面の state.pending_human（{node, kinds, items}）と loop_state.policy_change
-  - 今: 表の gaps-plan.md P245
+  - 今: 表
   - 証: tests/workflows/test_plan_review.py::ResultCase.test_gate_files_carry_kinds_and_items（#120 で足した。消すと赤: collect の _note_asked を外すと赤）
   - 本物の run: `plan-review/pass-1/gate.json`・`plan-review/gate-asked.json`
   - 狭め: 無し

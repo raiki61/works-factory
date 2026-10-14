@@ -7,7 +7,7 @@
   のどれか
 - 「今」と「戻した:」の指しは、前の棚卸しと同じ規則（tests/layers/test_capability_pointers.py）で行番号を持たず、名が main に在る
 - 「## 数」が行から数えた値と合う
-- 「## 前の棚卸しの今」（前の棚卸しの「今」の住処。#521）の行が 1 つずつ前の棚卸しの名指しと合い、上の「今」と同じ規則で照らされ、
+- 「## 前の棚卸しの今」（前の棚卸しの「今」の住処。#521）の行が 1 つずつ前の棚卸しの「今」の印の行と合い、上の「今」と同じ規則で照らされ、
   ファイルごとの指しの数が移す前の下限を保つ
 """
 import collections
@@ -15,7 +15,7 @@ import pathlib
 import re
 import unittest
 
-from tests.layers.test_capability_pointers import BARE_PATH, LINE_NUMBER, MALFORMED, POINTER, ROOT, ROW_ID, current_refs, exists
+from tests.layers.test_capability_pointers import BARE_PATH, LINE_NUMBER, MALFORMED, POINTER, ROOT, ROW_ID, exists, moved_rows
 
 TABLE = ROOT / "docs" / "works-parity.md"
 ROW = re.compile(r"^- ([SUK]\d+[a-z]?) ")
@@ -174,9 +174,9 @@ class WorksParityCase(unittest.TestCase):
         self.assertEqual([f"{rid}: {path}" for rid, text in pointing(TEXT) for path in BARE_PATH.findall(text)
                           if not (ROOT / path).exists()], [])
 
-    def test_moved_current_matches_the_inventory_references(self):
+    def test_moved_current_matches_the_inventory_marks(self):
         self.assertGreaterEqual(len(moved(TEXT)), 1100, "前の棚卸しの今の読み落とし")
-        self.assertEqual(sorted(moved(TEXT)), sorted(current_refs()))
+        self.assertEqual(sorted(moved(TEXT)), sorted(moved_rows()))
 
     def test_moved_current_keeps_the_inventory_floors(self):
         read = collections.Counter(key.split(" ")[0] for key, text in moved(TEXT).items() for _ in POINTER.findall(text))

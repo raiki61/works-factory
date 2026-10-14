@@ -1,7 +1,7 @@
 # 今の works の利用者に見える能力の照らし
 
 今の works（`raiki61/claude-plugins` の `works/`）が利用者に見せる能力を 1 能力 1 行で並べ、works-factory の main のどこで同じ事をしているかを名指す表（#505）。works-factory は今の works の能力を落とさない作り直し（持ち主の決め `superset`・`no-narrow`）で、この表がその照らしの正本。
-入口（起動の殻 `bin/works-factory`・メイングラフの入力）・メイングラフ・サブグラフの利用者に見える能力を変える PR は、該当の行を同じ PR で直す。`tests/layers/test_works_parity.py` が、目録の錨を全部覆うことと、行の欄の形と、「今」の名が main に在ることと、末尾の「前の棚卸しの今」の行が前の棚卸しの名指しと 1 つずつ合うことを照らす。
+入口（起動の殻 `bin/works-factory`・メイングラフの入力）・メイングラフ・サブグラフの利用者に見える能力を変える PR は、該当の行を同じ PR で直す。`tests/layers/test_works_parity.py` が、目録の錨を全部覆うことと、行の欄の形と、「今」の名が main に在ることと、末尾の「前の棚卸しの今」の行が前の棚卸しの印の行と 1 つずつ合うことを照らす。
 
 - 源: claude-plugins の `585c385a875f0cea2acdfe273b3cd4ce7b65f8d2` の 3 つのファイル。行の ID の頭の字は源ごと
   - S: `works/skills/works/SKILL.md`（利用者と AI の使い方の文。169 行）
@@ -20,7 +20,7 @@
   - `#<issue>`: 別の issue で直す（ほかの issue で扱う物はその issue を指し、二度直さない）
   - 戻した: <`path::名` か README.md「…」>: #505 の PR で戻した
   - 要らない: <訳>: keep-essence・持ち主の決め（`docs/owner-decisions.md`）・AGENTS.md の決まり・Archon が持つ、のどれかに照らした訳
-- 旧棚卸し: 前の棚卸しの行 ID。無ければ「無し」。前の棚卸しの各行の「今」の字は、末尾の「前の棚卸しの今」に移した（#521）。前の棚卸しの行はその「今」の欄で、ここの行を名指す
+- 旧棚卸し: 前の棚卸しの行 ID。無ければ「無し」。前の棚卸しの各行の「今」の字は、末尾の「前の棚卸しの今」に移した（#521）。前の棚卸しの行の「今」の欄は「表」か「無し（表）」の印だけを持つ
 
 ### 指しの形
 
@@ -3043,7 +3043,7 @@
 
 ## 前の棚卸しの今
 
-前の棚卸し `docs/plans/2026-10-13-capabilities/` の各行の「今」（works-factory の住処）を、#521 でここへ移した物。「今」の名の持ち主はこの表の 1 か所で、名を変える PR はこの表だけを直す。1 行 1 つで `- <ファイル> <行 ID>: <今>` と書き、前の棚卸しの行は「今」の欄に `表の <ファイル> <行 ID>`（住処が無い行は `無し（表の <ファイル> <行 ID>）`）と書いてここの行を名指す。語は前の棚卸しの字をグラフの語へ直した物。`tests/layers/test_works_parity.py` が、表の「今」と同じ規則で行番号を持たず名が main に在ることと、前の棚卸しの名指しとここの行が 1 つずつ合うことを照らす。
+前の棚卸し `docs/plans/2026-10-13-capabilities/` の各行の「今」（works-factory の住処）を、#521 でここへ移した物。「今」の名の持ち主はこの表の 1 か所で、名を変える PR はこの表だけを直す。1 行 1 つで `- <ファイル> <行 ID>: <今>` と書き、前の棚卸しの行は「今」の欄に「表」（住処が無い行は「無し（表）」）の印だけを書き、ファイルと行 ID でここの行に当たる。語は前の棚卸しの字をグラフの語へ直した物。`tests/layers/test_works_parity.py` が、表の「今」と同じ規則で行番号を持たず名が main に在ることと、前の棚卸しの印の行とここの行が 1 つずつ合うことを照らす。
 
 - fix.md F001: lib/tddloop.py::red_check → lib/baseline_red.py::red_problems・lib/baseline_red.py::parse_junit
 - fix.md F002: lib/tddloop.py::_quote_problem・lib/tddloop.py::MIN_QUOTE・lib/tddloop.py::red_check
