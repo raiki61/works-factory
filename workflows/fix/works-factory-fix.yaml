@@ -173,13 +173,14 @@ nodes:
 
   # 合わせのループ（持ち主の決め clash-goes-to-ruling）。join が確かめ直しの赤で戻した組を 1 つずつ当て直し、合わせ役がその組の変えた
   # ファイルの中だけで直す。受け付けは修正役と同じ軸。直せなければ当て直す前の木へ戻し、組どうしの合わせの申し出を裁定役へ回す。
-  # max_iterations は 3 組 × 3 回（上限の周の受け付けが残りの組を申し出へ回して抜ける。with: limit と同じ値）
+  # max_iterations は 3 組 × 3 回（上限の周の受け付けが残りの組を申し出へ回して抜ける。with: limit と同じ値）。周ごとに組が替わりうるので
+  # 毎周新しい会話にする（tdd-loop と同じく、単位が替わる周は前の会話を継がない）。同じ組の出し直しは、指示書が前の回の拒否の理由を名指して渡す
   - id: clash-loop
     depends_on: [join]
     timeout: 1728000000
     loop_group:
       max_iterations: 9
-      fresh_context: false
+      fresh_context: true
       until_bash: done=$clash-accept.output.done; test "$done" = true
       nodes:
         - id: clash-prep
@@ -382,7 +383,7 @@ nodes:
     timeout: 1728000000
     loop_group:
       max_iterations: 9
-      fresh_context: false
+      fresh_context: true
       until_bash: done=$clash-ruled-accept.output.done; test "$done" = true
       nodes:
         - id: clash-ruled-prep

@@ -391,7 +391,8 @@ class RolesCase(unittest.TestCase):
     def test_clash_loops_sit_between_join_and_the_ruled_fix(self):
         """#382: 合わせのループは join の後・申し出の照らしの前、裁定の後の合わせのループは裁定の輪の後・裁定の後の修正の輪の前（作業ツリーを
         変える 2 つの輪を順に）。上限の周は with: limit が持ち、輪の max_iterations と同じ（ずれれば片付けの前に輪の上限で節が落ちる）。
-        支度・受け付けは 2 つの段で同じ script を pass で使い分ける"""
+        支度・受け付けは 2 つの段で同じ script を pass で使い分ける。周ごとに組が替わりうるので、2 つの輪は毎周新しい会話
+        （fresh_context: true。false だと合わせ役が前の組の会話を持ったまま次の組を直す）"""
         self.assertEqual(self.nodes["clash-loop"]["depends_on"], ["join"])
         self.assertIn("clash-loop", self.nodes["conflict-check"]["depends_on"])
         self.assertEqual(self.nodes["clash-ruled-loop"]["depends_on"], ["conflict-check", "rule-loop"])
@@ -399,6 +400,7 @@ class RolesCase(unittest.TestCase):
         for loop, prep, accept, pass_ in (("clash-loop", "clash-prep", "clash-accept", "first"),
                                           ("clash-ruled-loop", "clash-ruled-prep", "clash-ruled-accept", "ruled")):
             self.assertEqual(self.nodes[accept]["with"]["limit"], self.nodes[loop]["loop_group"]["max_iterations"], loop)
+            self.assertIs(self.nodes[loop]["loop_group"]["fresh_context"], True, loop)
             self.assertEqual(refs(self.nodes[loop]["loop_group"]["until_bash"]), {accept})
             self.assertEqual((self.nodes[prep]["script"], self.nodes[prep]["with"]["pass"]), ("clash_prep", pass_))
             self.assertEqual((self.nodes[accept]["script"], self.nodes[accept]["with"]["pass"]), ("clash_accept", pass_))
@@ -2388,18 +2390,20 @@ class ClashScenarioCase(unittest.TestCase):
     FILLER = "".join(f"# {i}\n" for i in range(10))
     FIXED_B = "from e import E1\n\n\ndef triple(x):\n    return x * 3 + E1 - 10\n"
 
-    def joined_with_clash(self):
-        """種を組んで join を回し、g2 を赤で戻して直し待ちに控えた所まで進める"""
+    TEST_B = ("import unittest\n\nfrom b import triple\n\n\nclass TestB(unittest.TestCase):\n"
+              "    def test_triple(self):\n        self.assertEqual(triple(2), 6)\n")
+
+    def joined_with_clash(self, g2_extra=None):
+        """種を組んで join を回し、g2 を赤で戻して直し待ちに控えた所まで進める。g2_extra は g2 が足して変えるファイル"""
         start = self.rerun_seed({
             "e.py": f"E1 = 1\n{self.FILLER}E8 = 8\n",
             "b.py": "def triple(x):\n    return x * 3 + 1\n",
-            "test_b.py": "import unittest\n\nfrom b import triple\n\n\nclass TestB(unittest.TestCase):\n"
-                         "    def test_triple(self):\n        self.assertEqual(triple(2), 6)\n"})
+            "test_b.py": self.TEST_B})
         _blk_write(self.place / "judgment.json", {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "block"}],
                                                   "questions": []})
         t1 = self.tree_with({"e.py": f"E1 = 10\n{self.FILLER}E8 = 8\n"})
         t2 = self.tree_with({"e.py": f"E1 = 1\n{self.FILLER}E8 = 80\n",
-                             "b.py": "from e import E1\n\n\ndef triple(x):\n    return x * 3 + E1 - 1\n"})
+                             "b.py": "from e import E1\n\n\ndef triple(x):\n    return x * 3 + E1 - 1\n", **(g2_extra or {})})
         out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
                                     {"group_id": "g2", "unit_ids": ["B"], "items": [2]}], start)
         _blk_write(out_dir / "g1" / "result.json", _blk_result("g1", ["A"], t1, start))
@@ -2489,6 +2493,21 @@ class ClashScenarioCase(unittest.TestCase):
         self.assertFalse(got["ok"], got)
         self.assertIn("許しの無いテストのファイル", got["reason"])
         self.assertIn("test_b.py", got["reason"])
+
+    def test_join_clash_rejects_rewriting_the_groups_own_test(self):
+        """組が自分で変えたテストのファイルも、許しが無ければ合わせ役は書き換えられない（組の変えたファイルの内でも拒む。
+        組の外の拒否とは別の照らし）"""
+        self.joined_with_clash({"test_b.py": self.TEST_B + "\n    def test_triple_zero(self):\n        triple(0)\n"})
+        out = self.prep()
+        brief = json.loads((self.place / "clash-brief-g2.json").read_text(encoding="utf-8"))
+        self.assertIn("test_b.py", brief["files"])
+        test_b = self.repo / "test_b.py"
+        test_b.write_text(test_b.read_text(encoding="utf-8").replace("6)", "15)"), encoding="utf-8")
+        got = self.accept(self.fixed_reply(("test_b.py",)), out["iteration"])
+        self.assertEqual((got["ok"], got["done"]), (False, False), got)
+        self.assertIn("許しの無いテストのファイル", got["reason"])
+        self.assertIn("test_b.py", got["reason"])
+        self.assertNotIn("組が変えたファイルの外", got["reason"])
 
     def test_join_clash_goes_to_ruling_and_the_ruling_fixes_it(self):
         """閉じる条件 2: 直せない形では、申し出が裁定役に届き、裁定の答えで解ける"""
