@@ -15,7 +15,7 @@ import sys
 import tempfile
 import unittest
 
-from bin._lib import launcher, place, toolset
+from bin._lib import isolate, launcher, place, toolset
 from lib import answer, reads, writelog
 from tests.bin import fakelaunch, hermetic
 from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put
@@ -270,6 +270,9 @@ class LauncherTest(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertTrue(pathlib.Path(env[name]).is_relative_to(home), env[name])
         self.assertNotIn(str(self.home), [env[n] for n in ("HOME", "CLAUDE_CONFIG_DIR", "XDG_CACHE_HOME")])
+        record = json.loads(env[isolate.USER_ENV])   # 対象のコマンドにだけ戻す利用者の値（#492）
+        self.assertEqual(record["HOME"], str(self.home))
+        self.assertEqual(set(record), set(isolate.RESTORED))
         self.assertEqual(env["ARCHON_TELEMETRY_DISABLED"], "1")
         self.assertEqual(env["DO_NOT_TRACK"], "1")
         self.assertEqual(env["WORKS_FACTORY_ROOT"], str(self.repo))

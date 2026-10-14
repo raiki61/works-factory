@@ -71,6 +71,7 @@ LINGER = 1.0      # 止める信号で木を止めた後、抜ける前に待つ
 # 固まったプロセスで ps を待たせる）。無い・起こせない時は表を読めない回（直ちにグループへ送る）を通る
 PS = "/bin/ps"
 REUSE_SLACK = 2.0   # 開始時刻の読みの誤差（ps の etime は秒の切り捨て）。長を起こした時刻よりこれを超えて後に始まった物は別物
+USER_ENV = "WORKS_FACTORY_USER_ENV"   # bin/_lib/isolate.py の USER_ENV と同じ名（lib は bin を読まないので試験で照らす）
 _Proc = collections.namedtuple("_Proc", "pid ppid pgid uid started stat")   # ps の 1 行（started は開始時刻のエポック秒）
 
 
@@ -92,10 +93,14 @@ def outside_env(environ):
     uv run の外で起こされた（UV_RUN_RECURSION_DEPTH が無い）ときは、下の UV_NO_CONFIG のほかは外さない。
     - UV_NO_CONFIG はいつも外す。利用者が実行基盤の環境に立てていても、テストのコマンド（`uv run <試験の実行器>` など）には対象の
       [tool.uv]（私的な index など）を読ませる。渡すと公開の PyPI から解決して、偽の赤と依存の取り違えの口になる
+    - USER_ENV（起動の殻が隔離の前に控えた HOME・XDG_*）はいつも外し、在れば中の値に戻す（null の名は外す）。対象の道具は
+      HOME・XDG の下の全体の設定を読むので、隔離した置き場のままだと利用者のシェルと違って動く（#492）。戻すのはこの写しだけで、
+      Archon・役・script 自身の git は隔離のまま。形が JSON の文字列か null を値に持つ object でなければ ValueError
     実行基盤は script の節を `uv run <ファイル>` で起こし、uv は PATH の頭に自分の python の bin を足し、VIRTUAL_ENV・
     UV_RUN_RECURSION_DEPTH を立てる。そのまま渡すと `python3 -m <試験の実行器>` が uv の python を掴んで偽の赤になる。
     限界: 節に deps: を足すと uv は --with の層の bin も足し、それは外れない（今の節は deps を持たない）"""
     env = dict(environ)
+    _restore_user(env)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env.pop("UV_NO_CONFIG", None)
     if env.pop("UV_RUN_RECURSION_DEPTH", None) is None:
@@ -109,6 +114,23 @@ def outside_env(environ):
     if venv and os.path.realpath(venv) == os.path.realpath(sys.prefix):
         del env["VIRTUAL_ENV"]
     return env
+
+
+def _restore_user(env):
+    raw = env.pop(USER_ENV, None)
+    if raw is None:
+        return
+    try:
+        saved = json.loads(raw)
+    except ValueError:
+        saved = None
+    if not isinstance(saved, dict) or not all(isinstance(v, (str, type(None))) for v in saved.values()):
+        raise ValueError(f"{USER_ENV} が名から文字列か null への JSON の object でない: {raw[:200]!r}")
+    for name, value in saved.items():
+        if value is None:
+            env.pop(name, None)
+        else:
+            env[name] = value
 
 
 _ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")

@@ -16,6 +16,7 @@
 孫の生死はプロセスグループ（コマンドの sh の pid と同じ番号）が空かで見る。グループの外へ出た孫は、孫が書いた pid で見る。
 """
 import itertools
+import json
 import os
 import pathlib
 import shlex
@@ -548,6 +549,25 @@ class OutsideEnvCase(unittest.TestCase):
         src = {"UV_RUN_RECURSION_DEPTH": "1", "PATH": ""}
         tree_run.outside_env(src)
         self.assertEqual(src, {"UV_RUN_RECURSION_DEPTH": "1", "PATH": ""})
+
+
+    def test_user_record_restores_home_and_xdg(self):
+        """起動の殻の控え（USER_ENV）は外し、値の在る名は戻し null の名は外す。uv run の中でも外でも同じ"""
+        record = json.dumps({"HOME": "/u", "XDG_CONFIG_HOME": None})
+        for uv in ({}, {"UV_RUN_RECURSION_DEPTH": "1"}):
+            with self.subTest(uv=uv):
+                env = tree_run.outside_env({"HOME": "/run/home", "XDG_CONFIG_HOME": "/run/xdg", "CLAUDE_CONFIG_DIR": "/run/c",
+                                            tree_run.USER_ENV: record, **uv})
+                self.assertEqual({k: env[k] for k in env if k != "PATH"},
+                                 {"HOME": "/u", "CLAUDE_CONFIG_DIR": "/run/c", "PYTHONDONTWRITEBYTECODE": "1"})
+
+    def test_without_user_record_home_stays(self):
+        self.assertEqual(tree_run.outside_env({"HOME": "/run/home"}), {"HOME": "/run/home", "PYTHONDONTWRITEBYTECODE": "1"})
+
+    def test_malformed_user_record_is_refused(self):
+        for raw in ("not json", "[]", json.dumps({"HOME": 1})):
+            with self.subTest(raw=raw), self.assertRaises(ValueError):
+                tree_run.outside_env({tree_run.USER_ENV: raw})
 
 
 class LaunchProofShapeCase(unittest.TestCase):
