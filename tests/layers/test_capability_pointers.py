@@ -1,9 +1,10 @@
-"""能力の棚卸し（docs/plans/2026-10-13-capabilities/）の「今」と「証」が、行番号でなく名で指し、その名が main に在る（#220・#315）。
+"""能力の棚卸し（docs/plans/2026-10-13-capabilities/）の「証」と「今の機械」が、行番号でなく名で試験を指し、その名が main に在る
+（#220・#315）。「今」は名を持たず、docs/works-parity.md の「前の棚卸しの今」の自分の行を名指す（#521）。
 
-指しの形は棚卸しの README.md の「指しの形」: 今は `path::名`（関数・クラス・定数・`クラス.名`。YAML は節の id）、証は
-`path::Class.test_name`。行番号は試験や関数を 1 つ足すたびに関係の無い行までずれるので書かない。「元」は
-版を止めた今の works の `file:line` でずれないので照らさない。「要追加」から文の終わり（「。」か行の終わり）までの名は、まだ無い名
-なので照らさない。
+指しの形は棚卸しの README.md の「指しの形」: 証は `path::Class.test_name`。行番号は試験や関数を 1 つ足すたびに関係の無い行まで
+ずれるので書かない。「元」は版を止めた今の works の `file:line` でずれないので照らさない。「要追加」から文の終わり（「。」か行の
+終わり）までの名は、まだ無い名なので照らさない。棚卸しの指しは試験だけを指すので、試験でない名を変える PR は
+docs/works-parity.md の 1 か所だけを直す（その名は tests/layers/test_works_parity.py が照らす）。
 
 tail.md の各領域の穴の「数」と末尾の「穴の要約」は、README.md の「穴の数え方」のとおり行の欄から数えた今の値で、要約は各領域の
 数の足し算（#336・#339）。狭めの並びは欄を読んで人が選ぶので、数と並びの長さ・並びの ID がその領域の行に在ること・
@@ -28,17 +29,23 @@ POINTER = re.compile(r"(?<![\w./-])((?:[\w.-]+/)*[\w.-]+\.(?:py|yaml))::([A-Za-z
 MALFORMED = re.compile(r"\.(?:py|yaml)::?(?!\d)")
 BARE_PATH = re.compile(r"(?<![\w./*-])((?:lib|bin|workflows|tests|docs)/[\w./-]*\.(?:py|yaml|md|json))(?![\w*-])")
 NOT_YET = re.compile(r"要追加[^。\n]*")
-# 照らす欄（元・本物の run・狭めなどは照らさない。pitfalls.md の「今の機械」は証と同じく試験を指す欄）と、ファイルごとの読めた
-# 指しの数の下限。1 つのファイルの欄の読み落とし（欄の頭の形の変わり）で他のファイルの数が保っても赤にする
+# 読む欄（元・本物の run・狭めなどは読まない。pitfalls.md の「今の機械」は証と同じく試験を指す欄）
+FIELDS = ("今", "証", "今の機械")
+# 指しを持つ欄の、ファイルごとの読めた指しの数の下限。1 つのファイルの欄の読み落とし（欄の頭の形の変わり）で他のファイルの数が
+# 保っても赤にする
 FIELD_FLOOR = {
-    "今": {"fix.md": 300, "gaps-fix.md": 70, "gaps-plan.md": 100, "judge.md": 170, "line.md": 330, "plan.md": 430,
-          "tail.md": 430},
     "証": {"fix.md": 330, "gaps-fix.md": 50, "gaps-plan.md": 60, "judge.md": 160, "line.md": 320, "plan.md": 380,
           "tail.md": 470},
     "今の機械": {"pitfalls.md": 70},
 }
 TAIL = INVENTORY / "tail.md"
-ROW = re.compile(r"^- ([TERM]\d+b?) ")
+ROW_ID = r"(?:L-[EGWD]|[JPFTERMS])\d+[a-z]?"
+ROW = re.compile(rf"^- ({ROW_ID})[ 〔]")
+# 「今」の欄の名指し: 表の <ファイル> <行 ID> か、住処が無い行の 無し（表の <ファイル> <行 ID>）
+CURRENT = re.compile(rf"(?:表の (\S+\.md) ({ROW_ID})|無し（表の (\S+\.md) ({ROW_ID})）)")
+# 名指しの数のファイルごとの下限（読み落としで名指しが減った時に赤にする）
+CURRENT_FLOOR = {"fix.md": 190, "gaps-fix.md": 40, "gaps-plan.md": 70, "judge.md": 110, "line.md": 230, "plan.md": 250,
+                 "tail.md": 290}
 AREA_HOLES = re.compile(r"^### ([TERM]) の穴")
 SUMMARY = "## 穴の要約"
 TOTAL = "行の総数"
@@ -59,7 +66,7 @@ def row_fields() -> list[tuple[str, str | None, str]]:
         for no, line in enumerate(md.read_text(encoding="utf-8").splitlines(), 1):
             head = FIELD.match(line)
             if head:
-                current = [f"{md.name}:{no}", row, line] if head.group(1) in FIELD_FLOOR else None
+                current = [f"{md.name}:{no}", row, line] if head.group(1) in FIELDS else None
                 if current:
                     found.append(current)
             elif current and line.startswith("    "):
@@ -69,6 +76,31 @@ def row_fields() -> list[tuple[str, str | None, str]]:
                 if line.strip():
                     row = head.group(1) if (head := ROW.match(line)) else None
     return [(where, row, text) for where, row, text in found]
+
+
+def current_value(text: str) -> str | None:
+    """「今」の欄の字なら欄の値、ほかの欄なら None"""
+    return text.split(":", 1)[1].strip() if FIELD.match(text).group(1) == "今" else None
+
+
+def current_problems(fields: list[tuple[str, str | None, str]]) -> list[str]:
+    """「今」の欄が 空・無し・自分の行の名指し のどれでもない所。fields は row_fields() の形"""
+    out = []
+    for where, row, text in fields:
+        value = current_value(text)
+        if value is None or value in ("", "無し"):
+            continue
+        hit = CURRENT.fullmatch(value)
+        named = hit and [part for part in hit.groups() if part]
+        if named != [where.split(":")[0], row]:
+            out.append(f"{where}: 今 {value!r} が 表の {where.split(':')[0]} {row} を名指さない")
+    return out
+
+
+def current_refs() -> list[str]:
+    """前の棚卸しの「今」が名指す docs/works-parity.md の行の鍵 `<ファイル> <行 ID>`"""
+    return [" ".join(part for part in hit.groups() if part) for _, _, text in row_fields()
+            if (value := current_value(text)) and (hit := CURRENT.fullmatch(value))]
 
 
 def pointing_fields() -> list[tuple[str, str]]:
@@ -175,6 +207,26 @@ class PointerCase(unittest.TestCase):
         floor = {(field, md): least for field, files in FIELD_FLOOR.items() for md, least in files.items()}
         self.assertEqual({key: read[key] >= least for key, least in floor.items()}, dict.fromkeys(floor, True), read)
         self.assertLessEqual(set(read), set(floor), read)
+
+    def test_current_names_its_own_row_in_the_parity_table(self):
+        self.assertEqual(current_problems(row_fields()), [])
+        read = collections.Counter(ref.split(" ")[0] for ref in current_refs())
+        self.assertEqual({md: read[md] >= least for md, least in CURRENT_FLOOR.items()}, dict.fromkeys(CURRENT_FLOOR, True), read)
+
+    def test_current_problems_name_a_pointer_and_a_foreign_row(self):
+        def field(md, row, value):
+            return (f"{md}:1", row, f"  - 今: {value}")
+
+        self.assertEqual(current_problems([field("line.md", "L-E01", "表の line.md L-E01"),
+                                           field("line.md", "L-E01", "無し（表の line.md L-E01）"),
+                                           field("line.md", "L-E01", "無し"), field("line.md", "L-E01", "")]), [])
+        self.assertEqual(len(current_problems([field("line.md", "L-E01", "lib/a.py::b")])), 1)
+        self.assertEqual(len(current_problems([field("gaps-plan.md", "P005", "表の plan.md P005")])), 1)
+        self.assertEqual(len(current_problems([field("line.md", "L-E01", "無し（表の line.md L-E01")])), 1)
+
+    def test_pointers_name_only_tests(self):
+        self.assertEqual([f"{where}: {path}::{name}" for where, path, name in pointers()
+                          if "tests" not in pathlib.PurePosixPath(path).parts], [])
 
     def test_no_present_name_hides_in_a_not_yet_sentence(self):
         hidden = [f"{where}: {path}::{name}" for where, text in pointing_fields() for span in NOT_YET.findall(text)
