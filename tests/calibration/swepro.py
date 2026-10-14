@@ -22,7 +22,8 @@ claude（素の Claude Code を run.PLAIN_MODEL・run.PLAIN_EFFORT で claude -p
 docker_image をそれに替える。Harbor は docker_image の在る課題を build せずにそのイメージで起こす。殻は setup で焼き印
 （工場の commit と Claude Code の版がホストと同じか）と bwrap を確かめるだけで網を使わず（setup_commands）、run で課題の入力
 （task_inputs。依頼の行と、リポジトリごとの試験のコマンド TEST_COMMANDS）と認証のファイルを上げ、inside を 1 回打つ。inside は
-試みのフォルダ <置き場>/attempt（home/・/app への target・request.json）で作り手を起こし、工場なら終わった run の封じた差分を
+試みのフォルダ <置き場>/attempt（home/・/app への target・request.json）で作り手を起こし、工場なら remote の無い /app に試みの
+フォルダの中の写しを origin として持たせてから起こし（give_origin。Archon は remote の無い対象を拒む）、終わった run の封じた差分を
 bin/_lib/apply.py で /app に当て、結果を /logs/agent/works-bench.json に書く。殻は /app の差分を model.patch に取り
 （capture_command）、起こし役の標準出力と予測を <試み>/agent/ に書く（prediction）。tally は job の予測と、試行の result.json の
 例外を数え、測れた試行（予測が在り例外の無い試行）が 1 つも無い（全部が例外・予測も例外も無い・試行が 1 つも無い）なら
@@ -100,7 +101,7 @@ from bin._lib import apply, launcher, pack  # noqa: E402
 import chain  # noqa: E402
 import report  # noqa: E402
 from tests.calibration import run  # noqa: E402
-from tests.e2e import evidence  # noqa: E402
+from tests.e2e import evidence, make_target  # noqa: E402
 
 PLACE = "/opt/works-bench"
 WORKDIR = "/app"
@@ -128,6 +129,9 @@ HOST_GATEWAY = "host.docker.internal"
 SECRET, TASK, RESULT, PATCH, PREDICTION = "secret/auth.json", "task/task.json", "works-bench.json", "model.patch", "prediction.json"
 INSIDE_STDOUT, INSIDE_STDERR = "inside.stdout", "inside.stderr"
 DRIVER_FAILED = "driver_failed"
+# give_origin が試みの置き場に置く origin の写しと、その既定の枝
+ORIGIN_COPY, ORIGIN_BRANCH = "origin.git", "main"
+SAID_CHARS = 500   # run が起きなかった時に error へ写す殻の最後の行の長さの上限
 # 工場そのものが壊れて終わった結末（記録が読めない・節が落ちて線が進まなかった）。人を待っていないので stopped に入れない
 BROKE = ("record_invalid", "interrupted")
 REPO_TAR, STAMP = "repo.tar", "stamp"
@@ -509,11 +513,29 @@ def plain_fix(attempt: Path, workdir: Path, out: Path, task: dict, got: dict):
         got["error"] = f"claude -p が誤りで終わった: {apply.one_line(str(said or '結果の JSON が無い'))}"
 
 
+def give_origin(attempt: Path, workdir: Path):
+    """remote の無い対象に、試みの置き場の中の bare の写し（ORIGIN_COPY）を origin として持たせる。Archon は remote の無い対象に
+    run の作業ツリーを切らず、切る前に origin の既定の枝（写しの HEAD が指す枝）を取りに行く。写しは対象の HEAD だけなので、
+    網に出ず、課題に無い物を足さず、取りに行っても対象は進まない。写しは対象の外に、remote の設定は .git の中に在るので、
+    capture_command の差分に入らない。remote を既に持つ対象は触らない"""
+    try:
+        if make_target.git("-C", str(workdir), "remote"):
+            return
+        copy = attempt / ORIGIN_COPY
+        make_target.git("init", "-q", "--bare", str(copy))
+        make_target.git("-C", str(workdir), "push", "-q", str(copy), f"HEAD:refs/heads/{ORIGIN_BRANCH}")
+        make_target.git("-C", str(copy), "symbolic-ref", "HEAD", f"refs/heads/{ORIGIN_BRANCH}")
+        make_target.git("-C", str(workdir), "remote", "add", "origin", str(copy))
+    except make_target.Stop as e:
+        raise run.Stop(run.STOPPED, f"remote の無い対象 {workdir} に origin の写しを置けない: {e}") from None
+
+
 def drive_factory(attempt: Path, workdir: Path, out: Path, task: dict, got: dict):
     """工場を前で回し、終わった run の封じた差分を当てる。止まった run は答えず resume もしない"""
     producer = run.WorksFactory({"test_cmd": task["test_cmd"]})
     got.update(inputs=list(producer.input_pairs(attempt, "")), test_cmd=task["test_cmd"], env_names=producer.env_names(),
                provenance={"archon": pack.load(ROOT)["archon"]["commit"]})
+    give_origin(attempt, workdir)
     before = status(workdir)
     run_id = producer.start(attempt, "")
     state = producer.state(attempt, run_id) if run_id else "failed"
@@ -523,7 +545,8 @@ def drive_factory(attempt: Path, workdir: Path, out: Path, task: dict, got: dict
         return
     if state != run.DONE:
         got["error"] = (f"工場の run {run_id} が {state} で終わった" if run_id
-                        else f"工場の run が起きなかった（家 {attempt / 'home'} に run が無い）")
+                        else f"工場の run が起きなかった（家 {attempt / 'home'} に run が無い）: "
+                             f"{apply.one_line(producer.last_said or '殻の出力が無い')[:SAID_CHARS]}")
         return
     ended = producer.finish(attempt, run_id)
     shutil.copytree(attempt / evidence.EVIDENCE, out / evidence.EVIDENCE, symlinks=True, dirs_exist_ok=True)
