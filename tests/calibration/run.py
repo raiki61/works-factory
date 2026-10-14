@@ -403,6 +403,7 @@ class PlainClaude:
     sources = (Source("findings.json", ("findings",), "findings"),)
     leak_guard = WITHHELD
     RESULT, FINDINGS = "claude-result.json", "findings.json"
+    ISOLATED_ENV = ("HOME", "CLAUDE_CONFIG_DIR", "GH_CONFIG_DIR")
 
     def __init__(self):
         self.claude = launcher.real_claude(os.environ)
@@ -412,20 +413,29 @@ class PlainClaude:
             raise Stop(REFUSED, f"claude が見つからない。PATH に置くか {launcher.CLAUDE_BIN_ENV} に絶対パスを設定する")
 
     def env_names(self) -> list[str]:
-        return ["HOME", "CLAUDE_CONFIG_DIR", "GH_CONFIG_DIR", "RB_BASE", "RB_HEAD", "RB_DIFF", "RB_PR_JSON", "RB_OUT"]
+        return [*self.ISOLATED_ENV, "RB_BASE", "RB_HEAD", "RB_DIFF", "RB_PR_JSON", "RB_OUT"]
+
+    def claude_args(self, prompt: str) -> list[str]:
+        """同じ模型・effort で web を断った claude -p 1 回。ReviewBench と SWE-Bench Pro の基準がここを共に引く"""
+        return [self.claude or "claude", "--model", PLAIN_MODEL, "--effort", PLAIN_EFFORT, "--output-format", "json",
+                "--permission-mode", "bypassPermissions", "--disallowedTools", *toolset.DENY_WEB["deny"], "-p", prompt]
+
+    @staticmethod
+    def isolated_env(attempt: Path) -> dict[str, str]:
+        env = isolate.isolate(bench_env(attempt), attempt / "home")
+        (Path(env["CLAUDE_CONFIG_DIR"]) / "settings.json").write_text(
+            json.dumps({"permissions": toolset.DENY_WEB}, indent=2) + "\n", encoding="utf-8")
+        return env
 
     def start_command(self, attempt: Path, base: str) -> list[str]:
         user = os.environ
         return [sys.executable, "-I", str(ROOT / "bin" / "_lib" / "auth_launch.py"), "exec", "--for", "works-factory",
                 "--user-home", user.get("HOME", ""), "--user-config", user.get("CLAUDE_CONFIG_DIR", ""), "--",
-                self.claude or "claude", "--model", PLAIN_MODEL, "--effort", PLAIN_EFFORT, "--output-format", "json",
-                "--permission-mode", "bypassPermissions", "--disallowedTools", *toolset.DENY_WEB["deny"], "-p", PLAIN_PROMPT]
+                *self.claude_args(PLAIN_PROMPT)]
 
     def start(self, attempt: Path, base: str) -> str | None:
         pr = json.loads((attempt / "pr" / "pr.json").read_text(encoding="utf-8"))
-        env = isolate.isolate(bench_env(attempt), attempt / "home")
-        (Path(env["CLAUDE_CONFIG_DIR"]) / "settings.json").write_text(
-            json.dumps({"permissions": toolset.DENY_WEB}, indent=2) + "\n", encoding="utf-8")
+        env = self.isolated_env(attempt)
         out = attempt / "out"
         out.mkdir(exist_ok=True)
         (out / self.FINDINGS).unlink(missing_ok=True)

@@ -46,7 +46,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))   # 頭に入れると lib/tests が根の tests を隠す（tests/AGENTS.md）
-from bin._lib import apply, isolate, launcher, pack, toolset  # noqa: E402
+from bin._lib import apply, launcher, pack  # noqa: E402
 import chain  # noqa: E402
 import report  # noqa: E402
 from tests.calibration import run  # noqa: E402
@@ -189,30 +189,21 @@ def stopped(state: str, outcome: str) -> bool:
 
 class PlainFix:
     """素の Claude Code（ハーネスの基準）。/app で claude -p を 1 回、instruction そのものを渡して直させる"""
-    ENV_NAMES = ("HOME", "CLAUDE_CONFIG_DIR", "GH_CONFIG_DIR")
-
     def __init__(self):
-        self.claude = launcher.real_claude(os.environ)
-
-    def command(self, instruction: str) -> list[str]:
-        return [self.claude or "claude", "--model", run.PLAIN_MODEL, "--effort", run.PLAIN_EFFORT, "--output-format", "json",
-                "--permission-mode", "bypassPermissions", "--disallowedTools", *toolset.DENY_WEB["deny"], "-p", instruction]
+        self.plain = run.PlainClaude()
 
     def start(self, attempt: Path, workdir: Path, out: Path, instruction: str) -> dict:
-        env = isolate.isolate(run.bench_env(attempt), attempt / "home")
-        (Path(env["CLAUDE_CONFIG_DIR"]) / "settings.json").write_text(
-            json.dumps({"permissions": toolset.DENY_WEB}, indent=2) + "\n", encoding="utf-8")
+        env = self.plain.isolated_env(attempt)
         mine = attempt / "out"   # run.PlainClaude が結果を読む置き場
         mine.mkdir(exist_ok=True)
         with (mine / run.PlainClaude.RESULT).open("wb") as result:
-            subprocess.run(self.command(instruction), cwd=workdir, env=env, stdin=subprocess.DEVNULL, stdout=result)
+            subprocess.run(self.plain.claude_args(instruction), cwd=workdir, env=env, stdin=subprocess.DEVNULL, stdout=result)
         shutil.copy2(mine / run.PlainClaude.RESULT, out / run.PlainClaude.RESULT)
-        reader = run.PlainClaude()
-        session = reader.find_run(attempt)
-        ended = reader.ended(mine)
-        return {"run_id": session, "state": reader.state(attempt, session or ""), "outcome": ended["outcome"],
+        session = self.plain.find_run(attempt)
+        ended = self.plain.ended(mine)
+        return {"run_id": session, "state": self.plain.state(attempt, session or ""), "outcome": ended["outcome"],
                 "factory_seconds": ended["seconds"], "usd": ended["usd"], "usd_from": ended["usd_from"],
-                "provenance": reader.provenance()}
+                "provenance": self.plain.provenance()}
 
 
 def status(workdir: Path) -> str:
@@ -265,7 +256,7 @@ def inside(args) -> int:
     out.mkdir(parents=True, exist_ok=True)
     result = {"instance_id": task["instance_id"], "producer": args.producer, "error": None}
     factory = args.producer == run.WorksFactory.name
-    env_names = run.WorksFactory().env_names() if factory else PlainFix.ENV_NAMES
+    env_names = run.WorksFactory().env_names() if factory else run.PlainClaude.ISOLATED_ENV
     code = run.OK
     try:
         if factory:
@@ -295,12 +286,9 @@ def prediction(instance_id: str, producer: str, patch: str, result: dict | None,
                factory_commit: str | None) -> dict:
     """result が None なら起こし役が結果を書けずに落ちた。seconds は殻が exec の前後で測った秒（作り手に依らず同じ物差し）"""
     got = result if isinstance(result, dict) else {}
-    keys = ("run_id", "outcome", "gate", "apply", "factory_seconds", "usd", "usd_from", "inputs", "test_cmd", "env_names",
-            "target_changed_during_run", "error")
-    return {"instance_id": instance_id, "producer": producer, "model_patch": patch,
+    return {**got, "instance_id": instance_id, "producer": producer, "model_patch": patch,
             "stopped": bool(got.get("stopped")), "stop_why": got.get("stop_why") or "",
             "state": got.get("state") if result is not None else "driver_failed",
-            **{k: got.get(k) for k in keys},
             "seconds": seconds, "pro_limit": {"seconds": PRO_SECONDS, "over": None if seconds is None else seconds > PRO_SECONDS},
             "provenance": {**(got.get("provenance") or {}), "factory_commit": factory_commit}}
 

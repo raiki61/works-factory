@@ -238,7 +238,7 @@ class InsideTest(unittest.TestCase):
         for name in ("HOME", "CLAUDE_CONFIG_DIR"):
             self.assertTrue(pathlib.Path(call["env"][name]).is_relative_to(self.place), call["env"][name])
         settings = pathlib.Path(call["env"]["CLAUDE_CONFIG_DIR"]) / "settings.json"
-        self.assertEqual(json.loads(settings.read_text(encoding="utf-8"))["permissions"], swepro.toolset.DENY_WEB)
+        self.assertEqual(json.loads(settings.read_text(encoding="utf-8"))["permissions"], runner.toolset.DENY_WEB)
         self.assertIn("+x = 3", self.patch())
         self.assertNotIn("test_cmd", result["inputs"])
         self.assertEqual((result["state"], result["usd"], result["factory_seconds"]), ("done", 1.5, 1.0))
@@ -263,6 +263,11 @@ class PredictionTest(unittest.TestCase):
                           "outcome": "needs_human", "usd": 2.5, "seconds": 12.0})
         self.assertEqual(got["provenance"], {"archon": "c", "factory_commit": "f"})
         self.assertEqual(got["apply"], {"code": 0, "line": "当てた"})
+
+    def test_carries_every_result_field(self):
+        got = swepro.prediction(OPENLIBRARY, "works-factory", DIFF, {**self.RESULT, "children": ["c1"]}, 12.0, "f")
+        self.assertLessEqual(self.RESULT.keys() - {"provenance"}, got.keys())
+        self.assertEqual(got["children"], ["c1"])
 
     def test_missing_result_is_driver_failed(self):
         got = swepro.prediction(OPENLIBRARY, "claude", DIFF, None, 5.0, "f")
