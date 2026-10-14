@@ -1,8 +1,9 @@
 """GitHub ReviewBench（PR の審査の公開ベンチ）の口。ランナー run.py が使う（試験のモジュールではない。test_*.py に当たらない）。
 
 課題を manifest から選び、試みのフォルダ（target は head を取り出し base が辿れる写し）を組み、PR の題と本文を依頼にし、作り手の
-出力を判定役の入力（docs/JUDGING_INPUT.md の形）に変える。指摘の場所は出力の字の <パス>:<行> を head の版で照らし、照らせない物は
-捨てて数を残す。標準ライブラリだけ。期限を置かない（持ち主の決め no-timeouts）。手順と形は ReviewBench の commit c17b05b の
+出力を判定役の入力（docs/JUDGING_INPUT.md の形）に変える。指摘の場所は出力の字の <パス>:<行> を head の版で照らし、パスがファイル名
+だけの番地は候補の key・where のパスか head の一意なファイルに解いて元の番地を残し、照らせない物は捨てて数を残す。標準ライブラリ
+だけ。期限を置かない（持ち主の決め no-timeouts）。手順と形は ReviewBench の commit c17b05b の
 scripts/try-agent.sh・AGENT_CONTRACT.md・docs/JUDGING_INPUT.md・docs/OFFLINE_EVAL.md・scripts/eval/eval.ts で確かめた。
 """
 import json
@@ -19,7 +20,9 @@ CONTRACT_SECONDS = 1800   # AGENT_CONTRACT.md の Limits の 1 件の秒。超�
 # ASCII: 日本語の字の直後のパスで、前の字をパスに含めない
 REF = re.compile(r"(?<![\w./-])((?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9]+):(\d+)(?:[-–](\d+))?", re.ASCII)
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@")
-NO_REF, NOT_AT_HEAD = "番地が無い", "head に無い番地"
+# 候補の key・where の字の中の、repo からのパス（/ を 1 つ以上持つ）。文の番地のパスがファイル名だけの時の手がかり
+HINT = re.compile(r"(?<![\w./-])(?:\./)?((?:[\w.-]+/)+[\w.-]+)", re.ASCII)
+NO_REF, NOT_AT_HEAD, AMBIGUOUS = "番地が無い", "head に無い番地", "番地のパスが一意に決まらない"
 NO_NODE = "どのノードの出力にも所見の字が無い"
 # 判定役の status → ノードの表の数の欄
 VERDICTS = {"matched_tp": "hit", "novel_tp": "real", "matched_fp": "wrong", "novel_fp": "wrong"}
@@ -68,7 +71,7 @@ def git(*args: str) -> str:
     return done.stdout
 
 
-def _has(repo: Path, *shas: str) -> bool:
+def has(repo: Path, *shas: str) -> bool:
     return all(subprocess.run(["git", "-C", str(repo), "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True,
                               env={**os.environ, **GIT_ENV, "GIT_NO_LAZY_FETCH": "1"}).returncode == 0 for sha in shas)
 
@@ -80,7 +83,7 @@ def prepare(entry: dict, attempt: Path, cache: Path, mirror: str = MIRROR) -> di
     repo = Path(cache) / name(entry)
     if not repo.is_dir():
         git("init", "-q", "--bare", str(repo))
-    if not _has(repo, base, head):
+    if not has(repo, base, head):
         git("-C", str(repo), "fetch", "-q", mirror.format(name=name(entry)), f"{base}:refs/bench/{base}",
             f"{head}:refs/bench/{head}")
     made = make_target.layout(attempt)
@@ -115,10 +118,10 @@ def refs(text: str) -> list[tuple[str, int, int]]:
 
 
 class HeadTree:
-    """head の版のファイルの行数（パスごとに 1 回だけ読む）"""
+    """head の版のファイルの一覧（1 回だけ取る）と行数（パスごとに 1 回だけ読む）"""
 
     def __init__(self, target: Path, head: str):
-        self.target, self.head, self.seen = Path(target), head, {}
+        self.target, self.head, self.seen, self._files = Path(target), head, {}, None
 
     def lines(self, path: str) -> int | None:
         if path not in self.seen:
@@ -127,12 +130,38 @@ class HeadTree:
             self.seen[path] = len(done.stdout.splitlines()) if done.returncode == 0 else None
         return self.seen[path]
 
-    def place(self, found: list[tuple[str, int, int]]) -> tuple[str, int, int] | None:
+    def files(self) -> set[str]:
+        if self._files is None:
+            done = subprocess.run(["git", "-C", str(self.target), "ls-tree", "-r", "-z", "--name-only", self.head],
+                                  capture_output=True, stdin=subprocess.DEVNULL)
+            self._files = set(done.stdout.decode("utf-8", "surrogateescape").split("\0")) - {""} if done.returncode == 0 else set()
+        return self._files
+
+    def resolve(self, path: str, hints: list[str]) -> list[str]:
+        """head に無いパスの読みの候補。手がかりのパスのうち /<path> で終わる物が head に 1 つだけならそれ、でなければ head の
+        ファイルのうち /<path> で終わる物の全部"""
+        tail = "/" + path
+        by_hint = {h for h in hints if h.endswith(tail)} & self.files()
+        return list(by_hint) if len(by_hint) == 1 else sorted(f for f in self.files() if f.endswith(tail))
+
+    def fits(self, path: str, start: int, end: int) -> bool:
+        n = self.lines(path)
+        return n is not None and 1 <= start <= end <= n
+
+    def place(self, found: list[tuple[str, int, int]], hints: list[str] | None = None) -> tuple[str, int, int, str | None] | str:
+        """最初に head で照らせた番地 (パス, 始め, 終わり, 解く前の番地か None)、照らせなければ捨てる訳。hints が None なら
+        パスを解かない。head に在るパスは行が外れても解かない"""
+        ambiguous = False
         for path, start, end in found:
-            n = self.lines(path)
-            if n is not None and 1 <= start <= end <= n:
-                return path, start, end
-        return None
+            if self.fits(path, start, end):
+                return path, start, end, None
+            if hints is None or self.lines(path) is not None:
+                continue
+            read = self.resolve(path, hints)
+            if len(read) == 1 and self.fits(read[0], start, end):
+                return read[0], start, end, f"{path}:{start}-{end}"
+            ambiguous = ambiguous or len(read) > 1
+        return AMBIGUOUS if ambiguous else NOT_AT_HEAD if found else NO_REF
 
 
 def final_ranges(diff_text: str) -> dict[str, list[tuple[int, int]]]:
@@ -159,16 +188,20 @@ def _walk(doc, path: tuple) -> list:
 
 
 def candidates(source, doc) -> list[dict]:
-    """出どころの 1 つの文書から候補 {source, message, texts, ident[, loc]} の並び"""
+    """出どころの 1 つの文書から候補 {source, message, texts, ident[, hints][, loc]} の並び。hints は番地のパスを解く手がかりの
+    パス（units は key、items は where の中の物）で、構造で場所を持つ findings には無い"""
     out = []
     for row in _walk(doc, source.rows):
         if source.kind == "units":
             k, reason = str(row.get("key") or ""), str(row.get("reason") or "")
-            out.append({"source": source.file, "message": f"[{row.get('label')}] {k}\n{reason}", "texts": [reason, k], "ident": k})
+            out.append({"source": source.file, "message": f"[{row.get('label')}] {k}\n{reason}", "texts": [reason, k], "ident": k,
+                        "hints": HINT.findall(k)})
         elif source.kind == "items":
             said = str(row.get(source.text) or "")
             message = said + (f"\n{row['mechanism']}" if row.get("mechanism") else "")
-            out.append({"source": source.file, "message": message, "texts": [str(row.get("where") or ""), said], "ident": said})
+            where = str(row.get("where") or "")
+            out.append({"source": source.file, "message": message, "texts": [where, said], "ident": said,
+                        "hints": HINT.findall(where)})
         else:
             loc = (row.get("file"), row.get("start_line"), row.get("end_line"))
             if isinstance(loc[0], str) and all(isinstance(n, int) and not isinstance(n, bool) for n in loc[1:]):
@@ -219,16 +252,16 @@ def convert(producer, entry: dict, attempt: Path, run_id: str, base: str, head: 
             continue
         for c in candidates(source, doc):
             found = [c["loc"]] if "loc" in c else [r for t in c["texts"] for r in refs(t)]
-            place = tree.place(found)
-            if place is None:
-                dropped.append({"source": c["source"], "refs": [f"{p}:{s}-{e}" for p, s, e in found],
-                                "why": NOT_AT_HEAD if found else NO_REF})
+            place = tree.place(found, c.get("hints"))
+            if isinstance(place, str):
+                dropped.append({"source": c["source"], "refs": [f"{p}:{s}-{e}" for p, s, e in found], "why": place})
                 continue
-            path, start, end = place
+            path, start, end, written = place
             finding = {"file": path, "start_line": start, "end_line": end, "message": c["message"], "producer": producer.name}
             node = producer.name if "loc" in c else _node(c["ident"], runs)
             findings.append(finding)
-            kept.append({**finding, "source": c["source"], "node": node, "node_why": None if node else NO_NODE,
+            kept.append({**finding, "ref_as_written": written, "source": c["source"], "node": node,
+                         "node_why": None if node else NO_NODE,
                          "in_final_diff": None if ranges is None else _overlaps(ranges, path, start, end)})
     seconds, usd = ended.get("seconds"), ended.get("usd")
     usage = {**({"time_in_ms": int(seconds * 1000)} if seconds is not None else {}),
@@ -241,7 +274,8 @@ def convert(producer, entry: dict, attempt: Path, run_id: str, base: str, head: 
         "why_null": "。".join(([] if usd is not None else [f"usd: {ended.get('usd_from')} が読めない"])
                              + ([] if seconds is not None else ["seconds: run の始めと終わりの時刻が読めない"])),
         "sources": [s.file for s in sources], "unread": unread,
-        "findings": kept, "dropped": dropped, "dropped_count": len(dropped),
+        "findings": kept, "resolved_count": sum(f["ref_as_written"] is not None for f in kept),
+        "dropped": dropped, "dropped_count": len(dropped),
         "final_diff": diff.relative_to(ev).as_posix() if diff else None, "final_diff_why": diff_why,
         "leak_guard": producer.leak_guard, "web_calls": ended.get("web_calls"),
         "bench_limit": {"seconds": CONTRACT_SECONDS, "over": None if seconds is None else seconds > CONTRACT_SECONDS},

@@ -40,7 +40,7 @@ class Row:
         self.node, self.subgraph = node, sub
         self.tasks, self.invocations = set(), 0
         self.seconds, self.usd = [], []
-        self.findings, self.in_final_diff, self.verdicts = 0, Counter(), Counter()
+        self.findings, self.resolved, self.in_final_diff, self.verdicts = 0, 0, Counter(), Counter()
 
     def ran(self, task: str, seconds, seconds_why, usd, usd_why):
         self.tasks.add(task)
@@ -50,6 +50,7 @@ class Row:
 
     def found(self, finding: dict, status: str | None):
         self.findings += 1
+        self.resolved += finding.get("ref_as_written") is not None
         self.in_final_diff[{True: "yes", False: "no"}.get(finding.get("in_final_diff"), "unknown")] += 1
         self.verdicts[reviewbench.VERDICTS.get(status, "unjudged")] += 1
 
@@ -59,6 +60,7 @@ class Row:
         self.seconds += other.seconds
         self.usd += other.usd
         self.findings += other.findings
+        self.resolved += other.resolved
         self.in_final_diff += other.in_final_diff
         self.verdicts += other.verdicts
 
@@ -67,6 +69,7 @@ class Row:
         usd, usd_why = _total(self.usd, "費用", 6)
         return {"node": self.node, "subgraph": self.subgraph, "tasks": len(self.tasks), "invocations": self.invocations,
                 "seconds": seconds, "seconds_why": seconds_why, "usd": usd, "usd_why": usd_why, "findings": self.findings,
+                "resolved": self.resolved,
                 "in_final_diff": {k: self.in_final_diff[k] for k in ("yes", "no", "unknown")},
                 "verdicts": {k: self.verdicts[k] for k in ("hit", "real", "wrong", "unjudged")}}
 
@@ -120,7 +123,8 @@ def _cell(value) -> str:
     return "—" if value is None else str(value)
 
 
-COLUMNS = (("課題", "tasks"), ("起動", "invocations"), ("秒", "seconds"), ("USD", "usd"), ("所見", "findings"))
+COLUMNS = (("課題", "tasks"), ("起動", "invocations"), ("秒", "seconds"), ("USD", "usd"), ("所見", "findings"),
+           ("番地を解いた", "resolved"))
 
 
 def _line(head: list[str], view: dict) -> str:
@@ -135,7 +139,9 @@ def markdown(got: dict) -> str:
     lines = [f"# ノードごとの表（{got['producer']}）", "",
              f"- 公開ベンチの run の、ノードとサブグラフごとの時間・費用・所見の数と行き先。",
              f"- 作り手 {got['producer']}・課題 {got['tasks']} 件・判定役の結果は{'在る' if got['judged'] else '無い（全部 unjudged）'}。",
-             f"- {got['note']}。", "",
+             f"- {got['note']}。",
+             "- 番地を解いた: 所見の番地のパスがファイル名だけで、候補の key・where のパスか head の一意なファイルに推して解いた数"
+             "（元の番地は変換の控えの ref_as_written）。", "",
              "## ノード", "", "| ノード | サブグラフ | " + " | ".join(names) + " |", "|" + " --- |" * (len(names) + 2)]
     lines += [_line([_cell(v["node"]), _cell(v["subgraph"])], v) for v in got["nodes"]]
     lines += ["", "## サブグラフ", "", "| サブグラフ | " + " | ".join(names) + " |", "|" + " --- |" * (len(names) + 1)]
