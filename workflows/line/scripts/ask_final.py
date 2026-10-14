@@ -7,8 +7,9 @@
 開ける理由（needs。今の works の works/darkfactory/lib/line_edge.py の _final_needs の理由のうち、線が返りから読める物）を
 test-gate（final）・fixed・eyes・merge（seal）・judged の返りから 1 つの列に並べ、開くかと冒頭の 1 行目をこの列だけから作る
 （元 _final_needs。開き方 final_gate で開くかは lib/gatepolicy.py の opens）。列の行のうち、守りのパスの当たり（確かめられなかった
-時も）・書き換えを許したテストに触った・人に回した食い違いの申し出・申し出の控えを読めない・修正の段の隣の控えを読めない、は開き方に
-依らず開く（must。通すのは人の答えだけ。元 _guard と line_edge.py:1184-1197）。無人の run で開くはずの時は開かずに止め（needs-human）、merge（apply）を飛ばす。
+時も）・書き換えを許したテストに触った・人に回した食い違いの申し出・申し出の控えを読めない・修正の段の隣の控えを読めない・承認の後に
+受け入れ条件のテストが変わった（spec-check の questions。この関所の答えはその問いに答えない）、は開き方に依らず開く（must。通すのは
+人の答えだけ。元 _guard と line_edge.py:1184-1197）。無人の run で開くはずの時は開かずに止め（needs-human）、merge（apply）を飛ばす。
 申し出は fix・refix-run の conflicts.json（fixed の conflicts の指し札の並び）を lib/conflict.py の asked で数え、文は human_lines の
 行のまま（ask_human と案の直しを諦めた fix_plan_item だけ。直す裁定だけなら開けない）。控えを読めなければ黙って 0 にせず、開ける理由と
 文に訳を出す。判定の役が人に聞くと保留にしたままの問い（held）は冒頭と本文に見せるが、開ける理由には数えない（元 _final_head）。
@@ -21,9 +22,8 @@ querytest.closure_lines の mismatched_only）は、fix の出力の handoffs・
 （差分の見方と一覧）・食い違いの申し出・修正役が人に回した物・減っていない単位・例で試していない単位・閉鎖の数え直し・同じ run で
 直した案の項目 → 最後のテストの一式と修正前のテスト（test-gate の返りの欄のまま）・回さなかった試験と赤緑を確かめずに受けた回・
 ログ・作業ツリー・差分の審査と穴の枝の名札と手直しの結果・異議と再審・構造のブロックが落ちた周・直した後の実測・修正前の関所で
-通した行と往復・許したテストの変更・取り込むと消えるファイル・独立の目・clean とレンズと仕組みの異常・残り・人に聞いている問い
-（記録のまま引く）・保留の問いと答えた問いと当たらなかった
-依頼の答えと読めなかった保留。開いた文は run の置き場の FINAL_GATE_FILE にも残す（元 line_edge.py:887 の final-gate.md）。
+通した行と往復・許したテストの変更・取り込むと消えるファイル・独立の目・clean とレンズと仕組みの異常・残り・承認し直すかの問い・
+人に聞いている問い（記録のまま引く）・保留の問いと答えた問いと当たらなかった依頼の答えと読めなかった保留。開いた文は run の置き場の FINAL_GATE_FILE にも残す（元 line_edge.py:887 の final-gate.md）。
 """
 import json
 import os
@@ -89,6 +89,9 @@ def blocked_eyes(got: dict) -> list:
 def needs(got: dict) -> list:
     """最後の関所を開ける理由の列 [(1 句, 開き方に依らず開くか)]。開くか（ask）と 1 行目（final_head）はこの列だけから作る"""
     why = []
+    if got["spec_changed"]:
+        why.append((f"{gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND]}（{len(got['spec_changed'])} 件。承認し直すかは次の run で答える）",
+                    True))
     unknown, hits = protected(got)
     if unknown:
         why.append((f"{PROTECTED_UNKNOWN}（人の確かめが要る）", True))
@@ -244,6 +247,10 @@ def question_lines(got: dict) -> list:
     """人に聞いている問い（記録のまま引く。元 _final_text の pending_human）・保留の問いと答え方・答えた問い・当たらなかった依頼の
     答え・読めなかった保留。どれも無い時だけ「盤面の問い: 無い」"""
     lines = []
+    if got["spec_changed"]:
+        lines.append(f"- 承認し直すかの問い（{gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND]}・{len(got['spec_changed'])} 件）:")
+        lines += [f"  - {q}" for q in got["spec_changed"]]
+        lines.append("  - この承認ノードの答えはこの問いに答えない（continue でも仕様は承認し直さない）。問いは報告の冒頭と次の run の依頼の下書きへ渡る")
     if got["questions"]:
         lines.append(f"- {gatemarks.named(gatemarks.R4_GATE_NODE)}が人に聞いている問い（記録のまま引く。{len(got['questions'])} 件）:")
         for q in got["questions"]:
@@ -259,7 +266,7 @@ def question_lines(got: dict) -> list:
         lines += [f"  - {x}" for x in got["answered"]]
     lines += [f"- {x}" for x in got["unmatched"]]
     lines += [f"- {x}" for x in got["unread_holds"]]
-    if not (got["questions"] or got["held"] or got["answered"] or got["unmatched"]):
+    if not (got["spec_changed"] or got["questions"] or got["held"] or got["answered"] or got["unmatched"]):
         lines.append("- 共有ボードの問い: 無い")
     return lines
 
@@ -544,6 +551,7 @@ def got_of_env() -> dict:
             "premise_check": env("PREMISE_CHECK"),
         },
         "questions": [q for q in boundary.items(os.environ.get("INPUTS_QUESTIONS")) if isinstance(q, str)],
+        "spec_changed": [q for q in boundary.items(os.environ.get("INPUTS_SPEC_CHANGED")) if isinstance(q, str)],
         "objection": raw["objection"],
         "rejudge_verdict": raw["rejudge_verdict"],
         "rejudge": rejudge_rows(returns),

@@ -37,6 +37,7 @@ after_fix = load("after_fix")
 judged = load("judged")
 fixed = load("fixed")
 redepth = load("redepth")
+spec_check = load("spec_check")
 returned = load("returned")
 collect = load("collect")
 result = load("result")
@@ -1019,6 +1020,17 @@ class AskFinalCase(unittest.TestCase):
     def test_protected_only_ignores_other_reasons(self):
         self.assertFalse(self.ask(self.got(green=False), "protected_only")["open"])
 
+    def test_spec_changed_opens_in_every_mode(self):
+        """#510: 承認の後に受け入れ条件のテストが変わった問いは開き方に依らず開き、1 行目に名指し、この関所の答えが問いに答えないと言う"""
+        q = "承認の後に受け入れ条件のテストが変わった（spec_changed）: test_spec_accept.txt（sha256 aaaaaaaaaaaa → bbbbbbbbbbbb）——承認し直すか"
+        for mode in ("", "when_needed", "protected_only"):
+            with self.subTest(mode=mode):
+                got = self.ask(self.got(spec_changed=[q]), mode)
+                self.assertIs(got["open"], True)
+                self.assertIn(gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND], got["text"].splitlines()[0])
+                self.assertIn(q, got["text"])
+                self.assertIn("この承認ノードの答えはこの問いに答えない", got["text"])
+
     def test_unattended_stops_instead_of_opening(self):
         got = self.ask(self.got(), unattended=True)
         self.assertEqual((got["open"], got["go"], got["stop_reason"]), (False, False, stopby.NEEDS_HUMAN))
@@ -1615,6 +1627,23 @@ class PlanOutNothingOwedCase(Artifacts):
 
     def test_the_node_leaves_another_reason_false(self):
         self.assertFalse(self.read_from_env(self.round_pointer(""))["nothing_owed"])
+
+
+class SpecCheckNodeCase(Artifacts):
+    def test_no_spec_no_question(self):
+        self.assertEqual(spec_check.check("null"), {"questions": [], "stop_reason": ""})
+
+    def test_changed_spec_waits(self):
+        (self.tmp / "test_accept.txt").write_text("変えた\n", encoding="utf-8")
+        (self.artifacts / "judge").mkdir()
+        spec = {"acceptance": [{"key": "A1", "file": "test_accept.txt", "sha256": "a" * 64}]}
+        (self.artifacts / "judge" / "spec.json").write_text(json.dumps(spec), encoding="utf-8")
+        ptr = json.dumps({"type": "archon_artifact", "run_id": RUN, "path": "judge/spec.json"})
+        with contextlib.chdir(self.tmp):
+            got = spec_check.check(ptr)
+        self.assertEqual(got["stop_reason"], stopby.SPEC_CHANGED)
+        self.assertEqual(len(got["questions"]), 1, got)
+        self.assertIn("test_accept.txt", got["questions"][0])
 
 
 class AfterFixAndJudgedCase(Artifacts):

@@ -2014,6 +2014,54 @@ class SpecGateCase(_SpecRepoCase):
         self.assertIn("maybe", got["reason"])
 
 
+class SpecCheckCase(_SpecRepoCase):
+    """修正の後の承認し直すかの問い（元 works/.shared/core/graphloops/rules/review-loop.py:4044 の spec_check）"""
+
+    def frozen(self):
+        self.written()
+        self.assertTrue(ja.spec_take(self.jdir, "review", _review_reply(faces=False), self.repo)["ok"])
+        self.assertIs(ja.spec_ask(self.jdir, self.repo, "run-spec")["ask"], True)
+        self.assertTrue(ja.spec_answer(self.jdir, self.repo, {"decision": "approve", "text": ""})["go"])
+        return self.jdir / specblk.SPEC_FILE
+
+    def test_changed_acceptance_file_is_a_question(self):
+        path = self.frozen()
+        was = ja.read_json(path)["acceptance"][0]["sha256"]
+        self.write_tests(_ACCEPT_TEST + "\n# 弱めた\n")
+        got = ja.spec_questions(path, self.repo)
+        self.assertEqual(len(got), 1, got)
+        for part in ("test_spec_accept.txt", was[:12], "spec_changed", "承認し直すか"):
+            self.assertIn(part, got[0])
+
+    def test_unchanged_is_no_question(self):
+        self.assertEqual(ja.spec_questions(self.frozen(), self.repo), [])
+
+    def test_deleted_file_says_gone(self):
+        path = self.frozen()
+        (self.repo / "test_spec_accept.txt").unlink()
+        got = ja.spec_questions(path, self.repo)
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("消えた", got[0])
+
+    def test_same_file_counted_once(self):
+        path = self.frozen()
+        spec = ja.read_json(path)
+        spec["acceptance"].append({**spec["acceptance"][0], "key": "A2", "name": "test_other"})
+        ja.write_json(path, spec)
+        self.write_tests(_ACCEPT_TEST + "\n# 弱めた\n")
+        self.assertEqual(len(ja.spec_questions(path, self.repo)), 1)
+
+    def test_unreadable_spec_is_a_question_not_silence(self):
+        path = self.jdir / specblk.SPEC_FILE
+        for text in ("{壊れた", json.dumps({"requirements": []}), json.dumps([1])):
+            with self.subTest(text=text):
+                path.write_text(text, encoding="utf-8")
+                got = ja.spec_questions(path, self.repo)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("読めない", got[0])
+        path.unlink()
+        self.assertIn("読めない", ja.spec_questions(path, self.repo)[0])
+
 _UNIT_A = "src/a.py:f — 上限を超えた入力を黙って切る"
 _UNIT_B = "src/b.py:g — 名前の誤り"
 

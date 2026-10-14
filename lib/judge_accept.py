@@ -3193,6 +3193,38 @@ def spec_answer(jdir, root, answer) -> dict:
     return {"go": True, "reason": ""}
 
 
+def spec_check(spec: dict, root) -> list:
+    """元 works/.shared/core/graphloops/rules/review-loop.py:4044。承認済みの仕様（J/spec.json）の受け入れ条件のファイルごとに（同じ
+    ファイルは 1 度、初めに出た順）、今の作業ツリーの sha256 を承認の時の sha256 と照らす。返り 変わったファイルの [{file, from, to}]
+    （消えたファイルの to は None）。仕様の形が違えば KeyError・TypeError（呼び手が「読めない」の問いにする）"""
+    seen, changed = set(), []
+    for a in spec["acceptance"]:
+        f = a["file"]
+        if f in seen:
+            continue
+        seen.add(f)
+        now = _file_sha(root, f)
+        if now != a["sha256"]:
+            changed.append({"file": f, "from": a["sha256"], "to": now})
+    return changed
+
+
+def spec_questions(spec_path, root) -> list:
+    """修正の後の承認し直すかの問い（1 ファイル 1 行）。仕様が無い・読めない・形が違えば、黙って 0 件にせず「読めない」の問いを 1 行返す"""
+    head = f"{gatemarks.KIND_WORDS[gatemarks.SPEC_CHANGED_KIND]}（{gatemarks.SPEC_CHANGED_KIND}）"
+    try:
+        spec = read_json(spec_path)
+        if spec is None:
+            raise FileNotFoundError("ファイルが無い")
+        rows = spec_check(spec, root)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        return [f"承認済みの仕様 {spec_path} を読めない——受け入れ条件のテストが変わったかを確かめられない"
+                f"（{oneline.one_line(f'{type(e).__name__}: {e}')}）"]
+    return [f"{head}: {r['file']}（sha256 {str(r['from'])[:12]} → {'消えた' if r['to'] is None else r['to'][:12]}）——承認し直すか。"
+            "この run の中では答えられない: 変更を確かめて次の run の仕様の段で承認し直すか、テストを承認の版に戻して直す依頼にする"
+            for r in rows]
+
+
 # ---------------------------------------------------------------- 再審（元 works/.shared/core/rejudge.py と写しの rules の rejudge_output）
 REJUDGE_NODE = "p2.rejudge"          # 写しの再審の節（元 rejudge.ROLE_OF の鍵）
 REJUDGE_ROLE = "rejudge"             # 役の名（拒否の控え rejects-rejudge.json の名・差の行の pass）
