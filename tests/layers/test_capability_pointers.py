@@ -8,7 +8,7 @@ docs/works-parity.md の 1 か所だけを直す（その名は tests/layers/tes
 
 tail.md の各領域の穴の「数」と末尾の「穴の要約」は、README.md の「穴の数え方」のとおり行の欄から数えた今の値で、要約は各領域の
 数の足し算（#336・#339）。狭めの並びは欄を読んで人が選ぶので、数と並びの長さ・並びの ID がその領域の行に在ること・
-要約の足し算だけを照らす。
+要約の足し算だけを照らす。並びに戻した行が残る事は tests/layers/test_restored_not_gaps.py が照らす（#349）。
 """
 import ast
 import collections

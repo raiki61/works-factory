@@ -8,6 +8,8 @@ gaps と why の言い回しは読まない（棚卸しの戻した行を名指�
 棚卸しの中でも、ほかの行の ID を名指す行と名指された行の一方が戻した、一方が開いていると書けば赤にする（#536）。照らしは
 名指す ID と、戻したか開いているかの形の在る無しだけで、同じ能力かは読まない。「狭め」の欄の無い行（線への申し送りの S の行）は
 行の字の形を読む。
+
+tail.md の各領域の穴の「狭めたのに Archon が強いていない」の並びに、戻した行が残っていれば赤にする（#349）。
 """
 import copy
 import json
@@ -15,7 +17,7 @@ import pathlib
 import re
 import unittest
 
-from tests.layers.test_capability_pointers import INVENTORY, INVENTORY_ROW_ID, ROW, mention
+from tests.layers.test_capability_pointers import INVENTORY, INVENTORY_ROW_ID, NARROWED, ROW, hole_counts, mention
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 NODES = ROOT / "docs" / "nodes.json"
@@ -29,6 +31,7 @@ PARTIAL = {
     "F411": "(3) は持ち主の答え待ち",
     "F429": "最後の関所の文に並べるのは持ち主の手に渡した",
     "R38": "仕組みの異常は U6 で取れない",
+    "R46": "一部だけ戻した（包み・会話を継いだ起動の数・即時の失敗は戻していない）",
 }
 MENTION = mention(INVENTORY_ROW_ID)
 NARROWING = re.compile(r"^  - 狭め[:：（(\s].*(?:\n    .*)*", re.M)
@@ -107,6 +110,12 @@ def off_form(texts: list[tuple[str, str, str]]) -> list[str]:
     """狭めの欄が戻したと書くのに「→ … 戻した」の形でなく、PARTIAL にも無い所"""
     return [f"{where} {row}" for where, row, text in narrowings(texts)
             if SAYS_RESTORED.search(text) and not RESTORED.search(text) and row not in PARTIAL]
+
+
+def narrowed_but_restored(areas: dict[str, dict[str, tuple[int, str]]], restored: set[str]) -> list[str]:
+    """tail.md の狭めの並びに残る、戻した行"""
+    return [f"{area} の {NARROWED}: {row} は戻した行" for area, counts in sorted(areas.items())
+            for row in counts[NARROWED][1].split("・") if row in restored]
 
 
 def gaps(node, where: str = ""):
@@ -196,6 +205,13 @@ class RestoredNotGapsCase(unittest.TestCase):
     def test_partial_rows_still_say_restored_and_are_not_read(self):
         self.assertTrue(PARTIAL.keys() <= {row for _, row, text in narrowings(self.rows) if SAYS_RESTORED.search(text)})
         self.assertFalse(PARTIAL.keys() & self.restored)
+
+    def test_no_restored_row_stays_in_a_narrowed_list(self):
+        self.assertEqual(narrowed_but_restored(hole_counts()[0], self.restored), [])
+
+    def test_a_restored_row_left_in_a_narrowed_list_is_red(self):
+        areas = {"R": {NARROWED: (2, "R2・R5b")}, "T": {NARROWED: (0, "")}}
+        self.assertEqual(narrowed_but_restored(areas, self.restored), [f"R の {NARROWED}: R5b は戻した行"])
 
     def test_no_restored_row_is_still_named_as_a_hole(self):
         self.assertEqual(still_holes(self.nodes, self.evidence, self.restored), [])
